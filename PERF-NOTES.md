@@ -1,4 +1,4 @@
-# Atom Forge V22/V23 — engine performance notes
+# Atom Forge V22–V24 — engine performance notes
 
 The physics is unchanged: the same potentials, events, step-size rules and energy bookkeeping. What changed is how the
 engine stores and visits particles.
@@ -46,6 +46,21 @@ engine stores and visits particles.
   (`desktop/src-tauri/tauri.conf.json` → `app.security.headers`); a plain page keeps one thread. Settings → Threads
   (auto = all but one), Settings → Run benchmark. Worlds under ~1,500 pairs a thread stay on one thread.
 - Store and list arrays that grow bump `_sharedGen`; the workers are rebound before the next pass (`threadsBind`).
+
+## V24: the serial parts
+- The grid's object list `G.list` is built only when something asks for it (`nearby`, `localPE` …); the force passes use
+  slot indices. `_md` is gone (`_mdI` slots; `_mdL`, `_charged`, `_fastNuc` keep objects).
+- Flag changes (`dead`, `fast`, `rad`) bump `_flagGen`; `listsStale`, the fast-lepton pass and the dead-particle
+  compaction run only when something changed (`_nDead`, `_flagGen !== _flagGenForces`).
+- With threads, the plain integration (no B field, no MD leptons, ≥ 2,000 slots) is shared out as well (`integrateA` →
+  `integrateSlots` in the workers), the workers are woken at the start of the step (`threadsPrewake`), and the main
+  thread takes half a worker's share of the pairs so it is free to drive the pass.
+
+## V24: collider fix
+- Beam particles scattered in a ring's detector (same-charge beams: e⁻ on e⁻, p on p …) are stopped by the detector
+  (`detectorStop`, `p.caught`) instead of flying out through the magnets to the wall, which lost whole bunches as soon as
+  the beams were brought together. The RF's synchronous phase while ramping is 49° (`RF_S0 = 0.75`, was 30°): the same
+  gain per turn with a gentler kick, which roughly halves the energy excursions of a bunch during the ramp.
 
 ## Loops
 `computeForces`, `chooseDt`, `outerA`, `innerSteps`, `outerB`, `computeFast`, `innerDt`, `leptonExtras`, `listsStale`,

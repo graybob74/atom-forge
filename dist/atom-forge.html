@@ -1,4 +1,4 @@
-<title>Atom Forge V23</title>
+<title>Atom Forge V24</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3227,7 +3227,7 @@ class Part {
     this.ljE = 0; this.polarH = false; this.rd = 0.3;
     this.trk = null; this.mark = 0; this.sel = false; this.tLocal = 0;
     this.omB = 0; this.Bl = 0; this.evId = 0; this.capT = 0; this.capN = 0;
-    this.beam = undefined; this.trkKeep = undefined; this.injKick = undefined; this.kickIn = undefined; this.nucProd = undefined;
+    this.beam = undefined; this.trkKeep = undefined; this.injKick = undefined; this.kickIn = undefined; this.nucProd = undefined; this.caught = false;
   }
   get x() { return S.x[this.i]; } set x(v) { S.x[this.i] = v; }
   get y() { return S.y[this.i]; } set y(v) { S.y[this.i] = v; }
@@ -3244,9 +3244,9 @@ class Part {
   get q() { return S.q[this.i]; } set q(v) { S.q[this.i] = v; }
   get qp() { return S.qp[this.i]; } set qp(v) { S.qp[this.i] = v; }
   get k() { return S.k[this.i]; } set k(v) { S.k[this.i] = v; }
-  get dead() { return S.dead[this.i] === 1; } set dead(v) { S.dead[this.i] = v ? 1 : 0; }
-  get fast() { return S.fast[this.i] === 1; } set fast(v) { S.fast[this.i] = v ? 1 : 0; }
-  get rad() { return S.rad[this.i] === 1; } set rad(v) { S.rad[this.i] = v ? 1 : 0; }
+  get dead() { return S.dead[this.i] === 1; } set dead(v) { S.dead[this.i] = v ? 1 : 0; _flagGen++; if (v) _nDead++; }
+  get fast() { return S.fast[this.i] === 1; } set fast(v) { if (S.fast[this.i] !== (v ? 1 : 0)) { S.fast[this.i] = v ? 1 : 0; _flagGen++; } }
+  get rad() { return S.rad[this.i] === 1; } set rad(v) { if (S.rad[this.i] !== (v ? 1 : 0)) { S.rad[this.i] = v ? 1 : 0; _flagGen++; } }
   get fresh() { return S.fresh[this.i] === 1; } set fresh(v) { S.fresh[this.i] = v ? 1 : 0; }
   get ballistic() { return S.ballistic[this.i] === 1; } set ballistic(v) { S.ballistic[this.i] = v ? 1 : 0; }
   get inMD() { return S.inMD[this.i] === 1; } set inMD(v) { S.inMD[this.i] = v ? 1 : 0; }
@@ -3272,6 +3272,7 @@ class Part {
   get mD() { return S.mD[this.i]; } set mD(v) { S.mD[this.i] = v; }
 }
 function newPart(k) { return new Part(k); }
+let _flagGen = 0, _flagGenForces = -1, _nDead = 0; // (changes of dead/fast/rad since the force lists were made; deaths not yet dropped from W.parts)
 /* The slots of W.parts, in its order (_PI[j] = W.parts[j].i), so the per-particle loops run over the store alone. Kept
    in step with the pushes and the compaction here; any other change to W.parts (another array put in its place) is
    caught by partsSync and the mirror rebuilt. */
@@ -3568,7 +3569,7 @@ function enforceValence(p, budget = 0) {
   };
   if (!p.bonds.length || p.used <= lim()) return;
   const set = setOf(molecule(p));
-  const PE0 = G.list.length ? localPE(set) : 0;
+  const PE0 = G.n ? localPE(set) : 0;
   let guard = 0, lastPair = null;
   while (p.bonds.length && guard++ < 12 && p.used > lim()) {
     let w = p.bonds[0];
@@ -3578,7 +3579,7 @@ function enforceValence(p, budget = 0) {
     W.count.broken++;
   }
   if (lastPair && !bondBetween(lastPair[0], lastPair[1])) separate(lastPair[0], lastPair[1]);
-  if (budget === null || !G.list.length) return;
+  if (budget === null || !G.n) return;
   for (const q of [...set]) for (const m of molecule(q)) set.add(m);
   const left = budget - (localPE(set) - PE0);
   if (lastPair) kickPair(lastPair[0], lastPair[1], left);
@@ -3902,10 +3903,20 @@ function Bgrad(x, y, out) { // returns B and fills out=[dB/dx, dB/dy]
 }
 
 /* ------------------------------------------------------------------ spatial grid */
-const G = { cols: 0, rows: 0, cw: 1, ch: 1, hx: 1, hy: 1, head: new Int32Array(1), next: new Int32Array(1), list: [], nb: null, fw: null,
+const G = { cols: 0, rows: 0, cw: 1, ch: 1, hx: 1, hy: 1, head: new Int32Array(1), next: new Int32Array(1), _list: [], _listN: -1, _listGen: -1, n: 0, nb: null, fw: null,
   key: '', px: new Float64Array(16), py: new Float64Array(16), occ: new Int32Array(16), nocc: 0 };
 /* Cell of a point: cells tile the box with a 1 Å margin for closed walls, and exactly for periodic ones, so that the
    cells at opposite edges are neighbours across the boundary (a margin there hid pairs within the cutoff). */
+/* G.list: the particles the grid was built over, as objects, in grid order (made the first time it is asked for after a
+   build: the force pass itself needs slots only). G.n is their number. */
+Object.defineProperty(G, 'list', { get() {
+  if (G._listGen === _gridGen && G._listN === G.n) return G._list;
+  const L = G._list, n = G.n, OBJ = S.obj, idx = _mdI; L.length = n;
+  for (let i = 0; i < n; i++) L[i] = OBJ[idx[i]];
+  G._listGen = _gridGen; G._listN = n;
+  return L;
+} });
+let _gridGen = 0;
 function gridCell(x, y) {
   let cx = Math.floor((x + G.hx) / G.cw), cy = Math.floor((y + G.hy) / G.ch);
   if (W.wall === 'wrap') { cx = ((cx % G.cols) + G.cols) % G.cols; cy = ((cy % G.rows) + G.rows) % G.rows; }
@@ -3917,7 +3928,7 @@ function gridCell(x, y) {
    a few per cent, so a box being resized does not rebuild the grid at every step. */
 const CELL_CAP = 100000;
 const gridCount = (x) => { const f = Math.max(1, Math.floor(x)); return f <= 24 ? f : Math.floor(24 * Math.pow(1.04, Math.floor(Math.log(f / 24) / Math.log(1.04)))); };
-function buildGrid(list, idx) {
+function buildGrid(idx, n) {
   const pad = W.wall === 'wrap' ? 0 : 2, w = W.box.w + pad, h = W.box.h + pad, cs = Math.max(CELL_MIN, Math.sqrt(w * h / CELL_CAP));
   const cols = gridCount(w / cs), rows = gridCount(h / cs);
   const key = cols + 'x' + rows + W.wall;
@@ -3954,9 +3965,8 @@ function buildGrid(list, idx) {
   }
   G.cw = w / cols; G.ch = h / rows; G.hx = w / 2; G.hy = h / 2;
   G.head.fill(-1);
-  const n = list.length;
   if (G.next.length < n) { G.next = new Int32Array(n * 2 + 16); G.px = new Float64Array(n * 2 + 16); G.py = new Float64Array(n * 2 + 16); G.occ = new Int32Array(n * 2 + 16); }
-  G.list = list; G.nocc = 0;
+  G.n = n; G.nocc = 0; _gridGen++;
   const X = S.x, Y = S.y, px = G.px, py = G.py, head = G.head, next = G.next, occ = G.occ;
   for (let i = 0; i < n; i++) {
     const x = X[idx[i]], y = Y[idx[i]];
@@ -4068,12 +4078,13 @@ function nearby(x, y, R, cb) {
   let x0 = ccx - sx, x1 = ccx + sx, y0 = ccy - sy, y1 = ccy + sy;
   if (!wrap) { x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(G.cols - 1, x1); y1 = Math.min(G.rows - 1, y1); }
   else { if (x1 - x0 + 1 >= G.cols) { x0 = 0; x1 = G.cols - 1; } if (y1 - y0 + 1 >= G.rows) { y0 = 0; y1 = G.rows - 1; } }
+  const L = G.list;
   for (let cy = y0; cy <= y1; cy++) {
     const ry = wrap ? ((cy % G.rows) + G.rows) % G.rows : cy;
     for (let cx = x0; cx <= x1; cx++) {
       const rx = wrap ? ((cx % G.cols) + G.cols) % G.cols : cx;
       for (let i = G.head[ry * G.cols + rx]; i !== -1; i = G.next[i]) {
-        const p = G.list[i];
+        const p = L[i];
         if (p.dead) continue;
         let dx = p.x - x, dy = p.y - y;
         if (wrap) { if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw; if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh; }
@@ -4334,7 +4345,7 @@ let MR_MAX = 0;
 function isFarMetal(p) { return p.isMetal && p.k === NUC && p.ne > 0 && !p.dead && !p.fast && !p.rad && 2.1 * p.mR > RC; }
 let _farMetalSeen = false; // (set by setSize when such an atom is made; cleared with the world)
 function farMetalPairs(cb, set) {
-  if (!G.list.length || !_farMetalSeen) return;
+  if (!G.n || !_farMetalSeen) return;
   if (!MR_MAX) for (const el of ELEMENTS) if (el && el.metal) MR_MAX = Math.max(MR_MAX, 2 * el.rc * 1.12);
   const src = set || G.list;
   for (const a of src) {
@@ -4748,16 +4759,16 @@ function angleForces() { angleCentres(); angleKernel(0, AC.n, S.fx, S.fy, W.wall
 
 /* ------------------------------------------------------------------ force computation */
 const _bg = [0, 0];
-let _md = [], _fastNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
+let _fastNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
 let _mdI = new Int32Array(4096), _nmd = 0, _mdLI = new Int32Array(256), _nmdL = 0, _chI = new Int32Array(256), _nch = 0, _mdNI = new Int32Array(4096), _nmdN = 0; // the slots of _md, _mdL, _charged and the MD nuclei
-let _mdGen = 0, _mdPrev = new Int32Array(4096), _nmdPrev = -1; // _mdGen counts the changes of the MD set (_md as a set of slots)
+let _mdGen = 0, _mdPrev = new Int32Array(4096), _nmdPrev = -1, _nFastLep = 0; // _mdGen counts the changes of the MD set (_md as a set of slots)
 function computeForces() {
   if (_profOn) { const t0 = performance.now(), k0 = _tKernels; computeForces1(); _tForces += performance.now() - t0; _nPasses++; if (TH_LAST.used) { _tKernels = k0 + TH_LAST.ms; _tWait += TH_LAST.wait; } return; }
   computeForces1();
 }
 const TH_LAST = { used: 0, ms: 0, wait: 0 }; // (what the last force pass's kernels cost: filled by nucleusPairs)
 function computeForces1() {
-  _md.length = 0; _fastNuc.length = 0; _charged.length = 0; _late.length = 0; _mdL.length = 0; _stiff = 0; _stiffL = 0; _nNucMD = 0;
+  _fastNuc.length = 0; _charged.length = 0; _late.length = 0; _mdL.length = 0; _stiff = 0; _stiffL = 0; _nNucMD = 0;
   const fieldE = hasEfield();
   const parts = W.parts, n = parts.length, PI = partsSync();
   if (_mdI.length < n) _mdI = new Int32Array(n * 2 + 64);
@@ -4766,7 +4777,7 @@ function computeForces1() {
   if (_mdNI.length < n) _mdNI = new Int32Array(n * 2 + 64);
   const FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, DEAD = S.dead, K = S.k, Z = S.Z, RAD = S.rad, FAST = S.fast, Q = S.q, INMD = S.inMD, NEAR = S.nearIon, X = S.x, Y = S.y, OBJ = S.obj;
   const mdI = _mdI, mdLI = _mdLI, chI = _chI, mdNI = _mdNI;
-  let nmd = 0, nmdL = 0, nch0 = 0, nmdN = 0;
+  let nmd = 0, nmdL = 0, nch0 = 0, nmdN = 0, nFastLep = 0;
   for (let j = 0; j < n; j++) {
     const i = PI[j];
     if (DEAD[i] === 1) continue;
@@ -4775,23 +4786,21 @@ function computeForces1() {
     if (k === NUC && Z[i] === 0) continue;       // neutrons fly straight
     if (RAD[i] === 1) continue;
     if (FAST[i] === 1) { // ballistic between collisions, but an applied electric field still pushes on them
-      const p = OBJ[i];
-      if (fieldE && Q[i]) { const E = Efield(X[i], Y[i], p); FX[i] = Q[i] * E[0]; FY[i] = Q[i] * E[1]; }
-      if (k === NUC) _fastNuc.push(p);
+      if (fieldE && Q[i]) { const E = Efield(X[i], Y[i], OBJ[i]); FX[i] = Q[i] * E[0]; FY[i] = Q[i] * E[1]; }
+      if (k === NUC) _fastNuc.push(OBJ[i]); else nFastLep++;
       continue;
     }
-    const p = OBJ[i];
-    _md.push(p); mdI[nmd++] = i; INMD[i] = 1;
-    if (k !== NUC) { _mdL.push(p); mdLI[nmdL++] = i; } else { _nNucMD++; mdNI[nmdN++] = i; }
-    if (k !== NUC || Math.abs(Q[i]) >= 1) { _charged.push(p); chI[nch0++] = i; }
+    mdI[nmd++] = i; INMD[i] = 1;
+    if (k !== NUC) { _mdL.push(OBJ[i]); mdLI[nmdL++] = i; } else { _nNucMD++; mdNI[nmdN++] = i; }
+    if (k !== NUC || Math.abs(Q[i]) >= 1) { _charged.push(OBJ[i]); chI[nch0++] = i; }
   }
-  _nmd = nmd; _nmdL = nmdL; _nch = nch0; _nmdN = nmdN;
+  _nmd = nmd; _nmdL = nmdL; _nch = nch0; _nmdN = nmdN; _flagGenForces = _flagGen; _nFastLep = nFastLep;
   { // has the MD set changed since the last time?
     let same = nmd === _nmdPrev;
     if (same) { const pv = _mdPrev; for (let q = 0; q < nmd; q++) if (pv[q] !== mdI[q]) { same = false; break; } }
     if (!same) { _mdGen++; if (_mdPrev.length < nmd) _mdPrev = new Int32Array(nmd * 2 + 64); _mdPrev.set(mdI.subarray(0, nmd)); _nmdPrev = nmd; }
   }
-  buildGrid(_md, mdI);
+  buildGrid(mdI, nmd);
   if (!vlValid()) vlBuild();
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   if (VL.exTopo !== W.topo || VL.exDirty !== W.dirty) vlExclusions();
@@ -4945,14 +4954,15 @@ function toolForces() {
     // A well (attract) or hill (repel) of depth |s| eV, the same for every particle, so nothing falling in
     // gains more than |s|. Attract is a harmonic trap, U = s·(d/R)²: no force at the centre, so atoms pack
     // at their natural spacing instead of being rammed together. Repel is U = |s|·(1 − d/R)².
-    const R = t.R, R2 = R * R, U0 = Math.abs(t.s);
-    for (const p of _md) {
-      if (p.k !== NUC) continue; // free electrons: leptonExtras
-      const dx = t.x - p.x, dy = t.y - p.y, d2 = dx * dx + dy * dy;
+    const R = t.R, R2 = R * R, U0 = Math.abs(t.s), mdI = _mdI, nmd = _nmd, K = S.k, X = S.x, Y = S.y, FX = S.fx, FY = S.fy;
+    for (let q = 0; q < nmd; q++) {
+      const i = mdI[q];
+      if (K[i] !== NUC) continue; // free electrons: leptonExtras
+      const dx = t.x - X[i], dy = t.y - Y[i], d2 = dx * dx + dy * dy;
       if (d2 > R2 || d2 < 1e-8) continue;
       const d = Math.sqrt(d2);
       const F = t.s > 0 ? 2 * U0 * d / R2 : -2 * U0 * (1 - d / R) / R;
-      p.fx += F * dx / d; p.fy += F * dy / d;
+      FX[i] += F * dx / d; FY[i] += F * dy / d;
     }
   }
   const g = W.grab;
@@ -5210,7 +5220,7 @@ function updateFast(p) {
 /* Ballistic (fast) particles carry no potential energy, so switching modes trades the potential energy
    the particle has (or would have) at its position against its kinetic energy. */
 function switchMode(p, toFast) {
-  if (!G.list.length) { p.fast = toFast; return; }
+  if (!G.n) { p.fast = toFast; return; }
   if (toFast && p.k === NUC && p.bonds.length) {
     // an atom knocked this fast (hundreds of eV) tears out of its molecule: its bonds break, paid from its motion
     // (a flying atom feels no bond, so one kept would gain energy from nowhere as it stretched)
@@ -5235,7 +5245,7 @@ function switchMode(p, toFast) {
   if (!toFast && S.inMD[p.i] === 0 && !_late.includes(p)) _late.push(p); // (inMD: listed when the grid was built)
 }
 function cationNear(p) {
-  if (!G.list.length) return false;
+  if (!G.n) return false;
   let f = false;
   nearby(p.x, p.y, 3.5, (o) => { if (o.k === NUC && o.q * p.q <= -1) { f = true; return false; } });
   return f;
@@ -5287,7 +5297,7 @@ function ejectElectron(p, KE, ux, uy, budget, tunnel) {
   // at the particle cap we skip the ionization entirely (never leave an ion without its electron)
   if (freeElectronCount() >= MAX_FREE_E || W.parts.length >= MAX_PARTS) { W.ledger.bath += KE; return null; }
   const bc = budget === undefined ? breakCostIfCharged(p, -1) : budget;
-  const grid = G.list.length > 0, set = setOf(molecule(p)), sn = snapshot(set);
+  const grid = G.n > 0, set = setOf(molecule(p)), sn = snapshot(set);
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
   const U0 = grid ? localPE(set) : 0;
   p.ne--; refresh(p); enforceValence(p, null);
@@ -5627,7 +5637,7 @@ function elasticScatter(L, A, Erel) {
    kinetic energy of the pair (minus the merged atom's), their mutual and environmental potential energy,
    and the electronic energy. Leaves A unchanged. */
 function joinEnergy(L, A) {
-  const grid = G.list.length > 0, set = setOf(molecule(A)), sn = snapshot(set);
+  const grid = G.n > 0, set = setOf(molecule(A)), sn = snapshot(set);
   const [dx, dy] = minImg(L.x - A.x, L.y - A.y), r2 = dx * dx + dy * dy;
   const qa0 = A.q, lpe = !(L.fast || L.rad); // (a lepton in flight carries no potential energy in the books)
   const V0 = (lpe ? PHYS.KE * L.q * qa0 * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN)) : 0) + (grid ? localPE(set, L) + (lpe ? L.q * phiE(L.x, L.y, A, L) : 0) : 0);
@@ -6520,7 +6530,7 @@ function segTargets(x0, y0, x1, y1, R, filter) {
   _hits.length = 0;
   const dx = x1 - x0, dy = y1 - y0, L2 = dx * dx + dy * dy;
   if (!(L2 > 0)) return _hits;
-  if (G.list.length <= 32) { // few particles in MD (a hot plasma): check them directly
+  if (G.n <= 32) { // few particles in MD (a hot plasma): check them directly
     for (const p of G.list) {
       if (p.dead || !filter(p)) continue;
       const px = p.x - x0, py = p.y - y0, t = (px * dx + py * dy) / L2;
@@ -6534,9 +6544,10 @@ function segTargets(x0, y0, x1, y1, R, filter) {
   const minx = Math.min(x0, x1) - R, maxx = Math.max(x0, x1) + R, miny = Math.min(y0, y1) - R, maxy = Math.max(y0, y1) + R;
   const cx0 = clamp(Math.floor((minx + G.hx) / G.cw), 0, G.cols - 1), cx1 = clamp(Math.floor((maxx + G.hx) / G.cw), 0, G.cols - 1);
   const cy0 = clamp(Math.floor((miny + G.hy) / G.ch), 0, G.rows - 1), cy1 = clamp(Math.floor((maxy + G.hy) / G.ch), 0, G.rows - 1);
+  const L = G.list;
   for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
     for (let i = G.head[cy * G.cols + cx]; i !== -1; i = G.next[i]) {
-      const p = G.list[i];
+      const p = L[i];
       if (p.dead || !filter(p)) continue;
       const px = p.x - x0, py = p.y - y0;
       const t = (px * dx + py * dy) / L2;
@@ -6589,7 +6600,7 @@ function wallOrEscape(p, escape) {
     const [vx, vy] = thermalV(p.m, W.T);
     p.vx = p.x >= hw - 0.61 ? -Math.abs(vx) : p.x <= -hw + 0.61 ? Math.abs(vx) : vx;
     p.vy = p.y >= hh - 0.61 ? -Math.abs(vy) : p.y <= -hh + 0.61 ? Math.abs(vy) : vy;
-    const U = G.list.length ? localPE(new Set([p])) : 0;
+    const U = G.n ? localPE(new Set([p])) : 0;
     W.ledger.escaped += K0 - 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy) - U;
     W.spawned++; _late.push(p); // forces must be recomputed for it
     if (p.trk) { extendTrack(p); p.trk = null; }
@@ -6766,6 +6777,7 @@ function moveRad(p, dt) {
   p.vx = p.sp * p.ux; p.vy = p.sp * p.uy;
   extendTrack(p);
   if (wallOrEscape(p, true)) return;
+  if (p.caught && detectorStop(p)) return;
   // slowed down: hand back to normal dynamics
   const thr = radThreshold(p.k !== NUC) * 0.5;
   if (p.KE < thr) {
@@ -6824,7 +6836,7 @@ function beamCollisions(id0) {
     if (a.dead) continue;
     for (let j = crowded ? 0 : i + 1; j < fl.length; j++) {
       const b = fl[j];
-      if (b.dead || a.dead || b === a || (crowded && b.beam && b.id < a.id) || sameEv(a, b)) continue;
+      if (b.dead || a.dead || b === a || (crowded && b.beam && b.id < a.id) || sameEv(a, b) || a.caught || b.caught) continue;
       const beams = C && a.beam && b.beam;
       if (beams && a.beam === b.beam) continue; // one bunch flies together (and its own space charge is left out)
       const rx = b.ox - a.ox, ry = b.oy - a.oy;
@@ -6909,8 +6921,21 @@ function beamHit(C, a, b, d, x, y, ex, ey) {
   }
   if (!a.dead && !b.dead) {
     const th = nuclearScatter(a, b, d, ex, ey, R);
-    if (th !== null && th > 0.0175) hit(`${la} + ${lb} scattered: ${(th * 180 / Math.PI).toFixed(0)}° in their own frame`);
+    if (th !== null && th > 0.0175) {
+      hit(`${la} + ${lb} scattered: ${(th * 180 / Math.PI).toFixed(0)}° in their own frame`);
+      if (C.kind === 'ring') { a.caught = b.caught = true; a.beam = b.beam = null; } // (off the orbit for good: the detector stops them)
+    }
   }
+}
+/* Beam particles scattered in a ring's detector have left the beam: thrown degrees off the orbit, in a real machine
+   they go through the beam pipe into the detector, which stops them (and that is how it measures them). Here they fly
+   on to the edge of the detector, where their energy is booked as deposited (as at an open wall) and they are gone,
+   instead of flying out through the magnets and across the box (which is what happened before V24: same-charge
+   beams, electron on electron say, lost their whole bunches that way as soon as they were brought together). */
+function detectorStop(p) {
+  const C = W.collider;
+  if (!C || !C.dets || inDetector(C, p.x, p.y)) return false;
+  W.ledger.escaped += p.KE; kill(p); return true;
 }
 /* Lorentz boost of (E, px, py) by velocity (bx, by) (units of c). */
 function boost(E, px, py, bx, by) {
@@ -7051,7 +7076,11 @@ function rampRing() {
   if (C.colliding) { const g = C.rings[0]; C.colTurns += dt * speedOfE(g) / g.circ; }
 }
 const pcOf = (m, KE) => Math.sqrt(KE * KE + 2 * KE * m * AMU_EV); // momentum × c, eV
-const RF_S0 = 0.5, RF_SMAX = Math.sin(Math.PI / 3); // the synchronous phase: 30° from the zero crossing while ramping, at most 60°
+/* The synchronous phase while ramping: about 49° from the zero crossing (sin = 0.75), at most 60°. It used to be 30°, which
+   for the same gain per turn needs 1.5 times the voltage and 2.6 times the restoring slope at the bunch: a kick that big
+   twice a turn made the energy oscillations chaotic, and particles drifting 10–15% off the design energy were lost from
+   the ring at 0.98c and above, where the slip factor is largest. */
+const RF_S0 = 0.75, RF_SMAX = Math.sin(Math.PI / 3);
 function speedOfE(g) { const gam = 1 + g.Es / (g.m * AMU_EV); return PHYS.C * Math.sqrt(1 - 1 / (gam * gam)); }
 
 function moveNeutron(p, dt, c1, c2, kT) {
@@ -7418,6 +7447,11 @@ function outerA(dt) {
     VX[i] = vx; VY[i] = vy;
   }
 }
+/* outerA and the single drift of innerSteps done together, elementwise over the slots, when there is no magnetic field
+   and no free electron in MD (then the inner step is one plain drift). threads.js shares this out; here: not taken. */
+let integrateA = function (dt) { return false; }; // eslint-disable-line no-unused-vars
+let threadsPrewake = function () {}; // (threads.js)
+function integrateAPlain(dt) { return !hasBfield() && _nmdL === 0 && _mdL.length === 0; }
 /* Inner steps: fast half-kick, drift (everything in MD moves), fast forces, lepton events, fast half-kick. */
 function innerSteps(Dt) {
   const hasB = hasBfield(), wrap = W.wall === 'wrap';
@@ -7623,7 +7657,7 @@ function walls(p) {
   if (!p.fast) { // soft walls handle slow particles; only rescue deep escapees, handing back their potential energy
     const m = 1.5;
     if (!(p.x < -hw - m || p.x > hw + m || p.y < -hh - m || p.y > hh + m)) return;
-    const one = p.k === NUC && G.list.length ? new Set([p]) : null, k = wallK(p);
+    const one = p.k === NUC && G.n ? new Set([p]) : null, k = wallK(p);
     const U0 = one ? localPE(one) : 0;
     let dW = 0; // the wall's own energy (used when the full potential energy is not at hand)
     if (p.x < -hw - m) { const d = -hw - p.x; p.x = -hw; dW += 0.5 * k * d * d; p.vx = Math.abs(p.vx); }
@@ -7685,15 +7719,7 @@ function forcesNoEvents() { _noEv = true; computeForces(); _noEv = false; }
 /* All forces at the end of a step; free-electron events were already handled on the inner steps. */
 function outerForces() { _lepEvOff = true; computeForces(); _lepEvOff = false; }
 /* Did any particle change mode (MD, ballistic, radiation) since the force lists were made? */
-function listsStale() {
-  const PI = partsSync(), n = W.parts.length, DEAD = S.dead, RAD = S.rad, FAST = S.fast, K = S.k, Z = S.Z, INMD = S.inMD;
-  for (let j = 0; j < n; j++) {
-    const i = PI[j];
-    if (DEAD[i] === 1) continue;
-    if ((RAD[i] === 0 && FAST[i] === 0 && !(K[i] === NUC && Z[i] === 0)) !== (INMD[i] === 1)) return true;
-  }
-  return false;
-}
+function listsStale() { return _flagGen !== _flagGenForces; } // (a dead, fast or rad flag changed since the lists were made)
 /* Where a step's time goes, summed while PROF.on (the Settings benchmark reads it): the force passes (and inside them the
    kernels' share and the wait for the worker threads), the heat bath, the integrator loops, and the rest. */
 const PROF = { on: false, steps: 0, forces: 0, kernels: 0, wait: 0, bath: 0, integ: 0, total: 0, passes: 0 };
@@ -7713,13 +7739,16 @@ function stepProfiled(dt) {
 let _profOn = false, _tForces = 0, _tKernels = 0, _tWait = 0, _tBath = 0, _tInteg = 0, _nPasses = 0;
 function stepPlain(dt) {
   W.step++;
+  threadsPrewake();
   const id0 = W.nextId; // particles born during this step start flying in the next one
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) moveWalls(dt); else { W.box.uw = 0; W.box.uh = 0; }
   // particles added from outside, or switched between MD and ballistic flight at the end of the last step
   if (W.fSpawn !== W.spawned || listsStale()) { _noEv = true; computeForces(); _noEv = false; }
   let tp = _profOn ? performance.now() : 0;
-  outerA(dt);
-  innerSteps(dt); // everything in MD drifts here; free electrons take their own short steps
+  if (!integrateA(dt)) { // (the threads take the plain case: no magnetic field, no free electrons)
+    outerA(dt);
+    innerSteps(dt); // everything in MD drifts here; free electrons take their own short steps
+  }
   if (_profOn) { const t = performance.now(); _tInteg += t - tp; }
   outerForces();
   const st0 = W.spawned + W.topo + W.dirty - _undone;
@@ -7730,7 +7759,7 @@ function stepPlain(dt) {
   if (_profOn) tp = performance.now();
   outerB(dt);
   if (_profOn) _tBath += performance.now() - tp;
-  moveFastLeptons(dt, id0);
+  if (_nFastLep > 0 || _flagGen !== _flagGenForces) moveFastLeptons(dt, id0); // (none were ballistic when the lists were made, and no flag has changed since)
   const kT = PHYS.KB * W.T, c1 = Math.exp(-W.gamma * dt), c2 = Math.sqrt(Math.max(0, 1 - c1 * c1));
   let nRad = 0;
   {
@@ -7799,7 +7828,8 @@ function stepPlain(dt) {
   W.t += dt;
   if (W.flights.length) landFlights();
   // drop dead particles
-  if (W.step % 4 === 0 || W.parts.length > 3000) {
+  if (_nDead > 0 && (W.step % 4 === 0 || W.parts.length > 3000)) {
+    _nDead = 0;
     let j = 0; const ps = W.parts, PI = partsSync(), DEAD = S.dead, n = ps.length;
     for (let i = 0; i < n; i++) { const si = PI[i]; if (DEAD[si] === 0) { if (j !== i) { PI[j] = si; ps[j] = ps[i]; } j++; } else freeSlot(ps[i]); }
     if (j !== n) { ps.length = j; _piN = j; }
@@ -7908,7 +7938,7 @@ function measure() {
 
 /* ------------------------------------------------------------------ world construction helpers */
 function clearWorld() {
-  dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.tracks.length = 0; W.exo.length = 0;
+  dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.tracks.length = 0; W.exo.length = 0;
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.sources.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null;
   W.grab = null; W.topo++;
@@ -8226,9 +8256,32 @@ function totalEnergy() {
    ========================================================================== */
 const TH = { n: 0, want: 0, workers: [], ctrl: null, prm: null, fx: [], fy: [], cq: [], boundGen: -1, ready: 0, gen: 0, acks: null,
   minPairs: 1500, used: 0, lastMs: 0, state: 'off', note: '' };
-const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5;
+const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7;
 // control layout: [0, n) worker states; then 8 per worker: pair range (2), candidate count, ack, bond range (2), angle range (2); prm: per worker stiffness, then the box
 function thCtrl(w, k) { return TH.n + 8 * w + k; }
+/* outerA + the plain drift for slots s0 ≤ s < s1 (the same arithmetic as engine.js's outerA and innerSteps, elementwise). */
+function integrateSlots(s0, s1, dt) {
+  const h = 0.5 * dt, DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, IM = S.im;
+  const X = S.x, Y = S.y, OX = S.ox, OY = S.oy, FRESH = S.fresh, BALL = S.ballistic;
+  for (let i = s0; i < s1; i++) {
+    if (DEAD[i] === 1 || RAD[i] === 1) continue;
+    const k = K[i];
+    if (k === 0 && Z[i] === 0) continue; // (NUC = 0: neutrons fly straight)
+    OX[i] = X[i]; OY[i] = Y[i]; FRESH[i] = 0;
+    if (FAST[i] === 1) {
+      BALL[i] = k !== 0 ? 1 : 0;
+      if (k !== 0) continue;
+      const vx = VX[i] + h * FX[i] * IM[i], vy = VY[i] + h * FY[i] * IM[i];
+      VX[i] = vx; VY[i] = vy; X[i] += vx * dt; Y[i] += vy * dt;
+      continue;
+    }
+    BALL[i] = 0;
+    const vx = VX[i] + h * (FX[i] - GX[i]) * IM[i], vy = VY[i] + h * (FY[i] - GY[i]) * IM[i];
+    VX[i] = vx; VY[i] = vy;
+    X[i] += vx * dt; Y[i] += vy * dt; // (the drift: innerSteps' one inner step)
+  }
+}
+
 function threadsAvailable() { return SHARED_OK && typeof PAIR_KERNEL_SRC === 'string' && typeof Worker !== 'undefined' && typeof Blob !== 'undefined'; }
 function threadsDefault() { const c = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 2; return Math.max(0, Math.min(15, c - 1)); }
 /* The worker's script: the kernel's constants and helpers as they are here, then the kernel text, then the loop. */
@@ -8240,8 +8293,9 @@ ${zblD.toString()}
 ${zblD2.toString()}
 let S = null, AC = null, BD = null;
 ${PAIR_KERNEL_SRC}
+${integrateSlots.toString()}
 let pi, pj, ex, FXo, FYo, CQ, ctrl, prm, me, nW, bufs;
-const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5;
+const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7;
 function ctrlAt(w, k) { return nW + 8 * w + k; }
 onmessage = (e) => {
   const m = e.data;
@@ -8279,7 +8333,10 @@ onmessage = (e) => {
         FX[s] = fx; FY[s] = fy;
       }
       Atomics.store(ctrl, me, TH_SUMMED); Atomics.notify(ctrl, me);
-    } else if (st === TH_DONE || st === TH_SUMMED) { waitFor(st); } // (the main thread has not reset us yet)
+    } else if (st === TH_INTEG) {
+      integrateSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm[nW + 6]);
+      Atomics.store(ctrl, me, TH_INTEGD); Atomics.notify(ctrl, me);
+    } else if (st === TH_DONE || st === TH_SUMMED || st === TH_INTEGD) { waitFor(st); } // (the main thread has not reset us yet)
   }
 };
 `;
@@ -8342,8 +8399,9 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   if (!threadsReady()) { TH.used = 0; nucleusPairs1(wrap, bw, bh, hw, hh); return; }
   const t0 = performance.now(), n = TH.n, ctrl = TH.ctrl, prm = TH.prm, nb = BD.n, na = AC.n;
   prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh; prm[n + 5] = W.step;
-  // pairs, bonds and angle centres in n + 1 ranges each: the workers' first, the main thread's last
-  const per = Math.ceil(np / (n + 1)), bper = Math.ceil(nb / (n + 1)), aper = Math.ceil(na / (n + 1));
+  // pairs, bonds and angle centres shared out: the workers' ranges first, a half share for the main thread last (it also
+  // dispatches, and must not be the one the others wait for)
+  const per = Math.ceil(np / (n + 0.5)), bper = Math.ceil(nb / (n + 0.5)), aper = Math.ceil(na / (n + 0.5));
   for (let w = 0; w < n; w++) {
     ctrl[thCtrl(w, 0)] = Math.min(np, w * per); ctrl[thCtrl(w, 1)] = Math.min(np, (w + 1) * per);
     ctrl[thCtrl(w, 4)] = Math.min(nb, w * bper); ctrl[thCtrl(w, 5)] = Math.min(nb, (w + 1) * bper);
@@ -8374,6 +8432,25 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   evalCandidates(CQ, nc0);
   TH.used = n + 1; TH.lastMs = performance.now() - t0; TH.tKernel = t1 - t0; TH.tWait = t2 - t1; TH.tRest = TH.lastMs - (t2 - t0); // (the main thread's share, the wait for the workers, the reduction and events)
   TH_LAST.used = n + 1; TH_LAST.ms = TH.lastMs; TH_LAST.wait = TH.tWait;
+};
+/* A nudge at the start of a step: a worker asleep on its word wakes and spins, so the step's passes find it awake. */
+threadsPrewake = function () {
+  if (!TH.n || TH.used < 2) return;
+  const ctrl = TH.ctrl;
+  for (let w = 0; w < TH.n; w++) if (Atomics.load(ctrl, w) === TH_IDLE) Atomics.notify(ctrl, w);
+};
+/* outerA + drift on all threads in the plain case (threads.js's integrateSlots); false when the engine must do it itself. */
+integrateA = function (dt) {
+  if (!TH.n || !integrateAPlain(dt) || S.hi < 2000 || !threadsReady()) return false;
+  const n = TH.n, ctrl = TH.ctrl, hi = S.hi, per = Math.ceil(hi / (n + 0.5));
+  TH.prm[n + 6] = dt;
+  for (let w = 0; w < n; w++) {
+    ctrl[thCtrl(w, 0)] = Math.min(hi, w * per); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * per);
+    Atomics.store(ctrl, w, TH_INTEG); Atomics.notify(ctrl, w);
+  }
+  integrateSlots(Math.min(hi, n * per), hi, dt);
+  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_INTEGD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); }
+  return true;
 };
 
 /* ---- hep.js ---- */

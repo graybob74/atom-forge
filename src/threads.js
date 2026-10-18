@@ -11,9 +11,32 @@
    ========================================================================== */
 const TH = { n: 0, want: 0, workers: [], ctrl: null, prm: null, fx: [], fy: [], cq: [], boundGen: -1, ready: 0, gen: 0, acks: null,
   minPairs: 1500, used: 0, lastMs: 0, state: 'off', note: '' };
-const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5;
+const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7;
 // control layout: [0, n) worker states; then 8 per worker: pair range (2), candidate count, ack, bond range (2), angle range (2); prm: per worker stiffness, then the box
 function thCtrl(w, k) { return TH.n + 8 * w + k; }
+/* outerA + the plain drift for slots s0 ≤ s < s1 (the same arithmetic as engine.js's outerA and innerSteps, elementwise). */
+function integrateSlots(s0, s1, dt) {
+  const h = 0.5 * dt, DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, IM = S.im;
+  const X = S.x, Y = S.y, OX = S.ox, OY = S.oy, FRESH = S.fresh, BALL = S.ballistic;
+  for (let i = s0; i < s1; i++) {
+    if (DEAD[i] === 1 || RAD[i] === 1) continue;
+    const k = K[i];
+    if (k === 0 && Z[i] === 0) continue; // (NUC = 0: neutrons fly straight)
+    OX[i] = X[i]; OY[i] = Y[i]; FRESH[i] = 0;
+    if (FAST[i] === 1) {
+      BALL[i] = k !== 0 ? 1 : 0;
+      if (k !== 0) continue;
+      const vx = VX[i] + h * FX[i] * IM[i], vy = VY[i] + h * FY[i] * IM[i];
+      VX[i] = vx; VY[i] = vy; X[i] += vx * dt; Y[i] += vy * dt;
+      continue;
+    }
+    BALL[i] = 0;
+    const vx = VX[i] + h * (FX[i] - GX[i]) * IM[i], vy = VY[i] + h * (FY[i] - GY[i]) * IM[i];
+    VX[i] = vx; VY[i] = vy;
+    X[i] += vx * dt; Y[i] += vy * dt; // (the drift: innerSteps' one inner step)
+  }
+}
+
 function threadsAvailable() { return SHARED_OK && typeof PAIR_KERNEL_SRC === 'string' && typeof Worker !== 'undefined' && typeof Blob !== 'undefined'; }
 function threadsDefault() { const c = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 2; return Math.max(0, Math.min(15, c - 1)); }
 /* The worker's script: the kernel's constants and helpers as they are here, then the kernel text, then the loop. */
@@ -25,8 +48,9 @@ ${zblD.toString()}
 ${zblD2.toString()}
 let S = null, AC = null, BD = null;
 ${PAIR_KERNEL_SRC}
+${integrateSlots.toString()}
 let pi, pj, ex, FXo, FYo, CQ, ctrl, prm, me, nW, bufs;
-const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5;
+const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7;
 function ctrlAt(w, k) { return nW + 8 * w + k; }
 onmessage = (e) => {
   const m = e.data;
@@ -64,7 +88,10 @@ onmessage = (e) => {
         FX[s] = fx; FY[s] = fy;
       }
       Atomics.store(ctrl, me, TH_SUMMED); Atomics.notify(ctrl, me);
-    } else if (st === TH_DONE || st === TH_SUMMED) { waitFor(st); } // (the main thread has not reset us yet)
+    } else if (st === TH_INTEG) {
+      integrateSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm[nW + 6]);
+      Atomics.store(ctrl, me, TH_INTEGD); Atomics.notify(ctrl, me);
+    } else if (st === TH_DONE || st === TH_SUMMED || st === TH_INTEGD) { waitFor(st); } // (the main thread has not reset us yet)
   }
 };
 `;
@@ -127,8 +154,9 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   if (!threadsReady()) { TH.used = 0; nucleusPairs1(wrap, bw, bh, hw, hh); return; }
   const t0 = performance.now(), n = TH.n, ctrl = TH.ctrl, prm = TH.prm, nb = BD.n, na = AC.n;
   prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh; prm[n + 5] = W.step;
-  // pairs, bonds and angle centres in n + 1 ranges each: the workers' first, the main thread's last
-  const per = Math.ceil(np / (n + 1)), bper = Math.ceil(nb / (n + 1)), aper = Math.ceil(na / (n + 1));
+  // pairs, bonds and angle centres shared out: the workers' ranges first, a half share for the main thread last (it also
+  // dispatches, and must not be the one the others wait for)
+  const per = Math.ceil(np / (n + 0.5)), bper = Math.ceil(nb / (n + 0.5)), aper = Math.ceil(na / (n + 0.5));
   for (let w = 0; w < n; w++) {
     ctrl[thCtrl(w, 0)] = Math.min(np, w * per); ctrl[thCtrl(w, 1)] = Math.min(np, (w + 1) * per);
     ctrl[thCtrl(w, 4)] = Math.min(nb, w * bper); ctrl[thCtrl(w, 5)] = Math.min(nb, (w + 1) * bper);
@@ -159,5 +187,24 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   evalCandidates(CQ, nc0);
   TH.used = n + 1; TH.lastMs = performance.now() - t0; TH.tKernel = t1 - t0; TH.tWait = t2 - t1; TH.tRest = TH.lastMs - (t2 - t0); // (the main thread's share, the wait for the workers, the reduction and events)
   TH_LAST.used = n + 1; TH_LAST.ms = TH.lastMs; TH_LAST.wait = TH.tWait;
+};
+/* A nudge at the start of a step: a worker asleep on its word wakes and spins, so the step's passes find it awake. */
+threadsPrewake = function () {
+  if (!TH.n || TH.used < 2) return;
+  const ctrl = TH.ctrl;
+  for (let w = 0; w < TH.n; w++) if (Atomics.load(ctrl, w) === TH_IDLE) Atomics.notify(ctrl, w);
+};
+/* outerA + drift on all threads in the plain case (threads.js's integrateSlots); false when the engine must do it itself. */
+integrateA = function (dt) {
+  if (!TH.n || !integrateAPlain(dt) || S.hi < 2000 || !threadsReady()) return false;
+  const n = TH.n, ctrl = TH.ctrl, hi = S.hi, per = Math.ceil(hi / (n + 0.5));
+  TH.prm[n + 6] = dt;
+  for (let w = 0; w < n; w++) {
+    ctrl[thCtrl(w, 0)] = Math.min(hi, w * per); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * per);
+    Atomics.store(ctrl, w, TH_INTEG); Atomics.notify(ctrl, w);
+  }
+  integrateSlots(Math.min(hi, n * per), hi, dt);
+  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_INTEGD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); }
+  return true;
 };
 if (typeof module !== 'undefined') module.exports = { TH, threadsSet, threadsAvailable, threadsDefault };
