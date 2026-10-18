@@ -4098,14 +4098,22 @@ function coulombScatter(a, b, bimp) {
   setVel(b, Vx - nx * a.m / M, Vy - ny * a.m / M);
 }
 /* Fast nucleus pairs (hot plasma): continuous collision detection for fusion and Coulomb scattering. */
+let _ffOrd = new Int32Array(0), _ffKey = new Float64Array(0);
 function fastFastNuclear() {
   const n = _fastNuc.length;
   if (n < 2) return;
-  for (let i = 0; i < n; i++) {
-    const a = _fastNuc[i];
+  // in order of x, so each nucleus is checked only against those within 12 Å to its right (a hot world has thousands
+  // of fast nuclei: all pairs would be millions)
+  if (_ffOrd.length < n) { _ffOrd = new Int32Array(n * 2); _ffKey = new Float64Array(n * 2); }
+  const ord = _ffOrd, key = _ffKey;
+  for (let i = 0; i < n; i++) { ord[i] = i; key[i] = _fastNuc[i].ox; }
+  const sub = ord.subarray(0, n); sub.sort((p, q) => key[p] - key[q] || p - q);
+  for (let ii = 0; ii < n; ii++) {
+    const a = _fastNuc[ord[ii]];
     if (a.dead || a.Z < 1) continue;
-    for (let j = i + 1; j < n; j++) {
-      const b = _fastNuc[j];
+    for (let jj = ii + 1; jj < n; jj++) {
+      if (key[ord[jj]] - a.ox > 12) break;
+      const b = _fastNuc[ord[jj]];
       if (b.dead || b.Z < 1 || sameEv(a, b)) continue;
       if (a.beam && b.beam && W.collider) continue; // (a collider's beams meet in beamCollisions; a bunch's own particles ignore each other)
       const rx = b.ox - a.ox, ry = b.oy - a.oy;
