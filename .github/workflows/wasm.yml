@@ -1,0 +1,40 @@
+# Builds the WebAssembly force kernel (kernel/, Rust) with shared memory and atomics for the worker threads.
+# Runs when the kernel changes and by hand (Actions → "WebAssembly kernel" → Run workflow); the module is attached to the
+# run as the artifact "kernel-wasm". Copy it to src/wasm/kernel.wasm and commit it: build.js embeds it in the page.
+name: WebAssembly kernel
+on:
+  push:
+    paths: ['kernel/**', '.github/workflows/wasm.yml']
+  workflow_dispatch:
+jobs:
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+          targets: wasm32-unknown-unknown
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: kernel }
+      - name: Build (std rebuilt with atomics, memory imported and shared, stacks movable)
+        working-directory: kernel
+        env:
+          RUSTFLAGS: >-
+            -C target-feature=+atomics,+bulk-memory,+mutable-globals
+            -C link-arg=--import-memory -C link-arg=--shared-memory -C link-arg=--max-memory=1073741824
+            -C link-arg=--export=__stack_pointer -C link-arg=--export=__heap_base
+            -C link-arg=--stack-first -C link-arg=-zstack-size=1048576
+        run: cargo build --release --target wasm32-unknown-unknown -Zbuild-std=std,panic_abort
+      - name: Report
+        run: |
+          ls -la kernel/target/wasm32-unknown-unknown/release/atom_forge_kernel.wasm
+          node -e "
+            const fs=require('fs'); const b=fs.readFileSync('kernel/target/wasm32-unknown-unknown/release/atom_forge_kernel.wasm');
+            const m=new WebAssembly.Module(b); console.log('imports', JSON.stringify(WebAssembly.Module.imports(m))); console.log('exports', WebAssembly.Module.exports(m).map(e=>e.name+':'+e.kind).join(' '));
+            const mem=new WebAssembly.Memory({initial:256,maximum:16384,shared:true}); const i=new WebAssembly.Instance(m,{env:{memory:mem}});
+            console.log('K_COUL', i.exports.af_const(0), 'heap_base', i.exports.__heap_base.value, 'stack_pointer', i.exports.__stack_pointer.value);"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kernel-wasm
+          path: kernel/target/wasm32-unknown-unknown/release/atom_forge_kernel.wasm
