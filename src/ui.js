@@ -2435,10 +2435,12 @@ function applySettings() {
 }
 /* What the threads row says: whether this page can use workers at all, and how many are in use. */
 function threadsNote() {
-  if (!threadsAvailable()) return 'One thread: this page is not cross-origin isolated, so the browser allows no shared memory. The desktop app runs the pair forces on all your processor\u2019s threads.';
+  const nwk = TH.wasmOn.filter(Boolean).length, workers = TH.n ? ` (${nwk === TH.n ? 'all' : nwk + ' of ' + TH.n} workers too)` : '';
+  const kernel = WK.ready ? (WK.use ? ` Force kernel: WebAssembly${workers}.` : ' Force kernel: JavaScript (WebAssembly off).') : WK.on ? ` Force kernel: JavaScript (WebAssembly ${WK.note}).` : ' Force kernel: JavaScript.';
+  if (!threadsAvailable()) return 'One thread: this page is not cross-origin isolated, so the browser allows no shared memory. The desktop app runs the pair forces on all your processor\u2019s threads.' + kernel;
   const c = navigator.hardwareConcurrency || '?';
-  if (!TH.n) return `One thread (this computer has ${c}).`;
-  return `${TH.n + 1} threads of ${c}${TH.state === 'starting' ? ', starting up' : TH.used ? ', in use' : ' (used once a world is big enough: the small ones run on one thread)'}.`;
+  if (!TH.n) return `One thread (this computer has ${c}).` + kernel;
+  return `${TH.n + 1} threads of ${c}${TH.state === 'starting' ? ', starting up' : TH.used ? ', in use' : ' (used once a world is big enough: the small ones run on one thread)'}.` + kernel;
 }
 /* The benchmark: the three reference worlds, each built and stepped here, with the time of a step, what a 10 ms frame
    affords and the speed that gives. Replaces the current setup (it is reloaded afterwards). */
@@ -2479,7 +2481,7 @@ function benchStart() {
       PROF.on = false;
       const dt = adv / (3 * N), spf = 10 / best, speed = Math.min(100, 100 * spf * dt / W.simPerFrame), ns = PROF.steps || 1;
       const f = (v) => (v / ns).toFixed(2);
-      BENCH.rows.push(`${name}: ${best.toFixed(2)} ms a step on ${TH.used || 1} thread${(TH.used || 1) > 1 ? 's' : ''}, ${spf.toFixed(1)} steps in a 10 ms frame, ${speed.toFixed(0)}% of full speed` +
+      BENCH.rows.push(`${name}: ${best.toFixed(2)} ms a step on ${TH.used || 1} thread${(TH.used || 1) > 1 ? 's' : ''}${wasmReady() ? ', WebAssembly kernel' : ''}, ${spf.toFixed(1)} steps in a 10 ms frame, ${speed.toFixed(0)}% of full speed` +
         ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)}; ${(PROF.passes / ns).toFixed(2)} force passes a step]`);
       show(''); setTimeout(next, 30);
     }, 30);

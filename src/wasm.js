@@ -21,7 +21,8 @@ const WK = { on: false, use: true, ready: false, mem: null, module: null, inst: 
 const WK_PAGE = 65536;
 /* Base64 to bytes (no atob in every worker-less environment; this is small and runs once). */
 function wasmBytes(b64) {
-  if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(b64, 'base64'));
+  const B = globalThis.Buffer; // (Node: no atob needed)
+  if (B) return new Uint8Array(B.from(b64, 'base64'));
   const s = atob(b64), out = new Uint8Array(s.length);
   for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
   return out;
@@ -53,7 +54,7 @@ function wasmArray(T, n) { const off = wasmAlloc(n * T.BYTES_PER_ELEMENT); retur
    until it is ready the JavaScript kernels run. */
 function wasmLoadModule() {
   if (!WK.on) return;
-  const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
+  const pr = globalThis.process, isNode = !!(pr && pr.versions && pr.versions.node);
   try {
     if (isNode) { WK.module = new WebAssembly.Module(WK.bytes); wasmInstantiate(); }
     else WebAssembly.compile(WK.bytes).then((m) => { WK.module = m; wasmInstantiate(); }, (e) => { WK.note = 'compile: ' + (e.message || e); WK.on = false; });

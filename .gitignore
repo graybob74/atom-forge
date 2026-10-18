@@ -3,3 +3,4 @@ desktop/dist-app/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
 tests/.tmp/
+kernel/target/

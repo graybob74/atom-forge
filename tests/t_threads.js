@@ -60,6 +60,25 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
     return { same: diff(F2a, F2b), vs1: diff(F2a, F1), ev2n: ev2.split(' ').length, evSame: ev1 === ev2, ms1, ms2, drift: tot() - E0, used: TH.used, nEv: W.evq.length };
   });
   say('forces:', JSON.stringify(r));
+  // the WebAssembly kernel: ready in the page (the module compiles in the background), on the worker too, and the
+  // forces on two threads with it agree with the JavaScript kernels on two threads to rounding
+  const hasWasm = fs.existsSync(path.join(__dirname, '..', 'src', 'wasm', 'kernel.wasm'));
+  await page.waitForFunction(() => WK.ready || !WK.on, null, { timeout: 15000 }).catch(() => {});
+  const wk = await page.evaluate(() => {
+    const n = S.hi, copy = () => [Float64Array.from(S.fx.subarray(0, n)), Float64Array.from(S.fy.subarray(0, n))];
+    const diff = (A, B) => { let m = 0, scale = 0; for (let i = 0; i < n; i++) { m = Math.max(m, Math.abs(A[0][i] - B[0][i]), Math.abs(A[1][i] - B[1][i])); scale = Math.max(scale, Math.abs(A[0][i]), Math.abs(A[1][i])); } return { m, scale }; };
+    const evs = () => W.evq.map(e => e.type + ':' + (e.a && e.a.id) + ':' + (e.b && e.b.id)).join(' ');
+    WK.use = true; computeForces(); const Fw = copy(), evw = evs(); W.evq.length = 0; const usedW = TH.used;
+    WK.use = false; computeForces(); const Fj = copy(), evj = evs(); W.evq.length = 0; const usedJ = TH.used;
+    WK.use = true;
+    return { on: WK.on, ready: WK.ready, note: WK.note, workers: TH.wasmOn.slice(0, TH.n), usedW, usedJ, vs: diff(Fw, Fj), evSame: evw === evj, grows: WK.grows, mb: +(WK.top / 1048576).toFixed(1) };
+  });
+  say('wasm:', JSON.stringify(wk));
+  if (hasWasm) {
+    check(wk.on && wk.ready, 'the WebAssembly kernel is ready in the isolated page', wk.note);
+    check(wk.workers.length === 1 && wk.workers[0] === true, 'the worker runs the WebAssembly kernel too', wk.workers);
+    check(wk.usedW === 2 && wk.usedJ === 2 && wk.vs.m <= 1e-9 * Math.max(1, wk.vs.scale) && wk.evSame, 'WebAssembly and JavaScript kernels on two threads: forces equal to rounding, same events', wk);
+  } else say('(no src/wasm/kernel.wasm: the WebAssembly checks are skipped)');
   check(r.same.m === 0, 'two threads twice: forces identical to the bit', r.same);
   check(r.vs1.m <= 1e-9 * Math.max(1, r.vs1.scale), 'two threads vs one: forces equal to rounding', r.vs1);
   check(r.evSame, 'two threads vs one: the same events queued, in the same order');
@@ -83,6 +102,9 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   const fb = await p2.evaluate(() => { setSetting('threads', '4'); forcesNoEvents(); return { iso: crossOriginIsolated, avail: threadsAvailable(), n: TH.n, state: TH.state, t: W.t, note: document.getElementById('setThreads').textContent }; });
   say('plain page:', JSON.stringify(fb));
   check(!fb.iso && !fb.avail && fb.n === 0 && err2.length === 0, 'plain page runs on one thread without errors', err2.slice(0, 2).join('\n'));
+  const fbw = await p2.evaluate(() => ({ on: WK.on, ready: WK.ready, note: WK.note }));
+  say('plain page kernel:', JSON.stringify(fbw));
+  check(!fbw.on && !fbw.ready, 'plain page (no shared memory) keeps the JavaScript kernels', fbw);
   await browser.close(); server.close();
   say(fails ? `${fails} thread failure(s)` : 'thread checks passed');
   process.exitCode = fails ? 1 : 0;

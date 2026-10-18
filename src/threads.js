@@ -10,7 +10,7 @@
    to one thread). The kernel's text is embedded by build.js as PAIR_KERNEL_SRC.
    ========================================================================== */
 const TH = { n: 0, want: 0, workers: [], ctrl: null, prm: null, fx: [], fy: [], cq: [], boundGen: -1, ready: 0, gen: 0, acks: null,
-  minPairs: 1500, used: 0, lastMs: 0, state: 'off', note: '', wks: null, stacks: [] };
+  minPairs: 1500, used: 0, lastMs: 0, state: 'off', note: '', wks: null, stacks: [], wasmOn: [] };
 const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7;
 // control layout: [0, n) worker states; then 8 per worker: pair range (2), candidate count, ack, bond range (2), angle range (2); prm: per worker stiffness, then the box
 function thCtrl(w, k) { return TH.n + 8 * w + k; }
@@ -73,6 +73,7 @@ onmessage = (e) => {
       } catch (err) { wasm = null; wex = null; console.warn('Atom Forge worker: WebAssembly kernel unavailable, using JavaScript:', err.message || err); }
     }
     if (m.wasm) { descOff = m.wasm.desc; ksOff = m.wasm.ks; sumTabOff = m.wasm.sumTab; ksArr = new Float64Array(mem.buffer, ksOff, 16); }
+    postMessage({ type: 'kernel', wasm: !!wex, me });
     Atomics.store(ctrl, me, TH_IDLE); // (a rebind request left on our word is served by this message)
     Atomics.store(ctrl, ctrlAt(me, 3), m.gen); // bound: the acknowledgement
   }
@@ -124,7 +125,7 @@ function threadsSet(want) {
   TH.want = want;
   if (want === TH.n && TH.workers.length === want) return;
   for (const w of TH.workers) w.terminate();
-  TH.workers = []; TH.n = want; TH.boundGen = -1; TH.ready = 0; TH.fx = []; TH.fy = []; TH.cq = [];
+  TH.workers = []; TH.n = want; TH.boundGen = -1; TH.ready = 0; TH.fx = []; TH.fy = []; TH.cq = []; TH.wasmOn = [];
   TH.state = want ? 'starting' : (threadsAvailable() ? 'off' : 'unavailable');
   if (!want) return;
   const url = URL.createObjectURL(new Blob([workerSource()], { type: 'text/javascript' }));
@@ -133,6 +134,7 @@ function threadsSet(want) {
   for (let w = 0; w < want; w++) {
     const wk = new Worker(url);
     wk.onerror = (e) => { TH.note = 'worker error: ' + (e.message || e); console.warn('Atom Forge threads:', TH.note); threadsSet(0); };
+    wk.onmessage = (e) => { if (e.data && e.data.type === 'kernel') TH.wasmOn[e.data.me] = e.data.wasm; };
     TH.workers.push(wk);
   }
 }
