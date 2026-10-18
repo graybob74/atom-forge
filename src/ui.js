@@ -2501,7 +2501,7 @@ function syncSettings() {
   if ($('setModal').hidden) return;
   $('setPerf').checked = perfOn();
   setSegValue('segMax', SET.maxParts); setSegValue('segRes', SET.res); setSegValue('segBudget', SET.budget); setSegValue('segThreads', String(SET.threads));
-  $('setThreads').textContent = threadsNote();
+  try { $('setThreads').textContent = threadsNote(); } catch (e) { $('setThreads').textContent = 'Threads: ' + e.message; }
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit);
   $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo;
   const nm = Object.values(MOLECULES).filter(m => m.cat === 'custom').length;
@@ -2511,9 +2511,10 @@ function syncSettings() {
 }
 function settingsStats() {
   const n = W.parts.filter(p => !p.dead).length;
-  $('setStats').textContent = `Now: ${n.toLocaleString('en-US')} particles of ${MAX_PARTS.toLocaleString('en-US')}, about ${Math.round(UI.fpsNow || UI.fps || 60)} frames a second.`;
+  $('setStats').textContent = `Now: ${n.toLocaleString('en-US')} particles of ${MAX_PARTS.toLocaleString('en-US')}, about ${Math.round(UI.fpsNow || UI.fps || 60)} frames a second.` + (UI.lastError ? ` Last script error: ${UI.lastError}` : '');
   if (!BENCH.busy) $('setThreads').textContent = threadsNote();
 }
+window.addEventListener('error', (e) => { UI.lastError = `${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`; });
 function openSettings() { $('setModal').hidden = false; syncSettings(); showModal('setModal'); }
 /* A button that does its work on a second press (within 3 s): for deleting what cannot be brought back. */
 function twoPress(b, fn) {

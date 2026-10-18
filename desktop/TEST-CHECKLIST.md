@@ -21,4 +21,4 @@ if Windows lacks it (Windows 11 has it).
 7. **Fonts.** With no internet the app falls back to system fonts (Google Fonts are blocked by the isolation headers
    unless fetched with CORS, which the page now does) — looks slightly different, works the same.
 
-If anything fails, the app's console is reachable with F12 in debug builds; in release builds just describe what you saw.
+If anything fails: press F12 (or right-click → Inspect) in the app to open the developer tools, click the Console tab and send me a screenshot of any red lines; Settings also shows the last script error under the particle count.
