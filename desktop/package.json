@@ -1,0 +1,14 @@
+{
+  "name": "atom-forge-desktop",
+  "version": "0.23.0",
+  "private": true,
+  "description": "Atom Forge desktop shell (Tauri)",
+  "scripts": {
+    "tauri": "tauri",
+    "build": "tauri build",
+    "dev": "tauri dev"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}
