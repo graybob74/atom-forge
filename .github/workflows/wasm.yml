@@ -1,6 +1,6 @@
 # Builds the WebAssembly force kernel (kernel/, Rust) with shared memory and atomics for the worker threads.
 # Runs when the kernel changes and by hand (Actions → "WebAssembly kernel" → Run workflow); the module is attached to the
-# run as the artifact "kernel-wasm". Copy it to src/wasm/kernel.wasm and commit it: build.js embeds it in the page.
+# run as the artifact "kernel-wasm" and committed to the branch as src/wasm/kernel.wasm (build.js embeds it in the page).
 name: WebAssembly kernel
 on:
   push:
@@ -9,6 +9,8 @@ on:
 jobs:
   wasm:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
@@ -26,15 +28,26 @@ jobs:
             -C link-arg=--export=__stack_pointer -C link-arg=--export=__heap_base
             -C link-arg=--stack-first -C link-arg=-zstack-size=1048576
         run: cargo build --release --target wasm32-unknown-unknown -Zbuild-std=std,panic_abort
-      - name: Report
+      - name: Check the module and write the report
         run: |
-          ls -la kernel/target/wasm32-unknown-unknown/release/atom_forge_kernel.wasm
+          mkdir -p src/wasm
+          cp kernel/target/wasm32-unknown-unknown/release/atom_forge_kernel.wasm src/wasm/kernel.wasm
           node -e "
-            const fs=require('fs'); const b=fs.readFileSync('kernel/target/wasm32-unknown-unknown/release/atom_forge_kernel.wasm');
-            const m=new WebAssembly.Module(b); console.log('imports', JSON.stringify(WebAssembly.Module.imports(m))); console.log('exports', WebAssembly.Module.exports(m).map(e=>e.name+':'+e.kind).join(' '));
+            const fs=require('fs'); const b=fs.readFileSync('src/wasm/kernel.wasm');
+            const m=new WebAssembly.Module(b); const out=[];
+            out.push('built from ' + process.env.GITHUB_SHA + ' (' + b.length + ' bytes)');
+            out.push('imports ' + JSON.stringify(WebAssembly.Module.imports(m)));
+            out.push('exports ' + WebAssembly.Module.exports(m).map(e=>e.name+':'+e.kind).join(' '));
             const mem=new WebAssembly.Memory({initial:256,maximum:16384,shared:true}); const i=new WebAssembly.Instance(m,{env:{memory:mem}});
-            console.log('K_COUL', i.exports.af_const(0), 'heap_base', i.exports.__heap_base.value, 'stack_pointer', i.exports.__stack_pointer.value);"
+            out.push('K_COUL ' + i.exports.af_const(0) + ' heap_base ' + i.exports.__heap_base.value + ' stack_pointer ' + i.exports.__stack_pointer.value);
+            console.log(out.join('\n')); fs.writeFileSync('src/wasm/REPORT.txt', out.join('\n') + '\n');"
+      - name: Commit the module to this branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/wasm/kernel.wasm src/wasm/REPORT.txt
+          git diff --cached --quiet && echo "module unchanged" || (git commit -m "kernel.wasm: built from ${GITHUB_SHA::7}" && git push origin HEAD:${GITHUB_REF_NAME})
       - uses: actions/upload-artifact@v4
         with:
           name: kernel-wasm
-          path: kernel/target/wasm32-unknown-unknown/release/atom_forge_kernel.wasm
+          path: src/wasm/kernel.wasm
