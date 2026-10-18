@@ -85,10 +85,10 @@ const S_U8 = ['k', 'dead', 'fast', 'rad', 'fresh', 'ballistic', 'inMD', 'nearIon
 const S_I16 = ['Z', 'ne', 'cap', 'used', 'lp'], S_I32 = ['mol', 'id', 'hit'];
 const S_ALL = S_F64.concat(S_U8, S_I16, S_I32);
 const S_BOOL = new Set(['dead', 'fast', 'rad', 'fresh', 'ballistic', 'inMD', 'nearIon', 'ionic', 'isMetal', 'anti', 'xferD', 'xferA', 'metal']);
-/* Typed arrays the worker threads must see (the store, the neighbour list) are made on SharedArrayBuffers where the page
-   can have workers at all; elsewhere (Node, a page that is not cross-origin isolated) they are ordinary arrays. */
-const SHARED_OK = typeof SharedArrayBuffer !== 'undefined' && typeof Worker !== 'undefined' && (typeof crossOriginIsolated === 'undefined' || crossOriginIsolated);
-function shArray(T, n) { return SHARED_OK ? new T(new SharedArrayBuffer(n * T.BYTES_PER_ELEMENT)) : new T(n); }
+/* Typed arrays the worker threads must see (the store, the neighbour list, the force buffers): in the WebAssembly
+   kernel's memory when there is one (wasm.js), else on SharedArrayBuffers where the page can have workers at all, else
+   ordinary arrays (a page that is not cross-origin isolated). */
+function shArray(T, n) { return WK.on ? wasmArray(T, n) : SHARED_OK ? new T(new SharedArrayBuffer(n * T.BYTES_PER_ELEMENT)) : new T(n); }
 let _sharedGen = 0; // (bumped whenever a shared array is replaced: the workers must be rebound)
 function storeGrow(cap) {
   const re = (name, T) => { const a = shArray(T, cap); if (S[name]) a.set(S[name]); S[name] = a; };
@@ -969,15 +969,19 @@ function vlExclusions() {
 function vlInvalidate() { VL.valid = false; }
 /* The forces of all the nucleus pairs in the neighbour list, with their event candidates. One thread here; threads.js
    replaces this when workers are available. */
-let _CQ = new Int32Array(4096);
-function candidateRoom(np) { const need = 9 * np + 64; if (_CQ.length < need) _CQ = new Int32Array(need); return _CQ; } // (at most three candidates a pair, one a bond)
+let _CQ = shArray(Int32Array, 4096);
+function candidateRoom(np) { const need = 9 * np + 64; if (_CQ.length < need) _CQ = shArray(Int32Array, need); return _CQ; } // (at most three candidates a pair, one a bond)
 let nucleusPairs = function (wrap, bw, bh, hw, hh) {
   bondArrays(); angleCentres();
   const CQ = candidateRoom(VL.np + BD.n), t0 = _profOn ? performance.now() : 0;
   _kStiff = 0;
-  let nc = pairKernel(VL.pi, VL.pj, VL.ex, 0, VL.np, S.fx, S.fy, CQ, 0, wrap, bw, bh, hw, hh, W.step);
-  nc = bondKernel(0, BD.n, S.fx, S.fy, CQ, nc, wrap, bw, bh, hw, hh);
-  angleKernel(0, AC.n, S.fx, S.fy, wrap, bw, bh, hw, hh);
+  let nc;
+  if (wasmReady()) { wasmDesc(); nc = wasmForces(0, VL.np, 0, BD.n, 0, AC.n, S.fx, S.fy, CQ, wrap, bw, bh, hw, hh, W.step); }
+  else {
+    nc = pairKernel(VL.pi, VL.pj, VL.ex, 0, VL.np, S.fx, S.fy, CQ, 0, wrap, bw, bh, hw, hh, W.step);
+    nc = bondKernel(0, BD.n, S.fx, S.fy, CQ, nc, wrap, bw, bh, hw, hh);
+    angleKernel(0, AC.n, S.fx, S.fy, wrap, bw, bh, hw, hh);
+  }
   if (_kStiff > _stiff) _stiff = _kStiff; _kStiff = 0;
   if (_profOn) { _tKernels += performance.now() - t0; TH_LAST.used = 0; }
   evalCandidates(CQ, nc);
@@ -1490,7 +1494,7 @@ function angleKernel(c0, c1, FXo, FYo, wrap, bw, bh, hw, hh) {
       const o = nbs[b0 + i];
       let dx = X[o] - px, dy = Y[o] - py;
       if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
-      const rr = Math.hypot(dx, dy);
+      const rr = Math.sqrt(dx * dx + dy * dy); // (not Math.hypot: its overflow guard costs more than the whole centre)
       _nbr[i] = o; _rad[i] = rr < 0.3 ? 0.3 : rr; _ord[i] = i;
       if (rr > 0) { _sn[i] = dy / rr; _cs[i] = dx / rr; } else { _sn[i] = 0; _cs[i] = 1; } // (sin and cos of the bond's direction)
       if (n > 2) _ang[i] = Math.atan2(dy, dx);
@@ -5155,3 +5159,4 @@ function totalEnergy() {
   }
   return { ke, pe, internal, esc: W.ledger.escaped, total: ke + pe + internal + W.ledger.escaped };
 }
+wasmLoadModule(); // (the kernel module, now that its constants exist to be checked)

@@ -10,7 +10,7 @@
    to one thread). The kernel's text is embedded by build.js as PAIR_KERNEL_SRC.
    ========================================================================== */
 const TH = { n: 0, want: 0, workers: [], ctrl: null, prm: null, fx: [], fy: [], cq: [], boundGen: -1, ready: 0, gen: 0, acks: null,
-  minPairs: 1500, used: 0, lastMs: 0, state: 'off', note: '' };
+  minPairs: 1500, used: 0, lastMs: 0, state: 'off', note: '', wks: null, stacks: [], wasmOn: [] };
 const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7;
 // control layout: [0, n) worker states; then 8 per worker: pair range (2), candidate count, ack, bond range (2), angle range (2); prm: per worker stiffness, then the box
 function thCtrl(w, k) { return TH.n + 8 * w + k; }
@@ -49,19 +49,31 @@ ${zblD2.toString()}
 let S = null, AC = null, BD = null;
 ${PAIR_KERNEL_SRC}
 ${integrateSlots.toString()}
-let pi, pj, ex, FXo, FYo, CQ, ctrl, prm, me, nW, bufs;
+let pi, pj, ex, FXo, FYo, CQ, ctrl, prm, me, nW, bufs, mem = null, wasm = null, wex = null, descOff = 0, ksOff = 0, ksArr = null, sumTabOff = 0;
 const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7;
 function ctrlAt(w, k) { return nW + 8 * w + k; }
 onmessage = (e) => {
   const m = e.data;
   if (m.type === 'bind') {
-    S = {}; for (const k in m.S) S[k] = new self[m.S[k].t](m.S[k].b);
-    pi = new Int32Array(m.pi); pj = new Int32Array(m.pj); ex = new Uint8Array(m.ex);
-    AC = {}; for (const k in m.AC) AC[k] = new self[m.AC[k].t](m.AC[k].b);
-    BD = {}; for (const k in m.BD) BD[k] = new self[m.BD[k].t](m.BD[k].b);
-    bufs = m.bufs.map(b => [new Float64Array(b[0]), new Float64Array(b[1])]);
+    // arrays as {t, b, off, len}: views on the WebAssembly memory (refreshed: it may have grown) or on their own buffers
+    mem = m.mem || null;
+    const view = (d) => new self[d.t](mem ? mem.buffer : d.b, d.off, d.len);
+    S = {}; for (const k in m.S) S[k] = view(m.S[k]);
+    pi = view(m.pi); pj = view(m.pj); ex = view(m.ex);
+    AC = {}; for (const k in m.AC) AC[k] = view(m.AC[k]);
+    BD = {}; for (const k in m.BD) BD[k] = view(m.BD[k]);
+    bufs = m.bufs.map(b => [view(b[0]), view(b[1])]);
     me = m.me; nW = m.nW; FXo = bufs[me][0]; FYo = bufs[me][1];
-    CQ = new Int32Array(m.cq); ctrl = new Int32Array(m.ctrl); prm = new Float64Array(m.prm);
+    CQ = view(m.cq); ctrl = new Int32Array(m.ctrl); prm = new Float64Array(m.prm);
+    if (m.wasm && !wasm) { // the kernel module on the shared memory, with a stack of this worker's own
+      try {
+        wasm = new WebAssembly.Instance(m.wasm.module, { env: { memory: mem } });
+        wasm.exports.__stack_pointer.value = m.wasm.stackTop;
+        wex = wasm.exports;
+      } catch (err) { wasm = null; wex = null; console.warn('Atom Forge worker: WebAssembly kernel unavailable, using JavaScript:', err.message || err); }
+    }
+    if (m.wasm) { descOff = m.wasm.desc; ksOff = m.wasm.ks; sumTabOff = m.wasm.sumTab; ksArr = new Float64Array(mem.buffer, ksOff, 16); }
+    postMessage({ type: 'kernel', wasm: !!wex, me });
     Atomics.store(ctrl, me, TH_IDLE); // (a rebind request left on our word is served by this message)
     Atomics.store(ctrl, ctrlAt(me, 3), m.gen); // bound: the acknowledgement
   }
@@ -74,15 +86,24 @@ onmessage = (e) => {
     if (st === TH_PAIRS) {
       const q0 = ctrl[ctrlAt(me, 0)], q1 = ctrl[ctrlAt(me, 1)], b0 = ctrl[ctrlAt(me, 4)], b1 = ctrl[ctrlAt(me, 5)], c0 = ctrl[ctrlAt(me, 6)], c1 = ctrl[ctrlAt(me, 7)];
       const wrap = prm[nW] === 1, bw = prm[nW + 1], bh = prm[nW + 2], hw = prm[nW + 3], hh = prm[nW + 4], step = prm[nW + 5];
-      FXo.fill(0); FYo.fill(0); _kStiff = 0;
-      let nc = pairKernel(pi, pj, ex, q0, q1, FXo, FYo, CQ, 0, wrap, bw, bh, hw, hh, step);
-      nc = bondKernel(b0, b1, FXo, FYo, CQ, nc, wrap, bw, bh, hw, hh);
-      angleKernel(c0, c1, FXo, FYo, wrap, bw, bh, hw, hh);
-      ctrl[ctrlAt(me, 2)] = nc; prm[me] = _kStiff;
+      let nc;
+      if (wex && prm[nW + 7] === 1) { // the WebAssembly kernels (the main thread filled the descriptor before this order)
+        wex.af_zero(FXo.byteOffset, FXo.length); wex.af_zero(FYo.byteOffset, FYo.length);
+        nc = wex.af_forces(descOff, q0, q1, b0, b1, c0, c1, FXo.byteOffset, FYo.byteOffset, CQ.byteOffset, wrap ? 1 : 0, bw, bh, hw, hh, step, ksOff + 8 * me);
+        prm[me] = ksArr[me];
+      } else {
+        FXo.fill(0); FYo.fill(0); _kStiff = 0;
+        nc = pairKernel(pi, pj, ex, q0, q1, FXo, FYo, CQ, 0, wrap, bw, bh, hw, hh, step);
+        nc = bondKernel(b0, b1, FXo, FYo, CQ, nc, wrap, bw, bh, hw, hh);
+        angleKernel(c0, c1, FXo, FYo, wrap, bw, bh, hw, hh);
+        prm[me] = _kStiff;
+      }
+      ctrl[ctrlAt(me, 2)] = nc;
       Atomics.store(ctrl, me, TH_DONE); Atomics.notify(ctrl, me);
     } else if (st === TH_SUM) { // sum every buffer onto the store's forces for this worker's slots, in buffer order
       const s0 = ctrl[ctrlAt(me, 0)], s1 = ctrl[ctrlAt(me, 1)], FX = S.fx, FY = S.fy, nb = bufs.length;
-      for (let s = s0; s < s1; s++) {
+      if (wex) wex.af_sum(FX.byteOffset, FY.byteOffset, sumTabOff, nb, s0, s1);
+      else for (let s = s0; s < s1; s++) {
         let fx = FX[s], fy = FY[s];
         for (let b = 0; b < nb; b++) { fx += bufs[b][0][s]; fy += bufs[b][1][s]; }
         FX[s] = fx; FY[s] = fy;
@@ -104,7 +125,7 @@ function threadsSet(want) {
   TH.want = want;
   if (want === TH.n && TH.workers.length === want) return;
   for (const w of TH.workers) w.terminate();
-  TH.workers = []; TH.n = want; TH.boundGen = -1; TH.ready = 0; TH.fx = []; TH.fy = []; TH.cq = [];
+  TH.workers = []; TH.n = want; TH.boundGen = -1; TH.ready = 0; TH.fx = []; TH.fy = []; TH.cq = []; TH.wasmOn = [];
   TH.state = want ? 'starting' : (threadsAvailable() ? 'off' : 'unavailable');
   if (!want) return;
   const url = URL.createObjectURL(new Blob([workerSource()], { type: 'text/javascript' }));
@@ -113,6 +134,7 @@ function threadsSet(want) {
   for (let w = 0; w < want; w++) {
     const wk = new Worker(url);
     wk.onerror = (e) => { TH.note = 'worker error: ' + (e.message || e); console.warn('Atom Forge threads:', TH.note); threadsSet(0); };
+    wk.onmessage = (e) => { if (e.data && e.data.type === 'kernel') TH.wasmOn[e.data.me] = e.data.wasm; };
     TH.workers.push(wk);
   }
 }
@@ -123,19 +145,29 @@ function threadsBind() {
   const size = S.size, np = Math.max(VL.pi.length, 16);
   if (TH.fx.length !== n || (TH.fx[0] && TH.fx[0].length !== size)) {
     TH.fx = []; TH.fy = [];
-    for (let w = 0; w < n; w++) { TH.fx.push(new Float64Array(new SharedArrayBuffer(8 * size))); TH.fy.push(new Float64Array(new SharedArrayBuffer(8 * size))); }
+    for (let w = 0; w < n; w++) { TH.fx.push(shArray(Float64Array, size)); TH.fy.push(shArray(Float64Array, size)); }
+    if (WK.on) for (let w = 0; w < n; w++) { WK.sumTab[2 * w] = TH.fx[w].byteOffset; WK.sumTab[2 * w + 1] = TH.fy[w].byteOffset; } // (af_sum's table)
   }
   const need = 9 * Math.ceil((np + Math.max(BD.a.length, 16)) / (n + 1)) + 64;
-  if (TH.cq.length !== n || TH.cq[0].length < need) { TH.cq = []; for (let w = 0; w < n; w++) TH.cq.push(new Int32Array(new SharedArrayBuffer(4 * need))); }
+  if (TH.cq.length !== n || TH.cq[0].length < need) { TH.cq = []; for (let w = 0; w < n; w++) TH.cq.push(shArray(Int32Array, need)); }
+  const d = (a) => ({ t: a.constructor.name, b: WK.on ? null : a.buffer, off: a.byteOffset, len: a.length });
   const Sdesc = {}, ACd = {}, BDd = {};
-  for (const k of S_ALL) Sdesc[k] = { t: S[k].constructor.name, b: S[k].buffer };
-  for (const k of ['c', 'nb', 'cnt', 'tg']) ACd[k] = { t: AC[k].constructor.name, b: AC[k].buffer };
-  for (const k of ['a', 'b', 'r0', 'al', 'D', 'rb']) BDd[k] = { t: BD[k].constructor.name, b: BD[k].buffer };
-  const bufs = TH.fx.map((a, w) => [a.buffer, TH.fy[w].buffer]);
+  for (const k of S_ALL) Sdesc[k] = d(S[k]);
+  for (const k of ['c', 'nb', 'cnt', 'tg']) ACd[k] = d(AC[k]);
+  for (const k of ['a', 'b', 'r0', 'al', 'D', 'rb']) BDd[k] = d(BD[k]);
+  const bufs = TH.fx.map((a, w) => [d(a), d(TH.fy[w])]);
+  // the kernel module for the workers: each gets a stack of its own in the shared memory (allocated once)
+  let wasm = null;
+  if (WK.on && WK.ready) {
+    if (!TH.wks) TH.wks = wasmArray(Float64Array, 16);
+    while (TH.stacks.length < n) TH.stacks.push(wasmAlloc(WK.STACK) + WK.STACK); // (the stack grows downwards from its top)
+    wasm = { module: WK.module, desc: WK.desc.byteOffset, ks: TH.wks.byteOffset, sumTab: WK.sumTab.byteOffset };
+  }
   for (let w = 0; w < n; w++) {
     // a worker waiting on its word is woken to come back for the message; one not yet running just gets the message
     if (Atomics.load(TH.ctrl, w) === TH_IDLE) { Atomics.store(TH.ctrl, w, TH_REBIND); Atomics.notify(TH.ctrl, w); }
-    TH.workers[w].postMessage({ type: 'bind', S: Sdesc, AC: ACd, BD: BDd, pi: VL.pi.buffer, pj: VL.pj.buffer, ex: VL.ex.buffer, bufs, cq: TH.cq[w].buffer, ctrl: TH.ctrl.buffer, prm: TH.prm.buffer, me: w, nW: n, gen });
+    TH.workers[w].postMessage({ type: 'bind', S: Sdesc, AC: ACd, BD: BDd, pi: d(VL.pi), pj: d(VL.pj), ex: d(VL.ex), bufs, cq: d(TH.cq[w]), ctrl: TH.ctrl.buffer, prm: TH.prm.buffer, me: w, nW: n, gen,
+      mem: WK.on ? WK.mem : null, wasm: wasm ? Object.assign({ stackTop: TH.stacks[w] }, wasm) : null });
   }
 }
 function threadsReady() {
@@ -153,7 +185,9 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   bondArrays(); angleCentres(); // (before the readiness check: they may grow the shared arrays)
   if (!threadsReady()) { TH.used = 0; nucleusPairs1(wrap, bw, bh, hw, hh); return; }
   const t0 = performance.now(), n = TH.n, ctrl = TH.ctrl, prm = TH.prm, nb = BD.n, na = AC.n;
-  prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh; prm[n + 5] = W.step;
+  const wk = wasmReady();
+  if (wk) wasmDesc(); // (the workers read the descriptor too: before they are sent off)
+  prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh; prm[n + 5] = W.step; prm[n + 7] = wk ? 1 : 0;
   // pairs, bonds and angle centres shared out: the workers' ranges first, a half share for the main thread last (it also
   // dispatches, and must not be the one the others wait for)
   const per = Math.ceil(np / (n + 0.5)), bper = Math.ceil(nb / (n + 0.5)), aper = Math.ceil(na / (n + 0.5));
@@ -165,9 +199,13 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   }
   const CQ = candidateRoom(per + bper);
   _kStiff = 0;
-  let nc0 = pairKernel(VL.pi, VL.pj, VL.ex, Math.min(np, n * per), np, S.fx, S.fy, CQ, 0, wrap, bw, bh, hw, hh, W.step);
-  nc0 = bondKernel(Math.min(nb, n * bper), nb, S.fx, S.fy, CQ, nc0, wrap, bw, bh, hw, hh);
-  angleKernel(Math.min(na, n * aper), na, S.fx, S.fy, wrap, bw, bh, hw, hh);
+  let nc0;
+  if (wk) nc0 = wasmForces(Math.min(np, n * per), np, Math.min(nb, n * bper), nb, Math.min(na, n * aper), na, S.fx, S.fy, CQ, wrap, bw, bh, hw, hh, W.step);
+  else {
+    nc0 = pairKernel(VL.pi, VL.pj, VL.ex, Math.min(np, n * per), np, S.fx, S.fy, CQ, 0, wrap, bw, bh, hw, hh, W.step);
+    nc0 = bondKernel(Math.min(nb, n * bper), nb, S.fx, S.fy, CQ, nc0, wrap, bw, bh, hw, hh);
+    angleKernel(Math.min(na, n * aper), na, S.fx, S.fy, wrap, bw, bh, hw, hh);
+  }
   let stiff = _kStiff; _kStiff = 0;
   const t1 = performance.now();
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_DONE) { /* spin */ } }
@@ -178,7 +216,8 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
     ctrl[thCtrl(w, 0)] = Math.min(hi, w * sper); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * sper);
     Atomics.store(ctrl, w, TH_SUM); Atomics.notify(ctrl, w);
   }
-  { const FX = S.fx, FY = S.fy, fxs = TH.fx, fys = TH.fy;
+  if (wk) WK.ex.af_sum(S.fx.byteOffset, S.fy.byteOffset, WK.sumTab.byteOffset, n, Math.min(hi, n * sper), hi);
+  else { const FX = S.fx, FY = S.fy, fxs = TH.fx, fys = TH.fy;
     for (let s = Math.min(hi, n * sper); s < hi; s++) { let fx = FX[s], fy = FY[s]; for (let b = 0; b < n; b++) { fx += fxs[b][s]; fy += fys[b][s]; } FX[s] = fx; FY[s] = fy; } }
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_SUMMED) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); if (prm[w] > stiff) stiff = prm[w]; }
   if (stiff > _stiff) _stiff = stiff;

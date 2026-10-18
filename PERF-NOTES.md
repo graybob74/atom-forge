@@ -1,4 +1,4 @@
-# Atom Forge V22–V24 — engine performance notes
+# Atom Forge V22–V25 — engine performance notes
 
 The physics is unchanged: the same potentials, events, step-size rules and energy bookkeeping. What changed is how the
 engine stores and visits particles.
@@ -55,6 +55,26 @@ engine stores and visits particles.
 - With threads, the plain integration (no B field, no MD leptons, ≥ 2,000 slots) is shared out as well (`integrateA` →
   `integrateSlots` in the workers), the workers are woken at the start of the step (`threadsPrewake`), and the main
   thread takes half a worker's share of the pairs so it is free to drive the pass.
+
+## V25: the force kernels in WebAssembly (`kernel/`, `src/wasm.js`)
+- The pair, bond and angle kernels exist twice: the JavaScript ones (engine.js, PAIR KERNEL block) and a Rust port
+  (`kernel/src/lib.rs`), the same arithmetic in the same order; they agree to rounding (`tests/t_wasm.js`, and
+  `kernel/examples/check.rs` against a dump from `tools/kdump.js`). The only differences are exp/pow (the two libms) and
+  atan2 (Cephes' rational approximation in `kernel/src/fastmath.rs`, ~1 ulp; the libm one was most of the angle kernel's
+  time in WebAssembly). Both angle kernels use √(dx²+dy²) rather than hypot now.
+- GitHub Actions builds the module (`.github/workflows/wasm.yml`: nightly Rust, std rebuilt with atomics, memory imported
+  and shared, `__stack_pointer` and `__heap_base` exported) and commits it back as `src/wasm/kernel.wasm`; `build.js`
+  embeds it as `KERNEL_WASM_B64`. Without the file the page is as before.
+- Memory: when the module and shared memory are there (Node; a cross-origin isolated page), `shArray` carves every
+  shared array — the store, the neighbour list, bonds, angle centres, force buffers, candidate queues — out of one shared
+  `WebAssembly.Memory` with a bump allocator (`wasmArray`; 16 MB to start, grown as needed; growing keeps every view
+  valid). A descriptor of byte offsets (`wasmDesc`) tells the kernel where the arrays are; it is filled before each pass.
+  The main thread compiles the module in the background (synchronously in Node) and runs `af_forces` for its share; each
+  worker instantiates the same module on the same memory with a stack of its own (`__stack_pointer`), and sums the force
+  buffers with `af_sum`. A page without shared memory keeps plain typed arrays and the JavaScript kernels.
+- Node, one thread: the kernels 2.5× faster (water 1.5 → 0.9 ms, flash byte 1.6 → 0.8), the step 4.3 → 3.6 ms (water)
+  and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
+  checks and times the native build; Settings shows the kernel in use.
 
 ## V24: collider fix
 - Beam particles scattered in a ring's detector (same-charge beams: e⁻ on e⁻, p on p …) are stopped by the detector
