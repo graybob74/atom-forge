@@ -4,6 +4,7 @@
 name: WebAssembly kernel
 on:
   push:
+    branches-ignore: [main]   # (built on a working branch and merged with it; a rebuild on main would only churn the binary)
     paths: ['kernel/**', '.github/workflows/wasm.yml']
   workflow_dispatch:
 jobs:
