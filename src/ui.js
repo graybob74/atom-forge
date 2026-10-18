@@ -9,7 +9,7 @@ function store(k, v) { try { if (v === undefined) return localStorage.getItem('a
 
 const UI = {
   running: true, stepOnce: false, tool: 'place', spec: null, preset: 'soup', tab: 'lab',
-  pointers: new Map(), drag: null, hoverP: null, mouse: null, spaceDown: false,
+  pointers: new Map(), drag: null, hoverP: null, mouse: null, spaceDown: false, clip: null, // clip: the Select tool's copied particles
   lastUI: 0, lastPanel: 0, lastHist: 0, lastLogSeq: -1, logFilter: { chem: true, em: true, nuc: true, tool: true },
   customSpec: null, ptSel: { Z: 26, A: 56, q: 0, bare: false, anti: false }, ptBound: false, fitted: false, vis: 0,
 };
@@ -124,10 +124,12 @@ const ICONS = {
   light: '<circle cx="12" cy="12" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
   erase: '<path d="m4.5 15.5 9-9a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L12 18H7.2z M9 11l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 20h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
   inspect: '<circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="m15 15 5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  select: '<rect x="4" y="4" width="13" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="3 2.2"/><path d="m13.5 13.5 2.2 6.5 1.6-2.7 2.7-1.6z" fill="currentColor"/>',
 };
 const TOOLS = [
   { id: 'place', name: 'Place', key: 'P', help: 'Click to place the selected particle, drag to spray.' },
   { id: 'grab', name: 'Grab', key: 'G', help: 'Press on or near a particle and drag it on a spring (or move it directly while paused).' },
+  { id: 'select', name: 'Select', key: 'T', help: 'Drag a box round particles to select them (Shift adds); drag the selection to move it. Ctrl+C copies, Ctrl+V pastes at the pointer, Delete removes, Ctrl+A selects everything.' },
   { id: 'pull', name: 'Push/Pull', key: 'U', help: 'Hold to gather or push away everything nearby; low strengths let atoms settle together gently.' },
   { id: 'fire', name: 'Fire', key: 'F', help: 'Drag to aim, release to fire a particle at a set energy.' },
   { id: 'heat', name: 'Heat', key: 'H', help: 'Hold to heat (or cool) a region with a local heat bath.' },
@@ -140,6 +142,7 @@ const TOOLS = [
 const OPT = {
   place: { count: 1 },
   grab: { mol: true },
+  select: { whole: true },
   pull: { mode: 'pull', R: 10, s: 100 },
   fire: { proj: 'sel', s: 300, source: false, rate: 3 },
   heat: { mode: 'heat', s: 348, R: 8 },
@@ -423,11 +426,24 @@ function buildToolOpts() {
     case 'inspect':
       h = '<span class="help">Click any particle. Hovering shows a quick summary with every tool.</span>';
       break;
+    case 'select': {
+      const n = selCount(), clip = UI.clip ? UI.clip.parts.length : 0;
+      h = `<span data-g="whole">${seg('Box picks', [['true', 'Whole molecules'], ['false', 'Atoms only']], String(o.whole))}</span>` +
+        `<span class="num" id="oSelN">${n ? n.toLocaleString('en-US') + ' selected' : 'nothing selected'}</span>` +
+        `<button class="opt" id="oSelCopy" ${n ? '' : 'disabled'} title="Ctrl+C">Copy</button><button class="opt" id="oSelPaste" ${clip ? '' : 'disabled'} title="Ctrl+V: pastes at the pointer, or in the middle of the view">Paste${clip ? ' ' + clip.toLocaleString('en-US') : ''}</button>` +
+        `<button class="opt" id="oSelDel" ${n ? '' : 'disabled'} title="Delete">Delete</button><button class="opt" id="oSelAll" title="Ctrl+A">Select all</button><button class="opt" id="oSelNone" ${n ? '' : 'disabled'} title="Escape">Clear</button>`;
+      break;
+    }
   }
   el.innerHTML = h;
   el.onclick = (e) => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.id === 'oMagClear') { W.magnets.length = 0; log('tool', 'Magnets removed'); return; }
+    if (b.id === 'oSelCopy') { copySelection(); return; }
+    if (b.id === 'oSelPaste') { pasteClip(); return; }
+    if (b.id === 'oSelDel') { deleteSelection(); return; }
+    if (b.id === 'oSelAll') { selectAll(); return; }
+    if (b.id === 'oSelNone') { clearSelection(); return; }
     if (b.dataset.iso) { selectSpec(Object.assign({}, UI.spec, { A: +b.dataset.iso })); return; }
     if (b.dataset.my !== undefined) { const m = MYISO[+b.dataset.my]; if (m) selectSpec(isoSpec(m.Z, m.A, m.charge, m.bare, m.anti)); return; }
     const g = b.closest('[data-g]'); if (!g) return;
@@ -813,7 +829,95 @@ function onDown(e) {
       UI.drag = { kind: 'none' };
       break;
     }
+    case 'select': {
+      const p = pickAt(px, py, 8);
+      if (p && R.msel.has(p) && !e.shiftKey) UI.drag = { kind: 'selmove', lx: wx, ly: wy, moved: false }; // on the selection: drag moves it
+      else UI.drag = { kind: 'selbox', x0: wx, y0: wy, x1: wx, y1: wy, px, py, add: e.shiftKey, hit: p };
+      break;
+    }
   }
+}
+/* ------------------------------------------------------------------ selection, copy and paste (the Select tool) */
+function selCount() { let n = 0; for (const p of R.msel) if (!p.dead) n++; return n; }
+function selChanged() { if (UI.tool === 'select') buildToolOpts(); }
+function clearSelection() { R.msel.clear(); selChanged(); }
+function selectAll() { R.msel.clear(); for (const p of W.parts) if (!p.dead && selectable(p)) R.msel.add(p); if (UI.tool !== 'select') setTool('select'); selChanged(); }
+const selectable = (p) => (p.k === NUC || p.k === ELEC || p.k === POS) && !p.beam; // (photons, flying exotics and a collider's beams are not picked up)
+/* The box, done: everything inside it (and, if asked, the rest of each molecule touched). */
+function finishSelBox(d) {
+  const tiny = Math.hypot(w2sx(d.x1) - d.px, w2sy(d.y1) - d.py) < 4; // (a click, not a box)
+  if (!d.add) R.msel.clear();
+  let picked = [];
+  if (tiny) { if (d.hit && selectable(d.hit)) picked = [d.hit]; }
+  else {
+    const x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1), y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
+    for (const p of W.parts) if (!p.dead && selectable(p) && p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) picked.push(p);
+  }
+  for (const p of picked) {
+    if (d.add && tiny && R.msel.has(p)) { // Shift-click on a selected particle: out it goes (its molecule with it, when molecules are picked whole)
+      const g = OPT.select.whole && p.k === NUC && p.bonds.length ? molecule(p) : [p];
+      for (const a of g) R.msel.delete(a);
+      continue;
+    }
+    R.msel.add(p);
+    if (OPT.select.whole && p.k === NUC && p.bonds.length) for (const a of molecule(p)) if (!a.dead) R.msel.add(a);
+  }
+  selChanged();
+}
+function moveSelection(ddx, ddy) {
+  const g = [...R.msel].filter(a => !a.dead); if (!g.length) return;
+  const skip = R.msel, stuck = crowdedAt(g, 0, 0, skip);
+  for (const f of [1, 0.5, 0.25]) {
+    if (!stuck && crowdedAt(g, ddx * f, ddy * f, skip)) continue;
+    for (const a of g) { a.x += ddx * f; a.y += ddy * f; if (a.rad) { a.rad = false; a.KE = 0; } a.vx = 0; a.vy = 0; if (a.fast) { a.fast = false; updateFast(a); } }
+    keepInside(g); W.dirty++; W.spawned++; break;
+  }
+}
+function deleteSelection() {
+  let n = 0; for (const p of R.msel) if (!p.dead) { kill(p); n++; }
+  R.msel.clear(); if (R.sel && R.sel.dead) { R.sel = null; renderInspect(); }
+  if (n) log('tool', `Deleted ${n.toLocaleString('en-US')} selected particle${n === 1 ? '' : 's'}`);
+  selChanged();
+}
+/* The clipboard: the selected nuclei, atoms, ions and free leptons, relative to their centre, with the bonds among them. */
+function copySelection() {
+  const ps = [...R.msel].filter(p => !p.dead && selectable(p));
+  if (!ps.length && R.sel && !R.sel.dead && selectable(R.sel)) ps.push(R.sel);
+  if (!ps.length) return;
+  let cx = 0, cy = 0; for (const p of ps) { cx += p.x; cy += p.y; } cx /= ps.length; cy /= ps.length;
+  const idx = new Map(ps.map((p, i) => [p, i]));
+  const parts = ps.map(p => ({ k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, dx: p.x - cx, dy: p.y - cy }));
+  const bonds = [];
+  for (const p of ps) for (const bd of p.bonds) { const i = idx.get(bd.a), j = idx.get(bd.b); if (i !== undefined && j !== undefined && bd.a === p) bonds.push([i, j, bd.order]); }
+  UI.clip = { parts, bonds, at: W.rt };
+  log('tool', `Copied ${parts.length.toLocaleString('en-US')} particle${parts.length === 1 ? '' : 's'}${bonds.length ? ` and ${bonds.length.toLocaleString('en-US')} bond${bonds.length === 1 ? '' : 's'}` : ''}`);
+  selChanged();
+}
+/* Paste at a point (the pointer, or the middle of the view): the copies are nudged to a clear spot nearby if they would land
+   on something, given one thermal velocity as a group, and become the selection (so they can be moved or pasted again). */
+function pasteClip(wx, wy) {
+  const c = UI.clip; if (!c || !c.parts.length) return;
+  if (wx === undefined) { const m = UI.mouse, inside = m && m[0] >= 0 && m[1] >= 0 && m[0] <= R.w && m[1] <= R.h; [wx, wy] = inside ? s2w(m[0], m[1]) : [R.cx, R.cy]; }
+  if (W.parts.length + c.parts.length > MAX_PARTS) { log('tool', `Paste: no room for ${c.parts.length.toLocaleString('en-US')} more particles (the limit is ${MAX_PARTS.toLocaleString('en-US')}; Settings → Max particles)`); return; }
+  const made = c.parts.map(q => q.k === NUC ? addNuc(q.Z, q.N, q.ne, wx + q.dx, wy + q.dy, 0, 0, q.anti) : addLepton(q.k, wx + q.dx, wy + q.dy, 0, 0));
+  for (const [i, j, o] of c.bonds) if (made[i] && made[j]) addBond(made[i], made[j], o);
+  // a clear spot near the pointer (as the Place tool finds one); none within a few radii of the group: nothing is pasted,
+  // rather than copies landing on top of what is there (which would fly apart hot)
+  keepInside(made);
+  let r = 0; for (const q of c.parts) r = Math.max(r, Math.hypot(q.dx, q.dy));
+  if (!placeClear(made, Math.max(8, 2 * r + 4))) {
+    for (const p of made) kill(p);
+    log('tool', `Paste: no clear spot for ${made.length.toLocaleString('en-US')} particle${made.length === 1 ? '' : 's'} near the pointer; try an emptier place, or the Erase tool first`);
+    return;
+  }
+  let mt = 0; for (const p of made) mt += p.m;
+  const [vx, vy] = thermalV(mt, W.T);
+  for (const p of made) { p.vx = vx; p.vy = vy; p.ox = p.x; p.oy = p.y; updateFast(p); }
+  W.dirty++;
+  R.msel.clear(); for (const p of made) R.msel.add(p);
+  if (UI.tool !== 'select') setTool('select');
+  log('tool', `Pasted ${made.length.toLocaleString('en-US')} particle${made.length === 1 ? '' : 's'}`);
+  selChanged();
 }
 /* The particle under the pointer, or failing that the nearest one within maxPx: hot atoms move several
    pixels per frame, so an exact hit is hard. */
@@ -879,12 +983,15 @@ function onMove(e) {
       case 'magnet': d.m.x = wx + d.ox; d.m.y = wy + d.oy; break;
       case 'fire': case 'light': d.x1 = wx; d.y1 = wy; break;
       case 'erase': eraseHere(wx, wy); break;
+      case 'selbox': d.x1 = wx; d.y1 = wy; break;
+      case 'selmove': moveSelection(wx - d.lx, wy - d.ly); d.lx = wx; d.ly = wy; d.moved = true; break;
     }
   } else if (!QM.open) updateHover(px, py, wx, wy);
   const b = brushFor(UI.tool);
   R.overlay = b ? { x: wx, y: wy, brush: b.r, color: b.c } : null;
   if (UI.tool === 'magnet' && !d) R.overlay = { x: wx, y: wy, ghostMagnet: { R: OPT.magnet.R, B: magB() } };
   if (d && (d.kind === 'fire' || d.kind === 'light')) R.overlay = { aim: aimOverlay(d) };
+  if (d && d.kind === 'selbox') R.overlay = { box: [d.x0, d.y0, d.x1, d.y1] };
 }
 function aimOverlay(d) {
   const L = Math.hypot(d.x1 - d.x0, d.y1 - d.y0);
@@ -897,6 +1004,7 @@ function aimOverlay(d) {
 }
 function endToolAction() {
   const d = UI.drag;
+  if (d && d.kind === 'selbox') { finishSelBox(d); R.overlay = null; }
   if (d && d.kind === 'fire') {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
@@ -1658,7 +1766,7 @@ function fitCollider(C) {
 }
 /* A particle and its antiparticle share one ring, going round opposite ways in the same magnets (the positive one
    clockwise). Eight cells of QF, bending magnet, QD; eight straights: detectors at the top and bottom, where the
-   bunches cross, RF cavities left and right, and the two injectors at the lower corners. Electrostatic separators
+   bunches cross, RF cavities left and right and (beside the separators) at the upper corners, and the two injectors at the lower corners. Electrostatic separators
    at all four corners push the beams apart, outward at the upper corners and inward at the lower ones, so the
    beams pass each other apart at both detectors while each orbit keeps its length (which one RF system serving
    both beams needs: an even harmonic, so both meet it at the same phase). */
@@ -1670,27 +1778,28 @@ function ringLayout(C, A, B, E) {
   const st = {
     ip: (m) => [{ t: 'D', L: h2 }, { t: 'D', L: 0, mark: m }, { t: 'D', L: h2 }], rf: () => [{ t: 'D', L: 1 }, { t: 'RF', L: Ls - 2 }, { t: 'D', L: 1 }],
     sep: (sg) => [{ t: 'D', L: 1 }, { t: 'SEP', L: Ls - 2, sign: sg }, { t: 'D', L: 1 }],
+    sepRf: (sg) => [{ t: 'D', L: 1 }, { t: 'SEP', L: 5, sign: sg }, { t: 'D', L: 1 }, { t: 'RF', L: Ls - 8 }, { t: 'D', L: 1 }], // (the upper corners: a separator and a cavity)
   };
   const cell = latCell, K = LAT.kick, ks = [{ t: 'D', L: 1 }, { t: 'SEP', L: Ls - K - 2, sign: -1 }, { t: 'D', L: 1 }]; // (the kicker straights' separators share them with the kickers)
-  const elems = [{ t: 'D', L: 0, mark: 'ip2' }, { t: 'D', L: h2 }, ...cell(), { t: 'D', L: K, mark: 'kickN' }, ...ks, ...cell(), ...st.rf(), ...cell(), ...st.sep(1),
-    ...cell(), ...st.ip('ip1'), ...cell(), ...st.sep(1), ...cell(), ...st.rf(), ...cell(), ...ks, { t: 'D', L: K, mark: 'kickP' }, ...cell(), { t: 'D', L: h2 }];
+  const elems = [{ t: 'D', L: 0, mark: 'ip2' }, { t: 'D', L: h2 }, ...cell(), { t: 'D', L: K, mark: 'kickN' }, ...ks, ...cell(), ...st.rf(), ...cell(), ...st.sepRf(1),
+    ...cell(), ...st.ip('ip1'), ...cell(), ...st.sepRf(1).slice().reverse(), ...cell(), ...st.rf(), ...cell(), ...ks, { t: 'D', L: K, mark: 'kickP' }, ...cell(), { t: 'D', L: h2 }];
   const lat = marchLattice(0, 0, Math.PI, elems, undefined);
   W.zones.push(...lat.zones);
   C.layout = 'single'; C.pipes = lat.segs; C.injLines = []; C.dets = [];
   for (const m of ['ip1', 'ip2']) C.dets.push({ x: lat.marks[m].x, y: lat.marks[m].y, r: 6 });
   const Lt = lat.circ / LAT.h / 18, kp = addInjector(C, pos, tp, lat.marks.kickP, 1, P.inj, CO1.P, Lt), kn = addInjector(C, neg, tn, lat.marks.kickN, -1, P.inj, CO1.N, Lt);
-  C.rings.push(ringDesc(C, pos, null, lat, kp, lat.marks.kickP.s0 + K, P.inj, E, ALPHA_C1, { nCav: 2, sepTheta: SEP_THETA1, sepL: SEP_L1, kickOther: kn, sepDist: 3.5 }));
+  C.rings.push(ringDesc(C, pos, null, lat, kp, lat.marks.kickP.s0 + K, P.inj, E, ALPHA_C1, { nCav: 4, sepTheta: SEP_THETA1, sepL: SEP_L1, kickOther: kn, sepDist: 3.5 }));
   C.EA = C.EB = C.E;
   C.R = LAT.rho; C.circ = lat.circ;
   fitCollider(C);
 }
 /* Any other pair needs a ring for each beam (like the LHC): two rings of the same eight cells side by side, sharing
    one straight, where the detector sits; each has its own magnets (two-in-one magnets: only its beam goes through
-   them), its RF cavity on the far side and its injector at a corner. Both beams go round clockwise, so they meet
+   them), its RF cavities and its injector at a corner. Both beams go round clockwise, so they meet
    head-on in the shared straight; they fly at the same speed (the same γ: each one's energy in proportion to its
    mass, E being the lighter one's), so the bunches take the same time per turn and meet in the detector every
    turn. While they are sped up the bending magnets are set a little strong, which pulls both orbits in, away from
-   the shared straight (and shortens them, which the RF follows). */
+   the shared straight (and shortens them, which the RF follows). Each ring has four RF cavities, in opposite pairs. */
 const SEP_B2 = 0.15, SEP_L2 = -0.0303, CO2 = [-2.358, -0.0515];
 function twoRingLayout(C, A, B, E, E2) {
   let EA, EB, Ea, Eb, injA, injB; // set energies, and what each ring reaches (an electron's limit) and injects at
@@ -1702,14 +1811,17 @@ function twoRingLayout(C, A, B, E, E2) {
     EA = E; EB = E2; Ea = ringCap(A, EA); Eb = ringCap(B, EB); injA = ringParams(Ea, A.lep).inj; injB = ringParams(Eb, B.lep).inj;
   }
   const Ls = LAT.Ls, h2 = Ls / 2, S = () => [{ t: 'D', L: Ls }], cell = latCell;
-  const elems = [{ t: 'D', L: 0, mark: 'ip' }, { t: 'D', L: h2 }, ...cell(), ...S(), ...cell(), ...S(), ...cell(), ...S(), ...cell(),
-    { t: 'D', L: 1 }, { t: 'RF', L: Ls - 2 }, { t: 'D', L: 1 }, ...cell(), { t: 'D', L: Ls - LAT.kick }, { t: 'D', L: LAT.kick, mark: 'kick' }, ...cell(), ...S(), ...cell(), ...S(), ...cell(), { t: 'D', L: h2 }];
+  // (four RF cavities, in the straights after the second, third, sixth and seventh cell — opposite pairs: a quarter of the
+  // kick each, which keeps the energy swings small; see RF_HOLD_BK in engine.js)
+  const RF = () => [{ t: 'D', L: 1 }, { t: 'RF', L: Ls - 2 }, { t: 'D', L: 1 }];
+  const elems = [{ t: 'D', L: 0, mark: 'ip' }, { t: 'D', L: h2 }, ...cell(), ...S(), ...cell(), ...RF(), ...cell(), ...RF(), ...cell(),
+    ...S(), ...cell(), { t: 'D', L: Ls - LAT.kick }, { t: 'D', L: LAT.kick, mark: 'kick' }, ...cell(), ...RF(), ...cell(), ...RF(), ...cell(), { t: 'D', L: h2 }];
   C.layout = 'double'; C.pipes = []; C.injLines = []; C.dets = [{ box: [-LAT.w, LAT.w, -h2, h2] }]; C.EA = EA; C.EB = EB;
   for (const [I, tag, h0, Eb1, inj] of [[A, 'a', -Math.PI / 2, Ea, injA], [B, 'b', Math.PI / 2, Eb, injB]]) {
     const lat = marchLattice(0, 0, h0, elems, tag);
     W.zones.push(...lat.zones); C.pipes.push(...lat.segs);
     const kk = addInjector(C, I, tag, lat.marks.kick, 1, inj, CO2, lat.circ / LAT.h / 18);
-    C.rings.push(ringDesc(C, I, tag, lat, kk, lat.marks.kick.s0 + LAT.kick, inj, Eb1, ALPHA_C1, { nCav: 1, sepB: SEP_B2, sepL: SEP_L2, sepDist: 3.96 }));
+    C.rings.push(ringDesc(C, I, tag, lat, kk, lat.marks.kick.s0 + LAT.kick, inj, Eb1, ALPHA_C1, { nCav: 4, sepB: SEP_B2, sepL: SEP_L2, sepDist: 3.96 }));
   }
   C.R = LAT.rho; C.circ = C.rings[0].circ;
   fitCollider(C);
@@ -1878,7 +1990,7 @@ function syncCollider() {
     if (C.layout === 'single') note = 'A particle and its antiparticle share one ring, going round opposite ways through the same magnets: bending magnets with focusing and defocusing quadrupoles between them. Injector linacs at the lower corners bring in a train of each, and kicker magnets turn it onto the orbit. The RF cavities’ oscillating field gathers each train into a bunch and speeds it up while the magnets ramp; particles that land outside the RF bucket fall behind and are lost. Electrostatic separators keep the two beams apart where they cross, and when they are brought together they collide at both detectors. ';
     else {
       const why = anti ? 'A particle and its antiparticle at different energies need different fields to bend them, so each' : A.name === B.name ? 'Beams of the same charge would go round the same way in a shared ring, so each beam' : 'Two different beams can’t share one ring’s magnets, so each';
-      note = `${why} has a ring of its own, with its own injector, kicker and RF cavity on its outer straight; the two rings share one straight, where the detector sits. The RF gathers each injected train into a bunch and speeds it up while the magnets ramp; particles outside the RF bucket are lost. To keep the beams apart the bending magnets are set a little strong, which pulls both beams in off the shared straight; let back, they collide head-on there. `;
+      note = `${why} has a ring of its own, with its own injector, kicker and four RF cavities; the two rings share one straight, where the detector sits. The RF gathers each injected train into a bunch and speeds it up while the magnets ramp; particles outside the RF bucket are lost. To keep the beams apart the bending magnets are set a little strong, which pulls both beams in off the shared straight; let back, they collide head-on there. `;
       const va = speedOf(A.m, C.rings[0].Emax), vb = speedOf(B.m, C.rings[1].Emax);
       if (!each && A.m !== B.m) note += 'The two fly at the same speed (each one’s energy in proportion to its mass), so both take the same time per turn and their bunches meet in the detector every turn. ';
       else if (each && Math.abs(va / vb - 1) < 0.01) note += `Both fly at nearly the same speed (${fmtBeta(va / PHYS.C)} and ${fmtBeta(vb / PHYS.C)}), so their bunches take about the same time per turn and meet in the detector nearly every turn. `;
@@ -2170,7 +2282,7 @@ function loadPreset(key) {
   const P = PRESETS[key] || PRESETS.soup;
   UI.preset = key in PRESETS ? key : 'soup';
   $('preset').value = UI.preset;
-  R.sel = null; R.hover = null; R.follow = null; UI.drag = null; W.grab = null;
+  R.sel = null; R.hover = null; R.follow = null; UI.drag = null; W.grab = null; R.msel.clear();
   P.build();
   settleOverlaps();
   UI.baseSpf = W.baseSpf = W.simPerFrame; UI.ach = 1; UI.capped = false;
@@ -2330,7 +2442,18 @@ function frame(now) {
   const realDt = Math.min(0.1, Math.max(0, (now - UI.last) / 1000));
   UI.last = now; UI.vis += realDt; UI.fps = UI.fps ? 0.95 * UI.fps + 0.05 / Math.max(1e-3, realDt) : 60;
   UI.fpsN = (UI.fpsN || 0) + 1; // (the frame-rate counter: frames counted over half a second)
-  if (now - (UI.fpsT || 0) >= 500) { if (UI.fpsT) { UI.fpsNow = UI.fpsN * 1000 / (now - UI.fpsT); if (SET.fps) $('fpsBadge').textContent = Math.round(UI.fpsNow) + ' fps' + (TH.used > 1 ? ` · ${TH.used} threads` : ''); } UI.fpsT = now; UI.fpsN = 0; }
+  // the frame's phases are timed; the worst frame of each badge period is shown with where its time went (a stutter's trail)
+  const FP = UI.fp || (UI.fp = { sim: 0, draw: 0, ui: 0, worst: 0, worstTxt: '', shown: '' });
+  if (now - (UI.fpsT || 0) >= 500) {
+    if (UI.fpsT) {
+      UI.fpsNow = UI.fpsN * 1000 / (now - UI.fpsT);
+      FP.shown = FP.worst > 40 ? ` · worst ${FP.worst.toFixed(0)} ms (${FP.worstTxt})` : '';
+      if (SET.fps) $('fpsBadge').textContent = Math.round(UI.fpsNow) + ' fps' + (TH.used > 1 ? ` · ${TH.used} threads` : '') + FP.shown;
+      FP.worst = 0;
+    }
+    UI.fpsT = now; UI.fpsN = 0;
+  }
+  const tf0 = performance.now(); let tf1 = tf0, tf2 = tf0;
   try {
     if (UI.running || UI.stepOnce) {
       const r = simFrame(UI.running ? realDt : 1 / 60, W.simPerFrame > UI.baseSpf * 1.01 ? Math.max(14, UI.budget) : UI.budget); // (sped up: at least 14 ms, never less than Settings gives)
@@ -2344,12 +2467,19 @@ function frame(now) {
       toolTick(realDt);
       histTick(now);
     }
+    tf1 = performance.now();
     if (R.follow) { if (R.follow.dead) R.follow = null; else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
     render(W.rt);
+    tf2 = performance.now();
   } catch (err) { console.error(err); }
   if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); if (!$('setModal').hidden) settingsStats(); }
   if (now - UI.lastPanel > 450) { UI.lastPanel = now; updatePanel(); }
   else if (UI.tab === 'inspect' && UI.running) drawInspectBohr();
+  const tf3 = performance.now(), total = tf3 - tf0, gap = tf0 - (UI.lastFrameEnd || tf0); // (gap: time between frames not spent here — the browser, or a stall elsewhere)
+  UI.lastFrameEnd = tf3;
+  FP.sim = tf1 - tf0; FP.draw = tf2 - tf1; FP.ui = tf3 - tf2;
+  const worstNow = Math.max(total, gap);
+  if (worstNow > FP.worst) { FP.worst = worstNow; FP.worstTxt = gap > total ? `${gap.toFixed(0)} ms between frames` : `sim ${FP.sim.toFixed(0)}, draw ${FP.draw.toFixed(0)}, panels ${FP.ui.toFixed(0)}`; }
   requestAnimationFrame(frame);
 }
 function setRunning(r) {
@@ -2373,11 +2503,19 @@ function onKey(e) {
   if (e.key === 'Escape') {
     for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal']) if (!$(id).hidden) { hideModal(id); return; }
     if (UI.drag) { if (W.tool) W.tool.active = false; W.grab = null; UI.drag = null; R.overlay = null; return; }
-    R.sel = null; R.follow = null; renderInspect(); return;
+    R.sel = null; R.follow = null; renderInspect(); if (R.msel.size) clearSelection(); return;
   }
   if (!$('ptModal').hidden || !$('molModal').hidden || !$('bldModal').hidden || !$('nucModal').hidden || !$('setModal').hidden) return;
   if (tag === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
-  if (tag === 'SELECT' || tag === 'TEXTAREA' || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (tag === 'SELECT' || tag === 'TEXTAREA') return;
+  if ((e.ctrlKey || e.metaKey) && !e.altKey) { // copy, paste, select all: the selection (or the inspected particle)
+    const kk = e.key.toLowerCase();
+    if (kk === 'c' && tag !== 'INPUT') { e.preventDefault(); copySelection(); return; }
+    if (kk === 'v' && tag !== 'INPUT') { e.preventDefault(); pasteClip(); return; }
+    if (kk === 'a' && tag !== 'INPUT') { e.preventDefault(); selectAll(); return; }
+    return;
+  }
+  if (e.altKey) return;
   const k = e.key;
   if (k === 'ContextMenu' || (k === 'F10' && e.shiftKey)) { // the keyboard's menu key: the quick menu at the pointer
     e.preventDefault();
@@ -2392,6 +2530,7 @@ function onKey(e) {
   if (k === '+' || k === '=') { zoomAt(R.w / 2, R.h / 2, 1.25); return; }
   if (k === '-' || k === '_') { zoomAt(R.w / 2, R.h / 2, 0.8); return; }
   if (k === '0') { fitView(); return; }
+  if ((k === 'Delete' || k === 'Backspace') && R.msel.size) { deleteSelection(); return; }
   if ((k === 'Delete' || k === 'Backspace') && R.sel) { kill(R.sel); R.sel = null; renderInspect(); return; }
   if (tag === 'INPUT') return; // range sliders keep their arrow keys and letters stay safe
   if (k === 'v' || k === 'V') { toggleParticleView(); return; }
@@ -2648,6 +2787,8 @@ function qmGlobal(px, py, wx, wy) {
     (R.follow ? qmBtn('Stop following', () => { R.follow = null; }) : '') +
     qm2(qmBtn('Centre here', () => { R.follow = null; R.cx = wx; R.cy = wy; }), qmBtn('Zoom in here', () => zoomAt(px, py, 2))) +
     qm2(qmBtn('Fit the box', () => fitView(), { key: '0' }), qmBtn('Clear trails', () => { W.tracks.length = 0; }, { off: !W.tracks.length })) +
+    qm2(qmBtn(R.msel.size ? `Copy ${selCount().toLocaleString('en-US')} selected` : 'Copy', () => copySelection(), { key: 'Ctrl+C', off: !R.msel.size && !R.sel, title: 'Copy the selection (Select tool), or the inspected particle' }),
+      qmBtn('Paste here', () => pasteClip(wx, wy), { key: 'Ctrl+V', off: !UI.clip, title: UI.clip ? `${UI.clip.parts.length.toLocaleString('en-US')} particles` : 'Nothing copied yet' })) +
     qm2(qmBtn('Particle view', () => toggleParticleView(), { key: 'V', pressed: R.view.bohr === 'nuc', cls: 'tick' }), qmBtn('Orbitals', () => toggleOrbitalView(), { key: 'O', pressed: R.view.bohr === 'orb', cls: 'tick' })) +
     qm2(qmBtn('Settings…', () => openSettings()), qmBtn('Restart', () => loadPreset(UI.preset), { key: 'R', cls: 'danger', title: 'Restart this preset' }));
 }

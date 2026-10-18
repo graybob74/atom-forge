@@ -9,6 +9,7 @@ const R = {
   sprites: new Map(),
   view: { bohr: 'auto', labels: true, tracks: true, rays: true, hbonds: true, color: 'element', grid: true, decayCards: true },
   hover: null, sel: null, overlay: null, time: 0, follow: null, // follow: a particle the view stays centred on
+  msel: new Set(), // the Select tool's selection
   dprMax: 2, lite: false, // (Settings: drawing resolution, and lite: no glows, halos or flashes)
 };
 const CHAMBER = { bg0: '#060a10', bg1: '#0b121b', grid: 'rgba(130,170,210,0.055)', box: 'rgba(150,185,220,0.35)',
@@ -470,6 +471,20 @@ function drawParticles(rt) {
   }
   if (lateLeptons) for (const p of lateLeptons) drawLepton(ctx, p, w2sx(p.x), w2sy(p.y), bohrMode);
   ctx.restore();
+  // the Select tool's selection: a ring round each (a tint only, when there are thousands)
+  if (R.msel.size) {
+    ctx.save(); ctx.strokeStyle = 'rgba(255,209,102,0.85)'; ctx.fillStyle = 'rgba(255,209,102,0.35)'; ctx.lineWidth = 1.5;
+    const many = R.msel.size > 2500;
+    ctx.beginPath();
+    for (const p of R.msel) {
+      if (p.dead) continue;
+      const x = w2sx(p.x), y = w2sy(p.y); if (x < -20 || y < -20 || x > R.w + 20 || y > R.h + 20) continue;
+      const r = Math.max(4, (p.k === NUC ? p.rd : 0.15) * s) + (many ? 1 : 3);
+      ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, Math.PI * 2);
+    }
+    if (many) ctx.fill(); else ctx.stroke();
+    ctx.restore();
+  }
   // selection / hover rings
   for (const p of [R.sel, R.hover]) {
     if (!p || p.dead) continue;
@@ -1181,6 +1196,11 @@ function drawOverlay() {
       ctx.font = '600 12px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = '#ffd166'; ctx.textAlign = 'left';
       ctx.fillText(o.aim.text, x0 + 10, y0 - 10);
     }
+  }
+  if (o.box) {
+    const x0 = w2sx(o.box[0]), y0 = w2sy(o.box[1]), x1 = w2sx(o.box[2]), y1 = w2sy(o.box[3]);
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,209,102,0.9)'; ctx.lineWidth = 1; ctx.fillStyle = 'rgba(255,209,102,0.08)';
+    ctx.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0)); ctx.strokeRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
   }
   if (o.ghostMagnet) {
     const col = o.ghostMagnet.B >= 0 ? 'rgba(255,96,86,0.6)' : 'rgba(86,140,255,0.6)';

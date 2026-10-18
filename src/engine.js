@@ -3969,6 +3969,10 @@ function rampRing() {
       const U0 = g.lep ? 4 * Math.PI / 3 * PHYS.KE * gam ** 4 * bet ** 3 / g.rho : 0; // radiated per turn
       const want = g.ramping ? Math.min(0.12 * g.Es, g.gainCap, 3 * (g.Emax - g.Es)) : 0; // (gain per turn)
       if (g.ramping) g.qV = Math.max(g.qV, Math.max(Math.min(0.12 * g.Es, g.gainCap), 0.04 * g.Es) / (g.nCav * RF_S0), (want + U0) / (g.nCav * 0.95 * RF_SMAX)); // (per cavity: enough to hold a bunch even with nothing to gain, and to make up what electrons radiate)
+      else { // at full energy the voltage comes down (slowly: adiabatically, so the bunch's energy spread shrinks with the bucket) to what holds the bunch
+        const hold = Math.max(holdVoltage(g, E + mc2, bet, eta), U0 / (g.nCav * 0.5));
+        if (g.qV > hold) g.qV = hold + (g.qV - hold) * Math.exp(-dt / (RF_HOLD_TURNS * Ts));
+      }
       const sps = Math.max(0, Math.min(RF_SMAX, (want + U0) / (g.nCav * g.qV)));
       g.phiS = eta < 0 ? Math.asin(sps) : Math.PI - Math.asin(sps);
       g.eta = eta;
@@ -3998,6 +4002,20 @@ const pcOf = (m, KE) => Math.sqrt(KE * KE + 2 * KE * m * AMU_EV); // momentum ×
    twice a turn made the energy oscillations chaotic, and particles drifting 10–15% off the design energy were lost from
    the ring at 0.98c and above, where the slip factor is largest. */
 const RF_S0 = 0.75, RF_SMAX = Math.sin(Math.PI / 3);
+/* The RF at full energy. While ramping, the voltage is set for 12% more energy a turn, so each pass of a cavity kicks a
+   particle by up to a tenth of its energy (the ramp is fast because the turns are short); a bunch held at full energy
+   with that voltage keeps swinging ±10% in energy, and particles at the swing's ends drift off the orbit the magnets hold
+   (lost from the ring one by one at 0.98c — the D + T ring at 10 GeV showed it). So at full energy the voltage is brought
+   down, over RF_HOLD_TURNS turns (many synchrotron periods: adiabatically, the bunch's energy spread shrinks as the fourth
+   root of the voltage), to what gives a bucket RF_HOLD_BK of the energy high: the kicks are then a few per cent at most,
+   and the bunch sits well inside the bucket. The bucket's half-height is β·√(2·qV·E / (π·h·|η|)) (E the total energy,
+   qV the voltage per turn), so the voltage for a given height is (ΔE/β)²·π·h·|η| / (2·E). Near transition (η → 0) the
+   voltage this gives vanishes; a floor keeps it at a small fraction of the energy. */
+const RF_HOLD_BK = 0.08, RF_HOLD_TURNS = 25, RF_HOLD_MIN = 0.002;
+function holdVoltage(g, Etot, bet, eta) { // per cavity
+  const dE = RF_HOLD_BK * Etot, perTurn = Math.max((dE / bet) * (dE / bet) * Math.PI * g.h * Math.abs(eta) / (2 * Etot), RF_HOLD_MIN * Etot);
+  return perTurn / g.nCav;
+}
 function speedOfE(g) { const gam = 1 + g.Es / (g.m * AMU_EV); return PHYS.C * Math.sqrt(1 - 1 / (gam * gam)); }
 
 function moveNeutron(p, dt, c1, c2, kT) {

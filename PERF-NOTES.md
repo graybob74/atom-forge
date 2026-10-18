@@ -1,4 +1,4 @@
-# Atom Forge V22–V25 — engine performance notes
+# Atom Forge V22–V26 — engine performance notes
 
 The physics is unchanged: the same potentials, events, step-size rules and energy bookkeeping. What changed is how the
 engine stores and visits particles.
@@ -75,6 +75,20 @@ engine stores and visits particles.
 - Node, one thread: the kernels 2.5× faster (water 1.5 → 0.9 ms, flash byte 1.6 → 0.8), the step 4.3 → 3.6 ms (water)
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
+
+## V26: collider RF, frame diagnostics, Select tool
+- Rings lost particles at full energy (D + T at 10 GeV, kept apart: deuterons and tritons thrown out one by one at
+  0.98c). The ramp's voltage — 12% of the energy a turn, from one cavity in the two-ring layout — kept kicking the held
+  bunch by a tenth of its energy; with dispersion at the cavities every kick also grows the betatron amplitude, until
+  the aperture (±8 Å) is reached. Now: four RF cavities per ring (two-ring layout: after cells 2, 3, 6, 7; single ring:
+  left, right and beside the upper separators), so each kick is a quarter the size, and at full energy the voltage comes
+  down adiabatically (`holdVoltage`, RF_HOLD_*) to what makes a bucket 8% of the energy high. Energy swings during the
+  ramp fall from ±10% to ±3%, at full energy to ±2%; no losses in any of the sweep's cases.
+- The fps badge shows the worst frame of each half second with where its time went (sim, draw, panels, or a gap between
+  frames: the browser, GC) when it is over 40 ms — for chasing stutters.
+- Select tool (T): a box picks particles (whole molecules by default; Shift adds or toggles), the selection can be
+  dragged, Ctrl+C / Ctrl+V copy and paste (with bonds, at the pointer, only where there is room), Delete, Ctrl+A;
+  also in the right-click menu. `tests/t_select.js`.
 
 ## V24: collider fix
 - Beam particles scattered in a ring's detector (same-charge beams: e⁻ on e⁻, p on p …) are stopped by the detector
