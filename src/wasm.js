@@ -48,7 +48,7 @@ function wasmAlloc(bytes) {
   WK.top = end; WK.allocs++;
   return off;
 }
-function wasmArray(T, n) { return new T(WK.mem.buffer, wasmAlloc(n * T.BYTES_PER_ELEMENT), n); }
+function wasmArray(T, n) { const off = wasmAlloc(n * T.BYTES_PER_ELEMENT); return new T(WK.mem.buffer, off, n); } // (allocate first: it may grow the memory, and the buffer object is refreshed by the growth)
 /* The compiled module: synchronously where that is allowed (Node, a worker), otherwise compiled in the background;
    until it is ready the JavaScript kernels run. */
 function wasmLoadModule() {

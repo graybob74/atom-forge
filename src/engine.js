@@ -1494,7 +1494,7 @@ function angleKernel(c0, c1, FXo, FYo, wrap, bw, bh, hw, hh) {
       const o = nbs[b0 + i];
       let dx = X[o] - px, dy = Y[o] - py;
       if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
-      const rr = Math.hypot(dx, dy);
+      const rr = Math.sqrt(dx * dx + dy * dy); // (not Math.hypot: its overflow guard costs more than the whole centre)
       _nbr[i] = o; _rad[i] = rr < 0.3 ? 0.3 : rr; _ord[i] = i;
       if (rr > 0) { _sn[i] = dy / rr; _cs[i] = dx / rr; } else { _sn[i] = 0; _cs[i] = 1; } // (sin and cos of the bond's direction)
       if (n > 2) _ang[i] = Math.atan2(dy, dx);

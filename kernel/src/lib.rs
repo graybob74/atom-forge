@@ -6,11 +6,12 @@
 //! here take that descriptor and ranges, write forces into the given output arrays and event *candidates*
 //! (kind, i, j — three i32s each) into a queue, exactly as the JS kernels do, in the same order, with the same
 //! arithmetic (so the two agree to floating-point rounding: the only differences are in exp/pow/atan2, where V8's
-//! and this crate's libm may differ in the last bit).
+//! routines and this crate's — the standard library's exp and pow, fastmath::atan2 — may differ in the last bit).
 //!
 //! No statics, no allocation: several instances of this module run at once on one shared memory (the worker
 //! threads), each with its own stack (set by the JS side through the exported `__stack_pointer`).
 #![allow(clippy::too_many_arguments, clippy::missing_safety_doc)]
+pub mod fastmath;
 
 pub const RC2: f64 = 36.0; // RC = 6 Å
 pub const FCAP: f64 = 1e7;
@@ -315,13 +316,13 @@ pub unsafe fn angle_kernel(s: &St, c0: usize, c1: usize, fxo: *mut f64, fyo: *mu
             let o = rd(s.acnb, b0 + i) as usize;
             let mut dx = rd(s.x, o) - px; let mut dy = rd(s.y, o) - py;
             minimum_image(&mut dx, &mut dy, wrap, bw, bh, hw, hh);
-            let rr = dx.hypot(dy);
+            let rr = (dx * dx + dy * dy).sqrt();
             nbr[i] = o; rad[i] = if rr < 0.3 { 0.3 } else { rr }; ord[i] = i;
             if rr > 0.0 { sn[i] = dy / rr; cs[i] = dx / rr; } else { sn[i] = 0.0; cs[i] = 1.0; }
-            if n > 2 { ang[i] = dy.atan2(dx); }
+            if n > 2 { ang[i] = fastmath::atan2(dy, dx); }
         }
         if n == 2 { // two bonds: one angle between them, the common case, with no sorting
-            let mut g = (cs[0] * sn[1] - sn[0] * cs[1]).atan2(cs[0] * cs[1] + sn[0] * sn[1]);
+            let mut g = fastmath::atan2(cs[0] * sn[1] - sn[0] * cs[1], cs[0] * cs[1] + sn[0] * sn[1]);
             if g < 0.0 { g += two_pi; }
             let t0 = rd(s.actg, b0); let t1 = rd(s.actg, b0 + 1); let g1 = two_pi - g;
             let (lo, hi) = if t0 < t1 { (t0, t1) } else { (t1, t0) };
