@@ -390,7 +390,7 @@ const say = (...a) => console.log(...a);
   await page.click('#bSettings'); await page.waitForTimeout(150); await page.click('#setFps'); await page.waitForTimeout(100);
   const fps1 = await page.evaluate(() => !document.getElementById('fpsBadge').hidden);
   await page.click('#setFps'); await page.click('#setClose');
-  if (!(nb === 1 && rad.big === 1000 && rad.back === 10 && /^\d+ fps$/.test(fps0.text) && fps0.shown && !fps1)) { fails++; say('FAIL antineutron / radius / fps:', JSON.stringify({ nb, rad, fps0, fps1 })); }
+  if (!(nb === 1 && rad.big === 1000 && rad.back === 10 && /^\d+ fps/.test(fps0.text) && fps0.shown && !fps1)) { fails++; say('FAIL antineutron / radius / fps:', JSON.stringify({ nb, rad, fps0, fps1 })); }
   else say(`  antineutron placed from the palette; pull radius up to ${rad.big.toLocaleString('en-US')} Å; frame-rate counter “${fps0.text}”, hidden from Settings`);
   await page.evaluate(() => setTool('place'));
   check('flash byte, antineutron, radius, fps');

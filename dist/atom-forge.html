@@ -1,4 +1,4 @@
-<title>Atom Forge V26</title>
+<title>Atom Forge V27</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -130,6 +130,7 @@ button { cursor: pointer; }
 .stage { position: relative; min-width: 0; min-height: 0; border-radius: var(--r); overflow: hidden; background: var(--ch-bg);
   border: 1px solid var(--line); box-shadow: var(--shadow); }
 .stage canvas { display: block; touch-action: none; position: absolute; inset: 0; }
+.stage #cvbg, .stage #cvgl { pointer-events: none; }
 .palette-bar { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 6px; align-items: center; pointer-events: none; z-index: 2; }
 .palette-bar > * { pointer-events: auto; }
 .palette-bar > .hs { flex: 0 1 auto; }
@@ -585,6 +586,7 @@ details.chain[open] summary { margin-bottom: 10px; }
     <div class="tools-wrap hs" id="toolsHS"><nav class="tools" id="tools" aria-label="Tools"></nav></div>
 
     <div class="stage" id="stage">
+      <canvas id="cvbg" aria-hidden="true"></canvas><canvas id="cvgl" aria-hidden="true"></canvas>
       <canvas id="cv" aria-label="Simulation chamber"></canvas>
       <div class="palette-bar" id="paletteBar">
         <div class="hs" id="paletteHS"><div class="palette" id="palette" aria-label="Particle palette"></div></div>
@@ -945,6 +947,7 @@ details.chain[open] summary { margin-bottom: 10px; }
       <div class="srow"><span>Physics per frame</span><div class="seg" id="segBudget" role="group" aria-label="Physics time per frame"><button data-v="6">6 ms</button><button data-v="10">10 ms</button><button data-v="16">16 ms</button><button data-v="24">24 ms</button></div></div>
       <label class="check"><input type="checkbox" id="setFx"> Glows, halos and flashes</label>
       <div class="srow"><span>Threads</span><div class="seg" id="segThreads" role="group" aria-label="Processor threads"><button data-v="auto">Auto</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="4">4</button><button data-v="8">8</button><button data-v="16">16</button></div></div>
+      <div class="srow"><span>Drawing</span><div class="seg" id="segGl" role="group" aria-label="Drawing"><button data-v="gl">WebGL</button><button data-v="2d">Canvas 2D</button></div></div>
       <p class="note" id="setThreads" aria-live="polite"></p>
       <div class="srow"><span>Speed test</span><button class="btn small" id="setBench">Run benchmark</button></div>
       <p class="note" id="setBenchOut" aria-live="polite"></p>
@@ -9870,7 +9873,7 @@ function srWatch(ch) {
    ========================================================================== */
 
 const R = {
-  cv: null, ctx: null, dpr: 1, w: 0, h: 0,
+  cv: null, ctx: null, dpr: 1, w: 0, h: 0, cvbg: null, ctxbg: null, // cvbg: the canvas under the WebGL layer (gl.js), when that is in use
   s: 12, cx: 0, cy: 0,             // px per Å, world point at screen centre
   sprites: new Map(),
   view: { bohr: 'auto', labels: true, tracks: true, rays: true, hbonds: true, color: 'element', grid: true, decayCards: true },
@@ -9881,14 +9884,14 @@ const R = {
 const CHAMBER = { bg0: '#060a10', bg1: '#0b121b', grid: 'rgba(130,170,210,0.055)', box: 'rgba(150,185,220,0.35)',
   text: '#d6e2ee', dim: 'rgba(200,220,240,0.55)' };
 
-function rInit(canvas) {
+function rInit(canvas, bg) {
   R.cv = canvas; R.ctx = canvas.getContext('2d');
+  if (bg) { R.cvbg = bg; R.ctxbg = bg.getContext('2d'); }
 }
 function rResize(w, h) {
   R.dpr = Math.min(R.dprMax || 2, window.devicePixelRatio || 1);
   R.w = w; R.h = h;
-  R.cv.width = Math.round(w * R.dpr); R.cv.height = Math.round(h * R.dpr);
-  R.cv.style.width = w + 'px'; R.cv.style.height = h + 'px';
+  for (const cv of [R.cv, R.cvbg]) { if (!cv) continue; cv.width = Math.round(w * R.dpr); cv.height = Math.round(h * R.dpr); cv.style.width = w + 'px'; cv.style.height = h + 'px'; }
 }
 function fitView(margin = 28) {
   const bw = W.box.tw, bh = W.box.th;
@@ -9989,7 +9992,15 @@ function luminance(hex) { const [r, g, b] = hexc(hex); return 0.2126 * r + 0.715
 /* ---------- main draw ---------- */
 function render(rt) {
   R.time = rt;
-  const ctx = R.ctx, dpr = R.dpr;
+  const dpr = R.dpr;
+  // the WebGL layer (gl.js) takes the balls, glows and bonds when it can: the background goes on the canvas under it and
+  // the rest on the transparent one above; without it everything is drawn on the one canvas
+  R.gl = !!R.cvbg && typeof glReady === 'function' && glReady();
+  _colFrame++;
+  if (typeof glShow === 'function') glShow(R.gl);
+  if (R.gl) glBegin();
+  const ctx = R.gl ? R.ctxbg : R.ctx;
+  R.ctx = ctx; // (the drawing below the particles goes here)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   // chamber background
   const bg = ctx.createRadialGradient(R.w / 2, R.h / 2, 0, R.w / 2, R.h / 2, Math.max(R.w, R.h) * 0.75);
@@ -9999,9 +10010,12 @@ function render(rt) {
   drawFields();
   drawBox();
   if (R.view.tracks) drawTracks(rt);
-  drawBonds(rt);
+  if (R.gl) { drawChipsUnder(); drawBonds(rt); } // (on the WebGL layer; the chip packages under it)
+  // from here on, the canvas above the WebGL layer
+  if (R.gl) { R.ctx = R.cv.getContext('2d'); R.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); R.ctx.clearRect(0, 0, R.w, R.h); }
+  if (!R.gl) drawBonds(rt);
   if (R.view.hbonds) drawHBonds();
-  drawChipsUnder();
+  if (!R.gl) drawChipsUnder();
   drawParticles(rt);
   drawChips(rt);
   drawExos();
@@ -10130,6 +10144,7 @@ function bondPath(col, cls, aq) {
 }
 function drawBonds(rt) {
   if (R.view.bohr === 'nuc') { drawBondPairs(rt); return; }
+  if (R.gl) { drawBondsGL(); return; }
   const ctx = R.ctx, s = R.s, orb = R.view.bohr === 'orb';
   const lw = orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s);
   const off = Math.max(2, 0.11 * s), aMul = orb ? 0.45 : 1;
@@ -10167,6 +10182,40 @@ function drawBonds(rt) {
   }
   ctx.restore();
   if (_bondPaths.size > 64) _bondPaths.clear(); // (colours come and go with the view settings)
+}
+/* An atom's colour as [r, g, b], found once a frame per slot (the bonds ask for each atom's colour several times). */
+let _colGen = new Int32Array(0), _colRGB = [], _colFrame = 0;
+function slotColor(i, p) {
+  if (_colGen.length < S.size) { const g = new Int32Array(S.size); g.set(_colGen); _colGen = g; _colRGB.length = S.size; }
+  if (_colGen[i] === _colFrame) return _colRGB[i];
+  const c = hexc(atomColor(p || S.obj[i])); _colRGB[i] = c; _colGen[i] = _colFrame;
+  return c;
+}
+/* The same bonds on the WebGL layer: each half a round-capped segment in its atom's colour (one draw call for all). */
+function drawBondsGL() {
+  const s = R.s, orb = R.view.bohr === 'orb';
+  const hw = (orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)) / 2, hwMulti = hw * 0.7;
+  const off = Math.max(2, 0.11 * s), aMul = orb ? 0.45 : 1;
+  const X = S.x, Y = S.y, wrap = W.wall === 'wrap', hbw = W.box.w / 2, hbh = W.box.h / 2, cx = R.cx, cy = R.cy, hwp = R.w / 2, hhp = R.h / 2, Rw = R.w, Rh = R.h;
+  const bonds = W.bonds, nb = bonds.length;
+  for (let k = 0; k < nb; k++) {
+    const bd = bonds[k], a = bd.a, b = bd.b, ia = a.i, ib = b.i;
+    const ax = X[ia], ay = Y[ia], bx = X[ib], by = Y[ib];
+    if (wrap && (Math.abs(bx - ax) > hbw || Math.abs(by - ay) > hbh)) continue;
+    const x0 = (ax - cx) * s + hwp, y0 = (cy - ay) * s + hhp, x1 = (bx - cx) * s + hwp, y1 = (cy - by) * s + hhp;
+    if ((x0 < -40 && x1 < -40) || (x0 > Rw + 40 && x1 > Rw + 40) || (y0 < -40 && y1 < -40) || (y0 > Rh + 40 && y1 > Rh + 40)) continue;
+    const L = Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)) || 1, nx = -(y1 - y0) / L, ny = (x1 - x0) / L;
+    const n = bd.order, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    const ca = slotColor(ia, a), cb = slotColor(ib, b);
+    const stretch = clamp((L / s - bd.r0) / (bd.rb || 1.5), 0, 1);
+    const alpha = ((0.95 - stretch * 0.6) * aMul * 64 & 63) / 64, w = n > 1 ? hwMulti : hw; // (the same 64 opacity steps as the 2D paths)
+    for (let q = 0; q < n; q++) {
+      const o = (q - (n - 1) / 2) * off, ox = nx * o, oy = ny * o;
+      if (ca === cb) glSeg(x0 + ox, y0 + oy, x1 + ox, y1 + oy, w, ca, alpha); // (one colour: one segment)
+      else { glSeg(x0 + ox, y0 + oy, mx + ox, my + oy, w, ca, alpha); glSeg(mx + ox, my + oy, x1 + ox, y1 + oy, w, cb, alpha); }
+    }
+  }
+  glFlush();
 }
 /* Particle view: a bond is its shared electrons, one pair per bond order, swirling between the two nuclei and
    sitting nearer the more electronegative atom. */
@@ -10254,6 +10303,7 @@ function drawParticles(rt) {
   ctx.globalCompositeOperation = 'lighter';
   const parts = W.parts, np = parts.length, PI = partsSync(), X = S.x, Y = S.y, DEAD = S.dead, K = S.k, NE = S.ne;
   const cx = R.cx, cy = R.cy, hw = R.w / 2, hh = R.h / 2, xMax = R.w + pad, yMax = R.h + pad;
+  const gl = R.gl, Z = S.Z;
   if (!R.lite) for (let j = 0; j < np; j++) {
     const i = PI[j];
     if (DEAD[i] === 1) continue;
@@ -10261,16 +10311,40 @@ function drawParticles(rt) {
     if (x < -pad || y < -pad || x > xMax || y > yMax) continue;
     const p = parts[j];
     if (K[i] === NUC && NE[i] > 0 && p.tLocal > 900 && !p.fast) {
-      const a = clamp((p.tLocal - 900) / 4000, 0, 0.7);
-      drawSprite(glowSprite(blackbodyRGB(p.tLocal), clamp(p.rd * s * 3.2, 6, 48)), x, y, a); // (capped: zoomed in, a halo, not a blob)
+      const a = clamp((p.tLocal - 900) / 4000, 0, 0.7), rg = clamp(p.rd * s * 3.2, 6, 48); // (capped: zoomed in, a halo, not a blob)
+      if (gl) glGlow(x, y, rg, blackbodyRGB(p.tLocal), a); else drawSprite(glowSprite(blackbodyRGB(p.tLocal), rg), x, y, a);
     }
-    if (p.glow > 0.02 && p.glowC) drawSprite(glowSprite(p.glowC, clamp(p.rd * s * 5, 10, 32)), x, y, p.glow); // (light given off: a glint, however far zoomed in)
+    if (p.glow > 0.02 && p.glowC) { const rg = clamp(p.rd * s * 5, 10, 32); if (gl) glGlow(x, y, rg, p.glowC, p.glow); else drawSprite(glowSprite(p.glowC, rg), x, y, p.glow); } // (light given off: a glint, however far zoomed in)
   }
   ctx.globalCompositeOperation = 'source-over';
+  // the WebGL layer: the plain balls (atoms, ions, neutrons, free leptons with their glows) in one draw call each,
+  // laid down here; the 2D pass below then adds what goes on top of them and draws whatever is not a plain ball
+  const glBalls = gl && (bohrMode === 'auto' || bohrMode === 'on');
+  if (glBalls) {
+    const lite = R.lite, rl = Math.max(1.8, 0.12 * s), rlg = clamp(rl * 4.5, 7, 28), rn = Math.max(2.2, 0.2 * s), eCol = hexc(E_COL), pCol = hexc(POS_COL), nCol = hexc(N_COL);
+    const bohrAll = bohrMode === 'on';
+    for (let j = 0; j < np; j++) {
+      const i = PI[j];
+      if (DEAD[i] === 1) continue;
+      const x = (X[i] - cx) * s + hw, y = (cy - Y[i]) * s + hh;
+      if (x < -pad || y < -pad || x > xMax || y > yMax) continue;
+      if (K[i] !== NUC) { const p = parts[j], c = K[i] === ELEC ? eCol : pCol; if (!lite) glGlow(x, y, rlg, c, p.rad ? 1 : 0.55); glBall(x, y, lite ? rl * 1.2 : rl, c); continue; }
+      if (Z[i] === 0) { glBall(x, y, rn, nCol); continue; }
+      if (NE[i] === 0) continue; // (bare nuclei: beads, drawn below)
+      const p = parts[j], r = Math.max(2.4, p.rd * s);
+      if (bohrAll || r >= 30) continue; // (the Bohr picture, drawn below)
+      glBall(x, y, r, slotColor(i, p));
+    }
+    glFlush();
+  }
+  // with the balls on the WebGL layer, a plain atom too small for a label or a charge badge needs nothing more here
+  const ANTI = S.anti, plainSkip = glBalls && s * 1.6 < 5;
   const lateLeptons = bohrMode === 'orb' ? [] : null; // over the orbital clouds, free electrons go on top
   for (let j = 0; j < np; j++) {
     const i = PI[j];
     if (DEAD[i] === 1) continue;
+    if (glBalls && K[i] !== NUC) continue; // (free leptons: on the WebGL layer)
+    if (plainSkip && NE[i] > 0 && ANTI[i] === 0 && Z[i] > 0) continue;
     const x = (X[i] - cx) * s + hw, y = (cy - Y[i]) * s + hh;
     if (x < -pad || y < -pad || x > xMax || y > yMax) continue;
     const p = parts[j];
@@ -10286,7 +10360,7 @@ function drawParticles(rt) {
         continue;
       }
       const r = Math.max(2.2, 0.2 * s);
-      drawSprite(ballSprite(N_COL, r), x, y);
+      if (!glBalls) drawSprite(ballSprite(N_COL, r), x, y);
       if (r > 9 && bohrMode !== 'nuc') label(ctx, 'n', x, y, r, '#1b2430');
       continue;
     }
@@ -10326,7 +10400,7 @@ function drawParticles(rt) {
     const bohr = bohrMode === 'on' || (bohrMode === 'auto' && r >= 30);
     if (bohr) drawBohr(ctx, p, x, y, r, rt, col);
     else {
-      drawSprite(ballSprite(col, r), x, y);
+      if (!glBalls) drawSprite(ballSprite(col, r), x, y);
       if (R.view.labels && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
     }
     if (p.anti) { // antimatter: a dashed violet halo
@@ -11103,6 +11177,205 @@ function pickAt(px, py, extra = 6) {
     if (d2 < rr * rr && d2 < bd) { bd = d2; best = p; }
   }
   return best;
+}
+
+/* ---- gl.js ---- */
+/* ============================================================================
+   Atom Forge — the WebGL layer of the renderer
+   The things drawn by the thousand — atoms (balls), their glows and the bonds between them — are drawn with WebGL 2 in
+   one draw call each (instanced quads shaded in the fragment shader: the same radial-gradient ball as the Canvas 2D
+   sprite, the same capsule as a round-capped stroke, the same glow falloff), on a canvas of its own (#cvgl) that sits
+   between two Canvas 2D ones: #cvbg below it (background, grid, fields, box, tracks, chip packages) and #cv above it
+   (everything else: labels, badges, Bohr and orbital views, chips, rays, zones, overlays — transparent where nothing is
+   drawn). The browser composites the three; nothing is copied. Without WebGL 2 (or when GL.on is false) render.js draws
+   everything on #cv as before.
+   ========================================================================== */
+const GL = { ok: false, tried: false, on: true, cv: null, gl: null, w: 0, h: 0, note: '', calls: 0, balls: 0, glows: 0, segs: 0, shown: null };
+const GL_V = { ball: null, glow: null, seg: null }; // programs
+const GL_B = { ball: null, glow: null, seg: null }; // instance buffers: { ab, f32, u8, n, cap, vao, buf }
+const GL_BALL_STRIDE = 16, GL_SEG_STRIDE = 28; // bytes per vertex
+
+const GL_OV = 64; // CSS px the WebGL canvas reaches beyond the view on each side: point sprites whose centre is just off the view still show
+const GL_VS_POINT = `#version 300 es
+layout(location=0) in vec2 a_pos;      // centre, CSS pixels of the view
+layout(location=1) in float a_rad;     // radius, CSS pixels
+layout(location=2) in vec4 a_col;      // colour (and alpha for glows)
+uniform vec2 u_res;                    // the canvas, CSS pixels (the view plus the overscan)
+uniform float u_dpr;
+out float v_r; out vec4 v_col;
+void main() {
+  vec2 p = a_pos + vec2(${GL_OV}.0);
+  gl_Position = vec4(p.x / u_res.x * 2.0 - 1.0, 1.0 - p.y / u_res.y * 2.0, 0.0, 1.0);
+  gl_PointSize = 2.0 * (a_rad + 1.0) * u_dpr;
+  v_r = a_rad; v_col = a_col;
+}`;
+/* The ball: Canvas 2D's radial gradient from the circle (c0 = (-0.35r, -0.4r), r0 = 0.08r) to (0, r), colour+90 at 0,
+   the colour at 0.45, 0.45·colour at 1 — the parameter t of a point is the largest root of |P − C(t)| = r(t) with
+   r(t) ≥ 0. gl_PointCoord runs from the sprite's top left, as the sprite's own coordinates do. */
+const GL_FS_BALL = `#version 300 es
+precision highp float;
+in float v_r; in vec4 v_col;
+out vec4 o;
+void main() {
+  vec2 q = (gl_PointCoord - 0.5) * 2.0 * (v_r + 1.0);
+  float d = length(q);
+  float a = clamp(v_r + 0.5 - d, 0.0, 1.0);
+  if (a <= 0.0) discard;
+  vec2 c0 = vec2(-0.35, -0.4) * v_r; float r0 = 0.08 * v_r, dr = v_r - r0;
+  vec2 D = -c0, Q = q - c0;
+  float qa = dot(D, D) - dr * dr, qb = -2.0 * (dot(Q, D) + r0 * dr), qc = dot(Q, Q) - r0 * r0;
+  float t;
+  if (abs(qa) < 1e-6) t = -qc / qb;
+  else { float sq = sqrt(max(0.0, qb * qb - 4.0 * qa * qc)); float t1 = (-qb + sq) / (2.0 * qa), t2 = (-qb - sq) / (2.0 * qa); t = max(t1, t2); if (r0 + t * dr < 0.0) t = min(t1, t2); }
+  t = clamp(t, 0.0, 1.0);
+  vec3 c = v_col.rgb, hi = min(c + vec3(90.0 / 255.0), vec3(1.0)), lo = c * 0.45;
+  vec3 col = t < 0.45 ? mix(hi, c, t / 0.45) : mix(c, lo, (t - 0.45) / 0.55);
+  o = vec4(col * a, a);
+}`;
+/* The glow: alpha 0.9 at the centre, 0.45 at a quarter, 0 at the edge (the sprite's stops), times the instance's. */
+const GL_FS_GLOW = `#version 300 es
+precision highp float;
+in float v_r; in vec4 v_col;
+out vec4 o;
+void main() {
+  float t = length(gl_PointCoord - 0.5) * 2.0 * (v_r + 1.0) / v_r;
+  if (t >= 1.0) discard;
+  float a = (t < 0.25 ? mix(0.9, 0.45, t / 0.25) : mix(0.45, 0.0, (t - 0.25) / 0.75)) * v_col.a;
+  o = vec4(v_col.rgb * a, a);
+}`;
+/* A segment with round caps (a stroke with lineCap round): a quad covering the capsule, four vertices with their place
+   along and across the segment; the distance to the segment gives the edge. */
+const GL_VS_SEG = `#version 300 es
+layout(location=0) in vec2 a_pos;      // the vertex, CSS pixels of the view
+layout(location=1) in vec2 a_lc;       // along, across the segment (pixels)
+layout(location=2) in vec2 a_dim;      // the segment's length, half the width
+layout(location=3) in vec4 a_col;
+uniform vec2 u_res;
+out vec2 v_lc; out vec2 v_dim; out vec4 v_col;
+void main() {
+  vec2 p = a_pos + vec2(${GL_OV}.0);
+  gl_Position = vec4(p.x / u_res.x * 2.0 - 1.0, 1.0 - p.y / u_res.y * 2.0, 0.0, 1.0);
+  v_lc = a_lc; v_dim = a_dim; v_col = a_col;
+}`;
+const GL_FS_SEG = `#version 300 es
+precision highp float;
+in vec2 v_lc; in vec2 v_dim; in vec4 v_col;
+out vec4 o;
+void main() {
+  float x = clamp(v_lc.x, 0.0, v_dim.x);
+  float d = length(vec2(v_lc.x - x, v_lc.y));
+  float a = clamp(v_dim.y + 0.5 - d, 0.0, 1.0) * v_col.a;
+  if (a <= 0.0) discard;
+  o = vec4(v_col.rgb * a, a);
+}`;
+
+function glCompile(gl, vs, fs) {
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+  const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  return { p, u_res: gl.getUniformLocation(p, 'u_res'), u_dpr: gl.getUniformLocation(p, 'u_dpr') };
+}
+/* A vertex buffer with its vertex array: interleaved attributes, one vertex per ball or glow (points), four per segment
+   (quads, drawn with a shared index buffer). */
+function glBuffer(gl, stride, layout, perItem) {
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  for (const [loc, size, type, norm, off] of layout) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, type, norm, stride, off); }
+  if (perItem === 4) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, GL.quadIdx);
+  gl.bindVertexArray(null);
+  const cap = 4096, ab = new ArrayBuffer(cap * stride * perItem);
+  return { ab, f32: new Float32Array(ab), u8: new Uint8Array(ab), n: 0, cap, stride, perItem, vao, buf };
+}
+function glGrow(b, need) {
+  if (need <= b.cap) return;
+  let cap = b.cap; while (cap < need) cap *= 2;
+  const ab = new ArrayBuffer(cap * b.stride * b.perItem); new Uint8Array(ab).set(b.u8.subarray(0, b.n * b.stride * b.perItem));
+  b.ab = ab; b.f32 = new Float32Array(ab); b.u8 = new Uint8Array(ab); b.cap = cap;
+  if (b.perItem === 4) glQuadIndices(cap);
+}
+/* The index buffer shared by the quads: 0 1 2, 2 1 3 for each, for as many quads as any buffer holds. */
+function glQuadIndices(nq) {
+  if (GL.quadIdxN >= nq) return;
+  const gl = GL.gl, idx = new Uint32Array(nq * 6);
+  for (let q = 0, k = 0, v = 0; q < nq; q++, v += 4) { idx[k++] = v; idx[k++] = v + 1; idx[k++] = v + 2; idx[k++] = v + 2; idx[k++] = v + 1; idx[k++] = v + 3; }
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, GL.quadIdx); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  GL.quadIdxN = nq;
+}
+function glInit() {
+  if (GL.tried) return GL.ok;
+  GL.tried = true;
+  try {
+    if (typeof document === 'undefined') throw new Error('no document');
+    const cv = document.getElementById('cvgl') || document.createElement('canvas');
+    const gl = cv.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
+    if (!gl) throw new Error('WebGL 2 unavailable');
+    GL.cv = cv; GL.gl = gl;
+    GL.quadIdx = gl.createBuffer(); GL.quadIdxN = 0; glQuadIndices(4096);
+    GL_V.ball = glCompile(gl, GL_VS_POINT, GL_FS_BALL); GL_V.glow = glCompile(gl, GL_VS_POINT, GL_FS_GLOW); GL_V.seg = glCompile(gl, GL_VS_SEG, GL_FS_SEG);
+    const ballLayout = [[0, 2, gl.FLOAT, false, 0], [1, 1, gl.FLOAT, false, 8], [2, 4, gl.UNSIGNED_BYTE, true, 12]];
+    GL_B.ball = glBuffer(gl, GL_BALL_STRIDE, ballLayout, 1); GL_B.glow = glBuffer(gl, GL_BALL_STRIDE, ballLayout, 1);
+    GL_B.seg = glBuffer(gl, GL_SEG_STRIDE, [[0, 2, gl.FLOAT, false, 0], [1, 2, gl.FLOAT, false, 8], [2, 2, gl.FLOAT, false, 16], [3, 4, gl.UNSIGNED_BYTE, true, 24]], 4);
+    if (gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)[1] < 256) throw new Error('point sprites too small');
+    gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND);
+    cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); GL.ok = false; GL.note = 'context lost'; }, false);
+    cv.addEventListener('webglcontextrestored', () => { GL.tried = false; glInit(); }, false);
+    GL.ok = true; GL.note = 'WebGL 2';
+  } catch (e) { GL.ok = false; GL.note = 'Canvas 2D (' + (e.message || e) + ')'; GL.gl = null; }
+  return GL.ok;
+}
+function glReady() { return GL.on && (GL.ok || (!GL.tried && glInit())); }
+/* The WebGL canvas follows the 2D canvas's size; cleared to transparent for the frame. */
+function glBegin() {
+  const gl = GL.gl, w = Math.round((R.w + 2 * GL_OV) * R.dpr), h = Math.round((R.h + 2 * GL_OV) * R.dpr);
+  if (GL.w !== w || GL.h !== h) {
+    GL.cv.width = w; GL.cv.height = h; GL.cv.style.width = (R.w + 2 * GL_OV) + 'px'; GL.cv.style.height = (R.h + 2 * GL_OV) + 'px';
+    GL.cv.style.left = -GL_OV + 'px'; GL.cv.style.top = -GL_OV + 'px'; GL.w = w; GL.h = h;
+  }
+  gl.viewport(0, 0, w, h);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  GL_B.ball.n = 0; GL_B.glow.n = 0; GL_B.seg.n = 0;
+}
+/* The WebGL canvas shows only while the layer is in use (else its last frame would sit under the 2D drawing). */
+function glShow(on) { if (GL.cv && GL.shown !== on) { GL.cv.style.visibility = on ? '' : 'hidden'; GL.shown = on; } }
+/* Items: positions and radii in CSS pixels of the view, colours as [r, g, b] 0–255. */
+function glBall(x, y, r, c) {
+  const b = GL_B.ball; if (b.n >= b.cap) glGrow(b, b.n + 1);
+  const o = b.n * 4, u = b.n * 16; b.f32[o] = x; b.f32[o + 1] = y; b.f32[o + 2] = r; b.u8[u + 12] = c[0]; b.u8[u + 13] = c[1]; b.u8[u + 14] = c[2]; b.u8[u + 15] = 255; b.n++;
+}
+function glGlow(x, y, r, c, alpha) {
+  const b = GL_B.glow; if (b.n >= b.cap) glGrow(b, b.n + 1);
+  const o = b.n * 4, u = b.n * 16; b.f32[o] = x; b.f32[o + 1] = y; b.f32[o + 2] = r; b.u8[u + 12] = c[0]; b.u8[u + 13] = c[1]; b.u8[u + 14] = c[2]; b.u8[u + 15] = Math.round(alpha * 255); b.n++;
+}
+function glSeg(x0, y0, x1, y1, hw, c, alpha) {
+  const b = GL_B.seg; if (b.n >= b.cap) glGrow(b, b.n + 1);
+  const dx = x1 - x0, dy = y1 - y0, L = Math.sqrt(dx * dx + dy * dy), ux = L > 0 ? dx / L : 1, uy = L > 0 ? dy / L : 0, nx = -uy, ny = ux, e = hw + 1;
+  const F = b.f32, U = b.u8, A = Math.round(alpha * 255);
+  let o = b.n * 28, u = b.n * 112; // (7 floats a vertex, 4 vertices: 0 = start left, 1 = start right, 2 = end left, 3 = end right)
+  const put = (along, across) => {
+    F[o] = x0 + ux * along + nx * across; F[o + 1] = y0 + uy * along + ny * across; F[o + 2] = along; F[o + 3] = across; F[o + 4] = L; F[o + 5] = hw;
+    U[u + 24] = c[0]; U[u + 25] = c[1]; U[u + 26] = c[2]; U[u + 27] = A; o += 7; u += 28;
+  };
+  put(-e, -e); put(-e, e); put(L + e, -e); put(L + e, e);
+  b.n++;
+}
+function glDrawBuf(prog, b, additive) {
+  if (!b.n) return;
+  const gl = GL.gl;
+  gl.useProgram(prog.p); gl.uniform2f(prog.u_res, R.w + 2 * GL_OV, R.h + 2 * GL_OV); if (prog.u_dpr) gl.uniform1f(prog.u_dpr, R.dpr);
+  gl.blendFunc(gl.ONE, additive ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
+  gl.bindVertexArray(b.vao); gl.bindBuffer(gl.ARRAY_BUFFER, b.buf);
+  gl.bufferData(gl.ARRAY_BUFFER, b.u8.subarray(0, b.n * b.stride * b.perItem), gl.DYNAMIC_DRAW);
+  if (b.perItem === 4) gl.drawElements(gl.TRIANGLES, b.n * 6, gl.UNSIGNED_INT, 0);
+  else gl.drawArrays(gl.POINTS, 0, b.n);
+  gl.bindVertexArray(null);
+  GL.calls++;
+}
+/* Draw what has been queued: segments, then glows additively, then balls. */
+function glFlush() {
+  if (GL_B.seg.n) { glDrawBuf(GL_V.seg, GL_B.seg, false); GL.segs += GL_B.seg.n; }
+  if (GL_B.glow.n) { glDrawBuf(GL_V.glow, GL_B.glow, true); GL.glows += GL_B.glow.n; }
+  if (GL_B.ball.n) { glDrawBuf(GL_V.ball, GL_B.ball, false); GL.balls += GL_B.ball.n; }
+  GL_B.ball.n = 0; GL_B.glow.n = 0; GL_B.seg.n = 0;
 }
 
 /* ---- builder.js ---- */
@@ -15311,6 +15584,7 @@ function histTick(now) {
 }
 
 /* ------------------------------------------------------------------ main loop */
+const FRAME_AIM_MS = 1000 / 60 - 0.4; // a frame's worth at 60 fps: the simulation gets what the drawing and panels leave of it
 function frame(now) {
   const realDt = Math.min(0.1, Math.max(0, (now - UI.last) / 1000));
   UI.last = now; UI.vis += realDt; UI.fps = UI.fps ? 0.95 * UI.fps + 0.05 / Math.max(1e-3, realDt) : 60;
@@ -15321,7 +15595,7 @@ function frame(now) {
     if (UI.fpsT) {
       UI.fpsNow = UI.fpsN * 1000 / (now - UI.fpsT);
       FP.shown = FP.worst > 40 ? ` · worst ${FP.worst.toFixed(0)} ms (${FP.worstTxt})` : '';
-      if (SET.fps) $('fpsBadge').textContent = Math.round(UI.fpsNow) + ' fps' + (TH.used > 1 ? ` · ${TH.used} threads` : '') + FP.shown;
+      if (SET.fps) $('fpsBadge').textContent = Math.round(UI.fpsNow) + ' fps' + (TH.used > 1 ? ` · ${TH.used} threads` : '') + (UI.running ? ` · sim ${(FP.simAvg || 0).toFixed(1)} draw ${(FP.drawAvg || 0).toFixed(1)} ms` : '') + FP.shown;
       FP.worst = 0;
     }
     UI.fpsT = now; UI.fpsN = 0;
@@ -15329,7 +15603,14 @@ function frame(now) {
   const tf0 = performance.now(); let tf1 = tf0, tf2 = tf0;
   try {
     if (UI.running || UI.stepOnce) {
-      const r = simFrame(UI.running ? realDt : 1 / 60, W.simPerFrame > UI.baseSpf * 1.01 ? Math.max(14, UI.budget) : UI.budget); // (sped up: at least 14 ms, never less than Settings gives)
+      // the simulation's budget for this frame: Settings' figure at most, less when the drawing and the panels of the last
+      // frames would not leave a 60 fps frame otherwise (the step that overshoots the budget is allowed for too)
+      const sped = W.simPerFrame > UI.baseSpf * 1.01, cap = sped ? Math.max(14, UI.budget) : UI.budget; // (sped up: at least 14 ms, never less than Settings gives)
+      const room = FRAME_AIM_MS - (FP.drawAvg || 0) - (FP.uiAvg || 0) - (FP.stepAvg || 0);
+      const budget = Math.max(3, Math.min(cap, room));
+      FP.budget = budget;
+      const r = simFrame(UI.running ? realDt : 1 / 60, budget);
+      if (r.steps > 0) FP.stepAvg = 0.8 * (FP.stepAvg || 0) + 0.2 * ((performance.now() - tf0) / r.steps);
       if (UI.running) {
         UI.ach = 0.92 * (UI.ach || 1) + 0.08 * Math.min(1, r.simAdv / Math.max(1e-12, r.target));
         UI.adv = UI.adv > 0 ? Math.exp(0.85 * Math.log(UI.adv) + 0.15 * Math.log(Math.max(1e-12, r.simAdv))) : r.simAdv; // (time advanced per frame, smoothed, for the Motion readout)
@@ -15351,6 +15632,7 @@ function frame(now) {
   const tf3 = performance.now(), total = tf3 - tf0, gap = tf0 - (UI.lastFrameEnd || tf0); // (gap: time between frames not spent here — the browser, or a stall elsewhere)
   UI.lastFrameEnd = tf3;
   FP.sim = tf1 - tf0; FP.draw = tf2 - tf1; FP.ui = tf3 - tf2;
+  FP.drawAvg = 0.9 * (FP.drawAvg || FP.draw) + 0.1 * FP.draw; FP.uiAvg = 0.9 * (FP.uiAvg || FP.ui) + 0.1 * FP.ui; FP.simAvg = 0.9 * (FP.simAvg || FP.sim) + 0.1 * FP.sim; // (smoothed: what the next frame's budget allows for)
   const worstNow = Math.max(total, gap);
   if (worstNow > FP.worst) { FP.worst = worstNow; FP.worstTxt = gap > total ? `${gap.toFixed(0)} ms between frames` : `sim ${FP.sim.toFixed(0)}, draw ${FP.draw.toFixed(0)}, panels ${FP.ui.toFixed(0)}`; }
   requestAnimationFrame(frame);
@@ -15417,9 +15699,9 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto' };
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl' };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'] };
+const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -15438,6 +15720,7 @@ function applySettings() {
   const dm = SET.res === 'sharp' ? 2 : SET.res === 'standard' ? 1 : 0.75;
   if (R.dprMax !== dm) { R.dprMax = dm; if (R.w) rResize(R.w, R.h); }
   R.lite = !SET.effects;
+  GL.on = SET.gl !== '2d'; // (the WebGL layer for atoms and bonds; Canvas 2D for everything when off or unavailable)
   UI.budget = SET.budget;
   if (SET.theme === 'system') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = SET.theme;
   T_UNIT = SET.tunit;
@@ -15448,7 +15731,7 @@ function applySettings() {
 /* What the threads row says: whether this page can use workers at all, and how many are in use. */
 function threadsNote() {
   const nwk = TH.wasmOn.filter(Boolean).length, workers = TH.n ? ` (${nwk === TH.n ? 'all' : nwk + ' of ' + TH.n} workers too)` : '';
-  const kernel = WK.ready ? (WK.use ? ` Force kernel: WebAssembly${workers}.` : ' Force kernel: JavaScript (WebAssembly off).') : WK.on ? ` Force kernel: JavaScript (WebAssembly ${WK.note}).` : ' Force kernel: JavaScript.';
+  const kernel = (WK.ready ? (WK.use ? ` Force kernel: WebAssembly${workers}.` : ' Force kernel: JavaScript (WebAssembly off).') : WK.on ? ` Force kernel: JavaScript (WebAssembly ${WK.note}).` : ' Force kernel: JavaScript.') + ` Drawing: ${GL.ok && GL.on ? 'WebGL 2 for the atoms and bonds' : GL.note || 'Canvas 2D'}.`;
   if (!threadsAvailable()) return 'One thread: this page is not cross-origin isolated, so the browser allows no shared memory. The desktop app runs the pair forces on all your processor\u2019s threads.' + kernel;
   const c = navigator.hardwareConcurrency || '?';
   if (!TH.n) return `One thread (this computer has ${c}).` + kernel;
@@ -15493,8 +15776,13 @@ function benchStart() {
       PROF.on = false;
       const dt = adv / (3 * N), spf = 10 / best, speed = Math.min(100, 100 * spf * dt / W.simPerFrame), ns = PROF.steps || 1;
       const f = (v) => (v / ns).toFixed(2);
+      // the drawing: a frame of this world as the page draws it, WebGL layer and plain Canvas 2D
+      fitView();
+      const drawMs = (on) => { const was = GL.on; GL.on = on && GL.ok; render(W.rt); const t0 = performance.now(); for (let i = 0; i < 8; i++) render(W.rt); const ms = (performance.now() - t0) / 8; GL.on = was; return ms; };
+      const dGL = GL.ok ? drawMs(true) : null, d2D = drawMs(false);
       BENCH.rows.push(`${name}: ${best.toFixed(2)} ms a step on ${TH.used || 1} thread${(TH.used || 1) > 1 ? 's' : ''}${wasmReady() ? ', WebAssembly kernel' : ''}, ${spf.toFixed(1)} steps in a 10 ms frame, ${speed.toFixed(0)}% of full speed` +
-        ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)}; ${(PROF.passes / ns).toFixed(2)} force passes a step]`);
+        ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)}; ${(PROF.passes / ns).toFixed(2)} force passes a step]` +
+        ` drawing ${dGL !== null ? dGL.toFixed(1) + ' ms a frame with WebGL, ' : ''}${d2D.toFixed(1)} ms with Canvas 2D`);
       show(''); setTimeout(next, 30);
     }, 30);
   };
@@ -15518,7 +15806,7 @@ function setSetting(k, v) {
 function syncSettings() {
   if ($('setModal').hidden) return;
   $('setPerf').checked = perfOn();
-  setSegValue('segMax', SET.maxParts); setSegValue('segRes', SET.res); setSegValue('segBudget', SET.budget); setSegValue('segThreads', String(SET.threads));
+  setSegValue('segMax', SET.maxParts); setSegValue('segRes', SET.res); setSegValue('segBudget', SET.budget); setSegValue('segThreads', String(SET.threads)); setSegValue('segGl', SET.gl);
   try { $('setThreads').textContent = threadsNote(); } catch (e) { $('setThreads').textContent = 'Threads: ' + e.message; }
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit);
   $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo;
@@ -15549,6 +15837,7 @@ function settingsInit() {
   bindSeg('segRes', (v) => setSetting('res', v));
   bindSeg('segBudget', (v) => setSetting('budget', +v));
   bindSeg('segThreads', (v) => setSetting('threads', v));
+  bindSeg('segGl', (v) => setSetting('gl', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
   bindSeg('segTUnit', (v) => setSetting('tunit', v));
@@ -15702,7 +15991,7 @@ function qmInit() {
 
 /* ------------------------------------------------------------------ init */
 function init() {
-  rInit($('cv'));
+  rInit($('cv'), $('cvbg'));
   UI.budget = 10;
   const sv = store('bohr'); if (sv) setAtomView(sv);
   W.slowmo = store('slowmo') !== '0';

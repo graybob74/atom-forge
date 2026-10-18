@@ -1,4 +1,4 @@
-# Atom Forge V22–V26 — engine performance notes
+# Atom Forge V22–V27 — engine performance notes
 
 The physics is unchanged: the same potentials, events, step-size rules and energy bookkeeping. What changed is how the
 engine stores and visits particles.
@@ -75,6 +75,25 @@ engine stores and visits particles.
 - Node, one thread: the kernels 2.5× faster (water 1.5 → 0.9 ms, flash byte 1.6 → 0.8), the step 4.3 → 3.6 ms (water)
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
+
+## V27: WebGL layer and the adaptive frame budget (`src/gl.js`)
+- The atoms (balls), their glows and the bonds are drawn with WebGL 2 on a canvas of its own (#cvgl) between two
+  Canvas 2D canvases: #cvbg under it (background, grid, fields, box, tracks, chip packages) and #cv above it
+  (everything else, transparent where nothing is drawn). The browser composites the three; nothing is copied back.
+  Balls and glows are point sprites (gl_PointSize; the canvas reaches 64 px beyond the view so sprites whose centre is
+  just outside still show), bonds four-vertex quads with a shared index buffer — not instancing, which software GL
+  (SwiftShader, as in headless Chromium) runs at ~30 µs an instance. The ball's fragment shader evaluates Canvas 2D's
+  radial gradient (the largest root of |P − C(t)| = r(t)), so the two renderings agree pixel for pixel but for edge
+  anti-aliasing (`tests/t_gl.js`). An atom's colour is found once a frame per slot (`slotColor`). Labels, badges, the
+  Bohr/orbital/nucleus views, antimatter halos and leptons in those views stay Canvas 2D on #cv; with the layer on,
+  plain atoms too small for a label or badge are skipped by the 2D pass altogether.
+- Settings → Drawing: WebGL / Canvas 2D (`SET.gl`); the Threads note says which is in use; the benchmark reports the
+  drawing time of each world both ways. Without WebGL 2 everything is as before, on one canvas.
+- The simulation's budget per frame is now adaptive: Settings' figure at most, less when the previous frames' drawing,
+  panels and step length would not leave a 60 fps frame (`FRAME_AIM_MS`, `FP.budget`). The fps badge shows the smoothed
+  sim and draw milliseconds a frame.
+- Headless Chromium (software GL), JavaScript time of a frame's drawing: 12,000 atoms of water 98 → 9 ms, the page's
+  frame 96 → 2 ms of drawing; the Flash byte 27 → 1.3 ms.
 
 ## V26: collider RF, frame diagnostics, Select tool
 - Rings lost particles at full energy (D + T at 10 GeV, kept apart: deuterons and tritons thrown out one by one at

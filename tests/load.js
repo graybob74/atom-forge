@@ -9,7 +9,7 @@
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
 const ENGINE = ['molecules.gen.js', 'objects.gen.js', 'data.js', 'atomic.js', 'solver.js', 'orbitals.js', 'wasm.js', 'engine.js', 'threads.js', 'hep.js', 'chips.js'];
-const ALL = ['molecules.gen.js', 'objects.gen.js', 'data.js', 'atomic.js', 'solver.js', 'orbitals.js', 'wasm.js', 'engine.js', 'threads.js', 'hep.js', 'chips.js', 'render.js', 'builder.js', 'design.js', 'ui.js'];
+const ALL = ['molecules.gen.js', 'objects.gen.js', 'data.js', 'atomic.js', 'solver.js', 'orbitals.js', 'wasm.js', 'engine.js', 'threads.js', 'hep.js', 'chips.js', 'render.js', 'gl.js', 'builder.js', 'design.js', 'ui.js'];
 const strip = (s) => s.replace(/^'use strict';\s*/m, '').replace(/if \(typeof module !== 'undefined'\) module\.exports = [\s\S]*?;\s*$/m, '');
 const STUB = `const document = { readyState: 'complete', getElementById: () => null, querySelector: () => null, querySelectorAll: () => [],
   createElement: () => ({ style: {}, getContext: () => null, classList: { add() {}, remove() {}, toggle() {} } }), addEventListener() {} };
@@ -28,7 +28,7 @@ function load(files, opts = {}) {
   if (files === 'all') files = ALL;
   if (!files) files = ENGINE;
   if (opts.seed !== undefined) Math.random = seeded(opts.seed);
-  const ui = files.some(f => ['render.js', 'builder.js', 'design.js', 'ui.js'].includes(f));
+  const ui = files.some(f => ['render.js', 'gl.js', 'builder.js', 'design.js', 'ui.js'].includes(f));
   // the WebAssembly kernel, as build.js embeds it (opts.wasm === false leaves it out: the JavaScript kernels alone)
   const wasmFile = path.join(ROOT, 'src', 'wasm', 'kernel.wasm');
   const wasmConst = `const KERNEL_WASM_B64 = ${opts.wasm !== false && fs.existsSync(wasmFile) ? JSON.stringify(fs.readFileSync(wasmFile).toString('base64')) : 'null'};\n`;

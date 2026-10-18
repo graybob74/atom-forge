@@ -19,7 +19,7 @@ async function openPage(opts = {}) {
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + (e.stack || e.message)));
-  page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
+  page.on('console', (m) => { if ((m.type() === 'error' || m.type() === 'warning') && !/software WebGL|GL Driver Message/.test(m.text())) errors.push(m.type() + ': ' + m.text()); }); // (headless Chromium's software-GL notices are not the page's)
   await page.goto('file://' + pageFile() + (opts.hash ? '#' + opts.hash : ''));
   await page.waitForTimeout(opts.settle === undefined ? 600 : opts.settle);
   return { browser, ctx, page, errors };

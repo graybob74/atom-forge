@@ -4,7 +4,7 @@
    ========================================================================== */
 
 const R = {
-  cv: null, ctx: null, dpr: 1, w: 0, h: 0,
+  cv: null, ctx: null, dpr: 1, w: 0, h: 0, cvbg: null, ctxbg: null, // cvbg: the canvas under the WebGL layer (gl.js), when that is in use
   s: 12, cx: 0, cy: 0,             // px per Å, world point at screen centre
   sprites: new Map(),
   view: { bohr: 'auto', labels: true, tracks: true, rays: true, hbonds: true, color: 'element', grid: true, decayCards: true },
@@ -15,14 +15,14 @@ const R = {
 const CHAMBER = { bg0: '#060a10', bg1: '#0b121b', grid: 'rgba(130,170,210,0.055)', box: 'rgba(150,185,220,0.35)',
   text: '#d6e2ee', dim: 'rgba(200,220,240,0.55)' };
 
-function rInit(canvas) {
+function rInit(canvas, bg) {
   R.cv = canvas; R.ctx = canvas.getContext('2d');
+  if (bg) { R.cvbg = bg; R.ctxbg = bg.getContext('2d'); }
 }
 function rResize(w, h) {
   R.dpr = Math.min(R.dprMax || 2, window.devicePixelRatio || 1);
   R.w = w; R.h = h;
-  R.cv.width = Math.round(w * R.dpr); R.cv.height = Math.round(h * R.dpr);
-  R.cv.style.width = w + 'px'; R.cv.style.height = h + 'px';
+  for (const cv of [R.cv, R.cvbg]) { if (!cv) continue; cv.width = Math.round(w * R.dpr); cv.height = Math.round(h * R.dpr); cv.style.width = w + 'px'; cv.style.height = h + 'px'; }
 }
 function fitView(margin = 28) {
   const bw = W.box.tw, bh = W.box.th;
@@ -123,7 +123,15 @@ function luminance(hex) { const [r, g, b] = hexc(hex); return 0.2126 * r + 0.715
 /* ---------- main draw ---------- */
 function render(rt) {
   R.time = rt;
-  const ctx = R.ctx, dpr = R.dpr;
+  const dpr = R.dpr;
+  // the WebGL layer (gl.js) takes the balls, glows and bonds when it can: the background goes on the canvas under it and
+  // the rest on the transparent one above; without it everything is drawn on the one canvas
+  R.gl = !!R.cvbg && typeof glReady === 'function' && glReady();
+  _colFrame++;
+  if (typeof glShow === 'function') glShow(R.gl);
+  if (R.gl) glBegin();
+  const ctx = R.gl ? R.ctxbg : R.ctx;
+  R.ctx = ctx; // (the drawing below the particles goes here)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   // chamber background
   const bg = ctx.createRadialGradient(R.w / 2, R.h / 2, 0, R.w / 2, R.h / 2, Math.max(R.w, R.h) * 0.75);
@@ -133,9 +141,12 @@ function render(rt) {
   drawFields();
   drawBox();
   if (R.view.tracks) drawTracks(rt);
-  drawBonds(rt);
+  if (R.gl) { drawChipsUnder(); drawBonds(rt); } // (on the WebGL layer; the chip packages under it)
+  // from here on, the canvas above the WebGL layer
+  if (R.gl) { R.ctx = R.cv.getContext('2d'); R.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); R.ctx.clearRect(0, 0, R.w, R.h); }
+  if (!R.gl) drawBonds(rt);
   if (R.view.hbonds) drawHBonds();
-  drawChipsUnder();
+  if (!R.gl) drawChipsUnder();
   drawParticles(rt);
   drawChips(rt);
   drawExos();
@@ -264,6 +275,7 @@ function bondPath(col, cls, aq) {
 }
 function drawBonds(rt) {
   if (R.view.bohr === 'nuc') { drawBondPairs(rt); return; }
+  if (R.gl) { drawBondsGL(); return; }
   const ctx = R.ctx, s = R.s, orb = R.view.bohr === 'orb';
   const lw = orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s);
   const off = Math.max(2, 0.11 * s), aMul = orb ? 0.45 : 1;
@@ -301,6 +313,40 @@ function drawBonds(rt) {
   }
   ctx.restore();
   if (_bondPaths.size > 64) _bondPaths.clear(); // (colours come and go with the view settings)
+}
+/* An atom's colour as [r, g, b], found once a frame per slot (the bonds ask for each atom's colour several times). */
+let _colGen = new Int32Array(0), _colRGB = [], _colFrame = 0;
+function slotColor(i, p) {
+  if (_colGen.length < S.size) { const g = new Int32Array(S.size); g.set(_colGen); _colGen = g; _colRGB.length = S.size; }
+  if (_colGen[i] === _colFrame) return _colRGB[i];
+  const c = hexc(atomColor(p || S.obj[i])); _colRGB[i] = c; _colGen[i] = _colFrame;
+  return c;
+}
+/* The same bonds on the WebGL layer: each half a round-capped segment in its atom's colour (one draw call for all). */
+function drawBondsGL() {
+  const s = R.s, orb = R.view.bohr === 'orb';
+  const hw = (orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)) / 2, hwMulti = hw * 0.7;
+  const off = Math.max(2, 0.11 * s), aMul = orb ? 0.45 : 1;
+  const X = S.x, Y = S.y, wrap = W.wall === 'wrap', hbw = W.box.w / 2, hbh = W.box.h / 2, cx = R.cx, cy = R.cy, hwp = R.w / 2, hhp = R.h / 2, Rw = R.w, Rh = R.h;
+  const bonds = W.bonds, nb = bonds.length;
+  for (let k = 0; k < nb; k++) {
+    const bd = bonds[k], a = bd.a, b = bd.b, ia = a.i, ib = b.i;
+    const ax = X[ia], ay = Y[ia], bx = X[ib], by = Y[ib];
+    if (wrap && (Math.abs(bx - ax) > hbw || Math.abs(by - ay) > hbh)) continue;
+    const x0 = (ax - cx) * s + hwp, y0 = (cy - ay) * s + hhp, x1 = (bx - cx) * s + hwp, y1 = (cy - by) * s + hhp;
+    if ((x0 < -40 && x1 < -40) || (x0 > Rw + 40 && x1 > Rw + 40) || (y0 < -40 && y1 < -40) || (y0 > Rh + 40 && y1 > Rh + 40)) continue;
+    const L = Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)) || 1, nx = -(y1 - y0) / L, ny = (x1 - x0) / L;
+    const n = bd.order, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    const ca = slotColor(ia, a), cb = slotColor(ib, b);
+    const stretch = clamp((L / s - bd.r0) / (bd.rb || 1.5), 0, 1);
+    const alpha = ((0.95 - stretch * 0.6) * aMul * 64 & 63) / 64, w = n > 1 ? hwMulti : hw; // (the same 64 opacity steps as the 2D paths)
+    for (let q = 0; q < n; q++) {
+      const o = (q - (n - 1) / 2) * off, ox = nx * o, oy = ny * o;
+      if (ca === cb) glSeg(x0 + ox, y0 + oy, x1 + ox, y1 + oy, w, ca, alpha); // (one colour: one segment)
+      else { glSeg(x0 + ox, y0 + oy, mx + ox, my + oy, w, ca, alpha); glSeg(mx + ox, my + oy, x1 + ox, y1 + oy, w, cb, alpha); }
+    }
+  }
+  glFlush();
 }
 /* Particle view: a bond is its shared electrons, one pair per bond order, swirling between the two nuclei and
    sitting nearer the more electronegative atom. */
@@ -388,6 +434,7 @@ function drawParticles(rt) {
   ctx.globalCompositeOperation = 'lighter';
   const parts = W.parts, np = parts.length, PI = partsSync(), X = S.x, Y = S.y, DEAD = S.dead, K = S.k, NE = S.ne;
   const cx = R.cx, cy = R.cy, hw = R.w / 2, hh = R.h / 2, xMax = R.w + pad, yMax = R.h + pad;
+  const gl = R.gl, Z = S.Z;
   if (!R.lite) for (let j = 0; j < np; j++) {
     const i = PI[j];
     if (DEAD[i] === 1) continue;
@@ -395,16 +442,40 @@ function drawParticles(rt) {
     if (x < -pad || y < -pad || x > xMax || y > yMax) continue;
     const p = parts[j];
     if (K[i] === NUC && NE[i] > 0 && p.tLocal > 900 && !p.fast) {
-      const a = clamp((p.tLocal - 900) / 4000, 0, 0.7);
-      drawSprite(glowSprite(blackbodyRGB(p.tLocal), clamp(p.rd * s * 3.2, 6, 48)), x, y, a); // (capped: zoomed in, a halo, not a blob)
+      const a = clamp((p.tLocal - 900) / 4000, 0, 0.7), rg = clamp(p.rd * s * 3.2, 6, 48); // (capped: zoomed in, a halo, not a blob)
+      if (gl) glGlow(x, y, rg, blackbodyRGB(p.tLocal), a); else drawSprite(glowSprite(blackbodyRGB(p.tLocal), rg), x, y, a);
     }
-    if (p.glow > 0.02 && p.glowC) drawSprite(glowSprite(p.glowC, clamp(p.rd * s * 5, 10, 32)), x, y, p.glow); // (light given off: a glint, however far zoomed in)
+    if (p.glow > 0.02 && p.glowC) { const rg = clamp(p.rd * s * 5, 10, 32); if (gl) glGlow(x, y, rg, p.glowC, p.glow); else drawSprite(glowSprite(p.glowC, rg), x, y, p.glow); } // (light given off: a glint, however far zoomed in)
   }
   ctx.globalCompositeOperation = 'source-over';
+  // the WebGL layer: the plain balls (atoms, ions, neutrons, free leptons with their glows) in one draw call each,
+  // laid down here; the 2D pass below then adds what goes on top of them and draws whatever is not a plain ball
+  const glBalls = gl && (bohrMode === 'auto' || bohrMode === 'on');
+  if (glBalls) {
+    const lite = R.lite, rl = Math.max(1.8, 0.12 * s), rlg = clamp(rl * 4.5, 7, 28), rn = Math.max(2.2, 0.2 * s), eCol = hexc(E_COL), pCol = hexc(POS_COL), nCol = hexc(N_COL);
+    const bohrAll = bohrMode === 'on';
+    for (let j = 0; j < np; j++) {
+      const i = PI[j];
+      if (DEAD[i] === 1) continue;
+      const x = (X[i] - cx) * s + hw, y = (cy - Y[i]) * s + hh;
+      if (x < -pad || y < -pad || x > xMax || y > yMax) continue;
+      if (K[i] !== NUC) { const p = parts[j], c = K[i] === ELEC ? eCol : pCol; if (!lite) glGlow(x, y, rlg, c, p.rad ? 1 : 0.55); glBall(x, y, lite ? rl * 1.2 : rl, c); continue; }
+      if (Z[i] === 0) { glBall(x, y, rn, nCol); continue; }
+      if (NE[i] === 0) continue; // (bare nuclei: beads, drawn below)
+      const p = parts[j], r = Math.max(2.4, p.rd * s);
+      if (bohrAll || r >= 30) continue; // (the Bohr picture, drawn below)
+      glBall(x, y, r, slotColor(i, p));
+    }
+    glFlush();
+  }
+  // with the balls on the WebGL layer, a plain atom too small for a label or a charge badge needs nothing more here
+  const ANTI = S.anti, plainSkip = glBalls && s * 1.6 < 5;
   const lateLeptons = bohrMode === 'orb' ? [] : null; // over the orbital clouds, free electrons go on top
   for (let j = 0; j < np; j++) {
     const i = PI[j];
     if (DEAD[i] === 1) continue;
+    if (glBalls && K[i] !== NUC) continue; // (free leptons: on the WebGL layer)
+    if (plainSkip && NE[i] > 0 && ANTI[i] === 0 && Z[i] > 0) continue;
     const x = (X[i] - cx) * s + hw, y = (cy - Y[i]) * s + hh;
     if (x < -pad || y < -pad || x > xMax || y > yMax) continue;
     const p = parts[j];
@@ -420,7 +491,7 @@ function drawParticles(rt) {
         continue;
       }
       const r = Math.max(2.2, 0.2 * s);
-      drawSprite(ballSprite(N_COL, r), x, y);
+      if (!glBalls) drawSprite(ballSprite(N_COL, r), x, y);
       if (r > 9 && bohrMode !== 'nuc') label(ctx, 'n', x, y, r, '#1b2430');
       continue;
     }
@@ -460,7 +531,7 @@ function drawParticles(rt) {
     const bohr = bohrMode === 'on' || (bohrMode === 'auto' && r >= 30);
     if (bohr) drawBohr(ctx, p, x, y, r, rt, col);
     else {
-      drawSprite(ballSprite(col, r), x, y);
+      if (!glBalls) drawSprite(ballSprite(col, r), x, y);
       if (R.view.labels && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
     }
     if (p.anti) { // antimatter: a dashed violet halo

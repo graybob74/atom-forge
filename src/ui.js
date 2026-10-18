@@ -2438,6 +2438,7 @@ function histTick(now) {
 }
 
 /* ------------------------------------------------------------------ main loop */
+const FRAME_AIM_MS = 1000 / 60 - 0.4; // a frame's worth at 60 fps: the simulation gets what the drawing and panels leave of it
 function frame(now) {
   const realDt = Math.min(0.1, Math.max(0, (now - UI.last) / 1000));
   UI.last = now; UI.vis += realDt; UI.fps = UI.fps ? 0.95 * UI.fps + 0.05 / Math.max(1e-3, realDt) : 60;
@@ -2448,7 +2449,7 @@ function frame(now) {
     if (UI.fpsT) {
       UI.fpsNow = UI.fpsN * 1000 / (now - UI.fpsT);
       FP.shown = FP.worst > 40 ? ` · worst ${FP.worst.toFixed(0)} ms (${FP.worstTxt})` : '';
-      if (SET.fps) $('fpsBadge').textContent = Math.round(UI.fpsNow) + ' fps' + (TH.used > 1 ? ` · ${TH.used} threads` : '') + FP.shown;
+      if (SET.fps) $('fpsBadge').textContent = Math.round(UI.fpsNow) + ' fps' + (TH.used > 1 ? ` · ${TH.used} threads` : '') + (UI.running ? ` · sim ${(FP.simAvg || 0).toFixed(1)} draw ${(FP.drawAvg || 0).toFixed(1)} ms` : '') + FP.shown;
       FP.worst = 0;
     }
     UI.fpsT = now; UI.fpsN = 0;
@@ -2456,7 +2457,14 @@ function frame(now) {
   const tf0 = performance.now(); let tf1 = tf0, tf2 = tf0;
   try {
     if (UI.running || UI.stepOnce) {
-      const r = simFrame(UI.running ? realDt : 1 / 60, W.simPerFrame > UI.baseSpf * 1.01 ? Math.max(14, UI.budget) : UI.budget); // (sped up: at least 14 ms, never less than Settings gives)
+      // the simulation's budget for this frame: Settings' figure at most, less when the drawing and the panels of the last
+      // frames would not leave a 60 fps frame otherwise (the step that overshoots the budget is allowed for too)
+      const sped = W.simPerFrame > UI.baseSpf * 1.01, cap = sped ? Math.max(14, UI.budget) : UI.budget; // (sped up: at least 14 ms, never less than Settings gives)
+      const room = FRAME_AIM_MS - (FP.drawAvg || 0) - (FP.uiAvg || 0) - (FP.stepAvg || 0);
+      const budget = Math.max(3, Math.min(cap, room));
+      FP.budget = budget;
+      const r = simFrame(UI.running ? realDt : 1 / 60, budget);
+      if (r.steps > 0) FP.stepAvg = 0.8 * (FP.stepAvg || 0) + 0.2 * ((performance.now() - tf0) / r.steps);
       if (UI.running) {
         UI.ach = 0.92 * (UI.ach || 1) + 0.08 * Math.min(1, r.simAdv / Math.max(1e-12, r.target));
         UI.adv = UI.adv > 0 ? Math.exp(0.85 * Math.log(UI.adv) + 0.15 * Math.log(Math.max(1e-12, r.simAdv))) : r.simAdv; // (time advanced per frame, smoothed, for the Motion readout)
@@ -2478,6 +2486,7 @@ function frame(now) {
   const tf3 = performance.now(), total = tf3 - tf0, gap = tf0 - (UI.lastFrameEnd || tf0); // (gap: time between frames not spent here — the browser, or a stall elsewhere)
   UI.lastFrameEnd = tf3;
   FP.sim = tf1 - tf0; FP.draw = tf2 - tf1; FP.ui = tf3 - tf2;
+  FP.drawAvg = 0.9 * (FP.drawAvg || FP.draw) + 0.1 * FP.draw; FP.uiAvg = 0.9 * (FP.uiAvg || FP.ui) + 0.1 * FP.ui; FP.simAvg = 0.9 * (FP.simAvg || FP.sim) + 0.1 * FP.sim; // (smoothed: what the next frame's budget allows for)
   const worstNow = Math.max(total, gap);
   if (worstNow > FP.worst) { FP.worst = worstNow; FP.worstTxt = gap > total ? `${gap.toFixed(0)} ms between frames` : `sim ${FP.sim.toFixed(0)}, draw ${FP.draw.toFixed(0)}, panels ${FP.ui.toFixed(0)}`; }
   requestAnimationFrame(frame);
@@ -2544,9 +2553,9 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto' };
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl' };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'] };
+const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -2565,6 +2574,7 @@ function applySettings() {
   const dm = SET.res === 'sharp' ? 2 : SET.res === 'standard' ? 1 : 0.75;
   if (R.dprMax !== dm) { R.dprMax = dm; if (R.w) rResize(R.w, R.h); }
   R.lite = !SET.effects;
+  GL.on = SET.gl !== '2d'; // (the WebGL layer for atoms and bonds; Canvas 2D for everything when off or unavailable)
   UI.budget = SET.budget;
   if (SET.theme === 'system') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = SET.theme;
   T_UNIT = SET.tunit;
@@ -2575,7 +2585,7 @@ function applySettings() {
 /* What the threads row says: whether this page can use workers at all, and how many are in use. */
 function threadsNote() {
   const nwk = TH.wasmOn.filter(Boolean).length, workers = TH.n ? ` (${nwk === TH.n ? 'all' : nwk + ' of ' + TH.n} workers too)` : '';
-  const kernel = WK.ready ? (WK.use ? ` Force kernel: WebAssembly${workers}.` : ' Force kernel: JavaScript (WebAssembly off).') : WK.on ? ` Force kernel: JavaScript (WebAssembly ${WK.note}).` : ' Force kernel: JavaScript.';
+  const kernel = (WK.ready ? (WK.use ? ` Force kernel: WebAssembly${workers}.` : ' Force kernel: JavaScript (WebAssembly off).') : WK.on ? ` Force kernel: JavaScript (WebAssembly ${WK.note}).` : ' Force kernel: JavaScript.') + ` Drawing: ${GL.ok && GL.on ? 'WebGL 2 for the atoms and bonds' : GL.note || 'Canvas 2D'}.`;
   if (!threadsAvailable()) return 'One thread: this page is not cross-origin isolated, so the browser allows no shared memory. The desktop app runs the pair forces on all your processor\u2019s threads.' + kernel;
   const c = navigator.hardwareConcurrency || '?';
   if (!TH.n) return `One thread (this computer has ${c}).` + kernel;
@@ -2620,8 +2630,13 @@ function benchStart() {
       PROF.on = false;
       const dt = adv / (3 * N), spf = 10 / best, speed = Math.min(100, 100 * spf * dt / W.simPerFrame), ns = PROF.steps || 1;
       const f = (v) => (v / ns).toFixed(2);
+      // the drawing: a frame of this world as the page draws it, WebGL layer and plain Canvas 2D
+      fitView();
+      const drawMs = (on) => { const was = GL.on; GL.on = on && GL.ok; render(W.rt); const t0 = performance.now(); for (let i = 0; i < 8; i++) render(W.rt); const ms = (performance.now() - t0) / 8; GL.on = was; return ms; };
+      const dGL = GL.ok ? drawMs(true) : null, d2D = drawMs(false);
       BENCH.rows.push(`${name}: ${best.toFixed(2)} ms a step on ${TH.used || 1} thread${(TH.used || 1) > 1 ? 's' : ''}${wasmReady() ? ', WebAssembly kernel' : ''}, ${spf.toFixed(1)} steps in a 10 ms frame, ${speed.toFixed(0)}% of full speed` +
-        ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)}; ${(PROF.passes / ns).toFixed(2)} force passes a step]`);
+        ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)}; ${(PROF.passes / ns).toFixed(2)} force passes a step]` +
+        ` drawing ${dGL !== null ? dGL.toFixed(1) + ' ms a frame with WebGL, ' : ''}${d2D.toFixed(1)} ms with Canvas 2D`);
       show(''); setTimeout(next, 30);
     }, 30);
   };
@@ -2645,7 +2660,7 @@ function setSetting(k, v) {
 function syncSettings() {
   if ($('setModal').hidden) return;
   $('setPerf').checked = perfOn();
-  setSegValue('segMax', SET.maxParts); setSegValue('segRes', SET.res); setSegValue('segBudget', SET.budget); setSegValue('segThreads', String(SET.threads));
+  setSegValue('segMax', SET.maxParts); setSegValue('segRes', SET.res); setSegValue('segBudget', SET.budget); setSegValue('segThreads', String(SET.threads)); setSegValue('segGl', SET.gl);
   try { $('setThreads').textContent = threadsNote(); } catch (e) { $('setThreads').textContent = 'Threads: ' + e.message; }
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit);
   $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo;
@@ -2676,6 +2691,7 @@ function settingsInit() {
   bindSeg('segRes', (v) => setSetting('res', v));
   bindSeg('segBudget', (v) => setSetting('budget', +v));
   bindSeg('segThreads', (v) => setSetting('threads', v));
+  bindSeg('segGl', (v) => setSetting('gl', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
   bindSeg('segTUnit', (v) => setSetting('tunit', v));
@@ -2829,7 +2845,7 @@ function qmInit() {
 
 /* ------------------------------------------------------------------ init */
 function init() {
-  rInit($('cv'));
+  rInit($('cv'), $('cvbg'));
   UI.budget = 10;
   const sv = store('bohr'); if (sv) setAtomView(sv);
   W.slowmo = store('slowmo') !== '0';

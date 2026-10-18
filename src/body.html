@@ -32,6 +32,7 @@
     <div class="tools-wrap hs" id="toolsHS"><nav class="tools" id="tools" aria-label="Tools"></nav></div>
 
     <div class="stage" id="stage">
+      <canvas id="cvbg" aria-hidden="true"></canvas><canvas id="cvgl" aria-hidden="true"></canvas>
       <canvas id="cv" aria-label="Simulation chamber"></canvas>
       <div class="palette-bar" id="paletteBar">
         <div class="hs" id="paletteHS"><div class="palette" id="palette" aria-label="Particle palette"></div></div>
@@ -392,6 +393,7 @@
       <div class="srow"><span>Physics per frame</span><div class="seg" id="segBudget" role="group" aria-label="Physics time per frame"><button data-v="6">6 ms</button><button data-v="10">10 ms</button><button data-v="16">16 ms</button><button data-v="24">24 ms</button></div></div>
       <label class="check"><input type="checkbox" id="setFx"> Glows, halos and flashes</label>
       <div class="srow"><span>Threads</span><div class="seg" id="segThreads" role="group" aria-label="Processor threads"><button data-v="auto">Auto</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="4">4</button><button data-v="8">8</button><button data-v="16">16</button></div></div>
+      <div class="srow"><span>Drawing</span><div class="seg" id="segGl" role="group" aria-label="Drawing"><button data-v="gl">WebGL</button><button data-v="2d">Canvas 2D</button></div></div>
       <p class="note" id="setThreads" aria-live="polite"></p>
       <div class="srow"><span>Speed test</span><button class="btn small" id="setBench">Run benchmark</button></div>
       <p class="note" id="setBenchOut" aria-live="polite"></p>
