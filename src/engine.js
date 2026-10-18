@@ -963,12 +963,13 @@ let _CQ = new Int32Array(4096);
 function candidateRoom(np) { const need = 9 * np + 64; if (_CQ.length < need) _CQ = new Int32Array(need); return _CQ; } // (at most three candidates a pair, one a bond)
 let nucleusPairs = function (wrap, bw, bh, hw, hh) {
   bondArrays(); angleCentres();
-  const CQ = candidateRoom(VL.np + BD.n);
+  const CQ = candidateRoom(VL.np + BD.n), t0 = _profOn ? performance.now() : 0;
   _kStiff = 0;
   let nc = pairKernel(VL.pi, VL.pj, VL.ex, 0, VL.np, S.fx, S.fy, CQ, 0, wrap, bw, bh, hw, hh, W.step);
   nc = bondKernel(0, BD.n, S.fx, S.fy, CQ, nc, wrap, bw, bh, hw, hh);
   angleKernel(0, AC.n, S.fx, S.fy, wrap, bw, bh, hw, hh);
   if (_kStiff > _stiff) _stiff = _kStiff; _kStiff = 0;
+  if (_profOn) { _tKernels += performance.now() - t0; TH_LAST.used = 0; }
   evalCandidates(CQ, nc);
 };
 function cellOf(x, y) { return gridCell(x, y); }
@@ -1664,6 +1665,11 @@ let _md = [], _fastNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
 let _mdI = new Int32Array(4096), _nmd = 0, _mdLI = new Int32Array(256), _nmdL = 0, _chI = new Int32Array(256), _nch = 0, _mdNI = new Int32Array(4096), _nmdN = 0; // the slots of _md, _mdL, _charged and the MD nuclei
 let _mdGen = 0, _mdPrev = new Int32Array(4096), _nmdPrev = -1; // _mdGen counts the changes of the MD set (_md as a set of slots)
 function computeForces() {
+  if (_profOn) { const t0 = performance.now(), k0 = _tKernels; computeForces1(); _tForces += performance.now() - t0; _nPasses++; if (TH_LAST.used) { _tKernels = k0 + TH_LAST.ms; _tWait += TH_LAST.wait; } return; }
+  computeForces1();
+}
+const TH_LAST = { used: 0, ms: 0, wait: 0 }; // (what the last force pass's kernels cost: filled by nucleusPairs)
+function computeForces1() {
   _md.length = 0; _fastNuc.length = 0; _charged.length = 0; _late.length = 0; _mdL.length = 0; _stiff = 0; _stiffL = 0; _nNucMD = 0;
   const fieldE = hasEfield();
   const parts = W.parts, n = parts.length, PI = partsSync();
@@ -4601,21 +4607,42 @@ function listsStale() {
   }
   return false;
 }
+/* Where a step's time goes, summed while PROF.on (the Settings benchmark reads it): the force passes (and inside them the
+   kernels' share and the wait for the worker threads), the heat bath, the integrator loops, and the rest. */
+const PROF = { on: false, steps: 0, forces: 0, kernels: 0, wait: 0, bath: 0, integ: 0, total: 0, passes: 0 };
+function profReset() { PROF.steps = 0; PROF.forces = 0; PROF.kernels = 0; PROF.wait = 0; PROF.bath = 0; PROF.integ = 0; PROF.total = 0; PROF.passes = 0; }
 function step(dt) {
+  if (PROF.on) return stepProfiled(dt);
+  return stepPlain(dt);
+}
+function stepProfiled(dt) {
+  const t0 = performance.now(), f0 = _tForces, k0 = _tKernels, w0 = _tWait, b0 = _tBath, i0 = _tInteg, p0 = _nPasses;
+  _profOn = true;
+  const r = stepPlain(dt);
+  _profOn = false;
+  PROF.steps++; PROF.total += performance.now() - t0; PROF.forces += _tForces - f0; PROF.kernels += _tKernels - k0; PROF.wait += _tWait - w0; PROF.bath += _tBath - b0; PROF.integ += _tInteg - i0; PROF.passes += _nPasses - p0;
+  return r;
+}
+let _profOn = false, _tForces = 0, _tKernels = 0, _tWait = 0, _tBath = 0, _tInteg = 0, _nPasses = 0;
+function stepPlain(dt) {
   W.step++;
   const id0 = W.nextId; // particles born during this step start flying in the next one
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) moveWalls(dt); else { W.box.uw = 0; W.box.uh = 0; }
   // particles added from outside, or switched between MD and ballistic flight at the end of the last step
   if (W.fSpawn !== W.spawned || listsStale()) { _noEv = true; computeForces(); _noEv = false; }
+  let tp = _profOn ? performance.now() : 0;
   outerA(dt);
   innerSteps(dt); // everything in MD drifts here; free electrons take their own short steps
+  if (_profOn) { const t = performance.now(); _tInteg += t - tp; }
   outerForces();
   const st0 = W.spawned + W.topo + W.dirty - _undone;
   processEvents();
   // events that moved atoms, changed bonds or species, or created particles: forces must be current
   if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; }
   W.fSpawn = W.spawned;
+  if (_profOn) tp = performance.now();
   outerB(dt);
+  if (_profOn) _tBath += performance.now() - tp;
   moveFastLeptons(dt, id0);
   const kT = PHYS.KB * W.T, c1 = Math.exp(-W.gamma * dt), c2 = Math.sqrt(Math.max(0, 1 - c1 * c1));
   let nRad = 0;

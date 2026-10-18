@@ -2471,12 +2471,16 @@ function benchStart() {
       Math.random = seeded(12);
       R.sel = null; R.hover = null; W.grab = null;
       build(); W.decayOn = false;
-      const steps = (n) => { let adv = 0; for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); adv += step(W.dt); } return adv; };
+      const steps = (n) => { let adv = 0; for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } const tc = performance.now(); W.dt = chooseDt(); if (PROF.on) PROF.integ += performance.now() - tc; adv += step(W.dt); } return adv; };
       steps(40);
       let best = Infinity, adv = 0; const N = 60;
+      PROF.on = true; profReset();
       for (let r = 0; r < 3; r++) { const t0 = performance.now(); adv += steps(N); best = Math.min(best, (performance.now() - t0) / N); }
-      const dt = adv / (3 * N), spf = 10 / best, speed = Math.min(100, 100 * spf * dt / W.simPerFrame);
-      BENCH.rows.push(`${name}: ${best.toFixed(2)} ms a step on ${TH.used || 1} thread${(TH.used || 1) > 1 ? 's' : ''}, ${spf.toFixed(1)} steps in a 10 ms frame, ${speed.toFixed(0)}% of full speed`);
+      PROF.on = false;
+      const dt = adv / (3 * N), spf = 10 / best, speed = Math.min(100, 100 * spf * dt / W.simPerFrame), ns = PROF.steps || 1;
+      const f = (v) => (v / ns).toFixed(2);
+      BENCH.rows.push(`${name}: ${best.toFixed(2)} ms a step on ${TH.used || 1} thread${(TH.used || 1) > 1 ? 's' : ''}, ${spf.toFixed(1)} steps in a 10 ms frame, ${speed.toFixed(0)}% of full speed` +
+        ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)}; ${(PROF.passes / ns).toFixed(2)} force passes a step]`);
       show(''); setTimeout(next, 30);
     }, 30);
   };

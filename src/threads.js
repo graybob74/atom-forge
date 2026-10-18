@@ -41,8 +41,10 @@ onmessage = (e) => {
     Atomics.store(ctrl, me, TH_IDLE); // (a rebind request left on our word is served by this message)
     Atomics.store(ctrl, ctrlAt(me, 3), m.gen); // bound: the acknowledgement
   }
+  const SPIN_MS = 1.0; // a worker looks for the next order this long before it sleeps: a step's passes come well within it
+  const waitFor = (notValue) => { const t0 = performance.now(); while (Atomics.load(ctrl, me) === notValue) { if (performance.now() - t0 > SPIN_MS) { Atomics.wait(ctrl, me, notValue); break; } } };
   for (;;) {
-    Atomics.wait(ctrl, me, TH_IDLE);
+    waitFor(TH_IDLE);
     const st = Atomics.load(ctrl, me);
     if (st === TH_REBIND) { Atomics.store(ctrl, me, TH_IDLE); return; } // new buffers coming by message: back to the event loop
     if (st === TH_PAIRS) {
@@ -62,7 +64,7 @@ onmessage = (e) => {
         FX[s] = fx; FY[s] = fy;
       }
       Atomics.store(ctrl, me, TH_SUMMED); Atomics.notify(ctrl, me);
-    } else if (st === TH_DONE || st === TH_SUMMED) { Atomics.wait(ctrl, me, st); } // (the main thread has not reset us yet)
+    } else if (st === TH_DONE || st === TH_SUMMED) { waitFor(st); } // (the main thread has not reset us yet)
   }
 };
 `;
@@ -156,5 +158,6 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   for (let w = 0; w < n; w++) evalCandidates(TH.cq[w], ctrl[thCtrl(w, 2)]);
   evalCandidates(CQ, nc0);
   TH.used = n + 1; TH.lastMs = performance.now() - t0; TH.tKernel = t1 - t0; TH.tWait = t2 - t1; TH.tRest = TH.lastMs - (t2 - t0); // (the main thread's share, the wait for the workers, the reduction and events)
+  TH_LAST.used = n + 1; TH_LAST.ms = TH.lastMs; TH_LAST.wait = TH.tWait;
 };
 if (typeof module !== 'undefined') module.exports = { TH, threadsSet, threadsAvailable, threadsDefault };
