@@ -438,6 +438,20 @@ const say = (...a) => console.log(...a);
     && st2b.max === 4000 && !st2b.lite && st2b.budget === 16 && !st2b.perf && st3.max === 4000 && !st3.lite && st3.unit === 'K')) {
     fails++; say('FAIL settings:', JSON.stringify({ st0, st1, tC, placed: n100b - n100, st2, st2b, st3 }));
   } else say(`  settings: performance mode ${st1.max.toLocaleString('en-US')} particles, ${n100b - n100} argon atoms at a click, ${tC.split(' → ')[0]}; kept over a reload; off again puts physics back to ${st2b.budget} ms; then reset`);
+  // 8g'. Priority, smooth ↔ fast: at the fast end a frame may hold far more physics than Physics per frame gives; kept over a reload; reset puts it back
+  await page.click('#bSettings'); await page.waitForTimeout(150);
+  await page.evaluate(() => { const el = document.getElementById('setPrio'); el.value = '4'; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); });
+  await page.click('#setClose'); await page.evaluate(() => setRunning(true)); await page.waitForTimeout(600);
+  const pr1 = await page.evaluate(() => ({ prio: SET.prio, budget: UI.fp.budget, cap: UI.budget, note: document.getElementById('setPrioV').textContent }));
+  await page.reload(); await page.waitForTimeout(900);
+  await page.click('#bSettings'); await page.waitForTimeout(150);
+  const pr2 = await page.evaluate(() => ({ prio: SET.prio, val: document.getElementById('setPrio').value }));
+  await page.click('#setReset'); await page.waitForTimeout(150); await page.click('#setClose');
+  await page.waitForTimeout(600);
+  const pr3 = await page.evaluate(() => ({ prio: SET.prio, budget: UI.fp.budget, cap: UI.budget }));
+  if (!(pr1.prio === 4 && pr1.budget > pr1.cap + 5 && /20 fps/.test(pr1.note) && pr2.prio === 4 && pr2.val === '4' && pr3.prio === 0 && pr3.budget <= pr3.cap + 1e-9)) {
+    fails++; say('FAIL priority:', JSON.stringify({ pr1, pr2, pr3 }));
+  } else say(`  priority: the fast end lets physics take ${pr1.budget.toFixed(1)} ms of a frame (Physics per frame ${pr1.cap} ms); kept over a reload; reset back to smooth (${pr3.budget.toFixed(1)} ms)`);
   check('settings');
   // 8h. Ask Claude: hidden outside claude.ai (no `sample` capability); with a stub standing in for it, a recipe lands in
   //     the builder and builds; a known molecule is recognised; a bad recipe gets one correction round; a lattice goes

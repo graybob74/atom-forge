@@ -2665,6 +2665,11 @@ function histTick(now) {
 
 /* ------------------------------------------------------------------ main loop */
 const FRAME_AIM_MS = 1000 / 60 - 0.4; // a frame's worth at 60 fps: the simulation gets what the drawing and panels leave of it
+/* Settings' priority, smooth ↔ fast: the frame rate the budget aims for. Above the smooth end, a frame may run longer —
+   down to this rate — while the simulation is behind the speed it is set to; once it keeps up, frames stay short. */
+const PRIO_FPS = [60, 50, 40, 30, 20], PRIO_NAME = ['smooth: aims for 60 fps', 'leaning smooth: frames down to 50 fps', 'balanced: frames down to 40 fps', 'leaning fast: frames down to 30 fps', 'fast: frames down to 20 fps to keep the set speed'];
+function frameAim() { return 1000 / PRIO_FPS[SET.prio || 0] - 0.4; }
+function frameCap(room) { return (SET.prio || 0) > 0 ? Math.max(UI.budget, room) : UI.budget; } // (past the smooth end the physics may take the room the aim leaves, beyond Physics per frame)
 function frame(now) {
   const realDt = Math.min(0.1, Math.max(0, (now - UI.last) / 1000));
   UI.last = now; UI.vis += realDt; UI.fps = UI.fps ? 0.95 * UI.fps + 0.05 / Math.max(1e-3, realDt) : 60;
@@ -2685,8 +2690,8 @@ function frame(now) {
     if (UI.running || UI.stepOnce) {
       // the simulation's budget for this frame: Settings' figure at most, less when the drawing and the panels of the last
       // frames would not leave a 60 fps frame otherwise (the step that overshoots the budget is allowed for too)
-      const sped = W.simPerFrame > UI.baseSpf * 1.01, cap = sped ? Math.max(14, UI.budget) : UI.budget; // (sped up: at least 14 ms, never less than Settings gives)
-      const room = FRAME_AIM_MS - (FP.drawAvg || 0) - (FP.uiAvg || 0) - (FP.stepAvg || 0);
+      const room = frameAim() - (FP.drawAvg || 0) - (FP.uiAvg || 0) - (FP.stepAvg || 0);
+      const sped = W.simPerFrame > UI.baseSpf * 1.01, cap = sped ? Math.max(14, frameCap(room)) : frameCap(room); // (sped up: at least 14 ms, never less than Settings gives)
       const budget = Math.max(3, Math.min(cap, room));
       FP.budget = budget;
       const r = simFrame(UI.running ? realDt : 1 / 60, budget);
@@ -2781,9 +2786,9 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '' };
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'] };
+const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -2843,7 +2848,7 @@ function benchStart() {
     ['Flash memory: one byte', () => { PRESETS.flashbyte.build(); settleOverlaps(); }],
   ];
   const realRandom = Math.random;
-  const show = (busy) => { out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
+  const show = (busy) => { out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, priority ${PRIO_FPS[SET.prio || 0]} fps, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
   let k = 0;
   const next = () => {
     if (k >= scen.length) {
@@ -2871,7 +2876,7 @@ function benchStart() {
       const FP = UI.fp || (UI.fp = {}); FP.drawAvg = 0; FP.uiAvg = 0; FP.stepAvg = best;
       let frames = 0, simMs = 0, drawMs = 0, stepsRun = 0, budgetSum = 0; const tStart = performance.now();
       while (performance.now() - tStart < 1200) {
-        const room = FRAME_AIM_MS - FP.drawAvg - FP.stepAvg, budget = Math.max(3, Math.min(UI.budget, room));
+        const room = frameAim() - FP.drawAvg - FP.stepAvg, budget = Math.max(3, Math.min(frameCap(room), room));
         const a = performance.now(); const r = simFrame(1 / 60, budget); const b = performance.now(); render(W.rt); const c = performance.now();
         simMs += b - a; drawMs += c - b; frames++; stepsRun += r.steps; budgetSum += budget;
         if (r.steps > 0) FP.stepAvg = 0.8 * FP.stepAvg + 0.2 * (b - a) / r.steps;
@@ -2905,6 +2910,7 @@ function syncSettings() {
   if ($('setModal').hidden) return;
   $('setPerf').checked = perfOn();
   setSegValue('segMax', SET.maxParts); setSegValue('segRes', SET.res); setSegValue('segBudget', SET.budget); setSegValue('segThreads', String(SET.threads)); setSegValue('segGl', SET.gl);
+  $('setPrio').value = SET.prio || 0; $('setPrioV').textContent = PRIO_NAME[SET.prio || 0];
   if (document.activeElement !== $('setApiKey')) $('setApiKey').value = SET.apiKey || ''; if (document.activeElement !== $('setApiModel')) $('setApiModel').value = SET.apiModel || '';
   { const own = typeof window !== 'undefined' && window.claude && typeof window.claude.use === 'function'; const n = $('setApiNote');
     n.textContent = (AI.sample && !AI.sample.api ? 'This page has its own Claude access: Ask Claude and Identify molecules use your Claude account directly, and the key below is not needed here. ' : own ? '' : 'This page has no Claude access of its own. ') +
@@ -2938,6 +2944,8 @@ function settingsInit() {
   bindSeg('segMax', (v) => setSetting('maxParts', +v));
   bindSeg('segRes', (v) => setSetting('res', v));
   bindSeg('segBudget', (v) => setSetting('budget', +v));
+  $('setPrio').addEventListener('input', (e) => { $('setPrioV').textContent = PRIO_NAME[+e.target.value]; });
+  $('setPrio').addEventListener('change', (e) => setSetting('prio', +e.target.value));
   bindSeg('segThreads', (v) => setSetting('threads', v));
   bindSeg('segGl', (v) => setSetting('gl', v));
   $('setBench').onclick = () => benchStart();

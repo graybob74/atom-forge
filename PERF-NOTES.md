@@ -76,6 +76,11 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## V37: Priority, smooth ↔ fast
+- Settings → Priority, five steps: the frame rate the budget aims for, 60/50/40/30/20 fps (`PRIO_FPS`, `frameAim()`).
+- Past the smooth end the physics may take what that longer frame leaves (`frameCap`), beyond Physics per frame; frames stretch only while the simulation is behind its set speed, since a frame ends once it has done its share.
+- Smooth is exactly the old behaviour. The benchmark uses the same aim and names it in its line.
+
 ## V36: the free leptons' forces in WebAssembly, chooseDt on the threads, threaded phases measured
 - `af_fast` (kernel/src/lib.rs): computeFast's three loops — lepton–atom pairs, lepton–lepton pairs, the exact Coulomb
   pull of net charges beyond the cutoff — in the same arithmetic order as the JavaScript, writing the fast forces,
