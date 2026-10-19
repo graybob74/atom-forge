@@ -8,7 +8,7 @@ const R = {
   s: 12, cx: 0, cy: 0,             // px per Å, world point at screen centre
   sprites: new Map(),
   view: { bohr: 'auto', labels: true, tracks: true, rays: true, hbonds: true, color: 'element', grid: true, decayCards: true },
-  hover: null, sel: null, overlay: null, time: 0, follow: null, // follow: a particle the view stays centred on
+  hover: null, sel: null, overlay: null, ghost: null, molTags: [], time: 0, // molTags: names from Identify molecules, shown for a while follow: null, // follow: a particle the view stays centred on
   msel: new Set(), // the Select tool's selection
   dprMax: 2, lite: false, // (Settings: drawing resolution, and lite: no glows, halos or flashes)
 };
@@ -555,6 +555,19 @@ function drawParticles(rt) {
     }
     if (many) ctx.fill(); else ctx.stroke();
     ctx.restore();
+  }
+  if (R.molTags.length) { // names from Identify molecules, over each molecule for a while, fading at the end
+    const now = W.rt; let live = 0;
+    ctx.save(); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const t of R.molTags) {
+      const left = t.until - now; if (left <= 0 || t.p.dead) continue; live++;
+      const x = w2sx(t.p.x), y = w2sy(t.p.y) - Math.max(6, t.p.rd * s) - 10; if (x < -80 || y < -20 || x > R.w + 80 || y > R.h + 20) continue;
+      ctx.globalAlpha = Math.min(1, left / 1.5); const w = ctx.measureText(t.text).width + 10;
+      ctx.fillStyle = 'rgba(16,27,36,0.78)'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 8, w, 16, 4); ctx.fill();
+      ctx.fillStyle = '#ffd166'; ctx.fillText(t.text, x, y);
+    }
+    ctx.restore();
+    if (!live) R.molTags.length = 0;
   }
   // selection / hover rings
   for (const p of [R.sel, R.hover]) {
@@ -1247,6 +1260,16 @@ function drawOverlay() {
     ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(255,209,102,0.9)'; ctx.beginPath(); ctx.arc(x1, y1, 3.5, 0, Math.PI * 2); ctx.fill();
     if (g.mol) for (const a of g.mol) { if (a === g.p || a.dead) continue; ctx.beginPath(); ctx.arc(w2sx(a.x), w2sy(a.y), Math.max(5, a.rd * R.s + 3), 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+  }
+  if (R.ghost) { // a paste picked up: the copy, faint, where the pointer is
+    const g = R.ghost, s = R.s, x0 = w2sx(g.x), y0 = w2sy(g.y);
+    ctx.save(); ctx.globalAlpha = 0.55; ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,209,102,0.9)';
+    if (g.clip.bonds.length && s > 2) { ctx.beginPath(); for (const [i, j] of g.clip.bonds) { const a = g.clip.parts[i], b = g.clip.parts[j]; ctx.moveTo(x0 + a.dx * s, y0 - a.dy * s); ctx.lineTo(x0 + b.dx * s, y0 - b.dy * s); } ctx.stroke(); }
+    const many = g.clip.parts.length > 3000;
+    ctx.beginPath();
+    for (const q of g.clip.parts) { const x = x0 + q.dx * s, y = y0 - q.dy * s; if (x < -20 || y < -20 || x > R.w + 20 || y > R.h + 20) continue; const r = Math.max(many ? 1.5 : 3, q.rd * s); ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, Math.PI * 2); }
+    ctx.fillStyle = 'rgba(255,209,102,0.35)'; ctx.fill(); if (!many) ctx.stroke();
     ctx.restore();
   }
   const o = R.overlay;

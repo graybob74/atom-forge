@@ -31,6 +31,16 @@ const check = (ok, what, detail) => { if (ok) console.log('  ' + what); else { f
     loadPreset('empty'); setRunning(false); fitView();
     UI.mouse = [R.w / 2, R.h / 2]; pasteClip(); out.n1 = alive(); out.bonds1 = W.bonds.length; out.selAfterPaste = R.msel.size; out.toolAfterPaste = UI.tool;
     UI.mouse = [R.w / 2 + 120, R.h / 2]; pasteClip(); out.n2 = alive();
+    // Ctrl+V picks the copy up (a ghost follows the pointer), a click puts it down exactly there; Escape puts it away
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', ctrlKey: true, bubbles: true }));
+    out.armed = UI.pasting && !!R.ghost && /click where/.test(document.getElementById('toolopts').textContent);
+    ev('pointermove', R.w / 2 - 150, R.h / 2 + 80); out.ghostFollows = !!R.ghost && Math.abs(R.ghost.x - s2w(R.w / 2 - 150, R.h / 2 + 80)[0]) < 1e-9;
+    const nBefore = alive(); ev('pointerdown', R.w / 2 - 150, R.h / 2 + 80); ev('pointerup', R.w / 2 - 150, R.h / 2 + 80);
+    let gx = 0, gy = 0; for (const p of R.msel) { gx += p.x; gy += p.y; } gx /= R.msel.size; gy /= R.msel.size;
+    const [tx, ty] = s2w(R.w / 2 - 150, R.h / 2 + 80);
+    out.clickPasted = alive() === nBefore + UI.clip.parts.length; out.clickOff = Math.hypot(gx - tx, gy - ty); out.disarmed = !UI.pasting && !R.ghost;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', ctrlKey: true, bubbles: true })); const armed2 = UI.pasting;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); out.escCancels = armed2 && !UI.pasting && !R.ghost && alive() === nBefore + UI.clip.parts.length;
     const q = [...R.msel][0], sx = w2sx(q.x), sy = w2sy(q.y), before = [q.x, q.y];
     ev('pointerdown', sx, sy); ev('pointermove', sx + 40, sy + 10); ev('pointerup', sx + 40, sy + 10);
     out.moved = Math.hypot(q.x - before[0], q.y - before[1]);
@@ -48,8 +58,11 @@ const check = (ok, what, detail) => { if (ok) console.log('  ' + what); else { f
   check(r.all === r.nAfterDelete && r.cleared === 0, 'Select all and Clear', [r.all, r.cleared]);
   check(r.n1 === r.clip && r.bonds1 === r.clipBonds && r.selAfterPaste === r.clip && r.toolAfterPaste === 'select', 'a paste into an empty box makes the copies, bonded, as the new selection', [r.n1, r.bonds1, r.selAfterPaste]);
   check(r.n2 === 2 * r.clip, 'a second paste adds another copy', r.n2);
+  check(r.armed && r.ghostFollows, 'Ctrl+V picks the copy up and its ghost follows the pointer', [r.armed, r.ghostFollows]);
+  check(r.clickPasted && r.clickOff < 0.01 && r.disarmed, 'a click puts the copy down exactly there, once', [r.clickPasted, r.clickOff, r.disarmed]);
+  check(r.escCancels, 'Escape puts a picked-up copy away without pasting');
   check(r.moved > 1, 'dragging the selection moves it (Å)', r.moved);
-  check(r.T < 1500 && r.n3 === r.n2, 'the pasted molecules run on without flying apart', [r.T, r.n3]);
+  check(r.T < 1500 && r.n3 === r.n2 + r.clip, 'the pasted molecules run on without flying apart', [r.T, r.n3]);
   check(errors.length === 0, 'no page errors', errors.slice(0, 3));
   await browser.close();
   console.log(fails ? `${fails} select failure(s)` : 'select checks passed');

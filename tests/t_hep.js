@@ -175,5 +175,22 @@ for (const [a, b, E, want, frames] of [['p', 'p', 3e8, /π/, 1500], ['c12', 'c12
   info(`element 120 (${sym}, ${cfg}, ${X.CAT_NAMES[cat]}) and 119 (${cfgU}); its decay: ${after}; ${menu} elements on the table, ${X.Z_MAX} possible`);
   if (sym !== 'Ubn' || cfg !== '[Og] 8s²' || cfgU !== '[Og] 8s¹' || cat !== 'ae' || !/²⁹²Og/.test(after) || X.Z_MAX !== 120 || menu !== 118) bad(`elements 119–120: ${JSON.stringify({ sym, cfg, cfgU, cat, after, zmax: X.Z_MAX, menu })}`);
 }
+// pions from an annihilation at rest can be watched: with slow motion on they take dozens of frames to leave even a
+// 40 Å box (they used to be born and gone within one step)
+{
+  const X = load('all', { seed: 7 }); const { W } = X;
+  X.PRESETS.empty.build(); W.slowmo = true; W.baseSpf = W.simPerFrame;
+  X.addNuc(1, 0, 1, -3, 0, 0.004, 0); X.addNuc(1, 0, 1, 3, 0, -0.004, 0, true); W.dirty++;
+  let inFlight = 0, made = false, minSlow = 1;
+  for (let f = 0; f < 400; f++) {
+    const r = X.simFrame(1 / 60, 1e9);
+    const live = W.exo.filter(o => !o.dead).length;
+    if (live) { inFlight++; made = true; minSlow = Math.min(minSlow, r.slow); }
+    if (made && !live) break;
+  }
+  const ev = W.events.map(e => e.text).find(t => /p̄ \+ p/.test(t)) || '';
+  if (!/π/.test(ev) || inFlight < 20 || minSlow > 0.01) bad(`pions from "${ev}" were in flight for ${inFlight} frames (slow motion down to ${minSlow.toExponential(1)})`);
+  else console.log(`  ${ev}: the pions cross the ${W.box.w} Å box over ${inFlight} frames in slow motion`);
+}
 console.log(fails ? `${fails} particle-physics failure(s)` : 'particle-physics checks passed');
 process.exitCode = fails ? 1 : 0;

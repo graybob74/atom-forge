@@ -269,13 +269,24 @@ function chipAt(ch) { // where a chip is: the middle of its (floating) gate, or 
   let x = 0, y = 0; for (const p of l) { x += p.x; y += p.y; }
   return l.length ? [x / l.length, y / l.length] : [0, 0];
 }
+/* The reading order is kept once found (W.memOrder) while the same cells are still near where they were when it was
+   found: cells drift and jiggle with heat, and two in neighbouring rows or columns swapping places between a write and a
+   read showed as bits flipping. The order is found afresh when a cell has moved MEM_DRIFT or more, or cells came or went. */
+const MEM_DRIFT = 12;
 function flashMemory() {
   const cs = W.chips.filter(c => c.key === 'flashcell').map(c => ({ c, at: chipAt(c) }));
+  const O = W.memOrder;
+  if (O && O.cells.length === cs.length) {
+    let same = true;
+    for (const e of cs) { const was = O.at.get(e.c); if (!was || Math.abs(was[0] - e.at[0]) >= MEM_DRIFT || Math.abs(was[1] - e.at[1]) >= MEM_DRIFT) { same = false; break; } }
+    if (same) return { cells: O.cells, bytes: Math.floor(O.cells.length / 8) };
+  }
   cs.sort((a, b) => b.at[1] - a.at[1]); // (top first: y is up)
   const rows = [];
   for (const e of cs) { const r = rows[rows.length - 1]; if (r && r.y - e.at[1] < 15) r.list.push(e); else rows.push({ y: e.at[1], list: [e] }); } // (a cell is 31 Å tall)
-  const cells = [];
-  for (const r of rows) { r.list.sort((a, b) => a.at[0] - b.at[0]); for (const e of r.list) cells.push(e.c); }
+  const cells = [], at = new Map();
+  for (const r of rows) { r.list.sort((a, b) => a.at[0] - b.at[0]); for (const e of r.list) { cells.push(e.c); at.set(e.c, e.at); } }
+  W.memOrder = { cells, at };
   return { cells, bytes: Math.floor(cells.length / 8) };
 }
 /* Bits (1, 0, or null for a cell that could not be read) to bytes: their binary, code and character (null when it is

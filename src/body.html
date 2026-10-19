@@ -180,6 +180,7 @@
         <section class="group">
           <h3>Sample</h3>
           <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+            <button class="btn small" id="bIdentify" title="Name every molecule in the chamber: tags on the canvas, a count in the log, and new kinds saved to My molecules">Identify molecules</button>
             <button class="btn small" id="bClear">Empty the chamber</button>
             <button class="btn small" id="bSrcClear">Remove beam sources</button>
           </div>
@@ -413,6 +414,12 @@
       <div class="srow"><span id="setMols">My molecules</span><button class="btn small" id="setDelMols">Delete all</button></div>
       <div class="srow"><span id="setIsos">Saved isotopes</span><button class="btn small" id="setDelIsos">Delete all</button></div>
       <div class="srow"><span>These settings</span><button class="btn small" id="setReset">Back to defaults</button></div>
+    </section>
+    <section class="sgroup">
+      <h3>Claude API key</h3>
+      <div class="srow"><span>API key</span><input type="password" class="msearch skey" id="setApiKey" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" aria-label="Claude API key"></div>
+      <div class="srow"><span>Model</span><input type="text" class="msearch skey" id="setApiModel" placeholder="claude-sonnet-5-5" autocomplete="off" spellcheck="false" aria-label="Claude model"></div>
+      <p class="note" id="setApiNote">On claude.ai, Ask Claude and Identify molecules use your Claude account directly and need no key. Elsewhere (the desktop app, a saved copy of the page) paste an API key from console.anthropic.com: it stays in this browser's storage, is sent only to api.anthropic.com, and each request is billed to that account (a fraction of a cent).</p>
     </section>
   </div>
 </div>

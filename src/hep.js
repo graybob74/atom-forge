@@ -208,13 +208,13 @@ function addExo(sp, x, y, KE, ux, uy) {
   return o;
 }
 function exoSpeed(o) { const g = 1 + o.KE / (o.m * MEV); o.gam = g; o.v = PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g))); }
-function moveExos(dt) {
+function moveExos(dt, id0) {
   const n0 = W.exo.length;
   if (!n0) return;
   const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, hw = W.box.w / 2, hh = W.box.h / 2; // (proper seconds per lab second: 1/γ)
   for (let i = 0; i < n0; i++) {
     const o = W.exo[i];
-    if (o.dead) continue;
+    if (o.dead || (id0 !== undefined && o.id >= id0)) continue; // (born this step: it flies from the next one, which slow motion and the step chooser have shortened for it)
     let h = dt, dec = false;
     if (clock > 0) {
       const tl = XP[o.sp].tau * o.gam, P = 1 - Math.exp(-clock / tl);

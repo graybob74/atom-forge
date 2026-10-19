@@ -76,6 +76,31 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## V30: precise paste, typed values, Identify molecules, the Claude API key, pions in flight, flash order
+- Paste (Ctrl+V, the Paste button) picks the copy up: `armPaste` sets `UI.pasting` and a ghost (`R.ghost`, drawn in
+  render.js) follows the pointer; the next click on the chamber pastes there (Shift keeps it for another), Escape or a
+  change of tool puts it away. The right-click menu's "Paste here" still pastes at once.
+- Typed values: the figures beside the sliders are buttons (`TYPED` in ui.js, `bindTyped`): a click turns them into an
+  input; the text is read with its unit (`parseTyped`: K/°C/°F, T/mT/G, V/Å / V/nm, Å/nm/µm, fs/ps, eV…TeV, ×) and set
+  through the same code the slider uses, clamped to the slider's range.
+- Identify molecules (Sample section, design.js): `chamberKinds` groups the bonded molecules by name or SMILES
+  (`smilesWrite`: bracket atoms with hydrogens folded in, ring closures numbered; every library molecule reads back),
+  `moleculeName` names what the library or the formula table knows, the rest go to Claude as SMILES (`idPrompt`), names
+  are tagged over the molecules (`R.molTags`, 12 s) and kinds the library lacks are saved to My molecules as placed
+  (`idToLibrary`, with the radical flag from the engine's own valence count).
+- The Claude API key (Settings): where the page has no Claude of its own (the desktop app, a saved copy), `apiSampler`
+  stands in for the `sample` capability — a fetch to api.anthropic.com with the key, the browser-access header and the
+  chosen model; its JSON is read out of the reply (code fences tolerated). Errors map to the same codes the page
+  already explains, plus bad_key / bad_model / no_credit; an API error never hides the feature. The key lives in
+  SET.apiKey in this browser's storage only.
+- Pions, kaons and muons from an annihilation were born and gone within one step: a particle born in a step now flies
+  from the next (`moveExos(dt, id0)`), `chooseDt` keeps a step under 4% of the box for anything in `W.exo`, slow motion's
+  speed scan includes the exotics (and a second event while slowed also ends the frame and restarts the window), and
+  the slow-motion floor is 1/50,000 instead of 1/5,000 so near-c products in a small box still take dozens of frames.
+- Flash memory: the reading order of the cells is kept (`W.memOrder`) while they stay within 12 Å of where it was
+  found; cells drifting with heat could swap places in the order between a write and a read, which read as bits
+  flipping. The worst-frame badge's GC note (V29) remains the tool for the random stutters.
+
 ## V29: the grid in a huge box
 - The user's 20,000-atom drop of water in a 20,000 × 14,000 Å box ran at 47–50 fps with 22–27 ms of simulation a frame and
   130 ms spikes, while the same atoms in a 723 × 465 Å box left room for 72 fps. Cause: the grid was an array over the

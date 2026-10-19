@@ -55,7 +55,7 @@ function makeWorld() {
     warp: 1,                    // radioactive decay speed-up over real rates (1 = as in nature)
     Bz: 0, magnets: [], Ex: 0, Ey: 0,
     nextId: 1, topo: 1,
-    rays: [], flights: [], chips: [], chipSeq: 0, mem: null, tracks: [], flashes: [], log: [], logSeq: 0,
+    rays: [], flights: [], chips: [], chipSeq: 0, mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
     exo: [],                    // unstable particles in flight (muons, pions, kaons…: hep.js)
     events: [], evRecent: [], slow: null, slowmo: true, decayOn: true, made: null, // made: what nuclear events have made (noteMade)
     tool: null, grab: null, sources: [],
@@ -672,7 +672,10 @@ function nucEvent(kind, x, y, text, ghosts, sub, nuc) {
   rec.push(W.rt);
   while (rec.length && rec[0] < W.rt - 6) rec.shift();
   // slow motion only for events that stand out; a busy reactor or plasma keeps running at speed
-  if (W.slowmo && rec.length <= 3 && !(W.slow && W.slow.on)) W.slow = { t0: W.rt, on: true, fresh: true, f: W.slow ? W.slow.f : 1 };
+  if (W.slowmo && rec.length <= 3) {
+    if (W.slow && W.slow.on) { W.slow.fresh = true; W.slow.t0 = W.rt; } // (another event while slowed: the frame ends here too, and its products count from now)
+    else W.slow = { t0: W.rt, on: true, fresh: true, f: W.slow ? W.slow.f : 1 };
+  }
   // what the event sent flying (new this frame, or fast) is marked, and for a few seconds so is anything new (what
   // its products knock loose): with slow motion for nuclear events off, slow motion on demand does not slow down
   // further to follow them
@@ -4164,6 +4167,7 @@ function chooseDt() {
   if (zoned) for (const s of W.sources) if (s.count > 0 && s.rate > 0) dt = Math.min(dt, 0.9 / s.rate); // (an injector sends in one particle a step)
   if (_stiff > 0) dt = Math.min(dt, 0.15 / Math.sqrt(_stiff));
   if (_mdL.length) dt = Math.min(dt, KMAX * innerDt());
+  for (const o of W.exo) if (!o.dead && o.v > 0) dt = Math.min(dt, 0.04 * Math.min(W.box.w, W.box.h) / o.v); // unstable particles in flight at near c: steps short enough that they cross the box in dozens of steps, not one
   return Math.max(DT_MIN, dt);
 }
 
@@ -4723,7 +4727,7 @@ function stepPlain(dt) {
       else if (RAD[i] === 1) { OX[i] = X[i]; OY[i] = Y[i]; moveRad(OBJ[i], dt); nRad++; }
     }
   }
-  moveExos(dt);
+  moveExos(dt, id0);
   if (nRad >= 2) beamCollisions(id0);
   if (W.collider) { rampRing(); if (W.step % 16 === 0) colliderRefill(); }
   {
@@ -4810,6 +4814,7 @@ function holdFactor(realDt) {
     if (win && (p.nucProd || (!p.beam && p.born >= win.t0 && p.born <= win.t1))) continue;
     if (sp > v) v = sp;
   }
+  if (!win) for (const o of W.exo) if (!o.dead) v = Math.max(v, o.v); // (unstable particles in flight count like anything else fast)
   for (const s of W.sources) { // what an injector is about to send in counts already
     if (s.count <= 0 || !(s.KE > 0)) continue;
     const k = s.spec.kind, m = k === 'gamma' ? 0 : k === 'e' || k === 'pos' ? PHYS.ME : (s.spec.A || 1), g = m ? 1 + s.KE / (m * AMU_EV) : Infinity;
@@ -4832,7 +4837,8 @@ function eventSlow(realDt) {
       if (p.dead || p.born < S.t0 - 1e-9 || (p.k !== NUC && !p.rad)) continue; // stray slow electrons don't hold time up
       v = Math.max(v, p.rad ? p.sp : Math.hypot(p.vx, p.vy));
     }
-    want = v > 0 ? clamp(0.02 * Math.min(W.box.w, W.box.h) / (v * (W.baseSpf || W.simPerFrame)), 1 / 5000, 1) : 1; // (at the setup's normal speed: the speed controls still scale it)
+    for (const o of W.exo) if (!o.dead && o.born >= S.t0 - 1e-9) v = Math.max(v, o.v); // pions, kaons, muons in flight: near c, so a frame moves them 2% of the box too
+    want = v > 0 ? clamp(0.02 * Math.min(W.box.w, W.box.h) / (v * (W.baseSpf || W.simPerFrame)), 1 / 50000, 1) : 1; // (at the setup's normal speed: the speed controls still scale it)
     if (want > 0.99 && age > 0.25) S.on = false;
   } else S.on = false;
   // drop at once (the products must not get away in the first frame), recover gently (in logarithmic time)
@@ -4890,7 +4896,7 @@ function measure() {
 
 /* ------------------------------------------------------------------ world construction helpers */
 function clearWorld() {
-  dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.tracks.length = 0; W.exo.length = 0;
+  dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0;
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.sources.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null;
   W.grab = null; W.topo++;

@@ -34,7 +34,8 @@ const say = (...a) => console.log(...a);
   const t1 = await page.evaluate(() => W.t);
   if (!(t1 > t0)) { fails++; say('FAIL time does not advance', t0, t1); }
   const drawn = await page.evaluate(() => { const c = document.getElementById('cv'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 64) if (d[i] !== d[0] || d[i + 1] !== d[1] || d[i + 2] !== d[2]) n++; return n / (d.length / 64); });
-  if (!(drawn > 0.002)) { fails++; say('FAIL chamber looks blank', drawn); }
+  const glBalls = await page.evaluate(() => (GL.on && GL.ok ? GL.balls : -1)); // (with the WebGL layer the balls are not on #cv: its counters say what it drew)
+  if (!(drawn > 0.002 || glBalls > 0)) { fails++; say('FAIL chamber looks blank', drawn, glBalls); }
   check('page load');
   // 2. every preset runs; frame cost
   const presets = await page.$$eval('#preset option', (os) => os.map(o => o.value).filter(Boolean));
@@ -454,6 +455,7 @@ const say = (...a) => console.log(...a);
       'test busy': 'rate_limited', 'test nope': 'not_granted',
     };
     const stub = { json: async (prompt, opts) => {
+      if (/^You identify molecules/.test(prompt)) { window.__idPrompt = prompt; return { names: [{ i: 0, name: 'Test peroxy radical' }, { i: 7, name: 'bogus' }] }; }
       const m = /Request: (".*")/.exec(prompt), req = m ? JSON.parse(m[1]) : '';
       window.__ai.push({ req, retry: /could not be built/.test(prompt), tier: opts && opts.modelTier, signal: !!(opts && opts.signal) });
       const a = answers[req];
@@ -493,6 +495,54 @@ const say = (...a) => console.log(...a);
   const a6 = await page.evaluate(() => ({ msg: document.getElementById('aiMsg').textContent, box: !document.getElementById('aiBox').hidden }));
   await page.fill('#aiAsk', 'test nope'); await page.click('#aiGo'); await aiDone(); await page.waitForTimeout(80);
   const a7 = await page.evaluate(() => ({ msg: document.getElementById('aiMsg').textContent, box: !document.getElementById('aiBox').hidden, tiers: [...new Set(window.__ai.map(c => c.tier + (c.signal ? '+stop' : '')))].join() }));
+  // Identify molecules with Claude standing by: the kinds the library and formula table know are named locally, the rest
+  // go to Claude as SMILES; its names tag the molecules and go to My molecules
+  const idr = await page.evaluate(async () => {
+    aiInit(); await new Promise(r => setTimeout(r, 100)); // (the refusal above hid Claude; back for this)
+    loadPreset('empty'); setRunning(false);
+    addMolecule('H2O', -20, 0, 0, 300); addMolecule('H2O', -10, 0, 0, 300); addMolecule('ethanol', 10, 0, 0, 300);
+    const c = addNuc(6, 6, 6, 20, -30, 0, 0), o1 = addNuc(8, 8, 8, 21.4, -30, 0, 0), o2 = addNuc(8, 8, 8, 22.8, -30, 0, 0), hh = addNuc(1, 0, 1, 24, -30, 0, 0); addBond(c, o1, 1); addBond(o1, o2, 1); addBond(o2, hh, 1); W.dirty++;
+    const n0 = Object.values(MOLECULES).filter(m => m.cat === 'custom').length; W.log.length = 0;
+    document.getElementById('bIdentify').click(); await new Promise(r => setTimeout(r, 300));
+    const custom = Object.values(MOLECULES).filter(m => m.cat === 'custom').slice(n0);
+    render(W.rt);
+    return { log: W.log.map(l => l.text), tags: R.molTags.map(t => t.text).sort().join(), prompt: window.__idPrompt || '', custom: custom.map(m => [m.name, m.atoms.length, m.bonds.length, m.radical, m.note]) };
+  });
+  if (!/Identified 4 molecules of 3 kinds: 2 × Water, 1 × Ethanol; unnamed: 1 × CHO₂/.test(idr.log[0]) || !/Asking Claude to name 1 kind/.test(idr.log[1]) || !/Claude named: 1 × Test peroxy radical \(CHO₂\)/.test(idr.log[2])
+    || !/Added to My molecules: Test peroxy radical/.test(idr.log[3]) || idr.tags !== 'Ethanol,Test peroxy radical,Water,Water' || !/0: \[C\]\[O\]\[OH\]/.test(idr.prompt)
+    || idr.custom.length !== 1 || idr.custom[0][1] !== 4 || idr.custom[0][2] !== 3 || !idr.custom[0][3] || !/Identified by Claude/.test(idr.custom[0][4])) { fails++; say('FAIL Identify molecules:', JSON.stringify(idr)); }
+  else say('  Identify molecules: library names at once, an unknown fragment named by Claude (stubbed) from its SMILES, tagged and saved to My molecules');
+  // the Claude API with the viewer's own key (Settings), where the page has no Claude of its own: Ask Claude and Identify
+  // go to api.anthropic.com (mocked here), a refused key is told without hiding the feature, and removing the key hides it
+  await page.route('https://api.anthropic.com/v1/messages', async (route) => {
+    const req = route.request(), h = req.headers(), body = JSON.parse(req.postData()), prompt = body.messages[0].content;
+    if (h['x-api-key'] === 'sk-ant-bad') return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: { message: 'invalid x-api-key' } }) });
+    const reply = /^You identify molecules/.test(prompt) ? { names: [{ i: 0, name: 'Test peroxy radical' }] } : { type: 'molecule', name: 'Test decanol', smiles: 'CCCCCCCCCCO', note: 'Test.' };
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: '```json\n' + JSON.stringify(reply) + '\n```' }], model: body.model, hdr: { key: h['x-api-key'], ver: h['anthropic-version'], direct: h['anthropic-dangerous-direct-browser-access'] } }) });
+  });
+  const apir = await page.evaluate(async () => {
+    const out = {}; delete window.claude; AI.sample = null; aiSync();
+    out.before = { sample: !!AI.sample, box: !document.getElementById('aiBox').hidden };
+    showModal('setModal'); document.getElementById('setApiKey').value = 'sk-ant-test'; document.getElementById('setApiKey').dispatchEvent(new Event('change')); await new Promise(r => setTimeout(r, 50));
+    out.after = { api: !!(AI.sample && AI.sample.api), stored: JSON.parse(localStorage.getItem('atomforge.settings')).apiKey, note: document.getElementById('setApiNote').textContent.slice(0, 60) };
+    hideModal('setModal'); openMolBuilder(); out.box = !document.getElementById('aiBox').hidden;
+    await aiAsk('test decanol'); await new Promise(r => setTimeout(r, 100));
+    out.ask = { name: document.getElementById('bldName').value, heavy: MB.atoms.length }; hideModal('bldModal');
+    loadPreset('empty'); setRunning(false);
+    const c = addNuc(6, 6, 6, 20, -30, 0, 0), o1 = addNuc(8, 8, 8, 21.4, -30, 0, 0), o2 = addNuc(8, 8, 8, 22.8, -30, 0, 0), hh = addNuc(1, 0, 1, 24, -30, 0, 0); addBond(c, o1, 1); addBond(o1, o2, 1); addBond(o2, hh, 1); W.dirty++;
+    for (const k of Object.keys(MOLECULES)) if (MOLECULES[k].cat === 'custom' && MOLECULES[k].name === 'Test peroxy radical') myMolRemove(k); // (saved by the stubbed Identify above)
+    W.log.length = 0; await identifyMolecules(); out.identify = W.log.map(l => l.text).join(' | ');
+    SET.apiKey = 'sk-ant-bad'; aiInit(); await new Promise(r => setTimeout(r, 30)); openMolBuilder(); await aiAsk('test decanol'); await new Promise(r => setTimeout(r, 50));
+    out.bad = { msg: document.getElementById('aiMsg').textContent, box: !document.getElementById('aiBox').hidden }; hideModal('bldModal');
+    SET.apiKey = ''; store('settings', JSON.stringify(SET)); aiInit(); await new Promise(r => setTimeout(r, 30)); out.off = { sample: !!AI.sample, box: !document.getElementById('aiBox').hidden };
+    return out;
+  });
+  await page.unroute('https://api.anthropic.com/v1/messages');
+  for (let i = errors.length - 1; i >= 0; i--) if (/401 \(Unauthorized\)/.test(errors[i])) errors.splice(i, 1); // (the refused key's own console line)
+  if (apir.before.sample || apir.before.box || !apir.after.api || apir.after.stored !== 'sk-ant-test' || !/no Claude access of its own/.test(apir.after.note) || !apir.box || apir.ask.name !== 'Test decanol' || apir.ask.heavy !== 11
+    || !/Identified 1 molecule of 1 kind, unnamed: 1 × CHO₂ \| Asking Claude to name 1 kind … \| Claude named: 1 × Test peroxy radical \(CHO₂\) \| Added to My molecules: Test peroxy radical/.test(apir.identify)
+    || !/API key was refused/.test(apir.bad.msg) || !apir.bad.box || apir.off.sample || apir.off.box) { fails++; say('FAIL Claude API key:', JSON.stringify(apir)); }
+  else say('  Claude API key (mocked api.anthropic.com): Ask Claude and Identify molecules work through it, a refused key is told, no key hides them');
   await shot('ask-claude');
   await closeModals();
   if (ai0.btn || !ai0.box || !aiBtn || !a1.open || !a1.box || a1.heavy !== 22 || !a1.fill || a1.name !== 'Arachidic acid' || !/Claude: A saturated/.test(a1.msg) || !/C₂₀H₄₀O₂/.test(a1.info)

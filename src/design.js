@@ -430,12 +430,15 @@ const AI_HIDE = ['not_granted', 'sampling_disabled', 'not_declared', 'capability
 function aiError(e) {
   const code = (e && e.code) || 'upstream_error';
   if (code === 'cancelled') { aiSay('Stopped.'); return; }
-  if (AI_HIDE.includes(code)) {
+  if (AI_HIDE.includes(code) && !(AI.sample && AI.sample.api)) {
     AI.sample = null; aiSync(); if (!$('molModal').hidden) renderMolList();
     aiSay(code === 'not_granted' ? 'Claude was not allowed to help on this page, so Ask Claude is hidden.' : 'Claude is not available here, so Ask Claude is hidden.', true);
     return;
   }
   aiSay({
+    bad_key: 'The Claude API key was refused (Settings → Claude API key).',
+    bad_model: `The model name was not recognised (Settings → Claude API key; ${AI_API.model} is the default).`,
+    no_credit: 'The Claude API account behind this key has no credit left.',
     rate_limited: 'Claude has reached a usage limit for now. Try again later.',
     session_expired: 'Sign in to claude.ai again, then ask.',
     refused: 'Claude declined that request. Ask for something else.',
@@ -472,11 +475,158 @@ async function aiAsk(raw) {
   } catch (e) { AI.failed = text; aiError(e); }
   finally { AI.busy = false; AI.ctl = null; aiSync(); }
 }
+/* ================================================================== Identify molecules
+   Every bonded molecule in the chamber is named: by the library (same atoms joined the same way) or the formula table
+   first, and the kinds neither knows are put to the viewer's Claude as SMILES (claude.ai only, as Ask Claude). Each
+   molecule is tagged with its name on the canvas for a while, the kinds are counted in the log, and a named kind the
+   library does not have yet is added to My molecules with its shape as it is now, so it can be placed again. */
+const ID_TAG_S = 12, ID_TAGS_PER_KIND = 80, ID_ASK_MAX = 12;
+/* A molecule as SMILES: heavy atoms in brackets with their hydrogens folded in ([CH3], [OH-], [13CH2]); a hydrogen that
+   is an isotope, charged or bonded to another hydrogen stays an atom of its own. Ring closures are numbered. */
+function smilesWrite(mol) {
+  const inMol = new Set(mol);
+  const folded = (a) => a.el.sym === 'H' && !isoA(a) && !a.q && a.bonds.length === 1 && other(a.bonds[0], a).el.sym !== 'H' && inMol.has(other(a.bonds[0], a));
+  let heavy = mol.filter(a => !folded(a));
+  if (!heavy.length) heavy = mol.slice();
+  const idx = new Map(heavy.map((a, i) => [a, i])), n = heavy.length;
+  const nb = heavy.map(a => a.bonds.map(bd => ({ j: idx.get(other(bd, a)), o: bd.order })).filter(x => x.j !== undefined));
+  const hs = heavy.map(a => a.bonds.filter(bd => !idx.has(other(bd, a)) && inMol.has(other(bd, a))).length);
+  const seen = new Uint8Array(n), parent = new Int32Array(n).fill(-1), closures = heavy.map(() => []), kids = heavy.map(() => []);
+  let ringN = 0;
+  const ringKey = (i, j) => (i < j ? i + '-' + j : j + '-' + i), rings = new Set();
+  const dfs = (i) => {
+    seen[i] = 1;
+    for (const { j, o } of nb[i]) {
+      if (!seen[j]) { parent[j] = i; kids[i].push({ j, o }); dfs(j); }
+      else if (j !== parent[i] && !rings.has(ringKey(i, j))) { rings.add(ringKey(i, j)); ringN++; closures[i].push({ n: ringN, o, first: false }); closures[j].push({ n: ringN, o, first: true }); }
+    }
+  };
+  const start = heavy.reduce((b, a, i) => (nb[i].length < nb[b].length ? i : b), 0);
+  dfs(start);
+  const bondSym = (o) => (o === 2 ? '=' : o === 3 ? '#' : '');
+  const tok = (i) => {
+    const a = heavy[i], A = isoA(a), q = Math.round(a.q || 0), h = hs[i];
+    return '[' + (A ? A : '') + a.el.sym + (h ? 'H' + (h > 1 ? h : '') : '') + (q ? (q > 0 ? '+' : '-') + (Math.abs(q) > 1 ? Math.abs(q) : '') : '') + ']';
+  };
+  const write = (i) => {
+    let s = tok(i);
+    for (const c of closures[i]) s += (c.first ? bondSym(c.o) : '') + (c.n > 9 ? '%' + c.n : c.n);
+    const k = kids[i];
+    for (let q = 0; q < k.length; q++) { const part = bondSym(k[q].o) + write(k[q].j); s += q < k.length - 1 ? '(' + part + ')' : part; }
+    return s;
+  };
+  if (seen.some(v => !v)) return null; // (not one connected molecule)
+  return write(start);
+}
+/* The kinds of molecule in the chamber: one entry per distinct named structure (or formula when unnamed), with a count,
+   one instance and the library match. */
+function chamberKinds() {
+  const seen = new Set(), kinds = new Map();
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || !p.bonds.length || seen.has(p)) continue;
+    const mol = molecule(p); for (const a of mol) seen.add(a);
+    if (mol.some(a => a.k !== NUC || a.dead || !a.el)) continue;
+    const lib = libMatch(mol), name = moleculeName(mol), f = isoFormula(mol), smi = smilesWrite(mol), key = (name || '') + '|' + (smi || f);
+    let k = kinds.get(key);
+    if (!k) { k = { name, f, smi, mol, lib, n: 0, mols: [], byClaude: false }; kinds.set(key, k); }
+    k.n++; if (k.mols.length < ID_TAGS_PER_KIND) k.mols.push(mol);
+  }
+  return [...kinds.values()].sort((a, b) => b.n - a.n);
+}
+function idTag(kind) { for (const mol of kind.mols) R.molTags.push({ p: mol[0], text: kind.name, until: W.rt + ID_TAG_S }); }
+/* A kind the library does not have: saved to My molecules with its shape as it is now (atom coordinates relative to the
+   centre, bonds and orders, isotopes and charges); false when it cannot be (an antimolecule, a stray charge, too big). */
+function idToLibrary(kind, note) {
+  const mol = kind.mol;
+  if (kind.lib || !kind.name || mol.length < 2 || mol.length > MYMOL_MAX || mol.some(a => a.anti || Math.abs(Math.round(a.q || 0)) > 2)) return false;
+  if (Object.values(MOLECULES).some(m => m.name.toLowerCase() === kind.name.toLowerCase())) return false; // (a name in use: the library's shape wins)
+  let cx = 0, cy = 0; for (const a of mol) { cx += a.x; cy += a.y; } cx /= mol.length; cy /= mol.length;
+  const ix = new Map(mol.map((a, i) => [a, i]));
+  const atoms = mol.map(a => { const r = [a.el.sym, +(a.x - cx).toFixed(2), +(a.y - cy).toFixed(2)], q = Math.round(a.q || 0), A = isoA(a); if (q || A) r.push(q); if (A) r.push(A); return r; });
+  const bonds = [];
+  for (const a of mol) for (const bd of a.bonds) { if (bd.a !== a) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(a), j, bd.order]); }
+  const free = mol.some(a => capacity(a) > a.used);
+  const k = 'my' + Date.now().toString(36) + (MB.seq++).toString(36);
+  const m = { k, n: kind.name.slice(0, 40), r: free ? 1 : 0, a: atoms, b: bonds, d: note };
+  if (!myMolValid(m)) return false;
+  myMolAdd(m); kind.lib = MOLECULES[k];
+  return true;
+}
+const fmtN = (n) => n.toLocaleString('en-US');
+function idPrompt(kinds) {
+  return `You identify molecules for Atom Forge, a flat (2-D) atom and molecule sandbox. Each molecule below is given as SMILES (hydrogens folded into the heavy atoms, formal charges and isotopes marked).
+
+${kinds.map((k, i) => `${i}: ${k.smi}`).join('\n')}
+
+Reply with one JSON object and nothing else: {"names":[{"i":0,"name":"…"},…]}
+Rules:
+- name: the accepted common name of that exact structure (Ethanol, Acetate ion, Hydroxyl radical, Benzene), at most 40 characters, capitalised like a sentence; a systematic name when there is no common one.
+- When the structure is a nameless fragment, a strained ring or a radical with no accepted name, give null instead of inventing one; a charged species gets its ion name, a radical gets "radical" in its name.
+- One entry for every index.`;
+}
+async function identifyMolecules() {
+  const kinds = chamberKinds();
+  R.molTags = [];
+  if (!kinds.length) { log('tool', 'Identify: no molecules in the chamber (nothing bonded)'); return; }
+  const named = kinds.filter(k => k.name), unnamed = kinds.filter(k => !k.name && k.smi);
+  let added = [];
+  for (const k of named) { idTag(k); if (idToLibrary(k, 'Identified in the chamber.')) added.push(k.name); }
+  const total = kinds.reduce((s, k) => s + k.n, 0);
+  const line = (k) => `${fmtN(k.n)} × ${k.name || k.f}`;
+  log('tool', `Identified ${fmtN(total)} molecule${total === 1 ? '' : 's'} of ${kinds.length} kind${kinds.length === 1 ? '' : 's'}${named.length ? ': ' + named.slice(0, 12).map(line).join(', ') + (named.length > 12 ? ', …' : '') : ''}${unnamed.length ? `${named.length ? ';' : ','} unnamed: ${unnamed.slice(0, 8).map(line).join(', ')}${unnamed.length > 8 ? ', …' : ''}` : ''}`);
+  if (added.length) log('tool', `Added to My molecules: ${added.join(', ')}`);
+  if (!unnamed.length) return;
+  if (!AI.sample) { log('tool', `Ask Claude is not available here, so the ${unnamed.length} unnamed kind${unnamed.length === 1 ? ' keeps its formula' : 's keep their formulas'}`); return; }
+  const ask = unnamed.slice(0, ID_ASK_MAX);
+  if (AI.busy) { log('tool', 'Claude is busy with a design; try Identify again in a moment'); return; }
+  AI.busy = true; AI.ctl = new AbortController(); aiSync();
+  log('tool', `Asking Claude to name ${ask.length} kind${ask.length === 1 ? '' : 's'} …`);
+  try {
+    const r = await AI.sample.json(idPrompt(ask), { modelTier: 'default', signal: AI.ctl.signal });
+    const list = r && Array.isArray(r.names) ? r.names : [];
+    added = []; const got = [];
+    for (const e of list) {
+      if (!e || !Number.isInteger(e.i) || e.i < 0 || e.i >= ask.length) continue;
+      const name = aiText(e.name, 40); if (!name) continue;
+      const k = ask[e.i]; if (k.name) continue;
+      k.name = name; k.byClaude = true; got.push(`${fmtN(k.n)} × ${name} (${k.f})`);
+      idTag(k); if (idToLibrary(k, 'Identified by Claude from its structure.')) added.push(name);
+    }
+    log('tool', got.length ? `Claude named: ${got.join(', ')}` : 'Claude could not put a name to them');
+    if (added.length) log('tool', `Added to My molecules: ${added.join(', ')}`);
+  } catch (e) { aiError(e); log('tool', 'Claude could not name them just now'); }
+  finally { AI.busy = false; AI.ctl = null; aiSync(); }
+}
+/* ---- the Claude API with the viewer's own key (Settings → Claude API key), where the page has no Claude of its own:
+   the desktop app, or a copy of the page served elsewhere. Same shape as the `sample` capability: json(prompt, opts).
+   The key is kept in this browser's storage only and sent to api.anthropic.com alone; use is billed to that account. */
+const AI_API = { url: 'https://api.anthropic.com/v1/messages', version: '2023-06-01', model: 'claude-sonnet-5-5', maxTokens: 1500 };
+function apiSampler(key, model) {
+  return { api: true, json: async (prompt, opts) => {
+    const body = { model: model || AI_API.model, max_tokens: AI_API.maxTokens, messages: [{ role: 'user', content: prompt }] };
+    let res;
+    try {
+      res = await fetch(AI_API.url, { method: 'POST', signal: opts && opts.signal, headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': AI_API.version, 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify(body) });
+    } catch (e) { throw { code: e && e.name === 'AbortError' ? 'cancelled' : 'upstream_error', message: String(e && e.message || e) }; }
+    if (!res.ok) {
+      let detail = ''; try { const j = await res.json(); detail = j && j.error && j.error.message || ''; } catch (e) { /* (no body) */ }
+      const code = res.status === 401 || res.status === 403 ? 'bad_key' : res.status === 429 ? 'rate_limited' : res.status === 404 ? 'bad_model' : res.status === 400 && /credit|billing/i.test(detail) ? 'no_credit' : 'upstream_error';
+      throw { code, message: detail || ('HTTP ' + res.status) };
+    }
+    const j = await res.json();
+    const text = (j && Array.isArray(j.content) ? j.content : []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    if (!text) throw { code: 'empty_completion', message: 'no text' };
+    if (opts && opts.onText) opts.onText(text);
+    const m = /\{[\s\S]*\}/.exec(text.replace(/^```(?:json)?/m, '').replace(/```\s*$/m, ''));
+    try { return JSON.parse(m ? m[0] : text); } catch (e) { throw { code: 'invalid_json', message: text.slice(0, 200) }; }
+  } };
+}
 function aiInit() {
   const c = typeof window !== 'undefined' ? window.claude : null;
-  if (!c || typeof c.use !== 'function') return;
+  const key = typeof SET !== 'undefined' && SET.apiKey ? String(SET.apiKey).trim() : '';
+  const own = () => { AI.sample = key ? apiSampler(key, SET.apiModel) : null; aiSync(); if (!$('molModal').hidden) renderMolList(); };
+  if (!c || typeof c.use !== 'function') { own(); return; }
   Promise.resolve().then(() => c.use('sample')).then((s) => {
-    AI.sample = s || null; aiSync();
-    if (AI.sample && !$('molModal').hidden) renderMolList();
-  }, () => {});
+    if (s) { AI.sample = s; aiSync(); if (!$('molModal').hidden) renderMolList(); } else own();
+  }, own);
 }

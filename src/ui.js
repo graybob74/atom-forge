@@ -129,7 +129,7 @@ const ICONS = {
 const TOOLS = [
   { id: 'place', name: 'Place', key: 'P', help: 'Click to place the selected particle, drag to spray.' },
   { id: 'grab', name: 'Grab', key: 'G', help: 'Press on or near a particle and drag it on a spring (or move it directly while paused).' },
-  { id: 'select', name: 'Select', key: 'T', help: 'Drag a box round particles to select them (Shift adds); drag the selection to move it. Ctrl+C copies, Ctrl+V pastes at the pointer, Delete removes, Ctrl+A selects everything.' },
+  { id: 'select', name: 'Select', key: 'T', help: 'Drag a box round particles to select them (Shift adds); drag the selection to move it. Ctrl+C copies; Ctrl+V picks the copy up, then click where it goes (Shift-click to put down several; Escape cancels). Delete removes, Ctrl+A selects everything.' },
   { id: 'pull', name: 'Push/Pull', key: 'U', help: 'Hold to gather or push away everything nearby; low strengths let atoms settle together gently.' },
   { id: 'fire', name: 'Fire', key: 'F', help: 'Drag to aim, release to fire a particle at a set energy.' },
   { id: 'heat', name: 'Heat', key: 'H', help: 'Hold to heat (or cool) a region with a local heat bath.' },
@@ -186,7 +186,7 @@ function buildTools() {
   nav.addEventListener('click', (e) => { const b = e.target.closest('.tool'); if (b) setTool(b.dataset.tool); });
 }
 function setTool(id) {
-  UI.tool = id;
+  UI.tool = id; UI.pasting = false; R.ghost = null;
   for (const b of document.querySelectorAll('.tool')) b.setAttribute('aria-pressed', b.dataset.tool === id ? 'true' : 'false');
   if (W.tool) W.tool.active = false;
   W.grab = null; R.overlay = null;
@@ -429,8 +429,8 @@ function buildToolOpts() {
     case 'select': {
       const n = selCount(), clip = UI.clip ? UI.clip.parts.length : 0;
       h = `<span data-g="whole">${seg('Box picks', [['true', 'Whole molecules'], ['false', 'Atoms only']], String(o.whole))}</span>` +
-        `<span class="num" id="oSelN">${n ? n.toLocaleString('en-US') + ' selected' : 'nothing selected'}</span>` +
-        `<button class="opt" id="oSelCopy" ${n ? '' : 'disabled'} title="Ctrl+C">Copy</button><button class="opt" id="oSelPaste" ${clip ? '' : 'disabled'} title="Ctrl+V: pastes at the pointer, or in the middle of the view">Paste${clip ? ' ' + clip.toLocaleString('en-US') : ''}</button>` +
+        `<span class="num" id="oSelN">${UI.pasting ? 'click where the copy goes (Shift-click: several; Esc cancels)' : n ? n.toLocaleString('en-US') + ' selected' : 'nothing selected'}</span>` +
+        `<button class="opt" id="oSelCopy" ${n ? '' : 'disabled'} title="Ctrl+C">Copy</button><button class="opt" id="oSelPaste" ${clip ? '' : 'disabled'} ${UI.pasting ? 'aria-pressed="true"' : ''} title="Ctrl+V: pick the copy up, then click where it goes">${UI.pasting ? 'Placing' : 'Paste'}${clip ? ' ' + clip.toLocaleString('en-US') : ''}</button>` +
         `<button class="opt" id="oSelDel" ${n ? '' : 'disabled'} title="Delete">Delete</button><button class="opt" id="oSelAll" title="Ctrl+A">Select all</button><button class="opt" id="oSelNone" ${n ? '' : 'disabled'} title="Escape">Clear</button>`;
       break;
     }
@@ -440,7 +440,7 @@ function buildToolOpts() {
     const b = e.target.closest('button'); if (!b) return;
     if (b.id === 'oMagClear') { W.magnets.length = 0; log('tool', 'Magnets removed'); return; }
     if (b.id === 'oSelCopy') { copySelection(); return; }
-    if (b.id === 'oSelPaste') { pasteClip(); return; }
+    if (b.id === 'oSelPaste') { if (UI.pasting) cancelPaste(); else armPaste(); return; }
     if (b.id === 'oSelDel') { deleteSelection(); return; }
     if (b.id === 'oSelAll') { selectAll(); return; }
     if (b.id === 'oSelNone') { clearSelection(); return; }
@@ -775,6 +775,13 @@ function onDown(e) {
   if (e.button === 1 || rc || UI.spaceDown) { UI.drag = { kind: 'pan', x: px, y: py, cx: R.cx, cy: R.cy, rc }; return; }
   const [wx, wy] = s2w(px, py);
   const t = UI.tool;
+  if (UI.pasting) { // a paste picked up with Ctrl+V: this click puts it down (Shift: and keeps it for another)
+    const n = W.parts.length;
+    pasteClip(wx, wy);
+    if (!e.shiftKey || W.parts.length === n) cancelPaste(); else { R.ghost = { clip: UI.clip, x: wx, y: wy }; }
+    UI.drag = { kind: 'none' };
+    return;
+  }
   switch (t) {
     case 'place': {
       const sp = UI.spec || SPEC_P;
@@ -886,13 +893,24 @@ function copySelection() {
   if (!ps.length) return;
   let cx = 0, cy = 0; for (const p of ps) { cx += p.x; cy += p.y; } cx /= ps.length; cy /= ps.length;
   const idx = new Map(ps.map((p, i) => [p, i]));
-  const parts = ps.map(p => ({ k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, dx: p.x - cx, dy: p.y - cy }));
+  const parts = ps.map(p => ({ k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, dx: p.x - cx, dy: p.y - cy, rd: p.k === NUC ? p.rd : 0.15, el: p.el }));
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { const i = idx.get(bd.a), j = idx.get(bd.b); if (i !== undefined && j !== undefined && bd.a === p) bonds.push([i, j, bd.order]); }
   UI.clip = { parts, bonds, at: W.rt };
   log('tool', `Copied ${parts.length.toLocaleString('en-US')} particle${parts.length === 1 ? '' : 's'}${bonds.length ? ` and ${bonds.length.toLocaleString('en-US')} bond${bonds.length === 1 ? '' : 's'}` : ''}`);
   selChanged();
 }
+/* Ctrl+V picks the copy up: it follows the pointer as a ghost until a click puts it down (onDown), so it lands exactly
+   where it is wanted; Escape or another tool puts it away. */
+function armPaste() {
+  if (!UI.clip || !UI.clip.parts.length) return;
+  if (UI.tool !== 'select') setTool('select');
+  UI.pasting = true;
+  const m = UI.mouse, inside = m && m[0] >= 0 && m[1] >= 0 && m[0] <= R.w && m[1] <= R.h, [wx, wy] = inside ? s2w(m[0], m[1]) : [R.cx, R.cy];
+  R.ghost = { clip: UI.clip, x: wx, y: wy };
+  buildToolOpts();
+}
+function cancelPaste() { UI.pasting = false; R.ghost = null; if (UI.tool === 'select') buildToolOpts(); }
 /* Paste at a point (the pointer, or the middle of the view): the copies are nudged to a clear spot nearby if they would land
    on something, given one thermal velocity as a group, and become the selection (so they can be moved or pasted again). */
 function pasteClip(wx, wy) {
@@ -945,6 +963,7 @@ function onMove(e) {
   if (UI.pointers.has(e.pointerId)) UI.pointers.set(e.pointerId, { x: px, y: py });
   UI.mouse = [px, py];
   const [wx, wy] = s2w(px, py);
+  if (UI.pasting && R.ghost) { R.ghost.x = wx; R.ghost.y = wy; }
   const d = UI.drag;
   if (d && d.kind === 'pinch' && UI.pointers.size >= 2) {
     const [a, b] = [...UI.pointers.values()];
@@ -1533,7 +1552,61 @@ function toggleParticleView() { setAtomView(R.view.bohr === 'nuc' ? (UI.lastView
 function toggleOrbitalView() { setAtomView(R.view.bohr === 'orb' ? (UI.lastView || 'auto') : 'orb'); }
 function setSegValue(id, v) { for (const b of $(id).querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === String(v))); }
 function bindSeg(id, fn) { $(id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; setSegValue(id, b.dataset.v); fn(b.dataset.v); }); }
+/* ---- typed values: the figure beside a slider is clicked and typed over (Enter sets it, Escape leaves it) ----
+   A typed value may carry a unit (300 K, 25 °C, 80 F; 2 T, 500 mT, 3 kG; 0.5 V/Å, 2 V/nm; 500 Å, 50 nm, 1 µm; 10 fs;
+   250 MeV, 7 TeV); without one the figure is read in the unit shown. Out-of-range figures are brought to the range. */
+function parseTyped(str) {
+  const m = /^\s*([-+]?(?:\d[\d,]*\.?\d*|\.\d+)(?:e[-+]?\d+)?)\s*([^\s]*)/i.exec(str);
+  if (!m) return null;
+  const v = parseFloat(m[1].replace(/,/g, '')); if (!Number.isFinite(v)) return null;
+  return { v, u: m[2].toLowerCase().replace('μ', 'µ').replace(/^u(?=[a-zåA-Z])/, 'µ').replace('°', '') };
+}
+const scaleOf = (u, table, dflt) => u === '' ? dflt : Object.prototype.hasOwnProperty.call(table, u) ? table[u] : null;
+const TYPED = {
+  tVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; const u = p.u || T_UNIT.toLowerCase(); if (u === 'k') return p.v; if (u === 'c') return p.v + 273.15; if (u === 'f') return (p.v - 32) / 1.8 + 273.15; if (u === 'mk') return p.v * 1e6; if (u === 'kk') return p.v * 1e3; return null; },
+    apply: (T) => { setBathT(T); syncLab(); } },
+  bVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; const k = scaleOf(p.u, { t: 1, mt: 1e-3, kt: 1e3, 'µt': 1e-6, g: 1e-4, kg: 0.1, mg: 1e-7 }, 1); return k === null ? null : p.v * k; },
+    apply: (B) => { W.Bz = Math.abs(B) < 1e-9 ? 0 : clamp(B, -1e5, 1e5); syncLab(); } },
+  eVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; const k = scaleOf(p.u, { 'v/å': 1, 'v/a': 1, 'mv/å': 1e-3, 'mv/a': 1e-3, 'v/nm': 0.1, 'kv/nm': 100, 'v/m': 1e-10, 'kv/m': 1e-7, 'mv/m': 1e-4, 'v/cm': 1e-8, 'kv/cm': 1e-5 }, 1); return k === null ? null : p.v * k; },
+    apply: (E) => { UI.E = clamp(Math.abs(E), 0, 3); applyE(); syncLab(); } },
+  boxVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; const k = scaleOf(p.u, { 'å': 1, a: 1, nm: 10, 'µm': 1e4, um: 1e4, pm: 0.01, mm: 1e7 }, 1); return k === null ? null : p.v * k; },
+    apply: (w) => { w = clamp(w, 20, 20000); W.box.tw = w; W.box.th = w * UI.aspect; syncLab(); } },
+  spdVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; const k = scaleOf(p.u, { s: 1, ms: 1e-3, 'µs': 1e-6, ns: 1e-9, ps: 1e-12, fs: 1e-15, as: 1e-18, zs: 1e-21 }, 1e-15); return k === null ? null : p.v * k / PHYS.TU_S; },
+    apply: (tu) => { W.simPerFrame = clamp(tu, spdFromS(0), spdFromS(100)); syncLab(); syncSpeed(); } },
+  warpVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; return p.u === '' || p.u === 'x' || p.u === '×' ? p.v : null; },
+    apply: (f) => { W.warp = clamp(f, 1, 1e30); syncLab(); if (UI.tool === 'place' || UI.tool === 'fire') buildToolOpts(); } },
+  cEVal: { parse: (t) => parseEnergy(t), apply: (E) => { if (!W.collider) return; setColliderEnergy(clamp(E, cEFromS(0), cEFromS(200))); syncCollider(); } },
+  cE2Val: { parse: (t) => parseEnergy(t), apply: (E) => { const C = W.collider; if (!C) return; setColliderEnergy(C.E, clamp(E, cEFromS(0), cEFromS(200))); syncCollider(); } },
+  cNVal: { parse: (t) => { const p = parseTyped(t); return p && p.u === '' ? Math.round(p.v) : null; }, apply: (n) => { n = clamp(n, 1, 30); $('cNSlider').value = n; $('cNVal').textContent = String(n); if (W.collider) W.collider.bunch = n; } },
+};
+function parseEnergy(t) { const p = parseTyped(t); if (!p) return null; const k = scaleOf(p.u, { ev: 1, kev: 1e3, mev: 1e6, gev: 1e9, tev: 1e12, mev_: 1e-3 }, 1); return k === null ? null : p.v * k; }
+function bindTyped() {
+  for (const id of Object.keys(TYPED)) {
+    const el = $(id); if (!el) continue;
+    el.classList.add('typed'); el.title = 'Click to type a value'; el.tabIndex = 0; el.setAttribute('role', 'button');
+    const open = () => {
+      if (el.querySelector('input')) return;
+      const was = el.textContent, inp = document.createElement('input');
+      inp.type = 'text'; inp.className = 'typedIn'; inp.value = was; inp.setAttribute('aria-label', 'Type a value');
+      el.textContent = ''; el.appendChild(inp); inp.focus(); inp.select();
+      let done = false;
+      const close = (commit) => {
+        if (done) return; done = true;
+        const v = commit ? TYPED[id].parse(inp.value) : null;
+        if (inp.parentNode === el) el.removeChild(inp);
+        el.textContent = was;
+        if (v !== null) TYPED[id].apply(v);
+      };
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); close(true); } else if (e.key === 'Escape') { e.preventDefault(); close(false); } e.stopPropagation(); });
+      inp.addEventListener('keyup', (e) => e.stopPropagation()); inp.addEventListener('keypress', (e) => e.stopPropagation());
+      inp.addEventListener('blur', () => close(true));
+    };
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); open(); } });
+  }
+}
 function bindLab() {
+  bindTyped();
   $('tMarks').innerHTML = T_MARKS.map(([T, n]) => `<button class="mark" data-t="${T}" title="${fmtT(T)}">${esc(n)}</button>`).join('');
   $('tMarks').onclick = (e) => { const b = e.target.closest('.mark'); if (b) { setBathT(+b.dataset.t); syncLab(); } };
   $('tSlider').oninput = (e) => { setBathT(Math.pow(10, +e.target.value / 100)); syncLabText(); };
@@ -1552,6 +1625,7 @@ function bindLab() {
   bindSeg('segColor', (v) => { R.view.color = v; });
   try { const vf = JSON.parse(store('viewflags') || 'null'); if (vf && typeof vf === 'object') for (const k of ['labels', 'tracks', 'rays', 'hbonds', 'grid', 'decayCards']) if (typeof vf[k] === 'boolean') R.view[k] = vf[k]; } catch (e) { /* (defaults) */ }
   for (const c of document.querySelectorAll('[data-view]')) c.onchange = () => { R.view[c.dataset.view] = c.checked; store('viewflags', JSON.stringify(R.view)); };
+  $('bIdentify').onclick = () => { identifyMolecules(); };
   $('bClear').onclick = () => { clearWorld(); W.hist = { t: [], T: [], bath: [] }; R.sel = null; log('tool', 'Chamber emptied'); renderInspect(); };
   $('bSrcClear').onclick = () => { W.sources.length = 0; };
 }
@@ -2512,6 +2586,7 @@ function onKey(e) {
   }
   if (e.key === 'Escape') {
     for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal']) if (!$(id).hidden) { hideModal(id); return; }
+    if (UI.pasting) { cancelPaste(); return; }
     if (UI.drag) { if (W.tool) W.tool.active = false; W.grab = null; UI.drag = null; R.overlay = null; return; }
     R.sel = null; R.follow = null; renderInspect(); if (R.msel.size) clearSelection(); return;
   }
@@ -2521,7 +2596,7 @@ function onKey(e) {
   if ((e.ctrlKey || e.metaKey) && !e.altKey) { // copy, paste, select all: the selection (or the inspected particle)
     const kk = e.key.toLowerCase();
     if (kk === 'c' && tag !== 'INPUT') { e.preventDefault(); copySelection(); return; }
-    if (kk === 'v' && tag !== 'INPUT') { e.preventDefault(); pasteClip(); return; }
+    if (kk === 'v' && tag !== 'INPUT') { e.preventDefault(); armPaste(); return; }
     if (kk === 'a' && tag !== 'INPUT') { e.preventDefault(); selectAll(); return; }
     return;
   }
@@ -2554,7 +2629,7 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl' };
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '' };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
 const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'] };
 const SET = Object.assign({}, SET_DEF);
@@ -2678,6 +2753,10 @@ function syncSettings() {
   if ($('setModal').hidden) return;
   $('setPerf').checked = perfOn();
   setSegValue('segMax', SET.maxParts); setSegValue('segRes', SET.res); setSegValue('segBudget', SET.budget); setSegValue('segThreads', String(SET.threads)); setSegValue('segGl', SET.gl);
+  if (document.activeElement !== $('setApiKey')) $('setApiKey').value = SET.apiKey || ''; if (document.activeElement !== $('setApiModel')) $('setApiModel').value = SET.apiModel || '';
+  { const own = typeof window !== 'undefined' && window.claude && typeof window.claude.use === 'function'; const n = $('setApiNote');
+    n.textContent = (AI.sample && !AI.sample.api ? 'This page has its own Claude access: Ask Claude and Identify molecules use your Claude account directly, and the key below is not needed here. ' : own ? '' : 'This page has no Claude access of its own. ') +
+      'Paste an API key from console.anthropic.com to ask Claude from here: it stays in this browser\'s storage, is sent only to api.anthropic.com, and each request is billed to that account (a fraction of a cent). The model can be left blank for the default (' + AI_API.model + ').'; }
   try { $('setThreads').textContent = threadsNote(); } catch (e) { $('setThreads').textContent = 'Threads: ' + e.message; }
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit);
   $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo;
@@ -2716,6 +2795,10 @@ function settingsInit() {
   $('setTips').onchange = (e) => setSetting('tips', e.target.checked);
   $('setFps').onchange = (e) => setSetting('fps', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
+  const keyIn = $('setApiKey'), modelIn = $('setApiModel');
+  const apiChanged = () => { const k = keyIn.value.trim(), m = modelIn.value.trim(); if (k === (SET.apiKey || '') && m === (SET.apiModel || '')) return; SET.apiKey = k; SET.apiModel = m; store('settings', JSON.stringify(SET)); aiInit(); syncSettings(); log('tool', k ? 'Claude API key set: Ask Claude and Identify molecules can ask Claude here' : 'Claude API key removed'); };
+  keyIn.addEventListener('change', apiChanged); modelIn.addEventListener('change', apiChanged);
+  keyIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apiChanged(); } e.stopPropagation(); }); modelIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apiChanged(); } e.stopPropagation(); });
   $('setDelMols').onclick = (e) => twoPress(e.currentTarget, () => { for (const k of Object.keys(MOLECULES)) if (MOLECULES[k].cat === 'custom') myMolRemove(k); log('tool', 'My molecules deleted'); syncSettings(); });
   $('setDelIsos').onclick = (e) => twoPress(e.currentTarget, () => { MYISO.length = 0; myIsoStore(); buildToolOpts(); log('tool', 'Saved isotopes deleted'); syncSettings(); });
   $('setReset').onclick = () => { Object.assign(SET, SET_DEF); delete SET.prePerf; store('settings', JSON.stringify(SET)); applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts(); };
