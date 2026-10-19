@@ -76,6 +76,29 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## V33: session 4 — drawing from the store, the grid on demand
+- The WebGL layer draws the atoms and bonds from slot textures (gl.js `GL_T`): each frame the store's x/y arrays are
+  copied into an RG32F texture (one `texSubImage2D`), and the balls are one `drawArrays(POINTS, 0, S.hi)` whose vertex
+  shader fetches position, colour and style (radius in Å, smallest and largest pixel radius) by `gl_VertexID`; dead
+  slots, leptons and bare nuclei carry alpha 0 and atoms that would be 30 px or more leave the layer for the Bohr picture
+  as before. Colours and styles are refilled only when a count changed (and every eighth frame, since an ion forming
+  changes a radius without any count changing) — per frame when the colour follows charge or heat. The bonds are a
+  static vertex buffer (`glBondsBuild`, rebuilt when W.topo changes: two slots, half, corner, lane, rest length per
+  vertex) whose vertex shader fetches both ends and the half's atom colour from the textures; each half is capped round
+  at its atom and cut flat at the middle. Free leptons and their glows still go by item (few). At 20,000 atoms the
+  drawing's JavaScript fell from ~7.3 to ~2.3 ms on the 2-core test box (SwiftShader doing the GPU's work); on a GPU the
+  remaining cost is the three O(N) scans of the 2D pass. t_gl compares the frames with Canvas 2D pixel for pixel, now
+  also in heat colouring and zoomed in.
+- The grid is built on demand (`gridEnsure`, `gridTouch`): only a neighbour-list rebuild, a search near a point or along
+  a line, the lepton list or far-metal pairs ask for it, so most steps build none (3 builds in 90 steps of liquid water;
+  0.34 → 0.05 ms a step single-threaded at 20k). Everything that used `G.n` as "is there a grid" now asks `_nmd`.
+- The benchmark line splits the forces further: bookkeeping (the MD classification), grid, lists (validity, rebuilds,
+  exclusions) and after (walls, fields, tools).
+- Workers spin 2.5 ms (was 1) before sleeping on their word: within a frame the steps come every couple of
+  milliseconds, and a sleeping worker costs tens of microseconds to wake at each of the four barriers of a step.
+- Left: the classification loop (~0.4 ms single-threaded at 20k: eight typed-array writes a particle), the per-step
+  validity scan of the list, and the O(N) scans in the rest of the step.
+
 ## V32: typed values with units, the tools' figures, walls that keep everything in, a version tag
 - The typed editors (V30) take a unit from a dropdown beside the box (`attachTyped`, unit tables `U_TEMP`, `U_B`, `U_E`,
   `U_LEN`, `U_TIME`, `U_ENERGY`, `U_LIGHT`); changing the unit converts the number; the box size has a width and a

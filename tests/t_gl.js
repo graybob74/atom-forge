@@ -27,16 +27,29 @@ async function diffPng(page, a, b) {
   const dir = path.join(__dirname, '.tmp'); fs.mkdirSync(dir, { recursive: true });
   const clip = await page.evaluate(() => { const b = document.getElementById('cv').getBoundingClientRect(); return { x: b.left, y: b.top, width: Math.floor(b.width), height: Math.floor(b.height) }; });
   for (const preset of ['water', 'flashbyte', 'salt', 'flame', 'antihydrogen']) {
-    const counts = await page.evaluate((preset) => { loadPreset(preset); setRunning(false); fitView(); GL.balls = GL.glows = GL.segs = 0; GL.on = true; render(W.rt); return { balls: GL.balls, glows: GL.glows, segs: GL.segs, parts: W.parts.length, bonds: W.bonds.length }; }, preset);
+    const counts = await page.evaluate((preset) => { loadPreset(preset); setRunning(false); fitView(); GL.balls = GL.glows = GL.segs = GL.slots = 0; GL.on = true; render(W.rt); return { balls: GL.balls + GL.slots, glows: GL.glows, segs: GL.segs, parts: W.parts.length, bonds: W.bonds.length }; }, preset); // (balls: the slot pass draws every slot's atom in one call; leptons go by item)
     const fa = path.join(dir, `gl_${preset}.png`), fb = path.join(dir, `c2d_${preset}.png`);
     await page.screenshot({ path: fa, clip });
     await page.evaluate(() => { GL.on = false; render(W.rt); });
     await page.screenshot({ path: fb, clip });
     await page.evaluate(() => { GL.on = true; });
     const d = await diffPng(page, fs.readFileSync(fa), fs.readFileSync(fb));
-    console.log(`  ${preset}: ${counts.balls} balls, ${counts.glows} glows, ${counts.segs} segments on the layer (${counts.parts} particles, ${counts.bonds} bonds); mean difference ${d.mean.toFixed(3)}, ${(100 * d.offShare).toFixed(2)}% of pixels off by > 24`);
+    console.log(`  ${preset}: ${counts.balls} slots/balls, ${counts.glows} glows, ${counts.segs} half-bond lanes on the layer (${counts.parts} particles, ${counts.bonds} bonds); mean difference ${d.mean.toFixed(3)}, ${(100 * d.offShare).toFixed(2)}% of pixels off by > 24`);
     check(d.mean < 1.5 && d.offShare < 0.05, `${preset}: WebGL and Canvas 2D frames agree`, d);
     check(counts.balls >= counts.parts * 0.5 && (counts.bonds === 0 || counts.segs >= counts.bonds), `${preset}: the layer draws the balls and bonds`, counts);
+  }
+  // the frames also agree with the colour following heat (styles refreshed every frame) and zoomed in (big atoms leave the
+  // layer for the Bohr picture: the slot shader must drop them too)
+  for (const [name, setup] of [['heat', () => { R.view.color = 'heat'; fitView(); }], ['zoomed', () => { R.view.color = 'element'; fitView(); R.s = 24; }]]) {
+    await page.evaluate((f) => { loadPreset('water'); setRunning(false); for (let i = 0; i < 20; i++) { W.dt = chooseDt(); step(W.dt); } (0, eval)(f)(); GL.on = true; render(W.rt); }, setup.toString());
+    const fa = path.join(dir, `gl_${name}.png`), fb = path.join(dir, `c2d_${name}.png`);
+    await page.screenshot({ path: fa, clip });
+    await page.evaluate(() => { GL.on = false; render(W.rt); });
+    await page.screenshot({ path: fb, clip });
+    await page.evaluate(() => { GL.on = true; R.view.color = 'element'; fitView(); });
+    const d = await diffPng(page, fs.readFileSync(fa), fs.readFileSync(fb));
+    console.log(`  ${name}: mean difference ${d.mean.toFixed(3)}, ${(100 * d.offShare).toFixed(2)}% of pixels off by > 24`);
+    check(d.mean < 1.5 && d.offShare < 0.05, `${name}: WebGL and Canvas 2D frames agree`, d);
   }
   // the other views and a zoomed-in Bohr view draw with the layer on, without errors
   const views = await page.evaluate(() => {

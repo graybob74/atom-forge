@@ -129,7 +129,7 @@ function render(rt) {
   R.gl = !!R.cvbg && typeof glReady === 'function' && glReady();
   _colFrame++;
   if (typeof glShow === 'function') glShow(R.gl);
-  if (R.gl) glBegin();
+  if (R.gl) { glBegin(); glSlotsPrepare(); }
   const ctx = R.gl ? R.ctxbg : R.ctx;
   R.ctx = ctx; // (the drawing below the particles goes here)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -322,31 +322,38 @@ function slotColor(i, p) {
   const c = hexc(atomColor(p || S.obj[i])); _colRGB[i] = c; _colGen[i] = _colFrame;
   return c;
 }
-/* The same bonds on the WebGL layer: each half a round-capped segment in its atom's colour (one draw call for all). */
+/* The same bonds on the WebGL layer, drawn by the GPU from the slot textures (gl.js): the vertex buffer is rebuilt only
+   when the bonding changes; each frame costs one draw call and no JavaScript per bond. */
 function drawBondsGL() {
   const s = R.s, orb = R.view.bohr === 'orb';
-  const hw = (orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)) / 2, hwMulti = hw * 0.7;
+  const hw = (orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)) / 2;
   const off = Math.max(2, 0.11 * s), aMul = orb ? 0.45 : 1;
-  const X = S.x, Y = S.y, wrap = W.wall === 'wrap', hbw = W.box.w / 2, hbh = W.box.h / 2, cx = R.cx, cy = R.cy, hwp = R.w / 2, hhp = R.h / 2, Rw = R.w, Rh = R.h;
-  const bonds = W.bonds, nb = bonds.length;
-  for (let k = 0; k < nb; k++) {
-    const bd = bonds[k], a = bd.a, b = bd.b, ia = a.i, ib = b.i;
-    const ax = X[ia], ay = Y[ia], bx = X[ib], by = Y[ib];
-    if (wrap && (Math.abs(bx - ax) > hbw || Math.abs(by - ay) > hbh)) continue;
-    const x0 = (ax - cx) * s + hwp, y0 = (cy - ay) * s + hhp, x1 = (bx - cx) * s + hwp, y1 = (cy - by) * s + hhp;
-    if ((x0 < -40 && x1 < -40) || (x0 > Rw + 40 && x1 > Rw + 40) || (y0 < -40 && y1 < -40) || (y0 > Rh + 40 && y1 > Rh + 40)) continue;
-    const L = Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)) || 1, nx = -(y1 - y0) / L, ny = (x1 - x0) / L;
-    const n = bd.order, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
-    const ca = slotColor(ia, a), cb = slotColor(ib, b);
-    const stretch = clamp((L / s - bd.r0) / (bd.rb || 1.5), 0, 1);
-    const alpha = ((0.95 - stretch * 0.6) * aMul * 64 & 63) / 64, w = n > 1 ? hwMulti : hw; // (the same 64 opacity steps as the 2D paths)
-    for (let q = 0; q < n; q++) {
-      const o = (q - (n - 1) / 2) * off, ox = nx * o, oy = ny * o;
-      if (ca === cb) glSeg(x0 + ox, y0 + oy, x1 + ox, y1 + oy, w, ca, alpha); // (one colour: one segment)
-      else { glSeg(x0 + ox, y0 + oy, mx + ox, my + oy, w, ca, alpha); glSeg(mx + ox, my + oy, x1 + ox, y1 + oy, w, cb, alpha); }
-    }
+  glBondsBuild(W.bonds, W.topo);
+  glDrawBonds(hw, off, aMul, W.wall === 'wrap', W.box.w / 2, W.box.h / 2);
+}
+/* The slot textures for this frame: positions always; the balls' colours and styles when they may have changed (per
+   frame when the colour follows charge or heat; else when a count changed, and every eighth frame anyway, since an ion
+   forming changes a radius without any count changing). Leptons and bare nuclei are left out (drawn by other means). */
+const _elCol = [], _elColAnti = [];
+function elColor(Z, anti) { const T = anti ? _elColAnti : _elCol; let c = T[Z]; if (!c) { c = T[Z] = hexc(anti ? mixHex(ELEMENTS[Z].color, ANTI_TINT, 0.5) : ELEMENTS[Z].color); } return c; }
+let _stySig = '', _styFrame = 0;
+function glSlotsPrepare() {
+  const hi = S.hi;
+  glSlotPositions(hi);
+  const mode = R.view.color, bohr = R.view.bohr, perFrame = mode !== 'element';
+  const sig = `${W.topo}|${W.dirty}|${W.spawned}|${W.deaths}|${mode}|${bohr}|${hi}`;
+  if (!perFrame && sig === _stySig && (++_styFrame & 7)) return;
+  _stySig = sig; _styFrame = 0;
+  const C = GL_T.colA, Y = GL_T.styA, DEAD = S.dead, K = S.k, Z = S.Z, NE = S.ne, ANTI = S.anti, OBJ = S.obj;
+  const maxAtom = bohr === 'auto' ? 30 : 1e9, nCol = hexc(N_COL); // (an atom drawn 30 px or bigger gets the Bohr picture instead)
+  for (let i = 0; i < hi; i++) {
+    const c4 = 4 * i;
+    if (DEAD[i] === 1 || K[i] !== NUC || (Z[i] > 0 && NE[i] === 0)) { C[c4 + 3] = 0; continue; }
+    if (Z[i] === 0) { Y[c4] = 0.2; Y[c4 + 1] = 2.2; Y[c4 + 2] = 1e9; C[c4] = nCol[0]; C[c4 + 1] = nCol[1]; C[c4 + 2] = nCol[2]; C[c4 + 3] = 255; continue; }
+    const p = OBJ[i], col = mode === 'element' ? elColor(Z[i], ANTI[i] === 1) : hexc(atomColor(p));
+    Y[c4] = p.rd; Y[c4 + 1] = 2.4; Y[c4 + 2] = maxAtom; C[c4] = col[0]; C[c4 + 1] = col[1]; C[c4 + 2] = col[2]; C[c4 + 3] = 255;
   }
-  glFlush();
+  glSlotStyle(hi);
 }
 /* Particle view: a bond is its shared electrons, one pair per bond order, swirling between the two nuclei and
    sitting nearer the more electronegative atom. */
@@ -452,19 +459,15 @@ function drawParticles(rt) {
   // laid down here; the 2D pass below then adds what goes on top of them and draws whatever is not a plain ball
   const glBalls = gl && (bohrMode === 'auto' || bohrMode === 'on');
   if (glBalls) {
-    const lite = R.lite, rl = Math.max(1.8, 0.12 * s), rlg = clamp(rl * 4.5, 7, 28), rn = Math.max(2.2, 0.2 * s), eCol = hexc(E_COL), pCol = hexc(POS_COL), nCol = hexc(N_COL);
+    const lite = R.lite, rl = Math.max(1.8, 0.12 * s), rlg = clamp(rl * 4.5, 7, 28), eCol = hexc(E_COL), pCol = hexc(POS_COL);
     const bohrAll = bohrMode === 'on';
-    for (let j = 0; j < np; j++) {
+    if (!bohrAll) glDrawSlots(S.hi); // atoms and neutrons: one draw call from the slot textures
+    for (let j = 0; j < np; j++) { // free leptons, with their glows, by item (few)
       const i = PI[j];
-      if (DEAD[i] === 1) continue;
+      if (DEAD[i] === 1 || K[i] === NUC) continue;
       const x = (X[i] - cx) * s + hw, y = (cy - Y[i]) * s + hh;
       if (x < -pad || y < -pad || x > xMax || y > yMax) continue;
-      if (K[i] !== NUC) { const p = parts[j], c = K[i] === ELEC ? eCol : pCol; if (!lite) glGlow(x, y, rlg, c, p.rad ? 1 : 0.55); glBall(x, y, lite ? rl * 1.2 : rl, c); continue; }
-      if (Z[i] === 0) { glBall(x, y, rn, nCol); continue; }
-      if (NE[i] === 0) continue; // (bare nuclei: beads, drawn below)
-      const p = parts[j], r = Math.max(2.4, p.rd * s);
-      if (bohrAll || r >= 30) continue; // (the Bohr picture, drawn below)
-      glBall(x, y, r, slotColor(i, p));
+      const p = parts[j], c = K[i] === ELEC ? eCol : pCol; if (!lite) glGlow(x, y, rlg, c, p.rad ? 1 : 0.55); glBall(x, y, lite ? rl * 1.2 : rl, c);
     }
     glFlush();
   }

@@ -116,7 +116,7 @@ onmessage = (e) => {
     Atomics.store(ctrl, ctrlAt(me, 3), m.gen); // bound: the acknowledgement
     if (Atomics.load(ctrl, ctrlAt(me, 8)) !== m.gen) return; // a newer binding is already in the queue (its request on our word was just overwritten): back to the event loop for it
   }
-  const SPIN_MS = 1.0; // a worker looks for the next order this long before it sleeps: a step's passes come well within it
+  const SPIN_MS = 2.5; // a worker looks for the next order this long before it sleeps: a step's passes, and the next step's first, come within it (a sleeping worker costs tens of microseconds to wake, several times a step)
   const waitFor = (notValue) => { const t0 = performance.now(); while (Atomics.load(ctrl, me) === notValue) { if (performance.now() - t0 > SPIN_MS) { Atomics.wait(ctrl, me, notValue); break; } } };
   for (;;) {
     waitFor(TH_IDLE);
