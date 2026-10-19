@@ -13,7 +13,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rust-src
@@ -48,7 +48,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/wasm/kernel.wasm src/wasm/REPORT.txt
           git diff --cached --quiet && echo "module unchanged" || (git commit -m "kernel.wasm: built from ${GITHUB_SHA::7}" && git push origin HEAD:${GITHUB_REF_NAME})
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: kernel-wasm
           path: src/wasm/kernel.wasm
