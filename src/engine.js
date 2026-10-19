@@ -54,7 +54,7 @@ function makeWorld() {
     T: 300, gamma: 0.05,
     warp: 1,                    // radioactive decay speed-up over real rates (1 = as in nature)
     Bz: 0, magnets: [], Ex: 0, Ey: 0,
-    nextId: 1, topo: 1,
+    nextId: 1, topo: 1, bathSeed: 0x5eed1234, // bathSeed: the heat bath's noise is hashed from it, the step and the slot (threads.js's bathNoise)
     rays: [], flights: [], chips: [], chipSeq: 0, mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
     exo: [],                    // unstable particles in flight (muons, pions, kaons…: hep.js)
     events: [], evRecent: [], slow: null, slowmo: true, decayOn: true, made: null, // made: what nuclear events have made (noteMade)
@@ -820,7 +820,7 @@ function Bgrad(x, y, out) { // returns B and fills out=[dB/dx, dB/dy]
 
 /* ------------------------------------------------------------------ spatial grid */
 const G = { cols: 0, rows: 0, cw: 1, ch: 1, hx: 1, hy: 1, wrap: false, bits: 0, shift: 32, mask: 0, keys: new Int32Array(1), head: new Int32Array(1), next: new Int32Array(1),
-  _list: [], _listN: -1, _listGen: -1, n: 0, px: new Float64Array(16), py: new Float64Array(16), occ: new Int32Array(16), nocc: 0, slots: 1 };
+  _list: [], _listN: -1, _listGen: -1, n: 0, px: new Float64Array(16), py: new Float64Array(16), occ: new Int32Array(16), nocc: 0, slots: 1, RL2: 0, fwd: null };
 /* Cell of a point: cells tile the box with a 1 Å margin for closed walls, and exactly for periodic ones, so that the
    cells at opposite edges are neighbours across the boundary (a margin there hid pairs within the cutoff). */
 /* G.list: the particles the grid was built over, as objects, in grid order (made the first time it is asked for after a
@@ -859,9 +859,9 @@ function buildGrid(idx, n) {
   const cols = Math.max(1, Math.floor(w / cs)), rows = Math.max(1, Math.floor(h / cs));
   G.cols = cols; G.rows = rows; G.cw = w / cols; G.ch = h / rows; G.hx = w / 2; G.hy = h / 2; G.wrap = wrap;
   let bits = 4; while ((1 << bits) < 2 * n + 16) bits++;
-  if (G.bits !== bits) { G.bits = bits; G.slots = 1 << bits; G.keys = new Int32Array(G.slots); G.head = new Int32Array(G.slots); G.shift = 32 - bits; G.mask = G.slots - 1; }
+  if (G.bits !== bits) { G.bits = bits; G.slots = 1 << bits; G.keys = shArray(Int32Array, G.slots); G.head = shArray(Int32Array, G.slots); G.shift = 32 - bits; G.mask = G.slots - 1; _sharedGen++; } // (shared: the workers build the neighbour list from the grid)
   G.keys.fill(-1);
-  if (G.next.length < n) { G.next = new Int32Array(n * 2 + 16); G.px = new Float64Array(n * 2 + 16); G.py = new Float64Array(n * 2 + 16); G.occ = new Int32Array(n * 2 + 16); }
+  if (G.next.length < n) { G.next = shArray(Int32Array, n * 2 + 16); G.px = shArray(Float64Array, n * 2 + 16); G.py = shArray(Float64Array, n * 2 + 16); G.occ = shArray(Int32Array, n * 2 + 16); _sharedGen++; }
   G.n = n; G.nocc = 0; _gridGen++;
   const X = S.x, Y = S.y, px = G.px, py = G.py, head = G.head, next = G.next, occ = G.occ, keys = G.keys, mask = G.mask, shift = G.shift;
   let nocc = 0;
@@ -892,7 +892,6 @@ function gridForward(cx, cy, key, out) {
   }
   return m;
 }
-const _fwd = new Int32Array(8);
 /* Walk the particles of the cells covering a rectangle of cell coordinates (unwrapped; wrapped into the box here):
    cb(i) with the grid index. When the rectangle holds more cells than are occupied, the occupied cells are walked
    instead (every particle is then offered: callers test distances themselves). */
@@ -940,51 +939,114 @@ function vlValid() {
   }
   return worst <= HSKIN2;
 }
-function vlBuild() { // from the grid just built over _md (G.px/py are their positions now); nucleus–nucleus pairs only
-  VL.builds++;
-  const idx = _mdI, n = _nmd, nN = _nmdN, nI = _mdNI, X = S.x, Y = S.y, K = S.k;
-  if (VL.bx.length < nN) { VL.bx = new Float64Array(nN * 2 + 16); VL.by = new Float64Array(nN * 2 + 16); }
-  for (let q = 0; q < nN; q++) { VL.bx[q] = X[nI[q]]; VL.by[q] = Y[nI[q]]; }
-  VL.gen = _mdGen; VL.w = W.box.w; VL.h = W.box.h; VL.wall = W.wall;
-  const px = G.px, py = G.py, head = G.head, next = G.next, occ = G.occ, nocc = G.nocc, keys = G.keys, cols = G.cols, f = _fwd;
-  const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
-  let pi = VL.pi, pj = VL.pj, np = 0, cap = pi.length;
-  for (let oc = 0; oc < nocc; oc++) {
-    const c = occ[oc], key = keys[c], nf = gridForward(key % cols, (key / cols) | 0, key, f);
+/* The pairs within RC + SKIN among the occupied cells o0 ≤ oc < o1 of the grid g (its arrays and shape), appended at
+   pi[base …] up to base + cap: returns how many, or -1 when they would not fit. Each pair of neighbouring cells is
+   visited once, from the lower key (gridForward's rule, inlined with the hash lookup). The same function builds the
+   list on one thread and, over ranges of cells, on the workers (threads.js), which write their own stretch of the array:
+   the stretches follow the cells' order, so joined they are the list one thread would have built, pair for pair. */
+function vlPairs(o0, o1, pi, pj, base, cap, g, idx, K, wrap, bw, bh, hw, hh) {
+  const keys = g.keys, head = g.head, next = g.next, px = g.px, py = g.py, occ = g.occ, cols = g.cols, rows = g.rows, mask = g.mask, shift = g.shift, gwrap = g.wrap;
+  const RL2 = g.RL2, f = g.fwd || (g.fwd = new Int32Array(8)), end = base + cap;
+  let np = base;
+  for (let oc = o0; oc < o1; oc++) {
+    const c = occ[oc], key = keys[c], cx = key % cols, cy = (key / cols) | 0;
+    let nf = 0;
+    for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+      let x = cx + ox, y = cy + oy;
+      if (gwrap) { x = (x + cols) % cols; y = (y + rows) % rows; } else if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
+      const k = y * cols + x;
+      if (k <= key) continue;
+      let s = Math.imul(k, 0x9E3779B1) >>> shift;
+      for (;;) { const kk = keys[s]; if (kk === k) break; if (kk === -1) { s = -1; break; } s = (s + 1) & mask; }
+      if (s === -1) continue;
+      let dup = false; for (let q = 0; q < nf; q++) if (f[q] === s) { dup = true; break; } // (a tiny periodic box: the same cell from two sides)
+      if (!dup) f[nf++] = s;
+    }
     for (let i = head[c]; i !== -1; i = next[i]) {
       const si = idx[i];
-      if (K[si] !== NUC) continue;
+      if (K[si] !== 0) continue; // (NUC = 0)
       const ax = px[i], ay = py[i];
-      if (np + n > cap) { cap = cap * 2 + n; const a = shArray(Int32Array, cap); a.set(pi); pi = a; const b = shArray(Int32Array, cap); b.set(pj); pj = b; _sharedGen++; } // (room for this particle's pairs: at most n)
       for (let j = next[i]; j !== -1; j = next[j]) { // same cell
         const sj = idx[j];
-        if (K[sj] !== NUC) continue;
+        if (K[sj] !== 0) continue;
         let dx = px[j] - ax, dy = py[j] - ay;
         if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
-        if (dx * dx + dy * dy < RL2) { pi[np] = si; pj[np] = sj; np++; }
+        if (dx * dx + dy * dy < RL2) { if (np >= end) return -1; pi[np] = si; pj[np] = sj; np++; }
       }
       for (let q = 0; q < nf; q++) { // neighbour cells with a greater key
         for (let j = head[f[q]]; j !== -1; j = next[j]) {
           const sj = idx[j];
-          if (K[sj] !== NUC) continue;
+          if (K[sj] !== 0) continue;
           let dx = px[j] - ax, dy = py[j] - ay;
           if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
-          if (dx * dx + dy * dy < RL2) { pi[np] = si; pj[np] = sj; np++; }
+          if (dx * dx + dy * dy < RL2) { if (np >= end) return -1; pi[np] = si; pj[np] = sj; np++; }
         }
       }
     }
   }
-  VL.pi = pi; VL.pj = pj; VL.np = np; VL.valid = true; VL.exTopo = -1;
+  return np - base;
+}
+let vlBuildAll = function () { return -1; }; // eslint-disable-line no-unused-vars
+function vlRoom(cap) { VL.pi = shArray(Int32Array, cap); VL.pj = shArray(Int32Array, cap); _sharedGen++; } // (room for the pairs: the workers are rebound to the new arrays)
+function vlBuild() { // from the grid just built over _md (G.px/py are their positions now); nucleus–nucleus pairs only
+  VL.builds++;
+  const nN = _nmdN, nI = _mdNI, X = S.x, Y = S.y;
+  if (VL.bx.length < nN) { VL.bx = new Float64Array(nN * 2 + 16); VL.by = new Float64Array(nN * 2 + 16); }
+  for (let q = 0; q < nN; q++) { VL.bx[q] = X[nI[q]]; VL.by[q] = Y[nI[q]]; }
+  VL.gen = _mdGen; VL.w = W.box.w; VL.h = W.box.h; VL.wall = W.wall;
+  G.RL2 = RL2;
+  const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
+  let np = vlBuildAll(); // (the threads, when the pool is up: -1 when they did not)
+  while (np < 0) {
+    np = vlPairs(0, G.nocc, VL.pi, VL.pj, 0, VL.pi.length, G, _mdI, S.k, wrap, bw, bh, hw, hh);
+    if (np < 0) vlRoom(VL.pi.length * 2 + _nmd);
+  }
+  VL.np = np; VL.valid = true; VL.exTopo = -1;
 }
 /* Pairs the force loop can skip: two atoms of one molecule that exclude each other (bonded, or 1-3 across an angle
    term), for which atomAtom returns no force (ex = 1); atoms of one molecule that do interact are marked too (ex = 2),
    so the force loop need not look the exclusion up again. Marked once per change of bonding or species, as for the
    angle centres. */
+/* The exclusions as arrays the threads can read: for each slot, the ids its atom excludes (EXW at most; a slot with more
+   — a lattice atom with many neighbours — sends the marking back to the one-thread Set path). Made again only when
+   bonding or species changed (W.topo, W.dirty), not at every rebuild of the list. */
+const EXW = 24;
+let _exl = shArray(Int32Array, 16 * EXW), _exlN = shArray(Uint8Array, 16), _exlTopo = -1, _exlDirty = -1, _exlOk = true;
+function exclLists() {
+  const hi = S.hi;
+  if (_exlN.length < hi) { const cap = hi * 2 + 64; _exlN = shArray(Uint8Array, cap); _exl = shArray(Int32Array, cap * EXW); _sharedGen++; }
+  const OBJ = S.obj, K = S.k, MOL = S.mol, DEAD = S.dead, exl = _exl, exn = _exlN;
+  let ok = true;
+  for (let i = 0; i < hi; i++) {
+    const e = DEAD[i] === 1 || K[i] !== NUC || MOL[i] === 0 ? null : OBJ[i].excl;
+    if (!e || !e.size) { exn[i] = 0; continue; }
+    if (e.size > EXW) { ok = false; exn[i] = 0; continue; }
+    let n = 0; for (const id of e) exl[i * EXW + n++] = id;
+    exn[i] = n;
+  }
+  _exlOk = ok; _exlTopo = W.topo; _exlDirty = W.dirty;
+}
+/* ex for the pairs q0 ≤ q < q1 from the arrays (the same marks as the Set path). Runs on any thread (threads.js). */
+function exRange(q0, q1, ex, pi, pj, K, Z, NE, MOL, ID, exl, exn, exw) {
+  for (let q = q0; q < q1; q++) {
+    const i = pi[q], j = pj[q], mi = MOL[i];
+    let v = 0;
+    if (mi !== 0 && mi === MOL[j] && K[i] === 0 && K[j] === 0 && Z[i] > 0 && Z[j] > 0 && NE[i] > 0 && NE[j] > 0) { // (NUC = 0)
+      v = 2;
+      const idj = ID[j], n = exn[i], b = i * exw;
+      for (let k = 0; k < n; k++) if (exl[b + k] === idj) { v = 1; break; }
+    }
+    ex[q] = v;
+  }
+}
+let exAll = function () { return false; }; // eslint-disable-line no-unused-vars
 function vlExclusions() {
   const np = VL.np, pi = VL.pi, pj = VL.pj, K = S.k, Z = S.Z, NE = S.ne, MOL = S.mol, ID = S.id, OBJ = S.obj;
   if (VL.ex.length < np) { VL.ex = shArray(Uint8Array, pi.length); _sharedGen++; }
   const ex = VL.ex;
-  for (let q = 0; q < np; q++) {
+  if (_exlTopo !== W.topo || _exlDirty !== W.dirty) exclLists();
+  if (_exlOk) { if (!exAll()) exRange(0, np, ex, pi, pj, K, Z, NE, MOL, ID, _exl, _exlN, EXW); }
+  else for (let q = 0; q < np; q++) {
     const i = pi[q], j = pj[q], mi = MOL[i];
     ex[q] = (mi !== 0 && mi === MOL[j] && K[i] === NUC && K[j] === NUC && Z[i] > 0 && Z[j] > 0 && NE[i] > 0 && NE[j] > 0) ? (OBJ[i].excl.has(ID[j]) ? 1 : 2) : 0; // (2: one molecule, not excluded)
   }
@@ -1692,7 +1754,7 @@ function angleForces() { angleCentres(); angleKernel(0, AC.n, S.fx, S.fy, W.wall
 /* ------------------------------------------------------------------ force computation */
 const _bg = [0, 0];
 let _fastNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
-let _mdI = new Int32Array(4096), _nmd = 0, _mdLI = new Int32Array(256), _nmdL = 0, _chI = new Int32Array(256), _nch = 0, _mdNI = new Int32Array(4096), _nmdN = 0; // the slots of _md, _mdL, _charged and the MD nuclei
+let _mdI = shArray(Int32Array, 4096), _nmd = 0, _mdLI = new Int32Array(256), _nmdL = 0, _chI = new Int32Array(256), _nch = 0, _mdNI = new Int32Array(4096), _nmdN = 0; // the slots of _md, _mdL, _charged and the MD nuclei
 let _mdGen = 0, _mdPrev = new Int32Array(4096), _nmdPrev = -1, _nFastLep = 0; // _mdGen counts the changes of the MD set (_md as a set of slots)
 function computeForces() {
   if (_profOn) { const t0 = performance.now(), k0 = _tKernels; computeForces1(); _tForces += performance.now() - t0; _nPasses++; if (TH_LAST.used) { _tKernels = k0 + TH_LAST.ms; _tWait += TH_LAST.wait; } return; }
@@ -1703,7 +1765,7 @@ function computeForces1() {
   _fastNuc.length = 0; _charged.length = 0; _late.length = 0; _mdL.length = 0; _stiff = 0; _stiffL = 0; _nNucMD = 0;
   const fieldE = hasEfield();
   const parts = W.parts, n = parts.length, PI = partsSync();
-  if (_mdI.length < n) _mdI = new Int32Array(n * 2 + 64);
+  if (_mdI.length < n) { _mdI = shArray(Int32Array, n * 2 + 64); _sharedGen++; } // (the workers read it to build the neighbour list)
   if (_mdLI.length < n) _mdLI = new Int32Array(n * 2 + 64);
   if (_chI.length < n) _chI = new Int32Array(n * 2 + 64);
   if (_mdNI.length < n) _mdNI = new Int32Array(n * 2 + 64);
@@ -4544,9 +4606,12 @@ function rotateB(p, vx, vy, frac) { // the turned velocity in _rb
   _rb[0] = vx + vpy * s; _rb[1] = vy - vpx * s;
   return _rb;
 }
+let bathAll = function (dt, c1, c2, kT) { return false; }; // eslint-disable-line no-unused-vars
+function outerBPlain() { const t = W.tool; return !hasBfield() && !(t && t.active && (t.type === 'heat' || t.type === 'pull')); }
 function outerB(dt) {
   const gam = W.gamma, kT = PHYS.KB * W.T, h = 0.5 * dt;
   const c1 = Math.exp(-gam * dt), c2 = Math.sqrt(Math.max(0, 1 - c1 * c1));
+  if (outerBPlain() && bathAll(dt, c1, c2, kT)) return; // (the threads take the plain case: no magnetic field, no heat tool)
   const hasB = hasBfield();
   const t = W.tool, heat = t && t.active && (t.type === 'heat' || t.type === 'pull');
   let hc1 = 1, hc2 = 0, hkT = 0, hR2 = 0, pullK = 0;
@@ -4554,7 +4619,7 @@ function outerB(dt) {
     hc1 = Math.exp(-0.6 * dt); hc2 = Math.sqrt(1 - hc1 * hc1); hkT = PHYS.KB * (t.type === 'heat' ? t.T : W.T); hR2 = t.R * t.R;
     if (t.type === 'pull') pullK = 2 * Math.abs(t.s) / hR2; // (the trap's spring constant, eV/Å²)
   }
-  const PI = partsSync(), n = W.parts.length;
+  const PI = partsSync(), n = W.parts.length, seed = W.bathSeed, step = W.step, nz = _bathNz;
   const DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, IM = S.im, Q = S.q;
   const X = S.x, Y = S.y, FRESH = S.fresh, OBJ = S.obj;
   for (let j = 0; j < n; j++) {
@@ -4574,7 +4639,7 @@ function outerB(dt) {
     // and beams are not coupled to it directly (they thermalize by collisions, as in a real gas discharge);
     // the bath's friction would otherwise also bind electrons artificially.
     const inTool = heat && k === NUC && (X[i] - t.x) * (X[i] - t.x) + (Y[i] - t.y) * (Y[i] - t.y) < hR2;
-    if (gam > 0 && k === NUC && !(inTool && pullK)) { const sg = Math.sqrt(kT * im); vx = c1 * vx + c2 * sg * gauss(); vy = c1 * vy + c2 * sg * gauss(); }
+    if (gam > 0 && k === NUC && !(inTool && pullK)) { const sg = Math.sqrt(kT * im); bathNoise(seed, step, i, nz); vx = c1 * vx + c2 * sg * nz[0]; vy = c1 * vy + c2 * sg * nz[1]; }
     if (inTool) {
       let k1 = hc1, k2 = hc2;
       if (pullK) { // push/pull (its bath in place of the chamber's): damped about critically for the atom's own mass, 2√(k/m), so a uranium atom comes in as readily as a light one and nothing overshoots far; never less than before (0.6/tu up to 12 u)
@@ -4896,7 +4961,7 @@ function measure() {
 
 /* ------------------------------------------------------------------ world construction helpers */
 function clearWorld() {
-  dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0;
+  dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.sources.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null;
   W.grab = null; W.topo++;

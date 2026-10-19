@@ -76,6 +76,31 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## V31: session 3 — the step on all threads
+- Of a 3.0 ms step at 20,000 atoms on 16 threads (the user's V30 benchmark), the kernels took 0.29 ms; the bath 1.04 ms,
+  the list rebuilds ~0.8 ms amortised (5 ms + 2 ms of exclusions every 9 steps) and the integration 0.3 ms ran on the
+  main thread alone.
+- The heat bath runs on all threads (`bathSlots`, order TH_BATH) in the plain case (no magnetic field, no heat tool;
+  engine.js's `outerB` keeps the rest). Its noise is counter-based (`bathNoise`: murmur3's finaliser over (seed, step,
+  slot), Box–Muller), so the result does not depend on how the slots are shared out: sixteen threads give the one-thread
+  simulation to the bit (t_threads checks). `W.bathSeed` is fixed per world without drawing from `rnd`, so the seeded
+  test worlds are unchanged (two energy-test worlds, chain and antihydrogen, are chaotic enough that a shifted random
+  stream changes their drift: a fragility to look at some time).
+- The neighbour list is built on all threads (`vlPairs` over ranges of the grid's occupied cells, order TH_VL): each
+  thread writes its own stretch of the shared pair arrays, which are then closed up in cell order, so the list is the
+  one-thread list pair for pair. The grid's arrays and `_mdI` live in shared memory for it (rebinding on growth); a
+  stretch running out of room grows the arrays and falls back to one thread for that build.
+- The exclusion marks come from arrays (`exclLists`: each slot's excluded ids, up to EXW = 24, made again only when
+  bonding or species change) and are marked on all threads (`exRange`, order TH_EX); a slot with more exclusions (a
+  lattice atom) sends the marking back to the Set path.
+- A rebind race fixed: a bind posted while a worker was still inside its previous bind handler had its wake-up flag
+  overwritten by the handler's own idle store, and the worker slept on a stale generation ("starting" for ever, one
+  thread doing the work). The wanted generation is now in a control slot of its own, and the handler returns to the
+  event loop when it differs from the one it just bound.
+- On the 2-core test box, 12,000 atoms: 2.53 → 2.20 ms a step. On 16 threads the bath and the rebuilds should shrink
+  about tenfold; what remains serial is the grid build (0.3 ms at 20k), the MD bookkeeping in `computeForces` and the
+  event candidates.
+
 ## V30: precise paste, typed values, Identify molecules, the Claude API key, pions in flight, flash order
 - Paste (Ctrl+V, the Paste button) picks the copy up: `armPaste` sets `UI.pasting` and a ghost (`R.ghost`, drawn in
   render.js) follows the pointer; the next click on the chamber pastes there (Shift keeps it for another), Escape or a

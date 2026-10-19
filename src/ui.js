@@ -2665,7 +2665,7 @@ function threadsNote() {
   if (!threadsAvailable()) return 'One thread: this page is not cross-origin isolated, so the browser allows no shared memory. The desktop app runs the pair forces on all your processor\u2019s threads.' + kernel;
   const c = navigator.hardwareConcurrency || '?';
   if (!TH.n) return `One thread (this computer has ${c}).` + kernel;
-  return `${TH.n + 1} threads of ${c}${TH.state === 'starting' ? ', starting up' : TH.used ? ', in use' : ' (used once a world is big enough: the small ones run on one thread)'}.` + kernel;
+  return `${TH.n + 1} threads of ${c}${TH.state === 'starting' ? ', starting up' : TH.used ? ', in use: the forces, the heat bath, the integration and the neighbour list' : ' (used once a world is big enough: the small ones run on one thread)'}.` + kernel;
 }
 /* The benchmark: four reference worlds, each built and stepped here under the settings as they are (the water worlds
    hold as many atoms as Settings → Max particles allows, the drawing runs at the set resolution and effects, the physics

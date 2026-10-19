@@ -11,9 +11,40 @@
    ========================================================================== */
 const TH = { n: 0, want: 0, workers: [], ctrl: null, prm: null, fx: [], fy: [], cq: [], boundGen: -1, ready: 0, gen: 0, acks: null,
   minPairs: 1500, used: 0, lastMs: 0, state: 'off', note: '', wks: null, stacks: [], wasmOn: [] };
-const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7;
-// control layout: [0, n) worker states; then 8 per worker: pair range (2), candidate count, ack, bond range (2), angle range (2); prm: per worker stiffness, then the box
-function thCtrl(w, k) { return TH.n + 8 * w + k; }
+const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13;
+// control layout: [0, n) worker states; then 10 per worker: pair range (2), candidate count, ack (the generation bound), bond range (2), angle range (2), the generation wanted, spare; prm: per worker stiffness, then the box
+function thCtrl(w, k) { return TH.n + 10 * w + k; }
+/* The heat bath's noise: two normals from (seed, step, slot), the same on any thread and in any order, so a bath stirred
+   on sixteen threads is the very simulation one thread gives, step for step (murmur3's finaliser for the hash, Box–Muller
+   for the normals; a uniform is never 0). */
+const _bathNz = new Float64Array(2);
+function bathNoise(seed, step, slot, out) {
+  let h = Math.imul(seed ^ Math.imul(step | 0, 0x9E3779B1), 0x85EBCA77) ^ Math.imul(slot + 1, 0xC2B2AE35);
+  h ^= h >>> 16; h = Math.imul(h, 0x85EBCA6B); h ^= h >>> 13; h = Math.imul(h, 0xC2B2AE35); h ^= h >>> 16;
+  let g = h ^ 0x6A09E667; g ^= g >>> 15; g = Math.imul(g, 0x2C1B3C6D); g ^= g >>> 12; g = Math.imul(g, 0x297A2D39); g ^= g >>> 15;
+  const u1 = ((h >>> 0) + 0.5) / 4294967296, u2 = ((g >>> 0) + 0.5) / 4294967296;
+  const r = Math.sqrt(-2 * Math.log(u1)), t = 2 * Math.PI * u2;
+  out[0] = r * Math.cos(t); out[1] = r * Math.sin(t);
+}
+/* outerB for slots s0 ≤ s < s1 in the plain case (no magnetic field, no heat tool): the velocity half-kick and the
+   Langevin bath on nuclei, the same arithmetic as engine.js's outerB, elementwise. */
+function bathSlots(s0, s1, h, c1, c2, kT, gam, seed, step) {
+  const DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, IM = S.im, FRESH = S.fresh, nz = _bathNz;
+  for (let i = s0; i < s1; i++) {
+    if (DEAD[i] === 1 || RAD[i] === 1) continue;
+    const k = K[i];
+    if (k === 0 && Z[i] === 0) continue; // (NUC = 0: neutrons fly straight)
+    if (FRESH[i] === 1) { FRESH[i] = 0; continue; }
+    const fast = FAST[i] === 1;
+    if (fast && k !== 0) continue;
+    let vx = VX[i], vy = VY[i];
+    const im = IM[i];
+    if (fast) { vx += h * FX[i] * im; vy += h * FY[i] * im; }
+    else { vx += h * (FX[i] - GX[i]) * im; vy += h * (FY[i] - GY[i]) * im; }
+    if (gam > 0 && k === 0) { const sg = Math.sqrt(kT * im); bathNoise(seed, step, i, nz); vx = c1 * vx + c2 * sg * nz[0]; vy = c1 * vy + c2 * sg * nz[1]; }
+    VX[i] = vx; VY[i] = vy;
+  }
+}
 /* outerA + the plain drift for slots s0 ≤ s < s1 (the same arithmetic as engine.js's outerA and innerSteps, elementwise). */
 function integrateSlots(s0, s1, dt) {
   const h = 0.5 * dt, DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, IM = S.im;
@@ -49,9 +80,15 @@ ${zblD2.toString()}
 let S = null, AC = null, BD = null;
 ${PAIR_KERNEL_SRC}
 ${integrateSlots.toString()}
+const _bathNz = new Float64Array(2);
+${bathNoise.toString()}
+${bathSlots.toString()}
+${vlPairs.toString()}
+${exRange.toString()}
+let GV = null, mdI = null, exl = null, exn = null;
 let pi, pj, ex, FXo, FYo, CQ, ctrl, prm, me, nW, bufs, mem = null, wasm = null, wex = null, descOff = 0, ksOff = 0, ksArr = null, sumTabOff = 0;
-const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7;
-function ctrlAt(w, k) { return nW + 8 * w + k; }
+const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13;
+function ctrlAt(w, k) { return nW + 10 * w + k; }
 onmessage = (e) => {
   const m = e.data;
   if (m.type === 'bind') {
@@ -63,6 +100,7 @@ onmessage = (e) => {
     AC = {}; for (const k in m.AC) AC[k] = view(m.AC[k]);
     BD = {}; for (const k in m.BD) BD[k] = view(m.BD[k]);
     bufs = m.bufs.map(b => [view(b[0]), view(b[1])]);
+    GV = { fwd: null }; for (const k in m.G) GV[k] = view(m.G[k]); mdI = view(m.mdI); exl = view(m.exl); exn = view(m.exn);
     me = m.me; nW = m.nW; FXo = bufs[me][0]; FYo = bufs[me][1];
     CQ = view(m.cq); ctrl = new Int32Array(m.ctrl); prm = new Float64Array(m.prm);
     if (m.wasm && !wasm) { // the kernel module on the shared memory, with a stack of this worker's own
@@ -76,6 +114,7 @@ onmessage = (e) => {
     postMessage({ type: 'kernel', wasm: !!wex, me });
     Atomics.store(ctrl, me, TH_IDLE); // (a rebind request left on our word is served by this message)
     Atomics.store(ctrl, ctrlAt(me, 3), m.gen); // bound: the acknowledgement
+    if (Atomics.load(ctrl, ctrlAt(me, 8)) !== m.gen) return; // a newer binding is already in the queue (its request on our word was just overwritten): back to the event loop for it
   }
   const SPIN_MS = 1.0; // a worker looks for the next order this long before it sleeps: a step's passes come well within it
   const waitFor = (notValue) => { const t0 = performance.now(); while (Atomics.load(ctrl, me) === notValue) { if (performance.now() - t0 > SPIN_MS) { Atomics.wait(ctrl, me, notValue); break; } } };
@@ -112,7 +151,18 @@ onmessage = (e) => {
     } else if (st === TH_INTEG) {
       integrateSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm[nW + 6]);
       Atomics.store(ctrl, me, TH_INTEGD); Atomics.notify(ctrl, me);
-    } else if (st === TH_DONE || st === TH_SUMMED || st === TH_INTEGD) { waitFor(st); } // (the main thread has not reset us yet)
+    } else if (st === TH_VL) { // this worker's stretch of the neighbour list, from its range of the grid's occupied cells
+      GV.cols = prm[nW + 14]; GV.rows = prm[nW + 15]; GV.wrap = prm[nW + 16] === 1; GV.mask = prm[nW + 17]; GV.shift = prm[nW + 18]; GV.RL2 = prm[nW + 19];
+      const base = ctrl[ctrlAt(me, 4)], cap = ctrl[ctrlAt(me, 5)];
+      ctrl[ctrlAt(me, 2)] = vlPairs(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], pi, pj, base, cap, GV, mdI, S.k, prm[nW] === 1, prm[nW + 1], prm[nW + 2], prm[nW + 3], prm[nW + 4]);
+      Atomics.store(ctrl, me, TH_VLD); Atomics.notify(ctrl, me);
+    } else if (st === TH_EX) { // the exclusion marks of this worker's range of pairs
+      exRange(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], ex, pi, pj, S.k, S.Z, S.ne, S.mol, S.id, exl, exn, prm[nW + 20]);
+      Atomics.store(ctrl, me, TH_EXD); Atomics.notify(ctrl, me);
+    } else if (st === TH_BATH) {
+      bathSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], 0.5 * prm[nW + 6], prm[nW + 8], prm[nW + 9], prm[nW + 10], prm[nW + 11], prm[nW + 12], prm[nW + 13]);
+      Atomics.store(ctrl, me, TH_BATHD); Atomics.notify(ctrl, me);
+    } else if (st === TH_DONE || st === TH_SUMMED || st === TH_INTEGD || st === TH_BATHD || st === TH_VLD || st === TH_EXD) { waitFor(st); } // (the main thread has not reset us yet)
   }
 };
 `;
@@ -129,8 +179,8 @@ function threadsSet(want) {
   TH.state = want ? 'starting' : (threadsAvailable() ? 'off' : 'unavailable');
   if (!want) return;
   const url = URL.createObjectURL(new Blob([workerSource()], { type: 'text/javascript' }));
-  TH.ctrl = new Int32Array(new SharedArrayBuffer(4 * (want + 8 * want + 8)));
-  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (want + 8)));
+  TH.ctrl = new Int32Array(new SharedArrayBuffer(4 * (want + 10 * want + 8)));
+  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (want + 24)));
   for (let w = 0; w < want; w++) {
     const wk = new Worker(url);
     wk.onerror = (e) => { TH.note = 'worker error: ' + (e.message || e); console.warn('Atom Forge threads:', TH.note); threadsSet(0); };
@@ -156,6 +206,7 @@ function threadsBind() {
   for (const k of ['c', 'nb', 'cnt', 'tg']) ACd[k] = d(AC[k]);
   for (const k of ['a', 'b', 'r0', 'al', 'D', 'rb']) BDd[k] = d(BD[k]);
   const bufs = TH.fx.map((a, w) => [d(a), d(TH.fy[w])]);
+  const Gd = {}; for (const k of ['keys', 'head', 'next', 'px', 'py', 'occ']) Gd[k] = d(G[k]);
   // the kernel module for the workers: each gets a stack of its own in the shared memory (allocated once)
   let wasm = null;
   if (WK.on && WK.ready) {
@@ -165,8 +216,9 @@ function threadsBind() {
   }
   for (let w = 0; w < n; w++) {
     // a worker waiting on its word is woken to come back for the message; one not yet running just gets the message
+    Atomics.store(TH.ctrl, thCtrl(w, 8), gen); // (what it should be bound to: one still in its binding handler sees it there)
     if (Atomics.load(TH.ctrl, w) === TH_IDLE) { Atomics.store(TH.ctrl, w, TH_REBIND); Atomics.notify(TH.ctrl, w); }
-    TH.workers[w].postMessage({ type: 'bind', S: Sdesc, AC: ACd, BD: BDd, pi: d(VL.pi), pj: d(VL.pj), ex: d(VL.ex), bufs, cq: d(TH.cq[w]), ctrl: TH.ctrl.buffer, prm: TH.prm.buffer, me: w, nW: n, gen,
+    TH.workers[w].postMessage({ type: 'bind', S: Sdesc, AC: ACd, BD: BDd, pi: d(VL.pi), pj: d(VL.pj), ex: d(VL.ex), bufs, cq: d(TH.cq[w]), ctrl: TH.ctrl.buffer, prm: TH.prm.buffer, me: w, nW: n, gen, G: Gd, mdI: d(_mdI), exl: d(_exl), exn: d(_exlN),
       mem: WK.on ? WK.mem : null, wasm: wasm ? Object.assign({ stackTop: TH.stacks[w] }, wasm) : null });
   }
 }
@@ -244,6 +296,65 @@ integrateA = function (dt) {
   }
   integrateSlots(Math.min(hi, n * per), hi, dt);
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_INTEGD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); }
+  return true;
+};
+/* The neighbour list on all threads: the occupied cells shared out, each thread writing its own stretch of the pair
+   arrays, the stretches then closed up in order (so the list is the one-thread list, pair for pair). Returns the number
+   of pairs, or -1 when the pool is not up, or a stretch ran out of room (the arrays are grown; the engine builds it). */
+vlBuildAll = function () {
+  const nocc = G.nocc;
+  if (!TH.n || nocc < 64 * (TH.n + 1)) { TH.vlNote = 'few cells'; return -1; }
+  if (!threadsReady()) { TH.vlNote = 'not ready'; return -1; }
+  const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, cap = VL.pi.length, per = Math.floor(cap / (n + 1)), oper = Math.ceil(nocc / (n + 1));
+  const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
+  prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh;
+  prm[n + 14] = G.cols; prm[n + 15] = G.rows; prm[n + 16] = G.wrap ? 1 : 0; prm[n + 17] = G.mask; prm[n + 18] = G.shift; prm[n + 19] = RL2;
+  for (let w = 0; w < n; w++) {
+    ctrl[thCtrl(w, 0)] = Math.min(nocc, w * oper); ctrl[thCtrl(w, 1)] = Math.min(nocc, (w + 1) * oper); ctrl[thCtrl(w, 4)] = w * per; ctrl[thCtrl(w, 5)] = per;
+    Atomics.store(ctrl, w, TH_VL); Atomics.notify(ctrl, w);
+  }
+  const t0 = performance.now();
+  const mine = vlPairs(Math.min(nocc, n * oper), nocc, VL.pi, VL.pj, n * per, cap - n * per, G, _mdI, S.k, wrap, bw, bh, hw, hh);
+  let short = mine < 0, np = 0;
+  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_VLD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); if (ctrl[thCtrl(w, 2)] < 0) short = true; }
+  if (short) { TH.vlNote = 'short'; vlRoom(cap * 2 + _nmd); return -1; }
+  TH.vlNote = 'ok';
+  const pi = VL.pi, pj = VL.pj;
+  for (let w = 0; w < n; w++) { // close the stretches up, in order
+    const cnt = ctrl[thCtrl(w, 2)], src = w * per;
+    if (src !== np) { pi.copyWithin(np, src, src + cnt); pj.copyWithin(np, src, src + cnt); }
+    np += cnt;
+  }
+  if (n * per !== np) { pi.copyWithin(np, n * per, n * per + mine); pj.copyWithin(np, n * per, n * per + mine); }
+  np += mine;
+  TH.vlMs = performance.now() - t0; TH.vlBuilds = (TH.vlBuilds || 0) + 1;
+  return np;
+};
+/* The exclusion marks on all threads (exRange over ranges of the list); false when the engine must do it itself. */
+exAll = function () {
+  const np = VL.np;
+  if (!TH.n || np < 4096 * (TH.n + 1) || !threadsReady()) return false;
+  const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, per = Math.ceil(np / (n + 0.5));
+  prm[n + 20] = EXW;
+  for (let w = 0; w < n; w++) {
+    ctrl[thCtrl(w, 0)] = Math.min(np, w * per); ctrl[thCtrl(w, 1)] = Math.min(np, (w + 1) * per);
+    Atomics.store(ctrl, w, TH_EX); Atomics.notify(ctrl, w);
+  }
+  exRange(Math.min(np, n * per), np, VL.ex, VL.pi, VL.pj, S.k, S.Z, S.ne, S.mol, S.id, _exl, _exlN, EXW);
+  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_EXD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); }
+  return true;
+};
+/* outerB on all threads in the plain case (bathSlots); false when the engine must do it itself. */
+bathAll = function (dt, c1, c2, kT) {
+  if (!TH.n || S.hi < 2000 || !threadsReady()) return false;
+  const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, hi = S.hi, per = Math.ceil(hi / (n + 0.5));
+  prm[n + 6] = dt; prm[n + 8] = c1; prm[n + 9] = c2; prm[n + 10] = kT; prm[n + 11] = W.gamma; prm[n + 12] = W.bathSeed; prm[n + 13] = W.step;
+  for (let w = 0; w < n; w++) {
+    ctrl[thCtrl(w, 0)] = Math.min(hi, w * per); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * per);
+    Atomics.store(ctrl, w, TH_BATH); Atomics.notify(ctrl, w);
+  }
+  bathSlots(Math.min(hi, n * per), hi, 0.5 * dt, c1, c2, kT, W.gamma, W.bathSeed, W.step);
+  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_BATHD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); }
   return true;
 };
 if (typeof module !== 'undefined') module.exports = { TH, threadsSet, threadsAvailable, threadsDefault };

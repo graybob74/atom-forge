@@ -50,6 +50,25 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
     const minPairs = TH.minPairs; TH.minPairs = 1e9;
     computeForces(); const F1 = copy(), ev1 = evs(); W.evq.length = 0;
     TH.minPairs = minPairs;
+    // the neighbour list built on two threads is the one-thread list pair for pair; the bath on two threads gives the
+    // one-thread velocities to the bit (counter-based noise)
+    forcesNoEvents(); for (let k = 0; k < 50 && !threadsReady(); k++) { const t = performance.now(); while (performance.now() - t < 20) { /* (the workers bind to the grid's arrays) */ } }
+    forcesNoEvents(); buildGrid(_mdI, _nmd);
+    const builds2 = TH.vlBuilds || 0;
+    let tv2 = performance.now(); vlBuild(); tv2 = performance.now() - tv2; const P2 = [VL.np, Int32Array.from(VL.pi.subarray(0, VL.np)), Int32Array.from(VL.pj.subarray(0, VL.np))];
+    const keepVl = vlBuildAll; vlBuildAll = () => -1;
+    let tv1 = performance.now(); vlBuild(); tv1 = performance.now() - tv1; vlBuildAll = keepVl;
+    const vlSame = P2[0] === VL.np && P2[1].every((v, i) => v === VL.pi[i]) && P2[2].every((v, i) => v === VL.pj[i]);
+    // the exclusion marks: on two threads from the arrays, on one thread from the arrays, and from the Sets: all the same
+    VL.exTopo = -1; vlExclusions(); const EX2 = Uint8Array.from(VL.ex.subarray(0, VL.np));
+    const keepEx = exAll; exAll = () => false; VL.exTopo = -1; vlExclusions(); const EX1 = Uint8Array.from(VL.ex.subarray(0, VL.np));
+    const okWas = _exlOk; _exlOk = false; VL.exTopo = -1; vlExclusions(); const EXS = Uint8Array.from(VL.ex.subarray(0, VL.np)); _exlOk = okWas; exAll = keepEx;
+    const exSame = EX2.every((v, q) => v === EX1[q] && v === EXS[q]), exCounts = [0, 0, 0]; for (const v of EXS) exCounts[v]++;
+    const V0 = [Float64Array.from(S.vx.subarray(0, n)), Float64Array.from(S.vy.subarray(0, n))], FR0 = Uint8Array.from(S.fresh.subarray(0, n)); // (fresh flags: the bath clears them)
+    W.gamma = 0.05; outerB(W.dt || 0.01); const VB2 = [Float64Array.from(S.vx.subarray(0, n)), Float64Array.from(S.vy.subarray(0, n))];
+    S.vx.set(V0[0]); S.vy.set(V0[1]); S.fresh.set(FR0); const keepBath = bathAll; bathAll = () => false; outerB(W.dt || 0.01); bathAll = keepBath;
+    const bathSame = VB2[0].every((v, i) => v === S.vx[i]) && VB2[1].every((v, i) => v === S.vy[i]);
+    S.vx.set(V0[0]); S.vy.set(V0[1]);
     // timing of the force pass, one and two threads
     const time = (k) => { let best = 1e9; for (let r = 0; r < 3; r++) { const t0 = performance.now(); for (let i = 0; i < k; i++) forcesNoEvents(); best = Math.min(best, (performance.now() - t0) / k); } return best; };
     const ms2 = time(20); TH.minPairs = 1e9; const ms1 = time(20); TH.minPairs = minPairs;
@@ -57,7 +76,8 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
     W.gamma = 0; forcesNoEvents(); W.fSpawn = W.spawned;
     const tot = () => totalEnergy().total - W.ledger.nuc, E0 = tot();
     for (let i = 0; i < 40; i++) { W.dt = chooseDt(); step(W.dt); }
-    return { same: diff(F2a, F2b), vs1: diff(F2a, F1), ev2n: ev2.split(' ').length, evSame: ev1 === ev2, ms1, ms2, drift: tot() - E0, used: TH.used, nEv: W.evq.length };
+    return { same: diff(F2a, F2b), vs1: diff(F2a, F1), ev2n: ev2.split(' ').length, evSame: ev1 === ev2, ms1, ms2, drift: tot() - E0, used: TH.used, nEv: W.evq.length,
+      vl: { same: vlSame, np: P2[0], ms2: +tv2.toFixed(2), ms1: +tv1.toFixed(2), threaded: (TH.vlBuilds || 0) > builds2, note: TH.vlNote, nocc: G.nocc, cap: VL.pi.length }, bath: { same: bathSame }, ex: { same: exSame, counts: exCounts } };
   });
   say('forces:', JSON.stringify(r));
   // the WebAssembly kernel: ready in the page (the module compiles in the background), on the worker too, and the
@@ -81,6 +101,9 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   } else say('(no src/wasm/kernel.wasm: the WebAssembly checks are skipped)');
   check(r.same.m === 0, 'two threads twice: forces identical to the bit', r.same);
   check(r.vs1.m <= 1e-9 * Math.max(1, r.vs1.scale), 'two threads vs one: forces equal to rounding', r.vs1);
+  check(r.vl.same && r.vl.threaded, `the neighbour list built on two threads is the one-thread list, pair for pair (${r.vl.np} pairs; ${r.vl.ms2} ms vs ${r.vl.ms1} ms)`, r.vl);
+  check(r.bath.same, 'the heat bath on two threads gives the one-thread velocities to the bit', r.bath);
+  check(r.ex.same && r.ex.counts[1] > 0, `the exclusion marks from the arrays, on two threads and one, equal the marks from the Sets (${r.ex.counts.join('/')} pairs free/excluded/same molecule)`, r.ex);
   check(r.evSame, 'two threads vs one: the same events queued, in the same order');
   check(Math.abs(r.drift) < 3, 'energy conserved over 40 steps on two threads (eV)', r.drift);
   say(`force pass: ${r.ms1.toFixed(2)} ms on one thread, ${r.ms2.toFixed(2)} ms on two`);
