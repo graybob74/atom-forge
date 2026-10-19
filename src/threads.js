@@ -11,7 +11,7 @@
    ========================================================================== */
 const TH = { n: 0, want: 0, workers: [], ctrl: null, prm: null, fx: [], fy: [], cq: [], boundGen: -1, ready: 0, gen: 0, acks: null,
   minPairs: 1500, used: 0, lastMs: 0, state: 'off', note: '', wks: null, stacks: [], wasmOn: [] };
-const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13;
+const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13, TH_DT = 14, TH_DTD = 15;
 // control layout: [0, n) worker states; then 10 per worker: pair range (2), candidate count, ack (the generation bound), bond range (2), angle range (2), the generation wanted, spare; prm: per worker stiffness, then the box
 function thCtrl(w, k) { return TH.n + 10 * w + k; }
 /* The heat bath's noise: two normals from (seed, step, slot), the same on any thread and in any order, so a bath stirred
@@ -54,6 +54,25 @@ function bathSlots(s0, s1, h, c1, c2, kT, gam, seed, step) {
     VX[i] = vx; VY[i] = vy;
   }
 }
+/* chooseDt's maxima over slots s0 ≤ s < s1, into out[o … o+2]: the squared speed and acceleration of the atoms in MD,
+   the squared speed of fast nuclei. A maximum is the same however the slots are shared out, so the threads give the
+   one-thread step size exactly. */
+function dtSlots(s0, s1, out, o) {
+  const DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, FX = S.fx, FY = S.fy, IM = S.im;
+  let vmax = 0, amax = 0, vfn = 0;
+  for (let i = s0; i < s1; i++) {
+    if (DEAD[i] === 1 || RAD[i] === 1) continue;
+    const k = K[i];
+    if (k === 0 && Z[i] === 0) continue; // (NUC = 0)
+    const v2 = VX[i] * VX[i] + VY[i] * VY[i];
+    if (FAST[i] === 1) { if (k === 0 && v2 > vfn) vfn = v2; continue; }
+    if (k !== 0) continue;
+    if (v2 > vmax) vmax = v2;
+    const a2 = (FX[i] * FX[i] + FY[i] * FY[i]) * IM[i] * IM[i];
+    if (a2 > amax) amax = a2;
+  }
+  out[o] = vmax; out[o + 1] = amax; out[o + 2] = vfn;
+}
 /* outerA + the plain drift for slots s0 ≤ s < s1 (the same arithmetic as engine.js's outerA and innerSteps, elementwise). */
 function integrateSlots(s0, s1, dt) {
   const h = 0.5 * dt, DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, IM = S.im;
@@ -93,11 +112,12 @@ ${bathTableMake.toString()}
 const _bathNz = new Float64Array(2), _bathT = bathTableMake();
 ${bathNoise.toString()}
 ${bathSlots.toString()}
+${dtSlots.toString()}
 ${vlPairs.toString()}
 ${exRange.toString()}
 let GV = null, mdI = null, exl = null, exn = null;
 let pi, pj, ex, FXo, FYo, CQ, ctrl, prm, me, nW, bufs, mem = null, wasm = null, wex = null, descOff = 0, ksOff = 0, ksArr = null, sumTabOff = 0;
-const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13;
+const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13, TH_DT = 14, TH_DTD = 15;
 function ctrlAt(w, k) { return nW + 10 * w + k; }
 onmessage = (e) => {
   const m = e.data;
@@ -169,10 +189,13 @@ onmessage = (e) => {
     } else if (st === TH_EX) { // the exclusion marks of this worker's range of pairs
       exRange(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], ex, pi, pj, S.k, S.Z, S.ne, S.mol, S.id, exl, exn, prm[nW + 20]);
       Atomics.store(ctrl, me, TH_EXD); Atomics.notify(ctrl, me);
+    } else if (st === TH_DT) {
+      dtSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm, nW + 32 + 3 * me);
+      Atomics.store(ctrl, me, TH_DTD); Atomics.notify(ctrl, me);
     } else if (st === TH_BATH) {
       bathSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], 0.5 * prm[nW + 6], prm[nW + 8], prm[nW + 9], prm[nW + 10], prm[nW + 11], prm[nW + 12], prm[nW + 13]);
       Atomics.store(ctrl, me, TH_BATHD); Atomics.notify(ctrl, me);
-    } else if (st === TH_DONE || st === TH_SUMMED || st === TH_INTEGD || st === TH_BATHD || st === TH_VLD || st === TH_EXD) { waitFor(st); } // (the main thread has not reset us yet)
+    } else if (st === TH_DONE || st === TH_SUMMED || st === TH_INTEGD || st === TH_BATHD || st === TH_VLD || st === TH_EXD || st === TH_DTD) { waitFor(st); } // (the main thread has not reset us yet)
   }
 };
 `;
@@ -190,7 +213,7 @@ function threadsSet(want) {
   if (!want) return;
   const url = URL.createObjectURL(new Blob([workerSource()], { type: 'text/javascript' }));
   TH.ctrl = new Int32Array(new SharedArrayBuffer(4 * (want + 10 * want + 8)));
-  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (want + 24)));
+  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (4 * want + 32))); // (… then from nW + 32, three per worker: chooseDt's maxima)
   for (let w = 0; w < want; w++) {
     const wk = new Worker(url);
     wk.onerror = (e) => { TH.note = 'worker error: ' + (e.message || e); console.warn('Atom Forge threads:', TH.note); threadsSet(0); };
@@ -272,6 +295,7 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   const t1 = performance.now();
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_DONE) { /* spin */ } }
   const t2 = performance.now();
+  thPh('pairs', t0, t1, t2);
   // reduction: every slot's forces summed over the buffers in order, the slots shared out over all threads
   const hi = S.hi, sper = Math.ceil(hi / (n + 1));
   for (let w = 0; w < n; w++) {
@@ -281,7 +305,9 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   if (wk) WK.ex.af_sum(S.fx.byteOffset, S.fy.byteOffset, WK.sumTab.byteOffset, n, Math.min(hi, n * sper), hi);
   else { const FX = S.fx, FY = S.fy, fxs = TH.fx, fys = TH.fy;
     for (let s = Math.min(hi, n * sper); s < hi; s++) { let fx = FX[s], fy = FY[s]; for (let b = 0; b < n; b++) { fx += fxs[b][s]; fy += fys[b][s]; } FX[s] = fx; FY[s] = fy; } }
+  const t3 = performance.now();
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_SUMMED) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); if (prm[w] > stiff) stiff = prm[w]; }
+  thPh('sum', t2, t3, performance.now());
   if (stiff > _stiff) _stiff = stiff;
   // the candidates, in list order: the workers' ranges came first
   for (let w = 0; w < n; w++) evalCandidates(TH.cq[w], ctrl[thCtrl(w, 2)]);
@@ -304,8 +330,11 @@ integrateA = function (dt) {
     ctrl[thCtrl(w, 0)] = Math.min(hi, w * per); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * per);
     Atomics.store(ctrl, w, TH_INTEG); Atomics.notify(ctrl, w);
   }
+  const t0 = _profOn ? performance.now() : 0;
   integrateSlots(Math.min(hi, n * per), hi, dt);
+  const t1 = _profOn ? performance.now() : 0;
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_INTEGD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); }
+  thPh('integ', t0, t1, _profOn ? performance.now() : 0);
   return true;
 };
 /* The neighbour list on all threads: the occupied cells shared out, each thread writing its own stretch of the pair
@@ -354,6 +383,29 @@ exAll = function () {
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_EXD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); }
   return true;
 };
+/* Where the threaded phases' time goes (the benchmark shows it): per phase, the main thread's own share and its wait for
+   the workers, in ms, summed while the profile is on. */
+const TH_PH = { integ: [0, 0, 0], bath: [0, 0, 0], dt: [0, 0, 0], pairs: [0, 0, 0], sum: [0, 0, 0], vl: [0, 0, 0], ex: [0, 0, 0] }; // [own, wait, calls]
+function thPh(name, t0, t1, t2) { if (!PROF.on) return; const a = TH_PH[name]; a[0] += t1 - t0; a[1] += t2 - t1; a[2]++; }
+function thPhReset() { for (const k in TH_PH) TH_PH[k].fill(0); }
+/* chooseDt's maxima on all threads; false when the engine must do it itself. */
+dtAll = function (out) {
+  if (!TH.n || S.hi < 2000 || !threadsReady()) return false;
+  const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, hi = S.hi, per = Math.ceil(hi / (n + 0.5)), t0 = PROF.on ? performance.now() : 0;
+  for (let w = 0; w < n; w++) {
+    ctrl[thCtrl(w, 0)] = Math.min(hi, w * per); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * per);
+    Atomics.store(ctrl, w, TH_DT); Atomics.notify(ctrl, w);
+  }
+  dtSlots(Math.min(hi, n * per), hi, out, 0);
+  const t1 = PROF.on ? performance.now() : 0;
+  for (let w = 0; w < n; w++) {
+    while (Atomics.load(ctrl, w) !== TH_DTD) { /* spin */ }
+    Atomics.store(ctrl, w, TH_IDLE);
+    const o = n + 32 + 3 * w; if (prm[o] > out[0]) out[0] = prm[o]; if (prm[o + 1] > out[1]) out[1] = prm[o + 1]; if (prm[o + 2] > out[2]) out[2] = prm[o + 2];
+  }
+  thPh('dt', t0, t1, PROF.on ? performance.now() : 0);
+  return true;
+};
 /* outerB on all threads in the plain case (bathSlots); false when the engine must do it itself. */
 bathAll = function (dt, c1, c2, kT) {
   if (!TH.n || S.hi < 2000 || !threadsReady()) return false;
@@ -363,8 +415,11 @@ bathAll = function (dt, c1, c2, kT) {
     ctrl[thCtrl(w, 0)] = Math.min(hi, w * per); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * per);
     Atomics.store(ctrl, w, TH_BATH); Atomics.notify(ctrl, w);
   }
+  const t0 = _profOn ? performance.now() : 0;
   bathSlots(Math.min(hi, n * per), hi, 0.5 * dt, c1, c2, kT, W.gamma, W.bathSeed, W.step);
+  const t1 = _profOn ? performance.now() : 0;
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_BATHD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); }
+  thPh('bath', t0, t1, _profOn ? performance.now() : 0);
   return true;
 };
 if (typeof module !== 'undefined') module.exports = { TH, threadsSet, threadsAvailable, threadsDefault };

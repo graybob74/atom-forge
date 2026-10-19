@@ -1803,7 +1803,7 @@ function angleForces() { angleCentres(); angleKernel(0, AC.n, S.fx, S.fy, W.wall
 /* ------------------------------------------------------------------ force computation */
 const _bg = [0, 0];
 let _fastNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
-let _mdI = shArray(Int32Array, 4096), _nmd = 0, _mdLI = new Int32Array(256), _nmdL = 0, _chI = new Int32Array(256), _nch = 0, _mdNI = new Int32Array(4096), _nmdN = 0; // the slots of _md, _mdL, _charged and the MD nuclei
+let _mdI = shArray(Int32Array, 4096), _nmd = 0, _mdLI = shArray(Int32Array, 256), _nmdL = 0, _chI = shArray(Int32Array, 256), _nch = 0, _mdNI = new Int32Array(4096), _nmdN = 0; // the slots of _md, _mdL, _charged and the MD nuclei
 let _mdGen = 0, _mdPrev = new Int32Array(4096), _nmdPrev = -1, _nFastLep = 0; // _mdGen counts the changes of the MD set (_md as a set of slots)
 function computeForces() {
   if (_profOn) { const t0 = performance.now(), k0 = _tKernels; computeForces1(); _tForces += performance.now() - t0; _nPasses++; if (TH_LAST.used) { _tKernels = k0 + TH_LAST.ms; _tWait += TH_LAST.wait; } return; }
@@ -1817,8 +1817,8 @@ function computeForces1() {
   const fieldE = hasEfield();
   const parts = W.parts, n = parts.length, PI = partsSync();
   if (_mdI.length < n) { _mdI = shArray(Int32Array, n * 2 + 64); _sharedGen++; } // (the workers read it to build the neighbour list)
-  if (_mdLI.length < n) _mdLI = new Int32Array(n * 2 + 64);
-  if (_chI.length < n) _chI = new Int32Array(n * 2 + 64);
+  if (_mdLI.length < n) _mdLI = shArray(Int32Array, n * 2 + 64); // (in the module's memory: the electron kernel reads them)
+  if (_chI.length < n) _chI = shArray(Int32Array, n * 2 + 64);
   if (_mdNI.length < n) _mdNI = new Int32Array(n * 2 + 64);
   const FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, DEAD = S.dead, K = S.k, Z = S.Z, RAD = S.rad, FAST = S.fast, Q = S.q, INMD = S.inMD, NEAR = S.nearIon, X = S.x, Y = S.y, OBJ = S.obj;
   const mdI = _mdI, mdLI = _mdLI, chI = _chI, mdNI = _mdNI;
@@ -4270,11 +4270,14 @@ function fastFastNuclear() {
 }
 
 /* ------------------------------------------------------------------ integration */
+let dtAll = function (out) { return false; }; // eslint-disable-line no-unused-vars
+const _dtOut = new Float64Array(3);
 function chooseDt() {
   let vmax = 0, amax = 0, vfn = 0, vrad = 0;
   const zoned = W.zones.length > 0;
   const PI = partsSync(), n = W.parts.length, DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, FX = S.fx, FY = S.fy, IM = S.im, OBJ = S.obj;
-  for (let j = 0; j < n; j++) {
+  if (!zoned && dtAll(_dtOut)) { vmax = _dtOut[0]; amax = _dtOut[1]; vfn = _dtOut[2]; } // (the maxima on all threads: the same numbers)
+  else for (let j = 0; j < n; j++) {
     const i = PI[j];
     if (DEAD[i] === 1) continue;
     if (RAD[i] === 1) { if (zoned) { const sp = OBJ[i].sp; if (sp > vrad) vrad = sp; } continue; }
@@ -4357,7 +4360,7 @@ const isLepMD = (i) => S.dead[i] === 0 && S.fast[i] === 0 && S.rad[i] === 0;
    that (ll pairs, each once). Built from the cells (the nuclei sorted once per making of _md, the leptons each time),
    and kept while _md is the same and nothing has moved more than SKIN_F/2 since: a lepton moves at most LEP_STEP (0.2 Å)
    in an inner step, so the list usually serves several of them. */
-const FL = { gen: -1, n: 0, w: 0, h: 0, wall: '', bx: new Float64Array(16), by: new Float64Array(16), na: 0, la: new Int32Array(1024), lb: new Int32Array(1024), nl: 0, li: new Int32Array(256), lj: new Int32Array(256),
+const FL = { gen: -1, n: 0, w: 0, h: 0, wall: '', bx: new Float64Array(16), by: new Float64Array(16), na: 0, la: shArray(Int32Array, 1024), lb: shArray(Int32Array, 1024), nl: 0, li: shArray(Int32Array, 256), lj: shArray(Int32Array, 256),
   builds: 0, checks: 0 };
 function flValid() {
   FL.checks++;
@@ -4415,7 +4418,7 @@ function flBuild() {
           let dx = X[A] - lx, dy = Y[A] - ly;
           if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
           if (dx * dx + dy * dy < RLF2) {
-            if (na >= la.length) { const a = new Int32Array(la.length * 2); a.set(la); la = a; const b = new Int32Array(lb.length * 2); b.set(lb); lb = b; }
+            if (na >= la.length) { const a = shArray(Int32Array, la.length * 2); a.set(la); la = a; const b = shArray(Int32Array, lb.length * 2); b.set(lb); lb = b; }
             la[na] = L; lb[na] = A; na++;
           }
         }
@@ -4427,7 +4430,7 @@ function flBuild() {
       let dx = X[M] - lx, dy = Y[M] - ly;
       if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
       if (dx * dx + dy * dy < RLF2) {
-        if (nl >= li.length) { const a = new Int32Array(li.length * 2); a.set(li); li = a; const b = new Int32Array(lj.length * 2); b.set(lj); lj = b; }
+        if (nl >= li.length) { const a = shArray(Int32Array, li.length * 2); a.set(li); li = a; const b = shArray(Int32Array, lj.length * 2); b.set(lj); lj = b; }
         li[nl] = L; lj[nl] = M; nl++;
       }
     }
@@ -4446,6 +4449,13 @@ function computeFast() {
   const X = S.x, Y = S.y, NEAR = S.nearIon, DEAD = S.dead, FAST = S.fast, RAD = S.rad;
   for (let q = 0; q < _nmdL; q++) NEAR[_mdLI[q]] = 0;
   const la = FL.la, lb = FL.lb, na = FL.na;
+  if (wasmFastReady()) { // the WebAssembly kernel: the three loops below, the same arithmetic in the same order
+    const nc = wasmFast(na, FL.nl, _nmdL, _nch, _lrOn, wrap, bw, bh, hw, hh, !_lepEvOff);
+    const C = WK.fc, CR = WK.fcr, OBJ = S.obj;
+    for (let c = 0; c < nc; c++) queue(C[3 * c] === 1 ? EV.LEPTON : EV.ANNIH, OBJ[C[3 * c + 1]], OBJ[C[3 * c + 2]], null, CR[c]);
+    leptonExtras(false);
+    return;
+  }
   { // lepton–atom pairs: the physics of leptonNuc, written out here because this is the innermost loop of all (a function
     // call per pair cost a quarter of it). Any change to leptonNuc must be made here too.
     const Q = S.q, SEN = S.sEN, IM = S.im, NE = S.ne, ELRC = S.elrc, HIT = S.hit, ID = S.id, K = S.k, ANTI = S.anti, OBJ = S.obj, Z = S.Z, KE = PHYS.KE;
@@ -4813,7 +4823,7 @@ function listsStale() { return _flagGen !== _flagGenForces; } // (a dead, fast o
 /* Where a step's time goes, summed while PROF.on (the Settings benchmark reads it): the force passes (and inside them the
    kernels' share and the wait for the worker threads), the heat bath, the integrator loops, and the rest. */
 const PROF = { on: false, steps: 0, forces: 0, kernels: 0, wait: 0, bath: 0, integ: 0, total: 0, passes: 0 };
-function profReset() { PROF.steps = 0; PROF.forces = 0; PROF.kernels = 0; PROF.wait = 0; PROF.bath = 0; PROF.integ = 0; PROF.total = 0; PROF.passes = 0; PROF.cls = 0; PROF.grid = 0; PROF.lists = 0; PROF.after = 0; }
+function profReset() { if (typeof thPhReset === 'function') thPhReset(); PROF.steps = 0; PROF.forces = 0; PROF.kernels = 0; PROF.wait = 0; PROF.bath = 0; PROF.integ = 0; PROF.total = 0; PROF.passes = 0; PROF.cls = 0; PROF.grid = 0; PROF.lists = 0; PROF.after = 0; }
 function step(dt) {
   if (PROF.on) return stepProfiled(dt);
   return stepPlain(dt);

@@ -231,11 +231,13 @@ const say = (...a) => console.log(...a);
     await page.click('#molCats button[data-c="objects"]'); await page.waitForTimeout(150);
     await page.locator('#mgrid .mcard', { hasText: name }).first().click(); await page.waitForTimeout(100);
     const b0 = await page.evaluate(() => ({ n: W.parts.filter(p => !p.dead).length, k: UI.spec && UI.spec.mol, want: UI.spec && MOLECULES[UI.spec.mol] ? MOLECULES[UI.spec.mol].atoms.length : 0, tool: UI.tool }));
+    await page.evaluate(() => setRunning(false)); // (measured paused: a hot soup particle may knock an atom off a moment later, which is physics, not placement)
     await clickCanvas(0.5, 0.5); await page.waitForTimeout(400);
-    const b1 = await page.evaluate(() => { // (the object counted as one bonded whole: the soup's neutrons decay meanwhile, adding particles)
+    const b1 = await page.evaluate(() => { // (the object counted as one bonded whole)
       const mine = W.parts.filter(p => !p.dead && p.k === NUC && p.bonds.length).sort((a, b) => b.id - a.id)[0];
       return { n: W.parts.filter(p => !p.dead).length, placed: mine ? molecule(mine).length : 0, w: +W.box.w.toFixed(1), h: +W.box.h.toFixed(1), inside: W.parts.every(p => p.dead || (Math.abs(p.x) <= W.box.w / 2 + 1 && Math.abs(p.y) <= W.box.h / 2 + 1)) }; // (soft walls: a hot proton dips a fraction of an ångström in)
     });
+    await page.evaluate(() => setRunning(true));
     if (b0.tool !== 'place' || b1.placed !== b0.want || !b1.inside) { fails++; say(`FAIL placing ${name} on ${pre}:`, JSON.stringify({ b0, b1 })); }
     else say(`  ${name} placed on ${pre}: ${b0.want} atoms, box ${b1.w} × ${b1.h} Å`);
   }

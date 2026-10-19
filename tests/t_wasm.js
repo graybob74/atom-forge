@@ -56,6 +56,26 @@ function build(X, scen) {
   }
   console.log(`arena: ${WK.allocs} allocations, ${WK.grows} growths, ${(WK.top / 1048576).toFixed(1)} MB used, ${WK.calls} kernel calls`);
 }
+// 1a. the free leptons' kernel (af_fast) against the JavaScript loops of computeFast, on the same frozen states: the fast
+//     forces to the bit, the same near-ion flags and hit marks, the same events queued in the same order
+{
+  const X = load('all', { seed: 7 }), { W, WK } = X;
+  if (typeof WK.ex.af_fast !== 'function') console.log('electron kernel: skipped (this kernel.wasm has no af_fast)');
+  else for (const scen of ['waterion', 'antihydrogen', 'soup']) {
+    build(X, scen); steps(X, 20);
+    if (!X._mdL.length) { console.log(`electron kernel, ${scen}: no free leptons in MD, nothing to compare`); continue; }
+    X.forcesNoEvents();
+    const n = X.S.hi, snap = () => [Float64Array.from(X.S.gx.subarray(0, n)), Float64Array.from(X.S.gy.subarray(0, n)), Uint8Array.from(X.S.nearIon.subarray(0, n)), Int32Array.from(X.S.hit.subarray(0, n))];
+    const hit0 = Int32Array.from(X.S.hit.subarray(0, n)), evs = () => W.evq.map(e => e.type + ':' + e.a.id + ':' + e.b.id + ':' + e.r).join(' ');
+    W.evq.length = 0; X.WK.useFast = false; X._lepEvOff = false; X.computeFast(); const A = snap(), evA = evs(), stA = X._stiffL;
+    X.S.hit.set(hit0); W.evq.length = 0; X.WK.useFast = true; const c0 = WK.fastCalls; X.computeFast(); const B = snap(), evB = evs(), stB = X._stiffL;
+    W.evq.length = 0;
+    let same = WK.fastCalls > c0 && stA === stB && evA === evB;
+    for (let a = 0; a < 4 && same; a++) for (let i = 0; i < n; i++) if (A[a][i] !== B[a][i]) { same = false; break; }
+    console.log(`electron kernel, ${scen}: ${X._mdL.length} free leptons, ${X.FL.na} lepton–atom and ${X.FL.nl} lepton–lepton pairs, ${evA ? evA.split(' ').length : 0} events: ${same ? 'the same to the bit' : 'DIFFERENT'} as the JavaScript`);
+    if (!same) fail(`electron kernel differs from the JavaScript on ${scen}`);
+  }
+}
 // 1b. the plain module (an ordinary memory, for pages without shared memory): the same kernels, the same forces to the bit
 //     as the shared build on a frozen 12,000-atom world, the store on its memory, no growth ever; and an arena that fills
 //     hands over to the JavaScript kernels without a crash

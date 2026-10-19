@@ -76,6 +76,24 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## V36: the free leptons' forces in WebAssembly, chooseDt on the threads, threaded phases measured
+- `af_fast` (kernel/src/lib.rs): computeFast's three loops — lepton–atom pairs, lepton–lepton pairs, the exact Coulomb
+  pull of net charges beyond the cutoff — in the same arithmetic order as the JavaScript, writing the fast forces,
+  near-ion flags and hit marks, and candidates (EV.LEPTON, EV.ANNIH) in loop order, which JavaScript queues. Its own
+  offset table (an older module has no af_fast: the JavaScript runs). The lists it reads (FL.la/lb/li/lj, _mdLI, _chI)
+  live in the module's memory. t_wasm: bit for bit the JavaScript's forces, flags and events in ionized water,
+  antihydrogen and the soup. A computeFast call in ionized water: 73 → 41 µs (the kernel 36, half of it the
+  long-range sum); the ionized-water step in the page 8.4 → 5.7 ms.
+- Found, not fixed: each inner (lepton) step loops over every atom in MD — two kicks, the drift, the list's validity
+  check — so a big world with even a few free electrons pays ~50 × N atom updates a step. Exact fix: kick only the
+  atoms near leptons (the only ones with fast forces), drift the rest lazily with a catch-up before events and list
+  checks, and bound the list's validity by the slowest-moving atoms' speed. Not needed for neutral liquids.
+- chooseDt's maxima (speed, acceleration of atoms in MD, speed of fast nuclei) are taken on all threads (`dtSlots`,
+  TH_DT): a maximum is the same however the slots are shared out.
+- The benchmark line shows each threaded phase as main thread's own share / wait for the workers (TH_PH): on the
+  2-core test box the waits are as long as the shares or longer — the workers share two cores with the browser — so
+  the next step needs the line from a 16-thread machine.
+
 ## V35: the bath's noise, kept force lists, a stall when ions cross a chip, steadier tests
 - The heat bath's normals come from a fixed table of 65,536 (made once, the same in every thread, centred and scaled to
   unit variance exactly), picked by the slot hash (`bathTableMake`, `bathNoise`): the noise went from about 1.1 ms to

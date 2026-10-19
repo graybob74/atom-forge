@@ -21,7 +21,7 @@
    can have workers at all; elsewhere (a page that is not cross-origin isolated) they are ordinary arrays. */
 const SHARED_OK = typeof SharedArrayBuffer !== 'undefined' && typeof Worker !== 'undefined' && (typeof crossOriginIsolated === 'undefined' || crossOriginIsolated);
 const WK = { on: false, use: true, ready: false, mem: null, module: null, inst: null, ex: null, top: 0, desc: null, ks: null, sumTab: null,
-  note: '', bytes: null, grows: 0, allocs: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0, plain: false, PLAIN_PAGES: 2048 }; // (plain: an ordinary memory of PLAIN_PAGES × 64 KB = 128 MB, never grown)
+  note: '', bytes: null, grows: 0, allocs: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0, plain: false, PLAIN_PAGES: 2048, useFast: true, ft: null, fks: null, fc: null, fcr: null, fastCalls: 0 }; // (plain: an ordinary memory of PLAIN_PAGES × 64 KB = 128 MB, never grown)
 const WK_PAGE = 65536;
 /* Base64 to bytes (no atob in every worker-less environment; this is small and runs once). */
 function wasmBytes(b64) {
@@ -106,6 +106,27 @@ function wasmDesc() {
   d[36] = AC.c.byteOffset; d[37] = AC.nb.byteOffset; d[38] = AC.cnt.byteOffset; d[39] = AC.tg.byteOffset;
 }
 function wasmReady() { return WK.ready && WK.use; }
+/* The free leptons' kernel (af_fast, from V36 on: an older module has none and the JavaScript runs): its table of
+   offsets, candidate buffers and stiffness cell, made once; the lists it reads must be in the module's memory. */
+function wasmFastReady() {
+  if (!wasmReady() || !WK.useFast || typeof WK.ex.af_fast !== 'function') return false;
+  if (!WK.ft) { WK.ft = wasmArray(Int32Array, 16); WK.fks = wasmArray(Float64Array, 1); if (!WK.on) return false; } // (a full memory gives the kernels up: the JavaScript runs)
+  const need = 3 * (FL.na + FL.nl + 8);
+  if (!WK.fc || WK.fc.length < need) { WK.fc = wasmArray(Int32Array, need * 2); WK.fcr = wasmArray(Float64Array, need); if (!WK.on) return false; }
+  const mem = WK.mem.buffer;
+  return FL.la.buffer === mem && FL.lb.buffer === mem && FL.li.buffer === mem && FL.lj.buffer === mem && _mdLI.buffer === mem && _chI.buffer === mem;
+}
+function wasmFast(na, nl, nmdl, nch, lrOn, wrap, bw, bh, hw, hh, evOn) {
+  const t = WK.ft;
+  t[0] = S.k.byteOffset; t[1] = S.dead.byteOffset; t[2] = S.fast.byteOffset; t[3] = S.rad.byteOffset; t[4] = S.sEN.byteOffset;
+  t[5] = S.gx.byteOffset; t[6] = S.gy.byteOffset; t[7] = S.nearIon.byteOffset; t[8] = S.hit.byteOffset;
+  t[9] = FL.la.byteOffset; t[10] = FL.lb.byteOffset; t[11] = FL.li.byteOffset; t[12] = FL.lj.byteOffset; t[13] = _mdLI.byteOffset; t[14] = _chI.byteOffset;
+  wasmDesc();
+  WK.fks[0] = _stiffL;
+  const nc = WK.ex.af_fast(WK.desc.byteOffset, t.byteOffset, na, nl, nmdl, nch, lrOn ? 1 : 0, wrap ? 1 : 0, bw, bh, hw, hh, evOn ? 1 : 0, WK.fc.byteOffset, WK.fcr.byteOffset, WK.fks.byteOffset);
+  _stiffL = WK.fks[0]; WK.fastCalls++;
+  return nc;
+}
 /* One force pass over the given ranges on this thread (the descriptor must be current): forces into FXo/FYo,
    candidates into CQ, the stiffest contact into _kStiff. Returns the number of candidate entries. */
 function wasmForces(q0, q1, b0, b1, c0, c1, FXo, FYo, CQ, wrap, bw, bh, hw, hh, step) {
