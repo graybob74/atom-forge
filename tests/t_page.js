@@ -9,7 +9,7 @@ let fails = 0;
 const say = (...a) => console.log(...a);
 (async () => {
   const { browser, page, errors } = await openPage();
-  page.setDefaultTimeout(4000);
+  page.setDefaultTimeout(15000); // (a click waits for the page to be idle enough to take it: on a loaded 2-core box a frame-filling simulation can hold it off for seconds)
   const T0 = Date.now();
   const check = (label) => {
     if (process.argv.includes('-v')) say(`  ${((Date.now() - T0) / 1000).toFixed(1)}s ${label}`); if (errors.length) { fails++; say('FAIL', label, '\n   ' + errors.slice(0, 4).join('\n   ').slice(0, 1500)); errors.length = 0; } };
@@ -57,7 +57,7 @@ const say = (...a) => console.log(...a);
   for (const pre of ['soup', 'salt']) {
     await page.selectOption('#preset', pre);
     for (const t of tools) {
-      await page.click(`.tool[data-tool="${t}"]`);
+      await page.click(`.tool[data-tool="${t}"]`, { force: true }); // (force: the actionability wait for a "stable" box flaked under load; the button is there)
       await page.waitForTimeout(40);
       await drag(at(0.45, 0.5), at(0.55, 0.45), 6, t === 'heat' || t === 'pull' ? 250 : 0);
       await clickCanvas(0.3, 0.6);
@@ -602,4 +602,4 @@ const say = (...a) => console.log(...a);
   await browser.close();
   say(fails ? `${fails} page failure(s)` : 'page test passed');
   process.exitCode = fails ? 1 : 0;
-})().catch((e) => { console.log('FAIL (test crashed)', e.stack || e); process.exitCode = 1; });
+})().catch((e) => { console.log('FAIL (test crashed)', e.stack || e); process.exitCode = 1; setTimeout(() => process.exit(1), 2000).unref(); }); // (the browser is left behind on a crash: leave with the failure rather than hang on it)

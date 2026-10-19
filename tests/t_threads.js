@@ -125,9 +125,11 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   const fb = await p2.evaluate(() => { setSetting('threads', '4'); forcesNoEvents(); return { iso: crossOriginIsolated, avail: threadsAvailable(), n: TH.n, state: TH.state, t: W.t, note: document.getElementById('setThreads').textContent }; });
   say('plain page:', JSON.stringify(fb));
   check(!fb.iso && !fb.avail && fb.n === 0 && err2.length === 0, 'plain page runs on one thread without errors', err2.slice(0, 2).join('\n'));
-  const fbw = await p2.evaluate(() => ({ on: WK.on, ready: WK.ready, note: WK.note }));
+  // without shared memory the page gets the kernels from the plain module on an ordinary memory (when the build has it)
+  const fbw = await p2.evaluate(async () => { const t0 = performance.now(); while (!WK.ready && WK.on && performance.now() - t0 < 5000) await new Promise(r => setTimeout(r, 30)); loadPreset('water'); setRunning(false); forcesNoEvents(); return { on: WK.on, ready: WK.ready, plain: WK.plain, note: WK.note, calls: WK.calls, mb: WK.mem ? WK.mem.buffer.byteLength >> 20 : 0, hasPlain: typeof KERNEL_PLAIN_WASM_B64 === 'string' && !!KERNEL_PLAIN_WASM_B64 }; });
   say('plain page kernel:', JSON.stringify(fbw));
-  check(!fbw.on && !fbw.ready, 'plain page (no shared memory) keeps the JavaScript kernels', fbw);
+  if (fbw.hasPlain) check(fbw.on && fbw.ready && fbw.plain && fbw.calls > 0 && fbw.mb === 128, 'plain page (no shared memory) runs the kernels from the plain module', fbw);
+  else check(!fbw.on && !fbw.ready, 'plain page (no shared memory, no plain module) keeps the JavaScript kernels', fbw);
   await browser.close(); server.close();
   say(fails ? `${fails} thread failure(s)` : 'thread checks passed');
   process.exitCode = fails ? 1 : 0;

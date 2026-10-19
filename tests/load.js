@@ -5,7 +5,7 @@
    load('all')               every file, with small browser stand-ins; the page's init() is not run
    opts.seed                 a seeded Math.random (mulberry32) for reproducible runs
    opts.patch(src)           edits the source text before it runs (instrumentation)
-   opts.wasm                 false: without the WebAssembly kernel (the JavaScript kernels alone) */
+   opts.wasm                 false: without the WebAssembly kernel (the JavaScript kernels alone); 'plain': the module on an ordinary memory */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
 const ENGINE = ['molecules.gen.js', 'objects.gen.js', 'data.js', 'atomic.js', 'solver.js', 'orbitals.js', 'wasm.js', 'engine.js', 'threads.js', 'hep.js', 'chips.js'];
@@ -30,8 +30,9 @@ function load(files, opts = {}) {
   if (opts.seed !== undefined) Math.random = seeded(opts.seed);
   const ui = files.some(f => ['render.js', 'gl.js', 'builder.js', 'design.js', 'ui.js'].includes(f));
   // the WebAssembly kernel, as build.js embeds it (opts.wasm === false leaves it out: the JavaScript kernels alone)
-  const wasmFile = path.join(ROOT, 'src', 'wasm', 'kernel.wasm');
-  const wasmConst = `const KERNEL_WASM_B64 = ${opts.wasm !== false && fs.existsSync(wasmFile) ? JSON.stringify(fs.readFileSync(wasmFile).toString('base64')) : 'null'};\n`;
+  const wasmFile = path.join(ROOT, 'src', 'wasm', 'kernel.wasm'), plainFile = path.join(ROOT, 'src', 'wasm', 'kernel-plain.wasm');
+  const wasmConst = `const KERNEL_WASM_B64 = ${opts.wasm !== false && fs.existsSync(wasmFile) ? JSON.stringify(fs.readFileSync(wasmFile).toString('base64')) : 'null'};\n` +
+    `const KERNEL_PLAIN_WASM_B64 = ${opts.wasm !== false && fs.existsSync(plainFile) ? JSON.stringify(fs.readFileSync(plainFile).toString('base64')) : 'null'};\nglobalThis.WK_FORCE_PLAIN = ${opts.wasm === 'plain'};\n`; // (opts.wasm === 'plain': the module on an ordinary memory, as a page without shared memory gets it)
   let src = wasmConst + files.map(f => strip(fs.readFileSync(path.join(ROOT, 'src', f), 'utf8'))).join('\n');
   if (files.includes('ui.js')) src = src.replace(/^if \(document\.readyState === 'loading'\).*$/m, '');
   if (opts.patch) { const s2 = opts.patch(src); if (s2 === src) throw new Error('patch changed nothing'); src = s2; }

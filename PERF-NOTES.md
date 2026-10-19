@@ -76,6 +76,19 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## V34: the kernels without shared memory
+- A page that is not cross-origin isolated (the artifact on claude.ai) has no SharedArrayBuffer: no worker threads, and
+  until now no WebAssembly kernel either, since the module was built for a shared memory. The kernel is now built twice
+  (.github/workflows/wasm.yml): `kernel.wasm` as before and `kernel-plain.wasm` without atomics or shared memory, embedded
+  as KERNEL_PLAIN_WASM_B64. Without shared memory, wasm.js instantiates the plain module on an ordinary
+  WebAssembly.Memory made its full size at once (WK.PLAIN_PAGES = 2048 pages, 128 MB; 12,000 atoms use 17.5 MB), because
+  an ordinary memory cannot grow without detaching every view of it. Should the arena ever fill, `wasmArray` hands the new
+  array out as a plain typed array and gives the kernels up for the rest of the session (WK.on/ready/use false: the
+  JavaScript kernels take over; every view already made stays valid). t_wasm checks the plain build gives the shared
+  build's forces to the bit and that a filled arena hands over cleanly; t_threads checks a plain page runs it.
+- The single-thread 20,000-atom step in the artifact (user's V33 line: 3.67 ms, kernels 1.23 in JavaScript) should drop
+  by roughly half a millisecond; the bath (1.0 ms single-threaded) is the next item there.
+
 ## V33: session 4 — drawing from the store, the grid on demand
 - The WebGL layer draws the atoms and bonds from slot textures (gl.js `GL_T`): each frame the store's x/y arrays are
   copied into an RG32F texture (one `texSubImage2D`), and the balls are one `drawArrays(POINTS, 0, S.hi)` whose vertex

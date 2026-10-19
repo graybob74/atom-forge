@@ -56,6 +56,30 @@ function build(X, scen) {
   }
   console.log(`arena: ${WK.allocs} allocations, ${WK.grows} growths, ${(WK.top / 1048576).toFixed(1)} MB used, ${WK.calls} kernel calls`);
 }
+// 1b. the plain module (an ordinary memory, for pages without shared memory): the same kernels, the same forces to the bit
+//     as the shared build on a frozen 12,000-atom world, the store on its memory, no growth ever; and an arena that fills
+//     hands over to the JavaScript kernels without a crash
+if (fs.existsSync(path.join(ROOT, 'src', 'wasm', 'kernel-plain.wasm'))) {
+  const A = load('all', { seed: 7 }), B = load('all', { seed: 7, wasm: 'plain' });
+  if (!B.WK.on || !B.WK.plain || !B.WK.ready) fail('the plain module is not in use: ' + JSON.stringify({ on: B.WK.on, plain: B.WK.plain, ready: B.WK.ready, note: B.WK.note }));
+  else {
+    build(A, 'water12k'); build(B, 'water12k');
+    A.forcesNoEvents(); B.forcesNoEvents();
+    const n = Math.min(A.S.hi, B.S.hi); let maxd = 0;
+    for (let i = 0; i < n; i++) maxd = Math.max(maxd, Math.abs(A.S.fx[i] - B.S.fx[i]), Math.abs(A.S.fy[i] - B.S.fy[i]));
+    console.log(`plain module: ${B.WK.mem.buffer.byteLength >> 20} MB memory, ${B.WK.allocs} allocations, ${(B.WK.top / 1048576).toFixed(1)} MB used, grew ${B.WK.grows} times; forces vs the shared build: max difference ${maxd.toExponential(2)}`);
+    if (maxd !== 0) fail('plain module: forces differ from the shared build by ' + maxd);
+    if (B.WK.grows !== 0 || B.WK.mem.buffer.byteLength !== B.WK.PLAIN_PAGES * 65536) fail('the plain memory grew or is not its full size');
+    if (B.S.x.buffer !== B.WK.mem.buffer) fail('plain module: store not on its memory');
+    // the arena fills: the kernels are given up, the views stay valid, the simulation goes on
+    B.WK.top = B.WK.mem.buffer.byteLength - 64;
+    const big = B.shArray(Float64Array, 4096);
+    const E0 = B.totalEnergy().total; steps(B, 5); const E1 = B.totalEnergy().total;
+    console.log(`  arena filled: kernel ${B.WK.on ? 'still on' : 'given up'} (${B.WK.note}), a new array of ${big.length} plain, ${B.S.x.length} store slots still readable, energy ${E0.toFixed(3)} → ${E1.toFixed(3)} eV over 5 steps`);
+    if (B.WK.on || B.WK.ready || B.WK.use) fail('the kernel was not given up when the plain memory filled');
+    if (big.length !== 4096 || !Number.isFinite(E1) || Math.abs(E1 - E0) > 0.01 * Math.abs(E0)) fail('the simulation did not go on cleanly after the plain memory filled');
+  }
+} else console.log('plain module: skipped (no src/wasm/kernel-plain.wasm)');
 // 2. whole runs with and without the module
 for (const scen of ['waterion', 'flashbyte', 'combustion']) {
   const A = load('all', { seed: 7 }), B = load('all', { seed: 7, wasm: false });

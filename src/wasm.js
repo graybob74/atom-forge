@@ -10,14 +10,18 @@
    (wasmArray, through engine.js's shArray). Growing the memory keeps every existing view valid (it is shared), and
    the arrays that grow are reallocated at the top as before. The worker threads (threads.js) instantiate the same
    module on the same memory, each with a stack of its own.
-   Without the module (no WebAssembly, no SharedArrayBuffer, a page that is not cross-origin isolated, a build without
-   the .wasm) nothing changes: plain SharedArrayBuffer or ordinary typed arrays, and the JavaScript kernels.
+   A page without shared memory (not cross-origin isolated: no worker threads either) gets the same kernels from a second
+   build of the module on an ordinary memory (kernel-plain.wasm, KERNEL_PLAIN_WASM_B64). An ordinary memory cannot grow
+   without detaching every view of it, so it is made its full size at the start (WK.PLAIN_PAGES); should the arena ever
+   fill, the kernel is given up for the rest of the session (the JavaScript kernels take over, the views already made stay
+   valid). Without any module (no WebAssembly, a build without the .wasm, or the memory refused) nothing changes: plain
+   SharedArrayBuffer or ordinary typed arrays, and the JavaScript kernels.
    ========================================================================== */
 /* Typed arrays the worker threads must see (the store, the neighbour list) are made on SharedArrayBuffers where the page
    can have workers at all; elsewhere (a page that is not cross-origin isolated) they are ordinary arrays. */
 const SHARED_OK = typeof SharedArrayBuffer !== 'undefined' && typeof Worker !== 'undefined' && (typeof crossOriginIsolated === 'undefined' || crossOriginIsolated);
 const WK = { on: false, use: true, ready: false, mem: null, module: null, inst: null, ex: null, top: 0, desc: null, ks: null, sumTab: null,
-  note: '', bytes: null, grows: 0, allocs: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0 };
+  note: '', bytes: null, grows: 0, allocs: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0, plain: false, PLAIN_PAGES: 2048 }; // (plain: an ordinary memory of PLAIN_PAGES × 64 KB = 128 MB, never grown)
 const WK_PAGE = 65536;
 /* Base64 to bytes (no atob in every worker-less environment; this is small and runs once). */
 function wasmBytes(b64) {
@@ -30,18 +34,29 @@ function wasmBytes(b64) {
 /* The memory: made before the store is allocated (engine.js), the module compiled after (asynchronously in a page). */
 function wasmMemoryInit() {
   const sharedMem = typeof SharedArrayBuffer !== 'undefined' && (typeof crossOriginIsolated === 'undefined' || crossOriginIsolated); // (Node has it; a page needs isolation)
-  if (typeof KERNEL_WASM_B64 !== 'string' || !KERNEL_WASM_B64 || typeof WebAssembly === 'undefined' || !sharedMem) { WK.note = 'no module or no shared memory'; return; }
+  if (typeof WebAssembly === 'undefined') { WK.note = 'no WebAssembly'; return; }
+  const plainB64 = typeof KERNEL_PLAIN_WASM_B64 === 'string' ? KERNEL_PLAIN_WASM_B64 : '';
+  const forcePlain = !!globalThis.WK_FORCE_PLAIN; // (tests: the plain path where shared memory is available)
   try {
-    WK.bytes = wasmBytes(KERNEL_WASM_B64);
-    WK.mem = new WebAssembly.Memory({ initial: 256, maximum: WK.MAX_PAGES, shared: true }); // 16 MB to start, grown as needed
+    if (sharedMem && !forcePlain) {
+      if (typeof KERNEL_WASM_B64 !== 'string' || !KERNEL_WASM_B64) { WK.note = 'no module'; return; }
+      WK.bytes = wasmBytes(KERNEL_WASM_B64);
+      WK.mem = new WebAssembly.Memory({ initial: 256, maximum: WK.MAX_PAGES, shared: true }); // 16 MB to start, grown as needed
+    } else {
+      if (!plainB64) { WK.note = sharedMem ? 'no plain module' : 'no shared memory, and no plain module'; return; }
+      WK.bytes = wasmBytes(plainB64);
+      WK.mem = new WebAssembly.Memory({ initial: WK.PLAIN_PAGES, maximum: WK.PLAIN_PAGES }); // its full size at once: it must never grow
+      WK.plain = true;
+    }
     WK.top = WK.ARENA0;
     WK.on = true;
-  } catch (e) { WK.note = 'memory: ' + (e.message || e); WK.on = false; WK.mem = null; }
+  } catch (e) { WK.note = 'memory: ' + (e.message || e); WK.on = false; WK.mem = null; WK.plain = false; }
 }
 /* Room in the memory for n bytes, 8-aligned, growing it when needed (a quarter more than asked, so growth is rare). */
 function wasmAlloc(bytes) {
   const off = WK.top, end = off + ((bytes + 7) & ~7);
   if (end > WK.mem.buffer.byteLength) {
+    if (WK.plain) return -1; // (an ordinary memory cannot grow without detaching every view: the caller falls back)
     const need = Math.ceil((end - WK.mem.buffer.byteLength) * 1.25 / WK_PAGE) + 1;
     if (WK.mem.buffer.byteLength / WK_PAGE + need > WK.MAX_PAGES) throw new Error('Atom Forge: the WebAssembly memory is full');
     WK.mem.grow(need); WK.grows++;
@@ -49,7 +64,11 @@ function wasmAlloc(bytes) {
   WK.top = end; WK.allocs++;
   return off;
 }
-function wasmArray(T, n) { const off = wasmAlloc(n * T.BYTES_PER_ELEMENT); return new T(WK.mem.buffer, off, n); } // (allocate first: it may grow the memory, and the buffer object is refreshed by the growth)
+function wasmArray(T, n) { // (allocate first: a shared memory may grow, and the buffer object is refreshed by the growth)
+  const off = wasmAlloc(n * T.BYTES_PER_ELEMENT);
+  if (off < 0) { WK.on = false; WK.ready = false; WK.use = false; WK.note = 'the plain memory filled up: JavaScript kernels from here on'; return new T(n); } // (the views already made stay valid; the kernels are given up)
+  return new T(WK.mem.buffer, off, n);
+}
 /* The compiled module: synchronously where that is allowed (Node, a worker), otherwise compiled in the background;
    until it is ready the JavaScript kernels run. */
 function wasmLoadModule() {
