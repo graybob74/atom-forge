@@ -29,10 +29,21 @@ jobs:
             -C link-arg=--export=__stack_pointer -C link-arg=--export=__heap_base
             -C link-arg=--stack-first -C link-arg=-zstack-size=1048576
         run: cargo build --release --target wasm32-unknown-unknown -Zbuild-std=std,panic_abort
-      - name: Check the module and write the report
+      - name: Build again without shared memory (for pages that have no threads: the same kernels on an ordinary memory)
+        working-directory: kernel
+        env:
+          CARGO_TARGET_DIR: target-plain
+          RUSTFLAGS: >-
+            -C target-feature=+bulk-memory,+mutable-globals
+            -C link-arg=--import-memory -C link-arg=--max-memory=1073741824
+            -C link-arg=--export=__stack_pointer -C link-arg=--export=__heap_base
+            -C link-arg=--stack-first -C link-arg=-zstack-size=1048576
+        run: cargo build --release --target wasm32-unknown-unknown
+      - name: Check the modules and write the report
         run: |
           mkdir -p src/wasm
           cp kernel/target/wasm32-unknown-unknown/release/atom_forge_kernel.wasm src/wasm/kernel.wasm
+          cp kernel/target-plain/wasm32-unknown-unknown/release/atom_forge_kernel.wasm src/wasm/kernel-plain.wasm
           node -e "
             const fs=require('fs'); const b=fs.readFileSync('src/wasm/kernel.wasm');
             const m=new WebAssembly.Module(b); const out=[];
@@ -41,14 +52,20 @@ jobs:
             out.push('exports ' + WebAssembly.Module.exports(m).map(e=>e.name+':'+e.kind).join(' '));
             const mem=new WebAssembly.Memory({initial:256,maximum:16384,shared:true}); const i=new WebAssembly.Instance(m,{env:{memory:mem}});
             out.push('K_COUL ' + i.exports.af_const(0) + ' heap_base ' + i.exports.__heap_base.value + ' stack_pointer ' + i.exports.__stack_pointer.value);
+            const bp=fs.readFileSync('src/wasm/kernel-plain.wasm'); const mp=new WebAssembly.Module(bp);
+            out.push('plain: ' + bp.length + ' bytes, imports ' + JSON.stringify(WebAssembly.Module.imports(mp)));
+            const memp=new WebAssembly.Memory({initial:256,maximum:2048}); const ip=new WebAssembly.Instance(mp,{env:{memory:memp}});
+            out.push('plain: K_COUL ' + ip.exports.af_const(0) + ' heap_base ' + ip.exports.__heap_base.value + ' stack_pointer ' + ip.exports.__stack_pointer.value);
             console.log(out.join('\n')); fs.writeFileSync('src/wasm/REPORT.txt', out.join('\n') + '\n');"
       - name: Commit the module to this branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/wasm/kernel.wasm src/wasm/REPORT.txt
+          git add src/wasm/kernel.wasm src/wasm/kernel-plain.wasm src/wasm/REPORT.txt
           git diff --cached --quiet && echo "module unchanged" || (git commit -m "kernel.wasm: built from ${GITHUB_SHA::7}" && git push origin HEAD:${GITHUB_REF_NAME})
       - uses: actions/upload-artifact@v6
         with:
           name: kernel-wasm
-          path: src/wasm/kernel.wasm
+          path: |
+            src/wasm/kernel.wasm
+            src/wasm/kernel-plain.wasm
