@@ -401,3 +401,95 @@ pub unsafe extern "C" fn af_sum(fx: u32, fy: u32, bufs: u32, nb: u32, s0: u32, s
         *fx.add(s) = ax; *fy.add(s) = ay;
     }
 }
+
+// ---- the free leptons' forces (engine.js computeFast): lepton–atom pairs, lepton–lepton pairs, and the exact Coulomb
+// pull of the net charges beyond the cutoff. The same arithmetic in the same order as the JavaScript, so the two agree
+// to the bit. The fast forces go into gx/gy; candidates for events are written in loop order as (type, a, b) with r
+// beside them: type 1 a lepton meeting an atom (EV.LEPTON), 2 a lepton meeting its antiparticle (EV.ANNIH).
+// `ft` is a table of byte offsets: k, dead, fast, rad, sen, gx, gy, nearIon, hit, la, lb, li, lj, mdLI, chI.
+pub const F_K: usize = 0; pub const F_DEAD: usize = 1; pub const F_FAST: usize = 2; pub const F_RAD: usize = 3; pub const F_SEN: usize = 4;
+pub const F_GX: usize = 5; pub const F_GY: usize = 6; pub const F_NEAR: usize = 7; pub const F_HIT: usize = 8;
+pub const F_LA: usize = 9; pub const F_LB: usize = 10; pub const F_LI: usize = 11; pub const F_LJ: usize = 12; pub const F_MDLI: usize = 13; pub const F_CHI: usize = 14;
+const ELEC: u8 = 1;
+
+pub unsafe fn fast(base: usize, desc: *const i32, ft: *const i32, na: usize, nl: usize, nmdl: usize, nch: usize, lr_on: bool,
+    wrap: bool, bw: f64, bh: f64, hw: f64, hh: f64, ev_on: bool, cand: *mut i32, cand_r: *mut f64, ks: *mut f64) -> usize {
+    let s = store(base, desc);
+    let k: *const u8 = at(base, ft, F_K); let dead: *const u8 = at(base, ft, F_DEAD); let fst: *const u8 = at(base, ft, F_FAST); let rad: *const u8 = at(base, ft, F_RAD);
+    let sen: *const f64 = at(base, ft, F_SEN);
+    let gx = at::<f64>(base, ft, F_GX) as *mut f64; let gy = at::<f64>(base, ft, F_GY) as *mut f64;
+    let near = at::<u8>(base, ft, F_NEAR) as *mut u8; let hit = at::<i32>(base, ft, F_HIT) as *mut i32;
+    let la: *const i32 = at(base, ft, F_LA); let lb: *const i32 = at(base, ft, F_LB); let li: *const i32 = at(base, ft, F_LI); let lj: *const i32 = at(base, ft, F_LJ);
+    let mdli: *const i32 = at(base, ft, F_MDLI); let chi: *const i32 = at(base, ft, F_CHI);
+    let gone = |i: usize| -> bool { rd(dead, i) == 1 || rd(fst, i) == 1 || rd(rad, i) == 1 };
+    let mut stiff = *ks; let mut nc = 0usize;
+    // lepton–atom pairs
+    for q in 0..na {
+        let l = rd(la, q) as usize; let a = rd(lb, q) as usize;
+        if gone(l) || gone(a) { continue; }
+        let mut dx = rd(s.x, a) - rd(s.x, l); let mut dy = rd(s.y, a) - rd(s.y, l);
+        if wrap { if dx > hw { dx -= bw; } else if dx < -hw { dx += bw; } if dy > hh { dy -= bh; } else if dy < -hh { dy += bh; } }
+        let r2 = dx * dx + dy * dy;
+        if !(r2 < RC2 && r2 > 1e-10) || rd(s.z, a) == 0 { continue; }
+        let r = r2.sqrt(); let qa = rd(s.q, a); let ql = rd(s.q, l);
+        let mut f = 0.0;
+        if qa != 0.0 {
+            let se = rd(sen, a); let s2 = r * r + se; let sq = s2.sqrt();
+            f = K_COUL * ql * qa * r / (s2 * sq);
+            let w = K_COUL * (ql * qa).abs() * ((se - 2.0 * r * r).abs() + s2) / (s2 * s2 * sq) * (rd(s.im, l) + rd(s.im, a));
+            if w > stiff { stiff = w; }
+        }
+        let rh = if rd(s.ne, a) > 0 { 0.35 + 0.5 * rd(s.elrc, a) } else { 0.55 };
+        let pull = ql * qa <= -1.0;
+        if pull && r < 3.5 { *near.add(l) = 1; }
+        let aid = rd(s.id, a);
+        let hl = *hit.add(l);
+        if (pull && !((rd(k, l) == ELEC) == (rd(s.anti, a) == 1)) && r < 1.2 + 0.5 * qa.abs().min(4.0)) || (r < rh && hl != aid) {
+            if ev_on { *cand.add(3 * nc) = 1; *cand.add(3 * nc + 1) = l as i32; *cand.add(3 * nc + 2) = a as i32; *cand_r.add(nc) = r; nc += 1; }
+        } else if hl == aid && r > 1.7 * rh { *hit.add(l) = 0; }
+        if f > FCAP { f = FCAP; } else if f < -FCAP { f = -FCAP; }
+        let fx = f * dx / r; let fy = f * dy / r;
+        add(gx, a, fx); add(gy, a, fy); add(gx, l, -fx); add(gy, l, -fy);
+    }
+    // lepton–lepton pairs (both free leptons: the list holds no others)
+    for q in 0..nl {
+        let i = rd(li, q) as usize; let j = rd(lj, q) as usize;
+        if gone(i) || gone(j) { continue; }
+        let mut dx = rd(s.x, j) - rd(s.x, i); let mut dy = rd(s.y, j) - rd(s.y, i);
+        if wrap { if dx > hw { dx -= bw; } else if dx < -hw { dx += bw; } if dy > hh { dy -= bh; } else if dy < -hh { dy += bh; } }
+        let r2 = dx * dx + dy * dy;
+        if !(r2 < RC2 && r2 > 1e-10) { continue; }
+        let r = r2.sqrt(); let s2 = r2 + 0.04;
+        let mut f = K_COUL * rd(s.q, i) * rd(s.q, j) * r / (s2 * s2.sqrt());
+        let w = K_COUL * ((0.04 - 2.0 * r2).abs() + s2) / (s2 * s2 * s2.sqrt()) * (rd(s.im, i) + rd(s.im, j));
+        if w > stiff { stiff = w; }
+        if rd(k, i) != rd(k, j) && r < 0.3 && ev_on { *cand.add(3 * nc) = 2; *cand.add(3 * nc + 1) = i as i32; *cand.add(3 * nc + 2) = j as i32; *cand_r.add(nc) = r; nc += 1; }
+        if f > FCAP { f = FCAP; } else if f < -FCAP { f = -FCAP; }
+        let fx = f * dx / r; let fy = f * dy / r;
+        add(gx, j, fx); add(gy, j, fy); add(gx, i, -fx); add(gy, i, -fy);
+    }
+    // net charges beyond the cutoff (no periodic box here)
+    if lr_on {
+        for q in 0..nmdl {
+            let l = rd(mdli, q) as usize;
+            if gone(l) { continue; }
+            let ql = rd(s.q, l); let idl = rd(s.id, l); let lx = rd(s.x, l); let ly = rd(s.y, l);
+            for c in 0..nch {
+                let cc = rd(chi, c) as usize;
+                if cc == l || gone(cc) || (rd(k, cc) != 0 && rd(s.id, cc) < idl) { continue; }
+                let dx = rd(s.x, cc) - lx; let dy = rd(s.y, cc) - ly; let r2 = dx * dx + dy * dy;
+                if r2 < RC2 { continue; }
+                let r = r2.sqrt(); let f = K_COUL * ql * rd(s.q, cc) / r2; let fx = f * dx / r; let fy = f * dy / r;
+                add(gx, cc, fx); add(gy, cc, fy); add(gx, l, -fx); add(gy, l, -fy);
+            }
+        }
+    }
+    *ks = stiff;
+    nc
+}
+#[no_mangle]
+pub unsafe extern "C" fn af_fast(desc: u32, ft: u32, na: u32, nl: u32, nmdl: u32, nch: u32, lr_on: u32, wrap: u32, bw: f64, bh: f64, hw: f64, hh: f64,
+    ev_on: u32, cand: u32, cand_r: u32, ks: u32) -> u32 {
+    fast(0, desc as usize as *const i32, ft as usize as *const i32, na as usize, nl as usize, nmdl as usize, nch as usize, lr_on != 0, wrap != 0, bw, bh, hw, hh,
+        ev_on != 0, cand as usize as *mut i32, cand_r as usize as *mut f64, ks as usize as *mut f64) as u32
+}
