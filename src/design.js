@@ -553,6 +553,7 @@ function idToLibrary(kind, note) {
   return true;
 }
 const fmtN = (n) => n.toLocaleString('en-US');
+function idSay(text, bad) { const n = $('idNote'); if (n) { n.textContent = text || ''; n.classList.toggle('bad', !!bad); n.hidden = !text; } if (text) log('tool', text); }
 function idPrompt(kinds) {
   return `You identify molecules for Atom Forge, a flat (2-D) atom and molecule sandbox. Each molecule below is given as SMILES (hydrogens folded into the heavy atoms, formal charges and isotopes marked).
 
@@ -567,20 +568,21 @@ Rules:
 async function identifyMolecules() {
   const kinds = chamberKinds();
   R.molTags = [];
-  if (!kinds.length) { log('tool', 'Identify: no molecules in the chamber (nothing bonded)'); return; }
+  if (!kinds.length) { idSay('Identify: no molecules in the chamber (nothing bonded)', true); return; }
   const named = kinds.filter(k => k.name), unnamed = kinds.filter(k => !k.name && k.smi);
   let added = [];
   for (const k of named) { idTag(k); if (idToLibrary(k, 'Identified in the chamber.')) added.push(k.name); }
   const total = kinds.reduce((s, k) => s + k.n, 0);
   const line = (k) => `${fmtN(k.n)} × ${k.name || k.f}`;
-  log('tool', `Identified ${fmtN(total)} molecule${total === 1 ? '' : 's'} of ${kinds.length} kind${kinds.length === 1 ? '' : 's'}${named.length ? ': ' + named.slice(0, 12).map(line).join(', ') + (named.length > 12 ? ', …' : '') : ''}${unnamed.length ? `${named.length ? ';' : ','} unnamed: ${unnamed.slice(0, 8).map(line).join(', ')}${unnamed.length > 8 ? ', …' : ''}` : ''}`);
-  if (added.length) log('tool', `Added to My molecules: ${added.join(', ')}`);
+  const summary = `Identified ${fmtN(total)} molecule${total === 1 ? '' : 's'} of ${kinds.length} kind${kinds.length === 1 ? '' : 's'}${named.length ? ': ' + named.slice(0, 12).map(line).join(', ') + (named.length > 12 ? ', …' : '') : ''}${unnamed.length ? `${named.length ? ';' : ','} unnamed: ${unnamed.slice(0, 8).map(line).join(', ')}${unnamed.length > 8 ? ', …' : ''}` : ''}`;
+  idSay(summary + (named.length ? ' — named on the canvas for a few seconds' : ''));
+  if (added.length) idSay(`${summary}. Added to My molecules: ${added.join(', ')}`);
   if (!unnamed.length) return;
-  if (!AI.sample) { log('tool', `Ask Claude is not available here, so the ${unnamed.length} unnamed kind${unnamed.length === 1 ? ' keeps its formula' : 's keep their formulas'}`); return; }
+  if (!AI.sample) { idSay(`${summary}. Ask Claude is not available here (no Claude access on this page and no API key in Settings), so the unnamed kind${unnamed.length === 1 ? ' keeps its formula' : 's keep their formulas'}`); return; }
   const ask = unnamed.slice(0, ID_ASK_MAX);
-  if (AI.busy) { log('tool', 'Claude is busy with a design; try Identify again in a moment'); return; }
+  if (AI.busy) { idSay('Claude is busy with a design; try Identify again in a moment', true); return; }
   AI.busy = true; AI.ctl = new AbortController(); aiSync();
-  log('tool', `Asking Claude to name ${ask.length} kind${ask.length === 1 ? '' : 's'} …`);
+  idSay(`${summary}. Asking Claude to name ${ask.length} kind${ask.length === 1 ? '' : 's'} … (the first time, the page asks your leave to use Claude)`);
   try {
     const r = await AI.sample.json(idPrompt(ask), { modelTier: 'default', signal: AI.ctl.signal });
     const list = r && Array.isArray(r.names) ? r.names : [];
@@ -592,9 +594,12 @@ async function identifyMolecules() {
       k.name = name; k.byClaude = true; got.push(`${fmtN(k.n)} × ${name} (${k.f})`);
       idTag(k); if (idToLibrary(k, 'Identified by Claude from its structure.')) added.push(name);
     }
-    log('tool', got.length ? `Claude named: ${got.join(', ')}` : 'Claude could not put a name to them');
-    if (added.length) log('tool', `Added to My molecules: ${added.join(', ')}`);
-  } catch (e) { aiError(e); log('tool', 'Claude could not name them just now'); }
+    idSay(got.length ? `Claude named: ${got.join(', ')}${added.length ? ` — added to My molecules: ${added.join(', ')}` : ''}` : 'Claude could not put a name to them (fragments with no accepted name)', !got.length);
+  } catch (e) {
+    const code = (e && e.code) || 'upstream_error';
+    idSay(code === 'cancelled' ? 'Stopped.' : code === 'not_granted' ? 'Claude was not allowed to help on this page, so the unnamed kinds keep their formulas.' : code === 'declined' ? 'You declined; the unnamed kinds keep their formulas.' : code === 'rate_limited' ? 'Claude has reached a usage limit for now; try again later.' : code === 'bad_key' ? 'The Claude API key was refused (Settings → Claude API key).' : code === 'invalid_json' || code === 'empty_completion' ? 'Claude\'s answer could not be read; try again.' : `Claude could not be reached (${code}); try again.`, true);
+    if (AI_HIDE.includes(code) && !(AI.sample && AI.sample.api)) { AI.sample = null; aiSync(); }
+  }
   finally { AI.busy = false; AI.ctl = null; aiSync(); }
 }
 /* ---- the Claude API with the viewer's own key (Settings → Claude API key), where the page has no Claude of its own:

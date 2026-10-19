@@ -325,8 +325,9 @@ for (const KE of [2e6, 5e6]) { // (losses well under 1% a turn, so the formula f
   info(`slow motion: a 200 keV α particle moves ${per.toFixed(2)} Å per frame (2% of the box: ${want.toFixed(1)} Å)`);
   if (Math.abs(per / want - 1) > 0.1) bad(`slow motion: ${per.toFixed(2)} Å per frame, expected ${want.toFixed(1)}`);
   W.slowHold = false; W.hold = null;
-  const x0 = p.x; X.simFrame(1 / 60, 1e9);
-  if (Math.abs(p.x - x0) < 5 * want && !p.dead) bad(`slow motion off: the α particle still crawls (${(p.x - x0).toFixed(2)} Å in a frame)`);
+  const x0 = p.x, ux0 = p.ux; X.simFrame(1 / 60, 1e9);
+  const bounced = p.ux * ux0 < 0; // (closed walls reflect it: reaching the wall within the frame is fast enough)
+  if (Math.abs(p.x - x0) < 5 * want && !p.dead && !bounced) bad(`slow motion off: the α particle still crawls (${(p.x - x0).toFixed(2)} Å in a frame)`);
 }
 // 5b. slow motion on demand with slow motion for nuclear events off: an annihilation does not slow time further
 //     (what it sends flying, and what that knocks loose, is left out); with it on, time slows down for them

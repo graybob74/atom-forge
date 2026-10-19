@@ -495,6 +495,34 @@ const say = (...a) => console.log(...a);
   const a6 = await page.evaluate(() => ({ msg: document.getElementById('aiMsg').textContent, box: !document.getElementById('aiBox').hidden }));
   await page.fill('#aiAsk', 'test nope'); await page.click('#aiGo'); await aiDone(); await page.waitForTimeout(80);
   const a7 = await page.evaluate(() => ({ msg: document.getElementById('aiMsg').textContent, box: !document.getElementById('aiBox').hidden, tiers: [...new Set(window.__ai.map(c => c.tier + (c.signal ? '+stop' : '')))].join() }));
+  // typed values: a click on the figure beside a slider opens a box and a unit dropdown; Enter sets it in the unit chosen,
+  // changing the unit converts the number, the box survives the periodic refresh of the labels, Escape leaves the value
+  const typed = await page.evaluate(async () => {
+    const out = {}, sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const open = (id) => { const el = document.getElementById(id); el.click(); return { inp: el.querySelector('input'), sel: el.querySelector('select') }; };
+    const enter = (inp) => inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    loadPreset('water'); setRunning(true);
+    let e = open('tVal'); out.units = [...e.sel.options].map(o => o.value).join(); e.sel.value = '°C'; e.sel.dispatchEvent(new Event('change')); out.conv = e.inp.value; e.inp.value = '25'; enter(e.inp); out.T = W.T;
+    e = open('boxH'); e.sel.value = 'nm'; e.sel.dispatchEvent(new Event('change')); e.inp.value = '50'; enter(e.inp); out.box = [W.box.tw, W.box.th];
+    e = open('spdVal'); await sleep(600); out.stillOpen = !!document.getElementById('spdVal').querySelector('input'); e.inp.value = '10'; enter(e.inp); out.fsPerFrame = W.simPerFrame * PHYS.TU_S * 1e15;
+    e = open('eVal'); e.inp.value = '0.9'; e.inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); out.escE = UI.E; out.closed = !document.getElementById('eVal').querySelector('input');
+    out.noWarp = !document.getElementById('warpVal').classList.contains('typed'); out.ver = document.getElementById('verTag').textContent;
+    setTool('fire'); e = open('oKEV'); e.sel.value = 'MeV'; e.sel.dispatchEvent(new Event('change')); e.inp.value = '2.5'; enter(e.inp); out.fireKE = fireKE(); out.fireTxt = document.getElementById('oKEV').textContent;
+    setTool('heat'); e = open('oRV'); e.sel.value = 'nm'; e.sel.dispatchEvent(new Event('change')); e.inp.value = '5'; enter(e.inp); out.heatR = OPT.heat.R; setTool('place');
+    setRunning(false); return out;
+  });
+  if (typed.units !== 'K,°C,°F' || Math.abs(+typed.conv - 26.85) > 0.01 || Math.abs(typed.T - 298.15) > 1e-9 || typed.box[1] !== 500 || !typed.stillOpen || Math.abs(typed.fsPerFrame - 10) > 1e-6 || typed.escE !== 0 || !typed.closed || !typed.noWarp || !/^V\d+$/.test(typed.ver) || Math.abs(typed.fireKE - 2.5e6) > 1 || typed.fireTxt !== '2.50 MeV' || typed.heatR !== 50) { fails++; say('FAIL typed values:', JSON.stringify(typed)); }
+  else say(`  typed values: unit dropdowns (${typed.units}), 300 K shown as ${typed.conv} °C, 25 °C → ${typed.T} K, a 50 nm box height, 10 fs a frame, Escape leaves it; the tools' figures too (${typed.fireTxt}, ${typed.heatR} Å); version tag ${typed.ver}`);
+  // a world saved as JSON and loaded back is the same world (particles, bonds, box, bath); the library exports and imports
+  const sl = await page.evaluate(() => {
+    loadPreset('water'); setRunning(false); W.T = 350;
+    const d = worldToJSON(), n0 = W.parts.filter(p => !p.dead).length, b0 = W.bonds.length, E0 = totalEnergy().total;
+    loadPreset('salt'); const r = worldFromJSON(JSON.parse(JSON.stringify(d))); forcesNoEvents();
+    const lib = libraryToJSON();
+    return { r, n0, b0, n1: W.parts.filter(p => !p.dead).length, b1: W.bonds.length, dE: Math.abs(totalEnergy().total - E0), T: W.T, box: [W.box.w, W.box.h, d.box.w, d.box.h], bad: worldFromJSON({ nope: 1 }), lib: lib.kind === 'library' && Array.isArray(lib.mymols) && libraryFromJSON(lib).nm === 0 };
+  });
+  if (typeof sl.r === 'string' || sl.r.n !== sl.n0 || sl.n1 !== sl.n0 || sl.b1 !== sl.b0 || sl.r.nb !== sl.b0 || sl.dE > 1e-3 || sl.T !== 350 || sl.box[0] !== sl.box[2] || sl.box[1] !== sl.box[3] || typeof sl.bad !== 'string' || !sl.lib) { fails++; say('FAIL save/load world:', JSON.stringify(sl)); }
+  else say(`  save/load: a water world of ${sl.n1} particles and ${sl.b1} bonds comes back as saved (energy within ${sl.dE.toExponential(1)} eV); the library exports and imports`);
   // Identify molecules with Claude standing by: the kinds the library and formula table know are named locally, the rest
   // go to Claude as SMILES; its names tag the molecules and go to My molecules
   const idr = await page.evaluate(async () => {
@@ -506,11 +534,11 @@ const say = (...a) => console.log(...a);
     document.getElementById('bIdentify').click(); await new Promise(r => setTimeout(r, 300));
     const custom = Object.values(MOLECULES).filter(m => m.cat === 'custom').slice(n0);
     render(W.rt);
-    return { log: W.log.map(l => l.text), tags: R.molTags.map(t => t.text).sort().join(), prompt: window.__idPrompt || '', custom: custom.map(m => [m.name, m.atoms.length, m.bonds.length, m.radical, m.note]) };
+    return { log: W.log.map(l => l.text), tags: R.molTags.map(t => t.text).sort().join(), prompt: window.__idPrompt || '', custom: custom.map(m => [m.name, m.atoms.length, m.bonds.length, m.radical, m.note]), note: document.getElementById('idNote').hidden ? '' : document.getElementById('idNote').textContent };
   });
   if (!/Identified 4 molecules of 3 kinds: 2 × Water, 1 × Ethanol; unnamed: 1 × CHO₂/.test(idr.log[0]) || !/Asking Claude to name 1 kind/.test(idr.log[1]) || !/Claude named: 1 × Test peroxy radical \(CHO₂\)/.test(idr.log[2])
-    || !/Added to My molecules: Test peroxy radical/.test(idr.log[3]) || idr.tags !== 'Ethanol,Test peroxy radical,Water,Water' || !/0: \[C\]\[O\]\[OH\]/.test(idr.prompt)
-    || idr.custom.length !== 1 || idr.custom[0][1] !== 4 || idr.custom[0][2] !== 3 || !idr.custom[0][3] || !/Identified by Claude/.test(idr.custom[0][4])) { fails++; say('FAIL Identify molecules:', JSON.stringify(idr)); }
+    || !/added to My molecules: Test peroxy radical/.test(idr.log[2]) || idr.tags !== 'Ethanol,Test peroxy radical,Water,Water' || !/0: \[C\]\[O\]\[OH\]/.test(idr.prompt)
+    || idr.custom.length !== 1 || idr.custom[0][1] !== 4 || idr.custom[0][2] !== 3 || !idr.custom[0][3] || !/Identified by Claude/.test(idr.custom[0][4]) || !/Claude named/.test(idr.note)) { fails++; say('FAIL Identify molecules:', JSON.stringify(idr)); }
   else say('  Identify molecules: library names at once, an unknown fragment named by Claude (stubbed) from its SMILES, tagged and saved to My molecules');
   // the Claude API with the viewer's own key (Settings), where the page has no Claude of its own: Ask Claude and Identify
   // go to api.anthropic.com (mocked here), a refused key is told without hiding the feature, and removing the key hides it
@@ -540,7 +568,7 @@ const say = (...a) => console.log(...a);
   await page.unroute('https://api.anthropic.com/v1/messages');
   for (let i = errors.length - 1; i >= 0; i--) if (/401 \(Unauthorized\)/.test(errors[i])) errors.splice(i, 1); // (the refused key's own console line)
   if (apir.before.sample || apir.before.box || !apir.after.api || apir.after.stored !== 'sk-ant-test' || !/no Claude access of its own/.test(apir.after.note) || !apir.box || apir.ask.name !== 'Test decanol' || apir.ask.heavy !== 11
-    || !/Identified 1 molecule of 1 kind, unnamed: 1 × CHO₂ \| Asking Claude to name 1 kind … \| Claude named: 1 × Test peroxy radical \(CHO₂\) \| Added to My molecules: Test peroxy radical/.test(apir.identify)
+    || !/Identified 1 molecule of 1 kind, unnamed: 1 × CHO₂ \| .*Asking Claude to name 1 kind … .*\| Claude named: 1 × Test peroxy radical \(CHO₂\) — added to My molecules: Test peroxy radical/.test(apir.identify)
     || !/API key was refused/.test(apir.bad.msg) || !apir.bad.box || apir.off.sample || apir.off.box) { fails++; say('FAIL Claude API key:', JSON.stringify(apir)); }
   else say('  Claude API key (mocked api.anthropic.com): Ask Claude and Identify molecules work through it, a refused key is told, no key hides them');
   await shot('ask-claude');

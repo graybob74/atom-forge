@@ -417,7 +417,7 @@ function buildToolOpts() {
       h = rangeCtl('oL', 'Photon', 0, 730, o.s, w.lam) + `<span><span class="swatch" id="oLsw" style="background:${lightSwatch(lightE())}"></span> <span class="help" id="oLtxt">${w.band}, ${w.E}</span></span>` +
         `<span data-g="lpre">${seg('Presets', [[9, 'IR 10 µm'], [132, 'Na 589 nm'], [201, 'Lyman-α'], [500, 'X-ray 10 keV'], [700, 'γ 1 MeV']], o.s)}</span>` +
         rangeCtl('oRate', 'Intensity', 5, 400, o.rate, o.rate + '/s') +
-        `<span data-g="follow">${seg('Light', [['true', 'Watch it travel'], ['false', 'Instant']], String(o.follow))}</span><span class="help">${o.follow ? 'Light crosses the box in hundredths of a femtosecond: time slows about 40,000× while it is in flight, so you see it go at c.' : 'At normal speed light crosses the box far within one frame, so it lands at once.'}</span>`;
+        `<span class="help">Light crosses the box in hundredths of a femtosecond: time slows while it is in flight, so you see it go at c.</span>`;
       break;
     }
     case 'erase':
@@ -436,6 +436,7 @@ function buildToolOpts() {
     }
   }
   el.innerHTML = h;
+  toolTyped(t, o);
   el.onclick = (e) => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.id === 'oMagClear') { W.magnets.length = 0; log('tool', 'Magnets removed'); return; }
@@ -1071,7 +1072,7 @@ function toolTick(realDt) {
     while (d.acc >= 1) {
       d.acc -= 1;
       const off = (rnd() - 0.5) * 1.6;
-      emitPhoton(d.x0 - uy * off, d.y0 + ux * off, E, ux, uy, OPT.light.follow ? { travel: true } : undefined);
+      emitPhoton(d.x0 - uy * off, d.y0 + ux * off, E, ux, uy, { travel: true }); // (always watched at c: time slows while it flies)
     }
   }
 }
@@ -1552,58 +1553,208 @@ function toggleParticleView() { setAtomView(R.view.bohr === 'nuc' ? (UI.lastView
 function toggleOrbitalView() { setAtomView(R.view.bohr === 'orb' ? (UI.lastView || 'auto') : 'orb'); }
 function setSegValue(id, v) { for (const b of $(id).querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === String(v))); }
 function bindSeg(id, fn) { $(id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; setSegValue(id, b.dataset.v); fn(b.dataset.v); }); }
-/* ---- typed values: the figure beside a slider is clicked and typed over (Enter sets it, Escape leaves it) ----
-   A typed value may carry a unit (300 K, 25 °C, 80 F; 2 T, 500 mT, 3 kG; 0.5 V/Å, 2 V/nm; 500 Å, 50 nm, 1 µm; 10 fs;
-   250 MeV, 7 TeV); without one the figure is read in the unit shown. Out-of-range figures are brought to the range. */
-function parseTyped(str) {
-  const m = /^\s*([-+]?(?:\d[\d,]*\.?\d*|\.\d+)(?:e[-+]?\d+)?)\s*([^\s]*)/i.exec(str);
-  if (!m) return null;
-  const v = parseFloat(m[1].replace(/,/g, '')); if (!Number.isFinite(v)) return null;
-  return { v, u: m[2].toLowerCase().replace('μ', 'µ').replace(/^u(?=[a-zåA-Z])/, 'µ').replace('°', '') };
-}
-const scaleOf = (u, table, dflt) => u === '' ? dflt : Object.prototype.hasOwnProperty.call(table, u) ? table[u] : null;
-const TYPED = {
-  tVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; const u = p.u || T_UNIT.toLowerCase(); if (u === 'k') return p.v; if (u === 'c') return p.v + 273.15; if (u === 'f') return (p.v - 32) / 1.8 + 273.15; if (u === 'mk') return p.v * 1e6; if (u === 'kk') return p.v * 1e3; return null; },
-    apply: (T) => { setBathT(T); syncLab(); } },
-  bVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; const k = scaleOf(p.u, { t: 1, mt: 1e-3, kt: 1e3, 'µt': 1e-6, g: 1e-4, kg: 0.1, mg: 1e-7 }, 1); return k === null ? null : p.v * k; },
-    apply: (B) => { W.Bz = Math.abs(B) < 1e-9 ? 0 : clamp(B, -1e5, 1e5); syncLab(); } },
-  eVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; const k = scaleOf(p.u, { 'v/å': 1, 'v/a': 1, 'mv/å': 1e-3, 'mv/a': 1e-3, 'v/nm': 0.1, 'kv/nm': 100, 'v/m': 1e-10, 'kv/m': 1e-7, 'mv/m': 1e-4, 'v/cm': 1e-8, 'kv/cm': 1e-5 }, 1); return k === null ? null : p.v * k; },
-    apply: (E) => { UI.E = clamp(Math.abs(E), 0, 3); applyE(); syncLab(); } },
-  boxVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; const k = scaleOf(p.u, { 'å': 1, a: 1, nm: 10, 'µm': 1e4, um: 1e4, pm: 0.01, mm: 1e7 }, 1); return k === null ? null : p.v * k; },
-    apply: (w) => { w = clamp(w, 20, 20000); W.box.tw = w; W.box.th = w * UI.aspect; syncLab(); } },
-  spdVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; const k = scaleOf(p.u, { s: 1, ms: 1e-3, 'µs': 1e-6, ns: 1e-9, ps: 1e-12, fs: 1e-15, as: 1e-18, zs: 1e-21 }, 1e-15); return k === null ? null : p.v * k / PHYS.TU_S; },
-    apply: (tu) => { W.simPerFrame = clamp(tu, spdFromS(0), spdFromS(100)); syncLab(); syncSpeed(); } },
-  warpVal: { parse: (t) => { const p = parseTyped(t); if (!p) return null; return p.u === '' || p.u === 'x' || p.u === '×' ? p.v : null; },
-    apply: (f) => { W.warp = clamp(f, 1, 1e30); syncLab(); if (UI.tool === 'place' || UI.tool === 'fire') buildToolOpts(); } },
-  cEVal: { parse: (t) => parseEnergy(t), apply: (E) => { if (!W.collider) return; setColliderEnergy(clamp(E, cEFromS(0), cEFromS(200))); syncCollider(); } },
-  cE2Val: { parse: (t) => parseEnergy(t), apply: (E) => { const C = W.collider; if (!C) return; setColliderEnergy(C.E, clamp(E, cEFromS(0), cEFromS(200))); syncCollider(); } },
-  cNVal: { parse: (t) => { const p = parseTyped(t); return p && p.u === '' ? Math.round(p.v) : null; }, apply: (n) => { n = clamp(n, 1, 30); $('cNSlider').value = n; $('cNVal').textContent = String(n); if (W.collider) W.collider.bunch = n; } },
-};
-function parseEnergy(t) { const p = parseTyped(t); if (!p) return null; const k = scaleOf(p.u, { ev: 1, kev: 1e3, mev: 1e6, gev: 1e9, tev: 1e12, mev_: 1e-3 }, 1); return k === null ? null : p.v * k; }
-function bindTyped() {
-  for (const id of Object.keys(TYPED)) {
-    const el = $(id); if (!el) continue;
-    el.classList.add('typed'); el.title = 'Click to type a value'; el.tabIndex = 0; el.setAttribute('role', 'button');
-    const open = () => {
-      if (el.querySelector('input')) return;
-      const was = el.textContent, inp = document.createElement('input');
-      inp.type = 'text'; inp.className = 'typedIn'; inp.value = was; inp.setAttribute('aria-label', 'Type a value');
-      el.textContent = ''; el.appendChild(inp); inp.focus(); inp.select();
-      let done = false;
-      const close = (commit) => {
-        if (done) return; done = true;
-        const v = commit ? TYPED[id].parse(inp.value) : null;
-        if (inp.parentNode === el) el.removeChild(inp);
-        el.textContent = was;
-        if (v !== null) TYPED[id].apply(v);
-      };
-      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); close(true); } else if (e.key === 'Escape') { e.preventDefault(); close(false); } e.stopPropagation(); });
-      inp.addEventListener('keyup', (e) => e.stopPropagation()); inp.addEventListener('keypress', (e) => e.stopPropagation());
-      inp.addEventListener('blur', () => close(true));
-    };
-    el.addEventListener('click', open);
-    el.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); open(); } });
+/* ---- files: a world saved and loaded, My molecules and saved isotopes exported and imported, as JSON. Saving goes
+   through the artifact page's `downloads` capability where the page has one (claude.ai asks the viewer to confirm), and
+   through an ordinary download link elsewhere (the desktop app, a saved copy). Loading is a file picker everywhere, so a
+   world or a library made on one can be dropped into the other. */
+const FILES = { downloads: undefined }; // (undefined: not asked yet; null: none)
+async function fileSave(name, text) {
+  if (FILES.downloads === undefined) {
+    FILES.downloads = null;
+    const c = typeof window !== 'undefined' ? window.claude : null;
+    if (c && typeof c.use === 'function') { try { FILES.downloads = (await c.use('downloads')) || null; } catch (e) { FILES.downloads = null; } }
   }
+  if (FILES.downloads) {
+    try { await FILES.downloads.save({ filename: name, data: text }); return true; }
+    catch (e) { if (e && e.code === 'declined') return false; log('tool', `Could not save ${name} here (${(e && e.code) || e}); trying the browser's own download`); }
+  }
+  try {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    return true;
+  } catch (e) { log('tool', `Could not save ${name}: ${e.message || e}`); return false; }
+}
+function filePick(accept, cb) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = accept; inp.style.display = 'none'; document.body.appendChild(inp);
+  inp.onchange = () => { const f = inp.files && inp.files[0]; inp.remove(); if (!f) return; const r = new FileReader(); r.onload = () => cb(String(r.result || ''), f.name); r.onerror = () => log('tool', `Could not read ${f.name}`); r.readAsText(f); };
+  inp.click();
+}
+const SAVE_KINDS = new Set([NUC, ELEC, POS]);
+/* The world as data: the box, bath, fields and pace, every nucleus, atom, ion and free lepton with its velocity, the
+   bonds among them and the magnets. Not kept: radiation and particles in flight, beams, a collider's rings, and chips'
+   circuits (their atoms are saved as atoms). */
+function worldToJSON() {
+  const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.rad && !p.caught);
+  const ix = new Map(ps.map((p, i) => [p, i])), r6 = (v) => Math.round(v * 1e6) / 1e6;
+  const parts = ps.map(p => [p.k, p.Z, p.N, p.ne, p.anti ? 1 : 0, r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]);
+  const bonds = [];
+  for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
+  return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
+    spf: W.simPerFrame, warp: W.warp, decayOn: W.decayOn, slowmo: W.slowmo, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
+}
+function worldFromJSON(d) {
+  if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
+  if (d.parts.length > MAX_PARTS) return `${d.parts.length.toLocaleString('en-US')} particles: over the limit of ${MAX_PARTS.toLocaleString('en-US')} (Settings → Particle limit)`;
+  const num = (v, lo, hi, dflt) => (Number.isFinite(v) ? clamp(v, lo, hi) : dflt);
+  setRunning(false); clearWorld(); UI.preset = typeof d.preset === 'string' ? d.preset : 'empty';
+  W.box.w = W.box.tw = num(d.box.w, 20, 20000, 200); W.box.h = W.box.th = num(d.box.h, 20, 20000, 140); UI.aspect = W.box.th / W.box.tw;
+  W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -3, 3, 0); W.Ey = num(d.Ey, -3, 3, 0);
+  W.simPerFrame = num(d.spf, spdFromS(0), spdFromS(100), W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1, 1e30, 1); W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo;
+  const made = [], hw = W.box.w / 2, hh = W.box.h / 2;
+  for (const q of d.parts) {
+    if (!Array.isArray(q) || q.length < 9) { made.push(null); continue; }
+    const [k, Z, N, ne, anti, x, y, vx, vy] = q;
+    if (![x, y, vx, vy].every(Number.isFinite)) { made.push(null); continue; }
+    const px = clamp(x, -hw, hw), py = clamp(y, -hh, hh);
+    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } made.push(addNuc(Z, N, ne, px, py, vx, vy, anti === 1)); }
+    else if (k === ELEC || k === POS) made.push(addLepton(k, px, py, vx, vy));
+    else made.push(null);
+  }
+  let nb = 0;
+  for (const b of d.bonds) { if (!Array.isArray(b)) continue; const [i, j, o] = b; const a = made[i], c = made[j]; if (a && c && a !== c && [1, 2, 3].includes(o)) { addBond(a, c, o); nb++; } }
+  if (Array.isArray(d.magnets)) for (const m of d.magnets.slice(0, 50)) if (m && Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.B)) W.magnets.push({ x: m.x, y: m.y, R: num(m.R, 1, 1000, 10), B: clamp(m.B, -1e9, 1e9) });
+  W.dirty++; W.spawned++; W.topo++; W.hist = { t: [], T: [], bath: [] }; R.sel = null; R.msel.clear();
+  syncLab(); fitView(); renderInspect(); buildToolOpts();
+  const n = made.filter(Boolean).length;
+  return { n, nb, skipped: d.parts.length - n };
+}
+function saveWorld() {
+  const d = worldToJSON(), name = `atom-forge-world-${(UI.preset || 'world').replace(/[^a-z0-9-]/gi, '')}.json`;
+  fileSave(name, JSON.stringify(d)).then((ok) => { if (ok) log('tool', `World saved: ${d.parts.length.toLocaleString('en-US')} particles, ${d.bonds.length.toLocaleString('en-US')} bonds${d.chips ? `; ${d.chips} chip${d.chips === 1 ? '' : 's'} saved as plain atoms` : ''}${d.left ? `; ${d.left} particle${d.left === 1 ? '' : 's'} in flight left out` : ''}`); });
+}
+function loadWorld() {
+  filePick('.json,application/json', (text, name) => {
+    let d; try { d = JSON.parse(text); } catch (e) { log('tool', `${name}: not a JSON file`); return; }
+    const r = worldFromJSON(d);
+    if (typeof r === 'string') { log('tool', `${name}: ${r}`); return; }
+    log('tool', `World loaded from ${name}: ${r.n.toLocaleString('en-US')} particles, ${r.nb.toLocaleString('en-US')} bonds${r.skipped ? ` (${r.skipped} entries could not be read)` : ''}`);
+  });
+}
+/* My molecules and saved isotopes, out and in (merged: what is there stays; a molecule already known by key or name is
+   not added twice). */
+function libraryToJSON() {
+  const mols = Object.values(MOLECULES).filter(m => m.cat === 'custom').map(m => { const o = { k: m.key, n: m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds }; if (m.desc) o.d = m.desc; return o; });
+  return { app: 'Atom Forge', v: 1, kind: 'library', saved: new Date().toISOString(), mymols: mols, myisos: MYISO.map(s => [s.Z, s.A, s.charge || 0, s.bare ? 1 : 0, s.anti ? 1 : 0]) };
+}
+function libraryFromJSON(d) {
+  if (!d || d.app !== 'Atom Forge' || d.kind !== 'library') return 'not an Atom Forge library file';
+  let nm = 0, ni = 0;
+  if (Array.isArray(d.mymols)) for (const m of d.mymols) {
+    if (!myMolValid(m) || Object.values(MOLECULES).some(x => x.name.toLowerCase() === String(m.n).toLowerCase())) continue;
+    myMolAdd({ k: m.k, n: String(m.n).slice(0, 40), r: m.r, a: m.a, b: m.b, d: String(m.d || '').slice(0, 500) }); nm++;
+  }
+  if (nm) myMolsSave();
+  if (Array.isArray(d.myisos)) for (const r of d.myisos) {
+    if (!Array.isArray(r) || MYISO.length >= MYISO_MAX) break;
+    const [Z, A, q, bare, anti] = r;
+    if (!Number.isInteger(Z) || Z < 1 || Z > 118 || !ELEMENTS[Z] || !Number.isInteger(A) || A < Z || A - Z > Math.max(4, 2 * Z + 10) || !Number.isInteger(q) || Math.abs(q) > 8) continue;
+    const sp = isoSpec(Z, A, q, bare === 1, anti === 1);
+    if (!isoSaved(sp)) { MYISO.push(sp); ni++; }
+  }
+  if (ni) myIsoStore();
+  if (nm || ni) { buildToolOpts(); if (!$('molModal').hidden) renderMolList(); }
+  return { nm, ni };
+}
+function exportLibrary() { const d = libraryToJSON(); fileSave('atom-forge-library.json', JSON.stringify(d)).then((ok) => { if (ok) log('tool', `Library exported: ${d.mymols.length} molecule${d.mymols.length === 1 ? '' : 's'}, ${d.myisos.length} isotope${d.myisos.length === 1 ? '' : 's'}`); }); }
+function importLibrary() {
+  filePick('.json,application/json', (text, name) => {
+    let d; try { d = JSON.parse(text); } catch (e) { log('tool', `${name}: not a JSON file`); return; }
+    const r = libraryFromJSON(d);
+    if (typeof r === 'string') { log('tool', `${name}: ${r}`); return; }
+    log('tool', `Library imported from ${name}: ${r.nm} new molecule${r.nm === 1 ? '' : 's'}, ${r.ni} new isotope${r.ni === 1 ? '' : 's'}`); syncSettings();
+  });
+}
+/* ---- typed values: the figure beside a slider is clicked and typed over, with a unit chosen from a dropdown beside
+   it (Enter sets it, Escape leaves it). Each entry: the units it can be typed in (to/from the base unit), the current
+   value in the base unit, and what to do with a typed one (brought to the slider's range). */
+const lin = (u, k) => ({ u, to: (v) => v * k, from: (v) => v / k });
+const U_TEMP = [{ u: 'K', to: (v) => v, from: (v) => v }, { u: '°C', to: (v) => v + 273.15, from: (v) => v - 273.15 }, { u: '°F', to: (v) => (v - 32) / 1.8 + 273.15, from: (v) => (v - 273.15) * 1.8 + 32 }];
+const U_B = [lin('T', 1), lin('mT', 1e-3), lin('kT', 1e3), lin('G', 1e-4)];
+const U_E = [lin('V/Å', 1), lin('V/nm', 0.1), lin('MV/m', 1e-4), lin('kV/cm', 1e-5)];
+const U_LEN = [lin('Å', 1), lin('nm', 10), lin('µm', 1e4)];
+const U_TIME = [lin('fs', 1e-15 / PHYS.TU_S), lin('as', 1e-18 / PHYS.TU_S), lin('ps', 1e-12 / PHYS.TU_S)]; // (base: the engine's time unit)
+const U_ENERGY = [lin('eV', 1), lin('keV', 1e3), lin('MeV', 1e6), lin('GeV', 1e9), lin('TeV', 1e12)];
+const TYPED = {
+  tVal: { units: U_TEMP, pick: () => T_UNIT === 'C' ? '°C' : T_UNIT === 'F' ? '°F' : 'K', get: () => W.T, apply: (T) => { setBathT(T); syncLab(); } },
+  bVal: { units: U_B, get: () => W.Bz, apply: (B) => { W.Bz = Math.abs(B) < 1e-9 ? 0 : clamp(B, -1e5, 1e5); syncLab(); } },
+  eVal: { units: U_E, get: () => UI.E, apply: (E) => { UI.E = clamp(Math.abs(E), 0, 3); applyE(); syncLab(); } },
+  boxW: { units: U_LEN, get: () => W.box.tw, apply: (w) => { W.box.tw = clamp(w, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); } },
+  boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); } },
+  spdVal: { units: U_TIME, get: () => W.simPerFrame, apply: (tu) => { W.simPerFrame = clamp(tu, spdFromS(0), spdFromS(100)); syncLab(); syncSpeed(); } },
+  cEVal: { units: U_ENERGY, get: () => (W.collider ? W.collider.E : cEFromS(+$('cESlider').value)), apply: (E) => { if (!W.collider) return; setColliderEnergy(clamp(E, cEFromS(0), cEFromS(200))); syncCollider(); } },
+  cE2Val: { units: U_ENERGY, get: () => (W.collider && W.collider.E2 !== null && W.collider.E2 !== undefined ? W.collider.E2 : cEFromS(+$('cE2Slider').value)), apply: (E) => { const C = W.collider; if (!C) return; setColliderEnergy(C.E, clamp(E, cEFromS(0), cEFromS(200))); syncCollider(); } },
+  cNVal: { units: null, get: () => (W.collider ? W.collider.bunch : +$('cNSlider').value), apply: (n) => { n = clamp(Math.round(n), 1, 30); $('cNSlider').value = n; $('cNVal').textContent = String(n); if (W.collider) W.collider.bunch = n; } },
+};
+/* The unit a value is best shown in: the one that puts it between 1 and 1000 (the first of the list otherwise), or the
+   entry's own choice. */
+function unitFor(T, base) {
+  if (T.pick) return T.pick(base);
+  if (!T.units) return null;
+  for (const u of T.units) { const a = Math.abs(u.from(base)); if (a >= 1 && a < 1000) return u.u; }
+  return T.units[0].u;
+}
+const fmtTyped = (v) => { if (!Number.isFinite(v)) return ''; const a = Math.abs(v); const s = a >= 1e6 || (a > 0 && a < 1e-3) ? v.toExponential(3) : a >= 100 ? v.toFixed(a >= 1e4 ? 0 : 1) : v.toPrecision(4); return String(+s); };
+function parseTyped(str) { const m = /^\s*([-+]?(?:\d[\d,]*\.?\d*|\.\d+)(?:e[-+]?\d+)?)\s*$/i.exec(str); if (!m) return null; const v = parseFloat(m[1].replace(/,/g, '')); return Number.isFinite(v) ? v : null; }
+const typedOpen = (id) => { const el = $(id); return !!(el && el.querySelector('input')); }; // (a label being edited is left alone by the periodic refreshes)
+function setTxt(id, text) { const el = $(id); if (el && !el.querySelector('input') && el.textContent !== text) el.textContent = text; }
+function attachTyped(el, T) {
+  if (!el || el.dataset.typed) return;
+  el.dataset.typed = '1'; el.classList.add('typed'); el.title = 'Click to type a value'; el.tabIndex = 0; el.setAttribute('role', 'button');
+  const open = () => {
+    if (el.querySelector('input')) return;
+    const was = el.textContent, base = T.get();
+    let unit = T.units ? T.units.find(u => u.u === unitFor(T, base)) || T.units[0] : null;
+    const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'typedIn'; inp.setAttribute('aria-label', 'Type a value'); inp.autocomplete = 'off'; inp.spellcheck = false;
+    inp.value = fmtTyped(unit ? unit.from(base) : base);
+    let sel = null;
+    if (unit) { sel = document.createElement('select'); sel.className = 'typedU'; sel.setAttribute('aria-label', 'Unit'); for (const u of T.units) { const o = document.createElement('option'); o.value = u.u; o.textContent = u.u; sel.appendChild(o); } sel.value = unit.u; }
+    el.textContent = ''; el.appendChild(inp); if (sel) el.appendChild(sel);
+    inp.focus(); inp.select();
+    let done = false;
+    const close = (commit) => {
+      if (done) return; done = true;
+      const v = commit ? parseTyped(inp.value) : null;
+      el.textContent = was;
+      if (v !== null) T.apply(unit ? unit.to(v) : v);
+    };
+    const stop = (e) => e.stopPropagation();
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); close(true); } else if (e.key === 'Escape') { e.preventDefault(); close(false); } e.stopPropagation(); });
+    inp.addEventListener('keyup', stop); inp.addEventListener('keypress', stop);
+    // leaving the box commits, unless the focus went to the unit dropdown beside it
+    inp.addEventListener('blur', () => setTimeout(() => { if (!done && document.activeElement !== sel) close(true); }, 0));
+    if (sel) {
+      sel.addEventListener('change', () => { // the number is converted into the new unit, so the value itself does not change
+        const v = parseTyped(inp.value), nu = T.units.find(u => u.u === sel.value) || unit;
+        if (v !== null) inp.value = fmtTyped(nu.from(unit.to(v)));
+        unit = nu; inp.focus();
+      });
+      sel.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); close(true); } else if (e.key === 'Escape') { e.preventDefault(); close(false); } e.stopPropagation(); });
+      sel.addEventListener('blur', () => setTimeout(() => { if (!done && document.activeElement !== inp) close(true); }, 0));
+      sel.addEventListener('mousedown', stop); sel.addEventListener('click', stop);
+    }
+    inp.addEventListener('click', stop);
+  };
+  el.addEventListener('click', (e) => { if (e.target === el || !el.querySelector('input')) open(); });
+  el.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); open(); } });
+}
+function bindTyped() { for (const id of Object.keys(TYPED)) attachTyped($(id), TYPED[id]); }
+/* The tool options' figures (radius, energy, temperature, field, wavelength, rate): the same editors, made each time the
+   bar is built. A typed value sets the tool's slider position (clamped to its range) and the bar is drawn again. */
+const U_LIGHT = [lin('nm', 1), lin('µm', 1e3), lin('Å', 0.1)].map(u => ({ u: u.u, to: (v) => 1239.84198 / u.to(v), from: (E) => u.from(1239.84198 / E) })).concat(U_ENERGY); // (wavelength ↔ photon energy in eV)
+const logS = (v, off, lo, hi) => clamp(100 * (Math.log10(Math.max(1e-12, v)) + off), lo, hi); // (not rounded to the slider's steps: the typed value is kept as typed)
+function toolTyped(t, o) {
+  const again = () => buildToolOpts();
+  const M = {
+    oRV: { units: U_LEN, get: () => o.R, apply: (R) => { o.R = clamp(R, RAD_MIN[t], RAD_MAX); again(); } },
+    oSV: { units: U_ENERGY.concat([lin('meV', 1e-3)]), get: () => pullU(), apply: (U) => { o.s = logS(U, 2, 0, 600); again(); } },
+    oKEV: { units: U_ENERGY, get: () => fireKE(), apply: (E) => { o.s = logS(E, 2, 0, 1030); again(); } },
+    oTV: { units: U_TEMP, pick: () => T_UNIT === 'C' ? '°C' : T_UNIT === 'F' ? '°F' : 'K', get: () => heatT(), apply: (T) => { o.s = logS(T, 0, 200, 900); again(); } },
+    oEV: { units: U_ENERGY, get: () => sparkE(), apply: (E) => { o.s = logS(E, 0, 0, 900); again(); } },
+    oBV: { units: U_B, get: () => Math.abs(magB()), apply: (B) => { o.s = logS(Math.abs(B), 0, 100, 900); again(); } },
+    oLV: { units: U_LIGHT, pick: (E) => { const lam = 1239.84198 / E; return lam >= 1000 ? 'µm' : lam >= 1 ? 'nm' : E >= 1e6 ? 'MeV' : E >= 1e3 ? 'keV' : 'eV'; }, get: () => lightE(), apply: (E) => { o.s = logS(E, 1, 0, 730); again(); } },
+    oRateV: { units: null, get: () => o.rate, apply: (r) => { o.rate = clamp(Math.round(r), 5, 400); again(); } },
+  };
+  for (const id of Object.keys(M)) attachTyped($(id), M[id]);
 }
 function bindLab() {
   bindTyped();
@@ -1626,6 +1777,7 @@ function bindLab() {
   try { const vf = JSON.parse(store('viewflags') || 'null'); if (vf && typeof vf === 'object') for (const k of ['labels', 'tracks', 'rays', 'hbonds', 'grid', 'decayCards']) if (typeof vf[k] === 'boolean') R.view[k] = vf[k]; } catch (e) { /* (defaults) */ }
   for (const c of document.querySelectorAll('[data-view]')) c.onchange = () => { R.view[c.dataset.view] = c.checked; store('viewflags', JSON.stringify(R.view)); };
   $('bIdentify').onclick = () => { identifyMolecules(); };
+  $('bSaveWorld').onclick = () => saveWorld(); $('bLoadWorld').onclick = () => loadWorld();
   $('bClear').onclick = () => { clearWorld(); W.hist = { t: [], T: [], bath: [] }; R.sel = null; log('tool', 'Chamber emptied'); renderInspect(); };
   $('bSrcClear').onclick = () => { W.sources.length = 0; };
 }
@@ -1653,14 +1805,14 @@ function syncLab() {
   syncLabText();
 }
 function syncLabText() {
-  $('tVal').textContent = fmtT(W.T);
+  setTxt('tVal', fmtT(W.T));
   $('bathNote').textContent = W.gamma === 0 ? 'Insulated: total energy is conserved, so reactions heat or cool the sample by themselves.'
     : `Every particle trades energy with a ${fmtT(W.T)} bath (Langevin thermostat), relaxing over about ${fmtTime(PHYS.TU_S / W.gamma)}.`;
-  $('bVal').textContent = W.Bz ? (W.Bz > 0 ? '+' : '−') + fmtTesla(Math.abs(W.Bz)) : '0 T';
-  $('eVal').textContent = UI.E ? `${UI.E.toFixed(2)} V/Å` : '0 V/Å';
+  setTxt('bVal', W.Bz ? (W.Bz > 0 ? '+' : '−') + fmtTesla(Math.abs(W.Bz)) : '0 T');
+  setTxt('eVal', UI.E ? `${UI.E.toFixed(2)} V/Å` : '0 V/Å');
   $('magCount').textContent = W.magnets.length ? `${W.magnets.length} magnet${W.magnets.length > 1 ? 's' : ''} placed` : 'No magnets placed';
-  $('boxVal').textContent = `${W.box.tw.toFixed(0)} × ${W.box.th.toFixed(0)} Å`;
-  $('spdVal').textContent = motionText();
+  setTxt('boxW', W.box.tw.toFixed(0)); setTxt('boxH', W.box.th.toFixed(0));
+  setTxt('spdVal', motionText());
   $('warpVal').textContent = !W.decayOn ? 'paused' : W.warp <= 1.0001 ? 'real rate' : `sped up ${fmtFactor(W.warp)}`;
   $('warpNote').textContent = !W.decayOn ? 'Paused: no nucleus decays until it is switched back on.'
     : `Nuclei age ${fmtTime(decayPerSecond())} per second you watch${W.warp <= 1.0001 ? ', the same as everything else' : ''}.`;
@@ -2050,8 +2202,8 @@ function syncCollider() {
   $('cESlider').value = sFromCE(C.E);
   $('chkEach').checked = each; $('cE2Wrap').hidden = !each;
   $('cELabel').textContent = each ? `Beam 1 energy (${A.lab})` : 'Beam energy';
-  if (each) { $('cEVal').textContent = fmtE(C.E); $('cE2Slider').value = sFromCE(C.E2); $('cE2Val').textContent = `${fmtE(C.E2)} (${B.lab})`; }
-  else $('cEVal').textContent = C.EA && Math.abs(C.EB / C.EA - 1) > 1e-6 ? `${A.lab} ${fmtE(C.EA)} · ${B.lab} ${fmtE(C.EB)}` : fmtE(C.E) + ' each';
+  if (each) { setTxt('cEVal', fmtE(C.E)); $('cE2Slider').value = sFromCE(C.E2); setTxt('cE2Val', `${fmtE(C.E2)} (${B.lab})`); }
+  else setTxt('cEVal', C.EA && Math.abs(C.EB / C.EA - 1) > 1e-6 ? `${A.lab} ${fmtE(C.EA)} · ${B.lab} ${fmtE(C.EB)}` : fmtE(C.E) + ' each');
   $('cNSlider').value = C.bunch; $('cNVal').textContent = String(C.bunch);
   $('chkRefill').checked = C.auto;
   $('cSepWrap').hidden = C.kind !== 'ring';
@@ -2491,7 +2643,7 @@ function updateReadouts() {
   $('roN').textContent = String(n);
   $('roNuc').textContent = !W.decayOn ? 'paused' : W.warp > 1.0001 ? fmtFactor(W.warp) : 'real';
   $('pausedBadge').hidden = UI.running;
-  if (UI.tab === 'lab') { $('magCount').textContent = W.magnets.length ? `${W.magnets.length} magnet${W.magnets.length > 1 ? 's' : ''} placed` : 'No magnets placed'; $('spdVal').textContent = motionText(); }
+  if (UI.tab === 'lab') { $('magCount').textContent = W.magnets.length ? `${W.magnets.length} magnet${W.magnets.length > 1 ? 's' : ''} placed` : 'No magnets placed'; setTxt('spdVal', motionText()); }
   updateCollider();
   if (W.chips.length || CHIP_UI.sig) updateChips();
   if (UI.capped) syncSpeed(); // (the speed reached at the computer's limit changes as it goes)
@@ -2799,6 +2951,7 @@ function settingsInit() {
   const apiChanged = () => { const k = keyIn.value.trim(), m = modelIn.value.trim(); if (k === (SET.apiKey || '') && m === (SET.apiModel || '')) return; SET.apiKey = k; SET.apiModel = m; store('settings', JSON.stringify(SET)); aiInit(); syncSettings(); log('tool', k ? 'Claude API key set: Ask Claude and Identify molecules can ask Claude here' : 'Claude API key removed'); };
   keyIn.addEventListener('change', apiChanged); modelIn.addEventListener('change', apiChanged);
   keyIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apiChanged(); } e.stopPropagation(); }); modelIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apiChanged(); } e.stopPropagation(); });
+  $('setExport').onclick = () => exportLibrary(); $('setImport').onclick = () => importLibrary();
   $('setDelMols').onclick = (e) => twoPress(e.currentTarget, () => { for (const k of Object.keys(MOLECULES)) if (MOLECULES[k].cat === 'custom') myMolRemove(k); log('tool', 'My molecules deleted'); syncSettings(); });
   $('setDelIsos').onclick = (e) => twoPress(e.currentTarget, () => { MYISO.length = 0; myIsoStore(); buildToolOpts(); log('tool', 'Saved isotopes deleted'); syncSettings(); });
   $('setReset').onclick = () => { Object.assign(SET, SET_DEF); delete SET.prePerf; store('settings', JSON.stringify(SET)); applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts(); };
@@ -2903,6 +3056,7 @@ function qmGlobal(px, py, wx, wy) {
     (R.follow ? qmBtn('Stop following', () => { R.follow = null; }) : '') +
     qm2(qmBtn('Centre here', () => { R.follow = null; R.cx = wx; R.cy = wy; }), qmBtn('Zoom in here', () => zoomAt(px, py, 2))) +
     qm2(qmBtn('Fit the box', () => fitView(), { key: '0' }), qmBtn('Clear trails', () => { W.tracks.length = 0; }, { off: !W.tracks.length })) +
+    qm2(qmBtn('Identify molecules', () => identifyMolecules(), { title: 'Name every molecule in the chamber (also in the Lab tab, Sample section)', off: !W.bonds.length }), qmBtn('Save world…', () => saveWorld(), { title: 'Save the chamber as a JSON file' })) +
     qm2(qmBtn(R.msel.size ? `Copy ${selCount().toLocaleString('en-US')} selected` : 'Copy', () => copySelection(), { key: 'Ctrl+C', off: !R.msel.size && !R.sel, title: 'Copy the selection (Select tool), or the inspected particle' }),
       qmBtn('Paste here', () => pasteClip(wx, wy), { key: 'Ctrl+V', off: !UI.clip, title: UI.clip ? `${UI.clip.parts.length.toLocaleString('en-US')} particles` : 'Nothing copied yet' })) +
     qm2(qmBtn('Particle view', () => toggleParticleView(), { key: 'V', pressed: R.view.bohr === 'nuc', cls: 'tick' }), qmBtn('Orbitals', () => toggleOrbitalView(), { key: 'O', pressed: R.view.bohr === 'orb', cls: 'tick' })) +
@@ -2965,6 +3119,7 @@ function init() {
   cv.addEventListener('pointerleave', () => { if (!UI.drag) { hideTip(); if (!UI.drag) R.overlay = null; } });
   cv.addEventListener('wheel', onWheel, { passive: false });
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
+  { const v = /V\d+/.exec(document.title || ''); const tag = $('verTag'); if (tag) tag.textContent = v ? v[0] : ''; } // (the version, from the page's title)
   qmInit(); settingsInit(); aiInit(); chipsInit();
   window.addEventListener('keydown', onKey);
   $('zIn').onclick = () => zoomAt(R.w / 2, R.h / 2, 1.25);

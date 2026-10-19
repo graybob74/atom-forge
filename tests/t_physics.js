@@ -141,9 +141,10 @@ for (const T of [300, 3000]) {
   if (cells < 1e6 || X.G.cw < X.RC || X.G.ch < X.RC || X.G.cw > 2 * X.CELL_MIN) bad(`grid ${X.G.cols}×${X.G.rows} of ${X.G.cw.toFixed(2)} Å cells: the cells should stay the cutoff wide in a huge box`);
   if (X.G.slots > 4 * W.parts.length + 64) bad(`the grid's table has ${X.G.slots} slots for ${W.parts.length} particles`);
   { // the same water, as a drop in the huge box (in a small box it was 8 Å cells too): the list builds in about the same time
-    X.forcesNoEvents(); const t1 = performance.now(); for (let k = 0; k < 5; k++) { X.buildGrid(X._mdI, X._nmd); X.vlBuild(); } const big = (performance.now() - t1) / 5;
+    const best = () => { let b = 1e9; for (let k = 0; k < 7; k++) { const t = performance.now(); X.buildGrid(X._mdI, X._nmd); X.vlBuild(); b = Math.min(b, performance.now() - t); } return b; }; // (the best of several: a timing, under whatever load the tests run)
+    X.forcesNoEvents(); const big = best();
     W.box.tw = w0; W.box.th = h0; for (let f = 0; f < 10; f++) X.simFrame(1 / 60, 1e9);
-    X.forcesNoEvents(); const t2 = performance.now(); for (let k = 0; k < 5; k++) { X.buildGrid(X._mdI, X._nmd); X.vlBuild(); } const small = (performance.now() - t2) / 5;
+    X.forcesNoEvents(); const small = best();
     info(`  grid + neighbour list: ${big.toFixed(2)} ms in the huge box, ${small.toFixed(2)} ms in the small one (${X.VL.np} pairs)`);
     if (big > 3 * small + 1) bad(`the neighbour list of a drop in a huge box takes ${big.toFixed(1)} ms, ${small.toFixed(1)} in a small box`);
   }

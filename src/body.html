@@ -2,7 +2,7 @@
   <header class="topbar">
     <div class="brand">
       <svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="16" cy="16" rx="13" ry="5.2"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(60 16 16)"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(-60 16 16)"/></g><circle cx="14.6" cy="15.2" r="2.3" fill="#ff5a4e"/><circle cx="17.4" cy="16.8" r="2.3" fill="#a9b4c2"/><circle cx="28.6" cy="16.5" r="1.5" fill="#4da8ff"/></svg>
-      <span>Atom Forge</span><small>particles, atoms and molecules from real physics</small>
+      <span>Atom Forge</span><span class="ver" id="verTag" title="Version"></span><small>particles, atoms and molecules from real physics</small>
     </div>
     <div class="transport">
       <button class="ibtn primary" id="bPlay" title="Pause (Space)" aria-label="Pause"><svg viewBox="0 0 24 24" aria-hidden="true"><g id="icoPause"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></g><path id="icoPlay" d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.3-7.2a.8.8 0 0 0 0-1.4L8.2 4.1a.8.8 0 0 0-1.2.7z" fill="currentColor" style="display:none"/></svg></button>
@@ -141,7 +141,7 @@
           <div class="seg" id="segWall" role="group" aria-label="Walls">
             <button data-v="reflect">Walls</button><button data-v="wrap">Periodic</button><button data-v="open">Open</button>
           </div>
-          <div class="row"><span>Box size</span><span class="val" id="boxVal"></span></div>
+          <div class="row"><span>Box size</span><span class="val"><span id="boxW"></span> × <span id="boxH"></span> Å</span></div>
           <input type="range" id="boxSlider" min="0" max="100" step="1" aria-label="Box size">
           <p class="note">From 20 Å up to 2 µm. A bigger box opens at once (a free expansion); a smaller one closes in through empty space at once and then like a piston: squeeze an insulated gas and it heats up.</p>
         </section>
@@ -181,9 +181,12 @@
           <h3>Sample</h3>
           <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
             <button class="btn small" id="bIdentify" title="Name every molecule in the chamber: tags on the canvas, a count in the log, and new kinds saved to My molecules">Identify molecules</button>
+            <button class="btn small" id="bSaveWorld" title="Save the box, bath, fields and every particle with its bonds and velocity as a JSON file">Save world…</button>
+            <button class="btn small" id="bLoadWorld" title="Load a saved world file (replaces what is in the chamber)">Load world…</button>
             <button class="btn small" id="bClear">Empty the chamber</button>
             <button class="btn small" id="bSrcClear">Remove beam sources</button>
           </div>
+          <p class="note" id="idNote" aria-live="polite" hidden></p>
         </section>
       </div>
 
@@ -411,6 +414,7 @@
     </section>
     <section class="sgroup">
       <h3>Kept in this browser</h3>
+      <div class="srow"><span>My molecules and saved isotopes</span><span><button class="btn small" id="setExport" title="Save them as a JSON file to import on another computer or in the desktop app">Export…</button> <button class="btn small" id="setImport" title="Add the molecules and isotopes from an exported file">Import…</button></span></div>
       <div class="srow"><span id="setMols">My molecules</span><button class="btn small" id="setDelMols">Delete all</button></div>
       <div class="srow"><span id="setIsos">Saved isotopes</span><button class="btn small" id="setDelIsos">Delete all</button></div>
       <div class="srow"><span>These settings</span><button class="btn small" id="setReset">Back to defaults</button></div>

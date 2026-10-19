@@ -2061,7 +2061,7 @@ function landFlights() {
    within a frame; in slow motion, seen going). */
 function rayFrac(r) { return r.landed || !(r.len > 0) ? 1 : clamp((W.t - r.ts) * PHYS.C / r.len, 0, 1); }
 /* Light in flight: time slows until it crosses about 1.5% of the box a frame, so that it is seen going at c. */
-function lightSlow() { return clamp(0.015 * Math.min(W.box.w, W.box.h) / (PHYS.C * (W.baseSpf || W.simPerFrame)), 1e-7, 1); }
+function lightSlow() { return clamp(0.015 * Math.min(W.box.w, W.box.h) / (PHYS.C * W.simPerFrame), 1e-7, 1); } // (against the speed as set, not the setup's: light crosses the box in about 70 frames whatever the Motion setting — it used to cross in one when the motion was sped up)
 function emitNeutrino(x, y, E, ux, uy) {
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
   const t = rayExit(x, y, ux, uy);
@@ -3583,8 +3583,9 @@ function wallOrEscape(p, escape) {
   if ((p.k === POS || p.anti) && W.wall === 'reflect') { annihilateAtWall(p); return true; } // walls are ordinary matter
   if (escape && W.wall === 'reflect' && p.k === NUC && p.ne > 0 && p.Z >= 3) {
     // A recoiling atom (decay daughter, fission fragment, knock-on) is stopped by the wall within nanometres
-    // and comes back off it at the wall's temperature; its kinetic energy goes into the wall. Light
-    // radiation (α, protons, neutrons, electrons) passes on out of the box.
+    // and comes back off it at the wall's temperature; its kinetic energy goes into the wall. Everything else
+    // (α, protons, neutrons, fast electrons, bare nuclei) is reflected by the walls below: a closed box keeps its
+    // particles in — only light (photons, neutrinos) and the mesons of annihilations (W.exo) leave it.
     const K0 = p.rad ? p.KE : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy);
     p.x = clamp(p.x, -hw + 0.6, hw - 0.6); p.y = clamp(p.y, -hh + 0.6, hh - 0.6);
     p.rad = false; p.fast = false;
@@ -3598,7 +3599,7 @@ function wallOrEscape(p, escape) {
     updateFast(p);
     return false;
   }
-  if (escape || W.wall === 'open') {
+  if (W.wall === 'open') {
     if (p.k === NUC && p.Z === 0) W.ledger.escaped += keOf(p);
     else if (p.rad) W.ledger.escaped += p.KE;
     kill(p); return true;
@@ -4903,7 +4904,7 @@ function eventSlow(realDt) {
       v = Math.max(v, p.rad ? p.sp : Math.hypot(p.vx, p.vy));
     }
     for (const o of W.exo) if (!o.dead && o.born >= S.t0 - 1e-9) v = Math.max(v, o.v); // pions, kaons, muons in flight: near c, so a frame moves them 2% of the box too
-    want = v > 0 ? clamp(0.02 * Math.min(W.box.w, W.box.h) / (v * (W.baseSpf || W.simPerFrame)), 1 / 50000, 1) : 1; // (at the setup's normal speed: the speed controls still scale it)
+    want = v > 0 ? clamp(0.02 * Math.min(W.box.w, W.box.h) / (v * W.simPerFrame), 1 / 50000, 1) : 1; // (against the speed as set: the products cross about 2% of the box a frame whatever the Motion setting)
     if (want > 0.99 && age > 0.25) S.on = false;
   } else S.on = false;
   // drop at once (the products must not get away in the first frame), recover gently (in logarithmic time)

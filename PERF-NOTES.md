@@ -76,6 +76,30 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## V32: typed values with units, the tools' figures, walls that keep everything in, a version tag
+- The typed editors (V30) take a unit from a dropdown beside the box (`attachTyped`, unit tables `U_TEMP`, `U_B`, `U_E`,
+  `U_LEN`, `U_TIME`, `U_ENERGY`, `U_LIGHT`); changing the unit converts the number; the box size has a width and a
+  height field; the decay speed has no editor; the periodic label refreshes leave an open editor alone (`setTxt`), which
+  was why the Motion box closed itself. The tool options' figures (radius, energy, temperature, field, wavelength or
+  photon energy, intensity) are editors too (`toolTyped`, made with each build of the bar); a typed value is kept as typed
+  (the slider's log position is not rounded to its steps).
+- Closed walls now reflect everything that reaches them except light, neutrinos and the mesons of annihilations
+  (`wallOrEscape`): α particles, protons, fast neutrons and electrons used to pass out through the walls as radiation;
+  recoiling atoms still thermalise on the wall, antimatter still annihilates there; Open walls still let everything go.
+- A small version tag beside the name (from the page's title).
+- Save world… / Load world… (Lab → Sample, and the right-click menu) write and read the chamber as JSON (`worldToJSON`,
+  `worldFromJSON`: box, bath, fields, pace, every nucleus, atom, ion and free lepton with its velocity, bonds, magnets;
+  radiation in flight, beams, colliders and chips' circuits are not kept). Settings → Export… / Import… carry My molecules
+  and saved isotopes between browsers and the desktop app (`libraryToJSON`, `libraryFromJSON`, merged by name). Saving
+  uses the artifact page's `downloads` capability where it has one (declared at publish, beside `sample`), else a
+  download link; loading is a file picker.
+- Light always travels: the Light tool's Instant mode is gone, and the slow motion that lets light (and an event's
+  products) be watched is reckoned against the speed as set, not the setup's normal speed — sped-up motion used to make
+  light cross the box within a frame. Identify molecules is also in the right-click menu.
+- The user's V31 benchmark at 20,000 atoms on 16 threads: 1.96 ms a step (V30: 3.00): forces 1.29 (kernels 0.30, wait
+  0.15), bath 0.12 (was 1.04), integration 0.23, rest 0.28; 4.5 steps a frame on a 9 ms budget (was 3.5). The serial part
+  of the forces (~0.85 ms: MD bookkeeping, grid build, reduction, candidates) is what is left for a session 4.
+
 ## V31: session 3 — the step on all threads
 - Of a 3.0 ms step at 20,000 atoms on 16 threads (the user's V30 benchmark), the kernels took 0.29 ms; the bath 1.04 ms,
   the list rebuilds ~0.8 ms amortised (5 ms + 2 ms of exclusions every 9 steps) and the integration 0.3 ms ran on the
