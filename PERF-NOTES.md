@@ -76,6 +76,25 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## V29: the grid in a huge box
+- The user's 20,000-atom drop of water in a 20,000 × 14,000 Å box ran at 47–50 fps with 22–27 ms of simulation a frame and
+  130 ms spikes, while the same atoms in a 723 × 465 Å box left room for 72 fps. Cause: the grid was an array over the
+  whole box capped at 100,000 cells, so in that box the cells were 54 Å wide, every cell of the drop held ~170 atoms, and
+  each neighbour-list rebuild compared ~45× more pairs (40 ms for 5,000 atoms; ~160 ms for 20,000).
+- The grid is now a hash table of the occupied cells (`buildGrid`, `gridFind`, `gridHead`, `gridForward`, `gridWalk`):
+  cells are the cutoff wide in any box (`CELL_KEYS = 2^28` is the only bound on their number), the table has twice as many
+  slots as particles, and a cell pair is visited once from the lower key (works for periodic boxes, including ones a cell
+  or two across, where neighbours repeat). A query covering more cells than are occupied walks the occupied cells
+  instead. Rebuild steps in the reproduced world: 46 → 9–12 ms (grid + list 40 → 3.6 ms); small boxes unchanged.
+- The worst-frame note in the fps badge adds "memory cleanup freed N MB" when the JavaScript heap shrank by megabytes in
+  that frame (Chromium's `performance.memory`), to tell a garbage-collection pause from a stall elsewhere.
+
+## V28: the benchmark under the user's settings
+- `benchStart` runs the four worlds with the current settings (particle limit, drawing, physics budget, threads, kernel):
+  a liquid of MAX_PARTS atoms of water, the same number put down with the Place tool, ionized water, the flash byte; each
+  reports ms a step with the profile breakdown, list rebuilds a step, and about a second of real frames (adaptive budget
+  and drawing) as "sim + draw ms, room for N fps".
+
 ## V27: WebGL layer and the adaptive frame budget (`src/gl.js`)
 - The atoms (balls), their glows and the bonds are drawn with WebGL 2 on a canvas of its own (#cvgl) between two
   Canvas 2D canvases: #cvbg under it (background, grid, fields, box, tracks, chip packages) and #cv above it

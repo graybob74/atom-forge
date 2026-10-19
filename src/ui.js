@@ -2488,7 +2488,8 @@ function frame(now) {
   FP.sim = tf1 - tf0; FP.draw = tf2 - tf1; FP.ui = tf3 - tf2;
   FP.drawAvg = 0.9 * (FP.drawAvg || FP.draw) + 0.1 * FP.draw; FP.uiAvg = 0.9 * (FP.uiAvg || FP.ui) + 0.1 * FP.ui; FP.simAvg = 0.9 * (FP.simAvg || FP.sim) + 0.1 * FP.sim; // (smoothed: what the next frame's budget allows for)
   const worstNow = Math.max(total, gap);
-  if (worstNow > FP.worst) { FP.worst = worstNow; FP.worstTxt = gap > total ? `${gap.toFixed(0)} ms between frames` : `sim ${FP.sim.toFixed(0)}, draw ${FP.draw.toFixed(0)}, panels ${FP.ui.toFixed(0)}`; }
+  const heap = performance.memory ? performance.memory.usedJSHeapSize : 0, freed = (FP.heap || 0) - heap; FP.heap = heap; // (Chromium: a heap that shrank by megabytes marks a garbage collection)
+  if (worstNow > FP.worst) { FP.worst = worstNow; FP.worstTxt = (gap > total ? `${gap.toFixed(0)} ms between frames` : `sim ${FP.sim.toFixed(0)}, draw ${FP.draw.toFixed(0)}, panels ${FP.ui.toFixed(0)}`) + (freed > 2e6 ? `, memory cleanup freed ${(freed / 1e6).toFixed(0)} MB` : ''); }
   requestAnimationFrame(frame);
 }
 function setRunning(r) {

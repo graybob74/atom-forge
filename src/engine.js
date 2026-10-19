@@ -816,8 +816,8 @@ function Bgrad(x, y, out) { // returns B and fills out=[dB/dx, dB/dy]
 }
 
 /* ------------------------------------------------------------------ spatial grid */
-const G = { cols: 0, rows: 0, cw: 1, ch: 1, hx: 1, hy: 1, head: new Int32Array(1), next: new Int32Array(1), _list: [], _listN: -1, _listGen: -1, n: 0, nb: null, fw: null,
-  key: '', px: new Float64Array(16), py: new Float64Array(16), occ: new Int32Array(16), nocc: 0 };
+const G = { cols: 0, rows: 0, cw: 1, ch: 1, hx: 1, hy: 1, wrap: false, bits: 0, shift: 32, mask: 0, keys: new Int32Array(1), head: new Int32Array(1), next: new Int32Array(1),
+  _list: [], _listN: -1, _listGen: -1, n: 0, px: new Float64Array(16), py: new Float64Array(16), occ: new Int32Array(16), nocc: 0, slots: 1 };
 /* Cell of a point: cells tile the box with a 1 Å margin for closed walls, and exactly for periodic ones, so that the
    cells at opposite edges are neighbours across the boundary (a margin there hid pairs within the cutoff). */
 /* G.list: the particles the grid was built over, as objects, in grid order (made the first time it is asked for after a
@@ -830,63 +830,84 @@ Object.defineProperty(G, 'list', { get() {
   return L;
 } });
 let _gridGen = 0;
+/* The grid is a hash table of the occupied cells, not an array over the box: cells are the cutoff wide whatever the
+   box's size (a 2 µm box has millions of them; a world of 20,000 atoms occupies a few thousand), so a dense drop of
+   liquid in a huge box costs no more to search than the same drop in a small one. (Cells wide enough to keep an array
+   small made every cell of such a drop hold hundreds of atoms, and building the neighbour list took 40× longer.)
+   A cell's key is cy * cols + cx; gridFind gives its slot in the table or -1; G.head[slot] starts its particle chain,
+   G.keys[slot] its key, and G.occ lists the occupied slots. The table has at least twice as many slots as particles,
+   so a probe always ends. */
 function gridCell(x, y) {
   let cx = Math.floor((x + G.hx) / G.cw), cy = Math.floor((y + G.hy) / G.ch);
-  if (W.wall === 'wrap') { cx = ((cx % G.cols) + G.cols) % G.cols; cy = ((cy % G.rows) + G.rows) % G.rows; }
+  if (G.wrap) { cx = ((cx % G.cols) + G.cols) % G.cols; cy = ((cy % G.rows) + G.rows) % G.rows; }
   else { cx = cx < 0 ? 0 : cx >= G.cols ? G.cols - 1 : cx; cy = cy < 0 ? 0 : cy >= G.rows ? G.rows - 1 : cy; }
   return cy * G.cols + cx;
 }
-/* Cells are at least the cutoff wide; in a very large box they grow so there are never more than CELL_CAP of them
-   (each still finds every pair within the cutoff among its neighbours), and their count changes only in steps of
-   a few per cent, so a box being resized does not rebuild the grid at every step. */
-const CELL_CAP = 100000;
-const gridCount = (x) => { const f = Math.max(1, Math.floor(x)); return f <= 24 ? f : Math.floor(24 * Math.pow(1.04, Math.floor(Math.log(f / 24) / Math.log(1.04)))); };
+function gridFind(key) {
+  const keys = G.keys, mask = G.mask;
+  let s = Math.imul(key, 0x9E3779B1) >>> G.shift;
+  for (;;) { const k = keys[s]; if (k === key) return s; if (k === -1) return -1; s = (s + 1) & mask; }
+}
+/* The first particle of the cell at column cx, row cy (already wrapped or clamped into range), or -1 when it is empty. */
+function gridHead(cx, cy) { const s = gridFind(cy * G.cols + cx); return s === -1 ? -1 : G.head[s]; }
+const CELL_KEYS = 1 << 28; // (cells grow only when a box would have more cells than keys fit in; no box the sliders allow does)
 function buildGrid(idx, n) {
-  const pad = W.wall === 'wrap' ? 0 : 2, w = W.box.w + pad, h = W.box.h + pad, cs = Math.max(CELL_MIN, Math.sqrt(w * h / CELL_CAP));
-  const cols = gridCount(w / cs), rows = gridCount(h / cs);
-  const key = cols + 'x' + rows + W.wall;
-  if (key !== G.key) {
-    G.key = key; G.cols = cols; G.rows = rows; G.head = new Int32Array(cols * rows);
-    const wrap = W.wall === 'wrap', nc = cols * rows;
-    G.nb = new Array(nc); G.fw = new Array(nc);
-    if (!wrap || (cols >= 3 && rows >= 3)) { // every neighbour cell distinct: the forward half of the 3 × 3 block holds each pair once
-      for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
-        const nb = [], fw = [];
-        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
-          let x = cx + ox, y = cy + oy;
-          if (wrap) { x = (x + cols) % cols; y = (y + rows) % rows; } else if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
-          const n = y * cols + x;
-          nb.push(n);
-          if (oy > 0 || (oy === 0 && ox > 0)) fw.push(n);
-        }
-        G.nb[cy * cols + cx] = nb; G.fw[cy * cols + cx] = fw;
-      }
-    } else { // a periodic box only one or two cells across: neighbours repeat, so each pair is listed once explicitly
-      const wrapc = (cx, cy) => ((cy + rows) % rows) * cols + (cx + cols) % cols, seen = new Set();
-      for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
-        const c = cy * cols + cx, st = new Set(), f = [];
-        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) st.add(wrapc(cx + ox, cy + oy));
-        for (const n of st) {
-          if (n === c) continue;
-          const k = Math.min(c, n) * 1e6 + Math.max(c, n);
-          if (seen.has(k)) continue;
-          seen.add(k); f.push(n);
-        }
-        G.nb[c] = [...st]; G.fw[c] = f;
-      }
-    }
-  }
-  G.cw = w / cols; G.ch = h / rows; G.hx = w / 2; G.hy = h / 2;
-  G.head.fill(-1);
+  const wrap = W.wall === 'wrap', pad = wrap ? 0 : 2, w = W.box.w + pad, h = W.box.h + pad, cs = Math.max(CELL_MIN, Math.sqrt(w * h / CELL_KEYS));
+  const cols = Math.max(1, Math.floor(w / cs)), rows = Math.max(1, Math.floor(h / cs));
+  G.cols = cols; G.rows = rows; G.cw = w / cols; G.ch = h / rows; G.hx = w / 2; G.hy = h / 2; G.wrap = wrap;
+  let bits = 4; while ((1 << bits) < 2 * n + 16) bits++;
+  if (G.bits !== bits) { G.bits = bits; G.slots = 1 << bits; G.keys = new Int32Array(G.slots); G.head = new Int32Array(G.slots); G.shift = 32 - bits; G.mask = G.slots - 1; }
+  G.keys.fill(-1);
   if (G.next.length < n) { G.next = new Int32Array(n * 2 + 16); G.px = new Float64Array(n * 2 + 16); G.py = new Float64Array(n * 2 + 16); G.occ = new Int32Array(n * 2 + 16); }
   G.n = n; G.nocc = 0; _gridGen++;
-  const X = S.x, Y = S.y, px = G.px, py = G.py, head = G.head, next = G.next, occ = G.occ;
+  const X = S.x, Y = S.y, px = G.px, py = G.py, head = G.head, next = G.next, occ = G.occ, keys = G.keys, mask = G.mask, shift = G.shift;
+  let nocc = 0;
   for (let i = 0; i < n; i++) {
     const x = X[idx[i]], y = Y[idx[i]];
     px[i] = x; py[i] = y;
-    const c = gridCell(x, y);
-    if (head[c] === -1) occ[G.nocc++] = c; // (the occupied cells, so the force loop skips empty space)
-    next[i] = head[c]; head[c] = i;
+    const key = gridCell(x, y);
+    let s = Math.imul(key, 0x9E3779B1) >>> shift;
+    for (;;) { const k = keys[s]; if (k === key) break; if (k === -1) { keys[s] = key; head[s] = -1; occ[nocc++] = s; break; } s = (s + 1) & mask; }
+    next[i] = head[s]; head[s] = i;
+  }
+  G.nocc = nocc;
+}
+/* The occupied cells among the neighbours of cell (cx, cy) whose key is greater than its own, as slots, into out (returns
+   their number): each pair of neighbouring cells is then visited once, from the lower key, whether the box is periodic
+   (where a neighbour across the boundary may have the lower key) or only a cell or two across (where neighbours repeat). */
+function gridForward(cx, cy, key, out) {
+  const cols = G.cols, rows = G.rows, wrap = G.wrap; let m = 0;
+  for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+    let x = cx + ox, y = cy + oy;
+    if (wrap) { x = (x + cols) % cols; y = (y + rows) % rows; } else if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
+    const k = y * cols + x;
+    if (k <= key) continue;
+    const s = gridFind(k);
+    if (s === -1) continue;
+    let dup = false; for (let q = 0; q < m; q++) if (out[q] === s) { dup = true; break; } // (a tiny periodic box: the same cell from two sides)
+    if (!dup) out[m++] = s;
+  }
+  return m;
+}
+const _fwd = new Int32Array(8);
+/* Walk the particles of the cells covering a rectangle of cell coordinates (unwrapped; wrapped into the box here):
+   cb(i) with the grid index. When the rectangle holds more cells than are occupied, the occupied cells are walked
+   instead (every particle is then offered: callers test distances themselves). */
+function gridWalk(x0, y0, x1, y1, cb) {
+  const cols = G.cols, rows = G.rows, wrap = G.wrap, head = G.head, next = G.next;
+  if (!wrap) { x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(cols - 1, x1); y1 = Math.min(rows - 1, y1); }
+  else { if (x1 - x0 + 1 >= cols) { x0 = 0; x1 = cols - 1; } if (y1 - y0 + 1 >= rows) { y0 = 0; y1 = rows - 1; } }
+  if ((x1 - x0 + 1) * (y1 - y0 + 1) > G.nocc) {
+    const occ = G.occ, nocc = G.nocc;
+    for (let q = 0; q < nocc; q++) for (let i = head[occ[q]]; i !== -1; i = next[i]) if (cb(i) === false) return;
+    return;
+  }
+  for (let cy = y0; cy <= y1; cy++) {
+    const ry = wrap ? ((cy % rows) + rows) % rows : cy;
+    for (let cx = x0; cx <= x1; cx++) {
+      const rx = wrap ? ((cx % cols) + cols) % cols : cx;
+      for (let i = gridHead(rx, ry); i !== -1; i = next[i]) if (cb(i) === false) return;
+    }
   }
 }
 /* ---- neighbour (Verlet) list of the MD particles ----
@@ -922,11 +943,11 @@ function vlBuild() { // from the grid just built over _md (G.px/py are their pos
   if (VL.bx.length < nN) { VL.bx = new Float64Array(nN * 2 + 16); VL.by = new Float64Array(nN * 2 + 16); }
   for (let q = 0; q < nN; q++) { VL.bx[q] = X[nI[q]]; VL.by[q] = Y[nI[q]]; }
   VL.gen = _mdGen; VL.w = W.box.w; VL.h = W.box.h; VL.wall = W.wall;
-  const px = G.px, py = G.py, head = G.head, next = G.next, fw = G.fw, occ = G.occ, nocc = G.nocc;
+  const px = G.px, py = G.py, head = G.head, next = G.next, occ = G.occ, nocc = G.nocc, keys = G.keys, cols = G.cols, f = _fwd;
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   let pi = VL.pi, pj = VL.pj, np = 0, cap = pi.length;
   for (let oc = 0; oc < nocc; oc++) {
-    const c = occ[oc], f = fw[c];
+    const c = occ[oc], key = keys[c], nf = gridForward(key % cols, (key / cols) | 0, key, f);
     for (let i = head[c]; i !== -1; i = next[i]) {
       const si = idx[i];
       if (K[si] !== NUC) continue;
@@ -939,7 +960,7 @@ function vlBuild() { // from the grid just built over _md (G.px/py are their pos
         if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
         if (dx * dx + dy * dy < RL2) { pi[np] = si; pj[np] = sj; np++; }
       }
-      for (let q = 0; q < f.length; q++) { // forward neighbour cells
+      for (let q = 0; q < nf; q++) { // neighbour cells with a greater key
         for (let j = head[f[q]]; j !== -1; j = next[j]) {
           const sj = idx[j];
           if (K[sj] !== NUC) continue;
@@ -992,24 +1013,15 @@ function nearby(x, y, R, cb) {
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, R2 = R * R;
   const sx = Math.ceil(R / G.cw), sy = Math.ceil(R / G.ch);
   const ccx = Math.floor((x + G.hx) / G.cw), ccy = Math.floor((y + G.hy) / G.ch);
-  let x0 = ccx - sx, x1 = ccx + sx, y0 = ccy - sy, y1 = ccy + sy;
-  if (!wrap) { x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(G.cols - 1, x1); y1 = Math.min(G.rows - 1, y1); }
-  else { if (x1 - x0 + 1 >= G.cols) { x0 = 0; x1 = G.cols - 1; } if (y1 - y0 + 1 >= G.rows) { y0 = 0; y1 = G.rows - 1; } }
   const L = G.list;
-  for (let cy = y0; cy <= y1; cy++) {
-    const ry = wrap ? ((cy % G.rows) + G.rows) % G.rows : cy;
-    for (let cx = x0; cx <= x1; cx++) {
-      const rx = wrap ? ((cx % G.cols) + G.cols) % G.cols : cx;
-      for (let i = G.head[ry * G.cols + rx]; i !== -1; i = G.next[i]) {
-        const p = L[i];
-        if (p.dead) continue;
-        let dx = p.x - x, dy = p.y - y;
-        if (wrap) { if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw; if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh; }
-        const r2 = dx * dx + dy * dy;
-        if (r2 <= R2 && cb(p, dx, dy, r2) === false) return;
-      }
-    }
-  }
+  gridWalk(ccx - sx, ccy - sy, ccx + sx, ccy + sy, (i) => {
+    const p = L[i];
+    if (p.dead) return;
+    let dx = p.x - x, dy = p.y - y;
+    if (wrap) { if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw; if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh; }
+    const r2 = dx * dx + dy * dy;
+    if (r2 <= R2 && cb(p, dx, dy, r2) === false) return false;
+  });
 }
 
 /* ------------------------------------------------------------------ pair interactions */
@@ -3459,20 +3471,17 @@ function segTargets(x0, y0, x1, y1, R, filter) {
     return _hits;
   }
   const minx = Math.min(x0, x1) - R, maxx = Math.max(x0, x1) + R, miny = Math.min(y0, y1) - R, maxy = Math.max(y0, y1) + R;
-  const cx0 = clamp(Math.floor((minx + G.hx) / G.cw), 0, G.cols - 1), cx1 = clamp(Math.floor((maxx + G.hx) / G.cw), 0, G.cols - 1);
-  const cy0 = clamp(Math.floor((miny + G.hy) / G.ch), 0, G.rows - 1), cy1 = clamp(Math.floor((maxy + G.hy) / G.ch), 0, G.rows - 1);
+  const cx0 = Math.floor((minx + G.hx) / G.cw), cx1 = Math.floor((maxx + G.hx) / G.cw), cy0 = Math.floor((miny + G.hy) / G.ch), cy1 = Math.floor((maxy + G.hy) / G.ch);
   const L = G.list;
-  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
-    for (let i = G.head[cy * G.cols + cx]; i !== -1; i = G.next[i]) {
-      const p = L[i];
-      if (p.dead || !filter(p)) continue;
-      const px = p.x - x0, py = p.y - y0;
-      const t = (px * dx + py * dy) / L2;
-      if (t < 0 || t >= 1) continue; // passed in the previous step, or not yet reached
-      const ex = px - t * dx, ey = py - t * dy, b2 = ex * ex + ey * ey;
-      if (b2 < R * R) _hits.push([t, p, Math.sqrt(b2)]);
-    }
-  }
+  gridWalk(cx0, cy0, cx1, cy1, (i) => {
+    const p = L[i];
+    if (p.dead || !filter(p)) return;
+    const px = p.x - x0, py = p.y - y0;
+    const t = (px * dx + py * dy) / L2;
+    if (t < 0 || t >= 1) return; // passed in the previous step, or not yet reached
+    const ex = px - t * dx, ey = py - t * dy, b2 = ex * ex + ey * ey;
+    if (b2 < R * R) _hits.push([t, p, Math.sqrt(b2)]);
+  });
   _hits.sort((a, b) => a[0] - b[0]);
   return _hits;
 }
@@ -4241,7 +4250,7 @@ function flBuild() {
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   // the grid (built over _md at the last computeForces) finds the atoms: they may have moved since, by at most dG, so
   // the cells scanned reach RC + SKIN_F + dG from each lepton
-  const px = G.px, py = G.py, head = G.head, next = G.next, cols = G.cols, rows = G.rows;
+  const px = G.px, py = G.py, next = G.next, cols = G.cols, rows = G.rows;
   let dG2 = 0;
   for (let i = 0; i < n; i++) {
     const si = idx[i];
@@ -4265,7 +4274,7 @@ function flBuild() {
       const ry = wrap ? ((cy % rows) + rows) % rows : cy;
       for (let cx = x0; cx <= x1; cx++) {
         const rx = wrap ? ((cx % cols) + cols) % cols : cx;
-        for (let k = head[ry * cols + rx]; k !== -1; k = next[k]) {
+        for (let k = gridHead(rx, ry); k !== -1; k = next[k]) {
           const A = idx[k];
           if (K[A] !== NUC || Z[A] === 0 || S.dead[A] === 1 || S.fast[A] === 1 || S.rad[A] === 1) continue;
           let dx = X[A] - lx, dy = Y[A] - ly;

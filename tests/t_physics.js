@@ -124,8 +124,9 @@ for (const T of [300, 3000]) {
   if (Math.abs(Math.abs(vd) / vth - 1) > 0.05) bad(`E×B drift ${Math.abs(vd).toExponential(3)} Å/tu, theory ${vth.toExponential(3)}`);
   info(`E×B drift ${Math.abs(vd).toExponential(3)} Å/tu (theory E/B = ${vth.toExponential(3)})`);
 }
-// 6. a very large box: the grid stays bounded (cells never narrower than the cutoff, never more than CELL_CAP), a
-//    liquid in it keeps its energy, and the walls close back in through the empty space at once
+// 6. a very large box: the grid's cells stay the cutoff wide and its table stays the size of the world, not the box
+//    (a hash of the occupied cells), a liquid in it keeps its energy, and the walls close back in through the empty
+//    space at once; then a dense drop in the huge box builds its neighbour list as fast as in a small one
 {
   const X = load('all', { seed: 5 });
   const { W } = X;
@@ -135,9 +136,17 @@ for (const T of [300, 3000]) {
   const E0 = X.totalEnergy().total, t0 = Date.now();
   for (let f = 0; f < 40; f++) X.simFrame(1 / 60, 1e9);
   const ms = (Date.now() - t0) / 40, E1 = X.totalEnergy().total, cells = X.G.cols * X.G.rows;
-  info(`water in a 20,000 Å box: ${X.G.cols}×${X.G.rows} cells of ${X.G.cw.toFixed(1)} Å, ${ms.toFixed(1)} ms a frame, energy ${E0.toFixed(2)} → ${E1.toFixed(2)} eV`);
+  info(`water in a 20,000 Å box: ${X.G.cols}×${X.G.rows} cells of ${X.G.cw.toFixed(1)} Å, ${X.G.nocc} occupied in a table of ${X.G.slots}, ${ms.toFixed(1)} ms a frame, energy ${E0.toFixed(2)} → ${E1.toFixed(2)} eV`);
   if (W.box.w !== 20000) bad(`the box grew to ${W.box.w} Å, not at once to 20,000 Å`);
-  if (cells > X.CELL_CAP || X.G.cw < X.RC || X.G.ch < X.RC) bad(`grid ${X.G.cols}×${X.G.rows} of ${X.G.cw.toFixed(2)} Å cells breaks its bounds`);
+  if (cells < 1e6 || X.G.cw < X.RC || X.G.ch < X.RC || X.G.cw > 2 * X.CELL_MIN) bad(`grid ${X.G.cols}×${X.G.rows} of ${X.G.cw.toFixed(2)} Å cells: the cells should stay the cutoff wide in a huge box`);
+  if (X.G.slots > 4 * W.parts.length + 64) bad(`the grid's table has ${X.G.slots} slots for ${W.parts.length} particles`);
+  { // the same water, as a drop in the huge box (in a small box it was 8 Å cells too): the list builds in about the same time
+    X.forcesNoEvents(); const t1 = performance.now(); for (let k = 0; k < 5; k++) { X.buildGrid(X._mdI, X._nmd); X.vlBuild(); } const big = (performance.now() - t1) / 5;
+    W.box.tw = w0; W.box.th = h0; for (let f = 0; f < 10; f++) X.simFrame(1 / 60, 1e9);
+    X.forcesNoEvents(); const t2 = performance.now(); for (let k = 0; k < 5; k++) { X.buildGrid(X._mdI, X._nmd); X.vlBuild(); } const small = (performance.now() - t2) / 5;
+    info(`  grid + neighbour list: ${big.toFixed(2)} ms in the huge box, ${small.toFixed(2)} ms in the small one (${X.VL.np} pairs)`);
+    if (big > 3 * small + 1) bad(`the neighbour list of a drop in a huge box takes ${big.toFixed(1)} ms, ${small.toFixed(1)} in a small box`);
+  }
   if (!Number.isFinite(E1) || Math.abs(E1 - E0) > 0.002 * Math.abs(E0)) bad(`energy in the large box drifted ${E0.toFixed(2)} → ${E1.toFixed(2)} eV`);
   W.box.tw = w0; W.box.th = h0;
   for (let f = 0; f < 10; f++) X.simFrame(1 / 60, 1e9);
