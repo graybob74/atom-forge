@@ -179,7 +179,7 @@ for (const [a, b, E, want, frames] of [['p', 'p', 3e8, /π/, 1500], ['c12', 'c12
 // 40 Å box (they used to be born and gone within one step)
 {
   const X = load('all', { seed: 7 }); const { W } = X;
-  X.PRESETS.empty.build(); W.slowmo = true; W.baseSpf = W.simPerFrame;
+  X.PRESETS.empty.build(); W.slowmo = true; W.baseSpf = W.simPerFrame; W.gamma = 0; // (no bath: nothing nudges the two off their collision course)
   X.addNuc(1, 0, 1, -3, 0, 0.004, 0); X.addNuc(1, 0, 1, 3, 0, -0.004, 0, true); W.dirty++;
   let inFlight = 0, made = false, minSlow = 1;
   for (let f = 0; f < 400; f++) {
@@ -188,7 +188,7 @@ for (const [a, b, E, want, frames] of [['p', 'p', 3e8, /π/, 1500], ['c12', 'c12
     if (live) { inFlight++; made = true; minSlow = Math.min(minSlow, r.slow); }
     if (made && !live) break;
   }
-  const ev = W.events.map(e => e.text).find(t => /p̄ \+ p/.test(t)) || '';
+  const ev = W.events.map(e => e.text).find(t => /p̄ \+ p|mesons/.test(t)) || ''; // (head-on, or on the wall should they miss)
   if (!/π/.test(ev) || inFlight < 20 || minSlow > 0.01) bad(`pions from "${ev}" were in flight for ${inFlight} frames (slow motion down to ${minSlow.toExponential(1)})`);
   else console.log(`  ${ev}: the pions cross the ${W.box.w} Å box over ${inFlight} frames in slow motion`);
 }

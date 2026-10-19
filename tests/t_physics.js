@@ -289,5 +289,22 @@ for (const T of [300, 3000]) {
   info(`ionization: 6 molecules ionized → all electrons back after ${f} frames (energy drift ${drift.toFixed(2)} eV); then 40 more: ${C.join} capture trials and ${C.cf} force recounts in ${C.steps} steps with ${nE} free electrons`);
   if (!(back && Math.abs(drift) < 5 + 0.02 * keEnd && C.join < 40 * C.steps * 0.5 + 20 && C.cf < 4 * C.steps + 20)) bad(`ionization lag or recombination: ${JSON.stringify({ back, f, drift, C, nE })}`);
 }
+// the force pass keeps its particle lists when nothing that defines them changed: a busy world (reactions, ions, fast
+// particles) runs bit for bit the same with the lists kept and with them made afresh at every pass
+{
+  for (const pre of ['flame', 'soup']) {
+  const run = (keep) => {
+    const X = load('all', { seed: 9 }); const { W } = X; X._clsOk = keep;
+    X.PRESETS[pre].build(); X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned;
+    for (let i = 0; i < 1500; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+    let h = 0; for (const p of W.parts) if (!p.dead) h += p.x * 1.1 + p.y * 1.3 + p.vx * 7 + p.vy * 11 + p.q * 3;
+    return { h, n: W.parts.filter(p => !p.dead).length, ev: JSON.stringify(W.count), kept: X._clsHits };
+  };
+  const a = run(true), b = run(false);
+  info(`kept force lists, ${pre}: ${a.kept} passes of 1,500+ steps reused them; trajectories ${a.h === b.h && a.ev === b.ev ? 'identical' : 'DIFFER'} to a fresh build each pass (${a.n} particles, events ${a.ev})`);
+  if (a.h !== b.h || a.n !== b.n || a.ev !== b.ev) bad(`keeping the force lists changed the simulation: ${a.h} vs ${b.h}, ${a.ev} vs ${b.ev}`);
+  if (!(a.kept > 100)) bad(`the force lists were kept only ${a.kept} times`);
+  }
+}
 console.log(fails ? `${fails} physics failure(s)` : 'physics checks passed');
 process.exitCode = fails ? 1 : 0;

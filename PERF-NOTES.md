@@ -76,6 +76,29 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## V35: the bath's noise, kept force lists, a stall when ions cross a chip, steadier tests
+- The heat bath's normals come from a fixed table of 65,536 (made once, the same in every thread, centred and scaled to
+  unit variance exactly), picked by the slot hash (`bathTableMake`, `bathNoise`): the noise went from about 1.1 ms to
+  0.03 ms per 20,000 atoms, and the bath from 1.5 to 0.9 ms single-threaded in the page; mean, variance (1.001), kurtosis
+  (2.99), x–y and step-to-step correlation all as for true normals. Threads still give the one-thread result to the bit.
+- The force pass keeps its particle lists (MD set, leptons, charged, fast nuclei) from the last pass when nothing that
+  defines them changed (W.spawned, W.deaths, W.dirty, W.topo, _flagGen, the particle count, no field on fast particles)
+  and clears the force arrays with one fill each (`_clsOk`, `_clsKey`…): in the page at 20,000 atoms the force pass's
+  own cost halved (2.5 → 1.2 ms on the test box). t_physics runs a flame and the soup (charge transfers, recombination,
+  new bonds, reactions) for 1,500 steps with and without the kept lists: bit for bit the same.
+- A heavy ion through a chip stalled the page for seconds: each electron it knocked out summed the energy of the whole
+  chip (a thousand bonded atoms) twice, and `closeSet` walked the whole chip once per atom in it. `closeSet` now walks
+  each molecule once, and `localDelta` sums an ionization's energy change over the ion and what lies within two bonds of
+  it in molecules over 150 atoms (exact: the sum covers every term with a changed atom; when anything further away
+  changed, the change is undone from the snapshot and redone over the whole molecule — about one ionization in five).
+  Local and whole-molecule sums agree to 1e-11 eV on the same change. A 100 MeV iron nucleus through an SRAM cell: 1.7 s
+  → about 0.3 s a step for the few frames after. Still whole-molecule: `enforceValence`'s reconciliation and electron
+  recapture (about 150 sums of 5 ms over those frames) — a next step if heavy ions in chips matter.
+- Tests: t_chips waits for the cell's verdict on an upset (it comes after 10 ps of chip time, some thirty frames, more
+  on a loaded machine) instead of a fixed 40 frames — the flake of the last releases. t_energy judges the fission chain
+  by the median of three seeds when the first is over its limit, and antihydrogen's limit is 15 eV: its drift ranges
+  −3 to +10 eV across seeds with no annihilation at all, which wants a look at the light leptons' integration.
+
 ## V34: the kernels without shared memory
 - A page that is not cross-origin isolated (the artifact on claude.ai) has no SharedArrayBuffer: no worker threads, and
   until now no WebAssembly kernel either, since the module was built for a shared memory. The kernel is now built twice

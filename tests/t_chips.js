@@ -111,7 +111,9 @@ for (const key of Object.keys(X.CHIP_LAYOUT)) {
   X.chipOp(s, 'write', 1); until(s);
   const dv = s.devs[1], bx = X.chipBox(dv.path.concat(dv.gate)), xm = (bx[0] + bx[1]) / 2;
   X.fireSpec({ kind: 'atom', Z: 1, A: 1, bare: true }, xm, 66, 0, -1, 2e6, true); run(40); const afterP = X.srBit(s), msgP = s.msg;
-  X.fireSpec({ kind: 'atom', Z: 26, A: 56, bare: true }, xm, 66, 0, -1, 1e8, true); let msgO = ''; for (let f = 0; f < 40; f++) { run(1); if (/Bit flipped/.test(s.msg)) msgO = s.msg; } const afterO = X.srBit(s);
+  X.fireSpec({ kind: 'atom', Z: 26, A: 56, bare: true }, xm, 66, 0, -1, 1e8, true); let msgO = '';
+  for (let f = 0; f < 400 && !(msgO && !s.hit); f++) { run(1); if (/Bit flipped/.test(s.msg)) msgO = s.msg; } // (the verdict comes once the cell's circuit has had 10 ps of chip time: some thirty frames, more on a loaded machine, where fewer steps fit in a frame)
+  const afterO = X.srBit(s);
   info(`ring oscillator: gate 1 flipped ${tog} times in 200 frames, ${ghz.toFixed(0)} GHz; chain ${before} → input 1 → ${after}, the last gate following in ${fc} frames`);
   info(`radiation: after a 2 MeV proton the cell holds ${afterP} (“${msgP.slice(0, 70)}”); after a 100 MeV iron nucleus ${afterO} (“${msgO.slice(0, 70)}”), ${s.broken ? 'broken' : 'still working'}`);
   if (!(tog >= 6 && ghz > 20 && ghz < 300 && before === '1010' && after === '0101' && fc > 5 && fc < 120 && afterP === 1 && afterO === 0 && /Bit flipped/.test(msgO) && s.flips === 1 && !s.broken)) bad('wired gates or radiation upsets do not behave');

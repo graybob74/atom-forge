@@ -470,7 +470,38 @@ function restoreSnap(sn) {
   relink([...sn.set]); // (which spreads the charges over each molecule)
   W.count.broken = sn.broken;
 }
-function closeSet(set) { for (const q of [...set]) for (const m of molecule(q)) set.add(m); return set; }
+/* The potential energy a change to atom p makes (change(): an ionization, a capture …), over the set (p's molecule).
+   localPE(S) sums every term with an atom of S in it, so the difference before and after over S is exact when every atom
+   the change touched is in S. In a big molecule (a chip is a thousand bonded atoms) S is p and what lies within two bonds
+   of it — a charge spreads by resonance only that far — instead of the whole molecule, which made each of the dozens of
+   ionizations along an ion's track through a chip cost a whole-chip sum twice (a stall of a second or more). The whole
+   molecule is checked afterwards by a cheap fingerprint; when anything beyond S moved or changed (a broken bond pushing
+   fragments apart), the change is undone from the snapshot and done again over the whole molecule. */
+let LOCAL_MOL = 150; // (a let: the tests compare against the whole-molecule sum by raising it)
+function localDelta(p, set, sn, change) {
+  if (set.size <= LOCAL_MOL) { const U0 = localPE(set); change(); return localPE(closeSet(set)) - U0; }
+  const S = new Set([p]);
+  for (const bd of p.bonds) { const a = other(bd, p); S.add(a); for (const b2 of a.bonds) S.add(other(b2, a)); }
+  const print = (q) => q.x * 1.000003 + q.y * 1.7 + q.q * 3.1 + q.qp * 5.3 + q.rd * 7.9 + q.ne * 11 + q.bonds.length * 13;
+  const before = new Map(); for (const q of set) if (!S.has(q)) before.set(q, print(q));
+  const U0 = localPE(S);
+  change();
+  let local = true;
+  for (const [q, v] of before) if (q.dead || print(q) !== v) { local = false; break; }
+  if (local) return localPE(S) - U0;
+  _localMiss++;
+  restoreSnap(sn); // (beyond the neighbourhood: undo, and do it again over the whole molecule)
+  const U1 = localPE(set); change(); return localPE(closeSet(set)) - U1;
+}
+let _localMiss = 0;
+/* The set grown to whole molecules: each molecule is walked once (an atom already reached is skipped), so a set inside a
+   chip of a thousand bonded atoms costs one walk, not a thousand — an ion track through a chip ejects hundreds of electrons,
+   each calling this, and the step stalled for seconds. */
+function closeSet(set) {
+  const done = new Set();
+  for (const q of [...set]) { if (done.has(q)) continue; for (const m of molecule(q)) { set.add(m); done.add(m); } }
+  return set;
+}
 
 /* Reduce bonding if an atom's capacity dropped (after ionization, capture, transfer…). The energy to
    break the bonds (`budget`, already paid by the caller) is reconciled with the actual change in local
@@ -1779,8 +1810,9 @@ function computeForces() {
   computeForces1();
 }
 const TH_LAST = { used: 0, ms: 0, wait: 0 }; // (what the last force pass's kernels cost: filled by nucleusPairs)
+let _clsOk = true, _clsN = -1, _clsKey = -1, _clsFlag = -1, _clsParts = null, _clsHits = 0; // (the force pass's lists kept from the last pass: _clsOk false forces them to be made every time, for tests)
 function computeForces1() {
-  _fastNuc.length = 0; _charged.length = 0; _late.length = 0; _mdL.length = 0; _stiff = 0; _stiffL = 0; _nNucMD = 0;
+  _late.length = 0; _stiff = 0; _stiffL = 0;
   let tp = _profOn ? performance.now() : 0;
   const fieldE = hasEfield();
   const parts = W.parts, n = parts.length, PI = partsSync();
@@ -1790,6 +1822,15 @@ function computeForces1() {
   if (_mdNI.length < n) _mdNI = new Int32Array(n * 2 + 64);
   const FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, DEAD = S.dead, K = S.k, Z = S.Z, RAD = S.rad, FAST = S.fast, Q = S.q, INMD = S.inMD, NEAR = S.nearIon, X = S.x, Y = S.y, OBJ = S.obj;
   const mdI = _mdI, mdLI = _mdLI, chI = _chI, mdNI = _mdNI;
+  // The lists below (MD set, leptons, charged, fast nuclei) depend only on which particles exist, their kinds, charges
+  // and dead/fast/rad flags: when none of that has changed since the last pass (and no field pushes the fast ones) they
+  // are kept, and only the forces are cleared, with one fill per array instead of six writes per particle.
+  const ckey = W.spawned * 1e9 + W.deaths * 1e5 + W.dirty + 0.5 * W.topo, same = _clsOk && !fieldE && _clsN === n && _clsKey === ckey && _clsFlag === _flagGen && _clsParts === parts;
+  if (same) {
+    const hi = S.hi; FX.fill(0, 0, hi); FY.fill(0, 0, hi); GX.fill(0, 0, hi); GY.fill(0, 0, hi); NEAR.fill(0, 0, hi);
+    _late.length = 0; _flagGenForces = _flagGen; _clsHits++;
+  } else {
+  _fastNuc.length = 0; _charged.length = 0; _mdL.length = 0; _nNucMD = 0;
   let nmd = 0, nmdL = 0, nch0 = 0, nmdN = 0, nFastLep = 0;
   for (let j = 0; j < n; j++) {
     const i = PI[j];
@@ -1813,6 +1854,9 @@ function computeForces1() {
     if (same) { const pv = _mdPrev; for (let q = 0; q < nmd; q++) if (pv[q] !== mdI[q]) { same = false; break; } }
     if (!same) { _mdGen++; if (_mdPrev.length < nmd) _mdPrev = new Int32Array(nmd * 2 + 64); _mdPrev.set(mdI.subarray(0, nmd)); _nmdPrev = nmd; }
   }
+  _clsN = n; _clsKey = ckey; _clsFlag = _flagGen; _clsParts = parts;
+  }
+  const nmd = _nmd, nmdL = _nmdL;
   gridTouch(); // (the MD set is this pass's; the grid is built when something asks for it)
   if (_profOn) { const t = performance.now(); _tClass += t - tp; tp = t; }
   if (!vlValid()) vlBuild();
@@ -2316,10 +2360,9 @@ function ejectElectron(p, KE, ux, uy, budget, tunnel) {
   const bc = budget === undefined ? breakCostIfCharged(p, -1) : budget;
   const grid = _nmd > 0, set = setOf(molecule(p)), sn = snapshot(set);
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
-  const U0 = grid ? localPE(set) : 0;
-  p.ne--; refresh(p); enforceValence(p, null);
-  // the ion's new charge and size against its surroundings, plus any bonds that had to break
-  const dU = grid ? localPE(closeSet(set)) - U0 : 0;
+  // the change of potential energy: the ion's new charge and size against its surroundings, plus any bonds that had to
+  // break (localDelta: over the ion's neighbourhood in a big molecule, exactly)
+  const dU = grid ? localDelta(p, set, sn, () => { p.ne--; refresh(p); enforceValence(p, null); }) : (p.ne--, refresh(p), enforceValence(p, null), 0);
   // The electron is born inside the ion's Coulomb well and near other charges. Its launch energy is
   // set so that the total energy is conserved: KE_launch = KE_far + budget + φ(electron) − ΔU.
   const qa = p.q, lq = p.anti ? 1 : -1; // the ion's charge now, and that of the lepton set free

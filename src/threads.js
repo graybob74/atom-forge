@@ -15,16 +15,25 @@ const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMM
 // control layout: [0, n) worker states; then 10 per worker: pair range (2), candidate count, ack (the generation bound), bond range (2), angle range (2), the generation wanted, spare; prm: per worker stiffness, then the box
 function thCtrl(w, k) { return TH.n + 10 * w + k; }
 /* The heat bath's noise: two normals from (seed, step, slot), the same on any thread and in any order, so a bath stirred
-   on sixteen threads is the very simulation one thread gives, step for step (murmur3's finaliser for the hash, Box–Muller
-   for the normals; a uniform is never 0). */
-const _bathNz = new Float64Array(2);
+   on sixteen threads is the very simulation one thread gives, step for step. The slot's hash (murmur3's finaliser) picks
+   two entries of a fixed table of 65,536 normals (made once, the same everywhere, centred and scaled to unit variance
+   exactly): a tenth of the cost of Box–Muller per atom (whose log, sqrt, cos and sin made the bath the step's biggest
+   serial cost), with the right mean, variance and tails and no correlation between x and y or from step to step. */
+const BATH_TB = 16;
+function bathTableMake() {
+  const T = new Float64Array(1 << 16); let a = 0x2545F491;
+  const u = () => { a ^= a << 13; a ^= a >>> 17; a ^= a << 5; return ((a >>> 0) + 0.5) / 4294967296; };
+  for (let i = 0; i < T.length; i += 2) { const r = Math.sqrt(-2 * Math.log(u())), th = 2 * Math.PI * u(); T[i] = r * Math.cos(th); T[i + 1] = r * Math.sin(th); }
+  let m = 0, v = 0; for (let i = 0; i < T.length; i++) m += T[i]; m /= T.length;
+  for (let i = 0; i < T.length; i++) { T[i] -= m; v += T[i] * T[i]; }
+  v = Math.sqrt(v / T.length); for (let i = 0; i < T.length; i++) T[i] /= v;
+  return T;
+}
+const _bathNz = new Float64Array(2), _bathT = bathTableMake();
 function bathNoise(seed, step, slot, out) {
   let h = Math.imul(seed ^ Math.imul(step | 0, 0x9E3779B1), 0x85EBCA77) ^ Math.imul(slot + 1, 0xC2B2AE35);
   h ^= h >>> 16; h = Math.imul(h, 0x85EBCA6B); h ^= h >>> 13; h = Math.imul(h, 0xC2B2AE35); h ^= h >>> 16;
-  let g = h ^ 0x6A09E667; g ^= g >>> 15; g = Math.imul(g, 0x2C1B3C6D); g ^= g >>> 12; g = Math.imul(g, 0x297A2D39); g ^= g >>> 15;
-  const u1 = ((h >>> 0) + 0.5) / 4294967296, u2 = ((g >>> 0) + 0.5) / 4294967296;
-  const r = Math.sqrt(-2 * Math.log(u1)), t = 2 * Math.PI * u2;
-  out[0] = r * Math.cos(t); out[1] = r * Math.sin(t);
+  out[0] = _bathT[h & 0xFFFF]; out[1] = _bathT[h >>> 16];
 }
 /* outerB for slots s0 ≤ s < s1 in the plain case (no magnetic field, no heat tool): the velocity half-kick and the
    Langevin bath on nuclei, the same arithmetic as engine.js's outerB, elementwise. */
@@ -80,7 +89,8 @@ ${zblD2.toString()}
 let S = null, AC = null, BD = null;
 ${PAIR_KERNEL_SRC}
 ${integrateSlots.toString()}
-const _bathNz = new Float64Array(2);
+${bathTableMake.toString()}
+const _bathNz = new Float64Array(2), _bathT = bathTableMake();
 ${bathNoise.toString()}
 ${bathSlots.toString()}
 ${vlPairs.toString()}
