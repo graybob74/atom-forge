@@ -4372,11 +4372,46 @@ function photonLabel(E, src) {
 /* The spectroscope (Data tab): every photon made, as its wavelength (nm), when (W.rt) and from which element (Z, or 0),
    in a ring of the last 8,192. */
 const SPEC_N = 8192;
-function specRecord(E, src) {
+function specRecord(E, src, z) {
   const S2 = W.spec || (W.spec = { nm: new Float64Array(SPEC_N), t: new Float64Array(SPEC_N), z: new Int16Array(SPEC_N), n: 0, total: 0 });
   const k = S2.total % SPEC_N;
-  S2.nm[k] = PHYS.HC / E; S2.t[k] = W.rt; S2.z[k] = src && src.k === NUC && src.Z > 0 ? src.Z : 0;
+  S2.nm[k] = PHYS.HC / E; S2.t[k] = W.rt; S2.z[k] = z !== undefined ? z : src && src.k === NUC && src.Z > 0 ? src.Z : 0;
   S2.total++; S2.n = Math.min(SPEC_N, S2.n + 1);
+}
+/* Glowing walls (Lab → Heat bath, off by default): reflecting walls at the bath temperature give off black-body light
+   into the box. Real thermal light from a few nm of wall is far too faint to see at the atoms' pace, so the rate is a
+   show rate, GLOW.N0 photons a second (for a 400 Å rim) at the Sun's 5,800 K, going as T⁴ (Stefan–Boltzmann), at most
+   GLOW.MAX; each photon's energy is drawn from Planck's law and leaves the wall in a random direction weighted to the
+   inward normal (Lambert). What an atom absorbs, the bath pays for (ledger.bath); light crossing the box back into the
+   walls is the walls' own. The spectroscope marks it as the walls' (z = -1). */
+const GLOW = { N0: 150, MAX: 600 };
+const PLANCK_K = (() => { const c = []; let s = 0; for (let k = 1; k <= 60; k++) { s += 1 / (k * k * k); c.push(s); } return c.map(v => v / s); })();
+function planckX() { // x = E/kT, photon numbers ∝ x²/(eˣ − 1) = Σₖ x² e^(−kx): pick k ∝ 1/k³, then x ~ Gamma(3)/k
+  const u = rnd(); let k = 0; while (k < PLANCK_K.length - 1 && PLANCK_K[k] < u) k++;
+  return -Math.log(Math.max(1e-300, rnd() * rnd() * rnd())) / (k + 1);
+}
+function glowTick(realDt) {
+  if (!W.glow || W.wall !== 'reflect' || !(realDt > 0)) return;
+  const T = Math.max(1, W.T), hw = W.box.w / 2, hh = W.box.h / 2, per = 4 * (hw + hh);
+  W.glowAcc = (W.glowAcc || 0) + Math.min(GLOW.MAX, GLOW.N0 * Math.pow(T / 5800, 4) * per / 400) * realDt;
+  let n = Math.floor(W.glowAcc); W.glowAcc -= n; n = Math.min(n, 20);
+  const kT = PHYS.KB * T;
+  for (let i = 0; i < n; i++) {
+    let s = rnd() * per, x, y, nx, ny;
+    if (s < 2 * hw) { x = -hw + s; y = -hh; nx = 0; ny = 1; } else if ((s -= 2 * hw) < 2 * hh) { x = hw; y = -hh + s; nx = -1; ny = 0; }
+    else if ((s -= 2 * hh) < 2 * hw) { x = hw - s; y = hh; nx = 0; ny = -1; } else { s -= 2 * hw; x = -hw; y = hh - s; nx = 1; ny = 0; }
+    const th = Math.asin(2 * rnd() - 1), c = Math.cos(th), sn = Math.sin(th), ux = nx * c - ny * sn, uy = ny * c + nx * sn;
+    glowPhoton(x + nx * 0.01, y + ny * 0.01, kT * planckX(), ux, uy);
+  }
+}
+function glowPhoton(x, y, E, ux, uy) {
+  specRecord(E, null, -1);
+  const hit = rayInteract(x, y, ux, uy, E, null);
+  let x1, y1;
+  if (hit) { x1 = hit.x; y1 = hit.y; W.ledger.bath -= E; } else { const t = rayExit(x, y, ux, uy); x1 = x + ux * t; y1 = y + uy * t; }
+  W.rays.push({ x0: x, y0: y, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x, y1 - y), nu: false, lab: 'thermal ' + fmtE(E) });
+  if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
+  if (hit && hit.after) hit.after();
 }
 function emitPhoton(x, y, E, ux, uy, opts) {
   if (!(E > 0)) return;
@@ -7496,6 +7531,7 @@ function simFrame(realDt, budgetMs) {
   // chips keep the pace the simulation is set to, in real time, even when a crowded box makes the atoms (and the frames)
   // fall behind it: their time is warped anyway (a flash pulse takes 10 µs)
   if (W.chips.length) chipsTick((cut ? W.simPerFrame * slow * clamp(realDt * 60, 1, 6) : simAdv) * PHYS.TU_S, realDt);
+  if (W.glow && simAdv > 0) glowTick(realDt);
   const dtNuc = W.decayOn ? simAdv * PHYS.TU_S * W.warp : 0;
   W.tNuc += dtNuc;
   decayStep(dtNuc);
@@ -7531,7 +7567,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0;
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }
@@ -9753,6 +9789,11 @@ function drawBox() {
   ctx.strokeStyle = CHAMBER.box; ctx.lineWidth = W.wall === 'reflect' ? 1.5 : 1;
   if (W.wall === 'wrap') ctx.setLineDash([6, 5]); else if (W.wall === 'open') ctx.setLineDash([2, 6]);
   ctx.strokeRect(x0, y0, w, h);
+  if (W.glow && W.wall === 'reflect' && W.T > 700) { // glowing walls: the colour of a black body at the bath temperature
+    const c = blackbodyRGB(W.T), a = clamp((W.T - 700) / 1500, 0, 1);
+    ctx.setLineDash([]); ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},${a})`; ctx.lineWidth = 3; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 12 * a;
+    ctx.strokeRect(x0, y0, w, h); ctx.shadowBlur = 0;
+  }
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) {
     ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(255,200,120,0.5)';
     ctx.strokeRect(w2sx(-W.box.tw / 2), w2sy(W.box.th / 2), W.box.tw * R.s, W.box.th * R.s);
@@ -13028,7 +13069,10 @@ function aiError(e) {
     aiSay(code === 'not_granted' ? 'Claude was not allowed to help on this page, so Ask Claude is hidden.' : 'Claude is not available here, so Ask Claude is hidden.', true);
     return;
   }
-  aiSay({
+  aiSay(aiErrorText(code), true);
+}
+function aiErrorText(code) {
+  return {
     bad_key: 'The Claude API key was refused (Settings → Claude API key).',
     bad_model: `The model name was not recognised (Settings → Claude API key; ${AI_API.model} is the default).`,
     no_credit: 'The Claude API account behind this key has no credit left.',
@@ -13038,7 +13082,7 @@ function aiError(e) {
     empty_completion: 'Claude gave no answer. Try a simpler request.',
     invalid_json: 'Claude\'s answer could not be read. Try again.',
   }[code] || (['invalid_request', 'prompt_too_large', 'transform_error', 'queue_overflow'].includes(code)
-    ? `Asking Claude went wrong (${code}).` : 'Claude could not be reached. Try again.'), true);
+    ? `Asking Claude went wrong (${code}).` : 'Claude could not be reached. Try again.');
 }
 /* Ask: one request, and at most one follow-up when the recipe cannot be built (with what was wrong). */
 async function aiAsk(raw) {
@@ -13201,7 +13245,7 @@ async function identifyMolecules() {
    The key is kept in this browser's storage only and sent to api.anthropic.com alone; use is billed to that account. */
 const AI_API = { url: 'https://api.anthropic.com/v1/messages', version: '2023-06-01', model: 'claude-sonnet-5-5', maxTokens: 1500 };
 function apiSampler(key, model) {
-  return { api: true, json: async (prompt, opts) => {
+  const call = async (prompt, opts) => {
     const body = { model: model || AI_API.model, max_tokens: AI_API.maxTokens, messages: [{ role: 'user', content: prompt }] };
     let res;
     try {
@@ -13215,10 +13259,18 @@ function apiSampler(key, model) {
     const j = await res.json();
     const text = (j && Array.isArray(j.content) ? j.content : []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
     if (!text) throw { code: 'empty_completion', message: 'no text' };
-    if (opts && opts.onText) opts.onText(text);
+    if (opts && opts.onText) opts.onText({ text, delta: text });
+    return text;
+  };
+  // the same shape as claude.ai's sample: called for text, .json for data
+  const f = async (prompt, opts) => ({ text: await call(prompt, opts), truncated: false });
+  f.api = true;
+  f.json = async (prompt, opts) => {
+    const text = await call(prompt, opts);
     const m = /\{[\s\S]*\}/.exec(text.replace(/^```(?:json)?/m, '').replace(/```\s*$/m, ''));
     try { return JSON.parse(m ? m[0] : text); } catch (e) { throw { code: 'invalid_json', message: text.slice(0, 200) }; }
-  } };
+  };
+  return f;
 }
 function aiInit() {
   const c = typeof window !== 'undefined' ? window.claude : null;
@@ -14685,7 +14737,7 @@ function renderData() {
   $('dLedger').innerHTML = [['Chemical heat released', fmtE(L.chem)], ['Nuclear energy released', fmtE(L.nuc)], ['Escaped as radiation & fast particles', fmtE(L.escaped)]]
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
-  drawSpec();
+  drawSpec(); explainSync();
   drawTChart(); drawEChart(m.T);
   restoreScroll('tp-data');
 }
@@ -14736,26 +14788,40 @@ const BALMER = [[656.3, 'Hα'], [486.1, 'Hβ'], [434.0, 'Hγ'], [410.2, 'Hδ']];
 let _specView = 'vis', _specFrom = -Infinity;
 function specPhotons() {
   const S2 = W.spec; if (!S2) return [];
-  const out = [], from = Math.max(_specFrom, W.rt - SPEC_WIN);
+  const out = [], from = _specFrom > -Infinity ? _specFrom : W.rt - SPEC_WIN; // (since Clear, all that is kept; otherwise the last 10 s)
   for (let i = 0; i < S2.n; i++) { const k = (S2.total - 1 - i) % SPEC_N; if (S2.t[k] < from) break; out.push([S2.nm[k], S2.z[k]]); }
   return out;
 }
 function drawSpec() {
   const sec = $('dSpecSec'), ph = specPhotons();
   sec.hidden = !W.spec;
-  if (sec.hidden) return;
+  if (sec.hidden) { if (_specFrom > -Infinity) { _specFrom = -Infinity; $('bSpecClear').textContent = 'Clear'; } return; }
   const r = chartCtx($('chSpec')); if (!r) return; const [ctx, w, h] = r;
   const vis = _specView === 'vis', pad = 6, base = h - 18;
   let lo, hi, fx, nb;
-  if (vis) { lo = 380; hi = 780; nb = 200; fx = (nm) => pad + (nm - lo) / (hi - lo) * (w - 2 * pad); }
+  let nWall0 = 0; for (const q of ph) if (q[1] === -1) nWall0++;
+  if (vis) { lo = 380; hi = 780; nb = nWall0 > ph.length / 2 ? 80 : 200; /* (thermal light is a smooth curve: wider bins) */ fx = (nm) => pad + (nm - lo) / (hi - lo) * (w - 2 * pad); }
   else { lo = 1e-6; hi = 1e6; nb = 96; fx = (nm) => pad + (Math.log10(nm) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * (w - 2 * pad); }
   const bins = new Float64Array(nb), zs = new Map();
-  let inRange = 0;
+  let inRange = 0, nWall = 0;
   for (const [nm, z] of ph) {
+    if (z === -1) nWall++;
     if (nm < lo || nm >= hi) continue;
     const b = vis ? Math.floor((nm - lo) / (hi - lo) * nb) : Math.floor((Math.log10(nm) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * nb);
     bins[clamp(b, 0, nb - 1)]++; inRange++;
-    if (z) zs.set(z, (zs.get(z) || 0) + 1);
+    if (z > 0) zs.set(z, (zs.get(z) || 0) + 1);
+  }
+  const binNm = (i) => vis ? lo + i / nb * (hi - lo) : Math.pow(10, Math.log10(lo) + i / nb * (Math.log10(hi) - Math.log10(lo)));
+  // glowing walls: Planck's law for the photons they gave off, per bin, as a dashed curve over the bars
+  let planck = null;
+  if (nWall > 20 && W.glow) {
+    const kT = PHYS.KB * Math.max(1, W.T), Z3 = 1.2020569;
+    planck = new Float64Array(nb);
+    for (let i = 0; i < nb; i++) {
+      const xa = PHYS.HC / (binNm(i + 1) * kT), xb = PHYS.HC / (binNm(i) * kT); let s = 0;
+      for (let j = 0; j < 6; j++) { const x = xa + (j + 0.5) / 6 * (xb - xa); s += x * x / Math.expm1(x); }
+      planck[i] = nWall * s * (xb - xa) / 6 / (2 * Z3);
+    }
   }
   // the colours (visible) or the bands (everything) along the bottom
   if (vis) { for (let x = pad; x < w - pad; x++) { const nm = lo + (x - pad) / (w - 2 * pad) * (hi - lo), c = wavelengthRGB(nm); ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(x, base + 2, 1, 5); } }
@@ -14767,13 +14833,18 @@ function drawSpec() {
     }
     const v0 = fx(380), v1 = fx(780); for (let x = Math.floor(v0); x < v1; x++) { const c = wavelengthRGB(380 + (x - v0) / (v1 - v0) * 400); ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(x, base + 2, 1, 5); }
   }
-  let top = 0; for (const b of bins) top = Math.max(top, b);
+  let top = 0; for (const b of bins) top = Math.max(top, b); if (planck) for (const b of planck) top = Math.max(top, b);
   const bw = (w - 2 * pad) / nb;
   for (let i = 0; i < nb; i++) {
     if (!bins[i]) continue;
     const bh = Math.max(1.5, bins[i] / top * (base - 14)), nm = vis ? lo + (i + 0.5) / nb * (hi - lo) : Math.pow(10, Math.log10(lo) + (i + 0.5) / nb * (Math.log10(hi) - Math.log10(lo)));
     const c = nm >= 380 && nm <= 780 ? wavelengthRGB(nm) : photonColor(PHYS.HC / nm);
     ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(pad + i * bw, base - bh, Math.max(1, bw - (vis ? 0 : 1)), bh);
+  }
+  if (planck) {
+    ctx.strokeStyle = cssVar('--fg'); ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]); ctx.beginPath();
+    for (let i = 0; i < nb; i++) { const x = pad + (i + 0.5) * bw, y = base - planck[i] / top * (base - 14); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+    ctx.stroke(); ctx.setLineDash([]);
   }
   // the known lines of the elements that made light here (and hydrogen's Balmer series), marked
   if (vis) {
@@ -14795,9 +14866,10 @@ function drawSpec() {
   // the note: how many, the strongest line and who made it
   let best = -1, bi = 0; for (let i = 0; i < nb; i++) if (bins[i] > best) { best = bins[i]; bi = i; }
   const peak = vis ? lo + (bi + 0.5) / nb * (hi - lo) : Math.pow(10, Math.log10(lo) + (bi + 0.5) / nb * (Math.log10(hi) - Math.log10(lo)));
-  const who = [...zs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([z, n]) => `${ELEMENTS[z].sym} ${n}`).join(', ');
-  $('dSpecNote').textContent = `${ph.length.toLocaleString('en-US')} photon${ph.length === 1 ? '' : 's'} in the last ${SPEC_WIN} s${_specFrom > W.rt - SPEC_WIN ? ' (since Clear)' : ''}` +
-    (inRange ? `; strongest at ${vis ? peak.toFixed(0) + ' nm' : wavelengthText(PHYS.HC / peak).lam}` : '') + (who ? `; given off by ${who}` : '') + '. Each element gives off its own lines.';
+  const who = [...zs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([z, n]) => `${ELEMENTS[z].sym} ${n}`).concat(nWall ? [`the glowing walls ${nWall}`] : []).join(', ');
+  const wien = W.glow && nWall ? ` The walls at ${fmtT(W.T)} follow Planck's law (dashed); Wien's law puts their brightest light at ${wavelengthText(PHYS.HC / (2.8977719e6 / Math.max(1, W.T))).lam}.` : '';
+  $('dSpecNote').textContent = `${ph.length.toLocaleString('en-US')} photon${ph.length === 1 ? '' : 's'} ${_specFrom > -Infinity ? `since Clear (${fmtNum(W.rt - _specFrom, 2)} s)` : `in the last ${SPEC_WIN} s`}` +
+    (inRange ? `; strongest at ${vis ? peak.toFixed(0) + ' nm' : wavelengthText(PHYS.HC / peak).lam}` : '') + (who ? `; given off by ${who}` : '') + '.' + (wien || ' Each element gives off its own lines.');
 }
 function drawTChart() {
   const r = chartCtx($('chT')); if (!r) return; const [ctx, w, h] = r;
@@ -14881,7 +14953,7 @@ function bindSeg(id, fn) { $(id).addEventListener('click', (e) => { const b = e.
    through an ordinary download link elsewhere (the desktop app, a saved copy). Loading is a file picker everywhere, so a
    world or a library made on one can be dropped into the other. */
 const FILES = { downloads: undefined }; // (undefined: not asked yet; null: none)
-async function fileSave(name, text) {
+async function fileSave(name, text, type) {
   if (FILES.downloads === undefined) {
     FILES.downloads = null;
     const c = typeof window !== 'undefined' ? window.claude : null;
@@ -14892,7 +14964,7 @@ async function fileSave(name, text) {
     catch (e) { if (e && e.code === 'declined') return false; log('tool', `Could not save ${name} here (${(e && e.code) || e}); trying the browser's own download`); }
   }
   try {
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; document.body.appendChild(a); a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(text instanceof Blob ? text : new Blob([text], { type: type || 'application/json' })); a.download = name; document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
     return true;
   } catch (e) { log('tool', `Could not save ${name}: ${e.message || e}`); return false; }
@@ -14913,7 +14985,7 @@ function worldToJSON() {
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
   return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
-    spf: W.simPerFrame, warp: W.warp, decayOn: W.decayOn, slowmo: W.slowmo, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.simPerFrame, warp: W.warp, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -14923,7 +14995,7 @@ function worldFromJSON(d) {
   W.box.w = W.box.tw = num(d.box.w, 20, 20000, 200); W.box.h = W.box.th = num(d.box.h, 20, 20000, 140); UI.aspect = W.box.th / W.box.tw;
   W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -50, 50, 0); W.Ey = num(d.Ey, -50, 50, 0);
   UI.E = Math.hypot(W.Ex, W.Ey); UI.Eang = UI.E ? Math.round(Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) : (UI.Eang || 0); // (the Lab's field figure and direction, from the field)
-  W.simPerFrame = num(d.spf, DT_MIN, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1, 1e30, 1); W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo;
+  W.simPerFrame = num(d.spf, DT_MIN, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1, 1e30, 1); W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true;
   const made = [], hw = W.box.w / 2, hh = W.box.h / 2;
   for (const q of d.parts) {
     if (!Array.isArray(q) || q.length < 9) { made.push(null); continue; }
@@ -14957,6 +15029,198 @@ function loadWorld() {
     log('tool', `World loaded from ${name}: ${r.n.toLocaleString('en-US')} particles, ${r.nb.toLocaleString('en-US')} bonds${r.skipped ? ` (${r.skipped} entries could not be read)` : ''}`);
   });
 }
+/* Share codes: the saved world (worldToJSON) squeezed (deflate) into one line of text, "AF1:" and base64url, to paste
+   into a message; whoever gets it pastes it into Share code… → Open. A page opened with #AF1:… after its address loads
+   that world. */
+const SHARE_PREFIX = 'AF1:', SHARE_MAX = 30e6;
+const b64u = { to: (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
+  from: (s) => { const b = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; } };
+async function shareEncode(d) {
+  const o = Object.assign({}, d); delete o.title; delete o.saved;
+  const z = await new Response(new Blob([JSON.stringify(o)]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
+  return SHARE_PREFIX + b64u.to(new Uint8Array(z));
+}
+async function shareDecode(code) {
+  const s = String(code || '').replace(/\s+/g, '').replace(/^#/, '');
+  if (!s.startsWith(SHARE_PREFIX)) return 'not a share code (they start with AF1:)';
+  if (s.length > SHARE_MAX) return 'too long to be a share code';
+  let text;
+  try {
+    const st = new Blob([b64u.from(s.slice(SHARE_PREFIX.length))]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    const rd = st.getReader(), parts = []; let n = 0;
+    for (;;) { const { done, value } = await rd.read(); if (done) break; n += value.length; if (n > 200e6) { rd.cancel(); return 'too large'; } parts.push(value); }
+    text = new TextDecoder().decode(await new Blob(parts).arrayBuffer());
+  } catch (e) { return 'the code is damaged or cut short (copy all of it)'; }
+  let d; try { d = JSON.parse(text); } catch (e) { return 'the code is damaged'; }
+  return d;
+}
+async function shareOpen(code) {
+  const d = await shareDecode(code);
+  if (typeof d === 'string') return d;
+  const r = worldFromJSON(d);
+  if (typeof r === 'string') return r;
+  log('tool', `World opened from a share code: ${r.n.toLocaleString('en-US')} particles, ${r.nb.toLocaleString('en-US')} bonds${r.skipped ? ` (${r.skipped} entries could not be read)` : ''}`);
+  return null;
+}
+function shareInit() {
+  const ok = typeof CompressionStream === 'function' && typeof DecompressionStream === 'function';
+  $('bShare').hidden = !ok; if (!ok) return;
+  $('bShare').onclick = async () => {
+    $('shareOut').value = ''; $('shareCopy').disabled = true; $('shareCopied').textContent = ''; $('shareErr').textContent = ''; $('shareIn').value = '';
+    $('shareInfo').textContent = 'Making the code …'; showModal('shareModal');
+    const d = worldToJSON(), code = await shareEncode(d), kb = code.length / 1024;
+    $('shareOut').value = code; $('shareCopy').disabled = false;
+    $('shareInfo').textContent = `${d.parts.length.toLocaleString('en-US')} particles and ${d.bonds.length.toLocaleString('en-US')} bonds in ${kb < 1000 ? Math.ceil(kb) + ' KB' : (kb / 1024).toFixed(1) + ' MB'} of text.` +
+      (kb > 900 ? ' That is a lot to paste into a message: Save world… makes a file instead.' : ' Send it to someone with Atom Forge; they paste it below.') + (W.chips.length ? ' Chips go as plain atoms (as in a saved file).' : '');
+    $('shareOut').focus(); $('shareOut').select();
+  };
+  $('shareClose').onclick = () => hideModal('shareModal');
+  $('shareCopy').onclick = async () => {
+    const t = $('shareOut'); t.focus(); t.select(); let ok2 = false;
+    try { await navigator.clipboard.writeText(t.value); ok2 = true; } catch (e) { try { ok2 = document.execCommand('copy'); } catch (e2) { ok2 = false; } }
+    $('shareCopied').textContent = ok2 ? 'Copied.' : 'Select the text and copy it (Ctrl+C / ⌘C).';
+  };
+  $('shareOpen').onclick = async () => {
+    $('shareErr').textContent = '';
+    const err = await shareOpen($('shareIn').value);
+    if (err) { $('shareErr').textContent = err[0].toUpperCase() + err.slice(1) + '.'; return; }
+    hideModal('shareModal');
+  };
+  let h = ''; try { h = decodeURIComponent(location.hash || ''); } catch (e) { h = ''; }
+  if (h.startsWith('#' + SHARE_PREFIX)) setTimeout(() => shareOpen(h).then((e) => { if (e) log('tool', `The link's world could not be opened: ${e}`); }), 0);
+}
+/* Video: the chamber as the viewer sees it (background, GL and overlay canvases), a frame every 1/30 s of watching ×
+   the speed-up while the simulation runs, kept as JPEGs (at most REC.MAX: two minutes of video); on Stop they are
+   played into a MediaRecorder at 30 frames a second (WebM, or MP4 where that is what the browser makes) and saved. */
+const REC = { on: false, speed: 1, frames: [], last: 0, pend: 0, cv: null, t0: 0, MAX: 3600, busy: false };
+function recMime() {
+  if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) return '';
+  for (const m of ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4']) if (MediaRecorder.isTypeSupported(m)) return m;
+  return '';
+}
+function recSize() { const c = $('cv'), k = Math.min(1, 1280 / Math.max(1, c.width)); return [Math.max(2, Math.round(c.width * k / 2) * 2), Math.max(2, Math.round(c.height * k / 2) * 2)]; }
+function recCapture() {
+  if (!UI.running) return;
+  if (UI.vis - REC.last < REC.speed / 30 - 1e-4) return;
+  REC.last = UI.vis;
+  if (REC.pend > 6) return; // (the JPEG encoder is behind: skip a frame rather than pile up)
+  const [w, h] = recSize(), cv = REC.cv || (REC.cv = document.createElement('canvas'));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = getComputedStyle($('cv').parentNode).backgroundColor || '#000'; ctx.fillRect(0, 0, w, h);
+  for (const id of ['cvbg', 'cvgl', 'cv']) { const c = $(id); if (c && c.width && !c.hidden && c.style.display !== 'none') try { ctx.drawImage(c, 0, 0, w, h); } catch (e) { /* (a canvas that cannot be read) */ } }
+  const i = REC.frames.length; REC.frames.push(null); REC.pend++;
+  cv.toBlob((b) => { REC.pend--; REC.frames[i] = b; }, 'image/jpeg', 0.85);
+  recShow();
+  if (REC.frames.length >= REC.MAX) recStop();
+}
+function recShow() {
+  const n = REC.frames.length, s = n / 30, t = `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  $('recBadge').hidden = !REC.on && !REC.busy;
+  $('recBadge').textContent = REC.busy ? 'SAVING VIDEO' : `● REC ${t}${REC.speed > 1 ? ` (${REC.speed}×)` : ''}`;
+  $('bRec').textContent = REC.on ? `Stop and save (${t})` : 'Record video';
+  $('bRec').classList.toggle('go', REC.on);
+}
+function recStart() {
+  const mime = recMime();
+  if (!mime) { recNote('This browser cannot make videos (no MediaRecorder for canvases).'); return; }
+  REC.on = true; REC.frames = []; REC.last = -1; REC.pend = 0; REC.mime = mime; REC.preset = UI.preset;
+  recNote(`Recording${REC.speed > 1 ? ` a ${REC.speed}× time-lapse` : ''}: press Stop and save when done (at most ${REC.MAX / 30 / 60} minutes of video).${UI.running ? '' : ' It records once the simulation runs.'}`);
+  recShow();
+}
+function recNote(t) { const n = $('recNote'); n.hidden = !t; n.textContent = t || ''; }
+async function recStop() {
+  if (!REC.on) return; REC.on = false; REC.busy = true; recShow(); $('bRec').disabled = true;
+  try {
+    for (let i = 0; i < 100 && REC.pend > 0; i++) await new Promise((r) => { setTimeout(r, 30); });
+    const frames = REC.frames.filter(Boolean); REC.frames = [];
+    if (frames.length < 2) { recNote('Nothing was recorded: the simulation was paused.'); return; }
+    const first = await createImageBitmap(frames[0]), cv = document.createElement('canvas'); cv.width = first.width; cv.height = first.height; first.close();
+    const ctx = cv.getContext('2d'), stream = cv.captureStream(30), mr = new MediaRecorder(stream, { mimeType: REC.mime, videoBitsPerSecond: 6e6 }), chunks = [];
+    mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    const done = new Promise(r => { mr.onstop = r; });
+    mr.start(1000);
+    const t0 = performance.now();
+    for (let i = 0; i < frames.length; i++) {
+      const bm = await createImageBitmap(frames[i]); ctx.drawImage(bm, 0, 0); bm.close();
+      const tr = stream.getVideoTracks()[0]; if (tr && tr.requestFrame) tr.requestFrame();
+      if (i % 15 === 0) recNote(`Making the video … ${Math.round(100 * i / frames.length)} % (it plays the frames through once: ${Math.ceil((frames.length - i) / 30)} s left)`);
+      const wait = t0 + (i + 1) * 1000 / 30 - performance.now(); if (wait > 0) await new Promise((r) => { setTimeout(r, wait); });
+    }
+    mr.stop(); await done; stream.getTracks().forEach(t => t.stop());
+    const type = REC.mime.split(';')[0], ext = type === 'video/mp4' ? 'mp4' : 'webm', blob = new Blob(chunks, { type });
+    const name = `atom-forge-${(REC.preset || 'world').replace(/[^a-z0-9-]/gi, '')}${REC.speed > 1 ? '-' + REC.speed + 'x' : ''}.${ext}`;
+    const ok = await fileSave(name, blob, type);
+    recNote(ok ? `Saved ${name}: ${(frames.length / 30).toFixed(1)} s of video, ${(blob.size / 1048576).toFixed(1)} MB.` : 'The video was not saved.');
+    if (ok) log('tool', `Video saved: ${name}`);
+  } catch (e) { recNote(`The video could not be made (${e && e.message || e}).`); }
+  finally { REC.busy = false; $('bRec').disabled = false; recShow(); }
+}
+function recInit() {
+  $('bRec').onclick = () => { if (REC.busy) return; if (REC.on) recStop(); else recStart(); };
+  bindSeg('segRec', (v) => { REC.speed = +v; if (REC.on) recShow(); });
+  if (!recMime()) { $('bRec').disabled = true; $('bRec').title = 'This browser cannot record the canvas as a video'; }
+}
+/* Explain: Claude (on claude.ai, or with an API key in Settings) explains what the chamber is doing, from a digest of what
+   the panels show; without Claude, the setup's own description and the latest events. */
+const EXPLAIN = { busy: false, ctl: null };
+function tblText(el, max) {
+  if (!el) return '';
+  const rows = el.querySelectorAll('tr'); let s = '';
+  if (rows.length) for (const r of rows) s += [...r.children].map(c => c.textContent.trim()).filter(Boolean).join(' | ') + '\n';
+  else { const t = [...el.children].map(c => c.textContent.replace(/\s+/g, ' ').trim()); if (el.classList.contains('kv')) { for (let i = 0; i + 1 < t.length; i += 2) if (t[i + 1] && t[i + 1] !== '0') s += `${t[i]}: ${t[i + 1]}\n`; } else s = t.filter(Boolean).join('\n'); }
+  return s.slice(0, max);
+}
+function explainDigest() {
+  const P = PRESETS[UI.preset], m = measure(), out = [];
+  const strip = (h) => String(h || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  out.push(`Setup: ${P ? P.name + ' — ' + strip(P.hint) : 'built by the viewer'}`);
+  out.push(`Box ${fmtNum(W.box.w, 3)} × ${fmtNum(W.box.h, 3)} Å, walls ${W.wall}; heat bath ${fmtT(W.T)} (coupling ${W.gamma}); electric field ${fmtNum(Math.hypot(W.Ex, W.Ey), 3)} V/Å; magnetic field ${fmtNum(W.Bz, 3)} T; motion: ${motionText()}; ${UI.running ? 'running' : 'paused'}${W.slow ? ', in slow motion for an event' : ''}.`);
+  out.push(`Measured: temperature ${fmtT(m.T)}${m.Te ? `, electrons ${fmtT(m.Te)}` : ''}; ${m.atoms} nuclei/atoms, ${Math.round(m.ionFrac * 100)} % ionized; ${W.nE} free electrons.`);
+  const sp = tblText($('dSpecies'), 1500); if (sp) out.push('What is in the box:\n' + sp);
+  const mk = !$('dMadeSec').hidden ? ($('dMadeSum').textContent + '\n' + tblText($('dMade'), 1000)) : ''; if (mk.trim()) out.push('Made here so far:\n' + mk);
+  const ct = tblText($('dCounts'), 800); if (ct) out.push('Counts:\n' + ct);
+  if (!$('dSpecSec').hidden) out.push('Spectrum: ' + $('dSpecNote').textContent);
+  if (W.chips.length) out.push('Chips:\n' + $('chipPanel').textContent.replace(/\s+/g, ' ').slice(0, 800));
+  const ev = W.log.slice(-15).map(e => `[${e.cls}] ${e.text}${e.n > 1 ? ` (×${e.n})` : ''}`).join('\n'); if (ev) out.push('Latest events, oldest first:\n' + ev);
+  const p = R.sel && !R.sel.dead ? R.sel : null;
+  if (p) out.push('The viewer has selected one particle; what the inspector shows about it:\n' + $('tp-inspect').textContent.replace(/\s+/g, ' ').slice(0, 1200));
+  return out.join('\n\n');
+}
+function explainLocal() {
+  const P = PRESETS[UI.preset], ev = W.log.slice(-5).map(e => '• ' + e.text + (e.n > 1 ? ` (×${e.n})` : ''));
+  const strip = (h) => String(h || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  return (P ? strip(P.hint) : 'A world of your own making.') + (ev.length ? '\n\nLately:\n' + ev.join('\n') : '') +
+    '\n\n(For an explanation written for what is on screen now, open this on claude.ai, or add a Claude API key in Settings.)';
+}
+function explainSync() {
+  const b = $('bExplain'), sel = R.sel && !R.sel.dead;
+  b.textContent = EXPLAIN.busy ? 'Stop' : sel ? 'Explain this (and what is selected)' : 'Explain what\'s happening';
+  b.classList.toggle('go', !EXPLAIN.busy);
+  $('dExplainWho').textContent = AI.sample ? '' : '(the setup\'s own notes: Claude is not connected here)';
+}
+async function explainRun() {
+  const out = $('dExplain');
+  if (EXPLAIN.busy) { if (EXPLAIN.ctl) EXPLAIN.ctl.abort(); return; }
+  out.hidden = false; out.classList.remove('bad');
+  if (!AI.sample || typeof AI.sample !== 'function') { out.textContent = explainLocal(); return; }
+  EXPLAIN.busy = true; EXPLAIN.ctl = new AbortController(); explainSync();
+  out.textContent = 'Claude is looking at the chamber …';
+  const prompt = 'You are explaining a live, two-dimensional atom-and-particle simulator (Atom Forge) to a curious viewer who is looking at it right now. ' +
+    'From the state below, explain in plain language what is happening and the real physics or chemistry behind it, in at most 160 words. ' +
+    'If a particle is selected, start with it. Finish with one short suggestion of something to try next in the simulator (heat it, add an element, change a field …). ' +
+    'Where the 2-D model simplifies reality, you may say so briefly. Write plain text in short paragraphs: no Markdown, no headings, no bullet symbols.\n\n--- State of the chamber ---\n' + explainDigest();
+  try {
+    const r = await AI.sample(prompt, { modelTier: 'default', signal: EXPLAIN.ctl.signal, cache: false, onText: (u) => { out.textContent = String(u && u.text != null ? u.text : u).replace(/\*\*/g, ''); } });
+    out.textContent = r.text.replace(/\*\*/g, '') + (r.truncated ? ' …' : '');
+  } catch (e) {
+    const code = (e && e.code) || 'upstream_error';
+    if (code === 'cancelled') out.textContent = (e.text || '') + (e.text ? ' …' : 'Stopped.');
+    else if (AI_HIDE.includes(code) && !(AI.sample && AI.sample.api)) { AI.sample = null; aiSync(); out.textContent = explainLocal(); }
+    else { out.textContent = (e.text ? e.text + '\n\n' : '') + aiErrorText(code); out.classList.add('bad'); }
+  } finally { EXPLAIN.busy = false; EXPLAIN.ctl = null; explainSync(); }
+}
+function explainInit() { $('bExplain').onclick = () => explainRun(); explainSync(); }
 /* My molecules and saved isotopes, out and in (merged: what is there stays; a molecule already known by key or name is
    not added twice). */
 function libraryToJSON() {
@@ -15114,6 +15378,7 @@ function bindLab() {
   bindSeg('segEdir', (v) => { UI.Eang = +v; applyE(); });
   $('bMagClear').onclick = () => { W.magnets.length = 0; syncLabText(); };
   bindSeg('segWall', (v) => { W.wall = v; });
+  $('chkGlow').onchange = (e) => { W.glow = e.target.checked; };
   $('boxSlider').oninput = (e) => { const w = boxFromS(+e.target.value); W.box.tw = w; W.box.th = w * UI.aspect; syncLabText(); };
   $('spdSlider').oninput = (e) => { W.simPerFrame = spdFromS(+e.target.value); syncLabText(); syncSpeed(); };
   $('warpSlider').oninput = (e) => { W.warp = Math.pow(10, +e.target.value); syncLabText(); if (UI.tool === 'place' || UI.tool === 'fire') buildToolOpts(); };
@@ -15125,6 +15390,7 @@ function bindLab() {
   for (const c of document.querySelectorAll('[data-view]')) c.onchange = () => { R.view[c.dataset.view] = c.checked; store('viewflags', JSON.stringify(R.view)); };
   $('bIdentify').onclick = () => { identifyMolecules(); };
   $('bSaveWorld').onclick = () => saveWorld(); $('bLoadWorld').onclick = () => loadWorld();
+  shareInit(); explainInit(); recInit();
   $('bClear').onclick = () => { clearWorld(); W.hist = { t: [], T: [], bath: [] }; R.sel = null; log('tool', 'Chamber emptied'); renderInspect(); };
   $('bSrcClear').onclick = () => { W.sources.length = 0; };
 }
@@ -15141,7 +15407,7 @@ function syncLab() {
   UI.E = Math.hypot(W.Ex, W.Ey);
   if (UI.E) UI.Eang = Math.round(((Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) + 360) % 360);
   $('eSlider').value = Math.round(UI.E * 100); setSegValue('segEdir', UI.Eang || 0);
-  setSegValue('segWall', W.wall);
+  setSegValue('segWall', W.wall); $('chkGlow').checked = !!W.glow;
   UI.aspect = W.box.th / W.box.tw;
   $('boxSlider').value = sFromBox(W.box.tw);
   $('spdSlider').value = sFromSpd(W.simPerFrame);
@@ -15759,6 +16025,9 @@ const PRESETS = {
     hint: '<b>Neon gas in a 0.15 V/Å electric field, with periodic walls.</b> Free electrons accelerate, then excite neon atoms (red-orange flashes) or knock out more electrons: an avalanche, as in a neon sign. The bath keeps the atoms cool while the electrons run hot. Add electrons to speed it up.',
     build() { baseWorld(120, 40, 300, 0.3); W.wall = 'wrap'; W.Ex = 0.15; UI.E = 0.15;
       scatter(40, 120, 40, (x, y) => addAtom('Ne', x, y), 3.4); scatter(12, 120, 40, (x, y) => spawnSpec({ kind: 'e' }, x, y), 0); } },
+  oven: { group: 'Electrons & light', name: 'Glowing oven (black-body light)', tool: 'place', spec: { kind: 'atom', Z: 11, A: 23 },
+    hint: '<b>Walls at the Sun’s surface temperature, 5,800 K, glowing.</b> Open Data → Spectrum: the light follows Planck’s curve (dashed). Turn the heat bath down to 3,000 K, a light bulb’s filament, and the walls go orange as the peak slides into the infrared; up to 20,000 K and they go blue-white, the peak in the ultraviolet (Wien’s law). The sodium atoms scatter their own yellow line, and hot enough light ionizes them.',
+    build() { baseWorld(90, 56, 5800, 0.05); W.glow = true; scatter(10, 90, 56, (x, y) => addAtom('Na', x, y), 6); } },
   magnet: { group: 'Fields', name: 'Magnetic matter', tool: 'magnet', spec: { kind: 'atom', Z: 26, A: 56 },
     hint: '<b>Iron, oxygen and water beside a 5,000 T magnet pole.</b> Iron is ferromagnetic and pulled in hard until heated past its Curie point (1043 K). O₂ is paramagnetic (unpaired electrons) and drawn in too; water is diamagnetic and only feebly pushed away. Drag the magnet around.',
     build() { baseWorld(70, 46, 300, 0.05);
@@ -16124,6 +16393,7 @@ function frame(now) {
     tf1 = performance.now();
     if (R.follow) { if (R.follow.dead) R.follow = null; else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
     render(W.rt);
+    if (REC.on) recCapture();
     tf2 = performance.now();
   } catch (err) { console.error(err); }
   if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); if (!$('setModal').hidden) settingsStats(); }
@@ -16157,12 +16427,12 @@ function onKey(e) {
     closeQuickMenu();
   }
   if (e.key === 'Escape') {
-    for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal']) if (!$(id).hidden) { hideModal(id); return; }
+    for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal']) if (!$(id).hidden) { hideModal(id); return; }
     if (UI.pasting) { cancelPaste(); return; }
     if (UI.drag) { if (W.tool) W.tool.active = false; W.grab = null; UI.drag = null; R.overlay = null; return; }
     R.sel = null; R.follow = null; renderInspect(); if (R.msel.size) clearSelection(); return;
   }
-  if (!$('ptModal').hidden || !$('molModal').hidden || !$('bldModal').hidden || !$('nucModal').hidden || !$('setModal').hidden) return;
+  if (!$('ptModal').hidden || !$('molModal').hidden || !$('bldModal').hidden || !$('nucModal').hidden || !$('setModal').hidden || !$('shareModal').hidden) return;
   if (tag === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
   if (tag === 'SELECT' || tag === 'TEXTAREA') return;
   if ((e.ctrlKey || e.metaKey) && !e.altKey) { // copy, paste, select all: the selection (or the inspected particle)
@@ -16364,7 +16634,7 @@ function settingsInit() {
   bindSeg('segThreads', (v) => setSetting('threads', v));
   bindSeg('segGl', (v) => setSetting('gl', v));
   bindSeg('segSpec', (v) => { _specView = v; drawSpec(); });
-  $('bSpecClear').onclick = () => { _specFrom = W.rt; drawSpec(); };
+  $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));

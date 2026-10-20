@@ -439,7 +439,10 @@ function aiError(e) {
     aiSay(code === 'not_granted' ? 'Claude was not allowed to help on this page, so Ask Claude is hidden.' : 'Claude is not available here, so Ask Claude is hidden.', true);
     return;
   }
-  aiSay({
+  aiSay(aiErrorText(code), true);
+}
+function aiErrorText(code) {
+  return {
     bad_key: 'The Claude API key was refused (Settings → Claude API key).',
     bad_model: `The model name was not recognised (Settings → Claude API key; ${AI_API.model} is the default).`,
     no_credit: 'The Claude API account behind this key has no credit left.',
@@ -449,7 +452,7 @@ function aiError(e) {
     empty_completion: 'Claude gave no answer. Try a simpler request.',
     invalid_json: 'Claude\'s answer could not be read. Try again.',
   }[code] || (['invalid_request', 'prompt_too_large', 'transform_error', 'queue_overflow'].includes(code)
-    ? `Asking Claude went wrong (${code}).` : 'Claude could not be reached. Try again.'), true);
+    ? `Asking Claude went wrong (${code}).` : 'Claude could not be reached. Try again.');
 }
 /* Ask: one request, and at most one follow-up when the recipe cannot be built (with what was wrong). */
 async function aiAsk(raw) {
@@ -612,7 +615,7 @@ async function identifyMolecules() {
    The key is kept in this browser's storage only and sent to api.anthropic.com alone; use is billed to that account. */
 const AI_API = { url: 'https://api.anthropic.com/v1/messages', version: '2023-06-01', model: 'claude-sonnet-5-5', maxTokens: 1500 };
 function apiSampler(key, model) {
-  return { api: true, json: async (prompt, opts) => {
+  const call = async (prompt, opts) => {
     const body = { model: model || AI_API.model, max_tokens: AI_API.maxTokens, messages: [{ role: 'user', content: prompt }] };
     let res;
     try {
@@ -626,10 +629,18 @@ function apiSampler(key, model) {
     const j = await res.json();
     const text = (j && Array.isArray(j.content) ? j.content : []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
     if (!text) throw { code: 'empty_completion', message: 'no text' };
-    if (opts && opts.onText) opts.onText(text);
+    if (opts && opts.onText) opts.onText({ text, delta: text });
+    return text;
+  };
+  // the same shape as claude.ai's sample: called for text, .json for data
+  const f = async (prompt, opts) => ({ text: await call(prompt, opts), truncated: false });
+  f.api = true;
+  f.json = async (prompt, opts) => {
+    const text = await call(prompt, opts);
     const m = /\{[\s\S]*\}/.exec(text.replace(/^```(?:json)?/m, '').replace(/```\s*$/m, ''));
     try { return JSON.parse(m ? m[0] : text); } catch (e) { throw { code: 'invalid_json', message: text.slice(0, 200) }; }
-  } };
+  };
+  return f;
 }
 function aiInit() {
   const c = typeof window !== 'undefined' ? window.claude : null;

@@ -179,6 +179,11 @@ function drawBox() {
   ctx.strokeStyle = CHAMBER.box; ctx.lineWidth = W.wall === 'reflect' ? 1.5 : 1;
   if (W.wall === 'wrap') ctx.setLineDash([6, 5]); else if (W.wall === 'open') ctx.setLineDash([2, 6]);
   ctx.strokeRect(x0, y0, w, h);
+  if (W.glow && W.wall === 'reflect' && W.T > 700) { // glowing walls: the colour of a black body at the bath temperature
+    const c = blackbodyRGB(W.T), a = clamp((W.T - 700) / 1500, 0, 1);
+    ctx.setLineDash([]); ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},${a})`; ctx.lineWidth = 3; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 12 * a;
+    ctx.strokeRect(x0, y0, w, h); ctx.shadowBlur = 0;
+  }
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) {
     ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(255,200,120,0.5)';
     ctx.strokeRect(w2sx(-W.box.tw / 2), w2sy(W.box.th / 2), W.box.tw * R.s, W.box.th * R.s);

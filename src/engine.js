@@ -2117,11 +2117,46 @@ function photonLabel(E, src) {
 /* The spectroscope (Data tab): every photon made, as its wavelength (nm), when (W.rt) and from which element (Z, or 0),
    in a ring of the last 8,192. */
 const SPEC_N = 8192;
-function specRecord(E, src) {
+function specRecord(E, src, z) {
   const S2 = W.spec || (W.spec = { nm: new Float64Array(SPEC_N), t: new Float64Array(SPEC_N), z: new Int16Array(SPEC_N), n: 0, total: 0 });
   const k = S2.total % SPEC_N;
-  S2.nm[k] = PHYS.HC / E; S2.t[k] = W.rt; S2.z[k] = src && src.k === NUC && src.Z > 0 ? src.Z : 0;
+  S2.nm[k] = PHYS.HC / E; S2.t[k] = W.rt; S2.z[k] = z !== undefined ? z : src && src.k === NUC && src.Z > 0 ? src.Z : 0;
   S2.total++; S2.n = Math.min(SPEC_N, S2.n + 1);
+}
+/* Glowing walls (Lab → Heat bath, off by default): reflecting walls at the bath temperature give off black-body light
+   into the box. Real thermal light from a few nm of wall is far too faint to see at the atoms' pace, so the rate is a
+   show rate, GLOW.N0 photons a second (for a 400 Å rim) at the Sun's 5,800 K, going as T⁴ (Stefan–Boltzmann), at most
+   GLOW.MAX; each photon's energy is drawn from Planck's law and leaves the wall in a random direction weighted to the
+   inward normal (Lambert). What an atom absorbs, the bath pays for (ledger.bath); light crossing the box back into the
+   walls is the walls' own. The spectroscope marks it as the walls' (z = -1). */
+const GLOW = { N0: 150, MAX: 600 };
+const PLANCK_K = (() => { const c = []; let s = 0; for (let k = 1; k <= 60; k++) { s += 1 / (k * k * k); c.push(s); } return c.map(v => v / s); })();
+function planckX() { // x = E/kT, photon numbers ∝ x²/(eˣ − 1) = Σₖ x² e^(−kx): pick k ∝ 1/k³, then x ~ Gamma(3)/k
+  const u = rnd(); let k = 0; while (k < PLANCK_K.length - 1 && PLANCK_K[k] < u) k++;
+  return -Math.log(Math.max(1e-300, rnd() * rnd() * rnd())) / (k + 1);
+}
+function glowTick(realDt) {
+  if (!W.glow || W.wall !== 'reflect' || !(realDt > 0)) return;
+  const T = Math.max(1, W.T), hw = W.box.w / 2, hh = W.box.h / 2, per = 4 * (hw + hh);
+  W.glowAcc = (W.glowAcc || 0) + Math.min(GLOW.MAX, GLOW.N0 * Math.pow(T / 5800, 4) * per / 400) * realDt;
+  let n = Math.floor(W.glowAcc); W.glowAcc -= n; n = Math.min(n, 20);
+  const kT = PHYS.KB * T;
+  for (let i = 0; i < n; i++) {
+    let s = rnd() * per, x, y, nx, ny;
+    if (s < 2 * hw) { x = -hw + s; y = -hh; nx = 0; ny = 1; } else if ((s -= 2 * hw) < 2 * hh) { x = hw; y = -hh + s; nx = -1; ny = 0; }
+    else if ((s -= 2 * hh) < 2 * hw) { x = hw - s; y = hh; nx = 0; ny = -1; } else { s -= 2 * hw; x = -hw; y = hh - s; nx = 1; ny = 0; }
+    const th = Math.asin(2 * rnd() - 1), c = Math.cos(th), sn = Math.sin(th), ux = nx * c - ny * sn, uy = ny * c + nx * sn;
+    glowPhoton(x + nx * 0.01, y + ny * 0.01, kT * planckX(), ux, uy);
+  }
+}
+function glowPhoton(x, y, E, ux, uy) {
+  specRecord(E, null, -1);
+  const hit = rayInteract(x, y, ux, uy, E, null);
+  let x1, y1;
+  if (hit) { x1 = hit.x; y1 = hit.y; W.ledger.bath -= E; } else { const t = rayExit(x, y, ux, uy); x1 = x + ux * t; y1 = y + uy * t; }
+  W.rays.push({ x0: x, y0: y, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x, y1 - y), nu: false, lab: 'thermal ' + fmtE(E) });
+  if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
+  if (hit && hit.after) hit.after();
 }
 function emitPhoton(x, y, E, ux, uy, opts) {
   if (!(E > 0)) return;
@@ -5241,6 +5276,7 @@ function simFrame(realDt, budgetMs) {
   // chips keep the pace the simulation is set to, in real time, even when a crowded box makes the atoms (and the frames)
   // fall behind it: their time is warped anyway (a flash pulse takes 10 µs)
   if (W.chips.length) chipsTick((cut ? W.simPerFrame * slow * clamp(realDt * 60, 1, 6) : simAdv) * PHYS.TU_S, realDt);
+  if (W.glow && simAdv > 0) glowTick(realDt);
   const dtNuc = W.decayOn ? simAdv * PHYS.TU_S * W.warp : 0;
   W.tNuc += dtNuc;
   decayStep(dtNuc);
@@ -5276,7 +5312,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0;
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }
