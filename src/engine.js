@@ -156,7 +156,7 @@ class Part {
   get im() { return S.im[this.i]; } set im(v) { S.im[this.i] = v; }
   get q() { return S.q[this.i]; } set q(v) { S.q[this.i] = v; }
   get qp() { return S.qp[this.i]; } set qp(v) { S.qp[this.i] = v; }
-  get k() { return S.k[this.i]; } set k(v) { S.k[this.i] = v; }
+  get k() { return S.k[this.i]; } set k(v) { if (S.k[this.i] !== v) { S.k[this.i] = v; _zGen++; } }
   get dead() { return S.dead[this.i] === 1; } set dead(v) { S.dead[this.i] = v ? 1 : 0; _flagGen++; if (v) _nDead++; }
   get fast() { return S.fast[this.i] === 1; } set fast(v) { if (S.fast[this.i] !== (v ? 1 : 0)) { S.fast[this.i] = v ? 1 : 0; _flagGen++; } }
   get rad() { return S.rad[this.i] === 1; } set rad(v) { if (S.rad[this.i] !== (v ? 1 : 0)) { S.rad[this.i] = v ? 1 : 0; _flagGen++; } }
@@ -164,7 +164,7 @@ class Part {
   get ballistic() { return S.ballistic[this.i] === 1; } set ballistic(v) { S.ballistic[this.i] = v ? 1 : 0; }
   get inMD() { return S.inMD[this.i] === 1; } set inMD(v) { S.inMD[this.i] = v ? 1 : 0; }
   get nearIon() { return S.nearIon[this.i] === 1; } set nearIon(v) { S.nearIon[this.i] = v ? 1 : 0; }
-  get Z() { return S.Z[this.i]; } set Z(v) { S.Z[this.i] = v; }
+  get Z() { return S.Z[this.i]; } set Z(v) { if (S.Z[this.i] !== v) { S.Z[this.i] = v; _zGen++; } }
   get ne() { return S.ne[this.i]; } set ne(v) { S.ne[this.i] = v; }
   get mol() { return S.mol[this.i]; } set mol(v) { S.mol[this.i] = v; }
   get id() { return S.id[this.i]; } set id(v) { S.id[this.i] = v; }
@@ -1859,7 +1859,9 @@ function computeForces1() {
   const nmd = _nmd, nmdL = _nmdL;
   gridTouch(); // (the MD set is this pass's; the grid is built when something asks for it)
   if (_profOn) { const t = performance.now(); _tClass += t - tp; tp = t; }
-  if (!vlValid()) vlBuild();
+  const okv = vlValid();
+  if (_profOn) { const t = performance.now(); PROF.valid += t - tp; }
+  if (!okv) vlBuild();
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   if (VL.exTopo !== W.topo || VL.exDirty !== W.dirty) vlExclusions();
   if (_profOn) { const t = performance.now(); _tLists += t - tp; tp = t; }
@@ -2316,6 +2318,7 @@ function startTrack(p) {
     p.Z === 2 && p.N === 2 ? [255, 200, 90] : p.Z === 2 ? [235, 130, 255] : p.Z === 1 && p.N === 1 ? [120, 230, 160] :
     p.anti ? [190, 125, 255] : p.Z === 1 && p.N === 2 ? [110, 220, 235] : p.Z === 1 ? [255, 110, 100] : [255, 90, 60];
   const w = p.k !== NUC ? 1 : p.Z === 0 ? 1 : p.Z === 2 ? 2.2 : p.Z > 20 ? 3.2 : 1.6;
+  _trkN++;
   p.trk = { pts: [p.x, p.y], c: col, w, t0: W.rt, upd: W.rt, dash: p.Z === 0 && p.k === NUC, beam: !!p.beam, p, seuI: 0, seuE0: 0, seuDep: 0 }; // (p, seu…: for the charge it frees crossing a chip, chips.js)
   keepTrack(p.trk);
 }
@@ -4685,12 +4688,17 @@ function rotateB(p, vx, vy, frac) { // the turned velocity in _rb
   _rb[0] = vx + vpy * s; _rb[1] = vy - vpx * s;
   return _rb;
 }
-let bathAll = function (dt, c1, c2, kT) { return false; }; // eslint-disable-line no-unused-vars
+let bathAll = function (dt, c1, c2, kT, hw, hh, vf2) { return -1; }; // eslint-disable-line no-unused-vars
+let _wallNeed = -1; // (from the bath pass: how many particles the walls pass must look at; −1 not counted)
 function outerBPlain() { const t = W.tool; return !hasBfield() && !(t && t.active && (t.type === 'heat' || t.type === 'pull')); }
 function outerB(dt) {
   const gam = W.gamma, kT = PHYS.KB * W.T, h = 0.5 * dt;
   const c1 = Math.exp(-gam * dt), c2 = Math.sqrt(Math.max(0, 1 - c1 * c1));
-  if (outerBPlain() && bathAll(dt, c1, c2, kT)) return; // (the threads take the plain case: no magnetic field, no heat tool)
+  const plain = outerBPlain(), cnt = plain && W.wall !== 'wrap' && !W.box.uw && !W.box.uh;
+  const bhw = cnt ? W.box.w / 2 : -1, bhh = W.box.h / 2, vf2 = V_FAST_ON * V_FAST_ON;
+  _wallNeed = -1;
+  if (plain) { const nd = bathAll(dt, c1, c2, kT, bhw, bhh, vf2); if (nd >= 0) { if (cnt) _wallNeed = nd; return; } } // (the threads take the plain case: no magnetic field, no heat tool)
+  let need = 0;
   const hasB = hasBfield();
   const t = W.tool, heat = t && t.active && (t.type === 'heat' || t.type === 'pull');
   let hc1 = 1, hc2 = 0, hkT = 0, hR2 = 0, pullK = 0;
@@ -4706,7 +4714,8 @@ function outerB(dt) {
     if (DEAD[i] === 1 || RAD[i] === 1) continue;
     const k = K[i];
     if (k === NUC && Z[i] === 0) continue;
-    if (FRESH[i] === 1) { FRESH[i] = 0; continue; } // born during this step's events: velocity is already current
+    if (cnt && (k !== NUC || FAST[i] === 1)) need++;
+    if (FRESH[i] === 1) { FRESH[i] = 0; if (cnt && k === NUC) { const x = X[i], y = Y[i]; if (!(x > -bhw && x < bhw && y > -bhh && y < bhh && VX[i] * VX[i] + VY[i] * VY[i] <= vf2)) need++; } continue; } // born during this step's events: velocity is already current
     const fast = FAST[i] === 1;
     if (fast && k !== NUC) continue; // ballistic electrons: moveFastLeptons
     let vx = VX[i], vy = VY[i];
@@ -4728,7 +4737,9 @@ function outerB(dt) {
       const sg = Math.sqrt(hkT * im); vx = k1 * vx + k2 * sg * gauss(); vy = k1 * vy + k2 * sg * gauss();
     }
     VX[i] = vx; VY[i] = vy;
+    if (cnt && !fast) { const x = X[i], y = Y[i]; if (!(x > -bhw && x < bhw && y > -bhh && y < bhh && vx * vx + vy * vy <= vf2)) need++; }
   }
+  if (cnt) _wallNeed = need;
 }
 
 /* Resizing the box. Growing, the walls jump out at once (a free expansion: nothing pushes on them). Shrinking, they
@@ -4775,7 +4786,15 @@ function walls(p) {
 }
 
 /* Periodic housekeeping: π-bond formation between adjacent radicals, field ionization, electron shedding. */
+/* Counters that let the step skip whole-store loops with nothing to do, exactly:
+   _trkN — at least as many particles carry a track as this (startTrack counts up; housekeeping recounts);
+   _nr — neutrons and light counted in the last walls pass, valid while no particle was made (W.nextId), no flag changed
+   (_flagGen) and no charge number changed (_zGen) since that pass began. */
+let _skipOk = true, _skipHits = 0; // (the step's skipped passes: _skipOk false makes it run them always, for tests)
+let _trkN = 0, _zGen = 0, _nrN = 1, _nrId = -1, _nrFlag = -1, _nrZ = -1;
+function trkRecount() { let n = 0; for (const p of W.parts) if (p.trk) n++; _trkN = n; }
 function housekeeping() {
+  trkRecount();
   for (const bd of W.bonds.slice()) {
     const a = bd.a, b = bd.b;
     if (bd.order < 3 && a.cap - a.used > 0 && b.cap - b.used > 0 && covalentOK(a, b)) {
@@ -4822,8 +4841,8 @@ function outerForces() { _lepEvOff = true; computeForces(); _lepEvOff = false; }
 function listsStale() { return _flagGen !== _flagGenForces; } // (a dead, fast or rad flag changed since the lists were made)
 /* Where a step's time goes, summed while PROF.on (the Settings benchmark reads it): the force passes (and inside them the
    kernels' share and the wait for the worker threads), the heat bath, the integrator loops, and the rest. */
-const PROF = { on: false, steps: 0, forces: 0, kernels: 0, wait: 0, bath: 0, integ: 0, total: 0, passes: 0 };
-function profReset() { if (typeof thPhReset === 'function') thPhReset(); PROF.steps = 0; PROF.forces = 0; PROF.kernels = 0; PROF.wait = 0; PROF.bath = 0; PROF.integ = 0; PROF.total = 0; PROF.passes = 0; PROF.cls = 0; PROF.grid = 0; PROF.lists = 0; PROF.after = 0; }
+const PROF = { on: false, steps: 0, forces: 0, kernels: 0, wait: 0, bath: 0, integ: 0, total: 0, passes: 0, rp: new Float64Array(8), dt: 0, valid: 0 };
+function profReset() { if (typeof thPhReset === 'function') thPhReset(); PROF.steps = 0; PROF.forces = 0; PROF.kernels = 0; PROF.wait = 0; PROF.bath = 0; PROF.integ = 0; PROF.total = 0; PROF.passes = 0; PROF.cls = 0; PROF.grid = 0; PROF.lists = 0; PROF.after = 0; PROF.rp = new Float64Array(8); PROF.dt = 0; PROF.valid = 0; }
 function step(dt) {
   if (PROF.on) return stepProfiled(dt);
   return stepPlain(dt);
@@ -4837,32 +4856,44 @@ function stepProfiled(dt) {
   return r;
 }
 let _profOn = false, _tForces = 0, _tKernels = 0, _tWait = 0, _tBath = 0, _tInteg = 0, _nPasses = 0, _tClass = 0, _tGrid = 0, _tLists = 0, _tAfter = 0; // (class: the MD bookkeeping; grid; lists: validity, rebuilds, exclusions; after: everything in computeForces past the kernels)
+// (the parts of a step outside forces, bath and integration, for the benchmark: start, outer forces, events, neutrons and light, walls and fast particles, exotics and sources, housekeeping, dropping the dead)
+const RP_NAMES = ['start', 'outer', 'events', 'neutrons', 'walls', 'exotics', 'housekeeping', 'drop'];
+let _rpT = 0;
+function rpMark(k) { if (!_profOn) return; const t = performance.now(); PROF.rp[k] += t - _rpT; _rpT = t; }
+function rpSkip() { if (_profOn) _rpT = performance.now(); }
 function stepPlain(dt) {
+  if (_profOn) _rpT = performance.now();
   W.step++; gridTouch(); // (positions move this step)
   threadsPrewake();
   const id0 = W.nextId; // particles born during this step start flying in the next one
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) moveWalls(dt); else { W.box.uw = 0; W.box.uh = 0; }
   // particles added from outside, or switched between MD and ballistic flight at the end of the last step
+  rpMark(0);
   if (W.fSpawn !== W.spawned || listsStale()) { _noEv = true; computeForces(); _noEv = false; }
+  rpSkip();
   let tp = _profOn ? performance.now() : 0;
   if (!integrateA(dt)) { // (the threads take the plain case: no magnetic field, no free electrons)
     outerA(dt);
     innerSteps(dt); // everything in MD drifts here; free electrons take their own short steps
   }
-  if (_profOn) { const t = performance.now(); _tInteg += t - tp; }
+  if (_profOn) { const t = performance.now(); _tInteg += t - tp; _rpT = t; }
+  const tf1 = _tForces;
   outerForces();
+  if (_profOn) PROF.rp[1] -= _tForces - tf1; // (the force pass itself is counted under forces)
+  rpMark(1);
   const st0 = W.spawned + W.topo + W.dirty - _undone;
   processEvents();
+  rpMark(2);
   // events that moved atoms, changed bonds or species, or created particles: forces must be current
   if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; }
   W.fSpawn = W.spawned;
   if (_profOn) tp = performance.now();
   outerB(dt);
-  if (_profOn) _tBath += performance.now() - tp;
-  if (_nFastLep > 0 || _flagGen !== _flagGenForces) moveFastLeptons(dt, id0); // (none were ballistic when the lists were made, and no flag has changed since)
+  if (_profOn) { _tBath += performance.now() - tp; _rpT = performance.now(); }
+  if (_nFastLep > 0 || _flagGen !== _flagGenForces) { moveFastLeptons(dt, id0); _wallNeed = -1; } // (none were ballistic when the lists were made, and no flag has changed since)
   const kT = PHYS.KB * W.T, c1 = Math.exp(-W.gamma * dt), c2 = Math.sqrt(Math.max(0, 1 - c1 * c1));
   let nRad = 0;
-  {
+  if (!_skipOk || _nrN > 0 || _nrId !== W.nextId || _nrFlag !== _flagGen || _nrZ !== _zGen) { // (no neutron and no light: nothing to move here)
     const PI = partsSync(), n = W.parts.length, DEAD = S.dead, ID = S.id, K = S.k, Z = S.Z, RAD = S.rad, OBJ = S.obj, X = S.x, Y = S.y, OX = S.ox, OY = S.oy;
     for (let j = 0; j < n; j++) {
       const i = PI[j];
@@ -4871,21 +4902,27 @@ function stepPlain(dt) {
       else if (RAD[i] === 1) { OX[i] = X[i]; OY[i] = Y[i]; moveRad(OBJ[i], dt); nRad++; }
     }
   }
+  rpMark(3);
   moveExos(dt, id0);
   if (nRad >= 2) beamCollisions(id0);
   if (W.collider) { rampRing(); if (W.step % 16 === 0) colliderRefill(); }
-  {
+  // the walls pass, unless the bath pass found every particle an atom inside the box at an atom's pace (or a neutron or light,
+  // none of which there are) and nothing has moved, been made or changed since: it would do nothing
+  if (!_skipOk || !(_wallNeed === 0 && _trkN === 0 && _nrN === 0 && _nrId === W.nextId && _nrFlag === _flagGen && _nrZ === _zGen && !W.exo.length && !W.collider)) {
     const PI = partsSync(), DEAD = S.dead, K = S.k, Z = S.Z, RAD = S.rad, FAST = S.fast, BALL = S.ballistic, OBJ = S.obj, X = S.x, Y = S.y, VX = S.vx, VY = S.vy, M = S.m;
     const hw = W.box.w / 2, hh = W.box.h / 2, wrap = W.wall === 'wrap';
+    const id1 = W.nextId, fg1 = _flagGen, zg1 = _zGen; let nr = 0;
     for (let j = 0; j < W.parts.length; j++) { // (particles can be born within: the count is read each time)
       const i = PI[j];
-      if (DEAD[i] === 1 || RAD[i] === 1) continue;
+      if (DEAD[i] === 1) continue;
+      if (RAD[i] === 1) { nr++; continue; }
       const k = K[i];
-      if (k === NUC && Z[i] === 0) continue;
+      if (k === NUC && Z[i] === 0) { nr++; continue; }
       if (FAST[i] === 1) { if (BALL[i] === 1 && k !== NUC) continue; } // flew and collided in moveFastLeptons
       else if (k === NUC && !wrap) { // an atom inside the box, going at an atom's pace: walls and updateFast would do nothing
         const x = X[i], y = Y[i];
         if (x > -hw && x < hw && y > -hh && y < hh && VX[i] * VX[i] + VY[i] * VY[i] <= V_FAST_ON * V_FAST_ON) {
+          if (_trkN === 0 && _skipOk) continue; // (no particle has a track)
           const p = OBJ[i];
           if (p.trk) { extendTrack(p); if (!p.trkKeep && 0.5 * M[i] * (VX[i] * VX[i] + VY[i] * VY[i]) < 200) p.trk = null; }
           continue;
@@ -4900,7 +4937,9 @@ function stepPlain(dt) {
         if (!p.trkKeep && 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy) < 200) p.trk = null;
       }
     }
+    _nrN = nr; _nrId = id1; _nrFlag = fg1; _nrZ = zg1;
   }
+  rpMark(4);
   fastFastNuclear();
   for (const src of W.sources) {
     if (src.count !== undefined && src.count <= 0) continue; // a bunch, all injected
@@ -4923,10 +4962,12 @@ function stepPlain(dt) {
       }
     }
   }
+  rpMark(5);
   if (W.step % 25 === 0) housekeeping();
   if (W.step % 10 === 0) localTemps();
   W.t += dt;
   if (W.flights.length) landFlights();
+  rpMark(6);
   // drop dead particles
   if (_nDead > 0 && (W.step % 4 === 0 || W.parts.length > 3000)) {
     _nDead = 0;
@@ -4934,6 +4975,7 @@ function stepPlain(dt) {
     for (let i = 0; i < n; i++) { const si = PI[i]; if (DEAD[si] === 0) { if (j !== i) { PI[j] = si; ps[j] = ps[i]; } j++; } else freeSlot(ps[i]); }
     if (j !== n) { ps.length = j; _piN = j; }
   }
+  rpMark(7);
   return dt;
 }
 

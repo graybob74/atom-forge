@@ -37,13 +37,17 @@ function bathNoise(seed, step, slot, out) {
 }
 /* outerB for slots s0 ≤ s < s1 in the plain case (no magnetic field, no heat tool): the velocity half-kick and the
    Langevin bath on nuclei, the same arithmetic as engine.js's outerB, elementwise. */
-function bathSlots(s0, s1, h, c1, c2, kT, gam, seed, step) {
+/* …and counts the particles the step's walls pass must look at (anything but an atom inside the box at an atom's pace,
+   a neutron or light); hw < 0: not counted. */
+function bathSlots(s0, s1, h, c1, c2, kT, gam, seed, step, hw, hh, vf2) {
+  const X = S.x, Y = S.y; let need = 0;
   const DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, IM = S.im, FRESH = S.fresh, nz = _bathNz;
   for (let i = s0; i < s1; i++) {
     if (DEAD[i] === 1 || RAD[i] === 1) continue;
     const k = K[i];
     if (k === 0 && Z[i] === 0) continue; // (NUC = 0: neutrons fly straight)
-    if (FRESH[i] === 1) { FRESH[i] = 0; continue; }
+    if (hw >= 0 && (k !== 0 || FAST[i] === 1)) need++;
+    if (FRESH[i] === 1) { FRESH[i] = 0; if (hw >= 0 && k === 0) { const x = X[i], y = Y[i]; if (!(x > -hw && x < hw && y > -hh && y < hh && VX[i] * VX[i] + VY[i] * VY[i] <= vf2)) need++; } continue; }
     const fast = FAST[i] === 1;
     if (fast && k !== 0) continue;
     let vx = VX[i], vy = VY[i];
@@ -52,7 +56,9 @@ function bathSlots(s0, s1, h, c1, c2, kT, gam, seed, step) {
     else { vx += h * (FX[i] - GX[i]) * im; vy += h * (FY[i] - GY[i]) * im; }
     if (gam > 0 && k === 0) { const sg = Math.sqrt(kT * im); bathNoise(seed, step, i, nz); vx = c1 * vx + c2 * sg * nz[0]; vy = c1 * vy + c2 * sg * nz[1]; }
     VX[i] = vx; VY[i] = vy;
+    if (hw >= 0 && !fast) { const x = X[i], y = Y[i]; if (!(x > -hw && x < hw && y > -hh && y < hh && vx * vx + vy * vy <= vf2)) need++; }
   }
+  return need;
 }
 /* chooseDt's maxima over slots s0 ≤ s < s1, into out[o … o+2]: the squared speed and acceleration of the atoms in MD,
    the squared speed of fast nuclei. A maximum is the same however the slots are shared out, so the threads give the
@@ -193,7 +199,7 @@ onmessage = (e) => {
       dtSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm, nW + 32 + 3 * me);
       Atomics.store(ctrl, me, TH_DTD); Atomics.notify(ctrl, me);
     } else if (st === TH_BATH) {
-      bathSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], 0.5 * prm[nW + 6], prm[nW + 8], prm[nW + 9], prm[nW + 10], prm[nW + 11], prm[nW + 12], prm[nW + 13]);
+      prm[nW + 32 + 3 * me] = bathSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], 0.5 * prm[nW + 6], prm[nW + 8], prm[nW + 9], prm[nW + 10], prm[nW + 11], prm[nW + 12], prm[nW + 13], prm[nW + 21], prm[nW + 22], prm[nW + 23]);
       Atomics.store(ctrl, me, TH_BATHD); Atomics.notify(ctrl, me);
     } else if (st === TH_DONE || st === TH_SUMMED || st === TH_INTEGD || st === TH_BATHD || st === TH_VLD || st === TH_EXD || st === TH_DTD) { waitFor(st); } // (the main thread has not reset us yet)
   }
@@ -407,19 +413,19 @@ dtAll = function (out) {
   return true;
 };
 /* outerB on all threads in the plain case (bathSlots); false when the engine must do it itself. */
-bathAll = function (dt, c1, c2, kT) {
-  if (!TH.n || S.hi < 2000 || !threadsReady()) return false;
+bathAll = function (dt, c1, c2, kT, hw, hh, vf2) {
+  if (!TH.n || S.hi < 2000 || !threadsReady()) return -1;
   const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, hi = S.hi, per = Math.ceil(hi / (n + 0.5));
-  prm[n + 6] = dt; prm[n + 8] = c1; prm[n + 9] = c2; prm[n + 10] = kT; prm[n + 11] = W.gamma; prm[n + 12] = W.bathSeed; prm[n + 13] = W.step;
+  prm[n + 6] = dt; prm[n + 8] = c1; prm[n + 9] = c2; prm[n + 10] = kT; prm[n + 11] = W.gamma; prm[n + 12] = W.bathSeed; prm[n + 13] = W.step; prm[n + 21] = hw; prm[n + 22] = hh; prm[n + 23] = vf2;
   for (let w = 0; w < n; w++) {
     ctrl[thCtrl(w, 0)] = Math.min(hi, w * per); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * per);
     Atomics.store(ctrl, w, TH_BATH); Atomics.notify(ctrl, w);
   }
   const t0 = _profOn ? performance.now() : 0;
-  bathSlots(Math.min(hi, n * per), hi, 0.5 * dt, c1, c2, kT, W.gamma, W.bathSeed, W.step);
+  let need = bathSlots(Math.min(hi, n * per), hi, 0.5 * dt, c1, c2, kT, W.gamma, W.bathSeed, W.step, hw, hh, vf2);
   const t1 = _profOn ? performance.now() : 0;
-  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_BATHD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); }
+  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_BATHD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); need += prm[n + 32 + 3 * w]; }
   thPh('bath', t0, t1, _profOn ? performance.now() : 0);
-  return true;
+  return hw >= 0 ? need : 0;
 };
 if (typeof module !== 'undefined') module.exports = { TH, threadsSet, threadsAvailable, threadsDefault };

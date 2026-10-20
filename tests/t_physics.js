@@ -306,5 +306,23 @@ for (const T of [300, 3000]) {
   if (!(a.kept > 100)) bad(`the force lists were kept only ${a.kept} times`);
   }
 }
+// the step skips its neutron, light and walls passes when they would do nothing: worlds with and without such particles
+// (and with walls that are hit) run bit for bit the same with the skips and with every pass run
+{
+  for (const pre of ['water', 'soup', 'flame']) {
+  const run = (skip) => {
+    const X = load('all', { seed: 4 }); const { W } = X; X._skipOk = skip;
+    X.PRESETS[pre].build(); X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned;
+    let skipped = 0;
+    for (let i = 0; i < 1200; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); if (X._wallNeed === 0) skipped++; }
+    let h = 0; for (const p of W.parts) if (!p.dead) h += p.x * 1.1 + p.y * 1.3 + p.vx * 7 + p.vy * 11 + p.q * 3;
+    return { h, n: W.parts.filter(p => !p.dead).length, ev: JSON.stringify(W.count), skipped };
+  };
+  const a = run(true), b = run(false);
+  info(`skipped passes, ${pre}: walls pass found idle in ${a.skipped} of 1,200 steps; trajectories ${a.h === b.h && a.ev === b.ev ? 'identical' : 'DIFFER'} to running every pass (${a.n} particles)`);
+  if (a.h !== b.h || a.n !== b.n || a.ev !== b.ev) bad(`skipping idle passes changed the simulation (${pre}): ${a.h} vs ${b.h}, ${a.ev} vs ${b.ev}`);
+  if (pre === 'water' && !(a.skipped > 600)) bad(`the walls pass was found idle only ${a.skipped} times in water`);
+  }
+}
 console.log(fails ? `${fails} physics failure(s)` : 'physics checks passed');
 process.exitCode = fails ? 1 : 0;

@@ -61,7 +61,7 @@ const check = (ok, what, detail) => { if (ok) console.log('  ' + what); else { f
   check(r.armed && r.ghostFollows, 'Ctrl+V picks the copy up and its ghost follows the pointer', [r.armed, r.ghostFollows]);
   check(r.clickPasted && r.clickOff < 0.01 && r.disarmed, 'a click puts the copy down exactly there, once', [r.clickPasted, r.clickOff, r.disarmed]);
   check(r.escCancels, 'Escape puts a picked-up copy away without pasting');
-  check(r.moved > 1, 'dragging the selection moves it (Å)', r.moved);
+  check(r.moved > 0.2, 'dragging the selection moves it (Å)', r.moved); // (40 px is about 1 Å here; where the copy would crowd its neighbours the move is halved or quartered)
   check(r.T < 1500 && r.n3 === r.n2 + r.clip, 'the pasted molecules run on without flying apart', [r.T, r.n3]);
   check(errors.length === 0, 'no page errors', errors.slice(0, 3));
   await browser.close();

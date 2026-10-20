@@ -65,9 +65,9 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
     const okWas = _exlOk; _exlOk = false; VL.exTopo = -1; vlExclusions(); const EXS = Uint8Array.from(VL.ex.subarray(0, VL.np)); _exlOk = okWas; exAll = keepEx;
     const exSame = EX2.every((v, q) => v === EX1[q] && v === EXS[q]), exCounts = [0, 0, 0]; for (const v of EXS) exCounts[v]++;
     const V0 = [Float64Array.from(S.vx.subarray(0, n)), Float64Array.from(S.vy.subarray(0, n))], FR0 = Uint8Array.from(S.fresh.subarray(0, n)); // (fresh flags: the bath clears them)
-    W.gamma = 0.05; outerB(W.dt || 0.01); const VB2 = [Float64Array.from(S.vx.subarray(0, n)), Float64Array.from(S.vy.subarray(0, n))];
-    S.vx.set(V0[0]); S.vy.set(V0[1]); S.fresh.set(FR0); const keepBath = bathAll; bathAll = () => false; outerB(W.dt || 0.01); bathAll = keepBath;
-    const bathSame = VB2[0].every((v, i) => v === S.vx[i]) && VB2[1].every((v, i) => v === S.vy[i]);
+    W.gamma = 0.05; outerB(W.dt || 0.01); const VB2 = [Float64Array.from(S.vx.subarray(0, n)), Float64Array.from(S.vy.subarray(0, n))], need2 = _wallNeed;
+    S.vx.set(V0[0]); S.vy.set(V0[1]); S.fresh.set(FR0); const keepBath = bathAll; bathAll = () => -1; outerB(W.dt || 0.01); bathAll = keepBath;
+    const bathSame = VB2[0].every((v, i) => v === S.vx[i]) && VB2[1].every((v, i) => v === S.vy[i]) && need2 === _wallNeed && need2 >= 0;
     S.vx.set(V0[0]); S.vy.set(V0[1]);
     // timing of the force pass, one and two threads
     const time = (k) => { let best = 1e9; for (let r = 0; r < 3; r++) { const t0 = performance.now(); for (let i = 0; i < k; i++) forcesNoEvents(); best = Math.min(best, (performance.now() - t0) / k); } return best; };
@@ -77,7 +77,7 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
     const tot = () => totalEnergy().total - W.ledger.nuc, E0 = tot();
     for (let i = 0; i < 40; i++) { W.dt = chooseDt(); step(W.dt); }
     return { same: diff(F2a, F2b), vs1: diff(F2a, F1), ev2n: ev2.split(' ').length, evSame: ev1 === ev2, ms1, ms2, drift: tot() - E0, used: TH.used, nEv: W.evq.length,
-      vl: { same: vlSame, np: P2[0], ms2: +tv2.toFixed(2), ms1: +tv1.toFixed(2), threaded: (TH.vlBuilds || 0) > builds2, note: TH.vlNote, nocc: G.nocc, cap: VL.pi.length }, bath: { same: bathSame }, ex: { same: exSame, counts: exCounts } };
+      vl: { same: vlSame, np: P2[0], ms2: +tv2.toFixed(2), ms1: +tv1.toFixed(2), threaded: (TH.vlBuilds || 0) > builds2, note: TH.vlNote, nocc: G.nocc, cap: VL.pi.length }, bath: { same: bathSame, need: need2 }, ex: { same: exSame, counts: exCounts } };
   });
   say('forces:', JSON.stringify(r));
   // the WebAssembly kernel: ready in the page (the module compiles in the background), on the worker too, and the
