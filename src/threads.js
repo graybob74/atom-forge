@@ -163,11 +163,11 @@ onmessage = (e) => {
       const wrap = prm[nW] === 1, bw = prm[nW + 1], bh = prm[nW + 2], hw = prm[nW + 3], hh = prm[nW + 4], step = prm[nW + 5];
       let nc;
       if (wex && prm[nW + 7] === 1) { // the WebAssembly kernels (the main thread filled the descriptor before this order)
-        wex.af_zero(FXo.byteOffset, FXo.length); wex.af_zero(FYo.byteOffset, FYo.length);
+        const zn = Math.min(FXo.length, prm[nW + 24]); wex.af_zero(FXo.byteOffset, zn); wex.af_zero(FYo.byteOffset, zn); // (the slots in use: the sum reads no further)
         nc = wex.af_forces(descOff, q0, q1, b0, b1, c0, c1, FXo.byteOffset, FYo.byteOffset, CQ.byteOffset, wrap ? 1 : 0, bw, bh, hw, hh, step, ksOff + 8 * me);
         prm[me] = ksArr[me];
       } else {
-        FXo.fill(0); FYo.fill(0); _kStiff = 0;
+        const zn = Math.min(FXo.length, prm[nW + 24]); FXo.fill(0, 0, zn); FYo.fill(0, 0, zn); _kStiff = 0;
         nc = pairKernel(pi, pj, ex, q0, q1, FXo, FYo, CQ, 0, wrap, bw, bh, hw, hh, step);
         nc = bondKernel(b0, b1, FXo, FYo, CQ, nc, wrap, bw, bh, hw, hh);
         angleKernel(c0, c1, FXo, FYo, wrap, bw, bh, hw, hh);
@@ -278,7 +278,7 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   const t0 = performance.now(), n = TH.n, ctrl = TH.ctrl, prm = TH.prm, nb = BD.n, na = AC.n;
   const wk = wasmReady();
   if (wk) wasmDesc(); // (the workers read the descriptor too: before they are sent off)
-  prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh; prm[n + 5] = W.step; prm[n + 7] = wk ? 1 : 0;
+  prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh; prm[n + 5] = W.step; prm[n + 7] = wk ? 1 : 0; prm[n + 24] = S.hi;
   // pairs, bonds and angle centres shared out: the workers' ranges first, a half share for the main thread last (it also
   // dispatches, and must not be the one the others wait for)
   const per = Math.ceil(np / (n + 0.5)), bper = Math.ceil(nb / (n + 0.5)), aper = Math.ceil(na / (n + 0.5));

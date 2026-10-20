@@ -79,8 +79,8 @@ const S = { size: 0, hi: 0, free: new Int32Array(64), nfree: 0, obj: [],
   x: null, y: null, vx: null, vy: null, fx: null, fy: null, gx: null, gy: null, ox: null, oy: null, m: null, im: null, q: null, qp: null,
   k: null, dead: null, fast: null, rad: null, fresh: null, ballistic: null, inMD: null, nearIon: null, Z: null, ne: null, mol: null, id: null,
   ljR: null, ljS: null, ionR: null, cap: null, used: null, ionic: null, isMetal: null, anti: null, xferD: null, xferA: null, sEN: null, elrc: null, hit: null,
-  lp: null, metal: null, mR: null, mD: null };
-const S_F64 = ['x', 'y', 'vx', 'vy', 'fx', 'fy', 'gx', 'gy', 'ox', 'oy', 'm', 'im', 'q', 'qp', 'ljR', 'ljS', 'ionR', 'sEN', 'elrc', 'mR', 'mD'];
+  lp: null, metal: null, mR: null, mD: null, tLocal: null };
+const S_F64 = ['x', 'y', 'vx', 'vy', 'fx', 'fy', 'gx', 'gy', 'ox', 'oy', 'm', 'im', 'q', 'qp', 'ljR', 'ljS', 'ionR', 'sEN', 'elrc', 'mR', 'mD', 'tLocal'];
 const S_U8 = ['k', 'dead', 'fast', 'rad', 'fresh', 'ballistic', 'inMD', 'nearIon', 'ionic', 'isMetal', 'anti', 'xferD', 'xferA', 'metal'];
 const S_I16 = ['Z', 'ne', 'cap', 'used', 'lp'], S_I32 = ['mol', 'id', 'hit'];
 const S_ALL = S_F64.concat(S_U8, S_I16, S_I32);
@@ -132,17 +132,18 @@ class Part {
     S.k[i] = k; S.dead[i] = 0; S.fast[i] = 0; S.rad[i] = 0; S.fresh[i] = 1; S.ballistic[i] = 0; S.inMD[i] = 0; S.nearIon[i] = 0;
     S.Z[i] = 0; S.ne[i] = 0; S.mol[i] = 0; S.id[i] = W.nextId++;
     S.ljR[i] = 0; S.ljS[i] = 0; S.ionR[i] = 0; S.cap[i] = 0; S.used[i] = 0; S.ionic[i] = 0; S.isMetal[i] = 0; S.anti[i] = 0; S.xferD[i] = 0; S.xferA[i] = 0;
-    S.sEN[i] = SOFT_EN; S.elrc[i] = 0; S.hit[i] = 0; S.lp[i] = 0; S.metal[i] = 0; S.mR[i] = 0; S.mD[i] = 0;
+    S.sEN[i] = SOFT_EN; S.elrc[i] = 0; S.hit[i] = 0; S.lp[i] = 0; S.metal[i] = 0; S.mR[i] = 0; S.mD[i] = 0; S.tLocal[i] = 0;
     this.N = 0; this.qpol = 0; this.qf = 0; this.bonds = []; this.excl = null; this.el = null; this.nuc = null;
     this.KE = 0; this.ux = 1; this.uy = 0; this.sp = 0; this.gam = 1;
     this.glow = 0; this.glowC = ''; this.born = W.rt;
     this.val = 0; this.nOut = 0; this.unp = 0;
     this.ljE = 0; this.polarH = false; this.rd = 0.3;
-    this.trk = null; this.mark = 0; this.sel = false; this.tLocal = 0;
+    this.trk = null; this.mark = 0; this.sel = false;
     this.omB = 0; this.Bl = 0; this.evId = 0; this.capT = 0; this.capN = 0;
     this.beam = undefined; this.trkKeep = undefined; this.injKick = undefined; this.kickIn = undefined; this.nucProd = undefined; this.caught = false;
   }
   get x() { return S.x[this.i]; } set x(v) { S.x[this.i] = v; }
+  get tLocal() { return S.tLocal[this.i]; } set tLocal(v) { S.tLocal[this.i] = v; }
   get y() { return S.y[this.i]; } set y(v) { S.y[this.i] = v; }
   get vx() { return S.vx[this.i]; } set vx(v) { S.vx[this.i] = v; }
   get vy() { return S.vy[this.i]; } set vy(v) { S.vy[this.i] = v; }
@@ -1921,19 +1922,23 @@ function computeForces1() {
       if (hasB && NE[i] > 0) magneticMatterForce(OBJ[i], kT);
     }
   }
-  if (W.wall === 'reflect') { // soft harmonic walls: conserve energy and leave molecules intact
-    const M = S.m;
-    for (let q = 0; q < nmd; q++) {
-      const i = mdI[q];
-      if (K[i] !== NUC) continue; // electrons: in leptonExtras
-      const k = 30 * Math.min(1, M[i]), x = X[i], y = Y[i]; // (wallK)
-      if (x > hw) FX[i] -= k * (x - hw); else if (x < -hw) FX[i] += k * (-hw - x);
-      if (y > hh) FY[i] -= k * (y - hh); else if (y < -hh) FY[i] += k * (-hh - y);
-    }
-  }
+  if (W.wall === 'reflect') softWalls(mdI, nmd, hw, hh); // soft harmonic walls: conserve energy and leave molecules intact
   toolForces();
   leptonExtras(true);
   if (_profOn) _tAfter += performance.now() - tp;
+}
+/* The soft walls' push on the atoms in MD past them (electrons: in leptonExtras). Its own small function: inside the
+   force pass's long body the loop ran several times slower. */
+function softWalls(mdI, nmd, hw, hh) {
+  const K = S.k, M = S.m, X = S.x, Y = S.y, FX = S.fx, FY = S.fy;
+  for (let q = 0; q < nmd; q++) {
+    const i = mdI[q], x = X[i], y = Y[i];
+    if (x <= hw && x >= -hw && y <= hh && y >= -hh) continue; // (inside: no push)
+    if (K[i] !== NUC) continue;
+    const k = 30 * Math.min(1, M[i]); // (wallK)
+    if (x > hw) FX[i] -= k * (x - hw); else if (x < -hw) FX[i] += k * (-hw - x);
+    if (y > hh) FY[i] -= k * (y - hh); else if (y < -hh) FY[i] += k * (-hh - y);
+  }
 }
 /* Soft-wall stiffness: one oscillation frequency for every heavy particle. (Free electrons bounce off the walls
    elastically on their own short steps: leptonWall.) */
@@ -4794,8 +4799,8 @@ let _skipOk = true, _skipHits = 0; // (the step's skipped passes: _skipOk false 
 let _trkN = 0, _zGen = 0, _nrN = 1, _nrId = -1, _nrFlag = -1, _nrZ = -1;
 function trkRecount() { let n = 0; for (const p of W.parts) if (p.trk) n++; _trkN = n; }
 function housekeeping() {
-  trkRecount();
-  for (const bd of W.bonds.slice()) {
+  if (_trkN > 0) trkRecount(); // (none made since the last count: still none)
+  if (bondsCanRise()) for (const bd of W.bonds.slice()) {
     const a = bd.a, b = bd.b;
     if (bd.order < 3 && a.cap - a.used > 0 && b.cap - b.used > 0 && covalentOK(a, b)) {
       // released: the change in bond energy at the atoms' present spacing (the rest becomes the new, shorter
@@ -4819,18 +4824,30 @@ function housekeeping() {
       }
     }
   }
-  for (const p of W.parts) if (!p.dead && p.k === NUC && p.ne > p.Z) stabilize(p);
+  { const ps = W.parts, DEAD = S.dead, K = S.k, NE = S.ne, Z = S.Z;
+    for (let j = 0; j < ps.length; j++) { const i = ps[j].i; if (DEAD[i] === 0 && K[i] === NUC && NE[i] > Z[i]) stabilize(ps[j]); } } // (as for…of: particles added meanwhile are visited too)
+}
+/* Whether any bond could rise in order now (both atoms with room, the pair fit for it): read only, so when none can,
+   housekeeping's bond loop — which changes nothing until it finds one — is skipped. */
+function bondsCanRise() {
+  const CAP = S.cap, USED = S.used;
+  for (const bd of W.bonds) {
+    if (bd.order >= 3) continue;
+    const a = bd.a, b = bd.b, ia = a.i, ib = b.i;
+    if (CAP[ia] - USED[ia] > 0 && CAP[ib] - USED[ib] > 0 && covalentOK(a, b)) return true;
+  }
+  return false;
 }
 
 /* Local temperature estimate per atom (for incandescence and Curie behaviour). */
 function localTemps() {
-  const PI = partsSync(), n = W.parts.length, DEAD = S.dead, K = S.k, M = S.m, VX = S.vx, VY = S.vy, OBJ = S.obj;
+  const PI = partsSync(), n = W.parts.length, DEAD = S.dead, K = S.k, M = S.m, VX = S.vx, VY = S.vy, TL = S.tLocal, KB = PHYS.KB;
   for (let j = 0; j < n; j++) {
     const i = PI[j];
     if (DEAD[i] === 1 || K[i] !== NUC) continue;
     const ke = 0.5 * M[i] * (VX[i] * VX[i] + VY[i] * VY[i]);
-    const Tk = ke / PHYS.KB, p = OBJ[i];
-    p.tLocal = p.tLocal ? 0.9 * p.tLocal + 0.1 * Tk : Tk;
+    const Tk = ke / KB, t = TL[i];
+    TL[i] = t ? 0.9 * t + 0.1 * Tk : Tk;
   }
 }
 
