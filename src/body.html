@@ -400,6 +400,8 @@
       <label class="check"><input type="checkbox" id="setFx"> Glows, halos and flashes</label>
       <div class="srow"><span>Threads</span><div class="seg" id="segThreads" role="group" aria-label="Processor threads"><button data-v="auto">Auto</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="4">4</button><button data-v="8">8</button><button data-v="16">16</button></div></div>
       <div class="srow"><span>Drawing</span><div class="seg" id="segGl" role="group" aria-label="Drawing"><button data-v="gl">WebGL</button><button data-v="2d">Canvas 2D</button></div></div>
+      <div class="srow"><span>Particle trails</span><div class="seg" id="segTrail" role="group" aria-label="How long particle trails last"><button data-v="0.5" title="The last half second of each path">Short</button><button data-v="1.5" title="The last 1.5 s of each path">Medium</button><button data-v="4" title="The last 4 s of each path">Long</button></div></div>
+      <div class="srow"><span>Trails timed by</span><div class="seg" id="segTrailClock" role="group" aria-label="Trails timed by"><button data-v="real" title="Seconds of watching: trails are as long whatever the speed">Real time</button><button data-v="sim" title="Simulated time: trails grow when the simulation is sped up and shrink in slow motion">Simulated time</button></div></div>
       <p class="note" id="setThreads" aria-live="polite"></p>
       <div class="srow"><span>Speed test</span><button class="btn small" id="setBench">Run benchmark</button></div>
       <p class="note" id="setBenchOut" aria-live="polite"></p>

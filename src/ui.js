@@ -1248,7 +1248,11 @@ function renderInspect() {
   restoreScroll('tp-inspect');
 }
 function fmtSpeed(v) { // v in Å/tu
-  const ms = v * PHYS.V_MS;
+  const ms = v * PHYS.V_MS, b = ms / 299792458;
+  if (b >= 0.5) { // near light: enough digits to stay below c, and the share of c (299,792 km/s rounded to three figures read "300,000")
+    const dec = clamp(Math.ceil(-Math.log10(Math.max(1e-15, 1 - b))), 1, 12);
+    return `${(ms / 1e3).toLocaleString('en-US', { maximumFractionDigits: clamp(dec - 3, 0, 9) })} km/s (${(100 * b).toFixed(dec)}% of c)`;
+  }
   return ms >= 1e3 ? fmtNum(ms / 1e3, 3) + ' km/s' : ms.toPrecision(3) + ' m/s'; // (12,300 km/s, never 1.23e+4)
 }
 function drawInspectBohr() {
@@ -1458,8 +1462,8 @@ const PART_NAMES = { 'pi+': 'charged pion', 'pi-': 'charged pion', pi0: 'neutral
   K0S: 'neutral kaon (short-lived)', K0L: 'neutral kaon (long-lived)', eta: 'eta meson', Lam: 'lambda baryon', Lamb: 'antilambda', 'tau-': 'tau lepton', 'tau+': 'antitau' };
 function renderMade() {
   const M = W.made, sec = $('dMadeSec');
-  const nuc = M ? [...M.nuc.values()] : [], part = M ? [...M.part.values()] : [];
-  sec.hidden = !nuc.length && !part.length;
+  const nuc = M ? [...M.nuc.values()] : [], part = M ? [...M.part.values()] : [], nus = M && M.nu ? [...M.nu.values()] : [];
+  sec.hidden = !nuc.length && !part.length && !nus.length;
   if (sec.hidden) return;
   nuc.sort((a, b) => b.Z - a.Z || b.N - a.N || a.anti - b.anti);
   part.sort((a, b) => b.n - a.n);
@@ -1469,7 +1473,7 @@ function renderMade() {
   let sum = kinds ? `${kinds} nuclide${kinds === 1 ? '' : 's'} of ${els.size} element${els.size === 1 ? '' : 's'}` : 'No new nuclides yet';
   if (top) sum += `; the heaviest element, ${ELEMENTS[top.Z].name.toLowerCase()} (Z = ${top.Z})${top.Z > Z_TABLE ? ', which no lab has made yet' : ''}`;
   if (synth.size) sum += `. ${synth.size === 1 ? 'One element is' : synth.size + ' elements are'} synthetic, beyond uranium: found nowhere in nature, made only in accelerators and reactors`;
-  if (part.length) sum += `. Particles: ${part.map(r => `${esc(r.lab)}&#8202;×${r.n}`).join(' · ')}`;
+  if (part.length || nus.length) sum += `. Particles: ${part.concat(nus).map(r => `${esc(r.lab)}&#8202;×${r.n}`).join(' · ')}`;
   $('dMadeSum').innerHTML = sum + '.';
   const row = (sw, lab, nm, sub, n) => `<tr><td class="f"><span class="sw" style="background:${sw}"></span>${esc(lab)}</td><td class="nm"><b>${nm}</b><br><span class="sub">${esc(sub)}</span></td><td class="n">${n}</td></tr>`;
   const html = nuc.slice(0, 80).map(r => {
@@ -1479,7 +1483,8 @@ function renderMade() {
       (r.Z > 103 && !r.anti ? ' <span class="tag">superheavy</span>' : r.Z > 92 && !r.anti ? ' <span class="tag">synthetic</span>' : '');
     const life = info.stable ? 'stable' : info.unbound ? 'unbound: falls apart at once' : `${lifeText(info)}${info.modes && info.modes.length ? ', ' + modeLabel(info.modes[0].mode).replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase()) : ''}`;
     return row(ELEMENTS[r.Z].color, r.lab, nm, `${life} · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n);
-  }).join('') + part.map(r => { const d = XP[r.sp]; return row(rgba(d.col, 1), r.lab, esc(PART_NAMES[r.sp] || r.sp), `mean life ${fmtTime(d.tau)} · first: ${r.how}`, r.n); }).join('');
+  }).join('') + part.map(r => { const d = XP[r.sp]; return row(rgba(d.col, 1), r.lab, esc(PART_NAMES[r.sp] || r.sp), `mean life ${fmtTime(d.tau)} · first: ${r.how}`, r.n); }).join('') +
+    nus.map(r => row('rgb(120,255,170)', r.lab, r.anti ? 'Antineutrinos' : 'Neutrinos', `left the box at about c, ${fmtE(r.E)} carried off in all · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n)).join('');
   $('dMade').innerHTML = html + (nuc.length > 80 ? `<tr><td class="nm" colspan="3">… and ${nuc.length - 80} more nuclides</td></tr>` : '');
 }
 function chartCtx(cv) {
@@ -1594,13 +1599,13 @@ function filePick(accept, cb) {
   inp.click();
 }
 const SAVE_KINDS = new Set([NUC, ELEC, POS]);
-/* The world as data: the box, bath, fields and pace, every nucleus, atom, ion and free lepton with its velocity, the
-   bonds among them and the magnets. Not kept: radiation and particles in flight, beams, a collider's rings, and chips'
-   circuits (their atoms are saved as atoms). */
+/* The world as data: the box, bath, fields and pace, every nucleus, atom, ion and free lepton with its velocity (one in
+   radiation flight with its energy and direction: a tenth entry), the bonds among them and the magnets. Not kept:
+   light, beams, a collider's rings, and chips' circuits (their atoms are saved as atoms). */
 function worldToJSON() {
-  const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.rad && !p.caught);
+  const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.caught);
   const ix = new Map(ps.map((p, i) => [p, i])), r6 = (v) => Math.round(v * 1e6) / 1e6;
-  const parts = ps.map(p => [p.k, p.Z, p.N, p.ne, p.anti ? 1 : 0, r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]);
+  const parts = ps.map(p => { const a = [p.k, p.Z, p.N, p.ne, p.anti ? 1 : 0, r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]; if (p.rad) a.push(p.KE); return a; });
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
   return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
@@ -1612,17 +1617,21 @@ function worldFromJSON(d) {
   const num = (v, lo, hi, dflt) => (Number.isFinite(v) ? clamp(v, lo, hi) : dflt);
   setRunning(false); clearWorld(); UI.preset = typeof d.preset === 'string' ? d.preset : 'empty';
   W.box.w = W.box.tw = num(d.box.w, 20, 20000, 200); W.box.h = W.box.th = num(d.box.h, 20, 20000, 140); UI.aspect = W.box.th / W.box.tw;
-  W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -3, 3, 0); W.Ey = num(d.Ey, -3, 3, 0);
-  W.simPerFrame = num(d.spf, spdFromS(0), spdFromS(100), W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1, 1e30, 1); W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo;
+  W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -50, 50, 0); W.Ey = num(d.Ey, -50, 50, 0);
+  UI.E = Math.hypot(W.Ex, W.Ey); UI.Eang = UI.E ? Math.round(Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) : (UI.Eang || 0); // (the Lab's field figure and direction, from the field)
+  W.simPerFrame = num(d.spf, DT_MIN, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1, 1e30, 1); W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo;
   const made = [], hw = W.box.w / 2, hh = W.box.h / 2;
   for (const q of d.parts) {
     if (!Array.isArray(q) || q.length < 9) { made.push(null); continue; }
     const [k, Z, N, ne, anti, x, y, vx, vy] = q;
     if (![x, y, vx, vy].every(Number.isFinite)) { made.push(null); continue; }
     const px = clamp(x, -hw, hw), py = clamp(y, -hh, hh);
-    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } made.push(addNuc(Z, N, ne, px, py, vx, vy, anti === 1)); }
-    else if (k === ELEC || k === POS) made.push(addLepton(k, px, py, vx, vy));
-    else made.push(null);
+    let p = null;
+    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } p = addNuc(Z, N, ne, px, py, vx, vy, anti === 1); }
+    else if (k === ELEC || k === POS) p = addLepton(k, px, py, vx, vy);
+    const KE = q[9], v = Math.hypot(vx, vy);
+    if (p && Number.isFinite(KE) && KE > 0 && v > 0) setMotion(p, KE, vx / v, vy / v); // (in radiation flight: its energy, as saved)
+    made.push(p);
   }
   let nb = 0;
   for (const b of d.bonds) { if (!Array.isArray(b)) continue; const [i, j, o] = b; const a = made[i], c = made[j]; if (a && c && a !== c && [1, 2, 3].includes(o)) { addBond(a, c, o); nb++; } }
@@ -1728,7 +1737,9 @@ function attachTyped(el, T) {
   const open = () => {
     if (el.querySelector('input')) return;
     const was = el.textContent, base = T.get();
-    let unit = T.units ? T.units.find(u => u.u === unitFor(T, base)) || T.units[0] : null;
+    // the unit the figure is shown in (the first number's unit: "16.4 as per 1/60 s" → as), else the best fit
+    const shown = /[-+]?\d[\d,]*(?:\.\d+)?(?:e[-+]?\d+)?\s*([^\s\d,.]+)/i.exec(was);
+    let unit = T.units ? (shown && T.units.find(u => u.u === shown[1])) || T.units.find(u => u.u === unitFor(T, base)) || T.units[0] : null;
     const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'typedIn'; inp.setAttribute('aria-label', 'Type a value'); inp.autocomplete = 'off'; inp.spellcheck = false;
     inp.value = fmtTyped(unit ? unit.from(base) : base);
     let sel = null;
@@ -1772,7 +1783,7 @@ function attachTyped(el, T) {
 function bindTyped() { for (const id of Object.keys(TYPED)) attachTyped($(id), TYPED[id]); }
 /* The tool options' figures (radius, energy, temperature, field, wavelength, rate): the same editors, made each time the
    bar is built. A typed value sets the tool's slider position (clamped to its range) and the bar is drawn again. */
-const U_LIGHT = [lin('nm', 1), lin('µm', 1e3), lin('Å', 0.1)].map(u => ({ u: u.u, to: (v) => 1239.84198 / u.to(v), from: (E) => u.from(1239.84198 / E) })).concat(U_ENERGY); // (wavelength ↔ photon energy in eV)
+const U_LIGHT = [lin('fm', 1e-6), lin('pm', 1e-3), lin('Å', 0.1), lin('nm', 1), lin('µm', 1e3), lin('mm', 1e6)].map(u => ({ u: u.u, to: (v) => 1239.84198 / u.to(v), from: (E) => u.from(1239.84198 / E) })).concat(U_ENERGY); // (wavelength ↔ photon energy in eV)
 const logS = (v, off, lo, hi) => clamp(100 * (Math.log10(Math.max(1e-12, v)) + off), lo, hi); // (not rounded to the slider's steps: the typed value is kept as typed)
 function toolTyped(t, o) {
   const again = () => buildToolOpts();
@@ -1783,7 +1794,7 @@ function toolTyped(t, o) {
     oTV: { units: U_TEMP, pick: tPick, get: () => heatT(), apply: (T) => { o.s = logS(T, 0, 0, 900); again(); }, why: 'the heat tool runs from 1 K to a billion K' },
     oEV: { units: U_ENERGY, get: () => sparkE(), apply: (E) => { o.s = logS(E, 0, -100, 1200); again(); }, why: 'sparks of 0.1 eV to 1 TeV' },
     oBV: { units: U_B, get: () => Math.abs(magB()), apply: (B) => { o.s = logS(Math.abs(B), 0, 0, 900); again(); }, why: 'magnets of 1 T to a billion T' },
-    oLV: { units: U_LIGHT, pick: (E) => { const lam = 1239.84198 / E; return lam >= 1000 ? 'µm' : lam >= 1 ? 'nm' : E >= 1e6 ? 'MeV' : E >= 1e3 ? 'keV' : 'eV'; }, get: () => lightE(), apply: (E) => { o.s = logS(E, 1, -100, 1100); again(); }, why: 'light from 0.01 eV (124 µm) to 10 GeV' },
+    oLV: { units: U_LIGHT, pick: (E) => { const lam = 1239.84198 / E; return lam >= 1e4 ? 'µm' : lam >= 1 ? 'nm' : lam >= 1e-3 ? 'pm' : 'fm'; }, get: () => lightE(), apply: (E) => { o.s = logS(E, 1, -100, 1100); again(); }, why: 'light from 0.01 eV (124 µm) to 10 GeV' },
     oRateV: { units: null, int: true, get: () => o.rate, apply: (r) => { o.rate = clamp(Math.round(r), 5, 400); again(); } },
   };
   for (const id of Object.keys(M)) attachTyped($(id), M[id]);
@@ -2711,6 +2722,9 @@ const FRAME_AIM_MS = 1000 / 60 - 0.4; // a frame's worth at 60 fps: the simulati
 /* Settings' priority, smooth ↔ fast: the frame rate the budget aims for. Above the smooth end, a frame may run longer —
    down to this rate — while the simulation is behind the speed it is set to; once it keeps up, frames stay short. */
 const PRIO_FPS = [60, 50, 40, 30, 20], PRIO_NAME = ['smooth: aims for 60 fps', 'leaning smooth: frames down to 50 fps', 'balanced: frames down to 40 fps', 'leaning fast: frames down to 30 fps', 'fast: frames down to 20 fps to keep the set speed'];
+/* Particle trails: how long they last (Settings), and by which clock (render.js drawTracks). */
+function trailWindow() { const s = SET.trail || 0.5; return SET.trailClock === 'sim' ? s * 60 * (UI.baseSpf || W.simPerFrame) : s; }
+function trailSim() { return SET.trailClock === 'sim'; }
 function frameAim() { return 1000 / PRIO_FPS[SET.prio || 0] - 0.4; }
 function frameCap(room) { return (SET.prio || 0) > 0 ? Math.max(UI.budget, room) : UI.budget; } // (past the smooth end the physics may take the room the aim leaves, beyond Physics per frame)
 function frame(now) {
@@ -2831,9 +2845,9 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0 };
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, trail: 0.5, trailClock: 'real' };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4] };
+const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -2954,7 +2968,7 @@ function setSetting(k, v) {
 function syncSettings() {
   if ($('setModal').hidden) return;
   $('setPerf').checked = perfOn();
-  setSegValue('segMax', SET.maxParts); setSegValue('segRes', SET.res); setSegValue('segBudget', SET.budget); setSegValue('segThreads', String(SET.threads)); setSegValue('segGl', SET.gl);
+  setSegValue('segMax', SET.maxParts); setSegValue('segRes', SET.res); setSegValue('segBudget', SET.budget); setSegValue('segThreads', String(SET.threads)); setSegValue('segGl', SET.gl); setSegValue('segTrail', String(SET.trail)); setSegValue('segTrailClock', SET.trailClock);
   $('setPrio').value = SET.prio || 0; $('setPrioV').textContent = PRIO_NAME[SET.prio || 0];
   if (document.activeElement !== $('setApiKey')) $('setApiKey').value = SET.apiKey || ''; if (document.activeElement !== $('setApiModel')) $('setApiModel').value = SET.apiModel || '';
   { const own = typeof window !== 'undefined' && window.claude && typeof window.claude.use === 'function'; const n = $('setApiNote');
@@ -2993,6 +3007,7 @@ function settingsInit() {
   $('setPrio').addEventListener('change', (e) => setSetting('prio', +e.target.value));
   bindSeg('segThreads', (v) => setSetting('threads', v));
   bindSeg('segGl', (v) => setSetting('gl', v));
+  bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
   bindSeg('segTUnit', (v) => setSetting('tunit', v));

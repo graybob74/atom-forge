@@ -25,8 +25,13 @@ function softFor(p) {
 const V_FAST_ON = 25, V_FAST_OFF = 18;     // ballistic mode thresholds (Å/tu)
 const ESC_E_NEUTRON = 1e3; // eV: faster neutrons leave through the walls
 const NEUTRON_RAD = 2e7;   // eV: faster neutrons fly at their relativistic speed with their energy stored (radiation mode)
-/* Radiation-mode thresholds (eV): well above the thermal energies of the bath, so plasmas stay thermal. */
-function radThreshold(isLepton) { return Math.max(isLepton ? 1000 : 2000, 30 * PHYS.KB * W.T); }
+/* Radiation-mode thresholds (eV): well above the thermal energies of the bath, so plasmas stay thermal. The bath's
+   temperature here is the one the matter has had time to follow (_Tb): it rises at once with the setting, and falls only as
+   fast as the bath can cool the matter (kinetic energy relaxes at 2γ), so a plasma whose bath is turned down cools where
+   it is instead of being declared radiation all at once and flying into walls that stop radiation. */
+let _Tb = 0;
+function radThreshold(isLepton) { return Math.max(isLepton ? 1000 : 2000, 30 * PHYS.KB * Math.max(W.T, _Tb)); }
+function bathFollow(dt) { _Tb = W.T >= _Tb ? W.T : W.T + (_Tb - W.T) * Math.exp(-2 * W.gamma * dt); }
 const DT_MAX = 0.04, DT_MIN = 2e-5;        // tu (0.4 fs max)
 const LJ_SCALE = 2.0;                      // 2-D cohesion correction for dispersion
 const FCAP = 1e7;                          // eV/Å: a safety net only; the step size follows contact stiffness
@@ -2144,11 +2149,16 @@ function landFlights() {
 function rayFrac(r) { return r.landed || !(r.len > 0) ? 1 : clamp((W.t - r.ts) * PHYS.C / r.len, 0, 1); }
 /* Light in flight: time slows until it crosses about 1.5% of the box a frame, so that it is seen going at c. */
 function lightSlow() { return clamp(0.015 * Math.min(W.box.w, W.box.h) / (PHYS.C * W.simPerFrame), 1e-7, 1); } // (against the speed as set, not the setup's: light crosses the box in about 70 frames whatever the Motion setting — it used to cross in one when the motion was sped up)
-function emitNeutrino(x, y, E, ux, uy) {
+function emitNeutrino(x, y, E, ux, uy, anti = false, how = 'a particle decay or reaction') {
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
-  const t = rayExit(x, y, ux, uy);
-  W.rays.push({ x0: x, y0: y, x1: x + ux * t, y1: y + uy * t, E, c: [120, 255, 170], t0: W.rt, ts: W.t, len: t, nu: true, lab: 'ν ' + fmtE(E) });
+  const t = rayExit(x, y, ux, uy), sym = anti ? 'ν̄' : 'ν';
+  W.rays.push({ x0: x, y0: y, x1: x + ux * t, y1: y + uy * t, E, c: [120, 255, 170], t0: W.rt, ts: W.t, len: t, nu: true, lab: sym + ' ' + fmtE(E) });
   W.ledger.escaped += E;
+  // the Data tab's "Made here": neutrinos and antineutrinos counted, with the energy they carried off
+  const M = W.made || (W.made = { nuc: new Map(), part: new Map() });
+  const nu = M.nu || (M.nu = new Map()), key = anti ? 'nubar' : 'nu';
+  let r = nu.get(key); if (!r) { r = { anti, lab: sym, n: 0, E: 0, how, t: W.t }; nu.set(key, r); }
+  r.n++; r.E += E;
 }
 function rayExit(x, y, ux, uy) {
   const hw = W.box.w / 2, hh = W.box.h / 2;
@@ -2332,7 +2342,7 @@ function startTrack(p) {
     p.anti ? [190, 125, 255] : p.Z === 1 && p.N === 2 ? [110, 220, 235] : p.Z === 1 ? [255, 110, 100] : [255, 90, 60];
   const w = p.k !== NUC ? 1 : p.Z === 0 ? 1 : p.Z === 2 ? 2.2 : p.Z > 20 ? 3.2 : 1.6;
   _trkN++;
-  p.trk = { pts: [p.x, p.y], c: col, w, t0: W.rt, upd: W.rt, dash: p.Z === 0 && p.k === NUC, beam: !!p.beam, p, seuI: 0, seuE0: 0, seuDep: 0 }; // (p, seu…: for the charge it frees crossing a chip, chips.js)
+  p.trk = { pts: [p.x, p.y], ts: [W.rt], tt: [W.t], c: col, w, t0: W.rt, upd: W.rt, dash: p.Z === 0 && p.k === NUC, beam: !!p.beam, p, seuI: 0, seuE0: 0, seuDep: 0 }; // (p, seu…: for the charge it frees crossing a chip, chips.js)
   keepTrack(p.trk);
 }
 /* Trails fade 1.6 s after their particle stops or leaves (drawTracks). Past TRACK_MAX the oldest beam particles'
@@ -2345,11 +2355,30 @@ function keepTrack(t) {
   for (let i = 0; i < W.tracks.length && drop > 0; i++) if (W.tracks[i].beam) { W.tracks.splice(i--, 1); drop--; }
   if (drop > 0) W.tracks.splice(0, drop);
 }
+/* Drop a track's k oldest points (with their times; a chip's place along it moves back with them). */
+function trkDrop(t, k) {
+  if (k <= 0) return;
+  t.pts.splice(0, 2 * k); if (t.ts) { t.ts.splice(0, k); t.tt.splice(0, k); }
+  if (t.seuI !== undefined) t.seuI = Math.max(0, t.seuI - 2 * k);
+}
+/* A track at its 400 points is thinned, not cut: every other point of its older half goes, so it keeps the time it
+   spans (Settings → Particle trails) at a little less detail where it is oldest. */
+function trkThin(t) {
+  const n = t.pts.length >> 1, half = n >> 1, P = [], TS = [], TT = [];
+  let seu = t.seuI !== undefined ? t.seuI >> 1 : -1, seuN = 0;
+  for (let i = 0; i < n; i++) {
+    if (i < half && (i & 1)) continue;
+    if (i < seu) seuN++;
+    P.push(t.pts[2 * i], t.pts[2 * i + 1]); if (t.ts) { TS.push(t.ts[i]); TT.push(t.tt[i]); }
+  }
+  t.pts = P; if (t.ts) { t.ts = TS; t.tt = TT; }
+  if (seu >= 0) t.seuI = 2 * seuN;
+}
 function extendTrack(p) {
   const t = p.trk; if (!t) return;
   const n = t.pts.length;
   const lx = t.pts[n - 2], ly = t.pts[n - 1];
-  if (Math.abs(lx - p.x) + Math.abs(ly - p.y) > 0.4) { t.pts.push(p.x, p.y); if (t.pts.length > 400) { t.pts.splice(0, 2); t.seuI = Math.max(0, t.seuI - 2); } }
+  if (Math.abs(lx - p.x) + Math.abs(ly - p.y) > 0.4) { t.pts.push(p.x, p.y); if (t.ts) { t.ts.push(W.rt); t.tt.push(W.t); } if (t.pts.length > 800) trkThin(t); }
   t.upd = W.rt;
 }
 /* Electrostatic potential (V) felt by an electron at (x, y) from nearby charges (soft-cored as in the forces). */
@@ -2628,14 +2657,20 @@ function evBreak(bd, r) {
   const [dx, dy] = minImg(b.x - a.x, b.y - a.y);
   const rr = Math.hypot(dx, dy) || 1;
   const vn = (dvx * dx + dvy * dy) / rr;
-  if (vn <= 0) return;
+  // stretched past where it can hold (its Morse pull long since gone: only the angle terms still tie the atom on), with a
+  // heat bath to draw on: it breaks, and the bath pays what the pair's own motion cannot (the bath trades energy anyway)
+  const over = W.gamma > 0 && rr > Math.min(2.5 * bd.r0, RC);
+  if (vn <= 0 && !over) return;
   const set = setOf(molecule(a));
   const cost = breakCost(bd, set); bd = _bcBond; // (the bond removed: what it cost in potential energy)
-  const mu = a.m * b.m / (a.m + b.m);
-  if (0.5 * mu * vn * vn < cost) { addBond(a, b, bd.order); return; } // not enough energy: stays bound
-  kickPair(b, a, -cost, dx / rr, dy / rr);
+  const mu = a.m * b.m / (a.m + b.m), have = vn > 0 ? 0.5 * mu * vn * vn : 0;
+  if (have < cost) {
+    if (!over) { addBond(a, b, bd.order); return; } // not enough energy: stays bound
+    if (have > 0) kickPair(b, a, -have, dx / rr, dy / rr);
+    W.ledger.bath -= cost - have; // (drawn from the bath)
+  } else kickPair(b, a, -cost, dx / rr, dy / rr);
   W.count.broken++;
-  log('chem', `Bond broke: ${a.el.sym}–${b.el.sym} (needed ${fmtE(bd.D)})`);
+  log('chem', `Bond broke: ${a.el.sym}–${b.el.sym} (needed ${fmtE(bd.D)})${have < cost ? `, overstretched to ${rr.toFixed(1)} Å: the heat bath gave ${fmtE(cost - have)}` : ''}`);
 }
 
 /* Electron or positron meets a nucleus/atom. */
@@ -3341,7 +3376,7 @@ function tryFusion(a, b) {
     // the γ ray (or for p + p, the neutrino) carries what is left: the energy released plus the collision energy
     let left = nucLeft(S, Qm);
     if (left < 0 && pos) { setMotion(pos, Math.max(1, keOf(pos) + left), pos.rad ? pos.ux : 1, pos.rad ? pos.uy : 0, Vx, Vy); left = nucLeft(S, Qm); }
-    if (weak) emitNeutrino(x, y, Math.max(0, left));
+    if (weak) emitNeutrino(x, y, Math.max(0, left), undefined, undefined, false, `fusion, ${lbl}`);
     else if (gammaE > 0) emitPhoton(x, y, Math.max(0, left));
   } else {
     ps = launchProducts(prods, Q * 1e6 + Ecm, Vx, Vy, x, y, ne, M);
@@ -3571,7 +3606,7 @@ function doDecay(p) {
       // the (anti)neutrino carries the rest; an electron drawn right at the end point gives back what it overdrew
       let left = nucLeft(S, Qn);
       if (left < 0 && l) { setMotion(l, Math.max(1, keOf(l) + left), ux, uy, pvx, pvy); left = nucLeft(S, Qn); }
-      emitNeutrino(x, y, Math.max(0, left));
+      emitNeutrino(x, y, Math.max(0, left), undefined, undefined, elec, `${elec ? 'β⁻' : 'β⁺'} decay of ${lbl}`);
       const prod = elec ? 'e⁻ + ν̄' : 'e⁺ + ν', nm = elec ? 'β⁻' : 'β⁺';
       log('nuc', `${nm} decay: ${lbl} → ${sym(p.Z, p.N)} + ${prod} (${Qtxt})`);
       nucEvent(elec ? 'beta' : 'betap', x, y, `${nm} decay: ${lbl} → ${sym(p.Z, p.N)} + ${prod}`, gh, `${Qtxt} released${boostTag()}`,
@@ -3583,7 +3618,7 @@ function doDecay(p) {
       // the neutrino takes the energy less the binding of the captured inner electron, which the atom gives off
       // as it refills the hole (shown as one Kα X-ray)
       const left = Math.max(0, nucLeft(S, Qn)), kx = Math.min(left, 0.75 * PHYS.RY * Math.pow(Math.max(1, p.Z - 1), 2));
-      emitNeutrino(x, y, left - kx);
+      emitNeutrino(x, y, left - kx, undefined, undefined, !!p.anti, `${p.anti ? 'positron' : 'electron'} capture by ${lbl}`);
       emitPhoton(x, y, kx, undefined, undefined, { src: p });
       log('nuc', `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν (${Qtxt})`);
       nucEvent('ec', x, y, `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν`, gh, `${Qtxt} released${boostTag()}`,
@@ -5001,6 +5036,7 @@ function rpSkip() { if (_profOn) _rpT = performance.now(); }
 function stepPlain(dt) {
   if (_profOn) _rpT = performance.now();
   W.step++; gridTouch(); // (positions move this step)
+  bathFollow(dt);
   threadsPrewake();
   const id0 = W.nextId; // particles born during this step start flying in the next one
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) moveWalls(dt); else { W.box.uw = 0; W.box.uh = 0; }
@@ -5229,6 +5265,7 @@ function clearWorld() {
   W.grab = null; W.topo++;
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
+  _Tb = 0; // (a new world: the bath it has followed is its own)
   W.hist = { t: [], T: [], ion: [], rad: [] };
   _rxCache.clear();
 }

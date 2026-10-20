@@ -247,11 +247,15 @@ function drawTracks(rt) {
   const ctx = R.ctx;
   ctx.save();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // a trail shows the last TRAIL_S[Settings] seconds of a path: of real time (the same length whatever the speed), or of
+  // simulated time (that many seconds' worth at the setup's normal speed: longer when sped up, shorter in slow motion)
+  const win = trailWindow(), simClock = trailSim(), now = simClock ? W.t : rt;
   for (let i = W.tracks.length - 1; i >= 0; i--) {
-    const t = W.tracks[i];
-    const age = rt - t.upd;
-    if (age > 1.6) { W.tracks.splice(i, 1); continue; }
-    const a = clamp(1 - age / 1.6, 0, 1) * 0.85;
+    const t = W.tracks[i], T = simClock ? t.tt : t.ts;
+    const idle = T && T.length ? now - T[T.length - 1] : rt - t.upd; // (since its particle last moved on)
+    if (idle > (T ? win : Math.min(win, 1.6))) { W.tracks.splice(i, 1); continue; }
+    if (T) { let k = 0; while (k < T.length - 2 && now - T[k] > win) k++; if (k) trkDrop(t, k); }
+    const a = clamp(1 - idle / win, 0, 1) * 0.85;
     const pts = t.pts;
     if (pts.length < 4) continue;
     ctx.strokeStyle = rgba(t.c, a);

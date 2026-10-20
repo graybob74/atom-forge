@@ -166,7 +166,7 @@ function closeEvent(S, made, x, y, Ein = 0, mIn = 0) {
     if (left < 0) left = settleRest(S, Qrel, made, left);
     let Er = 0; for (const r of made.rays) Er += r[1];
     const f = Er > 0 ? Math.max(0, left) / Er : 0;
-    for (const [it, E, ux, uy] of made.rays) { if (it.t === 'g') emitPhoton(x, y, E * f, ux, uy); else emitNeutrino(x, y, E * f, ux, uy); }
+    for (const [it, E, ux, uy] of made.rays) { if (it.t === 'g') emitPhoton(x, y, E * f, ux, uy); else emitNeutrino(x, y, E * f, ux, uy, !!it.anti); }
     if (!(Er > 0) && left > 0) emitPhoton(x, y, left);
   } else if (Math.abs(left) > 1e-7 * Math.max(1, Math.abs(Qrel))) settleRest(S, Qrel, made, left);
 }
@@ -202,7 +202,7 @@ function addExo(sp, x, y, KE, ux, uy) {
   const d = XP[sp];
   const o = { id: W.nextId++, sp, lab: d.lab, m: d.m, q: d.q, x, y, ux, uy, KE: Math.max(0, KE), gam: 1, v: 0, born: W.rt, dead: false, trk: null };
   exoSpeed(o);
-  o.trk = { pts: [x, y], c: d.col, w: d.q ? 1.4 : 1.1, t0: W.rt, upd: W.rt, dash: !d.q };
+  o.trk = { pts: [x, y], ts: [W.rt], tt: [W.t], c: d.col, w: d.q ? 1.4 : 1.1, t0: W.rt, upd: W.rt, dash: !d.q };
   keepTrack(o.trk);
   W.exo.push(o);
   return o;
@@ -238,7 +238,7 @@ function flyExo(o, h) {
     rem -= s;
   }
   const t = o.trk, n = t.pts.length;
-  if (Math.abs(t.pts[n - 2] - o.x) + Math.abs(t.pts[n - 1] - o.y) > 0.4) { t.pts.push(o.x, o.y); if (t.pts.length > 400) t.pts.splice(0, 2); }
+  if (Math.abs(t.pts[n - 2] - o.x) + Math.abs(t.pts[n - 1] - o.y) > 0.4) { t.pts.push(o.x, o.y); if (t.ts) { t.ts.push(W.rt); t.tt.push(W.t); } if (t.pts.length > 800) trkThin(t); }
   t.upd = W.rt;
 }
 function exoLeaves(o) { // its energy, mass included, leaves the books (it decays out there, into radiation)
