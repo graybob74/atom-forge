@@ -60,7 +60,7 @@ function makeWorld() {
     warp: 1,                    // radioactive decay speed-up over real rates (1 = as in nature)
     Bz: 0, magnets: [], Ex: 0, Ey: 0,
     nextId: 1, topo: 1, deaths: 0, bathSeed: 0x5eed1234, // bathSeed: the heat bath's noise is hashed from it, the step and the slot (threads.js's bathNoise)
-    rays: [], flights: [], chips: [], chipSeq: 0, chipT: 0, mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
+    rays: [], flights: [], chips: [], chipSeq: 0, chipT: 0, lasers: [], mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
     exo: [],                    // unstable particles in flight (muons, pions, kaons…: hep.js)
     events: [], evRecent: [], slow: null, slowmo: true, decayOn: true, made: null, // made: what nuclear events have made (noteMade)
     tool: null, grab: null, sources: [],
@@ -364,6 +364,7 @@ function setSize(p) {
 function kill(p) {
   if (p.dead) return;
   p.dead = true; W.deaths++;
+  if (p.k === NUC && p.Z === 0 && !p.anti) kEnd(p);
   if (p.k === ELEC) W.nE--;
   for (const bd of p.bonds.slice()) removeBond(bd);
   if (W.grab && W.grab.p === p) W.grab = null;
@@ -1935,23 +1936,31 @@ function computeForces1() {
       if (hasB && NE[i] > 0) magneticMatterForce(OBJ[i], kT);
     }
   }
-  if (W.wall === 'reflect') softWalls(mdI, nmd, hw, hh); // soft harmonic walls: conserve energy and leave molecules intact
+  if (W.wall === 'reflect') { // soft harmonic walls: conserve energy and leave molecules intact
+    _wallFs = 0; softWalls(mdI, nmd, hw, hh);
+    const PB = W.pB || (W.pB = { s: 0, t: 0, blocks: [] }), dt = W.dt || 0.01; // (the push on the walls, in blocks of 0.5 ps: the pressure readout)
+    PB.s += _wallFs * dt; PB.t += dt;
+    if (PB.t >= 50) { PB.blocks.push(PB.s / PB.t); if (PB.blocks.length > 2000) PB.blocks.shift(); PB.s = 0; PB.t = 0; }
+  }
   toolForces();
   leptonExtras(true);
   if (_profOn) _tAfter += performance.now() - tp;
 }
 /* The soft walls' push on the atoms in MD past them (electrons: in leptonExtras). Its own small function: inside the
    force pass's long body the loop ran several times slower. */
+let _wallFs = 0; // (the walls' total push this force evaluation, eV/Å)
 function softWalls(mdI, nmd, hw, hh) {
   const K = S.k, M = S.m, X = S.x, Y = S.y, FX = S.fx, FY = S.fy;
+  let fs = 0;
   for (let q = 0; q < nmd; q++) {
     const i = mdI[q], x = X[i], y = Y[i];
     if (x <= hw && x >= -hw && y <= hh && y >= -hh) continue; // (inside: no push)
     if (K[i] !== NUC) continue;
     const k = 30 * Math.min(1, M[i]); // (wallK)
-    if (x > hw) FX[i] -= k * (x - hw); else if (x < -hw) FX[i] += k * (-hw - x);
-    if (y > hh) FY[i] -= k * (y - hh); else if (y < -hh) FY[i] += k * (-hh - y);
+    if (x > hw) { FX[i] -= k * (x - hw); fs += k * (x - hw); } else if (x < -hw) { FX[i] += k * (-hw - x); fs += k * (-hw - x); }
+    if (y > hh) { FY[i] -= k * (y - hh); fs += k * (y - hh); } else if (y < -hh) { FY[i] += k * (-hh - y); fs += k * (-hh - y); }
   }
+  _wallFs = fs;
 }
 /* Soft-wall stiffness: one oscillation frequency for every heavy particle. (Free electrons bounce off the walls
    elastically on their own short steps: leptonWall.) */
@@ -2154,7 +2163,7 @@ function glowPhoton(x, y, E, ux, uy) {
   const hit = rayInteract(x, y, ux, uy, E, null);
   let x1, y1;
   if (hit) { x1 = hit.x; y1 = hit.y; W.ledger.bath -= E; } else { const t = rayExit(x, y, ux, uy); x1 = x + ux * t; y1 = y + uy * t; }
-  W.rays.push({ x0: x, y0: y, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x, y1 - y), nu: false, lab: 'thermal ' + fmtE(E) });
+  W.rays.push({ x0: x, y0: y, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x, y1 - y), nu: false }); // (no label: thermal light is many photons, a label each would bury the view)
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
   if (hit && hit.after) hit.after();
 }
@@ -3465,7 +3474,7 @@ function neutronHit(n, T, b, R) {
     const Sn = dB([[T.Z, T.N + 1]], [[T.Z, T.N]]);
     const lbl = nucSym(T.Z, T.N), gh = [ghostOf(n), ghostOf(T)];
     const S = nucBegin([n, T]);
-    kill(n);
+    n.kEnd = 'cap'; kill(n);
     T.N++; refresh(T);
     if (T.rad) { T.rad = false; T.fast = false; }
     T.vx = Vx * M / T.m; T.vy = Vy * M / T.m; // the pair's momentum
@@ -3491,7 +3500,7 @@ function neutronHit(n, T, b, R) {
     if (Q * 1e6 + En <= 0) return false; // (below its threshold: nothing happens)
     const lbl = nucSym(T.Z, T.N), ne = T.ne, gh = [ghostOf(n), ghostOf(T)];
     const S = nucBegin([n, T]);
-    kill(n); kill(T);
+    n.kEnd = 'cap'; kill(n); kill(T);
     W.count.ncap++;
     const ps = launchProducts(special, Math.max(0, Q * 1e6 + En), Vx, Vy, x, y, ne, M);
     const Qm = nucMassLoss(S);
@@ -3512,15 +3521,25 @@ function neutronHit(n, T, b, R) {
   return true;
 }
 
+/* The chain-reaction readout (Data tab): each free neutron's end — absorbed in a fission (giving ν new ones), captured
+   without one, escaped through open walls, or anything else (decay, other reactions) — and its generation. k, the
+   neutrons born per neutron ended over the last KC_N ends, is the effective multiplication factor. Bookkeeping only. */
+const KC_N = 300;
+function kEnd(p) {
+  const K = W.kc || (W.kc = { v: new Float32Array(KC_N), c: new Uint8Array(KC_N), n: 0, gen: 0, born: 0, ends: 0 });
+  const hw = W.box.w / 2, hh = W.box.h / 2;
+  const cause = p.kEnd || (W.wall === 'open' && (Math.abs(p.x) > hw - 1 || Math.abs(p.y) > hh - 1) ? 'esc' : 'other');
+  const i = K.n % KC_N; K.v[i] = p.kNu || 0; K.c[i] = { fis: 0, cap: 1, esc: 2, other: 3 }[cause] ?? 3; K.n++; K.ends++;
+}
 function fission(T, n, En) {
   const Zc = T.Z, Nc = T.N + (n ? 1 : 0), Ac = Zc + Nc;
   const lbl = nucSym(T.Z, T.N) + (n ? ' + n' : '');
   const [tvx, tvy] = velOf(T);
   const x = T.x, y = T.y, ne = T.ne, gh = [ghostOf(T)];
   const S = nucBegin(n ? [T, n] : [T]);
-  if (n) { gh.push(ghostOf(n)); kill(n); }
-  kill(T);
   const u = rnd(); const nu = u < 0.08 ? 1 : u < 0.42 ? 2 : u < 0.82 ? 3 : 4;
+  if (n) { gh.push(ghostOf(n)); n.kEnd = 'fis'; n.kNu = Math.min(nu, MAX_PARTS - W.parts.length + 2); kill(n); } // (kNu: the neutrons this fission will give, as far as the particle limit lets it)
+  kill(T);
   const scale = Ac / 236;
   let AL = Math.round(FISSION.light * scale + gauss() * FISSION.sigma);
   let AH = Ac - nu - AL;
@@ -3544,6 +3563,7 @@ function fission(T, n, En) {
   for (let i = 0; i < nu; i++) {
     if (W.parts.length >= MAX_PARTS) break;
     const nn = addNuc(0, 1, 0, x, y, 0, 0, anti);
+    nn.kGen = n ? (n.kGen || 0) + 1 : 0; if (W.kc) { W.kc.gen = Math.max(W.kc.gen, nn.kGen); W.kc.born++; }
     const E = -1.33e6 * Math.log(Math.max(1e-6, rnd() * rnd())) / 2 + 0.2e6;
     const a = rnd() * 2 * Math.PI;
     setMotion(nn, E, Math.cos(a), Math.sin(a), tvx, tvy);
@@ -5306,13 +5326,13 @@ function measure() {
 /* ------------------------------------------------------------------ world construction helpers */
 function clearWorld() {
   dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
-  W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.sources.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
+  W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null;
   W.grab = null; W.topo++;
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null;
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }

@@ -1,4 +1,4 @@
-<title>Atom Forge 0.46.0</title>
+<title>Atom Forge 0.47.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -220,6 +220,11 @@ button { cursor: pointer; }
 .fps { position: absolute; right: 12px; top: 54px; font-family: var(--font-data); font-size: 10.5px; line-height: 1.5; color: var(--ch-fg); opacity: 0.55;
   background: rgba(6, 10, 15, 0.45); border-radius: 5px; padding: 0 6px; pointer-events: none; font-variant-numeric: tabular-nums; }
 .fps:empty { display: none; }
+.narr { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); width: min(620px, calc(100% - 32px)); box-sizing: border-box;
+  background: rgba(8, 12, 18, 0.86); color: #e8eef5; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 10px; padding: 8px 12px;
+  font-size: 13px; line-height: 1.4; pointer-events: none; transition: opacity 0.6s; z-index: 5; }
+.narr b { color: #ffd166; font-weight: 600; }
+.narr.fade { opacity: 0; }
 .rec-badge { right: auto; left: 12px; color: #ff6b6b; border-color: rgba(255, 107, 107, 0.6); background: rgba(24, 6, 6, 0.75); }
 .paused-badge { position: absolute; right: 50px; top: 12px; font-family: var(--font-data); font-size: 11px; letter-spacing: 0.12em; color: #ffd166;
   border: 1px solid rgba(255, 209, 102, 0.5); border-radius: 6px; padding: 2px 7px; background: rgba(20, 16, 4, 0.7); }
@@ -467,6 +472,17 @@ details.chain[open] summary { margin-bottom: 10px; }
 .gball.e { width: 13px; height: 13px; }
 .ndialog { width: min(860px, 100%); }
 .sdialog { width: min(560px, 100%); gap: 12px; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }
+.gcard { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface-2); display: flex; flex-direction: column; }
+.gcard img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: #05080c; cursor: pointer; }
+.gcard .gmeta { padding: 6px 8px; font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+.gcard .gmeta b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gcard .grow { display: flex; gap: 6px; padding: 0 8px 8px; }
+#galName { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--fg); }
+.kbar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 6px 0 2px; background: var(--surface-2); }
+.kbar span { display: block; height: 100%; }
+.hint.won { border-color: #5fd38d; box-shadow: 0 0 0 2px rgba(95, 211, 141, 0.35); }
+#askEx { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .sharebox { width: 100%; box-sizing: border-box; font: 11px/1.35 var(--font-data); background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; resize: vertical; word-break: break-all; }
 .explain { white-space: pre-wrap; line-height: 1.45; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
 .explain.bad { color: var(--bad, #c0392b); }

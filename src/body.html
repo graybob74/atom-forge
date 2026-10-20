@@ -17,6 +17,7 @@
     </div>
     <div class="scen">
       <select class="select" id="preset" aria-label="Experiment setup"></select>
+      <button class="ibtn" id="bAskSetup" hidden title="Ask Claude for a setup: describe an experiment and Claude sets up the chamber" aria-label="Ask Claude for a setup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z M18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></svg></button>
       <button class="ibtn" id="bSettings" title="Settings: performance mode, particle limit, theme, units" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.5 7.5 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 2.6-1.5l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
     </div>
     <div class="readouts">
@@ -53,6 +54,7 @@
       </div>
       <div class="paused-badge" id="pausedBadge" hidden>PAUSED</div>
       <div class="paused-badge rec-badge" id="recBadge" hidden></div>
+      <div class="narr" id="narr" aria-live="polite" hidden></div>
       <div class="fps" id="fpsBadge" aria-hidden="true"></div>
       <div class="qmenu" id="qmenu" role="menu" aria-label="Quick menu" hidden></div>
     </div>
@@ -127,6 +129,8 @@
           <div class="seg" id="segBath" role="group" aria-label="Thermal contact">
             <button data-v="0">Insulated</button><button data-v="0.005">Gentle</button><button data-v="0.05">Normal</button><button data-v="0.3">Strong</button>
           </div>
+          <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><span>Change slowly to</span><select class="select" id="rampTo" aria-label="Temperature to change to"><option value="300">300 K (room)</option><option value="77">77 K</option><option value="1000">1,000 K</option><option value="3000">3,000 K</option><option value="1e4">10,000 K</option><option value="1e6">1 MK</option><option value="1e8">100 MK</option></select><select class="select" id="rampDur" aria-label="Over how long"><option value="10">over 10 s</option><option value="30" selected>over 30 s</option><option value="120">over 2 min</option><option value="600">over 10 min</option></select><button class="btn small" id="bRamp">Start</button></div>
+          <p class="note" id="rampNote" hidden></p>
           <label class="check" title="Reflecting walls only. Their light is shown at a visible rate (real thermal light from a few nanometres of wall would be far too faint at the atoms' pace), going as T⁴; its colours follow Planck's law (Data tab → Spectrum)."><input type="checkbox" id="chkGlow"> Walls glow with black-body light at this temperature</label>
           <p class="note" id="bathNote"></p>
         </section>
@@ -192,6 +196,7 @@
             <button class="btn small" id="bSaveWorld" title="Save the box, bath, fields and every particle with its bonds and velocity as a JSON file">Save world…</button>
             <button class="btn small" id="bLoadWorld" title="Load a saved world file (replaces what is in the chamber)">Load world…</button>
             <button class="btn small" id="bShare" title="The world as a block of text to send to someone, or open one sent to you">Share code…</button>
+            <button class="btn small" id="bGallery" title="Worlds you keep in this browser, with a picture of each">Gallery…</button>
             <button class="btn small" id="bClear">Empty the chamber</button>
             <button class="btn small" id="bSrcClear">Remove beam sources</button>
           </div>
@@ -214,11 +219,18 @@
           <h3>Explain</h3>
           <div class="row" style="justify-content:flex-start;gap:10px;flex-wrap:wrap"><button class="btn small go" id="bExplain">Explain what's happening</button><span class="note" id="dExplainWho"></span></div>
           <div class="explain" id="dExplain" aria-live="polite" hidden></div>
+          <label class="check" title="A caption under the chamber says what each notable event was, and the physics or chemistry behind it"><input type="checkbox" id="chkNarr"> Narrate events as they happen</label>
         </section>
         <section class="group" id="dMadeSec" hidden>
           <h3>Made here</h3>
           <p class="note" id="dMadeSum"></p>
           <table class="species made" id="dMade"></table>
+        </section>
+        <section class="group" id="dChainSec" hidden>
+          <h3>Chain reaction</h3>
+          <div class="row"><span class="big" id="dChainK"></span><span class="val" id="dChainState"></span></div>
+          <div class="kbar" id="dChainBar" aria-hidden="true"></div>
+          <p class="note" id="dChainNote"></p>
         </section>
         <section class="group" id="dSpecSec" hidden>
           <h3>Spectrum</h3>
@@ -411,6 +423,28 @@
   </div>
 </div>
 
+<div class="modal" id="askModal" hidden>
+  <div class="dialog sdialog" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <header><h2 id="askTitle">Ask Claude for a setup</h2><button class="btn small" id="askClose">Close</button></header>
+    <section class="sgroup">
+      <p class="note">Describe an experiment and Claude sets up the chamber for it from what Atom Forge has: its molecules, any element or ion, particles, fields, temperature, glowing walls and projectiles.</p>
+      <textarea id="askText" class="sharebox" rows="3" maxlength="400" aria-label="The experiment" placeholder="e.g. sodium and chlorine gas reacting into salt"></textarea>
+      <div class="chips" id="askEx"></div>
+      <div class="row" style="justify-content:flex-start;gap:10px"><button class="btn small go" id="askGo">Set it up</button><span class="note" id="askMsg" aria-live="polite"></span></div>
+    </section>
+  </div>
+</div>
+<div class="modal" id="galModal" hidden>
+  <div class="dialog sdialog" role="dialog" aria-modal="true" aria-labelledby="galTitle">
+    <header><h2 id="galTitle">Gallery</h2><button class="btn small" id="galClose">Close</button></header>
+    <section class="sgroup">
+      <div class="row" style="justify-content:flex-start;gap:8px"><input type="text" class="input" id="galName" maxlength="50" placeholder="Name for this world" aria-label="Name for this world" autocomplete="off"><button class="btn small go" id="galSave">Keep this world</button></div>
+      <p class="note" id="galMsg" aria-live="polite"></p>
+      <div class="gallery" id="galList"></div>
+      <p class="note">Kept in this browser only (another browser or device has its own). To send one to someone, open it and use Share code….</p>
+    </section>
+  </div>
+</div>
 <div class="modal" id="shareModal" hidden>
   <div class="dialog sdialog" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
     <header><h2 id="shareTitle">Share code</h2><button class="btn small" id="shareClose">Close</button></header>

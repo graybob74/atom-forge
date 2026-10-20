@@ -429,6 +429,7 @@ function aiSync() {
   const box = $('aiBox'), go = $('aiGo');
   if (box) { box.hidden = !AI.sample; box.parentNode.classList.toggle('ai', !!AI.sample); }
   if (go) { go.textContent = AI.busy ? 'Stop' : 'Ask Claude'; go.classList.toggle('go', !AI.busy); }
+  const ab = $('bAskSetup'); if (ab) ab.hidden = !AI.sample;
 }
 const AI_HIDE = ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed'];
 function aiError(e) {
@@ -641,6 +642,134 @@ function apiSampler(key, model) {
     try { return JSON.parse(m ? m[0] : text); } catch (e) { throw { code: 'invalid_json', message: text.slice(0, 200) }; }
   };
   return f;
+}
+/* Ask Claude for a setup: a description in, a recipe out (JSON: the box, bath, fields and a list of things to put in —
+   library molecules by key, elements and ions, particles, lattices, ready-made objects, projectiles), built here and
+   checked; one follow-up with what was wrong when it cannot be built. The setup becomes the "Claude's setup" entry of the
+   setup list (Restart rebuilds it). */
+const ASK = { busy: false, ctl: null, last: null };
+const ASK_MAX = 2500, ASK_EX = ['Sodium and chlorine reacting into salt', 'A hydrogen–oxygen explosion', 'Alpha particles fired at gold atoms (Rutherford)', 'Water boiling', 'A neon sign', 'Methane burning in oxygen', 'Positrons meeting electrons', 'Ice melting'];
+const ASK_PART = { e: { kind: 'e' }, electron: { kind: 'e' }, pos: { kind: 'pos' }, positron: { kind: 'pos' }, n: { kind: 'n' }, neutron: { kind: 'n' },
+  p: { kind: 'atom', Z: 1, A: 1, bare: true }, proton: { kind: 'atom', Z: 1, A: 1, bare: true }, alpha: { kind: 'atom', Z: 2, A: 4, bare: true },
+  deuteron: { kind: 'atom', Z: 1, A: 2, bare: true }, triton: { kind: 'atom', Z: 1, A: 3, bare: true } };
+function askPrompt(text, prev, problem) {
+  const mols = Object.values(MOLECULES).filter(m => m.cat !== 'objects').map(m => `${m.key}=${m.name}`).join('; ');
+  const objs = Object.values(MOLECULES).filter(m => m.cat === 'objects').map(m => `${m.key}=${m.name}`).join('; ');
+  let p = `You set up experiments in Atom Forge, a flat (2-D) atom, molecule and particle simulator. Distances are in ångströms (Å); an atom is about 1–2 Å across, a small molecule 3–5 Å. The simulator handles chemistry (bonds form and break, reactions, heat), ionization and light, nuclear reactions (fusion, fission, decay), antimatter and fields.
+
+Experiment asked for: ${JSON.stringify(text)}
+
+Reply with one JSON object and nothing else:
+{"name":"short title","note":"one to three plain sentences: what will happen and what to watch for",
+ "box":{"w":80,"h":60},"walls":"reflect|wrap|open","T":300,"bath":"insulated|gentle|normal|strong",
+ "E":0,"Edir":0,"B":0,"glow":false,
+ "items":[ … ]}
+
+Each item is one of:
+{"what":"molecule","key":"H2O","count":30,"region":"all"}  — key from the library below
+{"what":"atom","el":"Na","count":10,"charge":0,"A":0,"region":"left"}  — any element symbol; charge for an ion; A for an isotope (0 = the usual one)
+{"what":"particle","kind":"e|pos|n|p|alpha|deuteron|triton","count":5,"region":"all"}
+{"what":"lattice","lattice":"ionic|metal|honeycomb|square","elements":["Na","Cl"],"size":6,"x":0,"y":0}  — a small crystal or sheet
+{"what":"object","key":"saltcrystal","x":0,"y":0}  — a ready-made object below
+{"what":"shoot","kind":"alpha","el":"","energy_eV":5000000,"from":"left|right|top|bottom","count":3}  — projectiles fired into the box (kind as for particle, or el for a bare nucleus of that element)
+
+Rules: region is all, left, right, top, bottom or center. T is the starting and bath temperature in kelvin (1 to 1e9; molecules fall apart above a few thousand K, atoms ionize above ~10,000 K, fusion needs ~1e8 K in a dense plasma). E is an electric field in V/Å (0 to 50), Edir its direction in degrees; B a magnetic field in tesla out of the screen. glow makes reflecting walls give off black-body light at T. Keep it small enough to run smoothly: at most ${ASK_MAX} atoms and particles in all, and a box whose area leaves the molecules room (a gas: about 30–100 Å² per molecule; a liquid: about 10). Choose amounts that show the experiment within seconds.
+
+Library molecules (key=name): ${mols}
+
+Ready-made objects: ${objs}`;
+  if (problem) p += `\n\nYour previous answer was ${JSON.stringify(prev).slice(0, 3000)}\nIt could not be built: ${problem}. Reply again with a corrected JSON object.`;
+  return p;
+}
+/* Build a recipe into the world: null when done, or what was wrong (for Claude to fix). check: only check, build nothing. */
+function askBuild(r, check) {
+  if (!r || typeof r !== 'object' || Array.isArray(r)) return 'the reply was not one JSON object';
+  const num = (v, lo, hi, d) => (Number.isFinite(+v) && v !== null && v !== '' ? clamp(+v, lo, hi) : d);
+  const items = Array.isArray(r.items) ? r.items.slice(0, 40) : [];
+  if (!items.length) return 'there are no items to put in the box';
+  const w = num(r.box && r.box.w, 20, 2000, 80), h = num(r.box && r.box.h, 20, 2000, 60), T = num(r.T, 1, 1e9, 300);
+  let total = 0; const probs = [];
+  const specOf = (it) => {
+    if (it.el) { const Z = SYM2Z[String(it.el).trim()]; return Z ? { kind: 'atom', Z, A: Math.round(num(it.A, 0, 300, 0)) || COMMON_A[Z], bare: true } : null; }
+    return ASK_PART[String(it.kind || '').toLowerCase()] || null;
+  };
+  for (const it of items) {
+    const what = String(it && it.what || '').toLowerCase(), n = Math.round(num(it.count, 1, ASK_MAX, 1));
+    if (what === 'molecule') { const M = MOLECULES[it.key]; if (!M || M.cat === 'objects') probs.push(`"${aiText(String(it.key), 30)}" is not a library molecule key`); else total += n * M.atoms.length; }
+    else if (what === 'atom') { if (!SYM2Z[String(it.el || '').trim()]) probs.push(`"${aiText(String(it.el), 10)}" is not an element symbol`); else total += n; }
+    else if (what === 'particle') { if (!ASK_PART[String(it.kind || '').toLowerCase()]) probs.push(`"${aiText(String(it.kind), 12)}" is not a particle kind`); else total += n; }
+    else if (what === 'object') { const M = MOLECULES[it.key]; if (!M || M.cat !== 'objects') probs.push(`"${aiText(String(it.key), 30)}" is not a ready-made object`); else total += M.atoms.length; }
+    else if (what === 'lattice') { try { const L = designLattice(it); total += L.atoms.length; } catch (e) { probs.push(`the lattice cannot be made: ${e.message}`); } }
+    else if (what === 'shoot') { if (!specOf(it)) probs.push('a projectile needs a particle kind or an element'); else total += Math.round(num(it.count, 1, 50, 1)); }
+    else probs.push(`"${aiText(String(it && it.what), 12)}" is not an item type`);
+  }
+  if (total > ASK_MAX) probs.push(`that is ${total} atoms and particles; at most ${ASK_MAX}`);
+  if (probs.length) return probs.slice(0, 5).join('; ');
+  if (check) return null;
+  // build
+  baseWorld(w, h, T, { insulated: 0, gentle: 0.005, normal: 0.05, strong: 0.3 }[String(r.bath)] ?? 0.05);
+  W.wall = ['reflect', 'wrap', 'open'].includes(r.walls) ? r.walls : 'reflect';
+  const E = num(r.E, 0, 50, 0), ang = num(r.Edir, -360, 360, 0) * Math.PI / 180;
+  W.Ex = E * Math.cos(ang); W.Ey = E * Math.sin(ang); UI.E = E; UI.Eang = Math.round(num(r.Edir, -360, 360, 0)); W.Bz = num(r.B, -1e5, 1e5, 0); W.glow = r.glow === true;
+  const reg = (name) => { const R2 = { all: [0, 0, w, h], left: [-w / 4, 0, w / 2, h], right: [w / 4, 0, w / 2, h], top: [0, h / 4, w, h / 2], bottom: [0, -h / 4, w, h / 2], center: [0, 0, w / 2, h / 2] }; return R2[String(name || 'all').toLowerCase()] || R2.all; };
+  const placed = [];
+  const spot = (rg, rad) => { const [cx, cy, rw, rh] = rg; let best = null, bd = -1;
+    for (let k = 0; k < 30; k++) { const x = cx + (rnd() - 0.5) * Math.max(0, rw - 2 * rad - 2), y = cy + (rnd() - 0.5) * Math.max(0, rh - 2 * rad - 2);
+      let d = Infinity; for (const [px, py, pr] of placed) d = Math.min(d, Math.hypot(px - x, py - y) - pr - rad); if (d > 1.2) { best = [x, y]; break; } if (d > bd) { bd = d; best = [x, y]; } }
+    placed.push([best[0], best[1], rad]); return best; };
+  const molR = (M) => { let cx = 0, cy = 0; for (const a of M.atoms) { cx += a[1]; cy += a[2]; } cx /= M.atoms.length; cy /= M.atoms.length; let r2 = 0; for (const a of M.atoms) r2 = Math.max(r2, Math.hypot(a[1] - cx, a[2] - cy)); return r2 + 1; };
+  const placeL = (L, x, y) => { let cx = 0, cy = 0; for (const a of L.atoms) { cx += a[1]; cy += a[2]; } cx /= L.atoms.length; cy /= L.atoms.length;
+    const ps = L.atoms.map(([el, ax, ay, q]) => addAtom(el, x + ax - cx, y + ay - cy, { charge: q || 0 })); for (const [i, j, o] of L.bonds) addBond(ps[i], ps[j], o); };
+  const shots = [];
+  for (const it of items) {
+    const what = String(it.what).toLowerCase(), n = Math.round(num(it.count, 1, ASK_MAX, 1)), rg = reg(it.region);
+    if (what === 'molecule') { const M = MOLECULES[it.key], rad = molR(M); for (let i = 0; i < n; i++) { const [x, y] = spot(rg, rad); addMolecule(it.key, x, y, rnd() * 2 * Math.PI); } }
+    else if (what === 'atom') { const el = String(it.el).trim(), q = Math.round(num(it.charge, -3, SYM2Z[el], 0)), A = Math.round(num(it.A, 0, 300, 0)); for (let i = 0; i < n; i++) { const [x, y] = spot(rg, 1.2); addAtom(el, x, y, { charge: q, A: A || 0 }); } }
+    else if (what === 'particle') { const sp = ASK_PART[String(it.kind).toLowerCase()]; for (let i = 0; i < n; i++) { const [x, y] = spot(rg, 0.8); spawnSpec(sp, x, y); } }
+    else if (what === 'object') { const M = MOLECULES[it.key]; addMolecule(it.key, clamp(num(it.x, -1e4, 1e4, 0), -w / 2 + molR(M), w / 2 - molR(M)), clamp(num(it.y, -1e4, 1e4, 0), -h / 2 + molR(M), h / 2 - molR(M)), 0); placed.push([num(it.x, -1e4, 1e4, 0), num(it.y, -1e4, 1e4, 0), molR(M)]); }
+    else if (what === 'lattice') { const L = designLattice(it); const R3 = molR(L); placeL(L, clamp(num(it.x, -1e4, 1e4, 0), -w / 2 + R3, w / 2 - R3), clamp(num(it.y, -1e4, 1e4, 0), -h / 2 + R3, h / 2 - R3)); placed.push([num(it.x, -1e4, 1e4, 0), num(it.y, -1e4, 1e4, 0), R3]); }
+    else if (what === 'shoot') shots.push(it);
+  }
+  settleOverlaps();
+  for (const it of shots) { // fired in from a side, spread along it, towards the far side
+    const sp = specOf(it), KE = num(it.energy_eV, 0.01, 1e12, 1e6), from = String(it.from || 'left').toLowerCase(), n = Math.round(num(it.count, 1, 50, 1));
+    for (let i = 0; i < n; i++) {
+      const s = (i + 0.5) / n - 0.5, m = 2;
+      const [x, y, ux, uy] = from === 'right' ? [w / 2 - m, s * h * 0.6, -1, 0] : from === 'top' ? [s * w * 0.6, h / 2 - m, 0, -1] : from === 'bottom' ? [s * w * 0.6, -h / 2 + m, 0, 1] : [-w / 2 + m, s * h * 0.6, 1, 0];
+      fireSpec(sp, x, y, ux, uy, KE, false);
+    }
+  }
+  return null;
+}
+async function askRun() {
+  if (ASK.busy) { if (ASK.ctl) ASK.ctl.abort(); return; }
+  const text = aiText($('askText').value, 400), say = (t, bad) => { $('askMsg').textContent = t; $('askMsg').classList.toggle('bad', !!bad); };
+  if (!text) { say('Describe the experiment first.', true); return; }
+  if (!AI.sample) { say('Claude is not connected here.', true); return; }
+  ASK.busy = true; ASK.ctl = new AbortController(); $('askGo').textContent = 'Stop'; say('Claude is designing the setup … this can take up to a minute.');
+  const opts = () => ({ modelTier: 'default', signal: ASK.ctl.signal, cache: false, onText: () => say('Claude is writing the setup …') });
+  try {
+    let r = await AI.sample.json(askPrompt(text), opts()), bad = askBuild(r, true);
+    if (bad) { say(`Fixing: ${bad} …`); const r2 = await AI.sample.json(askPrompt(text, r, bad), opts()); const bad2 = askBuild(r2, true); if (bad2) { say(`Claude's setup could not be built: ${bad2}. Try describing it differently.`, true); return; } r = r2; }
+    ASK.last = r;
+    PRESETS.ai = { group: 'Claude', name: '✦ ' + (aiText(r.name, 40) || 'Claude’s setup'), tool: 'place', spec: { kind: 'atom', Z: 1, A: 1, bare: true },
+      hint: `<b>${esc(aiText(r.name, 60) || 'Claude’s setup')}.</b> ${esc(aiText(r.note, 400))} <i>(Set up by Claude from “${esc(text)}”; Restart builds it again.)</i>`,
+      build() { const e = askBuild(ASK.last, false); if (e) baseWorld(80, 60, 300, 0.05); } };
+    buildPresetSelect(); loadPreset('ai'); setRunning(true);
+    hideModal('askModal'); say('');
+  } catch (e) {
+    const code = (e && e.code) || 'upstream_error';
+    say(code === 'cancelled' ? 'Stopped.' : aiErrorText(code), code !== 'cancelled');
+  } finally { ASK.busy = false; ASK.ctl = null; $('askGo').textContent = 'Set it up'; }
+}
+function askInit() {
+  $('bAskSetup').onclick = () => { showModal('askModal'); $('askText').focus(); };
+  $('askClose').onclick = () => hideModal('askModal');
+  $('askGo').onclick = () => askRun();
+  $('askText').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askRun(); } e.stopPropagation(); });
+  $('askEx').innerHTML = ASK_EX.map(t => `<button class="chip" type="button">${esc(t)}</button>`).join('');
+  $('askEx').onclick = (e) => { const b = e.target.closest('button'); if (b) { $('askText').value = b.textContent; $('askText').focus(); } };
+  aiSync();
 }
 function aiInit() {
   const c = typeof window !== 'undefined' ? window.claude : null;

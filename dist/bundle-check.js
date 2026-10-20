@@ -2315,7 +2315,7 @@ function makeWorld() {
     warp: 1,                    // radioactive decay speed-up over real rates (1 = as in nature)
     Bz: 0, magnets: [], Ex: 0, Ey: 0,
     nextId: 1, topo: 1, deaths: 0, bathSeed: 0x5eed1234, // bathSeed: the heat bath's noise is hashed from it, the step and the slot (threads.js's bathNoise)
-    rays: [], flights: [], chips: [], chipSeq: 0, chipT: 0, mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
+    rays: [], flights: [], chips: [], chipSeq: 0, chipT: 0, lasers: [], mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
     exo: [],                    // unstable particles in flight (muons, pions, kaons…: hep.js)
     events: [], evRecent: [], slow: null, slowmo: true, decayOn: true, made: null, // made: what nuclear events have made (noteMade)
     tool: null, grab: null, sources: [],
@@ -2619,6 +2619,7 @@ function setSize(p) {
 function kill(p) {
   if (p.dead) return;
   p.dead = true; W.deaths++;
+  if (p.k === NUC && p.Z === 0 && !p.anti) kEnd(p);
   if (p.k === ELEC) W.nE--;
   for (const bd of p.bonds.slice()) removeBond(bd);
   if (W.grab && W.grab.p === p) W.grab = null;
@@ -4190,23 +4191,31 @@ function computeForces1() {
       if (hasB && NE[i] > 0) magneticMatterForce(OBJ[i], kT);
     }
   }
-  if (W.wall === 'reflect') softWalls(mdI, nmd, hw, hh); // soft harmonic walls: conserve energy and leave molecules intact
+  if (W.wall === 'reflect') { // soft harmonic walls: conserve energy and leave molecules intact
+    _wallFs = 0; softWalls(mdI, nmd, hw, hh);
+    const PB = W.pB || (W.pB = { s: 0, t: 0, blocks: [] }), dt = W.dt || 0.01; // (the push on the walls, in blocks of 0.5 ps: the pressure readout)
+    PB.s += _wallFs * dt; PB.t += dt;
+    if (PB.t >= 50) { PB.blocks.push(PB.s / PB.t); if (PB.blocks.length > 2000) PB.blocks.shift(); PB.s = 0; PB.t = 0; }
+  }
   toolForces();
   leptonExtras(true);
   if (_profOn) _tAfter += performance.now() - tp;
 }
 /* The soft walls' push on the atoms in MD past them (electrons: in leptonExtras). Its own small function: inside the
    force pass's long body the loop ran several times slower. */
+let _wallFs = 0; // (the walls' total push this force evaluation, eV/Å)
 function softWalls(mdI, nmd, hw, hh) {
   const K = S.k, M = S.m, X = S.x, Y = S.y, FX = S.fx, FY = S.fy;
+  let fs = 0;
   for (let q = 0; q < nmd; q++) {
     const i = mdI[q], x = X[i], y = Y[i];
     if (x <= hw && x >= -hw && y <= hh && y >= -hh) continue; // (inside: no push)
     if (K[i] !== NUC) continue;
     const k = 30 * Math.min(1, M[i]); // (wallK)
-    if (x > hw) FX[i] -= k * (x - hw); else if (x < -hw) FX[i] += k * (-hw - x);
-    if (y > hh) FY[i] -= k * (y - hh); else if (y < -hh) FY[i] += k * (-hh - y);
+    if (x > hw) { FX[i] -= k * (x - hw); fs += k * (x - hw); } else if (x < -hw) { FX[i] += k * (-hw - x); fs += k * (-hw - x); }
+    if (y > hh) { FY[i] -= k * (y - hh); fs += k * (y - hh); } else if (y < -hh) { FY[i] += k * (-hh - y); fs += k * (-hh - y); }
   }
+  _wallFs = fs;
 }
 /* Soft-wall stiffness: one oscillation frequency for every heavy particle. (Free electrons bounce off the walls
    elastically on their own short steps: leptonWall.) */
@@ -4409,7 +4418,7 @@ function glowPhoton(x, y, E, ux, uy) {
   const hit = rayInteract(x, y, ux, uy, E, null);
   let x1, y1;
   if (hit) { x1 = hit.x; y1 = hit.y; W.ledger.bath -= E; } else { const t = rayExit(x, y, ux, uy); x1 = x + ux * t; y1 = y + uy * t; }
-  W.rays.push({ x0: x, y0: y, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x, y1 - y), nu: false, lab: 'thermal ' + fmtE(E) });
+  W.rays.push({ x0: x, y0: y, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x, y1 - y), nu: false }); // (no label: thermal light is many photons, a label each would bury the view)
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
   if (hit && hit.after) hit.after();
 }
@@ -5720,7 +5729,7 @@ function neutronHit(n, T, b, R) {
     const Sn = dB([[T.Z, T.N + 1]], [[T.Z, T.N]]);
     const lbl = nucSym(T.Z, T.N), gh = [ghostOf(n), ghostOf(T)];
     const S = nucBegin([n, T]);
-    kill(n);
+    n.kEnd = 'cap'; kill(n);
     T.N++; refresh(T);
     if (T.rad) { T.rad = false; T.fast = false; }
     T.vx = Vx * M / T.m; T.vy = Vy * M / T.m; // the pair's momentum
@@ -5746,7 +5755,7 @@ function neutronHit(n, T, b, R) {
     if (Q * 1e6 + En <= 0) return false; // (below its threshold: nothing happens)
     const lbl = nucSym(T.Z, T.N), ne = T.ne, gh = [ghostOf(n), ghostOf(T)];
     const S = nucBegin([n, T]);
-    kill(n); kill(T);
+    n.kEnd = 'cap'; kill(n); kill(T);
     W.count.ncap++;
     const ps = launchProducts(special, Math.max(0, Q * 1e6 + En), Vx, Vy, x, y, ne, M);
     const Qm = nucMassLoss(S);
@@ -5767,15 +5776,25 @@ function neutronHit(n, T, b, R) {
   return true;
 }
 
+/* The chain-reaction readout (Data tab): each free neutron's end — absorbed in a fission (giving ν new ones), captured
+   without one, escaped through open walls, or anything else (decay, other reactions) — and its generation. k, the
+   neutrons born per neutron ended over the last KC_N ends, is the effective multiplication factor. Bookkeeping only. */
+const KC_N = 300;
+function kEnd(p) {
+  const K = W.kc || (W.kc = { v: new Float32Array(KC_N), c: new Uint8Array(KC_N), n: 0, gen: 0, born: 0, ends: 0 });
+  const hw = W.box.w / 2, hh = W.box.h / 2;
+  const cause = p.kEnd || (W.wall === 'open' && (Math.abs(p.x) > hw - 1 || Math.abs(p.y) > hh - 1) ? 'esc' : 'other');
+  const i = K.n % KC_N; K.v[i] = p.kNu || 0; K.c[i] = { fis: 0, cap: 1, esc: 2, other: 3 }[cause] ?? 3; K.n++; K.ends++;
+}
 function fission(T, n, En) {
   const Zc = T.Z, Nc = T.N + (n ? 1 : 0), Ac = Zc + Nc;
   const lbl = nucSym(T.Z, T.N) + (n ? ' + n' : '');
   const [tvx, tvy] = velOf(T);
   const x = T.x, y = T.y, ne = T.ne, gh = [ghostOf(T)];
   const S = nucBegin(n ? [T, n] : [T]);
-  if (n) { gh.push(ghostOf(n)); kill(n); }
-  kill(T);
   const u = rnd(); const nu = u < 0.08 ? 1 : u < 0.42 ? 2 : u < 0.82 ? 3 : 4;
+  if (n) { gh.push(ghostOf(n)); n.kEnd = 'fis'; n.kNu = Math.min(nu, MAX_PARTS - W.parts.length + 2); kill(n); } // (kNu: the neutrons this fission will give, as far as the particle limit lets it)
+  kill(T);
   const scale = Ac / 236;
   let AL = Math.round(FISSION.light * scale + gauss() * FISSION.sigma);
   let AH = Ac - nu - AL;
@@ -5799,6 +5818,7 @@ function fission(T, n, En) {
   for (let i = 0; i < nu; i++) {
     if (W.parts.length >= MAX_PARTS) break;
     const nn = addNuc(0, 1, 0, x, y, 0, 0, anti);
+    nn.kGen = n ? (n.kGen || 0) + 1 : 0; if (W.kc) { W.kc.gen = Math.max(W.kc.gen, nn.kGen); W.kc.born++; }
     const E = -1.33e6 * Math.log(Math.max(1e-6, rnd() * rnd())) / 2 + 0.2e6;
     const a = rnd() * 2 * Math.PI;
     setMotion(nn, E, Math.cos(a), Math.sin(a), tvx, tvy);
@@ -7561,13 +7581,13 @@ function measure() {
 /* ------------------------------------------------------------------ world construction helpers */
 function clearWorld() {
   dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
-  W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.sources.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
+  W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null;
   W.grab = null; W.topo++;
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null;
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }
@@ -9858,13 +9878,30 @@ function fmtSI(v, unit, d) {
 }
 function fmtTesla(B) { return fmtSI(B, 'T', 2); }
 
+/* Cloud-chamber look (W.cloud): a track as a line of droplets, condensed where the particle ionized the vapour —
+   white, a little scattered, thicker for a heavily ionizing particle (an α) than a light one (an electron), lingering. */
+function cloudTrack(ctx, t, a) {
+  const pts = t.pts, heavy = t.w > 2, step = heavy ? 0.45 : 0.9, rad = clamp(Math.sqrt(R.s) * (heavy ? 0.9 : 0.55), heavy ? 1.3 : 0.8, heavy ? 3.2 : 2), jit = heavy ? 0.35 : 0.25;
+  ctx.fillStyle = `rgba(235,240,245,${(0.75 * a).toFixed(3)})`;
+  ctx.beginPath();
+  for (let k = 2; k < pts.length; k += 2) {
+    const x0 = pts[k - 2], y0 = pts[k - 1]; let h = (((x0 * 977) | 0) ^ ((y0 * 1489) | 0) * 31) & 0x7fffffff; // (each stretch's droplets stay put as the track ages)
+    const dx = pts[k] - x0, dy = pts[k + 1] - y0, L = Math.hypot(dx, dy), n = Math.min(60, Math.ceil(L / step));
+    for (let j = 0; j < n; j++) {
+      h = (h * 1103515245 + 12345) & 0x7fffffff; const jx = ((h & 0xffff) / 65536 - 0.5) * jit, jy = (((h >> 16) & 0x7fff) / 32768 - 0.5) * jit;
+      const x = w2sx(x0 + dx * j / n + jx), y = w2sy(y0 + dy * j / n + jy);
+      ctx.moveTo(x + rad, y); ctx.arc(x, y, rad, 0, 2 * Math.PI);
+    }
+  }
+  ctx.fill();
+}
 function drawTracks(rt) {
   const ctx = R.ctx;
   ctx.save();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   // a trail shows the last TRAIL_S[Settings] seconds of a path: of real time (the same length whatever the speed), or of
   // simulated time (that many seconds' worth at the setup's normal speed: longer when sped up, shorter in slow motion)
-  const win = trailWindow(), simClock = trailSim(), now = simClock ? W.t : rt;
+  const cloud = !!W.cloud, win = cloud ? Math.max(3, trailWindow()) : trailWindow(), simClock = !cloud && trailSim(), now = simClock ? W.t : rt;
   for (let i = W.tracks.length - 1; i >= 0; i--) {
     const t = W.tracks[i], T = simClock ? t.tt : t.ts;
     const idle = T && T.length ? now - T[T.length - 1] : rt - t.upd; // (since its particle last moved on)
@@ -9873,6 +9910,7 @@ function drawTracks(rt) {
     const a = clamp(1 - idle / win, 0, 1) * 0.85;
     const pts = t.pts;
     if (pts.length < 4) continue;
+    if (cloud) { if (!t.dash) cloudTrack(ctx, t, a); continue; } // (neutral particles leave no trail of ions to condense on)
     ctx.strokeStyle = rgba(t.c, a);
     ctx.lineWidth = t.w;
     if (t.dash) ctx.setLineDash([3, 4]); else ctx.setLineDash([]);
@@ -10863,6 +10901,15 @@ function drawZones() {
 function fmtVolt(V) { return fmtSI(V, 'V', 3); }
 function drawSources() {
   const ctx = R.ctx;
+  for (const L of W.lasers || []) { // a laser: its housing, and its beam faintly along the way it points
+    const x = w2sx(L.x0), y = w2sy(L.y0), c = photonColor(L.E), t = rayExit(L.x0, L.y0, L.ux, L.uy);
+    ctx.save();
+    ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},0.22)`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(w2sx(L.x0 + L.ux * t), w2sy(L.y0 + L.uy * t)); ctx.stroke();
+    ctx.translate(x, y); ctx.rotate(-Math.atan2(L.uy, L.ux));
+    ctx.fillStyle = 'rgba(70,80,95,0.9)'; ctx.fillRect(-16, -5, 16, 10);
+    ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(-2, -3, 3, 6);
+    ctx.restore();
+  }
   for (const src of W.sources || []) {
     const x = w2sx(src.x), y = w2sy(src.y);
     ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.atan2(src.uy, src.ux));
@@ -13059,6 +13106,7 @@ function aiSync() {
   const box = $('aiBox'), go = $('aiGo');
   if (box) { box.hidden = !AI.sample; box.parentNode.classList.toggle('ai', !!AI.sample); }
   if (go) { go.textContent = AI.busy ? 'Stop' : 'Ask Claude'; go.classList.toggle('go', !AI.busy); }
+  const ab = $('bAskSetup'); if (ab) ab.hidden = !AI.sample;
 }
 const AI_HIDE = ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed'];
 function aiError(e) {
@@ -13272,6 +13320,134 @@ function apiSampler(key, model) {
   };
   return f;
 }
+/* Ask Claude for a setup: a description in, a recipe out (JSON: the box, bath, fields and a list of things to put in —
+   library molecules by key, elements and ions, particles, lattices, ready-made objects, projectiles), built here and
+   checked; one follow-up with what was wrong when it cannot be built. The setup becomes the "Claude's setup" entry of the
+   setup list (Restart rebuilds it). */
+const ASK = { busy: false, ctl: null, last: null };
+const ASK_MAX = 2500, ASK_EX = ['Sodium and chlorine reacting into salt', 'A hydrogen–oxygen explosion', 'Alpha particles fired at gold atoms (Rutherford)', 'Water boiling', 'A neon sign', 'Methane burning in oxygen', 'Positrons meeting electrons', 'Ice melting'];
+const ASK_PART = { e: { kind: 'e' }, electron: { kind: 'e' }, pos: { kind: 'pos' }, positron: { kind: 'pos' }, n: { kind: 'n' }, neutron: { kind: 'n' },
+  p: { kind: 'atom', Z: 1, A: 1, bare: true }, proton: { kind: 'atom', Z: 1, A: 1, bare: true }, alpha: { kind: 'atom', Z: 2, A: 4, bare: true },
+  deuteron: { kind: 'atom', Z: 1, A: 2, bare: true }, triton: { kind: 'atom', Z: 1, A: 3, bare: true } };
+function askPrompt(text, prev, problem) {
+  const mols = Object.values(MOLECULES).filter(m => m.cat !== 'objects').map(m => `${m.key}=${m.name}`).join('; ');
+  const objs = Object.values(MOLECULES).filter(m => m.cat === 'objects').map(m => `${m.key}=${m.name}`).join('; ');
+  let p = `You set up experiments in Atom Forge, a flat (2-D) atom, molecule and particle simulator. Distances are in ångströms (Å); an atom is about 1–2 Å across, a small molecule 3–5 Å. The simulator handles chemistry (bonds form and break, reactions, heat), ionization and light, nuclear reactions (fusion, fission, decay), antimatter and fields.
+
+Experiment asked for: ${JSON.stringify(text)}
+
+Reply with one JSON object and nothing else:
+{"name":"short title","note":"one to three plain sentences: what will happen and what to watch for",
+ "box":{"w":80,"h":60},"walls":"reflect|wrap|open","T":300,"bath":"insulated|gentle|normal|strong",
+ "E":0,"Edir":0,"B":0,"glow":false,
+ "items":[ … ]}
+
+Each item is one of:
+{"what":"molecule","key":"H2O","count":30,"region":"all"}  — key from the library below
+{"what":"atom","el":"Na","count":10,"charge":0,"A":0,"region":"left"}  — any element symbol; charge for an ion; A for an isotope (0 = the usual one)
+{"what":"particle","kind":"e|pos|n|p|alpha|deuteron|triton","count":5,"region":"all"}
+{"what":"lattice","lattice":"ionic|metal|honeycomb|square","elements":["Na","Cl"],"size":6,"x":0,"y":0}  — a small crystal or sheet
+{"what":"object","key":"saltcrystal","x":0,"y":0}  — a ready-made object below
+{"what":"shoot","kind":"alpha","el":"","energy_eV":5000000,"from":"left|right|top|bottom","count":3}  — projectiles fired into the box (kind as for particle, or el for a bare nucleus of that element)
+
+Rules: region is all, left, right, top, bottom or center. T is the starting and bath temperature in kelvin (1 to 1e9; molecules fall apart above a few thousand K, atoms ionize above ~10,000 K, fusion needs ~1e8 K in a dense plasma). E is an electric field in V/Å (0 to 50), Edir its direction in degrees; B a magnetic field in tesla out of the screen. glow makes reflecting walls give off black-body light at T. Keep it small enough to run smoothly: at most ${ASK_MAX} atoms and particles in all, and a box whose area leaves the molecules room (a gas: about 30–100 Å² per molecule; a liquid: about 10). Choose amounts that show the experiment within seconds.
+
+Library molecules (key=name): ${mols}
+
+Ready-made objects: ${objs}`;
+  if (problem) p += `\n\nYour previous answer was ${JSON.stringify(prev).slice(0, 3000)}\nIt could not be built: ${problem}. Reply again with a corrected JSON object.`;
+  return p;
+}
+/* Build a recipe into the world: null when done, or what was wrong (for Claude to fix). check: only check, build nothing. */
+function askBuild(r, check) {
+  if (!r || typeof r !== 'object' || Array.isArray(r)) return 'the reply was not one JSON object';
+  const num = (v, lo, hi, d) => (Number.isFinite(+v) && v !== null && v !== '' ? clamp(+v, lo, hi) : d);
+  const items = Array.isArray(r.items) ? r.items.slice(0, 40) : [];
+  if (!items.length) return 'there are no items to put in the box';
+  const w = num(r.box && r.box.w, 20, 2000, 80), h = num(r.box && r.box.h, 20, 2000, 60), T = num(r.T, 1, 1e9, 300);
+  let total = 0; const probs = [];
+  const specOf = (it) => {
+    if (it.el) { const Z = SYM2Z[String(it.el).trim()]; return Z ? { kind: 'atom', Z, A: Math.round(num(it.A, 0, 300, 0)) || COMMON_A[Z], bare: true } : null; }
+    return ASK_PART[String(it.kind || '').toLowerCase()] || null;
+  };
+  for (const it of items) {
+    const what = String(it && it.what || '').toLowerCase(), n = Math.round(num(it.count, 1, ASK_MAX, 1));
+    if (what === 'molecule') { const M = MOLECULES[it.key]; if (!M || M.cat === 'objects') probs.push(`"${aiText(String(it.key), 30)}" is not a library molecule key`); else total += n * M.atoms.length; }
+    else if (what === 'atom') { if (!SYM2Z[String(it.el || '').trim()]) probs.push(`"${aiText(String(it.el), 10)}" is not an element symbol`); else total += n; }
+    else if (what === 'particle') { if (!ASK_PART[String(it.kind || '').toLowerCase()]) probs.push(`"${aiText(String(it.kind), 12)}" is not a particle kind`); else total += n; }
+    else if (what === 'object') { const M = MOLECULES[it.key]; if (!M || M.cat !== 'objects') probs.push(`"${aiText(String(it.key), 30)}" is not a ready-made object`); else total += M.atoms.length; }
+    else if (what === 'lattice') { try { const L = designLattice(it); total += L.atoms.length; } catch (e) { probs.push(`the lattice cannot be made: ${e.message}`); } }
+    else if (what === 'shoot') { if (!specOf(it)) probs.push('a projectile needs a particle kind or an element'); else total += Math.round(num(it.count, 1, 50, 1)); }
+    else probs.push(`"${aiText(String(it && it.what), 12)}" is not an item type`);
+  }
+  if (total > ASK_MAX) probs.push(`that is ${total} atoms and particles; at most ${ASK_MAX}`);
+  if (probs.length) return probs.slice(0, 5).join('; ');
+  if (check) return null;
+  // build
+  baseWorld(w, h, T, { insulated: 0, gentle: 0.005, normal: 0.05, strong: 0.3 }[String(r.bath)] ?? 0.05);
+  W.wall = ['reflect', 'wrap', 'open'].includes(r.walls) ? r.walls : 'reflect';
+  const E = num(r.E, 0, 50, 0), ang = num(r.Edir, -360, 360, 0) * Math.PI / 180;
+  W.Ex = E * Math.cos(ang); W.Ey = E * Math.sin(ang); UI.E = E; UI.Eang = Math.round(num(r.Edir, -360, 360, 0)); W.Bz = num(r.B, -1e5, 1e5, 0); W.glow = r.glow === true;
+  const reg = (name) => { const R2 = { all: [0, 0, w, h], left: [-w / 4, 0, w / 2, h], right: [w / 4, 0, w / 2, h], top: [0, h / 4, w, h / 2], bottom: [0, -h / 4, w, h / 2], center: [0, 0, w / 2, h / 2] }; return R2[String(name || 'all').toLowerCase()] || R2.all; };
+  const placed = [];
+  const spot = (rg, rad) => { const [cx, cy, rw, rh] = rg; let best = null, bd = -1;
+    for (let k = 0; k < 30; k++) { const x = cx + (rnd() - 0.5) * Math.max(0, rw - 2 * rad - 2), y = cy + (rnd() - 0.5) * Math.max(0, rh - 2 * rad - 2);
+      let d = Infinity; for (const [px, py, pr] of placed) d = Math.min(d, Math.hypot(px - x, py - y) - pr - rad); if (d > 1.2) { best = [x, y]; break; } if (d > bd) { bd = d; best = [x, y]; } }
+    placed.push([best[0], best[1], rad]); return best; };
+  const molR = (M) => { let cx = 0, cy = 0; for (const a of M.atoms) { cx += a[1]; cy += a[2]; } cx /= M.atoms.length; cy /= M.atoms.length; let r2 = 0; for (const a of M.atoms) r2 = Math.max(r2, Math.hypot(a[1] - cx, a[2] - cy)); return r2 + 1; };
+  const placeL = (L, x, y) => { let cx = 0, cy = 0; for (const a of L.atoms) { cx += a[1]; cy += a[2]; } cx /= L.atoms.length; cy /= L.atoms.length;
+    const ps = L.atoms.map(([el, ax, ay, q]) => addAtom(el, x + ax - cx, y + ay - cy, { charge: q || 0 })); for (const [i, j, o] of L.bonds) addBond(ps[i], ps[j], o); };
+  const shots = [];
+  for (const it of items) {
+    const what = String(it.what).toLowerCase(), n = Math.round(num(it.count, 1, ASK_MAX, 1)), rg = reg(it.region);
+    if (what === 'molecule') { const M = MOLECULES[it.key], rad = molR(M); for (let i = 0; i < n; i++) { const [x, y] = spot(rg, rad); addMolecule(it.key, x, y, rnd() * 2 * Math.PI); } }
+    else if (what === 'atom') { const el = String(it.el).trim(), q = Math.round(num(it.charge, -3, SYM2Z[el], 0)), A = Math.round(num(it.A, 0, 300, 0)); for (let i = 0; i < n; i++) { const [x, y] = spot(rg, 1.2); addAtom(el, x, y, { charge: q, A: A || 0 }); } }
+    else if (what === 'particle') { const sp = ASK_PART[String(it.kind).toLowerCase()]; for (let i = 0; i < n; i++) { const [x, y] = spot(rg, 0.8); spawnSpec(sp, x, y); } }
+    else if (what === 'object') { const M = MOLECULES[it.key]; addMolecule(it.key, clamp(num(it.x, -1e4, 1e4, 0), -w / 2 + molR(M), w / 2 - molR(M)), clamp(num(it.y, -1e4, 1e4, 0), -h / 2 + molR(M), h / 2 - molR(M)), 0); placed.push([num(it.x, -1e4, 1e4, 0), num(it.y, -1e4, 1e4, 0), molR(M)]); }
+    else if (what === 'lattice') { const L = designLattice(it); const R3 = molR(L); placeL(L, clamp(num(it.x, -1e4, 1e4, 0), -w / 2 + R3, w / 2 - R3), clamp(num(it.y, -1e4, 1e4, 0), -h / 2 + R3, h / 2 - R3)); placed.push([num(it.x, -1e4, 1e4, 0), num(it.y, -1e4, 1e4, 0), R3]); }
+    else if (what === 'shoot') shots.push(it);
+  }
+  settleOverlaps();
+  for (const it of shots) { // fired in from a side, spread along it, towards the far side
+    const sp = specOf(it), KE = num(it.energy_eV, 0.01, 1e12, 1e6), from = String(it.from || 'left').toLowerCase(), n = Math.round(num(it.count, 1, 50, 1));
+    for (let i = 0; i < n; i++) {
+      const s = (i + 0.5) / n - 0.5, m = 2;
+      const [x, y, ux, uy] = from === 'right' ? [w / 2 - m, s * h * 0.6, -1, 0] : from === 'top' ? [s * w * 0.6, h / 2 - m, 0, -1] : from === 'bottom' ? [s * w * 0.6, -h / 2 + m, 0, 1] : [-w / 2 + m, s * h * 0.6, 1, 0];
+      fireSpec(sp, x, y, ux, uy, KE, false);
+    }
+  }
+  return null;
+}
+async function askRun() {
+  if (ASK.busy) { if (ASK.ctl) ASK.ctl.abort(); return; }
+  const text = aiText($('askText').value, 400), say = (t, bad) => { $('askMsg').textContent = t; $('askMsg').classList.toggle('bad', !!bad); };
+  if (!text) { say('Describe the experiment first.', true); return; }
+  if (!AI.sample) { say('Claude is not connected here.', true); return; }
+  ASK.busy = true; ASK.ctl = new AbortController(); $('askGo').textContent = 'Stop'; say('Claude is designing the setup … this can take up to a minute.');
+  const opts = () => ({ modelTier: 'default', signal: ASK.ctl.signal, cache: false, onText: () => say('Claude is writing the setup …') });
+  try {
+    let r = await AI.sample.json(askPrompt(text), opts()), bad = askBuild(r, true);
+    if (bad) { say(`Fixing: ${bad} …`); const r2 = await AI.sample.json(askPrompt(text, r, bad), opts()); const bad2 = askBuild(r2, true); if (bad2) { say(`Claude's setup could not be built: ${bad2}. Try describing it differently.`, true); return; } r = r2; }
+    ASK.last = r;
+    PRESETS.ai = { group: 'Claude', name: '✦ ' + (aiText(r.name, 40) || 'Claude’s setup'), tool: 'place', spec: { kind: 'atom', Z: 1, A: 1, bare: true },
+      hint: `<b>${esc(aiText(r.name, 60) || 'Claude’s setup')}.</b> ${esc(aiText(r.note, 400))} <i>(Set up by Claude from “${esc(text)}”; Restart builds it again.)</i>`,
+      build() { const e = askBuild(ASK.last, false); if (e) baseWorld(80, 60, 300, 0.05); } };
+    buildPresetSelect(); loadPreset('ai'); setRunning(true);
+    hideModal('askModal'); say('');
+  } catch (e) {
+    const code = (e && e.code) || 'upstream_error';
+    say(code === 'cancelled' ? 'Stopped.' : aiErrorText(code), code !== 'cancelled');
+  } finally { ASK.busy = false; ASK.ctl = null; $('askGo').textContent = 'Set it up'; }
+}
+function askInit() {
+  $('bAskSetup').onclick = () => { showModal('askModal'); $('askText').focus(); };
+  $('askClose').onclick = () => hideModal('askModal');
+  $('askGo').onclick = () => askRun();
+  $('askText').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askRun(); } e.stopPropagation(); });
+  $('askEx').innerHTML = ASK_EX.map(t => `<button class="chip" type="button">${esc(t)}</button>`).join('');
+  $('askEx').onclick = (e) => { const b = e.target.closest('button'); if (b) { $('askText').value = b.textContent; $('askText').focus(); } };
+  aiSync();
+}
 function aiInit() {
   const c = typeof window !== 'undefined' ? window.claude : null;
   const key = typeof SET !== 'undefined' && SET.apiKey ? String(SET.apiKey).trim() : '';
@@ -13432,7 +13608,7 @@ const OPT = {
   heat: { mode: 'heat', s: 348, R: 8 },
   spark: { s: 218, R: 8 },
   magnet: { s: 430, pol: 1, R: 9 },
-  light: { s: 132, rate: 80, follow: true },
+  light: { s: 132.33, rate: 80, follow: true, mount: false }, // (s: 589 nm, sodium's line, exactly)
   erase: { R: 3 },
 };
 const fireKE = () => Math.pow(10, OPT.fire.s / 100 - 2);
@@ -13699,9 +13875,11 @@ function buildToolOpts() {
     case 'light': {
       const w = wavelengthText(lightE());
       h = rangeCtl('oL', 'Photon', 0, 730, o.s, w.lam) + `<span><span class="swatch" id="oLsw" style="background:${lightSwatch(lightE())}"></span> <span class="help" id="oLtxt">${w.band}, ${w.E}</span></span>` +
-        `<span data-g="lpre">${seg('Presets', [[9, 'IR 10 µm'], [132, 'Na 589 nm'], [201, 'Lyman-α'], [500, 'X-ray 10 keV'], [700, 'γ 1 MeV']], o.s)}</span>` +
+        `<span data-g="lpre">${seg('Presets', [[9.34, 'IR 10 µm'], [132.33, 'Na 589 nm'], [200.86, 'Lyman-α'], [500, 'X-ray 10 keV'], [700, 'γ 1 MeV']], o.s)}</span>` +
         rangeCtl('oRate', 'Intensity', 5, 400, o.rate, o.rate + '/s') +
-        `<span class="help">Light crosses the box in hundredths of a femtosecond: time slows while it is in flight, so you see it go at c.</span>`;
+        `<span data-g="mount">${seg('Mode', [['false', 'While held'], ['true', 'Leave on (laser)']], String(!!o.mount))}</span>` +
+        (W.lasers.length ? `<button class="opt" id="oLaserClear">Turn off ${W.lasers.length > 1 ? `all ${W.lasers.length} lasers` : 'the laser'}</button>` : '') +
+        `<span class="help">${o.mount ? 'Drag to aim; on release it stays, shining one wavelength (Erase it, or Remove beam sources). ' : ''}Light crosses the box in hundredths of a femtosecond: time slows while it is in flight, so you see it go at c.</span>`;
       break;
     }
     case 'erase':
@@ -13728,6 +13906,7 @@ function buildToolOpts() {
     if (b.id === 'oSelPaste') { if (UI.pasting) cancelPaste(); else armPaste(); return; }
     if (b.id === 'oSelDel') { deleteSelection(); return; }
     if (b.id === 'oSelAll') { selectAll(); return; }
+    if (b.id === 'oLaserClear') { W.lasers.length = 0; buildToolOpts(); return; }
     if (b.id === 'oSelNone') { clearSelection(); return; }
     if (b.dataset.iso) { selectSpec(Object.assign({}, UI.spec, { A: +b.dataset.iso })); return; }
     if (b.dataset.my !== undefined) { const m = MYISO[+b.dataset.my]; if (m) selectSpec(isoSpec(m.Z, m.A, m.charge, m.bare, m.anti)); return; }
@@ -14254,6 +14433,7 @@ function eraseHere(wx, wy) {
   const n = eraseAt(wx, wy, r);
   for (let i = W.magnets.length - 1; i >= 0; i--) if (Math.hypot(W.magnets[i].x - wx, W.magnets[i].y - wy) < W.magnets[i].R) W.magnets.splice(i, 1);
   for (let i = W.sources.length - 1; i >= 0; i--) if (Math.hypot(W.sources[i].x - wx, W.sources[i].y - wy) < r + 1.5) W.sources.splice(i, 1);
+  for (let i = W.lasers.length - 1; i >= 0; i--) if (Math.hypot(W.lasers[i].x0 - wx, W.lasers[i].y0 - wy) < r + 1.5) W.lasers.splice(i, 1);
   if (R.sel && R.sel.dead) R.sel = null;
   return n;
 }
@@ -14323,6 +14503,13 @@ function aimOverlay(d) {
 function endToolAction() {
   const d = UI.drag;
   if (d && d.kind === 'selbox') { finishSelBox(d); R.overlay = null; }
+  if (d && d.kind === 'light' && OPT.light.mount) {
+    let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
+    if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
+    if (W.lasers.length >= 12) W.lasers.shift();
+    W.lasers.push({ x0: d.x0, y0: d.y0, ux, uy, E: lightE(), rate: OPT.light.rate, acc: 0 });
+    log('tool', `Laser on: ${wavelengthText(lightE()).lam}, ${OPT.light.rate} photons/s`); buildToolOpts();
+  }
   if (d && d.kind === 'fire') {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
@@ -14361,7 +14548,14 @@ function zoomAt(px, py, f) {
 /* continuous tool effects, once per frame */
 function toolTick(realDt) {
   const d = UI.drag;
-  if (!d || !UI.running) return;
+  if (!UI.running) return;
+  if (W.ramp) rampTick(realDt);
+  for (const L of W.lasers) { // lasers left on: the same light, all the time
+    L.acc += L.rate * realDt;
+    while (L.acc >= 1) { L.acc -= 1; const off = (rnd() - 0.5) * 0.8; emitPhoton(L.x0 - L.uy * off, L.y0 + L.ux * off, L.E, L.ux, L.uy, { travel: true }); }
+  }
+  if (!d) return;
+  if (d.kind === 'light' && OPT.light.mount) return; // (aiming a laser: it shines once it is set down)
   if (d.kind === 'light') {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
@@ -14715,6 +14909,27 @@ function speciesCounts() {
   }
   return [...c.entries()].sort((a, b) => b[1].n - a[1].n);
 }
+/* Pressure on the walls (2-D: force per length of wall, N/m), from the walls' push averaged over about a picosecond
+   (engine.js W.pWall), and Z, the ratio to an ideal gas of the same free movers (molecules and unbonded atoms) at the
+   measured temperature: 1 for an ideal gas, below 1 where attractions pull the particles together (a dense gas, a
+   liquid), above 1 where they are squeezed against each other. Free electrons bounce off the walls on their own and are
+   not counted. */
+const PRS = { sig: '', Ts: 0, Tn: 0 };
+function wallPressure(mols, T) {
+  let free = 0; for (const p of W.parts) if (!p.dead && p.k === NUC && !p.bonds.length && !p.rad && !p.beam) free++;
+  const N = mols + free, L = 2 * (W.box.w + W.box.h), A = W.box.w * W.box.h, PB = W.pB;
+  // averaged since the conditions last changed (box, walls, bath, what is free to move): a dilute gas hits the walls seldom
+  const sig = [W.box.w, W.box.h, W.wall, Math.round(Math.log(Math.max(1, W.T)) * 30), N].join();
+  if (sig !== PRS.sig) { PRS.sig = sig; PRS.Ts = 0; PRS.Tn = 0; if (PB) { PB.blocks.length = 0; PB.s = 0; PB.t = 0; } }
+  if (T > 0) { PRS.Ts += T; PRS.Tn++; }
+  if (!N || !PB || PB.blocks.length < 4 || !PRS.Tn) return null;
+  const b = PB.blocks, n = b.length; let s = 0, s2 = 0; for (const v of b) { s += v; s2 += v * v; }
+  const F = s / n, se = Math.sqrt(Math.max(0, s2 / n - F * F) / n), Tm = PRS.Ts / PRS.Tn;
+  const P = F / L, ideal = N * PHYS.KB * Tm / A, Z = P / ideal, zErr = se / L / ideal; // (eV/Å²)
+  const ok = zErr < 0.15, ps = n * 0.5;
+  return { P: P * 16.0218, Z, ok, zErr, title: `The walls are pushed with ${fmtSI(P * 16.0218, 'N/m', 3)} on average over ${fmtNum(ps, 3)} ps (in 2-D, pressure is force per length of wall). An ideal gas of these ${N} free movers at ${fmtT(Tm)} would push ${fmtSI(ideal * 16.0218, 'N/m', 3)}: Z = ${Z.toFixed(2)} ± ${zErr.toFixed(2)}. ` +
+    (!ok ? 'Still averaging: in a thin gas the particles hit the walls seldom.' : Z > 0.85 && Z < 1.15 ? 'It behaves like an ideal gas.' : Z <= 0.85 ? 'Below 1: the attractions between the particles pull them together, as in a dense gas or a liquid.' : 'Above 1: the particles are squeezed against each other.') };
+}
 function renderData() {
   const m = measure();
   let mols = 0; const seen = new Set();
@@ -14725,7 +14940,9 @@ function renderData() {
     ['Atoms & ions', String(m.atoms)], ['Molecules', String(mols)],
     ['Free electrons', String(W.nE)], ['Ionized', (m.ionFrac * 100).toFixed(0) + '%'],
   ];
-  $('dTiles').innerHTML = tiles.map(([k, v]) => `<div class="tile"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('');
+  const pr = W.wall === 'reflect' ? wallPressure(mols, m.T) : null;
+  if (pr) tiles.push(['Wall pressure', `${fmtSI(pr.P, 'N/m', 2)}`, pr.title], ['vs ideal gas', pr.ok ? `Z = ${pr.Z.toFixed(2)}` : 'averaging …', pr.title]);
+  $('dTiles').innerHTML = tiles.map(([k, v, t]) => `<div class="tile"${t ? ` title="${esc(t)}"` : ''}><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('');
   const sp = speciesCounts();
   $('dSpecies').innerHTML = sp.length ? sp.slice(0, 40).map(([k, e]) => `<tr><td class="f"><span class="sw" style="background:${e.col}"></span>${esc(k)}</td><td class="nm">${esc(e.name)}</td><td class="n">${e.n}</td></tr>`).join('')
     : '<tr><td class="nm">The chamber is empty.</td></tr>';
@@ -14737,7 +14954,7 @@ function renderData() {
   $('dLedger').innerHTML = [['Chemical heat released', fmtE(L.chem)], ['Nuclear energy released', fmtE(L.nuc)], ['Escaped as radiation & fast particles', fmtE(L.escaped)]]
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
-  drawSpec(); explainSync();
+  drawSpec(); explainSync(); drawChain();
   drawTChart(); drawEChart(m.T);
   restoreScroll('tp-data');
 }
@@ -14780,6 +14997,37 @@ function chartCtx(cv) {
   return [ctx, w, h];
 }
 function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888'; }
+/* A slow change of the bath (Lab → Heat bath): from where it was to the chosen temperature, evenly on a log scale, over
+   the chosen seconds of running (paused, it waits). Annealing, crystal growth, a slow quench. */
+function rampTick(dt) {
+  const r = W.ramp; r.t = Math.min(r.dur, r.t + dt);
+  W.T = Math.exp(Math.log(r.from) + (Math.log(r.to) - Math.log(r.from)) * r.t / r.dur);
+  if (r.t >= r.dur) { W.T = r.to; W.ramp = null; log('tool', `Bath at ${fmtT(r.to)}`); }
+  if (!r.shown || r.t - r.shown > 0.25 || !W.ramp) { r.shown = r.t; $('tSlider').value = Math.round(100 * Math.log10(Math.max(1, W.T))); syncLabText(); rampSync(); }
+}
+function rampSync() {
+  const r = W.ramp, n = $('rampNote');
+  $('bRamp').textContent = r ? 'Stop' : 'Start'; $('bRamp').classList.toggle('go', !!r);
+  n.hidden = !r; if (r) n.textContent = `Going to ${fmtT(r.to)}: ${Math.round(100 * r.t / r.dur)} % (${fmtNum(r.dur - r.t, 2)} s of running left).`;
+}
+/* The chain-reaction readout: k (neutrons born per neutron ended, over the last 300 ends, engine.js kEnd), whether the
+   chain grows, holds or dies, where the neutrons went, and what would help. */
+const KC_COL = ['#ff9f43', '#7aa2ff', '#a0a0a0', '#5c6370'];
+function drawChain() {
+  const K = W.kc, sec = $('dChainSec');
+  sec.hidden = !K || K.ends < 5; if (sec.hidden) return;
+  const n = Math.min(K.n, KC_N), c = [0, 0, 0, 0]; let s = 0, s2 = 0;
+  for (let i = 0; i < n; i++) { const v = K.v[i]; s += v; s2 += v * v; c[K.c[i]]++; }
+  const k = s / n, se = Math.sqrt(Math.max(0, s2 / n - k * k) / n);
+  $('dChainK').textContent = `k ≈ ${k.toFixed(2)}${n >= 20 ? ` ± ${se.toFixed(2)}` : ''}`;
+  $('dChainState').textContent = n < 20 ? 'too few neutrons yet' : k - 2 * se > 1 ? 'supercritical: it grows' : k + 2 * se < 1 ? 'subcritical: it dies out' : 'about critical: it holds';
+  const pc = c.map(x => (100 * x / n));
+  $('dChainBar').innerHTML = pc.map((p, i) => p > 0 ? `<span style="width:${p}%;background:${KC_COL[i]}"></span>` : '').join('');
+  const fuel = W.parts.filter(p => !p.dead && p.k === NUC && !p.anti && ((p.Z === 92 && p.N === 143) || (p.Z === 94 && p.N === 145) || (p.Z === 92 && p.N === 141))).length;
+  const tip = c[2] / n > 0.3 ? ' Many escape: a bigger or denser lump of fuel, or reflecting walls, keeps more of them.' : c[1] / n > 0.35 ? ' Many are captured without fission: fewer absorbers in the way; for U-235, slower neutrons are likelier to cause fission.' : c[3] / n > 0.4 ? ' Many end otherwise (decay, other reactions): a denser fuel catches them sooner.' : '';
+  $('dChainNote').textContent = `Of the last ${n} neutrons that ended: ${pc[0].toFixed(0)} % caused a fission (orange), ${pc[1].toFixed(0)} % were captured without one (blue), ${pc[2].toFixed(0)} % escaped (grey), ${pc[3].toFixed(0)} % ended otherwise. ` +
+    `${K.gen ? `Generation ${K.gen} reached; ` : ''}${fuel ? `${fuel} fissile nuclei left.` : 'the fuel is used up.'} k is the neutrons each one passes on: above 1 the chain grows, below 1 it dies.` + tip;
+}
 /* The spectroscope: the light made in the box in the last SPEC_WIN seconds of watching (or since Clear), as counts per
    wavelength — the visible band over its colours with the known lines of the elements that gave it off marked, or
    everything from γ rays to the far infrared on a log scale. */
@@ -15076,7 +15324,7 @@ function shareInit() {
   };
   $('shareClose').onclick = () => hideModal('shareModal');
   $('shareCopy').onclick = async () => {
-    const t = $('shareOut'); t.focus(); t.select(); let ok2 = false;
+    const t = $('shareOut'); t.focus(); t.select(); let ok2;
     try { await navigator.clipboard.writeText(t.value); ok2 = true; } catch (e) { try { ok2 = document.execCommand('copy'); } catch (e2) { ok2 = false; } }
     $('shareCopied').textContent = ok2 ? 'Copied.' : 'Select the text and copy it (Ctrl+C / ⌘C).';
   };
@@ -15161,6 +15409,51 @@ function recInit() {
   bindSeg('segRec', (v) => { REC.speed = +v; if (REC.on) recShow(); });
   if (!recMime()) { $('bRec').disabled = true; $('bRec').title = 'This browser cannot record the canvas as a video'; }
 }
+/* Gallery: worlds kept in this browser (localStorage: an index, and each world as its share code with a 240 px picture).
+   A convenience for one viewer, so storage that may be missing or full is said so plainly. */
+const GAL_MAX = 40;
+function galIndex() { try { const a = JSON.parse(store('gallery') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function galPut(k, v) { try { localStorage.setItem('atomforge.' + k, v); return true; } catch (e) { return false; } }
+function galGet(k) { try { return localStorage.getItem('atomforge.' + k); } catch (e) { return null; } }
+function galDel(k) { try { localStorage.removeItem('atomforge.' + k); } catch (e) { /* (no storage) */ } }
+function galThumb() {
+  const c = $('cv'), w = 240, h = Math.max(1, Math.round(240 * c.height / Math.max(1, c.width))), t = document.createElement('canvas'); t.width = w; t.height = h;
+  const ctx = t.getContext('2d'); ctx.fillStyle = '#05080c'; ctx.fillRect(0, 0, w, h);
+  for (const id of ['cvbg', 'cvgl', 'cv']) { const e = $(id); if (e && e.width) try { ctx.drawImage(e, 0, 0, w, h); } catch (err) { /* (unreadable) */ } }
+  try { return t.toDataURL('image/jpeg', 0.75); } catch (e) { return ''; }
+}
+function galRender() {
+  const list = galIndex(), box = $('galList');
+  box.innerHTML = list.length ? list.map(g => `<div class="gcard" data-g="${esc(g.id)}"><img alt="${esc(g.name)}" src="${g.img && /^data:image\/jpeg;base64,/.test(g.img) ? g.img : ''}" data-act="open" title="Open ${esc(g.name)}"><div class="gmeta"><b>${esc(g.name)}</b><span class="note">${esc(new Date(g.t).toLocaleDateString())} · ${Number(g.n || 0).toLocaleString('en-US')} particles</span></div><div class="grow"><button class="btn small" data-act="open">Open</button><button class="btn small" data-act="del">Delete</button></div></div>`).join('')
+    : '<p class="note">Nothing kept yet.</p>';
+}
+async function galSave() {
+  const say = (t) => { $('galMsg').textContent = t; };
+  const list = galIndex();
+  if (list.length >= GAL_MAX) { say(`The gallery holds ${GAL_MAX} worlds: delete one first.`); return; }
+  const d = worldToJSON(), code = await shareEncode(d), id = 'g' + Date.now().toString(36);
+  const P = PRESETS[UI.preset], name = ($('galName').value || '').trim().slice(0, 50) || (P ? P.name.replace(/^✓ /, '') : 'My world');
+  if (!galPut('g.' + id, code)) { say('There is no room left in this browser\'s storage (or it is switched off): delete a world, or use Save world… for a file.'); return; }
+  const entry = { id, name, t: Date.now(), n: d.parts.length, img: galThumb() };
+  list.unshift(entry);
+  if (!galPut('gallery', JSON.stringify(list))) { entry.img = ''; if (!galPut('gallery', JSON.stringify(list))) { galDel('g.' + id); say('There is no room left in this browser\'s storage.'); return; } }
+  $('galName').value = ''; say(`Kept “${name}”.`); galRender();
+}
+function galInit() {
+  $('bGallery').hidden = typeof CompressionStream !== 'function';
+  $('bGallery').onclick = () => { $('galMsg').textContent = ''; galRender(); showModal('galModal'); };
+  $('galClose').onclick = () => hideModal('galModal');
+  $('galSave').onclick = () => galSave();
+  $('galName').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); galSave(); } e.stopPropagation(); });
+  $('galList').onclick = async (e) => {
+    const a = e.target.closest('[data-act]'), card = e.target.closest('[data-g]'); if (!a || !card) return;
+    const id = card.dataset.g, list = galIndex(), g = list.find(x => x.id === id); if (!g) return;
+    if (a.dataset.act === 'del') { galDel('g.' + id); galPut('gallery', JSON.stringify(list.filter(x => x.id !== id))); galRender(); return; }
+    const code = galGet('g.' + id); if (!code) { $('galMsg').textContent = 'That world is missing from this browser\'s storage.'; return; }
+    const err = await shareOpen(code); if (err) { $('galMsg').textContent = err; return; }
+    hideModal('galModal'); log('tool', `Opened “${g.name}” from the gallery`);
+  };
+}
 /* Explain: Claude (on claude.ai, or with an API key in Settings) explains what the chamber is doing, from a digest of what
    the panels show; without Claude, the setup's own description and the latest events. */
 const EXPLAIN = { busy: false, ctl: null };
@@ -15220,7 +15513,58 @@ async function explainRun() {
     else { out.textContent = (e.text ? e.text + '\n\n' : '') + aiErrorText(code); out.classList.add('bad'); }
   } finally { EXPLAIN.busy = false; EXPLAIN.ctl = null; explainSync(); }
 }
-function explainInit() { $('bExplain').onclick = () => explainRun(); explainSync(); }
+function explainInit() {
+  $('bExplain').onclick = () => explainRun(); explainSync();
+  $('chkNarr').checked = !!SET.narr; $('chkNarr').onchange = (e) => { setSetting('narr', e.target.checked); NARR.seq = W.logSeq; if (!e.target.checked) $('narr').hidden = true; };
+}
+/* The narrator: notable events from the log, each with a caption saying what happened and why, one at a time (the most
+   important first: nuclear, then light and charge, then chemistry), each shown at least 5 s; the same kind not again
+   within 12 s. */
+const NARR = { seq: 0, until: 0, last: new Map(), cur: '' };
+const NARR_RULES = [
+  [/^Fission: (\S+) \+ n → (\S+) \+ (\S+) \+ (\d)n/, 'fission', 9, (m) => `<b>Fission.</b> A neutron made ${m[1]} split into ${m[2]} and ${m[3]}, freeing ${m[4]} more neutrons that can split other nuclei: a chain reaction. The pieces weigh less than what went in; the missing mass became about 200 MeV of energy (E = mc²), millions of times what a chemical bond releases.`],
+  [/^Spontaneous fission/, 'sfission', 8, () => '<b>Spontaneous fission.</b> A heavy nucleus split by itself, with no neutron to start it: quantum tunnelling through the barrier that usually holds it together.'],
+  [/^Fusion: (.+?) → (.+?) \(/, 'fusion', 9, (m) => `<b>Fusion.</b> ${m[1]} → ${m[2]}. Two nuclei came close enough, despite their electric repulsion, for the strong force to join them; the product weighs less than the parts, and the difference is released as energy. This is what powers the Sun.`],
+  [/^Neutron capture: (\S+) \+ n → (\S+)/, 'ncap', 6, (m) => `<b>Neutron capture.</b> ${m[1]} absorbed a neutron and became ${m[2]}, a heavier isotope of the same element (same protons, one more neutron), giving off the binding energy as a γ ray.`],
+  [/^(α|Alpha)[^:]*decay|→ .*\+ (α|⁴He)/, 'alpha', 7, () => '<b>Alpha decay.</b> An unstable nucleus threw out an α particle (two protons and two neutrons), becoming a different element two places down the periodic table.'],
+  [/^β⁻|^Beta-minus|β⁻ decay/, 'betam', 7, () => '<b>Beta decay.</b> Inside the nucleus a neutron turned into a proton, sending out an electron and an antineutrino: the weak force at work. The atom moves one place up the periodic table.'],
+  [/^β⁺|^Beta-plus|β⁺ decay/, 'betap', 7, () => '<b>Positron emission.</b> A proton in the nucleus turned into a neutron, sending out a positron (antimatter) and a neutrino. The atom moves one place down the periodic table.'],
+  [/Electron capture:/, 'ec', 6, () => '<b>Electron capture.</b> The nucleus swallowed one of its own inner electrons, turning a proton into a neutron.'],
+  [/^Pair production/, 'pair', 8, () => '<b>Pair production.</b> A γ ray with more than 1.022 MeV turned into an electron and a positron near a nucleus: energy becoming matter and antimatter (E = mc² backwards).'],
+  [/^Annihilation.*e[⁺⁻] .*→ 2γ|^Annihilation: e⁺|Annihilation in flight: e⁻ \+ e⁺/, 'annihe', 8, () => '<b>Annihilation.</b> An electron met its antiparticle, a positron: both vanished into two γ rays of 511 keV each, flying apart in opposite directions. This is what a PET scanner detects.'],
+  [/^Antimatter annihilation|^Annihilation/, 'annih', 8, () => '<b>Annihilation.</b> Matter met antimatter and both turned into energy: pions and γ rays, carrying away their whole mass.'],
+  [/^Decay in flight/, 'flight', 6, () => '<b>Decay in flight.</b> An unstable particle decayed while moving; moving near the speed of light, its clock ran slow (time dilation), so it lived longer than at rest.'],
+  [/^Photoelectric effect/, 'photo', 5, () => '<b>Photoelectric effect.</b> A photon with enough energy knocked an electron clean out of an atom. Einstein’s Nobel prize: light comes in packets (photons), and only a big enough packet can free an electron, however bright the light.'],
+  [/^Impact ionization/, 'impact', 4, () => '<b>Impact ionization.</b> A fast electron hit an atom hard enough to knock another electron out: now there are two, and in a field they both speed up and do it again. An avalanche, as in a neon sign or a lightning bolt.'],
+  [/^Thermal ionization/, 'thermion', 4, () => '<b>Thermal ionization.</b> The atoms are so hot that collisions alone strip electrons off: matter turning into plasma.'],
+  [/^Field ionization/, 'fieldion', 5, () => '<b>Field ionization.</b> The electric field is strong enough to pull an electron straight out of an atom.'],
+  [/(Electron|Positron) captured:/, 'recomb', 3, () => '<b>Recombination.</b> A free electron was caught by an ion and fell into an orbital, giving off the energy as light, at wavelengths that fingerprint the element.'],
+  [/^Ionic bond/, 'ionic', 5, () => '<b>Ionic bond.</b> One atom handed an electron to another: now a positive and a negative ion hold together by electric attraction. That is how salt (Na⁺Cl⁻) is held together.'],
+  [/^Charge transfer/, 'xfer', 3, () => '<b>Charge transfer.</b> An electron moved from one atom or molecule to another, the one that holds it more tightly.'],
+  [/^Reaction: (.+?) → (.+?)\s+\(ΔH ([+-]?[\d.]+)/, 'react', 4, (m) => `<b>Chemical reaction.</b> ${m[1]} → ${m[2]}: bonds broke and new ones formed. ${+m[3] < 0 ? 'The new bonds hold more tightly, so energy is released as heat (exothermic).' : 'The new bonds are weaker, so heat is taken in (endothermic).'}`],
+  [/^Bond formed: .*→ (\S+)(?: \((.+)\))?/, 'bond', 2, (m) => `<b>A bond formed</b>${m[2] ? `: ${m[2]}` : ''}. Two atoms now share electrons, lowering their energy; the energy released heats their surroundings.`],
+  [/^Bond broke/, 'break', 2, () => '<b>A bond broke.</b> A collision delivered more energy than the bond holds (its dissociation energy), and the atoms flew apart.'],
+  [/^Photodissociation/, 'photodis', 5, () => '<b>Photodissociation.</b> A photon carried enough energy to break a bond on its own: light doing chemistry, as in the ozone layer.'],
+  [/^Bit flipped/, 'seu', 8, () => '<b>A bit flipped.</b> A fast particle freed so many electrons in the transistor that the stored 1 or 0 changed: a single-event upset, the reason spacecraft use radiation-hardened memory.'],
+];
+function narrTick() {
+  const now = UI.vis, box = $('narr');
+  if (now < NARR.until) return;
+  let best = null;
+  for (let i = W.log.length - 1; i >= 0 && i >= W.log.length - 120; i--) {
+    const e = W.log[i]; if (e.seq <= NARR.seq) break;
+    for (const [re, kind, pri, fn] of NARR_RULES) {
+      const m = re.exec(e.text); if (!m) continue;
+      if (now - (NARR.last.get(kind) || -1e9) < 12) break;
+      if (!best || pri > best.pri) best = { pri, kind, html: fn(m) };
+      break;
+    }
+  }
+  NARR.seq = W.logSeq;
+  if (!best) { if (!box.hidden && now > NARR.until + 3) { box.classList.add('fade'); if (now > NARR.until + 4) box.hidden = true; } return; }
+  NARR.last.set(best.kind, now); NARR.until = now + 5; NARR.cur = best.kind;
+  box.innerHTML = best.html; box.hidden = false; box.classList.remove('fade');
+}
 /* My molecules and saved isotopes, out and in (merged: what is there stays; a molecule already known by key or name is
    not added twice). */
 function libraryToJSON() {
@@ -15371,7 +15715,13 @@ function bindLab() {
   bindTyped();
   $('tMarks').innerHTML = T_MARKS.map(([T, n]) => `<button class="mark" data-t="${T}" title="${fmtT(T)}">${esc(n)}</button>`).join('');
   $('tMarks').onclick = (e) => { const b = e.target.closest('.mark'); if (b) { setBathT(+b.dataset.t); syncLab(); } };
-  $('tSlider').oninput = (e) => { setBathT(Math.pow(10, +e.target.value / 100)); syncLabText(); };
+  $('tSlider').oninput = (e) => { W.ramp = null; rampSync(); setBathT(Math.pow(10, +e.target.value / 100)); syncLabText(); };
+  $('bRamp').onclick = () => {
+    if (W.ramp) { W.ramp = null; rampSync(); return; }
+    const to = +$('rampTo').value, dur = +$('rampDur').value;
+    W.ramp = { from: Math.max(1, W.T), to, dur, t: 0 }; if (!W.gamma) setSegValue('segBath', W.gamma = 0.05); rampSync();
+    log('tool', `Bath going from ${fmtT(W.ramp.from)} to ${fmtT(to)} over ${fmtNum(dur, 3)} s of running`);
+  };
   bindSeg('segBath', (v) => { W.gamma = +v; syncLabText(); });
   $('bSlider').oninput = (e) => { W.Bz = bFromS(+e.target.value); syncLabText(); };
   $('eSlider').oninput = (e) => { UI.E = +e.target.value / 100; applyE(); syncLabText(); };
@@ -15390,9 +15740,9 @@ function bindLab() {
   for (const c of document.querySelectorAll('[data-view]')) c.onchange = () => { R.view[c.dataset.view] = c.checked; store('viewflags', JSON.stringify(R.view)); };
   $('bIdentify').onclick = () => { identifyMolecules(); };
   $('bSaveWorld').onclick = () => saveWorld(); $('bLoadWorld').onclick = () => loadWorld();
-  shareInit(); explainInit(); recInit();
+  shareInit(); explainInit(); recInit(); askInit(); galInit();
   $('bClear').onclick = () => { clearWorld(); W.hist = { t: [], T: [], bath: [] }; R.sel = null; log('tool', 'Chamber emptied'); renderInspect(); };
-  $('bSrcClear').onclick = () => { W.sources.length = 0; };
+  $('bSrcClear').onclick = () => { W.sources.length = 0; W.lasers.length = 0; };
 }
 function setBathT(T) { W.T = clamp(T, 1, 1e9); }
 function applyE() {
@@ -15407,7 +15757,7 @@ function syncLab() {
   UI.E = Math.hypot(W.Ex, W.Ey);
   if (UI.E) UI.Eang = Math.round(((Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) + 360) % 360);
   $('eSlider').value = Math.round(UI.E * 100); setSegValue('segEdir', UI.Eang || 0);
-  setSegValue('segWall', W.wall); $('chkGlow').checked = !!W.glow;
+  setSegValue('segWall', W.wall); $('chkGlow').checked = !!W.glow; rampSync();
   UI.aspect = W.box.th / W.box.tw;
   $('boxSlider').value = sFromBox(W.box.tw);
   $('spdSlider').value = sFromSpd(W.simPerFrame);
@@ -16017,6 +16367,18 @@ const PRESETS = {
   argon: { group: 'Chemistry', name: 'Argon crystal', tool: 'heat', spec: { kind: 'atom', Z: 18, A: 40 },
     hint: '<b>Argon at 40 K.</b> Noble-gas atoms only feel weak van der Waals forces, enough to freeze them into a close-packed crystal. Raise the temperature: real argon melts at 84 K and boils at 87 K.',
     build() { baseWorld(50, 40, 40, 0.05); for (let i = 0; i < 10; i++) for (let j = 0; j < 8; j++) addAtom('Ar', -17 + i * 3.8 + (j % 2) * 1.9, -11.5 + j * 3.3); } },
+  cloud: { group: 'Real labs', name: 'Cloud chamber', tool: 'fire', spec: { kind: 'e' },
+    hint: '<b>A cloud chamber: tracks of droplets where charged particles ionized the vapour.</b> Alpha particles (thick, straight: 5.5 MeV, as from americium-241) come in from the left; electrons (thin, from the bottom) and positrons (from the top) at 60 keV curl in the magnetic field, opposite ways: their charges are opposite. The field is enormous (100,000 T) because this chamber is only 24 nm across; a real one uses about 1 T over centimetres, and its α tracks are a few cm long. Fire your own particles with the Fire tool.',
+    build() { baseWorld(240, 160, 300, 0); W.wall = 'open'; W.Bz = 1e5; W.cloud = true; W.decayOn = false;
+      W.simPerFrame = 4e-4; // (4 attoseconds a frame: an electron near half the speed of light crosses the chamber in about a second)
+      W.sources.push({ x: -118, y: 0, ux: 1, uy: 0, spec: { kind: 'atom', Z: 2, A: 4, bare: true }, KE: 5.5e6, rate: 40, acc: 0.5, track: true, jitter: 120 });
+      W.sources.push({ x: 0, y: -78, ux: 0, uy: 1, spec: { kind: 'e' }, KE: 6e4, rate: 60, acc: 0.2, track: true, jitter: 160 });
+      W.sources.push({ x: 0, y: 78, ux: 0, uy: -1, spec: { kind: 'pos' }, KE: 6e4, rate: 40, acc: 0.7, track: true, jitter: 160 }); } },
+  grow: { group: 'Chemistry', name: 'Growing a crystal', tool: 'heat', spec: { kind: 'atom', Z: 18, A: 40 },
+    hint: '<b>Argon at 160 K, with the bath cooling slowly to 40 K over a minute</b> (Lab → Heat bath; the box wraps round, so no wall starts it). The loose lattice it starts as melts in the first seconds. As it cools, ordered patches appear in the jumble, merge and grow, row by row, until the box is one hexagonal crystal with a few defects. Heat it again to melt it.',
+    build() { baseWorld(44, 38.1, 160, 0.05); W.wall = 'wrap'; W.simPerFrame = 6;
+      for (let i = 0; i < 11; i++) for (let j = 0; j < 11; j++) if ((i * 11 + j) % 9) addAtom('Ar', -22 + (i + 0.5) * 4 + (j % 2) * 2 + (rnd() - 0.5) * 0.8, -19.05 + (j + 0.5) * 3.464 + (rnd() - 0.5) * 0.8); // (a loose lattice with gaps, already melting at 160 K: no atoms overlap)
+      W.ramp = { from: 160, to: 40, dur: 60, t: 0 }; } },
   flame: { group: 'Electrons & light', name: 'Flame colours', tool: 'heat', spec: { kind: 'atom', Z: 11, A: 23 },
     hint: '<b>Lithium, sodium, potassium and copper vapour at 6,000 K.</b> Hot collisions lift outer electrons; falling back, each element emits its own lines: Li crimson 671 nm, Na yellow 589 nm, K lilac 766/404 nm, Cu green 510–522 nm.',
     build() { baseWorld(70, 50, 6000, 0.05); const pts = []; for (const s of ['Li', 'Na', 'K', 'Cu']) for (let i = 0; i < 12; i++) pts.push(s);
@@ -16125,6 +16487,54 @@ const PRESETS = {
     hint: '<b>A NOT gate, and the Heat tool.</b> Hold the Heat tool on the gate and watch the Lab tab. As the transistors warm, their threshold drops and the one that should be off leaks: the current from the supply climbs a thousandfold by 600 K, and the output sags. Raise the heat past 1,687 K and the silicon melts, and the gate with it. Toggle its input as it heats. Real chips slow themselves down near 100 °C to avoid this.',
     build() { baseWorld(160, 80, 300, 0.3); addMolecule('inverter', 0, -4, 0, 300); OPT.heat.mode = 'heat'; OPT.heat.s = 300; OPT.heat.R = 50; } },
 };
+/* Challenges: a goal, a starting world and a hint at how; each is a setup in the "Challenges" group, checked as the panels
+   refresh. Done ones are remembered in this browser (✓ in the list). */
+function chNamed(name) { let n = 0; for (const [, e] of speciesCounts()) if (e.name === name) n += e.n; return n; }
+const CHALLENGES = [
+  { id: 'water', name: 'Make water', tool: 'spark', goal: 'Turn hydrogen and oxygen into at least 3 water molecules.', how: 'Nothing happens until a bond breaks: click with the Spark tool (or heat a spot). The radicals it makes (H, O, OH) start the chain reactions.',
+    build() { PRESETS.combustion.build(); }, done: () => chNamed('Water') >= 3 },
+  { id: 'salt', name: 'Make salt', tool: 'heat', goal: 'Get at least 4 sodium ions (Na⁺) and 4 chloride ions (Cl⁻).', how: 'Sodium gives its outer electron to chlorine readily, once the Cl₂ molecules are broken and the atoms meet. Warm them up.',
+    build() { baseWorld(46, 34, 300, 0.05); scatter(8, 46, 34, (x, y) => addAtom('Na', x, y), 4); scatter(4, 46, 34, (x, y) => addMolecule('Cl2', x, y, rnd() * 6), 4); },
+    done: () => { let a = 0, b = 0; for (const p of W.parts) if (!p.dead && p.k === NUC) { if (p.Z === 11 && p.q >= 0.5) a++; else if (p.Z === 17 && p.q <= -0.5) b++; } return a >= 4 && b >= 4; } },
+  { id: 'plasma', name: 'Make a plasma', tool: 'light', goal: 'Ionize at least half of the neon atoms.', how: 'Neon holds its electrons tightly (21.6 eV for the first). Heat it to tens of thousands of kelvin, shine hard ultraviolet with the Light tool, or add a few electrons and an electric field.',
+    build() { baseWorld(80, 40, 300, 0.05); scatter(30, 80, 40, (x, y) => addAtom('Ne', x, y), 3.5); }, done: () => measure().ionFrac >= 0.5 },
+  { id: 'fuse', name: 'Fuse deuterium', tool: 'fire', goal: 'Make two deuterium nuclei fuse.', how: 'They repel each other until they nearly touch. Heat the gas to around 10⁸ K, or fire deuterons at it with the Fire tool at tens of keV.',
+    build() { baseWorld(40, 30, 300, 0.05); scatter(16, 40, 30, (x, y) => addAtom('H', x, y, { A: 2 }), 3); OPT.fire.proj = 'sel'; OPT.fire.s = 650; }, spec: { kind: 'atom', Z: 1, A: 2, bare: true }, done: () => W.count.fusion >= 1 },
+  { id: 'split', name: 'Split uranium', tool: 'fire', goal: 'Make a uranium-235 nucleus split in two.', how: 'Fire a neutron (Fire tool) at a uranium atom. A slow one — a fraction of an eV — is far likelier to be captured than a fast one.',
+    build() { baseWorld(60, 40, 300, 0.05); scatter(6, 50, 30, (x, y) => addAtom('U', x, y, { A: 235 }), 8); OPT.fire.proj = 'n'; OPT.fire.s = Math.round(100 * (Math.log10(0.025) + 2)); }, done: () => W.count.fission >= 1 },
+  { id: 'antiH', name: 'Make antihydrogen', tool: 'place', goal: 'Get a positron to bind to an antiproton: one atom of antihydrogen.', how: 'At 20,000 K they fly past each other. Cool them down with the heat bath, gently.',
+    build() { baseWorld(40, 30, 20000, 0.005); W.wall = 'wrap'; scatter(6, 40, 30, (x, y) => spawnSpec(SPEC_PBAR, x, y), 4); scatter(6, 40, 30, (x, y) => spawnSpec({ kind: 'pos' }, x, y), 0); },
+    done: () => W.parts.some(p => !p.dead && p.anti && p.k === NUC && p.Z === 1 && p.ne >= 1) },
+  { id: 'uv', name: 'Ultraviolet glow', tool: 'place', goal: 'Make the glowing walls give off most of their light in the ultraviolet.', how: 'Wien’s law: the peak of a black body’s light is at 2.9 mm·K ÷ T. Turn the heat bath up until it passes 380 nm, and watch Data → Spectrum.',
+    build() { baseWorld(80, 56, 1500, 0.05); W.glow = true; }, done: () => W.glow && W.wall === 'reflect' && 2.8977719e6 / W.T < 380 },
+  { id: 'ring', name: 'Build a clock', tool: 'inspect', tab: 'lab', goal: 'Make the three NOT gates tick: an oscillator.', how: 'In the Lab tab, wire each gate’s input to the output of the one before it, round in a loop. An odd number of NOT gates in a loop can never settle.',
+    build() { baseWorld(300, 110, 300, 0.5); [-90, 0, 90].forEach(x => addMolecule('inverter', x, -8, 0, 300)); }, done: () => W.chips.some(c => c.key === 'inverter' && c.per > 0) },
+  { id: 'flip', name: 'Flip a bit', tool: 'fire', tab: 'lab', goal: 'Flip the bit an SRAM cell holds with a single particle.', how: 'Fire heavy, slow-ish nuclei through the cell (Fire tool: an α particle or heavier, a few MeV). The charge they free along their track must outweigh the node’s.',
+    build() { baseWorld(200, 120, 300, 2); W.wall = 'open'; addMolecule('sramcell', 0, -12, 0, 300); const c = W.chips[W.chips.length - 1]; c.v.q = CHIP.VDD; c.v.qb = 0; OPT.fire.proj = 'a'; OPT.fire.s = 870; },
+    done: () => W.chips.some(c => c.key === 'sramcell' && c.flips > 0) },
+  { id: 'letter', name: 'Write a letter', tool: 'inspect', tab: 'lab', goal: 'Store the letter A in the flash byte.', how: 'In the Lab tab, type into the flash memory panel, or flip the bits one by one: A is 01000001.',
+    build() { PRESETS.flashbyte.build(); }, done: () => { const M = flashMemory(); if (M.cells.length < 8 || memBusy()) return false; const d = memDecode(M.cells.map(c => (c.broken ? null : flashStored(c)))); return !!d[0] && d[0].ch === 'A'; } },
+  { id: 'melt', name: 'Melt a chip', tool: 'heat', tab: 'lab', goal: 'Heat a NOT gate until it stops working because it melted.', how: 'Silicon melts at 1,687 K. Watch the gate leak first, then fail. Hold the Heat tool on it.',
+    build() { PRESETS.hotchip.build(); }, done: () => W.chips.some(c => c.broken && /melted/.test(c.msg)) },
+];
+const CH = { done: new Set(String(store('challenges') || '').split(',').filter(Boolean)), cur: null, won: false };
+for (const c of CHALLENGES) {
+  PRESETS['ch_' + c.id] = { group: 'Challenges', get name() { return (CH.done.has(c.id) ? '✓ ' : '') + c.name; }, tool: c.tool, tab: c.tab, spec: c.spec || (c.id === 'antiH' ? SPEC_PBAR : SPEC_P),
+    get hint() { return `<b>Challenge ${CHALLENGES.indexOf(c) + 1} of ${CHALLENGES.length}: ${esc(c.goal)}</b> ${esc(c.how)}${CH.done.has(c.id) ? ' <i>(done before)</i>' : ''}`; },
+    build() { c.build(); CH.cur = c; CH.won = false; } };
+}
+function challengeTick() {
+  const c = CH.cur;
+  if (!c || UI.preset !== 'ch_' + c.id || CH.won) return;
+  let ok; try { ok = !!c.done(); } catch (e) { ok = false; }
+  if (!ok) return;
+  CH.won = true; CH.done.add(c.id); store('challenges', [...CH.done].join(','));
+  const n = CH.done.size;
+  log('tool', `Challenge complete: ${c.name}! (${n} of ${CHALLENGES.length} done)`);
+  $('hintText').innerHTML = `<b>✓ Challenge complete: ${esc(c.name)}!</b> ${n < CHALLENGES.length ? `${n} of ${CHALLENGES.length} done; the next ones are in the setup list under Challenges.` : 'That was the last one: all done.'}`;
+  $('hint').hidden = false; $('hint').classList.add('won');
+  const v = $('preset').value; buildPresetSelect(); $('preset').value = v;
+}
 function buildPresetSelect() {
   const groups = {};
   for (const [k, p] of Object.entries(PRESETS)) (groups[p.group] = groups[p.group] || []).push([k, p.name]);
@@ -16148,7 +16558,7 @@ function loadPreset(key) {
   fitView();
   syncLab(); syncSpeed();
   if (P.tab) showTab(P.tab);
-  $('hintText').innerHTML = P.hint;
+  $('hintText').innerHTML = P.hint; $('hint').classList.remove('won'); if (!key.startsWith('ch_')) CH.cur = null;
   $('hint').hidden = !SET.tips;
   store('preset', UI.preset);
   log('tool', `Setup loaded: ${P.name}`);
@@ -16159,13 +16569,18 @@ function loadPreset(key) {
 /* ------------------------------------------------------------------ readouts & periodic panel refresh */
 /* ------------------------------------------------------------------ chips (chips.js): their controls, in the Lab tab */
 const CHIP_UI = { sig: '', text: 'A', err: '' };
+function chipName(c) { return c.label || `${CHIP_NAMES[c.key].split(' (')[0]} ${W.chips.filter(x => x.key === c.key).indexOf(c) + 1}`; }
 function chipPanelHTML(ch) {
   let h = `<div class="chipbox" data-chip="${ch.id}"><div class="row"><b>${esc(ch.label ? `${ch.label}: ${CHIP_NAMES[ch.key]}` : CHIP_NAMES[ch.key])}</b><span class="val" data-r="T"></span></div>`;
   if (ch.broken) return h + `<p class="note bad">${esc(ch.msg)}</p></div>`;
   if (ch.key === 'transistor') {
     h += `<div class="row"><span>Gate voltage</span><span class="val" data-r="g"></span></div><input type="range" data-k="g" min="0" max="100" value="${Math.round(ch.v.g * 100)}" aria-label="Gate voltage">`;
     h += `<div class="row"><span>Drain voltage</span><span class="val" data-r="d"></span></div><input type="range" data-k="d" min="0" max="100" value="${Math.round(ch.v.d * 100)}" aria-label="Drain voltage">`;
-  } else if (ch.key === 'inverter') h += ch.inFrom ? `<p class="note">Its input is wired to ${esc(ch.inFrom.label || 'another gate')}’s output.</p>` : `<div class="seg" data-k="in" role="group" aria-label="Input"><button data-v="0">Input 0</button><button data-v="1">Input 1</button></div>`;
+  } else if (ch.key === 'inverter') {
+    const others = W.chips.filter(c => c.key === 'inverter' && !c.broken);
+    h += ch.inFrom ? `<p class="note">Its input is wired to ${esc(ch.inFrom.label || 'another gate')}’s output.</p>` : `<div class="seg" data-k="in" role="group" aria-label="Input"><button data-v="0">Input 0</button><button data-v="1">Input 1</button></div>`;
+    if (others.length > 1 || ch.inFrom) h += `<div class="row"><span>Input wired to</span><select class="select" data-k="wire" aria-label="Wire this gate's input to a gate's output"><option value="">nothing (set by hand)</option>${others.map(c => `<option value="${c.id}"${ch.inFrom === c ? ' selected' : ''}>${esc(chipName(c))}’s output${c === ch ? ' (its own)' : ''}</option>`).join('')}</select></div>`;
+  }
   else if (ch.key === 'sramcell') {
     h += `<div class="chipbtns"><button class="btn small" data-op="write" data-arg="0">Write 0</button><button class="btn small" data-op="write" data-arg="1">Write 1</button><button class="btn small" data-op="read">Read</button></div>`;
     h += `<div class="seg" data-k="power" role="group" aria-label="Power"><button data-v="1">Power on</button><button data-v="0">Power off</button></div>`;
@@ -16210,7 +16625,7 @@ function updateChips() {
   const list = W.chips.filter(c => !(multi && c.key === 'flashcell')).slice(0, 12);
   g.hidden = !list.length && !multi;
   if (g.hidden) { CHIP_UI.sig = ''; return; }
-  const sig = (multi ? 'm' + M.cells.map(c => c.id + (c.broken ? 'b' : '')).join('.') + '|' : '') + list.map(c => c.id + (c.broken ? 'b' : '')).join();
+  const sig = (multi ? 'm' + M.cells.map(c => c.id + (c.broken ? 'b' : '')).join('.') + '|' : '') + list.map(c => c.id + (c.broken ? 'b' : '') + (c.inFrom ? '<' + c.inFrom.id : '') + (c.label ? ':' + c.label : '')).join();
   if (sig !== CHIP_UI.sig) { CHIP_UI.sig = sig; $('chipPanel').innerHTML = (multi ? memPanelHTML(M) : '') + list.map(chipPanelHTML).join(''); }
   if (multi) { const box = $('chipPanel').querySelector('[data-mem]'); if (box) updateMem(box, M); }
   for (const ch of list) {
@@ -16294,8 +16709,19 @@ function chipsInit() {
   const panel = $('chipPanel'), byId = (id) => W.chips.find(c => c.id === +id);
   const chipOf = (e) => { const b = e.target.closest('[data-chip]'); return b ? byId(b.dataset.chip) : null; };
   const memGo = (what) => { CHIP_UI.err = (what === 'write' ? memWrite(CHIP_UI.text) : memRead()) || ''; updateChips(); };
+  panel.addEventListener('change', (e) => { // wiring: a gate's input to a gate's output (an odd ring of them oscillates)
+    if (e.target.dataset.k !== 'wire') return;
+    const ch = chipOf(e); if (!ch) return;
+    const src = e.target.value ? byId(e.target.value) : null;
+    if (src) { let n = 0; for (const c of W.chips) if (c.key === 'inverter') { n++; if (!c.label) c.label = `Gate ${n}`; } }
+    ch.inFrom = src || null; if (!src) ch.v.in = ch.v.in > CHIP.VDD / 2 ? CHIP.VDD : 0;
+    ch.per = 0; ch.rise = 0;
+    log('tool', src ? `${chipName(ch)}’s input wired to ${chipName(src)}’s output` : `${chipName(ch)}’s input unwired`);
+    CHIP_UI.sig = ''; updateChips();
+  });
   panel.addEventListener('input', (e) => {
     if (e.target.id === 'memText') { CHIP_UI.text = e.target.value; CHIP_UI.err = ''; return; }
+    if (e.target.dataset.k === 'wire') return;
     const ch = chipOf(e), k = e.target.dataset.k; if (!ch || !k || ch.broken) return; ch.v[k] = +e.target.value / 100; updateChips();
   });
   panel.addEventListener('keydown', (e) => { if (e.target.id === 'memText' && e.key === 'Enter') { e.preventDefault(); memGo('write'); } });
@@ -16325,6 +16751,8 @@ function updateReadouts() {
   updateCollider();
   if (W.chips.length || CHIP_UI.sig) updateChips();
   if (UI.tab === 'lab') drawScope();
+  if (CH.cur) challengeTick();
+  if (SET.narr) narrTick(); else if (!$('narr').hidden) $('narr').hidden = true;
   if (UI.capped) syncSpeed(); // (the speed reached at the computer's limit changes as it goes)
 }
 function updatePanel() {
@@ -16427,12 +16855,12 @@ function onKey(e) {
     closeQuickMenu();
   }
   if (e.key === 'Escape') {
-    for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal']) if (!$(id).hidden) { hideModal(id); return; }
+    for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal']) if (!$(id).hidden) { hideModal(id); return; }
     if (UI.pasting) { cancelPaste(); return; }
     if (UI.drag) { if (W.tool) W.tool.active = false; W.grab = null; UI.drag = null; R.overlay = null; return; }
     R.sel = null; R.follow = null; renderInspect(); if (R.msel.size) clearSelection(); return;
   }
-  if (!$('ptModal').hidden || !$('molModal').hidden || !$('bldModal').hidden || !$('nucModal').hidden || !$('setModal').hidden || !$('shareModal').hidden) return;
+  if (!$('ptModal').hidden || !$('molModal').hidden || !$('bldModal').hidden || !$('nucModal').hidden || !$('setModal').hidden || !$('shareModal').hidden || !$('askModal').hidden || !$('galModal').hidden) return;
   if (tag === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
   if (tag === 'SELECT' || tag === 'TEXTAREA') return;
   if ((e.ctrlKey || e.metaKey) && !e.altKey) { // copy, paste, select all: the selection (or the inspected particle)
@@ -16471,7 +16899,7 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, trail: 0.5, trailClock: 'real' };
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, trail: 0.5, trailClock: 'real', narr: false };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
 const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] };
 const SET = Object.assign({}, SET_DEF);

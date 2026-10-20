@@ -248,13 +248,30 @@ function fmtSI(v, unit, d) {
 }
 function fmtTesla(B) { return fmtSI(B, 'T', 2); }
 
+/* Cloud-chamber look (W.cloud): a track as a line of droplets, condensed where the particle ionized the vapour —
+   white, a little scattered, thicker for a heavily ionizing particle (an α) than a light one (an electron), lingering. */
+function cloudTrack(ctx, t, a) {
+  const pts = t.pts, heavy = t.w > 2, step = heavy ? 0.45 : 0.9, rad = clamp(Math.sqrt(R.s) * (heavy ? 0.9 : 0.55), heavy ? 1.3 : 0.8, heavy ? 3.2 : 2), jit = heavy ? 0.35 : 0.25;
+  ctx.fillStyle = `rgba(235,240,245,${(0.75 * a).toFixed(3)})`;
+  ctx.beginPath();
+  for (let k = 2; k < pts.length; k += 2) {
+    const x0 = pts[k - 2], y0 = pts[k - 1]; let h = (((x0 * 977) | 0) ^ ((y0 * 1489) | 0) * 31) & 0x7fffffff; // (each stretch's droplets stay put as the track ages)
+    const dx = pts[k] - x0, dy = pts[k + 1] - y0, L = Math.hypot(dx, dy), n = Math.min(60, Math.ceil(L / step));
+    for (let j = 0; j < n; j++) {
+      h = (h * 1103515245 + 12345) & 0x7fffffff; const jx = ((h & 0xffff) / 65536 - 0.5) * jit, jy = (((h >> 16) & 0x7fff) / 32768 - 0.5) * jit;
+      const x = w2sx(x0 + dx * j / n + jx), y = w2sy(y0 + dy * j / n + jy);
+      ctx.moveTo(x + rad, y); ctx.arc(x, y, rad, 0, 2 * Math.PI);
+    }
+  }
+  ctx.fill();
+}
 function drawTracks(rt) {
   const ctx = R.ctx;
   ctx.save();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   // a trail shows the last TRAIL_S[Settings] seconds of a path: of real time (the same length whatever the speed), or of
   // simulated time (that many seconds' worth at the setup's normal speed: longer when sped up, shorter in slow motion)
-  const win = trailWindow(), simClock = trailSim(), now = simClock ? W.t : rt;
+  const cloud = !!W.cloud, win = cloud ? Math.max(3, trailWindow()) : trailWindow(), simClock = !cloud && trailSim(), now = simClock ? W.t : rt;
   for (let i = W.tracks.length - 1; i >= 0; i--) {
     const t = W.tracks[i], T = simClock ? t.tt : t.ts;
     const idle = T && T.length ? now - T[T.length - 1] : rt - t.upd; // (since its particle last moved on)
@@ -263,6 +280,7 @@ function drawTracks(rt) {
     const a = clamp(1 - idle / win, 0, 1) * 0.85;
     const pts = t.pts;
     if (pts.length < 4) continue;
+    if (cloud) { if (!t.dash) cloudTrack(ctx, t, a); continue; } // (neutral particles leave no trail of ions to condense on)
     ctx.strokeStyle = rgba(t.c, a);
     ctx.lineWidth = t.w;
     if (t.dash) ctx.setLineDash([3, 4]); else ctx.setLineDash([]);
@@ -1253,6 +1271,15 @@ function drawZones() {
 function fmtVolt(V) { return fmtSI(V, 'V', 3); }
 function drawSources() {
   const ctx = R.ctx;
+  for (const L of W.lasers || []) { // a laser: its housing, and its beam faintly along the way it points
+    const x = w2sx(L.x0), y = w2sy(L.y0), c = photonColor(L.E), t = rayExit(L.x0, L.y0, L.ux, L.uy);
+    ctx.save();
+    ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},0.22)`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(w2sx(L.x0 + L.ux * t), w2sy(L.y0 + L.uy * t)); ctx.stroke();
+    ctx.translate(x, y); ctx.rotate(-Math.atan2(L.uy, L.ux));
+    ctx.fillStyle = 'rgba(70,80,95,0.9)'; ctx.fillRect(-16, -5, 16, 10);
+    ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(-2, -3, 3, 6);
+    ctx.restore();
+  }
   for (const src of W.sources || []) {
     const x = w2sx(src.x), y = w2sy(src.y);
     ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.atan2(src.uy, src.ux));
