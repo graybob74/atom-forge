@@ -61,7 +61,7 @@ function makeWorld() {
     tool: null, grab: null, sources: [],
     zones: [], collider: null,  // accelerator parts (bending and focusing magnets, cavities) and the collider's set-up
     count: { fusion:0, fission:0, decay:0, capture:0, ionize:0, recomb:0, bonds:0, broken:0, react:0,
-             photons:0, annih:0, xfer:0, ncap:0, nreact:0 },
+             photons:0, annih:0, xfer:0, ncap:0, nreact:0, wallStop:0 },
     ledger: { chem: 0, nuc: 0, escaped: 0, bath: 0 },
     hist: { t: [], T: [], ion: [], rad: [] },
     vmax: 0, amax: 0, nE: 0, molSeq: 0, spawned: 0, fSpawn: -1, dirty: 0, evSeq: 0,
@@ -2592,6 +2592,33 @@ function evReact(X, A, rx, r) {
   log('chem', `Reaction: ${before} → ${after}  (ΔH ${rx.dH >= 0 ? '+' : ''}${(rx.dH * PHYS.KJMOL).toFixed(0)} kJ/mol${rx.cat ? ', catalysed' : ''})`);
 }
 
+/* Remove bond bd (of a molecule, set) and return the change in potential energy. In a big molecule (a chip) only what
+   lies within two bonds of its atoms can change — removing a bond moves nothing, and charges spread by resonance only so
+   far — so the difference is taken over that neighbourhood (localDelta's method): the rest of the molecule is checked by a
+   fingerprint afterwards and, should anything there have changed, the bond is put back and the whole molecule summed. */
+let _bcBond = null;
+function breakCost(bd, set) {
+  const a = bd.a, b = bd.b;
+  let cost;
+  if (set.size > LOCAL_MOL) { // a big molecule (a chip): only what lies within two bonds of a and b can change (localDelta's method)
+    const Sn = new Set([a, b]);
+    for (const c of [a, b]) for (const b1 of c.bonds) { const o = other(b1, c); Sn.add(o); for (const b2 of o.bonds) Sn.add(other(b2, o)); }
+    const print = (q) => q.x * 1.000003 + q.y * 1.7 + q.q * 3.1 + q.qp * 5.3 + q.rd * 7.9 + q.ne * 11 + q.bonds.length * 13 + q.mol * 17;
+    const before = new Map(); for (const q of set) if (!Sn.has(q)) before.set(q, print(q));
+    const U0 = localPE(Sn);
+    removeBond(bd);
+    let local = true;
+    for (const [q, v] of before) if (q.dead || print(q) !== v) { local = false; break; }
+    if (local) cost = localPE(Sn) - U0;
+    else { _localMiss++; bd = addBond(a, b, bd.order); const PE0 = localPE(set); removeBond(bd); cost = localPE(set) - PE0; } // (beyond the neighbourhood: put back, and over the whole molecule)
+  } else {
+    const PE0 = localPE(set);
+    removeBond(bd);
+    cost = localPE(set) - PE0;
+  }
+  _bcBond = bd;
+  return cost;
+}
 function evBreak(bd, r) {
   if (W.bonds.indexOf(bd) < 0) return;
   const a = bd.a, b = bd.b;
@@ -2601,9 +2628,7 @@ function evBreak(bd, r) {
   const vn = (dvx * dx + dvy * dy) / rr;
   if (vn <= 0) return;
   const set = setOf(molecule(a));
-  const PE0 = localPE(set);
-  removeBond(bd);
-  const cost = localPE(set) - PE0;
+  const cost = breakCost(bd, set); bd = _bcBond; // (the bond removed: what it cost in potential energy)
   const mu = a.m * b.m / (a.m + b.m);
   if (0.5 * mu * vn * vn < cost) { addBond(a, b, bd.order); return; } // not enough energy: stays bound
   kickPair(b, a, -cost, dx / rr, dy / rr);
@@ -3660,9 +3685,29 @@ function annihilateAtWall(p) {
     log('nuc', 'Annihilation at the wall: e⁺ + e⁻ (wall) → 2γ (511 keV each)');
   }
 }
-function wallOrEscape(p, escape) {
+/* Where the straight path (x0, y0) → (x1, y1) from inside the box first meets its edge. */
+function wallCross(x0, y0, x1, y1, hw, hh) {
+  let t = 1;
+  const dx = x1 - x0, dy = y1 - y0;
+  if (x1 > hw && dx > 0) t = Math.min(t, (hw - x0) / dx); else if (x1 < -hw && dx < 0) t = Math.min(t, (-hw - x0) / dx);
+  if (y1 > hh && dy > 0) t = Math.min(t, (hh - y0) / dy); else if (y1 < -hh && dy < 0) t = Math.min(t, (-hh - y0) / dy);
+  t = clamp(t, 0, 1);
+  _wc[0] = x0 + dx * t; _wc[1] = y0 + dy * t;
+  return _wc;
+}
+const _wc = new Float64Array(2);
+/* A closed box's walls are matter: what reaches them in radiation flight (charged particles past their radiation
+   threshold, neutrons past a few keV) is stopped in them and leaves the simulation, its energy counted as escaped;
+   only slower particles come back off them. (A wall that bounced a 1 GeV proton or a 14 MeV neutron straight back
+   would keep every fast product of every event in the box for ever.) */
+function wallStops(p) { return p.rad && !(p.k === NUC && p.Z === 0); }
+function wallOrEscape(p, escape, x0, y0) {
   const hw = W.box.w / 2, hh = W.box.h / 2;
   if (p.x >= -hw && p.x <= hw && p.y >= -hh && p.y <= hh) return false;
+  if (x0 !== undefined && W.wall !== 'wrap') { // the track ends (or turns) where the path meets the wall, not past it
+    const c = wallCross(x0, y0, p.x, p.y, hw, hh);
+    if (p.trk) { const pts = p.trk.pts; if (pts.length >= 2) { pts[pts.length - 2] = c[0]; pts[pts.length - 1] = c[1]; } }
+  }
   if ((p.k === POS || p.anti) && W.wall === 'reflect') { annihilateAtWall(p); return true; } // walls are ordinary matter
   if (escape && W.wall === 'reflect' && p.k === NUC && p.ne > 0 && p.Z >= 3) {
     // A recoiling atom (decay daughter, fission fragment, knock-on) is stopped by the wall within nanometres
@@ -3682,7 +3727,8 @@ function wallOrEscape(p, escape) {
     updateFast(p);
     return false;
   }
-  if (W.wall === 'open') {
+  if (W.wall === 'open' || (W.wall === 'reflect' && wallStops(p))) {
+    if (W.wall === 'reflect') { W.count.wallStop++; if (x0 !== undefined) { p.x = _wc[0]; p.y = _wc[1]; } }
     if (p.k === NUC && p.Z === 0) W.ledger.escaped += keOf(p);
     else if (p.rad) W.ledger.escaped += p.KE;
     kill(p); return true;
@@ -3851,7 +3897,7 @@ function moveRad(p, dt) {
   radSpeed(p);
   p.vx = p.sp * p.ux; p.vy = p.sp * p.uy;
   extendTrack(p);
-  if (wallOrEscape(p, true)) return;
+  if (wallOrEscape(p, true, x0, y0)) return;
   if (p.caught && detectorStop(p)) return;
   // slowed down: hand back to normal dynamics
   const thr = radThreshold(p.k !== NUC) * 0.5;
@@ -4197,8 +4243,9 @@ function moveNeutron(p, dt, c1, c2, kT) {
   if (p.dead) return;
   p.x += p.vx * dt; p.y += p.vy * dt;
   const KE2 = keOf(p);
-  if (p.trk) { extendTrack(p); if (KE2 < 1) p.trk = null; }
-  wallOrEscape(p, KE2 > ESC_E_NEUTRON);
+  if (p.trk) extendTrack(p);
+  wallOrEscape(p, KE2 > ESC_E_NEUTRON, x0, y0);
+  if (p.trk && !p.dead && KE2 < 1) p.trk = null;
 }
 
 /* Fast (but not radiation-mode) particles: CCD encounters along the step, hard-sphere or Coulomb scattering. */
@@ -4458,10 +4505,12 @@ function flBuild() {
 function computeFast() {
   _stiffL = 0;
   const GX = S.gx, GY = S.gy, mdI = _mdI, nmd = _nmd;
-  for (let q = 0; q < nmd; q++) { const i = mdI[q]; GX[i] = 0; GY[i] = 0; }
+  if (_gxOn) for (let k = 0, L = _gxL; k < _gxN; k++) { const i = L[k]; GX[i] = 0; GY[i] = 0; } // (the rest are zero: see _gxL)
+  else for (let q = 0; q < nmd; q++) { const i = mdI[q]; GX[i] = 0; GY[i] = 0; }
   if (!_mdL.length) return;
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
-  if (!flValid()) flBuild();
+  const okFL = _flPre >= 0 ? (FL.checks++, _flPre <= HSKINF2) : flValid(); _flPre = -1; // (the inner step's move loop measured it)
+  if (!okFL) { flBuild(); if (_gxOn) gxAddFL(); }
   const X = S.x, Y = S.y, NEAR = S.nearIon, DEAD = S.dead, FAST = S.fast, RAD = S.rad;
   for (let q = 0; q < _nmdL; q++) NEAR[_mdLI[q]] = 0;
   const la = FL.la, lb = FL.lb, na = FL.na;
@@ -4568,6 +4617,20 @@ let integrateA = function (dt) { return false; }; // eslint-disable-line no-unus
 let _intTok = false, _intHi = 0, _intWorst = -1, _intUse = true; // (_intUse false: not used, for tests)
 let threadsPrewake = function () {}; // (threads.js)
 function integrateAPlain(dt) { return !hasBfield() && _nmdL === 0 && _mdL.length === 0; }
+/* The slots whose fast force (gx, gy) can be non-zero during the inner steps: the free leptons, the atoms in the
+   lepton pair list and the charged particles (the long-range pull). Every other slot's is zero, so the inner steps'
+   kicks and computeFast's clearing need visit only these — the same arithmetic, without the thousands of zeros. The list
+   only grows within a step (a rebuilt pair list adds its atoms; a force pass starts it afresh). */
+let _gxL = new Int32Array(256), _gxN = 0, _gxS = new Int32Array(4096), _gxGen = 1, _gxOn = false, _flPre = -1, _gxUse = true;
+function gxAdd(i) { if (_gxS[i] !== _gxGen) { _gxS[i] = _gxGen; if (_gxN >= _gxL.length) { const a = new Int32Array(_gxL.length * 2); a.set(_gxL); _gxL = a; } _gxL[_gxN++] = i; } }
+function gxReset() {
+  _gxGen++; _gxN = 0;
+  if (_gxS.length < S.size) _gxS = new Int32Array(S.size);
+  for (let q = 0; q < _nmdL; q++) gxAdd(_mdLI[q]);
+  for (let q = 0; q < _nch; q++) gxAdd(_chI[q]);
+  gxAddFL();
+}
+function gxAddFL() { const lb = FL.lb, la = FL.la; for (let k = 0; k < FL.na; k++) { gxAdd(lb[k]); gxAdd(la[k]); } const li = FL.li, lj = FL.lj; for (let k = 0; k < FL.nl; k++) { gxAdd(li[k]); gxAdd(lj[k]); } }
 /* Inner steps: fast half-kick, drift (everything in MD moves), fast forces, lepton events, fast half-kick. */
 function innerSteps(Dt) {
   const hasB = hasBfield(), wrap = W.wall === 'wrap';
@@ -4592,15 +4655,24 @@ function innerSteps(Dt) {
       rem -= dti;
       continue;
     }
+    const useL = _gxUse;
+    if (useL && !_gxOn) { gxReset(); _gxOn = true; }
     {
       const mdI = _mdI, nmd = _nmd, DEAD = S.dead, RAD = S.rad, K = S.k, FAST = S.fast, VX = S.vx, VY = S.vy, GX = S.gx, GY = S.gy, IM = S.im;
       const X = S.x, Y = S.y, OX = S.ox, OY = S.oy, FRESH = S.fresh, OBJ = S.obj;
+      if (useL) for (let k = 0, L = _gxL; k < _gxN; k++) { // the fast half-kick: only where the fast force can be non-zero
+        const i = L[k];
+        if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
+        const im = IM[i]; VX[i] += h * GX[i] * im; VY[i] += h * GY[i] * im;
+      }
+      // the lepton pair list's check, from the positions this loop leaves (flValid's loop, folded in)
+      const flOk = useL && !wrap && FL.gen === _mdGen && FL.n === nmd && FL.w === W.box.w && FL.h === W.box.h && FL.wall === W.wall, BX = FL.bx, BY = FL.by;
+      let worst = 0;
       for (let q = 0; q < nmd; q++) {
         const i = mdI[q];
-        if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
+        if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) { if (flOk) { const dx = X[i] - BX[q], dy = Y[i] - BY[q], d2 = dx * dx + dy * dy; if (d2 > worst) worst = d2; } continue; }
         FRESH[i] = 0;
-        const im = IM[i];
-        VX[i] += h * GX[i] * im; VY[i] += h * GY[i] * im;
+        if (!useL) { const im = IM[i]; VX[i] += h * GX[i] * im; VY[i] += h * GY[i] * im; }
         if (K[i] !== NUC) {
           const p = OBJ[i];
           // a free lepton in a magnetic field moves on an exact arc between the kicks: its guiding centre then drifts
@@ -4612,24 +4684,29 @@ function innerSteps(Dt) {
             if (Y[i] < -hh) { Y[i] += bh; OY[i] += bh; } else if (Y[i] > hh) { Y[i] -= bh; OY[i] -= bh; }
           } else if (X[i] < -hw || X[i] > hw || Y[i] < -hh || Y[i] > hh) leptonWall(p);
         } else { X[i] += VX[i] * dti; Y[i] += VY[i] * dti; }
+        if (flOk) { const dx = X[i] - BX[q], dy = Y[i] - BY[q], d2 = dx * dx + dy * dy; if (d2 > worst) worst = d2; }
       }
+      _flPre = flOk ? worst : -1;
     }
     if (_mdL.length) {
       computeFast();
       const st0 = W.spawned + W.topo + W.dirty - _undone; // (changes put back exactly, as by undoJoin, need no recount)
       processEvents();
-      if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; }
+      if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; if (_gxOn) gxReset(); } // (the force pass set the fast forces afresh)
     }
+    _flPre = -1;
     {
-      const mdI = _mdI, nmd = _nmd, DEAD = S.dead, RAD = S.rad, FAST = S.fast, VX = S.vx, VY = S.vy, GX = S.gx, GY = S.gy, IM = S.im, FRESH = S.fresh;
-      for (let q = 0; q < nmd; q++) {
-        const i = mdI[q];
+      const DEAD = S.dead, RAD = S.rad, FAST = S.fast, VX = S.vx, VY = S.vy, GX = S.gx, GY = S.gy, IM = S.im, FRESH = S.fresh;
+      const L = useL ? _gxL : _mdI, n = useL ? _gxN : _nmd;
+      for (let k = 0; k < n; k++) {
+        const i = L[k];
         if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1 || FRESH[i] === 1) continue; // fresh: born in this step's events, already current
         VX[i] += h * GX[i] * IM[i]; VY[i] += h * GY[i] * IM[i];
       }
     }
     rem -= dti;
   }
+  _gxOn = false;
 }
 /* A free electron reaching the box edge bounces off a closed wall elastically (off the piston, when the box is
    resized), and is lost through an open one. A positron meets the wall's own electrons. */
@@ -5065,11 +5142,15 @@ function eventSlow(realDt) {
    time. There is one clock, as in nature: at real rates (W.warp = 1) only nuclei that live less than about a
    picosecond decay while you watch the femtosecond motion. W.warp makes every decay that many times faster,
    which keeps their order and relative timing true. */
+/* The simulation keeps to real time: W.simPerFrame is its time per sixtieth of a second, and a frame advances it by as
+   many sixtieths as really passed (a 120 Hz screen shows the same motion in twice the frames; a slow frame catches up,
+   by at most three sixtieths, so a stall is not followed by a burst). */
+const FRAME_REF = 1 / 60;
 function simFrame(realDt, budgetMs) {
   const t0 = performance.now();
   let simAdv = 0, steps = 0, cut = false;
-  const slow = slowFactor(realDt);
-  const target = W.simPerFrame * slow;
+  const slow = slowFactor(realDt), fr = clamp(realDt / FRAME_REF, 0.1, 3);
+  const target = W.simPerFrame * slow * fr;
   while (simAdv < target - 1e-9) {
     // particles added from outside (tools, setups): the step size must see their forces and contacts first
     if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; }
@@ -5081,12 +5162,12 @@ function simFrame(realDt, budgetMs) {
   W.rt += realDt;
   // chips keep the pace the simulation is set to, in real time, even when a crowded box makes the atoms (and the frames)
   // fall behind it: their time is warped anyway (a flash pulse takes 10 µs)
-  if (W.chips.length) chipsTick((cut ? target * clamp(realDt * 60, 1, 6) : simAdv) * PHYS.TU_S, realDt);
+  if (W.chips.length) chipsTick((cut ? W.simPerFrame * slow * clamp(realDt * 60, 1, 6) : simAdv) * PHYS.TU_S, realDt);
   const dtNuc = W.decayOn ? simAdv * PHYS.TU_S * W.warp : 0;
   W.tNuc += dtNuc;
   decayStep(dtNuc);
   if (_glowing) { _glowing = false; for (const p of W.parts) if (p.glow > 0) { p.glow = Math.max(0, p.glow - realDt * 2.5); if (p.glow > 0) _glowing = true; } }
-  return { steps, simAdv, target, slow };
+  return { steps, simAdv, target, slow, fr };
 }
 
 /* ------------------------------------------------------------------ measurements */

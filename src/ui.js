@@ -1430,7 +1430,7 @@ function renderData() {
     : '<tr><td class="nm">The chamber is empty.</td></tr>';
   const C = W.count;
   const counts = [['Bonds formed', C.bonds], ['Bonds broken', C.broken], ['Reactions', C.react], ['Electron transfers', C.xfer], ['Ionizations', C.ionize],
-    ['Recombinations', C.recomb], ['Photons', C.photons], ['Fusions', C.fusion], ['Fissions', C.fission], ['Decays', C.decay], ['Neutron captures', C.ncap], ['Annihilations', C.annih]];
+    ['Recombinations', C.recomb], ['Photons', C.photons], ['Fusions', C.fusion], ['Fissions', C.fission], ['Decays', C.decay], ['Neutron captures', C.ncap], ['Annihilations', C.annih], ['Stopped in the walls', C.wallStop]];
   $('dCounts').innerHTML = counts.map(([k, v]) => `<dt>${k}</dt><dd>${v.toLocaleString('en-US')}</dd>`).join('');
   const L = W.ledger;
   $('dLedger').innerHTML = [['Chemical heat released', fmtE(L.chem)], ['Nuclear energy released', fmtE(L.nuc)], ['Escaped as radiation & fast particles', fmtE(L.escaped)]]
@@ -1822,9 +1822,9 @@ function syncLabText() {
 
 /* The Motion readout: the set speed, and while slow motion holds time back, how far it has slowed it. */
 function motionText() { // the motion the simulation actually gets through each frame (less than it is set to in slow motion, or at the computer's limit)
-  if (!UI.running || !(UI.adv > 0)) return `${fmtTime(W.simPerFrame * PHYS.TU_S)} per frame`;
+  if (!UI.running || !(UI.adv > 0)) return `${fmtTime(W.simPerFrame * PHYS.TU_S)} per 1/60 s`;
   const slow = (W.slowHold || UI.slow) && UI.adv < 0.9 * W.simPerFrame;
-  return `${slow ? 'slow motion: ' : ''}${fmtTime(Math.min(UI.adv, W.simPerFrame) * PHYS.TU_S)} per frame${!slow && UI.capped ? ' (as fast as this computer goes)' : ''}`;
+  return `${slow ? 'slow motion: ' : ''}${fmtTime(Math.min(UI.adv, W.simPerFrame) * PHYS.TU_S)} per 1/60 s${!slow && UI.capped ? ' (as fast as this computer goes)' : ''}`; // (per sixtieth of a second, whatever the frame rate: simFrame keeps to real time)
 }
 /* ------------------------------------------------------------------ speed (simulated time per frame) */
 const SPEED_MIN = -6, SPEED_MAX = 4; // 1/64× … 16× the setup's normal speed
@@ -2699,7 +2699,8 @@ function frame(now) {
       if (r.steps > 0) FP.stepAvg = 0.8 * (FP.stepAvg || 0) + 0.2 * ((performance.now() - tf0) / r.steps);
       if (UI.running) {
         UI.ach = 0.92 * (UI.ach || 1) + 0.08 * Math.min(1, r.simAdv / Math.max(1e-12, r.target));
-        UI.adv = UI.adv > 0 ? Math.exp(0.85 * Math.log(UI.adv) + 0.15 * Math.log(Math.max(1e-12, r.simAdv))) : r.simAdv; // (time advanced per frame, smoothed, for the Motion readout)
+        const adv60 = r.simAdv / (r.fr || 1); // (per sixtieth of a second: what the Motion setting means, whatever the frame rate)
+        UI.adv = UI.adv > 0 ? Math.exp(0.85 * Math.log(UI.adv) + 0.15 * Math.log(Math.max(1e-12, adv60))) : adv60; // (smoothed, for the Motion readout)
         const capped = UI.ach < 0.8, slow = r.slow < 0.6;
         if (capped !== !!UI.capped || slow !== !!UI.slow) { UI.capped = capped; UI.slow = slow; syncSpeed(); }
       }

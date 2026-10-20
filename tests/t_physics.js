@@ -306,6 +306,35 @@ for (const T of [300, 3000]) {
   if (!(a.kept > 100)) bad(`the force lists were kept only ${a.kept} times`);
   }
 }
+// free electrons' inner steps visit only the slots whose fast force can be non-zero, and take the pair list's check from
+// their own move loop: ionized water and a hot plasma run bit for bit as with every slot visited
+{
+  for (const pre of ['water', 'fusion']) {
+    const run = (use) => {
+      const X = load('all', { seed: 11 }); const { W } = X; X._gxUse = use;
+      X.PRESETS[pre].build(); X.settleOverlaps();
+      if (pre === 'water') { const Os = W.parts.filter(p => p.Z === 8); for (let i = 0; i < 30; i++) X.userIonize(Os[i]); }
+      X.forcesNoEvents(); W.fSpawn = W.spawned; W.decayOn = false;
+      for (let i = 0; i < 300; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+      let h = 0, ne = 0; for (const p of W.parts) if (!p.dead) { h += p.x * 1.1 + p.y * 1.3 + p.vx * 7 + p.vy * 11; if (p.k !== 0) ne++; }
+      return { h, ne, ev: JSON.stringify(W.count), fl: X.FL.builds };
+    };
+    const a = run(true), b = run(false);
+    info(`inner steps over the fast-force list, ${pre}: ${a.ne} free leptons, ${a.fl} pair-list builds; trajectories ${a.h === b.h && a.ev === b.ev ? 'identical' : 'DIFFER'} to visiting every slot`);
+    if (a.h !== b.h || a.ev !== b.ev || a.fl !== b.fl) bad(`the inner steps' list changed the simulation (${pre}): ${a.h} vs ${b.h}, builds ${a.fl} vs ${b.fl}, ${a.ev} vs ${b.ev}`);
+  }
+}
+// the simulation keeps to real time: a frame advances it by the sixtieths of a second that passed (a 120 Hz frame half as
+// far as a 60 Hz one, a 30 Hz frame twice), and a stall catches up by at most three sixtieths
+{
+  const X = load('all', { seed: 6 }); const { W } = X;
+  X.PRESETS.water.build(); X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned; W.decayOn = false;
+  const adv = (dt) => { let a = 0; for (let i = 0; i < 4; i++) a += X.simFrame(dt, 1e9).simAdv; return a / 4; };
+  const a60 = adv(1 / 60), a120 = adv(1 / 120), a30 = adv(1 / 30), aStall = adv(0.5);
+  info(`real time: per frame at 60 Hz ${a60.toFixed(3)} tu, at 120 Hz ${a120.toFixed(3)}, at 30 Hz ${a30.toFixed(3)}, after a 0.5 s stall ${aStall.toFixed(3)}`);
+  const near = (a, b) => Math.abs(a / b - 1) < 1e-6;
+  if (!(near(a60, W.simPerFrame) && near(a120, W.simPerFrame / 2) && near(a30, 2 * W.simPerFrame) && near(aStall, 3 * W.simPerFrame))) bad(`the simulation does not keep to real time: ${a60} ${a120} ${a30} ${aStall} (per 1/60 s: ${W.simPerFrame})`);
+}
 // the step skips its neutron, light and walls passes when they would do nothing: worlds with and without such particles
 // (and with walls that are hit) run bit for bit the same with the skips and with every pass run
 {

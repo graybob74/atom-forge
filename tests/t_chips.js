@@ -137,6 +137,22 @@ for (const key of Object.keys(X.CHIP_LAYOUT)) {
   info(`  wrote “A” in ${fw} frames (electrons ${el.join(' ')}), read “${r1}”; bit 0 flipped: “${r2}”; then “z”: “${r3}”`);
   if (!(M.bytes === 1 && order && refused.every(s => typeof s === 'string' && s.length > 5) && wrote && r1 === 'A' && el.filter(n => n > 30).length === 6 && r2 === '@' && r3 === 'z' && fw < 400)) bad('eight flash cells should store and read back a character');
 }
+// a bond-break attempt in a chip takes its energy over the two atoms' neighbourhood: the same as over the whole chip
+{
+  const Y = load('all', { seed: 5 }); Y.PRESETS.ringosc.build(); Y.settleOverlaps(); Y.forcesNoEvents();
+  const big = Y.W.parts.filter(p => !p.dead && p.bonds.length).map(p => Y.molecule(p)).sort((a, b) => b.length - a.length)[0];
+  const bonds = [...new Set(big.flatMap(p => p.bonds))].filter((bd, i) => i % 23 === 0).slice(0, 40);
+  let worst = 0, n = 0;
+  for (const bd0 of bonds) {
+    const a = bd0.a, b = bd0.b, order = bd0.order;
+    Y.LOCAL_MOL = 150; const c1 = Y.breakCost(bd0, Y.setOf(Y.molecule(a))); Y.addBond(a, b, order);
+    const bd1 = a.bonds.find(x => (x.a === b || x.b === b));
+    Y.LOCAL_MOL = 1e9; const c2 = Y.breakCost(bd1, Y.setOf(Y.molecule(a))); Y.addBond(a, b, order);
+    Y.LOCAL_MOL = 150; worst = Math.max(worst, Math.abs(c1 - c2)); n++;
+  }
+  info(`bond-break energy in a ${big.length}-atom chip over the neighbourhood: ${n} bonds, largest difference from the whole-chip sum ${worst.toExponential(1)} eV`);
+  if (!(n >= 20 && worst < 1e-9)) bad(`bond-break energy over the neighbourhood differs from the whole chip by ${worst} eV (${n} bonds)`);
+}
 console.log(`  chips checked in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 console.log(fails ? `${fails} chip failure(s)` : 'chip checks passed');
 process.exitCode = fails ? 1 : 0;
