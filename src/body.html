@@ -73,6 +73,12 @@
           <div id="chipPanel"></div>
           <p class="note">These parts work. Each transistor's current follows the equations chip designers use (the EKV model), with the values of a current chip (0.75 V supply), at the temperature of its own atoms, and every node charges as C·dV/dt = ΣI. Chip time runs 20 times faster than the atoms here (flash tunnelling five million times). Heat a chip and it leaks; break a gate and it stops.</p>
         </section>
+        <section class="group" id="gScope" hidden>
+          <h3>Logic analyser</h3>
+          <div class="row" style="justify-content:flex-start;gap:10px;flex-wrap:wrap"><div class="seg" id="segScopeWin" role="group" aria-label="Time shown"><button data-v="20">20 ps</button><button data-v="50" aria-pressed="true">50 ps</button><button data-v="200">200 ps</button></div><div class="seg" id="segScopeView" role="group" aria-label="Trace style"><button data-v="a" aria-pressed="true">Voltage</button><button data-v="d">Logic</button></div><button class="btn small" id="bScopeHold" aria-pressed="false" title="Freeze the traces to look at them">Hold</button></div>
+          <canvas class="chart scope" id="chScope" aria-label="The chips' signals over the last picoseconds of chip time"></canvas>
+          <p class="note" id="dScopeNote"></p>
+        </section>
         <section class="group" id="gCollider" hidden>
           <h3>Collider</h3>
           <div class="seg" id="segBeams" role="group" aria-label="Colliding beams">
@@ -200,6 +206,12 @@
           <h3>Made here</h3>
           <p class="note" id="dMadeSum"></p>
           <table class="species made" id="dMade"></table>
+        </section>
+        <section class="group" id="dSpecSec" hidden>
+          <h3>Spectrum</h3>
+          <div class="row" style="justify-content:flex-start;gap:10px;flex-wrap:wrap"><div class="seg" id="segSpec" role="group" aria-label="Spectrum range"><button data-v="vis" aria-pressed="true">Visible</button><button data-v="all">Everything</button></div><button class="btn small" id="bSpecClear" title="Start counting again">Clear</button></div>
+          <canvas class="chart spec" id="chSpec" aria-label="Spectrum of the light made in the box"></canvas>
+          <p class="note" id="dSpecNote"></p>
         </section>
         <section class="group">
           <h3>Temperature history</h3>

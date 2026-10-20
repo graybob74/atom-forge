@@ -1453,6 +1453,7 @@ function renderData() {
   $('dLedger').innerHTML = [['Chemical heat released', fmtE(L.chem)], ['Nuclear energy released', fmtE(L.nuc)], ['Escaped as radiation & fast particles', fmtE(L.escaped)]]
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
+  drawSpec();
   drawTChart(); drawEChart(m.T);
   restoreScroll('tp-data');
 }
@@ -1495,6 +1496,77 @@ function chartCtx(cv) {
   return [ctx, w, h];
 }
 function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888'; }
+/* The spectroscope: the light made in the box in the last SPEC_WIN seconds of watching (or since Clear), as counts per
+   wavelength — the visible band over its colours with the known lines of the elements that gave it off marked, or
+   everything from γ rays to the far infrared on a log scale. */
+const SPEC_WIN = 10, SPEC_BANDS = [[1e-3, 'γ'], [0.01, 'X-ray'], [10, 'UV'], [380, 'vis'], [780, 'infrared'], [1e6, '']];
+const BALMER = [[656.3, 'Hα'], [486.1, 'Hβ'], [434.0, 'Hγ'], [410.2, 'Hδ']];
+let _specView = 'vis', _specFrom = -Infinity;
+function specPhotons() {
+  const S2 = W.spec; if (!S2) return [];
+  const out = [], from = Math.max(_specFrom, W.rt - SPEC_WIN);
+  for (let i = 0; i < S2.n; i++) { const k = (S2.total - 1 - i) % SPEC_N; if (S2.t[k] < from) break; out.push([S2.nm[k], S2.z[k]]); }
+  return out;
+}
+function drawSpec() {
+  const sec = $('dSpecSec'), ph = specPhotons();
+  sec.hidden = !W.spec;
+  if (sec.hidden) return;
+  const r = chartCtx($('chSpec')); if (!r) return; const [ctx, w, h] = r;
+  const vis = _specView === 'vis', pad = 6, base = h - 18;
+  let lo, hi, fx, nb;
+  if (vis) { lo = 380; hi = 780; nb = 200; fx = (nm) => pad + (nm - lo) / (hi - lo) * (w - 2 * pad); }
+  else { lo = 1e-6; hi = 1e6; nb = 96; fx = (nm) => pad + (Math.log10(nm) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * (w - 2 * pad); }
+  const bins = new Float64Array(nb), zs = new Map();
+  let inRange = 0;
+  for (const [nm, z] of ph) {
+    if (nm < lo || nm >= hi) continue;
+    const b = vis ? Math.floor((nm - lo) / (hi - lo) * nb) : Math.floor((Math.log10(nm) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * nb);
+    bins[clamp(b, 0, nb - 1)]++; inRange++;
+    if (z) zs.set(z, (zs.get(z) || 0) + 1);
+  }
+  // the colours (visible) or the bands (everything) along the bottom
+  if (vis) { for (let x = pad; x < w - pad; x++) { const nm = lo + (x - pad) / (w - 2 * pad) * (hi - lo), c = wavelengthRGB(nm); ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(x, base + 2, 1, 5); } }
+  else {
+    ctx.font = '10px ' + cssVar('--font-ui'); ctx.fillStyle = cssVar('--muted');
+    for (let i = 0; i < SPEC_BANDS.length - 1; i++) {
+      const a = fx(SPEC_BANDS[i][0]), b = fx(SPEC_BANDS[i + 1][0]), lab = SPEC_BANDS[i][1], tw = ctx.measureText(lab).width;
+      ctx.fillRect(a, base + 2, 1, 5); if (lab && tw < b - a - 2) ctx.fillText(lab, (a + b - tw) / 2, base + 15);
+    }
+    const v0 = fx(380), v1 = fx(780); for (let x = Math.floor(v0); x < v1; x++) { const c = wavelengthRGB(380 + (x - v0) / (v1 - v0) * 400); ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(x, base + 2, 1, 5); }
+  }
+  let top = 0; for (const b of bins) top = Math.max(top, b);
+  const bw = (w - 2 * pad) / nb;
+  for (let i = 0; i < nb; i++) {
+    if (!bins[i]) continue;
+    const bh = Math.max(1.5, bins[i] / top * (base - 14)), nm = vis ? lo + (i + 0.5) / nb * (hi - lo) : Math.pow(10, Math.log10(lo) + (i + 0.5) / nb * (Math.log10(hi) - Math.log10(lo)));
+    const c = nm >= 380 && nm <= 780 ? wavelengthRGB(nm) : photonColor(PHYS.HC / nm);
+    ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(pad + i * bw, base - bh, Math.max(1, bw - (vis ? 0 : 1)), bh);
+  }
+  // the known lines of the elements that made light here (and hydrogen's Balmer series), marked
+  if (vis) {
+    const marks = [];
+    for (const [z] of [...zs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)) {
+      const sym = ELEMENTS[z].sym;
+      if (z === 1) for (const [nm, lab] of BALMER) marks.push([nm, lab]);
+      else if (LINES[sym]) for (const [nm, wgt] of LINES[sym].l) if (wgt >= 2 && nm >= lo && nm < hi) marks.push([nm, `${sym} ${Math.round(nm)}`]);
+    }
+    ctx.font = '10px ' + cssVar('--font-data'); ctx.strokeStyle = cssVar('--muted'); ctx.fillStyle = cssVar('--fg'); ctx.setLineDash([2, 3]);
+    let lastX = -1e9, row = 0;
+    for (const [nm, lab] of marks.sort((a, b) => a[0] - b[0])) {
+      const x = fx(nm); ctx.beginPath(); ctx.moveTo(x, base); ctx.lineTo(x, 12); ctx.stroke();
+      row = x - lastX < 34 ? (row + 1) % 2 : 0; lastX = x; ctx.fillText(lab, x + 2, 10 + row * 10);
+    }
+    ctx.setLineDash([]);
+  }
+  if (!inRange) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText(vis ? 'No visible light in the last 10 s (try Everything)' : 'No light in the last 10 s', 10, 20); }
+  // the note: how many, the strongest line and who made it
+  let best = -1, bi = 0; for (let i = 0; i < nb; i++) if (bins[i] > best) { best = bins[i]; bi = i; }
+  const peak = vis ? lo + (bi + 0.5) / nb * (hi - lo) : Math.pow(10, Math.log10(lo) + (bi + 0.5) / nb * (Math.log10(hi) - Math.log10(lo)));
+  const who = [...zs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([z, n]) => `${ELEMENTS[z].sym} ${n}`).join(', ');
+  $('dSpecNote').textContent = `${ph.length.toLocaleString('en-US')} photon${ph.length === 1 ? '' : 's'} in the last ${SPEC_WIN} s${_specFrom > W.rt - SPEC_WIN ? ' (since Clear)' : ''}` +
+    (inRange ? `; strongest at ${vis ? peak.toFixed(0) + ' nm' : wavelengthText(PHYS.HC / peak).lam}` : '') + (who ? `; given off by ${who}` : '') + '. Each element gives off its own lines.';
+}
 function drawTChart() {
   const r = chartCtx($('chT')); if (!r) return; const [ctx, w, h] = r;
   const H = W.hist; const n = H.T.length;
@@ -2664,7 +2736,58 @@ function updateChips() {
     }
   }
 }
+/* The logic analyser: every chip's signals (chips.js: scopeSample) against chip time, one lane each, as voltages or as
+   logic levels (1 above 60 % of the supply, 0 below 40 %, and in between drawn as undecided), with each ring's period. */
+const SCOPE_UI = { win: 50e-12, view: 'a', hold: false, at: 0 };
+function drawScope() {
+  const g = $('gScope'), lanes = [];
+  for (const ch of W.chips) {
+    const sig = SCOPE_SIG[ch.key]; if (!sig || !ch.scope || ch.broken) continue;
+    sig.forEach((s, i) => { if (!(s === 'IN' && ch.inFrom && W.chips.includes(ch.inFrom))) lanes.push({ ch, i, name: `${ch.label || CHIP_NAMES[ch.key].split(' ')[0]} ${s}` }); }); // (an input wired to another gate's output is that output's lane)
+  }
+  g.hidden = !lanes.length; if (g.hidden) return;
+  const show = lanes.slice(0, 12), cv = $('chScope'), LH = 24, want = show.length * LH + 18 + 'px';
+  if (cv.style.height !== want) cv.style.height = want;
+  const r = chartCtx(cv); if (!r) return; const [ctx, w, h] = r;
+  if (!SCOPE_UI.hold) SCOPE_UI.at = W.chipT;
+  const t1 = SCOPE_UI.at, t0 = t1 - SCOPE_UI.win, x0 = 80, xs = (t) => x0 + (t - t0) / (t1 - t0) * (w - x0 - 6);
+  const fg = cssVar('--fg'), mut = cssVar('--muted'), acc = cssVar('--accent'), warn = cssVar('--warn') || '#d9a400', line = cssVar('--line');
+  ctx.font = '10px ' + cssVar('--font-data'); ctx.textBaseline = 'middle';
+  // time grid: a line every 10 ps (every 50 ps on the 200 ps view)
+  const step = SCOPE_UI.win > 1e-10 ? 5e-11 : SCOPE_UI.win > 3e-11 ? 1e-11 : 5e-12;
+  ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.fillStyle = mut;
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) { const x = Math.round(xs(t)) + 0.5; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 14); ctx.stroke(); }
+  ctx.fillText(`−${Math.round(SCOPE_UI.win * 1e12)} ps`, x0, h - 6); const nowT = SCOPE_UI.hold ? 'held' : 'now'; ctx.fillText(nowT, w - 6 - ctx.measureText(nowT).width, h - 6);
+  show.forEach((L, li) => {
+    const sc = L.ch.scope, top = li * LH + 3, bot = top + LH - 6, vdd = CHIP.VDD, y = (v) => bot - clamp(v / vdd, -0.05, 1.05) * (bot - top);
+    ctx.fillStyle = fg; ctx.fillText(L.name, 4, (top + bot) / 2, x0 - 8);
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, 0, w - x0, h); ctx.clip();
+    const n = Math.min(sc.n, SCOPE_N), a = SCOPE_UI.view === 'd';
+    ctx.beginPath(); let started = false, prevLvl = null;
+    for (let j = n - 1; j >= 0; j--) { // oldest to newest
+      const k = (sc.n - 1 - j) % SCOPE_N, t = sc.t[k]; if (t < t0 - 2e-12 || t > t1) continue;
+      const v = sc.v[L.i][k], x = xs(t);
+      if (a) {
+        const lvl = v > 0.6 * vdd ? 1 : v < 0.4 * vdd ? 0 : 0.5, yy = y(lvl * vdd * 0.9 + vdd * 0.05);
+        if (!started) { ctx.moveTo(x, yy); started = true; } else { if (lvl !== prevLvl) ctx.lineTo(x, y(prevLvl * vdd * 0.9 + vdd * 0.05)); ctx.lineTo(x, yy); }
+        if (lvl === 0.5) { ctx.save(); ctx.fillStyle = warn; ctx.globalAlpha = 0.35; ctx.fillRect(x - 1, top, 2, bot - top); ctx.restore(); }
+        prevLvl = lvl;
+      } else if (!started) { ctx.moveTo(x, y(v)); started = true; } else ctx.lineTo(x, y(v));
+    }
+    ctx.strokeStyle = acc; ctx.lineWidth = 1.6; ctx.stroke(); ctx.restore();
+    ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, bot + 2.5); ctx.lineTo(w - 6, bot + 2.5); ctx.stroke();
+  });
+  ctx.textBaseline = 'alphabetic';
+  const rings = W.chips.filter(c => c.key === 'inverter' && c.per > 0 && !c.broken);
+  const hz = (p) => { const f = 1 / p; return f >= 1e12 ? fmtNum(f / 1e12, 2) + ' THz' : fmtNum(f / 1e9, 3) + ' GHz'; };
+  $('dScopeNote').textContent = (lanes.length > show.length ? `Showing the first ${show.length} of ${lanes.length} signals. ` : '') +
+    (rings.length ? `Clock: ${rings.slice(0, 3).map(c => `${c.label || 'gate'} repeats every ${fmtNum(c.per * 1e12, 3)} ps (${hz(c.per)})`).join('; ')}. ` : '') +
+    'Time is chip time, which runs 20 times the atoms\' time.';
+}
 function chipsInit() {
+  bindSeg('segScopeWin', (v) => { SCOPE_UI.win = +v * 1e-12; drawScope(); });
+  bindSeg('segScopeView', (v) => { SCOPE_UI.view = v; drawScope(); });
+  $('bScopeHold').onclick = (e) => { SCOPE_UI.hold = !SCOPE_UI.hold; e.currentTarget.setAttribute('aria-pressed', String(SCOPE_UI.hold)); e.currentTarget.textContent = SCOPE_UI.hold ? 'Resume' : 'Hold'; drawScope(); };
   for (const k in CHIP_LAYOUT) if (MOLECULES[k]) MOLECULES[k].note += ' Put it in the chamber and it works: its controls are in the Lab tab.';
   if (MOLECULES.flashcell) MOLECULES.flashcell.note += ' Eight of them make a byte: write a character into them there.';
   const panel = $('chipPanel'), byId = (id) => W.chips.find(c => c.id === +id);
@@ -2700,6 +2823,7 @@ function updateReadouts() {
   if (UI.tab === 'lab') { $('magCount').textContent = W.magnets.length ? `${W.magnets.length} magnet${W.magnets.length > 1 ? 's' : ''} placed` : 'No magnets placed'; setTxt('spdVal', motionText()); }
   updateCollider();
   if (W.chips.length || CHIP_UI.sig) updateChips();
+  if (UI.tab === 'lab') drawScope();
   if (UI.capped) syncSpeed(); // (the speed reached at the computer's limit changes as it goes)
 }
 function updatePanel() {
@@ -3007,6 +3131,8 @@ function settingsInit() {
   $('setPrio').addEventListener('change', (e) => setSetting('prio', +e.target.value));
   bindSeg('segThreads', (v) => setSetting('threads', v));
   bindSeg('segGl', (v) => setSetting('gl', v));
+  bindSeg('segSpec', (v) => { _specView = v; drawSpec(); });
+  $('bSpecClear').onclick = () => { _specFrom = W.rt; drawSpec(); };
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));

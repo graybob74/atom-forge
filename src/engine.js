@@ -60,7 +60,7 @@ function makeWorld() {
     warp: 1,                    // radioactive decay speed-up over real rates (1 = as in nature)
     Bz: 0, magnets: [], Ex: 0, Ey: 0,
     nextId: 1, topo: 1, deaths: 0, bathSeed: 0x5eed1234, // bathSeed: the heat bath's noise is hashed from it, the step and the slot (threads.js's bathNoise)
-    rays: [], flights: [], chips: [], chipSeq: 0, mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
+    rays: [], flights: [], chips: [], chipSeq: 0, chipT: 0, mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
     exo: [],                    // unstable particles in flight (muons, pions, kaons…: hep.js)
     events: [], evRecent: [], slow: null, slowmo: true, decayOn: true, made: null, // made: what nuclear events have made (noteMade)
     tool: null, grab: null, sources: [],
@@ -2114,8 +2114,18 @@ function photonLabel(E, src) {
   const nm = PHYS.HC / E, who = src && src.k === NUC && src.el ? (src.anti ? barSym(src.el.sym) : src.el.sym) + ' ' : '';
   return who + (nm < 380 ? 'UV ' : nm > 780 ? 'IR ' : '') + (nm >= 1000 ? `${(nm / 1000).toFixed(nm < 1e4 ? 1 : 0)} µm` : `${nm < 100 ? nm.toFixed(1) : Math.round(nm)} nm`);
 }
+/* The spectroscope (Data tab): every photon made, as its wavelength (nm), when (W.rt) and from which element (Z, or 0),
+   in a ring of the last 8,192. */
+const SPEC_N = 8192;
+function specRecord(E, src) {
+  const S2 = W.spec || (W.spec = { nm: new Float64Array(SPEC_N), t: new Float64Array(SPEC_N), z: new Int16Array(SPEC_N), n: 0, total: 0 });
+  const k = S2.total % SPEC_N;
+  S2.nm[k] = PHYS.HC / E; S2.t[k] = W.rt; S2.z[k] = src && src.k === NUC && src.Z > 0 ? src.Z : 0;
+  S2.total++; S2.n = Math.min(SPEC_N, S2.n + 1);
+}
 function emitPhoton(x, y, E, ux, uy, opts) {
   if (!(E > 0)) return;
+  specRecord(E, opts && opts.src);
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
   W.count.photons++;
   let x0 = x, y0 = y, depth = (opts && opts.depth) || 0;
@@ -5266,7 +5276,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] };
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null;
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }

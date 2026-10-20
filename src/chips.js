@@ -119,7 +119,7 @@ function chipsTick(dt, realDt) {
     else if (ch.inFrom || feeds.has(ch)) wired.push(ch); // (wired output to input: stepped together below)
     else {
       const tc = dt * CHIP.WARP, nSub = Math.min(400, Math.max(1, Math.ceil(tc / 5e-14)));
-      for (let k = 0; k < nSub; k++) chipStep(ch, tc / nSub, ch.Ut, ch.vth);
+      for (let k = 0; k < nSub; k++) { chipStep(ch, tc / nSub, ch.Ut, ch.vth); scopeSample(ch, W.chipT + (k + 1) * tc / nSub); }
       ch.tc += tc;
     }
     if (ch.hit && ch.tc - ch.hit.t > 1e-11) seuSettle(ch);
@@ -127,6 +127,7 @@ function chipsTick(dt, realDt) {
     chipDots(ch, realDt);
   }
   if (wired.length) chipsWired(wired, dt * CHIP.WARP);
+  W.chipT = (W.chipT || 0) + dt * CHIP.WARP;
   chipsRadiation();
   memTick();
 }
@@ -138,13 +139,26 @@ function chipsWired(list, tc) {
   for (let k = 0; k < nSub; k++) {
     list.forEach((c, j) => { if (live[j]) c.v.in = live[j].v.out; });
     for (const c of list) {
-      chipStep(c, h, c.Ut, c.vth);
+      chipStep(c, h, c.Ut, c.vth); scopeSample(c, W.chipT + (k + 1) * h);
       const hi = c.v.out > 0.5 * CHIP.VDD, t = c.tc + (k + 1) * h;
       if (hi && !c.hiOut) { if (c.rise) c.per = c.per ? 0.7 * c.per + 0.3 * (t - c.rise) : t - c.rise; c.rise = t; }
       c.hiOut = hi;
     }
   }
   for (const c of list) { c.tc += tc; if (c.rise && c.tc - c.rise > 6 * (c.per || 1e-11) + 2e-11) c.per = 0; } // (stopped ticking)
+}
+/* The logic analyser (Lab tab): each chip's signals sampled in chip time (W.chipT, shared by every chip so their traces
+   line up), at most one sample per SCOPE_DT, the last SCOPE_N kept. It only reads the chips. */
+const SCOPE_N = 4096, SCOPE_DT = 5e-14;
+const SCOPE_SIG = { transistor: ['G', 'D'], inverter: ['IN', 'OUT'], sramcell: ['WL', 'Q', '¬Q'] };
+function scopeSample(ch, t) {
+  const sig = SCOPE_SIG[ch.key]; if (!sig) return;
+  let sc = ch.scope;
+  if (!sc) sc = ch.scope = { t: new Float64Array(SCOPE_N), v: sig.map(() => new Float32Array(SCOPE_N)), n: 0, last: -Infinity };
+  if (t - sc.last < SCOPE_DT) return;
+  const k = sc.n % SCOPE_N; sc.t[k] = t; sc.last = t;
+  for (let i = 0; i < sig.length; i++) sc.v[i][k] = chipNode(ch, sig[i]);
+  sc.n++;
 }
 function chipStep(ch, h, Ut, vth) {
   const v = ch.v, D = ch.devs;

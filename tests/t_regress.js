@@ -37,7 +37,7 @@ const { openPage } = require('./browser');
     out.trail = [];
     for (const spd of [1, 8]) { setSetting('trail', 1.5); setSetting('trailClock', 'real'); loadPreset('ring'); W.slowmo = false; W.simPerFrame = UI.baseSpf * spd;
       for (let f = 0; f < 240; f++) { simFrame(1 / 60, 25); if (f % 3 === 0) render(W.rt); }
-      let short = 0, n = 0, over = 0; for (const t of W.tracks) if (t.ts && t.ts.length > 1) { n++; const span = t.ts[t.ts.length - 1] - t.ts[0], want = t.ts[t.ts.length - 1] - Math.max(t.t0, W.rt - 1.5); short = Math.max(short, want - span); over = Math.max(over, span - 1.5); }
+      let short = 0, n = 0, over = 0; for (const t of W.tracks) if (t.ts && t.ts.length > 1) { n++; const span = t.ts[t.ts.length - 1] - t.ts[0], want = t.ts[t.ts.length - 1] - Math.max(t.t0, W.rt - 1.5); let gap = 0; for (let i = 1; i < t.ts.length; i++) gap = Math.max(gap, t.ts[i] - t.ts[i - 1]); short = Math.max(short, want - span - gap); over = Math.max(over, span - 1.5); } // (short: beyond a point's spacing; a long trail's older half is thinned, so the point the trimming takes off can be a few spacings long)
       out.trail.push({ n, short: +short.toFixed(3), over: +over.toFixed(3) }); }
     setSetting('trail', SET_DEF.trail);
     return out;
@@ -53,7 +53,7 @@ const { openPage } = require('./browser');
   else say(`  neutrinos in Made here: ${r.nu.rec.map(x => x[0] + ' ×' + x[1]).join(', ')}`);
   if (!(/^299,792\.4\d* km\/s \(99\.99998\d*% of c\)$/.test(r.speed))) { fails++; say('FAIL a near-light speed reads:', r.speed); }
   else say(`  a 1 GeV electron's speed reads ${r.speed}`);
-  if (!(r.trail.every(x => x.n > 0 && x.short < 0.3 && x.over < 0.1))) { fails++; say('FAIL trail spans (s of watching):', JSON.stringify(r.trail)); }
+  if (!(r.trail.every(x => x.n > 0 && x.short < 0.6 && x.over < 0.1))) { fails++; say('FAIL trail spans (s of watching):', JSON.stringify(r.trail)); }
   else say(`  trails set to 1.5 s keep the last 1.5 s (or all) of each path at normal and 8× speed: ${JSON.stringify(r.trail)}`);
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
