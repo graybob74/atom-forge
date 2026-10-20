@@ -438,6 +438,47 @@ const say = (...a) => console.log(...a);
     && st2b.max === 4000 && !st2b.lite && st2b.budget === 16 && !st2b.perf && st3.max === 4000 && !st3.lite && st3.unit === 'K')) {
     fails++; say('FAIL settings:', JSON.stringify({ st0, st1, tC, placed: n100b - n100, st2, st2b, st3 }));
   } else say(`  settings: performance mode ${st1.max.toLocaleString('en-US')} particles, ${n100b - n100} argon atoms at a click, ${tC.split(' → ')[0]}; kept over a reload; off again puts physics back to ${st2b.budget} ms; then reset`);
+  // 8g''. The hourglass follows slow motion started by an event (lit, dashed), takes it over when pressed, turns it off when
+  //       pressed again; paused in slow motion, the Motion readout still says slow motion
+  const smo = await page.evaluate(async () => {
+    loadPreset('water'); setRunning(true); await new Promise(r => setTimeout(r, 300));
+    const b = document.getElementById('bSlowmo'), st = () => ({ pressed: b.getAttribute('aria-pressed'), auto: b.classList.contains('auto'), hold: !!W.slowHold, motion: document.getElementById('spdVal').textContent });
+    W.slow = { t0: W.rt, on: true, fresh: false, f: 0.05 }; fireSpec(isoSpec(2, 4, 0), 0, 0, 1, 0, 5e5, false); await new Promise(r => setTimeout(r, 400)); const a = st();
+    setRunning(false); await new Promise(r => setTimeout(r, 300)); syncLabText(); const paused = st(); setRunning(true);
+    b.click(); await new Promise(r => setTimeout(r, 200)); const c = st();
+    b.click(); await new Promise(r => setTimeout(r, 200)); const d = st(); setRunning(false);
+    return { a, paused, c, d };
+  });
+  if (!(smo.a.pressed === 'true' && smo.a.auto && !smo.a.hold && /slow motion/.test(smo.paused.motion) && smo.c.hold && !smo.c.auto && smo.d.pressed === 'false' && !smo.d.hold)) { fails++; say('FAIL slow motion button:', JSON.stringify(smo)); }
+  else say('  slow motion: the hourglass lights for an event\'s slow motion, takes it over, turns it off; paused, the readout keeps it');
+  // 8g'''. Typed values: every metric unit that fits; a value past the slider's end is kept (the slider sits at its end);
+  //        past a real limit, the nearest allowed value is set and a note says why
+  const tyx = await page.evaluate(async () => {
+    loadPreset('water'); setRunning(false);
+    const type = async (id, val, unit) => { const el = document.getElementById(id); el.click(); await new Promise(r => setTimeout(r, 50)); const inp = el.querySelector('input'), sel = el.querySelector('select');
+      const units = sel ? [...sel.options].map(o => o.value).join(',') : ''; if (unit && sel) { sel.value = unit; sel.dispatchEvent(new Event('change')); }
+      inp.value = String(val); inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await new Promise(r => setTimeout(r, 50));
+      const note = [...document.querySelectorAll('.typedNote')].map(n => n.textContent).pop() || ''; document.querySelectorAll('.typedNote').forEach(n => n.remove()); return { units, note }; };
+    const a = await type("spdVal", 500, "zs"), aTu = W.simPerFrame * PHYS.TU_S, aS = document.getElementById('spdSlider').value;
+    const b = await type('spdVal', 50, 'ps'), bTu = W.simPerFrame;
+    const c = await type('tVal', 5, 'MK'), T = W.T;
+    loadPreset('water'); setRunning(false);
+    return { a, aTu, aS, b, bTu, c, T };
+  });
+  if (!(tyx.a.units === 'ys,zs,as,fs,ps,ns,µs,ms,s' && !tyx.a.note && Math.abs(tyx.aTu / 5e-19 - 1) < 1e-6 && tyx.aS === '0' && /Set to 10\.\d+ ps, not 50 ps/.test(tyx.b.note) && tyx.bTu === 1000 && /MK/.test(tyx.c.units) && tyx.T === 5e6)) { fails++; say('FAIL typed units and limits:', JSON.stringify(tyx)); }
+  else say('  typed values: ys … s for Motion, 500 zs kept below the slider, 50 ps limited with a note, 5 MK set');
+  // 8g''''. Copy and paste keep working parts: a gate copied whole pastes as a wired gate in the same state
+  const cpc = await page.evaluate(async () => {
+    loadPreset('ringosc'); setRunning(false); const n0 = W.chips.length;
+    const g = W.chips[0]; R.msel.clear(); for (const p of g.ps) R.msel.add(p); copySelection();
+    const nClip = (UI.clip.chips || []).length;
+    W.box.tw = W.box.w = W.box.w * 1.6; W.box.th = W.box.h = W.box.h * 2.2; pasteClip(0, 40);
+    const ch = W.chips[W.chips.length - 1]; setRunning(true); await new Promise(r => setTimeout(r, 800)); setRunning(false);
+    const out = { n0, nClip, n1: W.chips.length, key: ch.key, atoms: ch.ps.length, broken: ch.broken, label: ch.label, out: ch.v.out };
+    loadPreset('water'); setRunning(false); return out;
+  });
+  if (!(cpc.nClip === 1 && cpc.n1 === cpc.n0 + 1 && cpc.key === 'inverter' && cpc.atoms === 333 && !cpc.broken && /\(copy\)/.test(cpc.label) && cpc.out > 0.5)) { fails++; say('FAIL copy and paste a gate:', JSON.stringify(cpc)); }
+  else say(`  copy and paste: a NOT gate pastes as a working gate (${cpc.label}, output ${cpc.out.toFixed(2)} V)`);
   // 8g'. Priority, smooth ↔ fast: at the fast end a frame may hold far more physics than Physics per frame gives; kept over a reload; reset puts it back
   await page.click('#bSettings'); await page.waitForTimeout(150);
   await page.evaluate(() => { const el = document.getElementById('setPrio'); el.value = '4'; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); });
@@ -527,7 +568,7 @@ const say = (...a) => console.log(...a);
     setTool('heat'); e = open('oRV'); e.sel.value = 'nm'; e.sel.dispatchEvent(new Event('change')); e.inp.value = '5'; enter(e.inp); out.heatR = OPT.heat.R; setTool('place');
     setRunning(false); return out;
   });
-  if (typed.units !== 'K,°C,°F' || Math.abs(+typed.conv - 26.85) > 0.01 || Math.abs(typed.T - 298.15) > 1e-9 || typed.box[1] !== 500 || !typed.stillOpen || Math.abs(typed.fsPerFrame - 10) > 1e-6 || typed.escE !== 0 || !typed.closed || !typed.noWarp || !/^\d+\.\d+\.\d+$/.test(typed.ver) || Math.abs(typed.fireKE - 2.5e6) > 1 || typed.fireTxt !== '2.50 MeV' || typed.heatR !== 50) { fails++; say('FAIL typed values:', JSON.stringify(typed)); }
+  if (typed.units !== 'µK,mK,K,kK,MK,GK,°C,°F' || Math.abs(+typed.conv - 26.85) > 0.01 || Math.abs(typed.T - 298.15) > 1e-9 || typed.box[1] !== 500 || !typed.stillOpen || Math.abs(typed.fsPerFrame - 10) > 1e-6 || typed.escE !== 0 || !typed.closed || !typed.noWarp || !/^\d+\.\d+\.\d+$/.test(typed.ver) || Math.abs(typed.fireKE - 2.5e6) > 1 || typed.fireTxt !== '2.50 MeV' || typed.heatR !== 50) { fails++; say('FAIL typed values:', JSON.stringify(typed)); }
   else say(`  typed values: unit dropdowns (${typed.units}), 300 K shown as ${typed.conv} °C, 25 °C → ${typed.T} K, a 50 nm box height, 10 fs a frame, Escape leaves it; the tools' figures too (${typed.fireTxt}, ${typed.heatR} Å); version tag ${typed.ver}`);
   // a world saved as JSON and loaded back is the same world (particles, bonds, box, bath); the library exports and imports
   const sl = await page.evaluate(() => {

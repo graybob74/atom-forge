@@ -898,8 +898,14 @@ function copySelection() {
   const parts = ps.map(p => ({ k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, dx: p.x - cx, dy: p.y - cy, rd: p.k === NUC ? p.rd : 0.15, el: p.el }));
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { const i = idx.get(bd.a), j = idx.get(bd.b); if (i !== undefined && j !== undefined && bd.a === p) bonds.push([i, j, bd.order]); }
-  UI.clip = { parts, bonds, at: W.rt };
-  log('tool', `Copied ${parts.length.toLocaleString('en-US')} particle${parts.length === 1 ? '' : 's'}${bonds.length ? ` and ${bonds.length.toLocaleString('en-US')} bond${bonds.length === 1 ? '' : 's'}` : ''}`);
+  // working parts (transistors, gates, memory cells) whose atoms are all in the selection go with it, wired and in the
+  // state they are in; a gate fed by another copied gate stays fed by its copy
+  const whole = W.chips.filter(ch => ch.ps.every(p => idx.has(p)));
+  const chips = whole.map(ch => ({ key: ch.key, at: ch.ps.map(p => idx.get(p)), v: { ...ch.v }, nfg: ch.nfg, drive: ch.drive ? { ...ch.drive } : null,
+    label: ch.label, broken: ch.broken, nb0: ch.nb0, q0: ch.q0 ? ch.q0.slice() : null, inFrom: ch.inFrom ? whole.indexOf(ch.inFrom) : -1 }));
+  const partial = W.chips.filter(ch => !whole.includes(ch) && ch.ps.some(p => idx.has(p))).length;
+  UI.clip = { parts, bonds, chips, at: W.rt };
+  log('tool', `Copied ${parts.length.toLocaleString('en-US')} particle${parts.length === 1 ? '' : 's'}${bonds.length ? ` and ${bonds.length.toLocaleString('en-US')} bond${bonds.length === 1 ? '' : 's'}` : ''}${chips.length ? `, with ${chips.length} working part${chips.length === 1 ? '' : 's'}` : ''}${partial ? ` (${partial} part${partial === 1 ? ' is' : 's are'} only partly selected: those atoms paste as plain atoms)` : ''}`);
   selChanged();
 }
 /* Ctrl+V picks the copy up: it follows the pointer as a ghost until a click puts it down (onDown), so it lands exactly
@@ -934,9 +940,16 @@ function pasteClip(wx, wy) {
   const [vx, vy] = thermalV(mt, W.T);
   for (const p of made) { p.vx = vx; p.vy = vy; p.ox = p.x; p.oy = p.y; updateFast(p); }
   W.dirty++;
+  const nch = c.chips ? c.chips.length : 0;
+  if (nch) { // the copied working parts, wired up on the new atoms and set as they were
+    const mk = c.chips.map(q => { const ch = chipAdd(q.key, q.at.map(i => made[i])); if (!ch) return null;
+      ch.v = { ...q.v }; if (q.nfg !== undefined) ch.nfg = q.nfg; if (q.drive) ch.drive = { ...q.drive };
+      ch.label = q.label ? q.label + ' (copy)' : ''; ch.broken = q.broken; if (q.nb0 !== undefined) ch.nb0 = q.nb0; if (q.q0) ch.q0 = q.q0.slice(); return ch; });
+    c.chips.forEach((q, k) => { if (mk[k] && q.inFrom >= 0) mk[k].inFrom = mk[q.inFrom]; });
+  }
   R.msel.clear(); for (const p of made) R.msel.add(p);
   if (UI.tool !== 'select') setTool('select');
-  log('tool', `Pasted ${made.length.toLocaleString('en-US')} particle${made.length === 1 ? '' : 's'}`);
+  log('tool', `Pasted ${made.length.toLocaleString('en-US')} particle${made.length === 1 ? '' : 's'}${nch ? `, with ${nch} working part${nch === 1 ? '' : 's'}` : ''}`);
   selChanged();
 }
 /* The particle under the pointer, or failing that the nearest one within maxPx: hot atoms move several
@@ -1669,23 +1682,34 @@ function importLibrary() {
    it (Enter sets it, Escape leaves it). Each entry: the units it can be typed in (to/from the base unit), the current
    value in the base unit, and what to do with a typed one (brought to the slider's range). */
 const lin = (u, k) => ({ u, to: (v) => v * k, from: (v) => v / k });
-const U_TEMP = [{ u: 'K', to: (v) => v, from: (v) => v }, { u: '°C', to: (v) => v + 273.15, from: (v) => v - 273.15 }, { u: '°F', to: (v) => (v - 32) / 1.8 + 273.15, from: (v) => (v - 273.15) * 1.8 + 32 }];
-const U_B = [lin('T', 1), lin('mT', 1e-3), lin('kT', 1e3), lin('G', 1e-4)];
-const U_E = [lin('V/Å', 1), lin('V/nm', 0.1), lin('MV/m', 1e-4), lin('kV/cm', 1e-5)];
-const U_LEN = [lin('Å', 1), lin('nm', 10), lin('µm', 1e4)];
-const U_TIME = [lin('fs', 1e-15 / PHYS.TU_S), lin('as', 1e-18 / PHYS.TU_S), lin('ps', 1e-12 / PHYS.TU_S)]; // (base: the engine's time unit)
-const U_ENERGY = [lin('eV', 1), lin('keV', 1e3), lin('MeV', 1e6), lin('GeV', 1e9), lin('TeV', 1e12)];
+// (each list runs smallest to largest: unitFor picks the first that puts a value between 1 and 1000)
+const U_TEMP = [lin('µK', 1e-6), lin('mK', 1e-3), lin('K', 1), lin('kK', 1e3), lin('MK', 1e6), lin('GK', 1e9), { u: '°C', to: (v) => v + 273.15, from: (v) => v - 273.15 }, { u: '°F', to: (v) => (v - 32) / 1.8 + 273.15, from: (v) => (v - 273.15) * 1.8 + 32 }];
+const U_B = [lin('µT', 1e-6), lin('mT', 1e-3), lin('T', 1), lin('kT', 1e3), lin('MT', 1e6), lin('G', 1e-4), lin('kG', 0.1)];
+const U_E = [lin('V/m', 1e-10), lin('kV/m', 1e-7), lin('V/µm', 1e-4), lin('MV/m', 1e-4), lin('kV/cm', 1e-5), lin('V/nm', 0.1), lin('V/Å', 1), lin('GV/m', 0.1)];
+const U_LEN = [lin('fm', 1e-5), lin('pm', 0.01), lin('Å', 1), lin('nm', 10), lin('µm', 1e4), lin('mm', 1e7)];
+const U_TIME = [lin('ys', 1e-24 / PHYS.TU_S), lin('zs', 1e-21 / PHYS.TU_S), lin('as', 1e-18 / PHYS.TU_S), lin('fs', 1e-15 / PHYS.TU_S), lin('ps', 1e-12 / PHYS.TU_S), lin('ns', 1e-9 / PHYS.TU_S), lin('µs', 1e-6 / PHYS.TU_S), lin('ms', 1e-3 / PHYS.TU_S), lin('s', 1 / PHYS.TU_S)]; // (base: the engine's time unit)
+const U_ENERGY = [lin('meV', 1e-3), lin('eV', 1), lin('keV', 1e3), lin('MeV', 1e6), lin('GeV', 1e9), lin('TeV', 1e12), lin('PeV', 1e15)];
 const TYPED = {
-  tVal: { units: U_TEMP, pick: () => T_UNIT === 'C' ? '°C' : T_UNIT === 'F' ? '°F' : 'K', get: () => W.T, apply: (T) => { setBathT(T); syncLab(); } },
-  bVal: { units: U_B, get: () => W.Bz, apply: (B) => { W.Bz = Math.abs(B) < 1e-9 ? 0 : clamp(B, -1e5, 1e5); syncLab(); } },
-  eVal: { units: U_E, get: () => UI.E, apply: (E) => { UI.E = clamp(Math.abs(E), 0, 3); applyE(); syncLab(); } },
-  boxW: { units: U_LEN, get: () => W.box.tw, apply: (w) => { W.box.tw = clamp(w, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); } },
-  boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); } },
-  spdVal: { units: U_TIME, get: () => W.simPerFrame, apply: (tu) => { W.simPerFrame = clamp(tu, spdFromS(0), spdFromS(100)); syncLab(); syncSpeed(); } },
+  tVal: { units: U_TEMP, pick: tPick, get: () => W.T, apply: (T) => { setBathT(T); syncLab(); }, why: 'the bath runs from 1 K to a billion K' },
+  bVal: { units: U_B, get: () => W.Bz, apply: (B) => { W.Bz = Math.abs(B) < 1e-9 ? 0 : clamp(B, -1e5, 1e5); syncLab(); }, why: 'fields up to 100,000 T (a magnetar’s)' },
+  eVal: { units: U_E, get: () => UI.E, apply: (E) => { UI.E = clamp(Math.abs(E), 0, 50); applyE(); syncLab(); }, why: 'fields up to 50 V/Å: past that every atom is torn apart at once' },
+  boxW: { units: U_LEN, get: () => W.box.tw, apply: (w) => { W.box.tw = clamp(w, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' },
+  boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' },
+  spdVal: { units: U_TIME, get: () => W.simPerFrame, apply: (tu) => { W.simPerFrame = clamp(tu, DT_MIN, 1000); syncLab(); syncSpeed(); }, why: `from one shortest time step (${fmtTime(DT_MIN * PHYS.TU_S)}) to ${fmtTime(1000 * PHYS.TU_S)} per 1/60 s` },
   cEVal: { units: U_ENERGY, get: () => (W.collider ? W.collider.E : cEFromS(+$('cESlider').value)), apply: (E) => { if (!W.collider) return; setColliderEnergy(clamp(E, cEFromS(0), cEFromS(200))); syncCollider(); } },
   cE2Val: { units: U_ENERGY, get: () => (W.collider && W.collider.E2 !== null && W.collider.E2 !== undefined ? W.collider.E2 : cEFromS(+$('cE2Slider').value)), apply: (E) => { const C = W.collider; if (!C) return; setColliderEnergy(C.E, clamp(E, cEFromS(0), cEFromS(200))); syncCollider(); } },
-  cNVal: { units: null, get: () => (W.collider ? W.collider.bunch : +$('cNSlider').value), apply: (n) => { n = clamp(Math.round(n), 1, 30); $('cNSlider').value = n; $('cNVal').textContent = String(n); if (W.collider) W.collider.bunch = n; } },
+  cNVal: { units: null, int: true, get: () => (W.collider ? W.collider.bunch : +$('cNSlider').value), apply: (n) => { n = clamp(Math.round(n), 1, 30); $('cNSlider').value = n; $('cNVal').textContent = String(n); if (W.collider) W.collider.bunch = n; } },
 };
+/* Temperatures in the scale chosen in Settings; in kelvin, with the prefix that suits the value. */
+function tPick(T) { if (T_UNIT === 'C') return '°C'; if (T_UNIT === 'F') return '°F'; for (const u of ['mK', 'K', 'kK', 'MK', 'GK']) { const a = Math.abs(U_TEMP.find(x => x.u === u).from(T)); if (a >= 1 && a < 1000) return u; } return 'K'; }
+/* A typed value the setting cannot take is set to the nearest it can, and a note says so (and why) under the figure. */
+function typedNote(el, text) {
+  const n = document.createElement('div'); n.className = 'typedNote'; n.setAttribute('role', 'status'); n.textContent = text;
+  document.body.appendChild(n);
+  const r = el.getBoundingClientRect(); n.style.left = Math.max(8, Math.min(innerWidth - 280, r.left)) + 'px'; n.style.top = (r.bottom + 6) + 'px';
+  setTimeout(() => n.remove(), 4000);
+  log('tool', text);
+}
 /* The unit a value is best shown in: the one that puts it between 1 and 1000 (the first of the list otherwise), or the
    entry's own choice. */
 function unitFor(T, base) {
@@ -1716,7 +1740,14 @@ function attachTyped(el, T) {
       if (done) return; done = true;
       const v = commit ? parseTyped(inp.value) : null;
       el.textContent = was;
-      if (v !== null) T.apply(unit ? unit.to(v) : v);
+      if (v !== null) {
+        const want = unit ? unit.to(v) : v; T.apply(want);
+        const got = T.get();
+        if (!T.int && Number.isFinite(got) && Math.abs(got - want) > 1e-6 * Math.max(Math.abs(want), Math.abs(got), 1e-300)) {
+          const gu = unit || null;
+          typedNote(el, `Set to ${fmtTyped(gu ? gu.from(got) : got)}${gu ? ' ' + gu.u : ''}, not ${fmtTyped(v)}${gu ? ' ' + gu.u : ''}: ${T.why || 'the nearest this setting can take'}`);
+        }
+      }
     };
     const stop = (e) => e.stopPropagation();
     inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); close(true); } else if (e.key === 'Escape') { e.preventDefault(); close(false); } e.stopPropagation(); });
@@ -1747,13 +1778,13 @@ function toolTyped(t, o) {
   const again = () => buildToolOpts();
   const M = {
     oRV: { units: U_LEN, get: () => o.R, apply: (R) => { o.R = clamp(R, RAD_MIN[t], RAD_MAX); again(); } },
-    oSV: { units: U_ENERGY.concat([lin('meV', 1e-3)]), get: () => pullU(), apply: (U) => { o.s = logS(U, 2, 0, 600); again(); } },
-    oKEV: { units: U_ENERGY, get: () => fireKE(), apply: (E) => { o.s = logS(E, 2, 0, 1030); again(); } },
-    oTV: { units: U_TEMP, pick: () => T_UNIT === 'C' ? '°C' : T_UNIT === 'F' ? '°F' : 'K', get: () => heatT(), apply: (T) => { o.s = logS(T, 0, 200, 900); again(); } },
-    oEV: { units: U_ENERGY, get: () => sparkE(), apply: (E) => { o.s = logS(E, 0, 0, 900); again(); } },
-    oBV: { units: U_B, get: () => Math.abs(magB()), apply: (B) => { o.s = logS(Math.abs(B), 0, 100, 900); again(); } },
-    oLV: { units: U_LIGHT, pick: (E) => { const lam = 1239.84198 / E; return lam >= 1000 ? 'µm' : lam >= 1 ? 'nm' : E >= 1e6 ? 'MeV' : E >= 1e3 ? 'keV' : 'eV'; }, get: () => lightE(), apply: (E) => { o.s = logS(E, 1, 0, 730); again(); } },
-    oRateV: { units: null, get: () => o.rate, apply: (r) => { o.rate = clamp(Math.round(r), 5, 400); again(); } },
+    oSV: { units: U_ENERGY, get: () => pullU(), apply: (U) => { o.s = logS(U, 2, -100, 800); again(); }, why: 'the push and pull go from 1 meV to 1 MeV' },
+    oKEV: { units: U_ENERGY, get: () => fireKE(), apply: (E) => { o.s = logS(E, 2, -100, 1400); again(); }, why: 'particles are fired with 1 meV to 1 TeV' },
+    oTV: { units: U_TEMP, pick: tPick, get: () => heatT(), apply: (T) => { o.s = logS(T, 0, 0, 900); again(); }, why: 'the heat tool runs from 1 K to a billion K' },
+    oEV: { units: U_ENERGY, get: () => sparkE(), apply: (E) => { o.s = logS(E, 0, -100, 1200); again(); }, why: 'sparks of 0.1 eV to 1 TeV' },
+    oBV: { units: U_B, get: () => Math.abs(magB()), apply: (B) => { o.s = logS(Math.abs(B), 0, 0, 900); again(); }, why: 'magnets of 1 T to a billion T' },
+    oLV: { units: U_LIGHT, pick: (E) => { const lam = 1239.84198 / E; return lam >= 1000 ? 'µm' : lam >= 1 ? 'nm' : E >= 1e6 ? 'MeV' : E >= 1e3 ? 'keV' : 'eV'; }, get: () => lightE(), apply: (E) => { o.s = logS(E, 1, -100, 1100); again(); }, why: 'light from 0.01 eV (124 µm) to 10 GeV' },
+    oRateV: { units: null, int: true, get: () => o.rate, apply: (r) => { o.rate = clamp(Math.round(r), 5, 400); again(); } },
   };
   for (const id of Object.keys(M)) attachTyped($(id), M[id]);
 }
@@ -1822,8 +1853,8 @@ function syncLabText() {
 
 /* The Motion readout: the set speed, and while slow motion holds time back, how far it has slowed it. */
 function motionText() { // the motion the simulation actually gets through each frame (less than it is set to in slow motion, or at the computer's limit)
-  if (!UI.running || !(UI.adv > 0)) return `${fmtTime(W.simPerFrame * PHYS.TU_S)} per 1/60 s`;
-  const slow = (W.slowHold || UI.slow) && UI.adv < 0.9 * W.simPerFrame;
+  const slow = (W.slowHold || UI.slow || autoSlowOn()) && UI.adv > 0 && UI.adv < 0.9 * W.simPerFrame;
+  if (!(UI.adv > 0) || (!UI.running && !slow)) return `${fmtTime(W.simPerFrame * PHYS.TU_S)} per 1/60 s`; // (paused in slow motion: still shows the slow motion it was in)
   return `${slow ? 'slow motion: ' : ''}${fmtTime(Math.min(UI.adv, W.simPerFrame) * PHYS.TU_S)} per 1/60 s${!slow && UI.capped ? ' (as fast as this computer goes)' : ''}`; // (per sixtieth of a second, whatever the frame rate: simFrame keeps to real time)
 }
 /* ------------------------------------------------------------------ speed (simulated time per frame) */
@@ -2339,12 +2370,23 @@ function injectBeams() {
   if (C.kind === 'ring') { for (const p of W.parts) if (!p.dead && p.beam) kill(p); resetRings(C); }
   refillSources(C);
 }
+/* The hourglass shows slow motion whichever way it came: on demand (W.slowHold) or started by a nuclear event (W.slow).
+   Pressed while the automatic kind runs, it takes over (slow motion stays on, now held until pressed again); pressed while
+   on, it turns both off. */
+function autoSlowOn() { return !!(W.slow && W.slow.on); }
 function syncSlowmo() {
-  const b = $('bSlowmo');
-  b.setAttribute('aria-pressed', String(!!W.slowHold));
-  b.classList.toggle('primary', !!W.slowHold);
+  const b = $('bSlowmo'), auto = autoSlowOn() && !W.slowHold, on = !!W.slowHold || auto;
+  UI.smShown = (W.slowHold ? 2 : 0) + (auto ? 1 : 0);
+  b.setAttribute('aria-pressed', String(on));
+  b.classList.toggle('primary', on);
+  b.classList.toggle('auto', auto);
+  b.title = auto ? 'Slow motion (started by a nuclear event): press to keep it on, press again to turn it off (\\)' : 'Slow motion: time slows until the fastest particle takes about a second to cross the box (\\)';
 }
-function toggleSlowmo() { W.slowHold = !W.slowHold; W.hold = null; syncSlowmo(); syncSpeed(); }
+function toggleSlowmo() {
+  if (W.slowHold) { W.slowHold = false; W.slow = null; } // off: the automatic kind too
+  else { W.slowHold = true; if (autoSlowOn()) W.slow = null; } // on (taking over from the automatic kind)
+  W.hold = null; syncSlowmo(); syncSpeed();
+}
 
 /* ------------------------------------------------------------------ presets */
 function rp(w, h, m) { return [(rnd() - 0.5) * (w - 2 * m), (rnd() - 0.5) * (h - 2 * m)]; }
@@ -2703,6 +2745,7 @@ function frame(now) {
         UI.adv = UI.adv > 0 ? Math.exp(0.85 * Math.log(UI.adv) + 0.15 * Math.log(Math.max(1e-12, adv60))) : adv60; // (smoothed, for the Motion readout)
         const capped = UI.ach < 0.8, slow = r.slow < 0.6;
         if (capped !== !!UI.capped || slow !== !!UI.slow) { UI.capped = capped; UI.slow = slow; syncSpeed(); }
+        if ((W.slowHold ? 2 : 0) + (autoSlowOn() && !W.slowHold ? 1 : 0) !== (UI.smShown || 0)) syncSlowmo(); // (the hourglass follows the automatic slow motion)
       }
       UI.stepOnce = false;
       toolTick(realDt);

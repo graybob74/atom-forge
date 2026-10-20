@@ -2485,10 +2485,12 @@ function handOff(p) {
 }
 
 /* ------------------------------------------------------------------ event processing */
+function lzNeed() { if (_lzOn) lazyCatch(); } // (the far atoms where they are now, for code that may look at any atom)
 function processEvents() {
   const q = W.evq;
   for (let i = 0; i < q.length; i++) {
     const ev = q[i];
+    if (_lzOn && ev.type !== EV.LEPTON) lazyCatch(); // (a lepton meeting an atom touches the two of them unless it goes further: evLepton says when)
     switch (ev.type) {
       case EV.BOND: evBond(ev.a, ev.b, ev.r); break;
       case EV.REACT: evReact(ev.a, ev.b, ev.c, ev.r); break;
@@ -2646,7 +2648,7 @@ function evLepton(L, A, r) {
   if (clash(L, A)) { // a positron at ordinary matter, or an electron at antimatter
     if (r > rh || L.hit === A.id) return;
     L.hit = A.id;
-    if (A.ne > 0) annihilateBound(L, A); else elasticScatter(L, A, 0);
+    if (A.ne > 0) { lzNeed(); annihilateBound(L, A); } else elasticScatter(L, A, 0);
     return;
   }
   // recombination into an ion (positive for matter, negative for antimatter): bound leptons are captured,
@@ -2658,14 +2660,14 @@ function evLepton(L, A, r) {
     // two-body binding ignores the neighbours' fields (continuum lowering), so require a clearly bound orbit; a lepton
     // whose last try could not be paid for waits a while (undoJoin)
     const may = !(L.capT > W.t);
-    if (Etot < -0.15 * ionE(A.Z, A.ne + 1)) { if (may && rnd() < 0.5) capture(L, A, Etot); return; }
-    if (Etot < 0) { if (may && rnd() < 0.02) capture(L, A, Etot); return; } // loosely bound (Rydberg-like) orbit
-    if (may && r < rh && L.hit !== A.id && rnd() < 0.04 / (1 + Etot / 0.5)) { capture(L, A, Etot); return; }
+    if (Etot < -0.15 * ionE(A.Z, A.ne + 1)) { if (may && rnd() < 0.5) (lzNeed(), capture(L, A, Etot)); return; }
+    if (Etot < 0) { if (may && rnd() < 0.02) (lzNeed(), capture(L, A, Etot)); return; } // loosely bound (Rydberg-like) orbit
+    if (may && r < rh && L.hit !== A.id && rnd() < 0.04 / (1 + Etot / 0.5)) { (lzNeed(), capture(L, A, Etot)); return; }
   }
   if (r >= rh || L.hit === A.id) return;
   L.hit = A.id;
   if (A.ne > 0 && A.q === 0 && A.el.ea > 0 && A.ne < A.Z + maxExtraElectrons(A.Z) && !(L.capT > W.t) && rnd() < 0.04) {
-    if (attach(L, A, Erel)) return;
+    lzNeed(); if (attach(L, A, Erel)) return;
   }
   if (A.ne > 0) {
     // Only the electron's energy relative to the atom counts: near an ion it has extra kinetic energy
@@ -2675,10 +2677,10 @@ function evLepton(L, A, r) {
     const ie = ionizationCost(A);
     if (Eeff > ie) {
       const x = Eeff / ie, P = Math.min(0.8, 1.6 * Math.log(x) / x);
-      if (rnd() < P) { impactIonize(L, A, ie, Erel); return; }
+      if (rnd() < P) { lzNeed(); impactIonize(L, A, ie, Erel); return; }
     }
     const line = lineInfo(A);
-    if (line && Eeff > line.thr && rnd() < 0.15) { exciteByElectron(L, A, line, Eeff); return; }
+    if (line && Eeff > line.thr && rnd() < 0.15) { lzNeed(); exciteByElectron(L, A, line, Eeff); return; }
   }
   elasticScatter(L, A, Erel);
 }
@@ -4424,7 +4426,7 @@ const isLepMD = (i) => S.dead[i] === 0 && S.fast[i] === 0 && S.rad[i] === 0;
    and kept while _md is the same and nothing has moved more than SKIN_F/2 since: a lepton moves at most LEP_STEP (0.2 Å)
    in an inner step, so the list usually serves several of them. */
 const FL = { gen: -1, n: 0, w: 0, h: 0, wall: '', bx: new Float64Array(16), by: new Float64Array(16), na: 0, la: shArray(Int32Array, 1024), lb: shArray(Int32Array, 1024), nl: 0, li: shArray(Int32Array, 256), lj: shArray(Int32Array, 256),
-  builds: 0, checks: 0 };
+  builds: 0, checks: 0, q: new Int32Array(16) };
 function flValid() {
   FL.checks++;
   if (FL.gen !== _mdGen || FL.n !== _nmd || FL.w !== W.box.w || FL.h !== W.box.h || FL.wall !== W.wall) return false;
@@ -4446,6 +4448,8 @@ function flBuild() {
   const n = _nmd, idx = _mdI, X = S.x, Y = S.y, K = S.k, Z = S.Z;
   if (FL.bx.length < n) { FL.bx = new Float64Array(n * 2 + 16); FL.by = new Float64Array(n * 2 + 16); }
   for (let i = 0; i < n; i++) { FL.bx[i] = X[idx[i]]; FL.by[i] = Y[idx[i]]; }
+  if (FL.q.length < S.size) FL.q = new Int32Array(S.size);
+  for (let i = 0; i < n; i++) FL.q[idx[i]] = i; // (slot → its place in the MD order: the inner steps' check by slot)
   FL.gen = _mdGen; FL.n = n; FL.w = W.box.w; FL.h = W.box.h; FL.wall = W.wall;
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   // the grid (over _md, at these positions or at the last computeForces's) finds the atoms: they may have moved since
@@ -4509,8 +4513,9 @@ function computeFast() {
   else for (let q = 0; q < nmd; q++) { const i = mdI[q]; GX[i] = 0; GY[i] = 0; }
   if (!_mdL.length) return;
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
+  if (_flPre < 0 && _lzOn) lazyCatch(); // (the full check needs every atom where it is)
   const okFL = _flPre >= 0 ? (FL.checks++, _flPre <= HSKINF2) : flValid(); _flPre = -1; // (the inner step's move loop measured it)
-  if (!okFL) { flBuild(); if (_gxOn) gxAddFL(); }
+  if (!okFL) { lazyCatch(); flBuild(); if (_gxOn) { gxAddFL(); if (_lzOn) lazyCatch(); } }
   const X = S.x, Y = S.y, NEAR = S.nearIon, DEAD = S.dead, FAST = S.fast, RAD = S.rad;
   for (let q = 0; q < _nmdL; q++) NEAR[_mdLI[q]] = 0;
   const la = FL.la, lb = FL.lb, na = FL.na;
@@ -4624,11 +4629,34 @@ function integrateAPlain(dt) { return !hasBfield() && _nmdL === 0 && _mdL.length
 let _gxL = new Int32Array(256), _gxN = 0, _gxS = new Int32Array(4096), _gxGen = 1, _gxOn = false, _flPre = -1, _gxUse = true;
 function gxAdd(i) { if (_gxS[i] !== _gxGen) { _gxS[i] = _gxGen; if (_gxN >= _gxL.length) { const a = new Int32Array(_gxL.length * 2); a.set(_gxL); _gxL = a; } _gxL[_gxN++] = i; } }
 function gxReset() {
+  lazyCatch();
   _gxGen++; _gxN = 0;
   if (_gxS.length < S.size) _gxS = new Int32Array(S.size);
   for (let q = 0; q < _nmdL; q++) gxAdd(_mdLI[q]);
   for (let q = 0; q < _nch; q++) gxAdd(_chI[q]);
   gxAddFL();
+  if (_lzOn) { const mdI = _mdI, ID = S.id; for (let q = 0; q < _nmd; q++) if (ID[mdI[q]] >= _lzId0) gxAdd(mdI[q]); lazyCatch(); } // (made this step: stepped one by one, as before; and the bounds afresh)
+}
+/* Atoms beyond every free lepton's reach (not in _gxL) feel no fast force: through the inner steps they only drift at a
+   constant velocity, so they are moved once, by the time gone (_lzLag), when anything needs them where they are — a pair
+   list check or rebuild, an event, a force pass, the end of the step — instead of on every inner step. (The same motion;
+   only the rounding of x + v·t against a sum of small steps differs.) _lzD and _lzV bound how far they can have gone from
+   where the pair list saw them, so the list's check needs them only when that bound is past the skin. */
+let _lzOn = false, _lzLag = 0, _lzD = 0, _lzV = 0, _lzId0 = 0, _lzUse = true;
+function lazyCatch() {
+  if (!_lzOn) return;
+  const mdI = _mdI, nmd = _nmd, DEAD = S.dead, RAD = S.rad, FAST = S.fast, VX = S.vx, VY = S.vy, X = S.x, Y = S.y, FRESH = S.fresh, G = _gxS, gen = _gxGen, lag = _lzLag, ID = S.id, id0 = _lzId0;
+  const flOk = FL.gen === _mdGen && FL.n === nmd, BX = FL.bx, BY = FL.by;
+  let d2m = 0, v2m = 0;
+  for (let q = 0; q < nmd; q++) {
+    const i = mdI[q];
+    if (G[i] === gen || DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1 || ID[i] >= id0) continue; // (made this step: on the list, stepped one by one)
+    FRESH[i] = 0;
+    if (lag > 0) { X[i] += VX[i] * lag; Y[i] += VY[i] * lag; }
+    const v2 = VX[i] * VX[i] + VY[i] * VY[i]; if (v2 > v2m) v2m = v2;
+    if (flOk) { const dx = X[i] - BX[q], dy = Y[i] - BY[q], d2 = dx * dx + dy * dy; if (d2 > d2m) d2m = d2; }
+  }
+  _lzLag = 0; _lzD = flOk ? Math.sqrt(d2m) : Infinity; _lzV = Math.sqrt(v2m);
 }
 function gxAddFL() { const lb = FL.lb, la = FL.la; for (let k = 0; k < FL.na; k++) { gxAdd(lb[k]); gxAdd(la[k]); } const li = FL.li, lj = FL.lj; for (let k = 0; k < FL.nl; k++) { gxAdd(li[k]); gxAdd(lj[k]); } }
 /* Inner steps: fast half-kick, drift (everything in MD moves), fast forces, lepton events, fast half-kick. */
@@ -4656,7 +4684,7 @@ function innerSteps(Dt) {
       continue;
     }
     const useL = _gxUse;
-    if (useL && !_gxOn) { gxReset(); _gxOn = true; }
+    if (useL && !_gxOn) { _gxOn = true; _lzOn = false; gxReset(); if (_lzUse) { _lzOn = true; _lzLag = 0; _lzId0 = W.nextId; lazyCatch(); } }
     {
       const mdI = _mdI, nmd = _nmd, DEAD = S.dead, RAD = S.rad, K = S.k, FAST = S.fast, VX = S.vx, VY = S.vy, GX = S.gx, GY = S.gy, IM = S.im;
       const X = S.x, Y = S.y, OX = S.ox, OY = S.oy, FRESH = S.fresh, OBJ = S.obj;
@@ -4668,9 +4696,11 @@ function innerSteps(Dt) {
       // the lepton pair list's check, from the positions this loop leaves (flValid's loop, folded in)
       const flOk = useL && !wrap && FL.gen === _mdGen && FL.n === nmd && FL.w === W.box.w && FL.h === W.box.h && FL.wall === W.wall, BX = FL.bx, BY = FL.by;
       let worst = 0;
-      for (let q = 0; q < nmd; q++) {
-        const i = mdI[q];
-        if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) { if (flOk) { const dx = X[i] - BX[q], dy = Y[i] - BY[q], d2 = dx * dx + dy * dy; if (d2 > worst) worst = d2; } continue; }
+      const lz = _lzOn, gL = _gxL, nI = lz ? _gxN : nmd, FQ = FL.q;
+      for (let k = 0; k < nI; k++) {
+        const i = lz ? gL[k] : mdI[k], q = lz ? FQ[i] : k;
+        if (lz && (q < 0 || q >= nmd || mdI[q] !== i)) { if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue; } // (a list slot outside the MD set's order: no list position to check)
+        else if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) { if (flOk) { const dx = X[i] - BX[q], dy = Y[i] - BY[q], d2 = dx * dx + dy * dy; if (d2 > worst) worst = d2; } continue; }
         FRESH[i] = 0;
         if (!useL) { const im = IM[i]; VX[i] += h * GX[i] * im; VY[i] += h * GY[i] * im; }
         if (K[i] !== NUC) {
@@ -4684,14 +4714,15 @@ function innerSteps(Dt) {
             if (Y[i] < -hh) { Y[i] += bh; OY[i] += bh; } else if (Y[i] > hh) { Y[i] -= bh; OY[i] -= bh; }
           } else if (X[i] < -hw || X[i] > hw || Y[i] < -hh || Y[i] > hh) leptonWall(p);
         } else { X[i] += VX[i] * dti; Y[i] += VY[i] * dti; }
-        if (flOk) { const dx = X[i] - BX[q], dy = Y[i] - BY[q], d2 = dx * dx + dy * dy; if (d2 > worst) worst = d2; }
+        if (flOk && (!lz || (q >= 0 && q < nmd && mdI[q] === i))) { const dx = X[i] - BX[q], dy = Y[i] - BY[q], d2 = dx * dx + dy * dy; if (d2 > worst) worst = d2; }
       }
-      _flPre = flOk ? worst : -1;
+      if (lz) { _lzLag += dti; const bnd = _lzD + _lzV * _lzLag; if (bnd * bnd > HSKINF2) { _flPre = -1; } else _flPre = flOk ? worst : -1; } // (the drifting atoms within their bound: the moved ones decide)
+      else _flPre = flOk ? worst : -1;
     }
     if (_mdL.length) {
       computeFast();
       const st0 = W.spawned + W.topo + W.dirty - _undone; // (changes put back exactly, as by undoJoin, need no recount)
-      processEvents();
+      processEvents(); // (events that may look at other atoms bring the far ones up to date first: lzNeed)
       if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; if (_gxOn) gxReset(); } // (the force pass set the fast forces afresh)
     }
     _flPre = -1;
@@ -4706,6 +4737,7 @@ function innerSteps(Dt) {
     }
     rem -= dti;
   }
+  lazyCatch(); _lzOn = false;
   _gxOn = false;
 }
 /* A free electron reaching the box edge bounces off a closed wall elastically (off the piston, when the box is

@@ -307,21 +307,26 @@ for (const T of [300, 3000]) {
   }
 }
 // free electrons' inner steps visit only the slots whose fast force can be non-zero, and take the pair list's check from
-// their own move loop: ionized water and a hot plasma run bit for bit as with every slot visited
+// their own move loop: bit for bit as with every slot visited (atoms beyond the electrons' reach moved every inner step)
+// — and moving those atoms once, when needed, is the same motion to rounding (x + v·t against a sum of small steps)
 {
   for (const pre of ['water', 'fusion']) {
-    const run = (use) => {
-      const X = load('all', { seed: 11 }); const { W } = X; X._gxUse = use;
+    const run = (use, lazy, n) => {
+      const X = load('all', { seed: 11 }); const { W } = X; X._gxUse = use; X._lzUse = lazy;
       X.PRESETS[pre].build(); X.settleOverlaps();
       if (pre === 'water') { const Os = W.parts.filter(p => p.Z === 8); for (let i = 0; i < 30; i++) X.userIonize(Os[i]); }
       X.forcesNoEvents(); W.fSpawn = W.spawned; W.decayOn = false;
-      for (let i = 0; i < 300; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
-      let h = 0, ne = 0; for (const p of W.parts) if (!p.dead) { h += p.x * 1.1 + p.y * 1.3 + p.vx * 7 + p.vy * 11; if (p.k !== 0) ne++; }
-      return { h, ne, ev: JSON.stringify(W.count), fl: X.FL.builds };
+      for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+      let h = 0, ne = 0; const pos = []; for (const p of W.parts) if (!p.dead) { h += p.x * 1.1 + p.y * 1.3 + p.vx * 7 + p.vy * 11; if (p.k !== 0) ne++; pos.push(p.x, p.y); }
+      return { h, ne, ev: JSON.stringify(W.count), fl: X.FL.builds, pos };
     };
-    const a = run(true), b = run(false);
+    const a = run(true, false, 300), b = run(false, false, 300);
     info(`inner steps over the fast-force list, ${pre}: ${a.ne} free leptons, ${a.fl} pair-list builds; trajectories ${a.h === b.h && a.ev === b.ev ? 'identical' : 'DIFFER'} to visiting every slot`);
     if (a.h !== b.h || a.ev !== b.ev || a.fl !== b.fl) bad(`the inner steps' list changed the simulation (${pre}): ${a.h} vs ${b.h}, builds ${a.fl} vs ${b.fl}, ${a.ev} vs ${b.ev}`);
+    const c = run(true, true, 25), d = run(true, false, 25);
+    let dmax = c.pos.length === d.pos.length ? 0 : Infinity; for (let i = 0; i < c.pos.length && dmax < Infinity; i++) dmax = Math.max(dmax, Math.abs(c.pos[i] - d.pos[i]));
+    info(`atoms beyond the electrons' reach moved once, ${pre}: after 25 steps every position within ${dmax.toExponential(1)} Å of moving them every inner step (${c.ev === d.ev ? 'same events' : 'events differ'})`);
+    if (!(dmax < 1e-8 && c.ev === d.ev)) bad(`moving the far atoms once changed more than rounding (${pre}): ${dmax} Å, ${c.ev} vs ${d.ev}`);
   }
 }
 // the simulation keeps to real time: a frame advances it by the sixtieths of a second that passed (a 120 Hz frame half as
