@@ -527,7 +527,7 @@ const say = (...a) => console.log(...a);
     setTool('heat'); e = open('oRV'); e.sel.value = 'nm'; e.sel.dispatchEvent(new Event('change')); e.inp.value = '5'; enter(e.inp); out.heatR = OPT.heat.R; setTool('place');
     setRunning(false); return out;
   });
-  if (typed.units !== 'K,°C,°F' || Math.abs(+typed.conv - 26.85) > 0.01 || Math.abs(typed.T - 298.15) > 1e-9 || typed.box[1] !== 500 || !typed.stillOpen || Math.abs(typed.fsPerFrame - 10) > 1e-6 || typed.escE !== 0 || !typed.closed || !typed.noWarp || !/^V\d+$/.test(typed.ver) || Math.abs(typed.fireKE - 2.5e6) > 1 || typed.fireTxt !== '2.50 MeV' || typed.heatR !== 50) { fails++; say('FAIL typed values:', JSON.stringify(typed)); }
+  if (typed.units !== 'K,°C,°F' || Math.abs(+typed.conv - 26.85) > 0.01 || Math.abs(typed.T - 298.15) > 1e-9 || typed.box[1] !== 500 || !typed.stillOpen || Math.abs(typed.fsPerFrame - 10) > 1e-6 || typed.escE !== 0 || !typed.closed || !typed.noWarp || !/^\d+\.\d+\.\d+$/.test(typed.ver) || Math.abs(typed.fireKE - 2.5e6) > 1 || typed.fireTxt !== '2.50 MeV' || typed.heatR !== 50) { fails++; say('FAIL typed values:', JSON.stringify(typed)); }
   else say(`  typed values: unit dropdowns (${typed.units}), 300 K shown as ${typed.conv} °C, 25 °C → ${typed.T} K, a 50 nm box height, 10 fs a frame, Escape leaves it; the tools' figures too (${typed.fireTxt}, ${typed.heatR} Å); version tag ${typed.ver}`);
   // a world saved as JSON and loaded back is the same world (particles, bonds, box, bath); the library exports and imports
   const sl = await page.evaluate(() => {

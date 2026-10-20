@@ -3128,7 +3128,7 @@ function init() {
   cv.addEventListener('pointerleave', () => { if (!UI.drag) { hideTip(); if (!UI.drag) R.overlay = null; } });
   cv.addEventListener('wheel', onWheel, { passive: false });
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
-  { const v = /V\d+/.exec(document.title || ''); const tag = $('verTag'); if (tag) tag.textContent = v ? v[0] : ''; } // (the version, from the page's title)
+  { const v = /\d+\.\d+\.\d+|V\d+/.exec(document.title || ''); const tag = $('verTag'); if (tag) tag.textContent = v ? v[0] : ''; } // (the version, from the page's title: 0.40.0)
   qmInit(); settingsInit(); aiInit(); chipsInit();
   window.addEventListener('keydown', onKey);
   $('zIn').onclick = () => zoomAt(R.w / 2, R.h / 2, 1.25);
