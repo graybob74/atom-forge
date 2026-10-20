@@ -590,16 +590,40 @@ function mbTidy() {
   mbChanged(true);
 }
 
-/* ---- My molecules: built ones join the picker, and are kept in this browser */
+/* ---- My molecules: built ones join the picker, and are kept in this browser. Ones Claude designed or identified go into
+   the library category they belong to (m.c); the rest into My molecules. Either way they are the user's (mine): kept,
+   exported, removable. */
+/* Where a molecule is, for messages: My molecules, or the library category it is in. */
+function molWhere(m) { return m.cat === 'custom' ? 'My molecules' : `the library (${molCatName(m.cat)})`; }
+const MOL_CAT_OFF = new Set(['custom', 'objects']); // (not categories a saved molecule can be filed under)
+function molCatOk(c) { return typeof c === 'string' && !MOL_CAT_OFF.has(c) && MOLECULE_CATS.some(x => x[0] === c); }
+/* A category from the atoms alone, for a named molecule with none given: charges → ions & salts; metals → metal
+   compounds; no carbon (or one carbon and no hydrogen: CO₂, CS₂) → elements & diatomics when one element, else small
+   inorganic; carbon and hydrogen only → hydrocarbons; with N, S, P or a halogen → that group; with O → alcohols…acids. */
+function molCatGuess(atoms, bonds) {
+  const syms = atoms.map(a => a[0]), set = new Set(syms), has = (s) => set.has(s);
+  if (atoms.some(a => a[3])) return 'ions';
+  if (syms.some(s => ELEMENTS[SYM2Z[s]] && ELEMENTS[SYM2Z[s]].metal)) return 'metal';
+  if (atoms.length <= 2) return 'diatomic';
+  const BASE = { S: 2, Se: 2, P: 3, As: 3, Cl: 1, Br: 1, I: 1, He: 0, Ne: 0, Ar: 0, Kr: 0, Xe: 0, Rn: 0 }, sum = new Array(atoms.length).fill(0);
+  for (const b of bonds || []) { sum[b[0]] += b[2]; sum[b[1]] += b[2]; }
+  if (syms.some((s, i) => s in BASE && (BASE[s] === 0 || sum[i] > BASE[s]))) return 'hyper'; // (a noble gas, or more bonds than the usual valence: an expanded octet)
+  const nC = syms.filter(s => s === 'C').length;
+  if (!nC || (nC === 1 && !has('H'))) return set.size === 1 ? 'diatomic' : 'inorganic';
+  if ([...set].every(s => s === 'C' || s === 'H')) return 'hydrocarbon';
+  if (['N', 'S', 'P', 'F', 'Cl', 'Br', 'I'].some(has)) return 'nitrogen';
+  return has('O') ? 'oxygen' : 'inorganic';
+}
 function myMolAdd(m) {
-  if (!MOLECULE_CATS.some(c => c[0] === 'custom')) MOLECULE_CATS.unshift(['custom', 'My molecules']);
-  MOLECULES[m.k] = { key: m.k, name: m.n, cat: 'custom', radical: !!m.r, atoms: m.a, bonds: m.b, desc: m.d || '',
+  const cat = molCatOk(m.c) ? m.c : 'custom';
+  if (cat === 'custom' && !MOLECULE_CATS.some(c => c[0] === 'custom')) MOLECULE_CATS.unshift(['custom', 'My molecules']);
+  MOLECULES[m.k] = { key: m.k, name: m.n, cat, mine: true, radical: !!m.r, atoms: m.a, bonds: m.b, desc: m.d || '',
     note: (m.d || 'Built in the molecule builder.') + (m.r ? ' It has a free valence (a radical), so it will react.' : '') };
   _molThumb.delete(m.k); _molPlain.delete(m.k); _molR.delete(m.k);
   _libIdx = null; // names in the chamber now know it too
 }
 function myMolRemove(k) {
-  if (!MOLECULES[k] || MOLECULES[k].cat !== 'custom') return;
+  if (!MOLECULES[k] || !MOLECULES[k].mine) return;
   const gone = { kind: 'mol', mol: k };
   delete MOLECULES[k];
   _molThumb.delete(k); _molPlain.delete(k); _molR.delete(k); _libIdx = null;
@@ -612,11 +636,15 @@ function myMolRemove(k) {
   myMolsSave();
 }
 function myMolsSave() {
-  const list = Object.values(MOLECULES).filter(m => m.cat === 'custom').map(m => { const o = { k: m.key, n: m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds }; if (m.desc) o.d = m.desc; return o; });
-  store('mymols', JSON.stringify(list));
+  store('mymols', JSON.stringify(myMolsList()));
+}
+/* The user's molecules as kept and exported: c is the category when not My molecules. */
+function myMolsList() {
+  return Object.values(MOLECULES).filter(m => m.mine).map(m => { const o = { k: m.key, n: m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds }; if (m.desc) o.d = m.desc; if (m.cat !== 'custom') o.c = m.cat; return o; });
 }
 function myMolValid(m) {
   if (!m || typeof m.k !== 'string' || !/^my[0-9a-z]+$/.test(m.k) || typeof m.n !== 'string' || !Array.isArray(m.a) || !Array.isArray(m.b)) return false;
+  if (m.c !== undefined && typeof m.c !== 'string') return false;
   if (!m.a.length || m.a.length > MYMOL_MAX || MOLECULES[m.k] || (m.d !== undefined && typeof m.d !== 'string')) return false;
   for (const a of m.a) {
     if (!Array.isArray(a) || !SYM2Z[a[0]] || !Number.isFinite(a[1]) || !Number.isFinite(a[2])) return false;
@@ -633,7 +661,14 @@ function myMolsLoad() {
   let list = null;
   try { list = JSON.parse(store('mymols') || 'null'); } catch (e) { list = null; }
   if (!Array.isArray(list)) return;
-  for (const m of list) if (myMolValid(m)) myMolAdd({ k: m.k, n: m.n.slice(0, 40), r: m.r, a: m.a, b: m.b, d: (m.d || '').slice(0, 500) });
+  let moved = 0;
+  for (const m of list) {
+    if (!myMolValid(m)) continue;
+    let c = m.c;
+    if (c === undefined && /^(Designed by Claude|Identified)/.test(m.d || '')) { c = molCatGuess(m.a, m.b); moved++; } // (saved before V40 into My molecules: Claude's go to their category)
+    myMolAdd({ k: m.k, n: m.n.slice(0, 40), r: m.r, a: m.a, b: m.b, d: (m.d || '').slice(0, 500), c });
+  }
+  if (moved) myMolsSave();
 }
 
 /* ---- Build & place */
@@ -644,7 +679,7 @@ function mbBuild() {
   const name = String($('bldName').value || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 40);
   if (info.lm && (!name || name === info.lm.name)) { // already known: use that one, shape and all
     hideModal('bldModal'); selectSpec({ kind: 'mol', mol: info.lm.key });
-    log('tool', `Builder: that is ${info.lm.name}, already in ${info.lm.cat === 'custom' ? 'My molecules' : 'the library'}`);
+    log('tool', `Builder: that is ${info.lm.name}, already in ${molWhere(info.lm)}`);
     return;
   }
   if (info.n > 90) { // a big one takes a few seconds to settle: say so first
@@ -666,7 +701,7 @@ function mbBuildRun(info, name) {
   const atoms = info.mol.atoms.map((a, i) => { const r = [a.el, +best.xy[i][0].toFixed(2), +best.xy[i][1].toFixed(2)]; if (a.q || a.A) r.push(a.q || 0); if (a.A) r.push(a.A); return r; });
   const byClaude = MB.aiSig && MB.aiSig === mbSig(); // still as Claude designed it: keep its note
   myMolAdd({ k, n: name || info.name || info.formula, r: best.free ? 1 : 0, a: atoms, b: info.mol.bonds.map(b => b.slice()),
-    d: byClaude ? 'Designed by Claude.' + (MB.aiNote ? ' ' + MB.aiNote : '') : '' });
+    d: byClaude ? 'Designed by Claude.' + (MB.aiNote ? ' ' + MB.aiNote : '') : '', c: byClaude ? (molCatOk(MB.aiCat) ? MB.aiCat : molCatGuess(atoms, info.mol.bonds)) : undefined }); // (Claude's design: filed under its category)
   myMolsSave();
   hideModal('bldModal'); selectSpec({ kind: 'mol', mol: k });
   log('tool', `Builder: ${MOLECULES[k].name} (${specLabel({ kind: 'mol', mol: k })}) is ready to place${best.free ? '; it has a free valence, so it will react' : ''}`);
@@ -729,7 +764,7 @@ function mbRenderInfo() {
   else {
     html = `<b>${esc(r.formula)}</b> · ${r.n} atom${r.n === 1 ? '' : 's'}`;
     if (r.issues.length) html += ` · <span class="bad">${esc(r.issues[0].text)}</span>${r.issues.length > 1 ? ` <span class="bad">(and ${r.issues.length - 1} more)</span>` : ''}`;
-    else if (r.lm) html += ` · <span class="good">${esc(r.lm.name)}, ${r.lm.cat === 'custom' ? 'in My molecules' : 'in the library'}</span>`;
+    else if (r.lm) html += ` · <span class="good">${esc(r.lm.name)}, in ${molWhere(r.lm)}</span>`;
     else html += ` · ${r.name ? esc(r.name) : 'a new molecule'}`;
     if (r.free) html += ` · ${r.free} free valence${r.free > 1 ? 's' : ''}: a radical, so it will react`;
   }

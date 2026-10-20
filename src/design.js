@@ -319,9 +319,9 @@ function aiPrompt(text, prev, problem) {
 Request: ${JSON.stringify(text)}
 
 Reply with one JSON object and nothing else, in one of these forms:
-{"type":"molecule","name":"…","smiles":"…","note":"…"}
-{"type":"peptide","name":"…","sequence":"…","note":"…"}
-{"type":"lattice","name":"…","lattice":"ionic|metal|honeycomb|square","elements":["…"],"size":8,"note":"…"}
+{"type":"molecule","name":"…","smiles":"…","cat":"…","note":"…"}
+{"type":"peptide","name":"…","sequence":"…","cat":"bio","note":"…"}
+{"type":"lattice","name":"…","lattice":"ionic|metal|honeycomb|square","elements":["…"],"size":8,"cat":"…","note":"…"}
 {"type":"object","key":"…","note":"…"}
 {"type":"none","note":"…"}
 
@@ -331,10 +331,13 @@ Rules:
 - lattice: ionic = a 1:1 salt, elements [cation, anion] such as ["Na","Cl"] or ["Mg","O"]; metal = a close-packed cluster of one metal or noble gas, such as ["Au"] or ["Ar"]; honeycomb = a sheet such as graphene ["C"], boron nitride ["B","N"] or an indium phosphide quantum dot ["In","P"]; square = diamond or silicon flattened to a square grid, ["C"], ["Si"] or ["Ge"]. size: atoms along one side, 4 to 14.
 - object: one of these ready-made tiny objects, when it is what was asked for: ${objs}.
 - none: when it is not made of a few hundred atoms at most (a car, a virus) or is not a substance; say why and suggest something related that can be built.
+- cat: the library category it belongs in, one of: ${molCatList()}.
 - name: a short common name, at most 40 characters. note: one or two plain sentences for a curious non-expert about what it is and anything simplified.`;
   if (problem) p += `\n\nYour previous answer was ${JSON.stringify(prev).slice(0, 2000)}\nIt could not be built: ${problem}. Reply again with a corrected JSON object.`;
   return p;
 }
+/* The categories Claude may file a molecule under, as key (label). */
+function molCatList() { return MOLECULE_CATS.filter(c => !MOL_CAT_OFF.has(c[0])).map(c => `${c[0]} (${c[1]})`).join(', '); }
 function aiText(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n) : ''; }
 /* A request that names something the library already has needs no designing. */
 function aiLibraryHit(text) {
@@ -360,7 +363,7 @@ function aiApply(r) {
     }
     if (t === 'lattice') {
       const L = designLattice(r);
-      aiAddLattice(L, name || `${(Array.isArray(r.elements) ? r.elements : []).join('')} ${String(r.lattice)} lattice`.trim(), note); return null;
+      aiAddLattice(L, name || `${(Array.isArray(r.elements) ? r.elements : []).join('')} ${String(r.lattice)} lattice`.trim(), note, r.cat); return null;
     }
     let smi;
     if (t === 'peptide') smi = peptideSmiles(r.sequence);
@@ -373,6 +376,7 @@ function aiApply(r) {
     const pieces = designPieces(designFull(G));
     if (pieces > 1) return `the SMILES is ${pieces} separate pieces; give one connected molecule`;
     mbLoadDesign(G, name, note);
+    MB.aiCat = t === 'peptide' && !molCatOk(r.cat) ? 'bio' : String(r.cat || ''); // (filed there by Build & use while the design is unchanged)
     const bad = MB.info && MB.info.issues;
     return bad && bad.length ? bad.map(x => x.text).join('; ') : null;
   } catch (e) { return (e && e.message) || String(e); }
@@ -402,13 +406,13 @@ function mbLoadDesign(G, name, note) {
   mbChanged(true);
   const lm = MB.info && !MB.info.issues.length ? MB.info.lm : null;
   if (nm) nm.value = lm ? '' : name;
-  aiSay(lm ? `That is ${lm.name}, already ${lm.cat === 'custom' ? 'in My molecules' : 'in the library'}: Build & use picks it.`
+  aiSay(lm ? `That is ${lm.name}, already in ${molWhere(lm)}: Build & use picks it.`
     : `Claude: ${note || 'here it is.'} Check it, then Build & use.`);
 }
 function mbSig() { return JSON.stringify([MB.atoms.map(a => [a.id, a.el, a.q, a.A || 0]), MB.bonds.map(b => [b.a, b.b, b.o]), MB.fill, MB.hA]); }
-function aiAddLattice(L, name, note) {
+function aiAddLattice(L, name, note, cat) {
   const k = 'my' + Date.now().toString(36) + (MB.seq++).toString(36);
-  myMolAdd({ k, n: name.slice(0, 40), r: 0, a: L.atoms, b: L.bonds, d: 'Designed by Claude.' + (note ? ' ' + note : '') });
+  myMolAdd({ k, n: name.slice(0, 40), r: 0, a: L.atoms, b: L.bonds, d: 'Designed by Claude.' + (note ? ' ' + note : ''), c: molCatOk(cat) ? cat : molCatGuess(L.atoms, L.bonds) });
   myMolsSave();
   aiPick(k, note);
 }
@@ -453,7 +457,7 @@ async function aiAsk(raw) {
   const text = aiText(String(raw == null ? '' : raw), 200);
   if (!text) { aiSay('Type what to build first: a molecule, a protein, a crystal …', true); return; }
   const hit = aiLibraryHit(text);
-  if (hit) { aiPick(hit, `${MOLECULES[hit].name} is already in the ${MOLECULES[hit].cat === 'custom' ? 'My molecules list' : 'library'}`); return; }
+  if (hit) { aiPick(hit, `${MOLECULES[hit].name} is already in ${molWhere(MOLECULES[hit])}`); return; }
   if (!AI.sample) return;
   AI.busy = true; AI.ctl = new AbortController(); aiSync();
   aiSay('Claude is thinking … this can take up to a minute.');
@@ -479,7 +483,7 @@ async function aiAsk(raw) {
    Every bonded molecule in the chamber is named: by the library (same atoms joined the same way) or the formula table
    first, and the kinds neither knows are put to the viewer's Claude as SMILES (claude.ai only, as Ask Claude). Each
    molecule is tagged with its name on the canvas for a while, the kinds are counted in the log, and a named kind the
-   library does not have yet is added to My molecules with its shape as it is now, so it can be placed again. */
+   library does not have yet is added to the library, under its category, with its shape as it is now, so it can be placed again. */
 const ID_TAG_S = 12, ID_TAGS_PER_KIND = 80, ID_ASK_MAX = 12;
 /* A molecule as SMILES: heavy atoms in brackets with their hydrogens folded in ([CH3], [OH-], [13CH2]); a hydrogen that
    is an isotope, charged or bonded to another hydrogen stays an atom of its own. Ring closures are numbered. */
@@ -534,9 +538,9 @@ function chamberKinds() {
   return [...kinds.values()].sort((a, b) => b.n - a.n);
 }
 function idTag(kind) { for (const mol of kind.mols) R.molTags.push({ p: mol[0], text: kind.name, until: W.rt + ID_TAG_S }); }
-/* A kind the library does not have: saved to My molecules with its shape as it is now (atom coordinates relative to the
+/* A kind the library does not have: saved to the library (under cat, Claude's, or one guessed from its atoms) with its shape as it is now (atom coordinates relative to the
    centre, bonds and orders, isotopes and charges); false when it cannot be (an antimolecule, a stray charge, too big). */
-function idToLibrary(kind, note) {
+function idToLibrary(kind, note, cat) {
   const mol = kind.mol;
   if (kind.lib || !kind.name || mol.length < 2 || mol.length > MYMOL_MAX || mol.some(a => a.anti || Math.abs(Math.round(a.q || 0)) > 2)) return false;
   if (Object.values(MOLECULES).some(m => m.name.toLowerCase() === kind.name.toLowerCase())) return false; // (a name in use: the library's shape wins)
@@ -547,7 +551,7 @@ function idToLibrary(kind, note) {
   for (const a of mol) for (const bd of a.bonds) { if (bd.a !== a) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(a), j, bd.order]); }
   const free = mol.some(a => capacity(a) > a.used);
   const k = 'my' + Date.now().toString(36) + (MB.seq++).toString(36);
-  const m = { k, n: kind.name.slice(0, 40), r: free ? 1 : 0, a: atoms, b: bonds, d: note };
+  const m = { k, n: kind.name.slice(0, 40), r: free ? 1 : 0, a: atoms, b: bonds, d: note, c: molCatOk(cat) ? cat : molCatGuess(atoms, bonds) };
   if (!myMolValid(m)) return false;
   myMolAdd(m); kind.lib = MOLECULES[k];
   return true;
@@ -559,10 +563,11 @@ function idPrompt(kinds) {
 
 ${kinds.map((k, i) => `${i}: ${k.smi}`).join('\n')}
 
-Reply with one JSON object and nothing else: {"names":[{"i":0,"name":"…"},…]}
+Reply with one JSON object and nothing else: {"names":[{"i":0,"name":"…","cat":"…"},…]}
 Rules:
 - name: the accepted common name of that exact structure (Ethanol, Acetate ion, Hydroxyl radical, Benzene), at most 40 characters, capitalised like a sentence; a systematic name when there is no common one.
 - When the structure is a nameless fragment, a strained ring or a radical with no accepted name, give null instead of inventing one; a charged species gets its ion name, a radical gets "radical" in its name.
+- cat: the library category the molecule belongs in, one of: ${molCatList()}.
 - One entry for every index.`;
 }
 async function identifyMolecules() {
@@ -571,12 +576,12 @@ async function identifyMolecules() {
   if (!kinds.length) { idSay('Identify: no molecules in the chamber (nothing bonded)', true); return; }
   const named = kinds.filter(k => k.name), unnamed = kinds.filter(k => !k.name && k.smi);
   let added = [];
-  for (const k of named) { idTag(k); if (idToLibrary(k, 'Identified in the chamber.')) added.push(k.name); }
+  for (const k of named) { idTag(k); if (idToLibrary(k, 'Identified in the chamber.')) added.push(`${k.name} (${molCatName(MOLECULES[k.lib.key].cat)})`); }
   const total = kinds.reduce((s, k) => s + k.n, 0);
   const line = (k) => `${fmtN(k.n)} × ${k.name || k.f}`;
   const summary = `Identified ${fmtN(total)} molecule${total === 1 ? '' : 's'} of ${kinds.length} kind${kinds.length === 1 ? '' : 's'}${named.length ? ': ' + named.slice(0, 12).map(line).join(', ') + (named.length > 12 ? ', …' : '') : ''}${unnamed.length ? `${named.length ? ';' : ','} unnamed: ${unnamed.slice(0, 8).map(line).join(', ')}${unnamed.length > 8 ? ', …' : ''}` : ''}`;
   idSay(summary + (named.length ? ' — named on the canvas for a few seconds' : ''));
-  if (added.length) idSay(`${summary}. Added to My molecules: ${added.join(', ')}`);
+  if (added.length) idSay(`${summary}. Added to the library: ${added.join(', ')}`);
   if (!unnamed.length) return;
   if (!AI.sample) { idSay(`${summary}. Ask Claude is not available here (no Claude access on this page and no API key in Settings), so the unnamed kind${unnamed.length === 1 ? ' keeps its formula' : 's keep their formulas'}`); return; }
   const ask = unnamed.slice(0, ID_ASK_MAX);
@@ -592,9 +597,9 @@ async function identifyMolecules() {
       const name = aiText(e.name, 40); if (!name) continue;
       const k = ask[e.i]; if (k.name) continue;
       k.name = name; k.byClaude = true; got.push(`${fmtN(k.n)} × ${name} (${k.f})`);
-      idTag(k); if (idToLibrary(k, 'Identified by Claude from its structure.')) added.push(name);
+      idTag(k); if (idToLibrary(k, 'Identified by Claude from its structure.', e.cat)) added.push(`${name} (${molCatName(MOLECULES[k.lib.key].cat)})`);
     }
-    idSay(got.length ? `Claude named: ${got.join(', ')}${added.length ? ` — added to My molecules: ${added.join(', ')}` : ''}` : 'Claude could not put a name to them (fragments with no accepted name)', !got.length);
+    idSay(got.length ? `Claude named: ${got.join(', ')}${added.length ? ` — added to the library: ${added.join(', ')}` : ''}` : 'Claude could not put a name to them (fragments with no accepted name)', !got.length);
   } catch (e) {
     const code = (e && e.code) || 'upstream_error';
     idSay(code === 'cancelled' ? 'Stopped.' : code === 'not_granted' ? 'Claude was not allowed to help on this page, so the unnamed kinds keep their formulas.' : code === 'declined' ? 'You declined; the unnamed kinds keep their formulas.' : code === 'rate_limited' ? 'Claude has reached a usage limit for now; try again later.' : code === 'bad_key' ? 'The Claude API key was refused (Settings → Claude API key).' : code === 'invalid_json' || code === 'empty_completion' ? 'Claude\'s answer could not be read; try again.' : `Claude could not be reached (${code}); try again.`, true);

@@ -35,6 +35,35 @@ function bathNoise(seed, step, slot, out) {
   h ^= h >>> 16; h = Math.imul(h, 0x85EBCA6B); h ^= h >>> 13; h = Math.imul(h, 0xC2B2AE35); h ^= h >>> 16;
   out[0] = _bathT[h & 0xFFFF]; out[1] = _bathT[h >>> 16];
 }
+/* A worker's force buffer is non-zero only on the slots its share of the pairs, bonds and angles touches: two intervals,
+   the pairs' and the bonds' and angles', each lo ≤ s < hi (lo ≥ hi: none). bufSpans finds them for the ranges given and
+   writes them at prm[o … o+3] (merged into the first when they meet); bufZero clears what a buffer had; bufSum adds
+   every buffer onto the store's forces for slots s0 ≤ s < s1 in buffer order, only within its intervals. Outside them
+   a buffer holds zeros, so the sums are those of adding every buffer everywhere, value for value. */
+function bufSpans(q0, q1, b0, b1, c0, c1, pi, pj, out, o) {
+  let lo = 2147483647, hi = -1;
+  for (let q = q0; q < q1; q++) { const i = pi[q], j = pj[q]; if (i < lo) lo = i; if (i > hi) hi = i; if (j < lo) lo = j; if (j > hi) hi = j; }
+  let lo2 = 2147483647, hi2 = -1;
+  const A = BD.a, B = BD.b;
+  for (let k = b0; k < b1; k++) { const i = A[k], j = B[k]; if (i < lo2) lo2 = i; if (i > hi2) hi2 = i; if (j < lo2) lo2 = j; if (j > hi2) hi2 = j; }
+  const cs = AC.c, nbs = AC.nb, cnt = AC.cnt;
+  for (let c = c0; c < c1; c++) { const pc = cs[c]; if (pc < lo2) lo2 = pc; if (pc > hi2) hi2 = pc; for (let t = 0, n = cnt[c], b = 6 * c; t < n; t++) { const v = nbs[b + t]; if (v < lo2) lo2 = v; if (v > hi2) hi2 = v; } }
+  if (hi < 0) { lo = 0; hi = -1; }
+  if (hi2 < 0) { lo2 = 0; hi2 = -1; }
+  if (hi >= 0 && hi2 >= 0 && lo2 <= hi + 1 && lo <= hi2 + 1) { lo = Math.min(lo, lo2); hi = Math.max(hi, hi2); lo2 = 0; hi2 = -1; } // (they meet: one)
+  else if (hi < 0) { lo = lo2; hi = hi2; lo2 = 0; hi2 = -1; }
+  out[o] = lo; out[o + 1] = hi + 1; out[o + 2] = lo2; out[o + 3] = hi2 + 1;
+}
+function bufZero(FX, FY, sp) { for (let k = 0; k < 4; k += 2) if (sp[k + 1] > sp[k]) { FX.fill(0, sp[k], sp[k + 1]); FY.fill(0, sp[k], sp[k + 1]); } }
+function bufSum(s0, s1, FX, FY, bufs, prm, base) {
+  for (let b = 0; b < bufs.length; b++) {
+    const BX = bufs[b][0], BY = bufs[b][1], o = base + 4 * b;
+    for (let k = 0; k < 4; k += 2) {
+      const a = prm[o + k] > s0 ? prm[o + k] : s0, e = prm[o + k + 1] < s1 ? prm[o + k + 1] : s1;
+      for (let s = a; s < e; s++) { FX[s] += BX[s]; FY[s] += BY[s]; }
+    }
+  }
+}
 /* outerB for slots s0 ≤ s < s1 in the plain case (no magnetic field, no heat tool): the velocity half-kick and the
    Langevin bath on nuclei, the same arithmetic as engine.js's outerB, elementwise. */
 /* …and counts the particles the step's walls pass must look at (anything but an atom inside the box at an atom's pace,
@@ -119,9 +148,13 @@ const _bathNz = new Float64Array(2), _bathT = bathTableMake();
 ${bathNoise.toString()}
 ${bathSlots.toString()}
 ${dtSlots.toString()}
+${bufSpans.toString()}
+${bufZero.toString()}
+${bufSum.toString()}
 ${vlPairs.toString()}
 ${exRange.toString()}
 let GV = null, mdI = null, exl = null, exn = null;
+let SPAN0 = 0; const spPrev = new Float64Array(4);
 let pi, pj, ex, FXo, FYo, CQ, ctrl, prm, me, nW, bufs, mem = null, wasm = null, wex = null, descOff = 0, ksOff = 0, ksArr = null, sumTabOff = 0;
 const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13, TH_DT = 14, TH_DTD = 15;
 function ctrlAt(w, k) { return nW + 10 * w + k; }
@@ -137,7 +170,8 @@ onmessage = (e) => {
     BD = {}; for (const k in m.BD) BD[k] = view(m.BD[k]);
     bufs = m.bufs.map(b => [view(b[0]), view(b[1])]);
     GV = { fwd: null }; for (const k in m.G) GV[k] = view(m.G[k]); mdI = view(m.mdI); exl = view(m.exl); exn = view(m.exn);
-    me = m.me; nW = m.nW; FXo = bufs[me][0]; FYo = bufs[me][1];
+    me = m.me; nW = m.nW; FXo = bufs[me][0]; FYo = bufs[me][1]; SPAN0 = 4 * nW + 32;
+    spPrev[0] = 0; spPrev[1] = FXo.length; spPrev[2] = 0; spPrev[3] = 0; // (a buffer just bound: cleared whole at its first pass)
     CQ = view(m.cq); ctrl = new Int32Array(m.ctrl); prm = new Float64Array(m.prm);
     if (m.wasm && !wasm) { // the kernel module on the shared memory, with a stack of this worker's own
       try {
@@ -162,12 +196,14 @@ onmessage = (e) => {
       const q0 = ctrl[ctrlAt(me, 0)], q1 = ctrl[ctrlAt(me, 1)], b0 = ctrl[ctrlAt(me, 4)], b1 = ctrl[ctrlAt(me, 5)], c0 = ctrl[ctrlAt(me, 6)], c1 = ctrl[ctrlAt(me, 7)];
       const wrap = prm[nW] === 1, bw = prm[nW + 1], bh = prm[nW + 2], hw = prm[nW + 3], hh = prm[nW + 4], step = prm[nW + 5];
       let nc;
+      bufZero(FXo, FYo, spPrev); // (what the last pass left in this buffer: then it is all zeros)
+      bufSpans(q0, q1, b0, b1, c0, c1, pi, pj, prm, SPAN0 + 4 * me);
+      for (let k = 0; k < 4; k++) spPrev[k] = prm[SPAN0 + 4 * me + k];
       if (wex && prm[nW + 7] === 1) { // the WebAssembly kernels (the main thread filled the descriptor before this order)
-        const zn = Math.min(FXo.length, prm[nW + 24]); wex.af_zero(FXo.byteOffset, zn); wex.af_zero(FYo.byteOffset, zn); // (the slots in use: the sum reads no further)
         nc = wex.af_forces(descOff, q0, q1, b0, b1, c0, c1, FXo.byteOffset, FYo.byteOffset, CQ.byteOffset, wrap ? 1 : 0, bw, bh, hw, hh, step, ksOff + 8 * me);
         prm[me] = ksArr[me];
       } else {
-        const zn = Math.min(FXo.length, prm[nW + 24]); FXo.fill(0, 0, zn); FYo.fill(0, 0, zn); _kStiff = 0;
+        _kStiff = 0;
         nc = pairKernel(pi, pj, ex, q0, q1, FXo, FYo, CQ, 0, wrap, bw, bh, hw, hh, step);
         nc = bondKernel(b0, b1, FXo, FYo, CQ, nc, wrap, bw, bh, hw, hh);
         angleKernel(c0, c1, FXo, FYo, wrap, bw, bh, hw, hh);
@@ -176,13 +212,7 @@ onmessage = (e) => {
       ctrl[ctrlAt(me, 2)] = nc;
       Atomics.store(ctrl, me, TH_DONE); Atomics.notify(ctrl, me);
     } else if (st === TH_SUM) { // sum every buffer onto the store's forces for this worker's slots, in buffer order
-      const s0 = ctrl[ctrlAt(me, 0)], s1 = ctrl[ctrlAt(me, 1)], FX = S.fx, FY = S.fy, nb = bufs.length;
-      if (wex) wex.af_sum(FX.byteOffset, FY.byteOffset, sumTabOff, nb, s0, s1);
-      else for (let s = s0; s < s1; s++) {
-        let fx = FX[s], fy = FY[s];
-        for (let b = 0; b < nb; b++) { fx += bufs[b][0][s]; fy += bufs[b][1][s]; }
-        FX[s] = fx; FY[s] = fy;
-      }
+      bufSum(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], S.fx, S.fy, bufs, prm, SPAN0);
       Atomics.store(ctrl, me, TH_SUMMED); Atomics.notify(ctrl, me);
     } else if (st === TH_INTEG) {
       integrateSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm[nW + 6]);
@@ -219,7 +249,7 @@ function threadsSet(want) {
   if (!want) return;
   const url = URL.createObjectURL(new Blob([workerSource()], { type: 'text/javascript' }));
   TH.ctrl = new Int32Array(new SharedArrayBuffer(4 * (want + 10 * want + 8)));
-  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (4 * want + 32))); // (… then from nW + 32, three per worker: chooseDt's maxima)
+  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (8 * want + 32))); // (… then from nW + 32, three per worker: chooseDt's maxima; from 4·nW + 32, four per worker: its force buffer's intervals, bufSpans)
   for (let w = 0; w < want; w++) {
     const wk = new Worker(url);
     wk.onerror = (e) => { TH.note = 'worker error: ' + (e.message || e); console.warn('Atom Forge threads:', TH.note); threadsSet(0); };
@@ -308,9 +338,8 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
     ctrl[thCtrl(w, 0)] = Math.min(hi, w * sper); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * sper);
     Atomics.store(ctrl, w, TH_SUM); Atomics.notify(ctrl, w);
   }
-  if (wk) WK.ex.af_sum(S.fx.byteOffset, S.fy.byteOffset, WK.sumTab.byteOffset, n, Math.min(hi, n * sper), hi);
-  else { const FX = S.fx, FY = S.fy, fxs = TH.fx, fys = TH.fy;
-    for (let s = Math.min(hi, n * sper); s < hi; s++) { let fx = FX[s], fy = FY[s]; for (let b = 0; b < n; b++) { fx += fxs[b][s]; fy += fys[b][s]; } FX[s] = fx; FY[s] = fy; } }
+  if (!TH.bufs || TH.bufs.length !== n || TH.bufs[0][0] !== TH.fx[0]) TH.bufs = TH.fx.map((a, w) => [a, TH.fy[w]]);
+  bufSum(Math.min(hi, n * sper), hi, S.fx, S.fy, TH.bufs, prm, 4 * n + 32);
   const t3 = performance.now();
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_SUMMED) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); if (prm[w] > stiff) stiff = prm[w]; }
   thPh('sum', t2, t3, performance.now());

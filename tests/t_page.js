@@ -455,7 +455,7 @@ const say = (...a) => console.log(...a);
   check('settings');
   // 8h. Ask Claude: hidden outside claude.ai (no `sample` capability); with a stub standing in for it, a recipe lands in
   //     the builder and builds; a known molecule is recognised; a bad recipe gets one correction round; a lattice goes
-  //     straight to My molecules and is placed whole; a name the library has needs no asking; errors are told, and a
+  //     straight to the library under its category and is placed whole; a name the library has needs no asking; errors are told, and a
   //     refusal hides the feature
   await page.selectOption('#preset', 'empty'); await page.waitForTimeout(250);
   await page.click('#bMol'); await page.waitForTimeout(150);
@@ -471,7 +471,7 @@ const say = (...a) => console.log(...a);
       'test busy': 'rate_limited', 'test nope': 'not_granted',
     };
     const stub = { json: async (prompt, opts) => {
-      if (/^You identify molecules/.test(prompt)) { window.__idPrompt = prompt; return { names: [{ i: 0, name: 'Test peroxy radical' }, { i: 7, name: 'bogus' }] }; }
+      if (/^You identify molecules/.test(prompt)) { window.__idPrompt = prompt; return { names: [{ i: 0, name: 'Test peroxy radical', cat: 'bio' }, { i: 7, name: 'bogus' }] }; }
       const m = /Request: (".*")/.exec(prompt), req = m ? JSON.parse(m[1]) : '';
       window.__ai.push({ req, retry: /could not be built/.test(prompt), tier: opts && opts.modelTier, signal: !!(opts && opts.signal) });
       const a = answers[req];
@@ -489,7 +489,7 @@ const say = (...a) => console.log(...a);
   const a1 = await page.evaluate(() => ({ open: !document.getElementById('bldModal').hidden, box: !document.getElementById('aiBox').hidden, heavy: MB.atoms.length, fill: MB.fill,
     name: document.getElementById('bldName').value, msg: document.getElementById('aiMsg').textContent, info: document.getElementById('bldInfo').textContent }));
   await page.click('#bldGo'); await page.waitForTimeout(400);
-  const a1b = await page.evaluate(() => { const m = UI.spec && MOLECULES[UI.spec.mol]; return m ? { cat: m.cat, n: m.atoms.length, name: m.name, note: m.note } : null; });
+  const a1b = await page.evaluate(() => { const m = UI.spec && MOLECULES[UI.spec.mol]; return m ? { cat: m.cat, mine: !!m.mine, n: m.atoms.length, name: m.name, note: m.note } : null; });
   await page.click('#bMol'); await page.waitForTimeout(100); await page.click('#molBuild'); await page.waitForTimeout(150);
   await page.fill('#aiAsk', 'test decaf'); await page.click('#aiGo'); await aiDone(); await page.waitForTimeout(100);
   const a2 = await page.evaluate(() => ({ name: document.getElementById('bldName').value, msg: document.getElementById('aiMsg').textContent }));
@@ -540,22 +540,22 @@ const say = (...a) => console.log(...a);
   if (typeof sl.r === 'string' || sl.r.n !== sl.n0 || sl.n1 !== sl.n0 || sl.b1 !== sl.b0 || sl.r.nb !== sl.b0 || sl.dE > 1e-3 || sl.T !== 350 || sl.box[0] !== sl.box[2] || sl.box[1] !== sl.box[3] || typeof sl.bad !== 'string' || !sl.lib) { fails++; say('FAIL save/load world:', JSON.stringify(sl)); }
   else say(`  save/load: a water world of ${sl.n1} particles and ${sl.b1} bonds comes back as saved (energy within ${sl.dE.toExponential(1)} eV); the library exports and imports`);
   // Identify molecules with Claude standing by: the kinds the library and formula table know are named locally, the rest
-  // go to Claude as SMILES; its names tag the molecules and go to My molecules
+  // go to Claude as SMILES; its names tag the molecules and go to the library under the category Claude gives
   const idr = await page.evaluate(async () => {
     aiInit(); await new Promise(r => setTimeout(r, 100)); // (the refusal above hid Claude; back for this)
     loadPreset('empty'); setRunning(false);
     addMolecule('H2O', -20, 0, 0, 300); addMolecule('H2O', -10, 0, 0, 300); addMolecule('ethanol', 10, 0, 0, 300);
     const c = addNuc(6, 6, 6, 20, -30, 0, 0), o1 = addNuc(8, 8, 8, 21.4, -30, 0, 0), o2 = addNuc(8, 8, 8, 22.8, -30, 0, 0), hh = addNuc(1, 0, 1, 24, -30, 0, 0); addBond(c, o1, 1); addBond(o1, o2, 1); addBond(o2, hh, 1); W.dirty++;
-    const n0 = Object.values(MOLECULES).filter(m => m.cat === 'custom').length; W.log.length = 0;
+    const n0 = Object.values(MOLECULES).filter(m => m.mine).length; W.log.length = 0;
     document.getElementById('bIdentify').click(); await new Promise(r => setTimeout(r, 300));
-    const custom = Object.values(MOLECULES).filter(m => m.cat === 'custom').slice(n0);
+    const custom = Object.values(MOLECULES).filter(m => m.mine).slice(n0);
     render(W.rt);
-    return { log: W.log.map(l => l.text), tags: R.molTags.map(t => t.text).sort().join(), prompt: window.__idPrompt || '', custom: custom.map(m => [m.name, m.atoms.length, m.bonds.length, m.radical, m.note]), note: document.getElementById('idNote').hidden ? '' : document.getElementById('idNote').textContent };
+    return { log: W.log.map(l => l.text), tags: R.molTags.map(t => t.text).sort().join(), prompt: window.__idPrompt || '', custom: custom.map(m => [m.name, m.atoms.length, m.bonds.length, m.radical, m.note, m.cat]), note: document.getElementById('idNote').hidden ? '' : document.getElementById('idNote').textContent };
   });
   if (!/Identified 4 molecules of 3 kinds: 2 × Water, 1 × Ethanol; unnamed: 1 × CHO₂/.test(idr.log[0]) || !/Asking Claude to name 1 kind/.test(idr.log[1]) || !/Claude named: 1 × Test peroxy radical \(CHO₂\)/.test(idr.log[2])
-    || !/added to My molecules: Test peroxy radical/.test(idr.log[2]) || idr.tags !== 'Ethanol,Test peroxy radical,Water,Water' || !/0: \[C\]\[O\]\[OH\]/.test(idr.prompt)
+    || !/added to the library: Test peroxy radical \(Molecules of life\)/.test(idr.log[2]) || idr.custom[0][5] !== 'bio' || idr.tags !== 'Ethanol,Test peroxy radical,Water,Water' || !/0: \[C\]\[O\]\[OH\]/.test(idr.prompt)
     || idr.custom.length !== 1 || idr.custom[0][1] !== 4 || idr.custom[0][2] !== 3 || !idr.custom[0][3] || !/Identified by Claude/.test(idr.custom[0][4]) || !/Claude named/.test(idr.note)) { fails++; say('FAIL Identify molecules:', JSON.stringify(idr)); }
-  else say('  Identify molecules: library names at once, an unknown fragment named by Claude (stubbed) from its SMILES, tagged and saved to My molecules');
+  else say('  Identify molecules: library names at once, an unknown fragment named by Claude (stubbed) from its SMILES, tagged and filed under the category Claude gave (Molecules of life)');
   // the Claude API with the viewer's own key (Settings), where the page has no Claude of its own: Ask Claude and Identify
   // go to api.anthropic.com (mocked here), a refused key is told without hiding the feature, and removing the key hides it
   await page.route('https://api.anthropic.com/v1/messages', async (route) => {
@@ -574,7 +574,7 @@ const say = (...a) => console.log(...a);
     out.ask = { name: document.getElementById('bldName').value, heavy: MB.atoms.length }; hideModal('bldModal');
     loadPreset('empty'); setRunning(false);
     const c = addNuc(6, 6, 6, 20, -30, 0, 0), o1 = addNuc(8, 8, 8, 21.4, -30, 0, 0), o2 = addNuc(8, 8, 8, 22.8, -30, 0, 0), hh = addNuc(1, 0, 1, 24, -30, 0, 0); addBond(c, o1, 1); addBond(o1, o2, 1); addBond(o2, hh, 1); W.dirty++;
-    for (const k of Object.keys(MOLECULES)) if (MOLECULES[k].cat === 'custom' && MOLECULES[k].name === 'Test peroxy radical') myMolRemove(k); // (saved by the stubbed Identify above)
+    for (const k of Object.keys(MOLECULES)) if (MOLECULES[k].mine && MOLECULES[k].name === 'Test peroxy radical') myMolRemove(k); // (saved by the stubbed Identify above)
     W.log.length = 0; await identifyMolecules(); out.identify = W.log.map(l => l.text).join(' | ');
     SET.apiKey = 'sk-ant-bad'; aiInit(); await new Promise(r => setTimeout(r, 30)); openMolBuilder(); await aiAsk('test decanol'); await new Promise(r => setTimeout(r, 50));
     out.bad = { msg: document.getElementById('aiMsg').textContent, box: !document.getElementById('aiBox').hidden }; hideModal('bldModal');
@@ -584,13 +584,13 @@ const say = (...a) => console.log(...a);
   await page.unroute('https://api.anthropic.com/v1/messages');
   for (let i = errors.length - 1; i >= 0; i--) if (/401 \(Unauthorized\)/.test(errors[i])) errors.splice(i, 1); // (the refused key's own console line)
   if (apir.before.sample || apir.before.box || !apir.after.api || apir.after.stored !== 'sk-ant-test' || !/no Claude access of its own/.test(apir.after.note) || !apir.box || apir.ask.name !== 'Test decanol' || apir.ask.heavy !== 11
-    || !/Identified 1 molecule of 1 kind, unnamed: 1 × CHO₂ \| .*Asking Claude to name 1 kind … .*\| Claude named: 1 × Test peroxy radical \(CHO₂\) — added to My molecules: Test peroxy radical/.test(apir.identify)
+    || !/Identified 1 molecule of 1 kind, unnamed: 1 × CHO₂ \| .*Asking Claude to name 1 kind … .*\| Claude named: 1 × Test peroxy radical \(CHO₂\) — added to the library: Test peroxy radical \(Alcohols/.test(apir.identify)
     || !/API key was refused/.test(apir.bad.msg) || !apir.bad.box || apir.off.sample || apir.off.box) { fails++; say('FAIL Claude API key:', JSON.stringify(apir)); }
   else say('  Claude API key (mocked api.anthropic.com): Ask Claude and Identify molecules work through it, a refused key is told, no key hides them');
   await shot('ask-claude');
   await closeModals();
   if (ai0.btn || !ai0.box || !aiBtn || !a1.open || !a1.box || a1.heavy !== 22 || !a1.fill || a1.name !== 'Arachidic acid' || !/Claude: A saturated/.test(a1.msg) || !/C₂₀H₄₀O₂/.test(a1.info)
-    || !a1b || a1b.cat !== 'custom' || a1b.n !== 62 || !/^Designed by Claude\. A saturated/.test(a1b.note) || a2.name !== '' || !/Caffeine, already in the library/.test(a2.msg) || a2b !== 'caffeine'
+    || !a1b || a1b.cat !== 'oxygen' || !a1b.mine || a1b.n !== 62 || !/^Designed by Claude\. A saturated/.test(a1b.note) || a2.name !== '' || !/Caffeine, already in the library/.test(a2.msg) || a2b !== 'caffeine'
     || a3.calls.join() !== 'false,true' || a3.heavy !== 9 || !/C₈H₇N/.test(a3.info) || a4.open || a4.spec !== 100 || !a4.whole || a4b !== 100
     || a5.calls !== 0 || a5.spec !== 'H2O' || a5.open || !/usage limit/.test(a6.msg) || !a6.box || a7.box || !/not allowed/.test(a7.msg) || a7.tiers !== 'default+stop') {
     fails++; say('FAIL Ask Claude:', JSON.stringify({ ai0, aiBtn, a1, a1b, a2, a2b, a3, a4, a4b, a5, a6, a7 }));

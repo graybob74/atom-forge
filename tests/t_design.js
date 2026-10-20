@@ -112,7 +112,7 @@ if (!P.includes('Request: "a strand of \\"DNA\\""') || !P.includes('wwdomain') |
 if (!P2.includes('previous answer') || !P2.includes('c1cccc1') || !P2.includes('no Kekulé structure')) bad('the correction prompt does not carry the problem');
 
 // 7. Identify molecules: the SMILES written for a chamber molecule reads back to the same structure (every library
-//    molecule), a formula-table name that the library lacks is added to My molecules as placed, and the kinds are counted
+//    molecule), a formula-table name that the library lacks is added to the library as placed, under the category its atoms give (OH: elements & diatomics), and the kinds are counted
 {
   X.PRESETS.empty.build();
   let rt = 0, n = 0;
@@ -130,10 +130,10 @@ if (!P2.includes('previous answer') || !P2.includes('c1cccc1') || !P2.includes('
   const o = X.addNuc(8, 8, 8, 0, 0, 0, 0), h = X.addNuc(1, 0, 1, 1, 0, 0, 0); X.addBond(o, h, 1); X.addMolecule('H2O', 20, 0, 0, 300); X.addMolecule('H2O', 30, 0, 0, 300); W.dirty++;
   const kinds = X.chamberKinds();
   if (kinds.length !== 2 || kinds[0].name !== 'Water' || kinds[0].n !== 2 || kinds[1].name !== 'Hydroxyl radical' || kinds[1].smi !== '[OH]') bad('the chamber\'s kinds are not counted and named: ' + JSON.stringify(kinds.map(k => [k.name, k.n, k.smi])));
-  const n0 = Object.values(X.MOLECULES).filter(m => m.cat === 'custom').length;
+  const n0 = Object.values(X.MOLECULES).filter(m => m.mine).length;
   X.identifyMolecules();
-  const custom = Object.values(X.MOLECULES).filter(m => m.cat === 'custom');
-  if (custom.length !== n0 + 1 || custom[custom.length - 1].name !== 'Hydroxyl radical' || !custom[custom.length - 1].radical || custom[custom.length - 1].atoms.length !== 2) bad('the hydroxyl radical was not added to My molecules: ' + JSON.stringify(custom.map(m => m.name)));
+  const custom = Object.values(X.MOLECULES).filter(m => m.mine);
+  if (custom.length !== n0 + 1 || custom[custom.length - 1].name !== 'Hydroxyl radical' || !custom[custom.length - 1].radical || custom[custom.length - 1].atoms.length !== 2 || custom[custom.length - 1].cat !== 'diatomic') bad('the hydroxyl radical was not added to My molecules: ' + JSON.stringify(custom.map(m => m.name)));
   if (X.R.molTags.length !== 3) bad(`${X.R.molTags.length} name tags, not 3`);
   if (!W.log.some(l => /Identified 3 molecules of 2 kinds: 2 × Water, 1 × Hydroxyl radical/.test(l.text))) bad('the log does not report the kinds: ' + W.log.map(l => l.text).join(' | '));
   for (const p of W.parts) X.kill(p);

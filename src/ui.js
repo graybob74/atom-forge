@@ -623,8 +623,9 @@ function molThumb(k) {
 function molCard(k) {
   const m = MOLECULES[k];
   const card = `<button class="mcard" data-m="${k}" title="${esc(m.name + ' — ' + m.note)}"><span class="mth">${molThumb(k)}</span><span class="mtx"><span class="mn">${esc(m.name)}</span><span class="mf">${esc(specLabel({ kind: 'mol', mol: k }))}</span></span></button>`;
-  if (m.cat !== 'custom') return card;
-  return `<div class="mcwrap">${card}<button class="mdel" data-del="${k}" aria-label="Remove ${esc(m.name)} from My molecules" title="Remove from My molecules">×</button></div>`;
+  if (!m.mine) return card;
+  const from = m.cat === 'custom' ? 'My molecules' : 'the library (added by Claude or you)';
+  return `<div class="mcwrap">${card}<button class="mdel" data-del="${k}" aria-label="Remove ${esc(m.name)} from ${from}" title="Remove from ${from}">×</button></div>`;
 }
 function molCatName(c) { const r = MOLECULE_CATS.find(x => x[0] === c); return r ? r[1] : c; }
 /* Search: names first, then formulas (typed plainly: c2h6o), then the notes and categories. */
@@ -1633,7 +1634,7 @@ function loadWorld() {
 /* My molecules and saved isotopes, out and in (merged: what is there stays; a molecule already known by key or name is
    not added twice). */
 function libraryToJSON() {
-  const mols = Object.values(MOLECULES).filter(m => m.cat === 'custom').map(m => { const o = { k: m.key, n: m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds }; if (m.desc) o.d = m.desc; return o; });
+  const mols = myMolsList();
   return { app: 'Atom Forge', v: 1, kind: 'library', saved: new Date().toISOString(), mymols: mols, myisos: MYISO.map(s => [s.Z, s.A, s.charge || 0, s.bare ? 1 : 0, s.anti ? 1 : 0]) };
 }
 function libraryFromJSON(d) {
@@ -1641,7 +1642,7 @@ function libraryFromJSON(d) {
   let nm = 0, ni = 0;
   if (Array.isArray(d.mymols)) for (const m of d.mymols) {
     if (!myMolValid(m) || Object.values(MOLECULES).some(x => x.name.toLowerCase() === String(m.n).toLowerCase())) continue;
-    myMolAdd({ k: m.k, n: String(m.n).slice(0, 40), r: m.r, a: m.a, b: m.b, d: String(m.d || '').slice(0, 500) }); nm++;
+    myMolAdd({ k: m.k, n: String(m.n).slice(0, 40), r: m.r, a: m.a, b: m.b, d: String(m.d || '').slice(0, 500), c: m.c }); nm++;
   }
   if (nm) myMolsSave();
   if (Array.isArray(d.myisos)) for (const r of d.myisos) {
@@ -2918,8 +2919,8 @@ function syncSettings() {
   try { $('setThreads').textContent = threadsNote(); } catch (e) { $('setThreads').textContent = 'Threads: ' + e.message; }
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit);
   $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo;
-  const nm = Object.values(MOLECULES).filter(m => m.cat === 'custom').length;
-  $('setMols').textContent = `My molecules: ${nm}`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
+  const nm = Object.values(MOLECULES).filter(m => m.mine).length;
+  $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
   settingsStats();
 }
@@ -2960,7 +2961,7 @@ function settingsInit() {
   keyIn.addEventListener('change', apiChanged); modelIn.addEventListener('change', apiChanged);
   keyIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apiChanged(); } e.stopPropagation(); }); modelIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apiChanged(); } e.stopPropagation(); });
   $('setExport').onclick = () => exportLibrary(); $('setImport').onclick = () => importLibrary();
-  $('setDelMols').onclick = (e) => twoPress(e.currentTarget, () => { for (const k of Object.keys(MOLECULES)) if (MOLECULES[k].cat === 'custom') myMolRemove(k); log('tool', 'My molecules deleted'); syncSettings(); });
+  $('setDelMols').onclick = (e) => twoPress(e.currentTarget, () => { for (const k of Object.keys(MOLECULES)) if (MOLECULES[k].mine) myMolRemove(k); log('tool', 'My molecules deleted'); syncSettings(); });
   $('setDelIsos').onclick = (e) => twoPress(e.currentTarget, () => { MYISO.length = 0; myIsoStore(); buildToolOpts(); log('tool', 'Saved isotopes deleted'); syncSettings(); });
   $('setReset').onclick = () => { Object.assign(SET, SET_DEF); delete SET.prePerf; store('settings', JSON.stringify(SET)); applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts(); };
 }
