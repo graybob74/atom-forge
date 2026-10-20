@@ -79,9 +79,9 @@ const S = { size: 0, hi: 0, free: new Int32Array(64), nfree: 0, obj: [],
   x: null, y: null, vx: null, vy: null, fx: null, fy: null, gx: null, gy: null, ox: null, oy: null, m: null, im: null, q: null, qp: null,
   k: null, dead: null, fast: null, rad: null, fresh: null, ballistic: null, inMD: null, nearIon: null, Z: null, ne: null, mol: null, id: null,
   ljR: null, ljS: null, ionR: null, cap: null, used: null, ionic: null, isMetal: null, anti: null, xferD: null, xferA: null, sEN: null, elrc: null, hit: null,
-  lp: null, metal: null, mR: null, mD: null, tLocal: null };
-const S_F64 = ['x', 'y', 'vx', 'vy', 'fx', 'fy', 'gx', 'gy', 'ox', 'oy', 'm', 'im', 'q', 'qp', 'ljR', 'ljS', 'ionR', 'sEN', 'elrc', 'mR', 'mD', 'tLocal'];
-const S_U8 = ['k', 'dead', 'fast', 'rad', 'fresh', 'ballistic', 'inMD', 'nearIon', 'ionic', 'isMetal', 'anti', 'xferD', 'xferA', 'metal'];
+  lp: null, metal: null, mR: null, mD: null, tLocal: null, vlx: null, vly: null, vlin: null };
+const S_F64 = ['x', 'y', 'vx', 'vy', 'fx', 'fy', 'gx', 'gy', 'ox', 'oy', 'm', 'im', 'q', 'qp', 'ljR', 'ljS', 'ionR', 'sEN', 'elrc', 'mR', 'mD', 'tLocal', 'vlx', 'vly'];
+const S_U8 = ['k', 'dead', 'fast', 'rad', 'fresh', 'ballistic', 'inMD', 'nearIon', 'ionic', 'isMetal', 'anti', 'xferD', 'xferA', 'metal', 'vlin'];
 const S_I16 = ['Z', 'ne', 'cap', 'used', 'lp'], S_I32 = ['mol', 'id', 'hit'];
 const S_ALL = S_F64.concat(S_U8, S_I16, S_I32);
 const S_BOOL = new Set(['dead', 'fast', 'rad', 'fresh', 'ballistic', 'inMD', 'nearIon', 'ionic', 'isMetal', 'anti', 'xferD', 'xferA', 'metal']);
@@ -132,7 +132,7 @@ class Part {
     S.k[i] = k; S.dead[i] = 0; S.fast[i] = 0; S.rad[i] = 0; S.fresh[i] = 1; S.ballistic[i] = 0; S.inMD[i] = 0; S.nearIon[i] = 0;
     S.Z[i] = 0; S.ne[i] = 0; S.mol[i] = 0; S.id[i] = W.nextId++;
     S.ljR[i] = 0; S.ljS[i] = 0; S.ionR[i] = 0; S.cap[i] = 0; S.used[i] = 0; S.ionic[i] = 0; S.isMetal[i] = 0; S.anti[i] = 0; S.xferD[i] = 0; S.xferA[i] = 0;
-    S.sEN[i] = SOFT_EN; S.elrc[i] = 0; S.hit[i] = 0; S.lp[i] = 0; S.metal[i] = 0; S.mR[i] = 0; S.mD[i] = 0; S.tLocal[i] = 0;
+    S.sEN[i] = SOFT_EN; S.elrc[i] = 0; S.hit[i] = 0; S.lp[i] = 0; S.metal[i] = 0; S.mR[i] = 0; S.mD[i] = 0; S.tLocal[i] = 0; S.vlx[i] = 0; S.vly[i] = 0; S.vlin[i] = 0;
     this.N = 0; this.qpol = 0; this.qf = 0; this.bonds = []; this.excl = null; this.el = null; this.nuc = null;
     this.KE = 0; this.ux = 1; this.uy = 0; this.sp = 0; this.gam = 1;
     this.glow = 0; this.glowC = ''; this.born = W.rt;
@@ -966,11 +966,12 @@ function gridWalk(x0, y0, x1, y1, cb) {
 const SKIN = 1.0, RL = RC + SKIN, RL2 = RL * RL, HSKIN2 = 0.25 * SKIN * SKIN;
 const SKIN_F = 2.0, RLF2 = (RC + SKIN_F) * (RC + SKIN_F), HSKINF2 = 0.25 * SKIN_F * SKIN_F;
 const CELL_MIN = RC + Math.max(SKIN, SKIN_F); // (cells at least as wide as either list reaches: a 3 × 3 block of cells holds every partner)
-const VL = { gen: -1, bx: new Float64Array(16), by: new Float64Array(16), np: 0, pi: shArray(Int32Array, 4096), pj: shArray(Int32Array, 4096),
+const VL = { gen: -1, bx: new Float64Array(16), by: new Float64Array(16), inI: new Int32Array(16), nIn: 0, np: 0, pi: shArray(Int32Array, 4096), pj: shArray(Int32Array, 4096),
   ex: shArray(Uint8Array, 4096), exTopo: -1, exDirty: -1, w: 0, h: 0, wall: '', valid: false, builds: 0, checks: 0 };
-function vlValid() {
+function vlValid(pre) { // pre ≥ 0: the threaded integrator's largest squared move of the list's atoms, just now (no wrapping)
   VL.checks++;
   if (!VL.valid || VL.gen !== _mdGen || VL.w !== W.box.w || VL.h !== W.box.h || VL.wall !== W.wall) return false;
+  if (pre >= 0 && W.wall !== 'wrap') return pre <= HSKIN2;
   const idx = _mdNI, n = _nmdN;
   const X = S.x, Y = S.y, bx = VL.bx, by = VL.by, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   let worst = 0;
@@ -1039,6 +1040,12 @@ function vlBuild() { // from the grid just built over _md (G.px/py are their pos
   const nN = _nmdN, nI = _mdNI, X = S.x, Y = S.y;
   if (VL.bx.length < nN) { VL.bx = new Float64Array(nN * 2 + 16); VL.by = new Float64Array(nN * 2 + 16); }
   for (let q = 0; q < nN; q++) { VL.bx[q] = X[nI[q]]; VL.by[q] = Y[nI[q]]; }
+  // the same, by slot, for the threaded integrator's check (vlin marks the slots in this list; the last list's are unmarked first)
+  { const VX0 = S.vlx, VY0 = S.vly, IN = S.vlin, P = VL.inI;
+    for (let q = 0; q < VL.nIn; q++) IN[P[q]] = 0;
+    if (P.length < nN) VL.inI = new Int32Array(nN * 2 + 16);
+    for (let q = 0; q < nN; q++) { const i = nI[q]; VX0[i] = X[i]; VY0[i] = Y[i]; IN[i] = 1; VL.inI[q] = i; }
+    VL.nIn = nN; }
   VL.gen = _mdGen; VL.w = W.box.w; VL.h = W.box.h; VL.wall = W.wall;
   { const t = _profOn ? performance.now() : 0; gridEnsure(); if (_profOn) _tGrid += performance.now() - t; }
   G.RL2 = RL2;
@@ -1813,6 +1820,7 @@ function computeForces() {
 const TH_LAST = { used: 0, ms: 0, wait: 0 }; // (what the last force pass's kernels cost: filled by nucleusPairs)
 let _clsOk = true, _clsN = -1, _clsKey = -1, _clsFlag = -1, _clsParts = null, _clsHits = 0; // (the force pass's lists kept from the last pass: _clsOk false forces them to be made every time, for tests)
 function computeForces1() {
+  const pre = _intTok && _intUse; _intTok = false; // (right after the threaded integrator: see _intTok)
   _late.length = 0; _stiff = 0; _stiffL = 0;
   let tp = _profOn ? performance.now() : 0;
   const fieldE = hasEfield();
@@ -1828,7 +1836,7 @@ function computeForces1() {
   // are kept, and only the forces are cleared, with one fill per array instead of six writes per particle.
   const ckey = W.spawned * 1e9 + W.deaths * 1e5 + W.dirty + 0.5 * W.topo, same = _clsOk && !fieldE && _clsN === n && _clsKey === ckey && _clsFlag === _flagGen && _clsParts === parts;
   if (same) {
-    const hi = S.hi; FX.fill(0, 0, hi); FY.fill(0, 0, hi); GX.fill(0, 0, hi); GY.fill(0, 0, hi); NEAR.fill(0, 0, hi);
+    const hi = S.hi; if (!pre || _intHi !== hi) { FX.fill(0, 0, hi); FY.fill(0, 0, hi); GX.fill(0, 0, hi); GY.fill(0, 0, hi); NEAR.fill(0, 0, hi); } // (the threaded integrator cleared them as it used them)
     _late.length = 0; _flagGenForces = _flagGen; _clsHits++;
   } else {
   _fastNuc.length = 0; _charged.length = 0; _mdL.length = 0; _nNucMD = 0;
@@ -1860,7 +1868,7 @@ function computeForces1() {
   const nmd = _nmd, nmdL = _nmdL;
   gridTouch(); // (the MD set is this pass's; the grid is built when something asks for it)
   if (_profOn) { const t = performance.now(); _tClass += t - tp; tp = t; }
-  const okv = vlValid();
+  const okv = vlValid(pre ? _intWorst : -1);
   if (_profOn) { const t = performance.now(); PROF.valid += t - tp; }
   if (!okv) vlBuild();
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
@@ -4555,6 +4563,9 @@ function outerA(dt) {
 /* outerA and the single drift of innerSteps done together, elementwise over the slots, when there is no magnetic field
    and no free electron in MD (then the inner step is one plain drift). threads.js shares this out; here: not taken. */
 let integrateA = function (dt) { return false; }; // eslint-disable-line no-unused-vars
+/* Set by the threaded integrator for the force pass that follows at once (outerForces), and taken by it: the forces were
+   cleared for slots below _intHi as they were used, and _intWorst is the list's largest squared move, from the new positions. */
+let _intTok = false, _intHi = 0, _intWorst = -1, _intUse = true; // (_intUse false: not used, for tests)
 let threadsPrewake = function () {}; // (threads.js)
 function integrateAPlain(dt) { return !hasBfield() && _nmdL === 0 && _mdL.length === 0; }
 /* Inner steps: fast half-kick, drift (everything in MD moves), fast forces, lepton events, fast half-kick. */

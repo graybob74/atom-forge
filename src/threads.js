@@ -109,9 +109,12 @@ function dtSlots(s0, s1, out, o) {
   out[o] = vmax; out[o + 1] = amax; out[o + 2] = vfn;
 }
 /* outerA + the plain drift for slots s0 ≤ s < s1 (the same arithmetic as engine.js's outerA and innerSteps, elementwise). */
+/* …and, its forces used, clears them for the coming force pass (which then need not), and returns the largest squared
+   move of the neighbour list's atoms (vlin) from where the list saw them, for its check. */
 function integrateSlots(s0, s1, dt) {
   const h = 0.5 * dt, DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, IM = S.im;
-  const X = S.x, Y = S.y, OX = S.ox, OY = S.oy, FRESH = S.fresh, BALL = S.ballistic;
+  const X = S.x, Y = S.y, OX = S.ox, OY = S.oy, FRESH = S.fresh, BALL = S.ballistic, IN = S.vlin, LX = S.vlx, LY = S.vly;
+  let worst = 0;
   for (let i = s0; i < s1; i++) {
     if (DEAD[i] === 1 || RAD[i] === 1) continue;
     const k = K[i];
@@ -128,7 +131,10 @@ function integrateSlots(s0, s1, dt) {
     const vx = VX[i] + h * (FX[i] - GX[i]) * IM[i], vy = VY[i] + h * (FY[i] - GY[i]) * IM[i];
     VX[i] = vx; VY[i] = vy;
     X[i] += vx * dt; Y[i] += vy * dt; // (the drift: innerSteps' one inner step)
+    if (IN[i] === 1) { const dx = X[i] - LX[i], dy = Y[i] - LY[i], d2 = dx * dx + dy * dy; if (d2 > worst) worst = d2; }
   }
+  FX.fill(0, s0, s1); FY.fill(0, s0, s1); GX.fill(0, s0, s1); GY.fill(0, s0, s1); S.nearIon.fill(0, s0, s1);
+  return worst;
 }
 
 function threadsAvailable() { return SHARED_OK && typeof PAIR_KERNEL_SRC === 'string' && typeof Worker !== 'undefined' && typeof Blob !== 'undefined'; }
@@ -215,7 +221,7 @@ onmessage = (e) => {
       bufSum(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], S.fx, S.fy, bufs, prm, SPAN0);
       Atomics.store(ctrl, me, TH_SUMMED); Atomics.notify(ctrl, me);
     } else if (st === TH_INTEG) {
-      integrateSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm[nW + 6]);
+      prm[nW + 32 + 3 * me] = integrateSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm[nW + 6]);
       Atomics.store(ctrl, me, TH_INTEGD); Atomics.notify(ctrl, me);
     } else if (st === TH_VL) { // this worker's stretch of the neighbour list, from its range of the grid's occupied cells
       GV.cols = prm[nW + 14]; GV.rows = prm[nW + 15]; GV.wrap = prm[nW + 16] === 1; GV.mask = prm[nW + 17]; GV.shift = prm[nW + 18]; GV.RL2 = prm[nW + 19];
@@ -366,10 +372,11 @@ integrateA = function (dt) {
     Atomics.store(ctrl, w, TH_INTEG); Atomics.notify(ctrl, w);
   }
   const t0 = _profOn ? performance.now() : 0;
-  integrateSlots(Math.min(hi, n * per), hi, dt);
+  let worst = integrateSlots(Math.min(hi, n * per), hi, dt);
   const t1 = _profOn ? performance.now() : 0;
-  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_INTEGD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); }
+  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_INTEGD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); const v = TH.prm[n + 32 + 3 * w]; if (v > worst) worst = v; }
   thPh('integ', t0, t1, _profOn ? performance.now() : 0);
+  _intTok = true; _intHi = hi; _intWorst = worst; // (for the force pass that follows: outerForces)
   return true;
 };
 /* The neighbour list on all threads: the occupied cells shared out, each thread writing its own stretch of the pair

@@ -103,6 +103,22 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
     check(wk.workers.length === 1 && wk.workers[0] === true, 'the worker runs the WebAssembly kernel too', wk.workers);
     check(wk.usedW === 2 && wk.usedJ === 2 && wk.vs.m <= 1e-9 * Math.max(1, wk.vs.scale) && wk.evSame, 'WebAssembly and JavaScript kernels on two threads: forces equal to rounding, same events', wk);
   } else say('(no src/wasm/kernel.wasm: the WebAssembly checks are skipped)');
+  // the force pass trusting the threaded integrator (forces cleared, the list's largest move) runs bit for bit as without
+  const it = await page.evaluate(() => {
+    const seeded = (seed) => { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+    const run = (use) => {
+      const rr = Math.random; Math.random = seeded(5); _intUse = use;
+      baseWorld(300, 200, 300, 0.05); for (let i = 0; i < 40; i++) for (let j = 0; j < 30; j++) addMolecule('H2O', -150 + (i + 0.5) * 7.5, -100 + (j + 0.5) * 6.6, Math.random() * 6, 0);
+      for (const p of W.parts) { p.vx = (Math.random() - 0.5) * 0.4; p.vy = (Math.random() - 0.5) * 0.4; } // (seeded: the engine's own random source is not)
+      W.bathSeed = 777; // (each new world draws a new noise stream: the same for both runs)
+      forcesNoEvents(); W.fSpawn = W.spawned; const b0 = VL.builds;
+      for (let k = 0; k < 120; k++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
+      let h = 0; for (const p of W.parts) if (!p.dead) h += p.x * 1.1 + p.y * 1.3 + p.vx * 7 + p.vy * 11;
+      Math.random = rr; _intUse = true; return { h, builds: VL.builds - b0, used: TH.used };
+    };
+    const a = run(true), b = run(false); return { a, b, same: a.h === b.h && a.builds === b.builds };
+  });
+  check(it.same && it.a.used === 2 && it.a.builds > 3, `the force pass taking the threaded integrator's cleared forces and list check: 120 steps bit for bit as without (${it.a.builds} list rebuilds)`, it);
   check(r.same.m === 0, 'two threads twice: forces identical to the bit', r.same);
   check(r.spans.outside === 0 && r.spans.cover < 1, `the workers' force buffers are zero outside the intervals they report (summed over ${(100 * r.spans.cover).toFixed(0)}% of the slots)`, r.spans);
   check(r.vs1.m <= 1e-9 * Math.max(1, r.vs1.scale), 'two threads vs one: forces equal to rounding', r.vs1);
