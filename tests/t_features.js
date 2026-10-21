@@ -27,10 +27,10 @@ const { openPage } = require('./browser');
   });
   const r2 = await page.evaluate(async () => {
     setRunning(false); const out = {};
-    // share codes: a world out and back in, exactly; junk refused with a reason
+    // share codes: a world out and back in, exactly (an atom a hair past a soft wall comes back on it); junk refused with a reason
     loadPreset('water'); for (let f = 0; f < 30; f++) simFrame(1 / 60, 25);
     const d = worldToJSON(), code = await shareEncode(d); loadPreset('empty'); const err = await shareOpen(code), d2 = worldToJSON();
-    out.share = { len: code.length, json: JSON.stringify(d).length, err, same: JSON.stringify(d2.parts) === JSON.stringify(d.parts) && JSON.stringify(d2.bonds) === JSON.stringify(d.bonds) && d2.T === d.T,
+    out.share = { len: code.length, json: JSON.stringify(d).length, err, same: d2.parts.length === d.parts.length && d.parts.every((q, k) => JSON.stringify(q) === JSON.stringify(d2.parts[k]) || q.every((v, j) => v === d2.parts[k][j] || ((j === 5 || j === 6) && Math.abs(v - d2.parts[k][j]) < 0.01))) && JSON.stringify(d2.bonds) === JSON.stringify(d.bonds) && d2.T === d.T,
       junk: [await shareOpen('hello'), await shareOpen('AF1:abc')].every(e => typeof e === 'string') };
     if (!out.share.same) { const i = d.parts.findIndex((q, k) => JSON.stringify(q) !== JSON.stringify(d2.parts[k])); out.share.diff = [i, d.parts[i], d2.parts[i], d.parts.length, d2.parts.length, d.bonds.length, d2.bonds.length, d.T, d2.T]; }
     $('bShare').click(); for (let i = 0; i < 50 && !$('shareOut').value; i++) await new Promise(r => setTimeout(r, 50));
@@ -153,7 +153,7 @@ const { openPage } = require('./browser');
     return { hits, pi: /Positive pion/.test(t[0]) && /17 m/.test(t[0]), mu: /Muon/.test(t[1]) && /2\.20 µs/.test(t[1]), ph: /590 nm/.test(t[2]) && /508 THz/.test(t[2]), nu: /Electron antineutrino/.test(t[3]) };
   });
   check(r10.hits.join() === 'exo:pi+,exo:mu-,flight:photon,ray:nu' && r10.pi && r10.mu && r10.ph && r10.nu, 'Inspect: a pion, a muon, a photon and a neutrino in flight picked and described (pion: 17 m before decaying at 200 MeV)', 'inspect in flight: ' + JSON.stringify(r10));
-  // inside a hadron: a proton's quarks, and pulling one out makes a pion and leaves a neutron (a picture: the world is unchanged)
+  // inside a hadron: a proton's quarks, and pulling one out makes a pion and leaves a neutron (in the chamber too, since 0.52)
   const r11 = await page.evaluate(async () => {
     setRunning(false); loadPreset('empty'); const pr = addNuc(1, 0, 0, 0, 0); R.sel = pr; R.selX = null; showTab('inspect', true); renderInspect();
     for (let i = 0; i < 5; i++) await new Promise(r => requestAnimationFrame(r));
@@ -162,12 +162,13 @@ const { openPage } = require('./browser');
     const at = (x, y) => ({ clientX: rc.left + rc.width / 2 + x * S, clientY: rc.top + rc.height / 2 - y * S, preventDefault() {} });
     qPointer(at(q.x, q.y), 'down'); for (let k = 1; k <= 30 && QV.drag; k++) qPointer(at(q.x + 0.1, q.y), 'move');
     const after = QV.qs.map(o => (o.anti ? o.f.toUpperCase() : o.f)).sort().join(''), msg = QV.msg;
+    const world = W.parts.filter(p => !p.dead).map(partLabel).join() + ' ' + W.exo.filter(o => !o.dead).map(o => o.sp).join();
     QV.key = ''; renderInspect(); const back = QV.qs.map(o => o.f).sort().join('');
     const mu = addExo('mu-', 0, 5, 1e8, 1, 0); R.sel = null; R.selX = { kind: 'exo', o: mu }; renderInspect(); const lep = /it is a lepton/.test($('tp-inspect').textContent);
     R.selX = null; loadPreset('water');
-    return { first, note: /Proton \(p\): three quarks/.test(note), after, msg, back, same: W.parts.length > 0 && n0 === 1, lep };
+    return { first, note: /Proton \(p\): three quarks/.test(note), after, msg, back, same: n0 === 1, world, lep };
   });
-  check(r11.first === 'duu' && r11.note && /pion/.test(r11.msg) && r11.back === 'duu' && r11.lep && r11.same, `inside a proton: u u d; pulling a u out made ${r11.msg.match(/as a ([^,.]+)/)[1]}, leaving ${r11.after}; put back; a muon has no quarks`, 'quark view: ' + JSON.stringify(r11));
+  check(r11.first === 'duu' && r11.note && /pion/.test(r11.msg) && r11.back === [...r11.after.toLowerCase()].sort().join('') && r11.lep && r11.same && /In the chamber: p → /.test(r11.msg), `inside a proton: u u d; pulling a u out made ${r11.msg.match(/as a ([^,.]+)/)[1]}, leaving ${r11.after}, in the chamber too (${r11.world}); a muon has no quarks`, 'quark view: ' + JSON.stringify(r11));
   // the string model and the quark–gluon plasma: exact kinematics, jets from e⁺e⁻ at 10 GeV, a plasma from gold on gold,
   // and the energies to reach them on the Fire tool and the collider
   const r12 = await page.evaluate(() => {
@@ -224,6 +225,41 @@ const { openPage } = require('./browser');
   const o = r.scope;
   check(o.shown && o.rises > 5 && Math.abs(o.per / o.gatePer - 1) < 0.1,
     `logic analyser: ${o.rises} rising edges of Gate 1, period ${(o.per * 1e12).toFixed(1)} ps from the trace vs ${(o.gatePer * 1e12).toFixed(1)} ps measured by the gate`, 'logic analyser: ' + JSON.stringify(o));
+  // 0.52: a quark pulled out by hand makes real hadrons in the chamber, charge, baryon number and energy exact
+  const r14 = await page.evaluate(() => {
+    const QB = () => { let q = 0, b = 0; for (const p of W.parts) if (!p.dead) { if (p.k === NUC) { q += (p.anti ? -1 : 1) * p.Z - (p.anti ? -1 : 1) * p.ne; b += (p.anti ? -1 : 1) * (p.Z + p.N); } else q += p.k === ELEC ? -1 : 1; }
+      for (const o of W.exo) if (!o.dead) { q += o.q; b += XP[o.sp].B || 0; } return [q, b]; };
+    const E = () => totalEnergy().total - W.ledger.nuc;
+    const res = { n: 0, bad: [], worst: 0, made: new Set() };
+    for (const [Z, N, ne, anti] of [[1, 0, 0, false], [0, 1, 0, false], [2, 2, 2, false], [6, 6, 6, false], [26, 30, 26, false], [1, 0, 0, true]]) for (let t = 0; t < 8; t++) {
+      loadPreset('empty'); setRunning(false); W.decayOn = false; showTab('inspect');
+      const p = addNuc(Z, N, ne, 0, 0, 0, 0, anti); QV.pick = t % 2 ? 'n' : 'p'; R.sel = p; R.selX = null; QV.key = ''; renderInspect();
+      const [q0, b0] = QB(), E0 = E(); qSnap(QV.qs[t % 3]); const [q1, b1] = QB();
+      const dE = Math.abs(E() - E0 - RIP_E * MEV); res.worst = Math.max(res.worst, dE); res.n++;
+      if (q0 !== q1 || b0 !== b1 || p.dead !== true || !/In the chamber/.test(QV.msg)) res.bad.push(`${Z},${N}: q ${q0}→${q1} B ${b0}→${b1} ${QV.msg.slice(-80)}`);
+      for (const o of W.exo) res.made.add(o.sp);
+    }
+    for (const sp of ['pi+', 'Lam', 'Xi-', 'Omg-']) { loadPreset('empty'); setRunning(false); W.decayOn = false;
+      const o = addExo(sp, 0, 0, 1e6, 1, 0); R.sel = null; R.selX = { kind: 'exo', o }; QV.key = ''; renderInspect(); const [q0, b0] = QB(); qSnap(QV.qs[0]); const [q1, b1] = QB();
+      if (q0 !== q1 || b0 !== b1 || !o.dead) res.bad.push(`${sp}: q ${q0}→${q1} B ${b0}→${b1}`); res.n++; }
+    // a lone nucleon is drawn where it is; Display mode fills the window and hides the cursor at rest
+    loadPreset('empty'); const h = addNuc(1, 0, 0, 0, 0, 0, 0, false); R.s = 400; R.cx = 0; R.cy = 0; let at = null; const keep = drawSprite;
+    drawSprite = function (sp, x, y) { if (new Error().stack.includes('nucleusBeads')) at = [x - w2sx(h.x), y - w2sy(h.y)]; return keep.apply(this, arguments); }; // eslint-disable-line no-func-assign
+    render(W.rt); drawSprite = keep; fitView(); // eslint-disable-line no-func-assign
+    return { ...res, made: [...res.made].sort().join(' '), at };
+  });
+  check(!r14.bad.length && r14.worst < 1e-3 && r14.at && Math.hypot(...r14.at) < 0.5,
+    `quark rip: ${r14.n} pulls on nucleons, nuclei, antiprotons and hyperons, all with charge and baryon number kept and the 900 MeV booked exactly (worst ${r14.worst.toExponential(0)} eV); made ${r14.made}; a lone proton drawn at its place`, 'quark rip: ' + JSON.stringify(r14));
+  const r15 = await page.evaluate(async () => {
+    const st = () => { const r = $('stage').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; };
+    const before = st(); setDisplayMode(true); await new Promise((r) => { setTimeout(r, 150); }); const on = st(), vw = [innerWidth, innerHeight], top = getComputedStyle(document.querySelector('.topbar')).display;
+    await new Promise((r) => { setTimeout(r, 2300); }); const idle = document.body.classList.contains('idle') && getComputedStyle($('cv')).cursor === 'none';
+    window.dispatchEvent(new PointerEvent('pointermove')); const back = !document.body.classList.contains('idle');
+    setDisplayMode(false); await new Promise((r) => { setTimeout(r, 150); });
+    return { before, on, vw, top, idle, back, after: st(), off: !document.body.classList.contains('display') };
+  });
+  check(r15.on[0] === r15.vw[0] && r15.on[1] === r15.vw[1] && r15.top === 'none' && r15.idle && r15.back && r15.off && r15.after.join() === r15.before.join(),
+    `display mode: the chamber fills the window (${r15.on.join('×')}), the cursor hides at rest and comes back on a move; off again, the layout is as it was`, 'display mode: ' + JSON.stringify(r15));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

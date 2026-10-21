@@ -24,6 +24,7 @@ function rResize(w, h) {
   R.w = w; R.h = h;
   for (const cv of [R.cv, R.cvbg]) { if (!cv) continue; cv.width = Math.round(w * R.dpr); cv.height = Math.round(h * R.dpr); cv.style.width = w + 'px'; cv.style.height = h + 'px'; }
 }
+const ZOOM_MAX = 4000; // px per Å: about 0.25 Å across the view, well inside one atom
 function fitView(margin = 28) {
   const bw = W.box.tw, bh = W.box.th;
   R.s = Math.min((R.w - margin * 2) / bw, (R.h - margin * 2) / bh);
@@ -448,7 +449,7 @@ function nucleusBeads(ctx, x, y, rn, Z, N, alpha, anti) {
   // deterministic interleave of protons and neutrons
   let pz = 0;
   for (let k = 0; k < A; k++) {
-    const rr = rn * Math.sqrt((k + 0.5) / A) * 0.92, th = k * 2.39996;
+    const rr = A === 1 ? 0 : rn * Math.sqrt((k + 0.5) / A) * 0.92, th = k * 2.39996; // (a lone nucleon sits at the centre)
     const isP = (pz + 0.5) / Z <= (k + 1) / A && pz < Z;
     if (isP) pz++;
     const bx = x + rr * Math.cos(th), by = y + rr * Math.sin(th);

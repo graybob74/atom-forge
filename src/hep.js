@@ -25,10 +25,16 @@ const XP = {
   K0L: { lab: 'K⁰ʟ', m: 497.611, q: 0, tau: 5.116e-8, col: [232, 222, 150], cc: 'K0L', dec: [[0.2028, ['pi+', 'e-', 'nub']], [0.2028, ['pi-', 'e+', 'nu']], [0.1352, ['pi+', 'mu-', 'nub']], [0.1352, ['pi-', 'mu+', 'nu']], [0.1952, ['pi0', 'pi0', 'pi0']], [0.1254, ['pi+', 'pi-', 'pi0']]] },
   eta: { lab: 'η', m: 547.862, q: 0, tau: 5.02e-19, col: [255, 185, 225], cc: 'eta', dec: [[0.3936, ['g', 'g']], [0.3257, ['pi0', 'pi0', 'pi0']], [0.2292, ['pi+', 'pi-', 'pi0']], [0.0422, ['pi+', 'pi-', 'g']]] },
   Lam: { lab: 'Λ', m: 1115.683, q: 0, B: 1, tau: 2.632e-10, col: [195, 160, 255], cc: 'Lamb', dec: [[0.639, ['p', 'pi-']], [0.358, ['n', 'pi0']]] },
+  // the other light baryons with strange quarks (made when a quark is pulled out by hand, in the Inspect tab's quark view)
+  'Sig+': { lab: 'Σ⁺', m: 1189.37, q: 1, B: 1, tau: 8.018e-11, col: [215, 150, 255], cc: 'Sigb-', dec: [[0.5157, ['p', 'pi0']], [0.4831, ['n', 'pi+']]] },
+  'Sig-': { lab: 'Σ⁻', m: 1197.449, q: -1, B: 1, tau: 1.479e-10, col: [215, 150, 255], cc: 'Sigb+', dec: [[0.99848, ['n', 'pi-']]] },
+  Xi0: { lab: 'Ξ⁰', m: 1314.86, q: 0, B: 1, tau: 2.90e-10, col: [180, 140, 255], cc: 'Xib0', dec: [[0.99524, ['Lam', 'pi0']]] },
+  'Xi-': { lab: 'Ξ⁻', m: 1321.71, q: -1, B: 1, tau: 1.639e-10, col: [180, 140, 255], cc: 'Xib+', dec: [[0.99887, ['Lam', 'pi-']]] },
+  'Omg-': { lab: 'Ω⁻', m: 1672.45, q: -1, B: 1, tau: 8.21e-11, col: [160, 125, 255], cc: 'Omgb+', dec: [[0.678, ['Lam', 'K-']], [0.236, ['Xi0', 'pi-']], [0.086, ['Xi-', 'pi0']]] },
   'tau-': { lab: 'τ⁻', m: 1776.86, q: -1, tau: 2.903e-13, col: [255, 115, 150], cc: 'tau+', dec: [[0.1782, ['e-', 'nub', 'nu']], [0.1739, ['mu-', 'nub', 'nu']], [0.1082, ['pi-', 'nu']], [0.2549, ['pi-', 'pi0', 'nu']], [0.0926, ['pi-', 'pi0', 'pi0', 'nu']], [0.0899, ['pi-', 'pi-', 'pi+', 'nu']], [0.0455, ['pi-', 'pi-', 'pi+', 'pi0', 'nu']], [0.0104, ['pi-', 'pi0', 'pi0', 'pi0', 'nu']], [0.0070, ['K-', 'nu']]] },
 };
 function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n' })[t] || t; }
-for (const [k, of, lab] of [['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺']]) { // the antiparticles: every charge reversed, decays mirrored
+for (const [k, of, lab] of [['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺']]) { // the antiparticles: every charge reversed, decays mirrored
   const s = XP[of];
   XP[k] = Object.assign({}, s, { lab, q: -s.q, B: s.B ? -s.B : 0, cc: of, dec: s.dec.map(([b, ps]) => [b, ps.map(conjTok)]) });
 }
@@ -171,7 +177,7 @@ function jetMomenta(items, M, ax, ay, opts = {}) {
   const xi = (lo + hi) / 2;
   return p.map((v, i) => { const px = v[0] * xi, py = v[1] * xi; return [Math.sqrt(ms[i] * ms[i] + px * px + py * py), px, py]; });
 }
-const isBaryonItem = (it) => it.t === 'A' || it.sp === 'Lam' || it.sp === 'Lamb';
+const isBaryonItem = (it) => it.t === 'A' || !!(it.t === 'x' && XP[it.sp].B);
 /* A string drawn as it breaks (W.strings, render.js drawStrings): at (x, y) along (ax, ay), in real time. */
 function addString(x, y, ax, ay, n) { (W.strings || (W.strings = [])).push({ x, y, ax, ay, n: Math.min(14, Math.max(3, n)), t0: W.rt }); if (W.strings.length > 12) W.strings.shift(); }
 
@@ -858,6 +864,89 @@ function finishReaction(a, b, items, moms, x, y, kind, sub) {
   W.count.nreact++;
   tally(items, ins, txt);
   return txt;
+}
+
+/* ---- a quark pulled out by hand (the Inspect tab's quark view). The flux tube between it and the rest stretches at
+   about 1 GeV per fm until, about a fermi out, it snaps: its energy (RIP_E, put in by the hand, like the Spark tool's)
+   makes a quark–antiquark pair. The pulled quark leaves with one of them as a meson; the other takes its place, so the
+   hadron left can be another one (a proton becomes a neutron when a u is pulled and the pair is d d̄). In the chamber:
+   a nucleon in a nucleus changes in place, the nucleus left with a hole (some MeV of excitation) that it sheds as it
+   can (evaporation, break-up, γ rays); a hyperon (Λ, Σ, Ξ, Ω) does not stay but flies off; a Δ decays at once to a
+   nucleon and a pion. All of it with exact masses and momenta, in the hadron's own frame. */
+const RIP_E = 900; // MeV
+const RIP_B = { duu: ['p'], ddu: ['n'], uuu: ['p', 'pi+'], ddd: ['n', 'pi-'], dsu: ['Lam'], suu: ['Sig+'], dds: ['Sig-'], ssu: ['Xi0'], dss: ['Xi-'], sss: ['Omg-'] };
+function ripTokens(content) { // quark content (capitals: antiquarks) → what it comes out as
+  const qs = [...content], up = (c) => c === c.toUpperCase();
+  if (qs.length === 3) { const t = RIP_B[qs.map(c => c.toLowerCase()).sort().join('')]; return t ? (up(qs[0]) ? t.map(conjTok) : t.slice()) : null; }
+  const q = qs.find(c => !up(c)), a = qs.find(up);
+  if (qs.length !== 2 || !q || !a) return null;
+  const k = q + a;
+  return [k === 'uU' || k === 'dD' ? 'pi0' : k === 'sS' ? 'eta' : k === 'uD' ? 'pi+' : k === 'dU' ? 'pi-' : k === 'uS' ? 'K+' : k === 'sU' ? 'K-' : rnd() < 0.5 ? 'K0S' : 'K0L'];
+}
+const RIP_NUC = { p: 1, n: 1, pbar: 1, nbar: 1 };
+/* tg: { p, which } a nucleon ('p' or 'n') of a nucleus or atom in W.parts, or { o } an unstable hadron in flight.
+   rest, meson: the quark contents left and pulled away. Returns { txt, sel, selX } or null if it cannot happen. */
+function quarkRip(tg, rest, meson) {
+  const R1 = ripTokens(rest), M1 = ripTokens(meson);
+  if (!R1 || !M1) return null;
+  const items = [], moms = [];
+  if (tg.o) {
+    const o = tg.o;
+    if (o.dead || !XP[o.sp] || W.exo.indexOf(o) < 0) return null;
+    const toks = [...R1, ...M1], its = toks.map(item), K = o.KE / MEV, pm = Math.sqrt(Math.max(0, K * (K + 2 * o.m))), E = o.m + K;
+    const Ms = o.m + RIP_E, vs = phaseSpace(Ms, its.map(massOf));
+    if (!vs) return null;
+    const bx = pm * o.ux / E, by = pm * o.uy / E;
+    its.forEach((it, i) => { items.push(it); moms.push(toLab(vs[i], bx, by)); });
+    const x = o.x, y = o.y, txt = `${o.lab} → ${summarize(items)}`, S = nucBegin([]);
+    o.dead = true; o.fate = 'pulled apart by hand: ' + txt;
+    const made = spawnItems(items, moms, x, y);
+    closeEvent(S, made, x, y, (Ms * E / o.m) * MEV, o.m * MEV);
+    return ripDone(x, y, txt, [o.lab], items, made, R1[0]);
+  }
+  const p = tg.p;
+  if (!p || p.dead || p.k !== NUC || p.Z + p.N < 1) return null;
+  const anti = !!p.anti, pulledP = tg.which === 'p';
+  let Z = p.Z - (pulledP ? 1 : 0), N = p.N - (pulledP ? 0 : 1);
+  if (Z < 0 || N < 0) return null;
+  const fly = M1.slice();
+  if (RIP_NUC[R1[0]]) { if (R1[0] === 'p' || R1[0] === 'pbar') Z++; else N++; fly.push(...R1.slice(1)); } else fly.push(...R1);
+  const A = Z + N, Ex = A >= 2 ? 15 * rnd() : 0, mres = A ? nucMeV(Z, N) + Ex : 0;
+  const P = p4of(p, true), m0 = nucMeV(p.Z, p.N), Ms = m0 + RIP_E, fits = fly.map(item);
+  const vs = phaseSpace(Ms, A ? [mres, ...fits.map(massOf)] : fits.map(massOf));
+  if (!vs) return null;
+  const bx = P[1] / P[0], by = P[2] / P[0];
+  let j = 0;
+  if (A) {
+    const Pr = toLab(vs[j++], bx, by);
+    if (A === 1) { items.push({ t: 'A', Z, N, anti }); moms.push(Pr); }
+    else if (Z === 0 || A <= 16) { if (!fermiInto(Z, N, mres, Pr, anti, items, moms)) gammaOut(Z, N, mres, Pr, anti, items, moms); }
+    else compoundDecay(Z, N, mres, Pr, anti, items, moms, 0);
+  }
+  for (const it of fits) { items.push(it); moms.push(toLab(vs[j++], bx, by)); }
+  const x = p.x, y = p.y, gh = [ghostOf(p)], ins = [partLabel(p)], ne = p.ne, partners = [];
+  for (const bd of p.bonds) partners.push(other(bd, p));
+  const txt = `${ins[0]} → ${summarize(items)}`, S = nucBegin([p]);
+  kill(p);
+  const made = spawnItems(items, moms, x, y);
+  if (ne > 0) { // its electrons stay with the nuclei left, heaviest first; any over go free
+    let left = ne;
+    for (const q of made.ps.filter(q => q.k === NUC && q.Z > 0).sort((a, b) => b.Z - a.Z)) { if (left <= 0) break; const k = Math.min(left, q.Z); q.ne = k; left -= k; refresh(q); }
+    for (let i = 0; i < left && W.parts.length < MAX_PARTS; i++) { const [ux, uy] = rdir(); const e = addLepton(anti ? POS : ELEC, x + 0.3 * ux, y + 0.3 * uy); setMotion(e, 2 + 8 * rnd(), ux, uy); made.ps.push(e); }
+  }
+  relink(partners.filter(q => !q.dead));
+  closeEvent(S, made, x, y, (Ms - m0) * (P[0] / m0) * MEV, 0);
+  nucEvent('reaction', x, y, txt, gh, 'a quark pulled out by hand');
+  return ripDone(x, y, txt, ins, items, made, RIP_NUC[R1[0]] ? null : R1[0]);
+}
+function ripDone(x, y, txt, ins, items, made, hyp) {
+  log('nuc', `${txt} (a quark pulled out by hand)`);
+  flash(x, y, [255, 200, 160], 4, 0.6);
+  W.count.nreact++;
+  tally(items, ins, txt);
+  const xo = hyp ? made.xs.find(o => o.sp === hyp) : null;
+  const nucs = made.ps.filter(q => q.k === NUC).sort((a, b) => (b.Z + b.N) - (a.Z + a.N));
+  return { txt, selX: xo ? { kind: 'exo', o: xo } : null, sel: xo ? null : nucs[0] || null };
 }
 
 /* ---- a hot nucleus cools. Statistical model (Weisskopf for particles, Bohr–Wheeler for fission), level density

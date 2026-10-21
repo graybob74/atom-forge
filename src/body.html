@@ -18,6 +18,7 @@
     <div class="scen">
       <select class="select" id="preset" aria-label="Experiment setup"></select>
       <button class="ibtn" id="bAskSetup" hidden title="Ask Claude for a setup: describe an experiment and Claude sets up the chamber" aria-label="Ask Claude for a setup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z M18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></svg></button>
+      <button class="ibtn" id="bDisplay" title="Display mode: the chamber alone, filling the screen, borderless; the cursor hides when the mouse rests (B or F11; Esc to leave)" aria-label="Display mode" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <button class="ibtn" id="bSettings" title="Settings: performance mode, particle limit, theme, units" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.5 7.5 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 2.6-1.5l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
     </div>
     <div class="readouts">
@@ -56,6 +57,7 @@
       <div class="paused-badge rec-badge" id="recBadge" hidden></div>
       <div class="narr" id="narr" aria-live="polite" hidden></div>
       <div class="fps" id="fpsBadge" aria-hidden="true"></div>
+      <button class="ibtn dm-exit" id="bDisplayExit" title="Leave display mode (Esc)" aria-label="Leave display mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="qmenu" id="qmenu" role="menu" aria-label="Quick menu" hidden></div>
     </div>
 

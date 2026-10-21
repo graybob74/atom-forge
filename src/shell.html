@@ -1,4 +1,4 @@
-<title>Atom Forge 0.51.0</title>
+<title>Atom Forge 0.52.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -132,6 +132,18 @@ button { cursor: pointer; }
 .stage { position: relative; min-width: 0; min-height: 0; border-radius: var(--r); overflow: hidden; background: var(--ch-bg);
   border: 1px solid var(--line); box-shadow: var(--shadow); }
 .stage canvas { display: block; touch-action: none; position: absolute; inset: 0; }
+/* Display mode: the chamber alone, edge to edge (the desktop app also goes borderless full screen); the cursor hides
+   while the mouse rests, and a small button to leave fades in when it moves */
+.dm-exit { display: none; }
+body.display .app { padding: 0; gap: 0; grid-template-rows: minmax(0, 1fr); }
+body.display .topbar, body.display .tools-wrap, body.display .panel { display: none; }
+body.display .main { grid-template-columns: minmax(0, 1fr); gap: 0; }
+body.display .stage { border: 0; border-radius: 0; box-shadow: none; }
+body.display .stage > :not(canvas):not(.dm-exit):not(.qmenu) { display: none !important; }
+body.display .dm-exit { display: inline-grid; position: absolute; top: 12px; right: 12px; z-index: 30; opacity: 0.85; transition: opacity 0.3s;
+  background: var(--surface); }
+body.display.idle .dm-exit { opacity: 0; pointer-events: none; }
+body.display.idle, body.display.idle * { cursor: none !important; }
 .stage #cvbg, .stage #cvgl { pointer-events: none; }
 .palette-bar { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 6px; align-items: center; pointer-events: none; z-index: 2; }
 .palette-bar > * { pointer-events: auto; }

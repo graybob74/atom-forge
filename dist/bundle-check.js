@@ -8384,10 +8384,16 @@ const XP = {
   K0L: { lab: 'K⁰ʟ', m: 497.611, q: 0, tau: 5.116e-8, col: [232, 222, 150], cc: 'K0L', dec: [[0.2028, ['pi+', 'e-', 'nub']], [0.2028, ['pi-', 'e+', 'nu']], [0.1352, ['pi+', 'mu-', 'nub']], [0.1352, ['pi-', 'mu+', 'nu']], [0.1952, ['pi0', 'pi0', 'pi0']], [0.1254, ['pi+', 'pi-', 'pi0']]] },
   eta: { lab: 'η', m: 547.862, q: 0, tau: 5.02e-19, col: [255, 185, 225], cc: 'eta', dec: [[0.3936, ['g', 'g']], [0.3257, ['pi0', 'pi0', 'pi0']], [0.2292, ['pi+', 'pi-', 'pi0']], [0.0422, ['pi+', 'pi-', 'g']]] },
   Lam: { lab: 'Λ', m: 1115.683, q: 0, B: 1, tau: 2.632e-10, col: [195, 160, 255], cc: 'Lamb', dec: [[0.639, ['p', 'pi-']], [0.358, ['n', 'pi0']]] },
+  // the other light baryons with strange quarks (made when a quark is pulled out by hand, in the Inspect tab's quark view)
+  'Sig+': { lab: 'Σ⁺', m: 1189.37, q: 1, B: 1, tau: 8.018e-11, col: [215, 150, 255], cc: 'Sigb-', dec: [[0.5157, ['p', 'pi0']], [0.4831, ['n', 'pi+']]] },
+  'Sig-': { lab: 'Σ⁻', m: 1197.449, q: -1, B: 1, tau: 1.479e-10, col: [215, 150, 255], cc: 'Sigb+', dec: [[0.99848, ['n', 'pi-']]] },
+  Xi0: { lab: 'Ξ⁰', m: 1314.86, q: 0, B: 1, tau: 2.90e-10, col: [180, 140, 255], cc: 'Xib0', dec: [[0.99524, ['Lam', 'pi0']]] },
+  'Xi-': { lab: 'Ξ⁻', m: 1321.71, q: -1, B: 1, tau: 1.639e-10, col: [180, 140, 255], cc: 'Xib+', dec: [[0.99887, ['Lam', 'pi-']]] },
+  'Omg-': { lab: 'Ω⁻', m: 1672.45, q: -1, B: 1, tau: 8.21e-11, col: [160, 125, 255], cc: 'Omgb+', dec: [[0.678, ['Lam', 'K-']], [0.236, ['Xi0', 'pi-']], [0.086, ['Xi-', 'pi0']]] },
   'tau-': { lab: 'τ⁻', m: 1776.86, q: -1, tau: 2.903e-13, col: [255, 115, 150], cc: 'tau+', dec: [[0.1782, ['e-', 'nub', 'nu']], [0.1739, ['mu-', 'nub', 'nu']], [0.1082, ['pi-', 'nu']], [0.2549, ['pi-', 'pi0', 'nu']], [0.0926, ['pi-', 'pi0', 'pi0', 'nu']], [0.0899, ['pi-', 'pi-', 'pi+', 'nu']], [0.0455, ['pi-', 'pi-', 'pi+', 'pi0', 'nu']], [0.0104, ['pi-', 'pi0', 'pi0', 'pi0', 'nu']], [0.0070, ['K-', 'nu']]] },
 };
 function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n' })[t] || t; }
-for (const [k, of, lab] of [['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺']]) { // the antiparticles: every charge reversed, decays mirrored
+for (const [k, of, lab] of [['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺']]) { // the antiparticles: every charge reversed, decays mirrored
   const s = XP[of];
   XP[k] = Object.assign({}, s, { lab, q: -s.q, B: s.B ? -s.B : 0, cc: of, dec: s.dec.map(([b, ps]) => [b, ps.map(conjTok)]) });
 }
@@ -8530,7 +8536,7 @@ function jetMomenta(items, M, ax, ay, opts = {}) {
   const xi = (lo + hi) / 2;
   return p.map((v, i) => { const px = v[0] * xi, py = v[1] * xi; return [Math.sqrt(ms[i] * ms[i] + px * px + py * py), px, py]; });
 }
-const isBaryonItem = (it) => it.t === 'A' || it.sp === 'Lam' || it.sp === 'Lamb';
+const isBaryonItem = (it) => it.t === 'A' || !!(it.t === 'x' && XP[it.sp].B);
 /* A string drawn as it breaks (W.strings, render.js drawStrings): at (x, y) along (ax, ay), in real time. */
 function addString(x, y, ax, ay, n) { (W.strings || (W.strings = [])).push({ x, y, ax, ay, n: Math.min(14, Math.max(3, n)), t0: W.rt }); if (W.strings.length > 12) W.strings.shift(); }
 
@@ -9217,6 +9223,89 @@ function finishReaction(a, b, items, moms, x, y, kind, sub) {
   W.count.nreact++;
   tally(items, ins, txt);
   return txt;
+}
+
+/* ---- a quark pulled out by hand (the Inspect tab's quark view). The flux tube between it and the rest stretches at
+   about 1 GeV per fm until, about a fermi out, it snaps: its energy (RIP_E, put in by the hand, like the Spark tool's)
+   makes a quark–antiquark pair. The pulled quark leaves with one of them as a meson; the other takes its place, so the
+   hadron left can be another one (a proton becomes a neutron when a u is pulled and the pair is d d̄). In the chamber:
+   a nucleon in a nucleus changes in place, the nucleus left with a hole (some MeV of excitation) that it sheds as it
+   can (evaporation, break-up, γ rays); a hyperon (Λ, Σ, Ξ, Ω) does not stay but flies off; a Δ decays at once to a
+   nucleon and a pion. All of it with exact masses and momenta, in the hadron's own frame. */
+const RIP_E = 900; // MeV
+const RIP_B = { duu: ['p'], ddu: ['n'], uuu: ['p', 'pi+'], ddd: ['n', 'pi-'], dsu: ['Lam'], suu: ['Sig+'], dds: ['Sig-'], ssu: ['Xi0'], dss: ['Xi-'], sss: ['Omg-'] };
+function ripTokens(content) { // quark content (capitals: antiquarks) → what it comes out as
+  const qs = [...content], up = (c) => c === c.toUpperCase();
+  if (qs.length === 3) { const t = RIP_B[qs.map(c => c.toLowerCase()).sort().join('')]; return t ? (up(qs[0]) ? t.map(conjTok) : t.slice()) : null; }
+  const q = qs.find(c => !up(c)), a = qs.find(up);
+  if (qs.length !== 2 || !q || !a) return null;
+  const k = q + a;
+  return [k === 'uU' || k === 'dD' ? 'pi0' : k === 'sS' ? 'eta' : k === 'uD' ? 'pi+' : k === 'dU' ? 'pi-' : k === 'uS' ? 'K+' : k === 'sU' ? 'K-' : rnd() < 0.5 ? 'K0S' : 'K0L'];
+}
+const RIP_NUC = { p: 1, n: 1, pbar: 1, nbar: 1 };
+/* tg: { p, which } a nucleon ('p' or 'n') of a nucleus or atom in W.parts, or { o } an unstable hadron in flight.
+   rest, meson: the quark contents left and pulled away. Returns { txt, sel, selX } or null if it cannot happen. */
+function quarkRip(tg, rest, meson) {
+  const R1 = ripTokens(rest), M1 = ripTokens(meson);
+  if (!R1 || !M1) return null;
+  const items = [], moms = [];
+  if (tg.o) {
+    const o = tg.o;
+    if (o.dead || !XP[o.sp] || W.exo.indexOf(o) < 0) return null;
+    const toks = [...R1, ...M1], its = toks.map(item), K = o.KE / MEV, pm = Math.sqrt(Math.max(0, K * (K + 2 * o.m))), E = o.m + K;
+    const Ms = o.m + RIP_E, vs = phaseSpace(Ms, its.map(massOf));
+    if (!vs) return null;
+    const bx = pm * o.ux / E, by = pm * o.uy / E;
+    its.forEach((it, i) => { items.push(it); moms.push(toLab(vs[i], bx, by)); });
+    const x = o.x, y = o.y, txt = `${o.lab} → ${summarize(items)}`, S = nucBegin([]);
+    o.dead = true; o.fate = 'pulled apart by hand: ' + txt;
+    const made = spawnItems(items, moms, x, y);
+    closeEvent(S, made, x, y, (Ms * E / o.m) * MEV, o.m * MEV);
+    return ripDone(x, y, txt, [o.lab], items, made, R1[0]);
+  }
+  const p = tg.p;
+  if (!p || p.dead || p.k !== NUC || p.Z + p.N < 1) return null;
+  const anti = !!p.anti, pulledP = tg.which === 'p';
+  let Z = p.Z - (pulledP ? 1 : 0), N = p.N - (pulledP ? 0 : 1);
+  if (Z < 0 || N < 0) return null;
+  const fly = M1.slice();
+  if (RIP_NUC[R1[0]]) { if (R1[0] === 'p' || R1[0] === 'pbar') Z++; else N++; fly.push(...R1.slice(1)); } else fly.push(...R1);
+  const A = Z + N, Ex = A >= 2 ? 15 * rnd() : 0, mres = A ? nucMeV(Z, N) + Ex : 0;
+  const P = p4of(p, true), m0 = nucMeV(p.Z, p.N), Ms = m0 + RIP_E, fits = fly.map(item);
+  const vs = phaseSpace(Ms, A ? [mres, ...fits.map(massOf)] : fits.map(massOf));
+  if (!vs) return null;
+  const bx = P[1] / P[0], by = P[2] / P[0];
+  let j = 0;
+  if (A) {
+    const Pr = toLab(vs[j++], bx, by);
+    if (A === 1) { items.push({ t: 'A', Z, N, anti }); moms.push(Pr); }
+    else if (Z === 0 || A <= 16) { if (!fermiInto(Z, N, mres, Pr, anti, items, moms)) gammaOut(Z, N, mres, Pr, anti, items, moms); }
+    else compoundDecay(Z, N, mres, Pr, anti, items, moms, 0);
+  }
+  for (const it of fits) { items.push(it); moms.push(toLab(vs[j++], bx, by)); }
+  const x = p.x, y = p.y, gh = [ghostOf(p)], ins = [partLabel(p)], ne = p.ne, partners = [];
+  for (const bd of p.bonds) partners.push(other(bd, p));
+  const txt = `${ins[0]} → ${summarize(items)}`, S = nucBegin([p]);
+  kill(p);
+  const made = spawnItems(items, moms, x, y);
+  if (ne > 0) { // its electrons stay with the nuclei left, heaviest first; any over go free
+    let left = ne;
+    for (const q of made.ps.filter(q => q.k === NUC && q.Z > 0).sort((a, b) => b.Z - a.Z)) { if (left <= 0) break; const k = Math.min(left, q.Z); q.ne = k; left -= k; refresh(q); }
+    for (let i = 0; i < left && W.parts.length < MAX_PARTS; i++) { const [ux, uy] = rdir(); const e = addLepton(anti ? POS : ELEC, x + 0.3 * ux, y + 0.3 * uy); setMotion(e, 2 + 8 * rnd(), ux, uy); made.ps.push(e); }
+  }
+  relink(partners.filter(q => !q.dead));
+  closeEvent(S, made, x, y, (Ms - m0) * (P[0] / m0) * MEV, 0);
+  nucEvent('reaction', x, y, txt, gh, 'a quark pulled out by hand');
+  return ripDone(x, y, txt, ins, items, made, RIP_NUC[R1[0]] ? null : R1[0]);
+}
+function ripDone(x, y, txt, ins, items, made, hyp) {
+  log('nuc', `${txt} (a quark pulled out by hand)`);
+  flash(x, y, [255, 200, 160], 4, 0.6);
+  W.count.nreact++;
+  tally(items, ins, txt);
+  const xo = hyp ? made.xs.find(o => o.sp === hyp) : null;
+  const nucs = made.ps.filter(q => q.k === NUC).sort((a, b) => (b.Z + b.N) - (a.Z + a.N));
+  return { txt, selX: xo ? { kind: 'exo', o: xo } : null, sel: xo ? null : nucs[0] || null };
 }
 
 /* ---- a hot nucleus cools. Statistical model (Weisskopf for particles, Bohr–Wheeler for fission), level density
@@ -9936,6 +10025,7 @@ function rResize(w, h) {
   R.w = w; R.h = h;
   for (const cv of [R.cv, R.cvbg]) { if (!cv) continue; cv.width = Math.round(w * R.dpr); cv.height = Math.round(h * R.dpr); cv.style.width = w + 'px'; cv.style.height = h + 'px'; }
 }
+const ZOOM_MAX = 4000; // px per Å: about 0.25 Å across the view, well inside one atom
 function fitView(margin = 28) {
   const bw = W.box.tw, bh = W.box.th;
   R.s = Math.min((R.w - margin * 2) / bw, (R.h - margin * 2) / bh);
@@ -10360,7 +10450,7 @@ function nucleusBeads(ctx, x, y, rn, Z, N, alpha, anti) {
   // deterministic interleave of protons and neutrons
   let pz = 0;
   for (let k = 0; k < A; k++) {
-    const rr = rn * Math.sqrt((k + 0.5) / A) * 0.92, th = k * 2.39996;
+    const rr = A === 1 ? 0 : rn * Math.sqrt((k + 0.5) / A) * 0.92, th = k * 2.39996; // (a lone nucleon sits at the centre)
     const isP = (pz + 0.5) / Z <= (k + 1) / A && pz < Z;
     if (isP) pz++;
     const bx = x + rr * Math.cos(th), by = y + rr * Math.sin(th);
@@ -14787,7 +14877,7 @@ function onMove(e) {
   if (d && d.kind === 'pinch' && UI.pointers.size >= 2) {
     const [a, b] = [...UI.pointers.values()];
     const dd = Math.hypot(a.x - b.x, a.y - b.y);
-    const s = clamp(d.s0 * dd / Math.max(10, d.d0), 0.01, 400);
+    const s = clamp(d.s0 * dd / Math.max(10, d.d0), 0.01, ZOOM_MAX);
     const mid = [(a.x + b.x) / 2, (a.y + b.y) / 2];
     // keep the world point under the initial midpoint under the current midpoint
     const wmx = (d.mid[0] - R.w / 2) / d.s0 + d.c0[0], wmy = d.c0[1] - (d.mid[1] - R.h / 2) / d.s0;
@@ -14882,7 +14972,7 @@ function onWheel(e) {
 }
 function zoomAt(px, py, f) {
   const [wx, wy] = s2w(px, py);
-  R.s = clamp(R.s * f, 0.01, 400);
+  R.s = clamp(R.s * f, 0.01, ZOOM_MAX);
   R.cx = wx - (px - R.w / 2) / R.s; R.cy = wy + (py - R.h / 2) / R.s;
 }
 /* continuous tool effects, once per frame */
@@ -14964,11 +15054,15 @@ function restoreScroll(id) {
   const b = $(id), want = _scrollWant[id];
   if (want !== undefined && Math.abs(b.scrollTop - want) > 1) b.scrollTop = want;
   _scrollSet[id] = b.scrollTop;
+  if (want !== undefined && Math.abs(b.scrollTop - want) > 1) requestAnimationFrame(() => { // (clamped: content still filling in, such as a canvas's note; try again once it has)
+    if (_scrollWant[id] === want && _scrollSet[id] === b.scrollTop) { b.scrollTop = want; _scrollSet[id] = b.scrollTop; }
+  });
 }
 
 /* ------------------------------------------------------------------ inspector */
 let _insCv = null;
-/* ---- Inside a hadron (Inspect tab): its quarks, a picture only — the simulation does not model quarks. Valence quarks
+/* ---- Inside a hadron (Inspect tab): its quarks, a sketch — the simulation does not follow quarks one by one, but pulling
+   one out happens in the chamber too (quarkRip, hep.js). Valence quarks
    jiggle in a bag about 1.7 fm across, their colour charges (red, green, blue; antiquarks anticolours) swapped by
    gluons so the whole stays colourless; flux tubes join them (a Y for three quarks, a line for a quark and an
    antiquark); virtual quark–antiquark pairs flicker in the sea. Drag a quark out: the tube stretches at about 1 GeV per
@@ -14976,15 +15070,15 @@ let _insCv = null;
 const Q_COL = ['#ff5a5a', '#52d873', '#5a8cff'], Q_ACOL = ['#4fe3e3', '#e65ae6', '#ffd24d'], Q_CNAME = ['red', 'green', 'blue'];
 const Q_CHG = { u: 2 / 3, d: -1 / 3, s: -1 / 3 };
 const Q_SYM = { u: 'u', d: 'd', s: 's' }, Q_BAR = { u: 'ū', d: 'd̄', s: 's̄' };
-const Q_CONTENT = { p: 'uud', n: 'udd', pbar: 'UUD', nbar: 'UDD', 'pi+': 'uD', 'pi-': 'dU', pi0: 'uU', 'K+': 'uS', 'K-': 'sU', K0S: 'dS', K0L: 'dS', eta: 'sS', Lam: 'uds', Lamb: 'UDS' }; // (capitals: antiquarks)
-const QV = { key: '', qs: [], g: null, sea: [], drag: null, out: null, t: 0, msg: '', orig: '', pick: 'p', last: 0 };
+const Q_CONTENT = { p: 'uud', n: 'udd', pbar: 'UUD', nbar: 'UDD', 'pi+': 'uD', 'pi-': 'dU', pi0: 'uU', 'K+': 'uS', 'K-': 'sU', K0S: 'dS', K0L: 'dS', eta: 'sS', Lam: 'uds', Lamb: 'UDS', 'Sig+': 'uus', 'Sig-': 'dds', Xi0: 'uss', 'Xi-': 'dss', 'Omg-': 'sss', 'Sigb-': 'UUS', 'Sigb+': 'DDS', Xib0: 'USS', 'Xib+': 'DSS', 'Omgb+': 'SSS' }; // (capitals: antiquarks)
+const QV = { subj: null, key: '', qs: [], g: null, sea: [], drag: null, out: null, t: 0, msg: '', orig: '', pick: 'p', last: 0 };
 function qSubject(p, X) { // what to look inside: { key, content, name, note }
   if (X && X.kind === 'exo' && (XP[X.o.sp].atom || XP[X.o.sp].stuck)) return null; // (a muonic atom: its nucleus is inside, too small to show here)
-  if (X && X.kind === 'exo') { const c = Q_CONTENT[X.o.sp]; return c ? { key: 'x' + X.o.id, content: c } : { key: 'x' + X.o.id, lepton: true }; }
+  if (X && X.kind === 'exo') { const c = Q_CONTENT[X.o.sp]; return c ? { key: 'x' + X.o.id, content: c, o: X.o } : { key: 'x' + X.o.id, lepton: true }; }
   if (!p || p.k !== NUC || p.Z + p.N < 1) return null;
   const one = p.Z + p.N === 1, which = one ? (p.Z ? 'p' : 'n') : (p.Z === 0 ? 'n' : p.N === 0 ? 'p' : QV.pick);
   const nm = (p.anti ? 'anti' : '') + (which === 'p' ? 'proton' : 'neutron');
-  return { key: p.id + which, content: Q_CONTENT[(which) + (p.anti ? 'bar' : '')], one, both: !one && p.Z > 0 && p.N > 0, which, head: !one ? 'Inside one of its nucleons' : p.ne > 0 ? `Inside its nucleus, ${/^[aeiou]/.test(nm) ? 'an' : 'a'} ${nm}` : 'Inside' };
+  return { key: p.id + which, content: Q_CONTENT[(which) + (p.anti ? 'bar' : '')], p, one, both: !one && p.Z > 0 && p.N > 0, which, head: !one ? 'Inside one of its nucleons' : p.ne > 0 ? `Inside its nucleus, ${/^[aeiou]/.test(nm) ? 'an' : 'a'} ${nm}` : 'Inside' };
 }
 function qName(content) {
   const qs = [...content], anti = qs.filter(c => c === c.toUpperCase()).length, f = qs.map(c => c.toLowerCase()).sort().join('');
@@ -15011,11 +15105,12 @@ function quarkSecHTML(sub) {
   if (!sub) return '';
   if (sub.lepton) return `<section class="group"><h3>Inside</h3><p class="note">Nothing: it is a lepton, like the electron. As far as any experiment has found, leptons are not made of anything smaller; they feel no strong force and have no quarks.</p></section>`;
   if (QV.key !== sub.key) qReset(sub);
+  QV.subj = sub;
   const pick = sub.both ? `<div class="seg" data-q="pick" role="group" aria-label="Which nucleon"><button data-v="p" aria-pressed="${sub.which === 'p'}">A proton</button><button data-v="n" aria-pressed="${sub.which === 'n'}">A neutron</button></div>` : '';
   return `<section class="group" id="insQSec"><h3>${esc(sub.head || 'Inside')}: quarks and gluons</h3>${pick}
     <canvas class="quarkcv" id="insQuarks" aria-label="The quarks inside, held together by gluons. Drag a quark out to see confinement."></canvas>
     <div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" data-q="reset">Put it back</button><span class="note">Drag a quark out of it.</span></div>
-    <p class="note" id="insQNote"></p></section>`;
+    <p class="note" id="insQNote">${esc(qNote())}</p></section>`;
 }
 function qNote() {
   const qs = QV.qs, nm = qName(qs.map(q => q.anti ? q.f.toUpperCase() : q.f).join(''));
@@ -15024,7 +15119,7 @@ function qNote() {
   const base = qs.length === 3
     ? `${nm.name[0].toUpperCase() + nm.name.slice(1)} (${nm.sym}): three quarks, ${list}; charges add to ${Math.round(chgTxt) > 0 ? '+' : ''}${Math.round(chgTxt)}. One of each colour charge, so the whole is colourless ("white"); gluons keep swapping the colours between them. The quarks themselves weigh only about 1% of it: the rest of its mass is the energy of the gluon field and of the quarks' motion (E = mc²).`
     : `A ${nm.name} (${nm.sym}): a quark and an antiquark, ${list}. A colour and its anticolour make it colourless; it lives only until the weak or electromagnetic force lets it decay.`;
-  return (QV.msg ? QV.msg + ' ' : '') + base + ' (A picture of what is inside: the simulation itself does not model quarks.)';
+  return (QV.msg ? QV.msg + ' ' : '') + base + ' (The picture is a sketch: the simulation does not follow quarks one by one. Pulling one out does happen in the chamber, though: what it makes appears there.)';
 }
 function qStep(dt) {
   QV.t += dt;
@@ -15121,21 +15216,35 @@ function qSnap(q) {
   const L = Math.hypot(q.x, q.y) || 1;
   QV.out = { qs: [{ ...q }, partner], name: mn.sym, x: q.x, y: q.y, vx: q.x / L * 1.2, vy: q.y / L * 1.2, t: 0 };
   q.f = f; q.anti = !partner.anti; q.x *= 0.5; q.y *= 0.5; q.vx = 0; q.vy = 0; // (the new quark of the pair stays, with the colour the string carried)
-  const after = qName(QV.qs.map(o => o.anti ? o.f.toUpperCase() : o.f).join(''));
+  const restC = QV.qs.map(o => o.anti ? o.f.toUpperCase() : o.f).join(''), after = qName(restC);
   QV.drag = null;
-  QV.msg = `The string snapped at about ${(0.9 * 1.0).toFixed(1)} GeV: its energy made a ${Q_SYM[f]} ${Q_BAR[f]} pair. The quark you pulled left with the new ${partner.anti ? 'antiquark' : 'quark'} as a ${mn.name} (${mn.sym})${after.name !== before.name ? `, and what stayed is now a ${after.name} (${after.sym})` : ''}. A quark never comes out alone: that is confinement.`;
+  const sub = QV.subj, r = sub && (sub.o || sub.p) ? quarkRip(sub.o ? { o: sub.o } : { p: sub.p, which: sub.which }, restC, mesonContent) : null;
+  if (r) { // the view follows what is left (the hyperon that flew off, or the nucleus): the picture stays as it is
+    if (R.follow && (R.follow === sub.p || R.follow === sub.o)) R.follow = r.sel || null;
+    R.sel = r.sel; R.selX = r.selX;
+    if (r.sel && r.sel.Z + r.sel.N > 1) { const k = [...restC.toLowerCase()].sort().join(''); QV.pick = k === 'ddu' || k === 'ddd' ? 'n' : 'p'; }
+    const ns = r.selX ? qSubject(null, r.selX) : r.sel ? qSubject(r.sel) : null;
+    if (ns) QV.key = ns.key;
+  }
+  QV.msg = `The string snapped at about ${(0.9 * 1.0).toFixed(1)} GeV: its energy made a ${Q_SYM[f]} ${Q_BAR[f]} pair. The quark you pulled left with the new ${partner.anti ? 'antiquark' : 'quark'} as a ${mn.name} (${mn.sym})${after.name !== before.name ? `, and what stayed is now a ${after.name} (${after.sym})` : ''}. A quark never comes out alone: that is confinement.${r ? ` In the chamber: ${r.txt}.` : sub && (sub.o || sub.p) ? ' (It is gone from the chamber, so nothing changed there.)' : ''}`;
   renderInspect();
 }
 /* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
 const XP_NAME = { muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
-  K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau' };
-const XP_QUARKS = { 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄' };
+  K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau',
+  'Sig+': 'Positive sigma baryon', 'Sig-': 'Negative sigma baryon', Xi0: 'Neutral xi baryon', 'Xi-': 'Negative xi baryon', 'Omg-': 'Omega baryon',
+  'Sigb-': 'Antisigma, negative', 'Sigb+': 'Antisigma, positive', Xib0: 'Neutral antixi', 'Xib+': 'Positive antixi', 'Omgb+': 'Antiomega' };
+const XP_QUARKS = { 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄', 'Sig+': 'u u s', 'Sig-': 'd d s', Xi0: 'u s s', 'Xi-': 'd s s', 'Omg-': 's s s',
+  'Sigb-': 'ū ū s̄', 'Sigb+': 'd̄ d̄ s̄', Xib0: 'ū s̄ s̄', 'Xib+': 'd̄ s̄ s̄', 'Omgb+': 's̄ s̄ s̄' };
 const XP_ABOUT = {
   mu: 'A muon is a heavy cousin of the electron, 207 times its mass. It is a lepton, made of no smaller parts. Cosmic rays make them high in the air; they reach the ground only because time dilation stretches their 2.2 µs life.',
   pi: 'A pion is the lightest meson: a quark bound to an antiquark by the strong force. Pions carry the force that holds protons and neutrons together in a nucleus.',
   K: 'A kaon is a meson with a strange quark. Strangeness can only change through the weak force, which is why kaons live so long for such heavy particles.',
   eta: 'The eta is a neutral meson; it decays almost at once, mostly to photons or pions.',
   Lam: 'The Lambda is a baryon like a proton or neutron, but with a strange quark in place of one of the down quarks.',
+  Sig: 'A sigma is a baryon with one strange quark, like the Lambda but with its two light quarks the same way round; the charged ones live about 0.1 ns and decay to a nucleon and a pion.',
+  Xi: 'A xi (cascade) baryon has two strange quarks. It decays to a Lambda and a pion, which decays in turn: a cascade.',
+  Omg: 'The omega baryon is three strange quarks. Its prediction and discovery in 1964 confirmed the quark model.',
   tau: 'The tau is the heaviest lepton, 3,477 times the electron’s mass, heavy enough to decay into pions.' };
 function selXHead() {
   const X = R.selX; if (!X) return null;
@@ -15158,7 +15267,7 @@ function selXHTML() {
       ['Decays to', d.dec.map(([b, ps]) => `${ps.map(t => (XP[t] ? XP[t].lab : ({ 'e-': 'e⁻', 'e+': 'e⁺', nu: 'ν', nub: 'ν̄', g: 'γ', p: 'p', n: 'n', pbar: 'p̄', nbar: 'n̄' })[t] || t)).join(' ')} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
     about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. Bound by ${fmtE(d.Eb * 1e6)}.`
       : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
-      : XP_ABOUT[o.sp.startsWith('mu') ? 'mu' : o.sp.startsWith('pi') ? 'pi' : o.sp.startsWith('K') ? 'K' : o.sp.startsWith('tau') ? 'tau' : o.sp.startsWith('Lam') ? 'Lam' : 'eta'] || '';
+      : XP_ABOUT[['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg'].find(k => o.sp.startsWith(k)) || 'eta'] || '';
     if (d.tau < 1e-15) about += ' This one lives so briefly that it decays a few nanometres from where it was made.';
     else if (path > 1e-6) about += ` Moving this fast it would cross ${fmtLen(path)} on average before decaying, far more than this chamber, so it leaves it — unless decay is sped up (Lab → Decay speed).`;
     status = live ? 'In flight' : o.fate ? o.fate[0].toUpperCase() + o.fate.slice(1) : 'Gone';
@@ -15339,7 +15448,7 @@ function runSolver(Z, ne) {
   res.unbound = !res.ok && ne > Z; // an extra electron with no bound state
   _solved.set(key, res);
   if (res.ok && useSolverOrbitals(res)) { _orbThumbs.clear(); for (const k of [..._orbSpr.keys()]) if (k.startsWith(key + ':')) _orbSpr.delete(k); }
-  UI.solverOpen = true;
+  UI.solverOpen = true; { const sd = $('insSolver'); if (sd) sd.open = true; } // (the card reads its open state back as it redraws)
   log('tool', `Solver: ${ELEMENTS[Z].sym}${ne !== Z ? sup((Math.abs(Z - ne) > 1 ? Math.abs(Z - ne) : '') + (ne < Z ? '+' : '-')) : ''} ${res.ok ? `converged in ${res.iters} rounds (${res.ms} ms)` : res.unbound ? ': the extra electron is not bound' : 'did not converge'}`);
 }
 function solverSectionHTML(p) {
@@ -15348,13 +15457,13 @@ function solverSectionHTML(p) {
   if (!res) return `<details class="solver" id="insSolver"${open}><summary>Quantum solver <span>not run yet</span></summary>
     <p class="note">Solves the Schrödinger equation for ${esc(sp)}'s ${p.ne} electron${p.ne > 1 ? 's' : ''}: each one moving in the field of the nucleus and the average charge of all the others, over and over until that field stops changing (a self-consistent field). It finds every orbital's energy and size, and the Orbitals view then draws ${esc(sp)} from them.</p>
     <button class="btn small" data-act="solve">Solve ${esc(sp)}</button></details>`;
-  if (!res.ok) return `<details class="solver" id="insSolver" open><summary>Quantum solver <span>${res.unbound ? 'not bound' : 'no answer'}</span></summary>
+  if (!res.ok) return `<details class="solver" id="insSolver"${open}><summary>Quantum solver <span>${res.unbound ? 'not bound' : 'no answer'}</span></summary>
     <p class="note">${res.unbound ? `No orbital holds the last electron: ${esc(sp)} is not bound. Its extra electrons are pushed away by the others more strongly than the nucleus can hold them, so in empty space it sheds them at once.` : 'The calculation did not settle for this ion.'}</p></details>`;
   const top = res.orbitals.reduce((a, o) => (o.e > a.e ? o : a), res.orbitals[0]);
   const book = ionE(p.Z, p.ne), fr = (r) => (r < 0.1 ? r.toPrecision(2) : r.toFixed(2)) + ' Å';
   const O = orbitalSet(p.Z, p.ne);
   const rows = res.orbitals.map(o => `<tr><td><b>${o.n}${LLET[o.l]}${sup(o.c)}</b></td><td>${fmtE(-o.e).replace(/^/, '−')}</td><td>${fr(o.rMean)}</td></tr>`).join('');
-  return `<details class="solver" id="insSolver"${open || ' open'}><summary>Quantum solver <span>${esc(sp)}, ${res.iters} rounds, ${res.ms} ms</span></summary>
+  return `<details class="solver" id="insSolver"${open}><summary>Quantum solver <span>${esc(sp)}, ${res.iters} rounds, ${res.ms} ms</span></summary>
     <canvas class="solverplot" id="solverPlot" aria-label="Radial charge density of each subshell"></canvas>
     <table class="soltab"><thead><tr><th>Subshell</th><th>Energy</th><th>Mean radius</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="note"><b>Ionization energy</b>: ${fmtE(-top.e)} from the solver (the energy of the outermost electron, ${top.n}${LLET[top.l]}), ${book > 0 && isFinite(book) ? `measured ${fmtE(book)}` : 'not measured'}.
@@ -15522,7 +15631,8 @@ function renderData() {
 /* What collisions, fusions, fissions, captures and decays have made so far (W.made), heaviest first: each nuclide with
    its name, half-life and decay, how many, and the event that first made it; then the unstable particles. */
 const PART_NAMES = { 'pi+': 'charged pion', 'pi-': 'charged pion', pi0: 'neutral pion', 'mu-': 'muon', 'mu+': 'antimuon', 'K+': 'charged kaon', 'K-': 'charged kaon',
-  K0S: 'neutral kaon (short-lived)', K0L: 'neutral kaon (long-lived)', eta: 'eta meson', Lam: 'lambda baryon', Lamb: 'antilambda', 'tau-': 'tau lepton', 'tau+': 'antitau' };
+  K0S: 'neutral kaon (short-lived)', K0L: 'neutral kaon (long-lived)', eta: 'eta meson', Lam: 'lambda baryon', Lamb: 'antilambda', 'tau-': 'tau lepton', 'tau+': 'antitau',
+  'Sig+': 'sigma baryon', 'Sig-': 'sigma baryon', Xi0: 'xi baryon', 'Xi-': 'xi baryon', 'Omg-': 'omega baryon', 'Sigb-': 'antisigma', 'Sigb+': 'antisigma', Xib0: 'antixi', 'Xib+': 'antixi', 'Omgb+': 'antiomega' };
 function renderMade() {
   const M = W.made, sec = $('dMadeSec');
   const nuc = M ? [...M.nuc.values()] : [], part = M ? [...M.part.values()] : [], nus = M && M.nu ? [...M.nu.values()] : [];
@@ -17437,6 +17547,39 @@ function setRunning(r) {
   $('pausedBadge').hidden = r;
 }
 
+/* ------------------------------------------------------------------ display mode */
+/* The chamber alone, filling the window with no border, the cursor hidden while the mouse rests. In the desktop app
+   the window goes borderless full screen (Tauri); in a browser the page asks for full screen, and where it may not
+   (inside a frame) the chamber just fills the page. Every key and tool works as before. */
+const DM = { on: false, timer: 0, fs: false };
+function setDisplayMode(on) {
+  on = !!on;
+  if (DM.on === on) return;
+  DM.on = on;
+  document.body.classList.toggle('display', on);
+  $('bDisplay').setAttribute('aria-pressed', String(on));
+  if (on) closeQuickMenu();
+  dmPoke();
+  const tw = window.__TAURI__ && window.__TAURI__.window;
+  try {
+    if (tw && tw.getCurrentWindow) Promise.resolve(tw.getCurrentWindow().setFullscreen(on)).catch(() => {});
+    else if (on) { const el = document.documentElement; if (!document.fullscreenElement && document.fullscreenEnabled && el.requestFullscreen) el.requestFullscreen().then(() => { DM.fs = true; }, () => {}); }
+    else if (document.fullscreenElement && DM.fs && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  } catch (err) { /* (no full screen here: the chamber still fills the page) */ }
+  if (!on) DM.fs = false;
+  log('tool', on ? 'Display mode: B, F11 or Esc to leave it' : 'Display mode off');
+}
+function dmPoke() {
+  document.body.classList.remove('idle'); clearTimeout(DM.timer);
+  if (DM.on) DM.timer = setTimeout(() => { if (DM.on) { if (UI.drag) dmPoke(); else document.body.classList.add('idle'); } }, 2000);
+}
+function bindDisplayMode() {
+  $('bDisplay').onclick = () => setDisplayMode(true);
+  $('bDisplayExit').onclick = () => setDisplayMode(false);
+  for (const ev of ['pointermove', 'pointerdown', 'wheel']) window.addEventListener(ev, () => { if (DM.on) dmPoke(); }, { passive: true });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && DM.fs) { DM.fs = false; setDisplayMode(false); } }); // (the browser's own Esc)
+}
+
 /* ------------------------------------------------------------------ keyboard */
 function onKey(e) {
   const tag = (e.target && e.target.tagName) || '';
@@ -17446,8 +17589,10 @@ function onKey(e) {
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Tab' || e.key === 'Shift') return; // (the focused item's own keys)
     closeQuickMenu();
   }
+  if (e.key === 'F11') { e.preventDefault(); setDisplayMode(!DM.on); return; }
   if (e.key === 'Escape') {
     for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal']) if (!$(id).hidden) { hideModal(id); return; }
+    if (DM.on) { e.preventDefault(); setDisplayMode(false); return; }
     if (UI.pasting) { cancelPaste(); return; }
     if (UI.drag) { if (W.tool) W.tool.active = false; W.grab = null; UI.drag = null; R.overlay = null; return; }
     R.sel = null; R.selX = null; R.follow = null; renderInspect(); if (R.msel.size) clearSelection(); return;
@@ -17481,6 +17626,7 @@ function onKey(e) {
   if ((k === 'Delete' || k === 'Backspace') && R.sel) { kill(R.sel); R.sel = null; renderInspect(); return; }
   if (tag === 'INPUT') return; // range sliders keep their arrow keys and letters stay safe
   if (k === 'v' || k === 'V') { toggleParticleView(); return; }
+  if (k === 'b' || k === 'B') { setDisplayMode(!DM.on); return; }
   if (k === 'o' || k === 'O') { toggleOrbitalView(); return; }
   const up = k.toUpperCase();
   if (up === 'R') { loadPreset(UI.preset); return; }
@@ -17819,7 +17965,7 @@ function init() {
   UI.budget = 10;
   const sv = store('bohr'); if (sv) setAtomView(sv);
   W.slowmo = store('slowmo') !== '0';
-  buildTools(); buildLogFilters(); bindLab(); buildPresetSelect();
+  buildTools(); buildLogFilters(); bindLab(); buildPresetSelect(); bindDisplayMode();
   for (const id of ['tp-inspect', 'tp-data', 'tp-log']) trackScroll(id);
   makeHScroll($('paletteHS')); makeHScroll($('tooloptsHS')); makeHScroll($('toolsHS'), { lite: true }); makeHScroll($('ptHS'), { lite: true, wheel: false });
   $('bPT').onclick = () => openPT();
