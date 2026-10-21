@@ -599,7 +599,8 @@ function drawParticles(rt) {
     ctx.restore();
     if (!live) R.molTags.length = 0;
   }
-  // selection / hover rings
+  // selection / hover rings (a photon, neutrino or unstable particle in flight: a ring where it is now)
+  if (R.selX) { const h = selXHead(); if (h) { ctx.save(); ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(w2sx(h[0]), w2sy(h[1]), 9, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); } }
   for (const p of [R.sel, R.hover]) {
     if (!p || p.dead) continue;
     const x = w2sx(p.x), y = w2sy(p.y), r = Math.max(6, (p.k === NUC ? p.rd : 0.15) * s) + 5;
@@ -1360,6 +1361,21 @@ function drawScaleBar() {
 }
 
 /* Particle under a screen point (within a few pixels). */
+/* Where a photon or neutrino in flight (W.flights, W.rays) or an unstable particle (W.exo) is now, in world units. */
+function lightHead(o, kind) {
+  if (kind === 'exo') return o.dead ? null : [o.x, o.y];
+  if (kind === 'flight') { const d = Math.min(o.len, (W.t - o.t0) * PHYS.C), L = o.len || 1; return [o.x0 + (o.x1 - o.x0) * d / L, o.y0 + (o.y1 - o.y0) * d / L]; }
+  const m = rayFrac(o); return [o.x0 + (o.x1 - o.x0) * m, o.y0 + (o.y1 - o.y0) * m];
+}
+/* The nearest photon, neutrino or unstable particle to a point on the screen, within extra pixels (for the Inspect tool). */
+function pickLight(px, py, extra = 10) {
+  const [wx, wy] = s2w(px, py); let best = null, bd = extra * extra;
+  const consider = (o, kind) => { const h = lightHead(o, kind); if (!h) return; const dx = (h[0] - wx) * R.s, dy = (h[1] - wy) * R.s, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; best = { kind, o }; } };
+  for (const o of W.exo) if (!o.dead) consider(o, 'exo');
+  for (const f of W.flights) consider(f, 'flight');
+  for (const r of W.rays) if (!r.landed && !r.pion) consider(r, 'ray');
+  return best;
+}
 function pickAt(px, py, extra = 6) {
   const [wx, wy] = s2w(px, py);
   let best = null, bd = Infinity;

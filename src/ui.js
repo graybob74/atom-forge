@@ -834,9 +834,9 @@ function onDown(e) {
       UI.drag = { kind: 'erase' };
       break;
     case 'inspect': {
-      const p = pickAt(px, py, 10);
-      R.sel = p || null;
-      if (p) showTab('inspect', true);
+      const p = pickAt(px, py, 10), x = p ? null : pickLight(px, py, 12);
+      R.sel = p || null; R.selX = x ? { kind: x.kind, o: x.o, t0: W.rt } : null;
+      if (p || x) showTab('inspect', true);
       renderInspect();
       UI.drag = { kind: 'none' };
       break;
@@ -1168,11 +1168,70 @@ function restoreScroll(id) {
 
 /* ------------------------------------------------------------------ inspector */
 let _insCv = null;
+/* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
+const XP_NAME = { 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
+  K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau' };
+const XP_QUARKS = { 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄' };
+const XP_ABOUT = {
+  mu: 'A muon is a heavy cousin of the electron, 207 times its mass. It is a lepton, made of no smaller parts. Cosmic rays make them high in the air; they reach the ground only because time dilation stretches their 2.2 µs life.',
+  pi: 'A pion is the lightest meson: a quark bound to an antiquark by the strong force. Pions carry the force that holds protons and neutrons together in a nucleus.',
+  K: 'A kaon is a meson with a strange quark. Strangeness can only change through the weak force, which is why kaons live so long for such heavy particles.',
+  eta: 'The eta is a neutral meson; it decays almost at once, mostly to photons or pions.',
+  Lam: 'The Lambda is a baryon like a proton or neutron, but with a strange quark in place of one of the down quarks.',
+  tau: 'The tau is the heaviest lepton, 3,477 times the electron’s mass, heavy enough to decay into pions.' };
+function selXHead() {
+  const X = R.selX; if (!X) return null;
+  if (X.kind === 'exo') return X.o.dead ? null : [X.o.x, X.o.y];
+  if (X.kind === 'flight') return W.flights.includes(X.o) ? lightHead(X.o, 'flight') : null;
+  return W.rays.includes(X.o) && rayFrac(X.o) < 1 ? lightHead(X.o, 'ray') : null;
+}
+function selXHTML() {
+  const X = R.selX, o = X.o, kv = [], live = !!selXHead();
+  let title, sym, col, about, status;
+  const hz = (E) => { const f = E / 4.135667696e-15; return f >= 1e18 ? fmtNum(f / 1e18, 3) + ' EHz' : f >= 1e15 ? fmtNum(f / 1e15, 3) + ' PHz' : f >= 1e12 ? fmtNum(f / 1e12, 3) + ' THz' : fmtNum(f / 1e9, 3) + ' GHz'; };
+  if (X.kind === 'exo') {
+    const d = XP[o.sp], m = d.m;
+    title = XP_NAME[o.sp] || o.lab; sym = o.lab; col = `rgb(${d.col.join(',')})`;
+    const beta = o.v / PHYS.C, life = d.tau * o.gam, path = beta * o.gam * 299792458 * d.tau;
+    kv.push(['Charge', d.q > 0 ? '+' + d.q : d.q < 0 ? '−' + -d.q : '0'], ['Rest mass', `${fmtNum(m, 4)} MeV/c² (${fmtNum(m / 0.51099895, 4)} electron masses)`]);
+    if (XP_QUARKS[o.sp]) kv.push(['Made of', XP_QUARKS[o.sp]]);
+    kv.push(['Kinetic energy', fmtE(o.KE)], ['Total energy', fmtE(o.KE + m * 1e6)], ['Speed', fmtSpeed(o.v)], ['Lorentz factor γ', fmtNum(o.gam, 4)],
+      ['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)],
+      ['Decays to', d.dec.map(([b, ps]) => `${ps.map(t => (XP[t] ? XP[t].lab : ({ 'e-': 'e⁻', 'e+': 'e⁺', nu: 'ν', nub: 'ν̄', g: 'γ', p: 'p', n: 'n', pbar: 'p̄', nbar: 'n̄' })[t] || t)).join(' ')} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
+    about = XP_ABOUT[o.sp.startsWith('mu') ? 'mu' : o.sp.startsWith('pi') ? 'pi' : o.sp.startsWith('K') ? 'K' : o.sp.startsWith('tau') ? 'tau' : o.sp.startsWith('Lam') ? 'Lam' : 'eta'] || '';
+    if (d.tau < 1e-15) about += ' This one lives so briefly that it decays a few nanometres from where it was made.';
+    else if (path > 1e-6) about += ` Moving this fast it would cross ${fmtLen(path)} on average before decaying, far more than this chamber, so it leaves it — unless decay is sped up (Lab → Decay speed).`;
+    status = live ? 'In flight' : o.fate ? o.fate[0].toUpperCase() + o.fate.slice(1) : 'Gone';
+  } else {
+    const E = o.E, nu = X.kind === 'ray' && o.nu;
+    if (nu) {
+      const el = /β|neutron|beta|capture|fusion/i.test(o.how || ''); /* (from nuclei: electron flavour; from a pion, kaon or muon decay it may be another, so just “neutrino”) */ title = (el ? 'Electron ' : '') + (o.anti ? 'antineutrino' : 'neutrino'); title = title[0].toUpperCase() + title.slice(1); sym = o.anti ? 'ν̄' : 'ν'; col = 'rgb(120,255,170)';
+      const lag = 0.8 * 0.8 / (2 * E * E); // (1 − v/c for a mass under 0.8 eV)
+      kv.push(['Energy', fmtE(E)], ['Charge', '0'], ['Mass', 'under 0.8 eV/c² (not yet measured; a millionth of an electron’s)'], ['Speed', lag < 1e-6 ? `c, to within ${lag.toExponential(0)}` : fmtSpeed(PHYS.C * (1 - lag))]);
+      if (o.how) kv.push(['Made by', o.how]);
+      about = 'A neutrino feels only the weak force and gravity, so it passes through the chamber, and through the whole Earth, almost never touching anything. It carries its energy away with it (Data → Ledger counts it as escaped). Pauli predicted it in 1930 to explain the energy missing in β decay.';
+    } else {
+      const nm = PHYS.HC / E, w = wavelengthText(E);
+      title = 'Photon: ' + (E >= 1.24e5 ? 'a γ ray' : E >= 124 ? 'an X-ray' : nm < 380 ? 'ultraviolet light' : nm <= 780 ? 'visible light' : 'infrared light'); sym = 'γ';
+      const c = photonColor(E); col = `rgb(${c.join(',')})`;
+      kv.push(['Energy', fmtE(E)], ['Wavelength', w.lam], ['Frequency', hz(E)], ['Momentum', fmtE(E) + '/c'], ['Speed', 'c, 299,792,458 m/s'], ['Mass, charge', '0, 0']);
+      if (o.lab && !/^(γ|X-ray|UV|IR|\d)/.test(o.lab)) kv.push(['Given off by', o.lab.split(' ')[0] + ' (one of its own lines)']);
+      const tgt = X.kind === 'flight' ? (o.hit && o.hit.p ? speciesLabel(o.hit.p) : '') : o.hitP;
+      kv.push(['Heading for', tgt ? `${tgt}, which it will meet` : 'the wall: nothing is in its way']);
+      about = E >= 1.24e5 ? 'A γ ray comes from a nucleus or from matter and antimatter annihilating. It is the same thing as light, a photon, a million times more energetic: it can knock electrons out of atoms, scatter off them (Compton) or, above 1.022 MeV, turn into an electron and a positron near a nucleus.'
+        : 'A photon is one packet of light: its energy is fixed by its colour (E = hc/λ), and it always moves at c. An atom can only absorb or give off photons whose energy matches a jump between its own levels, which is why each element has its own colours.';
+    }
+    status = live ? 'In flight' : X.kind === 'flight' || o.hitP || o.landed ? 'Arrived' : nu ? 'Gone: it left the chamber' : 'Gone: it left the chamber, or was absorbed';
+  }
+  return `<div class="ins-head"><div class="tilebox" style="border-color:${col}"><span class="s">${esc(sym)}</span></div><div><b>${esc(title)}</b><div class="note">${esc(status)}</div></div></div>
+    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${about ? `<p class="note">${esc(about)}</p>` : ''}`;
+}
 function renderInspect() {
   const box = $('tp-inspect');
+  if (R.selX && !R.sel) { box.innerHTML = selXHTML(); _insCv = null; restoreScroll('tp-inspect'); return; }
   const p = R.sel && !R.sel.dead ? R.sel : null;
   if (!p) {
-    box.innerHTML = `<div class="empty"><b>Nothing selected.</b> Pick the Inspect tool (I) and click any particle to see its electron configuration, bonds, nucleus and energies.</div>`;
+    box.innerHTML = `<div class="empty"><b>Nothing selected.</b> Pick the Inspect tool (I) and click any particle to see its electron configuration, bonds, nucleus and energies. Photons, neutrinos, and pions, kaons and muons in flight can be clicked too.</div>`;
     _insCv = null; restoreScroll('tp-inspect'); return;
   }
   const ke = p.rad ? p.KE : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy);
@@ -3085,7 +3144,7 @@ function loadPreset(key) {
   const P = PRESETS[key] || PRESETS.soup;
   UI.preset = key in PRESETS ? key : 'soup';
   $('preset').value = UI.preset;
-  R.sel = null; R.hover = null; R.follow = null; UI.drag = null; W.grab = null; R.msel.clear();
+  R.sel = null; R.selX = null; R.hover = null; R.follow = null; UI.drag = null; W.grab = null; R.msel.clear();
   P.build();
   settleOverlaps();
   UI.baseSpf = W.baseSpf = W.simPerFrame; UI.ach = 1; UI.capped = false;
@@ -3398,7 +3457,7 @@ function onKey(e) {
     for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal']) if (!$(id).hidden) { hideModal(id); return; }
     if (UI.pasting) { cancelPaste(); return; }
     if (UI.drag) { if (W.tool) W.tool.active = false; W.grab = null; UI.drag = null; R.overlay = null; return; }
-    R.sel = null; R.follow = null; renderInspect(); if (R.msel.size) clearSelection(); return;
+    R.sel = null; R.selX = null; R.follow = null; renderInspect(); if (R.msel.size) clearSelection(); return;
   }
   if (!$('ptModal').hidden || !$('molModal').hidden || !$('bldModal').hidden || !$('nucModal').hidden || !$('setModal').hidden || !$('shareModal').hidden || !$('askModal').hidden || !$('galModal').hidden) return;
   if (tag === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;

@@ -2180,7 +2180,7 @@ function emitPhoton(x, y, E, ux, uy, opts) {
   const lab = photonLabel(E, opts && opts.src);
   if (opts && opts.travel) { W.flights.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.t, len: Math.hypot(x1 - x0, y1 - y0), hit, lab }); return; }
   if (!hit) W.ledger.escaped += E;
-  W.rays.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x0, y1 - y0), nu: false, lab }); // (ts, len: it goes at c on the simulation's clock, drawRays)
+  W.rays.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x0, y1 - y0), nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' }); // (ts, len: it goes at c on the simulation's clock, drawRays; hitP: for the Inspect tab)
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
   if (hit && hit.after) hit.after();
 }
@@ -2206,7 +2206,7 @@ function lightSlow() { return clamp(0.015 * Math.min(W.box.w, W.box.h) / (PHYS.C
 function emitNeutrino(x, y, E, ux, uy, anti = false, how = 'a particle decay or reaction') {
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
   const t = rayExit(x, y, ux, uy), sym = anti ? 'ν̄' : 'ν';
-  W.rays.push({ x0: x, y0: y, x1: x + ux * t, y1: y + uy * t, E, c: [120, 255, 170], t0: W.rt, ts: W.t, len: t, nu: true, lab: sym + ' ' + fmtE(E) });
+  W.rays.push({ x0: x, y0: y, x1: x + ux * t, y1: y + uy * t, E, c: [120, 255, 170], t0: W.rt, ts: W.t, len: t, nu: true, anti, how, lab: sym + ' ' + fmtE(E) });
   W.ledger.escaped += E;
   // the Data tab's "Made here": neutrinos and antineutrinos counted, with the energy they carried off
   const M = W.made || (W.made = { nuc: new Map(), part: new Map() });

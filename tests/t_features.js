@@ -139,6 +139,20 @@ const { openPage } = require('./browser');
   });
   check(Math.abs(r9.one.n / r9.four.n - 4) < 1 && Math.abs(r9.quarter.n / r9.one.n - 4) < 1 && r9.slow.n > 3 * r9.one.n && [r9.one, r9.four, r9.quarter, r9.slow].every(x => x.v > 0.9 && x.v <= 1.0001),
     `light crossing: ${r9.one.n} frames at 1×, ${r9.four.n} at 4×, ${r9.quarter.n} at ¼×, ${r9.slow.n} in slow motion, at c each time`, 'light pace: ' + JSON.stringify(r9));
+  // Inspect: pions, muons, kaons, photons and neutrinos in flight can be picked and described
+  const r10 = await page.evaluate(() => {
+    setRunning(false); loadPreset('empty'); W.decayOn = false;
+    const pi = addExo('pi+', -10, 0, 2e8, 1, 0), mu = addExo('mu-', -10, 5, 1e8, 1, 0);
+    emitPhoton(-W.box.w / 2 + 1, 10, 2.1, 1, 0, { travel: true }); emitNeutrino(0, -10, 1.2e6, 1, 0, true, 'β⁻ decay of a neutron');
+    render(W.rt); setTool('inspect');
+    const pick = (x, y) => pickLight(w2sx(x), w2sy(y), 12);
+    const hits = [pick(pi.x, pi.y), pick(mu.x, mu.y), pick(...lightHead(W.flights[0], 'flight')), pick(...lightHead(W.rays.find(r => r.nu), 'ray'))].map(h => h && h.kind + ':' + (h.o.sp || (h.o.nu ? 'nu' : 'photon')));
+    const card = (kind, o) => { R.sel = null; R.selX = { kind, o }; renderInspect(); return $('tp-inspect').textContent; };
+    const t = [card('exo', pi), card('exo', mu), card('flight', W.flights[0]), card('ray', W.rays.find(r => r.nu))];
+    R.selX = null; loadPreset('water');
+    return { hits, pi: /Positive pion/.test(t[0]) && /17 m/.test(t[0]), mu: /Muon/.test(t[1]) && /2\.20 µs/.test(t[1]), ph: /590 nm/.test(t[2]) && /508 THz/.test(t[2]), nu: /Electron antineutrino/.test(t[3]) };
+  });
+  check(r10.hits.join() === 'exo:pi+,exo:mu-,flight:photon,ray:nu' && r10.pi && r10.mu && r10.ph && r10.nu, 'Inspect: a pion, a muon, a photon and a neutrino in flight picked and described (pion: 17 m before decaying at 200 MeV)', 'inspect in flight: ' + JSON.stringify(r10));
   // a video: four seconds of the running chamber recorded at 4×, made into a file
   const r3 = await page.evaluate(async () => {
     loadPreset('water'); setRunning(true); let saved = null; const keep = fileSave;

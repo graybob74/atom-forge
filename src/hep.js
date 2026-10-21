@@ -243,7 +243,7 @@ function flyExo(o, h) {
 }
 function exoLeaves(o) { // its energy, mass included, leaves the books (it decays out there, into radiation)
   W.ledger.escaped += o.KE + o.m * MEV; W.ledger.nuc += o.m * MEV;
-  o.dead = true;
+  o.dead = true; o.fate = o.fate || 'left the chamber';
 }
 const EXO_QUIET = new Set(['pi0', 'eta']); // decays too common and too quick to caption each one
 function decayExo(o) {
@@ -257,6 +257,7 @@ function decayExo(o) {
   closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
   W.count.decay++;
   const txt = `${o.lab} → ${summarize(items)}`, life = d.tau * o.gam;
+  o.fate = `decayed: ${txt}`;
   flash(o.x, o.y, d.col, EXO_QUIET.has(o.sp) ? 2 : 3.5, 0.35);
   tally(items, [], `Decay in flight: ${txt}`);
   if (!EXO_QUIET.has(o.sp)) {
