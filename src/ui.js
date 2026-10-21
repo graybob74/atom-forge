@@ -419,7 +419,7 @@ function buildToolOpts() {
         rangeCtl('oRate', 'Intensity', 5, 400, o.rate, o.rate + '/s') +
         `<span data-g="mount">${seg('Mode', [['false', 'While held'], ['true', 'Leave on (laser)']], String(!!o.mount))}</span>` +
         (W.lasers.length ? `<button class="opt" id="oLaserClear">Turn off ${W.lasers.length > 1 ? `all ${W.lasers.length} lasers` : 'the laser'}</button>` : '') +
-        `<span class="help">${o.mount ? 'Drag to aim; on release it stays, shining one wavelength (Erase it, or Remove beam sources). ' : ''}Light crosses the box in hundredths of a femtosecond: time slows while it is in flight, so you see it go at c.</span>`;
+        `<span class="help">${o.mount ? 'Drag to aim; on release it stays, shining one wavelength (Erase it, or Remove beam sources). ' : ''}Light crosses the box in hundredths of a femtosecond: time slows while it is in flight, so you see it go at c, in about a second at 1× (the speed buttons and slow motion scale that too).</span>`;
       break;
     }
     case 'erase':

@@ -131,6 +131,14 @@ const { openPage } = require('./browser');
     loadPreset('water'); return { Z: pr && pr.Z, err: pr && pr.zErr, ok: pr && pr.ok, tile };
   });
   check(r8.ok && Math.abs(r8.Z - 1) < 0.35 && /Wall pressure/.test(r8.tile), `wall pressure: argon gas at 1,000 K, Z = ${r8.Z && r8.Z.toFixed(2)} ± ${r8.err && r8.err.toFixed(2)} (ideal gas: 1)`, 'pressure: ' + JSON.stringify(r8));
+  // light in flight: its crossing scales with the speed set and with slow motion (it is c on the simulation's clock)
+  const r9 = await page.evaluate(() => {
+    const cross = (k, hold) => { loadPreset('empty'); W.simPerFrame = W.baseSpf * k; W.slowHold = hold; emitPhoton(-W.box.w / 2 + 0.5, 0, 2.1, 1, 0, { travel: true });
+      const f = W.flights[0], t0 = W.t; let n = 0; while (W.flights.length && n < 5000) { simFrame(1 / 60, 50); n++; } const v = f.len / ((W.t - t0) * PHYS.C); W.slowHold = false; return { n, v }; };
+    return { one: cross(1, false), four: cross(4, false), quarter: cross(0.25, false), slow: cross(1, true) };
+  });
+  check(Math.abs(r9.one.n / r9.four.n - 4) < 1 && Math.abs(r9.quarter.n / r9.one.n - 4) < 1 && r9.slow.n > 3 * r9.one.n && [r9.one, r9.four, r9.quarter, r9.slow].every(x => x.v > 0.9 && x.v <= 1.0001),
+    `light crossing: ${r9.one.n} frames at 1×, ${r9.four.n} at 4×, ${r9.quarter.n} at ¼×, ${r9.slow.n} in slow motion, at c each time`, 'light pace: ' + JSON.stringify(r9));
   // a video: four seconds of the running chamber recorded at 4×, made into a file
   const r3 = await page.evaluate(async () => {
     loadPreset('water'); setRunning(true); let saved = null; const keep = fileSave;

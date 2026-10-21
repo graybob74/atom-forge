@@ -4457,7 +4457,7 @@ function landFlights() {
    within a frame; in slow motion, seen going). */
 function rayFrac(r) { return r.landed || !(r.len > 0) ? 1 : clamp((W.t - r.ts) * PHYS.C / r.len, 0, 1); }
 /* Light in flight: time slows until it crosses about 1.5% of the box a frame, so that it is seen going at c. */
-function lightSlow() { return clamp(0.015 * Math.min(W.box.w, W.box.h) / (PHYS.C * W.simPerFrame), 1e-7, 1); } // (against the speed as set, not the setup's: light crosses the box in about 70 frames whatever the Motion setting — it used to cross in one when the motion was sped up)
+function lightSlow() { return clamp(0.015 * Math.min(W.box.w, W.box.h) / (PHYS.C * (W.baseSpf || W.simPerFrame)), 1e-7, 1); } // (against the setup's normal speed: light crosses the box in about 70 frames at 1×, and the speed buttons and slow motion then scale that as they scale everything else)
 function emitNeutrino(x, y, E, ux, uy, anti = false, how = 'a particle decay or reaction') {
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
   const t = rayExit(x, y, ux, uy), sym = anti ? 'ν̄' : 'ν';
@@ -7478,7 +7478,9 @@ function stepPlain(dt) {
    Everything slows together; nothing is faked. */
 function slowFactor(realDt) {
   const h = W.slowHold ? holdFactor(realDt) : 1;
-  return Math.min(h, W.flights.length ? lightSlow() : 1, eventSlow(realDt));
+  const o = Math.min(h, eventSlow(realDt));
+  if (!W.flights.length) return o;
+  return clamp(lightSlow() * o, 1e-9, 1); // (light in flight: its pace at 1×, times any slow motion; the speed set scales it through simPerFrame, as it scales everything)
 }
 /* Slow motion on demand: time eases down until the fastest particles move about 2% of the box per frame (at the
    setup's normal speed; the speed buttons still scale it), and always to an eighth of normal at least. With slow
@@ -7538,11 +7540,11 @@ function simFrame(realDt, budgetMs) {
   const t0 = performance.now();
   let simAdv = 0, steps = 0, cut = false;
   const slow = slowFactor(realDt), fr = clamp(realDt / FRAME_REF, 0.1, 3);
-  const target = W.simPerFrame * slow * fr;
-  while (simAdv < target - 1e-9) {
+  const target = W.simPerFrame * slow * fr, floor = W.flights.length ? 1e-9 : DT_MIN; // (with light in flight a frame may be shorter than the shortest normal step: slowed down that far, the light is still seen to slow)
+  while (simAdv < target - Math.min(1e-9, 1e-3 * target)) {
     // particles added from outside (tools, setups): the step size must see their forces and contacts first
     if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; }
-    W.dt = Math.min(chooseDt(), Math.max(DT_MIN, target - simAdv)); // slow motion: never overshoot the frame
+    W.dt = Math.min(chooseDt(), Math.max(floor, target - simAdv)); // slow motion: never overshoot the frame
     simAdv += step(W.dt); steps++;
     if (W.slow && W.slow.fresh) { W.slow.fresh = false; break; } // an event just started slow motion: stop here
     if (performance.now() - t0 > budgetMs) { cut = true; break; }
@@ -13879,7 +13881,7 @@ function buildToolOpts() {
         rangeCtl('oRate', 'Intensity', 5, 400, o.rate, o.rate + '/s') +
         `<span data-g="mount">${seg('Mode', [['false', 'While held'], ['true', 'Leave on (laser)']], String(!!o.mount))}</span>` +
         (W.lasers.length ? `<button class="opt" id="oLaserClear">Turn off ${W.lasers.length > 1 ? `all ${W.lasers.length} lasers` : 'the laser'}</button>` : '') +
-        `<span class="help">${o.mount ? 'Drag to aim; on release it stays, shining one wavelength (Erase it, or Remove beam sources). ' : ''}Light crosses the box in hundredths of a femtosecond: time slows while it is in flight, so you see it go at c.</span>`;
+        `<span class="help">${o.mount ? 'Drag to aim; on release it stays, shining one wavelength (Erase it, or Remove beam sources). ' : ''}Light crosses the box in hundredths of a femtosecond: time slows while it is in flight, so you see it go at c, in about a second at 1× (the speed buttons and slow motion scale that too).</span>`;
       break;
     }
     case 'erase':
