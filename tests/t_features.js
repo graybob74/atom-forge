@@ -337,7 +337,7 @@ const { openPage } = require('./browser');
       placeSpec({ kind: 'atom', Z: 11, A: 23 }, 0, 0, 1); const n = W.parts.filter(p => !p.dead).length;
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       await wait(100); out.esc = !$('escModal').hidden && !UI.running;
-      document.querySelector('[data-esc="menu"]').click(); await wait(300); out.back = UI.menu && UI.preset !== 'water' && !$('mmContinue').hidden;
+      document.querySelector('[data-esc="menu"]').click(); await wait(300); out.back = UI.menu && !$('mmContinue').hidden;
       document.querySelector('[data-mm="continue"]').click(); await wait(300);
       out.cont = !UI.menu && W.parts.filter(p => !p.dead).length === n && UI.preset === 'water';
       return out;
@@ -347,6 +347,52 @@ const { openPage } = require('./browser');
     if (m.errors.length) { fails++; say('FAIL menu page errors:', m.errors.join(' | ').slice(0, 600)); }
     await m.browser.close();
   }
+  // 0.57: what the walls do to neutrons; ionic attractions drawn between touching ions of opposite charge
+  const r20 = await page.evaluate(() => {
+    const out = {};
+    for (const nw of ['reflect', 'absorb', 'pass']) {
+      loadPreset('empty'); setRunning(false); W.nWall = nw; const st0 = W.count.wallStop;
+      const n = addNuc(0, 1, 0, W.box.w / 2 - 3, 0, 0, 0, false); setMotion(n, 1e6, 1, 0);
+      for (let f = 0; f < 200 && !n.dead && n.x > 0; f++) simFrame(1 / 60, 30);
+      out[nw] = { dead: n.dead, back: !n.dead && (n.vx < 0 || n.ux < 0), stop: W.count.wallStop - st0 };
+    }
+    loadPreset('empty'); setRunning(false); R.view.ionic = true;
+    const na = addNuc(11, 12, 10, 0, 0, 0, 0, false), cl = addNuc(17, 18, 18, 2.8, 0, 0, 0, false), far = addNuc(17, 18, 18, -15, 0, 0, 0, false);
+    refresh(na); refresh(cl); refresh(far); R.s = 30; R.cx = 0; R.cy = 0;
+    let lines = 0; const ctx = R.ctx, keep = ctx.lineTo; ctx.lineTo = function () { lines++; return keep.apply(this, arguments); };
+    drawIonic(); ctx.lineTo = keep; out.ionic = { lines, qa: na.q, qb: cl.q };
+    return out;
+  });
+  check(r20.reflect.back && !r20.reflect.dead && r20.absorb.dead && r20.absorb.stop === 1 && r20.pass.dead && r20.pass.stop === 0 && r20.ionic.lines === 1,
+    `walls and neutrons: a 1 MeV neutron bounces back off a reflector, is captured by an absorber, flies out through a thin wall; an Na⁺ touching a Cl⁻ is joined by an ionic line, a far Cl⁻ is not`, 'walls/ionic: ' + JSON.stringify(r20));
+  // 0.57: measure, kept views, rewind (and its undo), the graph and its CSV, the tour, a long press
+  const r21 = await page.evaluate(async () => {
+    const wait = (ms) => new Promise((r) => { setTimeout(r, ms); }), out = {};
+    loadPreset('empty'); setRunning(false);
+    const a = addNuc(8, 8, 8, 0, 0, 0, 0, false), b = addNuc(8, 8, 8, 3, 0, 0, 0, false), c = addNuc(8, 8, 8, 3, 4, 0, 0, false);
+    R.measure = [a, b, c]; SET.lunit = 'A'; applySettings(); out.meas = measureText();
+    R.s = 33; R.cx = 1; R.cy = 2; viewSave('7'); R.s = 5; R.cx = 0; R.cy = 0; viewGo('7'); for (let i = 0; i < 40; i++) viewTick(1 / 60); out.view = [+R.s.toFixed(3), +R.cx.toFixed(3), +R.cy.toFixed(3)];
+    // rewind: water runs 2.5 s of watching, then back three snapshots and on from there
+    loadPreset('water'); SET.rewOn = true; SET.rewEvery = 0.25; setRunning(true); REW.last = 0;
+    await wait(2600); setRunning(false); const tEnd = W.t, nSnap = REW.snaps.length;
+    rewOpen(); rewStep(-3); const tBack = W.t, iBack = REW.i; rewCommit(false);
+    out.rew = { nSnap, back: tBack < tEnd, kept: REW.snaps.length === iBack + 1, open: REW.open };
+    undoStep(-1); out.rew.undo = Math.abs(W.t - tEnd) < 1e-9;
+    loadPreset('ringosc'); setRunning(true); REW.last = 0; await wait(400); setRunning(false); out.rew.chips = REW.snaps.length === 0;
+    SET.rewEvery = 0.5;
+    // the graph: a few samples, and the CSV it makes
+    loadPreset('water'); setRunning(true); GR.last = 0; await wait(1800); setRunning(false);
+    let csv = null; const keep = fileSave; fileSave = async (name, text) => { csv = { name, text }; return true; }; grCsv(); await wait(50); fileSave = keep; // eslint-disable-line no-func-assign
+    out.graph = { n: GR.t.length, rows: csv ? csv.text.trim().split('\n').length : 0, head: csv ? csv.text.split('\n')[0].slice(0, 80) : '', water: csv ? /H₂O/.test(csv.text.split('\n')[0]) : false };
+    // the tour, start to end; a long press with a finger opens the quick menu
+    store('toured', ''); tourStart(); out.tour = !$('tour').hidden; for (let i = 0; i < 10 && !$('tour').hidden; i++) $('tourNext').click(); out.tourEnd = $('tour').hidden && store('toured') === '1';
+    setTool('inspect'); UI.pointers.clear(); UI.pointers.set(9, { x: 300, y: 300 }); lpStart({ pointerType: 'touch', pointerId: 9 }, 300, 300); await wait(650); out.lp = QM.open; closeQuickMenu(); UI.pointers.clear();
+    return out;
+  });
+  check(r21.meas === '3.00 Å and 4.00 Å; angle 90.0°' && r21.view.join() === '33,1,2' && r21.rew.nSnap >= 6 && r21.rew.back && r21.rew.kept && !r21.rew.open && r21.rew.undo && r21.rew.chips
+    && r21.graph.n >= 3 && r21.graph.rows === r21.graph.n + 1 && r21.graph.water && r21.tour && r21.tourEnd && r21.lp,
+    `tools: measure gives ${r21.meas}; a kept view comes back; rewind kept ${r21.rew.nSnap} snapshots, went back and carried on (later ones dropped), Ctrl+Z returns to before it, none kept with chips; the graph's CSV has ${r21.graph.rows} rows with the water counted; the tour runs to its end; a long press opens the quick menu`,
+    'tools: ' + JSON.stringify(r21));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

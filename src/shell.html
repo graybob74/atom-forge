@@ -1,4 +1,4 @@
-<title>Atom Forge 0.56.0</title>
+<title>Atom Forge 0.57.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -369,6 +369,27 @@ details.chain[open] summary { margin-bottom: 10px; }
   width: min(1120px, 100%); max-height: 100%; overflow: auto; padding: 16px 18px 18px; display: grid; gap: 14px; }
 .dialog header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .dialog h2 { margin: 0; font-size: 18px; }
+/* Rewind: a timeline under the chamber */
+.rewbar { position: absolute; left: 50%; bottom: 64px; translate: -50% 0; z-index: 12; display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  width: min(680px, calc(100% - 24px)); background: var(--surface); border: 1px solid var(--accent); border-radius: 12px; box-shadow: var(--shadow); }
+.rewbar input[type=range] { flex: 1; min-width: 80px; accent-color: var(--accent); }
+.rewbar .ibtn { width: 30px; height: 30px; font-size: 18px; }
+.rew-t { font-family: var(--font-data); font-size: 12px; color: var(--muted); white-space: nowrap; min-width: 9ch; text-align: right; }
+.stage.rewinding { box-shadow: inset 0 0 0 2px var(--accent), var(--shadow); }
+/* the Data tab's graph: a strip for each quantity chosen */
+.gsel { display: flex; flex-wrap: wrap; gap: 4px; }
+.gsel button { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 3px 9px; font-size: 12px; }
+.gsel button[aria-pressed="true"] { color: var(--fg); border-color: var(--accent); background: var(--accent-soft); }
+canvas.chart.graph { height: auto; }
+/* the tour */
+.tour { position: fixed; inset: 0; z-index: 60; }
+.tour-hole { position: fixed; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(4, 8, 14, 0.62); outline: 2px solid var(--accent); transition: all 0.3s ease; pointer-events: none; }
+.tour-card { position: fixed; width: min(340px, calc(100vw - 32px)); background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+  padding: 14px 16px; display: grid; gap: 6px; transition: left 0.3s ease, top 0.3s ease; zoom: var(--ui, 1); }
+.tour-card h3 { margin: 0; font-size: 16px; }
+.tour-card p { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--fg); }
+.tour-step { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.tour-btns { display: flex; gap: 6px; align-items: center; margin-top: 6px; } .tour-btns span { flex: 1; }
 /* Settings: one tab per category */
 .stabs { display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .stabs button { border: 0; background: transparent; padding: 7px 10px; border-radius: 7px; font-weight: 650; font-size: 13px; color: var(--muted); }

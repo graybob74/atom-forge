@@ -55,7 +55,7 @@ function makeWorld() {
     parts: [], bonds: [], evq: [],
     t: 0, rt: 0, tNuc: 0, step: 0, dt: 0.02, simPerFrame: 1.5,
     box: { w: 120, h: 76, tw: 120, th: 76, uw: 0, uh: 0 },
-    wall: 'reflect',
+    wall: 'reflect', nWall: 'reflect', // nWall: what the closed walls do to neutrons (Lab → Container)
     T: 300, gamma: 0.05,
     warp: 1,                    // radioactive decay speed-up over real rates (1 = as in nature)
     Bz: 0, magnets: [], Ex: 0, Ey: 0,
@@ -3816,6 +3816,10 @@ const _wc = new Float64Array(2);
    only slower particles come back off them. (A wall that bounced a 1 GeV proton or a 14 MeV neutron straight back
    would keep every fast product of every event in the box for ever.) */
 function wallStops(p) { return p.rad && !(p.k === NUC && p.Z === 0); }
+/* Neutrons feel no charge, so what a wall does to them depends on what it is made of (Lab → Container): a reflector
+   (graphite, beryllium) scatters them back in, as these walls always did; an absorber (boron, cadmium) captures them;
+   a thin wall of anything barely touches them, and they fly out. */
+const neutronLeaves = (p) => p.k === NUC && p.Z === 0 && W.wall === 'reflect' && W.nWall !== 'reflect';
 function wallOrEscape(p, escape, x0, y0) {
   const hw = W.box.w / 2, hh = W.box.h / 2;
   if (p.x >= -hw && p.x <= hw && p.y >= -hh && p.y <= hh) return false;
@@ -3842,8 +3846,8 @@ function wallOrEscape(p, escape, x0, y0) {
     updateFast(p);
     return false;
   }
-  if (W.wall === 'open' || (W.wall === 'reflect' && wallStops(p))) {
-    if (W.wall === 'reflect') { W.count.wallStop++; if (x0 !== undefined) { p.x = _wc[0]; p.y = _wc[1]; } }
+  if (W.wall === 'open' || (W.wall === 'reflect' && wallStops(p)) || neutronLeaves(p)) {
+    if (W.wall === 'reflect') { if (!(p.k === NUC && p.Z === 0 && W.nWall === 'pass')) W.count.wallStop++; if (x0 !== undefined) { p.x = _wc[0]; p.y = _wc[1]; } }
     if (p.k === NUC && p.Z === 0) W.ledger.escaped += keOf(p);
     else if (p.rad) W.ledger.escaped += p.KE;
     kill(p); return true;

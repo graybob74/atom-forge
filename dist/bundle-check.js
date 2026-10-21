@@ -2313,7 +2313,7 @@ function makeWorld() {
     parts: [], bonds: [], evq: [],
     t: 0, rt: 0, tNuc: 0, step: 0, dt: 0.02, simPerFrame: 1.5,
     box: { w: 120, h: 76, tw: 120, th: 76, uw: 0, uh: 0 },
-    wall: 'reflect',
+    wall: 'reflect', nWall: 'reflect', // nWall: what the closed walls do to neutrons (Lab → Container)
     T: 300, gamma: 0.05,
     warp: 1,                    // radioactive decay speed-up over real rates (1 = as in nature)
     Bz: 0, magnets: [], Ex: 0, Ey: 0,
@@ -6074,6 +6074,10 @@ const _wc = new Float64Array(2);
    only slower particles come back off them. (A wall that bounced a 1 GeV proton or a 14 MeV neutron straight back
    would keep every fast product of every event in the box for ever.) */
 function wallStops(p) { return p.rad && !(p.k === NUC && p.Z === 0); }
+/* Neutrons feel no charge, so what a wall does to them depends on what it is made of (Lab → Container): a reflector
+   (graphite, beryllium) scatters them back in, as these walls always did; an absorber (boron, cadmium) captures them;
+   a thin wall of anything barely touches them, and they fly out. */
+const neutronLeaves = (p) => p.k === NUC && p.Z === 0 && W.wall === 'reflect' && W.nWall !== 'reflect';
 function wallOrEscape(p, escape, x0, y0) {
   const hw = W.box.w / 2, hh = W.box.h / 2;
   if (p.x >= -hw && p.x <= hw && p.y >= -hh && p.y <= hh) return false;
@@ -6100,8 +6104,8 @@ function wallOrEscape(p, escape, x0, y0) {
     updateFast(p);
     return false;
   }
-  if (W.wall === 'open' || (W.wall === 'reflect' && wallStops(p))) {
-    if (W.wall === 'reflect') { W.count.wallStop++; if (x0 !== undefined) { p.x = _wc[0]; p.y = _wc[1]; } }
+  if (W.wall === 'open' || (W.wall === 'reflect' && wallStops(p)) || neutronLeaves(p)) {
+    if (W.wall === 'reflect') { if (!(p.k === NUC && p.Z === 0 && W.nWall === 'pass')) W.count.wallStop++; if (x0 !== undefined) { p.x = _wc[0]; p.y = _wc[1]; } }
     if (p.k === NUC && p.Z === 0) W.ledger.escaped += keOf(p);
     else if (p.rad) W.ledger.escaped += p.KE;
     kill(p); return true;
@@ -10024,7 +10028,7 @@ const R = {
   cv: null, ctx: null, dpr: 1, w: 0, h: 0, cvbg: null, ctxbg: null, // cvbg: the canvas under the WebGL layer (gl.js), when that is in use
   s: 12, cx: 0, cy: 0,             // px per Å, world point at screen centre
   sprites: new Map(),
-  view: { bohr: 'auto', labels: true, tracks: true, rays: true, hbonds: true, color: 'element', grid: true, decayCards: true },
+  view: { bohr: 'auto', labels: true, tracks: true, rays: true, hbonds: true, ionic: true, color: 'element', grid: true, decayCards: true },
   hover: null, sel: null, overlay: null, ghost: null, molTags: [], time: 0, // molTags: names from Identify molecules, shown for a while follow: null, // follow: a particle the view stays centred on
   msel: new Set(), // the Select tool's selection
   dprMax: 2, lite: false, // (Settings: drawing resolution, and lite: no glows, halos or flashes)
@@ -10174,8 +10178,10 @@ function render(rt) {
   if (R.gl) { R.ctx = R.cv.getContext('2d'); R.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); R.ctx.clearRect(0, 0, R.w, R.h); }
   if (!R.gl) drawBonds(rt);
   if (R.view.hbonds) drawHBonds();
+  if (R.view.ionic) drawIonic();
   if (!R.gl) drawChipsUnder();
   drawParticles(rt);
+  drawMeasure();
   drawChips(rt);
   drawExos(); drawStrings(rt);
   drawFlashes(rt);
@@ -10459,6 +10465,59 @@ function drawHBonds() {
     }
   }
   ctx.stroke(); ctx.restore();
+}
+
+/* Ionic attractions (Lab → View): a dotted line between ions of opposite charge that are touching, held by their
+   charges alone — the bond of a salt, which shares no electrons and so has no bond line of its own. Thicker for
+   higher charges (the pull goes as q₁q₂). Sorted along x and swept, so a crystal of thousands of ions costs little. */
+function drawIonic() {
+  if (R.s < 4) return;
+  const ions = [];
+  for (const p of W.parts) if (!p.dead && p.k === NUC && p.ne > 0 && Math.abs(p.q) >= 1) ions.push(p);
+  if (ions.length < 2) return;
+  ions.sort((a, b) => a.x - b.x);
+  const rOf = (p) => (p.ionic && p.ionR > 0 ? p.ionR : p.rd), ctx = R.ctx, byW = new Map();
+  for (let i = 0; i < ions.length; i++) {
+    const a = ions[i], ra = rOf(a);
+    for (let j = i + 1; j < ions.length; j++) {
+      const b = ions[j], dx = b.x - a.x;
+      if (dx > 8) break;
+      if (a.q * b.q >= 0) continue;
+      const dy = b.y - a.y, r = Math.hypot(dx, dy), reach = 1.3 * (ra + rOf(b));
+      if (r > reach || r < 0.3) continue;
+      if (a.bonds.some(bd => other(bd, a) === b)) continue;
+      const w = clamp(0.8 + 0.35 * Math.sqrt(Math.abs(a.q * b.q)), 1, 2.6), k = w.toFixed(1);
+      let list = byW.get(k); if (!list) byW.set(k, list = []);
+      list.push(w2sx(a.x), w2sy(a.y), w2sx(b.x), w2sy(b.y));
+    }
+  }
+  if (!byW.size) return;
+  ctx.save(); ctx.strokeStyle = R.cvd ? 'rgba(240,228,66,0.6)' : 'rgba(255,196,120,0.6)'; ctx.setLineDash([1.5, 3.5]); ctx.lineCap = 'round';
+  for (const [k, L] of byW) {
+    ctx.lineWidth = +k; ctx.beginPath();
+    for (let i = 0; i < L.length; i += 4) { ctx.moveTo(L[i], L[i + 1]); ctx.lineTo(L[i + 2], L[i + 3]); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* The Measure tool's marks: lines between the atoms picked, each with its length, and the angle's arc at the middle
+   atom of three. They follow the atoms. */
+function drawMeasure() {
+  const m = (R.measure || []).filter(p => !p.dead); if (!m.length) return;
+  const ctx = R.ctx, P = m.map(p => [w2sx(p.x), w2sy(p.y)]), acc = cssVar('--accent') || '#6aa6ff';
+  ctx.save(); ctx.lineWidth = 1.6; ctx.strokeStyle = acc; ctx.fillStyle = acc; ctx.setLineDash([5, 3]);
+  ctx.beginPath(); P.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke(); ctx.setLineDash([]);
+  for (const [x, y] of P) { ctx.beginPath(); ctx.arc(x, y, Math.max(6, Math.min(18, 0.45 * R.s)), 0, Math.PI * 2); ctx.stroke(); }
+  const tag = (t, x, y) => { ctx.font = '600 12px ' + (cssVar('--font-data') || 'monospace'); const w = ctx.measureText(t).width + 10; ctx.fillStyle = 'rgba(8,14,22,0.82)'; ctx.fillRect(x - w / 2, y - 10, w, 20); ctx.fillStyle = '#eaf2ff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y + 0.5); };
+  for (let i = 0; i + 1 < m.length; i++) tag(fmtA(measureDist(m[i], m[i + 1])), (P[i][0] + P[i + 1][0]) / 2, (P[i][1] + P[i + 1][1]) / 2 - 14);
+  if (m.length >= 3) {
+    const [bx, by] = P[1], a1 = Math.atan2(P[0][1] - by, P[0][0] - bx), a2 = Math.atan2(P[2][1] - by, P[2][0] - bx), r = 28;
+    let d = a2 - a1; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+    ctx.strokeStyle = acc; ctx.beginPath(); ctx.arc(bx, by, r, a1, a1 + d, d < 0); ctx.stroke();
+    const am = a1 + d / 2; tag(measureAngle(m[0], m[1], m[2]).toFixed(1) + '°', bx + Math.cos(am) * (r + 22), by + Math.sin(am) * (r + 22));
+  }
+  ctx.restore();
 }
 
 function nucleusBeads(ctx, x, y, rn, Z, N, alpha, anti) {
@@ -14040,6 +14099,7 @@ const ICONS = {
   light: '<circle cx="12" cy="12" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
   erase: '<path d="m4.5 15.5 9-9a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L12 18H7.2z M9 11l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 20h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
   inspect: '<circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="m15 15 5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  measure: '<path d="M3.5 16.5 16.5 3.5l4 4-13 13z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m7 13 1.6 1.6M9.5 10.5l2.3 2.3M12 8l1.6 1.6M14.5 5.5l2.3 2.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
   select: '<rect x="4" y="4" width="13" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="3 2.2"/><path d="m13.5 13.5 2.2 6.5 1.6-2.7 2.7-1.6z" fill="currentColor"/>',
 };
 const TOOLS = [
@@ -14053,6 +14113,7 @@ const TOOLS = [
   { id: 'magnet', name: 'Magnet', key: 'M', help: 'Click to place a magnet pole; drag one to move it.' },
   { id: 'light', name: 'Light', key: 'L', help: 'Drag to aim a beam of photons of one wavelength.' },
   { id: 'erase', name: 'Erase', key: 'E', help: 'Drag to remove particles, magnets and beam sources.' },
+  { id: 'measure', name: 'Measure', key: 'K', help: 'Click two atoms for their distance, a third for the angle at the middle one; the numbers follow the atoms as they move.' },
   { id: 'inspect', name: 'Inspect', key: 'I', help: 'Click a particle to see its physics in the Inspect tab. Right-click anything in the chamber for a quick menu.' },
 ];
 const OPT = {
@@ -14345,6 +14406,11 @@ function buildToolOpts() {
     case 'inspect':
       h = '<span class="help">Click any particle. Hovering shows a quick summary with every tool.</span>';
       break;
+    case 'measure': {
+      const m = R.measure || [];
+      h = `<span class="num">${m.length >= 2 ? measureText() : m.length ? 'now click a second atom' : 'click an atom'}</span><button class="btn small" id="oMeasClr"${m.length ? '' : ' disabled'}>Clear</button><span class="help">Two atoms: their distance. Three: the angle at the middle one, as for a bond angle. Click empty space to start again.</span>`;
+      break;
+    }
     case 'select': {
       const n = selCount(), clip = UI.clip ? UI.clip.parts.length : 0;
       h = `<span data-g="whole">${seg('Box picks', [['true', 'Whole molecules'], ['false', 'Atoms only']], String(o.whole))}</span>` +
@@ -14365,6 +14431,7 @@ function buildToolOpts() {
     if (b.id === 'oSelAll') { selectAll(); return; }
     if (b.id === 'oLaserClear') { W.lasers.length = 0; buildToolOpts(); return; }
     if (b.id === 'oSelNone') { clearSelection(); return; }
+    if (b.id === 'oMeasClr') { if (R.measure) R.measure.length = 0; buildToolOpts(); return; }
     if (b.dataset.iso) { selectSpec(Object.assign({}, UI.spec, { A: +b.dataset.iso })); return; }
     if (b.dataset.my !== undefined) { const m = MYISO[+b.dataset.my]; if (m) selectSpec(isoSpec(m.Z, m.A, m.charge, m.bare, m.anti)); return; }
     const g = b.closest('[data-g]'); if (!g) return;
@@ -14694,6 +14761,7 @@ function onDown(e) {
     return;
   }
   const rc = e.button === 2 || (e.button === 0 && e.ctrlKey && e.pointerType === 'mouse'); // (Ctrl-click: a Mac's right-click)
+  if (!rc) lpStart(e, px, py);
   if (QM.open) { closeQuickMenu(); if (!rc) { UI.drag = { kind: 'none' }; return; } } // a click outside the menu only closes it
   if (e.button === 1 || rc || UI.spaceDown) { UI.drag = { kind: 'pan', x: px, y: py, cx: R.cx, cy: R.cy, rc }; return; }
   const [wx, wy] = s2w(px, py);
@@ -14705,6 +14773,7 @@ function onDown(e) {
     UI.drag = { kind: 'none' };
     return;
   }
+  if (REW.open && (UNDO_TOOLS.has(t) || t === 'grab' || t === 'select')) rewCommit(false); // (changing the world shown: carry on from it)
   if (UNDO_TOOLS.has(t)) undoMark((TOOLS.find(x => x.id === t) || { name: t }).name);
   switch (t) {
     case 'place': {
@@ -14753,6 +14822,12 @@ function onDown(e) {
       eraseHere(wx, wy);
       UI.drag = { kind: 'erase' };
       break;
+    case 'measure': {
+      const p = pickNear(px, py, 24), m = R.measure || (R.measure = []);
+      if (!p) m.length = 0; else { if (m.length >= 3) m.length = 0; if (!m.includes(p)) m.push(p); }
+      UI.drag = { kind: 'none' }; buildToolOpts();
+      break;
+    }
     case 'inspect': {
       const p = pickAt(px, py, 10), x = p ? null : pickLight(px, py, 12);
       R.sel = p || null; R.selX = x ? { kind: x.kind, o: x.o, t0: W.rt } : null;
@@ -14903,6 +14978,7 @@ function onMove(e) {
   UI.mouse = [px, py];
   const [wx, wy] = s2w(px, py);
   if (UI.pasting && R.ghost) { R.ghost.x = wx; R.ghost.y = wy; }
+  lpMove(e, px, py);
   const d = UI.drag;
   if (d && d.kind === 'pinch' && UI.pointers.size >= 2) {
     const [a, b] = [...UI.pointers.values()];
@@ -15019,6 +15095,7 @@ function grabRelease(g) {
   for (const a of as) { a.vx -= vx; a.vy -= vy; updateFast(a); }
 }
 function onUp(e) {
+  lpEnd();
   UI.pointers.delete(e.pointerId);
   if (UI.drag && UI.drag.kind === 'pinch') { if (UI.pointers.size < 2) UI.drag = null; return; }
   const d = UI.drag;
@@ -15691,7 +15768,7 @@ function renderData() {
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
   drawSpec(); explainSync(); drawChain();
-  drawTChart(); drawEChart(m.T);
+  drawTChart(); drawEChart(m.T); drawGraph();
   restoreScroll('tp-data');
 }
 /* What collisions, fusions, fissions, captures and decays have made so far (W.made), heaviest first: each nuclide with
@@ -15969,16 +16046,17 @@ function worldToJSON() {
   const parts = ps.map(p => { const a = [p.k, p.Z, p.N, p.ne, p.anti ? 1 : 0, r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]; if (p.rad) a.push(p.KE); return a; });
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
-  return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
+  return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
     spf: W.simPerFrame, warp: W.warp, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
   if (d.parts.length > MAX_PARTS) return `${d.parts.length.toLocaleString('en-US')} particles: over the limit of ${MAX_PARTS.toLocaleString('en-US')} (Settings → Particle limit)`;
   const num = (v, lo, hi, dflt) => (Number.isFinite(v) ? clamp(v, lo, hi) : dflt);
+  if (!REW.restoring) { rewClear(); grClear(); }
   setRunning(false); clearWorld(); UI.preset = typeof d.preset === 'string' ? d.preset : 'empty';
   W.box.w = W.box.tw = num(d.box.w, 20, 20000, 200); W.box.h = W.box.th = num(d.box.h, 20, 20000, 140); UI.aspect = W.box.th / W.box.tw;
-  W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -50, 50, 0); W.Ey = num(d.Ey, -50, 50, 0);
+  W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.nWall = ['reflect', 'absorb', 'pass'].includes(d.nWall) ? d.nWall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -50, 50, 0); W.Ey = num(d.Ey, -50, 50, 0);
   UI.E = Math.hypot(W.Ex, W.Ey); UI.Eang = UI.E ? Math.round(Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) : (UI.Eang || 0); // (the Lab's field figure and direction, from the field)
   W.simPerFrame = num(d.spf, DT_MIN, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1, 1e30, 1); W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true;
   const made = [], hw = W.box.w / 2, hh = W.box.h / 2;
@@ -16471,7 +16549,8 @@ function bindLab() {
   $('eSlider').oninput = (e) => { UI.E = +e.target.value / 100; applyE(); syncLabText(); };
   bindSeg('segEdir', (v) => { UI.Eang = +v; applyE(); });
   $('bMagClear').onclick = () => { W.magnets.length = 0; syncLabText(); };
-  bindSeg('segWall', (v) => { W.wall = v; });
+  bindSeg('segWall', (v) => { W.wall = v; syncNWall(); });
+  bindSeg('segNWall', (v) => { W.nWall = v; syncNWall(); log('tool', `Neutrons at the walls: ${{ reflect: 'bounce back (a reflector)', absorb: 'absorbed', pass: 'pass through' }[v]}`); });
   $('chkGlow').onchange = (e) => { W.glow = e.target.checked; };
   $('boxSlider').oninput = (e) => { const w = boxFromS(+e.target.value); W.box.tw = w; W.box.th = w * UI.aspect; syncLabText(); };
   $('spdSlider').oninput = (e) => { W.simPerFrame = spdFromS(+e.target.value); syncLabText(); syncSpeed(); };
@@ -16480,7 +16559,7 @@ function bindLab() {
   $('chkSlowmo').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', e.target.checked ? '1' : '0'); };
   bindSeg('segBohr', (v) => { setAtomView(v); });
   bindSeg('segColor', (v) => { R.view.color = v; });
-  try { const vf = JSON.parse(store('viewflags') || 'null'); if (vf && typeof vf === 'object') for (const k of ['labels', 'tracks', 'rays', 'hbonds', 'grid', 'decayCards']) if (typeof vf[k] === 'boolean') R.view[k] = vf[k]; } catch (e) { /* (defaults) */ }
+  try { const vf = JSON.parse(store('viewflags') || 'null'); if (vf && typeof vf === 'object') for (const k of ['labels', 'tracks', 'rays', 'hbonds', 'ionic', 'grid', 'decayCards']) if (typeof vf[k] === 'boolean') R.view[k] = vf[k]; } catch (e) { /* (defaults) */ }
   for (const c of document.querySelectorAll('[data-view]')) c.onchange = () => { R.view[c.dataset.view] = c.checked; store('viewflags', JSON.stringify(R.view)); };
   $('bIdentify').onclick = () => { identifyMolecules(); };
   $('bSaveWorld').onclick = () => saveWorld(); $('bLoadWorld').onclick = () => loadWorld();
@@ -16509,7 +16588,7 @@ function syncLab() {
   UI.E = Math.hypot(W.Ex, W.Ey);
   if (UI.E) UI.Eang = Math.round(((Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) + 360) % 360);
   $('eSlider').value = Math.round(UI.E * 100); setSegValue('segEdir', UI.Eang || 0);
-  setSegValue('segWall', W.wall); $('chkGlow').checked = !!W.glow; rampSync();
+  setSegValue('segWall', W.wall); syncNWall(); $('chkGlow').checked = !!W.glow; rampSync();
   UI.aspect = W.box.th / W.box.tw;
   $('boxSlider').value = sFromBox(W.box.tw);
   $('spdSlider').value = sFromSpd(W.simPerFrame);
@@ -17089,7 +17168,7 @@ function scatter(n, w, h, fn, minD = 2.2) {
 function baseWorld(w, h, T, gamma) {
   clearWorld();
   W.box.w = W.box.tw = w; W.box.h = W.box.th = h;
-  W.T = T; W.gamma = gamma; W.Bz = 0; W.Ex = 0; W.Ey = 0; W.wall = 'reflect'; W.warp = 1; W.simPerFrame = 1.5; W.decayOn = true;
+  W.T = T; W.gamma = gamma; W.Bz = 0; W.Ex = 0; W.Ey = 0; W.wall = 'reflect'; W.nWall = 'reflect'; W.warp = 1; W.simPerFrame = 1.5; W.decayOn = true;
   W.magnets.length = 0; W.sources.length = 0; W.zones.length = 0; W.collider = null; W.slowHold = false; W.hold = null; W.holdFrac = 0;
   UI.E = 0; UI.Eang = 0;
 }
@@ -17309,6 +17388,7 @@ function buildPresetSelect() {
   $('preset').onchange = (e) => { undoMark('Load a setup'); loadPreset(e.target.value); e.target.blur(); };
 }
 function loadPreset(key) {
+  if (!REW.restoring) { rewClear(); grClear(); if (R.measure) R.measure.length = 0; } // (a new world: its own past)
   const P = PRESETS[key] || PRESETS.soup;
   UI.preset = key in PRESETS ? key : 'soup';
   $('preset').value = UI.preset;
@@ -17555,6 +17635,7 @@ function frame(now) {
   }
   const realDt = Math.min(0.1, Math.max(0, (now - UI.last) / 1000));
   if (UI.menu) mmTick(realDt);
+  viewTick(realDt);
   UI.last = now; UI.vis += realDt; UI.fps = UI.fps ? 0.95 * UI.fps + 0.05 / Math.max(1e-3, realDt) : 60;
   UI.fpsN = (UI.fpsN || 0) + 1; // (the frame-rate counter: frames counted over half a second)
   // the frame's phases are timed; the worst frame of each badge period is shown with where its time went (a stutter's trail)
@@ -17591,6 +17672,7 @@ function frame(now) {
       toolTick(realDt);
       histTick(now);
       if (now - (UI.lastAuto || 0) > 20000) { UI.lastAuto = now; autosave(); }
+      rewTick(now); grTick(now);
     }
     tf1 = performance.now();
     if (R.follow) { if (R.follow.dead) R.follow = null; else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
@@ -17672,9 +17754,237 @@ function bindDisplayMode() {
   dmPoke();
 }
 
+/* ------------------------------------------------------------------ measure, views, long press */
+/* Measure (K): the distance between two atoms, the angle at the middle of three (render.js drawMeasure draws them). */
+function measureDist(a, b) { let dx = b.x - a.x, dy = b.y - a.y; if (W.wall === 'wrap') [dx, dy] = minImg(dx, dy); return Math.hypot(dx, dy); }
+function measureAngle(a, b, c) { let ax = a.x - b.x, ay = a.y - b.y, cx = c.x - b.x, cy = c.y - b.y; if (W.wall === 'wrap') { [ax, ay] = minImg(ax, ay); [cx, cy] = minImg(cx, cy); } return Math.acos(clamp((ax * cx + ay * cy) / (Math.hypot(ax, ay) * Math.hypot(cx, cy) || 1), -1, 1)) * 180 / Math.PI; }
+function measureText() {
+  const m = (R.measure || []).filter(p => !p.dead); if (m.length < 2) return '';
+  let t = `${fmtA(measureDist(m[0], m[1]))}`;
+  if (m.length >= 3) t += ` and ${fmtA(measureDist(m[1], m[2]))}; angle ${measureAngle(m[0], m[1], m[2]).toFixed(1)}°`;
+  return t;
+}
+/* Camera views: Shift+1 … 9 keeps where the view is, 1 … 9 goes back there (kept in this browser). */
+function viewsGet() { try { const v = JSON.parse(store('views') || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } }
+function viewSave(n) { const v = viewsGet(); v[n] = [R.s, R.cx, R.cy]; store('views', JSON.stringify(v)); log('tool', `View ${n} kept (press ${n} to come back to it)`); }
+function viewGo(n) {
+  const c = viewsGet()[n]; if (!Array.isArray(c) || !c.every(Number.isFinite)) { log('tool', `No view ${n} yet: Shift+${n} keeps the one you see`); return; }
+  R.follow = null; VIEWGO.from = [R.s, R.cx, R.cy]; VIEWGO.to = c; VIEWGO.t = 0; // (a short glide there)
+}
+const VIEWGO = { from: null, to: null, t: 1 };
+function viewTick(dt) {
+  if (VIEWGO.t >= 1 || !VIEWGO.to) return;
+  VIEWGO.t = Math.min(1, VIEWGO.t + dt / 0.35); const k = 1 - Math.pow(1 - VIEWGO.t, 3), [s0, x0, y0] = VIEWGO.from, [s1, x1, y1] = VIEWGO.to;
+  R.s = Math.exp(Math.log(s0) + (Math.log(s1) - Math.log(s0)) * k); R.cx = x0 + (x1 - x0) * k; R.cy = y0 + (y1 - y0) * k;
+}
+/* Touch and pen: a long press (half a second, held still) opens the quick menu there, as a right-click does; if the
+   press had already changed the world (placed an atom …), that is taken back first. */
+const LP = { t: 0, id: -1, x: 0, y: 0, undo: -1 };
+function lpStart(e, px, py) {
+  clearTimeout(LP.t); if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+  LP.id = e.pointerId; LP.x = px; LP.y = py; LP.undo = UNDO.back.length;
+  LP.t = setTimeout(() => {
+    if (UI.pointers.size !== 1) return;
+    endToolAction();
+    if (UNDO_TOOLS.has(UI.tool) && UNDO.back.length > 0 && UNDO.back.length === LP.undo) { const sn = UNDO.back.pop(); UNDO.size -= sn.n; undoRestore(sn); }
+    UI.drag = { kind: 'none' }; openQuickMenu(LP.x, LP.y);
+  }, 520);
+}
+function lpMove(e, px, py) { if (e.pointerId === LP.id && Math.hypot(px - LP.x, py - LP.y) > 10) clearTimeout(LP.t); }
+function lpEnd() { clearTimeout(LP.t); }
+
+/* ------------------------------------------------------------------ rewind */
+/* Rewind (, or the ⟲ button; Settings → General): while it runs, the world is kept every so often (rewEvery seconds of
+   watching) as a compact copy (typed arrays of what a saved world holds: the particles, their motion, the bonds, the
+   conditions), as far back as set and within a memory limit. The timeline drags back through them, the simulation
+   paused; Play from here carries on from that moment (what came after is dropped, and Ctrl+Z goes back to before the
+   rewind); Back to now puts it as it was. Light and unstable particles in flight are not kept, and a setup with chips,
+   beams, lasers or a ramp keeps none (undoOK). */
+const REW = { snaps: [], bytes: 0, last: 0, open: false, i: 0, now: null, wasRun: false, restoring: false, pend: -1 };
+function rewPack() {
+  const d = worldToJSON(), n = d.parts.length, I = new Int16Array(n * 5), F = new Float64Array(n * 4), K = [];
+  for (let j = 0; j < n; j++) { const q = d.parts[j]; I.set([q[0], q[1], q[2], q[3], q[4]], j * 5); F.set([q[5], q[6], q[7], q[8]], j * 4); if (q.length > 9) K.push(j, q[9]); }
+  const B = new Int32Array(d.bonds.length * 3); d.bonds.forEach((b, j) => B.set(b, j * 3));
+  const meta = Object.assign({}, d); delete meta.parts; delete meta.bonds;
+  return { t: W.t, rt: performance.now(), meta, I, F, K: Float64Array.from(K), B, bytes: I.byteLength + F.byteLength + B.byteLength + K.length * 8 + 600 };
+}
+function rewUnpack(sn) {
+  const d = Object.assign({}, sn.meta), n = sn.I.length / 5, parts = new Array(n), ke = new Map();
+  for (let j = 0; j < sn.K.length; j += 2) ke.set(sn.K[j], sn.K[j + 1]);
+  for (let j = 0; j < n; j++) { const a = [sn.I[j * 5], sn.I[j * 5 + 1], sn.I[j * 5 + 2], sn.I[j * 5 + 3], sn.I[j * 5 + 4], sn.F[j * 4], sn.F[j * 4 + 1], sn.F[j * 4 + 2], sn.F[j * 4 + 3]]; if (ke.has(j)) a.push(ke.get(j)); parts[j] = a; }
+  const bonds = []; for (let j = 0; j < sn.B.length; j += 3) bonds.push([sn.B[j], sn.B[j + 1], sn.B[j + 2]]);
+  d.parts = parts; d.bonds = bonds; return d;
+}
+function rewRestore(sn) {
+  const cam = [R.s, R.cx, R.cy], sel = R.measure, hist = W.hist; REW.restoring = true;
+  try { const r = worldFromJSON(rewUnpack(sn)); if (typeof r === 'string') log('tool', 'Rewind: ' + r); } finally { REW.restoring = false; }
+  W.t = sn.t; [R.s, R.cx, R.cy] = cam; if (sel) sel.length = 0; W.hist = hist; updateReadouts(); // (the view, and the temperature history, stay)
+}
+function rewClear() { REW.snaps.length = 0; REW.bytes = 0; if (REW.open) rewClose(false); }
+function rewTrim() {
+  const keep = Math.max(2, Math.round(SET.rewSpan / SET.rewEvery)), cap = SET.rewMem * 1048576;
+  while (REW.snaps.length > keep || (REW.bytes > cap && REW.snaps.length > 1)) REW.bytes -= REW.snaps.shift().bytes;
+}
+function rewTick(now) {
+  if (!SET.rewOn || UI.menu || REW.open || !UI.running || now - REW.last < SET.rewEvery * 1000) return;
+  REW.last = now;
+  if (!undoOK()) { if (REW.snaps.length) rewClear(); return; }
+  const sn = rewPack(); REW.snaps.push(sn); REW.bytes += sn.bytes; rewTrim();
+}
+function rewNote() {
+  const n = REW.snaps.length, span = n > 1 ? (REW.snaps[n - 1].rt - REW.snaps[0].rt) / 1000 : 0;
+  return !SET.rewOn ? 'Off: nothing is kept.' : !undoOK() ? 'This setup keeps none: its chips, beams, lasers or ramp cannot be put back.' : `Now: ${n} snapshots, ${span.toFixed(0)} s back, ${(REW.bytes / 1048576).toFixed(1)} MB.`;
+}
+function rewOpen() {
+  if (REW.open) return;
+  if (!SET.rewOn) { log('tool', 'Rewind is off (Settings → General)'); return; }
+  if (!undoOK()) { log('tool', 'Rewind keeps nothing in this setup: its chips, beams, lasers or ramp cannot be put back'); return; }
+  if (!REW.snaps.length) { log('tool', 'Nothing kept yet to rewind to: it keeps the world while it runs'); return; }
+  REW.wasRun = UI.running; setRunning(false); REW.now = rewPack(); REW.open = true; REW.i = REW.snaps.length;
+  const sl = $('rewSlider'); sl.max = String(REW.snaps.length); sl.value = String(REW.i);
+  $('rewBar').hidden = false; $('stage').classList.add('rewinding'); rewLabel();
+}
+function rewGo(i) {
+  if (!REW.open) return;
+  i = clamp(Math.round(i), 0, REW.snaps.length); if (i === REW.i) return;
+  REW.i = i; $('rewSlider').value = String(i); rewRestore(i === REW.snaps.length ? REW.now : REW.snaps[i]); rewLabel();
+}
+function rewStep(d) { if (REW.open) rewGo(REW.i + d); }
+function rewLabel() {
+  const i = REW.i, sn = i === REW.snaps.length ? REW.now : REW.snaps[i], ago = (REW.now.rt - sn.rt) / 1000;
+  $('rewT').textContent = i === REW.snaps.length ? 'now' : `−${ago.toFixed(ago < 10 ? 1 : 0)} s · ${fmtTime(sn.t * PHYS.TU_S)}`;
+  $('rewBack').disabled = i <= 0; $('rewFwd').disabled = i >= REW.snaps.length; $('rewPlay').disabled = i === REW.snaps.length;
+}
+function rewClose(restoreNow) {
+  if (!REW.open) return;
+  if (restoreNow && REW.i !== REW.snaps.length) rewRestore(REW.now);
+  REW.open = false; $('rewBar').hidden = true; $('stage').classList.remove('rewinding');
+}
+function rewLive() { const run = REW.wasRun; rewClose(true); setRunning(run); }
+function rewCommit(resume = true) { // carry on from the moment shown
+  if (!REW.open) return;
+  if (REW.i < REW.snaps.length) {
+    const d = rewUnpack(REW.now), sn = { d, t: REW.now.t, cam: [R.s, R.cx, R.cy], label: 'Rewind', n: d.parts.length * 60 + 200 }; // (Ctrl+Z: back to before it)
+    UNDO.back.push(sn); UNDO.size += sn.n; UNDO.fwd.length = 0;
+    for (let j = REW.i + 1; j < REW.snaps.length; j++) REW.bytes -= REW.snaps[j].bytes;
+    REW.snaps.length = REW.i + 1; log('tool', `Rewound ${$('rewT').textContent.split(' ·')[0].replace('−', '')} and carried on from there`);
+  }
+  REW.open = false; $('rewBar').hidden = true; $('stage').classList.remove('rewinding'); REW.last = performance.now();
+  { let k = GR.t.length; while (k > 0 && GR.t[k - 1] > W.t) k--; const cut = GR.t.length - k; if (cut > 0) { GR.t.length = k; GR.rt.length = k; for (const c in GR.cols) GR.cols[c].length = k; for (const [, o] of GR.sp) o.v.length = k; } } // (the graph, from there too)
+  if (W.hist && W.hist.t) { const H = W.hist; let k = H.t.length; while (k > 0 && H.t[k - 1] > W.t) k--; H.t.length = k; H.T.length = k; H.bath.length = k; }
+  if (resume) setRunning(true);
+}
+function rewInit() {
+  $('bRewind').onclick = () => (REW.open ? rewLive() : rewOpen());
+  $('rewSlider').addEventListener('input', (e) => { REW.pend = +e.target.value; requestAnimationFrame(() => { if (REW.pend >= 0) { const v = REW.pend; REW.pend = -1; rewGo(v); } }); });
+  $('rewBack').onclick = () => rewStep(-1); $('rewFwd').onclick = () => rewStep(1);
+  $('rewPlay').onclick = () => rewCommit(); $('rewLive').onclick = () => rewLive();
+}
+
+/* ------------------------------------------------------------------ the Data tab's graph */
+/* Every half second of watching while it runs: the temperatures, the counts, the pressure, the energy ledger and
+   how many there are of each species; the quantities chosen are drawn as strips, and all of it exports as CSV. */
+const GR = { t: [], rt: [], cols: {}, sp: new Map(), last: 0, max: 2400 };
+const GR_FIX = [['T', 'Temperature', (v) => fmtT(v)], ['Te', 'Electron temperature', (v) => fmtT(v)], ['n', 'Particles', (v) => Math.round(v).toLocaleString('en-US')],
+  ['freeE', 'Free electrons', (v) => Math.round(v).toLocaleString('en-US')], ['ion', 'Ionized atoms', (v) => (100 * v).toFixed(1) + '%'], ['P', 'Wall pressure', (v) => fmtSI(v, 'N/m', 2)],
+  ['chem', 'Chemical heat released', (v) => fmtE(v)], ['nuc', 'Nuclear energy released', (v) => fmtE(v)], ['esc', 'Energy escaped', (v) => fmtE(v)]];
+function grClear() { GR.t.length = 0; GR.rt.length = 0; GR.cols = {}; GR.sp = new Map(); }
+function grSel() { try { const a = JSON.parse(store('graphSel') || 'null'); return Array.isArray(a) ? a : ['T', 'n']; } catch (e) { return ['T', 'n']; } }
+function grTick(now) {
+  if (!UI.running || UI.menu || now - GR.last < 500) return;
+  GR.last = now;
+  const m = measure(), sp = speciesCounts(), L = W.ledger; let mols = 0; for (const [, e] of sp) mols += e.n;
+  let P = NaN; try { const pr = wallPressure(mols, m.T); if (pr && pr.ok) P = pr.P; } catch (e) { /* (no walls) */ }
+  const row = { T: m.T, Te: m.Te, n: W.parts.reduce((a, p) => a + (p.dead ? 0 : 1), 0), freeE: m.freeE || 0, ion: m.ionFrac, P, chem: L.chem, nuc: L.nuc, esc: L.escaped };
+  const k = GR.t.length; GR.t.push(W.t); GR.rt.push(now / 1000);
+  for (const [c] of GR_FIX) (GR.cols[c] || (GR.cols[c] = new Array(k).fill(NaN))).push(row[c]);
+  for (const [key, e] of sp.slice(0, 16)) if (!GR.sp.has(key)) GR.sp.set(key, { name: e.name, col: e.col, v: new Array(k).fill(0) });
+  const now2 = new Map(sp.map(([key, e]) => [key, e.n]));
+  for (const [key, o] of GR.sp) o.v.push(now2.get(key) || 0);
+  if (GR.t.length > GR.max) { const cut = GR.t.length - GR.max; GR.t.splice(0, cut); GR.rt.splice(0, cut); for (const c in GR.cols) GR.cols[c].splice(0, cut); for (const [, o] of GR.sp) o.v.splice(0, cut); }
+}
+function grSeries() { // [id, label, values, fmt, colour]
+  const out = GR_FIX.filter(([c]) => GR.cols[c] && GR.cols[c].some(Number.isFinite)).map(([c, l, f]) => [c, l, GR.cols[c], f, null]);
+  for (const [key, o] of [...GR.sp].sort((a, b) => b[1].v[b[1].v.length - 1] - a[1].v[a[1].v.length - 1]).slice(0, 10)) out.push(['sp:' + key, key + (o.name ? ' (' + o.name + ')' : ''), o.v, (v) => Math.round(v).toLocaleString('en-US'), o.col]);
+  return out;
+}
+function drawGraph() {
+  const all = grSeries(), sel = grSel(), chosen = all.filter(s => sel.includes(s[0]));
+  const box = $('gSel'), sig = all.map(s => s[0]).join('|') + '#' + sel.join('|');
+  if (box.dataset.sig !== sig) { box.dataset.sig = sig; box.innerHTML = all.map(([id, l]) => `<button data-g="${esc(id)}" aria-pressed="${sel.includes(id)}">${esc(l)}</button>`).join(''); }
+  const cv = $('chG'), rows = Math.max(1, chosen.length); cv.style.height = (rows * 64 + 6) + 'px';
+  const r = chartCtx(cv); if (!r) return; const [ctx, w, h] = r, n = GR.t.length;
+  $('gNote').textContent = n ? `${n.toLocaleString('en-US')} points over ${fmtTime((GR.t[n - 1] - GR.t[0]) * PHYS.TU_S)}` : '';
+  if (n < 2 || !chosen.length) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText(n < 2 ? 'Collecting while it runs …' : 'Pick something to plot', 10, 20); return; }
+  const rh = (h - 6) / rows, fx = (i) => 6 + i / (n - 1) * (w - 12), pal = ['--hot', '--accent', '--good', '--warn'];
+  chosen.forEach(([id, label, v, fmt, col], k) => {
+    const y0 = 3 + k * rh; let lo = Infinity, hi = -Infinity; for (const x of v) if (Number.isFinite(x)) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
+    if (!Number.isFinite(lo)) return; if (hi - lo < 1e-12 * Math.max(1, Math.abs(hi))) { lo -= 1; hi += 1; }
+    const fy = (x) => y0 + rh - 6 - (x - lo) / (hi - lo) * (rh - 22);
+    ctx.strokeStyle = cssVar('--line'); ctx.lineWidth = 1; if (k) { ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(w, y0); ctx.stroke(); }
+    ctx.strokeStyle = col || cssVar(pal[k % pal.length]); ctx.lineWidth = 1.6; ctx.beginPath(); let on = false;
+    for (let i = 0; i < n; i++) { if (!Number.isFinite(v[i])) { on = false; continue; } const x = fx(i), y = fy(v[i]); if (on) ctx.lineTo(x, y); else { ctx.moveTo(x, y); on = true; } }
+    ctx.stroke();
+    ctx.fillStyle = cssVar('--fg'); ctx.font = '600 11px ' + cssVar('--font-ui'); ctx.textAlign = 'left'; ctx.fillText(label, 8, y0 + 13);
+    ctx.fillStyle = cssVar('--muted'); ctx.font = '11px ' + cssVar('--font-data'); ctx.textAlign = 'right';
+    const last = [...v].reverse().find(Number.isFinite); ctx.fillText(`${fmt(last)}   (${fmt(lo)} – ${fmt(hi)})`, w - 8, y0 + 13); ctx.textAlign = 'left';
+  });
+}
+function grCsv() {
+  const n = GR.t.length; if (!n) { log('tool', 'Nothing recorded yet for the graph'); return; }
+  const fix = GR_FIX.filter(([c]) => GR.cols[c]), sp = [...GR.sp];
+  const q = (x) => '"' + String(x).replace(/"/g, '""') + '"';
+  const head = ['simulated time (s)', 'watching time (s)', ...fix.map(([, l]) => l + ({ T: ' (K)', Te: ' (K)', P: ' (N/m)', chem: ' (eV)', nuc: ' (eV)', esc: ' (eV)', ion: ' (fraction)' }[fix.find(f => f[1] === l)[0]] || '')), ...sp.map(([k, o]) => k + (o.name ? ' ' + o.name : ''))].map(q).join(',');
+  const lines = [head];
+  for (let i = 0; i < n; i++) lines.push([(GR.t[i] * PHYS.TU_S).toExponential(6), (GR.rt[i] - GR.rt[0]).toFixed(2), ...fix.map(([c]) => (Number.isFinite(GR.cols[c][i]) ? +GR.cols[c][i].toPrecision(7) : '')), ...sp.map(([, o]) => o.v[i])].join(','));
+  fileSave(`atom-forge-${(UI.preset || 'world').replace(/[^a-z0-9-]/gi, '')}-graph.csv`, lines.join('\n') + '\n', 'text/csv').then((ok) => { if (ok) log('tool', `Graph exported: ${n} rows, ${lines[0].split(',').length} columns`); });
+}
+function grInit() {
+  $('gSel').onclick = (e) => { const b = e.target.closest('[data-g]'); if (!b) return; const id = b.dataset.g, sel = grSel(), i = sel.indexOf(id); if (i >= 0) sel.splice(i, 1); else sel.push(id); store('graphSel', JSON.stringify(sel.slice(-6))); drawGraph(); };
+  $('gCsv').onclick = () => grCsv(); $('gClr').onclick = () => { grClear(); drawGraph(); };
+}
+
+/* ------------------------------------------------------------------ the tour */
+const TOUR = [
+  ['#stage', 'The chamber', 'Everything here follows real physics: atoms, electrons, nuclei and light. Scroll to zoom, drag with the right button to move around.'],
+  ['.tools-wrap', 'Tools', 'Place, grab, select, push and pull, fire, heat, spark, magnets, light, erase, measure, inspect. The letter under each is its key.'],
+  ['#paletteBar', 'What to place', 'Pick a particle, an element or a molecule here; Elements… and Molecules… have the rest, every isotope included.'],
+  ['.transport', 'Time', 'Play and pause (Space), one frame at a time (.), reload, slower and faster down to 1/256×, and slow motion. ⟲ rewinds (,): drag back through the last minute.'],
+  ['#preset', 'Experiments', 'Ready-made setups, from water and salt to a chain reaction, a collider and challenges.'],
+  ['.panel .tabs', 'The lab panel', 'Lab sets the conditions (temperature, fields, walls); Inspect shows anything you click; Data has graphs and counts; Log tells what happened; Physics explains how it works.'],
+  ['#bSettings', 'Settings and keys', 'Settings has graphics, display, controls and more. Esc opens the menu, ? lists every key, Ctrl+Z undoes.'],
+];
+const TS = { i: 0 };
+function tourStart() { if (UI.menu) return; TS.i = 0; $('tour').hidden = false; tourShow(); }
+function tourEnd() { $('tour').hidden = true; store('toured', '1'); }
+function tourShow() {
+  const [sel, title, text] = TOUR[TS.i], el = document.querySelector(sel);
+  if (!el || !el.getBoundingClientRect().width) { if (TS.i < TOUR.length - 1) { TS.i++; tourShow(); } else tourEnd(); return; }
+  const r = el.getBoundingClientRect(), pad = 6, hole = $('tourHole').style;
+  hole.left = (r.left - pad) + 'px'; hole.top = (r.top - pad) + 'px'; hole.width = (r.width + 2 * pad) + 'px'; hole.height = (r.height + 2 * pad) + 'px';
+  $('tourStep').textContent = `${TS.i + 1} of ${TOUR.length}`; $('tourTitle').textContent = title; $('tourText').textContent = text;
+  $('tourBack').disabled = TS.i === 0; $('tourNext').textContent = TS.i === TOUR.length - 1 ? 'Done' : 'Next';
+  const c = $('tourCard'), ui = SET.ui || 1, cw = c.offsetWidth * ui, ch = c.offsetHeight * ui, W0 = innerWidth, H0 = innerHeight;
+  let x = r.right + 16, y = r.top; // (beside it if there is room, else below, else above, else inside)
+  if (x + cw > W0 - 8) { x = r.left - cw - 16; } if (x < 8) { x = clamp(r.left, 8, W0 - cw - 8); y = r.bottom + 14; if (y + ch > H0 - 8) y = r.top - ch - 14; if (y < 8) y = clamp(r.top + 20, 8, H0 - ch - 8); }
+  y = clamp(y, 8, H0 - ch - 8);
+  c.style.left = (x / ui) + 'px'; c.style.top = (y / ui) + 'px';
+  $('tourNext').focus();
+}
+function tourInit() {
+  $('tourNext').onclick = () => { if (TS.i >= TOUR.length - 1) tourEnd(); else { TS.i++; tourShow(); } };
+  $('tourBack').onclick = () => { if (TS.i > 0) { TS.i--; tourShow(); } };
+  $('tourSkip').onclick = () => tourEnd();
+  window.addEventListener('resize', () => { if (!$('tour').hidden) tourShow(); });
+}
+
 /* ------------------------------------------------------------------ lengths, undo, autosave, menus */
 let L_UNIT = 'A'; // Settings → General: lengths in Å, nm or pm (fmtA)
 function fmtA(a, digits) { const [f, u] = L_UNIT === 'nm' ? [0.1, ' nm'] : L_UNIT === 'pm' ? [100, ' pm'] : [1, ' Å'], v = a * f; return (digits === undefined ? (Math.abs(v) >= 100 ? fmtNum(v, 4) : v.toPrecision(3)) : v.toFixed(digits)) + u; }
+function syncNWall() {
+  $('nWallRow').hidden = W.wall !== 'reflect'; setSegValue('segNWall', W.nWall || 'reflect');
+  $('nWallNote').textContent = { reflect: 'They scatter back in, as off a reflector of graphite or beryllium: a chain reaction keeps its neutrons.', absorb: 'They are captured in the wall, as in boron or cadmium (the energy goes into the wall): a chain reaction loses them at the edges.', pass: 'They fly straight out, as through any thin wall (their energy leaves with them): only what they hit on the way in counts.' }[W.nWall || 'reflect'];
+}
 function viewFlagsSave() { store('viewflags', JSON.stringify(R.view)); }
 /* Undo and redo (Ctrl+Z; Ctrl+Shift+Z or Ctrl+Y): before each change made by hand (a tool pressed on the chamber, a
    paste, a deletion, a setup loaded …) the world is kept as a saved world (worldToJSON) with its clock and view; undo
@@ -17744,10 +18054,10 @@ function blurPause(away) {
   else if (!away && UI.blurPaused) { UI.blurPaused = false; setRunning(true); }
 }
 /* Keyboard shortcuts (?) */
-const KEYS = [['Simulation', [['Space', 'Play / pause'], ['.', 'One frame'], ['R', 'Reload the setup'], ['[ / ]', 'Slower / faster'], ['\\', 'Slow motion'], ['Ctrl+Z', 'Undo'], ['Ctrl+Shift+Z, Ctrl+Y', 'Redo']]],
-  ['View', [['+ / −, wheel', 'Zoom'], ['0', 'Fit the box'], ['V', 'Particle view'], ['O', 'Orbitals'], ['B', 'Chamber only'], ['F11', 'Borderless full screen'], ['Esc', 'Menu (or leave chamber only, drop the selection)']]],
+const KEYS = [['Simulation', [['Space', 'Play / pause'], ['.', 'One frame'], ['R', 'Reload the setup'], ['[ / ]', 'Slower / faster'], ['\\', 'Slow motion'], [',', 'Rewind: back a step'], ['Ctrl+Z', 'Undo'], ['Ctrl+Shift+Z, Ctrl+Y', 'Redo']]],
+  ['View', [['+ / −, wheel', 'Zoom'], ['0', 'Fit the box'], ['1 … 9', 'Go to a kept view'], ['Shift+1 … 9', 'Keep this view'], ['V', 'Particle view'], ['O', 'Orbitals'], ['B', 'Chamber only'], ['F11', 'Borderless full screen'], ['Esc', 'Menu (or leave chamber only, drop the selection)']]],
   ['Selection', [['Ctrl+C / Ctrl+V', 'Copy / paste'], ['Ctrl+A', 'Select all'], ['Delete', 'Delete the selected particle']]],
-  ['Help', [['?', 'This list'], ['F10, menu key', 'Quick menu at the mouse']]]];
+  ['Help', [['?', 'This list'], ['Shift+F10, menu key', 'Quick menu at the mouse'], ['Long press', 'Quick menu (touch, pen)']]]];
 function openKeys() {
   const tools = TOOLS.filter(t => t.key && t.key.length === 1).map(t => [t.key, t.name]);
   $('keysList').innerHTML = [['Tools', tools], ...KEYS].map(([h, rows]) => `<h4>${esc(h)}</h4>` + rows.map(([k, d]) => `<div><span>${esc(d)}</span><kbd>${esc(k)}</kbd></div>`).join('')).join('');
@@ -17771,6 +18081,7 @@ function escAction(a) {
   if (a === 'resume') closeEscMenu();
   else if (a === 'settings') { closeEscMenu(); openSettings(); }
   else if (a === 'keys') { closeEscMenu(); openKeys(); }
+  else if (a === 'tour') { closeEscMenu(); tourStart(); }
   else if (a === 'gallery') { closeEscMenu(); $('bGallery').click(); }
   else if (a === 'share') { closeEscMenu(); $('bShare').click(); }
   else if (a === 'menu') { closeEscMenu(false); showMainMenu(); }
@@ -17796,6 +18107,7 @@ function showMainMenu() {
 function hideMainMenu() {
   if (!UI.menu) return;
   UI.menu = false; R.menu = false; document.body.classList.remove('menu'); UNDO.back.length = 0; UNDO.fwd.length = 0; UNDO.size = 0;
+  if (!store('toured') && !window.AF_NO_MENU) setTimeout(tourStart, 700); // (the first time: a short tour)
   const m = $('mainMenu'); // (it fades and falls back into the chamber; the panels are there at once)
   if (MMP.still) { m.hidden = true; return; }
   m.classList.remove('in'); m.classList.add('out'); clearTimeout(MMP.outT); MMP.outT = setTimeout(() => { if (!UI.menu) { m.hidden = true; m.classList.remove('out'); } }, 260);
@@ -17876,6 +18188,8 @@ function onKey(e) {
     if (!$('escModal').hidden) { e.preventDefault(); closeEscMenu(); return; }
     for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
     if (UI.menu) { if (!$('mmSetups').hidden) mmAction('back'); return; }
+    if (!$('tour').hidden) { tourEnd(); return; }
+    if (REW.open) { rewLive(); return; }
     if (DM.on) { e.preventDefault(); setChamberOnly(false); return; }
     if (UI.pasting) { cancelPaste(); return; }
     if (UI.drag) { if (W.tool) W.tool.active = false; W.grab = null; UI.drag = null; R.overlay = null; return; }
@@ -17902,7 +18216,7 @@ function onKey(e) {
     const m = UI.mouse, inside = m && m[0] >= 0 && m[1] >= 0 && m[0] <= R.w && m[1] <= R.h;
     openQuickMenu(inside ? m[0] : R.w / 2, inside ? m[1] : R.h / 2); return;
   }
-  if (k === ' ') { if (tag === 'BUTTON') return; e.preventDefault(); setRunning(!UI.running); return; }
+  if (k === ' ') { if (tag === 'BUTTON') return; e.preventDefault(); if (REW.open) { rewCommit(); return; } setRunning(!UI.running); return; }
   if (k === '.') { UI.stepOnce = true; return; }
   if (k === '[') { stepSpeed(-1); return; }
   if (k === ']') { stepSpeed(1); return; }
@@ -17916,6 +18230,8 @@ function onKey(e) {
   if (k === 'v' || k === 'V') { toggleParticleView(); return; }
   if (k === 'b' || k === 'B') { setChamberOnly(!DM.on); return; }
   if (k === '?') { e.preventDefault(); openKeys(); return; }
+  if (/^Digit[1-9]$/.test(e.code || '')) { const n = e.code.slice(5); e.preventDefault(); if (e.shiftKey) viewSave(n); else viewGo(n); return; }
+  if (k === ',') { e.preventDefault(); rewOpen(); rewStep(-1); return; }
   if (k === 'o' || k === 'O') { toggleOrbitalView(); return; }
   const up = k.toUpperCase();
   if (up === 'R') { loadPreset(UI.preset); return; }
@@ -17927,9 +18243,9 @@ function onKey(e) {
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
 const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
-  fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A' };
+  fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] };
+const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -18065,6 +18381,7 @@ function syncSettings() {
   setSegValue('segFpsCap', SET.fpsCap); setSegValue('segAtom', SET.atomScale); setSegValue('segLabels', R.view.labels ? (SET.labels === 'hover' ? 'hover' : 'always') : 'never'); setSegValue('segBadges', SET.badges);
   $('setFlash').checked = SET.flashLow; $('setCvd').checked = SET.cvd; setSegValue('segUi', SET.ui); setSegValue('segSide', SET.side); $('setPw').textContent = Math.round(clamp(SET.pw, 280, 760)) + ' px';
   $('setWinNote').hidden = !tauriWin(); setSegValue('segWheel', SET.wheel); setSegValue('segZoomTo', SET.zoomTo); $('setKeepOpt').checked = SET.keepOpt; $('setPauseBlur').checked = SET.pauseBlur;
+  $('setRew').checked = SET.rewOn; setSegValue('segRewSpan', SET.rewSpan); setSegValue('segRewEvery', SET.rewEvery); setSegValue('segRewMem', SET.rewMem); $('setRewNote').textContent = rewNote();
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo;
@@ -18125,6 +18442,11 @@ function settingsInit() {
   $('setPauseBlur').onchange = (e) => setSetting('pauseBlur', e.target.checked);
   $('setKeys').onclick = () => openKeys();
   bindSeg('segStart', (v) => setSetting('start', v));
+  $('setRew').onchange = (e) => { setSetting('rewOn', e.target.checked); if (!e.target.checked) rewClear(); };
+  bindSeg('segRewSpan', (v) => { setSetting('rewSpan', +v); rewTrim(); });
+  bindSeg('segRewEvery', (v) => setSetting('rewEvery', +v));
+  bindSeg('segRewMem', (v) => { setSetting('rewMem', +v); rewTrim(); });
+  $('setTour').onclick = () => { hideModal('setModal'); tourStart(); };
   $('setAutosave').onchange = (e) => { setSetting('autosave', e.target.checked); if (!e.target.checked) store('autosave', ''); };
   bindSeg('segEUnit', (v) => { setSetting('eunit', v); updatePanel(); });
   bindSeg('segLUnit', (v) => { setSetting('lunit', v); updatePanel(); });
@@ -18308,14 +18630,14 @@ function init() {
   cv.addEventListener('wheel', onWheel, { passive: false });
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
   { const v = /\d+\.\d+\.\d+|V\d+/.exec(document.title || ''); const tag = $('verTag'); if (tag) tag.textContent = v ? v[0] : ''; } // (the version, from the page's title: 0.40.0)
-  qmInit(); settingsInit(); optLoad(); menusInit(); aiInit(); chipsInit();
+  qmInit(); settingsInit(); optLoad(); menusInit(); rewInit(); grInit(); tourInit(); aiInit(); chipsInit();
   window.addEventListener('keydown', onKey);
   $('zIn').onclick = () => zoomAt(R.w / 2, R.h / 2, 1.25);
   $('zOut').onclick = () => zoomAt(R.w / 2, R.h / 2, 0.8);
   $('zFit').onclick = () => fitView();
   $('zNuc').onclick = () => toggleParticleView();
   $('zOrb').onclick = () => toggleOrbitalView();
-  $('bPlay').onclick = () => setRunning(!UI.running);
+  $('bPlay').onclick = () => (REW.open ? rewCommit() : setRunning(!UI.running));
   $('bStep').onclick = () => { if (UI.running) setRunning(false); UI.stepOnce = true; };
   $('bReset').onclick = () => loadPreset(UI.preset);
   $('bSlower').onclick = () => stepSpeed(-1);
@@ -18393,6 +18715,7 @@ function init() {
   UI.started = true;
   if (!direct && SET.start === 'menu') showMainMenu();
   else if (!direct && SET.start === 'last') restoreAutosave();
+  if (!direct && SET.start !== 'menu' && !store('toured')) setTimeout(tourStart, 600);
   UI.last = performance.now();
   requestAnimationFrame(frame);
 }

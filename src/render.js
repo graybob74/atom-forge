@@ -7,7 +7,7 @@ const R = {
   cv: null, ctx: null, dpr: 1, w: 0, h: 0, cvbg: null, ctxbg: null, // cvbg: the canvas under the WebGL layer (gl.js), when that is in use
   s: 12, cx: 0, cy: 0,             // px per Å, world point at screen centre
   sprites: new Map(),
-  view: { bohr: 'auto', labels: true, tracks: true, rays: true, hbonds: true, color: 'element', grid: true, decayCards: true },
+  view: { bohr: 'auto', labels: true, tracks: true, rays: true, hbonds: true, ionic: true, color: 'element', grid: true, decayCards: true },
   hover: null, sel: null, overlay: null, ghost: null, molTags: [], time: 0, // molTags: names from Identify molecules, shown for a while follow: null, // follow: a particle the view stays centred on
   msel: new Set(), // the Select tool's selection
   dprMax: 2, lite: false, // (Settings: drawing resolution, and lite: no glows, halos or flashes)
@@ -157,8 +157,10 @@ function render(rt) {
   if (R.gl) { R.ctx = R.cv.getContext('2d'); R.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); R.ctx.clearRect(0, 0, R.w, R.h); }
   if (!R.gl) drawBonds(rt);
   if (R.view.hbonds) drawHBonds();
+  if (R.view.ionic) drawIonic();
   if (!R.gl) drawChipsUnder();
   drawParticles(rt);
+  drawMeasure();
   drawChips(rt);
   drawExos(); drawStrings(rt);
   drawFlashes(rt);
@@ -442,6 +444,59 @@ function drawHBonds() {
     }
   }
   ctx.stroke(); ctx.restore();
+}
+
+/* Ionic attractions (Lab → View): a dotted line between ions of opposite charge that are touching, held by their
+   charges alone — the bond of a salt, which shares no electrons and so has no bond line of its own. Thicker for
+   higher charges (the pull goes as q₁q₂). Sorted along x and swept, so a crystal of thousands of ions costs little. */
+function drawIonic() {
+  if (R.s < 4) return;
+  const ions = [];
+  for (const p of W.parts) if (!p.dead && p.k === NUC && p.ne > 0 && Math.abs(p.q) >= 1) ions.push(p);
+  if (ions.length < 2) return;
+  ions.sort((a, b) => a.x - b.x);
+  const rOf = (p) => (p.ionic && p.ionR > 0 ? p.ionR : p.rd), ctx = R.ctx, byW = new Map();
+  for (let i = 0; i < ions.length; i++) {
+    const a = ions[i], ra = rOf(a);
+    for (let j = i + 1; j < ions.length; j++) {
+      const b = ions[j], dx = b.x - a.x;
+      if (dx > 8) break;
+      if (a.q * b.q >= 0) continue;
+      const dy = b.y - a.y, r = Math.hypot(dx, dy), reach = 1.3 * (ra + rOf(b));
+      if (r > reach || r < 0.3) continue;
+      if (a.bonds.some(bd => other(bd, a) === b)) continue;
+      const w = clamp(0.8 + 0.35 * Math.sqrt(Math.abs(a.q * b.q)), 1, 2.6), k = w.toFixed(1);
+      let list = byW.get(k); if (!list) byW.set(k, list = []);
+      list.push(w2sx(a.x), w2sy(a.y), w2sx(b.x), w2sy(b.y));
+    }
+  }
+  if (!byW.size) return;
+  ctx.save(); ctx.strokeStyle = R.cvd ? 'rgba(240,228,66,0.6)' : 'rgba(255,196,120,0.6)'; ctx.setLineDash([1.5, 3.5]); ctx.lineCap = 'round';
+  for (const [k, L] of byW) {
+    ctx.lineWidth = +k; ctx.beginPath();
+    for (let i = 0; i < L.length; i += 4) { ctx.moveTo(L[i], L[i + 1]); ctx.lineTo(L[i + 2], L[i + 3]); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* The Measure tool's marks: lines between the atoms picked, each with its length, and the angle's arc at the middle
+   atom of three. They follow the atoms. */
+function drawMeasure() {
+  const m = (R.measure || []).filter(p => !p.dead); if (!m.length) return;
+  const ctx = R.ctx, P = m.map(p => [w2sx(p.x), w2sy(p.y)]), acc = cssVar('--accent') || '#6aa6ff';
+  ctx.save(); ctx.lineWidth = 1.6; ctx.strokeStyle = acc; ctx.fillStyle = acc; ctx.setLineDash([5, 3]);
+  ctx.beginPath(); P.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke(); ctx.setLineDash([]);
+  for (const [x, y] of P) { ctx.beginPath(); ctx.arc(x, y, Math.max(6, Math.min(18, 0.45 * R.s)), 0, Math.PI * 2); ctx.stroke(); }
+  const tag = (t, x, y) => { ctx.font = '600 12px ' + (cssVar('--font-data') || 'monospace'); const w = ctx.measureText(t).width + 10; ctx.fillStyle = 'rgba(8,14,22,0.82)'; ctx.fillRect(x - w / 2, y - 10, w, 20); ctx.fillStyle = '#eaf2ff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y + 0.5); };
+  for (let i = 0; i + 1 < m.length; i++) tag(fmtA(measureDist(m[i], m[i + 1])), (P[i][0] + P[i + 1][0]) / 2, (P[i][1] + P[i + 1][1]) / 2 - 14);
+  if (m.length >= 3) {
+    const [bx, by] = P[1], a1 = Math.atan2(P[0][1] - by, P[0][0] - bx), a2 = Math.atan2(P[2][1] - by, P[2][0] - bx), r = 28;
+    let d = a2 - a1; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+    ctx.strokeStyle = acc; ctx.beginPath(); ctx.arc(bx, by, r, a1, a1 + d, d < 0); ctx.stroke();
+    const am = a1 + d / 2; tag(measureAngle(m[0], m[1], m[2]).toFixed(1) + '°', bx + Math.cos(am) * (r + 22), by + Math.sin(am) * (r + 22));
+  }
+  ctx.restore();
 }
 
 function nucleusBeads(ctx, x, y, rn, Z, N, alpha, anti) {

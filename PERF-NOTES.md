@@ -76,6 +76,18 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.57.0: neutrons at the walls, ionic lines, rewind, measure, graphs, views, a tour, touch
+- Lab → Container → Neutrons at the walls: Bounce back (a reflector, graphite or beryllium: as the walls always did), Absorbed (boron, cadmium: captured, counted as stopped in the walls) or Pass through (a thin wall: they fly out). Kept in saved worlds (nWall).
+- Ionic attractions drawn (Lab → View → Ionic): a dotted line between touching ions of opposite charge (within 1.3× their radii), thicker as √|q₁q₂| (drawIonic: sorted along x and swept).
+- Rewind (⟲ or ,; Settings → General → Rewind: on/off, how far back 30 s – 5 min, a snapshot every ¼ – 2 s, memory at most 100 MB – 1 GB): compact copies of the world (typed arrays) while it runs; a timeline to drag back through, paused; Play from here (Space) carries on from that moment and drops what came after, Ctrl+Z goes back to before it; Back to now (Esc). A press of a tool that changes the world while rewound carries on from there. Not in setups with chips, beams, lasers or a ramp (as undo). The view, the temperature history and the graph are kept, and trimmed to the moment carried on from.
+- Measure tool (K): two atoms' distance, three's angle at the middle one, drawn on the chamber and following the atoms (periodic walls: the nearest image).
+- Data → Graph: every half second of watching, the temperatures, counts, pressure, the energy ledger and each species' count; the quantities chosen drawn as strips with their range and latest value; Export CSV (all of it), Clear.
+- Views: Shift+1 … 9 keeps the view, 1 … 9 glides back to it.
+- A first-run tour (seven steps, with Back, Next, Skip; again from Settings → General or the Esc menu).
+- Touch and pen: a long press opens the quick menu (taking back what the press had done); pinch and two-finger pan as before.
+- Shortcut list: rewind, views, the long press.
+- t_features: neutrons at each kind of wall; an ionic line between touching Na⁺ and Cl⁻ only; measure (3, 4 Å, 90°); a kept view; rewind, carrying on, undo past it, none with chips; the graph's CSV; the tour; a long press.
+
 ## 0.56.0: a main menu with depth
 - The main menu is three layers the camera looks at from where the mouse is (mmTick, MMP): the chamber far behind shifts a little (and draws closer), a soft glow between moves more, and the card in front tilts toward the mouse with its title and buttons standing out at different depths (CSS perspective, translateZ). With no mouse it sways slowly on its own. The title has a passing shine; the buttons rise one after another as the menu opens, lift and glow under the mouse and press in; the setups list slides in; leaving, the card falls back into the chamber as it fades. Behind the menu the chamber shows no labels. Off with the system's Reduce motion.
 - t_features: the menu's layers follow the mouse. Steadier: undo and the torn bond tested with room around them.

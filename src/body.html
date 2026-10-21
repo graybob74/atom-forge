@@ -7,6 +7,7 @@
     <div class="transport">
       <button class="ibtn primary" id="bPlay" title="Pause (Space)" aria-label="Pause"><svg viewBox="0 0 24 24" aria-hidden="true"><g id="icoPause"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></g><path id="icoPlay" d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.3-7.2a.8.8 0 0 0 0-1.4L8.2 4.1a.8.8 0 0 0-1.2.7z" fill="currentColor" style="display:none"/></svg></button>
       <button class="ibtn" id="bStep" title="Advance one frame (.)" aria-label="Step one frame"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5v13l9-6.5z" fill="currentColor"/><rect x="16" y="5" width="3" height="14" rx="1" fill="currentColor"/></svg></button>
+      <button class="ibtn" id="bRewind" title="Rewind: drag back through the last minute or so (,)" aria-label="Rewind"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3.8 4.6v4.2H8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8v4.3l2.8 1.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
       <button class="ibtn" id="bReset" title="Reload this setup (R)" aria-label="Reload setup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="speed" role="group" aria-label="Simulation speed">
         <button class="ibtn" id="bSlower" title="Slow down ([)" aria-label="Slow down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
@@ -58,6 +59,14 @@
       <div class="narr" id="narr" aria-live="polite" hidden></div>
       <div class="fps" id="fpsBadge" aria-hidden="true"></div>
       <button class="ibtn dm-exit" id="bDisplayExit" title="Leave display mode (Esc)" aria-label="Leave display mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="rewbar" id="rewBar" hidden role="group" aria-label="Rewind">
+        <button class="ibtn" id="rewBack" title="Back one snapshot (,)" aria-label="Back">‹</button>
+        <input type="range" id="rewSlider" min="0" max="1" step="1" value="1" aria-label="Rewind position">
+        <button class="ibtn" id="rewFwd" title="Forward one snapshot" aria-label="Forward">›</button>
+        <span class="rew-t" id="rewT"></span>
+        <button class="btn small primary" id="rewPlay" title="Carry on from here (Space): what came after is dropped">Play from here</button>
+        <button class="btn small" id="rewLive" title="Back to where it was (Esc)">Back to now</button>
+      </div>
       <div class="qmenu" id="qmenu" role="menu" aria-label="Quick menu" hidden></div>
     </div>
 
@@ -155,6 +164,13 @@
           <div class="seg" id="segWall" role="group" aria-label="Walls">
             <button data-v="reflect">Walls</button><button data-v="wrap">Periodic</button><button data-v="open">Open</button>
           </div>
+          <div id="nWallRow">
+            <div class="row"><span>Neutrons at the walls</span></div>
+            <div class="seg" id="segNWall" role="group" aria-label="Neutrons at the walls">
+              <button data-v="reflect" title="A neutron reflector, as graphite or beryllium: neutrons scatter back in (a reactor's reflector keeps its chain going)">Bounce back</button><button data-v="absorb" title="A neutron absorber, as boron or cadmium: neutrons are captured in the wall">Absorbed</button><button data-v="pass" title="A thin wall: neutrons hardly ever interact with it and fly straight out">Pass through</button>
+            </div>
+            <p class="note" id="nWallNote"></p>
+          </div>
           <div class="row"><span>Box size</span><span class="val"><span id="boxW"></span> × <span id="boxH"></span> Å</span></div>
           <input type="range" id="boxSlider" min="0" max="100" step="1" aria-label="Box size">
           <p class="note">From 20 Å up to 2 µm. A bigger box opens at once (a free expansion); a smaller one closes in through empty space at once and then like a piston: squeeze an insulated gas and it heats up.</p>
@@ -186,6 +202,7 @@
             <label class="check"><input type="checkbox" data-view="tracks"> Tracks</label>
             <label class="check"><input type="checkbox" data-view="rays"> Light rays</label>
             <label class="check"><input type="checkbox" data-view="hbonds"> H-bonds</label>
+            <label class="check" title="Dotted lines between touching ions of opposite charge: the bond of a salt, held by charge alone"><input type="checkbox" data-view="ionic"> Ionic</label>
             <label class="check"><input type="checkbox" data-view="grid"> Grid</label>
             <label class="check"><input type="checkbox" data-view="decayCards"> Decay close-ups</label>
           </div>
@@ -244,6 +261,12 @@
           <h3>Temperature history</h3>
           <canvas class="chart" id="chT" aria-label="Temperature history chart"></canvas>
           <div class="legend"><span><i style="background:var(--hot)"></i>measured</span><span><i style="background:var(--muted)"></i>bath</span><span id="chTrange"></span></div>
+        </section>
+        <section class="group">
+          <h3>Graph</h3>
+          <div class="gsel" id="gSel" role="group" aria-label="What to plot"></div>
+          <canvas class="chart graph" id="chG" aria-label="The chosen quantities over time"></canvas>
+          <div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" id="gCsv">Export CSV</button><button class="btn small" id="gClr">Clear</button><span class="note" id="gNote"></span></div>
         </section>
         <section class="group">
           <h3>Kinetic energies</h3>
@@ -523,6 +546,14 @@
       <div class="srow"><span>Lengths in</span><div class="seg" id="segLUnit" role="group" aria-label="Lengths in"><button data-v="A">Å</button><button data-v="nm">nm</button><button data-v="pm">pm</button></div></div>
       <label class="check"><input type="checkbox" id="setTips"> A tip for each setup</label>
       <label class="check"><input type="checkbox" id="setSlow"> Slow motion for nuclear events</label>
+      <h3>Rewind</h3>
+      <label class="check"><input type="checkbox" id="setRew"> Keep the last while it runs, to drag back through (, or the ⟲ button)</label>
+      <div class="srow"><span>How far back</span><div class="seg" id="segRewSpan" role="group" aria-label="How far back"><button data-v="30">30 s</button><button data-v="60">1 min</button><button data-v="120">2 min</button><button data-v="300">5 min</button></div></div>
+      <div class="srow"><span>A snapshot every</span><div class="seg" id="segRewEvery" role="group" aria-label="A snapshot every"><button data-v="0.25">¼ s</button><button data-v="0.5">½ s</button><button data-v="1">1 s</button><button data-v="2">2 s</button></div></div>
+      <div class="srow"><span>Memory, at most</span><div class="seg" id="segRewMem" role="group" aria-label="Memory for rewind"><button data-v="100">100 MB</button><button data-v="250">250 MB</button><button data-v="500">500 MB</button><button data-v="1000">1 GB</button></div></div>
+      <p class="note" id="setRewNote"></p>
+      <h3>Help</h3>
+      <div class="srow"><span>A short tour of the controls</span><button class="btn small" id="setTour">Show the tour</button></div>
       <h3>Kept in this browser</h3>
       <div class="srow"><span>Your molecules and saved isotopes</span><span><button class="btn small" id="setExport" title="Save them as a JSON file to import on another computer or in the desktop app">Export…</button> <button class="btn small" id="setImport" title="Add the molecules and isotopes from an exported file">Import…</button></span></div>
       <div class="srow"><span id="setMols">Your saved molecules</span><button class="btn small" id="setDelMols">Delete all</button></div>
@@ -543,6 +574,7 @@
     <button class="btn primary" data-esc="resume">Resume</button>
     <button class="btn" data-esc="settings">Settings</button>
     <button class="btn" data-esc="keys">Keyboard shortcuts</button>
+    <button class="btn" data-esc="tour">Tour of the controls</button>
     <button class="btn" data-esc="gallery">Gallery: save or open a world</button>
     <button class="btn" data-esc="share">Share code</button>
     <button class="btn" data-esc="menu">Main menu</button>
@@ -555,6 +587,16 @@
   <div class="dialog kdialog" role="dialog" aria-modal="true" aria-labelledby="keysTitle">
     <header><h2 id="keysTitle">Keyboard shortcuts</h2><button class="btn small" id="keysClose">Close</button></header>
     <div class="klist" id="keysList"></div>
+  </div>
+</div>
+
+<div class="tour" id="tour" hidden>
+  <div class="tour-hole" id="tourHole"></div>
+  <div class="tour-card" id="tourCard" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+    <div class="tour-step" id="tourStep"></div>
+    <h3 id="tourTitle"></h3>
+    <p id="tourText"></p>
+    <div class="tour-btns"><button class="btn small" id="tourSkip">Skip the tour</button><span></span><button class="btn small" id="tourBack">Back</button><button class="btn small primary" id="tourNext">Next</button></div>
   </div>
 </div>
 
