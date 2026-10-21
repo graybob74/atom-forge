@@ -1168,6 +1168,163 @@ function restoreScroll(id) {
 
 /* ------------------------------------------------------------------ inspector */
 let _insCv = null;
+/* ---- Inside a hadron (Inspect tab): its quarks, a picture only — the simulation does not model quarks. Valence quarks
+   jiggle in a bag about 1.7 fm across, their colour charges (red, green, blue; antiquarks anticolours) swapped by
+   gluons so the whole stays colourless; flux tubes join them (a Y for three quarks, a line for a quark and an
+   antiquark); virtual quark–antiquark pairs flicker in the sea. Drag a quark out: the tube stretches at about 1 GeV per
+   fm until it snaps and its energy makes a new pair, so a meson leaves and no quark ever comes out alone. */
+const Q_COL = ['#ff5a5a', '#52d873', '#5a8cff'], Q_ACOL = ['#4fe3e3', '#e65ae6', '#ffd24d'], Q_CNAME = ['red', 'green', 'blue'];
+const Q_CHG = { u: 2 / 3, d: -1 / 3, s: -1 / 3 };
+const Q_SYM = { u: 'u', d: 'd', s: 's' }, Q_BAR = { u: 'ū', d: 'd̄', s: 's̄' };
+const Q_CONTENT = { p: 'uud', n: 'udd', pbar: 'UUD', nbar: 'UDD', 'pi+': 'uD', 'pi-': 'dU', pi0: 'uU', 'K+': 'uS', 'K-': 'sU', K0S: 'dS', K0L: 'dS', eta: 'sS', Lam: 'uds', Lamb: 'UDS' }; // (capitals: antiquarks)
+const QV = { key: '', qs: [], g: null, sea: [], drag: null, out: null, t: 0, msg: '', orig: '', pick: 'p', last: 0 };
+function qSubject(p, X) { // what to look inside: { key, content, name, note }
+  if (X && X.kind === 'exo') { const c = Q_CONTENT[X.o.sp]; return c ? { key: 'x' + X.o.id, content: c } : { key: 'x' + X.o.id, lepton: true }; }
+  if (!p || p.k !== NUC || p.Z + p.N < 1) return null;
+  const one = p.Z + p.N === 1, which = one ? (p.Z ? 'p' : 'n') : (p.Z === 0 ? 'n' : p.N === 0 ? 'p' : QV.pick);
+  const nm = (p.anti ? 'anti' : '') + (which === 'p' ? 'proton' : 'neutron');
+  return { key: p.id + which, content: Q_CONTENT[(which) + (p.anti ? 'bar' : '')], one, both: !one && p.Z > 0 && p.N > 0, which, head: !one ? 'Inside one of its nucleons' : p.ne > 0 ? `Inside its nucleus, ${/^[aeiou]/.test(nm) ? 'an' : 'a'} ${nm}` : 'Inside' };
+}
+function qName(content) {
+  const qs = [...content], anti = qs.filter(c => c === c.toUpperCase()).length, f = qs.map(c => c.toLowerCase()).sort().join('');
+  const chg = Math.round(qs.reduce((s, c) => s + (c === c.toUpperCase() ? -1 : 1) * Q_CHG[c.toLowerCase()], 0));
+  const cs = chg > 0 ? '⁺'.repeat(chg) : chg < 0 ? '⁻'.repeat(-chg) : '⁰';
+  if (qs.length === 3) {
+    const B = { duu: ['proton', 'p'], ddu: ['neutron', 'n'], uuu: ['Delta', 'Δ'], ddd: ['Delta', 'Δ'], dsu: ['Lambda', 'Λ'], suu: ['Sigma', 'Σ'], dds: ['Sigma', 'Σ'], dss: ['Xi', 'Ξ'], ssu: ['Xi', 'Ξ'], sss: ['Omega', 'Ω'] }; // (keys: the flavours sorted)
+    const k = B[f] || ['baryon', 'B']; const isAnti = anti === 3;
+    const sym = k[1] === 'p' ? (isAnti ? 'p̄' : 'p') : k[1] === 'n' ? (isAnti ? 'n̄' : 'n') : k[1] + (k[1] === 'Λ' ? '' : cs) + (isAnti ? ' (anti)' : '');
+    return { name: (isAnti ? 'anti' : '') + k[0], sym, chg };
+  }
+  const has = (x) => f.includes(x), M = has('s') ? (f === 'ss' ? ['eta or phi', 'η/φ'] : ['kaon', 'K']) : ['pion', 'π'];
+  return { name: M[0], sym: M[1] === 'η/φ' ? M[1] : M[1] + cs, chg };
+}
+function qReset(sub) {
+  QV.key = sub.key; QV.orig = sub.content; QV.out = null; QV.drag = null; QV.msg = ''; QV.sea = []; QV.g = null; QV.t = 0;
+  QV.qs = [...sub.content].map((c, i, a) => {
+    const anti = c === c.toUpperCase(), n = a.length, ang = 2 * Math.PI * i / n + 0.3;
+    return { f: c.toLowerCase(), anti, col: n === 3 ? i : 0, hx: 0.42 * Math.cos(ang), hy: 0.42 * Math.sin(ang), x: 0.42 * Math.cos(ang), y: 0.42 * Math.sin(ang), vx: 0, vy: 0, ph: rnd() * 6 };
+  });
+  if (QV.qs.length === 2) QV.qs[1].col = QV.qs[0].col;
+}
+function quarkSecHTML(sub) {
+  if (!sub) return '';
+  if (sub.lepton) return `<section class="group"><h3>Inside</h3><p class="note">Nothing: it is a lepton, like the electron. As far as any experiment has found, leptons are not made of anything smaller; they feel no strong force and have no quarks.</p></section>`;
+  if (QV.key !== sub.key) qReset(sub);
+  const pick = sub.both ? `<div class="seg" data-q="pick" role="group" aria-label="Which nucleon"><button data-v="p" aria-pressed="${sub.which === 'p'}">A proton</button><button data-v="n" aria-pressed="${sub.which === 'n'}">A neutron</button></div>` : '';
+  return `<section class="group" id="insQSec"><h3>${esc(sub.head || 'Inside')}: quarks and gluons</h3>${pick}
+    <canvas class="quarkcv" id="insQuarks" aria-label="The quarks inside, held together by gluons. Drag a quark out to see confinement."></canvas>
+    <div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" data-q="reset">Put it back</button><span class="note">Drag a quark out of it.</span></div>
+    <p class="note" id="insQNote"></p></section>`;
+}
+function qNote() {
+  const qs = QV.qs, nm = qName(qs.map(q => q.anti ? q.f.toUpperCase() : q.f).join(''));
+  const list = qs.map(q => { const c = (q.anti ? -1 : 1) * Q_CHG[q.f]; return `${q.anti ? Q_BAR[q.f] : Q_SYM[q.f]} (${c > 0 ? '+' : '−'}${Math.abs(c) > 0.5 ? '2/3' : '1/3'})`; }).join(', ');
+  const chgTxt = qs.map(q => (q.anti ? -1 : 1) * Q_CHG[q.f]).reduce((a, b) => a + b, 0);
+  const base = qs.length === 3
+    ? `${nm.name[0].toUpperCase() + nm.name.slice(1)} (${nm.sym}): three quarks, ${list}; charges add to ${Math.round(chgTxt) > 0 ? '+' : ''}${Math.round(chgTxt)}. One of each colour charge, so the whole is colourless ("white"); gluons keep swapping the colours between them. The quarks themselves weigh only about 1% of it: the rest of its mass is the energy of the gluon field and of the quarks' motion (E = mc²).`
+    : `A ${nm.name} (${nm.sym}): a quark and an antiquark, ${list}. A colour and its anticolour make it colourless; it lives only until the weak or electromagnetic force lets it decay.`;
+  return (QV.msg ? QV.msg + ' ' : '') + base + ' (A picture of what is inside: the simulation itself does not model quarks.)';
+}
+function qStep(dt) {
+  QV.t += dt;
+  const qs = QV.qs, n = qs.length, rot = 0.25 * dt;
+  for (const q of qs) {
+    const c = Math.cos(rot), s = Math.sin(rot), hx = q.hx * c - q.hy * s, hy = q.hx * s + q.hy * c; q.hx = hx; q.hy = hy;
+    if (QV.drag && QV.drag.q === q) continue;
+    q.ph += dt * (2 + rnd());
+    const tx = q.hx + 0.18 * Math.sin(q.ph * 1.7), ty = q.hy + 0.18 * Math.cos(q.ph * 2.3);
+    q.vx += (tx - q.x) * 40 * dt - q.vx * 6 * dt + (rnd() - 0.5) * 4 * dt; q.vy += (ty - q.y) * 40 * dt - q.vy * 6 * dt + (rnd() - 0.5) * 4 * dt;
+    q.x += q.vx * dt; q.y += q.vy * dt;
+  }
+  // a gluon carries colour from one quark to another (three quarks: two swap colours; quark–antiquark: both change)
+  if (!QV.g && !QV.drag && rnd() < dt * 2.2) { const a = Math.floor(rnd() * n); let b = (a + 1 + Math.floor(rnd() * (n - 1))) % n; QV.g = { a, b, t: 0 }; }
+  if (QV.g) { QV.g.t += dt / 0.35; if (QV.g.t >= 1) { const A = qs[QV.g.a], B = qs[QV.g.b];
+    if (n === 3) { const t = A.col; A.col = B.col; B.col = t; } else { const c = (A.col + 1 + Math.floor(rnd() * 2)) % 3; A.col = c; B.col = c; }
+    QV.g = null; } }
+  // the sea: virtual quark–antiquark pairs, there and gone
+  if (rnd() < dt * 1.5 && QV.sea.length < 3) { const a = rnd() * 6.28, r = 0.6 * Math.sqrt(rnd()); QV.sea.push({ x: r * Math.cos(a), y: r * Math.sin(a), f: rnd() < 0.8 ? (rnd() < 0.5 ? 'u' : 'd') : 's', t: 0, a: rnd() * 6.28 }); }
+  for (const v of QV.sea) v.t += dt / 0.6;
+  QV.sea = QV.sea.filter(v => v.t < 1);
+  // a meson pulled out flies off
+  if (QV.out) { QV.out.t += dt; QV.out.x += QV.out.vx * dt; QV.out.y += QV.out.vy * dt; if (QV.out.t > 2.2) QV.out = null; }
+}
+function qAnchor(q) { const os = QV.qs.filter(o => o !== q); let x = 0, y = 0; for (const o of os) { x += o.x; y += o.y; } return [x / os.length, y / os.length]; } // (what a pulled quark is pulled away from)
+function qJunction() { const qs = QV.qs; if (qs.length === 2) return null; let x = 0, y = 0; for (const q of qs) { x += q.x; y += q.y; } return [x / 3, y / 3]; }
+function qDraw(dt) {
+  const cv = $('insQuarks'); if (!cv) return;
+  if (dt > 0) qStep(Math.min(0.05, dt));
+  const r = chartCtx(cv); if (!r) return; const [ctx, w, h] = r;
+  const S = Math.min(w, h) / 3.4, cx = w / 2, cy = h / 2, X = (x) => cx + x * S, Y = (y) => cy - y * S;
+  ctx.fillStyle = '#070b12'; ctx.fillRect(0, 0, w, h);
+  // the bag
+  const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 0.95 * S); bg.addColorStop(0, 'rgba(120,140,200,0.18)'); bg.addColorStop(1, 'rgba(120,140,200,0)');
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(cx, cy, 0.95 * S, 0, 6.29); ctx.fill();
+  ctx.strokeStyle = 'rgba(160,175,210,0.25)'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.arc(cx, cy, 0.85 * S, 0, 6.29); ctx.stroke(); ctx.setLineDash([]);
+  const qs = QV.qs, col = (q) => q.anti ? Q_ACOL[q.col] : Q_COL[q.col];
+  // flux tubes
+  const tube = (x0, y0, q) => { const L = Math.hypot(q.x - x0, q.y - y0); ctx.strokeStyle = col(q); ctx.globalAlpha = 0.55; ctx.lineWidth = Math.max(2, 7 - 2.5 * L); ctx.shadowColor = col(q); ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.moveTo(X(x0), Y(y0)); ctx.lineTo(X(q.x), Y(q.y)); ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = 1; };
+  const J = qJunction();
+  if (J) for (const q of qs) tube(J[0], J[1], q);
+  else { const [a, b] = qs, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2; tube(mx, my, a); tube(mx, my, b); }
+  // a gluon on its way: a wiggle from one quark to another
+  if (QV.g) { const A = qs[QV.g.a], B = qs[QV.g.b], t = QV.g.t, gx = A.x + (B.x - A.x) * t, gy = A.y + (B.y - A.y) * t, L = Math.hypot(B.x - A.x, B.y - A.y) || 1, nx = -(B.y - A.y) / L, ny = (B.x - A.x) / L;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.beginPath();
+    for (let k = 0; k <= 16; k++) { const u = Math.max(0, t - 0.25) + (Math.min(1, t) - Math.max(0, t - 0.25)) * k / 16, wv = 0.05 * Math.sin(k * 1.6); const px = A.x + (B.x - A.x) * u + nx * wv, py = A.y + (B.y - A.y) * u + ny * wv; if (k) ctx.lineTo(X(px), Y(py)); else ctx.moveTo(X(px), Y(py)); }
+    ctx.stroke(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(X(gx), Y(gy), 3, 0, 6.29); ctx.fill(); }
+  // the sea
+  ctx.font = '10px ' + cssVar('--font-data'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const v of QV.sea) { const a = Math.sin(Math.PI * v.t) * 0.5, d = 0.12 * Math.sin(Math.PI * v.t), ox = d * Math.cos(v.a), oy = d * Math.sin(v.a);
+    ctx.globalAlpha = a; ctx.fillStyle = '#c8d2e6'; ctx.beginPath(); ctx.arc(X(v.x + ox), Y(v.y + oy), 4, 0, 6.29); ctx.arc(X(v.x - ox), Y(v.y - oy), 4, 0, 6.29); ctx.fill();
+    ctx.fillStyle = '#c8d2e6'; ctx.fillText(Q_SYM[v.f] + Q_BAR[v.f], X(v.x), Y(v.y) - 11); ctx.globalAlpha = 1; }
+  // the quarks
+  ctx.font = 'bold 13px ' + cssVar('--font-data');
+  for (const q of qs) { const x = X(q.x), y = Y(q.y), c = col(q), gr = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, 11);
+    gr.addColorStop(0, '#fff'); gr.addColorStop(0.35, c); gr.addColorStop(1, c); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, 10, 0, 6.29); ctx.fill();
+    ctx.fillStyle = '#0b0f16'; ctx.fillText(q.anti ? Q_BAR[q.f] : Q_SYM[q.f], x, y + 1); }
+  // the string being pulled: its energy
+  if (QV.drag) { const q = QV.drag.q, ref = qAnchor(q), L = Math.hypot(q.x - ref[0], q.y - ref[1]);
+    ctx.fillStyle = '#ffd166'; ctx.font = '11px ' + cssVar('--font-data'); ctx.textAlign = 'left'; ctx.fillText(`string: ${(0.9 * Math.max(0, L - 0.4)).toFixed(2)} GeV (≈ 0.9 GeV per fm)`, 8, 12); }
+  // a meson that left
+  if (QV.out) { const o = QV.out, a = Math.max(0, 1 - o.t / 2.2); ctx.globalAlpha = a; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(X(o.x - 0.12), Y(o.y)); ctx.lineTo(X(o.x + 0.12), Y(o.y)); ctx.stroke();
+    for (const [i, q] of o.qs.entries()) { const x = X(o.x + (i ? 0.14 : -0.14)), y = Y(o.y); ctx.fillStyle = q.anti ? Q_ACOL[q.col] : Q_COL[q.col]; ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.29); ctx.fill(); ctx.fillStyle = '#0b0f16'; ctx.font = 'bold 11px ' + cssVar('--font-data'); ctx.textAlign = 'center'; ctx.fillText(q.anti ? Q_BAR[q.f] : Q_SYM[q.f], x, y + 1); }
+    ctx.fillStyle = '#fff'; ctx.font = '11px ' + cssVar('--font-data'); ctx.fillText(o.name, X(o.x), Y(o.y) - 16); ctx.globalAlpha = 1; }
+  ctx.font = '10px ' + cssVar('--font-data'); ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(200,210,230,0.6)'; ctx.fillText('≈ 1.7 fm across (10⁻¹⁵ m)', w - 6, h - 8); ctx.textAlign = 'left';
+  const nt = $('insQNote'); if (nt && (QV.t - QV.last > 0.5 || !nt.textContent)) { QV.last = QV.t; nt.textContent = qNote(); }
+}
+function qPointer(e, kind) {
+  const cv = $('insQuarks'); if (!cv) return;
+  const rc = cv.getBoundingClientRect(), S = Math.min(rc.width, rc.height) / 3.4, x = (e.clientX - rc.left - rc.width / 2) / S, y = -(e.clientY - rc.top - rc.height / 2) / S;
+  if (kind === 'down') {
+    let best = null, bd = 0.3; for (const q of QV.qs) { const d = Math.hypot(q.x - x, q.y - y); if (d < bd) { bd = d; best = q; } }
+    if (best) { QV.drag = { q: best, at: performance.now() }; e.preventDefault(); }
+    return;
+  }
+  if (!QV.drag) return;
+  const q = QV.drag.q;
+  if (kind === 'move') {
+    q.x = clamp(x, -1.6, 1.6); q.y = clamp(y, -1.6, 1.6); q.vx = 0; q.vy = 0; QV.drag.at = performance.now();
+    const ref = qAnchor(q);
+    if (Math.hypot(q.x - ref[0], q.y - ref[1]) > 1.35) qSnap(q);
+  } else { QV.drag = null; renderInspect(); }
+}
+/* The string snaps: its energy makes a quark–antiquark pair (u ū or d d̄ mostly, s s̄ now and then). The pulled quark
+   leaves with the new antiquark (or the pulled antiquark with the new quark) as a meson; the new one of the pair
+   takes its place inside. */
+function qSnap(q) {
+  const f = rnd() < 0.12 ? 's' : rnd() < 0.5 ? 'u' : 'd';
+  const partner = { f, anti: !q.anti, col: q.col };
+  const mesonContent = [q, partner].map(o => o.anti ? o.f.toUpperCase() : o.f).join(''), mn = qName(mesonContent);
+  const before = qName(QV.qs.map(o => o.anti ? o.f.toUpperCase() : o.f).join(''));
+  const L = Math.hypot(q.x, q.y) || 1;
+  QV.out = { qs: [{ ...q }, partner], name: mn.sym, x: q.x, y: q.y, vx: q.x / L * 1.2, vy: q.y / L * 1.2, t: 0 };
+  q.f = f; q.anti = !partner.anti; q.x *= 0.5; q.y *= 0.5; q.vx = 0; q.vy = 0; // (the new quark of the pair stays, with the colour the string carried)
+  const after = qName(QV.qs.map(o => o.anti ? o.f.toUpperCase() : o.f).join(''));
+  QV.drag = null;
+  QV.msg = `The string snapped at about ${(0.9 * 1.0).toFixed(1)} GeV: its energy made a ${Q_SYM[f]} ${Q_BAR[f]} pair. The quark you pulled left with the new ${partner.anti ? 'antiquark' : 'quark'} as a ${mn.name} (${mn.sym})${after.name !== before.name ? `, and what stayed is now a ${after.name} (${after.sym})` : ''}. A quark never comes out alone: that is confinement.`;
+  renderInspect();
+}
 /* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
 const XP_NAME = { 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
   K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau' };
@@ -1224,10 +1381,12 @@ function selXHTML() {
     status = live ? 'In flight' : X.kind === 'flight' || o.hitP || o.landed ? 'Arrived' : nu ? 'Gone: it left the chamber' : 'Gone: it left the chamber, or was absorbed';
   }
   return `<div class="ins-head"><div class="tilebox" style="border-color:${col}"><span class="s">${esc(sym)}</span></div><div><b>${esc(title)}</b><div class="note">${esc(status)}</div></div></div>
-    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${about ? `<p class="note">${esc(about)}</p>` : ''}`;
+    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${about ? `<p class="note">${esc(about)}</p>` : ''}${X.kind === 'exo' ? quarkSecHTML(qSubject(null, X)) : ''}`;
 }
 function renderInspect() {
   const box = $('tp-inspect');
+  if (QV.drag && performance.now() - QV.drag.at < 3000) return; // (pulling a quark: the card stays as it is until it is let go)
+  QV.drag = null;
   if (R.selX && !R.sel) { box.innerHTML = selXHTML(); _insCv = null; restoreScroll('tp-inspect'); return; }
   const p = R.sel && !R.sel.dead ? R.sel : null;
   if (!p) {
@@ -1305,7 +1464,7 @@ function renderInspect() {
     (p.k === NUC && p.Z + p.N > 0 && p.nuc && !p.nuc.stable && !p.nuc.unbound ? chainSectionHTML(p.Z, p.N, p.anti) : '');
   box.innerHTML = `${head}<div>${pills}</div>
     ${p.k === NUC && p.Z > 0 ? `<canvas class="bohr" id="insBohr" aria-label="${R.view.bohr === 'orb' && p.ne > 0 ? 'Electron density' : 'Shell diagram'}"></canvas>` : ''}
-    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${orbs}${extra}${actions}`;
+    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${orbs}${extra}${quarkSecHTML(qSubject(p))}${actions}`;
   for (const cv of box.querySelectorAll('canvas.orbcv')) drawOrbThumb(cv, p, +cv.dataset.i);
   const nd = box.querySelector('#insOrbs'); if (nd) nd.addEventListener('toggle', () => { UI.orbOpen = nd.open; });
   const cd = box.querySelector('#insChain'); if (cd) cd.addEventListener('toggle', () => { UI.chainOpen = cd.open; });
@@ -2340,6 +2499,14 @@ function bindLab() {
   $('bIdentify').onclick = () => { identifyMolecules(); };
   $('bSaveWorld').onclick = () => saveWorld(); $('bLoadWorld').onclick = () => loadWorld();
   shareInit(); explainInit(); recInit(); askInit(); galInit();
+  { const ib = $('tp-inspect'); // the quark view: drag a quark, pick a nucleon, put it back
+    ib.addEventListener('pointerdown', (e) => { if (e.target.id === 'insQuarks') { qPointer(e, 'down'); if (QV.drag) e.target.setPointerCapture(e.pointerId); } });
+    ib.addEventListener('pointermove', (e) => { if (QV.drag) qPointer(e, 'move'); });
+    ib.addEventListener('pointerup', (e) => { if (QV.drag) qPointer(e, 'up'); });
+    ib.addEventListener('pointercancel', (e) => { if (QV.drag) qPointer(e, 'up'); });
+    ib.addEventListener('click', (e) => { const b = e.target.closest('[data-q]'), v = e.target.closest('button[data-v]');
+      if (b && b.dataset.q === 'reset') { QV.key = ''; renderInspect(); }
+      else if (b && b.dataset.q === 'pick' && v) { QV.pick = v.dataset.v; QV.key = ''; renderInspect(); } }); }
   $('bClear').onclick = () => { clearWorld(); W.hist = { t: [], T: [], bath: [] }; R.sel = null; log('tool', 'Chamber emptied'); renderInspect(); };
   $('bSrcClear').onclick = () => { W.sources.length = 0; W.lasers.length = 0; };
 }
@@ -3426,6 +3593,7 @@ function frame(now) {
   if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); if (!$('setModal').hidden) settingsStats(); }
   if (now - UI.lastPanel > 450) { UI.lastPanel = now; updatePanel(); }
   else if (UI.tab === 'inspect' && UI.running) drawInspectBohr();
+  if (UI.tab === 'inspect') qDraw(realDt);
   const tf3 = performance.now(), total = tf3 - tf0, gap = tf0 - (UI.lastFrameEnd || tf0); // (gap: time between frames not spent here — the browser, or a stall elsewhere)
   UI.lastFrameEnd = tf3;
   FP.sim = tf1 - tf0; FP.draw = tf2 - tf1; FP.ui = tf3 - tf2;

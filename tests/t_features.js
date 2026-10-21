@@ -153,6 +153,21 @@ const { openPage } = require('./browser');
     return { hits, pi: /Positive pion/.test(t[0]) && /17 m/.test(t[0]), mu: /Muon/.test(t[1]) && /2\.20 µs/.test(t[1]), ph: /590 nm/.test(t[2]) && /508 THz/.test(t[2]), nu: /Electron antineutrino/.test(t[3]) };
   });
   check(r10.hits.join() === 'exo:pi+,exo:mu-,flight:photon,ray:nu' && r10.pi && r10.mu && r10.ph && r10.nu, 'Inspect: a pion, a muon, a photon and a neutrino in flight picked and described (pion: 17 m before decaying at 200 MeV)', 'inspect in flight: ' + JSON.stringify(r10));
+  // inside a hadron: a proton's quarks, and pulling one out makes a pion and leaves a neutron (a picture: the world is unchanged)
+  const r11 = await page.evaluate(async () => {
+    setRunning(false); loadPreset('empty'); const pr = addNuc(1, 0, 0, 0, 0); R.sel = pr; R.selX = null; showTab('inspect', true); renderInspect();
+    for (let i = 0; i < 5; i++) await new Promise(r => requestAnimationFrame(r));
+    const n0 = W.parts.length, first = QV.qs.map(q => q.f).sort().join(''), note = $('insQNote').textContent;
+    const cv = $('insQuarks'), rc = cv.getBoundingClientRect(), S = Math.min(rc.width, rc.height) / 3.4, q = QV.qs.find(o => o.f === 'u');
+    const at = (x, y) => ({ clientX: rc.left + rc.width / 2 + x * S, clientY: rc.top + rc.height / 2 - y * S, preventDefault() {} });
+    qPointer(at(q.x, q.y), 'down'); for (let k = 1; k <= 30 && QV.drag; k++) qPointer(at(q.x + 0.1, q.y), 'move');
+    const after = QV.qs.map(o => (o.anti ? o.f.toUpperCase() : o.f)).sort().join(''), msg = QV.msg;
+    QV.key = ''; renderInspect(); const back = QV.qs.map(o => o.f).sort().join('');
+    const mu = addExo('mu-', 0, 5, 1e8, 1, 0); R.sel = null; R.selX = { kind: 'exo', o: mu }; renderInspect(); const lep = /it is a lepton/.test($('tp-inspect').textContent);
+    R.selX = null; loadPreset('water');
+    return { first, note: /Proton \(p\): three quarks/.test(note), after, msg, back, same: W.parts.length > 0 && n0 === 1, lep };
+  });
+  check(r11.first === 'duu' && r11.note && /pion/.test(r11.msg) && r11.back === 'duu' && r11.lep && r11.same, `inside a proton: u u d; pulling a u out made ${r11.msg.match(/as a ([^,.]+)/)[1]}, leaving ${r11.after}; put back; a muon has no quarks`, 'quark view: ' + JSON.stringify(r11));
   // a video: four seconds of the running chamber recorded at 4×, made into a file
   const r3 = await page.evaluate(async () => {
     loadPreset('water'); setRunning(true); let saved = null; const keep = fileSave;

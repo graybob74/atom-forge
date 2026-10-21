@@ -826,7 +826,7 @@ function drawRays(rt) {
     const hx = x0 + (x1 - x0) * m, hy = y0 + (y1 - y0) * m;
     r.hx = hx; r.hy = hy; r.alpha = a; // (where its label goes)
     ctx.strokeStyle = rgba(r.c, a * 0.5); ctx.lineWidth = r.E >= 1e5 ? 1.2 : 1.6;
-    if (r.nu) ctx.setLineDash([1, 5]); else if (r.pion) ctx.setLineDash([10, 3, 2, 3]); else if (r.E >= 1e5) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
+    if (r.nu) ctx.setLineDash([1, 5]); else if (r.E >= 1e5) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(hx, hy); ctx.stroke();
     if (!r.nu) { ctx.setLineDash([]); drawSprite(glowSprite(r.c, 7), hx, hy, a); }
   }
@@ -1373,7 +1373,7 @@ function pickLight(px, py, extra = 10) {
   const consider = (o, kind) => { const h = lightHead(o, kind); if (!h) return; const dx = (h[0] - wx) * R.s, dy = (h[1] - wy) * R.s, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; best = { kind, o }; } };
   for (const o of W.exo) if (!o.dead) consider(o, 'exo');
   for (const f of W.flights) consider(f, 'flight');
-  for (const r of W.rays) if (!r.landed && !r.pion) consider(r, 'ray');
+  for (const r of W.rays) if (!r.landed) consider(r, 'ray');
   return best;
 }
 function pickAt(px, py, extra = 6) {
