@@ -256,10 +256,15 @@ const { openPage } = require('./browser');
     await new Promise((r) => { setTimeout(r, 2300); }); const idle = document.body.classList.contains('idle') && getComputedStyle($('cv')).cursor === 'none';
     window.dispatchEvent(new PointerEvent('pointermove')); const back = !document.body.classList.contains('idle');
     setDisplayMode(false); await new Promise((r) => { setTimeout(r, 150); });
-    return { before, on, vw, top, idle, back, after: st(), off: !document.body.classList.contains('display') };
+    const after = st(), off = !document.body.classList.contains('display');
+    // the resting cursor, as Settings → Display says: hidden in windowed mode too when 'always', never when 'never'
+    const keepC = SET.cursor; SET.cursor = 'always'; dmPoke(); await new Promise((r) => { setTimeout(r, 2200); }); const always = document.body.classList.contains('idle');
+    SET.cursor = 'never'; dmPoke(); setChamberOnly(true); await new Promise((r) => { setTimeout(r, 2200); }); const never = !document.body.classList.contains('idle'); setChamberOnly(false); SET.cursor = keepC; dmPoke();
+    const seg = !!document.querySelector('#segWin [data-v="borderless"]') && !!$('setChamber');
+    return { before, on, vw, top, idle, back, after, off, always, never, seg };
   });
-  check(r15.on[0] === r15.vw[0] && r15.on[1] === r15.vw[1] && r15.top === 'none' && r15.idle && r15.back && r15.off && r15.after.join() === r15.before.join(),
-    `display mode: the chamber fills the window (${r15.on.join('×')}), the cursor hides at rest and comes back on a move; off again, the layout is as it was`, 'display mode: ' + JSON.stringify(r15));
+  check(r15.on[0] === r15.vw[0] && r15.on[1] === r15.vw[1] && r15.top === 'none' && r15.idle && r15.back && r15.off && r15.after.join() === r15.before.join() && r15.always && r15.never && r15.seg,
+    `display: chamber only fills the window (${r15.on.join('×')}), the resting cursor hides and comes back on a move; off again, the layout is as it was; the cursor setting's Always and Never hold; Settings has the window choice`, 'display mode: ' + JSON.stringify(r15));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

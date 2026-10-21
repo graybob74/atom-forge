@@ -3658,36 +3658,55 @@ function setRunning(r) {
 }
 
 /* ------------------------------------------------------------------ display mode */
-/* The chamber alone, filling the window with no border, the cursor hidden while the mouse rests. In the desktop app
-   the window goes borderless full screen (Tauri); in a browser the page asks for full screen, and where it may not
-   (inside a frame) the chamber just fills the page. Every key and tool works as before. */
-const DM = { on: false, timer: 0, fs: false };
-function setDisplayMode(on) {
+/* As in a game's display settings (Settings → Display), three things chosen apart:
+   - the window: windowed, or borderless full screen (F11). The desktop app's window goes borderless over its monitor
+     (Tauri setFullscreen, a borderless window as games make it, not exclusive: Alt+Tab, the Windows key and other
+     monitors work as usual); a browser uses its full screen, which a frame may refuse;
+   - chamber only (B; Esc leaves it): the chamber alone, edge to edge, no toolbar or panels;
+   - the cursor hidden while the mouse rests over the chamber: never, in chamber only, or always.
+   Every key and tool works as before. */
+const DM = { on: false, timer: 0, fs: false, win: 'windowed' };
+const tauriWin = () => { const tw = window.__TAURI__ && window.__TAURI__.window; return tw && tw.getCurrentWindow ? tw.getCurrentWindow() : null; };
+function setChamberOnly(on) {
   on = !!on;
   if (DM.on === on) return;
   DM.on = on;
   document.body.classList.toggle('display', on);
   $('bDisplay').setAttribute('aria-pressed', String(on));
+  if ($('setChamber')) $('setChamber').checked = on;
   if (on) closeQuickMenu();
   dmPoke();
-  const tw = window.__TAURI__ && window.__TAURI__.window;
-  try {
-    if (tw && tw.getCurrentWindow) Promise.resolve(tw.getCurrentWindow().setFullscreen(on)).catch(() => {});
-    else if (on) { const el = document.documentElement; if (!document.fullscreenElement && document.fullscreenEnabled && el.requestFullscreen) el.requestFullscreen().then(() => { DM.fs = true; }, () => {}); }
-    else if (document.fullscreenElement && DM.fs && document.exitFullscreen) document.exitFullscreen().catch(() => {});
-  } catch (err) { /* (no full screen here: the chamber still fills the page) */ }
-  if (!on) DM.fs = false;
-  log('tool', on ? 'Display mode: B, F11 or Esc to leave it' : 'Display mode off');
+  log('tool', on ? 'Chamber only: B or Esc to bring the panels back' : 'Panels back');
 }
+const setDisplayMode = setChamberOnly; // (the name the 0.52 tests know)
+/* The window: 'windowed' or 'borderless'. Called from a click or a key (a browser grants full screen only then), and
+   at start in the desktop app if it was left borderless. */
+function setWindowMode(mode) {
+  const full = mode === 'borderless';
+  DM.win = full ? 'borderless' : 'windowed';
+  const w = tauriWin();
+  try {
+    if (w) Promise.resolve(w.setFullscreen(full)).catch(() => {});
+    else if (full) { const el = document.documentElement; if (!document.fullscreenElement && document.fullscreenEnabled && el.requestFullscreen) el.requestFullscreen().then(() => { DM.fs = true; }, () => { DM.win = 'windowed'; syncWinSeg(); }); else if (!document.fullscreenElement) DM.win = 'windowed'; }
+    else if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  } catch (err) { DM.win = 'windowed'; }
+  if (!full) DM.fs = false;
+  if (w && SET.win !== DM.win) { SET.win = DM.win; store('settings', JSON.stringify(SET)); } // (kept for the next start in the desktop app; a browser cannot start in full screen)
+  syncWinSeg();
+}
+function syncWinSeg() { if ($('segWin')) setSegValue('segWin', DM.win); }
+const cursorHides = () => SET.cursor === 'always' || (SET.cursor === 'chamber' && DM.on);
 function dmPoke() {
   document.body.classList.remove('idle'); clearTimeout(DM.timer);
-  if (DM.on) DM.timer = setTimeout(() => { if (DM.on) { if (UI.drag) dmPoke(); else document.body.classList.add('idle'); } }, 2000);
+  if (cursorHides()) DM.timer = setTimeout(() => { if (!cursorHides()) return; if (UI.drag) dmPoke(); else document.body.classList.add('idle'); }, 2000);
 }
 function bindDisplayMode() {
-  $('bDisplay').onclick = () => setDisplayMode(true);
-  $('bDisplayExit').onclick = () => setDisplayMode(false);
-  for (const ev of ['pointermove', 'pointerdown', 'wheel']) window.addEventListener(ev, () => { if (DM.on) dmPoke(); }, { passive: true });
-  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && DM.fs) { DM.fs = false; setDisplayMode(false); } }); // (the browser's own Esc)
+  $('bDisplay').onclick = () => setChamberOnly(!DM.on);
+  $('bDisplayExit').onclick = () => setChamberOnly(false);
+  for (const ev of ['pointermove', 'pointerdown', 'wheel']) window.addEventListener(ev, () => dmPoke(), { passive: true });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && DM.fs) { DM.fs = false; DM.win = 'windowed'; syncWinSeg(); } }); // (the browser's own Esc)
+  if (tauriWin() && SET.win === 'borderless') setWindowMode('borderless');
+  dmPoke();
 }
 
 /* ------------------------------------------------------------------ keyboard */
@@ -3699,10 +3718,10 @@ function onKey(e) {
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Tab' || e.key === 'Shift') return; // (the focused item's own keys)
     closeQuickMenu();
   }
-  if (e.key === 'F11') { e.preventDefault(); setDisplayMode(!DM.on); return; }
+  if (e.key === 'F11') { e.preventDefault(); setWindowMode(DM.win === 'borderless' ? 'windowed' : 'borderless'); return; }
   if (e.key === 'Escape') {
     for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal']) if (!$(id).hidden) { hideModal(id); return; }
-    if (DM.on) { e.preventDefault(); setDisplayMode(false); return; }
+    if (DM.on) { e.preventDefault(); setChamberOnly(false); return; }
     if (UI.pasting) { cancelPaste(); return; }
     if (UI.drag) { if (W.tool) W.tool.active = false; W.grab = null; UI.drag = null; R.overlay = null; return; }
     R.sel = null; R.selX = null; R.follow = null; renderInspect(); if (R.msel.size) clearSelection(); return;
@@ -3736,7 +3755,7 @@ function onKey(e) {
   if ((k === 'Delete' || k === 'Backspace') && R.sel) { kill(R.sel); R.sel = null; renderInspect(); return; }
   if (tag === 'INPUT') return; // range sliders keep their arrow keys and letters stay safe
   if (k === 'v' || k === 'V') { toggleParticleView(); return; }
-  if (k === 'b' || k === 'B') { setDisplayMode(!DM.on); return; }
+  if (k === 'b' || k === 'B') { setChamberOnly(!DM.on); return; }
   if (k === 'o' || k === 'O') { toggleOrbitalView(); return; }
   const up = k.toUpperCase();
   if (up === 'R') { loadPreset(UI.preset); return; }
@@ -3747,9 +3766,9 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, trail: 0.5, trailClock: 'real', narr: false };
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber' };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] };
+const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -3877,7 +3896,7 @@ function syncSettings() {
     n.textContent = (AI.sample && !AI.sample.api ? 'This page has its own Claude access: Ask Claude and Identify molecules use your Claude account directly, and the key below is not needed here. ' : own ? '' : 'This page has no Claude access of its own. ') +
       'Paste an API key from console.anthropic.com to ask Claude from here: it stays in this browser\'s storage, is sent only to api.anthropic.com, and each request is billed to that account (a fraction of a cent). The model can be left blank for the default (' + AI_API.model + ').'; }
   try { $('setThreads').textContent = threadsNote(); } catch (e) { $('setThreads').textContent = 'Threads: ' + e.message; }
-  setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit);
+  setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo;
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -3914,6 +3933,9 @@ function settingsInit() {
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
+  bindSeg('segWin', (v) => setWindowMode(v));
+  bindSeg('segCursor', (v) => { setSetting('cursor', v); dmPoke(); });
+  $('setChamber').onchange = (e) => setChamberOnly(e.target.checked);
   bindSeg('segTUnit', (v) => setSetting('tunit', v));
   $('setFx').onchange = (e) => setSetting('effects', e.target.checked);
   $('setTips').onchange = (e) => setSetting('tips', e.target.checked);
