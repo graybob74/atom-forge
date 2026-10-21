@@ -76,6 +76,10 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.56.0: a main menu with depth
+- The main menu is three layers the camera looks at from where the mouse is (mmTick, MMP): the chamber far behind shifts a little (and draws closer), a soft glow between moves more, and the card in front tilts toward the mouse with its title and buttons standing out at different depths (CSS perspective, translateZ). With no mouse it sways slowly on its own. The title has a passing shine; the buttons rise one after another as the menu opens, lift and glow under the mouse and press in; the setups list slides in; leaving, the card falls back into the chamber as it fades. Behind the menu the chamber shows no labels. Off with the system's Reduce motion.
+- t_features: the menu's layers follow the mouse. Steadier: undo and the torn bond tested with room around them.
+
 ## 0.55.0: Settings in tabs, a main menu, an Esc menu, undo, and many settings
 - Settings is one tab per category: Performance, Graphics, Display, Controls, General, Claude.
 - Graphics: frame-rate cap (Monitor, 30, 60, 120, 144; frames skipped in frame(), their time still counted); atom size (true, smaller, small: R.as, on both the WebGL and 2D drawing); labels and charge badges always, on hover or never (lblOn, badgeOn: the hovered and the inspected particle); fewer flashes (R.flashK); a colour-blind friendly palette (Okabe–Ito colours for the common elements, orange and blue for charges: CVD_COL, baseElColor).

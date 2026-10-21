@@ -10116,7 +10116,7 @@ const CVD_COL = { 1: '#f2f2f2', 6: '#5a5a5a', 7: '#0072b2', 8: '#d55e00', 9: '#7
 const Q_POS = () => (R.cvd ? '#e69f00' : '#ff5a4e'), Q_NEG = () => (R.cvd ? '#0072b2' : '#4d8dff');
 function baseElColor(Z) { return (R.cvd && CVD_COL[Z]) || ELEMENTS[Z].color; }
 function elColorsReset() { _elCol.length = 0; _elColAnti.length = 0; _stySig = ''; R.sprites.clear(); }
-const lblOn = (p) => R.view.labels && (R.lblMode !== 'hover' || p === R.hover || p === R.sel);
+const lblOn = (p) => R.view.labels && !R.menu && (R.lblMode !== 'hover' || p === R.hover || p === R.sel); // (R.menu: behind the main menu, the chamber without words)
 const badgeOn = (p) => R.badges === 'always' || (R.badges === 'hover' && (p === R.hover || p === R.sel));
 function atomColor(p) {
   if (R.view.color === 'charge') {
@@ -11032,7 +11032,7 @@ function drawFlights() {
    dozen, none on top of another. With the Labels view. */
 const LAB_W = new Map(); // label text → its width on screen (measuring text every frame is slow)
 function drawPhotonLabels(rt) {
-  if (!R.view.labels || (!W.flights.length && !W.rays.length)) return;
+  if (!R.view.labels || R.menu || (!W.flights.length && !W.rays.length)) return;
   const heads = [];
   for (const f of W.flights) { if (!f.lab) continue; const d = Math.min(f.len, (W.t - f.t0) * PHYS.C), L = f.len || 1; heads.push([w2sx(f.x0 + (f.x1 - f.x0) * d / L), w2sy(f.y0 + (f.y1 - f.y0) * d / L), f.lab, f.c, 1]); }
   for (let i = W.rays.length - 1; i >= 0; i--) { const r = W.rays[i]; if (r.lab && r.hx !== undefined && r.alpha > 0.02) heads.push([r.hx, r.hy, r.lab, r.c, Math.min(1, r.alpha * 1.1)]); }
@@ -17554,6 +17554,7 @@ function frame(now) {
     UI.nextDue = Math.max(now, (UI.nextDue || 0) + iv);
   }
   const realDt = Math.min(0.1, Math.max(0, (now - UI.last) / 1000));
+  if (UI.menu) mmTick(realDt);
   UI.last = now; UI.vis += realDt; UI.fps = UI.fps ? 0.95 * UI.fps + 0.05 / Math.max(1e-3, realDt) : 60;
   UI.fpsN = (UI.fpsN || 0) + 1; // (the frame-rate counter: frames counted over half a second)
   // the frame's phases are timed; the worst frame of each badge period is shown with where its time went (a stutter's trail)
@@ -17779,23 +17780,46 @@ function escAction(a) {
 const MM_BG = ['neon', 'combustion', 'oven', 'water', 'soup'];
 function showMainMenu() {
   if (!UI.menu) autosave();
-  UI.menu = true; document.body.classList.add('menu'); closeQuickMenu();
+  UI.menu = true; R.menu = true; document.body.classList.add('menu'); closeQuickMenu();
   for (const id of ['setModal', 'escModal', 'keysModal', 'galModal', 'shareModal']) if (!$(id).hidden) hideModal(id);
   const keep = store('preset'), bg = MM_BG.filter(k => PRESETS[k]);
   loadPreset(bg[Math.floor(Math.random() * bg.length)] || 'empty');
   if (keep) store('preset', keep); // (the setup behind the menu is not the one to start with next time)
   $('hint').hidden = true; $('narr').hidden = true; W.slowmo = false; setRunning(true); fitView();
   if (R.w > 700) { R.s *= 0.9; R.cx -= Math.min(0.2 * R.w, 260) / R.s; } // (the setup off to the right of the menu)
+  MMP.base = [R.s, R.cx, R.cy]; MMP.t = 0; $('mainMenu').classList.remove('out'); $('mainMenu').classList.remove('in'); void $('mainMenu').offsetWidth; $('mainMenu').classList.add('in');
   $('mmContinue').hidden = !autosaved(); $('mmQuit').hidden = !tauriWin(); $('mmNote').textContent = '';
   $('mmSetups').hidden = true; $('mmBtns').hidden = false; $('mainMenu').hidden = false;
   W.slowmo = store('slowmo') !== '0';
   const f = $('mmBtns').querySelector('.btn:not([hidden])'); if (f) f.focus();
 }
-function hideMainMenu() { if (!UI.menu) return; UI.menu = false; document.body.classList.remove('menu'); $('mainMenu').hidden = true; UNDO.back.length = 0; UNDO.fwd.length = 0; UNDO.size = 0; }
+function hideMainMenu() {
+  if (!UI.menu) return;
+  UI.menu = false; R.menu = false; document.body.classList.remove('menu'); UNDO.back.length = 0; UNDO.fwd.length = 0; UNDO.size = 0;
+  const m = $('mainMenu'); // (it fades and falls back into the chamber; the panels are there at once)
+  if (MMP.still) { m.hidden = true; return; }
+  m.classList.remove('in'); m.classList.add('out'); clearTimeout(MMP.outT); MMP.outT = setTimeout(() => { if (!UI.menu) { m.hidden = true; m.classList.remove('out'); } }, 260);
+}
+/* The main menu's depth: three layers — the chamber far behind, a glow between, the title and buttons in front — that
+   the camera looks at slightly from where the mouse is (the chamber shifts least, the buttons most, and the card tilts
+   toward it); with no mouse it sways slowly on its own. Off with Reduce motion (the system setting). */
+const MMP = { mx: 0, my: 0, x: 0, y: 0, t: 0, last: 0, base: null, still: false };
+function mmTick(dt) {
+  if (!UI.menu || !MMP.base) return;
+  MMP.t += dt;
+  const idle = performance.now() - MMP.last > 2500, tx = idle ? 0.35 * Math.sin(MMP.t * 0.37) : MMP.mx, ty = idle ? 0.25 * Math.sin(MMP.t * 0.29 + 1) : MMP.my;
+  const k = 1 - Math.exp(-dt * (idle ? 1.2 : 5));
+  MMP.x += (tx - MMP.x) * k; MMP.y += (ty - MMP.y) * k;
+  if (MMP.still) return;
+  const [s0, cx0, cy0] = MMP.base, z = 1 + 0.025 * (Math.abs(MMP.x) + Math.abs(MMP.y)) / 2;
+  R.s = s0 * z; R.cx = cx0 + MMP.x * 0.035 * R.w / R.s; R.cy = cy0 - MMP.y * 0.035 * R.h / R.s; // (far away: it moves a little)
+  const st = $('mainMenu').style;
+  st.setProperty('--mx', MMP.x.toFixed(4)); st.setProperty('--my', MMP.y.toFixed(4));
+}
 function mmSetups() {
   const groups = new Map();
   for (const [k, p] of Object.entries(PRESETS)) { if (!p.name || k === 'ai') continue; const g = p.group || 'Other'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push([k, p.name]); }
-  $('mmList').innerHTML = [...groups].map(([g, list]) => `<h4>${esc(g)}</h4>` + list.map(([k, n]) => `<button data-mmp="${esc(k)}">${esc(n)}</button>`).join('')).join('');
+  let i = 0; $('mmList').innerHTML = [...groups].map(([g, list]) => `<h4>${esc(g)}</h4>` + list.map(([k, n]) => `<button data-mmp="${esc(k)}" style="--i:${Math.min(i++, 14)}">${esc(n)}</button>`).join('')).join('');
   $('mmBtns').hidden = true; $('mmSetups').hidden = false; $('mmList').scrollTop = 0;
 }
 function mmAction(a) {
@@ -17808,6 +17832,10 @@ function mmAction(a) {
   else if (a === 'quit') quitApp();
 }
 function menusInit() {
+  MMP.still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  $('mainMenu').addEventListener('pointermove', (e) => { MMP.mx = clamp(2 * e.clientX / innerWidth - 1, -1, 1); MMP.my = clamp(2 * e.clientY / innerHeight - 1, -1, 1); MMP.last = performance.now(); });
+  $('mainMenu').addEventListener('pointerleave', () => { MMP.mx = 0; MMP.my = 0; });
+  for (const [i, b] of [...document.querySelectorAll('#mmBtns .btn')].entries()) b.style.setProperty('--i', i);
   $('mmVer').textContent = (/\d+\.\d+\.\d+/.exec(document.title) || [''])[0];
   $('mainMenu').addEventListener('click', (e) => {
     const p = e.target.closest('[data-mmp]'); if (p) { hideMainMenu(); loadPreset(p.dataset.mmp); syncPresetSelect(); setRunning(true); return; }

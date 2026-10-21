@@ -1,4 +1,4 @@
-<title>Atom Forge 0.55.0</title>
+<title>Atom Forge 0.56.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -387,8 +387,41 @@ details.chain[open] summary { margin-bottom: 10px; }
 .klist kbd { font-family: var(--font-data); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; white-space: nowrap; }
 .klist h4 { grid-column: 1 / -1; margin: 10px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 /* The main menu: over the chamber, which runs a setup behind it */
-.mmenu { position: fixed; inset: 0; z-index: 35; display: flex; align-items: center; padding: 24px max(16px, 6vw);
+.mmenu { position: fixed; inset: 0; z-index: 35; display: flex; align-items: center; padding: 24px max(16px, 6vw); perspective: 1100px; --mx: 0; --my: 0;
   background: linear-gradient(90deg, rgba(4, 8, 14, 0.82) 0%, rgba(4, 8, 14, 0.55) 38%, rgba(4, 8, 14, 0) 70%); }
+/* depth: a soft glow layer between the chamber and the card, the card tilting toward the mouse, its parts at different depths */
+.mmenu::before { content: ''; position: absolute; inset: -8%; pointer-events: none;
+  background: radial-gradient(42% 52% at calc(26% + var(--mx) * 4%) calc(50% + var(--my) * 4%), rgba(90, 150, 255, 0.16), transparent 70%),
+    radial-gradient(30% 40% at calc(70% - var(--mx) * 6%) calc(30% - var(--my) * 5%), rgba(255, 120, 200, 0.07), transparent 70%);
+  transform: translate3d(calc(var(--mx) * -14px), calc(var(--my) * -10px), 0); }
+.mm-card { position: relative; transform-style: preserve-3d; will-change: transform;
+  transform: translate3d(calc(var(--mx) * -22px), calc(var(--my) * -16px), 0) rotateY(calc(var(--mx) * 7deg)) rotateX(calc(var(--my) * -6deg)); }
+.mm-brand { transform: translateZ(70px); }
+.mm-title { background: linear-gradient(100deg, #eef3f8 30%, #9cc4ff 45%, #eef3f8 60%) 0 0 / 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: mmShine 7s ease-in-out infinite; text-shadow: none; filter: drop-shadow(0 6px 18px rgba(80, 140, 255, 0.35)); }
+@keyframes mmShine { 0%, 55% { background-position: 100% 0; } 85%, 100% { background-position: -50% 0; } }
+.mm-btns, .mm-setups { transform-style: preserve-3d; }
+.mm-btns .btn, .mm-setups > .btn { transform: translateZ(36px); transition: transform 0.18s ease, border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35); }
+.mm-btns .btn:hover, .mm-btns .btn:focus-visible { transform: translateZ(58px) translateX(6px); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--accent), 0 0 22px rgba(90, 150, 255, 0.35); }
+.mm-btns .btn:active { transform: translateZ(30px) translateX(4px) scale(0.98); transition-duration: 0.06s; }
+.mm-list button { transition: transform 0.15s ease, border-color 0.15s; }
+.mm-list button:hover { transform: translateX(5px); }
+.mm-note { transform: translateZ(20px); }
+/* coming in: the parts rise from the chamber one after another; going: the card falls back and fades */
+.mmenu.in .mm-brand > *, .mmenu.in .mm-btns .btn { animation: mmIn 0.6s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 70ms + 120ms); }
+.mmenu.in .mm-brand > * { animation-delay: 0ms; }
+.mmenu:not([hidden]) .mm-setups:not([hidden]) > *, .mm-list button { animation: mmIn 0.45s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 25ms); }
+@keyframes mmIn { from { opacity: 0; translate: -18px 14px; filter: blur(4px); } to { opacity: 1; translate: 0 0; filter: blur(0); } }
+.mmenu.in { animation: mmFade 0.5s ease both; }
+@keyframes mmFade { from { opacity: 0; } }
+.mmenu.out { animation: mmOut 0.26s ease both; pointer-events: none; }
+.mmenu.out .mm-card { transition: transform 0.26s ease; transform: translate3d(-40px, 0, -160px) rotateY(12deg); }
+@keyframes mmOut { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .mm-card, .mmenu::before { transform: none !important; }
+  .mmenu *, .mmenu { animation: none !important; transition: none !important; }
+}
 .mm-card { display: grid; gap: 18px; width: min(380px, 100%); max-height: 100%; color: #eef3f8; }
 .mm-brand { display: grid; gap: 2px; }
 .mm-title { font-size: 44px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }

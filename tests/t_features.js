@@ -277,7 +277,7 @@ const { openPage } = require('./browser');
       for (let f = 0; f < 30; f++) { simFrame(1 / 60, 30); UI.running = true; grabTick(1 / 60); UI.running = false; }
       out[st] = Math.hypot(g.x - p.x, g.y - p.y); W.grab = null;
     }
-    loadPreset('water'); setRunning(false);
+    loadPreset('empty'); spawnClear({ kind: 'mol', mol: 'H2O' }, 0, 0, 300); setRunning(false); // (on its own: in the liquid a neighbour may stand in the way)
     const h = W.parts.find(q => q.k === NUC && q.Z === 1 && q.bonds.length), o = other(h.bonds[0], h);
     W.grab = { p: h, x: h.x + 2.5 * (h.x - o.x), y: h.y + 2.5 * (h.y - o.y), s: 'strong', mol: null };
     for (let f = 0; f < 20; f++) { simFrame(1 / 60, 30); grabTick(1 / 60); }
@@ -301,7 +301,7 @@ const { openPage } = require('./browser');
   // 0.55: undo/redo; units; graphics settings reach the drawing; the frame-rate cap; tools remember their settings
   const r18 = await page.evaluate(async () => {
     const out = {};
-    loadPreset('water'); setRunning(false); UNDO.back.length = 0; UNDO.fwd.length = 0;
+    loadPreset('empty'); for (let i = 0; i < 6; i++) spawnClear({ kind: 'mol', mol: 'H2O' }, -20 + 8 * i, 10, 300); setRunning(false); UNDO.back.length = 0; UNDO.fwd.length = 0; // (room to place: a full box takes none)
     const n0 = W.parts.filter(p => !p.dead).length, t0 = W.t;
     undoMark('Place'); placeSpec({ kind: 'atom', Z: 8, A: 16 }, 0, 0, 5); const n1 = W.parts.filter(p => !p.dead).length;
     undoStep(-1); const n2 = W.parts.filter(p => !p.dead).length; undoStep(1); const n3 = W.parts.filter(p => !p.dead).length; undoStep(-1);
@@ -329,6 +329,8 @@ const { openPage } = require('./browser');
     const r19 = await m.page.evaluate(async () => {
       const wait = (ms) => new Promise((r) => { setTimeout(r, ms); });
       const out = { menu: !$('mainMenu').hidden && UI.menu && UI.running, hidden: getComputedStyle(document.querySelector('.panel')).display === 'none' };
+      { const cx0 = R.cx; $('mainMenu').dispatchEvent(new PointerEvent('pointermove', { clientX: 5, clientY: 5, bubbles: true })); for (let i = 0; i < 60; i++) mmTick(1 / 60);
+        const tf = getComputedStyle(document.querySelector('.mm-card')).transform; out.depth = MMP.still || (R.cx !== cx0 && +$('mainMenu').style.getPropertyValue('--mx') < -0.5 && tf.startsWith('matrix3d')); }
       document.querySelector('[data-mm="setups"]').click(); out.list = $('mmList').querySelectorAll('button').length;
       document.querySelector('[data-mmp="water"]').click(); await wait(300);
       out.water = !UI.menu && UI.preset === 'water' && getComputedStyle(document.querySelector('.panel')).display !== 'none';
@@ -340,8 +342,8 @@ const { openPage } = require('./browser');
       out.cont = !UI.menu && W.parts.filter(p => !p.dead).length === n && UI.preset === 'water';
       return out;
     });
-    check(r19.menu && r19.hidden && r19.list > 20 && r19.water && r19.esc && r19.back && r19.cont,
-      `menus: the main menu at start over a running setup; ${r19.list} setups to pick from; Esc pauses with its menu; Main menu, then Continue, puts the same ${'chamber'} back`, 'menus: ' + JSON.stringify(r19));
+    check(r19.menu && r19.depth && r19.hidden && r19.list > 20 && r19.water && r19.esc && r19.back && r19.cont,
+      `menus: the main menu at start over a running setup, its layers following the mouse in depth; ${r19.list} setups to pick from; Esc pauses with its menu; Main menu, then Continue, puts the same ${'chamber'} back`, 'menus: ' + JSON.stringify(r19));
     if (m.errors.length) { fails++; say('FAIL menu page errors:', m.errors.join(' | ').slice(0, 600)); }
     await m.browser.close();
   }

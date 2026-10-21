@@ -99,7 +99,7 @@ const CVD_COL = { 1: '#f2f2f2', 6: '#5a5a5a', 7: '#0072b2', 8: '#d55e00', 9: '#7
 const Q_POS = () => (R.cvd ? '#e69f00' : '#ff5a4e'), Q_NEG = () => (R.cvd ? '#0072b2' : '#4d8dff');
 function baseElColor(Z) { return (R.cvd && CVD_COL[Z]) || ELEMENTS[Z].color; }
 function elColorsReset() { _elCol.length = 0; _elColAnti.length = 0; _stySig = ''; R.sprites.clear(); }
-const lblOn = (p) => R.view.labels && (R.lblMode !== 'hover' || p === R.hover || p === R.sel);
+const lblOn = (p) => R.view.labels && !R.menu && (R.lblMode !== 'hover' || p === R.hover || p === R.sel); // (R.menu: behind the main menu, the chamber without words)
 const badgeOn = (p) => R.badges === 'always' || (R.badges === 'hover' && (p === R.hover || p === R.sel));
 function atomColor(p) {
   if (R.view.color === 'charge') {
@@ -1015,7 +1015,7 @@ function drawFlights() {
    dozen, none on top of another. With the Labels view. */
 const LAB_W = new Map(); // label text → its width on screen (measuring text every frame is slow)
 function drawPhotonLabels(rt) {
-  if (!R.view.labels || (!W.flights.length && !W.rays.length)) return;
+  if (!R.view.labels || R.menu || (!W.flights.length && !W.rays.length)) return;
   const heads = [];
   for (const f of W.flights) { if (!f.lab) continue; const d = Math.min(f.len, (W.t - f.t0) * PHYS.C), L = f.len || 1; heads.push([w2sx(f.x0 + (f.x1 - f.x0) * d / L), w2sy(f.y0 + (f.y1 - f.y0) * d / L), f.lab, f.c, 1]); }
   for (let i = W.rays.length - 1; i >= 0; i--) { const r = W.rays[i]; if (r.lab && r.hx !== undefined && r.alpha > 0.02) heads.push([r.hx, r.hy, r.lab, r.c, Math.min(1, r.alpha * 1.1)]); }
