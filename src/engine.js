@@ -5334,7 +5334,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = [];
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }
@@ -5538,6 +5538,7 @@ function settleOverlaps() {
 /* Launch a projectile with kinetic energy KE (eV) along (ux, uy). */
 function fireSpec(spec, x, y, ux, uy, KE, free) {
   if (spec.kind === 'gamma') { emitPhoton(x, y, KE, ux, uy); return null; }
+  if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy) : null; // (a muon, pion …: from outside, as any fired particle)
   const ps = spawnClear(spec, x, y, 0, free);
   if (!ps.length) return null;
   if (ps.length === 1) { setMotion(ps[0], KE, ux, uy); if (!ps[0].trk && KE > 50) startTrack(ps[0]); return ps[0]; }

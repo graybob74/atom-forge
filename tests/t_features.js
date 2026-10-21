@@ -168,6 +168,45 @@ const { openPage } = require('./browser');
     return { first, note: /Proton \(p\): three quarks/.test(note), after, msg, back, same: W.parts.length > 0 && n0 === 1, lep };
   });
   check(r11.first === 'duu' && r11.note && /pion/.test(r11.msg) && r11.back === 'duu' && r11.lep && r11.same, `inside a proton: u u d; pulling a u out made ${r11.msg.match(/as a ([^,.]+)/)[1]}, leaving ${r11.after}; put back; a muon has no quarks`, 'quark view: ' + JSON.stringify(r11));
+  // the string model and the quark–gluon plasma: exact kinematics, jets from e⁺e⁻ at 10 GeV, a plasma from gold on gold,
+  // and the energies to reach them on the Fire tool and the collider
+  const r12 = await page.evaluate(() => {
+    setRunning(false); const out = {};
+    let worst = 0; for (let k = 0; k < 40; k++) { const n = 3 + Math.floor(rnd() * 40), its = []; for (let i = 0; i < n; i++) its.push(item(['pi+', 'pi-', 'pi0', 'K+', 'K-', 'p', 'n', 'eta'][Math.floor(rnd() * 8)]));
+      const M = its.reduce((t, it) => t + massOf(it), 0) * (1.2 + 20 * rnd()), v = jetMomenta(its, M, 1, 0, { thermal: k % 2 === 0, lead: isBaryonItem }); if (!v) continue;
+      let E = 0, px = 0, py = 0; v.forEach((q, i) => { E += q[0]; px += q[1]; py += q[2]; worst = Math.max(worst, Math.abs(q[0] * q[0] - q[1] * q[1] - q[2] * q[2] - massOf(its[i]) ** 2) / (q[0] * q[0])); });
+      worst = Math.max(worst, Math.abs(E - M) / M, Math.abs(px) / M, Math.abs(py) / M); }
+    out.kin = worst;
+    loadPreset('linac'); setupCollider('linear', 'pos', 'e', 5e9); W.slowHold = false; const n0 = W.exo.length;
+    for (let f = 0; f < 3000 && !(W.strings || []).length; f++) simFrame(1 / 60, 30);
+    const st = (W.strings || [])[0], xs = st ? W.exo.filter(o => o.born >= st.t0 - 1e-9) : []; // (all the jet's hadrons, even those already gone)
+    out.jet = st ? { n: xs.length, cos: xs.reduce((t, o) => t + Math.abs(o.ux * st.ax + o.uy * st.ay), 0) / Math.max(1, xs.length) } : null;
+    loadPreset('rhic'); W.slowHold = false; let f = 0; for (; f < 12000 && !(W.qgp || []).length; f++) simFrame(1 / 60, 30);
+    out.qgp = (W.qgp || []).map(g => ({ n: g.n, sNN: Math.round(g.sNN) }))[0] || null; out.qgpLog = W.log.some(e => /quark–gluon plasma: \d+ nucleons melted/.test(e.text));
+    OPT.fire.s = 1700; out.fireMax = fireKE(); OPT.fire.s = 300; out.colMax = cEFromS(1000);
+    loadPreset('water'); return out;
+  });
+  check(r12.kin < 1e-9 && r12.jet && r12.jet.cos > 0.6 && r12.qgp && r12.qgp.n > 100 && r12.qgpLog && r12.fireMax >= 9.9e14 && r12.colMax >= 9.9e14,
+    `strings and plasma: kinematics exact to ${r12.kin.toExponential(0)}; e⁺e⁻ at 10 GeV → ${r12.jet && r12.jet.n} hadrons along the jet axis (mean |cos| ${r12.jet && r12.jet.cos.toFixed(2)}); gold on gold at √s_NN ${r12.qgp && (r12.qgp.sNN / 1000).toFixed(0)} GeV → plasma → ${r12.qgp && r12.qgp.n} hadrons; Fire tool and collider reach 1 PeV`, 'strings/plasma: ' + JSON.stringify(r12));
+  // muons in matter: a slow muon ionizes argon, slows and is caught (a muonic atom); in D–T it catalyses fusion again and
+  // again; every step keeps the books exactly
+  const r13 = await page.evaluate(() => {
+    setRunning(false); const out = {}; const tot = () => totalEnergy().total - W.ledger.nuc;
+    loadPreset('empty'); W.box.w = W.box.tw = 120; W.box.h = W.box.th = 60; for (let i = 0; i < 12; i++) for (let j = 0; j < 6; j++) addAtom('Ar', -55 + i * 9.5, -25 + j * 9.5);
+    const m = addExo('mu-', -58, 3.6, 6000, 1, 0.003); for (let f = 0; f < 3000 && !m.dead; f++) simFrame(1 / 60, 25);
+    out.ar = { fate: m.fate, bound: (W.muBound || []).length };
+    let worst = 0; const keep = Object.assign({}, MU_RATES); MU_RATES.tr_dt = 1e30; MU_RATES.tr_pd = 1e30; MU_RATES.dt = 1e30;
+    loadPreset('mucf'); W.gamma = 0; W.slowmo = false; forcesNoEvents(); W.fSpawn = W.spawned; let n = 0;
+    for (let k = 0; k < 400 && n < 6; k++) { const o = W.exo.find(q => !q.dead && /^mu/.test(q.sp)); if (!o) break;
+      if (XP[o.sp].atom) { const want = XP[o.sp].N === 2 ? 1 : 2, tg = W.parts.find(p => !p.dead && p.Z === 1 && p.N === want); if (!tg) break; o.x = tg.x + 0.4; o.y = tg.y; forcesNoEvents(); const b = tot(), f0 = W.count.fusion; muAtomTick(o, 1); worst = Math.max(worst, Math.abs(tot() - b)); n += W.count.fusion - f0; }
+      else { const b = tot(); if (o.KE >= MU_STOP) o.KE = 1000; exoSpeed(o); const tg = W.parts.find(p => !p.dead && p.Z === 1); o.x = tg.x + 1; o.y = tg.y; forcesNoEvents(); const b2 = tot(); muStop(o); worst = Math.max(worst, Math.abs(tot() - b2)); } }
+    Object.assign(MU_RATES, keep);
+    out.cat = { fusions: n, worst, last: W.log.filter(e => /Muon-catalysed/.test(e.text)).slice(-1).map(e => e.text)[0] || '' };
+    out.proj = FIRE_PROJ.some(f => f.spec && f.spec.kind === 'exo' && f.spec.sp === 'mu-');
+    loadPreset('water'); return out;
+  });
+  check(/muonic atom/.test(r13.ar.fate || '') && r13.ar.bound === 1 && r13.cat.fusions >= 3 && r13.cat.worst < 1e-3 && /fusion no\. [3-9]/.test(r13.cat.last) && r13.proj,
+    `muons: a 6 keV μ⁻ slows in argon and is caught (${r13.ar.fate}); in D–T it catalysed ${r13.cat.fusions} fusions in a row, each event exact to ${r13.cat.worst.toExponential(0)} eV; the Fire tool fires μ⁻`, 'muons: ' + JSON.stringify(r13));
   // a video: four seconds of the running chamber recorded at 4×, made into a file
   const r3 = await page.evaluate(async () => {
     loadPreset('water'); setRunning(true); let saved = null; const keep = fileSave;

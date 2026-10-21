@@ -493,7 +493,7 @@ function blackbodyRGB(T) { // Tanner Helland approximation, T in kelvin
    figures (3 by default). */
 function fmtE(eV, digits) { // in the unit that suits the size: 999 keV, then 1.00 MeV (also when 999.7 keV rounds up)
   const a = Math.abs(eV), d = digits || 3, k = 1 - 0.5 * Math.pow(10, -d);
-  for (const [s, u] of [[1e12, ' TeV'], [1e9, ' GeV'], [1e6, ' MeV'], [1e3, ' keV'], [1, ' eV'], [1e-3, ' meV']]) {
+  for (const [s, u] of [[1e15, ' PeV'], [1e12, ' TeV'], [1e9, ' GeV'], [1e6, ' MeV'], [1e3, ' keV'], [1, ' eV'], [1e-3, ' meV']]) {
     if (a < s * k) continue;
     const v = eV / s;
     return (Math.abs(v) >= Math.pow(10, d) ? v.toFixed(0) : v.toPrecision(d)) + u;

@@ -104,7 +104,7 @@ const say = (...a) => console.log(...a);
     for (const [a, b] of [['d', 't'], ['au197', 'p'], ['e', 'p'], ['pbar', 'p']]) { await page.selectOption('#cBeamA', a); await page.selectOption('#cBeamB', b); await page.waitForTimeout(150); }
     await page.$eval('#cNSlider', (el) => { el.value = '25'; el.dispatchEvent(new Event('input', { bubbles: true })); });
     await tryClick(page.locator('#segBeams button').first());
-    for (const f of [1, 0, 0.5]) await page.$eval('#cESlider', (el, f) => { el.value = String(+el.min + (el.max - el.min) * f); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, f);
+    for (const f of [1, 0, -1]) await page.$eval('#cESlider', (el, f) => { el.value = String(f < 0 ? sFromCE(1.4e7) : +el.min + (el.max - el.min) * f); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, f); // (top, bottom, then 14 MeV)
     // the note offers the next threshold (e⁺e⁻ at 14 MeV each: muon pairs from 105 MeV each)
     if (await page.$('#cGo')) { const e0 = await page.evaluate(() => W.collider.E); await page.click('#cGo'); await page.waitForTimeout(150); const e1 = await page.evaluate(() => W.collider.E); if (!(e1 > e0)) { fails++; say('FAIL the go-to-threshold button did nothing on', pre, e0, e1); } else say(`  ${pre}: threshold button took the beams from ${(e0 / 1e6).toFixed(1)} to ${(e1 / 1e6).toFixed(1)} MeV`); }
     else { fails++; say('FAIL no go-to-threshold button for e⁺e⁻ at 14 MeV on', pre); }

@@ -149,7 +149,7 @@ function render(rt) {
   if (!R.gl) drawChipsUnder();
   drawParticles(rt);
   drawChips(rt);
-  drawExos();
+  drawExos(); drawStrings(rt);
   drawFlashes(rt);
   if (R.view.rays) { drawRays(rt); drawFlights(); drawPhotonLabels(rt); }
   drawEvents(rt);
@@ -612,6 +612,48 @@ function drawParticles(rt) {
 /* Unstable particles in flight (muons, pions, kaons…): a glowing point in the particle's colour with its symbol;
    neutral ones, which leave no track in a real detector, a ring and a dotted path. */
 const _xpHex = {};
+/* Strings breaking (W.strings): a colour string stretching out both ways from a hard collision, then snapping into
+   pieces, each piece the seed of a hadron (shown in real time, about a second; the real thing takes 10⁻²³ s). And a
+   quark–gluon plasma (W.qgp): a hot drop of free quarks and gluons that swells, cools from white to red and freezes
+   out into hadrons. Pictures of what happened: the products themselves are already flying. */
+function drawStrings(rt) {
+  const ctx = R.ctx;
+  if (W.strings && W.strings.length) {
+    ctx.save(); ctx.lineCap = 'round';
+    for (let i = W.strings.length - 1; i >= 0; i--) {
+      const s = W.strings[i], age = rt - s.t0;
+      if (age > 1.4 || age < 0) { W.strings.splice(i, 1); continue; }
+      const grow = Math.min(1, age / 0.35), Lpx = Math.max(60, 12 * R.s) * grow, a = age < 0.9 ? 1 : 1 - (age - 0.9) / 0.5; // (its length on screen, in pixels)
+      const x = w2sx(s.x), y = w2sy(s.y), ux = s.ax, uy = -s.ay, n = s.n, broken = age > 0.35;
+      ctx.lineWidth = 3; ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 10;
+      for (const sg of [1, -1]) for (let k = 0; k < n / 2; k++) {
+        const t0 = k / (n / 2), t1 = (k + 1) / (n / 2), gap = broken ? 0.12 : 0, L0 = Lpx * (t0 + gap / 2), L1 = Lpx * (t1 - gap / 2);
+        ctx.strokeStyle = `rgba(255,${180 - 60 * (k % 2)},${90 + 80 * (k % 3 === 0)},${(0.85 * a).toFixed(3)})`;
+        ctx.beginPath(); ctx.moveTo(x + sg * ux * L0, y + sg * uy * L0); ctx.lineTo(x + sg * ux * L1, y + sg * uy * L1); ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+    }
+    ctx.restore();
+  }
+  if (W.qgp && W.qgp.length) {
+    ctx.save();
+    for (let i = W.qgp.length - 1; i >= 0; i--) {
+      const g = W.qgp[i], age = rt - g.t0;
+      if (age > 2.2 || age < 0) { W.qgp.splice(i, 1); continue; }
+      const x = w2sx(g.x), y = w2sy(g.y), r = (14 + 40 * Math.min(1, age / 1.4)) * Math.max(0.6, Math.min(2, R.s / 6)), heat = Math.max(0, 1 - age / 1.4), a = age < 1.4 ? 1 : 1 - (age - 1.4) / 0.8;
+      const core = `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.75 * a).toFixed(3)})`;
+      const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, core); gr.addColorStop(0.6, `rgba(255,110,40,${(0.35 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,60,20,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
+      // free quarks and gluons milling about inside, in their colours
+      const cols = ['255,90,90', '90,220,120', '100,150,255'];
+      for (let k = 0; k < 36; k++) { const ph = k * 2.399 + age * (1.5 + (k % 5) * 0.4), rr = r * 0.75 * Math.sqrt(((k * 0.618) % 1)), qx = x + rr * Math.cos(ph), qy = y + rr * Math.sin(ph);
+        ctx.fillStyle = k % 4 === 3 ? `rgba(255,255,255,${(0.6 * a * heat + 0.2 * a).toFixed(3)})` : `rgba(${cols[k % 3]},${(0.8 * a).toFixed(3)})`; ctx.beginPath(); ctx.arc(qx, qy, k % 4 === 3 ? 1.6 : 2.4, 0, 2 * Math.PI); ctx.fill(); }
+      if (R.view.labels !== false) { ctx.font = '11px ' + (typeof cssVar === 'function' ? cssVar('--font-data') : 'monospace'); ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.textAlign = 'center';
+        ctx.fillText(age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, x, y - r - 6); ctx.textAlign = 'left'; }
+    }
+    ctx.restore();
+  }
+}
 function drawExos() {
   if (!W.exo.length) return;
   const ctx = R.ctx;
@@ -1063,7 +1105,7 @@ function drawDecayInset(ctx, e, cx, cy, Rr, age, c) {
 const EV_STYLE = {
   alpha: [255, 205, 110], decay: [255, 205, 110], beta: [110, 190, 255], betap: [255, 125, 205], ec: [120, 220, 200],
   fission: [255, 150, 80], fusion: [255, 236, 170], capture: [170, 205, 255], reaction: [255, 190, 150],
-  annih: [205, 150, 255], pair: [210, 190, 255], prod: [255, 175, 95], pdecay: [140, 240, 205],
+  annih: [205, 150, 255], pair: [210, 190, 255], prod: [255, 175, 95], pdecay: [140, 240, 205], qgp: [255, 120, 70],
 };
 const EV_LIFE = 4.5;
 function drawEvents(rt) {

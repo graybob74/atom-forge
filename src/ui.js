@@ -167,7 +167,7 @@ const lightE = () => Math.pow(10, OPT.light.s / 100 - 1);
 const FIRE_PROJ = [
   { id: 'sel', label: 'Selected' }, { id: 'e', label: 'e⁻', spec: { kind: 'e' } }, { id: 'p', label: 'p⁺', spec: SPEC_P },
   { id: 'n', label: 'n', spec: { kind: 'n' } }, { id: 'a', label: 'α', spec: SPEC_ALPHA }, { id: 'pbar', label: 'p̄', spec: SPEC_PBAR }, { id: 'nbar', label: 'n̄', spec: SPEC_NBAR },
-  { id: 'g', label: 'γ', spec: { kind: 'gamma' } },
+  { id: 'g', label: 'γ', spec: { kind: 'gamma' } }, { id: 'mu', label: 'μ⁻', spec: { kind: 'exo', sp: 'mu-' } },
 ];
 function fireSpecNow() { const f = FIRE_PROJ.find(f => f.id === OPT.fire.proj); return f && f.spec ? f.spec : UI.spec; }
 function wavelengthText(E) {
@@ -394,7 +394,7 @@ function buildToolOpts() {
       const fs = fireSpecNow() || SPEC_P;
       h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
         (o.proj === 'sel' ? savedIsoHTML() + isoPickerHTML(UI.spec) : '') +
-        rangeCtl('oKE', 'Energy', 0, 1030, o.s, fmtE(fireKE())) +
+        rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE())) +
         `<span data-g="source">${seg('Mode', [['false', 'Single shot'], ['true', 'Beam source']], String(o.source))}</span>` +
         (o.source ? `<span data-g="rate">${seg('Rate', [[1, '1'], [3, '3'], [10, '10']], o.rate)}</span><span class="help">per 100 fs</span>` : '') +
         `<span class="help" id="oFireNote">${esc(fireNote(fs, fireKE()))}</span>`;
@@ -1179,6 +1179,7 @@ const Q_SYM = { u: 'u', d: 'd', s: 's' }, Q_BAR = { u: 'ū', d: 'd̄', s: 's̄' 
 const Q_CONTENT = { p: 'uud', n: 'udd', pbar: 'UUD', nbar: 'UDD', 'pi+': 'uD', 'pi-': 'dU', pi0: 'uU', 'K+': 'uS', 'K-': 'sU', K0S: 'dS', K0L: 'dS', eta: 'sS', Lam: 'uds', Lamb: 'UDS' }; // (capitals: antiquarks)
 const QV = { key: '', qs: [], g: null, sea: [], drag: null, out: null, t: 0, msg: '', orig: '', pick: 'p', last: 0 };
 function qSubject(p, X) { // what to look inside: { key, content, name, note }
+  if (X && X.kind === 'exo' && (XP[X.o.sp].atom || XP[X.o.sp].stuck)) return null; // (a muonic atom: its nucleus is inside, too small to show here)
   if (X && X.kind === 'exo') { const c = Q_CONTENT[X.o.sp]; return c ? { key: 'x' + X.o.id, content: c } : { key: 'x' + X.o.id, lepton: true }; }
   if (!p || p.k !== NUC || p.Z + p.N < 1) return null;
   const one = p.Z + p.N === 1, which = one ? (p.Z ? 'p' : 'n') : (p.Z === 0 ? 'n' : p.N === 0 ? 'p' : QV.pick);
@@ -1326,7 +1327,7 @@ function qSnap(q) {
   renderInspect();
 }
 /* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
-const XP_NAME = { 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
+const XP_NAME = { muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
   K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau' };
 const XP_QUARKS = { 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄' };
 const XP_ABOUT = {
@@ -1355,7 +1356,9 @@ function selXHTML() {
     kv.push(['Kinetic energy', fmtE(o.KE)], ['Total energy', fmtE(o.KE + m * 1e6)], ['Speed', fmtSpeed(o.v)], ['Lorentz factor γ', fmtNum(o.gam, 4)],
       ['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)],
       ['Decays to', d.dec.map(([b, ps]) => `${ps.map(t => (XP[t] ? XP[t].lab : ({ 'e-': 'e⁻', 'e+': 'e⁺', nu: 'ν', nub: 'ν̄', g: 'γ', p: 'p', n: 'n', pbar: 'p̄', nbar: 'n̄' })[t] || t)).join(' ')} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
-    about = XP_ABOUT[o.sp.startsWith('mu') ? 'mu' : o.sp.startsWith('pi') ? 'pi' : o.sp.startsWith('K') ? 'K' : o.sp.startsWith('tau') ? 'tau' : o.sp.startsWith('Lam') ? 'Lam' : 'eta'] || '';
+    about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. Bound by ${fmtE(d.Eb * 1e6)}.`
+      : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
+      : XP_ABOUT[o.sp.startsWith('mu') ? 'mu' : o.sp.startsWith('pi') ? 'pi' : o.sp.startsWith('K') ? 'K' : o.sp.startsWith('tau') ? 'tau' : o.sp.startsWith('Lam') ? 'Lam' : 'eta'] || '';
     if (d.tau < 1e-15) about += ' This one lives so briefly that it decays a few nanometres from where it was made.';
     else if (path > 1e-6) about += ` Moving this fast it would cross ${fmtLen(path)} on average before decaying, far more than this chamber, so it leaves it — unless decay is sped up (Lab → Decay speed).`;
     status = live ? 'In flight' : o.fate ? o.fate[0].toUpperCase() + o.fate.slice(1) : 'Gone';
@@ -2280,6 +2283,13 @@ function explainInit() {
    within 12 s. */
 const NARR = { seq: 0, until: 0, last: new Map(), cur: '' };
 const NARR_RULES = [
+  [/^Muon-catalysed fusion: (\S+) → .*fusion no\. (\d+)/, 'mucf', 10, (m) => `<b>Muon-catalysed fusion</b> (this muon’s no. ${m[2]}). In the molecule ${m[1]} the heavy muon holds the two nuclei about 200 times closer than electrons could, close enough to fuse at room temperature or colder: ⁴He + n + 17.6 MeV. The muon usually comes free to do it again.`],
+  [/^Muonic atom: μ⁻ caught by (\S+)/, 'muatom', 8, (m) => `<b>A muonic atom.</b> A slowed negative muon was caught by ${m[1]} and fell to an orbit 207 times closer than an electron’s (it is 207 times heavier), giving off X-rays.`],
+  [/^Muon transfer/, 'mutr', 6, () => '<b>Muon transfer.</b> The muon hopped to a heavier hydrogen isotope, whose nucleus holds it a little deeper: the first step towards catalysed fusion.'],
+  [/^Muon capture by the nucleus/, 'mucap', 8, () => '<b>Muon capture.</b> In a heavy atom the muon’s orbit overlaps the nucleus, and a proton there swallowed it: μ⁻ + p → n + ν. The nucleus, one charge down and hot, boils off neutrons.'],
+  [/quark–gluon plasma: (\d+) nucleons melted at √s_NN = ([^,]+), froze out into ([\d,]+) hadrons/, 'qgp', 10, (m) => `<b>Quark–gluon plasma.</b> ${m[1]} protons and neutrons overlapped so hard (${m[2]} per nucleon pair) that they melted into free quarks and gluons: the state the whole universe was in for its first few microseconds. The drop expanded and cooled in about 10⁻²³ s, and at 1.8 trillion K froze back into ${m[3]} hadrons, mostly pions.`],
+  [/strings along the beams/, 'strings', 9, () => '<b>Strings.</b> The protons’ quarks flew apart joined by strings of the strong force, which broke again and again into quark–antiquark pairs: each piece became a hadron, so they stream out along the beams.'],
+  [/^Annihilation in flight: e⁻ \+ e⁺ → [^(]*[πK][^(]*\(√s = ([\d.]+) GeV/, 'jets', 9, (m) => +m[1] >= 2.5 ? `<b>Two jets.</b> The electron and positron became a quark and an antiquark flying apart; the colour string between them broke into ${'pions and kaons'}, two sprays back to back along the quarks’ paths.` : '<b>Hadrons from light.</b> The electron and positron annihilated into a quark–antiquark pair, which came out as mesons.'],
   [/^Fission: (\S+) \+ n → (\S+) \+ (\S+) \+ (\d)n/, 'fission', 9, (m) => `<b>Fission.</b> A neutron made ${m[1]} split into ${m[2]} and ${m[3]}, freeing ${m[4]} more neutrons that can split other nuclei: a chain reaction. The pieces weigh less than what went in; the missing mass became about 200 MeV of energy (E = mc²), millions of times what a chemical bond releases.`],
   [/^Spontaneous fission/, 'sfission', 8, () => '<b>Spontaneous fission.</b> A heavy nucleus split by itself, with no neutron to start it: quantum tunnelling through the barrier that usually holds it together.'],
   [/^Fusion: (.+?) → (.+?) \(/, 'fusion', 9, (m) => `<b>Fusion.</b> ${m[1]} → ${m[2]}. Two nuclei came close enough, despite their electric repulsion, for the strong force to join them; the product weighs less than the parts, and the difference is released as energy. This is what powers the Sun.`],
@@ -2375,8 +2385,8 @@ const TYPED = {
   boxW: { units: U_LEN, get: () => W.box.tw, apply: (w) => { W.box.tw = clamp(w, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' },
   boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' },
   spdVal: { units: U_TIME, get: () => W.simPerFrame, apply: (tu) => { W.simPerFrame = clamp(tu, DT_MIN, 1000); syncLab(); syncSpeed(); }, why: `from one shortest time step (${fmtTime(DT_MIN * PHYS.TU_S)}) to ${fmtTime(1000 * PHYS.TU_S)} per 1/60 s` },
-  cEVal: { units: U_ENERGY, get: () => (W.collider ? W.collider.E : cEFromS(+$('cESlider').value)), apply: (E) => { if (!W.collider) return; setColliderEnergy(clamp(E, cEFromS(0), cEFromS(200))); syncCollider(); } },
-  cE2Val: { units: U_ENERGY, get: () => (W.collider && W.collider.E2 !== null && W.collider.E2 !== undefined ? W.collider.E2 : cEFromS(+$('cE2Slider').value)), apply: (E) => { const C = W.collider; if (!C) return; setColliderEnergy(C.E, clamp(E, cEFromS(0), cEFromS(200))); syncCollider(); } },
+  cEVal: { units: U_ENERGY, get: () => (W.collider ? W.collider.E : cEFromS(+$('cESlider').value)), apply: (E) => { if (!W.collider) return; setColliderEnergy(clamp(E, cEFromS(0), cEFromS(1000))); syncCollider(); } },
+  cE2Val: { units: U_ENERGY, get: () => (W.collider && W.collider.E2 !== null && W.collider.E2 !== undefined ? W.collider.E2 : cEFromS(+$('cE2Slider').value)), apply: (E) => { const C = W.collider; if (!C) return; setColliderEnergy(C.E, clamp(E, cEFromS(0), cEFromS(1000))); syncCollider(); } },
   cNVal: { units: null, int: true, get: () => (W.collider ? W.collider.bunch : +$('cNSlider').value), apply: (n) => { n = clamp(Math.round(n), 1, 30); $('cNSlider').value = n; $('cNVal').textContent = String(n); if (W.collider) W.collider.bunch = n; } },
 };
 /* Temperatures in the scale chosen in Settings; in kelvin, with the prefix that suits the value. */
@@ -2460,7 +2470,7 @@ function toolTyped(t, o) {
   const M = {
     oRV: { units: U_LEN, get: () => o.R, apply: (R) => { o.R = clamp(R, RAD_MIN[t], RAD_MAX); again(); } },
     oSV: { units: U_ENERGY, get: () => pullU(), apply: (U) => { o.s = logS(U, 2, -100, 800); again(); }, why: 'the push and pull go from 1 meV to 1 MeV' },
-    oKEV: { units: U_ENERGY, get: () => fireKE(), apply: (E) => { o.s = logS(E, 2, -100, 1400); again(); }, why: 'particles are fired with 1 meV to 1 TeV' },
+    oKEV: { units: U_ENERGY, get: () => fireKE(), apply: (E) => { o.s = logS(E, 2, -100, 1700); again(); }, why: 'particles are fired with 1 meV to 1 PeV' },
     oTV: { units: U_TEMP, pick: tPick, get: () => heatT(), apply: (T) => { o.s = logS(T, 0, 0, 900); again(); }, why: 'the heat tool runs from 1 K to a billion K' },
     oEV: { units: U_ENERGY, get: () => sparkE(), apply: (E) => { o.s = logS(E, 0, -100, 1200); again(); }, why: 'sparks of 0.1 eV to 1 TeV' },
     oBV: { units: U_B, get: () => Math.abs(magB()), apply: (B) => { o.s = logS(Math.abs(B), 0, 0, 900); again(); }, why: 'magnets of 1 T to a billion T' },
@@ -2788,8 +2798,8 @@ function twoRingLayout(C, A, B, E, E2) {
 function setupCollider(kind, a, b, E, E2) {
   if (typeof b === 'number' || b === undefined) { E2 = undefined; E = b; [a, b] = BEAM_PAIRS[a] || BEAM_PAIRS.ee; }
   if (!BEAM_SPECIES[a]) a = 'pos'; if (!BEAM_SPECIES[b]) b = 'e';
-  E = clamp(E || 2e6, 2e4, 1e10);
-  E2 = E2 === undefined || E2 === null ? null : clamp(E2, 2e4, 1e10); // beam 2's own energy (null: matched to beam 1)
+  E = clamp(E || 2e6, 2e4, 1e15);
+  E2 = E2 === undefined || E2 === null ? null : clamp(E2, 2e4, 1e15); // beam 2's own energy (null: matched to beam 1)
   const A = beamInfo(a), B = beamInfo(b);
   for (const p of W.parts) if (!p.dead) kill(p);
   W.zones.length = 0; W.sources.length = 0;
@@ -2835,7 +2845,7 @@ function setColliderEnergy(E, E2) {
   setupCollider(C.kind, C.a, C.b, E, E2 === undefined ? C.E2 : E2);
   fitView();
 }
-const cEFromS = (s) => Math.pow(10, 4.3 + 5.7 * s / 200), sFromCE = (E) => Math.round(200 * (Math.log10(E) - 4.3) / 5.7); // 20 keV … 10 GeV
+const cEFromS = (s) => Math.pow(10, 4.3 + 10.7 * s / 1000), sFromCE = (E) => Math.round(1000 * (Math.log10(E) - 4.3) / 10.7); // 20 keV … 1 PeV (a beam particle's whole kinetic energy: a lead ion at the LHC carries 574 TeV)
 /* Any element and any isotope of it can be a beam (bare nuclei): each beam's first menu picks a lepton, an antiparticle,
    one of the popular nuclei or any element, and the second one of that element's isotopes, every one that holds
    together (the isotope builder's range; half-lives as measured, or estimated where they never have been). An
@@ -2974,7 +2984,7 @@ function makeNote(C, A, B) {
   const at = `In their own frame they meet with √s = ${fmtE(rs * 1e6)}`;
   let go = 0; // (a beam energy to offer: the next threshold, or a resonance's peak)
   const next = (thr, what, target) => { if (!(sym && rs < thr)) return ''; go = target || (thr / 2 - ma) * 1.04e6; return ` Next: ${what} from ${fmtE((thr / 2 - ma) * 1e6)} each.`; };
-  const out = (text) => ({ text, go: go >= 2e4 && go <= 1e10 ? go : 0 });
+  const out = (text) => ({ text, go: go >= 2e4 && go <= 1e15 ? go : 0 });
   const list = (xs) => xs.length > 1 ? xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1] : xs[0];
   if (A.lep && B.lep) {
     if (A.anti === B.anti) return out(`${at}: like charges only scatter.`);
@@ -2983,21 +2993,26 @@ function makeNote(C, A, B) {
     const atPhi = Math.abs(rs - 1019.46) < 4 ? ' At the φ resonance, kaon pairs outnumber everything else.' : '';
     const belowPhi = sym && rs > 987.4 && rs < 1015.4; // (past the kaon threshold but short of the φ itself)
     if (belowPhi) go = 509.22e6;
-    return out(`${at}: an electron and a positron can annihilate into ${list(can)}, in proportion to their cross sections.${atPhi}${belowPhi ? ' The φ resonance, where kaon pairs lead, is just above.' : nx ? next(nx[0], nx[1], nx[2]) : ''}`);
+    return out(`${at}: an electron and a positron can annihilate into ${list(can)}, in proportion to their cross sections.${rs > 2500 ? ' Hadrons come out as two jets, back to back: a quark and an antiquark fly apart and the colour string between them breaks into pions and kaons.' : ''}${atPhi}${belowPhi ? ' The φ resonance, where kaon pairs lead, is just above.' : nx ? next(nx[0], nx[1], nx[2]) : ''}`);
   }
   if (A.lep || B.lep) return out(`${at}: electrons only scatter off nuclei here (Mott scattering); exciting the nucleus takes a pass about ten thousand times closer, too rare to see.`);
   if (A.anti !== B.anti) return out(`${at}: matter and antimatter annihilate into mesons, about five pions (now and then kaons) for each nucleon pair${rs > 2 * 939.57 ? ', and a proton and an antiproton now and then trade charge (p p̄ → n n̄)' : ''}.`);
   if (A.A === 1 && B.A === 1) {
     const T = [[2011.5, 'pions (p p → d π⁺, p p π⁰, p n π⁺)', 70e6], [2547.6, 'kaons with a Λ (strangeness)', 345e6], [3752.0, 'antiprotons (p p → p p p p̄)', 1.2e9]];
     const can = T.filter(t => rs > t[0]).map(t => t[1]), nx = T.find(t => rs <= t[0]);
-    return out(`${at}: ${can.length ? `close passes can make ${list(can)}` : 'below the pion threshold they only scatter (and, very rarely, fuse: p + p → d + e⁺ + ν)'}.${nx ? next(nx[0], nx[1], nx[2]) : ''}`);
+    return out(`${at}: ${can.length ? `close passes can make ${list(can)}` : 'below the pion threshold they only scatter (and, very rarely, fuse: p + p → d + e⁺ + ν)'}.${rs > 5000 ? ' At this energy the hadrons come out along the beams, as colour strings stretched between the protons break up (the string model).' : ''}${nx ? next(nx[0], nx[1], nx[2]) : ''}`);
   }
   const Ecm = rs - ma - mb, VB = 1.44 * A.Z * B.Z / (1.2 * (Math.cbrt(A.A) + Math.cbrt(B.A)) + 1.6), eps = Ecm * (A.A + B.A) / (A.A * B.A);
   if (Ecm <= VB) { if (sym) go = VB / 2 * 1.3e6; return out(`${at.replace('√s = ' + fmtE(rs * 1e6), fmtE(Ecm * 1e6) + ' of motion')}, below their ${fmtE(VB * 1e6)} Coulomb barrier: their charges keep them apart and they scatter${A.A + B.A <= 16 ? ', and now and then tunnel through and fuse' : ''}.${sym ? ` Over the barrier from ${fmtE(VB / 2 * 1e6)} each.` : ''}`); }
   const cn = nucSymA(A.Z + B.Z, A.A + B.A - A.Z - B.Z, A.anti);
-  const pion = rsOf(EA / A.A, EB / B.A) - (A.m / A.A + B.m / B.A) * PHYS.AMU_MEV > 140;
+  const rsN = () => { const m1 = ma / A.A, m2 = mb / B.A, E1 = EA / A.A / 1e6 + m1, E2 = EB / B.A / 1e6 + m2; return Math.sqrt((E1 + E2) ** 2 - (Math.sqrt(E1 * E1 - m1 * m1) - Math.sqrt(E2 * E2 - m2 * m2)) ** 2); }; // (per nucleon pair, MeV)
+  const pion = rsN() - (ma / A.A + mb / B.A) > 140;
   const how = A.A + B.A <= 16 ? 'the touching nuclei break up into nucleons and light nuclei' : eps < 15 ? `touching nuclei fuse into ${cn}*, which cools by boiling off neutrons, protons and α particles (heavy ones fission instead)${A.Z * B.Z > 1200 ? '; a pair this heavy mostly parts again before it fuses (quasi-fission)' : ''}, and glancing ones trade nucleons` : eps < 40 ? `touching nuclei fuse (${cn}*) or break apart` : 'touching nuclei tear through each other: the overlap bursts into nucleons and light nuclei, and the rest of each flies on and boils off nucleons (fragmentation)';
-  return out(`${at.replace('√s = ' + fmtE(rs * 1e6), fmtE(Ecm * 1e6) + ' of motion')} (${fmtE(eps * 1e6)} per nucleon), over their ${fmtE(VB * 1e6)} Coulomb barrier: ${how}${pion ? ', with pions' : ''}; the new nuclei then decay as usual.`);
+  const sNN = rsN(), qgpAt = 2 * (QGP.eps + 938.9), big = Math.min(A.A, B.A) >= 16;
+  let plasma = '';
+  if (big && sNN >= qgpAt) plasma = ` At √s_NN = ${fmtE(sNN * 1e6)} per nucleon pair, a head-on overlap melts into a quark–gluon plasma (above about ${fmtE(qgpAt * 1e6)}), which freezes out into hundreds or thousands of hadrons.`;
+  else if (big) { if (sym) go = A.A * (qgpAt / 2 - 938.9) * 1.06e6; plasma = ` A quark–gluon plasma needs √s_NN above about ${fmtE(qgpAt * 1e6)} per nucleon pair (now ${fmtE(sNN * 1e6)}): about ${fmtE(A.A * (qgpAt / 2 - 938.9) * 1e6)} a beam${A.A > 1 ? ` (${fmtE((qgpAt / 2 - 938.9) * 1e6)} per nucleon)` : ''}.`; }
+  return out(`${at.replace('√s = ' + fmtE(rs * 1e6), fmtE(Ecm * 1e6) + ' of motion')} (${fmtE(eps * 1e6)} per nucleon), over their ${fmtE(VB * 1e6)} Coulomb barrier: ${how}${pion ? ', with pions' : ''}; the new nuclei then decay as usual.${plasma}`);
 }
 /* A speed as a fraction of light's: 0.065 c, 0.942 c, 0.99943 c (enough 9s to tell it from c). */
 function fmtBeta(b) {
@@ -3140,6 +3155,13 @@ const PRESETS = {
       W.sources.push({ x: -118, y: 0, ux: 1, uy: 0, spec: { kind: 'atom', Z: 2, A: 4, bare: true }, KE: 5.5e6, rate: 40, acc: 0.5, track: true, jitter: 120 });
       W.sources.push({ x: 0, y: -78, ux: 0, uy: 1, spec: { kind: 'e' }, KE: 6e4, rate: 60, acc: 0.2, track: true, jitter: 160 });
       W.sources.push({ x: 0, y: 78, ux: 0, uy: -1, spec: { kind: 'pos' }, KE: 6e4, rate: 40, acc: 0.7, track: true, jitter: 160 }); } },
+  mucf: { group: 'Nuclear', name: 'Muon-catalysed fusion', tool: 'fire', spec: D_SPEC,
+    hint: '<b>Cold deuterium and tritium (D₂ and T₂ at 30 K), and a slow negative muon.</b> It slows, is caught by an atom and makes muonic hydrogen, 200 times smaller than an atom; its muon moves to tritium (μt), which grabs a deuteron into the molecule dμt, where d and t sit so close that they fuse: ⁴He + n + 17.6 MeV, at 30 K, no hot plasma needed. The muon is usually set free to do it again (watch the count in the log); it stops when it decays (2.2 µs) or sticks to the α. Decay is sped up ×30,000 so the cycle can be seen. Fire more muons with the Fire tool (μ⁻ under 2 keV: in real matter a faster one travels micrometres before it stops, far beyond this chamber). Real muons cost more energy to make than they catalyse, which is why this is not a power source.',
+    build() { baseWorld(56, 40, 30, 0.3); W.warp = 3e4;
+      const pair = (A, x, y) => { const th = rnd() * Math.PI, a = addAtom('H', x - 0.37 * Math.cos(th), y - 0.37 * Math.sin(th), { A }), b = addAtom('H', x + 0.37 * Math.cos(th), y + 0.37 * Math.sin(th), { A }); addBond(a, b, 1); };
+      scatter(70, 56, 40, (x, y, i) => pair(i % 2 ? 3 : 2, x, y), 3.1);
+      OPT.fire.proj = 'mu'; OPT.fire.s = Math.round(100 * (Math.log10(1500) + 2));
+      addExo('mu-', -20, 0.2, 1500, 1, 0.01); } },
   grow: { group: 'Chemistry', name: 'Growing a crystal', tool: 'heat', spec: { kind: 'atom', Z: 18, A: 40 },
     hint: '<b>Argon at 160 K, with the bath cooling slowly to 40 K over a minute</b> (Lab → Heat bath; the box wraps round, so no wall starts it). The loose lattice it starts as melts in the first seconds. As it cools, ordered patches appear in the jumble, merge and grow, row by row, until the box is one hexagonal crystal with a few defects. Heat it again to melt it.',
     build() { baseWorld(44, 38.1, 160, 0.05); W.wall = 'wrap'; W.simPerFrame = 6;
@@ -3168,6 +3190,9 @@ const PRESETS = {
     build() { baseWorld(200, 150, 1, 0); W.Bz = 2e5; W.wall = 'open'; W.simPerFrame = 0.6;
       const src = (spec, KE, ph) => W.sources.push({ x: -85, y: -72, ux: 0, uy: 1, spec, KE, rate: 0.035, acc: ph, track: true });
       src(SPEC_P, 40, 0.9); src(D_SPEC, 40, 0.65); src(SPEC_ALPHA, 80, 0.4); src({ kind: 'atom', Z: 2, A: 3, bare: true }, 80, 0.15); } },
+  rhic: { group: 'Accelerators', name: 'Gold on gold: quark–gluon plasma', tool: 'inspect', tab: 'lab', spec: { kind: 'atom', Z: 79, A: 197, bare: true },
+    hint: '<b>Gold nuclei at 100 GeV per nucleon, head on, as at RHIC (Brookhaven).</b> Glancing passes knock a few nucleons off; when they overlap enough, the overlap melts into a quark–gluon plasma (a white-hot drop of free quarks and gluons, shown slowed down: it lasts 10⁻²³ s) that freezes out into hundreds or thousands of hadrons, mostly pions. Hadrons beyond the chamber’s limit (Settings → Particle limit) leave with their energy counted. Lower the beam energy in the Lab tab to see where the plasma stops forming (about 3 GeV per nucleon each); pick the Inspect tool and click a pion to look inside it.',
+    build() { baseWorld(150, 130, 300, 0); W.wall = 'open'; setupCollider('ring', 'au197', 'au197', 197 * 100e9); } },
   ring: { group: 'Accelerators', name: 'Ring collider', tool: 'inspect', spec: { kind: 'pos' },
     hint: '<b>A collider ring: two beams go round and meet in the detector.</b> A particle and its antiparticle (here positrons and electrons) share one ring, going round opposite ways; any other pair (try D + T, or gold on gold) gets a ring each, the two sharing one straight. The bending magnets (red bands) curve the paths, RF cavities push the beams on every pass, and the field rises as they speed up so they stay on course (a synchrotron). The beams are kept on separate orbits while they speed up, then brought into collision. Pick the beams, their energy and the bunch size in the Lab tab.',
     build() { baseWorld(150, 130, 300, 0); W.wall = 'open'; setupCollider('ring', 'ee', 2e6); } },
@@ -4067,7 +4092,7 @@ function init() {
   $('cE2Slider').onchange = (e) => { const C = W.collider; if (!C) return; setColliderEnergy(C.E, cEFromS(+e.target.value)); syncCollider(); log('tool', `Beam 2 energy: ${fmtE(W.collider.E2)}`); };
   $('chkEach').onchange = (e) => { // each beam its own energy, starting from what beam 2 has now; or back to matched beams
     const C = W.collider; if (!C) return;
-    setColliderEnergy(C.E, e.target.checked ? clamp(C.EB || C.E, 2e4, 1e10) : null); syncCollider();
+    setColliderEnergy(C.E, e.target.checked ? clamp(C.EB || C.E, 2e4, 1e15) : null); syncCollider();
   };
   bindSeg('segSep', (v) => { const C = W.collider; if (!C) return; C.sepMode = v; syncCollider(); log('tool', `Collider beams: ${{ auto: 'brought together at full energy', apart: 'kept apart', together: 'brought together now' }[v]}`); });
   $('bInject').onclick = () => injectBeams();

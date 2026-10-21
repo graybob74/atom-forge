@@ -129,6 +129,248 @@ function phaseSpace(M, ms) {
   return v;
 }
 
+
+/* ---- jets: the string model (as in Lund / Pythia, simplified). In a hard collision a quark and an antiquark (or a
+   quark and a diquark) fly apart joined by a colour string; it breaks again and again into quark–antiquark pairs, and
+   the pieces are hadrons laid out in order along the string: evenly in rapidity (a plateau) along its axis, each with
+   a transverse momentum of about 0.35 GeV. Leading particles (a collision's baryons) sit at the two ends. The
+   plateau's width is set by the energy, and the momenta are then made to add up exactly: zero total momentum and the
+   whole energy M (MeV) in the rest frame. Returns [E, px, py] for each item, or null.
+   opts.thermal: a quark–gluon plasma freezing out instead: rapidities spread as a Gaussian (a fluid expanding along
+   the beams), transverse momenta thermal at about 156 MeV, blue-shifted by the flow (heavier particles faster). */
+function jetMomenta(items, M, ax, ay, opts = {}) {
+  const n = items.length, ms = items.map(massOf);
+  let msum = 0; for (const m of ms) msum += m;
+  if (!(msum < M - 1)) return null;
+  if (n < 3) return phaseSpace(M, ms);
+  const r = new Array(n), pt = new Array(n);
+  const order = []; for (let i = 0; i < n; i++) order.push(i);
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  if (opts.lead) { // leading particles to the ends, alternately
+    const L = order.filter(i => opts.lead(items[i])), rest = order.filter(i => !opts.lead(items[i]));
+    order.length = 0; const left = [], right = []; L.forEach((i, k) => (k % 2 ? right : left).push(i));
+    order.push(...left, ...rest, ...right.reverse());
+  }
+  order.forEach((i, rank) => { r[i] = opts.thermal ? gauss() : 2 * (rank + 0.5) / n - 1 + 0.35 * gauss() / n; });
+  for (let i = 0; i < n; i++) {
+    if (opts.thermal) { const Te = 160 + 140 * ms[i] / 1000; let mt = ms[i] - Te * Math.log(Math.max(1e-12, rnd() * rnd())) / 1.5; pt[i] = Math.sqrt(Math.max(0, mt * mt - ms[i] * ms[i])) * (rnd() < 0.5 ? -1 : 1); }
+    else pt[i] = 350 * gauss() / Math.SQRT2 * 1.2;
+  }
+  let mts = ms.map((m, i) => Math.hypot(m, pt[i])), base = mts.reduce((a, b) => a + b, 0);
+  if (base >= M) { const k = Math.sqrt(Math.max(0, (M - msum) / (base - msum))) * 0.9; for (let i = 0; i < n; i++) pt[i] *= k; mts = ms.map((m, i) => Math.hypot(m, pt[i])); }
+  const Esum = (Y) => { let s = 0; for (let i = 0; i < n; i++) s += mts[i] * Math.cosh(Y * r[i]); return s; };
+  let lo = 0, hi = 1; while (Esum(hi) < M && hi < 60) hi *= 2;
+  for (let k = 0; k < 60; k++) { const mid = (lo + hi) / 2; if (Esum(mid) < M) lo = mid; else hi = mid; }
+  const Y = (lo + hi) / 2, nx = -ay, ny = ax;
+  const p = r.map((ri, i) => { const pl = mts[i] * Math.sinh(Y * ri); return [pl * ax + pt[i] * nx, pl * ay + pt[i] * ny]; });
+  let sx = 0, sy = 0; for (const v of p) { sx += v[0]; sy += v[1]; }
+  for (const v of p) { v[0] -= sx / n; v[1] -= sy / n; } // (no total momentum)
+  const Ef = (xi) => { let s = 0; for (let i = 0; i < n; i++) s += Math.sqrt(ms[i] * ms[i] + xi * xi * (p[i][0] * p[i][0] + p[i][1] * p[i][1])); return s; };
+  lo = 0; hi = 2; while (Ef(hi) < M && hi < 1e6) hi *= 2;
+  for (let k = 0; k < 80; k++) { const mid = (lo + hi) / 2; if (Ef(mid) < M) lo = mid; else hi = mid; }
+  const xi = (lo + hi) / 2;
+  return p.map((v, i) => { const px = v[0] * xi, py = v[1] * xi; return [Math.sqrt(ms[i] * ms[i] + px * px + py * py), px, py]; });
+}
+const isBaryonItem = (it) => it.t === 'A' || it.sp === 'Lam' || it.sp === 'Lamb';
+/* A string drawn as it breaks (W.strings, render.js drawStrings): at (x, y) along (ax, ay), in real time. */
+function addString(x, y, ax, ay, n) { (W.strings || (W.strings = [])).push({ x, y, ax, ay, n: Math.min(14, Math.max(3, n)), t0: W.rt }); if (W.strings.length > 12) W.strings.shift(); }
+
+/* ---- quark–gluon plasma. Where nuclei overlap with more than about 3 GeV per nucleon of motion in their own frame
+   (√s_NN ≳ 8 GeV, where experiments first see it), protons and neutrons melt into free quarks and gluons. The drop
+   expands and cools in about 10⁻²³ s and at 156 MeV (1.8 trillion K) freezes back into hadrons in the proportions
+   of a gas in thermal equilibrium at that temperature (the statistical hadronization model that fits RHIC and LHC
+   yields): mostly pions, about one in eight a kaon, antibaryons suppressed by e^(−μ_B/T) where the net baryons of the
+   collision remain (μ_B from Cleymans et al.'s fit, 1.31 GeV / (1 + 0.273 √s_NN/GeV)). The number of hadrons follows
+   from the energy, spread in rapidity as Landau's expanding fluid (σ² = ln(√s_NN / 2m_p)). */
+const QGP = { T: 156, eps: 3000, minA: 30, MAX: 3000 };
+function qgpHadrons(MF, Bp, Qp, sNN) {
+  const T = QGP.T, muB = 1308 / (1 + 0.273 * sNN / 1000), sig2 = Math.max(0.3, Math.log(sNN / (2 * 938.27)));
+  let N = Math.round(MF / (560 * Math.exp(sig2 / 2)));
+  N = clamp(N, Bp + 2, QGP.MAX);
+  for (let tries = 0; tries < 20; tries++) {
+    const fx = [], fixed = [];
+    const pairs = Math.round(Math.max(0, (N - Bp) * 0.045 * Math.exp(-muB / T) + 0.5 * gauss() * Math.sqrt(N * 0.045 * Math.exp(-muB / T) + 0.01)));
+    const nB = Bp + pairs;
+    for (let i = 0; i < nB; i++) { if (rnd() < 0.12) { fixed.push('Lam'); fx.push({ k: 'Kp', q: rnd() < 0.5 ? 1 : 0 }); } else fx.push({ k: 'N', q: rnd() < 0.5 ? 1 : 0 }); }
+    for (let i = 0; i < pairs; i++) { if (rnd() < 0.12) { fixed.push('Lamb'); fx.push({ k: 'Km', q: rnd() < 0.5 ? -1 : 0 }); } else fx.push({ k: 'Nb', q: rnd() < 0.5 ? -1 : 0 }); }
+    let left = N - fx.length - fixed.length;
+    const kPairs = Math.round(Math.max(0, left) * 0.065);
+    for (let i = 0; i < kPairs; i++) fx.push({ k: 'Kp', q: rnd() < 0.5 ? 1 : 0 }, { k: 'Km', q: rnd() < 0.5 ? -1 : 0 });
+    left -= 2 * kPairs;
+    const nEta = Math.round(Math.max(0, left) * 0.03); for (let i = 0; i < nEta; i++) fixed.push('eta');
+    left -= nEta;
+    for (let i = 0; i < left; i++) { const u = rnd(); fx.push({ k: 'pi', q: u < 1 / 3 ? -1 : u < 2 / 3 ? 0 : 1 }); }
+    if (!repairCharge(fx, Qp)) continue;
+    const out = fixed.map(item).concat(fx.map(f => item(flexTok(f))));
+    if (out.reduce((t, it) => t + massOf(it), 0) >= MF * 0.95) { N = Math.max(Bp + 2, Math.round(N * 0.8)); continue; }
+    return { items: out, muB, sig: Math.sqrt(sig2) };
+  }
+  return null;
+}
+function addQGP(x, y, n, sNN) { (W.qgp || (W.qgp = [])).push({ x, y, n, sNN, t0: W.rt }); if (W.qgp.length > 6) W.qgp.shift(); }
+
+
+/* ---- muons in matter. A charged unstable particle in flight (muon, pion, kaon) ionizes the atoms it passes as any
+   fast charge does (Bethe: about z²·n_e/β² for each, closest passes most), so it slows down. A negative muon slowed to
+   a few keV is caught by an atom and falls, giving off X-rays, to an orbit 207 times closer than an electron's (it is
+   207 times heavier): a muonic atom.
+   - On hydrogen it makes muonic hydrogen (μp, μd, μt): neutral and 200 times smaller than an atom, it slips between
+     molecules. Its muon moves to a heavier isotope it meets (the orbit there is deeper: μp → μd → μt), and μt
+     meeting a deuteron forms the molecule dμt, in which d and t are held so close that they fuse within a picosecond:
+     d + t → ⁴He + n + 17.6 MeV. The muon is usually set free (about 10 keV) to do it again: muon-catalysed fusion,
+     ~100 fusions per muon in real liquid D–T, until it decays (2.2 µs) or sticks to an α (0.85% of the time).
+     d d and t t fuse too, much more slowly (³He + n or t + p; ⁴He + 2n), the muon sticking more often.
+   - On a heavier atom it stays bound, and either decays (2.2 µs) or is captured by the nucleus, μ⁻ + p → n + ν, at a
+     rate that grows as Z_eff⁴ (about 32·Z_eff⁴ per second; in heavy atoms capture wins in well under a µs); the nucleus,
+     one charge down and some 15 MeV hot, boils off a neutron or two. (Its electrons are left as they were: in a real
+     muonic atom they see one charge fewer.)
+   These steps, like decay, run on the nuclear clock (Lab → Decay speed). Rates: in liquid hydrogen (where a muonic atom
+   always has a neighbour); here they apply when one is within 2.5 Å. */
+const MU_M = 105.6584, MU_STOP = 2000, MU_RATES = { tr_pd: 1.5e10, tr_dt: 2.8e8, dt: 1.0e8, dd: 5e6, tt: 2e6 };
+const MU_EB = (Z) => 2.531e-3 * Z * Z / (1 + (Z / 105) ** 2); // 1s binding (MeV), point Coulomb with a reduced mass, eased for the nucleus's size
+const MU_ZEFF = [[1, 1], [6, 5.7], [10, 8.9], [20, 16], [26, 19.6], [40, 25], [50, 28], [82, 34], [100, 36]];
+function muZeff(Z) { for (let i = 1; i < MU_ZEFF.length; i++) if (Z <= MU_ZEFF[i][0]) { const [z0, e0] = MU_ZEFF[i - 1], [z1, e1] = MU_ZEFF[i]; return e0 + (e1 - e0) * (Z - z0) / (z1 - z0); } return 36; }
+for (const [k, N, lab] of [['muP', 0, 'μp'], ['muD', 1, 'μd'], ['muT', 2, 'μt']]) { // muonic hydrogen: neutral, decaying as its muon does
+  const tok = ['p', 'd', 't'][N], mN = nucMeV(1, N), Eb = 13.6057e-6 * (MU_M * mN / (MU_M + mN)) / 0.51099895; // (Bohr's 13.6 eV with the muon's reduced mass: 2.53 keV for μp)
+  XP[k] = { lab, m: nucMeV(1, N) + MU_M - Eb, Eb, q: 0, tau: 2.1970e-6, col: [150, 255, 230], cc: k, atom: true, N, dec: [[1, [tok, 'e-', 'nub', 'nu']]] };
+}
+XP.muHe = { lab: '(μα)⁺', m: nucMeV(2, 2) + MU_M - MU_EB(2), q: 1, tau: 2.1970e-6, col: [255, 225, 150], cc: 'muHe', stuck: true, dec: [[1, ['a', 'e-', 'nub', 'nu']]] };
+/* Ionization along a charged exo's step (x0, y0) → its position now; it loses the energy given away. */
+function exoIonize(o, x0, y0) {
+  const beta2 = Math.max(1e-8, (o.v / PHYS.C) ** 2), z2 = o.q * o.q;
+  const hits = segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && t.Z > 0 && t.ne > 0);
+  let lost = 0;
+  for (const [, tg, b] of hits) {
+    if (tg.dead || tg.ne <= 0) continue;
+    const w = 1 / (1 + (b / 0.4) * (b / 0.4));
+    const dE = Math.min(0.3 * o.KE, 0.0047 * z2 * tg.ne / beta2 * w);
+    if (dE < 0.01) continue;
+    o.KE -= dE; lost += dE;
+    const ie = ionizationCost(tg), nx = -o.uy * (rnd() < 0.5 ? 1 : -1), ny = o.ux * (nx === -o.uy ? 1 : -1);
+    if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) { if (ejectElectron(tg, dE - ie, nx, ny)) W.count.ionize++; else dumpHeat(dE, tg, tg); }
+    else { const dv = Math.sqrt(2 * dE * tg.im); tg.vx += nx * dv * 0.7; tg.vy += ny * dv * 0.7; updateFast(tg); }
+    if (o.KE <= 1) break;
+  }
+  if (lost > 0) { o.KE = Math.max(0.5, o.KE); exoSpeed(o); }
+}
+/* An event between an exo and the atoms in W.parts it involves (tgs): the exo and they go, items come out with
+   momenta moms (MeV, lab), the books close exactly (what is left over goes to the photons among them, or to the
+   products' motion). The targets' electrons come out free (items 'e-' added by the caller). */
+function exoEvent(o, tgs, items, moms, x, y, kind, text, sub) {
+  const S = nucBegin(tgs), gh = tgs.map(ghostOf);
+  for (const t of tgs) kill(t);
+  o.dead = true; o.fate = o.fate || text;
+  const made = spawnItems(items, moms, x, y);
+  closeEvent(S, made, x, y, o.KE + o.m * MEV, o.m * MEV);
+  if (kind) { nucEvent(kind, x, y, text, gh, sub); log('nuc', `${text}${sub ? ` (${sub})` : ''}`); }
+  return made;
+}
+const randDir4 = (m, K) => { const [ux, uy] = rdir(), p = Math.sqrt(Math.max(0, K * (K + 2 * m))); return [m + K, p * ux, p * uy]; };
+/* A free μ⁻ slowed to a few keV: caught by the nearest atom within 4 Å. Returns true if it was. */
+function muStop(o) {
+  let tg = null, bd = 16;
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  if (!tg) return false;
+  const x = tg.x, y = tg.y, el = speciesLabel(tg);
+  if (tg.Z === 1 && tg.N <= 2) { // muonic hydrogen: the atom's electron goes free, X-rays carry off the binding
+    const sp = ['muP', 'muD', 'muT'][tg.N], kT = PHYS.KB * Math.max(W.T, 20);
+    const items = [item(sp), item('g'), item('g')], moms = [randDir4(XP[sp].m, 1.5 * kT / MEV), [1, ...rdir()], [1, ...rdir()]];
+    for (let i = 0; i < tg.ne; i++) { items.push(item('e-')); moms.push(randDir4(PHYS.MEC2, 2 / MEV)); }
+    const made = exoEvent(o, [tg], items, moms, x, y, 'capture', `Muonic atom: μ⁻ caught by ${el} → ${XP[sp].lab}`, `X-rays carry off ${fmtE(XP[sp].Eb * MEV)}: its orbit is 207 times closer than an electron’s`);
+    const nx = made.xs[0]; if (nx) nx.cyc = o.cyc || 0;
+    return true;
+  }
+  // a heavier atom keeps it bound
+  const Eb = MU_EB(tg.Z) * MEV, S = nucBegin([]);
+  o.dead = true; o.fate = `caught by ${el}: a muonic atom`;
+  tg.muB = { m: MU_M * MEV - Eb, Eb };
+  (W.muBound || (W.muBound = [])).push(tg);
+  const made = { ps: [], xs: [], rays: [[item('g'), 1, ...rdir()], [item('g'), 1, ...rdir()]], lost: 0 };
+  closeEvent(S, made, x, y, o.KE + Eb, Eb); // (the binding energy and the muon's motion leave as X-rays; the rest of its mass stays bound)
+  nucEvent('capture', x, y, `Muonic atom: μ⁻ caught by ${el}`, [], `muonic X-rays, ${fmtE(Eb)} in all`);
+  log('nuc', `Muonic atom: μ⁻ caught by ${el}; it falls to an orbit 207× closer, giving off ${fmtE(Eb)} of X-rays`);
+  return true;
+}
+/* Muonic hydrogen meets hydrogen isotopes: the muon moves to the heavier one, or the pair fuses (dμt, dμd, tμt).
+   clock: nuclear seconds this step. Returns true if o is gone. */
+function muAtomTick(o, clock) {
+  const N0 = XP[o.sp].N; let best = null, bd = 6.25;
+  nearby(o.x, o.y, 2.5, (p) => { if (p.dead || p.k !== NUC || p.Z !== 1 || p.anti || p.N > 2) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; best = p; } });
+  if (!best) return false;
+  const N1 = best.N, P = (rate) => rnd() < 1 - Math.exp(-rate * clock);
+  const x = best.x, y = best.y, bl = speciesLabel(best);
+  const P4 = add4([o.m + o.KE / MEV, ...(() => { const p = Math.sqrt(Math.max(0, o.KE / MEV * (o.KE / MEV + 2 * o.m))); return [p * o.ux, p * o.uy]; })()], p4of(best)), bx = P4[1] / P4[0], by = P4[2] / P4[0], M = mass4(P4);
+  const els = (n) => { const it = [], mo = []; for (let i = 0; i < n; i++) { it.push(item('e-')); mo.push(toLab(randDir4(PHYS.MEC2, 3 / MEV), bx, by)); } return [it, mo]; };
+  // transfer to a heavier isotope: μp + d → μd + p, μp/μd + t → μt + …
+  if (N1 > N0 && P(N0 === 0 ? MU_RATES.tr_pd : MU_RATES.tr_dt)) {
+    const sp = ['muP', 'muD', 'muT'][N1], [ei, em] = els(best.ne);
+    const items = [item(sp), item(['p', 'd', 't'][N0])].concat(ei), vs = twoBody(M - ei.length * PHYS.MEC2 - 1e-9, XP[sp].m, massOf(items[1]), ...rdir());
+    if (!vs) return false;
+    const moms = vs.map(v => toLab(v, bx, by)).concat(em);
+    const made = exoEvent(o, [best], items, moms, x, y, null, `the muon moved to ${bl}`);
+    if (made.xs[0]) made.xs[0].cyc = o.cyc || 0;
+    log('nuc', `Muon transfer: ${XP[o.sp].lab} + ${bl} → ${XP[sp].lab} + ${['p', 'd', 't'][N0]} (the heavier nucleus holds it deeper)`);
+    return true;
+  }
+  // fusion in the muonic molecule
+  const pair = [N0, N1].sort().join('');
+  const ch = pair === '12' ? { rate: MU_RATES.dt, out: [['a', 'n']], stick: 0.0085, lab: 'dμt' } : pair === '11' ? { rate: MU_RATES.dd, out: [['h', 'n'], ['t', 'p']], stick: 0.12, lab: 'dμd' } : pair === '22' ? { rate: MU_RATES.tt, out: [['a', 'n', 'n']], stick: 0.14, lab: 'tμt' } : null;
+  if (!ch || !P(ch.rate)) return false;
+  const toks = ch.out[Math.floor(rnd() * ch.out.length)], stick = rnd() < (toks[0] === 't' ? 0.01 : ch.stick);
+  const nucs = toks.map(item), [ei] = els(best.ne);
+  // the muon (free, about 10 keV, or stuck to the α / ³He as it forms) and the electrons first; the nuclei share the rest
+  let fixed, fixedM;
+  if (stick && (toks[0] === 'a' || toks[0] === 'h')) { nucs[0] = item('muHe'); fixed = []; fixedM = []; } else { fixed = [item('mu-')]; fixedM = [randDir4(MU_M, (0.5 + rnd()) / 1000)]; } // (set free with about 10 keV, it slows within a micrometre of liquid D–T, far beyond this chamber's few nanometres: here it leaves slow, to be caught again nearby)
+  let Pf = [0, 0, 0]; for (const v of fixedM) Pf = add4(Pf, v);
+  const em0 = ei.map(() => randDir4(PHYS.MEC2, 3 / MEV)); for (const v of em0) Pf = add4(Pf, v);
+  const Prem = [M - Pf[0], -Pf[1], -Pf[2]], Mr = mass4(Prem), rx = Prem[1] / Prem[0], ry = Prem[2] / Prem[0];
+  const vs = phaseSpace(Mr, nucs.map(massOf));
+  if (!vs) return false;
+  const items = nucs.concat(fixed, ei), moms = vs.map(v => toLab(toLab(v, rx, ry), bx, by)).concat(fixedM.map(v => toLab(v, bx, by)), em0.map(v => toLab(v, bx, by)));
+  const cyc = (o.cyc || 0) + 1, outTxt = summarize(nucs.concat(fixed));
+  const made = exoEvent(o, [best], items, moms, x, y, 'fusion', `Muon-catalysed fusion: ${ch.lab} → ${outTxt}`, `${fmtE((M - nucs.concat(fixed, ei).reduce((t, it) => t + massOf(it), 0)) * MEV)} released; this muon’s fusion no. ${cyc}${stick ? ': it stuck to the helium nucleus, and the chain ends' : ''}`);
+  W.count.fusion++;
+  for (const x2 of made.xs) if (x2.sp === 'mu-') x2.cyc = cyc;
+  return true;
+}
+/* Muons bound in heavier atoms: decay in orbit, or capture by the nucleus (μ⁻ + p → n + ν). */
+function muBoundTick(dt) {
+  const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0;
+  for (let i = W.muBound.length - 1; i >= 0; i--) {
+    const p = W.muBound[i], B = p.muB;
+    if (!B || p.dead || p.Z < 2) { // (its atom gone in some other event: the muon's remaining mass leaves with it)
+      if (B) { W.ledger.escaped += B.m; W.ledger.nuc += B.m; } if (!p.dead && p.Z < 2) p.muB = null;
+      W.muBound.splice(i, 1); continue;
+    }
+    if (!(clock > 0)) continue;
+    const lc = 32 * muZeff(p.Z) ** 4, ld = 1 / 2.197e-6;
+    if (rnd() >= 1 - Math.exp(-(lc + ld) * clock)) continue;
+    W.muBound.splice(i, 1); p.muB = null;
+    const x = p.x, y = p.y, el = speciesLabel(p), mm = B.m / MEV;
+    const Z = p.Z, N = p.N, Ms = nucMeV(Z - 1, N + 1) + 8 + 12 * rnd(), Min = nucMeV(Z, N) + mm;
+    const canCapture = !nuclideInfo(Z - 1, N + 1).unbound && Ms < Min;
+    if (!canCapture || rnd() < ld / (lc + ld)) { // decay in orbit
+      const items = ['e-', 'nub', 'nu'].map(item), vs = phaseSpace(mm, items.map(massOf));
+      const S = nucBegin([]), made = spawnItems(items, vs, x, y);
+      closeEvent(S, made, x, y, B.m, B.m); W.count.decay++;
+      log('nuc', `Decay in orbit: the muon in ${el} → e⁻ + ν̄ + ν`); nucEvent('decay', x, y, `μ⁻ in ${el} decays → e⁻ ν̄ ν`, [], '2.2 µs mean life');
+      continue;
+    }
+    // nuclear capture: μ⁻ + p → n + ν; the nucleus, one charge down and hot, cools
+    const [ux, uy] = rdir(), v = twoBody(Min, Ms, 0, ux, uy), items = [item('nu')], moms = [v[1]];
+    compoundDecay(Z - 1, N + 1, Ms, v[0], false, items, moms, 0);
+    const ne = p.ne, S = nucBegin([p]), gh = [ghostOf(p)];
+    kill(p);
+    const made = spawnItems(items, moms, x, y);
+    let left = ne; for (const q of made.ps.filter(q => q.k === NUC && q.Z > 0).sort((a, b) => b.Z - a.Z)) { if (left <= 0) break; const k = Math.min(left, q.Z); q.ne = k; left -= k; refresh(q); }
+    for (let k = 0; k < left && W.parts.length < MAX_PARTS; k++) { const [ex, ey] = rdir(); const e = addLepton(ELEC, x + 0.3 * ex, y + 0.3 * ey); setMotion(e, 2 + 5 * rnd(), ex, ey); made.ps.push(e); }
+    closeEvent(S, made, x, y, B.m, B.m);
+    const txt = `μ⁻ + ${el} → ${summarize(items)}`;
+    nucEvent('capture', x, y, `Muon capture: ${txt}`, gh, `μ⁻ + p → n + ν inside the nucleus`); log('nuc', `Muon capture by the nucleus: ${txt}`);
+    tally(items, ['μ⁻', el], txt);
+  }
+}
+
 /* ---- making the products, and the books */
 const MAX_EXO = 1500;
 /* Products at (x, y): items with their lab four-momenta. Nuclei, nucleons and leptons join W.parts, unstable particles
@@ -209,6 +451,7 @@ function addExo(sp, x, y, KE, ux, uy) {
 }
 function exoSpeed(o) { const g = 1 + o.KE / (o.m * MEV); o.gam = g; o.v = PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g))); }
 function moveExos(dt, id0) {
+  if (W.muBound && W.muBound.length) muBoundTick(dt);
   const n0 = W.exo.length;
   if (!n0) return;
   const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, hw = W.box.w / 2, hh = W.box.h / 2; // (proper seconds per lab second: 1/γ)
@@ -220,14 +463,21 @@ function moveExos(dt, id0) {
       const tl = XP[o.sp].tau * o.gam, P = 1 - Math.exp(-clock / tl);
       if (rnd() < P) { dec = true; h = dt * Math.min(1, -Math.log(1 - rnd() * P) * tl / clock); } // when in the step it goes
     }
+    const d = XP[o.sp];
     flyExo(o, h);
-    if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) { exoLeaves(o); continue; }
-    if (dec) decayExo(o);
+    if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
+      if (!((d.atom || (o.sp === 'mu-' && o.KE < 2 * MU_STOP)) && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
+      if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
+      if (Math.abs(o.y) > hh) { o.y = Math.sign(o.y) * (2 * hh - Math.abs(o.y)); o.uy = -o.uy; }
+    }
+    if (dec) { decayExo(o); continue; }
+    if (o.sp === 'mu-' && o.KE < MU_STOP && muStop(o)) continue;
+    if (d.atom && clock > 0) muAtomTick(o, clock);
   }
   if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
 }
 function flyExo(o, h) {
-  const mu = o.m / PHYS.AMU_MEV;
+  const mu = o.m / PHYS.AMU_MEV, x0 = o.x, y0 = o.y;
   let rem = h;
   for (let k = 0; k < 64 && rem > 1e-15; k++) {
     let s = rem, om = 0;
@@ -240,6 +490,7 @@ function flyExo(o, h) {
   const t = o.trk, n = t.pts.length;
   if (Math.abs(t.pts[n - 2] - o.x) + Math.abs(t.pts[n - 1] - o.y) > 0.4) { t.pts.push(o.x, o.y); if (t.ts) { t.ts.push(W.rt); t.tt.push(W.t); } if (t.pts.length > 800) trkThin(t); }
   t.upd = W.rt;
+  if (o.q && o.v > 0) exoIonize(o, x0, y0); // (charged: it ionizes what it passes, and slows)
 }
 function exoLeaves(o) { // its energy, mass included, leaves the books (it decays out there, into radiation)
   W.ledger.escaped += o.KE + o.m * MEV; W.ledger.nuc += o.m * MEV;
@@ -303,7 +554,15 @@ function eeEvent(a, b, x, y) {
   if (!items || items.reduce((t, it) => t + massOf(it), 0) >= M - 0.01) { annihilateInFlight(a, b, x, y); return; } // two γ rays
   const bx = P[1] / P[0], by = P[2] / P[0];
   let vs;
-  if (ang && items.length === 2) { // a pair: the angle to the beams as for a photon (1 + cos²θ) or a ρ (sin²θ)
+  let jet = null;
+  if (ch === 'cont' && M > 2500 && items.length >= 3) { // above a few GeV: two jets back to back, at 1 + cos²θ to the beams (spin-½ quarks)
+    const e = toRest(a.k === ELEC ? Pa : Pb, bx, by), en = Math.hypot(e[1], e[2]) || 1;
+    let th = 0; for (let k = 0; k < 60; k++) { th = rnd() * 2 * Math.PI; if (rnd() < (1 + Math.cos(th) ** 2) / 2) break; }
+    jet = turn2(e[1] / en, e[2] / en, th);
+  }
+  if (jet) vs = jetMomenta(items, M, jet[0], jet[1]);
+  if (jet && vs) addString(x, y, jet[0], jet[1], items.length);
+  else if (ang && items.length === 2) { // a pair: the angle to the beams as for a photon (1 + cos²θ) or a ρ (sin²θ)
     const e = toRest(a.k === ELEC ? Pa : Pb, bx, by), en = Math.hypot(e[1], e[2]) || 1;
     let th = 0; for (let k = 0; k < 60; k++) { th = rnd() * 2 * Math.PI; if (rnd() < ang(Math.cos(th))) break; }
     const [ux, uy] = turn2(e[1] / en, e[2] / en, th);
@@ -469,6 +728,11 @@ function nnInelastic(a, b, x, y, P, M) {
   let items = toks ? toks.map(item) : hadronize(M, 2, Q, { pFrac: Q / 2, minMeson: 1 });
   if (!items) return null;
   if (anti) items = items.map(conjItem);
+  if (!toks && M > 5000 && items.length >= 3) { // high energy: strings stretched along the beams, the two baryons leading
+    const bx = P[1] / P[0], by = P[2] / P[0], A = toRest(p4of(a, true), bx, by), L = Math.hypot(A[1], A[2]) || 1;
+    const vs = jetMomenta(items, M, A[1] / L, A[2] / L, { lead: isBaryonItem });
+    if (vs) { addString(x, y, A[1] / L, A[2] / L, items.length); return finishReaction(a, b, items, vs.map(v => toLab(v, bx, by)), x, y, 'prod', `√s = ${fmtE(M * MEV)}: strings along the beams`); }
+  }
   return doReaction(a, b, items, P, M, x, y, 'prod', `√s = ${fmtE(M * MEV)}`);
 }
 
@@ -525,8 +789,10 @@ function nuclearEncounter(a, b, u, x, y) {
     if (!fermiInto(Z1 + Z2, a.N + b.N, M, P, anti, items, moms, keep)) return null;
     if (dtFused) { kind = 'fusion'; sub = `fusion at ${fmtE(Ecm * MEV)} in their own frame`; } else sub = `breakup at ${fmtE(Ecm * MEV)} in their own frame`;
   } else if (A <= 16 || eps >= 40 || (eps >= 15 && rnd() < (eps - 15) / 25)) {
+    _qgpLast = null;
     if (!fragmentInto(a, b, Pa, Pb, b3, anti, items, moms)) return null;
     sub = `${Math.min(A1, A2) === 1 ? 'spallation' : 'fragmentation'}, ${fmtE(eps * MEV)} per nucleon`;
+    if (_qgpLast) { const g = _qgpLast; kind = 'qgp'; sub = `quark–gluon plasma: ${g.Bp} nucleons melted at √s_NN = ${fmtE(g.sNN * MEV)}, froze out into ${g.n.toLocaleString('en-US')} hadrons`; addQGP(x, y, g.n, g.sNN); }
   } else {
     const ZZ = Z1 * Z2, light = Math.min(A1, A2) <= 4, pCN = light ? 1 : 1 / (1 + Math.exp((ZZ - 1700) / 120));
     if ((light || b3 < 0.75 * bg) && rnd() < pCN) {
@@ -744,6 +1010,7 @@ function lensFrac(R1, R2, d) {
 /* Participants and spectators. The part of each nucleus that overlaps the other (a nucleon: all of it, striking a
    column of the other about 0.35 per fm long) forms a fireball with all the energy of the collision but what the
    spectators carry on with at their nucleus's speed, heated by 13–30 MeV per nucleon torn away. */
+let _qgpLast = null; // (the last plasma made: for the caption)
 function fragmentInto(a, b, Pa, Pb, b3, anti, items, moms) {
   const sd = [a, b].map((p, i) => ({ Z: p.Z, N: p.N, A: p.Z + p.N, P: i ? Pb : Pa, R: 1.2 * Math.cbrt(p.Z + p.N) }));
   for (const [s, o] of [[sd[0], sd[1]], [sd[1], sd[0]]]) {
@@ -769,11 +1036,22 @@ function fragmentInto(a, b, Pa, Pb, b3, anti, items, moms) {
     if (!(F[0] > 0)) continue;
     const MF = mass4(F), epsP = (MF - Bp * 938.9) / Bp;
     if (!(epsP > 0)) continue;
-    const fb = hadronize(MF, anti ? -Bp : Bp, anti ? -Qp : Qp, { pFrac: Qp / Bp, clusters: epsP });
-    if (!fb) continue;
-    const vs = phaseSpace(MF, fb.map(massOf));
-    if (!vs) continue;
-    const fx = F[1] / F[0], fy = F[2] / F[0];
+    const fx = F[1] / F[0], fy = F[2] / F[0], Ab = toRest(Pa, fx, fy), Lb = Math.hypot(Ab[1], Ab[2]) || 1, bax = Ab[1] / Lb, bay = Ab[2] / Lb; // (the beams' axis, in the fireball's frame)
+    let fb, vs;
+    if (epsP >= QGP.eps && Bp >= QGP.minA) { // the overlap melts into a quark–gluon plasma, which freezes out into hadrons
+      const sNN = 2 * (epsP + 938.9), q = qgpHadrons(MF, Bp, Qp, sNN);
+      if (!q) continue;
+      fb = anti ? q.items.map(conjItem) : q.items; vs = jetMomenta(fb, MF, bax, bay, { thermal: true });
+      if (!vs) continue;
+      for (let i = fb.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [fb[i], fb[j]] = [fb[j], fb[i]]; [vs[i], vs[j]] = [vs[j], vs[i]]; } // (shuffled: if not all fit in the chamber, those that do are a fair sample)
+      _qgpLast = { n: fb.length, sNN, muB: q.muB, Bp };
+    } else {
+      fb = hadronize(MF, anti ? -Bp : Bp, anti ? -Qp : Qp, { pFrac: Qp / Bp, clusters: epsP });
+      if (!fb) continue;
+      vs = epsP > 2000 && fb.length >= 3 ? jetMomenta(fb, MF, bax, bay, { lead: isBaryonItem }) : null; // (high energy: along the beams, as strings stretch)
+      if (!vs) vs = phaseSpace(MF, fb.map(massOf));
+      if (!vs) continue;
+    }
     fb.forEach((it, i) => { items.push(it); moms.push(toLab(vs[i], fx, fy)); });
     for (const s of sd) if (s.Ps) compoundDecay(s.Zs, s.Ns, s.Ms, s.Ps, anti, items, moms, 0);
     return true;
