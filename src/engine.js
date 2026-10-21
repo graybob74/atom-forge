@@ -1969,6 +1969,11 @@ function wallK(p) { return 30 * Math.min(1, p.m); }
    belong to the fast part; total = true also adds them to the total force. */
 const GRAB_M = 0.01;
 const GRAB_V = 0.3; // Å/tu (about 3 km/s): the fastest the Grab tool draws an atom or molecule along
+/* Strong and Very strong add a plain spring to the cursor on top: k eV/Å² up to F eV/Å, whatever the mass (the speed
+   spring alone pulls a hydrogen atom with under 1 eV/Å, too little to tear a bond, which takes about 4–5 eV/Å for
+   C–H or O–H and 13 for N≡N). For a whole molecule it is shared by mass, so it moves the molecule without tearing it. */
+const GRAB_F = { gentle: null, strong: [6, 8], max: [20, 30] };
+const GRAB_VMAX = { gentle: GRAB_V, strong: 3, max: 10 }; // Å/tu: 3, 30 and 100 km/s (ballistic mode starts at 25 Å/tu)
 function leptonExtras(total) {
   const hasE = hasEfield();
   const t = W.tool, pull = t && t.active && t.type === 'pull', g = W.grab, gp = g && g.p && g.p.k !== NUC && !g.p.dead ? g.p.i : -1;
@@ -2063,11 +2068,19 @@ function toolForces() {
     // runs slowly the cursor gets far ahead, and an uncapped spring flung a big molecule at tens of km/s (its kinetic
     // energy read as millions of kelvin, and the tiny steps it forced froze the clock)
     let ux = 2.4 * (g.x - p.x), uy = 2.4 * (g.y - p.y);
-    const u = Math.hypot(ux, uy); if (u > GRAB_V) { ux *= GRAB_V / u; uy *= GRAB_V / u; }
+    const vc = g.vcap || GRAB_V, u = Math.hypot(ux, uy); if (u > vc) { ux *= vc / u; uy *= vc / u; } // (vcap: set each frame by the Grab tool's strength, to keep up with the mouse)
     for (const a of atoms) {
       if (a.dead) continue;
       a.fx += a.m * 2.5 * (ux - a.vx);
       a.fy += a.m * 2.5 * (uy - a.vy);
+    }
+    const kf = GRAB_F[g.s];
+    if (kf) {
+      const dx = g.x - p.x, dy = g.y - p.y, d = Math.hypot(dx, dy), F = Math.min(kf[1], kf[0] * d);
+      if (d > 1e-9) {
+        let mt = 0; for (const a of atoms) if (!a.dead) mt += a.m;
+        for (const a of atoms) { if (a.dead) continue; const f = F * a.m / mt; a.fx += f * dx / d; a.fy += f * dy / d; }
+      }
     }
   }
 }
@@ -5284,7 +5297,7 @@ const FRAME_REF = 1 / 60;
 function simFrame(realDt, budgetMs) {
   const t0 = performance.now();
   let simAdv = 0, steps = 0, cut = false;
-  const slow = slowFactor(realDt), fr = clamp(realDt / FRAME_REF, 0.1, 3);
+  const slow = slowFactor(realDt), fr = clamp(realDt / FRAME_REF, 0.01, 3); // (the frame's share of a sixtieth: any frame rate up to 6,000 fps advances the same simulated time per second)
   const target = W.simPerFrame * slow * fr, floor = W.flights.length ? 1e-9 : DT_MIN; // (with light in flight a frame may be shorter than the shortest normal step: slowed down that far, the light is still seen to slow)
   while (simAdv < target - Math.min(1e-9, 1e-3 * target)) {
     // particles added from outside (tools, setups): the step size must see their forces and contacts first
@@ -5297,7 +5310,7 @@ function simFrame(realDt, budgetMs) {
   W.rt += realDt;
   // chips keep the pace the simulation is set to, in real time, even when a crowded box makes the atoms (and the frames)
   // fall behind it: their time is warped anyway (a flash pulse takes 10 µs)
-  if (W.chips.length) chipsTick((cut ? W.simPerFrame * slow * clamp(realDt * 60, 1, 6) : simAdv) * PHYS.TU_S, realDt);
+  if (W.chips.length) chipsTick((cut ? W.simPerFrame * slow * clamp(realDt * 60, 0.1, 6) : simAdv) * PHYS.TU_S, realDt); // (in proportion to the frame's length: at 144 or 240 fps a frame is a fraction of a sixtieth)
   if (W.glow && simAdv > 0) glowTick(realDt);
   const dtNuc = W.decayOn ? simAdv * PHYS.TU_S * W.warp : 0;
   W.tNuc += dtNuc;

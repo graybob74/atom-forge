@@ -141,7 +141,7 @@ const TOOLS = [
 ];
 const OPT = {
   place: { count: 1 },
-  grab: { mol: true },
+  grab: { mol: true, s: 'strong' },
   select: { whole: true },
   pull: { mode: 'pull', R: 10, s: 100 },
   fire: { proj: 'sel', s: 300, source: false, rate: 3 },
@@ -382,7 +382,7 @@ function buildToolOpts() {
           : `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']].concat(MAX_PARTS >= 8000 ? [[100, '100']] : []), o.count)}</span><span class="help">at the bath temperature</span>`}`;
       break;
     case 'grab':
-      h = `<span data-g="mol">${seg('Grab', [['true', 'Whole molecule'], ['false', 'Single atom']], String(o.mol))}</span><span class="help">Press on or near a particle and drag. It follows on a spring; while paused it moves directly.</span>`;
+      h = `<span data-g="mol">${seg('Grab', [['true', 'Whole molecule'], ['false', 'Single atom']], String(o.mol))}</span><span data-g="s">${seg('Strength', [['gentle', 'Gentle'], ['strong', 'Strong'], ['max', 'Very strong']], o.s)}</span><span class="help">${o.s === 'gentle' ? 'Draws it along at most 3 km/s of simulated time, so at high speed settings it trails the mouse.' : o.s === 'strong' ? 'Keeps up with the mouse (up to 30 km/s), pulling with up to 8 eV/Å; let go and it stops there.' : 'Keeps up even when dragged fast (up to 100 km/s), pulling with up to 30 eV/Å to haul through a crowd; let go and it stops there.'}</span><span class="help">Press on or near a particle and drag. It follows on a spring; while paused it moves directly.</span>`;
       break;
     case 'pull':
       h = `<span data-g="mode">${seg('Force', [['pull', 'Attract'], ['push', 'Repel']], o.mode)}</span>` +
@@ -797,7 +797,7 @@ function onDown(e) {
     case 'grab': {
       const p = pickNear(px, py, 40);
       if (p) {
-        W.grab = { p, x: wx, y: wy, mol: OPT.grab.mol && p.k === NUC && p.bonds.length ? molecule(p) : null };
+        W.grab = { p, x: wx, y: wy, s: OPT.grab.s, mol: OPT.grab.mol && p.k === NUC && p.bonds.length ? molecule(p) : null };
         if (p.rad || p.fast) { p.rad = false; p.fast = false; p.KE = 0; p.vx = 0; p.vy = 0; }
         UI.drag = { kind: 'grab' };
       } else UI.drag = { kind: 'pan', x: px, y: py, cx: R.cx, cy: R.cy };
@@ -1067,10 +1067,41 @@ function endToolAction() {
   UI.drag = null;
   if (R.overlay && R.overlay.aim) R.overlay = null;
 }
+/* Grab, Strong and Very strong: it keeps up with the mouse in real time, whatever the speed setting or slow motion.
+   The spring may draw the atoms along faster (vcap: the gap closed in about 0.12 s of watching, up to the strength's
+   limit), and where simulated time crawls (slow motion, a heavy world) the hand itself carries what it holds toward
+   the cursor between frames, as it does while paused: moved, not thrown (their own velocities are kept), and never
+   into another atom. A single atom carried off its molecule tears its bonds, as a hand would. Gentle is the spring
+   alone, as before. */
+function grabTick(realDt) {
+  const g = W.grab; if (!g || !g.p || g.p.dead) return;
+  const rate = Math.max(1e-12, UI.adv || W.simPerFrame) * 60, gx = g.x - g.p.x, gy = g.y - g.p.y, dist = Math.hypot(gx, gy); // (rate: simulated time per second of watching)
+  g.vcap = clamp(dist / (0.12 * rate), GRAB_V, GRAB_VMAX[g.s] || GRAB_V);
+  if (g.s === 'gentle' || dist < 0.5) return;
+  const f = 1 - Math.exp(-Math.min(0.1, realDt) / 0.05), ddx = gx * f, ddy = gy * f;
+  const grp = (g.mol || [g.p]).filter(a => !a.dead), skip = new Set(grp), stuck = crowdedAt(grp, 0, 0, skip);
+  for (const k of [1, 0.5, 0.25]) {
+    if (!stuck && crowdedAt(grp, ddx * k, ddy * k, skip)) continue;
+    for (const a of grp) { a.x += ddx * k; a.y += ddy * k; }
+    keepInside(grp); W.dirty++; break;
+  }
+}
+/* Let go: with Strong or Very strong, what was held keeps its own jiggle but not the speed it was being drawn at (no
+   flinging it across the box at tens of km/s). */
+function grabRelease(g) {
+  if (!g || !g.p || g.s === 'gentle' || !UI.running) return;
+  const as = (g.mol || [g.p]).filter(a => !a.dead && !a.rad); let m = 0, px = 0, py = 0;
+  for (const a of as) { m += a.m; px += a.m * a.vx; py += a.m * a.vy; }
+  if (!(m > 0)) return;
+  const vx = px / m, vy = py / m;
+  if (Math.hypot(vx, vy) <= GRAB_V) return;
+  for (const a of as) { a.vx -= vx; a.vy -= vy; updateFast(a); }
+}
 function onUp(e) {
   UI.pointers.delete(e.pointerId);
   if (UI.drag && UI.drag.kind === 'pinch') { if (UI.pointers.size < 2) UI.drag = null; return; }
   const d = UI.drag;
+  if (d && d.kind === 'grab') grabRelease(W.grab);
   endToolAction();
   if (d && d.rc && e.type === 'pointerup') { const [px, py] = evPos(e); if (Math.hypot(px - d.x, py - d.y) < 6) openQuickMenu(px, py); } // a right-click that did not pan
 }
@@ -1089,6 +1120,7 @@ function zoomAt(px, py, f) {
 function toolTick(realDt) {
   const d = UI.drag;
   if (!UI.running) return;
+  grabTick(realDt);
   if (W.ramp) rampTick(realDt);
   for (const L of W.lasers) { // lasers left on: the same light, all the time
     L.acc += L.rate * realDt;
@@ -2585,7 +2617,7 @@ function motionText() { // the motion the simulation actually gets through each 
   return `${slow ? 'slow motion: ' : ''}${fmtTime(Math.min(UI.adv, W.simPerFrame) * PHYS.TU_S)} per 1/60 s${!slow && UI.capped ? ' (as fast as this computer goes)' : ''}`; // (per sixtieth of a second, whatever the frame rate: simFrame keeps to real time)
 }
 /* ------------------------------------------------------------------ speed (simulated time per frame) */
-const SPEED_MIN = -6, SPEED_MAX = 4; // 1/64× … 16× the setup's normal speed
+const SPEED_MIN = -8, SPEED_MAX = 4; // 1/256× … 16× the setup's normal speed
 function speedText(m) {
   if (m >= 0.95) return (m >= 9.5 ? Math.round(m) : Math.round(m * 10) / 10) + '×';
   const inv = 1 / m;

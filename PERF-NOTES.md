@@ -76,6 +76,12 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.54.0: a stronger Grab, slower speeds, nothing tied to the frame rate
+- Grab has a Strength: Gentle (the spring as before: at most 3 km/s of simulated time, so it trailed the mouse whenever simulated time ran slowly), Strong (the default) and Very strong. Strong keeps up with the mouse in real time whatever the speed setting or slow motion: the spring may draw at up to 30 km/s (100 for Very strong), set each frame so the gap closes in about 0.12 s of watching (grabTick), and where simulated time crawls the hand carries what it holds toward the cursor between frames, as while paused (moved, not thrown, never into another atom; a lone atom carried off tears its bonds). It adds a plain pull of up to 8 eV/Å (30) shared by mass (engine GRAB_F). Let go and it stops where it is (grabRelease takes back the drawn speed).
+- The speed buttons go down to 1/256× (were 1/64×).
+- Frame rate: the chips' clock, when the physics fell behind in a crowded box, ran a whole sixtieth of a second per frame whatever the frame's length, so at 144 or 240 fps the chips raced ahead (2.4×, 4×); now in proportion to the frame. A frame's share of simulated time is exact up to 6,000 fps (was 600). Everything else was already by the clock (checked at 30–240 fps).
+- t_features: Grab in slowed time, Strong against Gentle, a hydrogen torn off; 1/256×; a second of watching at 30, 60, 144, 240 fps the same. Steadier checks: a jet with hadrons still flying, neon lines within their Doppler width, the video's frame count under load.
+
 ## 0.53.0: display settings, as in a game
 - Settings → Display: Window (Windowed / Borderless full screen, F11; the desktop app keeps the choice for its next start: a borderless window over its monitor, not exclusive, so Alt+Tab, the Windows key and other monitors work as usual; a browser uses its own full screen, which a frame may refuse); Chamber only (B, the header button; Esc leaves): no toolbar or panels; Hide the resting cursor: Never / Chamber only / Always (over the chamber only).
 - The three are independent (0.52's display mode did all three at once). ui.js: setWindowMode, setChamberOnly, dmPoke; SET.win, SET.cursor.
