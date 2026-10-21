@@ -4,6 +4,8 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // the window comes back where it was left: size, position, monitor, maximized or full screen (Settings → Display)
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .run(tauri::generate_context!())
         .expect("error while running Atom Forge");
 }

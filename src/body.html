@@ -466,49 +466,111 @@
 <div class="modal" id="setModal" hidden>
   <div class="dialog sdialog" role="dialog" aria-modal="true" aria-labelledby="setTitle">
     <header><h2 id="setTitle">Settings</h2><button class="btn small" id="setClose">Close</button></header>
-    <section class="sgroup">
-      <h3>Performance</h3>
+    <div class="stabs" role="tablist" aria-label="Settings categories"><button role="tab" data-stab="perf" aria-selected="true">Performance</button><button role="tab" data-stab="gfx" aria-selected="false">Graphics</button><button role="tab" data-stab="disp" aria-selected="false">Display</button><button role="tab" data-stab="ctl" aria-selected="false">Controls</button><button role="tab" data-stab="gen" aria-selected="false">General</button><button role="tab" data-stab="ai" aria-selected="false">Claude</button></div>
+    <section class="sgroup spane" data-stab="perf">
       <label class="check sbig"><input type="checkbox" id="setPerf"> <span><b>Performance mode</b><small>Room for 12,000 particles instead of 4,000, drawn at standard resolution without glows. A fuller box still runs slower: every step has more to work out.</small></span></label>
       <div class="srow"><span>Particle limit</span><div class="seg" id="segMax" role="group" aria-label="Particle limit"><button data-v="2000">2,000</button><button data-v="4000">4,000</button><button data-v="8000">8,000</button><button data-v="12000">12,000</button><button data-v="20000">20,000</button></div></div>
       <div class="srow"><span>Drawing</span><div class="seg" id="segRes" role="group" aria-label="Drawing resolution"><button data-v="sharp" title="At your screen's full resolution">Sharp</button><button data-v="standard" title="One drawn pixel per screen point">Standard</button><button data-v="fast" title="Three quarters resolution: softer, quickest">Fast</button></div></div>
       <div class="srow"><span>Priority</span><span class="prio"><small>Smooth</small><input type="range" id="setPrio" min="0" max="4" step="1" value="0" aria-label="Priority: smooth frame rate or simulation speed"><small>Fast</small></span></div>
       <p class="note" id="setPrioV" aria-live="polite"></p>
       <div class="srow"><span>Physics per frame</span><div class="seg" id="segBudget" role="group" aria-label="Physics time per frame"><button data-v="6">6 ms</button><button data-v="10">10 ms</button><button data-v="16">16 ms</button><button data-v="24">24 ms</button></div></div>
-      <label class="check"><input type="checkbox" id="setFx"> Glows, halos and flashes</label>
       <div class="srow"><span>Threads</span><div class="seg" id="segThreads" role="group" aria-label="Processor threads"><button data-v="auto">Auto</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="4">4</button><button data-v="8">8</button><button data-v="16">16</button></div></div>
       <div class="srow"><span>Drawing</span><div class="seg" id="segGl" role="group" aria-label="Drawing"><button data-v="gl">WebGL</button><button data-v="2d">Canvas 2D</button></div></div>
-      <div class="srow"><span>Particle trails</span><div class="seg" id="segTrail" role="group" aria-label="How long particle trails last"><button data-v="0.5" title="The last half second of each path">Short</button><button data-v="1.5" title="The last 1.5 s of each path">Medium</button><button data-v="4" title="The last 4 s of each path">Long</button></div></div>
-      <div class="srow"><span>Trails timed by</span><div class="seg" id="segTrailClock" role="group" aria-label="Trails timed by"><button data-v="real" title="Seconds of watching: trails are as long whatever the speed">Real time</button><button data-v="sim" title="Simulated time: trails grow when the simulation is sped up and shrink in slow motion">Simulated time</button></div></div>
       <p class="note" id="setThreads" aria-live="polite"></p>
       <div class="srow"><span>Speed test</span><button class="btn small" id="setBench">Run benchmark</button></div>
       <p class="note" id="setBenchOut" aria-live="polite"></p>
       <p class="note" id="setStats" aria-live="polite"></p>
       <p class="note">More physics per frame runs the simulation faster at the cost of smoothness. The place tool offers 100 at a click once the limit is 8,000 or more.</p>
     </section>
-    <section class="sgroup">
-      <h3>Display</h3>
+    <section class="sgroup spane" data-stab="gfx" hidden>
+      <div class="srow"><span>Frame-rate cap</span><div class="seg" id="segFpsCap" role="group" aria-label="Frame-rate cap"><button data-v="0" title="As often as the monitor refreshes">Monitor</button><button data-v="30">30</button><button data-v="60">60</button><button data-v="120">120</button><button data-v="144">144</button></div></div>
+      <p class="note">Fewer frames leave more of each second for the physics in a crowded box, and run the graphics card cooler. A browser cannot draw faster than the monitor refreshes.</p>
+      <div class="srow"><span>Atom size</span><div class="seg" id="segAtom" role="group" aria-label="Atom size"><button data-v="1" title="Atoms as big as they are: touching in a liquid or solid">True size</button><button data-v="0.7">Smaller</button><button data-v="0.45" title="Small balls: see past them in a crowded box">Small</button></div></div>
+      <div class="srow"><span>Labels</span><div class="seg" id="segLabels" role="group" aria-label="Labels"><button data-v="always">Always</button><button data-v="hover" title="Only on the atom under the mouse and the one inspected">On hover</button><button data-v="never">Never</button></div></div>
+      <div class="srow"><span>Charge badges</span><div class="seg" id="segBadges" role="group" aria-label="Charge badges"><button data-v="always">Always</button><button data-v="hover">On hover</button><button data-v="never">Never</button></div></div>
+      <label class="check"><input type="checkbox" id="setFx"> Glows, halos and flashes</label>
+      <label class="check"><input type="checkbox" id="setFlash"> Fewer flashes: nuclear events and sparks marked gently</label>
+      <label class="check"><input type="checkbox" id="setCvd"> Colour-blind friendly colours (elements and charges)</label>
+      <div class="srow"><span>Particle trails</span><div class="seg" id="segTrail" role="group" aria-label="How long particle trails last"><button data-v="0.5" title="The last half second of each path">Short</button><button data-v="1.5" title="The last 1.5 s of each path">Medium</button><button data-v="4" title="The last 4 s of each path">Long</button></div></div>
+      <div class="srow"><span>Trails timed by</span><div class="seg" id="segTrailClock" role="group" aria-label="Trails timed by"><button data-v="real" title="Seconds of watching: trails are as long whatever the speed">Real time</button><button data-v="sim" title="Simulated time: trails grow when the simulation is sped up and shrink in slow motion">Simulated time</button></div></div>
+      <label class="check"><input type="checkbox" id="setFps"> Frame rate in the corner of the chamber</label>
+    </section>
+    <section class="sgroup spane" data-stab="disp" hidden>
       <div class="srow"><span>Window</span><div class="seg" id="segWin" role="group" aria-label="Window"><button data-v="windowed">Windowed</button><button data-v="borderless" title="A borderless window over the whole monitor, as games make it: Alt+Tab, the Windows key and other monitors work as usual (F11)">Borderless full screen</button></div></div>
       <label class="check"><input type="checkbox" id="setChamber"> Chamber only: no toolbar or panels (B; Esc to leave)</label>
       <div class="srow"><span>Hide the resting cursor</span><div class="seg" id="segCursor" role="group" aria-label="Hide the cursor when the mouse rests"><button data-v="never">Never</button><button data-v="chamber" title="Only when the chamber is shown alone">Chamber only</button><button data-v="always">Always</button></div></div>
+      <div class="srow"><span>Interface size</span><div class="seg" id="segUi" role="group" aria-label="Interface size"><button data-v="0.9">90%</button><button data-v="1">100%</button><button data-v="1.1">110%</button><button data-v="1.25">125%</button><button data-v="1.5">150%</button></div></div>
+      <div class="srow"><span>Lab panel</span><div class="seg" id="segSide" role="group" aria-label="Lab panel"><button data-v="right">On the right</button><button data-v="left">On the left</button></div></div>
+      <div class="srow"><span>Panel width</span><span><span class="note" id="setPw"></span> <button class="btn small" id="setPwReset">Reset</button></span></div>
+      <p class="note">Drag the panel's inner edge to make it wider or narrower.</p>
       <div class="srow"><span>Theme</span><div class="seg" id="segTheme" role="group" aria-label="Theme"><button data-v="system">System</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div></div>
-      <div class="srow"><span>Temperatures in</span><div class="seg" id="segTUnit" role="group" aria-label="Temperature unit"><button data-v="K">kelvin</button><button data-v="C">°C</button><button data-v="F">°F</button></div></div>
-      <label class="check"><input type="checkbox" id="setTips"> A tip for each setup</label>
-      <label class="check"><input type="checkbox" id="setFps"> Frame rate in the corner of the chamber</label>
-      <label class="check"><input type="checkbox" id="setSlow"> Slow motion for nuclear events</label>
+      <p class="note" id="setWinNote">The desktop app remembers its window: size, position and which monitor, and whether it was full screen.</p>
     </section>
-    <section class="sgroup">
+    <section class="sgroup spane" data-stab="ctl" hidden>
+      <div class="srow"><span>Wheel zoom</span><div class="seg" id="segWheel" role="group" aria-label="Mouse wheel zoom speed"><button data-v="0.5">Slow</button><button data-v="1">Normal</button><button data-v="2">Fast</button></div></div>
+      <div class="srow"><span>Zoom toward</span><div class="seg" id="segZoomTo" role="group" aria-label="Zoom toward"><button data-v="cursor">The mouse</button><button data-v="centre">The centre</button></div></div>
+      <label class="check"><input type="checkbox" id="setKeepOpt"> Tools remember their settings (strength, count, energy …) next time</label>
+      <label class="check"><input type="checkbox" id="setPauseBlur"> Pause when the window is not in front, and carry on when it is</label>
+      <div class="srow"><span>Keyboard shortcuts</span><button class="btn small" id="setKeys">Show them (?)</button></div>
+      <div class="srow"><span>Undo</span><span class="note">Ctrl+Z, and Ctrl+Shift+Z or Ctrl+Y to redo</span></div>
+    </section>
+    <section class="sgroup spane" data-stab="gen" hidden>
+      <div class="srow"><span>Start with</span><div class="seg" id="segStart" role="group" aria-label="Start with"><button data-v="menu">The main menu</button><button data-v="last">Where I left off</button><button data-v="setup">The last setup, fresh</button></div></div>
+      <label class="check"><input type="checkbox" id="setAutosave"> Keep the chamber as it is when I leave (Continue in the main menu)</label>
+      <div class="srow"><span>Temperatures in</span><div class="seg" id="segTUnit" role="group" aria-label="Temperature unit"><button data-v="K">kelvin</button><button data-v="C">°C</button><button data-v="F">°F</button></div></div>
+      <div class="srow"><span>Energies in</span><div class="seg" id="segEUnit" role="group" aria-label="Energies in"><button data-v="eV">eV</button><button data-v="kJ">kJ/mol</button><button data-v="kcal">kcal/mol</button></div></div>
+      <p class="note">kJ/mol and kcal/mol for chemistry: energies of 1 keV and up stay in eV.</p>
+      <div class="srow"><span>Lengths in</span><div class="seg" id="segLUnit" role="group" aria-label="Lengths in"><button data-v="A">Å</button><button data-v="nm">nm</button><button data-v="pm">pm</button></div></div>
+      <label class="check"><input type="checkbox" id="setTips"> A tip for each setup</label>
+      <label class="check"><input type="checkbox" id="setSlow"> Slow motion for nuclear events</label>
       <h3>Kept in this browser</h3>
       <div class="srow"><span>Your molecules and saved isotopes</span><span><button class="btn small" id="setExport" title="Save them as a JSON file to import on another computer or in the desktop app">Export…</button> <button class="btn small" id="setImport" title="Add the molecules and isotopes from an exported file">Import…</button></span></div>
       <div class="srow"><span id="setMols">Your saved molecules</span><button class="btn small" id="setDelMols">Delete all</button></div>
       <div class="srow"><span id="setIsos">Saved isotopes</span><button class="btn small" id="setDelIsos">Delete all</button></div>
       <div class="srow"><span>These settings</span><button class="btn small" id="setReset">Back to defaults</button></div>
     </section>
-    <section class="sgroup">
-      <h3>Claude API key</h3>
+    <section class="sgroup spane" data-stab="ai" hidden>
       <div class="srow"><span>API key</span><input type="password" class="msearch skey" id="setApiKey" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" aria-label="Claude API key"></div>
       <div class="srow"><span>Model</span><input type="text" class="msearch skey" id="setApiModel" placeholder="claude-sonnet-5-5" autocomplete="off" spellcheck="false" aria-label="Claude model"></div>
       <p class="note" id="setApiNote">On claude.ai, Ask Claude and Identify molecules use your Claude account directly and need no key. Elsewhere (the desktop app, a saved copy of the page) paste an API key from console.anthropic.com: it stays in this browser's storage, is sent only to api.anthropic.com, and each request is billed to that account (a fraction of a cent).</p>
     </section>
+  </div>
+</div>
+
+<div class="modal" id="escModal" hidden>
+  <div class="dialog emenu" role="dialog" aria-modal="true" aria-labelledby="escTitle">
+    <h2 id="escTitle">Paused</h2>
+    <button class="btn primary" data-esc="resume">Resume</button>
+    <button class="btn" data-esc="settings">Settings</button>
+    <button class="btn" data-esc="keys">Keyboard shortcuts</button>
+    <button class="btn" data-esc="gallery">Gallery: save or open a world</button>
+    <button class="btn" data-esc="share">Share code</button>
+    <button class="btn" data-esc="menu">Main menu</button>
+    <button class="btn danger" data-esc="quit" id="escQuit">Quit</button>
+    <p class="note" id="escNote"></p>
+  </div>
+</div>
+
+<div class="modal" id="keysModal" hidden>
+  <div class="dialog kdialog" role="dialog" aria-modal="true" aria-labelledby="keysTitle">
+    <header><h2 id="keysTitle">Keyboard shortcuts</h2><button class="btn small" id="keysClose">Close</button></header>
+    <div class="klist" id="keysList"></div>
+  </div>
+</div>
+
+<div class="mmenu" id="mainMenu" hidden>
+  <div class="mm-card">
+    <div class="mm-brand"><span class="mm-title">Atom Forge</span><span class="mm-ver" id="mmVer"></span><small>particles, atoms and molecules from real physics</small></div>
+    <div class="mm-btns" id="mmBtns">
+      <button class="btn primary" data-mm="continue" id="mmContinue">Continue</button>
+      <button class="btn" data-mm="empty">New empty chamber</button>
+      <button class="btn" data-mm="setups">Experiments and challenges…</button>
+      <button class="btn" data-mm="gallery">Gallery</button>
+      <button class="btn" data-mm="settings">Settings</button>
+      <button class="btn danger" data-mm="quit" id="mmQuit">Quit</button>
+    </div>
+    <div class="mm-setups" id="mmSetups" hidden><button class="btn small" data-mm="back">← Back</button><div class="mm-list" id="mmList"></div></div>
+    <p class="mm-note" id="mmNote"></p>
   </div>
 </div>
 

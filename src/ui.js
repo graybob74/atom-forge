@@ -160,7 +160,7 @@ const PULL_PRESETS = [[30, 'Very gentle'], [100, 'Gentle'], [170, 'Medium'], [25
 const RAD_MIN = { pull: 3, heat: 3, spark: 2, magnet: 3, erase: 1 }, RAD_MAX = 1000;
 const radS = (t, R) => Math.round(200 * Math.log(clamp(R, RAD_MIN[t], RAD_MAX) / RAD_MIN[t]) / Math.log(RAD_MAX / RAD_MIN[t]));
 function radR(t, s) { const r = RAD_MIN[t] * Math.pow(RAD_MAX / RAD_MIN[t], s / 200); return r < 20 ? Math.round(r) : r < 100 ? 2 * Math.round(r / 2) : r < 400 ? 5 * Math.round(r / 5) : 10 * Math.round(r / 10); }
-const radCtl = (t, R) => rangeCtl('oR', 'Radius', 0, 200, radS(t, R), R.toLocaleString('en-US') + ' Å');
+const radCtl = (t, R) => rangeCtl('oR', 'Radius', 0, 200, radS(t, R), fmtA(R));
 function pullWord(U) { const r = U / (PHYS.KB * Math.max(W.T, 1)); return r < 3 ? 'barely holds' : r < 15 ? 'gentle' : r < 60 ? 'firm' : r < 400 ? 'strong' : 'violent'; }
 const magB = () => OPT.magnet.pol * Math.pow(10, OPT.magnet.s / 100);
 const lightE = () => Math.pow(10, OPT.light.s / 100 - 1);
@@ -372,6 +372,7 @@ function rangeCtl(id, label, min, max, val, text, step = 1) {
   return `<label><span class="lbl">${label}</span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"><span class="num" id="${id}V">${text}</span></label>`;
 }
 function buildToolOpts() {
+  if (UI.started) optSave();
   const el = $('toolopts'), t = UI.tool, o = OPT[t];
   const sp = UI.spec || SPEC_P;
   let h = '';
@@ -460,7 +461,7 @@ function buildToolOpts() {
     const inp = e.target; if (inp.type !== 'range') return;
     const v = +inp.value, out = $(inp.id + 'V');
     switch (inp.id) {
-      case 'oR': o.R = radR(t, v); out.textContent = o.R.toLocaleString('en-US') + ' Å'; break;
+      case 'oR': o.R = radR(t, v); out.textContent = fmtA(o.R); break;
       case 'oS': { o.s = v; out.textContent = fmtE(pullU()); $('oSword').textContent = `${pullWord(pullU())} at ${fmtT(W.T)}`;
         for (const b of el.querySelectorAll('[data-g="s"] .opt')) b.setAttribute('aria-pressed', String(+b.dataset.v === v)); break; }
       case 'oKE': o.s = v; out.textContent = fmtE(fireKE()); { const n = $('oFireNote'); if (n) n.textContent = fireNote(fireSpecNow() || SPEC_P, fireKE()); } break;
@@ -764,6 +765,7 @@ function brushFor(tool) {
 }
 function magnetAt(x, y) { for (let i = W.magnets.length - 1; i >= 0; i--) { const m = W.magnets[i]; if (Math.hypot(m.x - x, m.y - y) < m.R) return m; } return null; }
 
+const UNDO_TOOLS = new Set(['place', 'erase', 'fire', 'spark', 'heat', 'pull', 'magnet', 'light']); // (tools that change the world when pressed: undo can take them back)
 function onDown(e) {
   R.cv.setPointerCapture(e.pointerId);
   const [px, py] = evPos(e);
@@ -782,11 +784,12 @@ function onDown(e) {
   const t = UI.tool;
   if (UI.pasting) { // a paste picked up with Ctrl+V: this click puts it down (Shift: and keeps it for another)
     const n = W.parts.length;
-    pasteClip(wx, wy);
+    undoMark('Paste'); pasteClip(wx, wy);
     if (!e.shiftKey || W.parts.length === n) cancelPaste(); else { R.ghost = { clip: UI.clip, x: wx, y: wy }; }
     UI.drag = { kind: 'none' };
     return;
   }
+  if (UNDO_TOOLS.has(t)) undoMark((TOOLS.find(x => x.id === t) || { name: t }).name);
   switch (t) {
     case 'place': {
       const sp = UI.spec || SPEC_P;
@@ -797,6 +800,7 @@ function onDown(e) {
     case 'grab': {
       const p = pickNear(px, py, 40);
       if (p) {
+        undoMark('Grab');
         W.grab = { p, x: wx, y: wy, s: OPT.grab.s, mol: OPT.grab.mol && p.k === NUC && p.bonds.length ? molecule(p) : null };
         if (p.rad || p.fast) { p.rad = false; p.fast = false; p.KE = 0; p.vx = 0; p.vy = 0; }
         UI.drag = { kind: 'grab' };
@@ -1080,8 +1084,9 @@ function grabTick(realDt) {
   if (g.s === 'gentle' || dist < 0.5) return;
   const f = 1 - Math.exp(-Math.min(0.1, realDt) / 0.05), ddx = gx * f, ddy = gy * f;
   const grp = (g.mol || [g.p]).filter(a => !a.dead), skip = new Set(grp), stuck = crowdedAt(grp, 0, 0, skip);
-  for (const k of [1, 0.5, 0.25]) {
-    if (!stuck && crowdedAt(grp, ddx * k, ddy * k, skip)) continue;
+  const L = Math.hypot(ddx, ddy);
+  for (const k of [1, 0.5, 0.25, 0.6 / L, 0.25 / L]) { // (in a crowd, a smaller step slips between the neighbours)
+    if (!(k > 0 && k <= 1) || (!stuck && crowdedAt(grp, ddx * k, ddy * k, skip))) continue;
     for (const a of grp) { a.x += ddx * k; a.y += ddy * k; }
     keepInside(grp); W.dirty++; break;
   }
@@ -1109,7 +1114,8 @@ function onWheel(e) {
   e.preventDefault();
   closeQuickMenu();
   const [px, py] = evPos(e);
-  zoomAt(px, py, Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015)));
+  const f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015) * (SET.wheel || 1)); // (Settings → Controls: speed, and toward the mouse or the centre)
+  if (SET.zoomTo === 'centre') zoomAt(R.w / 2, R.h / 2, f); else zoomAt(px, py, f);
 }
 function zoomAt(px, py, f) {
   const [wx, wy] = s2w(px, py);
@@ -1360,6 +1366,7 @@ function qSnap(q) {
   q.f = f; q.anti = !partner.anti; q.x *= 0.5; q.y *= 0.5; q.vx = 0; q.vy = 0; // (the new quark of the pair stays, with the colour the string carried)
   const restC = QV.qs.map(o => o.anti ? o.f.toUpperCase() : o.f).join(''), after = qName(restC);
   QV.drag = null;
+  if (QV.subj && (QV.subj.o || QV.subj.p)) undoMark('Pull a quark out');
   const sub = QV.subj, r = sub && (sub.o || sub.p) ? quarkRip(sub.o ? { o: sub.o } : { p: sub.p, which: sub.which }, restC, mesonContent) : null;
   if (r) { // the view follows what is left (the hyperon that flew off, or the nucleus): the picture stays as it is
     if (R.follow && (R.follow === sub.p || R.follow === sub.o)) R.follow = r.sel || null;
@@ -1499,7 +1506,7 @@ function renderInspect() {
     if (!nuc.stable && nuc.modes.length) kv.push(['Decay energy', nuc.modes.map(m => `${modeLabel(m.mode)}: Q ${fmtE(m.Q * 1e6)}`).join('; ')]);
     if (mol) {
       const bonds = [];
-      for (const bd of p.bonds) { const o = other(bd, p); bonds.push(`${el.sym}${['', '–', '=', '≡'][bd.order]}${o.el.sym} ${bd.D.toFixed(2)} eV, ${dist(p, o).toFixed(2)} Å`); }
+      for (const bd of p.bonds) { const o = other(bd, p); bonds.push(`${el.sym}${['', '–', '=', '≡'][bd.order]}${o.el.sym} ${fmtE(bd.D)}, ${fmtA(dist(p, o))}`); }
       const lm = libMatch(mol) || libMatch(mol, true); // (heavy water: water's entry)
       const about = lm ? `<section class="group"><h3>Molecule</h3><p class="note"><b>${esc(mname || lm.name)}</b> (${esc(isoFormula(mol))}, ${mol.length} atoms). ${esc(p.anti ? 'The antimatter twin of ' + lm.name.toLowerCase() + '.' : lm.note)}</p></section>` : '';
       extra = about + `<section class="group"><h3>Bonds</h3><p class="note">${bonds.map(esc).join('<br>')}</p></section>`;
@@ -1527,6 +1534,7 @@ function renderInspect() {
   box.onclick = (e) => {
     const b = e.target.closest('[data-act]'); if (!b) return;
     const a = b.dataset.act;
+    if (a === 'ion' || a === 'add' || a === 'del') undoMark({ ion: 'Remove an electron', add: 'Add an electron', del: 'Delete' }[a]);
     if (a === 'ion') userIonize(p); else if (a === 'add') userAddElectron(p);
     else if (a === 'save') myIsoToggle(pspec);
     else if (a === 'del') { kill(p); R.sel = null; }
@@ -1602,7 +1610,7 @@ function solverSectionHTML(p) {
   if (!res.ok) return `<details class="solver" id="insSolver"${open}><summary>Quantum solver <span>${res.unbound ? 'not bound' : 'no answer'}</span></summary>
     <p class="note">${res.unbound ? `No orbital holds the last electron: ${esc(sp)} is not bound. Its extra electrons are pushed away by the others more strongly than the nucleus can hold them, so in empty space it sheds them at once.` : 'The calculation did not settle for this ion.'}</p></details>`;
   const top = res.orbitals.reduce((a, o) => (o.e > a.e ? o : a), res.orbitals[0]);
-  const book = ionE(p.Z, p.ne), fr = (r) => (r < 0.1 ? r.toPrecision(2) : r.toFixed(2)) + ' Å';
+  const book = ionE(p.Z, p.ne), fr = (r) => fmtA(r);
   const O = orbitalSet(p.Z, p.ne);
   const rows = res.orbitals.map(o => `<tr><td><b>${o.n}${LLET[o.l]}${sup(o.c)}</b></td><td>${fmtE(-o.e).replace(/^/, '−')}</td><td>${fr(o.rMean)}</td></tr>`).join('');
   return `<details class="solver" id="insSolver"${open}><summary>Quantum solver <span>${esc(sp)}, ${res.iters} rounds, ${res.ms} ms</span></summary>
@@ -1681,7 +1689,7 @@ function chainSectionHTML(Z, N, anti) {
 /* Inspector list of an atom's occupied subshells, each drawn on its own with its radial nodes. */
 function orbSectionHTML(p) {
   const O = orbitalSet(p.Z, p.ne), open = UI.orbOpen === undefined ? R.view.bohr === 'orb' : UI.orbOpen;
-  const fr = (r) => (r < 0.1 ? r.toPrecision(2) : r.toFixed(2)) + ' Å';
+  const fr = (r) => fmtA(r);
   return `<details class="orbs" id="insOrbs"${open ? ' open' : ''}><summary>Orbitals <span>${O.subs.length} subshell${O.subs.length > 1 ? 's' : ''}</span></summary>
     <div class="orb-grid">${O.subs.map((s, i) => `<figure><canvas class="orbcv" data-i="${i}" aria-label="${s.n}${LLET[s.l]} subshell"></canvas>
       <figcaption><b>${s.n}${LLET[s.l]}${sup(s.c)}</b><span>Z<sub>eff</sub> ${s.zeff.toFixed(2)}</span><span>r̄ ${fr(s.rMean)}</span></figcaption></figure>`).join('')}</div>
@@ -2263,8 +2271,8 @@ function galInit() {
     const id = card.dataset.g, list = galIndex(), g = list.find(x => x.id === id); if (!g) return;
     if (a.dataset.act === 'del') { galDel('g.' + id); galPut('gallery', JSON.stringify(list.filter(x => x.id !== id))); galRender(); return; }
     const code = galGet('g.' + id); if (!code) { $('galMsg').textContent = 'That world is missing from this browser\'s storage.'; return; }
-    const err = await shareOpen(code); if (err) { $('galMsg').textContent = err; return; }
-    hideModal('galModal'); log('tool', `Opened “${g.name}” from the gallery`);
+    undoMark('Open from the gallery'); const err = await shareOpen(code); if (err) { $('galMsg').textContent = err; return; }
+    hideModal('galModal'); hideMainMenu(); setRunning(true); log('tool', `Opened “${g.name}” from the gallery`);
   };
 }
 /* Explain: Claude (on claude.ai, or with an API key in Settings) explains what the chamber is doing, from a digest of what
@@ -2569,7 +2577,7 @@ function bindLab() {
     ib.addEventListener('click', (e) => { const b = e.target.closest('[data-q]'), v = e.target.closest('button[data-v]');
       if (b && b.dataset.q === 'reset') { QV.key = ''; renderInspect(); }
       else if (b && b.dataset.q === 'pick' && v) { QV.pick = v.dataset.v; QV.key = ''; renderInspect(); } }); }
-  $('bClear').onclick = () => { clearWorld(); W.hist = { t: [], T: [], bath: [] }; R.sel = null; log('tool', 'Chamber emptied'); renderInspect(); };
+  $('bClear').onclick = () => { undoMark('Empty the chamber'); clearWorld(); W.hist = { t: [], T: [], bath: [] }; R.sel = null; log('tool', 'Chamber emptied'); renderInspect(); };
   $('bSrcClear').onclick = () => { W.sources.length = 0; W.lasers.length = 0; };
 }
 function setBathT(T) { W.T = clamp(T, 1, 1e9); }
@@ -3110,7 +3118,7 @@ function updateCollider() {
   else tile('cField', W.zones.filter(z => z.kind === 'cavity').map(z => fmtVolt(Math.abs(z.E) * z.w)).filter((t, i, a) => a.indexOf(t) === i).join(' · ') || '—'); // (each linac's voltage)
   if (C.kind === 'ring' && C.rings && C.rings.length) { // how far apart the beams run where they cross
     const r = C.rings[0], d = r.sepDist * r.sep;
-    $('cSep').textContent = r.sep >= 0.98 ? (r.running ? `apart ${r.sepDist.toFixed(1)} Å` : 'apart') : r.sep <= 0.02 ? 'together' : `${C.colliding ? 'merging' : 'parting'} ${d.toFixed(1)} Å`;
+    $('cSep').textContent = r.sep >= 0.98 ? (r.running ? `apart ${fmtA(r.sepDist)}` : 'apart') : r.sep <= 0.02 ? 'together' : `${C.colliding ? 'merging' : 'parting'} ${d.toFixed(1)} Å`;
   } else $('cSep').textContent = 'head-on';
   const g = C.kind === 'ring' && C.rings && C.rings[0];
   let phase = ''; // where the ring is in its cycle
@@ -3382,7 +3390,7 @@ function buildPresetSelect() {
   const groups = {};
   for (const [k, p] of Object.entries(PRESETS)) (groups[p.group] = groups[p.group] || []).push([k, p.name]);
   $('preset').innerHTML = Object.entries(groups).map(([g, items]) => `<optgroup label="${esc(g)}">${items.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join('')}</optgroup>`).join('');
-  $('preset').onchange = (e) => { loadPreset(e.target.value); e.target.blur(); };
+  $('preset').onchange = (e) => { undoMark('Load a setup'); loadPreset(e.target.value); e.target.blur(); };
 }
 function loadPreset(key) {
   const P = PRESETS[key] || PRESETS.soup;
@@ -3624,6 +3632,11 @@ function trailSim() { return SET.trailClock === 'sim'; }
 function frameAim() { return 1000 / PRIO_FPS[SET.prio || 0] - 0.4; }
 function frameCap(room) { return (SET.prio || 0) > 0 ? Math.max(UI.budget, room) : UI.budget; } // (past the smooth end the physics may take the room the aim leaves, beyond Physics per frame)
 function frame(now) {
+  if (SET.fpsCap > 0) { // Settings → Graphics: a frame-rate cap (frames skipped, the time between them still counted)
+    const iv = 1000 / SET.fpsCap;
+    if (now < (UI.nextDue || 0) - 0.75) { requestAnimationFrame(frame); return; }
+    UI.nextDue = Math.max(now, (UI.nextDue || 0) + iv);
+  }
   const realDt = Math.min(0.1, Math.max(0, (now - UI.last) / 1000));
   UI.last = now; UI.vis += realDt; UI.fps = UI.fps ? 0.95 * UI.fps + 0.05 / Math.max(1e-3, realDt) : 60;
   UI.fpsN = (UI.fpsN || 0) + 1; // (the frame-rate counter: frames counted over half a second)
@@ -3660,6 +3673,7 @@ function frame(now) {
       UI.stepOnce = false;
       toolTick(realDt);
       histTick(now);
+      if (now - (UI.lastAuto || 0) > 20000) { UI.lastAuto = now; autosave(); }
     }
     tf1 = performance.now();
     if (R.follow) { if (R.follow.dead) R.follow = null; else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
@@ -3741,6 +3755,169 @@ function bindDisplayMode() {
   dmPoke();
 }
 
+/* ------------------------------------------------------------------ lengths, undo, autosave, menus */
+let L_UNIT = 'A'; // Settings → General: lengths in Å, nm or pm (fmtA)
+function fmtA(a, digits) { const [f, u] = L_UNIT === 'nm' ? [0.1, ' nm'] : L_UNIT === 'pm' ? [100, ' pm'] : [1, ' Å'], v = a * f; return (digits === undefined ? (Math.abs(v) >= 100 ? fmtNum(v, 4) : v.toPrecision(3)) : v.toFixed(digits)) + u; }
+function viewFlagsSave() { store('viewflags', JSON.stringify(R.view)); }
+/* Undo and redo (Ctrl+Z; Ctrl+Shift+Z or Ctrl+Y): before each change made by hand (a tool pressed on the chamber, a
+   paste, a deletion, a setup loaded …) the world is kept as a saved world (worldToJSON) with its clock and view; undo
+   puts it back as it was then. Light and unstable particles in flight are not kept. A setup with chips, beams, lasers
+   or a temperature ramp cannot be saved that way, so there undo is off. */
+const UNDO = { back: [], fwd: [], size: 0 };
+const UNDO_MAX = 40, UNDO_CHARS = 60e6;
+function undoOK() { return !W.chips.length && !W.collider && !(W.lasers && W.lasers.length) && !W.ramp && !UI.menu; }
+function undoSnap(label) { const d = worldToJSON(); return { d, txt: null, t: W.t, cam: [R.s, R.cx, R.cy], label, n: d.parts.length * 60 + 200 }; }
+function undoMark(label) {
+  if (!undoOK()) { UNDO.back.length = 0; UNDO.fwd.length = 0; UNDO.size = 0; return; }
+  const sn = undoSnap(label); UNDO.back.push(sn); UNDO.size += sn.n; UNDO.fwd.length = 0;
+  while (UNDO.back.length > UNDO_MAX || (UNDO.size > UNDO_CHARS && UNDO.back.length > 1)) UNDO.size -= UNDO.back.shift().n;
+}
+function undoRestore(sn) {
+  const run = UI.running, sel = null;
+  const r = worldFromJSON(sn.d); if (typeof r === 'string') { log('tool', 'Undo: ' + r); return false; }
+  W.t = sn.t; [R.s, R.cx, R.cy] = sn.cam; R.sel = sel; setRunning(run); updateReadouts();
+  return true;
+}
+function undoStep(dir) {
+  const from = dir < 0 ? UNDO.back : UNDO.fwd, to = dir < 0 ? UNDO.fwd : UNDO.back;
+  if (!undoOK()) { log('tool', 'Undo is off in this setup: its chips, beams, lasers or ramp cannot be put back'); return; }
+  const sn = from.pop(); if (!sn) { log('tool', dir < 0 ? 'Nothing to undo' : 'Nothing to redo'); return; }
+  UNDO.size -= sn.n;
+  const cur = undoSnap(sn.label); to.push(cur); UNDO.size += cur.n;
+  if (undoRestore(sn)) log('tool', `${dir < 0 ? 'Undone' : 'Redone'}: ${sn.label}`);
+}
+/* Autosave (Settings → General): the chamber kept as it is every 20 s while it runs and whenever the page is left, for
+   Continue in the main menu or Start with → Where I left off. A setup with chips or beams is kept as its name, to start
+   afresh. */
+function autosave() {
+  if (!SET.autosave || UI.menu || !UI.started) return;
+  try {
+    const d = undoOK() ? worldToJSON() : { app: 'Atom Forge', fresh: true, preset: UI.preset };
+    d.t = W.t; d.cam = [R.s, R.cx, R.cy]; d.preset = UI.preset; d.savedAt = Date.now();
+    const txt = JSON.stringify(d);
+    if (txt.length > 4.5e6) return; // (over what browser storage holds: the last one that fitted stays)
+    store('autosave', txt);
+  } catch (e) { /* (storage full or off) */ }
+  optSave();
+}
+function autosaved() { try { const d = JSON.parse(store('autosave') || 'null'); return d && d.app === 'Atom Forge' ? d : null; } catch (e) { return null; } }
+function restoreAutosave() {
+  const d = autosaved(); if (!d) return false;
+  if (d.fresh) { if (PRESETS[d.preset]) loadPreset(d.preset); return true; }
+  const r = worldFromJSON(d); if (typeof r === 'string') return false;
+  if (Number.isFinite(d.t)) W.t = d.t;
+  if (Array.isArray(d.cam) && d.cam.every(Number.isFinite)) [R.s, R.cx, R.cy] = d.cam;
+  UI.preset = typeof d.preset === 'string' ? d.preset : UI.preset; syncPresetSelect();
+  setRunning(true); log('tool', 'Carried on where you left off');
+  return true;
+}
+function syncPresetSelect() { const sel = $('preset'); if (sel && [...sel.options].some(o => o.value === UI.preset)) sel.value = UI.preset; }
+/* Tools remember their settings (Settings → Controls). */
+function optSave() { if (SET.keepOpt) store('opt', JSON.stringify(OPT)); }
+function optLoad() {
+  if (!SET.keepOpt) return;
+  let o = null; try { o = JSON.parse(store('opt') || 'null'); } catch (e) { o = null; }
+  if (!o || typeof o !== 'object') return;
+  for (const t in OPT) if (o[t] && typeof o[t] === 'object') for (const k in OPT[t]) if (typeof o[t][k] === typeof OPT[t][k] && (typeof o[t][k] !== 'number' || Number.isFinite(o[t][k]))) OPT[t][k] = o[t][k];
+}
+/* Pause when the window is not in front (Settings → Controls), and carry on when it is. */
+function blurPause(away) {
+  if (!SET.pauseBlur) return;
+  if (away && UI.running && !UI.menu) { UI.blurPaused = true; setRunning(false); }
+  else if (!away && UI.blurPaused) { UI.blurPaused = false; setRunning(true); }
+}
+/* Keyboard shortcuts (?) */
+const KEYS = [['Simulation', [['Space', 'Play / pause'], ['.', 'One frame'], ['R', 'Reload the setup'], ['[ / ]', 'Slower / faster'], ['\\', 'Slow motion'], ['Ctrl+Z', 'Undo'], ['Ctrl+Shift+Z, Ctrl+Y', 'Redo']]],
+  ['View', [['+ / −, wheel', 'Zoom'], ['0', 'Fit the box'], ['V', 'Particle view'], ['O', 'Orbitals'], ['B', 'Chamber only'], ['F11', 'Borderless full screen'], ['Esc', 'Menu (or leave chamber only, drop the selection)']]],
+  ['Selection', [['Ctrl+C / Ctrl+V', 'Copy / paste'], ['Ctrl+A', 'Select all'], ['Delete', 'Delete the selected particle']]],
+  ['Help', [['?', 'This list'], ['F10, menu key', 'Quick menu at the mouse']]]];
+function openKeys() {
+  const tools = TOOLS.filter(t => t.key && t.key.length === 1).map(t => [t.key, t.name]);
+  $('keysList').innerHTML = [['Tools', tools], ...KEYS].map(([h, rows]) => `<h4>${esc(h)}</h4>` + rows.map(([k, d]) => `<div><span>${esc(d)}</span><kbd>${esc(k)}</kbd></div>`).join('')).join('');
+  showModal('keysModal');
+}
+/* Quit: the desktop app closes (the chamber is kept first, for Continue); a browser tab can only be closed by hand. */
+function quitApp() {
+  autosave();
+  const w = tauriWin();
+  if (w) { Promise.resolve(w.close()).catch(() => {}); return; }
+  const n = UI.menu ? $('mmNote') : $('escNote'); if (n) n.textContent = 'In a browser, close the tab to quit: the chamber is kept for next time.';
+}
+/* The Esc menu: the game paused while it is open. */
+function openEscMenu() {
+  UI.escRun = UI.running; setRunning(false);
+  $('escQuit').hidden = !tauriWin(); $('escNote').textContent = '';
+  showModal('escModal');
+}
+function closeEscMenu(resume = true) { hideModal('escModal'); if (resume && UI.escRun) setRunning(true); UI.escRun = false; }
+function escAction(a) {
+  if (a === 'resume') closeEscMenu();
+  else if (a === 'settings') { closeEscMenu(); openSettings(); }
+  else if (a === 'keys') { closeEscMenu(); openKeys(); }
+  else if (a === 'gallery') { closeEscMenu(); $('bGallery').click(); }
+  else if (a === 'share') { closeEscMenu(); $('bShare').click(); }
+  else if (a === 'menu') { closeEscMenu(false); showMainMenu(); }
+  else if (a === 'quit') quitApp();
+}
+/* The main menu: at start (Settings → General) and from the Esc menu. A setup runs behind it, the chamber alone. */
+const MM_BG = ['neon', 'combustion', 'oven', 'water', 'soup'];
+function showMainMenu() {
+  if (!UI.menu) autosave();
+  UI.menu = true; document.body.classList.add('menu'); closeQuickMenu();
+  for (const id of ['setModal', 'escModal', 'keysModal', 'galModal', 'shareModal']) if (!$(id).hidden) hideModal(id);
+  const keep = store('preset'), bg = MM_BG.filter(k => PRESETS[k]);
+  loadPreset(bg[Math.floor(Math.random() * bg.length)] || 'empty');
+  if (keep) store('preset', keep); // (the setup behind the menu is not the one to start with next time)
+  $('hint').hidden = true; $('narr').hidden = true; W.slowmo = false; setRunning(true); fitView();
+  if (R.w > 700) { R.s *= 0.9; R.cx -= Math.min(0.2 * R.w, 260) / R.s; } // (the setup off to the right of the menu)
+  $('mmContinue').hidden = !autosaved(); $('mmQuit').hidden = !tauriWin(); $('mmNote').textContent = '';
+  $('mmSetups').hidden = true; $('mmBtns').hidden = false; $('mainMenu').hidden = false;
+  W.slowmo = store('slowmo') !== '0';
+  const f = $('mmBtns').querySelector('.btn:not([hidden])'); if (f) f.focus();
+}
+function hideMainMenu() { if (!UI.menu) return; UI.menu = false; document.body.classList.remove('menu'); $('mainMenu').hidden = true; UNDO.back.length = 0; UNDO.fwd.length = 0; UNDO.size = 0; }
+function mmSetups() {
+  const groups = new Map();
+  for (const [k, p] of Object.entries(PRESETS)) { if (!p.name || k === 'ai') continue; const g = p.group || 'Other'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push([k, p.name]); }
+  $('mmList').innerHTML = [...groups].map(([g, list]) => `<h4>${esc(g)}</h4>` + list.map(([k, n]) => `<button data-mmp="${esc(k)}">${esc(n)}</button>`).join('')).join('');
+  $('mmBtns').hidden = true; $('mmSetups').hidden = false; $('mmList').scrollTop = 0;
+}
+function mmAction(a) {
+  if (a === 'continue') { hideMainMenu(); if (!restoreAutosave()) loadPreset('empty'); }
+  else if (a === 'empty') { hideMainMenu(); loadPreset('empty'); syncPresetSelect(); setRunning(true); }
+  else if (a === 'setups') mmSetups();
+  else if (a === 'back') { $('mmSetups').hidden = true; $('mmBtns').hidden = false; }
+  else if (a === 'gallery') $('bGallery').click();
+  else if (a === 'settings') openSettings();
+  else if (a === 'quit') quitApp();
+}
+function menusInit() {
+  $('mmVer').textContent = (/\d+\.\d+\.\d+/.exec(document.title) || [''])[0];
+  $('mainMenu').addEventListener('click', (e) => {
+    const p = e.target.closest('[data-mmp]'); if (p) { hideMainMenu(); loadPreset(p.dataset.mmp); syncPresetSelect(); setRunning(true); return; }
+    const b = e.target.closest('[data-mm]'); if (b) mmAction(b.dataset.mm);
+  });
+  $('escModal').addEventListener('click', (e) => { if (e.target.id === 'escModal') { closeEscMenu(); return; } const b = e.target.closest('[data-esc]'); if (b) escAction(b.dataset.esc); });
+  $('keysClose').onclick = () => hideModal('keysModal');
+  $('keysModal').addEventListener('click', (e) => { if (e.target.id === 'keysModal') hideModal('keysModal'); });
+  window.addEventListener('blur', () => blurPause(true)); window.addEventListener('focus', () => blurPause(false));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { autosave(); blurPause(true); } else blurPause(false); });
+  window.addEventListener('pagehide', () => autosave());
+  $('toolopts').addEventListener('change', () => optSave());
+  // the panel's inner edge: drag to make it wider or narrower (Settings → Display)
+  const sp = document.createElement('div'); sp.className = 'psplit'; sp.title = 'Drag to resize the panel'; $('panel').appendChild(sp);
+  sp.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); sp.setPointerCapture(e.pointerId); sp.classList.add('on');
+    const main = document.querySelector('.main').getBoundingClientRect(), ui = SET.ui || 1, gap = 10;
+    const move = (ev) => {
+      const w = SET.side === 'left' ? (ev.clientX - main.left) / ui : (main.right - ev.clientX) / ui;
+      SET.pw = clamp(Math.round(w - gap / 2), 280, 760); document.documentElement.style.setProperty('--pw', SET.pw + 'px');
+    };
+    const up = () => { sp.classList.remove('on'); sp.removeEventListener('pointermove', move); sp.removeEventListener('pointerup', up); store('settings', JSON.stringify(SET)); syncSettings(); };
+    sp.addEventListener('pointermove', move); sp.addEventListener('pointerup', up);
+  });
+}
+
 /* ------------------------------------------------------------------ keyboard */
 function onKey(e) {
   const tag = (e.target && e.target.tagName) || '';
@@ -3752,13 +3929,17 @@ function onKey(e) {
   }
   if (e.key === 'F11') { e.preventDefault(); setWindowMode(DM.win === 'borderless' ? 'windowed' : 'borderless'); return; }
   if (e.key === 'Escape') {
-    for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal']) if (!$(id).hidden) { hideModal(id); return; }
+    if (!$('escModal').hidden) { e.preventDefault(); closeEscMenu(); return; }
+    for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
+    if (UI.menu) { if (!$('mmSetups').hidden) mmAction('back'); return; }
     if (DM.on) { e.preventDefault(); setChamberOnly(false); return; }
     if (UI.pasting) { cancelPaste(); return; }
     if (UI.drag) { if (W.tool) W.tool.active = false; W.grab = null; UI.drag = null; R.overlay = null; return; }
-    R.sel = null; R.selX = null; R.follow = null; renderInspect(); if (R.msel.size) clearSelection(); return;
+    if (R.sel || R.selX || R.msel.size) { R.sel = null; R.selX = null; R.follow = null; renderInspect(); if (R.msel.size) clearSelection(); return; }
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') { e.target.blur(); return; } // (Esc in a field leaves the field)
+    e.preventDefault(); openEscMenu(); return; // (nothing else to let go of: the Esc menu)
   }
-  if (!$('ptModal').hidden || !$('molModal').hidden || !$('bldModal').hidden || !$('nucModal').hidden || !$('setModal').hidden || !$('shareModal').hidden || !$('askModal').hidden || !$('galModal').hidden) return;
+  if (UI.menu || ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'escModal', 'keysModal'].some(id => !$(id).hidden)) return;
   if (tag === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
   if (tag === 'SELECT' || tag === 'TEXTAREA') return;
   if ((e.ctrlKey || e.metaKey) && !e.altKey) { // copy, paste, select all: the selection (or the inspected particle)
@@ -3766,6 +3947,8 @@ function onKey(e) {
     if (kk === 'c' && tag !== 'INPUT') { e.preventDefault(); copySelection(); return; }
     if (kk === 'v' && tag !== 'INPUT') { e.preventDefault(); armPaste(); return; }
     if (kk === 'a' && tag !== 'INPUT') { e.preventDefault(); selectAll(); return; }
+    if (kk === 'z' && tag !== 'INPUT') { e.preventDefault(); undoStep(e.shiftKey ? 1 : -1); return; }
+    if (kk === 'y' && tag !== 'INPUT') { e.preventDefault(); undoStep(1); return; }
     return;
   }
   if (e.altKey) return;
@@ -3784,10 +3967,11 @@ function onKey(e) {
   if (k === '-' || k === '_') { zoomAt(R.w / 2, R.h / 2, 0.8); return; }
   if (k === '0') { fitView(); return; }
   if ((k === 'Delete' || k === 'Backspace') && R.msel.size) { deleteSelection(); return; }
-  if ((k === 'Delete' || k === 'Backspace') && R.sel) { kill(R.sel); R.sel = null; renderInspect(); return; }
+  if ((k === 'Delete' || k === 'Backspace') && R.sel) { undoMark('Delete'); kill(R.sel); R.sel = null; renderInspect(); return; }
   if (tag === 'INPUT') return; // range sliders keep their arrow keys and letters stay safe
   if (k === 'v' || k === 'V') { toggleParticleView(); return; }
   if (k === 'b' || k === 'B') { setChamberOnly(!DM.on); return; }
+  if (k === '?') { e.preventDefault(); openKeys(); return; }
   if (k === 'o' || k === 'O') { toggleOrbitalView(); return; }
   const up = k.toUpperCase();
   if (up === 'R') { loadPreset(UI.preset); return; }
@@ -3798,9 +3982,10 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber' };
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+  fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A' };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] };
+const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -3826,6 +4011,11 @@ function applySettings() {
   if (!SET.tips) $('hint').hidden = true;
   $('fpsBadge').hidden = !SET.fps;
   threadsSet(SET.threads === 'auto' ? threadsDefault() : +SET.threads - 1); // (workers besides the main thread)
+  R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
+  if (R.cvd !== SET.cvd) { R.cvd = SET.cvd; elColorsReset(); }
+  const rs = document.documentElement.style; rs.setProperty('--ui', String(SET.ui)); rs.setProperty('--pw', clamp(Math.round(SET.pw) || 356, 280, 760) + 'px');
+  document.body.classList.toggle('panel-left', SET.side === 'left');
+  E_UNIT = SET.eunit; L_UNIT = SET.lunit;
 }
 /* What the threads row says: whether this page can use workers at all, and how many are in use. */
 function threadsNote() {
@@ -3928,6 +4118,10 @@ function syncSettings() {
     n.textContent = (AI.sample && !AI.sample.api ? 'This page has its own Claude access: Ask Claude and Identify molecules use your Claude account directly, and the key below is not needed here. ' : own ? '' : 'This page has no Claude access of its own. ') +
       'Paste an API key from console.anthropic.com to ask Claude from here: it stays in this browser\'s storage, is sent only to api.anthropic.com, and each request is billed to that account (a fraction of a cent). The model can be left blank for the default (' + AI_API.model + ').'; }
   try { $('setThreads').textContent = threadsNote(); } catch (e) { $('setThreads').textContent = 'Threads: ' + e.message; }
+  setSegValue('segFpsCap', SET.fpsCap); setSegValue('segAtom', SET.atomScale); setSegValue('segLabels', R.view.labels ? (SET.labels === 'hover' ? 'hover' : 'always') : 'never'); setSegValue('segBadges', SET.badges);
+  $('setFlash').checked = SET.flashLow; $('setCvd').checked = SET.cvd; setSegValue('segUi', SET.ui); setSegValue('segSide', SET.side); $('setPw').textContent = Math.round(clamp(SET.pw, 280, 760)) + ' px';
+  $('setWinNote').hidden = !tauriWin(); setSegValue('segWheel', SET.wheel); setSegValue('segZoomTo', SET.zoomTo); $('setKeepOpt').checked = SET.keepOpt; $('setPauseBlur').checked = SET.pauseBlur;
+  setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo;
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
@@ -3941,7 +4135,12 @@ function settingsStats() {
   if (!BENCH.busy) $('setThreads').textContent = threadsNote();
 }
 window.addEventListener('error', (e) => { UI.lastError = `${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`; });
-function openSettings() { $('setModal').hidden = false; syncSettings(); showModal('setModal'); }
+function openSettings(tab) { $('setModal').hidden = false; if (tab) setTabS(tab); syncSettings(); showModal('setModal'); }
+function setTabS(k) {
+  UI.stab = k;
+  for (const b of document.querySelectorAll('.stabs [data-stab]')) b.setAttribute('aria-selected', String(b.dataset.stab === k));
+  for (const p of document.querySelectorAll('.spane')) p.hidden = p.dataset.stab !== k;
+}
 /* A button that does its work on a second press (within 3 s): for deleting what cannot be brought back. */
 function twoPress(b, fn) {
   if (b.dataset.armed) { delete b.dataset.armed; b.textContent = b.dataset.label; fn(); return; }
@@ -3966,6 +4165,25 @@ function settingsInit() {
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
   bindSeg('segWin', (v) => setWindowMode(v));
+  for (const b of document.querySelectorAll('.stabs [data-stab]')) b.onclick = () => setTabS(b.dataset.stab);
+  bindSeg('segFpsCap', (v) => setSetting('fpsCap', +v));
+  bindSeg('segAtom', (v) => setSetting('atomScale', +v));
+  bindSeg('segLabels', (v) => { R.view.labels = v !== 'never'; viewFlagsSave(); if (v !== 'never') SET.labels = v; setSetting('labels', SET.labels); const c = document.querySelector('[data-view="labels"]'); if (c) c.checked = R.view.labels; });
+  bindSeg('segBadges', (v) => setSetting('badges', v));
+  $('setFlash').onchange = (e) => setSetting('flashLow', e.target.checked);
+  $('setCvd').onchange = (e) => setSetting('cvd', e.target.checked);
+  bindSeg('segUi', (v) => setSetting('ui', +v));
+  bindSeg('segSide', (v) => setSetting('side', v));
+  $('setPwReset').onclick = () => setSetting('pw', 356);
+  bindSeg('segWheel', (v) => setSetting('wheel', +v));
+  bindSeg('segZoomTo', (v) => setSetting('zoomTo', v));
+  $('setKeepOpt').onchange = (e) => { setSetting('keepOpt', e.target.checked); optSave(); };
+  $('setPauseBlur').onchange = (e) => setSetting('pauseBlur', e.target.checked);
+  $('setKeys').onclick = () => openKeys();
+  bindSeg('segStart', (v) => setSetting('start', v));
+  $('setAutosave').onchange = (e) => { setSetting('autosave', e.target.checked); if (!e.target.checked) store('autosave', ''); };
+  bindSeg('segEUnit', (v) => { setSetting('eunit', v); updatePanel(); });
+  bindSeg('segLUnit', (v) => { setSetting('lunit', v); updatePanel(); });
   bindSeg('segCursor', (v) => { setSetting('cursor', v); dmPoke(); });
   $('setChamber').onchange = (e) => setChamberOnly(e.target.checked);
   bindSeg('segTUnit', (v) => setSetting('tunit', v));
@@ -4016,8 +4234,8 @@ function qmParticle(p) {
   h += qmBtn('Inspect', () => { if (p.dead) return; R.sel = p; showTab('inspect', true); renderInspect(); });
   if (atom) {
     const lep = p.anti ? 'positron' : 'electron', sf = saveBtnFace(spec);
-    h += qm2(qmBtn(`Remove ${lep}`, () => { if (!p.dead) userIonize(p); renderInspect(); }, { off: p.ne <= 0 }),
-      qmBtn(`Add ${lep}`, () => { if (!p.dead) userAddElectron(p); renderInspect(); }, { off: p.ne >= p.Z + maxExtraElectrons(p.Z) }));
+    h += qm2(qmBtn(`Remove ${lep}`, () => { if (!p.dead) { undoMark('Remove an electron'); userIonize(p); }; renderInspect(); }, { off: p.ne <= 0 }),
+      qmBtn(`Add ${lep}`, () => { if (!p.dead) { undoMark('Add an electron'); userAddElectron(p); }; renderInspect(); }, { off: p.ne >= p.Z + maxExtraElectrons(p.Z) }));
     h += qmBtn(sf.on ? '★ Saved: take it off' : '☆ Save this isotope', () => myIsoToggle(spec), { title: sf.title });
   }
   if (spec) h += qmBtn(`Place more: ${specLabel(spec)}`, () => selectSpec(spec), { title: `Pick ${specName(spec)} for the Place tool` });
@@ -4028,8 +4246,8 @@ function qmParticle(p) {
   h += qm2(qmBtn(R.follow === p ? 'Following' : 'Follow it', () => { R.follow = R.follow === p ? null : p; }, { pressed: R.follow === p, cls: 'tick', title: 'Keep the view centred on it (pan, fit or Escape to stop)' }),
     qmBtn(mol ? 'Stop the molecule' : 'Stop it', () => qmStop(mol || [p]), { title: 'Bring it to rest where it is' }));
   const gone = () => { if (R.sel && R.sel.dead) { R.sel = null; renderInspect(); } };
-  h += mol ? qm2(qmBtn('Delete atom', () => { if (!p.dead) kill(p); gone(); }, { cls: 'danger' }), qmBtn(`Delete all ${mol.length}`, () => { for (const a of mol) if (!a.dead) kill(a); gone(); }, { cls: 'danger', title: 'Delete the whole molecule' }))
-    : qmBtn('Delete', () => { if (!p.dead) kill(p); gone(); }, { cls: 'danger' });
+  h += mol ? qm2(qmBtn('Delete atom', () => { if (!p.dead) { undoMark('Delete'); kill(p); } gone(); }, { cls: 'danger' }), qmBtn(`Delete all ${mol.length}`, () => { undoMark('Delete a molecule'); for (const a of mol) if (!a.dead) kill(a); gone(); }, { cls: 'danger', title: 'Delete the whole molecule' }))
+    : qmBtn('Delete', () => { if (!p.dead) { undoMark('Delete'); kill(p); } gone(); }, { cls: 'danger' });
   // every one of its kind in the box: free leptons of its kind, (anti)neutrons, bare nuclei of its isotope, atoms and
   // ions of its element; and, in a molecule, every molecule with its formula
   const k = kindOf(p), all = W.parts.filter(q => !q.dead && k.match(q));
@@ -4146,7 +4364,7 @@ function init() {
   cv.addEventListener('wheel', onWheel, { passive: false });
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
   { const v = /\d+\.\d+\.\d+|V\d+/.exec(document.title || ''); const tag = $('verTag'); if (tag) tag.textContent = v ? v[0] : ''; } // (the version, from the page's title: 0.40.0)
-  qmInit(); settingsInit(); aiInit(); chipsInit();
+  qmInit(); settingsInit(); optLoad(); menusInit(); aiInit(); chipsInit();
   window.addEventListener('keydown', onKey);
   $('zIn').onclick = () => zoomAt(R.w / 2, R.h / 2, 1.25);
   $('zOut').onclick = () => zoomAt(R.w / 2, R.h / 2, 0.8);
@@ -4222,9 +4440,15 @@ function init() {
   const hash = (location.hash || '').slice(1);
   if (hash && PRESETS[hash]) startPreset = hash;
   else { const sp = store('preset'); if (sp && PRESETS[sp]) startPreset = sp; }
-  loadPreset(startPreset);
   const tab = store('tab'); showTab(tab && ['lab', 'inspect', 'data', 'log', 'physics'].includes(tab) ? tab : 'lab');
+  // the start (Settings → General): the main menu, where you left off, or the last setup afresh; a link to a setup or
+  // a shared world opens that at once
+  const direct = !!hash || window.AF_NO_MENU;
+  loadPreset(startPreset); buildToolOpts();
   setRunning(true);
+  UI.started = true;
+  if (!direct && SET.start === 'menu') showMainMenu();
+  else if (!direct && SET.start === 'last') restoreAutosave();
   UI.last = performance.now();
   requestAnimationFrame(frame);
 }

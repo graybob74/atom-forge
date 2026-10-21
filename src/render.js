@@ -11,6 +11,7 @@ const R = {
   hover: null, sel: null, overlay: null, ghost: null, molTags: [], time: 0, // molTags: names from Identify molecules, shown for a while follow: null, // follow: a particle the view stays centred on
   msel: new Set(), // the Select tool's selection
   dprMax: 2, lite: false, // (Settings: drawing resolution, and lite: no glows, halos or flashes)
+  as: 1, cvd: false, lblMode: 'always', badges: 'always', flashK: 1, // (Settings → Graphics: atom size, colour-blind palette, labels and charge badges always or on hover, flashes toned down)
 };
 const CHAMBER = { bg0: '#060a10', bg1: '#0b121b', grid: 'rgba(130,170,210,0.055)', box: 'rgba(150,185,220,0.35)',
   text: '#d6e2ee', dim: 'rgba(200,220,240,0.55)' };
@@ -91,20 +92,29 @@ function drawSprite(sp, x, y, alpha) {
 /* ---------- colours ---------- */
 const P_COL = '#ff5a4e', N_COL = '#a9b4c2', E_COL = '#4da8ff', POS_COL = '#ff6fc8';
 const PBAR_COL = '#b56dff', NBAR_COL = '#66738a', ANTI_TINT = '#b56dff';
+/* Colour-blind friendly palette (Settings → Graphics): the common elements on the Okabe–Ito colours, which stay apart
+   for red–green and blue–yellow colour blindness; charges orange (+) and blue (−) instead of red and blue. */
+const CVD_COL = { 1: '#f2f2f2', 6: '#5a5a5a', 7: '#0072b2', 8: '#d55e00', 9: '#7fdcc5', 11: '#cc79a7', 12: '#b39ddb', 15: '#e69f00', 16: '#f0e442',
+  17: '#009e73', 19: '#a16fae', 20: '#8f8f8f', 26: '#e69f00', 29: '#c0784a', 35: '#7a3b12', 53: '#6a3d9a', 92: '#56b4e9' };
+const Q_POS = () => (R.cvd ? '#e69f00' : '#ff5a4e'), Q_NEG = () => (R.cvd ? '#0072b2' : '#4d8dff');
+function baseElColor(Z) { return (R.cvd && CVD_COL[Z]) || ELEMENTS[Z].color; }
+function elColorsReset() { _elCol.length = 0; _elColAnti.length = 0; _stySig = ''; R.sprites.clear(); }
+const lblOn = (p) => R.view.labels && (R.lblMode !== 'hover' || p === R.hover || p === R.sel);
+const badgeOn = (p) => R.badges === 'always' || (R.badges === 'hover' && (p === R.hover || p === R.sel));
 function atomColor(p) {
   if (R.view.color === 'charge') {
     const q = p.q + p.qp;
     if (Math.abs(q) < 0.05) return '#8a96a3';
     const t = clamp(Math.abs(q) / 1.2, 0, 1);
-    return q > 0 ? mixHex('#8a96a3', '#ff5a4e', t) : mixHex('#8a96a3', '#4d8dff', t);
+    return q > 0 ? mixHex('#8a96a3', Q_POS(), t) : mixHex('#8a96a3', Q_NEG(), t);
   }
   if (R.view.color === 'heat') {
     const T = p.tLocal || 0;
     const t = clamp(Math.log10(Math.max(T, 10)) / 5, 0, 1);
     return heatHex(t);
   }
-  if (p.anti && p.el) return mixHex(p.el.color, ANTI_TINT, 0.5);
-  return p.el ? p.el.color : '#cccccc';
+  if (p.anti && p.el) return mixHex(baseElColor(p.Z), ANTI_TINT, 0.5);
+  return p.el ? baseElColor(p.Z) : '#cccccc';
 }
 function mixHex(a, b, t) {
   const A = hexc(a), B = hexc(b);
@@ -363,13 +373,13 @@ function drawBondsGL() {
    frame when the colour follows charge or heat; else when a count changed, and every eighth frame anyway, since an ion
    forming changes a radius without any count changing). Leptons and bare nuclei are left out (drawn by other means). */
 const _elCol = [], _elColAnti = [];
-function elColor(Z, anti) { const T = anti ? _elColAnti : _elCol; let c = T[Z]; if (!c) { c = T[Z] = hexc(anti ? mixHex(ELEMENTS[Z].color, ANTI_TINT, 0.5) : ELEMENTS[Z].color); } return c; }
+function elColor(Z, anti) { const T = anti ? _elColAnti : _elCol; let c = T[Z]; if (!c) { c = T[Z] = hexc(anti ? mixHex(baseElColor(Z), ANTI_TINT, 0.5) : baseElColor(Z)); } return c; }
 let _stySig = '', _styFrame = 0;
 function glSlotsPrepare() {
   const hi = S.hi;
   glSlotPositions(hi);
   const mode = R.view.color, bohr = R.view.bohr, perFrame = mode !== 'element';
-  const sig = `${W.topo}|${W.dirty}|${W.spawned}|${W.deaths}|${mode}|${bohr}|${hi}`;
+  const sig = `${W.topo}|${W.dirty}|${W.spawned}|${W.deaths}|${mode}|${bohr}|${hi}|${R.as}|${R.cvd}`;
   if (!perFrame && sig === _stySig && (++_styFrame & 7)) return;
   _stySig = sig; _styFrame = 0;
   const C = GL_T.colA, Y = GL_T.styA, DEAD = S.dead, K = S.k, Z = S.Z, NE = S.ne, ANTI = S.anti, OBJ = S.obj;
@@ -379,7 +389,7 @@ function glSlotsPrepare() {
     if (DEAD[i] === 1 || K[i] !== NUC || (Z[i] > 0 && NE[i] === 0)) { C[c4 + 3] = 0; continue; }
     if (Z[i] === 0) { Y[c4] = 0.2; Y[c4 + 1] = 2.2; Y[c4 + 2] = 1e9; C[c4] = nCol[0]; C[c4 + 1] = nCol[1]; C[c4 + 2] = nCol[2]; C[c4 + 3] = 255; continue; }
     const p = OBJ[i], col = mode === 'element' ? elColor(Z[i], ANTI[i] === 1) : hexc(atomColor(p));
-    Y[c4] = p.rd; Y[c4 + 1] = 2.4; Y[c4 + 2] = maxAtom; C[c4] = col[0]; C[c4 + 1] = col[1]; C[c4 + 2] = col[2]; C[c4 + 3] = 255;
+    Y[c4] = p.rd * R.as; Y[c4 + 1] = 2.4; Y[c4 + 2] = maxAtom; C[c4] = col[0]; C[c4 + 1] = col[1]; C[c4 + 2] = col[2]; C[c4 + 3] = 255;
   }
   glSlotStyle(hi);
 }
@@ -477,10 +487,10 @@ function drawParticles(rt) {
     if (x < -pad || y < -pad || x > xMax || y > yMax) continue;
     const p = parts[j];
     if (K[i] === NUC && NE[i] > 0 && p.tLocal > 900 && !p.fast) {
-      const a = clamp((p.tLocal - 900) / 4000, 0, 0.7), rg = clamp(p.rd * s * 3.2, 6, 48); // (capped: zoomed in, a halo, not a blob)
+      const a = clamp((p.tLocal - 900) / 4000, 0, 0.7), rg = clamp(p.rd * R.as * s * 3.2, 6, 48); // (capped: zoomed in, a halo, not a blob)
       if (gl) glGlow(x, y, rg, blackbodyRGB(p.tLocal), a); else drawSprite(glowSprite(blackbodyRGB(p.tLocal), rg), x, y, a);
     }
-    if (p.glow > 0.02 && p.glowC) { const rg = clamp(p.rd * s * 5, 10, 32); if (gl) glGlow(x, y, rg, p.glowC, p.glow); else drawSprite(glowSprite(p.glowC, rg), x, y, p.glow); } // (light given off: a glint, however far zoomed in)
+    if (p.glow > 0.02 && p.glowC) { const rg = clamp(p.rd * R.as * s * 5, 10, 32); if (gl) glGlow(x, y, rg, p.glowC, p.glow); else drawSprite(glowSprite(p.glowC, rg), x, y, p.glow); } // (light given off: a glint, however far zoomed in)
   }
   ctx.globalCompositeOperation = 'source-over';
   // the WebGL layer: the plain balls (atoms, ions, neutrons, free leptons with their glows) in one draw call each,
@@ -535,19 +545,19 @@ function drawParticles(rt) {
       continue;
     }
     if (p.ne === 0) { // bare nucleus
-      const rn = Math.max(2.6, p.rd * s);
+      const rn = Math.max(2.6, p.rd * R.as * s);
       ctx.globalCompositeOperation = 'lighter';
       if (!R.lite) drawSprite(glowSprite(p.anti ? [190, 120, 255] : [255, 110, 90], rn * 3.2), x, y, 0.35);
       ctx.globalCompositeOperation = 'source-over';
       nucleusBeads(ctx, x, y, rn, p.Z, p.N, 1, p.anti);
-      if (rn > 7 && R.view.labels && bohrMode !== 'nuc') smallTag(ctx, speciesLabel(p), x, y + rn + 9);
+      if (rn > 7 && lblOn(p) && bohrMode !== 'nuc') smallTag(ctx, speciesLabel(p), x, y + rn + 9);
       continue;
     }
-    const r = Math.max(2.4, p.rd * s);
+    const r = Math.max(2.4, p.rd * R.as * s);
     if (bohrMode === 'nuc') { drawNucView(p, x, y, r, rt); continue; }
     if (bohrMode === 'orb') {
       const rv = drawOrbitalAtom(ctx, p, x, y);
-      if (R.view.labels && rv >= 12) {
+      if (lblOn(p) && rv >= 12) {
         ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = CHAMBER.dim; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(speciesLabel(p), x, y + rv + 9);
       }
@@ -555,7 +565,7 @@ function drawParticles(rt) {
         ctx.save(); ctx.strokeStyle = 'rgba(190,130,255,0.85)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
         ctx.beginPath(); ctx.arc(x, y, rv + 3, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
       }
-      if (p.q !== 0 && rv >= 5) chargeBadge(ctx, p.q, x + rv * 0.78, y - rv * 0.78, Math.min(rv, 20));
+      if (p.q !== 0 && rv >= 5 && badgeOn(p)) chargeBadge(ctx, p.q, x + rv * 0.78, y - rv * 0.78, Math.min(rv, 20));
       continue;
     }
     const col = atomColor(p);
@@ -563,13 +573,13 @@ function drawParticles(rt) {
     if (bohr) drawBohr(ctx, p, x, y, r, rt, col);
     else {
       if (!glBalls) drawSprite(ballSprite(col, r), x, y);
-      if (R.view.labels && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
+      if (lblOn(p) && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
     }
     if (p.anti) { // antimatter: a dashed violet halo
       ctx.save(); ctx.strokeStyle = 'rgba(190,130,255,0.85)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
       ctx.beginPath(); ctx.arc(x, y, r + 3, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     }
-    if (p.q !== 0 && r >= 5) chargeBadge(ctx, p.q, x + r * 0.78, y - r * 0.78, r);
+    if (p.q !== 0 && r >= 5 && badgeOn(p)) chargeBadge(ctx, p.q, x + r * 0.78, y - r * 0.78, r);
   }
   if (lateLeptons) for (const p of lateLeptons) drawLepton(ctx, p, w2sx(p.x), w2sy(p.y), bohrMode);
   ctx.restore();
@@ -702,7 +712,7 @@ function chargeBadge(ctx, q, x, y, r) {
   const fs = Math.round(clamp(r * 0.55, 8, 15));
   ctx.font = `700 ${fs}px "Azeret Mono", ui-monospace, monospace`;
   const w = ctx.measureText(t).width + 6;
-  ctx.fillStyle = q > 0 ? 'rgba(255,90,78,0.92)' : 'rgba(77,141,255,0.92)';
+  ctx.fillStyle = R.cvd ? (q > 0 ? 'rgba(230,159,0,0.95)' : 'rgba(0,114,178,0.95)') : q > 0 ? 'rgba(255,90,78,0.92)' : 'rgba(77,141,255,0.92)';
   ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - w / 2, y - fs / 2 - 2, w, fs + 4, (fs + 4) / 2) : ctx.rect(x - w / 2, y - fs / 2 - 2, w, fs + 4); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(t, x, y + 0.5);
@@ -848,7 +858,7 @@ function drawFlashes(rt) {
     if (age > f.life) { W.flashes.splice(i, 1); continue; }
     const k = age / f.life;
     const r = Math.min(Math.max(10, f.s * R.s * (0.6 + 1.6 * k)), 70 + 14 * f.s); // (no bigger than so much screen, zoomed in)
-    drawSprite(glowSprite(f.c, r), w2sx(f.x), w2sy(f.y), (1 - k) * 0.9);
+    drawSprite(glowSprite(f.c, r * (R.flashK < 1 ? 0.6 : 1)), w2sx(f.x), w2sy(f.y), (1 - k) * 0.9 * R.flashK);
   }
   ctx.restore();
 }

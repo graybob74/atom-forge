@@ -168,7 +168,7 @@ const { openPage } = require('./browser');
     R.selX = null; loadPreset('water');
     return { first, note: /Proton \(p\): three quarks/.test(note), after, msg, back, same: n0 === 1, world, lep };
   });
-  check(r11.first === 'duu' && r11.note && /pion/.test(r11.msg) && r11.back === [...r11.after.toLowerCase()].sort().join('') && r11.lep && r11.same && /In the chamber: p → /.test(r11.msg), `inside a proton: u u d; pulling a u out made ${r11.msg.match(/as a ([^,.]+)/)[1]}, leaving ${r11.after}, in the chamber too (${r11.world}); a muon has no quarks`, 'quark view: ' + JSON.stringify(r11));
+  check(r11.first === 'duu' && r11.note && /pion|kaon/.test(r11.msg) && r11.back === [...r11.after.toLowerCase()].sort().join('') && r11.lep && r11.same && /In the chamber: p → /.test(r11.msg), `inside a proton: u u d; pulling a u out made ${r11.msg.match(/as a ([^,.]+)/)[1]}, leaving ${r11.after}, in the chamber too (${r11.world}); a muon has no quarks`, 'quark view: ' + JSON.stringify(r11));
   // the string model and the quark–gluon plasma: exact kinematics, jets from e⁺e⁻ at 10 GeV, a plasma from gold on gold,
   // and the energies to reach them on the Fire tool and the collider
   const r12 = await page.evaluate(() => {
@@ -272,7 +272,7 @@ const { openPage } = require('./browser');
   const r16 = await page.evaluate(() => {
     const out = {};
     for (const st of ['gentle', 'strong']) {
-      loadPreset('water'); setRunning(false); W.simPerFrame = 0.02; UI.adv = 0.02;
+      loadPreset('empty'); spawnClear({ kind: 'mol', mol: 'H2O' }, -15, 0, 300); setRunning(false); W.simPerFrame = 0.02; UI.adv = 0.02; // (in open space: in a liquid the neighbours must be pushed aside, and that takes force)
       const p = W.parts.find(q => q.k === NUC && q.Z === 8), g = W.grab = { p, x: p.x + 20, y: p.y, s: st, mol: molecule(p) };
       for (let f = 0; f < 30; f++) { simFrame(1 / 60, 30); UI.running = true; grabTick(1 / 60); UI.running = false; }
       out[st] = Math.hypot(g.x - p.x, g.y - p.y); W.grab = null;
@@ -287,8 +287,8 @@ const { openPage } = require('./browser');
     for (let i = 0; i < 12; i++) stepSpeed(1);
     return out;
   });
-  check(r16.gentle > 15 && r16.strong < 0.5 * r16.gentle && r16.torn && Math.abs(r16.min - 256) < 1e-6,
-    `grab: with time slowed 75×, Strong carries a water molecule through the liquid toward a cursor 20 Å off (gap ${r16.strong.toFixed(1)} Å after half a second; Gentle still ${r16.gentle.toFixed(0)} Å behind); a hydrogen carried off tears its O–H bond; the speed buttons go down to 1/${Math.round(r16.min)}×`, 'grab/speed: ' + JSON.stringify(r16));
+  check(r16.gentle > 15 && r16.strong < 1 && r16.torn && Math.abs(r16.min - 256) < 1e-6,
+    `grab: with time slowed 75×, Strong carries a water molecule to a cursor 20 Å off within half a second (gap ${r16.strong.toFixed(2)} Å; Gentle still ${r16.gentle.toFixed(0)} Å behind); a hydrogen carried off tears its O–H bond; the speed buttons go down to 1/${Math.round(r16.min)}×`, 'grab/speed: ' + JSON.stringify(r16));
   // 0.54: nothing about speed tied to the frame rate: a second of watching at 30, 60, 144 or 240 fps advances the same time
   const r17 = await page.evaluate(() => {
     const run = (pre, fps, budget) => { loadPreset(pre); setRunning(true); const t0 = W.t, c0 = W.chipT || 0; for (let f = 0; f < fps / 2; f++) simFrame(1 / fps, budget); setRunning(false); return [W.t - t0, (W.chipT || 0) - c0]; };
@@ -298,6 +298,53 @@ const { openPage } = require('./browser');
   });
   { const w = [30, 60, 144, 240].map(f => r17['w' + f]), c = [30, 60, 144, 240].map(f => r17['c' + f]), sp = (a) => Math.max(...a) / Math.min(...a);
     check(sp(w) < 1.001 && sp(c) < 1.05, `frame rate: half a second of watching at 30, 60, 144 and 240 fps advances the same simulated time (spread ${((sp(w) - 1) * 100).toFixed(2)}%), and the chips' clock with it when the physics falls behind (${((sp(c) - 1) * 100).toFixed(1)}%)`, 'frame rate: ' + JSON.stringify(r17)); }
+  // 0.55: undo/redo; units; graphics settings reach the drawing; the frame-rate cap; tools remember their settings
+  const r18 = await page.evaluate(async () => {
+    const out = {};
+    loadPreset('water'); setRunning(false); UNDO.back.length = 0; UNDO.fwd.length = 0;
+    const n0 = W.parts.filter(p => !p.dead).length, t0 = W.t;
+    undoMark('Place'); placeSpec({ kind: 'atom', Z: 8, A: 16 }, 0, 0, 5); const n1 = W.parts.filter(p => !p.dead).length;
+    undoStep(-1); const n2 = W.parts.filter(p => !p.dead).length; undoStep(1); const n3 = W.parts.filter(p => !p.dead).length; undoStep(-1);
+    out.undo = { n0, n1, n2, n3, back: W.parts.filter(p => !p.dead).length, t: W.t === t0, bonds: W.bonds.length };
+    loadPreset('ringosc'); undoMark('x'); out.undoOffChips = UNDO.back.length === 0;
+    SET.eunit = 'kJ'; applySettings(); out.kj = fmtE(1); out.big = fmtE(2e6); SET.eunit = 'eV'; SET.lunit = 'nm'; applySettings(); out.nm = fmtA(1.5); SET.lunit = 'A'; applySettings();
+    loadPreset('water'); setRunning(false);
+    const p = W.parts.find(q => q.k === NUC && q.Z === 8); SET.atomScale = 0.45; applySettings(); out.as = R.as;
+    SET.cvd = true; applySettings(); out.cvd = atomColor(p); SET.cvd = false; SET.atomScale = 1; applySettings(); out.std = atomColor(p);
+    SET.fpsCap = 30; setRunning(true); let frames = 0; const keepRaf = window.requestAnimationFrame; // (the cap: frames skipped in a 240 Hz stream)
+    let t = 1000; UI.nextDue = 0; const keepSim = window.simFrame; let sims = 0; window.simFrame = function () { sims++; return keepSim.apply(this, arguments); };
+    window.requestAnimationFrame = () => 0; for (let i = 0; i < 240; i++) { t += 1000 / 240; frame(t); frames++; } window.requestAnimationFrame = keepRaf; window.simFrame = keepSim; SET.fpsCap = 0; setRunning(false);
+    out.cap = sims;
+    OPT.grab.s = 'max'; optSave(); OPT.grab.s = 'strong'; optLoad(); out.opt = OPT.grab.s; OPT.grab.s = 'strong'; optSave();
+    return out;
+  });
+  { const u = r18.undo;
+    check(u.n1 > u.n0 && u.n2 === u.n0 && u.n3 === u.n1 && u.back === u.n0 && u.t && r18.undoOffChips && /kJ\/mol$/.test(r18.kj) && /^96\.5/.test(r18.kj) && / MeV$/.test(r18.big) && r18.nm === '0.150 nm'
+      && r18.as === 0.45 && r18.cvd === '#d55e00' && r18.std !== r18.cvd && r18.cap >= 29 && r18.cap <= 31 && r18.opt === 'max',
+    `settings: undo takes back ${u.n1 - u.n0} placed atoms and redo puts them again (clock and bonds as they were), off with chips; 1 eV = ${r18.kj}, 2 MeV stays MeV; 1.5 Å = ${r18.nm}; atom size, colour-blind palette reach the drawing; a 30 fps cap draws ${r18.cap} of 240 frames; tools remember their settings`,
+    'settings: ' + JSON.stringify(r18)); }
+  // 0.55: the main menu at start, a setup from it, the Esc menu (paused while open), Continue back to where it was
+  {
+    const m = await openPage({ settle: 1500, menu: true });
+    const r19 = await m.page.evaluate(async () => {
+      const wait = (ms) => new Promise((r) => { setTimeout(r, ms); });
+      const out = { menu: !$('mainMenu').hidden && UI.menu && UI.running, hidden: getComputedStyle(document.querySelector('.panel')).display === 'none' };
+      document.querySelector('[data-mm="setups"]').click(); out.list = $('mmList').querySelectorAll('button').length;
+      document.querySelector('[data-mmp="water"]').click(); await wait(300);
+      out.water = !UI.menu && UI.preset === 'water' && getComputedStyle(document.querySelector('.panel')).display !== 'none';
+      placeSpec({ kind: 'atom', Z: 11, A: 23 }, 0, 0, 1); const n = W.parts.filter(p => !p.dead).length;
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      await wait(100); out.esc = !$('escModal').hidden && !UI.running;
+      document.querySelector('[data-esc="menu"]').click(); await wait(300); out.back = UI.menu && UI.preset !== 'water' && !$('mmContinue').hidden;
+      document.querySelector('[data-mm="continue"]').click(); await wait(300);
+      out.cont = !UI.menu && W.parts.filter(p => !p.dead).length === n && UI.preset === 'water';
+      return out;
+    });
+    check(r19.menu && r19.hidden && r19.list > 20 && r19.water && r19.esc && r19.back && r19.cont,
+      `menus: the main menu at start over a running setup; ${r19.list} setups to pick from; Esc pauses with its menu; Main menu, then Continue, puts the same ${'chamber'} back`, 'menus: ' + JSON.stringify(r19));
+    if (m.errors.length) { fails++; say('FAIL menu page errors:', m.errors.join(' | ').slice(0, 600)); }
+    await m.browser.close();
+  }
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

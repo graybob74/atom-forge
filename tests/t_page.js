@@ -8,6 +8,7 @@ const shotDir = process.argv.includes('--shots') ? process.argv[process.argv.ind
 let fails = 0;
 const say = (...a) => console.log(...a);
 (async () => {
+  const showSet = (sel) => page.evaluate((q) => { const el = document.querySelector(q), pn = el && el.closest('.spane'); if (pn) setTabS(pn.dataset.stab); }, sel); // (Settings is in tabs: the one with the control)
   const { browser, page, errors } = await openPage();
   page.setDefaultTimeout(15000); // (a click waits for the page to be idle enough to take it: on a loaded 2-core box a frame-filling simulation can hold it off for seconds)
   const T0 = Date.now();
@@ -255,6 +256,7 @@ const say = (...a) => console.log(...a);
   const bi2 = await page.textContent('#bldInfo');
   await page.click('#bldGo'); await page.waitForTimeout(500);
   const bk = await page.evaluate(() => (UI.spec && UI.spec.kind === 'mol' ? UI.spec.mol : null));
+  await page.evaluate(() => { OPT.place.count = 1; }); // (tools remember their settings over a reload: one at a click here)
   await clickCanvas(0.5, 0.5); await page.waitForTimeout(300);
   const bPlaced = await page.evaluate(() => W.parts.filter(p => !p.dead && p.k === NUC).map(p => p.Z + ':' + (p.Z + p.N)).sort().join(' '));
   await page.selectOption('#bldHA', '1').catch(() => {});
@@ -338,6 +340,7 @@ const say = (...a) => console.log(...a);
   //      be seen going, and once the last has landed it runs on as before
   await page.selectOption('#preset', 'flame'); await page.waitForTimeout(300);
   await page.click('.tool[data-tool="light"]'); await page.waitForTimeout(60);
+  await page.evaluate(() => { Object.assign(OPT.light, { mount: false, rate: 80 }); buildToolOpts(); }); // (tools remember their settings: this test wants the defaults, to shine and not mount)
   await tryClick(page.locator('#toolopts [data-g="follow"] button[data-v="true"]'));
   await page.mouse.move(...at(0.2, 0.5)); await page.mouse.down(); await page.mouse.move(...at(0.5, 0.48), { steps: 4 });
   const lt0 = await page.evaluate(() => W.t); await page.waitForTimeout(500);
@@ -390,9 +393,9 @@ const say = (...a) => console.log(...a);
   const rad = await page.evaluate(() => { setTool('pull'); const r = document.getElementById('oR'); r.value = r.max; r.dispatchEvent(new Event('input', { bubbles: true })); const big = OPT.pull.R; r.value = 41; r.dispatchEvent(new Event('input', { bubbles: true })); return { big, back: OPT.pull.R, text: document.getElementById('oRV').textContent }; });
   await page.waitForTimeout(700);
   const fps0 = await page.evaluate(() => ({ text: document.getElementById('fpsBadge').textContent, shown: !document.getElementById('fpsBadge').hidden }));
-  await page.click('#bSettings'); await page.waitForTimeout(150); await page.click('#setFps'); await page.waitForTimeout(100);
+  await page.click('#bSettings'); await page.waitForTimeout(150); await showSet('#setFps'); await page.click('#setFps'); await page.waitForTimeout(100);
   const fps1 = await page.evaluate(() => !document.getElementById('fpsBadge').hidden);
-  await page.click('#setFps'); await page.click('#setClose');
+  await showSet('#setFps'); await page.click('#setFps'); await page.click('#setClose');
   if (!(nb === 1 && rad.big === 1000 && rad.back === 10 && /^\d+ fps/.test(fps0.text) && fps0.shown && !fps1)) { fails++; say('FAIL antineutron / radius / fps:', JSON.stringify({ nb, rad, fps0, fps1 })); }
   else say(`  antineutron placed from the palette; pull radius up to ${rad.big.toLocaleString('en-US')} Å; frame-rate counter “${fps0.text}”, hidden from Settings`);
   await page.evaluate(() => setTool('place'));
@@ -415,10 +418,10 @@ const say = (...a) => console.log(...a);
   await page.selectOption('#preset', 'empty'); await page.waitForTimeout(250);
   await page.click('#bSettings'); await page.waitForTimeout(200);
   const st0 = await page.evaluate(() => ({ open: !document.getElementById('setModal').hidden, max: MAX_PARTS }));
-  await page.click('#segBudget button[data-v="16"]'); await page.waitForTimeout(100);
-  await page.click('#setPerf'); await page.waitForTimeout(150);
+  await showSet('#segBudget'); await page.click('#segBudget button[data-v="16"]'); await page.waitForTimeout(100);
+  await showSet('#setPerf'); await page.click('#setPerf'); await page.waitForTimeout(150);
   const st1 = await page.evaluate(() => ({ max: MAX_PARTS, lite: R.lite, dpr: R.dprMax, budget: UI.budget }));
-  await page.click('#segTUnit button[data-v="C"]'); await page.waitForTimeout(400);
+  await showSet('#segTUnit'); await page.click('#segTUnit button[data-v="C"]'); await page.waitForTimeout(400);
   const tC = await page.textContent('#roT');
   await page.click('#setClose');
   await page.evaluate(() => { setTool('place'); selectSpec(isoSpec(18, 40, 0)); }); await page.waitForTimeout(100);
@@ -429,9 +432,9 @@ const say = (...a) => console.log(...a);
   await page.reload(); await page.waitForTimeout(900);
   const st2 = await page.evaluate(() => ({ max: MAX_PARTS, lite: R.lite, unit: T_UNIT }));
   await page.click('#bSettings'); await page.waitForTimeout(150);
-  await page.click('#setPerf'); await page.waitForTimeout(150); // off again: what it replaced comes back (16 ms), even after the reload
+  await showSet('#setPerf'); await page.click('#setPerf'); await page.waitForTimeout(150); // off again: what it replaced comes back (16 ms), even after the reload
   const st2b = await page.evaluate(() => ({ max: MAX_PARTS, lite: R.lite, budget: UI.budget, perf: document.getElementById('setPerf').checked }));
-  await page.click('#setReset'); await page.waitForTimeout(150);
+  await showSet('#setReset'); await page.click('#setReset'); await page.waitForTimeout(150);
   const st3 = await page.evaluate(() => ({ max: MAX_PARTS, lite: R.lite, unit: T_UNIT }));
   await page.click('#setClose');
   if (!(st0.open && st0.max === 4000 && st1.max === 12000 && st1.lite && st1.dpr === 1 && st1.budget === 10 && /°C/.test(tC) && n100b - n100 >= 80 && st2.max === 12000 && st2.unit === 'C'
@@ -487,7 +490,7 @@ const say = (...a) => console.log(...a);
   await page.reload(); await page.waitForTimeout(900);
   await page.click('#bSettings'); await page.waitForTimeout(150);
   const pr2 = await page.evaluate(() => ({ prio: SET.prio, val: document.getElementById('setPrio').value }));
-  await page.click('#setReset'); await page.waitForTimeout(150); await page.click('#setClose');
+  await showSet('#setReset'); await page.click('#setReset'); await page.waitForTimeout(150); await page.click('#setClose');
   await page.waitForTimeout(600);
   const pr3 = await page.evaluate(() => ({ prio: SET.prio, budget: UI.fp.budget, cap: UI.budget }));
   if (!(pr1.prio === 4 && pr1.budget > pr1.cap + 5 && /20 fps/.test(pr1.note) && pr2.prio === 4 && pr2.val === '4' && pr3.prio === 0 && pr3.budget <= pr3.cap + 1e-9)) {

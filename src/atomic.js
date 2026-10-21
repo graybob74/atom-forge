@@ -491,8 +491,11 @@ function blackbodyRGB(T) { // Tanner Helland approximation, T in kelvin
 /* ---------- Formatting ---------- */
 /* Energy in the unit that suits its size: meV, eV, keV, MeV, GeV, TeV (1000 MeV is 1.00 GeV). digits: significant
    figures (3 by default). */
+let E_UNIT = 'eV'; // Settings → General: chemistry-sized energies (under 1 keV) in kJ/mol or kcal/mol instead
+const E_MOL = { kJ: [96.4853321, ' kJ/mol'], kcal: [23.0605478, ' kcal/mol'] };
 function fmtE(eV, digits) { // in the unit that suits the size: 999 keV, then 1.00 MeV (also when 999.7 keV rounds up)
   const a = Math.abs(eV), d = digits || 3, k = 1 - 0.5 * Math.pow(10, -d);
+  if (E_UNIT !== 'eV' && a < 999.5) { const [f, u] = E_MOL[E_UNIT], v = eV * f; return eV === 0 ? '0' + u : (Math.abs(v) >= Math.pow(10, d) ? Math.round(v).toLocaleString('en-US') : Math.abs(v) < 1e-3 ? fmtSci(v, 2) : v.toPrecision(d)) + u; }
   for (const [s, u] of [[1e15, ' PeV'], [1e12, ' TeV'], [1e9, ' GeV'], [1e6, ' MeV'], [1e3, ' keV'], [1, ' eV'], [1e-3, ' meV']]) {
     if (a < s * k) continue;
     const v = eV / s;
