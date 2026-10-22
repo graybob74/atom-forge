@@ -18,6 +18,11 @@ if (scen === 'water12k') {
 } else if (scen === 'waterion') {
   X.PRESETS.water.build(); X.settleOverlaps();
   const Os = W.parts.filter(p => p.Z === 8); for (let i = 0; i < 40 && i < Os.length; i++) X.userIonize(Os[i]);
+} else if (scen === 'saltwater') { // (a salt crystal in water: the ions' pull on the water, K_IW)
+  X.PRESETS.empty.build(); W.box.w = W.box.tw = 52; W.box.h = W.box.th = 52; W.wall = 'wrap'; W.T = 300; W.gamma = 0.05;
+  for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) { const p = (i + j) % 2 === 0 ? X.addNuc(11, 12, 10, (i - 2.5) * 2.82, (j - 2.5) * 2.82, 0, 0, false) : X.addNuc(17, 18, 18, (i - 2.5) * 2.82, (j - 2.5) * 2.82, 0, 0, false); X.refresh(p); }
+  let w = 0; for (let t = 0; t < 20000 && w < 230; t++) { const x = (X.rnd() - 0.5) * 50, y = (X.rnd() - 0.5) * 50; if (Math.abs(x) < 10.5 && Math.abs(y) < 10.5) continue; if (X.spawnClear({ kind: 'mol', mol: 'H2O' }, x, y, 300).length) w++; }
+  X.settleOverlaps();
 } else { if (!X.PRESETS[scen]) { console.error('no preset', scen); process.exit(2); } X.PRESETS[scen].build(); X.settleOverlaps(); }
 W.decayOn = false;
 const nSteps = +(stepsArg || 30);

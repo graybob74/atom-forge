@@ -32,5 +32,18 @@ for (const key of Object.keys(X.MOLECULES)) {
   if (name1 !== M.name) bad(`${key}: renamed ${name1} after ${F} frames (library ${M.name})`);
 }
 console.log(`${n} library molecules checked in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+// salt in water (K_IW): a lone Na⁺ Cl⁻ pair, touching at the start, is parted by water within a few picoseconds
+{
+  const Y = load('all', { seed: 3 }), V = Y.W, t1 = Date.now();
+  Y.PRESETS.empty.build(); V.box.w = V.box.tw = 36; V.box.h = V.box.th = 36; V.wall = 'wrap'; V.T = 300; V.gamma = 0.05; V.slowmo = false; V.decayOn = false;
+  const na = Y.addNuc(11, 12, 10, -1.4, 0, 0, 0, false), cl = Y.addNuc(17, 18, 18, 1.4, 0, 0, 0, false); Y.refresh(na); Y.refresh(cl);
+  let w = 0; for (let t = 0; t < 20000 && w < 120; t++) { const x = (Y.rnd() - 0.5) * 34, y = (Y.rnd() - 0.5) * 34; if (Math.hypot(x, y) < 4.2) continue; if (Y.spawnClear({ kind: 'mol', mol: 'H2O' }, x, y, 300).length) w++; }
+  Y.settleOverlaps();
+  const d = () => Math.hypot(...Y.minImg(cl.x - na.x, cl.y - na.y));
+  let late = 0, k = 0; while (V.t * Y.PHYS.TU_S < 8e-12) { Y.simFrame(1 / 60, 200); if (V.t * Y.PHYS.TU_S > 4e-12) { late += d(); k++; } }
+  const mean = late / Math.max(1, k);
+  if (!(mean > 3.6) || na.dead || cl.dead || na.q !== 1 || cl.q !== -1) bad(`salt in water: the Na⁺ Cl⁻ pair stayed touching (mean ${mean.toFixed(2)} Å over 4–8 ps)`);
+  else console.log(`  salt in water: a lone Na⁺ Cl⁻ pair parted by water, ${mean.toFixed(2)} Å apart over 4–8 ps (touching: 2.7 Å) (${((Date.now() - t1) / 1000).toFixed(0)} s)`);
+}
 console.log(fails ? `${fails} molecule failure(s)` : 'molecule checks passed');
 process.exitCode = fails ? 1 : 0;

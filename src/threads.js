@@ -142,7 +142,7 @@ function threadsDefault() { const c = (typeof navigator !== 'undefined' && navig
 /* The worker's script: the kernel's constants and helpers as they are here, then the kernel text, then the loop. */
 function workerSource() {
   return `'use strict';
-const RC2 = ${RC2}, FCAP = ${FCAP}, CORE_RMIN = ${CORE_RMIN}, BARE_SMEAR = ${BARE_SMEAR}, R_ANN = ${R_ANN}, K_COUL = ${PHYS.KE}, ANGLE_K = ${ANGLE_K};
+const RC2 = ${RC2}, FCAP = ${FCAP}, CORE_RMIN = ${CORE_RMIN}, BARE_SMEAR = ${BARE_SMEAR}, R_ANN = ${R_ANN}, K_COUL = ${PHYS.KE}, K_IW = ${K_IW}, ANGLE_K = ${ANGLE_K};
 ${zblA.toString()}
 ${zblD.toString()}
 ${zblD2.toString()}

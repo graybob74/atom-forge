@@ -1173,6 +1173,16 @@ function zblD(k, a, r) { // dV/dr
 }
 const CORE_RMIN = 0.02; // Å: below this the core is continued linearly (only ever reached by numerical accident)
 const K_COUL = PHYS.KE; // (the pair kernel's Coulomb constant as a plain name, for the worker)
+/* Solvation in two dimensions. A free ion (S.ionic: charged, no bonds) and an atom of a molecule with a partial charge
+   (water's O and H, any polar molecule) attract by Coulomb's law between the ion's charge and the partial charge, as
+   every pair does; here that pull is doubled. In a flat world an ion has about half the solvent molecules around it
+   that it has in space (3–4 waters against 6), and the solvent screens charges far less, so with the plain force
+   a Na⁺ and a Cl⁻ in water never parted and salt never dissolved (measured: a 36-ion crystal kept every ion for
+   100 ps, an ion pair stayed touching). Doubled, the energy an ion gets from its shell is about what it gets in real
+   water, a lone pair parts and stays parted by a layer of water, and a crystal loses its corner and edge ions within
+   tens of picoseconds and goes on dissolving. Energy is conserved as before (the potential is doubled with the force). */
+const K_IW = 2;
+const iwK = (a, b) => (a.ionic !== b.ionic && (a.ionic ? b.q === 0 : a.q === 0) ? K_IW : 1);
 /* Stiffest close contact this step, as curvature over reduced mass (1/tu²): chooseDt keeps ω·dt small there,
    so hard collisions are integrated as accurately as gentle ones. */
 let _stiff = 0, _stiffL = 0, _lepEvOff = false;
@@ -1226,7 +1236,7 @@ function ljV(a, b, r) {
 }
 function pairNonbondedV(a, b, r) { // LJ + Coulomb between two atoms (energy that disappears when they bond)
   const qa = a.q + a.qp, qb = b.q + b.qp;
-  return ljV(a, b, r) + (qa && qb ? PHYS.KE * qa * qb * (1 / Math.sqrt(r * r + 0.09) - csh(a, b, 0.09)) : 0);
+  return ljV(a, b, r) + (qa && qb ? iwK(a, b) * PHYS.KE * qa * qb * (1 / Math.sqrt(r * r + 0.09) - csh(a, b, 0.09)) : 0);
 }
 /* Coulomb energies inside the cutoff are shifted to zero at RC, except between net charges whose
    long-range part is summed exactly beyond it — so crossing the cutoff never creates energy. */
@@ -1347,7 +1357,7 @@ function nucPairV(p, o, r2) {
   if (w.ne > 0) { const rw = 0.55 * w.el.rc + 0.25; if (r < rw) V += 4 * (rw - r) * (rw - r) / rw + coreV(p, o, r, rw); }
   return V;
 }
-function coulAA(a, b, r2) { const qa = a.q + a.qp, qb = b.q + b.qp; return qa && qb ? PHYS.KE * qa * qb * (1 / Math.sqrt(r2 + 0.09) - csh(a, b, 0.09)) : 0; }
+function coulAA(a, b, r2) { const qa = a.q + a.qp, qb = b.q + b.qp; return qa && qb ? iwK(a, b) * PHYS.KE * qa * qb * (1 / Math.sqrt(r2 + 0.09) - csh(a, b, 0.09)) : 0; }
 /* Electronic energy held by an atom's bound electrons (relative to the bare nucleus): minus the energy to strip
    them one by one, −Σ ionE (for extra electrons, the electron affinities, negative for the unbound ones). Changes
    in it are paid for or released by every event. */
@@ -1544,7 +1554,7 @@ let _kN = 0; // (candidates written so far, passed back from the helpers)
    into CQ from entry nc0 on (3 ints each). Returns the number of entries in CQ. */
 function pairKernel(pi, pj, ex, q0, q1, FXo, FYo, CQ, nc0, wrap, bw, bh, hw, hh, step) {
   const X = S.x, Y = S.y, Z = S.Z, NE = S.ne, Q = S.q, QP = S.qp, ANTI = S.anti, ISM = S.isMetal, CAP = S.cap, USED = S.used, XD = S.xferD, XA = S.xferA, ID = S.id;
-  const LJR = S.ljR, VX = S.vx, VY = S.vy, M = S.m, ELRC = S.elrc, LP = S.lp, MET = S.metal;
+  const LJR = S.ljR, VX = S.vx, VY = S.vy, M = S.m, ELRC = S.elrc, LP = S.lp, MET = S.metal, IONIC = S.ionic;
   let nc = nc0;
   for (let q = q0; q < q1; q++) {
     const exq = ex[q];
@@ -1561,7 +1571,7 @@ function pairKernel(pi, pj, ex, q0, q1, FXo, FYo, CQ, nc0, wrap, bw, bh, hw, hh,
     if (ANTI[i] !== ANTI[j]) { _kN = nc; f = antiPairI(i, j, r, CQ, nc); nc = _kN; }
     else if (ni > 0 && nj > 0) { // two atoms or ions (atomAtom)
       const qi = Q[i], qj = Q[j], qa = qi + QP[i], qb = qj + QP[j];
-      if (qa !== 0 && qb !== 0) { const s2 = r * r + 0.09; f += K_COUL * qa * qb * r / (s2 * Math.sqrt(s2)); }
+      if (qa !== 0 && qb !== 0) { const s2 = r * r + 0.09; f += (IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? qj === 0 : qi === 0) ? K_IW : 1) * K_COUL * qa * qb * r / (s2 * Math.sqrt(s2)); } // (K_IW: an ion and a polar molecule)
       if (ISM[i] === 1 && ISM[j] === 1) f += metalFI(i, j, r);
       else {
         f += ljFI(i, j, r, qa, qb);

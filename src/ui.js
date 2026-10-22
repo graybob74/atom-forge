@@ -3288,6 +3288,11 @@ const PRESETS = {
     hint: '<b>Na⁺ and Cl⁻ ions in a square lattice.</b> Coulomb attraction holds them; Born repulsion stops them collapsing. Heat it to melt it, or drop in neutral Na and Cl atoms: an electron jumps from Na to Cl when that releases energy (ionic bonding).',
     build() { baseWorld(50, 36, 300, 0.05); const a = 2.76;
       for (let i = 0; i < 8; i++) for (let j = 0; j < 6; j++) addAtom((i + j) % 2 ? 'Cl' : 'Na', (i - 3.5) * a, (j - 2.5) * a, { charge: (i + j) % 2 ? -1 : 1 }); } },
+  brine: { group: 'Chemistry', name: 'Salt dissolving in water', tool: 'heat', spec: { kind: 'mol', mol: 'H2O' },
+    hint: '<b>A salt crystal (Na⁺ Cl⁻) dropped into water at 300 K.</b> Water molecules turn their oxygen side to the Na⁺ and their hydrogen side to the Cl⁻; at the corners and edges, where an ion has fewest neighbours holding it, the water pulls ions out one by one, each leaving in a shell of water. Heat it to speed it up. (In a flat world an ion has about half the water around it that it would have in space, so the pull between an ion and water is doubled here to make up for it: Physics tab.)',
+    build() { baseWorld(52, 52, 300, 0.05); W.wall = 'wrap'; const a = 2.82;
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) addAtom((i + j) % 2 ? 'Cl' : 'Na', (i - 2.5) * a, (j - 2.5) * a, { charge: (i + j) % 2 ? -1 : 1 });
+      let w = 0; for (let t = 0; t < 20000 && w < 230; t++) { const x = (rnd() - 0.5) * 50, y = (rnd() - 0.5) * 50; if (Math.abs(x) < 10.5 && Math.abs(y) < 10.5) continue; if (spawnClear({ kind: 'mol', mol: 'H2O' }, x, y, 300).length) w++; } } },
   argon: { group: 'Chemistry', name: 'Argon crystal', tool: 'heat', spec: { kind: 'atom', Z: 18, A: 40 },
     hint: '<b>Argon at 40 K.</b> Noble-gas atoms only feel weak van der Waals forces, enough to freeze them into a close-packed crystal. Raise the temperature: real argon melts at 84 K and boils at 87 K.',
     build() { baseWorld(50, 40, 40, 0.05); for (let i = 0; i < 10; i++) for (let j = 0; j < 8; j++) addAtom('Ar', -17 + i * 3.8 + (j % 2) * 1.9, -11.5 + j * 3.3); } },
