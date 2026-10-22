@@ -166,6 +166,95 @@ function phaseSpace(M, ms) {
 }
 
 
+/* ---- hypernuclei. A Λ (u d s) inside a nucleus is not kept out by the Pauli principle (no other particle there is
+   one), so it sinks to the lowest orbit and is bound: a hypernucleus, written ᴬΛX (A counting the Λ). Bound by
+   B_Λ: 0.13 MeV in the hypertriton ³ΛH, 11.7 MeV in ¹³ΛC, toward 30 MeV in heavy nuclei (measured values up to A = 16,
+   then a fit, 30.5 − 120/A^⅔ MeV). It lives about as long as a free Λ (0.2–0.26 ns) and dies one of two ways: as a
+   free Λ would, Λ → p π⁻ or n π⁰ (mesonic: blocked more and more in heavier nuclei, where the slots the nucleon would
+   need are taken), or by meeting a nucleon, Λp → np or Λn → nn (non-mesonic, about two to one), 176 MeV going to the
+   two nucleons, which usually break the nucleus. Made here when a Λ comes out of a nucleus too slowly to leave it
+   (a quark pulled out by hand; a stopped K⁻ absorbed, K⁻p → Λπ⁰, K⁻n → Λπ⁻), or placed by hand. They are particles in
+   flight (W.exo), bare nuclei with the Λ. */
+const LAM_M = 1115.683, HYP_B = { 3: 0.13, 4: 2.3, 5: 3.12, 6: 4.2, 7: 5.6, 8: 6.8, 9: 6.71, 10: 9.1, 11: 10.2, 12: 11.37, 13: 11.69, 14: 12.2, 15: 12.6, 16: 12.9 };
+const hypB = (A) => (HYP_B[A] !== undefined ? HYP_B[A] : Math.max(0, 30.5 - 120 / Math.pow(A, 2 / 3))); // A: the hypernucleus's, with the Λ
+const hypDepth = (A) => 4 + 24 * (1 - 1 / Math.cbrt(Math.max(1, A - 1))); // the Λ's well (MeV): a slower Λ stays
+function hypSpecies(Z, N) { // the core (Z, N) with a Λ: its XP entry, made when first needed
+  if (Z < 1 || Z > Z_MAX || Z + N < 2) return null;
+  const k = `hy${Z}_${N}`; if (XP[k]) return k;
+  const A = Z + N + 1, B = hypB(A); if (!(B > 0)) return null;
+  XP[k] = { lab: sup(A) + 'Λ' + ELEMENTS[Z].sym, m: nucMeV(Z, N) + LAM_M - B, q: Z, B: A, tau: A === 3 ? 2.4e-10 : 2.3e-10, col: [200, 150, 255], cc: k, hyp: true, Z, N, BL: B, dec: [[1, ['g']]] };
+  return k;
+}
+const hypMesonic = (A) => (A <= 4 ? 0.85 : A <= 12 ? 0.3 : A <= 40 ? 0.08 : 0.02); // (Pauli blocking of the nucleon from Λ → Nπ)
+/* The residual nucleus of an event as items: a nucleon, a light nucleus broken up as it can, or a heavier one cooling. */
+function residualInto(Z, N, Ms, P, anti, items, moms) {
+  const A = Z + N; if (A < 1) return;
+  if (A === 1) { items.push({ t: 'A', Z, N, anti }); moms.push(P); return; }
+  if (Z === 0 || A <= 16) { if (!fermiInto(Z, N, Ms, P, anti, items, moms)) gammaOut(Z, N, Ms, P, anti, items, moms); }
+  else compoundDecay(Z, N, Ms, P, anti, items, moms, 0);
+}
+function hypDecay(o) {
+  const d = XP[o.sp], Z = d.Z, N = d.N, A = Z + N + 1, fm = hypMesonic(A);
+  const ch = [[fm * 0.64, Z + 1, N, ['pi-'], 'mesonic: Λ → p π⁻ inside'], [fm * 0.36, Z, N + 1, ['pi0'], 'mesonic: Λ → n π⁰ inside']];
+  if (Z >= 1) ch.push([(1 - fm) * 2 / 3, Z - 1, N, ['p', 'n'], 'non-mesonic: Λp → np']);
+  if (N >= 1) ch.push([(1 - fm) / 3, Z, N - 1, ['n', 'n'], 'non-mesonic: Λn → nn']);
+  const bx = o.v / PHYS.C * o.ux, by = o.v / PHYS.C * o.uy;
+  for (let tries = 0; tries < 8; tries++) {
+    const [, Zr, Nr, others, how] = pickBr(ch.map(c => [c[0], c])), Ar = Zr + Nr, oth = others.map(item);
+    const Ex = Ar >= 2 ? 6 * rnd() : 0, mres = Ar ? nucMeV(Zr, Nr) + Ex : 0;
+    const vs = phaseSpace(d.m, Ar ? [mres, ...oth.map(massOf)] : oth.map(massOf)); if (!vs) continue;
+    const items = [], moms = []; let j = 0;
+    if (Ar) residualInto(Zr, Nr, mres, toLab(vs[j++], bx, by), false, items, moms);
+    for (const it of oth) { items.push(it); moms.push(toLab(vs[j++], bx, by)); }
+    const S = nucBegin([]); o.dead = true;
+    const made = spawnItems(items, moms, o.x, o.y);
+    closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
+    const txt = `${d.lab} → ${summarize(items)}`; o.fate = `decayed: ${txt}`; W.count.decay++;
+    nucEvent('pdecay', o.x, o.y, `Hypernucleus decay: ${txt}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.15, lbl: d.lab }], how);
+    log('nuc', `Hypernucleus decay: ${txt} (${how})`); flash(o.x, o.y, d.col, 3.5, 0.4); tally(items, [d.lab], txt);
+    return;
+  }
+  exoLeaves(o);
+}
+/* A Λ (rest-frame 4-momentum PL) and the nucleus left (Zr, Nr, mass mres, 4-momentum Pr) in one event: if the Λ is
+   too slow to leave (its kinetic energy against the nucleus under the well's depth), they are one hypernucleus,
+   whatever energy is over leaving as a γ ray. Pushes the items (in the frame given, boosted by bx, by) and returns
+   true; false if the Λ goes free. */
+function hypCatch(Zr, Nr, mres, Pr, PL, bx, by, items, moms) {
+  const sp = hypSpecies(Zr, Nr); if (!sp) return false;
+  const P = add4(Pr, PL), M = mass4(P), Krel = M - mres - LAM_M, A = Zr + Nr + 1;
+  if (!(Krel < hypDepth(A)) || rnd() < 0.8) return false; // (most of those still slip out — made near the surface, or knocked on by another nucleon: per stopped K⁻ a few percent stay, as measured)
+  const mh = XP[sp].m; if (!(M > mh)) return false;
+  const [ux, uy] = rdir(), [vh, vg] = twoBody(M, mh, 0, ux, uy), cx = P[1] / P[0], cy = P[2] / P[0];
+  items.push({ t: 'x', sp }); moms.push(toLab(toLab(vh, cx, cy), bx, by));
+  if (vg[0] > 1e-6) { items.push({ t: 'g' }); moms.push(toLab(toLab(vg, cx, cy), bx, by)); }
+  return true;
+}
+/* A K⁻ slowed to a few keV: caught by an atom, it cascades down and is absorbed by the nucleus, K⁻p → Λπ⁰ or
+   K⁻n → Λπ⁻ on one of its nucleons (the rest of the nucleus a spectator); the Λ, at about 30 MeV, may stay (hypCatch). */
+function kStop(o) {
+  let tg = null, bd = 16;
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  if (!tg) return false;
+  const Z = tg.Z, N = tg.N, onP = rnd() < Z / (Z + N), Zr = Z - (onP ? 1 : 0), Nr = N - (onP ? 0 : 1);
+  // the struck nucleon moves inside the nucleus (Fermi motion, up to about 250 MeV/c; none in a lone proton), and the rest
+  // recoils against it: that is what leaves some Λ slow enough to stay
+  const mres = Zr + Nr ? nucMeV(Zr, Nr) : 0, mN = nucMeV(Z, N) - mres, kF = Zr + Nr ? 250 * Math.sqrt(rnd()) : 0, [fx, fy] = rdir();
+  const PN = [Math.sqrt(mN * mN + kF * kF), kF * fx, kF * fy], Pres = [Math.sqrt(mres * mres + kF * kF), -kF * fx, -kF * fy];
+  const Pe = add4([XP['K-'].m + o.KE / MEV, 0, 0], PN), me = mass4(Pe), pi = onP ? 'pi0' : 'pi-', ex = Pe[1] / Pe[0], ey = Pe[2] / Pe[0];
+  if (!(me > LAM_M + XP[pi].m)) return false;
+  const [ux, uy] = rdir(), [vL0, vp0] = twoBody(me, LAM_M, XP[pi].m, ux, uy), vL = toLab(vL0, ex, ey), vp = toLab(vp0, ex, ey);
+  const items = [], moms = [], x = tg.x, y = tg.y, el = speciesLabel(tg);
+  items.push(item(pi)); moms.push(vp);
+  let hyp = false;
+  if (Zr + Nr >= 2) hyp = hypCatch(Zr, Nr, mres, Pres, vL, 0, 0, items, moms);
+  if (!hyp) { items.push(item('Lam')); moms.push(vL); if (Zr + Nr) residualInto(Zr, Nr, mres, Pres, false, items, moms); }
+  for (let i = 0; i < tg.ne; i++) { items.push(item('e-')); moms.push(randDir4(PHYS.MEC2, 5 / MEV)); }
+  const txt = `K⁻ + ${el} → ${summarize(items.filter(it => it.t !== 'e'))}`;
+  exoEvent(o, [tg], items, moms, x, y, 'capture', txt, hyp ? 'kaon absorbed: the Λ stayed, a hypernucleus' : `kaon absorbed: K⁻${onP ? 'p → Λπ⁰' : 'n → Λπ⁻'}`);
+  return true;
+}
+
 /* ---- resonances in hadronization. Most hadrons out of a string or a cooling plasma are born as short-lived
    resonances (ρ, ω, φ, K*, Δ) that decay at once into the pions, kaons and nucleons seen. resonate() takes the list
    hadronize or the plasma made and joins some of its members into the resonance they would have come from — a π⁺
@@ -263,7 +352,7 @@ function jetMomenta(items, M, ax, ay, opts = {}) {
   order.forEach((i, rank) => { r[i] = opts.thermal ? gauss() : 2 * (rank + 0.5) / n - 1 + 0.35 * gauss() / n; });
   for (let i = 0; i < n; i++) {
     if (opts.thermal) { const Te = 160 + 140 * ms[i] / 1000; let mt = ms[i] - Te * Math.log(Math.max(1e-12, rnd() * rnd())) / 1.5; pt[i] = Math.sqrt(Math.max(0, mt * mt - ms[i] * ms[i])) * (rnd() < 0.5 ? -1 : 1); }
-    else pt[i] = 350 * gauss() / Math.SQRT2 * 1.2;
+    else pt[i] = 350 * (opts.ptScale || 1) * gauss() / Math.SQRT2 * 1.2; // (ptScale: resonances among them, whose decays add their own)
   }
   let mts = ms.map((m, i) => Math.hypot(m, pt[i])), base = mts.reduce((a, b) => a + b, 0);
   if (base >= M) { const k = Math.sqrt(Math.max(0, (M - msum) / (base - msum))) * 0.9; for (let i = 0; i < n; i++) pt[i] *= k; mts = ms.map((m, i) => Math.hypot(m, pt[i])); }
@@ -576,12 +665,13 @@ function moveExos(dt, id0) {
     const d = XP[o.sp];
     flyExo(o, h);
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
-      if (!((d.atom || (o.sp === 'mu-' && o.KE < 2 * MU_STOP)) && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
+      if (!((d.atom || d.hyp || ((o.sp === 'mu-' || o.sp === 'K-') && o.KE < 2 * MU_STOP)) && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
       if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
       if (Math.abs(o.y) > hh) { o.y = Math.sign(o.y) * (2 * hh - Math.abs(o.y)); o.uy = -o.uy; }
     }
-    if (dec) { decayExo(o); continue; }
+    if (dec) { if (d.hyp) hypDecay(o); else decayExo(o); continue; }
     if (o.sp === 'mu-' && o.KE < MU_STOP && muStop(o)) continue;
+    if (o.sp === 'K-' && o.KE < MU_STOP && kStop(o)) continue;
     if (d.atom && clock > 0) muAtomTick(o, clock);
   }
   if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
@@ -672,7 +762,7 @@ function eeEvent(a, b, x, y) {
     let th = 0; for (let k = 0; k < 60; k++) { th = rnd() * 2 * Math.PI; if (rnd() < (1 + Math.cos(th) ** 2) / 2) break; }
     jet = turn2(e[1] / en, e[2] / en, th);
   }
-  if (jet) { const ri = resonate(items, M), v2 = jetMomenta(ri, M, jet[0], jet[1]); if (v2) { items = ri; vs = v2; } else vs = jetMomenta(items, M, jet[0], jet[1]); } // (born partly as resonances)
+  if (jet) { const ri = resonate(items, M), v2 = jetMomenta(ri, M, jet[0], jet[1], { ptScale: 0.7 }); if (v2) { items = ri; vs = v2; } else vs = jetMomenta(items, M, jet[0], jet[1]); } // (born partly as resonances)
   if (jet && vs) addString(x, y, jet[0], jet[1], items.length);
   else if (ang && items.length === 2) { // a pair: the angle to the beams as for a photon (1 + cos²θ) or a ρ (sin²θ)
     const e = toRest(a.k === ELEC ? Pa : Pb, bx, by), en = Math.hypot(e[1], e[2]) || 1;
@@ -842,7 +932,7 @@ function nnInelastic(a, b, x, y, P, M) {
   if (anti) items = items.map(conjItem);
   if (!toks && M > 5000 && items.length >= 3) { // high energy: strings stretched along the beams, the two baryons leading
     const bx = P[1] / P[0], by = P[2] / P[0], A = toRest(p4of(a, true), bx, by), L = Math.hypot(A[1], A[2]) || 1;
-    const ri = resonate(items, M), vs = jetMomenta(ri, M, A[1] / L, A[2] / L, { lead: isBaryonItem }); if (vs) items = ri;
+    const ri = resonate(items, M), vs = jetMomenta(ri, M, A[1] / L, A[2] / L, { lead: isBaryonItem, ptScale: 0.7 }); if (vs) items = ri;
     if (vs) { addString(x, y, A[1] / L, A[2] / L, items.length); return finishReaction(a, b, items, vs.map(v => toLab(v, bx, by)), x, y, 'prod', `√s = ${fmtE(M * MEV)}: strings along the beams`); }
   }
   return doReaction(a, b, items, P, M, x, y, 'prod', `√s = ${fmtE(M * MEV)}`);
@@ -1023,13 +1113,13 @@ function quarkRip(tg, rest, meson) {
   if (!vs) return null;
   const bx = P[1] / P[0], by = P[2] / P[0];
   let j = 0;
-  if (A) {
-    const Pr = toLab(vs[j++], bx, by);
-    if (A === 1) { items.push({ t: 'A', Z, N, anti }); moms.push(Pr); }
-    else if (Z === 0 || A <= 16) { if (!fermiInto(Z, N, mres, Pr, anti, items, moms)) gammaOut(Z, N, mres, Pr, anti, items, moms); }
-    else compoundDecay(Z, N, mres, Pr, anti, items, moms, 0);
+  const li = fits.findIndex(it => it.t === 'x' && it.sp === 'Lam'); // (a Λ too slow to leave the nucleus stays in it: a hypernucleus)
+  if (A >= 2 && li >= 0 && !anti && hypCatch(Z, N, mres, vs[0], vs[li + 1], bx, by, items, moms)) {
+    fits.forEach((it, k) => { if (k !== li) { items.push(it); moms.push(toLab(vs[k + 1], bx, by)); } });
+  } else {
+    if (A) residualInto(Z, N, mres, toLab(vs[j++], bx, by), anti, items, moms);
+    for (const it of fits) { items.push(it); moms.push(toLab(vs[j++], bx, by)); }
   }
-  for (const it of fits) { items.push(it); moms.push(toLab(vs[j++], bx, by)); }
   const x = p.x, y = p.y, gh = [ghostOf(p)], ins = [partLabel(p)], ne = p.ne, partners = [];
   for (const bd of p.bonds) partners.push(other(bd, p));
   const txt = `${ins[0]} → ${summarize(items)}`, S = nucBegin([p]);
@@ -1245,7 +1335,7 @@ function fragmentInto(a, b, Pa, Pb, b3, anti, items, moms) {
       fb = hadronize(MF, anti ? -Bp : Bp, anti ? -Qp : Qp, { pFrac: Qp / Bp, clusters: epsP });
       if (!fb) continue;
       vs = null;
-      if (epsP > 2000 && fb.length >= 3) { const ri = resonate(fb, MF), v2 = jetMomenta(ri, MF, bax, bay, { lead: isBaryonItem }); if (v2) { fb = ri; vs = v2; } } // (high energy: along the beams, as strings stretch)
+      if (epsP > 2000 && fb.length >= 3) { const ri = resonate(fb, MF), v2 = jetMomenta(ri, MF, bax, bay, { lead: isBaryonItem, ptScale: 0.7 }); if (v2) { fb = ri; vs = v2; } } // (high energy: along the beams, as strings stretch)
       if (!vs) vs = phaseSpace(MF, fb.map(massOf));
       if (!vs) continue;
     }

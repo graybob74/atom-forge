@@ -76,6 +76,14 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.59.0: hypernuclei
+- A Λ in a nucleus is bound (no other particle there is a Λ, so the Pauli principle does not keep it out of the lowest orbit): hypernuclei ᴬΛX, from the hypertriton ³ΛH (Λ bound by 0.13 MeV) through ¹³ΛC (11.7 MeV) to ²⁰⁸ΛPb (about 27 MeV): measured binding energies up to A = 16, then 30.5 − 120/A^⅔ MeV (hep.js hypSpecies, hypB). They are particles in flight (bare nuclei with the Λ; W.exo), slowed by matter, bouncing off closed walls.
+- They live about 0.23 ns (the hypertriton 0.24) and decay (hypDecay) as a free Λ would, Λ → p π⁻ or n π⁰ inside (mesonic: 85% in the lightest, a few percent in heavy ones, where the nucleon it would make finds its place taken), or by meeting a nucleon, Λp → np or Λn → nn (non-mesonic, 2 : 1: 176 MeV to the two nucleons); the nucleus left breaks up or cools as it can (residualInto). Exact masses and books.
+- Made where a Λ comes out of a nucleus too slowly to leave it (its kinetic energy against the nucleus under the Λ's well depth, 4–28 MeV, and then four in five still slip out: hypCatch): a stopped K⁻ absorbed by a nucleus (kStop: caught by an atom like a muon, then K⁻p → Λπ⁰ or K⁻n → Λπ⁻ on a nucleon moving with its Fermi motion; about 5% leave a hypernucleus in carbon, as measured), or a quark pulled out by hand. Or placed (Exotic atoms and nuclei: ³ΛH … ²⁰⁸ΛPb).
+- The Inspect card: what it is made of, the Λ's binding, how it decays.
+- Jets: with resonances among the hadrons (whose decays add their own spread), the string's transverse momentum per hadron is 0.7 of what it was, so the final hadrons keep about 0.35 GeV.
+- t_features: 60 hypernucleus decays exact, both ways; stopped K⁻ in carbon. Steadier: the spectroscope allows 1% of photons off the listed lines.
+
 ## 0.58.0: every particle in the palette; neutrino flavours; resonances and the pair masses
 - The palette opens with a menu for each kind of particle — Leptons (e⁻, e⁺, μ±, τ±), Neutrinos (νₑ, ν̄ₑ, νμ, ν̄μ, ντ, ν̄τ), Nucleons, Light nuclei (d, t, ³He, α; any other from Elements…), Mesons (π, K, η), Baryons (Λ, Σ, Ξ, Ω and their antiparticles), Resonances (ρ, ω, φ, K*, Δ), Light (γ), Antimatter (e⁺, p̄, n̄, H̄, anti-d, anti-α), Exotic atoms (muonic hydrogen, deuterium, tritium). Placing an unstable particle makes it nearly at rest, to decay where it is on its mean life; light and neutrinos cannot be still, so they leave the click in a random direction at the energy set (Place → Energy, 1 eV – 1 GeV). The Fire tool fires any of them (neutrinos too).
 - Neutrinos carry their flavour (labels; they still leave the box untouched): a muon's decay gives νμ and ν̄ₑ, a π⁺ νμ, a τ ντ with the rest, nuclei νₑ or ν̄ₑ; muon capture νμ. The Inspect card and Data's list name them.

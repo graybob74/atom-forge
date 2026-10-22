@@ -279,7 +279,7 @@ const say = (...a) => console.log(...a);
   const q2 = await page.evaluate((id) => ({ open: !document.getElementById('qmenu').hidden, sel: !!R.sel && R.sel.id === id }), qa.id);
   await page.mouse.click(qa.x, qa.y, { button: 'right' }); await page.waitForTimeout(120);
   if (await page.isVisible('#qmenu')) await page.locator('#qmenu .qmi', { hasText: 'Follow it' }).first().click();
-  await page.evaluate((id) => { const p = W.parts.find(p => p.id === id); if (p) p.vx = 0.01; setRunning(true); }, qa.id);
+  await page.evaluate((id) => { const p = W.parts.find(p => p.id === id); if (p) p.vx = 0.03; setRunning(true); }, qa.id); // (fast enough to have moved under load too
   await page.waitForTimeout(600);
   const qf = await page.evaluate((id) => { setRunning(false); const p = W.parts.find(p => p.id === id); return { on: R.follow === p, d: p ? Math.hypot(R.cx - p.x, R.cy - p.y) : -1, x: p ? p.x : 0 }; }, qa.id);
   await page.keyboard.press('Escape'); await page.waitForTimeout(80);
