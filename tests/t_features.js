@@ -483,6 +483,49 @@ const { openPage } = require('./browser');
     && r24.saved === 'Test ethanol 1' && r24.asNew === 1 && r24.kept === 'Test ethanol' && r24.copyOf === 'Water (copy)' && r24.inside === 'pi++ Lam+ Dpp+ rho0+ hy6_6+ muP+ mu-- tau--',
     `0.61: 1/512× runs ${r24.carry.toFixed(2)}× the time asked; screen kept awake; measured an atom, a pion and a photon (${r24.measTxt}); decay ${r24.warpTxt}; a held π⁰ flew ${r24.held.toFixed(1)} Å; a saved molecule edited in place (${r24.saved}), and saved as new; particle view ${r24.inside}`,
     '0.61: ' + JSON.stringify(r24));
+  // 0.62: neutrons meet each other and a nucleus moving into them; hadrons meet nuclei in flight; stopped π⁻ and Σ⁻ are caught
+  const r25 = await page.evaluate(() => {
+    const out = { nn: {}, bad: [], worst: 0, fates: {} };
+    for (const [KE, tz, tn, who] of [[0.0253, 1, 0, 'T'], [0.0253, 0, 1, 'n'], [2e6, 0, 1, 'T'], [2e6, 6, 6, 'T']]) {
+      let hits = 0;
+      for (let t = 0; t < 12; t++) {
+        clearWorld(); W.T = 0; W.gamma = 0; W.decayOn = false;
+        const tg = addNuc(tz, tn, 0, 0, 0, 0, 0, false), n = addNuc(0, 1, 0, -12, (t / 12 - 0.5) * 0.2, 0, 0, false);
+        const mover = who === 'n' ? n : tg, still = mover === n ? tg : n;
+        if (who === 'T') { tg.x = -12; tg.y = n.y; n.x = 0; n.y = 0; }
+        forcesNoEvents(); setMotion(mover, KE, 1, 0);
+        for (let s = 0; s < 3000 && !mover.dead && !still.dead && mover.x < 12; s++) { W.dt = chooseDt(); step(W.dt); }
+        if (mover.dead || still.dead || Math.hypot(still.vx, still.vy) > 1e-9) hits++;
+      }
+      out.nn[`${KE}eV ${tz ? 'Z' + tz : 'n'}${who === 'T' ? '→n' : '←n'}`] = hits;
+    }
+    const QB = () => { let q = 0, b = 0; for (const p of W.parts) if (!p.dead) { if (p.k === NUC) { q += (p.anti ? -1 : 1) * (p.Z - p.ne); b += (p.anti ? -1 : 1) * (p.Z + p.N); } else q += p.k === ELEC ? -1 : p.k === POS ? 1 : 0; }
+      for (const o of W.exo) if (!o.dead) { q += o.q; const c = Q_CONTENT[o.sp]; if (c && c.length === 3) b += c[0] === c[0].toUpperCase() ? -1 : 1; else if (XP[o.sp].hyp) b += XP[o.sp].B; } return q + ',' + b; };
+    const E = () => totalEnergy().total - W.ledger.nuc;
+    const hh0 = hadronHit, hs0 = hStop, eW = (f) => function (...a) { const e0 = E(); const r = f.apply(this, a); out.worst = Math.max(out.worst, Math.abs(E() - e0)); return r; }; // (the events themselves exact; a charged hadron's ionizing on the way in is not their doing)
+    hadronHit = eW(hh0); hStop = eW(hs0);
+    for (const [sp, KE] of [['pi+', 2e8], ['pi-', 8e8], ['K-', 3e8], ['K+', 3e8], ['Lam', 2e8], ['Lamb', 2e8], ['pi-', 1e3], ['Sig-', 1e3]]) for (let t = 0; t < 8; t++) {
+      clearWorld(); W.decayOn = false; W.T = 0; W.gamma = 0; addNuc(6, 6, 0, 0, 0, 0, 0, false); forcesNoEvents(); _evTag = 0;
+      const o = addExo(sp, KE > 1e4 ? -3 : 0.3, (t % 5 - 2) * 0.04, KE, 1, 0), qb0 = QB();
+      for (let s = 0; s < 200 && !o.dead; s++) { W.dt = chooseDt(); step(W.dt); }
+      const f = (o.fate || 'flew on').split(':')[0]; out.fates[f] = (out.fates[f] || 0) + 1;
+      if (QB() !== qb0) out.bad.push(`${sp}: ${qb0} → ${QB()} (${o.fate})`);
+    }
+    hadronHit = hh0; hStop = hs0;
+    // bremsstrahlung: radiated against collision losses as T·Z/800 MeV; a 13.5 MeV γ on lead frees a neutron (the giant
+    // dipole resonance); a stopped μ⁺ makes muonium
+    clearWorld(); const wt = addAtom('W', 0, 0), el = addLepton(ELEC, -5, 3); setMotion(el, 1e6, 1, 0); let rad = 0;
+    for (let i = 0; i < 300000; i++) { el.KE = 1e6; brems(el, wt, 5000, -5, 3); rad += 1e6 - el.KE; } // (5 keV per collision: thousands of photons, so the mean is sharp)
+    out.brems = rad / (300000 * 5000) / (74 / 800); W.rays.length = 0;
+    clearWorld(); const pb = addAtom('Pb', 0, 0, { A: 208 }); forcesNoEvents(); const e0 = E(); out.gdr = photoNuclear(pb, 13.5e6, 1, 0) ? W.log[W.log.length - 1].text : 'none'; out.gdrE = Math.abs(E() - e0 - 13.5e6);
+    let mu = 0; for (let t = 0; t < 20; t++) { clearWorld(); W.decayOn = false; addAtom('Ar', 0, 0); forcesNoEvents(); const m = addExo('mu+', 0.5, 0, 500, 1, 0); for (let s = 0; s < 50 && !m.dead; s++) { W.dt = chooseDt(); step(W.dt); } if (/Muonium/.test(m.fate || '')) mu++; }
+    out.mu = mu;
+    return out;
+  });
+  const nnOk = Object.values(r25.nn).every(v => v === 12), fOk = ['π⁺ + ¹²C', 'π⁻ + ¹²C', 'K⁻ + ¹²C', 'K⁺ + ¹²C', 'Λ + ¹²C', 'Λ̄ + ¹²C', 'π⁻ caught by ¹²C', 'Σ⁻ caught by ¹²C'].every(k => Object.keys(r25.fates).some(f => f.startsWith(k.split(' + ')[0]) && f.includes(k.includes('caught') ? 'caught' : '+')));
+  check(nnOk && fOk && !r25.bad.length && r25.worst < 1e-3 && r25.brems > 0.5 && r25.brems < 1.5 && /²⁰⁷Pb \+ n/.test(r25.gdr) && r25.gdrE < 1e-2 && r25.mu >= 6 && r25.mu <= 19,
+    `0.62: neutrons met every time (${Object.entries(r25.nn).map(([k, v]) => k + ' ' + v + '/12').join(', ')}); hadrons on carbon: ${Object.entries(r25.fates).map(([k, v]) => k + ' ' + v).join(', ')}; charge and baryon number kept, energy to ${r25.worst.toExponential(0)} eV; bremsstrahlung at ${r25.brems.toFixed(2)} of T·Z/800; ${r25.gdr}; muonium from ${r25.mu} of 20 stopped μ⁺`,
+    '0.62: ' + JSON.stringify(r25));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

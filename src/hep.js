@@ -17,6 +17,7 @@ function nucMeV(Z, N) { return Z <= 0 ? N * M_N : (Z * PHYS.MP + N * PHYS.MN) * 
 const XP = {
   'mu-': { lab: 'μ⁻', m: 105.6584, q: -1, tau: 2.1970e-6, col: [110, 245, 200], cc: 'mu+', dec: [[1, ['e-', 'nub', 'nu']]] },
   'mu+': { lab: 'μ⁺', m: 105.6584, q: 1, tau: 2.1970e-6, col: [110, 245, 200], cc: 'mu-', dec: [[1, ['e+', 'nu', 'nub']]] },
+  Mu: { lab: 'Mu', m: 105.6584 + 0.51099895 - 13.54e-6, q: 0, tau: 2.1970e-6, col: [150, 225, 255], cc: 'Mu', muonium: true, dec: [[1, ['e+', 'nu', 'numub', 'e-']]] }, // (muonium, μ⁺e⁻: a light hydrogen; its muon decays, the electron goes free)
   'pi+': { lab: 'π⁺', m: 139.5704, q: 1, tau: 2.6033e-8, col: [255, 160, 70], cc: 'pi-', dec: [[0.99988, ['mu+', 'nu']], [0.00012, ['e+', 'nu']]] },
   'pi-': { lab: 'π⁻', m: 139.5704, q: -1, tau: 2.6033e-8, col: [255, 160, 70], cc: 'pi+', dec: [[0.99988, ['mu-', 'nub']], [0.00012, ['e-', 'nub']]] },
   pi0: { lab: 'π⁰', m: 134.9768, q: 0, tau: 8.43e-17, col: [255, 214, 160], cc: 'pi0', dec: [[0.98823, ['g', 'g']], [0.01174, ['e+', 'e-', 'g']]] },
@@ -240,7 +241,7 @@ function kStop(o) {
   // the struck nucleon moves inside the nucleus (Fermi motion, up to about 250 MeV/c; none in a lone proton), and the rest
   // recoils against it: that is what leaves some Λ slow enough to stay
   const mres = Zr + Nr ? nucMeV(Zr, Nr) : 0, mN = nucMeV(Z, N) - mres, kF = Zr + Nr ? 250 * Math.sqrt(rnd()) : 0, [fx, fy] = rdir();
-  const PN = [Math.sqrt(mN * mN + kF * kF), kF * fx, kF * fy], Pres = [Math.sqrt(mres * mres + kF * kF), -kF * fx, -kF * fy];
+  const Er = Math.sqrt(mres * mres + kF * kF), PN = [mres + mN - Er, kF * fx, kF * fy], Pres = [Er, -kF * fx, -kF * fy]; // (spectator model: they add up to the nucleus exactly)
   const Pe = add4([XP['K-'].m + o.KE / MEV, 0, 0], PN), me = mass4(Pe), pi = onP ? 'pi0' : 'pi-', ex = Pe[1] / Pe[0], ey = Pe[2] / Pe[0];
   if (!(me > LAM_M + XP[pi].m)) return false;
   const [ux, uy] = rdir(), [vL0, vp0] = twoBody(me, LAM_M, XP[pi].m, ux, uy), vL = toLab(vL0, ex, ey), vp = toLab(vp0, ex, ey);
@@ -252,6 +253,206 @@ function kStop(o) {
   for (let i = 0; i < tg.ne; i++) { items.push(item('e-')); moms.push(randDir4(PHYS.MEC2, 5 / MEV)); }
   const txt = `K⁻ + ${el} → ${summarize(items.filter(it => it.t !== 'e'))}`;
   exoEvent(o, [tg], items, moms, x, y, 'capture', txt, hyp ? 'kaon absorbed: the Λ stayed, a hypernucleus' : `kaon absorbed: K⁻${onP ? 'p → Λπ⁰' : 'n → Λπ⁻'}`);
+  return true;
+}
+
+/* ---- Unstable hadrons and nuclei (0.62). A hadron in flight that passes within a nucleus's reach (where the nucleus
+   is drawn, as for nucleons) meets it: in the outer part of the reach it scatters elastically (diffraction, at the
+   angle ħ/(pR)), nearer in it meets one nucleon (Fermi motion as in kStop; the rest a spectator, a little excited):
+   a pion is absorbed on a nucleon pair below about 300 MeV half the time (π⁺ pn → pp …: the nucleus takes ~140 MeV
+   and boils off nucleons), otherwise it and the nucleon hadronize (πN → πN, charge exchange included, and more
+   pions with energy); K⁻ (and the K̄⁰ in a K⁰L) exchange strangeness (K̄N → Λπ); K⁺ and K⁰ scatter off it, swapping
+   charge sometimes (K⁺n → K⁰p); a hyperon knocks the nucleon out (YN → YN; Σ N → Λ N a third of the time); an
+   antibaryon annihilates with it into pions and the kaons its antistrange quarks need. A Λ left slow may stay
+   (hypCatch). Hypernuclei only scatter. Energy, momentum, charge, baryon number and strangeness are kept. */
+const HIT_INEL = 0.6; // (inelastic share of a hadron–nucleus cross-section, about 0.6 for pions and kaons alike)
+function strongExo(sp) { const d = XP[sp]; return !!d && !d.res && !d.atom && !d.stuck && (d.hyp || (typeof Q_CONTENT !== 'undefined' && !!Q_CONTENT[sp])); }
+function exoP4(o) { const m = o.m, K = o.KE / MEV, p = Math.sqrt(Math.max(0, K * (K + 2 * m))); return [m + K, p * o.ux, p * o.uy]; }
+/* One nucleon of tg struck, with its Fermi motion; onP forced or by chance. */
+function struckNucleon(tg, onP) {
+  const Z = tg.Z, N = tg.N; if (onP === undefined) onP = rnd() < Z / (Z + N);
+  if (onP ? Z < 1 : N < 1) onP = !onP;
+  const Zr = Z - (onP ? 1 : 0), Nr = N - (onP ? 0 : 1), mres = Zr + Nr ? nucMeV(Zr, Nr) : 0, mN = nucMeV(Z, N) - mres;
+  const kF = Zr + Nr ? 250 * Math.sqrt(rnd()) : 0, [fx, fy] = rdir(), T = p4of(tg, true), bx = T[1] / T[0], by = T[2] / T[0];
+  // the spectator model: the rest of the nucleus is on its mass shell with −k, the struck nucleon takes what is left of
+  // the nucleus's mass (bound, a little off shell), so the two add up to the nucleus exactly
+  const Er = Math.sqrt(mres * mres + kF * kF), Pres = toLab([Er, -kF * fx, -kF * fy], bx, by), PN = toLab([mres + mN - Er, kF * fx, kF * fy], bx, by);
+  return { onP, Zr, Nr, mres, mN, PN, Pres };
+}
+/* The items of an encounter, spread over the invariant mass of what came in (Pin), and the residual nucleus (excited
+   by Ex MeV) as its own items. Returns false if they don't fit. */
+function exoOut(outs, Pin, sN, Ex, items, moms) {
+  const Ar = sN.Zr + sN.Nr, M = mass4(Pin), ms = outs.map(massOf), Mres = Ar ? sN.mres + (Ar > 1 ? Ex : 0) : 0; // (a lone nucleon left over cannot be excited)
+  if (Mres) ms.push(Mres);
+  if (!(M > ms.reduce((t, m) => t + m, 0) + 0.01)) return false;
+  const vs = phaseSpace(M, ms); if (!vs) return false;
+  const bx = Pin[1] / Pin[0], by = Pin[2] / Pin[0];
+  outs.forEach((it, i) => { items.push(it); moms.push(toLab(vs[i], bx, by)); });
+  if (Mres) residualInto(sN.Zr, sN.Nr, Mres, toLab(vs[vs.length - 1], bx, by), false, items, moms);
+  return true;
+}
+/* The struck atom's electrons stay with what is left of it (the heaviest nucleus made), as in a real atom whose
+   nucleus reacts, up to its new charge; any over go free. */
+function keepElectrons(items, moms, ne) {
+  let h = null; for (const it of items) if (it.t === 'A' && !it.anti && it.Z > 0 && (!h || it.Z + it.N > h.Z + h.N)) h = it;
+  const keep = h ? Math.min(ne, h.Z) : 0; if (h) h.ne = keep; // (at most neutral: an extra electron would need an affinity the new element may lack)
+  for (let i = keep; i < ne; i++) { items.push(item('e-')); moms.push(randDir4(PHYS.MEC2, 5 / MEV)); }
+}
+function hadronHit(o, tg, u) {
+  const d = XP[o.sp];
+  if (u > Math.sqrt(HIT_INEL) || d.hyp || tg.Z + tg.N < 1) return exoElastic(o, tg);
+  const con = Q_CONTENT[o.sp], qs = [...con], nS = qs.filter(c => c === 's').length - qs.filter(c => c === 'S').length; // (s quarks less s̄ antiquarks: minus the strangeness)
+  const baryon = qs.length === 3, anti = baryon && qs[0] === qs[0].toUpperCase(), Po = exoP4(o);
+  const items = [], moms = [], x = tg.x, y = tg.y, el = speciesLabel(tg), Tq = o.KE / MEV;
+  let txt = '', sub = '', ok = false;
+  for (let tries = 0; tries < 4 && !ok; tries++) {
+    items.length = 0; moms.length = 0;
+    const sN = struckNucleon(tg), Nq = sN.onP ? 1 : 0, Pin = add4(add4(Po, sN.PN), sN.Pres);
+    const Ex = 5 + 25 * rnd(); // (the spectator nucleus: a hole and a little heat)
+    if (!baryon && (o.sp === 'pi+' || o.sp === 'pi-' || o.sp === 'pi0') && Tq < 300 && rnd() < 0.5 && tg.Z + tg.N >= 2) { // absorption on a pair
+      const s2 = struckNucleon({ Z: sN.Zr, N: sN.Nr, x: tg.x, y: tg.y, vx: tg.vx, vy: tg.vy, k: NUC, m: tg.m, ne: 0, rad: tg.rad, KE: tg.KE, sp: tg.sp, ux: tg.ux, uy: tg.uy });
+      const q = o.q + Nq + (s2.onP ? 1 : 0); if (q < 0 || q > 2) continue;
+      const outs = q === 2 ? ['p', 'p'] : q === 1 ? ['p', 'n'] : ['n', 'n'];
+      if (!exoOut(outs.map(item), Pin, s2, Ex + 10, items, moms)) continue;
+      txt = `${o.lab} absorbed by ${el}`; sub = `on a nucleon pair → ${outs.join('')}: the pion's mass heats the nucleus`; ok = true; break;
+    }
+    let outs;
+    if (anti) { // annihilation: mesons, with a kaon for each antistrange quark
+      const nK = -nS, ks = []; let mk = 0, qk = 0;
+      for (let i = 0; i < nK; i++) { const pk = rnd() < 0.5; ks.push(item(pk ? 'K+' : rnd() < 0.5 ? 'K0S' : 'K0L')); mk += 495; qk += pk ? 1 : 0; }
+      const M = mass4(add4(Po, sN.PN)), rest = hadronize(M - mk - 30, 0, o.q + Nq - qk, { minMeson: true });
+      if (!rest) continue; outs = ks.concat(rest);
+      txt = `${o.lab} + ${el}: annihilation`; sub = `on a ${sN.onP ? 'proton' : 'neutron'} → ${summarize(outs)}`;
+    } else if (baryon) { // hyperon: knocks the nucleon out, or converts (Σ N → Λ N)
+      let y1 = o.sp, n1 = sN.onP ? 'p' : 'n';
+      if ((o.sp === 'Sig-' || o.sp === 'Sig+') && rnd() < 1 / 3) { const q = o.q + Nq; if (q === 0 || q === 1) { y1 = 'Lam'; n1 = q === 1 ? 'p' : 'n'; } }
+      outs = [item(y1), item(n1)];
+      txt = `${o.lab} + ${el}`; sub = y1 === o.sp ? `knocks out a ${sN.onP ? 'proton' : 'neutron'}` : `Σ N → Λ N: the Σ turns into a Λ`;
+    } else if (nS > 0 || (o.sp === 'K0L' && rnd() < 0.5)) { // K̄ (an s quark): strangeness exchange, K̄N → Λπ (K⁰L is half K̄⁰)
+      const q = (o.sp === 'K-' ? -1 : 0) + Nq; if (q < -1 || q > 1) continue;
+      outs = [item('Lam'), item(q === 1 ? 'pi+' : q === -1 ? 'pi-' : 'pi0')];
+      txt = `${o.lab} + ${el}`; sub = 'strangeness exchange: K̄N → Λπ';
+    } else if (nS < 0 || o.sp === 'K0L' || o.sp === 'K0S') { // K (an s̄ antiquark): scatters off the nucleon, charge exchange possible
+      const q = o.q + Nq, swap = rnd() < 0.3 && (q === 1);
+      const kOut = swap ? (o.q ? (rnd() < 0.5 ? 'K0S' : 'K0L') : 'K+') : o.sp, nOut = swap ? (o.q ? 'p' : 'n') : (sN.onP ? 'p' : 'n');
+      outs = [item(kOut), item(nOut)];
+      txt = `${o.lab} + ${el}`; sub = swap ? 'charge exchange' : `knocks out a ${sN.onP ? 'proton' : 'neutron'}`;
+    } else { // pions, η: hadronize with the nucleon
+      const M = mass4(add4(Po, sN.PN)), h = hadronize(M - 5, 1, o.q + Nq, {}); if (!h) continue;
+      outs = h; txt = `${o.lab} + ${el}`; sub = `${o.lab}${sN.onP ? 'p' : 'n'} → ${summarize(h)}`;
+    }
+    if (!exoOut(outs, Pin, sN, Ex, items, moms)) continue;
+    // a Λ slow in the nucleus may stay
+    const iL = items.findIndex(it => it.t === 'x' && it.sp === 'Lam');
+    if (iL >= 0 && sN.Zr + sN.Nr >= 2) {
+      const ri = items.findIndex((it, k) => k > iL && it.t === 'A' && it.Z === sN.Zr && it.N === sN.Nr);
+      if (ri >= 0) { const its = [], ms = []; if (hypCatch(sN.Zr, sN.Nr, massOf(items[ri]), moms[ri], moms[iL], 0, 0, its, ms)) { items.splice(ri, 1); moms.splice(ri, 1); items.splice(iL, 1, ...its); moms.splice(iL, 1, ...ms); sub += '; the Λ stayed: a hypernucleus'; } }
+    }
+    ok = true;
+  }
+  if (!ok) return exoElastic(o, tg);
+  keepElectrons(items, moms, tg.ne);
+  exoEvent(o, [tg], items, moms, x, y, 'reaction', txt, sub);
+  W.count.nreact = (W.count.nreact || 0) + 1;
+  return true;
+}
+/* Diffraction off the nucleus as a whole: the hadron turns by about ħ/(pR); the nucleus takes the momentum, and the
+   energy it gets (keV at most) comes out of the hadron's, exactly. */
+function exoElastic(o, tg) {
+  const K = o.KE / MEV, p = Math.sqrt(Math.max(0, K * (K + 2 * o.m))); if (!(p > 0)) return false;
+  const R = 1.2 * Math.cbrt(Math.max(1, tg.Z + tg.N)) + 1.2, th = gauss() * 197.327 / (p * R);
+  const [nx, ny] = turn2(o.ux, o.uy, th), qx = p * (o.ux - nx), qy = p * (o.uy - ny); // (MeV/c given to the nucleus)
+  const Ebefore = totalEnergy().total; // (the books: whatever the kick does to the nucleus's surroundings is paid by the hadron)
+  const K0 = keOf(tg), Pt = p4of(tg), mt = restE(tg) / MEV, px = Pt[1] + qx, py = Pt[2] + qy, pm = Math.hypot(px, py); // (relativistic: the nucleus may itself be fast)
+  setMotion(tg, (Math.sqrt(mt * mt + pm * pm) - mt) * MEV, pm > 0 ? px / pm : 1, pm > 0 ? py / pm : 0);
+  const dK = keOf(tg) - K0;
+  if (dK > 20 && tg.bonds.length) for (const bd of tg.bonds.slice()) removeBond(bd);
+  if (dK > 10) tg.nucProd = true; // (sent flying by a nuclear event: slow motion for nuclear events, when off, does not follow it)
+  o.ux = nx; o.uy = ny;
+  const paid = totalEnergy().total - Ebefore; // (the nucleus's recoil, bonds it broke, forces it now flies too fast to feel)
+  o.KE = Math.max(1, o.KE - paid); exoSpeed(o);
+  o.hitId = tg.id;
+  return false;
+}
+/* A γ ray above about 8 MeV absorbed by a nucleus as a whole (the giant dipole resonance: the protons swing against the
+   neutrons), which then boils off a neutron (or two, or a proton) as any hot nucleus does. Cross-section a Lorentzian
+   at E₀ = 31.2 A^-1/3 + 20.6 A^-1/6 MeV, 5 MeV wide, holding the classical dipole sum 60 NZ/A mb·MeV. Its electrons
+   stay with what is left of it (keepElectrons). */
+function gdrSigma(Z, N, E) { // mb, E in MeV
+  const A = Z + N; if (A < 2) return 0;
+  const E0 = 31.2 * Math.pow(A, -1 / 3) + 20.6 * Math.pow(A, -1 / 6), G = 5, s0 = 60 * Z * N / A * 2 / (Math.PI * G);
+  const r = (E * E - E0 * E0) / (E * G); return s0 / (1 + r * r);
+}
+function photoNuclear(p, E, ux, uy) {
+  if (p.dead || p.k !== NUC || p.anti || W.parts.length > MAX_PARTS - 50) return false;
+  const Eg = E / MEV, P = add4(p4of(p, true), [Eg, Eg * ux, Eg * uy]), Ms = mass4(P), items = [], moms = [];
+  compoundDecay(p.Z, p.N, Ms, P, false, items, moms, 0);
+  if (!items.some(it => it.t === 'A' && it.Z + it.N === 1)) return false; // (below its threshold: no nucleon free)
+  const x = p.x, y = p.y, el = speciesLabel(p), gh = [ghostOf(p)];
+  keepElectrons(items, moms, p.ne);
+  const S = nucBegin([p]); kill(p);
+  const made = spawnItems(items, moms, x, y);
+  closeEvent(S, made, x, y, E, 0);
+  const txt = `Photonuclear: γ (${fmtE(E)}) + ${el} → ${summarize(items.filter(it => it.t !== 'e'))}`;
+  W.count.nreact = (W.count.nreact || 0) + 1;
+  nucEvent('reaction', x, y, txt, gh, 'giant dipole resonance: the γ shakes protons against neutrons; the hot nucleus boils off a nucleon');
+  log('nuc', txt);
+  return true;
+}
+/* A stopped negative hadron, caught by an atom like a muon and absorbed by its nucleus: a π⁻ on a nucleon pair (on
+   hydrogen π⁻p → π⁰n or γn, the Panofsky ratio 1.5; on a deuteron π⁻d → nn); Σ⁻p → Λn, Ξ⁻p → ΛΛ, Ω⁻p → Ξ⁰Λ, the Λ
+   perhaps staying (hypCatch). Returns true if it was caught. */
+function hStop(o) {
+  let tg = null, bd = 16;
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  if (!tg) return false;
+  const el = speciesLabel(tg), x = tg.x, y = tg.y, items = [], moms = [], Po = exoP4(o);
+  let txt = '', sub = '';
+  for (let tries = 0; tries < 4 && !txt; tries++) {
+    items.length = 0; moms.length = 0;
+    if (o.sp === 'pi-') {
+      if (tg.Z === 1 && tg.N === 0) { const g = rnd() < 0.4; const sN = { Zr: 0, Nr: 0 }; if (!exoOut([item('n'), item(g ? 'g' : 'pi0')], add4(Po, p4of(tg, true)), sN, 0, items, moms)) continue; sub = g ? 'π⁻p → nγ' : 'π⁻p → π⁰n (charge exchange)'; }
+      else if (tg.Z === 1 && tg.N === 1) { if (!exoOut([item('n'), item('n')], add4(Po, p4of(tg, true)), { Zr: 0, Nr: 0 }, 0, items, moms)) continue; sub = 'π⁻d → nn'; }
+      else {
+        const s1 = struckNucleon(tg, true), s2 = struckNucleon({ Z: s1.Zr, N: s1.Nr, k: NUC, vx: tg.vx, vy: tg.vy, rad: tg.rad, KE: tg.KE, ux: tg.ux, uy: tg.uy, ne: 0, m: tg.m }), q = 1 + (s2.onP ? 1 : 0) - 1;
+        const outs = q === 1 ? ['p', 'n'] : ['n', 'n'];
+        if (!exoOut(outs.map(item), add4(Po, p4of(tg, true)), s2, 15 + 25 * rnd(), items, moms)) continue;
+        sub = `absorbed on a nucleon pair → ${outs.join('')}: 140 MeV breaks the nucleus up`;
+      }
+    } else {
+      const sN = struckNucleon(tg, true), Pin = add4(add4(Po, sN.PN), sN.Pres);
+      const outs = o.sp === 'Sig-' ? ['Lam', 'n'] : o.sp === 'Xi-' ? ['Lam', 'Lam'] : ['Xi0', 'Lam'];
+      if (!exoOut(outs.map(item), Pin, sN, 2 + 8 * rnd(), items, moms)) continue;
+      sub = `${o.lab}p → ${summarize(outs.map(item))}`;
+      const iL = items.findIndex(it => it.t === 'x' && it.sp === 'Lam'), ri = items.findIndex(it => it.t === 'A' && it.Z === sN.Zr && it.N === sN.Nr && sN.Zr + sN.Nr >= 2);
+      if (iL >= 0 && ri >= 0) { const its = [], ms = []; if (hypCatch(sN.Zr, sN.Nr, massOf(items[ri]), moms[ri], moms[iL], 0, 0, its, ms)) { items.splice(ri, 1); moms.splice(ri, 1); items.splice(iL, 1, ...its); moms.splice(iL, 1, ...ms); sub += ': the Λ stayed, a hypernucleus'; } }
+    }
+    txt = `${o.lab} caught by ${el}`;
+  }
+  if (!txt) return false;
+  keepElectrons(items, moms, tg.ne);
+  exoEvent(o, [tg], items, moms, x, y, 'capture', txt, sub);
+  return true;
+}
+const H_STOP = new Set(['pi-', 'Sig-', 'Xi-', 'Omg-']);
+/* A μ⁺ slowed to a few keV picks up an electron from an atom it passes about 60% of the time, as in gases and insulators
+   (not in a metal, whose free electrons screen it): muonium, a hydrogen atom with a muon for its proton, 13.5 eV bound
+   (the binding leaves as light). The atom is left an ion. Tried once per muon. Returns true if it formed. */
+function muoniumForm(o) {
+  let tg = null, bd = 16;
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.ne < 1 || p.isMetal) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  if (!tg) return false;
+  o.muTried = true;
+  if (rnd() > 0.6) return false;
+  const ie = ionizationCost(tg), give = ie + 0.05;
+  if (!(o.KE > give + 1)) return false;
+  o.KE -= give; exoSpeed(o);
+  const el = speciesLabel(tg), e = ejectElectron(tg, 0.05);
+  if (!e) { o.KE += give; exoSpeed(o); return false; }
+  const Pt = add4(exoP4(o), p4of(e)), M = mass4(Pt), vs = phaseSpace(M, [XP.Mu.m, 0]);
+  if (!vs) return false;
+  const bx = Pt[1] / Pt[0], by = Pt[2] / Pt[0];
+  exoEvent(o, [e], [item('Mu'), item('g')], vs.map(v => toLab(v, bx, by)), o.x, o.y, 'capture', `Muonium: μ⁺ took an electron from ${el}`, 'μ⁺e⁻, a hydrogen atom 1/9 the mass, 13.5 eV bound');
   return true;
 }
 
@@ -444,6 +645,7 @@ function exoIonize(o, x0, y0) {
     const dE = Math.min(0.3 * o.KE, 0.0047 * z2 * tg.ne / beta2 * w);
     if (dE < 0.01) continue;
     o.KE -= dE; lost += dE;
+    if (W.nucWin) for (const m of molecule(tg)) m.nucProd = true; // (knocked loose by a nuclear event's products: slow motion for nuclear events, when off, does not follow the pieces)
     const ie = ionizationCost(tg), nx = -o.uy * (rnd() < 0.5 ? 1 : -1), ny = o.ux * (nx === -o.uy ? 1 : -1);
     if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) { if (ejectElectron(tg, dE - ie, nx, ny)) W.count.ionize++; else dumpHeat(dE, tg, tg); }
     else { const dv = Math.sqrt(2 * dE * tg.im); tg.vx += nx * dv * 0.7; tg.vy += ny * dv * 0.7; updateFast(tg); }
@@ -584,7 +786,7 @@ function spawnItems(items, moms, x, y) {
     if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; continue; } // (no room: carried off, as if it had left)
     if (it.Z > Z_MAX) { made.lost += P[0] * MEV; continue; } // (a last guard: nothing past the last element is made)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m); made.xs.push(o); pairNote(o); continue; }
-    const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy) : addNuc(it.Z, it.N, 0, ox, oy, 0, 0, it.anti);
+    const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti); // (ne: electrons it keeps, keepElectrons)
     setMotion(q, K, ux, uy);
     if (!q.trk && K > 2000) startTrack(q);
     made.ps.push(q);
@@ -671,19 +873,23 @@ function moveExos(dt, id0) {
       const tl = XP[o.sp].tau * o.gam, P = 1 - Math.exp(-clock / tl);
       if (rnd() < P) { dec = true; h = dt * Math.min(1, -Math.log(1 - rnd() * P) * tl / clock); } // when in the step it goes
     }
-    const d = XP[o.sp];
+    const d = XP[o.sp], x0 = o.x, y0 = o.y;
     if (dec && exoHeld(o)) { dec = false; h = dt; o.wait = true; } // (held to be seen: it flies the whole step, and may decay in a later one)
     flyExo(o, h);
     if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
     if (d.res && !dec) continue; // (a held resonance: only flies)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
-      if (!((d.atom || d.hyp || ((o.sp === 'mu-' || o.sp === 'K-') && o.KE < 2 * MU_STOP)) && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
+      if (!((d.atom || d.hyp || d.muonium || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP)) && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
       if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
       if (Math.abs(o.y) > hh) { o.y = Math.sign(o.y) * (2 * hh - Math.abs(o.y)); o.uy = -o.uy; }
     }
     if (dec) { if (d.hyp) hypDecay(o); else decayExo(o); continue; }
     if (o.sp === 'mu-' && o.KE < MU_STOP && muStop(o)) continue;
     if (o.sp === 'K-' && o.KE < MU_STOP && kStop(o)) continue;
+    if (H_STOP.has(o.sp) && o.KE < MU_STOP && hStop(o)) continue;
+    if (o.sp === 'mu+' && o.KE < MU_STOP && !o.muTried && muoniumForm(o)) continue;
+    if (d.strong === undefined) d.strong = strongExo(o.sp);
+    if (d.strong && exoHits(o, x0, y0)) continue;
     if (d.atom && clock > 0) muAtomTick(o, clock);
   }
   if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
@@ -703,6 +909,22 @@ function flyExo(o, h) {
   if (Math.abs(t.pts[n - 2] - o.x) + Math.abs(t.pts[n - 1] - o.y) > 0.4) { t.pts.push(o.x, o.y); if (t.ts) { t.ts.push(W.rt); t.tt.push(W.t); } if (t.pts.length > 800) trkThin(t); }
   t.upd = W.rt;
   if (o.q && o.v > 0) exoIonize(o, x0, y0); // (charged: it ionizes what it passes, and slows)
+}
+/* A strongly interacting particle's path this step against the nuclei it passes (where they are drawn): the first it
+   comes within reach of, it meets (hadronHit). Returns true if it is gone. */
+function exoHits(o, x0, y0) {
+  if (o.dead || (o.x === x0 && o.y === y0)) return false;
+  const hits = segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && t.Z > 0 && !t.anti);
+  for (const [, tg, b] of hits) {
+    if (tg.dead || (o.ev && o.ev === tg.evId)) continue; // (made in the same event: it has already left that nucleus)
+    const R = Math.max(R_FUS, nucDrawR(tg) + 0.05);
+    if (b >= R) continue;
+    if (o.hitId === tg.id) continue; // (one pass, one encounter)
+    o.hitId = tg.id;
+    if (hadronHit(o, tg, b / R)) return true;
+    if (o.dead) return true;
+  }
+  return false;
 }
 function exoLeaves(o) { // its energy, mass included, leaves the books (it decays out there, into radiation)
   W.ledger.escaped += o.KE + o.m * MEV; W.ledger.nuc += o.m * MEV;

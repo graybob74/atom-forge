@@ -2264,7 +2264,10 @@ function rayInteract(x, y, ux, uy, E, src) {
   _rayHits.sort((a, b) => a[0] - b[0]);
   for (const [t, p] of _rayHits) {
     const hx = x + ux * t, hy = y + uy * t;
-    if (E >= 1e5) { // gamma: Compton scattering, pair production
+    if (E >= 1e5) { // gamma: Compton scattering, pair production, and (above ~8 MeV) the nucleus itself
+      if (E > 6e6 && !p.anti && rnd() < 0.0015 * p.Z * Math.min(1, gdrSigma(p.Z, p.N, E / 1e6) / (5.2 * p.Z * p.Z))) { // (in proportion to pair production, σ ≈ 5.2 Z² mb at these energies)
+        return { x: hx, y: hy, p, after: () => { if (!photoNuclear(p, E, ux, uy)) pairProduce(p, E); } };
+      }
       if (E > 1.022e6 && rnd() < 0.0015 * p.Z) {
         return { x: hx, y: hy, p, after: () => pairProduce(p, E) };
       }
@@ -3476,9 +3479,13 @@ function tryFusion(a, b) {
 
 /* Neutron meets a nucleus: capture, fission, (n,p)/(n,α)/(n,t) or elastic scattering. */
 function neutronHit(n, T, b, R) {
-  if (n.dead || T.dead || T.Z < 1) return false;
+  if (n.dead || T.dead || (T.Z < 1 && !(T.N === 1 && T.k === NUC))) return false; // (a nucleus, or another free neutron: n–n is elastic below ~20 MeV, the dineutron being unbound)
   if (opp(T, n)) { nuclearAnnihilation(T, n); return true; }
-  if (n.rad) return !!nuclearEncounter(n, T, R > 0 ? clamp((b || 0) / R, 0, 1) : rnd(), T.x, T.y); // fast: spallation, fission, … or diffraction
+  if (n.rad || T.rad) { // fast (either of them): relativistic kinematics. Spallation, fission, … or diffraction; two nucleons below ~20 MeV scatter isotropically (s-wave)
+    if (nuclearEncounter(n, T, R > 0 ? clamp((b || 0) / R, 0, 1) : rnd(), T.x, T.y)) return true;
+    if (!n.dead && !T.dead && T.Z + T.N === 1) { elasticTurn(n, T, (2 * rnd() - 1) * Math.PI); return true; }
+    return false;
+  }
   const [tvx, tvy] = velOf(T);
   const dvx = n.vx - tvx, dvy = n.vy - tvy;
   const En = 0.5 * PHYS.MN * (dvx * dvx + dvy * dvy); // neutron energy relative to the target
@@ -3545,6 +3552,7 @@ function neutronHit(n, T, b, R) {
   const th = rnd() * 2 * Math.PI, nx = vr * Math.cos(th), ny = vr * Math.sin(th);
   setVel(n, Vx + nx * T.m / M, Vy + ny * T.m / M);
   setVel(T, Vx - nx * n.m / M, Vy - ny * n.m / M);
+  if (keOf(T) > 10) T.nucProd = true; // (sent flying by a nuclear collision: slow motion for nuclear events, when off, does not follow it)
   if (0.5 * PHYS.MN * (n.vx * n.vx + n.vy * n.vy) < 1 && n.trk) n.trk = null;
   return true;
 }
@@ -3788,6 +3796,67 @@ function segTargets(x0, y0, x1, y1, R, filter) {
   _hits.sort((a, b) => a[0] - b[0]);
   return _hits;
 }
+/* What a particle at (x, y) moving at (vx, vy) comes within R of in the next dt, the targets' own motion included
+   (closest approach of the two paths, relative to each other): so a nucleus that drifts into a neutron at rest is met
+   as surely as a neutron that flies into the nucleus. Targets are the MD particles (the grid); returns [t, p, b]. */
+function relTargets(x, y, vx, vy, dt, R, filter) {
+  _hits.length = 0;
+  gridEnsure();
+  const ex = vx * dt, ey = vy * dt, pad = R + 0.3; // (0.3: an MD particle moves far less than that in a step)
+  const test = (p) => {
+    if (p.dead || !filter(p)) return;
+    const [tvx, tvy] = velOf(p), rx = p.x - x, ry = p.y - y, dx = (tvx - vx) * dt, dy = (tvy - vy) * dt, L2 = dx * dx + dy * dy;
+    const t = L2 > 0 ? clamp(-(rx * dx + ry * dy) / L2, 0, 1) : 0, bx = rx + t * dx, by = ry + t * dy, b2 = bx * bx + by * by;
+    if (b2 < R * R) _hits.push([t, p, Math.sqrt(b2)]);
+  };
+  if (G.n <= 32) { for (const p of G.list) test(p); }
+  else {
+    const minx = Math.min(x, x + ex) - pad, maxx = Math.max(x, x + ex) + pad, miny = Math.min(y, y + ey) - pad, maxy = Math.max(y, y + ey) + pad;
+    const L = G.list;
+    gridWalk(Math.floor((minx + G.hx) / G.cw), Math.floor((miny + G.hy) / G.ch), Math.floor((maxx + G.hx) / G.cw), Math.floor((maxy + G.hy) / G.ch), (i) => test(L[i]));
+  }
+  if (_hits.length > 1) _hits.sort((a, b) => a[0] - b[0]);
+  return _hits;
+}
+/* Free neutrons among themselves and with fast nuclei (neither is in the grid): every pair that comes within reach in
+   this step, by the closest approach of the two paths, found by sorting the paths' x-extents (a sweep), so two
+   neutrons, or a fast proton and a neutron at rest, meet whichever of them moves. Each pair meets once per pass
+   (p.nHit: the last one met, while they are still within reach). */
+const _nnL = [], _nnBox = [];
+let _nnPrev = 1, _nnSp = -1; // (free neutrons moved last step, and the spawn count then: none, and nothing new since, means nothing to look for)
+function neutronPairs(dt, id0) {
+  if (_nnPrev === 0 && _nnSp === W.spawned) return;
+  _nnSp = W.spawned;
+  _nnL.length = 0; let nN = 0;
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || p.id >= id0) continue;
+    if (p.Z === 0 && p.N > 0) { _nnL.push(p); nN++; } else if (p.Z > 0 && (p.rad || p.fast)) _nnL.push(p);
+  }
+  _nnPrev = nN;
+  if (!nN || _nnL.length < 2) return;
+  const n = _nnL.length;
+  for (let i = 0; i < n; i++) {
+    const p = _nnL[i], vx = velOf(p)[0], x1 = p.x + vx * dt;
+    _nnBox[i] = [Math.min(p.x, x1) - R_NN, Math.max(p.x, x1) + R_NN, i];
+  }
+  _nnBox.length = n; _nnBox.sort((a, b) => a[0] - b[0]);
+  for (let ii = 0; ii < n; ii++) {
+    const [, hi, i] = _nnBox[ii], a = _nnL[i];
+    for (let jj = ii + 1; jj < n && _nnBox[jj][0] <= hi; jj++) {
+      const b = _nnL[_nnBox[jj][2]];
+      if (a.dead) break;
+      if (b.dead || (a.Z > 0 && b.Z > 0) || sameEv(a, b)) continue; // (two charged nuclei: the usual paths)
+      const R = nucReach(a, b), [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
+      const rx = b.x - a.x, ry = b.y - a.y, dx = (bvx - avx) * dt, dy = (bvy - avy) * dt, L2 = dx * dx + dy * dy;
+      const t = L2 > 0 ? clamp(-(rx * dx + ry * dy) / L2, 0, 1) : 0, cx = rx + t * dx, cy = ry + t * dy, bb = Math.hypot(cx, cy);
+      if (bb >= R) continue;
+      if ((a.nHit === b.id || b.nHit === a.id) && Math.hypot(rx, ry) < R) continue; // (just met: one pass, one encounter)
+      const nu = a.Z === 0 ? a : b, T = nu === a ? b : a;
+      a.nHit = b.id; b.nHit = a.id;
+      neutronHit(nu, T, bb, R);
+    }
+  }
+}
 /* Antimatter reaching a wall meets the wall's ordinary matter: an electron for each positron, a nucleon for
    each antinucleon. The wall supplies an equal mass, so the radiation carries twice the rest energy plus
    the particle's motion and binding. */
@@ -3949,6 +4018,19 @@ function zoneKey(x, y, p) {
   }
   return k;
 }
+/* Bremsstrahlung: a fast electron or positron swerving past a nucleus gives off a photon. Radiated against collision
+   losses as about T·Z / 800 MeV (T its kinetic energy; Bethe–Heitler, and the X-ray yield of a tube's anode); each
+   photon drawn from the 1/k spectrum from 1% of T up to T, in the electron's direction within about 1/γ. Its energy
+   comes out of the electron's, exactly. */
+function brems(p, tg, dE, x, y) {
+  const T = p.KE, kmin = Math.max(50, 0.01 * T), mk = (T - kmin) / Math.log(T / kmin);
+  if (!(T > kmin * 1.01) || rnd() >= dE * (T / 1e6) * tg.Z / 800 / mk) return;
+  const k = kmin * Math.pow(T / kmin, rnd());
+  const g = 1 + T / ME_C2, th = gauss() / g, c = Math.cos(th), s = Math.sin(th);
+  p.KE -= k;
+  emitPhoton(x, y, k, p.ux * c - p.uy * s, p.ux * s + p.uy * c, { src: tg });
+  W.count.photons++;
+}
 function moveRad(p, dt) {
   const q = p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(p.Z - p.ne, 0) || p.Z) : p.q;
   const mrest = p.k === NUC ? p.m : PHYS.ME, hasE = q && hasEfield();
@@ -4014,6 +4096,8 @@ function moveRad(p, dt) {
     let dE = Math.min(0.3 * p.KE, 0.0047 * zeff * zeff * tg.ne / beta2 * w);
     if (dE < 0.01) continue;
     p.KE -= dE;
+    if (p.k !== NUC && p.KE > 2e3) brems(p, tg, dE, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+    if (W.nucWin && (p.nucProd || p.born >= W.nucWin.t0)) for (const m of molecule(tg)) m.nucProd = true; // (knocked loose by what a nuclear event sent flying: a molecule it ionizes may blow apart)
     const ie = ionizationCost(tg);
     const nx = -p.uy * (rnd() < 0.5 ? 1 : -1), ny = p.ux * (nx === -p.uy ? 1 : -1);
     if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) {
@@ -4359,20 +4443,14 @@ function speedOfE(g) { const gam = 1 + g.Es / (g.m * AMU_EV); return PHYS.C * Ma
 function moveNeutron(p, dt, c1, c2, kT) {
   const KE = keOf(p);
   if (!p.rad && KE < 1 && W.gamma > 0) { const sg = Math.sqrt(kT * p.im); p.vx = c1 * p.vx + c2 * sg * gauss(); p.vy = c1 * p.vy + c2 * sg * gauss(); }
-  const x0 = p.x, y0 = p.y, x1 = x0 + p.vx * dt, y1 = y0 + p.vy * dt;
-  const hits = segTargets(x0, y0, x1, y1, 1.0, (t) => t.k === NUC && t.Z > 0);
+  const x0 = p.x, y0 = p.y;
+  // nuclei in the MD set, by the two paths' closest approach (a slow nucleus drifting into a neutron at rest meets it
+  // too); fast nuclei and other neutrons: neutronPairs, before this pass
+  const hits = relTargets(x0, y0, p.vx, p.vy, dt, 1.0, (t) => t.k === NUC && t.Z > 0);
   for (const [, tg, b] of hits) {
     if (tg.dead || sameEv(p, tg)) continue;
     const R = nucReach(p, tg); // (a nucleus is hit where it is drawn)
     if (b < R && neutronHit(p, tg, b, R)) break;
-  }
-  // also fast nuclei (plasma)
-  if (!p.dead) for (const tg of _fastNuc) {
-    if (tg.dead || tg.Z < 1 || sameEv(p, tg)) continue;
-    const rx = tg.x - x0, ry = tg.y - y0, dx = x1 - x0, dy = y1 - y0, L2 = dx * dx + dy * dy;
-    let t = L2 > 0 ? (rx * dx + ry * dy) / L2 : 0; t = clamp(t, 0, 1);
-    const ex = rx - t * dx, ey = ry - t * dy, R = nucReach(p, tg);
-    if (ex * ex + ey * ey < R * R) { if (neutronHit(p, tg, Math.hypot(ex, ey), R)) break; }
   }
   if (p.dead) return;
   p.x += p.vx * dt; p.y += p.vy * dt;
@@ -5164,6 +5242,7 @@ function stepPlain(dt) {
   const kT = PHYS.KB * W.T, c1 = Math.exp(-W.gamma * dt), c2 = Math.sqrt(Math.max(0, 1 - c1 * c1));
   let nRad = 0;
   if (!_skipOk || _nrN > 0 || _nrId !== W.nextId || _nrFlag !== _flagGen || _nrZ !== _zGen) { // (no neutron and no light: nothing to move here)
+    neutronPairs(dt, id0);
     const PI = partsSync(), n = W.parts.length, DEAD = S.dead, ID = S.id, K = S.k, Z = S.Z, RAD = S.rad, OBJ = S.obj, X = S.x, Y = S.y, OX = S.ox, OY = S.oy;
     for (let j = 0; j < n; j++) {
       const i = PI[j];
