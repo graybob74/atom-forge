@@ -1466,7 +1466,7 @@ function qSnap(q) {
   renderInspect();
 }
 /* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
-const XP_NAME = { muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
+const XP_NAME = { Mu: 'Muonium (an electron orbiting a μ⁺: a light hydrogen)', muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
   K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau',
   'Sig+': 'Positive sigma baryon', 'Sig-': 'Negative sigma baryon', Xi0: 'Neutral xi baryon', 'Xi-': 'Negative xi baryon', 'Omg-': 'Omega baryon',
   'Sigb-': 'Antisigma, negative', 'Sigb+': 'Antisigma, positive', Xib0: 'Neutral antixi', 'Xib+': 'Positive antixi', 'Omgb+': 'Antiomega',
@@ -1575,7 +1575,7 @@ function renderInspect() {
       + (p.Z > Z_TABLE ? ' · never made in any lab: its properties are predictions' : '');
     head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${A}</span><span class="s">${symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
       <div><div class="ins-title">${esc(title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
-    pills = `<span class="pill ${nuc.stable ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
+    pills = `<span class="pill ${nuc.stable || bareStable(nuc, p) ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
     if (!nuc.stable && nuc.modes.length) pills += `<span class="pill hot">${esc(nuc.modes.map(m => modeLabel(m.mode)).join(' / '))}</span>`;
     if (bareStable(nuc, p)) bareNote = `<p class="note">It decays only by pulling in one of its own electrons (electron capture), and it has none: stripped bare it cannot decay, as bare ⁷Be in storage rings does not. Give it an electron (right-click → Add electron) and its half-life applies again.</p>`;
     if (p.ne > 0 && p.cap - p.used > 0 && !el.dblock) pills += `<span class="pill em">radical: ${p.cap - p.used} free valence</span>`;
@@ -2710,7 +2710,7 @@ function syncLabText() {
   setTxt('spdVal', motionText());
   $('warpVal').textContent = !W.decayOn ? 'paused' : warpWords() === 'real' ? 'real rate' : warpWords();
   $('warpNote').textContent = !W.decayOn ? 'Paused: no nucleus decays until it is switched back on.'
-    : `Nuclei and unstable particles age ${fmtTime(decayPerSecond())} per second you watch${warpWords() === 'real' ? ', the same as everything else' : W.warp < 1 ? `, slower than everything else: they live ${fmtFactor(1 / W.warp)} longer than they really do, so they fly that much further` : ''}.` + (W.minShow ? ' The shortest-lived (resonances, π⁰, Σ⁰ …) are held until they have flown a few ångströms or a moment has passed: the same decays, only further along.' : '');
+    : `Nuclei and unstable particles age ${fmtTime(decayPerSecond()).replace(/ as$/, ' attoseconds')} per second you watch${warpWords() === 'real' ? ', the same as everything else' : W.warp < 1 ? `, slower than everything else: they live ${fmtFactor(1 / W.warp)} longer than they really do, so they fly that much further` : ''}.` + (W.minShow ? ' The shortest-lived (resonances, π⁰, Σ⁰ …) are held until they have flown a few ångströms or a moment has passed: the same decays, only further along.' : '');
   $('warpSlider').disabled = !W.decayOn;
 }
 

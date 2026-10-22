@@ -5081,8 +5081,10 @@ function pickLine(A, Eavail) {
   const L = LINES[A.el.sym]; if (!L) return null;
   let tot = 0; for (const l of L.l) tot += l[1];
   let u = rnd() * tot;
-  for (const l of L.l) { u -= l[1]; if (u <= 0) return { nm: l[0], thr: L.thr }; }
-  return { nm: L.l[0][0], thr: L.thr };
+  // the line seen, and the rest of the cascade down to the ground state as one more photon (the excitation paid L.thr)
+  const rest = (nm) => Math.max(0, L.thr - PHYS.HC / nm);
+  for (const l of L.l) { u -= l[1]; if (u <= 0) return { nm: l[0], thr: L.thr, extraUV: rest(l[0]) }; }
+  return { nm: L.l[0][0], thr: L.thr, extraUV: rest(L.l[0][0]) };
 }
 function emitLineFrom(A, ln) {
   const E = PHYS.HC / ln.nm;
@@ -5741,7 +5743,7 @@ function neutronHit(n, T, b, R) {
   if (opp(T, n)) { nuclearAnnihilation(T, n); return true; }
   if (n.rad || T.rad) { // fast (either of them): relativistic kinematics. Spallation, fission, … or diffraction; two nucleons below ~20 MeV scatter isotropically (s-wave)
     if (nuclearEncounter(n, T, R > 0 ? clamp((b || 0) / R, 0, 1) : rnd(), T.x, T.y)) return true;
-    if (!n.dead && !T.dead && T.Z + T.N === 1) { elasticTurn(n, T, (2 * rnd() - 1) * Math.PI); return true; }
+    if (!n.dead && !T.dead && T.Z + T.N === 1 && mass4(add4(p4of(n, true), p4of(T, true))) - nucMeV(n.Z, n.N) - nucMeV(T.Z, T.N) < 20) { elasticTurn(n, T, (2 * rnd() - 1) * Math.PI); return true; } // (below ~20 MeV, where the tables have no nucleon–nucleon elastic)
     return false;
   }
   const [tvx, tvy] = velOf(T);
@@ -6076,42 +6078,48 @@ function relTargets(x, y, vx, vy, dt, R, filter) {
   if (_hits.length > 1) _hits.sort((a, b) => a[0] - b[0]);
   return _hits;
 }
-/* Free neutrons among themselves and with fast nuclei (neither is in the grid): every pair that comes within reach in
-   this step, by the closest approach of the two paths, found by sorting the paths' x-extents (a sweep), so two
-   neutrons, or a fast proton and a neutron at rest, meet whichever of them moves. Each pair meets once per pass
-   (p.nHit: the last one met, while they are still within reach). */
-const _nnL = [], _nnBox = [];
+/* Free neutrons among themselves and with fast nuclei (neither is in the grid): every pair with a neutron in it that
+   comes within reach in this step, by the closest approach of the two paths, so two neutrons, or a fast proton and a
+   neutron at rest, meet whichever of them moves. Each pair meets once per pass (p.nHit: the last one met, while they
+   are still within reach). Found by a sweep over the paths' x-extents, so a crowd of neutrons costs n log n. */
+const _nnL = [];
+let _nnLo = new Float64Array(256), _nnHi = new Float64Array(256), _nnVx = new Float64Array(256), _nnVy = new Float64Array(256), _nnO = [];
 let _nnPrev = 1, _nnSp = -1; // (free neutrons moved last step, and the spawn count then: none, and nothing new since, means nothing to look for)
+function nnMeet(i, j, dt) { // the closest approach of the two paths this step; if within reach, they meet (once per pass)
+  const a = _nnL[i], b = _nnL[j];
+  if (a.dead || b.dead) return;
+  const rx = b.x - a.x, ry = b.y - a.y, dx = (_nnVx[j] - _nnVx[i]) * dt, dy = (_nnVy[j] - _nnVy[i]) * dt;
+  if (Math.abs(ry) > 1 + Math.abs(dy)) return; // (nowhere near this step: no reach is an ångström)
+  const R = nucReach(a, b), L2 = dx * dx + dy * dy, t = L2 > 0 ? clamp(-(rx * dx + ry * dy) / L2, 0, 1) : 0, bb = Math.hypot(rx + t * dx, ry + t * dy);
+  if (bb >= R || sameEv(a, b)) return;
+  if ((a.nHit === b.id || b.nHit === a.id) && Math.hypot(rx, ry) < R) return; // (just met: one pass, one encounter)
+  a.nHit = b.id; b.nHit = a.id;
+  if (a.Z === 0) neutronHit(a, b, bb, R); else neutronHit(b, a, bb, R);
+}
 function neutronPairs(dt, id0) {
   if (_nnPrev === 0 && _nnSp === W.spawned) return;
-  _nnSp = W.spawned;
-  _nnL.length = 0; let nN = 0;
+  _nnSp = W.spawned; _nnL.length = 0; let nN = 0;
   for (const p of W.parts) {
     if (p.dead || p.k !== NUC || p.id >= id0) continue;
     if (p.Z === 0 && p.N > 0) { _nnL.push(p); nN++; } else if (p.Z > 0 && (p.rad || p.fast)) _nnL.push(p);
   }
   _nnPrev = nN;
-  if (!nN || _nnL.length < 2) return;
   const n = _nnL.length;
+  if (!nN || n < 2) return;
+  if (_nnLo.length < n) { const m = 2 * n; _nnLo = new Float64Array(m); _nnHi = new Float64Array(m); _nnVx = new Float64Array(m); _nnVy = new Float64Array(m); }
   for (let i = 0; i < n; i++) {
-    const p = _nnL[i], vx = velOf(p)[0], x1 = p.x + vx * dt;
-    _nnBox[i] = [Math.min(p.x, x1) - R_NN, Math.max(p.x, x1) + R_NN, i];
+    const p = _nnL[i], vx = p.rad ? p.sp * p.ux : p.vx, vy = p.rad ? p.sp * p.uy : p.vy, x1 = p.x + vx * dt;
+    _nnVx[i] = vx; _nnVy[i] = vy; _nnLo[i] = Math.min(p.x, x1) - 0.5; _nnHi[i] = Math.max(p.x, x1) + 0.5; // (half an ångström each side: more than any reach)
   }
-  _nnBox.length = n; _nnBox.sort((a, b) => a[0] - b[0]);
+  // a sweep along x: each path's extent against those starting before it ends; only pairs with a neutron in them
+  _nnO.length = n; for (let i = 0; i < n; i++) _nnO[i] = i;
+  _nnO.sort((a, b) => _nnLo[a] - _nnLo[b]);
   for (let ii = 0; ii < n; ii++) {
-    const [, hi, i] = _nnBox[ii], a = _nnL[i];
-    for (let jj = ii + 1; jj < n && _nnBox[jj][0] <= hi; jj++) {
-      const b = _nnL[_nnBox[jj][2]];
-      if (a.dead) break;
-      if (b.dead || (a.Z > 0 && b.Z > 0) || sameEv(a, b)) continue; // (two charged nuclei: the usual paths)
-      const R = nucReach(a, b), [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
-      const rx = b.x - a.x, ry = b.y - a.y, dx = (bvx - avx) * dt, dy = (bvy - avy) * dt, L2 = dx * dx + dy * dy;
-      const t = L2 > 0 ? clamp(-(rx * dx + ry * dy) / L2, 0, 1) : 0, cx = rx + t * dx, cy = ry + t * dy, bb = Math.hypot(cx, cy);
-      if (bb >= R) continue;
-      if ((a.nHit === b.id || b.nHit === a.id) && Math.hypot(rx, ry) < R) continue; // (just met: one pass, one encounter)
-      const nu = a.Z === 0 ? a : b, T = nu === a ? b : a;
-      a.nHit = b.id; b.nHit = a.id;
-      neutronHit(nu, T, bb, R);
+    const i = _nnO[ii], hi = _nnHi[i], ni = _nnL[i].Z === 0;
+    for (let jj = ii + 1; jj < n; jj++) {
+      const j = _nnO[jj];
+      if (_nnLo[j] > hi) break;
+      if (ni || _nnL[j].Z === 0) nnMeet(i, j, dt);
     }
   }
 }
@@ -8769,6 +8777,8 @@ function exoOut(outs, Pin, sN, Ex, items, moms) {
   if (Mres) residualInto(sN.Zr, sN.Nr, Mres, toLab(vs[vs.length - 1], bx, by), false, items, moms);
   return true;
 }
+/* What was hit, for captions: the nucleus, and the molecule it is in when it is in one (¹⁶O in H₂O). */
+function hitLabel(tg) { const m = tg.bonds && tg.bonds.length ? speciesLabel(tg) : ''; const n = tg.ne ? nucSymA(tg.Z, tg.N, tg.anti) : speciesLabel(tg); return m && m !== n ? `${n} in ${m}` : n; }
 /* The struck atom's electrons stay with what is left of it (the heaviest nucleus made), as in a real atom whose
    nucleus reacts, up to its new charge; any over go free. */
 function keepElectrons(items, moms, ne) {
@@ -8781,7 +8791,7 @@ function hadronHit(o, tg, u) {
   if (u > Math.sqrt(HIT_INEL) || d.hyp || tg.Z + tg.N < 1) return exoElastic(o, tg);
   const con = Q_CONTENT[o.sp], qs = [...con], nS = qs.filter(c => c === 's').length - qs.filter(c => c === 'S').length; // (s quarks less s̄ antiquarks: minus the strangeness)
   const baryon = qs.length === 3, anti = baryon && qs[0] === qs[0].toUpperCase(), Po = exoP4(o);
-  const items = [], moms = [], x = tg.x, y = tg.y, el = speciesLabel(tg), Tq = o.KE / MEV;
+  const items = [], moms = [], x = tg.x, y = tg.y, el = hitLabel(tg), Tq = o.KE / MEV;
   let txt = '', sub = '', ok = false;
   for (let tries = 0; tries < 4 && !ok; tries++) {
     items.length = 0; moms.length = 0;
@@ -8866,7 +8876,7 @@ function photoNuclear(p, E, ux, uy) {
   const Eg = E / MEV, P = add4(p4of(p, true), [Eg, Eg * ux, Eg * uy]), Ms = mass4(P), items = [], moms = [];
   compoundDecay(p.Z, p.N, Ms, P, false, items, moms, 0);
   if (!items.some(it => it.t === 'A' && it.Z + it.N === 1)) return false; // (below its threshold: no nucleon free)
-  const x = p.x, y = p.y, el = speciesLabel(p), gh = [ghostOf(p)];
+  const x = p.x, y = p.y, el = hitLabel(p), gh = [ghostOf(p)];
   keepElectrons(items, moms, p.ne);
   const S = nucBegin([p]); kill(p);
   const made = spawnItems(items, moms, x, y);
@@ -8884,7 +8894,7 @@ function hStop(o) {
   let tg = null, bd = 16;
   nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
   if (!tg) return false;
-  const el = speciesLabel(tg), x = tg.x, y = tg.y, items = [], moms = [], Po = exoP4(o);
+  const el = hitLabel(tg), x = tg.x, y = tg.y, items = [], moms = [], Po = exoP4(o);
   let txt = '', sub = '';
   for (let tries = 0; tries < 4 && !txt; tries++) {
     items.length = 0; moms.length = 0;
@@ -16065,7 +16075,7 @@ function qSnap(q) {
   renderInspect();
 }
 /* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
-const XP_NAME = { muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
+const XP_NAME = { Mu: 'Muonium (an electron orbiting a μ⁺: a light hydrogen)', muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
   K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau',
   'Sig+': 'Positive sigma baryon', 'Sig-': 'Negative sigma baryon', Xi0: 'Neutral xi baryon', 'Xi-': 'Negative xi baryon', 'Omg-': 'Omega baryon',
   'Sigb-': 'Antisigma, negative', 'Sigb+': 'Antisigma, positive', Xib0: 'Neutral antixi', 'Xib+': 'Positive antixi', 'Omgb+': 'Antiomega',
@@ -16174,7 +16184,7 @@ function renderInspect() {
       + (p.Z > Z_TABLE ? ' · never made in any lab: its properties are predictions' : '');
     head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${A}</span><span class="s">${symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
       <div><div class="ins-title">${esc(title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
-    pills = `<span class="pill ${nuc.stable ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
+    pills = `<span class="pill ${nuc.stable || bareStable(nuc, p) ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
     if (!nuc.stable && nuc.modes.length) pills += `<span class="pill hot">${esc(nuc.modes.map(m => modeLabel(m.mode)).join(' / '))}</span>`;
     if (bareStable(nuc, p)) bareNote = `<p class="note">It decays only by pulling in one of its own electrons (electron capture), and it has none: stripped bare it cannot decay, as bare ⁷Be in storage rings does not. Give it an electron (right-click → Add electron) and its half-life applies again.</p>`;
     if (p.ne > 0 && p.cap - p.used > 0 && !el.dblock) pills += `<span class="pill em">radical: ${p.cap - p.used} free valence</span>`;
@@ -17309,7 +17319,7 @@ function syncLabText() {
   setTxt('spdVal', motionText());
   $('warpVal').textContent = !W.decayOn ? 'paused' : warpWords() === 'real' ? 'real rate' : warpWords();
   $('warpNote').textContent = !W.decayOn ? 'Paused: no nucleus decays until it is switched back on.'
-    : `Nuclei and unstable particles age ${fmtTime(decayPerSecond())} per second you watch${warpWords() === 'real' ? ', the same as everything else' : W.warp < 1 ? `, slower than everything else: they live ${fmtFactor(1 / W.warp)} longer than they really do, so they fly that much further` : ''}.` + (W.minShow ? ' The shortest-lived (resonances, π⁰, Σ⁰ …) are held until they have flown a few ångströms or a moment has passed: the same decays, only further along.' : '');
+    : `Nuclei and unstable particles age ${fmtTime(decayPerSecond()).replace(/ as$/, ' attoseconds')} per second you watch${warpWords() === 'real' ? ', the same as everything else' : W.warp < 1 ? `, slower than everything else: they live ${fmtFactor(1 / W.warp)} longer than they really do, so they fly that much further` : ''}.` + (W.minShow ? ' The shortest-lived (resonances, π⁰, Σ⁰ …) are held until they have flown a few ångströms or a moment has passed: the same decays, only further along.' : '');
   $('warpSlider').disabled = !W.decayOn;
 }
 

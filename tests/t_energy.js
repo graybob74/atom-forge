@@ -38,7 +38,10 @@ function runPreset(k, seed) {
 const CHAOTIC = new Set(['chain', 'antihydrogen', 'annihilation']);
 /* (annihilation, 0.62: the pions now meet the droplet's nuclei, and the fragments they knock out ionize the water
    heavily; water ionized that much drifts by keV over a run (0.61 drifted 60 keV with proton beams through it), though
-   each nuclear event's books are exact (t_features). Its limit is 5 keV of the 1.7 GeV released, about 3 parts per million.) */
+   each nuclear event's books are exact (t_features). 0.63 fixed the biggest leak found in ionized water (electron-
+   impact excitation lines without the rest of their cascade): seeds 7–9 then drift 0.5, 41 (a chaotic outlier) and
+   0.5 keV. Smaller leaks remain. Its limit is 5 keV of the 1.7 GeV released, about 3 parts per million, judged on the
+   median of three seeds.) */
 for (const k of keys) {
   if (SKIP[k]) { rows.push(`${k.padEnd(13)} skipped: ${SKIP[k]}`); continue; }
   let r = runPreset(k, 7), note = '';

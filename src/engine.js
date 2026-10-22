@@ -2823,8 +2823,10 @@ function pickLine(A, Eavail) {
   const L = LINES[A.el.sym]; if (!L) return null;
   let tot = 0; for (const l of L.l) tot += l[1];
   let u = rnd() * tot;
-  for (const l of L.l) { u -= l[1]; if (u <= 0) return { nm: l[0], thr: L.thr }; }
-  return { nm: L.l[0][0], thr: L.thr };
+  // the line seen, and the rest of the cascade down to the ground state as one more photon (the excitation paid L.thr)
+  const rest = (nm) => Math.max(0, L.thr - PHYS.HC / nm);
+  for (const l of L.l) { u -= l[1]; if (u <= 0) return { nm: l[0], thr: L.thr, extraUV: rest(l[0]) }; }
+  return { nm: L.l[0][0], thr: L.thr, extraUV: rest(L.l[0][0]) };
 }
 function emitLineFrom(A, ln) {
   const E = PHYS.HC / ln.nm;
@@ -3483,7 +3485,7 @@ function neutronHit(n, T, b, R) {
   if (opp(T, n)) { nuclearAnnihilation(T, n); return true; }
   if (n.rad || T.rad) { // fast (either of them): relativistic kinematics. Spallation, fission, … or diffraction; two nucleons below ~20 MeV scatter isotropically (s-wave)
     if (nuclearEncounter(n, T, R > 0 ? clamp((b || 0) / R, 0, 1) : rnd(), T.x, T.y)) return true;
-    if (!n.dead && !T.dead && T.Z + T.N === 1) { elasticTurn(n, T, (2 * rnd() - 1) * Math.PI); return true; }
+    if (!n.dead && !T.dead && T.Z + T.N === 1 && mass4(add4(p4of(n, true), p4of(T, true))) - nucMeV(n.Z, n.N) - nucMeV(T.Z, T.N) < 20) { elasticTurn(n, T, (2 * rnd() - 1) * Math.PI); return true; } // (below ~20 MeV, where the tables have no nucleon–nucleon elastic)
     return false;
   }
   const [tvx, tvy] = velOf(T);
@@ -3818,42 +3820,48 @@ function relTargets(x, y, vx, vy, dt, R, filter) {
   if (_hits.length > 1) _hits.sort((a, b) => a[0] - b[0]);
   return _hits;
 }
-/* Free neutrons among themselves and with fast nuclei (neither is in the grid): every pair that comes within reach in
-   this step, by the closest approach of the two paths, found by sorting the paths' x-extents (a sweep), so two
-   neutrons, or a fast proton and a neutron at rest, meet whichever of them moves. Each pair meets once per pass
-   (p.nHit: the last one met, while they are still within reach). */
-const _nnL = [], _nnBox = [];
+/* Free neutrons among themselves and with fast nuclei (neither is in the grid): every pair with a neutron in it that
+   comes within reach in this step, by the closest approach of the two paths, so two neutrons, or a fast proton and a
+   neutron at rest, meet whichever of them moves. Each pair meets once per pass (p.nHit: the last one met, while they
+   are still within reach). Found by a sweep over the paths' x-extents, so a crowd of neutrons costs n log n. */
+const _nnL = [];
+let _nnLo = new Float64Array(256), _nnHi = new Float64Array(256), _nnVx = new Float64Array(256), _nnVy = new Float64Array(256), _nnO = [];
 let _nnPrev = 1, _nnSp = -1; // (free neutrons moved last step, and the spawn count then: none, and nothing new since, means nothing to look for)
+function nnMeet(i, j, dt) { // the closest approach of the two paths this step; if within reach, they meet (once per pass)
+  const a = _nnL[i], b = _nnL[j];
+  if (a.dead || b.dead) return;
+  const rx = b.x - a.x, ry = b.y - a.y, dx = (_nnVx[j] - _nnVx[i]) * dt, dy = (_nnVy[j] - _nnVy[i]) * dt;
+  if (Math.abs(ry) > 1 + Math.abs(dy)) return; // (nowhere near this step: no reach is an ångström)
+  const R = nucReach(a, b), L2 = dx * dx + dy * dy, t = L2 > 0 ? clamp(-(rx * dx + ry * dy) / L2, 0, 1) : 0, bb = Math.hypot(rx + t * dx, ry + t * dy);
+  if (bb >= R || sameEv(a, b)) return;
+  if ((a.nHit === b.id || b.nHit === a.id) && Math.hypot(rx, ry) < R) return; // (just met: one pass, one encounter)
+  a.nHit = b.id; b.nHit = a.id;
+  if (a.Z === 0) neutronHit(a, b, bb, R); else neutronHit(b, a, bb, R);
+}
 function neutronPairs(dt, id0) {
   if (_nnPrev === 0 && _nnSp === W.spawned) return;
-  _nnSp = W.spawned;
-  _nnL.length = 0; let nN = 0;
+  _nnSp = W.spawned; _nnL.length = 0; let nN = 0;
   for (const p of W.parts) {
     if (p.dead || p.k !== NUC || p.id >= id0) continue;
     if (p.Z === 0 && p.N > 0) { _nnL.push(p); nN++; } else if (p.Z > 0 && (p.rad || p.fast)) _nnL.push(p);
   }
   _nnPrev = nN;
-  if (!nN || _nnL.length < 2) return;
   const n = _nnL.length;
+  if (!nN || n < 2) return;
+  if (_nnLo.length < n) { const m = 2 * n; _nnLo = new Float64Array(m); _nnHi = new Float64Array(m); _nnVx = new Float64Array(m); _nnVy = new Float64Array(m); }
   for (let i = 0; i < n; i++) {
-    const p = _nnL[i], vx = velOf(p)[0], x1 = p.x + vx * dt;
-    _nnBox[i] = [Math.min(p.x, x1) - R_NN, Math.max(p.x, x1) + R_NN, i];
+    const p = _nnL[i], vx = p.rad ? p.sp * p.ux : p.vx, vy = p.rad ? p.sp * p.uy : p.vy, x1 = p.x + vx * dt;
+    _nnVx[i] = vx; _nnVy[i] = vy; _nnLo[i] = Math.min(p.x, x1) - 0.5; _nnHi[i] = Math.max(p.x, x1) + 0.5; // (half an ångström each side: more than any reach)
   }
-  _nnBox.length = n; _nnBox.sort((a, b) => a[0] - b[0]);
+  // a sweep along x: each path's extent against those starting before it ends; only pairs with a neutron in them
+  _nnO.length = n; for (let i = 0; i < n; i++) _nnO[i] = i;
+  _nnO.sort((a, b) => _nnLo[a] - _nnLo[b]);
   for (let ii = 0; ii < n; ii++) {
-    const [, hi, i] = _nnBox[ii], a = _nnL[i];
-    for (let jj = ii + 1; jj < n && _nnBox[jj][0] <= hi; jj++) {
-      const b = _nnL[_nnBox[jj][2]];
-      if (a.dead) break;
-      if (b.dead || (a.Z > 0 && b.Z > 0) || sameEv(a, b)) continue; // (two charged nuclei: the usual paths)
-      const R = nucReach(a, b), [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
-      const rx = b.x - a.x, ry = b.y - a.y, dx = (bvx - avx) * dt, dy = (bvy - avy) * dt, L2 = dx * dx + dy * dy;
-      const t = L2 > 0 ? clamp(-(rx * dx + ry * dy) / L2, 0, 1) : 0, cx = rx + t * dx, cy = ry + t * dy, bb = Math.hypot(cx, cy);
-      if (bb >= R) continue;
-      if ((a.nHit === b.id || b.nHit === a.id) && Math.hypot(rx, ry) < R) continue; // (just met: one pass, one encounter)
-      const nu = a.Z === 0 ? a : b, T = nu === a ? b : a;
-      a.nHit = b.id; b.nHit = a.id;
-      neutronHit(nu, T, bb, R);
+    const i = _nnO[ii], hi = _nnHi[i], ni = _nnL[i].Z === 0;
+    for (let jj = ii + 1; jj < n; jj++) {
+      const j = _nnO[jj];
+      if (_nnLo[j] > hi) break;
+      if (ni || _nnL[j].Z === 0) nnMeet(i, j, dt);
     }
   }
 }

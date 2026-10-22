@@ -291,6 +291,8 @@ function exoOut(outs, Pin, sN, Ex, items, moms) {
   if (Mres) residualInto(sN.Zr, sN.Nr, Mres, toLab(vs[vs.length - 1], bx, by), false, items, moms);
   return true;
 }
+/* What was hit, for captions: the nucleus, and the molecule it is in when it is in one (¹⁶O in H₂O). */
+function hitLabel(tg) { const m = tg.bonds && tg.bonds.length ? speciesLabel(tg) : ''; const n = tg.ne ? nucSymA(tg.Z, tg.N, tg.anti) : speciesLabel(tg); return m && m !== n ? `${n} in ${m}` : n; }
 /* The struck atom's electrons stay with what is left of it (the heaviest nucleus made), as in a real atom whose
    nucleus reacts, up to its new charge; any over go free. */
 function keepElectrons(items, moms, ne) {
@@ -303,7 +305,7 @@ function hadronHit(o, tg, u) {
   if (u > Math.sqrt(HIT_INEL) || d.hyp || tg.Z + tg.N < 1) return exoElastic(o, tg);
   const con = Q_CONTENT[o.sp], qs = [...con], nS = qs.filter(c => c === 's').length - qs.filter(c => c === 'S').length; // (s quarks less s̄ antiquarks: minus the strangeness)
   const baryon = qs.length === 3, anti = baryon && qs[0] === qs[0].toUpperCase(), Po = exoP4(o);
-  const items = [], moms = [], x = tg.x, y = tg.y, el = speciesLabel(tg), Tq = o.KE / MEV;
+  const items = [], moms = [], x = tg.x, y = tg.y, el = hitLabel(tg), Tq = o.KE / MEV;
   let txt = '', sub = '', ok = false;
   for (let tries = 0; tries < 4 && !ok; tries++) {
     items.length = 0; moms.length = 0;
@@ -388,7 +390,7 @@ function photoNuclear(p, E, ux, uy) {
   const Eg = E / MEV, P = add4(p4of(p, true), [Eg, Eg * ux, Eg * uy]), Ms = mass4(P), items = [], moms = [];
   compoundDecay(p.Z, p.N, Ms, P, false, items, moms, 0);
   if (!items.some(it => it.t === 'A' && it.Z + it.N === 1)) return false; // (below its threshold: no nucleon free)
-  const x = p.x, y = p.y, el = speciesLabel(p), gh = [ghostOf(p)];
+  const x = p.x, y = p.y, el = hitLabel(p), gh = [ghostOf(p)];
   keepElectrons(items, moms, p.ne);
   const S = nucBegin([p]); kill(p);
   const made = spawnItems(items, moms, x, y);
@@ -406,7 +408,7 @@ function hStop(o) {
   let tg = null, bd = 16;
   nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
   if (!tg) return false;
-  const el = speciesLabel(tg), x = tg.x, y = tg.y, items = [], moms = [], Po = exoP4(o);
+  const el = hitLabel(tg), x = tg.x, y = tg.y, items = [], moms = [], Po = exoP4(o);
   let txt = '', sub = '';
   for (let tries = 0; tries < 4 && !txt; tries++) {
     items.length = 0; moms.length = 0;
