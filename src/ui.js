@@ -38,6 +38,8 @@ const QUICK = [
 function sameSpec(a, b) {
   if (!a || !b || a.kind !== b.kind) return false;
   if (a.kind === 'mol') return a.mol === b.mol;
+  if (a.kind === 'exo') return a.sp === b.sp;
+  if (a.kind === 'nu') return !!a.anti === !!b.anti && (a.fl || 'e') === (b.fl || 'e');
   if (a.kind === 'atom') return a.Z === b.Z && a.A === b.A && !!a.bare === !!b.bare && !!a.anti === !!b.anti && (a.charge || 0) === (b.charge || 0);
   return true;
 }
@@ -49,6 +51,8 @@ function specLabel(s) {
     case 'nbar': return 'n̄';
     case 'n': return 'n';
     case 'gamma': return 'γ';
+    case 'exo': return XP[s.sp].lab;
+    case 'nu': return nuLab(s.anti, s.fl);
     case 'mol': return isoFormula(MOLECULES[s.mol].atoms.map(a => ({ el: ELEMENTS[SYM2Z[a[0]]], q: a[3] || 0, A: a[4] || 0 })));
     case 'atom': {
       if (s.bare) {
@@ -70,7 +74,9 @@ function specName(s) {
     case 'pbar': return 'Antiproton';
     case 'nbar': return 'Antineutron';
     case 'n': return 'Neutron';
-    case 'gamma': return 'Gamma ray';
+    case 'gamma': return 'Photon (light, X-ray or γ ray)';
+    case 'exo': return XP_NAME[s.sp] || PART_NAMES[s.sp] || XP[s.sp].lab;
+    case 'nu': return ({ e: 'Electron ', mu: 'Muon ', tau: 'Tau ' })[s.fl || 'e'] + (s.anti ? 'antineutrino' : 'neutrino');
     case 'mol': return MOLECULES[s.mol].name;
     case 'atom': {
       const el = ELEMENTS[s.Z];
@@ -88,6 +94,7 @@ function specName(s) {
 function specColor(s) {
   switch (s.kind) {
     case 'e': return E_COL; case 'pos': return POS_COL; case 'n': return N_COL; case 'gamma': return '#c9a7ff';
+    case 'exo': return `rgb(${XP[s.sp].col.join(',')})`; case 'nu': return 'rgb(120,255,170)';
     case 'pbar': return PBAR_COL;
     case 'nbar': return NBAR_COL;
     case 'mol': return ELEMENTS[SYM2Z[MOLECULES[s.mol].atoms[0][0]]].color;
@@ -142,7 +149,7 @@ const TOOLS = [
   { id: 'inspect', name: 'Inspect', key: 'I', help: 'Click a particle to see its physics in the Inspect tab. Right-click anything in the chamber for a quick menu.' },
 ];
 const OPT = {
-  place: { count: 1 },
+  place: { count: 1, Es: 600 },
   grab: { mol: true, s: 'strong' },
   select: { whole: true },
   pull: { mode: 'pull', R: 10, s: 100 },
@@ -197,11 +204,37 @@ function setTool(id) {
 }
 
 /* ------------------------------------------------------------------ palette */
+/* Every particle, by kind (the menus at the start of the palette): each opens a list of its members. */
+const PCATS = [
+  ['Leptons', [{ kind: 'e' }, { kind: 'pos' }, { kind: 'exo', sp: 'mu-' }, { kind: 'exo', sp: 'mu+' }, { kind: 'exo', sp: 'tau-' }, { kind: 'exo', sp: 'tau+' }]],
+  ['Neutrinos', ['e', 'mu', 'tau'].flatMap(fl => [{ kind: 'nu', fl }, { kind: 'nu', fl, anti: true }])],
+  ['Nucleons', [SPEC_P, { kind: 'n' }, SPEC_PBAR, SPEC_NBAR]],
+  ['Light nuclei', [{ kind: 'atom', Z: 1, A: 2, bare: true }, { kind: 'atom', Z: 1, A: 3, bare: true }, { kind: 'atom', Z: 2, A: 3, bare: true }, SPEC_ALPHA, 'pt']],
+  ['Mesons', ['pi+', 'pi-', 'pi0', 'K+', 'K-', 'K0S', 'K0L', 'eta'].map(sp => ({ kind: 'exo', sp }))],
+  ['Baryons', ['Lam', 'Lamb', 'Sig+', 'Sig-', 'Xi0', 'Xi-', 'Omg-', 'Sigb-', 'Sigb+', 'Xib0', 'Xib+', 'Omgb+'].map(sp => ({ kind: 'exo', sp }))],
+  ['Resonances', ['rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm'].map(sp => ({ kind: 'exo', sp }))],
+  ['Light', [{ kind: 'gamma' }]],
+  ['Antimatter', [{ kind: 'pos' }, SPEC_PBAR, SPEC_NBAR, SPEC_HBAR, { kind: 'atom', Z: 1, A: 2, bare: true, anti: true }, { kind: 'atom', Z: 2, A: 4, bare: true, anti: true }, 'pt']],
+  ['Exotic atoms', ['muP', 'muD', 'muT'].map(sp => ({ kind: 'exo', sp }))],
+];
+function pmenuOpen(ci, btn) {
+  const m = $('pmenu'), [name, list] = PCATS[ci];
+  if (!m.hidden && m.dataset.ci === String(ci)) { pmenuClose(); return; }
+  m.dataset.ci = String(ci);
+  m.innerHTML = `<div class="pm-h">${esc(name)}</div>` + list.map((sp, k) => sp === 'pt'
+    ? `<button class="pm-i more" data-k="pt">Any nucleus, any isotope… <span>Elements</span></button>`
+    : `<button class="pm-i" data-k="${k}" aria-pressed="${sameSpec(sp, UI.spec)}"><span class="sw" style="background:${specColor(sp)}"></span><b>${esc(specLabel(sp))}</b><span>${esc(specName(sp))}</span></button>`).join('');
+  const r = btn.getBoundingClientRect(), st = $('stage').getBoundingClientRect(), ui = SET.ui || 1;
+  m.hidden = false; m.style.left = Math.max(4, Math.min((r.left - st.left) / ui, (st.width / ui) - m.offsetWidth - 4)) + 'px'; m.style.top = ((r.bottom - st.top) / ui + 4) + 'px';
+  for (const b of document.querySelectorAll('#palette .cat')) b.setAttribute('aria-expanded', String(b === btn));
+  m.onclick = (e) => { const b = e.target.closest('.pm-i'); if (!b) return; pmenuClose(); if (b.dataset.k === 'pt') { openPT(); return; } selectSpec(list[+b.dataset.k]); };
+}
+function pmenuClose() { const m = $('pmenu'); if (m) m.hidden = true; for (const b of document.querySelectorAll('#palette .cat')) b.setAttribute('aria-expanded', 'false'); }
 function buildPalette() {
   const pal = $('palette');
   const items = QUICK.slice();
   if (UI.customSpec && !QUICK.some(q => q !== 'sep' && sameSpec(q.spec, UI.customSpec))) items.push('sep', { spec: UI.customSpec });
-  let html = '';
+  let html = PCATS.map(([name, list], ci) => `<button class="chip cat" data-ci="${ci}" aria-haspopup="menu" aria-expanded="false" title="${esc(name)}: ${esc(list.filter(x => x !== 'pt').map(specLabel).join(' '))}">${esc(name)} ▾</button>`).join('') + '<span class="sep" aria-hidden="true"></span>';
   items.forEach((q, i) => {
     if (q === 'sep') { html += '<span class="sep" aria-hidden="true"></span>'; return; }
     const s = q.spec, col = q.color || specColor(s), lab = q.label || specLabel(s);
@@ -210,6 +243,7 @@ function buildPalette() {
   pal.innerHTML = html;
   placeHint();
   pal.onclick = (e) => {
+    const c = e.target.closest('.cat'); if (c) { pmenuOpen(+c.dataset.ci, c); return; }
     const b = e.target.closest('.chip'); if (!b) return;
     const q = items[+b.dataset.i]; if (q && q !== 'sep') selectSpec(q.spec);
   };
@@ -380,6 +414,13 @@ function buildToolOpts() {
   let h = '';
   switch (t) {
     case 'place':
+      if (FLY_KINDS.has(sp.kind)) { // (not an atom: an energy for light and neutrinos, a lifetime for the rest)
+        const d = sp.kind === 'exo' ? XP[sp.sp] : null;
+        h = `<span class="lbl">Placing</span><span><span class="swatch" style="background:${specColor(sp)}"></span> <b>${esc(specLabel(sp))}</b> <span class="help">${esc(specName(sp))}</span></span>` +
+          (d ? `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']], o.count)}</span><span class="help">${d.res ? `made at rest; a resonance: it decays at once (${fmtTime(d.tau)}), into ${d.dec.map(([, ps]) => ps.map(t => labelOf(item(t))).join(' ')).slice(0, 3).join(', or ')}` : `made at rest; it decays where it is, on its mean life of ${fmtTime(d.tau)}${d.tau > 1e-12 ? ' (Lab → Decay speed to see it)' : ''}`}</span>`
+            : rangeCtl('oPE', 'Energy', 0, 900, o.Es, fmtE(placeE())) + `<span class="help">${sp.kind === 'gamma' ? 'it leaves the click in a random direction at c' : 'it leaves the click at c and goes through everything (as neutrinos do)'}</span>`);
+        break;
+      }
       h = `<span class="lbl">Placing</span><span><span class="swatch" style="background:${specColor(sp)}"></span> <b>${esc(specLabel(sp))}</b> <span class="help">${esc(specName(sp))}</span></span>
         ${savedIsoHTML()}${isoPickerHTML(sp)}${isObject(sp) ? `<span class="help">${MOLECULES[sp.mol].atoms.length} atoms, one per click; the box opens up if it is too small. It warms to the bath temperature, so keep that near room temperature (Lab tab) or it falls apart, as it would in a flame.</span>`
           : `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']].concat(MAX_PARTS >= 8000 ? [[100, '100']] : []), o.count)}</span><span class="help">at the bath temperature</span>`}`;
@@ -472,6 +513,7 @@ function buildToolOpts() {
       case 'oR': o.R = radR(t, v); out.textContent = fmtA(o.R); break;
       case 'oS': { o.s = v; out.textContent = fmtE(pullU()); $('oSword').textContent = `${pullWord(pullU())} at ${fmtT(W.T)}`;
         for (const b of el.querySelectorAll('[data-g="s"] .opt')) b.setAttribute('aria-pressed', String(+b.dataset.v === v)); break; }
+      case 'oPE': o.Es = v; out.textContent = fmtE(placeE()); break;
       case 'oKE': o.s = v; out.textContent = fmtE(fireKE()); { const n = $('oFireNote'); if (n) n.textContent = fireNote(fireSpecNow() || SPEC_P, fireKE()); } break;
       case 'oT': o.s = v; out.textContent = fmtT(heatT()); break;
       case 'oE': o.s = v; out.textContent = fmtE(sparkE()); break;
@@ -750,7 +792,9 @@ function placeObject(spec, x, y) {
   log('tool', `The box opened to ${fmtNum(W.box.w / 10, 3)} nm wide to make room for ${M.name}`);
   return ps;
 }
+const FLY_KINDS = new Set(['exo', 'nu', 'gamma']); // (unstable particles, neutrinos, light: not atoms; placed by placeFly)
 function placeSpec(spec, x, y, count) {
+  if (FLY_KINDS.has(spec.kind)) return placeFly(spec, x, y, count);
   if (isObject(spec)) return placeObject(spec, x, y);
   const out = [];
   const sz = specSize(spec);
@@ -761,6 +805,20 @@ function placeSpec(spec, x, y, count) {
     for (const p of ps) out.push(p);
   }
   return out;
+}
+/* Placing what is not an atom: an unstable particle is made nearly at rest (it decays where it is, on its own mean
+   life: Lab → Decay speed to see the slow ones go); light and neutrinos cannot be still, so they leave the click in a
+   random direction with the energy set (Place → Energy). */
+const placeE = () => Math.pow(10, OPT.place.Es / 100); // eV, 1 eV … 1 GeV
+function placeFly(spec, x, y, count) {
+  _evTag = 0;
+  for (let i = 0; i < count; i++) {
+    const [ux, uy] = rdir();
+    if (spec.kind === 'exo') { if (W.exo.length < MAX_EXO) addExo(spec.sp, x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), 0.03, ux, uy); }
+    else if (spec.kind === 'gamma') emitPhoton(x, y, placeE(), ux, uy, { travel: true });
+    else emitNeutrino(x, y, placeE(), ux, uy, !!spec.anti, 'placed by hand', spec.fl || 'e');
+  }
+  return [];
 }
 function brushFor(tool) {
   switch (tool) {
@@ -1400,7 +1458,9 @@ function qSnap(q) {
 const XP_NAME = { muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
   K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau',
   'Sig+': 'Positive sigma baryon', 'Sig-': 'Negative sigma baryon', Xi0: 'Neutral xi baryon', 'Xi-': 'Negative xi baryon', 'Omg-': 'Omega baryon',
-  'Sigb-': 'Antisigma, negative', 'Sigb+': 'Antisigma, positive', Xib0: 'Neutral antixi', 'Xib+': 'Positive antixi', 'Omgb+': 'Antiomega' };
+  'Sigb-': 'Antisigma, negative', 'Sigb+': 'Antisigma, positive', Xib0: 'Neutral antixi', 'Xib+': 'Positive antixi', 'Omgb+': 'Antiomega',
+  rho0: 'Neutral rho meson', 'rho+': 'Positive rho meson', 'rho-': 'Negative rho meson', omega: 'Omega meson', phi: 'Phi meson', 'Ks+': 'K-star, positive', 'Ks-': 'K-star, negative', Ks0: 'K-star, neutral', Ksb0: 'Anti-K-star, neutral',
+  Dpp: 'Delta++ baryon', Dp: 'Delta+ baryon', D0: 'Delta0 baryon', Dm: 'Delta− baryon', Dbmm: 'Anti-delta−−', Dbm: 'Anti-delta−', Db0: 'Anti-delta0', Dbp: 'Anti-delta+' };
 const XP_QUARKS = { 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄', 'Sig+': 'u u s', 'Sig-': 'd d s', Xi0: 'u s s', 'Xi-': 'd s s', 'Omg-': 's s s',
   'Sigb-': 'ū ū s̄', 'Sigb+': 'd̄ d̄ s̄', Xib0: 'ū s̄ s̄', 'Xib+': 'd̄ s̄ s̄', 'Omgb+': 's̄ s̄ s̄' };
 const XP_ABOUT = {
@@ -1441,7 +1501,7 @@ function selXHTML() {
   } else {
     const E = o.E, nu = X.kind === 'ray' && o.nu;
     if (nu) {
-      const el = /β|neutron|beta|capture|fusion/i.test(o.how || ''); /* (from nuclei: electron flavour; from a pion, kaon or muon decay it may be another, so just “neutrino”) */ title = (el ? 'Electron ' : '') + (o.anti ? 'antineutrino' : 'neutrino'); title = title[0].toUpperCase() + title.slice(1); sym = o.anti ? 'ν̄' : 'ν'; col = 'rgb(120,255,170)';
+      title = ({ e: 'Electron ', mu: 'Muon ', tau: 'Tau ' })[o.fl || 'e'] + (o.anti ? 'antineutrino' : 'neutrino'); sym = nuLab(o.anti, o.fl); col = 'rgb(120,255,170)';
       const lag = 0.8 * 0.8 / (2 * E * E); // (1 − v/c for a mass under 0.8 eV)
       kv.push(['Energy', fmtE(E)], ['Charge', '0'], ['Mass', 'under 0.8 eV/c² (not yet measured; a millionth of an electron’s)'], ['Speed', lag < 1e-6 ? `c, to within ${lag.toExponential(0)}` : fmtSpeed(PHYS.C * (1 - lag))]);
       if (o.how) kv.push(['Made by', o.how]);
@@ -1793,7 +1853,7 @@ function renderData() {
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
   drawSpec(); explainSync(); drawChain();
-  drawTChart(); drawEChart(m.T); drawGraph();
+  drawTChart(); drawEChart(m.T); drawGraph(); drawPairs();
   restoreScroll('tp-data');
 }
 /* What collisions, fusions, fissions, captures and decays have made so far (W.made), heaviest first: each nuclide with
@@ -1825,7 +1885,7 @@ function renderMade() {
     const life = info.stable ? 'stable' : info.unbound ? 'unbound: falls apart at once' : `${lifeText(info)}${info.modes && info.modes.length ? ', ' + modeLabel(info.modes[0].mode).replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase()) : ''}`;
     return row(ELEMENTS[r.Z].color, r.lab, nm, `${life} · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n);
   }).join('') + part.map(r => { const d = XP[r.sp]; return row(rgba(d.col, 1), r.lab, esc(PART_NAMES[r.sp] || r.sp), `mean life ${fmtTime(d.tau)} · first: ${r.how}`, r.n); }).join('') +
-    nus.map(r => row('rgb(120,255,170)', r.lab, r.anti ? 'Antineutrinos' : 'Neutrinos', `left the box at about c, ${fmtE(r.E)} carried off in all · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n)).join('');
+    nus.map(r => row('rgb(120,255,170)', r.lab, ({ e: 'Electron ', mu: 'Muon ', tau: 'Tau ' })[r.fl || 'e'] + (r.anti ? 'antineutrinos' : 'neutrinos'), `left the box at about c, ${fmtE(r.E)} carried off in all · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n)).join('');
   $('dMade').innerHTML = html + (nuc.length > 80 ? `<tr><td class="nm" colspan="3">… and ${nuc.length - 80} more nuclides</td></tr>` : '');
 }
 function chartCtx(cv) {
@@ -3413,7 +3473,7 @@ function buildPresetSelect() {
   $('preset').onchange = (e) => { undoMark('Load a setup'); loadPreset(e.target.value); e.target.blur(); };
 }
 function loadPreset(key) {
-  if (!REW.restoring) { rewClear(); grClear(); if (R.measure) R.measure.length = 0; } // (a new world: its own past)
+  if (!REW.restoring) { rewClear(); grClear(); if (R.measure) R.measure.length = 0; for (const k in PAIRS.h) { PAIRS.h[k].fill(0); PAIRS.ls[k].fill(0); } PAIRS.n = 0; PAIRS.ev.clear(); } // (a new world: its own past)
   const P = PRESETS[key] || PRESETS.soup;
   UI.preset = key in PRESETS ? key : 'soup';
   $('preset').value = UI.preset;
@@ -3966,9 +4026,32 @@ function grCsv() {
 }
 function grInit() {
   $('gSel').onclick = (e) => { const b = e.target.closest('[data-g]'); if (!b) return; const id = b.dataset.g, sel = grSel(), i = sel.indexOf(id); if (i >= 0) sel.splice(i, 1); else sel.push(id); store('graphSel', JSON.stringify(sel.slice(-6))); drawGraph(); };
+  bindSeg('segPair', (v) => { UI.pairKey = v; drawPairs(); });
+  $('pairSub').onchange = (e) => { UI.pairSub = e.target.checked; drawPairs(); };
+  $('pairClr').onclick = () => { for (const k in PAIRS.h) { PAIRS.h[k].fill(0); PAIRS.ls[k].fill(0); } PAIRS.n = 0; PAIRS.ev.clear(); drawPairs(); };
   $('gCsv').onclick = () => grCsv(); $('gClr').onclick = () => { grClear(); drawGraph(); };
 }
 
+/* Pair masses (hep.js PAIRS): the histogram, with the known resonances marked. */
+const PAIR_MARK = { pipi: [['ρ', 775], ['K⁰s', 498]], Kpi: [['K*', 893]], KK: [['φ', 1019]] };
+function drawPairs() {
+  const sec = $('dPairSec'); sec.hidden = !PAIRS.n; if (sec.hidden) return;
+  const key = UI.pairKey || 'pipi'; setSegValue('segPair', key);
+  const r = chartCtx($('chPair')); if (!r) return; const [ctx, w, h] = r, sub = UI.pairSub !== false, H = sub ? PAIRS.h[key].map((v, b) => v - PAIRS.ls[key][b]) : PAIRS.h[key]; $('pairSub').checked = sub;
+  let top = 0, tot = 0, hi = 0, bot = 0; for (let b = 0; b < 200; b++) { top = Math.max(top, H[b]); bot = Math.min(bot, H[b]); tot += PAIRS.h[key][b]; if (PAIRS.h[key][b]) hi = b; }
+  $('pairNote').textContent = `${tot.toLocaleString('en-US')} pairs`;
+  if (!top) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('None of these pairs yet', 10, 20); return; }
+  const mMax = Math.min(2000, Math.max(1200, (hi + 2) * PAIRS.BIN)), nb = mMax / PAIRS.BIN, bw = (w - 12) / nb, fx = (m) => 6 + m / mMax * (w - 12);
+  ctx.fillStyle = cssVar('--accent-soft'); ctx.strokeStyle = cssVar('--accent');
+  const span = top - bot || 1, y0 = 12 + (h - 26) * top / span; // (subtracted: the zero line, with dips below it)
+  for (let b = 0; b < nb; b++) { const bh = H[b] / span * (h - 26); ctx.fillRect(6 + b * bw, bh >= 0 ? y0 - bh : y0, Math.max(1, bw - 0.5), Math.abs(bh)); }
+  if (bot < 0) { ctx.strokeStyle = cssVar('--line'); ctx.beginPath(); ctx.moveTo(6, y0); ctx.lineTo(w - 6, y0); ctx.stroke(); }
+  ctx.font = '10.5px ' + cssVar('--font-data'); ctx.fillStyle = cssVar('--muted'); ctx.textAlign = 'center';
+  for (let m = 0; m <= mMax; m += w < 420 ? 500 : 250) ctx.fillText(m === 0 ? '0' : (m / 1000).toFixed(m % 1000 ? (m % 500 ? 2 : 1) : 0) + ' GeV', clamp(fx(m), 10, w - 22), h - 2);
+  ctx.setLineDash([3, 3]); ctx.strokeStyle = cssVar('--hot'); ctx.fillStyle = cssVar('--hot');
+  for (const [lab, m] of PAIR_MARK[key]) { if (m > mMax) continue; const x = fx(m); ctx.beginPath(); ctx.moveTo(x, 12); ctx.lineTo(x, h - 14); ctx.stroke(); ctx.fillText(lab, x, 10); }
+  ctx.setLineDash([]); ctx.textAlign = 'left';
+}
 /* ------------------------------------------------------------------ the tour */
 const TOUR = [
   ['#stage', 'The chamber', 'Everything here follows real physics: atoms, electrons, nuclei and light. Scroll to zoom, drag with the right button to move around.'],
@@ -4169,6 +4252,7 @@ function mmAction(a) {
   else if (a === 'quit') quitApp();
 }
 function menusInit() {
+  document.addEventListener('pointerdown', (e) => { if (!$('pmenu').hidden && !e.target.closest('#pmenu, #palette .cat')) pmenuClose(); }, true);
   MMP.still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   $('mainMenu').addEventListener('pointermove', (e) => { MMP.mx = clamp(2 * e.clientX / innerWidth - 1, -1, 1); MMP.my = clamp(2 * e.clientY / innerHeight - 1, -1, 1); MMP.last = performance.now(); });
   $('mainMenu').addEventListener('pointerleave', () => { MMP.mx = 0; MMP.my = 0; });
@@ -4210,6 +4294,7 @@ function onKey(e) {
   }
   if (e.key === 'F11') { e.preventDefault(); setWindowMode(DM.win === 'borderless' ? 'windowed' : 'borderless'); return; }
   if (e.key === 'Escape') {
+    if (!$('pmenu').hidden) { pmenuClose(); return; }
     if (!$('escModal').hidden) { e.preventDefault(); closeEscMenu(); return; }
     for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
     if (UI.menu) { if (!$('mmSetups').hidden) mmAction('back'); return; }

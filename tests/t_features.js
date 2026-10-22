@@ -393,6 +393,34 @@ const { openPage } = require('./browser');
     && r21.graph.n >= 3 && r21.graph.rows === r21.graph.n + 1 && r21.graph.water && r21.tour && r21.tourEnd && r21.lp,
     `tools: measure gives ${r21.meas}; a kept view comes back; rewind kept ${r21.rew.nSnap} snapshots, went back and carried on (later ones dropped), Ctrl+Z returns to before it, none kept with chips; the graph's CSV has ${r21.graph.rows} rows with the water counted; the tour runs to its end; a long press opens the quick menu`,
     'tools: ' + JSON.stringify(r21));
+  // 0.58: every particle in the palette's menus; neutrinos with their flavours; resonances made in collisions and
+  // decaying at once, the books exact; the pair masses showing the ρ
+  const r22 = await page.evaluate(() => {
+    const out = {};
+    loadPreset('empty'); setRunning(false); W.decayOn = false;
+    out.cats = PCATS.map(([n, l]) => n + ':' + l.filter(x => x !== 'pt').length).join(' ');
+    const btn = document.querySelector('#palette .cat[data-ci="4"]'); pmenuOpen(4, btn); const items = document.querySelectorAll('#pmenu .pm-i').length; document.querySelector('#pmenu .pm-i[data-k="0"]').click();
+    out.menu = { items, spec: UI.spec.sp, closed: $('pmenu').hidden };
+    placeSpec(UI.spec, 0, 0, 1); out.placedPi = W.exo.filter(o => !o.dead).map(o => o.sp).join();
+    selectSpec({ kind: 'nu', fl: 'tau', anti: true }); placeSpec(UI.spec, 0, 0, 1); out.nu = W.rays.filter(r => r.nu).map(r => r.lab.split(' ')[0]).join();
+    selectSpec({ kind: 'gamma' }); OPT.place.Es = 600; placeSpec(UI.spec, 0, 0, 1); out.gamma = W.flights.length + W.rays.filter(r => !r.nu).length;
+    selectSpec({ kind: 'exo', sp: 'rho0' }); placeSpec(UI.spec, 0, 0, 1); simFrame(1 / 60, 30); out.rhoPl = W.exo.filter(o => !o.dead).map(o => o.sp).sort().join();
+    // a muon's decay: a muon neutrino and an electron antineutrino
+    loadPreset('empty'); setRunning(false); W.decayOn = true; const mu = addExo('mu-', 0, 0, 1e3, 1, 0); decayExo(mu); out.muNu = W.rays.filter(r => r.nu).map(r => r.lab.split(' ')[0]).sort().join();
+    // e⁺e⁻ at 10 GeV: resonances, exact books, the ρ standing out
+    loadPreset('linac'); setupCollider('linear', 'pos', 'e', 5e9); W.slowHold = false; W.slowmo = false; let res = 0, worst = 0;
+    const keep = decayExo; decayExo = function (o) { if (XP[o.sp].res) res++; return keep.apply(this, arguments); }; // eslint-disable-line no-func-assign
+    for (let f = 0; f < 2500; f++) simFrame(1 / 60, 30);
+    decayExo = keep; // eslint-disable-line no-func-assign
+    const sum = (a, lo, hi) => { let t = 0; for (let b = lo / 10; b < hi / 10; b++) t += a[b]; return t; }, H = PAIRS.h.pipi, L = PAIRS.ls.pipi;
+    out.res = res; out.rho = { peak: sum(H, 700, 850) - sum(L, 700, 850), side: (sum(H, 1100, 1250) - sum(L, 1100, 1250)) };
+    out.made = W.collider && W.collider.made ? ['ρ⁰', 'ω', 'K*⁺', 'Δ⁺⁺'].filter(k => W.collider.made[k]).join() : '';
+    return out;
+  });
+  check(r22.menu.items === 8 && r22.menu.spec === 'pi+' && r22.menu.closed && r22.placedPi === 'pi+' && r22.nu === 'ν̄τ' && r22.gamma >= 1 && r22.rhoPl === 'pi+,pi+,pi-' && r22.muNu === 'ν̄ₑ,νμ'
+    && r22.res > 50 && r22.rho.peak > 3 * Math.max(1, r22.rho.side),
+    `particles: menus ${r22.cats}; a π⁺, a ν̄τ, a photon placed; a ρ⁰ placed decays at once to π⁺π⁻; a muon's decay gives ${r22.muNu}; e⁺e⁻ at 10 GeV made ${r22.res} resonances (${r22.made}); their pairs: ${r22.rho.peak} over the background at the ρ, ${r22.rho.side} away from it`,
+    'particles: ' + JSON.stringify(r22));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

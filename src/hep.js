@@ -31,12 +31,42 @@ const XP = {
   Xi0: { lab: 'Ξ⁰', m: 1314.86, q: 0, B: 1, tau: 2.90e-10, col: [180, 140, 255], cc: 'Xib0', dec: [[0.99524, ['Lam', 'pi0']]] },
   'Xi-': { lab: 'Ξ⁻', m: 1321.71, q: -1, B: 1, tau: 1.639e-10, col: [180, 140, 255], cc: 'Xib+', dec: [[0.99887, ['Lam', 'pi-']]] },
   'Omg-': { lab: 'Ω⁻', m: 1672.45, q: -1, B: 1, tau: 8.21e-11, col: [160, 125, 255], cc: 'Omgb+', dec: [[0.678, ['Lam', 'K-']], [0.236, ['Xi0', 'pi-']], [0.086, ['Xi-', 'pi0']]] },
+  // short-lived resonances (mean life ħ/Γ, about 10⁻²³ s: they decay where they are made, as their products are all that
+  // is ever seen of them; made in collisions by hadronize's strings and the plasma (resonate), or placed by hand)
+  rho0: { lab: 'ρ⁰', m: 775.26, w: 149.1, q: 0, tau: 4.41e-24, col: [255, 140, 120], cc: 'rho0', res: true, dec: [[1, ['pi+', 'pi-']]] },
+  'rho+': { lab: 'ρ⁺', m: 775.11, w: 149.1, q: 1, tau: 4.41e-24, col: [255, 140, 120], cc: 'rho-', res: true, dec: [[1, ['pi+', 'pi0']]] },
+  omega: { lab: 'ω', m: 782.66, w: 8.68, q: 0, tau: 7.58e-23, col: [255, 170, 140], cc: 'omega', res: true, dec: [[0.893, ['pi+', 'pi-', 'pi0']], [0.084, ['pi0', 'g']], [0.0153, ['pi+', 'pi-']]] },
+  phi: { lab: 'φ', m: 1019.461, w: 4.249, q: 0, tau: 1.549e-22, col: [240, 230, 140], cc: 'phi', res: true, dec: [[0.492, ['K+', 'K-']], [0.17, ['K0L', 'K0S']], [0.17, ['K0S', 'K0L']], [0.153, ['pi+', 'pi-', 'pi0']], [0.013, ['eta', 'g']]] },
+  'Ks+': { lab: 'K*⁺', m: 891.67, w: 51.4, q: 1, tau: 1.28e-23, col: [245, 220, 110], cc: 'Ks-', res: true, dec: [[1 / 3, ['K0S', 'pi+']], [1 / 3, ['K0L', 'pi+']], [1 / 3, ['K+', 'pi0']]] },
+  Ks0: { lab: 'K*⁰', m: 895.55, w: 47.3, q: 0, tau: 1.39e-23, col: [245, 220, 110], cc: 'Ksb0', res: true, dec: [[2 / 3, ['K+', 'pi-']], [1 / 6, ['K0S', 'pi0']], [1 / 6, ['K0L', 'pi0']]] },
+  Dpp: { lab: 'Δ⁺⁺', m: 1232, w: 117, q: 2, B: 1, tau: 5.63e-24, col: [210, 150, 255], cc: 'Dbmm', res: true, dec: [[1, ['p', 'pi+']]] },
+  Dp: { lab: 'Δ⁺', m: 1232, w: 117, q: 1, B: 1, tau: 5.63e-24, col: [210, 150, 255], cc: 'Dbm', res: true, dec: [[2 / 3, ['p', 'pi0']], [1 / 3, ['n', 'pi+']]] },
+  D0: { lab: 'Δ⁰', m: 1232, w: 117, q: 0, B: 1, tau: 5.63e-24, col: [210, 150, 255], cc: 'Db0', res: true, dec: [[2 / 3, ['n', 'pi0']], [1 / 3, ['p', 'pi-']]] },
+  Dm: { lab: 'Δ⁻', m: 1232, w: 117, q: -1, B: 1, tau: 5.63e-24, col: [210, 150, 255], cc: 'Dbp', res: true, dec: [[1, ['n', 'pi-']]] },
   'tau-': { lab: 'τ⁻', m: 1776.86, q: -1, tau: 2.903e-13, col: [255, 115, 150], cc: 'tau+', dec: [[0.1782, ['e-', 'nub', 'nu']], [0.1739, ['mu-', 'nub', 'nu']], [0.1082, ['pi-', 'nu']], [0.2549, ['pi-', 'pi0', 'nu']], [0.0926, ['pi-', 'pi0', 'pi0', 'nu']], [0.0899, ['pi-', 'pi-', 'pi+', 'nu']], [0.0455, ['pi-', 'pi-', 'pi+', 'pi0', 'nu']], [0.0104, ['pi-', 'pi0', 'pi0', 'pi0', 'nu']], [0.0070, ['K-', 'nu']]] },
 };
-function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n' })[t] || t; }
-for (const [k, of, lab] of [['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺']]) { // the antiparticles: every charge reversed, decays mirrored
+function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', numu: 'numub', numub: 'numu', nutau: 'nutaub', nutaub: 'nutau', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n' })[t] || t; }
+for (const [k, of, lab] of [['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺']]) { // the antiparticles: every charge reversed, decays mirrored
   const s = XP[of];
   XP[k] = Object.assign({}, s, { lab, q: -s.q, B: s.B ? -s.B : 0, cc: of, dec: s.dec.map(([b, ps]) => [b, ps.map(conjTok)]) });
+}
+/* Neutrinos keep their flavour (labels only: they leave the box untouched): a muon's decay gives a muon neutrino and an
+   electron antineutrino, a pion's the neutrino of the muon or electron it makes, a tau's a tau neutrino with the rest;
+   nuclei (β decay, capture) the electron's. 'nu', 'nub' are the electron's; 'numu', 'numub', 'nutau', 'nutaub'. */
+for (const [k, d] of Object.entries(XP)) {
+  const lep = /^tau/.test(k) ? 'tau' : /^mu[+-]$/.test(k) ? 'mu' : null;
+  d.dec = d.dec.map(([b, ps]) => {
+    const fl = ps.includes('mu-') || ps.includes('mu+') ? 'mu' : 'e';
+    let own = false; // (a lepton decaying: one neutrino is its own flavour, of its own lepton number)
+    return [b, ps.map(t => {
+      if (t !== 'nu' && t !== 'nub') return t;
+      const anti = t === 'nub';
+      if (lep && !own && anti === (d.q > 0)) { own = true; return lep === 'mu' ? (anti ? 'numub' : 'numu') : (anti ? 'nutaub' : 'nutau'); }
+      if (!lep && fl === 'mu') return anti ? 'numub' : 'numu';
+      if (lep === 'tau' && fl === 'mu') return anti ? 'numub' : 'numu';
+      return t;
+    })];
+  });
 }
 
 /* ---- final-state items: { t: 'x', sp } an unstable particle, { t: 'A', Z, N, anti } a nucleus or nucleon,
@@ -48,9 +78,9 @@ function item(tok) {
   const nt = NUCTOK[tok];
   if (nt) return { t: 'A', Z: nt[0], N: nt[1], anti: !!nt[2] };
   if (tok === 'e-' || tok === 'e+') return { t: 'e', q: tok === 'e-' ? -1 : 1 };
-  return tok === 'g' ? { t: 'g' } : { t: 'v', anti: tok === 'nub' };
+  return tok === 'g' ? { t: 'g' } : { t: 'v', anti: /b$/.test(tok), fl: /tau/.test(tok) ? 'tau' : /mu/.test(tok) ? 'mu' : 'e' };
 }
-function massOf(it) { return it.t === 'x' ? XP[it.sp].m : it.t === 'A' ? nucMeV(it.Z, it.N) : it.t === 'e' ? PHYS.MEC2 : 0; }
+function massOf(it) { return it.t === 'x' ? (it.m || XP[it.sp].m) : it.t === 'A' ? nucMeV(it.Z, it.N) : it.t === 'e' ? PHYS.MEC2 : 0; }
 function conjItem(it) {
   return it.t === 'x' ? { t: 'x', sp: XP[it.sp].cc } : it.t === 'A' ? { t: 'A', Z: it.Z, N: it.N, anti: !it.anti } : it.t === 'e' ? { t: 'e', q: -it.q } : it.t === 'v' ? { t: 'v', anti: !it.anti } : it;
 }
@@ -58,7 +88,7 @@ function labelOf(it) {
   if (it.t === 'x') return XP[it.sp].lab;
   if (it.t === 'e') return it.q < 0 ? 'e⁻' : 'e⁺';
   if (it.t === 'g') return 'γ';
-  if (it.t === 'v') return it.anti ? 'ν̄' : 'ν';
+  if (it.t === 'v') return nuLab(it.anti, it.fl);
   const { Z, N, anti } = it;
   if (Z === 1 && N === 0) return anti ? 'p̄' : 'p';
   if (Z === 0 && N === 1) return anti ? 'n̄' : 'n';
@@ -135,6 +165,79 @@ function phaseSpace(M, ms) {
   return v;
 }
 
+
+/* ---- resonances in hadronization. Most hadrons out of a string or a cooling plasma are born as short-lived
+   resonances (ρ, ω, φ, K*, Δ) that decay at once into the pions, kaons and nucleons seen. resonate() takes the list
+   hadronize or the plasma made and joins some of its members into the resonance they would have come from — a π⁺
+   and a π⁻ into a ρ⁰, three pions into an ω, a K and a π into a K*, K⁺K⁻ into a φ, a nucleon and a π into a Δ —
+   each with a mass drawn from its Breit–Wigner shape (truncated: above what it decays to, below m + 3Γ). The
+   charges stay, the count of each kind stays on average, and the momenta are made for the new list (fewer, heavier
+   items); the resonances then decay where they are (moveExos), and their products are what the old list had. About
+   half of the pions of a jet come from resonances, as in e⁺e⁻ data (vector-to-pseudoscalar ratio about 0.5). */
+const RES_P = { rho: 0.42, omega: 0.12, ks: 0.4, phi: 0.12, delta: 0.3 };
+function bwMass(sp) {
+  const d = XP[sp], lo = Math.max(d.m - 3 * d.w, Math.min(...d.dec.map(([, ps]) => ps.reduce((t, x) => t + massOf(item(x)), 0))) + 2), hi = d.m + 3 * d.w;
+  for (let k = 0; k < 40; k++) { const m = d.m + d.w / 2 * Math.tan(Math.PI * (rnd() - 0.5)); if (m > lo && m < hi) return m; }
+  return clamp(d.m, lo, hi);
+}
+function resonate(items, M) {
+  const tag = (it) => (it.t === 'x' ? it.sp : it.t === 'A' && it.Z + it.N === 1 ? (it.anti ? (it.Z ? 'pbar' : 'nbar') : (it.Z ? 'p' : 'n')) : null);
+  const idx = items.map((it, i) => i).sort(() => rnd() - 0.5), used = new Set(), out = [];
+  let mass = items.reduce((t, it) => t + massOf(it), 0);
+  const take = (want, not) => { for (const j of idx) if (!used.has(j) && j !== not && want.includes(tag(items[j]))) return j; return -1; };
+  const join = (sp, js, anti) => { // (the resonance replaces its products if the energy allows it)
+    const s2 = anti ? XP[sp].cc : sp, m = bwMass(s2), dm = m - js.reduce((t, j) => t + massOf(items[j]), 0);
+    if (mass + dm > 0.85 * M) return false;
+    for (const j of js) used.add(j); mass += dm; out.push({ t: 'x', sp: s2, m }); return true;
+  };
+  for (const i of idx) {
+    if (used.has(i)) continue;
+    const t = tag(items[i]); if (!t) continue;
+    used.add(i); let ok = false;
+    if (t === 'pi+' || t === 'pi-' || t === 'pi0') {
+      const u = rnd();
+      if (u < RES_P.omega) { const oth = ['pi+', 'pi-', 'pi0'].filter(x => x !== t), x1 = take([oth[0]], i); if (x1 >= 0) { used.add(x1); const x2 = take([oth[1]], i); used.delete(x1); if (x2 >= 0) ok = join('omega', [i, x1, x2]); } }
+      else if (u < RES_P.omega + RES_P.rho) {
+        const want = t === 'pi0' ? ['pi+', 'pi-'] : ['pi0', t === 'pi+' ? 'pi-' : 'pi+'], j = take(want, i);
+        if (j >= 0) { const o2 = tag(items[j]), q = (t === 'pi+') + (o2 === 'pi+') - (t === 'pi-') - (o2 === 'pi-'); ok = join(q > 0 ? 'rho+' : q < 0 ? 'rho-' : 'rho0', [i, j]); }
+      }
+    } else if (t === 'K+' || t === 'K-') {
+      const u = rnd();
+      if (u < RES_P.phi && t === 'K+') { const j = take(['K-'], i); if (j >= 0) ok = join('phi', [i, j]); }
+      else if (u < RES_P.phi + RES_P.ks) { const j = take(['pi0', t === 'K+' ? 'pi-' : 'pi+'], i); if (j >= 0) ok = tag(items[j]) === 'pi0' ? join(t === 'K+' ? 'Ks+' : 'Ks-', [i, j]) : join(t === 'K+' ? 'Ks0' : 'Ksb0', [i, j]); }
+    } else if (t === 'K0S' || t === 'K0L') {
+      if (rnd() < RES_P.ks) { const j = take(['pi+', 'pi-', 'pi0'], i); if (j >= 0) { const o2 = tag(items[j]); ok = o2 === 'pi+' ? join('Ks+', [i, j]) : o2 === 'pi-' ? join('Ks-', [i, j]) : join(rnd() < 0.5 ? 'Ks0' : 'Ksb0', [i, j]); } }
+    } else if (t === 'p' || t === 'n' || t === 'pbar' || t === 'nbar') {
+      if (rnd() < RES_P.delta) {
+        const anti = t === 'pbar' || t === 'nbar', base = anti ? (t === 'pbar' ? 'p' : 'n') : t, sgn = (x) => (anti ? ({ 'pi+': 'pi-', 'pi-': 'pi+', pi0: 'pi0' })[x] : x);
+        const j = take(['pi0', 'pi+', 'pi-'].map(sgn), i);
+        if (j >= 0) { const pq = ({ 'pi+': 1, 'pi-': -1, pi0: 0 })[sgn(tag(items[j]))], q = (base === 'p' ? 1 : 0) + pq; ok = join(q === 2 ? 'Dpp' : q === 1 ? 'Dp' : q === 0 ? 'D0' : 'Dm', [i, j], anti); }
+      }
+    }
+    if (!ok) used.delete(i);
+  }
+  const rest = items.filter((it, i) => !used.has(i));
+  return out.length ? rest.concat(out) : items;
+}
+/* Pair masses (Data tab): every π⁺π⁻, K⁺K⁻ and K±π∓ pair from one collision (decay products count with the
+   collision that made their parent), their invariant mass from their energies and momenta at birth — where the
+   resonances show as bumps over the background of pairs that are not from one (ρ at 775 MeV, K* at 892, φ at 1019),
+   as they were first found. */
+let _evTag = 0;
+const PAIRS = { ev: new Map(), h: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200) }, ls: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200) }, n: 0, BIN: 10 }; // (ls: like-sign pairs, π⁺π⁺ and π⁻π⁻: no resonance makes them, so they trace the background, which subtracting them takes away)
+function pairNote(o) {
+  if (!o.ev || !(o.sp === 'pi+' || o.sp === 'pi-' || o.sp === 'K+' || o.sp === 'K-')) return;
+  const K = o.KE / MEV, p = Math.sqrt(K * (K + 2 * o.m)), v = [o.m + K, p * o.ux, p * o.uy, o.sp];
+  let L = PAIRS.ev.get(o.ev); if (!L) { L = []; PAIRS.ev.set(o.ev, L); if (PAIRS.ev.size > 400) PAIRS.ev.delete(PAIRS.ev.keys().next().value); }
+  const q = (s) => (s.endsWith('+') ? 1 : -1), kind = (s) => s[0];
+  for (const w of L) {
+    const like = q(w[3]) === q(v[3]);
+    const key = kind(w[3]) === 'p' && kind(v[3]) === 'p' ? 'pipi' : kind(w[3]) === 'K' && kind(v[3]) === 'K' ? 'KK' : 'Kpi';
+    const E = w[0] + v[0], px = w[1] + v[1], py = w[2] + v[2], m = Math.sqrt(Math.max(0, E * E - px * px - py * py)), b = Math.floor(m / PAIRS.BIN);
+    if (b < 200) { if (like) PAIRS.ls[key][b]++; else { PAIRS.h[key][b]++; PAIRS.n++; } }
+  }
+  L.push(v);
+}
 
 /* ---- jets: the string model (as in Lund / Pythia, simplified). In a hard collision a quark and an antiquark (or a
    quark and a diquark) fly apart joined by a colour string; it breaks again and again into quark–antiquark pairs, and
@@ -238,9 +341,9 @@ const MU_ZEFF = [[1, 1], [6, 5.7], [10, 8.9], [20, 16], [26, 19.6], [40, 25], [5
 function muZeff(Z) { for (let i = 1; i < MU_ZEFF.length; i++) if (Z <= MU_ZEFF[i][0]) { const [z0, e0] = MU_ZEFF[i - 1], [z1, e1] = MU_ZEFF[i]; return e0 + (e1 - e0) * (Z - z0) / (z1 - z0); } return 36; }
 for (const [k, N, lab] of [['muP', 0, 'μp'], ['muD', 1, 'μd'], ['muT', 2, 'μt']]) { // muonic hydrogen: neutral, decaying as its muon does
   const tok = ['p', 'd', 't'][N], mN = nucMeV(1, N), Eb = 13.6057e-6 * (MU_M * mN / (MU_M + mN)) / 0.51099895; // (Bohr's 13.6 eV with the muon's reduced mass: 2.53 keV for μp)
-  XP[k] = { lab, m: nucMeV(1, N) + MU_M - Eb, Eb, q: 0, tau: 2.1970e-6, col: [150, 255, 230], cc: k, atom: true, N, dec: [[1, [tok, 'e-', 'nub', 'nu']]] };
+  XP[k] = { lab, m: nucMeV(1, N) + MU_M - Eb, Eb, q: 0, tau: 2.1970e-6, col: [150, 255, 230], cc: k, atom: true, N, dec: [[1, [tok, 'e-', 'nub', 'numu']]] };
 }
-XP.muHe = { lab: '(μα)⁺', m: nucMeV(2, 2) + MU_M - MU_EB(2), q: 1, tau: 2.1970e-6, col: [255, 225, 150], cc: 'muHe', stuck: true, dec: [[1, ['a', 'e-', 'nub', 'nu']]] };
+XP.muHe = { lab: '(μα)⁺', m: nucMeV(2, 2) + MU_M - MU_EB(2), q: 1, tau: 2.1970e-6, col: [255, 225, 150], cc: 'muHe', stuck: true, dec: [[1, ['a', 'e-', 'nub', 'numu']]] };
 /* Ionization along a charged exo's step (x0, y0) → its position now; it loses the energy given away. */
 function exoIonize(o, x0, y0) {
   const beta2 = Math.max(1e-8, (o.v / PHYS.C) ** 2), z2 = o.q * o.q;
@@ -356,14 +459,14 @@ function muBoundTick(dt) {
     const Z = p.Z, N = p.N, Ms = nucMeV(Z - 1, N + 1) + 8 + 12 * rnd(), Min = nucMeV(Z, N) + mm;
     const canCapture = !nuclideInfo(Z - 1, N + 1).unbound && Ms < Min;
     if (!canCapture || rnd() < ld / (lc + ld)) { // decay in orbit
-      const items = ['e-', 'nub', 'nu'].map(item), vs = phaseSpace(mm, items.map(massOf));
+      const items = ['e-', 'nub', 'numu'].map(item), vs = phaseSpace(mm, items.map(massOf));
       const S = nucBegin([]), made = spawnItems(items, vs, x, y);
       closeEvent(S, made, x, y, B.m, B.m); W.count.decay++;
       log('nuc', `Decay in orbit: the muon in ${el} → e⁻ + ν̄ + ν`); nucEvent('decay', x, y, `μ⁻ in ${el} decays → e⁻ ν̄ ν`, [], '2.2 µs mean life');
       continue;
     }
     // nuclear capture: μ⁻ + p → n + ν; the nucleus, one charge down and hot, cools
-    const [ux, uy] = rdir(), v = twoBody(Min, Ms, 0, ux, uy), items = [item('nu')], moms = [v[1]];
+    const [ux, uy] = rdir(), v = twoBody(Min, Ms, 0, ux, uy), items = [item('numu')], moms = [v[1]];
     compoundDecay(Z - 1, N + 1, Ms, v[0], false, items, moms, 0);
     const ne = p.ne, S = nucBegin([p]), gh = [ghostOf(p)];
     kill(p);
@@ -391,7 +494,7 @@ function spawnItems(items, moms, x, y) {
     if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy]); continue; }
     if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; continue; } // (no room: carried off, as if it had left)
     if (it.Z > Z_MAX) { made.lost += P[0] * MEV; continue; } // (a last guard: nothing past the last element is made)
-    if (it.t === 'x') { made.xs.push(addExo(it.sp, ox, oy, K, ux, uy)); continue; }
+    if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m); made.xs.push(o); pairNote(o); continue; }
     const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy) : addNuc(it.Z, it.N, 0, ox, oy, 0, 0, it.anti);
     setMotion(q, K, ux, uy);
     if (!q.trk && K > 2000) startTrack(q);
@@ -414,7 +517,7 @@ function closeEvent(S, made, x, y, Ein = 0, mIn = 0) {
     if (left < 0) left = settleRest(S, Qrel, made, left);
     let Er = 0; for (const r of made.rays) Er += r[1];
     const f = Er > 0 ? Math.max(0, left) / Er : 0;
-    for (const [it, E, ux, uy] of made.rays) { if (it.t === 'g') emitPhoton(x, y, E * f, ux, uy); else emitNeutrino(x, y, E * f, ux, uy, !!it.anti); }
+    for (const [it, E, ux, uy] of made.rays) { if (it.t === 'g') emitPhoton(x, y, E * f, ux, uy); else emitNeutrino(x, y, E * f, ux, uy, !!it.anti, undefined, it.fl || 'e'); }
     if (!(Er > 0) && left > 0) emitPhoton(x, y, left);
   } else if (Math.abs(left) > 1e-7 * Math.max(1, Math.abs(Qrel))) settleRest(S, Qrel, made, left);
 }
@@ -446,9 +549,9 @@ function tally(items, ins, how) {
    their mean life stretched by time dilation (γτ), on the same clock as radioactive decay (W.warp speeds both). A
    π⁰ lives 8.4×10⁻¹⁷ s, about 25 nm of flight: it decays in the chamber; charged pions, kaons and muons live
    nanoseconds to microseconds and leave it, as in a real detector, unless decay is sped up. */
-function addExo(sp, x, y, KE, ux, uy) {
+function addExo(sp, x, y, KE, ux, uy, m) {
   const d = XP[sp];
-  const o = { id: W.nextId++, sp, lab: d.lab, m: d.m, q: d.q, x, y, ux, uy, KE: Math.max(0, KE), gam: 1, v: 0, born: W.rt, dead: false, trk: null };
+  const o = { id: W.nextId++, sp, lab: d.lab, m: m || d.m, ev: _evTag, q: d.q, x, y, ux, uy, KE: Math.max(0, KE), gam: 1, v: 0, born: W.rt, dead: false, trk: null };
   exoSpeed(o);
   o.trk = { pts: [x, y], ts: [W.rt], tt: [W.t], c: d.col, w: d.q ? 1.4 : 1.1, t0: W.rt, upd: W.rt, dash: !d.q };
   keepTrack(o.trk);
@@ -458,6 +561,7 @@ function addExo(sp, x, y, KE, ux, uy) {
 function exoSpeed(o) { const g = 1 + o.KE / (o.m * MEV); o.gam = g; o.v = PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g))); }
 function moveExos(dt, id0) {
   if (W.muBound && W.muBound.length) muBoundTick(dt);
+  for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res) decayExo(o); } // (resonances: gone within a proton's width, whatever the decay clock)
   const n0 = W.exo.length;
   if (!n0) return;
   const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, hw = W.box.w / 2, hh = W.box.h / 2; // (proper seconds per lab second: 1/γ)
@@ -502,7 +606,7 @@ function exoLeaves(o) { // its energy, mass included, leaves the books (it decay
   W.ledger.escaped += o.KE + o.m * MEV; W.ledger.nuc += o.m * MEV;
   o.dead = true; o.fate = o.fate || 'left the chamber';
 }
-const EXO_QUIET = new Set(['pi0', 'eta']); // decays too common and too quick to caption each one
+const EXO_QUIET = new Set(['pi0', 'eta', 'rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm', 'Dbmm', 'Dbm', 'Db0', 'Dbp']); // decays too common and too quick to caption each one
 function decayExo(o) {
   const d = XP[o.sp], toks = pickBr(d.dec), items = toks.map(item), ms = items.map(massOf);
   const vs = phaseSpace(o.m, ms);
@@ -510,7 +614,9 @@ function decayExo(o) {
   const bx = o.v / PHYS.C * o.ux, by = o.v / PHYS.C * o.uy;
   const S = nucBegin([]);
   o.dead = true;
+  const keepTag = _evTag; _evTag = o.ev; // (its products belong to the collision that made it: the pair masses pair them with the rest)
   const made = spawnItems(items, vs.map(v => toLab(v, bx, by)), o.x, o.y);
+  _evTag = keepTag;
   closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
   W.count.decay++;
   const txt = `${o.lab} → ${summarize(items)}`, life = d.tau * o.gam;
@@ -556,7 +662,7 @@ function eeEvent(a, b, x, y) {
   else if (ch === 'omega') toks = pickBr([[0.893, ['pi+', 'pi-', 'pi0']], [0.084, ['pi0', 'g']], [0.015, ['pi+', 'pi-']]]);
   else if (ch === 'phi') toks = pickBr([[0.492, ['K+', 'K-']], [0.34, ['K0L', 'K0S']], [0.154, ['pi+', 'pi-', 'pi0']], [0.013, ['eta', 'g']]]);
   else if (ch === 'cont') toks = hadronize(M, 0, 0, {});
-  const items = toks ? toks.map(item) : null;
+  let items = toks ? toks.map(item) : null;
   if (!items || items.reduce((t, it) => t + massOf(it), 0) >= M - 0.01) { annihilateInFlight(a, b, x, y); return; } // two γ rays
   const bx = P[1] / P[0], by = P[2] / P[0];
   let vs;
@@ -566,7 +672,7 @@ function eeEvent(a, b, x, y) {
     let th = 0; for (let k = 0; k < 60; k++) { th = rnd() * 2 * Math.PI; if (rnd() < (1 + Math.cos(th) ** 2) / 2) break; }
     jet = turn2(e[1] / en, e[2] / en, th);
   }
-  if (jet) vs = jetMomenta(items, M, jet[0], jet[1]);
+  if (jet) { const ri = resonate(items, M), v2 = jetMomenta(ri, M, jet[0], jet[1]); if (v2) { items = ri; vs = v2; } else vs = jetMomenta(items, M, jet[0], jet[1]); } // (born partly as resonances)
   if (jet && vs) addString(x, y, jet[0], jet[1], items.length);
   else if (ang && items.length === 2) { // a pair: the angle to the beams as for a photon (1 + cos²θ) or a ρ (sin²θ)
     const e = toRest(a.k === ELEC ? Pa : Pb, bx, by), en = Math.hypot(e[1], e[2]) || 1;
@@ -736,7 +842,7 @@ function nnInelastic(a, b, x, y, P, M) {
   if (anti) items = items.map(conjItem);
   if (!toks && M > 5000 && items.length >= 3) { // high energy: strings stretched along the beams, the two baryons leading
     const bx = P[1] / P[0], by = P[2] / P[0], A = toRest(p4of(a, true), bx, by), L = Math.hypot(A[1], A[2]) || 1;
-    const vs = jetMomenta(items, M, A[1] / L, A[2] / L, { lead: isBaryonItem });
+    const ri = resonate(items, M), vs = jetMomenta(ri, M, A[1] / L, A[2] / L, { lead: isBaryonItem }); if (vs) items = ri;
     if (vs) { addString(x, y, A[1] / L, A[2] / L, items.length); return finishReaction(a, b, items, vs.map(v => toLab(v, bx, by)), x, y, 'prod', `√s = ${fmtE(M * MEV)}: strings along the beams`); }
   }
   return doReaction(a, b, items, P, M, x, y, 'prod', `√s = ${fmtE(M * MEV)}`);
@@ -1130,14 +1236,16 @@ function fragmentInto(a, b, Pa, Pb, b3, anti, items, moms) {
     if (epsP >= QGP.eps && Bp >= QGP.minA) { // the overlap melts into a quark–gluon plasma, which freezes out into hadrons
       const sNN = 2 * (epsP + 938.9), q = qgpHadrons(MF, Bp, Qp, sNN);
       if (!q) continue;
-      fb = anti ? q.items.map(conjItem) : q.items; vs = jetMomenta(fb, MF, bax, bay, { thermal: true });
+      fb = anti ? q.items.map(conjItem) : q.items;
+      { const ri = fb.length <= 4000 ? resonate(fb, MF) : fb, v2 = jetMomenta(ri, MF, bax, bay, { thermal: true }); if (v2) { fb = ri; vs = v2; } else vs = jetMomenta(fb, MF, bax, bay, { thermal: true }); }
       if (!vs) continue;
       for (let i = fb.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [fb[i], fb[j]] = [fb[j], fb[i]]; [vs[i], vs[j]] = [vs[j], vs[i]]; } // (shuffled: if not all fit in the chamber, those that do are a fair sample)
-      _qgpLast = { n: fb.length, sNN, muB: q.muB, Bp };
+      _qgpLast = { n: q.items.length, sNN, muB: q.muB, Bp }; // (the hadrons it froze into: resonances counted as what they become)
     } else {
       fb = hadronize(MF, anti ? -Bp : Bp, anti ? -Qp : Qp, { pFrac: Qp / Bp, clusters: epsP });
       if (!fb) continue;
-      vs = epsP > 2000 && fb.length >= 3 ? jetMomenta(fb, MF, bax, bay, { lead: isBaryonItem }) : null; // (high energy: along the beams, as strings stretch)
+      vs = null;
+      if (epsP > 2000 && fb.length >= 3) { const ri = resonate(fb, MF), v2 = jetMomenta(ri, MF, bax, bay, { lead: isBaryonItem }); if (v2) { fb = ri; vs = v2; } } // (high energy: along the beams, as strings stretch)
       if (!vs) vs = phaseSpace(MF, fb.map(massOf));
       if (!vs) continue;
     }

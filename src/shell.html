@@ -1,4 +1,4 @@
-<title>Atom Forge 0.57.0</title>
+<title>Atom Forge 0.58.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -369,6 +369,17 @@ details.chain[open] summary { margin-bottom: 10px; }
   width: min(1120px, 100%); max-height: 100%; overflow: auto; padding: 16px 18px 18px; display: grid; gap: 14px; }
 .dialog header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .dialog h2 { margin: 0; font-size: 18px; }
+/* the particle menus: a category in the palette opens a list of its particles */
+.chip.cat { font-weight: 650; }
+.chip.cat[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.pmenu { position: absolute; z-index: 25; min-width: 240px; max-width: min(360px, calc(100% - 8px)); max-height: min(60vh, 460px); overflow: auto; padding: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); display: grid; gap: 2px; }
+.pm-h { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 4px 8px 6px; }
+.pm-i { display: grid; grid-template-columns: 12px 4.2em 1fr; align-items: center; gap: 8px; text-align: left; border: 1px solid transparent; background: transparent; border-radius: 8px; padding: 6px 8px; font-size: 13px; }
+.pm-i b { font-family: var(--font-data); font-weight: 650; } .pm-i span:last-child { color: var(--muted); font-size: 12px; }
+.pm-i:hover, .pm-i[aria-pressed="true"] { background: var(--surface-2); border-color: var(--line); }
+.pm-i.more { grid-template-columns: 1fr auto; color: var(--accent); }
+.pm-i .sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 /* Rewind: a timeline under the chamber */
 .rewbar { position: absolute; left: 50%; bottom: 64px; translate: -50% 0; z-index: 12; display: flex; align-items: center; gap: 8px; padding: 8px 10px;
   width: min(680px, calc(100% - 24px)); background: var(--surface); border: 1px solid var(--accent); border-radius: 12px; box-shadow: var(--shadow); }

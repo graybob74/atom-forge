@@ -59,6 +59,7 @@
       <div class="narr" id="narr" aria-live="polite" hidden></div>
       <div class="fps" id="fpsBadge" aria-hidden="true"></div>
       <button class="ibtn dm-exit" id="bDisplayExit" title="Leave display mode (Esc)" aria-label="Leave display mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="pmenu" id="pmenu" role="menu" aria-label="Particles" hidden></div>
       <div class="rewbar" id="rewBar" hidden role="group" aria-label="Rewind">
         <button class="ibtn" id="rewBack" title="Back one snapshot (,)" aria-label="Back">‹</button>
         <input type="range" id="rewSlider" min="0" max="1" step="1" value="1" aria-label="Rewind position">
@@ -267,6 +268,13 @@
           <div class="gsel" id="gSel" role="group" aria-label="What to plot"></div>
           <canvas class="chart graph" id="chG" aria-label="The chosen quantities over time"></canvas>
           <div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" id="gCsv">Export CSV</button><button class="btn small" id="gClr">Clear</button><span class="note" id="gNote"></span></div>
+        </section>
+        <section class="group" id="dPairSec" hidden>
+          <h3>Pair masses</h3>
+          <div class="seg" id="segPair" role="group" aria-label="Which pairs"><button data-v="pipi">π⁺π⁻</button><button data-v="Kpi">K π</button><button data-v="KK">K⁺K⁻</button></div>
+          <canvas class="chart" id="chPair" aria-label="How many pairs had each invariant mass"></canvas>
+          <div class="row" style="justify-content:flex-start;gap:8px"><label class="check"><input type="checkbox" id="pairSub" checked> Background taken away (like-sign pairs subtracted)</label><button class="btn small" id="pairClr">Clear</button><span class="note" id="pairNote"></span></div>
+          <p class="note">Every pair of oppositely charged pions (or kaons, or a kaon and a pion) from one collision, by the mass they add up to (√(E² − p²) of the two together). Most pairs have nothing to do with each other and make a smooth background; pairs that came from one resonance all add up to its mass and stand out as a bump: the ρ at 775 MeV, the K* at 892, the φ at 1019 (and the K⁰s at 498, which lives long enough to fly a few cm first). Taking away the like-sign pairs (π⁺π⁺, π⁻π⁻), which no resonance makes, removes most of the background, as experiments do. This is how the resonances were discovered.</p>
         </section>
         <section class="group">
           <h3>Kinetic energies</h3>

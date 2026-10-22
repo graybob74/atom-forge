@@ -2216,15 +2216,17 @@ function landFlights() {
 function rayFrac(r) { return r.landed || !(r.len > 0) ? 1 : clamp((W.t - r.ts) * PHYS.C / r.len, 0, 1); }
 /* Light in flight: time slows until it crosses about 1.5% of the box a frame, so that it is seen going at c. */
 function lightSlow() { return clamp(0.015 * Math.min(W.box.w, W.box.h) / (PHYS.C * (W.baseSpf || W.simPerFrame)), 1e-7, 1); } // (against the setup's normal speed: light crosses the box in about 70 frames at 1×, and the speed buttons and slow motion then scale that as they scale everything else)
-function emitNeutrino(x, y, E, ux, uy, anti = false, how = 'a particle decay or reaction') {
+/* ν and ν̄ of each flavour: νₑ, ν̄ₑ, νμ, ν̄μ, ντ, ν̄τ */
+function nuLab(anti, fl) { return (anti ? 'ν̄' : 'ν') + ({ e: 'ₑ', mu: 'μ', tau: 'τ' })[fl || 'e']; }
+function emitNeutrino(x, y, E, ux, uy, anti = false, how = 'a particle decay or reaction', fl = 'e') {
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
-  const t = rayExit(x, y, ux, uy), sym = anti ? 'ν̄' : 'ν';
-  W.rays.push({ x0: x, y0: y, x1: x + ux * t, y1: y + uy * t, E, c: [120, 255, 170], t0: W.rt, ts: W.t, len: t, nu: true, anti, how, lab: sym + ' ' + fmtE(E) });
+  const t = rayExit(x, y, ux, uy), sym = nuLab(anti, fl);
+  W.rays.push({ x0: x, y0: y, x1: x + ux * t, y1: y + uy * t, E, c: [120, 255, 170], t0: W.rt, ts: W.t, len: t, nu: true, anti, fl, how, lab: sym + ' ' + fmtE(E) });
   W.ledger.escaped += E;
   // the Data tab's "Made here": neutrinos and antineutrinos counted, with the energy they carried off
   const M = W.made || (W.made = { nuc: new Map(), part: new Map() });
-  const nu = M.nu || (M.nu = new Map()), key = anti ? 'nubar' : 'nu';
-  let r = nu.get(key); if (!r) { r = { anti, lab: sym, n: 0, E: 0, how, t: W.t }; nu.set(key, r); }
+  const nu = M.nu || (M.nu = new Map()), key = (anti ? 'nubar' : 'nu') + (fl || 'e');
+  let r = nu.get(key); if (!r) { r = { anti, fl, lab: sym, n: 0, E: 0, how, t: W.t }; nu.set(key, r); }
   r.n++; r.E += E;
 }
 function rayExit(x, y, ux, uy) {
@@ -3000,7 +3002,7 @@ function annihEnd(S) {
    products' motion and potential energy, the electrons' binding, broken bonds, radiation already emitted. That
    remainder goes to the radiation or into the products' motion, so energy is conserved exactly. */
 function nucBegin(seeds) {
-  const T = new Set(), ev = ++W.evSeq;
+  const T = new Set(), ev = ++W.evSeq; _evTag = ev; // (hep.js: what this event makes is tagged with it, for the pair masses)
   for (const s of seeds) if (s && !s.dead) { s.evId = ev; for (const m of molecule(s)) T.add(m); }
   const m0 = restSum(T);
   return { T, m0, E0: regionE(T) - m0, esc0: W.ledger.escaped, n0: W.parts.length, ev };
@@ -5555,6 +5557,7 @@ function settleOverlaps() {
 /* Launch a projectile with kinetic energy KE (eV) along (ux, uy). */
 function fireSpec(spec, x, y, ux, uy, KE, free) {
   if (spec.kind === 'gamma') { emitPhoton(x, y, KE, ux, uy); return null; }
+  if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e'); return null; }
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy) : null; // (a muon, pion …: from outside, as any fired particle)
   const ps = spawnClear(spec, x, y, 0, free);
   if (!ps.length) return null;

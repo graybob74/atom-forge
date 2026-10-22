@@ -31,7 +31,7 @@ const { openPage } = require('./browser');
     // neutrinos in "Made here"; near-light speeds never read as c or more
     loadPreset('pet'); setRunning(false); W.slowmo = false;
     for (let f = 0; f < 900 && !(W.made && W.made.nu); f++) simFrame(1 / 60, 25);
-    renderMade(); out.nu = { rec: W.made && W.made.nu ? [...W.made.nu.values()].map(r => [r.lab, r.n, r.E > 0]) : null, row: [...document.querySelectorAll('#dMade tr')].some(r => /Neutrinos/.test(r.textContent)) };
+    renderMade(); out.nu = { rec: W.made && W.made.nu ? [...W.made.nu.values()].map(r => [r.lab, r.n, r.E > 0]) : null, row: [...document.querySelectorAll('#dMade tr')].some(r => /neutrinos/i.test(r.textContent)) };
     out.speed = fmtSpeed(299792458 * (1 - 1.3e-7) / PHYS.V_MS);
     // trails last the set time of watching, whatever the speed (thinned, not cut, when long)
     out.trail = [];
