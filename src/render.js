@@ -730,6 +730,7 @@ function drawExos() {
     const x = w2sx(o.x), y = w2sy(o.y);
     if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
     const c = XP[o.sp].col, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''));
+    if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
     ctx.globalCompositeOperation = 'lighter';
     drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55);
     ctx.globalCompositeOperation = 'source-over';
@@ -739,6 +740,50 @@ function drawExos() {
     ctx.fillText(o.lab, x, y - 5);
   }
   ctx.restore();
+}
+/* Particle view of an unstable particle, at the same scale as nucleons: a hadron as its valence quarks in a bag the size
+   of a nucleon (colour charges red, green, blue; antiquarks in anticolours; a strange quark ringed in white), a
+   hypernucleus as its nucleons with the Λ at the centre, ringed, and a muonic atom as its nucleus with the muon's tight
+   orbit round it. Leptons have no parts: they stay points. Returns how far above the centre to put the label, or 0. */
+function exoInside(ctx, o, x, y, c, hx) {
+  const d = XP[o.sp], b = nucleonR();
+  if (d.hyp || d.atom || d.stuck) {
+    const Z = d.hyp ? d.Z : d.stuck ? 2 : 1, N = d.hyp ? d.N : d.stuck ? 2 : d.N | 0;
+    const nsp = nucleusSprite(Z, N, b, false);
+    ctx.globalCompositeOperation = 'lighter';
+    if (!R.lite) drawSprite(glowSprite(c, Math.max(7, nsp.rn * 3)), x, y, 0.4);
+    ctx.globalCompositeOperation = 'source-over';
+    drawSprite(nsp, x, y);
+    if (d.hyp) { // the Λ: in the lowest orbit, so at the middle, ringed so it stands out
+      drawSprite(ballSprite(_xpHex.Lam || (_xpHex.Lam = '#' + XP.Lam.col.map(v => v.toString(16).padStart(2, '0')).join('')), b), x, y);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, b * 0.25); ctx.beginPath(); ctx.arc(x, y, b * 1.05, 0, Math.PI * 2); ctx.stroke();
+      return nsp.rn + 2;
+    }
+    const R0 = nsp.rn + Math.max(3, b * 1.5), th = W.rt * 5 + o.id; // the muon, a few hundred times closer in than an electron
+    ctx.strokeStyle = rgba(c, 0.45); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke();
+    drawSprite(ballSprite(hx, Math.max(1.2, electronR() * 0.9)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
+    return R0 + 2;
+  }
+  const qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp];
+  if (!qc) return 0;
+  const qs = [...qc], rb = b * 1.15, qr = Math.max(0.9, b * (qs.length === 3 ? 0.42 : 0.48));
+  ctx.globalCompositeOperation = 'lighter';
+  if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rb * 3)), x, y, 0.35);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = rgba(c, 0.16); ctx.strokeStyle = rgba(c, 0.8); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  const big = qr > 5;
+  if (big) { ctx.font = `600 ${Math.round(qr * 1.2)}px "Azeret Mono", ui-monospace, monospace`; ctx.textBaseline = 'middle'; }
+  let ci = 0;
+  qs.forEach((q, k) => {
+    const anti = q === q.toUpperCase(), f = q.toLowerCase(), th = W.rt * 1.3 + o.id + k * 2 * Math.PI / qs.length, rr = rb * 0.5;
+    const qx = x + rr * Math.cos(th), qy = y + rr * Math.sin(th), col = qs.length === 2 ? (anti ? Q_ACOL : Q_COL)[(o.id + Math.floor(W.rt * 2)) % 3] : (anti ? Q_ACOL : Q_COL)[ci++ % 3];
+    drawSprite(ballSprite(col, qr), qx, qy);
+    if (f === 's') { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, qr * 0.22); ctx.beginPath(); ctx.arc(qx, qy, qr * 1.05, 0, Math.PI * 2); ctx.stroke(); }
+    if (big) { ctx.fillStyle = '#10161f'; ctx.fillText(anti ? Q_BAR[f] : Q_SYM[f], qx, qy + 0.5); }
+  });
+  if (big) ctx.textBaseline = 'bottom';
+  return rb + 2;
 }
 /* A free electron or positron: a glowing point (classical: it has a position and a path). */
 function drawLepton(ctx, p, x, y, bohrMode) {

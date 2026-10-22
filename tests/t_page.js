@@ -172,7 +172,7 @@ const say = (...a) => console.log(...a);
   await page.fill('#molSearch', 'acid'); await page.waitForTimeout(100);
   await page.fill('#molSearch', '');
   for (const b of await page.$$('#molCats button')) { await b.click(); await page.waitForTimeout(30); }
-  const mols = page.locator('#mgrid button'); const nm = await mols.count();
+  const mols = page.locator('#mgrid .mcard'); const nm = await mols.count();
   for (let i = 0; i < nm; i += Math.max(1, Math.floor(nm / 8))) { if (!(await isOpen('molModal'))) await page.click('#bMol'); await mols.nth(i).click().catch(() => {}); await page.waitForTimeout(40); }
   if (!(await isOpen('molModal'))) await page.click('#bMol');
   await page.click('#molBuild'); await page.waitForTimeout(200);

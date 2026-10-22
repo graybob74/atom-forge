@@ -182,7 +182,8 @@
           <div class="row"><span>Motion</span><span class="val" id="spdVal"></span></div>
           <input type="range" id="spdSlider" min="0" max="100" step="1" aria-label="Motion speed">
           <div class="row"><span>Decay speed</span><span class="val" id="warpVal"></span></div>
-          <input type="range" id="warpSlider" min="0" max="30" step="1" aria-label="Radioactive decay speed-up">
+          <input type="range" id="warpSlider" min="-6" max="30" step="1" aria-label="Decay speed: slowed down to the left of real, sped up to the right">
+          <div class="row" style="justify-content:flex-start;gap:10px;flex-wrap:wrap"><span>Let the shortest-lived show</span><div class="seg" id="segMinShow" role="group" aria-label="Let the shortest-lived particles show"><button data-v="0">Off</button><button data-v="1">A little</button><button data-v="2">More</button></div></div>
           <p class="note" id="warpNote"></p>
           <div class="checks">
             <label class="check"><input type="checkbox" id="chkDecay"> Radioactive decay</label>
@@ -384,7 +385,7 @@
             <li><b>Enlarged nuclei.</b> A nucleus is hit where it is drawn: its size in the Nucleus view, 0.045 Å per nucleon across (uranium's is 0.8 Å), and never less than 0.25–0.35 Å, instead of a few femtometres, so fusion, capture and fission happen in a nanometre box. A pass inside it is mapped onto real impact parameters, so relative rates keep their Gamow and cross-section scaling. A fast electron crossing a nucleus is turned by its full charge (at a few MeV it bounces back).</li>
             <li><b>Collisions shown simply.</b> Products share their momenta over phase space in two dimensions, an even spray rather than the narrow jets of real high-energy collisions; charm and bottom quarks are made into light hadrons; electrons don't excite nuclei (it takes a pass far closer than any here); unstable particles pass through matter untouched.</li>
             <li><b>Tiny objects, flattened.</b> The chips, proteins, DNA, membrane and crystals of the molecule library lie flat like everything else: silicon's four bonds at right angles, a protein's side chains to either side of its chain, the DNA double helix unwound into a ladder. The chips' dopant atoms are far denser than in real ones, so that a few show at all, and the wells of a logic gate are parted by a single seam of oxygen where real chips have a trench of oxide.</li>
-            <li><b>Sped-up decay.</b> Motion and radioactive decay share one clock, which runs at about a picosecond per second of watching. A 14 MeV neutron really does cross the box in a few femtoseconds, and in a box this small most neutrons and gamma rays escape. At real rates almost nothing decays in that time, so decays can be sped up (Lab › Time); the factor is shown whenever it is on, and slow motion after a nuclear event slows motion and decay together.</li>
+            <li><b>Sped-up decay.</b> Motion and radioactive decay share one clock, which runs at about a picosecond per second of watching. A 14 MeV neutron really does cross the box in a few femtoseconds, and in a box this small most neutrons and gamma rays escape. At real rates almost nothing decays in that time, so decays can be sped up (Lab › Time); the factor is shown whenever it is on, and slow motion after a nuclear event slows motion and decay together. Decay can also be slowed, down to a millionth of its real rate, so short-lived particles fly further and their tracks can be followed; and the very shortest-lived (resonances, which live 10⁻²³ s) can be held until they have flown a few ångströms. Both are shown while on: they change where decays happen, not what they make.</li>
             <li><b>Huge fields.</b> Bending thermal ions within nanometres takes about 10⁴ tesla; laboratory magnets reach about 45 T.</li>
             <li><b>Shrunken accelerators.</b> The rings are 11 nm across, so their magnets need 10⁵ T and more and their RF petahertz frequencies (real synchrotrons: about 8 T over kilometres, and a few hundred megahertz), and the beams gain 12% of their energy each turn instead of a fraction of a percent. The beams are flat: quadrupoles focus only across the ring. A bunch is a few particles that ignore each other (no space charge) and stand for many in the beam–beam forces. The separated orbits are only a few ångström apart, not the many beam widths of a real machine, so beams are kept from colliding until they are brought together at full energy. Beam particles collide when they pass within 0.9 Å, far more than the nuclear reach, so collisions are far more frequent than in a real beam.</li>
             <li><b>Energy is conserved.</b> Every event (bonding, reaction, ionization, capture, electron transfer, decay, fusion, fission) balances kinetic, potential and electronic energy exactly; the energy a nuclear event releases from mass includes the change in its electrons' binding, as real atomic masses do. With the bath set to Insulated the total energy stays constant to within integration error, and light leaving the box is counted in the ledger.</li>
@@ -441,7 +442,7 @@
         <button class="btn small" id="bldClear">Clear</button>
       </div>
     </div>
-    <div class="brow"><input class="msearch" id="bldName" maxlength="40" placeholder="Name (optional)" autocomplete="off" spellcheck="false" aria-label="Name"><button class="btn go" id="bldGo" title="Settle it into shape and pick it for the Place tool">Build &amp; use</button></div>
+    <div class="brow"><input class="msearch" id="bldName" maxlength="40" placeholder="Name (optional)" autocomplete="off" spellcheck="false" aria-label="Name"><button class="btn" id="bldGoNew" hidden title="Keep the original as it was, and save this as a new molecule">Save as new</button><button class="btn go" id="bldGo" title="Settle it into shape and pick it for the Place tool">Build &amp; use</button></div>
   </div>
 </div>
 
@@ -543,6 +544,7 @@
       <div class="srow"><span>Zoom toward</span><div class="seg" id="segZoomTo" role="group" aria-label="Zoom toward"><button data-v="cursor">The mouse</button><button data-v="centre">The centre</button></div></div>
       <label class="check"><input type="checkbox" id="setKeepOpt"> Tools remember their settings (strength, count, energy …) next time</label>
       <label class="check"><input type="checkbox" id="setPauseBlur"> Pause when the window is not in front, and carry on when it is</label>
+      <label class="check"><input type="checkbox" id="setWake"> Keep the screen awake while it runs (the screen can sleep again when paused)</label>
       <div class="srow"><span>Keyboard shortcuts</span><button class="btn small" id="setKeys">Show them (?)</button></div>
       <div class="srow"><span>Undo</span><span class="note">Ctrl+Z, and Ctrl+Shift+Z or Ctrl+Y to redo</span></div>
     </section>

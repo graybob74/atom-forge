@@ -1,4 +1,4 @@
-<title>Atom Forge 0.60.0</title>
+<title>Atom Forge 0.61.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -546,6 +546,11 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .mdel { position: absolute; top: 5px; right: 5px; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--ch-line);
   background: var(--ch-glass); color: var(--ch-fg); font-size: 12px; font-weight: 700; line-height: 1; }
 .mdel:hover, .mdel.armed { background: var(--hot); border-color: var(--hot); color: #fff; }
+.medit { position: absolute; top: 5px; right: 5px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--ch-line);
+  background: var(--ch-glass); color: var(--ch-fg); font-size: 12px; line-height: 1; }
+.medit.mine { right: 35px; }
+.medit:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+@media (hover: hover) { .mcwrap .medit:not(.mine) { opacity: 0; } .mcwrap:hover .medit, .mcwrap .medit:focus-visible { opacity: 1; } }
 .bdialog { width: min(920px, 100%); height: 100%; max-height: 860px; grid-template-rows: auto auto auto minmax(240px, 1fr) auto auto; overflow: auto; gap: 10px; }
 .bdialog.ai { grid-template-rows: auto auto auto auto minmax(240px, 1fr) auto auto; }
 .aibox { display: grid; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }

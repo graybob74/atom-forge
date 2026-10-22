@@ -204,7 +204,7 @@ for (const T of [300, 3000]) {
   { // light from an emission (not the Light tool) also goes at c: across within a normal frame, crawling when time is slowed
     const r = W.rays[W.rays.length - 1], m0 = X.rayFrac(r), spf = W.simPerFrame;
     X.simFrame(1 / 60, 30); const m1 = X.rayFrac(r);
-    X.emitPhoton(-25, -5, E, 1, 0); const r2 = W.rays[W.rays.length - 1], tA = W.t; W.simPerFrame = 1e-5; X.simFrame(1 / 60, 30); const m2 = X.rayFrac(r2), want2 = (W.t - tA) * X.PHYS.C / r2.len; W.simPerFrame = spf; // (the share of the way light covers in the time that passed)
+    X.emitPhoton(-25, -5, E, 1, 0); const r2 = W.rays[W.rays.length - 1], tA = W.t; W.simPerFrame = 1e-5; X.simFrame(1 / 60, 30); X.simFrame(1 / 60, 30); const m2 = X.rayFrac(r2), want2 = (W.t - tA) * X.PHYS.C / r2.len; W.simPerFrame = spf; // (the share of the way light covers in the time that passed)
     if (!(m0 === 0 && m1 === 1 && m2 > 0 && m2 < 0.1 && Math.abs(m2 / want2 - 1) < 0.02)) bad(`emitted light should go at c: ${JSON.stringify({ m0, m1, m2, want2 })}`);
   }
   info(`a photon across ${len.toFixed(0)} Å: landed after ${(tFly * X.PHYS.TU_S * 1e18).toFixed(1)} as (light: ${(want * X.PHYS.TU_S * 1e18).toFixed(1)} as), shown over ${f} frames; time ×${slow.toExponential(1)} meanwhile`);

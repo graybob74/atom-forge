@@ -640,7 +640,7 @@ function tally(items, ins, how) {
    nanoseconds to microseconds and leave it, as in a real detector, unless decay is sped up. */
 function addExo(sp, x, y, KE, ux, uy, m) {
   const d = XP[sp];
-  const o = { id: W.nextId++, sp, lab: d.lab, m: m || d.m, ev: _evTag, q: d.q, x, y, ux, uy, KE: Math.max(0, KE), gam: 1, v: 0, born: W.rt, dead: false, trk: null };
+  const o = { id: W.nextId++, sp, lab: d.lab, m: m || d.m, ev: _evTag, q: d.q, x, y, ux, uy, KE: Math.max(0, KE), gam: 1, v: 0, born: W.rt, bx0: x, by0: y, dead: false, trk: null };
   exoSpeed(o);
   o.trk = { pts: [x, y], ts: [W.rt], tt: [W.t], c: d.col, w: d.q ? 1.4 : 1.1, t0: W.rt, upd: W.rt, dash: !d.q };
   keepTrack(o.trk);
@@ -648,9 +648,18 @@ function addExo(sp, x, y, KE, ux, uy, m) {
   return o;
 }
 function exoSpeed(o) { const g = 1 + o.KE / (o.m * MEV); o.gam = g; o.v = PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g))); }
+/* Lab › Time › "Let the shortest-lived show" (W.minShow 1 or 2): a particle that would decay before it is seen (a
+   resonance within a proton's width, a π⁰ or Σ⁰ within nanometres) is held until it has flown a few ångströms or a
+   moment of watching has passed, whichever comes first; then it decays as it would have. Its products, and so every
+   tally, are the same; only where the decay happens moves, and that is shown while it is on. */
+const MIN_SHOW = [null, { d: 2, t: 0.4 }, { d: 6, t: 1.2 }];
+function exoHeld(o) {
+  const m = MIN_SHOW[W.minShow | 0];
+  return !!m && W.rt - o.born < m.t && Math.hypot(o.x - o.bx0, o.y - o.by0) < m.d;
+}
 function moveExos(dt, id0) {
   if (W.muBound && W.muBound.length) muBoundTick(dt);
-  for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res) decayExo(o); } // (resonances: gone within a proton's width, whatever the decay clock)
+  for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res) { if (exoHeld(o)) o.wait = true; else decayExo(o); } } // (resonances: gone within a proton's width, whatever the decay clock)
   const n0 = W.exo.length;
   if (!n0) return;
   const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, hw = W.box.w / 2, hh = W.box.h / 2; // (proper seconds per lab second: 1/γ)
@@ -663,7 +672,10 @@ function moveExos(dt, id0) {
       if (rnd() < P) { dec = true; h = dt * Math.min(1, -Math.log(1 - rnd() * P) * tl / clock); } // when in the step it goes
     }
     const d = XP[o.sp];
+    if (dec && exoHeld(o)) { dec = false; h = dt; o.wait = true; } // (held to be seen: it flies the whole step, and may decay in a later one)
     flyExo(o, h);
+    if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
+    if (d.res && !dec) continue; // (a held resonance: only flies)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
       if (!((d.atom || d.hyp || ((o.sp === 'mu-' || o.sp === 'K-') && o.KE < 2 * MU_STOP)) && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
       if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)

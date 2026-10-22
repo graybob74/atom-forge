@@ -671,13 +671,56 @@ function myMolsLoad() {
   if (moved) myMolsSave();
 }
 
+/* ---- Editing a molecule (My molecules, or a copy of a library one): onto the workspace as it is, with its name. Its
+   ordinary hydrogens are left to fill in by themselves when that gives back exactly the ones it has (so new atoms get
+   theirs too); otherwise every atom goes in as drawn and filling is switched off. Save puts it back in place (same
+   spot in the list, category and note); Save as new keeps the original. Copies already in the chamber stay as they are. */
+function mbLoadMol(k, edit) {
+  const m = MOLECULES[k];
+  if (!m) return false;
+  if (m.atoms.length > MB_MAX) { log('tool', `${m.name} has ${m.atoms.length} atoms: more than the builder holds (${MB_MAX})`); return false; }
+  openMolBuilder();
+  const A = m.atoms, B = m.bonds, nb = A.map(() => []);
+  for (const [i, j, o] of B) { nb[i].push([j, o]); nb[j].push([i, o]); }
+  const plainH = (i) => A[i][0] === 'H' && !A[i][3] && !(A[i][4] > 1) && nb[i].length === 1 && nb[i][0][1] === 1 && A[nb[i][0][0]][0] !== 'H';
+  const strip = A.map((a, i) => plainH(i)), nH = A.map(() => 0), used = A.map(() => 0);
+  A.forEach((a, i) => { if (strip[i]) nH[nb[i][0][0]]++; });
+  for (const [i, j, o] of B) if (!strip[i] && !strip[j]) { used[i] += o; used[j] += o; }
+  const fill = A.every((a, i) => strip[i] || Math.max(0, mbCap(a[0], a[3] || 0).cap - used[i]) === nH[i]);
+  mbSnap();
+  MB.atoms = []; MB.bonds = []; MB.sel = null;
+  const ids = A.map((a, i) => {
+    if (fill && strip[i]) return 0;
+    const at = { id: MB.next++, el: a[0], x: a[1], y: a[2], q: a[3] || 0 }; if (a[4]) at.A = a[4];
+    MB.atoms.push(at); return at.id;
+  });
+  for (const [i, j, o] of B) if (ids[i] && ids[j]) MB.bonds.push({ a: ids[i], b: ids[j], o });
+  MB.fill = fill; MB.hA = 1; $('bldFill').checked = fill; $('bldHA').value = '1';
+  MB.aiSig = null; MB.aiNote = ''; MB.msg = '';
+  MB.edit = edit && m.mine ? k : null;
+  $('bldName').value = MB.edit ? m.name : (m.name + ' (copy)').slice(0, 40);
+  mbSyncEdit();
+  mbChanged(true);
+  mbSay(MB.edit ? `Editing ${m.name}: Save puts it back in place, Save as new keeps the original. Copies already in the chamber stay as they are.` : `A copy of ${m.name} to make your own: Build & use adds it to My molecules.`);
+  return true;
+}
+function mbSyncEdit() {
+  const m = MB.edit && MOLECULES[MB.edit];
+  if (!m) MB.edit = null;
+  $('bldTitle').textContent = m ? `Editing ${m.name}` : 'Molecule builder';
+  $('bldGo').textContent = m ? 'Save' : 'Build & use';
+  $('bldGo').title = m ? `Settle it into shape and save it as ${m.name}, in place` : 'Settle it into shape and pick it for the Place tool';
+  $('bldGoNew').hidden = !m;
+}
+
 /* ---- Build & place */
-function mbBuild() {
+function mbBuild(asNew) {
+  MB.asNew = !!asNew;
   if (!MB.atoms.length) { mbSay('Drag some atoms onto the workspace first.', true); return; }
   const info = MB.info = mbAnalyze();
   if (info.issues.length) { mbSay('Not yet: fix the problem above first.', true); mbDraw(); return; }
   const name = String($('bldName').value || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 40);
-  if (info.lm && (!name || name === info.lm.name)) { // already known: use that one, shape and all
+  if (info.lm && !MB.edit && (!name || name === info.lm.name)) { // already known: use that one, shape and all (not when editing one: that saves it)
     hideModal('bldModal'); selectSpec({ kind: 'mol', mol: info.lm.key });
     log('tool', `Builder: that is ${info.lm.name}, already in ${molWhere(info.lm)}`);
     return;
@@ -697,12 +740,15 @@ function mbBuildRun(info, name) {
       : 'It will not lie flat without bonds crossing or atoms overlapping. Drag atoms apart so no bonds cross (Tidy helps), then try again.', true);
     return;
   }
-  const k = 'my' + Date.now().toString(36) + (MB.seq++).toString(36);
+  const old = MB.edit && !MB.asNew ? MOLECULES[MB.edit] : null; // (editing: saved back in place, its category and note kept)
+  const k = old ? old.key : 'my' + Date.now().toString(36) + (MB.seq++).toString(36);
   const atoms = info.mol.atoms.map((a, i) => { const r = [a.el, +best.xy[i][0].toFixed(2), +best.xy[i][1].toFixed(2)]; if (a.q || a.A) r.push(a.q || 0); if (a.A) r.push(a.A); return r; });
   const byClaude = MB.aiSig && MB.aiSig === mbSig(); // still as Claude designed it: keep its note
-  myMolAdd({ k, n: name || info.name || info.formula, r: best.free ? 1 : 0, a: atoms, b: info.mol.bonds.map(b => b.slice()),
-    d: byClaude ? 'Designed by Claude.' + (MB.aiNote ? ' ' + MB.aiNote : '') : '', c: byClaude ? (molCatOk(MB.aiCat) ? MB.aiCat : molCatGuess(atoms, info.mol.bonds)) : undefined }); // (Claude's design: filed under its category)
+  myMolAdd({ k, n: name || (old && old.name) || info.name || info.formula, r: best.free ? 1 : 0, a: atoms, b: info.mol.bonds.map(b => b.slice()),
+    d: old ? old.desc : byClaude ? 'Designed by Claude.' + (MB.aiNote ? ' ' + MB.aiNote : '') : '', c: old ? (old.cat !== 'custom' ? old.cat : undefined) : byClaude ? (molCatOk(MB.aiCat) ? MB.aiCat : molCatGuess(atoms, info.mol.bonds)) : undefined }); // (Claude's design: filed under its category)
   myMolsSave();
+  if (old) log('tool', `Builder: ${MOLECULES[k].name} saved; copies already in the chamber are as they were`);
+  MB.edit = null; mbSyncEdit();
   hideModal('bldModal'); selectSpec({ kind: 'mol', mol: k });
   log('tool', `Builder: ${MOLECULES[k].name} (${specLabel({ kind: 'mol', mol: k })}) is ready to place${best.free ? '; it has a free valence, so it will react' : ''}`);
 }
@@ -1065,6 +1111,7 @@ function mbResize(force) {
 }
 function openMolBuilder() {
   hideModal('molModal');
+  MB.edit = null; mbSyncEdit();
   if (!MB.palOK) { $('bldPal').innerHTML = mbPaletteHTML(); MB.palOK = true; }
   $('bldFill').checked = MB.fill; $('bldHA').value = String(MB.hA);
   MB.msg = '';
@@ -1295,6 +1342,7 @@ function builderInit() {
   $('bldClear').onclick = () => mbClear();
   $('bldTidy').onclick = () => mbTidy();
   $('bldGo').onclick = () => mbBuild();
+  $('bldGoNew').onclick = () => mbBuild(true);
   $('bldFill').onchange = (e) => { MB.fill = !!e.target.checked; MB.msg = ''; mbChanged(); };
   $('bldHA').onchange = (e) => { MB.hA = [1, 2, 3].includes(+e.target.value) ? +e.target.value : 1; MB.msg = ''; mbChanged(); };
   $('bldA').onchange = (e) => mbSetIso(+e.target.value);

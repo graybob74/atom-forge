@@ -57,7 +57,8 @@ function makeWorld() {
     box: { w: 120, h: 76, tw: 120, th: 76, uw: 0, uh: 0 },
     wall: 'reflect', nWall: 'reflect', // nWall: what the closed walls do to neutrons (Lab → Container)
     T: 300, gamma: 0.05,
-    warp: 1,                    // radioactive decay speed-up over real rates (1 = as in nature)
+    warp: 1,                    // decay speed over real rates (1 = as in nature; below 1 slowed, down to 1e-6)
+    minShow: 0,                 // hold the shortest-lived particles until seen (0 off, 1 a little, 2 more; hep.js exoHeld)
     Bz: 0, magnets: [], Ex: 0, Ey: 0,
     nextId: 1, topo: 1, deaths: 0, bathSeed: 0x5eed1234, // bathSeed: the heat bath's noise is hashed from it, the step and the slot (threads.js's bathNoise)
     rays: [], flights: [], chips: [], chipSeq: 0, chipT: 0, lasers: [], mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
@@ -740,7 +741,9 @@ function noteMade(outs, ins, how) {
 let _glowing = false; // (any particle still glowing: the fade loop runs only then)
 function glow(p, rgb) { p.glow = 1; p.glowC = rgb; _glowing = true; }
 /* Caption suffix for a radioactive decay when decays run faster than in nature. */
-function boostTag() { return W.warp > 1.0001 ? ` · decay sped up ${fmtFactor(W.warp)}` : ''; }
+function boostTag() { return (W.warp > 1.0001 ? ` · decay sped up ${fmtFactor(W.warp)}` : W.warp < 0.9999 ? ` · decay slowed ${fmtFactor(1 / W.warp)}` : '') + (W.minShow ? ' · short-lived held to be seen' : ''); }
+/* The decay speed in words: 'real', 'sped up ×1,000' or 'slowed ×1,000'. */
+function warpWords() { return W.warp > 1.0001 ? `sped up ${fmtFactor(W.warp)}` : W.warp < 0.9999 ? `slowed ${fmtFactor(1 / W.warp)}` : 'real'; }
 
 /* ------------------------------------------------------------------ fields */
 /* Accelerator parts (W.zones), each a region of the chamber with its own field:
@@ -5314,7 +5317,11 @@ function simFrame(realDt, budgetMs) {
   const t0 = performance.now();
   let simAdv = 0, steps = 0, cut = false;
   const slow = slowFactor(realDt), fr = clamp(realDt / FRAME_REF, 0.01, 3); // (the frame's share of a sixtieth: any frame rate up to 6,000 fps advances the same simulated time per second)
-  const target = W.simPerFrame * slow * fr, floor = W.flights.length ? 1e-9 : DT_MIN; // (with light in flight a frame may be shorter than the shortest normal step: slowed down that far, the light is still seen to slow)
+  let target = W.simPerFrame * slow * fr; const floor = W.flights.length ? 1e-9 : DT_MIN; // (with light in flight a frame may be shorter than the shortest normal step: slowed down that far, the light is still seen to slow)
+  // set below one shortest step a frame (1/512× of a fine setup): the frames' time is saved up and run once it makes a
+  // whole step, so the motion is as slow as asked and not one step a frame, whatever the fps. (Slow motion keeps its
+  // floor of a step a frame: it follows fast particles, which must move every frame to be followed.)
+  if (target < floor && slow >= 0.999) { W._carry = (W._carry || 0) + target; if (W._carry < floor) target = 0; else { target = W._carry; W._carry = 0; } } else W._carry = 0;
   while (simAdv < target - Math.min(1e-9, 1e-3 * target)) {
     // particles added from outside (tools, setups): the step size must see their forces and contacts first
     if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; }

@@ -268,7 +268,7 @@ const { openPage } = require('./browser');
   });
   check(r15.on[0] === r15.vw[0] && r15.on[1] === r15.vw[1] && r15.top === 'none' && r15.idle && r15.back && r15.off && r15.after.join() === r15.before.join() && r15.always && r15.never && r15.seg,
     `display: chamber only fills the window (${r15.on.join('×')}), the resting cursor hides and comes back on a move; off again, the layout is as it was; the cursor setting's Always and Never hold; Settings has the window choice`, 'display mode: ' + JSON.stringify(r15));
-  // 0.54: Grab keeps up with the mouse in real time (Strong), Gentle is the spring alone; the speed buttons reach 1/256×
+  // 0.54: Grab keeps up with the mouse in real time (Strong), Gentle is the spring alone; the speed buttons reach 1/512× (0.61)
   const r16 = await page.evaluate(() => {
     const out = {};
     for (const st of ['gentle', 'strong']) {
@@ -287,7 +287,7 @@ const { openPage } = require('./browser');
     for (let i = 0; i < 12; i++) stepSpeed(1);
     return out;
   });
-  check(r16.gentle > 15 && r16.strong < 1 && r16.torn && Math.abs(r16.min - 256) < 1e-6,
+  check(r16.gentle > 15 && r16.strong < 1 && r16.torn && Math.abs(r16.min - 512) < 1e-6,
     `grab: with time slowed 75×, Strong carries a water molecule to a cursor 20 Å off within half a second (gap ${r16.strong.toFixed(2)} Å; Gentle still ${r16.gentle.toFixed(0)} Å behind); a hydrogen carried off tears its O–H bond; the speed buttons go down to 1/${Math.round(r16.min)}×`, 'grab/speed: ' + JSON.stringify(r16));
   // 0.54: nothing about speed tied to the frame rate: a second of watching at 30, 60, 144 or 240 fps advances the same time
   const r17 = await page.evaluate(() => {
@@ -437,6 +437,52 @@ const { openPage } = require('./browser');
   });
   check(!r23.bad.length && r23.worst < 1e-3 && r23.modes === 'mes,non' && r23.hyp >= 2 && r23.hyp <= 30,
     `hypernuclei (${r23.names}): 60 decays, mesonic and non-mesonic, every one exact (worst ${r23.worst.toExponential(0)} eV); a stopped K⁻ in carbon left a hypernucleus ${r23.hyp} times in 200`, 'hypernuclei: ' + JSON.stringify(r23));
+  // 0.61: speed below one step a frame saved up; screen kept awake; measure any particle; decay slowed, and the
+  // shortest-lived held to be seen; saved molecules edited in the builder; exotic particles in particle view
+  const r24a = await page.evaluate(() => {
+    const out = {};
+    loadPreset('empty'); setRunning(false); W.simPerFrame = DT_MIN / 8; const t0 = W.t; for (let i = 0; i < 64; i++) simFrame(1 / 60, 50);
+    out.carry = (W.t - t0) / (64 * DT_MIN / 8); // (1 when the frames' time is saved up, 8 when each frame takes a whole step)
+    out.wake = SET.wake === true && !!$('setWake');
+    // measure: a pion and a photon in flight, as well as an atom
+    loadPreset('empty'); setRunning(false); R.s = 40; R.cx = 0; R.cy = 0; R.measure = [];
+    const a = addAtom('C', -3, 0), pi = addExo('pi+', 3, 0, 0, 1, 0);
+    W.flights.push({ x0: 0, y0: 4, x1: 0, y1: 40, len: 36, t0: W.t, E: 2, c: [255, 255, 255] });
+    setTool('measure'); window._m24 = { a, pi };
+    const rc = R.cv.getBoundingClientRect(); out.pts = [[-3, 0], [3, 0], [0, 4]].map(([x, y]) => [rc.left + w2sx(x), rc.top + w2sy(y)]);
+    return out;
+  });
+  for (const [x, y] of r24a.pts) await page.mouse.click(x, y);
+  const r24 = await page.evaluate((out) => {
+    const { a, pi } = window._m24;
+    out.meas = R.measure.length; out.measTxt = measureText(); out.measKinds = R.measure.map(p => p === a ? 'atom' : p === pi ? 'exo' : p._o ? 'flight' : '?').join();
+    W.flights.length = 0; out.gone = R.measure.filter(p => !p.dead).length; setTool('place');
+    // decay slowed: the slider reaches a millionth; a π⁰ held to be seen flies a few Å, and decays the same way
+    W.warp = 1e-3; syncLab(); out.warpTxt = $('warpVal').textContent; out.warpMin = +$('warpSlider').min;
+    W.warp = 1; W.minShow = 2; loadPreset('empty'); setRunning(false); W.minShow = 2; const z = addExo('pi0', 0, 0, 50, 1, 0);
+    for (let i = 0; i < 2000 && !z.dead; i++) { W.dt = chooseDt(); step(W.dt); W.rt += 1 / 60; }
+    out.held = Math.hypot(z.x, z.y); out.heldFate = z.fate; W.minShow = 0;
+    // molecule editing: a saved one renamed and changed, in place; Save as new keeps it
+    const k = 'mytest1'; myMolAdd({ k, n: 'Test ethane', r: 0, a: [['C', -0.77, 0], ['C', 0.77, 0], ['H', -1.2, 1], ['H', -1.2, -1], ['H', -1.6, 0], ['H', 1.2, 1], ['H', 1.2, -1], ['H', 1.6, 0]], b: [[0, 1, 1], [0, 2, 1], [0, 3, 1], [0, 4, 1], [1, 5, 1], [1, 6, 1], [1, 7, 1]] });
+    mbLoadMol(k, true); out.loaded = MB.atoms.length + (MB.fill ? ' fill' : ''); out.title = $('bldTitle').textContent; out.newBtn = !$('bldGoNew').hidden;
+    mbAttach('O', MB.atoms[0].id); $('bldName').value = 'Test ethanol'; mbBuild();
+    const keys = Object.keys(MOLECULES).filter(q => MOLECULES[q].mine);
+    out.saved = MOLECULES[k] && MOLECULES[k].name + ' ' + MOLECULES[k].atoms.filter(x => x[0] === 'O').length; out.nMine = keys.length;
+    mbLoadMol(k, true); $('bldName').value = 'Test copy'; mbBuild(true);
+    out.asNew = Object.keys(MOLECULES).filter(q => MOLECULES[q].mine).length - keys.length; out.kept = MOLECULES[k].name;
+    mbLoadMol('H2O', true); out.copyOf = $('bldName').value + (MB.edit ? ' EDITING' : '');
+    for (const q of Object.keys(MOLECULES)) if (MOLECULES[q].mine && /^Test/.test(MOLECULES[q].name)) myMolRemove(q); hideModal('bldModal');
+    // particle view: what is inside each
+    R.view.bohr = 'nuc'; const ctx = R.ctx, ins = {};
+    for (const sp of ['pi+', 'Lam', 'Dpp', 'rho0', hypSpecies(6, 6), 'muP', 'mu-', 'tau-']) { const o = addExo(sp, 0, 0, 0, 1, 0); const c = XP[sp].col; ins[sp] = exoInside(ctx, o, 100, 100, c, '#ffffff') > 0; o.dead = true; }
+    R.view.bohr = 'auto'; out.inside = Object.entries(ins).map(([k2, v]) => k2 + (v ? '+' : '-')).join(' ');
+    return out;
+  }, r24a);
+  check(Math.abs(r24.carry - 1) < 0.15 && r24.wake && r24.meas === 3 && r24.measKinds === 'atom,exo,flight' && r24.gone === 2 && /slowed/.test(r24.warpTxt) && r24.warpMin === -6
+    && r24.held > 5 && r24.held < 8 && /π⁰ → 2γ/.test(r24.heldFate || '') && r24.loaded === '2 fill' && r24.title === 'Editing Test ethane' && r24.newBtn
+    && r24.saved === 'Test ethanol 1' && r24.asNew === 1 && r24.kept === 'Test ethanol' && r24.copyOf === 'Water (copy)' && r24.inside === 'pi++ Lam+ Dpp+ rho0+ hy6_6+ muP+ mu-- tau--',
+    `0.61: 1/512× runs ${r24.carry.toFixed(2)}× the time asked; screen kept awake; measured an atom, a pion and a photon (${r24.measTxt}); decay ${r24.warpTxt}; a held π⁰ flew ${r24.held.toFixed(1)} Å; a saved molecule edited in place (${r24.saved}), and saved as new; particle view ${r24.inside}`,
+    '0.61: ' + JSON.stringify(r24));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
