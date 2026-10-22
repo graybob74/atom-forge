@@ -20,6 +20,7 @@ pub const BARE_SMEAR: f64 = 2.0;
 pub const R_ANN: f64 = 0.3;
 pub const ANGLE_K: f64 = 2.0;
 pub const K_COUL: f64 = 14.3996454784; // PHYS.KE
+pub const K_IW: f64 = 2.0; // engine.js K_IW: an ion and a polar molecule, their Coulomb pull doubled (solvation in two dimensions)
 
 pub const CAND_BOND: i32 = 1;
 pub const CAND_REACT: i32 = 2;
@@ -235,7 +236,7 @@ pub unsafe fn pair_kernel(c: &mut Ctx, s: &St, q0: usize, q1: usize, fxo: *mut f
         if rd(s.anti, i) != rd(s.anti, j) { f = anti_pair_i(c, s, i, j, r, cq, &mut nc); }
         else if ni > 0 && nj > 0 { // two atoms or ions (atomAtom)
             let qi = rd(s.q, i); let qj = rd(s.q, j); let qa = qi + rd(s.qp, i); let qb = qj + rd(s.qp, j);
-            if qa != 0.0 && qb != 0.0 { let s2 = r * r + 0.09; f += K_COUL * qa * qb * r / (s2 * s2.sqrt()); }
+            if qa != 0.0 && qb != 0.0 { let s2 = r * r + 0.09; let ii = rd(s.ionic, i); let iw = if ii != rd(s.ionic, j) && (if ii == 1 { qj == 0.0 } else { qi == 0.0 }) { K_IW } else { 1.0 }; f += iw * K_COUL * qa * qb * r / (s2 * s2.sqrt()); } // (K_IW: an ion and a polar molecule, engine.js)
             if rd(s.ismetal, i) == 1 && rd(s.ismetal, j) == 1 { f += metal_fi(c, s, i, j, r); }
             else {
                 f += lj_fi(c, s, i, j, r, qa, qb);
