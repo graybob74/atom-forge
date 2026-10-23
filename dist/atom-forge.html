@@ -1,4 +1,4 @@
-<title>Atom Forge 0.64.0</title>
+<title>Atom Forge 0.65.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -6248,10 +6248,25 @@ function processEvents() {
   q.length = 0;
 }
 
+/* Nothing bonds or reacts in flight or in a hard collision: past ten times the strongest bond's energy (the two
+   molecules' motion relative to each other, as snapTogether takes their meeting) atoms only bounce. A keV fragment
+   from an annihilation that bonded or reacted turned that motion into energy from nowhere (0.65). */
+const HARD_MEET = 100; // eV
+function hardMeet(a, b) {
+  if (a.fast || b.fast || a.rad || b.rad) return true;
+  const ma = molecule(a), mb = molecule(b);
+  if (ma.includes(b)) return false;
+  let Ma = 0, Mb = 0, ax = 0, ay = 0, bx = 0, by = 0;
+  for (const p of ma) { Ma += p.m; ax += p.m * p.vx; ay += p.m * p.vy; }
+  for (const p of mb) { Mb += p.m; bx += p.m * p.vx; by += p.m * p.vy; }
+  const dvx = bx / Mb - ax / Ma, dvy = by / Mb - ay / Ma;
+  return 0.5 * Ma * Mb / (Ma + Mb) * (dvx * dvx + dvy * dvy) > HARD_MEET;
+}
 function evBond(a, b, r) {
   if (a.dead || b.dead || bondBetween(a, b)) return;
   if (!(a.cap - a.used > 0 && b.cap - b.used > 0) || !covalentOK(a, b)) return;
   if (a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) return;
+  if (hardMeet(a, b)) return;
   const third = nearestThird(a, b, 6);
   if (!third && W.gamma === 0 && rnd() > 0.002) return; // nothing to carry the bond energy away
   const fa = speciesLabel(a), fb = speciesLabel(b);
@@ -6288,6 +6303,7 @@ function evReact(X, A, rx, r) {
   if (!(X.cap - X.used > 0) || W.bonds.indexOf(rx.bd) < 0 || bondBetween(X, A)) return;
   const key = X.id * 131072 + A.id, last = _rxTried.get(key);
   if (last !== undefined && W.step - last < 30) return; // one test per encounter
+  if (hardMeet(X, A)) return;
   const [dx, dy] = minImg(A.x - X.x, A.y - X.y);
   const rr = Math.hypot(dx, dy) || 1e-6, nx = dx / rr, ny = dy / rr;
   const vn = (A.vx - X.vx) * nx + (A.vy - X.vy) * ny;
@@ -6785,7 +6801,7 @@ function twoGamma(x, y, E = 2 * ME_C2) {
 
 /* Bare proton meets a lone pair: dative bond (H⁺ + H₂O → H₃O⁺, H⁺ + NH₃ → NH₄⁺, H⁺ + Cl⁻ → HCl). */
 function evDative(H, D, r) {
-  if (H.dead || D.dead || opp(H, D) || H.ne !== 0 || H.Z !== 1 || D.ne === 0 || D.lp < 1) return;
+  if (H.dead || D.dead || opp(H, D) || H.ne !== 0 || H.Z !== 1 || D.ne === 0 || D.lp < 1 || hardMeet(H, D)) return;
   const capAfter = (() => {
     const vi = valenceInfo(D.Z, D.ne - 1); if (D.el.dblock) return 0;
     if (vi.n === 1) return vi.v === 1 ? 1 : 0;
@@ -8565,21 +8581,24 @@ function innerSteps(Dt) {
       if (lz) { _lzLag += dti; const bnd = _lzD + _lzV * _lzLag; if (bnd * bnd > HSKINF2) { _flPre = -1; } else _flPre = flOk ? worst : -1; } // (the drifting atoms within their bound: the moved ones decide)
       else _flPre = flOk ? worst : -1;
     }
-    if (_mdL.length) {
-      computeFast();
-      const st0 = W.spawned + W.topo + W.dirty - _undone; // (changes put back exactly, as by undoJoin, need no recount)
-      processEvents(); // (events that may look at other atoms bring the far ones up to date first: lzNeed)
-      if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; if (_gxOn) gxReset(); } // (the force pass set the fast forces afresh)
-    }
+    if (_mdL.length) computeFast();
     _flPre = -1;
     {
       const DEAD = S.dead, RAD = S.rad, FAST = S.fast, VX = S.vx, VY = S.vy, GX = S.gx, GY = S.gy, IM = S.im, FRESH = S.fresh;
       const L = useL ? _gxL : _mdI, n = useL ? _gxN : _nmd;
       for (let k = 0; k < n; k++) {
         const i = L[k];
-        if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1 || FRESH[i] === 1) continue; // fresh: born in this step's events, already current
+        if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1 || FRESH[i] === 1) continue; // fresh: born since the last drift, already current
         VX[i] += h * GX[i] * IM[i]; VY[i] += h * GY[i] * IM[i];
       }
+    }
+    // the events found by the force pass (a lepton at an atom, a positron at an electron) come after the closing kick,
+    // when velocities and positions belong to the same moment: a scatter or capture handled half a kick early, on a
+    // velocity still missing h·a, threw that half kick's work away (free electrons among ions lost energy on every pass)
+    if (_mdL.length) {
+      const st0 = W.spawned + W.topo + W.dirty - _undone; // (changes put back exactly, as by undoJoin, need no recount)
+      processEvents(); // (events that may look at other atoms bring the far ones up to date first: lzNeed)
+      if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; if (_gxOn) gxReset(); } // (the force pass set the fast forces afresh, for the next opening kick)
     }
     rem -= dti;
   }
@@ -8725,6 +8744,7 @@ function moveWalls(dt) {
   b.uw = w1 < b.w ? -step / (2 * dt) : 0; b.uh = h1 < b.h ? -step / (2 * dt) : 0; // (the walls' own speed where they touch anything)
   b.w = w1; b.h = h1;
 }
+let _wallMoved = false; // (walls: a particle rescued from deep in a wall since the last force pass)
 function walls(p) {
   if (p.dead || p.rad || (p.k === NUC && p.Z === 0)) return;
   const hw0 = W.box.w / 2, hh0 = W.box.h / 2, hw = hw0, hh = hh0;
@@ -8748,6 +8768,8 @@ function walls(p) {
     else if (p.y > hh + m) { const d = p.y - hh; p.y = hh; dW += 0.5 * k * d * d; p.vy = -Math.abs(p.vy); }
     const dE = one ? U0 - localPE(one) : dW, ke = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy), k1 = Math.max(0, ke + dE);
     if (ke > 0) { const f = Math.sqrt(k1 / ke); p.vx *= f; p.vy *= f; }
+    _wallMoved = true; // (moved after the step's force pass: the next step starts from forces at its new place, not the wall's
+    // push from deep inside it, which would throw it back with tens of eV of energy from nowhere)
     return;
   }
   if (p.x < -hw) { p.x = -hw + Math.min(W.box.w, -hw - p.x); p.vx = -2 * uw - p.vx; if (p.vx < 0) p.vx = -p.vx; }
@@ -8853,7 +8875,8 @@ function stepPlain(dt) {
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) moveWalls(dt); else { W.box.uw = 0; W.box.uh = 0; }
   // particles added from outside, or switched between MD and ballistic flight at the end of the last step
   rpMark(0);
-  if (W.fSpawn !== W.spawned || listsStale()) { _noEv = true; computeForces(); _noEv = false; }
+  if (W.fSpawn !== W.spawned || listsStale() || _wallMoved) { _noEv = true; computeForces(); _noEv = false; }
+  _wallMoved = false;
   rpSkip();
   let tp = _profOn ? performance.now() : 0;
   if (!integrateA(dt)) { // (the threads take the plain case: no magnetic field, no free electrons)
@@ -8865,15 +8888,17 @@ function stepPlain(dt) {
   outerForces();
   if (_profOn) PROF.rp[1] -= _tForces - tf1; // (the force pass itself is counted under forces)
   rpMark(1);
-  const st0 = W.spawned + W.topo + W.dirty - _undone;
-  processEvents();
-  rpMark(2);
-  // events that moved atoms, changed bonds or species, or created particles: forces must be current
-  if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; }
-  W.fSpawn = W.spawned;
   if (_profOn) tp = performance.now();
   outerB(dt);
   if (_profOn) { _tBath += performance.now() - tp; _rpT = performance.now(); }
+  // the events the force pass found come after the closing kick (0.65), when every velocity belongs to the same moment
+  // as the positions: a reaction or bond judged and paid half a kick early created or lost that half kick's work
+  const st0 = W.spawned + W.topo + W.dirty - _undone;
+  processEvents();
+  rpMark(2);
+  // events that moved atoms, changed bonds or species, or created particles: forces must be current (for the next opening kick)
+  if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; }
+  W.fSpawn = W.spawned;
   if (_nFastLep > 0 || _flagGen !== _flagGenForces) { moveFastLeptons(dt, id0); _wallNeed = -1; } // (none were ballistic when the lists were made, and no flag has changed since)
   const kT = PHYS.KB * W.T, c1 = Math.exp(-W.gamma * dt), c2 = Math.sqrt(Math.max(0, 1 - c1 * c1));
   let nRad = 0;

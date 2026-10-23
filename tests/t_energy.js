@@ -41,7 +41,8 @@ const CHAOTIC = new Set(['chain', 'antihydrogen', 'annihilation']);
    each nuclear event's books are exact (t_features). 0.63 fixed the biggest leak found in ionized water (electron-
    impact excitation lines without the rest of their cascade): seeds 7–9 then drift 0.5, 41 (a chaotic outlier) and
    0.5 keV. Smaller leaks remain. Its limit is 5 keV of the 1.7 GeV released, about 3 parts per million, judged on the
-   median of three seeds.) */
+   median of three seeds. 0.65: events after the closing kick, fresh forces after a wall rescue and no bonds in hard
+   collisions bring seeds 7–9 to 3.3, 9.9 and 0.25 keV.) */
 for (const k of keys) {
   if (SKIP[k]) { rows.push(`${k.padEnd(13)} skipped: ${SKIP[k]}`); continue; }
   let r = runPreset(k, 7), note = '';

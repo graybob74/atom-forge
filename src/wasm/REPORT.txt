@@ -1,6 +1,6 @@
-built from 2d818b621f316ca6e96248c65964d811a8cbf7f9 (48490 bytes)
+built from f094dcea48457b5a1c1ffa1d09b8ef7f2ff11245 (48553 bytes)
 imports [{"module":"env","name":"memory","kind":"memory"}]
 exports __stack_pointer:global af_const:function af_fast:function af_forces:function af_sum:function af_zero:function __heap_base:global
 K_COUL 14.3996454784 heap_base 1050528 stack_pointer 1048576
-plain: 47859 bytes, imports [{"module":"env","name":"memory","kind":"memory"}]
+plain: 47922 bytes, imports [{"module":"env","name":"memory","kind":"memory"}]
 plain: K_COUL 14.3996454784 heap_base 1050416 stack_pointer 1048576

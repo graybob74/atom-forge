@@ -76,6 +76,30 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.65.0: energy fixes in the engine (nothing else changed)
+- Events now come after the closing half kick, at the inner steps (a free lepton at an atom: scatter, capture, ionization,
+  excitation; a positron at an electron) and at the atom step (bonds, reactions, transfers). They used to be handled
+  between the force pass and that kick, on velocities still missing h·a: a scatter rotated a velocity that was half a kick
+  short, so each pass of a free electron through an atom's core threw part of that kick's work away, and a reaction
+  paid from such a velocity created it. 40 e⁻ + 40 p⁺ (6000 steps, seeds 3–5): −26 / −42 / −44 eV → −4.2 / −0.2 / −1.8 eV.
+  Antihydrogen challenge seeds 7–9: −0.5 / −3.5 / +0.1 eV in 0.64 → −0.6 / −0.8 / −1.0.
+- Wall rescue: a heavy particle fast enough (> ~34 eV across the wall) to reach 1.5 Å into a soft wall is put back on the
+  wall line (as before), and now the next step starts with a fresh force pass (`_wallMoved`): it used to start from the
+  wall's push at its old place, deep inside, and was thrown back with energy from nowhere (40 p⁺ + 40 e⁻ at 100 eV:
+  +19 / +21 eV → −0.7 / −0.8).
+- No bond, reaction or dative bond in flight or in a hard collision (`hardMeet`: either atom ballistic or in radiation
+  mode, or the two molecules meeting with over 100 eV of relative motion, ten times the strongest bond): the annihilation's
+  keV fragments used to "bond", each turning 100–300 keV of motion into energy from nowhere.
+- t_energy against 0.64 (seed 7): soup 11.5 → −11.7 eV, antihydrogen 5.4 → −1.1, chain −2.0 → −1.1, annihilation 3.7 →
+  3.3 keV (seeds 7–9: 3.3 / 9.9 / 0.25 keV; chaotic, judged on the median), everything else the same or smaller except
+  the flame (0.4 → 4.7 eV at seed 7; 1–5 eV by seed in both versions, from its photon steps). Heavily ionized water
+  (drift5, seeds 7/8): −424 / −107 eV → +95 / +172: the loss is gone, a smaller gain in its quiet steps remains (not
+  found yet; candidates: excitation by a ballistic electron after the force pass, `refresh` without a force pass).
+- Not done: per-electron step sizes. A profile of the neon discharge puts the lepton pair forces at ~12% of a step (the
+  list rebuilds 16%, the inner drift loop 18%), so they would gain at most ~4%; tightening the step instead (LEP_STEP,
+  the stiffness rule) did not remove the drift, which was the event timing above.
+- No kernel change: the WebAssembly kernel is the same as 0.64's.
+
 ## 0.64.0: editing what is placed, new setups, an event browser, named saves
 - Right-click menu edits: a magnet's field and size (the Magnet tool's scales), a Fire-tool beam source's energy and rate, and any particle's (or molecule's) energy and direction; each slider is one undo step. "Graph it" follows a particle on the Data tab's graph (its speed, kinetic energy, distance from where it started).
 - Whole-molecule grab takes the ions held ionically to the molecule too (opposite charges in contact, as the Ionic view draws them), so a salt crystal comes along whole (grabGroup).
