@@ -346,6 +346,16 @@
           </ul>
         </section>
         <section class="card">
+          <h4>Placed objects (Objects tool, D)</h4>
+          <ul>
+            <li><b>Optics.</b> Mirrors reflect light (angle in equals angle out); a beam splitter sends each photon one way or the other at random, half and half. A thin lens bends a ray crossing it at height h by h/f. A prism of F2 flint glass (n = 1.648 at 400 nm, 1.609 at 700 nm) refracts by Snell's law at each face, so violet bends more than red; met straight on it reflects totally inside, as a real one does. Glass absorbs ultraviolet below 300 nm; X-rays and γ rays go straight through all of them.</li>
+            <li><b>Detector screen and beam stop.</b> Both stop light and fast particles (their energy goes into them, out of the chamber's books); antimatter annihilates there. The screen counts what hits it and draws its energy spectrum along itself.</li>
+            <li><b>Walls.</b> Atoms meet every object as a soft wall on their edge, as at the chamber's walls (the energy is kept in the books); electrons bounce off. A wall object turns fast particles back too.</li>
+            <li><b>Foil.</b> Fast charged particles cross a few nanometres of metal: at each atomic layer they pass some nucleus at a random distance b and are turned by 2·atan(d/2b), d = kzZ/E (Rutherford). Most go nearly straight; a few, passing very close, bounce back, which is how the nucleus was found (Geiger and Marsden, 1909). Ones too slow to get through stop in it.</li>
+            <li><b>Charged plates.</b> A uniform field V/gap between two plates; outside them, none. Like the Lab's electric field, the energy it gives comes from the supply.</li>
+          </ul>
+        </section>
+        <section class="card">
           <h4>Nuclear physics</h4>
           <ul>
             <li>Binding energies from the Atomic Mass Evaluation: tabulated up to zinc, and for the heavy decay chains (thorium, uranium, plutonium …) worked out from their measured decay energies, down to the stable lead and bismuth they end in. Elsewhere the semi-empirical mass formula, which overbinds the actinides by about 13 MeV. Q-values follow from them; a uranium-235 fission gives its fragments about 170 MeV and prompt γ rays about 8 MeV, as measured.</li>
@@ -442,7 +452,7 @@
         <button class="btn small" id="bldClear">Clear</button>
       </div>
     </div>
-    <div class="brow"><input class="msearch" id="bldName" maxlength="40" placeholder="Name (optional)" autocomplete="off" spellcheck="false" aria-label="Name"><button class="btn" id="bldGoNew" hidden title="Keep the original as it was, and save this as a new molecule">Save as new</button><button class="btn go" id="bldGo" title="Settle it into shape and pick it for the Place tool">Build &amp; use</button></div>
+    <div class="brow"><input class="msearch" id="bldName" maxlength="40" placeholder="Name (optional)" autocomplete="off" spellcheck="false" aria-label="Name"><select class="select bldcat" id="bldCat" aria-label="Category" title="Where it goes in the molecule list"></select><button class="btn" id="bldGoNew" hidden title="Keep the original as it was, and save this as a new molecule">Save as new</button><button class="btn go" id="bldGo" title="Settle it into shape and pick it for the Place tool">Build &amp; use</button></div>
   </div>
 </div>
 
@@ -515,7 +525,7 @@
       <label class="check sbig"><input type="checkbox" id="setPerf"> <span><b>Performance mode</b><small>Room for 12,000 particles instead of 4,000, drawn at standard resolution without glows. A fuller box still runs slower: every step has more to work out.</small></span></label>
       <div class="srow"><span>Particle limit</span><div class="seg" id="segMax" role="group" aria-label="Particle limit"><button data-v="2000">2,000</button><button data-v="4000">4,000</button><button data-v="8000">8,000</button><button data-v="12000">12,000</button><button data-v="20000">20,000</button></div></div>
       <div class="srow"><span>Drawing</span><div class="seg" id="segRes" role="group" aria-label="Drawing resolution"><button data-v="sharp" title="At your screen's full resolution">Sharp</button><button data-v="standard" title="One drawn pixel per screen point">Standard</button><button data-v="fast" title="Three quarters resolution: softer, quickest">Fast</button></div></div>
-      <div class="srow"><span>Priority</span><span class="prio"><small>Smooth</small><input type="range" id="setPrio" min="0" max="4" step="1" value="0" aria-label="Priority: smooth frame rate or simulation speed"><small>Fast</small></span></div>
+      <div class="srow"><span>Priority</span><span class="prio"><small>Smooth</small><input type="range" id="setPrio" min="0" max="4" step="1" value="0" aria-label="Priority: smooth frame rate or simulation speed"><small>Fast</small><label class="check prioauto" title="Pick the position by itself, from how fast each would run this setup"><input type="checkbox" id="setPrioAuto"> Auto</label></span></div>
       <p class="note" id="setPrioV" aria-live="polite"></p>
       <div class="srow"><span>Physics per frame</span><div class="seg" id="segBudget" role="group" aria-label="Physics time per frame"><button data-v="6">6 ms</button><button data-v="10">10 ms</button><button data-v="16">16 ms</button><button data-v="24">24 ms</button></div></div>
       <div class="srow"><span>Threads</span><div class="seg" id="segThreads" role="group" aria-label="Processor threads"><button data-v="auto">Auto</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="4">4</button><button data-v="8">8</button><button data-v="16">16</button></div></div>

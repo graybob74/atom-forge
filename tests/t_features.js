@@ -568,6 +568,49 @@ const { openPage } = require('./browser');
   check(r27.grab === 36 && r27.rest && r27.nr === 2 && Math.abs(r27.ke - 1e5) < 1 && r27.up && /×10⁻⁶ Å across/.test(r27.gyro) && r27.find === 'Λ Mu π⁻ n̄ Ξ⁰' && r27.graph && r27.lgo && r27.rewound && r27.saved === 1 && r27.loaded,
     `0.64: a whole crystal grabbed (${r27.grab} ions); placed at rest; an electron set to 100 keV, straight up, from its menu; ${r27.gyro}; found ${r27.find}; graphed; an event replayed; an experiment saved and loaded`,
     '0.64: ' + JSON.stringify(r27));
+  // 0.66: ionic compounds named, ionic molecules built, categories moved, Auto priority, placed objects
+  const r28 = await page.evaluate(async () => {
+    const out = {};
+    loadPreset('salt'); setRunning(false); settleOverlaps(); forcesNoEvents();
+    const na = W.parts.find(p => !p.dead && p.Z === 11); const cl = ionicCluster(na); out.salt = cl ? ionicText(cl, true) : 'none';
+    out.data = speciesCounts().map(([k, e]) => `${k}:${e.n}`).join(' ');
+    clearWorld(); const mg = addNuc(12, 12, 10, 0, 0), c1 = addNuc(17, 18, 18, 2.4, 0), c2 = addNuc(17, 18, 18, -2.4, 0); forcesNoEvents(); out.mg = ionicText(ionicCluster(mg));
+    // the builder: Na⁺ and Cl⁻ as two pieces
+    openMolBuilder(); MB.atoms = [{ id: 1, el: 'Na', q: 1, x: 0, y: 0 }, { id: 2, el: 'Cl', q: -1, x: 3, y: 0 }]; MB.bonds = []; MB.next = 3; mbChanged(true);
+    const inf = mbAnalyze(); out.bIssues = inf.issues.length; out.bName = inf.name;
+    $('bldName').value = ''; $('bldCat').value = 'ions'; mbBuild(); await new Promise(r => setTimeout(r, 300));
+    const mine = Object.values(MOLECULES).filter(m => m.mine && /chloride/i.test(m.name)); out.built = mine.length ? `${mine[0].name} in ${mine[0].cat}, ${mine[0].atoms.length} ions` : 'none';
+    if (mine[0]) { // move it to another category without changing it: no settling again
+      mbLoadMol(mine[0].key, true); $('bldCat').value = 'inorganic'; mbBuild(); await new Promise(r => setTimeout(r, 200));
+      out.moved = MOLECULES[mine[0].key] && MOLECULES[mine[0].key].cat; myMolRemove(mine[0].key);
+    }
+    hideModal('bldModal');
+    // Auto priority: slow drawing and a sim behind its speed lean it fast; quick drawing and keeping up keep it smooth
+    SET.prioAuto = true; UI.prioAuto = 0; UI.prioWant = -1; UI.fp = UI.fp || {}; const keep = [UI.fp.drawAvg, UI.fp.uiAvg, UI.ach, UI.running, UI.fp.simAvg, UI.fpsNow];
+    UI.running = true; UI.fp.drawAvg = 9; UI.fp.uiAvg = 1; UI.ach = 0.4; for (let i = 0; i < 3; i++) { UI.prioT = 0; prioAutoTick(1e9 + i * 3000); } out.autoSlow = UI.prioAuto;
+    UI.fp.drawAvg = 1; UI.ach = 1; UI.fp.simAvg = 4; UI.fpsNow = 20; for (let i = 0; i < 3; i++) { UI.prioT = 0; prioAutoTick(2e9 + i * 3000); } out.autoFast = UI.prioAuto;
+    [UI.fp.drawAvg, UI.fp.uiAvg, UI.ach, UI.running, UI.fp.simAvg, UI.fpsNow] = keep; SET.prioAuto = false; syncPrio();
+    // objects: a mirror turns light, a lens focuses, a foil passes most α, a stop keeps the books, save and load
+    loadPreset('empty'); setRunning(false); W.T = 0; W.gamma = 0; W.box.w = W.box.tw = 120; W.box.h = W.box.th = 90;
+    objAdd('mirror', 5, -5, 15, 5); W.rays.length = 0; emitPhoton(-20, 0, 2.1, 1, 0, {}); const rr = W.rays[1]; out.mirror = rr ? Math.round(Math.atan2(rr.y1 - rr.y0, rr.x1 - rr.x0) * 180 / Math.PI) : 'none';
+    W.objs.length = 0; objAdd('lens', 0, -10, 0, 10, { f: 20 }); W.rays.length = 0; for (const y of [-6, 6]) emitPhoton(-30, y, 2.1, 1, 0, {});
+    out.focus = W.rays.filter(r => r.x0 > -1).map(r => { const t = -r.y0 / (r.y1 - r.y0); return +(r.x0 + t * (r.x1 - r.x0)).toFixed(2); }).join(',');
+    W.objs.length = 0; const sc = objAdd('screen', 40, -40, 40, 40); objAdd('foil', 0, -30, 0, 30, { Z: 79, layers: 10 });
+    for (let i = 0; i < 100; i++) { const a = addNuc(2, 2, 0, -30, (rnd() - 0.5) * 30); setMotion(a, 5e6, 1, 0); }
+    forcesNoEvents(); W.fSpawn = W.spawned; for (let k = 0; k < 60; k++) { W.dt = chooseDt(); step(W.dt); }
+    out.foil = sc.hits.parts;
+    const E0 = totalEnergy().total - W.ledger.nuc; objAdd('stop', 30, -10, 30, 10); for (let i = 0; i < 5; i++) { const p = addNuc(1, 0, 0, -20, i); setMotion(p, 1e5, 1, 0); }
+    const E1 = totalEnergy().total - W.ledger.nuc; forcesNoEvents(); W.fSpawn = W.spawned; for (let k = 0; k < 200; k++) { W.dt = chooseDt(); step(W.dt); }
+    out.stopDrift = +(totalEnergy().total - W.ledger.nuc - E1).toFixed(3); out.stopped = W.parts.filter(p => !p.dead && p.Z === 1).length;
+    objAdd('plates', -10, -5, 10, -5, { V: 300, gap: 10 }); out.E = Efield(0, 0, null)[1];
+    const n0 = W.objs.length, d = worldToJSON(); worldFromJSON(JSON.parse(JSON.stringify(d))); out.saved = `${n0} → ${W.objs.length}`;
+    return out;
+  });
+  check(/^NaCl \(sodium chloride\), \d+ formula units$/.test(r28.salt) && /NaCl:\d+/.test(r28.data) && r28.mg === 'MgCl₂ (magnesium chloride)' && r28.bIssues === 0 && r28.bName === 'Sodium chloride' &&
+    /^Sodium chloride in ions, 2 ions$/.test(r28.built) && r28.moved === 'inorganic' && r28.autoSlow > 0 && r28.autoFast === 0 &&
+    r28.mirror === 90 && r28.focus === '20,20' && r28.foil >= 90 && Math.abs(r28.stopDrift) < 1e-6 && r28.stopped === 0 && Math.abs(r28.E - 30) < 1e-9 && r28.saved === '4 → 4',
+    `0.66: ${r28.salt}; ${r28.mg}; built ${r28.built}, moved to ${r28.moved}; Auto priority ${r28.autoSlow} when behind, ${r28.autoFast} when keeping up; a mirror turned light ${r28.mirror}°, a lens focused at ${r28.focus} Å, ${r28.foil} of 100 α through a gold foil reached the screen, a stop kept the books (${r28.stopDrift} eV)`,
+    '0.66: ' + JSON.stringify(r28));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

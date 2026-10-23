@@ -76,6 +76,28 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.66.0: placed objects, ionic compounds, molecule categories, Auto priority
+- Objects tool (D, props.js): mirror, beam splitter, thin lens, F2 flint prism, detector screen, beam stop, wall, metal
+  foil, charged plates, each a straight piece drawn from one end to the other (a click places one of a usual size).
+  Drag to move; right-click to turn, resize, set the focal length, voltage and gap, or layers, clear a screen, remove.
+  Saved with the world (worldToJSON objs), so undo, rewind and My experiments keep them; Erase removes them.
+  Light: emitPhoton meets the nearest piece first (opticFind/opticHit) and goes on from it as the same photon
+  (cont: no new count or spectroscope entry); prismTrace refracts at each face (Snell, total internal reflection).
+  Atoms: a soft wall on their edge at every edge (objForces, objPE in localPE/regionE/totalEnergy: in the books); MD
+  electrons bounce (objLepton, in the inner steps); fast, radiation-mode and exotic particles (objPath, objExo, hooked
+  into moveFastLeptons, moveRad, moveNeutron, the walls pass and moveExos) cross a foil (2-D Rutherford per layer),
+  bounce off a wall, and stop in the rest (energy to ledger.escaped; antimatter annihilates). Plates: platesField in
+  Efield, a field only between them. Glowing-wall light ignores the objects.
+- Ionic compounds named (ionicCluster, ionicName): ions in contact as whole-molecule grab finds them, written as
+  formula units (NaCl, MgCl₂, FeF₃ as iron(III) fluoride, polyatomic ions bracketed). In the hover box, Inspect and
+  the Data tab's species list (speciesCounts(false) for the pressure's count of movers, unchanged).
+- Builder: separate pieces that are all ions with charges adding up to zero build as an ionic compound (mbIonicOK);
+  placed as they settled, held by their charges. A category picker (bldCat): automatic, My molecules or any library
+  category; editing one of yours shows where it is, and changing only its name or category saves without settling it
+  again (MB.loadSig).
+- Settings → Priority → Auto (prioAutoTick): every 2 s the physics each position fits into a second against what the
+  simulation needs; the smoothest that fits, else the smoothest with 80% of the fast end's gain if that is 20% or more.
+
 ## 0.65.0: energy fixes in the engine (nothing else changed)
 - Events now come after the closing half kick, at the inner steps (a free lepton at an atom: scatter, capture, ionization,
   excitation; a positron at an electron) and at the atom step (bonds, reactions, transfers). They used to be handled

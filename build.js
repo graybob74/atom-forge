@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const src = (f) => fs.readFileSync(path.join(__dirname, 'src', f), 'utf8');
 const strip = (s) => s.replace(/^'use strict';\s*/m, '').replace(/if \(typeof module !== 'undefined'\) module\.exports = [\s\S]*?;\s*$/m, '');
-const FILES = ['molecules.gen.js', 'objects.gen.js', 'data.js', 'atomic.js', 'solver.js', 'orbitals.js', 'wasm.js', 'engine.js', 'threads.js', 'hep.js', 'chips.js', 'render.js', 'gl.js', 'builder.js', 'design.js', 'ui.js'];
+const FILES = ['molecules.gen.js', 'objects.gen.js', 'data.js', 'atomic.js', 'solver.js', 'orbitals.js', 'wasm.js', 'engine.js', 'threads.js', 'hep.js', 'props.js', 'chips.js', 'render.js', 'gl.js', 'builder.js', 'design.js', 'ui.js'];
 // the WebAssembly kernel (kernel/, built by GitHub Actions into src/wasm/kernel.wasm) is embedded first, for wasm.js
 const wasmFile = path.join(__dirname, 'src', 'wasm', 'kernel.wasm'), plainFile = path.join(__dirname, 'src', 'wasm', 'kernel-plain.wasm');
 const wasmConst = `/* ---- kernel.wasm ---- */\nconst KERNEL_WASM_B64 = ${fs.existsSync(wasmFile) ? JSON.stringify(fs.readFileSync(wasmFile).toString('base64')) : 'null'};\nconst KERNEL_PLAIN_WASM_B64 = ${fs.existsSync(plainFile) ? JSON.stringify(fs.readFileSync(plainFile).toString('base64')) : 'null'};`;

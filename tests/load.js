@@ -8,8 +8,8 @@
    opts.wasm                 false: without the WebAssembly kernel (the JavaScript kernels alone); 'plain': the module on an ordinary memory */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
-const ENGINE = ['molecules.gen.js', 'objects.gen.js', 'data.js', 'atomic.js', 'solver.js', 'orbitals.js', 'wasm.js', 'engine.js', 'threads.js', 'hep.js', 'chips.js'];
-const ALL = ['molecules.gen.js', 'objects.gen.js', 'data.js', 'atomic.js', 'solver.js', 'orbitals.js', 'wasm.js', 'engine.js', 'threads.js', 'hep.js', 'chips.js', 'render.js', 'gl.js', 'builder.js', 'design.js', 'ui.js'];
+const ENGINE = ['molecules.gen.js', 'objects.gen.js', 'data.js', 'atomic.js', 'solver.js', 'orbitals.js', 'wasm.js', 'engine.js', 'threads.js', 'hep.js', 'props.js', 'chips.js'];
+const ALL = ['molecules.gen.js', 'objects.gen.js', 'data.js', 'atomic.js', 'solver.js', 'orbitals.js', 'wasm.js', 'engine.js', 'threads.js', 'hep.js', 'props.js', 'chips.js', 'render.js', 'gl.js', 'builder.js', 'design.js', 'ui.js'];
 const strip = (s) => s.replace(/^'use strict';\s*/m, '').replace(/if \(typeof module !== 'undefined'\) module\.exports = [\s\S]*?;\s*$/m, '');
 const STUB = `const document = { readyState: 'complete', getElementById: () => null, querySelector: () => null, querySelectorAll: () => [],
   createElement: () => ({ style: {}, getContext: () => null, classList: { add() {}, remove() {}, toggle() {} } }), addEventListener() {} };

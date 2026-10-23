@@ -131,6 +131,7 @@ const ICONS = {
   light: '<circle cx="12" cy="12" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
   erase: '<path d="m4.5 15.5 9-9a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L12 18H7.2z M9 11l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 20h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
   inspect: '<circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="m15 15 5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  objects: '<path d="M5 19 19 5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M3 9h7l-2.5-2.5M10 9l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/>',
   measure: '<path d="M3.5 16.5 16.5 3.5l4 4-13 13z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m7 13 1.6 1.6M9.5 10.5l2.3 2.3M12 8l1.6 1.6M14.5 5.5l2.3 2.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
   select: '<rect x="4" y="4" width="13" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="3 2.2"/><path d="m13.5 13.5 2.2 6.5 1.6-2.7 2.7-1.6z" fill="currentColor"/>',
 };
@@ -143,6 +144,7 @@ const TOOLS = [
   { id: 'heat', name: 'Heat', key: 'H', help: 'Hold to heat (or cool) a region with a local heat bath.' },
   { id: 'spark', name: 'Spark', key: 'S', help: 'Click to dump energy into the atoms under the cursor.' },
   { id: 'magnet', name: 'Magnet', key: 'M', help: 'Click to place a magnet pole; drag one to move it.' },
+  { id: 'objects', name: 'Objects', key: 'D', help: 'Drag to draw a mirror, lens, prism, detector screen, beam stop, wall, foil or charged plates from one end to the other (a click places one); drag one to move it; right-click it to turn, resize or change it.' },
   { id: 'light', name: 'Light', key: 'L', help: 'Drag to aim a beam of photons of one wavelength.' },
   { id: 'erase', name: 'Erase', key: 'E', help: 'Drag to remove particles, magnets and beam sources.' },
   { id: 'measure', name: 'Measure', key: 'K', help: 'Click two particles (atoms, nuclei, electrons, pions, photons …) for their distance, a third for the angle at the middle one; the numbers follow them as they move.' },
@@ -157,6 +159,7 @@ const OPT = {
   heat: { mode: 'heat', s: 348, R: 8 },
   spark: { s: 218, R: 8 },
   magnet: { s: 430, pol: 1, R: 9 },
+  objects: { kind: 'mirror', f: 20, Vs: 200, Z: 79, layers: 10 },
   light: { s: 132.33, rate: 80, follow: true, mount: false }, // (s: 589 nm, sodium's line, exactly)
   erase: { R: 3 },
 };
@@ -195,7 +198,7 @@ function buildTools() {
   nav.addEventListener('click', (e) => { const b = e.target.closest('.tool'); if (b) setTool(b.dataset.tool); });
 }
 function setTool(id) {
-  UI.tool = id; UI.pasting = false; R.ghost = null;
+  UI.tool = id; UI.pasting = false; R.ghost = null; if (id !== 'objects') R.objSel = null;
   for (const b of document.querySelectorAll('.tool')) b.setAttribute('aria-pressed', b.dataset.tool === id ? 'true' : 'false');
   if (W.tool) W.tool.active = false;
   W.grab = null; R.overlay = null;
@@ -490,6 +493,16 @@ function buildToolOpts() {
         `<span class="help">${o.mount ? 'Drag to aim; on release it stays, shining one wavelength (Erase it, or Remove beam sources). ' : ''}Light crosses the box in hundredths of a femtosecond: time slows while it is in flight, so you see it go at c, in about a second at 1× (the speed buttons and slow motion scale that too).</span>`;
       break;
     }
+    case 'objects': {
+      const k = o.kind;
+      h = `<span data-g="kind">${seg('Object', OBJ_KINDS.map(q => [q, OBJ_NAME[q].replace('Detector screen', 'Screen').replace('Charged plates', 'Plates')]), k)}</span>` +
+        (k === 'lens' ? rangeCtl('oOf', 'Focal length', -100, 100, o.f, objFText(o.f)) : '') +
+        (k === 'plates' ? rangeCtl('oOV', 'Voltage', 0, 500, o.Vs, objVText(objV())) : '') +
+        (k === 'foil' ? `<span data-g="Z">${seg('Metal', [[79, 'Gold'], [47, 'Silver'], [29, 'Copper'], [13, 'Aluminium'], [6, 'Carbon']], o.Z)}</span>` + rangeCtl('oOL', 'Layers', 1, 100, o.layers, `${o.layers}`) : '') +
+        (W.objs.length ? `<button class="opt" id="oObjClear">Remove all (${W.objs.length})</button>` : '') +
+        `<span class="help">${esc(OBJ_HELP[k])}</span>`;
+      break;
+    }
     case 'erase':
       h = radCtl(t, o.R);
       break;
@@ -520,6 +533,7 @@ function buildToolOpts() {
     if (b.id === 'oSelDel') { deleteSelection(); return; }
     if (b.id === 'oSelAll') { selectAll(); return; }
     if (b.id === 'oLaserClear') { W.lasers.length = 0; buildToolOpts(); return; }
+    if (b.id === 'oObjClear') { undoMark('Remove objects'); W.objs.length = 0; W.dirty++; log('tool', 'Objects removed'); buildToolOpts(); return; }
     if (b.id === 'oSelNone') { clearSelection(); return; }
     if (b.id === 'oMeasClr') { if (R.measure) R.measure.length = 0; buildToolOpts(); return; }
     if (b.dataset.iso) { selectSpec(Object.assign({}, UI.spec, { A: +b.dataset.iso })); return; }
@@ -538,6 +552,9 @@ function buildToolOpts() {
       case 'oS': { o.s = v; out.textContent = fmtE(pullU()); $('oSword').textContent = `${pullWord(pullU())} at ${fmtT(W.T)}`;
         for (const b of el.querySelectorAll('[data-g="s"] .opt')) b.setAttribute('aria-pressed', String(+b.dataset.v === v)); break; }
       case 'oPE': o.Es = v; out.textContent = fmtE(placeE()); break;
+      case 'oOf': o.f = v; out.textContent = objFText(v); break;
+      case 'oOV': o.Vs = v; out.textContent = objVText(objV()); break;
+      case 'oOL': o.layers = v; out.textContent = String(v); break;
       case 'oKE': o.s = v; out.textContent = fmtE(fireKE()); { const n = $('oFireNote'); if (n) n.textContent = fireNote(fireSpecNow() || SPEC_P, fireKE()); } break;
       case 'oT': o.s = v; out.textContent = fmtT(heatT()); break;
       case 'oE': o.s = v; out.textContent = fmtE(sparkE()); break;
@@ -930,6 +947,14 @@ function onDown(e) {
     case 'fire': case 'light':
       UI.drag = { kind: t, x0: wx, y0: wy, x1: wx, y1: wy, acc: 0 };
       break;
+    case 'objects': {
+      const ob = objAtPx(px, py);
+      undoMark(ob ? 'Move an object' : 'Place an object');
+      if (ob) { UI.drag = { kind: 'objmove', ob, lx: wx, ly: wy }; R.objSel = ob; break; }
+      const o = OPT.objects, nb = objAdd(o.kind, wx, wy, wx, wy, { f: o.f || 20, V: objV(), Z: o.Z, layers: o.layers });
+      UI.drag = { kind: 'objnew', ob: nb, x0: wx, y0: wy }; R.objSel = nb;
+      break;
+    }
     case 'erase':
       eraseHere(wx, wy);
       UI.drag = { kind: 'erase' };
@@ -1102,6 +1127,7 @@ function eraseHere(wx, wy) {
   for (let i = W.magnets.length - 1; i >= 0; i--) if (Math.hypot(W.magnets[i].x - wx, W.magnets[i].y - wy) < W.magnets[i].R) W.magnets.splice(i, 1);
   for (let i = W.sources.length - 1; i >= 0; i--) if (Math.hypot(W.sources[i].x - wx, W.sources[i].y - wy) < r + 1.5) W.sources.splice(i, 1);
   for (let i = W.lasers.length - 1; i >= 0; i--) if (Math.hypot(W.lasers[i].x0 - wx, W.lasers[i].y0 - wy) < r + 1.5) W.lasers.splice(i, 1);
+  for (let i = W.objs.length - 1; i >= 0; i--) if (objDist(W.objs[i], wx, wy) < r + 0.5) { W.objs.splice(i, 1); W.dirty++; }
   if (R.sel && R.sel.dead) R.sel = null;
   return n;
 }
@@ -1148,12 +1174,14 @@ function onMove(e) {
         break;
       case 'tool': if (W.tool) { W.tool.x = wx; W.tool.y = wy; } break;
       case 'magnet': d.m.x = wx + d.ox; d.m.y = wy + d.oy; break;
+      case 'objnew': d.ob.x1 = wx; d.ob.y1 = wy; W.dirty++; break;
+      case 'objmove': { const dx = wx - d.lx, dy = wy - d.ly; d.ob.x0 += dx; d.ob.x1 += dx; d.ob.y0 += dy; d.ob.y1 += dy; d.lx = wx; d.ly = wy; W.dirty++; break; }
       case 'fire': case 'light': d.x1 = wx; d.y1 = wy; break;
       case 'erase': eraseHere(wx, wy); break;
       case 'selbox': d.x1 = wx; d.y1 = wy; break;
       case 'selmove': moveSelection(wx - d.lx, wy - d.ly); d.lx = wx; d.ly = wy; d.moved = true; break;
     }
-  } else if (!QM.open) updateHover(px, py, wx, wy);
+  } else if (!QM.open) { updateHover(px, py, wx, wy); R.objHover = W.objs.length && !R.hover ? objAtPx(px, py) : null; }
   const b = brushFor(UI.tool);
   R.overlay = b ? { x: wx, y: wy, brush: b.r, color: b.c } : null;
   if (UI.tool === 'magnet' && !d) R.overlay = { x: wx, y: wy, ghostMagnet: { R: OPT.magnet.R, B: magB() } };
@@ -1172,6 +1200,15 @@ function aimOverlay(d) {
 function endToolAction() {
   const d = UI.drag;
   if (d && d.kind === 'selbox') { finishSelBox(d); R.overlay = null; }
+  if (d && d.kind === 'objnew') { // a click: one of a usual size, upright (a prism turned for light from the left); a drag: as drawn
+    const ob = d.ob;
+    if (objLen(ob) < 1.5) {
+      const L = ob.kind === 'prism' ? 10 : ob.kind === 'lens' ? 16 : ob.kind === 'plates' ? 24 : 14, a = ob.kind === 'prism' ? -24 * Math.PI / 180 : ob.kind === 'plates' ? 0 : Math.PI / 2;
+      ob.x0 = d.x0 - Math.cos(a) * L / 2; ob.y0 = d.y0 - Math.sin(a) * L / 2; ob.x1 = d.x0 + Math.cos(a) * L / 2; ob.y1 = d.y0 + Math.sin(a) * L / 2;
+      if (ob.kind === 'plates') { ob.y0 -= ob.gap / 2; ob.y1 -= ob.gap / 2; }
+    }
+    W.dirty++; log('tool', `${objText(ob)} placed`); buildToolOpts();
+  }
   if (d && d.kind === 'light' && OPT.light.mount) {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
@@ -1288,6 +1325,8 @@ function updateHover(px, py) {
     const mol = p.bonds.length ? molecule(p) : null;
     const nm = mol ? moleculeName(mol) : null, en = elemName(p);
     t1 = mol ? `${en} in ${isoFormula(mol)}${nm ? ' (' + nm + ')' : ''}` : `${en}${p.q ? ((p.anti ? -p.q : p.q) > 0 ? ' cation ' : ' anion ') + speciesLabel(p) : ' atom'}`;
+    const ic = p.q || (mol && mol.some(a => a.q)) ? ionicCluster(p) : null, it = ic && ionicText(ic, true); // (held ionically: the compound's name)
+    if (it) t1 += ` in ${it}`;
     t2 = `${nucSymA(p.Z, p.N, p.anti)} · ${p.ne} ${p.anti ? 'e⁺' : 'e⁻'} · bonds ${p.used}/${p.cap}${p.tLocal ? ' · ' + fmtT(p.tLocal) : ''}`;
   }
   tip.innerHTML = `<div class="t1">${esc(t1)}</div><div class="t2">${esc(t2)}</div>`;
@@ -1617,7 +1656,8 @@ function renderInspect() {
     const title = p.ne === 0 ? (p.anti ? (p.Z === 1 && p.N === 0 ? 'Antiproton' : `Anti-${nucName(p.Z, p.N).toLowerCase()} nucleus`)
       : p.Z === 1 && p.N === 0 ? 'Proton' : p.Z === 2 && p.N === 2 ? 'Alpha particle' : nucName(p.Z, p.N) + ' nucleus')
       : iso + (aq ? (aq > 0 ? ' cation' : ' anion') : '');
-    const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : ''))
+    const icl = p.ne > 0 && (p.q || (mol && mol.some(a => a.q))) ? ionicCluster(p) : null, itx = icl && ionicText(icl, true);
+    const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : '') + (itx ? ` · held ionically in ${itx}` : ''))
       + (p.Z > Z_TABLE ? ' · never made in any lab: its properties are predictions' : '');
     head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${A}</span><span class="s">${symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
       <div><div class="ins-title">${esc(title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
@@ -1862,14 +1902,19 @@ function drawOrbThumb(cv, p, i) {
 }
 
 /* ------------------------------------------------------------------ data tab */
-function speciesCounts() {
+function speciesCounts(ionic = true) { // (ionic: ionic compounds as their formula units; off for the pressure's count of movers)
   const seen = new Set(), c = new Map();
   for (const p of W.parts) {
     if (p.dead || seen.has(p)) continue;
-    let key, name = '', col = '#999';
+    let key, name = '', col = '#999', cl, ci;
     if (p.k === ELEC) { key = 'e⁻'; name = 'free electrons'; col = E_COL; }
     else if (p.k === POS) { key = 'e⁺'; name = 'positrons'; col = POS_COL; }
     else if (p.Z === 0) { key = p.anti ? 'n̄' : 'n'; name = p.anti ? 'antineutrons' : 'neutrons'; col = p.anti ? NBAR_COL : N_COL; }
+    else if (ionic && p.ne > 0 && (p.q || (p.bonds.length && molecule(p).some(a => a.q))) && (cl = ionicCluster(p)) && (ci = ionicName(cl))) { // an ionic compound: its formula units
+      for (const a of cl) seen.add(a);
+      key = ci.formula; name = (ci.name || 'ionic compound') + (ci.units > 1 ? ' (formula units, in contact)' : ''); col = atomColor(p);
+      const e = c.get(key) || { n: 0, name, col }; e.n += ci.units; c.set(key, e); continue;
+    }
     else if (p.bonds.length) { const m = molecule(p); for (const a of m) seen.add(a); key = isoFormula(m); name = moleculeName(m) || (p.anti ? 'antimatter molecule' : ''); col = atomColor(p); }
     else if (p.ne === 0) { key = speciesLabel(p); name = p.anti ? (p.Z === 1 && p.N === 0 ? 'antiprotons' : 'anti-' + nucName(p.Z, p.N).toLowerCase() + ' nuclei') : nucName(p.Z, p.N) + ' nuclei'; col = p.anti ? PBAR_COL : P_COL; }
     else { const aq = p.anti ? -p.q : p.q; key = speciesLabel(p) + (p.N + p.Z !== COMMON_A[p.Z] ? ` (${p.Z + p.N})` : ''); name = elemName(p) + (aq ? (aq > 0 ? ' cations' : ' anions') : ' atoms'); col = atomColor(p); }
@@ -2205,7 +2250,7 @@ function worldToJSON() {
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
   return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
-    spf: W.simPerFrame, warp: W.warp, minShow: W.minShow | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.simPerFrame, warp: W.warp, minShow: W.minShow | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -2233,6 +2278,8 @@ function worldFromJSON(d) {
   let nb = 0;
   for (const b of d.bonds) { if (!Array.isArray(b)) continue; const [i, j, o] = b; const a = made[i], c = made[j]; if (a && c && a !== c && [1, 2, 3].includes(o)) { addBond(a, c, o); nb++; } }
   if (Array.isArray(d.magnets)) for (const m of d.magnets.slice(0, 50)) if (m && Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.B)) W.magnets.push({ x: m.x, y: m.y, R: num(m.R, 1, 1000, 10), B: clamp(m.B, -1e9, 1e9) });
+  if (Array.isArray(d.objs)) for (const o of d.objs.slice(0, 200)) { const ob = objFromJSON(o); if (ob) W.objs.push(ob); }
+  R.objSel = null;
   W.dirty++; W.spawned++; W.topo++; W.hist = { t: [], T: [], bath: [] }; R.sel = null; R.msel.clear();
   syncLab(); fitView(); renderInspect(); buildToolOpts();
   const n = made.filter(Boolean).length;
@@ -3328,7 +3375,7 @@ function baseWorld(w, h, T, gamma) {
   clearWorld();
   W.box.w = W.box.tw = w; W.box.h = W.box.th = h;
   W.T = T; W.gamma = gamma; W.Bz = 0; W.Ex = 0; W.Ey = 0; W.wall = 'reflect'; W.nWall = 'reflect'; W.warp = 1; W.simPerFrame = 1.5; W.decayOn = true;
-  W.magnets.length = 0; W.sources.length = 0; W.zones.length = 0; W.collider = null; W.slowHold = false; W.hold = null; W.holdFrac = 0;
+  W.magnets.length = 0; W.objs.length = 0; R.objSel = null; W.sources.length = 0; W.zones.length = 0; W.collider = null; W.slowHold = false; W.hold = null; W.holdFrac = 0;
   UI.E = 0; UI.Eang = 0;
 }
 const D_SPEC = { kind: 'atom', Z: 1, A: 2, bare: true }, T_SPEC = { kind: 'atom', Z: 1, A: 3, bare: true };
@@ -3806,11 +3853,40 @@ const FRAME_AIM_MS = 1000 / 60 - 0.4; // a frame's worth at 60 fps: the simulati
 /* Settings' priority, smooth ↔ fast: the frame rate the budget aims for. Above the smooth end, a frame may run longer —
    down to this rate — while the simulation is behind the speed it is set to; once it keeps up, frames stay short. */
 const PRIO_FPS = [60, 50, 40, 30, 20], PRIO_NAME = ['smooth: aims for 60 fps', 'leaning smooth: frames down to 50 fps', 'balanced: frames down to 40 fps', 'leaning fast: frames down to 30 fps', 'fast: frames down to 20 fps to keep the set speed'];
+/* Auto priority (0.66): every two seconds, how much physics each position of the slider would fit into a second (ms
+   of simulation per second), from how long drawing and the panels take a frame (paid once a frame, so fewer frames
+   leave more of each second to the physics): at the smooth end min(budget, aim − drawing) a frame at up to 60 frames
+   a second; past it, all the frame the aim leaves. Against what the simulation needs: what it used, when it keeps up
+   at the set speed; what this position gave over the share of the speed it reached, when it is behind. It takes the
+   smoothest position that fits that, or, when none does, the smoothest that gets 80% of what the fast end would add,
+   if that is 20% or more; a change needs the same answer twice running (no flapping). */
+function prioCap(L, D, B) {
+  const T = 1000 / PRIO_FPS[L], sim = L === 0 ? Math.max(0.5, Math.min(B, T - 0.4 - D)) : Math.max(B, T - 0.4 - D);
+  return sim * 1000 / Math.max(T, sim + D);
+}
+function prioAutoTick(now) {
+  if (!SET.prioAuto || now - (UI.prioT || 0) < 2000) return;
+  UI.prioT = now;
+  const FP = UI.fp; if (!FP || !UI.running) return;
+  const D = Math.max(0.1, (FP.drawAvg || 0) + (FP.uiAvg || 0)), B = UI.budget || 10, cur = UI.prioAuto || 0, ach = Math.max(0.01, UI.ach || 1);
+  const cap = PRIO_FPS.map((_, L) => prioCap(L, D, B));
+  const need = ach < 0.97 ? cap[cur] / ach : (FP.simAvg || 0) * (UI.fpsNow || 60);
+  let want = cap.findIndex(c => c >= need * 1.05);
+  if (want < 0) { const mx = Math.max(...cap); want = mx >= 1.2 * cap[0] ? cap.findIndex(c => c >= cap[0] + 0.8 * (mx - cap[0])) : 0; }
+  if (want !== cur && want === UI.prioWant) { UI.prioAuto = want; syncPrio(); }
+  UI.prioWant = want;
+}
+function syncPrio() {
+  const auto = !!SET.prioAuto, L = prioNow();
+  $('setPrio').value = String(L); $('setPrio').disabled = auto; $('setPrioAuto').checked = auto;
+  $('setPrioV').textContent = auto ? `Automatic: now ${PRIO_NAME[L]}. It leans fast only when that makes the simulation clearly faster.` : PRIO_NAME[L];
+}
 /* Particle trails: how long they last (Settings), and by which clock (render.js drawTracks). */
 function trailWindow() { const s = SET.trail || 0.5; return SET.trailClock === 'sim' ? s * 60 * (UI.baseSpf || W.simPerFrame) : s; }
 function trailSim() { return SET.trailClock === 'sim'; }
-function frameAim() { return 1000 / PRIO_FPS[SET.prio || 0] - 0.4; }
-function frameCap(room) { return (SET.prio || 0) > 0 ? Math.max(UI.budget, room) : UI.budget; } // (past the smooth end the physics may take the room the aim leaves, beyond Physics per frame)
+function prioNow() { return SET.prioAuto ? (UI.prioAuto || 0) : (SET.prio || 0); }
+function frameAim() { return 1000 / PRIO_FPS[prioNow()] - 0.4; }
+function frameCap(room) { return prioNow() > 0 ? Math.max(UI.budget, room) : UI.budget; } // (past the smooth end the physics may take the room the aim leaves, beyond Physics per frame)
 function frame(now) {
   if (SET.fpsCap > 0) { // Settings → Graphics: a frame-rate cap (frames skipped, the time between them still counted)
     const iv = 1000 / SET.fpsCap;
@@ -3856,7 +3932,7 @@ function frame(now) {
       toolTick(realDt);
       histTick(now);
       if (now - (UI.lastAuto || 0) > 20000) { UI.lastAuto = now; autosave(); }
-      rewTick(now); grTick(now);
+      rewTick(now); grTick(now); prioAutoTick(now);
     }
     tf1 = performance.now();
     if (R.follow) { if (R.follow.dead) R.follow = null; else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
@@ -4100,7 +4176,7 @@ function grSel() { try { const a = JSON.parse(store('graphSel') || 'null'); retu
 function grTick(now) {
   if (!UI.running || UI.menu || now - GR.last < 500) return;
   GR.last = now;
-  const m = measure(), sp = speciesCounts(), L = W.ledger; let mols = 0; for (const [, e] of sp) mols += e.n;
+  const m = measure(), sp = speciesCounts(false), L = W.ledger; let mols = 0; for (const [, e] of sp) mols += e.n;
   let P = NaN; try { const pr = wallPressure(mols, m.T); if (pr && pr.ok) P = pr.P; } catch (e) { /* (no walls) */ }
   const q = GR.track && !GR.track.dead ? GR.track : null, qv = q ? (q.rad ? q.sp : Math.hypot(q.vx, q.vy)) : NaN;
   const row = { pv: qv, pk: q ? keOf(q) : NaN, pd: q ? Math.hypot(q.x - GR.track0[0], q.y - GR.track0[1]) : NaN, T: m.T, Te: m.Te, n: W.parts.reduce((a, p) => a + (p.dead ? 0 : 1), 0), freeE: m.freeE || 0, ion: m.ionFrac, P, chem: L.chem, nuc: L.nuc, esc: L.escaped };
@@ -4532,7 +4608,7 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
 const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
@@ -4600,7 +4676,7 @@ function benchStart() {
     ['Flash memory: one byte', () => { PRESETS.flashbyte.build(); settleOverlaps(); }],
   ];
   const realRandom = Math.random;
-  const show = (busy) => { out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, priority ${PRIO_FPS[SET.prio || 0]} fps, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
+  const show = (busy) => { out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, priority ${PRIO_FPS[prioNow()]} fps${SET.prioAuto ? ' (auto)' : ''}, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
   let k = 0;
   const next = () => {
     if (k >= scen.length) {
@@ -4662,7 +4738,7 @@ function syncSettings() {
   if ($('setModal').hidden) return;
   $('setPerf').checked = perfOn();
   setSegValue('segMax', SET.maxParts); setSegValue('segRes', SET.res); setSegValue('segBudget', SET.budget); setSegValue('segThreads', String(SET.threads)); setSegValue('segGl', SET.gl); setSegValue('segTrail', String(SET.trail)); setSegValue('segTrailClock', SET.trailClock);
-  $('setPrio').value = SET.prio || 0; $('setPrioV').textContent = PRIO_NAME[SET.prio || 0];
+  syncPrio();
   if (document.activeElement !== $('setApiKey')) $('setApiKey').value = SET.apiKey || ''; if (document.activeElement !== $('setApiModel')) $('setApiModel').value = SET.apiModel || '';
   { const own = typeof window !== 'undefined' && window.claude && typeof window.claude.use === 'function'; const n = $('setApiNote');
     n.textContent = (AI.sample && !AI.sample.api ? 'This page has its own Claude access: Ask Claude and Identify molecules use your Claude account directly, and the key below is not needed here. ' : own ? '' : 'This page has no Claude access of its own. ') +
@@ -4708,6 +4784,7 @@ function settingsInit() {
   bindSeg('segBudget', (v) => setSetting('budget', +v));
   $('setPrio').addEventListener('input', (e) => { $('setPrioV').textContent = PRIO_NAME[+e.target.value]; });
   $('setPrio').addEventListener('change', (e) => setSetting('prio', +e.target.value));
+  $('setPrioAuto').addEventListener('change', (e) => { setSetting('prioAuto', !!e.target.checked); UI.prioAuto = SET.prio || 0; UI.prioWant = -1; syncPrio(); });
   bindSeg('segThreads', (v) => setSetting('threads', v));
   bindSeg('segGl', (v) => setSetting('gl', v));
   bindSeg('segSpec', (v) => { _specView = v; drawSpec(); });
@@ -4864,6 +4941,28 @@ function qmMagnet(m) {
     qmRange('Radius', 0, 200, radS('magnet', m.R), fmtA(m.R), (v) => { undoMarkOnce('Change a magnet'); m.R = radR('magnet', v); return fmtA(m.R); }) +
     qm2(qmBtn('Flip its pole', () => { m.B = -m.B; }), qmBtn('Remove it', () => { const i = W.magnets.indexOf(m); if (i >= 0) W.magnets.splice(i, 1); }, { cls: 'danger' }));
 }
+/* A placed object (props.js): turn it about its middle, its length, and what its kind has (focal length, voltage
+   and gap, metal and thickness); a screen's count can be cleared. Each slider is one undo step. */
+function qmObject(ob) {
+  R.objSel = ob;
+  const und = () => undoMarkOnce('Change an object'), mx = () => (ob.x0 + ob.x1) / 2, my = () => (ob.y0 + ob.y1) / 2;
+  const ang = Math.round(Math.atan2(ob.y1 - ob.y0, ob.x1 - ob.x0) * 180 / Math.PI), L = objLen(ob);
+  const setAL = (a, len) => { const cx = mx(), cy = my(), c = Math.cos(a * Math.PI / 180), s2 = Math.sin(a * Math.PI / 180); ob.x0 = cx - c * len / 2; ob.y0 = cy - s2 * len / 2; ob.x1 = cx + c * len / 2; ob.y1 = cy + s2 * len / 2; W.dirty++; };
+  const title = () => { const t = $('qmObjT'); if (t) t.textContent = objText(ob); };
+  let h = `<div class="qmh"><div class="t1">${esc(OBJ_NAME[ob.kind])}</div><div class="t2" id="qmObjT">${esc(objText(ob))}</div></div>` +
+    qmRange('Angle', -180, 180, ang, `${ang}°`, (v) => { und(); setAL(v, objLen(ob)); return `${v}°`; }) +
+    qmRange('Length', 1, 200, Math.round(L), `${Math.round(L)} Å`, (v) => { und(); setAL(Math.atan2(ob.y1 - ob.y0, ob.x1 - ob.x0) * 180 / Math.PI, v); return `${v} Å`; });
+  if (ob.kind === 'lens') h += qmRange('Focal length', -100, 100, Math.round(ob.f), objFText(ob.f), (v) => { und(); ob.f = v || 1; title(); return objFText(ob.f); });
+  if (ob.kind === 'plates') {
+    h += qmRange('Voltage', 0, 500, Math.round(100 * Math.log10(Math.max(1, Math.abs(ob.V)))), objVText(ob.V), (v) => { und(); ob.V = Math.sign(ob.V || 1) * Math.pow(10, v / 100); title(); return objVText(ob.V); }) +
+      qmRange('Gap', 2, 100, Math.round(ob.gap), `${Math.round(ob.gap)} Å`, (v) => { und(); ob.gap = v; W.dirty++; title(); return `${v} Å`; }) +
+      qmBtn('Swap + and −', () => { undoMark('Change an object'); ob.V = -ob.V; });
+  }
+  if (ob.kind === 'foil') h += qmRange('Layers', 1, 100, ob.layers, String(ob.layers), (v) => { und(); ob.layers = v; title(); return String(v); });
+  if (ob.kind === 'screen') h += qmBtn('Clear its count', () => objClearHits(ob), { off: !(ob.hits && ob.hits.n) });
+  if (ob.kind === 'mirror' || ob.kind === 'splitter') h += qmBtn(ob.kind === 'mirror' ? 'Make it a beam splitter' : 'Make it a full mirror', () => { undoMark('Change an object'); ob.kind = ob.kind === 'mirror' ? 'splitter' : 'mirror'; ob.R = ob.kind === 'mirror' ? 1 : 0.5; });
+  return h + qmBtn('Remove it', () => { undoMark('Remove an object'); objRemove(ob); if (R.objSel === ob) R.objSel = null; }, { cls: 'danger' });
+}
 function qmSource(s) { // a beam source made with the Fire tool (a collider's injectors are left alone)
   const sE = Math.round(100 * (Math.log10(Math.max(0.01, s.KE)) + 2)); // (the Fire tool's scale: 0.01 eV … 100 GeV)
   return `<div class="qmh"><div class="t1">Beam source</div><div class="t2" id="qmSrcT">${esc(specLabel(s.spec))} · ${esc(fmtE(s.KE))}</div></div>` +
@@ -4900,7 +4999,8 @@ function openQuickMenu(px, py) {
   hideTip(); QM.acts = []; QM.ranges = []; QM.serial = (QM.serial || 0) + 1;
   const [wx, wy] = s2w(px, py), p = pickNear(px, py, 14), mag = p ? null : magnetAt(wx, wy);
   const src = p || mag ? null : W.sources.find(s => !s.beam && Math.hypot(s.x - wx, s.y - wy) < Math.max(1.5, 12 / R.s));
-  m.innerHTML = (p ? qmParticle(p) : mag ? qmMagnet(mag) : src ? qmSource(src) : qmHere(wx, wy)) + qmGlobal(px, py, wx, wy);
+  const ob = p || mag || src ? null : objAtPx(px, py);
+  m.innerHTML = (p ? qmParticle(p) : mag ? qmMagnet(mag) : src ? qmSource(src) : ob ? qmObject(ob) : qmHere(wx, wy)) + qmGlobal(px, py, wx, wy);
   m.hidden = false; QM.open = true; m.scrollTop = 0;
   m.style.left = Math.max(4, Math.min(px + 2, R.w - m.offsetWidth - 4)) + 'px';
   m.style.top = Math.max(4, Math.min(py + 2, R.h - m.offsetHeight - 4)) + 'px';

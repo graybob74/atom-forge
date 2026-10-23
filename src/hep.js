@@ -878,6 +878,7 @@ function moveExos(dt, id0) {
     const d = XP[o.sp], x0 = o.x, y0 = o.y;
     if (dec && exoHeld(o)) { dec = false; h = dt; o.wait = true; } // (held to be seen: it flies the whole step, and may decay in a later one)
     flyExo(o, h);
+    if (W.objs.length && objExo(o, x0, y0)) continue; // (placed objects: props.js)
     if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
     if (d.res && !dec) continue; // (a held resonance: only flies)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {

@@ -61,6 +61,7 @@ function makeWorld() {
     minShow: 0,                 // hold the shortest-lived particles until seen (0 off, 1 a little, 2 more; hep.js exoHeld)
     Bz: 0, magnets: [], Ex: 0, Ey: 0,
     nextId: 1, topo: 1, deaths: 0, bathSeed: 0x5eed1234, // bathSeed: the heat bath's noise is hashed from it, the step and the slot (threads.js's bathNoise)
+    objs: [], objSeq: 0,          // placed objects: mirrors, lenses, walls … (props.js)
     rays: [], flights: [], chips: [], chipSeq: 0, chipT: 0, lasers: [], mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
     exo: [],                    // unstable particles in flight (muons, pions, kaons…: hep.js)
     events: [], evRecent: [], slow: null, slowmo: true, decayOn: true, made: null, // made: what nuclear events have made (noteMade)
@@ -662,6 +663,72 @@ function moleculeName(atoms) {
   if (!n || !anti) return isoName(n, iso);
   return n === 'Hydrogen' ? 'Antihydrogen' : 'Anti-' + (/^[A-Z][a-z]/.test(n) ? n[0].toLowerCase() + n.slice(1) : n);
 }
+/* Ionic compounds (0.66). Ions held together by their charges are no molecule (no bond joins them), so they get their
+   name here: the ions in contact (opposite charges closer than 1.3 × the sum of their radii, as the Ionic view draws
+   them and whole-molecule grab takes them), each unit an ion (an atom, or a charged molecule like OH⁻), written as
+   chemists write the compound: cations first, counts reduced to the formula unit (Na₁₄Cl₁₄ → NaCl), polyatomic ions in
+   brackets when more than one, a d-block cation's charge in Roman numerals. */
+function ionicCluster(p) {
+  if (p.dead || p.k !== NUC || p.ne <= 0) return null;
+  const rOf = (q) => (q.ionic && q.ionR > 0 ? q.ionR : q.rd), seen = new Set(), out = [];
+  const add = (q) => { for (const m of molecule(q)) if (!seen.has(m)) { seen.add(m); out.push(m); } };
+  add(p);
+  if (!out.some(a => Math.abs(a.q) >= 1)) return null;
+  const ions = W.parts.filter(q => !q.dead && q.k === NUC && q.ne > 0 && Math.abs(q.q) >= 1);
+  const n0 = out.length;
+  for (let i = 0; i < out.length && out.length < 4000; i++) {
+    const a = out[i]; if (a.dead || a.k !== NUC || a.ne <= 0 || Math.abs(a.q) < 1) continue;
+    for (const b of ions) {
+      if (seen.has(b) || a.q * b.q >= 0) continue;
+      const dx = b.x - a.x, dy = b.y - a.y; if (Math.abs(dx) > 8 || Math.abs(dy) > 8) continue;
+      if (Math.hypot(dx, dy) < 1.3 * (rOf(a) + rOf(b))) add(b);
+    }
+  }
+  return out.length > n0 ? out : null;
+}
+const POLY_IONS = { HO: ['OH', 'hydroxide'], H4N: ['NH₄', 'ammonium'], H3O: ['H₃O', 'hydronium'], NO3: ['NO₃', 'nitrate'], NO2: ['NO₂', 'nitrite'],
+  O4S: ['SO₄', 'sulfate'], O3S: ['SO₃', 'sulfite'], CO3: ['CO₃', 'carbonate'], CHO3: ['HCO₃', 'bicarbonate'], O4P: ['PO₄', 'phosphate'],
+  ClO4: ['ClO₄', 'perchlorate'], ClO3: ['ClO₃', 'chlorate'], ClO: ['ClO', 'hypochlorite'], CN: ['CN', 'cyanide'], C2H3O2: ['CH₃COO', 'acetate'],
+  MnO4: ['MnO₄', 'permanganate'], CrO4: ['CrO₄', 'chromate'], HO4S: ['HSO₄', 'hydrogen sulfate'], O2: ['O₂', 'peroxide'] };
+const IDE = { 1: 'hydride', 7: 'nitride', 8: 'oxide', 9: 'fluoride', 15: 'phosphide', 16: 'sulfide', 17: 'chloride', 34: 'selenide', 35: 'bromide', 52: 'telluride', 53: 'iodide' };
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+function ionicName(atoms) {
+  const seen = new Set(), units = new Map();
+  for (const a of atoms) {
+    if (seen.has(a)) continue;
+    const m = molecule(a); for (const x of m) seen.add(x);
+    let q = 0; for (const x of m) q += x.anti ? -x.q : x.q;
+    const key = m.length === 1 ? (a.anti ? barSym(a.el.sym) : a.el.sym) : hill(m, true).replace(/\d*[+-]$/, '');
+    const u = units.get(key + '|' + q) || { key, q, n: 0, one: m.length === 1, el: a.el, anti: a.anti };
+    u.n++; units.set(key + '|' + q, u);
+  }
+  const us = [...units.values()];
+  if (us.length < 2 || !us.some(u => u.q > 0) || !us.some(u => u.q < 0)) return null;
+  const gcd = (x, y) => (y ? gcd(y, x % y) : x);
+  let g = 0; for (const u of us) g = gcd(g, u.n);
+  us.sort((x, y) => (y.q > 0) - (x.q > 0) || Math.abs(y.q) - Math.abs(x.q) || (x.key < y.key ? -1 : 1));
+  let f = '', net = 0;
+  for (const u of us) {
+    const k = u.n / g, poly = !u.one, show = poly ? (POLY_IONS[u.key] ? POLY_IONS[u.key][0] : u.key.replace(/\d+/g, d => sub(d))) : u.key;
+    f += (poly && k > 1 ? '(' + show + ')' : show) + (k > 1 ? sub(k) : '');
+    net += u.q * k;
+  }
+  if (net) f += sup((Math.abs(net) > 1 ? Math.abs(net) : '') + (net > 0 ? '+' : '-'));
+  let name = null;
+  const cat = us.filter(u => u.q > 0), an = us.filter(u => u.q < 0);
+  if (!net && cat.length === 1 && an.length === 1 && !cat[0].anti && !an[0].anti) {
+    const c = cat[0], a = an[0];
+    const cn = c.one ? c.el.name.toLowerCase() + (c.el.dblock && ROMAN[c.q] ? `(${ROMAN[c.q]})` : '') : POLY_IONS[c.key] && POLY_IONS[c.key][1];
+    const anm = a.one ? IDE[a.el.Z] : POLY_IONS[a.key] && POLY_IONS[a.key][1];
+    if (cn && anm) name = cn + ' ' + anm;
+  }
+  return { formula: f, name, units: g, n: atoms.length };
+}
+/* "NaCl (sodium chloride), 14 formula units": what the hover box, Inspect and the Data tab call an ionic cluster. */
+function ionicText(atoms, long) {
+  const c = ionicName(atoms); if (!c) return null;
+  return c.formula + (c.name ? ` (${c.name})` : '') + (long && c.units > 1 ? `, ${c.units} formula units` : '');
+}
 function speciesLabel(p) {
   if (p.k === ELEC) return 'e⁻';
   if (p.k === POS) return 'e⁺';
@@ -792,7 +859,7 @@ function hasBfield() {
   return false;
 }
 function hasEfield() {
-  if (W.Ex !== 0 || W.Ey !== 0) return true;
+  if (W.Ex !== 0 || W.Ey !== 0 || (W.objs.length && hasPlates())) return true;
   const zs = W.zones;
   for (let i = 0; i < zs.length; i++) { const k = zs[i].kind; if (k === 'cavity' || k === 'sep') return true; }
   return false;
@@ -829,6 +896,7 @@ function Efield(x, y, p) {
     }
     _E[0] += Ez * c; _E[1] += Ez * sn;
   }
+  if (W.objs.length) platesField(x, y, _E); // (placed charged plates: props.js)
   return _E;
 }
 function Bfield(x, y, p) {
@@ -1301,10 +1369,11 @@ function localPE(set, skip) {
   for (const c of centres) V += angleEnergy(c);
   if (W.magnets.length) { const kT = PHYS.KB * Math.max(W.T, 1); for (const p of set) if (!p.dead) V += magU(p, kT); }
   farMetalPairs((a, b, dx, dy, r) => { V += metalV(a, b, r); }, set);
-  if (W.wall === 'reflect') { // soft walls
+  if (W.wall === 'reflect' || W.objs.length) { // soft walls (and placed objects')
     for (const p of set) {
       if (p.fast || p.rad || p.k !== NUC) continue;
-      V += wallPE(p);
+      if (W.wall === 'reflect') V += wallPE(p);
+      V += objPE(p);
     }
   }
   for (const p of set) {
@@ -1952,6 +2021,7 @@ function computeForces1() {
     PB.s += _wallFs * dt; PB.t += dt;
     if (PB.t >= 50) { PB.blocks.push(PB.s / PB.t); if (PB.blocks.length > 2000) PB.blocks.shift(); PB.s = 0; PB.t = 0; }
   }
+  if (W.objs.length) objForces(mdI, nmd); // (placed objects: soft walls on the atoms' edges, props.js)
   toolForces();
   leptonExtras(true);
   if (_profOn) _tAfter += performance.now() - tp;
@@ -2196,14 +2266,16 @@ function glowPhoton(x, y, E, ux, uy) {
 }
 function emitPhoton(x, y, E, ux, uy, opts) {
   if (!(E > 0)) return;
-  specRecord(E, opts && opts.src);
+  const cont = opts && opts.cont; // (the same photon going on from a mirror, lens or prism: props.js)
+  if (!cont) specRecord(E, opts && opts.src);
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
-  W.count.photons++;
+  if (!cont) W.count.photons++;
   let x0 = x, y0 = y, depth = (opts && opts.depth) || 0;
-  const hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract(x0, y0, ux, uy, E, opts && opts.src);
+  let hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract(x0, y0, ux, uy, E, opts && opts.src);
   let x1, y1;
   if (hit) { x1 = hit.x; y1 = hit.y; }
   else { const t = rayExit(x0, y0, ux, uy); x1 = x0 + ux * t; y1 = y0 + uy * t; }
+  if (W.objs.length) { const oh = opticFind(x0, y0, ux, uy, Math.hypot(x1 - x0, y1 - y0), E); if (oh) { hit = opticHit(oh, x0, y0, ux, uy, E, opts); x1 = hit.x; y1 = hit.y; } } // (a placed piece first on its way)
   const lab = photonLabel(E, opts && opts.src);
   if (opts && opts.travel) { W.flights.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.t, len: Math.hypot(x1 - x0, y1 - y0), hit, lab }); return; }
   if (!hit) W.ledger.escaped += E;
@@ -3016,6 +3088,7 @@ function regionE(T) {
     for (const o of md) if (o !== p && !(T.has(o) && o.id < p.id)) E += pairPE(p, o);
     if (p.bonds.length >= 2) E += angleEnergy(p);
     if (W.wall === 'reflect') E += wallPE(p);
+    E += objPE(p);
   }
   return E;
 }
@@ -4139,6 +4212,7 @@ function moveRad(p, dt) {
   p.x = x1; p.y = y1;
   radSpeed(p);
   p.vx = p.sp * p.ux; p.vy = p.sp * p.uy;
+  if (W.objs.length && objPath(p, x0, y0)) return; // (placed objects: props.js)
   extendTrack(p);
   if (wallOrEscape(p, true, x0, y0)) return;
   if (p.caught && detectorStop(p)) return;
@@ -4479,6 +4553,7 @@ function moveNeutron(p, dt, c1, c2, kT) {
   }
   if (p.dead) return;
   p.x += p.vx * dt; p.y += p.vy * dt;
+  if (W.objs.length && objPath(p, x0, y0)) return; // (placed objects: props.js)
   const KE2 = keOf(p);
   if (p.trk) extendTrack(p);
   wallOrEscape(p, KE2 > ESC_E_NEUTRON, x0, y0);
@@ -4931,7 +5006,7 @@ function innerSteps(Dt) {
       // the lepton pair list's check, from the positions this loop leaves (flValid's loop, folded in)
       const flOk = useL && !wrap && FL.gen === _mdGen && FL.n === nmd && FL.w === W.box.w && FL.h === W.box.h && FL.wall === W.wall, BX = FL.bx, BY = FL.by;
       let worst = 0;
-      const lz = _lzOn, gL = _gxL, nI = lz ? _gxN : nmd, FQ = FL.q;
+      const lz = _lzOn, gL = _gxL, nI = lz ? _gxN : nmd, FQ = FL.q, nob = W.objs.length;
       for (let k = 0; k < nI; k++) {
         const i = lz ? gL[k] : mdI[k], q = lz ? FQ[i] : k;
         if (lz && (q < 0 || q >= nmd || mdI[q] !== i)) { if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue; } // (a list slot outside the MD set's order: no list position to check)
@@ -4942,8 +5017,10 @@ function innerSteps(Dt) {
           const p = OBJ[i];
           // a free lepton in a magnetic field moves on an exact arc between the kicks: its guiding centre then drifts
           // across the field exactly (only the kicks move it), however many turns it makes in a field of any strength
+          const lx0 = X[i], ly0 = Y[i];
           if (p.Bl !== 0 && hasB) gyrate(p, p.Bl, dti);
           else { X[i] += VX[i] * dti; Y[i] += VY[i] * dti; }
+          if (nob) objLepton(p, lx0, ly0); // (placed objects: it bounces off them)
           if (wrap) {
             if (X[i] < -hw) { X[i] += bw; OX[i] += bw; } else if (X[i] > hw) { X[i] -= bw; OX[i] -= bw; }
             if (Y[i] < -hh) { Y[i] += bh; OY[i] += bh; } else if (Y[i] > hh) { Y[i] -= bh; OY[i] -= bh; }
@@ -5019,6 +5096,7 @@ function moveFastLeptons(Dt, id0) {
       if (B !== 0) gyrate(p, B, h); else { p.x += p.vx * h; p.y += p.vy * h; }
       if (hasE) { const E = Efield(p.x, p.y, p); p.vx += ke * E[0]; p.vy += ke * E[1]; }
       rem -= h;
+      if (W.objs.length && objPath(p, p.ox, p.oy)) break; // (placed objects: props.js)
       walls(p); if (p.dead || p.rad) break;
       updateFast(p); if (!p.fast) break; // slowed into MD: it carries on there next step
       if (look) { fastEncounters(p); if (p.dead || p.rad || !p.fast) break; }
@@ -5312,6 +5390,7 @@ function stepPlain(dt) {
         }
       }
       const p = OBJ[i];
+      if (FAST[i] === 1 && W.objs.length && objPath(p, p.ox, p.oy)) continue; // (placed objects: props.js)
       walls(p);
       updateFast(p);
       if (p.fast && !p.dead) fastEncounters(p);
@@ -5477,7 +5556,7 @@ function measure() {
 /* ------------------------------------------------------------------ world construction helpers */
 function clearWorld() {
   dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
-  W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
+  W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null;
   W.grab = null; W.topo++;
   for (const k in W.count) W.count[k] = 0;
@@ -5772,10 +5851,11 @@ function totalEnergy() {
   }
   for (const bd of W.bonds) pe += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
-  if (W.wall === 'reflect') {
+  if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls
-      pe += wallPE(p);
+      if (W.wall === 'reflect') pe += wallPE(p);
+      pe += objPE(p);
     }
   }
   return { ke, pe, internal, esc: W.ledger.escaped, total: ke + pe + internal + W.ledger.escaped };

@@ -214,15 +214,19 @@ function mbAssemble() { // drawn atoms first (same order), then the hydrogens th
   });
   return { atoms, bonds, nDrawn: MB.atoms.length };
 }
-function mbPieces() {
+function mbPieces(qs) { // (qs: filled with each piece's net charge)
   const seen = new Set(); let n = 0;
   for (const a of MB.atoms) {
     if (seen.has(a.id)) continue;
-    n++; const st = [a.id]; seen.add(a.id);
-    while (st.length) { const id = st.pop(); for (const o of mbNbrs(id)) if (!seen.has(o.id)) { seen.add(o.id); st.push(o.id); } }
+    n++; const st = [a.id]; seen.add(a.id); let q = 0;
+    while (st.length) { const id = st.pop(); q += mbAtom(id).q || 0; for (const o of mbNbrs(id)) if (!seen.has(o.id)) { seen.add(o.id); st.push(o.id); } }
+    if (qs) qs.push(q);
   }
   return n;
 }
+/* Separate pieces make an ionic compound (0.66) when every piece is an ion and their charges add up to zero: Na⁺ and
+   Cl⁻, Mg²⁺ and two Cl⁻, NH₄⁺ and NO₃⁻. They are held together by their charges alone, as in the chamber. */
+function mbIonicOK(qs) { return qs.length > 1 && qs.every(q => q !== 0) && qs.reduce((a, q) => a + q, 0) === 0; }
 function mbAnalyze() {
   const r = { issues: [], formula: '', iso: '', name: null, lm: null, n: 0, pieces: 0, free: 0, mol: null };
   if (!MB.atoms.length) return r;
@@ -234,11 +238,12 @@ function mbAnalyze() {
     const u = mbUsed(a.id), lim = mbLimit(a);
     if (u > lim) r.issues.push({ id: a.id, text: `${mbLabel(a)} has ${u} bond${u > 1 ? 's' : ''}; it takes ${lim ? 'at most ' + lim : 'none'}` });
   }
-  r.pieces = mbPieces();
-  if (r.pieces > 1) r.issues.push({ text: `${r.pieces} separate pieces: drop an atom of one onto an atom of another to join them` });
+  const qs = []; r.pieces = mbPieces(qs); r.ionic = r.pieces > 1 && mbIonicOK(qs);
+  if (r.pieces > 1 && !r.ionic) r.issues.push({ text: `${r.pieces} separate pieces: drop an atom of one onto an atom of another to join them${qs.every(q => q !== 0) || qs.some(q => q !== 0) ? ', or, for an ionic compound, make every piece an ion with charges adding up to zero (the charge buttons)' : ''}` });
   if (r.n > MB_MAX) r.issues.push({ text: `${r.n} atoms with the hydrogens; the builder takes up to ${MB_MAX}` });
   for (const a of MB.atoms) r.free += mbFree(a);
-  if (!r.issues.length) { r.lm = libMatch(fake); r.name = r.lm ? r.lm.name : moleculeName(fake); }
+  if (!r.issues.length && r.ionic) { const c = ionicName(fake); r.lm = null; r.name = c ? c.name && c.name[0].toUpperCase() + c.name.slice(1) : null; if (c) r.formula = c.formula + (c.units > 1 ? ` ×${c.units}` : ''); }
+  else if (!r.issues.length) { r.lm = libMatch(fake); r.name = r.lm ? r.lm.name : moleculeName(fake); }
   return r;
 }
 
@@ -699,11 +704,22 @@ function mbLoadMol(k, edit) {
   MB.aiSig = null; MB.aiNote = ''; MB.msg = '';
   MB.edit = edit && m.mine ? k : null;
   $('bldName').value = MB.edit ? m.name : (m.name + ' (copy)').slice(0, 40);
+  mbCatFill(MB.edit ? m.cat : '');
+  MB.loadSig = MB.edit ? mbSig() : null;
   mbSyncEdit();
   mbChanged(true);
   mbSay(MB.edit ? `Editing ${m.name}: Save puts it back in place, Save as new keeps the original. Copies already in the chamber stay as they are.` : `A copy of ${m.name} to make your own: Build & use adds it to My molecules.`);
   return true;
 }
+/* The category picker (0.66): Automatic (the builder's guess for one Claude designed, else My molecules), My molecules, or
+   any library category. Editing one of yours shows where it is now; Save moves it. */
+function mbCatFill(cur) {
+  const sel = $('bldCat'); if (!sel) return;
+  const opts = [['', 'Category: automatic'], ['custom', 'My molecules']].concat(MOLECULE_CATS.filter(([c]) => molCatOk(c)));
+  sel.innerHTML = opts.map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join('');
+  sel.value = cur && opts.some(o => o[0] === cur) ? cur : '';
+}
+function mbCatPicked() { const v = $('bldCat') ? $('bldCat').value : ''; return v === 'custom' ? 'custom' : molCatOk(v) ? v : null; }
 function mbSyncEdit() {
   const m = MB.edit && MOLECULES[MB.edit];
   if (!m) MB.edit = null;
@@ -720,6 +736,15 @@ function mbBuild(asNew) {
   const info = MB.info = mbAnalyze();
   if (info.issues.length) { mbSay('Not yet: fix the problem above first.', true); mbDraw(); return; }
   const name = String($('bldName').value || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 40);
+  if (MB.edit && !MB.asNew && MB.loadSig && MB.loadSig === mbSig() && MOLECULES[MB.edit]) { // only its name or category changed: no need to settle it again
+    const m = MOLECULES[MB.edit], cat = mbCatPicked();
+    myMolAdd({ k: m.key, n: name || m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds, d: m.desc, c: cat === 'custom' ? undefined : cat || (m.cat !== 'custom' ? m.cat : undefined) });
+    myMolsSave();
+    log('tool', `Builder: ${MOLECULES[m.key].name} saved in ${molWhere(MOLECULES[m.key])}`);
+    MB.edit = null; MB.loadSig = null; mbSyncEdit();
+    hideModal('bldModal'); selectSpec({ kind: 'mol', mol: m.key });
+    return;
+  }
   if (info.lm && !MB.edit && (!name || name === info.lm.name)) { // already known: use that one, shape and all (not when editing one: that saves it)
     hideModal('bldModal'); selectSpec({ kind: 'mol', mol: info.lm.key });
     log('tool', `Builder: that is ${info.lm.name}, already in ${molWhere(info.lm)}`);
@@ -743,9 +768,9 @@ function mbBuildRun(info, name) {
   const old = MB.edit && !MB.asNew ? MOLECULES[MB.edit] : null; // (editing: saved back in place, its category and note kept)
   const k = old ? old.key : 'my' + Date.now().toString(36) + (MB.seq++).toString(36);
   const atoms = info.mol.atoms.map((a, i) => { const r = [a.el, +best.xy[i][0].toFixed(2), +best.xy[i][1].toFixed(2)]; if (a.q || a.A) r.push(a.q || 0); if (a.A) r.push(a.A); return r; });
-  const byClaude = MB.aiSig && MB.aiSig === mbSig(); // still as Claude designed it: keep its note
+  const byClaude = MB.aiSig && MB.aiSig === mbSig(), catPick = mbCatPicked(); // (byClaude: still as Claude designed it: keep its note)
   myMolAdd({ k, n: name || (old && old.name) || info.name || info.formula, r: best.free ? 1 : 0, a: atoms, b: info.mol.bonds.map(b => b.slice()),
-    d: old ? old.desc : byClaude ? 'Designed by Claude.' + (MB.aiNote ? ' ' + MB.aiNote : '') : '', c: old ? (old.cat !== 'custom' ? old.cat : undefined) : byClaude ? (molCatOk(MB.aiCat) ? MB.aiCat : molCatGuess(atoms, info.mol.bonds)) : undefined }); // (Claude's design: filed under its category)
+    d: old ? old.desc : byClaude ? 'Designed by Claude.' + (MB.aiNote ? ' ' + MB.aiNote : '') : '', c: catPick === 'custom' ? undefined : catPick || (old ? (old.cat !== 'custom' ? old.cat : undefined) : byClaude ? (molCatOk(MB.aiCat) ? MB.aiCat : molCatGuess(atoms, info.mol.bonds)) : undefined) }); // (Claude's design: filed under its category)
   myMolsSave();
   if (old) log('tool', `Builder: ${MOLECULES[k].name} saved; copies already in the chamber are as they were`);
   MB.edit = null; mbSyncEdit();
@@ -1111,7 +1136,7 @@ function mbResize(force) {
 }
 function openMolBuilder() {
   hideModal('molModal');
-  MB.edit = null; mbSyncEdit();
+  MB.edit = null; MB.loadSig = null; mbSyncEdit(); mbCatFill('');
   if (!MB.palOK) { $('bldPal').innerHTML = mbPaletteHTML(); MB.palOK = true; }
   $('bldFill').checked = MB.fill; $('bldHA').value = String(MB.hA);
   MB.msg = '';

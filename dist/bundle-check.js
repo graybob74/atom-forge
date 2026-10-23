@@ -2319,6 +2319,7 @@ function makeWorld() {
     minShow: 0,                 // hold the shortest-lived particles until seen (0 off, 1 a little, 2 more; hep.js exoHeld)
     Bz: 0, magnets: [], Ex: 0, Ey: 0,
     nextId: 1, topo: 1, deaths: 0, bathSeed: 0x5eed1234, // bathSeed: the heat bath's noise is hashed from it, the step and the slot (threads.js's bathNoise)
+    objs: [], objSeq: 0,          // placed objects: mirrors, lenses, walls … (props.js)
     rays: [], flights: [], chips: [], chipSeq: 0, chipT: 0, lasers: [], mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
     exo: [],                    // unstable particles in flight (muons, pions, kaons…: hep.js)
     events: [], evRecent: [], slow: null, slowmo: true, decayOn: true, made: null, // made: what nuclear events have made (noteMade)
@@ -2920,6 +2921,72 @@ function moleculeName(atoms) {
   if (!n || !anti) return isoName(n, iso);
   return n === 'Hydrogen' ? 'Antihydrogen' : 'Anti-' + (/^[A-Z][a-z]/.test(n) ? n[0].toLowerCase() + n.slice(1) : n);
 }
+/* Ionic compounds (0.66). Ions held together by their charges are no molecule (no bond joins them), so they get their
+   name here: the ions in contact (opposite charges closer than 1.3 × the sum of their radii, as the Ionic view draws
+   them and whole-molecule grab takes them), each unit an ion (an atom, or a charged molecule like OH⁻), written as
+   chemists write the compound: cations first, counts reduced to the formula unit (Na₁₄Cl₁₄ → NaCl), polyatomic ions in
+   brackets when more than one, a d-block cation's charge in Roman numerals. */
+function ionicCluster(p) {
+  if (p.dead || p.k !== NUC || p.ne <= 0) return null;
+  const rOf = (q) => (q.ionic && q.ionR > 0 ? q.ionR : q.rd), seen = new Set(), out = [];
+  const add = (q) => { for (const m of molecule(q)) if (!seen.has(m)) { seen.add(m); out.push(m); } };
+  add(p);
+  if (!out.some(a => Math.abs(a.q) >= 1)) return null;
+  const ions = W.parts.filter(q => !q.dead && q.k === NUC && q.ne > 0 && Math.abs(q.q) >= 1);
+  const n0 = out.length;
+  for (let i = 0; i < out.length && out.length < 4000; i++) {
+    const a = out[i]; if (a.dead || a.k !== NUC || a.ne <= 0 || Math.abs(a.q) < 1) continue;
+    for (const b of ions) {
+      if (seen.has(b) || a.q * b.q >= 0) continue;
+      const dx = b.x - a.x, dy = b.y - a.y; if (Math.abs(dx) > 8 || Math.abs(dy) > 8) continue;
+      if (Math.hypot(dx, dy) < 1.3 * (rOf(a) + rOf(b))) add(b);
+    }
+  }
+  return out.length > n0 ? out : null;
+}
+const POLY_IONS = { HO: ['OH', 'hydroxide'], H4N: ['NH₄', 'ammonium'], H3O: ['H₃O', 'hydronium'], NO3: ['NO₃', 'nitrate'], NO2: ['NO₂', 'nitrite'],
+  O4S: ['SO₄', 'sulfate'], O3S: ['SO₃', 'sulfite'], CO3: ['CO₃', 'carbonate'], CHO3: ['HCO₃', 'bicarbonate'], O4P: ['PO₄', 'phosphate'],
+  ClO4: ['ClO₄', 'perchlorate'], ClO3: ['ClO₃', 'chlorate'], ClO: ['ClO', 'hypochlorite'], CN: ['CN', 'cyanide'], C2H3O2: ['CH₃COO', 'acetate'],
+  MnO4: ['MnO₄', 'permanganate'], CrO4: ['CrO₄', 'chromate'], HO4S: ['HSO₄', 'hydrogen sulfate'], O2: ['O₂', 'peroxide'] };
+const IDE = { 1: 'hydride', 7: 'nitride', 8: 'oxide', 9: 'fluoride', 15: 'phosphide', 16: 'sulfide', 17: 'chloride', 34: 'selenide', 35: 'bromide', 52: 'telluride', 53: 'iodide' };
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+function ionicName(atoms) {
+  const seen = new Set(), units = new Map();
+  for (const a of atoms) {
+    if (seen.has(a)) continue;
+    const m = molecule(a); for (const x of m) seen.add(x);
+    let q = 0; for (const x of m) q += x.anti ? -x.q : x.q;
+    const key = m.length === 1 ? (a.anti ? barSym(a.el.sym) : a.el.sym) : hill(m, true).replace(/\d*[+-]$/, '');
+    const u = units.get(key + '|' + q) || { key, q, n: 0, one: m.length === 1, el: a.el, anti: a.anti };
+    u.n++; units.set(key + '|' + q, u);
+  }
+  const us = [...units.values()];
+  if (us.length < 2 || !us.some(u => u.q > 0) || !us.some(u => u.q < 0)) return null;
+  const gcd = (x, y) => (y ? gcd(y, x % y) : x);
+  let g = 0; for (const u of us) g = gcd(g, u.n);
+  us.sort((x, y) => (y.q > 0) - (x.q > 0) || Math.abs(y.q) - Math.abs(x.q) || (x.key < y.key ? -1 : 1));
+  let f = '', net = 0;
+  for (const u of us) {
+    const k = u.n / g, poly = !u.one, show = poly ? (POLY_IONS[u.key] ? POLY_IONS[u.key][0] : u.key.replace(/\d+/g, d => sub(d))) : u.key;
+    f += (poly && k > 1 ? '(' + show + ')' : show) + (k > 1 ? sub(k) : '');
+    net += u.q * k;
+  }
+  if (net) f += sup((Math.abs(net) > 1 ? Math.abs(net) : '') + (net > 0 ? '+' : '-'));
+  let name = null;
+  const cat = us.filter(u => u.q > 0), an = us.filter(u => u.q < 0);
+  if (!net && cat.length === 1 && an.length === 1 && !cat[0].anti && !an[0].anti) {
+    const c = cat[0], a = an[0];
+    const cn = c.one ? c.el.name.toLowerCase() + (c.el.dblock && ROMAN[c.q] ? `(${ROMAN[c.q]})` : '') : POLY_IONS[c.key] && POLY_IONS[c.key][1];
+    const anm = a.one ? IDE[a.el.Z] : POLY_IONS[a.key] && POLY_IONS[a.key][1];
+    if (cn && anm) name = cn + ' ' + anm;
+  }
+  return { formula: f, name, units: g, n: atoms.length };
+}
+/* "NaCl (sodium chloride), 14 formula units": what the hover box, Inspect and the Data tab call an ionic cluster. */
+function ionicText(atoms, long) {
+  const c = ionicName(atoms); if (!c) return null;
+  return c.formula + (c.name ? ` (${c.name})` : '') + (long && c.units > 1 ? `, ${c.units} formula units` : '');
+}
 function speciesLabel(p) {
   if (p.k === ELEC) return 'e⁻';
   if (p.k === POS) return 'e⁺';
@@ -3050,7 +3117,7 @@ function hasBfield() {
   return false;
 }
 function hasEfield() {
-  if (W.Ex !== 0 || W.Ey !== 0) return true;
+  if (W.Ex !== 0 || W.Ey !== 0 || (W.objs.length && hasPlates())) return true;
   const zs = W.zones;
   for (let i = 0; i < zs.length; i++) { const k = zs[i].kind; if (k === 'cavity' || k === 'sep') return true; }
   return false;
@@ -3087,6 +3154,7 @@ function Efield(x, y, p) {
     }
     _E[0] += Ez * c; _E[1] += Ez * sn;
   }
+  if (W.objs.length) platesField(x, y, _E); // (placed charged plates: props.js)
   return _E;
 }
 function Bfield(x, y, p) {
@@ -3559,10 +3627,11 @@ function localPE(set, skip) {
   for (const c of centres) V += angleEnergy(c);
   if (W.magnets.length) { const kT = PHYS.KB * Math.max(W.T, 1); for (const p of set) if (!p.dead) V += magU(p, kT); }
   farMetalPairs((a, b, dx, dy, r) => { V += metalV(a, b, r); }, set);
-  if (W.wall === 'reflect') { // soft walls
+  if (W.wall === 'reflect' || W.objs.length) { // soft walls (and placed objects')
     for (const p of set) {
       if (p.fast || p.rad || p.k !== NUC) continue;
-      V += wallPE(p);
+      if (W.wall === 'reflect') V += wallPE(p);
+      V += objPE(p);
     }
   }
   for (const p of set) {
@@ -4210,6 +4279,7 @@ function computeForces1() {
     PB.s += _wallFs * dt; PB.t += dt;
     if (PB.t >= 50) { PB.blocks.push(PB.s / PB.t); if (PB.blocks.length > 2000) PB.blocks.shift(); PB.s = 0; PB.t = 0; }
   }
+  if (W.objs.length) objForces(mdI, nmd); // (placed objects: soft walls on the atoms' edges, props.js)
   toolForces();
   leptonExtras(true);
   if (_profOn) _tAfter += performance.now() - tp;
@@ -4454,14 +4524,16 @@ function glowPhoton(x, y, E, ux, uy) {
 }
 function emitPhoton(x, y, E, ux, uy, opts) {
   if (!(E > 0)) return;
-  specRecord(E, opts && opts.src);
+  const cont = opts && opts.cont; // (the same photon going on from a mirror, lens or prism: props.js)
+  if (!cont) specRecord(E, opts && opts.src);
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
-  W.count.photons++;
+  if (!cont) W.count.photons++;
   let x0 = x, y0 = y, depth = (opts && opts.depth) || 0;
-  const hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract(x0, y0, ux, uy, E, opts && opts.src);
+  let hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract(x0, y0, ux, uy, E, opts && opts.src);
   let x1, y1;
   if (hit) { x1 = hit.x; y1 = hit.y; }
   else { const t = rayExit(x0, y0, ux, uy); x1 = x0 + ux * t; y1 = y0 + uy * t; }
+  if (W.objs.length) { const oh = opticFind(x0, y0, ux, uy, Math.hypot(x1 - x0, y1 - y0), E); if (oh) { hit = opticHit(oh, x0, y0, ux, uy, E, opts); x1 = hit.x; y1 = hit.y; } } // (a placed piece first on its way)
   const lab = photonLabel(E, opts && opts.src);
   if (opts && opts.travel) { W.flights.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.t, len: Math.hypot(x1 - x0, y1 - y0), hit, lab }); return; }
   if (!hit) W.ledger.escaped += E;
@@ -5274,6 +5346,7 @@ function regionE(T) {
     for (const o of md) if (o !== p && !(T.has(o) && o.id < p.id)) E += pairPE(p, o);
     if (p.bonds.length >= 2) E += angleEnergy(p);
     if (W.wall === 'reflect') E += wallPE(p);
+    E += objPE(p);
   }
   return E;
 }
@@ -6397,6 +6470,7 @@ function moveRad(p, dt) {
   p.x = x1; p.y = y1;
   radSpeed(p);
   p.vx = p.sp * p.ux; p.vy = p.sp * p.uy;
+  if (W.objs.length && objPath(p, x0, y0)) return; // (placed objects: props.js)
   extendTrack(p);
   if (wallOrEscape(p, true, x0, y0)) return;
   if (p.caught && detectorStop(p)) return;
@@ -6737,6 +6811,7 @@ function moveNeutron(p, dt, c1, c2, kT) {
   }
   if (p.dead) return;
   p.x += p.vx * dt; p.y += p.vy * dt;
+  if (W.objs.length && objPath(p, x0, y0)) return; // (placed objects: props.js)
   const KE2 = keOf(p);
   if (p.trk) extendTrack(p);
   wallOrEscape(p, KE2 > ESC_E_NEUTRON, x0, y0);
@@ -7189,7 +7264,7 @@ function innerSteps(Dt) {
       // the lepton pair list's check, from the positions this loop leaves (flValid's loop, folded in)
       const flOk = useL && !wrap && FL.gen === _mdGen && FL.n === nmd && FL.w === W.box.w && FL.h === W.box.h && FL.wall === W.wall, BX = FL.bx, BY = FL.by;
       let worst = 0;
-      const lz = _lzOn, gL = _gxL, nI = lz ? _gxN : nmd, FQ = FL.q;
+      const lz = _lzOn, gL = _gxL, nI = lz ? _gxN : nmd, FQ = FL.q, nob = W.objs.length;
       for (let k = 0; k < nI; k++) {
         const i = lz ? gL[k] : mdI[k], q = lz ? FQ[i] : k;
         if (lz && (q < 0 || q >= nmd || mdI[q] !== i)) { if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue; } // (a list slot outside the MD set's order: no list position to check)
@@ -7200,8 +7275,10 @@ function innerSteps(Dt) {
           const p = OBJ[i];
           // a free lepton in a magnetic field moves on an exact arc between the kicks: its guiding centre then drifts
           // across the field exactly (only the kicks move it), however many turns it makes in a field of any strength
+          const lx0 = X[i], ly0 = Y[i];
           if (p.Bl !== 0 && hasB) gyrate(p, p.Bl, dti);
           else { X[i] += VX[i] * dti; Y[i] += VY[i] * dti; }
+          if (nob) objLepton(p, lx0, ly0); // (placed objects: it bounces off them)
           if (wrap) {
             if (X[i] < -hw) { X[i] += bw; OX[i] += bw; } else if (X[i] > hw) { X[i] -= bw; OX[i] -= bw; }
             if (Y[i] < -hh) { Y[i] += bh; OY[i] += bh; } else if (Y[i] > hh) { Y[i] -= bh; OY[i] -= bh; }
@@ -7277,6 +7354,7 @@ function moveFastLeptons(Dt, id0) {
       if (B !== 0) gyrate(p, B, h); else { p.x += p.vx * h; p.y += p.vy * h; }
       if (hasE) { const E = Efield(p.x, p.y, p); p.vx += ke * E[0]; p.vy += ke * E[1]; }
       rem -= h;
+      if (W.objs.length && objPath(p, p.ox, p.oy)) break; // (placed objects: props.js)
       walls(p); if (p.dead || p.rad) break;
       updateFast(p); if (!p.fast) break; // slowed into MD: it carries on there next step
       if (look) { fastEncounters(p); if (p.dead || p.rad || !p.fast) break; }
@@ -7570,6 +7648,7 @@ function stepPlain(dt) {
         }
       }
       const p = OBJ[i];
+      if (FAST[i] === 1 && W.objs.length && objPath(p, p.ox, p.oy)) continue; // (placed objects: props.js)
       walls(p);
       updateFast(p);
       if (p.fast && !p.dead) fastEncounters(p);
@@ -7735,7 +7814,7 @@ function measure() {
 /* ------------------------------------------------------------------ world construction helpers */
 function clearWorld() {
   dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
-  W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
+  W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null;
   W.grab = null; W.topo++;
   for (const k in W.count) W.count[k] = 0;
@@ -8030,10 +8109,11 @@ function totalEnergy() {
   }
   for (const bd of W.bonds) pe += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
-  if (W.wall === 'reflect') {
+  if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls
-      pe += wallPE(p);
+      if (W.wall === 'reflect') pe += wallPE(p);
+      pe += objPE(p);
     }
   }
   return { ke, pe, internal, esc: W.ledger.escaped, total: ke + pe + internal + W.ledger.escaped };
@@ -9387,6 +9467,7 @@ function moveExos(dt, id0) {
     const d = XP[o.sp], x0 = o.x, y0 = o.y;
     if (dec && exoHeld(o)) { dec = false; h = dt; o.wait = true; } // (held to be seen: it flies the whole step, and may decay in a later one)
     flyExo(o, h);
+    if (W.objs.length && objExo(o, x0, y0)) continue; // (placed objects: props.js)
     if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
     if (d.res && !dec) continue; // (a held resonance: only flies)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
@@ -10098,6 +10179,316 @@ function fragmentInto(a, b, Pa, Pb, b3, anti, items, moms) {
 function nucDrawR(p) { if (p.k !== NUC) return 0; const A = p.Z + p.N; return 0.045 * (A <= 1 ? 1.12 : Math.sqrt((A - 0.5) / 0.82) + 1.12); }
 function nucReach(a, b) { return Math.max(a.Z === 0 || b.Z === 0 ? R_NN : R_FUS, nucDrawR(a) + nucDrawR(b)); }
 
+/* ---- props.js ---- */
+/* ------------------------------------------------------------------ placed objects (0.66)
+   Things put in the chamber with the Objects tool, each a straight piece from (x0, y0) to (x1, y1) (W.objs):
+     mirror    reflects light (R = 1); a splitter is a half-silvered one (R = 0.5: each photon goes one way or the other)
+     lens      a thin lens of focal length f (Å; negative: diverging), bending each ray by h/f where it crosses
+     prism     an equilateral glass prism standing on the piece, F2 flint glass (n = 1.5895 + 9400/λ², λ in nm). Light
+               must meet it at a slant to come out (straight on, it is totally reflected inside, as in a real prism):
+               one placed with a click is turned 24° for a beam from the left (the angle of least deviation)
+     screen    a detector: stops light and fast particles and counts them, with their energy spectrum
+     stop      a beam stop: stops light and fast particles
+     wall      a solid wall: everything bounces off it (light is absorbed)
+     foil      a thin metal foil (Z, layers): fast charged particles cross it, deflected by its nuclei (Rutherford)
+     plates    two charged plates, the piece and its copy `gap` Å to its left, V volts between them: a uniform field
+               inside, like the Lab's electric field but only there (its energy comes from the supply, as the Lab's does)
+   Atoms meet every piece as a soft wall on their edge, as the chamber's walls (the energy is in the books: objPE);
+   free electrons in the ordinary steps bounce off; fast and radiation-mode particles (and pions, muons …) cross a foil,
+   bounce off a wall, and are stopped by the rest (a positron or antinucleus annihilates there). Light: X-rays and
+   γ rays (124 eV and up) go straight through mirrors, lenses and prisms; glass absorbs ultraviolet below 300 nm.
+   Neutrinos go through everything. Thermal light from glowing walls ignores the objects. */
+const OBJ_KINDS = ['mirror', 'splitter', 'lens', 'prism', 'screen', 'stop', 'wall', 'foil', 'plates'];
+const OBJ_NAME = { mirror: 'Mirror', splitter: 'Beam splitter', lens: 'Lens', prism: 'Prism', screen: 'Detector screen', stop: 'Beam stop', wall: 'Wall', foil: 'Foil', plates: 'Charged plates' };
+const OBJ_HALF = 0.15; // Å: half the thickness of a piece, as atoms meet it
+const OBJ_BINS = 24, OBJ_LO = -2; // the screen's spectrum: 24 bins of half a decade from 0.01 eV (to 10 GeV)
+const PRISM_N = (nm) => 1.5895 + 9400 / (nm * nm); // (F2 flint glass: 1.648 at 400 nm, 1.609 at 700 nm)
+function objMake(kind, x0, y0, x1, y1, o = {}) {
+  const ob = { id: ++W.objSeq, kind, x0, y0, x1, y1 };
+  if (kind === 'mirror') ob.R = 1;
+  if (kind === 'splitter') ob.R = 0.5;
+  if (kind === 'lens') ob.f = Number.isFinite(o.f) ? o.f : 20;
+  if (kind === 'foil') { ob.Z = Number.isInteger(o.Z) ? o.Z : 79; ob.layers = Number.isFinite(o.layers) ? o.layers : 10; }
+  if (kind === 'plates') { ob.V = Number.isFinite(o.V) ? o.V : 100; ob.gap = Number.isFinite(o.gap) ? o.gap : 10; }
+  if (kind === 'screen') objClearHits(ob);
+  return ob;
+}
+function objAdd(kind, x0, y0, x1, y1, o) { const ob = objMake(kind, x0, y0, x1, y1, o); W.objs.push(ob); W.dirty++; return ob; }
+function objRemove(ob) { const i = W.objs.indexOf(ob); if (i >= 0) { W.objs.splice(i, 1); W.dirty++; } }
+function objClearHits(ob) { ob.hits = { n: 0, light: 0, parts: 0, E: 0, bins: new Array(OBJ_BINS).fill(0) }; }
+function objLen(ob) { return Math.hypot(ob.x1 - ob.x0, ob.y1 - ob.y0); }
+/* Its left normal (unit): the side a prism stands on and the plates' second plate lies. */
+function objNormal(ob) { const L = objLen(ob) || 1; return [-(ob.y1 - ob.y0) / L, (ob.x1 - ob.x0) / L]; }
+function prismApex(ob) { const [nx, ny] = objNormal(ob), L = objLen(ob), mx = (ob.x0 + ob.x1) / 2, my = (ob.y0 + ob.y1) / 2; return [mx + nx * L * 0.8660254, my + ny * L * 0.8660254]; }
+/* Its solid edges [ax, ay, bx, by]: one, a prism's three, the plates' two. */
+function objEdges(ob) {
+  if (ob.kind === 'prism') { const [ax, ay] = prismApex(ob); return [[ob.x0, ob.y0, ob.x1, ob.y1], [ob.x1, ob.y1, ax, ay], [ax, ay, ob.x0, ob.y0]]; }
+  if (ob.kind === 'plates') { const [nx, ny] = objNormal(ob), g = ob.gap; return [[ob.x0, ob.y0, ob.x1, ob.y1], [ob.x0 + nx * g, ob.y0 + ny * g, ob.x1 + nx * g, ob.y1 + ny * g]]; }
+  return [[ob.x0, ob.y0, ob.x1, ob.y1]];
+}
+/* Where a ray from (x, y) along (ux, uy) meets segment a–b: its distance t along the ray (> eps), or Infinity. */
+function raySeg(x, y, ux, uy, ax, ay, bx, by) {
+  const ex = bx - ax, ey = by - ay, den = ux * ey - uy * ex;
+  if (Math.abs(den) < 1e-12) return Infinity;
+  const wx = ax - x, wy = ay - y, t = (wx * ey - wy * ex) / den, s = (wx * uy - wy * ux) / den;
+  return t > 1e-7 && s >= 0 && s <= 1 ? t : Infinity;
+}
+/* Does the move from (x0, y0) to (x1, y1) cross segment a–b? The fraction of the move where it does, or -1. */
+function moveSeg(x0, y0, x1, y1, ax, ay, bx, by) {
+  const dx = x1 - x0, dy = y1 - y0, ex = bx - ax, ey = by - ay, den = dx * ey - dy * ex;
+  if (Math.abs(den) < 1e-14) return -1;
+  const wx = ax - x0, wy = ay - y0, t = (wx * ey - wy * ex) / den, s = (wx * dy - wy * dx) / den;
+  return t >= 0 && t <= 1 && s >= 0 && s <= 1 ? t : -1;
+}
+function pointInPrism(ob, x, y) {
+  const E = objEdges(ob); let sg = 0;
+  for (const [ax, ay, bx, by] of E) { const c = (bx - ax) * (y - ay) - (by - ay) * (x - ax); const s = c > 0 ? 1 : -1; if (sg && s !== sg) return false; sg = s; }
+  return true;
+}
+
+/* ---- light */
+function objLightOK(ob, E) { // does this piece do anything to light of this energy?
+  if (ob.kind === 'plates') return false;
+  if (E >= 124 && (ob.kind === 'mirror' || ob.kind === 'splitter' || ob.kind === 'lens' || ob.kind === 'prism')) return false; // (X-rays and γ: straight through)
+  return true;
+}
+/* The nearest piece a ray meets before tmax: { t, ob, e } or null. */
+function opticFind(x, y, ux, uy, tmax, E) {
+  let best = null;
+  for (const ob of W.objs) {
+    if (!objLightOK(ob, E)) continue;
+    const ed = objEdges(ob);
+    for (let e = 0; e < ed.length; e++) { const t = raySeg(x, y, ux, uy, ...ed[e]); if (t < tmax && (!best || t < best.t)) best = { t, ob, e }; }
+  }
+  return best;
+}
+/* A ray that met a piece: where it goes on (a new emitPhoton from there, cont: not a new photon), or where it ends. */
+function opticHit(h, x0, y0, ux, uy, E, opts) {
+  const x = x0 + ux * h.t, y = y0 + uy * h.t, ob = h.ob, o2 = Object.assign({}, opts || {}, { cont: true, bounce: ((opts && opts.bounce) || 0) + 1 });
+  const go = (vx, vy, sx, sy) => { const L = Math.hypot(vx, vy); emitPhoton(sx + vx / L * 1e-6, sy + vy / L * 1e-6, E, vx / L, vy / L, o2); };
+  const absorb = () => { W.ledger.escaped += E; if (ob.kind === 'screen') objRecord(ob, E, true); };
+  return { x, y, obj: ob, after: () => {
+    if (o2.bounce > 40) { absorb(); return; }
+    const [ax, ay, bx, by] = objEdges(ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, tx = (bx - ax) / L, ty = (by - ay) / L, nx = -ty, ny = tx;
+    const k = ob.kind;
+    if (k === 'mirror' || k === 'splitter') {
+      if (rnd() < ob.R) { const d = ux * nx + uy * ny; go(ux - 2 * d * nx, uy - 2 * d * ny, x, y); } else go(ux, uy, x, y);
+      return;
+    }
+    const nm = PHYS.HC / E;
+    if ((k === 'lens' || k === 'prism') && nm < 300) { absorb(); return; } // (glass takes the ultraviolet)
+    if (k === 'lens') {
+      const cx = (ob.x0 + ob.x1) / 2, cy = (ob.y0 + ob.y1) / 2, hh = (x - cx) * tx + (y - cy) * ty;
+      let un = ux * nx + uy * ny, sx = nx, sy = ny; if (un < 0) { un = -un; sx = -nx; sy = -ny; }
+      const s1 = (ux * tx + uy * ty) / un - hh / (Math.abs(ob.f) < 1 ? Math.sign(ob.f || 1) : ob.f); // (paraxial: the slope after = the slope before − h/f)
+      go(sx + s1 * tx, sy + s1 * ty, x, y);
+      return;
+    }
+    if (k === 'prism') { prismTrace(ob, x, y, ux, uy, h.e, E, o2); return; }
+    absorb(); // (screen, stop, wall, foil)
+  } };
+}
+/* Through the prism: refracted in at edge e, then to the far side, out (or totally reflected inside and on). The path
+   inside is drawn as rays; the light leaves from where it comes out. */
+function prismTrace(ob, x, y, ux, uy, e, E, opts) {
+  const n = PRISM_N(PHYS.HC / E), ed = objEdges(ob);
+  const refr = (vx, vy, nx, ny, n1, n2) => { // Snell, n pointing against the ray: the new direction, or null (total reflection)
+    let c = -(vx * nx + vy * ny); if (c < 0) { nx = -nx; ny = -ny; c = -c; }
+    const r = n1 / n2, k = 1 - r * r * (1 - c * c);
+    if (k < 0) return null;
+    const f = r * c - Math.sqrt(k);
+    return [r * vx + f * nx, r * vy + f * ny];
+  };
+  const nrm = (i) => { const [ax, ay, bx, by] = ed[i], L = Math.hypot(bx - ax, by - ay) || 1; return [-(by - ay) / L, (bx - ax) / L]; };
+  let [nx, ny] = nrm(e), d = refr(ux, uy, nx, ny, 1, n);
+  if (!d) { const c = ux * nx + uy * ny; emitPhoton(x, y, E, ux - 2 * c * nx, uy - 2 * c * ny, opts); return; }
+  let px = x, py = y, vx = d[0], vy = d[1], from = e;
+  for (let k = 0; k < 12; k++) {
+    let bt = Infinity, bi = -1;
+    for (let i = 0; i < 3; i++) { if (i === from) continue; const t = raySeg(px, py, vx, vy, ...ed[i]); if (t < bt) { bt = t; bi = i; } }
+    if (bi < 0) break;
+    const qx = px + vx * bt, qy = py + vy * bt;
+    W.rays.push({ x0: px, y0: py, x1: qx, y1: qy, E, c: photonColor(E), t0: W.rt, ts: W.t, len: bt, nu: false });
+    [nx, ny] = nrm(bi);
+    const out = refr(vx, vy, nx, ny, n, 1);
+    if (out) { const L = Math.hypot(out[0], out[1]); emitPhoton(qx + out[0] / L * 1e-6, qy + out[1] / L * 1e-6, E, out[0] / L, out[1] / L, opts); return; }
+    const c = vx * nx + vy * ny; vx -= 2 * c * nx; vy -= 2 * c * ny; px = qx; py = qy; from = bi; // (totally reflected inside)
+  }
+  W.ledger.escaped += E; // (trapped: lost in the glass)
+}
+
+/* ---- the detector screen's record */
+function objRecord(ob, E, light) {
+  const H = ob.hits || (objClearHits(ob), ob.hits);
+  H.n++; if (light) H.light++; else H.parts++; H.E += E;
+  const b = Math.floor((Math.log10(Math.max(1e-3, E)) - OBJ_LO) * 2);
+  H.bins[clamp(b, 0, OBJ_BINS - 1)]++;
+}
+
+/* ---- atoms: a soft wall on their edge, both sides of every edge (rounded at the ends) */
+function objForces(mdI, nmd) {
+  const K = S.k, X = S.x, Y = S.y, FX = S.fx, FY = S.fy, FAST = S.fast, RAD = S.rad, DEAD = S.dead, OBJ = S.obj, M = S.m;
+  for (const ob of W.objs) for (const [ax, ay, bx, by] of objEdges(ob)) {
+    const ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey || 1e-12, pad = 3;
+    const xl = Math.min(ax, bx) - pad, xh = Math.max(ax, bx) + pad, yl = Math.min(ay, by) - pad, yh = Math.max(ay, by) + pad;
+    for (let q = 0; q < nmd; q++) {
+      const i = mdI[q], x = X[i], y = Y[i];
+      if (x < xl || x > xh || y < yl || y > yh || K[i] !== NUC || DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
+      const t = clamp(((x - ax) * ex + (y - ay) * ey) / L2, 0, 1), dx = x - (ax + t * ex), dy = y - (ay + t * ey), d = Math.hypot(dx, dy);
+      const r = wallIn(OBJ[i]) + OBJ_HALF;
+      if (d >= r) continue;
+      const k = 30 * Math.min(1, M[i]), f = k * (r - d);
+      const [ux, uy] = d > 1e-9 ? [dx / d, dy / d] : [-ey / Math.sqrt(L2), ex / Math.sqrt(L2)];
+      FX[i] += f * ux; FY[i] += f * uy;
+    }
+  }
+}
+function objPE(p) {
+  if (!W.objs.length || p.k !== NUC || p.fast || p.rad) return 0;
+  let V = 0;
+  const r = wallIn(p) + OBJ_HALF, k = 30 * Math.min(1, p.m);
+  for (const ob of W.objs) for (const [ax, ay, bx, by] of objEdges(ob)) {
+    const ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey || 1e-12;
+    const t = clamp(((p.x - ax) * ex + (p.y - ay) * ey) / L2, 0, 1), d = Math.hypot(p.x - (ax + t * ex), p.y - (ay + t * ey));
+    if (d < r) V += 0.5 * k * (r - d) * (r - d);
+  }
+  return V;
+}
+/* The first edge the move (x0, y0) → (x1, y1) crosses: { f (fraction of the move), ob, e } or null. */
+function objCross(x0, y0, x1, y1) {
+  let best = null;
+  for (const ob of W.objs) { const ed = objEdges(ob); for (let e = 0; e < ed.length; e++) { const f = moveSeg(x0, y0, x1, y1, ...ed[e]); if (f >= 0 && (!best || f < best.f)) best = { f, ob, e }; } }
+  return best;
+}
+/* Mirror the end of a move across edge e: the position and the velocity's normal part. */
+function objBounce(p, h, x0, y0) {
+  const [ax, ay, bx, by] = objEdges(h.ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L, ny = (bx - ax) / L;
+  const d1 = (p.x - ax) * nx + (p.y - ay) * ny, d0 = (x0 - ax) * nx + (y0 - ay) * ny;
+  const side = d0 >= 0 ? 1 : -1, back = d1 * side < 0 ? d1 : 0; // (how far past the line it got)
+  p.x -= 2 * back * nx + side * nx * 1e-6; p.y -= 2 * back * ny + side * ny * 1e-6;
+  if (p.rad) { const c = p.ux * nx + p.uy * ny; p.ux -= 2 * c * nx; p.uy -= 2 * c * ny; p.vx = p.sp * p.ux; p.vy = p.sp * p.uy; }
+  else { const c = p.vx * nx + p.vy * ny; p.vx -= 2 * c * nx; p.vy -= 2 * c * ny; }
+}
+/* A free electron (or positron) in the ordinary steps: bounces off every piece. */
+function objLepton(p, x0, y0) {
+  const h = objCross(x0, y0, p.x, p.y);
+  if (h) objBounce(p, h, x0, y0);
+}
+/* A fast or radiation-mode particle that moved from (x0, y0) to where it is: crosses, bounces, or is stopped.
+   Returns true when it is gone. */
+function objPath(p, x0, y0) {
+  const h = objCross(x0, y0, p.x, p.y); if (!h) return false;
+  const ob = h.ob, k = ob.kind, cx = x0 + (p.x - x0) * h.f, cy = y0 + (p.y - y0) * h.f, neutron = p.k === NUC && p.Z === 0;
+  if (k === 'wall') { objBounce(p, h, x0, y0); return false; }
+  if (neutron && k !== 'stop' && k !== 'screen') return false; // (neutrons go through glass, metal foil and plates)
+  if (k === 'foil') return foilCross(p, ob, cx, cy, x0, y0);
+  return objStop(p, ob, cx, cy);
+}
+/* Stopped in a piece: its kinetic energy goes into it (out of the books, as at an absorbing wall); antimatter
+   annihilates there. A screen counts it first. */
+function objStop(p, ob, cx, cy) {
+  const KE = p.rad ? p.KE : keOf(p);
+  if (ob.kind === 'screen') objRecord(ob, KE, false);
+  p.x = cx; p.y = cy;
+  if (p.trk) extendTrack(p);
+  if (p.k === POS || p.anti) { annihilateAtWall(p); return true; }
+  W.ledger.escaped += KE; W.count.wallStop++;
+  kill(p); return true;
+}
+/* Through a foil of `layers` atomic layers of element Z, 2.9 Å apart: at each layer the particle passes some nucleus
+   at an impact parameter b anywhere up to half the spacing, and is turned by 2·atan(d/2b), d = k·z·Z/E (Rutherford,
+   on a nucleus far heavier than it: its energy is kept). A particle so slow that every nucleus turns it hard
+   (d > half the spacing) is stopped in the foil. */
+function foilCross(p, ob, cx, cy, x0, y0) {
+  const z = p.k === NUC ? (p.rad ? Math.max(p.Z - p.ne, 0) || p.Z : p.Z - p.ne) : 1;
+  if (!z) return p.k === NUC && p.Z === 0 ? false : objStop(p, ob, cx, cy); // (a neutral atom flying into metal stops in it)
+  const KE = p.rad ? p.KE : keOf(p), a = 2.9, d = PHYS.KE * Math.abs(z) * ob.Z / Math.max(KE, 1e-6);
+  if (d > a / 2) return objStop(p, ob, cx, cy);
+  let th = 0;
+  for (let i = 0; i < ob.layers; i++) { const b = Math.max(1e-6, rnd() * a / 2); th += 2 * Math.atan(d / (2 * b)) * (rnd() < 0.5 ? 1 : -1); }
+  if (Math.abs(th) < 1e-9) return false;
+  const c = Math.cos(th), s = Math.sin(th), rest = Math.hypot(p.x - cx, p.y - cy);
+  if (p.rad) { const ux = p.ux * c - p.uy * s, uy = p.ux * s + p.uy * c; p.ux = ux; p.uy = uy; p.vx = p.sp * ux; p.vy = p.sp * uy; p.x = cx + ux * rest; p.y = cy + uy * rest; }
+  else { const vx = p.vx * c - p.vy * s, vy = p.vx * s + p.vy * c, v = Math.hypot(vx, vy) || 1; p.vx = vx; p.vy = vy; p.x = cx + vx / v * rest; p.y = cy + vy / v * rest; }
+  if (p.trk) { const pts = p.trk.pts; pts.push(cx, cy); if (p.trk.ts) p.trk.ts.push(W.rt); if (p.trk.tt) p.trk.tt.push(W.t); }
+  return false;
+}
+/* A pion, muon, kaon … in flight (hep.js): a wall turns it back, a foil lets it through, anything else stops it. */
+function objExo(o, x0, y0) {
+  const h = objCross(x0, y0, o.x, o.y); if (!h) return false;
+  const k = h.ob.kind;
+  if (k === 'foil') return false;
+  if (k === 'wall') { const [ax, ay, bx, by] = objEdges(h.ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L, ny = (bx - ax) / L; const c = o.ux * nx + o.uy * ny; o.ux -= 2 * c * nx; o.uy -= 2 * c * ny; o.x = x0 + (o.x - x0) * h.f; o.y = y0 + (o.y - y0) * h.f; return false; }
+  o.x = x0 + (o.x - x0) * h.f; o.y = y0 + (o.y - y0) * h.f;
+  if (k === 'screen') objRecord(h.ob, o.KE || 0, false);
+  exoLeaves(o); return true;
+}
+
+/* ---- the plates' field */
+function platesField(x, y, E) {
+  for (const ob of W.objs) {
+    if (ob.kind !== 'plates' || !(ob.gap > 0)) continue;
+    const [nx, ny] = objNormal(ob), L = objLen(ob), tx = (ob.x1 - ob.x0) / (L || 1), ty = (ob.y1 - ob.y0) / (L || 1);
+    const s = (x - ob.x0) * tx + (y - ob.y0) * ty, u = (x - ob.x0) * nx + (y - ob.y0) * ny;
+    if (s < 0 || s > L || u <= 0 || u >= ob.gap) continue;
+    const Ef = ob.V / ob.gap; // V/Å, from the first plate (at V) to the second (at 0)
+    E[0] += Ef * nx; E[1] += Ef * ny;
+  }
+}
+function hasPlates() { for (const ob of W.objs) if (ob.kind === 'plates' && ob.V) return true; return false; }
+
+/* ---- saving */
+function objToJSON(ob) {
+  const o = { k: ob.kind, x0: ob.x0, y0: ob.y0, x1: ob.x1, y1: ob.y1 };
+  for (const q of ['f', 'Z', 'layers', 'V', 'gap']) if (ob[q] !== undefined) o[q] = ob[q];
+  return o;
+}
+function objFromJSON(o) {
+  if (!o || !OBJ_KINDS.includes(o.k) || ![o.x0, o.y0, o.x1, o.y1].every(Number.isFinite)) return null;
+  const n = (v, lo, hi, d) => (Number.isFinite(v) ? clamp(v, lo, hi) : d);
+  return objMake(o.k, o.x0, o.y0, o.x1, o.y1, { f: n(o.f, -1e4, 1e4, 20), Z: Number.isInteger(o.Z) && o.Z >= 1 && o.Z <= 100 ? o.Z : 79, layers: n(o.layers, 1, 1000, 10), V: n(o.V, -1e6, 1e6, 100), gap: n(o.gap, 1, 1000, 10) });
+}
+
+/* Its short description: a label, the quick menu's title. */
+function objText(ob) {
+  const k = ob.kind;
+  if (k === 'lens') return `${ob.f >= 0 ? 'Converging' : 'Diverging'} lens, f = ${+Math.abs(ob.f).toFixed(1)} Å`;
+  if (k === 'foil') return `${ELEMENTS[ob.Z].name} foil, ${ob.layers} atomic layer${ob.layers > 1 ? 's' : ''}`;
+  if (k === 'plates') return `Charged plates, ${Math.abs(ob.V).toLocaleString('en-US')} V across ${+ob.gap.toFixed(1)} Å`;
+  if (k === 'screen') { const H = ob.hits; return `Detector screen: ${H ? H.n.toLocaleString('en-US') : 0} hits (${H ? H.light : 0} light, ${H ? H.parts : 0} particles)`; }
+  return OBJ_NAME[k];
+}
+
+/* ---- for the Objects tool (ui.js) */
+const OBJ_HELP = {
+  mirror: 'Reflects light (not X-rays or γ rays). Atoms bounce off it; fast particles stop in it.',
+  splitter: 'A half-silvered mirror: each photon is reflected or goes through, at random, half and half.',
+  lens: 'A thin glass lens: light through it is bent toward (positive focal length) or away from its focus. Glass takes the ultraviolet below 300 nm.',
+  prism: 'Flint glass: it bends violet more than red, so white light fans out into colours. Light must meet it at a slant (a click places one turned for light from the left).',
+  screen: 'A detector: it stops light and fast particles and counts them, with their energy spectrum drawn along it.',
+  stop: 'A beam stop: it stops light and fast particles (antimatter annihilates in it). Atoms bounce off.',
+  wall: 'A solid wall: atoms, electrons and fast particles bounce off it; light is absorbed.',
+  foil: 'A thin metal foil: fast charged particles go through, most nearly straight, a few turned sharply by a nucleus (Rutherford). Slow ones stop in it.',
+  plates: 'Two charged plates: a uniform electric field between them steers charged particles (energy from the supply, as with the Lab field). The second plate is drawn to the left of your drag.',
+};
+function objV() { return Math.pow(10, (OPT.objects.Vs || 0) / 100); }
+function objVText(V) { const a = Math.abs(V); return a >= 1000 ? `${+(a / 1000).toPrecision(3)} kV` : `${+a.toPrecision(3)} V`; }
+function objFText(f) { return f === 0 ? '—' : `${f > 0 ? '+' : '−'}${Math.abs(f)} Å (${f > 0 ? 'converging' : 'diverging'})`; }
+function objDist(ob, x, y) { // from (x, y) to the nearest of its edges, Å
+  let best = Infinity;
+  for (const [ax, ay, bx, by] of objEdges(ob)) {
+    const ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey || 1e-12, t = clamp(((x - ax) * ex + (y - ay) * ey) / L2, 0, 1);
+    best = Math.min(best, Math.hypot(x - ax - t * ex, y - ay - t * ey));
+  }
+  if (ob.kind === 'prism' && pointInPrism(ob, x, y)) best = 0;
+  return best;
+}
+function objAtPx(px, py) { // the object under a screen point (within 8 px), the last placed first
+  const [x, y] = s2w(px, py);
+  for (let i = W.objs.length - 1; i >= 0; i--) if (objDist(W.objs[i], x, y) * R.s < 8) return W.objs[i];
+  return null;
+}
+
 /* ---- chips.js ---- */
 /* ================================================================== chips that work
    The tiny objects from a chip (a transistor, a CMOS inverter, an SRAM cell and a flash cell) are wired up as the
@@ -10735,6 +11126,7 @@ function render(rt) {
   ctx.fillStyle = bg; ctx.fillRect(0, 0, R.w, R.h);
   drawGrid();
   drawFields();
+  if (W.objs.length) drawObjects();
   drawBox();
   if (R.view.tracks) drawTracks(rt);
   if (R.gl) { drawChipsUnder(); drawBonds(rt); } // (on the WebGL layer; the chip packages under it)
@@ -10785,6 +11177,67 @@ function drawBox() {
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) {
     ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(255,200,120,0.5)';
     ctx.strokeRect(w2sx(-W.box.tw / 2), w2sy(W.box.th / 2), W.box.tw * R.s, W.box.th * R.s);
+  }
+  ctx.restore();
+}
+/* Placed objects (props.js): mirrors silver, splitters half-tone, lenses as lenses, prisms as glass, the screen with
+   its spectrum drawn along it, the beam stop dark and thick, walls grey, foils gold, plates red (+) and blue (−). */
+function drawObjects() {
+  const ctx = R.ctx, s = R.s;
+  ctx.save(); ctx.setLineDash([]); ctx.lineCap = 'round';
+  const seg = (ax, ay, bx, by) => { ctx.beginPath(); ctx.moveTo(w2sx(ax), w2sy(ay)); ctx.lineTo(w2sx(bx), w2sy(by)); ctx.stroke(); };
+  const lw = (px, lo, hi) => clamp(px * s, lo, hi);
+  for (const ob of W.objs) {
+    const k = ob.kind, sel = R.objSel === ob, [nx, ny] = objNormal(ob), L = objLen(ob), mx = (ob.x0 + ob.x1) / 2, my = (ob.y0 + ob.y1) / 2;
+    if (sel) { ctx.strokeStyle = 'rgba(120,200,255,0.35)'; ctx.lineWidth = lw(0.9, 8, 26); seg(ob.x0, ob.y0, ob.x1, ob.y1); }
+    if (k === 'mirror' || k === 'splitter') {
+      ctx.strokeStyle = k === 'mirror' ? 'rgba(225,235,250,0.95)' : 'rgba(200,225,255,0.75)'; ctx.lineWidth = lw(0.25, 2.5, 7);
+      if (k === 'splitter') ctx.setLineDash([lw(0.5, 4, 10), lw(0.3, 3, 6)]);
+      seg(ob.x0, ob.y0, ob.x1, ob.y1); ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(120,130,150,0.8)'; ctx.lineWidth = 1; // (the back of the mirror: hatched)
+      if (k === 'mirror') for (let t = 0.05; t < 1; t += Math.max(0.04, 6 / (L * s))) { const x = ob.x0 + (ob.x1 - ob.x0) * t, y = ob.y0 + (ob.y1 - ob.y0) * t; seg(x, y, x - nx * 0.6 + (ob.x1 - ob.x0) / L * 0.4, y - ny * 0.6 + (ob.y1 - ob.y0) / L * 0.4); }
+    } else if (k === 'lens') {
+      const b = clamp(L * 0.12, 0.4, 3) * (ob.f >= 0 ? 1 : -0.6), w0 = ob.f >= 0 ? 0.15 : 0.9; // (bulge: convex or concave)
+      const P = (t, side) => { const x = ob.x0 + (ob.x1 - ob.x0) * t, y = ob.y0 + (ob.y1 - ob.y0) * t, h = side * (w0 + b * 4 * t * (1 - t)); return [w2sx(x + nx * h), w2sy(y + ny * h)]; };
+      ctx.beginPath(); for (let i = 0; i <= 24; i++) { const [x, y] = P(i / 24, 1); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } for (let i = 24; i >= 0; i--) { const [x, y] = P(i / 24, -1); ctx.lineTo(x, y); } ctx.closePath();
+      ctx.fillStyle = 'rgba(140,200,255,0.18)'; ctx.fill(); ctx.strokeStyle = 'rgba(170,215,255,0.85)'; ctx.lineWidth = 1.5; ctx.stroke();
+    } else if (k === 'prism') {
+      const [ax, ay] = prismApex(ob);
+      ctx.beginPath(); ctx.moveTo(w2sx(ob.x0), w2sy(ob.y0)); ctx.lineTo(w2sx(ob.x1), w2sy(ob.y1)); ctx.lineTo(w2sx(ax), w2sy(ay)); ctx.closePath();
+      ctx.fillStyle = 'rgba(160,210,255,0.16)'; ctx.fill(); ctx.strokeStyle = 'rgba(180,220,255,0.85)'; ctx.lineWidth = 1.5; ctx.stroke();
+    } else if (k === 'screen') {
+      ctx.strokeStyle = 'rgba(120,255,170,0.9)'; ctx.lineWidth = lw(0.3, 3, 8); seg(ob.x0, ob.y0, ob.x1, ob.y1);
+      const H = ob.hits; if (H && H.n) { // the spectrum, as bars standing on its right side (low energies at x0)
+        const mx2 = Math.max(...H.bins), bw = L / OBJ_BINS, hmax = Math.min(12, L * 0.6);
+        ctx.fillStyle = 'rgba(120,255,170,0.45)';
+        for (let i = 0; i < OBJ_BINS; i++) { if (!H.bins[i]) continue; const t0 = i / OBJ_BINS, hb = hmax * H.bins[i] / mx2;
+          const x = ob.x0 + (ob.x1 - ob.x0) * t0, y = ob.y0 + (ob.y1 - ob.y0) * t0, x2 = x + (ob.x1 - ob.x0) / L * bw * 0.85, y2 = y + (ob.y1 - ob.y0) / L * bw * 0.85;
+          ctx.beginPath(); ctx.moveTo(w2sx(x), w2sy(y)); ctx.lineTo(w2sx(x2), w2sy(y2)); ctx.lineTo(w2sx(x2 - nx * hb), w2sy(y2 - ny * hb)); ctx.lineTo(w2sx(x - nx * hb), w2sy(y - ny * hb)); ctx.fill(); }
+      }
+      if (R.view.labels !== false) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = 'rgba(150,255,190,0.95)'; ctx.textAlign = 'center';
+        ctx.fillText(H && H.n ? `${H.n.toLocaleString('en-US')} hit${H.n > 1 ? 's' : ''}` : 'detector', w2sx(mx + nx * 1.5), w2sy(my + ny * 1.5)); }
+    } else if (k === 'stop') {
+      ctx.strokeStyle = 'rgba(70,72,84,0.95)'; ctx.lineWidth = lw(0.9, 6, 20); ctx.lineCap = 'butt'; seg(ob.x0, ob.y0, ob.x1, ob.y1);
+      ctx.strokeStyle = 'rgba(255,190,80,0.7)'; ctx.lineWidth = 1.2; seg(ob.x0, ob.y0, ob.x1, ob.y1); ctx.lineCap = 'round';
+    } else if (k === 'wall') {
+      ctx.strokeStyle = 'rgba(165,172,186,0.9)'; ctx.lineWidth = lw(0.4, 4, 12); seg(ob.x0, ob.y0, ob.x1, ob.y1);
+    } else if (k === 'foil') {
+      ctx.strokeStyle = 'rgba(255,205,90,0.9)'; ctx.lineWidth = lw(0.12, 1.5, 4); seg(ob.x0, ob.y0, ob.x1, ob.y1);
+    } else if (k === 'plates') {
+      const g = ob.gap, pos = ob.V >= 0;
+      ctx.lineWidth = lw(0.35, 3, 9);
+      ctx.strokeStyle = pos ? 'rgba(255,110,100,0.9)' : 'rgba(110,150,255,0.9)'; seg(ob.x0, ob.y0, ob.x1, ob.y1);
+      ctx.strokeStyle = pos ? 'rgba(110,150,255,0.9)' : 'rgba(255,110,100,0.9)'; seg(ob.x0 + nx * g, ob.y0 + ny * g, ob.x1 + nx * g, ob.y1 + ny * g);
+      if (ob.V) { ctx.strokeStyle = 'rgba(255,214,120,0.35)'; ctx.lineWidth = 1; const n = clamp(Math.round(L / 4), 2, 12), dir = pos ? 1 : -1; // (field lines, + to −)
+        for (let i = 1; i < n; i++) { const t = i / n, x = ob.x0 + (ob.x1 - ob.x0) * t, y = ob.y0 + (ob.y1 - ob.y0) * t, a = 0.2 * g, b = 0.8 * g;
+          const [sx, sy] = dir > 0 ? [x + nx * a, y + ny * a] : [x + nx * b, y + ny * b], [ex, ey] = dir > 0 ? [x + nx * b, y + ny * b] : [x + nx * a, y + ny * a];
+          seg(sx, sy, ex, ey); const hx = w2sx(ex), hy = w2sy(ey), ang = Math.atan2(w2sy(ey) - w2sy(sy), w2sx(ex) - w2sx(sx));
+          ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx - 6 * Math.cos(ang - 0.4), hy - 6 * Math.sin(ang - 0.4)); ctx.moveTo(hx, hy); ctx.lineTo(hx - 6 * Math.cos(ang + 0.4), hy - 6 * Math.sin(ang + 0.4)); ctx.stroke(); } }
+    }
+    if (R.view.labels !== false && k !== 'screen' && (sel || R.objHover === ob)) {
+      ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = 'rgba(220,230,245,0.9)'; ctx.textAlign = 'center';
+      ctx.fillText(objText(ob), w2sx(mx - nx * 2), w2sy(my - ny * 2));
+    }
   }
   ctx.restore();
 }
@@ -12697,15 +13150,19 @@ function mbAssemble() { // drawn atoms first (same order), then the hydrogens th
   });
   return { atoms, bonds, nDrawn: MB.atoms.length };
 }
-function mbPieces() {
+function mbPieces(qs) { // (qs: filled with each piece's net charge)
   const seen = new Set(); let n = 0;
   for (const a of MB.atoms) {
     if (seen.has(a.id)) continue;
-    n++; const st = [a.id]; seen.add(a.id);
-    while (st.length) { const id = st.pop(); for (const o of mbNbrs(id)) if (!seen.has(o.id)) { seen.add(o.id); st.push(o.id); } }
+    n++; const st = [a.id]; seen.add(a.id); let q = 0;
+    while (st.length) { const id = st.pop(); q += mbAtom(id).q || 0; for (const o of mbNbrs(id)) if (!seen.has(o.id)) { seen.add(o.id); st.push(o.id); } }
+    if (qs) qs.push(q);
   }
   return n;
 }
+/* Separate pieces make an ionic compound (0.66) when every piece is an ion and their charges add up to zero: Na⁺ and
+   Cl⁻, Mg²⁺ and two Cl⁻, NH₄⁺ and NO₃⁻. They are held together by their charges alone, as in the chamber. */
+function mbIonicOK(qs) { return qs.length > 1 && qs.every(q => q !== 0) && qs.reduce((a, q) => a + q, 0) === 0; }
 function mbAnalyze() {
   const r = { issues: [], formula: '', iso: '', name: null, lm: null, n: 0, pieces: 0, free: 0, mol: null };
   if (!MB.atoms.length) return r;
@@ -12717,11 +13174,12 @@ function mbAnalyze() {
     const u = mbUsed(a.id), lim = mbLimit(a);
     if (u > lim) r.issues.push({ id: a.id, text: `${mbLabel(a)} has ${u} bond${u > 1 ? 's' : ''}; it takes ${lim ? 'at most ' + lim : 'none'}` });
   }
-  r.pieces = mbPieces();
-  if (r.pieces > 1) r.issues.push({ text: `${r.pieces} separate pieces: drop an atom of one onto an atom of another to join them` });
+  const qs = []; r.pieces = mbPieces(qs); r.ionic = r.pieces > 1 && mbIonicOK(qs);
+  if (r.pieces > 1 && !r.ionic) r.issues.push({ text: `${r.pieces} separate pieces: drop an atom of one onto an atom of another to join them${qs.every(q => q !== 0) || qs.some(q => q !== 0) ? ', or, for an ionic compound, make every piece an ion with charges adding up to zero (the charge buttons)' : ''}` });
   if (r.n > MB_MAX) r.issues.push({ text: `${r.n} atoms with the hydrogens; the builder takes up to ${MB_MAX}` });
   for (const a of MB.atoms) r.free += mbFree(a);
-  if (!r.issues.length) { r.lm = libMatch(fake); r.name = r.lm ? r.lm.name : moleculeName(fake); }
+  if (!r.issues.length && r.ionic) { const c = ionicName(fake); r.lm = null; r.name = c ? c.name && c.name[0].toUpperCase() + c.name.slice(1) : null; if (c) r.formula = c.formula + (c.units > 1 ? ` ×${c.units}` : ''); }
+  else if (!r.issues.length) { r.lm = libMatch(fake); r.name = r.lm ? r.lm.name : moleculeName(fake); }
   return r;
 }
 
@@ -13182,11 +13640,22 @@ function mbLoadMol(k, edit) {
   MB.aiSig = null; MB.aiNote = ''; MB.msg = '';
   MB.edit = edit && m.mine ? k : null;
   $('bldName').value = MB.edit ? m.name : (m.name + ' (copy)').slice(0, 40);
+  mbCatFill(MB.edit ? m.cat : '');
+  MB.loadSig = MB.edit ? mbSig() : null;
   mbSyncEdit();
   mbChanged(true);
   mbSay(MB.edit ? `Editing ${m.name}: Save puts it back in place, Save as new keeps the original. Copies already in the chamber stay as they are.` : `A copy of ${m.name} to make your own: Build & use adds it to My molecules.`);
   return true;
 }
+/* The category picker (0.66): Automatic (the builder's guess for one Claude designed, else My molecules), My molecules, or
+   any library category. Editing one of yours shows where it is now; Save moves it. */
+function mbCatFill(cur) {
+  const sel = $('bldCat'); if (!sel) return;
+  const opts = [['', 'Category: automatic'], ['custom', 'My molecules']].concat(MOLECULE_CATS.filter(([c]) => molCatOk(c)));
+  sel.innerHTML = opts.map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join('');
+  sel.value = cur && opts.some(o => o[0] === cur) ? cur : '';
+}
+function mbCatPicked() { const v = $('bldCat') ? $('bldCat').value : ''; return v === 'custom' ? 'custom' : molCatOk(v) ? v : null; }
 function mbSyncEdit() {
   const m = MB.edit && MOLECULES[MB.edit];
   if (!m) MB.edit = null;
@@ -13203,6 +13672,15 @@ function mbBuild(asNew) {
   const info = MB.info = mbAnalyze();
   if (info.issues.length) { mbSay('Not yet: fix the problem above first.', true); mbDraw(); return; }
   const name = String($('bldName').value || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 40);
+  if (MB.edit && !MB.asNew && MB.loadSig && MB.loadSig === mbSig() && MOLECULES[MB.edit]) { // only its name or category changed: no need to settle it again
+    const m = MOLECULES[MB.edit], cat = mbCatPicked();
+    myMolAdd({ k: m.key, n: name || m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds, d: m.desc, c: cat === 'custom' ? undefined : cat || (m.cat !== 'custom' ? m.cat : undefined) });
+    myMolsSave();
+    log('tool', `Builder: ${MOLECULES[m.key].name} saved in ${molWhere(MOLECULES[m.key])}`);
+    MB.edit = null; MB.loadSig = null; mbSyncEdit();
+    hideModal('bldModal'); selectSpec({ kind: 'mol', mol: m.key });
+    return;
+  }
   if (info.lm && !MB.edit && (!name || name === info.lm.name)) { // already known: use that one, shape and all (not when editing one: that saves it)
     hideModal('bldModal'); selectSpec({ kind: 'mol', mol: info.lm.key });
     log('tool', `Builder: that is ${info.lm.name}, already in ${molWhere(info.lm)}`);
@@ -13226,9 +13704,9 @@ function mbBuildRun(info, name) {
   const old = MB.edit && !MB.asNew ? MOLECULES[MB.edit] : null; // (editing: saved back in place, its category and note kept)
   const k = old ? old.key : 'my' + Date.now().toString(36) + (MB.seq++).toString(36);
   const atoms = info.mol.atoms.map((a, i) => { const r = [a.el, +best.xy[i][0].toFixed(2), +best.xy[i][1].toFixed(2)]; if (a.q || a.A) r.push(a.q || 0); if (a.A) r.push(a.A); return r; });
-  const byClaude = MB.aiSig && MB.aiSig === mbSig(); // still as Claude designed it: keep its note
+  const byClaude = MB.aiSig && MB.aiSig === mbSig(), catPick = mbCatPicked(); // (byClaude: still as Claude designed it: keep its note)
   myMolAdd({ k, n: name || (old && old.name) || info.name || info.formula, r: best.free ? 1 : 0, a: atoms, b: info.mol.bonds.map(b => b.slice()),
-    d: old ? old.desc : byClaude ? 'Designed by Claude.' + (MB.aiNote ? ' ' + MB.aiNote : '') : '', c: old ? (old.cat !== 'custom' ? old.cat : undefined) : byClaude ? (molCatOk(MB.aiCat) ? MB.aiCat : molCatGuess(atoms, info.mol.bonds)) : undefined }); // (Claude's design: filed under its category)
+    d: old ? old.desc : byClaude ? 'Designed by Claude.' + (MB.aiNote ? ' ' + MB.aiNote : '') : '', c: catPick === 'custom' ? undefined : catPick || (old ? (old.cat !== 'custom' ? old.cat : undefined) : byClaude ? (molCatOk(MB.aiCat) ? MB.aiCat : molCatGuess(atoms, info.mol.bonds)) : undefined) }); // (Claude's design: filed under its category)
   myMolsSave();
   if (old) log('tool', `Builder: ${MOLECULES[k].name} saved; copies already in the chamber are as they were`);
   MB.edit = null; mbSyncEdit();
@@ -13594,7 +14072,7 @@ function mbResize(force) {
 }
 function openMolBuilder() {
   hideModal('molModal');
-  MB.edit = null; mbSyncEdit();
+  MB.edit = null; MB.loadSig = null; mbSyncEdit(); mbCatFill('');
   if (!MB.palOK) { $('bldPal').innerHTML = mbPaletteHTML(); MB.palOK = true; }
   $('bldFill').checked = MB.fill; $('bldHA').value = String(MB.hA);
   MB.msg = '';
@@ -14763,6 +15241,7 @@ const ICONS = {
   light: '<circle cx="12" cy="12" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
   erase: '<path d="m4.5 15.5 9-9a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L12 18H7.2z M9 11l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 20h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
   inspect: '<circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="m15 15 5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  objects: '<path d="M5 19 19 5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M3 9h7l-2.5-2.5M10 9l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/>',
   measure: '<path d="M3.5 16.5 16.5 3.5l4 4-13 13z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m7 13 1.6 1.6M9.5 10.5l2.3 2.3M12 8l1.6 1.6M14.5 5.5l2.3 2.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
   select: '<rect x="4" y="4" width="13" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="3 2.2"/><path d="m13.5 13.5 2.2 6.5 1.6-2.7 2.7-1.6z" fill="currentColor"/>',
 };
@@ -14775,6 +15254,7 @@ const TOOLS = [
   { id: 'heat', name: 'Heat', key: 'H', help: 'Hold to heat (or cool) a region with a local heat bath.' },
   { id: 'spark', name: 'Spark', key: 'S', help: 'Click to dump energy into the atoms under the cursor.' },
   { id: 'magnet', name: 'Magnet', key: 'M', help: 'Click to place a magnet pole; drag one to move it.' },
+  { id: 'objects', name: 'Objects', key: 'D', help: 'Drag to draw a mirror, lens, prism, detector screen, beam stop, wall, foil or charged plates from one end to the other (a click places one); drag one to move it; right-click it to turn, resize or change it.' },
   { id: 'light', name: 'Light', key: 'L', help: 'Drag to aim a beam of photons of one wavelength.' },
   { id: 'erase', name: 'Erase', key: 'E', help: 'Drag to remove particles, magnets and beam sources.' },
   { id: 'measure', name: 'Measure', key: 'K', help: 'Click two particles (atoms, nuclei, electrons, pions, photons …) for their distance, a third for the angle at the middle one; the numbers follow them as they move.' },
@@ -14789,6 +15269,7 @@ const OPT = {
   heat: { mode: 'heat', s: 348, R: 8 },
   spark: { s: 218, R: 8 },
   magnet: { s: 430, pol: 1, R: 9 },
+  objects: { kind: 'mirror', f: 20, Vs: 200, Z: 79, layers: 10 },
   light: { s: 132.33, rate: 80, follow: true, mount: false }, // (s: 589 nm, sodium's line, exactly)
   erase: { R: 3 },
 };
@@ -14827,7 +15308,7 @@ function buildTools() {
   nav.addEventListener('click', (e) => { const b = e.target.closest('.tool'); if (b) setTool(b.dataset.tool); });
 }
 function setTool(id) {
-  UI.tool = id; UI.pasting = false; R.ghost = null;
+  UI.tool = id; UI.pasting = false; R.ghost = null; if (id !== 'objects') R.objSel = null;
   for (const b of document.querySelectorAll('.tool')) b.setAttribute('aria-pressed', b.dataset.tool === id ? 'true' : 'false');
   if (W.tool) W.tool.active = false;
   W.grab = null; R.overlay = null;
@@ -15122,6 +15603,16 @@ function buildToolOpts() {
         `<span class="help">${o.mount ? 'Drag to aim; on release it stays, shining one wavelength (Erase it, or Remove beam sources). ' : ''}Light crosses the box in hundredths of a femtosecond: time slows while it is in flight, so you see it go at c, in about a second at 1× (the speed buttons and slow motion scale that too).</span>`;
       break;
     }
+    case 'objects': {
+      const k = o.kind;
+      h = `<span data-g="kind">${seg('Object', OBJ_KINDS.map(q => [q, OBJ_NAME[q].replace('Detector screen', 'Screen').replace('Charged plates', 'Plates')]), k)}</span>` +
+        (k === 'lens' ? rangeCtl('oOf', 'Focal length', -100, 100, o.f, objFText(o.f)) : '') +
+        (k === 'plates' ? rangeCtl('oOV', 'Voltage', 0, 500, o.Vs, objVText(objV())) : '') +
+        (k === 'foil' ? `<span data-g="Z">${seg('Metal', [[79, 'Gold'], [47, 'Silver'], [29, 'Copper'], [13, 'Aluminium'], [6, 'Carbon']], o.Z)}</span>` + rangeCtl('oOL', 'Layers', 1, 100, o.layers, `${o.layers}`) : '') +
+        (W.objs.length ? `<button class="opt" id="oObjClear">Remove all (${W.objs.length})</button>` : '') +
+        `<span class="help">${esc(OBJ_HELP[k])}</span>`;
+      break;
+    }
     case 'erase':
       h = radCtl(t, o.R);
       break;
@@ -15152,6 +15643,7 @@ function buildToolOpts() {
     if (b.id === 'oSelDel') { deleteSelection(); return; }
     if (b.id === 'oSelAll') { selectAll(); return; }
     if (b.id === 'oLaserClear') { W.lasers.length = 0; buildToolOpts(); return; }
+    if (b.id === 'oObjClear') { undoMark('Remove objects'); W.objs.length = 0; W.dirty++; log('tool', 'Objects removed'); buildToolOpts(); return; }
     if (b.id === 'oSelNone') { clearSelection(); return; }
     if (b.id === 'oMeasClr') { if (R.measure) R.measure.length = 0; buildToolOpts(); return; }
     if (b.dataset.iso) { selectSpec(Object.assign({}, UI.spec, { A: +b.dataset.iso })); return; }
@@ -15170,6 +15662,9 @@ function buildToolOpts() {
       case 'oS': { o.s = v; out.textContent = fmtE(pullU()); $('oSword').textContent = `${pullWord(pullU())} at ${fmtT(W.T)}`;
         for (const b of el.querySelectorAll('[data-g="s"] .opt')) b.setAttribute('aria-pressed', String(+b.dataset.v === v)); break; }
       case 'oPE': o.Es = v; out.textContent = fmtE(placeE()); break;
+      case 'oOf': o.f = v; out.textContent = objFText(v); break;
+      case 'oOV': o.Vs = v; out.textContent = objVText(objV()); break;
+      case 'oOL': o.layers = v; out.textContent = String(v); break;
       case 'oKE': o.s = v; out.textContent = fmtE(fireKE()); { const n = $('oFireNote'); if (n) n.textContent = fireNote(fireSpecNow() || SPEC_P, fireKE()); } break;
       case 'oT': o.s = v; out.textContent = fmtT(heatT()); break;
       case 'oE': o.s = v; out.textContent = fmtE(sparkE()); break;
@@ -15562,6 +16057,14 @@ function onDown(e) {
     case 'fire': case 'light':
       UI.drag = { kind: t, x0: wx, y0: wy, x1: wx, y1: wy, acc: 0 };
       break;
+    case 'objects': {
+      const ob = objAtPx(px, py);
+      undoMark(ob ? 'Move an object' : 'Place an object');
+      if (ob) { UI.drag = { kind: 'objmove', ob, lx: wx, ly: wy }; R.objSel = ob; break; }
+      const o = OPT.objects, nb = objAdd(o.kind, wx, wy, wx, wy, { f: o.f || 20, V: objV(), Z: o.Z, layers: o.layers });
+      UI.drag = { kind: 'objnew', ob: nb, x0: wx, y0: wy }; R.objSel = nb;
+      break;
+    }
     case 'erase':
       eraseHere(wx, wy);
       UI.drag = { kind: 'erase' };
@@ -15734,6 +16237,7 @@ function eraseHere(wx, wy) {
   for (let i = W.magnets.length - 1; i >= 0; i--) if (Math.hypot(W.magnets[i].x - wx, W.magnets[i].y - wy) < W.magnets[i].R) W.magnets.splice(i, 1);
   for (let i = W.sources.length - 1; i >= 0; i--) if (Math.hypot(W.sources[i].x - wx, W.sources[i].y - wy) < r + 1.5) W.sources.splice(i, 1);
   for (let i = W.lasers.length - 1; i >= 0; i--) if (Math.hypot(W.lasers[i].x0 - wx, W.lasers[i].y0 - wy) < r + 1.5) W.lasers.splice(i, 1);
+  for (let i = W.objs.length - 1; i >= 0; i--) if (objDist(W.objs[i], wx, wy) < r + 0.5) { W.objs.splice(i, 1); W.dirty++; }
   if (R.sel && R.sel.dead) R.sel = null;
   return n;
 }
@@ -15780,12 +16284,14 @@ function onMove(e) {
         break;
       case 'tool': if (W.tool) { W.tool.x = wx; W.tool.y = wy; } break;
       case 'magnet': d.m.x = wx + d.ox; d.m.y = wy + d.oy; break;
+      case 'objnew': d.ob.x1 = wx; d.ob.y1 = wy; W.dirty++; break;
+      case 'objmove': { const dx = wx - d.lx, dy = wy - d.ly; d.ob.x0 += dx; d.ob.x1 += dx; d.ob.y0 += dy; d.ob.y1 += dy; d.lx = wx; d.ly = wy; W.dirty++; break; }
       case 'fire': case 'light': d.x1 = wx; d.y1 = wy; break;
       case 'erase': eraseHere(wx, wy); break;
       case 'selbox': d.x1 = wx; d.y1 = wy; break;
       case 'selmove': moveSelection(wx - d.lx, wy - d.ly); d.lx = wx; d.ly = wy; d.moved = true; break;
     }
-  } else if (!QM.open) updateHover(px, py, wx, wy);
+  } else if (!QM.open) { updateHover(px, py, wx, wy); R.objHover = W.objs.length && !R.hover ? objAtPx(px, py) : null; }
   const b = brushFor(UI.tool);
   R.overlay = b ? { x: wx, y: wy, brush: b.r, color: b.c } : null;
   if (UI.tool === 'magnet' && !d) R.overlay = { x: wx, y: wy, ghostMagnet: { R: OPT.magnet.R, B: magB() } };
@@ -15804,6 +16310,15 @@ function aimOverlay(d) {
 function endToolAction() {
   const d = UI.drag;
   if (d && d.kind === 'selbox') { finishSelBox(d); R.overlay = null; }
+  if (d && d.kind === 'objnew') { // a click: one of a usual size, upright (a prism turned for light from the left); a drag: as drawn
+    const ob = d.ob;
+    if (objLen(ob) < 1.5) {
+      const L = ob.kind === 'prism' ? 10 : ob.kind === 'lens' ? 16 : ob.kind === 'plates' ? 24 : 14, a = ob.kind === 'prism' ? -24 * Math.PI / 180 : ob.kind === 'plates' ? 0 : Math.PI / 2;
+      ob.x0 = d.x0 - Math.cos(a) * L / 2; ob.y0 = d.y0 - Math.sin(a) * L / 2; ob.x1 = d.x0 + Math.cos(a) * L / 2; ob.y1 = d.y0 + Math.sin(a) * L / 2;
+      if (ob.kind === 'plates') { ob.y0 -= ob.gap / 2; ob.y1 -= ob.gap / 2; }
+    }
+    W.dirty++; log('tool', `${objText(ob)} placed`); buildToolOpts();
+  }
   if (d && d.kind === 'light' && OPT.light.mount) {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
@@ -15920,6 +16435,8 @@ function updateHover(px, py) {
     const mol = p.bonds.length ? molecule(p) : null;
     const nm = mol ? moleculeName(mol) : null, en = elemName(p);
     t1 = mol ? `${en} in ${isoFormula(mol)}${nm ? ' (' + nm + ')' : ''}` : `${en}${p.q ? ((p.anti ? -p.q : p.q) > 0 ? ' cation ' : ' anion ') + speciesLabel(p) : ' atom'}`;
+    const ic = p.q || (mol && mol.some(a => a.q)) ? ionicCluster(p) : null, it = ic && ionicText(ic, true); // (held ionically: the compound's name)
+    if (it) t1 += ` in ${it}`;
     t2 = `${nucSymA(p.Z, p.N, p.anti)} · ${p.ne} ${p.anti ? 'e⁺' : 'e⁻'} · bonds ${p.used}/${p.cap}${p.tLocal ? ' · ' + fmtT(p.tLocal) : ''}`;
   }
   tip.innerHTML = `<div class="t1">${esc(t1)}</div><div class="t2">${esc(t2)}</div>`;
@@ -16249,7 +16766,8 @@ function renderInspect() {
     const title = p.ne === 0 ? (p.anti ? (p.Z === 1 && p.N === 0 ? 'Antiproton' : `Anti-${nucName(p.Z, p.N).toLowerCase()} nucleus`)
       : p.Z === 1 && p.N === 0 ? 'Proton' : p.Z === 2 && p.N === 2 ? 'Alpha particle' : nucName(p.Z, p.N) + ' nucleus')
       : iso + (aq ? (aq > 0 ? ' cation' : ' anion') : '');
-    const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : ''))
+    const icl = p.ne > 0 && (p.q || (mol && mol.some(a => a.q))) ? ionicCluster(p) : null, itx = icl && ionicText(icl, true);
+    const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : '') + (itx ? ` · held ionically in ${itx}` : ''))
       + (p.Z > Z_TABLE ? ' · never made in any lab: its properties are predictions' : '');
     head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${A}</span><span class="s">${symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
       <div><div class="ins-title">${esc(title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
@@ -16494,14 +17012,19 @@ function drawOrbThumb(cv, p, i) {
 }
 
 /* ------------------------------------------------------------------ data tab */
-function speciesCounts() {
+function speciesCounts(ionic = true) { // (ionic: ionic compounds as their formula units; off for the pressure's count of movers)
   const seen = new Set(), c = new Map();
   for (const p of W.parts) {
     if (p.dead || seen.has(p)) continue;
-    let key, name = '', col = '#999';
+    let key, name = '', col = '#999', cl, ci;
     if (p.k === ELEC) { key = 'e⁻'; name = 'free electrons'; col = E_COL; }
     else if (p.k === POS) { key = 'e⁺'; name = 'positrons'; col = POS_COL; }
     else if (p.Z === 0) { key = p.anti ? 'n̄' : 'n'; name = p.anti ? 'antineutrons' : 'neutrons'; col = p.anti ? NBAR_COL : N_COL; }
+    else if (ionic && p.ne > 0 && (p.q || (p.bonds.length && molecule(p).some(a => a.q))) && (cl = ionicCluster(p)) && (ci = ionicName(cl))) { // an ionic compound: its formula units
+      for (const a of cl) seen.add(a);
+      key = ci.formula; name = (ci.name || 'ionic compound') + (ci.units > 1 ? ' (formula units, in contact)' : ''); col = atomColor(p);
+      const e = c.get(key) || { n: 0, name, col }; e.n += ci.units; c.set(key, e); continue;
+    }
     else if (p.bonds.length) { const m = molecule(p); for (const a of m) seen.add(a); key = isoFormula(m); name = moleculeName(m) || (p.anti ? 'antimatter molecule' : ''); col = atomColor(p); }
     else if (p.ne === 0) { key = speciesLabel(p); name = p.anti ? (p.Z === 1 && p.N === 0 ? 'antiprotons' : 'anti-' + nucName(p.Z, p.N).toLowerCase() + ' nuclei') : nucName(p.Z, p.N) + ' nuclei'; col = p.anti ? PBAR_COL : P_COL; }
     else { const aq = p.anti ? -p.q : p.q; key = speciesLabel(p) + (p.N + p.Z !== COMMON_A[p.Z] ? ` (${p.Z + p.N})` : ''); name = elemName(p) + (aq ? (aq > 0 ? ' cations' : ' anions') : ' atoms'); col = atomColor(p); }
@@ -16837,7 +17360,7 @@ function worldToJSON() {
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
   return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
-    spf: W.simPerFrame, warp: W.warp, minShow: W.minShow | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.simPerFrame, warp: W.warp, minShow: W.minShow | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -16865,6 +17388,8 @@ function worldFromJSON(d) {
   let nb = 0;
   for (const b of d.bonds) { if (!Array.isArray(b)) continue; const [i, j, o] = b; const a = made[i], c = made[j]; if (a && c && a !== c && [1, 2, 3].includes(o)) { addBond(a, c, o); nb++; } }
   if (Array.isArray(d.magnets)) for (const m of d.magnets.slice(0, 50)) if (m && Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.B)) W.magnets.push({ x: m.x, y: m.y, R: num(m.R, 1, 1000, 10), B: clamp(m.B, -1e9, 1e9) });
+  if (Array.isArray(d.objs)) for (const o of d.objs.slice(0, 200)) { const ob = objFromJSON(o); if (ob) W.objs.push(ob); }
+  R.objSel = null;
   W.dirty++; W.spawned++; W.topo++; W.hist = { t: [], T: [], bath: [] }; R.sel = null; R.msel.clear();
   syncLab(); fitView(); renderInspect(); buildToolOpts();
   const n = made.filter(Boolean).length;
@@ -17960,7 +18485,7 @@ function baseWorld(w, h, T, gamma) {
   clearWorld();
   W.box.w = W.box.tw = w; W.box.h = W.box.th = h;
   W.T = T; W.gamma = gamma; W.Bz = 0; W.Ex = 0; W.Ey = 0; W.wall = 'reflect'; W.nWall = 'reflect'; W.warp = 1; W.simPerFrame = 1.5; W.decayOn = true;
-  W.magnets.length = 0; W.sources.length = 0; W.zones.length = 0; W.collider = null; W.slowHold = false; W.hold = null; W.holdFrac = 0;
+  W.magnets.length = 0; W.objs.length = 0; R.objSel = null; W.sources.length = 0; W.zones.length = 0; W.collider = null; W.slowHold = false; W.hold = null; W.holdFrac = 0;
   UI.E = 0; UI.Eang = 0;
 }
 const D_SPEC = { kind: 'atom', Z: 1, A: 2, bare: true }, T_SPEC = { kind: 'atom', Z: 1, A: 3, bare: true };
@@ -18438,11 +18963,40 @@ const FRAME_AIM_MS = 1000 / 60 - 0.4; // a frame's worth at 60 fps: the simulati
 /* Settings' priority, smooth ↔ fast: the frame rate the budget aims for. Above the smooth end, a frame may run longer —
    down to this rate — while the simulation is behind the speed it is set to; once it keeps up, frames stay short. */
 const PRIO_FPS = [60, 50, 40, 30, 20], PRIO_NAME = ['smooth: aims for 60 fps', 'leaning smooth: frames down to 50 fps', 'balanced: frames down to 40 fps', 'leaning fast: frames down to 30 fps', 'fast: frames down to 20 fps to keep the set speed'];
+/* Auto priority (0.66): every two seconds, how much physics each position of the slider would fit into a second (ms
+   of simulation per second), from how long drawing and the panels take a frame (paid once a frame, so fewer frames
+   leave more of each second to the physics): at the smooth end min(budget, aim − drawing) a frame at up to 60 frames
+   a second; past it, all the frame the aim leaves. Against what the simulation needs: what it used, when it keeps up
+   at the set speed; what this position gave over the share of the speed it reached, when it is behind. It takes the
+   smoothest position that fits that, or, when none does, the smoothest that gets 80% of what the fast end would add,
+   if that is 20% or more; a change needs the same answer twice running (no flapping). */
+function prioCap(L, D, B) {
+  const T = 1000 / PRIO_FPS[L], sim = L === 0 ? Math.max(0.5, Math.min(B, T - 0.4 - D)) : Math.max(B, T - 0.4 - D);
+  return sim * 1000 / Math.max(T, sim + D);
+}
+function prioAutoTick(now) {
+  if (!SET.prioAuto || now - (UI.prioT || 0) < 2000) return;
+  UI.prioT = now;
+  const FP = UI.fp; if (!FP || !UI.running) return;
+  const D = Math.max(0.1, (FP.drawAvg || 0) + (FP.uiAvg || 0)), B = UI.budget || 10, cur = UI.prioAuto || 0, ach = Math.max(0.01, UI.ach || 1);
+  const cap = PRIO_FPS.map((_, L) => prioCap(L, D, B));
+  const need = ach < 0.97 ? cap[cur] / ach : (FP.simAvg || 0) * (UI.fpsNow || 60);
+  let want = cap.findIndex(c => c >= need * 1.05);
+  if (want < 0) { const mx = Math.max(...cap); want = mx >= 1.2 * cap[0] ? cap.findIndex(c => c >= cap[0] + 0.8 * (mx - cap[0])) : 0; }
+  if (want !== cur && want === UI.prioWant) { UI.prioAuto = want; syncPrio(); }
+  UI.prioWant = want;
+}
+function syncPrio() {
+  const auto = !!SET.prioAuto, L = prioNow();
+  $('setPrio').value = String(L); $('setPrio').disabled = auto; $('setPrioAuto').checked = auto;
+  $('setPrioV').textContent = auto ? `Automatic: now ${PRIO_NAME[L]}. It leans fast only when that makes the simulation clearly faster.` : PRIO_NAME[L];
+}
 /* Particle trails: how long they last (Settings), and by which clock (render.js drawTracks). */
 function trailWindow() { const s = SET.trail || 0.5; return SET.trailClock === 'sim' ? s * 60 * (UI.baseSpf || W.simPerFrame) : s; }
 function trailSim() { return SET.trailClock === 'sim'; }
-function frameAim() { return 1000 / PRIO_FPS[SET.prio || 0] - 0.4; }
-function frameCap(room) { return (SET.prio || 0) > 0 ? Math.max(UI.budget, room) : UI.budget; } // (past the smooth end the physics may take the room the aim leaves, beyond Physics per frame)
+function prioNow() { return SET.prioAuto ? (UI.prioAuto || 0) : (SET.prio || 0); }
+function frameAim() { return 1000 / PRIO_FPS[prioNow()] - 0.4; }
+function frameCap(room) { return prioNow() > 0 ? Math.max(UI.budget, room) : UI.budget; } // (past the smooth end the physics may take the room the aim leaves, beyond Physics per frame)
 function frame(now) {
   if (SET.fpsCap > 0) { // Settings → Graphics: a frame-rate cap (frames skipped, the time between them still counted)
     const iv = 1000 / SET.fpsCap;
@@ -18488,7 +19042,7 @@ function frame(now) {
       toolTick(realDt);
       histTick(now);
       if (now - (UI.lastAuto || 0) > 20000) { UI.lastAuto = now; autosave(); }
-      rewTick(now); grTick(now);
+      rewTick(now); grTick(now); prioAutoTick(now);
     }
     tf1 = performance.now();
     if (R.follow) { if (R.follow.dead) R.follow = null; else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
@@ -18732,7 +19286,7 @@ function grSel() { try { const a = JSON.parse(store('graphSel') || 'null'); retu
 function grTick(now) {
   if (!UI.running || UI.menu || now - GR.last < 500) return;
   GR.last = now;
-  const m = measure(), sp = speciesCounts(), L = W.ledger; let mols = 0; for (const [, e] of sp) mols += e.n;
+  const m = measure(), sp = speciesCounts(false), L = W.ledger; let mols = 0; for (const [, e] of sp) mols += e.n;
   let P = NaN; try { const pr = wallPressure(mols, m.T); if (pr && pr.ok) P = pr.P; } catch (e) { /* (no walls) */ }
   const q = GR.track && !GR.track.dead ? GR.track : null, qv = q ? (q.rad ? q.sp : Math.hypot(q.vx, q.vy)) : NaN;
   const row = { pv: qv, pk: q ? keOf(q) : NaN, pd: q ? Math.hypot(q.x - GR.track0[0], q.y - GR.track0[1]) : NaN, T: m.T, Te: m.Te, n: W.parts.reduce((a, p) => a + (p.dead ? 0 : 1), 0), freeE: m.freeE || 0, ion: m.ionFrac, P, chem: L.chem, nuc: L.nuc, esc: L.escaped };
@@ -19164,7 +19718,7 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
 const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
@@ -19232,7 +19786,7 @@ function benchStart() {
     ['Flash memory: one byte', () => { PRESETS.flashbyte.build(); settleOverlaps(); }],
   ];
   const realRandom = Math.random;
-  const show = (busy) => { out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, priority ${PRIO_FPS[SET.prio || 0]} fps, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
+  const show = (busy) => { out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, priority ${PRIO_FPS[prioNow()]} fps${SET.prioAuto ? ' (auto)' : ''}, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
   let k = 0;
   const next = () => {
     if (k >= scen.length) {
@@ -19294,7 +19848,7 @@ function syncSettings() {
   if ($('setModal').hidden) return;
   $('setPerf').checked = perfOn();
   setSegValue('segMax', SET.maxParts); setSegValue('segRes', SET.res); setSegValue('segBudget', SET.budget); setSegValue('segThreads', String(SET.threads)); setSegValue('segGl', SET.gl); setSegValue('segTrail', String(SET.trail)); setSegValue('segTrailClock', SET.trailClock);
-  $('setPrio').value = SET.prio || 0; $('setPrioV').textContent = PRIO_NAME[SET.prio || 0];
+  syncPrio();
   if (document.activeElement !== $('setApiKey')) $('setApiKey').value = SET.apiKey || ''; if (document.activeElement !== $('setApiModel')) $('setApiModel').value = SET.apiModel || '';
   { const own = typeof window !== 'undefined' && window.claude && typeof window.claude.use === 'function'; const n = $('setApiNote');
     n.textContent = (AI.sample && !AI.sample.api ? 'This page has its own Claude access: Ask Claude and Identify molecules use your Claude account directly, and the key below is not needed here. ' : own ? '' : 'This page has no Claude access of its own. ') +
@@ -19340,6 +19894,7 @@ function settingsInit() {
   bindSeg('segBudget', (v) => setSetting('budget', +v));
   $('setPrio').addEventListener('input', (e) => { $('setPrioV').textContent = PRIO_NAME[+e.target.value]; });
   $('setPrio').addEventListener('change', (e) => setSetting('prio', +e.target.value));
+  $('setPrioAuto').addEventListener('change', (e) => { setSetting('prioAuto', !!e.target.checked); UI.prioAuto = SET.prio || 0; UI.prioWant = -1; syncPrio(); });
   bindSeg('segThreads', (v) => setSetting('threads', v));
   bindSeg('segGl', (v) => setSetting('gl', v));
   bindSeg('segSpec', (v) => { _specView = v; drawSpec(); });
@@ -19496,6 +20051,28 @@ function qmMagnet(m) {
     qmRange('Radius', 0, 200, radS('magnet', m.R), fmtA(m.R), (v) => { undoMarkOnce('Change a magnet'); m.R = radR('magnet', v); return fmtA(m.R); }) +
     qm2(qmBtn('Flip its pole', () => { m.B = -m.B; }), qmBtn('Remove it', () => { const i = W.magnets.indexOf(m); if (i >= 0) W.magnets.splice(i, 1); }, { cls: 'danger' }));
 }
+/* A placed object (props.js): turn it about its middle, its length, and what its kind has (focal length, voltage
+   and gap, metal and thickness); a screen's count can be cleared. Each slider is one undo step. */
+function qmObject(ob) {
+  R.objSel = ob;
+  const und = () => undoMarkOnce('Change an object'), mx = () => (ob.x0 + ob.x1) / 2, my = () => (ob.y0 + ob.y1) / 2;
+  const ang = Math.round(Math.atan2(ob.y1 - ob.y0, ob.x1 - ob.x0) * 180 / Math.PI), L = objLen(ob);
+  const setAL = (a, len) => { const cx = mx(), cy = my(), c = Math.cos(a * Math.PI / 180), s2 = Math.sin(a * Math.PI / 180); ob.x0 = cx - c * len / 2; ob.y0 = cy - s2 * len / 2; ob.x1 = cx + c * len / 2; ob.y1 = cy + s2 * len / 2; W.dirty++; };
+  const title = () => { const t = $('qmObjT'); if (t) t.textContent = objText(ob); };
+  let h = `<div class="qmh"><div class="t1">${esc(OBJ_NAME[ob.kind])}</div><div class="t2" id="qmObjT">${esc(objText(ob))}</div></div>` +
+    qmRange('Angle', -180, 180, ang, `${ang}°`, (v) => { und(); setAL(v, objLen(ob)); return `${v}°`; }) +
+    qmRange('Length', 1, 200, Math.round(L), `${Math.round(L)} Å`, (v) => { und(); setAL(Math.atan2(ob.y1 - ob.y0, ob.x1 - ob.x0) * 180 / Math.PI, v); return `${v} Å`; });
+  if (ob.kind === 'lens') h += qmRange('Focal length', -100, 100, Math.round(ob.f), objFText(ob.f), (v) => { und(); ob.f = v || 1; title(); return objFText(ob.f); });
+  if (ob.kind === 'plates') {
+    h += qmRange('Voltage', 0, 500, Math.round(100 * Math.log10(Math.max(1, Math.abs(ob.V)))), objVText(ob.V), (v) => { und(); ob.V = Math.sign(ob.V || 1) * Math.pow(10, v / 100); title(); return objVText(ob.V); }) +
+      qmRange('Gap', 2, 100, Math.round(ob.gap), `${Math.round(ob.gap)} Å`, (v) => { und(); ob.gap = v; W.dirty++; title(); return `${v} Å`; }) +
+      qmBtn('Swap + and −', () => { undoMark('Change an object'); ob.V = -ob.V; });
+  }
+  if (ob.kind === 'foil') h += qmRange('Layers', 1, 100, ob.layers, String(ob.layers), (v) => { und(); ob.layers = v; title(); return String(v); });
+  if (ob.kind === 'screen') h += qmBtn('Clear its count', () => objClearHits(ob), { off: !(ob.hits && ob.hits.n) });
+  if (ob.kind === 'mirror' || ob.kind === 'splitter') h += qmBtn(ob.kind === 'mirror' ? 'Make it a beam splitter' : 'Make it a full mirror', () => { undoMark('Change an object'); ob.kind = ob.kind === 'mirror' ? 'splitter' : 'mirror'; ob.R = ob.kind === 'mirror' ? 1 : 0.5; });
+  return h + qmBtn('Remove it', () => { undoMark('Remove an object'); objRemove(ob); if (R.objSel === ob) R.objSel = null; }, { cls: 'danger' });
+}
 function qmSource(s) { // a beam source made with the Fire tool (a collider's injectors are left alone)
   const sE = Math.round(100 * (Math.log10(Math.max(0.01, s.KE)) + 2)); // (the Fire tool's scale: 0.01 eV … 100 GeV)
   return `<div class="qmh"><div class="t1">Beam source</div><div class="t2" id="qmSrcT">${esc(specLabel(s.spec))} · ${esc(fmtE(s.KE))}</div></div>` +
@@ -19532,7 +20109,8 @@ function openQuickMenu(px, py) {
   hideTip(); QM.acts = []; QM.ranges = []; QM.serial = (QM.serial || 0) + 1;
   const [wx, wy] = s2w(px, py), p = pickNear(px, py, 14), mag = p ? null : magnetAt(wx, wy);
   const src = p || mag ? null : W.sources.find(s => !s.beam && Math.hypot(s.x - wx, s.y - wy) < Math.max(1.5, 12 / R.s));
-  m.innerHTML = (p ? qmParticle(p) : mag ? qmMagnet(mag) : src ? qmSource(src) : qmHere(wx, wy)) + qmGlobal(px, py, wx, wy);
+  const ob = p || mag || src ? null : objAtPx(px, py);
+  m.innerHTML = (p ? qmParticle(p) : mag ? qmMagnet(mag) : src ? qmSource(src) : ob ? qmObject(ob) : qmHere(wx, wy)) + qmGlobal(px, py, wx, wy);
   m.hidden = false; QM.open = true; m.scrollTop = 0;
   m.style.left = Math.max(4, Math.min(px + 2, R.w - m.offsetWidth - 4)) + 'px';
   m.style.top = Math.max(4, Math.min(py + 2, R.h - m.offsetHeight - 4)) + 'px';

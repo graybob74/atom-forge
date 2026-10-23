@@ -150,6 +150,7 @@ function render(rt) {
   ctx.fillStyle = bg; ctx.fillRect(0, 0, R.w, R.h);
   drawGrid();
   drawFields();
+  if (W.objs.length) drawObjects();
   drawBox();
   if (R.view.tracks) drawTracks(rt);
   if (R.gl) { drawChipsUnder(); drawBonds(rt); } // (on the WebGL layer; the chip packages under it)
@@ -200,6 +201,67 @@ function drawBox() {
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) {
     ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(255,200,120,0.5)';
     ctx.strokeRect(w2sx(-W.box.tw / 2), w2sy(W.box.th / 2), W.box.tw * R.s, W.box.th * R.s);
+  }
+  ctx.restore();
+}
+/* Placed objects (props.js): mirrors silver, splitters half-tone, lenses as lenses, prisms as glass, the screen with
+   its spectrum drawn along it, the beam stop dark and thick, walls grey, foils gold, plates red (+) and blue (−). */
+function drawObjects() {
+  const ctx = R.ctx, s = R.s;
+  ctx.save(); ctx.setLineDash([]); ctx.lineCap = 'round';
+  const seg = (ax, ay, bx, by) => { ctx.beginPath(); ctx.moveTo(w2sx(ax), w2sy(ay)); ctx.lineTo(w2sx(bx), w2sy(by)); ctx.stroke(); };
+  const lw = (px, lo, hi) => clamp(px * s, lo, hi);
+  for (const ob of W.objs) {
+    const k = ob.kind, sel = R.objSel === ob, [nx, ny] = objNormal(ob), L = objLen(ob), mx = (ob.x0 + ob.x1) / 2, my = (ob.y0 + ob.y1) / 2;
+    if (sel) { ctx.strokeStyle = 'rgba(120,200,255,0.35)'; ctx.lineWidth = lw(0.9, 8, 26); seg(ob.x0, ob.y0, ob.x1, ob.y1); }
+    if (k === 'mirror' || k === 'splitter') {
+      ctx.strokeStyle = k === 'mirror' ? 'rgba(225,235,250,0.95)' : 'rgba(200,225,255,0.75)'; ctx.lineWidth = lw(0.25, 2.5, 7);
+      if (k === 'splitter') ctx.setLineDash([lw(0.5, 4, 10), lw(0.3, 3, 6)]);
+      seg(ob.x0, ob.y0, ob.x1, ob.y1); ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(120,130,150,0.8)'; ctx.lineWidth = 1; // (the back of the mirror: hatched)
+      if (k === 'mirror') for (let t = 0.05; t < 1; t += Math.max(0.04, 6 / (L * s))) { const x = ob.x0 + (ob.x1 - ob.x0) * t, y = ob.y0 + (ob.y1 - ob.y0) * t; seg(x, y, x - nx * 0.6 + (ob.x1 - ob.x0) / L * 0.4, y - ny * 0.6 + (ob.y1 - ob.y0) / L * 0.4); }
+    } else if (k === 'lens') {
+      const b = clamp(L * 0.12, 0.4, 3) * (ob.f >= 0 ? 1 : -0.6), w0 = ob.f >= 0 ? 0.15 : 0.9; // (bulge: convex or concave)
+      const P = (t, side) => { const x = ob.x0 + (ob.x1 - ob.x0) * t, y = ob.y0 + (ob.y1 - ob.y0) * t, h = side * (w0 + b * 4 * t * (1 - t)); return [w2sx(x + nx * h), w2sy(y + ny * h)]; };
+      ctx.beginPath(); for (let i = 0; i <= 24; i++) { const [x, y] = P(i / 24, 1); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } for (let i = 24; i >= 0; i--) { const [x, y] = P(i / 24, -1); ctx.lineTo(x, y); } ctx.closePath();
+      ctx.fillStyle = 'rgba(140,200,255,0.18)'; ctx.fill(); ctx.strokeStyle = 'rgba(170,215,255,0.85)'; ctx.lineWidth = 1.5; ctx.stroke();
+    } else if (k === 'prism') {
+      const [ax, ay] = prismApex(ob);
+      ctx.beginPath(); ctx.moveTo(w2sx(ob.x0), w2sy(ob.y0)); ctx.lineTo(w2sx(ob.x1), w2sy(ob.y1)); ctx.lineTo(w2sx(ax), w2sy(ay)); ctx.closePath();
+      ctx.fillStyle = 'rgba(160,210,255,0.16)'; ctx.fill(); ctx.strokeStyle = 'rgba(180,220,255,0.85)'; ctx.lineWidth = 1.5; ctx.stroke();
+    } else if (k === 'screen') {
+      ctx.strokeStyle = 'rgba(120,255,170,0.9)'; ctx.lineWidth = lw(0.3, 3, 8); seg(ob.x0, ob.y0, ob.x1, ob.y1);
+      const H = ob.hits; if (H && H.n) { // the spectrum, as bars standing on its right side (low energies at x0)
+        const mx2 = Math.max(...H.bins), bw = L / OBJ_BINS, hmax = Math.min(12, L * 0.6);
+        ctx.fillStyle = 'rgba(120,255,170,0.45)';
+        for (let i = 0; i < OBJ_BINS; i++) { if (!H.bins[i]) continue; const t0 = i / OBJ_BINS, hb = hmax * H.bins[i] / mx2;
+          const x = ob.x0 + (ob.x1 - ob.x0) * t0, y = ob.y0 + (ob.y1 - ob.y0) * t0, x2 = x + (ob.x1 - ob.x0) / L * bw * 0.85, y2 = y + (ob.y1 - ob.y0) / L * bw * 0.85;
+          ctx.beginPath(); ctx.moveTo(w2sx(x), w2sy(y)); ctx.lineTo(w2sx(x2), w2sy(y2)); ctx.lineTo(w2sx(x2 - nx * hb), w2sy(y2 - ny * hb)); ctx.lineTo(w2sx(x - nx * hb), w2sy(y - ny * hb)); ctx.fill(); }
+      }
+      if (R.view.labels !== false) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = 'rgba(150,255,190,0.95)'; ctx.textAlign = 'center';
+        ctx.fillText(H && H.n ? `${H.n.toLocaleString('en-US')} hit${H.n > 1 ? 's' : ''}` : 'detector', w2sx(mx + nx * 1.5), w2sy(my + ny * 1.5)); }
+    } else if (k === 'stop') {
+      ctx.strokeStyle = 'rgba(70,72,84,0.95)'; ctx.lineWidth = lw(0.9, 6, 20); ctx.lineCap = 'butt'; seg(ob.x0, ob.y0, ob.x1, ob.y1);
+      ctx.strokeStyle = 'rgba(255,190,80,0.7)'; ctx.lineWidth = 1.2; seg(ob.x0, ob.y0, ob.x1, ob.y1); ctx.lineCap = 'round';
+    } else if (k === 'wall') {
+      ctx.strokeStyle = 'rgba(165,172,186,0.9)'; ctx.lineWidth = lw(0.4, 4, 12); seg(ob.x0, ob.y0, ob.x1, ob.y1);
+    } else if (k === 'foil') {
+      ctx.strokeStyle = 'rgba(255,205,90,0.9)'; ctx.lineWidth = lw(0.12, 1.5, 4); seg(ob.x0, ob.y0, ob.x1, ob.y1);
+    } else if (k === 'plates') {
+      const g = ob.gap, pos = ob.V >= 0;
+      ctx.lineWidth = lw(0.35, 3, 9);
+      ctx.strokeStyle = pos ? 'rgba(255,110,100,0.9)' : 'rgba(110,150,255,0.9)'; seg(ob.x0, ob.y0, ob.x1, ob.y1);
+      ctx.strokeStyle = pos ? 'rgba(110,150,255,0.9)' : 'rgba(255,110,100,0.9)'; seg(ob.x0 + nx * g, ob.y0 + ny * g, ob.x1 + nx * g, ob.y1 + ny * g);
+      if (ob.V) { ctx.strokeStyle = 'rgba(255,214,120,0.35)'; ctx.lineWidth = 1; const n = clamp(Math.round(L / 4), 2, 12), dir = pos ? 1 : -1; // (field lines, + to −)
+        for (let i = 1; i < n; i++) { const t = i / n, x = ob.x0 + (ob.x1 - ob.x0) * t, y = ob.y0 + (ob.y1 - ob.y0) * t, a = 0.2 * g, b = 0.8 * g;
+          const [sx, sy] = dir > 0 ? [x + nx * a, y + ny * a] : [x + nx * b, y + ny * b], [ex, ey] = dir > 0 ? [x + nx * b, y + ny * b] : [x + nx * a, y + ny * a];
+          seg(sx, sy, ex, ey); const hx = w2sx(ex), hy = w2sy(ey), ang = Math.atan2(w2sy(ey) - w2sy(sy), w2sx(ex) - w2sx(sx));
+          ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx - 6 * Math.cos(ang - 0.4), hy - 6 * Math.sin(ang - 0.4)); ctx.moveTo(hx, hy); ctx.lineTo(hx - 6 * Math.cos(ang + 0.4), hy - 6 * Math.sin(ang + 0.4)); ctx.stroke(); } }
+    }
+    if (R.view.labels !== false && k !== 'screen' && (sel || R.objHover === ob)) {
+      ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = 'rgba(220,230,245,0.9)'; ctx.textAlign = 'center';
+      ctx.fillText(objText(ob), w2sx(mx - nx * 2), w2sy(my - ny * 2));
+    }
   }
   ctx.restore();
 }
