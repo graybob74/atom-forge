@@ -245,7 +245,7 @@ function kStop(o) {
   const Pe = add4([XP['K-'].m + o.KE / MEV, 0, 0], PN), me = mass4(Pe), pi = onP ? 'pi0' : 'pi-', ex = Pe[1] / Pe[0], ey = Pe[2] / Pe[0];
   if (!(me > LAM_M + XP[pi].m)) return false;
   const [ux, uy] = rdir(), [vL0, vp0] = twoBody(me, LAM_M, XP[pi].m, ux, uy), vL = toLab(vL0, ex, ey), vp = toLab(vp0, ex, ey);
-  const items = [], moms = [], x = tg.x, y = tg.y, el = speciesLabel(tg);
+  const items = [], moms = [], x = tg.x, y = tg.y, el = hitLabel(tg);
   items.push(item(pi)); moms.push(vp);
   let hyp = false;
   if (Zr + Nr >= 2) hyp = hypCatch(Zr, Nr, mres, Pres, vL, 0, 0, items, moms);

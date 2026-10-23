@@ -149,7 +149,7 @@ const TOOLS = [
   { id: 'inspect', name: 'Inspect', key: 'I', help: 'Click a particle to see its physics in the Inspect tab. Right-click anything in the chamber for a quick menu.' },
 ];
 const OPT = {
-  place: { count: 1, Es: 600 },
+  place: { count: 1, Es: 600, rest: false },
   grab: { mol: true, s: 'strong' },
   select: { whole: true },
   pull: { mode: 'pull', R: 10, s: 100 },
@@ -217,6 +217,29 @@ const PCATS = [
   ['Antimatter', [{ kind: 'pos' }, SPEC_PBAR, SPEC_NBAR, SPEC_HBAR, { kind: 'atom', Z: 1, A: 2, bare: true, anti: true }, { kind: 'atom', Z: 2, A: 4, bare: true, anti: true }, 'pt']],
   ['Exotic atoms and nuclei', ['muP', 'muD', 'muT', 'Mu'].concat([[1, 1], [1, 2], [2, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 6], [8, 7], [14, 13], [20, 19], [39, 49], [82, 125]].map(([z, n]) => hypSpecies(z, n)).filter(Boolean)).map(sp => ({ kind: 'exo', sp }))],
 ];
+/* Type-to-find: every particle of the menus, matched on its symbol, its name, its id and the spelled-out Greek. */
+const PF_GREEK = [['lambda', 'Λ'], ['sigma', 'Σ'], ['xi', 'Ξ'], ['omega', 'Ω'], ['delta', 'Δ'], ['pion', 'π'], ['pi', 'π'], ['rho', 'ρ'], ['phi', 'φ'], ['eta', 'η'], ['kaon', 'K'], ['muon', 'μ'], ['mu', 'μ'], ['tau', 'τ'], ['nu', 'ν'], ['neutrino', 'ν'], ['gamma', 'γ'], ['photon', 'γ'], ['alpha', 'α'], ['anti', '̄'], ['bar', '̄']];
+function pfindItems() { const out = []; for (const [cat, list] of PCATS) for (const sp of list) if (sp !== 'pt' && !out.some(o => sameSpec(o.sp, sp))) out.push({ sp, cat, hay: `${specLabel(sp)} ${specName(sp)} ${sp.sp || ''} ${sp.kind} ${cat}`.toLowerCase() }); return out; }
+function pfindMatch(q) {
+  q = q.trim().toLowerCase(); if (!q) return [];
+  let g = q; for (const [w, c] of PF_GREEK) g = g.replace(new RegExp('\\b' + w, 'g'), c.toLowerCase());
+  const words = q.split(/\s+/), gw = g.split(/\s+/);
+  return pfindItems().map(it => { const lab = specLabel(it.sp).toLowerCase(), id = (it.sp.sp || '').toLowerCase(); const score = (id === q || lab === q || lab === g ? 0 : id.startsWith(q) || lab.startsWith(g) ? 1 : 2) + (words.every(w => it.hay.includes(w)) || gw.every(w => it.hay.includes(w)) ? 0 : 9); return [score, it]; })
+    .filter(([sc]) => sc < 9).sort((a, b) => a[0] - b[0]).slice(0, 12).map(([, it]) => it);
+}
+function pfindOpen(btn) {
+  const m = $('pmenu');
+  if (!m.hidden && m.dataset.ci === 'find') { pmenuClose(); return; }
+  m.dataset.ci = 'find';
+  m.innerHTML = `<div class="pm-h">Find a particle</div><input class="msearch pf-q" id="pfQ" placeholder="pi-, lambda, muonium, deuteron, antineutron …" autocomplete="off" spellcheck="false" aria-label="Find a particle"><div id="pfR"></div>`;
+  const r = btn.getBoundingClientRect(), st = $('stage').getBoundingClientRect(), ui = SET.ui || 1;
+  m.hidden = false; m.style.left = Math.max(4, Math.min((r.left - st.left) / ui, (st.width / ui) - 320)) + 'px'; m.style.top = ((r.bottom - st.top) / ui + 4) + 'px';
+  let res = [];
+  const show = () => { res = pfindMatch($('pfQ').value); $('pfR').innerHTML = res.length ? res.map((it, k) => `<button class="pm-i" data-k="${k}"><span class="sw" style="background:${specColor(it.sp)}"></span><b>${esc(specLabel(it.sp))}</b><span>${esc(specName(it.sp))} · ${esc(it.cat)}</span></button>`).join('') : `<div class="pm-h" style="text-transform:none">${$('pfQ').value.trim() ? 'Nothing by that name' : 'Type a name or symbol'}</div>`; };
+  const q = $('pfQ'); q.oninput = show; show(); q.focus();
+  q.onkeydown = (e) => { if (e.key === 'Enter' && res.length) { e.preventDefault(); pmenuClose(); selectSpec(res[0].sp); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); pmenuClose(); } };
+  m.onclick = (e) => { const b = e.target.closest('.pm-i'); if (!b || !res[+b.dataset.k]) return; pmenuClose(); selectSpec(res[+b.dataset.k].sp); };
+}
 function pmenuOpen(ci, btn) {
   const m = $('pmenu'), [name, list] = PCATS[ci];
   if (!m.hidden && m.dataset.ci === String(ci)) { pmenuClose(); return; }
@@ -234,7 +257,7 @@ function buildPalette() {
   const pal = $('palette');
   const items = QUICK.slice();
   if (UI.customSpec && !QUICK.some(q => q !== 'sep' && sameSpec(q.spec, UI.customSpec))) items.push('sep', { spec: UI.customSpec });
-  let html = PCATS.map(([name, list], ci) => `<button class="chip cat" data-ci="${ci}" aria-haspopup="menu" aria-expanded="false" title="${esc(name)}: ${esc(list.filter(x => x !== 'pt').map(specLabel).join(' '))}">${esc(name)} ▾</button>`).join('') + '<span class="sep" aria-hidden="true"></span>';
+  let html = `<button class="chip cat find" data-find="1" aria-haspopup="menu" title="Find a particle by typing: pi-, lambda, muonium, deuteron … (/)">🔍 Find</button>` + PCATS.map(([name, list], ci) => `<button class="chip cat" data-ci="${ci}" aria-haspopup="menu" aria-expanded="false" title="${esc(name)}: ${esc(list.filter(x => x !== 'pt').map(specLabel).join(' '))}">${esc(name)} ▾</button>`).join('') + '<span class="sep" aria-hidden="true"></span>';
   items.forEach((q, i) => {
     if (q === 'sep') { html += '<span class="sep" aria-hidden="true"></span>'; return; }
     const s = q.spec, col = q.color || specColor(s), lab = q.label || specLabel(s);
@@ -243,6 +266,7 @@ function buildPalette() {
   pal.innerHTML = html;
   placeHint();
   pal.onclick = (e) => {
+    const fb = e.target.closest('[data-find]'); if (fb) { pfindOpen(fb); return; }
     const c = e.target.closest('.cat'); if (c) { pmenuOpen(+c.dataset.ci, c); return; }
     const b = e.target.closest('.chip'); if (!b) return;
     const q = items[+b.dataset.i]; if (q && q !== 'sep') selectSpec(q.spec);
@@ -423,10 +447,10 @@ function buildToolOpts() {
       }
       h = `<span class="lbl">Placing</span><span><span class="swatch" style="background:${specColor(sp)}"></span> <b>${esc(specLabel(sp))}</b> <span class="help">${esc(specName(sp))}</span></span>
         ${savedIsoHTML()}${isoPickerHTML(sp)}${isObject(sp) ? `<span class="help">${MOLECULES[sp.mol].atoms.length} atoms, one per click; the box opens up if it is too small. It warms to the bath temperature, so keep that near room temperature (Lab tab) or it falls apart, as it would in a flame.</span>`
-          : `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']].concat(MAX_PARTS >= 8000 ? [[100, '100']] : []), o.count)}</span><span class="help">at the bath temperature</span>`}`;
+          : `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']].concat(MAX_PARTS >= 8000 ? [[100, '100']] : []), o.count)}</span><span data-g="rest">${seg('Moving', [['false', 'At the bath temperature'], ['true', 'At rest']], String(!!o.rest))}</span>`}`;
       break;
     case 'grab':
-      h = `<span data-g="mol">${seg('Grab', [['true', 'Whole molecule'], ['false', 'Single atom']], String(o.mol))}</span><span data-g="s">${seg('Strength', [['gentle', 'Gentle'], ['strong', 'Strong'], ['max', 'Very strong']], o.s)}</span><span class="help">${o.s === 'gentle' ? 'Draws it along at most 3 km/s of simulated time, so at high speed settings it trails the mouse.' : o.s === 'strong' ? 'Keeps up with the mouse (up to 30 km/s), pulling with up to 8 eV/Å; let go and it stops there.' : 'Keeps up even when dragged fast (up to 100 km/s), pulling with up to 30 eV/Å to haul through a crowd; let go and it stops there.'}</span><span class="help">Press on or near a particle and drag. It follows on a spring; while paused it moves directly.</span>`;
+      h = `<span data-g="mol">${seg('Grab', [['true', 'Whole molecule or crystal'], ['false', 'Single atom']], String(o.mol))}</span><span data-g="s">${seg('Strength', [['gentle', 'Gentle'], ['strong', 'Strong'], ['max', 'Very strong']], o.s)}</span><span class="help">${o.s === 'gentle' ? 'Draws it along at most 3 km/s of simulated time, so at high speed settings it trails the mouse.' : o.s === 'strong' ? 'Keeps up with the mouse (up to 30 km/s), pulling with up to 8 eV/Å; let go and it stops there.' : 'Keeps up even when dragged fast (up to 100 km/s), pulling with up to 30 eV/Å to haul through a crowd; let go and it stops there.'}</span><span class="help">Press on or near a particle and drag. It follows on a spring; while paused it moves directly.</span>`;
       break;
     case 'pull':
       h = `<span data-g="mode">${seg('Force', [['pull', 'Attract'], ['push', 'Repel']], o.mode)}</span>` +
@@ -807,6 +831,7 @@ function placeSpec(spec, x, y, count) {
     const ps = spawnClear(spec, px, py);
     for (const p of ps) out.push(p);
   }
+  if (OPT.place.rest) for (const p of out) { if (p.rad || p.fast) { p.rad = false; p.fast = false; p.KE = 0; } p.vx = 0; p.vy = 0; } // (motionless, whatever the bath: it warms or cools from there)
   return out;
 }
 /* Placing what is not an atom: an unstable particle is made nearly at rest (it decays where it is, on its own mean
@@ -872,7 +897,8 @@ function onDown(e) {
       const p = pickNear(px, py, 40);
       if (p) {
         undoMark('Grab');
-        W.grab = { p, x: wx, y: wy, s: OPT.grab.s, mol: OPT.grab.mol && p.k === NUC && p.bonds.length ? molecule(p) : null };
+        const grp = OPT.grab.mol && p.k === NUC ? grabGroup(p) : null;
+        W.grab = { p, x: wx, y: wy, s: OPT.grab.s, mol: grp && grp.length > 1 ? grp : null };
         if (p.rad || p.fast) { p.rad = false; p.fast = false; p.KE = 0; p.vx = 0; p.vy = 0; }
         UI.drag = { kind: 'grab' };
       } else UI.drag = { kind: 'pan', x: px, y: py, cx: R.cx, cy: R.cy };
@@ -1041,6 +1067,24 @@ function pasteClip(wx, wy) {
 }
 /* The particle under the pointer, or failing that the nearest one within maxPx: hot atoms move several
    pixels per frame, so an exact hit is hard. */
+/* What a whole-molecule grab takes: the molecule, and the ions held to it ionically (opposite charges in contact, as
+   the Ionic view draws them), and theirs in turn: a salt crystal comes along whole. */
+function grabGroup(p) {
+  const rOf = (q) => (q.ionic && q.ionR > 0 ? q.ionR : q.rd), seen = new Set(), out = [];
+  const add = (q) => { for (const m of molecule(q)) if (!seen.has(m)) { seen.add(m); out.push(m); } };
+  add(p);
+  const ions = W.parts.filter(q => !q.dead && q.k === NUC && q.ne > 0 && Math.abs(q.q) >= 1); // (the ions, looked through directly: the neighbour grid may not be built yet)
+  if (!ions.length) return out;
+  for (let i = 0; i < out.length && out.length < 4000; i++) {
+    const a = out[i]; if (a.dead || a.k !== NUC || a.ne <= 0 || Math.abs(a.q) < 1) continue;
+    for (const b of ions) {
+      if (seen.has(b) || a.q * b.q >= 0) continue;
+      const dx = b.x - a.x, dy = b.y - a.y; if (Math.abs(dx) > 8 || Math.abs(dy) > 8) continue;
+      if (Math.hypot(dx, dy) < 1.3 * (rOf(a) + rOf(b))) add(b);
+    }
+  }
+  return out;
+}
 function pickNear(px, py, maxPx) {
   const hit = pickAt(px, py, 10);
   if (hit) return hit;
@@ -1503,6 +1547,7 @@ function selXHTML() {
     kv.push(['Charge', d.q > 0 ? '+' + d.q : d.q < 0 ? '−' + -d.q : '0'], ['Rest mass', `${fmtNum(m, 4)} MeV/c² (${fmtNum(m / 0.51099895, 4)} electron masses)`]);
     if (XP_QUARKS[o.sp]) kv.push(['Made of', XP_QUARKS[o.sp]]);
     if (d.hyp) kv.push(['Made of', `${nucSym(d.Z, d.N)} (${d.Z} p, ${d.N} n) and a Λ (u d s)`], ['Λ bound by', fmtE(d.BL * MEV)]);
+    kv.push(...gyroRows(d.q, m / PHYS.AMU_MEV, o.gam, o.v, o.x, o.y, null));
     kv.push(['Kinetic energy', fmtE(o.KE)], ['Total energy', fmtE(o.KE + m * 1e6)], ['Speed', fmtSpeed(o.v)], ['Lorentz factor γ', fmtNum(o.gam, 4)],
       ['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)],
       d.hyp ? ['Decays by', `Λ → p π⁻ or n π⁰ inside (mesonic, ${Math.round(100 * hypMesonic(d.Z + d.N + 1))}%), or Λp → np and Λn → nn (non-mesonic: 176 MeV to the two nucleons, which usually break the nucleus)`] : ['Decays to', d.dec.map(([b, ps]) => `${ps.map(t => (XP[t] ? XP[t].lab : ({ 'e-': 'e⁻', 'e+': 'e⁺', nu: 'ν', nub: 'ν̄', g: 'γ', p: 'p', n: 'n', pbar: 'p̄', nbar: 'n̄' })[t] || t)).join(' ')} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
@@ -1555,6 +1600,7 @@ function renderInspect() {
       <div><div class="ins-title">${p.k === ELEC ? 'Free electron' : 'Positron'}</div><div class="ins-sub">Lepton · spin ½ · ${p.k === ELEC ? 'matter' : 'antimatter'}</div></div></div>`;
     pills = `<span class="pill em">${p.rad ? 'ionizing track' : p.fast ? 'fast' : 'thermal'}</span>`;
     kv.push(['Mass', '9.109×10⁻³¹ kg (1/1836 of a proton)'], ['Kinetic energy', fmtE(ke)], ['Speed', fmtSpeed(speed)]);
+    kv.push(...gyroRows(p.q, PHYS.ME, p.rad ? 1 + p.KE / (PHYS.ME * PHYS.AMU_MEV * 1e6) : 1, speed, p.x, p.y, p));
     if (p.k === POS) extra = `<p class="note">Meeting an electron, it annihilates into two 511 keV gamma rays. An antiproton captures it to make antihydrogen.</p>`;
   } else if (p.Z === 0) {
     head = `<div class="ins-head"><div class="tilebox"><span class="z">0</span><span class="a">1</span><span class="s">n</span><span class="q">neutral</span></div>
@@ -1593,6 +1639,7 @@ function renderInspect() {
       if (el.ea) kv.push([p.anti ? 'Positron affinity' : 'Electron affinity', fmtE(el.ea)]);
     } else kv.push(['Charge', (p.anti ? '−' : '+') + p.Z]);
     kv.push(['Mass', fmtNum(p.m, 6) + ' u'], ['Kinetic energy', fmtE(ke)], ['Speed', fmtSpeed(speed)]);
+    kv.push(...gyroRows(p.ne > 0 ? p.q : (p.anti ? -1 : 1) * p.Z, p.m, p.rad ? 1 + p.KE / (p.m * PHYS.AMU_MEV * 1e6) : 1, speed, p.x, p.y, p));
     if (p.tLocal && p.ne > 0) kv.push(['Local temperature', fmtT(p.tLocal)]);
     kv.push(['Nucleus', p.anti ? `${p.Z} p̄ + ${p.N} n̄` : `${p.Z} p + ${p.N} n`], ['Binding energy', A > 1 ? `${fmtE(bindingE(p.Z, p.N) * 1e6, 5)} (${fmtE(bindingE(p.Z, p.N) / A * 1e6, 4)} per nucleon)` : '—']);
     if (p.anti) extra = `<p class="note">Antimatter mirrors matter: the same masses, energy levels, spectra and bonds, with every charge reversed (CPT symmetry). Touching ordinary matter, its positrons annihilate with electrons (two 511 keV γ rays) and each antinucleon with a nucleon (pions and γ rays, about 1.9 GeV).</p>`;
@@ -1637,6 +1684,15 @@ function renderInspect() {
   _insCv = $('insBohr');
   drawInspectBohr();
   restoreScroll('tp-inspect');
+}
+/* A charged particle in a magnetic field goes round a circle: its size and how often it turns (relativistic: γ m v / qB),
+   for Inspect. (A slow particle in a strong field circles on a loop far smaller than an atom, and looks still.) */
+function gyroRows(q, mU, gam, v, x, y, p) {
+  if (!q || !(v > 0)) return [];
+  const B = Bfield(x, y, p); if (!B) return [];
+  const om = Math.abs(q * B * PHYS.LOR / ((gam || 1) * mU)), r = v / om, f = om / (2 * Math.PI) / PHYS.TU_S;
+  const d = 2 * r, ds = d >= 1e4 ? fmtLen(d * 1e-10) : d >= 0.01 ? fmtA(d) : `${d.toExponential(1).replace('e', '×10^').replace(/\^(-?\d+)/, (m, e) => sup(e))} Å`;
+  return [['Circle in the field', `${ds} across, ${fmtNum(f, 3)} turns per second (B = ${fmtTesla(Math.abs(B))})`]];
 }
 function fmtSpeed(v) { // v in Å/tu
   const ms = v * PHYS.V_MS, b = ms / 299792458;
@@ -2078,12 +2134,14 @@ const LOG_CLS = { chem: ['Chemistry', '--chem'], em: ['Electrons & light', '--em
 function buildLogFilters() {
   $('logFilters').innerHTML = Object.entries(LOG_CLS).map(([k, [n, c]]) => `<label class="check"><input type="checkbox" data-f="${k}" ${UI.logFilter[k] ? 'checked' : ''}><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(${c})"></i>${n}</label>`).join('');
   $('logFilters').onchange = (e) => { const f = e.target.dataset.f; if (f) { UI.logFilter[f] = e.target.checked; UI.lastLogSeq = -1; renderLog(); } };
+  $('logList').onclick = (e) => { const b = e.target.closest('.lgo'); if (b) rewToEvent(+b.dataset.t); };
 }
 function renderLog() {
   if (UI.lastLogSeq === W.logSeq) return;
   UI.lastLogSeq = W.logSeq;
   const items = W.log.filter(l => UI.logFilter[l.cls] !== false).slice(-120).reverse();
-  $('logList').innerHTML = items.length ? items.map(l => `<div class="e"><i style="background:var(${(LOG_CLS[l.cls] || LOG_CLS.tool)[1]})"></i><span>${esc(l.text)}${l.n > 1 ? ` <b>×${l.n}</b>` : ''}</span><span class="c">${esc(fmtTime(l.t * PHYS.TU_S))}</span></div>`).join('')
+  const canGo = SET.rewOn && undoOK(); // (an event browser: a nuclear event can be rewound to and replayed)
+  $('logList').innerHTML = items.length ? items.map(l => `<div class="e"><i style="background:var(${(LOG_CLS[l.cls] || LOG_CLS.tool)[1]})"></i><span>${esc(l.text)}${l.n > 1 ? ` <b>×${l.n}</b>` : ''}${canGo && l.cls === 'nuc' && l.t !== undefined ? ` <button class="lgo" data-t="${l.t}" title="Rewind to just before this and watch it again in slow motion">⟲ replay</button>` : ''}</span><span class="c">${esc(fmtTime(l.t * PHYS.TU_S))}</span></div>`).join('')
     : '<div class="empty">No events yet. Bonds, reactions, ionizations, captures and decays are listed here as they happen.</div>';
   restoreScroll('tp-log');
 }
@@ -3376,6 +3434,26 @@ const PRESETS = {
     build() { baseWorld(60, 40, 310, 0.05); W.warp = 2e13; const ox = [];
       for (let i = 0; i < 10; i++) for (let j = 0; j < 6; j++) { const m = addMolecule('H2O', -24 + i * 5.3, -14 + j * 5.6, rnd() * 6, 310); const o = m.find(a => a.Z === 8); if (o) ox.push(o); }
       for (let k = 0; k < 8 && ox.length; k++) { const o = ox.splice(Math.floor(rnd() * ox.length), 1)[0]; o.N = 7; refresh(o); } } },
+  pionbeam: { group: 'Nuclear', name: 'Pion beam into carbon', tool: 'inspect', spec: { kind: 'exo', sp: 'pi-' },
+    hint: '<b>Negative pions at 200 MeV into a stack of coronene molecules (flakes of graphite, C₂₄H₁₂).</b> Most pass through, ionizing as they go; one that meets a carbon nucleus scatters, is absorbed on a pair of nucleons (the nucleus boils off what it can), or makes more pions. A slowed π⁻ is caught by an atom and absorbed: the nucleus breaks up. The captions name each encounter.',
+    build() { baseWorld(70, 40, 300, 0.05); W.wall = 'open'; W.decayOn = true;
+      for (let i = 0; i < 2; i++) for (let j = 0; j < 3; j++) addMolecule('coronene', 2 + i * 13, -12 + j * 12, 0, 300);
+      W.sources.push({ x: -34, y: 0, ux: 1, uy: 0, spec: { kind: 'exo', sp: 'pi-' }, KE: 2e8, rate: 0.3, acc: 0.6, jitter: 30 }); } },
+  photonuc: { group: 'Nuclear', name: 'γ rays knocking out neutrons', tool: 'inspect', spec: { kind: 'gamma' },
+    hint: '<b>13.5 MeV γ rays into a block of lead</b>, at the peak of lead\'s giant dipole resonance, where the γ ray shakes the protons against the neutrons. Most γ rays turn into electron–positron pairs near a nucleus (pair production); about one in a hundred is swallowed by a nucleus, which then boils off a neutron: ²⁰⁸Pb(γ,n)²⁰⁷Pb. The pairs heat and ionize so small a block fast: let the bath (Normal) cool it, or reload (R).',
+    build() { baseWorld(60, 40, 300, 0.05);
+      for (let i = 0; i < 7; i++) for (let j = 0; j < 9; j++) addAtom('Pb', -6 + i * 3.5 + (j % 2) * 1.75, -14 + j * 3.5, { A: 208 });
+      W.sources.push({ x: -29, y: 0, ux: 1, uy: 0, spec: { kind: 'gamma' }, KE: 1.35e7, rate: 2, acc: 0.5, jitter: 26 }); } },
+  muonium: { group: 'Nuclear', name: 'Muonium in argon', tool: 'inspect', spec: { kind: 'exo', sp: 'mu+' },
+    hint: '<b>Slow positive muons stopping in argon gas.</b> A μ⁺ is a heavy positron: as it slows it pulls an electron off an argon atom about 60% of the time, making muonium (Mu), a hydrogen atom with a muon for its proton. The muon lives 2.2 µs (decay sped up here), then decays into a positron and two neutrinos, and the electron goes free.',
+    build() { baseWorld(60, 40, 120, 0.05); W.warp = 1e5;
+      scatter(70, 56, 36, (x, y) => addAtom('Ar', x, y), 3.6);
+      W.sources.push({ x: -29, y: 0, ux: 1, uy: 0, spec: { kind: 'exo', sp: 'mu+' }, KE: 1500, rate: 0.05, acc: 0.9, jitter: 20 }); } },
+  hyperfactory: { group: 'Nuclear', name: 'Hypernucleus factory', tool: 'inspect', spec: { kind: 'exo', sp: 'K-' },
+    hint: '<b>Slow negative kaons stopping in carbon (coronene, flakes of graphite).</b> A K⁻ is caught by a carbon atom and absorbed by a nucleon: K⁻p → Λπ⁰ or K⁻n → Λπ⁻. Usually the Λ flies out, but a few times in a hundred it stays in the nucleus: a hypernucleus (¹¹ΛB, ¹¹ΛC …), whose Λ decays later inside it (decay sped up here). Particle view (V) shows the Λ in the middle.',
+    build() { baseWorld(60, 40, 300, 0.05); W.warp = 1e3;
+      for (let i = 0; i < 2; i++) for (let j = 0; j < 3; j++) addMolecule('coronene', 0 + i * 13, -12 + j * 12, 0, 300);
+      W.sources.push({ x: -29, y: 0, ux: 1, uy: 0, spec: { kind: 'exo', sp: 'K-' }, KE: 1500, rate: 0.03, acc: 0.9, jitter: 30 }); } },
   antihydrogen: { group: 'Antimatter', name: 'Antihydrogen trap', tool: 'place', spec: SPEC_PBAR,
     hint: '<b>Antiprotons (violet) and positrons (pink) at 300 K, in a periodic box so nothing touches a wall.</b> A positron caught by an antiproton makes antihydrogen and gives off the same Balmer light as hydrogen, which is how CERN’s ALPHA experiment compares the two. Antihydrogen atoms bond into H̄₂. Drop in ordinary matter (pick H or O above) and watch it annihilate.',
     build() { baseWorld(46, 32, 300, 0.05); W.wall = 'wrap';
@@ -3490,8 +3568,8 @@ function challengeTick() {
 function buildPresetSelect() {
   const groups = {};
   for (const [k, p] of Object.entries(PRESETS)) (groups[p.group] = groups[p.group] || []).push([k, p.name]);
-  $('preset').innerHTML = Object.entries(groups).map(([g, items]) => `<optgroup label="${esc(g)}">${items.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join('')}</optgroup>`).join('');
-  $('preset').onchange = (e) => { undoMark('Load a setup'); loadPreset(e.target.value); e.target.blur(); };
+  $('preset').innerHTML = `<optgroup label="Mine"><option value="__mine">My experiments…</option></optgroup>` + Object.entries(groups).map(([g, items]) => `<optgroup label="${esc(g)}">${items.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join('')}</optgroup>`).join('');
+  $('preset').onchange = (e) => { if (e.target.value === '__mine') { syncPresetSelect(); e.target.blur(); openMine(); return; } undoMark('Load a setup'); loadPreset(e.target.value); e.target.blur(); };
 }
 function loadPreset(key) {
   if (!REW.restoring) { rewClear(); grClear(); if (R.measure) R.measure.length = 0; for (const k in PAIRS.h) { PAIRS.h[k].fill(0); PAIRS.ls[k].fill(0); } PAIRS.n = 0; PAIRS.ev.clear(); } // (a new world: its own past)
@@ -3961,6 +4039,15 @@ function rewGo(i) {
   REW.i = i; $('rewSlider').value = String(i); rewRestore(i === REW.snaps.length ? REW.now : REW.snaps[i]); rewLabel();
 }
 function rewStep(d) { if (REW.open) rewGo(REW.i + d); }
+/* The event browser (Log tab): back to the last snapshot before simulated time t, in slow motion, ready to play on. */
+function rewToEvent(t) {
+  if (!REW.snaps.length || REW.snaps[0].t >= t) { log('tool', 'That event is further back than the rewind keeps (Settings → General → Rewind)'); return; }
+  rewOpen(); if (!REW.open) return;
+  let i = 0; for (let k = 0; k < REW.snaps.length; k++) if (REW.snaps[k].t < t) i = k;
+  rewGo(i);
+  if (!W.slowHold) toggleSlowmo();
+  log('tool', `Rewound to ${fmtTime((t - REW.snaps[i].t) * PHYS.TU_S)} before the event: Play from here to watch it again, in slow motion`);
+}
 function rewLabel() {
   const i = REW.i, sn = i === REW.snaps.length ? REW.now : REW.snaps[i], ago = (REW.now.rt - sn.rt) / 1000;
   $('rewT').textContent = i === REW.snaps.length ? 'now' : `−${ago.toFixed(ago < 10 ? 1 : 0)} s · ${fmtTime(sn.t * PHYS.TU_S)}`;
@@ -3998,15 +4085,25 @@ function rewInit() {
 const GR = { t: [], rt: [], cols: {}, sp: new Map(), last: 0, max: 2400 };
 const GR_FIX = [['T', 'Temperature', (v) => fmtT(v)], ['Te', 'Electron temperature', (v) => fmtT(v)], ['n', 'Particles', (v) => Math.round(v).toLocaleString('en-US')],
   ['freeE', 'Free electrons', (v) => Math.round(v).toLocaleString('en-US')], ['ion', 'Ionized atoms', (v) => (100 * v).toFixed(1) + '%'], ['P', 'Wall pressure', (v) => fmtSI(v, 'N/m', 2)],
-  ['chem', 'Chemical heat released', (v) => fmtE(v)], ['nuc', 'Nuclear energy released', (v) => fmtE(v)], ['esc', 'Energy escaped', (v) => fmtE(v)]];
-function grClear() { GR.t.length = 0; GR.rt.length = 0; GR.cols = {}; GR.sp = new Map(); }
+  ['chem', 'Chemical heat released', (v) => fmtE(v)], ['nuc', 'Nuclear energy released', (v) => fmtE(v)], ['esc', 'Energy escaped', (v) => fmtE(v)],
+  ['pv', 'Graphed particle: speed', (v) => fmtSpeed(v)], ['pk', 'Graphed particle: kinetic energy', (v) => fmtE(v)], ['pd', 'Graphed particle: distance from where it started', (v) => fmtA(v)]];
+/* One particle to follow on the graph (right-click it → Graph it): its speed, energy and how far it has gone. */
+function grFollow(p) {
+  GR.track = p; GR.track0 = [p.x, p.y];
+  const sel = grSel(); for (const c of ['pv', 'pk']) if (!sel.includes(c)) sel.push(c);
+  try { store('graphSel', JSON.stringify(sel)); } catch (e) { /* (kept for this visit only) */ }
+  log('tool', `Graphing ${speciesLabel(p)}: its speed and energy every half second (Data tab)`);
+  showTab('data', true);
+}
+function grClear() { GR.t.length = 0; GR.rt.length = 0; GR.cols = {}; GR.sp = new Map(); GR.track = null; }
 function grSel() { try { const a = JSON.parse(store('graphSel') || 'null'); return Array.isArray(a) ? a : ['T', 'n']; } catch (e) { return ['T', 'n']; } }
 function grTick(now) {
   if (!UI.running || UI.menu || now - GR.last < 500) return;
   GR.last = now;
   const m = measure(), sp = speciesCounts(), L = W.ledger; let mols = 0; for (const [, e] of sp) mols += e.n;
   let P = NaN; try { const pr = wallPressure(mols, m.T); if (pr && pr.ok) P = pr.P; } catch (e) { /* (no walls) */ }
-  const row = { T: m.T, Te: m.Te, n: W.parts.reduce((a, p) => a + (p.dead ? 0 : 1), 0), freeE: m.freeE || 0, ion: m.ionFrac, P, chem: L.chem, nuc: L.nuc, esc: L.escaped };
+  const q = GR.track && !GR.track.dead ? GR.track : null, qv = q ? (q.rad ? q.sp : Math.hypot(q.vx, q.vy)) : NaN;
+  const row = { pv: qv, pk: q ? keOf(q) : NaN, pd: q ? Math.hypot(q.x - GR.track0[0], q.y - GR.track0[1]) : NaN, T: m.T, Te: m.Te, n: W.parts.reduce((a, p) => a + (p.dead ? 0 : 1), 0), freeE: m.freeE || 0, ion: m.ionFrac, P, chem: L.chem, nuc: L.nuc, esc: L.escaped };
   const k = GR.t.length; GR.t.push(W.t); GR.rt.push(now / 1000);
   for (const [c] of GR_FIX) (GR.cols[c] || (GR.cols[c] = new Array(k).fill(NaN))).push(row[c]);
   for (const [key, e] of sp.slice(0, 16)) if (!GR.sp.has(key)) GR.sp.set(key, { name: e.name, col: e.col, v: new Array(k).fill(0) });
@@ -4172,6 +4269,50 @@ function restoreAutosave() {
   setRunning(true); log('tool', 'Carried on where you left off');
   return true;
 }
+/* ---- My experiments: named saves, kept in the browser's database (IndexedDB: room for big setups, where the
+   autosave's storage holds a few megabytes). A setup that cannot be put back (chips, beams, lasers, a ramp) is kept
+   as which setup it is. */
+const MINE = { db: null };
+function mineDB() {
+  if (MINE.db) return Promise.resolve(MINE.db);
+  return new Promise((ok, no) => { try { const r = indexedDB.open('atomforge', 1); r.onupgradeneeded = () => r.result.createObjectStore('saves', { keyPath: 'id' }); r.onsuccess = () => { MINE.db = r.result; ok(MINE.db); }; r.onerror = () => no(r.error); } catch (e) { no(e); } });
+}
+function mineTx(mode, fn) { return mineDB().then(db => new Promise((ok, no) => { const tx = db.transaction('saves', mode), st = tx.objectStore('saves'), r = fn(st); tx.oncomplete = () => ok(r && r.result); tx.onerror = () => no(tx.error); })); }
+function mineSay(t) { const m = $('mineMsg'); if (m) m.textContent = t; }
+function mineRender() {
+  mineTx('readonly', st => st.getAll()).then(list => {
+    list = (list || []).sort((a, b) => b.savedAt - a.savedAt);
+    $('mineList').innerHTML = list.length ? list.map(d => `<div class="minerow"><button class="btn small" data-load="${esc(d.id)}">Load</button><span><b>${esc(d.name)}</b><br><span class="note">${esc(new Date(d.savedAt).toLocaleString())} · ${d.fresh ? 'the setup as it starts' : (d.n || 0).toLocaleString('en-US') + ' particles'}${d.preset && PRESETS[d.preset] ? ' · from ' + esc(PRESETS[d.preset].name) : ''}</span></span><button class="btn small danger" data-del="${esc(d.id)}" title="Delete it (a second press)">Delete</button></div>`).join('')
+      : '<p class="note">None yet: name the setup in the chamber now and save it.</p>';
+  }, () => { $('mineList').innerHTML = '<p class="note">This browser keeps no database here (private window?): saves cannot be kept.</p>'; });
+}
+function openMine() {
+  if (!MINE.bound) {
+    MINE.bound = true;
+    $('mineClose').onclick = () => hideModal('mineModal');
+    const save = () => {
+      const name = String($('mineName').value || '').trim().slice(0, 60) || (PRESETS[UI.preset] ? PRESETS[UI.preset].name : 'Experiment') + ' ' + new Date().toLocaleTimeString();
+      let d; try { d = undoOK() ? worldToJSON() : { app: 'Atom Forge', fresh: true }; } catch (e) { mineSay('Could not save this one: ' + (e.message || e)); return; }
+      Object.assign(d, { id: 'x' + Date.now().toString(36), name, savedAt: Date.now(), t: W.t, cam: [R.s, R.cx, R.cy], preset: UI.preset, n: W.parts.reduce((a, p) => a + (p.dead ? 0 : 1), 0) });
+      mineTx('readwrite', st => st.put(d)).then(() => { mineSay(`Saved “${name}”${d.fresh ? ' (as the setup it is: its chips or beams cannot be put back mid-run)' : ''}.`); $('mineName').value = ''; mineRender(); }, (e) => mineSay('Could not save: ' + ((e && e.message) || 'the browser refused')));
+    };
+    $('mineSave').onclick = save;
+    $('mineName').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } };
+    $('mineList').onclick = (e) => {
+      const l = e.target.closest('[data-load]'), dl = e.target.closest('[data-del]');
+      if (l) mineTx('readonly', st => st.get(l.dataset.load)).then(d => {
+        if (!d) return;
+        undoMark('Load an experiment');
+        if (d.fresh) { if (PRESETS[d.preset]) loadPreset(d.preset); }
+        else { if (!REW.restoring) { rewClear(); grClear(); } const r = worldFromJSON(d); if (typeof r === 'string') { mineSay('Could not load it: ' + r); return; } if (Number.isFinite(d.t)) W.t = d.t; if (Array.isArray(d.cam) && d.cam.every(Number.isFinite)) [R.s, R.cx, R.cy] = d.cam; UI.preset = typeof d.preset === 'string' ? d.preset : UI.preset; syncPresetSelect(); }
+        hideModal('mineModal'); log('tool', `Loaded “${d.name}”`);
+      });
+      if (dl) { if (!dl.classList.contains('armed')) { dl.classList.add('armed'); dl.textContent = 'Sure?'; return; } mineTx('readwrite', st => st.delete(dl.dataset.del)).then(mineRender); }
+    };
+  }
+  mineSay('Kept in this browser, as many as you like: everything in the chamber, the fields, the view.');
+  mineRender(); showModal('mineModal'); $('mineName').focus();
+}
 function syncPresetSelect() { const sel = $('preset'); if (sel && [...sel.options].some(o => o.value === UI.preset)) sel.value = UI.preset; }
 /* Tools remember their settings (Settings → Controls). */
 function optSave() { if (SET.keepOpt) store('opt', JSON.stringify(OPT)); }
@@ -4201,6 +4342,7 @@ function wakeTick() {
 /* Keyboard shortcuts (?) */
 const KEYS = [['Simulation', [['Space', 'Play / pause'], ['.', 'One frame'], ['R', 'Reload the setup'], ['[ / ]', 'Slower / faster'], ['\\', 'Slow motion'], [',', 'Rewind: back a step'], ['Ctrl+Z', 'Undo'], ['Ctrl+Shift+Z, Ctrl+Y', 'Redo']]],
   ['View', [['+ / −, wheel', 'Zoom'], ['0', 'Fit the box'], ['1 … 9', 'Go to a kept view'], ['Shift+1 … 9', 'Keep this view'], ['V', 'Particle view'], ['O', 'Orbitals'], ['B', 'Chamber only'], ['F11', 'Borderless full screen'], ['Esc', 'Menu (or leave chamber only, drop the selection)']]],
+  ['Particles', [['/', 'Find a particle by typing']]],
   ['Selection', [['Ctrl+C / Ctrl+V', 'Copy / paste'], ['Ctrl+A', 'Select all'], ['Delete', 'Delete the selected particle']]],
   ['Help', [['?', 'This list'], ['Shift+F10, menu key', 'Quick menu at the mouse'], ['Long press', 'Quick menu (touch, pen)']]]];
 function openKeys() {
@@ -4374,6 +4516,7 @@ function onKey(e) {
   if ((k === 'Delete' || k === 'Backspace') && R.msel.size) { deleteSelection(); return; }
   if ((k === 'Delete' || k === 'Backspace') && R.sel) { undoMark('Delete'); kill(R.sel); R.sel = null; renderInspect(); return; }
   if (tag === 'INPUT') return; // range sliders keep their arrow keys and letters stay safe
+  if (k === '/') { e.preventDefault(); const fb = document.querySelector('#palette [data-find]'); if (fb) pfindOpen(fb); return; }
   if (k === 'v' || k === 'V') { toggleParticleView(); return; }
   if (k === 'b' || k === 'B') { setChamberOnly(!DM.on); return; }
   if (k === '?') { e.preventDefault(); openKeys(); return; }
@@ -4621,7 +4764,13 @@ function settingsInit() {
    under the pointer (inspect it, take or give an electron, save its isotope, place more like it, stop it, delete it
    or its molecule), to a magnet (flip it, remove it) or at an empty spot (place one of the picked, saved or palette
    particles there, a spark, a magnet), then the tools and the run and view controls. */
-const QM = { open: false, acts: [] };
+const QM = { open: false, acts: [], ranges: [] };
+/* A slider in the quick menu, for editing what was right-clicked (a magnet's field, a beam source's energy): it
+   changes the thing as it moves, and the menu stays open. */
+function qmRange(label, min, max, val, text, fn, step = 1) {
+  QM.ranges.push(fn);
+  return `<label class="qmr"><span class="l">${esc(label)}</span><input type="range" min="${min}" max="${max}" step="${step}" value="${val}" data-qr="${QM.ranges.length - 1}" aria-label="${esc(label)}"><span class="num">${esc(text)}</span></label>`;
+}
 function qmBtn(label, fn, o = {}) {
   QM.acts.push(fn);
   return `<button type="button" role="menuitem" class="qmi${o.cls ? ' ' + o.cls : ''}" data-q="${QM.acts.length - 1}"${o.off ? ' disabled' : ''}` +
@@ -4632,6 +4781,24 @@ const qm2 = (a, b) => `<div class="qm2">${a}${b}</div>`;
 function qmStop(list) { // what grabbing does to a particle: at rest where it is
   for (const a of list) { if (a.dead) continue; if (a.rad || a.fast) { a.rad = false; a.fast = false; a.KE = 0; } a.vx = 0; a.vy = 0; }
 }
+/* Its motion, set from the menu: the energy (the Fire tool's scale, 0.01 eV … 100 GeV) and the direction, for a
+   particle or a whole molecule (which then moves as one, its own vibrations stilled). */
+function qmMotion(list) {
+  const live = () => list.filter(a => !a.dead), M = () => live().reduce((t, a) => t + a.m, 0);
+  const vel = () => { let px = 0, py = 0; for (const a of live()) { const [vx, vy] = velOf(a); px += a.m * vx; py += a.m * vy; } const m = M() || 1; return [px / m, py / m]; };
+  const ke = () => list.length === 1 && list[0].rad ? list[0].KE : (() => { const [vx, vy] = vel(); return 0.5 * M() * (vx * vx + vy * vy); })();
+  const st = { K: Math.max(0.01, ke()), th: Math.atan2(vel()[1], vel()[0]) };
+  const apply = () => {
+    const ux = Math.cos(st.th), uy = Math.sin(st.th), L = live(); if (!L.length) return;
+    if (L.length === 1) { setMotion(L[0], st.K, ux, uy); if (!L[0].trk && st.K > 50) startTrack(L[0]); return; }
+    const v = Math.sqrt(2 * st.K / M()); for (const a of L) { if (a.rad || a.fast) { a.rad = false; a.fast = false; } a.vx = v * ux; a.vy = v * uy; updateFast(a); }
+  };
+  const deg = (t) => `${Math.round(((t * 180 / Math.PI) % 360 + 360) % 360)}°`;
+  return qmRange('Energy', 0, 1700, Math.round(100 * (Math.log10(st.K) + 2)), fmtE(ke()), (v) => { undoMarkOnce('Set its motion'); st.K = Math.pow(10, v / 100 - 2); apply(); return fmtE(st.K); }) +
+    qmRange('Direction', 0, 359, Math.round(((st.th * 180 / Math.PI) % 360 + 360) % 360), deg(st.th), (v) => { undoMarkOnce('Set its motion'); st.th = v * Math.PI / 180; apply(); return deg(st.th); });
+}
+let _umo = 0; // (one undo mark per menu: a slider's many steps are one change)
+function undoMarkOnce(what) { if (_umo !== QM.serial) { _umo = QM.serial; undoMark(what); } }
 function qmParticle(p) {
   const atom = p.k === NUC && p.Z > 0, mol = atom && p.bonds.length ? molecule(p) : null;
   const ke = p.rad ? p.KE : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy);
@@ -4659,6 +4826,8 @@ function qmParticle(p) {
     qmBtn('Element…', () => openPT({ Z: p.Z, A: p.Z + p.N, q: p.ne ? p.q : 0, bare: p.ne === 0, anti: p.anti }), { title: 'This element and its isotopes in the periodic table' }));
   h += qm2(qmBtn(R.follow === p ? 'Following' : 'Follow it', () => { R.follow = R.follow === p ? null : p; }, { pressed: R.follow === p, cls: 'tick', title: 'Keep the view centred on it (pan, fit or Escape to stop)' }),
     qmBtn(mol ? 'Stop the molecule' : 'Stop it', () => qmStop(mol || [p]), { title: 'Bring it to rest where it is' }));
+  h += qmMotion(mol || [p]);
+  h += qmBtn('Graph it', () => grFollow(p), { title: 'Follow its speed and energy on the graph (Data tab)' });
   const gone = () => { if (R.sel && R.sel.dead) { R.sel = null; renderInspect(); } };
   h += mol ? qm2(qmBtn('Delete atom', () => { if (!p.dead) { undoMark('Delete'); kill(p); } gone(); }, { cls: 'danger' }), qmBtn(`Delete all ${mol.length}`, () => { undoMark('Delete a molecule'); for (const a of mol) if (!a.dead) kill(a); gone(); }, { cls: 'danger', title: 'Delete the whole molecule' }))
     : qmBtn('Delete', () => { if (!p.dead) { undoMark('Delete'); kill(p); } gone(); }, { cls: 'danger' });
@@ -4689,11 +4858,17 @@ function molsLike(f) { // every molecule in the box with this formula
   return out;
 }
 function qmMagnet(m) {
-  return `<div class="qmh"><div class="t1">Magnet pole</div><div class="t2">${m.B >= 0 ? 'N' : 'S'} · ${esc(fmtTesla(Math.abs(m.B)))}</div></div>` +
+  const sB = Math.round(100 * Math.log10(Math.max(10, Math.abs(m.B)))); // (the Magnet tool's own scale: 10 T … 1 GT)
+  return `<div class="qmh"><div class="t1">Magnet pole</div><div class="t2" id="qmMagT">${m.B >= 0 ? 'N' : 'S'} · ${esc(fmtTesla(Math.abs(m.B)))}</div></div>` +
+    qmRange('Field', 100, 900, sB, fmtTesla(Math.abs(m.B)), (v) => { undoMarkOnce('Change a magnet'); m.B = Math.sign(m.B || 1) * Math.pow(10, v / 100); const t = $('qmMagT'); if (t) t.textContent = `${m.B >= 0 ? 'N' : 'S'} · ${fmtTesla(Math.abs(m.B))}`; return fmtTesla(Math.abs(m.B)); }) +
+    qmRange('Radius', 0, 200, radS('magnet', m.R), fmtA(m.R), (v) => { undoMarkOnce('Change a magnet'); m.R = radR('magnet', v); return fmtA(m.R); }) +
     qm2(qmBtn('Flip its pole', () => { m.B = -m.B; }), qmBtn('Remove it', () => { const i = W.magnets.indexOf(m); if (i >= 0) W.magnets.splice(i, 1); }, { cls: 'danger' }));
 }
 function qmSource(s) { // a beam source made with the Fire tool (a collider's injectors are left alone)
-  return `<div class="qmh"><div class="t1">Beam source</div><div class="t2">${esc(specLabel(s.spec))} · ${esc(fmtE(s.KE))}</div></div>` +
+  const sE = Math.round(100 * (Math.log10(Math.max(0.01, s.KE)) + 2)); // (the Fire tool's scale: 0.01 eV … 100 GeV)
+  return `<div class="qmh"><div class="t1">Beam source</div><div class="t2" id="qmSrcT">${esc(specLabel(s.spec))} · ${esc(fmtE(s.KE))}</div></div>` +
+    qmRange('Energy', 0, 1700, sE, fmtE(s.KE), (v) => { s.KE = Math.pow(10, v / 100 - 2); const t = $('qmSrcT'); if (t) t.textContent = `${specLabel(s.spec)} · ${fmtE(s.KE)}`; return fmtE(s.KE); }) +
+    qmRange('Rate', 1, 40, Math.round(s.rate * 10), `${+(s.rate * 10).toFixed(1)} per 100 fs`, (v) => { s.rate = v / 10; return `${v} per 100 fs`; }) +
     qmBtn('Remove it', () => { const i = W.sources.indexOf(s); if (i >= 0) W.sources.splice(i, 1); }, { cls: 'danger' });
 }
 function qmHere(wx, wy) {
@@ -4722,7 +4897,7 @@ function qmGlobal(px, py, wx, wy) {
 }
 function openQuickMenu(px, py) {
   const m = $('qmenu'); if (!m) return;
-  hideTip(); QM.acts = [];
+  hideTip(); QM.acts = []; QM.ranges = []; QM.serial = (QM.serial || 0) + 1;
   const [wx, wy] = s2w(px, py), p = pickNear(px, py, 14), mag = p ? null : magnetAt(wx, wy);
   const src = p || mag ? null : W.sources.find(s => !s.beam && Math.hypot(s.x - wx, s.y - wy) < Math.max(1.5, 12 / R.s));
   m.innerHTML = (p ? qmParticle(p) : mag ? qmMagnet(mag) : src ? qmSource(src) : qmHere(wx, wy)) + qmGlobal(px, py, wx, wy);
@@ -4748,6 +4923,11 @@ function qmInit() {
     const fn = QM.acts[+b.dataset.q];
     closeQuickMenu(true);
     if (fn) fn();
+  });
+  m.addEventListener('input', (e) => { // an edit slider: change the thing at once, keep the menu open
+    const r = e.target.closest('[data-qr]'); if (!r) return;
+    const fn = QM.ranges[+r.dataset.qr]; if (!fn) return;
+    const t = fn(+r.value), num = r.parentElement.querySelector('.num'); if (num && typeof t === 'string') num.textContent = t;
   });
   m.addEventListener('contextmenu', (e) => e.preventDefault());
   document.addEventListener('pointerdown', (e) => { if (QM.open && !m.contains(e.target) && e.target !== R.cv) closeQuickMenu(); }, true);

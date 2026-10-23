@@ -39,7 +39,7 @@ const say = (...a) => console.log(...a);
   if (!(drawn > 0.002 || glBalls > 0)) { fails++; say('FAIL chamber looks blank', drawn, glBalls); }
   check('page load');
   // 2. every preset runs; frame cost
-  const presets = await page.$$eval('#preset option', (os) => os.map(o => o.value).filter(Boolean));
+  const presets = await page.$$eval('#preset option', (os) => os.map(o => o.value).filter(v => v && v !== '__mine'));
   const timing = [];
   for (const k of presets) {
     await page.selectOption('#preset', k);

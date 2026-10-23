@@ -76,6 +76,18 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.64.0: editing what is placed, new setups, an event browser, named saves
+- Right-click menu edits: a magnet's field and size (the Magnet tool's scales), a Fire-tool beam source's energy and rate, and any particle's (or molecule's) energy and direction; each slider is one undo step. "Graph it" follows a particle on the Data tab's graph (its speed, kinetic energy, distance from where it started).
+- Whole-molecule grab takes the ions held ionically to the molecule too (opposite charges in contact, as the Ionic view draws them), so a salt crystal comes along whole (grabGroup).
+- Place › Moving: at the bath temperature, or at rest.
+- Inspect shows a charged particle's circle in a magnetic field: its size and turns per second (relativistic γmv/qB). A thermal electron in a 1 GT field circles on a loop 10⁻⁶ Å across, which is why it looks still while reading km/s.
+- Walls act on an atom's edge (its drawn radius in from the wall line), not its centre: a crowd of ions pressed against a wall stays inside it (150 Na⁺: drawn overhang 0.82 Å → 0.11 Å, the soft wall's own give). Force, energies and the escape rescue all use wallIn.
+- New setups (Nuclear): Pion beam into carbon, γ rays knocking out neutrons (²⁰⁸Pb(γ,n), about one γ in a hundred), Muonium in argon, Hypernucleus factory. They run slowly: what they release ionizes so small a target heavily. Not made: an X-ray tube. A real anode stops its electrons in micrometres; the box is nanometres, so bremsstrahlung would show about once per hundred thousand electrons.
+- Event browser: each nuclear event in the Log tab has a ⟲ replay button: back to the last rewind snapshot before it, slow motion on, ready to play.
+- Type-to-find particles: 🔍 Find in the particle bar (or /): symbols, names, ids and spelled-out Greek (lambda, xi, muonium, pi-).
+- My experiments (top of the setup list): named saves in the browser's database (IndexedDB), as many as wanted, with load and delete.
+- t_energy skips the four beam setups (their beams add energy, as the spallation source's does); t_page's walk through the setups skips My experiments; t_features covers the rest.
+
 ## 0.63.0: speed, energy and display fixes after 0.62
 - Speed check against 0.61 (a step's time, the same setups and seeds): the new neutron pair pass now sweeps the paths' x-extents (sorted once a step, no allocation) and rejects far pairs before working out their reach; a profile of the spallation source puts the pass itself at 2% of the step, the rest of its time being the collisions that now happen. Steps elsewhere are as in 0.61, except where 0.62's physics makes more happen (the antiproton droplet, whose pions now break nuclei up and leave the water ionized).
 - Two nucleons above ~20 MeV no longer scatter isotropically on every pass when the nucleon–nucleon tables said they missed (0.62's relativistic fallback applied at any energy: 150 MeV n–n met 30 times in 30 instead of 15).

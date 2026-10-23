@@ -526,6 +526,48 @@ const { openPage } = require('./browser');
   check(nnOk && fOk && !r25.bad.length && r25.worst < 1e-3 && r25.brems > 0.5 && r25.brems < 1.5 && /²⁰⁷Pb \+ n/.test(r25.gdr) && r25.gdrE < 1e-2 && r25.mu >= 6 && r25.mu <= 19,
     `0.62: neutrons met every time (${Object.entries(r25.nn).map(([k, v]) => k + ' ' + v + '/12').join(', ')}); hadrons on carbon: ${Object.entries(r25.fates).map(([k, v]) => k + ' ' + v).join(', ')}; charge and baryon number kept, energy to ${r25.worst.toExponential(0)} eV; bremsstrahlung at ${r25.brems.toFixed(2)} of T·Z/800; ${r25.gdr}; muonium from ${r25.mu} of 20 stopped μ⁺`,
     '0.62: ' + JSON.stringify(r25));
+  // 0.64: a placed magnet's field and size, and a beam source's energy and rate, edited from the right-click menu
+  const r26 = await page.evaluate(() => {
+    loadPreset('empty'); setRunning(false); R.s = 20; R.cx = 0; R.cy = 0; closeQuickMenu();
+    const mg = { x: 5, y: 0, R: 9, B: -1e4 }; W.magnets.push(mg);
+    const set = (k, v) => { const r = document.querySelectorAll('#qmenu [data-qr]')[k]; r.value = String(v); r.dispatchEvent(new Event('input', { bubbles: true })); return r.parentElement.querySelector('.num').textContent; };
+    openQuickMenu(w2sx(5), w2sy(0)); const t1 = set(0, 600), t2 = set(1, 100), open1 = QM.open; closeQuickMenu(); W.magnets.length = 0; // (its new size would reach the source's spot)
+    const src = { x: -5, y: 0, ux: 1, uy: 0, spec: SPEC_P, KE: 1e3, rate: 0.3, acc: 0 }; W.sources.push(src);
+    openQuickMenu(w2sx(-5), w2sy(0)); const t3 = set(0, 800), t4 = set(1, 20); closeQuickMenu(); W.sources.length = 0; W.magnets.length = 0;
+    return { B: mg.B, R: mg.R, t1, t2, open1, KE: src.KE, rate: src.rate, t3, t4 };
+  });
+  check(Math.abs(r26.B + 1e6) < 1 && r26.R > 50 && r26.R < 60 && r26.open1 && Math.abs(r26.KE - 1e6) < 1 && Math.abs(r26.rate - 2) < 1e-9,
+    `0.64: right-click edits: a magnet set to ${r26.t1} (still a S pole) and ${r26.t2} across; a beam source to ${r26.t3}, ${r26.t4}`, '0.64: ' + JSON.stringify(r26));
+  // 0.64: crystal grab, placing at rest, a particle's motion from the menu, orbit info, finding particles, replay
+  // buttons, a graphed particle, named saves
+  const r27 = await page.evaluate(async () => {
+    const out = {};
+    loadPreset('brine'); setRunning(false); const na = W.parts.find(p => p.Z === 11 && Math.abs(p.x) < 2 && Math.abs(p.y) < 2) || W.parts.find(p => p.Z === 11); out.grab = grabGroup(na).filter(p => p.Z === 11 || p.Z === 17).length;
+    loadPreset('empty'); setRunning(false); W.T = 3000; OPT.place.rest = true; const ps = placeSpec({ kind: 'atom', Z: 18, A: 40 }, 0, 0, 5); out.rest = ps.every(p => p.vx === 0 && p.vy === 0); OPT.place.rest = false;
+    R.s = 20; R.cx = 0; R.cy = 0; closeQuickMenu(); const e = addLepton(ELEC, 6, 6); e.vx = 0; e.vy = 0;
+    openQuickMenu(w2sx(6), w2sy(6)); const rs = document.querySelectorAll('#qmenu [data-qr]'); out.nr = rs.length;
+    rs[0].value = '700'; rs[0].dispatchEvent(new Event('input', { bubbles: true })); rs[1].value = '90'; rs[1].dispatchEvent(new Event('input', { bubbles: true })); closeQuickMenu();
+    out.ke = keOf(e); out.up = e.vy > 0 && Math.abs(e.vx) < 1e-6 * Math.abs(e.vy);
+    W.Bz = -1e9; e.vx = 0; e.vy = 0; setMotion(e, 3.3e-4, 1, 0); out.gyro = gyroRows(-1, PHYS.ME, 1, Math.hypot(e.vx, e.vy), e.x, e.y, e).map(r => r[1]).join(); W.Bz = 0;
+    out.find = ['lambda', 'muonium', 'pi-', 'antineutron', 'xi'].map(q => { const m = pfindMatch(q)[0]; return m ? specLabel(m.sp) : '-'; }).join(' ');
+    grFollow(e); out.graph = GR.track === e && grSel().includes('pv');
+    // replay buttons: a nuclear event logged after rewind snapshots exist
+    loadPreset('water'); SET.rewOn = true; SET.rewEvery = 0.25; REW.last = 0; setRunning(true); await new Promise(r => setTimeout(r, 900)); setRunning(false);
+    log('nuc', 'Test event'); UI.lastLogSeq = -1; renderLog(); const btn = document.querySelector('#logList .lgo'); out.lgo = !!btn;
+    if (btn) { btn.click(); out.rewound = REW.open && REW.i < REW.snaps.length && W.slowHold; rewLive(); if (W.slowHold) toggleSlowmo(); }
+    // named saves
+    openMine(); $('mineName').value = 'Test save 0.64'; $('mineSave').click(); await new Promise(r => setTimeout(r, 400));
+    const rows = [...document.querySelectorAll('#mineList .minerow')].filter(r => /Test save 0\.64/.test(r.textContent)); out.saved = rows.length;
+    const n0 = W.parts.filter(p => !p.dead).length; loadPreset('empty');
+    if (rows[0]) { rows[0].querySelector('[data-load]').click(); await new Promise(r => setTimeout(r, 400)); }
+    out.loaded = W.parts.filter(p => !p.dead).length === n0;
+    openMine(); await new Promise(r => setTimeout(r, 300)); for (const r of [...document.querySelectorAll('#mineList .minerow')].filter(r => /Test save 0\.64/.test(r.textContent))) { const d = r.querySelector('[data-del]'); d.click(); d.click(); }
+    await new Promise(r => setTimeout(r, 300)); hideModal('mineModal');
+    return out;
+  });
+  check(r27.grab === 36 && r27.rest && r27.nr === 2 && Math.abs(r27.ke - 1e5) < 1 && r27.up && /×10⁻⁶ Å across/.test(r27.gyro) && r27.find === 'Λ Mu π⁻ n̄ Ξ⁰' && r27.graph && r27.lgo && r27.rewound && r27.saved === 1 && r27.loaded,
+    `0.64: a whole crystal grabbed (${r27.grab} ions); placed at rest; an electron set to 100 keV, straight up, from its menu; ${r27.gyro}; found ${r27.find}; graphed; an event replayed; an experiment saved and loaded`,
+    '0.64: ' + JSON.stringify(r27));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

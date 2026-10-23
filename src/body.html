@@ -458,6 +458,17 @@
   </div>
 </div>
 
+<div class="modal" id="mineModal" hidden>
+  <div class="dialog sdialog" role="dialog" aria-modal="true" aria-labelledby="mineTitle">
+    <header><h2 id="mineTitle">My experiments</h2><button class="btn small" id="mineClose">Close</button></header>
+    <section class="sgroup">
+      <div class="brow"><input class="msearch" id="mineName" maxlength="60" placeholder="Name this setup" autocomplete="off" spellcheck="false" aria-label="Name"><button class="btn go" id="mineSave">Save it</button></div>
+      <p class="note" id="mineMsg" aria-live="polite">Kept in this browser, as many as you like: everything in the chamber, the fields, the view.</p>
+      <div id="mineList" class="minelist"></div>
+    </section>
+  </div>
+</div>
+
 <div class="modal" id="askModal" hidden>
   <div class="dialog sdialog" role="dialog" aria-modal="true" aria-labelledby="askTitle">
     <header><h2 id="askTitle">Ask Claude for a setup</h2><button class="btn small" id="askClose">Close</button></header>

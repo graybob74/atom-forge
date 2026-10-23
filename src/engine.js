@@ -1302,12 +1302,9 @@ function localPE(set, skip) {
   if (W.magnets.length) { const kT = PHYS.KB * Math.max(W.T, 1); for (const p of set) if (!p.dead) V += magU(p, kT); }
   farMetalPairs((a, b, dx, dy, r) => { V += metalV(a, b, r); }, set);
   if (W.wall === 'reflect') { // soft walls
-    const hw = W.box.w / 2, hh = W.box.h / 2;
     for (const p of set) {
       if (p.fast || p.rad || p.k !== NUC) continue;
-      const k = wallK(p);
-      if (p.x > hw) V += 0.5 * k * (p.x - hw) ** 2; else if (p.x < -hw) V += 0.5 * k * (-hw - p.x) ** 2;
-      if (p.y > hh) V += 0.5 * k * (p.y - hh) ** 2; else if (p.y < -hh) V += 0.5 * k * (-hh - p.y) ** 2;
+      V += wallPE(p);
     }
   }
   for (const p of set) {
@@ -1962,14 +1959,15 @@ function computeForces1() {
 /* The soft walls' push on the atoms in MD past them (electrons: in leptonExtras). Its own small function: inside the
    force pass's long body the loop ran several times slower. */
 let _wallFs = 0; // (the walls' total push this force evaluation, eV/Å)
-function softWalls(mdI, nmd, hw, hh) {
-  const K = S.k, M = S.m, X = S.x, Y = S.y, FX = S.fx, FY = S.fy;
+function softWalls(mdI, nmd, hw0, hh0) {
+  const K = S.k, M = S.m, X = S.x, Y = S.y, FX = S.fx, FY = S.fy, OBJ = S.obj, R0 = 0.1 * Math.min(W.box.w, W.box.h);
   let fs = 0;
   for (let q = 0; q < nmd; q++) {
     const i = mdI[q], x = X[i], y = Y[i];
-    if (x <= hw && x >= -hw && y <= hh && y >= -hh) continue; // (inside: no push)
+    if (x <= hw0 - R0 && x >= R0 - hw0 && y <= hh0 - R0 && y >= R0 - hh0) continue; // (well inside: no push)
     if (K[i] !== NUC) continue;
-    const k = 30 * Math.min(1, M[i]); // (wallK)
+    const k = 30 * Math.min(1, M[i]), r = wallIn(OBJ[i]), hw = hw0 - r, hh = hh0 - r; // (wallK, wallIn)
+    if (x <= hw && x >= -hw && y <= hh && y >= -hh) continue;
     if (x > hw) { FX[i] -= k * (x - hw); fs += k * (x - hw); } else if (x < -hw) { FX[i] += k * (-hw - x); fs += k * (-hw - x); }
     if (y > hh) { FY[i] -= k * (y - hh); fs += k * (y - hh); } else if (y < -hh) { FY[i] += k * (-hh - y); fs += k * (-hh - y); }
   }
@@ -1978,6 +1976,9 @@ function softWalls(mdI, nmd, hw, hh) {
 /* Soft-wall stiffness: one oscillation frequency for every heavy particle. (Free electrons bounce off the walls
    elastically on their own short steps: leptonWall.) */
 function wallK(p) { return 30 * Math.min(1, p.m); }
+/* The soft walls act on an atom's edge, not its centre (0.64): its drawn radius in from the wall line, so a crowd
+   pressed against a wall stays inside it. (At most a tenth of the box, for a box shrunk round big atoms.) */
+function wallIn(p) { return Math.min(p.rd || 0, 0.1 * Math.min(W.box.w, W.box.h)); }
 /* Single-particle forces on free (MD) electrons and positrons: applied field, the Push/Pull and Grab tools. They
    belong to the fast part; total = true also adds them to the total force. */
 const GRAB_M = 0.01;
@@ -2979,7 +2980,7 @@ function pairPE(a, b) {
   return V;
 }
 function wallPE(p) {
-  const hw = W.box.w / 2, hh = W.box.h / 2, k = 30 * Math.min(1, p.m);
+  const r = wallIn(p), hw = W.box.w / 2 - r, hh = W.box.h / 2 - r, k = 30 * Math.min(1, p.m);
   let V = 0;
   if (p.x > hw) V += 0.5 * k * (p.x - hw) ** 2; else if (p.x < -hw) V += 0.5 * k * (-hw - p.x) ** 2;
   if (p.y > hh) V += 0.5 * k * (p.y - hh) ** 2; else if (p.y < -hh) V += 0.5 * k * (-hh - p.y) ** 2;
@@ -5099,7 +5100,7 @@ function moveWalls(dt) {
 }
 function walls(p) {
   if (p.dead || p.rad || (p.k === NUC && p.Z === 0)) return;
-  const hw = W.box.w / 2, hh = W.box.h / 2;
+  const hw0 = W.box.w / 2, hh0 = W.box.h / 2, hw = hw0, hh = hh0;
   if (W.wall === 'wrap') {
     if (p.x < -hw) { p.x += W.box.w; p.ox += W.box.w; } else if (p.x > hw) { p.x -= W.box.w; p.ox -= W.box.w; }
     if (p.y < -hh) { p.y += W.box.h; p.oy += W.box.h; } else if (p.y > hh) { p.y -= W.box.h; p.oy -= W.box.h; }
@@ -5109,7 +5110,7 @@ function walls(p) {
   if (W.wall === 'open') { if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh) kill(p); return; }
   const uw = W.box.uw, uh = W.box.uh;
   if (!p.fast) { // soft walls handle slow particles; only rescue deep escapees, handing back their potential energy
-    const m = 1.5;
+    const m = 1.5, rin = p.k === NUC ? wallIn(p) : 0, hw = hw0 - rin, hh = hh0 - rin; // (the wall where its edge meets it)
     if (!(p.x < -hw - m || p.x > hw + m || p.y < -hh - m || p.y > hh + m)) return;
     const one = p.k === NUC && _nmd ? new Set([p]) : null, k = wallK(p);
     const U0 = one ? localPE(one) : 0;
@@ -5747,12 +5748,9 @@ function totalEnergy() {
   for (const bd of W.bonds) pe += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
   if (W.wall === 'reflect') {
-    const hw = W.box.w / 2, hh = W.box.h / 2;
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls
-      const k = wallK(p);
-      if (p.x > hw) pe += 0.5 * k * (p.x - hw) ** 2; else if (p.x < -hw) pe += 0.5 * k * (-hw - p.x) ** 2;
-      if (p.y > hh) pe += 0.5 * k * (p.y - hh) ** 2; else if (p.y < -hh) pe += 0.5 * k * (-hh - p.y) ** 2;
+      pe += wallPE(p);
     }
   }
   return { ke, pe, internal, esc: W.ledger.escaped, total: ke + pe + internal + W.ledger.escaped };
