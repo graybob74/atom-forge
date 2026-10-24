@@ -1,4 +1,4 @@
-<title>Atom Forge 0.90.0</title>
+<title>Atom Forge 0.91.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -254,13 +254,14 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .fps { position: absolute; right: 12px; top: 54px; font-family: var(--font-data); font-size: 10.5px; line-height: 1.5; color: var(--ch-fg); opacity: 0.55;
   background: rgba(6, 10, 15, 0.45); border-radius: 5px; padding: 0 6px; pointer-events: none; font-variant-numeric: tabular-nums; }
 .fps:empty { display: none; }
+#pausedBadge:not([hidden]) ~ .fps { top: 82px; } /* (below the paused badge, which sits under the palette bar, 0.91) */
 .narr { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); width: min(620px, calc(100% - 32px)); box-sizing: border-box;
   background: rgba(8, 12, 18, 0.86); color: #e8eef5; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 10px; padding: 8px 12px;
   font-size: 13px; line-height: 1.4; pointer-events: none; transition: opacity 0.6s; z-index: 5; }
 .narr b { color: #ffd166; font-weight: 600; }
 .narr.fade { opacity: 0; }
 .rec-badge { right: auto; left: 12px; color: #ff6b6b; border-color: rgba(255, 107, 107, 0.6); background: rgba(24, 6, 6, 0.75); }
-.paused-badge { position: absolute; right: 50px; top: 12px; font-family: var(--font-data); font-size: 11px; letter-spacing: 0.12em; color: #ffd166;
+.paused-badge { position: absolute; right: 12px; top: 54px; z-index: 3; font-family: var(--font-data); font-size: 11px; letter-spacing: 0.12em; color: #ffd166;
   border: 1px solid rgba(255, 209, 102, 0.5); border-radius: 6px; padding: 2px 7px; background: rgba(20, 16, 4, 0.7); }
 
 /* ---------- panel ---------- */
@@ -9189,14 +9190,15 @@ function eventSlow(realDt) {
   if (!S) return 1;
   const age = W.rt - S.t0;
   let want = 1;
-  if (S.on && W.slowmo && age < 3) {
+  const base = W.baseSpf || W.simPerFrame, slower = clamp(base / W.simPerFrame, 1, 64); // (slowed down further with the speed buttons: it lasts that much longer too, up to 64 times, 0.91)
+  if (S.on && W.slowmo && age < 3 * slower) {
     let v = 0;
     for (const p of W.parts) {
       if (p.dead || p.born < S.t0 - 1e-9 || (p.k !== NUC && !p.rad)) continue; // stray slow electrons don't hold time up
       v = Math.max(v, p.rad ? p.sp : Math.hypot(p.vx, p.vy));
     }
     for (const o of W.exo) if (!o.dead && o.born >= S.t0 - 1e-9) v = Math.max(v, o.v); // pions, kaons, muons in flight: near c, so a frame moves them 2% of the box too
-    want = v > 0 ? clamp(0.02 * Math.min(W.box.w, W.box.h) / (v * W.simPerFrame), 1 / 50000, 1) : 1; // (against the speed as set: the products cross about 2% of the box a frame whatever the Motion setting)
+    want = v > 0 ? clamp(0.02 * Math.min(W.box.w, W.box.h) / (v * base), 1 / 50000, 1) : 1; // (against the setup's normal speed, as the slow-motion button: the products cross about 2% of the box a frame at 1×, and the speed buttons scale that, 0.91; it was against the speed as set, which cancelled them out)
     if (want > 0.99 && age > 0.25) S.on = false;
   } else S.on = false;
   // drop at once (the products must not get away in the first frame), recover gently (in logarithmic time)
@@ -9217,7 +9219,7 @@ function simFrame(realDt, budgetMs) {
   const t0 = performance.now();
   let simAdv = 0, steps = 0, cut = false;
   const slow = slowFactor(realDt), fr = clamp(realDt / FRAME_REF, 0.01, 3); // (the frame's share of a sixtieth: any frame rate up to 6,000 fps advances the same simulated time per second)
-  let target = W.simPerFrame * slow * fr; const floor = W.flights.length ? 1e-9 : DT_MIN; // (with light in flight a frame may be shorter than the shortest normal step: slowed down that far, the light is still seen to slow)
+  let target = W.simPerFrame * slow * fr; const floor = W.flights.length || slow < 0.999 ? 1e-9 : DT_MIN; // (with light in flight, or in slow motion, a frame may be shorter than the shortest normal step: slowed down that far, what is followed is still seen to slow; at a step a frame this costs nothing, 0.91)
   // set below one shortest step a frame (1/512× of a fine setup): the frames' time is saved up and run once it makes a
   // whole step, so the motion is as slow as asked and not one step a frame, whatever the fps. (Slow motion keeps its
   // floor of a step a frame: it follows fast particles, which must move every frame to be followed.)
@@ -9231,6 +9233,7 @@ function simFrame(realDt, budgetMs) {
     if (performance.now() - t0 > budgetMs) { cut = true; break; }
   }
   W.rt += realDt;
+  { const ad = Math.min(realDt, 1 / 30); for (const g of W.strings || []) g.age = (g.age || 0) + ad; for (const g of W.qgp || []) g.age = (g.age || 0) + ad; } // (the pictures of strings breaking and of a plasma keep their own clock: a slow frame, as when thousands of hadrons appear at once, cannot skip them, 0.91)
   // chips keep the pace the simulation is set to, in real time, even when a crowded box makes the atoms (and the frames)
   // fall behind it: their time is warped anyway (a flash pulse takes 10 µs)
   if (W.chips.length) chipsTick((cut ? W.simPerFrame * slow * clamp(realDt * 60, 0.1, 6) : simAdv) * PHYS.TU_S, realDt); // (in proportion to the frame's length: at 144 or 240 fps a frame is a fraction of a sixtieth)
@@ -12597,6 +12600,7 @@ function render(rt) {
   drawFlashes(rt);
   if (R.view.rays) { drawRays(rt); drawFlights(); drawPhotonLabels(rt); }
   drawEvents(rt);
+  drawQGP();
   drawZones();
   drawSources();
   drawOverlay();
@@ -13171,15 +13175,14 @@ function drawParticles(rt) {
    neutral ones, which leave no track in a real detector, a ring and a dotted path. */
 const _xpHex = {};
 /* Strings breaking (W.strings): a colour string stretching out both ways from a hard collision, then snapping into
-   pieces, each piece the seed of a hadron (shown in real time, about a second; the real thing takes 10⁻²³ s). And a
-   quark–gluon plasma (W.qgp): a hot drop of free quarks and gluons that swells, cools from white to red and freezes
-   out into hadrons. Pictures of what happened: the products themselves are already flying. */
+   pieces, each piece the seed of a hadron (shown in real time, about a second; the real thing takes 10⁻²³ s). (The
+   quark–gluon plasma: drawQGP.) Pictures of what happened: the products themselves are already flying. */
 function drawStrings(rt) {
   const ctx = R.ctx;
   if (W.strings && W.strings.length) {
     ctx.save(); ctx.lineCap = 'round';
     for (let i = W.strings.length - 1; i >= 0; i--) {
-      const s = W.strings[i], age = rt - s.t0;
+      const s = W.strings[i], age = s.age || 0;
       if (age > 1.4 || age < 0) { W.strings.splice(i, 1); continue; }
       const grow = Math.min(1, age / 0.35), Lpx = Math.max(60, 12 * R.s) * grow, a = age < 0.9 ? 1 : 1 - (age - 0.9) / 0.5; // (its length on screen, in pixels)
       const x = w2sx(s.x), y = w2sy(s.y), ux = s.ax, uy = -s.ay, n = s.n, broken = age > 0.35;
@@ -13193,24 +13196,38 @@ function drawStrings(rt) {
     }
     ctx.restore();
   }
-  if (W.qgp && W.qgp.length) {
-    ctx.save();
-    for (let i = W.qgp.length - 1; i >= 0; i--) {
-      const g = W.qgp[i], age = rt - g.t0;
-      if (age > 2.2 || age < 0) { W.qgp.splice(i, 1); continue; }
-      const x = w2sx(g.x), y = w2sy(g.y), r = (14 + 40 * Math.min(1, age / 1.4)) * Math.max(0.6, Math.min(2, R.s / 6)), heat = Math.max(0, 1 - age / 1.4), a = age < 1.4 ? 1 : 1 - (age - 1.4) / 0.8;
-      const core = `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.75 * a).toFixed(3)})`;
-      const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, core); gr.addColorStop(0.6, `rgba(255,110,40,${(0.35 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,60,20,0)');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
-      // free quarks and gluons milling about inside, in their colours
-      const cols = ['255,90,90', '90,220,120', '100,150,255'];
-      for (let k = 0; k < 36; k++) { const ph = k * 2.399 + age * (1.5 + (k % 5) * 0.4), rr = r * 0.75 * Math.sqrt(((k * 0.618) % 1)), qx = x + rr * Math.cos(ph), qy = y + rr * Math.sin(ph);
-        ctx.fillStyle = k % 4 === 3 ? `rgba(255,255,255,${(0.6 * a * heat + 0.2 * a).toFixed(3)})` : `rgba(${cols[k % 3]},${(0.8 * a).toFixed(3)})`; ctx.beginPath(); ctx.arc(qx, qy, k % 4 === 3 ? 1.6 : 2.4, 0, 2 * Math.PI); ctx.fill(); }
-      if (R.view.labels !== false) { ctx.font = '11px ' + (typeof cssVar === 'function' ? cssVar('--font-data') : 'monospace'); ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.textAlign = 'center';
-        ctx.fillText(age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, x, y - r - 6); ctx.textAlign = 'left'; }
+}
+/* A quark–gluon plasma (W.qgp): a hot drop of free quarks (coloured) and gluons (pale) that swells, cools from white to
+   red and freezes out into hadrons. Drawn above the hadron spray and the event captions, at least about 70 pixels
+   across whatever the zoom, on its own clock (0.91: it was small, under everything, and a slow frame could skip it). */
+function qgpDisc(g) { const age = g.age || 0; return [w2sx(g.x), w2sy(g.y), (36 + 84 * Math.min(1, age / 1.4)) * clamp(R.s / 6, 0.8, 1.5)]; } // (where it is on screen, and how big)
+function drawQGP() {
+  if (!W.qgp || !W.qgp.length) return;
+  const ctx = R.ctx;
+  ctx.save();
+  for (let i = W.qgp.length - 1; i >= 0; i--) {
+    const g = W.qgp[i], age = g.age || 0;
+    if (age > 2.2) { W.qgp.splice(i, 1); continue; }
+    const [x, y, r] = qgpDisc(g), heat = Math.max(0, 1 - age / 1.4), a = age < 1.4 ? 1 : 1 - (age - 1.4) / 0.8;
+    const core = `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.88 * a).toFixed(3)})`;
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, core); gr.addColorStop(0.6, `rgba(255,${Math.round(110 + 60 * heat)},40,${(0.72 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,60,20,0)'); // (nearly opaque inside, so the spray and labels under it do not show through)
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
+    // free quarks (red, green, blue: their colour charge) and gluons milling about inside
+    const cols = ['255,80,80', '70,220,110', '90,140,255'], n = 54, qr = clamp(r / 22, 2.6, 4.5);
+    ctx.lineWidth = 1; ctx.strokeStyle = `rgba(20,10,5,${(0.55 * a).toFixed(3)})`;
+    for (let k = 0; k < n; k++) {
+      const ph = k * 2.399 + age * (1.2 + (k % 5) * 0.35) * (k % 2 ? 1 : -1), rr = r * 0.78 * Math.sqrt(((k * 0.618) % 1)), qx = x + rr * Math.cos(ph), qy = y + rr * Math.sin(ph), glu = k % 3 === 2;
+      ctx.fillStyle = glu ? `rgba(255,245,200,${(0.85 * a).toFixed(3)})` : `rgba(${cols[k % 3 === 0 ? (k >> 1) % 3 : (k >> 2) % 3]},${(0.95 * a).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(qx, qy, glu ? qr * 0.6 : qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
     }
-    ctx.restore();
+    if (R.view.labels !== false) {
+      ctx.font = '600 12px ' + (typeof cssVar === 'function' ? cssVar('--font-data') : 'monospace'); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = y - r - 8;
+      ctx.fillStyle = `rgba(20,10,6,${(0.75 * a).toFixed(3)})`; ctx.fillRect(x - w / 2, ty - 13, w, 18);
+      ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.fillText(t, x, ty); ctx.textAlign = 'left';
+    }
   }
+  ctx.restore();
 }
 function drawExos() {
   if (!W.exo.length) return;
@@ -13757,7 +13774,7 @@ function drawEvents(rt) {
     }
   }
   // captions for the newest few, kept clear of each other and of the chamber edges
-  const placed = [], shown = evs.slice(-4);
+  const placed = [], shown = evs.slice(-4), drops = (W.qgp || []).filter(g => (g.age || 0) < 1.6).map(qgpDisc); // (a caption over a young plasma drop is faded until it cools, 0.91)
   for (let i = shown.length - 1; i >= 0; i--) {
     const e = shown[i], age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
     const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1);
@@ -13780,7 +13797,7 @@ function drawEvents(rt) {
     }
     by = clamp(by, 8, R.h - bh - 8);
     placed.push([bx, by, bx + bw, by + bh]);
-    ctx.globalAlpha = a;
+    ctx.globalAlpha = drops.some(([dx, dy, dr]) => Math.hypot(clamp(dx, bx, bx + bw) - dx, clamp(dy, by, by + bh) - dy) < dr) ? a * 0.18 : a;
     const ax = clamp(x, bx, bx + bw), ay = y < by ? by : by + bh;
     ctx.strokeStyle = rgba(c, 0.7); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ax, ay); ctx.stroke();
@@ -13945,10 +13962,13 @@ function drawSources() {
     ctx.restore();
   }
   for (const src of W.sources || []) {
-    const [sx, sy] = srcPos(src), x = w2sx(sx), y = w2sy(sy), half = Math.max(5, 0.5 * (src.jitter || 0) * R.s); // (as wide as the strip it fires from)
+    // the housing keeps its size on screen at any zoom (as a laser's does); the strip it fires from, which is in the
+    // world, is drawn as a thin line across its mouth when it is wider than the housing (0.91)
+    const [sx, sy] = srcPos(src), x = w2sx(sx), y = w2sy(sy), strip = 0.5 * (src.jitter || 0) * R.s;
     ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.atan2(src.uy, src.ux));
-    ctx.fillStyle = 'rgba(200,215,235,0.75)'; ctx.fillRect(-14, -half, 14, 2 * half);
-    ctx.fillStyle = 'rgba(255,200,120,0.9)'; ctx.fillRect(-2, -half + 2, 4, 2 * half - 4);
+    if (strip > 6) { ctx.fillStyle = 'rgba(255,200,120,0.55)'; ctx.fillRect(-1, -strip, 2, 2 * strip); ctx.fillRect(-4, -strip, 4, 1.5); ctx.fillRect(-4, strip - 1.5, 4, 1.5); }
+    ctx.fillStyle = 'rgba(200,215,235,0.75)'; ctx.fillRect(-14, -6, 14, 12);
+    ctx.fillStyle = 'rgba(255,200,120,0.9)'; ctx.fillRect(-2, -4, 4, 8);
     ctx.restore();
   }
 }
@@ -19430,7 +19450,7 @@ function stepSpeed(dir) {
 function syncSpeed() {
   const m = W.simPerFrame / UI.baseSpf, v = $('speedVal');
   // the speed actually reached: at the computer's limit (amber) less than asked, as each frame's physics time is used up
-  v.textContent = UI.slow || W.slowHold ? 'slow-mo' + (W.slowHold && m !== 1 ? ' ' + speedText(m) : '') : speedText(UI.capped ? m * clamp(UI.ach || 1, 1e-4, 1) : m);
+  v.textContent = UI.slow || W.slowHold ? 'slow-mo' + (Math.abs(m - 1) > 1e-6 ? ' ' + speedText(m) : '') : speedText(UI.capped ? m * clamp(UI.ach || 1, 1e-4, 1) : m); // (the speed setting shows in automatic slow motion too, 0.91)
   v.classList.toggle('cap', !!UI.capped && !UI.slow);
   v.classList.toggle('slow', !!UI.slow || !!W.slowHold);
   const k = Math.round(Math.log2(m));
@@ -21622,7 +21642,7 @@ function openQuickMenu(px, py) {
   hideTip(); QM.acts = []; QM.ranges = []; QM.serial = (QM.serial || 0) + 1;
   const forced = QM.forceObj; QM.forceObj = null;
   const [wx, wy] = s2w(px, py), p = forced ? null : pickNear(px, py, 14), mag = p || forced ? null : magnetAt(wx, wy);
-  const src = p || mag || forced ? null : W.sources.find(s => !s.beam && Math.hypot(s.x - wx, s.y - wy) < Math.max(1.5, 12 / R.s));
+  const src = p || mag || forced ? null : W.sources.find(s => { if (s.beam) return false; const [px, py] = srcPos(s); return Math.hypot(px - wx, py - wy) < Math.max(1.5, 12 / R.s); }); // (where it is drawn: srcPos keeps it inside the box)
   const ob = forced || (p || mag || src ? null : objAtPx(px, py)), under = p ? objAtPx(px, py) : null; // (an object under the particle: reachable from its menu, 0.70)
   m.innerHTML = (p ? qmParticle(p) + (under ? qmBtn(`The ${OBJ_NAME[under.kind].toLowerCase()} under it…`, () => { QM.forceObj = under; openQuickMenu(px, py); }) : '') : mag ? qmMagnet(mag) : src ? qmSource(src) : ob ? qmObject(ob) : qmHere(wx, wy)) + qmGlobal(px, py, wx, wy);
   m.hidden = false; QM.open = true; m.scrollTop = 0;

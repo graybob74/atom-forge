@@ -2848,7 +2848,7 @@ function stepSpeed(dir) {
 function syncSpeed() {
   const m = W.simPerFrame / UI.baseSpf, v = $('speedVal');
   // the speed actually reached: at the computer's limit (amber) less than asked, as each frame's physics time is used up
-  v.textContent = UI.slow || W.slowHold ? 'slow-mo' + (W.slowHold && m !== 1 ? ' ' + speedText(m) : '') : speedText(UI.capped ? m * clamp(UI.ach || 1, 1e-4, 1) : m);
+  v.textContent = UI.slow || W.slowHold ? 'slow-mo' + (Math.abs(m - 1) > 1e-6 ? ' ' + speedText(m) : '') : speedText(UI.capped ? m * clamp(UI.ach || 1, 1e-4, 1) : m); // (the speed setting shows in automatic slow motion too, 0.91)
   v.classList.toggle('cap', !!UI.capped && !UI.slow);
   v.classList.toggle('slow', !!UI.slow || !!W.slowHold);
   const k = Math.round(Math.log2(m));
@@ -5040,7 +5040,7 @@ function openQuickMenu(px, py) {
   hideTip(); QM.acts = []; QM.ranges = []; QM.serial = (QM.serial || 0) + 1;
   const forced = QM.forceObj; QM.forceObj = null;
   const [wx, wy] = s2w(px, py), p = forced ? null : pickNear(px, py, 14), mag = p || forced ? null : magnetAt(wx, wy);
-  const src = p || mag || forced ? null : W.sources.find(s => !s.beam && Math.hypot(s.x - wx, s.y - wy) < Math.max(1.5, 12 / R.s));
+  const src = p || mag || forced ? null : W.sources.find(s => { if (s.beam) return false; const [px, py] = srcPos(s); return Math.hypot(px - wx, py - wy) < Math.max(1.5, 12 / R.s); }); // (where it is drawn: srcPos keeps it inside the box)
   const ob = forced || (p || mag || src ? null : objAtPx(px, py)), under = p ? objAtPx(px, py) : null; // (an object under the particle: reachable from its menu, 0.70)
   m.innerHTML = (p ? qmParticle(p) + (under ? qmBtn(`The ${OBJ_NAME[under.kind].toLowerCase()} under it…`, () => { QM.forceObj = under; openQuickMenu(px, py); }) : '') : mag ? qmMagnet(mag) : src ? qmSource(src) : ob ? qmObject(ob) : qmHere(wx, wy)) + qmGlobal(px, py, wx, wy);
   m.hidden = false; QM.open = true; m.scrollTop = 0;

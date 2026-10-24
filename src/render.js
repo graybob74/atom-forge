@@ -168,6 +168,7 @@ function render(rt) {
   drawFlashes(rt);
   if (R.view.rays) { drawRays(rt); drawFlights(); drawPhotonLabels(rt); }
   drawEvents(rt);
+  drawQGP();
   drawZones();
   drawSources();
   drawOverlay();
@@ -742,15 +743,14 @@ function drawParticles(rt) {
    neutral ones, which leave no track in a real detector, a ring and a dotted path. */
 const _xpHex = {};
 /* Strings breaking (W.strings): a colour string stretching out both ways from a hard collision, then snapping into
-   pieces, each piece the seed of a hadron (shown in real time, about a second; the real thing takes 10⁻²³ s). And a
-   quark–gluon plasma (W.qgp): a hot drop of free quarks and gluons that swells, cools from white to red and freezes
-   out into hadrons. Pictures of what happened: the products themselves are already flying. */
+   pieces, each piece the seed of a hadron (shown in real time, about a second; the real thing takes 10⁻²³ s). (The
+   quark–gluon plasma: drawQGP.) Pictures of what happened: the products themselves are already flying. */
 function drawStrings(rt) {
   const ctx = R.ctx;
   if (W.strings && W.strings.length) {
     ctx.save(); ctx.lineCap = 'round';
     for (let i = W.strings.length - 1; i >= 0; i--) {
-      const s = W.strings[i], age = rt - s.t0;
+      const s = W.strings[i], age = s.age || 0;
       if (age > 1.4 || age < 0) { W.strings.splice(i, 1); continue; }
       const grow = Math.min(1, age / 0.35), Lpx = Math.max(60, 12 * R.s) * grow, a = age < 0.9 ? 1 : 1 - (age - 0.9) / 0.5; // (its length on screen, in pixels)
       const x = w2sx(s.x), y = w2sy(s.y), ux = s.ax, uy = -s.ay, n = s.n, broken = age > 0.35;
@@ -764,24 +764,38 @@ function drawStrings(rt) {
     }
     ctx.restore();
   }
-  if (W.qgp && W.qgp.length) {
-    ctx.save();
-    for (let i = W.qgp.length - 1; i >= 0; i--) {
-      const g = W.qgp[i], age = rt - g.t0;
-      if (age > 2.2 || age < 0) { W.qgp.splice(i, 1); continue; }
-      const x = w2sx(g.x), y = w2sy(g.y), r = (14 + 40 * Math.min(1, age / 1.4)) * Math.max(0.6, Math.min(2, R.s / 6)), heat = Math.max(0, 1 - age / 1.4), a = age < 1.4 ? 1 : 1 - (age - 1.4) / 0.8;
-      const core = `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.75 * a).toFixed(3)})`;
-      const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, core); gr.addColorStop(0.6, `rgba(255,110,40,${(0.35 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,60,20,0)');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
-      // free quarks and gluons milling about inside, in their colours
-      const cols = ['255,90,90', '90,220,120', '100,150,255'];
-      for (let k = 0; k < 36; k++) { const ph = k * 2.399 + age * (1.5 + (k % 5) * 0.4), rr = r * 0.75 * Math.sqrt(((k * 0.618) % 1)), qx = x + rr * Math.cos(ph), qy = y + rr * Math.sin(ph);
-        ctx.fillStyle = k % 4 === 3 ? `rgba(255,255,255,${(0.6 * a * heat + 0.2 * a).toFixed(3)})` : `rgba(${cols[k % 3]},${(0.8 * a).toFixed(3)})`; ctx.beginPath(); ctx.arc(qx, qy, k % 4 === 3 ? 1.6 : 2.4, 0, 2 * Math.PI); ctx.fill(); }
-      if (R.view.labels !== false) { ctx.font = '11px ' + (typeof cssVar === 'function' ? cssVar('--font-data') : 'monospace'); ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.textAlign = 'center';
-        ctx.fillText(age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, x, y - r - 6); ctx.textAlign = 'left'; }
+}
+/* A quark–gluon plasma (W.qgp): a hot drop of free quarks (coloured) and gluons (pale) that swells, cools from white to
+   red and freezes out into hadrons. Drawn above the hadron spray and the event captions, at least about 70 pixels
+   across whatever the zoom, on its own clock (0.91: it was small, under everything, and a slow frame could skip it). */
+function qgpDisc(g) { const age = g.age || 0; return [w2sx(g.x), w2sy(g.y), (36 + 84 * Math.min(1, age / 1.4)) * clamp(R.s / 6, 0.8, 1.5)]; } // (where it is on screen, and how big)
+function drawQGP() {
+  if (!W.qgp || !W.qgp.length) return;
+  const ctx = R.ctx;
+  ctx.save();
+  for (let i = W.qgp.length - 1; i >= 0; i--) {
+    const g = W.qgp[i], age = g.age || 0;
+    if (age > 2.2) { W.qgp.splice(i, 1); continue; }
+    const [x, y, r] = qgpDisc(g), heat = Math.max(0, 1 - age / 1.4), a = age < 1.4 ? 1 : 1 - (age - 1.4) / 0.8;
+    const core = `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.88 * a).toFixed(3)})`;
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, core); gr.addColorStop(0.6, `rgba(255,${Math.round(110 + 60 * heat)},40,${(0.72 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,60,20,0)'); // (nearly opaque inside, so the spray and labels under it do not show through)
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
+    // free quarks (red, green, blue: their colour charge) and gluons milling about inside
+    const cols = ['255,80,80', '70,220,110', '90,140,255'], n = 54, qr = clamp(r / 22, 2.6, 4.5);
+    ctx.lineWidth = 1; ctx.strokeStyle = `rgba(20,10,5,${(0.55 * a).toFixed(3)})`;
+    for (let k = 0; k < n; k++) {
+      const ph = k * 2.399 + age * (1.2 + (k % 5) * 0.35) * (k % 2 ? 1 : -1), rr = r * 0.78 * Math.sqrt(((k * 0.618) % 1)), qx = x + rr * Math.cos(ph), qy = y + rr * Math.sin(ph), glu = k % 3 === 2;
+      ctx.fillStyle = glu ? `rgba(255,245,200,${(0.85 * a).toFixed(3)})` : `rgba(${cols[k % 3 === 0 ? (k >> 1) % 3 : (k >> 2) % 3]},${(0.95 * a).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(qx, qy, glu ? qr * 0.6 : qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
     }
-    ctx.restore();
+    if (R.view.labels !== false) {
+      ctx.font = '600 12px ' + (typeof cssVar === 'function' ? cssVar('--font-data') : 'monospace'); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = y - r - 8;
+      ctx.fillStyle = `rgba(20,10,6,${(0.75 * a).toFixed(3)})`; ctx.fillRect(x - w / 2, ty - 13, w, 18);
+      ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.fillText(t, x, ty); ctx.textAlign = 'left';
+    }
   }
+  ctx.restore();
 }
 function drawExos() {
   if (!W.exo.length) return;
@@ -1328,7 +1342,7 @@ function drawEvents(rt) {
     }
   }
   // captions for the newest few, kept clear of each other and of the chamber edges
-  const placed = [], shown = evs.slice(-4);
+  const placed = [], shown = evs.slice(-4), drops = (W.qgp || []).filter(g => (g.age || 0) < 1.6).map(qgpDisc); // (a caption over a young plasma drop is faded until it cools, 0.91)
   for (let i = shown.length - 1; i >= 0; i--) {
     const e = shown[i], age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
     const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1);
@@ -1351,7 +1365,7 @@ function drawEvents(rt) {
     }
     by = clamp(by, 8, R.h - bh - 8);
     placed.push([bx, by, bx + bw, by + bh]);
-    ctx.globalAlpha = a;
+    ctx.globalAlpha = drops.some(([dx, dy, dr]) => Math.hypot(clamp(dx, bx, bx + bw) - dx, clamp(dy, by, by + bh) - dy) < dr) ? a * 0.18 : a;
     const ax = clamp(x, bx, bx + bw), ay = y < by ? by : by + bh;
     ctx.strokeStyle = rgba(c, 0.7); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ax, ay); ctx.stroke();
@@ -1516,10 +1530,13 @@ function drawSources() {
     ctx.restore();
   }
   for (const src of W.sources || []) {
-    const [sx, sy] = srcPos(src), x = w2sx(sx), y = w2sy(sy), half = Math.max(5, 0.5 * (src.jitter || 0) * R.s); // (as wide as the strip it fires from)
+    // the housing keeps its size on screen at any zoom (as a laser's does); the strip it fires from, which is in the
+    // world, is drawn as a thin line across its mouth when it is wider than the housing (0.91)
+    const [sx, sy] = srcPos(src), x = w2sx(sx), y = w2sy(sy), strip = 0.5 * (src.jitter || 0) * R.s;
     ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.atan2(src.uy, src.ux));
-    ctx.fillStyle = 'rgba(200,215,235,0.75)'; ctx.fillRect(-14, -half, 14, 2 * half);
-    ctx.fillStyle = 'rgba(255,200,120,0.9)'; ctx.fillRect(-2, -half + 2, 4, 2 * half - 4);
+    if (strip > 6) { ctx.fillStyle = 'rgba(255,200,120,0.55)'; ctx.fillRect(-1, -strip, 2, 2 * strip); ctx.fillRect(-4, -strip, 4, 1.5); ctx.fillRect(-4, strip - 1.5, 4, 1.5); }
+    ctx.fillStyle = 'rgba(200,215,235,0.75)'; ctx.fillRect(-14, -6, 14, 12);
+    ctx.fillStyle = 'rgba(255,200,120,0.9)'; ctx.fillRect(-2, -4, 4, 8);
     ctx.restore();
   }
 }

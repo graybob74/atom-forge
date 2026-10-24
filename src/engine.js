@@ -5507,14 +5507,15 @@ function eventSlow(realDt) {
   if (!S) return 1;
   const age = W.rt - S.t0;
   let want = 1;
-  if (S.on && W.slowmo && age < 3) {
+  const base = W.baseSpf || W.simPerFrame, slower = clamp(base / W.simPerFrame, 1, 64); // (slowed down further with the speed buttons: it lasts that much longer too, up to 64 times, 0.91)
+  if (S.on && W.slowmo && age < 3 * slower) {
     let v = 0;
     for (const p of W.parts) {
       if (p.dead || p.born < S.t0 - 1e-9 || (p.k !== NUC && !p.rad)) continue; // stray slow electrons don't hold time up
       v = Math.max(v, p.rad ? p.sp : Math.hypot(p.vx, p.vy));
     }
     for (const o of W.exo) if (!o.dead && o.born >= S.t0 - 1e-9) v = Math.max(v, o.v); // pions, kaons, muons in flight: near c, so a frame moves them 2% of the box too
-    want = v > 0 ? clamp(0.02 * Math.min(W.box.w, W.box.h) / (v * W.simPerFrame), 1 / 50000, 1) : 1; // (against the speed as set: the products cross about 2% of the box a frame whatever the Motion setting)
+    want = v > 0 ? clamp(0.02 * Math.min(W.box.w, W.box.h) / (v * base), 1 / 50000, 1) : 1; // (against the setup's normal speed, as the slow-motion button: the products cross about 2% of the box a frame at 1×, and the speed buttons scale that, 0.91; it was against the speed as set, which cancelled them out)
     if (want > 0.99 && age > 0.25) S.on = false;
   } else S.on = false;
   // drop at once (the products must not get away in the first frame), recover gently (in logarithmic time)
@@ -5535,7 +5536,7 @@ function simFrame(realDt, budgetMs) {
   const t0 = performance.now();
   let simAdv = 0, steps = 0, cut = false;
   const slow = slowFactor(realDt), fr = clamp(realDt / FRAME_REF, 0.01, 3); // (the frame's share of a sixtieth: any frame rate up to 6,000 fps advances the same simulated time per second)
-  let target = W.simPerFrame * slow * fr; const floor = W.flights.length ? 1e-9 : DT_MIN; // (with light in flight a frame may be shorter than the shortest normal step: slowed down that far, the light is still seen to slow)
+  let target = W.simPerFrame * slow * fr; const floor = W.flights.length || slow < 0.999 ? 1e-9 : DT_MIN; // (with light in flight, or in slow motion, a frame may be shorter than the shortest normal step: slowed down that far, what is followed is still seen to slow; at a step a frame this costs nothing, 0.91)
   // set below one shortest step a frame (1/512× of a fine setup): the frames' time is saved up and run once it makes a
   // whole step, so the motion is as slow as asked and not one step a frame, whatever the fps. (Slow motion keeps its
   // floor of a step a frame: it follows fast particles, which must move every frame to be followed.)
@@ -5549,6 +5550,7 @@ function simFrame(realDt, budgetMs) {
     if (performance.now() - t0 > budgetMs) { cut = true; break; }
   }
   W.rt += realDt;
+  { const ad = Math.min(realDt, 1 / 30); for (const g of W.strings || []) g.age = (g.age || 0) + ad; for (const g of W.qgp || []) g.age = (g.age || 0) + ad; } // (the pictures of strings breaking and of a plasma keep their own clock: a slow frame, as when thousands of hadrons appear at once, cannot skip them, 0.91)
   // chips keep the pace the simulation is set to, in real time, even when a crowded box makes the atoms (and the frames)
   // fall behind it: their time is warped anyway (a flash pulse takes 10 µs)
   if (W.chips.length) chipsTick((cut ? W.simPerFrame * slow * clamp(realDt * 60, 0.1, 6) : simAdv) * PHYS.TU_S, realDt); // (in proportion to the frame's length: at 144 or 240 fps a frame is a fraction of a sixtieth)

@@ -76,6 +76,25 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.91.0: release candidate 2 (bug fixes)
+- Automatic slow motion (after a collision or a nuclear event) now works against the setup's normal speed, as the
+  slow-motion button does: the speed buttons scale it. It worked against the speed as set, which cancelled them out, so
+  1/512 looked like 1/32 in the collider. Slowed further, it also lasts longer (up to 64 times its 3 seconds).
+- In slow motion a frame may be shorter than the shortest normal step (DT_MIN), as with light in flight: one step a frame
+  of DT_MIN had been the real floor at extreme energies. Measured in the gold-on-gold collider: 1/512 now advances 16
+  times less a frame than 1/32 (1.7 times before).
+- The speed readout shows the setting in automatic slow motion too ("slow-mo 1/4×").
+- Beam sources: the housing keeps its size at any zoom; the strip it fires from is a thin line across its mouth.
+  Right-clicking finds a source where it is drawn.
+- The PAUSED / READY badge sits under the palette bar (it was hidden behind it), the fps readout under it.
+- The quark–gluon plasma picture: drawn above the hadron spray, nearly opaque, at least about 70 pixels across, with
+  larger quarks and gluons; captions over it fade until it cools; strings and plasma keep their own clock (at most a
+  thirtieth of a second a frame), so the slow frame in which thousands of hadrons appear no longer skips them.
+
+## Features held for after 1.00 (asked for during the release candidates)
+- Detectors: graph where hits land along a screen (position bins next to the energy record; toggle the on-screen bars
+  between position and energy; a Data-tab graph of hits against position, light and particles apart).
+
 ## 0.90.0: release candidate 1 (feature freeze)
 - The 20,000-atom goal is met on a 16-thread machine: room-temperature water, 723 × 465 Å, 0.55 ms a step; at 1× a frame
   takes 37.5 steps × 0.55 ms + 1.2 ms drawing = 22 ms, so 45 fps.
