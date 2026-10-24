@@ -76,6 +76,28 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.67.0: energy and display fixes, beam sources, setups start paused
+- Emission lines are paid what they cost: pickLine charges a line max(the element's lowest excitation, its own photon)
+  and only picks lines the collision can pay for. Lines above the lowest (potassium 404 nm over its 1.61 eV, caesium's and
+  rubidium's blue lines, lithium 610 nm) were paid the lowest and made up to 1.5 eV of light from nowhere each. Flame
+  seeds 7–9: 4.7 / 2.9 / 3.4 eV → −0.05 / 0.22 / 0.22.
+- evHot: a line or a thermal ionization is made only when the pair's motion can pay all of it (kickPair's return
+  checked, velocities put back otherwise).
+- Glowing-wall light meets placed objects (glowPhoton through opticFind/opticHit with opts.glow: its own books).
+- Light after a mirror, lens or prism is drawn leg by leg (opts.delay: each leg starts once light has come that far).
+- Particle view for every unstable particle: muonium (μ⁺ with its electron on hydrogen's orbit), μ± and τ± (points).
+- Setups start paused at their first moment ("READY · press Space or ▶ to start"), Settings → Start setups paused (on).
+- Beam sources fire from where they are drawn: drawn as wide as their spread (jitter), and moved just inside the box when
+  set on or past a wall (srcPos). In slow motion a continuous source never waits longer, to the eye, than at its normal
+  pace (at least 0.25 s; at most 20 of its particles in flight: srcSlowFire).
+- Settings → Benchmark says whether the 20,000-atom goal is met: the water world at 1× speed, frames of (steps needed
+  for 1×) × (time a step) + drawing, against 45 fps.
+- Looked into and left: heavily ionized water (drift5) still gains +100–170 eV a run (40 tu). Not stale forces (a fresh
+  force pass every step gives the same), not the step size (half dt, or LEP_STEP 0.05, the same); it comes in steps with
+  ballistic electrons, around electrons switching between flight and the ordinary steps (switchMode), whose books jump
+  until the next list rebuild counts them. A larger lepton skin for the inner-step lists (SKIN_F 3–4 Å) gained nothing
+  in the neon discharge: its rebuilds come from electrons changing mode, not from moving.
+
 ## 0.66.0: placed objects, ionic compounds, molecule categories, Auto priority
 - Objects tool (D, props.js): mirror, beam splitter, thin lens, F2 flint prism, detector screen, beam stop, wall, metal
   foil, charged plates, each a straight piece drawn from one end to the other (a click places one of a usual size).

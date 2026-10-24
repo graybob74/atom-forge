@@ -16,7 +16,8 @@ async function openPage(opts = {}) {
   const ctx = await browser.newContext({ viewport: opts.viewport || { width: 1360, height: 860 }, deviceScaleFactor: opts.dpr || 1, colorScheme: opts.scheme || 'light' });
   // the page asks Google for fonts; there is no network here, so answer at once
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
-  if (!opts.menu) await ctx.addInitScript(() => { window.AF_NO_MENU = true; }); // (the main menu would cover the chamber the tests work in)
+  if (!opts.menu) await ctx.addInitScript(() => { window.AF_NO_MENU = true; });
+  if (!opts.startPaused) await ctx.addInitScript(() => { window.AF_NO_PAUSE = true; }); // (the tests run setups as they load; t_features checks the pause) // (the main menu would cover the chamber the tests work in)
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + (e.stack || e.message)));

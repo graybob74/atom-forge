@@ -16,7 +16,7 @@
    free electrons in the ordinary steps bounce off; fast and radiation-mode particles (and pions, muons …) cross a foil,
    bounce off a wall, and are stopped by the rest (a positron or antinucleus annihilates there). Light: X-rays and
    γ rays (124 eV and up) go straight through mirrors, lenses and prisms; glass absorbs ultraviolet below 300 nm.
-   Neutrinos go through everything. Thermal light from glowing walls ignores the objects. */
+   Neutrinos go through everything. Thermal light from glowing walls meets them too (0.67). */
 const OBJ_KINDS = ['mirror', 'splitter', 'lens', 'prism', 'screen', 'stop', 'wall', 'foil', 'plates'];
 const OBJ_NAME = { mirror: 'Mirror', splitter: 'Beam splitter', lens: 'Lens', prism: 'Prism', screen: 'Detector screen', stop: 'Beam stop', wall: 'Wall', foil: 'Foil', plates: 'Charged plates' };
 const OBJ_HALF = 0.15; // Å: half the thickness of a piece, as atoms meet it
@@ -83,9 +83,9 @@ function opticFind(x, y, ux, uy, tmax, E) {
 }
 /* A ray that met a piece: where it goes on (a new emitPhoton from there, cont: not a new photon), or where it ends. */
 function opticHit(h, x0, y0, ux, uy, E, opts) {
-  const x = x0 + ux * h.t, y = y0 + uy * h.t, ob = h.ob, o2 = Object.assign({}, opts || {}, { cont: true, bounce: ((opts && opts.bounce) || 0) + 1 });
-  const go = (vx, vy, sx, sy) => { const L = Math.hypot(vx, vy); emitPhoton(sx + vx / L * 1e-6, sy + vy / L * 1e-6, E, vx / L, vy / L, o2); };
-  const absorb = () => { W.ledger.escaped += E; if (ob.kind === 'screen') objRecord(ob, E, true); };
+  const x = x0 + ux * h.t, y = y0 + uy * h.t, ob = h.ob, o2 = Object.assign({}, opts || {}, { cont: true, bounce: ((opts && opts.bounce) || 0) + 1, delay: ((opts && opts.delay) || 0) + h.t / PHYS.C }); // (delay: the next leg is drawn once light has come this far)
+  const go = (vx, vy, sx, sy) => { const L = Math.hypot(vx, vy); photonOn(sx + vx / L * 1e-6, sy + vy / L * 1e-6, E, vx / L, vy / L, o2); };
+  const absorb = () => { if (!o2.glow) W.ledger.escaped += E; if (ob.kind === 'screen') objRecord(ob, E, true); }; // (a glowing wall's light absorbed is the walls' own)
   return { x, y, obj: ob, after: () => {
     if (o2.bounce > 40) { absorb(); return; }
     const [ax, ay, bx, by] = objEdges(ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, tx = (bx - ax) / L, ty = (by - ay) / L, nx = -ty, ny = tx;
@@ -107,6 +107,8 @@ function opticHit(h, x0, y0, ux, uy, E, opts) {
     absorb(); // (screen, stop, wall, foil)
   } };
 }
+/* The same photon going on: thermal light from the walls as glowPhoton (its own books), any other as emitPhoton. */
+function photonOn(x, y, E, ux, uy, opts) { if (opts.glow) glowPhoton(x, y, E, ux, uy, opts.bounce); else emitPhoton(x, y, E, ux, uy, opts); }
 /* Through the prism: refracted in at edge e, then to the far side, out (or totally reflected inside and on). The path
    inside is drawn as rays; the light leaves from where it comes out. */
 function prismTrace(ob, x, y, ux, uy, e, E, opts) {
@@ -120,20 +122,21 @@ function prismTrace(ob, x, y, ux, uy, e, E, opts) {
   };
   const nrm = (i) => { const [ax, ay, bx, by] = ed[i], L = Math.hypot(bx - ax, by - ay) || 1; return [-(by - ay) / L, (bx - ax) / L]; };
   let [nx, ny] = nrm(e), d = refr(ux, uy, nx, ny, 1, n);
-  if (!d) { const c = ux * nx + uy * ny; emitPhoton(x, y, E, ux - 2 * c * nx, uy - 2 * c * ny, opts); return; }
+  if (!d) { const c = ux * nx + uy * ny; photonOn(x, y, E, ux - 2 * c * nx, uy - 2 * c * ny, opts); return; }
   let px = x, py = y, vx = d[0], vy = d[1], from = e;
   for (let k = 0; k < 12; k++) {
     let bt = Infinity, bi = -1;
     for (let i = 0; i < 3; i++) { if (i === from) continue; const t = raySeg(px, py, vx, vy, ...ed[i]); if (t < bt) { bt = t; bi = i; } }
     if (bi < 0) break;
     const qx = px + vx * bt, qy = py + vy * bt;
-    W.rays.push({ x0: px, y0: py, x1: qx, y1: qy, E, c: photonColor(E), t0: W.rt, ts: W.t, len: bt, nu: false });
+    W.rays.push({ x0: px, y0: py, x1: qx, y1: qy, E, c: photonColor(E), t0: W.rt, ts: W.t + (opts.delay || 0), len: bt, nu: false });
+    opts.delay = (opts.delay || 0) + bt / PHYS.C;
     [nx, ny] = nrm(bi);
     const out = refr(vx, vy, nx, ny, n, 1);
-    if (out) { const L = Math.hypot(out[0], out[1]); emitPhoton(qx + out[0] / L * 1e-6, qy + out[1] / L * 1e-6, E, out[0] / L, out[1] / L, opts); return; }
+    if (out) { const L = Math.hypot(out[0], out[1]); photonOn(qx + out[0] / L * 1e-6, qy + out[1] / L * 1e-6, E, out[0] / L, out[1] / L, opts); return; }
     const c = vx * nx + vy * ny; vx -= 2 * c * nx; vy -= 2 * c * ny; px = qx; py = qy; from = bi; // (totally reflected inside)
   }
-  W.ledger.escaped += E; // (trapped: lost in the glass)
+  if (!opts.glow) W.ledger.escaped += E; // (trapped: lost in the glass)
 }
 
 /* ---- the detector screen's record */

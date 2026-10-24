@@ -3639,6 +3639,8 @@ function loadPreset(key) {
   $('hintText').innerHTML = P.hint; $('hint').classList.remove('won'); if (!key.startsWith('ch_')) CH.cur = null;
   $('hint').hidden = !SET.tips;
   store('preset', UI.preset);
+  if (SET.startPaused && !UI.menu && !REW.restoring && UI.started && !window.AF_NO_PAUSE) { setRunning(false); UI.readyStart = true; } // (0.67: a setup waits at its start, so what happens first is seen)
+  pausedText();
   log('tool', `Setup loaded: ${P.name}`);
   renderInspect();
   UI.lastLogSeq = -1;
@@ -3953,6 +3955,7 @@ function frame(now) {
   if (worstNow > FP.worst) { FP.worst = worstNow; FP.worstTxt = (gap > total ? `${gap.toFixed(0)} ms between frames` : `sim ${FP.sim.toFixed(0)}, draw ${FP.draw.toFixed(0)}, panels ${FP.ui.toFixed(0)}`) + (freed > 2e6 ? `, memory cleanup freed ${(freed / 1e6).toFixed(0)} MB` : ''); }
   requestAnimationFrame(frame);
 }
+function pausedText() { const b = $('pausedBadge'); if (b) b.textContent = UI.readyStart ? 'READY · press Space or ▶ to start' : 'PAUSED'; }
 function setRunning(r) {
   UI.running = r;
   $('icoPause').style.display = r ? '' : 'none';
@@ -3960,6 +3963,8 @@ function setRunning(r) {
   $('bPlay').setAttribute('aria-label', r ? 'Pause' : 'Play');
   $('bPlay').title = r ? 'Pause (Space)' : 'Play (Space)';
   $('pausedBadge').hidden = r;
+  if (r) UI.readyStart = false;
+  pausedText();
 }
 
 /* ------------------------------------------------------------------ display mode */
@@ -4514,7 +4519,7 @@ function menusInit() {
   for (const [i, b] of [...document.querySelectorAll('#mmBtns .btn')].entries()) b.style.setProperty('--i', i);
   $('mmVer').textContent = (/\d+\.\d+\.\d+/.exec(document.title) || [''])[0];
   $('mainMenu').addEventListener('click', (e) => {
-    const p = e.target.closest('[data-mmp]'); if (p) { hideMainMenu(); loadPreset(p.dataset.mmp); syncPresetSelect(); setRunning(true); return; }
+    const p = e.target.closest('[data-mmp]'); if (p) { hideMainMenu(); loadPreset(p.dataset.mmp); syncPresetSelect(); if (!SET.startPaused) setRunning(true); return; }
     const b = e.target.closest('[data-mm]'); if (b) mmAction(b.dataset.mm);
   });
   $('escModal').addEventListener('click', (e) => { if (e.target.id === 'escModal') { closeEscMenu(); return; } const b = e.target.closest('[data-esc]'); if (b) escAction(b.dataset.esc); });
@@ -4608,7 +4613,7 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
 const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
@@ -4714,6 +4719,11 @@ function benchStart() {
       BENCH.rows.push(`${name}: ${best.toFixed(2)} ms a step on ${TH.used || 1} thread${(TH.used || 1) > 1 ? 's' : ''}, ${speed.toFixed(0)}% of full speed within 10 ms` +
         ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}, bookkeeping ${f(PROF.cls)}, grid ${f(PROF.grid)}, lists ${f(PROF.lists)} (checks ${f(PROF.valid)}), after ${f(PROF.after)}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; timestep ${f(PROF.dt)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)} (${RP_NAMES.map((nm, i) => [nm, PROF.rp[i]]).filter(([, v]) => v / ns >= 0.005).sort((a, b) => b[1] - a[1]).map(([nm, v]) => nm + ' ' + f(v)).join(', ')}); ${(PROF.passes / ns).toFixed(2)} force passes and ${(VL.builds / (3 * N)).toFixed(2)} list rebuilds a step; ${alive.toLocaleString('en-US')} particles, ${fast} fast, ${m.T.toFixed(0)} K${TH.used > 1 ? '; threaded phases (main share / wait) ' + Object.entries(TH_PH).filter(([, a]) => a[2]).map(([k, a]) => `${k} ${f(a[0])}/${f(a[1])}`).join(', ') : ''}]` +
         ` frames: sim ${fSim.toFixed(1)} + draw ${fDraw.toFixed(1)} = ${fAll.toFixed(1)} ms (${(stepsRun / frames).toFixed(1)} steps a frame on a ${(budgetSum / frames).toFixed(0)} ms budget), room for ${fpsAllow.toFixed(0)} fps${GL.ok && GL.on ? '' : ' (Canvas 2D)'}`);
+      if (k === 1) { // the goal (0.68): 20,000 atoms at room temperature at 1× speed, 45 frames a second or more
+        const per = W.simPerFrame / Math.max(1e-9, dt), ms1 = per * best + fDraw, fps1 = 1000 / ms1;
+        BENCH.rows.push(NW < 20000 ? `The 20,000-atom goal: set Particle limit to 20,000 and run this again to test it (this ran ${nk(NW)}).`
+          : `The 20,000-atom goal (room temperature, 1× speed, 45 fps or more): ${fps1 >= 45 ? 'met' : 'not yet'} — at 1× a frame takes ${per.toFixed(1)} steps × ${best.toFixed(2)} ms + ${fDraw.toFixed(1)} ms drawing = ${ms1.toFixed(1)} ms, ${fps1.toFixed(0)} fps.`);
+      }
       show(''); setTimeout(next, 30);
     }, 30);
   };
@@ -4746,7 +4756,7 @@ function syncSettings() {
   try { $('setThreads').textContent = threadsNote(); } catch (e) { $('setThreads').textContent = 'Threads: ' + e.message; }
   setSegValue('segFpsCap', SET.fpsCap); setSegValue('segAtom', SET.atomScale); setSegValue('segLabels', R.view.labels ? (SET.labels === 'hover' ? 'hover' : 'always') : 'never'); setSegValue('segBadges', SET.badges);
   $('setFlash').checked = SET.flashLow; $('setCvd').checked = SET.cvd; setSegValue('segUi', SET.ui); setSegValue('segSide', SET.side); $('setPw').textContent = Math.round(clamp(SET.pw, 280, 760)) + ' px';
-  $('setWinNote').hidden = !tauriWin(); setSegValue('segWheel', SET.wheel); setSegValue('segZoomTo', SET.zoomTo); $('setKeepOpt').checked = SET.keepOpt; $('setPauseBlur').checked = SET.pauseBlur; $('setWake').checked = SET.wake;
+  $('setWinNote').hidden = !tauriWin(); setSegValue('segWheel', SET.wheel); setSegValue('segZoomTo', SET.zoomTo); $('setKeepOpt').checked = SET.keepOpt; $('setStartPaused').checked = SET.startPaused; $('setPauseBlur').checked = SET.pauseBlur; $('setWake').checked = SET.wake;
   $('setRew').checked = SET.rewOn; setSegValue('segRewSpan', SET.rewSpan); setSegValue('segRewEvery', SET.rewEvery); setSegValue('segRewMem', SET.rewMem); $('setRewNote').textContent = rewNote();
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
@@ -4808,6 +4818,7 @@ function settingsInit() {
   $('setKeepOpt').onchange = (e) => { setSetting('keepOpt', e.target.checked); optSave(); };
   $('setPauseBlur').onchange = (e) => setSetting('pauseBlur', e.target.checked);
   $('setWake').onchange = (e) => { setSetting('wake', e.target.checked); wakeTick(); };
+  $('setStartPaused').onchange = (e) => setSetting('startPaused', e.target.checked);
   $('setKeys').onclick = () => openKeys();
   bindSeg('segStart', (v) => setSetting('start', v));
   $('setRew').onchange = (e) => { setSetting('rewOn', e.target.checked); if (!e.target.checked) rewClear(); };

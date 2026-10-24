@@ -134,7 +134,7 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   const bench = await page.evaluate(() => ({ busy: BENCH.busy, rows: BENCH.rows, text: document.getElementById('setBenchOut').textContent, preset: UI.preset, note: document.getElementById('setThreads').textContent }));
   say('benchmark:', bench.rows.join('\n           '));
   say('threads note:', bench.note);
-  check(!bench.busy && bench.rows.length === 4 && /threads/.test(bench.rows[0]) && /room for \d+ fps/.test(bench.rows[1]), 'the in-app benchmark ran its four worlds', bench);
+  check(!bench.busy && bench.rows.length === 5 && /threads/.test(bench.rows[0]) && /20,000-atom goal/.test(bench.rows[1]) && /room for \d+ fps/.test(bench.rows[2]), 'the in-app benchmark ran its four worlds and judged the 20,000-atom goal', bench);
   check(errors.length === 0, 'no page errors', errors.slice(0, 3).join('\n'));
   await ctx.close();
   // the plain page (file://, not isolated) falls back to one thread

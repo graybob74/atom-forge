@@ -4513,11 +4513,13 @@ function glowTick(realDt) {
     glowPhoton(x + nx * 0.01, y + ny * 0.01, kT * planckX(), ux, uy);
   }
 }
-function glowPhoton(x, y, E, ux, uy) {
-  specRecord(E, null, -1);
-  const hit = rayInteract(x, y, ux, uy, E, null);
+function glowPhoton(x, y, E, ux, uy, bounce) {
+  if (!bounce) specRecord(E, null, -1);
+  let hit = rayInteract(x, y, ux, uy, E, null);
   let x1, y1;
-  if (hit) { x1 = hit.x; y1 = hit.y; W.ledger.bath -= E; } else { const t = rayExit(x, y, ux, uy); x1 = x + ux * t; y1 = y + uy * t; }
+  if (hit) { x1 = hit.x; y1 = hit.y; } else { const t = rayExit(x, y, ux, uy); x1 = x + ux * t; y1 = y + uy * t; }
+  if (W.objs.length) { const oh = opticFind(x, y, ux, uy, Math.hypot(x1 - x, y1 - y), E); if (oh) { hit = opticHit(oh, x, y, ux, uy, E, { glow: true, bounce: bounce || 0 }); x1 = hit.x; y1 = hit.y; } } // (placed objects first: props.js)
+  if (hit && !hit.obj) W.ledger.bath -= E; // (an atom took it: the bath paid)
   W.rays.push({ x0: x, y0: y, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x, y1 - y), nu: false }); // (no label: thermal light is many photons, a label each would bury the view)
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
   if (hit && hit.after) hit.after();
@@ -4537,7 +4539,7 @@ function emitPhoton(x, y, E, ux, uy, opts) {
   const lab = photonLabel(E, opts && opts.src);
   if (opts && opts.travel) { W.flights.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.t, len: Math.hypot(x1 - x0, y1 - y0), hit, lab }); return; }
   if (!hit) W.ledger.escaped += E;
-  W.rays.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x0, y1 - y0), nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' }); // (ts, len: it goes at c on the simulation's clock, drawRays; hitP: for the Inspect tab)
+  W.rays.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t + ((opts && opts.delay) || 0), len: Math.hypot(x1 - x0, y1 - y0), nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' }); // (ts, len: it goes at c on the simulation's clock, drawRays; hitP: for the Inspect tab)
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
   if (hit && hit.after) hit.after();
 }
@@ -5168,18 +5170,22 @@ function pickLine(A, Eavail) {
     return { nm: PHYS.HC / (RZ * (0.25 - 1 / (n * n))), extraUV: RZ * 0.75, thr: RZ * (1 - 1 / (n * n)) };
   }
   const L = LINES[A.el.sym]; if (!L) return null;
-  let tot = 0; for (const l of L.l) tot += l[1];
+  // the line seen, and the rest of the cascade down to the ground state as one more photon. A line's upper level is
+  // at least as high as its photon: a line above L.thr (the element's lowest, as potassium's 404 nm over its 1.61 eV)
+  // costs its own energy, and is only made when the collision has that much (0.67: it was paid L.thr, light from nowhere)
+  const cost = (nm) => Math.max(L.thr, PHYS.HC / nm), ok = L.l.filter(l => !(Eavail < cost(l[0])));
+  if (!ok.length) return null;
+  let tot = 0; for (const l of ok) tot += l[1];
   let u = rnd() * tot;
-  // the line seen, and the rest of the cascade down to the ground state as one more photon (the excitation paid L.thr)
-  const rest = (nm) => Math.max(0, L.thr - PHYS.HC / nm);
-  for (const l of L.l) { u -= l[1]; if (u <= 0) return { nm: l[0], thr: L.thr, extraUV: rest(l[0]) }; }
-  return { nm: L.l[0][0], thr: L.thr, extraUV: rest(L.l[0][0]) };
+  for (const l of ok) { u -= l[1]; if (u <= 0) return { nm: l[0], thr: cost(l[0]), extraUV: cost(l[0]) - PHYS.HC / l[0] }; }
+  const l0 = ok[ok.length - 1][0];
+  return { nm: l0, thr: cost(l0), extraUV: cost(l0) - PHYS.HC / l0 };
 }
 function emitLineFrom(A, ln) {
   const E = PHYS.HC / ln.nm;
   glow(A, wavelengthRGB(ln.nm));
   emitPhoton(A.x, A.y, E, undefined, undefined, { src: A, depth: 2 });
-  if (ln.extraUV) emitPhoton(A.x, A.y, ln.extraUV, undefined, undefined, { src: A, depth: 2 });
+  if (ln.extraUV > 1e-9) emitPhoton(A.x, A.y, ln.extraUV, undefined, undefined, { src: A, depth: 2 });
 }
 function exciteByElectron(L, A, line, Eavail) {
   const ln = pickLine(A, Eavail);
@@ -5636,7 +5642,11 @@ function evHot(a, b, r) {
     const L = lineInfo(p);
     if (L && E > L.thr && rnd() < 0.03 * Math.exp(-L.thr / 2.5)) {
       const ln = pickLine(p, E);
-      if (ln) { kickPair(a, b, -ln.thr); emitLineFrom(p, ln); return; }
+      if (ln) { // (paid from their motion along the line of centres: when that cannot give all of it, no light, 0.67)
+        const sv = [a.vx, a.vy, b.vx, b.vy];
+        if (Math.abs(kickPair(a, b, -ln.thr) + ln.thr) > 1e-6) { a.vx = sv[0]; a.vy = sv[1]; b.vx = sv[2]; b.vy = sv[3]; updateFast(a); updateFast(b); return; }
+        emitLineFrom(p, ln); return;
+      }
     }
   }
   // ionization of the more weakly bound partner
@@ -5646,8 +5656,7 @@ function evHot(a, b, r) {
     const KEe = 0.25 * (E - ie);
     const before = speciesLabel(t);
     const sa = [a.vx, a.vy, b.vx, b.vy];
-    kickPair(a, b, -(ie + KEe));
-    if (!ejectElectron(t, KEe)) { a.vx = sa[0]; a.vy = sa[1]; b.vx = sa[2]; b.vy = sa[3]; return; }
+    if (Math.abs(kickPair(a, b, -(ie + KEe)) + ie + KEe) > 1e-6 || !ejectElectron(t, KEe)) { a.vx = sa[0]; a.vy = sa[1]; b.vx = sa[2]; b.vy = sa[3]; updateFast(a); updateFast(b); return; } // (all of it, or none)
     W.count.ionize++;
     log('em', `Thermal ionization: ${before} → ${speciesLabel(t)} + e⁻ (${fmtE(ie)})`);
   }
@@ -7575,6 +7584,21 @@ const RP_NAMES = ['start', 'outer', 'events', 'neutrons', 'walls', 'exotics', 'h
 let _rpT = 0;
 function rpMark(k) { if (!_profOn) return; const t = performance.now(); PROF.rp[k] += t - _rpT; _rpT = t; }
 function rpSkip() { if (_profOn) _rpT = performance.now(); }
+/* A beam source fires from where it is drawn (0.67): a source set on or past the wall is moved just inside it, and is drawn
+   as wide as its spread (render.js). */
+function srcPos(src) { const hw = W.box.w / 2 - 0.5, hh = W.box.h / 2 - 0.5; return [clamp(src.x, -hw, hw), clamp(src.y, -hh, hh)]; }
+/* In slow motion a source fires on the simulation's clock, so at 1/512 speed one that fires every second would wait eight
+   minutes: while the simulation is slowed, it never waits longer, to the eye, than at its normal pace (and at least a
+   quarter of a second), with at most 20 of its particles in flight at once. */
+function srcSlowFire(src) {
+  const base = W.baseSpf || W.simPerFrame;
+  if (src.rtLast === undefined) { src.rtLast = W.rt; return; }
+  if (!(W.simPerFrame < 0.9 * base) || !(src.rate > 0)) return;
+  const gap = Math.max(0.25, 1 / (src.rate * base * 60));
+  if (W.rt - src.rtLast < gap) return;
+  let live = 0; for (const p of W.parts) if (p.srcRef === src && !p.dead) live++;
+  if (live < 20) src.acc = 1;
+}
 function stepPlain(dt) {
   if (_profOn) _rpT = performance.now();
   W.step++; gridTouch(); // (positions move this step)
@@ -7664,16 +7688,18 @@ function stepPlain(dt) {
   for (const src of W.sources) {
     if (src.count !== undefined && src.count <= 0) continue; // a bunch, all injected
     src.acc += src.rate * dt;
+    if (src.count === undefined && !src.beam && src.acc < 1) srcSlowFire(src);
     while (src.acc >= 1 && !(src.count <= 0)) {
-      src.acc -= 1;
+      src.acc -= 1; src.rtLast = W.rt;
       if (src.count !== undefined) src.count--;
       // a little spread in where and which way (a real beam's emittance)
       const j = src.jitter || 0, ox = j ? (rnd() - 0.5) * j * -src.uy : 0, oy = j ? (rnd() - 0.5) * j * src.ux : 0, da = j ? (rnd() - 0.5) * 0.004 * j : 0;
       const ux = src.ux * Math.cos(da) - src.uy * Math.sin(da), uy = src.ux * Math.sin(da) + src.uy * Math.cos(da);
-      const p = fireSpec(src.spec, src.x + ox, src.y + oy, ux, uy, src.KE, !!src.beam);
+      const [sx, sy] = srcPos(src), p = fireSpec(src.spec, sx + ox, sy + oy, ux, uy, src.KE, !!src.beam);
+      if (p) p.srcRef = src;
       if (p && src.count !== undefined && src.rate > 0) { // (a bunch's particles evenly spaced, each placed as far as it has come since it left, on the beam line even where the last one is close)
         const sp = p.rad ? p.sp : Math.hypot(p.vx, p.vy), t = Math.min(src.acc / src.rate, 1.5 / Math.max(sp, 1e-9));
-        p.x = src.x + ox + ux * sp * t; p.y = src.y + oy + uy * sp * t; p.ox = p.x; p.oy = p.y;
+        p.x = sx + ox + ux * sp * t; p.y = sy + oy + uy * sp * t; p.ox = p.x; p.oy = p.y;
       }
       if (p) {
         p.beam = src.beam || true;
@@ -10197,7 +10223,7 @@ function nucReach(a, b) { return Math.max(a.Z === 0 || b.Z === 0 ? R_NN : R_FUS,
    free electrons in the ordinary steps bounce off; fast and radiation-mode particles (and pions, muons …) cross a foil,
    bounce off a wall, and are stopped by the rest (a positron or antinucleus annihilates there). Light: X-rays and
    γ rays (124 eV and up) go straight through mirrors, lenses and prisms; glass absorbs ultraviolet below 300 nm.
-   Neutrinos go through everything. Thermal light from glowing walls ignores the objects. */
+   Neutrinos go through everything. Thermal light from glowing walls meets them too (0.67). */
 const OBJ_KINDS = ['mirror', 'splitter', 'lens', 'prism', 'screen', 'stop', 'wall', 'foil', 'plates'];
 const OBJ_NAME = { mirror: 'Mirror', splitter: 'Beam splitter', lens: 'Lens', prism: 'Prism', screen: 'Detector screen', stop: 'Beam stop', wall: 'Wall', foil: 'Foil', plates: 'Charged plates' };
 const OBJ_HALF = 0.15; // Å: half the thickness of a piece, as atoms meet it
@@ -10264,9 +10290,9 @@ function opticFind(x, y, ux, uy, tmax, E) {
 }
 /* A ray that met a piece: where it goes on (a new emitPhoton from there, cont: not a new photon), or where it ends. */
 function opticHit(h, x0, y0, ux, uy, E, opts) {
-  const x = x0 + ux * h.t, y = y0 + uy * h.t, ob = h.ob, o2 = Object.assign({}, opts || {}, { cont: true, bounce: ((opts && opts.bounce) || 0) + 1 });
-  const go = (vx, vy, sx, sy) => { const L = Math.hypot(vx, vy); emitPhoton(sx + vx / L * 1e-6, sy + vy / L * 1e-6, E, vx / L, vy / L, o2); };
-  const absorb = () => { W.ledger.escaped += E; if (ob.kind === 'screen') objRecord(ob, E, true); };
+  const x = x0 + ux * h.t, y = y0 + uy * h.t, ob = h.ob, o2 = Object.assign({}, opts || {}, { cont: true, bounce: ((opts && opts.bounce) || 0) + 1, delay: ((opts && opts.delay) || 0) + h.t / PHYS.C }); // (delay: the next leg is drawn once light has come this far)
+  const go = (vx, vy, sx, sy) => { const L = Math.hypot(vx, vy); photonOn(sx + vx / L * 1e-6, sy + vy / L * 1e-6, E, vx / L, vy / L, o2); };
+  const absorb = () => { if (!o2.glow) W.ledger.escaped += E; if (ob.kind === 'screen') objRecord(ob, E, true); }; // (a glowing wall's light absorbed is the walls' own)
   return { x, y, obj: ob, after: () => {
     if (o2.bounce > 40) { absorb(); return; }
     const [ax, ay, bx, by] = objEdges(ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, tx = (bx - ax) / L, ty = (by - ay) / L, nx = -ty, ny = tx;
@@ -10288,6 +10314,8 @@ function opticHit(h, x0, y0, ux, uy, E, opts) {
     absorb(); // (screen, stop, wall, foil)
   } };
 }
+/* The same photon going on: thermal light from the walls as glowPhoton (its own books), any other as emitPhoton. */
+function photonOn(x, y, E, ux, uy, opts) { if (opts.glow) glowPhoton(x, y, E, ux, uy, opts.bounce); else emitPhoton(x, y, E, ux, uy, opts); }
 /* Through the prism: refracted in at edge e, then to the far side, out (or totally reflected inside and on). The path
    inside is drawn as rays; the light leaves from where it comes out. */
 function prismTrace(ob, x, y, ux, uy, e, E, opts) {
@@ -10301,20 +10329,21 @@ function prismTrace(ob, x, y, ux, uy, e, E, opts) {
   };
   const nrm = (i) => { const [ax, ay, bx, by] = ed[i], L = Math.hypot(bx - ax, by - ay) || 1; return [-(by - ay) / L, (bx - ax) / L]; };
   let [nx, ny] = nrm(e), d = refr(ux, uy, nx, ny, 1, n);
-  if (!d) { const c = ux * nx + uy * ny; emitPhoton(x, y, E, ux - 2 * c * nx, uy - 2 * c * ny, opts); return; }
+  if (!d) { const c = ux * nx + uy * ny; photonOn(x, y, E, ux - 2 * c * nx, uy - 2 * c * ny, opts); return; }
   let px = x, py = y, vx = d[0], vy = d[1], from = e;
   for (let k = 0; k < 12; k++) {
     let bt = Infinity, bi = -1;
     for (let i = 0; i < 3; i++) { if (i === from) continue; const t = raySeg(px, py, vx, vy, ...ed[i]); if (t < bt) { bt = t; bi = i; } }
     if (bi < 0) break;
     const qx = px + vx * bt, qy = py + vy * bt;
-    W.rays.push({ x0: px, y0: py, x1: qx, y1: qy, E, c: photonColor(E), t0: W.rt, ts: W.t, len: bt, nu: false });
+    W.rays.push({ x0: px, y0: py, x1: qx, y1: qy, E, c: photonColor(E), t0: W.rt, ts: W.t + (opts.delay || 0), len: bt, nu: false });
+    opts.delay = (opts.delay || 0) + bt / PHYS.C;
     [nx, ny] = nrm(bi);
     const out = refr(vx, vy, nx, ny, n, 1);
-    if (out) { const L = Math.hypot(out[0], out[1]); emitPhoton(qx + out[0] / L * 1e-6, qy + out[1] / L * 1e-6, E, out[0] / L, out[1] / L, opts); return; }
+    if (out) { const L = Math.hypot(out[0], out[1]); photonOn(qx + out[0] / L * 1e-6, qy + out[1] / L * 1e-6, E, out[0] / L, out[1] / L, opts); return; }
     const c = vx * nx + vy * ny; vx -= 2 * c * nx; vy -= 2 * c * ny; px = qx; py = qy; from = bi; // (totally reflected inside)
   }
-  W.ledger.escaped += E; // (trapped: lost in the glass)
+  if (!opts.glow) W.ledger.escaped += E; // (trapped: lost in the glass)
 }
 
 /* ---- the detector screen's record */
@@ -11802,6 +11831,24 @@ function exoInside(ctx, o, x, y, c, hx) {
     drawSprite(ballSprite(hx, Math.max(1.2, electronR() * 0.9)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
     return R0 + 2;
   }
+  if (d.muonium) { // muonium: a μ⁺ for a nucleus, its electron on hydrogen's orbit (the reduced mass is 0.5% off hydrogen's)
+    const rm = Math.max(1.6, electronR() * 1.3), R0 = Math.max(9, 0.53 * R.s), th = W.rt * 2 + o.id;
+    ctx.globalCompositeOperation = 'lighter';
+    if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rm * 4)), x, y, 0.4);
+    ctx.globalCompositeOperation = 'source-over';
+    drawSprite(ballSprite(hx, rm), x, y);
+    ctx.strokeStyle = rgba([90, 170, 255], 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    drawSprite(ballSprite(E_COL, electronR()), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
+    return R0 + 2;
+  }
+  if (/^(mu|tau)[+-]$/.test(o.sp)) { // a muon or tau: a lepton, with nothing inside (point-like, as an electron)
+    const rl = Math.max(1.6, electronR() * 1.3);
+    ctx.globalCompositeOperation = 'lighter';
+    if (!R.lite) drawSprite(glowSprite(c, Math.max(6, rl * 4)), x, y, 0.45);
+    ctx.globalCompositeOperation = 'source-over';
+    drawSprite(ballSprite(hx, rl), x, y);
+    return rl + 2;
+  }
   const qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp];
   if (!qc) return 0;
   const qs = [...qc], rb = b * 1.15, qr = Math.max(0.9, b * (qs.length === 3 ? 0.42 : 0.48));
@@ -12473,10 +12520,10 @@ function drawSources() {
     ctx.restore();
   }
   for (const src of W.sources || []) {
-    const x = w2sx(src.x), y = w2sy(src.y);
+    const [sx, sy] = srcPos(src), x = w2sx(sx), y = w2sy(sy), half = Math.max(5, 0.5 * (src.jitter || 0) * R.s); // (as wide as the strip it fires from)
     ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.atan2(src.uy, src.ux));
-    ctx.fillStyle = 'rgba(200,215,235,0.75)'; ctx.fillRect(-14, -5, 14, 10);
-    ctx.fillStyle = 'rgba(255,200,120,0.9)'; ctx.fillRect(-2, -3, 4, 6);
+    ctx.fillStyle = 'rgba(200,215,235,0.75)'; ctx.fillRect(-14, -half, 14, 2 * half);
+    ctx.fillStyle = 'rgba(255,200,120,0.9)'; ctx.fillRect(-2, -half + 2, 4, 2 * half - 4);
     ctx.restore();
   }
 }
@@ -18749,6 +18796,8 @@ function loadPreset(key) {
   $('hintText').innerHTML = P.hint; $('hint').classList.remove('won'); if (!key.startsWith('ch_')) CH.cur = null;
   $('hint').hidden = !SET.tips;
   store('preset', UI.preset);
+  if (SET.startPaused && !UI.menu && !REW.restoring && UI.started && !window.AF_NO_PAUSE) { setRunning(false); UI.readyStart = true; } // (0.67: a setup waits at its start, so what happens first is seen)
+  pausedText();
   log('tool', `Setup loaded: ${P.name}`);
   renderInspect();
   UI.lastLogSeq = -1;
@@ -19063,6 +19112,7 @@ function frame(now) {
   if (worstNow > FP.worst) { FP.worst = worstNow; FP.worstTxt = (gap > total ? `${gap.toFixed(0)} ms between frames` : `sim ${FP.sim.toFixed(0)}, draw ${FP.draw.toFixed(0)}, panels ${FP.ui.toFixed(0)}`) + (freed > 2e6 ? `, memory cleanup freed ${(freed / 1e6).toFixed(0)} MB` : ''); }
   requestAnimationFrame(frame);
 }
+function pausedText() { const b = $('pausedBadge'); if (b) b.textContent = UI.readyStart ? 'READY · press Space or ▶ to start' : 'PAUSED'; }
 function setRunning(r) {
   UI.running = r;
   $('icoPause').style.display = r ? '' : 'none';
@@ -19070,6 +19120,8 @@ function setRunning(r) {
   $('bPlay').setAttribute('aria-label', r ? 'Pause' : 'Play');
   $('bPlay').title = r ? 'Pause (Space)' : 'Play (Space)';
   $('pausedBadge').hidden = r;
+  if (r) UI.readyStart = false;
+  pausedText();
 }
 
 /* ------------------------------------------------------------------ display mode */
@@ -19624,7 +19676,7 @@ function menusInit() {
   for (const [i, b] of [...document.querySelectorAll('#mmBtns .btn')].entries()) b.style.setProperty('--i', i);
   $('mmVer').textContent = (/\d+\.\d+\.\d+/.exec(document.title) || [''])[0];
   $('mainMenu').addEventListener('click', (e) => {
-    const p = e.target.closest('[data-mmp]'); if (p) { hideMainMenu(); loadPreset(p.dataset.mmp); syncPresetSelect(); setRunning(true); return; }
+    const p = e.target.closest('[data-mmp]'); if (p) { hideMainMenu(); loadPreset(p.dataset.mmp); syncPresetSelect(); if (!SET.startPaused) setRunning(true); return; }
     const b = e.target.closest('[data-mm]'); if (b) mmAction(b.dataset.mm);
   });
   $('escModal').addEventListener('click', (e) => { if (e.target.id === 'escModal') { closeEscMenu(); return; } const b = e.target.closest('[data-esc]'); if (b) escAction(b.dataset.esc); });
@@ -19718,7 +19770,7 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
 const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
@@ -19824,6 +19876,11 @@ function benchStart() {
       BENCH.rows.push(`${name}: ${best.toFixed(2)} ms a step on ${TH.used || 1} thread${(TH.used || 1) > 1 ? 's' : ''}, ${speed.toFixed(0)}% of full speed within 10 ms` +
         ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}, bookkeeping ${f(PROF.cls)}, grid ${f(PROF.grid)}, lists ${f(PROF.lists)} (checks ${f(PROF.valid)}), after ${f(PROF.after)}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; timestep ${f(PROF.dt)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)} (${RP_NAMES.map((nm, i) => [nm, PROF.rp[i]]).filter(([, v]) => v / ns >= 0.005).sort((a, b) => b[1] - a[1]).map(([nm, v]) => nm + ' ' + f(v)).join(', ')}); ${(PROF.passes / ns).toFixed(2)} force passes and ${(VL.builds / (3 * N)).toFixed(2)} list rebuilds a step; ${alive.toLocaleString('en-US')} particles, ${fast} fast, ${m.T.toFixed(0)} K${TH.used > 1 ? '; threaded phases (main share / wait) ' + Object.entries(TH_PH).filter(([, a]) => a[2]).map(([k, a]) => `${k} ${f(a[0])}/${f(a[1])}`).join(', ') : ''}]` +
         ` frames: sim ${fSim.toFixed(1)} + draw ${fDraw.toFixed(1)} = ${fAll.toFixed(1)} ms (${(stepsRun / frames).toFixed(1)} steps a frame on a ${(budgetSum / frames).toFixed(0)} ms budget), room for ${fpsAllow.toFixed(0)} fps${GL.ok && GL.on ? '' : ' (Canvas 2D)'}`);
+      if (k === 1) { // the goal (0.68): 20,000 atoms at room temperature at 1× speed, 45 frames a second or more
+        const per = W.simPerFrame / Math.max(1e-9, dt), ms1 = per * best + fDraw, fps1 = 1000 / ms1;
+        BENCH.rows.push(NW < 20000 ? `The 20,000-atom goal: set Particle limit to 20,000 and run this again to test it (this ran ${nk(NW)}).`
+          : `The 20,000-atom goal (room temperature, 1× speed, 45 fps or more): ${fps1 >= 45 ? 'met' : 'not yet'} — at 1× a frame takes ${per.toFixed(1)} steps × ${best.toFixed(2)} ms + ${fDraw.toFixed(1)} ms drawing = ${ms1.toFixed(1)} ms, ${fps1.toFixed(0)} fps.`);
+      }
       show(''); setTimeout(next, 30);
     }, 30);
   };
@@ -19856,7 +19913,7 @@ function syncSettings() {
   try { $('setThreads').textContent = threadsNote(); } catch (e) { $('setThreads').textContent = 'Threads: ' + e.message; }
   setSegValue('segFpsCap', SET.fpsCap); setSegValue('segAtom', SET.atomScale); setSegValue('segLabels', R.view.labels ? (SET.labels === 'hover' ? 'hover' : 'always') : 'never'); setSegValue('segBadges', SET.badges);
   $('setFlash').checked = SET.flashLow; $('setCvd').checked = SET.cvd; setSegValue('segUi', SET.ui); setSegValue('segSide', SET.side); $('setPw').textContent = Math.round(clamp(SET.pw, 280, 760)) + ' px';
-  $('setWinNote').hidden = !tauriWin(); setSegValue('segWheel', SET.wheel); setSegValue('segZoomTo', SET.zoomTo); $('setKeepOpt').checked = SET.keepOpt; $('setPauseBlur').checked = SET.pauseBlur; $('setWake').checked = SET.wake;
+  $('setWinNote').hidden = !tauriWin(); setSegValue('segWheel', SET.wheel); setSegValue('segZoomTo', SET.zoomTo); $('setKeepOpt').checked = SET.keepOpt; $('setStartPaused').checked = SET.startPaused; $('setPauseBlur').checked = SET.pauseBlur; $('setWake').checked = SET.wake;
   $('setRew').checked = SET.rewOn; setSegValue('segRewSpan', SET.rewSpan); setSegValue('segRewEvery', SET.rewEvery); setSegValue('segRewMem', SET.rewMem); $('setRewNote').textContent = rewNote();
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
@@ -19918,6 +19975,7 @@ function settingsInit() {
   $('setKeepOpt').onchange = (e) => { setSetting('keepOpt', e.target.checked); optSave(); };
   $('setPauseBlur').onchange = (e) => setSetting('pauseBlur', e.target.checked);
   $('setWake').onchange = (e) => { setSetting('wake', e.target.checked); wakeTick(); };
+  $('setStartPaused').onchange = (e) => setSetting('startPaused', e.target.checked);
   $('setKeys').onclick = () => openKeys();
   bindSeg('segStart', (v) => setSetting('start', v));
   $('setRew').onchange = (e) => { setSetting('rewOn', e.target.checked); if (!e.target.checked) rewClear(); };

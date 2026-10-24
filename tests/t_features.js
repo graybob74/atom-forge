@@ -479,8 +479,8 @@ const { openPage } = require('./browser');
     return out;
   }, r24a);
   check(Math.abs(r24.carry - 1) < 0.15 && r24.wake && r24.meas === 3 && r24.measKinds === 'atom,exo,flight' && r24.gone === 2 && /slowed/.test(r24.warpTxt) && r24.warpMin === -6
-    && r24.held > 5 && r24.held < 8 && /π⁰ → 2γ/.test(r24.heldFate || '') && r24.loaded === '2 fill' && r24.title === 'Editing Test ethane' && r24.newBtn
-    && r24.saved === 'Test ethanol 1' && r24.asNew === 1 && r24.kept === 'Test ethanol' && r24.copyOf === 'Water (copy)' && r24.inside === 'pi++ Lam+ Dpp+ rho0+ hy6_6+ muP+ mu-- tau--',
+    && r24.held > 5 && r24.held < 8 && /π⁰ → (2γ|e⁺ \+ e⁻ \+ γ)/.test(r24.heldFate || '') && r24.loaded === '2 fill' && r24.title === 'Editing Test ethane' && r24.newBtn
+    && r24.saved === 'Test ethanol 1' && r24.asNew === 1 && r24.kept === 'Test ethanol' && r24.copyOf === 'Water (copy)' && r24.inside === 'pi++ Lam+ Dpp+ rho0+ hy6_6+ muP+ mu-+ tau-+',
     `0.61: 1/512× runs ${r24.carry.toFixed(2)}× the time asked; screen kept awake; measured an atom, a pion and a photon (${r24.measTxt}); decay ${r24.warpTxt}; a held π⁰ flew ${r24.held.toFixed(1)} Å; a saved molecule edited in place (${r24.saved}), and saved as new; particle view ${r24.inside}`,
     '0.61: ' + JSON.stringify(r24));
   // 0.62: neutrons meet each other and a nucleus moving into them; hadrons meet nuclei in flight; stopped π⁻ and Σ⁻ are caught
@@ -611,6 +611,15 @@ const { openPage } = require('./browser');
     r28.mirror === 90 && r28.focus === '20,20' && r28.foil >= 90 && Math.abs(r28.stopDrift) < 1e-6 && r28.stopped === 0 && Math.abs(r28.E - 30) < 1e-9 && r28.saved === '4 → 4',
     `0.66: ${r28.salt}; ${r28.mg}; built ${r28.built}, moved to ${r28.moved}; Auto priority ${r28.autoSlow} when behind, ${r28.autoFast} when keeping up; a mirror turned light ${r28.mirror}°, a lens focused at ${r28.focus} Å, ${r28.foil} of 100 α through a gold foil reached the screen, a stop kept the books (${r28.stopDrift} eV)`,
     '0.66: ' + JSON.stringify(r28));
+  // 0.67: setups start paused; a beam source fires in slow motion; muonium in particle view
+  const r29 = await page.evaluate(async () => {
+    const out = {}; SET.startPaused = true; window.AF_NO_PAUSE = false; setRunning(true); loadPreset('isolde'); out.paused = !UI.running; out.badge = $('pausedBadge').textContent;
+    setRunning(true); W.simPerFrame = W.baseSpf / 256; const seen = new Set(); const t0 = performance.now();
+    while (performance.now() - t0 < 2500) { await new Promise(r => setTimeout(r, 100)); for (const p of W.parts) if (p.srcRef) seen.add(p); }
+    out.fired = seen.size; setRunning(false); window.AF_NO_PAUSE = true;
+    return out;
+  });
+  check(r29.paused && /READY/.test(r29.badge) && r29.fired >= 3, `0.67: a setup waits at its start (“${r29.badge}”); at 1/256 speed its beam source fired ${r29.fired} times in 2.5 s`, '0.67: ' + JSON.stringify(r29));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

@@ -826,6 +826,24 @@ function exoInside(ctx, o, x, y, c, hx) {
     drawSprite(ballSprite(hx, Math.max(1.2, electronR() * 0.9)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
     return R0 + 2;
   }
+  if (d.muonium) { // muonium: a μ⁺ for a nucleus, its electron on hydrogen's orbit (the reduced mass is 0.5% off hydrogen's)
+    const rm = Math.max(1.6, electronR() * 1.3), R0 = Math.max(9, 0.53 * R.s), th = W.rt * 2 + o.id;
+    ctx.globalCompositeOperation = 'lighter';
+    if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rm * 4)), x, y, 0.4);
+    ctx.globalCompositeOperation = 'source-over';
+    drawSprite(ballSprite(hx, rm), x, y);
+    ctx.strokeStyle = rgba([90, 170, 255], 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    drawSprite(ballSprite(E_COL, electronR()), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
+    return R0 + 2;
+  }
+  if (/^(mu|tau)[+-]$/.test(o.sp)) { // a muon or tau: a lepton, with nothing inside (point-like, as an electron)
+    const rl = Math.max(1.6, electronR() * 1.3);
+    ctx.globalCompositeOperation = 'lighter';
+    if (!R.lite) drawSprite(glowSprite(c, Math.max(6, rl * 4)), x, y, 0.45);
+    ctx.globalCompositeOperation = 'source-over';
+    drawSprite(ballSprite(hx, rl), x, y);
+    return rl + 2;
+  }
   const qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp];
   if (!qc) return 0;
   const qs = [...qc], rb = b * 1.15, qr = Math.max(0.9, b * (qs.length === 3 ? 0.42 : 0.48));
@@ -1497,10 +1515,10 @@ function drawSources() {
     ctx.restore();
   }
   for (const src of W.sources || []) {
-    const x = w2sx(src.x), y = w2sy(src.y);
+    const [sx, sy] = srcPos(src), x = w2sx(sx), y = w2sy(sy), half = Math.max(5, 0.5 * (src.jitter || 0) * R.s); // (as wide as the strip it fires from)
     ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.atan2(src.uy, src.ux));
-    ctx.fillStyle = 'rgba(200,215,235,0.75)'; ctx.fillRect(-14, -5, 14, 10);
-    ctx.fillStyle = 'rgba(255,200,120,0.9)'; ctx.fillRect(-2, -3, 4, 6);
+    ctx.fillStyle = 'rgba(200,215,235,0.75)'; ctx.fillRect(-14, -half, 14, 2 * half);
+    ctx.fillStyle = 'rgba(255,200,120,0.9)'; ctx.fillRect(-2, -half + 2, 4, 2 * half - 4);
     ctx.restore();
   }
 }

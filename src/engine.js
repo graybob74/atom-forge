@@ -2255,11 +2255,13 @@ function glowTick(realDt) {
     glowPhoton(x + nx * 0.01, y + ny * 0.01, kT * planckX(), ux, uy);
   }
 }
-function glowPhoton(x, y, E, ux, uy) {
-  specRecord(E, null, -1);
-  const hit = rayInteract(x, y, ux, uy, E, null);
+function glowPhoton(x, y, E, ux, uy, bounce) {
+  if (!bounce) specRecord(E, null, -1);
+  let hit = rayInteract(x, y, ux, uy, E, null);
   let x1, y1;
-  if (hit) { x1 = hit.x; y1 = hit.y; W.ledger.bath -= E; } else { const t = rayExit(x, y, ux, uy); x1 = x + ux * t; y1 = y + uy * t; }
+  if (hit) { x1 = hit.x; y1 = hit.y; } else { const t = rayExit(x, y, ux, uy); x1 = x + ux * t; y1 = y + uy * t; }
+  if (W.objs.length) { const oh = opticFind(x, y, ux, uy, Math.hypot(x1 - x, y1 - y), E); if (oh) { hit = opticHit(oh, x, y, ux, uy, E, { glow: true, bounce: bounce || 0 }); x1 = hit.x; y1 = hit.y; } } // (placed objects first: props.js)
+  if (hit && !hit.obj) W.ledger.bath -= E; // (an atom took it: the bath paid)
   W.rays.push({ x0: x, y0: y, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x, y1 - y), nu: false }); // (no label: thermal light is many photons, a label each would bury the view)
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
   if (hit && hit.after) hit.after();
@@ -2279,7 +2281,7 @@ function emitPhoton(x, y, E, ux, uy, opts) {
   const lab = photonLabel(E, opts && opts.src);
   if (opts && opts.travel) { W.flights.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.t, len: Math.hypot(x1 - x0, y1 - y0), hit, lab }); return; }
   if (!hit) W.ledger.escaped += E;
-  W.rays.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x0, y1 - y0), nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' }); // (ts, len: it goes at c on the simulation's clock, drawRays; hitP: for the Inspect tab)
+  W.rays.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t + ((opts && opts.delay) || 0), len: Math.hypot(x1 - x0, y1 - y0), nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' }); // (ts, len: it goes at c on the simulation's clock, drawRays; hitP: for the Inspect tab)
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
   if (hit && hit.after) hit.after();
 }
@@ -2910,18 +2912,22 @@ function pickLine(A, Eavail) {
     return { nm: PHYS.HC / (RZ * (0.25 - 1 / (n * n))), extraUV: RZ * 0.75, thr: RZ * (1 - 1 / (n * n)) };
   }
   const L = LINES[A.el.sym]; if (!L) return null;
-  let tot = 0; for (const l of L.l) tot += l[1];
+  // the line seen, and the rest of the cascade down to the ground state as one more photon. A line's upper level is
+  // at least as high as its photon: a line above L.thr (the element's lowest, as potassium's 404 nm over its 1.61 eV)
+  // costs its own energy, and is only made when the collision has that much (0.67: it was paid L.thr, light from nowhere)
+  const cost = (nm) => Math.max(L.thr, PHYS.HC / nm), ok = L.l.filter(l => !(Eavail < cost(l[0])));
+  if (!ok.length) return null;
+  let tot = 0; for (const l of ok) tot += l[1];
   let u = rnd() * tot;
-  // the line seen, and the rest of the cascade down to the ground state as one more photon (the excitation paid L.thr)
-  const rest = (nm) => Math.max(0, L.thr - PHYS.HC / nm);
-  for (const l of L.l) { u -= l[1]; if (u <= 0) return { nm: l[0], thr: L.thr, extraUV: rest(l[0]) }; }
-  return { nm: L.l[0][0], thr: L.thr, extraUV: rest(L.l[0][0]) };
+  for (const l of ok) { u -= l[1]; if (u <= 0) return { nm: l[0], thr: cost(l[0]), extraUV: cost(l[0]) - PHYS.HC / l[0] }; }
+  const l0 = ok[ok.length - 1][0];
+  return { nm: l0, thr: cost(l0), extraUV: cost(l0) - PHYS.HC / l0 };
 }
 function emitLineFrom(A, ln) {
   const E = PHYS.HC / ln.nm;
   glow(A, wavelengthRGB(ln.nm));
   emitPhoton(A.x, A.y, E, undefined, undefined, { src: A, depth: 2 });
-  if (ln.extraUV) emitPhoton(A.x, A.y, ln.extraUV, undefined, undefined, { src: A, depth: 2 });
+  if (ln.extraUV > 1e-9) emitPhoton(A.x, A.y, ln.extraUV, undefined, undefined, { src: A, depth: 2 });
 }
 function exciteByElectron(L, A, line, Eavail) {
   const ln = pickLine(A, Eavail);
@@ -3378,7 +3384,11 @@ function evHot(a, b, r) {
     const L = lineInfo(p);
     if (L && E > L.thr && rnd() < 0.03 * Math.exp(-L.thr / 2.5)) {
       const ln = pickLine(p, E);
-      if (ln) { kickPair(a, b, -ln.thr); emitLineFrom(p, ln); return; }
+      if (ln) { // (paid from their motion along the line of centres: when that cannot give all of it, no light, 0.67)
+        const sv = [a.vx, a.vy, b.vx, b.vy];
+        if (Math.abs(kickPair(a, b, -ln.thr) + ln.thr) > 1e-6) { a.vx = sv[0]; a.vy = sv[1]; b.vx = sv[2]; b.vy = sv[3]; updateFast(a); updateFast(b); return; }
+        emitLineFrom(p, ln); return;
+      }
     }
   }
   // ionization of the more weakly bound partner
@@ -3388,8 +3398,7 @@ function evHot(a, b, r) {
     const KEe = 0.25 * (E - ie);
     const before = speciesLabel(t);
     const sa = [a.vx, a.vy, b.vx, b.vy];
-    kickPair(a, b, -(ie + KEe));
-    if (!ejectElectron(t, KEe)) { a.vx = sa[0]; a.vy = sa[1]; b.vx = sa[2]; b.vy = sa[3]; return; }
+    if (Math.abs(kickPair(a, b, -(ie + KEe)) + ie + KEe) > 1e-6 || !ejectElectron(t, KEe)) { a.vx = sa[0]; a.vy = sa[1]; b.vx = sa[2]; b.vy = sa[3]; updateFast(a); updateFast(b); return; } // (all of it, or none)
     W.count.ionize++;
     log('em', `Thermal ionization: ${before} → ${speciesLabel(t)} + e⁻ (${fmtE(ie)})`);
   }
@@ -5317,6 +5326,21 @@ const RP_NAMES = ['start', 'outer', 'events', 'neutrons', 'walls', 'exotics', 'h
 let _rpT = 0;
 function rpMark(k) { if (!_profOn) return; const t = performance.now(); PROF.rp[k] += t - _rpT; _rpT = t; }
 function rpSkip() { if (_profOn) _rpT = performance.now(); }
+/* A beam source fires from where it is drawn (0.67): a source set on or past the wall is moved just inside it, and is drawn
+   as wide as its spread (render.js). */
+function srcPos(src) { const hw = W.box.w / 2 - 0.5, hh = W.box.h / 2 - 0.5; return [clamp(src.x, -hw, hw), clamp(src.y, -hh, hh)]; }
+/* In slow motion a source fires on the simulation's clock, so at 1/512 speed one that fires every second would wait eight
+   minutes: while the simulation is slowed, it never waits longer, to the eye, than at its normal pace (and at least a
+   quarter of a second), with at most 20 of its particles in flight at once. */
+function srcSlowFire(src) {
+  const base = W.baseSpf || W.simPerFrame;
+  if (src.rtLast === undefined) { src.rtLast = W.rt; return; }
+  if (!(W.simPerFrame < 0.9 * base) || !(src.rate > 0)) return;
+  const gap = Math.max(0.25, 1 / (src.rate * base * 60));
+  if (W.rt - src.rtLast < gap) return;
+  let live = 0; for (const p of W.parts) if (p.srcRef === src && !p.dead) live++;
+  if (live < 20) src.acc = 1;
+}
 function stepPlain(dt) {
   if (_profOn) _rpT = performance.now();
   W.step++; gridTouch(); // (positions move this step)
@@ -5406,16 +5430,18 @@ function stepPlain(dt) {
   for (const src of W.sources) {
     if (src.count !== undefined && src.count <= 0) continue; // a bunch, all injected
     src.acc += src.rate * dt;
+    if (src.count === undefined && !src.beam && src.acc < 1) srcSlowFire(src);
     while (src.acc >= 1 && !(src.count <= 0)) {
-      src.acc -= 1;
+      src.acc -= 1; src.rtLast = W.rt;
       if (src.count !== undefined) src.count--;
       // a little spread in where and which way (a real beam's emittance)
       const j = src.jitter || 0, ox = j ? (rnd() - 0.5) * j * -src.uy : 0, oy = j ? (rnd() - 0.5) * j * src.ux : 0, da = j ? (rnd() - 0.5) * 0.004 * j : 0;
       const ux = src.ux * Math.cos(da) - src.uy * Math.sin(da), uy = src.ux * Math.sin(da) + src.uy * Math.cos(da);
-      const p = fireSpec(src.spec, src.x + ox, src.y + oy, ux, uy, src.KE, !!src.beam);
+      const [sx, sy] = srcPos(src), p = fireSpec(src.spec, sx + ox, sy + oy, ux, uy, src.KE, !!src.beam);
+      if (p) p.srcRef = src;
       if (p && src.count !== undefined && src.rate > 0) { // (a bunch's particles evenly spaced, each placed as far as it has come since it left, on the beam line even where the last one is close)
         const sp = p.rad ? p.sp : Math.hypot(p.vx, p.vy), t = Math.min(src.acc / src.rate, 1.5 / Math.max(sp, 1e-9));
-        p.x = src.x + ox + ux * sp * t; p.y = src.y + oy + uy * sp * t; p.ox = p.x; p.oy = p.y;
+        p.x = sx + ox + ux * sp * t; p.y = sy + oy + uy * sp * t; p.ox = p.x; p.oy = p.y;
       }
       if (p) {
         p.beam = src.beam || true;
