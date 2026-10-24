@@ -10,6 +10,7 @@ const R = {
   view: { bohr: 'auto', labels: true, tracks: true, rays: true, hbonds: true, ionic: true, color: 'element', grid: true, decayCards: true },
   hover: null, sel: null, overlay: null, ghost: null, molTags: [], time: 0, // molTags: names from Identify molecules, shown for a while follow: null, // follow: a particle the view stays centred on
   msel: new Set(), // the Select tool's selection
+  oSel: new Set(), // and the placed objects in it (0.70)
   dprMax: 2, lite: false, // (Settings: drawing resolution, and lite: no glows, halos or flashes)
   as: 1, cvd: false, lblMode: 'always', badges: 'always', flashK: 1, // (Settings → Graphics: atom size, colour-blind palette, labels and charge badges always or on hover, flashes toned down)
 };
@@ -212,7 +213,7 @@ function drawObjects() {
   const seg = (ax, ay, bx, by) => { ctx.beginPath(); ctx.moveTo(w2sx(ax), w2sy(ay)); ctx.lineTo(w2sx(bx), w2sy(by)); ctx.stroke(); };
   const lw = (px, lo, hi) => clamp(px * s, lo, hi);
   for (const ob of W.objs) {
-    const k = ob.kind, sel = R.objSel === ob, [nx, ny] = objNormal(ob), L = objLen(ob), mx = (ob.x0 + ob.x1) / 2, my = (ob.y0 + ob.y1) / 2;
+    const k = ob.kind, sel = R.objSel === ob || R.oSel.has(ob), [nx, ny] = objNormal(ob), L = objLen(ob), mx = (ob.x0 + ob.x1) / 2, my = (ob.y0 + ob.y1) / 2;
     if (sel) { ctx.strokeStyle = 'rgba(120,200,255,0.35)'; ctx.lineWidth = lw(0.9, 8, 26); seg(ob.x0, ob.y0, ob.x1, ob.y1); }
     if (k === 'mirror' || k === 'splitter') {
       ctx.strokeStyle = k === 'mirror' ? 'rgba(225,235,250,0.95)' : 'rgba(200,225,255,0.75)'; ctx.lineWidth = lw(0.25, 2.5, 7);
@@ -1506,7 +1507,7 @@ function fmtVolt(V) { return fmtSI(V, 'V', 3); }
 function drawSources() {
   const ctx = R.ctx;
   for (const L of W.lasers || []) { // a laser: its housing, and its beam faintly along the way it points
-    const x = w2sx(L.x0), y = w2sy(L.y0), c = photonColor(L.E), t = rayExit(L.x0, L.y0, L.ux, L.uy);
+    const x = w2sx(L.x0), y = w2sy(L.y0), c = photonColor(L.E), t0 = rayExit(L.x0, L.y0, L.ux, L.uy), oh = W.objs.length ? opticFind(L.x0, L.y0, L.ux, L.uy, t0, L.E) : null, t = oh ? oh.t : t0; // (as far as the first object in its way)
     ctx.save();
     ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},0.22)`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(w2sx(L.x0 + L.ux * t), w2sy(L.y0 + L.uy * t)); ctx.stroke();
     ctx.translate(x, y); ctx.rotate(-Math.atan2(L.uy, L.ux));

@@ -1,4 +1,4 @@
-<title>Atom Forge 0.67.0</title>
+<title>Atom Forge 0.68.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -200,6 +200,9 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .hint { position: absolute; left: 10px; top: 52px; max-width: 380px; background: var(--ch-glass); color: var(--ch-fg); border: 1px solid var(--ch-line);
   border-radius: 10px; padding: 10px 34px 11px 12px; font-size: 13px; line-height: 1.45; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .hint b { color: #fff; }
+.hint.short #hintText { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.hint.short.open #hintText { display: block; -webkit-line-clamp: unset; }
+.hint.short:not(.open)::after { content: 'tap for more'; display: block; font-size: 11px; color: var(--ch-dim); margin-top: 2px; }
 .hint .x { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 6px; border: 0; background: transparent; color: var(--ch-dim); font-size: 16px; line-height: 1; }
 .hint .x:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
 .tip { position: absolute; pointer-events: none; background: rgba(6, 10, 15, 0.94); color: var(--ch-fg); border: 1px solid var(--ch-line);
@@ -425,6 +428,7 @@ canvas.chart.graph { height: auto; }
 .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 .btn.danger:hover { border-color: var(--bad, #c0392b); color: var(--bad, #c0392b); }
 .kdialog { width: min(640px, 100%); }
+.hdialog { width: min(680px, 100%); } .hbody { max-height: min(70vh, 640px); overflow: auto; } .hbody h4 { margin: 14px 0 4px; } .hbody ul { margin: 0; padding-left: 18px; } .hbody li { margin: 4px 0; font-size: 14px; line-height: 1.45; } .hbody kbd { font-family: var(--font-data); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
 .klist { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 18px; }
 .klist div { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .klist kbd { font-family: var(--font-data); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; white-space: nowrap; }
@@ -461,6 +465,12 @@ canvas.chart.graph { height: auto; }
 .mmenu.out { animation: mmOut 0.26s ease both; pointer-events: none; }
 .mmenu.out .mm-card { transition: transform 0.26s ease; transform: translate3d(-40px, 0, -160px) rotateY(12deg); }
 @keyframes mmOut { to { opacity: 0; } }
+/* Short landscape windows (a phone on its side, 0.69): no tagline or readout tiles, so the chamber keeps most of the
+   height. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .topbar { padding-top: 4px; padding-bottom: 4px; }
+  .brand small, .brand > span, .readouts { display: none; } /* (the name and version: the main menu shows them; temperature, time and count: the Data tab) */
+}
 @media (prefers-reduced-motion: reduce) {
   .mm-card, .mmenu::before { transform: none !important; }
   .mmenu *, .mmenu { animation: none !important; transition: none !important; }

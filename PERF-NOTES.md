@@ -76,6 +76,26 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.68.0: old saves, a stress pass, touch and small screens, new setups, Help
+- t_compat: worlds saved by 0.42, 0.46, 0.50, 0.55, 0.60 and 0.64 (tests/fixtures, each that version's worldToJSON of six
+  setups after 20 frames) open in the page with every particle, bond and magnet and run on with finite energy; a share
+  code round-trips (with a placed object).
+- t_fuzz also places 0–4 random objects and runs a third of its worlds at 1/512, 1/16 or 4× pace.
+- t_touch: a phone-sized touch page: tap to place, drag to draw a wall, long press for the quick menu.
+- Long press fixes: lifting the finger that opened the quick menu clicked the item under it (QM.noClickTill); the press's
+  own change was never taken back (the check compared undo lengths: UNDO.serial now).
+- The Objects tool's press is one undo step (UNDO_TOOLS), not two.
+- New setups: Rutherford's gold foil (5 MeV α, 40 layers of gold, detector screens round it), Hydrogen light through a
+  prism (Balmer-line lasers, an F2 prism at least deviation, a screen), Thomson's e/m tube (1 keV electrons between plates
+  60 V apart, a screen).
+- Select tool: a box takes placed objects too (by their middle; a click on one picks it); copy, paste, drag and delete
+  take them along (R.oSel, UI.clip.objs).
+- A particle's quick menu offers the object under it (QM.forceObj); a laser's guide line stops at the first object.
+- Help (Esc menu, main menu): getting started, moving around, keeping, what the simulation does and does not do, its
+  known limits. The tour mentions objects, the quick menu, the paused start and Help.
+- Short landscape windows (≤ 520 px tall): no name, tagline or readout tiles in the header (one row); a small chamber
+  shows the setup's note in two lines, tap for the rest (hintFit).
+
 ## 0.67.0: energy and display fixes, beam sources, setups start paused
 - Emission lines are paid what they cost: pickLine charges a line max(the element's lowest excitation, its own photon)
   and only picks lines the collision can pay for. Lines above the lowest (potassium 404 nm over its 1.61 eV, caesium's and

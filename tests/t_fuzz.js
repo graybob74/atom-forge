@@ -43,7 +43,12 @@ for (let seed = 1; seed <= SEEDS; seed++) {
     }
     X.settleOverlaps();
     W.slowmo = false;
-    const desc = `${W.parts.filter(p => !p.dead).length} particles, ${W.wall}, ${W.T.toFixed(0)} K${W.Ex || W.Ey ? ', E' : ''}${W.Bz ? ', B' : ''}${W.magnets.length ? ', magnet' : ''}${W.decayOn ? ', decay' : ''}`;
+    // placed objects (0.66) and a slowed or sped-up pace (0.69)
+    const nObj = R() < 0.4 ? 1 + Math.floor(R() * 4) : 0;
+    for (let i = 0; i < nObj; i++) { const cx = (R() - 0.5) * W.box.w * 0.7, cy = (R() - 0.5) * W.box.h * 0.7, a = R() * Math.PI, L = 3 + R() * 20;
+      X.objAdd(pick(X.OBJ_KINDS), cx - Math.cos(a) * L / 2, cy - Math.sin(a) * L / 2, cx + Math.cos(a) * L / 2, cy + Math.sin(a) * L / 2, { f: (R() - 0.5) * 60 || 10, V: (R() - 0.5) * 400, gap: 2 + R() * 10 }); }
+    const pace = R() < 0.3 ? pick([1 / 512, 1 / 16, 4]) : 1; W.simPerFrame *= pace;
+    const desc = `${W.parts.filter(p => !p.dead).length} particles, ${W.wall}, ${W.T.toFixed(0)} K${W.Ex || W.Ey ? ', E' : ''}${W.Bz ? ', B' : ''}${W.magnets.length ? ', magnet' : ''}${W.decayOn ? ', decay' : ''}${nObj ? `, ${nObj} objects` : ''}${pace !== 1 ? `, pace ×${pace}` : ''}`;
     stage = 'run';
     let issues = 0;
     for (let f = 0; f < FRAMES && issues < 3; f++) {

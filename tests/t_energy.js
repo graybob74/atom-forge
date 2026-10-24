@@ -12,7 +12,7 @@ const { load } = require(path.join(root, 'tests', 'load.js'));
 const LIMIT = { default: 3, mucf: 10, neon: 8, fusion: 10, annihilation: 5000, pet: 10, chain: 40, useries: 30, combustion: 6, flame: 6, soup: 20, antihydrogen: 15 }; // eV per run, generous (antihydrogen: −3 to +10 eV across seeds 7–12 with no annihilation: the light leptons' integration, a thing to look into) (soup: a neutron capture's keV recoil boils it)
 const SKIP = { pionbeam: 'its pion beam keeps adding energy', photonuc: 'its γ beam keeps adding energy', muonium: 'its muon beam keeps adding energy', hyperfactory: 'its kaon beam keeps adding energy', massspec: 'its ion sources keep adding energy', ring: 'its injectors and cavities add energy', linac: 'its injectors and cavities add energy',
   isolde: 'its proton beam keeps adding energy', sns: 'its proton beam keeps adding energy', dafne: 'its injectors and cavities add energy',
-  seu: 'its cosmic-ray sources keep adding energy', rhic: 'its injectors and cavities add energy', cloud: 'its radiation sources keep adding energy', crt: 'its electron gun keeps adding energy' };
+  seu: 'its cosmic-ray sources keep adding energy', rhic: 'its injectors and cavities add energy', cloud: 'its radiation sources keep adding energy', crt: 'its electron gun keeps adding energy', rutherford: 'its α source keeps adding energy', emtube: 'its electron gun keeps adding energy' };
 let fails = 0;
 const X0 = load('all', { seed: 1 });
 const keys = Object.keys(X0.PRESETS);

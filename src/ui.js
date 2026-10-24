@@ -876,7 +876,7 @@ function brushFor(tool) {
 }
 function magnetAt(x, y) { for (let i = W.magnets.length - 1; i >= 0; i--) { const m = W.magnets[i]; if (Math.hypot(m.x - x, m.y - y) < m.R) return m; } return null; }
 
-const UNDO_TOOLS = new Set(['place', 'erase', 'fire', 'spark', 'heat', 'pull', 'magnet', 'light']); // (tools that change the world when pressed: undo can take them back)
+const UNDO_TOOLS = new Set(['place', 'erase', 'fire', 'spark', 'heat', 'pull', 'magnet', 'light', 'objects']); // (tools that change the world when pressed: undo can take them back)
 function onDown(e) {
   R.cv.setPointerCapture(e.pointerId);
   const [px, py] = evPos(e);
@@ -949,7 +949,6 @@ function onDown(e) {
       break;
     case 'objects': {
       const ob = objAtPx(px, py);
-      undoMark(ob ? 'Move an object' : 'Place an object');
       if (ob) { UI.drag = { kind: 'objmove', ob, lx: wx, ly: wy }; R.objSel = ob; break; }
       const o = OPT.objects, nb = objAdd(o.kind, wx, wy, wx, wy, { f: o.f || 20, V: objV(), Z: o.Z, layers: o.layers });
       UI.drag = { kind: 'objnew', ob: nb, x0: wx, y0: wy }; R.objSel = nb;
@@ -978,27 +977,28 @@ function onDown(e) {
     }
     case 'select': {
       const p = pickAt(px, py, 8);
-      if (p && R.msel.has(p) && !e.shiftKey) UI.drag = { kind: 'selmove', lx: wx, ly: wy, moved: false }; // on the selection: drag moves it
+      if (((p && R.msel.has(p)) || (!p && R.oSel.size && R.oSel.has(objAtPx(px, py)))) && !e.shiftKey) UI.drag = { kind: 'selmove', lx: wx, ly: wy, moved: false }; // on the selection (a particle or an object in it): drag moves it
       else UI.drag = { kind: 'selbox', x0: wx, y0: wy, x1: wx, y1: wy, px, py, add: e.shiftKey, hit: p };
       break;
     }
   }
 }
 /* ------------------------------------------------------------------ selection, copy and paste (the Select tool) */
-function selCount() { let n = 0; for (const p of R.msel) if (!p.dead) n++; return n; }
+function selCount() { let n = R.oSel.size; for (const p of R.msel) if (!p.dead) n++; return n; }
 function selChanged() { if (UI.tool === 'select') buildToolOpts(); }
-function clearSelection() { R.msel.clear(); selChanged(); }
+function clearSelection() { R.msel.clear(); R.oSel.clear(); selChanged(); }
 function selectAll() { R.msel.clear(); for (const p of W.parts) if (!p.dead && selectable(p)) R.msel.add(p); if (UI.tool !== 'select') setTool('select'); selChanged(); }
 const selectable = (p) => (p.k === NUC || p.k === ELEC || p.k === POS) && !p.beam; // (photons, flying exotics and a collider's beams are not picked up)
 /* The box, done: everything inside it (and, if asked, the rest of each molecule touched). */
 function finishSelBox(d) {
   const tiny = Math.hypot(w2sx(d.x1) - d.px, w2sy(d.y1) - d.py) < 4; // (a click, not a box)
-  if (!d.add) R.msel.clear();
+  if (!d.add) { R.msel.clear(); R.oSel.clear(); }
   let picked = [];
-  if (tiny) { if (d.hit && selectable(d.hit)) picked = [d.hit]; }
+  if (tiny) { if (d.hit && selectable(d.hit)) picked = [d.hit]; else { const ob = objAtPx(d.px, d.py); if (ob) { if (d.add && R.oSel.has(ob)) R.oSel.delete(ob); else R.oSel.add(ob); } } }
   else {
     const x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1), y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
     for (const p of W.parts) if (!p.dead && selectable(p) && p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) picked.push(p);
+    for (const ob of W.objs) { const mx = (ob.x0 + ob.x1) / 2, my = (ob.y0 + ob.y1) / 2; if (mx >= x0 && mx <= x1 && my >= y0 && my <= y1) R.oSel.add(ob); } // (placed objects, by their middle: 0.70)
   }
   for (const p of picked) {
     if (d.add && tiny && R.msel.has(p)) { // Shift-click on a selected particle: out it goes (its molecule with it, when molecules are picked whole)
@@ -1012,6 +1012,7 @@ function finishSelBox(d) {
   selChanged();
 }
 function moveSelection(ddx, ddy) {
+  for (const ob of R.oSel) { ob.x0 += ddx; ob.x1 += ddx; ob.y0 += ddy; ob.y1 += ddy; W.dirty++; } // (objects in it go along)
   const g = [...R.msel].filter(a => !a.dead); if (!g.length) return;
   const skip = R.msel, stuck = crowdedAt(g, 0, 0, skip);
   for (const f of [1, 0.5, 0.25]) {
@@ -1022,16 +1023,17 @@ function moveSelection(ddx, ddy) {
 }
 function deleteSelection() {
   let n = 0; for (const p of R.msel) if (!p.dead) { kill(p); n++; }
+  for (const ob of R.oSel) { objRemove(ob); n++; } R.oSel.clear();
   R.msel.clear(); if (R.sel && R.sel.dead) { R.sel = null; renderInspect(); }
   if (n) log('tool', `Deleted ${n.toLocaleString('en-US')} selected particle${n === 1 ? '' : 's'}`);
   selChanged();
 }
 /* The clipboard: the selected nuclei, atoms, ions and free leptons, relative to their centre, with the bonds among them. */
 function copySelection() {
-  const ps = [...R.msel].filter(p => !p.dead && selectable(p));
-  if (!ps.length && R.sel && !R.sel.dead && selectable(R.sel)) ps.push(R.sel);
-  if (!ps.length) return;
-  let cx = 0, cy = 0; for (const p of ps) { cx += p.x; cy += p.y; } cx /= ps.length; cy /= ps.length;
+  const ps = [...R.msel].filter(p => !p.dead && selectable(p)), obs = [...R.oSel];
+  if (!ps.length && !obs.length && R.sel && !R.sel.dead && selectable(R.sel)) ps.push(R.sel);
+  if (!ps.length && !obs.length) return;
+  let cx = 0, cy = 0; for (const p of ps) { cx += p.x; cy += p.y; } for (const ob of obs) { cx += (ob.x0 + ob.x1) / 2; cy += (ob.y0 + ob.y1) / 2; } cx /= ps.length + obs.length; cy /= ps.length + obs.length;
   const idx = new Map(ps.map((p, i) => [p, i]));
   const parts = ps.map(p => ({ k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, dx: p.x - cx, dy: p.y - cy, rd: p.k === NUC ? p.rd : 0.15, el: p.el }));
   const bonds = [];
@@ -1042,7 +1044,8 @@ function copySelection() {
   const chips = whole.map(ch => ({ key: ch.key, at: ch.ps.map(p => idx.get(p)), v: { ...ch.v }, nfg: ch.nfg, drive: ch.drive ? { ...ch.drive } : null,
     label: ch.label, broken: ch.broken, nb0: ch.nb0, q0: ch.q0 ? ch.q0.slice() : null, inFrom: ch.inFrom ? whole.indexOf(ch.inFrom) : -1 }));
   const partial = W.chips.filter(ch => !whole.includes(ch) && ch.ps.some(p => idx.has(p))).length;
-  UI.clip = { parts, bonds, chips, at: W.rt };
+  const objs = obs.map(ob => { const o = objToJSON(ob); o.x0 -= cx; o.x1 -= cx; o.y0 -= cy; o.y1 -= cy; return o; }); // (placed objects, relative to the centre: 0.70)
+  UI.clip = { parts, bonds, chips, objs, at: W.rt };
   log('tool', `Copied ${parts.length.toLocaleString('en-US')} particle${parts.length === 1 ? '' : 's'}${bonds.length ? ` and ${bonds.length.toLocaleString('en-US')} bond${bonds.length === 1 ? '' : 's'}` : ''}${chips.length ? `, with ${chips.length} working part${chips.length === 1 ? '' : 's'}` : ''}${partial ? ` (${partial} part${partial === 1 ? ' is' : 's are'} only partly selected: those atoms paste as plain atoms)` : ''}`);
   selChanged();
 }
@@ -1060,8 +1063,11 @@ function cancelPaste() { UI.pasting = false; R.ghost = null; if (UI.tool === 'se
 /* Paste at a point (the pointer, or the middle of the view): the copies are nudged to a clear spot nearby if they would land
    on something, given one thermal velocity as a group, and become the selection (so they can be moved or pasted again). */
 function pasteClip(wx, wy) {
-  const c = UI.clip; if (!c || !c.parts.length) return;
+  const c = UI.clip; if (!c || (!c.parts.length && !(c.objs && c.objs.length))) return;
   if (wx === undefined) { const m = UI.mouse, inside = m && m[0] >= 0 && m[1] >= 0 && m[0] <= R.w && m[1] <= R.h; [wx, wy] = inside ? s2w(m[0], m[1]) : [R.cx, R.cy]; }
+  const madeObj = (c.objs || []).map(o => objFromJSON(Object.assign({}, o, { x0: o.x0 + wx, x1: o.x1 + wx, y0: o.y0 + wy, y1: o.y1 + wy }))).filter(Boolean);
+  for (const ob of madeObj) W.objs.push(ob); if (madeObj.length) { W.dirty++; R.oSel.clear(); for (const ob of madeObj) R.oSel.add(ob); }
+  if (!c.parts.length) { log('tool', `Pasted ${madeObj.length} object${madeObj.length === 1 ? '' : 's'}`); selChanged(); return; }
   if (W.parts.length + c.parts.length > MAX_PARTS) { log('tool', `Paste: no room for ${c.parts.length.toLocaleString('en-US')} more particles (the limit is ${MAX_PARTS.toLocaleString('en-US')}; Settings → Max particles)`); return; }
   const made = c.parts.map(q => q.k === NUC ? addNuc(q.Z, q.N, q.ne, wx + q.dx, wy + q.dy, 0, 0, q.anti) : addLepton(q.k, wx + q.dx, wy + q.dy, 0, 0));
   for (const [i, j, o] of c.bonds) if (made[i] && made[j]) addBond(made[i], made[j], o);
@@ -2280,7 +2286,7 @@ function worldFromJSON(d) {
   if (Array.isArray(d.magnets)) for (const m of d.magnets.slice(0, 50)) if (m && Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.B)) W.magnets.push({ x: m.x, y: m.y, R: num(m.R, 1, 1000, 10), B: clamp(m.B, -1e9, 1e9) });
   if (Array.isArray(d.objs)) for (const o of d.objs.slice(0, 200)) { const ob = objFromJSON(o); if (ob) W.objs.push(ob); }
   R.objSel = null;
-  W.dirty++; W.spawned++; W.topo++; W.hist = { t: [], T: [], bath: [] }; R.sel = null; R.msel.clear();
+  W.dirty++; W.spawned++; W.topo++; W.hist = { t: [], T: [], bath: [] }; R.sel = null; R.msel.clear(); R.oSel.clear();
   syncLab(); fitView(); renderInspect(); buildToolOpts();
   const n = made.filter(Boolean).length;
   return { n, nb, skipped: d.parts.length - n };
@@ -3433,6 +3439,11 @@ const PRESETS = {
     build() { baseWorld(44, 38.1, 160, 0.05); W.wall = 'wrap'; W.simPerFrame = 6;
       for (let i = 0; i < 11; i++) for (let j = 0; j < 11; j++) if ((i * 11 + j) % 9) addAtom('Ar', -22 + (i + 0.5) * 4 + (j % 2) * 2 + (rnd() - 0.5) * 0.8, -19.05 + (j + 0.5) * 3.464 + (rnd() - 0.5) * 0.8); // (a loose lattice with gaps, already melting at 160 K: no atoms overlap)
       W.ramp = { from: 160, to: 40, dur: 60, t: 0 }; } },
+  prism: { group: 'Electrons & light', name: 'Hydrogen light through a prism', tool: 'objects', spec: { kind: 'gamma' },
+    hint: '<b>The four visible lines of hydrogen, spread by a glass prism.</b> A hydrogen lamp\'s light (here four lasers at its Balmer lines: 656, 486, 434 and 410 nm) goes into a flint-glass prism. Glass slows violet light more than red, so each colour leaves at its own angle and lands at its own place on the screen: a spectroscope. Right-click the prism to turn it; met too steeply, the light is reflected inside instead.',
+    build() { baseWorld(120, 90, 300, 0.05);
+      objAdd('prism', -7.31, -4.75, 7.31, -11.25); objAdd('screen', 21.48, -45.19, 45.63, -24.20);
+      for (const nm of [656.3, 486.1, 434.0, 410.2]) W.lasers.push({ x0: -55, y0: 0, ux: 1, uy: 0, E: PHYS.HC / nm, rate: 6, acc: rnd() }); } },
   flame: { group: 'Electrons & light', name: 'Flame colours', tool: 'heat', spec: { kind: 'atom', Z: 11, A: 23 },
     hint: '<b>Lithium, sodium, potassium and copper vapour at 6,000 K.</b> Hot collisions lift outer electrons; falling back, each element emits its own lines: Li crimson 671 nm, Na yellow 589 nm, K lilac 766/404 nm, Cu green 510–522 nm.',
     build() { baseWorld(70, 50, 6000, 0.05); const pts = []; for (const s of ['Li', 'Na', 'K', 'Cu']) for (let i = 0; i < 12; i++) pts.push(s);
@@ -3444,6 +3455,11 @@ const PRESETS = {
   oven: { group: 'Electrons & light', name: 'Glowing oven (black-body light)', tool: 'place', spec: { kind: 'atom', Z: 11, A: 23 },
     hint: '<b>Walls at the Sun’s surface temperature, 5,800 K, glowing.</b> Open Data → Spectrum: the light follows Planck’s curve (dashed). Turn the heat bath down to 3,000 K, a light bulb’s filament, and the walls go orange as the peak slides into the infrared; up to 20,000 K and they go blue-white, the peak in the ultraviolet (Wien’s law). The sodium atoms scatter their own yellow line, and hot enough light ionizes them.',
     build() { baseWorld(90, 56, 5800, 0.05); W.glow = true; scatter(10, 90, 56, (x, y) => addAtom('Na', x, y), 6); } },
+  emtube: { group: 'Fields', name: 'Thomson\'s e/m tube', tool: 'objects', spec: { kind: 'e' },
+    hint: '<b>Electrons bent by charged plates, as J. J. Thomson measured them in 1897.</b> 1 keV electrons fly between two plates 60 V apart and are pulled toward the + plate; the screen shows where they land. Right-click the plates to change the voltage or swap + and −, and watch the spot move. Put a magnet on the plates (Magnet tool) and find the field that straightens them again: the two together give the electron\'s charge over its mass.',
+    build() { baseWorld(150, 80, 300, 0.05); W.wall = 'open';
+      objAdd('plates', -20, -5, 20, -5, { V: 60, gap: 10 }); objAdd('screen', 65, -35, 65, 35);
+      W.sources.push({ x: -70, y: 0, ux: 1, uy: 0, spec: { kind: 'e' }, KE: 1000, rate: 0.6, acc: 0.9, track: true, jitter: 1 }); } },
   magnet: { group: 'Fields', name: 'Magnetic matter', tool: 'magnet', spec: { kind: 'atom', Z: 26, A: 56 },
     hint: '<b>Iron, oxygen and water beside a 5,000 T magnet pole.</b> Iron is ferromagnetic and pulled in hard until heated past its Curie point (1043 K). O₂ is paramagnetic (unpaired electrons) and drawn in too; water is diamagnetic and only feebly pushed away. Drag the magnet around.',
     build() { baseWorld(70, 46, 300, 0.05);
@@ -3491,6 +3507,13 @@ const PRESETS = {
     build() { baseWorld(60, 40, 300, 0.05);
       for (let i = 0; i < 7; i++) for (let j = 0; j < 9; j++) addAtom('Pb', -6 + i * 3.5 + (j % 2) * 1.75, -14 + j * 3.5, { A: 208 });
       W.sources.push({ x: -29, y: 0, ux: 1, uy: 0, spec: { kind: 'gamma' }, KE: 1.35e7, rate: 2, acc: 0.5, jitter: 26 }); } },
+  rutherford: { group: 'Nuclear', name: 'Rutherford\'s gold foil', tool: 'objects', spec: { kind: 'atom', Z: 2, A: 4, bare: true },
+    hint: '<b>Geiger and Marsden\'s experiment (1909): 5 MeV α particles through gold foil.</b> Almost all go straight through or are turned a little; about one in a few thousand comes back, which a plum-pudding atom could never do. Rutherford worked out from it that an atom\'s positive charge and nearly all its mass sit in a tiny nucleus. The detector screens count every α that reaches them (right-click one for its count); right-click the foil to make it thicker.',
+    build() { baseWorld(170, 120, 300, 0.05);
+      objAdd('foil', 0, -25, 0, 25, { Z: 79, layers: 40 });
+      objAdd('screen', 75, -55, 75, 55); objAdd('screen', -70, 55, 70, 55); objAdd('screen', 70, -55, -70, -55);
+      objAdd('screen', -60, 8, -60, 50); objAdd('screen', -60, -50, -60, -8);
+      W.sources.push({ x: -80, y: 0, ux: 1, uy: 0, spec: { kind: 'atom', Z: 2, A: 4, bare: true }, KE: 5e6, rate: 3, acc: 0.9, track: true, jitter: 12 }); } },
   muonium: { group: 'Nuclear', name: 'Muonium in argon', tool: 'inspect', spec: { kind: 'exo', sp: 'mu+' },
     hint: '<b>Slow positive muons stopping in argon gas.</b> A μ⁺ is a heavy positron: as it slows it pulls an electron off an argon atom about 60% of the time, making muonium (Mu), a hydrogen atom with a muon for its proton. The muon lives 2.2 µs (decay sped up here), then decays into a positron and two neutrinos, and the electron goes free.',
     build() { baseWorld(60, 40, 120, 0.05); W.warp = 1e5;
@@ -3618,12 +3641,14 @@ function buildPresetSelect() {
   $('preset').innerHTML = `<optgroup label="Mine"><option value="__mine">My experiments…</option></optgroup>` + Object.entries(groups).map(([g, items]) => `<optgroup label="${esc(g)}">${items.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join('')}</optgroup>`).join('');
   $('preset').onchange = (e) => { if (e.target.value === '__mine') { syncPresetSelect(); e.target.blur(); openMine(); return; } undoMark('Load a setup'); loadPreset(e.target.value); e.target.blur(); };
 }
+/* On a small chamber (a phone, a short window) the setup's note shows its first two lines; a tap opens the rest (0.69). */
+function hintFit() { const st = document.querySelector('.stage'), h = $('hint'); if (!st || !h) return; h.classList.toggle('short', st.clientHeight < 460 || st.clientWidth < 520); h.classList.remove('open'); }
 function loadPreset(key) {
   if (!REW.restoring) { rewClear(); grClear(); if (R.measure) R.measure.length = 0; for (const k in PAIRS.h) { PAIRS.h[k].fill(0); PAIRS.ls[k].fill(0); } PAIRS.n = 0; PAIRS.ev.clear(); } // (a new world: its own past)
   const P = PRESETS[key] || PRESETS.soup;
   UI.preset = key in PRESETS ? key : 'soup';
   $('preset').value = UI.preset;
-  R.sel = null; R.selX = null; R.hover = null; R.follow = null; UI.drag = null; W.grab = null; R.msel.clear();
+  R.sel = null; R.selX = null; R.hover = null; R.follow = null; UI.drag = null; W.grab = null; R.msel.clear(); R.oSel.clear();
   P.build();
   settleOverlaps();
   UI.baseSpf = W.baseSpf = W.simPerFrame; UI.ach = 1; UI.capped = false;
@@ -3637,7 +3662,7 @@ function loadPreset(key) {
   syncLab(); syncSpeed();
   if (P.tab) showTab(P.tab);
   $('hintText').innerHTML = P.hint; $('hint').classList.remove('won'); if (!key.startsWith('ch_')) CH.cur = null;
-  $('hint').hidden = !SET.tips;
+  $('hint').hidden = !SET.tips; hintFit();
   store('preset', UI.preset);
   if (SET.startPaused && !UI.menu && !REW.restoring && UI.started && !window.AF_NO_PAUSE) { setRunning(false); UI.readyStart = true; } // (0.67: a setup waits at its start, so what happens first is seen)
   pausedText();
@@ -4052,16 +4077,16 @@ function viewTick(dt) {
 const LP = { t: 0, id: -1, x: 0, y: 0, undo: -1 };
 function lpStart(e, px, py) {
   clearTimeout(LP.t); if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
-  LP.id = e.pointerId; LP.x = px; LP.y = py; LP.undo = UNDO.back.length;
+  LP.id = e.pointerId; LP.x = px; LP.y = py; LP.undo = UNDO.serial || 0;
   LP.t = setTimeout(() => {
     if (UI.pointers.size !== 1) return;
     endToolAction();
-    if (UNDO_TOOLS.has(UI.tool) && UNDO.back.length > 0 && UNDO.back.length === LP.undo) { const sn = UNDO.back.pop(); UNDO.size -= sn.n; undoRestore(sn); }
-    UI.drag = { kind: 'none' }; openQuickMenu(LP.x, LP.y);
+    if (UNDO_TOOLS.has(UI.tool) && UNDO.back.length > 0 && (UNDO.serial || 0) === LP.undo + 1) { const sn = UNDO.back.pop(); UNDO.size -= sn.n; undoRestore(sn); } // (the press's own change, taken back: 0.69, it was never taken back)
+    UI.drag = { kind: 'none' }; openQuickMenu(LP.x, LP.y); QM.lpOpen = true;
   }, 520);
 }
 function lpMove(e, px, py) { if (e.pointerId === LP.id && Math.hypot(px - LP.x, py - LP.y) > 10) clearTimeout(LP.t); }
-function lpEnd() { clearTimeout(LP.t); }
+function lpEnd() { clearTimeout(LP.t); if (QM.lpOpen) { QM.lpOpen = false; QM.noClickTill = performance.now() + 400; } } // (lifting the finger that opened the menu is no click on what is under it: 0.69)
 
 /* ------------------------------------------------------------------ rewind */
 /* Rewind (, or the ⟲ button; Settings → General): while it runs, the world is kept every so often (rewEvery seconds of
@@ -4259,12 +4284,12 @@ function drawPairs() {
 /* ------------------------------------------------------------------ the tour */
 const TOUR = [
   ['#stage', 'The chamber', 'Everything here follows real physics: atoms, electrons, nuclei and light. Scroll to zoom, drag with the right button to move around.'],
-  ['.tools-wrap', 'Tools', 'Place, grab, select, push and pull, fire, heat, spark, magnets, light, erase, measure, inspect. The letter under each is its key.'],
+  ['.tools-wrap', 'Tools', 'Place, grab, select, push and pull, fire, heat, spark, magnets, objects (mirrors, lenses, screens, walls…), light, erase, measure, inspect. The letter under each is its key. Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.'],
   ['#paletteBar', 'What to place', 'Pick a particle, an element or a molecule here; Elements… and Molecules… have the rest, every isotope included.'],
-  ['.transport', 'Time', 'Play and pause (Space), one frame at a time (.), reload, slower and faster down to 1/512×, and slow motion. ⟲ rewinds (,): drag back through the last minute.'],
+  ['.transport', 'Time', 'Play and pause (Space): a setup waits at its first moment until you start it. One frame at a time (.), reload, slower and faster down to 1/512×, and slow motion. ⟲ rewinds (,): drag back through the last minute.'],
   ['#preset', 'Experiments', 'Ready-made setups, from water and salt to a chain reaction, a collider and challenges.'],
   ['.panel .tabs', 'The lab panel', 'Lab sets the conditions (temperature, fields, walls); Inspect shows anything you click; Data has graphs and counts; Log tells what happened; Physics explains how it works.'],
-  ['#bSettings', 'Settings and keys', 'Settings has graphics, display, controls and more. Esc opens the menu, ? lists every key, Ctrl+Z undoes.'],
+  ['#bSettings', 'Settings and help', 'Settings has graphics, display, controls and a benchmark. Esc opens the menu, with Help (what the simulation does and does not do), the keys (? lists them) and this tour; Ctrl+Z undoes.'],
 ];
 const TS = { i: 0 };
 function tourStart() { if (UI.menu) return; TS.i = 0; $('tour').hidden = false; tourShow(); }
@@ -4308,7 +4333,7 @@ function undoOK() { return !W.chips.length && !W.collider && !(W.lasers && W.las
 function undoSnap(label) { const d = worldToJSON(); return { d, txt: null, t: W.t, cam: [R.s, R.cx, R.cy], label, n: d.parts.length * 60 + 200 }; }
 function undoMark(label) {
   if (!undoOK()) { UNDO.back.length = 0; UNDO.fwd.length = 0; UNDO.size = 0; return; }
-  const sn = undoSnap(label); UNDO.back.push(sn); UNDO.size += sn.n; UNDO.fwd.length = 0;
+  const sn = undoSnap(label); UNDO.back.push(sn); UNDO.size += sn.n; UNDO.fwd.length = 0; UNDO.serial = (UNDO.serial || 0) + 1;
   while (UNDO.back.length > UNDO_MAX || (UNDO.size > UNDO_CHARS && UNDO.back.length > 1)) UNDO.size -= UNDO.back.shift().n;
 }
 function undoRestore(sn) {
@@ -4426,6 +4451,8 @@ const KEYS = [['Simulation', [['Space', 'Play / pause'], ['.', 'One frame'], ['R
   ['Particles', [['/', 'Find a particle by typing']]],
   ['Selection', [['Ctrl+C / Ctrl+V', 'Copy / paste'], ['Ctrl+A', 'Select all'], ['Delete', 'Delete the selected particle']]],
   ['Help', [['?', 'This list'], ['Shift+F10, menu key', 'Quick menu at the mouse'], ['Long press', 'Quick menu (touch, pen)']]]];
+/* Help (0.70): getting started, moving around, keeping, and what the simulation does and does not do. */
+function openHelp() { $('helpVer').textContent = `Atom Forge ${document.title.replace(/^Atom Forge /, '')}.`; showModal('helpModal'); }
 function openKeys() {
   const tools = TOOLS.filter(t => t.key && t.key.length === 1).map(t => [t.key, t.name]);
   $('keysList').innerHTML = [['Tools', tools], ...KEYS].map(([h, rows]) => `<h4>${esc(h)}</h4>` + rows.map(([k, d]) => `<div><span>${esc(d)}</span><kbd>${esc(k)}</kbd></div>`).join('')).join('');
@@ -4449,6 +4476,7 @@ function escAction(a) {
   if (a === 'resume') closeEscMenu();
   else if (a === 'settings') { closeEscMenu(); openSettings(); }
   else if (a === 'keys') { closeEscMenu(); openKeys(); }
+  else if (a === 'help') { closeEscMenu(); openHelp(); }
   else if (a === 'tour') { closeEscMenu(); tourStart(); }
   else if (a === 'gallery') { closeEscMenu(); $('bGallery').click(); }
   else if (a === 'share') { closeEscMenu(); $('bShare').click(); }
@@ -4509,6 +4537,7 @@ function mmAction(a) {
   else if (a === 'back') { $('mmSetups').hidden = true; $('mmBtns').hidden = false; }
   else if (a === 'gallery') $('bGallery').click();
   else if (a === 'settings') openSettings();
+  else if (a === 'help') openHelp();
   else if (a === 'quit') quitApp();
 }
 function menusInit() {
@@ -4524,6 +4553,7 @@ function menusInit() {
   });
   $('escModal').addEventListener('click', (e) => { if (e.target.id === 'escModal') { closeEscMenu(); return; } const b = e.target.closest('[data-esc]'); if (b) escAction(b.dataset.esc); });
   $('keysClose').onclick = () => hideModal('keysModal');
+  $('helpClose').onclick = () => hideModal('helpModal');
   $('keysModal').addEventListener('click', (e) => { if (e.target.id === 'keysModal') hideModal('keysModal'); });
   window.addEventListener('blur', () => blurPause(true)); window.addEventListener('focus', () => blurPause(false));
   document.addEventListener('visibilitychange', () => { if (document.hidden) { autosave(); blurPause(true); } else blurPause(false); });
@@ -5008,10 +5038,11 @@ function qmGlobal(px, py, wx, wy) {
 function openQuickMenu(px, py) {
   const m = $('qmenu'); if (!m) return;
   hideTip(); QM.acts = []; QM.ranges = []; QM.serial = (QM.serial || 0) + 1;
-  const [wx, wy] = s2w(px, py), p = pickNear(px, py, 14), mag = p ? null : magnetAt(wx, wy);
-  const src = p || mag ? null : W.sources.find(s => !s.beam && Math.hypot(s.x - wx, s.y - wy) < Math.max(1.5, 12 / R.s));
-  const ob = p || mag || src ? null : objAtPx(px, py);
-  m.innerHTML = (p ? qmParticle(p) : mag ? qmMagnet(mag) : src ? qmSource(src) : ob ? qmObject(ob) : qmHere(wx, wy)) + qmGlobal(px, py, wx, wy);
+  const forced = QM.forceObj; QM.forceObj = null;
+  const [wx, wy] = s2w(px, py), p = forced ? null : pickNear(px, py, 14), mag = p || forced ? null : magnetAt(wx, wy);
+  const src = p || mag || forced ? null : W.sources.find(s => !s.beam && Math.hypot(s.x - wx, s.y - wy) < Math.max(1.5, 12 / R.s));
+  const ob = forced || (p || mag || src ? null : objAtPx(px, py)), under = p ? objAtPx(px, py) : null; // (an object under the particle: reachable from its menu, 0.70)
+  m.innerHTML = (p ? qmParticle(p) + (under ? qmBtn(`The ${OBJ_NAME[under.kind].toLowerCase()} under it…`, () => { QM.forceObj = under; openQuickMenu(px, py); }) : '') : mag ? qmMagnet(mag) : src ? qmSource(src) : ob ? qmObject(ob) : qmHere(wx, wy)) + qmGlobal(px, py, wx, wy);
   m.hidden = false; QM.open = true; m.scrollTop = 0;
   m.style.left = Math.max(4, Math.min(px + 2, R.w - m.offsetWidth - 4)) + 'px';
   m.style.top = Math.max(4, Math.min(py + 2, R.h - m.offsetHeight - 4)) + 'px';
@@ -5030,6 +5061,7 @@ function qmMove(d) {
 function qmInit() {
   const m = $('qmenu');
   m.addEventListener('click', (e) => {
+    if (performance.now() < (QM.noClickTill || 0)) { e.preventDefault(); return; }
     const b = e.target.closest('[data-q]'); if (!b || b.disabled) return;
     const fn = QM.acts[+b.dataset.q];
     closeQuickMenu(true);
@@ -5131,6 +5163,8 @@ function init() {
   $('bInject').onclick = () => injectBeams();
   $('chkRefill').onchange = (e) => { if (W.collider) W.collider.auto = e.target.checked; };
   $('hintX').onclick = () => { $('hint').hidden = true; };
+  $('hintText').addEventListener('click', () => { if ($('hint').classList.contains('short')) $('hint').classList.toggle('open'); });
+  window.addEventListener('resize', hintFit);
   for (const b of document.querySelectorAll('.tab')) b.onclick = () => showTab(b.dataset.tab);
   $('bPanel').onclick = () => $('panel').classList.toggle('open');
   $('bSheetClose').onclick = () => $('panel').classList.remove('open');

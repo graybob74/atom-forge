@@ -620,6 +620,20 @@ const { openPage } = require('./browser');
     return out;
   });
   check(r29.paused && /READY/.test(r29.badge) && r29.fired >= 3, `0.67: a setup waits at its start (“${r29.badge}”); at 1/256 speed its beam source fired ${r29.fired} times in 2.5 s`, '0.67: ' + JSON.stringify(r29));
+  // 0.68: the new setups; objects selected, copied, pasted, moved and deleted; Help
+  const r30 = await page.evaluate(async () => {
+    const out = {};
+    for (const k of ['rutherford', 'prism', 'emtube']) { loadPreset(k); setRunning(true); await new Promise(r => setTimeout(r, 1500)); setRunning(false); out[k] = W.objs.filter(o => o.kind === 'screen').reduce((a, o) => a + o.hits.n, 0); }
+    loadPreset('empty'); setRunning(false); objAdd('mirror', -5, -5, -5, 5); objAdd('wall', 5, -5, 5, 5);
+    setTool('select'); finishSelBox({ x0: -10, y0: -10, x1: 10, y1: 10, px: 0, py: 0, add: false, hit: null }); out.sel = selCount();
+    copySelection(); pasteClip(20, 0); out.pasted = W.objs.length;
+    moveSelection(0, 3); out.moved = W.objs.slice(2).every(o => Math.abs((o.y0 + o.y1) / 2 - 3) < 1e-9);
+    deleteSelection(); out.left = W.objs.length;
+    openHelp(); out.help = !$('helpModal').hidden && /Getting started/.test($('helpModal').textContent); hideModal('helpModal');
+    return out;
+  });
+  check(r30.rutherford > 0 && r30.prism > 0 && r30.emtube > 0 && r30.sel === 2 && r30.pasted === 4 && r30.moved && r30.left === 2 && r30.help,
+    `0.68: new setups' screens counted ${r30.rutherford} α, ${r30.prism} photons, ${r30.emtube} electrons; two objects selected, pasted, moved and deleted; Help opens`, '0.68: ' + JSON.stringify(r30));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

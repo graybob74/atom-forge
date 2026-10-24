@@ -606,6 +606,7 @@
     <h2 id="escTitle">Paused</h2>
     <button class="btn primary" data-esc="resume">Resume</button>
     <button class="btn" data-esc="settings">Settings</button>
+    <button class="btn" data-esc="help">Help</button>
     <button class="btn" data-esc="keys">Keyboard shortcuts</button>
     <button class="btn" data-esc="tour">Tour of the controls</button>
     <button class="btn" data-esc="gallery">Gallery: save or open a world</button>
@@ -620,6 +621,37 @@
   <div class="dialog kdialog" role="dialog" aria-modal="true" aria-labelledby="keysTitle">
     <header><h2 id="keysTitle">Keyboard shortcuts</h2><button class="btn small" id="keysClose">Close</button></header>
     <div class="klist" id="keysList"></div>
+  </div>
+</div>
+
+<div class="modal" id="helpModal" hidden>
+  <div class="dialog hdialog" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <header><h2 id="helpTitle">Help</h2><button class="btn small" id="helpClose">Close</button></header>
+    <div class="hbody">
+      <h4>Getting started</h4>
+      <ul>
+        <li>Pick an experiment from the list at the top. It waits at its first moment: press <kbd>Space</kbd> or ▶ to start it.</li>
+        <li>The tools are down the left (a letter under each is its key). Place puts down whatever is picked in the bar above the chamber; Elements… and Molecules… have everything else.</li>
+        <li>Right-click anything in the chamber, or press and hold on a touchscreen, for a quick menu to change it, place something there or switch tools.</li>
+        <li>The Lab tab sets temperature, fields and walls; Inspect shows whatever you click; Data has graphs, counts and the spectroscope; Log says what happened; Physics explains how.</li>
+      </ul>
+      <h4>Moving around</h4>
+      <ul>
+        <li>Mouse: scroll to zoom, drag with the right button (or Space held) to move. Touch: pinch to zoom, two fingers to move, a tap to use the tool.</li>
+        <li>Time: slower and faster down to 1/512×, slow motion on demand (the hourglass), one frame at a time (.), and ⟲ to rewind the last minute or so. <kbd>Ctrl+Z</kbd> undoes.</li>
+      </ul>
+      <h4>Keeping and sharing</h4>
+      <ul>
+        <li>My experiments (at the top of the experiment list) keeps named saves in this browser; the Gallery and share codes (Esc menu) save a world to a file or a line of text to send. The chamber is kept between visits.</li>
+      </ul>
+      <h4>What it does, and does not</h4>
+      <ul>
+        <li>A two-dimensional world with real constants: atoms move by classical mechanics under forces fitted to real chemistry (bonds, angles, charges); free electrons and nuclei are particles of their own; nuclear reactions, decays and particle physics come from measured data. Energy is kept in the books, and checked for every experiment.</li>
+        <li>Simplified: the world is flat; the electrons inside an atom are not separate particles (an atom carries its electrons as a cloud with measured energies); light travels as rays; very fast particles fly straight between collisions instead of being stepped.</li>
+        <li>Known limits: water stripped of many electrons (oxygen ions of charge +4 and +5 among free electrons) gains about 100–170 eV over a run; worlds of many thousands of atoms run slower than 1× on slower computers (Settings → Benchmark measures yours).</li>
+      </ul>
+      <p class="note" id="helpVer"></p>
+    </div>
   </div>
 </div>
 
@@ -642,6 +674,7 @@
       <button class="btn" data-mm="setups">Experiments and challenges…</button>
       <button class="btn" data-mm="gallery">Gallery</button>
       <button class="btn" data-mm="settings">Settings</button>
+      <button class="btn" data-mm="help">Help</button>
       <button class="btn danger" data-mm="quit" id="mmQuit">Quit</button>
     </div>
     <div class="mm-setups" id="mmSetups" hidden><button class="btn small" data-mm="back">← Back</button><div class="mm-list" id="mmList"></div></div>
