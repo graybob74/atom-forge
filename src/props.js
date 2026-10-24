@@ -83,7 +83,7 @@ function opticFind(x, y, ux, uy, tmax, E) {
 }
 /* A ray that met a piece: where it goes on (a new emitPhoton from there, cont: not a new photon), or where it ends. */
 function opticHit(h, x0, y0, ux, uy, E, opts) {
-  const x = x0 + ux * h.t, y = y0 + uy * h.t, ob = h.ob, o2 = Object.assign({}, opts || {}, { cont: true, bounce: ((opts && opts.bounce) || 0) + 1, delay: ((opts && opts.delay) || 0) + h.t / PHYS.C }); // (delay: the next leg is drawn once light has come this far)
+  const x = x0 + ux * h.t, y = y0 + uy * h.t, ob = h.ob, o2 = Object.assign({}, opts || {}, { cont: true, bounce: ((opts && opts.bounce) || 0) + 1, delay: ((opts && opts.delay) || 0) + (opts && opts.travel ? 0 : h.t / PHYS.C) }); // (delay: the next leg is drawn once light has come this far; light in flight is here already when this runs, as it lands, 0.91)
   const go = (vx, vy, sx, sy) => { const L = Math.hypot(vx, vy); photonOn(sx + vx / L * 1e-6, sy + vy / L * 1e-6, E, vx / L, vy / L, o2); };
   const absorb = () => { if (!o2.glow) W.ledger.escaped += E; if (ob.kind === 'screen') objRecord(ob, E, true); }; // (a glowing wall's light absorbed is the walls' own)
   return { x, y, obj: ob, after: () => {

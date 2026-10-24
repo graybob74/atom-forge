@@ -2272,6 +2272,8 @@ function emitPhoton(x, y, E, ux, uy, opts) {
   if (!cont) specRecord(E, opts && opts.src);
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
   if (!cont) W.count.photons++;
+  const dly = (opts && opts.delay) || 0; // (light in flight from a mirror, lens or prism: it sets off once the light has come that far, so the hit it is heading for is reckoned from then, 0.91)
+  if (opts && opts.travel && dly) opts = Object.assign({}, opts, { delay: 0 });
   let x0 = x, y0 = y, depth = (opts && opts.depth) || 0;
   let hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract(x0, y0, ux, uy, E, opts && opts.src);
   let x1, y1;
@@ -2279,7 +2281,7 @@ function emitPhoton(x, y, E, ux, uy, opts) {
   else { const t = rayExit(x0, y0, ux, uy); x1 = x0 + ux * t; y1 = y0 + uy * t; }
   if (W.objs.length) { const oh = opticFind(x0, y0, ux, uy, Math.hypot(x1 - x0, y1 - y0), E); if (oh) { hit = opticHit(oh, x0, y0, ux, uy, E, opts); x1 = hit.x; y1 = hit.y; } } // (a placed piece first on its way)
   const lab = photonLabel(E, opts && opts.src);
-  if (opts && opts.travel) { W.flights.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.t, len: Math.hypot(x1 - x0, y1 - y0), hit, lab }); return; }
+  if (opts && opts.travel) { W.flights.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.t + dly, len: Math.hypot(x1 - x0, y1 - y0), hit, lab }); return; }
   if (!hit) W.ledger.escaped += E;
   W.rays.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t + ((opts && opts.delay) || 0), len: Math.hypot(x1 - x0, y1 - y0), nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' }); // (ts, len: it goes at c on the simulation's clock, drawRays; hitP: for the Inspect tab)
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
@@ -2986,9 +2988,17 @@ function capture(L, A, Etot) {
   const tr = joinEnergy(L, A);
   let Eph = tr.E;
   if (Eph < 0) { // deficit: only if the neighbourhood can supply it
-    const nb = nearestThird(A, L, 6), nv = nb ? [nb.vx, nb.vy] : null;
+    const nb = nearestThird(A, L, 6), nv = nb ? [nb.vx, nb.vy] : null, av = [A.vx, A.vy];
     const got = nb && Eph > -2 ? -kickPair(A, nb, Eph) : 0;
-    if (got < -Eph - 1e-6) { if (nb) { nb.vx = nv[0]; nb.vy = nv[1]; } undoJoin(L, tr.sn, t0, d0); return; }
+    if (got < -Eph - 1e-6) {
+      if (nb) { nb.vx = nv[0]; nb.vy = nv[1]; A.vx = av[0]; A.vy = av[1]; }
+      // A lepton held in the ion's well is bound as deeply as by the free atom's ion (softFor). In a molecule the capture
+      // may have to change bonds (a π bond to the charged atom must go: C=F⁺ + e⁻ → C–F·), which the free atom's
+      // binding does not pay for, so that a lepton at the bottom of the well could never be captured and stayed in it
+      // for ever. Then the surroundings pay what the bonds cost, booked as the bath's, as forceShed does (0.92).
+      if (!(Etot < 0 && Eph > -12)) { undoJoin(L, tr.sn, t0, d0); return; }
+      W.ledger.bath += Eph;
+    }
     Eph = 0;
   }
   kill(L);
@@ -4008,9 +4018,20 @@ const _wc = new Float64Array(2);
    would keep every fast product of every event in the box for ever.) */
 function wallStops(p) { return p.rad && !(p.k === NUC && p.Z === 0); }
 /* Neutrons feel no charge, so what a wall does to them depends on what it is made of (Lab → Container): a reflector
-   (graphite, beryllium) scatters them back in, as these walls always did; an absorber (boron, cadmium) captures them;
-   a thin wall of anything barely touches them, and they fly out. */
-const neutronLeaves = (p) => p.k === NUC && p.Z === 0 && W.wall === 'reflect' && W.nWall !== 'reflect';
+   (graphite, beryllium) scatters them back in, as these walls always did; an absorber (boron, cadmium) captures them
+   by the 1/v law: the slower a neutron, the longer it lingers by each nucleus, so a thermal one (0.025 eV) is caught
+   almost always and a fast one (1 MeV) almost never, scattering back in instead (0.92); a thin wall of anything barely
+   touches them, and they fly out. And one that is no material: neutrons faster than N_FAST leave, slower ones bounce
+   back (to clear a box of stray fast neutrons and keep the slowed ones, 0.92). */
+const N_FAST = 1e5, N_THERM = 0.0253; // eV: fast as fission and spallation neutrons are born; thermal at 20 °C
+function neutronLeaves(p) {
+  if (!(p.k === NUC && p.Z === 0 && W.wall === 'reflect')) return false;
+  const nw = W.nWall;
+  if (nw === 'pass') return true;
+  if (nw === 'fast') return keOf(p) > N_FAST;
+  if (nw === 'absorb') return rnd() < 1 - Math.exp(-5 * Math.sqrt(N_THERM / Math.max(1e-9, keOf(p)))); // (thermal 99.3%, 1 eV 55%, 1 keV 2.5%, 1 MeV 0.08% a hit)
+  return false;
+}
 function wallOrEscape(p, escape, x0, y0) {
   const hw = W.box.w / 2, hh = W.box.h / 2;
   if (p.x >= -hw && p.x <= hw && p.y >= -hh && p.y <= hh) return false;
@@ -4038,7 +4059,7 @@ function wallOrEscape(p, escape, x0, y0) {
     return false;
   }
   if (W.wall === 'open' || (W.wall === 'reflect' && wallStops(p)) || neutronLeaves(p)) {
-    if (W.wall === 'reflect') { if (!(p.k === NUC && p.Z === 0 && W.nWall === 'pass')) W.count.wallStop++; if (x0 !== undefined) { p.x = _wc[0]; p.y = _wc[1]; } }
+    if (W.wall === 'reflect') { if (!(p.k === NUC && p.Z === 0 && (W.nWall === 'pass' || W.nWall === 'fast'))) W.count.wallStop++; if (x0 !== undefined) { p.x = _wc[0]; p.y = _wc[1]; } }
     if (p.k === NUC && p.Z === 0) W.ledger.escaped += keOf(p);
     else if (p.rad) W.ledger.escaped += p.KE;
     kill(p); return true;

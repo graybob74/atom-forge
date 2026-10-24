@@ -76,6 +76,24 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.92.0: release candidate 3 (bug fixes)
+- Light in flight through a prism: when the photon reached the prism, the light leaving the far side set off at once
+  (emitPhoton ignored opts.delay for flights) while the path inside was drawn late (opticHit added the first leg's
+  travel time, which a flight has already flown when it lands). Now the path inside is drawn from the moment it lands,
+  and the light leaving sets off when it gets to the far side (flights may start in the future: drawFlights, the labels
+  and lightHead skip them until then). Test: t_features 0.91 block.
+- Neutrons at the walls (physics change, OK'd by the user): Absorbed now follows the 1/v law, capture odds a hit
+  1 − exp(−5·√(0.0253 eV / E)): thermal 99.4%, 1 eV 55%, 1 keV 2.5%, 1 MeV 0.05%; the rest scatter back. New choice
+  "Fast leave" (not a material): neutrons over 0.1 MeV leave, slower ones bounce. Pass through is unchanged for all.
+- Electrons stuck at molecular cations (user's video: C₁₀F₂₀ with C=F⁺): an ion's well is as deep as the free atom's ion
+  binds (softFor), but in a molecule the capture may have to break a bond (the π bond of C=F⁺), so at the bottom of the
+  well the capture never paid (−2 to −6 eV) and was undone on every try: the electron stayed for ever. Now a lepton
+  bound in the well (Etot < 0) is captured with the surroundings paying up to 12 eV, booked to ledger.bath as forceShed
+  does. Test: t_features 0.92 block.
+- Narrator: what is logged is looked at every frame, also while a caption is up, and the most important line waits its
+  turn (up to 8 s). It was looked for only among the last 120 lines once a caption was done, so a fission could be lost
+  under the chemistry of its fragments (t_features' narrator check failed now and then).
+
 ## 0.91.0: release candidate 2 (bug fixes)
 - Automatic slow motion (after a collision or a nuclear event) now works against the setup's normal speed, as the
   slow-motion button does: the speed buttons scale it. It worked against the speed as set, which cancelled them out, so

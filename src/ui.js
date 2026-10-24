@@ -2265,7 +2265,7 @@ function worldFromJSON(d) {
   if (!REW.restoring) { rewClear(); grClear(); }
   setRunning(false); clearWorld(); UI.preset = typeof d.preset === 'string' ? d.preset : 'empty';
   W.box.w = W.box.tw = num(d.box.w, 20, 20000, 200); W.box.h = W.box.th = num(d.box.h, 20, 20000, 140); UI.aspect = W.box.th / W.box.tw;
-  W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.nWall = ['reflect', 'absorb', 'pass'].includes(d.nWall) ? d.nWall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -50, 50, 0); W.Ey = num(d.Ey, -50, 50, 0);
+  W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.nWall = ['reflect', 'absorb', 'pass', 'fast'].includes(d.nWall) ? d.nWall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -50, 50, 0); W.Ey = num(d.Ey, -50, 50, 0);
   UI.E = Math.hypot(W.Ex, W.Ey); UI.Eang = UI.E ? Math.round(Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) : (UI.Eang || 0); // (the Lab's field figure and direction, from the field)
   W.simPerFrame = num(d.spf, DT_MIN, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1e-6, 1e30, 1); W.minShow = [0, 1, 2].includes(d.minShow) ? d.minShow : 0; W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true;
   const made = [], hw = W.box.w / 2, hh = W.box.h / 2;
@@ -2546,7 +2546,7 @@ function explainInit() {
 /* The narrator: notable events from the log, each with a caption saying what happened and why, one at a time (the most
    important first: nuclear, then light and charge, then chemistry), each shown at least 5 s; the same kind not again
    within 12 s. */
-const NARR = { seq: 0, until: 0, last: new Map(), cur: '' };
+const NARR = { seq: 0, until: 0, last: new Map(), cur: '', pend: null };
 const NARR_RULES = [
   [/^Muon-catalysed fusion: (\S+) → .*fusion no\. (\d+)/, 'mucf', 10, (m) => `<b>Muon-catalysed fusion</b> (this muon’s no. ${m[2]}). In the molecule ${m[1]} the heavy muon holds the two nuclei about 200 times closer than electrons could, close enough to fuse at room temperature or colder: ⁴He + n + 17.6 MeV. The muon usually comes free to do it again.`],
   [/^Muonic atom: μ⁻ caught by (\S+)/, 'muatom', 8, (m) => `<b>A muonic atom.</b> A slowed negative muon was caught by ${m[1]} and fell to an orbit 207 times closer than an electron’s (it is 207 times heavier), giving off X-rays.`],
@@ -2582,18 +2582,21 @@ const NARR_RULES = [
 ];
 function narrTick() {
   const now = UI.vis, box = $('narr');
-  if (now < NARR.until) return;
-  let best = null;
-  for (let i = W.log.length - 1; i >= 0 && i >= W.log.length - 120; i--) {
+  // what has been logged since the last look, every frame (also while a caption is up): the most important waits its
+  // turn, so that a fission is not lost under the chemistry its fragments start while the caption before it is read
+  // (it was looked for only among the last 120 lines once the caption was done, 0.92)
+  for (let i = W.log.length - 1; i >= 0; i--) {
     const e = W.log[i]; if (e.seq <= NARR.seq) break;
     for (const [re, kind, pri, fn] of NARR_RULES) {
       const m = re.exec(e.text); if (!m) continue;
       if (now - (NARR.last.get(kind) || -1e9) < 12) break;
-      if (!best || pri > best.pri) best = { pri, kind, html: fn(m) };
+      if (!NARR.pend || pri > NARR.pend.pri || now - NARR.pend.t > 8) NARR.pend = { pri, kind, html: fn(m), t: now };
       break;
     }
   }
   NARR.seq = W.logSeq;
+  if (now < NARR.until) return;
+  const best = NARR.pend && now - NARR.pend.t <= 8 ? NARR.pend : null; NARR.pend = null;
   if (!best) { if (!box.hidden && now > NARR.until + 3) { box.classList.add('fade'); if (now > NARR.until + 4) box.hidden = true; } return; }
   NARR.last.set(best.kind, now); NARR.until = now + 5; NARR.cur = best.kind;
   box.innerHTML = best.html; box.hidden = false; box.classList.remove('fade');
@@ -2761,7 +2764,7 @@ function bindLab() {
   bindSeg('segEdir', (v) => { UI.Eang = +v; applyE(); });
   $('bMagClear').onclick = () => { W.magnets.length = 0; syncLabText(); };
   bindSeg('segWall', (v) => { W.wall = v; syncNWall(); });
-  bindSeg('segNWall', (v) => { W.nWall = v; syncNWall(); log('tool', `Neutrons at the walls: ${{ reflect: 'bounce back (a reflector)', absorb: 'absorbed', pass: 'pass through' }[v]}`); });
+  bindSeg('segNWall', (v) => { W.nWall = v; syncNWall(); log('tool', `Neutrons at the walls: ${{ reflect: 'bounce back (a reflector)', absorb: 'absorbed, the slow ones most (the 1/v law)', pass: 'pass through', fast: 'fast ones (over 0.1 MeV) leave, slower ones bounce back' }[v]}`); });
   $('chkGlow').onchange = (e) => { W.glow = e.target.checked; };
   $('boxSlider').oninput = (e) => { const w = boxFromS(+e.target.value); W.box.tw = w; W.box.th = w * UI.aspect; syncLabText(); };
   $('spdSlider').oninput = (e) => { W.simPerFrame = spdFromS(+e.target.value); syncLabText(); syncSpeed(); };
@@ -3645,6 +3648,7 @@ function buildPresetSelect() {
 function hintFit() { const st = document.querySelector('.stage'), h = $('hint'); if (!st || !h) return; h.classList.toggle('short', st.clientHeight < 460 || st.clientWidth < 520); h.classList.remove('open'); }
 function loadPreset(key) {
   if (!REW.restoring) { rewClear(); grClear(); if (R.measure) R.measure.length = 0; for (const k in PAIRS.h) { PAIRS.h[k].fill(0); PAIRS.ls[k].fill(0); } PAIRS.n = 0; PAIRS.ev.clear(); } // (a new world: its own past)
+  NARR.pend = null; // (nothing from the world before is told about this one)
   const P = PRESETS[key] || PRESETS.soup;
   UI.preset = key in PRESETS ? key : 'soup';
   $('preset').value = UI.preset;
@@ -4320,7 +4324,7 @@ let L_UNIT = 'A'; // Settings → General: lengths in Å, nm or pm (fmtA)
 function fmtA(a, digits) { const [f, u] = L_UNIT === 'nm' ? [0.1, ' nm'] : L_UNIT === 'pm' ? [100, ' pm'] : [1, ' Å'], v = a * f; return (digits === undefined ? (Math.abs(v) >= 100 ? fmtNum(v, 4) : v.toPrecision(3)) : v.toFixed(digits)) + u; }
 function syncNWall() {
   $('nWallRow').hidden = W.wall !== 'reflect'; setSegValue('segNWall', W.nWall || 'reflect');
-  $('nWallNote').textContent = { reflect: 'They scatter back in, as off a reflector of graphite or beryllium: a chain reaction keeps its neutrons.', absorb: 'They are captured in the wall, as in boron or cadmium (the energy goes into the wall): a chain reaction loses them at the edges.', pass: 'They fly straight out, as through any thin wall (their energy leaves with them): only what they hit on the way in counts.' }[W.nWall || 'reflect'];
+  $('nWallNote').textContent = { reflect: 'They scatter back in, as off a reflector of graphite or beryllium: a chain reaction keeps its neutrons.', absorb: 'They are captured in the wall, as in boron or cadmium, by the 1/v law: the slower the neutron, the likelier (thermal ones almost always, 1 MeV ones about once in a thousand hits; the rest scatter back). The energy goes into the wall.', fast: 'Not a material: neutrons faster than 0.1 MeV (as fission and spallation neutrons are born) leave through the wall, and slower ones bounce back. For clearing a box of stray fast neutrons while keeping the slowed ones.', pass: 'They fly straight out, as through any thin wall (their energy leaves with them): only what they hit on the way in counts.' }[W.nWall || 'reflect'];
 }
 function viewFlagsSave() { store('viewflags', JSON.stringify(R.view)); }
 /* Undo and redo (Ctrl+Z; Ctrl+Shift+Z or Ctrl+Y): before each change made by hand (a tool pressed on the chamber, a

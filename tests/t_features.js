@@ -115,7 +115,7 @@ const { openPage } = require('./browser');
     setRunning(false); const out = {};
     loadPreset('cloud'); UI.running = true; for (let f = 0; f < 600 && W.tracks.length < 4; f++) { simFrame(1 / 60, 25); toolTick(1 / 60); if (f % 4 === 0) render(W.rt); } UI.running = false; render(W.rt);
     out.cloud = { tracks: W.tracks.length, cloud: W.cloud, kinds: [...new Set(W.tracks.map(t => t.w))].length };
-    setSetting('narr', true); loadPreset('chain'); NARR.seq = W.logSeq; NARR.until = 0; NARR.last.clear();
+    setSetting('narr', true); loadPreset('chain'); NARR.seq = W.logSeq; NARR.until = 0; NARR.last.clear(); NARR.pend = null;
     for (const u of W.parts.filter(p => p.Z === 92).slice(0, 3)) fireSpec({ kind: 'n' }, u.x - 6, u.y, 1, 0, 0.025, false);
     let txt = ''; for (let f = 0; f < 4000 && !/Fission|Neutron capture/.test(txt); f++) { simFrame(1 / 60, 25); UI.vis += 1 / 60; if (f % 10 === 0) { narrTick(); if (!$('narr').hidden) txt = $('narr').textContent; } }
     out.narr = txt.slice(0, 80); setSetting('narr', false); updateReadouts(); out.off = $('narr').hidden;
@@ -350,12 +350,15 @@ const { openPage } = require('./browser');
   // 0.57: what the walls do to neutrons; ionic attractions drawn between touching ions of opposite charge
   const r20 = await page.evaluate(() => {
     const out = {};
-    for (const nw of ['reflect', 'absorb', 'pass']) {
-      loadPreset('empty'); setRunning(false); W.nWall = nw; const st0 = W.count.wallStop;
-      const n = addNuc(0, 1, 0, W.box.w / 2 - 3, 0, 0, 0, false); setMotion(n, 1e6, 1, 0);
-      for (let f = 0; f < 200 && !n.dead && n.x > 0; f++) simFrame(1 / 60, 30);
-      out[nw] = { dead: n.dead, back: !n.dead && (n.vx < 0 || n.ux < 0), stop: W.count.wallStop - st0 };
+    for (const [key, nw, E] of [['reflect', 'reflect', 1e6], ['absorb', 'absorb', 0.0253], ['pass', 'pass', 1e6], ['passSlow', 'pass', 0.0253], ['fast', 'fast', 1e6], ['fastSlow', 'fast', 0.0253]]) {
+      loadPreset('empty'); setRunning(false); W.nWall = nw; W.gamma = 0; const st0 = W.count.wallStop; // (no bath: a thermal neutron is not turned round before it gets there)
+      const n = addNuc(0, 1, 0, W.box.w / 2 - 3, 0, 0, 0, false); setMotion(n, E, 1, 0);
+      for (let f = 0; f < 2000 && !n.dead && n.x > 0 && !(n.vx < 0 || n.ux < 0); f++) simFrame(1 / 60, 30);
+      out[key] = { dead: n.dead, back: !n.dead && (n.vx < 0 || n.ux < 0), stop: W.count.wallStop - st0 };
     }
+    // the absorber's 1/v law, by the odds of a capture at a hit (one thermal neutron above may be among the 0.7% let back)
+    W.nWall = 'absorb'; W.wall = 'reflect';
+    for (const E of [0.0253, 1, 1e6]) { let c = 0; for (let i = 0; i < 4000; i++) if (neutronLeaves({ k: NUC, Z: 0, rad: true, KE: E })) c++; out['P' + E] = c / 4000; }
     loadPreset('empty'); setRunning(false); R.view.ionic = true;
     const na = addNuc(11, 12, 10, 0, 0, 0, 0, false), cl = addNuc(17, 18, 18, 2.8, 0, 0, 0, false), far = addNuc(17, 18, 18, -15, 0, 0, 0, false);
     refresh(na); refresh(cl); refresh(far); R.s = 30; R.cx = 0; R.cy = 0;
@@ -363,8 +366,8 @@ const { openPage } = require('./browser');
     drawIonic(); ctx.lineTo = keep; out.ionic = { lines, qa: na.q, qb: cl.q };
     return out;
   });
-  check(r20.reflect.back && !r20.reflect.dead && r20.absorb.dead && r20.absorb.stop === 1 && r20.pass.dead && r20.pass.stop === 0 && r20.ionic.lines === 1,
-    `walls and neutrons: a 1 MeV neutron bounces back off a reflector, is captured by an absorber, flies out through a thin wall; an Na⁺ touching a Cl⁻ is joined by an ionic line, a far Cl⁻ is not`, 'walls/ionic: ' + JSON.stringify(r20));
+  check(r20.reflect.back && !r20.reflect.dead && (r20.absorb.dead ? r20.absorb.stop === 1 : r20.absorb.back) && r20['P0.0253'] > 0.98 && r20.P1 > 0.45 && r20.P1 < 0.65 && r20.P1000000 < 0.004 && r20.pass.dead && r20.pass.stop === 0 && r20.passSlow.dead && r20.fast.dead && r20.fast.stop === 0 && r20.fastSlow.back && !r20.fastSlow.dead && r20.ionic.lines === 1,
+    `walls and neutrons: a 1 MeV neutron bounces back off a reflector; an absorber captures by the 1/v law (a thermal one ${(100 * r20['P0.0253']).toFixed(1)}% a hit, 1 eV ${(100 * r20.P1).toFixed(0)}%, 1 MeV ${(100 * r20.P1000000).toFixed(2)}%); neutrons fly out through a thin wall; 'fast leave' lets a 1 MeV one out and bounces a thermal one; an Na⁺ touching a Cl⁻ is joined by an ionic line, a far Cl⁻ is not`, 'walls/ionic: ' + JSON.stringify(r20));
   // 0.57: measure, kept views, rewind (and its undo), the graph and its CSV, the tour, a long press
   const r21 = await page.evaluate(async () => {
     const wait = (ms) => new Promise((r) => { setTimeout(r, ms); }), out = {};
@@ -634,6 +637,44 @@ const { openPage } = require('./browser');
   });
   check(r30.rutherford > 0 && r30.prism > 0 && r30.emtube > 0 && r30.sel === 2 && r30.pasted === 4 && r30.moved && r30.left === 2 && r30.help,
     `0.68: new setups' screens counted ${r30.rutherford} α, ${r30.prism} photons, ${r30.emtube} electrons; two objects selected, pasted, moved and deleted; Help opens`, '0.68: ' + JSON.stringify(r30));
+  // 0.91: light in flight waits while it crosses a prism (the path inside is drawn going at c; the light leaves the far
+  // side when it gets there), and automatic slow motion scales with the speed buttons
+  const r31 = await page.evaluate(async () => {
+    const out = {};
+    loadPreset('prism'); setRunning(true);
+    for (let i = 0; i < 200 && !out.wait; i++) {
+      await new Promise(r => setTimeout(r, 50));
+      const f = W.flights.find(f => f.t0 > W.t); if (!f) continue;
+      const ray = W.rays.find(q => !q.landed && Math.hypot(q.x1 - f.x0, q.y1 - f.y0) < 1e-3);
+      out.wait = true; out.gap = ray ? Math.abs(ray.ts + ray.len / PHYS.C - f.t0) : -1;
+    }
+    setRunning(false);
+    loadPreset('empty'); setRunning(false); W.slowmo = true;
+    const base = W.baseSpf || W.simPerFrame;
+    addNuc(0, 1, 0, 0, 0, 3000, 0); // (a fast neutron: what slow motion follows)
+    W.simPerFrame = base; W.slow = { t0: W.rt - 0.01, on: true, f: 1 }; const a = slowFactor(1 / 60) * W.simPerFrame;
+    W.simPerFrame = base / 16; W.slow = { t0: W.rt - 0.01, on: true, f: 1 }; const b = slowFactor(1 / 60) * W.simPerFrame;
+    W.simPerFrame = base; W.slow = null;
+    out.ratio = a / b;
+    return out;
+  });
+  check(r31.wait && r31.gap >= 0 && r31.gap < 1e-9 && Math.abs(r31.ratio - 16) < 0.5,
+    `0.91: light leaves the prism when its path inside has been crossed (gap ${r31.gap}); automatic slow motion at 1/16× runs ${r31.ratio && r31.ratio.toFixed(1)} times slower than at 1×`, '0.91: ' + JSON.stringify(r31));
+  // 0.92: an electron at the bottom of a molecular cation's well is captured even when the capture must break a π bond
+  // (C=F⁺ + e⁻ → C–F·): it used to stay there for ever, every try undone
+  const r32 = await page.evaluate(() => {
+    loadPreset('empty'); setRunning(false); W.T = 300; W.wall = 'reflect';
+    const c1 = addAtom('C', 0, 0), c2 = addAtom('C', 1.54, 0), f = [[-0.5, 1.2], [-0.5, -1.2], [-1.3, 0], [2.0, 1.2], [2.0, -1.2]].map(([x, y], i) => addAtom('F', x, y, i === 3 ? { charge: 1 } : {}));
+    addBond(c1, c2, 1); for (let i = 0; i < 3; i++) addBond(c1, f[i], 1); addBond(c2, f[3], 2); addBond(c2, f[4], 1); // (CF₃–CF=F⁺)
+    const F = f[3], run = (n) => { for (let k = 0; k < n; k++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); } };
+    forcesNoEvents(); W.fSpawn = W.spawned; run(200);
+    const dbl = W.bonds.some(b => (b.a === F || b.b === F) && b.order === 2) && F.q === 1;
+    const e = addLepton(ELEC, F.x + 0.4, F.y - 0.3, F.vx, F.vy); updateFast(e); W.spawned++;
+    const rec0 = W.count.recomb; run(3000);
+    return { dbl, had: !!e, q: F.q, left: W.parts.filter(p => p.k === ELEC && !p.dead).length, rec: W.count.recomb - rec0 };
+  });
+  check(r32.dbl && r32.had && r32.q === 0 && r32.left === 0 && r32.rec >= 1,
+    `0.92: an electron in the well of C=F⁺ is captured (C₂F₅⁺ + e⁻ → C₂F₅), the bond it costs paid by the surroundings`, '0.92: ' + JSON.stringify(r32));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

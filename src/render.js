@@ -1196,6 +1196,7 @@ function drawFlights() {
   ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
   for (const f of W.flights) {
     const d = Math.min(f.len, (W.t - f.t0) * PHYS.C), L = f.len || 1, d0 = Math.max(0, d - 4);
+    if (d < 0) continue; // (not set off yet: still crossing a prism, 0.91)
     const hx = w2sx(f.x0 + (f.x1 - f.x0) * d / L), hy = w2sy(f.y0 + (f.y1 - f.y0) * d / L);
     const tx = w2sx(f.x0 + (f.x1 - f.x0) * d0 / L), ty = w2sy(f.y0 + (f.y1 - f.y0) * d0 / L);
     const g = ctx.createLinearGradient(tx, ty, hx, hy);
@@ -1212,7 +1213,7 @@ const LAB_W = new Map(); // label text → its width on screen (measuring text e
 function drawPhotonLabels(rt) {
   if (!R.view.labels || R.menu || (!W.flights.length && !W.rays.length)) return;
   const heads = [];
-  for (const f of W.flights) { if (!f.lab) continue; const d = Math.min(f.len, (W.t - f.t0) * PHYS.C), L = f.len || 1; heads.push([w2sx(f.x0 + (f.x1 - f.x0) * d / L), w2sy(f.y0 + (f.y1 - f.y0) * d / L), f.lab, f.c, 1]); }
+  for (const f of W.flights) { if (!f.lab || W.t < f.t0) continue; const d = Math.min(f.len, (W.t - f.t0) * PHYS.C), L = f.len || 1; heads.push([w2sx(f.x0 + (f.x1 - f.x0) * d / L), w2sy(f.y0 + (f.y1 - f.y0) * d / L), f.lab, f.c, 1]); }
   for (let i = W.rays.length - 1; i >= 0; i--) { const r = W.rays[i]; if (r.lab && r.hx !== undefined && r.alpha > 0.02) heads.push([r.hx, r.hy, r.lab, r.c, Math.min(1, r.alpha * 1.1)]); }
   if (!heads.length) return;
   const ctx = R.ctx, boxes = []; let n = 0;
@@ -1615,7 +1616,7 @@ function drawScaleBar() {
 /* Where a photon or neutrino in flight (W.flights, W.rays) or an unstable particle (W.exo) is now, in world units. */
 function lightHead(o, kind) {
   if (kind === 'exo') return o.dead ? null : [o.x, o.y];
-  if (kind === 'flight') { const d = Math.min(o.len, (W.t - o.t0) * PHYS.C), L = o.len || 1; return [o.x0 + (o.x1 - o.x0) * d / L, o.y0 + (o.y1 - o.y0) * d / L]; }
+  if (kind === 'flight') { const d = clamp((W.t - o.t0) * PHYS.C, 0, o.len), L = o.len || 1; if (W.t < o.t0) return null; return [o.x0 + (o.x1 - o.x0) * d / L, o.y0 + (o.y1 - o.y0) * d / L]; }
   const m = rayFrac(o); return [o.x0 + (o.x1 - o.x0) * m, o.y0 + (o.y1 - o.y0) * m];
 }
 /* The nearest photon, neutrino or unstable particle to a point on the screen, within extra pixels (for the Inspect tool). */
