@@ -4726,7 +4726,7 @@ function benchStart() {
       R.sel = null; R.hover = null; W.grab = null; R.msel.clear();
       build(); W.decayOn = false; fitView();
       const steps = (n) => { let adv = 0; for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } const tc = performance.now(); W.dt = chooseDt(); if (PROF.on) PROF.dt += performance.now() - tc; adv += step(W.dt); } return adv; };
-      steps(40);
+      steps(k <= 2 ? 200 : 40); // (the water worlds settle first: freshly laid out, their atoms move fast and the lists are rebuilt every other step, 0.90)
       let best = Infinity, adv = 0; const N = 60;
       PROF.on = true; profReset(); VL.builds = 0;
       for (let r = 0; r < 3; r++) { const t0 = performance.now(); adv += steps(N); best = Math.min(best, (performance.now() - t0) / N); }

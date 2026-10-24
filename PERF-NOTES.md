@@ -76,6 +76,13 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.90.0: release candidate 1 (feature freeze)
+- The 20,000-atom goal is met on a 16-thread machine: room-temperature water, 723 × 465 Å, 0.55 ms a step; at 1× a frame
+  takes 37.5 steps × 0.55 ms + 1.2 ms drawing = 22 ms, so 45 fps.
+- The benchmark's two water worlds now settle for 200 steps before timing (was 40). Freshly laid out, their atoms move fast
+  and the neighbour lists were rebuilt every other step (0.56 a step in the user's run); after settling it is about 0.03.
+- From here on only bug fixes until 1.00.
+
 ## 0.68.0: old saves, a stress pass, touch and small screens, new setups, Help
 - t_compat: worlds saved by 0.42, 0.46, 0.50, 0.55, 0.60 and 0.64 (tests/fixtures, each that version's worldToJSON of six
   setups after 20 frames) open in the page with every particle, bond and magnet and run on with finite energy; a share
