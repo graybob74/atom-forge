@@ -675,6 +675,21 @@ const { openPage } = require('./browser');
   });
   check(r32.dbl && r32.had && r32.q === 0 && r32.left === 0 && r32.rec >= 1,
     `0.92: an electron in the well of C=F⁺ is captured (C₂F₅⁺ + e⁻ → C₂F₅), the bond it costs paid by the surroundings`, '0.92: ' + JSON.stringify(r32));
+  // 0.92: a 1 PeV neutron on a proton, nearly head on, in steps as short as 1/512× slow motion makes them: they meet at
+  // their closest (the inelastic core), not at the outskirts of the reach on the way in (where diffraction turned it a
+  // hair and it passed through)
+  const r33 = await page.evaluate(() => {
+    let hits = 0;
+    for (let k = 0; k < 6; k++) {
+      loadPreset('empty'); setRunning(false); W.T = 0; W.gamma = 0; W.wall = 'open'; W.decayOn = false;
+      const p = addNuc(1, 0, 0, 10, (k - 2.5) * 0.004, 0, 0, false), n = addNuc(0, 1, 0, 8, 0, 0, 0, false); setMotion(n, 1e15, 1, 0);
+      forcesNoEvents(); W.fSpawn = W.spawned; const r0 = W.count.reactions || 0, l0 = W.logSeq;
+      for (let i = 0; i < 2000 && !n.dead && n.x < 12; i++) { W.dt = 7.7e-8; step(W.dt); }
+      if (n.dead || W.log.some(e => e.seq > l0 && /^n \+ p → /.test(e.text))) hits++;
+    }
+    return { hits };
+  });
+  check(r33.hits === 6, `0.92: a 1 PeV neutron through a proton in 1/512×-sized steps reacts every time (${r33.hits} of 6)`, '0.92 PeV: ' + JSON.stringify(r33));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

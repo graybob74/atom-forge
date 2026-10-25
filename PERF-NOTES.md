@@ -76,6 +76,21 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.93.0: release candidate 4 (bug fixes)
+- Collisions in very short steps (deep slow motion at extreme energies): the closest approach of two paths in a step was
+  clamped to the step's end, so while still closing in, a pair "met" at its present distance: in short steps the first
+  meeting was at the outskirts of the reach, where a 1 PeV n–p pass diffracts (turned a hair, marked as met) and the
+  core was never reached: the neutron passed through. Now a pair still closing in at the step's end meets in a later
+  step, at the true miss distance (relTargets, neutron pairs, radVsFast, beam–beam, fast–fast nuclei). In 1/512×-sized
+  steps a near-head-on 1 PeV n–p pass reacted 0 times in 6 before, 6 in 6 now. Test: t_features "0.92 PeV". A neutron
+  under 1 keV (not in flight) is left as it was: it meets a nucleus on every step within reach, and its capture odds are
+  reckoned with that (deferring it too raised thermal n–H captures eightfold: 131 of 300 passes against 16).
+- What a nuclear event's products knock on is marked as theirs (slow motion for nuclear events, when off, leaves it out):
+  also a bare nucleus struck in nuclear stopping, both partners of a Coulomb scattering, and a struck nucleus sent off
+  below the fast threshold.
+- The capture of a lepton trapped in a molecular ion's well (0.92) is paid by the neighbourhood's motion (up to 12 eV),
+  and by the bath only when there is one: an insulated box stays exact (t_energy's soup drifted by the bath's payments).
+
 ## 0.92.0: release candidate 3 (bug fixes)
 - Light in flight through a prism: when the photon reached the prism, the light leaving the far side set off at once
   (emitPhoton ignored opts.delay for flights) while the path inside was drawn late (opticHit added the first leg's

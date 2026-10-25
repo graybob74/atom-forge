@@ -3043,7 +3043,7 @@ function nucEvent(kind, x, y, text, ghosts, sub, nuc) {
   // what the event sent flying (new this frame, or fast) is marked, and for a few seconds so is anything new (what
   // its products knock loose): with slow motion for nuclear events off, slow motion on demand does not slow down
   // further to follow them
-  for (const p of W.parts) if (!p.dead && !p.beam && (p.born === W.rt || p.rad || p.fast) && Math.abs(p.x - x) < 4 && Math.abs(p.y - y) < 4) p.nucProd = true;
+  for (const p of W.parts) if (!p.dead && !p.beam && (p.born === W.rt || p.rad || p.fast || keOf(p) > 10) && Math.abs(p.x - x) < 4 && Math.abs(p.y - y) < 4) p.nucProd = true; // (keOf: a struck nucleus that stays itself, as the proton of π⁰p → p + π⁰, sent off below the fast threshold, 0.93)
   W.nucWin = { t0: W.nucWin && W.nucWin.t1 >= W.rt ? W.nucWin.t0 : W.rt, t1: W.rt + 3 };
 }
 /* What nuclear events have made, for the Data tab: W.made holds each nuclide (and each unstable particle) made by a
@@ -5246,15 +5246,17 @@ function capture(L, A, Etot) {
   const tr = joinEnergy(L, A);
   let Eph = tr.E;
   if (Eph < 0) { // deficit: only if the neighbourhood can supply it
+    // A lepton held in the ion's well is bound as deeply as by the free atom's ion (softFor). In a molecule the capture
+    // may have to change bonds (a π bond to the charged atom must go: C=F⁺ + e⁻ → C–F·), which the free atom's
+    // binding does not pay for, so that a lepton at the bottom of the well could never be captured and stayed in it
+    // for ever. Then the neighbourhood's motion pays what the bonds cost, up to 12 eV, or else, with a heat bath, the
+    // bath does (booked as the bath's, as forceShed does); an insulated box stays exact (0.92, 0.93).
+    const deep = Etot < 0 && Eph > -12;
     const nb = nearestThird(A, L, 6), nv = nb ? [nb.vx, nb.vy] : null, av = [A.vx, A.vy];
-    const got = nb && Eph > -2 ? -kickPair(A, nb, Eph) : 0;
+    const got = nb && (Eph > -2 || deep) ? -kickPair(A, nb, Eph) : 0;
     if (got < -Eph - 1e-6) {
       if (nb) { nb.vx = nv[0]; nb.vy = nv[1]; A.vx = av[0]; A.vy = av[1]; }
-      // A lepton held in the ion's well is bound as deeply as by the free atom's ion (softFor). In a molecule the capture
-      // may have to change bonds (a π bond to the charged atom must go: C=F⁺ + e⁻ → C–F·), which the free atom's
-      // binding does not pay for, so that a lepton at the bottom of the well could never be captured and stayed in it
-      // for ever. Then the surroundings pay what the bonds cost, booked as the bath's, as forceShed does (0.92).
-      if (!(Etot < 0 && Eph > -12)) { undoJoin(L, tr.sn, t0, d0); return; }
+      if (!(deep && W.gamma > 0)) { undoJoin(L, tr.sn, t0, d0); return; }
       W.ledger.bath += Eph;
     }
     Eph = 0;
@@ -6168,14 +6170,16 @@ function segTargets(x0, y0, x1, y1, R, filter) {
 /* What a particle at (x, y) moving at (vx, vy) comes within R of in the next dt, the targets' own motion included
    (closest approach of the two paths, relative to each other): so a nucleus that drifts into a neutron at rest is met
    as surely as a neutron that flies into the nucleus. Targets are the MD particles (the grid); returns [t, p, b]. */
-function relTargets(x, y, vx, vy, dt, R, filter) {
+function relTargets(x, y, vx, vy, dt, R, filter, defer) {
   _hits.length = 0;
   gridEnsure();
   const ex = vx * dt, ey = vy * dt, pad = R + 0.3; // (0.3: an MD particle moves far less than that in a step)
   const test = (p) => {
     if (p.dead || !filter(p)) return;
     const [tvx, tvy] = velOf(p), rx = p.x - x, ry = p.y - y, dx = (tvx - vx) * dt, dy = (tvy - vy) * dt, L2 = dx * dx + dy * dy;
-    const t = L2 > 0 ? clamp(-(rx * dx + ry * dy) / L2, 0, 1) : 0, bx = rx + t * dx, by = ry + t * dy, b2 = bx * bx + by * by;
+    const t0 = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0;
+    if (defer && t0 > 1) return; // (defer, a neutron in flight: still closing in, it meets the nucleus in the step where they are closest, at the true miss distance; met at a short step's end, a 1 PeV pass in slow motion met the outskirts first, diffracted and passed through. A slow neutron is left as it was: it meets a nucleus on every step within reach, which its capture odds are reckoned with, 0.93)
+    const t = clamp(t0, 0, 1), bx = rx + t * dx, by = ry + t * dy, b2 = bx * bx + by * by;
     if (b2 < R * R) _hits.push([t, p, Math.sqrt(b2)]);
   };
   if (G.n <= 32) { for (const p of G.list) test(p); }
@@ -6199,8 +6203,8 @@ function nnMeet(i, j, dt) { // the closest approach of the two paths this step; 
   if (a.dead || b.dead) return;
   const rx = b.x - a.x, ry = b.y - a.y, dx = (_nnVx[j] - _nnVx[i]) * dt, dy = (_nnVy[j] - _nnVy[i]) * dt;
   if (Math.abs(ry) > 1 + Math.abs(dy)) return; // (nowhere near this step: no reach is an ångström)
-  const R = nucReach(a, b), L2 = dx * dx + dy * dy, t = L2 > 0 ? clamp(-(rx * dx + ry * dy) / L2, 0, 1) : 0, bb = Math.hypot(rx + t * dx, ry + t * dy);
-  if (bb >= R || sameEv(a, b)) return;
+  const R = nucReach(a, b), L2 = dx * dx + dy * dy, t0 = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0, t = clamp(t0, 0, 1), bb = Math.hypot(rx + t * dx, ry + t * dy);
+  if (t0 > 1 || bb >= R || sameEv(a, b)) return; // (t0 > 1: still closing in, they meet in a later step at the true miss distance, 0.92)
   if ((a.nHit === b.id || b.nHit === a.id) && Math.hypot(rx, ry) < R) return; // (just met: one pass, one encounter)
   a.nHit = b.id; b.nHit = a.id;
   if (a.Z === 0) neutronHit(a, b, bb, R); else neutronHit(b, a, bb, R);
@@ -6475,6 +6479,7 @@ function moveRad(p, dt) {
     }
     if (p.k === NUC && b < 0.5) { // nuclear stopping: screened-Coulomb (ZBL-like) elastic collision
       const T = nuclearCollision(p, tg, b);
+      if (T > 0 && W.nucWin && (p.nucProd || p.born >= W.nucWin.t0)) for (const m of molecule(tg)) m.nucProd = true; // (knocked on by what a nuclear event sent flying: a bare nucleus too, which the ionizing below passes over, 0.93)
       if (T > 0) { p.KE -= T; if (p.KE <= 1) break; }
     }
     if (tg.ne <= 0) continue;
@@ -6520,8 +6525,8 @@ function radVsFast(p, x0, y0, x1, y1) {
     if (tg.dead || tg === p || tg.Z < 1 || opp(p, tg) || sameEv(p, tg)) continue;
     const rx = tg.ox - x0, ry = tg.oy - y0, dx = (x1 - x0) - (tg.x - tg.ox), dy = (y1 - y0) - (tg.y - tg.oy), L2 = dx * dx + dy * dy;
     if (Math.abs(rx) > Math.abs(dx) + 3 || Math.abs(ry) > Math.abs(dy) + 3) continue;
-    const s = clamp(L2 > 0 ? (rx * dx + ry * dy) / L2 : 0, 0, 1), d = Math.hypot(rx - s * dx, ry - s * dy), R = nucReach(p, tg);
-    if (d >= Math.max(R, 0.6) || p.hit === tg.id || s <= 0) continue; // (s = 0: they were closest before this step, and met then)
+    const s0 = L2 > 0 ? (rx * dx + ry * dy) / L2 : 0, s = clamp(s0, 0, 1), d = Math.hypot(rx - s * dx, ry - s * dy), R = nucReach(p, tg);
+    if (s0 > 1 || d >= Math.max(R, 0.6) || p.hit === tg.id || s <= 0) continue; // (s0 > 1: still closing in, met in a later step, 0.92) // (s = 0: they were closest before this step, and met then)
     if (d < R) {
       nuclearEncounter(p, tg, d / R, tg.x, tg.y);
       if (p.dead || (d < R_FUS && !tg.dead && tryFusion(p, tg))) return true;
@@ -6568,7 +6573,7 @@ function beamCollisions(id0) {
       const rx = b.ox - a.ox, ry = b.oy - a.oy;
       if (Math.abs(rx) > 60 || Math.abs(ry) > 60) continue;
       const dx = (b.x - b.ox) - (a.x - a.ox), dy = (b.y - b.oy) - (a.y - a.oy), L2 = dx * dx + dy * dy;
-      let t = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0; t = clamp(t, 0, 1);
+      let t = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0; const closing = t > 1; t = clamp(t, 0, 1); // (closing: still closing in, they meet in a later step at the true miss distance, 0.92)
       const ex = rx + t * dx, ey = ry + t * dy, d = Math.hypot(ex, ey);
       const x = a.ox + (a.x - a.ox) * t + ex / 2, y = a.oy + (a.y - a.oy) * t + ey / 2;
       const live = beams && (C.kind !== 'ring' || C.colliding) && inDetector(C, x, y); // (beams meet only in a detector, as in a real machine)
@@ -6576,7 +6581,7 @@ function beamCollisions(id0) {
       // enough apart that the pull is slight; here the separation is only a few ångström)
       if (live && d < R_BB && t > 0 && t < 1 && d > 0.05) beamBeam(C, a, b, ex, ey, d);
       const both = a.k === NUC && b.k === NUC, Rn = both ? nucReach(a, b) : 0;
-      if (d > Math.max(beams ? R_BEAM : 0.6, Rn) || t <= 0) continue; // (t = 0: closest before this step, when they met)
+      if (closing || d > Math.max(beams ? R_BEAM : 0.6, Rn) || t <= 0) continue; // (t = 0: closest before this step, when they met)
       if (beams) { if (live) beamHit(C, a, b, d, x, y, ex, ey); continue; } // (while a ring speeds them up, its separated orbits keep the beams apart: a real machine holds them many beam widths apart, more than fits here)
       if (opp(a, b) || (a.k !== NUC && b.k !== NUC && a.k !== b.k)) {
         if (a.k !== NUC && b.k !== NUC) { if (d < R_NN) eeEvent(a, b, x, y); }
@@ -6833,7 +6838,7 @@ function moveNeutron(p, dt, c1, c2, kT) {
   const x0 = p.x, y0 = p.y;
   // nuclei in the MD set, by the two paths' closest approach (a slow nucleus drifting into a neutron at rest meets it
   // too); fast nuclei and other neutrons: neutronPairs, before this pass
-  const hits = relTargets(x0, y0, p.vx, p.vy, dt, 1.0, (t) => t.k === NUC && t.Z > 0);
+  const hits = relTargets(x0, y0, p.vx, p.vy, dt, 1.0, (t) => t.k === NUC && t.Z > 0, p.rad || KE > 1e3);
   for (const [, tg, b] of hits) {
     if (tg.dead || sameEv(p, tg)) continue;
     const R = nucReach(p, tg); // (a nucleus is hit where it is drawn)
@@ -6888,6 +6893,7 @@ function hardSphere(a, b, bimp, R) {
   setVel(b, Vx - nx * a.m / M, Vy - ny * a.m / M);
 }
 function coulombScatter(a, b, bimp) {
+  if (W.nucWin) { const prod = (p) => p.nucProd || p.born >= W.nucWin.t0; if (prod(a) && !prod(b)) b.nucProd = true; else if (prod(b) && !prod(a)) a.nucProd = true; } // (knocked on by what a nuclear event sent flying: slow motion for nuclear events, when off, leaves it out too, 0.93)
   const [avx, avy] = vNR(a), [bvx, bvy] = vNR(b);
   const mu = a.m * b.m / (a.m + b.m);
   const rvx = avx - bvx, rvy = avy - bvy;
@@ -6924,7 +6930,8 @@ function fastFastNuclear() {
       const rx = b.ox - a.ox, ry = b.oy - a.oy;
       if (Math.abs(rx) > 12 || Math.abs(ry) > 12) continue;
       const dx = (b.x - b.ox) - (a.x - a.ox), dy = (b.y - b.oy) - (a.y - a.oy), L2 = dx * dx + dy * dy;
-      let t = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0; t = clamp(t, 0, 1);
+      let t = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0; const closing = t > 1; t = clamp(t, 0, 1); // (closing: still closing in, they meet in a later step at the true miss distance, 0.92)
+      if (closing) continue;
       const ex = rx + t * dx, ey = ry + t * dy, b2 = ex * ex + ey * ey;
       if (b2 < R_FUS * R_FUS) { if (tryFusion(a, b)) break; }
       if (b2 < 0.36 && !a.dead && !b.dead) coulombScatter(a, b, Math.sqrt(b2));
