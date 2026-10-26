@@ -690,6 +690,15 @@ const { openPage } = require('./browser');
     return { hits };
   });
   check(r33.hits === 6, `0.92: a 1 PeV neutron through a proton in 1/512×-sized steps reacts every time (${r33.hits} of 6)`, '0.92 PeV: ' + JSON.stringify(r33));
+  // 0.94: the graph's canvas follows its height as quantities are picked (it was stretched from its first height)
+  const r34 = await page.evaluate(() => {
+    loadPreset('water'); setRunning(false); for (let i = 0; i < 4; i++) { simFrame(1 / 60, 25); UI.running = true; GR.last = -1e9; grTick(performance.now() + i * 1000); UI.running = false; }
+    store('graphSel', JSON.stringify(['T'])); const tab = [...document.querySelectorAll('.panel .tabs button, .panel [role=tab]')].find(x => /Data/.test(x.textContent)); if (tab) tab.click();
+    drawGraph(); store('graphSel', JSON.stringify(['T', 'n', 'freeE', 'chem'])); drawGraph();
+    const cv = $('chG'), dpr = Math.min(2, window.devicePixelRatio || 1);
+    return { css: cv.clientHeight, px: cv.height, want: Math.round(cv.clientHeight * dpr) };
+  });
+  check(r34.css > 200 && r34.px === r34.want, `0.94: the graph's canvas is ${r34.px} px high for ${r34.css} px on screen with four quantities`, '0.94 graph: ' + JSON.stringify(r34));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

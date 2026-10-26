@@ -76,6 +76,13 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.94.0: release candidate 5 (bug fixes)
+- Data tab graph: the chart canvas was resized only when its width changed, so picking more quantities (the graph grows a
+  row for each) stretched the first height's picture over the new one: blurry, squashed text and only the first rows
+  shown (chartCtx now checks the height too; the pair-mass chart shares it). A steady quantity says "(steady)" instead
+  of a made-up ±1 range; in a narrow panel the range is left out so the value never runs into the name. Test: t_features
+  "0.94 graph".
+
 ## 0.93.0: release candidate 4 (bug fixes)
 - Collisions in very short steps (deep slow motion at extreme energies): the closest approach of two paths in a step was
   clamped to the step's end, so while still closing in, a pair "met" at its present distance: in short steps the first

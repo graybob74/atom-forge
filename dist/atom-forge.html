@@ -1,4 +1,4 @@
-<title>Atom Forge 0.93.0</title>
+<title>Atom Forge 0.94.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18384,7 +18384,7 @@ function drawInspectBohr() {
   if (!cv || !p || p.dead) return;
   const w = cv.clientWidth, h = cv.clientHeight; if (!w) return;
   const dpr = R.dpr;
-  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); } // (the height too: the graph grows a row for each quantity picked, and a canvas left at its old height was stretched to fit, 0.94)
   const ctx = cv.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = CHAMBER.bg0; ctx.fillRect(0, 0, w, h);
@@ -18644,7 +18644,7 @@ function renderMade() {
 function chartCtx(cv) {
   const w = cv.clientWidth, h = cv.clientHeight; if (!w) return null;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
-  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); } // (the height too: the graph grows a row for each quantity picked, and a canvas left at its old height was stretched to fit, 0.94)
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
   return [ctx, w, h];
 }
@@ -20868,15 +20868,17 @@ function drawGraph() {
   const rh = (h - 6) / rows, fx = (i) => 6 + i / (n - 1) * (w - 12), pal = ['--hot', '--accent', '--good', '--warn'];
   chosen.forEach(([id, label, v, fmt, col], k) => {
     const y0 = 3 + k * rh; let lo = Infinity, hi = -Infinity; for (const x of v) if (Number.isFinite(x)) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
-    if (!Number.isFinite(lo)) return; if (hi - lo < 1e-12 * Math.max(1, Math.abs(hi))) { lo -= 1; hi += 1; }
+    if (!Number.isFinite(lo)) return; const lo0 = lo, hi0 = hi, flat = hi - lo < 1e-12 * Math.max(1, Math.abs(hi)); if (flat) { lo -= 1; hi += 1; } // (lo0, hi0: the range told; a steady value is drawn across the middle, 0.94)
     const fy = (x) => y0 + rh - 6 - (x - lo) / (hi - lo) * (rh - 22);
     ctx.strokeStyle = cssVar('--line'); ctx.lineWidth = 1; if (k) { ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(w, y0); ctx.stroke(); }
     ctx.strokeStyle = col || cssVar(pal[k % pal.length]); ctx.lineWidth = 1.6; ctx.beginPath(); let on = false;
     for (let i = 0; i < n; i++) { if (!Number.isFinite(v[i])) { on = false; continue; } const x = fx(i), y = fy(v[i]); if (on) ctx.lineTo(x, y); else { ctx.moveTo(x, y); on = true; } }
     ctx.stroke();
     ctx.fillStyle = cssVar('--fg'); ctx.font = '600 11px ' + cssVar('--font-ui'); ctx.textAlign = 'left'; ctx.fillText(label, 8, y0 + 13);
+    const lw = ctx.measureText(label).width;
     ctx.fillStyle = cssVar('--muted'); ctx.font = '11px ' + cssVar('--font-data'); ctx.textAlign = 'right';
-    const last = [...v].reverse().find(Number.isFinite); ctx.fillText(`${fmt(last)}   (${fmt(lo)} – ${fmt(hi)})`, w - 8, y0 + 13); ctx.textAlign = 'left';
+    const last = [...v].reverse().find(Number.isFinite), full = `${fmt(last)}   ${flat ? '(steady)' : `(${fmt(lo0)} – ${fmt(hi0)})`}`;
+    ctx.fillText(lw + 16 + ctx.measureText(full).width <= w - 8 ? full : fmt(last), w - 8, y0 + 13); ctx.textAlign = 'left'; // (narrow: the value alone, clear of the name)
   });
 }
 function grCsv() {
