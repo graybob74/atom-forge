@@ -164,6 +164,11 @@ engine stores and visits particles.
   atom, so they vanish), nuclear reactions only at their true cross sections (a beam then almost never hits anything in
   a box this size), no enlarged reach, no slowed or held decays, no hits made more frequent in setups, and zoom far
   enough (about 10⁵ times further) to see a nucleus at its true size inside its atom (asked for by the user).
+- Extreme slow motion, down to about 1 ys (10⁻²⁴ s) of simulated time per second, so the shortest-lived particles
+  (a φ meson lives 1.5×10⁻²² s, a ρ 4×10⁻²⁴ s) can be watched living and decaying in real time instead of being held.
+  The slowest now is 1/512× (about a femtosecond a second), so this is about 10⁹ times slower. At that pace light
+  crosses 0.3 fm a second and atoms stand still: it belongs with the ultra zoom (nuclear-scale views) of the
+  ultra-realistic mode (asked for by the user).
 - More right-click menus: right-clicking anything in the palette bar (a particle, element or molecule chip) tells about
   it (what it is, its charge, mass, lifetime or bonds, where it occurs) with quick actions, as right-clicking in the
   chamber does (asked for by the user).
