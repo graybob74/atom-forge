@@ -76,6 +76,12 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.96.0 (in progress)
+- The particle view's pictures (electrons circling their atoms and bonds, the muon in muonium and muonic atoms, quarks
+  inside hadrons, chip carriers) ran on the real-time clock, so they kept their pace in slow motion. They now run on
+  W.at, which advances with the simulation against the setup's normal speed (capped at 4× when sped up, to keep them
+  readable): slow motion slows them, a pause stops them. Test: t_features "0.96 picture clock".
+
 ## 0.95.0: release candidate 6: bug fixes, aromatic rings and carbon monoxide (approved by the user)
 - Aromatic rings: a six-membered ring of C and N in which every atom has one double bond (in the ring or a ring fused
   to it) is marked aromatic (engine.js aromatize, run in relink for each molecule touched). Its bonds take the mean of

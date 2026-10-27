@@ -737,6 +737,14 @@ const { openPage } = require('./browser');
     return { n: segs.length, longest: +Math.max(...segs).toFixed(1), box: +(W.box.w * R.s).toFixed(1) };
   });
   check(r36.n >= 3 && r36.longest < 0.2 * r36.box, `0.95: a trail across a periodic edge is drawn in ${r36.n} short pieces (longest ${r36.longest} px of a ${r36.box} px box)`, '0.95 wrap trail: ' + JSON.stringify(r36));
+  // 0.96: the pictures' clock (electrons circling in the particle view, quarks, chip carriers) runs with the simulation:
+  // slow motion slows it, a pause stops it (it ran on real time)
+  const r37 = await page.evaluate(() => {
+    loadPreset('water'); setRunning(false); const base = W.baseSpf || W.simPerFrame, adv = (n) => { const a0 = W.at; for (let f = 0; f < n; f++) simFrame(1 / 60, 25); return W.at - a0; };
+    W.simPerFrame = base; const one = adv(60); W.simPerFrame = base / 8; const slow = adv(60); W.simPerFrame = base;
+    return { one: +one.toFixed(3), slow: +slow.toFixed(4), ratio: +(one / slow).toFixed(2) };
+  });
+  check(r37.one > 0.9 && r37.one < 1.1 && r37.ratio > 7 && r37.ratio < 9, `0.96: electrons in the particle view turn ${r37.ratio}× slower at 1/8× (one second of pictures' time at 1×: ${r37.one} s)`, '0.96 picture clock: ' + JSON.stringify(r37));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

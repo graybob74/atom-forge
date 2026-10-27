@@ -55,7 +55,7 @@ function makeWorld() {
     parts: [], bonds: [], evq: [],
     t: 0, rt: 0, tNuc: 0, step: 0, dt: 0.02, simPerFrame: 1.5,
     box: { w: 120, h: 76, tw: 120, th: 76, uw: 0, uh: 0 },
-    wall: 'reflect', nWall: 'reflect', // nWall: what the closed walls do to neutrons (Lab → Container)
+    at: 0, wall: 'reflect', nWall: 'reflect', // (at: the pictures' clock, simFrame) nWall: what the closed walls do to neutrons (Lab → Container)
     T: 300, gamma: 0.05,
     warp: 1,                    // decay speed over real rates (1 = as in nature; below 1 slowed, down to 1e-6)
     minShow: 0,                 // hold the shortest-lived particles until seen (0 off, 1 a little, 2 more; hep.js exoHeld)
@@ -5647,6 +5647,7 @@ function simFrame(realDt, budgetMs) {
     if (performance.now() - t0 > budgetMs) { cut = true; break; }
   }
   W.rt += realDt;
+  W.at = (W.at || 0) + realDt * clamp(simAdv / Math.max(1e-30, (W.baseSpf || W.simPerFrame) * fr), 0, 4); // (the pictures' clock: electrons circling in the particle view, quarks, chip carriers; it runs with the simulation, so slow motion slows them and a pause stops them, 0.96)
   { const ad = Math.min(realDt, 1 / 30); for (const g of W.strings || []) g.age = (g.age || 0) + ad; for (const g of W.qgp || []) g.age = (g.age || 0) + ad; } // (the pictures of strings breaking and of a plasma keep their own clock: a slow frame, as when thousands of hadrons appear at once, cannot skip them, 0.91)
   // chips keep the pace the simulation is set to, in real time, even when a crowded box makes the atoms (and the frames)
   // fall behind it: their time is warped anyway (a flash pulse takes 10 µs)
@@ -5687,7 +5688,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = [];
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.at = W.at || 0;
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }
