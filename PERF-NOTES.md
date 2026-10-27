@@ -76,7 +76,7 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
-## 0.96.0 (in progress)
+## 0.96.0: release candidate 7
 - The particle view's pictures (electrons circling their atoms and bonds, the muon in muonium and muonic atoms, quarks
   inside hadrons, chip carriers) ran on the real-time clock, so they kept their pace in slow motion. They now run on
   W.at, which advances with the simulation against the setup's normal speed (capped at 4× when sped up, to keep them

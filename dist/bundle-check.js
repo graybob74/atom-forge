@@ -2313,7 +2313,7 @@ function makeWorld() {
     parts: [], bonds: [], evq: [],
     t: 0, rt: 0, tNuc: 0, step: 0, dt: 0.02, simPerFrame: 1.5,
     box: { w: 120, h: 76, tw: 120, th: 76, uw: 0, uh: 0 },
-    wall: 'reflect', nWall: 'reflect', // nWall: what the closed walls do to neutrons (Lab → Container)
+    at: 0, wall: 'reflect', nWall: 'reflect', // (at: the pictures' clock, simFrame) nWall: what the closed walls do to neutrons (Lab → Container)
     T: 300, gamma: 0.05,
     warp: 1,                    // decay speed over real rates (1 = as in nature; below 1 slowed, down to 1e-6)
     minShow: 0,                 // hold the shortest-lived particles until seen (0 off, 1 a little, 2 more; hep.js exoHeld)
@@ -7905,6 +7905,7 @@ function simFrame(realDt, budgetMs) {
     if (performance.now() - t0 > budgetMs) { cut = true; break; }
   }
   W.rt += realDt;
+  W.at = (W.at || 0) + realDt * clamp(simAdv / Math.max(1e-30, (W.baseSpf || W.simPerFrame) * fr), 0, 4); // (the pictures' clock: electrons circling in the particle view, quarks, chip carriers; it runs with the simulation, so slow motion slows them and a pause stops them, 0.96)
   { const ad = Math.min(realDt, 1 / 30); for (const g of W.strings || []) g.age = (g.age || 0) + ad; for (const g of W.qgp || []) g.age = (g.age || 0) + ad; } // (the pictures of strings breaking and of a plasma keep their own clock: a slow frame, as when thousands of hadrons appear at once, cannot skip them, 0.91)
   // chips keep the pace the simulation is set to, in real time, even when a crowded box makes the atoms (and the frames)
   // fall behind it: their time is warped anyway (a flash pulse takes 10 µs)
@@ -7945,7 +7946,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = [];
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.at = W.at || 0;
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }
@@ -11594,7 +11595,7 @@ function drawBondPairs(rt) {
     const sp = ballSprite(a.anti ? POS_COL : E_COL, er), n = bd.order;
     for (let k = 0; k < n; k++) {
       const o = (k - (n - 1) / 2) * off, cx = mx + nx * o, cy = my + ny * o;
-      const ph = rt * 2.4 + (a.id * 7 + b.id * 13 + k * 2.1) % 6.283;
+      const ph = W.at * 2.4 + (a.id * 7 + b.id * 13 + k * 2.1) % 6.283;
       const c = Math.cos(ph) * sep, sn = Math.sin(ph) * sep * 0.55; // the pair swirls in a flat ellipse along the bond
       const dx = ux * c + nx * sn, dy = uy * c + ny * sn;
       drawSprite(sp, cx + dx, cy + dy); drawSprite(sp, cx - dx, cy - dy);
@@ -11952,13 +11953,13 @@ function exoInside(ctx, o, x, y, c, hx) {
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, b * 0.25); ctx.beginPath(); ctx.arc(x, y, b * 1.05, 0, Math.PI * 2); ctx.stroke();
       return nsp.rn + 2;
     }
-    const R0 = nsp.rn + Math.max(3, b * 1.5), th = W.rt * 5 + o.id; // the muon, a few hundred times closer in than an electron
+    const R0 = nsp.rn + Math.max(3, b * 1.5), th = W.at * 5 + o.id; // the muon, a few hundred times closer in than an electron
     ctx.strokeStyle = rgba(c, 0.45); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke();
     drawSprite(ballSprite(hx, Math.max(1.2, electronR() * 0.9)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
     return R0 + 2;
   }
   if (d.muonium) { // muonium: a μ⁺ for a nucleus, its electron on hydrogen's orbit (the reduced mass is 0.5% off hydrogen's)
-    const rm = Math.max(1.6, electronR() * 1.3), R0 = Math.max(9, 0.53 * R.s), th = W.rt * 2 + o.id;
+    const rm = Math.max(1.6, electronR() * 1.3), R0 = Math.max(9, 0.53 * R.s), th = W.at * 2 + o.id;
     ctx.globalCompositeOperation = 'lighter';
     if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rm * 4)), x, y, 0.4);
     ctx.globalCompositeOperation = 'source-over';
@@ -11987,8 +11988,8 @@ function exoInside(ctx, o, x, y, c, hx) {
   if (big) { ctx.font = `600 ${Math.round(qr * 1.2)}px "Azeret Mono", ui-monospace, monospace`; ctx.textBaseline = 'middle'; }
   let ci = 0;
   qs.forEach((q, k) => {
-    const anti = q === q.toUpperCase(), f = q.toLowerCase(), th = W.rt * 1.3 + o.id + k * 2 * Math.PI / qs.length, rr = rb * 0.5;
-    const qx = x + rr * Math.cos(th), qy = y + rr * Math.sin(th), col = qs.length === 2 ? (anti ? Q_ACOL : Q_COL)[(o.id + Math.floor(W.rt * 2)) % 3] : (anti ? Q_ACOL : Q_COL)[ci++ % 3];
+    const anti = q === q.toUpperCase(), f = q.toLowerCase(), th = W.at * 1.3 + o.id + k * 2 * Math.PI / qs.length, rr = rb * 0.5;
+    const qx = x + rr * Math.cos(th), qy = y + rr * Math.sin(th), col = qs.length === 2 ? (anti ? Q_ACOL : Q_COL)[(o.id + Math.floor(W.at * 2)) % 3] : (anti ? Q_ACOL : Q_COL)[ci++ % 3];
     drawSprite(ballSprite(col, qr), qx, qy);
     if (f === 's') { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, qr * 0.22); ctx.beginPath(); ctx.arc(qx, qy, qr * 1.05, 0, Math.PI * 2); ctx.stroke(); }
     if (big) { ctx.fillStyle = '#10161f'; ctx.fillText(anti ? Q_BAR[f] : Q_SYM[f], qx, qy + 0.5); }
@@ -12045,7 +12046,7 @@ function drawBohr(ctx, p, x, y, r, rt, col) {
     const w = (0.8 / (i + 1)) * (p.id % 2 ? 1 : -1);
     const er = clamp(r * 0.045, 1.6, 4);
     for (let k = 0; k < ne; k++) {
-      const th = rt * w + k * 2 * Math.PI / ne + i * 0.7;
+      const th = W.at * w + k * 2 * Math.PI / ne + i * 0.7;
       drawSprite(ballSprite(p.anti ? POS_COL : E_COL, er), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
     }
   }
@@ -12153,7 +12154,7 @@ function drawNucView(p, x, y, r, rt) {
       const ne = sh[i]; if (!ne) continue;
       const R0 = nF === 1 ? rOut : rIn + (rOut - rIn) * i / (nF - 1), w = (1.1 / (i + 1)) * (p.id % 2 ? 1 : -1);
       for (let k = 0; k < ne; k++) {
-        const th = rt * w + k * 2 * Math.PI / ne + i * 0.7 + p.id;
+        const th = W.at * w + k * 2 * Math.PI / ne + i * 0.7 + p.id;
         drawSprite(sp, x + R0 * Math.cos(th), y + R0 * Math.sin(th));
       }
     }
@@ -12276,7 +12277,7 @@ function drawChips(rt) {
     if (ch.key === 'flashcell') { // the stored electrons, and those tunnelling through the oxide now
       const d = ch.devs[0], ball = ballSprite(E_COL, er * 0.85), n = Math.max(0, ch.nfg);
       for (let k = 0; k < n; k++) {
-        const p = d.gate[k % d.gate.length], ring = Math.floor(k / d.gate.length), th = k * 2.39996 + rt * 0.7;
+        const p = d.gate[k % d.gate.length], ring = Math.floor(k / d.gate.length), th = k * 2.39996 + W.at * 0.7;
         drawSprite(ball, w2sx(p.x + (0.45 + 0.25 * ring) * Math.cos(th)), w2sy(p.y + (0.45 + 0.25 * ring) * Math.sin(th)), 0.95);
       }
       for (const h of ch.hops) {
