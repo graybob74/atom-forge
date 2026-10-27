@@ -17,6 +17,15 @@ The owner tests it on Windows (Ryzen 7950X3D, 16 threads, RTX 3090) and reports 
 - No risky workarounds. No WebGPU port. Do not extend undo/rewind to setups with chips, beams, lasers or a ramp.
 - Explain findings plainly, with before/after numbers from a measurement, not guesses.
 
+## Who does what
+
+- Bug fixes are done in Claude Code sessions on this repository (the `atom-forge-fixer` agent). Each fix is committed
+  to `main` and pushed, with its PERF-NOTES entry and test, so the next session starts from it.
+- Features, and publishing the browser version to the owner's artifact link, are done in the owner's main Claude chat,
+  which pulls `main` before it starts. A bug-fix session does not publish the artifact; when the owner asks it for a
+  release, it does the version bump, notes, full suite, commit, push and source zip, and says the page still has to be
+  published from the main chat.
+
 ## Layout
 
 - `src/` — the page. `build.js` concatenates, in this order: `molecules.gen.js`, `objects.gen.js`, `data.js`,
