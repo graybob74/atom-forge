@@ -377,10 +377,59 @@ function other(bd, p) { return bd.a === p ? bd.b : bd.a; }
 function bondBetween(a, b) { for (const bd of a.bonds) if (bd.a === b || bd.b === b) return bd; return null; }
 function setBondParams(bd) {
   const ea = bd.a.el, eb = bd.b.el;
-  bd.D = bondEnergy(ea, eb, bd.order);
-  bd.r0 = bondLength(ea, eb, bd.order);
-  bd.al = morseA(ea, eb, bd.order);
+  if (bd.arom) { // a bond of an aromatic ring: one and a half, between its single and double forms, all alike round the ring
+    bd.D = (bondEnergy(ea, eb, 1) + bondEnergy(ea, eb, 2)) / 2 + AROM_STAB / 6;
+    bd.r0 = (bondLength(ea, eb, 1) + bondLength(ea, eb, 2)) / 2 - 0.04;
+    bd.al = (morseA(ea, eb, 1) + morseA(ea, eb, 2)) / 2;
+  } else {
+    bd.D = bondEnergy(ea, eb, bd.order);
+    bd.r0 = bondLength(ea, eb, bd.order);
+    bd.al = morseA(ea, eb, bd.order);
+  }
   bd.rb = 2.97 / bd.al;
+}
+/* Aromatic rings (0.95). Bond orders here are whole numbers, so a benzene ring is held as one of its Kekulé forms
+   (alternating single and double bonds). A six-membered ring of carbon and nitrogen in which every atom has one double
+   bond, within the ring or a ring fused to it, is marked aromatic: each of its bonds then takes the mean of the single and double bond's energy and spring, 1.40 Å
+   long for C–C (as measured; 1.34 Å for C–N in pyridine), and the ring is 150 kJ/mol (1.55 eV, benzene's resonance
+   energy) more stable than its Kekulé form: so it stays a regular hexagon and resists addition across its double bonds,
+   which would break the ring's aromaticity. The orders themselves stay as they are (each atom's valence counts them). */
+const AROM_STAB = 150 / PHYS.KJMOL;
+function aromatize(atoms) {
+  const ok = (p) => p.el && (p.Z === 6 || p.Z === 7) && !p.anti;
+  // six-membered rings of C and N (any bond orders), each found once
+  const rings = [], seen = new Set();
+  for (const a of atoms) {
+    if (!ok(a) || a.bonds.length < 2) continue;
+    const path = [a];
+    const walk = (p) => {
+      if (path.length === 6) {
+        if (!bondBetween(p, a)) return;
+        const key = path.map(q => q.id).sort((u, v) => u - v).join(',');
+        if (!seen.has(key)) { seen.add(key); rings.push(path.slice()); }
+        return;
+      }
+      for (const bd of p.bonds) { const o = other(bd, p); if (ok(o) && o.id > a.id && !path.includes(o)) { path.push(o); walk(o); path.pop(); } }
+    };
+    walk(a); // (a: the ring's lowest id, so each ring is walked from one atom only)
+  }
+  // aromatic: every atom of the ring has exactly one double bond, to a C or N of an aromatic ring (this one, or one
+  // fused to it: naphthalene's second ring holds only two of its five double bonds in a Kekulé form)
+  const dbl = (p) => { let n = 0, to = null; for (const bd of p.bonds) if (bd.order === 2) { n++; to = other(bd, p); } else if (bd.order > 2) n += 9; return n === 1 && ok(to) ? to : null; };
+  let aro = rings.filter(r => r.every(dbl));
+  for (let changed = true; changed;) { // (a ring whose atoms' double bonds lead out of every aromatic ring is not one)
+    changed = false;
+    const inRing = new Set(); for (const r of aro) for (const p of r) inRing.add(p);
+    const keep = aro.filter(r => r.every(p => inRing.has(dbl(p))));
+    if (keep.length !== aro.length) { aro = keep; changed = true; }
+  }
+  const ring = new Set();
+  for (const r of aro) for (let k = 0; k < 6; k++) ring.add(bondBetween(r[k], r[(k + 1) % 6]));
+  for (const a of atoms) for (const bd of a.bonds) {
+    if (bd.a !== a) continue;
+    const ar = ring.has(bd);
+    if (!!bd.arom !== ar) { bd.arom = ar; setBondParams(bd); }
+  }
 }
 function addBond(a, b, order) {
   const bd = { a, b, order, D: 0, r0: 1, al: 2, rb: 1.5, Ef: 0 };
@@ -429,7 +478,7 @@ function relink(seeds) {
     const ep = p.el ? (p.el.en || 2.6) : 2.2;
     for (const bd of p.bonds) {
       const o = other(bd, p), eo = o.el ? (o.el.en || 2.6) : 2.2;
-      qp += PARTIAL_K * (eo - ep) * (1 + 0.2 * (bd.order - 1));
+      qp += PARTIAL_K * (eo - ep) * (1 + 0.2 * ((bd.arom ? 1.5 : bd.order) - 1));
     }
     p.qpol = p.anti ? -qp : qp; // positrons crowd toward the more electronegative anti-atom
     p.qp = p.qpol + p.qf;
@@ -454,6 +503,7 @@ function relink(seeds) {
     if (!p.bonds.length) { p.mol = 0; p.qf = 0; p.qp = p.qpol; done.add(p); continue; }
     const id = ++W.molSeq, m = molecule(p);
     for (const a of m) { a.mol = id; done.add(a); }
+    aromatize(m);
     delocalize(m);
   }
 }
@@ -491,7 +541,7 @@ function localDelta(p, set, sn, change) {
   if (set.size <= LOCAL_MOL) { const U0 = localPE(set); change(); return localPE(closeSet(set)) - U0; }
   const S = new Set([p]);
   for (const bd of p.bonds) { const a = other(bd, p); S.add(a); for (const b2 of a.bonds) S.add(other(b2, a)); }
-  const print = (q) => q.x * 1.000003 + q.y * 1.7 + q.q * 3.1 + q.qp * 5.3 + q.rd * 7.9 + q.ne * 11 + q.bonds.length * 13;
+  const print = (q) => { let ar = 0; for (const bd of q.bonds) if (bd.arom) ar++; return q.x * 1.000003 + q.y * 1.7 + q.q * 3.1 + q.qp * 5.3 + q.rd * 7.9 + q.ne * 11 + q.bonds.length * 13 + ar * 17; }; // (ar: a ring that stops being aromatic changes bonds beyond the neighbourhood)
   const before = new Map(); for (const q of set) if (!S.has(q)) before.set(q, print(q));
   const U0 = localPE(S);
   change();
@@ -1540,7 +1590,7 @@ function reaction(X, A) {
       if (!best || Ea < best.Ea) best = { type: 'abs', bd, dH, Ea };
       // addition to a multiple bond: X + A=B → X–A–B·
       if (bd.order >= 2) {
-        dH = (DAB - bondEnergy(A.el, B.el, bd.order - 1)) - DXA;
+        dH = (DAB - bondEnergy(A.el, B.el, bd.order - 1)) - DXA + (bd.arom ? AROM_STAB * 5 / 6 : 0); // (aromatic: the rest of the ring's stability is lost too)
         Ea = dH < 0 ? Math.max(0.05, 0.5 + 0.25 * dH) : 0.5 + 0.75 * dH;
         if (Ea < best.Ea) best = { type: 'add', bd, dH, Ea };
       }
@@ -5288,6 +5338,7 @@ function housekeeping() {
       else if (kickPair(a, b, rel) > rel + 1e-6) restoreSnap(sn);
     }
   }
+  coTriple();
   const E = Math.hypot(W.Ex, W.Ey);
   if (E > 0.3) {
     for (const p of W.parts) {
@@ -5305,6 +5356,24 @@ function housekeeping() {
 }
 /* Whether any bond could rise in order now (both atoms with room, the pair fit for it): read only, so when none can,
    housekeeping's bond loop — which changes nothing until it finds one — is skipped. */
+/* Carbon monoxide made in a fire comes out of the bonding rules as C=O, with two free valences on its carbon, as a
+   radical. One of oxygen's lone pairs then makes a third bond, C⁻≡O⁺ (the real molecule: closed, and with almost no
+   dipole once its formal charges are shared back), when that releases energy, as it does by about 2.8 eV (0.95). */
+function coTriple() {
+  for (const bd of W.bonds) {
+    if (bd.order !== 2) continue;
+    const C = bd.a.Z === 6 ? bd.a : bd.b, O = other(bd, C);
+    if (C.Z !== 6 || O.Z !== 8 || C.bonds.length !== 1 || O.bonds.length !== 1 || C.q !== 0 || O.q !== 0 || C.anti || O.anti || C.fast || O.fast) continue;
+    const set = setOf(molecule(C)), sn = snapshot(set), E0 = localPE(set) + internalE(C) + internalE(O);
+    C.ne++; O.ne--; refresh(C); refresh(O); setOrder(bd, 3);
+    if (bd.order !== 3 || C.q !== -1 || O.q !== 1) { restoreSnap(sn); continue; }
+    const rel = E0 - (localPE(set) + internalE(C) + internalE(O));
+    if (rel >= 0) dumpHeat(rel, C, O);
+    else if (kickPair(C, O, rel) > rel + 1e-6) { restoreSnap(sn); continue; }
+    W.count.react++;
+    log('chem', `Carbon monoxide closes up: C=O → C≡O, its third bond made by one of oxygen’s lone pairs (${fmtE(Math.max(0, rel))} released)`);
+  }
+}
 function bondsCanRise() {
   const CAP = S.cap, USED = S.used;
   for (const bd of W.bonds) {

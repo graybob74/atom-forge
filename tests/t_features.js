@@ -699,6 +699,44 @@ const { openPage } = require('./browser');
     return { css: cv.clientHeight, px: cv.height, want: Math.round(cv.clientHeight * dpr) };
   });
   check(r34.css > 200 && r34.px === r34.want, `0.94: the graph's canvas is ${r34.px} px high for ${r34.css} px on screen with four quantities`, '0.94 graph: ' + JSON.stringify(r34));
+  // 0.95: aromatic rings (equal bonds, 1.40 Å, harder to add to) and carbon monoxide as C≡O (closed; made in a fire as C=O,
+  // it closes up; air at room temperature does not burn it)
+  const r35 = await page.evaluate(() => {
+    const out = {}, run = (n) => { for (let k = 0; k < n; k++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); } };
+    loadPreset('empty'); setRunning(false); W.T = 0; W.gamma = 0;
+    addMolecule('benzene', 0, 0, 0, 0); forcesNoEvents(); W.fSpawn = W.spawned; run(400);
+    const cc = W.bonds.filter(b => b.arom).map(b => Math.hypot(b.a.x - b.b.x, b.a.y - b.b.y));
+    out.benz = { n: cc.length, lo: +Math.min(...cc).toFixed(3), hi: +Math.max(...cc).toFixed(3) };
+    loadPreset('empty'); setRunning(false); addMolecule('naphthalene', 0, 0, 0, 0); out.naph = W.bonds.filter(b => b.arom).length;
+    // the barrier for an H atom adding across benzene's double bond, against ethylene's
+    const Ea = (key) => { loadPreset('empty'); setRunning(false); const ps = addMolecule(key, 0, 0, 0, 0), C = ps.find(p => p.Z === 6 && p.bonds.some(b => b.order === 2)), H = addAtom('H', C.x, C.y + 3, { T: 0 }); const rx = reaction(H, C); return rx ? [+rx.Ea.toFixed(2), +rx.dH.toFixed(2)] : null; };
+    out.EaBenz = Ea('benzene'); out.EaEth = Ea('C2H4');
+    loadPreset('empty'); setRunning(false); W.T = 300; const co = addMolecule('CO', 0, 0, 0, 300); out.co = { order: W.bonds[0].order, qC: co[0].q, qO: co[1].q };
+    loadPreset('empty'); setRunning(false); W.T = 1500; W.gamma = 0.05; const c = addAtom('C', -1, 0), o = addAtom('O', 1, 0); c.vx = 0.3; o.vx = -0.3; forcesNoEvents(); W.fSpawn = W.spawned;
+    for (let k = 0; k < 40; k++) { run(200); housekeeping(); }
+    out.made = W.bonds.map(b => b.order).join(',') + ' ' + c.q + ' ' + o.q;
+    loadPreset('empty'); setRunning(false); W.T = 300; W.gamma = 0.05;
+    for (let i = 0; i < 6; i++) addMolecule('CO', -10 + i * 4, -6, 0, 300); for (let i = 0; i < 6; i++) addMolecule('O2', -10 + i * 4, 6, 0, 300);
+    forcesNoEvents(); W.fSpawn = W.spawned; for (let k = 0; k < 20; k++) { run(300); housekeeping(); }
+    out.cold = W.bonds.filter(b => b.order === 3).length;
+    return out;
+  });
+  check(r35.benz.n === 6 && r35.benz.lo > 1.37 && r35.benz.hi < 1.43 && r35.naph === 11 && r35.EaBenz[0] > r35.EaEth[0] && r35.EaBenz[1] > r35.EaEth[1] + 0.15 && r35.co.order === 3 && r35.co.qC === -1 && r35.co.qO === 1 && r35.made === '3 -1 1' && r35.cold === 6,
+    `0.95: benzene's ring bonds ${r35.benz.lo}–${r35.benz.hi} Å, naphthalene ${r35.naph} aromatic bonds; an H atom adds across benzene over a ${r35.EaBenz[0]} eV barrier releasing ${-r35.EaBenz[1]} eV (ethylene: ${r35.EaEth[0]} eV, ${-r35.EaEth[1]} eV); CO is C≡O, C=O made in a fire closes up, and air at 300 K leaves CO alone`, '0.95: ' + JSON.stringify(r35));
+  // 0.95: in a periodic box a trail that crosses an edge leaves through it and comes back through the opposite one,
+  // instead of a line straight across the box
+  const r36 = await page.evaluate(() => {
+    loadPreset('empty'); setRunning(false); W.wall = 'wrap'; R.view.tracks = true;
+    const hw = W.box.w / 2, now = W.t;
+    W.tracks.length = 0; W.tracks.push({ pts: [hw - 3, 0, hw - 1, 0.5, -hw + 1, 1, -hw + 3, 1.5], c: [255, 110, 100], w: 1.6, ts: [W.rt, W.rt, W.rt, W.rt], tt: [now, now, now, now], upd: W.rt });
+    const ctx = R.ctx, segs = []; let last = null; const mt = ctx.moveTo, lt = ctx.lineTo;
+    ctx.moveTo = function (x, y) { last = [x, y]; return mt.call(this, x, y); };
+    ctx.lineTo = function (x, y) { if (last) segs.push(Math.hypot(x - last[0], y - last[1])); last = [x, y]; return lt.call(this, x, y); };
+    try { drawTracks(W.rt); } finally { ctx.moveTo = mt; ctx.lineTo = lt; }
+    W.wall = 'reflect'; W.tracks.length = 0;
+    return { n: segs.length, longest: +Math.max(...segs).toFixed(1), box: +(W.box.w * R.s).toFixed(1) };
+  });
+  check(r36.n >= 3 && r36.longest < 0.2 * r36.box, `0.95: a trail across a periodic edge is drawn in ${r36.n} short pieces (longest ${r36.longest} px of a ${r36.box} px box)`, '0.95 wrap trail: ' + JSON.stringify(r36));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

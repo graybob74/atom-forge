@@ -349,6 +349,8 @@ function drawTracks(rt) {
   // a trail shows the last TRAIL_S[Settings] seconds of a path: of real time (the same length whatever the speed), or of
   // simulated time (that many seconds' worth at the setup's normal speed: longer when sped up, shorter in slow motion)
   const cloud = !!W.cloud, win = cloud ? Math.max(3, trailWindow()) : trailWindow(), simClock = !cloud && trailSim(), now = simClock ? W.t : rt;
+  const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hbw = bw / 2, hbh = bh / 2;
+  if (wrap) { ctx.beginPath(); ctx.rect(w2sx(-hbw), w2sy(hbh), bw * R.s, bh * R.s); ctx.clip(); } // (the pieces past an edge stay inside the box)
   for (let i = W.tracks.length - 1; i >= 0; i--) {
     const t = W.tracks[i], T = simClock ? t.tt : t.ts;
     const idle = T && T.length ? now - T[T.length - 1] : rt - t.upd; // (since its particle last moved on)
@@ -363,7 +365,16 @@ function drawTracks(rt) {
     if (t.dash) ctx.setLineDash([3, 4]); else ctx.setLineDash([]);
     ctx.beginPath();
     ctx.moveTo(w2sx(pts[0]), w2sy(pts[1]));
-    for (let k = 2; k < pts.length; k += 2) ctx.lineTo(w2sx(pts[k]), w2sy(pts[k + 1]));
+    if (wrap) { // periodic box: a step across an edge goes on out through it and comes back in through the opposite one (it drew a line straight across the box, 0.95)
+      for (let k = 2; k < pts.length; k += 2) {
+        const x0 = pts[k - 2], y0 = pts[k - 1], x1 = pts[k], y1 = pts[k + 1];
+        let dx = x1 - x0, dy = y1 - y0;
+        if (dx > hbw) dx -= bw; else if (dx < -hbw) dx += bw;
+        if (dy > hbh) dy -= bh; else if (dy < -hbh) dy += bh;
+        if (dx === x1 - x0 && dy === y1 - y0) { ctx.lineTo(w2sx(x1), w2sy(y1)); continue; }
+        ctx.lineTo(w2sx(x0 + dx), w2sy(y0 + dy)); ctx.moveTo(w2sx(x1 - dx), w2sy(y1 - dy)); ctx.lineTo(w2sx(x1), w2sy(y1));
+      }
+    } else for (let k = 2; k < pts.length; k += 2) ctx.lineTo(w2sx(pts[k]), w2sy(pts[k + 1]));
     ctx.stroke();
   }
   ctx.restore();
@@ -392,15 +403,16 @@ function drawBonds(rt) {
     const x0 = (ax - cx) * s + hw, y0 = (cy - ay) * s + hh, x1 = (bx - cx) * s + hw, y1 = (cy - by) * s + hh;
     if ((x0 < -40 && x1 < -40) || (x0 > Rw + 40 && x1 > Rw + 40) || (y0 < -40 && y1 < -40) || (y0 > Rh + 40 && y1 > Rh + 40)) continue;
     const L = Math.hypot(x1 - x0, y1 - y0) || 1, nx = -(y1 - y0) / L, ny = (x1 - x0) / L;
-    const n = bd.order, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    const ar = !!bd.arom, n = ar ? 2 : bd.order, mx = (x0 + x1) / 2, my = (y0 + y1) / 2; // (aromatic: a full line and a faint one, alike all round the ring)
     const ca = atomColor(a), cb = atomColor(b);
     const stretch = clamp((L / s - bd.r0) / (bd.rb || 1.5), 0, 1);
     const aq = Math.round((0.95 - stretch * 0.6) * aMul * 64) & 63, cls = n > 1 ? 1 : 0;
     const pa = bondPath(ca, cls, aq), pb = ca === cb ? pa : bondPath(cb, cls, aq);
+    const aq2 = ar ? Math.round(aq * 0.4) & 63 : aq, pa2 = ar ? bondPath(ca, cls, aq2) : pa, pb2 = ar ? (ca === cb ? pa2 : bondPath(cb, cls, aq2)) : pb;
     for (let q = 0; q < n; q++) {
-      const o = (q - (n - 1) / 2) * off, ox = nx * o, oy = ny * o;
-      pa.moveTo(x0 + ox, y0 + oy); pa.lineTo(mx + ox, my + oy);
-      pb.moveTo(mx + ox, my + oy); pb.lineTo(x1 + ox, y1 + oy);
+      const o = (q - (n - 1) / 2) * off, ox = nx * o, oy = ny * o, qa = q === 1 ? pa2 : pa, qb = q === 1 ? pb2 : pb;
+      qa.moveTo(x0 + ox, y0 + oy); qa.lineTo(mx + ox, my + oy);
+      qb.moveTo(mx + ox, my + oy); qb.lineTo(x1 + ox, y1 + oy);
     }
   }
   ctx.save(); ctx.lineCap = 'round';

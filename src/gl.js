@@ -321,13 +321,13 @@ function glDrawSlots(hi) {
 function glBondsBuild(bonds, gen) {
   const gl = GL.gl, nb = bonds.length;
   if (GL_BD.gen === gen && GL_BD.nb === nb) return;
-  let nv = 0; for (let k = 0; k < nb; k++) nv += bonds[k].order * 8;
+  let nv = 0; for (let k = 0; k < nb; k++) nv += (bonds[k].arom ? 2 : bonds[k].order) * 8;
   const F = new Float32Array(nv * 8); let o = 0;
   for (let k = 0; k < nb; k++) {
-    const bd = bonds[k], ia = bd.a.i, ib = bd.b.i, n = bd.order, wm = n > 1 ? 0.7 : 1, r0 = bd.r0, rb = bd.rb || 1.5;
+    const bd = bonds[k], ia = bd.a.i, ib = bd.b.i, ar = !!bd.arom, n = ar ? 2 : bd.order, wm = n > 1 ? 0.7 : 1, r0 = bd.r0, rb = bd.rb || 1.5;
     for (let q = 0; q < n; q++) {
-      const lane = q - (n - 1) / 2;
-      for (let h = 0; h < 2; h++) for (let c = 0; c < 4; c++) { F[o] = ia; F[o + 1] = ib; F[o + 2] = h; F[o + 3] = c; F[o + 4] = lane; F[o + 5] = wm; F[o + 6] = r0; F[o + 7] = rb; o += 8; }
+      const lane = q - (n - 1) / 2, wq = ar && q === 1 ? 0.35 : wm; // (aromatic: a full lane and a thin one, alike all round the ring)
+      for (let h = 0; h < 2; h++) for (let c = 0; c < 4; c++) { F[o] = ia; F[o + 1] = ib; F[o + 2] = h; F[o + 3] = c; F[o + 4] = lane; F[o + 5] = wq; F[o + 6] = r0; F[o + 7] = rb; o += 8; }
     }
   }
   gl.bindBuffer(gl.ARRAY_BUFFER, GL_BD.buf); gl.bufferData(gl.ARRAY_BUFFER, F, gl.STATIC_DRAW);

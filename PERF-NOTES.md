@@ -76,6 +76,27 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## 0.95.0: release candidate 6: bug fixes, aromatic rings and carbon monoxide (approved by the user)
+- Aromatic rings: a six-membered ring of C and N in which every atom has one double bond (in the ring or a ring fused
+  to it) is marked aromatic (engine.js aromatize, run in relink for each molecule touched). Its bonds take the mean of
+  the single and double bond's energy and spring, 0.04 Å shorter than their mean length (C–C 1.40 Å, C–N 1.33 Å), plus
+  150 kJ/mol of resonance energy per ring spread over its six bonds; whole-number orders stay for valence counting.
+  Adding across an aromatic double bond costs the rest of the ring's stability (reaction(): H + benzene releases 1.35
+  eV over a 0.16 eV barrier, against 1.52 eV and 0.12 eV for ethylene; measured: about 1.1 and 1.6 eV). Drawn as a full
+  line and a faint one. Benzene settles at 1.405 Å all round; naphthalene has 11 aromatic bonds, coronene 30. The 27
+  library molecules with aromatic rings were re-settled (tools/molrelax.js) and the tiny objects with them rebuilt
+  (objgen: dna, wwdomain, chignolin, oxytocin, graphene, kevlar; all held at 300 K). localDelta's fingerprint counts
+  aromatic bonds, so a ring that stops being aromatic beyond the neighbourhood falls back to the whole molecule.
+- Carbon monoxide: the library's CO is C⁻≡O⁺ (closed; its formal charges mostly shared back, as resonance does), not a
+  radical C=O. C=O made in a fire closes up to C≡O in housekeeping (coTriple: on trial, 2.5–2.8 eV released). Air at
+  300 K leaves CO alone; at 3000 K hot O atoms add across it and CO₂ forms.
+- Periodic box: a trail that crosses an edge was drawn as a line straight across the box; now it leaves through the edge
+  and comes back in through the opposite one (drawTracks, clipped to the box).
+- Physics tab: p p π⁰ opens first (√s 2.0115 GeV, 67.5 MeV a beam), then d π⁺ (2.0152 GeV, 69.3 MeV) and p n π⁺ (70.4 MeV);
+  the note that unstable particles pass through matter untouched (out of date since 0.62) now says what they do. (From an
+  outside review of the page; its other points checked: methane's hydrogens are 90° apart, the head tags are the
+  publisher's, claude-sonnet-5-5 is a current model.)
+
 ## 0.94.0: release candidate 5 (bug fixes)
 - Data tab graph: the chart canvas was resized only when its width changed, so picking more quantities (the graph grows a
   row for each) stretched the first height's picture over the new one: blurry, squashed text and only the first rows
@@ -132,6 +153,17 @@ engine stores and visits particles.
   thirtieth of a second a frame), so the slow frame in which thousands of hadrons appear no longer skips them.
 
 ## Features held for after 1.00 (asked for during the release candidates)
+- Aromatic rings with equal bonds: a bond order of 1.5 (1.40 Å, with the ring's extra stability, so it resists addition)
+  instead of a Kekulé form (approved by the user, after 1.00).
+- Carbon monoxide as closed-shell C≡O (it is a radical here so that it burns on to CO₂); it still burns in a flame by
+  addition across the triple bond (approved by the user, after 1.00).
+- Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
+  arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
+  chemistry; asked for by the user).
+- An "ultra-realistic" mode that gives up visibility and convenience: nuclei at their true size (about 1/100,000 of the
+  atom, so they vanish), nuclear reactions only at their true cross sections (a beam then almost never hits anything in
+  a box this size), no enlarged reach, no slowed or held decays, no hits made more frequent in setups, and zoom far
+  enough (about 10⁵ times further) to see a nucleus at its true size inside its atom (asked for by the user).
 - Detectors: graph where hits land along a screen (position bins next to the energy record; toggle the on-screen bars
   between position and energy; a Data-tab graph of hits against position, light and particles apart).
 
