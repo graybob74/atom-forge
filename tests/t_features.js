@@ -282,7 +282,7 @@ const { openPage } = require('./browser');
     W.grab = { p: h, x: h.x + 2.5 * (h.x - o.x), y: h.y + 2.5 * (h.y - o.y), s: 'strong', mol: null };
     for (let f = 0; f < 20; f++) { simFrame(1 / 60, 30); grabTick(1 / 60); }
     out.torn = !h.bonds.some(b => other(b, h) === o); W.grab = null;
-    for (let i = 0; i < 12; i++) stepSpeed(-1);
+    for (let i = 0; i < 9; i++) stepSpeed(-1); // (nine halvings to 1/512×; below it the steps go on in decades, 1.04)
     out.min = UI.baseSpf / W.simPerFrame;
     for (let i = 0; i < 12; i++) stepSpeed(1);
     return out;
@@ -804,8 +804,23 @@ const { openPage } = require('./browser');
   });
   check(r41.warpU === 1 && r41.warp0 > 1e20 && r41.warpBack === r41.warp0 && r41.badge && r41.rTherm > 0.2 && r41.rTherm < 0.4 && r41.rFast < 2e-4 && r41.rAlpha > 5e-5 && r41.rAlpha < 2e-4
     && r41.sigDT > 3 && r41.sigDT < 7 && r41.spd === '1 ys/s' && r41.slowestOff && r41.phiLeft >= 10 && r41.simS > 2e-23 && r41.simS < 3e-23
-    && r41.zoom === 4e8 && r41.gl === false && r41.zoomOff === 4000 && r41.spdOff !== '1 ys/s',
+    && r41.zoom === 4e8 && r41.gl === false && r41.zoomOff === 4000,
     `1.03: ultra-realistic mode: decay ×${r41.warp0.toExponential(0)} → real; reach for a thermal neutron ${r41.rTherm.toFixed(2)} Å, a 2 MeV one ${r41.rFast.toExponential(1)} Å, a 5 MeV α ${r41.rAlpha.toExponential(1)} Å; σ(D–T, 64 keV) ${r41.sigDT.toFixed(1)} b; at ${r41.spd}, ${r41.phiLeft} of 20 φ left after ${r41.simS.toExponential(1)} s; zoom to ${r41.zoom.toExponential(0)} px/Å`, '1.03 ultra: ' + JSON.stringify(r41));
+  // 1.04: the extreme slow motion in the normal mode too: down to 1 ys a second, where a φ meson lives its real life
+  const r42 = await page.evaluate(() => {
+    loadPreset('empty'); setRunning(false); const out = { ultra: !!W.ultra };
+    for (let i = 0; i < 25; i++) stepSpeed(-1); out.spd = $('speedVal').textContent;
+    for (let i = 0; i < 20; i++) fireSpec({ kind: 'exo', sp: 'phi' }, -20 + 2 * i, 8, 1, 0, 1e6);
+    const live = () => W.exo.filter(o => !o.dead && o.sp === 'phi').length, t0 = W.t;
+    for (let f = 0; f < 1500; f++) simFrame(1 / 60, 25);
+    out.phiLeft = live(); out.simS = (W.t - t0) * PHYS.TU_S;
+    for (let i = 0; i < 10; i++) stepSpeed(1); out.back = $('speedVal').textContent;
+    W.simPerFrame = UI.baseSpf; for (let i = 0; i < 20; i++) fireSpec({ kind: 'exo', sp: 'phi' }, -20 + 2 * i, 8, 1, 0, 1e6);
+    simFrame(1 / 60, 25); simFrame(1 / 60, 25); out.phiNormal = live();
+    return out;
+  });
+  check(!r42.ultra && r42.spd === '1 ys/s' && r42.phiLeft >= 10 && r42.simS > 2e-23 && r42.simS < 3e-23 && /1\/512×/.test(r42.back) && r42.phiNormal === 0,
+    `1.04: extreme slow motion without the ultra-realistic mode: at ${r42.spd}, ${r42.phiLeft} of 20 φ left after ${r42.simS.toExponential(1)} s; back up to ${r42.back}; at 1× they are gone at once (${r42.phiNormal} left)`, '1.04 slow: ' + JSON.stringify(r42));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

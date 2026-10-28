@@ -5652,12 +5652,16 @@ function eventSlow(realDt) {
    many sixtieths as really passed (a 120 Hz screen shows the same motion in twice the frames; a slow frame catches up,
    by at most three sixtieths, so a stall is not followed by a burst). */
 const FRAME_REF = 1 / 60;
+/* Set slower than 1/512× of the setup's speed: the extreme slow motion (the speed buttons go on in decades of simulated
+   time per second, down to 1 ys a second; ui.js stepSpeed). There each frame takes exactly the time set, automatic
+   slow motion stays out, and resonances live their mean lives on the clock (hep.js moveExos). */
+function deepSlow() { return W.simPerFrame < (W.baseSpf || W.simPerFrame) / 512 * 0.99; }
 function simFrame(realDt, budgetMs) {
   const t0 = performance.now();
   let simAdv = 0, steps = 0, cut = false;
   let slow = slowFactor(realDt); const fr = clamp(realDt / FRAME_REF, 0.01, 3);
-  if (W.ultra && W.simPerFrame < (W.baseSpf || W.simPerFrame) / 512 * 0.99) slow = 1; // (ultra-realistic, set slower than 1/512×: the pace is exactly what is set, a yoctosecond a second at the slowest; automatic slow motion stays out of it) // (the frame's share of a sixtieth: any frame rate up to 6,000 fps advances the same simulated time per second)
-  let target = W.simPerFrame * slow * fr; const floor = W.ultra && W.simPerFrame < DT_MIN ? 1e-18 : W.flights.length || slow < 0.999 ? 1e-9 : DT_MIN; // (ultra-realistic, set below one shortest step: a step a frame, however short, down to a yoctosecond a second) // (with light in flight, or in slow motion, a frame may be shorter than the shortest normal step: slowed down that far, what is followed is still seen to slow; at a step a frame this costs nothing, 0.91)
+  if (deepSlow()) slow = 1; // (set slower than 1/512×: the pace is exactly what is set, a yoctosecond a second at the slowest; automatic slow motion stays out of it) // (the frame's share of a sixtieth: any frame rate up to 6,000 fps advances the same simulated time per second)
+  let target = W.simPerFrame * slow * fr; const floor = deepSlow() && W.simPerFrame < DT_MIN ? 1e-18 : W.flights.length || slow < 0.999 ? 1e-9 : DT_MIN; // (ultra-realistic, set below one shortest step: a step a frame, however short, down to a yoctosecond a second) // (with light in flight, or in slow motion, a frame may be shorter than the shortest normal step: slowed down that far, what is followed is still seen to slow; at a step a frame this costs nothing, 0.91)
   // set below one shortest step a frame (1/512× of a fine setup): the frames' time is saved up and run once it makes a
   // whole step, so the motion is as slow as asked and not one step a frame, whatever the fps. (Slow motion keeps its
   // floor of a step a frame: it follows fast particles, which must move every frame to be followed.)

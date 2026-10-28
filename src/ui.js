@@ -2274,7 +2274,7 @@ function worldFromJSON(d) {
   W.box.w = W.box.tw = num(d.box.w, 20, 20000, 200); W.box.h = W.box.th = num(d.box.h, 20, 20000, 140); UI.aspect = W.box.th / W.box.tw;
   W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.nWall = ['reflect', 'absorb', 'pass', 'fast'].includes(d.nWall) ? d.nWall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -50, 50, 0); W.Ey = num(d.Ey, -50, 50, 0);
   UI.E = Math.hypot(W.Ex, W.Ey); UI.Eang = UI.E ? Math.round(Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) : (UI.Eang || 0); // (the Lab's field figure and direction, from the field)
-  W.simPerFrame = num(d.spf, W.ultra ? 1e-15 : DT_MIN, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1e-6, 1e30, 1); W.minShow = [0, 1, 2].includes(d.minShow) ? d.minShow : 0; W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true;
+  W.simPerFrame = num(d.spf, 1e-15, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1e-6, 1e30, 1); W.minShow = [0, 1, 2].includes(d.minShow) ? d.minShow : 0; W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true;
   ultraHold(); // (the ultra-realistic mode: real decay rates, nothing held, whatever the save had)
   const made = [], hw = W.box.w / 2, hh = W.box.h / 2;
   for (const q of d.parts) {
@@ -2847,19 +2847,19 @@ function motionText() { // the motion the simulation actually gets through each 
 /* ------------------------------------------------------------------ speed (simulated time per frame) */
 const SPEED_MIN = -9, SPEED_MAX = 4; // 1/512× … 16× the setup's normal speed
 function speedText(m) {
-  if (W.ultra && m < Math.pow(2, SPEED_MIN) * 0.99) return fmtTime(spfRate(UI.baseSpf * m)).replace(/\.0+ /, ' ').replace(/(\.\d*?)0+ /, '$1 ') + '/s'; // (ultra-realistic: below 1/512×, as time per second)
+  if (m < Math.pow(2, SPEED_MIN) * 0.99) return fmtTime(spfRate(UI.baseSpf * m)).replace(/\.0+ /, ' ').replace(/(\.\d*?)0+ /, '$1 ') + '/s'; // (below 1/512×: as time per second, 1.04)
   if (m >= 0.95) return (m >= 9.5 ? Math.round(m) : Math.round(m * 10) / 10) + '×';
   const inv = 1 / m;
   return Math.abs(inv - Math.round(inv)) < 0.08 ? '1/' + Math.round(inv) + '×' : m.toFixed(2) + '×';
 }
-/* The ultra-realistic mode's slowest speeds, below 1/512×: a tenth at a click, in simulated time per second, from
-   1 fs a second down to 1 ys (10⁻²⁴ s) a second (1.03). */
+/* The slowest speeds, below 1/512×: a tenth at a click, in simulated time per second, from 1 fs a second down to
+   1 ys (10⁻²⁴ s) a second (1.03 in the ultra-realistic mode, 1.04 in every mode). */
 const ULTRA_SLOWEST = 1e-24; // s of simulated time per second
 const spfRate = (spf) => spf * PHYS.TU_S * 60; // s a second at 60 fps
-function ultraSlow() { return W.ultra && W.simPerFrame < UI.baseSpf * Math.pow(2, SPEED_MIN) * 0.99; }
+function ultraSlow() { return deepSlow(); } // (in every mode since 1.04)
 function stepSpeed(dir) {
   const k0 = Math.round(Math.log2(W.simPerFrame / UI.baseSpf));
-  if (W.ultra && (ultraSlow() || (dir < 0 && k0 <= SPEED_MIN))) {
+  if (ultraSlow() || (dir < 0 && k0 <= SPEED_MIN)) {
     const rate = spfRate(W.simPerFrame), dec = Math.pow(10, Math.round(Math.log10(rate)) === Math.log10(rate) ? Math.log10(rate) : Math.floor(Math.log10(rate)));
     let r = dir < 0 ? (ultraSlow() ? rate / 10 : dec) : rate * 10;
     r = Math.max(ULTRA_SLOWEST, Math.pow(10, Math.round(Math.log10(r)))); // (whole decades: 1 as/s, 100 zs/s …)
@@ -2881,7 +2881,7 @@ function syncSpeed() {
   v.classList.toggle('cap', !!UI.capped && !UI.slow);
   v.classList.toggle('slow', (!!UI.slow || !!W.slowHold) && !ultraSlow());
   const k = Math.round(Math.log2(m));
-  $('bSlower').disabled = W.ultra ? spfRate(W.simPerFrame) <= ULTRA_SLOWEST * 1.01 : k <= SPEED_MIN; $('bFaster').disabled = k >= SPEED_MAX;
+  $('bSlower').disabled = spfRate(W.simPerFrame) <= ULTRA_SLOWEST * 1.01; $('bFaster').disabled = k >= SPEED_MAX;
   const rate = W.simPerFrame * PHYS.TU_S * 60 * Math.min(1, UI.ach || 1);
   v.parentElement.title = `About ${fmtTime(rate)} of motion per second` + (UI.capped ? ' (as fast as this computer can go with this many particles: fewer of them, or more physics time per frame in Settings, make it faster)' : '') + (W.warp > 1.0001 ? `; radioactive decay sped up ${fmtFactor(W.warp)}` : '');
 }
@@ -4728,7 +4728,7 @@ function ultraApply() {
   const on = !!SET.ultra; if (on === !!W.ultra) return;
   if (!on && W.preUltra) { W.warp = W.preUltra.warp; W.minShow = W.preUltra.minShow; }
   W.ultra = on; ultraHold();
-  if (!on) { R.s = Math.min(R.s, ZOOM_MAX); const m = W.simPerFrame / (UI.baseSpf || W.simPerFrame); if (m < Math.pow(2, SPEED_MIN)) W.simPerFrame = UI.baseSpf * Math.pow(2, SPEED_MIN); } // (back inside the normal zoom and speeds)
+  if (!on) R.s = Math.min(R.s, ZOOM_MAX); // (back inside the normal zoom)
   if (typeof syncSpeed === 'function' && $('speedVal')) syncSpeed();
   $('ultraBadge').hidden = !on;
 }

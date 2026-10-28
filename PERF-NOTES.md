@@ -81,6 +81,17 @@ engine stores and visits particles.
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
 
+## 1.04.0: extreme slow motion in every mode
+- The speed buttons go on below 1/512× without the ultra-realistic mode too (asked for by the user): a tenth at a
+  click in simulated time per second, 1 fs/s down to 1 ys/s (`stepSpeed`, `deepSlow()` in engine.js). There, as in
+  1.03's ultra mode, each frame takes exactly the time set (a step a frame, floor 10⁻¹⁸ tu), automatic slow motion
+  stays out, and resonances (ρ, ω, φ, K*, Δ) fly and decay on the clock with their mean lives ħ/Γ instead of at once
+  (`moveExos`). At 1/512× and faster nothing changed: resonances still decay where they are made. Decay speed-ups set
+  by a setup still apply (that is the normal mode's convenience).
+- Measured (page): at 1 ys/s, 19 of 20 φ mesons fired at 1 MeV were left after 2.5×10⁻²³ s (1,500 frames, exactly
+  that much simulated time); at 1× all 20 are gone within two frames.
+- Test: t_features "1.04 slow"; the older "grab/speed" check now steps down nine halvings to 1/512×.
+
 ## 1.03.0: the ultra-realistic mode (approved by the user)
 - Settings → General → Ultra-realistic (`SET.ultra`, mirrored in `W.ultra`; "ultra-realistic" shows beside the
   version). Nothing is enlarged or sped up to be seen:

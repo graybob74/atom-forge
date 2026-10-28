@@ -7910,12 +7910,16 @@ function eventSlow(realDt) {
    many sixtieths as really passed (a 120 Hz screen shows the same motion in twice the frames; a slow frame catches up,
    by at most three sixtieths, so a stall is not followed by a burst). */
 const FRAME_REF = 1 / 60;
+/* Set slower than 1/512× of the setup's speed: the extreme slow motion (the speed buttons go on in decades of simulated
+   time per second, down to 1 ys a second; ui.js stepSpeed). There each frame takes exactly the time set, automatic
+   slow motion stays out, and resonances live their mean lives on the clock (hep.js moveExos). */
+function deepSlow() { return W.simPerFrame < (W.baseSpf || W.simPerFrame) / 512 * 0.99; }
 function simFrame(realDt, budgetMs) {
   const t0 = performance.now();
   let simAdv = 0, steps = 0, cut = false;
   let slow = slowFactor(realDt); const fr = clamp(realDt / FRAME_REF, 0.01, 3);
-  if (W.ultra && W.simPerFrame < (W.baseSpf || W.simPerFrame) / 512 * 0.99) slow = 1; // (ultra-realistic, set slower than 1/512×: the pace is exactly what is set, a yoctosecond a second at the slowest; automatic slow motion stays out of it) // (the frame's share of a sixtieth: any frame rate up to 6,000 fps advances the same simulated time per second)
-  let target = W.simPerFrame * slow * fr; const floor = W.ultra && W.simPerFrame < DT_MIN ? 1e-18 : W.flights.length || slow < 0.999 ? 1e-9 : DT_MIN; // (ultra-realistic, set below one shortest step: a step a frame, however short, down to a yoctosecond a second) // (with light in flight, or in slow motion, a frame may be shorter than the shortest normal step: slowed down that far, what is followed is still seen to slow; at a step a frame this costs nothing, 0.91)
+  if (deepSlow()) slow = 1; // (set slower than 1/512×: the pace is exactly what is set, a yoctosecond a second at the slowest; automatic slow motion stays out of it) // (the frame's share of a sixtieth: any frame rate up to 6,000 fps advances the same simulated time per second)
+  let target = W.simPerFrame * slow * fr; const floor = deepSlow() && W.simPerFrame < DT_MIN ? 1e-18 : W.flights.length || slow < 0.999 ? 1e-9 : DT_MIN; // (ultra-realistic, set below one shortest step: a step a frame, however short, down to a yoctosecond a second) // (with light in flight, or in slow motion, a frame may be shorter than the shortest normal step: slowed down that far, what is followed is still seen to slow; at a step a frame this costs nothing, 0.91)
   // set below one shortest step a frame (1/512× of a fine setup): the frames' time is saved up and run once it makes a
   // whole step, so the motion is as slow as asked and not one step a frame, whatever the fps. (Slow motion keeps its
   // floor of a step a frame: it follows fast particles, which must move every frame to be followed.)
@@ -9602,7 +9606,7 @@ function exoHeld(o) {
 }
 function moveExos(dt, id0) {
   if (W.muBound && W.muBound.length) muBoundTick(dt);
-  for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res && !W.ultra) { if (exoHeld(o)) o.wait = true; else decayExo(o); } } // (resonances: gone within a proton's width, whatever the decay clock)
+  for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res && !W.ultra && !deepSlow()) { if (exoHeld(o)) o.wait = true; else decayExo(o); } } // (resonances: gone within a proton's width, whatever the decay clock)
   const n0 = W.exo.length;
   if (!n0) return;
   const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, hw = W.box.w / 2, hh = W.box.h / 2; // (proper seconds per lab second: 1/γ)
@@ -9619,7 +9623,7 @@ function moveExos(dt, id0) {
     flyExo(o, h);
     if (W.objs.length && objExo(o, x0, y0)) continue; // (placed objects: props.js)
     if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
-    if (d.res && !dec && !W.ultra) continue; // (a held resonance: only flies) (ultra-realistic: resonances fly and decay on the clock, with their own mean lives, ħ/Γ)
+    if (d.res && !dec && !W.ultra && !deepSlow()) continue; // (a held resonance: only flies) (ultra-realistic: resonances fly and decay on the clock, with their own mean lives, ħ/Γ)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
       if (!((d.atom || d.hyp || d.muonium || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP)) && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
       if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
@@ -17663,7 +17667,7 @@ function worldFromJSON(d) {
   W.box.w = W.box.tw = num(d.box.w, 20, 20000, 200); W.box.h = W.box.th = num(d.box.h, 20, 20000, 140); UI.aspect = W.box.th / W.box.tw;
   W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.nWall = ['reflect', 'absorb', 'pass', 'fast'].includes(d.nWall) ? d.nWall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -50, 50, 0); W.Ey = num(d.Ey, -50, 50, 0);
   UI.E = Math.hypot(W.Ex, W.Ey); UI.Eang = UI.E ? Math.round(Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) : (UI.Eang || 0); // (the Lab's field figure and direction, from the field)
-  W.simPerFrame = num(d.spf, W.ultra ? 1e-15 : DT_MIN, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1e-6, 1e30, 1); W.minShow = [0, 1, 2].includes(d.minShow) ? d.minShow : 0; W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true;
+  W.simPerFrame = num(d.spf, 1e-15, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1e-6, 1e30, 1); W.minShow = [0, 1, 2].includes(d.minShow) ? d.minShow : 0; W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true;
   ultraHold(); // (the ultra-realistic mode: real decay rates, nothing held, whatever the save had)
   const made = [], hw = W.box.w / 2, hh = W.box.h / 2;
   for (const q of d.parts) {
@@ -18236,19 +18240,19 @@ function motionText() { // the motion the simulation actually gets through each 
 /* ------------------------------------------------------------------ speed (simulated time per frame) */
 const SPEED_MIN = -9, SPEED_MAX = 4; // 1/512× … 16× the setup's normal speed
 function speedText(m) {
-  if (W.ultra && m < Math.pow(2, SPEED_MIN) * 0.99) return fmtTime(spfRate(UI.baseSpf * m)).replace(/\.0+ /, ' ').replace(/(\.\d*?)0+ /, '$1 ') + '/s'; // (ultra-realistic: below 1/512×, as time per second)
+  if (m < Math.pow(2, SPEED_MIN) * 0.99) return fmtTime(spfRate(UI.baseSpf * m)).replace(/\.0+ /, ' ').replace(/(\.\d*?)0+ /, '$1 ') + '/s'; // (below 1/512×: as time per second, 1.04)
   if (m >= 0.95) return (m >= 9.5 ? Math.round(m) : Math.round(m * 10) / 10) + '×';
   const inv = 1 / m;
   return Math.abs(inv - Math.round(inv)) < 0.08 ? '1/' + Math.round(inv) + '×' : m.toFixed(2) + '×';
 }
-/* The ultra-realistic mode's slowest speeds, below 1/512×: a tenth at a click, in simulated time per second, from
-   1 fs a second down to 1 ys (10⁻²⁴ s) a second (1.03). */
+/* The slowest speeds, below 1/512×: a tenth at a click, in simulated time per second, from 1 fs a second down to
+   1 ys (10⁻²⁴ s) a second (1.03 in the ultra-realistic mode, 1.04 in every mode). */
 const ULTRA_SLOWEST = 1e-24; // s of simulated time per second
 const spfRate = (spf) => spf * PHYS.TU_S * 60; // s a second at 60 fps
-function ultraSlow() { return W.ultra && W.simPerFrame < UI.baseSpf * Math.pow(2, SPEED_MIN) * 0.99; }
+function ultraSlow() { return deepSlow(); } // (in every mode since 1.04)
 function stepSpeed(dir) {
   const k0 = Math.round(Math.log2(W.simPerFrame / UI.baseSpf));
-  if (W.ultra && (ultraSlow() || (dir < 0 && k0 <= SPEED_MIN))) {
+  if (ultraSlow() || (dir < 0 && k0 <= SPEED_MIN)) {
     const rate = spfRate(W.simPerFrame), dec = Math.pow(10, Math.round(Math.log10(rate)) === Math.log10(rate) ? Math.log10(rate) : Math.floor(Math.log10(rate)));
     let r = dir < 0 ? (ultraSlow() ? rate / 10 : dec) : rate * 10;
     r = Math.max(ULTRA_SLOWEST, Math.pow(10, Math.round(Math.log10(r)))); // (whole decades: 1 as/s, 100 zs/s …)
@@ -18270,7 +18274,7 @@ function syncSpeed() {
   v.classList.toggle('cap', !!UI.capped && !UI.slow);
   v.classList.toggle('slow', (!!UI.slow || !!W.slowHold) && !ultraSlow());
   const k = Math.round(Math.log2(m));
-  $('bSlower').disabled = W.ultra ? spfRate(W.simPerFrame) <= ULTRA_SLOWEST * 1.01 : k <= SPEED_MIN; $('bFaster').disabled = k >= SPEED_MAX;
+  $('bSlower').disabled = spfRate(W.simPerFrame) <= ULTRA_SLOWEST * 1.01; $('bFaster').disabled = k >= SPEED_MAX;
   const rate = W.simPerFrame * PHYS.TU_S * 60 * Math.min(1, UI.ach || 1);
   v.parentElement.title = `About ${fmtTime(rate)} of motion per second` + (UI.capped ? ' (as fast as this computer can go with this many particles: fewer of them, or more physics time per frame in Settings, make it faster)' : '') + (W.warp > 1.0001 ? `; radioactive decay sped up ${fmtFactor(W.warp)}` : '');
 }
@@ -20117,7 +20121,7 @@ function ultraApply() {
   const on = !!SET.ultra; if (on === !!W.ultra) return;
   if (!on && W.preUltra) { W.warp = W.preUltra.warp; W.minShow = W.preUltra.minShow; }
   W.ultra = on; ultraHold();
-  if (!on) { R.s = Math.min(R.s, ZOOM_MAX); const m = W.simPerFrame / (UI.baseSpf || W.simPerFrame); if (m < Math.pow(2, SPEED_MIN)) W.simPerFrame = UI.baseSpf * Math.pow(2, SPEED_MIN); } // (back inside the normal zoom and speeds)
+  if (!on) R.s = Math.min(R.s, ZOOM_MAX); // (back inside the normal zoom)
   if (typeof syncSpeed === 'function' && $('speedVal')) syncSpeed();
   $('ultraBadge').hidden = !on;
 }
