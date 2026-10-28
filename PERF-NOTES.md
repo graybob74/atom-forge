@@ -80,6 +80,24 @@ engine stores and visits particles.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
+  Step 1, a prototype outside the game (`node tools/bo-proto.js [molecules]`, `BO_MODEL=A|B`), 1.04 era. Every pair's
+  order is worked out from the atoms' valences (capacity(), expanded octets toward F, O, Cl) and positions, energies
+  from the game's bond tables. Two forms were tried:
+  - A, valence sharing: a pair can reach N = what both atoms have left after their other partners, and holds N·w(r)
+    (w = 1 inside its bond length). Matches the classic bonds within 0.05 eV per molecule and 0.04 Å for H₂, O₂, N₂,
+    CO, H₂O, NH₃, CH₄, C₂H₆, C₂H₄, C₂H₂, CO₂, HCN, CH₃OH, H₂O₂, SiH₄, H₂S, PCl₃; benzene comes out at 1.49 per ring
+    bond without being told (1.47 Å; real 1.40). Dynamics conserve energy (benzene 300 K, 1,500 steps: 0.035 eV).
+    But no reaction barriers: when two partners compete inside their bond lengths the split of the valence is not
+    fixed by the geometry, so H + H₂ has no barrier and H₃ is bound (real barrier 0.42 eV). SF₆ crowds and its F
+    atoms bond to each other (2-D).
+  - B, order from distance (Pauling/BEBO) with an over-coordination correction (as ReaxFF's): benzene 1.50 at
+    1.418 Å, SF₆ still not right, H + H₂ barrier 0.18 eV at 0.89 Å, but its top is a shallow well rather than a true
+    saddle, energy conservation is poor (water 0.12 eV, benzene 0.47 eV in short runs) and benzene's bonds localise
+    (1.9/1.1).
+  Neither is ready to replace the classic chemistry. Every step it needs all pair orders found self-consistently
+  (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
+  A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
+  Waiting on the user's decision.
 
 ## 1.04.0: extreme slow motion in every mode
 - The speed buttons go on below 1/512× without the ultra-realistic mode too (asked for by the user): a tenth at a
