@@ -11814,15 +11814,15 @@ function drawUltraParts(ctx, rt) {
     if (x < -r || y < -r || x > Wd + r || y > Ht + r) continue;
     const col = atomColor(p);
     if (r <= 1500) {
-      if (bohrMode === 'orb') drawOrbitalAtom(ctx, p, x, y);
-      else if (bohrMode === 'on' || bohrMode === 'nuc' || (bohrMode === 'auto' && r >= 30)) drawBohr(ctx, p, x, y, r, rt, col);
+      if (bohrMode === 'orb') drawOrbitalAtom(ctx, p, x, y, true);
+      else if (bohrMode === 'on' || bohrMode === 'nuc' || (bohrMode === 'auto' && r >= 30)) drawBohr(ctx, p, x, y, r, rt, col, rn);
       else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
     } else { // inside the atom's electron cloud: a faint wash of its colour
       const c = hexc(col); ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.10)`;
       const d = Math.hypot(x - Wd / 2, y - Ht / 2);
       if (d + diag / 2 < r) ctx.fillRect(0, 0, Wd, Ht); else { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
     }
-    if (rn >= 0.5 || r > 1500) { ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag); if (rn > 7 && lblOn(p)) smallTag(ctx, nucSym(p.Z, p.N), x, y + rn + 9); }
+    if (rn >= 0.5) { ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag); if (rn > 7 && lblOn(p)) smallTag(ctx, nucSym(p.Z, p.N), x, y + rn + 9); }
   }
 }
 function ultraNucleus(ctx, x, y, rn, Z, N, anti, diag) {
@@ -12099,7 +12099,8 @@ function drawExos() {
    hypernucleus as its nucleons with the Λ at the centre, ringed, and a muonic atom as its nucleus with the muon's tight
    orbit round it. Leptons have no parts: they stay points. Returns how far above the centre to put the label, or 0. */
 function exoInside(ctx, o, x, y, c, hx) {
-  const d = XP[o.sp], b = nucleonR();
+  const d = XP[o.sp], b = W.ultra ? 0.88 * FM * R.s : nucleonR(); // (ultra-realistic: a nucleon at its true size)
+  if (W.ultra && b < 2) return 0;
   if (d.hyp || d.atom || d.stuck) {
     const Z = d.hyp ? d.Z : d.stuck ? 2 : 1, N = d.hyp ? d.N : d.stuck ? 2 : d.N | 0;
     const nsp = nucleusSprite(Z, N, b, false);
@@ -12188,7 +12189,7 @@ function chargeBadge(ctx, q, x, y, r) {
   ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(t, x, y + 0.5);
 }
-function drawBohr(ctx, p, x, y, r, rt, col) {
+function drawBohr(ctx, p, x, y, r, rt, col, rnTrue) { // rnTrue: the ultra-realistic mode's nucleus, at its true size in pixels (drawn by the caller)
   const sh = shellCounts(p.Z, p.ne);
   const nS = sh.length;
   // electron cloud
@@ -12196,7 +12197,7 @@ function drawBohr(ctx, p, x, y, r, rt, col) {
   const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.25);
   g.addColorStop(0, `rgba(${cr},${cg},${cb},0.30)`); g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.fill();
-  const rn = clamp(r * 0.2, 3, 22);
+  const rn = rnTrue !== undefined ? 0 : clamp(r * 0.2, 3, 22);
   for (let i = 0; i < nS; i++) {
     const R0 = rn + 4 + (r * 1.12 - rn - 4) * (i + 1) / nS;
     ctx.strokeStyle = 'rgba(160,200,240,0.28)'; ctx.lineWidth = 1;
@@ -12209,7 +12210,7 @@ function drawBohr(ctx, p, x, y, r, rt, col) {
       drawSprite(ballSprite(p.anti ? POS_COL : E_COL, er), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
     }
   }
-  nucleusBeads(ctx, x, y, rn, p.Z, p.N, 1, p.anti);
+  if (rnTrue === undefined) nucleusBeads(ctx, x, y, rn, p.Z, p.N, 1, p.anti);
   if (R.view.labels) {
     ctx.font = '600 12px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = CHAMBER.text; ctx.textAlign = 'center';
     ctx.fillText(nucSymA(p.Z, p.N, p.anti) + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''), x, y + r * 1.25 + 12);
@@ -12238,14 +12239,14 @@ function orbSprite(Z, ne, D, force) { // D: diameter in device pixels
   return c;
 }
 /* Draws atom p's cloud at (x, y) with its nucleus; returns the radius of the visible cloud in pixels. */
-function drawOrbitalAtom(ctx, p, x, y) {
+function drawOrbitalAtom(ctx, p, x, y, noNuc) { // noNuc: the ultra-realistic mode draws the nucleus itself, at its true size
   const O = orbitalSet(p.Z, p.ne), D = 2 * O.rmax * R.s, rv = Math.max(4, O.rvis * R.s);
   const sp = orbSprite(p.Z, p.ne, D * R.dpr);
   ctx.globalCompositeOperation = 'screen'; // overlapping clouds brighten without burning out
   if (sp) ctx.drawImage(sp, x - D / 2, y - D / 2, D, D);
   else drawSprite(glowSprite([88, 196, 255], rv), x, y, 0.5);
   ctx.globalCompositeOperation = 'source-over';
-  drawSprite(ballSprite(p.anti ? PBAR_COL : P_COL, clamp(0.05 * R.s, 1.2, 4)), x, y);
+  if (!noNuc) drawSprite(ballSprite(p.anti ? PBAR_COL : P_COL, clamp(0.05 * R.s, 1.2, 4)), x, y);
   return rv;
 }
 

@@ -830,6 +830,19 @@ const { openPage } = require('./browser');
   const n43 = r43.naph.g;
   check(n43['1.67'] > 1.36 && n43['1.67'] < 1.40 && n43['1.33'] > 1.41 && n43['1.33'] < 1.46 && r43.naph.RE === 238 && r43.anth.RE === 300 && r43.benz.g['1.50'] > 1.38 && r43.benz.g['1.50'] < 1.42 && r43.benz.RE === 150 && !Object.keys(r43.buta.g).length,
     `1.05: resonance: naphthalene's bonds ${n43['1.67']} Å at order 1⅔ and ${n43['1.33']} Å at 1⅓ (measured 1.37, 1.42), ${r43.naph.RE} kJ/mol; anthracene ${r43.anth.RE}; benzene ${r43.benz.g['1.50']} Å; butadiene left as it is`, '1.05 resonance: ' + JSON.stringify(r43));
+  // 1.06: the ultra-realistic mode draws an atom's nucleus only at its true size: not at all at ordinary zoom (the Bohr
+  // and orbital pictures drew one scaled with the atom), its nucleons from about 10⁶ px/Å
+  const r44 = await page.evaluate(() => {
+    const out = {}, nb0 = nucleusBeads, un0 = ultraNucleus; let n = 0;
+    nucleusBeads = function (...a) { n++; return nb0.apply(this, a); }; ultraNucleus = function (...a) { n++; return un0.apply(this, a); };
+    try {
+      setSetting('ultra', true); loadPreset('water'); setRunning(false); const p = W.parts.find(q => q.Z === 8); R.cx = p.x; R.cy = p.y;
+      for (const [v, s] of [['auto', 120], ['on', 120], ['orb', 120], ['auto', 3e6]]) { R.view.bohr = v; R.s = s; n = 0; render(W.rt); out[v + s] = n; }
+    } finally { nucleusBeads = nb0; ultraNucleus = un0; R.view.bohr = 'auto'; setSetting('ultra', false); }
+    return out;
+  });
+  check(r44.auto120 === 0 && r44.on120 === 0 && r44.orb120 === 0 && r44.auto3000000 >= 1,
+    `1.06: ultra-realistic nuclei at their true size only (nuclei drawn at 120 px/Å: ${r44.auto120}, ${r44.on120}, ${r44.orb120}; at 3×10⁶: ${r44.auto3000000})`, '1.06 true nuclei: ' + JSON.stringify(r44));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

@@ -99,6 +99,16 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.06.0: ultra-realistic nuclei at their true size in every view
+- In the ultra-realistic mode an atom's nucleus was still drawn scaled with the zoom by the Bohr picture (3–22 px,
+  a fifth of the atom) and the orbital picture (a 1.2–4 px dot), and a hadron's quarks in the particle view at the
+  enlarged nucleon size (reported by the user). Now the mode draws a nucleus only at its true size: the Bohr and
+  orbital pictures leave theirs out (`drawBohr(…, rnTrue)`, `drawOrbitalAtom(…, noNuc)`), the nucleus is drawn once its
+  true radius (1.2·A^⅓ fm) is half a pixel (about 10⁵ px/Å for oxygen), and a hadron's insides once a nucleon is
+  2 px. A bare nucleus or a free neutron smaller than a pixel keeps its fixed one-pixel dot, so it can be found.
+- Test: t_features "1.06 true nuclei": nuclei drawn in the water setup at 120 px/Å, Bohr pictures auto and on: 0 and 0
+  (1.05: 8 and 8, one per atom in view); the orbital picture's dot is gone too.
+
 ## 1.05.0: resonance from bond orders (approved by the user)
 - From the bond-order prototype, the part that holds up: bonds that can be drawn more than one way take their
   Pauling bond order. `resonance()` (engine.js, in relink, where aromatize ran) finds each molecule's π system (C, N, O,
