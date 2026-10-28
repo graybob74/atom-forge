@@ -107,6 +107,9 @@ engine stores and visits particles.
   annihilation, useries, pet: the walls took 1–9 e). The charge books are not kept in saves (a loaded save starts them
   at zero).
 - Tests: t_features "1.02 detector", "1.02 wall charge".
+- The Windows build of 1.00.0 failed (and would have for every 1.xx.0): Cargo refuses a version with a leading zero
+  ("1.00.0": invalid leading zero in minor version number). The desktop files now carry the same number as plain
+  semver (1.2.0 for 1.02.0); the page keeps the release name. The installers are named 1.2.0.
 
 ## 1.01.0: right-click cards for the palette
 - Right-clicking (or pressing and holding) a chip in the top bar, an item of its category menus or a Find result opens

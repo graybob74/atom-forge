@@ -1,6 +1,6 @@
 [package]
 name = "atom-forge"
-version = "1.02.0"
+version = "1.2.0"
 description = "Atom Forge — particles, atoms and molecules from real physics"
 edition = "2021"
 rust-version = "1.77"

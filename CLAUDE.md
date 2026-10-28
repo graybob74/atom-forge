@@ -88,8 +88,9 @@ time-budgeted checks in `t_features` (the chain reaction's k readout, saves, sta
 
 ## Releasing (when the owner says "release")
 
-1. Version `1.xx.0` in four places: `desktop/src-tauri/Cargo.toml` (line 3), `desktop/src-tauri/tauri.conf.json`,
-   `desktop/package.json`, `src/shell.html` (line 1, the title).
+1. Version in four places: `src/shell.html` (line 1, the title) gets the release name `1.xx.0` (1.02.0);
+   `desktop/src-tauri/Cargo.toml` (line 3), `desktop/src-tauri/tauri.conf.json` and `desktop/package.json` get the same
+   number as valid semver, without the leading zero (1.2.0): Cargo refuses "1.02.0" and the Windows build fails.
 2. PERF-NOTES section for the version; the full suite passes.
 3. Back up the source (excluding `dist`, `tests/.tmp`, `kernel/target`, `desktop/dist-app`), commit to `main` with the
    session's trailer, push (this starts the Windows build), give the owner the source zip and the
