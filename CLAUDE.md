@@ -57,7 +57,7 @@ tools/runtests.sh [tag]            # every suite, two lanes, ~15 min; the releas
 ```
 
 Known flakes under the parallel load of `runtests.sh` (rerun alone before believing them): `t_chips` (radiation upset)
-and `t_collider` (³⁵⁶Og + ²⁴⁹Cf "nothing listed as made"); and when anything else runs at the same time, the
+and `t_collider` (³⁵⁶Og + ²⁴⁹Cf "nothing listed as made"), `t_page` (a 15 s timeout choosing a collider beam); and when anything else runs at the same time, the
 time-budgeted checks in `t_features` (the chain reaction's k readout, saves, start paused) can miss by a little.
 
 ## Engine rules that bugs usually come from

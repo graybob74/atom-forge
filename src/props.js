@@ -34,7 +34,8 @@ function objMake(kind, x0, y0, x1, y1, o = {}) {
 }
 function objAdd(kind, x0, y0, x1, y1, o) { const ob = objMake(kind, x0, y0, x1, y1, o); W.objs.push(ob); W.dirty++; return ob; }
 function objRemove(ob) { const i = W.objs.indexOf(ob); if (i >= 0) { W.objs.splice(i, 1); W.dirty++; } }
-function objClearHits(ob) { ob.hits = { n: 0, light: 0, parts: 0, E: 0, bins: new Array(OBJ_BINS).fill(0) }; }
+const POS_BINS = 40; // (where along a screen hits land: 40 strips from its first end, 1.02)
+function objClearHits(ob) { ob.hits = { n: 0, light: 0, parts: 0, E: 0, bins: new Array(OBJ_BINS).fill(0), posL: new Array(POS_BINS).fill(0), posP: new Array(POS_BINS).fill(0) }; }
 function objLen(ob) { return Math.hypot(ob.x1 - ob.x0, ob.y1 - ob.y0); }
 /* Its left normal (unit): the side a prism stands on and the plates' second plate lies. */
 function objNormal(ob) { const L = objLen(ob) || 1; return [-(ob.y1 - ob.y0) / L, (ob.x1 - ob.x0) / L]; }
@@ -85,7 +86,7 @@ function opticFind(x, y, ux, uy, tmax, E) {
 function opticHit(h, x0, y0, ux, uy, E, opts) {
   const x = x0 + ux * h.t, y = y0 + uy * h.t, ob = h.ob, o2 = Object.assign({}, opts || {}, { cont: true, bounce: ((opts && opts.bounce) || 0) + 1, delay: ((opts && opts.delay) || 0) + (opts && opts.travel ? 0 : h.t / PHYS.C) }); // (delay: the next leg is drawn once light has come this far; light in flight is here already when this runs, as it lands, 0.91)
   const go = (vx, vy, sx, sy) => { const L = Math.hypot(vx, vy); photonOn(sx + vx / L * 1e-6, sy + vy / L * 1e-6, E, vx / L, vy / L, o2); };
-  const absorb = () => { if (!o2.glow) W.ledger.escaped += E; if (ob.kind === 'screen') objRecord(ob, E, true); }; // (a glowing wall's light absorbed is the walls' own)
+  const absorb = () => { if (!o2.glow) W.ledger.escaped += E; if (ob.kind === 'screen') objRecord(ob, E, true, x, y); }; // (a glowing wall's light absorbed is the walls' own)
   return { x, y, obj: ob, after: () => {
     if (o2.bounce > 40) { absorb(); return; }
     const [ax, ay, bx, by] = objEdges(ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, tx = (bx - ax) / L, ty = (by - ay) / L, nx = -ty, ny = tx;
@@ -140,11 +141,16 @@ function prismTrace(ob, x, y, ux, uy, e, E, opts) {
 }
 
 /* ---- the detector screen's record */
-function objRecord(ob, E, light) {
+function objRecord(ob, E, light, x, y) {
   const H = ob.hits || (objClearHits(ob), ob.hits);
   H.n++; if (light) H.light++; else H.parts++; H.E += E;
   const b = Math.floor((Math.log10(Math.max(1e-3, E)) - OBJ_LO) * 2);
   H.bins[clamp(b, 0, OBJ_BINS - 1)]++;
+  if (Number.isFinite(x) && Number.isFinite(y)) { // where along it (1.02)
+    if (!H.posL) { H.posL = new Array(POS_BINS).fill(0); H.posP = new Array(POS_BINS).fill(0); }
+    const ex = ob.x1 - ob.x0, ey = ob.y1 - ob.y0, t = clamp(((x - ob.x0) * ex + (y - ob.y0) * ey) / (ex * ex + ey * ey || 1), 0, 0.999999);
+    (light ? H.posL : H.posP)[Math.floor(t * POS_BINS)]++;
+  }
 }
 
 /* ---- atoms: a soft wall on their edge, both sides of every edge (rounded at the ends) */
@@ -210,11 +216,11 @@ function objPath(p, x0, y0) {
    annihilates there. A screen counts it first. */
 function objStop(p, ob, cx, cy) {
   const KE = p.rad ? p.KE : keOf(p);
-  if (ob.kind === 'screen') objRecord(ob, KE, false);
+  if (ob.kind === 'screen') objRecord(ob, KE, false, cx, cy);
   p.x = cx; p.y = cy;
   if (p.trk) extendTrack(p);
-  if (p.k === POS || p.anti) { annihilateAtWall(p); return true; }
-  W.ledger.escaped += KE; W.count.wallStop++;
+  if (p.k === POS || p.anti) { annihilateAtWall(p, 'qObj'); return true; }
+  W.ledger.escaped += KE; W.count.wallStop++; chargeTo(p.q, 'qObj');
   kill(p); return true;
 }
 /* Through a foil of `layers` atomic layers of element Z, 2.9 Å apart: at each layer the particle passes some nucleus
@@ -242,8 +248,8 @@ function objExo(o, x0, y0) {
   if (k === 'foil') return false;
   if (k === 'wall') { const [ax, ay, bx, by] = objEdges(h.ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L, ny = (bx - ax) / L; const c = o.ux * nx + o.uy * ny; o.ux -= 2 * c * nx; o.uy -= 2 * c * ny; o.x = x0 + (o.x - x0) * h.f; o.y = y0 + (o.y - y0) * h.f; return false; }
   o.x = x0 + (o.x - x0) * h.f; o.y = y0 + (o.y - y0) * h.f;
-  if (k === 'screen') objRecord(h.ob, o.KE || 0, false);
-  exoLeaves(o); return true;
+  if (k === 'screen') objRecord(h.ob, o.KE || 0, false, o.x, o.y);
+  exoLeaves(o, 'qObj'); return true;
 }
 
 /* ---- the plates' field */
@@ -262,13 +268,15 @@ function hasPlates() { for (const ob of W.objs) if (ob.kind === 'plates' && ob.V
 /* ---- saving */
 function objToJSON(ob) {
   const o = { k: ob.kind, x0: ob.x0, y0: ob.y0, x1: ob.x1, y1: ob.y1 };
-  for (const q of ['f', 'Z', 'layers', 'V', 'gap']) if (ob[q] !== undefined) o[q] = ob[q];
+  for (const q of ['f', 'Z', 'layers', 'V', 'gap', 'view']) if (ob[q] !== undefined) o[q] = ob[q];
   return o;
 }
 function objFromJSON(o) {
   if (!o || !OBJ_KINDS.includes(o.k) || ![o.x0, o.y0, o.x1, o.y1].every(Number.isFinite)) return null;
   const n = (v, lo, hi, d) => (Number.isFinite(v) ? clamp(v, lo, hi) : d);
-  return objMake(o.k, o.x0, o.y0, o.x1, o.y1, { f: n(o.f, -1e4, 1e4, 20), Z: Number.isInteger(o.Z) && o.Z >= 1 && o.Z <= 100 ? o.Z : 79, layers: n(o.layers, 1, 1000, 10), V: n(o.V, -1e6, 1e6, 100), gap: n(o.gap, 1, 1000, 10) });
+  const ob = objMake(o.k, o.x0, o.y0, o.x1, o.y1, { f: n(o.f, -1e4, 1e4, 20), Z: Number.isInteger(o.Z) && o.Z >= 1 && o.Z <= 100 ? o.Z : 79, layers: n(o.layers, 1, 1000, 10), V: n(o.V, -1e6, 1e6, 100), gap: n(o.gap, 1, 1000, 10) });
+  if (o.k === 'screen' && o.view === 'where') ob.view = 'where'; // (what its bars show, 1.02)
+  return ob;
 }
 
 /* Its short description: a label, the quick menu's title. */

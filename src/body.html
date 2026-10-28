@@ -270,6 +270,14 @@
           <canvas class="chart graph" id="chG" aria-label="The chosen quantities over time"></canvas>
           <div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" id="gCsv">Export CSV</button><button class="btn small" id="gClr">Clear</button><span class="note" id="gNote"></span></div>
         </section>
+        <section class="group" id="dDetSec" hidden>
+          <h3>Detector screens</h3>
+          <div class="seg" id="detPick" role="group" aria-label="Which screen" hidden></div>
+          <div class="seg" id="segDet" role="group" aria-label="What to show"><button data-v="where">Where hits landed</button><button data-v="energy">Their energies</button></div>
+          <canvas class="chart" id="chDet" aria-label="What the detector screen caught"></canvas>
+          <div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" id="detClr">Clear</button><span class="note" id="detNote"></span></div>
+          <p class="note">Green: particles; violet: light. Where they landed is measured from the screen's first end (where it was drawn from). Right-click a screen in the chamber to choose what its own bars show.</p>
+        </section>
         <section class="group" id="dPairSec" hidden>
           <h3>Pair masses</h3>
           <div class="seg" id="segPair" role="group" aria-label="Which pairs"><button data-v="pipi">π⁺π⁻</button><button data-v="Kpi">K π</button><button data-v="KK">K⁺K⁻</button></div>
@@ -293,6 +301,11 @@
         <section class="group">
           <h3>Energy ledger</h3>
           <div class="kv" id="dLedger"></div>
+        </section>
+        <section class="group">
+          <h3>Charge</h3>
+          <div class="kv" id="dCharge"></div>
+          <p class="note">Charge is never made or lost. A positron that reaches a wall annihilates with one of the wall's electrons, leaving the wall one electron short (+1 e); a fast charged particle stopped in a wall leaves its charge there. So when light makes electron–positron pairs in a hot gas, the box ends up with extra electrons and the walls with as much positive charge. "All together" changes only when charge is added or removed from outside: what you place or remove, and beams.</p>
         </section>
       </div>
 

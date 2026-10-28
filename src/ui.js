@@ -1976,9 +1976,13 @@ function renderData() {
   const L = W.ledger;
   $('dLedger').innerHTML = [['Chemical heat released', fmtE(L.chem)], ['Nuclear energy released', fmtE(L.nuc)], ['Escaped as radiation & fast particles', fmtE(L.escaped)]]
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  const qs = (q) => (q > 0 ? '+' : q < 0 ? '−' : '') + Math.abs(q).toLocaleString('en-US') + ' e', qb = boxCharge(); // (1.02)
+  $('dCharge').innerHTML = [['In the box', qs(qb)], ['Taken in by the walls', qs(L.qWall)], L.qObj ? ['By placed pieces & detectors', qs(L.qObj)] : null,
+    L.qOut ? ['Carried out of the open box', qs(L.qOut)] : null, ['All together', qs(qb + L.qWall + L.qObj + L.qOut)]].filter(Boolean)
+    .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
   drawSpec(); explainSync(); drawChain();
-  drawTChart(); drawEChart(m.T); drawGraph(); drawPairs();
+  drawTChart(); drawEChart(m.T); drawGraph(); drawPairs(); drawDet();
   restoreScroll('tp-data');
 }
 /* What collisions, fusions, fissions, captures and decays have made so far (W.made), heaviest first: each nuclide with
@@ -3448,7 +3452,7 @@ const PRESETS = {
   prism: { group: 'Electrons & light', name: 'Hydrogen light through a prism', tool: 'objects', spec: { kind: 'gamma' },
     hint: '<b>The four visible lines of hydrogen, spread by a glass prism.</b> A hydrogen lamp\'s light (here four lasers at its Balmer lines: 656, 486, 434 and 410 nm) goes into a flint-glass prism. Glass slows violet light more than red, so each colour leaves at its own angle and lands at its own place on the screen: a spectroscope. Right-click the prism to turn it; met too steeply, the light is reflected inside instead.',
     build() { baseWorld(120, 90, 300, 0.05);
-      objAdd('prism', -7.31, -4.75, 7.31, -11.25); objAdd('screen', 21.48, -45.19, 45.63, -24.20);
+      objAdd('prism', -7.31, -4.75, 7.31, -11.25); objAdd('screen', 21.48, -45.19, 45.63, -24.20).view = 'where';
       for (const nm of [656.3, 486.1, 434.0, 410.2]) W.lasers.push({ x0: -55, y0: 0, ux: 1, uy: 0, E: PHYS.HC / nm, rate: 6, acc: rnd() }); } },
   flame: { group: 'Electrons & light', name: 'Flame colours', tool: 'heat', spec: { kind: 'atom', Z: 11, A: 23 },
     hint: '<b>Lithium, sodium, potassium and copper vapour at 6,000 K.</b> Hot collisions lift outer electrons; falling back, each element emits its own lines: Li crimson 671 nm, Na yellow 589 nm, K lilac 766/404 nm, Cu green 510–522 nm.',
@@ -3464,7 +3468,7 @@ const PRESETS = {
   emtube: { group: 'Fields', name: 'Thomson\'s e/m tube', tool: 'objects', spec: { kind: 'e' },
     hint: '<b>Electrons bent by charged plates, as J. J. Thomson measured them in 1897.</b> 1 keV electrons fly between two plates 60 V apart and are pulled toward the + plate; the screen shows where they land. Right-click the plates to change the voltage or swap + and −, and watch the spot move. Put a magnet on the plates (Magnet tool) and find the field that straightens them again: the two together give the electron\'s charge over its mass.',
     build() { baseWorld(150, 80, 300, 0.05); W.wall = 'open';
-      objAdd('plates', -20, -5, 20, -5, { V: 60, gap: 10 }); objAdd('screen', 65, -35, 65, 35);
+      objAdd('plates', -20, -5, 20, -5, { V: 60, gap: 10 }); objAdd('screen', 65, -35, 65, 35).view = 'where';
       W.sources.push({ x: -70, y: 0, ux: 1, uy: 0, spec: { kind: 'e' }, KE: 1000, rate: 0.6, acc: 0.9, track: true, jitter: 1 }); } },
   magnet: { group: 'Fields', name: 'Magnetic matter', tool: 'magnet', spec: { kind: 'atom', Z: 26, A: 56 },
     hint: '<b>Iron, oxygen and water beside a 5,000 T magnet pole.</b> Iron is ferromagnetic and pulled in hard until heated past its Curie point (1043 K). O₂ is paramagnetic (unpaired electrons) and drawn in too; water is diamagnetic and only feebly pushed away. Drag the magnet around.',
@@ -3517,8 +3521,8 @@ const PRESETS = {
     hint: '<b>Geiger and Marsden\'s experiment (1909): 5 MeV α particles through gold foil.</b> Almost all go straight through or are turned a little; about one in a few thousand comes back, which a plum-pudding atom could never do. Rutherford worked out from it that an atom\'s positive charge and nearly all its mass sit in a tiny nucleus. The detector screens count every α that reaches them (right-click one for its count); right-click the foil to make it thicker.',
     build() { baseWorld(170, 120, 300, 0.05);
       objAdd('foil', 0, -25, 0, 25, { Z: 79, layers: 40 });
-      objAdd('screen', 75, -55, 75, 55); objAdd('screen', -70, 55, 70, 55); objAdd('screen', 70, -55, -70, -55);
-      objAdd('screen', -60, 8, -60, 50); objAdd('screen', -60, -50, -60, -8);
+      objAdd('screen', 75, -55, 75, 55).view = 'where'; objAdd('screen', -70, 55, 70, 55).view = 'where'; objAdd('screen', 70, -55, -70, -55).view = 'where';
+      objAdd('screen', -60, 8, -60, 50).view = 'where'; objAdd('screen', -60, -50, -60, -8).view = 'where';
       W.sources.push({ x: -80, y: 0, ux: 1, uy: 0, spec: { kind: 'atom', Z: 2, A: 4, bare: true }, KE: 5e6, rate: 3, acc: 0.9, track: true, jitter: 12 }); } },
   muonium: { group: 'Nuclear', name: 'Muonium in argon', tool: 'inspect', spec: { kind: 'exo', sp: 'mu+' },
     hint: '<b>Slow positive muons stopping in argon gas.</b> A μ⁺ is a heavy positron: as it slows it pulls an electron off an argon atom about 60% of the time, making muonium (Mu), a hydrogen atom with a muon for its proton. The muon lives 2.2 µs (decay sped up here), then decays into a positron and two neutrinos, and the electron goes free.',
@@ -4265,11 +4269,39 @@ function grCsv() {
 function grInit() {
   $('gSel').onclick = (e) => { const b = e.target.closest('[data-g]'); if (!b) return; const id = b.dataset.g, sel = grSel(), i = sel.indexOf(id); if (i >= 0) sel.splice(i, 1); else sel.push(id); store('graphSel', JSON.stringify(sel.slice(-6))); drawGraph(); };
   bindSeg('segPair', (v) => { UI.pairKey = v; drawPairs(); });
+  bindSeg('segDet', (v) => { UI.detMode = v; drawDet(); });
+  $('detPick').onclick = (e) => { const b = e.target.closest('[data-v]'); if (b) { UI.detSel = +b.dataset.v; drawDet(); } };
+  $('detClr').onclick = () => { const scr = W.objs.filter(o => o.kind === 'screen'), ob = scr[UI.detSel || 0]; if (ob) objClearHits(ob); drawDet(); };
   $('pairSub').onchange = (e) => { UI.pairSub = e.target.checked; drawPairs(); };
   $('pairClr').onclick = () => { for (const k in PAIRS.h) { PAIRS.h[k].fill(0); PAIRS.ls[k].fill(0); } PAIRS.n = 0; PAIRS.ev.clear(); drawPairs(); };
   $('gCsv').onclick = () => grCsv(); $('gClr').onclick = () => { grClear(); drawGraph(); };
 }
 
+/* Detector screens (1.02): what each caught, as a histogram in the Data tab: where along it the hits landed (light and
+   particles apart, from its first end) or their energies (a log scale, 0.01 eV to 10 GeV). */
+function drawDet() {
+  const sec = $('dDetSec'), scr = W.objs.filter(o => o.kind === 'screen'); sec.hidden = !scr.length; if (sec.hidden) return;
+  UI.detSel = clamp(UI.detSel || 0, 0, scr.length - 1); const ob = scr[UI.detSel], H = ob.hits || (objClearHits(ob), ob.hits), mode = UI.detMode || 'where';
+  const pick = $('detPick'), sig = scr.length + ':' + UI.detSel;
+  if (pick.dataset.sig !== sig) { pick.dataset.sig = sig; pick.innerHTML = scr.length > 1 ? scr.map((o, i) => `<button data-v="${i}" aria-pressed="${i === UI.detSel}">Screen ${i + 1}</button>`).join('') : ''; pick.hidden = scr.length < 2; }
+  setSegValue('segDet', mode);
+  const r = chartCtx($('chDet')); if (!r) return; const [ctx, w, h] = r, L = objLen(ob);
+  $('detNote').textContent = `${H.n.toLocaleString('en-US')} hits: ${H.parts.toLocaleString('en-US')} particles, ${H.light.toLocaleString('en-US')} photons; ${fmtE(H.E)} in all · ${Math.round(L)} Å long`;
+  if (!H.n) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('No hits yet', 10, 20); return; }
+  const where = mode === 'where', nb = where ? POS_BINS : OBJ_BINS, A = where ? (H.posP || []) : H.bins, B = where ? (H.posL || []) : null;
+  let top = 1; for (let i = 0; i < nb; i++) top = Math.max(top, (A[i] || 0) + (B ? B[i] || 0 : 0));
+  const x0 = 6, pw = w - 12, bh = h - 28, bw = pw / nb;
+  for (let i = 0; i < nb; i++) {
+    const a = (A[i] || 0) / top * bh, b = B ? (B[i] || 0) / top * bh : 0;
+    ctx.fillStyle = cssVar('--good'); if (a) ctx.fillRect(x0 + i * bw, 12 + bh - a, Math.max(1, bw - 1), a);
+    if (b) { ctx.fillStyle = '#a787ff'; ctx.fillRect(x0 + i * bw, 12 + bh - a - b, Math.max(1, bw - 1), b); }
+  }
+  ctx.font = '10.5px ' + cssVar('--font-data'); ctx.fillStyle = cssVar('--muted'); ctx.textAlign = 'left';
+  ctx.fillText(top.toLocaleString('en-US') + ' max', x0, 10);
+  if (where) { ctx.fillText('0', x0, h - 2); ctx.textAlign = 'center'; ctx.fillText(`${Math.round(L / 2)} Å`, x0 + pw / 2, h - 2); ctx.textAlign = 'right'; ctx.fillText(`${Math.round(L)} Å along it`, x0 + pw, h - 2); }
+  else { ctx.fillText('0.01 eV', x0, h - 2); ctx.textAlign = 'center'; ctx.fillText('1 keV', x0 + pw * 10 / 24, h - 2); ctx.fillText('1 MeV', x0 + pw * 16 / 24, h - 2); ctx.textAlign = 'right'; ctx.fillText('10 GeV', x0 + pw, h - 2); }
+  ctx.textAlign = 'left';
+}
 /* Pair masses (hep.js PAIRS): the histogram, with the known resonances marked. */
 const PAIR_MARK = { pipi: [['ρ', 775], ['K⁰s', 498]], Kpi: [['K*', 893]], KK: [['φ', 1019]] };
 function drawPairs() {
@@ -5009,7 +5041,10 @@ function qmObject(ob) {
       qmBtn('Swap + and −', () => { undoMark('Change an object'); ob.V = -ob.V; });
   }
   if (ob.kind === 'foil') h += qmRange('Layers', 1, 100, ob.layers, String(ob.layers), (v) => { und(); ob.layers = v; title(); return String(v); });
-  if (ob.kind === 'screen') h += qmBtn('Clear its count', () => objClearHits(ob), { off: !(ob.hits && ob.hits.n) });
+  if (ob.kind === 'screen') h += qm2(qmBtn('Where hits land', () => { ob.view = 'where'; }, { pressed: ob.view === 'where', cls: 'tick', title: 'Its bars show how many hits landed on each part of it (1.02)' }),
+    qmBtn('Their energies', () => { ob.view = 'energy'; }, { pressed: ob.view !== 'where', cls: 'tick', title: 'Its bars show the spectrum of the energies it caught, low at its first end' })) +
+    qmBtn('Graph it (Data tab)', () => { UI.detSel = W.objs.filter(o => o.kind === 'screen').indexOf(ob); showTab('data', true); drawDet(); $('dDetSec').scrollIntoView({ block: 'nearest' }); }) +
+    qmBtn('Clear its count', () => objClearHits(ob), { off: !(ob.hits && ob.hits.n) });
   if (ob.kind === 'mirror' || ob.kind === 'splitter') h += qmBtn(ob.kind === 'mirror' ? 'Make it a beam splitter' : 'Make it a full mirror', () => { undoMark('Change an object'); ob.kind = ob.kind === 'mirror' ? 'splitter' : 'mirror'; ob.R = ob.kind === 'mirror' ? 1 : 0.5; });
   return h + qmBtn('Remove it', () => { undoMark('Remove an object'); objRemove(ob); if (R.objSel === ob) R.objSel = null; }, { cls: 'danger' });
 }

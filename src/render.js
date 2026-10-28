@@ -233,7 +233,14 @@ function drawObjects() {
       ctx.fillStyle = 'rgba(160,210,255,0.16)'; ctx.fill(); ctx.strokeStyle = 'rgba(180,220,255,0.85)'; ctx.lineWidth = 1.5; ctx.stroke();
     } else if (k === 'screen') {
       ctx.strokeStyle = 'rgba(120,255,170,0.9)'; ctx.lineWidth = lw(0.3, 3, 8); seg(ob.x0, ob.y0, ob.x1, ob.y1);
-      const H = ob.hits; if (H && H.n) { // the spectrum, as bars standing on its right side (low energies at x0)
+      const H = ob.hits;
+      if (H && H.n && ob.view === 'where' && H.posP) { // where the hits landed: a bar for each strip of it, light (violet) on top of particles (green), 1.02
+        let mx2 = 1; for (let i = 0; i < POS_BINS; i++) mx2 = Math.max(mx2, H.posP[i] + H.posL[i]);
+        const bw = L / POS_BINS, hmax = Math.min(14, L * 0.6), ux = (ob.x1 - ob.x0) / L, uy = (ob.y1 - ob.y0) / L;
+        const bar = (i, h0, h1, col) => { if (h1 <= h0) return; const t0 = i / POS_BINS, x = ob.x0 + (ob.x1 - ob.x0) * t0, y = ob.y0 + (ob.y1 - ob.y0) * t0, x2 = x + ux * bw * 0.85, y2 = y + uy * bw * 0.85;
+          ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(w2sx(x - nx * h0), w2sy(y - ny * h0)); ctx.lineTo(w2sx(x2 - nx * h0), w2sy(y2 - ny * h0)); ctx.lineTo(w2sx(x2 - nx * h1), w2sy(y2 - ny * h1)); ctx.lineTo(w2sx(x - nx * h1), w2sy(y - ny * h1)); ctx.fill(); };
+        for (let i = 0; i < POS_BINS; i++) { const hp = hmax * H.posP[i] / mx2, hl = hmax * H.posL[i] / mx2; bar(i, 0, hp, 'rgba(120,255,170,0.5)'); bar(i, hp, hp + hl, 'rgba(200,160,255,0.6)'); }
+      } else if (H && H.n) { // the spectrum, as bars standing on its right side (low energies at x0)
         const mx2 = Math.max(...H.bins), bw = L / OBJ_BINS, hmax = Math.min(12, L * 0.6);
         ctx.fillStyle = 'rgba(120,255,170,0.45)';
         for (let i = 0; i < OBJ_BINS; i++) { if (!H.bins[i]) continue; const t0 = i / OBJ_BINS, hb = hmax * H.bins[i] / mx2;

@@ -929,8 +929,8 @@ function exoHits(o, x0, y0) {
   }
   return false;
 }
-function exoLeaves(o) { // its energy, mass included, leaves the books (it decays out there, into radiation)
-  W.ledger.escaped += o.KE + o.m * MEV; W.ledger.nuc += o.m * MEV;
+function exoLeaves(o, where) { // its energy, mass included, leaves the books (it decays out there, into radiation)
+  W.ledger.escaped += o.KE + o.m * MEV; W.ledger.nuc += o.m * MEV; chargeTo(XP[o.sp].q, where);
   o.dead = true; o.fate = o.fate || 'left the chamber';
 }
 const EXO_QUIET = new Set(['pi0', 'eta', 'rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm', 'Dbmm', 'Dbm', 'Db0', 'Dbp']); // decays too common and too quick to caption each one

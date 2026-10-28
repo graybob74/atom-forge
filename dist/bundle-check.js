@@ -2327,7 +2327,7 @@ function makeWorld() {
     zones: [], collider: null,  // accelerator parts (bending and focusing magnets, cavities) and the collider's set-up
     count: { fusion:0, fission:0, decay:0, capture:0, ionize:0, recomb:0, bonds:0, broken:0, react:0,
              photons:0, annih:0, xfer:0, ncap:0, nreact:0, wallStop:0 },
-    ledger: { chem: 0, nuc: 0, escaped: 0, bath: 0 },
+    ledger: { chem: 0, nuc: 0, escaped: 0, bath: 0, qWall: 0, qObj: 0, qOut: 0 }, // q…: charge taken in by the walls, by placed pieces and detectors, and carried out of an open box (1.02)
     hist: { t: [], T: [], ion: [], rad: [] },
     vmax: 0, amax: 0, nE: 0, molSeq: 0, spawned: 0, fSpawn: -1, dirty: 0, evSeq: 0,
   };
@@ -6289,8 +6289,17 @@ function neutronPairs(dt, id0) {
 /* Antimatter reaching a wall meets the wall's ordinary matter: an electron for each positron, a nucleon for
    each antinucleon. The wall supplies an equal mass, so the radiation carries twice the rest energy plus
    the particle's motion and binding. */
-function annihilateAtWall(p) {
+/* Charge that leaves the box's particles for the walls (qWall), placed pieces and detectors (qObj), or out through an
+   open edge (qOut): kept so the box and what took charge from it add up (Data → Charge, 1.02). */
+function boxCharge() { // the net charge of everything in the box, in e (unstable particles in flight included)
+  let q = 0; for (const p of W.parts) if (!p.dead) q += p.q;
+  for (const o of W.exo) if (!o.dead) q += XP[o.sp].q;
+  return q;
+}
+function chargeTo(q, where) { if (q) W.ledger[where || (W.wall === 'open' ? 'qOut' : 'qWall')] += q; }
+function annihilateAtWall(p, where) {
   const hw = W.box.w / 2, hh = W.box.h / 2;
+  chargeTo(p.q, where || 'qWall'); // (what the mesons of an antinucleus carry back into the box is taken off below)
   const x = clamp(p.x, -hw, hw), y = clamp(p.y, -hh, hh);
   const lbl = speciesLabel(p), gh = [ghostOf(p)];
   const S = annihBegin([p]);
@@ -6304,7 +6313,7 @@ function annihilateAtWall(p) {
   if (nNuc > 0) {
     for (let i = 0; i < nLep; i++) twoGamma(x, y, 2 * ME_C2);
     const Ep = (E - nLep * 2 * ME_C2) / nNuc, nP = p.k === NUC ? p.Z : 0; // (each antinucleon meets a proton or a neutron of the wall)
-    for (let i = 0; i < nNuc; i++) mesonBurst(x, y, Ep, 0, 0, (rnd() < 0.5 ? 1 : 0) - (i < nP ? 1 : 0));
+    for (let i = 0; i < nNuc; i++) { const Q = (rnd() < 0.5 ? 1 : 0) - (i < nP ? 1 : 0); chargeTo(-Q, where || 'qWall'); mesonBurst(x, y, Ep, 0, 0, Q); }
     nucEvent('annih', x, y, `${lbl} hits the wall → mesons + γ`, gh, fmtE(E));
     log('nuc', `Annihilation at the wall: ${lbl} meets ordinary matter → mesons + γ rays (${fmtE(E)})`);
   } else {
@@ -6374,7 +6383,7 @@ function wallOrEscape(p, escape, x0, y0) {
     if (W.wall === 'reflect') { if (!(p.k === NUC && p.Z === 0 && (W.nWall === 'pass' || W.nWall === 'fast'))) W.count.wallStop++; if (x0 !== undefined) { p.x = _wc[0]; p.y = _wc[1]; } }
     if (p.k === NUC && p.Z === 0) W.ledger.escaped += keOf(p);
     else if (p.rad) W.ledger.escaped += p.KE;
-    kill(p); return true;
+    chargeTo(p.q); kill(p); return true;
   }
   if (W.wall === 'wrap') {
     if (p.x < -hw) p.x += W.box.w; else if (p.x > hw) p.x -= W.box.w;
@@ -6716,7 +6725,7 @@ function beamHit(C, a, b, d, x, y, ex, ey) {
 function detectorStop(p) {
   const C = W.collider;
   if (!C || !C.dets || inDetector(C, p.x, p.y)) return false;
-  W.ledger.escaped += p.KE; kill(p); return true;
+  W.ledger.escaped += p.KE; chargeTo(p.q, 'qObj'); kill(p); return true;
 }
 /* Lorentz boost of (E, px, py) by velocity (bx, by) (units of c). */
 function boost(E, px, py, bx, by) {
@@ -7403,7 +7412,7 @@ function innerSteps(Dt) {
 /* A free electron reaching the box edge bounces off a closed wall elastically (off the piston, when the box is
    resized), and is lost through an open one. A positron meets the wall's own electrons. */
 function leptonWall(p) {
-  if (W.wall === 'open') { kill(p); return; }
+  if (W.wall === 'open') { chargeTo(p.q, 'qOut'); kill(p); return; }
   if (p.k === POS) { annihilateAtWall(p); return; }
   const hw = W.box.w / 2, hh = W.box.h / 2, uw = W.box.uw, uh = W.box.uh;
   if (p.x < -hw) { p.x = -hw + Math.min(W.box.w, -hw - p.x); p.vx = -2 * uw - p.vx; if (p.vx < 0) p.vx = -p.vx; }
@@ -7550,7 +7559,7 @@ function walls(p) {
     return;
   }
   if ((p.k === POS || p.anti) && W.wall === 'reflect' && (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh)) { annihilateAtWall(p); return; }
-  if (W.wall === 'open') { if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh) kill(p); return; }
+  if (W.wall === 'open') { if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh) { chargeTo(p.q, 'qOut'); kill(p); } return; }
   const uw = W.box.uw, uh = W.box.uh;
   if (!p.fast) { // soft walls handle slow particles; only rescue deep escapees, handing back their potential energy
     const m = 1.5, rin = p.k === NUC ? wallIn(p) : 0, hw = hw0 - rin, hh = hh0 - rin; // (the wall where its edge meets it)
@@ -9644,8 +9653,8 @@ function exoHits(o, x0, y0) {
   }
   return false;
 }
-function exoLeaves(o) { // its energy, mass included, leaves the books (it decays out there, into radiation)
-  W.ledger.escaped += o.KE + o.m * MEV; W.ledger.nuc += o.m * MEV;
+function exoLeaves(o, where) { // its energy, mass included, leaves the books (it decays out there, into radiation)
+  W.ledger.escaped += o.KE + o.m * MEV; W.ledger.nuc += o.m * MEV; chargeTo(XP[o.sp].q, where);
   o.dead = true; o.fate = o.fate || 'left the chamber';
 }
 const EXO_QUIET = new Set(['pi0', 'eta', 'rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm', 'Dbmm', 'Dbm', 'Db0', 'Dbp']); // decays too common and too quick to caption each one
@@ -10341,7 +10350,8 @@ function objMake(kind, x0, y0, x1, y1, o = {}) {
 }
 function objAdd(kind, x0, y0, x1, y1, o) { const ob = objMake(kind, x0, y0, x1, y1, o); W.objs.push(ob); W.dirty++; return ob; }
 function objRemove(ob) { const i = W.objs.indexOf(ob); if (i >= 0) { W.objs.splice(i, 1); W.dirty++; } }
-function objClearHits(ob) { ob.hits = { n: 0, light: 0, parts: 0, E: 0, bins: new Array(OBJ_BINS).fill(0) }; }
+const POS_BINS = 40; // (where along a screen hits land: 40 strips from its first end, 1.02)
+function objClearHits(ob) { ob.hits = { n: 0, light: 0, parts: 0, E: 0, bins: new Array(OBJ_BINS).fill(0), posL: new Array(POS_BINS).fill(0), posP: new Array(POS_BINS).fill(0) }; }
 function objLen(ob) { return Math.hypot(ob.x1 - ob.x0, ob.y1 - ob.y0); }
 /* Its left normal (unit): the side a prism stands on and the plates' second plate lies. */
 function objNormal(ob) { const L = objLen(ob) || 1; return [-(ob.y1 - ob.y0) / L, (ob.x1 - ob.x0) / L]; }
@@ -10392,7 +10402,7 @@ function opticFind(x, y, ux, uy, tmax, E) {
 function opticHit(h, x0, y0, ux, uy, E, opts) {
   const x = x0 + ux * h.t, y = y0 + uy * h.t, ob = h.ob, o2 = Object.assign({}, opts || {}, { cont: true, bounce: ((opts && opts.bounce) || 0) + 1, delay: ((opts && opts.delay) || 0) + (opts && opts.travel ? 0 : h.t / PHYS.C) }); // (delay: the next leg is drawn once light has come this far; light in flight is here already when this runs, as it lands, 0.91)
   const go = (vx, vy, sx, sy) => { const L = Math.hypot(vx, vy); photonOn(sx + vx / L * 1e-6, sy + vy / L * 1e-6, E, vx / L, vy / L, o2); };
-  const absorb = () => { if (!o2.glow) W.ledger.escaped += E; if (ob.kind === 'screen') objRecord(ob, E, true); }; // (a glowing wall's light absorbed is the walls' own)
+  const absorb = () => { if (!o2.glow) W.ledger.escaped += E; if (ob.kind === 'screen') objRecord(ob, E, true, x, y); }; // (a glowing wall's light absorbed is the walls' own)
   return { x, y, obj: ob, after: () => {
     if (o2.bounce > 40) { absorb(); return; }
     const [ax, ay, bx, by] = objEdges(ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, tx = (bx - ax) / L, ty = (by - ay) / L, nx = -ty, ny = tx;
@@ -10447,11 +10457,16 @@ function prismTrace(ob, x, y, ux, uy, e, E, opts) {
 }
 
 /* ---- the detector screen's record */
-function objRecord(ob, E, light) {
+function objRecord(ob, E, light, x, y) {
   const H = ob.hits || (objClearHits(ob), ob.hits);
   H.n++; if (light) H.light++; else H.parts++; H.E += E;
   const b = Math.floor((Math.log10(Math.max(1e-3, E)) - OBJ_LO) * 2);
   H.bins[clamp(b, 0, OBJ_BINS - 1)]++;
+  if (Number.isFinite(x) && Number.isFinite(y)) { // where along it (1.02)
+    if (!H.posL) { H.posL = new Array(POS_BINS).fill(0); H.posP = new Array(POS_BINS).fill(0); }
+    const ex = ob.x1 - ob.x0, ey = ob.y1 - ob.y0, t = clamp(((x - ob.x0) * ex + (y - ob.y0) * ey) / (ex * ex + ey * ey || 1), 0, 0.999999);
+    (light ? H.posL : H.posP)[Math.floor(t * POS_BINS)]++;
+  }
 }
 
 /* ---- atoms: a soft wall on their edge, both sides of every edge (rounded at the ends) */
@@ -10517,11 +10532,11 @@ function objPath(p, x0, y0) {
    annihilates there. A screen counts it first. */
 function objStop(p, ob, cx, cy) {
   const KE = p.rad ? p.KE : keOf(p);
-  if (ob.kind === 'screen') objRecord(ob, KE, false);
+  if (ob.kind === 'screen') objRecord(ob, KE, false, cx, cy);
   p.x = cx; p.y = cy;
   if (p.trk) extendTrack(p);
-  if (p.k === POS || p.anti) { annihilateAtWall(p); return true; }
-  W.ledger.escaped += KE; W.count.wallStop++;
+  if (p.k === POS || p.anti) { annihilateAtWall(p, 'qObj'); return true; }
+  W.ledger.escaped += KE; W.count.wallStop++; chargeTo(p.q, 'qObj');
   kill(p); return true;
 }
 /* Through a foil of `layers` atomic layers of element Z, 2.9 Å apart: at each layer the particle passes some nucleus
@@ -10549,8 +10564,8 @@ function objExo(o, x0, y0) {
   if (k === 'foil') return false;
   if (k === 'wall') { const [ax, ay, bx, by] = objEdges(h.ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L, ny = (bx - ax) / L; const c = o.ux * nx + o.uy * ny; o.ux -= 2 * c * nx; o.uy -= 2 * c * ny; o.x = x0 + (o.x - x0) * h.f; o.y = y0 + (o.y - y0) * h.f; return false; }
   o.x = x0 + (o.x - x0) * h.f; o.y = y0 + (o.y - y0) * h.f;
-  if (k === 'screen') objRecord(h.ob, o.KE || 0, false);
-  exoLeaves(o); return true;
+  if (k === 'screen') objRecord(h.ob, o.KE || 0, false, o.x, o.y);
+  exoLeaves(o, 'qObj'); return true;
 }
 
 /* ---- the plates' field */
@@ -10569,13 +10584,15 @@ function hasPlates() { for (const ob of W.objs) if (ob.kind === 'plates' && ob.V
 /* ---- saving */
 function objToJSON(ob) {
   const o = { k: ob.kind, x0: ob.x0, y0: ob.y0, x1: ob.x1, y1: ob.y1 };
-  for (const q of ['f', 'Z', 'layers', 'V', 'gap']) if (ob[q] !== undefined) o[q] = ob[q];
+  for (const q of ['f', 'Z', 'layers', 'V', 'gap', 'view']) if (ob[q] !== undefined) o[q] = ob[q];
   return o;
 }
 function objFromJSON(o) {
   if (!o || !OBJ_KINDS.includes(o.k) || ![o.x0, o.y0, o.x1, o.y1].every(Number.isFinite)) return null;
   const n = (v, lo, hi, d) => (Number.isFinite(v) ? clamp(v, lo, hi) : d);
-  return objMake(o.k, o.x0, o.y0, o.x1, o.y1, { f: n(o.f, -1e4, 1e4, 20), Z: Number.isInteger(o.Z) && o.Z >= 1 && o.Z <= 100 ? o.Z : 79, layers: n(o.layers, 1, 1000, 10), V: n(o.V, -1e6, 1e6, 100), gap: n(o.gap, 1, 1000, 10) });
+  const ob = objMake(o.k, o.x0, o.y0, o.x1, o.y1, { f: n(o.f, -1e4, 1e4, 20), Z: Number.isInteger(o.Z) && o.Z >= 1 && o.Z <= 100 ? o.Z : 79, layers: n(o.layers, 1, 1000, 10), V: n(o.V, -1e6, 1e6, 100), gap: n(o.gap, 1, 1000, 10) });
+  if (o.k === 'screen' && o.view === 'where') ob.view = 'where'; // (what its bars show, 1.02)
+  return ob;
 }
 
 /* Its short description: a label, the quick menu's title. */
@@ -11338,7 +11355,14 @@ function drawObjects() {
       ctx.fillStyle = 'rgba(160,210,255,0.16)'; ctx.fill(); ctx.strokeStyle = 'rgba(180,220,255,0.85)'; ctx.lineWidth = 1.5; ctx.stroke();
     } else if (k === 'screen') {
       ctx.strokeStyle = 'rgba(120,255,170,0.9)'; ctx.lineWidth = lw(0.3, 3, 8); seg(ob.x0, ob.y0, ob.x1, ob.y1);
-      const H = ob.hits; if (H && H.n) { // the spectrum, as bars standing on its right side (low energies at x0)
+      const H = ob.hits;
+      if (H && H.n && ob.view === 'where' && H.posP) { // where the hits landed: a bar for each strip of it, light (violet) on top of particles (green), 1.02
+        let mx2 = 1; for (let i = 0; i < POS_BINS; i++) mx2 = Math.max(mx2, H.posP[i] + H.posL[i]);
+        const bw = L / POS_BINS, hmax = Math.min(14, L * 0.6), ux = (ob.x1 - ob.x0) / L, uy = (ob.y1 - ob.y0) / L;
+        const bar = (i, h0, h1, col) => { if (h1 <= h0) return; const t0 = i / POS_BINS, x = ob.x0 + (ob.x1 - ob.x0) * t0, y = ob.y0 + (ob.y1 - ob.y0) * t0, x2 = x + ux * bw * 0.85, y2 = y + uy * bw * 0.85;
+          ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(w2sx(x - nx * h0), w2sy(y - ny * h0)); ctx.lineTo(w2sx(x2 - nx * h0), w2sy(y2 - ny * h0)); ctx.lineTo(w2sx(x2 - nx * h1), w2sy(y2 - ny * h1)); ctx.lineTo(w2sx(x - nx * h1), w2sy(y - ny * h1)); ctx.fill(); };
+        for (let i = 0; i < POS_BINS; i++) { const hp = hmax * H.posP[i] / mx2, hl = hmax * H.posL[i] / mx2; bar(i, 0, hp, 'rgba(120,255,170,0.5)'); bar(i, hp, hp + hl, 'rgba(200,160,255,0.6)'); }
+      } else if (H && H.n) { // the spectrum, as bars standing on its right side (low energies at x0)
         const mx2 = Math.max(...H.bins), bw = L / OBJ_BINS, hmax = Math.min(12, L * 0.6);
         ctx.fillStyle = 'rgba(120,255,170,0.45)';
         for (let i = 0; i < OBJ_BINS; i++) { if (!H.bins[i]) continue; const t0 = i / OBJ_BINS, hb = hmax * H.bins[i] / mx2;
@@ -17264,9 +17288,13 @@ function renderData() {
   const L = W.ledger;
   $('dLedger').innerHTML = [['Chemical heat released', fmtE(L.chem)], ['Nuclear energy released', fmtE(L.nuc)], ['Escaped as radiation & fast particles', fmtE(L.escaped)]]
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  const qs = (q) => (q > 0 ? '+' : q < 0 ? '−' : '') + Math.abs(q).toLocaleString('en-US') + ' e', qb = boxCharge(); // (1.02)
+  $('dCharge').innerHTML = [['In the box', qs(qb)], ['Taken in by the walls', qs(L.qWall)], L.qObj ? ['By placed pieces & detectors', qs(L.qObj)] : null,
+    L.qOut ? ['Carried out of the open box', qs(L.qOut)] : null, ['All together', qs(qb + L.qWall + L.qObj + L.qOut)]].filter(Boolean)
+    .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
   drawSpec(); explainSync(); drawChain();
-  drawTChart(); drawEChart(m.T); drawGraph(); drawPairs();
+  drawTChart(); drawEChart(m.T); drawGraph(); drawPairs(); drawDet();
   restoreScroll('tp-data');
 }
 /* What collisions, fusions, fissions, captures and decays have made so far (W.made), heaviest first: each nuclide with
@@ -18736,7 +18764,7 @@ const PRESETS = {
   prism: { group: 'Electrons & light', name: 'Hydrogen light through a prism', tool: 'objects', spec: { kind: 'gamma' },
     hint: '<b>The four visible lines of hydrogen, spread by a glass prism.</b> A hydrogen lamp\'s light (here four lasers at its Balmer lines: 656, 486, 434 and 410 nm) goes into a flint-glass prism. Glass slows violet light more than red, so each colour leaves at its own angle and lands at its own place on the screen: a spectroscope. Right-click the prism to turn it; met too steeply, the light is reflected inside instead.',
     build() { baseWorld(120, 90, 300, 0.05);
-      objAdd('prism', -7.31, -4.75, 7.31, -11.25); objAdd('screen', 21.48, -45.19, 45.63, -24.20);
+      objAdd('prism', -7.31, -4.75, 7.31, -11.25); objAdd('screen', 21.48, -45.19, 45.63, -24.20).view = 'where';
       for (const nm of [656.3, 486.1, 434.0, 410.2]) W.lasers.push({ x0: -55, y0: 0, ux: 1, uy: 0, E: PHYS.HC / nm, rate: 6, acc: rnd() }); } },
   flame: { group: 'Electrons & light', name: 'Flame colours', tool: 'heat', spec: { kind: 'atom', Z: 11, A: 23 },
     hint: '<b>Lithium, sodium, potassium and copper vapour at 6,000 K.</b> Hot collisions lift outer electrons; falling back, each element emits its own lines: Li crimson 671 nm, Na yellow 589 nm, K lilac 766/404 nm, Cu green 510–522 nm.',
@@ -18752,7 +18780,7 @@ const PRESETS = {
   emtube: { group: 'Fields', name: 'Thomson\'s e/m tube', tool: 'objects', spec: { kind: 'e' },
     hint: '<b>Electrons bent by charged plates, as J. J. Thomson measured them in 1897.</b> 1 keV electrons fly between two plates 60 V apart and are pulled toward the + plate; the screen shows where they land. Right-click the plates to change the voltage or swap + and −, and watch the spot move. Put a magnet on the plates (Magnet tool) and find the field that straightens them again: the two together give the electron\'s charge over its mass.',
     build() { baseWorld(150, 80, 300, 0.05); W.wall = 'open';
-      objAdd('plates', -20, -5, 20, -5, { V: 60, gap: 10 }); objAdd('screen', 65, -35, 65, 35);
+      objAdd('plates', -20, -5, 20, -5, { V: 60, gap: 10 }); objAdd('screen', 65, -35, 65, 35).view = 'where';
       W.sources.push({ x: -70, y: 0, ux: 1, uy: 0, spec: { kind: 'e' }, KE: 1000, rate: 0.6, acc: 0.9, track: true, jitter: 1 }); } },
   magnet: { group: 'Fields', name: 'Magnetic matter', tool: 'magnet', spec: { kind: 'atom', Z: 26, A: 56 },
     hint: '<b>Iron, oxygen and water beside a 5,000 T magnet pole.</b> Iron is ferromagnetic and pulled in hard until heated past its Curie point (1043 K). O₂ is paramagnetic (unpaired electrons) and drawn in too; water is diamagnetic and only feebly pushed away. Drag the magnet around.',
@@ -18805,8 +18833,8 @@ const PRESETS = {
     hint: '<b>Geiger and Marsden\'s experiment (1909): 5 MeV α particles through gold foil.</b> Almost all go straight through or are turned a little; about one in a few thousand comes back, which a plum-pudding atom could never do. Rutherford worked out from it that an atom\'s positive charge and nearly all its mass sit in a tiny nucleus. The detector screens count every α that reaches them (right-click one for its count); right-click the foil to make it thicker.',
     build() { baseWorld(170, 120, 300, 0.05);
       objAdd('foil', 0, -25, 0, 25, { Z: 79, layers: 40 });
-      objAdd('screen', 75, -55, 75, 55); objAdd('screen', -70, 55, 70, 55); objAdd('screen', 70, -55, -70, -55);
-      objAdd('screen', -60, 8, -60, 50); objAdd('screen', -60, -50, -60, -8);
+      objAdd('screen', 75, -55, 75, 55).view = 'where'; objAdd('screen', -70, 55, 70, 55).view = 'where'; objAdd('screen', 70, -55, -70, -55).view = 'where';
+      objAdd('screen', -60, 8, -60, 50).view = 'where'; objAdd('screen', -60, -50, -60, -8).view = 'where';
       W.sources.push({ x: -80, y: 0, ux: 1, uy: 0, spec: { kind: 'atom', Z: 2, A: 4, bare: true }, KE: 5e6, rate: 3, acc: 0.9, track: true, jitter: 12 }); } },
   muonium: { group: 'Nuclear', name: 'Muonium in argon', tool: 'inspect', spec: { kind: 'exo', sp: 'mu+' },
     hint: '<b>Slow positive muons stopping in argon gas.</b> A μ⁺ is a heavy positron: as it slows it pulls an electron off an argon atom about 60% of the time, making muonium (Mu), a hydrogen atom with a muon for its proton. The muon lives 2.2 µs (decay sped up here), then decays into a positron and two neutrinos, and the electron goes free.',
@@ -19553,11 +19581,39 @@ function grCsv() {
 function grInit() {
   $('gSel').onclick = (e) => { const b = e.target.closest('[data-g]'); if (!b) return; const id = b.dataset.g, sel = grSel(), i = sel.indexOf(id); if (i >= 0) sel.splice(i, 1); else sel.push(id); store('graphSel', JSON.stringify(sel.slice(-6))); drawGraph(); };
   bindSeg('segPair', (v) => { UI.pairKey = v; drawPairs(); });
+  bindSeg('segDet', (v) => { UI.detMode = v; drawDet(); });
+  $('detPick').onclick = (e) => { const b = e.target.closest('[data-v]'); if (b) { UI.detSel = +b.dataset.v; drawDet(); } };
+  $('detClr').onclick = () => { const scr = W.objs.filter(o => o.kind === 'screen'), ob = scr[UI.detSel || 0]; if (ob) objClearHits(ob); drawDet(); };
   $('pairSub').onchange = (e) => { UI.pairSub = e.target.checked; drawPairs(); };
   $('pairClr').onclick = () => { for (const k in PAIRS.h) { PAIRS.h[k].fill(0); PAIRS.ls[k].fill(0); } PAIRS.n = 0; PAIRS.ev.clear(); drawPairs(); };
   $('gCsv').onclick = () => grCsv(); $('gClr').onclick = () => { grClear(); drawGraph(); };
 }
 
+/* Detector screens (1.02): what each caught, as a histogram in the Data tab: where along it the hits landed (light and
+   particles apart, from its first end) or their energies (a log scale, 0.01 eV to 10 GeV). */
+function drawDet() {
+  const sec = $('dDetSec'), scr = W.objs.filter(o => o.kind === 'screen'); sec.hidden = !scr.length; if (sec.hidden) return;
+  UI.detSel = clamp(UI.detSel || 0, 0, scr.length - 1); const ob = scr[UI.detSel], H = ob.hits || (objClearHits(ob), ob.hits), mode = UI.detMode || 'where';
+  const pick = $('detPick'), sig = scr.length + ':' + UI.detSel;
+  if (pick.dataset.sig !== sig) { pick.dataset.sig = sig; pick.innerHTML = scr.length > 1 ? scr.map((o, i) => `<button data-v="${i}" aria-pressed="${i === UI.detSel}">Screen ${i + 1}</button>`).join('') : ''; pick.hidden = scr.length < 2; }
+  setSegValue('segDet', mode);
+  const r = chartCtx($('chDet')); if (!r) return; const [ctx, w, h] = r, L = objLen(ob);
+  $('detNote').textContent = `${H.n.toLocaleString('en-US')} hits: ${H.parts.toLocaleString('en-US')} particles, ${H.light.toLocaleString('en-US')} photons; ${fmtE(H.E)} in all · ${Math.round(L)} Å long`;
+  if (!H.n) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('No hits yet', 10, 20); return; }
+  const where = mode === 'where', nb = where ? POS_BINS : OBJ_BINS, A = where ? (H.posP || []) : H.bins, B = where ? (H.posL || []) : null;
+  let top = 1; for (let i = 0; i < nb; i++) top = Math.max(top, (A[i] || 0) + (B ? B[i] || 0 : 0));
+  const x0 = 6, pw = w - 12, bh = h - 28, bw = pw / nb;
+  for (let i = 0; i < nb; i++) {
+    const a = (A[i] || 0) / top * bh, b = B ? (B[i] || 0) / top * bh : 0;
+    ctx.fillStyle = cssVar('--good'); if (a) ctx.fillRect(x0 + i * bw, 12 + bh - a, Math.max(1, bw - 1), a);
+    if (b) { ctx.fillStyle = '#a787ff'; ctx.fillRect(x0 + i * bw, 12 + bh - a - b, Math.max(1, bw - 1), b); }
+  }
+  ctx.font = '10.5px ' + cssVar('--font-data'); ctx.fillStyle = cssVar('--muted'); ctx.textAlign = 'left';
+  ctx.fillText(top.toLocaleString('en-US') + ' max', x0, 10);
+  if (where) { ctx.fillText('0', x0, h - 2); ctx.textAlign = 'center'; ctx.fillText(`${Math.round(L / 2)} Å`, x0 + pw / 2, h - 2); ctx.textAlign = 'right'; ctx.fillText(`${Math.round(L)} Å along it`, x0 + pw, h - 2); }
+  else { ctx.fillText('0.01 eV', x0, h - 2); ctx.textAlign = 'center'; ctx.fillText('1 keV', x0 + pw * 10 / 24, h - 2); ctx.fillText('1 MeV', x0 + pw * 16 / 24, h - 2); ctx.textAlign = 'right'; ctx.fillText('10 GeV', x0 + pw, h - 2); }
+  ctx.textAlign = 'left';
+}
 /* Pair masses (hep.js PAIRS): the histogram, with the known resonances marked. */
 const PAIR_MARK = { pipi: [['ρ', 775], ['K⁰s', 498]], Kpi: [['K*', 893]], KK: [['φ', 1019]] };
 function drawPairs() {
@@ -20297,7 +20353,10 @@ function qmObject(ob) {
       qmBtn('Swap + and −', () => { undoMark('Change an object'); ob.V = -ob.V; });
   }
   if (ob.kind === 'foil') h += qmRange('Layers', 1, 100, ob.layers, String(ob.layers), (v) => { und(); ob.layers = v; title(); return String(v); });
-  if (ob.kind === 'screen') h += qmBtn('Clear its count', () => objClearHits(ob), { off: !(ob.hits && ob.hits.n) });
+  if (ob.kind === 'screen') h += qm2(qmBtn('Where hits land', () => { ob.view = 'where'; }, { pressed: ob.view === 'where', cls: 'tick', title: 'Its bars show how many hits landed on each part of it (1.02)' }),
+    qmBtn('Their energies', () => { ob.view = 'energy'; }, { pressed: ob.view !== 'where', cls: 'tick', title: 'Its bars show the spectrum of the energies it caught, low at its first end' })) +
+    qmBtn('Graph it (Data tab)', () => { UI.detSel = W.objs.filter(o => o.kind === 'screen').indexOf(ob); showTab('data', true); drawDet(); $('dDetSec').scrollIntoView({ block: 'nearest' }); }) +
+    qmBtn('Clear its count', () => objClearHits(ob), { off: !(ob.hits && ob.hits.n) });
   if (ob.kind === 'mirror' || ob.kind === 'splitter') h += qmBtn(ob.kind === 'mirror' ? 'Make it a beam splitter' : 'Make it a full mirror', () => { undoMark('Change an object'); ob.kind = ob.kind === 'mirror' ? 'splitter' : 'mirror'; ob.R = ob.kind === 'mirror' ? 1 : 0.5; });
   return h + qmBtn('Remove it', () => { undoMark('Remove an object'); objRemove(ob); if (R.objSel === ob) R.objSel = null; }, { cls: 'danger' });
 }

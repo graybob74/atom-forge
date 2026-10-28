@@ -77,10 +77,6 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
-- Detectors: graph where hits land along a screen (position bins next to the energy record; toggle the on-screen bars
-  between position and energy; a Data-tab graph of hits against position, light and particles apart).
-- Wall charge: the walls' charge (charged particles they absorb, positrons annihilating in them) kept and shown in the
-  Data tab, so the box and its walls add up to zero (asked for by the user, after the pair-production finding).
 - An "ultra-realistic" mode that gives up visibility and convenience: nuclei at their true size (about 1/100,000 of the
   atom, so they vanish), nuclear reactions only at their true cross sections (a beam then almost never hits anything in
   a box this size), no enlarged reach, no slowed or held decays, no hits made more frequent in setups, and zoom far
@@ -93,6 +89,24 @@ engine stores and visits particles.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
+
+## 1.02.0: where hits land on a detector screen; the walls' charge
+- Detector screens now also record where along them each hit lands (40 strips, light and particles apart:
+  `objRecord(ob, E, light, x, y)` in props.js, `hits.posL`/`hits.posP`). Right-click a screen: "Where hits land" or
+  "Their energies" chooses what its own bars show (kept in saves as `view`), and "Graph it (Data tab)" opens the new
+  Data → Detector screens graph (hits against position or energy, a chooser when there are several screens, Clear).
+  The screens of the gold foil, the prism and Thomson's tube show positions from the start. Measured: in the gold foil
+  setup the far screen's 2,660 hits in 600 frames are all placed, peaked at its middle as expected.
+- The walls' charge (asked for after the hot-helium finding: pair production, then the positrons annihilate in the
+  walls). Every place charge leaves the box's particles now books it: `chargeTo(q, where)` in engine.js, into
+  `ledger.qWall` (positrons and antimatter annihilating in a wall, fast charged particles stopped in it, charged mesons
+  leaving through it; what an antinucleus's mesons carry back in is taken off), `ledger.qObj` (stopped in placed pieces
+  and the collider's detectors) and `ledger.qOut` (out through an open box). Data → Charge shows the box, the walls,
+  pieces, the open edges and the sum, which changes only when charge is added or removed from outside. Checked: in all
+  53 setups with their sources off, box + walls + pieces + out stayed constant over 300 frames (mucf, fusion,
+  annihilation, useries, pet: the walls took 1–9 e). The charge books are not kept in saves (a loaded save starts them
+  at zero).
+- Tests: t_features "1.02 detector", "1.02 wall charge".
 
 ## 1.01.0: right-click cards for the palette
 - Right-clicking (or pressing and holding) a chip in the top bar, an item of its category menus or a Find result opens

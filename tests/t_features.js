@@ -759,6 +759,30 @@ const { openPage } = require('./browser');
   });
   check(r38.e && r38.u && r38.w && r38.menu.length > 1 && /Quarks: s s̄/.test(r38.phi) && /K⁺ \+ K⁻ \(49%\)/.test(r38.phi),
     `1.01: right-click cards for the palette (electron, ²³⁸U, water, a menu item: "${r38.menu}"; φ: ${r38.phi.slice(0, 90)}…)`, '1.01 cards: ' + JSON.stringify(r38));
+  // 1.02: detector screens record where hits land; their bars and the Data tab's graph show it
+  const r39 = await page.evaluate(() => {
+    loadPreset('rutherford'); setRunning(false); for (let f = 0; f < 240; f++) simFrame(1 / 60, 25);
+    const ob = W.objs.find(o => o.kind === 'screen'), H = ob.hits, sum = (a) => a.reduce((x, y) => x + y, 0);
+    const mid = H.posP.slice(15, 25).reduce((x, y) => x + y, 0), edge = sum(H.posP.slice(0, 5)) + sum(H.posP.slice(35));
+    showTab('data', true); drawDet(); const vis = !$('dDetSec').hidden, note = $('detNote').textContent; showTab('lab', true);
+    const back = objFromJSON(JSON.parse(JSON.stringify(objToJSON(ob))));
+    loadPreset('water'); drawDet();
+    return { n: H.n, pos: sum(H.posP) + sum(H.posL), mid, edge, vis, note, view: back.view, hidden: $('dDetSec').hidden };
+  });
+  check(r39.n > 100 && r39.pos === r39.n && r39.mid > 3 * r39.edge && r39.vis && /hits/.test(r39.note) && r39.view === 'where' && r39.hidden,
+    `1.02: the gold foil's far screen records where its ${r39.n} hits land (${r39.mid} in its middle quarter, ${r39.edge} in its outer quarters); Data tab graph shown, kept in saves`, '1.02 detector: ' + JSON.stringify(r39));
+  // 1.02: the walls keep the charge they take in (positrons annihilating in them, charged particles leaving an open box)
+  const r40 = await page.evaluate(() => {
+    loadPreset('empty'); setRunning(false); W.T = 300;
+    for (let i = 0; i < 5; i++) { const p = spawnSpec({ kind: 'pos' }, -10 + 5 * i, 0); p.vx = 0; p.vy = 40; }
+    const q0 = boxCharge(); for (let f = 0; f < 200; f++) simFrame(1 / 60, 25);
+    const q1 = boxCharge(), wall = W.ledger.qWall; showTab('data', true); renderData(); const txt = $('dCharge').innerText; showTab('lab', true);
+    W.wall = 'open'; for (let i = 0; i < 3; i++) { const e = spawnSpec({ kind: 'e' }, 0, 5 * i); e.vx = 60; e.vy = 0; }
+    for (let f = 0; f < 200; f++) simFrame(1 / 60, 25);
+    return { q0, q1, wall, out: W.ledger.qOut, box: boxCharge(), txt: txt.replace(/\s+/g, ' ') };
+  });
+  check(r40.q0 === 5 && r40.q1 === 0 && r40.wall === 5 && r40.out === -3 && r40.box === 0 && /All together\s*\+5 e/.test(r40.txt),
+    `1.02: 5 positrons annihilate in the walls (box +5 → ${r40.q1} e, walls +${r40.wall} e); 3 electrons out of an open box (${r40.out} e); Data → Charge: "${r40.txt.slice(0, 80)}"`, '1.02 wall charge: ' + JSON.stringify(r40));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

@@ -69,7 +69,7 @@ function makeWorld() {
     zones: [], collider: null,  // accelerator parts (bending and focusing magnets, cavities) and the collider's set-up
     count: { fusion:0, fission:0, decay:0, capture:0, ionize:0, recomb:0, bonds:0, broken:0, react:0,
              photons:0, annih:0, xfer:0, ncap:0, nreact:0, wallStop:0 },
-    ledger: { chem: 0, nuc: 0, escaped: 0, bath: 0 },
+    ledger: { chem: 0, nuc: 0, escaped: 0, bath: 0, qWall: 0, qObj: 0, qOut: 0 }, // q…: charge taken in by the walls, by placed pieces and detectors, and carried out of an open box (1.02)
     hist: { t: [], T: [], ion: [], rad: [] },
     vmax: 0, amax: 0, nE: 0, molSeq: 0, spawned: 0, fSpawn: -1, dirty: 0, evSeq: 0,
   };
@@ -4031,8 +4031,17 @@ function neutronPairs(dt, id0) {
 /* Antimatter reaching a wall meets the wall's ordinary matter: an electron for each positron, a nucleon for
    each antinucleon. The wall supplies an equal mass, so the radiation carries twice the rest energy plus
    the particle's motion and binding. */
-function annihilateAtWall(p) {
+/* Charge that leaves the box's particles for the walls (qWall), placed pieces and detectors (qObj), or out through an
+   open edge (qOut): kept so the box and what took charge from it add up (Data → Charge, 1.02). */
+function boxCharge() { // the net charge of everything in the box, in e (unstable particles in flight included)
+  let q = 0; for (const p of W.parts) if (!p.dead) q += p.q;
+  for (const o of W.exo) if (!o.dead) q += XP[o.sp].q;
+  return q;
+}
+function chargeTo(q, where) { if (q) W.ledger[where || (W.wall === 'open' ? 'qOut' : 'qWall')] += q; }
+function annihilateAtWall(p, where) {
   const hw = W.box.w / 2, hh = W.box.h / 2;
+  chargeTo(p.q, where || 'qWall'); // (what the mesons of an antinucleus carry back into the box is taken off below)
   const x = clamp(p.x, -hw, hw), y = clamp(p.y, -hh, hh);
   const lbl = speciesLabel(p), gh = [ghostOf(p)];
   const S = annihBegin([p]);
@@ -4046,7 +4055,7 @@ function annihilateAtWall(p) {
   if (nNuc > 0) {
     for (let i = 0; i < nLep; i++) twoGamma(x, y, 2 * ME_C2);
     const Ep = (E - nLep * 2 * ME_C2) / nNuc, nP = p.k === NUC ? p.Z : 0; // (each antinucleon meets a proton or a neutron of the wall)
-    for (let i = 0; i < nNuc; i++) mesonBurst(x, y, Ep, 0, 0, (rnd() < 0.5 ? 1 : 0) - (i < nP ? 1 : 0));
+    for (let i = 0; i < nNuc; i++) { const Q = (rnd() < 0.5 ? 1 : 0) - (i < nP ? 1 : 0); chargeTo(-Q, where || 'qWall'); mesonBurst(x, y, Ep, 0, 0, Q); }
     nucEvent('annih', x, y, `${lbl} hits the wall → mesons + γ`, gh, fmtE(E));
     log('nuc', `Annihilation at the wall: ${lbl} meets ordinary matter → mesons + γ rays (${fmtE(E)})`);
   } else {
@@ -4116,7 +4125,7 @@ function wallOrEscape(p, escape, x0, y0) {
     if (W.wall === 'reflect') { if (!(p.k === NUC && p.Z === 0 && (W.nWall === 'pass' || W.nWall === 'fast'))) W.count.wallStop++; if (x0 !== undefined) { p.x = _wc[0]; p.y = _wc[1]; } }
     if (p.k === NUC && p.Z === 0) W.ledger.escaped += keOf(p);
     else if (p.rad) W.ledger.escaped += p.KE;
-    kill(p); return true;
+    chargeTo(p.q); kill(p); return true;
   }
   if (W.wall === 'wrap') {
     if (p.x < -hw) p.x += W.box.w; else if (p.x > hw) p.x -= W.box.w;
@@ -4458,7 +4467,7 @@ function beamHit(C, a, b, d, x, y, ex, ey) {
 function detectorStop(p) {
   const C = W.collider;
   if (!C || !C.dets || inDetector(C, p.x, p.y)) return false;
-  W.ledger.escaped += p.KE; kill(p); return true;
+  W.ledger.escaped += p.KE; chargeTo(p.q, 'qObj'); kill(p); return true;
 }
 /* Lorentz boost of (E, px, py) by velocity (bx, by) (units of c). */
 function boost(E, px, py, bx, by) {
@@ -5145,7 +5154,7 @@ function innerSteps(Dt) {
 /* A free electron reaching the box edge bounces off a closed wall elastically (off the piston, when the box is
    resized), and is lost through an open one. A positron meets the wall's own electrons. */
 function leptonWall(p) {
-  if (W.wall === 'open') { kill(p); return; }
+  if (W.wall === 'open') { chargeTo(p.q, 'qOut'); kill(p); return; }
   if (p.k === POS) { annihilateAtWall(p); return; }
   const hw = W.box.w / 2, hh = W.box.h / 2, uw = W.box.uw, uh = W.box.uh;
   if (p.x < -hw) { p.x = -hw + Math.min(W.box.w, -hw - p.x); p.vx = -2 * uw - p.vx; if (p.vx < 0) p.vx = -p.vx; }
@@ -5292,7 +5301,7 @@ function walls(p) {
     return;
   }
   if ((p.k === POS || p.anti) && W.wall === 'reflect' && (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh)) { annihilateAtWall(p); return; }
-  if (W.wall === 'open') { if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh) kill(p); return; }
+  if (W.wall === 'open') { if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh) { chargeTo(p.q, 'qOut'); kill(p); } return; }
   const uw = W.box.uw, uh = W.box.uh;
   if (!p.fast) { // soft walls handle slow particles; only rescue deep escapees, handing back their potential energy
     const m = 1.5, rin = p.k === NUC ? wallIn(p) : 0, hw = hw0 - rin, hh = hh0 - rin; // (the wall where its edge meets it)
