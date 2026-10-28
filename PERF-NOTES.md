@@ -97,7 +97,25 @@ engine stores and visits particles.
   Neither is ready to replace the classic chemistry. Every step it needs all pair orders found self-consistently
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
-  Waiting on the user's decision.
+  The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.05.0: resonance from bond orders (approved by the user)
+- From the bond-order prototype, the part that holds up: bonds that can be drawn more than one way take their
+  Pauling bond order. `resonance()` (engine.js, in relink, where aromatize ran) finds each molecule's π system (C, N, O,
+  S atoms that each hold one double bond to another such atom), counts every Kekulé structure (perfect matching along
+  its bonds, up to 40 atoms and 4,000 structures), and gives each bond the mean, 1 + f. Its depth, length and spring
+  are interpolated at that order (length 0.16·f(1−f) shorter than the straight mean, as the 0.95 rule had at 1.5), and
+  the system's resonance energy 150 kJ/mol × ln K / ln 2 is shared among its resonating bonds by f(1−f). Whole-number
+  orders stay as they were for valence counting; addition across a resonating bond pays the rest of the system's
+  resonance energy (reaction()). Bigger π systems fall back to the 0.95 six-ring rule (`aromatize(atoms, true)`).
+  The second line of a resonating bond is drawn as thick as its share of a second bond.
+- Measured (relaxed, 0 K): benzene 1.50, 1.406 Å, 150 kJ/mol as before; naphthalene 1⅔ at 1.375 Å and 1⅓ at
+  1.449 Å (measured 1.37 and 1.42; it was 1.40 everywhere), 238 kJ/mol (measured about 255); anthracene 1.25, 1.5,
+  1.75, 300 kJ/mol; coronene 1.3, 1.4, 1.7, 648 kJ/mol; butadiene and other single-structure systems unchanged.
+  27 library molecules resonate (all their benzene rings as before); naphthalene, anthracene and coronene re-settled
+  with tools/molrelax.js. Rings whose π system needs a lone pair (pyrrole, thiophene, furan, the five-membered ring of
+  purines) are not counted, as before.
+- Test: t_features "1.05 resonance".
 
 ## 1.04.0: extreme slow motion in every mode
 - The speed buttons go on below 1/512× without the ultra-realistic mode too (asked for by the user): a tenth at a

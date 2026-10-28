@@ -417,7 +417,7 @@ function drawBonds(rt) {
     const stretch = clamp((L / s - bd.r0) / (bd.rb || 1.5), 0, 1);
     const aq = Math.round((0.95 - stretch * 0.6) * aMul * 64) & 63, cls = n > 1 ? 1 : 0;
     const pa = bondPath(ca, cls, aq), pb = ca === cb ? pa : bondPath(cb, cls, aq);
-    const aq2 = ar ? Math.round(aq * 0.4) & 63 : aq, pa2 = ar ? bondPath(ca, cls, aq2) : pa, pb2 = ar ? (ca === cb ? pa2 : bondPath(cb, cls, aq2)) : pb;
+    const aq2 = ar ? Math.round(aq * 0.8 * clamp((bd.fo || 1.5) - 1, 0.1, 1)) & 63 : aq, pa2 = ar ? bondPath(ca, cls, aq2) : pa, pb2 = ar ? (ca === cb ? pa2 : bondPath(cb, cls, aq2)) : pb;
     for (let q = 0; q < n; q++) {
       const o = (q - (n - 1) / 2) * off, ox = nx * o, oy = ny * o, qa = q === 1 ? pa2 : pa, qb = q === 1 ? pb2 : pb;
       qa.moveTo(x0 + ox, y0 + oy); qa.lineTo(mx + ox, my + oy);

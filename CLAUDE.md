@@ -100,5 +100,5 @@ time-budgeted checks in `t_features` (the chain reaction's k readout, saves, sta
 ## Known limits (documented, not bugs to chase without a plan)
 
 Heavily ionized water gains about 100–170 eV over a run: electrons switching between free flight and the main
-integrator. Bonds are a force field (whole-number orders, measured energies), not quantum chemistry; aromatic rings are
-detected and given 1.5-order parameters (0.95).
+integrator. Bonds are a force field (whole-number orders, measured energies), not quantum chemistry; bonds that resonate
+(alternative Kekulé structures) take their Pauling bond order, the mean over every structure (1.05; `resonance()`).

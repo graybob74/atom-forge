@@ -821,6 +821,15 @@ const { openPage } = require('./browser');
   });
   check(!r42.ultra && r42.spd === '1 ys/s' && r42.phiLeft >= 10 && r42.simS > 2e-23 && r42.simS < 3e-23 && /1\/512×/.test(r42.back) && r42.phiNormal === 0,
     `1.04: extreme slow motion without the ultra-realistic mode: at ${r42.spd}, ${r42.phiLeft} of 20 φ left after ${r42.simS.toExponential(1)} s; back up to ${r42.back}; at 1× they are gone at once (${r42.phiNormal} left)`, '1.04 slow: ' + JSON.stringify(r42));
+  // 1.05: resonance: every Kekulé structure counted, each bond at its Pauling order (naphthalene 1⅔ and 1⅓)
+  const r43 = await page.evaluate(() => {
+    const out = {}, lens = (k) => { loadPreset('empty'); setRunning(false); W.T = 0; W.gamma = 0; addMolecule(k, 0, 0, 0, 0); forcesNoEvents(); W.fSpawn = W.spawned; for (let i = 0; i < 300; i++) { W.dt = chooseDt(); step(W.dt); } const g = {}; for (const b of W.bonds.filter(b => b.arom)) { const k2 = b.fo.toFixed(2); (g[k2] = g[k2] || []).push(Math.hypot(b.a.x - b.b.x, b.a.y - b.b.y)); } for (const k2 in g) g[k2] = +(g[k2].reduce((s, v) => s + v, 0) / g[k2].length).toFixed(3); return { g, RE: Math.round((W.bonds.find(b => b.arom) || {}).reSys * PHYS.KJMOL) }; };
+    out.naph = lens('naphthalene'); out.anth = lens('anthracene'); out.benz = lens('benzene'); out.buta = lens('butadiene');
+    return out;
+  });
+  const n43 = r43.naph.g;
+  check(n43['1.67'] > 1.36 && n43['1.67'] < 1.40 && n43['1.33'] > 1.41 && n43['1.33'] < 1.46 && r43.naph.RE === 238 && r43.anth.RE === 300 && r43.benz.g['1.50'] > 1.38 && r43.benz.g['1.50'] < 1.42 && r43.benz.RE === 150 && !Object.keys(r43.buta.g).length,
+    `1.05: resonance: naphthalene's bonds ${n43['1.67']} Å at order 1⅔ and ${n43['1.33']} Å at 1⅓ (measured 1.37, 1.42), ${r43.naph.RE} kJ/mol; anthracene ${r43.anth.RE}; benzene ${r43.benz.g['1.50']} Å; butadiene left as it is`, '1.05 resonance: ' + JSON.stringify(r43));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

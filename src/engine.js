@@ -385,10 +385,11 @@ function other(bd, p) { return bd.a === p ? bd.b : bd.a; }
 function bondBetween(a, b) { for (const bd of a.bonds) if (bd.a === b || bd.b === b) return bd; return null; }
 function setBondParams(bd) {
   const ea = bd.a.el, eb = bd.b.el;
-  if (bd.arom) { // a bond of an aromatic ring: one and a half, between its single and double forms, all alike round the ring
-    bd.D = (bondEnergy(ea, eb, 1) + bondEnergy(ea, eb, 2)) / 2 + AROM_STAB / 6;
-    bd.r0 = (bondLength(ea, eb, 1) + bondLength(ea, eb, 2)) / 2 - 0.04;
-    bd.al = (morseA(ea, eb, 1) + morseA(ea, eb, 2)) / 2;
+  if (bd.arom) { // a resonating bond (resonate): between its single and double forms, at its Pauling order 1 + f
+    const f = clamp((bd.fo || 1.5) - 1, 0, 1);
+    bd.D = bondEnergy(ea, eb, 1) * (1 - f) + bondEnergy(ea, eb, 2) * f + (bd.reShare || 0);
+    bd.r0 = bondLength(ea, eb, 1) * (1 - f) + bondLength(ea, eb, 2) * f - 0.16 * f * (1 - f); // (shorter than the straight mean, as measured: 1.40 Å for benzene's C–C, 1.34 Å for pyridine's C–N)
+    bd.al = morseA(ea, eb, 1) * (1 - f) + morseA(ea, eb, 2) * f;
   } else {
     bd.D = bondEnergy(ea, eb, bd.order);
     bd.r0 = bondLength(ea, eb, bd.order);
@@ -403,7 +404,59 @@ function setBondParams(bd) {
    energy) more stable than its Kekulé form: so it stays a regular hexagon and resists addition across its double bonds,
    which would break the ring's aromaticity. The orders themselves stay as they are (each atom's valence counts them). */
 const AROM_STAB = 150 / PHYS.KJMOL;
-function aromatize(atoms) {
+/* Resonance (1.05): fractional bond orders, worked out instead of looked for. The atoms of a molecule that each hold one
+   double bond to another such atom (C, N, O, S) form its π system; the double bonds as they stand are one way of
+   pairing them up (a Kekulé structure). Every other pairing along the bonds between them is another, with the same
+   bonds counted on every atom. Each bond's order is the mean over all of them, Pauling's bond order: benzene's two
+   structures give 1.5 everywhere, naphthalene's three give 1⅔ and 1⅓, butadiene's one leaves it as it is. The
+   system is more stable than any one structure by its resonance energy, 150 kJ/mol × ln K / ln 2 for K structures
+   (benzene's 150 kJ/mol; naphthalene 238, measured about 255), shared among the bonds that resonate. This replaces the
+   0.95 rule for six-membered rings, which stays for π systems too big to count (aromatize). The whole-number orders
+   (bd.order) stay those of the structure as it stands: every atom's valence counts them as before. */
+const RES_MAX_ATOMS = 40, RES_MAX_K = 4000;
+function resonance(atoms) {
+  const okEl = (p) => p.el && !p.anti && (p.Z === 6 || p.Z === 7 || p.Z === 8 || p.Z === 16);
+  const dblTo = (p) => { let n = 0, to = null; for (const bd of p.bonds) if (bd.order === 2) { n++; to = other(bd, p); } else if (bd.order > 2) return null; return n === 1 ? to : null; };
+  const pi = new Set();
+  for (const p of atoms) { if (!okEl(p)) continue; const o = dblTo(p); if (o && okEl(o) && dblTo(o) === p) pi.add(p); }
+  const fo = new Map(), share = new Map(), sys = new Map(); let big = false;
+  const seen = new Set();
+  for (const s of pi) {
+    if (seen.has(s)) continue;
+    const comp = [], stack = [s]; seen.add(s);
+    while (stack.length) { const p = stack.pop(); comp.push(p); for (const bd of p.bonds) { const o = other(bd, p); if (pi.has(o) && !seen.has(o) && bd.order <= 2) { seen.add(o); stack.push(o); } } }
+    if (comp.length < 4) continue; // (one double bond: nothing to move)
+    if (comp.length > RES_MAX_ATOMS) { big = true; continue; }
+    // every perfect matching of the component along its bonds: each bond's count
+    comp.sort((u, v) => u.id - v.id);
+    const idx = new Map(comp.map((p, i) => [p, i])), edges = comp.map(p => p.bonds.filter(bd => bd.order <= 2 && idx.has(other(bd, p))));
+    const used = new Uint8Array(comp.length), cnt = new Map(), cur = []; let K = 0, over = false;
+    const walk = () => {
+      if (over) return;
+      let i = 0; while (i < comp.length && used[i]) i++;
+      if (i === comp.length) { K++; for (const bd of cur) cnt.set(bd, (cnt.get(bd) || 0) + 1); if (K > RES_MAX_K) over = true; return; }
+      used[i] = 1;
+      for (const bd of edges[i]) { const j = idx.get(other(bd, comp[i])); if (used[j]) continue; used[j] = 1; cur.push(bd); walk(); cur.pop(); used[j] = 0; }
+      used[i] = 0;
+    };
+    walk();
+    if (over) { big = true; continue; }
+    if (K < 2) continue;
+    const res = [];
+    for (const p of comp) for (const bd of edges[idx.get(p)]) if (bd.a === p) { const f = (cnt.get(bd) || 0) / K; if (f > 1e-9 && f < 1 - 1e-9) res.push([bd, f]); }
+    const RE = AROM_STAB * Math.log(K) / Math.LN2; let wsum = 0; for (const [, f] of res) wsum += f * (1 - f);
+    for (const [bd, f] of res) { fo.set(bd, 1 + f); share.set(bd, RE * f * (1 - f) / wsum); sys.set(bd, RE); }
+  }
+  for (const a of atoms) for (const bd of a.bonds) {
+    if (bd.a !== a) continue;
+    const f = fo.get(bd), ar = f !== undefined;
+    if (!!bd.arom !== ar || (ar && (bd.fo !== f || bd.reShare !== share.get(bd)))) {
+      bd.arom = ar; bd.fo = ar ? f : 0; bd.reShare = ar ? share.get(bd) : 0; bd.reSys = ar ? sys.get(bd) : 0; setBondParams(bd);
+    }
+  }
+  if (big) aromatize(atoms, true); // (π systems too big to count: the six-membered rings, as before)
+}
+function aromatize(atoms, keep) {
   const ok = (p) => p.el && (p.Z === 6 || p.Z === 7) && !p.anti;
   // six-membered rings of C and N (any bond orders), each found once
   const rings = [], seen = new Set();
@@ -436,7 +489,8 @@ function aromatize(atoms) {
   for (const a of atoms) for (const bd of a.bonds) {
     if (bd.a !== a) continue;
     const ar = ring.has(bd);
-    if (!!bd.arom !== ar) { bd.arom = ar; setBondParams(bd); }
+    if (keep && !ar) continue; // (from resonance(): leave what it worked out)
+    if (!!bd.arom !== ar || (ar && bd.fo !== 1.5)) { bd.arom = ar; bd.fo = ar ? 1.5 : 0; bd.reShare = ar ? AROM_STAB / 6 : 0; bd.reSys = ar ? AROM_STAB : 0; setBondParams(bd); }
   }
 }
 function addBond(a, b, order) {
@@ -486,7 +540,7 @@ function relink(seeds) {
     const ep = p.el ? (p.el.en || 2.6) : 2.2;
     for (const bd of p.bonds) {
       const o = other(bd, p), eo = o.el ? (o.el.en || 2.6) : 2.2;
-      qp += PARTIAL_K * (eo - ep) * (1 + 0.2 * ((bd.arom ? 1.5 : bd.order) - 1));
+      qp += PARTIAL_K * (eo - ep) * (1 + 0.2 * ((bd.arom ? bd.fo || 1.5 : bd.order) - 1));
     }
     p.qpol = p.anti ? -qp : qp; // positrons crowd toward the more electronegative anti-atom
     p.qp = p.qpol + p.qf;
@@ -511,7 +565,7 @@ function relink(seeds) {
     if (!p.bonds.length) { p.mol = 0; p.qf = 0; p.qp = p.qpol; done.add(p); continue; }
     const id = ++W.molSeq, m = molecule(p);
     for (const a of m) { a.mol = id; done.add(a); }
-    aromatize(m);
+    resonance(m);
     delocalize(m);
   }
 }
@@ -1598,7 +1652,7 @@ function reaction(X, A) {
       if (!best || Ea < best.Ea) best = { type: 'abs', bd, dH, Ea };
       // addition to a multiple bond: X + A=B → X–A–B·
       if (bd.order >= 2) {
-        dH = (DAB - bondEnergy(A.el, B.el, bd.order - 1)) - DXA + (bd.arom ? AROM_STAB * 5 / 6 : 0); // (aromatic: the rest of the ring's stability is lost too)
+        dH = (DAB - bondEnergy(A.el, B.el, bd.order - 1)) - DXA + (bd.arom ? (bd.reSys || AROM_STAB) - (bd.reShare || 0) : 0); // (resonating: the rest of the system's resonance energy is lost too)
         Ea = dH < 0 ? Math.max(0.05, 0.5 + 0.25 * dH) : 0.5 + 0.75 * dH;
         if (Ea < best.Ea) best = { type: 'add', bd, dH, Ea };
       }

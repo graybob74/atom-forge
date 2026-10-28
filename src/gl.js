@@ -326,7 +326,7 @@ function glBondsBuild(bonds, gen) {
   for (let k = 0; k < nb; k++) {
     const bd = bonds[k], ia = bd.a.i, ib = bd.b.i, ar = !!bd.arom, n = ar ? 2 : bd.order, wm = n > 1 ? 0.7 : 1, r0 = bd.r0, rb = bd.rb || 1.5;
     for (let q = 0; q < n; q++) {
-      const lane = q - (n - 1) / 2, wq = ar && q === 1 ? 0.35 : wm; // (aromatic: a full lane and a thin one, alike all round the ring)
+      const lane = q - (n - 1) / 2, wq = ar && q === 1 ? 0.7 * clamp((bd.fo || 1.5) - 1, 0.1, 1) : wm; // (resonating: a full lane and a thinner one, as thick as its share of a second bond)
       for (let h = 0; h < 2; h++) for (let c = 0; c < 4; c++) { F[o] = ia; F[o + 1] = ib; F[o + 2] = h; F[o + 3] = c; F[o + 4] = lane; F[o + 5] = wq; F[o + 6] = r0; F[o + 7] = rb; o += 8; }
     }
   }
