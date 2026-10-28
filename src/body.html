@@ -2,7 +2,7 @@
   <header class="topbar">
     <div class="brand">
       <svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="16" cy="16" rx="13" ry="5.2"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(60 16 16)"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(-60 16 16)"/></g><circle cx="14.6" cy="15.2" r="2.3" fill="#ff5a4e"/><circle cx="17.4" cy="16.8" r="2.3" fill="#a9b4c2"/><circle cx="28.6" cy="16.5" r="1.5" fill="#4da8ff"/></svg>
-      <span>Atom Forge</span><span class="ver" id="verTag" title="Version"></span><small>particles, atoms and molecules from real physics</small>
+      <span>Atom Forge</span><span class="ver" id="verTag" title="Version"></span><span class="ver ultra" id="ultraBadge" hidden title="Ultra-realistic mode (Settings → General): true sizes and rates, nothing made easier to see">ultra-realistic</span><small>particles, atoms and molecules from real physics</small>
     </div>
     <div class="transport">
       <button class="ibtn primary" id="bPlay" title="Pause (Space)" aria-label="Pause"><svg viewBox="0 0 24 24" aria-hidden="true"><g id="icoPause"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></g><path id="icoPlay" d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.3-7.2a.8.8 0 0 0 0-1.4L8.2 4.1a.8.8 0 0 0-1.2.7z" fill="currentColor" style="display:none"/></svg></button>
@@ -592,6 +592,9 @@
       <div class="srow"><span>Lengths in</span><div class="seg" id="segLUnit" role="group" aria-label="Lengths in"><button data-v="A">Å</button><button data-v="nm">nm</button><button data-v="pm">pm</button></div></div>
       <label class="check"><input type="checkbox" id="setTips"> A tip for each setup</label>
       <label class="check"><input type="checkbox" id="setSlow"> Slow motion for nuclear events</label>
+      <h3>Ultra-realistic mode</h3>
+      <label class="check"><input type="checkbox" id="setUltra"> Ultra-realistic: true sizes and rates, nothing made easier to see</label>
+      <p class="note">Nuclei are drawn and hit at their true size, about 1/100,000 of their atom (a dot of one pixel marks where a bare nucleus or a free electron is), so beams almost never hit anything and fusion and nuclear reactions are rare; slow neutrons are still caught, as their wavelength is large. Decays run at their real rates, with nothing sped up or held back to be seen. You can zoom in 100,000 times further, far enough to see a nucleus inside its atom, and slow time down to a yoctosecond (10⁻²⁴ s) a second, slow enough to watch a φ meson (1.5×10⁻²² s) live and decay.</p>
       <h3>Rewind</h3>
       <label class="check"><input type="checkbox" id="setRew"> Keep the last while it runs, to drag back through (, or the ⟲ button)</label>
       <div class="srow"><span>How far back</span><div class="seg" id="segRewSpan" role="group" aria-label="How far back"><button data-v="30">30 s</button><button data-v="60">1 min</button><button data-v="120">2 min</button><button data-v="300">5 min</button></div></div>

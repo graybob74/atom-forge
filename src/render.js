@@ -27,6 +27,8 @@ function rResize(w, h) {
   for (const cv of [R.cv, R.cvbg]) { if (!cv) continue; cv.width = Math.round(w * R.dpr); cv.height = Math.round(h * R.dpr); cv.style.width = w + 'px'; cv.style.height = h + 'px'; }
 }
 const ZOOM_MAX = 4000; // px per Å: about 0.25 Å across the view, well inside one atom
+const ZOOM_ULTRA = 4e8; // the ultra-realistic mode's: about 0.3 fm across the view, a proton's radius fills a third of it
+function zoomMax() { return W.ultra ? ZOOM_ULTRA : ZOOM_MAX; }
 function fitView(margin = 28) {
   const bw = W.box.tw, bh = W.box.th;
   R.s = Math.min((R.w - margin * 2) / bw, (R.h - margin * 2) / bh);
@@ -138,7 +140,7 @@ function render(rt) {
   const dpr = R.dpr;
   // the WebGL layer (gl.js) takes the balls, glows and bonds when it can: the background goes on the canvas under it and
   // the rest on the transparent one above; without it everything is drawn on the one canvas
-  R.gl = !!R.cvbg && typeof glReady === 'function' && glReady();
+  R.gl = !!R.cvbg && typeof glReady === 'function' && glReady() && !(W.ultra && R.s > ZOOM_MAX); // (past the normal zoom, Canvas 2D: the WebGL layer works in single precision, a few fm at best)
   _colFrame++;
   if (typeof glShow === 'function') glShow(R.gl);
   if (R.gl) { glBegin(); glSlotsPrepare(); }
@@ -180,7 +182,7 @@ function drawGrid() {
   const ctx = R.ctx;
   let step = 10;
   while (step * R.s < 36) step *= 2;
-  while (step * R.s > 160 && step > 0.5) step /= 2;
+  while (step * R.s > 160 && step > (W.ultra ? 1e-9 : 0.5)) step /= 2;
   const [x0, y1] = s2w(0, 0), [x1, y0] = s2w(R.w, R.h);
   ctx.strokeStyle = CHAMBER.grid; ctx.lineWidth = 1;
   ctx.beginPath();
@@ -399,8 +401,8 @@ function drawBonds(rt) {
   if (R.view.bohr === 'nuc') { drawBondPairs(rt); return; }
   if (R.gl) { drawBondsGL(); return; }
   const ctx = R.ctx, s = R.s, orb = R.view.bohr === 'orb';
-  const lw = orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s);
-  const off = Math.max(2, 0.11 * s), aMul = orb ? 0.45 : 1;
+  const lw = Math.min(W.ultra ? 6 : 1e9, orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)); // (ultra-realistic: a bond is not a rod; zoomed in to nuclei, a thin line)
+  const off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * s)), aMul = orb ? 0.45 : 1;
   const X = S.x, Y = S.y, wrap = W.wall === 'wrap', hbw = W.box.w / 2, hbh = W.box.h / 2, cx = R.cx, cy = R.cy, hw = R.w / 2, hh = R.h / 2, Rw = R.w, Rh = R.h;
   const bonds = W.bonds, nb = bonds.length;
   for (let k = 0; k < nb; k++) {
@@ -449,8 +451,8 @@ function slotColor(i, p) {
    when the bonding changes; each frame costs one draw call and no JavaScript per bond. */
 function drawBondsGL() {
   const s = R.s, orb = R.view.bohr === 'orb';
-  const hw = (orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)) / 2;
-  const off = Math.max(2, 0.11 * s), aMul = orb ? 0.45 : 1;
+  const hw = Math.min(W.ultra ? 3 : 1e9, (orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)) / 2);
+  const off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * s)), aMul = orb ? 0.45 : 1;
   glBondsBuild(W.bonds, W.topo);
   glDrawBonds(hw, off, aMul, W.wall === 'wrap', W.box.w / 2, W.box.h / 2);
 }
@@ -582,6 +584,51 @@ function drawMeasure() {
   ctx.restore();
 }
 
+/* The ultra-realistic mode's particles (1.03): at their true sizes. A free electron or positron, a point, and a bare
+   nucleus or a neutron smaller than a pixel are a one-pixel dot; a nucleus is 1.2·A^⅓ fm in radius. An atom is its
+   electron cloud as usual until that is larger than the view, then a faint wash with its nucleus, at its true size,
+   at the centre. */
+function drawUltraParts(ctx, rt) {
+  const s = R.s, bohrMode = R.view.bohr, Wd = R.w, Ht = R.h, diag = Math.hypot(Wd, Ht);
+  ctx.globalCompositeOperation = 'source-over';
+  for (const p of W.parts) {
+    if (p.dead) continue;
+    const x = w2sx(p.x), y = w2sy(p.y);
+    if (p.k !== NUC) { if (x < -4 || y < -4 || x > Wd + 4 || y > Ht + 4) continue; ctx.fillStyle = p.k === ELEC ? E_COL : POS_COL; ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5); continue; }
+    const rn = trueRfm(p) * FM * s;
+    if (p.Z === 0 || p.ne === 0) { // a neutron or a bare nucleus
+      if (x < -rn - 4 || y < -rn - 4 || x > Wd + rn + 4 || y > Ht + rn + 4) continue;
+      ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag);
+      if (rn > 7 && lblOn(p)) smallTag(ctx, speciesLabel(p), x, y + rn + 9);
+      continue;
+    }
+    const r = Math.max(2.4, p.rd * R.as * s);
+    if (x < -r || y < -r || x > Wd + r || y > Ht + r) continue;
+    const col = atomColor(p);
+    if (r <= 1500) {
+      if (bohrMode === 'orb') drawOrbitalAtom(ctx, p, x, y);
+      else if (bohrMode === 'on' || bohrMode === 'nuc' || (bohrMode === 'auto' && r >= 30)) drawBohr(ctx, p, x, y, r, rt, col);
+      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
+    } else { // inside the atom's electron cloud: a faint wash of its colour
+      const c = hexc(col); ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.10)`;
+      const d = Math.hypot(x - Wd / 2, y - Ht / 2);
+      if (d + diag / 2 < r) ctx.fillRect(0, 0, Wd, Ht); else { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+    }
+    if (rn >= 0.5 || r > 1500) { ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag); if (rn > 7 && lblOn(p)) smallTag(ctx, nucSym(p.Z, p.N), x, y + rn + 9); }
+  }
+}
+function ultraNucleus(ctx, x, y, rn, Z, N, anti, diag) {
+  const A = Z + N, pc = anti ? PBAR_COL : P_COL, nc = anti ? NBAR_COL : N_COL;
+  if (rn < 1.2) { ctx.fillStyle = Z ? (A > 70 ? '#e8796f' : pc) : nc; ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5); return; }
+  if (rn > 4 * diag) { ctx.fillStyle = 'rgba(232,121,111,0.35)'; ctx.fillRect(0, 0, R.w, R.h); return; } // (inside the nucleus)
+  if (rn < 20 || A <= 1) { ctx.fillStyle = A === 1 ? (Z ? pc : nc) : A > 70 ? '#e8796f' : pc; ctx.beginPath(); ctx.arc(x, y, rn, 0, Math.PI * 2); ctx.fill(); return; }
+  const br = rn / Math.sqrt(A) * 1.05; let pz = 0; // (its nucleons, packed as in nucleusBeads, drawn as discs: they are too big for sprites)
+  for (let k = 0; k < A; k++) {
+    const rr = rn * Math.sqrt((k + 0.5) / A) * 0.92, th = k * 2.39996, isP = (pz + 0.5) / Z <= (k + 1) / A && pz < Z;
+    if (isP) pz++;
+    ctx.fillStyle = isP ? pc : nc; ctx.beginPath(); ctx.arc(x + rr * Math.cos(th), y + rr * Math.sin(th), br, 0, Math.PI * 2); ctx.fill();
+  }
+}
 function nucleusBeads(ctx, x, y, rn, Z, N, alpha, anti) {
   const A = Z + N;
   if (A <= 0) return;
@@ -618,6 +665,7 @@ function drawParticles(rt) {
   const parts = W.parts, np = parts.length, PI = partsSync(), X = S.x, Y = S.y, DEAD = S.dead, K = S.k, NE = S.ne;
   const cx = R.cx, cy = R.cy, hw = R.w / 2, hh = R.h / 2, xMax = R.w + pad, yMax = R.h + pad;
   const gl = R.gl, Z = S.Z;
+  if (W.ultra) drawUltraParts(ctx, rt); else {
   if (!R.lite) for (let j = 0; j < np; j++) {
     const i = PI[j];
     if (DEAD[i] === 1) continue;
@@ -720,6 +768,7 @@ function drawParticles(rt) {
     if (p.q !== 0 && r >= 5 && badgeOn(p)) chargeBadge(ctx, p.q, x + r * 0.78, y - r * 0.78, r);
   }
   if (lateLeptons) for (const p of lateLeptons) drawLepton(ctx, p, w2sx(p.x), w2sy(p.y), bohrMode);
+  } // (not the ultra-realistic mode)
   ctx.restore();
   // the Select tool's selection: a ring round each (a tint only, when there are thousands)
   if (R.msel.size) {
@@ -1626,7 +1675,7 @@ function drawScaleBar() {
   ctx.strokeStyle = CHAMBER.text; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + px, y); ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4); ctx.moveTo(x + px, y - 4); ctx.lineTo(x + px, y + 4); ctx.stroke();
   ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = CHAMBER.text; ctx.textAlign = 'left';
-  const lbl = len >= 10 ? fmtNum(len / 10, 3) + ' nm' : len >= 1 ? len + ' Å' : +(len * 100).toPrecision(3) + ' pm';
+  const lbl = len >= 10 ? fmtNum(len / 10, 3) + ' nm' : len >= 1 ? len + ' Å' : len >= 0.0099 ? +(len * 100).toPrecision(3) + ' pm' : +(len * 1e5).toPrecision(3) + ' fm';
   ctx.fillText(lbl, x + px + 8, y + 4);
   ctx.restore();
 }

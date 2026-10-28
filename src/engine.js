@@ -39,6 +39,14 @@ let MAX_PARTS = 4000, MAX_FREE_E = 1500; // (the particle limit: Settings can ra
 function setMaxParts(n) { MAX_PARTS = n; MAX_FREE_E = Math.round(0.375 * n); }
 const R_NN = 0.35, R_FUS = 0.25;           // enlarged nuclear interaction radii (Å)
 const R_BEAM = 0.9;                        // in a collider, beam particles that pass within their drawn size of each other interact
+const R_LEP_U = 2.82e-5;                   // ultra-realistic mode: two leptons meet inside the classical electron radius, 2.82 fm
+/* How close two beam particles must pass to interact. Ultra-realistic: at their true sizes, and out to where their
+   charges turn them by more than a degree (60 times the head-on distance K), which nuclearScatter maps one to one. */
+function rBeam(a, b) {
+  if (!W.ultra) return a.k !== NUC || b.k !== NUC ? R_BEAM : Math.max(R_BEAM, nucReach(a, b));
+  const qq = Math.abs((a.q || 0) * (b.q || 0)) || (a.k === NUC ? a.Z : 1) * (b.k === NUC ? b.Z : 1), K = 0.72 * qq / Math.max(1e-3, relKE(a, b) * 1e-6); // fm
+  return Math.max(a.k !== NUC || b.k !== NUC ? R_LEP_U : nucReach(a, b), Math.min(60 * K * FM, 0.9));
+}
 const ANGLE_K = 2.0;                       // eV/rad²
 const PARTIAL_K = 0.30;                    // e per unit electronegativity difference
 const FERRO = { 26:[1043, 2.22], 27:[1388, 1.72], 28:[627, 0.606], 64:[292, 7.63] };
@@ -3515,7 +3523,10 @@ function gamowP(a, b, Ecm) { // Ecm in eV
   if (key === '1_0+1_0') S *= W.warp; // its slow step is a weak (β⁺) decay, sped up with the other decays
   const gam = (E) => 5 * S * (100 / E) * Math.exp(-Math.sqrt(EG / E));
   const P = key === '1_1+1_2' && EkeV > DT_KNEE ? gam(DT_KNEE) * sigmaDT(EkeV) / sigmaDT(DT_KNEE) : gam(EkeV);
-  return { P: Math.min(0.9, P), ch };
+  // the true cross section (barns), for the ultra-realistic mode: D–T measured, the rest σ = S/E·e^(−√(E_G/E)) with
+  // S scaled from D–T's 25 MeV·b (FUSION_S is relative to it)
+  const sig = key === '1_1+1_2' ? sigmaDT(EkeV) / 1000 : S * 25000 / EkeV * Math.exp(-Math.sqrt(EG / EkeV));
+  return { P: Math.min(0.9, P), ch, sig };
 }
 /* The measured D–T fusion cross section (mb) at E keV in their own frame: Bosch and Hale's fit (Nucl. Fusion 32,
    611, 1992), σ = S(E)/(E·e^(B_G/√E)) with S a Padé form, 0.5–550 keV and 550–4,700 keV; above that it is taken
@@ -3577,7 +3588,10 @@ function setVel(p, vx, vy) {
 }
 function velOf(p) { return p.rad ? [p.sp * p.ux, p.sp * p.uy] : [p.vx, p.vy]; }
 
-function tryFusion(a, b) {
+/* bd: how close the pass came (Å). In the ultra-realistic mode a pass fuses when it comes inside the true cross
+   section, √(σ/π) (about 10⁻⁵–10⁻⁴ Å), and not otherwise; normally a pass inside R_FUS fuses with the chance gamowP. */
+const fusGate = () => W.ultra ? 2e-3 : R_FUS;
+function tryFusion(a, b, bd) {
   if (a.dead || b.dead) return false;
   if (opp(a, b)) { nuclearAnnihilation(a, b); return true; }
   if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX) return false;
@@ -3587,7 +3601,7 @@ function tryFusion(a, b) {
   const Ecm = 0.5 * mu * (dvx * dvx + dvy * dvy);
   if (Ecm < 50) return false;
   const g = gamowP(a, b, Ecm);
-  if (!(rnd() < g.P)) return false;
+  if (W.ultra ? !(bd < 1e-4 * Math.sqrt(g.sig / Math.PI)) : !(rnd() < g.P)) return false; // (1 b = 10⁻⁸ Å²)
   const M = a.m + b.m, Vx = (a.m * avx + b.m * bvx) / M, Vy = (a.m * avy + b.m * bvy) / M;
   const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y);
   const ne = a.ne + b.ne;
@@ -4267,11 +4281,11 @@ function moveRad(p, dt) {
       if (b < R) {
         const ux0 = p.ux, uy0 = p.uy;
         nuclearEncounter(p, tg, b / R, tg.x, tg.y);
-        if (p.dead || (b < R_FUS && !tg.dead && tryFusion(p, tg))) { stopped = true; break; }
+        if (p.dead || (b < fusGate() && !tg.dead && tryFusion(p, tg, b))) { stopped = true; break; }
         if (tg.dead) continue;
         if (p.ux !== ux0 || p.uy !== uy0) { p.hit = tg.id; stillNear = true; x1 = x0 + (x1 - x0) * t; y1 = y0 + (y1 - y0) * t; break; } // (turned: on from here, next step)
       }
-    } else if (p.k !== NUC && b < nucDrawR(tg) + 0.02 && nucDrawR(tg) > 0.04) {
+    } else if (p.k !== NUC && (W.ultra ? b < trueRfm(tg) * FM : b < nucDrawR(tg) + 0.02 && nucDrawR(tg) > 0.04)) {
       const cx = x0 + (x1 - x0) * t, cy = y0 + (y1 - y0) * t;
       nuclearScatter(p, tg, b, tg.x - cx, tg.y - cy, nucDrawR(tg) + 0.02, 1.2 * Math.cbrt(tg.Z + tg.N)); // (crossing the nucleus itself: inside its radius)
       p.hit = tg.id; stillNear = true;
@@ -4330,7 +4344,7 @@ function radVsFast(p, x0, y0, x1, y1) {
     if (s0 > 1 || d >= Math.max(R, 0.6) || p.hit === tg.id || s <= 0) continue; // (s0 > 1: still closing in, met in a later step, 0.92) // (s = 0: they were closest before this step, and met then)
     if (d < R) {
       nuclearEncounter(p, tg, d / R, tg.x, tg.y);
-      if (p.dead || (d < R_FUS && !tg.dead && tryFusion(p, tg))) return true;
+      if (p.dead || (d < fusGate() && !tg.dead && tryFusion(p, tg, d))) return true;
       if (tg.dead) continue;
     }
     if (d < 0.6) coulombScatter(p, tg, Math.max(d, 0.01));
@@ -4382,16 +4396,16 @@ function beamCollisions(id0) {
       // enough apart that the pull is slight; here the separation is only a few ångström)
       if (live && d < R_BB && t > 0 && t < 1 && d > 0.05) beamBeam(C, a, b, ex, ey, d);
       const both = a.k === NUC && b.k === NUC, Rn = both ? nucReach(a, b) : 0;
-      if (closing || d > Math.max(beams ? R_BEAM : 0.6, Rn) || t <= 0) continue; // (t = 0: closest before this step, when they met)
+      if (closing || d > Math.max(beams ? rBeam(a, b) : 0.6, Rn) || t <= 0) continue; // (t = 0: closest before this step, when they met)
       if (beams) { if (live) beamHit(C, a, b, d, x, y, ex, ey); continue; } // (while a ring speeds them up, its separated orbits keep the beams apart: a real machine holds them many beam widths apart, more than fits here)
       if (opp(a, b) || (a.k !== NUC && b.k !== NUC && a.k !== b.k)) {
-        if (a.k !== NUC && b.k !== NUC) { if (d < R_NN) eeEvent(a, b, x, y); }
-        else if (both && d < R_NN) { if (a.Z + a.N === 1 && b.Z + b.N === 1 && !a.ne && !b.ne && nnbarEvent(a, b, x, y)) continue; nuclearAnnihilation(a, b); }
+        if (a.k !== NUC && b.k !== NUC) { if (d < (W.ultra ? R_LEP_U : R_NN)) eeEvent(a, b, x, y); }
+        else if (both && d < (W.ultra ? Rn : R_NN)) { if (a.Z + a.N === 1 && b.Z + b.N === 1 && !a.ne && !b.ne && nnbarEvent(a, b, x, y)) continue; nuclearAnnihilation(a, b); }
         continue;
       }
       if (both) {
         if (d < Rn) { nuclearEncounter(a, b, d / Rn, x, y); if (a.dead) break; if (b.dead) continue; }
-        if (d < R_FUS && tryFusion(a, b)) break;
+        if (d < fusGate() && tryFusion(a, b, d)) break;
         if (!a.dead && !b.dead && a.Z > 0 && b.Z > 0) coulombScatter(a, b, Math.max(d, 0.01));
       }
     }
@@ -4445,11 +4459,11 @@ function beamHit(C, a, b, d, x, y, ex, ey) {
     hit(t || (W.log.length ? W.log[W.log.length - 1].text.replace(/^Antimatter annihilation: /, '') : `${la} + ${lb} annihilated`));
     return;
   }
-  const R = lepA || lepB ? R_BEAM : Math.max(R_BEAM, nucReach(a, b));
+  const R = rBeam(a, b);
   if (!lepA && !lepB) {
     const t = nuclearEncounter(a, b, d / R, x, y);
     if (t) { hit(t); return; }
-    if (tryFusion(a, b)) { hit(`${la} + ${lb} fused: ${W.log.length ? W.log[W.log.length - 1].text.replace(/^Fusion: /, '') : ''}`); return; }
+    if (tryFusion(a, b, d)) { hit(`${la} + ${lb} fused: ${W.log.length ? W.log[W.log.length - 1].text.replace(/^Fusion: /, '') : ''}`); return; }
   }
   if (!a.dead && !b.dead) {
     const th = nuclearScatter(a, b, d, ex, ey, R);
@@ -4497,7 +4511,7 @@ function nuclearScatter(a, b, d, ex, ey, reach = R_NN, rmap = 0) { // rmap (fm):
   const ps = Math.hypot(A[1], A[2]);
   if (!(ps > 0)) return null;
   const vrel = ps / A[0] + ps / Bst; // their speeds add in their own frame (units of c)
-  const K = 1.44e6 * Math.abs(qa * qb) / (ps * vrel), bfm = Math.max(0.02, Math.sqrt(Math.min(1, d / reach))) * (rmap || Math.max(Rc, HIT_COUL * K)); // (k = 1.44 MeV·fm; d₀ = 2K)
+  const K = 1.44e6 * Math.abs(qa * qb) / (ps * vrel), bfm = W.ultra ? Math.max(0.02, d / FM) : Math.max(0.02, Math.sqrt(Math.min(1, d / reach))) * (rmap || Math.max(Rc, HIT_COUL * K)); // (k = 1.44 MeV·fm; d₀ = 2K) (ultra: the pass's own distance)
   const th0 = 2 * Math.atan(K / bfm);
   const side = Math.sign(A[1] * ey - A[2] * ex) || 1; // partner to the left (+) or right (−) of a's path
   const th = (qa * qb > 0 ? -1 : 1) * side * th0;
@@ -4674,7 +4688,7 @@ function fastEncounters(p) {
   const hits = segTargets(x0, y0, x1, y1, 1.6, (t) => t.k === NUC && t.Z > 0 && t !== p);
   for (const [t, A, b] of hits) {
     if (A.dead || p.dead || sameEv(p, A)) continue;
-    if (b < R_FUS && tryFusion(p, A)) return;
+    if (b < fusGate() && tryFusion(p, A, b)) return;
     if (opp(p, A) && b < (p.ne > 0 && A.ne > 0 ? 0.5 * (p.ljR + A.ljR) : 0.6)) { evAnti(p, A, b); return; }
     const contact = (p.ne > 0 && A.ne > 0) ? 0.35 * (p.ljR + A.ljR) : 0;
     if (contact > 0 && b < contact) { hardSphere(p, A, b, contact); return; }
@@ -4734,7 +4748,7 @@ function fastFastNuclear() {
       let t = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0; const closing = t > 1; t = clamp(t, 0, 1); // (closing: still closing in, they meet in a later step at the true miss distance, 0.92)
       if (closing) continue;
       const ex = rx + t * dx, ey = ry + t * dy, b2 = ex * ex + ey * ey;
-      if (b2 < R_FUS * R_FUS) { if (tryFusion(a, b)) break; }
+      if (b2 < fusGate() ** 2) { if (tryFusion(a, b, Math.sqrt(b2))) break; }
       if (b2 < 0.36 && !a.dead && !b.dead) coulombScatter(a, b, Math.sqrt(b2));
     }
   }
@@ -5559,7 +5573,7 @@ function stepPlain(dt) {
   rpMark(5);
   if (W.step % 25 === 0) housekeeping();
   if (W.step % 10 === 0) localTemps();
-  W.t += dt;
+  { const y = dt - (W.tc || 0), t = W.t + y; W.tc = (t - W.t) - y; W.t = t; } // (compensated: a yoctosecond a frame is far below the last digit of a clock past 1,000 tu, 1.03)
   if (W.flights.length) landFlights();
   rpMark(6);
   // drop dead particles
@@ -5641,8 +5655,9 @@ const FRAME_REF = 1 / 60;
 function simFrame(realDt, budgetMs) {
   const t0 = performance.now();
   let simAdv = 0, steps = 0, cut = false;
-  const slow = slowFactor(realDt), fr = clamp(realDt / FRAME_REF, 0.01, 3); // (the frame's share of a sixtieth: any frame rate up to 6,000 fps advances the same simulated time per second)
-  let target = W.simPerFrame * slow * fr; const floor = W.flights.length || slow < 0.999 ? 1e-9 : DT_MIN; // (with light in flight, or in slow motion, a frame may be shorter than the shortest normal step: slowed down that far, what is followed is still seen to slow; at a step a frame this costs nothing, 0.91)
+  let slow = slowFactor(realDt); const fr = clamp(realDt / FRAME_REF, 0.01, 3);
+  if (W.ultra && W.simPerFrame < (W.baseSpf || W.simPerFrame) / 512 * 0.99) slow = 1; // (ultra-realistic, set slower than 1/512×: the pace is exactly what is set, a yoctosecond a second at the slowest; automatic slow motion stays out of it) // (the frame's share of a sixtieth: any frame rate up to 6,000 fps advances the same simulated time per second)
+  let target = W.simPerFrame * slow * fr; const floor = W.ultra && W.simPerFrame < DT_MIN ? 1e-18 : W.flights.length || slow < 0.999 ? 1e-9 : DT_MIN; // (ultra-realistic, set below one shortest step: a step a frame, however short, down to a yoctosecond a second) // (with light in flight, or in slow motion, a frame may be shorter than the shortest normal step: slowed down that far, what is followed is still seen to slow; at a step a frame this costs nothing, 0.91)
   // set below one shortest step a frame (1/512× of a fine setup): the frames' time is saved up and run once it makes a
   // whole step, so the motion is as slow as asked and not one step a frame, whatever the fps. (Slow motion keeps its
   // floor of a step a frame: it follows fast particles, which must move every frame to be followed.)

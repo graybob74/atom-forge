@@ -863,7 +863,7 @@ function exoHeld(o) {
 }
 function moveExos(dt, id0) {
   if (W.muBound && W.muBound.length) muBoundTick(dt);
-  for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res) { if (exoHeld(o)) o.wait = true; else decayExo(o); } } // (resonances: gone within a proton's width, whatever the decay clock)
+  for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res && !W.ultra) { if (exoHeld(o)) o.wait = true; else decayExo(o); } } // (resonances: gone within a proton's width, whatever the decay clock)
   const n0 = W.exo.length;
   if (!n0) return;
   const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, hw = W.box.w / 2, hh = W.box.h / 2; // (proper seconds per lab second: 1/γ)
@@ -880,7 +880,7 @@ function moveExos(dt, id0) {
     flyExo(o, h);
     if (W.objs.length && objExo(o, x0, y0)) continue; // (placed objects: props.js)
     if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
-    if (d.res && !dec) continue; // (a held resonance: only flies)
+    if (d.res && !dec && !W.ultra) continue; // (a held resonance: only flies) (ultra-realistic: resonances fly and decay on the clock, with their own mean lives, ħ/Γ)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
       if (!((d.atom || d.hyp || d.muonium || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP)) && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
       if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
@@ -920,7 +920,7 @@ function exoHits(o, x0, y0) {
   const hits = segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && t.Z > 0 && !t.anti);
   for (const [, tg, b] of hits) {
     if (tg.dead || (o.ev && o.ev === tg.evId)) continue; // (made in the same event: it has already left that nucleus)
-    const R = Math.max(R_FUS, nucDrawR(tg) + 0.05);
+    const R = W.ultra ? (trueRfm(tg) + 0.7 + 2) * FM : Math.max(R_FUS, nucDrawR(tg) + 0.05); // (ultra: the nucleus and a meson at their true sizes)
     if (b >= R) continue;
     if (o.hitId === tg.id) continue; // (one pass, one encounter)
     o.hitId = tg.id;
@@ -1199,7 +1199,7 @@ function nuclearEncounter(a, b, u, x, y) {
   const bx = P[1] / P[0], by = P[2] / P[0], As = toRest(Pa, bx, by), Bs0 = toRest(Pb, bx, by)[0], ps = Math.hypot(As[1], As[2]);
   if (!(ps > 0)) return null;
   const vrel = ps / As[0] + ps / Bs0, K = Z1 * Z2 ? 1.44 * Z1 * Z2 / (ps * vrel) : 0;
-  const Rc = 1.2 * (Math.cbrt(A1) + Math.cbrt(A2)), b3 = Math.max(Rc, HIT_COUL * K) * Math.sqrt(clamp(u, 0, 1));
+  const Rc = 1.2 * (Math.cbrt(A1) + Math.cbrt(A2)), b3 = W.ultra ? clamp(u, 0, 1) * ultraReach(a, b) / FM : Math.max(Rc, HIT_COUL * K) * Math.sqrt(clamp(u, 0, 1)); // (ultra: the pass's own distance)
   if (A1 === 1 && A2 === 1) { // two nucleons: inelastic inside √(σ_inel/π), diffraction out to √(σ_tot/π)
     if (b3 < Math.sqrt(nnTable(NN_INEL, M) / (10 * Math.PI))) return nnInelastic(a, b, x, y, P, M);
     if (Ecm > 20 && b3 < Math.sqrt(nnTable(NN_TOT, M) / (10 * Math.PI))) return diffract(a, b, ps, 1.6);
@@ -1588,4 +1588,17 @@ function fragmentInto(a, b, Pa, Pb, b3, anti, items, moms) {
    in nucleon radii; a pass inside the sum of two radii (and never less than the reaches set for light nuclei) is a
    nuclear encounter, mapped onto real impact parameters as above. */
 function nucDrawR(p) { if (p.k !== NUC) return 0; const A = p.Z + p.N; return 0.045 * (A <= 1 ? 1.12 : Math.sqrt((A - 0.5) / 0.82) + 1.12); }
-function nucReach(a, b) { return Math.max(a.Z === 0 || b.Z === 0 ? R_NN : R_FUS, nucDrawR(a) + nucDrawR(b)); }
+function nucReach(a, b) { return W.ultra ? ultraReach(a, b) : Math.max(a.Z === 0 || b.Z === 0 ? R_NN : R_FUS, nucDrawR(a) + nucDrawR(b)); }
+/* ---- the ultra-realistic mode (W.ultra, 1.03): nothing enlarged. A nucleus is 1.2·A^⅓ fm across in radius (1 fm =
+   10⁻⁵ Å), and a pass meets it at its true distance: inside the two radii and the reach of the strong force (2 fm),
+   and, for a neutron, its wavelength ƛ = ħ/p as well (4.55 fm/√(E/MeV): 0.29 Å for a thermal neutron, which is why
+   slow neutrons are caught so much more readily than fast ones). Passes are mapped onto impact parameters one to one
+   (nuclearEncounter), not stretched over the enlarged reach. */
+const FM = 1e-5; // Å per fm
+function trueRfm(p) { if (p.k !== NUC) return 0; const A = p.Z + p.N; return A <= 1 ? 0.88 : 1.2 * Math.cbrt(A); }
+function relKE(a, b) { const ka = keOf(a), kb = keOf(b); return (ka * b.m + kb * a.m) / (a.m + b.m); } // eV, about: their relative motion's energy
+function ultraReach(a, b) {
+  let R = trueRfm(a) + trueRfm(b) + 2;
+  if (a.Z === 0 || b.Z === 0) R += 4.55 / Math.sqrt(Math.max(1e-3, relKE(a, b)) * 1e-6);
+  return R * FM;
+}

@@ -1151,7 +1151,7 @@ function onMove(e) {
   if (d && d.kind === 'pinch' && UI.pointers.size >= 2) {
     const [a, b] = [...UI.pointers.values()];
     const dd = Math.hypot(a.x - b.x, a.y - b.y);
-    const s = clamp(d.s0 * dd / Math.max(10, d.d0), 0.01, ZOOM_MAX);
+    const s = clamp(d.s0 * dd / Math.max(10, d.d0), 0.01, zoomMax());
     const mid = [(a.x + b.x) / 2, (a.y + b.y) / 2];
     // keep the world point under the initial midpoint under the current midpoint
     const wmx = (d.mid[0] - R.w / 2) / d.s0 + d.c0[0], wmy = d.c0[1] - (d.mid[1] - R.h / 2) / d.s0;
@@ -1291,7 +1291,7 @@ function onWheel(e) {
 }
 function zoomAt(px, py, f) {
   const [wx, wy] = s2w(px, py);
-  R.s = clamp(R.s * f, 0.01, ZOOM_MAX);
+  R.s = clamp(R.s * f, 0.01, zoomMax());
   R.cx = wx - (px - R.w / 2) / R.s; R.cy = wy + (py - R.h / 2) / R.s;
 }
 /* continuous tool effects, once per frame */
@@ -2263,7 +2263,7 @@ function worldToJSON() {
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
   return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
-    spf: W.simPerFrame, warp: W.warp, minShow: W.minShow | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -2274,7 +2274,8 @@ function worldFromJSON(d) {
   W.box.w = W.box.tw = num(d.box.w, 20, 20000, 200); W.box.h = W.box.th = num(d.box.h, 20, 20000, 140); UI.aspect = W.box.th / W.box.tw;
   W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.nWall = ['reflect', 'absorb', 'pass', 'fast'].includes(d.nWall) ? d.nWall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -50, 50, 0); W.Ey = num(d.Ey, -50, 50, 0);
   UI.E = Math.hypot(W.Ex, W.Ey); UI.Eang = UI.E ? Math.round(Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) : (UI.Eang || 0); // (the Lab's field figure and direction, from the field)
-  W.simPerFrame = num(d.spf, DT_MIN, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1e-6, 1e30, 1); W.minShow = [0, 1, 2].includes(d.minShow) ? d.minShow : 0; W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true;
+  W.simPerFrame = num(d.spf, W.ultra ? 1e-15 : DT_MIN, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1e-6, 1e30, 1); W.minShow = [0, 1, 2].includes(d.minShow) ? d.minShow : 0; W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true;
+  ultraHold(); // (the ultra-realistic mode: real decay rates, nothing held, whatever the save had)
   const made = [], hw = W.box.w / 2, hh = W.box.h / 2;
   for (const q of d.parts) {
     if (!Array.isArray(q) || q.length < 9) { made.push(null); continue; }
@@ -2775,8 +2776,8 @@ function bindLab() {
   $('chkGlow').onchange = (e) => { W.glow = e.target.checked; };
   $('boxSlider').oninput = (e) => { const w = boxFromS(+e.target.value); W.box.tw = w; W.box.th = w * UI.aspect; syncLabText(); };
   $('spdSlider').oninput = (e) => { W.simPerFrame = spdFromS(+e.target.value); syncLabText(); syncSpeed(); };
-  bindSeg('segMinShow', (v) => { W.minShow = +v; syncLabText(); });
-  $('warpSlider').oninput = (e) => { W.warp = Math.pow(10, +e.target.value); syncLabText(); if (UI.tool === 'place' || UI.tool === 'fire') buildToolOpts(); };
+  bindSeg('segMinShow', (v) => { if (!W.ultra) W.minShow = +v; syncLabText(); });
+  $('warpSlider').oninput = (e) => { if (W.ultra) return; W.warp = Math.pow(10, +e.target.value); syncLabText(); if (UI.tool === 'place' || UI.tool === 'fire') buildToolOpts(); };
   $('chkDecay').onchange = (e) => { W.decayOn = e.target.checked; log('tool', W.decayOn ? 'Radioactive decay resumed' : 'Radioactive decay paused'); syncLabText(); if (UI.tool === 'place' || UI.tool === 'fire') buildToolOpts(); };
   $('chkSlowmo').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', e.target.checked ? '1' : '0'); };
   bindSeg('segBohr', (v) => { setAtomView(v); });
@@ -2832,7 +2833,9 @@ function syncLabText() {
   $('warpVal').textContent = !W.decayOn ? 'paused' : warpWords() === 'real' ? 'real rate' : warpWords();
   $('warpNote').textContent = !W.decayOn ? 'Paused: no nucleus decays until it is switched back on.'
     : `Nuclei and unstable particles age ${fmtTime(decayPerSecond()).replace(/ as$/, ' attoseconds')} per second you watch${warpWords() === 'real' ? ', the same as everything else' : W.warp < 1 ? `, slower than everything else: they live ${fmtFactor(1 / W.warp)} longer than they really do, so they fly that much further` : ''}.` + (W.minShow ? ' The shortest-lived (resonances, π⁰, Σ⁰ …) are held until they have flown a few ångströms or a moment has passed: the same decays, only further along.' : '');
-  $('warpSlider').disabled = !W.decayOn;
+  $('warpSlider').disabled = !W.decayOn || !!W.ultra;
+  for (const b of $('segMinShow').querySelectorAll('button')) b.disabled = !!W.ultra;
+  if (W.ultra) $('warpNote').textContent += ' The ultra-realistic mode keeps decays at their real rates (Settings → General).';
 }
 
 /* The Motion readout: the set speed, and while slow motion holds time back, how far it has slowed it. */
@@ -2844,12 +2847,28 @@ function motionText() { // the motion the simulation actually gets through each 
 /* ------------------------------------------------------------------ speed (simulated time per frame) */
 const SPEED_MIN = -9, SPEED_MAX = 4; // 1/512× … 16× the setup's normal speed
 function speedText(m) {
+  if (W.ultra && m < Math.pow(2, SPEED_MIN) * 0.99) return fmtTime(spfRate(UI.baseSpf * m)).replace(/\.0+ /, ' ').replace(/(\.\d*?)0+ /, '$1 ') + '/s'; // (ultra-realistic: below 1/512×, as time per second)
   if (m >= 0.95) return (m >= 9.5 ? Math.round(m) : Math.round(m * 10) / 10) + '×';
   const inv = 1 / m;
   return Math.abs(inv - Math.round(inv)) < 0.08 ? '1/' + Math.round(inv) + '×' : m.toFixed(2) + '×';
 }
+/* The ultra-realistic mode's slowest speeds, below 1/512×: a tenth at a click, in simulated time per second, from
+   1 fs a second down to 1 ys (10⁻²⁴ s) a second (1.03). */
+const ULTRA_SLOWEST = 1e-24; // s of simulated time per second
+const spfRate = (spf) => spf * PHYS.TU_S * 60; // s a second at 60 fps
+function ultraSlow() { return W.ultra && W.simPerFrame < UI.baseSpf * Math.pow(2, SPEED_MIN) * 0.99; }
 function stepSpeed(dir) {
-  const k = clamp(Math.round(Math.log2(W.simPerFrame / UI.baseSpf)) + dir, SPEED_MIN, SPEED_MAX);
+  const k0 = Math.round(Math.log2(W.simPerFrame / UI.baseSpf));
+  if (W.ultra && (ultraSlow() || (dir < 0 && k0 <= SPEED_MIN))) {
+    const rate = spfRate(W.simPerFrame), dec = Math.pow(10, Math.round(Math.log10(rate)) === Math.log10(rate) ? Math.log10(rate) : Math.floor(Math.log10(rate)));
+    let r = dir < 0 ? (ultraSlow() ? rate / 10 : dec) : rate * 10;
+    r = Math.max(ULTRA_SLOWEST, Math.pow(10, Math.round(Math.log10(r)))); // (whole decades: 1 as/s, 100 zs/s …)
+    if (dir > 0 && r >= spfRate(UI.baseSpf * Math.pow(2, SPEED_MIN)) * 0.99) W.simPerFrame = UI.baseSpf * Math.pow(2, SPEED_MIN);
+    else W.simPerFrame = r / (PHYS.TU_S * 60);
+    UI.ach = 1; UI.capped = false; syncSpeed(); $('spdSlider').value = sFromSpd(W.simPerFrame); syncLabText();
+    return;
+  }
+  const k = clamp(k0 + dir, SPEED_MIN, SPEED_MAX);
   W.simPerFrame = UI.baseSpf * Math.pow(2, k);
   UI.ach = 1; UI.capped = false;
   syncSpeed();
@@ -2858,11 +2877,11 @@ function stepSpeed(dir) {
 function syncSpeed() {
   const m = W.simPerFrame / UI.baseSpf, v = $('speedVal');
   // the speed actually reached: at the computer's limit (amber) less than asked, as each frame's physics time is used up
-  v.textContent = UI.slow || W.slowHold ? 'slow-mo' + (Math.abs(m - 1) > 1e-6 ? ' ' + speedText(m) : '') : speedText(UI.capped ? m * clamp(UI.ach || 1, 1e-4, 1) : m); // (the speed setting shows in automatic slow motion too, 0.91)
+  v.textContent = (UI.slow || W.slowHold) && !ultraSlow() ? 'slow-mo' + (Math.abs(m - 1) > 1e-6 ? ' ' + speedText(m) : '') : speedText(UI.capped ? m * clamp(UI.ach || 1, 1e-4, 1) : m); // (the speed setting shows in automatic slow motion too, 0.91)
   v.classList.toggle('cap', !!UI.capped && !UI.slow);
-  v.classList.toggle('slow', !!UI.slow || !!W.slowHold);
+  v.classList.toggle('slow', (!!UI.slow || !!W.slowHold) && !ultraSlow());
   const k = Math.round(Math.log2(m));
-  $('bSlower').disabled = k <= SPEED_MIN; $('bFaster').disabled = k >= SPEED_MAX;
+  $('bSlower').disabled = W.ultra ? spfRate(W.simPerFrame) <= ULTRA_SLOWEST * 1.01 : k <= SPEED_MIN; $('bFaster').disabled = k >= SPEED_MAX;
   const rate = W.simPerFrame * PHYS.TU_S * 60 * Math.min(1, UI.ach || 1);
   v.parentElement.title = `About ${fmtTime(rate)} of motion per second` + (UI.capped ? ' (as fast as this computer can go with this many particles: fewer of them, or more physics time per frame in Settings, make it faster)' : '') + (W.warp > 1.0001 ? `; radioactive decay sped up ${fmtFactor(W.warp)}` : '');
 }
@@ -3660,7 +3679,7 @@ function loadPreset(key) {
   UI.preset = key in PRESETS ? key : 'soup';
   $('preset').value = UI.preset;
   R.sel = null; R.selX = null; R.hover = null; R.follow = null; UI.drag = null; W.grab = null; R.msel.clear(); R.oSel.clear();
-  P.build();
+  P.build(); ultraHold();
   settleOverlaps();
   UI.baseSpf = W.baseSpf = W.simPerFrame; UI.ach = 1; UI.capped = false;
   W.hist = { t: [], T: [], bath: [] };
@@ -4684,7 +4703,7 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
 const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
@@ -4700,8 +4719,22 @@ function settingsLoad() {
     if (pp && typeof pp === 'object' && Object.keys(SET_PERF).every(k => setOk(k, pp[k]))) SET.prePerf = pp;
   }
 }
+/* The ultra-realistic mode (Settings → General, 1.03): true nuclear sizes and cross sections (hep.js ultraReach,
+   engine.js tryFusion), decays at their real rates with nothing held to be seen, zoom down to nuclear sizes and
+   slow motion down to a yoctosecond a second. The setup's own decay speed and "let the shortest-lived show" are put
+   aside while it is on (W.preUltra) and come back when it is turned off. */
+function ultraHold() { W.preUltra = W.ultra ? { warp: W.warp, minShow: W.minShow } : null; if (W.ultra) { W.warp = 1; W.minShow = 0; } }
+function ultraApply() {
+  const on = !!SET.ultra; if (on === !!W.ultra) return;
+  if (!on && W.preUltra) { W.warp = W.preUltra.warp; W.minShow = W.preUltra.minShow; }
+  W.ultra = on; ultraHold();
+  if (!on) { R.s = Math.min(R.s, ZOOM_MAX); const m = W.simPerFrame / (UI.baseSpf || W.simPerFrame); if (m < Math.pow(2, SPEED_MIN)) W.simPerFrame = UI.baseSpf * Math.pow(2, SPEED_MIN); } // (back inside the normal zoom and speeds)
+  if (typeof syncSpeed === 'function' && $('speedVal')) syncSpeed();
+  $('ultraBadge').hidden = !on;
+}
 function applySettings() {
   setMaxParts(SET.maxParts);
+  ultraApply();
   if (MAX_PARTS < 8000 && OPT.place.count > 20) OPT.place.count = 20; // (100 at a click only with room for them)
   const dm = SET.res === 'sharp' ? 2 : SET.res === 'standard' ? 1 : 0.75;
   if (R.dprMax !== dm) { R.dprMax = dm; if (R.w) rResize(R.w, R.h); }
@@ -4831,7 +4864,7 @@ function syncSettings() {
   $('setRew').checked = SET.rewOn; setSegValue('segRewSpan', SET.rewSpan); setSegValue('segRewEvery', SET.rewEvery); setSegValue('segRewMem', SET.rewMem); $('setRewNote').textContent = rewNote();
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
-  $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo;
+  $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
@@ -4906,6 +4939,7 @@ function settingsInit() {
   $('setFx').onchange = (e) => setSetting('effects', e.target.checked);
   $('setTips').onchange = (e) => setSetting('tips', e.target.checked);
   $('setFps').onchange = (e) => setSetting('fps', e.target.checked);
+  $('setUltra').onchange = (e) => setSetting('ultra', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');
   const apiChanged = () => { const k = keyIn.value.trim(), m = modelIn.value.trim(); if (k === (SET.apiKey || '') && m === (SET.apiModel || '')) return; SET.apiKey = k; SET.apiModel = m; store('settings', JSON.stringify(SET)); aiInit(); syncSettings(); log('tool', k ? 'Claude API key set: Ask Claude and Identify molecules can ask Claude here' : 'Claude API key removed'); };

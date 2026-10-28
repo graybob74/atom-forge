@@ -77,18 +77,38 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
-- An "ultra-realistic" mode that gives up visibility and convenience: nuclei at their true size (about 1/100,000 of the
-  atom, so they vanish), nuclear reactions only at their true cross sections (a beam then almost never hits anything in
-  a box this size), no enlarged reach, no slowed or held decays, no hits made more frequent in setups, and zoom far
-  enough (about 10⁵ times further) to see a nucleus at its true size inside its atom (asked for by the user).
-- Extreme slow motion, down to about 1 ys (10⁻²⁴ s) of simulated time per second, so the shortest-lived particles
-  (a φ meson lives 1.5×10⁻²² s, a ρ 4×10⁻²⁴ s) can be watched living and decaying in real time instead of being held.
-  The slowest now is 1/512× (about a femtosecond a second), so this is about 10⁹ times slower. At that pace light
-  crosses 0.3 fm a second and atoms stand still: it belongs with the ultra zoom (nuclear-scale views) of the
-  ultra-realistic mode (asked for by the user).
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
+
+## 1.03.0: the ultra-realistic mode (approved by the user)
+- Settings → General → Ultra-realistic (`SET.ultra`, mirrored in `W.ultra`; "ultra-realistic" shows beside the
+  version). Nothing is enlarged or sped up to be seen:
+  - Nuclear reach at true size (hep.js `ultraReach`): the two radii 1.2·A^⅓ fm, plus 2 fm for the strong force,
+    plus, with a neutron, its wavelength ƛ = 4.55 fm/√(E/MeV). Measured: thermal neutron on ²³⁵U 0.29 Å (about as
+    before, so slow neutrons are still caught), a 2 MeV neutron 1.4×10⁻⁴ Å, a 5 MeV α 1.1×10⁻⁴ Å (it was 0.25–0.35 Å).
+    A pass is an impact parameter one to one (`nuclearEncounter`, `nuclearScatter`), not stretched over the reach.
+  - Fusion only inside the true cross section, √(σ/π): D–T measured (5.1 b at 64 keV), the rest S/E·e^(−√(E_G/E))
+    from the S-factors scaled to D–T's 25 MeV·b (`gamowP().sig`, `tryFusion(a, b, bd)`).
+  - Beams (`rBeam`): leptons inside 2.82 fm, nuclei at their true reach, Coulomb turns out to 60 times the head-on
+    distance; unstable hadrons hit nuclei at their true sizes.
+  - Decays at their real rates: the setup's decay speed and "let the shortest-lived show" are put aside
+    (`W.preUltra`, restored when it is turned off; saves keep the setup's), and resonances (ρ, φ, Δ …) fly and decay
+    on the clock with their mean lives ħ/Γ instead of at once.
+  - Zoom to 4×10⁸ px/Å (`zoomMax()`; 0.3 fm across the view). Past the normal 4,000 px/Å the WebGL layer is left out
+    (single precision is a few fm at best) and Canvas 2D draws everything. Free electrons are a 1-pixel dot; a bare
+    nucleus or a neutron a dot until its true size is larger, then its nucleons; inside an atom's cloud a faint wash
+    with the nucleus at the centre at its true size (`drawUltraParts`); bonds stay thin lines; the scale bar goes to fm.
+  - Slow motion below 1/512× in decades of simulated time per second, 1 fs/s down to 1 ys/s (`stepSpeed`); there
+    automatic slow motion stays out, each frame takes one step of exactly that length (`simFrame` floor 10⁻¹⁸ tu), and
+    the clock is a compensated sum (a yoctosecond is below the last digit of `W.t` past 1,000 tu).
+- Measured (Node, 300 frames, seed 7): fusion setup 14 fusions normally, 7 ultra; chain reaction 20 fissions normally
+  in 600 frames, 2 ultra (fast neutrons almost never hit); pion beam 13 reactions, 0 ultra; spallation (sns) 338, 0.
+  At 1 ys/s, 15 of 20 φ mesons were left after 2.5×10⁻²³ s (expected 17 ± 2), and 1,500 frames advanced exactly
+  2.5×10⁻²³ s. Energy with the bath off, ultra: within 1.2 eV in soup, mucf, useries, annihilation, antihydrogen,
+  pet and sns; the NIF capsule gained 205 eV with no fusion (the known heavily-ionized-plasma drift, which normally
+  happens with fusions in it).
+- Test: t_features "1.03 ultra".
 
 ## 1.02.0: where hits land on a detector screen; the walls' charge
 - Detector screens now also record where along them each hit lands (40 strips, light and particles apart:
