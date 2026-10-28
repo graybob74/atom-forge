@@ -1,4 +1,4 @@
-<title>Atom Forge 1.00.0</title>
+<title>Atom Forge 1.01.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -214,6 +214,11 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .qmh { padding: 5px 8px 6px; }
 .qmh .t1 { font-weight: 700; }
 .qmh .t2 { color: var(--ch-dim); font-family: var(--font-data); font-size: 11px; margin-top: 1px; }
+.qcard { padding: 0 8px 6px; max-width: 300px; font-size: 12px; line-height: 1.35; }
+.qcr { display: grid; grid-template-columns: 104px 1fr; gap: 6px; padding: 2px 0; }
+.qcr .l { color: var(--ch-dim); }
+.qcr .v { font-variant-numeric: tabular-nums; }
+.qcf { margin: 5px 0 0; color: var(--ch-dim); }
 .qmi { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-width: 0; text-align: left; background: transparent; border: 0;
   color: inherit; border-radius: 6px; padding: 6px 8px; font-weight: 600; cursor: pointer; }
 .qmi > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -16955,6 +16960,7 @@ function pfindOpen(btn) {
   const q = $('pfQ'); q.oninput = show; show(); q.focus();
   q.onkeydown = (e) => { if (e.key === 'Enter' && res.length) { e.preventDefault(); pmenuClose(); selectSpec(res[0].sp); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); pmenuClose(); } };
   m.onclick = (e) => { const b = e.target.closest('.pm-i'); if (!b || !res[+b.dataset.k]) return; pmenuClose(); selectSpec(res[+b.dataset.k].sp); };
+  m.oncontextmenu = (e) => { const b = e.target.closest('.pm-i'); if (!b || !res[+b.dataset.k]) return; chipCard(e, res[+b.dataset.k].sp); };
 }
 function pmenuOpen(ci, btn) {
   const m = $('pmenu'), [name, list] = PCATS[ci];
@@ -16967,6 +16973,7 @@ function pmenuOpen(ci, btn) {
   m.hidden = false; m.style.left = Math.max(4, Math.min((r.left - st.left) / ui, (st.width / ui) - m.offsetWidth - 4)) + 'px'; m.style.top = ((r.bottom - st.top) / ui + 4) + 'px';
   for (const b of document.querySelectorAll('#palette .cat')) b.setAttribute('aria-expanded', String(b === btn));
   m.onclick = (e) => { const b = e.target.closest('.pm-i'); if (!b) return; pmenuClose(); if (b.dataset.k === 'pt') { openPT(); return; } selectSpec(list[+b.dataset.k]); };
+  m.oncontextmenu = (e) => { const b = e.target.closest('.pm-i'); if (!b || b.dataset.k === 'pt') return; chipCard(e, list[+b.dataset.k]); };
 }
 function pmenuClose() { const m = $('pmenu'); if (m) m.hidden = true; for (const b of document.querySelectorAll('#palette .cat')) b.setAttribute('aria-expanded', 'false'); }
 function buildPalette() {
@@ -16987,6 +16994,7 @@ function buildPalette() {
     const b = e.target.closest('.chip'); if (!b) return;
     const q = items[+b.dataset.i]; if (q && q !== 'sep') selectSpec(q.spec);
   };
+  pal.oncontextmenu = (e) => { const b = e.target.closest('.chip[data-i]'); if (!b) return; const q = items[+b.dataset.i]; if (q && q !== 'sep') chipCard(e, q.spec); }; // (what it is: 1.01)
   const sel = pal.querySelector('.chip[aria-pressed="true"]'); // keep the chosen particle in view
   if (sel && (sel.offsetLeft < pal.scrollLeft || sel.offsetLeft + sel.offsetWidth > pal.scrollLeft + pal.clientWidth)) pal.scrollLeft = sel.offsetLeft - 40;
 }
@@ -21754,6 +21762,91 @@ function qmGlobal(px, py, wx, wy) {
     qm2(qmBtn('Particle view', () => toggleParticleView(), { key: 'V', pressed: R.view.bohr === 'nuc', cls: 'tick' }), qmBtn('Orbitals', () => toggleOrbitalView(), { key: 'O', pressed: R.view.bohr === 'orb', cls: 'tick' })) +
     qm2(qmBtn('Settings…', () => openSettings()), qmBtn('Restart', () => loadPreset(UI.preset), { key: 'R', cls: 'danger', title: 'Restart this preset' }));
 }
+/* ---- What a palette chip is (1.01): right-click a chip in the top bar, an item of its menus or a Find result (or press
+   and hold it) for a card about the particle, element or molecule: what it is, its charge, mass, lifetime or bonds, what
+   it is made of, where it is found, and what can be done with it. Built in the quick menu, so it looks and behaves the
+   same (Escape or a click elsewhere closes it). */
+const SPEC_ABOUT = {
+  e: ['−1 e', '0.511 MeV/c² (1/1836 of a proton)', 'stable', 'Around every nucleus in ordinary matter; free in plasmas, flames and metals, and as β⁻ rays and cathode rays.'],
+  pos: ['+1 e', '0.511 MeV/c²', 'stable, until it meets an electron: they annihilate, usually into two 511 keV γ rays', 'β⁺ decay (the tracer of a PET scan), pair production by γ rays above 1.02 MeV, cosmic rays.'],
+  n: ['0', '939.57 MeV/c² (1.00866 u)', 'mean life 879 s when free (β⁻ decay into a proton, an electron and an antineutrino); stable in most nuclei', 'In every nucleus but ordinary hydrogen; freed by fission, fusion and spallation.'],
+  gamma: ['0', 'none: it always moves at the speed of light', 'stable', 'Light, X-rays and γ rays: from atoms and molecules changing state, hot matter, nuclei settling after a decay or reaction, annihilation. Pick its energy in the tool options.'],
+  pbar: ['−1 e', '938.27 MeV/c²', 'stable, until it meets matter: it annihilates with a nucleon, usually into about five pions', 'Made in accelerators (CERN’s Antiproton Decelerator); a few in cosmic rays.'],
+  nbar: ['0', '939.57 MeV/c²', 'as the neutron; annihilates with a nucleon into pions', 'Made in high-energy collisions.'],
+  nu: ['0', 'less than 0.8 eV/c²', 'stable', 'Every β decay and the Sun’s fusion make them; almost all pass through the Earth untouched.'],
+};
+const EXO_FOUND = { 'mu-': 'Cosmic-ray showers (about one a second through your hand at sea level); pion decays.', 'mu+': 'Cosmic-ray showers; π⁺ decays.', Mu: 'Made when a slow μ⁺ picks up an electron.',
+  'pi+': 'High-energy collisions and cosmic rays; the lightest hadrons, exchanged between nucleons they carry the force that holds nuclei together.', 'pi-': 'High-energy collisions and cosmic rays.', pi0: 'High-energy collisions; it decays almost at once into two γ rays.',
+  'K+': 'Collisions above about 1 GeV, cosmic rays; the lightest particles with a strange quark.', 'K-': 'Collisions above about 1 GeV.', K0S: 'Collisions above about 1 GeV.', K0L: 'Collisions above about 1 GeV.',
+  Lam: 'Collisions above about 1.6 GeV; with a nucleus it makes a hypernucleus.', 'tau-': 'e⁺e⁻ collisions above 3.6 GeV.', 'tau+': 'e⁺e⁻ collisions above 3.6 GeV.' };
+const DEC_LAB = { g: 'γ', 'e-': 'e⁻', 'e+': 'e⁺', nu: 'νₑ', nub: 'ν̄ₑ', numu: 'νμ', numub: 'ν̄μ', nutau: 'ντ', nutaub: 'ν̄τ', p: 'p', n: 'n', pbar: 'p̄', nbar: 'n̄', d: 'd', t: 't', a: 'α' };
+const CAT_NAME = { nm: 'a nonmetal', ng: 'a noble gas', am: 'an alkali metal', ae: 'an alkaline earth metal', tm: 'a transition metal', pt: 'a post-transition metal', ml: 'a metalloid', hl: 'a halogen', ln: 'a lanthanide', an: 'an actinide' };
+function quarkText(con) { return [...con].map(c => c === c.toUpperCase() ? Q_BAR[c.toLowerCase()] : Q_SYM[c]).join(' '); }
+function specAbout(s) { // { t1, t2, rows: [[label, text]], found }
+  const rows = [], row = (l, t) => { if (t !== '' && t !== undefined && t !== null) rows.push([l, String(t)]); };
+  let found = '';
+  if (s.kind === 'exo') {
+    const x = XP[s.sp], con = Q_CONTENT[s.sp];
+    row('Charge', x.q ? (x.q > 0 ? '+' : '−') + Math.abs(x.q) + ' e' : '0');
+    if (x.m) row('Mass', fmtNum(x.m, 4) + ' MeV/c²');
+    if (con) row('Quarks', quarkText(con));
+    row('Lifetime', x.tau ? `mean life ${fmtTime(x.tau)}${x.res ? ` (a resonance, ${fmtNum(x.w, 3)} MeV wide)` : ''}` : 'stable');
+    if (x.dec && x.dec.length) row('Decays', x.dec.slice().sort((a, b) => b[0] - a[0]).slice(0, 3).map(([br, d]) => `${d.map(k => DEC_LAB[k] || (XP[k] ? XP[k].lab : k)).join(' + ')} ${br >= 0.995 ? '' : br < 0.01 ? '(<1%)' : `(${Math.round(br * 100)}%)`}`.trim()).join(', '));
+    found = EXO_FOUND[s.sp] || (x.hyp ? 'Made when a Λ or another hyperon is caught by a nucleus.' : 'Made in high-energy collisions.');
+  } else if (s.kind === 'atom') {
+    const el = ELEMENTS[s.Z], N = s.A - s.Z, nuc = nuclideInfo(s.Z, N), q = s.bare ? (s.anti ? -s.Z : s.Z) : (s.anti ? -(s.charge || 0) : s.charge || 0);
+    row('Element', `${el.name} (${el.sym}), element ${s.Z}${CAT_NAME[el.cat] ? ', ' + CAT_NAME[el.cat] : ''}`);
+    row('Nucleus', `${s.Z} proton${s.Z > 1 ? 's' : ''}, ${N} neutron${N === 1 ? '' : 's'}: ${nucSymA(s.Z, N, s.anti)}, ${lifeText(nuc, s.bare ? { ne: 0 } : null)}`);
+    if (nuc && nuc.modes && nuc.modes.length && !nuc.stable) row('Decays', nuc.modes.map(m => `${({ a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'electron capture', sf: 'spontaneous fission', p: 'proton emission', '2p': 'two-proton emission', n: 'neutron emission', '2n': 'two-neutron emission' })[m.mode] || m.mode}${m.br < 1 ? ' ' + Math.round(m.br * 100) + '%' : ''}`).join(', '));
+    row('Charge', q ? (q > 0 ? '+' : '−') + Math.abs(q) + ' e' : '0 (neutral)');
+    row('Electrons', s.bare ? 'none: a bare nucleus' : String(s.Z - (s.charge || 0)));
+    row('Mass', fmtNum(s.Z * PHYS.MP + N * PHYS.MN + (s.bare ? 0 : s.Z - (s.charge || 0)) * PHYS.ME - bindingE(s.Z, N) / PHYS.AMU_MEV, 5) + ' u');
+    if (!s.bare && el.ie1) row('Ionization', `${fmtE(el.ie1)} to take its first electron`);
+    if (!s.bare && el.en) row('Electronegativity', fmtNum(el.en, 3));
+    if (!s.bare && el.tm && el.tb) row('Melts, boils', `${Math.round(el.tm)} K, ${Math.round(el.tb)} K`);
+    found = s.anti ? 'Antimatter: made one antinucleon at a time in accelerators; antihydrogen is held for minutes at CERN.' : nuc && nuc.stable ? '' : nuc && !nuc.unbound && nuc.t12 > 1e9 * 3.15e7 ? 'Long-lived enough to survive since the Earth formed.' : '';
+  } else if (s.kind === 'mol') {
+    const M = MOLECULES[s.mol], cat = (MOLECULE_CATS.find(c => c[0] === M.cat) || [])[1];
+    let mass = 0, q = 0; for (const a of M.atoms) { mass += ELEMENTS[SYM2Z[a[0]]].mass; q += a[3] || 0; }
+    row('Formula', specLabel(s));
+    if (cat) row('Kind', cat);
+    row('Atoms, bonds', `${M.atoms.length}, ${M.bonds.length}${M.bonds.some(b => b[2] === 2) ? ' (with double bonds)' : ''}${M.bonds.some(b => b[2] === 3) ? ' (with a triple bond)' : ''}`);
+    row('Molar mass', fmtNum(mass, 4) + ' g/mol');
+    if (q) row('Charge', (q > 0 ? '+' : '−') + Math.abs(q) + ' e');
+    if (M.radical) row('Radical', 'yes: it has a free valence, so it reacts readily');
+    found = M.note || '';
+  } else {
+    const a = SPEC_ABOUT[s.kind];
+    if (a) { row('Charge', a[0]); row('Mass', a[1]); row('Lifetime', a[2]); found = a[3]; }
+    if (s.kind === 'n' || s.kind === 'pbar' || s.kind === 'nbar') row('Quarks', quarkText(Q_CONTENT[s.kind === 'n' ? 'n' : s.kind]));
+  }
+  return { t1: specName(s), t2: specLabel(s), rows, found };
+}
+function openSpecCard(s, px, py) {
+  const m = $('qmenu'); if (!m || !s) return;
+  hideTip(); pmenuClose(); QM.acts = []; QM.ranges = []; QM.serial = (QM.serial || 0) + 1;
+  const a = specAbout(s);
+  let h = `<div class="qmh"><div class="t1">${esc(a.t1)}</div><div class="t2">${esc(a.t2)}</div></div><div class="qcard">` +
+    a.rows.map(([l, t]) => `<div class="qcr"><span class="l">${esc(l)}</span><span class="v">${esc(t)}</span></div>`).join('') +
+    (a.found ? `<p class="qcf">${esc(a.found)}</p>` : '') + '</div>';
+  h += qm2(qmBtn('Place', () => { selectSpec(s); setTool('place'); }, { title: `Pick ${a.t1} for the Place tool` }),
+    qmBtn('Fire', () => { selectSpec(s); OPT.fire.proj = 'sel'; setTool('fire'); }, { off: s.kind === 'mol', title: 'Pick it for the Fire tool' }));
+  if (s.kind === 'atom') h += qm2(qmBtn('Element…', () => openPT({ Z: s.Z, A: s.A, q: s.charge || 0, bare: !!s.bare, anti: !!s.anti }), { title: 'This element and its isotopes in the periodic table' }),
+    qmBtn('Isotope builder…', () => openNucBuilder({ Z: s.Z, N: s.A - s.Z, ne: s.bare ? 0 : s.Z - (s.charge || 0), anti: !!s.anti })));
+  if (s.kind === 'mol') { const M = MOLECULES[s.mol]; h += qmBtn(M.mine ? 'Edit in the builder' : 'Open a copy in the builder', () => mbLoadMol(s.mol, !!M.mine), { off: M.atoms.length > MB_MAX, title: M.atoms.length > MB_MAX ? `More atoms than the builder holds (${MB_MAX})` : 'Change it and save it as your own' }); }
+  // how many there are in the box now, and a way to clear them
+  const match = s.kind === 'e' ? (q) => q.k === ELEC : s.kind === 'pos' ? (q) => q.k === POS : s.kind === 'n' ? (q) => q.k === NUC && q.Z === 0 && !q.anti : s.kind === 'nbar' ? (q) => q.k === NUC && q.Z === 0 && q.anti
+    : s.kind === 'atom' ? (q) => q.k === NUC && q.Z === s.Z && q.Z + q.N === s.A && !!q.anti === !!s.anti && (s.bare ? q.ne === 0 : q.ne > 0 && !q.bonds.length && q.q === (s.charge || 0)) : null;
+  if (match) { const n = W.parts.reduce((t, q) => t + (!q.dead && match(q) ? 1 : 0), 0); h += qmBtn(`Remove all of these in the box (${n.toLocaleString('en-US')})`, () => { undoMark('Remove all'); const k = removeAll(match); log('tool', `Removed all ${a.t2}: ${k.toLocaleString('en-US')}`); }, { cls: 'danger', off: !n }); }
+  if (s.kind === 'mol') { const f = specLabel(s), mols = molsLike(f); h += qmBtn(`Remove all of these in the box (${mols.length.toLocaleString('en-US')})`, () => { undoMark('Remove all'); for (const mm of molsLike(f)) for (const q of mm) if (!q.dead) kill(q); log('tool', `Removed all ${M_NAME(s)}`); }, { cls: 'danger', off: !mols.length }); }
+  m.innerHTML = h; m.hidden = false; QM.open = true; m.scrollTop = 0;
+  m.style.left = Math.max(4, Math.min(px + 2, R.w - m.offsetWidth - 4)) + 'px';
+  m.style.top = Math.max(4, Math.min(py + 2, R.h - m.offsetHeight - 4)) + 'px';
+  const f = m.querySelector('.qmi:not([disabled])'); if (f) f.focus({ preventScroll: true });
+}
+function M_NAME(s) { return MOLECULES[s.mol] ? MOLECULES[s.mol].name : specLabel(s); }
+/* a right-click (or a long press) on a chip: the card, at the pointer in the chamber's frame */
+function chipCard(e, s) { e.preventDefault(); const r = $('cv').getBoundingClientRect(), ui = SET.ui || 1; openSpecCard(s, (e.clientX - r.left) / ui, (e.clientY - r.top) / ui); }
 function openQuickMenu(px, py) {
   const m = $('qmenu'); if (!m) return;
   hideTip(); QM.acts = []; QM.ranges = []; QM.serial = (QM.serial || 0) + 1;

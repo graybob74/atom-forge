@@ -745,6 +745,20 @@ const { openPage } = require('./browser');
     return { one: +one.toFixed(3), slow: +slow.toFixed(4), ratio: +(one / slow).toFixed(2) };
   });
   check(r37.one > 0.9 && r37.one < 1.1 && r37.ratio > 7 && r37.ratio < 9, `0.96: electrons in the particle view turn ${r37.ratio}× slower at 1/8× (one second of pictures' time at 1×: ${r37.one} s)`, '0.96 picture clock: ' + JSON.stringify(r37));
+  // 1.01: a right-click on a palette chip (or an item of its menus) opens a card about it
+  const r38 = await page.evaluate(() => {
+    loadPreset('water'); setRunning(false); const out = {};
+    const card = (el) => { const q = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: q.x + 5, clientY: q.y + 5 })); const m = $('qmenu'), t = m.hidden ? '' : m.innerText; closeQuickMenu(); return t; };
+    const chips = [...document.querySelectorAll('#palette .chip[data-i]')], by = (t) => chips.find(b => b.textContent.trim() === t);
+    out.e = /Electron[\s\S]*−1 e[\s\S]*0\.511/.test(card(by('e⁻')));
+    out.u = /Uranium-238[\s\S]*92 protons, 146 neutrons[\s\S]*4\.47 billion years/.test(card(by('U')));
+    out.w = /Water[\s\S]*18\.0\d g\/mol[\s\S]*Remove all of these in the box \(80\)/.test(card(by('H₂O')));
+    document.querySelectorAll('#palette .cat')[1].click(); const it = document.querySelector('#pmenu .pm-i:not(.more)'); out.menu = it ? card(it).split('\n')[0] : ''; pmenuClose();
+    const exo = specAbout({ kind: 'exo', sp: 'phi' }); out.phi = exo.rows.map(r => r.join(': ')).join('; ');
+    return out;
+  });
+  check(r38.e && r38.u && r38.w && r38.menu.length > 1 && /Quarks: s s̄/.test(r38.phi) && /K⁺ \+ K⁻ \(49%\)/.test(r38.phi),
+    `1.01: right-click cards for the palette (electron, ²³⁸U, water, a menu item: "${r38.menu}"; φ: ${r38.phi.slice(0, 90)}…)`, '1.01 cards: ' + JSON.stringify(r38));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

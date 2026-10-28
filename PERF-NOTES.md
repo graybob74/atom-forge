@@ -77,9 +77,6 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
-- More right-click menus: right-clicking anything in the palette bar (a particle, element or molecule chip) tells about
-  it (what it is, its charge, mass, lifetime or bonds, where it occurs) with quick actions, as right-clicking in the
-  chamber does (asked for by the user).
 - Detectors: graph where hits land along a screen (position bins next to the energy record; toggle the on-screen bars
   between position and energy; a Data-tab graph of hits against position, light and particles apart).
 - Wall charge: the walls' charge (charged particles they absorb, positrons annihilating in them) kept and shown in the
@@ -96,6 +93,14 @@ engine stores and visits particles.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
+
+## 1.01.0: right-click cards for the palette
+- Right-clicking (or pressing and holding) a chip in the top bar, an item of its category menus or a Find result opens
+  a card in the quick menu: what it is, its charge, mass, quarks, lifetime and main decays (particles); element,
+  nucleus, half-life, decay modes, charge, electrons, mass, first ionization energy, electronegativity, melting and
+  boiling points (atoms and nuclei); formula, kind, atoms and bonds, molar mass, charge, radical (molecules); where it is
+  found; and Place, Fire, Element…, Isotope builder…, Open in the builder, and Remove all of these in the box (with the
+  count). specAbout() in ui.js. Test: t_features "1.01 cards".
 
 ## 1.00.0: the first full release
 - The 0.96.0 release candidate as it was, after seven release candidates of bug fixes (0.90–0.96). The feature freeze
