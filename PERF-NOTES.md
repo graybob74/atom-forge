@@ -76,6 +76,34 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## Planned features (1.x), in the order the user chose
+- More right-click menus: right-clicking anything in the palette bar (a particle, element or molecule chip) tells about
+  it (what it is, its charge, mass, lifetime or bonds, where it occurs) with quick actions, as right-clicking in the
+  chamber does (asked for by the user).
+- Detectors: graph where hits land along a screen (position bins next to the energy record; toggle the on-screen bars
+  between position and energy; a Data-tab graph of hits against position, light and particles apart).
+- Wall charge: the walls' charge (charged particles they absorb, positrons annihilating in them) kept and shown in the
+  Data tab, so the box and its walls add up to zero (asked for by the user, after the pair-production finding).
+- An "ultra-realistic" mode that gives up visibility and convenience: nuclei at their true size (about 1/100,000 of the
+  atom, so they vanish), nuclear reactions only at their true cross sections (a beam then almost never hits anything in
+  a box this size), no enlarged reach, no slowed or held decays, no hits made more frequent in setups, and zoom far
+  enough (about 10⁵ times further) to see a nucleus at its true size inside its atom (asked for by the user).
+- Extreme slow motion, down to about 1 ys (10⁻²⁴ s) of simulated time per second, so the shortest-lived particles
+  (a φ meson lives 1.5×10⁻²² s, a ρ 4×10⁻²⁴ s) can be watched living and decaying in real time instead of being held.
+  The slowest now is 1/512× (about a femtosecond a second), so this is about 10⁹ times slower. At that pace light
+  crosses 0.3 fm a second and atoms stand still: it belongs with the ultra zoom (nuclear-scale views) of the
+  ultra-realistic mode (asked for by the user).
+- Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
+  arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
+  chemistry; asked for by the user).
+
+## 1.00.0: the first full release
+- The 0.96.0 release candidate as it was, after seven release candidates of bug fixes (0.90–0.96). The feature freeze
+  ends: the planned features above come next, as 1.01 onwards.
+- Known limit, for a bug-fix session: the chain-reaction setup with its heat bath turned off runs away (about 15
+  fissions) and then its energy books jump by tens to hundreds of MeV without nuclear events (+212 MeV over 3,000
+  frames, seed 11; the overnight soak of 2026-10-27). As shipped, with the bath on, it does not show.
+
 ## 0.96.0: release candidate 7
 - The particle view's pictures (electrons circling their atoms and bonds, the muon in muonium and muonic atoms, quarks
   inside hadrons, chip carriers) ran on the real-time clock, so they kept their pace in slow motion. They now run on
@@ -157,29 +185,6 @@ engine stores and visits particles.
 - The quark–gluon plasma picture: drawn above the hadron spray, nearly opaque, at least about 70 pixels across, with
   larger quarks and gluons; captions over it fade until it cools; strings and plasma keep their own clock (at most a
   thirtieth of a second a frame), so the slow frame in which thousands of hadrons appear no longer skips them.
-
-## Features held for after 1.00 (asked for during the release candidates)
-- Aromatic rings with equal bonds: a bond order of 1.5 (1.40 Å, with the ring's extra stability, so it resists addition)
-  instead of a Kekulé form (approved by the user, after 1.00).
-- Carbon monoxide as closed-shell C≡O (it is a radical here so that it burns on to CO₂); it still burns in a flame by
-  addition across the triple bond (approved by the user, after 1.00).
-- Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
-  arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
-  chemistry; asked for by the user).
-- An "ultra-realistic" mode that gives up visibility and convenience: nuclei at their true size (about 1/100,000 of the
-  atom, so they vanish), nuclear reactions only at their true cross sections (a beam then almost never hits anything in
-  a box this size), no enlarged reach, no slowed or held decays, no hits made more frequent in setups, and zoom far
-  enough (about 10⁵ times further) to see a nucleus at its true size inside its atom (asked for by the user).
-- Extreme slow motion, down to about 1 ys (10⁻²⁴ s) of simulated time per second, so the shortest-lived particles
-  (a φ meson lives 1.5×10⁻²² s, a ρ 4×10⁻²⁴ s) can be watched living and decaying in real time instead of being held.
-  The slowest now is 1/512× (about a femtosecond a second), so this is about 10⁹ times slower. At that pace light
-  crosses 0.3 fm a second and atoms stand still: it belongs with the ultra zoom (nuclear-scale views) of the
-  ultra-realistic mode (asked for by the user).
-- More right-click menus: right-clicking anything in the palette bar (a particle, element or molecule chip) tells about
-  it (what it is, its charge, mass, lifetime or bonds, where it occurs) with quick actions, as right-clicking in the
-  chamber does (asked for by the user).
-- Detectors: graph where hits land along a screen (position bins next to the energy record; toggle the on-screen bars
-  between position and energy; a Data-tab graph of hits against position, light and particles apart).
 
 ## 0.90.0: release candidate 1 (feature freeze)
 - The 20,000-atom goal is met on a 16-thread machine: room-temperature water, 723 × 465 Å, 0.55 ms a step; at 1× a frame

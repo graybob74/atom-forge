@@ -11,9 +11,9 @@ The owner tests it on Windows (Ryzen 7950X3D, 16 threads, RTX 3090) and reports 
   out harder than planned.
 - **Physics-model changes need the owner's OK** before they ship (anything that changes how matter behaves, rates,
   energies, bonding rules). Bug fixes, display fixes and text fixes do not.
-- **Feature freeze until 1.00.** Releases are 0.9x release candidates with bug fixes only. Feature requests go on the
-  "Features held for after 1.00" list in PERF-NOTES.md. When the owner lists several things, collect them and wait for
-  "build it" / "do all of them".
+- **1.00 is out; versions are now 1.xx.0.** New features are built in the main chat from the "Planned features (1.x)"
+  list in PERF-NOTES.md, in its order; new requests go on that list. When the owner lists several things, collect them
+  and wait for "build it" / "do all of them".
 - No risky workarounds. No WebGPU port. Do not extend undo/rewind to setups with chips, beams, lasers or a ramp.
 - Explain findings plainly, with before/after numbers from a measurement, not guesses.
 
@@ -88,7 +88,7 @@ time-budgeted checks in `t_features` (the chain reaction's k readout, saves, sta
 
 ## Releasing (when the owner says "release")
 
-1. Version `0.9x.0` in four places: `desktop/src-tauri/Cargo.toml` (line 3), `desktop/src-tauri/tauri.conf.json`,
+1. Version `1.xx.0` in four places: `desktop/src-tauri/Cargo.toml` (line 3), `desktop/src-tauri/tauri.conf.json`,
    `desktop/package.json`, `src/shell.html` (line 1, the title).
 2. PERF-NOTES section for the version; the full suite passes.
 3. Back up the source (excluding `dist`, `tests/.tmp`, `kernel/target`, `desktop/dist-app`), commit to `main` with the
