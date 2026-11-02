@@ -77,6 +77,12 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
+- An Experimental settings tab: each accuracy-for-speed option from the measurements below (tools/accbench) as a
+  setting with a plain description and its measured cost: shorter longest step, longer force reach, detailed nuclear
+  collisions, charges that respond to their surroundings, continuous bond orders, quantum nuclei (path integrals), and
+  the rest as they are built. And a performance-cost indicator beside every setting that affects speed, in the
+  Experimental tab and in the existing ones (particle limit, physics budget, threads, resolution, effects, trails …),
+  coloured from green (cheap) to red (expensive) (asked for by the user).
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
