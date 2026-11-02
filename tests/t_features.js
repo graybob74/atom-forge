@@ -856,6 +856,23 @@ const { openPage } = require('./browser');
   });
   check(r45.tags >= 10 && /c3/.test(r45.dtTag2) === false && r45.dt === 0.01 && r45.step <= 0.01 + 1e-12 && r45.dtBack === 0.04 && r45.rule === '1.50' && r45.det.split(' ').length >= 5,
     `1.07: Experimental settings: ${r45.tags} cost tags; longest step 0.1 fs applied (a step of ${r45.step} tu) and back; a 54-carbon graphene flake's bonds ${r45.rule} by the six-ring rule, ${r45.det} worked out`, '1.07 experimental: ' + JSON.stringify(r45));
+  // 1.08: Experimental: the intranuclear cascade; energy, charge and nucleons kept exactly; about 15 neutrons from 1 GeV p + Pb
+  const r46 = await page.evaluate(() => {
+    const out = { worst: 0, bad: 0, n: 0, ev: 0, inc: 0 }; setSetting('inc', true);
+    const E = () => totalEnergy().total - W.ledger.nuc, QB = () => { let q = 0, b = 0; for (const p of W.parts) if (!p.dead) { if (p.k === NUC) { q += p.Z - p.ne; b += p.Z + p.N; } else q += p.k === ELEC ? -1 : p.k === POS ? 1 : 0; } for (const o of W.exo) if (!o.dead) { q += o.q; } return q + ',' + b; };
+    for (let t = 0; t < 30; t++) {
+      loadPreset('empty'); setRunning(false); W.decayOn = false; W.box.w = W.box.h = 400; const T = addAtom('Pb', 0, 0, { A: 208, bare: true, T: 0 }), p = addNuc(1, 0, 0, -3, 0, 0, 0, false); setMotion(p, 1e9, 1, 0); forcesNoEvents();
+      const n0 = W.parts.filter(q => !q.dead && q.Z === 0).length, e0 = E(), qb0 = QB(); _incLast = null;
+      const r = nuclearEncounter(p, T, 0.3 * rnd(), 0, 0);
+      if (!r || /elastic/.test(r)) continue; out.ev++; if (_incLast) out.inc++; // (a third of the touching passes at this energy are diffraction: nuclear elastic scattering)
+      out.worst = Math.max(out.worst, Math.abs(E() - e0)); if (QB() !== qb0) out.bad++;
+      out.n += W.parts.filter(q => !q.dead && q.k === NUC && q.Z === 0 && q.N === 1).length - n0;
+    }
+    setSetting('inc', false); out.nPer = +(out.n / out.ev).toFixed(1);
+    return out;
+  });
+  check(r46.ev >= 10 && r46.inc === r46.ev && r46.worst < 1e-2 && !r46.bad && r46.nPer > 8 && r46.nPer < 25,
+    `1.08: the intranuclear cascade: ${r46.ev} hits of 1 GeV protons on ²⁰⁸Pb, ${r46.nPer} neutrons a hit (measured about 17), energy kept to ${r46.worst.toExponential(1)} eV, charge and nucleons exactly`, '1.08 cascade: ' + JSON.stringify(r46));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

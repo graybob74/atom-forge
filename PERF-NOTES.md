@@ -105,6 +105,30 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.08.0: Experimental: detailed nuclear collisions (an intranuclear cascade)
+- Settings → Experimental → Detailed nuclear collisions (`SET.inc` → `INC_ON`; `cascadeInto` in hep.js): a proton or
+  neutron striking a nucleus heavier than A = 16 at 40 MeV–10 GeV a nucleon is followed through it instead of the
+  participant fireball (`fragmentInto`, still used when the setting is off, for nucleus–nucleus collisions, and
+  when no consistent outcome turns up). The nucleus's nucleons sit at random in a disc of radius 1.2·A^⅓ fm with
+  2-D Fermi momenta up to 260 MeV/c; a fast particle meets a nucleon within σ·ρ₀/(2n) of its path (so its mean free
+  path is nuclear matter's, 1/ρ₀σ, not the far shorter one of a nucleus laid flat: with √(σ/π) a 1 GeV proton made
+  27 collisions in lead and left 409 MeV); σ from the nucleon–nucleon tables (below 290 MeV 25 + 4500·(1/T − 1/290) mb);
+  elastic (isotropic when slow, forward when fast) or a pion made with the inelastic share; Pauli blocking below
+  the Fermi momentum; the projectile gains the 45 MeV well depth falling in and every nucleon gives it up getting
+  out (without the first, the excitation came out 45 MeV too high); slower nucleons stay; pions leave (not caught
+  again). The residual nucleus takes exactly the energy and momentum that did not leave, and cools through
+  `residualInto` (evaporation, fission). A pass that meets no nucleon twice running does nothing.
+- Measured (Node, 80 hits each; literature values approximate): 1 GeV p + ²⁰⁸Pb: 14.9 neutrons a reaction (about 17;
+  the fireball model 13.9), excitation 145 MeV (150–200), 10.4 collisions, 1.4 pions (high: no pion absorption),
+  fission 21% (about 10%; the fireball model 0). 500 MeV: 9.8 neutrons, 86 MeV. 200 MeV: 9.5 neutrons (about 8–9),
+  84 MeV (60–80). About 3 ms a hit against 1 ms; in the spallation setup nuclear events stay 5–6% of the time,
+  though the run gets busier with what the hits make. Energy kept to 4×10⁻⁵ eV per hit, charge and nucleons exactly.
+- Tried and left out: pions scattering and being absorbed inside the nucleus (πN through the Δ, absorbed on a
+  nucleon pair in 10–30% of their meetings). It brought the pions down to 0.3–0.8 a reaction (about right) but
+  the pions' many scatterings in a flat nucleus left 283–293 MeV in lead at 1 GeV (25 neutrons, fission 49%), far
+  over the measured 150–200 MeV, with absorption shares of 0.3 and 0.1 and a broadened Δ alike.
+- Test: t_features "1.08 cascade".
+
 ## 1.07.0: Settings → Experimental, and cost tags on the settings (asked for by the user)
 - A new Settings tab, Experimental: each accuracy-for-speed option with a plain description and its cost as measured
   (tools/accbench, the section below). Built so far:

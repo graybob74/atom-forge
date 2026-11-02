@@ -10076,9 +10076,12 @@ function nuclearEncounter(a, b, u, x, y) {
     if (!fermiInto(Z1 + Z2, a.N + b.N, M, P, anti, items, moms, keep)) return null;
     if (dtFused) { kind = 'fusion'; sub = `fusion at ${fmtE(Ecm * MEV)} in their own frame`; } else sub = `breakup at ${fmtE(Ecm * MEV)} in their own frame`;
   } else if (A <= 16 || eps >= 40 || (eps >= 15 && rnd() < (eps - 15) / 25)) {
-    _qgpLast = null;
-    if (!fragmentInto(a, b, Pa, Pb, b3, anti, items, moms)) return null;
-    sub = `${Math.min(A1, A2) === 1 ? 'spallation' : 'fragmentation'}, ${fmtE(eps * MEV)} per nucleon`;
+    _qgpLast = null; _incLast = null;
+    const one = A1 === 1 ? a : A2 === 1 ? b : null, many = one === a ? b : a;
+    const inc = INC_ON && !anti && one && many.Z + many.N > 16 && eps >= 40 && eps < 10000 && cascadeInto(one, many, one === a ? Pa : Pb, one === a ? Pb : Pa, b3, items, moms); // (Experimental: the intranuclear cascade)
+    if (inc === 'pass') return null;
+    if (!inc && !fragmentInto(a, b, Pa, Pb, b3, anti, items, moms)) return null;
+    sub = `${Math.min(A1, A2) === 1 ? 'spallation' : 'fragmentation'}, ${fmtE(eps * MEV)} per nucleon` + (_incLast ? `: a cascade of ${_incLast.coll} collisions, ${_incLast.out} out fast, ${fmtE(_incLast.Ex * MEV)} left to boil off` : '');
     if (_qgpLast) { const g = _qgpLast; kind = 'qgp'; sub = `quark–gluon plasma: ${g.Bp} nucleons melted at √s_NN = ${fmtE(g.sNN * MEV)}, froze out into ${g.n.toLocaleString('en-US')} hadrons`; addQGP(x, y, g.n, g.sNN); }
   } else {
     const ZZ = Z1 * Z2, light = Math.min(A1, A2) <= 4, pCN = light ? 1 : 1 / (1 + Math.exp((ZZ - 1700) / 120));
@@ -10431,6 +10434,105 @@ function fragmentInto(a, b, Pa, Pb, b3, anti, items, moms) {
   return false;
 }
 
+/* ---- the intranuclear cascade (Settings → Experimental, 1.08): a nucleon striking a nucleus (A > 16) at 40 MeV to
+   10 GeV a nucleon is followed collision by collision through it, instead of the participant fireball above. In the
+   nucleus's own frame its nucleons sit at random in a disc of radius 1.2·A^⅓ fm (the world is flat) and move with
+   Fermi momenta up to 260 MeV/c. A fast particle meets the first nucleon whose distance from its path is inside
+   ρ₀σ/2n (n the nucleons per fm² of the flat nucleus, ρ₀ = 0.16 fm⁻³: so the mean free path is nuclear matter's,
+   1/(ρ₀σ), about 1.5 fm, and not the much shorter one of nucleons packed into a disc) (σ the nucleon–nucleon cross section at their energy: the measured tables above 290 MeV, 25 + 4500·(1/T −
+   1/290) mb below, about the mean of pp and np); the pair scatters (elastic, forward-peaked when fast) or, with the
+   inelastic share of σ and energy enough, makes a pion; an outcome that would put a nucleon inside the Fermi sea is
+   forbidden (Pauli blocking) and the particle flies on. Struck nucleons cascade in turn. A nucleon reaching the
+   surface leaves if it has more than 45 MeV (the depth of the well it climbs out of, given up; the projectile gained
+   it falling in), and stays otherwise;
+   pions leave. What is left is the residual nucleus, with exactly the energy and momentum that did not leave: its
+   excitation is what the cascade deposited, and it cools as any (compoundDecay: neutrons, protons, α, fission).
+   Returns 'pass' if it goes through without meeting a nucleon (twice running: nothing happens), false (the fireball
+   model is used) if no consistent outcome turns up in a few tries. */
+let INC_ON = false;
+const INC_PF = 260, INC_U = 45, INC_MN = 938.9;
+function incSigma(sqs) { // mb: nucleon–nucleon total, by the pair's invariant mass
+  const T = Math.max(1, (sqs * sqs - 4 * INC_MN * INC_MN) / (2 * INC_MN));
+  return T >= 290 ? nnTable(NN_TOT, sqs) : 25 + 4500 * (1 / T - 1 / 290);
+}
+function cascadeInto(proj, targ, Pp, Pt, b3, items, moms) {
+  const Zt = targ.Z, Nt = targ.N, At = Zt + Nt, R = 1.2 * Math.cbrt(At), Ptot = add4(Pp, Pt);
+  const tx = Pt[1] / Pt[0], ty = Pt[2] / Pt[0], P0 = toRest(Pp, tx, ty), p0 = Math.hypot(P0[1], P0[2]);
+  if (!(p0 > 0)) return false;
+  const cu = P0[1] / p0, su = P0[2] / p0; // (the cascade is worked out with the projectile along +x, then turned back)
+  const back = (E, kx, ky) => toLab([E, kx * cu - ky * su, kx * su + ky * cu], tx, ty);
+  let passed = 0;
+  for (let att = 0; att < 6; att++) {
+    const nx = new Float64Array(At), ny = new Float64Array(At), kx = new Float64Array(At), ky = new Float64Array(At), isP = new Uint8Array(At), hit = new Uint8Array(At);
+    for (let i = 0; i < At; i++) {
+      const r = R * Math.sqrt(rnd()), t = 2 * Math.PI * rnd(), k = INC_PF * Math.sqrt(rnd()), s = 2 * Math.PI * rnd();
+      nx[i] = r * Math.cos(t); ny[i] = r * Math.sin(t); kx[i] = k * Math.cos(s); ky[i] = k * Math.sin(s); isP[i] = i < Zt ? 1 : 0;
+    }
+    // the moving particles: [x, y, kx, ky, m, kind ('N' or a pion), charge, last nucleon met]
+    const T0 = Math.hypot(INC_MN, p0) - INC_MN + INC_U, pIn = Math.sqrt(T0 * (T0 + 2 * INC_MN)); // (falling into the well it gains its depth, as it gives it up again leaving)
+    const mv = [{ x: -R - 0.5, y: (rnd() < 0.5 ? -1 : 1) * Math.min(b3, R), kx: pIn, ky: 0, m: INC_MN, nuc: true, q: proj.Z, last: -1 }];
+    const out = []; let nColl = 0, ok = true;
+    const rMfp = 0.16 / 10 / (2 * At / (Math.PI * R * R)); // (a nucleon is met within σ·rMfp of the path: the mean free path of nuclear matter, 1/(ρ₀σ), ρ₀ = 0.16 fm⁻³, in a nucleus laid flat)
+    while (mv.length && ok) {
+      const c = mv.pop(), kk = Math.hypot(c.kx, c.ky);
+      if (!(kk > 0)) { if (c.nuc) continue; ok = false; break; }
+      const ux = c.kx / kk, uy = c.ky / kk, E1 = Math.hypot(c.m, kk);
+      // the surface ahead
+      const bq = c.x * ux + c.y * uy, cq = c.x * c.x + c.y * c.y - R * R, disc = bq * bq - cq, sExit = disc > 0 ? -bq + Math.sqrt(disc) : 0;
+      let best = -1, bs = sExit, sig = 0;
+      if (c.nuc && nColl < 400) for (let j = 0; j < At; j++) {
+        if (hit[j] || j === c.last) continue;
+        const rx = nx[j] - c.x, ry = ny[j] - c.y, s = rx * ux + ry * uy; if (s <= 0 || s >= bs) continue;
+        const d = Math.abs(rx * uy - ry * ux), E2 = Math.hypot(INC_MN, kx[j], ky[j]), sqs = mass4([E1 + E2, c.kx + kx[j], c.ky + ky[j]]), sg = incSigma(sqs);
+        if (d < sg * rMfp) { best = j; bs = s; sig = sg; }
+      }
+      if (best < 0) { // at the surface: out, or caught
+        if (!c.nuc) { out.push(c); continue; }
+        const T = E1 - c.m;
+        if (T > INC_U) { const k2 = Math.sqrt(Math.max(0, (T - INC_U) * (T - INC_U + 2 * c.m))); out.push({ ...c, kx: ux * k2, ky: uy * k2 }); }
+        continue; // (too slow to climb out: it stays, and its energy heats the residual nucleus)
+      }
+      const j = best, cx = c.x + ux * bs, cy = c.y + uy * bs, E2 = Math.hypot(INC_MN, kx[j], ky[j]);
+      const Pp2 = [E1 + E2, c.kx + kx[j], c.ky + ky[j]], sqs = mass4(Pp2), bx = Pp2[1] / Pp2[0], by = Pp2[2] / Pp2[0];
+      const A1 = toRest([E1, c.kx, c.ky], bx, by), pcm = Math.hypot(A1[1], A1[2]);
+      let fin; // [[m, kx, ky (frame of the nucleus), nucleon?, charge]]
+      const qTot = c.q + isP[j];
+      if (rnd() < nnTable(NN_INEL, sqs) / sig && sqs > 2 * INC_MN + 140) { // a pion made
+        const opts = [-1, 0, 1].filter(qp => qTot - qp >= 0 && qTot - qp <= 2), qp = opts[Math.floor(rnd() * opts.length)], mp = qp ? 139.57 : 134.98;
+        const vs = phaseSpace(sqs, [INC_MN, INC_MN, mp]); if (!vs) { c.x = cx; c.y = cy; c.last = j; mv.push(c); continue; }
+        const nP = qTot - qp, q1 = nP >= 1 ? 1 : 0, q2 = nP - q1;
+        fin = vs.map((v, i) => { const L = toLab(v, bx, by); return [i < 2 ? INC_MN : mp, L[1], L[2], i < 2, i === 0 ? q1 : i === 1 ? q2 : qp]; });
+      } else { // elastic: isotropic when slow, forward when fast (diffraction off a nucleon, about 1 fm)
+        const th = pcm < 300 ? 2 * Math.PI * rnd() : gauss() * 197.327 / (pcm * 1.0), cs = Math.cos(th), sn = Math.sin(th);
+        const qx = A1[1] * cs - A1[2] * sn, qy = A1[1] * sn + A1[2] * cs, ea = Math.hypot(c.m, pcm), eb = Math.hypot(INC_MN, pcm);
+        const L1 = toLab([ea, qx, qy], bx, by), L2 = toLab([eb, -qx, -qy], bx, by);
+        fin = [[c.m, L1[1], L1[2], c.nuc, c.q], [INC_MN, L2[1], L2[2], true, isP[j]]];
+      }
+      if (fin.some(f => f[3] && Math.hypot(f[1], f[2]) < INC_PF)) { c.x = cx; c.y = cy; c.last = j; mv.push(c); continue; } // (Pauli: blocked; it flies on from there)
+      hit[j] = 1; nColl++;
+      for (const [m, fx, fy, nuc, q] of fin) mv.push({ x: cx, y: cy, kx: fx, ky: fy, m, nuc, q, last: j });
+    }
+    if (!nColl) { if (++passed >= 2) return 'pass'; continue; } // (it went through without meeting a nucleon: nuclear matter is not opaque)
+    if (!ok) continue;
+    // what left, in the lab; the residual takes exactly the rest
+    let Zr = Zt + proj.Z, Ar = At + 1, Pr = Ptot.slice(); const its = [], ms = [];
+    for (const o of out) {
+      const E = Math.hypot(o.m, o.kx, o.ky), L = back(E, o.kx, o.ky);
+      its.push(o.nuc ? { t: 'A', Z: o.q, N: 1 - o.q, anti: false } : item(o.q > 0 ? 'pi+' : o.q < 0 ? 'pi-' : 'pi0')); ms.push(L);
+      Pr = [Pr[0] - L[0], Pr[1] - L[1], Pr[2] - L[2]]; Zr -= o.q; if (o.nuc) Ar--;
+    }
+    const Nr = Ar - Zr;
+    if (Ar < 1 || Zr < 0 || Nr < 0 || !(Pr[0] > 0)) continue;
+    const Mr = mass4(Pr), Ex = Mr - nucMeV(Zr, Nr);
+    if (!(Ex >= 0) || Ex > 15 * Ar + 50) continue; // (no consistent residual: draw again)
+    for (let i = 0; i < its.length; i++) { items.push(its[i]); moms.push(ms[i]); }
+    residualInto(Zr, Nr, Mr, Pr, false, items, moms);
+    _incLast = { coll: nColl, out: its.length, Ex, Zr, Ar };
+    return true;
+  }
+  return false;
+}
+let _incLast = null;
 /* ---- reach. A nucleus is hit where it is drawn: the nucleus view draws it with every nucleon 0.045 Å across (the
    nuclear scale enlarged, as everything nuclear here), so its radius is 0.045·r(A), r(A) the packed cluster's radius
    in nucleon radii; a pass inside the sum of two radii (and never less than the reaches set for light nuclei) is a
@@ -20202,7 +20304,7 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
 const SET_OK = { dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
@@ -20233,7 +20335,7 @@ function ultraApply() {
 }
 function applySettings() {
   setMaxParts(SET.maxParts);
-  DT_MAX = SET.dtMax; RES_BIG = !!SET.resBig; // (Experimental: the longest step; resonance in large ring systems)
+  DT_MAX = SET.dtMax; RES_BIG = !!SET.resBig; INC_ON = !!SET.inc; // (Experimental: the longest step; resonance in large ring systems)
   ultraApply();
   if (MAX_PARTS < 8000 && OPT.place.count > 20) OPT.place.count = 20; // (100 at a click only with room for them)
   const dm = SET.res === 'sharp' ? 2 : SET.res === 'standard' ? 1 : 0.75;
@@ -20365,7 +20467,7 @@ function syncSettings() {
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
-  setSegValue('segDtMax', SET.dtMax); $('setResBig').checked = SET.resBig; syncCosts();
+  setSegValue('segDtMax', SET.dtMax); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
@@ -20377,6 +20479,7 @@ function syncSettings() {
 const COSTS = {
   segDtMax: () => ({ 0.04: [0, 'normal', 'The usual longest step'], 0.02: [2, '×1.7', 'Measured ×1.6–1.8 where steps are at their longest'], 0.01: [3, '×2.8', 'Measured ×2.6–2.9 where steps are at their longest'] })[SET.dtMax],
   setResBig: () => SET.resBig ? [1, 'on change', 'Nothing while bonds stay put; 12 ms (200 ring atoms) to 0.2 s (1,000) when a large ring system reacts'] : [0, 'off', ''],
+  setInc: () => SET.inc ? [1, 'per hit ×3', 'About 3 ms a nuclear hit instead of 1: a few percent in the nuclear setups, nothing elsewhere'] : [0, 'off', ''],
   segMax: () => ({ 2000: [0, 'up to ×0.5', ''], 4000: [0, 'up to ×1', ''], 8000: [2, 'up to ×2', ''], 12000: [2, 'up to ×3', ''], 20000: [3, 'up to ×5', ''] })[SET.maxParts].map((v, i) => i === 2 ? 'The limit itself costs nothing; a box filled to it takes about this long, against 4,000 particles' : v),
   segRes: () => ({ sharp: [2, '×2 pixels', 'Drawn at full screen resolution: about twice the pixels of Standard'], standard: [1, '×1', ''], fast: [0, '×0.56', 'Three quarters resolution: about half the pixels'] })[SET.res],
   segBudget: () => ({ 6: [0, 'smooth', 'Least physics a frame: the smoothest frames, slower simulation'], 10: [1, 'balanced', 'The usual share of each frame for physics'], 16: [2, 'frames', 'More physics a frame: faster simulation, fewer frames a second when busy'], 24: [3, 'frames', 'The most physics a frame: the frame rate drops most when busy'] })[SET.budget],
@@ -20433,7 +20536,7 @@ function settingsInit() {
   bindSeg('segGl', (v) => setSetting('gl', v));
   bindSeg('segSpec', (v) => { _specView = v; drawSpec(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
-  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked);
+  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
