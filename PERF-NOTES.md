@@ -99,6 +99,33 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## Accuracy against speed: measurements (after 1.06, tools/accbench/)
+Node, one thread, seeded; ms per simulated femtosecond (ms/fs) is the cost that matters (a shorter step does less a
+step). Energy drift with the bath off. Raw lines in tools/accbench/results-1.06.txt; `tools/accbench/bench-all.sh`.
+- Shorter longest step (DT_MAX 0.04 → 0.02 → 0.01 tu): cost ×1.6–1.8 and ×2.6–2.9 where the step is at its longest
+  (water 0.42 → 0.73 → 1.21 ms/fs; brine 8.0 → 12.9 → 22.1; 4,000 waters 1.85 → 3.84 → 6.69); drift only a little
+  better (water 0.17 → 0.07 → 0.06 eV/ps, brine −0.56 → −0.44 → −0.22, combustion no change). No effect where steps
+  are already short (NIF capsule, ionized water).
+- Longer cutoff (RC 6 → 9 → 12 Å, JavaScript kernels both sides; the WebAssembly kernel has 6 Å built in):
+  water 0.75 → 1.00 → 1.52 ms/fs, brine 11.4 → 11.8 → 16.4, 4,000 waters 2.87 → 4.78 → 10.5, ionized water 29 → 41 →
+  47. Ionized water's drift (the known limit) falls with it: seeds 3, 5, 12 at 6 Å 137, 154, 122 eV/ps; at 9 Å 44,
+  (runaway), 47; at 12 Å −2, 3, 7 (runs where the plasma ran away, 120+ free electrons, left out). So most of that
+  drift comes from the 6 Å cutoff, not the step size (halving or quartering the step left it at 120–150) or the
+  free-flight switching it was put down to: a lead for a bug-fix session.
+- Nuclear events' share of the time as the setups run: chain reaction 2.1% (neutronHit 3 ms a call, 18 calls),
+  spallation 4.8%, fusion 1.1%, photonuclear 1.3%, uranium series 0.7%, RHIC 0.1%; pion beam 24% but that is the
+  flight of the pions (moveExos every step), not events. A cascade ten times costlier would add about 10–50%.
+- Charge equilibration (a cost model, not a working QEq: conjugate gradients over pairs within 6 Å): a warm-started
+  3-iteration solve 0.19 ms for liquid water (240 atoms; a step is 0.17 ms), 0.57 ms for 3,960 atoms (0.75), 1.5 ms
+  for 12,000; every step ×2–2.2, every fifth step about ×1.2.
+- Continuous bond orders (tools/bo-proto.js model A, its order solve alone, unoptimised): 21 ms a step for liquid
+  water and 56 ms for 3,960 atoms, 75–120 times a whole step today; optimised perhaps 5–15 times.
+- Path-integral nuclei: forces, bath and integration are 87–95% of a step in water and brine, so 16 or 32 copies
+  would cost about ×14–15 or ×28–30.
+- Where time goes today (WebAssembly kernel): water forces 76% (kernels 54%), integration 16%; ionized water
+  integration 67% (the electrons' inner steps); brine events 30% and the force pass redone after events 34%; NIF
+  events 24%.
+
 ## 1.06.0: ultra-realistic nuclei at their true size in every view
 - In the ultra-realistic mode an atom's nucleus was still drawn scaled with the zoom by the Bohr picture (3–22 px,
   a fifth of the atom) and the orbital picture (a 1.2–4 px dot), and a hadron's quarks in the particle view at the
