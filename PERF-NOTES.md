@@ -128,6 +128,11 @@ engine stores and visits particles.
   the pions' many scatterings in a flat nucleus left 283–293 MeV in lead at 1 GeV (25 neutrons, fission 49%), far
   over the measured 150–200 MeV, with absorption shares of 0.3 and 0.1 and a broadened Δ alike.
 - Test: t_features "1.08 cascade".
+- Charges that respond to their surroundings (charge equilibration), planned for the Experimental tab, is put on hold
+  with the very large items: the partial charges enter many force and energy terms (softPair, coulAA and its shift,
+  iwK weights, ionic pairs, hydrogen bonds, the free electrons' forces, localPE in the events' books), some not
+  bilinear in the charges, so the forces would only follow from the energy (and the energy stay exact) after
+  reworking them all. The tab lists it under On hold with its estimated cost.
 
 ## 1.07.0: Settings → Experimental, and cost tags on the settings (asked for by the user)
 - A new Settings tab, Experimental: each accuracy-for-speed option with a plain description and its cost as measured
