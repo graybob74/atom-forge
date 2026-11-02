@@ -2290,7 +2290,7 @@ const NEUTRON_RAD = 2e7;   // eV: faster neutrons fly at their relativistic spee
 let _Tb = 0;
 function radThreshold(isLepton) { return Math.max(isLepton ? 1000 : 2000, 30 * PHYS.KB * Math.max(W.T, _Tb)); }
 function bathFollow(dt) { _Tb = W.T >= _Tb ? W.T : W.T + (_Tb - W.T) * Math.exp(-2 * W.gamma * dt); }
-const DT_MAX = 0.04, DT_MIN = 2e-5;        // tu (0.4 fs max)
+let DT_MAX = 0.04; const DT_MIN = 2e-5;     // tu (0.4 fs max; Settings → Experimental can make it 0.2 or 0.1 fs)
 const LJ_SCALE = 2.0;                      // 2-D cohesion correction for dispersion
 const FCAP = 1e7;                          // eV/Å: a safety net only; the step size follows contact stiffness
 let MAX_PARTS = 4000, MAX_FREE_E = 1500; // (the particle limit: Settings can raise it)
@@ -2671,7 +2671,48 @@ const AROM_STAB = 150 / PHYS.KJMOL;
    (benzene's 150 kJ/mol; naphthalene 238, measured about 255), shared among the bonds that resonate. This replaces the
    0.95 rule for six-membered rings, which stays for π systems too big to count (aromatize). The whole-number orders
    (bd.order) stay those of the structure as it stands: every atom's valence counts them as before. */
-const RES_MAX_ATOMS = 40, RES_MAX_K = 4000;
+const RES_MAX_ATOMS = 40, RES_MAX_K = 4000, RES_BIG_MAX = 1000;
+let RES_BIG = false; // (Settings → Experimental: resonance in large ring systems, by a determinant)
+/* A large π system's Pauling bond orders without counting its Kekulé structures one by one (Experimental, 1.07): when it
+   is bipartite (no odd rings) and its rings are hexagons, as in graphene and the benzenoid hydrocarbons, the number of
+   structures K is |det B|, B the matrix of its bonds between the two colours of atoms, and the share of them that hold a
+   bond i–j as a double bond is B_ij·(B⁻¹)_ji (Kasteleyn; for benzenoids, Dewar and Longuet-Higgins). A ring of 4 or 8
+   (which upsets the signs) shows as a share outside 0…1, and the system is left to the six-ring rule. Returns
+   { f: Map(bond → share), logK } or null. */
+function resonanceBig(comp, edges, idx) {
+  const n = comp.length, col = new Int8Array(n).fill(-1); col[0] = 0; const q = [0];
+  while (q.length) { const i = q.pop(); for (const bd of edges[i]) { const j = idx.get(other(bd, comp[i])); if (col[j] < 0) { col[j] = 1 - col[i]; q.push(j); } else if (col[j] === col[i]) return null; } }
+  const bl = [], wh = [], pos = new Int32Array(n);
+  for (let i = 0; i < n; i++) { if (col[i] < 0) return null; pos[i] = col[i] ? wh.length : bl.length; (col[i] ? wh : bl).push(i); }
+  const m = bl.length; if (m !== wh.length || !m) return null;
+  const M = new Float64Array(m * m); // B, then its LU factors
+  for (let a = 0; a < m; a++) for (const bd of edges[bl[a]]) M[a * m + pos[idx.get(other(bd, comp[bl[a]]))]] = 1;
+  const piv = new Int32Array(m); let logK = 0;
+  for (let k = 0; k < m; k++) {
+    let p = k, big = Math.abs(M[k * m + k]); for (let r = k + 1; r < m; r++) { const v = Math.abs(M[r * m + k]); if (v > big) { big = v; p = r; } }
+    if (big < 1e-9) return null; // (no Kekulé structure at all)
+    piv[k] = p; if (p !== k) for (let c = 0; c < m; c++) { const t = M[k * m + c]; M[k * m + c] = M[p * m + c]; M[p * m + c] = t; }
+    const d = M[k * m + k]; logK += Math.log(Math.abs(d));
+    for (let r = k + 1; r < m; r++) { const f = M[r * m + k] / d; if (f === 0) continue; M[r * m + k] = f; for (let c = k + 1; c < m; c++) M[r * m + c] -= f * M[k * m + c]; }
+  }
+  // (B⁻¹)_ji for each bond: solve B x = e_i for each black row i's columns needed, via Bᵀ y = e_i ... column j of B⁻¹ is
+  // B⁻¹ e_j: solve for every white j (m solves, m² each)
+  const out = new Map(), x = new Float64Array(m);
+  const inv = new Float64Array(m * m); // inv[j*m + a] = (B⁻¹)_{j,a}: the solution of B x = e_a is column a
+  for (let a = 0; a < m; a++) {
+    x.fill(0); x[a] = 1;
+    for (let k = 0; k < m; k++) { const p = piv[k]; if (p !== k) { const t = x[k]; x[k] = x[p]; x[p] = t; } } // (row swaps, in order)
+    for (let r = 0; r < m; r++) { let s = x[r]; for (let c = 0; c < r; c++) s -= M[r * m + c] * x[c]; x[r] = s; }
+    for (let r = m - 1; r >= 0; r--) { let s = x[r]; for (let c = r + 1; c < m; c++) s -= M[r * m + c] * x[c]; x[r] = s / M[r * m + r]; }
+    for (let j = 0; j < m; j++) inv[j * m + a] = x[j];
+  }
+  for (let a = 0; a < m; a++) for (const bd of edges[bl[a]]) {
+    const j = pos[idx.get(other(bd, comp[bl[a]]))], f = inv[j * m + a]; // B_aj = 1
+    if (f < -1e-6 || f > 1 + 1e-6) return null;
+    out.set(bd, clamp(f, 0, 1));
+  }
+  return { f: out, logK };
+}
 function resonance(atoms) {
   const okEl = (p) => p.el && !p.anti && (p.Z === 6 || p.Z === 7 || p.Z === 8 || p.Z === 16);
   const dblTo = (p) => { let n = 0, to = null; for (const bd of p.bonds) if (bd.order === 2) { n++; to = other(bd, p); } else if (bd.order > 2) return null; return n === 1 ? to : null; };
@@ -2684,10 +2725,20 @@ function resonance(atoms) {
     const comp = [], stack = [s]; seen.add(s);
     while (stack.length) { const p = stack.pop(); comp.push(p); for (const bd of p.bonds) { const o = other(bd, p); if (pi.has(o) && !seen.has(o) && bd.order <= 2) { seen.add(o); stack.push(o); } } }
     if (comp.length < 4) continue; // (one double bond: nothing to move)
-    if (comp.length > RES_MAX_ATOMS) { big = true; continue; }
+    if (comp.length > RES_MAX_ATOMS && !(RES_BIG && comp.length <= RES_BIG_MAX)) { big = true; continue; }
     // every perfect matching of the component along its bonds: each bond's count
     comp.sort((u, v) => u.id - v.id);
     const idx = new Map(comp.map((p, i) => [p, i])), edges = comp.map(p => p.bonds.filter(bd => bd.order <= 2 && idx.has(other(bd, p))));
+    if (comp.length > RES_MAX_ATOMS) { // (Experimental: a large ring system, by its determinant)
+      const R2 = resonanceBig(comp, edges, idx);
+      if (!R2) { big = true; continue; }
+      const res = [];
+      for (const [bd, f] of R2.f) if (f > 1e-9 && f < 1 - 1e-9) res.push([bd, f]);
+      if (!res.length || R2.logK < 0.5) continue;
+      const RE = AROM_STAB * R2.logK / Math.LN2; let wsum = 0; for (const [, f] of res) wsum += f * (1 - f);
+      for (const [bd, f] of res) { fo.set(bd, 1 + f); share.set(bd, RE * f * (1 - f) / wsum); sys.set(bd, RE); }
+      continue;
+    }
     const used = new Uint8Array(comp.length), cnt = new Map(), cur = []; let K = 0, over = false;
     const walk = () => {
       if (over) return;
@@ -20151,10 +20202,10 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
+const SET_OK = { dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -20182,6 +20233,7 @@ function ultraApply() {
 }
 function applySettings() {
   setMaxParts(SET.maxParts);
+  DT_MAX = SET.dtMax; RES_BIG = !!SET.resBig; // (Experimental: the longest step; resonance in large ring systems)
   ultraApply();
   if (MAX_PARTS < 8000 && OPT.place.count > 20) OPT.place.count = 20; // (100 at a click only with room for them)
   const dm = SET.res === 'sharp' ? 2 : SET.res === 'standard' ? 1 : 0.75;
@@ -20313,10 +20365,40 @@ function syncSettings() {
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
+  setSegValue('segDtMax', SET.dtMax); $('setResBig').checked = SET.resBig; syncCosts();
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
   settingsStats();
+}
+/* Cost tags (1.07): beside each setting that changes how fast the game runs, what the current choice costs, coloured
+   from green (little or nothing) to red (a lot); blue where a choice makes it faster. Measured costs are from
+   tools/accbench (PERF-NOTES); the others say how the work grows. [level 0–4 or 'f', text, explanation] */
+const COSTS = {
+  segDtMax: () => ({ 0.04: [0, 'normal', 'The usual longest step'], 0.02: [2, '×1.7', 'Measured ×1.6–1.8 where steps are at their longest'], 0.01: [3, '×2.8', 'Measured ×2.6–2.9 where steps are at their longest'] })[SET.dtMax],
+  setResBig: () => SET.resBig ? [1, 'on change', 'Nothing while bonds stay put; 12 ms (200 ring atoms) to 0.2 s (1,000) when a large ring system reacts'] : [0, 'off', ''],
+  segMax: () => ({ 2000: [0, 'up to ×0.5', ''], 4000: [0, 'up to ×1', ''], 8000: [2, 'up to ×2', ''], 12000: [2, 'up to ×3', ''], 20000: [3, 'up to ×5', ''] })[SET.maxParts].map((v, i) => i === 2 ? 'The limit itself costs nothing; a box filled to it takes about this long, against 4,000 particles' : v),
+  segRes: () => ({ sharp: [2, '×2 pixels', 'Drawn at full screen resolution: about twice the pixels of Standard'], standard: [1, '×1', ''], fast: [0, '×0.56', 'Three quarters resolution: about half the pixels'] })[SET.res],
+  segBudget: () => ({ 6: [0, 'smooth', 'Least physics a frame: the smoothest frames, slower simulation'], 10: [1, 'balanced', 'The usual share of each frame for physics'], 16: [2, 'frames', 'More physics a frame: faster simulation, fewer frames a second when busy'], 24: [3, 'frames', 'The most physics a frame: the frame rate drops most when busy'] })[SET.budget],
+  segThreads: () => SET.threads === '1' ? [3, '1 thread', 'One processor thread: the slowest for crowded boxes'] : SET.threads === 'auto' ? ['f', 'auto', ''] : ['f', SET.threads + ' threads', 'More threads share the forces of a crowded box'],
+  segGl: () => SET.gl === '2d' ? [3, 'slower', 'Canvas 2D draws every atom on the processor: much slower drawing for thousands of atoms'] : ['f', 'GPU', ''],
+  segFpsCap: () => +SET.fpsCap === 0 ? [2, 'every refresh', 'Drawn as often as the monitor refreshes: the most drawing'] : +SET.fpsCap <= 60 ? [0, SET.fpsCap + ' fps', 'Fewer frames leave more time for physics'] : [1, SET.fpsCap + ' fps', ''],
+  segLabels: () => R.view.labels && SET.labels !== 'hover' ? [1, 'a little', 'A label on every atom: a little drawing in a crowded view'] : [0, 'least', ''],
+  setFx: () => SET.effects ? [1, 'a little', 'Glows, halos and flashes: a little drawing'] : [0, 'off', ''],
+  segTrail: () => ({ 0.5: [0, 'least', 'The shortest trails: the least drawing'], 1.5: [1, 'a little', 'Longer trails: more drawing with many fast particles'], 4: [2, 'more', 'The longest trails: the most drawing with many fast particles'] })[SET.trail],
+  setRew: () => SET.rewOn ? [+SET.rewEvery <= 0.25 ? 2 : 1, 'memory', 'A snapshot of the box every ' + SET.rewEvery + ' s: copying time and memory'] : [0, 'off', ''],
+  setUltra: () => [0, 'free', 'True sizes and rates cost nothing'],
+};
+function syncCosts() {
+  for (const id in COSTS) {
+    const el = $(id); if (!el) continue;
+    const row = el.closest('.srow') ? el.closest('.srow').firstElementChild : el.closest('label');
+    if (!row) continue;
+    let tag = row.querySelector(':scope > .cost'); const c = COSTS[id]();
+    if (!c || c[1] === '') { if (tag) tag.remove(); continue; }
+    if (!tag) { tag = document.createElement('span'); row.appendChild(tag); }
+    tag.className = 'cost c' + c[0]; tag.textContent = c[1]; tag.title = c[2] || '';
+  }
 }
 function settingsStats() {
   const n = W.parts.filter(p => !p.dead).length;
@@ -20351,6 +20433,7 @@ function settingsInit() {
   bindSeg('segGl', (v) => setSetting('gl', v));
   bindSeg('segSpec', (v) => { _specView = v; drawSpec(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
+  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked);
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));

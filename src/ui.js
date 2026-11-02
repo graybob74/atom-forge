@@ -4703,10 +4703,10 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
+const SET_OK = { dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -4734,6 +4734,7 @@ function ultraApply() {
 }
 function applySettings() {
   setMaxParts(SET.maxParts);
+  DT_MAX = SET.dtMax; RES_BIG = !!SET.resBig; // (Experimental: the longest step; resonance in large ring systems)
   ultraApply();
   if (MAX_PARTS < 8000 && OPT.place.count > 20) OPT.place.count = 20; // (100 at a click only with room for them)
   const dm = SET.res === 'sharp' ? 2 : SET.res === 'standard' ? 1 : 0.75;
@@ -4865,10 +4866,40 @@ function syncSettings() {
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
+  setSegValue('segDtMax', SET.dtMax); $('setResBig').checked = SET.resBig; syncCosts();
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
   settingsStats();
+}
+/* Cost tags (1.07): beside each setting that changes how fast the game runs, what the current choice costs, coloured
+   from green (little or nothing) to red (a lot); blue where a choice makes it faster. Measured costs are from
+   tools/accbench (PERF-NOTES); the others say how the work grows. [level 0–4 or 'f', text, explanation] */
+const COSTS = {
+  segDtMax: () => ({ 0.04: [0, 'normal', 'The usual longest step'], 0.02: [2, '×1.7', 'Measured ×1.6–1.8 where steps are at their longest'], 0.01: [3, '×2.8', 'Measured ×2.6–2.9 where steps are at their longest'] })[SET.dtMax],
+  setResBig: () => SET.resBig ? [1, 'on change', 'Nothing while bonds stay put; 12 ms (200 ring atoms) to 0.2 s (1,000) when a large ring system reacts'] : [0, 'off', ''],
+  segMax: () => ({ 2000: [0, 'up to ×0.5', ''], 4000: [0, 'up to ×1', ''], 8000: [2, 'up to ×2', ''], 12000: [2, 'up to ×3', ''], 20000: [3, 'up to ×5', ''] })[SET.maxParts].map((v, i) => i === 2 ? 'The limit itself costs nothing; a box filled to it takes about this long, against 4,000 particles' : v),
+  segRes: () => ({ sharp: [2, '×2 pixels', 'Drawn at full screen resolution: about twice the pixels of Standard'], standard: [1, '×1', ''], fast: [0, '×0.56', 'Three quarters resolution: about half the pixels'] })[SET.res],
+  segBudget: () => ({ 6: [0, 'smooth', 'Least physics a frame: the smoothest frames, slower simulation'], 10: [1, 'balanced', 'The usual share of each frame for physics'], 16: [2, 'frames', 'More physics a frame: faster simulation, fewer frames a second when busy'], 24: [3, 'frames', 'The most physics a frame: the frame rate drops most when busy'] })[SET.budget],
+  segThreads: () => SET.threads === '1' ? [3, '1 thread', 'One processor thread: the slowest for crowded boxes'] : SET.threads === 'auto' ? ['f', 'auto', ''] : ['f', SET.threads + ' threads', 'More threads share the forces of a crowded box'],
+  segGl: () => SET.gl === '2d' ? [3, 'slower', 'Canvas 2D draws every atom on the processor: much slower drawing for thousands of atoms'] : ['f', 'GPU', ''],
+  segFpsCap: () => +SET.fpsCap === 0 ? [2, 'every refresh', 'Drawn as often as the monitor refreshes: the most drawing'] : +SET.fpsCap <= 60 ? [0, SET.fpsCap + ' fps', 'Fewer frames leave more time for physics'] : [1, SET.fpsCap + ' fps', ''],
+  segLabels: () => R.view.labels && SET.labels !== 'hover' ? [1, 'a little', 'A label on every atom: a little drawing in a crowded view'] : [0, 'least', ''],
+  setFx: () => SET.effects ? [1, 'a little', 'Glows, halos and flashes: a little drawing'] : [0, 'off', ''],
+  segTrail: () => ({ 0.5: [0, 'least', 'The shortest trails: the least drawing'], 1.5: [1, 'a little', 'Longer trails: more drawing with many fast particles'], 4: [2, 'more', 'The longest trails: the most drawing with many fast particles'] })[SET.trail],
+  setRew: () => SET.rewOn ? [+SET.rewEvery <= 0.25 ? 2 : 1, 'memory', 'A snapshot of the box every ' + SET.rewEvery + ' s: copying time and memory'] : [0, 'off', ''],
+  setUltra: () => [0, 'free', 'True sizes and rates cost nothing'],
+};
+function syncCosts() {
+  for (const id in COSTS) {
+    const el = $(id); if (!el) continue;
+    const row = el.closest('.srow') ? el.closest('.srow').firstElementChild : el.closest('label');
+    if (!row) continue;
+    let tag = row.querySelector(':scope > .cost'); const c = COSTS[id]();
+    if (!c || c[1] === '') { if (tag) tag.remove(); continue; }
+    if (!tag) { tag = document.createElement('span'); row.appendChild(tag); }
+    tag.className = 'cost c' + c[0]; tag.textContent = c[1]; tag.title = c[2] || '';
+  }
 }
 function settingsStats() {
   const n = W.parts.filter(p => !p.dead).length;
@@ -4903,6 +4934,7 @@ function settingsInit() {
   bindSeg('segGl', (v) => setSetting('gl', v));
   bindSeg('segSpec', (v) => { _specView = v; drawSpec(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
+  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked);
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));

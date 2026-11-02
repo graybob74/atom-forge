@@ -843,6 +843,19 @@ const { openPage } = require('./browser');
   });
   check(r44.auto120 === 0 && r44.on120 === 0 && r44.orb120 === 0 && r44.auto3000000 >= 1,
     `1.06: ultra-realistic nuclei at their true size only (nuclei drawn at 120 px/Å: ${r44.auto120}, ${r44.on120}, ${r44.orb120}; at 3×10⁶: ${r44.auto3000000})`, '1.06 true nuclei: ' + JSON.stringify(r44));
+  // 1.07: Settings → Experimental: the longest step and resonance in large ring systems; cost tags beside the settings
+  const r45 = await page.evaluate(() => {
+    const out = {};
+    openSettings('exp'); out.tags = document.querySelectorAll('#setModal .cost').length; out.dtTag = $('segDtMax').closest('.srow').querySelector('.cost').className;
+    setSetting('dtMax', 0.01); out.dt = DT_MAX; loadPreset('water'); setRunning(false); forcesNoEvents(); out.step = chooseDt(); setSetting('dtMax', 0.04); out.dtBack = DT_MAX;
+    out.dtTag2 = $('segDtMax').closest('.srow').querySelector('.cost').className; hideModal('setModal');
+    const flake = (big) => { setSetting('resBig', big); const L = designLattice({ lattice: 'honeycomb', elements: ['C'], size: 6 }); myMolAdd({ k: 'tflake', n: 'tflake', r: 0, a: L.atoms, b: L.bonds, d: '', c: 'objects' });
+      loadPreset('empty'); setRunning(false); addMolecule('tflake', 0, 0, 0, 0); const fo = new Set(W.bonds.filter(b => b.arom).map(b => b.fo.toFixed(2))); delete MOLECULES.tflake; return [...fo].sort().join(' '); };
+    out.rule = flake(false); out.det = flake(true); setSetting('resBig', false);
+    return out;
+  });
+  check(r45.tags >= 10 && /c3/.test(r45.dtTag2) === false && r45.dt === 0.01 && r45.step <= 0.01 + 1e-12 && r45.dtBack === 0.04 && r45.rule === '1.50' && r45.det.split(' ').length >= 5,
+    `1.07: Experimental settings: ${r45.tags} cost tags; longest step 0.1 fs applied (a step of ${r45.step} tu) and back; a 54-carbon graphene flake's bonds ${r45.rule} by the six-ring rule, ${r45.det} worked out`, '1.07 experimental: ' + JSON.stringify(r45));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

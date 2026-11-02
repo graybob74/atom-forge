@@ -105,6 +105,27 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.07.0: Settings → Experimental, and cost tags on the settings (asked for by the user)
+- A new Settings tab, Experimental: each accuracy-for-speed option with a plain description and its cost as measured
+  (tools/accbench, the section below). Built so far:
+  - Longest time step 0.4 fs (normal), 0.2 fs or 0.1 fs (`SET.dtMax` → `DT_MAX`, now a `let`): ×1.6–1.8 and ×2.6–2.9
+    where the steps are at their longest.
+  - Resonance in large ring systems (`SET.resBig` → `RES_BIG`): π systems past 40 atoms, up to 1,000, get their Pauling
+    bond orders from a determinant instead of the six-ring rule (`resonanceBig`: for a bipartite system of hexagons,
+    K = |det B| and a bond's share of the structures is B_ij·(B⁻¹)_ji; a share outside 0…1 or no structure at all sends
+    it back to the rule). The same orders and resonance energies as counting for benzene, naphthalene, anthracene,
+    coronene, styrene and pyridine (checked with the counting limit lowered to 5 atoms). A 54-carbon graphene flake:
+    seven distinct orders 1.18–1.82 instead of 1.5 everywhere; a 216-carbon one, 0.9 ms with the rule, 3.8 ms worked
+    out. 12 ms at 200 ring atoms, 60 ms at 500, 0.2 s at 1,000, only when such a molecule's bonding changes.
+  - Coming next (listed in the tab): longer force reach (after the bug-fix session's work on the cutoff), charges that
+    respond to their surroundings, detailed nuclear collisions. On hold (listed with their estimated costs):
+    continuous bond orders, quantum nuclei, electrons as waves, real 3-D, quantum chemistry.
+- Cost tags (`COSTS`, `syncCosts()` in ui.js) beside every setting that changes speed, in every tab: green to red by
+  what the current choice costs, blue where it makes things faster (threads, WebGL): longest step, large-system
+  resonance, particle limit (up to ×0.5 … ×5 for a box filled to it), drawing resolution, physics per frame, threads,
+  WebGL or Canvas 2D, frame-rate cap, labels, glows, trails, rewind, the ultra-realistic mode (free).
+- Test: t_features "1.07 experimental".
+
 ## Accuracy against speed: measurements (after 1.06, tools/accbench/)
 Node, one thread, seeded; ms per simulated femtosecond (ms/fs) is the cost that matters (a shorter step does less a
 step). Energy drift with the bath off. Raw lines in tools/accbench/results-1.06.txt; `tools/accbench/bench-all.sh`.
