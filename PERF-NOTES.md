@@ -77,6 +77,13 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
+- Every charged particle as a collider beam (asked for by the user, approved; 1.13 found it bigger than a menu entry):
+  μ±, π±, K±, τ±, Σ±, Ξ⁻, Ω⁻ and their antiparticles. They are flying exotics (W.exo), which the ring does not handle:
+  its dipole zones pass only W.parts with a matching beam tag (Bfield(x, y, null) skips them), the RF cavities,
+  kickers, separators, beam–beam forces and beamCollisions all work on parts. Needs: exotics steered, accelerated and
+  collided by the ring (or carried as parts), collision physics for the new pairs (μ⁺μ⁻ annihilation, π/K/hyperon on
+  nucleons through hadronHit, exotic on exotic), decay in flight around the ring (time dilation), and the menu and
+  search entries. Neutral particles cannot be steered by a ring and stay out.
 - Slow motion folded into the speed menu (asked for by the user): the hourglass stays, as a shortcut that sets the
   speed to what slow motion gives today (the fastest particle about a second across the box); the separate "slow-mo"
   state goes, and so the readout always shows a speed from the menu. The automatic slow-down for nuclear events sets
@@ -87,7 +94,7 @@ engine stores and visits particles.
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
   everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
 - The rest of the Experimental options (asked for by the user; induced charges and quantum nuclei shipped in 1.12.0,
-  continuous bond orders built for 1.13.0, waiting for the owner's OK): electrons as waves (prototype parked:
+  continuous bond orders shipped in 1.13.0, approved by the owner): electrons as waves (prototype parked:
   tools/eff-proto.js). A physics-model change for the owner to approve.
 - Continuous bond orders, next steps: partial charges that follow the orders (hydrogen bonds between members; needs the
   charges' slopes in the forces, ∂q/∂r, against everything charged), protonation and ions inside the scheme instead of
@@ -115,7 +122,7 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## 1.13.0 (in progress): crash handler, dropdowns, Experimental total cost, beads under the symbols, continuous bond orders
+## 1.13.0: crash handler, dropdowns, Experimental total cost, beads under the symbols, continuous bond orders
 
 - **Crash handler** (asked for by the user after a Ring-collider setup, Ca-40 + Au-197 at about 1 PeV with a τ⁻ placed,
   crashed the game; it ran 2,500 particles headless without an error, so it was most likely the tab freezing or running
@@ -131,7 +138,7 @@ engine stores and visits particles.
   heartbeat that shows trouble (frames over a second, or memory past 70%) counts. Costs nothing measurable: one pass
   over the particles every 0.5 s and a small write every 2 s.
 - **Experimental: continuous bond orders** (asked for by the user: "a less hard-coded chemistry"; built overnight on
-  their "please try to finish the bond orders", off by default, for the owner to approve before it ships). `src/bo.js`
+  their "please try to finish the bond orders", off by default; approved by the owner for 1.13.0). `src/bo.js`
   brings model E of the prototype (tools/bo-proto2.js, steps 1–5 in 1.12.0) into the engine with analytic forces
   (tools/bo-fast.js first checked them against numerical ones: 1e-8 eV/Å). With it on, neutral molecules of non-metals
   keep no stored bonds; each step every pair's order is worked out from the positions and the energy is a smooth
@@ -169,8 +176,7 @@ engine stores and visits particles.
   upward when there is no room below. The select stays in the page out of sight (1 px, transparent), so every script
   that reads, sets or listens to it works as before, and selects drawn later (panels) are found by the 250 ms tick, which
   also keeps each button's text, disabled and hidden state in step. The collider's beam search boxes suggest in the same
-  list (ddSuggest; the datalist is gone). Letting every particle be a beam (μ±, π±, K±, τ±, Σ±, Ξ⁻, Ω⁻, antibaryons)
-  waits for the owner's OK: it changes what the collider does.
+  list (ddSuggest; the datalist is gone). Letting every charged particle be a beam is on the planned list (above).
 - **Beads covered the element symbols** with quantum nuclei on (the user's screenshot): the bead rings were drawn
   after the atoms and their labels. The symbols are now held back and drawn after the rings.
 
