@@ -29,39 +29,66 @@ function raw(r, P) { const d = r - P.r[0]; let n = Math.exp(-d / P.c); if (d > 0
 function Dof(P, n) { if (n <= 0) return 0; if (n < 1) return P.D[0] * Math.pow(n, P_LOW); const i = Math.min(1, Math.floor(n - 1)), f = Math.min(1, n - 1 - i); return P.D[i] + (P.D[i + 1] - P.D[i]) * f; }
 function rOf(P, n) { return P.r[0] - P.c * Math.log(Math.max(n, 0.05)); }
 function alOf(P, n) { return n <= 1 ? P.al[0] : n >= 3 ? P.al[2] : P.al[Math.floor(n) - 1] + (P.al[Math.ceil(n) - 1] - P.al[Math.floor(n) - 1]) * (n - Math.floor(n)); }
+/* Step 3 (model C): no passes. Weak partners first fade out (a 1-3 neighbour 1.5 Å off in a crowded flat molecule is no
+   partner: the raw order is tapered from 0.35 down to nothing at 0.15); then each atom whose partners ask for more than
+   its valence takes the same amount L off every partner, floored at zero (the projection onto its valence: weakest
+   first to go, and benzene's 1.62 + 1.62 + 1 comes down to 1.5 + 1.5 + 1 by itself); a pair's order is the smaller of
+   its two atoms' answers (a smooth minimum). Closed form, continuous. */
+const TAPER_A = +(process.env.BO_TA || 0.15), TAPER_B = +(process.env.BO_TB || 0.35);
+function taper(n) { if (n >= TAPER_B) return n; if (n <= TAPER_A) return 0; const t = (n - TAPER_A) / (TAPER_B - TAPER_A); return n * t * t * (3 - 2 * t); }
+function levelL(vals, V) { // L ≥ 0 with Σ max(0, v − L) = V (0 when they ask for no more than V)
+  let sum = 0; for (const v of vals) sum += v; if (sum <= V) return 0;
+  const s = vals.slice().sort((a, b) => b - a); let acc = 0;
+  for (let k = 0; k < s.length; k++) { acc += s[k]; const L = (acc - V) / (k + 1); if (k === s.length - 1 || s[k + 1] <= L) return Math.max(0, L); }
+  return 0;
+}
 function orders(atoms, xy) {
   const na = atoms.length, pairs = [];
   for (let i = 0; i < na; i++) for (let j = i + 1; j < na; j++) {
     const r = Math.hypot(xy[2 * j] - xy[2 * i], xy[2 * j + 1] - xy[2 * i + 1]), P = pp(atoms[i], atoms[j]);
-    if (r < P.r[0] + 1.3) pairs.push({ i, j, r, P, n0: raw(r, P), n: 0 });
+    if (r < P.r[0] + 1.3) { const n0 = raw(r, P); pairs.push({ i, j, r, P, n0, ne: taper(n0), n: 0 }); }
   }
-  const V = atoms.map(p => X.capacity(p)), VH = atoms.map(p => X.hyperCap(p)), Vof = (i, j) => (atoms[j].el.en >= 3.0 ? VH[i] : V[i]);
-  let prev = pairs.map(q => q.n0);
-  for (let pass = 0; pass < 2; pass++) {
-    const S = new Float64Array(na); pairs.forEach((q, k) => { S[q.i] += prev[k]; S[q.j] += prev[k]; });
-    const next = pairs.map((q, k) => Math.max(0, smin(smin(q.n0, Vof(q.i, q.j) - (S[q.i] - prev[k])), smin(Vof(q.j, q.i) - (S[q.j] - prev[k]), 3))));
-    prev = next;
+  const V = atoms.map(p => X.capacity(p)), VH = atoms.map(p => X.hyperCap(p));
+  const by = atoms.map(() => []); pairs.forEach(q => { by[q.i].push(q); by[q.j].push(q); });
+  const Lof = by.map((list, i) => { const hyp = list.some(q => atoms[q.i === i ? q.j : q.i].el.en >= 3.0); return levelL(list.map(q => q.ne), hyp ? VH[i] : V[i]); });
+  for (const q of pairs) q.n = Math.max(0, smin(smin(Math.max(0, q.ne - Lof[q.i]), Math.max(0, q.ne - Lof[q.j])), 3));
+  // (model D) the order a pair may hold is what each atom's valence leaves after its other partners (their projected
+  // orders), so its own distance comes only from its Morse curve: N = min(Vᵢ − Σ_{k≠j} n'ᵢₖ, Vⱼ − Σ_{k≠i} n'ⱼₖ, 3)
+  const S = new Float64Array(na); for (const q of pairs) { S[q.i] += q.n; S[q.j] += q.n; }
+  for (const q of pairs) {
+    const hi = atoms[q.j].el.en >= 3.0, hj = atoms[q.i].el.en >= 3.0;
+    q.N = Math.max(0, smin(smin((hi ? VH[q.i] : V[q.i]) - (S[q.i] - q.n), (hj ? VH[q.j] : V[q.j]) - (S[q.j] - q.n)), 3));
   }
-  pairs.forEach((q, k) => { q.n = prev[k]; });
   return pairs;
 }
 function energy(atoms, xy, detail) {
   const pairs = orders(atoms, xy); let Eb = 0, Ec = 0, Ea = 0;
   for (const q of pairs) {
-    if (q.n > 1e-6) { const D = Dof(q.P, q.n), r0 = rOf(q.P, q.n), al = alOf(q.P, q.n), e = 1 - Math.exp(-al * (q.r - r0)); Eb += D * (e * e - 1); }
+    const N = process.env.BO_MODEL === 'C' ? q.n : q.N;
+    if (N > 1e-6) { const D = Dof(q.P, N), r0 = rOf(q.P, Math.max(N, 1)), al = alOf(q.P, N), e = 1 - Math.exp(-al * (q.r - r0)), d = q.r - q.P.r[0], fc = d <= 0.9 ? 1 : d >= 1.3 ? 0 : 0.5 * (1 + Math.cos(Math.PI * (d - 0.9) / 0.4)); Eb += fc * D * (e * e - 1); }
     Ec += 0.05 * Math.pow(q.P.sig / q.r, 12);
   }
+  // VSEPR angles, made continuous (step 3): partners from n > 0.4, the weakest blended in as its order goes from 0.4 to
+  // 0.7, and the lone pairs (valence left over, /2) blended between the two whole numbers either side
   const nb = atoms.map(() => []);
-  for (const q of pairs) if (q.n > 0.5) { nb[q.i].push([q.j, q.n]); nb[q.j].push([q.i, q.n]); }
-  for (let c = 0; c < atoms.length; c++) {
-    const p = atoms[c], L = nb[c], n = L.length;
-    if (n < 2 || n > 6 || !p.el || p.el.dblock) continue;
+  for (const q of pairs) if (q.n > 0.4) { nb[q.i].push([q.j, q.n]); nb[q.j].push([q.i, q.n]); }
+  const sstep = (x) => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+  const angE = (c, L) => {
+    const p = atoms[c], n = L.length; if (n < 2 || n > 6) return 0;
     let sum = 0; for (const [, o] of L) sum += o;
-    const lp = Math.max(0, Math.round((p.val - sum) / 2)), per = X.periodOf(p.el.Z), allH = L.every(([k]) => atoms[k].Z === 1);
+    const lpr = Math.max(0, (p.val - sum) / 2), l0 = Math.floor(lpr), f = lpr - l0, per = X.periodOf(p.el.Z), allH = L.every(([k]) => atoms[k].Z === 1);
     const ang = L.map(([k]) => Math.atan2(xy[2 * k + 1] - xy[2 * c + 1], xy[2 * k] - xy[2 * c])).sort((u, v) => u - v);
     const gaps = []; for (let k = 0; k < n; k++) gaps.push(k === n - 1 ? ang[0] + 2 * Math.PI - ang[k] : ang[k + 1] - ang[k]);
-    const tg = X.angleTargetsRaw(n, lp, per, allH).slice().sort((u, v) => u - v), gs = gaps.slice().sort((u, v) => u - v);
-    for (let k = 0; k < n; k++) Ea += 0.5 * X.ANGLE_K * (gs[k] - tg[k]) ** 2;
+    const gs = gaps.slice().sort((u, v) => u - v);
+    const e = (lp) => { const tg = X.angleTargetsRaw(n, lp, per, allH).slice().sort((u, v) => u - v); let t = 0; for (let k = 0; k < n; k++) t += 0.5 * X.ANGLE_K * (gs[k] - tg[k]) ** 2; return t; };
+    return f > 1e-9 ? (1 - f) * e(l0) + f * e(l0 + 1) : e(l0);
+  };
+  for (let c = 0; c < atoms.length; c++) {
+    const p = atoms[c], L = nb[c];
+    if (L.length < 2 || !p.el || p.el.dblock) continue;
+    let wk = 0; for (let k = 1; k < L.length; k++) if (L[k][1] < L[wk][1]) wk = k;
+    const sw = sstep((L[wk][1] - 0.4) / 0.3);
+    Ea += sw * angE(c, L) + (1 - sw) * angE(c, L.filter((_, k) => k !== wk));
   }
   const E = Eb + Ec + Ea;
   return detail ? { E, Eb, Ec, Ea, pairs } : E;
@@ -85,7 +112,7 @@ function mols() {
     const B = B1.buildMol(key); if (!B) { console.log(key, 'not in the library'); continue; }
     relax(B.atoms, B.xy); const d = energy(B.atoms, B.xy, true);
     const sym = (k) => B.atoms[k].el.sym + (k + 1), Dcl = B.classic.reduce((t, c) => t + c.D, 0);
-    const got = d.pairs.filter(q => q.n > 0.25).map(q => `${sym(q.i)}–${sym(q.j)} ${q.n.toFixed(2)} ${q.r.toFixed(3)}`);
+    const got = d.pairs.filter(q => q.n > 0.25).map(q => `${sym(q.i)}–${sym(q.j)} ${(q.N ?? q.n).toFixed(2)} ${q.r.toFixed(3)}`);
     worst = Math.max(worst, Math.abs(-d.Eb - Dcl) / B.classic.length);
     console.log(`${key.padEnd(8)} atomization ${(-d.Eb).toFixed(2)} eV (game ${Dcl.toFixed(2)}), angles ${d.Ea.toFixed(3)} | ${got.join(', ')}`);
   }
@@ -109,7 +136,7 @@ function dyn() {
   for (const p of atoms) X.refresh(p);
   const xy = Float64Array.from(xy0); relax(atoms, xy, 400);
   const m = atoms.map(p => p.m), v = new Float64Array(xy.length); let seed = 3; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5);
-  for (let k = 0; k < v.length; k++) v[k] = rnd() * Math.sqrt(2 * 0.25 / m[k >> 1]); // (hot: about 0.25 eV a degree)
+  for (let k = 0; k < v.length; k++) v[k] = rnd() * Math.sqrt(2 * (+process.env.BO_HEAT || 0.25) / m[k >> 1]); // (hot: about 0.25 eV a degree)
   const KE = () => { let t = 0; for (let k = 0; k < v.length; k++) t += 0.5 * m[k >> 1] * v[k] * v[k]; return t; };
   for (const dt of [0.02, 0.01]) {
     const x = Float64Array.from(xy), w = Float64Array.from(v); let g = grad(atoms, x);
@@ -123,6 +150,5 @@ function dyn() {
   }
   void KE;
 }
-const what = process.argv[2] || 'mols';
-({ mols, hhh, dyn })[what]();
-module.exports = { energy, orders };
+module.exports = { energy, orders, grad, relax, pp };
+if (require.main === module) { const what = process.argv[2] || 'mols'; ({ mols, hhh, dyn })[what](); }
