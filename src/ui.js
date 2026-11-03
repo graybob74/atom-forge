@@ -5135,6 +5135,24 @@ function costTag(el, cls, text, tip) {
   if (!t) { t = document.createElement(el.tagName === 'BUTTON' ? 'small' : 'span'); el.appendChild(t); }
   t.className = cls; t.textContent = text; t.title = tip || '';
 }
+/* Realism tags (1.12, asked for by the user): on each setting that changes how true to nature the game is, the choice
+   closest to nature (for a checkbox: on) carries a "realistic" tag. [choice, why] */
+const REAL = {
+  segRc: ['12', 'Real forces reach on without a cutoff: the longest reach is the closest'],
+  segDtMax: ['0.01', 'The shortest step follows the motion most exactly'],
+  segQeq: ['1', 'Real molecules polarize all the time: every step is the closest'],
+  segAtom: ['1', 'Atoms as big as they are'],
+  setResBig: [true, 'Every ring system gets its resonance worked out exactly'],
+  setInc: [true, 'A nucleon followed through the nucleus collision by collision, as in nature'],
+  setUltra: [true, 'True sizes and rates, nothing made easier to see'],
+};
+function syncReal() {
+  for (const id in REAL) {
+    const el = $(id); if (!el) continue; const [v, why] = REAL[id];
+    if (el.classList.contains('seg')) for (const b of el.querySelectorAll('button')) costTag(b, 'rl', b.dataset.v === v ? 'realistic' : '', why);
+    else { const row = el.closest('label'); if (row) costTag(row, 'rlb', 'realistic when on', why); }
+  }
+}
 function syncCosts() {
   for (const id in COSTS) {
     const el = $(id); if (!el) continue;
@@ -5145,6 +5163,7 @@ function syncCosts() {
     if (c.o) for (const b of el.querySelectorAll('button')) { const a = c.o[b.dataset.v]; costTag(b, 'oc c' + (a ? costLevel(a[0]) : 0), a ? a[0] : '', a ? a[1] : ''); }
     else { costTag(row, 'cost c' + costLevel(c.on[0]), 'on ' + c.on[0], 'Turned on: ' + c.on[1]); row.querySelector(':scope > .cost').classList.toggle('dim', !el.checked); }
   }
+  syncReal(); // (after the cost tags: the realistic tag sits under them)
   if (!UI.hz && !UI.hzBusy && typeof requestAnimationFrame === 'function') { // (the monitor's rate, for the frame-rate cap: the median of 20 frames)
     UI.hzBusy = true; const ts = [];
     const tick = (t) => { ts.push(t); if (ts.length < 21) requestAnimationFrame(tick); else { const d = ts.slice(1).map((x, k) => x - ts[k]).sort((a, b) => a - b)[10]; UI.hz = d > 2 ? 1000 / d : 60; UI.hzBusy = false; syncCosts(); } };

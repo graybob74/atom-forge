@@ -126,6 +126,11 @@ engine stores and visits particles.
     releases the polarization energy as heat (an insulated box warms; the bath takes it away), and the charges' lag
     between updates releases a little more (water: 10 eV over 1,000 steps at every 10th step, 1.3 eV at every step).
   - Test: t_features "1.12 induced charges".
+- Realistic tags (asked for by the user): on each setting that changes how true to nature the game is, the choice
+  closest to nature carries an outlined "realistic" tag (`REAL`, `syncReal`): force reach 12 Å, longest step 0.1 fs,
+  induced charges every step, atom size true size; on a checkbox ("realistic when on"): resonance in large ring
+  systems, detailed nuclear collisions, ultra-realistic mode. Test: t_features "1.10 reach" (now also the tags).
+- Electrons as waves: parked by the user's choice after step 1 (below), for continuous bond orders first.
 - Electrons as waves, step 1: a prototype outside the game (`node tools/eff-proto.js atoms|dyn|cost`), the electron
   force field of Su & Goddard (eFF): each electron a Gaussian wave packet with a centre, a size and a spin, the size a
   coordinate of its own (mass ¾ mₑ); kinetic energy 3/(2s²), erf-smeared Coulomb, the Pauli term between overlapping

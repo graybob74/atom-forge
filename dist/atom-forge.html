@@ -682,6 +682,9 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .seg button .oc { display: block; width: max-content; margin: 2px auto 0; padding: 0 5px; border-radius: 7px; font: 600 9.5px var(--font-data, ui-monospace, monospace); line-height: 13px; color: #fff; white-space: nowrap; opacity: 0.8; }
 .seg button[aria-pressed="true"] .oc { opacity: 1; }
 .oc.c0 { background: #2e9e5b; } .oc.c1 { background: #7aa83a; } .oc.c2 { background: #c9a227; color: #1b1b1b; } .oc.c3 { background: #e07a2a; } .oc.c4 { background: #d14343; } .oc.cf { background: #3b82c4; }
+/* (1.12) the "realistic" tag on the choice closest to nature */
+.seg button .rl { display: block; width: max-content; margin: 2px auto 0; padding: 0 5px; border-radius: 7px; border: 1px solid #2f9fb3; color: #2f9fb3; font: 600 9px var(--font-data, ui-monospace, monospace); line-height: 12px; letter-spacing: 0.02em; }
+.rlb { display: inline-block; margin-left: 7px; padding: 0 6px; border-radius: 9px; border: 1px solid #2f9fb3; color: #2f9fb3; font: 600 10px var(--font-data, ui-monospace, monospace); line-height: 15px; vertical-align: 1px; white-space: nowrap; }
 .srow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; }
 .srow .seg { flex: 0 1 330px; }
 .srow .skey { flex: 0 1 330px; font-size: 13px; }
@@ -22511,6 +22514,24 @@ function costTag(el, cls, text, tip) {
   if (!t) { t = document.createElement(el.tagName === 'BUTTON' ? 'small' : 'span'); el.appendChild(t); }
   t.className = cls; t.textContent = text; t.title = tip || '';
 }
+/* Realism tags (1.12, asked for by the user): on each setting that changes how true to nature the game is, the choice
+   closest to nature (for a checkbox: on) carries a "realistic" tag. [choice, why] */
+const REAL = {
+  segRc: ['12', 'Real forces reach on without a cutoff: the longest reach is the closest'],
+  segDtMax: ['0.01', 'The shortest step follows the motion most exactly'],
+  segQeq: ['1', 'Real molecules polarize all the time: every step is the closest'],
+  segAtom: ['1', 'Atoms as big as they are'],
+  setResBig: [true, 'Every ring system gets its resonance worked out exactly'],
+  setInc: [true, 'A nucleon followed through the nucleus collision by collision, as in nature'],
+  setUltra: [true, 'True sizes and rates, nothing made easier to see'],
+};
+function syncReal() {
+  for (const id in REAL) {
+    const el = $(id); if (!el) continue; const [v, why] = REAL[id];
+    if (el.classList.contains('seg')) for (const b of el.querySelectorAll('button')) costTag(b, 'rl', b.dataset.v === v ? 'realistic' : '', why);
+    else { const row = el.closest('label'); if (row) costTag(row, 'rlb', 'realistic when on', why); }
+  }
+}
 function syncCosts() {
   for (const id in COSTS) {
     const el = $(id); if (!el) continue;
@@ -22521,6 +22542,7 @@ function syncCosts() {
     if (c.o) for (const b of el.querySelectorAll('button')) { const a = c.o[b.dataset.v]; costTag(b, 'oc c' + (a ? costLevel(a[0]) : 0), a ? a[0] : '', a ? a[1] : ''); }
     else { costTag(row, 'cost c' + costLevel(c.on[0]), 'on ' + c.on[0], 'Turned on: ' + c.on[1]); row.querySelector(':scope > .cost').classList.toggle('dim', !el.checked); }
   }
+  syncReal(); // (after the cost tags: the realistic tag sits under them)
   if (!UI.hz && !UI.hzBusy && typeof requestAnimationFrame === 'function') { // (the monitor's rate, for the frame-rate cap: the median of 20 frames)
     UI.hzBusy = true; const ts = [];
     const tick = (t) => { ts.push(t); if (ts.length < 21) requestAnimationFrame(tick); else { const d = ts.slice(1).map((x, k) => x - ts[k]).sort((a, b) => a - b)[10]; UI.hz = d > 2 ? 1000 / d : 60; UI.hzBusy = false; syncCosts(); } };
