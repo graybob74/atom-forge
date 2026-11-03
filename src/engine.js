@@ -5519,12 +5519,23 @@ function bondsCanRise() {
 /* Local temperature estimate per atom (for incandescence and Curie behaviour). */
 function localTemps() {
   const PI = partsSync(), n = W.parts.length, DEAD = S.dead, K = S.k, M = S.m, VX = S.vx, VY = S.vy, TL = S.tLocal, KB = PHYS.KB;
+  const mags = W.magnets.length > 0, kT = KB * Math.max(W.T, 1);
   for (let j = 0; j < n; j++) {
     const i = PI[j];
     if (DEAD[i] === 1 || K[i] !== NUC) continue;
     const ke = 0.5 * M[i] * (VX[i] * VX[i] + VY[i] * VY[i]);
-    const Tk = ke / KB, t = TL[i];
-    TL[i] = t ? 0.9 * t + 0.1 * Tk : Tk;
+    const Tk = ke / KB, t = TL[i], t1 = t ? 0.9 * t + 0.1 * Tk : Tk;
+    // (1.09: an atom crossing its Curie point beside a magnet changes its magnetic energy (ferromagnet ↔ paramagnet, up
+    // to 0.65 eV at a 5,000 T pole); that change is paid by its own motion, or it waits. Unpaid, the insulated magnet
+    // setup drifted 38–52 eV in 3,000 frames, every jump one such crossing)
+    const fe = mags ? FERRO[S.Z[i]] : null;
+    if (fe && (t < fe[0]) !== (t1 < fe[0]) && S.ne[i] > 0 && S.fast[i] === 0 && S.rad[i] === 0) {
+      const p = S.obj[i], U0 = magU(p, kT); TL[i] = t1; const dU = magU(p, kT) - U0;
+      if (dU > ke) { TL[i] = t; continue; }
+      if (ke > 0) { const f = Math.sqrt((ke - dU) / ke); VX[i] *= f; VY[i] *= f; }
+      continue;
+    }
+    TL[i] = t1;
   }
 }
 

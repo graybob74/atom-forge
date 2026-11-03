@@ -895,6 +895,17 @@ const { openPage } = require('./browser');
   });
   check(r47.stop.d > 1 && r47.rescue.d > 1 && Math.abs(r47.stop.dE) < 5 && Math.abs(r47.rescue.dE) < 5,
     `1.09: atoms the wall stops or brings back are set down clear (${r47.stop.d}, ${r47.rescue.d} Å from the atom there), energy kept (${r47.stop.dE}, ${r47.rescue.dE} eV)`, '1.09 wall overlap: ' + JSON.stringify(r47));
+  // 1.09: an iron atom crossing its Curie point at a magnet's pole pays its change of magnetic energy from its motion
+  // (it was made or lost: the insulated magnet setup drifted 38–52 eV in 3,000 frames)
+  const r48 = await page.evaluate(() => {
+    loadPreset('empty'); setRunning(false); baseWorld(40, 28, 300, 0); W.magnets.push({ x: 8, y: 0, R: 10, B: 5000 });
+    const fe = addAtom('Fe', -2.2, 0); forcesNoEvents(); W.fSpawn = W.spawned;
+    fe.vx = Math.sqrt(2 * PHYS.KB * 6000 / fe.m); fe.vy = 0; fe.tLocal = 1040;
+    const U0 = magU(fe, PHYS.KB * 300), E0 = totalEnergy().total; localTemps();
+    return { dU: +(magU(fe, PHYS.KB * 300) - U0).toFixed(3), dE: +(totalEnergy().total - E0).toFixed(4), T: Math.round(fe.tLocal) };
+  });
+  check(Math.abs(r48.dU) > 0.3 && Math.abs(r48.dE) < 1e-6,
+    `1.09: iron crossing its Curie point at the pole (local ${r48.T} K): magnetic energy ${r48.dU} eV, paid exactly (${r48.dE} eV)`, '1.09 Curie: ' + JSON.stringify(r48));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

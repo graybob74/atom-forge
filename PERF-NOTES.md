@@ -115,6 +115,13 @@ engine stores and visits particles.
   around it, since atoms move during the walls pass). Insulated chain, seed 11, 3,000 frames (on 1.08 before the fix):
   +212.3 MeV → +9.0 keV (13 fissions, 2.9 GeV); seed 5 +59.6 MeV → +14.7 keV. Test: t_features "1.09 wall overlap"
   (stopped atom +10.6 MeV → 0; rescued atom +6.4 MeV → −1 eV).
+- Insulated magnet setup drifted 38–52 eV in 3,000 frames (its 300-frame limit is 3 eV): every jump over 0.3 eV was an
+  iron atom by the pole crossing its Curie point (localTemps, every 10 steps). Its magnetic energy switched between
+  ferromagnet and paramagnet (−0.58 ↔ −1.23 eV at 5,000 T) and nothing paid for it. Now the atom's own motion pays the
+  change, and if it cannot, the crossing waits. Measured on 0.95: 800 frames, 220 such jumps → 0; 3,000 frames
+  51.5 → 31.6 eV. The single crossing on 1.08: −0.652 eV unbooked → 0. Left: the rest comes after frame ~1,700, while
+  hot iron oxidizes with ionic transfers in H/O chemistry (jumps of 0.5–0.9 eV in steps with events), not chased.
+  Test: t_features "1.09 Curie".
 
 ## 1.08.0: Experimental: detailed nuclear collisions (an intranuclear cascade)
 - Settings → Experimental → Detailed nuclear collisions (`SET.inc` → `INC_ON`; `cascadeInto` in hep.js): a proton or
