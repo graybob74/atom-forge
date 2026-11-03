@@ -152,6 +152,19 @@ engine stores and visits particles.
   centroids with their energy measured over every bead (localPE averaged over the ring) and every move an event makes
   applied to the whole ring, the bath's temperature setting the springs (insulated: ring-polymer dynamics at the
   temperature it started at).
+- Quantum nuclei, step 2: in the engine (`PI`, `piSet(P)`, engine.js; no setting yet, off unless set): each atom with
+  electrons a ring of P beads; the force pass runs once per bead (`piForces`: positions shifted to bead k, the pass,
+  shifted back; the centroids get the average force; events from the first bead's pass only); the rings' internal
+  normal modes move between (`piOpen` before the opening kick: half a kick and thermostat, then the free springs
+  exactly; `piClose` after the closing force pass); a thermostat on the internal modes only with the bath on (PILE-L
+  at P·T), insulated it is ring-polymer dynamics; new rings start spread as a free ring at the bath's temperature, the
+  energy from the bath (`piSpread`); the energy is the beads' average potential plus the rings' kinetic and spring
+  energy /P (`piEnergy`). Measured: H₂ at 300 K, 16 beads: width 0.089 Å, mean 0.764 Å (prototype 0.083/0.762,
+  measured ⟨r⟩ 0.766); insulated H₂ keeps its energy (0.026 eV over 200 fs, falling as dt²). Liquid water costs ×7.8 with
+  8 beads and ×17 with 16 (1.08 → 8.5 → 18.7 ms/fs). Left: insulated liquid water drifts with the game's 0.4 fs step
+  (−0.57 eV in 30 fs, −0.18 at 0.2 fs, −0.05 at 0.1 fs: the integrator, as dt²), so rings need shorter steps (or the
+  bath); events' energy books still use the centroids (localPE over the beads to do); drawing the beads; the setting;
+  tests.
 - Continuous bond orders, step 2 (`node tools/bo-proto2.js mols|hhh|dyn`): a closed-form order (Pauling's raw order
   capped by the valence its partners leave, two fixed passes, a smooth minimum), so the energy would be a plain function
   of the positions. It fails: two passes of the cap oscillate (the first cuts both of an atom's partners to nothing,

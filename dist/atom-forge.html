@@ -5891,6 +5891,7 @@ let _fastNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
 let _mdI = shArray(Int32Array, 4096), _nmd = 0, _mdLI = shArray(Int32Array, 256), _nmdL = 0, _chI = shArray(Int32Array, 256), _nch = 0, _mdNI = new Int32Array(4096), _nmdN = 0; // the slots of _md, _mdL, _charged and the MD nuclei
 let _mdGen = 0, _mdPrev = new Int32Array(4096), _nmdPrev = -1, _nFastLep = 0; // _mdGen counts the changes of the MD set (_md as a set of slots)
 function computeForces() {
+  if (PI.on && PI.n) return piForces();
   if (_profOn) { const t0 = performance.now(), k0 = _tKernels; computeForces1(); _tForces += performance.now() - t0; _nPasses++; if (TH_LAST.used) { _tKernels = k0 + TH_LAST.ms; _tWait += TH_LAST.wait; } return; }
   computeForces1();
 }
@@ -9373,6 +9374,129 @@ function bondsCanRise() {
   return false;
 }
 
+/* ---- Quantum nuclei (1.12, Settings → Experimental; path-integral molecular dynamics). Every atom is a ring of P
+   beads (copies) joined by springs m·ω_P², ω_P = P·kT/ħ at the bath's temperature; each bead feels the force field at
+   its own copy of the world, so the ring spreads as the quantum particle does: zero-point motion, tunnelling. The atom
+   the game moves, draws and does chemistry with is the ring's centre (centroid), driven by the force averaged over the
+   beads; the beads' offsets from it (PI.ox/oy, with velocities PI.vx/vy) move in the ring's normal modes: the springs
+   exactly, the force field's pull on each mode, and a Langevin thermostat on each (PILE-L) at P·T, as ring-polymer
+   sampling needs. The force field is worked out once per bead (piForces): P passes a step.
+   Energy: the potential is the beads' average (piEnergy), plus the rings' internal energy (kinetic and springs, /P);
+   what the rings' thermostat gives or takes is booked to the bath. Free electrons, bare nuclei and fast particles stay
+   classical points. */
+const PI = { fresh: [], on: false, P: 0, n: 0, cap: 0, ox: null, oy: null, vx: null, vy: null, fx: null, fy: null, id: null, list: new Int32Array(0), C: null, om: null, T: 300, bath: 0 };
+function piSet(P) {
+  P = P === 8 || P === 16 || P === 32 ? P : 0;
+  if (P === PI.P) return;
+  PI.P = P; PI.on = P > 0; PI.cap = 0; PI.n = 0;
+  if (!P) return;
+  const C = [], om = []; // the free ring's normal modes (orthonormal) and their frequencies over ω_P
+  for (let j = 0; j < P; j++) {
+    om.push(2 * Math.sin(j * Math.PI / P)); const row = new Float64Array(P);
+    for (let k = 0; k < P; k++) row[k] = j === 0 ? Math.sqrt(1 / P) : j < P / 2 ? Math.sqrt(2 / P) * Math.cos(2 * Math.PI * j * k / P) : j === P / 2 ? Math.sqrt(1 / P) * (k % 2 ? -1 : 1) : Math.sqrt(2 / P) * Math.sin(2 * Math.PI * j * k / P);
+    C.push(row);
+  }
+  PI.C = C; PI.om = om;
+}
+/* Which slots are rings this step (atoms and ions in MD), with their offsets kept by slot (zeroed for a new particle). */
+function piList() {
+  const P = PI.P;
+  if (PI.cap < S.size) {
+    const cap = S.size, grow = (a) => { const b = new Float64Array(P * cap); if (a) for (let k = 0; k < P; k++) b.set(a.subarray(k * PI.cap, (k + 1) * PI.cap), k * cap); return b; };
+    PI.ox = grow(PI.ox && PI.cap ? PI.ox : null); PI.oy = grow(PI.oy && PI.cap ? PI.oy : null); PI.vx = grow(PI.vx && PI.cap ? PI.vx : null); PI.vy = grow(PI.vy && PI.cap ? PI.vy : null);
+    PI.fx = new Float64Array(P * cap); PI.fy = new Float64Array(P * cap);
+    const id = new Int32Array(cap).fill(-1); if (PI.id && PI.cap) id.set(PI.id.subarray(0, PI.cap)); PI.id = id; PI.cap = cap;
+  }
+  const L = PI.list.length >= W.parts.length ? PI.list : (PI.list = new Int32Array(W.parts.length * 2 + 16)), cap = PI.cap;
+  let n = 0;
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || p.Z === 0 || p.ne === 0 || p.fast || p.rad) continue;
+    const i = p.i;
+    if (PI.id[i] !== p.id) { PI.id[i] = p.id; for (let k = 0; k < P; k++) { PI.ox[k * cap + i] = 0; PI.oy[k * cap + i] = 0; PI.vx[k * cap + i] = 0; PI.vy[k * cap + i] = 0; } PI.fresh.push(i); }
+    L[n++] = i;
+  }
+  PI.n = n;
+}
+function piShift(k, sign) { // move every ring's atom to its bead k (sign 1) or back (−1)
+  const X = S.x, Y = S.y, L = PI.list, base = k * PI.cap;
+  for (let a = 0; a < PI.n; a++) { const i = L[a]; X[i] += sign * PI.ox[base + i]; Y[i] += sign * PI.oy[base + i]; }
+}
+function piForces() {
+  const P = PI.P, cap = PI.cap, L = PI.list, n = PI.n, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, hi = S.hi;
+  const ax = new Float64Array(hi), ay = new Float64Array(hi), gx = new Float64Array(hi), gy = new Float64Array(hi), ev = _noEv;
+  for (let k = 0; k < P; k++) {
+    piShift(k, 1);
+    if (k > 0) _noEv = true; // (events from the first bead's pass only: they act on the centroids)
+    if (_profOn) { const t0 = performance.now(); computeForces1(); _tForces += performance.now() - t0; _nPasses++; } else computeForces1();
+    _noEv = ev;
+    piShift(k, -1);
+    for (let i = 0; i < hi; i++) { ax[i] += FX[i]; ay[i] += FY[i]; gx[i] += GX[i]; gy[i] += GY[i]; }
+    for (let a = 0; a < n; a++) { const i = L[a]; PI.fx[k * cap + i] = FX[i]; PI.fy[k * cap + i] = FY[i]; }
+  }
+  for (let i = 0; i < hi; i++) { FX[i] = ax[i] / P; FY[i] = ay[i] / P; GX[i] = gx[i] / P; GY[i] = gy[i] / P; }
+}
+/* The rings' internal modes: a half step of thermostat and force, then (piOpen) the free springs over the step; after
+   the force pass (piClose) the other half kick and thermostat. */
+function piModes(fn) { // fn(i, m, qx, qy, vx, vy) on each ring's internal normal-mode coordinates (arrays over j ≥ 1), written back
+  const P = PI.P, cap = PI.cap, C = PI.C, L = PI.list, M = S.m;
+  const qx = new Float64Array(P), qy = new Float64Array(P), wx = new Float64Array(P), wy = new Float64Array(P);
+  for (let a = 0; a < PI.n; a++) {
+    const i = L[a];
+    for (let j = 1; j < P; j++) { let sx = 0, sy = 0, ux = 0, uy = 0; const c = C[j]; for (let k = 0; k < P; k++) { const o = k * cap + i; sx += c[k] * PI.ox[o]; sy += c[k] * PI.oy[o]; ux += c[k] * PI.vx[o]; uy += c[k] * PI.vy[o]; } qx[j] = sx; qy[j] = sy; wx[j] = ux; wy[j] = uy; }
+    fn(i, M[i], qx, qy, wx, wy);
+    for (let k = 0; k < P; k++) { let sx = 0, sy = 0, ux = 0, uy = 0; for (let j = 1; j < P; j++) { const c = C[j][k]; sx += c * qx[j]; sy += c * qy[j]; ux += c * wx[j]; uy += c * wy[j]; } const o = k * cap + i; PI.ox[o] = sx; PI.oy[o] = sy; PI.vx[o] = ux; PI.vy[o] = uy; }
+  }
+}
+function piKickTherm(h) { // half a step: the force field on each internal mode, and the thermostat
+  const P = PI.P, cap = PI.cap, C = PI.C, wP = P * PHYS.KB * Math.max(PI.T, 1) / (6.582119569e-16 / PHYS.TU_S), kTP = P * PHYS.KB * Math.max(PI.T, 1);
+  let dK = 0;
+  piModes((i, m, qx, qy, wx, wy) => {
+    for (let j = 1; j < P; j++) {
+      let fx = 0, fy = 0; const c = C[j]; for (let k = 0; k < P; k++) { fx += c[k] * PI.fx[k * cap + i]; fy += c[k] * PI.fy[k * cap + i]; }
+      wx[j] += h * fx / m; wy[j] += h * fy / m;
+      if (!(W.gamma > 0)) continue; // (insulated: ring-polymer dynamics, its energy kept)
+      const g = 2 * PI.om[j] * wP, c1 = Math.exp(-h * g), c2 = Math.sqrt(1 - c1 * c1), sd = Math.sqrt(kTP / m);
+      const k0 = 0.5 * m * (wx[j] * wx[j] + wy[j] * wy[j]);
+      wx[j] = c1 * wx[j] + c2 * sd * gauss(); wy[j] = c1 * wy[j] + c2 * sd * gauss();
+      dK += 0.5 * m * (wx[j] * wx[j] + wy[j] * wy[j]) - k0;
+    }
+  });
+  PI.bath -= dK / P; W.ledger.bath -= dK / P; // (the rings' thermostat: what it gives is taken from the bath, as the heat bath's own exchanges are)
+}
+/* New rings (an atom just made, or the option just turned on) start spread as a free ring at the bath's temperature
+   (each internal mode drawn from its own equilibrium); the energy that takes comes from the bath. */
+function piSpread(slots) {
+  const set = new Set(slots), e0 = piEnergy().total, P = PI.P, wP = P * PHYS.KB * Math.max(PI.T, 1) / (6.582119569e-16 / PHYS.TU_S), kTP = P * PHYS.KB * Math.max(PI.T, 1);
+  piModes((i, m, qx, qy, wx, wy) => {
+    if (!set.has(i)) return;
+    for (let j = 1; j < P; j++) { const w = PI.om[j] * wP, sq = Math.sqrt(kTP / m) / w, sv = Math.sqrt(kTP / m); qx[j] = sq * gauss(); qy[j] = sq * gauss(); wx[j] = sv * gauss(); wy[j] = sv * gauss(); }
+  });
+  const dE = piEnergy().total - e0; PI.bath -= dE; W.ledger.bath -= dE;
+}
+function piOpen(dt) {
+  PI.fresh.length = 0; piList(); if (!PI.n) return;
+  PI.T = W.T;
+  if (PI.fresh.length) piSpread(PI.fresh.slice());
+  piKickTherm(dt / 2);
+  const wP = PI.P * PHYS.KB * Math.max(PI.T, 1) / (6.582119569e-16 / PHYS.TU_S);
+  piModes((i, m, qx, qy, wx, wy) => { for (let j = 1; j < PI.P; j++) { const w = PI.om[j] * wP, c = Math.cos(w * dt), sn = Math.sin(w * dt); for (const [q, v] of [[qx, wx], [qy, wy]]) { const a = q[j], b = v[j]; q[j] = a * c + b * sn / w; v[j] = -a * w * sn + b * c; } } });
+}
+function piClose(dt) { if (PI.n) piKickTherm(dt / 2); }
+/* The energy with rings: the potential averaged over the beads, and the rings' internal kinetic and spring energy /P. */
+function piEnergy() {
+  piList();
+  const P = PI.P; let pe = 0, base = null;
+  for (let k = 0; k < P; k++) { piShift(k, 1); const e = totalEnergy0(); piShift(k, -1); pe += e.pe / P; if (!k) base = e; }
+  const wP = P * PHYS.KB * Math.max(PI.T, 1) / (6.582119569e-16 / PHYS.TU_S), cap = PI.cap, L = PI.list, M = S.m;
+  let ring = 0;
+  for (let a = 0; a < PI.n; a++) {
+    const i = L[a], m = M[i];
+    for (let k = 0; k < P; k++) { const o = k * cap + i, o2 = ((k + 1) % P) * cap + i, dx = PI.ox[o2] - PI.ox[o], dy = PI.oy[o2] - PI.oy[o]; ring += 0.5 * m * (PI.vx[o] ** 2 + PI.vy[o] ** 2) + 0.5 * m * wP * wP * (dx * dx + dy * dy); }
+  }
+  ring /= P;
+  const internal = base.internal + ring;
+  return { ke: base.ke, pe, internal, ring, esc: base.esc, total: base.ke + pe + internal + base.esc };
+}
 /* ---- Charges that respond to their surroundings (1.12, Settings → Experimental; a fluctuating-charge model of
    polarization, after electronegativity equalization / QEq). Each molecule's partial charges are its own (qpol + qf,
    from its bonds) plus an induced part qi that sums to zero over the molecule, so no charge moves between molecules.
@@ -9552,6 +9676,7 @@ function stepPlain(dt) {
   _wallMoved = false;
   rpSkip();
   let tp = _profOn ? performance.now() : 0;
+  if (PI.on) piOpen(dt); // (quantum nuclei: the rings' own motion, before the force pass at the new positions)
   if (!integrateA(dt)) { // (the threads take the plain case: no magnetic field, no free electrons)
     outerA(dt);
     innerSteps(dt); // everything in MD drifts here; free electrons take their own short steps
@@ -9559,6 +9684,7 @@ function stepPlain(dt) {
   if (_profOn) { const t = performance.now(); _tInteg += t - tp; _rpT = t; }
   const tf1 = _tForces;
   outerForces();
+  if (PI.on) piClose(dt);
   if (_profOn) PROF.rp[1] -= _tForces - tf1; // (the force pass itself is counted under forces)
   rpMark(1);
   if (_profOn) tp = performance.now();
@@ -10043,6 +10169,10 @@ function userAddElectron(p) {
 /* ------------------------------------------------------------------ diagnostics */
 /* Total energy using exactly the same potentials as the forces (for testing energy conservation). */
 function totalEnergy() {
+  if (PI.on && PI.n) return piEnergy();
+  return totalEnergy0();
+}
+function totalEnergy0() {
   let ke = 0, pe = 0, internal = 0;
   const md = [];
   const kTm = PHYS.KB * Math.max(W.T, 1), mags = W.magnets.length > 0;
