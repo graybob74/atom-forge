@@ -6700,12 +6700,14 @@ function breakCost(bd, set) {
   if (set.size > LOCAL_MOL) { // a big molecule (a chip): only what lies within two bonds of a and b can change (localDelta's method)
     const Sn = new Set([a, b]);
     for (const c of [a, b]) for (const b1 of c.bonds) { const o = other(b1, c); Sn.add(o); for (const b2 of o.bonds) Sn.add(other(b2, o)); }
-    const print = (q) => q.x * 1.000003 + q.y * 1.7 + q.q * 3.1 + q.qp * 5.3 + q.rd * 7.9 + q.ne * 11 + q.bonds.length * 13 + q.mol * 17;
+    // (1.09: the rest must stay one molecule, whatever number it is given: removing a bond renumbers the molecule, so the
+    // number itself in the fingerprint missed on every bond of a ring too, and each try in a melted chip summed it whole)
+    const print = (q) => q.x * 1.000003 + q.y * 1.7 + q.q * 3.1 + q.qp * 5.3 + q.rd * 7.9 + q.ne * 11 + q.bonds.length * 13;
     const before = new Map(); for (const q of set) if (!Sn.has(q)) before.set(q, print(q));
     const U0 = localPE(Sn);
     removeBond(bd);
-    let local = true;
-    for (const [q, v] of before) if (q.dead || print(q) !== v) { local = false; break; }
+    let local = true, mol = null;
+    for (const [q, v] of before) { if (mol === null) mol = q.mol; if (q.dead || print(q) !== v || q.mol !== mol) { local = false; break; } }
     if (local) cost = localPE(Sn) - U0;
     else { _localMiss++; bd = addBond(a, b, bd.order); const PE0 = localPE(set); removeBond(bd); cost = localPE(set) - PE0; } // (beyond the neighbourhood: put back, and over the whole molecule)
   } else {

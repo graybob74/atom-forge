@@ -122,6 +122,14 @@ engine stores and visits particles.
   51.5 → 31.6 eV. The single crossing on 1.08: −0.652 eV unbooked → 0. Left: the rest comes after frame ~1,700, while
   hot iron oxidizes with ionic transfers in H/O chemistry (jumps of 0.5–0.9 eV in steps with events), not chased.
   Test: t_features "1.09 Curie".
+- Insulated, melted memory chip (seu, bath off, heated at 4,200 K) crawled: breakCost's fingerprint for a big molecule
+  included the molecule's number (q.mol), and removeBond renumbers the molecule, so every bond try in the chip
+  "missed" and summed all 985 atoms twice, even for a bond in a ring. Now the fingerprint asks only that the rest
+  stays one molecule. Same heated state (24,000 steps at 4,200 K, seed 11), then 300 insulated steps: 99.5 s → 32.9 s;
+  breakCost 61.1 s → 5.3 s; whole-molecule fallbacks 4,363 → 57. The local cost against the whole-chip sum over 5,417
+  tries agrees to 7·10⁻¹² eV. Left: most of the 33 s is delocalize, relink, restoreSnap and molecule over the whole
+  chip on every event tried (since 1.05's resonance, each relink of a 1,000-atom molecule re-spreads its charges), the
+  same kind of cost, not chased. Test: t_features "1.09 chip" (40 tries in the chip: 40 whole-chip sums → 0).
 
 ## 1.08.0: Experimental: detailed nuclear collisions (an intranuclear cascade)
 - Settings → Experimental → Detailed nuclear collisions (`SET.inc` → `INC_ON`; `cascadeInto` in hep.js): a proton or

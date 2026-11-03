@@ -906,6 +906,20 @@ const { openPage } = require('./browser');
   });
   check(Math.abs(r48.dU) > 0.3 && Math.abs(r48.dE) < 1e-6,
     `1.09: iron crossing its Curie point at the pole (local ${r48.T} K): magnetic energy ${r48.dU} eV, paid exactly (${r48.dE} eV)`, '1.09 Curie: ' + JSON.stringify(r48));
+  // 1.09: a bond tried in a chip is costed over its neighbourhood, not the whole chip, also though removing it renumbers
+  // the chip (every try "missed" and summed all 985 atoms twice: a melted chip crawled)
+  const r49 = await page.evaluate(() => {
+    loadPreset('seu'); setRunning(false); forcesNoEvents(); W.fSpawn = W.spawned;
+    const big = W.parts.find(p => p.bonds.length >= 3 && molecule(p).length > 500), set = setOf(molecule(big)), miss0 = _localMiss;
+    let worst = 0, n = 0;
+    for (const bd of W.bonds.filter(b => set.has(b.a)).slice(0, 40)) {
+      const a = bd.a, b = bd.b, o = bd.order, c = breakCost(bd, set);
+      const nb = addBond(a, b, o), P0 = localPE(set); removeBond(nb); worst = Math.max(worst, Math.abs(c - (localPE(set) - P0))); addBond(a, b, o); n++;
+    }
+    return { size: set.size, n, miss: _localMiss - miss0, worst };
+  });
+  check(r49.n === 40 && r49.miss === 0 && r49.worst < 1e-6,
+    `1.09: ${r49.n} bond tries in a ${r49.size}-atom chip costed locally (${r49.miss} whole-chip sums, exact to ${r49.worst.toExponential(0)} eV)`, '1.09 chip: ' + JSON.stringify(r49));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
