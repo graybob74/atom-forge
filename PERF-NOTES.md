@@ -180,6 +180,19 @@ engine stores and visits particles.
   bonded, now. The same into H₂: 11 MuH and 6 Mu₂. Insulated drift in those runs −0.35 to +0.63 eV, as for H atoms
   fired the same way (−0.11 to −0.77 eV). MuCl and Mu decaying together: the books change by 0.0007 eV. t_energy passes.
   Test: t_features "1.12 muonium".
+- Muonic hydrogen scatters elastically off hydrogen nuclei (physics change approved by the user). μp, μd and μt
+  flew straight and only met nuclei through muAtomTick (transfer, fusion). Now muAtomScatter: a pass of its path
+  within the reach of a hydrogen-isotope nucleus (through the electron cloud) scatters it elastically, isotropic in the
+  centre of mass (s-wave, as below about 1 eV). Momentum and kinetic energy are kept exactly (ΔE 2·10⁻¹⁶ eV); seeded
+  rnd() only. Cross sections measured by Bertin et al. (Nuovo Cimento A 72, 225, 1982): μp + p 1.49×10⁻²⁰ cm²
+  (singlet μp), μd + d 8.0×10⁻²⁰ cm². For μt no measured value was found, so μd's is used. Ultra-realistic mode: the
+  true reach √(σ/π), 0.0069 Å for μp and 0.016 Å for μd. Normal play: R_NN, 0.35 Å, the reach every neutral
+  projectile has at a nucleus here (neutrons, nucReach), so 51 times the true radius for μp (2,600 times the area)
+  and 22 times for μd (480 times). Mean free path in liquid hydrogen (0.0423 nuclei/Å³; D₂ 0.0506): μp normal 61 Å,
+  ultra-realistic 1.6×10⁵ Å (16 µm); μd in D₂ normal 51 Å, ultra-realistic 2.5×10⁴ Å (2.5 µm). The inspector text
+  for muonic hydrogen says the scattering size is enlarged except in the ultra-realistic mode. 10 μp fired at 1 eV
+  into H₂ at 20 K, 1.6 ps (4,000 steps): mean energy 1.000 eV before (no scattering); now 0.005 eV after 61
+  scatterings (normal), 0.83 eV after 3 (ultra-realistic). Test: t_features "1.12 muonic scattering".
 - Ionic lines between a cation and a polyatomic anion (display only). drawIonic's reach was 1.3 × the two drawing
   radii, and for an atom in a molecule that is its small covalent one (C in CN⁻ 0.51 Å), so Na⁺–C reached 1.99 Å.
   Na⁺ settles 2.2–2.7 Å from a CN⁻, so no line ever appeared. Now each atom's force-field size (half its LJ diameter

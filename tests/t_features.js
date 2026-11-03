@@ -1175,6 +1175,32 @@ const { openPage } = require('./browser');
   });
   check(r70.contact < 3.2 && r70.cnLines === 1 && r70.endOn === 1 && r70.far >= 4.49 && r70.farLines === 0 && r70.naCl === 1,
     `1.12: ionic lines: Na⁺ touching CN⁻ (${r70.contact} Å) gets one (end-on at 2.73 Å: ${r70.endOn}), ${r70.far} Å off none; Na⁺–Cl⁻ at 2.8 Å one, a second Na⁺ 4.5 Å from the Cl⁻ none`, '1.12 ionic lines: ' + JSON.stringify(r70));
+  // 1.12: muonic hydrogen scatters elastically off hydrogen nuclei (measured σ: μp + p 1.49×10⁻²⁰ cm², Bertin et al. 1982),
+  // at the enlarged nuclear reach (R_NN) in normal play and at its true size, √(σ/π) = 0.0069 Å, in the ultra-realistic
+  // mode; momentum and energy kept exactly. In H₂ at 20 K a μp fired at 1 eV slows to the gas's temperature.
+  const r71 = await page.evaluate(() => {
+    const out = {};
+    const pass = (ultra, b) => {
+      loadPreset('empty'); setRunning(false); baseWorld(30, 20, 20, 0); W.slowmo = false; W.decayOn = false; W.ultra = ultra;
+      const h = addAtom('H', 0, b); h.vx = 0.01; h.vy = -0.02; forcesNoEvents(); W.fSpawn = W.spawned;
+      const o = addExo('muP', -0.5, 0, 1.0, 1, 0); o.x = 0.5; // (its path this step: (−0.5, 0) → (0.5, 0))
+      const mo = o.m / PHYS.AMU_MEV, P = (q) => [mo * Math.sqrt(2 * o.KE / mo) * o.ux + h.m * h.vx, mo * Math.sqrt(2 * o.KE / mo) * o.uy + h.m * h.vy];
+      const E0 = o.KE + 0.5 * h.m * (h.vx ** 2 + h.vy ** 2), P0 = P();
+      const hit = muAtomScatter(o, -0.5, 0), E1 = o.KE + 0.5 * h.m * (h.vx ** 2 + h.vy ** 2), P1 = P();
+      W.ultra = false;
+      return { hit, dE: Math.abs(E1 - E0), dP: Math.hypot(P1[0] - P0[0], P1[1] - P0[1]), KE: +o.KE.toFixed(3) };
+    };
+    out.normal = pass(false, 0.1); out.ultraMiss = pass(true, 0.1); out.ultraHit = pass(true, 0.003);
+    loadPreset('empty'); setRunning(false); baseWorld(40, 28, 20, 0.05); W.slowmo = false; W.decayOn = false;
+    for (let i = 0; i < 150; i++) addMolecule('H2', -19 + (i % 15) * 2.6, -13 + Math.floor(i / 15) * 2.7, i, 20);
+    settleOverlaps(); forcesNoEvents(); W.fSpawn = W.spawned; W.count.muScat = 0;
+    const os = []; for (let i = 0; i < 10; i++) os.push(fireSpec({ kind: 'exo', sp: 'muP' }, 0, -10 + 2 * i, Math.cos(i), Math.sin(i), 1.0));
+    for (let i = 0; i < 4000; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
+    const ke = os.filter(o => !o.dead).map(o => o.KE); out.gasKE = +(ke.reduce((a, b) => a + b, 0) / ke.length).toFixed(4); out.gasScat = W.count.muScat;
+    return out;
+  });
+  check(r71.normal.hit && r71.normal.dE < 1e-9 && r71.normal.dP < 1e-9 && !r71.ultraMiss.hit && r71.ultraHit.hit && r71.ultraHit.dE < 1e-9 && r71.ultraHit.dP < 1e-9 && r71.gasKE < 0.05 && r71.gasScat > 10,
+    `1.12: μp scattering off H: a pass 0.1 Å off scatters in normal play, not in ultra-realistic (0.003 Å off does), each exact (ΔE ${r71.normal.dE.toExponential(0)} eV); 10 μp at 1 eV in H₂ at 20 K: ${r71.gasScat} scatterings, mean ${r71.gasKE} eV`, '1.12 muonic scattering: ' + JSON.stringify(r71));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

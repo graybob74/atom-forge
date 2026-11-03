@@ -773,6 +773,35 @@ function muAtomTick(o, clock) {
   for (const x2 of made.xs) if (x2.sp === 'mu-') x2.cyc = cyc;
   return true;
 }
+/* Muonic hydrogen scattering elastically off hydrogen nuclei (1.12). Neutral and 200 times smaller than an atom, it
+   passes through electron clouds, but a proton, deuteron or triton it comes close to throws it aside: in hydrogen
+   that is how it slows to the gas's temperature. Measured: μp + p 1.49×10⁻²⁰ cm² (singlet μp), μd + d 8.0×10⁻²⁰ cm²
+   (Bertin et al., Nuovo Cimento A 72, 225, 1982); μt: no measured value found, μd's is used. True reach √(σ/π): 0.0069 Å
+   for μp, 0.016 Å for μd, used in the ultra-realistic mode; in normal play the reach is R_NN (0.35 Å), the reach of every
+   neutral projectile meeting a nucleus here (neutrons, nucReach), 51 and 22 times the true one. Isotropic in the centre
+   of mass (s-wave, as below about 1 eV), momentum and kinetic energy exactly kept (non-relativistic: eV energies). */
+const MU_SCAT = { muP: 1.49e-20, muD: 8.0e-20, muT: 8.0e-20 }; // cm²
+function muScatReach(sp) { return W.ultra ? Math.sqrt(MU_SCAT[sp] * 1e16 / Math.PI) : R_NN; }
+function muAtomScatter(o, x0, y0) {
+  if (o.dead || (o.x === x0 && o.y === y0) || !MU_SCAT[o.sp]) return false;
+  const R = muScatReach(o.sp), hits = segTargets(x0, y0, o.x, o.y, Math.max(R, 0.4), (t) => t.k === NUC && t.Z === 1 && !t.anti && !t.mu && !t.rad);
+  for (const [, tg, b] of hits) {
+    if (tg.dead || b >= R) continue;
+    if (o.hitId === tg.id) continue; // (one pass, one encounter)
+    o.hitId = tg.id;
+    const mo = o.m / PHYS.AMU_MEV, mt = tg.m, M = mo + mt, v = Math.sqrt(2 * o.KE / mo);
+    const avx = v * o.ux, avy = v * o.uy, Vx = (mo * avx + mt * tg.vx) / M, Vy = (mo * avy + mt * tg.vy) / M;
+    const rx = avx - tg.vx, ry = avy - tg.vy, w = Math.hypot(rx, ry), [cx, cy] = rdir();
+    const ox = Vx + cx * w * mt / M, oy = Vy + cy * w * mt / M; // (the relative speed kept, its direction new)
+    tg.vx = Vx - cx * w * mo / M; tg.vy = Vy - cy * w * mo / M; updateFast(tg);
+    const vo = Math.hypot(ox, oy);
+    o.KE = 0.5 * mo * vo * vo; if (vo > 0) { o.ux = ox / vo; o.uy = oy / vo; } exoSpeed(o);
+    W.count.muScat = (W.count.muScat || 0) + 1;
+    return true;
+  }
+  if (o.hitId && !hits.some(h => h[1].id === o.hitId)) o.hitId = 0;
+  return false;
+}
 /* Muons bound in heavier atoms: decay in orbit, or capture by the nucleus (μ⁻ + p → n + ν). */
 function muBoundTick(dt) {
   const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0;
@@ -933,6 +962,7 @@ function moveExos(dt, id0) {
     if (o.sp === 'mu+' && o.KE < MU_STOP && !o.muTried && muoniumForm(o)) continue;
     if (d.strong === undefined) d.strong = strongExo(o.sp);
     if (d.strong && exoHits(o, x0, y0)) continue;
+    if (d.atom) muAtomScatter(o, x0, y0);
     if (d.atom && clock > 0) muAtomTick(o, clock);
   }
   if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
