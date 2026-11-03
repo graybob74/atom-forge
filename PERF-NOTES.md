@@ -92,6 +92,9 @@ engine stores and visits particles.
   state goes, and so the readout always shows a speed from the menu. The automatic slow-down for nuclear events sets
   the speed the same way (and back after). Slow motion on demand did nothing below 1/512×, which made the two
   controls confusing side by side.
+- Quantum chemistry for bonds (queued by the user, after the bond-order next steps): bonds and their energies from the
+  electrons themselves (a minimal-basis method, tight-binding or semi-empirical: Hückel/extended-Hückel or DFTB), not a
+  force field. Estimated ×100–10,000; a physics-model change for the owner to approve.
 - On hold (the user's choice): a 3-D mode, as a separate mode chosen in the main menu rather than a setting: the
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch

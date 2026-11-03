@@ -5235,7 +5235,7 @@ function benchStart() {
     ['Flash memory: one byte', () => { PRESETS.flashbyte.build(); settleOverlaps(); }],
   ];
   const realRandom = Math.random;
-  const show = (busy) => { out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, priority ${PRIO_FPS[prioNow()]} fps${SET.prioAuto ? ' (auto)' : ''}, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
+  const show = (busy) => { out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, priority ${PRIO_FPS[prioNow()]} fps${SET.prioAuto ? ' (auto)' : ''}, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ${expSummary()}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
   let k = 0;
   const next = () => {
     if (k >= scen.length) {
@@ -5410,6 +5410,21 @@ function expTotal() {
     if (h > 1.001 || /\+/.test(a[0])) on.push(id);
   }
   return { lo, hi, on, extra };
+}
+/* The Experimental choices in words, for the Speed test's settings line (1.14) */
+function expSummary() {
+  const on = [];
+  if (SET.dtMax !== 0.04) on.push(`longest step ${SET.dtMax * 10} fs`);
+  if (SET.rc !== 6) on.push(`force reach ${SET.rc} Å`);
+  if (SET.qeq) on.push(`induced charges ${SET.qeq === 1 ? 'every step' : 'every ' + SET.qeq + 'th step'}`);
+  if (SET.pi) on.push(`quantum nuclei ${SET.pi} beads`);
+  if (SET.bo) on.push('continuous bond orders');
+  if (SET.resBig) on.push('large ring resonance');
+  if (SET.inc) on.push('detailed nuclear collisions');
+  if (SET.ultra) on.push('ultra-realistic');
+  if (!on.length) return 'Experimental: all normal';
+  const t = expTotal(), x = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
+  return `Experimental: ${on.join(', ')} (${x} the normal work)`;
 }
 function syncExpTotal() {
   const el = $('expTotal'); if (!el) return;
