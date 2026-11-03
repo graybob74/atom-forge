@@ -979,6 +979,52 @@ const { openPage } = require('./browser');
     return out;
   })();
   check(r50.every(r => r.freeE >= 20 && Math.abs(r.perPs) < 30), `1.09: ionized water, bath off: ${r50.map(r => `${r.drift} eV over ${r.fs} fs (${r.perPs} eV/ps)`).join(', ')}`, '1.09 ionized water drift: ' + JSON.stringify(r50));
+  // 1.11: the chain-reaction map's family tree (Node harness, seeded): a block of ²³⁵U, four slow neutrons; every fission
+  // but those the fired neutrons set off has a parent, delayed and scattered neutrons included; steps on the chart
+  const r63 = (() => {
+    const X = require('./load.js').load('all', { seed: 5 }), W = X.W;
+    X.setMaxParts(4000); X.baseWorld(140, 100, 300, 0.05); W.warp = 1e13; W.slowmo = false;
+    for (let i = 0; i < 26; i++) for (let j = 0; j < 22; j++) X.addAtom('U', -40 + i * 3.1 + (j % 2) * 1.55, -30 + j * 2.7, { A: 235 });
+    X.settleOverlaps(); for (const u of W.parts.filter(p => p.Z === 92).slice(0, 4)) X.fireSpec({ kind: 'n' }, u.x - 6, u.y, 1, 0, 0.025, false);
+    for (let f = 0; f < 6000 && (!W.chain || W.chain.nfis < 30); f++) { W.dt = X.chooseDt(); X.step(W.dt); }
+    const F = W.chain ? W.chain.fis : [], modes = new Set([...(W.chain ? W.chain.edges.values() : [])].map(e => e.mode));
+    let bad = 0, kids = 0; F.forEach((f, i) => { if (f.par >= i || (f.par >= 0 && f.d !== F[f.par].d + 1)) bad++; kids += f.kids; });
+    return { n: F.length, roots: F.filter(f => f.par < 0).length, maxD: Math.max(0, ...F.map(f => f.d)), bad, kidsOk: kids === F.filter(f => f.par >= 0).length, modes: [...modes].sort().join(' ') };
+  })();
+  check(r63.n >= 30 && r63.roots <= 4 && r63.maxD >= 3 && r63.bad === 0 && r63.kidsOk && /fis/.test(r63.modes),
+    `1.11: chain-reaction tree: ${r63.n} fissions from ${r63.roots} fired neutron(s), ${r63.maxD + 1} generations; steps seen: ${r63.modes}`, '1.11 tree: ' + JSON.stringify(r63));
+  // 1.11: the Data tab: an ⓘ on every nuclide and element (it opens the card), the list opens past 80; the maps draw and
+  // answer the pointer; scroll bars styled; the ultra-realistic nucleus in detail (β₂ from the valence nucleons)
+  const r64 = await page.evaluate(async () => {
+    const out = {}; loadPreset('empty'); setRunning(false); showTab('data');
+    W.made = { nuc: new Map(), part: new Map() };
+    for (let Z = 20; Z < 70; Z++) for (const dN of [0, 1]) { const N = Math.round(Z * 1.3) + dN; W.made.nuc.set(Z + '_' + N, { Z, N, anti: false, lab: nucSym(Z, N), n: 1, how: 'test', t: 0 }); }
+    renderMade(); out.rows = document.querySelectorAll('#dMade tr:not(.elh):not(.more)').length; out.ibs = document.querySelectorAll('#dMade .ib').length;
+    const more = document.querySelector('#dMade [data-more]'); out.more = more ? more.textContent : ''; if (more) more.click();
+    out.all = document.querySelectorAll('#dMade tr:not(.elh):not(.more)').length; const fewer = document.querySelector('#dMade [data-more]'); out.fewer = fewer ? fewer.textContent : ''; if (fewer) fewer.click();
+    document.querySelector('#dMade .ib').click(); out.card = !$('qmenu').hidden && $('qmenu').textContent.slice(0, 40); $('qmenu').hidden = true; QM.open = false;
+    W.made = null; renderMade();
+    W.chain = { fis: [], nfis: 7, edges: new Map(), ver: 1 };
+    const f = (par, d) => ({ par, d, src: par < 0 ? 'n' : 'n', t: 1, Z: 92, N: 143, ZL: 36, NL: 56, ZH: 56, NH: 85, nu: 3, kids: 0, end: [0, 1, 1, 0] });
+    W.chain.fis.push(f(-1, 0), f(0, 1), f(0, 1), f(1, 2), f(1, 2), f(2, 2), f(3, 3)); for (const x of W.chain.fis) if (x.par >= 0) W.chain.fis[x.par].kids++;
+    W.chain.edges.set('56,85>57,84', { Z0: 56, N0: 85, Z1: 57, N1: 84, mode: 'b-', n: 3 }); W.chain.edges.set('92,144>36,56', { Z0: 92, N0: 144, Z1: 36, N1: 56, mode: 'fis', n: 1 });
+    UI.mapView = 'tree'; UI.mapKey = ''; drawChainMap(); await new Promise(r => setTimeout(r, 50));
+    const ink = () => { const c0 = $('chMap'), c = document.createElement('canvas'); c.width = c0.width; c.height = c0.height; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(c0, 0, 0); const d = x.getImageData(0, 0, c.width, c.height).data; let k = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) k++; return k; };
+    out.sec = !$('dMapSec').hidden; out.treeInk = ink(); out.treeNote = $('dMapNote').textContent.slice(0, 40);
+    const P = UI.mapPos, r = $('chMap').getBoundingClientRect(), ui = SET.ui || 1;
+    mapHover({ clientX: r.left + P.fx(W.chain.fis[6].d) * ui, clientY: r.top + P.fy(6) * ui }); out.hover = $('dMapNote').textContent.slice(0, 26);
+    UI.mapView = 'chart'; UI.mapKey = ''; UI.mapHov = null; drawChainMap(); out.chartInk = ink(); out.chartNote = /kinds of step/.test($('dMapNote').textContent);
+    W.chain = null; drawChainMap(); out.hidden = $('dMapSec').hidden;
+    out.sb = [...document.styleSheets].some(sh => { try { return [...sh.cssRules].some(r => /::-webkit-scrollbar-thumb/.test(r.selectorText || '')); } catch (e) { return false; } });
+    out.beta = [nucDeform(92, 146), nucDeform(82, 126), nucDeform(62, 92), nucDeform(8, 8)].map(v => +v.toFixed(2));
+    const L = nucLayout(92, 146, 3); let far = 0; for (let k = 0; k < 238; k++) far = Math.max(far, Math.hypot(L.px[k], L.py[k]));
+    out.inside = +(far + 0.88).toFixed(2) <= +(1.2 * Math.cbrt(238)).toFixed(2) + 0.01; out.pCount = L.isP.filter(Boolean).length;
+    setSetting('ultra', true); const p = addNuc(92, 146, 0, 0, 0); R.cx = 0; R.cy = 0; R.s = 230 / (trueRfm(p) * FM); render(W.rt); await new Promise(r => setTimeout(r, 100)); setSetting('ultra', false); out.drew = true;
+    return out;
+  });
+  check(r64.rows === 80 && r64.ibs >= 100 && /Show all 100 nuclides/.test(r64.more) && r64.all === 100 && r64.fewer === 'Show fewer' && r64.card && r64.sec && r64.treeInk > 200 && /^7 fissions/.test(r64.treeNote) &&
+    /^Fission 7, generation 4/.test(r64.hover) && r64.chartInk > 200 && r64.chartNote && r64.hidden && r64.sb && r64.beta[0] === 0.3 && r64.beta[1] === 0 && r64.beta[2] >= 0.25 && r64.beta[3] === 0 && r64.inside && r64.pCount === 92,
+    `1.11: made list: ${r64.rows} rows with ${r64.ibs} ⓘ, "${r64.more}" opens all ${r64.all}; card "${r64.card}"; fission tree and decay chart drawn, pointer "${r64.hover}"; β₂ U-238, Pb-208, Sm-154, O-16: ${r64.beta.join(', ')}`, '1.11 data: ' + JSON.stringify(r64));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

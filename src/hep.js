@@ -1281,8 +1281,13 @@ function finishReaction(a, b, items, moms, x, y, kind, sub) {
   const partners = [];
   for (const n of [a, b]) for (const bd of n.bonds) partners.push(other(bd, n));
   const S = nucBegin([a, b]);
+  // (the chain-reaction map, 1.11: a neutron from a fission that scatters or knocks out neutrons passes its family on to
+  // the neutrons that come out, and is not counted as ended)
+  const nIn = [a, b].find(q => q.k === NUC && q.Z === 0 && !q.anti && q.kFis !== undefined), nOut = nIn && items.some(it => it.Z === 0 && it.N === 1 && !it.anti);
+  const fk = nIn ? nIn.kFis : undefined, fg = nIn ? nIn.kGen : undefined; if (nOut) nIn.kFis = undefined;
   kill(a); kill(b);
   const made = spawnItems(items, moms, x, y);
+  if (nOut) for (const q of made.ps) if (q.k === NUC && q.Z === 0 && !q.anti) { q.kFis = fk; if (fg !== undefined) q.kGen = fg; }
   if (ne > 0) { // the atoms' electrons (positrons, for antimatter) stay with the new nuclei, heaviest first; any over go free
     let left = ne;
     for (const q of made.ps.filter(q => q.k === NUC && q.Z > 0).sort((p, q) => q.Z - p.Z)) { if (left <= 0) break; const k = Math.min(left, q.Z); q.ne = k; left -= k; refresh(q); }

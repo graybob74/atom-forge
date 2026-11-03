@@ -77,15 +77,11 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
-- Data tab, the list of what was made: a small ⓘ button beside every nuclide and element that opens its card, and
-  the list expands to show everything instead of ending in "and N more nuclides" (asked for by the user).
-- A styled scroll bar instead of the browser's default, in every scrolling panel, menu and dialog (asked for by the
-  user).
-- Chain-reaction maps (asked for by the user; the user chose both): a family tree of the chain reaction (which
-  neutron came from which fission, generation by generation), and the decay paths on a chart of nuclides.
-- Ultra-realistic mode: a more detailed nucleus when zoomed in to it (asked for by the user), e.g. its protons and
-  neutrons packed at their true size, the diffuse edge of the charge density, deformation where the nucleus is
-  deformed.
+- 1.12.0: the rest of the Experimental options (asked for by the user): charges that respond to their surroundings
+  (charge equilibration; on hold since 1.07 as larger than it looked: the charges enter a dozen force and energy
+  terms), continuous bond orders (below: neither prototype was ready), quantum nuclei (path integrals, ×14–30) and
+  electrons as waves (×3–10 where there are many). All are physics-model changes, each several sessions; the owner
+  to choose the order and approve each before it ships.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
@@ -107,6 +103,39 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.11.0: Data-tab ⓘ buttons and the full list, styled scroll bars, chain-reaction maps, a detailed nucleus (asked for by the user)
+- Made here (Data tab): every nuclide, particle and neutrino row has an ⓘ that opens its card (the right-click card of
+  1.01: what it is, its decays, Place / Fire / Element… / Isotope builder…), and each element a header row with its
+  own ⓘ (its usual isotope as a neutral atom, `elemA`). Past 80 nuclides a button opens the whole list ("Show all N
+  nuclides") and closes it again, instead of "… and N more nuclides". The table is rebuilt only when it changes, so a
+  click is not lost to the twice-a-second refresh.
+- Scroll bars: thin, rounded thumbs in the page's colours (`::-webkit-scrollbar`, which the desktop app's WebView2 and
+  Chromium use; `scrollbar-width: thin` and `scrollbar-color` elsewhere); darker on hover, the accent colour while
+  dragged; no arrow buttons.
+- Chain-reaction maps (Data tab, under Chain reaction; bookkeeping only, nothing in the physics changes and no random
+  numbers are drawn): `W.chain` (engine.js) keeps every fission (the first 20,000) with the fission whose neutron
+  caused it, its depth in that family tree and how its neutrons ended, and every step seen on the chart of nuclides
+  (decays from the decay events, neutron captures, fissions to their fragments). Neutrons carry `kFis`; the
+  fragments too, so their delayed neutrons count to the fission that made them, and a neutron that scatters or knocks
+  out neutrons in a nuclear reaction passes its family on (finishReaction, hep.js). Before that, a test block of ²³⁵U
+  showed 15 of 37 fissions without a parent (73 neutrons came out of such reactions); now 1 of 30, the fired neutron.
+  - Fission tree: each fission a dot, joined to its parent, generations left to right, the count of each generation
+    under it; orange passed the chain on, blue's neutrons were captured, grey's escaped, ringed ones split by
+    themselves; pointing at a dot draws its line back to where the chain began and tells its story.
+  - Decay chart: the chart of nuclides (protons up, neutrons across) around what happened, in bands where the
+    nuclides lie far apart (a fission's heavy parent and its fragments), each step an arrow coloured by kind and
+    thicker for more; squares coloured by half-life, outlined while in the box; pointing at one lists what led to it
+    and what it became.
+- Ultra-realistic mode, a detailed nucleus: from 20 px across, its nucleons at their true size (0.88 fm) in a sphere
+  of 1.2·A^⅓ fm, a low-discrepancy fill drawn back to front as shaded balls; the diffuse edge of the nuclear density as
+  a glow (Woods–Saxon skin, 0.55 fm); deformed nuclei drawn prolate, β₂ estimated from the valence nucleons (Casten's P
+  factor: ²³⁸U 0.30, measured 0.29; ¹⁵⁴Sm 0.30, measured 0.34; ²⁰⁸Pb and ¹⁶O 0), turned by the particle's id; the three
+  valence quarks inside each nucleon from 26 px (in the three colour charges), lettered from 60 px; a lone proton or
+  neutron shows its quarks too. Above 70 px a caption gives the radius, the nucleons and the shape. Drawing only.
+- Tests: t_features "1.11 tree" (Node, seeded: 30 fissions from the one fired neutron that started them, 10
+  generations, every parent earlier and one generation up), "1.11 data" (the list's ⓘ and full list, the card, both
+  maps drawn and answering the pointer, the scroll-bar rules, β₂ and the nucleon layout, the detailed nucleus drawn).
 
 ## 1.10.0: speed menu, interface motion, longer force reach, predictive cost tags, shorter tool texts (asked for by the user)
 - Speed menu: the speed readout is a button that opens every speed on one ladder, 16× down to 1/512× in halvings, then

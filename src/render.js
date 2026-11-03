@@ -598,7 +598,7 @@ function drawUltraParts(ctx, rt) {
     const rn = trueRfm(p) * FM * s;
     if (p.Z === 0 || p.ne === 0) { // a neutron or a bare nucleus
       if (x < -rn - 4 || y < -rn - 4 || x > Wd + rn + 4 || y > Ht + rn + 4) continue;
-      ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag);
+      ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag, p.id || 0);
       if (rn > 7 && lblOn(p)) smallTag(ctx, speciesLabel(p), x, y + rn + 9);
       continue;
     }
@@ -614,20 +614,77 @@ function drawUltraParts(ctx, rt) {
       const d = Math.hypot(x - Wd / 2, y - Ht / 2);
       if (d + diag / 2 < r) ctx.fillRect(0, 0, Wd, Ht); else { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
     }
-    if (rn >= 0.5) { ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag); if (rn > 7 && lblOn(p)) smallTag(ctx, nucSym(p.Z, p.N), x, y + rn + 9); }
+    if (rn >= 0.5) { ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag, p.id || 0); if (rn > 7 && lblOn(p)) smallTag(ctx, nucSym(p.Z, p.N), x, y + rn + 9); }
   }
 }
-function ultraNucleus(ctx, x, y, rn, Z, N, anti, diag) {
+function ultraNucleus(ctx, x, y, rn, Z, N, anti, diag, seed = 0) {
   const A = Z + N, pc = anti ? PBAR_COL : P_COL, nc = anti ? NBAR_COL : N_COL;
   if (rn < 1.2) { ctx.fillStyle = Z ? (A > 70 ? '#e8796f' : pc) : nc; ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5); return; }
   if (rn > 4 * diag) { ctx.fillStyle = 'rgba(232,121,111,0.35)'; ctx.fillRect(0, 0, R.w, R.h); return; } // (inside the nucleus)
-  if (rn < 20 || A <= 1) { ctx.fillStyle = A === 1 ? (Z ? pc : nc) : A > 70 ? '#e8796f' : pc; ctx.beginPath(); ctx.arc(x, y, rn, 0, Math.PI * 2); ctx.fill(); return; }
-  const br = rn / Math.sqrt(A) * 1.05; let pz = 0; // (its nucleons, packed as in nucleusBeads, drawn as discs: they are too big for sprites)
-  for (let k = 0; k < A; k++) {
-    const rr = rn * Math.sqrt((k + 0.5) / A) * 0.92, th = k * 2.39996, isP = (pz + 0.5) / Z <= (k + 1) / A && pz < Z;
-    if (isP) pz++;
-    ctx.fillStyle = isP ? pc : nc; ctx.beginPath(); ctx.arc(x + rr * Math.cos(th), y + rr * Math.sin(th), br, 0, Math.PI * 2); ctx.fill();
+  if (rn < 20 || A <= 1) {
+    if (A === 1 && rn >= 20) { nucleonBall(ctx, x, y, rn, !!Z, anti, 0); return; } // (a lone proton or neutron, with its quarks when large)
+    ctx.fillStyle = A === 1 ? (Z ? pc : nc) : A > 70 ? '#e8796f' : pc; ctx.beginPath(); ctx.arc(x, y, rn, 0, Math.PI * 2); ctx.fill(); return;
   }
+  // (1.11, more detail) A ball of A nucleons, each at its true size (0.88 fm) in a sphere of 1.2·A^⅓ fm, drawn back to
+  // front and shaded; the diffuse edge of the nuclear density (Woods–Saxon, 0.55 fm skin) as a glow; deformed nuclei
+  // stretched along an axis (β₂ estimated from their valence nucleons, nucDeform); quarks inside each nucleon when
+  // they are large enough to see.
+  const L = nucLayout(Z, N, seed), s = rn / L.R, a = 0.55 * s, b2 = L.beta, ax = 1 + 0.63 * b2, ay = 1 - 0.32 * b2, c = Math.cos(L.psi), sn = Math.sin(L.psi);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(L.psi); ctx.scale(ax, ay); // (the skin, in the frame of the symmetry axis: density falling from 90% to 10% over about 4.4a)
+  const g = ctx.createRadialGradient(0, 0, Math.max(0, rn - 2 * a), 0, 0, rn + 3 * a), sk = anti ? '120,200,255' : '255,170,120';
+  g.addColorStop(0, `rgba(${sk},0.45)`); g.addColorStop(0.45, `rgba(${sk},0.18)`); g.addColorStop(1, `rgba(${sk},0)`);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rn + 3 * a, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  const br = 0.88 * s;
+  for (const q of L.order) {
+    const u = L.px[q] * ax * s, v = L.py[q] * ay * s; // (in the frame of the symmetry axis, then turned)
+    nucleonBall(ctx, x + u * c - v * sn, y + u * sn + v * c, br, L.isP[q], anti, L.pz[q]);
+  }
+  if (rn > 70) smallTag(ctx, `R ≈ ${(1.2 * Math.cbrt(A)).toFixed(1)} fm · ${Z} p, ${N} n${b2 >= 0.08 ? ` · prolate, β₂ ≈ ${b2.toFixed(2)}` : ' · about spherical'}`, x, y + rn * Math.max(ax, ay) + 24);
+}
+/* One nucleon, shaded as a ball; from 26 px its three valence quarks (uud, udd; for antinucleons the antiquarks),
+   in the three colour charges, lettered from 60 px. depth (−1 … 1) dims the ones at the back. */
+function nucleonBall(ctx, x, y, r, isP, anti, depth) {
+  const col = isP ? (anti ? PBAR_COL : P_COL) : (anti ? NBAR_COL : N_COL), [cr, cg, cb] = hexc(col), k = 0.78 + 0.22 * (depth || 0);
+  const g = ctx.createRadialGradient(x - 0.35 * r, y - 0.4 * r, 0.1 * r, x, y, r);
+  g.addColorStop(0, `rgb(${Math.min(255, cr * k + 70)},${Math.min(255, cg * k + 70)},${Math.min(255, cb * k + 70)})`);
+  g.addColorStop(0.7, `rgb(${cr * k | 0},${cg * k | 0},${cb * k | 0})`); g.addColorStop(1, `rgb(${cr * k * 0.55 | 0},${cg * k * 0.55 | 0},${cb * k * 0.55 | 0})`);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  if (r < 26) return;
+  const fl = isP ? ['u', 'u', 'd'] : ['u', 'd', 'd'], qc = ['#ff4d4d', '#3ddc84', '#4d8bff'], qr = Math.max(2, 0.13 * r);
+  for (let i = 0; i < 3; i++) {
+    const th = -Math.PI / 2 + i * 2.0944, qx = x + 0.42 * r * Math.cos(th), qy = y + 0.42 * r * Math.sin(th);
+    ctx.fillStyle = qc[i]; ctx.beginPath(); ctx.arc(qx, qy, qr, 0, Math.PI * 2); ctx.fill();
+    if (r >= 60) { ctx.fillStyle = '#fff'; ctx.font = `600 ${Math.round(qr * 1.1)}px ${R.fontData || 'monospace'}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(anti ? fl[i] + '\u0304' : fl[i], qx, qy); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; }
+  }
+}
+/* Where a nucleus's nucleons sit (fm, in the frame of its symmetry axis), back to front: a low-discrepancy fill of
+   the sphere of radius 1.2·A^⅓ − 0.88 fm, protons and neutrons interleaved; cached per nuclide and orientation. */
+const _nucLay = new Map();
+function nucLayout(Z, N, seed) {
+  const key = Z + '_' + N + '_' + (seed & 7); let L = _nucLay.get(key); if (L) return L;
+  const A = Z + N, R0 = 1.2 * Math.cbrt(A), rIn = Math.max(0, R0 - 0.88), px = new Float32Array(A), py = new Float32Array(A), pz = new Float32Array(A), isP = new Array(A);
+  let np = 0;
+  for (let k = 0; k < A; k++) {
+    const r = rIn * Math.cbrt((k + 0.5) / A), cz = 1 - 2 * ((k * 0.7548776662 + 0.25) % 1), ph = 2 * Math.PI * ((k * 0.5698402910 + (seed & 7) * 0.13) % 1), sz = Math.sqrt(Math.max(0, 1 - cz * cz));
+    px[k] = r * sz * Math.cos(ph); py[k] = r * cz; pz[k] = r * sz * Math.sin(ph) / Math.max(0.01, rIn);
+    isP[k] = (np + 0.5) / Math.max(1, Z) <= (k + 1) / A && np < Z; if (isP[k]) np++;
+  }
+  const order = Array.from({ length: A }, (_, k) => k).sort((i, j) => pz[i] - pz[j]);
+  L = { R: R0, px, py, pz, isP, order, beta: nucDeform(Z, N), psi: ((seed * 0.6180339887) % 1) * Math.PI };
+  if (_nucLay.size > 64) _nucLay.clear();
+  _nucLay.set(key, L); return L;
+}
+/* The quadrupole deformation β₂ of a nucleus in its ground state, estimated from its valence nucleons (Casten's P
+   factor, P = NpNn/(Np + Nn), counted from the nearest magic numbers): spherical near closed shells, about 0.3 in the
+   middle of the rare earths and the actinides (²³⁸U: P 6.7 → 0.30 (the cap), measured 0.29; ¹⁵⁴Sm 0.30, measured 0.34;
+   ²⁰⁸Pb 0). Drawn only; nothing in the physics uses it. */
+function nucDeform(Z, N) {
+  if (Z + N < 40) return 0;
+  const val = (n, M) => { let d = 1e9; for (const m of M) d = Math.min(d, Math.abs(n - m)); return d; };
+  const Np = val(Z, [2, 8, 20, 28, 50, 82, 114]), Nn = val(N, [2, 8, 20, 28, 50, 82, 126, 184]);
+  if (!Np || !Nn) return 0;
+  const P = Np * Nn / (Np + Nn);
+  return clamp(0.3 * (P - 2) / 3.5, 0, 0.3);
 }
 function nucleusBeads(ctx, x, y, rn, Z, N, alpha, anti) {
   const A = Z + N;

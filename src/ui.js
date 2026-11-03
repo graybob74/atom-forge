@@ -1981,7 +1981,7 @@ function renderData() {
     L.qOut ? ['Carried out of the open box', qs(L.qOut)] : null, ['All together', qs(qb + L.qWall + L.qObj + L.qOut)]].filter(Boolean)
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
-  drawSpec(); explainSync(); drawChain();
+  drawSpec(); explainSync(); drawChain(); drawChainMap();
   drawTChart(); drawEChart(m.T); drawGraph(); drawPairs(); drawDet();
   restoreScroll('tp-data');
 }
@@ -2005,17 +2005,38 @@ function renderMade() {
   if (synth.size) sum += `. ${synth.size === 1 ? 'One element is' : synth.size + ' elements are'} synthetic, beyond uranium: found nowhere in nature, made only in accelerators and reactors`;
   if (part.length || nus.length) sum += `. Particles: ${part.concat(nus).map(r => `${esc(r.lab)}&#8202;×${r.n}`).join(' · ')}`;
   $('dMadeSum').innerHTML = sum + '.';
-  const row = (sw, lab, nm, sub, n) => `<tr><td class="f"><span class="sw" style="background:${sw}"></span>${esc(lab)}</td><td class="nm"><b>${nm}</b><br><span class="sub">${esc(sub)}</span></td><td class="n">${n}</td></tr>`;
-  const html = nuc.slice(0, 80).map(r => {
-    if (r.Z === 0) return row(r.anti ? NBAR_COL : N_COL, r.lab, r.anti ? 'Antineutrons' : 'Neutrons', `free, t½ 10 min · first: ${r.how}`, r.n);
+  // (1.11: an ⓘ on every nuclide, particle and element opens its card; the list opens to show everything)
+  const cards = UI.madeCards = [], ib = (spec, what) => { cards.push(spec); return ` <button class="ib" data-card="${cards.length - 1}" title="About ${esc(what)}" aria-label="About ${esc(what)}">i</button>`; };
+  const row = (sw, lab, nm, sub, n, spec) => `<tr><td class="f"><span class="sw" style="background:${sw}"></span>${esc(lab)}</td><td class="nm"><b>${nm}</b>${spec ? ib(spec, lab) : ''}<br><span class="sub">${esc(sub)}</span></td><td class="n">${n}</td></tr>`;
+  const shown = UI.madeAll ? nuc : nuc.slice(0, MADE_SHOW);
+  let lastEl = '';
+  const html = shown.map(r => {
+    if (r.Z === 0) return row(r.anti ? NBAR_COL : N_COL, r.lab, r.anti ? 'Antineutrons' : 'Neutrons', `free, t½ 10 min · first: ${r.how}`, r.n, { kind: r.anti ? 'nbar' : 'n' });
+    const elKey = r.Z + (r.anti ? 'a' : ''), head = elKey === lastEl ? '' : (lastEl = elKey, `<tr class="elh"><td colspan="3">${esc(r.anti ? antiName(r.Z) : ELEMENTS[r.Z].name)} <span class="sub">Z = ${r.Z}</span>${ib({ kind: 'atom', Z: r.Z, A: elemA(r.Z), charge: 0, anti: !!r.anti }, r.anti ? antiName(r.Z) : ELEMENTS[r.Z].name)}</td></tr>`);
     const info = nuclideInfo(r.Z, r.N), key = `${r.Z}_${r.N}`, alias = ISO_NAMES[key] && key !== '2_2' ? ISO_NAMES[key] : r.Z === 2 && r.N === 2 ? 'α particle' : '';
     const nm = esc((r.anti ? 'Anti-' + nucName(r.Z, r.N).toLowerCase() : nucName(r.Z, r.N)) + (alias ? ` (${r.anti ? 'anti-' : ''}${alias})` : '')) +
       (r.Z > 103 && !r.anti ? ' <span class="tag">superheavy</span>' : r.Z > 92 && !r.anti ? ' <span class="tag">synthetic</span>' : '');
     const life = info.stable ? 'stable' : info.unbound ? 'unbound: falls apart at once' : `${lifeText(info)}${info.modes && info.modes.length ? ', ' + modeLabel(info.modes[0].mode).replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase()) : ''}`;
-    return row(ELEMENTS[r.Z].color, r.lab, nm, `${life} · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n);
-  }).join('') + part.map(r => { const d = XP[r.sp]; return row(rgba(d.col, 1), r.lab, esc(PART_NAMES[r.sp] || r.sp), `mean life ${fmtTime(d.tau)} · first: ${r.how}`, r.n); }).join('') +
-    nus.map(r => row('rgb(120,255,170)', r.lab, ({ e: 'Electron ', mu: 'Muon ', tau: 'Tau ' })[r.fl || 'e'] + (r.anti ? 'antineutrinos' : 'neutrinos'), `left the box at about c, ${fmtE(r.E)} carried off in all · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n)).join('');
-  $('dMade').innerHTML = html + (nuc.length > 80 ? `<tr><td class="nm" colspan="3">… and ${nuc.length - 80} more nuclides</td></tr>` : '');
+    return head + row(ELEMENTS[r.Z].color, r.lab, nm, `${life} · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n, { kind: 'atom', Z: r.Z, A: r.Z + r.N, bare: true, anti: !!r.anti });
+  }).join('') + (nuc.length > MADE_SHOW ? `<tr class="more"><td colspan="3"><button class="btn small" data-more="1">${UI.madeAll ? 'Show fewer' : `Show all ${nuc.length.toLocaleString('en-US')} nuclides (${(nuc.length - MADE_SHOW).toLocaleString('en-US')} more)`}</button></td></tr>` : '') +
+    part.map(r => { const d = XP[r.sp]; return row(rgba(d.col, 1), r.lab, esc(PART_NAMES[r.sp] || r.sp), `mean life ${fmtTime(d.tau)} · first: ${r.how}`, r.n, { kind: 'exo', sp: r.sp }); }).join('') +
+    nus.map(r => row('rgb(120,255,170)', r.lab, ({ e: 'Electron ', mu: 'Muon ', tau: 'Tau ' })[r.fl || 'e'] + (r.anti ? 'antineutrinos' : 'neutrinos'), `left the box at about c, ${fmtE(r.E)} carried off in all · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n, { kind: 'nu', fl: r.fl || 'e', anti: !!r.anti })).join('');
+  if (UI.madeHTML !== html) { UI.madeHTML = html; $('dMade').innerHTML = html; } // (rebuilt only when it changes: a click is not lost to a rebuild)
+}
+const MADE_SHOW = 80;
+/* An element's usual isotope, for its card: the stable one nearest its atomic mass, or the longest-lived. */
+function elemA(Z) {
+  const L = isotopeList(Z), m = ELEMENTS[Z].mass || 2 * Z; let best = L[0], bs = Infinity;
+  for (const A of L) { const nu = nuclideInfo(Z, A - Z), sc = nu.stable ? Math.abs(A - m) : 1e3 - Math.log10(Math.max(1e-30, nu.t12 || 1e-30)); if (sc < bs) { bs = sc; best = A; } }
+  return best || Math.round(m);
+}
+/* The ⓘ buttons and the "show all" button of the list of what was made. */
+function madeClick(e) {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.more) { UI.madeAll = !UI.madeAll; renderMade(); return; }
+  const s = UI.madeCards && UI.madeCards[+b.dataset.card]; if (!s) return;
+  const r = b.getBoundingClientRect(), c = $('cv').getBoundingClientRect(), ui = SET.ui || 1;
+  openSpecCard(s, (r.left - c.left) / ui - 300, (r.top - c.top) / ui);
 }
 function chartCtx(cv) {
   const w = cv.clientWidth, h = cv.clientHeight; if (!w) return null;
@@ -2055,6 +2076,141 @@ function drawChain() {
   const tip = c[2] / n > 0.3 ? ' Many escape: a bigger or denser lump of fuel, or reflecting walls, keeps more of them.' : c[1] / n > 0.35 ? ' Many are captured without fission: fewer absorbers in the way; for U-235, slower neutrons are likelier to cause fission.' : c[3] / n > 0.4 ? ' Many end otherwise (decay, other reactions): a denser fuel catches them sooner.' : '';
   $('dChainNote').textContent = `Of the last ${n} neutrons that ended: ${pc[0].toFixed(0)} % caused a fission (orange), ${pc[1].toFixed(0)} % were captured without one (blue), ${pc[2].toFixed(0)} % escaped (grey), ${pc[3].toFixed(0)} % ended otherwise. ` +
     `${K.gen ? `Generation ${K.gen} reached; ` : ''}${fuel ? `${fuel} fissile nuclei left.` : 'the fuel is used up.'} k is the neutrons each one passes on: above 1 the chain grows, below 1 it dies.` + tip;
+}
+/* Chain-reaction maps (1.11, Data tab), from W.chain (engine.js): the fission tree — each fission a dot, joined to the
+   fission whose neutron set it off, generation by generation left to right, with how many fissions each generation
+   had — and the decay chart — the chart of nuclides (neutrons across, protons up) around what happened here, each
+   decay, neutron capture and fission seen drawn as a step from one nuclide to the next, thicker for more. */
+const MAP_COL = { a: '#ff6b6b', 'b-': '#5aa0ff', 'b+': '#3ccf91', ec: '#3ccf91', ncap: '#a8b0b8', fis: '#ff9f43', p: '#c49cff', n: '#c49cff', sf: '#ff9f43' };
+const LIFE_COL = { st: '#3fbf6f', lg: '#e0a526', md: '#f0802a', sh: '#e5484d' };
+function treeLayout(C) {
+  if (UI.mapTree && UI.mapTree.ver === C.ver) return UI.mapTree;
+  const F = C.fis, n = F.length, kids = new Array(n), y = new Float32Array(n), cnt = [];
+  for (let i = 0; i < n; i++) { const p = F[i].par; if (p >= 0) (kids[p] || (kids[p] = [])).push(i); cnt[F[i].d] = (cnt[F[i].d] || 0) + 1; }
+  let leaf = 0;
+  for (let r = 0; r < n; r++) { // (each tree in turn, children before their parent: a parent sits at the middle of its children)
+    if (F[r].par >= 0) continue;
+    const st = [r], at = [0];
+    while (st.length) {
+      const i = st[st.length - 1], k = kids[i];
+      if (k && at[at.length - 1] < k.length) { st.push(k[at[at.length - 1]++]); at.push(0); continue; }
+      st.pop(); at.pop();
+      if (!k) y[i] = leaf++; else { let sum = 0; for (const c of k) sum += y[c]; y[i] = sum / k.length; }
+    }
+  }
+  for (let d = 0; d < cnt.length; d++) cnt[d] = cnt[d] || 0;
+  return (UI.mapTree = { ver: C.ver, y, kids, leaves: Math.max(1, leaf), maxD: cnt.length - 1, cnt });
+}
+function chartLayout(C, w) {
+  // nodes: every nuclide a step touched, and everything made; grouped into bands of nearby elements (a fission's
+  // fragments and the heavy nuclei it split lie far apart on the chart, and each band is drawn at a readable scale)
+  const nodes = new Map(), add = (Z, N) => { if (Z < 1 || Z + N < 2) return; const k = Z + '_' + N; if (!nodes.has(k)) nodes.set(k, { Z, N, frag: false, fis: false }); return nodes.get(k); };
+  for (const e of C.edges.values()) { const a = add(e.Z0, e.N0), b = add(e.Z1, e.N1); if (e.mode === 'fis') { if (a) a.fis = true; if (b) b.frag = true; } }
+  if (W.made) for (const r of W.made.nuc.values()) if (!r.anti) add(r.Z, r.N);
+  const Zs = [...new Set([...nodes.values()].map(v => v.Z))].sort((a, b) => a - b), bands = [];
+  for (const Z of Zs) { const b = bands[bands.length - 1]; if (b && Z - b.z1 <= 6) b.z1 = Z; else bands.push({ z0: Z, z1: Z }); }
+  for (const b of bands) { b.n0 = 1e9; b.n1 = 0; for (const v of nodes.values()) if (v.Z >= b.z0 && v.Z <= b.z1) { b.n0 = Math.min(b.n0, v.N); b.n1 = Math.max(b.n1, v.N); } b.z0 = Math.max(1, b.z0 - 1); b.z1++; b.n0 = Math.max(0, b.n0 - 1); b.n1++; }
+  bands.reverse(); // (the heaviest at the top)
+  let cs = 16; for (const b of bands) cs = Math.min(cs, (w - 34) / (b.n1 - b.n0 + 1));
+  const rows = bands.reduce((t, b) => t + b.z1 - b.z0 + 1, 0); cs = clamp(Math.min(cs, (420 - 26 * bands.length) / rows), 2, 16);
+  let top = 6; for (const b of bands) { b.top = top; b.h = (b.z1 - b.z0 + 1) * cs; top += b.h + 26; }
+  const band = (Z) => bands.find(b => Z >= b.z0 && Z <= b.z1);
+  return { nodes, bands, cs, h: Math.round(top - 8), band, fx: (N) => 28 + N * cs, fy: (b, Z) => b.top + (b.z1 - Z) * cs };
+}
+function drawChainMap() {
+  const C = W.chain, sec = $('dMapSec');
+  sec.hidden = !C || (!C.fis.length && !C.edges.size); if (sec.hidden || !sec.offsetParent) return;
+  const view = UI.mapView || (C.fis.length ? 'tree' : 'chart'), cv = $('chMap'), w = cv.clientWidth;
+  setSegValue('segMap', view);
+  const key = `${view}:${C.ver}:${UI.mapHov ? UI.mapHov.k : ''}:${w}:${SET.theme}`;
+  if (UI.mapKey === key) return; UI.mapKey = key;
+  const fg = cssVar('--fg'), mut = cssVar('--muted'), font = '10.5px ' + cssVar('--font-data');
+  if (view === 'tree') {
+    if (!C.fis.length) { cv.style.height = '60px'; const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
+    cv.style.height = '230px';
+    const r = chartCtx(cv); if (!r) return; const [ctx, , h] = r, T = treeLayout(C), F = C.fis, n = F.length;
+    const fx = (d) => 14 + d * (w - 28) / Math.max(1, T.maxD), fy = (i) => 10 + (T.leaves > 1 ? T.y[i] / (T.leaves - 1) : 0.5) * (h - 40);
+    UI.mapPos = { kind: 'tree', fx, fy };
+    ctx.strokeStyle = mut; ctx.globalAlpha = n > 3000 ? 0.25 : 0.5; ctx.lineWidth = 1; ctx.beginPath();
+    for (let i = 0; i < n; i++) { const p = F[i].par; if (p < 0) continue; ctx.moveTo(fx(F[p].d), fy(p)); ctx.lineTo(fx(F[i].d), fy(i)); }
+    ctx.stroke(); ctx.globalAlpha = 1;
+    const rad = n < 150 ? 3.2 : n < 1500 ? 2 : 1.2;
+    for (let i = 0; i < n; i++) {
+      const f = F[i], lost = f.end[1] >= f.end[2] ? 1 : 2;
+      ctx.fillStyle = f.kids ? KC_COL[0] : (f.end[1] + f.end[2] + f.end[3] ? KC_COL[lost] : mut);
+      ctx.beginPath(); ctx.arc(fx(f.d), fy(i), rad, 0, 2 * Math.PI); ctx.fill();
+      if (f.src === 'sf' && n < 1500) { ctx.strokeStyle = fg; ctx.lineWidth = 1; ctx.stroke(); }
+    }
+    const hv = UI.mapHov && UI.mapHov.kind === 'tree' ? UI.mapHov.i : -1;
+    if (hv >= 0 && hv < n) { // the path back to where its chain began
+      ctx.strokeStyle = fg; ctx.lineWidth = 2; ctx.beginPath(); let i = hv; ctx.moveTo(fx(F[i].d), fy(i));
+      while (F[i].par >= 0) { i = F[i].par; ctx.lineTo(fx(F[i].d), fy(i)); } ctx.stroke();
+      ctx.beginPath(); ctx.arc(fx(F[hv].d), fy(hv), rad + 2.5, 0, 2 * Math.PI); ctx.stroke();
+    }
+    ctx.fillStyle = mut; ctx.font = font; ctx.textAlign = 'center';
+    const step = Math.max(1, Math.ceil(26 / Math.max(1, (w - 28) / Math.max(1, T.maxD))));
+    for (let d = 0; d <= T.maxD; d += step) ctx.fillText(T.cnt[d].toLocaleString('en-US'), clamp(fx(d), 12, w - 12), h - 8);
+    ctx.textAlign = 'left';
+    if (hv >= 0 && hv < n) {
+      const f = F[hv], gone = f.end[0] + f.end[1] + f.end[2] + f.end[3];
+      $('dMapNote').textContent = `Fission ${(hv + 1).toLocaleString('en-US')}, generation ${f.d + 1}: ${nucSym(f.Z, f.N)}${f.src === 'sf' ? ' split by itself' : ' + n'} → ${nucSym(f.ZL, f.NL)} + ${nucSym(f.ZH, f.NH)} + ${f.nu}n at ${fmtTime(f.t * PHYS.TU_S)}. Its neutrons: ${f.kids} set off fissions, ${f.end[1]} captured, ${f.end[2]} escaped${f.end[3] ? `, ${f.end[3]} otherwise` : ''}${f.nu > gone ? `, ${f.nu - gone} still flying` : ''}.`;
+    } else {
+      const g = T.cnt, ks = []; for (let d = 1; d < g.length - 1 && ks.length < 6; d++) if (g[d - 1] >= 3) ks.push((g[d] / g[d - 1]).toFixed(2));
+      $('dMapNote').textContent = `${C.nfis.toLocaleString('en-US')} fission${C.nfis === 1 ? '' : 's'}${C.nfis > n ? ` (the first ${n.toLocaleString('en-US')} drawn)` : ''} in ${T.maxD + 1} generation${T.maxD ? 's' : ''}; the numbers under the map count each generation. Each dot is a fission, joined to the one whose neutron set it off: orange passed the chain on, blue's neutrons were captured, grey's escaped, ringed ones split by themselves.` +
+        (ks.length ? ` Each generation against the one before: ${ks.join(', ')}.` : '') + ' Point at a dot for its story.';
+    }
+    return;
+  }
+  // the decay chart
+  if (!C.edges.size) { cv.style.height = '60px'; const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No decays, captures or fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
+  const L = chartLayout(C, w); cv.style.height = L.h + 'px';
+  const r = chartCtx(cv); if (!r) return; const [ctx] = r, cs = L.cs;
+  UI.mapPos = { kind: 'chart', L };
+  const here = new Set(); for (const p of W.parts) if (!p.dead && p.k === NUC && !p.anti && p.Z > 0) here.add(p.Z + '_' + p.N);
+  const hv = UI.mapHov && UI.mapHov.kind === 'chart' ? UI.mapHov.k : '';
+  let mx = 1; for (const e of C.edges.values()) mx = Math.max(mx, e.n);
+  ctx.font = font;
+  for (const b of L.bands) {
+    const ox = 28 - b.n0 * cs, X = (N) => ox + N * cs, Y = (Z) => L.fy(b, Z);
+    b.ox = ox;
+    ctx.fillStyle = mut; ctx.globalAlpha = 0.13; // every nuclide that exists, faintly: where the band lies on the chart
+    for (let Z = b.z0; Z <= b.z1; Z++) for (let N = b.n0; N <= b.n1; N++) { const nu = nuclideInfo(Z, N); if (nu && !nu.unbound && (nu.stable || nu.t12 > 0)) ctx.fillRect(X(N) + 0.5, Y(Z) + 0.5, cs - 1, cs - 1); }
+    ctx.globalAlpha = 1;
+    for (const [k, v] of L.nodes) {
+      if (v.Z < b.z0 || v.Z > b.z1) continue;
+      ctx.fillStyle = LIFE_COL[isoLife(v.Z, v.Z + v.N)[0]] || mut; ctx.fillRect(X(v.N) + 0.5, Y(v.Z) + 0.5, cs - 1, cs - 1);
+      if (here.has(k) && cs >= 5) { ctx.strokeStyle = fg; ctx.lineWidth = 1; ctx.strokeRect(X(v.N) + 0.5, Y(v.Z) + 0.5, cs - 1, cs - 1); }
+      if ((v.frag || v.fis) && cs >= 4) { ctx.fillStyle = MAP_COL.fis; ctx.beginPath(); ctx.arc(X(v.N) + cs / 2, Y(v.Z) + cs / 2, Math.max(1.2, cs * (v.fis ? 0.32 : 0.18)), 0, 2 * Math.PI); ctx.fill(); }
+      if (k === hv) { ctx.strokeStyle = fg; ctx.lineWidth = 2; ctx.strokeRect(X(v.N) - 1, Y(v.Z) - 1, cs + 2, cs + 2); }
+    }
+    for (const e of C.edges.values()) {
+      if (e.mode === 'fis' || e.Z0 < b.z0 || e.Z0 > b.z1 || e.Z1 < b.z0 || e.Z1 > b.z1) continue;
+      const x0 = X(e.N0) + cs / 2, y0 = Y(e.Z0) + cs / 2, x1 = X(e.N1) + cs / 2, y1 = Y(e.Z1) + cs / 2, on = hv && (hv === e.Z0 + '_' + e.N0 || hv === e.Z1 + '_' + e.N1);
+      ctx.strokeStyle = MAP_COL[e.mode] || MAP_COL.p; ctx.globalAlpha = on || !hv ? 0.95 : 0.3;
+      ctx.lineWidth = 1 + 2 * Math.log(1 + e.n) / Math.log(1 + mx) + (on ? 1 : 0);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      if (Math.hypot(x1 - x0, y1 - y0) > 6) { const a = Math.atan2(y1 - y0, x1 - x0), s2 = Math.min(5, cs * 0.6); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - s2 * Math.cos(a - 0.5), y1 - s2 * Math.sin(a - 0.5)); ctx.moveTo(x1, y1); ctx.lineTo(x1 - s2 * Math.cos(a + 0.5), y1 - s2 * Math.sin(a + 0.5)); ctx.stroke(); }
+    }
+    ctx.globalAlpha = 1; ctx.fillStyle = mut;
+    const st = Math.max(1, Math.ceil(13 / cs)); ctx.textAlign = 'right';
+    for (let Z = b.z1 - 1; Z > b.z0; Z -= st) ctx.fillText(ELEMENTS[Z] ? ELEMENTS[Z].sym : String(Z), 25, Y(Z) + cs / 2 + 3.5);
+    ctx.textAlign = 'center'; const sn = Math.max(1, Math.ceil(24 / cs));
+    for (let N = b.n0 + 1; N < b.n1; N++) if ((N - b.n0 - 1) % sn === 0) ctx.fillText('N ' + N, X(N) + cs / 2, b.top + b.h + 12);
+    ctx.textAlign = 'left';
+  }
+  if (hv) {
+    const [Z, N] = hv.split('_').map(Number), ins = [], outs = [], mw = { a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'EC', ncap: 'n capture', fis: 'fission' };
+    for (const e of C.edges.values()) { if (e.Z1 === Z && e.N1 === N) ins.push(`${nucSym(e.Z0, e.N0)} (${mw[e.mode] || e.mode}${e.n > 1 ? ' ×' + e.n : ''})`); if (e.Z0 === Z && e.N0 === N) outs.push(`${nucSym(e.Z1, e.N1)} (${mw[e.mode] || e.mode}${e.n > 1 ? ' ×' + e.n : ''})`); }
+    $('dMapNote').textContent = `${nucName(Z, N)}, ${isoLife(Z, Z + N)[2]}${here.has(hv) ? ', in the box now' : ''}. From: ${ins.slice(0, 6).join(', ') || 'nothing seen'}${ins.length > 6 ? ' …' : ''}. To: ${outs.slice(0, 6).join(', ') || 'nothing seen'}${outs.length > 6 ? ' …' : ''}.`;
+  } else $('dMapNote').textContent = `${L.nodes.size} nuclides, ${C.edges.size} kinds of step, on the chart of nuclides (protons up, neutrons across${L.bands.length > 1 ? '; bands far apart are drawn separately' : ''}): α decay (red), β⁻ (blue), β⁺ and electron capture (green), neutron capture (grey); orange dots: nuclei that split (large) and their fragments (small). Squares: stable (green), half-life over a year (yellow), a minute to a year (orange), shorter (red); outlined ones are in the box now. Point at one for what led to it and what it became.`;
+}
+function mapHover(e) {
+  const P = UI.mapPos, C = W.chain; if (!P || !C) return;
+  const r = $('chMap').getBoundingClientRect(), ui = SET.ui || 1, x = (e.clientX - r.left) / ui, y = (e.clientY - r.top) / ui;
+  let hov = null;
+  if (P.kind === 'tree') { let bd = 64; const F = C.fis; for (let i = 0; i < F.length; i++) { const dx = P.fx(F[i].d) - x, dy = P.fy(i) - y, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; hov = { kind: 'tree', i, k: 't' + i }; } } }
+  else { const L = P.L, b = L.bands.find(b => y >= b.top && y < b.top + b.h); if (b) { const N = Math.floor((x - b.ox) / L.cs), Z = b.z1 - Math.floor((y - b.top) / L.cs), k = Z + '_' + N; if (L.nodes.has(k)) hov = { kind: 'chart', k }; } }
+  if ((hov && hov.k) !== (UI.mapHov && UI.mapHov.k)) { UI.mapHov = hov; drawChainMap(); }
 }
 /* The spectroscope: the light made in the box in the last SPEC_WIN seconds of watching (or since Clear), as counts per
    wavelength — the visible band over its colours with the known lines of the elements that gave it off marked, or
@@ -5025,6 +5181,8 @@ function settingsInit() {
   bindSeg('segThreads', (v) => setSetting('threads', v));
   bindSeg('segGl', (v) => setSetting('gl', v));
   bindSeg('segSpec', (v) => { _specView = v; drawSpec(); });
+  $('dMade').addEventListener('click', madeClick); bindSeg('segMap', (v) => { UI.mapView = v; UI.mapVer = -1; drawChainMap(); });
+  $('chMap').addEventListener('mousemove', mapHover); $('chMap').addEventListener('mouseleave', () => { UI.mapHov = null; UI.mapVer = -1; drawChainMap(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
   bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));

@@ -934,6 +934,7 @@ function ghostOf(p) {
   return { x: p.x, y: p.y, k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, rd: p.k === NUC ? p.rd : 0.15, lbl };
 }
 function nucEvent(kind, x, y, text, ghosts, sub, nuc) {
+  if (nuc && nuc.Z0 !== undefined && nuc.Z1 !== undefined) chainEdge(nuc.Z0, nuc.N0, nuc.Z1, nuc.N1, nuc.mode, nuc.anti); // (a decay: a step on the chart of nuclides)
   if (nuc && nuc.Z1 !== undefined && nuc.Z1 + nuc.N1 > 0) noteMade([{ Z: nuc.Z1, N: nuc.N1, anti: nuc.anti }], [], text);
   W.events.push({ kind, x, y, text, sub: sub || '', ghosts: ghosts || [], t0: W.rt, nuc: nuc || null });
   if (W.events.length > 30) W.events.splice(0, W.events.length - 30);
@@ -3825,6 +3826,7 @@ function neutronHit(n, T, b, R) {
     flash(x, y, [200, 220, 255], 3, 0.4);
     log('nuc', `Neutron capture: ${lbl} + n → ${nucSym(T.Z, T.N)} + γ (${fmtE(Eg)})`);
     nucEvent('capture', x, y, `Neutron capture: ${lbl} + n → ${nucSym(T.Z, T.N)} + γ`, gh, `${fmtE(Eg)} γ ray`);
+    chainEdge(T.Z, T.N - 1, T.Z, T.N, 'ncap', T.anti);
     noteMade([{ Z: T.Z, N: T.N, anti: !!T.anti }], [], `Neutron capture: ${lbl} + n → ${nucSym(T.Z, T.N)} + γ`);
     return true;
   }
@@ -3861,11 +3863,26 @@ function neutronHit(n, T, b, R) {
    without one, escaped through open walls, or anything else (decay, other reactions) — and its generation. k, the
    neutrons born per neutron ended over the last KC_N ends, is the effective multiplication factor. Bookkeeping only. */
 const KC_N = 300;
+/* Chain-reaction maps (1.11, Data tab; bookkeeping only, no randomness): W.chain.fis holds every fission (the first
+   CH_MAX) with the fission its neutron came from (par, −1 for a neutron placed, fired or from outside; src 'sf' for a
+   spontaneous one), its depth in that family tree, and how its neutrons ended (end: fission, capture, escape, other);
+   W.chain.edges holds every step on the chart of nuclides seen here (decays, neutron captures, fissions to their
+   fragments), with how often. */
+const CH_MAX = 20000, CH_EDGES = 4000;
+function chainOf() { return W.chain || (W.chain = { fis: [], nfis: 0, edges: new Map(), ver: 0 }); }
+function chainEdge(Z0, N0, Z1, N1, mode, anti) {
+  if (anti || Z0 + N0 <= 1 || Z1 + N1 <= 1) return;
+  const C = chainOf(), k = Z0 + ',' + N0 + '>' + Z1 + ',' + N1;
+  let e = C.edges.get(k);
+  if (!e) { if (C.edges.size >= CH_EDGES) return; e = { Z0, N0, Z1, N1, mode, n: 0 }; C.edges.set(k, e); }
+  e.n++; C.ver++;
+}
 function kEnd(p) {
   const K = W.kc || (W.kc = { v: new Float32Array(KC_N), c: new Uint8Array(KC_N), n: 0, gen: 0, born: 0, ends: 0 });
   const hw = W.box.w / 2, hh = W.box.h / 2;
   const cause = p.kEnd || (W.wall === 'open' && (Math.abs(p.x) > hw - 1 || Math.abs(p.y) > hh - 1) ? 'esc' : 'other');
   const i = K.n % KC_N; K.v[i] = p.kNu || 0; K.c[i] = { fis: 0, cap: 1, esc: 2, other: 3 }[cause] ?? 3; K.n++; K.ends++;
+  const f = p.kFis !== undefined && W.chain ? W.chain.fis[p.kFis] : null; if (f) { f.end[K.c[i]]++; W.chain.ver++; } // (the map: how this fission's neutrons ended)
 }
 function fission(T, n, En) {
   const Zc = T.Z, Nc = T.N + (n ? 1 : 0), Ac = Zc + Nc;
@@ -3874,6 +3891,7 @@ function fission(T, n, En) {
   const x = T.x, y = T.y, ne = T.ne, gh = [ghostOf(T)];
   const S = nucBegin(n ? [T, n] : [T]);
   const u = rnd(); const nu = u < 0.08 ? 1 : u < 0.42 ? 2 : u < 0.82 ? 3 : 4;
+  const T0 = { Z: T.Z, N: T.N }, par = n && n.kFis !== undefined && W.chain && W.chain.fis[n.kFis] ? n.kFis : -1; // (for the chain-reaction map)
   if (n) { gh.push(ghostOf(n)); n.kEnd = 'fis'; n.kNu = Math.min(nu, MAX_PARTS - W.parts.length + 2); kill(n); } // (kNu: the neutrons this fission will give, as far as the particle limit lets it)
   kill(T);
   const scale = Ac / 236;
@@ -3896,10 +3914,18 @@ function fission(T, n, En) {
   setVel(fL, tvx + pr / fL.m * ux, tvy + pr / fL.m * uy);
   setVel(fH, tvx - pr / fH.m * ux, tvy - pr / fH.m * uy);
   const prods = [fL, fH];
+  let fid = -1;
+  if (!anti) { // (the chain-reaction map: this fission, the one its neutron came from, and the steps to its fragments)
+    const C = chainOf(); C.nfis++; C.ver++;
+    if (C.fis.length < CH_MAX) { fid = fL.kFis = fH.kFis = C.fis.length; C.fis.push({ par, d: par >= 0 ? C.fis[par].d + 1 : 0, src: n ? 'n' : 'sf', t: W.t, Z: T0.Z, N: T0.N, ZL, NL, ZH, NH, nu: 0, kids: 0, end: [0, 0, 0, 0] }); if (par >= 0) C.fis[par].kids++; }
+    chainEdge(T0.Z, T0.N + (n ? 1 : 0), ZL, NL, 'fis'); chainEdge(T0.Z, T0.N + (n ? 1 : 0), ZH, NH, 'fis');
+  }
   for (let i = 0; i < nu; i++) {
     if (W.parts.length >= MAX_PARTS) break;
     const nn = addNuc(0, 1, 0, x, y, 0, 0, anti);
+    if (fid >= 0) W.chain.fis[fid].nu++;
     nn.kGen = n ? (n.kGen || 0) + 1 : 0; if (W.kc) { W.kc.gen = Math.max(W.kc.gen, nn.kGen); W.kc.born++; }
+    if (fid >= 0) nn.kFis = fid;
     const E = -1.33e6 * Math.log(Math.max(1e-6, rnd() * rnd())) / 2 + 0.2e6;
     const a = rnd() * 2 * Math.PI;
     setMotion(nn, E, Math.cos(a), Math.sin(a), tvx, tvy);
@@ -4041,6 +4067,7 @@ function doDecay(p) {
       for (let k = 0; k < cnt; k++) {
         if (W.parts.length >= MAX_PARTS) break;
         const a = addNuc(em[0], em[1], 0, x + ux * 0.2, y + uy * 0.2, 0, 0, p.anti);
+        if (p.kFis !== undefined && em[0] === 0) a.kFis = p.kFis; // (a delayed neutron: the chain-reaction map counts it to the fission that made its fragment)
         const ang = th + (k ? 2.2 : 0);
         setMotion(a, Eem / cnt, Math.cos(ang), Math.sin(ang), pvx, pvy);
         prod.push(a);
@@ -5849,7 +5876,7 @@ function measure() {
 function clearWorld() {
   dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
-  W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null;
+  W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null; W.chain = null;
   W.grab = null; W.topo++;
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;

@@ -253,6 +253,12 @@
           <div class="kbar" id="dChainBar" aria-hidden="true"></div>
           <p class="note" id="dChainNote"></p>
         </section>
+        <section class="group" id="dMapSec" hidden>
+          <h3>Chain-reaction map</h3>
+          <div class="seg" id="segMap" role="group" aria-label="Which map"><button data-v="tree" aria-pressed="true">Fission tree</button><button data-v="chart">Decay chart</button></div>
+          <canvas class="chart cmap" id="chMap" aria-label="Chain-reaction map"></canvas>
+          <p class="note" id="dMapNote"></p>
+        </section>
         <section class="group" id="dSpecSec" hidden>
           <h3>Spectrum</h3>
           <div class="row" style="justify-content:flex-start;gap:10px;flex-wrap:wrap"><div class="seg" id="segSpec" role="group" aria-label="Spectrum range"><button data-v="vis" aria-pressed="true">Visible</button><button data-v="all">Everything</button></div><button class="btn small" id="bSpecClear" title="Start counting again, and keep counting">Clear</button></div>
