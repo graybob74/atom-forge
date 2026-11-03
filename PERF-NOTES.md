@@ -87,8 +87,8 @@ engine stores and visits particles.
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
   everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
 - The rest of the Experimental options (asked for by the user; induced charges and quantum nuclei shipped in 1.12.0):
-  continuous bond orders next (prototype step 4 in tools/bo-proto2.js: statics and the H + H₂ saddle right, the energy
-  in dynamics not yet: a smooth sharing of each atom's valence to do), then electrons as waves (prototype parked:
+  continuous bond orders next (prototype step 5 in tools/bo-proto2.js works: statics, the H + H₂ saddle and the energy
+  in dynamics right; to bring into the game as an Experimental mode), then electrons as waves (prototype parked:
   tools/eff-proto.js). Each a physics-model change for the owner to approve.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
@@ -223,6 +223,19 @@ engine stores and visits particles.
     there: a hard one jolts the forces each vibration, a rounded one either shifts the orders, by EPS/4 for a common
     quadratic rounding, or is itself stiff, curvature ~2/EPS per unit order²). A sharing that is smooth by
     construction is what is left: ReaxFF does it with smooth over-coordination functions throughout (its f₁–f₅).
+- Continuous bond orders, step 5 (after 1.12.0; `tools/bo-proto2.js`, model E): the prototype works.
+  - The last energy leaks were three corners where every bond sits: the raw order's slope jumped at the single-bond
+    length (Gaussian outward, Pauling inward: now Pauling's eased in over 0.05 Å, flat at the length); a partner asking
+    for nothing was given EPS/4 by the rounded ramp (now faded out below 2·EPS); and a pair coming within reach (with
+    order 0) still moved its atoms' valence level (its demand now counts for nothing in the level too).
+  - Hot H₂O + CH₄ + H₂ (about 240 K), 1,500 steps: energy kept to 0.0012 eV at 0.2 fs and 0.0003 at 0.1 fs (falling as
+    dt²), against 0.002 for the game's own chemistry on the same molecules; about 2,000 K: 0.073 / 0.011 eV.
+  - Statics: every molecule of the test set within 0.041 eV a bond of the game's bonds, with their lengths (benzene's
+    ring bonds 1.5 by themselves). Stiffness as the game's Morse bonds (stretch curvature H₂ 35 eV/Å² against 34,
+    H₂O 48/47, CH₄ 30/27). H + H₂ → H₂ + H: a true saddle, 0.407 eV at 1.01 Å (measured 0.42 eV at 0.93 Å; order
+    exponent p = 1.15 below a single bond).
+  - Next: into the game, as an Experimental mode (the forces of every bonded pair from these orders; bonds for
+    drawing, charges and the events from them).
 - Quantum nuclei, step 3: the setting (Settings → Experimental → Quantum nuclei: off / 8 / 16 / 32 beads, `SET.pi` →
   `piSet`), finished:
   - The rings' internal modes are given masses so that none is faster than PI_OMEGA (1.5 tu⁻¹) and none lighter than
