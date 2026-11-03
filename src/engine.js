@@ -148,7 +148,7 @@ class Part {
     S.Z[i] = 0; S.ne[i] = 0; S.mol[i] = 0; S.id[i] = W.nextId++;
     S.ljR[i] = 0; S.ljS[i] = 0; S.ionR[i] = 0; S.cap[i] = 0; S.used[i] = 0; S.ionic[i] = 0; S.isMetal[i] = 0; S.anti[i] = 0; S.xferD[i] = 0; S.xferA[i] = 0;
     S.sEN[i] = SOFT_EN; S.elrc[i] = 0; S.hit[i] = 0; S.lp[i] = 0; S.metal[i] = 0; S.mR[i] = 0; S.mD[i] = 0; S.tLocal[i] = 0; S.vlx[i] = 0; S.vly[i] = 0; S.vlin[i] = 0;
-    this.N = 0; this.qpol = 0; this.qf = 0; this.qi = 0; this.bonds = []; this.excl = null; this.el = null; this.nuc = null;
+    this.N = 0; this.qpol = 0; this.qf = 0; this.qi = 0; this.bom = false; this.bonds = []; this.excl = null; this.el = null; this.nuc = null;
     this.KE = 0; this.ux = 1; this.uy = 0; this.sp = 0; this.gam = 1;
     this.glow = 0; this.glowC = ''; this.born = W.rt;
     this.val = 0; this.nOut = 0; this.unp = 0;
@@ -1358,6 +1358,7 @@ function vlExclusions() {
     const i = pi[q], j = pj[q], mi = MOL[i];
     ex[q] = (mi !== 0 && mi === MOL[j] && K[i] === NUC && K[j] === NUC && Z[i] > 0 && Z[j] > 0 && NE[i] > 0 && NE[j] > 0) ? (OBJ[i].excl.has(ID[j]) ? 1 : 2) : 0; // (2: one molecule, not excluded)
   }
+  if (BO.any) for (let q = 0; q < np; q++) { const a = OBJ[pi[q]], b = OBJ[pj[q]]; if (a && b && a.bom && b.bom) ex[q] = 1; } // (continuous bond orders: their pairs are bo.js's)
   VL.exTopo = W.topo; VL.exDirty = W.dirty;
 }
 function vlInvalidate() { VL.valid = false; }
@@ -1568,6 +1569,7 @@ function localPE(set, skip) {
       if (o.Z === 0) return;
       if (set.has(o) && o.id < p.id) return;
       if (p.mol !== 0 && p.mol === o.mol && p.excl && p.excl.has(o.id)) return;
+      if (p.bom && o.bom) return; // (continuous bond orders: bo.js's)
       V += nucPairV(p, o, r2);
     };
     nearby(p.x, p.y, RC, visit);
@@ -2144,6 +2146,7 @@ function computeForces1() {
   if (VL.exTopo !== W.topo || VL.exDirty !== W.dirty) vlExclusions();
   if (_profOn) { const t = performance.now(); _tLists += t - tp; tp = t; }
   nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
+  if (BO.any) boPass(true); // (continuous bond orders, 1.13: bo.js)
   if (_profOn) tp = performance.now();
   if (nmdL) { // pairs with a free lepton in them, from the inner steps' list
     if (!flValid()) flBuild();
@@ -2896,7 +2899,7 @@ function hardMeet(a, b) {
   return 0.5 * Ma * Mb / (Ma + Mb) * (dvx * dvx + dvy * dvy) > HARD_MEET;
 }
 function evBond(a, b, r) {
-  if (a.dead || b.dead || bondBetween(a, b)) return;
+  if (a.dead || b.dead || bondBetween(a, b) || (a.bom && b.bom)) return;
   if (!(a.cap - a.used > 0 && b.cap - b.used > 0) || !covalentOK(a, b)) return;
   if (a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) return;
   if (hardMeet(a, b)) return;
@@ -3259,7 +3262,7 @@ function pairPE(a, b) {
   const [dx, dy] = minImg(b.x - a.x, b.y - a.y), r2 = dx * dx + dy * dy;
   let V = 0;
   if (r2 < RC2) {
-    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id))) V += nucPairV(a, b, r2); }
+    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom)) V += nucPairV(a, b, r2); }
     else if (a.k === NUC || b.k === NUC) {
       const A = a.k === NUC ? a : b, L = A === a ? b : a, qa = A.q;
       if (qa) V += PHYS.KE * L.q * qa * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN));
@@ -5876,7 +5879,8 @@ function stepPlain(dt) {
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) moveWalls(dt); else { W.box.uw = 0; W.box.uh = 0; }
   // particles added from outside, or switched between MD and ballistic flight at the end of the last step
   rpMark(0);
-  if (W.fSpawn !== W.spawned || listsStale() || _wallMoved) { _noEv = true; computeForces(); _noEv = false; }
+  const boCh = (BO.on || BO.any) && boSync(); // (continuous bond orders: who takes part, 1.13)
+  if (boCh || W.fSpawn !== W.spawned || listsStale() || _wallMoved) { _noEv = true; computeForces(); _noEv = false; }
   _wallMoved = false;
   rpSkip();
   let tp = _profOn ? performance.now() : 0;
@@ -6117,7 +6121,10 @@ function measure() {
 }
 
 /* ------------------------------------------------------------------ world construction helpers */
+/* continuous bond orders (bo.js), asked of by the engine's force and energy passes */
+const BO = { on: false, any: false, pairs: [], np: 0, E: 0, cache: new Map(), Ztab: new Set([1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53]), bath: 0, changes: 0 };
 function clearWorld() {
+  BO.np = 0; BO.any = false; BO.E = 0;
   dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null; W.chain = null;
@@ -6391,6 +6398,7 @@ function totalEnergy0() {
     const a = md[i], b = md[j];
     const [dx, dy] = minImg(b.x - a.x, b.y - a.y), r2 = dx * dx + dy * dy, r = Math.sqrt(r2);
     if (a.k === NUC && b.k === NUC) {
+      if (a.bom && b.bom) continue; // (continuous bond orders: below)
       if (r >= RC) { // only metallic cohesion reaches farther
         if (a.isMetal && b.isMetal && a.ne > 0 && b.ne > 0 && !opp(a, b) && r < 1.05 * (a.mR + b.mR) && !(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id))) pe += metalV(a, b, r);
         continue;
@@ -6418,6 +6426,7 @@ function totalEnergy0() {
   }
   for (const bd of W.bonds) pe += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
+  if (BO.any) pe += boPass(false);
   if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls
