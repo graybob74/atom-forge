@@ -1079,6 +1079,34 @@ const { openPage } = require('./browser');
   })();
   check(r66.classic.width < 0.05 && r66.quantum.width > 0.075 && r66.quantum.mean > r66.classic.mean + 0.01 && Math.abs(r66.flame.dE) < 0.5 && r66.flame.xfer > 20 && Math.abs(r66.off) < 1e-6,
     `1.12: quantum nuclei: H₂ at 300 K ${r66.classic.width} → ${r66.quantum.width} Å wide, ${r66.classic.mean} → ${r66.quantum.mean} Å long (16 beads); a flame with rings ${r66.flame.dE} eV over ${r66.flame.xfer} electron transfers; turning them off ${r66.off} eV`, '1.12 quantum nuclei: ' + JSON.stringify(r66));
+  // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
+  const r67 = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
+    loadPreset('soup'); setRunning(true); await wait(200);
+    const f = simFrame; let once = true; simFrame = (...a) => { if (once) { once = false; throw new Error('test boom'); } return f(...a); };
+    await wait(300); simFrame = f;
+    o.err = { open: !$('crashModal').hidden, running: UI.running, rep: /test boom/.test($('crashReport').value) && !/apiKey/.test($('crashReport').value) };
+    document.querySelector('[data-crash=go]').click(); await wait(200); o.go = !CRASH.open && UI.running;
+    const p = W.parts.find(q => !q.dead); p.vx = NaN; await wait(700);
+    o.nan = { open: !$('crashModal').hidden, title: $('crashTitle').textContent };
+    document.querySelector('[data-crash=fix]').click(); await wait(600); o.fixed = !CRASH.open && UI.running && crashBad().length === 0;
+    o.beat = !!JSON.parse(localStorage.getItem('atomforge.beat') || 'null');
+    return o;
+  });
+  for (let i = errors.length - 1; i >= 0; i--) if (/test boom/.test(errors[i])) errors.splice(i, 1); // (the error the check threw on purpose)
+  const r67b = await (async () => {
+    const m = await openPage({ settle: 900, menu: true });
+    await m.page.evaluate(() => { hideMainMenu(); loadPreset('soup'); setRunning(true); });
+    await m.page.waitForTimeout(2300);
+    await m.page.evaluate(() => { autosave(); const b = localStorage.getItem('atomforge.beat'), k = () => localStorage.setItem('atomforge.beat', b); window.addEventListener('pagehide', k); document.addEventListener('visibilitychange', k); }); // (as if the tab had died)
+    await m.page.reload(); await m.page.waitForTimeout(900);
+    const rec = await m.page.evaluate(() => ({ open: !$('crashModal').hidden, title: $('crashTitle').textContent, restore: !!document.querySelector('[data-crash=restore]') }));
+    await m.page.reload(); await m.page.waitForTimeout(900);
+    rec.clean = await m.page.evaluate(() => $('crashModal').hidden);
+    await m.browser.close(); return rec;
+  })();
+  check(r67.err.open && !r67.err.running && r67.err.rep && r67.go && r67.nan.open && /Broken/.test(r67.nan.title) && r67.fixed && r67.beat && r67b.open && /unexpectedly/.test(r67b.title) && r67b.restore && r67b.clean,
+    `1.13: crash handler: an error pauses with a dialog, broken numbers caught and removed, a session that died offered back from its autosave, a normal reload not`, '1.13 crash handler: ' + JSON.stringify({ r67, r67b }));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

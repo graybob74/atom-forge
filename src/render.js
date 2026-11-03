@@ -163,8 +163,10 @@ function render(rt) {
   if (R.view.hbonds) drawHBonds();
   if (R.view.ionic) drawIonic();
   if (!R.gl) drawChipsUnder();
+  R.lblLater = PI.on && PI.n && R.s >= 30 ? [] : null;
   drawParticles(rt);
   if (PI.on && PI.n) drawRings();
+  if (R.lblLater) { for (const a of R.lblLater) label(R.ctx, ...a); R.lblLater = null; }
   drawMeasure();
   drawChips(rt);
   drawExos(); drawStrings(rt);
@@ -626,7 +628,7 @@ function drawUltraParts(ctx, rt) {
     if (r <= 1500) {
       if (bohrMode === 'orb') drawOrbitalAtom(ctx, p, x, y, true);
       else if (bohrMode === 'on' || bohrMode === 'nuc' || (bohrMode === 'auto' && r >= 30)) drawBohr(ctx, p, x, y, r, rt, col, rn);
-      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
+      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
     } else { // inside the atom's electron cloud: a faint wash of its colour
       const c = hexc(col); ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.10)`;
       const d = Math.hypot(x - Wd / 2, y - Ht / 2);
@@ -834,7 +836,7 @@ function drawParticles(rt) {
     if (bohr) drawBohr(ctx, p, x, y, r, rt, col);
     else {
       if (!glBalls) drawSprite(ballSprite(col, r), x, y);
-      if (lblOn(p) && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
+      if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
     }
     if (p.anti) { // antimatter: a dashed violet halo
       ctx.save(); ctx.strokeStyle = 'rgba(190,130,255,0.85)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
@@ -1035,6 +1037,8 @@ function drawLepton(ctx, p, x, y, bohrMode) {
   }
   drawSprite(ballSprite(col, R.lite ? r * 1.2 : r), x, y);
 }
+/* an atom's symbol; with quantum nuclei on, kept until the bead rings are drawn, so they never cover it (1.13) */
+function labelAtom(ctx, text, x, y, r, col) { if (R.lblLater) R.lblLater.push([text, x, y, r, col]); else label(ctx, text, x, y, r, col); }
 function label(ctx, text, x, y, r, col) {
   ctx.fillStyle = col;
   ctx.font = `600 ${Math.round(clamp(r * 0.95, 8, 30))}px "Hanken Grotesk", system-ui, sans-serif`;

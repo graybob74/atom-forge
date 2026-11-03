@@ -617,6 +617,7 @@
       <div class="srow"><span>These settings</span><button class="btn small" id="setReset">Back to defaults</button></div>
     </section>
     <section class="sgroup spane" data-stab="exp" hidden>
+      <div class="exptot" id="expTotal"></div>
       <p class="note">More accurate physics, at a price in speed. Each cost was measured in this game (one thread, liquid water unless it says otherwise; tools/accbench in the source): ×2 means the same moment takes twice as long to work out. The coloured tags beside settings in every tab show what each choice costs, green for little or nothing to red for a lot.</p>
       <h3>Shorter longest step</h3>
       <div class="srow"><span>Longest time step</span><div class="seg" id="segDtMax" role="group" aria-label="Longest time step"><button data-v="0.04">0.4 fs (normal)</button><button data-v="0.02">0.2 fs</button><button data-v="0.01">0.1 fs</button></div></div>
@@ -661,6 +662,16 @@
     <button class="btn" data-esc="menu">Main menu</button>
     <button class="btn danger" data-esc="quit" id="escQuit">Quit</button>
     <p class="note" id="escNote"></p>
+  </div>
+</div>
+
+<div class="modal" id="crashModal" hidden>
+  <div class="dialog crashd" role="alertdialog" aria-modal="true" aria-labelledby="crashTitle">
+    <h2 id="crashTitle">Something went wrong</h2>
+    <p id="crashText"></p>
+    <div class="crashbtns" id="crashBtns"></div>
+    <details id="crashDet"><summary>Report (to send with a bug report)</summary><textarea id="crashReport" readonly spellcheck="false"></textarea></details>
+    <p class="note" id="crashNote"></p>
   </div>
 </div>
 

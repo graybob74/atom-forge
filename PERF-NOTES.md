@@ -112,6 +112,27 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.13.0 (in progress): crash handler, Experimental total cost, beads under the symbols
+
+- **Crash handler** (asked for by the user after a Ring-collider setup, Ca-40 + Au-197 at about 1 PeV with a τ⁻ placed,
+  crashed the game; it ran 2,500 particles headless without an error, so it was most likely the tab freezing or running
+  out of memory). An error in a frame (or anywhere on the page) now pauses the game and opens a dialog: what happened,
+  Keep going, Undo the last change (where undo works), Start this setup again, and a report to copy (version, setup,
+  particle count, time, memory, the error's stack, the settings without any API key). Every half second the chamber
+  is checked for positions or speeds that are NaN or infinite (they spread to neighbours within steps): the dialog
+  offers to remove them, recompute the forces and keep going. Memory past 85% of what the browser allows pauses with
+  a warning (once, until it drops below 60%). A heartbeat (every 2 s, and after any frame over 0.5 s) is kept in
+  browser storage and cleared when the page is left normally (closed, reloaded, hidden); found on the next start it
+  means the last session froze or crashed, so that start does not carry on into the autosave (Start with → Where I
+  left off) but offers it, with the report. The desktop window can close without telling the page, so there only a
+  heartbeat that shows trouble (frames over a second, or memory past 70%) counts. Costs nothing measurable: one pass
+  over the particles every 0.5 s and a small write every 2 s.
+- **Experimental: the total cost** at the top of the tab (asked for by the user): the chosen settings' measured costs
+  multiplied together against everything at normal, coloured like the tags (×1.8–4.7 for 9 Å reach and induced
+  charges every 10th step). A guide, not a measurement of that combination.
+- **Beads covered the element symbols** with quantum nuclei on (the user's screenshot): the bead rings were drawn
+  after the atoms and their labels. The symbols are now held back and drawn after the rings.
+
 ## 1.12.0: induced charges and quantum nuclei (Experimental), realistic tags; prototypes for the rest
 - The particle bar's search (asked for by the user): the chip reads "Search…" (no emoji), the menu "Search particles",
   and its text box sits inside the menu with an 8 px margin (`.msearch`'s width: 100%, later in the sheet, had won over

@@ -11838,8 +11838,10 @@ function render(rt) {
   if (R.view.hbonds) drawHBonds();
   if (R.view.ionic) drawIonic();
   if (!R.gl) drawChipsUnder();
+  R.lblLater = PI.on && PI.n && R.s >= 30 ? [] : null;
   drawParticles(rt);
   if (PI.on && PI.n) drawRings();
+  if (R.lblLater) { for (const a of R.lblLater) label(R.ctx, ...a); R.lblLater = null; }
   drawMeasure();
   drawChips(rt);
   drawExos(); drawStrings(rt);
@@ -12301,7 +12303,7 @@ function drawUltraParts(ctx, rt) {
     if (r <= 1500) {
       if (bohrMode === 'orb') drawOrbitalAtom(ctx, p, x, y, true);
       else if (bohrMode === 'on' || bohrMode === 'nuc' || (bohrMode === 'auto' && r >= 30)) drawBohr(ctx, p, x, y, r, rt, col, rn);
-      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
+      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
     } else { // inside the atom's electron cloud: a faint wash of its colour
       const c = hexc(col); ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.10)`;
       const d = Math.hypot(x - Wd / 2, y - Ht / 2);
@@ -12509,7 +12511,7 @@ function drawParticles(rt) {
     if (bohr) drawBohr(ctx, p, x, y, r, rt, col);
     else {
       if (!glBalls) drawSprite(ballSprite(col, r), x, y);
-      if (lblOn(p) && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
+      if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
     }
     if (p.anti) { // antimatter: a dashed violet halo
       ctx.save(); ctx.strokeStyle = 'rgba(190,130,255,0.85)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
@@ -12710,6 +12712,8 @@ function drawLepton(ctx, p, x, y, bohrMode) {
   }
   drawSprite(ballSprite(col, R.lite ? r * 1.2 : r), x, y);
 }
+/* an atom's symbol; with quantum nuclei on, kept until the bead rings are drawn, so they never cover it (1.13) */
+function labelAtom(ctx, text, x, y, r, col) { if (R.lblLater) R.lblLater.push([text, x, y, r, col]); else label(ctx, text, x, y, r, col); }
 function label(ctx, text, x, y, r, col) {
   ctx.fillStyle = col;
   ctx.font = `600 ${Math.round(clamp(r * 0.95, 8, 30))}px "Hanken Grotesk", system-ui, sans-serif`;
@@ -20160,7 +20164,8 @@ function frame(now) {
     render(W.rt);
     if (REC.on) recCapture();
     tf2 = performance.now();
-  } catch (err) { console.error(err); }
+  } catch (err) { console.error(err); crashError(err, 'frame'); }
+  if (UI.started) crashTick(now, performance.now() - tf0);
   if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); if (!$('setModal').hidden) settingsStats(); }
   if (now - UI.lastPanel > 450) { UI.lastPanel = now; updatePanel(); }
   else if (UI.tab === 'inspect' && UI.running) drawInspectBohr();
@@ -20599,6 +20604,114 @@ function restoreAutosave() {
   setRunning(true); log('tool', 'Carried on where you left off');
   return true;
 }
+/* ---- The crash handler (1.13). An error in a frame, particles whose numbers broke (NaN or infinite), or memory
+   nearly full pauses the game and says so, with what can be done and a report to copy. A heartbeat in browser storage
+   (every 2 s, and after any frame over half a second) is cleared when the page is left normally; found on the next start,
+   it means the last session froze or crashed, and that start offers the autosave back instead of carrying on into it. */
+const CRASH = { open: false, n: 0, beatAt: 0, worst: 0, chkAt: 0, memWarned: false, report: '' };
+function crashState() {
+  let n = 0; for (const p of W.parts) if (!p.dead) n++;
+  const m = performance.memory;
+  return { ver: (/\d+\.\d+\.\d+/.exec(document.title) || ['?'])[0], preset: UI.preset, n, t: W.t, spf: W.simPerFrame, base: UI.baseSpf, running: !!UI.running, menu: !!UI.menu,
+    heap: m ? Math.round(m.usedJSHeapSize / 1e6) : 0, limit: m ? Math.round(m.jsHeapSizeLimit / 1e6) : 0, desktop: !!tauriWin(), at: Date.now() };
+}
+function crashReport(head, st, extra) {
+  const pr = PRESETS[st.preset], set = {};
+  for (const k in SET) if (!/key|token/i.test(k)) set[k] = SET[k]; // (never an API key)
+  const L = [`Atom Forge ${st.ver} (${st.desktop ? 'desktop app' : 'browser'}): ${head}`, `When: ${new Date(st.at || Date.now()).toString()}`,
+    `Setup: ${pr ? pr.name : st.preset} (${st.preset}); ${st.n} particles; simulated time ${fmtTime((st.t || 0) * PHYS.TU_S)}; ${st.running ? 'running' : 'paused'}${st.menu ? ', in the main menu' : ''}; steps per frame ${st.spf} (1× is ${st.base})`,
+    `Memory: ${st.heap ? `${st.heap} of ${st.limit} MB` : 'not reported by this browser'}${st.worst ? `; slowest recent frame ${st.worst} ms` : ''}`,
+    `Browser: ${navigator.userAgent}`];
+  if (extra) L.push('', extra);
+  L.push('', 'Settings: ' + JSON.stringify(set));
+  return L.join('\n');
+}
+function crashShow(o) {
+  CRASH.open = true; CRASH.wasRun = CRASH.wasRun || UI.running; setRunning(false);
+  $('crashTitle').textContent = o.title; $('crashText').textContent = o.text; $('crashNote').textContent = '';
+  $('crashReport').value = CRASH.report = o.report; $('crashDet').open = false;
+  $('crashBtns').innerHTML = o.actions.map(([a, t], i) => `<button class="btn${i ? '' : ' primary'}" data-crash="${a}">${esc(t)}</button>`).join('') + '<button class="btn" data-crash="copy">Copy report</button>';
+  showModal('crashModal');
+}
+function crashClose(run) { CRASH.open = false; hideModal('crashModal'); if (run) setRunning(true); CRASH.wasRun = false; }
+function crashActions(extra) {
+  const a = extra.slice();
+  if (!UI.menu && undoOK() && UNDO.back.length) a.push(['undo', `Undo: ${UNDO.back[UNDO.back.length - 1].label}`]);
+  if (!UI.menu && PRESETS[UI.preset]) a.push(['restart', 'Start this setup again']);
+  return a;
+}
+function crashError(err, where) {
+  CRASH.n++;
+  if (CRASH.open || !UI.started) return; // (counted: the dialog is already up)
+  const msg = (err && err.message) || String(err);
+  crashShow({ title: 'Something went wrong', text: `The game hit an error${where === 'frame' ? '' : ' outside the simulation'} and paused: “${msg}”. You can keep going (it may happen again), or go back to a safe point.`,
+    report: crashReport('an error: ' + msg, crashState(), (err && err.stack) || ''), actions: crashActions([['go', 'Keep going']]) });
+}
+function crashBad() { const bad = []; for (const p of W.parts) if (!p.dead && !(Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.vx) && Number.isFinite(p.vy))) bad.push(p); return bad; }
+/* every half second while the game runs: broken numbers, memory, the heartbeat */
+function crashTick(now, frameMs) {
+  CRASH.worst = Math.max(CRASH.worst, frameMs);
+  if (now - CRASH.beatAt >= 2000 || frameMs > 500) { // the heartbeat
+    CRASH.beatAt = now; const st = crashState(); st.worst = Math.round(CRASH.worst); CRASH.worst = 0;
+    store('beat', JSON.stringify(st));
+  }
+  if (CRASH.open || now - CRASH.chkAt < 500) return;
+  CRASH.chkAt = now;
+  if (UI.running && !UI.menu) {
+    const bad = crashBad();
+    if (bad.length) {
+      const desc = bad.slice(0, 6).map(p => `${p.k}${p.Z !== undefined ? ' Z' + p.Z : ''}${p.N !== undefined ? ' N' + p.N : ''} at (${p.x}, ${p.y}) v (${p.vx}, ${p.vy})`).join('\n');
+      crashShow({ title: 'Broken numbers in the chamber', text: `${bad.length} particle${bad.length > 1 ? 's' : ''} got positions or speeds that are not numbers (NaN or infinite): a bug in the physics, and left alone it spreads to everything near ${bad.length > 1 ? 'them' : 'it'}. The game is paused.`,
+        report: crashReport(`${bad.length} particles with NaN or infinite numbers`, crashState(), 'First of them (kind, Z, N, position, velocity):\n' + desc), actions: crashActions([['fix', `Remove ${bad.length > 1 ? 'them' : 'it'} and keep going`]]) });
+      return;
+    }
+  }
+  const m = performance.memory;
+  if (m && m.jsHeapSizeLimit) {
+    const f = m.usedJSHeapSize / m.jsHeapSizeLimit;
+    if (f > 0.85 && !CRASH.memWarned) {
+      CRASH.memWarned = true;
+      crashShow({ title: 'Memory nearly full', text: `The page is using ${Math.round(m.usedJSHeapSize / 1e6)} MB of the ${Math.round(m.jsHeapSizeLimit / 1e6)} MB the browser allows it. Paused, before the tab runs out and crashes: remove some particles, or start the setup again.`,
+        report: crashReport('memory nearly full', crashState(), ''), actions: crashActions([['go', 'Keep going anyway']]) });
+    } else if (f < 0.6) CRASH.memWarned = false;
+  }
+}
+function crashBye() { store('beat', ''); CRASH.beatAt = 0; } // (the page left normally: no heartbeat to find next time)
+/* the last session's heartbeat, if it never left normally; in the desktop app, whose window may close without telling
+   the page, only one that was struggling (frames over a second, or memory past 70%) counts */
+function crashPrev() {
+  let st = null; try { st = JSON.parse(store('beat') || 'null'); } catch (e) { st = null; }
+  store('beat', '');
+  if (!st || !st.at || Date.now() - st.at > 14 * 864e5) return null;
+  const strained = (st.worst || 0) > 1000 || (st.limit && st.heap / st.limit > 0.7);
+  return st.desktop && !strained ? null : st;
+}
+function crashRecover(st) {
+  const d = autosaved(), pr = PRESETS[st.preset], mem = st.limit && st.heap / st.limit > 0.7;
+  const was = `${pr ? pr.name : 'a setup'} with ${st.n.toLocaleString('en-US')} particles${st.heap ? `, using ${st.heap} of ${st.limit} MB of memory` : ''}${st.worst > 1000 ? `, its frames taking ${(st.worst / 1000).toFixed(1)} s` : ''}`;
+  const when = d && d.savedAt ? new Date(d.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  crashShow({ title: 'Atom Forge stopped unexpectedly last time', text: `It was running ${was}. It probably ${mem ? 'ran out of memory' : 'froze or crashed'}.` + (d ? ` The autosave from ${when} can be put back${d.fresh ? ' (this setup is kept as its name: it starts afresh)' : ''}; if the same thing happens again, start fresh instead.` : ''),
+    report: crashReport('stopped unexpectedly (froze or crashed)', st, ''), actions: (d ? [['restore', `Carry on from the autosave${when ? ' (' + when + ')' : ''}`]] : []).concat([['fresh', UI.menu ? 'Close' : 'Start fresh']]) });
+}
+function crashAction(a) {
+  if (a === 'copy') {
+    const ta = $('crashReport'), done = () => { $('crashNote').textContent = 'Copied.'; };
+    $('crashDet').open = true;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(CRASH.report).then(done, () => { ta.select(); $('crashNote').textContent = 'Select all and copy the report below.'; });
+    else { ta.select(); try { document.execCommand('copy'); done(); } catch (e) { /* (left selected) */ } }
+    return;
+  }
+  const run = CRASH.wasRun;
+  if (a === 'go') crashClose(true);
+  else if (a === 'fix') {
+    const bad = crashBad(); for (const p of bad) kill(p);
+    try { forcesNoEvents(); } catch (e) { /* (the next step recomputes them) */ }
+    log('tool', `Removed ${bad.length} particle${bad.length > 1 ? 's' : ''} with broken numbers`); crashClose(true);
+  } else if (a === 'undo') { crashClose(false); undoStep(-1); setRunning(true); }
+  else if (a === 'restart') { crashClose(false); loadPreset(UI.preset); }
+  else if (a === 'restore') { crashClose(false); if (UI.menu) hideMainMenu(); if (!restoreAutosave()) log('tool', 'The autosave could not be put back'); }
+  else if (a === 'fresh') crashClose(run && !UI.menu);
+}
 /* ---- My experiments: named saves, kept in the browser's database (IndexedDB: room for big setups, where the
    autosave's storage holds a few megabytes). A setup that cannot be put back (chips, beams, lasers, a ramp) is kept
    as which setup it is. */
@@ -20684,7 +20797,7 @@ function openKeys() {
 }
 /* Quit: the desktop app closes (the chamber is kept first, for Continue); a browser tab can only be closed by hand. */
 function quitApp() {
-  autosave();
+  autosave(); crashBye();
   const w = tauriWin();
   if (w) { Promise.resolve(w.close()).catch(() => {}); return; }
   const n = UI.menu ? $('mmNote') : $('escNote'); if (n) n.textContent = 'In a browser, close the tab to quit: the chamber is kept for next time.';
@@ -20780,8 +20893,10 @@ function menusInit() {
   $('helpClose').onclick = () => hideModal('helpModal');
   $('keysModal').addEventListener('click', (e) => { if (e.target.id === 'keysModal') hideModal('keysModal'); });
   window.addEventListener('blur', () => blurPause(true)); window.addEventListener('focus', () => blurPause(false));
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { autosave(); blurPause(true); } else blurPause(false); });
-  window.addEventListener('pagehide', () => autosave());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { autosave(); crashBye(); blurPause(true); } else blurPause(false); });
+  window.addEventListener('pagehide', () => { autosave(); crashBye(); });
+  $('crashModal').addEventListener('click', (e) => { const b = e.target.closest('[data-crash]'); if (b) crashAction(b.dataset.crash); });
+  window.addEventListener('error', (e) => { if (e.error || (e.message && e.message !== 'Script error.')) crashError(e.error || new Error(e.message), 'event'); });
   $('toolopts').addEventListener('change', () => optSave());
   // the panel's inner edge: drag to make it wider or narrower (Settings → Display)
   const sp = document.createElement('div'); sp.className = 'psplit'; sp.title = 'Drag to resize the panel'; $('panel').appendChild(sp);
@@ -20800,6 +20915,7 @@ function menusInit() {
 /* ------------------------------------------------------------------ keyboard */
 function onKey(e) {
   const tag = (e.target && e.target.tagName) || '';
+  if (CRASH.open) { if (e.key === 'Escape') { e.preventDefault(); crashClose(false); } return; } // (the crash dialog: Esc closes it, still paused)
   if (QM.open) {
     if (e.key === 'Escape') { e.preventDefault(); closeQuickMenu(true); return; }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); qmMove(e.key === 'ArrowDown' ? 1 : -1); return; }
@@ -21146,6 +21262,29 @@ function syncReal() {
     else { const row = el.closest('label'); if (row) costTag(row, 'rlb', 'realistic when on', why); }
   }
 }
+/* The Experimental tab's total (1.13, asked for by the user): the chosen settings' measured costs multiplied together,
+   against everything at normal. A product is a fair guide (each one multiplies the work of a step) but not a
+   measurement of that combination: the ranges are the setups the costs were measured on. */
+const EXP_SET = { segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
+function expTotal() {
+  let lo = 1, hi = 1, extra = '';
+  const on = [];
+  for (const id in EXP_SET) {
+    const c = COSTS[id](), v = SET[EXP_SET[id]], a = c.o ? c.o[String(v)] : v ? c.on : null;
+    if (!a) continue;
+    const m = String(a[0]).match(/×\s*([0-9.]+)(?:\s*–\s*([0-9.]+))?/); if (!m) continue;
+    const l = +m[1], h = +(m[2] || m[1]); lo *= l; hi *= h;
+    if (/pauses/.test(a[0])) extra = ', with pauses when a large ring system reacts';
+    if (h > 1.001 || /\+/.test(a[0])) on.push(id);
+  }
+  return { lo, hi, on, extra };
+}
+function syncExpTotal() {
+  const el = $('expTotal'); if (!el) return;
+  const t = expTotal(), txt = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
+  const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
+  el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
+}
 function syncCosts() {
   for (const id in COSTS) {
     const el = $(id); if (!el) continue;
@@ -21156,6 +21295,7 @@ function syncCosts() {
     if (c.o) for (const b of el.querySelectorAll('button')) { const a = c.o[b.dataset.v]; costTag(b, 'oc c' + (a ? costLevel(a[0]) : 0), a ? a[0] : '', a ? a[1] : ''); }
     else { costTag(row, 'cost c' + costLevel(c.on[0]), 'on ' + c.on[0], 'Turned on: ' + c.on[1]); row.querySelector(':scope > .cost').classList.toggle('dim', !el.checked); }
   }
+  syncExpTotal();
   syncReal(); // (after the cost tags: the realistic tag sits under them)
   if (!UI.hz && !UI.hzBusy && typeof requestAnimationFrame === 'function') { // (the monitor's rate, for the frame-rate cap: the median of 20 frames)
     UI.hzBusy = true; const ts = [];
@@ -21650,8 +21790,10 @@ function init() {
   loadPreset(startPreset); buildToolOpts();
   setRunning(true);
   UI.started = true;
+  const prev = crashPrev(); // (the last session froze or crashed: offer its autosave rather than carry on into it)
   if (!direct && SET.start === 'menu') showMainMenu();
-  else if (!direct && SET.start === 'last') restoreAutosave();
+  else if (!direct && SET.start === 'last' && !prev) restoreAutosave();
+  if (prev && !window.AF_NO_MENU) crashRecover(prev);
   if (!direct && SET.start !== 'menu' && !store('toured')) setTimeout(tourStart, 600);
   UI.last = performance.now();
   requestAnimationFrame(frame);

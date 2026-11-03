@@ -456,6 +456,20 @@ canvas.chart.graph { height: auto; }
 .spane h3 { margin-top: 6px; }
 /* The Esc menu, the shortcut list */
 .emenu { width: min(340px, 100%); gap: 8px; text-align: center; }
+/* the Experimental tab's total (1.13): what the choices together cost against normal */
+.exptot { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.exptot .big { font: 650 22px/1 'Azeret Mono', ui-monospace, monospace; padding: 6px 10px; border-radius: 8px; color: #fff; white-space: nowrap; }
+.exptot .big.c0 { background: #2e9e5b; } .exptot .big.c1 { background: #7aa83a; } .exptot .big.c2 { background: #c9a227; color: #1b1b1b; } .exptot .big.c3 { background: #e07a2a; } .exptot .big.c4 { background: #d14343; }
+.exptot p { margin: 0; font-size: 12.5px; line-height: 1.4; }
+/* the crash dialog (1.13): above everything, the main menu too */
+#crashModal { z-index: 90; }
+.crashd { width: min(540px, 100%); gap: 10px; }
+.crashd p { margin: 0; line-height: 1.45; }
+.crashbtns { display: flex; flex-wrap: wrap; gap: 8px; }
+.crashbtns .btn { flex: 1 1 auto; padding: 9px 12px; }
+.crashd summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+.crashd textarea { width: 100%; box-sizing: border-box; height: 170px; margin-top: 6px; resize: vertical; font: 11px/1.4 'Azeret Mono', ui-monospace, monospace;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
 .emenu h2 { margin-bottom: 4px; }
 .emenu .btn { width: 100%; padding: 10px 12px; }
 .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
