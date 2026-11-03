@@ -1453,6 +1453,9 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <h3>Charges that respond to their surroundings</h3>
       <div class="srow"><span>Induced charges</span><div class="seg" id="segQeq" role="group" aria-label="Charges that respond to their surroundings"><button data-v="0">Off (normal)</button><button data-v="10">Every 10th step</button><button data-v="1">Every step</button></div></div>
       <p class="note">Each molecule's partial charges are its bonds' own, plus induced charges that follow the electric field around it from other molecules, ions and an applied field (charge equilibration). No charge moves between molecules, so a water molecule stays neutral but turns its dipole toward an ion or a field. Fitted to water's measured polarizability (1.45 Å³, averaged in the plane); in liquid water the molecules' dipole rises from 2.19 to 2.46 D, and next to a sodium ion much more. The polarization energy is part of the energy books, and the energy stays exact. Every 10th step costs ×1.4–1.8 and every step ×2.7–4.6 (brine, liquid water, 4,000 waters). The charges lag between updates, which warms an insulated box a little. Molecules over 64 atoms keep their own charges.</p>
+      <h3>Quantum nuclei</h3>
+      <div class="srow"><span>Quantum nuclei</span><div class="seg" id="segPi" role="group" aria-label="Quantum nuclei"><button data-v="0">Off (normal)</button><button data-v="8">8 beads</button><button data-v="16">16 beads</button><button data-v="32">32 beads</button></div></div>
+      <p class="note">Atoms are not points: a nucleus, light ones most, is spread out by its zero-point motion and can tunnel through barriers. With this on every atom is a ring of beads (path-integral molecular dynamics), each feeling the forces at its own copy of the world; zoomed in, the beads show as small dots over each atom. At 300 K the H₂ bond spreads from 0.037 to 0.089 Å wide (16 beads) and lengthens from 0.746 to 0.764 Å (measured 0.766); heavy hydrogen spreads less, from the masses alone. The heat bath keeps the rings at its temperature. In an insulated box the rings need shorter steps: liquid water drifts 0.27 eV in 30 fs at the usual step, 0.07 at 0.2 fs (Longest time step above). Free electrons, bare nuclei and fast particles stay points. Costs ×7.8 (8 beads), ×17 (16), ×36 (32) on liquid water.</p>
       <h3>On hold: very large</h3>
       <p class="note"><b>Continuous bond orders</b> (bonds and reaction barriers from the atoms' positions instead of stored orders): estimated ×5–15 optimised, the prototype ×75–120. <b>Quantum nuclei</b> (16–32 linked copies of every atom: zero-point energy, hydrogen tunnelling): ×14–30. <b>Electrons as waves</b> (Pauli exclusion in plasmas and metals): estimated ×3–10 where there are many free electrons. <b>Real 3-D</b>: estimated ×10–100. <b>Quantum chemistry for bonds</b>: estimated ×100–10,000.</p>
     </section>
@@ -5348,6 +5351,7 @@ function angleEnergy(p) {
 /* Potential energy that a chemical event can change: bonds, bends and non-bonded terms of the set
    with itself and its surroundings. Used to make bond-making and -breaking conserve energy. */
 function localPE(set, skip) {
+  if (PI.on && PI.n && !PI.inPE) { let V = 0; PI.inPE = true; try { for (let k = 0; k < PI.P; k++) { piShift(k, 1); V += localPE(set, skip); piShift(k, -1); } } finally { PI.inPE = false; } return V / PI.P; } // (quantum nuclei: over every bead's copy)
   let V = 0;
   const seenB = new Set(), centres = new Set();
   for (const p of set) {
@@ -9384,10 +9388,13 @@ function bondsCanRise() {
    Energy: the potential is the beads' average (piEnergy), plus the rings' internal energy (kinetic and springs, /P);
    what the rings' thermostat gives or takes is booked to the bath. Free electrons, bare nuclei and fast particles stay
    classical points. */
+const PI_OMEGA = 1.5; // tu⁻¹: the frequency every ring's internal modes are given (their masses scaled to it; sampling is the same)
 const PI = { fresh: [], on: false, P: 0, n: 0, cap: 0, ox: null, oy: null, vx: null, vy: null, fx: null, fy: null, id: null, list: new Int32Array(0), C: null, om: null, T: 300, bath: 0 };
 function piSet(P) {
   P = P === 8 || P === 16 || P === 32 ? P : 0;
   if (P === PI.P) return;
+  if (PI.on && PI.n && W.parts.length) { const e1 = piEnergy().total, e0 = totalEnergy0().total; W.ledger.bath += e1 - e0; PI.bath += e1 - e0; } // (the rings let go: their energy to the bath)
+  PI.ox = PI.oy = PI.vx = PI.vy = PI.fx = PI.fy = PI.id = null;
   PI.P = P; PI.on = P > 0; PI.cap = 0; PI.n = 0;
   if (!P) return;
   const C = [], om = []; // the free ring's normal modes (orthonormal) and their frequencies over ω_P
@@ -9407,6 +9414,9 @@ function piList() {
     PI.fx = new Float64Array(P * cap); PI.fy = new Float64Array(P * cap);
     const id = new Int32Array(cap).fill(-1); if (PI.id && PI.cap) id.set(PI.id.subarray(0, PI.cap)); PI.id = id; PI.cap = cap;
   }
+  // a ring that is gone (its atom dead, gone fast or bare, or its slot reused) takes its internal energy with it: to the bath
+  if (PI.n) { const gone = new Set(); for (let a = 0; a < PI.n; a++) { const i = PI.list[a], p = S.obj[i]; if (!p || p.dead || p.id !== PI.id[i] || p.k !== NUC || p.Z === 0 || p.ne === 0 || p.fast || p.rad) gone.add(i); }
+    if (gone.size) { const E = piRingE(gone); W.ledger.bath += E; PI.bath += E; for (const i of gone) { PI.id[i] = -1; for (let k = 0; k < P; k++) { PI.ox[k * PI.cap + i] = 0; PI.oy[k * PI.cap + i] = 0; PI.vx[k * PI.cap + i] = 0; PI.vy[k * PI.cap + i] = 0; } } } }
   const L = PI.list.length >= W.parts.length ? PI.list : (PI.list = new Int32Array(W.parts.length * 2 + 16)), cap = PI.cap;
   let n = 0;
   for (const p of W.parts) {
@@ -9417,9 +9427,12 @@ function piList() {
   }
   PI.n = n;
 }
-function piShift(k, sign) { // move every ring's atom to its bead k (sign 1) or back (−1)
-  const X = S.x, Y = S.y, L = PI.list, base = k * PI.cap;
-  for (let a = 0; a < PI.n; a++) { const i = L[a]; X[i] += sign * PI.ox[base + i]; Y[i] += sign * PI.oy[base + i]; }
+function piShift(k, sign) { // move every ring's atom to its bead k (sign 1), or back exactly where it was (−1)
+  const X = S.x, Y = S.y, L = PI.list, n = PI.n, base = k * PI.cap;
+  if (sign > 0) {
+    if (!PI.sx || PI.sx.length < n) { PI.sx = new Float64Array(n * 2 + 16); PI.sy = new Float64Array(n * 2 + 16); }
+    for (let a = 0; a < n; a++) { const i = L[a]; PI.sx[a] = X[i]; PI.sy[a] = Y[i]; X[i] += PI.ox[base + i]; Y[i] += PI.oy[base + i]; }
+  } else for (let a = 0; a < n; a++) { const i = L[a]; X[i] = PI.sx[a]; Y[i] = PI.sy[a]; }
 }
 function piForces() {
   const P = PI.P, cap = PI.cap, L = PI.list, n = PI.n, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, hi = S.hi;
@@ -9447,18 +9460,22 @@ function piModes(fn) { // fn(i, m, qx, qy, vx, vy) on each ring's internal norma
     for (let k = 0; k < P; k++) { let sx = 0, sy = 0, ux = 0, uy = 0; for (let j = 1; j < P; j++) { const c = C[j][k]; sx += c * qx[j]; sy += c * qy[j]; ux += c * wx[j]; uy += c * wy[j]; } const o = k * cap + i; PI.ox[o] = sx; PI.oy[o] = sy; PI.vx[o] = ux; PI.vy[o] = uy; }
   }
 }
+function piWP() { return PI.P * PHYS.KB * Math.max(PI.T, 1) / (6.582119569e-16 / PHYS.TU_S); }
+function piMass(m, j, wP) { const w = PI.om[j] * wP; return w > PI_OMEGA ? m * (w / PI_OMEGA) * (w / PI_OMEGA) : m; } // (a mode faster than PI_OMEGA is made heavier, to oscillate at it; none lighter than the atom)
+function piFreq(j, wP) { return Math.min(PI.om[j] * wP, PI_OMEGA); }
 function piKickTherm(h) { // half a step: the force field on each internal mode, and the thermostat
-  const P = PI.P, cap = PI.cap, C = PI.C, wP = P * PHYS.KB * Math.max(PI.T, 1) / (6.582119569e-16 / PHYS.TU_S), kTP = P * PHYS.KB * Math.max(PI.T, 1);
+  const P = PI.P, cap = PI.cap, C = PI.C, wP = piWP(), kTP = P * PHYS.KB * Math.max(PI.T, 1);
   let dK = 0;
   piModes((i, m, qx, qy, wx, wy) => {
     for (let j = 1; j < P; j++) {
       let fx = 0, fy = 0; const c = C[j]; for (let k = 0; k < P; k++) { fx += c[k] * PI.fx[k * cap + i]; fy += c[k] * PI.fy[k * cap + i]; }
-      wx[j] += h * fx / m; wy[j] += h * fy / m;
-      if (!(W.gamma > 0)) continue; // (insulated: ring-polymer dynamics, its energy kept)
-      const g = 2 * PI.om[j] * wP, c1 = Math.exp(-h * g), c2 = Math.sqrt(1 - c1 * c1), sd = Math.sqrt(kTP / m);
-      const k0 = 0.5 * m * (wx[j] * wx[j] + wy[j] * wy[j]);
+      const mj = piMass(m, j, wP);
+      wx[j] += h * fx / mj; wy[j] += h * fy / mj;
+      if (!(W.gamma > 0)) continue; // (insulated: the rings' dynamics keep their energy)
+      const c1 = Math.exp(-h * 2 * piFreq(j, wP)), c2 = Math.sqrt(1 - c1 * c1), sd = Math.sqrt(kTP / mj);
+      const k0 = 0.5 * mj * (wx[j] * wx[j] + wy[j] * wy[j]);
       wx[j] = c1 * wx[j] + c2 * sd * gauss(); wy[j] = c1 * wy[j] + c2 * sd * gauss();
-      dK += 0.5 * m * (wx[j] * wx[j] + wy[j] * wy[j]) - k0;
+      dK += 0.5 * mj * (wx[j] * wx[j] + wy[j] * wy[j]) - k0;
     }
   });
   PI.bath -= dK / P; W.ledger.bath -= dK / P; // (the rings' thermostat: what it gives is taken from the bath, as the heat bath's own exchanges are)
@@ -9466,10 +9483,10 @@ function piKickTherm(h) { // half a step: the force field on each internal mode,
 /* New rings (an atom just made, or the option just turned on) start spread as a free ring at the bath's temperature
    (each internal mode drawn from its own equilibrium); the energy that takes comes from the bath. */
 function piSpread(slots) {
-  const set = new Set(slots), e0 = piEnergy().total, P = PI.P, wP = P * PHYS.KB * Math.max(PI.T, 1) / (6.582119569e-16 / PHYS.TU_S), kTP = P * PHYS.KB * Math.max(PI.T, 1);
+  const set = new Set(slots), e0 = piEnergy().total, P = PI.P, wP = piWP(), kTP = P * PHYS.KB * Math.max(PI.T, 1);
   piModes((i, m, qx, qy, wx, wy) => {
     if (!set.has(i)) return;
-    for (let j = 1; j < P; j++) { const w = PI.om[j] * wP, sq = Math.sqrt(kTP / m) / w, sv = Math.sqrt(kTP / m); qx[j] = sq * gauss(); qy[j] = sq * gauss(); wx[j] = sv * gauss(); wy[j] = sv * gauss(); }
+    for (let j = 1; j < P; j++) { const w = PI.om[j] * wP, sq = Math.sqrt(kTP / m) / w, sv = Math.sqrt(kTP / piMass(m, j, wP)); qx[j] = sq * gauss(); qy[j] = sq * gauss(); wx[j] = sv * gauss(); wy[j] = sv * gauss(); }
   });
   const dE = piEnergy().total - e0; PI.bath -= dE; W.ledger.bath -= dE;
 }
@@ -9478,22 +9495,22 @@ function piOpen(dt) {
   PI.T = W.T;
   if (PI.fresh.length) piSpread(PI.fresh.slice());
   piKickTherm(dt / 2);
-  const wP = PI.P * PHYS.KB * Math.max(PI.T, 1) / (6.582119569e-16 / PHYS.TU_S);
-  piModes((i, m, qx, qy, wx, wy) => { for (let j = 1; j < PI.P; j++) { const w = PI.om[j] * wP, c = Math.cos(w * dt), sn = Math.sin(w * dt); for (const [q, v] of [[qx, wx], [qy, wy]]) { const a = q[j], b = v[j]; q[j] = a * c + b * sn / w; v[j] = -a * w * sn + b * c; } } });
+  const wP = piWP();
+  piModes((i, m, qx, qy, wx, wy) => { for (let j = 1; j < PI.P; j++) { const w = piFreq(j, wP), c = Math.cos(w * dt), sn = Math.sin(w * dt); for (const [q, v] of [[qx, wx], [qy, wy]]) { const a = q[j], b = v[j]; q[j] = a * c + b * sn / w; v[j] = -a * w * sn + b * c; } } });
 }
 function piClose(dt) { if (PI.n) piKickTherm(dt / 2); }
+/* The rings' internal energy (kinetic in the modes' masses, and the springs), /P; of the slots in only, if given. */
+function piRingE(only) {
+  const P = PI.P, wP = piWP(); let E = 0;
+  piModes((i, m, qx, qy, wx, wy) => { if (only && !only.has(i)) return; for (let j = 1; j < P; j++) { const w = PI.om[j] * wP; E += 0.5 * piMass(m, j, wP) * (wx[j] * wx[j] + wy[j] * wy[j]) + 0.5 * m * w * w * (qx[j] * qx[j] + qy[j] * qy[j]); } });
+  return E / P;
+}
 /* The energy with rings: the potential averaged over the beads, and the rings' internal kinetic and spring energy /P. */
 function piEnergy() {
   piList();
   const P = PI.P; let pe = 0, base = null;
   for (let k = 0; k < P; k++) { piShift(k, 1); const e = totalEnergy0(); piShift(k, -1); pe += e.pe / P; if (!k) base = e; }
-  const wP = P * PHYS.KB * Math.max(PI.T, 1) / (6.582119569e-16 / PHYS.TU_S), cap = PI.cap, L = PI.list, M = S.m;
-  let ring = 0;
-  for (let a = 0; a < PI.n; a++) {
-    const i = L[a], m = M[i];
-    for (let k = 0; k < P; k++) { const o = k * cap + i, o2 = ((k + 1) % P) * cap + i, dx = PI.ox[o2] - PI.ox[o], dy = PI.oy[o2] - PI.oy[o]; ring += 0.5 * m * (PI.vx[o] ** 2 + PI.vy[o] ** 2) + 0.5 * m * wP * wP * (dx * dx + dy * dy); }
-  }
-  ring /= P;
+  const ring = piRingE(null);
   const internal = base.internal + ring;
   return { ke: base.ke, pe, internal, ring, esc: base.esc, total: base.ke + pe + internal + base.esc };
 }
@@ -13376,6 +13393,7 @@ function render(rt) {
   if (R.view.ionic) drawIonic();
   if (!R.gl) drawChipsUnder();
   drawParticles(rt);
+  if (PI.on && PI.n) drawRings();
   drawMeasure();
   drawChips(rt);
   drawExos(); drawStrings(rt);
@@ -13746,6 +13764,23 @@ function drawHBonds() {
 /* Ionic attractions (Lab → View): a dotted line between ions of opposite charge that are touching, held by their
    charges alone — the bond of a salt, which shares no electrons and so has no bond line of its own. Thicker for
    higher charges (the pull goes as q₁q₂). Sorted along x and swept, so a crystal of thousands of ions costs little. */
+/* Quantum nuclei (1.12): each atom's ring of beads, where its nucleus could be found, as small dots joined in a loop
+   over the atom (drawn once the spread is a few pixels: from 30 px per Å). */
+function drawRings() {
+  if (R.s < 30) return;
+  const ctx = R.ctx, P = PI.P, cap = PI.cap, L = PI.list, rb = clamp(0.035 * R.s, 1, 4);
+  ctx.save(); ctx.globalCompositeOperation = 'source-over';
+  for (let a = 0; a < PI.n; a++) {
+    const i = L[a], p = S.obj[i]; if (!p || p.dead) continue;
+    const x = w2sx(p.x), y = w2sy(p.y); if (x < -20 || y < -20 || x > R.w + 20 || y > R.h + 20) continue;
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let k = 0; k <= P; k++) { const o = (k % P) * cap + i, bx = x + PI.ox[o] * R.s, by = y - PI.oy[o] * R.s; k ? ctx.lineTo(bx, by) : ctx.moveTo(bx, by); }
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let k = 0; k < P; k++) { const o = k * cap + i; ctx.beginPath(); ctx.arc(x + PI.ox[o] * R.s, y - PI.oy[o] * R.s, rb, 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.restore();
+}
 function drawIonic() {
   if (R.s < 4) return;
   const ions = [];
@@ -22386,10 +22421,10 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { pi: 0, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
+const SET_OK = { pi: [0, 8, 16, 32], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -22466,6 +22501,7 @@ function applySettings() {
   if (!SET.tips) $('hint').hidden = true;
   $('fpsBadge').hidden = !SET.fps;
   threadsSet(SET.threads === 'auto' ? threadsDefault() : +SET.threads - 1); // (workers besides the main thread)
+  piSet(SET.pi); // (Experimental: quantum nuclei)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
@@ -22587,7 +22623,7 @@ function syncSettings() {
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
-  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
+  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
@@ -22610,6 +22646,7 @@ function costLevel(a) {
 const COST_K = { physics: 'Time to work out the physics', drawing: 'Time to draw each frame', memory: 'Memory it takes' };
 function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toFixed(1) : +v.toFixed(2)); }
 const COSTS = {
+  segPi: () => ({ k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×7.8', 'Measured on liquid water: the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water: 16 times a step'], 32: ['×36', 'Measured on liquid water: 32 times a step'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–1.8', 'Measured: water 4,000 ×1.4, brine ×1.6, liquid water ×1.8'], 1: ['×2.7–4.6', 'Measured: brine ×2.7, liquid water ×2.8, 4,000 waters ×4.6'] } }),
   segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×1.3–2.6', 'Measured: brine ×1.3, liquid water ×2.2, 4,000 waters ×2.6 (JavaScript kernels)'], 12: ['×1.6–5.6', 'Measured: brine ×1.6, liquid water ×3.2, 4,000 waters ×5.6 (JavaScript kernels)'] } }),
   segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×1.7', 'Measured ×1.6–1.8 where steps are at their longest; nothing where they are already short'], 0.01: ['×2.8', 'Measured ×2.6–2.9 where steps are at their longest; nothing where they are already short'] } }),
@@ -22650,6 +22687,7 @@ const REAL = {
   segRc: ['12', 'Real forces reach on without a cutoff: the longest reach is the closest'],
   segDtMax: ['0.01', 'The shortest step follows the motion most exactly'],
   segQeq: ['1', 'Real molecules polarize all the time: every step is the closest'],
+  segPi: ['32', 'The more beads, the closer to the quantum particle'],
   segAtom: ['1', 'Atoms as big as they are'],
   setResBig: [true, 'Every ring system gets its resonance worked out exactly'],
   setInc: [true, 'A nucleon followed through the nucleus collision by collision, as in nature'],
@@ -22714,7 +22752,7 @@ function settingsInit() {
   $('dMade').addEventListener('click', madeClick); bindSeg('segMap', (v) => { UI.mapView = v; UI.mapVer = -1; drawChainMap(); });
   $('chMap').addEventListener('mousemove', mapHover); $('chMap').addEventListener('mouseleave', () => { UI.mapHov = null; UI.mapVer = -1; drawChainMap(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
-  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
+  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));

@@ -164,6 +164,7 @@ function render(rt) {
   if (R.view.ionic) drawIonic();
   if (!R.gl) drawChipsUnder();
   drawParticles(rt);
+  if (PI.on && PI.n) drawRings();
   drawMeasure();
   drawChips(rt);
   drawExos(); drawStrings(rt);
@@ -534,6 +535,23 @@ function drawHBonds() {
 /* Ionic attractions (Lab → View): a dotted line between ions of opposite charge that are touching, held by their
    charges alone — the bond of a salt, which shares no electrons and so has no bond line of its own. Thicker for
    higher charges (the pull goes as q₁q₂). Sorted along x and swept, so a crystal of thousands of ions costs little. */
+/* Quantum nuclei (1.12): each atom's ring of beads, where its nucleus could be found, as small dots joined in a loop
+   over the atom (drawn once the spread is a few pixels: from 30 px per Å). */
+function drawRings() {
+  if (R.s < 30) return;
+  const ctx = R.ctx, P = PI.P, cap = PI.cap, L = PI.list, rb = clamp(0.035 * R.s, 1, 4);
+  ctx.save(); ctx.globalCompositeOperation = 'source-over';
+  for (let a = 0; a < PI.n; a++) {
+    const i = L[a], p = S.obj[i]; if (!p || p.dead) continue;
+    const x = w2sx(p.x), y = w2sy(p.y); if (x < -20 || y < -20 || x > R.w + 20 || y > R.h + 20) continue;
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let k = 0; k <= P; k++) { const o = (k % P) * cap + i, bx = x + PI.ox[o] * R.s, by = y - PI.oy[o] * R.s; k ? ctx.lineTo(bx, by) : ctx.moveTo(bx, by); }
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let k = 0; k < P; k++) { const o = k * cap + i; ctx.beginPath(); ctx.arc(x + PI.ox[o] * R.s, y - PI.oy[o] * R.s, rb, 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.restore();
+}
 function drawIonic() {
   if (R.s < 4) return;
   const ions = [];

@@ -165,6 +165,24 @@ engine stores and visits particles.
   (−0.57 eV in 30 fs, −0.18 at 0.2 fs, −0.05 at 0.1 fs: the integrator, as dt²), so rings need shorter steps (or the
   bath); events' energy books still use the centroids (localPE over the beads to do); drawing the beads; the setting;
   tests.
+- Quantum nuclei, step 3: the setting (Settings → Experimental → Quantum nuclei: off / 8 / 16 / 32 beads, `SET.pi` →
+  `piSet`), finished:
+  - The rings' internal modes are given masses so that none is faster than PI_OMEGA (1.5 tu⁻¹) and none lighter than
+    the atom (`piMass`; the sampled distribution does not depend on these masses). Insulated liquid water, 8 beads,
+    30 fs: −0.66 eV with the modes at their own frequencies, −0.27 eV now; −0.07 eV at the 0.2 fs step, −0.017 at
+    0.1 fs (an integration error, falling as dt²; with the bath on, the bath takes it).
+  - Events' energy books over every bead: localPE averages its sum over the ring's copies, so an event's cost is
+    the rings' (hot flame, 8 beads, 162 electron transfers in 40 frames: −0.002 eV; a hot organic soup with
+    reactions, bonds made and broken: −0.52 eV against −7.95 eV classical in the same frames).
+  - A ring whose atom goes (dead, fast, bare, its slot reused) gives its internal energy to the bath; turning the
+    rings off gives the difference between the beads' energy and the centroids' to the bath, so the books stay
+    exact (0 eV in the test).
+  - Shifting to a bead and back restores the positions exactly (kept, not subtracted).
+  - Drawing: from 30 px per Å, each atom's beads as small white dots joined in a loop over it (`drawRings`).
+  - Cost on liquid water: ×7.8 (8 beads), ×17 (16), ×36 (32: 39.3 ms/fs against 1.08).
+  - Off, nothing changes: four setups (water, brine, combustion, the U-235 chain), 400 steps, bit for bit as 1.11.0.
+  - Test: t_features "1.12 quantum nuclei" (H₂ at 300 K 0.033 → 0.084 Å wide and 0.745 → 0.762 Å long with 16 beads;
+    a flame with rings −0.002 eV; turning them off 0 eV).
 - Continuous bond orders, step 2 (`node tools/bo-proto2.js mols|hhh|dyn`): a closed-form order (Pauling's raw order
   capped by the valence its partners leave, two fixed passes, a smooth minimum), so the energy would be a plain function
   of the positions. It fails: two passes of the cap oscillate (the first cuts both of an atom's partners to nothing,

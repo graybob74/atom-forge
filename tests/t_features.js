@@ -959,7 +959,7 @@ const { openPage } = require('./browser');
     return out;
   });
   check(r62.r9.rc === 9 && !r62.r9.wasm && r62.r9.far > 0 && Math.abs(r62.r9.dE) < 1 && r62.r6.rc === 6 && r62.r6.wasm && r62.r6.far === 0 &&
-    /^×1 oc c0/.test(r62.tags[0]) && /c4/.test(r62.tags[1]) && /^×1\.7 oc c2/.test(r62.tags[2]) && r62.inc === 'on ×1–1.05 dim' && r62.kind === 'physics' && r62.real === "1 0.01 12 1" && r62.realOn === 3,
+    /^×1 oc c0/.test(r62.tags[0]) && /c4/.test(r62.tags[1]) && /^×1\.7 oc c2/.test(r62.tags[2]) && r62.inc === 'on ×1–1.05 dim' && r62.kind === 'physics' && r62.real === "1 0.01 12 1 32" && r62.realOn === 3,
     `1.10: force reach 9 Å: ${r62.r9.far} pairs past 8.5 Å, energy over 300 insulated steps ${r62.r9.dE} eV (6 Å: ${r62.r6.dE}); tags ${r62.tags.map(t => t.split(' ')[0]).join(', ')}, ${r62.inc}`, '1.10 reach: ' + JSON.stringify(r62));
   // 1.09: ionized water (liquid water, 40 molecules ionized, bath off) keeps its energy: the soft-cored Coulomb energy
   // between net charges inside the cutoff now meets the exact 1/r outside it (a step of 0.037 eV for e⁻ + O⁺ at each
@@ -1055,6 +1055,29 @@ const { openPage } = require('./browser');
   check(Math.abs(r65.water.dE) < 0.5 && r65.water.upd >= 250 && r65.water.meanQi > 0.02 && r65.water.worstQ < 1e-9 && r65.trial < 1e-12 && r65.clear.left === 0 && Math.abs(r65.clear.dE) < 1e-6 &&
     Math.abs(r65.brine.dE) < 1 && r65.brine.upd >= 10 && r65.brine.worstQ < 1e-9 && r65.field.dmu > 0.003 && r65.field.sum === 0,
     `1.12: induced charges: water ${r65.water.dE} eV over 300 insulated steps (mean |qi| ${r65.water.meanQi} e), brine ${r65.brine.dE} eV; molecules neutral; a field of 0.1 V/Å adds ${r65.field.dmu} e·Å; a rejected trial and turning it off keep the books`, '1.12 induced charges: ' + JSON.stringify(r65));
+  // 1.12: Experimental → quantum nuclei (Node harness, seeded): H₂ spreads as its zero-point motion says; a reactive
+  // flame keeps its energy books with rings; turning the rings off gives their energy to the bath exactly
+  const r66 = (() => {
+    const out = {};
+    const h2 = (P) => {
+      const X = require('./load.js').load('all', { seed: 5 }), W = X.W;
+      X.baseWorld(30, 30, 300, 0.05); W.wall = 'wrap'; X.addMolecule('H2', 0, 0, 0, 300); X.forcesNoEvents(); W.fSpawn = W.spawned; if (P) X.piSet(P);
+      const A = W.parts.filter(p => !p.dead && p.k === X.NUC), rs = [];
+      for (let s = 0; s < 2500; s++) { W.dt = X.chooseDt(); X.step(W.dt); if (s > 400) { const c = X.PI.cap, n = P || 1; for (let k = 0; k < n; k++) { const ox = (q) => P ? X.PI.ox[k * c + q.i] : 0, oy = (q) => P ? X.PI.oy[k * c + q.i] : 0; rs.push(Math.hypot(A[1].x + ox(A[1]) - A[0].x - ox(A[0]), A[1].y + oy(A[1]) - A[0].y - oy(A[0]))); } } }
+      const m = rs.reduce((t, r) => t + r, 0) / rs.length; return { mean: +m.toFixed(4), width: +Math.sqrt(rs.reduce((t, r) => t + (r - m) ** 2, 0) / rs.length).toFixed(4) };
+    };
+    out.classic = h2(0); out.quantum = h2(16);
+    { const X = require('./load.js').load('all', { seed: 1 }), W = X.W;
+      X.PRESETS.flame.build(); X.settleOverlaps(); W.slowmo = false; W.gamma = 0; W.decayOn = false; X.forcesNoEvents(); W.fSpawn = W.spawned; X.piSet(8);
+      W.dt = X.chooseDt(); X.step(W.dt);
+      const tot = () => X.totalEnergy().total - W.ledger.nuc + W.ledger.bath, E0 = tot(), x0 = W.count.xfer;
+      for (let f = 0; f < 40; f++) X.simFrame(1 / 60, 1e9);
+      out.flame = { dE: +(tot() - E0).toFixed(3), xfer: W.count.xfer - x0 };
+      const e1 = tot(); X.piSet(0); out.off = +(tot() - e1).toFixed(6); }
+    return out;
+  })();
+  check(r66.classic.width < 0.05 && r66.quantum.width > 0.075 && r66.quantum.mean > r66.classic.mean + 0.01 && Math.abs(r66.flame.dE) < 0.5 && r66.flame.xfer > 20 && Math.abs(r66.off) < 1e-6,
+    `1.12: quantum nuclei: H₂ at 300 K ${r66.classic.width} → ${r66.quantum.width} Å wide, ${r66.classic.mean} → ${r66.quantum.mean} Å long (16 beads); a flame with rings ${r66.flame.dE} eV over ${r66.flame.xfer} electron transfers; turning them off ${r66.off} eV`, '1.12 quantum nuclei: ' + JSON.stringify(r66));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
