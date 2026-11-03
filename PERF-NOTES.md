@@ -140,6 +140,18 @@ engine stores and visits particles.
   induced charges every step, atom size true size; on a checkbox ("realistic when on"): resonance in large ring
   systems, detailed nuclear collisions, ultra-realistic mode. Test: t_features "1.10 reach" (now also the tags).
 - Electrons as waves: parked by the user's choice after step 1 (below), for continuous bond orders first.
+- Quantum nuclei, step 1 (`node tools/pimd-proto.js h2|d2|water [P]`): path-integral MD outside the game with the
+  game's own forces (each atom P beads in a ring, springs m·ω_P², ω_P = P·kT/ħ; the free ring integrated exactly in
+  its normal modes; a Langevin thermostat on every mode, PILE-L). At 300 K:
+  - H₂: bond width 0.037 Å classical → 0.083 (16 beads), 0.092 (32); the harmonic ground state of the game's bond is
+    0.088 (a Morse well is a little wider). Mean length 0.746 → 0.767 Å with 32 beads: measured ⟨r⟩ of H₂ is 0.766.
+  - D₂: 0.030 → 0.069 Å (16 beads; ground state 0.074): the isotope effect comes out of the masses alone.
+  - Water O–H: 0.026 → 0.070 Å (measured zero-point width about 0.07), mean 0.963 → 0.977 Å.
+  The force field is worked out once per bead: P passes a step (×16–32 on the forces, as estimated). To bring into
+  the game: every atom's beads (centroid drawn as the atom, the beads as a faint cloud), P force passes, events on the
+  centroids with their energy measured over every bead (localPE averaged over the ring) and every move an event makes
+  applied to the whole ring, the bath's temperature setting the springs (insulated: ring-polymer dynamics at the
+  temperature it started at).
 - Continuous bond orders, step 2 (`node tools/bo-proto2.js mols|hhh|dyn`): a closed-form order (Pauling's raw order
   capped by the valence its partners leave, two fixed passes, a smooth minimum), so the energy would be a plain function
   of the positions. It fails: two passes of the cap oscillate (the first cuts both of an atom's partners to nothing,
