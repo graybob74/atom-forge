@@ -135,6 +135,14 @@ engine stores and visits particles.
   induced charges every step, atom size true size; on a checkbox ("realistic when on"): resonance in large ring
   systems, detailed nuclear collisions, ultra-realistic mode. Test: t_features "1.10 reach" (now also the tags).
 - Electrons as waves: parked by the user's choice after step 1 (below), for continuous bond orders first.
+- Continuous bond orders, step 2 (`node tools/bo-proto2.js mols|hhh|dyn`): a closed-form order (Pauling's raw order
+  capped by the valence its partners leave, two fixed passes, a smooth minimum), so the energy would be a plain function
+  of the positions. It fails: two passes of the cap oscillate (the first cuts both of an atom's partners to nothing,
+  the second gives both back), so H counts two full bonds in water (H–H 0.97 at 0.66 Å), C–C comes out triple in
+  ethane and benzene (atomization 53 and 128 eV against 29 and 56), and H₃ is bound. Diatomics and linear molecules
+  are right (H₂ 4.37 eV against 4.52, N₂, CO, CO₂, HCN, C₂H₂ within 0.2 eV). Next to try: a share of the valence that
+  needs no passes (each atom's partners scaled down together when they ask for more than its valence, the weakest
+  first, as ReaxFF's over-coordination terms do), then the barrier and the energy books again.
 - Electrons as waves, step 1: a prototype outside the game (`node tools/eff-proto.js atoms|dyn|cost`), the electron
   force field of Su & Goddard (eFF): each electron a Gaussian wave packet with a centre, a size and a spin, the size a
   coordinate of its own (mass ¾ mₑ); kinetic energy 3/(2s²), erf-smeared Coulomb, the Pauli term between overlapping
