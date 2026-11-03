@@ -126,6 +126,18 @@ engine stores and visits particles.
     releases the polarization energy as heat (an insulated box warms; the bath takes it away), and the charges' lag
     between updates releases a little more (water: 10 eV over 1,000 steps at every 10th step, 1.3 eV at every step).
   - Test: t_features "1.12 induced charges".
+- Electrons as waves, step 1: a prototype outside the game (`node tools/eff-proto.js atoms|dyn|cost`), the electron
+  force field of Su & Goddard (eFF): each electron a Gaussian wave packet with a centre, a size and a spin, the size a
+  coordinate of its own (mass ¾ mₑ); kinetic energy 3/(2s²), erf-smeared Coulomb, the Pauli term between overlapping
+  packets (same spin repel strongly, opposite spins weakly). Ground states as published for eFF: H atom −0.4244 Ha
+  (exact −0.5), He −2.301 (−2.904), H₂ −0.956 at 0.780 Å (−1.174 at 0.741); Li −6.09 (−7.48), its third electron
+  pushed out to 1.8 Å by the Pauli term. Dynamics keep the energy (hot hydrogen, 24 p + 24 e: 0.0016 eV at
+  0.0005 fs steps, falling fourfold per halving). But: the size breathes with a period of about 0.27 fs in a bound
+  packet, so it needs steps far shorter than the game's electron steps; a free packet spreads without bound (eFF's
+  users cap its size); a pair costs ×74 a point-electron pair here (erf by series, Pauli by differences), perhaps ×6–10
+  optimised; and only the free electrons could be waves (an atom's own electrons are not particles in the game), so
+  it would show in dense plasmas (the NIF capsule) and in how free electrons crowd, not in metals.
+
 
 ## 1.11.0: Data-tab ⓘ buttons and the full list, styled scroll bars, chain-reaction maps, a detailed nucleus (asked for by the user)
 - Made here (Data tab): every nuclide, particle and neutrino row has an ⓘ that opens its card (the right-click card of
