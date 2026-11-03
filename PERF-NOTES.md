@@ -77,6 +77,13 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
+- Data tab, the list of what was made: a small ⓘ button beside every nuclide and element that opens its card, and
+  the list expands to show everything instead of ending in "and N more nuclides" (asked for by the user).
+- A styled scroll bar instead of the browser's default, in every scrolling panel, menu and dialog (asked for by the
+  user).
+- Chain-reaction maps (asked for by the user; what the map shows to be settled with the user: e.g. a family tree of
+  the chain reaction, which neutron came from which fission, generation by generation, or the decay paths on a chart
+  of nuclides).
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
