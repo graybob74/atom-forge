@@ -115,7 +115,7 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## 1.13.0 (in progress): crash handler, Experimental total cost, beads under the symbols, continuous bond orders
+## 1.13.0 (in progress): crash handler, dropdowns, Experimental total cost, beads under the symbols, continuous bond orders
 
 - **Crash handler** (asked for by the user after a Ring-collider setup, Ca-40 + Au-197 at about 1 PeV with a τ⁻ placed,
   crashed the game; it ran 2,500 particles headless without an error, so it was most likely the tab freezing or running
@@ -162,6 +162,15 @@ engine stores and visits particles.
 - **Experimental: the total cost** at the top of the tab (asked for by the user): the chosen settings' measured costs
   multiplied together against everything at normal, coloured like the tags (×1.8–4.7 for 9 Å reach and induced
   charges every 10th step). A guide, not a measurement of that combination.
+- **Dropdowns** (asked for by the user: round the collider's beam menus, replace the beam search's square suggestion list
+  with its old scroll bar, and animate every dropdown). Every `<select>` now shows as a button that opens the page's own
+  list (ddEnhance/ddPop in ui.js): 12 px corners, the styled scroll bar, group headings, the same pop as the other menus
+  with interface motion on (and a short fade out), arrow keys, Home/End, Page keys, Enter, Esc, type-ahead; it opens
+  upward when there is no room below. The select stays in the page out of sight (1 px, transparent), so every script
+  that reads, sets or listens to it works as before, and selects drawn later (panels) are found by the 250 ms tick, which
+  also keeps each button's text, disabled and hidden state in step. The collider's beam search boxes suggest in the same
+  list (ddSuggest; the datalist is gone). Letting every particle be a beam (μ±, π±, K±, τ±, Σ±, Ξ⁻, Ω⁻, antibaryons)
+  waits for the owner's OK: it changes what the collider does.
 - **Beads covered the element symbols** with quantum nuclei on (the user's screenshot): the bead rings were drawn
   after the atoms and their labels. The symbols are now held back and drawn after the rings.
 

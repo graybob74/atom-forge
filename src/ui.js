@@ -3343,6 +3343,7 @@ function defaultBeamA(Z) { // a popular beam of that element, else its usual iso
   for (const A of As) { const n = nuclideInfo(Z, A - Z), t = n.stable ? Infinity : n.t12; if (t > bt) { bt = t; best = A; } }
   return best;
 }
+let BEAM_SUGG = [];
 function buildBeamSelects() {
   const opt = (v, t) => `<option value="${v}">${t}</option>`, grp = (g, o) => `<optgroup label="${g}">${o}</optgroup>`;
   const sp = Object.entries(BEAM_SPECIES).filter(([, s]) => s.g !== 'Any');
@@ -3355,7 +3356,7 @@ function buildBeamSelects() {
   BEAM_FIND.clear();
   const sugg = sp.map(([k, s]) => [`${s.lab} ${s.name}`, k]).concat(ELEMENTS.slice(1, Z_TABLE + 1).map(E => [`${E.sym} ${E.name} (${E.Z})`, 'Z' + E.Z]));
   for (const [t, v] of sugg) BEAM_FIND.set(t.toLowerCase(), v);
-  $('cBeamList').innerHTML = sugg.map(([t]) => `<option value="${esc(t)}"></option>`).join('');
+  BEAM_SUGG = sugg; // (the search boxes' suggestion list: ddSuggest)
 }
 /* What a typed beam means: an entry of the menus, an element by name, symbol or atomic number, an isotope of one
    (calcium-48, Ca-48, 48Ca, ⁴⁸Ca, ca 48) or a particle by its everyday name. → { v, A } as the menus give them ('Z<n>'
@@ -4176,7 +4177,7 @@ function frame(now) {
     tf2 = performance.now();
   } catch (err) { console.error(err); crashError(err, 'frame'); }
   if (UI.started) crashTick(now, performance.now() - tf0);
-  if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); if (!$('setModal').hidden) settingsStats(); }
+  if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); ddSync(); if (!$('setModal').hidden) settingsStats(); }
   if (now - UI.lastPanel > 450) { UI.lastPanel = now; updatePanel(); }
   else if (UI.tab === 'inspect' && UI.running) drawInspectBohr();
   if (UI.tab === 'inspect') qDraw(realDt);
@@ -4613,6 +4614,123 @@ function restoreAutosave() {
   UI.preset = typeof d.preset === 'string' ? d.preset : UI.preset; syncPresetSelect();
   setRunning(true); log('tool', 'Carried on where you left off');
   return true;
+}
+/* ---- Dropdowns (1.13, asked for by the user: rounded corners, a styled scroll bar and an animation on every one). Each
+   <select> gets a button beside it that opens a list of its options (and groups) drawn by the page; the select itself
+   stays, hidden, so everything that reads or sets it, or listens for its change, works as before. Buttons follow their
+   select's choice, disabled and hidden state four times a second (and at once on change); selects made later (panels
+   redrawn) are found the same way. A search box can have the same list as suggestions (ddSuggest: the collider's beam
+   search, which had the browser's own square list). */
+const DD = { open: null, n: 0 };
+function ddEnhance() {
+  for (const sel of document.querySelectorAll('select:not([data-dd])')) {
+    sel.dataset.dd = '1';
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ddbtn ' + sel.className; b.setAttribute('aria-haspopup', 'listbox'); b.setAttribute('aria-expanded', 'false');
+    const lab = sel.getAttribute('aria-label') || sel.title; if (lab) b.setAttribute('aria-label', lab);
+    if (sel.id) b.id = sel.id + 'DD';
+    sel.after(b); sel.classList.add('ddhide'); sel.tabIndex = -1; sel._dd = b;
+    b.addEventListener('click', (e) => { e.stopPropagation(); if (DD.open && DD.open.sel === sel) ddClose(); else ddOpen(sel, b); });
+    b.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); ddOpen(sel, b); } });
+    sel.addEventListener('change', () => ddLabel(sel));
+    ddLabel(sel);
+  }
+}
+function ddLabel(sel) {
+  const b = sel._dd; if (!b) return;
+  const o = sel.options[sel.selectedIndex], t = o ? o.textContent : '';
+  if (b.textContent !== t) b.textContent = t;
+  if (b.disabled !== sel.disabled) b.disabled = sel.disabled;
+  if (b.hidden !== sel.hidden) b.hidden = sel.hidden;
+  if (sel.title && b.title !== sel.title) b.title = sel.title;
+}
+function ddSync() { ddEnhance(); for (const sel of document.querySelectorAll('select[data-dd]')) ddLabel(sel); }
+/* the list: items [{t, i (option index) | g (group label), dis}], placed under (or over) the anchor */
+function ddPop(anchor, items, cur, pick, opts = {}) {
+  ddClose(true);
+  const pop = document.createElement('div'); pop.className = 'ddpop'; pop.setAttribute('role', 'listbox'); pop.id = 'ddpop' + (++DD.n);
+  pop.innerHTML = items.length ? items.map((it, k) => it.g !== undefined ? `<div class="ddg" role="presentation">${esc(it.g)}</div>`
+    : `<div class="ddo${it.dis ? ' dis' : ''}${k === cur ? ' on hi' : ''}" role="option" id="${pop.id}-${k}" data-k="${k}" aria-selected="${k === cur}">${esc(it.t)}</div>`).join('')
+    : `<div class="ddnone">${esc(opts.none || 'Nothing matches')}</div>`;
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect(), vh = window.innerHeight, vw = window.innerWidth;
+  const below = vh - r.bottom - 8, above = r.top - 8, up = below < 180 && above > below;
+  pop.style.minWidth = Math.max(r.width, opts.minW || 160) + 'px'; pop.style.maxWidth = Math.min(420, vw - 16) + 'px';
+  pop.style.maxHeight = Math.min(360, Math.max(120, up ? above : below)) + 'px';
+  const w = pop.offsetWidth; pop.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + 'px';
+  if (up) { pop.classList.add('up'); pop.style.bottom = (vh - r.top + 4) + 'px'; } else pop.style.top = (r.bottom + 4) + 'px';
+  const st = DD.open = { anchor, pop, items, hi: cur, pick, opts };
+  anchor.setAttribute('aria-expanded', 'true'); anchor.setAttribute('aria-controls', pop.id);
+  const el = cur >= 0 ? pop.querySelector(`[data-k="${cur}"]`) : null; if (el) pop.scrollTop = el.offsetTop - pop.clientHeight / 2 + el.offsetHeight / 2;
+  pop.addEventListener('pointerdown', (e) => e.preventDefault()); // (keeps the focus where it is: a search box goes on taking keys)
+  pop.addEventListener('click', (e) => { const o = e.target.closest('.ddo'); if (o && !o.classList.contains('dis')) ddChoose(+o.dataset.k); });
+  pop.addEventListener('pointermove', (e) => { const o = e.target.closest('.ddo'); if (o && !o.classList.contains('dis')) ddHi(+o.dataset.k, false); });
+  return st;
+}
+function ddHi(k, scroll = true) {
+  const st = DD.open; if (!st) return;
+  const old = st.pop.querySelector('.ddo.hi'); if (old) old.classList.remove('hi');
+  st.hi = k; const el = st.pop.querySelector(`[data-k="${k}"]`); if (!el) return;
+  el.classList.add('hi'); st.anchor.setAttribute('aria-activedescendant', el.id);
+  if (scroll) { const top = el.offsetTop, bot = top + el.offsetHeight; if (top < st.pop.scrollTop) st.pop.scrollTop = top - 4; else if (bot > st.pop.scrollTop + st.pop.clientHeight) st.pop.scrollTop = bot - st.pop.clientHeight + 4; }
+}
+function ddMove(d) { // the next choosable item that way (wrapping)
+  const st = DD.open; if (!st) return; const n = st.items.length; if (!n) return;
+  let k = st.hi; for (let t = 0; t < n; t++) { k = (k + d + n) % n; const it = st.items[k]; if (it.g === undefined && !it.dis) { ddHi(k); return; } }
+}
+function ddChoose(k) { const st = DD.open; if (!st) return; const it = st.items[k]; if (!it || it.g !== undefined || it.dis) return; ddClose(); st.pick(it); }
+function ddClose(now) {
+  const st = DD.open; if (!st) return; DD.open = null;
+  st.anchor.setAttribute('aria-expanded', 'false'); st.anchor.removeAttribute('aria-activedescendant');
+  const pop = st.pop;
+  if (!now && document.body.classList.contains('mo')) { pop.classList.add('out'); setTimeout(() => pop.remove(), 110); } else pop.remove();
+}
+function ddOpen(sel, b) {
+  if (sel.disabled) return;
+  const items = []; let cur = -1;
+  for (const ch of sel.children) {
+    if (ch.tagName === 'OPTGROUP') { items.push({ g: ch.label }); for (const o of ch.children) { if (o.index === sel.selectedIndex) cur = items.length; items.push({ t: o.textContent, i: o.index, dis: o.disabled }); } }
+    else if (ch.tagName === 'OPTION') { if (ch.index === sel.selectedIndex) cur = items.length; items.push({ t: ch.textContent, i: ch.index, dis: ch.disabled }); }
+  }
+  ddPop(b, items, cur, (it) => {
+    if (sel.selectedIndex !== it.i) { sel.selectedIndex = it.i; sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    ddLabel(sel); b.focus();
+  }).sel = sel;
+}
+/* a search box with suggestions in the same kind of list: list() gives [{t, …}] for the text; pick(it) takes one */
+function ddSuggest(box, list, pick) {
+  const show = () => { const items = list(box.value); if (!box.value.trim() || !items.length) { if (DD.open && DD.open.anchor === box) ddClose(true); return; } ddPop(box, items, -1, (it) => pick(it), { minW: 240 }).box = true; };
+  box.addEventListener('input', show);
+  box.addEventListener('focus', () => { if (box.value.trim()) show(); });
+  box.addEventListener('blur', () => { if (DD.open && DD.open.anchor === box) ddClose(); });
+  box.addEventListener('keydown', (e) => {
+    const st = DD.open; if (!st || st.anchor !== box) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); ddMove(e.key === 'ArrowDown' ? 1 : -1); }
+    else if (e.key === 'Enter' && st.hi >= 0) { e.preventDefault(); e.stopImmediatePropagation(); ddChoose(st.hi); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ddClose(); }
+  }, true);
+}
+function ddInit() {
+  ddEnhance();
+  // the open list's keys (a select's list: the focus is on its button), outside clicks, and anything moving the page
+  document.addEventListener('keydown', (e) => {
+    const st = DD.open; if (!st || st.box) return;
+    const k = e.key;
+    if (k === 'ArrowDown' || k === 'ArrowUp') ddMove(k === 'ArrowDown' ? 1 : -1);
+    else if (k === 'Home' || k === 'End') { ddHi(k === 'Home' ? -1 : st.items.length); ddMove(k === 'Home' ? 1 : -1); }
+    else if (k === 'PageDown' || k === 'PageUp') { for (let t = 0; t < 8; t++) ddMove(k === 'PageDown' ? 1 : -1); }
+    else if (k === 'Enter' || k === ' ') { if (st.hi >= 0) ddChoose(st.hi); }
+    else if (k === 'Escape' || k === 'Tab') { ddClose(); if (k === 'Tab') return; st.anchor.focus(); }
+    else if (k.length === 1 && /\S/.test(k)) { // typing jumps to the next entry starting with what was typed
+      const now = performance.now(); DD.typed = (now - (DD.typedAt || 0) < 700 ? DD.typed || '' : '') + k.toLowerCase(); DD.typedAt = now;
+      const n = st.items.length, from = DD.typed.length > 1 ? Math.max(0, st.hi) : st.hi + 1;
+      for (let t = 0; t < n; t++) { const j = ((from + t) % n + n) % n, it = st.items[j]; if (it.g === undefined && !it.dis && it.t.toLowerCase().startsWith(DD.typed)) { ddHi(j); break; } }
+    } else return;
+    e.preventDefault(); e.stopPropagation();
+  }, true);
+  document.addEventListener('pointerdown', (e) => { const st = DD.open; if (st && !st.pop.contains(e.target) && e.target !== st.anchor) ddClose(); }, true);
+  window.addEventListener('resize', () => ddClose(true));
+  document.addEventListener('scroll', (e) => { const st = DD.open; if (st && !st.pop.contains(e.target)) ddClose(true); }, true);
 }
 /* ---- The crash handler (1.13). An error in a frame, particles whose numbers broke (NaN or infinite), or memory
    nearly full pauses the game and says so, with what can be done and a report to copy. A heartbeat in browser storage
@@ -5693,6 +5811,7 @@ function qmInit() {
 /* ------------------------------------------------------------------ init */
 function init() {
   rInit($('cv'), $('cvbg'));
+  ddInit(); // (the page's own dropdowns, 1.13)
   UI.budget = 10;
   const sv = store('bohr'); if (sv) setAtomView(sv);
   W.slowmo = store('slowmo') !== '0';
@@ -5764,6 +5883,8 @@ function init() {
     box.addEventListener('input', () => { box.setCustomValidity(''); go(true); });
     box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(false); } });
     box.addEventListener('change', () => go(false));
+    ddSuggest(box, (t) => { const q = t.trim().toLowerCase(); if (!q) return []; const out = []; for (const [txt, v] of BEAM_SUGG) if (txt.toLowerCase().includes(q)) { out.push({ t: txt, v }); if (out.length >= 60) break; } return out; },
+      (it) => { box.value = ''; box.setCustomValidity(''); pickBeam(which, it.v); box.blur(); });
   }
   $('cNSlider').oninput = (e) => { $('cNVal').textContent = e.target.value; if (W.collider) W.collider.bunch = +e.target.value; };
   $('cESlider').oninput = (e) => { const C = W.collider; $('cEVal').textContent = fmtE(cEFromS(+e.target.value)) + (C && C.E2 !== null ? '' : ' each'); };

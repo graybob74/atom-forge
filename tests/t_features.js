@@ -1097,6 +1097,24 @@ const { openPage } = require('./browser');
   })();
   check(Math.abs(r68.on.dE) < 1e-6 && r68.on.members === 140 && Math.abs(r68.drift) < 0.1 && r68.force < 1e-3 && r68.orders[0] > 0.9 && r68.orders[1] < 2.1 && Math.abs(r68.off.dE) < 1e-6 && r68.off.bonds === 70 && r68.off.members === 0,
     `1.13: continuous bond orders: H₂ + O₂ switched on (${r68.on.bonds} stored bonds) and off exactly, ${r68.drift} eV over 1,500 insulated steps, forces = −slope within ${r68.force} eV/Å, orders ${r68.orders.join('–')}`, '1.13 bond orders: ' + JSON.stringify(r68));
+  // 1.13: every select opens the page's own list (rounded, animated); keys choose; the beam search suggests in the same list
+  const r72 = await (async () => {
+    const o = {};
+    o.all = await page.evaluate(() => { ddSync(); const ss = [...document.querySelectorAll('select')]; return ss.length > 5 && ss.every(s => s._dd && s._dd.isConnected); });
+    await page.evaluate(() => { loadPreset('soup'); syncPresetSelect(); ddSync(); });
+    await page.click('#presetDD'); await page.waitForTimeout(200);
+    o.open = await page.evaluate(() => !!DD.open && getComputedStyle(DD.open.pop).borderTopLeftRadius);
+    await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.waitForTimeout(300);
+    o.picked = await page.evaluate(() => [UI.preset, $('presetDD').textContent === $('preset').selectedOptions[0].textContent, !!DD.open, $('escModal').hidden]);
+    await page.evaluate(() => { loadPreset('ring'); syncPresetSelect(); }); await page.waitForTimeout(300);
+    await page.fill('#cFindA', 'urani'); await page.waitForTimeout(200);
+    o.sugg = await page.evaluate(() => DD.open ? DD.open.items.map(i => i.t).join('|') : '');
+    await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.waitForTimeout(300);
+    o.beam = await page.evaluate(() => $('cBeamA').value);
+    return o;
+  })();
+  check(r72.all && r72.open === '12px' && r72.picked[0] !== 'soup' && r72.picked[1] && !r72.picked[2] && r72.picked[3] && /Uranium/.test(r72.sugg) && r72.beam === 'Z92',
+    `1.13: dropdowns: every select has the page's list (12 px corners), arrow + Enter chose ${r72.picked[0]}, the beam search suggested ${r72.sugg.split('|').length} and took ${r72.beam}`, '1.13 dropdowns: ' + JSON.stringify(r72));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
