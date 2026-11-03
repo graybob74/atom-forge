@@ -104,6 +104,29 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.12.0 (in progress, branch exp-1.12): the rest of the Experimental options
+- Charges that respond to their surroundings (Settings → Experimental → Induced charges: off / every 10th step /
+  every step; `SET.qeq` → `QEQ.every`; `qeqUpdate`, engine.js). A fluctuating-charge model of polarization: each
+  molecule's partial charges are its bonds' own (qpol + qf) plus induced charges qi that sum to zero over the molecule
+  (no charge moves between molecules). They minimise ½κJᵢqiᵢ² + φᵢqiᵢ, φᵢ = ∂U/∂qᵢ the potential at the atom from the
+  force field itself (every pair term the partial charges enter is c·qa·qb: soft Coulomb shifted at the cutoff, iwK,
+  smeared bare nuclei, exact 1/r between net charges beyond it, `qeqC`) plus an applied field; Jᵢ the atom's
+  ionization energy less its electron affinity, κ = 0.54 fitted to water's polarizability (1.45 Å³ averaged in the
+  plane; a charge-flow model is anisotropic: 2.6 and 0.5 Å³ along and across the H–H line). The polarization energy
+  ½κJqi² is part of the potential energy (totalEnergy, localPE), and depends on the charges only, so the forces are
+  the force field's own. Between steps: φ, the charges, the exact change of the potential energy from the pairs'
+  coefficients, paid by the molecules' motion about their centre of mass, then the forces again. Turning it off puts
+  every molecule back the same way (`qeqClear`). Molecules over 64 atoms (chips) keep their own charges.
+  - A rejected trial (snapshot/restoreSnap) relinks, which set the charges back to the bonds' own: unbooked, that
+    leaked 130–630 eV in 300 steps of brine. The snapshot keeps qi now.
+  - Measured (insulated, 300–1,000 steps): water drift 0.03 eV (0.02–0.06 off), brine −0.05 (−0.05 off). Cost:
+    every 10th step ×1.4 (4,000 waters), ×1.6 (brine), ×1.8 (liquid water); every step ×2.7 (brine), ×2.8 (water),
+    ×4.6 (4,000 waters). Liquid water's molecular dipole 2.19 → 2.46 D (the model's own charges already stand for
+    liquid water: real 1.85 D in gas, 2.6–3 D in the liquid); mean |qi| 0.06 e, 0.08 e in brine. Switching it on
+    releases the polarization energy as heat (an insulated box warms; the bath takes it away), and the charges' lag
+    between updates releases a little more (water: 10 eV over 1,000 steps at every 10th step, 1.3 eV at every step).
+  - Test: t_features "1.12 induced charges".
+
 ## 1.11.0: Data-tab ⓘ buttons and the full list, styled scroll bars, chain-reaction maps, a detailed nucleus (asked for by the user)
 - Made here (Data tab): every nuclide, particle and neutrino row has an ⓘ that opens its card (the right-click card of
   1.01: what it is, its decays, Place / Fire / Element… / Isotope builder…), and each element a header row with its

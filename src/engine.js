@@ -148,7 +148,7 @@ class Part {
     S.Z[i] = 0; S.ne[i] = 0; S.mol[i] = 0; S.id[i] = W.nextId++;
     S.ljR[i] = 0; S.ljS[i] = 0; S.ionR[i] = 0; S.cap[i] = 0; S.used[i] = 0; S.ionic[i] = 0; S.isMetal[i] = 0; S.anti[i] = 0; S.xferD[i] = 0; S.xferA[i] = 0;
     S.sEN[i] = SOFT_EN; S.elrc[i] = 0; S.hit[i] = 0; S.lp[i] = 0; S.metal[i] = 0; S.mR[i] = 0; S.mD[i] = 0; S.tLocal[i] = 0; S.vlx[i] = 0; S.vly[i] = 0; S.vlin[i] = 0;
-    this.N = 0; this.qpol = 0; this.qf = 0; this.bonds = []; this.excl = null; this.el = null; this.nuc = null;
+    this.N = 0; this.qpol = 0; this.qf = 0; this.qi = 0; this.bonds = []; this.excl = null; this.el = null; this.nuc = null;
     this.KE = 0; this.ux = 1; this.uy = 0; this.sp = 0; this.gam = 1;
     this.glow = 0; this.glowC = ''; this.born = W.rt;
     this.val = 0; this.nOut = 0; this.unp = 0;
@@ -281,7 +281,7 @@ const DELOC_S = 0.75;
 function delocalize(atoms) {
   let any = false;
   for (const p of atoms) if (p.q !== 0) { any = true; break; }
-  if (!any || atoms.length < 2) { for (const p of atoms) { p.qf = 0; p.qp = p.qpol; for (const bd of p.bonds) bd.Ef = 0; } return; }
+  if (!any || atoms.length < 2) { for (const p of atoms) { p.qf = 0; p.qi = 0; p.qp = p.qpol; for (const bd of p.bonds) bd.Ef = 0; } return; }
   // energy booked by each atom's formal charge, and its oppositely charged bonded neighbours
   const nOq = new Map(), Eq = new Map();
   for (const p of atoms) {
@@ -322,7 +322,7 @@ function delocalize(atoms) {
     const t = DELOC_S * Math.min(Math.abs(ca) / nOpp.get(a), Math.abs(cb) / nOpp.get(b));
     d.set(a, (d.get(a) || 0) - Math.sign(ca) * t); d.set(b, (d.get(b) || 0) - Math.sign(cb) * t);
   }
-  for (const p of atoms) { p.qf = c.get(p) + (d.get(p) || 0) - p.q; p.qp = p.qpol + p.qf; }
+  for (const p of atoms) { p.qf = c.get(p) + (d.get(p) || 0) - p.q; p.qi = 0; p.qp = p.qpol + p.qf; }
 }
 
 function capacity(p) {
@@ -594,7 +594,7 @@ function relink(seeds) {
       qp += PARTIAL_K * (eo - ep) * (1 + 0.2 * ((bd.arom ? bd.fo || 1.5 : bd.order) - 1));
     }
     p.qpol = p.anti ? -qp : qp; // positrons crowd toward the more electronegative anti-atom
-    p.qp = p.qpol + p.qf;
+    p.qi = 0; p.qp = p.qpol + p.qf; // (a bond changed: the induced charge starts again from the molecule's own, qeqUpdate)
     // 1-2 and 1-3 exclusions. A 1-3 pair is excluded only where the centre's bond-angle term keeps the two
     // apart; around transition metals and f-block atoms (no VSEPR term) ligands repel each other directly,
     // as in the points-on-a-sphere model, instead of being free to slide onto one another.
@@ -613,7 +613,7 @@ function relink(seeds) {
   const done = new Set();
   for (const p of touched) {
     if (done.has(p)) continue;
-    if (!p.bonds.length) { p.mol = 0; p.qf = 0; p.qp = p.qpol; done.add(p); continue; }
+    if (!p.bonds.length) { p.mol = 0; p.qf = 0; p.qi = 0; p.qp = p.qpol; done.add(p); continue; }
     const id = ++W.molSeq, m = molecule(p);
     for (const a of m) { a.mol = id; done.add(a); }
     resonance(m);
@@ -626,7 +626,7 @@ function relink(seeds) {
 function snapshot(set) {
   const bonds = [];
   for (const bd of W.bonds) if (set.has(bd.a) || set.has(bd.b)) bonds.push([bd.a, bd.b, bd.order]);
-  return { set, parts: [...set].map(p => [p, p.x, p.y, p.vx, p.vy, p.ne]), bonds, broken: W.count.broken };
+  return { set, parts: [...set].map(p => [p, p.x, p.y, p.vx, p.vy, p.ne, p.qi]), bonds, broken: W.count.broken };
 }
 function restoreSnap(sn) {
   for (const bd of W.bonds.slice()) {
@@ -640,6 +640,7 @@ function restoreSnap(sn) {
     for (const [p] of sn.parts) refresh(p);
   } finally { _deferDeloc = false; }
   relink([...sn.set]); // (which spreads the charges over each molecule)
+  for (const [p, , , , , , qi] of sn.parts) if (qi) { p.qi = qi; p.qp = p.qpol + p.qf + qi; } // (1.12: the induced charges as they were: relink starts them again)
   W.count.broken = sn.broken;
 }
 /* The potential energy a change to atom p makes (change(): an ionization, a capture …), over the set (p's molecule).
@@ -1548,6 +1549,7 @@ function localPE(set, skip) {
   }
   for (const c of centres) V += angleEnergy(c);
   if (W.magnets.length) { const kT = PHYS.KB * Math.max(W.T, 1); for (const p of set) if (!p.dead) V += magU(p, kT); }
+  for (const p of set) if (p.qi) V += qeqSelf(p); // (the polarization energy of induced charges, 1.12)
   farMetalPairs((a, b, dx, dy, r) => { V += metalV(a, b, r); }, set);
   if (W.wall === 'reflect' || W.objs.length) { // soft walls (and placed objects')
     for (const p of set) {
@@ -5561,6 +5563,107 @@ function bondsCanRise() {
   return false;
 }
 
+/* ---- Charges that respond to their surroundings (1.12, Settings → Experimental; a fluctuating-charge model of
+   polarization, after electronegativity equalization / QEq). Each molecule's partial charges are its own (qpol + qf,
+   from its bonds) plus an induced part qi that sums to zero over the molecule, so no charge moves between molecules.
+   The induced charges cost a polarization energy ½·κ·Jᵢ·qiᵢ² each (Jᵢ the atom's hardness, its ionization energy
+   less its electron affinity; κ fitted so that a water molecule's polarizability in the plane is the measured
+   1.45 Å³), which is part of the potential energy (qeqSelf: in totalEnergy and localPE), and they lower the force
+   field's own energy U as they follow the electric potential φᵢ = ∂U/∂qᵢ at each atom (worked out from the force
+   field's pair energies, so every term the charges enter is included, and an applied field). Minimising
+   ½κJq² + φ·q molecule by molecule with Σq = 0 gives qiᵢ = (λ − φᵢ)/(κJᵢ). The polarization energy depends on the
+   charges only, so the forces are the force field's own for the charges of the moment.
+   Every QEQ.every steps, between steps: φ, then the charges; the exact change of the potential energy (U and the
+   polarization energy) at the atoms' positions is measured, the motion of the molecules that changed pays for it
+   (velocities scaled about their centre of mass; the update is skipped if that cannot pay), and the forces are
+   worked out again for the new charges. */
+const QEQ = { every: 0, kappa: 0.54, maxMol: 64, maxQ: 0.6, n: 0, skipped: 0, dU: 0 };
+/* Off again: every molecule back to its bonds' own charges, the change of the potential energy paid as an update's is. */
+function qeqClear() {
+  const atoms = W.parts.filter(p => !p.dead && p.qi);
+  if (!atoms.length) return;
+  const set = new Set(atoms), U0 = localPE(set);
+  for (const p of atoms) { p.qi = 0; p.qp = p.qpol + p.qf; }
+  const dU = localPE(set) - U0;
+  let M0 = 0, Px = 0, Py = 0; for (const p of atoms) { M0 += p.m; Px += p.m * p.vx; Py += p.m * p.vy; }
+  const Vx = Px / M0, Vy = Py / M0; let Kr = 0; for (const p of atoms) Kr += 0.5 * p.m * ((p.vx - Vx) ** 2 + (p.vy - Vy) ** 2);
+  if (Kr > dU) { const f = Math.sqrt((Kr - dU) / Kr); for (const p of atoms) { p.vx = Vx + f * (p.vx - Vx); p.vy = Vy + f * (p.vy - Vy); } } else W.ledger.bath -= dU; // (a box too cold to pay: the books note it)
+  _noEv = true; computeForces(); _noEv = false;
+}
+function qeqHard(p) { const e = p.el; return Math.max(3, (e && e.ie1 ? e.ie1 : 10) - (e && e.ea ? e.ea : 0)); }
+function qeqSelf(p) { return p.qi ? 0.5 * QEQ.kappa * qeqHard(p) * p.qi * p.qi : 0; }
+/* How the force field's energy of a pair depends on the two charges: every term the partial charges enter is
+   c·qa·qb (nucPairV: soft Coulomb shifted to zero at the cutoff, weighted by iwK; a bare nucleus's smeared charge; the
+   exact 1/r between net charges beyond the cutoff), so c is the pair's energy per product of charges. */
+function qeqC(p, o, r2) {
+  const K = PHYS.KE;
+  if (opp(p, o)) { const sf = p.ne > 0 && o.ne > 0 ? 0.09 : (p.ne === 0 && o.ne === 0) ? 0.0016 : 0.04; return K * (1 / Math.sqrt(r2 + sf) - csh(p, o, sf)); }
+  if (p.ne > 0 && o.ne > 0) return iwK(p, o) * K * (1 / Math.sqrt(r2 + 0.09) - csh(p, o, 0.09));
+  if (p.ne === 0 && o.ne === 0) return K * (1 / Math.sqrt(r2 + 0.0016) - csh(p, o, 0.0016));
+  return K * (smearV(Math.sqrt(r2)) - cshPt(p, o));
+}
+const QB = { mark: new Uint8Array(0), phi: new Float64Array(0), pa: new Int32Array(1024), pb: new Int32Array(1024), pc: new Float64Array(1024), q0: new Float64Array(1024) };
+function qeqUpdate() {
+  const mols = new Map(); // molecule id → its atoms (every atom bonded, an ordinary atom in MD)
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || p.Z === 0 || p.ne === 0 || p.fast || p.rad || !p.bonds.length || p.anti) continue;
+    let m = mols.get(p.mol); if (!m) mols.set(p.mol, m = []); m.push(p);
+  }
+  const list = []; for (const m of mols.values()) if (m.length >= 2 && m.length <= QEQ.maxMol) list.push(m);
+  if (!list.length) return;
+  if (QB.mark.length < S.size) { QB.mark = new Uint8Array(S.size * 2); QB.phi = new Float64Array(S.size * 2); }
+  const mark = QB.mark, phi = QB.phi, Ex = W.Ex || 0, Ey = W.Ey || 0, X = S.x, Y = S.y, Q = S.q, QP = S.qp, OBJ = S.obj;
+  let nIn = 0;
+  for (const m of list) for (const p of m) { const i = p.i; mark[i] = 1; phi[i] = -(Ex * X[i] + Ey * Y[i]); nIn++; }
+  // every pair with an atom of the set whose energy depends on its charges, once, with its coefficient (the pair's
+  // energy is c·qa·qb): from the neighbour list (every pair within the cutoff is on it), and between net charges
+  // beyond the cutoff
+  let np = 0;
+  const push = (a, b, c) => {
+    if (np >= QB.pa.length) { const g = (T, o) => { const n = new T(o.length * 2); n.set(o); return n; }; QB.pa = g(Int32Array, QB.pa); QB.pb = g(Int32Array, QB.pb); QB.pc = g(Float64Array, QB.pc); QB.q0 = g(Float64Array, QB.q0); }
+    QB.pa[np] = a; QB.pb[np] = b; QB.pc[np] = c; QB.q0[np] = (Q[a] + QP[a]) * (Q[b] + QP[b]); np++;
+  };
+  const pi = VL.pi, pj = VL.pj, K = S.k, Zs = S.Z, DEAD = S.dead, FAST = S.fast, RAD = S.rad, MOL = S.mol, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
+  for (let k = 0, n = VL.np; k < n; k++) {
+    const i = pi[k], j = pj[k]; if (!mark[i] && !mark[j]) continue;
+    if (K[i] !== NUC || K[j] !== NUC || Zs[i] === 0 || Zs[j] === 0 || DEAD[i] || DEAD[j] || FAST[i] || FAST[j] || RAD[i] || RAD[j]) continue;
+    let dx = X[j] - X[i], dy = Y[j] - Y[i];
+    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
+    const r2 = dx * dx + dy * dy; if (r2 >= RC2) continue;
+    const a = OBJ[i], b = OBJ[j];
+    if (MOL[i] !== 0 && MOL[i] === MOL[j] && a.excl && a.excl.has(b.id)) continue;
+    const c = qeqC(a, b, r2); if (c) push(i, j, c);
+  }
+  if (_lrOn) for (const m of list) for (const p of m) if (isLR(p)) for (const o of _charged) {
+    if (o === p || o.dead || o.fast || o.rad || !isLR(o) || (mark[o.i] && o.id < p.id)) continue;
+    const dx = o.x - p.x, dy = o.y - p.y, r2 = dx * dx + dy * dy;
+    if (r2 >= RC2) push(p.i, o.i, PHYS.KE / Math.sqrt(r2));
+  }
+  const PA = QB.pa, PB = QB.pb, PC = QB.pc, Q0 = QB.q0;
+  let S0 = 0; for (const m of list) for (const p of m) S0 += qeqSelf(p);
+  // φ = ∂U/∂q at each atom, from the charges as they are, plus the applied field's −E·r; then each molecule's charges
+  for (let k = 0; k < np; k++) { const a = PA[k], b = PB[k], c = PC[k]; if (mark[a]) phi[a] += c * (Q[b] + QP[b]); if (mark[b]) phi[b] += c * (Q[a] + QP[a]); }
+  const old = new Float64Array(nIn); let o = 0;
+  for (const m of list) {
+    let sw = 0, sp = 0; for (const p of m) { old[o++] = p.qp; const w = 1 / (QEQ.kappa * qeqHard(p)); sw += w; sp += w * phi[p.i]; }
+    const lam = sp / sw;
+    let rest = 0; for (const p of m) { const qi = clamp((lam - phi[p.i]) / (QEQ.kappa * qeqHard(p)), -QEQ.maxQ, QEQ.maxQ); p.qi = qi; rest += qi; }
+    for (const p of m) { if (rest) p.qi -= rest / m.length; QP[p.i] = p.qpol + p.qf + p.qi; } // (the clamp can leave a remainder)
+  }
+  for (const m of list) for (const p of m) mark[p.i] = 0;
+  // the exact change of the potential energy: the pairs' Coulomb parts and the polarization energy
+  let dU = -S0; for (const m of list) for (const p of m) dU += qeqSelf(p);
+  for (let k = 0; k < np; k++) { const a = PA[k], b = PB[k]; dU += PC[k] * ((Q[a] + QP[a]) * (Q[b] + QP[b]) - Q0[k]); }
+  // the molecules' own motion pays for it, about their centre of mass
+  const VX = S.vx, VY = S.vy, M = S.m;
+  let M0 = 0, Px = 0, Py = 0; for (const m of list) for (const p of m) { const i = p.i; M0 += M[i]; Px += M[i] * VX[i]; Py += M[i] * VY[i]; }
+  const Vx = Px / M0, Vy = Py / M0; let Kr = 0; for (const m of list) for (const p of m) { const i = p.i; Kr += 0.5 * M[i] * ((VX[i] - Vx) ** 2 + (VY[i] - Vy) ** 2); }
+  if (!(Kr > 0) || dU > 0.5 * Kr) { o = 0; for (const m of list) for (const p of m) { QP[p.i] = old[o++]; p.qi = p.qp - p.qpol - p.qf; } QEQ.skipped++; return; }
+  const f = Math.sqrt((Kr - dU) / Kr);
+  for (const m of list) for (const p of m) { const i = p.i; VX[i] = Vx + f * (VX[i] - Vx); VY[i] = Vy + f * (VY[i] - Vy); }
+  QEQ.n++; QEQ.dU += dU;
+  _noEv = true; computeForces(); _noEv = false; // (the forces for the new charges)
+}
 /* Local temperature estimate per atom (for incandescence and Curie behaviour). */
 function localTemps() {
   const PI = partsSync(), n = W.parts.length, DEAD = S.dead, K = S.k, M = S.m, VX = S.vx, VY = S.vy, TL = S.tLocal, KB = PHYS.KB;
@@ -5738,6 +5841,7 @@ function stepPlain(dt) {
   rpMark(5);
   if (W.step % 25 === 0) housekeeping();
   if (W.step % 10 === 0) localTemps();
+  if (QEQ.every && W.step % QEQ.every === 0) qeqUpdate(); // (Experimental: charges that respond to their surroundings)
   { const y = dt - (W.tc || 0), t = W.t + y; W.tc = (t - W.t) - y; W.t = t; } // (compensated: a yoctosecond a frame is far below the last digit of a clock past 1,000 tu, 1.03)
   if (W.flights.length) landFlights();
   rpMark(6);
@@ -6136,7 +6240,7 @@ function totalEnergy() {
     if (p.dead) continue;
     ke += p.rad ? p.KE : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy);
     internal += internalE(p);
-    if (!(p.k === NUC && p.Z === 0) && !p.rad && !p.fast) { md.push(p); if (mags) pe += magU(p, kTm); }
+    if (!(p.k === NUC && p.Z === 0) && !p.rad && !p.fast) { md.push(p); if (mags) pe += magU(p, kTm); if (p.qi) pe += qeqSelf(p); }
   }
   for (const o of W.exo) if (!o.dead) ke += o.KE; // unstable particles in flight (their rest mass is in the nuclear ledger)
   for (let i = 0; i < md.length; i++) for (let j = i + 1; j < md.length; j++) {

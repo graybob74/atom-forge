@@ -1025,6 +1025,36 @@ const { openPage } = require('./browser');
   check(r64.rows === 80 && r64.ibs >= 100 && /Show all 100 nuclides/.test(r64.more) && r64.all === 100 && r64.fewer === 'Show fewer' && r64.card && r64.sec && r64.treeInk > 200 && /^7 fissions/.test(r64.treeNote) &&
     /^Fission 7, generation 4/.test(r64.hover) && r64.chartInk > 200 && r64.chartNote && r64.hidden && r64.sb && r64.beta[0] === 0.3 && r64.beta[1] === 0 && r64.beta[2] >= 0.25 && r64.beta[3] === 0 && r64.inside && r64.pCount === 92,
     `1.11: made list: ${r64.rows} rows with ${r64.ibs} ⓘ, "${r64.more}" opens all ${r64.all}; card "${r64.card}"; fission tree and decay chart drawn, pointer "${r64.hover}"; β₂ U-238, Pb-208, Sm-154, O-16: ${r64.beta.join(', ')}`, '1.11 data: ' + JSON.stringify(r64));
+  // 1.12: Experimental → charges that respond to their surroundings (Node harness, seeded): energy kept insulated in
+  // water and brine, molecules stay neutral, a field turns the dipole, a rejected trial keeps the induced charges, off
+  // puts every molecule back
+  const r65 = (() => {
+    const out = {};
+    const mk = (sc, every, n) => {
+      const X = require('./load.js').load('all', { seed: 12 }), W = X.W;
+      X.PRESETS[sc].build(); X.settleOverlaps(); W.gamma = 0; W.sources.length = 0; X.forcesNoEvents(); W.fSpawn = W.spawned; X.QEQ.every = every;
+      const tot = () => X.totalEnergy().total - W.ledger.nuc, E0 = tot();
+      for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+      const mols = new Map(); for (const p of W.parts) if (!p.dead && p.bonds.length) mols.set(p.mol, (mols.get(p.mol) || 0) + p.q + p.qp);
+      let worstQ = 0; for (const q of mols.values()) worstQ = Math.max(worstQ, Math.abs(q - Math.round(q)));
+      const qi = W.parts.filter(p => !p.dead && p.qi); return { X, W, dE: +(tot() - E0).toFixed(3), upd: X.QEQ.n, meanQi: +(qi.reduce((t, p) => t + Math.abs(p.qi), 0) / Math.max(1, qi.length)).toFixed(3), worstQ };
+    };
+    const a = mk('water', 1, 300); out.water = { dE: a.dE, upd: a.upd, meanQi: a.meanQi, worstQ: a.worstQ };
+    // a rejected trial (snapshot, a bond broken, restored) leaves the induced charges as they were
+    { const { X, W } = a, p = W.parts.find(q => !q.dead && q.Z === 8 && q.qi), set = new Set(X.molecule(p)), before = [...set].map(q => q.qp), sn = X.snapshot(set);
+      X.removeBond(p.bonds[0]); X.restoreSnap(sn); out.trial = Math.max(...[...set].map((q, k) => Math.abs(q.qp - before[k]))); }
+    // off: every molecule back to its own charges, the energy kept
+    { const { X, W } = a, E0 = X.totalEnergy().total; X.qeqClear(); out.clear = { left: W.parts.filter(p => !p.dead && p.qi).length, dE: +(X.totalEnergy().total - E0).toFixed(4) }; }
+    const b = mk('brine', 10, 150); out.brine = { dE: b.dE, upd: b.upd, meanQi: b.meanQi, worstQ: b.worstQ };
+    // one water molecule in a field of 0.1 V/Å: its dipole turns along the field
+    { const X = require('./load.js').load('all', { seed: 3 }), W = X.W; X.baseWorld(40, 40, 300, 0); X.addMolecule('H2O', 0, 0, 0, 300); X.forcesNoEvents();
+      const A = W.parts.filter(p => !p.dead && p.k === X.NUC); for (const p of A) { p.vx = 0.1; p.vy = -0.1 * (p.Z === 8 ? 0.2 : 1); }
+      const dip = () => A.reduce((t, p) => t + p.qp * p.x, 0), d0 = dip(); W.Ex = 0.1; X.qeqUpdate(); out.field = { dmu: +(dip() - d0).toFixed(4), sum: +A.reduce((t, p) => t + p.qp, 0).toFixed(12) }; }
+    return out;
+  })();
+  check(Math.abs(r65.water.dE) < 0.5 && r65.water.upd >= 250 && r65.water.meanQi > 0.02 && r65.water.worstQ < 1e-9 && r65.trial < 1e-12 && r65.clear.left === 0 && Math.abs(r65.clear.dE) < 1e-6 &&
+    Math.abs(r65.brine.dE) < 1 && r65.brine.upd >= 10 && r65.brine.worstQ < 1e-9 && r65.field.dmu > 0.003 && r65.field.sum === 0,
+    `1.12: induced charges: water ${r65.water.dE} eV over 300 insulated steps (mean |qi| ${r65.water.meanQi} e), brine ${r65.brine.dE} eV; molecules neutral; a field of 0.1 V/Å adds ${r65.field.dmu} e·Å; a rejected trial and turning it off keep the books`, '1.12 induced charges: ' + JSON.stringify(r65));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
