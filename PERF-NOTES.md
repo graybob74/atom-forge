@@ -84,6 +84,9 @@ engine stores and visits particles.
   collided by the ring (or carried as parts), collision physics for the new pairs (μ⁺μ⁻ annihilation, π/K/hyperon on
   nucleons through hadronHit, exotic on exotic), decay in flight around the ring (time dilation), and the menu and
   search entries. Neutral particles cannot be steered by a ring and stay out.
+- Speed test: list the Experimental settings in the results' settings line (asked for by the user, 1.13): it runs
+  under them (force reach, induced charges, quantum nuclei, shorter steps, bond orders …) but the line names only
+  particles, drawing, budget, priority, threads and kernel, so a slow result cannot be told from a slow setting.
 - Slow motion folded into the speed menu (asked for by the user): the hourglass stays, as a shortcut that sets the
   speed to what slow motion gives today (the fastest particle about a second across the box); the separate "slow-mo"
   state goes, and so the readout always shows a speed from the menu. The automatic slow-down for nuclear events sets
