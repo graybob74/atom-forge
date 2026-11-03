@@ -86,11 +86,10 @@ engine stores and visits particles.
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
   everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
-- 1.12.0: the rest of the Experimental options (asked for by the user): charges that respond to their surroundings
-  (charge equilibration; on hold since 1.07 as larger than it looked: the charges enter a dozen force and energy
-  terms), continuous bond orders (below: neither prototype was ready), quantum nuclei (path integrals, ×14–30) and
-  electrons as waves (×3–10 where there are many). All are physics-model changes, each several sessions; the owner
-  to choose the order and approve each before it ships.
+- The rest of the Experimental options (asked for by the user; induced charges and quantum nuclei shipped in 1.12.0):
+  continuous bond orders next (prototype step 4 in tools/bo-proto2.js: statics and the H + H₂ saddle right, the energy
+  in dynamics not yet: a smooth sharing of each atom's valence to do), then electrons as waves (prototype parked:
+  tools/eff-proto.js). Each a physics-model change for the owner to approve.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
@@ -113,7 +112,12 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## 1.12.0 (in progress, branch exp-1.12): the rest of the Experimental options
+## 1.12.0: induced charges and quantum nuclei (Experimental), realistic tags; prototypes for the rest
+- The particle bar's search (asked for by the user): the chip reads "Search…" (no emoji), the menu "Search particles",
+  and its text box sits inside the menu with an 8 px margin (`.msearch`'s width: 100%, later in the sheet, had won over
+  the box's own width, so it ran to the menu's edge); a shorter placeholder that fits. Test: t_features "1.10 reach".
+- Released with two options (induced charges, quantum nuclei) approved by the user; electrons as waves (prototype,
+  parked) and continuous bond orders (prototype, step 4) go on for a later version.
 - Charges that respond to their surroundings (Settings → Experimental → Induced charges: off / every 10th step /
   every step; `SET.qeq` → `QEQ.every`; `qeqUpdate`, engine.js). A fluctuating-charge model of polarization: each
   molecule's partial charges are its bonds' own (qpol + qf) plus induced charges qi that sum to zero over the molecule

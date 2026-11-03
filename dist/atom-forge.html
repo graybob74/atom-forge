@@ -1,4 +1,4 @@
-<title>Atom Forge 1.11.0</title>
+<title>Atom Forge 1.12.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -241,7 +241,7 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .minelist { display: grid; gap: 6px; margin-top: 8px; max-height: 50vh; overflow: auto; }
 .minerow { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 6px 4px; border-top: 1px solid var(--line); }
 .btn.danger.armed { background: var(--hot); color: #fff; }
-.pf-q { width: calc(100% - 12px); margin: 2px 6px 6px; }
+.pmenu .pf-q { display: block; width: calc(100% - 16px); margin: 2px 8px 8px; } /* (1.12: .msearch's width: 100%, later in the sheet, had won: the box ran out to the menu's edge) */
 #pmenu[data-ci="find"] { width: 320px; }
 .lgo { margin-left: 4px; padding: 0 6px; height: 18px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--accent); font-size: 10.5px; cursor: pointer; }
 .lgo:hover { background: var(--accent); color: #fff; }
@@ -17778,7 +17778,7 @@ function pfindOpen(btn) {
   const m = $('pmenu');
   if (!m.hidden && m.dataset.ci === 'find') { pmenuClose(); return; }
   m.dataset.ci = 'find';
-  m.innerHTML = `<div class="pm-h">Find a particle</div><input class="msearch pf-q" id="pfQ" placeholder="pi-, lambda, muonium, deuteron, antineutron …" autocomplete="off" spellcheck="false" aria-label="Find a particle"><div id="pfR"></div>`;
+  m.innerHTML = `<div class="pm-h">Search particles</div><input class="msearch pf-q" id="pfQ" placeholder="pi-, lambda, muonium, deuteron …" autocomplete="off" spellcheck="false" aria-label="Find a particle"><div id="pfR"></div>`;
   const r = btn.getBoundingClientRect(), st = $('stage').getBoundingClientRect(), ui = SET.ui || 1;
   m.hidden = false; m.style.left = Math.max(4, Math.min((r.left - st.left) / ui, (st.width / ui) - 320)) + 'px'; m.style.top = ((r.bottom - st.top) / ui + 4) + 'px';
   let res = [];
@@ -17806,7 +17806,7 @@ function buildPalette() {
   const pal = $('palette');
   const items = QUICK.slice();
   if (UI.customSpec && !QUICK.some(q => q !== 'sep' && sameSpec(q.spec, UI.customSpec))) items.push('sep', { spec: UI.customSpec });
-  let html = `<button class="chip cat find" data-find="1" aria-haspopup="menu" title="Find a particle by typing: pi-, lambda, muonium, deuteron … (/)">🔍 Find</button>` + PCATS.map(([name, list], ci) => `<button class="chip cat" data-ci="${ci}" aria-haspopup="menu" aria-expanded="false" title="${esc(name)}: ${esc(list.filter(x => x !== 'pt').map(specLabel).join(' '))}">${esc(name)} ▾</button>`).join('') + '<span class="sep" aria-hidden="true"></span>';
+  let html = `<button class="chip cat find" data-find="1" aria-haspopup="menu" title="Search for a particle by typing: pi-, lambda, muonium, deuteron … (/)">Search…</button>` + PCATS.map(([name, list], ci) => `<button class="chip cat" data-ci="${ci}" aria-haspopup="menu" aria-expanded="false" title="${esc(name)}: ${esc(list.filter(x => x !== 'pt').map(specLabel).join(' '))}">${esc(name)} ▾</button>`).join('') + '<span class="sep" aria-hidden="true"></span>';
   items.forEach((q, i) => {
     if (q === 'sep') { html += '<span class="sep" aria-hidden="true"></span>'; return; }
     const s = q.spec, col = q.color || specColor(s), lab = q.label || specLabel(s);

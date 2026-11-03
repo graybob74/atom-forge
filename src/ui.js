@@ -234,7 +234,7 @@ function pfindOpen(btn) {
   const m = $('pmenu');
   if (!m.hidden && m.dataset.ci === 'find') { pmenuClose(); return; }
   m.dataset.ci = 'find';
-  m.innerHTML = `<div class="pm-h">Find a particle</div><input class="msearch pf-q" id="pfQ" placeholder="pi-, lambda, muonium, deuteron, antineutron …" autocomplete="off" spellcheck="false" aria-label="Find a particle"><div id="pfR"></div>`;
+  m.innerHTML = `<div class="pm-h">Search particles</div><input class="msearch pf-q" id="pfQ" placeholder="pi-, lambda, muonium, deuteron …" autocomplete="off" spellcheck="false" aria-label="Find a particle"><div id="pfR"></div>`;
   const r = btn.getBoundingClientRect(), st = $('stage').getBoundingClientRect(), ui = SET.ui || 1;
   m.hidden = false; m.style.left = Math.max(4, Math.min((r.left - st.left) / ui, (st.width / ui) - 320)) + 'px'; m.style.top = ((r.bottom - st.top) / ui + 4) + 'px';
   let res = [];
@@ -262,7 +262,7 @@ function buildPalette() {
   const pal = $('palette');
   const items = QUICK.slice();
   if (UI.customSpec && !QUICK.some(q => q !== 'sep' && sameSpec(q.spec, UI.customSpec))) items.push('sep', { spec: UI.customSpec });
-  let html = `<button class="chip cat find" data-find="1" aria-haspopup="menu" title="Find a particle by typing: pi-, lambda, muonium, deuteron … (/)">🔍 Find</button>` + PCATS.map(([name, list], ci) => `<button class="chip cat" data-ci="${ci}" aria-haspopup="menu" aria-expanded="false" title="${esc(name)}: ${esc(list.filter(x => x !== 'pt').map(specLabel).join(' '))}">${esc(name)} ▾</button>`).join('') + '<span class="sep" aria-hidden="true"></span>';
+  let html = `<button class="chip cat find" data-find="1" aria-haspopup="menu" title="Search for a particle by typing: pi-, lambda, muonium, deuteron … (/)">Search…</button>` + PCATS.map(([name, list], ci) => `<button class="chip cat" data-ci="${ci}" aria-haspopup="menu" aria-expanded="false" title="${esc(name)}: ${esc(list.filter(x => x !== 'pt').map(specLabel).join(' '))}">${esc(name)} ▾</button>`).join('') + '<span class="sep" aria-hidden="true"></span>';
   items.forEach((q, i) => {
     if (q === 'sep') { html += '<span class="sep" aria-hidden="true"></span>'; return; }
     const s = q.spec, col = q.color || specColor(s), lab = q.label || specLabel(s);
