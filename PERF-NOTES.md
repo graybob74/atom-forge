@@ -105,6 +105,17 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.09.0 (in progress): bug fixes
+- Insulated chain reaction gained energy in jumps of up to 128 MeV in steps with no nuclear event: an atom the wall put
+  back was set down on top of another atom already there. A recoiling fragment stopped in the wall (wallOrEscape) was
+  clamped 0.6 Å inside, onto a fragment stopped there before it (two Pa ions 0.1 Å apart; the contact force, capped at
+  FCAP, threw both out at 64 MeV each). A slow atom rescued from deep past the wall (walls) was put on the wall line,
+  and when the overlap cost more than its motion had, its speed was clamped at zero and the rest was made from nothing.
+  Now both set the atom down clear of other atoms (placeClear, its bond partners allowed; the crowd grid is dropped
+  around it, since atoms move during the walls pass). Insulated chain, seed 11, 3,000 frames (on 1.08 before the fix):
+  +212.3 MeV → +9.0 keV (13 fissions, 2.9 GeV); seed 5 +59.6 MeV → +14.7 keV. Test: t_features "1.09 wall overlap"
+  (stopped atom +10.6 MeV → 0; rescued atom +6.4 MeV → −1 eV).
+
 ## 1.08.0: Experimental: detailed nuclear collisions (an intranuclear cascade)
 - Settings → Experimental → Detailed nuclear collisions (`SET.inc` → `INC_ON`; `cascadeInto` in hep.js): a proton or
   neutron striking a nucleus heavier than A = 16 at 40 MeV–10 GeV a nucleon is followed through it instead of the

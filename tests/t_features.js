@@ -873,6 +873,28 @@ const { openPage } = require('./browser');
   });
   check(r46.ev >= 10 && r46.inc === r46.ev && r46.worst < 1e-2 && !r46.bad && r46.nPer > 8 && r46.nPer < 25,
     `1.08: the intranuclear cascade: ${r46.ev} hits of 1 GeV protons on ²⁰⁸Pb, ${r46.nPer} neutrons a hit (measured about 17), energy kept to ${r46.worst.toExponential(1)} eV, charge and nucleons exactly`, '1.08 cascade: ' + JSON.stringify(r46));
+  // 1.09: an atom the wall stops (a recoiling fragment) or brings back (a slow one deep past it) is set down clear of an
+  // atom already there; set down 0.1 Å from it, the capped contact force threw both out with MeV from nowhere (the
+  // insulated chain reaction gained 212 MeV)
+  const r47 = await page.evaluate(() => {
+    const out = {};
+    for (const rescue of [false, true]) {
+      loadPreset('empty'); setRunning(false); baseWorld(40, 28, 300, 0); W.slowmo = false;
+      const hw = W.box.w / 2, hh = W.box.h / 2; let a, b;
+      if (!rescue) { a = addAtom('U', hw - 0.6, hh - 0.6); b = addAtom('Pa', hw - 4, 3); setMotion(b, 1e6, 0.2, 0.98); }
+      else { a = addAtom('U', 5, hh - wallIn(addAtom('U', -15, 0))); b = addAtom('Pa', 5.1, hh + 2.5); }
+      forcesNoEvents(); W.fSpawn = W.spawned;
+      if (!rescue) { b.ox = hw - 4; b.oy = 3; b.x = hw - 0.5; b.y = hh + 2; }
+      const tot = () => totalEnergy().total - W.ledger.nuc, E0 = tot();
+      if (!rescue) wallOrEscape(b, true, hw - 4, 3); else walls(b);
+      const d = Math.hypot(b.x - a.x, b.y - a.y);
+      for (let i = 0; i < 100; i++) step(0.01);
+      out[rescue ? 'rescue' : 'stop'] = { d: +d.toFixed(2), dE: +(tot() - E0).toFixed(1) };
+    }
+    return out;
+  });
+  check(r47.stop.d > 1 && r47.rescue.d > 1 && Math.abs(r47.stop.dE) < 5 && Math.abs(r47.rescue.dE) < 5,
+    `1.09: atoms the wall stops or brings back are set down clear (${r47.stop.d}, ${r47.rescue.d} Å from the atom there), energy kept (${r47.stop.dE}, ${r47.rescue.dE} eV)`, '1.09 wall overlap: ' + JSON.stringify(r47));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
