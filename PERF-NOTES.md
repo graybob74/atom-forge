@@ -77,6 +77,11 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
+- More animation in the interface: sliders, buttons, toggles, tabs and menus that move and respond (asked for by the
+  user).
+- A dropdown for the simulation speed: every speed in one list with one consistent label (the multiple of the setup's
+  speed together with the simulated time per second), instead of the − / + steps that go from "1/512×" to "1 fs/s"
+  (asked for by the user).
 - An Experimental settings tab: each accuracy-for-speed option from the measurements below (tools/accbench) as a
   setting with a plain description and its measured cost: shorter longest step, longer force reach, detailed nuclear
   collisions, charges that respond to their surroundings, continuous bond orders, quantum nuclei (path integrals), and
