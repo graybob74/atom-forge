@@ -2508,6 +2508,7 @@ function refresh(p) {
   p.el = Z > 0 ? ELEMENTS[Math.min(Z, Z_MAX)] : null;
   S.elrc[p.i] = p.el ? p.el.rc : 0; S.metal[p.i] = p.el && p.el.metal ? 1 : 0; // (the covalent radius and whether it is a metal, for the pair kernel)
   if (Z === 0) p.m = N * PHYS.MN;
+  else if (p.mu) p.m = MU_M / PHYS.AMU_MEV + p.ne * PHYS.ME; // (1.12: muonium, its nucleus a μ⁺: a hydrogen atom 1/9 the mass, hep.js addMuonium)
   else p.m = Math.max(0.5, Z * PHYS.MP + N * PHYS.MN + p.ne * PHYS.ME - bindingE(Z, N) / PHYS.AMU_MEV);
   p.im = 1 / p.m;
   p.q = (p.anti ? -1 : 1) * (Z - p.ne);
@@ -2981,7 +2982,7 @@ function molecule(p) {
 }
 function hill(atoms, plain) {
   const cnt = {}; let q = 0;
-  for (const a of atoms) { const s = a.el ? (a.anti ? barSym(a.el.sym) : a.el.sym) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
+  for (const a of atoms) { const s = a.mu ? 'Mu' : a.el ? (a.anti ? barSym(a.el.sym) : a.el.sym) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
   const keys = Object.keys(cnt);
   let order;
   if (cnt.C) order = ['C'].concat(cnt.H ? ['H'] : [], keys.filter(k => k !== 'C' && k !== 'H').sort());
@@ -2993,7 +2994,7 @@ function hill(atoms, plain) {
 }
 /* The formula with its isotopes written out, as chemists write them: D₂O, CH₃D, ¹³CH₄ (just hill() without any). */
 function isoFormula(atoms, plain) {
-  if (atoms.some(a => a.anti || !a.el) || !atoms.some(a => isoA(a))) return hill(atoms, plain);
+  if (atoms.some(a => a.anti || !a.el || a.mu) || !atoms.some(a => isoA(a))) return hill(atoms, plain);
   const cnt = new Map(); let q = 0;
   for (const a of atoms) { const k = a.el.sym + ' ' + isoA(a); cnt.set(k, (cnt.get(k) || 0) + 1); q += a.q || 0; }
   const els = [...new Set(atoms.map(a => a.el.sym))];
@@ -3075,7 +3076,7 @@ function isoName(n, d) {
   return (MOL_ISO_NAMES[n] && MOL_ISO_NAMES[n][d]) || `(${d})` + (/^[A-Z][a-z]/.test(n) ? n[0].toLowerCase() + n.slice(1) : n);
 }
 function moleculeName(atoms) {
-  if (!atoms.length) return null;
+  if (!atoms.length || atoms.some(a => a.mu)) return null; // (with muonium in it: the formula, MuCl, not hydrogen chloride's name, 1.12)
   const anti = atoms.every(a => a.anti);
   const m = libMatch(atoms), iso = !m && !anti ? isoDesc(atoms) : ''; // (one built with its isotopes keeps its own name)
   let n = m ? m.name : iso ? (libMatch(atoms, true) || {}).name || null : null;
@@ -3157,6 +3158,7 @@ function speciesLabel(p) {
   if (p.k === POS) return 'e⁺';
   if (p.Z === 0) return 'n';
   if (p.bonds.length) return isoFormula(molecule(p));
+  if (p.mu) return p.ne === 0 ? 'μ⁺' : 'Mu' + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''); // (1.12: muonium, Mu⁻ muonide; bare, a μ⁺)
   if (p.anti && p.ne === 0) return p.Z === 1 && p.N === 0 ? 'p̄' : nucSymA(p.Z, p.N, true) + sup((p.Z > 1 ? p.Z : '') + '-');
   if (p.ne === 0) {
     if (p.Z === 1 && p.N === 0) return 'p⁺';
@@ -4842,7 +4844,7 @@ function photoDissociate(bd, E) {
   // if the fragments can't get apart with this photon's energy, it is simply absorbed as heat
   if (kickPair(a, b, left) > left + 1e-6) { restoreSnap(sn); dumpHeat(E, a, b); return; }
   W.count.broken++;
-  log('chem', `Photodissociation: light (${(PHYS.HC / E).toFixed(0)} nm) split ${a.el.sym}–${b.el.sym}`);
+  log('chem', `Photodissociation: light (${(PHYS.HC / E).toFixed(0)} nm) split ${a.mu ? 'Mu' : a.el.sym}–${b.mu ? 'Mu' : b.el.sym}`);
 }
 function compton(p, E, ux, uy) {
   if (p.dead || p.ne === 0) return;
@@ -5296,7 +5298,7 @@ function evBreak(bd, r) {
     W.ledger.bath -= cost - have; // (drawn from the bath)
   } else kickPair(b, a, -cost, dx / rr, dy / rr);
   W.count.broken++;
-  log('chem', `Bond broke: ${a.el.sym}–${b.el.sym} (needed ${fmtE(bd.D)})${have < cost ? `, overstretched to ${rr.toFixed(1)} Å: the heat bath gave ${fmtE(cost - have)}` : ''}`);
+  log('chem', `Bond broke: ${a.mu ? 'Mu' : a.el.sym}–${b.mu ? 'Mu' : b.el.sym} (needed ${fmtE(bd.D)})${have < cost ? `, overstretched to ${rr.toFixed(1)} Å: the heat bath gave ${fmtE(cost - have)}` : ''}`);
 }
 
 /* Electron or positron meets a nucleus/atom. */
@@ -5642,7 +5644,7 @@ function evAnti(a, b, r) {
    fly out of the chamber, neutral ones decay at once into γ rays), now and then kaons. The antiprotonic atom's
    cascade shakes out a few electrons first, and a struck nucleus is left hot and boils off a few nucleons. */
 function nuclearAnnihilation(a, b) {
-  if (a.dead || b.dead) return;
+  if (a.dead || b.dead || a.mu || b.mu) return; // (an antinucleon meets no nucleon in muonium, 1.12)
   const anti = a.anti ? a : b, mat = anti === a ? b : a;
   const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
   const vx = (a.m * avx + b.m * bvx) / (a.m + b.m), vy = (a.m * avy + b.m * bvy) / (a.m + b.m);
@@ -5984,7 +5986,7 @@ const fusGate = () => W.ultra ? 2e-3 : R_FUS;
 function tryFusion(a, b, bd) {
   if (a.dead || b.dead) return false;
   if (opp(a, b)) { nuclearAnnihilation(a, b); return true; }
-  if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX) return false;
+  if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX || a.mu || b.mu) return false; // (a muon is no nucleon: nothing to fuse, 1.12)
   const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
   const mu = a.m * b.m / (a.m + b.m);
   const dvx = avx - bvx, dvy = avy - bvy;
@@ -6046,7 +6048,7 @@ function tryFusion(a, b, bd) {
 
 /* Neutron meets a nucleus: capture, fission, (n,p)/(n,α)/(n,t) or elastic scattering. */
 function neutronHit(n, T, b, R) {
-  if (n.dead || T.dead || (T.Z < 1 && !(T.N === 1 && T.k === NUC))) return false; // (a nucleus, or another free neutron: n–n is elastic below ~20 MeV, the dineutron being unbound)
+  if (n.dead || T.dead || T.mu || (T.Z < 1 && !(T.N === 1 && T.k === NUC))) return false; // (a nucleus, or another free neutron: n–n is elastic below ~20 MeV, the dineutron being unbound)
   if (opp(T, n)) { nuclearAnnihilation(T, n); return true; }
   if (n.rad || T.rad) { // fast (either of them): relativistic kinematics. Spallation, fission, … or diffraction; two nucleons below ~20 MeV scatter isotropically (s-wave)
     if (nuclearEncounter(n, T, R > 0 ? clamp((b || 0) / R, 0, 1) : rnd(), T.x, T.y)) return true;
@@ -8391,7 +8393,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.at = W.at || 0;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.muAtoms = []; W.at = W.at || 0;
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }
@@ -8596,6 +8598,7 @@ function settleOverlaps() {
 function fireSpec(spec, x, y, ux, uy, KE, free) {
   if (spec.kind === 'gamma') { emitPhoton(x, y, KE, ux, uy); return null; }
   if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e'); return null; }
+  if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy); // (1.12: an atom, in MD)
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy) : null; // (a muon, pion …: from outside, as any fired particle)
   const ps = spawnClear(spec, x, y, 0, free);
   if (!ps.length) return null;
@@ -9776,7 +9779,7 @@ function hypCatch(Zr, Nr, mres, Pr, PL, bx, by, items, moms) {
    K⁻n → Λπ⁻ on one of its nucleons (the rest of the nucleus a spectator); the Λ, at about 30 MeV, may stay (hypCatch). */
 function kStop(o) {
   let tg = null, bd = 16;
-  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
   if (!tg) return false;
   const Z = tg.Z, N = tg.N, onP = rnd() < Z / (Z + N), Zr = Z - (onP ? 1 : 0), Nr = N - (onP ? 0 : 1);
   // the struck nucleon moves inside the nucleus (Fermi motion, up to about 250 MeV/c; none in a lone proton), and the rest
@@ -9927,7 +9930,7 @@ function gdrSigma(Z, N, E) { // mb, E in MeV
   const r = (E * E - E0 * E0) / (E * G); return s0 / (1 + r * r);
 }
 function photoNuclear(p, E, ux, uy) {
-  if (p.dead || p.k !== NUC || p.anti || W.parts.length > MAX_PARTS - 50) return false;
+  if (p.dead || p.k !== NUC || p.anti || p.mu || W.parts.length > MAX_PARTS - 50) return false;
   const Eg = E / MEV, P = add4(p4of(p, true), [Eg, Eg * ux, Eg * uy]), Ms = mass4(P), items = [], moms = [];
   compoundDecay(p.Z, p.N, Ms, P, false, items, moms, 0);
   if (!items.some(it => it.t === 'A' && it.Z + it.N === 1)) return false; // (below its threshold: no nucleon free)
@@ -9947,7 +9950,7 @@ function photoNuclear(p, E, ux, uy) {
    perhaps staying (hypCatch). Returns true if it was caught. */
 function hStop(o) {
   let tg = null, bd = 16;
-  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
   if (!tg) return false;
   const el = hitLabel(tg), x = tg.x, y = tg.y, items = [], moms = [], Po = exoP4(o);
   let txt = '', sub = '';
@@ -9997,6 +10000,44 @@ function muoniumForm(o) {
   const bx = Pt[1] / Pt[0], by = Pt[2] / Pt[0];
   exoEvent(o, [e], [item('Mu'), item('g')], vs.map(v => toLab(v, bx, by)), o.x, o.y, 'capture', `Muonium: μ⁺ took an electron from ${el}`, 'μ⁺e⁻, a hydrogen atom 1/9 the mass, 13.5 eV bound');
   return true;
+}
+
+/* Muonium as an atom (1.12). Muonium is a hydrogen atom whose nucleus is a μ⁺: Bohr's radius and 13.5 eV binding, as H
+   (the reduced mass differs by 0.4%), but 0.1134 u, a ninth of H's mass. It was an exo flying on a straight line, so it
+   passed through atoms; now it is an H atom in MD with p.mu set: its mass is the muon's (refresh), it is named Mu, and it
+   collides, bonds and reacts by the ordinary chemistry (Mu + Cl₂ → MuCl + Cl), lighter and so faster at a given
+   temperature. Its nuclear side is the muon's: no fusion, strong interactions or muon capture on it (guards on p.mu).
+   The muon decays (2.197 µs, on the nuclear clock): muoniumTick. */
+function addMuonium(x, y, KE, ux, uy, ne = 1) {
+  const p = addNuc(1, 0, ne, x, y); p.mu = true; refresh(p);
+  setMotion(p, KE, ux, uy);
+  (W.muAtoms || (W.muAtoms = [])).push(p);
+  return p;
+}
+/* The muon of a muonium atom (or of μ⁺ bare, or bonded in MuCl …) decays: μ⁺ → e⁺ νₑ ν̄μ; the electrons it held go
+   free, a molecule it was in is left a radical. The books close as for any nuclear event: what the products and the
+   changed molecule do not carry, the neutrinos take. */
+function muoniumTick(dt) {
+  const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, L = W.muAtoms;
+  for (let i = L.length - 1; i >= 0; i--) {
+    const p = L[i];
+    if (!p || p.dead || !p.mu) { L.splice(i, 1); continue; }
+    if (!(clock > 0) || rnd() >= 1 - Math.exp(-clock / XP['mu+'].tau)) continue;
+    L.splice(i, 1);
+    const x = p.x, y = p.y, lbl = speciesLabel(p), ne = p.ne, [vx, vy] = velOf(p), partners = p.bonds.map(bd => other(bd, p));
+    const S = nucBegin([p]), gh = [ghostOf(p)];
+    kill(p); relink(partners.filter(q => !q.dead));
+    const items = ['e+', 'nu', 'numub'].map(item), bx = vx / PHYS.C, by = vy / PHYS.C;
+    const vs = phaseSpace(MU_M, items.map(massOf)), moms = vs.map(v => toLab(v, bx, by));
+    for (let k = 0; k < ne; k++) { items.push(item('e-')); moms.push(randDir4(PHYS.MEC2, (1 + rnd()) / MEV)); }
+    const made = spawnItems(items, moms, x, y);
+    closeEvent(S, made, x, y, 0, 0);
+    W.count.decay++;
+    const txt = `μ⁺ → ${summarize(items.slice(0, 3))}${ne ? ', its electron set free' : ''}`;
+    nucEvent('decay', x, y, `${lbl}: ${txt}`, gh, '2.2 µs mean life');
+    log('nuc', `Decay: the muon in ${lbl} → e⁺ + νₑ + ν̄μ${ne ? '; its electron goes free' : ''}`);
+    tally(items, [lbl], `Decay: ${lbl} → ${summarize(items)}`);
+  }
 }
 
 /* ---- resonances in hadronization. Most hadrons out of a string or a cooling plasma are born as short-lived
@@ -10212,7 +10253,7 @@ const randDir4 = (m, K) => { const [ux, uy] = rdir(), p = Math.sqrt(Math.max(0, 
 /* A free μ⁻ slowed to a few keV: caught by the nearest atom within 4 Å. Returns true if it was. */
 function muStop(o) {
   let tg = null, bd = 16;
-  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
   if (!tg) return false;
   const x = tg.x, y = tg.y, el = speciesLabel(tg);
   if (tg.Z === 1 && tg.N <= 2) { // muonic hydrogen: the atom's electron goes free, X-rays carry off the binding
@@ -10238,7 +10279,7 @@ function muStop(o) {
    clock: nuclear seconds this step. Returns true if o is gone. */
 function muAtomTick(o, clock) {
   const N0 = XP[o.sp].N; let best = null, bd = 6.25;
-  nearby(o.x, o.y, 2.5, (p) => { if (p.dead || p.k !== NUC || p.Z !== 1 || p.anti || p.N > 2) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; best = p; } });
+  nearby(o.x, o.y, 2.5, (p) => { if (p.dead || p.k !== NUC || p.Z !== 1 || p.anti || p.N > 2 || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; best = p; } });
   if (!best) return false;
   const N1 = best.N, P = (rate) => rnd() < 1 - Math.exp(-rate * clock);
   const x = best.x, y = best.y, bl = speciesLabel(best);
@@ -10275,6 +10316,35 @@ function muAtomTick(o, clock) {
   W.count.fusion++;
   for (const x2 of made.xs) if (x2.sp === 'mu-') x2.cyc = cyc;
   return true;
+}
+/* Muonic hydrogen scattering elastically off hydrogen nuclei (1.12). Neutral and 200 times smaller than an atom, it
+   passes through electron clouds, but a proton, deuteron or triton it comes close to throws it aside: in hydrogen
+   that is how it slows to the gas's temperature. Measured: μp + p 1.49×10⁻²⁰ cm² (singlet μp), μd + d 8.0×10⁻²⁰ cm²
+   (Bertin et al., Nuovo Cimento A 72, 225, 1982); μt: no measured value found, μd's is used. True reach √(σ/π): 0.0069 Å
+   for μp, 0.016 Å for μd, used in the ultra-realistic mode; in normal play the reach is R_NN (0.35 Å), the reach of every
+   neutral projectile meeting a nucleus here (neutrons, nucReach), 51 and 22 times the true one. Isotropic in the centre
+   of mass (s-wave, as below about 1 eV), momentum and kinetic energy exactly kept (non-relativistic: eV energies). */
+const MU_SCAT = { muP: 1.49e-20, muD: 8.0e-20, muT: 8.0e-20 }; // cm²
+function muScatReach(sp) { return W.ultra ? Math.sqrt(MU_SCAT[sp] * 1e16 / Math.PI) : R_NN; }
+function muAtomScatter(o, x0, y0) {
+  if (o.dead || (o.x === x0 && o.y === y0) || !MU_SCAT[o.sp]) return false;
+  const R = muScatReach(o.sp), hits = segTargets(x0, y0, o.x, o.y, Math.max(R, 0.4), (t) => t.k === NUC && t.Z === 1 && !t.anti && !t.mu && !t.rad);
+  for (const [, tg, b] of hits) {
+    if (tg.dead || b >= R) continue;
+    if (o.hitId === tg.id) continue; // (one pass, one encounter)
+    o.hitId = tg.id;
+    const mo = o.m / PHYS.AMU_MEV, mt = tg.m, M = mo + mt, v = Math.sqrt(2 * o.KE / mo);
+    const avx = v * o.ux, avy = v * o.uy, Vx = (mo * avx + mt * tg.vx) / M, Vy = (mo * avy + mt * tg.vy) / M;
+    const rx = avx - tg.vx, ry = avy - tg.vy, w = Math.hypot(rx, ry), [cx, cy] = rdir();
+    const ox = Vx + cx * w * mt / M, oy = Vy + cy * w * mt / M; // (the relative speed kept, its direction new)
+    tg.vx = Vx - cx * w * mo / M; tg.vy = Vy - cy * w * mo / M; updateFast(tg);
+    const vo = Math.hypot(ox, oy);
+    o.KE = 0.5 * mo * vo * vo; if (vo > 0) { o.ux = ox / vo; o.uy = oy / vo; } exoSpeed(o);
+    W.count.muScat = (W.count.muScat || 0) + 1;
+    return true;
+  }
+  if (o.hitId && !hits.some(h => h[1].id === o.hitId)) o.hitId = 0;
+  return false;
 }
 /* Muons bound in heavier atoms: decay in orbit, or capture by the nucleus (μ⁻ + p → n + ν). */
 function muBoundTick(dt) {
@@ -10328,6 +10398,7 @@ function spawnItems(items, moms, x, y) {
     if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy]); continue; }
     if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; continue; } // (no room: carried off, as if it had left)
     if (it.Z > Z_MAX) { made.lost += P[0] * MEV; continue; } // (a last guard: nothing past the last element is made)
+    if (it.t === 'x' && it.sp === 'Mu') { const q = addMuonium(ox, oy, K, ux, uy); made.ps.push(q); continue; } // (1.12: muonium is an atom, in MD)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m); made.xs.push(o); pairNote(o); continue; }
     const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti); // (ne: electrons it keeps, keepElectrons)
     setMotion(q, K, ux, uy);
@@ -10404,6 +10475,7 @@ function exoHeld(o) {
 }
 function moveExos(dt, id0) {
   if (W.muBound && W.muBound.length) muBoundTick(dt);
+  if (W.muAtoms && W.muAtoms.length) muoniumTick(dt);
   for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res && !W.ultra && !deepSlow()) { if (exoHeld(o)) o.wait = true; else decayExo(o); } } // (resonances: gone within a proton's width, whatever the decay clock)
   const n0 = W.exo.length;
   if (!n0) return;
@@ -10434,6 +10506,7 @@ function moveExos(dt, id0) {
     if (o.sp === 'mu+' && o.KE < MU_STOP && !o.muTried && muoniumForm(o)) continue;
     if (d.strong === undefined) d.strong = strongExo(o.sp);
     if (d.strong && exoHits(o, x0, y0)) continue;
+    if (d.atom) muAtomScatter(o, x0, y0);
     if (d.atom && clock > 0) muAtomTick(o, clock);
   }
   if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
@@ -10458,7 +10531,7 @@ function flyExo(o, h) {
    comes within reach of, it meets (hadronHit). Returns true if it is gone. */
 function exoHits(o, x0, y0) {
   if (o.dead || (o.x === x0 && o.y === y0)) return false;
-  const hits = segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && t.Z > 0 && !t.anti);
+  const hits = segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && t.Z > 0 && !t.anti && !t.mu);
   for (const [, tg, b] of hits) {
     if (tg.dead || (o.ev && o.ev === tg.evId)) continue; // (made in the same event: it has already left that nucleus)
     const R = W.ultra ? (trueRfm(tg) + 0.7 + 2) * FM : Math.max(R_FUS, nucDrawR(tg) + 0.05); // (ultra: the nucleus and a meson at their true sizes)
@@ -10732,6 +10805,7 @@ function nnInelastic(a, b, x, y, P, M) {
    Returns a caption if something happened (the nuclei may survive it: diffraction), else null. */
 const HIT_COUL = 30;
 function nuclearEncounter(a, b, u, x, y) {
+  if (a.mu || b.mu) return false; // (muonium's nucleus is a muon: it feels no strong force, 1.12)
   if (a.dead || b.dead || a.k !== NUC || b.k !== NUC || opp(a, b)) return null;
   if (W.parts.length > MAX_PARTS - 400) return null; // (no room left for products)
   const A1 = a.Z + a.N, A2 = b.Z + b.N, Z1 = a.Z, Z2 = b.Z, anti = !!a.anti;
@@ -12176,6 +12250,7 @@ function atomColor(p) {
     return heatHex(t);
   }
   if (p.anti && p.el) return mixHex(baseElColor(p.Z), ANTI_TINT, 0.5);
+  if (p.mu) return '#96e1ff'; // (muonium: the colour it had as an exo, 1.12)
   return p.el ? baseElColor(p.Z) : '#cccccc';
 }
 function mixHex(a, b, t) {
@@ -12615,24 +12690,39 @@ function drawRings() {
 }
 function drawIonic() {
   if (R.s < 4) return;
-  const ions = [];
-  for (const p of W.parts) if (!p.dead && p.k === NUC && p.ne > 0 && Math.abs(p.q) >= 1) ions.push(p);
-  if (ions.length < 2) return;
-  ions.sort((a, b) => a.x - b.x);
-  const rOf = (p) => (p.ionic && p.ionR > 0 ? p.ionR : p.rd), ctx = R.ctx, byW = new Map();
-  for (let i = 0; i < ions.length; i++) {
-    const a = ions[i], ra = rOf(a);
-    for (let j = i + 1; j < ions.length; j++) {
-      const b = ions[j], dx = b.x - a.x;
+  // (1.12) The ions are lone ions and charged molecules (CN⁻, OH⁻, NO₃⁻ …: the whole molecule's net charge, wherever its
+  // formal charge sits). A line joins a cation and an anion in contact, drawn between their closest atoms; contact is
+  // judged with each atom's force-field size (half its LJ diameter ljR: a lone ion's ionic radius, an atom in a molecule
+  // its van der Waals size), not the drawing radius, which for an atom in a molecule is its small covalent one (C in
+  // CN⁻ reached only 1.99 Å from Na⁺, which it touches at 2.7 Å).
+  const at = [], seen = new Set();
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || p.ne <= 0 || p.q === 0 || seen.has(p)) continue;
+    const g = p.bonds.length ? molecule(p) : [p];
+    let Q = 0; for (const a of g) { seen.add(a); Q += a.q; }
+    if (Math.abs(Q) < 1) continue;
+    for (const a of g) at.push({ p: a, g, Q });
+  }
+  if (at.length < 2) return;
+  at.sort((a, b) => a.p.x - b.p.x);
+  const best = new Map(); // (one line for each pair of ions: their closest atoms)
+  for (let i = 0; i < at.length; i++) {
+    const A = at[i], a = A.p, ra = 0.5 * a.ljR;
+    for (let j = i + 1; j < at.length; j++) {
+      const B = at[j], b = B.p, dx = b.x - a.x;
       if (dx > 8) break;
-      if (a.q * b.q >= 0) continue;
-      const dy = b.y - a.y, r = Math.hypot(dx, dy), reach = 1.3 * (ra + rOf(b));
+      if (A.Q * B.Q >= 0) continue;
+      const dy = b.y - a.y, r = Math.hypot(dx, dy), reach = 1.3 * (ra + 0.5 * b.ljR);
       if (r > reach || r < 0.3) continue;
-      if (a.bonds.some(bd => other(bd, a) === b)) continue;
-      const w = clamp(0.8 + 0.35 * Math.sqrt(Math.abs(a.q * b.q)), 1, 2.6), k = w.toFixed(1);
-      let list = byW.get(k); if (!list) byW.set(k, list = []);
-      list.push(w2sx(a.x), w2sy(a.y), w2sx(b.x), w2sy(b.y));
+      const key = A.Q > 0 ? A.g[0].id + ':' + B.g[0].id : B.g[0].id + ':' + A.g[0].id, o = best.get(key);
+      if (!o || r < o.r) best.set(key, { r, a, b, qq: Math.abs(A.Q * B.Q) });
     }
+  }
+  const ctx = R.ctx, byW = new Map();
+  for (const { a, b, qq } of best.values()) {
+    const w = clamp(0.8 + 0.35 * Math.sqrt(qq), 1, 2.6), k = w.toFixed(1);
+    let list = byW.get(k); if (!list) byW.set(k, list = []);
+    list.push(w2sx(a.x), w2sy(a.y), w2sx(b.x), w2sy(b.y));
   }
   if (!byW.size) return;
   ctx.save(); ctx.strokeStyle = R.cvd ? 'rgba(240,228,66,0.6)' : 'rgba(255,196,120,0.6)'; ctx.setLineDash([1.5, 3.5]); ctx.lineCap = 'round';
@@ -12687,7 +12777,7 @@ function drawUltraParts(ctx, rt) {
     if (r <= 1500) {
       if (bohrMode === 'orb') drawOrbitalAtom(ctx, p, x, y, true);
       else if (bohrMode === 'on' || bohrMode === 'nuc' || (bohrMode === 'auto' && r >= 30)) drawBohr(ctx, p, x, y, r, rt, col, rn);
-      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
+      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
     } else { // inside the atom's electron cloud: a faint wash of its colour
       const c = hexc(col); ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.10)`;
       const d = Math.hypot(x - Wd / 2, y - Ht / 2);
@@ -12895,7 +12985,7 @@ function drawParticles(rt) {
     if (bohr) drawBohr(ctx, p, x, y, r, rt, col);
     else {
       if (!glBalls) drawSprite(ballSprite(col, r), x, y);
-      if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
+      if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
     }
     if (p.anti) { // antimatter: a dashed violet halo
       ctx.save(); ctx.strokeStyle = 'rgba(190,130,255,0.85)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
@@ -17240,7 +17330,8 @@ function placeFly(spec, x, y, count) {
   _evTag = 0;
   for (let i = 0; i < count; i++) {
     const [ux, uy] = rdir();
-    if (spec.kind === 'exo') { if (W.exo.length < MAX_EXO) addExo(spec.sp, x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), 0.03, ux, uy); }
+    if (spec.kind === 'exo' && spec.sp === 'Mu') addMuonium(x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), PHYS.KB * W.T, ux, uy); // (1.12: an atom, in MD)
+    else if (spec.kind === 'exo') { if (W.exo.length < MAX_EXO) addExo(spec.sp, x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), 0.03, ux, uy); }
     else if (spec.kind === 'gamma') emitPhoton(x, y, placeE(), ux, uy, { travel: true });
     else emitNeutrino(x, y, placeE(), ux, uy, !!spec.anti, 'placed by hand', spec.fl || 'e');
   }
@@ -17977,7 +18068,7 @@ function selXHTML() {
     kv.push(['Kinetic energy', fmtE(o.KE)], ['Total energy', fmtE(o.KE + m * 1e6)], ['Speed', fmtSpeed(o.v)], ['Lorentz factor γ', fmtNum(o.gam, 4)],
       ['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)],
       d.hyp ? ['Decays by', `Λ → p π⁻ or n π⁰ inside (mesonic, ${Math.round(100 * hypMesonic(d.Z + d.N + 1))}%), or Λp → np and Λn → nn (non-mesonic: 176 MeV to the two nucleons, which usually break the nucleus)`] : ['Decays to', d.dec.map(([b, ps]) => `${ps.map(t => (XP[t] ? XP[t].lab : ({ 'e-': 'e⁻', 'e+': 'e⁺', nu: 'ν', nub: 'ν̄', g: 'γ', p: 'p', n: 'n', pbar: 'p̄', nbar: 'n̄' })[t] || t)).join(' ')} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
-    about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. Bound by ${fmtE(d.Eb * 1e6)}.`
+    about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the hydrogen nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, except in the ultra-realistic mode. Bound by ${fmtE(d.Eb * 1e6)}.`
       : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
       : XP_ABOUT[d.hyp ? 'hy' : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg'].find(k => o.sp.startsWith(k)) || 'eta'] || '';
     if (d.tau < 1e-15) about += ' This one lives so briefly that it decays a few nanometres from where it was made.';
@@ -18043,12 +18134,13 @@ function renderInspect() {
     const title = p.ne === 0 ? (p.anti ? (p.Z === 1 && p.N === 0 ? 'Antiproton' : `Anti-${nucName(p.Z, p.N).toLowerCase()} nucleus`)
       : p.Z === 1 && p.N === 0 ? 'Proton' : p.Z === 2 && p.N === 2 ? 'Alpha particle' : nucName(p.Z, p.N) + ' nucleus')
       : iso + (aq ? (aq > 0 ? ' cation' : ' anion') : '');
+    const muT = p.mu ? (p.ne === 0 ? 'Antimuon (μ⁺)' : 'Muonium' + (aq ? (aq > 0 ? ' cation' : ' anion (muonide)') : '')) : null; // (1.12: an H atom whose nucleus is a μ⁺)
     const icl = p.ne > 0 && (p.q || (mol && mol.some(a => a.q))) ? ionicCluster(p) : null, itx = icl && ionicText(icl, true);
     const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : '') + (itx ? ` · held ionically in ${itx}` : ''))
       + (p.Z > Z_TABLE ? ' · never made in any lab: its properties are predictions' : '');
-    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${A}</span><span class="s">${symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
-      <div><div class="ins-title">${esc(title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
-    pills = `<span class="pill ${nuc.stable || bareStable(nuc, p) ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
+    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${A}</span><span class="s">${p.mu ? 'Mu' : symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
+      <div><div class="ins-title">${esc(muT || title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
+    pills = p.mu ? `<span class="pill hot">its muon decays: mean life 2.197 µs (e⁺ + νₑ + ν̄μ)</span>` : `<span class="pill ${nuc.stable || bareStable(nuc, p) ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
     if (!nuc.stable && nuc.modes.length) pills += `<span class="pill hot">${esc(nuc.modes.map(m => modeLabel(m.mode)).join(' / '))}</span>`;
     if (bareStable(nuc, p)) bareNote = `<p class="note">It decays only by pulling in one of its own electrons (electron capture), and it has none: stripped bare it cannot decay, as bare ⁷Be in storage rings does not. Give it an electron (right-click → Add electron) and its half-life applies again.</p>`;
     if (p.ne > 0 && p.cap - p.used > 0 && !el.dblock) pills += `<span class="pill em">radical: ${p.cap - p.used} free valence</span>`;
@@ -18068,7 +18160,8 @@ function renderInspect() {
     kv.push(['Mass', fmtNum(p.m, 6) + ' u'], ['Kinetic energy', fmtE(ke)], ['Speed', fmtSpeed(speed)]);
     kv.push(...gyroRows(p.ne > 0 ? p.q : (p.anti ? -1 : 1) * p.Z, p.m, p.rad ? 1 + p.KE / (p.m * PHYS.AMU_MEV * 1e6) : 1, speed, p.x, p.y, p));
     if (p.tLocal && p.ne > 0) kv.push(['Local temperature', fmtT(p.tLocal)]);
-    kv.push(['Nucleus', p.anti ? `${p.Z} p̄ + ${p.N} n̄` : `${p.Z} p + ${p.N} n`], ['Binding energy', A > 1 ? `${fmtE(bindingE(p.Z, p.N) * 1e6, 5)} (${fmtE(bindingE(p.Z, p.N) / A * 1e6, 4)} per nucleon)` : '—']);
+    if (p.mu) { kv.push(['Nucleus', 'μ⁺, a positive muon (207 electron masses, 1/9 of a proton)']); extra = `<p class="note">Muonium is a hydrogen atom with a positive muon for its nucleus: the same size and nearly the same binding (13.5 eV), a ninth of the mass, so it moves three times faster at a given temperature and reacts as hydrogen does, with strong isotope effects (Mu + Cl₂ → MuCl + Cl).</p>`; }
+    else kv.push(['Nucleus', p.anti ? `${p.Z} p̄ + ${p.N} n̄` : `${p.Z} p + ${p.N} n`], ['Binding energy', A > 1 ? `${fmtE(bindingE(p.Z, p.N) * 1e6, 5)} (${fmtE(bindingE(p.Z, p.N) / A * 1e6, 4)} per nucleon)` : '—']);
     if (p.anti) extra = `<p class="note">Antimatter mirrors matter: the same masses, energy levels, spectra and bonds, with every charge reversed (CPT symmetry). Touching ordinary matter, its positrons annihilate with electrons (two 511 keV γ rays) and each antinucleon with a nucleon (pions and γ rays, about 1.9 GeV).</p>`;
     if (!nuc.stable && nuc.modes.length) kv.push(['Decay energy', nuc.modes.map(m => `${modeLabel(m.mode)}: Q ${fmtE(m.Q * 1e6)}`).join('; ')]);
     if (mol) {
@@ -18793,7 +18886,7 @@ const SAVE_KINDS = new Set([NUC, ELEC, POS]);
 function worldToJSON() {
   const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.caught);
   const ix = new Map(ps.map((p, i) => [p, i])), r6 = (v) => Math.round(v * 1e6) / 1e6;
-  const parts = ps.map(p => { const a = [p.k, p.Z, p.N, p.ne, p.anti ? 1 : 0, r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]; if (p.rad) a.push(p.KE); return a; });
+  const parts = ps.map(p => { const a = [p.k, p.Z, p.N, p.ne, (p.anti ? 1 : 0) | (p.mu ? 2 : 0), r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]; if (p.rad) a.push(p.KE); return a; });
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
   if (BO.any) for (const [a, b, o] of boWhole()) { const i = ix.get(a), j = ix.get(b); if (i !== undefined && j !== undefined) bonds.push([i, j, o]); } // (continuous bond orders: kept as whole bonds, so the world opens either way)
@@ -18818,7 +18911,7 @@ function worldFromJSON(d) {
     if (![x, y, vx, vy].every(Number.isFinite)) { made.push(null); continue; }
     const px = clamp(x, -hw, hw), py = clamp(y, -hh, hh);
     let p = null;
-    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } p = addNuc(Z, N, ne, px, py, vx, vy, anti === 1); }
+    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } p = (anti & 2) && Z === 1 && N === 0 ? addMuonium(px, py, 0, 1, 0, ne) : addNuc(Z, N, ne, px, py, vx, vy, anti === 1); if (anti & 2) { p.vx = vx; p.vy = vy; updateFast(p); } } // (field 5: 1 antimatter, 2 muonium, 1.12)
     else if (k === ELEC || k === POS) p = addLepton(k, px, py, vx, vy);
     const KE = q[9], v = Math.hypot(vx, vy);
     if (p && Number.isFinite(KE) && KE > 0 && v > 0) setMotion(p, KE, vx / v, vy / v); // (in radiation flight: its energy, as saved)
