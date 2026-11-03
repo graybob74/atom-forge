@@ -122,7 +122,7 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## 1.13.0: crash handler, dropdowns, Experimental total cost, beads under the symbols, continuous bond orders
+## 1.13.0: crash handler, dropdowns, 32 threads, Experimental total cost, beads under the symbols, continuous bond orders
 
 - **Crash handler** (asked for by the user after a Ring-collider setup, Ca-40 + Au-197 at about 1 PeV with a τ⁻ placed,
   crashed the game; it ran 2,500 particles headless without an error, so it was most likely the tab freezing or running
@@ -166,6 +166,13 @@ engine stores and visits particles.
   the molecule gallery 0.15 eV. Forces equal minus the energy's slope to 1e-5 eV/Å in all three. Cost against stored
   bonds, per simulated time: water ×17, H₂ + O₂ ×21, the gallery ×45. Limits: members carry no partial charges (no
   hydrogen bonds between them), a proton does not attach to a member, crowded flat molecules (SF₆) come apart.
+- **32 threads** (asked for by the user: a 7950X3D has 16 cores and 32 threads, and the game stopped at 16). Settings →
+  Threads has a 32 choice; the pool takes up to 31 workers (TH_MAXW; the per-worker stiffness cells grew from 16 to
+  32, every other per-worker array was already sized by the count). Auto stays at 16, one a core: a core's second
+  thread shares its arithmetic units and caches, and 31 workers wait on each other more, so it may gain or lose a
+  little; the threads note says so and points to the Speed test, and Auto can move to 32 if the owner's numbers show it
+  faster. Checked here (2 cores, so for correctness only): 32 threads on 12,000 waters give the one-thread forces to
+  6e-17 eV/Å (t_threads).
 - **Experimental: the total cost** at the top of the tab (asked for by the user): the chosen settings' measured costs
   multiplied together against everything at normal, coloured like the tags (×1.8–4.7 for 9 Å reach and induced
   charges every 10th step). A guide, not a measurement of that combination.

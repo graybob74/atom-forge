@@ -151,6 +151,19 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   say('benchmark:', bench.rows.join('\n           '));
   say('threads note:', bench.note);
   check(!bench.busy && bench.rows.length === 5 && /threads/.test(bench.rows[0]) && /20,000-atom goal/.test(bench.rows[1]) && /room for \d+ fps/.test(bench.rows[2]), 'the in-app benchmark ran its four worlds and judged the 20,000-atom goal', bench);
+  // 1.13: up to 32 threads (a 16-core processor's two per core): 31 workers give the one-thread forces to rounding
+  await page.evaluate(() => { setRunning(false); setSetting('threads', '32'); TH.minPairs = 100; });
+  await page.evaluate(BUILD);
+  await page.waitForFunction(() => { forcesNoEvents(); return TH.state === 'on' && TH.used === 32; }, null, { timeout: 150000 }).catch(() => {});
+  const t32 = await page.evaluate(() => {
+    const n = S.hi, copy = () => [Float64Array.from(S.fx.subarray(0, n)), Float64Array.from(S.fy.subarray(0, n))];
+    computeForces(); const A = copy(), used = TH.used; W.evq.length = 0;
+    TH.minPairs = 1e9; computeForces(); const B = copy(); W.evq.length = 0; TH.minPairs = 1500;
+    let m = 0; for (let i = 0; i < n; i++) m = Math.max(m, Math.abs(A[0][i] - B[0][i]), Math.abs(A[1][i] - B[1][i]));
+    setSetting('threads', 'auto'); return { used, n: TH.n, diff: m };
+  });
+  say('32 threads:', JSON.stringify(t32));
+  check(t32.used === 32 && t32.diff < 1e-9, '1.13: 32 threads give the one-thread forces', t32);
   check(errors.length === 0, 'no page errors', errors.slice(0, 3).join('\n'));
   await ctx.close();
   // the plain page (file://, not isolated) falls back to one thread
