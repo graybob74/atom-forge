@@ -143,6 +143,7 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   });
   check(rc.rc === 9 && rc.used === 2 && !rc.wasm && !rc.workersWasm && rc.m <= 1e-9 * Math.max(1, rc.scale) && rc.far > 0 && rc.back === 6 && rc.wasmBack,
     `force reach 9 Å: two threads (JavaScript) vs one, forces equal to rounding; ${rc.far} pairs beyond 8 Å; back to 6 Å on WebAssembly`, rc);
+  await page.waitForFunction(() => { forcesNoEvents(); return TH.state === 'on' && TH.used === 2; }, null, { timeout: 15000 }).catch(() => {}); // (the workers started again at 6 Å: bound before the benchmark)
   // the Settings benchmark runs through its three worlds and reports
   await page.evaluate(() => { openSettings(); benchStart(); });
   await page.waitForFunction(() => !BENCH.busy, null, { timeout: 120000 }).catch(() => {});

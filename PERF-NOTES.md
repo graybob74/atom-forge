@@ -81,9 +81,11 @@ engine stores and visits particles.
   the list expands to show everything instead of ending in "and N more nuclides" (asked for by the user).
 - A styled scroll bar instead of the browser's default, in every scrolling panel, menu and dialog (asked for by the
   user).
-- Chain-reaction maps (asked for by the user; what the map shows to be settled with the user: e.g. a family tree of
-  the chain reaction, which neutron came from which fission, generation by generation, or the decay paths on a chart
-  of nuclides).
+- Chain-reaction maps (asked for by the user; the user chose both): a family tree of the chain reaction (which
+  neutron came from which fission, generation by generation), and the decay paths on a chart of nuclides.
+- Ultra-realistic mode: a more detailed nucleus when zoomed in to it (asked for by the user), e.g. its protons and
+  neutrons packed at their true size, the diffuse edge of the charge density, deformation where the nucleus is
+  deformed.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
