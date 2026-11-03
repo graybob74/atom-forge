@@ -137,18 +137,18 @@ const ICONS = {
 };
 const TOOLS = [
   { id: 'place', name: 'Place', key: 'P', help: 'Click to place the selected particle, drag to spray.' },
-  { id: 'grab', name: 'Grab', key: 'G', help: 'Press on or near a particle and drag it on a spring (or move it directly while paused).' },
-  { id: 'select', name: 'Select', key: 'T', help: 'Drag a box round particles to select them (Shift adds); drag the selection to move it. Ctrl+C copies; Ctrl+V picks the copy up, then click where it goes (Shift-click to put down several; Escape cancels). Delete removes, Ctrl+A selects everything.' },
-  { id: 'pull', name: 'Push/Pull', key: 'U', help: 'Hold to gather or push away everything nearby; low strengths let atoms settle together gently.' },
-  { id: 'fire', name: 'Fire', key: 'F', help: 'Drag to aim, release to fire a particle at a set energy.' },
-  { id: 'heat', name: 'Heat', key: 'H', help: 'Hold to heat (or cool) a region with a local heat bath.' },
+  { id: 'grab', name: 'Grab', key: 'G', help: 'Drag a particle on a spring (directly while paused).' },
+  { id: 'select', name: 'Select', key: 'T', help: 'Drag a box to select (Shift adds), drag the selection to move it. Ctrl+C / Ctrl+V copy and paste, Delete removes, Ctrl+A selects all.' },
+  { id: 'pull', name: 'Push/Pull', key: 'U', help: 'Hold to pull in or push away everything nearby.' },
+  { id: 'fire', name: 'Fire', key: 'F', help: 'Drag to aim, release to fire.' },
+  { id: 'heat', name: 'Heat', key: 'H', help: 'Hold to heat or cool a region.' },
   { id: 'spark', name: 'Spark', key: 'S', help: 'Click to dump energy into the atoms under the cursor.' },
   { id: 'magnet', name: 'Magnet', key: 'M', help: 'Click to place a magnet pole; drag one to move it.' },
-  { id: 'objects', name: 'Objects', key: 'D', help: 'Drag to draw a mirror, lens, prism, detector screen, beam stop, wall, foil or charged plates from one end to the other (a click places one); drag one to move it; right-click it to turn, resize or change it.' },
-  { id: 'light', name: 'Light', key: 'L', help: 'Drag to aim a beam of photons of one wavelength.' },
-  { id: 'erase', name: 'Erase', key: 'E', help: 'Drag to remove particles, magnets and beam sources.' },
-  { id: 'measure', name: 'Measure', key: 'K', help: 'Click two particles (atoms, nuclei, electrons, pions, photons …) for their distance, a third for the angle at the middle one; the numbers follow them as they move.' },
-  { id: 'inspect', name: 'Inspect', key: 'I', help: 'Click a particle to see its physics in the Inspect tab. Right-click anything in the chamber for a quick menu.' },
+  { id: 'objects', name: 'Objects', key: 'D', help: 'Drag to draw a mirror, lens, prism, screen, wall, foil or plates; drag one to move it, right-click to change it.' },
+  { id: 'light', name: 'Light', key: 'L', help: 'Drag to aim a beam of light.' },
+  { id: 'erase', name: 'Erase', key: 'E', help: 'Drag to remove particles, magnets and beams.' },
+  { id: 'measure', name: 'Measure', key: 'K', help: 'Click two particles for their distance, a third for the angle.' },
+  { id: 'inspect', name: 'Inspect', key: 'I', help: 'Click a particle for its physics. Right-click anything for a quick menu.' },
 ];
 const OPT = {
   place: { count: 1, Es: 600, rest: false },
@@ -410,15 +410,15 @@ function decayPerSecond() { return W.warp * W.simPerFrame * PHYS.TU_S * 60; }
 /* What the chosen isotope will do once placed, at the current decay speed. */
 function isoNote(Z, A) {
   const [cls, , long] = isoLife(Z, A);
-  if (cls === 'st') return 'stable: it will never decay';
+  if (cls === 'st') return 'stable';
   const nuc = nuclideInfo(Z, A - Z);
   if (nuc.unbound) return long;
-  if (!W.decayOn) return long + ', but decay is paused';
+  if (!W.decayOn) return long + ' (decay paused)';
   const watch = nuc.t12 / decayPerSecond(), real = warpWords() === 'real';
-  if (watch < 0.2) return long + `: ${real ? 'even at its real rate it' : 'at this decay speed it'} decays almost as soon as it is placed`;
-  if (watch < 30) return long + `: at this decay speed it decays within seconds (pause decay under Lab › Time)`;
-  if (watch < 3600) return long + `: about ${fmtTime(watch)} of watching per half-life at this decay speed`;
-  return long + (real ? ': far too slow to see at its real rate (speed decay up under Lab › Time)' : '');
+  if (watch < 0.2) return long + ': decays almost at once';
+  if (watch < 30) return long + ': decays within seconds here';
+  if (watch < 3600) return long + `: ${fmtTime(watch)} per half-life here`;
+  return long + (real ? ': too slow to see (speed decay up in Lab)' : '');
 }
 function isoPickerHTML(sp) {
   if (!sp || sp.kind !== 'atom') return '';
@@ -447,22 +447,22 @@ function buildToolOpts() {
       if (FLY_KINDS.has(sp.kind)) { // (not an atom: an energy for light and neutrinos, a lifetime for the rest)
         const d = sp.kind === 'exo' ? XP[sp.sp] : null;
         h = `<span class="lbl">Placing</span><span><span class="swatch" style="background:${specColor(sp)}"></span> <b>${esc(specLabel(sp))}</b> <span class="help">${esc(specName(sp))}</span></span>` +
-          (d ? `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']], o.count)}</span><span class="help">${d.res ? `made at rest; a resonance: it decays at once (${fmtTime(d.tau)}), into ${d.dec.map(([, ps]) => ps.map(t => labelOf(item(t))).join(' ')).slice(0, 3).join(', or ')}` : `made at rest; it decays where it is, on its mean life of ${fmtTime(d.tau)}${d.tau > 1e-12 ? ' (Lab → Decay speed to see it)' : ''}`}</span>`
-            : rangeCtl('oPE', 'Energy', 0, 900, o.Es, fmtE(placeE())) + `<span class="help">${sp.kind === 'gamma' ? 'it leaves the click in a random direction at c' : 'it leaves the click at c and goes through everything (as neutrinos do)'}</span>`);
+          (d ? `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']], o.count)}</span><span class="help">${d.res ? `made at rest; decays at once (${fmtTime(d.tau)}) into ${d.dec.map(([, ps]) => ps.map(t => labelOf(item(t))).join(' ')).slice(0, 3).join(', or ')}` : `made at rest; decays in place (mean life ${fmtTime(d.tau)}${d.tau > 1e-12 ? '; speed decay up in Lab' : ''})`}</span>`
+            : rangeCtl('oPE', 'Energy', 0, 900, o.Es, fmtE(placeE())) + `<span class="help">${sp.kind === 'gamma' ? 'leaves in a random direction at c' : 'leaves at c and passes through everything'}</span>`);
         break;
       }
       h = `<span class="lbl">Placing</span><span><span class="swatch" style="background:${specColor(sp)}"></span> <b>${esc(specLabel(sp))}</b> <span class="help">${esc(specName(sp))}</span></span>
-        ${savedIsoHTML()}${isoPickerHTML(sp)}${isObject(sp) ? `<span class="help">${MOLECULES[sp.mol].atoms.length} atoms, one per click; the box opens up if it is too small. It warms to the bath temperature, so keep that near room temperature (Lab tab) or it falls apart, as it would in a flame.</span>`
+        ${savedIsoHTML()}${isoPickerHTML(sp)}${isObject(sp) ? `<span class="help">${MOLECULES[sp.mol].atoms.length} atoms, one per click. Keep the bath near room temperature or it falls apart.</span>`
           : `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']].concat(MAX_PARTS >= 8000 ? [[100, '100']] : []), o.count)}</span><span data-g="rest">${seg('Moving', [['false', 'At the bath temperature'], ['true', 'At rest']], String(!!o.rest))}</span>`}`;
       break;
     case 'grab':
-      h = `<span data-g="mol">${seg('Grab', [['true', 'Whole molecule or crystal'], ['false', 'Single atom']], String(o.mol))}</span><span data-g="s">${seg('Strength', [['gentle', 'Gentle'], ['strong', 'Strong'], ['max', 'Very strong']], o.s)}</span><span class="help">${o.s === 'gentle' ? 'Draws it along at most 3 km/s of simulated time, so at high speed settings it trails the mouse.' : o.s === 'strong' ? 'Keeps up with the mouse (up to 30 km/s), pulling with up to 8 eV/Å; let go and it stops there.' : 'Keeps up even when dragged fast (up to 100 km/s), pulling with up to 30 eV/Å to haul through a crowd; let go and it stops there.'}</span><span class="help">Press on or near a particle and drag. It follows on a spring; while paused it moves directly.</span>`;
+      h = `<span data-g="mol">${seg('Grab', [['true', 'Whole molecule or crystal'], ['false', 'Single atom']], String(o.mol))}</span><span data-g="s">${seg('Strength', [['gentle', 'Gentle'], ['strong', 'Strong'], ['max', 'Very strong']], o.s)}</span><span class="help">${o.s === 'gentle' ? 'At most 3 km/s: it trails the mouse at high speeds.' : o.s === 'strong' ? 'Keeps up with the mouse (30 km/s, 8 eV/Å).' : 'Keeps up when dragged fast (100 km/s, 30 eV/Å).'}</span>`;
       break;
     case 'pull':
       h = `<span data-g="mode">${seg('Force', [['pull', 'Attract'], ['push', 'Repel']], o.mode)}</span>` +
         `<span data-g="s">${seg('Strength', PULL_PRESETS, PULL_PRESETS.some(p => p[0] === o.s) ? o.s : '')}</span>` +
         rangeCtl('oS', 'Depth', 0, 600, o.s, fmtE(pullU())) + `<span class="help" id="oSword">${pullWord(pullU())} at ${fmtT(W.T)}</span>` +
-        radCtl(t, o.R) + '<span class="help">A wider well pulls more gently at the same depth: deepen it to haul from far off.</span>';
+        radCtl(t, o.R) + '<span class="help">A wider well pulls more gently at the same depth.</span>';
       break;
     case 'fire': {
       const fs = fireSpecNow() || SPEC_P;
@@ -480,7 +480,7 @@ function buildToolOpts() {
       break;
     case 'spark':
       h = rangeCtl('oE', 'Energy', 0, 900, o.s, fmtE(sparkE())) + radCtl(t, o.R) +
-        '<span class="help">Shared among the atoms within the radius. From a few keV an atom they fly apart as fast particles; MeV and up sets off nuclear reactions.</span>';
+        '<span class="help">Shared by the atoms in the radius. keV: they fly apart; MeV: nuclear reactions.</span>';
       break;
     case 'magnet':
       h = `<span data-g="pol">${seg('Pole', [[1, 'N ⊙'], [-1, 'S ⊗']], o.pol)}</span>` + rangeCtl('oB', 'Field', 100, 900, o.s, fmtTesla(Math.abs(magB()))) +
@@ -493,7 +493,7 @@ function buildToolOpts() {
         rangeCtl('oRate', 'Intensity', 5, 400, o.rate, o.rate + '/s') +
         `<span data-g="mount">${seg('Mode', [['false', 'While held'], ['true', 'Leave on (laser)']], String(!!o.mount))}</span>` +
         (W.lasers.length ? `<button class="opt" id="oLaserClear">Turn off ${W.lasers.length > 1 ? `all ${W.lasers.length} lasers` : 'the laser'}</button>` : '') +
-        `<span class="help">${o.mount ? 'Drag to aim; on release it stays, shining one wavelength (Erase it, or Remove beam sources). ' : ''}Light crosses the box in hundredths of a femtosecond: time slows while it is in flight, so you see it go at c, in about a second at 1× (the speed buttons and slow motion scale that too).</span>`;
+        `<span class="help">${o.mount ? 'Stays on after release (Erase removes it). ' : ''}Time slows while light is in flight, so you can see it move.</span>`;
       break;
     }
     case 'objects': {
@@ -510,11 +510,11 @@ function buildToolOpts() {
       h = radCtl(t, o.R);
       break;
     case 'inspect':
-      h = '<span class="help">Click any particle. Hovering shows a quick summary with every tool.</span>';
+      h = '<span class="help">Click any particle. Hover for a summary.</span>';
       break;
     case 'measure': {
       const m = R.measure || [];
-      h = `<span class="num">${m.length >= 2 ? measureText() : m.length ? 'now click a second particle' : 'click a particle'}</span><button class="btn small" id="oMeasClr"${m.length ? '' : ' disabled'}>Clear</button><span class="help">Two atoms: their distance. Three: the angle at the middle one, as for a bond angle. Click empty space to start again.</span>`;
+      h = `<span class="num">${m.length >= 2 ? measureText() : m.length ? 'now click a second particle' : 'click a particle'}</span><button class="btn small" id="oMeasClr"${m.length ? '' : ' disabled'}>Clear</button><span class="help">Two: distance. Three: the angle at the middle one. Click empty space to restart.</span>`;
       break;
     }
     case 'select': {
@@ -570,9 +570,9 @@ function buildToolOpts() {
 function lightSwatch(E) { const c = photonColor(E); return `rgb(${c[0]},${c[1]},${c[2]})`; }
 function fireNote(spec, KE) {
   if (spec.kind === 'gamma') return KE > 1.022e6 ? 'Can create e⁻e⁺ pairs.' : KE >= 1e5 ? 'Compton-scatters off electrons.' : 'Photon: ionizes what it can.';
-  if (spec.kind === 'n') return KE < 1 ? 'Slow (thermal) neutron: best for capture and ²³⁵U fission.' : KE > 1e6 ? 'Fast neutron: knocks nuclei, can be captured once slowed.' : 'Neutrons ignore charge; they only hit nuclei.';
-  if (spec.kind === 'nbar') return 'No charge, so it never ionizes: it flies straight on until it meets a nucleus, then annihilates (pions + γ rays, about 1.9 GeV). Free, it decays like a neutron (t½ 10 min).';
-  if (spec.kind === 'pbar' || (spec.kind === 'atom' && spec.anti)) return KE > 2e3 ? 'Fast antimatter mostly ionizes its way through; it annihilates once slowed or at the wall (pions + γ, 1.9 GeV per nucleon pair).' : 'Annihilates on touching ordinary matter: pions + γ rays, about 1.9 GeV.';
+  if (spec.kind === 'n') return KE < 1 ? 'Slow neutron: best for capture and ²³⁵U fission.' : KE > 1e6 ? 'Fast neutron: knocks nuclei; captured once slowed.' : 'No charge: it only hits nuclei.';
+  if (spec.kind === 'nbar') return 'No charge: flies straight until it hits a nucleus, then annihilates (pions + γ, 1.9 GeV).';
+  if (spec.kind === 'pbar' || (spec.kind === 'atom' && spec.anti)) return KE > 2e3 ? 'Ionizes its way in, then annihilates once slowed (pions + γ, 1.9 GeV).' : 'Annihilates on contact: pions + γ, 1.9 GeV.';
   const isLep = spec.kind === 'e' || spec.kind === 'pos';
   if (isLep) return KE > 1e3 ? 'Ionizing track through matter (Bethe stopping).' : KE > 10 ? 'Enough to ionize or excite atoms it hits.' : 'Slow: easily captured by ions.';
   if (spec.kind === 'atom' && spec.bare) return KE > 1e5 ? 'Can tunnel through Coulomb barriers (fusion).' : 'Fast ions ionize and knock atoms aside.';
@@ -1567,16 +1567,16 @@ const XP_NAME = { Mu: 'Muonium (an electron orbiting a μ⁺: a light hydrogen)'
 const XP_QUARKS = { 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄', 'Sig+': 'u u s', 'Sig-': 'd d s', Xi0: 'u s s', 'Xi-': 'd s s', 'Omg-': 's s s',
   'Sigb-': 'ū ū s̄', 'Sigb+': 'd̄ d̄ s̄', Xib0: 'ū s̄ s̄', 'Xib+': 'd̄ s̄ s̄', 'Omgb+': 's̄ s̄ s̄' };
 const XP_ABOUT = {
-  mu: 'A muon is a heavy cousin of the electron, 207 times its mass. It is a lepton, made of no smaller parts. Cosmic rays make them high in the air; they reach the ground only because time dilation stretches their 2.2 µs life.',
-  pi: 'A pion is the lightest meson: a quark bound to an antiquark by the strong force. Pions carry the force that holds protons and neutrons together in a nucleus.',
-  K: 'A kaon is a meson with a strange quark. Strangeness can only change through the weak force, which is why kaons live so long for such heavy particles.',
-  eta: 'The eta is a neutral meson; it decays almost at once, mostly to photons or pions.',
-  Lam: 'The Lambda is a baryon like a proton or neutron, but with a strange quark in place of one of the down quarks.',
-  Sig: 'A sigma is a baryon with one strange quark, like the Lambda but with its two light quarks the same way round; the charged ones live about 0.1 ns and decay to a nucleon and a pion.',
-  Xi: 'A xi (cascade) baryon has two strange quarks. It decays to a Lambda and a pion, which decays in turn: a cascade.',
-  Omg: 'The omega baryon is three strange quarks. Its prediction and discovery in 1964 confirmed the quark model.',
-  hy: 'A hypernucleus: a nucleus holding a Λ. Nothing else in the nucleus is a Λ, so the Pauli principle does not keep it out of the lowest orbit, and it sinks deep inside — it can even bind a nucleus that would not hold together without it (⁸Be, for one). It lives about as long as a free Λ.',
-  tau: 'The tau is the heaviest lepton, 3,477 times the electron’s mass, heavy enough to decay into pions.' };
+  mu: 'A heavy electron (207 times its mass). Cosmic-ray muons reach the ground only because time dilation stretches their 2.2 µs life.',
+  pi: 'The lightest meson, a quark and an antiquark; pions carry the force that binds nuclei.',
+  K: 'A meson with a strange quark; only the weak force can change strangeness, so it lives long.',
+  eta: 'A neutral meson; it decays almost at once to photons or pions.',
+  Lam: 'A baryon like a neutron, with a strange quark in place of a down quark.',
+  Sig: 'A baryon with one strange quark; the charged ones live about 0.1 ns and decay to a nucleon and a pion.',
+  Xi: 'A baryon with two strange quarks; it decays to a Λ and a pion, and the Λ decays in turn: a cascade.',
+  Omg: 'Three strange quarks; its discovery in 1964 confirmed the quark model.',
+  hy: 'A nucleus holding a Λ. Pauli exclusion does not keep it out of the lowest orbit, so it sinks deep and can bind a nucleus that would otherwise fall apart (⁸Be). It lives about as long as a free Λ.',
+  tau: 'The heaviest lepton (3,477 electron masses), heavy enough to decay into pions.' };
 function hypName(sp) { const d = XP[sp]; return `${ELEMENTS[d.Z].name}-${d.Z + d.N + 1} hypernucleus (${d.Z + d.N === 2 ? 'the hypertriton' : nucSym(d.Z, d.N) + ' with a Λ'})`; }
 function selXHead() {
   const X = R.selX; if (!X) return null;
@@ -2846,33 +2846,50 @@ function motionText() { // the motion the simulation actually gets through each 
 }
 /* ------------------------------------------------------------------ speed (simulated time per frame) */
 const SPEED_MIN = -9, SPEED_MAX = 4; // 1/512× … 16× the setup's normal speed
+/* A speed as a multiple of the setup's own (1.10: one way of writing every speed, the slowest included): 2×, 1/512×,
+   1/9,200×, 1/9.2·10¹¹× … and, beside it in the speed menu and its tooltip, the simulated time each second shows. */
+const SUPD = '⁰¹²³⁴⁵⁶⁷⁸⁹';
 function speedText(m) {
-  if (m < Math.pow(2, SPEED_MIN) * 0.99) return fmtTime(spfRate(UI.baseSpf * m)).replace(/\.0+ /, ' ').replace(/(\.\d*?)0+ /, '$1 ') + '/s'; // (below 1/512×: as time per second, 1.04)
   if (m >= 0.95) return (m >= 9.5 ? Math.round(m) : Math.round(m * 10) / 10) + '×';
   const inv = 1 / m;
-  return Math.abs(inv - Math.round(inv)) < 0.08 ? '1/' + Math.round(inv) + '×' : m.toFixed(2) + '×';
+  if (inv < 1e6) { const r = inv < 1000 && Math.abs(inv - Math.round(inv)) < 0.08 ? Math.round(inv) : +inv.toPrecision(2); return '1/' + r.toLocaleString('en-US') + '×'; }
+  const e = Math.floor(Math.log10(inv)), c = +(inv / Math.pow(10, e)).toPrecision(2);
+  return '1/' + (c === 1 ? '' : c + '·') + '10' + String(e).replace(/\d/g, (d) => SUPD[d]) + '×';
 }
+function rateText(spf) { return fmtTime(spfRate(spf)).replace(/\.0+ /, ' ').replace(/(\.\d*?)0+ /, '$1 ') + '/s'; }
+/* Every speed the buttons and the menu offer, fastest first: 16× down to 1/512× in halvings, then whole decades of
+   simulated time per second down to 1 ys a second. */
+function speedLadder() {
+  const L = [];
+  for (let k = SPEED_MAX; k >= SPEED_MIN; k--) L.push(UI.baseSpf * Math.pow(2, k));
+  const r0 = spfRate(UI.baseSpf * Math.pow(2, SPEED_MIN));
+  for (let e = Math.floor(Math.log10(r0 * 0.999)); e >= -24; e--) L.push(Math.pow(10, e) / (PHYS.TU_S * 60));
+  return L;
+}
+function setSpeed(spf) {
+  W.simPerFrame = spf; UI.ach = 1; UI.capped = false;
+  syncSpeed(); $('spdSlider').value = sFromSpd(W.simPerFrame); syncLabText();
+}
+function speedIndex(L) { let best = 0, bd = Infinity; for (let i = 0; i < L.length; i++) { const d = Math.abs(Math.log(L[i] / W.simPerFrame)); if (d < bd) { bd = d; best = i; } } return best; }
+function openSpeedMenu() {
+  const m = $('speedMenu'); if (!m.hidden) { closeSpeedMenu(); return; }
+  const L = speedLadder(), cur = speedIndex(L);
+  m.innerHTML = L.map((spf, i) => `<button class="spm-i${i === cur ? ' on' : ''}${i === SPEED_MAX - SPEED_MIN + 1 ? ' sep' : ''}" data-i="${i}" role="menuitemradio" aria-checked="${i === cur}"><span class="m">${speedText(spf / UI.baseSpf)}</span><span class="r">${rateText(spf)}</span></button>`).join('');
+  const b = $('speedBtn').getBoundingClientRect(); m.style.left = Math.round(b.left + b.width / 2) + 'px'; m.style.top = Math.round(b.bottom + 6) + 'px';
+  m.hidden = false; m.classList.remove('shut'); void m.offsetWidth; m.classList.add('open');
+  $('speedBtn').setAttribute('aria-expanded', 'true');
+  const on = m.querySelector('.on'); if (on) on.scrollIntoView({ block: 'center' });
+  m.onclick = (e) => { const it = e.target.closest('[data-i]'); if (!it) return; setSpeed(L[+it.dataset.i]); closeSpeedMenu(); };
+}
+function closeSpeedMenu() { const m = $('speedMenu'); if (m.hidden) return; m.classList.remove('open'); m.hidden = true; $('speedBtn').setAttribute('aria-expanded', 'false'); }
 /* The slowest speeds, below 1/512×: a tenth at a click, in simulated time per second, from 1 fs a second down to
    1 ys (10⁻²⁴ s) a second (1.03 in the ultra-realistic mode, 1.04 in every mode). */
 const ULTRA_SLOWEST = 1e-24; // s of simulated time per second
 const spfRate = (spf) => spf * PHYS.TU_S * 60; // s a second at 60 fps
 function ultraSlow() { return deepSlow(); } // (in every mode since 1.04)
-function stepSpeed(dir) {
-  const k0 = Math.round(Math.log2(W.simPerFrame / UI.baseSpf));
-  if (ultraSlow() || (dir < 0 && k0 <= SPEED_MIN)) {
-    const rate = spfRate(W.simPerFrame), dec = Math.pow(10, Math.round(Math.log10(rate)) === Math.log10(rate) ? Math.log10(rate) : Math.floor(Math.log10(rate)));
-    let r = dir < 0 ? (ultraSlow() ? rate / 10 : dec) : rate * 10;
-    r = Math.max(ULTRA_SLOWEST, Math.pow(10, Math.round(Math.log10(r)))); // (whole decades: 1 as/s, 100 zs/s …)
-    if (dir > 0 && r >= spfRate(UI.baseSpf * Math.pow(2, SPEED_MIN)) * 0.99) W.simPerFrame = UI.baseSpf * Math.pow(2, SPEED_MIN);
-    else W.simPerFrame = r / (PHYS.TU_S * 60);
-    UI.ach = 1; UI.capped = false; syncSpeed(); $('spdSlider').value = sFromSpd(W.simPerFrame); syncLabText();
-    return;
-  }
-  const k = clamp(k0 + dir, SPEED_MIN, SPEED_MAX);
-  W.simPerFrame = UI.baseSpf * Math.pow(2, k);
-  UI.ach = 1; UI.capped = false;
-  syncSpeed();
-  $('spdSlider').value = sFromSpd(W.simPerFrame); syncLabText();
+function stepSpeed(dir) { // (the − and + buttons, [ and ]: the next speed down or up the ladder the menu lists)
+  const L = speedLadder(), i = clamp(speedIndex(L) - dir, 0, L.length - 1);
+  setSpeed(L[i]);
 }
 function syncSpeed() {
   const m = W.simPerFrame / UI.baseSpf, v = $('speedVal');
@@ -2883,7 +2900,8 @@ function syncSpeed() {
   const k = Math.round(Math.log2(m));
   $('bSlower').disabled = spfRate(W.simPerFrame) <= ULTRA_SLOWEST * 1.01; $('bFaster').disabled = k >= SPEED_MAX;
   const rate = W.simPerFrame * PHYS.TU_S * 60 * Math.min(1, UI.ach || 1);
-  v.parentElement.title = `About ${fmtTime(rate)} of motion per second` + (UI.capped ? ' (as fast as this computer can go with this many particles: fewer of them, or more physics time per frame in Settings, make it faster)' : '') + (W.warp > 1.0001 ? `; radioactive decay sped up ${fmtFactor(W.warp)}` : '');
+  { const rv = $('speedRate'); if (rv) rv.textContent = rateText(W.simPerFrame * Math.min(1, UI.ach || 1)); }
+  v.parentElement.title = `About ${fmtTime(rate)} of motion per second (click for every speed)` + (UI.capped ? ' (as fast as this computer can go with this many particles: fewer of them, or more physics time per frame in Settings, make it faster)' : '') + (W.warp > 1.0001 ? `; radioactive decay sped up ${fmtFactor(W.warp)}` : '');
 }
 
 /* ------------------------------------------------------------------ particle accelerators */
@@ -4703,10 +4721,10 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
+const SET_OK = { rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -4732,8 +4750,44 @@ function ultraApply() {
   if (typeof syncSpeed === 'function' && $('speedVal')) syncSpeed();
   $('ultraBadge').hidden = !on;
 }
+/* Interface motion (1.10; the styles in shell.html): a pill under the chosen button of each segmented control and tab
+   row slides to the new choice, and each slider's track fills to its thumb. Kept in step by watching aria-pressed and
+   aria-selected, and every 0.4 s for controls just shown or set from code. */
+const MO = { on: false, timer: 0, obs: null, raf: 0 };
+function motionSync() {
+  MO.raf = 0;
+  if (!MO.on) return;
+  for (const c of document.querySelectorAll('.seg, .tabs, .stabs')) {
+    if (!c.offsetParent) continue;
+    let pill = c.querySelector(':scope > .mo-pill');
+    if (!pill) { pill = document.createElement('span'); pill.className = 'mo-pill'; c.prepend(pill); }
+    const sel = c.querySelector(':scope > [aria-pressed="true"], :scope > [aria-selected="true"]');
+    if (!sel || !sel.offsetWidth) { pill.style.opacity = '0'; continue; }
+    const first = !pill.dataset.ok; if (first) pill.style.transition = 'none';
+    pill.style.left = sel.offsetLeft + 'px'; pill.style.top = sel.offsetTop + 'px'; pill.style.width = sel.offsetWidth + 'px'; pill.style.height = sel.offsetHeight + 'px'; pill.style.opacity = '1';
+    if (first) { pill.dataset.ok = '1'; void pill.offsetWidth; pill.style.transition = ''; }
+  }
+  for (const r of document.querySelectorAll('input[type=range]')) if (r.offsetParent) moFill(r);
+}
+function moFill(r) { const lo = +r.min || 0, hi = r.max === '' ? 100 : +r.max, v = +r.value; r.style.setProperty('--fill', (hi > lo ? 100 * (v - lo) / (hi - lo) : 0) + '%'); }
+function motionQueue() { if (!MO.raf) MO.raf = requestAnimationFrame(motionSync); }
+function motionApply() {
+  let reduce = false; try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* (no media queries) */ }
+  MO.on = !!SET.motion && !reduce;
+  document.body.classList.toggle('mo', MO.on); document.body.classList.toggle('nomo', !MO.on);
+  if (MO.on && !MO.obs && typeof MutationObserver !== 'undefined') {
+    MO.obs = new MutationObserver(motionQueue);
+    MO.obs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['aria-pressed', 'aria-selected', 'hidden'] });
+    document.addEventListener('input', (e) => { if (MO.on && e.target && e.target.type === 'range') moFill(e.target); }, true);
+    window.addEventListener('resize', motionQueue);
+    MO.timer = setInterval(motionQueue, 400);
+  }
+  if (MO.on) motionQueue();
+  else for (const p of document.querySelectorAll('.mo-pill')) p.remove();
+}
 function applySettings() {
   setMaxParts(SET.maxParts);
+  if (document.body) motionApply();
   DT_MAX = SET.dtMax; RES_BIG = !!SET.resBig; INC_ON = !!SET.inc; // (Experimental: the longest step; resonance in large ring systems)
   ultraApply();
   if (MAX_PARTS < 8000 && OPT.place.count > 20) OPT.place.count = 20; // (100 at a click only with room for them)
@@ -4747,6 +4801,7 @@ function applySettings() {
   if (!SET.tips) $('hint').hidden = true;
   $('fpsBadge').hidden = !SET.fps;
   threadsSet(SET.threads === 'auto' ? threadsDefault() : +SET.threads - 1); // (workers besides the main thread)
+  setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
   if (R.cvd !== SET.cvd) { R.cvd = SET.cvd; elColorsReset(); }
   const rs = document.documentElement.style; rs.setProperty('--ui', String(SET.ui)); rs.setProperty('--pw', clamp(Math.round(SET.pw) || 356, 280, 760) + 'px');
@@ -4865,41 +4920,77 @@ function syncSettings() {
   $('setRew').checked = SET.rewOn; setSegValue('segRewSpan', SET.rewSpan); setSegValue('segRewEvery', SET.rewEvery); setSegValue('segRewMem', SET.rewMem); $('setRewNote').textContent = rewNote();
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
-  $('setFx').checked = SET.effects; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
-  setSegValue('segDtMax', SET.dtMax); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
+  $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
+  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
   settingsStats();
 }
-/* Cost tags (1.07): beside each setting that changes how fast the game runs, what the current choice costs, coloured
-   from green (little or nothing) to red (a lot); blue where a choice makes it faster. Measured costs are from
-   tools/accbench (PERF-NOTES); the others say how the work grows. [level 0–4 or 'f', text, explanation] */
+/* Cost tags (1.07; predictive since 1.10): what each choice would cost, before it is chosen. Every setting that changes
+   how fast the game runs names what it costs in a grey tag (physics, drawing or memory); each choice of a row of
+   buttons carries its own tag, and a checkbox the cost of turning it on. One wording throughout: ×N is the time against
+   the usual choice (×1), from the measurements (tools/accbench, PERF-NOTES); "up to" where it depends on how full the
+   box is; slight / some / heavy where it was not measured; less (blue) where a choice saves work. Coloured from green
+   (little or nothing) to red (a lot). Each entry: { k: what it costs, o: { choice: [amount, explanation] } } for a row
+   of buttons, { k, on: [amount, explanation] } for a checkbox. */
+const COST_WORD = { less: 'f', slight: 1, some: 2, heavy: 3 };
+function costLevel(a) {
+  if (a in COST_WORD) return COST_WORD[a];
+  const m = String(a).match(/×\s*([0-9.]+)(?:\s*–\s*([0-9.]+))?/); if (!m) return 1;
+  const v = +(m[2] || m[1]);
+  return v < 0.999 ? 'f' : v <= 1.001 ? (/\+/.test(a) ? 1 : 0) : v <= 1.15 ? 1 : v <= 2 ? 2 : v <= 3.5 ? 3 : 4;
+}
+const COST_K = { physics: 'Time to work out the physics', drawing: 'Time to draw each frame', memory: 'Memory it takes' };
+function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toFixed(1) : +v.toFixed(2)); }
 const COSTS = {
-  segDtMax: () => ({ 0.04: [0, 'normal', 'The usual longest step'], 0.02: [2, '×1.7', 'Measured ×1.6–1.8 where steps are at their longest'], 0.01: [3, '×2.8', 'Measured ×2.6–2.9 where steps are at their longest'] })[SET.dtMax],
-  setResBig: () => SET.resBig ? [1, 'on change', 'Nothing while bonds stay put; 12 ms (200 ring atoms) to 0.2 s (1,000) when a large ring system reacts'] : [0, 'off', ''],
-  setInc: () => SET.inc ? [1, 'per hit ×3', 'About 3 ms a nuclear hit instead of 1: a few percent in the nuclear setups, nothing elsewhere'] : [0, 'off', ''],
-  segMax: () => ({ 2000: [0, 'up to ×0.5', ''], 4000: [0, 'up to ×1', ''], 8000: [2, 'up to ×2', ''], 12000: [2, 'up to ×3', ''], 20000: [3, 'up to ×5', ''] })[SET.maxParts].map((v, i) => i === 2 ? 'The limit itself costs nothing; a box filled to it takes about this long, against 4,000 particles' : v),
-  segRes: () => ({ sharp: [2, '×2 pixels', 'Drawn at full screen resolution: about twice the pixels of Standard'], standard: [1, '×1', ''], fast: [0, '×0.56', 'Three quarters resolution: about half the pixels'] })[SET.res],
-  segBudget: () => ({ 6: [0, 'smooth', 'Least physics a frame: the smoothest frames, slower simulation'], 10: [1, 'balanced', 'The usual share of each frame for physics'], 16: [2, 'frames', 'More physics a frame: faster simulation, fewer frames a second when busy'], 24: [3, 'frames', 'The most physics a frame: the frame rate drops most when busy'] })[SET.budget],
-  segThreads: () => SET.threads === '1' ? [3, '1 thread', 'One processor thread: the slowest for crowded boxes'] : SET.threads === 'auto' ? ['f', 'auto', ''] : ['f', SET.threads + ' threads', 'More threads share the forces of a crowded box'],
-  segGl: () => SET.gl === '2d' ? [3, 'slower', 'Canvas 2D draws every atom on the processor: much slower drawing for thousands of atoms'] : ['f', 'GPU', ''],
-  segFpsCap: () => +SET.fpsCap === 0 ? [2, 'every refresh', 'Drawn as often as the monitor refreshes: the most drawing'] : +SET.fpsCap <= 60 ? [0, SET.fpsCap + ' fps', 'Fewer frames leave more time for physics'] : [1, SET.fpsCap + ' fps', ''],
-  segLabels: () => R.view.labels && SET.labels !== 'hover' ? [1, 'a little', 'A label on every atom: a little drawing in a crowded view'] : [0, 'least', ''],
-  setFx: () => SET.effects ? [1, 'a little', 'Glows, halos and flashes: a little drawing'] : [0, 'off', ''],
-  segTrail: () => ({ 0.5: [0, 'least', 'The shortest trails: the least drawing'], 1.5: [1, 'a little', 'Longer trails: more drawing with many fast particles'], 4: [2, 'more', 'The longest trails: the most drawing with many fast particles'] })[SET.trail],
-  setRew: () => SET.rewOn ? [+SET.rewEvery <= 0.25 ? 2 : 1, 'memory', 'A snapshot of the box every ' + SET.rewEvery + ' s: copying time and memory'] : [0, 'off', ''],
-  setUltra: () => [0, 'free', 'True sizes and rates cost nothing'],
+  segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×1.3–2.6', 'Measured: brine ×1.3, liquid water ×2.2, 4,000 waters ×2.6 (JavaScript kernels)'], 12: ['×1.6–5.6', 'Measured: brine ×1.6, liquid water ×3.2, 4,000 waters ×5.6 (JavaScript kernels)'] } }),
+  segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×1.7', 'Measured ×1.6–1.8 where steps are at their longest; nothing where they are already short'], 0.01: ['×2.8', 'Measured ×2.6–2.9 where steps are at their longest; nothing where they are already short'] } }),
+  setResBig: () => ({ k: 'physics', on: ['×1 + pauses', 'Nothing while bonds stay put; a pause of 12 ms (200 ring atoms) to 0.2 s (1,000) when a large ring system reacts'] }),
+  setInc: () => ({ k: 'physics', on: ['×1–1.05', 'About 3 ms a nuclear hit instead of 1: a few percent in the nuclear setups, nothing elsewhere'] }),
+  setUltra: () => ({ k: 'physics', on: ['×1', 'True sizes and rates cost nothing'] }),
+  segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
+  segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
+    const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
+    return { k: 'drawing', o: { sharp: ['×1', 'Full screen resolution'], standard: [costX(px(1)), d > 1 ? 'One drawn pixel per screen point: ' + Math.round(100 * px(1)) + '% of the pixels on this screen' : 'The same pixels as Sharp on this screen'], fast: [costX(px(0.75)), 'Three quarters resolution: ' + Math.round(100 * px(0.75)) + '% of the pixels'] } };
+  },
+  segBudget: () => ({ k: 'physics', o: { 6: ['×0.6', 'Least physics a frame: the smoothest frames, slower simulation'], 10: ['×1', 'The usual share of each frame'], 16: ['×1.6', 'More physics a frame: faster simulation, fewer frames a second when busy'], 24: ['×2.4', 'The most physics a frame: fastest simulation, fewest frames a second when busy'] }, t: 'Physics time each frame may take' }),
+  segThreads: () => {
+    const auto = threadsAvailable() ? threadsDefault() + 1 : 1, o = { auto: ['×1', auto > 1 ? auto + ' threads on this computer' : 'One thread: this page cannot share work between threads here'] };
+    for (const n of [1, 2, 4, 8, 16]) o[n] = n >= auto ? ['×1', n > auto ? 'More threads than this computer has gain nothing' : 'What Auto chooses here'] : ['up to ' + costX(auto / n), 'In a crowded box (small boxes run on one thread anyway)'];
+    return { k: 'physics', o };
+  },
+  segGl: () => ({ k: 'drawing', o: { gl: ['×1', 'Atoms and bonds drawn by the graphics card'], '2d': ['heavy', 'Canvas 2D draws every atom on the processor: much slower for thousands of atoms'] } }),
+  segFpsCap: () => {
+    const hz = UI.hz || 60, o = { 0: ['×1', 'As often as the monitor refreshes (' + Math.round(hz) + ' Hz measured)'] };
+    for (const c of [30, 60, 120, 144]) o[c] = [costX(Math.min(c, hz) / hz), c >= hz ? 'At or above the monitor\'s rate: the same frames' : 'Fewer frames leave more time for physics'];
+    return { k: 'drawing', o };
+  },
+  segLabels: () => ({ k: 'drawing', o: { always: ['×1', 'A label on every atom: a little drawing in a crowded view'], hover: ['less', 'One or two labels'], never: ['less', 'No labels'] } }),
+  setFx: () => ({ k: 'drawing', on: ['slight', 'Glows, halos and flashes'] }),
+  segTrail: () => ({ k: 'drawing', o: { 0.5: ['×1', 'The shortest trails'], 1.5: ['slight', 'Three times as much trail: more drawing with many fast particles'], 4: ['some', 'Eight times as much trail: the most drawing with many fast particles'] } }),
+  setRew: () => ({ k: 'memory', on: ['up to ' + SET.rewMem + ' MB', 'A snapshot of the box every ' + SET.rewEvery + ' s, kept for ' + SET.rewSpan + ' s, at most ' + SET.rewMem + ' MB; copying it takes a little time'] }),
 };
+function costTag(el, cls, text, tip) {
+  let t = el.querySelector(':scope > .' + cls.split(' ')[0]);
+  if (!text) { if (t) t.remove(); return; }
+  if (!t) { t = document.createElement(el.tagName === 'BUTTON' ? 'small' : 'span'); el.appendChild(t); }
+  t.className = cls; t.textContent = text; t.title = tip || '';
+}
 function syncCosts() {
   for (const id in COSTS) {
     const el = $(id); if (!el) continue;
     const row = el.closest('.srow') ? el.closest('.srow').firstElementChild : el.closest('label');
     if (!row) continue;
-    let tag = row.querySelector(':scope > .cost'); const c = COSTS[id]();
-    if (!c || c[1] === '') { if (tag) tag.remove(); continue; }
-    if (!tag) { tag = document.createElement('span'); row.appendChild(tag); }
-    tag.className = 'cost c' + c[0]; tag.textContent = c[1]; tag.title = c[2] || '';
+    const c = COSTS[id]();
+    costTag(row, 'cost-k', c.k, (COST_K[c.k] || '') + (c.t ? ': ' + c.t : ''));
+    if (c.o) for (const b of el.querySelectorAll('button')) { const a = c.o[b.dataset.v]; costTag(b, 'oc c' + (a ? costLevel(a[0]) : 0), a ? a[0] : '', a ? a[1] : ''); }
+    else { costTag(row, 'cost c' + costLevel(c.on[0]), 'on ' + c.on[0], 'Turned on: ' + c.on[1]); row.querySelector(':scope > .cost').classList.toggle('dim', !el.checked); }
+  }
+  if (!UI.hz && !UI.hzBusy && typeof requestAnimationFrame === 'function') { // (the monitor's rate, for the frame-rate cap: the median of 20 frames)
+    UI.hzBusy = true; const ts = [];
+    const tick = (t) => { ts.push(t); if (ts.length < 21) requestAnimationFrame(tick); else { const d = ts.slice(1).map((x, k) => x - ts[k]).sort((a, b) => a - b)[10]; UI.hz = d > 2 ? 1000 / d : 60; UI.hzBusy = false; syncCosts(); } };
+    requestAnimationFrame(tick);
   }
 }
 function settingsStats() {
@@ -4935,7 +5026,7 @@ function settingsInit() {
   bindSeg('segGl', (v) => setSetting('gl', v));
   bindSeg('segSpec', (v) => { _specView = v; drawSpec(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
-  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
+  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
@@ -4973,6 +5064,7 @@ function settingsInit() {
   $('setTips').onchange = (e) => setSetting('tips', e.target.checked);
   $('setFps').onchange = (e) => setSetting('fps', e.target.checked);
   $('setUltra').onchange = (e) => setSetting('ultra', e.target.checked);
+  $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');
   const apiChanged = () => { const k = keyIn.value.trim(), m = modelIn.value.trim(); if (k === (SET.apiKey || '') && m === (SET.apiModel || '')) return; SET.apiKey = k; SET.apiModel = m; store('settings', JSON.stringify(SET)); aiInit(); syncSettings(); log('tool', k ? 'Claude API key set: Ask Claude and Identify molecules can ask Claude here' : 'Claude API key removed'); };
@@ -5152,17 +5244,17 @@ function qmGlobal(px, py, wx, wy) {
    same (Escape or a click elsewhere closes it). */
 const SPEC_ABOUT = {
   e: ['−1 e', '0.511 MeV/c² (1/1836 of a proton)', 'stable', 'Around every nucleus in ordinary matter; free in plasmas, flames and metals, and as β⁻ rays and cathode rays.'],
-  pos: ['+1 e', '0.511 MeV/c²', 'stable, until it meets an electron: they annihilate, usually into two 511 keV γ rays', 'β⁺ decay (the tracer of a PET scan), pair production by γ rays above 1.02 MeV, cosmic rays.'],
-  n: ['0', '939.57 MeV/c² (1.00866 u)', 'mean life 879 s when free (β⁻ decay into a proton, an electron and an antineutrino); stable in most nuclei', 'In every nucleus but ordinary hydrogen; freed by fission, fusion and spallation.'],
-  gamma: ['0', 'none: it always moves at the speed of light', 'stable', 'Light, X-rays and γ rays: from atoms and molecules changing state, hot matter, nuclei settling after a decay or reaction, annihilation. Pick its energy in the tool options.'],
-  pbar: ['−1 e', '938.27 MeV/c²', 'stable, until it meets matter: it annihilates with a nucleon, usually into about five pions', 'Made in accelerators (CERN’s Antiproton Decelerator); a few in cosmic rays.'],
+  pos: ['+1 e', '0.511 MeV/c²', 'stable until it meets an electron (two 511 keV γ rays)', 'β⁺ decay (PET scans), pair production, cosmic rays.'],
+  n: ['0', '939.57 MeV/c² (1.00866 u)', 'mean life 879 s when free (β⁻ decay); stable in most nuclei', 'Every nucleus but ordinary hydrogen; freed by fission, fusion and spallation.'],
+  gamma: ['0', 'none: it always moves at the speed of light', 'stable', 'From atoms changing state, hot matter, excited nuclei and annihilation. Set its energy in the tool options.'],
+  pbar: ['−1 e', '938.27 MeV/c²', 'stable until it meets matter (annihilates into about five pions)', 'Made in accelerators (CERN’s Antiproton Decelerator); a few in cosmic rays.'],
   nbar: ['0', '939.57 MeV/c²', 'as the neutron; annihilates with a nucleon into pions', 'Made in high-energy collisions.'],
-  nu: ['0', 'less than 0.8 eV/c²', 'stable', 'Every β decay and the Sun’s fusion make them; almost all pass through the Earth untouched.'],
+  nu: ['0', 'less than 0.8 eV/c²', 'stable', 'β decay and the Sun’s fusion; almost all pass through the Earth.'],
 };
-const EXO_FOUND = { 'mu-': 'Cosmic-ray showers (about one a second through your hand at sea level); pion decays.', 'mu+': 'Cosmic-ray showers; π⁺ decays.', Mu: 'Made when a slow μ⁺ picks up an electron.',
-  'pi+': 'High-energy collisions and cosmic rays; the lightest hadrons, exchanged between nucleons they carry the force that holds nuclei together.', 'pi-': 'High-energy collisions and cosmic rays.', pi0: 'High-energy collisions; it decays almost at once into two γ rays.',
-  'K+': 'Collisions above about 1 GeV, cosmic rays; the lightest particles with a strange quark.', 'K-': 'Collisions above about 1 GeV.', K0S: 'Collisions above about 1 GeV.', K0L: 'Collisions above about 1 GeV.',
-  Lam: 'Collisions above about 1.6 GeV; with a nucleus it makes a hypernucleus.', 'tau-': 'e⁺e⁻ collisions above 3.6 GeV.', 'tau+': 'e⁺e⁻ collisions above 3.6 GeV.' };
+const EXO_FOUND = { 'mu-': 'Cosmic-ray showers (about one a second through your hand); pion decays.', 'mu+': 'Cosmic-ray showers; π⁺ decays.', Mu: 'Made when a slow μ⁺ picks up an electron.',
+  'pi+': 'High-energy collisions and cosmic rays.', 'pi-': 'High-energy collisions and cosmic rays.', pi0: 'High-energy collisions; decays at once into two γ rays.',
+  'K+': 'Collisions above about 1 GeV, cosmic rays.', 'K-': 'Collisions above about 1 GeV.', K0S: 'Collisions above about 1 GeV.', K0L: 'Collisions above about 1 GeV.',
+  Lam: 'Collisions above about 1.6 GeV; in a nucleus, a hypernucleus.', 'tau-': 'e⁺e⁻ collisions above 3.6 GeV.', 'tau+': 'e⁺e⁻ collisions above 3.6 GeV.' };
 const DEC_LAB = { g: 'γ', 'e-': 'e⁻', 'e+': 'e⁺', nu: 'νₑ', nub: 'ν̄ₑ', numu: 'νμ', numub: 'ν̄μ', nutau: 'ντ', nutaub: 'ν̄τ', p: 'p', n: 'n', pbar: 'p̄', nbar: 'n̄', d: 'd', t: 't', a: 'α' };
 const CAT_NAME = { nm: 'a nonmetal', ng: 'a noble gas', am: 'an alkali metal', ae: 'an alkaline earth metal', tm: 'a transition metal', pt: 'a post-transition metal', ml: 'a metalloid', hl: 'a halogen', ln: 'a lanthanide', an: 'an actinide' };
 function quarkText(con) { return [...con].map(c => c === c.toUpperCase() ? Q_BAR[c.toLowerCase()] : Q_SYM[c]).join(' '); }
@@ -5308,6 +5400,9 @@ function init() {
   $('bStep').onclick = () => { if (UI.running) setRunning(false); UI.stepOnce = true; };
   $('bReset').onclick = () => loadPreset(UI.preset);
   $('bSlower').onclick = () => stepSpeed(-1);
+  $('speedBtn').onclick = (e) => { e.stopPropagation(); openSpeedMenu(); };
+  document.addEventListener('pointerdown', (e) => { if (!$('speedMenu').hidden && !e.target.closest('#speedMenu, #speedBtn')) closeSpeedMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('speedMenu').hidden) { closeSpeedMenu(); e.stopPropagation(); } }, true);
   $('bFaster').onclick = () => stepSpeed(1);
   $('bSlowmo').onclick = () => toggleSlowmo();
   const newBeams = (a, b, E, E2) => {

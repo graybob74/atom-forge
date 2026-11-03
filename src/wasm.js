@@ -85,7 +85,8 @@ function wasmInstantiate() {
     const ex = WK.ex = WK.inst.exports;
     if (typeof ex.af_forces !== 'function' || typeof ex.af_const !== 'function' || typeof ex.af_zero !== 'function' || typeof ex.af_sum !== 'function') throw new Error('exports missing');
     if (ex.__heap_base && ex.__heap_base.value > WK.ARENA0) throw new Error('the module\'s static data reaches ' + ex.__heap_base.value + ', above the arena');
-    const want = [PHYS.KE, RC2, FCAP, CORE_RMIN, BARE_SMEAR, R_ANN, ANGLE_K, 40];
+    const want = [PHYS.KE, 36, FCAP, CORE_RMIN, BARE_SMEAR, R_ANN, ANGLE_K, 40];
+    // (36: the kernel's 6 Å cutoff, squared; a longer reach chosen in Experimental runs the JavaScript instead, setCutoff)
     for (let k = 0; k < want.length; k++) if (ex.af_const(k) !== want[k]) throw new Error('constant ' + k + ' differs: ' + ex.af_const(k) + ' vs ' + want[k]);
     WK.desc = wasmArray(Int32Array, 64); WK.ks = wasmArray(Float64Array, 8); WK.sumTab = wasmArray(Uint32Array, 64);
     WK.ready = true; WK.note = 'ready';

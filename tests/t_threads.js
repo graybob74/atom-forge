@@ -128,6 +128,21 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   check(r.evSame, 'two threads vs one: the same events queued, in the same order');
   check(Math.abs(r.drift) < 3, 'energy conserved over 40 steps on two threads (eV)', r.drift);
   say(`force pass: ${r.ms1.toFixed(2)} ms on one thread, ${r.ms2.toFixed(2)} ms on two`);
+  // 1.10: a longer force reach (Experimental): the workers are started again with the new cutoff, on the JavaScript kernels
+  // (the WebAssembly one has 6 Å built in); two threads give the one-thread forces, and the pairs reach 9 Å
+  await page.evaluate(() => { setSetting('rc', 9); });
+  await page.waitForFunction(() => { forcesNoEvents(); return TH.state === 'on' && TH.used === 2; }, null, { timeout: 15000 }).catch(() => {});
+  const rc = await page.evaluate(() => {
+    const n = S.hi, copy = () => [Float64Array.from(S.fx.subarray(0, n)), Float64Array.from(S.fy.subarray(0, n))];
+    computeForces(); const F2 = copy(); W.evq.length = 0; const used = TH.used;
+    const minPairs = TH.minPairs; TH.minPairs = 1e9; computeForces(); const F1 = copy(); W.evq.length = 0; TH.minPairs = minPairs;
+    let m = 0, scale = 0; for (let i = 0; i < n; i++) { m = Math.max(m, Math.abs(F2[0][i] - F1[0][i]), Math.abs(F2[1][i] - F1[1][i])); scale = Math.max(scale, Math.abs(F1[0][i])); }
+    let far = 0; for (let k = 0; k < VL.np; k++) { const i = VL.pi[k], j = VL.pj[k], dx = S.x[j] - S.x[i], dy = S.y[j] - S.y[i]; if (dx * dx + dy * dy > 64) far++; }
+    const out = { rc: RC, used, wasm: wasmReady(), workersWasm: TH.wasmOn.some(Boolean), m, scale, far };
+    setSetting('rc', 6); out.back = RC; out.wasmBack = wasmReady(); return out;
+  });
+  check(rc.rc === 9 && rc.used === 2 && !rc.wasm && !rc.workersWasm && rc.m <= 1e-9 * Math.max(1, rc.scale) && rc.far > 0 && rc.back === 6 && rc.wasmBack,
+    `force reach 9 Å: two threads (JavaScript) vs one, forces equal to rounding; ${rc.far} pairs beyond 8 Å; back to 6 Å on WebAssembly`, rc);
   // the Settings benchmark runs through its three worlds and reports
   await page.evaluate(() => { openSettings(); benchStart(); });
   await page.waitForFunction(() => !BENCH.busy, null, { timeout: 120000 }).catch(() => {});

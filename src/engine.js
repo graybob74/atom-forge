@@ -6,7 +6,7 @@
    ========================================================================== */
 
 const NUC = 0, ELEC = 1, POS = 2;          // particle kinds (NUC covers nuclei, atoms, ions, neutrons)
-const RC = 6, RC2 = RC * RC;               // short-range cutoff (Å)
+let RC = 6, RC2 = RC * RC;                 // short-range cutoff (Å); Settings → Experimental → Longer force reach sets 9 or 12 (setCutoff)
 // Electron–ion Coulomb softening (Å²): a core of about one Bohr radius, as in the Kelbg/Deutsch
 // quantum-statistical potentials of plasma physics, keeps classical electrons from falling below the
 // ground-state energy scale.
@@ -1203,9 +1203,21 @@ function gridWalk(x0, y0, x1, y1, cb) {
    RC now. The list stays exact while no particle has moved more than SKIN/2 from where it was when the list was built
    (then two particles can have closed in by at most SKIN), and is rebuilt when one has, when the set of MD particles
    has changed (anything born, dead or switched between MD and flight) or when the box has changed. */
-const SKIN = 1.0, RL = RC + SKIN, RL2 = RL * RL, HSKIN2 = 0.25 * SKIN * SKIN;
-const SKIN_F = 2.0, RLF2 = (RC + SKIN_F) * (RC + SKIN_F), HSKINF2 = 0.25 * SKIN_F * SKIN_F;
-const CELL_MIN = RC + Math.max(SKIN, SKIN_F); // (cells at least as wide as either list reaches: a 3 × 3 block of cells holds every partner)
+const SKIN = 1.0, HSKIN2 = 0.25 * SKIN * SKIN, SKIN_F = 2.0, HSKINF2 = 0.25 * SKIN_F * SKIN_F;
+let RL = RC + SKIN, RL2 = RL * RL, RLF2 = (RC + SKIN_F) * (RC + SKIN_F);
+let CELL_MIN = RC + Math.max(SKIN, SKIN_F); // (cells at least as wide as either list reaches: a 3 × 3 block of cells holds every partner)
+/* The cutoff (1.10, Settings → Experimental → Longer force reach): 6 Å, or 9 or 12. Everything that reaches RC follows
+   it; the WebAssembly kernel has 6 Å built in, so a longer reach runs the JavaScript kernels, and the workers are
+   started again (their source carries RC2). The potential energy changes with the reach: set it between steps. */
+function setCutoff(rc) {
+  rc = rc === 9 || rc === 12 ? rc : 6;
+  if (typeof WK !== 'undefined') WK.use = rc === 6; // (wasmReady() also needs WK.ready: a kernel that failed stays off)
+  if (rc === RC) return false;
+  RC = rc; RC2 = rc * rc; RL = RC + SKIN; RL2 = RL * RL; RLF2 = (RC + SKIN_F) * (RC + SKIN_F); CELL_MIN = RC + Math.max(SKIN, SKIN_F);
+  _mdGen++; VL.valid = false; FL.gen = -1; // (the neighbour lists are rebuilt at the new reach)
+  if (typeof TH !== 'undefined' && TH.n) { const n = TH.n; threadsSet(0); threadsSet(n); }
+  return true;
+}
 const VL = { gen: -1, bx: new Float64Array(16), by: new Float64Array(16), inI: new Int32Array(16), nIn: 0, np: 0, pi: shArray(Int32Array, 4096), pj: shArray(Int32Array, 4096),
   ex: shArray(Uint8Array, 4096), exTopo: -1, exDirty: -1, w: 0, h: 0, wall: '', valid: false, builds: 0, checks: 0 };
 function vlValid(pre) { // pre ≥ 0: the threaded integrator's largest squared move of the list's atoms, just now (no wrapping)

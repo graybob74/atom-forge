@@ -291,15 +291,15 @@ function objText(ob) {
 
 /* ---- for the Objects tool (ui.js) */
 const OBJ_HELP = {
-  mirror: 'Reflects light (not X-rays or γ rays). Atoms bounce off it; fast particles stop in it.',
-  splitter: 'A half-silvered mirror: each photon is reflected or goes through, at random, half and half.',
-  lens: 'A thin glass lens: light through it is bent toward (positive focal length) or away from its focus. Glass takes the ultraviolet below 300 nm.',
-  prism: 'Flint glass: it bends violet more than red, so white light fans out into colours. Light must meet it at a slant (a click places one turned for light from the left).',
-  screen: 'A detector: it stops light and fast particles and counts them, with their energy spectrum drawn along it.',
-  stop: 'A beam stop: it stops light and fast particles (antimatter annihilates in it). Atoms bounce off.',
-  wall: 'A solid wall: atoms, electrons and fast particles bounce off it; light is absorbed.',
-  foil: 'A thin metal foil: fast charged particles go through, most nearly straight, a few turned sharply by a nucleus (Rutherford). Slow ones stop in it.',
-  plates: 'Two charged plates: a uniform electric field between them steers charged particles (energy from the supply, as with the Lab field). The second plate is drawn to the left of your drag.',
+  mirror: 'Reflects light (not X- or γ rays). Atoms bounce off; fast particles stop.',
+  splitter: 'Half-silvered: each photon reflects or passes, 50/50.',
+  lens: 'Bends light toward (+) or away from (−) its focus. Absorbs ultraviolet below 300 nm.',
+  prism: 'Bends violet more than red: white light fans into colours. Light must meet it at a slant.',
+  screen: 'Stops and counts light and fast particles, with their spectrum.',
+  stop: 'Stops light and fast particles (antimatter annihilates). Atoms bounce off.',
+  wall: 'Atoms, electrons and fast particles bounce off; light is absorbed.',
+  foil: 'Fast charges pass, a few deflected sharply by nuclei (Rutherford); slow ones stop.',
+  plates: 'A uniform field between them steers charges. The second plate is left of your drag.',
 };
 function objV() { return Math.pow(10, (OPT.objects.Vs || 0) / 100); }
 function objVText(V) { const a = Math.abs(V); return a >= 1000 ? `${+(a / 1000).toPrecision(3)} kV` : `${+a.toPrecision(3)} V`; }

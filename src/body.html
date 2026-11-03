@@ -11,7 +11,7 @@
       <button class="ibtn" id="bReset" title="Reload this setup (R)" aria-label="Reload setup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="speed" role="group" aria-label="Simulation speed">
         <button class="ibtn" id="bSlower" title="Slow down ([)" aria-label="Slow down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
-        <span class="speed-v"><span class="k">Speed</span><span class="v" id="speedVal">1×</span></span>
+        <button class="speed-v" id="speedBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Speed: choose from a list"><span class="k">Speed</span><span class="v" id="speedVal">1×</span><span class="rt" id="speedRate"></span></button>
         <button class="ibtn" id="bFaster" title="Speed up (])" aria-label="Speed up"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12M12 6v12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
         <button class="ibtn" id="bSlowmo" title="Slow motion: time slows until the fastest particle takes about a second to cross the box (\)" aria-label="Slow motion" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h10M7 20.5h10M8 3.5c0 4.5 8 5 8 8.5s-8 4-8 8.5M16 3.5c0 4.5-8 5-8 8.5s8 4 8 8.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M10 18.5h4l-2-2.6z" fill="currentColor"/></svg></button>
       </div>
@@ -157,7 +157,7 @@
             <button data-v="0">→</button><button data-v="90">↑</button><button data-v="180">←</button><button data-v="270">↓</button>
           </div>
           <div class="row"><span id="magCount">No magnets placed</span><button class="btn small" id="bMagClear">Remove magnets</button></div>
-          <p class="note">B points out of the screen (⊙) when positive. Charges curve; matter is pulled by field gradients according to its magnetism.</p>
+          <p class="note">Positive B points out of the screen (⊙). Charges curve; magnetic matter is pulled by gradients.</p>
         </section>
 
         <section class="group">
@@ -174,7 +174,7 @@
           </div>
           <div class="row"><span>Box size</span><span class="val"><span id="boxW"></span> × <span id="boxH"></span> Å</span></div>
           <input type="range" id="boxSlider" min="0" max="100" step="1" aria-label="Box size">
-          <p class="note">From 20 Å up to 2 µm. A bigger box opens at once (a free expansion); a smaller one closes in through empty space at once and then like a piston: squeeze an insulated gas and it heats up.</p>
+          <p class="note">20 Å to 2 µm. Growing is a free expansion; shrinking closes in like a piston (an insulated gas heats up).</p>
         </section>
 
         <section class="group">
@@ -189,8 +189,8 @@
             <label class="check"><input type="checkbox" id="chkDecay"> Radioactive decay</label>
             <label class="check"><input type="checkbox" id="chkSlowmo"> Slow motion for nuclear events</label>
           </div>
-          <p class="note">For slow motion at any time, press the hourglass beside the speed buttons (or the \ key): time slows until the fastest particle takes about a second to cross the box, and the speed buttons and the Motion slider still scale it. With slow motion for nuclear events off, it does not slow down further for what nuclear events send flying.</p>
-          <p class="note">There is one clock, as in nature, and the motion you watch runs at about a picosecond per second. At real rates only nuclei that live less than a picosecond or so decay in that time, so decay can be sped up: every half-life shrinks by the same factor, which keeps the order of a decay chain true. When a nucleus decays, splits or annihilates, time briefly slows so its fragments can be watched leaving.</p>
+          <p class="note">The hourglass (or \) slows time until the fastest particle takes about a second to cross the box.</p>
+          <p class="note">Motion runs at about a picosecond per second, so decay can be sped up: every half-life shrinks by the same factor, keeping decay chains in order. Time slows briefly when a nucleus decays or splits.</p>
         </section>
 
         <section class="group">
@@ -439,7 +439,7 @@
       <input type="search" class="msearch" id="molSearch" placeholder="Search molecules" aria-label="Search molecules" autocomplete="off" spellcheck="false">
       <div class="mcats" id="molCats" role="group" aria-label="Categories"></div>
     </div>
-    <p class="note">Each one arrives already bonded and at rest in its lowest-energy shape. The chamber is flat, so 3-D shapes are flattened too: a tetrahedral carbon becomes a cross. Tiny objects, from a transistor to a protein, are hundreds of atoms each: one goes down per click, and the box opens up to fit it.</p>
+    <p class="note">Each arrives bonded, in its lowest-energy shape, flattened to 2-D. Tiny objects are hundreds of atoms: one per click.</p>
     <div class="mlist" id="mgrid"></div>
   </div>
 </div>
@@ -570,6 +570,7 @@
       <div class="srow"><span>Lab panel</span><div class="seg" id="segSide" role="group" aria-label="Lab panel"><button data-v="right">On the right</button><button data-v="left">On the left</button></div></div>
       <div class="srow"><span>Panel width</span><span><span class="note" id="setPw"></span> <button class="btn small" id="setPwReset">Reset</button></span></div>
       <p class="note">Drag the panel's inner edge to make it wider or narrower.</p>
+      <label class="check"><input type="checkbox" id="setMotion"> Interface animations: buttons, sliders, tabs and menus that move</label>
       <div class="srow"><span>Theme</span><div class="seg" id="segTheme" role="group" aria-label="Theme"><button data-v="system">System</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div></div>
       <p class="note" id="setWinNote">The desktop app remembers its window: size, position and which monitor, and whether it was full screen.</p>
     </section>
@@ -620,9 +621,9 @@
       <h3>Detailed nuclear collisions</h3>
       <label class="check"><input type="checkbox" id="setInc"> Follow a nucleon through the nucleus it hits, collision by collision</label>
       <p class="note">A proton or neutron striking a nucleus (heavier than oxygen, 40 MeV to 10 GeV) is followed through it nucleon by nucleon (an intranuclear cascade): elastic scattering, pions made, collisions the Pauli principle forbids; fast nucleons and pions get out, the rest heats the nucleus, which then boils off neutrons, protons and α or splits. Instead of the statistical model (a fireball of the nucleons in its path). 1 GeV protons on lead: 14.9 neutrons a reaction (measured about 17; the statistical model 13.9), 145 MeV left in the nucleus (measured 150–200), fission 21% (measured about 10%), and about 1.4 pions (pions caught again on the way out are not followed). About 3 ms a hit instead of 1; nuclear events take 1–5% of the time in the nuclear setups, so it hardly shows.</p>
-      <h3>Coming next</h3>
-      <div class="srow"><span>Longer force reach</span><span class="note">after a bug fix in this code</span></div>
-      <p class="note">Van der Waals and partial-charge forces now stop at 6 Å. 9 Å costs ×1.3–1.7, 12 Å ×2–3.7 (more in big boxes); a lead found while measuring it, that most of ionized water's energy drift comes from this cutoff, is being fixed first.</p>
+      <h3>Longer force reach</h3>
+      <div class="srow"><span>Force reach</span><div class="seg" id="segRc" role="group" aria-label="Force reach"><button data-v="6">6 Å (normal)</button><button data-v="9">9 Å</button><button data-v="12">12 Å</button></div></div>
+      <p class="note">Van der Waals and partial-charge forces stop at 6 Å (net charges reach farther while there are few of them). A longer reach keeps more of the pull between molecules: measured on the same arrangement, liquid water binds 0.9 kJ/mol a molecule more at 9 Å and 1.6 at 12 Å (of about 41 kJ/mol to boil it off), brine 8.5 and 11. Costs ×1.3–2.6 at 9 Å and ×1.6–5.6 at 12 Å (brine, liquid water, 4,000 waters), more in big boxes. It runs the JavaScript force kernels (the WebAssembly one has 6 Å built in). The potential energy changes when the reach does: the energy books step once.</p>
       <h3>On hold: very large</h3>
       <p class="note"><b>Charges that respond to their surroundings</b> (charge equilibration: partial charges worked out each step from the electric field, so water answers an ion or an applied field): estimated ×1.2 (every fifth step) to ×2 (every step). On hold as larger than it looked: the charges enter a dozen force and energy terms (bonded pairs, ions, hydrogen bonds, the electrons' forces, the events' energy books), several of them not simply proportional to the charges, and all would have to be made to agree for the energy to stay exact.</p>
       <p class="note"><b>Continuous bond orders</b> (bonds and reaction barriers from the atoms' positions instead of stored orders): estimated ×5–15 optimised, the prototype ×75–120. <b>Quantum nuclei</b> (16–32 linked copies of every atom: zero-point energy, hydrogen tunnelling): ×14–30. <b>Electrons as waves</b> (Pauli exclusion in plasmas and metals): estimated ×3–10 where there are many free electrons. <b>Real 3-D</b>: estimated ×10–100. <b>Quantum chemistry for bonds</b>: estimated ×100–10,000.</p>
@@ -635,6 +636,7 @@
   </div>
 </div>
 
+<div class="speedmenu" id="speedMenu" role="menu" aria-label="Speed" hidden></div>
 <div class="modal" id="escModal" hidden>
   <div class="dialog emenu" role="dialog" aria-modal="true" aria-labelledby="escTitle">
     <h2 id="escTitle">Paused</h2>

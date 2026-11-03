@@ -8,14 +8,13 @@ const N = +(nArg || 200);
 const patches = {
   dt2: (s) => s.replace('const DT_MAX = 0.04, DT_MIN', 'const DT_MAX = 0.02, DT_MIN'),
   dt4: (s) => s.replace('const DT_MAX = 0.04, DT_MIN', 'const DT_MAX = 0.01, DT_MIN'),
-  rc9: (s) => s.replace('const RC = 6, RC2 = RC * RC;', 'const RC = 9, RC2 = RC * RC;'),
-  rc12: (s) => s.replace('const RC = 6, RC2 = RC * RC;', 'const RC = 12, RC2 = RC * RC;'),
 };
 const opts = { seed: +(process.env.SEED || 12) };
 if (patches[variant]) opts.patch = patches[variant];
-if (variant === 'js' || variant === 'rc9' || variant === 'rc12') opts.wasm = false;
+if (variant === 'js') opts.wasm = false;
 const X = load('all', opts); const { W } = X;
 X.setMaxParts(12000);
+if (variant === 'rc9') X.setCutoff(9); if (variant === 'rc12') X.setCutoff(12); // (1.10: the setting; it turns the WebAssembly kernel off itself)
 const SC = {
   water() { X.PRESETS.water.build(); },
   water4k() { X.baseWorld(300, 200, 300, 0.05); const nx = 60, ny = 22; for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) X.addMolecule('H2O', -150 + (i + 0.5) * 300 / nx + (X.rnd() - 0.5) * 0.4, -100 + (j + 0.5) * 200 / ny + (X.rnd() - 0.5) * 0.4, X.rnd() * 6, 300); },

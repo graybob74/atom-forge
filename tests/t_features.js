@@ -793,7 +793,7 @@ const { openPage } = require('./browser');
     n.vx = Math.sqrt(2 * 2e6 / n.m); out.rFast = nucReach(n, U);
     a.vx = Math.sqrt(2 * 5e6 / a.m); a.vy = 0; out.rAlpha = nucReach(a, U);
     out.sigDT = gamowP({ m: 2.014, Z: 1, N: 1 }, { m: 3.016, Z: 1, N: 2 }, 64e3).sig;
-    for (let i = 0; i < 25; i++) stepSpeed(-1); out.spd = $('speedVal').textContent; out.slowestOff = $('bSlower').disabled;
+    for (let i = 0; i < 25; i++) stepSpeed(-1); out.spd = $('speedRate').textContent; out.slowestOff = $('bSlower').disabled;
     for (let i = 0; i < 20; i++) fireSpec({ kind: 'exo', sp: 'phi' }, -20 + 2 * i, 8, 1, 0, 1e6);
     const live = () => W.exo.filter(o => !o.dead && o.sp === 'phi').length, t0 = W.t;
     for (let f = 0; f < 1500; f++) simFrame(1 / 60, 25);
@@ -809,7 +809,7 @@ const { openPage } = require('./browser');
   // 1.04: the extreme slow motion in the normal mode too: down to 1 ys a second, where a φ meson lives its real life
   const r42 = await page.evaluate(() => {
     loadPreset('empty'); setRunning(false); const out = { ultra: !!W.ultra };
-    for (let i = 0; i < 25; i++) stepSpeed(-1); out.spd = $('speedVal').textContent;
+    for (let i = 0; i < 25; i++) stepSpeed(-1); out.spd = $('speedRate').textContent;
     for (let i = 0; i < 20; i++) fireSpec({ kind: 'exo', sp: 'phi' }, -20 + 2 * i, 8, 1, 0, 1e6);
     const live = () => W.exo.filter(o => !o.dead && o.sp === 'phi').length, t0 = W.t;
     for (let f = 0; f < 1500; f++) simFrame(1 / 60, 25);
@@ -846,15 +846,15 @@ const { openPage } = require('./browser');
   // 1.07: Settings → Experimental: the longest step and resonance in large ring systems; cost tags beside the settings
   const r45 = await page.evaluate(() => {
     const out = {};
-    openSettings('exp'); out.tags = document.querySelectorAll('#setModal .cost').length; out.dtTag = $('segDtMax').closest('.srow').querySelector('.cost').className;
+    openSettings('exp'); out.tags = document.querySelectorAll('#setModal .cost, #setModal .oc').length; out.dtTag = $('segDtMax').closest('.srow').querySelector('.cost-k').textContent;
     setSetting('dtMax', 0.01); out.dt = DT_MAX; loadPreset('water'); setRunning(false); forcesNoEvents(); out.step = chooseDt(); setSetting('dtMax', 0.04); out.dtBack = DT_MAX;
-    out.dtTag2 = $('segDtMax').closest('.srow').querySelector('.cost').className; hideModal('setModal');
+    out.dtTag2 = $('segDtMax').querySelector('[data-v="0.01"] .oc').className; hideModal('setModal');
     const flake = (big) => { setSetting('resBig', big); const L = designLattice({ lattice: 'honeycomb', elements: ['C'], size: 6 }); myMolAdd({ k: 'tflake', n: 'tflake', r: 0, a: L.atoms, b: L.bonds, d: '', c: 'objects' });
       loadPreset('empty'); setRunning(false); addMolecule('tflake', 0, 0, 0, 0); const fo = new Set(W.bonds.filter(b => b.arom).map(b => b.fo.toFixed(2))); delete MOLECULES.tflake; return [...fo].sort().join(' '); };
     out.rule = flake(false); out.det = flake(true); setSetting('resBig', false);
     return out;
   });
-  check(r45.tags >= 10 && /c3/.test(r45.dtTag2) === false && r45.dt === 0.01 && r45.step <= 0.01 + 1e-12 && r45.dtBack === 0.04 && r45.rule === '1.50' && r45.det.split(' ').length >= 5,
+  check(r45.tags >= 10 && /c3/.test(r45.dtTag2) && r45.dtTag === 'physics' && r45.dt === 0.01 && r45.step <= 0.01 + 1e-12 && r45.dtBack === 0.04 && r45.rule === '1.50' && r45.det.split(' ').length >= 5,
     `1.07: Experimental settings: ${r45.tags} cost tags; longest step 0.1 fs applied (a step of ${r45.step} tu) and back; a 54-carbon graphene flake's bonds ${r45.rule} by the six-ring rule, ${r45.det} worked out`, '1.07 experimental: ' + JSON.stringify(r45));
   // 1.08: Experimental: the intranuclear cascade; energy, charge and nucleons kept exactly; about 15 neutrons from 1 GeV p + Pb
   const r46 = await page.evaluate(() => {
@@ -920,6 +920,47 @@ const { openPage } = require('./browser');
   });
   check(r49.n === 40 && r49.miss === 0 && r49.worst < 1e-6,
     `1.09: ${r49.n} bond tries in a ${r49.size}-atom chip costed locally (${r49.miss} whole-chip sums, exact to ${r49.worst.toExponential(0)} eV)`, '1.09 chip: ' + JSON.stringify(r49));
+  // 1.10: the speed menu: every speed on one ladder (halvings to 1/512×, then decades of simulated time a second), chosen
+  // from a menu under the readout
+  const r60 = await page.evaluate(() => {
+    loadPreset('water'); setRunning(false); const out = {};
+    openSpeedMenu(); const items = [...document.querySelectorAll('#speedMenu .spm-i')]; out.n = items.length; out.open = !$('speedMenu').hidden;
+    const fs = items.find(b => /^1 fs\/s$/.test(b.querySelector('.r').textContent)); out.fs = !!fs; if (fs) fs.click();
+    out.closed = $('speedMenu').hidden; out.rate = $('speedRate').textContent; out.val = $('speedVal').textContent;
+    stepSpeed(1); out.up = $('speedRate').textContent; setSpeed(UI.baseSpf); out.back = W.simPerFrame === UI.baseSpf && /1×$|^slow-mo$/.test($('speedVal').textContent);
+    openSpeedMenu(); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); out.esc = $('speedMenu').hidden; closeSpeedMenu();
+    return out;
+  });
+  check(r60.n >= 20 && r60.open && r60.fs && r60.closed && r60.rate === '1 fs/s' && r60.up !== '1 fs/s' && r60.back && r60.esc,
+    `1.10: speed menu: ${r60.n} speeds; 1 fs/s chosen from it (${r60.val}), a step up from there (${r60.up}), back to 1×, Escape closes it`, '1.10 speed menu: ' + JSON.stringify(r60));
+  // 1.10: interface motion: a pill under each chosen button, slider tracks filled; off in Settings → Display
+  const r61 = await page.evaluate(async () => {
+    const out = {}; openSettings('perf'); await new Promise(r => setTimeout(r, 120));
+    out.mo = document.body.classList.contains('mo'); out.pills = [...document.querySelectorAll('.mo-pill')].filter(p => p.offsetParent && p.style.opacity === '1').length;
+    setSetting('motion', false); out.off = document.body.classList.contains('nomo') && !document.querySelector('.mo-pill');
+    setSetting('motion', true); hideModal('setModal'); return out;
+  });
+  check(r61.mo && r61.pills >= 3 && r61.off, `1.10: interface motion: ${r61.pills} sliding pills in Settings; off removes them`, '1.10 motion: ' + JSON.stringify(r61));
+  // 1.10: Experimental → Longer force reach: 9 Å on the JavaScript kernels, pairs out to 9 Å, energy kept insulated; back to
+  // 6 Å on WebAssembly. Cost tags predict each choice's cost
+  const r62 = await page.evaluate(() => {
+    const out = {};
+    const run = (rc) => {
+      setSetting('rc', rc); loadPreset('water'); setRunning(false); W.gamma = 0; forcesNoEvents(); W.fSpawn = W.spawned;
+      const E0 = totalEnergy().total; for (let i = 0; i < 300; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
+      let far = 0; for (let k = 0; k < VL.np; k++) { const i = VL.pi[k], j = VL.pj[k], dx = S.x[j] - S.x[i], dy = S.y[j] - S.y[i]; if (dx * dx + dy * dy > 72.25) far++; }
+      return { rc: RC, wasm: wasmReady(), dE: +(totalEnergy().total - E0).toFixed(3), far };
+    };
+    out.r9 = run(9); out.r6 = run(6);
+    openSettings('exp'); const oc = (id, v) => { const e = $(id).querySelector(`[data-v="${v}"] .oc`); return e ? e.textContent + ' ' + e.className : ''; };
+    out.tags = [oc('segRc', 6), oc('segRc', 12), oc('segDtMax', 0.02)];
+    const cb = $('setInc').closest('label').querySelector('.cost'); out.inc = cb ? cb.textContent + (cb.classList.contains('dim') ? ' dim' : '') : '';
+    out.kind = $('segRc').closest('.srow').querySelector('.cost-k').textContent; hideModal('setModal');
+    return out;
+  });
+  check(r62.r9.rc === 9 && !r62.r9.wasm && r62.r9.far > 0 && Math.abs(r62.r9.dE) < 1 && r62.r6.rc === 6 && r62.r6.wasm && r62.r6.far === 0 &&
+    /^×1 c0/.test(r62.tags[0]) && /c4/.test(r62.tags[1]) && /^×1\.7 c2/.test(r62.tags[2]) && r62.inc === 'on ×1–1.05 dim' && r62.kind === 'physics',
+    `1.10: force reach 9 Å: ${r62.r9.far} pairs past 8.5 Å, energy over 300 insulated steps ${r62.r9.dE} eV (6 Å: ${r62.r6.dE}); tags ${r62.tags.map(t => t.split(' ')[0]).join(', ')}, ${r62.inc}`, '1.10 reach: ' + JSON.stringify(r62));
   // 1.09: ionized water (liquid water, 40 molecules ionized, bath off) keeps its energy: the soft-cored Coulomb energy
   // between net charges inside the cutoff now meets the exact 1/r outside it (a step of 0.037 eV for e⁻ + O⁺ at each
   // crossing, 120–150 eV/ps of drift)

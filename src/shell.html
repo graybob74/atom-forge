@@ -1,4 +1,4 @@
-<title>Atom Forge 1.09.0</title>
+<title>Atom Forge 1.10.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -71,7 +71,17 @@ button { cursor: pointer; }
 .transport { display: flex; gap: 6px; align-items: center; }
 .speed { display: flex; align-items: center; gap: 4px; margin-left: 6px; }
 .speed .ibtn { width: 30px; }
-.speed-v { display: grid; justify-items: center; min-width: 54px; line-height: 1.15; }
+.speed-v { display: grid; justify-items: center; min-width: 54px; line-height: 1.15; background: none; border: 1px solid transparent; border-radius: 8px; padding: 1px 6px; color: inherit; cursor: pointer; font: inherit; }
+.speed-v:hover { border-color: var(--line); background: var(--surface-2); }
+.speed-v .rt { font-family: var(--font-data); font-size: 9.5px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.speedmenu { position: fixed; z-index: 60; transform: translateX(-50%); min-width: 210px; max-height: min(70vh, 520px); overflow-y: auto; padding: 5px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.22); }
+.speedmenu .spm-i { display: flex; justify-content: space-between; gap: 18px; width: 100%; padding: 5px 10px; border: 0; border-radius: 7px; background: none; color: inherit; font: 600 12.5px var(--font-data, ui-monospace, monospace); font-variant-numeric: tabular-nums; cursor: pointer; text-align: left; }
+.speedmenu .spm-i .r { color: var(--muted); font-weight: 500; }
+.speedmenu .spm-i:hover { background: var(--accent-soft); }
+.speedmenu .spm-i.on { background: var(--accent); color: var(--accent-fg); }
+.speedmenu .spm-i.on .r { color: rgba(255,255,255,.8); }
+.speedmenu .spm-i.sep { margin-top: 6px; position: relative; }
+.speedmenu .spm-i.sep::before { content: ''; position: absolute; left: 8px; right: 8px; top: -4px; border-top: 1px solid var(--line); }
 .speed-v .k { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
 .speed-v .v { font-family: var(--font-data); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .speed-v .v.cap { color: var(--hot); }
@@ -651,6 +661,11 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .sgroup h3 { margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .cost { display: inline-block; margin-left: 7px; padding: 0 6px; border-radius: 9px; font: 600 10.5px var(--font-data, ui-monospace, monospace); line-height: 16px; vertical-align: 1px; color: #fff; white-space: nowrap; }
 .cost.c0 { background: #2e9e5b; } .cost.c1 { background: #7aa83a; } .cost.c2 { background: #c9a227; color: #1b1b1b; } .cost.c3 { background: #e07a2a; } .cost.c4 { background: #d14343; } .cost.cf { background: #3b82c4; }
+.cost.dim { opacity: 0.55; } /* (a checkbox's tag: what turning it on would cost) */
+.cost-k { display: inline-block; margin-left: 7px; padding: 0 5px; border: 1px solid var(--line, rgba(127,127,127,0.35)); border-radius: 9px; font: 600 10px var(--font-data, ui-monospace, monospace); line-height: 14px; vertical-align: 1px; color: var(--muted); white-space: nowrap; }
+.seg button .oc { display: block; width: max-content; margin: 2px auto 0; padding: 0 5px; border-radius: 7px; font: 600 9.5px var(--font-data, ui-monospace, monospace); line-height: 13px; color: #fff; white-space: nowrap; opacity: 0.8; }
+.seg button[aria-pressed="true"] .oc { opacity: 1; }
+.oc.c0 { background: #2e9e5b; } .oc.c1 { background: #7aa83a; } .oc.c2 { background: #c9a227; color: #1b1b1b; } .oc.c3 { background: #e07a2a; } .oc.c4 { background: #d14343; } .oc.cf { background: #3b82c4; }
 .srow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; }
 .srow .seg { flex: 0 1 330px; }
 .srow .skey { flex: 0 1 330px; font-size: 13px; }
@@ -739,7 +754,47 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
   .nbin .nbl { font-size: 12px; }
   .nbx { width: 32px; }
 }
+/* ---- interface motion (1.10): controls answer the hand. Buttons ease and press in; a segmented control's and a tab
+   row's choice slides (a pill under it, ui.js motionInit); sliders fill to their thumb, which swells when held;
+   menus, dialogs and panels open with a short fade and rise. Off with Settings → Display → Interface animations, or the
+   system's reduced motion. */
+body:not(.nomo) .btn, body:not(.nomo) .ibtn, body:not(.nomo) .tool, body:not(.nomo) .chip, body:not(.nomo) .tab, body:not(.nomo) .stabs button,
+body:not(.nomo) .seg button, body:not(.nomo) .qmi, body:not(.nomo) .speed-v, body:not(.nomo) .spm-i, body:not(.nomo) .pm-i {
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease, opacity 0.16s ease; }
+body:not(.nomo) .btn:not(:disabled):active, body:not(.nomo) .ibtn:not(:disabled):active, body:not(.nomo) .tool:active, body:not(.nomo) .chip:active,
+body:not(.nomo) .seg button:active, body:not(.nomo) .tab:active, body:not(.nomo) .stabs button:active, body:not(.nomo) .speed-v:active { transform: scale(0.94); transition-duration: 0.05s; }
+body:not(.nomo) .btn:not(:disabled):hover, body:not(.nomo) .ibtn:not(:disabled):hover { box-shadow: 0 2px 8px rgba(16, 27, 36, 0.12); }
+.seg, .tabs, .stabs { position: relative; }
+.mo-pill { position: absolute; z-index: 0; pointer-events: none; border-radius: 7px; transition: left 0.22s cubic-bezier(.3, .9, .3, 1), top 0.22s cubic-bezier(.3, .9, .3, 1), width 0.22s cubic-bezier(.3, .9, .3, 1), height 0.22s, opacity 0.15s; }
+.seg .mo-pill { background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14); }
+.tabs .mo-pill, .stabs .mo-pill { background: var(--surface-2); box-shadow: inset 0 -2px 0 var(--accent); }
+body.mo .seg button, body.mo .tab, body.mo .stabs button { position: relative; z-index: 1; }
+body.mo .seg button[aria-pressed="true"], body.mo .tab[aria-selected="true"], body.mo .stabs button[aria-selected="true"] { background: transparent; box-shadow: none; }
+body.mo input[type=range] { -webkit-appearance: none; appearance: none; height: 18px; background: transparent; cursor: pointer; }
+body.mo input[type=range]::-webkit-slider-runnable-track { height: 5px; border-radius: 3px; background: linear-gradient(to right, var(--accent) var(--fill, 50%), var(--line) var(--fill, 50%)); }
+body.mo input[type=range]::-moz-range-track { height: 5px; border-radius: 3px; background: var(--line); }
+body.mo input[type=range]::-moz-range-progress { height: 5px; border-radius: 3px; background: var(--accent); }
+body.mo input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; margin-top: -5px; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform 0.15s ease, box-shadow 0.15s ease; }
+body.mo input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform 0.15s ease; }
+body.mo input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.15); }
+body.mo input[type=range]:active::-webkit-slider-thumb { transform: scale(1.35); box-shadow: 0 0 0 6px var(--accent-soft); }
+body.mo input[type=range]:active::-moz-range-thumb { transform: scale(1.3); }
+body.mo input[type=range]:disabled { opacity: 0.45; cursor: default; }
+.toolopts input[type=range] { --accent: #8fb2ff; }
+@keyframes moPop { from { opacity: 0; transform: translateY(-4px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes moPopX { from { opacity: 0; transform: translate(-50%, -4px) scale(0.97); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes moRise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes moFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes moTick { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+body.mo .qmenu:not([hidden]), body.mo .pmenu:not([hidden]) { animation: moPop 0.14s ease-out; transform-origin: top left; }
+body.mo .speedmenu:not([hidden]) { animation: moPopX 0.14s ease-out; transform-origin: top center; }
+body.mo .modal:not([hidden]) { animation: moFade 0.16s ease-out; }
+body.mo .modal:not([hidden]) > .dialog { animation: moRise 0.2s cubic-bezier(.2, .8, .2, 1); }
+body.mo .tabpanel:not([hidden]), body.mo .spane:not([hidden]) { animation: moRise 0.18s ease-out; }
+body.mo .check input:checked { animation: moTick 0.2s ease-out; }
+body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
 @media (prefers-reduced-motion: reduce) {
   .panel { transition: none; }
+  .mo-pill { transition: none; }
 }
 </style>

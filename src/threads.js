@@ -284,7 +284,7 @@ function threadsBind() {
   const Gd = {}; for (const k of ['keys', 'head', 'next', 'px', 'py', 'occ']) Gd[k] = d(G[k]);
   // the kernel module for the workers: each gets a stack of its own in the shared memory (allocated once)
   let wasm = null;
-  if (WK.on && WK.ready) {
+  if (WK.on && WK.ready && RC === 6) { // (the kernel has 6 Å built in: a longer reach runs the workers' JavaScript)
     if (!TH.wks) TH.wks = wasmArray(Float64Array, 16);
     while (TH.stacks.length < n) TH.stacks.push(wasmAlloc(WK.STACK) + WK.STACK); // (the stack grows downwards from its top)
     wasm = { module: WK.module, desc: WK.desc.byteOffset, ks: TH.wks.byteOffset, sumTab: WK.sumTab.byteOffset };

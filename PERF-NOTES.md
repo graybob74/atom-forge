@@ -77,17 +77,6 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
-- More animation in the interface: sliders, buttons, toggles, tabs and menus that move and respond (asked for by the
-  user).
-- A dropdown for the simulation speed: every speed in one list with one consistent label (the multiple of the setup's
-  speed together with the simulated time per second), instead of the − / + steps that go from "1/512×" to "1 fs/s"
-  (asked for by the user).
-- An Experimental settings tab: each accuracy-for-speed option from the measurements below (tools/accbench) as a
-  setting with a plain description and its measured cost: shorter longest step, longer force reach, detailed nuclear
-  collisions, charges that respond to their surroundings, continuous bond orders, quantum nuclei (path integrals), and
-  the rest as they are built. And a performance-cost indicator beside every setting that affects speed, in the
-  Experimental tab and in the existing ones (particle limit, physics budget, threads, resolution, effects, trails …),
-  coloured from green (cheap) to red (expensive) (asked for by the user).
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
@@ -109,6 +98,35 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.10.0: speed menu, interface motion, longer force reach, predictive cost tags, shorter tool texts (asked for by the user)
+- Speed menu: the speed readout is a button that opens every speed on one ladder, 16× down to 1/512× in halvings, then
+  decades of simulated time a second (100 fs/s … 1 ys/s), each with its multiple and its rate (`speedLadder`,
+  `openSpeedMenu`, ui.js). The − / + buttons walk the same ladder, so 1/512× is followed by the next decade instead of a
+  jump to a different kind of label. The readout shows the rate under the multiple (`#speedRate`).
+- Interface motion (Settings → Display → Interface animations, `SET.motion`; off with the system's reduced motion): a
+  pill slides under the chosen button of every row of buttons and tab row (`motionSync`, kept in step by a
+  MutationObserver on aria-pressed/aria-selected), slider tracks fill to the thumb (`--fill`), buttons press in, and
+  menus, dialogs, panels and checkboxes pop or fade in (shell.html, `body.mo`).
+- Experimental → Longer force reach (`SET.rc` 6 / 9 / 12 Å → `setCutoff`, engine.js): RC, RC2, RL, RL2, RLF2 and
+  CELL_MIN are now `let` and follow the setting; the lists are rebuilt, the WebAssembly kernel (6 Å built in, its
+  constant check now compares 36) is turned off for 9 and 12 Å, and the workers are started again with the new RC2
+  and run their JavaScript kernels. No cost at 6 Å from the `let` (liquid water 0.50 → 0.50 ms/fs, 4,000 waters
+  1.81 → 1.81). Measured against the game's usual 6 Å on WebAssembly: liquid water 0.51 → 1.12 → 1.61 ms/fs (×2.2,
+  ×3.2), brine 9.1 → 11.4 → 14.2 (×1.3, ×1.6), 4,000 waters 1.81 → 4.76 → 10.1 (×2.6, ×5.6). What it buys, on one
+  arrangement: water's potential energy −924.3 → −925.3 → −926.0 kJ/mol a molecule (0.9 and 1.6 more binding, of
+  about 41 to boil it off); brine −951.5 → −960.0 → −962.5. Changing the reach changes the potential energy, so the
+  energy books step once. Tests: t_threads (9 Å on two threads equals one thread, JavaScript workers, back to
+  WebAssembly at 6 Å), t_features "1.10 reach" (insulated water at 9 Å: 0.001 eV over 300 steps).
+- Cost tags are predictive (asked for by the user): every setting that changes speed names what it costs in a grey tag
+  (physics, drawing or memory); every choice in a row of buttons carries the cost it would have, and a checkbox the
+  cost of turning it on (dimmed while off). One wording: ×N against the usual choice (×1), "up to ×N" where it depends
+  on how full the box is, slight / some / heavy where it was not measured, blue where a choice saves work. Drawing
+  resolution is worked out for the screen's pixel ratio, the frame-rate cap from the monitor's measured rate, threads
+  from this computer's thread count. Physics per frame now has its 24 ms tag (it had none).
+- Shorter texts for the tools, their options, isotopes, objects and particles, and a few Lab notes (asked for by the
+  user; settings descriptions left as they were): the tool hints went from 98 to 59 characters on average, and the option notes say only
+  what to do and what happens.
 
 ## 1.09.0: bug fixes (from the bug-fix session, applied from its patches)
 - Insulated chain reaction gained energy in jumps of up to 128 MeV in steps with no nuclear event: an atom the wall put
