@@ -557,24 +557,39 @@ function drawRings() {
 }
 function drawIonic() {
   if (R.s < 4) return;
-  const ions = [];
-  for (const p of W.parts) if (!p.dead && p.k === NUC && p.ne > 0 && Math.abs(p.q) >= 1) ions.push(p);
-  if (ions.length < 2) return;
-  ions.sort((a, b) => a.x - b.x);
-  const rOf = (p) => (p.ionic && p.ionR > 0 ? p.ionR : p.rd), ctx = R.ctx, byW = new Map();
-  for (let i = 0; i < ions.length; i++) {
-    const a = ions[i], ra = rOf(a);
-    for (let j = i + 1; j < ions.length; j++) {
-      const b = ions[j], dx = b.x - a.x;
+  // (1.12) The ions are lone ions and charged molecules (CN⁻, OH⁻, NO₃⁻ …: the whole molecule's net charge, wherever its
+  // formal charge sits). A line joins a cation and an anion in contact, drawn between their closest atoms; contact is
+  // judged with each atom's force-field size (half its LJ diameter ljR: a lone ion's ionic radius, an atom in a molecule
+  // its van der Waals size), not the drawing radius, which for an atom in a molecule is its small covalent one (C in
+  // CN⁻ reached only 1.99 Å from Na⁺, which it touches at 2.7 Å).
+  const at = [], seen = new Set();
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || p.ne <= 0 || p.q === 0 || seen.has(p)) continue;
+    const g = p.bonds.length ? molecule(p) : [p];
+    let Q = 0; for (const a of g) { seen.add(a); Q += a.q; }
+    if (Math.abs(Q) < 1) continue;
+    for (const a of g) at.push({ p: a, g, Q });
+  }
+  if (at.length < 2) return;
+  at.sort((a, b) => a.p.x - b.p.x);
+  const best = new Map(); // (one line for each pair of ions: their closest atoms)
+  for (let i = 0; i < at.length; i++) {
+    const A = at[i], a = A.p, ra = 0.5 * a.ljR;
+    for (let j = i + 1; j < at.length; j++) {
+      const B = at[j], b = B.p, dx = b.x - a.x;
       if (dx > 8) break;
-      if (a.q * b.q >= 0) continue;
-      const dy = b.y - a.y, r = Math.hypot(dx, dy), reach = 1.3 * (ra + rOf(b));
+      if (A.Q * B.Q >= 0) continue;
+      const dy = b.y - a.y, r = Math.hypot(dx, dy), reach = 1.3 * (ra + 0.5 * b.ljR);
       if (r > reach || r < 0.3) continue;
-      if (a.bonds.some(bd => other(bd, a) === b)) continue;
-      const w = clamp(0.8 + 0.35 * Math.sqrt(Math.abs(a.q * b.q)), 1, 2.6), k = w.toFixed(1);
-      let list = byW.get(k); if (!list) byW.set(k, list = []);
-      list.push(w2sx(a.x), w2sy(a.y), w2sx(b.x), w2sy(b.y));
+      const key = A.Q > 0 ? A.g[0].id + ':' + B.g[0].id : B.g[0].id + ':' + A.g[0].id, o = best.get(key);
+      if (!o || r < o.r) best.set(key, { r, a, b, qq: Math.abs(A.Q * B.Q) });
     }
+  }
+  const ctx = R.ctx, byW = new Map();
+  for (const { a, b, qq } of best.values()) {
+    const w = clamp(0.8 + 0.35 * Math.sqrt(qq), 1, 2.6), k = w.toFixed(1);
+    let list = byW.get(k); if (!list) byW.set(k, list = []);
+    list.push(w2sx(a.x), w2sy(a.y), w2sx(b.x), w2sy(b.y));
   }
   if (!byW.size) return;
   ctx.save(); ctx.strokeStyle = R.cvd ? 'rgba(240,228,66,0.6)' : 'rgba(255,196,120,0.6)'; ctx.setLineDash([1.5, 3.5]); ctx.lineCap = 'round';

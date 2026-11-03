@@ -1153,6 +1153,28 @@ const { openPage } = require('./browser');
   });
   check(r69.ar.atoms === 20 && r69.ar.turned >= 8 && r69.cl.rx >= 3 && /ClMu/.test(r69.cl.names) && r69.reloaded > 0 && r69.m < 0.115 && r69.mol === 'ClMu' && r69.decayed && Math.abs(r69.dE) < 0.01 && r69.after === 'Cl e⁺ e⁺ e⁻ e⁻',
     `1.12: muonium is an atom (${r69.m} u): 20 fired into argon, ${r69.ar.turned} sent off course; into chlorine, ${r69.cl.rx} Mu + Cl₂ → MuCl + Cl (${r69.cl.names}); saved and loaded (${r69.reloaded}); MuCl and Mu decay to ${r69.after}, books ${r69.dE} eV`, '1.12 muonium: ' + JSON.stringify(r69));
+  // 1.12: a dashed ionic line joins a cation and a polyatomic anion in contact (Na⁺ and CN⁻: the reach was the C atom's
+  // covalent drawing radius, 1.99 Å, against a 2.7 Å contact), but not ions merely near (4.5 Å); Na⁺–Cl⁻ as before
+  const r70 = await page.evaluate(() => {
+    const lines = () => { const ctx = R.ctx, lt = ctx.lineTo; let n = 0; ctx.lineTo = function (...a) { n++; return lt.apply(this, a); }; try { drawIonic(); } finally { ctx.lineTo = lt; } return n; };
+    const setup = (fn) => { loadPreset('empty'); setRunning(false); baseWorld(30, 20, 300, 0.05); W.slowmo = false; fn(); forcesNoEvents(); W.fSpawn = W.spawned; R.s = Math.max(R.s, 20); };
+    const out = {};
+    setup(() => { const na = addAtom('Na', 0, 0); userIonize(na); W.parts.filter(p => p.k === ELEC).forEach(kill); addMolecule('CNm', 3.2, 0, 0, 0); });
+    for (let i = 0; i < 600; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
+    const na = W.parts.find(p => p.Z === 11), cn = W.parts.filter(p => p.Z === 6 || p.Z === 7);
+    out.contact = +Math.min(...cn.map(p => Math.hypot(p.x - na.x, p.y - na.y))).toFixed(2); out.cnLines = lines();
+    { const c = cn.find(p => p.Z === 6), nn = cn.find(p => p.Z === 7); c.x = na.x + 2.73; c.y = na.y; nn.x = na.x + 3.88; nn.y = na.y; out.endOn = lines(); } // (end-on at the measured 2.73 Å)
+    // moved off so that its nearest atom is 4.5 Å from the Na⁺
+    const near = cn.reduce((a, b) => Math.hypot(a.x - na.x, a.y - na.y) < Math.hypot(b.x - na.x, b.y - na.y) ? a : b), d = Math.hypot(near.x - na.x, near.y - na.y), ux = (near.x - na.x) / d, uy = (near.y - na.y) / d;
+    for (const p of cn) { p.x += ux * (4.5 - d); p.y += uy * (4.5 - d); }
+    out.far = +Math.min(...cn.map(p => Math.hypot(p.x - na.x, p.y - na.y))).toFixed(2); out.farLines = lines();
+    setup(() => { const a = addAtom('Na', 0, 0), b = addAtom('Cl', 2.8, 0); userIonize(a); W.parts.filter(p => p.k === ELEC).forEach(kill); userAddElectron(b); addAtom('Na', -8, 6); });
+    const n2 = W.parts.filter(p => p.Z === 11)[1]; userIonize(n2); W.parts.filter(p => p.k === ELEC).forEach(kill); n2.x = 2.8 + 4.5; n2.y = 0;
+    out.naCl = lines();
+    return out;
+  });
+  check(r70.contact < 3.2 && r70.cnLines === 1 && r70.endOn === 1 && r70.far >= 4.49 && r70.farLines === 0 && r70.naCl === 1,
+    `1.12: ionic lines: Na⁺ touching CN⁻ (${r70.contact} Å) gets one (end-on at 2.73 Å: ${r70.endOn}), ${r70.far} Å off none; Na⁺–Cl⁻ at 2.8 Å one, a second Na⁺ 4.5 Å from the Cl⁻ none`, '1.12 ionic lines: ' + JSON.stringify(r70));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

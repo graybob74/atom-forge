@@ -180,6 +180,16 @@ engine stores and visits particles.
   bonded, now. The same into H₂: 11 MuH and 6 Mu₂. Insulated drift in those runs −0.35 to +0.63 eV, as for H atoms
   fired the same way (−0.11 to −0.77 eV). MuCl and Mu decaying together: the books change by 0.0007 eV. t_energy passes.
   Test: t_features "1.12 muonium".
+- Ionic lines between a cation and a polyatomic anion (display only). drawIonic's reach was 1.3 × the two drawing
+  radii, and for an atom in a molecule that is its small covalent one (C in CN⁻ 0.51 Å), so Na⁺–C reached 1.99 Å.
+  Na⁺ settles 2.2–2.7 Å from a CN⁻, so no line ever appeared. Now each atom's force-field size (half its LJ diameter
+  ljR: for a lone ion its ionic radius, so Na⁺–Cl⁻ still reaches 3.68 Å; C 1.93, N 1.83, O 1.75 Å in a molecule) sets
+  the reach: Na⁺–C 3.83, Na⁺–N 3.70, Na⁺–O 3.60 Å. Ions 4.5–4.9 Å apart (second neighbours) stay without lines.
+  A charge spread over a molecule: the ion is the whole molecule, with its net charge (NO₃⁻ carries formal charges
+  O⁻ N⁺ O O⁻, with partial charges over all four atoms). Each pair of oppositely charged ions within reach gets one
+  line, between their closest atoms. Forces and energies unchanged. Test: t_features "1.12 ionic lines". Before:
+  Na⁺–CN⁻ end-on at 2.73 Å, no line; after, one. CN⁻ 4.5 Å off: none before or after; Na⁺–Cl⁻ at 2.8 Å, one before
+  and after.
 
 ## 1.12.0: induced charges and quantum nuclei (Experimental), realistic tags; prototypes for the rest
 - The particle bar's search (asked for by the user): the chip reads "Search…" (no emoji), the menu "Search particles",
