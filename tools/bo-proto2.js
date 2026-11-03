@@ -25,9 +25,17 @@ function pp(a, b) {
   return v;
 }
 const smin = (a, b) => { const h = Math.max(EPS - Math.abs(a - b), 0) / EPS; return Math.min(a, b) - h * h * EPS / 4; }; // (quadratic smooth minimum)
-function raw(r, P) { const d = r - P.r[0]; let n = Math.exp(-d / P.c); if (d > 0.9) n *= d >= 1.3 ? 0 : 0.5 * (1 + Math.cos(Math.PI * (d - 0.9) / 0.4)); return Math.min(n, 3.5); }
+const MODEL = process.env.BO_MODEL || 'E', BETA_K = +(process.env.BO_BK || 1);
+/* (model E) past its single-bond length a raw order falls as a Gaussian, exp(−β d²), β = α₁² (a Morse well's own
+   curvature: flat at the bond's length, so a stretched single bond frees its valence only as fast as it costs
+   energy); shorter, Pauling's exp(−d/c) toward the double and triple bonds. */
+const betaOf = (P) => BETA_K * P.al[0] * P.al[0];
+function raw(r, P) {
+  const d = r - P.r[0]; let n = MODEL === 'E' && d > 0 ? Math.exp(-betaOf(P) * d * d) : Math.exp(-d / P.c);
+  if (d > 0.9) n *= d >= 1.3 ? 0 : 0.5 * (1 + Math.cos(Math.PI * (d - 0.9) / 0.4)); return Math.min(n, 3.5);
+}
 function Dof(P, n) { if (n <= 0) return 0; if (n < 1) return P.D[0] * Math.pow(n, P_LOW); const i = Math.min(1, Math.floor(n - 1)), f = Math.min(1, n - 1 - i); return P.D[i] + (P.D[i + 1] - P.D[i]) * f; }
-function rOf(P, n) { return P.r[0] - P.c * Math.log(Math.max(n, 0.05)); }
+function rOf(P, n) { return P.r[0] - P.c * Math.log(Math.max(n, 0.05)); } // (Pauling's length for every order: smooth through 1; the Gaussian's inverse had an infinite slope there)
 function alOf(P, n) { return n <= 1 ? P.al[0] : n >= 3 ? P.al[2] : P.al[Math.floor(n) - 1] + (P.al[Math.ceil(n) - 1] - P.al[Math.floor(n) - 1]) * (n - Math.floor(n)); }
 /* Step 3 (model C): no passes. Weak partners first fade out (a 1-3 neighbour 1.5 Å off in a crowded flat molecule is no
    partner: the raw order is tapered from 0.35 down to nothing at 0.15); then each atom whose partners ask for more than
@@ -36,11 +44,16 @@ function alOf(P, n) { return n <= 1 ? P.al[0] : n >= 3 ? P.al[2] : P.al[Math.flo
    its two atoms' answers (a smooth minimum). Closed form, continuous. */
 const TAPER_A = +(process.env.BO_TA || 0.15), TAPER_B = +(process.env.BO_TB || 0.35);
 function taper(n) { if (n >= TAPER_B) return n; if (n <= TAPER_A) return 0; const t = (n - TAPER_A) / (TAPER_B - TAPER_A); return n * t * t * (3 - 2 * t); }
-function levelL(vals, V) { // L ≥ 0 with Σ max(0, v − L) = V (0 when they ask for no more than V)
-  let sum = 0; for (const v of vals) sum += v; if (sum <= V) return 0;
-  const s = vals.slice().sort((a, b) => b - a); let acc = 0;
-  for (let k = 0; k < s.length; k++) { acc += s[k]; const L = (acc - V) / (k + 1); if (k === s.length - 1 || s[k + 1] <= L) return Math.max(0, L); }
-  return 0;
+const EPS_S = +(process.env.BO_ES || 0.03);
+/* a smooth minimum that leaves two equal values as they are (within EPS_S of the true minimum elsewhere) */
+const sminC = (a, b) => { const d = Math.abs(a - b); return Math.min(a, b) + (d < EPS_S ? 0.5 * d * (1 - d / EPS_S) * (1 - d / EPS_S) : 0); }; // (C¹; exact for equal values and for values EPS_S apart)
+/* a ramp max(0, x) rounded over ±EPS_S (C¹) */
+const sp = (x) => x <= -EPS_S ? 0 : x >= EPS_S ? x : (x + EPS_S) * (x + EPS_S) / (4 * EPS_S);
+function levelL(vals, V) { // the level L with Σ sp(v − L) = V, then rounded to L ≥ 0 (sp again): smooth in every value, partners of order 0 included
+  let lo = -V - 1, hi = 4; for (const v of vals) hi = Math.max(hi, v + 1);
+  const f = (L) => { let t = 0; for (const v of vals) t += sp(v - L); return t - V; };
+  for (let it = 0; it < 80; it++) { const mid = 0.5 * (lo + hi); if (f(mid) > 0) lo = mid; else hi = mid; }
+  return sp(0.5 * (lo + hi));
 }
 function orders(atoms, xy) {
   const na = atoms.length, pairs = [];
@@ -50,8 +63,11 @@ function orders(atoms, xy) {
   }
   const V = atoms.map(p => X.capacity(p)), VH = atoms.map(p => X.hyperCap(p));
   const by = atoms.map(() => []); pairs.forEach(q => { by[q.i].push(q); by[q.j].push(q); });
-  const Lof = by.map((list, i) => { const hyp = list.some(q => atoms[q.i === i ? q.j : q.i].el.en >= 3.0); return levelL(list.map(q => q.ne), hyp ? VH[i] : V[i]); });
-  for (const q of pairs) q.n = Math.max(0, smin(smin(Math.max(0, q.ne - Lof[q.i]), Math.max(0, q.ne - Lof[q.j])), 3));
+  // (each partner's demand first capped by what that partner can give at all, its own valence: compressing one O–H must
+  // not take order from the other)
+  const capOf = (q, i) => { const o = q.i === i ? q.j : q.i; return sminC(q.ne, Math.min(atoms[i].el.en >= 3.0 ? VH[o] : V[o], 3)); };
+  const Lof = by.map((list, i) => { const hyp = list.some(q => atoms[q.i === i ? q.j : q.i].el.en >= 3.0); return levelL(list.map(q => capOf(q, i)), hyp ? VH[i] : V[i]); });
+  for (const q of pairs) q.n = Math.max(0, sminC(sp(capOf(q, q.i) - Lof[q.i]), sp(capOf(q, q.j) - Lof[q.j]))); // (a hard minimum: a smooth one takes EPS/4 off two equal answers, the usual case)
   // (model D) the order a pair may hold is what each atom's valence leaves after its other partners (their projected
   // orders), so its own distance comes only from its Morse curve: N = min(Vᵢ − Σ_{k≠j} n'ᵢₖ, Vⱼ − Σ_{k≠i} n'ⱼₖ, 3)
   const S = new Float64Array(na); for (const q of pairs) { S[q.i] += q.n; S[q.j] += q.n; }
@@ -64,8 +80,8 @@ function orders(atoms, xy) {
 function energy(atoms, xy, detail) {
   const pairs = orders(atoms, xy); let Eb = 0, Ec = 0, Ea = 0;
   for (const q of pairs) {
-    const N = process.env.BO_MODEL === 'C' ? q.n : q.N;
-    if (N > 1e-6) { const D = Dof(q.P, N), r0 = rOf(q.P, Math.max(N, 1)), al = alOf(q.P, N), e = 1 - Math.exp(-al * (q.r - r0)), d = q.r - q.P.r[0], fc = d <= 0.9 ? 1 : d >= 1.3 ? 0 : 0.5 * (1 + Math.cos(Math.PI * (d - 0.9) / 0.4)); Eb += fc * D * (e * e - 1); }
+    const N = MODEL === 'D' ? q.N : q.n;
+    if (N > 1e-6) { const D = Dof(q.P, N), r0 = rOf(q.P, MODEL === 'D' ? Math.max(N, 1) : N), al = alOf(q.P, N), e = 1 - Math.exp(-al * (q.r - r0)), d = q.r - q.P.r[0], fc = d <= 0.9 ? 1 : d >= 1.3 ? 0 : 0.5 * (1 + Math.cos(Math.PI * (d - 0.9) / 0.4)); Eb += fc * D * (e * e - 1); }
     Ec += 0.05 * Math.pow(q.P.sig / q.r, 12);
   }
   // VSEPR angles, made continuous (step 3): partners from n > 0.4, the weakest blended in as its order goes from 0.4 to
@@ -112,7 +128,7 @@ function mols() {
     const B = B1.buildMol(key); if (!B) { console.log(key, 'not in the library'); continue; }
     relax(B.atoms, B.xy); const d = energy(B.atoms, B.xy, true);
     const sym = (k) => B.atoms[k].el.sym + (k + 1), Dcl = B.classic.reduce((t, c) => t + c.D, 0);
-    const got = d.pairs.filter(q => q.n > 0.25).map(q => `${sym(q.i)}–${sym(q.j)} ${(q.N ?? q.n).toFixed(2)} ${q.r.toFixed(3)}`);
+    const got = d.pairs.filter(q => q.n > 0.25).map(q => `${sym(q.i)}–${sym(q.j)} ${q.n.toFixed(2)} ${q.r.toFixed(3)}`);
     worst = Math.max(worst, Math.abs(-d.Eb - Dcl) / B.classic.length);
     console.log(`${key.padEnd(8)} atomization ${(-d.Eb).toFixed(2)} eV (game ${Dcl.toFixed(2)}), angles ${d.Ea.toFixed(3)} | ${got.join(', ')}`);
   }

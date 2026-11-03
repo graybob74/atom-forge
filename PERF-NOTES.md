@@ -182,6 +182,22 @@ engine stores and visits particles.
   - Next to try: model D with the valence a bond uses measured by how deep it sits in its own Morse well (2e − e²,
     flat at its length), not by Pauling's raw order, so that stretching a bond frees valence only as fast as it costs
     energy.
+- Continuous bond orders, step 4 (`tools/bo-proto2.js`, model E, the default now): raw orders fall past the single-bond
+  length as a Gaussian, exp(−α₁²d²) (flat there, as a Morse well is), Pauling's exp(−d/c) shorter; each partner's
+  demand first capped by what that partner's own valence allows (so compressing one O–H takes nothing from the other);
+  the level cut and the smooth minimum then as model C; every bond length by Pauling's rule (a Gaussian's inverse has
+  an infinite slope at a whole order, which kicked the forces).
+  - Statics: every molecule of the test set matches the game's bonds to 0.000–0.05 eV a bond, with the game's lengths
+    (benzene 1.48 at 1.423 Å, ethylene 1.98, acetylene 2.96, CO₂ 1.98, H₂O₂ 0.98).
+  - Stiffness near the game's: stretch curvature H₂ 52 eV/Å² (Morse 34), H₂O 81 (47), CH₄ 41 (27).
+  - H + H₂: a true saddle; its height is set by the order exponent p below a single bond: 0.27 eV at p = 1.1, 0.55 at
+    1.2 (measured 0.42 at 0.93 Å: p ≈ 1.15).
+  - Not yet: energy in dynamics. Hot H₂O + CH₄ + H₂ (about 240 K), 1,500 steps: the game's own chemistry keeps it to
+    0.002 eV at 0.2 fs; model E to 0.13–0.8 eV (0.04–0.09 at 0.1 fs), depending on how the valence sharing is rounded
+    off (every bond vibrates across the point where its atom's valence is just used up, and the sharing has a corner
+    there: a hard one jolts the forces each vibration, a rounded one either shifts the orders, by EPS/4 for a common
+    quadratic rounding, or is itself stiff, curvature ~2/EPS per unit order²). A sharing that is smooth by
+    construction is what is left: ReaxFF does it with smooth over-coordination functions throughout (its f₁–f₅).
 - Quantum nuclei, step 3: the setting (Settings → Experimental → Quantum nuclei: off / 8 / 16 / 32 beads, `SET.pi` →
   `piSet`), finished:
   - The rings' internal modes are given masses so that none is faster than PI_OMEGA (1.5 tu⁻¹) and none lighter than
