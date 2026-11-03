@@ -1,4 +1,4 @@
-<title>Atom Forge 1.12.0</title>
+<title>Atom Forge 1.13.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -456,6 +456,39 @@ canvas.chart.graph { height: auto; }
 .spane h3 { margin-top: 6px; }
 /* The Esc menu, the shortcut list */
 .emenu { width: min(340px, 100%); gap: 8px; text-align: center; }
+/* the Experimental tab's total (1.13): what the choices together cost against normal */
+.exptot { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.exptot .big { font: 650 22px/1 'Azeret Mono', ui-monospace, monospace; padding: 6px 10px; border-radius: 8px; color: #fff; white-space: nowrap; }
+.exptot .big.c0 { background: #2e9e5b; } .exptot .big.c1 { background: #7aa83a; } .exptot .big.c2 { background: #c9a227; color: #1b1b1b; } .exptot .big.c3 { background: #e07a2a; } .exptot .big.c4 { background: #d14343; }
+.exptot p { margin: 0; font-size: 12.5px; line-height: 1.4; }
+/* dropdowns (1.13): every <select> shows as a button that opens this list, rounded, with the styled scroll bar and,
+   with interface motion on, the same pop as the other menus; the native select stays underneath, hidden, for the code */
+select.ddhide { position: absolute !important; width: 1px !important; height: 1px !important; min-width: 0 !important; padding: 0 !important; border: 0 !important; opacity: 0; pointer-events: none; overflow: hidden; } /* (kept in the page, out of sight: scripts and assistive tools still drive it) */
+.ddbtn { text-align: left; color: var(--fg); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; font-weight: 600; }
+.ddbtn.typedU { padding-right: 16px; }
+.ddbtn:disabled { opacity: .55; cursor: default; }
+.ddpop { position: fixed; z-index: 95; overflow-y: auto; padding: 5px; background: var(--surface); color: var(--fg); border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.28); font-size: 13px; overscroll-behavior: contain; }
+.ddpop .ddo { padding: 5px 10px; border-radius: 7px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ddpop .ddo.hi { background: var(--accent-soft); }
+.ddpop .ddo.on { background: var(--accent); color: var(--accent-fg); }
+.ddpop .ddo.dis { opacity: .45; cursor: default; }
+.ddpop .ddg { padding: 8px 10px 3px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.ddpop .ddg:first-child { padding-top: 3px; }
+.ddpop .ddnone { padding: 6px 10px; color: var(--muted); }
+body.mo .ddpop { animation: moPop 0.14s ease-out; transform-origin: top left; }
+body.mo .ddpop.up { transform-origin: bottom left; }
+body.mo .ddpop.out { animation: ddOut 0.1s ease-in both; pointer-events: none; }
+@keyframes ddOut { to { opacity: 0; transform: translateY(-3px) scale(0.98); } }
+/* the crash dialog (1.13): above everything, the main menu too */
+#crashModal { z-index: 90; }
+.crashd { width: min(540px, 100%); gap: 10px; }
+.crashd p { margin: 0; line-height: 1.45; }
+.crashbtns { display: flex; flex-wrap: wrap; gap: 8px; }
+.crashbtns .btn { flex: 1 1 auto; padding: 9px 12px; }
+.crashd summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+.crashd textarea { width: 100%; box-sizing: border-box; height: 170px; margin-top: 6px; resize: vertical; font: 11px/1.4 'Azeret Mono', ui-monospace, monospace;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
 .emenu h2 { margin-bottom: 4px; }
 .emenu .btn { width: 100%; padding: 10px 12px; }
 .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
@@ -920,9 +953,8 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
             <button data-v="ee">e⁺ + e⁻</button><button data-v="pp">p + p̄</button><button data-v="dt">D + T</button><button data-v="aa">Au + Au</button>
           </div>
           <div class="beampick">
-            <div class="bp"><span>Beam 1</span><input type="search" class="bfind" id="cFindA" list="cBeamList" placeholder="Search: gold, Ca-48, 92 …" autocomplete="off" spellcheck="false" aria-label="Search for beam 1"><select class="select" id="cBeamA" aria-label="Beam 1"></select><select class="select" id="cIsoA" aria-label="Beam 1 isotope" hidden></select></div>
-            <div class="bp"><span>Beam 2</span><input type="search" class="bfind" id="cFindB" list="cBeamList" placeholder="Search: gold, Ca-48, 92 …" autocomplete="off" spellcheck="false" aria-label="Search for beam 2"><select class="select" id="cBeamB" aria-label="Beam 2"></select><select class="select" id="cIsoB" aria-label="Beam 2 isotope" hidden></select></div>
-            <datalist id="cBeamList"></datalist>
+            <div class="bp"><span>Beam 1</span><input type="search" class="bfind" id="cFindA" placeholder="Search: gold, Ca-48, 92 …" autocomplete="off" spellcheck="false" aria-label="Search for beam 1"><select class="select" id="cBeamA" aria-label="Beam 1"></select><select class="select" id="cIsoA" aria-label="Beam 1 isotope" hidden></select></div>
+            <div class="bp"><span>Beam 2</span><input type="search" class="bfind" id="cFindB" placeholder="Search: gold, Ca-48, 92 …" autocomplete="off" spellcheck="false" aria-label="Search for beam 2"><select class="select" id="cBeamB" aria-label="Beam 2"></select><select class="select" id="cIsoB" aria-label="Beam 2 isotope" hidden></select></div>
           </div>
           <div class="row"><span id="cELabel">Beam energy</span><span class="val" id="cEVal"></span></div>
           <input type="range" id="cESlider" min="0" max="1000" step="1" aria-label="Beam energy">
@@ -1367,7 +1399,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <div class="srow"><span>Priority</span><span class="prio"><small>Smooth</small><input type="range" id="setPrio" min="0" max="4" step="1" value="0" aria-label="Priority: smooth frame rate or simulation speed"><small>Fast</small><label class="check prioauto" title="Pick the position by itself, from how fast each would run this setup"><input type="checkbox" id="setPrioAuto"> Auto</label></span></div>
       <p class="note" id="setPrioV" aria-live="polite"></p>
       <div class="srow"><span>Physics per frame</span><div class="seg" id="segBudget" role="group" aria-label="Physics time per frame"><button data-v="6">6 ms</button><button data-v="10">10 ms</button><button data-v="16">16 ms</button><button data-v="24">24 ms</button></div></div>
-      <div class="srow"><span>Threads</span><div class="seg" id="segThreads" role="group" aria-label="Processor threads"><button data-v="auto">Auto</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="4">4</button><button data-v="8">8</button><button data-v="16">16</button></div></div>
+      <div class="srow"><span>Threads</span><div class="seg" id="segThreads" role="group" aria-label="Processor threads"><button data-v="auto">Auto</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="4">4</button><button data-v="8">8</button><button data-v="16">16</button><button data-v="32">32</button></div></div>
       <div class="srow"><span>Drawing</span><div class="seg" id="segGl" role="group" aria-label="Drawing"><button data-v="gl">WebGL</button><button data-v="2d">Canvas 2D</button></div></div>
       <p class="note" id="setThreads" aria-live="polite"></p>
       <div class="srow"><span>Speed test</span><button class="btn small" id="setBench">Run benchmark</button></div>
@@ -1437,6 +1469,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <div class="srow"><span>These settings</span><button class="btn small" id="setReset">Back to defaults</button></div>
     </section>
     <section class="sgroup spane" data-stab="exp" hidden>
+      <div class="exptot" id="expTotal"></div>
       <p class="note">More accurate physics, at a price in speed. Each cost was measured in this game (one thread, liquid water unless it says otherwise; tools/accbench in the source): ×2 means the same moment takes twice as long to work out. The coloured tags beside settings in every tab show what each choice costs, green for little or nothing to red for a lot.</p>
       <h3>Shorter longest step</h3>
       <div class="srow"><span>Longest time step</span><div class="seg" id="segDtMax" role="group" aria-label="Longest time step"><button data-v="0.04">0.4 fs (normal)</button><button data-v="0.02">0.2 fs</button><button data-v="0.01">0.1 fs</button></div></div>
@@ -1456,8 +1489,11 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <h3>Quantum nuclei</h3>
       <div class="srow"><span>Quantum nuclei</span><div class="seg" id="segPi" role="group" aria-label="Quantum nuclei"><button data-v="0">Off (normal)</button><button data-v="8">8 beads</button><button data-v="16">16 beads</button><button data-v="32">32 beads</button></div></div>
       <p class="note">Atoms are not points: a nucleus, light ones most, is spread out by its zero-point motion and can tunnel through barriers. With this on every atom is a ring of beads (path-integral molecular dynamics), each feeling the forces at its own copy of the world; zoomed in, the beads show as small dots over each atom. At 300 K the H₂ bond spreads from 0.037 to 0.089 Å wide (16 beads) and lengthens from 0.746 to 0.764 Å (measured 0.766); heavy hydrogen spreads less, from the masses alone. The heat bath keeps the rings at its temperature. In an insulated box the rings need shorter steps: liquid water drifts 0.27 eV in 30 fs at the usual step, 0.07 at 0.2 fs (Longest time step above). Free electrons, bare nuclei and fast particles stay points. Costs ×7.8 (8 beads), ×17 (16), ×36 (32) on liquid water.</p>
+      <h3>Continuous bond orders</h3>
+      <div class="srow"><span>Bond orders</span><div class="seg" id="segBo" role="group" aria-label="Continuous bond orders"><button data-v="0">Stored (normal)</button><button data-v="1">From the positions</button></div></div>
+      <p class="note">Normally a bond is stored with a whole-number order, and bonds form, break and swap partners as events, each with its measured energy. With this on, neutral molecules of non-metals (H, B, C, N, O, F, Si, P, S, Cl, Br, I) keep no stored bonds: every pair's bond order is worked out at every step from where the atoms are, so a bond stretches, weakens and breaks continuously, new ones grow, and a reaction finds its own barrier (H + H₂: 0.41 eV, measured 0.42). Statics match the stored bonds within 0.04 eV a bond. Its limits for now: these molecules carry no partial charges (so no hydrogen bonds between them), a molecule that gains a charge or touches a metal or an ion's bond goes back to stored bonds, and crowded flat molecules such as SF₆ come apart. Changing it books the energy difference to the heat bath. Costs ×17 (liquid water) to ×45 (the molecule gallery): every pair worked out every step, and steps half as long.</p>
       <h3>On hold: very large</h3>
-      <p class="note"><b>Continuous bond orders</b> (bonds and reaction barriers from the atoms' positions instead of stored orders): estimated ×5–15 optimised, the prototype ×75–120. <b>Quantum nuclei</b> (16–32 linked copies of every atom: zero-point energy, hydrogen tunnelling): ×14–30. <b>Electrons as waves</b> (Pauli exclusion in plasmas and metals): estimated ×3–10 where there are many free electrons. <b>Real 3-D</b>: estimated ×10–100. <b>Quantum chemistry for bonds</b>: estimated ×100–10,000.</p>
+      <p class="note"><b>Electrons as waves</b> (Pauli exclusion in plasmas and metals): estimated ×3–10 where there are many free electrons. <b>Real 3-D</b>: estimated ×10–100. <b>Quantum chemistry for bonds</b>: estimated ×100–10,000.</p>
     </section>
     <section class="sgroup spane" data-stab="ai" hidden>
       <div class="srow"><span>API key</span><input type="password" class="msearch skey" id="setApiKey" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" aria-label="Claude API key"></div>
@@ -1481,6 +1517,16 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
     <button class="btn" data-esc="menu">Main menu</button>
     <button class="btn danger" data-esc="quit" id="escQuit">Quit</button>
     <p class="note" id="escNote"></p>
+  </div>
+</div>
+
+<div class="modal" id="crashModal" hidden>
+  <div class="dialog crashd" role="alertdialog" aria-modal="true" aria-labelledby="crashTitle">
+    <h2 id="crashTitle">Something went wrong</h2>
+    <p id="crashText"></p>
+    <div class="crashbtns" id="crashBtns"></div>
+    <details id="crashDet"><summary>Report (to send with a bug report)</summary><textarea id="crashReport" readonly spellcheck="false"></textarea></details>
+    <p class="note" id="crashNote"></p>
   </div>
 </div>
 
@@ -3961,7 +4007,7 @@ class Part {
     S.Z[i] = 0; S.ne[i] = 0; S.mol[i] = 0; S.id[i] = W.nextId++;
     S.ljR[i] = 0; S.ljS[i] = 0; S.ionR[i] = 0; S.cap[i] = 0; S.used[i] = 0; S.ionic[i] = 0; S.isMetal[i] = 0; S.anti[i] = 0; S.xferD[i] = 0; S.xferA[i] = 0;
     S.sEN[i] = SOFT_EN; S.elrc[i] = 0; S.hit[i] = 0; S.lp[i] = 0; S.metal[i] = 0; S.mR[i] = 0; S.mD[i] = 0; S.tLocal[i] = 0; S.vlx[i] = 0; S.vly[i] = 0; S.vlin[i] = 0;
-    this.N = 0; this.qpol = 0; this.qf = 0; this.qi = 0; this.bonds = []; this.excl = null; this.el = null; this.nuc = null;
+    this.N = 0; this.qpol = 0; this.qf = 0; this.qi = 0; this.bom = false; this.bonds = []; this.excl = null; this.el = null; this.nuc = null;
     this.KE = 0; this.ux = 1; this.uy = 0; this.sp = 0; this.gam = 1;
     this.glow = 0; this.glowC = ''; this.born = W.rt;
     this.val = 0; this.nOut = 0; this.unp = 0;
@@ -4062,6 +4108,7 @@ function refresh(p) {
   p.el = Z > 0 ? ELEMENTS[Math.min(Z, Z_MAX)] : null;
   S.elrc[p.i] = p.el ? p.el.rc : 0; S.metal[p.i] = p.el && p.el.metal ? 1 : 0; // (the covalent radius and whether it is a metal, for the pair kernel)
   if (Z === 0) p.m = N * PHYS.MN;
+  else if (p.mu) p.m = MU_M / PHYS.AMU_MEV + p.ne * PHYS.ME; // (1.12: muonium, its nucleus a μ⁺: a hydrogen atom 1/9 the mass, hep.js addMuonium)
   else p.m = Math.max(0.5, Z * PHYS.MP + N * PHYS.MN + p.ne * PHYS.ME - bindingE(Z, N) / PHYS.AMU_MEV);
   p.im = 1 / p.m;
   p.q = (p.anti ? -1 : 1) * (Z - p.ne);
@@ -4535,7 +4582,7 @@ function molecule(p) {
 }
 function hill(atoms, plain) {
   const cnt = {}; let q = 0;
-  for (const a of atoms) { const s = a.el ? (a.anti ? barSym(a.el.sym) : a.el.sym) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
+  for (const a of atoms) { const s = a.mu ? 'Mu' : a.el ? (a.anti ? barSym(a.el.sym) : a.el.sym) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
   const keys = Object.keys(cnt);
   let order;
   if (cnt.C) order = ['C'].concat(cnt.H ? ['H'] : [], keys.filter(k => k !== 'C' && k !== 'H').sort());
@@ -4547,7 +4594,7 @@ function hill(atoms, plain) {
 }
 /* The formula with its isotopes written out, as chemists write them: D₂O, CH₃D, ¹³CH₄ (just hill() without any). */
 function isoFormula(atoms, plain) {
-  if (atoms.some(a => a.anti || !a.el) || !atoms.some(a => isoA(a))) return hill(atoms, plain);
+  if (atoms.some(a => a.anti || !a.el || a.mu) || !atoms.some(a => isoA(a))) return hill(atoms, plain);
   const cnt = new Map(); let q = 0;
   for (const a of atoms) { const k = a.el.sym + ' ' + isoA(a); cnt.set(k, (cnt.get(k) || 0) + 1); q += a.q || 0; }
   const els = [...new Set(atoms.map(a => a.el.sym))];
@@ -4629,7 +4676,7 @@ function isoName(n, d) {
   return (MOL_ISO_NAMES[n] && MOL_ISO_NAMES[n][d]) || `(${d})` + (/^[A-Z][a-z]/.test(n) ? n[0].toLowerCase() + n.slice(1) : n);
 }
 function moleculeName(atoms) {
-  if (!atoms.length) return null;
+  if (!atoms.length || atoms.some(a => a.mu)) return null; // (with muonium in it: the formula, MuCl, not hydrogen chloride's name, 1.12)
   const anti = atoms.every(a => a.anti);
   const m = libMatch(atoms), iso = !m && !anti ? isoDesc(atoms) : ''; // (one built with its isotopes keeps its own name)
   let n = m ? m.name : iso ? (libMatch(atoms, true) || {}).name || null : null;
@@ -4711,6 +4758,7 @@ function speciesLabel(p) {
   if (p.k === POS) return 'e⁺';
   if (p.Z === 0) return 'n';
   if (p.bonds.length) return isoFormula(molecule(p));
+  if (p.mu) return p.ne === 0 ? 'μ⁺' : 'Mu' + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''); // (1.12: muonium, Mu⁻ muonide; bare, a μ⁺)
   if (p.anti && p.ne === 0) return p.Z === 1 && p.N === 0 ? 'p̄' : nucSymA(p.Z, p.N, true) + sup((p.Z > 1 ? p.Z : '') + '-');
   if (p.ne === 0) {
     if (p.Z === 1 && p.N === 0) return 'p⁺';
@@ -5171,6 +5219,7 @@ function vlExclusions() {
     const i = pi[q], j = pj[q], mi = MOL[i];
     ex[q] = (mi !== 0 && mi === MOL[j] && K[i] === NUC && K[j] === NUC && Z[i] > 0 && Z[j] > 0 && NE[i] > 0 && NE[j] > 0) ? (OBJ[i].excl.has(ID[j]) ? 1 : 2) : 0; // (2: one molecule, not excluded)
   }
+  if (BO.any) for (let q = 0; q < np; q++) { const a = OBJ[pi[q]], b = OBJ[pj[q]]; if (a && b && a.bom && b.bom) ex[q] = 1; } // (continuous bond orders: their pairs are bo.js's)
   VL.exTopo = W.topo; VL.exDirty = W.dirty;
 }
 function vlInvalidate() { VL.valid = false; }
@@ -5381,6 +5430,7 @@ function localPE(set, skip) {
       if (o.Z === 0) return;
       if (set.has(o) && o.id < p.id) return;
       if (p.mol !== 0 && p.mol === o.mol && p.excl && p.excl.has(o.id)) return;
+      if (p.bom && o.bom) return; // (continuous bond orders: bo.js's)
       V += nucPairV(p, o, r2);
     };
     nearby(p.x, p.y, RC, visit);
@@ -5957,6 +6007,7 @@ function computeForces1() {
   if (VL.exTopo !== W.topo || VL.exDirty !== W.dirty) vlExclusions();
   if (_profOn) { const t = performance.now(); _tLists += t - tp; tp = t; }
   nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
+  if (BO.any) boPass(true); // (continuous bond orders, 1.13: bo.js)
   if (_profOn) tp = performance.now();
   if (nmdL) { // pairs with a free lepton in them, from the inner steps' list
     if (!flValid()) flBuild();
@@ -6393,7 +6444,7 @@ function photoDissociate(bd, E) {
   // if the fragments can't get apart with this photon's energy, it is simply absorbed as heat
   if (kickPair(a, b, left) > left + 1e-6) { restoreSnap(sn); dumpHeat(E, a, b); return; }
   W.count.broken++;
-  log('chem', `Photodissociation: light (${(PHYS.HC / E).toFixed(0)} nm) split ${a.el.sym}–${b.el.sym}`);
+  log('chem', `Photodissociation: light (${(PHYS.HC / E).toFixed(0)} nm) split ${a.mu ? 'Mu' : a.el.sym}–${b.mu ? 'Mu' : b.el.sym}`);
 }
 function compton(p, E, ux, uy) {
   if (p.dead || p.ne === 0) return;
@@ -6709,7 +6760,7 @@ function hardMeet(a, b) {
   return 0.5 * Ma * Mb / (Ma + Mb) * (dvx * dvx + dvy * dvy) > HARD_MEET;
 }
 function evBond(a, b, r) {
-  if (a.dead || b.dead || bondBetween(a, b)) return;
+  if (a.dead || b.dead || bondBetween(a, b) || a.bom || b.bom) return; // (continuous bond orders: no stored bond to a member)
   if (!(a.cap - a.used > 0 && b.cap - b.used > 0) || !covalentOK(a, b)) return;
   if (a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) return;
   if (hardMeet(a, b)) return;
@@ -6745,7 +6796,7 @@ function snapTogetherIntra(bd) {
    exceeds the activation energy (Semenov–Polanyi); otherwise the repulsion simply bounces them apart. */
 const _rxTried = new Map();
 function evReact(X, A, rx, r) {
-  if (X.dead || A.dead || rx.topo !== W.topo) return;
+  if (X.dead || A.dead || rx.topo !== W.topo || X.bom || A.bom) return;
   if (!(X.cap - X.used > 0) || W.bonds.indexOf(rx.bd) < 0 || bondBetween(X, A)) return;
   const key = X.id * 131072 + A.id, last = _rxTried.get(key);
   if (last !== undefined && W.step - last < 30) return; // one test per encounter
@@ -6847,7 +6898,7 @@ function evBreak(bd, r) {
     W.ledger.bath -= cost - have; // (drawn from the bath)
   } else kickPair(b, a, -cost, dx / rr, dy / rr);
   W.count.broken++;
-  log('chem', `Bond broke: ${a.el.sym}–${b.el.sym} (needed ${fmtE(bd.D)})${have < cost ? `, overstretched to ${rr.toFixed(1)} Å: the heat bath gave ${fmtE(cost - have)}` : ''}`);
+  log('chem', `Bond broke: ${a.mu ? 'Mu' : a.el.sym}–${b.mu ? 'Mu' : b.el.sym} (needed ${fmtE(bd.D)})${have < cost ? `, overstretched to ${rr.toFixed(1)} Å: the heat bath gave ${fmtE(cost - have)}` : ''}`);
 }
 
 /* Electron or positron meets a nucleus/atom. */
@@ -7072,7 +7123,7 @@ function pairPE(a, b) {
   const [dx, dy] = minImg(b.x - a.x, b.y - a.y), r2 = dx * dx + dy * dy;
   let V = 0;
   if (r2 < RC2) {
-    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id))) V += nucPairV(a, b, r2); }
+    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom)) V += nucPairV(a, b, r2); }
     else if (a.k === NUC || b.k === NUC) {
       const A = a.k === NUC ? a : b, L = A === a ? b : a, qa = A.q;
       if (qa) V += PHYS.KE * L.q * qa * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN));
@@ -7193,7 +7244,7 @@ function evAnti(a, b, r) {
    fly out of the chamber, neutral ones decay at once into γ rays), now and then kaons. The antiprotonic atom's
    cascade shakes out a few electrons first, and a struck nucleus is left hot and boils off a few nucleons. */
 function nuclearAnnihilation(a, b) {
-  if (a.dead || b.dead) return;
+  if (a.dead || b.dead || a.mu || b.mu) return; // (an antinucleon meets no nucleon in muonium, 1.12)
   const anti = a.anti ? a : b, mat = anti === a ? b : a;
   const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
   const vx = (a.m * avx + b.m * bvx) / (a.m + b.m), vy = (a.m * avy + b.m * bvy) / (a.m + b.m);
@@ -7264,7 +7315,7 @@ function twoGamma(x, y, E = 2 * ME_C2) {
 
 /* Bare proton meets a lone pair: dative bond (H⁺ + H₂O → H₃O⁺, H⁺ + NH₃ → NH₄⁺, H⁺ + Cl⁻ → HCl). */
 function evDative(H, D, r) {
-  if (H.dead || D.dead || opp(H, D) || H.ne !== 0 || H.Z !== 1 || D.ne === 0 || D.lp < 1 || hardMeet(H, D)) return;
+  if (H.dead || D.dead || H.bom || D.bom || opp(H, D) || H.ne !== 0 || H.Z !== 1 || D.ne === 0 || D.lp < 1 || hardMeet(H, D)) return;
   const capAfter = (() => {
     const vi = valenceInfo(D.Z, D.ne - 1); if (D.el.dblock) return 0;
     if (vi.n === 1) return vi.v === 1 ? 1 : 0;
@@ -7535,7 +7586,7 @@ const fusGate = () => W.ultra ? 2e-3 : R_FUS;
 function tryFusion(a, b, bd) {
   if (a.dead || b.dead) return false;
   if (opp(a, b)) { nuclearAnnihilation(a, b); return true; }
-  if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX) return false;
+  if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX || a.mu || b.mu) return false; // (a muon is no nucleon: nothing to fuse, 1.12)
   const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
   const mu = a.m * b.m / (a.m + b.m);
   const dvx = avx - bvx, dvy = avy - bvy;
@@ -7597,7 +7648,7 @@ function tryFusion(a, b, bd) {
 
 /* Neutron meets a nucleus: capture, fission, (n,p)/(n,α)/(n,t) or elastic scattering. */
 function neutronHit(n, T, b, R) {
-  if (n.dead || T.dead || (T.Z < 1 && !(T.N === 1 && T.k === NUC))) return false; // (a nucleus, or another free neutron: n–n is elastic below ~20 MeV, the dineutron being unbound)
+  if (n.dead || T.dead || T.mu || (T.Z < 1 && !(T.N === 1 && T.k === NUC))) return false; // (a nucleus, or another free neutron: n–n is elastic below ~20 MeV, the dineutron being unbound)
   if (opp(T, n)) { nuclearAnnihilation(T, n); return true; }
   if (n.rad || T.rad) { // fast (either of them): relativistic kinematics. Spallation, fission, … or diffraction; two nucleons below ~20 MeV scatter isotropically (s-wave)
     if (nuclearEncounter(n, T, R > 0 ? clamp((b || 0) / R, 0, 1) : rnd(), T.x, T.y)) return true;
@@ -9689,7 +9740,8 @@ function stepPlain(dt) {
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) moveWalls(dt); else { W.box.uw = 0; W.box.uh = 0; }
   // particles added from outside, or switched between MD and ballistic flight at the end of the last step
   rpMark(0);
-  if (W.fSpawn !== W.spawned || listsStale() || _wallMoved) { _noEv = true; computeForces(); _noEv = false; }
+  const boCh = (BO.on || BO.any) && boSync(); // (continuous bond orders: who takes part, 1.13)
+  if (boCh || W.fSpawn !== W.spawned || listsStale() || _wallMoved) { _noEv = true; computeForces(); _noEv = false; }
   _wallMoved = false;
   rpSkip();
   let tp = _profOn ? performance.now() : 0;
@@ -9930,7 +9982,10 @@ function measure() {
 }
 
 /* ------------------------------------------------------------------ world construction helpers */
+/* continuous bond orders (bo.js), asked of by the engine's force and energy passes */
+const BO = { on: false, any: false, pairs: [], np: 0, E: 0, cache: new Map(), Ztab: new Set([1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53]), bath: 0, changes: 0 };
 function clearWorld() {
+  BO.np = 0; BO.any = false; BO.E = 0;
   dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null; W.chain = null;
@@ -9938,7 +9993,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.at = W.at || 0;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.muAtoms = []; W.at = W.at || 0;
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }
@@ -10143,6 +10198,7 @@ function settleOverlaps() {
 function fireSpec(spec, x, y, ux, uy, KE, free) {
   if (spec.kind === 'gamma') { emitPhoton(x, y, KE, ux, uy); return null; }
   if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e'); return null; }
+  if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy); // (1.12: an atom, in MD)
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy) : null; // (a muon, pion …: from outside, as any fired particle)
   const ps = spawnClear(spec, x, y, 0, free);
   if (!ps.length) return null;
@@ -10204,6 +10260,7 @@ function totalEnergy0() {
     const a = md[i], b = md[j];
     const [dx, dy] = minImg(b.x - a.x, b.y - a.y), r2 = dx * dx + dy * dy, r = Math.sqrt(r2);
     if (a.k === NUC && b.k === NUC) {
+      if (a.bom && b.bom) continue; // (continuous bond orders: below)
       if (r >= RC) { // only metallic cohesion reaches farther
         if (a.isMetal && b.isMetal && a.ne > 0 && b.ne > 0 && !opp(a, b) && r < 1.05 * (a.mR + b.mR) && !(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id))) pe += metalV(a, b, r);
         continue;
@@ -10231,6 +10288,7 @@ function totalEnergy0() {
   }
   for (const bd of W.bonds) pe += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
+  if (BO.any) pe += boPass(false);
   if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls
@@ -10241,6 +10299,381 @@ function totalEnergy0() {
   return { ke, pe, internal, esc: W.ledger.escaped, total: ke + pe + internal + W.ledger.escaped };
 }
 wasmLoadModule(); // (the kernel module, now that its constants exist to be checked)
+
+/* ---- bo.js ---- */
+/* ------------------------------------------------------------------ continuous bond orders (Experimental, 1.13)
+   With Settings → Experimental → Continuous bond orders on, neutral molecules of non-metals (H, B, C, N, O, F, Si, P,
+   S, Cl, Br, I) keep no stored bonds: every pair's bond order is worked out at every step from where the atoms are, and
+   the energy is a smooth function of the positions (model E, tools/bo-proto2.js; the derivation and its checks in
+   PERF-NOTES, 1.12 and 1.13). So bonds stretch, weaken and break, and new ones grow, continuously, and reactions find
+   their own barriers (H + H₂: 0.41 eV, measured 0.42) instead of the classic chemistry's events.
+     raw order   n⁰ from the distance: Pauling's exp((r₁ − r)/c) inside the single-bond length, exp(−α₁²(r − r₁)²)
+                 beyond it, tapered to nothing at r₁ + 1.3 Å; weak ones (below 0.35) fade out by 0.15
+     valence     each atom shares out its valence: a level L with Σ ramp(cₖ − L) = V over its partners (cₖ: n⁰ capped by
+                 what that partner can give at all), so the weakest go first; the pair keeps the smaller of its two
+                 atoms' answers (smooth minima, rounded ramps: the energy has continuous forces)
+     energy      a Morse curve of the order (depth from the game's tables between whole orders, Pauling's length,
+                 the nearest whole order's stiffness), a soft core, and the game's VSEPR angle terms, blended in by
+                 order; forces by the chain rule backwards (tools/bo-fast.js checks them against numerical ones)
+   Between member atoms the usual non-bonded pair (the kernel's) is left out (VL.ex = 1) and replaced here by the same
+   Lennard-Jones, switched on smoothly from r₁ + 1.3 to r₁ + 1.8 Å, where the bond terms have let go. Member atoms carry
+   no partial charges (a limit of this first version: no hydrogen bonds between them).
+   Membership is by whole clusters (stored bonds for the rest, these orders above 0.3 for members): a cluster joins
+   when all its atoms qualify (its stored bonds are let go) and leaves when one stops qualifying (an ion forms, a
+   nucleus changes): it gets stored bonds again, whole orders shared out from its last orders. Each change is paid
+   for exactly: the energy before and after at the same positions, the difference to the bath (as for quantum
+   nuclei's rings). */
+// (BO itself is made in engine.js, which runs first and asks it)
+const BO_EPS = 0.03, BO_PLOW = 1.15, BO_WIN = 0.05, BO_TA = 0.15, BO_TB = 0.35, BO_SW = 0.5; // (smoothing; Dof's power below a single bond; the taper; the non-bonded switch's width)
+const boSp = (x) => x <= -BO_EPS ? 0 : x >= BO_EPS ? x : (x + BO_EPS) * (x + BO_EPS) / (4 * BO_EPS);
+const boSpD = (x) => x <= -BO_EPS ? 0 : x >= BO_EPS ? 1 : (x + BO_EPS) / (2 * BO_EPS);
+const boH = (d) => d < BO_EPS ? 0.5 * d * (1 - d / BO_EPS) * (1 - d / BO_EPS) : 0;
+const boFade = (c) => { const t = c <= 0 ? 0 : c >= 2 * BO_EPS ? 1 : c / (2 * BO_EPS); return t * t * (3 - 2 * t); }; // (a partner asking for nothing counts for nothing)
+const boFadeD = (c) => { if (c <= 0 || c >= 2 * BO_EPS) return 0; const t = c / (2 * BO_EPS); return 6 * t * (1 - t) / (2 * BO_EPS); };
+const boHD = (d) => d < BO_EPS ? 0.5 * (1 - d / BO_EPS) * (1 - d / BO_EPS) - d * (1 - d / BO_EPS) / BO_EPS : 0;
+/* Depth and stiffness of a bond of order N: the game's tables at whole orders, straight lines between (a power below a
+   single bond), the corners at 1, 2 and 3 rounded over ±0.05 by blending the two pieces either side (their values meet
+   at the corner): a corner put a jump in the force of every bond crossing it. [value, slope] */
+const BO_KH = 0.05;
+const BO_TG = new Map(); // (the VSEPR targets, sorted, by partners, lone pairs, period, all-hydrogen)
+let BO_C = new Float64Array(16), BO_F = new Float64Array(16); // (scratch for the level's solve)
+function boKnot(N, f, g) { // pieces f (left) and g (right) of a corner at round(N), blended over ±BO_KH
+  const K = Math.round(N), t = (N - K + BO_KH) / (2 * BO_KH);
+  if (t <= 0) return f(N); if (t >= 1) return g(N);
+  const w = t * t * (3 - 2 * t), dw = 6 * t * (1 - t) / (2 * BO_KH), a = f(N), b = g(N);
+  return [a[0] + w * (b[0] - a[0]), a[1] + w * (b[1] - a[1]) + dw * (b[0] - a[0])];
+}
+function boDepth(P, N) {
+  const D = P.D, p0 = (n) => n <= 0 ? [0, 0] : [D[0] * Math.pow(n, BO_PLOW), D[0] * BO_PLOW * Math.pow(n, BO_PLOW - 1)];
+  const p1 = (n) => [D[0] + (D[1] - D[0]) * (n - 1), D[1] - D[0]], p2 = (n) => [D[1] + (D[2] - D[1]) * (n - 2), D[2] - D[1]], p3 = () => [D[2], 0];
+  if (N < 1 - BO_KH) return p0(N); if (N < 1 + BO_KH) return boKnot(N, p0, p1);
+  if (N < 2 - BO_KH) return p1(N); if (N < 2 + BO_KH) return boKnot(N, p1, p2);
+  if (N < 3 - BO_KH) return p2(N); if (N < 3 + BO_KH) return boKnot(N, p2, p3);
+  return p3(N);
+}
+function boStiff(P, N) {
+  const A = P.al, p0 = () => [A[0], 0], p1 = (n) => [A[0] + (A[1] - A[0]) * (n - 1), A[1] - A[0]], p2 = (n) => [A[1] + (A[2] - A[1]) * (n - 2), A[2] - A[1]], p3 = () => [A[2], 0];
+  if (N < 1 - BO_KH) return p0(N); if (N < 1 + BO_KH) return boKnot(N, p0, p1);
+  if (N < 2 - BO_KH) return p1(N); if (N < 2 + BO_KH) return boKnot(N, p1, p2);
+  if (N < 3 - BO_KH) return p2(N); if (N < 3 + BO_KH) return boKnot(N, p2, p3);
+  return p3(N);
+}
+/* the pair's constants, by element pair */
+function boPP(ea, eb) {
+  const key = ea.Z < eb.Z ? ea.Z * 128 + eb.Z : eb.Z * 128 + ea.Z; let v = BO.cache.get(key);
+  if (!v) {
+    const r = [1, 2, 3].map(o => bondLength(ea, eb, o)), D = [1, 2, 3].map(o => bondEnergy(ea, eb, o)), al = [1, 2, 3].map(o => morseA(ea, eb, o));
+    const t = BONDS[bondKey(ea, eb)], two = !!(t && t.l && t.l[1]);
+    const c = two ? Math.min(0.45, Math.max(0.2, (r[0] - r[1]) / Math.LN2)) : Math.sqrt(BO_PLOW / 2) / al[0];
+    v = { r, D, al, c, sig: 0.62 * r[0], beta: al[0] * al[0], reach: r[0] + 1.3 };
+    BO.cache.set(key, v);
+  }
+  return v;
+}
+/* Can this atom take part? (whole clusters decide: boSync) */
+function boOK(p) {
+  return p.k === NUC && !p.dead && !p.fast && !p.rad && !p.anti && p.Z > 0 && BO.Ztab.has(p.Z) && p.ne === p.Z && p.q === 0 && !p.exo && !p.mu;
+}
+/* The pairs of member atoms within the force reach: from the neighbour list in a force pass, from the grid otherwise. */
+function boCollect(useVL) {
+  const L = BO.pairs; let n = 0;
+  const X = S.x, Y = S.y, OBJ = S.obj, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
+  const put = (a, b, dx, dy, r2) => {
+    if (r2 >= RC2 || r2 < 1e-12) return;
+    let q = L[n]; if (!q) q = L[n] = {};
+    q.a = a; q.b = b; q.r = Math.sqrt(r2); q.ux = dx / q.r; q.uy = dy / q.r; q.P = boPP(a.el, b.el); n++;
+  };
+  if (useVL) {
+    const pi = VL.pi, pj = VL.pj;
+    for (let k = 0; k < VL.np; k++) {
+      const a = OBJ[pi[k]], b = OBJ[pj[k]];
+      if (!a || !b || !a.bom || !b.bom || a.dead || b.dead) continue;
+      let dx = X[pj[k]] - X[pi[k]], dy = Y[pj[k]] - Y[pi[k]];
+      if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
+      put(a, b, dx, dy, dx * dx + dy * dy);
+    }
+  } else {
+    for (const a of W.parts) {
+      if (!a.bom || a.dead) continue;
+      nearby(a.x, a.y, RC, (b, dx, dy, r2) => { if (b.bom && b !== a && b.id > a.id) put(a, b, dx, dy, r2); });
+    }
+  }
+  BO.np = n;
+  return n;
+}
+/* The energy of the member atoms (bond terms, angles, the switched non-bonded pairs), and with forces on, their forces
+   into S.fx, S.fy. */
+function boPass(forces) {
+  const n = boCollect(forces), L = BO.pairs;
+  const by = new Map(); // atom → its bond-term pairs
+  let E = 0;
+  // non-bonded (switched), raw orders, the taper
+  for (let k = 0; k < n; k++) {
+    const q = L[k], P = q.P, a = q.a, b = q.b;
+    q.gr = 0; q.gn = 0; q.gca = 0; q.gcb = 0; q.n = 0; q.ne = 0; q.eL = 0; q.eM = 0;
+    // the Lennard-Jones pair of the kernel (ljV, two atoms of no molecule), switched on from the bond's reach
+    if (P.eps === undefined) { const lj = ljPair(a, b); P.rm = lj[0]; P.eps = lj[1]; P.rOn = Math.max(P.reach, 0.62 * lj[0] + 0.05); P.rCut = 2.6 * lj[0]; } // (members are neutral: the pair's Lennard-Jones constants are its elements')
+    const rm = P.rm, eps = P.eps, rOn = P.rOn;
+    if (eps > 0 && q.r > rOn && q.r < P.rCut) {
+      const s2 = rm * rm / (q.r * q.r), s6 = s2 * s2 * s2, V = eps * (s6 * s6 - 2 * s6 + LJ_VCUT), dV = eps * (-12 * s6 * s6 + 12 * s6) / q.r;
+      const t = (q.r - rOn) / BO_SW, sw = t >= 1 ? 1 : t * t * (3 - 2 * t), dsw = t >= 1 ? 0 : 6 * t * (1 - t) / BO_SW;
+      E += sw * V; q.eL = sw * V; q.gr += sw * dV + dsw * V;
+    }
+    if (q.r >= P.reach) continue;
+    // raw order and its slope
+    const d = q.r - P.r[0]; let n0, dn0;
+    if (d > 0) { n0 = Math.exp(-P.beta * d * d); dn0 = -2 * P.beta * d * n0; } else { const w2 = BO_WIN * BO_WIN, h = d * d / (d * d + w2), hd = 2 * d * w2 / ((d * d + w2) * (d * d + w2)); n0 = Math.exp(-d * h / P.c); dn0 = -n0 * (h + d * hd) / P.c; } // (Pauling's rule inward, eased in over 0.05 Å: no corner at the single-bond length)
+    if (d > 0.9) { const u = Math.PI * (d - 0.9) / 0.4, f = 0.5 * (1 + Math.cos(u)), fd = -0.5 * Math.sin(u) * Math.PI / 0.4; dn0 = dn0 * f + n0 * fd; n0 *= f; }
+    if (n0 >= 3.5) { n0 = 3.5; dn0 = 0; }
+    let ne, dne;
+    if (n0 >= BO_TB) { ne = n0; dne = 1; } else if (n0 <= BO_TA) { ne = 0; dne = 0; } else { const w = BO_TB - BO_TA, t = (n0 - BO_TA) / w, s = t * t * (3 - 2 * t); ne = n0 * s; dne = s + n0 * 6 * t * (1 - t) / w; }
+    q.ne = ne; q.dne = dne * dn0;
+    // the soft core
+    const z2 = P.sig * P.sig / (q.r * q.r), z6 = z2 * z2 * z2, s12 = z6 * z6; E += 0.05 * s12; q.gr += -0.6 * s12 / q.r;
+    let la = by.get(a); if (!la) by.set(a, la = []); la.push(q);
+    let lb = by.get(b); if (!lb) by.set(b, lb = []); lb.push(q);
+  }
+  // caps, levels, orders
+  const cap = (p) => { let v = p._boV; if (v === undefined) { p._boV = v = capacity(p); p._boVH = hyperCap(p); } return v; };
+  for (const [p, list] of by) {
+    cap(p);
+    for (const q of list) { // atom p's view of each partner o: capped by what o can give
+      const o = q.a === p ? q.b : q.a; cap(o);
+      const C = Math.min(p.el.en >= 3.0 ? o._boVH : o._boV, 3), dd = Math.abs(q.ne - C), h = boH(dd), g = boHD(dd);
+      const c = q.ne <= C ? q.ne + h : C + h, dc = q.ne <= C ? 1 - g : g;
+      if (q.a === p) { q.ca = c; q.dca = dc; } else { q.cb = c; q.dcb = dc; }
+    }
+    // an expanded octet (period 3 and on) toward electronegative partners, blended in as they come to ask: H = 1 − Π(1 − fade)
+    let keep = 1; const dV = p._boVH - p._boV;
+    if (dV) for (const q of list) { const o = q.a === p ? q.b : q.a; if (o.el.en >= 3.0) keep *= 1 - boFade(q.a === p ? q.ca : q.cb); }
+    const V = p._boV + dV * (1 - keep); p._boKeep = keep;
+    // the level: Σ sp(cₖ − L)·fade(cₖ) = V falls as L rises; Newton's steps from the last pass's level, kept inside a
+    // bracket (halving it when a step would leave it), to 1e-13
+    const m = list.length, cs = BO_C.length < m ? (BO_C = new Float64Array(2 * m)) : BO_C, fs = BO_F.length < m ? (BO_F = new Float64Array(2 * m)) : BO_F;
+    let lo = -V - 1, hi = 4;
+    for (let k = 0; k < m; k++) { const q = list[k], c = q.a === p ? q.ca : q.cb; cs[k] = c; fs[k] = boFade(c); if (c + 1 > hi) hi = c + 1; }
+    let L = p._boLs !== undefined && p._boLs > lo && p._boLs < hi ? p._boLs : 0.5 * (lo + hi);
+    for (let it = 0; it < 100; it++) {
+      let G = -V, U = 0; for (let k = 0; k < m; k++) { const x = cs[k] - L; G += boSp(x) * fs[k]; U += boSpD(x) * fs[k]; }
+      if (Math.abs(G) < 1e-13) break;
+      if (G > 0) lo = L; else hi = L;
+      let Ln = U > 0 ? L + G / U : NaN;
+      if (!(Ln > lo && Ln < hi)) Ln = 0.5 * (lo + hi);
+      if (hi - lo < 1e-15) break;
+      L = Ln;
+    }
+    p._boLs = L; p._boL = boSp(L); p._boGL = 0;
+  }
+  for (const [, list] of by) for (const q of list) {
+    if (q.done === BO.changes + 0.5) continue; // (each pair once)
+    q.done = BO.changes + 0.5;
+    const xa = q.ca - q.a._boL, xb = q.cb - q.b._boL, fa = boFade(q.ca), fb = boFade(q.cb), A = boSp(xa) * fa, B = boSp(xb) * fb, dd = Math.abs(A - B), h = boH(dd), g = boHD(dd);
+    q.n = Math.max(0, (A <= B ? A : B) + h);
+    const nA = A <= B ? 1 - g : g, nB = A <= B ? g : 1 - g; // (∂n/∂A, ∂n/∂B; A = sp(c − L)·fade(c))
+    q.sA = nA * boSpD(xa) * fa; q.tA = nA * boSp(xa) * boFadeD(q.ca); q.sB = nB * boSpD(xb) * fb; q.tB = nB * boSp(xb) * boFadeD(q.cb);
+    // the pair's Morse curve of its order
+    const N = q.n, P = q.P;
+    if (N > 1e-6) {
+      const [D, dD] = boDepth(P, N);
+      const N2 = N * N + 0.0025, r0 = P.r[0] - 0.5 * P.c * Math.log(N2), dr0 = -P.c * N / N2; // (Pauling's length, its logarithm rounded off below 0.05: a kink there put a jump in the force)
+      const [al, dal] = boStiff(P, N);
+      const x = q.r - r0, ex = Math.exp(-al * x), e = 1 - ex, d = q.r - P.r[0];
+      let fc = 1, dfc = 0; if (d > 0.9) { const u = Math.PI * (d - 0.9) / 0.4; fc = 0.5 * (1 + Math.cos(u)); dfc = -0.5 * Math.sin(u) * Math.PI / 0.4; }
+      const M = D * (e * e - 1), dMdr = D * 2 * e * ex * al;
+      E += fc * M; q.eM = fc * M; q.gr += fc * dMdr + dfc * M;
+      if (forces) { const w = 8 * D * al * al * fc * (S.im[q.a.i] + S.im[q.b.i]); if (w > _stiff) _stiff = w; } // (the bond's stiffness sets the longest step, as a stored bond's does: four times its curvature at rest, for the sharper turns of the orders themselves; at the plain curvature a hot gallery drifted 1–3 eV in 60 fs, at this 0.05)
+      q.gn += fc * ((e * e - 1) * dD - dMdr * dr0 + D * 2 * e * ex * x * dal);
+    }
+  }
+  BO.changes++;
+  // angles: the game's VSEPR terms on the centre's partners. A partner of order 0.7 or more always counts; one between
+  // 0.4 and 0.7 counts with weight w = smoothstep((n − 0.4)/0.3): the energy is the expectation over which of those are
+  // in (each subset weighted by Π w · Π (1 − w)), smooth however many are on the way in or out at once. Lone pairs
+  // are blended between whole numbers (boAngles).
+  for (const [c, list] of by) {
+    if (c.el.dblock) continue;
+    const strong = [], zone = [], zw = [], zd = [];
+    for (const q of list) {
+      if (q.n >= 0.7) strong.push(q);
+      else if (q.n > 0.4) { const x = (q.n - 0.4) / 0.3; zone.push(q); zw.push(x * x * (3 - 2 * x)); zd.push(6 * x * (1 - x) / 0.3); }
+    }
+    if (strong.length + zone.length < 2) continue;
+    if (zone.length > 6) { const o = zone.map((q, k) => k).sort((u, v) => zone[v].n - zone[u].n).slice(0, 6); const z2 = o.map(k => zone[k]), w2 = o.map(k => zw[k]), d2 = o.map(k => zd[k]); zone.length = 0; zone.push(...z2); zw.length = 0; zw.push(...w2); zd.length = 0; zd.push(...d2); } // (at most 64 subsets: a crowd past that keeps its 6 strongest)
+    const z = zone.length;
+    for (let m = 0; m < 1 << z; m++) {
+      let wt = 1; const L = strong.slice();
+      for (let k = 0; k < z; k++) if (m & (1 << k)) { wt *= zw[k]; L.push(zone[k]); } else wt *= 1 - zw[k];
+      if (wt <= 0 || L.length < 2) continue;
+      const [e, dS] = boAngles(c, L, wt, forces);
+      E += wt * e;
+      if (dS) for (const q of L) q.gn += wt * dS;
+      for (let k = 0; k < z; k++) { // the weights' slopes: ∂wt/∂wₖ = wt/wₖ or −wt/(1 − wₖ), worked out without dividing
+        let o = 1; for (let j = 0; j < z; j++) if (j !== k) o *= m & (1 << j) ? zw[j] : 1 - zw[j];
+        zone[k].gn += (m & (1 << k) ? o : -o) * zd[k] * e;
+      }
+    }
+  }
+  BO.E = E;
+  if (!forces) { for (const [p] of by) { p._boV = undefined; } return E; }
+  // back through the orders to the distances
+  for (let k = 0; k < n; k++) {
+    const q = L[k]; if (!(q.n > 0) || !q.gn) continue;
+    q.gca += q.gn * (q.sA + q.tA); q.a._boGL -= q.gn * q.sA; q.gcb += q.gn * (q.sB + q.tB); q.b._boGL -= q.gn * q.sB;
+  }
+  for (const [p, list] of by) {
+    if (p._boGL) {
+      // Σ sp(cₖ − L*)·fade(cₖ) = V: dL*/dcₖ = (sp′(cₖ − L*)·fade(cₖ) + sp(cₖ − L*)·fade′(cₖ)) / Σ sp′(cₖ − L*)·fade(cₖ)
+      const gs = p._boGL * boSpD(p._boLs); let U = 0;
+      for (const q of list) { const c = q.a === p ? q.ca : q.cb; U += boSpD(c - p._boLs) * boFade(c); }
+      if (U > 0) for (const q of list) { const c = q.a === p ? q.ca : q.cb, w = (boSpD(c - p._boLs) * boFade(c) + boSp(c - p._boLs) * boFadeD(c)) * gs / U; if (q.a === p) q.gca += w; else q.gcb += w; }
+      const dV = p._boVH - p._boV; // (and through the valence: dL*/dV = −1/U, dV/dcₖ = ΔV·fade′(cₖ)·Π_{j≠k}(1 − fadeⱼ))
+      if (U > 0 && dV) for (const q of list) {
+        const o = q.a === p ? q.b : q.a; if (o.el.en < 3.0) continue;
+        const c = q.a === p ? q.ca : q.cb, f = boFade(c); if (f >= 1) continue;
+        const w = -gs / U * dV * boFadeD(c) * p._boKeep / (1 - f); if (q.a === p) q.gca += w; else q.gcb += w;
+      }
+    }
+    p._boV = undefined;
+  }
+  const FX = S.fx, FY = S.fy;
+  for (let k = 0; k < n; k++) {
+    const q = L[k];
+    if (q.r < q.P.reach) q.gr += (q.gca * q.dca + q.gcb * q.dcb) * q.dne;
+    if (!q.gr) continue;
+    const fx = q.gr * q.ux, fy = q.gr * q.uy, i = q.a.i, j = q.b.i;
+    FX[j] -= fx; FY[j] -= fy; FX[i] += fx; FY[i] += fy;
+  }
+  return E;
+}
+/* One centre's angle energy with partner list nb (weight wgt for its forces); returns [E, dE/d(each partner's order)] */
+function boAngles(c, nb, wgt, forces) {
+  const n = nb.length; if (n < 2 || n > 6) return [0, 0];
+  let sum = 0; for (const q of nb) sum += q.n;
+  const lpr0 = (c.val - sum) / 2, lpr = Math.max(0, lpr0), l0 = Math.floor(lpr), f = lpr - l0, dfds = lpr0 > 0 ? -0.5 : 0;
+  const per = periodOf(c.el.Z); let allH = true;
+  const angs = [];
+  for (const q of nb) { const o = q.a === c ? q.b : q.a, sg = q.a === c ? 1 : -1; if (o.Z !== 1) allH = false; angs.push({ o, a: Math.atan2(sg * q.uy, sg * q.ux), dx: sg * q.ux * q.r, dy: sg * q.uy * q.r, g: 0 }); }
+  angs.sort((u, v) => u.a - v.a);
+  const gaps = []; for (let k = 0; k < n; k++) gaps.push({ v: k === n - 1 ? angs[0].a + 2 * Math.PI - angs[k].a : angs[k + 1].a - angs[k].a, hi: k === n - 1 ? 0 : k + 1, lo: k });
+  gaps.sort((u, v) => u.v - v.v);
+  const e = (lp, w) => {
+    const key = ((n * 8 + lp) * 8 + per) * 2 + (allH ? 1 : 0); let tg = BO_TG.get(key); if (!tg) BO_TG.set(key, tg = angleTargetsRaw(n, lp, per, allH).slice().sort((u, v) => u - v)); let t = 0;
+    for (let k = 0; k < n; k++) { const dv = gaps[k].v - tg[k]; t += 0.5 * ANGLE_K * dv * dv; if (w) { const gk = w * ANGLE_K * dv; angs[gaps[k].hi].g += gk; angs[gaps[k].lo].g -= gk; } }
+    return t;
+  };
+  let E, dEds;
+  if (f > 1e-9) { const e0 = e(l0, forces ? wgt * (1 - f) : 0), e1 = e(l0 + 1, forces ? wgt * f : 0); E = (1 - f) * e0 + f * e1; dEds = (e1 - e0) * dfds; }
+  else { E = e(l0, forces ? wgt : 0); dEds = 0; }
+  if (forces) {
+    const FX = S.fx, FY = S.fy, i = c.i;
+    for (const s of angs) {
+      if (!s.g) continue;
+      const r2 = s.dx * s.dx + s.dy * s.dy, gx = s.g * -s.dy / r2, gy = s.g * s.dx / r2, j = s.o.i;
+      FX[j] -= gx; FY[j] -= gy; FX[i] += gx; FY[i] += gy;
+    }
+  }
+  return [E, dEds];
+}
+/* Member bonds as the renderer's bond records: a whole order, or a resonating 1.5 (between 1.25 and 1.75), fainter as the
+   order falls below 1 (drawn as a bond stretched by 1 − n of its fading length) */
+function boDrawBonds() {
+  const out = [];
+  for (let k = 0; k < BO.np; k++) {
+    const q = BO.pairs[k], n = q.n;
+    if (!(n > 0.15) || q.a.dead || q.b.dead || !q.a.bom || !q.b.bom) continue;
+    const ar = n >= 1.25 && n < 1.75;
+    out.push({ a: q.a, b: q.b, order: n >= 2.6 ? 3 : n >= 1.75 ? 2 : 1, arom: ar, fo: ar ? n : 0, r0: q.r - (1 - Math.min(n, 1)), rb: 1 });
+  }
+  return out;
+}
+/* The bond orders of the last pass, for drawing: [a, b, order] */
+function boBonds() { const out = []; for (let k = 0; k < BO.np; k++) { const q = BO.pairs[k]; if (q.n > 0.15 && !q.a.dead && !q.b.dead && q.a.bom && q.b.bom) out.push([q.a, q.b, q.n]); } return out; }
+/* At the start of a step (and when the setting changes): who is a member now, by whole clusters; joiners let go of
+   their stored bonds, leavers get stored bonds from their last orders; the energy before and after, at the same
+   positions, the difference to the bath. Returns whether anything changed (the forces are then worked out again). */
+function boSync() {
+  if (!BO.on && !BO.any) return false;
+  // (nothing that decides membership has changed: species, charges, stored bonds, particles made or lost, flags; and a
+  // full look every 64 steps anyway)
+  const sig = W.topo + ',' + W.dirty + ',' + W.spawned + ',' + W.deaths + ',' + _flagGen + ',' + BO.on;
+  if (sig === BO.sig && (W.step & 63)) return false;
+  const parts = W.parts;
+  // clusters: stored bonds, and for members the last orders above 0.3
+  const adj = new Map(), link = (a, b) => { let l = adj.get(a); if (!l) adj.set(a, l = []); l.push(b); };
+  for (let k = 0; k < BO.np; k++) { const q = BO.pairs[k]; if (q.n > 0.3 && q.a.bom && q.b.bom && !q.a.dead && !q.b.dead) { link(q.a, q.b); link(q.b, q.a); } }
+  const want = new Map(), seen = new Set();
+  for (const p of parts) {
+    if (p.dead || p.k !== NUC || seen.has(p)) continue;
+    const cl = [p]; seen.add(p);
+    for (let k = 0; k < cl.length; k++) {
+      const a = cl[k];
+      for (const bd of a.bonds) { const o = other(bd, a); if (!seen.has(o)) { seen.add(o); cl.push(o); } }
+      const l = adj.get(a); if (l) for (const o of l) if (!seen.has(o) && !o.dead) { seen.add(o); cl.push(o); }
+    }
+    const ok = BO.on && cl.every(boOK);
+    for (const a of cl) want.set(a, ok);
+  }
+  const C = [];
+  for (const p of parts) if (!p.dead && p.k === NUC && !!p.bom !== !!want.get(p)) C.push(p);
+  for (const p of parts) if (p.dead && p.bom) p.bom = false;
+  if (!C.length) { BO.any = BO.on && parts.some(p => p.bom); BO.sig = sig; return false; }
+  const set = new Set(C);
+  for (const p of C) for (const bd of p.bonds) set.add(other(bd, p));
+  const Eb = localPE(set) + boPass(false);
+  // leavers: stored bonds from the last orders, the strongest first, as far as both atoms have valence left
+  const leave = new Set(C.filter(p => p.bom));
+  if (leave.size) {
+    const whole = boWhole(leave);
+    for (const p of leave) p.bom = false;
+    for (const [a, b, o] of whole) if (!bondBetween(a, b)) addBond(a, b, o);
+    relink([...leave]);
+  }
+  // joiners: their stored bonds let go
+  const join = C.filter(p => !leave.has(p));
+  for (const p of join) p.bom = true;
+  for (const p of join) for (const bd of p.bonds.slice()) removeBond(bd);
+  W.dirty++; W.topo++; vlInvalidate();
+  if (join.length) { BO.any = true; boRelax(join); }
+  const Ea = localPE(set) + boPass(false);
+  W.ledger.bath += Eb - Ea; BO.bath += Eb - Ea;
+  BO.any = BO.on && parts.some(p => p.bom && !p.dead);
+  BO.sig = W.topo + ',' + W.dirty + ',' + W.spawned + ',' + W.deaths + ',' + _flagGen + ',' + BO.on;
+  return true;
+}
+/* Joiners come with the stored bonds' shapes, a little off this chemistry's own (0.04 eV a bond, more in angles): left
+   as they are, the difference turns to heat, and a gallery of molecules jumped from 300 to 1,000 K. They are eased into
+   their shapes here first (steepest descent, at most 0.02 Å a move, 60 moves), inside the change whose energy goes to
+   the bath; their velocities are kept. */
+function boRelax(join) {
+  const FX = S.fx, FY = S.fy;
+  for (let it = 0; it < 60; it++) {
+    forcesNoEvents();
+    let fm = 0; for (const p of join) { const f = Math.hypot(FX[p.i], FY[p.i]); if (f > fm) fm = f; }
+    if (fm < 0.05) break;
+    const st = Math.min(0.002, 0.02 / fm);
+    for (const p of join) { p.x += FX[p.i] * st; p.y += FY[p.i] * st; }
+    gridTouch();
+  }
+}
+/* Whole bonds from the last orders (above 0.5), the strongest first, as far as both atoms have valence left: [a, b, order]
+   (for members leaving, and for saving a world) */
+function boWhole(only) {
+  const qs = []; for (let k = 0; k < BO.np; k++) { const q = BO.pairs[k]; if (q.n > 0.5 && q.a.bom && q.b.bom && !q.a.dead && !q.b.dead && (!only || (only.has(q.a) && only.has(q.b)))) qs.push(q); }
+  qs.sort((u, v) => v.n - u.n);
+  const used = new Map(), freeV = (p) => capacity(p) - (used.get(p) || 0), out = [];
+  for (const q of qs) {
+    const o = Math.min(3, Math.max(1, Math.round(q.n)), freeV(q.a), freeV(q.b));
+    if (o < 1) continue;
+    out.push([q.a, q.b, o]); used.set(q.a, (used.get(q.a) || 0) + o); used.set(q.b, (used.get(q.b) || 0) + o);
+  }
+  return out;
+}
+/* The setting: on or off. Turning it off gives every member stored bonds again (boSync). */
+function boSet(on) {
+  on = !!on; if (on === BO.on) return;
+  BO.on = on;
+  if (W.parts.length) { boSync(); if (on) BO.any = true; }
+}
 
 /* ---- threads.js ---- */
 /* ============================================================================
@@ -10382,7 +10815,8 @@ function integrateSlots(s0, s1, dt) {
 }
 
 function threadsAvailable() { return SHARED_OK && typeof PAIR_KERNEL_SRC === 'string' && typeof Worker !== 'undefined' && typeof Blob !== 'undefined'; }
-function threadsDefault() { const c = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 2; return Math.max(0, Math.min(15, c - 1)); }
+const TH_MAXW = 31; // (workers at most besides the main thread: 32 threads, a 16-core processor's two per core; 1.13, was 15)
+function threadsDefault() { const c = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 2; return Math.max(0, Math.min(15, c - 1)); } // (Auto: up to 16 threads, one per core on the processors this was measured on; 32 is a choice)
 /* The worker's script: the kernel's constants and helpers as they are here, then the kernel text, then the loop. */
 function workerSource() {
   return `'use strict';
@@ -10430,7 +10864,7 @@ onmessage = (e) => {
         wex = wasm.exports;
       } catch (err) { wasm = null; wex = null; console.warn('Atom Forge worker: WebAssembly kernel unavailable, using JavaScript:', err.message || err); }
     }
-    if (m.wasm) { descOff = m.wasm.desc; ksOff = m.wasm.ks; sumTabOff = m.wasm.sumTab; ksArr = new Float64Array(mem.buffer, ksOff, 16); }
+    if (m.wasm) { descOff = m.wasm.desc; ksOff = m.wasm.ks; sumTabOff = m.wasm.sumTab; ksArr = new Float64Array(mem.buffer, ksOff, 32); }
     postMessage({ type: 'kernel', wasm: !!wex, me });
     Atomics.store(ctrl, me, TH_IDLE); // (a rebind request left on our word is served by this message)
     Atomics.store(ctrl, ctrlAt(me, 3), m.gen); // bound: the acknowledgement
@@ -10489,7 +10923,7 @@ onmessage = (e) => {
 /* Start (or resize) the pool. want = 0 turns it off. The workers bind asynchronously; until they all acknowledge, the
    forces run on one thread. */
 function threadsSet(want) {
-  want = Math.max(0, Math.min(15, Math.floor(want || 0)));
+  want = Math.max(0, Math.min(TH_MAXW, Math.floor(want || 0)));
   if (!threadsAvailable()) want = 0;
   TH.want = want;
   if (want === TH.n && TH.workers.length === want) return;
@@ -10529,7 +10963,7 @@ function threadsBind() {
   // the kernel module for the workers: each gets a stack of its own in the shared memory (allocated once)
   let wasm = null;
   if (WK.on && WK.ready && RC === 6) { // (the kernel has 6 Å built in: a longer reach runs the workers' JavaScript)
-    if (!TH.wks) TH.wks = wasmArray(Float64Array, 16);
+    if (!TH.wks) TH.wks = wasmArray(Float64Array, TH_MAXW + 1); // (a stiffness cell per worker)
     while (TH.stacks.length < n) TH.stacks.push(wasmAlloc(WK.STACK) + WK.STACK); // (the stack grows downwards from its top)
     wasm = { module: WK.module, desc: WK.desc.byteOffset, ks: TH.wks.byteOffset, sumTab: WK.sumTab.byteOffset };
   }
@@ -10946,7 +11380,7 @@ function hypCatch(Zr, Nr, mres, Pr, PL, bx, by, items, moms) {
    K⁻n → Λπ⁻ on one of its nucleons (the rest of the nucleus a spectator); the Λ, at about 30 MeV, may stay (hypCatch). */
 function kStop(o) {
   let tg = null, bd = 16;
-  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
   if (!tg) return false;
   const Z = tg.Z, N = tg.N, onP = rnd() < Z / (Z + N), Zr = Z - (onP ? 1 : 0), Nr = N - (onP ? 0 : 1);
   // the struck nucleon moves inside the nucleus (Fermi motion, up to about 250 MeV/c; none in a lone proton), and the rest
@@ -11097,7 +11531,7 @@ function gdrSigma(Z, N, E) { // mb, E in MeV
   const r = (E * E - E0 * E0) / (E * G); return s0 / (1 + r * r);
 }
 function photoNuclear(p, E, ux, uy) {
-  if (p.dead || p.k !== NUC || p.anti || W.parts.length > MAX_PARTS - 50) return false;
+  if (p.dead || p.k !== NUC || p.anti || p.mu || W.parts.length > MAX_PARTS - 50) return false;
   const Eg = E / MEV, P = add4(p4of(p, true), [Eg, Eg * ux, Eg * uy]), Ms = mass4(P), items = [], moms = [];
   compoundDecay(p.Z, p.N, Ms, P, false, items, moms, 0);
   if (!items.some(it => it.t === 'A' && it.Z + it.N === 1)) return false; // (below its threshold: no nucleon free)
@@ -11117,7 +11551,7 @@ function photoNuclear(p, E, ux, uy) {
    perhaps staying (hypCatch). Returns true if it was caught. */
 function hStop(o) {
   let tg = null, bd = 16;
-  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
   if (!tg) return false;
   const el = hitLabel(tg), x = tg.x, y = tg.y, items = [], moms = [], Po = exoP4(o);
   let txt = '', sub = '';
@@ -11167,6 +11601,44 @@ function muoniumForm(o) {
   const bx = Pt[1] / Pt[0], by = Pt[2] / Pt[0];
   exoEvent(o, [e], [item('Mu'), item('g')], vs.map(v => toLab(v, bx, by)), o.x, o.y, 'capture', `Muonium: μ⁺ took an electron from ${el}`, 'μ⁺e⁻, a hydrogen atom 1/9 the mass, 13.5 eV bound');
   return true;
+}
+
+/* Muonium as an atom (1.12). Muonium is a hydrogen atom whose nucleus is a μ⁺: Bohr's radius and 13.5 eV binding, as H
+   (the reduced mass differs by 0.4%), but 0.1134 u, a ninth of H's mass. It was an exo flying on a straight line, so it
+   passed through atoms; now it is an H atom in MD with p.mu set: its mass is the muon's (refresh), it is named Mu, and it
+   collides, bonds and reacts by the ordinary chemistry (Mu + Cl₂ → MuCl + Cl), lighter and so faster at a given
+   temperature. Its nuclear side is the muon's: no fusion, strong interactions or muon capture on it (guards on p.mu).
+   The muon decays (2.197 µs, on the nuclear clock): muoniumTick. */
+function addMuonium(x, y, KE, ux, uy, ne = 1) {
+  const p = addNuc(1, 0, ne, x, y); p.mu = true; refresh(p);
+  setMotion(p, KE, ux, uy);
+  (W.muAtoms || (W.muAtoms = [])).push(p);
+  return p;
+}
+/* The muon of a muonium atom (or of μ⁺ bare, or bonded in MuCl …) decays: μ⁺ → e⁺ νₑ ν̄μ; the electrons it held go
+   free, a molecule it was in is left a radical. The books close as for any nuclear event: what the products and the
+   changed molecule do not carry, the neutrinos take. */
+function muoniumTick(dt) {
+  const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, L = W.muAtoms;
+  for (let i = L.length - 1; i >= 0; i--) {
+    const p = L[i];
+    if (!p || p.dead || !p.mu) { L.splice(i, 1); continue; }
+    if (!(clock > 0) || rnd() >= 1 - Math.exp(-clock / XP['mu+'].tau)) continue;
+    L.splice(i, 1);
+    const x = p.x, y = p.y, lbl = speciesLabel(p), ne = p.ne, [vx, vy] = velOf(p), partners = p.bonds.map(bd => other(bd, p));
+    const S = nucBegin([p]), gh = [ghostOf(p)];
+    kill(p); relink(partners.filter(q => !q.dead));
+    const items = ['e+', 'nu', 'numub'].map(item), bx = vx / PHYS.C, by = vy / PHYS.C;
+    const vs = phaseSpace(MU_M, items.map(massOf)), moms = vs.map(v => toLab(v, bx, by));
+    for (let k = 0; k < ne; k++) { items.push(item('e-')); moms.push(randDir4(PHYS.MEC2, (1 + rnd()) / MEV)); }
+    const made = spawnItems(items, moms, x, y);
+    closeEvent(S, made, x, y, 0, 0);
+    W.count.decay++;
+    const txt = `μ⁺ → ${summarize(items.slice(0, 3))}${ne ? ', its electron set free' : ''}`;
+    nucEvent('decay', x, y, `${lbl}: ${txt}`, gh, '2.2 µs mean life');
+    log('nuc', `Decay: the muon in ${lbl} → e⁺ + νₑ + ν̄μ${ne ? '; its electron goes free' : ''}`);
+    tally(items, [lbl], `Decay: ${lbl} → ${summarize(items)}`);
+  }
 }
 
 /* ---- resonances in hadronization. Most hadrons out of a string or a cooling plasma are born as short-lived
@@ -11382,7 +11854,7 @@ const randDir4 = (m, K) => { const [ux, uy] = rdir(), p = Math.sqrt(Math.max(0, 
 /* A free μ⁻ slowed to a few keV: caught by the nearest atom within 4 Å. Returns true if it was. */
 function muStop(o) {
   let tg = null, bd = 16;
-  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
   if (!tg) return false;
   const x = tg.x, y = tg.y, el = speciesLabel(tg);
   if (tg.Z === 1 && tg.N <= 2) { // muonic hydrogen: the atom's electron goes free, X-rays carry off the binding
@@ -11408,7 +11880,7 @@ function muStop(o) {
    clock: nuclear seconds this step. Returns true if o is gone. */
 function muAtomTick(o, clock) {
   const N0 = XP[o.sp].N; let best = null, bd = 6.25;
-  nearby(o.x, o.y, 2.5, (p) => { if (p.dead || p.k !== NUC || p.Z !== 1 || p.anti || p.N > 2) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; best = p; } });
+  nearby(o.x, o.y, 2.5, (p) => { if (p.dead || p.k !== NUC || p.Z !== 1 || p.anti || p.N > 2 || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; best = p; } });
   if (!best) return false;
   const N1 = best.N, P = (rate) => rnd() < 1 - Math.exp(-rate * clock);
   const x = best.x, y = best.y, bl = speciesLabel(best);
@@ -11445,6 +11917,35 @@ function muAtomTick(o, clock) {
   W.count.fusion++;
   for (const x2 of made.xs) if (x2.sp === 'mu-') x2.cyc = cyc;
   return true;
+}
+/* Muonic hydrogen scattering elastically off hydrogen nuclei (1.12). Neutral and 200 times smaller than an atom, it
+   passes through electron clouds, but a proton, deuteron or triton it comes close to throws it aside: in hydrogen
+   that is how it slows to the gas's temperature. Measured: μp + p 1.49×10⁻²⁰ cm² (singlet μp), μd + d 8.0×10⁻²⁰ cm²
+   (Bertin et al., Nuovo Cimento A 72, 225, 1982); μt: no measured value found, μd's is used. True reach √(σ/π): 0.0069 Å
+   for μp, 0.016 Å for μd, used in the ultra-realistic mode; in normal play the reach is R_NN (0.35 Å), the reach of every
+   neutral projectile meeting a nucleus here (neutrons, nucReach), 51 and 22 times the true one. Isotropic in the centre
+   of mass (s-wave, as below about 1 eV), momentum and kinetic energy exactly kept (non-relativistic: eV energies). */
+const MU_SCAT = { muP: 1.49e-20, muD: 8.0e-20, muT: 8.0e-20 }; // cm²
+function muScatReach(sp) { return W.ultra ? Math.sqrt(MU_SCAT[sp] * 1e16 / Math.PI) : R_NN; }
+function muAtomScatter(o, x0, y0) {
+  if (o.dead || (o.x === x0 && o.y === y0) || !MU_SCAT[o.sp]) return false;
+  const R = muScatReach(o.sp), hits = segTargets(x0, y0, o.x, o.y, Math.max(R, 0.4), (t) => t.k === NUC && t.Z === 1 && !t.anti && !t.mu && !t.rad);
+  for (const [, tg, b] of hits) {
+    if (tg.dead || b >= R) continue;
+    if (o.hitId === tg.id) continue; // (one pass, one encounter)
+    o.hitId = tg.id;
+    const mo = o.m / PHYS.AMU_MEV, mt = tg.m, M = mo + mt, v = Math.sqrt(2 * o.KE / mo);
+    const avx = v * o.ux, avy = v * o.uy, Vx = (mo * avx + mt * tg.vx) / M, Vy = (mo * avy + mt * tg.vy) / M;
+    const rx = avx - tg.vx, ry = avy - tg.vy, w = Math.hypot(rx, ry), [cx, cy] = rdir();
+    const ox = Vx + cx * w * mt / M, oy = Vy + cy * w * mt / M; // (the relative speed kept, its direction new)
+    tg.vx = Vx - cx * w * mo / M; tg.vy = Vy - cy * w * mo / M; updateFast(tg);
+    const vo = Math.hypot(ox, oy);
+    o.KE = 0.5 * mo * vo * vo; if (vo > 0) { o.ux = ox / vo; o.uy = oy / vo; } exoSpeed(o);
+    W.count.muScat = (W.count.muScat || 0) + 1;
+    return true;
+  }
+  if (o.hitId && !hits.some(h => h[1].id === o.hitId)) o.hitId = 0;
+  return false;
 }
 /* Muons bound in heavier atoms: decay in orbit, or capture by the nucleus (μ⁻ + p → n + ν). */
 function muBoundTick(dt) {
@@ -11498,6 +11999,7 @@ function spawnItems(items, moms, x, y) {
     if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy]); continue; }
     if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; continue; } // (no room: carried off, as if it had left)
     if (it.Z > Z_MAX) { made.lost += P[0] * MEV; continue; } // (a last guard: nothing past the last element is made)
+    if (it.t === 'x' && it.sp === 'Mu') { const q = addMuonium(ox, oy, K, ux, uy); made.ps.push(q); continue; } // (1.12: muonium is an atom, in MD)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m); made.xs.push(o); pairNote(o); continue; }
     const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti); // (ne: electrons it keeps, keepElectrons)
     setMotion(q, K, ux, uy);
@@ -11574,6 +12076,7 @@ function exoHeld(o) {
 }
 function moveExos(dt, id0) {
   if (W.muBound && W.muBound.length) muBoundTick(dt);
+  if (W.muAtoms && W.muAtoms.length) muoniumTick(dt);
   for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res && !W.ultra && !deepSlow()) { if (exoHeld(o)) o.wait = true; else decayExo(o); } } // (resonances: gone within a proton's width, whatever the decay clock)
   const n0 = W.exo.length;
   if (!n0) return;
@@ -11604,6 +12107,7 @@ function moveExos(dt, id0) {
     if (o.sp === 'mu+' && o.KE < MU_STOP && !o.muTried && muoniumForm(o)) continue;
     if (d.strong === undefined) d.strong = strongExo(o.sp);
     if (d.strong && exoHits(o, x0, y0)) continue;
+    if (d.atom) muAtomScatter(o, x0, y0);
     if (d.atom && clock > 0) muAtomTick(o, clock);
   }
   if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
@@ -11628,7 +12132,7 @@ function flyExo(o, h) {
    comes within reach of, it meets (hadronHit). Returns true if it is gone. */
 function exoHits(o, x0, y0) {
   if (o.dead || (o.x === x0 && o.y === y0)) return false;
-  const hits = segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && t.Z > 0 && !t.anti);
+  const hits = segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && t.Z > 0 && !t.anti && !t.mu);
   for (const [, tg, b] of hits) {
     if (tg.dead || (o.ev && o.ev === tg.evId)) continue; // (made in the same event: it has already left that nucleus)
     const R = W.ultra ? (trueRfm(tg) + 0.7 + 2) * FM : Math.max(R_FUS, nucDrawR(tg) + 0.05); // (ultra: the nucleus and a meson at their true sizes)
@@ -11902,6 +12406,7 @@ function nnInelastic(a, b, x, y, P, M) {
    Returns a caption if something happened (the nuclei may survive it: diffraction), else null. */
 const HIT_COUL = 30;
 function nuclearEncounter(a, b, u, x, y) {
+  if (a.mu || b.mu) return false; // (muonium's nucleus is a muon: it feels no strong force, 1.12)
   if (a.dead || b.dead || a.k !== NUC || b.k !== NUC || opp(a, b)) return null;
   if (W.parts.length > MAX_PARTS - 400) return null; // (no room left for products)
   const A1 = a.Z + a.N, A2 = b.Z + b.N, Z1 = a.Z, Z2 = b.Z, anti = !!a.anti;
@@ -13346,6 +13851,7 @@ function atomColor(p) {
     return heatHex(t);
   }
   if (p.anti && p.el) return mixHex(baseElColor(p.Z), ANTI_TINT, 0.5);
+  if (p.mu) return '#96e1ff'; // (muonium: the colour it had as an exo, 1.12)
   return p.el ? baseElColor(p.Z) : '#cccccc';
 }
 function mixHex(a, b, t) {
@@ -13392,8 +13898,10 @@ function render(rt) {
   if (R.view.hbonds) drawHBonds();
   if (R.view.ionic) drawIonic();
   if (!R.gl) drawChipsUnder();
+  R.lblLater = PI.on && PI.n && R.s >= 30 ? [] : null;
   drawParticles(rt);
   if (PI.on && PI.n) drawRings();
+  if (R.lblLater) { for (const a of R.lblLater) label(R.ctx, ...a); R.lblLater = null; }
   drawMeasure();
   drawChips(rt);
   drawExos(); drawStrings(rt);
@@ -13634,7 +14142,7 @@ function drawBonds(rt) {
   const lw = Math.min(W.ultra ? 6 : 1e9, orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)); // (ultra-realistic: a bond is not a rod; zoomed in to nuclei, a thin line)
   const off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * s)), aMul = orb ? 0.45 : 1;
   const X = S.x, Y = S.y, wrap = W.wall === 'wrap', hbw = W.box.w / 2, hbh = W.box.h / 2, cx = R.cx, cy = R.cy, hw = R.w / 2, hh = R.h / 2, Rw = R.w, Rh = R.h;
-  const bonds = W.bonds, nb = bonds.length;
+  const bonds = BO.any ? W.bonds.concat(boDrawBonds()) : W.bonds, nb = bonds.length; // (continuous bond orders: drawn from this step's orders)
   for (let k = 0; k < nb; k++) {
     const bd = bonds[k], a = bd.a, b = bd.b, ia = a.i, ib = b.i;
     const ax = X[ia], ay = Y[ia], bx = X[ib], by = Y[ib];
@@ -13683,7 +14191,7 @@ function drawBondsGL() {
   const s = R.s, orb = R.view.bohr === 'orb';
   const hw = Math.min(W.ultra ? 3 : 1e9, (orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)) / 2);
   const off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * s)), aMul = orb ? 0.45 : 1;
-  glBondsBuild(W.bonds, W.topo);
+  if (BO.any) glBondsBuild(W.bonds.concat(boDrawBonds()), -(R.boGen = (R.boGen || 0) + 1)); else glBondsBuild(W.bonds, W.topo); // (continuous bond orders: built again each frame)
   glDrawBonds(hw, off, aMul, W.wall === 'wrap', W.box.w / 2, W.box.h / 2);
 }
 /* The slot textures for this frame: positions always; the balls' colours and styles when they may have changed (per
@@ -13783,24 +14291,39 @@ function drawRings() {
 }
 function drawIonic() {
   if (R.s < 4) return;
-  const ions = [];
-  for (const p of W.parts) if (!p.dead && p.k === NUC && p.ne > 0 && Math.abs(p.q) >= 1) ions.push(p);
-  if (ions.length < 2) return;
-  ions.sort((a, b) => a.x - b.x);
-  const rOf = (p) => (p.ionic && p.ionR > 0 ? p.ionR : p.rd), ctx = R.ctx, byW = new Map();
-  for (let i = 0; i < ions.length; i++) {
-    const a = ions[i], ra = rOf(a);
-    for (let j = i + 1; j < ions.length; j++) {
-      const b = ions[j], dx = b.x - a.x;
+  // (1.12) The ions are lone ions and charged molecules (CN⁻, OH⁻, NO₃⁻ …: the whole molecule's net charge, wherever its
+  // formal charge sits). A line joins a cation and an anion in contact, drawn between their closest atoms; contact is
+  // judged with each atom's force-field size (half its LJ diameter ljR: a lone ion's ionic radius, an atom in a molecule
+  // its van der Waals size), not the drawing radius, which for an atom in a molecule is its small covalent one (C in
+  // CN⁻ reached only 1.99 Å from Na⁺, which it touches at 2.7 Å).
+  const at = [], seen = new Set();
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || p.ne <= 0 || p.q === 0 || seen.has(p)) continue;
+    const g = p.bonds.length ? molecule(p) : [p];
+    let Q = 0; for (const a of g) { seen.add(a); Q += a.q; }
+    if (Math.abs(Q) < 1) continue;
+    for (const a of g) at.push({ p: a, g, Q });
+  }
+  if (at.length < 2) return;
+  at.sort((a, b) => a.p.x - b.p.x);
+  const best = new Map(); // (one line for each pair of ions: their closest atoms)
+  for (let i = 0; i < at.length; i++) {
+    const A = at[i], a = A.p, ra = 0.5 * a.ljR;
+    for (let j = i + 1; j < at.length; j++) {
+      const B = at[j], b = B.p, dx = b.x - a.x;
       if (dx > 8) break;
-      if (a.q * b.q >= 0) continue;
-      const dy = b.y - a.y, r = Math.hypot(dx, dy), reach = 1.3 * (ra + rOf(b));
+      if (A.Q * B.Q >= 0) continue;
+      const dy = b.y - a.y, r = Math.hypot(dx, dy), reach = 1.3 * (ra + 0.5 * b.ljR);
       if (r > reach || r < 0.3) continue;
-      if (a.bonds.some(bd => other(bd, a) === b)) continue;
-      const w = clamp(0.8 + 0.35 * Math.sqrt(Math.abs(a.q * b.q)), 1, 2.6), k = w.toFixed(1);
-      let list = byW.get(k); if (!list) byW.set(k, list = []);
-      list.push(w2sx(a.x), w2sy(a.y), w2sx(b.x), w2sy(b.y));
+      const key = A.Q > 0 ? A.g[0].id + ':' + B.g[0].id : B.g[0].id + ':' + A.g[0].id, o = best.get(key);
+      if (!o || r < o.r) best.set(key, { r, a, b, qq: Math.abs(A.Q * B.Q) });
     }
+  }
+  const ctx = R.ctx, byW = new Map();
+  for (const { a, b, qq } of best.values()) {
+    const w = clamp(0.8 + 0.35 * Math.sqrt(qq), 1, 2.6), k = w.toFixed(1);
+    let list = byW.get(k); if (!list) byW.set(k, list = []);
+    list.push(w2sx(a.x), w2sy(a.y), w2sx(b.x), w2sy(b.y));
   }
   if (!byW.size) return;
   ctx.save(); ctx.strokeStyle = R.cvd ? 'rgba(240,228,66,0.6)' : 'rgba(255,196,120,0.6)'; ctx.setLineDash([1.5, 3.5]); ctx.lineCap = 'round';
@@ -13855,7 +14378,7 @@ function drawUltraParts(ctx, rt) {
     if (r <= 1500) {
       if (bohrMode === 'orb') drawOrbitalAtom(ctx, p, x, y, true);
       else if (bohrMode === 'on' || bohrMode === 'nuc' || (bohrMode === 'auto' && r >= 30)) drawBohr(ctx, p, x, y, r, rt, col, rn);
-      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
+      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
     } else { // inside the atom's electron cloud: a faint wash of its colour
       const c = hexc(col); ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.10)`;
       const d = Math.hypot(x - Wd / 2, y - Ht / 2);
@@ -14063,7 +14586,7 @@ function drawParticles(rt) {
     if (bohr) drawBohr(ctx, p, x, y, r, rt, col);
     else {
       if (!glBalls) drawSprite(ballSprite(col, r), x, y);
-      if (lblOn(p) && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
+      if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
     }
     if (p.anti) { // antimatter: a dashed violet halo
       ctx.save(); ctx.strokeStyle = 'rgba(190,130,255,0.85)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
@@ -14264,6 +14787,8 @@ function drawLepton(ctx, p, x, y, bohrMode) {
   }
   drawSprite(ballSprite(col, R.lite ? r * 1.2 : r), x, y);
 }
+/* an atom's symbol; with quantum nuclei on, kept until the bead rings are drawn, so they never cover it (1.13) */
+function labelAtom(ctx, text, x, y, r, col) { if (R.lblLater) R.lblLater.push([text, x, y, r, col]); else label(ctx, text, x, y, r, col); }
 function label(ctx, text, x, y, r, col) {
   ctx.fillStyle = col;
   ctx.font = `600 ${Math.round(clamp(r * 0.95, 8, 30))}px "Hanken Grotesk", system-ui, sans-serif`;
@@ -18406,7 +18931,8 @@ function placeFly(spec, x, y, count) {
   _evTag = 0;
   for (let i = 0; i < count; i++) {
     const [ux, uy] = rdir();
-    if (spec.kind === 'exo') { if (W.exo.length < MAX_EXO) addExo(spec.sp, x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), 0.03, ux, uy); }
+    if (spec.kind === 'exo' && spec.sp === 'Mu') addMuonium(x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), PHYS.KB * W.T, ux, uy); // (1.12: an atom, in MD)
+    else if (spec.kind === 'exo') { if (W.exo.length < MAX_EXO) addExo(spec.sp, x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), 0.03, ux, uy); }
     else if (spec.kind === 'gamma') emitPhoton(x, y, placeE(), ux, uy, { travel: true });
     else emitNeutrino(x, y, placeE(), ux, uy, !!spec.anti, 'placed by hand', spec.fl || 'e');
   }
@@ -19143,7 +19669,7 @@ function selXHTML() {
     kv.push(['Kinetic energy', fmtE(o.KE)], ['Total energy', fmtE(o.KE + m * 1e6)], ['Speed', fmtSpeed(o.v)], ['Lorentz factor γ', fmtNum(o.gam, 4)],
       ['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)],
       d.hyp ? ['Decays by', `Λ → p π⁻ or n π⁰ inside (mesonic, ${Math.round(100 * hypMesonic(d.Z + d.N + 1))}%), or Λp → np and Λn → nn (non-mesonic: 176 MeV to the two nucleons, which usually break the nucleus)`] : ['Decays to', d.dec.map(([b, ps]) => `${ps.map(t => (XP[t] ? XP[t].lab : ({ 'e-': 'e⁻', 'e+': 'e⁺', nu: 'ν', nub: 'ν̄', g: 'γ', p: 'p', n: 'n', pbar: 'p̄', nbar: 'n̄' })[t] || t)).join(' ')} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
-    about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. Bound by ${fmtE(d.Eb * 1e6)}.`
+    about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the hydrogen nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, except in the ultra-realistic mode. Bound by ${fmtE(d.Eb * 1e6)}.`
       : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
       : XP_ABOUT[d.hyp ? 'hy' : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg'].find(k => o.sp.startsWith(k)) || 'eta'] || '';
     if (d.tau < 1e-15) about += ' This one lives so briefly that it decays a few nanometres from where it was made.';
@@ -19209,12 +19735,13 @@ function renderInspect() {
     const title = p.ne === 0 ? (p.anti ? (p.Z === 1 && p.N === 0 ? 'Antiproton' : `Anti-${nucName(p.Z, p.N).toLowerCase()} nucleus`)
       : p.Z === 1 && p.N === 0 ? 'Proton' : p.Z === 2 && p.N === 2 ? 'Alpha particle' : nucName(p.Z, p.N) + ' nucleus')
       : iso + (aq ? (aq > 0 ? ' cation' : ' anion') : '');
+    const muT = p.mu ? (p.ne === 0 ? 'Antimuon (μ⁺)' : 'Muonium' + (aq ? (aq > 0 ? ' cation' : ' anion (muonide)') : '')) : null; // (1.12: an H atom whose nucleus is a μ⁺)
     const icl = p.ne > 0 && (p.q || (mol && mol.some(a => a.q))) ? ionicCluster(p) : null, itx = icl && ionicText(icl, true);
     const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : '') + (itx ? ` · held ionically in ${itx}` : ''))
       + (p.Z > Z_TABLE ? ' · never made in any lab: its properties are predictions' : '');
-    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${A}</span><span class="s">${symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
-      <div><div class="ins-title">${esc(title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
-    pills = `<span class="pill ${nuc.stable || bareStable(nuc, p) ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
+    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${A}</span><span class="s">${p.mu ? 'Mu' : symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
+      <div><div class="ins-title">${esc(muT || title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
+    pills = p.mu ? `<span class="pill hot">its muon decays: mean life 2.197 µs (e⁺ + νₑ + ν̄μ)</span>` : `<span class="pill ${nuc.stable || bareStable(nuc, p) ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
     if (!nuc.stable && nuc.modes.length) pills += `<span class="pill hot">${esc(nuc.modes.map(m => modeLabel(m.mode)).join(' / '))}</span>`;
     if (bareStable(nuc, p)) bareNote = `<p class="note">It decays only by pulling in one of its own electrons (electron capture), and it has none: stripped bare it cannot decay, as bare ⁷Be in storage rings does not. Give it an electron (right-click → Add electron) and its half-life applies again.</p>`;
     if (p.ne > 0 && p.cap - p.used > 0 && !el.dblock) pills += `<span class="pill em">radical: ${p.cap - p.used} free valence</span>`;
@@ -19234,7 +19761,8 @@ function renderInspect() {
     kv.push(['Mass', fmtNum(p.m, 6) + ' u'], ['Kinetic energy', fmtE(ke)], ['Speed', fmtSpeed(speed)]);
     kv.push(...gyroRows(p.ne > 0 ? p.q : (p.anti ? -1 : 1) * p.Z, p.m, p.rad ? 1 + p.KE / (p.m * PHYS.AMU_MEV * 1e6) : 1, speed, p.x, p.y, p));
     if (p.tLocal && p.ne > 0) kv.push(['Local temperature', fmtT(p.tLocal)]);
-    kv.push(['Nucleus', p.anti ? `${p.Z} p̄ + ${p.N} n̄` : `${p.Z} p + ${p.N} n`], ['Binding energy', A > 1 ? `${fmtE(bindingE(p.Z, p.N) * 1e6, 5)} (${fmtE(bindingE(p.Z, p.N) / A * 1e6, 4)} per nucleon)` : '—']);
+    if (p.mu) { kv.push(['Nucleus', 'μ⁺, a positive muon (207 electron masses, 1/9 of a proton)']); extra = `<p class="note">Muonium is a hydrogen atom with a positive muon for its nucleus: the same size and nearly the same binding (13.5 eV), a ninth of the mass, so it moves three times faster at a given temperature and reacts as hydrogen does, with strong isotope effects (Mu + Cl₂ → MuCl + Cl).</p>`; }
+    else kv.push(['Nucleus', p.anti ? `${p.Z} p̄ + ${p.N} n̄` : `${p.Z} p + ${p.N} n`], ['Binding energy', A > 1 ? `${fmtE(bindingE(p.Z, p.N) * 1e6, 5)} (${fmtE(bindingE(p.Z, p.N) / A * 1e6, 4)} per nucleon)` : '—']);
     if (p.anti) extra = `<p class="note">Antimatter mirrors matter: the same masses, energy levels, spectra and bonds, with every charge reversed (CPT symmetry). Touching ordinary matter, its positrons annihilate with electrons (two 511 keV γ rays) and each antinucleon with a nucleon (pions and γ rays, about 1.9 GeV).</p>`;
     if (!nuc.stable && nuc.modes.length) kv.push(['Decay energy', nuc.modes.map(m => `${modeLabel(m.mode)}: Q ${fmtE(m.Q * 1e6)}`).join('; ')]);
     if (mol) {
@@ -19959,9 +20487,10 @@ const SAVE_KINDS = new Set([NUC, ELEC, POS]);
 function worldToJSON() {
   const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.caught);
   const ix = new Map(ps.map((p, i) => [p, i])), r6 = (v) => Math.round(v * 1e6) / 1e6;
-  const parts = ps.map(p => { const a = [p.k, p.Z, p.N, p.ne, p.anti ? 1 : 0, r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]; if (p.rad) a.push(p.KE); return a; });
+  const parts = ps.map(p => { const a = [p.k, p.Z, p.N, p.ne, (p.anti ? 1 : 0) | (p.mu ? 2 : 0), r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]; if (p.rad) a.push(p.KE); return a; });
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
+  if (BO.any) for (const [a, b, o] of boWhole()) { const i = ix.get(a), j = ix.get(b); if (i !== undefined && j !== undefined) bonds.push([i, j, o]); } // (continuous bond orders: kept as whole bonds, so the world opens either way)
   return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
     spf: W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
 }
@@ -19983,7 +20512,7 @@ function worldFromJSON(d) {
     if (![x, y, vx, vy].every(Number.isFinite)) { made.push(null); continue; }
     const px = clamp(x, -hw, hw), py = clamp(y, -hh, hh);
     let p = null;
-    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } p = addNuc(Z, N, ne, px, py, vx, vy, anti === 1); }
+    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } p = (anti & 2) && Z === 1 && N === 0 ? addMuonium(px, py, 0, 1, 0, ne) : addNuc(Z, N, ne, px, py, vx, vy, anti === 1); if (anti & 2) { p.vx = vx; p.vy = vy; updateFast(p); } } // (field 5: 1 antimatter, 2 muonium, 1.12)
     else if (k === ELEC || k === POS) p = addLepton(k, px, py, vx, vy);
     const KE = q[9], v = Math.hypot(vx, vy);
     if (p && Number.isFinite(KE) && KE > 0 && v > 0) setMotion(p, KE, vx / v, vy / v); // (in radiation flight: its energy, as saved)
@@ -20883,6 +21412,7 @@ function defaultBeamA(Z) { // a popular beam of that element, else its usual iso
   for (const A of As) { const n = nuclideInfo(Z, A - Z), t = n.stable ? Infinity : n.t12; if (t > bt) { bt = t; best = A; } }
   return best;
 }
+let BEAM_SUGG = [];
 function buildBeamSelects() {
   const opt = (v, t) => `<option value="${v}">${t}</option>`, grp = (g, o) => `<optgroup label="${g}">${o}</optgroup>`;
   const sp = Object.entries(BEAM_SPECIES).filter(([, s]) => s.g !== 'Any');
@@ -20895,7 +21425,7 @@ function buildBeamSelects() {
   BEAM_FIND.clear();
   const sugg = sp.map(([k, s]) => [`${s.lab} ${s.name}`, k]).concat(ELEMENTS.slice(1, Z_TABLE + 1).map(E => [`${E.sym} ${E.name} (${E.Z})`, 'Z' + E.Z]));
   for (const [t, v] of sugg) BEAM_FIND.set(t.toLowerCase(), v);
-  $('cBeamList').innerHTML = sugg.map(([t]) => `<option value="${esc(t)}"></option>`).join('');
+  BEAM_SUGG = sugg; // (the search boxes' suggestion list: ddSuggest)
 }
 /* What a typed beam means: an entry of the menus, an element by name, symbol or atomic number, an isotope of one
    (calcium-48, Ca-48, 48Ca, ⁴⁸Ca, ca 48) or a particle by its everyday name. → { v, A } as the menus give them ('Z<n>'
@@ -21714,8 +22244,9 @@ function frame(now) {
     render(W.rt);
     if (REC.on) recCapture();
     tf2 = performance.now();
-  } catch (err) { console.error(err); }
-  if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); if (!$('setModal').hidden) settingsStats(); }
+  } catch (err) { console.error(err); crashError(err, 'frame'); }
+  if (UI.started) crashTick(now, performance.now() - tf0);
+  if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); ddSync(); if (!$('setModal').hidden) settingsStats(); }
   if (now - UI.lastPanel > 450) { UI.lastPanel = now; updatePanel(); }
   else if (UI.tab === 'inspect' && UI.running) drawInspectBohr();
   if (UI.tab === 'inspect') qDraw(realDt);
@@ -22153,6 +22684,231 @@ function restoreAutosave() {
   setRunning(true); log('tool', 'Carried on where you left off');
   return true;
 }
+/* ---- Dropdowns (1.13, asked for by the user: rounded corners, a styled scroll bar and an animation on every one). Each
+   <select> gets a button beside it that opens a list of its options (and groups) drawn by the page; the select itself
+   stays, hidden, so everything that reads or sets it, or listens for its change, works as before. Buttons follow their
+   select's choice, disabled and hidden state four times a second (and at once on change); selects made later (panels
+   redrawn) are found the same way. A search box can have the same list as suggestions (ddSuggest: the collider's beam
+   search, which had the browser's own square list). */
+const DD = { open: null, n: 0 };
+function ddEnhance() {
+  for (const sel of document.querySelectorAll('select:not([data-dd])')) {
+    sel.dataset.dd = '1';
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ddbtn ' + sel.className; b.setAttribute('aria-haspopup', 'listbox'); b.setAttribute('aria-expanded', 'false');
+    const lab = sel.getAttribute('aria-label') || sel.title; if (lab) b.setAttribute('aria-label', lab);
+    if (sel.id) b.id = sel.id + 'DD';
+    sel.after(b); sel.classList.add('ddhide'); sel.tabIndex = -1; sel._dd = b;
+    b.addEventListener('click', (e) => { e.stopPropagation(); if (DD.open && DD.open.sel === sel) ddClose(); else ddOpen(sel, b); });
+    b.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); ddOpen(sel, b); } });
+    sel.addEventListener('change', () => ddLabel(sel));
+    ddLabel(sel);
+  }
+}
+function ddLabel(sel) {
+  const b = sel._dd; if (!b) return;
+  const o = sel.options[sel.selectedIndex], t = o ? o.textContent : '';
+  if (b.textContent !== t) b.textContent = t;
+  if (b.disabled !== sel.disabled) b.disabled = sel.disabled;
+  if (b.hidden !== sel.hidden) b.hidden = sel.hidden;
+  if (sel.title && b.title !== sel.title) b.title = sel.title;
+}
+function ddSync() { ddEnhance(); for (const sel of document.querySelectorAll('select[data-dd]')) ddLabel(sel); }
+/* the list: items [{t, i (option index) | g (group label), dis}], placed under (or over) the anchor */
+function ddPop(anchor, items, cur, pick, opts = {}) {
+  ddClose(true);
+  const pop = document.createElement('div'); pop.className = 'ddpop'; pop.setAttribute('role', 'listbox'); pop.id = 'ddpop' + (++DD.n);
+  pop.innerHTML = items.length ? items.map((it, k) => it.g !== undefined ? `<div class="ddg" role="presentation">${esc(it.g)}</div>`
+    : `<div class="ddo${it.dis ? ' dis' : ''}${k === cur ? ' on hi' : ''}" role="option" id="${pop.id}-${k}" data-k="${k}" aria-selected="${k === cur}">${esc(it.t)}</div>`).join('')
+    : `<div class="ddnone">${esc(opts.none || 'Nothing matches')}</div>`;
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect(), vh = window.innerHeight, vw = window.innerWidth;
+  const below = vh - r.bottom - 8, above = r.top - 8, up = below < 180 && above > below;
+  pop.style.minWidth = Math.max(r.width, opts.minW || 160) + 'px'; pop.style.maxWidth = Math.min(420, vw - 16) + 'px';
+  pop.style.maxHeight = Math.min(360, Math.max(120, up ? above : below)) + 'px';
+  const w = pop.offsetWidth; pop.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + 'px';
+  if (up) { pop.classList.add('up'); pop.style.bottom = (vh - r.top + 4) + 'px'; } else pop.style.top = (r.bottom + 4) + 'px';
+  const st = DD.open = { anchor, pop, items, hi: cur, pick, opts };
+  anchor.setAttribute('aria-expanded', 'true'); anchor.setAttribute('aria-controls', pop.id);
+  const el = cur >= 0 ? pop.querySelector(`[data-k="${cur}"]`) : null; if (el) pop.scrollTop = el.offsetTop - pop.clientHeight / 2 + el.offsetHeight / 2;
+  pop.addEventListener('pointerdown', (e) => e.preventDefault()); // (keeps the focus where it is: a search box goes on taking keys)
+  pop.addEventListener('click', (e) => { const o = e.target.closest('.ddo'); if (o && !o.classList.contains('dis')) ddChoose(+o.dataset.k); });
+  pop.addEventListener('pointermove', (e) => { const o = e.target.closest('.ddo'); if (o && !o.classList.contains('dis')) ddHi(+o.dataset.k, false); });
+  return st;
+}
+function ddHi(k, scroll = true) {
+  const st = DD.open; if (!st) return;
+  const old = st.pop.querySelector('.ddo.hi'); if (old) old.classList.remove('hi');
+  st.hi = k; const el = st.pop.querySelector(`[data-k="${k}"]`); if (!el) return;
+  el.classList.add('hi'); st.anchor.setAttribute('aria-activedescendant', el.id);
+  if (scroll) { const top = el.offsetTop, bot = top + el.offsetHeight; if (top < st.pop.scrollTop) st.pop.scrollTop = top - 4; else if (bot > st.pop.scrollTop + st.pop.clientHeight) st.pop.scrollTop = bot - st.pop.clientHeight + 4; }
+}
+function ddMove(d) { // the next choosable item that way (wrapping)
+  const st = DD.open; if (!st) return; const n = st.items.length; if (!n) return;
+  let k = st.hi; for (let t = 0; t < n; t++) { k = (k + d + n) % n; const it = st.items[k]; if (it.g === undefined && !it.dis) { ddHi(k); return; } }
+}
+function ddChoose(k) { const st = DD.open; if (!st) return; const it = st.items[k]; if (!it || it.g !== undefined || it.dis) return; ddClose(); st.pick(it); }
+function ddClose(now) {
+  const st = DD.open; if (!st) return; DD.open = null;
+  st.anchor.setAttribute('aria-expanded', 'false'); st.anchor.removeAttribute('aria-activedescendant');
+  const pop = st.pop;
+  if (!now && document.body.classList.contains('mo')) { pop.classList.add('out'); setTimeout(() => pop.remove(), 110); } else pop.remove();
+}
+function ddOpen(sel, b) {
+  if (sel.disabled) return;
+  const items = []; let cur = -1;
+  for (const ch of sel.children) {
+    if (ch.tagName === 'OPTGROUP') { items.push({ g: ch.label }); for (const o of ch.children) { if (o.index === sel.selectedIndex) cur = items.length; items.push({ t: o.textContent, i: o.index, dis: o.disabled }); } }
+    else if (ch.tagName === 'OPTION') { if (ch.index === sel.selectedIndex) cur = items.length; items.push({ t: ch.textContent, i: ch.index, dis: ch.disabled }); }
+  }
+  ddPop(b, items, cur, (it) => {
+    if (sel.selectedIndex !== it.i) { sel.selectedIndex = it.i; sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    ddLabel(sel); b.focus();
+  }).sel = sel;
+}
+/* a search box with suggestions in the same kind of list: list() gives [{t, …}] for the text; pick(it) takes one */
+function ddSuggest(box, list, pick) {
+  const show = () => { const items = list(box.value); if (!box.value.trim() || !items.length) { if (DD.open && DD.open.anchor === box) ddClose(true); return; } ddPop(box, items, -1, (it) => pick(it), { minW: 240 }).box = true; };
+  box.addEventListener('input', show);
+  box.addEventListener('focus', () => { if (box.value.trim()) show(); });
+  box.addEventListener('blur', () => { if (DD.open && DD.open.anchor === box) ddClose(); });
+  box.addEventListener('keydown', (e) => {
+    const st = DD.open; if (!st || st.anchor !== box) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); ddMove(e.key === 'ArrowDown' ? 1 : -1); }
+    else if (e.key === 'Enter' && st.hi >= 0) { e.preventDefault(); e.stopImmediatePropagation(); ddChoose(st.hi); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ddClose(); }
+  }, true);
+}
+function ddInit() {
+  ddEnhance();
+  // the open list's keys (a select's list: the focus is on its button), outside clicks, and anything moving the page
+  document.addEventListener('keydown', (e) => {
+    const st = DD.open; if (!st || st.box) return;
+    const k = e.key;
+    if (k === 'ArrowDown' || k === 'ArrowUp') ddMove(k === 'ArrowDown' ? 1 : -1);
+    else if (k === 'Home' || k === 'End') { ddHi(k === 'Home' ? -1 : st.items.length); ddMove(k === 'Home' ? 1 : -1); }
+    else if (k === 'PageDown' || k === 'PageUp') { for (let t = 0; t < 8; t++) ddMove(k === 'PageDown' ? 1 : -1); }
+    else if (k === 'Enter' || k === ' ') { if (st.hi >= 0) ddChoose(st.hi); }
+    else if (k === 'Escape' || k === 'Tab') { ddClose(); if (k === 'Tab') return; st.anchor.focus(); }
+    else if (k.length === 1 && /\S/.test(k)) { // typing jumps to the next entry starting with what was typed
+      const now = performance.now(); DD.typed = (now - (DD.typedAt || 0) < 700 ? DD.typed || '' : '') + k.toLowerCase(); DD.typedAt = now;
+      const n = st.items.length, from = DD.typed.length > 1 ? Math.max(0, st.hi) : st.hi + 1;
+      for (let t = 0; t < n; t++) { const j = ((from + t) % n + n) % n, it = st.items[j]; if (it.g === undefined && !it.dis && it.t.toLowerCase().startsWith(DD.typed)) { ddHi(j); break; } }
+    } else return;
+    e.preventDefault(); e.stopPropagation();
+  }, true);
+  document.addEventListener('pointerdown', (e) => { const st = DD.open; if (st && !st.pop.contains(e.target) && e.target !== st.anchor) ddClose(); }, true);
+  window.addEventListener('resize', () => ddClose(true));
+  document.addEventListener('scroll', (e) => { const st = DD.open; if (st && !st.pop.contains(e.target)) ddClose(true); }, true);
+}
+/* ---- The crash handler (1.13). An error in a frame, particles whose numbers broke (NaN or infinite), or memory
+   nearly full pauses the game and says so, with what can be done and a report to copy. A heartbeat in browser storage
+   (every 2 s, and after any frame over half a second) is cleared when the page is left normally; found on the next start,
+   it means the last session froze or crashed, and that start offers the autosave back instead of carrying on into it. */
+const CRASH = { open: false, n: 0, beatAt: 0, worst: 0, chkAt: 0, memWarned: false, report: '' };
+function crashState() {
+  let n = 0; for (const p of W.parts) if (!p.dead) n++;
+  const m = performance.memory;
+  return { ver: (/\d+\.\d+\.\d+/.exec(document.title) || ['?'])[0], preset: UI.preset, n, t: W.t, spf: W.simPerFrame, base: UI.baseSpf, running: !!UI.running, menu: !!UI.menu,
+    heap: m ? Math.round(m.usedJSHeapSize / 1e6) : 0, limit: m ? Math.round(m.jsHeapSizeLimit / 1e6) : 0, desktop: !!tauriWin(), at: Date.now() };
+}
+function crashReport(head, st, extra) {
+  const pr = PRESETS[st.preset], set = {};
+  for (const k in SET) if (!/key|token/i.test(k)) set[k] = SET[k]; // (never an API key)
+  const L = [`Atom Forge ${st.ver} (${st.desktop ? 'desktop app' : 'browser'}): ${head}`, `When: ${new Date(st.at || Date.now()).toString()}`,
+    `Setup: ${pr ? pr.name : st.preset} (${st.preset}); ${st.n} particles; simulated time ${fmtTime((st.t || 0) * PHYS.TU_S)}; ${st.running ? 'running' : 'paused'}${st.menu ? ', in the main menu' : ''}; steps per frame ${st.spf} (1× is ${st.base})`,
+    `Memory: ${st.heap ? `${st.heap} of ${st.limit} MB` : 'not reported by this browser'}${st.worst ? `; slowest recent frame ${st.worst} ms` : ''}`,
+    `Browser: ${navigator.userAgent}`];
+  if (extra) L.push('', extra);
+  L.push('', 'Settings: ' + JSON.stringify(set));
+  return L.join('\n');
+}
+function crashShow(o) {
+  CRASH.open = true; CRASH.wasRun = CRASH.wasRun || UI.running; setRunning(false);
+  $('crashTitle').textContent = o.title; $('crashText').textContent = o.text; $('crashNote').textContent = '';
+  $('crashReport').value = CRASH.report = o.report; $('crashDet').open = false;
+  $('crashBtns').innerHTML = o.actions.map(([a, t], i) => `<button class="btn${i ? '' : ' primary'}" data-crash="${a}">${esc(t)}</button>`).join('') + '<button class="btn" data-crash="copy">Copy report</button>';
+  showModal('crashModal');
+}
+function crashClose(run) { CRASH.open = false; hideModal('crashModal'); if (run) setRunning(true); CRASH.wasRun = false; }
+function crashActions(extra) {
+  const a = extra.slice();
+  if (!UI.menu && undoOK() && UNDO.back.length) a.push(['undo', `Undo: ${UNDO.back[UNDO.back.length - 1].label}`]);
+  if (!UI.menu && PRESETS[UI.preset]) a.push(['restart', 'Start this setup again']);
+  return a;
+}
+function crashError(err, where) {
+  CRASH.n++;
+  if (CRASH.open || !UI.started) return; // (counted: the dialog is already up)
+  const msg = (err && err.message) || String(err);
+  crashShow({ title: 'Something went wrong', text: `The game hit an error${where === 'frame' ? '' : ' outside the simulation'} and paused: “${msg}”. You can keep going (it may happen again), or go back to a safe point.`,
+    report: crashReport('an error: ' + msg, crashState(), (err && err.stack) || ''), actions: crashActions([['go', 'Keep going']]) });
+}
+function crashBad() { const bad = []; for (const p of W.parts) if (!p.dead && !(Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.vx) && Number.isFinite(p.vy))) bad.push(p); return bad; }
+/* every half second while the game runs: broken numbers, memory, the heartbeat */
+function crashTick(now, frameMs) {
+  CRASH.worst = Math.max(CRASH.worst, frameMs);
+  if (now - CRASH.beatAt >= 2000 || frameMs > 500) { // the heartbeat
+    CRASH.beatAt = now; const st = crashState(); st.worst = Math.round(CRASH.worst); CRASH.worst = 0;
+    store('beat', JSON.stringify(st));
+  }
+  if (CRASH.open || now - CRASH.chkAt < 500) return;
+  CRASH.chkAt = now;
+  if (UI.running && !UI.menu) {
+    const bad = crashBad();
+    if (bad.length) {
+      const desc = bad.slice(0, 6).map(p => `${p.k}${p.Z !== undefined ? ' Z' + p.Z : ''}${p.N !== undefined ? ' N' + p.N : ''} at (${p.x}, ${p.y}) v (${p.vx}, ${p.vy})`).join('\n');
+      crashShow({ title: 'Broken numbers in the chamber', text: `${bad.length} particle${bad.length > 1 ? 's' : ''} got positions or speeds that are not numbers (NaN or infinite): a bug in the physics, and left alone it spreads to everything near ${bad.length > 1 ? 'them' : 'it'}. The game is paused.`,
+        report: crashReport(`${bad.length} particles with NaN or infinite numbers`, crashState(), 'First of them (kind, Z, N, position, velocity):\n' + desc), actions: crashActions([['fix', `Remove ${bad.length > 1 ? 'them' : 'it'} and keep going`]]) });
+      return;
+    }
+  }
+  const m = performance.memory;
+  if (m && m.jsHeapSizeLimit) {
+    const f = m.usedJSHeapSize / m.jsHeapSizeLimit;
+    if (f > 0.85 && !CRASH.memWarned) {
+      CRASH.memWarned = true;
+      crashShow({ title: 'Memory nearly full', text: `The page is using ${Math.round(m.usedJSHeapSize / 1e6)} MB of the ${Math.round(m.jsHeapSizeLimit / 1e6)} MB the browser allows it. Paused, before the tab runs out and crashes: remove some particles, or start the setup again.`,
+        report: crashReport('memory nearly full', crashState(), ''), actions: crashActions([['go', 'Keep going anyway']]) });
+    } else if (f < 0.6) CRASH.memWarned = false;
+  }
+}
+function crashBye() { store('beat', ''); CRASH.beatAt = 0; } // (the page left normally: no heartbeat to find next time)
+/* the last session's heartbeat, if it never left normally; in the desktop app, whose window may close without telling
+   the page, only one that was struggling (frames over a second, or memory past 70%) counts */
+function crashPrev() {
+  let st = null; try { st = JSON.parse(store('beat') || 'null'); } catch (e) { st = null; }
+  store('beat', '');
+  if (!st || !st.at || Date.now() - st.at > 14 * 864e5) return null;
+  const strained = (st.worst || 0) > 1000 || (st.limit && st.heap / st.limit > 0.7);
+  return st.desktop && !strained ? null : st;
+}
+function crashRecover(st) {
+  const d = autosaved(), pr = PRESETS[st.preset], mem = st.limit && st.heap / st.limit > 0.7;
+  const was = `${pr ? pr.name : 'a setup'} with ${st.n.toLocaleString('en-US')} particles${st.heap ? `, using ${st.heap} of ${st.limit} MB of memory` : ''}${st.worst > 1000 ? `, its frames taking ${(st.worst / 1000).toFixed(1)} s` : ''}`;
+  const when = d && d.savedAt ? new Date(d.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  crashShow({ title: 'Atom Forge stopped unexpectedly last time', text: `It was running ${was}. It probably ${mem ? 'ran out of memory' : 'froze or crashed'}.` + (d ? ` The autosave from ${when} can be put back${d.fresh ? ' (this setup is kept as its name: it starts afresh)' : ''}; if the same thing happens again, start fresh instead.` : ''),
+    report: crashReport('stopped unexpectedly (froze or crashed)', st, ''), actions: (d ? [['restore', `Carry on from the autosave${when ? ' (' + when + ')' : ''}`]] : []).concat([['fresh', UI.menu ? 'Close' : 'Start fresh']]) });
+}
+function crashAction(a) {
+  if (a === 'copy') {
+    const ta = $('crashReport'), done = () => { $('crashNote').textContent = 'Copied.'; };
+    $('crashDet').open = true;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(CRASH.report).then(done, () => { ta.select(); $('crashNote').textContent = 'Select all and copy the report below.'; });
+    else { ta.select(); try { document.execCommand('copy'); done(); } catch (e) { /* (left selected) */ } }
+    return;
+  }
+  const run = CRASH.wasRun;
+  if (a === 'go') crashClose(true);
+  else if (a === 'fix') {
+    const bad = crashBad(); for (const p of bad) kill(p);
+    try { forcesNoEvents(); } catch (e) { /* (the next step recomputes them) */ }
+    log('tool', `Removed ${bad.length} particle${bad.length > 1 ? 's' : ''} with broken numbers`); crashClose(true);
+  } else if (a === 'undo') { crashClose(false); undoStep(-1); setRunning(true); }
+  else if (a === 'restart') { crashClose(false); loadPreset(UI.preset); }
+  else if (a === 'restore') { crashClose(false); if (UI.menu) hideMainMenu(); if (!restoreAutosave()) log('tool', 'The autosave could not be put back'); }
+  else if (a === 'fresh') crashClose(run && !UI.menu);
+}
 /* ---- My experiments: named saves, kept in the browser's database (IndexedDB: room for big setups, where the
    autosave's storage holds a few megabytes). A setup that cannot be put back (chips, beams, lasers, a ramp) is kept
    as which setup it is. */
@@ -22238,7 +22994,7 @@ function openKeys() {
 }
 /* Quit: the desktop app closes (the chamber is kept first, for Continue); a browser tab can only be closed by hand. */
 function quitApp() {
-  autosave();
+  autosave(); crashBye();
   const w = tauriWin();
   if (w) { Promise.resolve(w.close()).catch(() => {}); return; }
   const n = UI.menu ? $('mmNote') : $('escNote'); if (n) n.textContent = 'In a browser, close the tab to quit: the chamber is kept for next time.';
@@ -22334,8 +23090,10 @@ function menusInit() {
   $('helpClose').onclick = () => hideModal('helpModal');
   $('keysModal').addEventListener('click', (e) => { if (e.target.id === 'keysModal') hideModal('keysModal'); });
   window.addEventListener('blur', () => blurPause(true)); window.addEventListener('focus', () => blurPause(false));
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { autosave(); blurPause(true); } else blurPause(false); });
-  window.addEventListener('pagehide', () => autosave());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { autosave(); crashBye(); blurPause(true); } else blurPause(false); });
+  window.addEventListener('pagehide', () => { autosave(); crashBye(); });
+  $('crashModal').addEventListener('click', (e) => { const b = e.target.closest('[data-crash]'); if (b) crashAction(b.dataset.crash); });
+  window.addEventListener('error', (e) => { if (e.error || (e.message && e.message !== 'Script error.')) crashError(e.error || new Error(e.message), 'event'); });
   $('toolopts').addEventListener('change', () => optSave());
   // the panel's inner edge: drag to make it wider or narrower (Settings → Display)
   const sp = document.createElement('div'); sp.className = 'psplit'; sp.title = 'Drag to resize the panel'; $('panel').appendChild(sp);
@@ -22354,6 +23112,7 @@ function menusInit() {
 /* ------------------------------------------------------------------ keyboard */
 function onKey(e) {
   const tag = (e.target && e.target.tagName) || '';
+  if (CRASH.open) { if (e.key === 'Escape') { e.preventDefault(); crashClose(false); } return; } // (the crash dialog: Esc closes it, still paused)
   if (QM.open) {
     if (e.key === 'Escape') { e.preventDefault(); closeQuickMenu(true); return; }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); qmMove(e.key === 'ArrowDown' ? 1 : -1); return; }
@@ -22421,10 +23180,10 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { pi: 0, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { bo: 0, pi: 0, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { pi: [0, 8, 16, 32], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
+const SET_OK = { bo: [0, 1], pi: [0, 8, 16, 32], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16', '32'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -22502,6 +23261,7 @@ function applySettings() {
   $('fpsBadge').hidden = !SET.fps;
   threadsSet(SET.threads === 'auto' ? threadsDefault() : +SET.threads - 1); // (workers besides the main thread)
   piSet(SET.pi); // (Experimental: quantum nuclei)
+  boSet(!!SET.bo); // (Experimental: continuous bond orders, 1.13)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
@@ -22517,7 +23277,8 @@ function threadsNote() {
   if (!threadsAvailable()) return 'One thread: this page is not cross-origin isolated, so the browser allows no shared memory. The desktop app runs the pair forces on all your processor\u2019s threads.' + kernel;
   const c = navigator.hardwareConcurrency || '?';
   if (!TH.n) return `One thread (this computer has ${c}).` + kernel;
-  return `${TH.n + 1} threads of ${c}${TH.state === 'starting' ? ', starting up' : TH.used ? ', in use: the forces, the heat bath, the integration and the neighbour list' : ' (used once a world is big enough: the small ones run on one thread)'}.` + kernel;
+  const more = typeof SET !== 'undefined' && SET.threads === 'auto' && c > 16 ? ' Auto stops at 16, one a core; 32 adds each core\u2019s second thread, which may gain a little or lose a little: the Speed test tells.' : '';
+  return `${TH.n + 1} threads of ${c}${TH.state === 'starting' ? ', starting up' : TH.used ? ', in use: the forces, the heat bath, the integration and the neighbour list' : ' (used once a world is big enough: the small ones run on one thread)'}.` + more + kernel;
 }
 /* The benchmark: four reference worlds, each built and stepped here under the settings as they are (the water worlds
    hold as many atoms as Settings → Max particles allows, the drawing runs at the set resolution and effects, the physics
@@ -22623,7 +23384,7 @@ function syncSettings() {
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
-  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
+  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segBo', String(SET.bo)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
@@ -22646,6 +23407,7 @@ function costLevel(a) {
 const COST_K = { physics: 'Time to work out the physics', drawing: 'Time to draw each frame', memory: 'Memory it takes' };
 function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toFixed(1) : +v.toFixed(2)); }
 const COSTS = {
+  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×17–45', 'Measured on one thread: liquid water ×17, hydrogen + oxygen ×21, the molecule gallery ×45 (every pair worked out every step, steps half as long)'] } }),
   segPi: () => ({ k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×7.8', 'Measured on liquid water: the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water: 16 times a step'], 32: ['×36', 'Measured on liquid water: 32 times a step'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–1.8', 'Measured: water 4,000 ×1.4, brine ×1.6, liquid water ×1.8'], 1: ['×2.7–4.6', 'Measured: brine ×2.7, liquid water ×2.8, 4,000 waters ×4.6'] } }),
   segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×1.3–2.6', 'Measured: brine ×1.3, liquid water ×2.2, 4,000 waters ×2.6 (JavaScript kernels)'], 12: ['×1.6–5.6', 'Measured: brine ×1.6, liquid water ×3.2, 4,000 waters ×5.6 (JavaScript kernels)'] } }),
@@ -22661,7 +23423,8 @@ const COSTS = {
   segBudget: () => ({ k: 'physics', o: { 6: ['×0.6', 'Least physics a frame: the smoothest frames, slower simulation'], 10: ['×1', 'The usual share of each frame'], 16: ['×1.6', 'More physics a frame: faster simulation, fewer frames a second when busy'], 24: ['×2.4', 'The most physics a frame: fastest simulation, fewest frames a second when busy'] }, t: 'Physics time each frame may take' }),
   segThreads: () => {
     const auto = threadsAvailable() ? threadsDefault() + 1 : 1, o = { auto: ['×1', auto > 1 ? auto + ' threads on this computer' : 'One thread: this page cannot share work between threads here'] };
-    for (const n of [1, 2, 4, 8, 16]) o[n] = n >= auto ? ['×1', n > auto ? 'More threads than this computer has gain nothing' : 'What Auto chooses here'] : ['up to ' + costX(auto / n), 'In a crowded box (small boxes run on one thread anyway)'];
+    const hw = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || auto;
+    for (const n of [1, 2, 4, 8, 16, 32]) o[n] = n > hw ? ['×1', 'More threads than this computer has gain nothing'] : n > auto ? ['?', 'Past Auto: the second thread on each core (hyper-threading). It may gain a little or lose a little: Speed test (General) tells'] : n === auto ? ['×1', 'What Auto chooses here'] : ['up to ' + costX(auto / n), 'In a crowded box (small boxes run on one thread anyway)'];
     return { k: 'physics', o };
   },
   segGl: () => ({ k: 'drawing', o: { gl: ['×1', 'Atoms and bonds drawn by the graphics card'], '2d': ['heavy', 'Canvas 2D draws every atom on the processor: much slower for thousands of atoms'] } }),
@@ -22700,6 +23463,29 @@ function syncReal() {
     else { const row = el.closest('label'); if (row) costTag(row, 'rlb', 'realistic when on', why); }
   }
 }
+/* The Experimental tab's total (1.13, asked for by the user): the chosen settings' measured costs multiplied together,
+   against everything at normal. A product is a fair guide (each one multiplies the work of a step) but not a
+   measurement of that combination: the ranges are the setups the costs were measured on. */
+const EXP_SET = { segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
+function expTotal() {
+  let lo = 1, hi = 1, extra = '';
+  const on = [];
+  for (const id in EXP_SET) {
+    const c = COSTS[id](), v = SET[EXP_SET[id]], a = c.o ? c.o[String(v)] : v ? c.on : null;
+    if (!a) continue;
+    const m = String(a[0]).match(/×\s*([0-9.]+)(?:\s*–\s*([0-9.]+))?/); if (!m) continue;
+    const l = +m[1], h = +(m[2] || m[1]); lo *= l; hi *= h;
+    if (/pauses/.test(a[0])) extra = ', with pauses when a large ring system reacts';
+    if (h > 1.001 || /\+/.test(a[0])) on.push(id);
+  }
+  return { lo, hi, on, extra };
+}
+function syncExpTotal() {
+  const el = $('expTotal'); if (!el) return;
+  const t = expTotal(), txt = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
+  const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', segBo: 'continuous bond orders', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
+  el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
+}
 function syncCosts() {
   for (const id in COSTS) {
     const el = $(id); if (!el) continue;
@@ -22710,6 +23496,7 @@ function syncCosts() {
     if (c.o) for (const b of el.querySelectorAll('button')) { const a = c.o[b.dataset.v]; costTag(b, 'oc c' + (a ? costLevel(a[0]) : 0), a ? a[0] : '', a ? a[1] : ''); }
     else { costTag(row, 'cost c' + costLevel(c.on[0]), 'on ' + c.on[0], 'Turned on: ' + c.on[1]); row.querySelector(':scope > .cost').classList.toggle('dim', !el.checked); }
   }
+  syncExpTotal();
   syncReal(); // (after the cost tags: the realistic tag sits under them)
   if (!UI.hz && !UI.hzBusy && typeof requestAnimationFrame === 'function') { // (the monitor's rate, for the frame-rate cap: the median of 20 frames)
     UI.hzBusy = true; const ts = [];
@@ -22752,7 +23539,7 @@ function settingsInit() {
   $('dMade').addEventListener('click', madeClick); bindSeg('segMap', (v) => { UI.mapView = v; UI.mapVer = -1; drawChainMap(); });
   $('chMap').addEventListener('mousemove', mapHover); $('chMap').addEventListener('mouseleave', () => { UI.mapHov = null; UI.mapVer = -1; drawChainMap(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
-  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
+  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); bindSeg('segBo', (v) => setSetting('bo', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
@@ -23095,6 +23882,7 @@ function qmInit() {
 /* ------------------------------------------------------------------ init */
 function init() {
   rInit($('cv'), $('cvbg'));
+  ddInit(); // (the page's own dropdowns, 1.13)
   UI.budget = 10;
   const sv = store('bohr'); if (sv) setAtomView(sv);
   W.slowmo = store('slowmo') !== '0';
@@ -23166,6 +23954,8 @@ function init() {
     box.addEventListener('input', () => { box.setCustomValidity(''); go(true); });
     box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(false); } });
     box.addEventListener('change', () => go(false));
+    ddSuggest(box, (t) => { const q = t.trim().toLowerCase(); if (!q) return []; const out = []; for (const [txt, v] of BEAM_SUGG) if (txt.toLowerCase().includes(q)) { out.push({ t: txt, v }); if (out.length >= 60) break; } return out; },
+      (it) => { box.value = ''; box.setCustomValidity(''); pickBeam(which, it.v); box.blur(); });
   }
   $('cNSlider').oninput = (e) => { $('cNVal').textContent = e.target.value; if (W.collider) W.collider.bunch = +e.target.value; };
   $('cESlider').oninput = (e) => { const C = W.collider; $('cEVal').textContent = fmtE(cEFromS(+e.target.value)) + (C && C.E2 !== null ? '' : ' each'); };
@@ -23204,8 +23994,10 @@ function init() {
   loadPreset(startPreset); buildToolOpts();
   setRunning(true);
   UI.started = true;
+  const prev = crashPrev(); // (the last session froze or crashed: offer its autosave rather than carry on into it)
   if (!direct && SET.start === 'menu') showMainMenu();
-  else if (!direct && SET.start === 'last') restoreAutosave();
+  else if (!direct && SET.start === 'last' && !prev) restoreAutosave();
+  if (prev && !window.AF_NO_MENU) crashRecover(prev);
   if (!direct && SET.start !== 'menu' && !store('toured')) setTimeout(tourStart, 600);
   UI.last = performance.now();
   requestAnimationFrame(frame);

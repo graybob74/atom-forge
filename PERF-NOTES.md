@@ -77,6 +77,13 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
+- Every charged particle as a collider beam (asked for by the user, approved; 1.13 found it bigger than a menu entry):
+  μ±, π±, K±, τ±, Σ±, Ξ⁻, Ω⁻ and their antiparticles. They are flying exotics (W.exo), which the ring does not handle:
+  its dipole zones pass only W.parts with a matching beam tag (Bfield(x, y, null) skips them), the RF cavities,
+  kickers, separators, beam–beam forces and beamCollisions all work on parts. Needs: exotics steered, accelerated and
+  collided by the ring (or carried as parts), collision physics for the new pairs (μ⁺μ⁻ annihilation, π/K/hyperon on
+  nucleons through hadronHit, exotic on exotic), decay in flight around the ring (time dilation), and the menu and
+  search entries. Neutral particles cannot be steered by a ring and stay out.
 - Slow motion folded into the speed menu (asked for by the user): the hourglass stays, as a shortcut that sets the
   speed to what slow motion gives today (the fastest particle about a second across the box); the separate "slow-mo"
   state goes, and so the readout always shows a speed from the menu. The automatic slow-down for nuclear events sets
@@ -86,10 +93,13 @@ engine stores and visits particles.
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
   everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
-- The rest of the Experimental options (asked for by the user; induced charges and quantum nuclei shipped in 1.12.0):
-  continuous bond orders next (prototype step 4 in tools/bo-proto2.js: statics and the H + H₂ saddle right, the energy
-  in dynamics not yet: a smooth sharing of each atom's valence to do), then electrons as waves (prototype parked:
-  tools/eff-proto.js). Each a physics-model change for the owner to approve.
+- The rest of the Experimental options (asked for by the user; induced charges and quantum nuclei shipped in 1.12.0,
+  continuous bond orders shipped in 1.13.0, approved by the owner): electrons as waves (prototype parked:
+  tools/eff-proto.js). A physics-model change for the owner to approve.
+- Continuous bond orders, next steps: partial charges that follow the orders (hydrogen bonds between members; needs the
+  charges' slopes in the forces, ∂q/∂r, against everything charged), protonation and ions inside the scheme instead of
+  handing a charged molecule back to stored bonds, crowded flat molecules (SF₆), and speed (×17–45 today: the pair
+  terms in the WebAssembly kernel, the steps longer).
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
@@ -111,6 +121,110 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.13.0: crash handler, dropdowns, 32 threads, Experimental total cost, beads under the symbols, continuous bond orders
+
+- **Crash handler** (asked for by the user after a Ring-collider setup, Ca-40 + Au-197 at about 1 PeV with a τ⁻ placed,
+  crashed the game; it ran 2,500 particles headless without an error, so it was most likely the tab freezing or running
+  out of memory). An error in a frame (or anywhere on the page) now pauses the game and opens a dialog: what happened,
+  Keep going, Undo the last change (where undo works), Start this setup again, and a report to copy (version, setup,
+  particle count, time, memory, the error's stack, the settings without any API key). Every half second the chamber
+  is checked for positions or speeds that are NaN or infinite (they spread to neighbours within steps): the dialog
+  offers to remove them, recompute the forces and keep going. Memory past 85% of what the browser allows pauses with
+  a warning (once, until it drops below 60%). A heartbeat (every 2 s, and after any frame over 0.5 s) is kept in
+  browser storage and cleared when the page is left normally (closed, reloaded, hidden); found on the next start it
+  means the last session froze or crashed, so that start does not carry on into the autosave (Start with → Where I
+  left off) but offers it, with the report. The desktop window can close without telling the page, so there only a
+  heartbeat that shows trouble (frames over a second, or memory past 70%) counts. Costs nothing measurable: one pass
+  over the particles every 0.5 s and a small write every 2 s.
+- **Experimental: continuous bond orders** (asked for by the user: "a less hard-coded chemistry"; built overnight on
+  their "please try to finish the bond orders", off by default; approved by the owner for 1.13.0). `src/bo.js`
+  brings model E of the prototype (tools/bo-proto2.js, steps 1–5 in 1.12.0) into the engine with analytic forces
+  (tools/bo-fast.js first checked them against numerical ones: 1e-8 eV/Å). With it on, neutral molecules of non-metals
+  keep no stored bonds; each step every pair's order is worked out from the positions and the energy is a smooth
+  function of them. How it sits in the engine:
+  - membership by whole clusters (stored bonds, or orders over 0.3): a cluster joins when every atom qualifies and leaves
+    when one stops (an ion forms, a nucleus changes, it touches a metal); leavers get stored bonds from their orders
+    (the strongest first, as valence allows). Every change is measured (localPE of the changed atoms plus the whole
+    bond-order energy, before and after, same positions) and the difference goes to the bath, as for quantum nuclei.
+    The check runs at the start of a step, only when species, charges, bonds or particles changed (and every 64 steps).
+  - between members the kernel's non-bonded pair is left out (VL.ex = 1, after the usual marks) and bo.js adds the same
+    Lennard-Jones, switched on from r₁ + 1.3 to r₁ + 1.8 Å; totalEnergy, localPE and pairPE skip member pairs the same way.
+    No stored-bond event (bond, react, dative) touches a member: a classic O₃ reacting with a member made 4–6 eV.
+  - joiners are eased into this chemistry's shapes (60 steepest-descent moves, inside the booked change): left in the
+    stored bonds' shapes, the molecule gallery heated from 300 to 1,000 K.
+  - the bond stiffness (8·D·α², four times a Morse bond's curvature) limits the step: at the plain curvature a hot gallery
+    drifted 1–3 eV in 60 fs from the sharp turns of the orders' smoothing, at this 0.05 eV.
+  - drawn from the orders each frame (whole orders, a resonating 1.5, fainter below 1); saved worlds keep whole bonds.
+  Fixes on the way, each found by a jump in an insulated run: the level's sum and the orders now fade out partners that
+  ask for nothing (the prototype's last step, which this branch had missed: H₂ + O₂ drifted 15 eV); an expanded octet
+  is blended in as electronegative partners come to ask (it switched on at the edge of reach); the angle terms are the
+  expectation over which partners between orders 0.4 and 0.7 count (two F of SF₆ entering together jumped 2.2 eV);
+  Pauling's length below order 0.05 and the depth and stiffness at whole orders are rounded (each kink put a jump in
+  the force: 0.03–0.3 eV per crossing); the level is solved by bracketed Newton steps (2.2 → 1.5 ms a water step).
+  Measured (insulated, one thread): H₂ + O₂ 1,500 steps 0.01 eV; liquid water 0.03 eV over 8,500 steps and still water;
+  the molecule gallery 0.15 eV. Forces equal minus the energy's slope to 1e-5 eV/Å in all three. Cost against stored
+  bonds, per simulated time: water ×17, H₂ + O₂ ×21, the gallery ×45. Limits: members carry no partial charges (no
+  hydrogen bonds between them), a proton does not attach to a member, crowded flat molecules (SF₆) come apart.
+- **32 threads** (asked for by the user: a 7950X3D has 16 cores and 32 threads, and the game stopped at 16). Settings →
+  Threads has a 32 choice; the pool takes up to 31 workers (TH_MAXW; the per-worker stiffness cells grew from 16 to
+  32, every other per-worker array was already sized by the count). Auto stays at 16, one a core: a core's second
+  thread shares its arithmetic units and caches, and 31 workers wait on each other more, so it may gain or lose a
+  little; the threads note says so and points to the Speed test, and Auto can move to 32 if the owner's numbers show it
+  faster. Checked here (2 cores, so for correctness only): 32 threads on 12,000 waters give the one-thread forces to
+  6e-17 eV/Å (t_threads).
+- **Experimental: the total cost** at the top of the tab (asked for by the user): the chosen settings' measured costs
+  multiplied together against everything at normal, coloured like the tags (×1.8–4.7 for 9 Å reach and induced
+  charges every 10th step). A guide, not a measurement of that combination.
+- **Dropdowns** (asked for by the user: round the collider's beam menus, replace the beam search's square suggestion list
+  with its old scroll bar, and animate every dropdown). Every `<select>` now shows as a button that opens the page's own
+  list (ddEnhance/ddPop in ui.js): 12 px corners, the styled scroll bar, group headings, the same pop as the other menus
+  with interface motion on (and a short fade out), arrow keys, Home/End, Page keys, Enter, Esc, type-ahead; it opens
+  upward when there is no room below. The select stays in the page out of sight (1 px, transparent), so every script
+  that reads, sets or listens to it works as before, and selects drawn later (panels) are found by the 250 ms tick, which
+  also keeps each button's text, disabled and hidden state in step. The collider's beam search boxes suggest in the same
+  list (ddSuggest; the datalist is gone). Letting every charged particle be a beam is on the planned list (above).
+- **Beads covered the element symbols** with quantum nuclei on (the user's screenshot): the bead rings were drawn
+  after the atoms and their labels. The symbols are now held back and drawn after the rings.
+
+- **Bug fixes from the bug-fix session** (applied from its patches; physics change approved by the user):
+- Muonium is an atom. It was an exo (XP.Mu) flying on straight lines that never collided, so it passed through
+  everything. Now muonium is an H atom in MD whose nucleus is a μ⁺ (p.mu): refresh gives it the muon's mass (0.1140 u
+  with its electron, a ninth of H's), so it collides, bonds and reacts by the ordinary chemistry. Made by muoniumForm,
+  fired, or placed from the palette, it is addMuonium (spawnItems, fireSpec, placeFly). It is named Mu (speciesLabel,
+  hill: MuCl, Mu₂; library names left off), drawn light blue with "Mu", and shown in the inspector as muonium. Saves
+  keep it (part field 5: bit 1 antimatter, bit 2 muonium). Its nucleus is no nucleon: guards on p.mu in tryFusion,
+  neutronHit, nuclearEncounter, nuclearAnnihilation, photoNuclear, muStop/kStop/hStop, muAtomTick and exoHits. The
+  muon decays (2.197 µs, on the nuclear clock: muoniumTick): μ⁺ → e⁺ + νₑ + ν̄μ, the electron set free, a molecule it
+  was in relinked as a radical; the books close through nucBegin/closeEvent (the neutrinos take the rest).
+  Measured: Mu at 0.5 eV past one Ar atom at impact parameters −1.5…1.5 Å, deflected more than 10° in 0 of 20 runs
+  before, 18 of 20 now. 20 Mu at 1 eV into 60 Cl₂ (3,000 steps): no reaction before; 13 × Mu + Cl₂ → MuCl + Cl, 17
+  bonded, now. The same into H₂: 11 MuH and 6 Mu₂. Insulated drift in those runs −0.35 to +0.63 eV, as for H atoms
+  fired the same way (−0.11 to −0.77 eV). MuCl and Mu decaying together: the books change by 0.0007 eV. t_energy passes.
+  Test: t_features "1.12 muonium".
+- Muonic hydrogen scatters elastically off hydrogen nuclei (physics change approved by the user). μp, μd and μt
+  flew straight and only met nuclei through muAtomTick (transfer, fusion). Now muAtomScatter: a pass of its path
+  within the reach of a hydrogen-isotope nucleus (through the electron cloud) scatters it elastically, isotropic in the
+  centre of mass (s-wave, as below about 1 eV). Momentum and kinetic energy are kept exactly (ΔE 2·10⁻¹⁶ eV); seeded
+  rnd() only. Cross sections measured by Bertin et al. (Nuovo Cimento A 72, 225, 1982): μp + p 1.49×10⁻²⁰ cm²
+  (singlet μp), μd + d 8.0×10⁻²⁰ cm². For μt no measured value was found, so μd's is used. Ultra-realistic mode: the
+  true reach √(σ/π), 0.0069 Å for μp and 0.016 Å for μd. Normal play: R_NN, 0.35 Å, the reach every neutral
+  projectile has at a nucleus here (neutrons, nucReach), so 51 times the true radius for μp (2,600 times the area)
+  and 22 times for μd (480 times). Mean free path in liquid hydrogen (0.0423 nuclei/Å³; D₂ 0.0506): μp normal 61 Å,
+  ultra-realistic 1.6×10⁵ Å (16 µm); μd in D₂ normal 51 Å, ultra-realistic 2.5×10⁴ Å (2.5 µm). The inspector text
+  for muonic hydrogen says the scattering size is enlarged except in the ultra-realistic mode. 10 μp fired at 1 eV
+  into H₂ at 20 K, 1.6 ps (4,000 steps): mean energy 1.000 eV before (no scattering); now 0.005 eV after 61
+  scatterings (normal), 0.83 eV after 3 (ultra-realistic). Test: t_features "1.12 muonic scattering".
+- Ionic lines between a cation and a polyatomic anion (display only). drawIonic's reach was 1.3 × the two drawing
+  radii, and for an atom in a molecule that is its small covalent one (C in CN⁻ 0.51 Å), so Na⁺–C reached 1.99 Å.
+  Na⁺ settles 2.2–2.7 Å from a CN⁻, so no line ever appeared. Now each atom's force-field size (half its LJ diameter
+  ljR: for a lone ion its ionic radius, so Na⁺–Cl⁻ still reaches 3.68 Å; C 1.93, N 1.83, O 1.75 Å in a molecule) sets
+  the reach: Na⁺–C 3.83, Na⁺–N 3.70, Na⁺–O 3.60 Å. Ions 4.5–4.9 Å apart (second neighbours) stay without lines.
+  A charge spread over a molecule: the ion is the whole molecule, with its net charge (NO₃⁻ carries formal charges
+  O⁻ N⁺ O O⁻, with partial charges over all four atoms). Each pair of oppositely charged ions within reach gets one
+  line, between their closest atoms. Forces and energies unchanged. Test: t_features "1.12 ionic lines". Before:
+  Na⁺–CN⁻ end-on at 2.73 Å, no line; after, one. CN⁻ 4.5 Å off: none before or after; Na⁺–Cl⁻ at 2.8 Å, one before
+  and after.
 
 ## 1.12.0: induced charges and quantum nuclei (Experimental), realistic tags; prototypes for the rest
 - The particle bar's search (asked for by the user): the chip reads "Search…" (no emoji), the menu "Search particles",
@@ -202,6 +316,19 @@ engine stores and visits particles.
     there: a hard one jolts the forces each vibration, a rounded one either shifts the orders, by EPS/4 for a common
     quadratic rounding, or is itself stiff, curvature ~2/EPS per unit order²). A sharing that is smooth by
     construction is what is left: ReaxFF does it with smooth over-coordination functions throughout (its f₁–f₅).
+- Continuous bond orders, step 5 (after 1.12.0; `tools/bo-proto2.js`, model E): the prototype works.
+  - The last energy leaks were three corners where every bond sits: the raw order's slope jumped at the single-bond
+    length (Gaussian outward, Pauling inward: now Pauling's eased in over 0.05 Å, flat at the length); a partner asking
+    for nothing was given EPS/4 by the rounded ramp (now faded out below 2·EPS); and a pair coming within reach (with
+    order 0) still moved its atoms' valence level (its demand now counts for nothing in the level too).
+  - Hot H₂O + CH₄ + H₂ (about 240 K), 1,500 steps: energy kept to 0.0012 eV at 0.2 fs and 0.0003 at 0.1 fs (falling as
+    dt²), against 0.002 for the game's own chemistry on the same molecules; about 2,000 K: 0.073 / 0.011 eV.
+  - Statics: every molecule of the test set within 0.041 eV a bond of the game's bonds, with their lengths (benzene's
+    ring bonds 1.5 by themselves). Stiffness as the game's Morse bonds (stretch curvature H₂ 35 eV/Å² against 34,
+    H₂O 48/47, CH₄ 30/27). H + H₂ → H₂ + H: a true saddle, 0.407 eV at 1.01 Å (measured 0.42 eV at 0.93 Å; order
+    exponent p = 1.15 below a single bond).
+  - Next: into the game, as an Experimental mode (the forces of every bonded pair from these orders; bonds for
+    drawing, charges and the events from them).
 - Quantum nuclei, step 3: the setting (Settings → Experimental → Quantum nuclei: off / 8 / 16 / 32 beads, `SET.pi` →
   `piSet`), finished:
   - The rings' internal modes are given masses so that none is faster than PI_OMEGA (1.5 tu⁻¹) and none lighter than

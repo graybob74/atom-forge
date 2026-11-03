@@ -862,7 +862,8 @@ function placeFly(spec, x, y, count) {
   _evTag = 0;
   for (let i = 0; i < count; i++) {
     const [ux, uy] = rdir();
-    if (spec.kind === 'exo') { if (W.exo.length < MAX_EXO) addExo(spec.sp, x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), 0.03, ux, uy); }
+    if (spec.kind === 'exo' && spec.sp === 'Mu') addMuonium(x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), PHYS.KB * W.T, ux, uy); // (1.12: an atom, in MD)
+    else if (spec.kind === 'exo') { if (W.exo.length < MAX_EXO) addExo(spec.sp, x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), 0.03, ux, uy); }
     else if (spec.kind === 'gamma') emitPhoton(x, y, placeE(), ux, uy, { travel: true });
     else emitNeutrino(x, y, placeE(), ux, uy, !!spec.anti, 'placed by hand', spec.fl || 'e');
   }
@@ -1599,7 +1600,7 @@ function selXHTML() {
     kv.push(['Kinetic energy', fmtE(o.KE)], ['Total energy', fmtE(o.KE + m * 1e6)], ['Speed', fmtSpeed(o.v)], ['Lorentz factor γ', fmtNum(o.gam, 4)],
       ['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)],
       d.hyp ? ['Decays by', `Λ → p π⁻ or n π⁰ inside (mesonic, ${Math.round(100 * hypMesonic(d.Z + d.N + 1))}%), or Λp → np and Λn → nn (non-mesonic: 176 MeV to the two nucleons, which usually break the nucleus)`] : ['Decays to', d.dec.map(([b, ps]) => `${ps.map(t => (XP[t] ? XP[t].lab : ({ 'e-': 'e⁻', 'e+': 'e⁺', nu: 'ν', nub: 'ν̄', g: 'γ', p: 'p', n: 'n', pbar: 'p̄', nbar: 'n̄' })[t] || t)).join(' ')} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
-    about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. Bound by ${fmtE(d.Eb * 1e6)}.`
+    about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the hydrogen nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, except in the ultra-realistic mode. Bound by ${fmtE(d.Eb * 1e6)}.`
       : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
       : XP_ABOUT[d.hyp ? 'hy' : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg'].find(k => o.sp.startsWith(k)) || 'eta'] || '';
     if (d.tau < 1e-15) about += ' This one lives so briefly that it decays a few nanometres from where it was made.';
@@ -1665,12 +1666,13 @@ function renderInspect() {
     const title = p.ne === 0 ? (p.anti ? (p.Z === 1 && p.N === 0 ? 'Antiproton' : `Anti-${nucName(p.Z, p.N).toLowerCase()} nucleus`)
       : p.Z === 1 && p.N === 0 ? 'Proton' : p.Z === 2 && p.N === 2 ? 'Alpha particle' : nucName(p.Z, p.N) + ' nucleus')
       : iso + (aq ? (aq > 0 ? ' cation' : ' anion') : '');
+    const muT = p.mu ? (p.ne === 0 ? 'Antimuon (μ⁺)' : 'Muonium' + (aq ? (aq > 0 ? ' cation' : ' anion (muonide)') : '')) : null; // (1.12: an H atom whose nucleus is a μ⁺)
     const icl = p.ne > 0 && (p.q || (mol && mol.some(a => a.q))) ? ionicCluster(p) : null, itx = icl && ionicText(icl, true);
     const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : '') + (itx ? ` · held ionically in ${itx}` : ''))
       + (p.Z > Z_TABLE ? ' · never made in any lab: its properties are predictions' : '');
-    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${A}</span><span class="s">${symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
-      <div><div class="ins-title">${esc(title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
-    pills = `<span class="pill ${nuc.stable || bareStable(nuc, p) ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
+    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${A}</span><span class="s">${p.mu ? 'Mu' : symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
+      <div><div class="ins-title">${esc(muT || title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
+    pills = p.mu ? `<span class="pill hot">its muon decays: mean life 2.197 µs (e⁺ + νₑ + ν̄μ)</span>` : `<span class="pill ${nuc.stable || bareStable(nuc, p) ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
     if (!nuc.stable && nuc.modes.length) pills += `<span class="pill hot">${esc(nuc.modes.map(m => modeLabel(m.mode)).join(' / '))}</span>`;
     if (bareStable(nuc, p)) bareNote = `<p class="note">It decays only by pulling in one of its own electrons (electron capture), and it has none: stripped bare it cannot decay, as bare ⁷Be in storage rings does not. Give it an electron (right-click → Add electron) and its half-life applies again.</p>`;
     if (p.ne > 0 && p.cap - p.used > 0 && !el.dblock) pills += `<span class="pill em">radical: ${p.cap - p.used} free valence</span>`;
@@ -1690,7 +1692,8 @@ function renderInspect() {
     kv.push(['Mass', fmtNum(p.m, 6) + ' u'], ['Kinetic energy', fmtE(ke)], ['Speed', fmtSpeed(speed)]);
     kv.push(...gyroRows(p.ne > 0 ? p.q : (p.anti ? -1 : 1) * p.Z, p.m, p.rad ? 1 + p.KE / (p.m * PHYS.AMU_MEV * 1e6) : 1, speed, p.x, p.y, p));
     if (p.tLocal && p.ne > 0) kv.push(['Local temperature', fmtT(p.tLocal)]);
-    kv.push(['Nucleus', p.anti ? `${p.Z} p̄ + ${p.N} n̄` : `${p.Z} p + ${p.N} n`], ['Binding energy', A > 1 ? `${fmtE(bindingE(p.Z, p.N) * 1e6, 5)} (${fmtE(bindingE(p.Z, p.N) / A * 1e6, 4)} per nucleon)` : '—']);
+    if (p.mu) { kv.push(['Nucleus', 'μ⁺, a positive muon (207 electron masses, 1/9 of a proton)']); extra = `<p class="note">Muonium is a hydrogen atom with a positive muon for its nucleus: the same size and nearly the same binding (13.5 eV), a ninth of the mass, so it moves three times faster at a given temperature and reacts as hydrogen does, with strong isotope effects (Mu + Cl₂ → MuCl + Cl).</p>`; }
+    else kv.push(['Nucleus', p.anti ? `${p.Z} p̄ + ${p.N} n̄` : `${p.Z} p + ${p.N} n`], ['Binding energy', A > 1 ? `${fmtE(bindingE(p.Z, p.N) * 1e6, 5)} (${fmtE(bindingE(p.Z, p.N) / A * 1e6, 4)} per nucleon)` : '—']);
     if (p.anti) extra = `<p class="note">Antimatter mirrors matter: the same masses, energy levels, spectra and bonds, with every charge reversed (CPT symmetry). Touching ordinary matter, its positrons annihilate with electrons (two 511 keV γ rays) and each antinucleon with a nucleon (pions and γ rays, about 1.9 GeV).</p>`;
     if (!nuc.stable && nuc.modes.length) kv.push(['Decay energy', nuc.modes.map(m => `${modeLabel(m.mode)}: Q ${fmtE(m.Q * 1e6)}`).join('; ')]);
     if (mol) {
@@ -2415,9 +2418,10 @@ const SAVE_KINDS = new Set([NUC, ELEC, POS]);
 function worldToJSON() {
   const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.caught);
   const ix = new Map(ps.map((p, i) => [p, i])), r6 = (v) => Math.round(v * 1e6) / 1e6;
-  const parts = ps.map(p => { const a = [p.k, p.Z, p.N, p.ne, p.anti ? 1 : 0, r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]; if (p.rad) a.push(p.KE); return a; });
+  const parts = ps.map(p => { const a = [p.k, p.Z, p.N, p.ne, (p.anti ? 1 : 0) | (p.mu ? 2 : 0), r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]; if (p.rad) a.push(p.KE); return a; });
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
+  if (BO.any) for (const [a, b, o] of boWhole()) { const i = ix.get(a), j = ix.get(b); if (i !== undefined && j !== undefined) bonds.push([i, j, o]); } // (continuous bond orders: kept as whole bonds, so the world opens either way)
   return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
     spf: W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
 }
@@ -2439,7 +2443,7 @@ function worldFromJSON(d) {
     if (![x, y, vx, vy].every(Number.isFinite)) { made.push(null); continue; }
     const px = clamp(x, -hw, hw), py = clamp(y, -hh, hh);
     let p = null;
-    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } p = addNuc(Z, N, ne, px, py, vx, vy, anti === 1); }
+    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } p = (anti & 2) && Z === 1 && N === 0 ? addMuonium(px, py, 0, 1, 0, ne) : addNuc(Z, N, ne, px, py, vx, vy, anti === 1); if (anti & 2) { p.vx = vx; p.vy = vy; updateFast(p); } } // (field 5: 1 antimatter, 2 muonium, 1.12)
     else if (k === ELEC || k === POS) p = addLepton(k, px, py, vx, vy);
     const KE = q[9], v = Math.hypot(vx, vy);
     if (p && Number.isFinite(KE) && KE > 0 && v > 0) setMotion(p, KE, vx / v, vy / v); // (in radiation flight: its energy, as saved)
@@ -3339,6 +3343,7 @@ function defaultBeamA(Z) { // a popular beam of that element, else its usual iso
   for (const A of As) { const n = nuclideInfo(Z, A - Z), t = n.stable ? Infinity : n.t12; if (t > bt) { bt = t; best = A; } }
   return best;
 }
+let BEAM_SUGG = [];
 function buildBeamSelects() {
   const opt = (v, t) => `<option value="${v}">${t}</option>`, grp = (g, o) => `<optgroup label="${g}">${o}</optgroup>`;
   const sp = Object.entries(BEAM_SPECIES).filter(([, s]) => s.g !== 'Any');
@@ -3351,7 +3356,7 @@ function buildBeamSelects() {
   BEAM_FIND.clear();
   const sugg = sp.map(([k, s]) => [`${s.lab} ${s.name}`, k]).concat(ELEMENTS.slice(1, Z_TABLE + 1).map(E => [`${E.sym} ${E.name} (${E.Z})`, 'Z' + E.Z]));
   for (const [t, v] of sugg) BEAM_FIND.set(t.toLowerCase(), v);
-  $('cBeamList').innerHTML = sugg.map(([t]) => `<option value="${esc(t)}"></option>`).join('');
+  BEAM_SUGG = sugg; // (the search boxes' suggestion list: ddSuggest)
 }
 /* What a typed beam means: an entry of the menus, an element by name, symbol or atomic number, an isotope of one
    (calcium-48, Ca-48, 48Ca, ⁴⁸Ca, ca 48) or a particle by its everyday name. → { v, A } as the menus give them ('Z<n>'
@@ -4170,8 +4175,9 @@ function frame(now) {
     render(W.rt);
     if (REC.on) recCapture();
     tf2 = performance.now();
-  } catch (err) { console.error(err); }
-  if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); if (!$('setModal').hidden) settingsStats(); }
+  } catch (err) { console.error(err); crashError(err, 'frame'); }
+  if (UI.started) crashTick(now, performance.now() - tf0);
+  if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); ddSync(); if (!$('setModal').hidden) settingsStats(); }
   if (now - UI.lastPanel > 450) { UI.lastPanel = now; updatePanel(); }
   else if (UI.tab === 'inspect' && UI.running) drawInspectBohr();
   if (UI.tab === 'inspect') qDraw(realDt);
@@ -4609,6 +4615,231 @@ function restoreAutosave() {
   setRunning(true); log('tool', 'Carried on where you left off');
   return true;
 }
+/* ---- Dropdowns (1.13, asked for by the user: rounded corners, a styled scroll bar and an animation on every one). Each
+   <select> gets a button beside it that opens a list of its options (and groups) drawn by the page; the select itself
+   stays, hidden, so everything that reads or sets it, or listens for its change, works as before. Buttons follow their
+   select's choice, disabled and hidden state four times a second (and at once on change); selects made later (panels
+   redrawn) are found the same way. A search box can have the same list as suggestions (ddSuggest: the collider's beam
+   search, which had the browser's own square list). */
+const DD = { open: null, n: 0 };
+function ddEnhance() {
+  for (const sel of document.querySelectorAll('select:not([data-dd])')) {
+    sel.dataset.dd = '1';
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ddbtn ' + sel.className; b.setAttribute('aria-haspopup', 'listbox'); b.setAttribute('aria-expanded', 'false');
+    const lab = sel.getAttribute('aria-label') || sel.title; if (lab) b.setAttribute('aria-label', lab);
+    if (sel.id) b.id = sel.id + 'DD';
+    sel.after(b); sel.classList.add('ddhide'); sel.tabIndex = -1; sel._dd = b;
+    b.addEventListener('click', (e) => { e.stopPropagation(); if (DD.open && DD.open.sel === sel) ddClose(); else ddOpen(sel, b); });
+    b.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); ddOpen(sel, b); } });
+    sel.addEventListener('change', () => ddLabel(sel));
+    ddLabel(sel);
+  }
+}
+function ddLabel(sel) {
+  const b = sel._dd; if (!b) return;
+  const o = sel.options[sel.selectedIndex], t = o ? o.textContent : '';
+  if (b.textContent !== t) b.textContent = t;
+  if (b.disabled !== sel.disabled) b.disabled = sel.disabled;
+  if (b.hidden !== sel.hidden) b.hidden = sel.hidden;
+  if (sel.title && b.title !== sel.title) b.title = sel.title;
+}
+function ddSync() { ddEnhance(); for (const sel of document.querySelectorAll('select[data-dd]')) ddLabel(sel); }
+/* the list: items [{t, i (option index) | g (group label), dis}], placed under (or over) the anchor */
+function ddPop(anchor, items, cur, pick, opts = {}) {
+  ddClose(true);
+  const pop = document.createElement('div'); pop.className = 'ddpop'; pop.setAttribute('role', 'listbox'); pop.id = 'ddpop' + (++DD.n);
+  pop.innerHTML = items.length ? items.map((it, k) => it.g !== undefined ? `<div class="ddg" role="presentation">${esc(it.g)}</div>`
+    : `<div class="ddo${it.dis ? ' dis' : ''}${k === cur ? ' on hi' : ''}" role="option" id="${pop.id}-${k}" data-k="${k}" aria-selected="${k === cur}">${esc(it.t)}</div>`).join('')
+    : `<div class="ddnone">${esc(opts.none || 'Nothing matches')}</div>`;
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect(), vh = window.innerHeight, vw = window.innerWidth;
+  const below = vh - r.bottom - 8, above = r.top - 8, up = below < 180 && above > below;
+  pop.style.minWidth = Math.max(r.width, opts.minW || 160) + 'px'; pop.style.maxWidth = Math.min(420, vw - 16) + 'px';
+  pop.style.maxHeight = Math.min(360, Math.max(120, up ? above : below)) + 'px';
+  const w = pop.offsetWidth; pop.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + 'px';
+  if (up) { pop.classList.add('up'); pop.style.bottom = (vh - r.top + 4) + 'px'; } else pop.style.top = (r.bottom + 4) + 'px';
+  const st = DD.open = { anchor, pop, items, hi: cur, pick, opts };
+  anchor.setAttribute('aria-expanded', 'true'); anchor.setAttribute('aria-controls', pop.id);
+  const el = cur >= 0 ? pop.querySelector(`[data-k="${cur}"]`) : null; if (el) pop.scrollTop = el.offsetTop - pop.clientHeight / 2 + el.offsetHeight / 2;
+  pop.addEventListener('pointerdown', (e) => e.preventDefault()); // (keeps the focus where it is: a search box goes on taking keys)
+  pop.addEventListener('click', (e) => { const o = e.target.closest('.ddo'); if (o && !o.classList.contains('dis')) ddChoose(+o.dataset.k); });
+  pop.addEventListener('pointermove', (e) => { const o = e.target.closest('.ddo'); if (o && !o.classList.contains('dis')) ddHi(+o.dataset.k, false); });
+  return st;
+}
+function ddHi(k, scroll = true) {
+  const st = DD.open; if (!st) return;
+  const old = st.pop.querySelector('.ddo.hi'); if (old) old.classList.remove('hi');
+  st.hi = k; const el = st.pop.querySelector(`[data-k="${k}"]`); if (!el) return;
+  el.classList.add('hi'); st.anchor.setAttribute('aria-activedescendant', el.id);
+  if (scroll) { const top = el.offsetTop, bot = top + el.offsetHeight; if (top < st.pop.scrollTop) st.pop.scrollTop = top - 4; else if (bot > st.pop.scrollTop + st.pop.clientHeight) st.pop.scrollTop = bot - st.pop.clientHeight + 4; }
+}
+function ddMove(d) { // the next choosable item that way (wrapping)
+  const st = DD.open; if (!st) return; const n = st.items.length; if (!n) return;
+  let k = st.hi; for (let t = 0; t < n; t++) { k = (k + d + n) % n; const it = st.items[k]; if (it.g === undefined && !it.dis) { ddHi(k); return; } }
+}
+function ddChoose(k) { const st = DD.open; if (!st) return; const it = st.items[k]; if (!it || it.g !== undefined || it.dis) return; ddClose(); st.pick(it); }
+function ddClose(now) {
+  const st = DD.open; if (!st) return; DD.open = null;
+  st.anchor.setAttribute('aria-expanded', 'false'); st.anchor.removeAttribute('aria-activedescendant');
+  const pop = st.pop;
+  if (!now && document.body.classList.contains('mo')) { pop.classList.add('out'); setTimeout(() => pop.remove(), 110); } else pop.remove();
+}
+function ddOpen(sel, b) {
+  if (sel.disabled) return;
+  const items = []; let cur = -1;
+  for (const ch of sel.children) {
+    if (ch.tagName === 'OPTGROUP') { items.push({ g: ch.label }); for (const o of ch.children) { if (o.index === sel.selectedIndex) cur = items.length; items.push({ t: o.textContent, i: o.index, dis: o.disabled }); } }
+    else if (ch.tagName === 'OPTION') { if (ch.index === sel.selectedIndex) cur = items.length; items.push({ t: ch.textContent, i: ch.index, dis: ch.disabled }); }
+  }
+  ddPop(b, items, cur, (it) => {
+    if (sel.selectedIndex !== it.i) { sel.selectedIndex = it.i; sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    ddLabel(sel); b.focus();
+  }).sel = sel;
+}
+/* a search box with suggestions in the same kind of list: list() gives [{t, …}] for the text; pick(it) takes one */
+function ddSuggest(box, list, pick) {
+  const show = () => { const items = list(box.value); if (!box.value.trim() || !items.length) { if (DD.open && DD.open.anchor === box) ddClose(true); return; } ddPop(box, items, -1, (it) => pick(it), { minW: 240 }).box = true; };
+  box.addEventListener('input', show);
+  box.addEventListener('focus', () => { if (box.value.trim()) show(); });
+  box.addEventListener('blur', () => { if (DD.open && DD.open.anchor === box) ddClose(); });
+  box.addEventListener('keydown', (e) => {
+    const st = DD.open; if (!st || st.anchor !== box) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); ddMove(e.key === 'ArrowDown' ? 1 : -1); }
+    else if (e.key === 'Enter' && st.hi >= 0) { e.preventDefault(); e.stopImmediatePropagation(); ddChoose(st.hi); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ddClose(); }
+  }, true);
+}
+function ddInit() {
+  ddEnhance();
+  // the open list's keys (a select's list: the focus is on its button), outside clicks, and anything moving the page
+  document.addEventListener('keydown', (e) => {
+    const st = DD.open; if (!st || st.box) return;
+    const k = e.key;
+    if (k === 'ArrowDown' || k === 'ArrowUp') ddMove(k === 'ArrowDown' ? 1 : -1);
+    else if (k === 'Home' || k === 'End') { ddHi(k === 'Home' ? -1 : st.items.length); ddMove(k === 'Home' ? 1 : -1); }
+    else if (k === 'PageDown' || k === 'PageUp') { for (let t = 0; t < 8; t++) ddMove(k === 'PageDown' ? 1 : -1); }
+    else if (k === 'Enter' || k === ' ') { if (st.hi >= 0) ddChoose(st.hi); }
+    else if (k === 'Escape' || k === 'Tab') { ddClose(); if (k === 'Tab') return; st.anchor.focus(); }
+    else if (k.length === 1 && /\S/.test(k)) { // typing jumps to the next entry starting with what was typed
+      const now = performance.now(); DD.typed = (now - (DD.typedAt || 0) < 700 ? DD.typed || '' : '') + k.toLowerCase(); DD.typedAt = now;
+      const n = st.items.length, from = DD.typed.length > 1 ? Math.max(0, st.hi) : st.hi + 1;
+      for (let t = 0; t < n; t++) { const j = ((from + t) % n + n) % n, it = st.items[j]; if (it.g === undefined && !it.dis && it.t.toLowerCase().startsWith(DD.typed)) { ddHi(j); break; } }
+    } else return;
+    e.preventDefault(); e.stopPropagation();
+  }, true);
+  document.addEventListener('pointerdown', (e) => { const st = DD.open; if (st && !st.pop.contains(e.target) && e.target !== st.anchor) ddClose(); }, true);
+  window.addEventListener('resize', () => ddClose(true));
+  document.addEventListener('scroll', (e) => { const st = DD.open; if (st && !st.pop.contains(e.target)) ddClose(true); }, true);
+}
+/* ---- The crash handler (1.13). An error in a frame, particles whose numbers broke (NaN or infinite), or memory
+   nearly full pauses the game and says so, with what can be done and a report to copy. A heartbeat in browser storage
+   (every 2 s, and after any frame over half a second) is cleared when the page is left normally; found on the next start,
+   it means the last session froze or crashed, and that start offers the autosave back instead of carrying on into it. */
+const CRASH = { open: false, n: 0, beatAt: 0, worst: 0, chkAt: 0, memWarned: false, report: '' };
+function crashState() {
+  let n = 0; for (const p of W.parts) if (!p.dead) n++;
+  const m = performance.memory;
+  return { ver: (/\d+\.\d+\.\d+/.exec(document.title) || ['?'])[0], preset: UI.preset, n, t: W.t, spf: W.simPerFrame, base: UI.baseSpf, running: !!UI.running, menu: !!UI.menu,
+    heap: m ? Math.round(m.usedJSHeapSize / 1e6) : 0, limit: m ? Math.round(m.jsHeapSizeLimit / 1e6) : 0, desktop: !!tauriWin(), at: Date.now() };
+}
+function crashReport(head, st, extra) {
+  const pr = PRESETS[st.preset], set = {};
+  for (const k in SET) if (!/key|token/i.test(k)) set[k] = SET[k]; // (never an API key)
+  const L = [`Atom Forge ${st.ver} (${st.desktop ? 'desktop app' : 'browser'}): ${head}`, `When: ${new Date(st.at || Date.now()).toString()}`,
+    `Setup: ${pr ? pr.name : st.preset} (${st.preset}); ${st.n} particles; simulated time ${fmtTime((st.t || 0) * PHYS.TU_S)}; ${st.running ? 'running' : 'paused'}${st.menu ? ', in the main menu' : ''}; steps per frame ${st.spf} (1× is ${st.base})`,
+    `Memory: ${st.heap ? `${st.heap} of ${st.limit} MB` : 'not reported by this browser'}${st.worst ? `; slowest recent frame ${st.worst} ms` : ''}`,
+    `Browser: ${navigator.userAgent}`];
+  if (extra) L.push('', extra);
+  L.push('', 'Settings: ' + JSON.stringify(set));
+  return L.join('\n');
+}
+function crashShow(o) {
+  CRASH.open = true; CRASH.wasRun = CRASH.wasRun || UI.running; setRunning(false);
+  $('crashTitle').textContent = o.title; $('crashText').textContent = o.text; $('crashNote').textContent = '';
+  $('crashReport').value = CRASH.report = o.report; $('crashDet').open = false;
+  $('crashBtns').innerHTML = o.actions.map(([a, t], i) => `<button class="btn${i ? '' : ' primary'}" data-crash="${a}">${esc(t)}</button>`).join('') + '<button class="btn" data-crash="copy">Copy report</button>';
+  showModal('crashModal');
+}
+function crashClose(run) { CRASH.open = false; hideModal('crashModal'); if (run) setRunning(true); CRASH.wasRun = false; }
+function crashActions(extra) {
+  const a = extra.slice();
+  if (!UI.menu && undoOK() && UNDO.back.length) a.push(['undo', `Undo: ${UNDO.back[UNDO.back.length - 1].label}`]);
+  if (!UI.menu && PRESETS[UI.preset]) a.push(['restart', 'Start this setup again']);
+  return a;
+}
+function crashError(err, where) {
+  CRASH.n++;
+  if (CRASH.open || !UI.started) return; // (counted: the dialog is already up)
+  const msg = (err && err.message) || String(err);
+  crashShow({ title: 'Something went wrong', text: `The game hit an error${where === 'frame' ? '' : ' outside the simulation'} and paused: “${msg}”. You can keep going (it may happen again), or go back to a safe point.`,
+    report: crashReport('an error: ' + msg, crashState(), (err && err.stack) || ''), actions: crashActions([['go', 'Keep going']]) });
+}
+function crashBad() { const bad = []; for (const p of W.parts) if (!p.dead && !(Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.vx) && Number.isFinite(p.vy))) bad.push(p); return bad; }
+/* every half second while the game runs: broken numbers, memory, the heartbeat */
+function crashTick(now, frameMs) {
+  CRASH.worst = Math.max(CRASH.worst, frameMs);
+  if (now - CRASH.beatAt >= 2000 || frameMs > 500) { // the heartbeat
+    CRASH.beatAt = now; const st = crashState(); st.worst = Math.round(CRASH.worst); CRASH.worst = 0;
+    store('beat', JSON.stringify(st));
+  }
+  if (CRASH.open || now - CRASH.chkAt < 500) return;
+  CRASH.chkAt = now;
+  if (UI.running && !UI.menu) {
+    const bad = crashBad();
+    if (bad.length) {
+      const desc = bad.slice(0, 6).map(p => `${p.k}${p.Z !== undefined ? ' Z' + p.Z : ''}${p.N !== undefined ? ' N' + p.N : ''} at (${p.x}, ${p.y}) v (${p.vx}, ${p.vy})`).join('\n');
+      crashShow({ title: 'Broken numbers in the chamber', text: `${bad.length} particle${bad.length > 1 ? 's' : ''} got positions or speeds that are not numbers (NaN or infinite): a bug in the physics, and left alone it spreads to everything near ${bad.length > 1 ? 'them' : 'it'}. The game is paused.`,
+        report: crashReport(`${bad.length} particles with NaN or infinite numbers`, crashState(), 'First of them (kind, Z, N, position, velocity):\n' + desc), actions: crashActions([['fix', `Remove ${bad.length > 1 ? 'them' : 'it'} and keep going`]]) });
+      return;
+    }
+  }
+  const m = performance.memory;
+  if (m && m.jsHeapSizeLimit) {
+    const f = m.usedJSHeapSize / m.jsHeapSizeLimit;
+    if (f > 0.85 && !CRASH.memWarned) {
+      CRASH.memWarned = true;
+      crashShow({ title: 'Memory nearly full', text: `The page is using ${Math.round(m.usedJSHeapSize / 1e6)} MB of the ${Math.round(m.jsHeapSizeLimit / 1e6)} MB the browser allows it. Paused, before the tab runs out and crashes: remove some particles, or start the setup again.`,
+        report: crashReport('memory nearly full', crashState(), ''), actions: crashActions([['go', 'Keep going anyway']]) });
+    } else if (f < 0.6) CRASH.memWarned = false;
+  }
+}
+function crashBye() { store('beat', ''); CRASH.beatAt = 0; } // (the page left normally: no heartbeat to find next time)
+/* the last session's heartbeat, if it never left normally; in the desktop app, whose window may close without telling
+   the page, only one that was struggling (frames over a second, or memory past 70%) counts */
+function crashPrev() {
+  let st = null; try { st = JSON.parse(store('beat') || 'null'); } catch (e) { st = null; }
+  store('beat', '');
+  if (!st || !st.at || Date.now() - st.at > 14 * 864e5) return null;
+  const strained = (st.worst || 0) > 1000 || (st.limit && st.heap / st.limit > 0.7);
+  return st.desktop && !strained ? null : st;
+}
+function crashRecover(st) {
+  const d = autosaved(), pr = PRESETS[st.preset], mem = st.limit && st.heap / st.limit > 0.7;
+  const was = `${pr ? pr.name : 'a setup'} with ${st.n.toLocaleString('en-US')} particles${st.heap ? `, using ${st.heap} of ${st.limit} MB of memory` : ''}${st.worst > 1000 ? `, its frames taking ${(st.worst / 1000).toFixed(1)} s` : ''}`;
+  const when = d && d.savedAt ? new Date(d.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  crashShow({ title: 'Atom Forge stopped unexpectedly last time', text: `It was running ${was}. It probably ${mem ? 'ran out of memory' : 'froze or crashed'}.` + (d ? ` The autosave from ${when} can be put back${d.fresh ? ' (this setup is kept as its name: it starts afresh)' : ''}; if the same thing happens again, start fresh instead.` : ''),
+    report: crashReport('stopped unexpectedly (froze or crashed)', st, ''), actions: (d ? [['restore', `Carry on from the autosave${when ? ' (' + when + ')' : ''}`]] : []).concat([['fresh', UI.menu ? 'Close' : 'Start fresh']]) });
+}
+function crashAction(a) {
+  if (a === 'copy') {
+    const ta = $('crashReport'), done = () => { $('crashNote').textContent = 'Copied.'; };
+    $('crashDet').open = true;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(CRASH.report).then(done, () => { ta.select(); $('crashNote').textContent = 'Select all and copy the report below.'; });
+    else { ta.select(); try { document.execCommand('copy'); done(); } catch (e) { /* (left selected) */ } }
+    return;
+  }
+  const run = CRASH.wasRun;
+  if (a === 'go') crashClose(true);
+  else if (a === 'fix') {
+    const bad = crashBad(); for (const p of bad) kill(p);
+    try { forcesNoEvents(); } catch (e) { /* (the next step recomputes them) */ }
+    log('tool', `Removed ${bad.length} particle${bad.length > 1 ? 's' : ''} with broken numbers`); crashClose(true);
+  } else if (a === 'undo') { crashClose(false); undoStep(-1); setRunning(true); }
+  else if (a === 'restart') { crashClose(false); loadPreset(UI.preset); }
+  else if (a === 'restore') { crashClose(false); if (UI.menu) hideMainMenu(); if (!restoreAutosave()) log('tool', 'The autosave could not be put back'); }
+  else if (a === 'fresh') crashClose(run && !UI.menu);
+}
 /* ---- My experiments: named saves, kept in the browser's database (IndexedDB: room for big setups, where the
    autosave's storage holds a few megabytes). A setup that cannot be put back (chips, beams, lasers, a ramp) is kept
    as which setup it is. */
@@ -4694,7 +4925,7 @@ function openKeys() {
 }
 /* Quit: the desktop app closes (the chamber is kept first, for Continue); a browser tab can only be closed by hand. */
 function quitApp() {
-  autosave();
+  autosave(); crashBye();
   const w = tauriWin();
   if (w) { Promise.resolve(w.close()).catch(() => {}); return; }
   const n = UI.menu ? $('mmNote') : $('escNote'); if (n) n.textContent = 'In a browser, close the tab to quit: the chamber is kept for next time.';
@@ -4790,8 +5021,10 @@ function menusInit() {
   $('helpClose').onclick = () => hideModal('helpModal');
   $('keysModal').addEventListener('click', (e) => { if (e.target.id === 'keysModal') hideModal('keysModal'); });
   window.addEventListener('blur', () => blurPause(true)); window.addEventListener('focus', () => blurPause(false));
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { autosave(); blurPause(true); } else blurPause(false); });
-  window.addEventListener('pagehide', () => autosave());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { autosave(); crashBye(); blurPause(true); } else blurPause(false); });
+  window.addEventListener('pagehide', () => { autosave(); crashBye(); });
+  $('crashModal').addEventListener('click', (e) => { const b = e.target.closest('[data-crash]'); if (b) crashAction(b.dataset.crash); });
+  window.addEventListener('error', (e) => { if (e.error || (e.message && e.message !== 'Script error.')) crashError(e.error || new Error(e.message), 'event'); });
   $('toolopts').addEventListener('change', () => optSave());
   // the panel's inner edge: drag to make it wider or narrower (Settings → Display)
   const sp = document.createElement('div'); sp.className = 'psplit'; sp.title = 'Drag to resize the panel'; $('panel').appendChild(sp);
@@ -4810,6 +5043,7 @@ function menusInit() {
 /* ------------------------------------------------------------------ keyboard */
 function onKey(e) {
   const tag = (e.target && e.target.tagName) || '';
+  if (CRASH.open) { if (e.key === 'Escape') { e.preventDefault(); crashClose(false); } return; } // (the crash dialog: Esc closes it, still paused)
   if (QM.open) {
     if (e.key === 'Escape') { e.preventDefault(); closeQuickMenu(true); return; }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); qmMove(e.key === 'ArrowDown' ? 1 : -1); return; }
@@ -4877,10 +5111,10 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { pi: 0, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { bo: 0, pi: 0, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { pi: [0, 8, 16, 32], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
+const SET_OK = { bo: [0, 1], pi: [0, 8, 16, 32], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16', '32'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -4958,6 +5192,7 @@ function applySettings() {
   $('fpsBadge').hidden = !SET.fps;
   threadsSet(SET.threads === 'auto' ? threadsDefault() : +SET.threads - 1); // (workers besides the main thread)
   piSet(SET.pi); // (Experimental: quantum nuclei)
+  boSet(!!SET.bo); // (Experimental: continuous bond orders, 1.13)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
@@ -4973,7 +5208,8 @@ function threadsNote() {
   if (!threadsAvailable()) return 'One thread: this page is not cross-origin isolated, so the browser allows no shared memory. The desktop app runs the pair forces on all your processor\u2019s threads.' + kernel;
   const c = navigator.hardwareConcurrency || '?';
   if (!TH.n) return `One thread (this computer has ${c}).` + kernel;
-  return `${TH.n + 1} threads of ${c}${TH.state === 'starting' ? ', starting up' : TH.used ? ', in use: the forces, the heat bath, the integration and the neighbour list' : ' (used once a world is big enough: the small ones run on one thread)'}.` + kernel;
+  const more = typeof SET !== 'undefined' && SET.threads === 'auto' && c > 16 ? ' Auto stops at 16, one a core; 32 adds each core\u2019s second thread, which may gain a little or lose a little: the Speed test tells.' : '';
+  return `${TH.n + 1} threads of ${c}${TH.state === 'starting' ? ', starting up' : TH.used ? ', in use: the forces, the heat bath, the integration and the neighbour list' : ' (used once a world is big enough: the small ones run on one thread)'}.` + more + kernel;
 }
 /* The benchmark: four reference worlds, each built and stepped here under the settings as they are (the water worlds
    hold as many atoms as Settings → Max particles allows, the drawing runs at the set resolution and effects, the physics
@@ -5079,7 +5315,7 @@ function syncSettings() {
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
-  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
+  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segBo', String(SET.bo)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
@@ -5102,6 +5338,7 @@ function costLevel(a) {
 const COST_K = { physics: 'Time to work out the physics', drawing: 'Time to draw each frame', memory: 'Memory it takes' };
 function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toFixed(1) : +v.toFixed(2)); }
 const COSTS = {
+  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×17–45', 'Measured on one thread: liquid water ×17, hydrogen + oxygen ×21, the molecule gallery ×45 (every pair worked out every step, steps half as long)'] } }),
   segPi: () => ({ k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×7.8', 'Measured on liquid water: the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water: 16 times a step'], 32: ['×36', 'Measured on liquid water: 32 times a step'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–1.8', 'Measured: water 4,000 ×1.4, brine ×1.6, liquid water ×1.8'], 1: ['×2.7–4.6', 'Measured: brine ×2.7, liquid water ×2.8, 4,000 waters ×4.6'] } }),
   segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×1.3–2.6', 'Measured: brine ×1.3, liquid water ×2.2, 4,000 waters ×2.6 (JavaScript kernels)'], 12: ['×1.6–5.6', 'Measured: brine ×1.6, liquid water ×3.2, 4,000 waters ×5.6 (JavaScript kernels)'] } }),
@@ -5117,7 +5354,8 @@ const COSTS = {
   segBudget: () => ({ k: 'physics', o: { 6: ['×0.6', 'Least physics a frame: the smoothest frames, slower simulation'], 10: ['×1', 'The usual share of each frame'], 16: ['×1.6', 'More physics a frame: faster simulation, fewer frames a second when busy'], 24: ['×2.4', 'The most physics a frame: fastest simulation, fewest frames a second when busy'] }, t: 'Physics time each frame may take' }),
   segThreads: () => {
     const auto = threadsAvailable() ? threadsDefault() + 1 : 1, o = { auto: ['×1', auto > 1 ? auto + ' threads on this computer' : 'One thread: this page cannot share work between threads here'] };
-    for (const n of [1, 2, 4, 8, 16]) o[n] = n >= auto ? ['×1', n > auto ? 'More threads than this computer has gain nothing' : 'What Auto chooses here'] : ['up to ' + costX(auto / n), 'In a crowded box (small boxes run on one thread anyway)'];
+    const hw = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || auto;
+    for (const n of [1, 2, 4, 8, 16, 32]) o[n] = n > hw ? ['×1', 'More threads than this computer has gain nothing'] : n > auto ? ['?', 'Past Auto: the second thread on each core (hyper-threading). It may gain a little or lose a little: Speed test (General) tells'] : n === auto ? ['×1', 'What Auto chooses here'] : ['up to ' + costX(auto / n), 'In a crowded box (small boxes run on one thread anyway)'];
     return { k: 'physics', o };
   },
   segGl: () => ({ k: 'drawing', o: { gl: ['×1', 'Atoms and bonds drawn by the graphics card'], '2d': ['heavy', 'Canvas 2D draws every atom on the processor: much slower for thousands of atoms'] } }),
@@ -5156,6 +5394,29 @@ function syncReal() {
     else { const row = el.closest('label'); if (row) costTag(row, 'rlb', 'realistic when on', why); }
   }
 }
+/* The Experimental tab's total (1.13, asked for by the user): the chosen settings' measured costs multiplied together,
+   against everything at normal. A product is a fair guide (each one multiplies the work of a step) but not a
+   measurement of that combination: the ranges are the setups the costs were measured on. */
+const EXP_SET = { segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
+function expTotal() {
+  let lo = 1, hi = 1, extra = '';
+  const on = [];
+  for (const id in EXP_SET) {
+    const c = COSTS[id](), v = SET[EXP_SET[id]], a = c.o ? c.o[String(v)] : v ? c.on : null;
+    if (!a) continue;
+    const m = String(a[0]).match(/×\s*([0-9.]+)(?:\s*–\s*([0-9.]+))?/); if (!m) continue;
+    const l = +m[1], h = +(m[2] || m[1]); lo *= l; hi *= h;
+    if (/pauses/.test(a[0])) extra = ', with pauses when a large ring system reacts';
+    if (h > 1.001 || /\+/.test(a[0])) on.push(id);
+  }
+  return { lo, hi, on, extra };
+}
+function syncExpTotal() {
+  const el = $('expTotal'); if (!el) return;
+  const t = expTotal(), txt = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
+  const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', segBo: 'continuous bond orders', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
+  el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
+}
 function syncCosts() {
   for (const id in COSTS) {
     const el = $(id); if (!el) continue;
@@ -5166,6 +5427,7 @@ function syncCosts() {
     if (c.o) for (const b of el.querySelectorAll('button')) { const a = c.o[b.dataset.v]; costTag(b, 'oc c' + (a ? costLevel(a[0]) : 0), a ? a[0] : '', a ? a[1] : ''); }
     else { costTag(row, 'cost c' + costLevel(c.on[0]), 'on ' + c.on[0], 'Turned on: ' + c.on[1]); row.querySelector(':scope > .cost').classList.toggle('dim', !el.checked); }
   }
+  syncExpTotal();
   syncReal(); // (after the cost tags: the realistic tag sits under them)
   if (!UI.hz && !UI.hzBusy && typeof requestAnimationFrame === 'function') { // (the monitor's rate, for the frame-rate cap: the median of 20 frames)
     UI.hzBusy = true; const ts = [];
@@ -5208,7 +5470,7 @@ function settingsInit() {
   $('dMade').addEventListener('click', madeClick); bindSeg('segMap', (v) => { UI.mapView = v; UI.mapVer = -1; drawChainMap(); });
   $('chMap').addEventListener('mousemove', mapHover); $('chMap').addEventListener('mouseleave', () => { UI.mapHov = null; UI.mapVer = -1; drawChainMap(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
-  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
+  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); bindSeg('segBo', (v) => setSetting('bo', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
@@ -5551,6 +5813,7 @@ function qmInit() {
 /* ------------------------------------------------------------------ init */
 function init() {
   rInit($('cv'), $('cvbg'));
+  ddInit(); // (the page's own dropdowns, 1.13)
   UI.budget = 10;
   const sv = store('bohr'); if (sv) setAtomView(sv);
   W.slowmo = store('slowmo') !== '0';
@@ -5622,6 +5885,8 @@ function init() {
     box.addEventListener('input', () => { box.setCustomValidity(''); go(true); });
     box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(false); } });
     box.addEventListener('change', () => go(false));
+    ddSuggest(box, (t) => { const q = t.trim().toLowerCase(); if (!q) return []; const out = []; for (const [txt, v] of BEAM_SUGG) if (txt.toLowerCase().includes(q)) { out.push({ t: txt, v }); if (out.length >= 60) break; } return out; },
+      (it) => { box.value = ''; box.setCustomValidity(''); pickBeam(which, it.v); box.blur(); });
   }
   $('cNSlider').oninput = (e) => { $('cNVal').textContent = e.target.value; if (W.collider) W.collider.bunch = +e.target.value; };
   $('cESlider').oninput = (e) => { const C = W.collider; $('cEVal').textContent = fmtE(cEFromS(+e.target.value)) + (C && C.E2 !== null ? '' : ' each'); };
@@ -5660,8 +5925,10 @@ function init() {
   loadPreset(startPreset); buildToolOpts();
   setRunning(true);
   UI.started = true;
+  const prev = crashPrev(); // (the last session froze or crashed: offer its autosave rather than carry on into it)
   if (!direct && SET.start === 'menu') showMainMenu();
-  else if (!direct && SET.start === 'last') restoreAutosave();
+  else if (!direct && SET.start === 'last' && !prev) restoreAutosave();
+  if (prev && !window.AF_NO_MENU) crashRecover(prev);
   if (!direct && SET.start !== 'menu' && !store('toured')) setTimeout(tourStart, 600);
   UI.last = performance.now();
   requestAnimationFrame(frame);

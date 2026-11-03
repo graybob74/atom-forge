@@ -235,7 +235,7 @@ function hypCatch(Zr, Nr, mres, Pr, PL, bx, by, items, moms) {
    K⁻n → Λπ⁻ on one of its nucleons (the rest of the nucleus a spectator); the Λ, at about 30 MeV, may stay (hypCatch). */
 function kStop(o) {
   let tg = null, bd = 16;
-  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
   if (!tg) return false;
   const Z = tg.Z, N = tg.N, onP = rnd() < Z / (Z + N), Zr = Z - (onP ? 1 : 0), Nr = N - (onP ? 0 : 1);
   // the struck nucleon moves inside the nucleus (Fermi motion, up to about 250 MeV/c; none in a lone proton), and the rest
@@ -386,7 +386,7 @@ function gdrSigma(Z, N, E) { // mb, E in MeV
   const r = (E * E - E0 * E0) / (E * G); return s0 / (1 + r * r);
 }
 function photoNuclear(p, E, ux, uy) {
-  if (p.dead || p.k !== NUC || p.anti || W.parts.length > MAX_PARTS - 50) return false;
+  if (p.dead || p.k !== NUC || p.anti || p.mu || W.parts.length > MAX_PARTS - 50) return false;
   const Eg = E / MEV, P = add4(p4of(p, true), [Eg, Eg * ux, Eg * uy]), Ms = mass4(P), items = [], moms = [];
   compoundDecay(p.Z, p.N, Ms, P, false, items, moms, 0);
   if (!items.some(it => it.t === 'A' && it.Z + it.N === 1)) return false; // (below its threshold: no nucleon free)
@@ -406,7 +406,7 @@ function photoNuclear(p, E, ux, uy) {
    perhaps staying (hypCatch). Returns true if it was caught. */
 function hStop(o) {
   let tg = null, bd = 16;
-  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
   if (!tg) return false;
   const el = hitLabel(tg), x = tg.x, y = tg.y, items = [], moms = [], Po = exoP4(o);
   let txt = '', sub = '';
@@ -456,6 +456,44 @@ function muoniumForm(o) {
   const bx = Pt[1] / Pt[0], by = Pt[2] / Pt[0];
   exoEvent(o, [e], [item('Mu'), item('g')], vs.map(v => toLab(v, bx, by)), o.x, o.y, 'capture', `Muonium: μ⁺ took an electron from ${el}`, 'μ⁺e⁻, a hydrogen atom 1/9 the mass, 13.5 eV bound');
   return true;
+}
+
+/* Muonium as an atom (1.12). Muonium is a hydrogen atom whose nucleus is a μ⁺: Bohr's radius and 13.5 eV binding, as H
+   (the reduced mass differs by 0.4%), but 0.1134 u, a ninth of H's mass. It was an exo flying on a straight line, so it
+   passed through atoms; now it is an H atom in MD with p.mu set: its mass is the muon's (refresh), it is named Mu, and it
+   collides, bonds and reacts by the ordinary chemistry (Mu + Cl₂ → MuCl + Cl), lighter and so faster at a given
+   temperature. Its nuclear side is the muon's: no fusion, strong interactions or muon capture on it (guards on p.mu).
+   The muon decays (2.197 µs, on the nuclear clock): muoniumTick. */
+function addMuonium(x, y, KE, ux, uy, ne = 1) {
+  const p = addNuc(1, 0, ne, x, y); p.mu = true; refresh(p);
+  setMotion(p, KE, ux, uy);
+  (W.muAtoms || (W.muAtoms = [])).push(p);
+  return p;
+}
+/* The muon of a muonium atom (or of μ⁺ bare, or bonded in MuCl …) decays: μ⁺ → e⁺ νₑ ν̄μ; the electrons it held go
+   free, a molecule it was in is left a radical. The books close as for any nuclear event: what the products and the
+   changed molecule do not carry, the neutrinos take. */
+function muoniumTick(dt) {
+  const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, L = W.muAtoms;
+  for (let i = L.length - 1; i >= 0; i--) {
+    const p = L[i];
+    if (!p || p.dead || !p.mu) { L.splice(i, 1); continue; }
+    if (!(clock > 0) || rnd() >= 1 - Math.exp(-clock / XP['mu+'].tau)) continue;
+    L.splice(i, 1);
+    const x = p.x, y = p.y, lbl = speciesLabel(p), ne = p.ne, [vx, vy] = velOf(p), partners = p.bonds.map(bd => other(bd, p));
+    const S = nucBegin([p]), gh = [ghostOf(p)];
+    kill(p); relink(partners.filter(q => !q.dead));
+    const items = ['e+', 'nu', 'numub'].map(item), bx = vx / PHYS.C, by = vy / PHYS.C;
+    const vs = phaseSpace(MU_M, items.map(massOf)), moms = vs.map(v => toLab(v, bx, by));
+    for (let k = 0; k < ne; k++) { items.push(item('e-')); moms.push(randDir4(PHYS.MEC2, (1 + rnd()) / MEV)); }
+    const made = spawnItems(items, moms, x, y);
+    closeEvent(S, made, x, y, 0, 0);
+    W.count.decay++;
+    const txt = `μ⁺ → ${summarize(items.slice(0, 3))}${ne ? ', its electron set free' : ''}`;
+    nucEvent('decay', x, y, `${lbl}: ${txt}`, gh, '2.2 µs mean life');
+    log('nuc', `Decay: the muon in ${lbl} → e⁺ + νₑ + ν̄μ${ne ? '; its electron goes free' : ''}`);
+    tally(items, [lbl], `Decay: ${lbl} → ${summarize(items)}`);
+  }
 }
 
 /* ---- resonances in hadronization. Most hadrons out of a string or a cooling plasma are born as short-lived
@@ -671,7 +709,7 @@ const randDir4 = (m, K) => { const [ux, uy] = rdir(), p = Math.sqrt(Math.max(0, 
 /* A free μ⁻ slowed to a few keV: caught by the nearest atom within 4 Å. Returns true if it was. */
 function muStop(o) {
   let tg = null, bd = 16;
-  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
+  nearby(o.x, o.y, 4, (p) => { if (p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; tg = p; } });
   if (!tg) return false;
   const x = tg.x, y = tg.y, el = speciesLabel(tg);
   if (tg.Z === 1 && tg.N <= 2) { // muonic hydrogen: the atom's electron goes free, X-rays carry off the binding
@@ -697,7 +735,7 @@ function muStop(o) {
    clock: nuclear seconds this step. Returns true if o is gone. */
 function muAtomTick(o, clock) {
   const N0 = XP[o.sp].N; let best = null, bd = 6.25;
-  nearby(o.x, o.y, 2.5, (p) => { if (p.dead || p.k !== NUC || p.Z !== 1 || p.anti || p.N > 2) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; best = p; } });
+  nearby(o.x, o.y, 2.5, (p) => { if (p.dead || p.k !== NUC || p.Z !== 1 || p.anti || p.N > 2 || p.mu) return; const d = (p.x - o.x) ** 2 + (p.y - o.y) ** 2; if (d < bd) { bd = d; best = p; } });
   if (!best) return false;
   const N1 = best.N, P = (rate) => rnd() < 1 - Math.exp(-rate * clock);
   const x = best.x, y = best.y, bl = speciesLabel(best);
@@ -734,6 +772,35 @@ function muAtomTick(o, clock) {
   W.count.fusion++;
   for (const x2 of made.xs) if (x2.sp === 'mu-') x2.cyc = cyc;
   return true;
+}
+/* Muonic hydrogen scattering elastically off hydrogen nuclei (1.12). Neutral and 200 times smaller than an atom, it
+   passes through electron clouds, but a proton, deuteron or triton it comes close to throws it aside: in hydrogen
+   that is how it slows to the gas's temperature. Measured: μp + p 1.49×10⁻²⁰ cm² (singlet μp), μd + d 8.0×10⁻²⁰ cm²
+   (Bertin et al., Nuovo Cimento A 72, 225, 1982); μt: no measured value found, μd's is used. True reach √(σ/π): 0.0069 Å
+   for μp, 0.016 Å for μd, used in the ultra-realistic mode; in normal play the reach is R_NN (0.35 Å), the reach of every
+   neutral projectile meeting a nucleus here (neutrons, nucReach), 51 and 22 times the true one. Isotropic in the centre
+   of mass (s-wave, as below about 1 eV), momentum and kinetic energy exactly kept (non-relativistic: eV energies). */
+const MU_SCAT = { muP: 1.49e-20, muD: 8.0e-20, muT: 8.0e-20 }; // cm²
+function muScatReach(sp) { return W.ultra ? Math.sqrt(MU_SCAT[sp] * 1e16 / Math.PI) : R_NN; }
+function muAtomScatter(o, x0, y0) {
+  if (o.dead || (o.x === x0 && o.y === y0) || !MU_SCAT[o.sp]) return false;
+  const R = muScatReach(o.sp), hits = segTargets(x0, y0, o.x, o.y, Math.max(R, 0.4), (t) => t.k === NUC && t.Z === 1 && !t.anti && !t.mu && !t.rad);
+  for (const [, tg, b] of hits) {
+    if (tg.dead || b >= R) continue;
+    if (o.hitId === tg.id) continue; // (one pass, one encounter)
+    o.hitId = tg.id;
+    const mo = o.m / PHYS.AMU_MEV, mt = tg.m, M = mo + mt, v = Math.sqrt(2 * o.KE / mo);
+    const avx = v * o.ux, avy = v * o.uy, Vx = (mo * avx + mt * tg.vx) / M, Vy = (mo * avy + mt * tg.vy) / M;
+    const rx = avx - tg.vx, ry = avy - tg.vy, w = Math.hypot(rx, ry), [cx, cy] = rdir();
+    const ox = Vx + cx * w * mt / M, oy = Vy + cy * w * mt / M; // (the relative speed kept, its direction new)
+    tg.vx = Vx - cx * w * mo / M; tg.vy = Vy - cy * w * mo / M; updateFast(tg);
+    const vo = Math.hypot(ox, oy);
+    o.KE = 0.5 * mo * vo * vo; if (vo > 0) { o.ux = ox / vo; o.uy = oy / vo; } exoSpeed(o);
+    W.count.muScat = (W.count.muScat || 0) + 1;
+    return true;
+  }
+  if (o.hitId && !hits.some(h => h[1].id === o.hitId)) o.hitId = 0;
+  return false;
 }
 /* Muons bound in heavier atoms: decay in orbit, or capture by the nucleus (μ⁻ + p → n + ν). */
 function muBoundTick(dt) {
@@ -787,6 +854,7 @@ function spawnItems(items, moms, x, y) {
     if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy]); continue; }
     if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; continue; } // (no room: carried off, as if it had left)
     if (it.Z > Z_MAX) { made.lost += P[0] * MEV; continue; } // (a last guard: nothing past the last element is made)
+    if (it.t === 'x' && it.sp === 'Mu') { const q = addMuonium(ox, oy, K, ux, uy); made.ps.push(q); continue; } // (1.12: muonium is an atom, in MD)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m); made.xs.push(o); pairNote(o); continue; }
     const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti); // (ne: electrons it keeps, keepElectrons)
     setMotion(q, K, ux, uy);
@@ -863,6 +931,7 @@ function exoHeld(o) {
 }
 function moveExos(dt, id0) {
   if (W.muBound && W.muBound.length) muBoundTick(dt);
+  if (W.muAtoms && W.muAtoms.length) muoniumTick(dt);
   for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res && !W.ultra && !deepSlow()) { if (exoHeld(o)) o.wait = true; else decayExo(o); } } // (resonances: gone within a proton's width, whatever the decay clock)
   const n0 = W.exo.length;
   if (!n0) return;
@@ -893,6 +962,7 @@ function moveExos(dt, id0) {
     if (o.sp === 'mu+' && o.KE < MU_STOP && !o.muTried && muoniumForm(o)) continue;
     if (d.strong === undefined) d.strong = strongExo(o.sp);
     if (d.strong && exoHits(o, x0, y0)) continue;
+    if (d.atom) muAtomScatter(o, x0, y0);
     if (d.atom && clock > 0) muAtomTick(o, clock);
   }
   if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
@@ -917,7 +987,7 @@ function flyExo(o, h) {
    comes within reach of, it meets (hadronHit). Returns true if it is gone. */
 function exoHits(o, x0, y0) {
   if (o.dead || (o.x === x0 && o.y === y0)) return false;
-  const hits = segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && t.Z > 0 && !t.anti);
+  const hits = segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && t.Z > 0 && !t.anti && !t.mu);
   for (const [, tg, b] of hits) {
     if (tg.dead || (o.ev && o.ev === tg.evId)) continue; // (made in the same event: it has already left that nucleus)
     const R = W.ultra ? (trueRfm(tg) + 0.7 + 2) * FM : Math.max(R_FUS, nucDrawR(tg) + 0.05); // (ultra: the nucleus and a meson at their true sizes)
@@ -1191,6 +1261,7 @@ function nnInelastic(a, b, x, y, P, M) {
    Returns a caption if something happened (the nuclei may survive it: diffraction), else null. */
 const HIT_COUL = 30;
 function nuclearEncounter(a, b, u, x, y) {
+  if (a.mu || b.mu) return false; // (muonium's nucleus is a muon: it feels no strong force, 1.12)
   if (a.dead || b.dead || a.k !== NUC || b.k !== NUC || opp(a, b)) return null;
   if (W.parts.length > MAX_PARTS - 400) return null; // (no room left for products)
   const A1 = a.Z + a.N, A2 = b.Z + b.N, Z1 = a.Z, Z2 = b.Z, anti = !!a.anti;

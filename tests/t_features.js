@@ -1079,6 +1079,146 @@ const { openPage } = require('./browser');
   })();
   check(r66.classic.width < 0.05 && r66.quantum.width > 0.075 && r66.quantum.mean > r66.classic.mean + 0.01 && Math.abs(r66.flame.dE) < 0.5 && r66.flame.xfer > 20 && Math.abs(r66.off) < 1e-6,
     `1.12: quantum nuclei: H₂ at 300 K ${r66.classic.width} → ${r66.quantum.width} Å wide, ${r66.classic.mean} → ${r66.quantum.mean} Å long (16 beads); a flame with rings ${r66.flame.dE} eV over ${r66.flame.xfer} electron transfers; turning them off ${r66.off} eV`, '1.12 quantum nuclei: ' + JSON.stringify(r66));
+  // 1.13: continuous bond orders (Experimental): forces are the energy's slope, energy kept, switching it booked exactly
+  const r68 = (() => {
+    const X = require('./load.js').load('all', { seed: 3 }), W = X.W, S = X.S, out = {};
+    X.PRESETS.combustion.build(); X.settleOverlaps(); W.fSpawn = W.spawned; X.forcesNoEvents(); W.gamma = 0;
+    const tot = () => X.totalEnergy().total - W.ledger.nuc + W.ledger.bath;
+    const e0 = tot(), nb = W.bonds.length; X.boSet(true); out.on = { dE: +(tot() - e0).toFixed(6), bonds: nb + '→' + W.bonds.length, members: W.parts.filter(p => p.bom).length };
+    X.step(0.01); const E0 = tot(); for (let s = 0; s < 1500; s++) X.step(0.01); out.drift = +(tot() - E0).toFixed(4);
+    // forces against the energy's slope
+    X.forcesNoEvents(); const M = W.parts.filter(p => p.bom && !p.dead).slice(0, 30), f = M.map(p => [S.fx[p.i], S.fy[p.i]]);
+    const PE = () => { X.gridTouch(); const t = X.totalEnergy(); return t.pe + t.internal; }; let worst = 0;
+    M.forEach((p, k) => { for (const ax of [0, 1]) { const key = ax ? 'y' : 'x', v = p[key]; p[key] = v + 1e-6; const a = PE(); p[key] = v - 1e-6; const b = PE(); p[key] = v; worst = Math.max(worst, Math.abs(-(a - b) / 2e-6 - f[k][ax])); } });
+    out.force = +worst.toExponential(1);
+    const ords = X.boBonds().filter(b => b[2] > 0.5).map(b => b[2]); out.orders = [+Math.min(...ords).toFixed(2), +Math.max(...ords).toFixed(2)];
+    const e1 = tot(); X.boSet(false); out.off = { dE: +(tot() - e1).toFixed(6), bonds: W.bonds.length, members: W.parts.filter(p => p.bom).length };
+    return out;
+  })();
+  check(Math.abs(r68.on.dE) < 1e-6 && r68.on.members === 140 && Math.abs(r68.drift) < 0.1 && r68.force < 1e-3 && r68.orders[0] > 0.9 && r68.orders[1] < 2.1 && Math.abs(r68.off.dE) < 1e-6 && r68.off.bonds === 70 && r68.off.members === 0,
+    `1.13: continuous bond orders: H₂ + O₂ switched on (${r68.on.bonds} stored bonds) and off exactly, ${r68.drift} eV over 1,500 insulated steps, forces = −slope within ${r68.force} eV/Å, orders ${r68.orders.join('–')}`, '1.13 bond orders: ' + JSON.stringify(r68));
+  // 1.13: every select opens the page's own list (rounded, animated); keys choose; the beam search suggests in the same list
+  const r72 = await (async () => {
+    const o = {};
+    o.all = await page.evaluate(() => { ddSync(); const ss = [...document.querySelectorAll('select')]; return ss.length > 5 && ss.every(s => s._dd && s._dd.isConnected); });
+    await page.evaluate(() => { loadPreset('soup'); syncPresetSelect(); ddSync(); });
+    await page.click('#presetDD'); await page.waitForTimeout(200);
+    o.open = await page.evaluate(() => !!DD.open && getComputedStyle(DD.open.pop).borderTopLeftRadius);
+    await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.waitForTimeout(300);
+    o.picked = await page.evaluate(() => [UI.preset, $('presetDD').textContent === $('preset').selectedOptions[0].textContent, !!DD.open, $('escModal').hidden]);
+    await page.evaluate(() => { loadPreset('ring'); syncPresetSelect(); showTab('lab'); }); await page.waitForTimeout(300);
+    await page.fill('#cFindA', 'urani'); await page.waitForTimeout(200);
+    o.sugg = await page.evaluate(() => DD.open ? DD.open.items.map(i => i.t).join('|') : '');
+    await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.waitForTimeout(300);
+    o.beam = await page.evaluate(() => $('cBeamA').value);
+    return o;
+  })();
+  check(r72.all && r72.open === '12px' && r72.picked[0] !== 'soup' && r72.picked[1] && !r72.picked[2] && r72.picked[3] && /Uranium/.test(r72.sugg) && r72.beam === 'Z92',
+    `1.13: dropdowns: every select has the page's list (12 px corners), arrow + Enter chose ${r72.picked[0]}, the beam search suggested ${r72.sugg.split('|').length} and took ${r72.beam}`, '1.13 dropdowns: ' + JSON.stringify(r72));
+  // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
+  const r67 = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
+    loadPreset('soup'); setRunning(true); await wait(200);
+    const f = simFrame; let once = true; simFrame = (...a) => { if (once) { once = false; throw new Error('test boom'); } return f(...a); };
+    await wait(300); simFrame = f;
+    o.err = { open: !$('crashModal').hidden, running: UI.running, rep: /test boom/.test($('crashReport').value) && !/apiKey/.test($('crashReport').value) };
+    document.querySelector('[data-crash=go]').click(); await wait(200); o.go = !CRASH.open && UI.running;
+    const p = W.parts.find(q => !q.dead); p.vx = NaN; await wait(700);
+    o.nan = { open: !$('crashModal').hidden, title: $('crashTitle').textContent };
+    document.querySelector('[data-crash=fix]').click(); await wait(600); o.fixed = !CRASH.open && UI.running && crashBad().length === 0;
+    o.beat = !!JSON.parse(localStorage.getItem('atomforge.beat') || 'null');
+    return o;
+  });
+  for (let i = errors.length - 1; i >= 0; i--) if (/test boom/.test(errors[i])) errors.splice(i, 1); // (the error the check threw on purpose)
+  const r67b = await (async () => {
+    const m = await openPage({ settle: 900, menu: true });
+    await m.page.evaluate(() => { hideMainMenu(); loadPreset('soup'); setRunning(true); });
+    await m.page.waitForTimeout(2300);
+    await m.page.evaluate(() => { autosave(); const b = localStorage.getItem('atomforge.beat'), k = () => localStorage.setItem('atomforge.beat', b); window.addEventListener('pagehide', k); document.addEventListener('visibilitychange', k); }); // (as if the tab had died)
+    await m.page.reload(); await m.page.waitForTimeout(900);
+    const rec = await m.page.evaluate(() => ({ open: !$('crashModal').hidden, title: $('crashTitle').textContent, restore: !!document.querySelector('[data-crash=restore]') }));
+    await m.page.reload(); await m.page.waitForTimeout(900);
+    rec.clean = await m.page.evaluate(() => $('crashModal').hidden);
+    await m.browser.close(); return rec;
+  })();
+  check(r67.err.open && !r67.err.running && r67.err.rep && r67.go && r67.nan.open && /Broken/.test(r67.nan.title) && r67.fixed && r67.beat && r67b.open && /unexpectedly/.test(r67b.title) && r67b.restore && r67b.clean,
+    `1.13: crash handler: an error pauses with a dialog, broken numbers caught and removed, a session that died offered back from its autosave, a normal reload not`, '1.13 crash handler: ' + JSON.stringify({ r67, r67b }));
+  // 1.12: muonium is an atom (a hydrogen atom whose nucleus is a μ⁺, 0.1134 u): fired into chlorine it reacts as H does
+  // (Mu + Cl₂ → MuCl + Cl) and bounces off argon, where as an exo it flew straight through everything; it is named Mu,
+  // saved and loaded as Mu, and its muon's decay (e⁺ + νₑ + ν̄μ, the electron set free) keeps the books exactly
+  const r69 = await page.evaluate(() => {
+    const out = {};
+    const shoot = (tgt) => {
+      loadPreset('empty'); setRunning(false); baseWorld(60, 40, 300, 0); W.slowmo = false;
+      for (let i = 0; i < 60; i++) { const x = -26 + (i % 12) * 4.5, y = -16 + Math.floor(i / 12) * 7; if (tgt === 'Ar') addAtom('Ar', x, y); else addMolecule(tgt, x, y, i, 300); }
+      settleOverlaps(); forcesNoEvents(); W.fSpawn = W.spawned;
+      const mus = []; for (let i = 0; i < 20; i++) mus.push(fireSpec({ kind: 'exo', sp: 'Mu' }, -28, -18 + i * 1.8, 1, 0.05 * (i % 5 - 2), 1.0));
+      for (let i = 0; i < 3000; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
+      const dir = (o) => (o.k !== undefined ? Math.atan2(o.vy, o.vx) : Math.atan2(o.uy, o.ux));
+      return { atoms: mus.filter(o => o.k === NUC).length, turned: mus.filter(o => !o.dead && Math.abs(Math.cos(dir(o))) < 0.87).length,
+        rx: W.log.filter(l => /^Reaction: Mu \+ Cl₂ → ClMu \+ Cl/.test(l.text)).reduce((t, l) => t + l.n, 0), names: [...new Set(W.parts.filter(p => !p.dead && p.mu).map(speciesLabel))].sort().join(' ') };
+    };
+    out.ar = shoot('Ar'); out.cl = shoot('Cl2');
+    const d = worldToJSON(); worldFromJSON(d); out.reloaded = W.parts.filter(p => !p.dead && p.mu).length;
+    loadPreset('empty'); setRunning(false); baseWorld(40, 28, 300, 0); W.decayOn = true;
+    const cl = addAtom('Cl', 5, 0), b = addMuonium(6.3, 0, 0.03, 1, 0); addBond(b, cl, 1); relink([b, cl]); addMuonium(-5, 0, 0.03, 1, 0);
+    forcesNoEvents(); W.fSpawn = W.spawned;
+    out.m = +b.m.toFixed(4); out.mol = speciesLabel(b);
+    const tot = () => totalEnergy().total - W.ledger.nuc, E0 = tot(); W.warp = 1e13; W.dt = chooseDt(); step(W.dt);
+    out.decayed = W.parts.filter(p => !p.dead && p.mu).length === 0; out.dE = +(tot() - E0).toFixed(4);
+    out.after = W.parts.filter(p => !p.dead).map(speciesLabel).sort().join(' ');
+    return out;
+  });
+  check(r69.ar.atoms === 20 && r69.ar.turned >= 8 && r69.cl.rx >= 3 && /ClMu/.test(r69.cl.names) && r69.reloaded > 0 && r69.m < 0.115 && r69.mol === 'ClMu' && r69.decayed && Math.abs(r69.dE) < 0.01 && r69.after === 'Cl e⁺ e⁺ e⁻ e⁻',
+    `1.12: muonium is an atom (${r69.m} u): 20 fired into argon, ${r69.ar.turned} sent off course; into chlorine, ${r69.cl.rx} Mu + Cl₂ → MuCl + Cl (${r69.cl.names}); saved and loaded (${r69.reloaded}); MuCl and Mu decay to ${r69.after}, books ${r69.dE} eV`, '1.12 muonium: ' + JSON.stringify(r69));
+  // 1.12: a dashed ionic line joins a cation and a polyatomic anion in contact (Na⁺ and CN⁻: the reach was the C atom's
+  // covalent drawing radius, 1.99 Å, against a 2.7 Å contact), but not ions merely near (4.5 Å); Na⁺–Cl⁻ as before
+  const r70 = await page.evaluate(() => {
+    const lines = () => { const ctx = R.ctx, lt = ctx.lineTo; let n = 0; ctx.lineTo = function (...a) { n++; return lt.apply(this, a); }; try { drawIonic(); } finally { ctx.lineTo = lt; } return n; };
+    const setup = (fn) => { loadPreset('empty'); setRunning(false); baseWorld(30, 20, 300, 0.05); W.slowmo = false; fn(); forcesNoEvents(); W.fSpawn = W.spawned; R.s = Math.max(R.s, 20); };
+    const out = {};
+    setup(() => { const na = addAtom('Na', 0, 0); userIonize(na); W.parts.filter(p => p.k === ELEC).forEach(kill); addMolecule('CNm', 3.2, 0, 0, 0); });
+    for (let i = 0; i < 600; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
+    const na = W.parts.find(p => p.Z === 11), cn = W.parts.filter(p => p.Z === 6 || p.Z === 7);
+    out.contact = +Math.min(...cn.map(p => Math.hypot(p.x - na.x, p.y - na.y))).toFixed(2); out.cnLines = lines();
+    { const c = cn.find(p => p.Z === 6), nn = cn.find(p => p.Z === 7); c.x = na.x + 2.73; c.y = na.y; nn.x = na.x + 3.88; nn.y = na.y; out.endOn = lines(); } // (end-on at the measured 2.73 Å)
+    // moved off so that its nearest atom is 4.5 Å from the Na⁺
+    const near = cn.reduce((a, b) => Math.hypot(a.x - na.x, a.y - na.y) < Math.hypot(b.x - na.x, b.y - na.y) ? a : b), d = Math.hypot(near.x - na.x, near.y - na.y), ux = (near.x - na.x) / d, uy = (near.y - na.y) / d;
+    for (const p of cn) { p.x += ux * (4.5 - d); p.y += uy * (4.5 - d); }
+    out.far = +Math.min(...cn.map(p => Math.hypot(p.x - na.x, p.y - na.y))).toFixed(2); out.farLines = lines();
+    setup(() => { const a = addAtom('Na', 0, 0), b = addAtom('Cl', 2.8, 0); userIonize(a); W.parts.filter(p => p.k === ELEC).forEach(kill); userAddElectron(b); addAtom('Na', -8, 6); });
+    const n2 = W.parts.filter(p => p.Z === 11)[1]; userIonize(n2); W.parts.filter(p => p.k === ELEC).forEach(kill); n2.x = 2.8 + 4.5; n2.y = 0;
+    out.naCl = lines();
+    return out;
+  });
+  check(r70.contact < 3.2 && r70.cnLines === 1 && r70.endOn === 1 && r70.far >= 4.49 && r70.farLines === 0 && r70.naCl === 1,
+    `1.12: ionic lines: Na⁺ touching CN⁻ (${r70.contact} Å) gets one (end-on at 2.73 Å: ${r70.endOn}), ${r70.far} Å off none; Na⁺–Cl⁻ at 2.8 Å one, a second Na⁺ 4.5 Å from the Cl⁻ none`, '1.12 ionic lines: ' + JSON.stringify(r70));
+  // 1.12: muonic hydrogen scatters elastically off hydrogen nuclei (measured σ: μp + p 1.49×10⁻²⁰ cm², Bertin et al. 1982),
+  // at the enlarged nuclear reach (R_NN) in normal play and at its true size, √(σ/π) = 0.0069 Å, in the ultra-realistic
+  // mode; momentum and energy kept exactly. In H₂ at 20 K a μp fired at 1 eV slows to the gas's temperature.
+  const r71 = await page.evaluate(() => {
+    const out = {};
+    const pass = (ultra, b) => {
+      loadPreset('empty'); setRunning(false); baseWorld(30, 20, 20, 0); W.slowmo = false; W.decayOn = false; W.ultra = ultra;
+      const h = addAtom('H', 0, b); h.vx = 0.01; h.vy = -0.02; forcesNoEvents(); W.fSpawn = W.spawned;
+      const o = addExo('muP', -0.5, 0, 1.0, 1, 0); o.x = 0.5; // (its path this step: (−0.5, 0) → (0.5, 0))
+      const mo = o.m / PHYS.AMU_MEV, P = (q) => [mo * Math.sqrt(2 * o.KE / mo) * o.ux + h.m * h.vx, mo * Math.sqrt(2 * o.KE / mo) * o.uy + h.m * h.vy];
+      const E0 = o.KE + 0.5 * h.m * (h.vx ** 2 + h.vy ** 2), P0 = P();
+      const hit = muAtomScatter(o, -0.5, 0), E1 = o.KE + 0.5 * h.m * (h.vx ** 2 + h.vy ** 2), P1 = P();
+      W.ultra = false;
+      return { hit, dE: Math.abs(E1 - E0), dP: Math.hypot(P1[0] - P0[0], P1[1] - P0[1]), KE: +o.KE.toFixed(3) };
+    };
+    out.normal = pass(false, 0.1); out.ultraMiss = pass(true, 0.1); out.ultraHit = pass(true, 0.003);
+    loadPreset('empty'); setRunning(false); baseWorld(40, 28, 20, 0.05); W.slowmo = false; W.decayOn = false;
+    for (let i = 0; i < 150; i++) addMolecule('H2', -19 + (i % 15) * 2.6, -13 + Math.floor(i / 15) * 2.7, i, 20);
+    settleOverlaps(); forcesNoEvents(); W.fSpawn = W.spawned; W.count.muScat = 0;
+    const os = []; for (let i = 0; i < 10; i++) os.push(fireSpec({ kind: 'exo', sp: 'muP' }, 0, -10 + 2 * i, Math.cos(i), Math.sin(i), 1.0));
+    for (let i = 0; i < 4000; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
+    const ke = os.filter(o => !o.dead).map(o => o.KE); out.gasKE = +(ke.reduce((a, b) => a + b, 0) / ke.length).toFixed(4); out.gasScat = W.count.muScat;
+    return out;
+  });
+  check(r71.normal.hit && r71.normal.dE < 1e-9 && r71.normal.dP < 1e-9 && !r71.ultraMiss.hit && r71.ultraHit.hit && r71.ultraHit.dE < 1e-9 && r71.ultraHit.dP < 1e-9 && r71.gasKE < 0.05 && r71.gasScat > 10,
+    `1.12: μp scattering off H: a pass 0.1 Å off scatters in normal play, not in ultra-realistic (0.003 Å off does), each exact (ΔE ${r71.normal.dE.toExponential(0)} eV); 10 μp at 1 eV in H₂ at 20 K: ${r71.gasScat} scatterings, mean ${r71.gasKE} eV`, '1.12 muonic scattering: ' + JSON.stringify(r71));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

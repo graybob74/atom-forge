@@ -148,7 +148,7 @@ class Part {
     S.Z[i] = 0; S.ne[i] = 0; S.mol[i] = 0; S.id[i] = W.nextId++;
     S.ljR[i] = 0; S.ljS[i] = 0; S.ionR[i] = 0; S.cap[i] = 0; S.used[i] = 0; S.ionic[i] = 0; S.isMetal[i] = 0; S.anti[i] = 0; S.xferD[i] = 0; S.xferA[i] = 0;
     S.sEN[i] = SOFT_EN; S.elrc[i] = 0; S.hit[i] = 0; S.lp[i] = 0; S.metal[i] = 0; S.mR[i] = 0; S.mD[i] = 0; S.tLocal[i] = 0; S.vlx[i] = 0; S.vly[i] = 0; S.vlin[i] = 0;
-    this.N = 0; this.qpol = 0; this.qf = 0; this.qi = 0; this.bonds = []; this.excl = null; this.el = null; this.nuc = null;
+    this.N = 0; this.qpol = 0; this.qf = 0; this.qi = 0; this.bom = false; this.bonds = []; this.excl = null; this.el = null; this.nuc = null;
     this.KE = 0; this.ux = 1; this.uy = 0; this.sp = 0; this.gam = 1;
     this.glow = 0; this.glowC = ''; this.born = W.rt;
     this.val = 0; this.nOut = 0; this.unp = 0;
@@ -249,6 +249,7 @@ function refresh(p) {
   p.el = Z > 0 ? ELEMENTS[Math.min(Z, Z_MAX)] : null;
   S.elrc[p.i] = p.el ? p.el.rc : 0; S.metal[p.i] = p.el && p.el.metal ? 1 : 0; // (the covalent radius and whether it is a metal, for the pair kernel)
   if (Z === 0) p.m = N * PHYS.MN;
+  else if (p.mu) p.m = MU_M / PHYS.AMU_MEV + p.ne * PHYS.ME; // (1.12: muonium, its nucleus a μ⁺: a hydrogen atom 1/9 the mass, hep.js addMuonium)
   else p.m = Math.max(0.5, Z * PHYS.MP + N * PHYS.MN + p.ne * PHYS.ME - bindingE(Z, N) / PHYS.AMU_MEV);
   p.im = 1 / p.m;
   p.q = (p.anti ? -1 : 1) * (Z - p.ne);
@@ -722,7 +723,7 @@ function molecule(p) {
 }
 function hill(atoms, plain) {
   const cnt = {}; let q = 0;
-  for (const a of atoms) { const s = a.el ? (a.anti ? barSym(a.el.sym) : a.el.sym) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
+  for (const a of atoms) { const s = a.mu ? 'Mu' : a.el ? (a.anti ? barSym(a.el.sym) : a.el.sym) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
   const keys = Object.keys(cnt);
   let order;
   if (cnt.C) order = ['C'].concat(cnt.H ? ['H'] : [], keys.filter(k => k !== 'C' && k !== 'H').sort());
@@ -734,7 +735,7 @@ function hill(atoms, plain) {
 }
 /* The formula with its isotopes written out, as chemists write them: D₂O, CH₃D, ¹³CH₄ (just hill() without any). */
 function isoFormula(atoms, plain) {
-  if (atoms.some(a => a.anti || !a.el) || !atoms.some(a => isoA(a))) return hill(atoms, plain);
+  if (atoms.some(a => a.anti || !a.el || a.mu) || !atoms.some(a => isoA(a))) return hill(atoms, plain);
   const cnt = new Map(); let q = 0;
   for (const a of atoms) { const k = a.el.sym + ' ' + isoA(a); cnt.set(k, (cnt.get(k) || 0) + 1); q += a.q || 0; }
   const els = [...new Set(atoms.map(a => a.el.sym))];
@@ -816,7 +817,7 @@ function isoName(n, d) {
   return (MOL_ISO_NAMES[n] && MOL_ISO_NAMES[n][d]) || `(${d})` + (/^[A-Z][a-z]/.test(n) ? n[0].toLowerCase() + n.slice(1) : n);
 }
 function moleculeName(atoms) {
-  if (!atoms.length) return null;
+  if (!atoms.length || atoms.some(a => a.mu)) return null; // (with muonium in it: the formula, MuCl, not hydrogen chloride's name, 1.12)
   const anti = atoms.every(a => a.anti);
   const m = libMatch(atoms), iso = !m && !anti ? isoDesc(atoms) : ''; // (one built with its isotopes keeps its own name)
   let n = m ? m.name : iso ? (libMatch(atoms, true) || {}).name || null : null;
@@ -898,6 +899,7 @@ function speciesLabel(p) {
   if (p.k === POS) return 'e⁺';
   if (p.Z === 0) return 'n';
   if (p.bonds.length) return isoFormula(molecule(p));
+  if (p.mu) return p.ne === 0 ? 'μ⁺' : 'Mu' + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''); // (1.12: muonium, Mu⁻ muonide; bare, a μ⁺)
   if (p.anti && p.ne === 0) return p.Z === 1 && p.N === 0 ? 'p̄' : nucSymA(p.Z, p.N, true) + sup((p.Z > 1 ? p.Z : '') + '-');
   if (p.ne === 0) {
     if (p.Z === 1 && p.N === 0) return 'p⁺';
@@ -1358,6 +1360,7 @@ function vlExclusions() {
     const i = pi[q], j = pj[q], mi = MOL[i];
     ex[q] = (mi !== 0 && mi === MOL[j] && K[i] === NUC && K[j] === NUC && Z[i] > 0 && Z[j] > 0 && NE[i] > 0 && NE[j] > 0) ? (OBJ[i].excl.has(ID[j]) ? 1 : 2) : 0; // (2: one molecule, not excluded)
   }
+  if (BO.any) for (let q = 0; q < np; q++) { const a = OBJ[pi[q]], b = OBJ[pj[q]]; if (a && b && a.bom && b.bom) ex[q] = 1; } // (continuous bond orders: their pairs are bo.js's)
   VL.exTopo = W.topo; VL.exDirty = W.dirty;
 }
 function vlInvalidate() { VL.valid = false; }
@@ -1568,6 +1571,7 @@ function localPE(set, skip) {
       if (o.Z === 0) return;
       if (set.has(o) && o.id < p.id) return;
       if (p.mol !== 0 && p.mol === o.mol && p.excl && p.excl.has(o.id)) return;
+      if (p.bom && o.bom) return; // (continuous bond orders: bo.js's)
       V += nucPairV(p, o, r2);
     };
     nearby(p.x, p.y, RC, visit);
@@ -2144,6 +2148,7 @@ function computeForces1() {
   if (VL.exTopo !== W.topo || VL.exDirty !== W.dirty) vlExclusions();
   if (_profOn) { const t = performance.now(); _tLists += t - tp; tp = t; }
   nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
+  if (BO.any) boPass(true); // (continuous bond orders, 1.13: bo.js)
   if (_profOn) tp = performance.now();
   if (nmdL) { // pairs with a free lepton in them, from the inner steps' list
     if (!flValid()) flBuild();
@@ -2580,7 +2585,7 @@ function photoDissociate(bd, E) {
   // if the fragments can't get apart with this photon's energy, it is simply absorbed as heat
   if (kickPair(a, b, left) > left + 1e-6) { restoreSnap(sn); dumpHeat(E, a, b); return; }
   W.count.broken++;
-  log('chem', `Photodissociation: light (${(PHYS.HC / E).toFixed(0)} nm) split ${a.el.sym}–${b.el.sym}`);
+  log('chem', `Photodissociation: light (${(PHYS.HC / E).toFixed(0)} nm) split ${a.mu ? 'Mu' : a.el.sym}–${b.mu ? 'Mu' : b.el.sym}`);
 }
 function compton(p, E, ux, uy) {
   if (p.dead || p.ne === 0) return;
@@ -2896,7 +2901,7 @@ function hardMeet(a, b) {
   return 0.5 * Ma * Mb / (Ma + Mb) * (dvx * dvx + dvy * dvy) > HARD_MEET;
 }
 function evBond(a, b, r) {
-  if (a.dead || b.dead || bondBetween(a, b)) return;
+  if (a.dead || b.dead || bondBetween(a, b) || a.bom || b.bom) return; // (continuous bond orders: no stored bond to a member)
   if (!(a.cap - a.used > 0 && b.cap - b.used > 0) || !covalentOK(a, b)) return;
   if (a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) return;
   if (hardMeet(a, b)) return;
@@ -2932,7 +2937,7 @@ function snapTogetherIntra(bd) {
    exceeds the activation energy (Semenov–Polanyi); otherwise the repulsion simply bounces them apart. */
 const _rxTried = new Map();
 function evReact(X, A, rx, r) {
-  if (X.dead || A.dead || rx.topo !== W.topo) return;
+  if (X.dead || A.dead || rx.topo !== W.topo || X.bom || A.bom) return;
   if (!(X.cap - X.used > 0) || W.bonds.indexOf(rx.bd) < 0 || bondBetween(X, A)) return;
   const key = X.id * 131072 + A.id, last = _rxTried.get(key);
   if (last !== undefined && W.step - last < 30) return; // one test per encounter
@@ -3034,7 +3039,7 @@ function evBreak(bd, r) {
     W.ledger.bath -= cost - have; // (drawn from the bath)
   } else kickPair(b, a, -cost, dx / rr, dy / rr);
   W.count.broken++;
-  log('chem', `Bond broke: ${a.el.sym}–${b.el.sym} (needed ${fmtE(bd.D)})${have < cost ? `, overstretched to ${rr.toFixed(1)} Å: the heat bath gave ${fmtE(cost - have)}` : ''}`);
+  log('chem', `Bond broke: ${a.mu ? 'Mu' : a.el.sym}–${b.mu ? 'Mu' : b.el.sym} (needed ${fmtE(bd.D)})${have < cost ? `, overstretched to ${rr.toFixed(1)} Å: the heat bath gave ${fmtE(cost - have)}` : ''}`);
 }
 
 /* Electron or positron meets a nucleus/atom. */
@@ -3259,7 +3264,7 @@ function pairPE(a, b) {
   const [dx, dy] = minImg(b.x - a.x, b.y - a.y), r2 = dx * dx + dy * dy;
   let V = 0;
   if (r2 < RC2) {
-    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id))) V += nucPairV(a, b, r2); }
+    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom)) V += nucPairV(a, b, r2); }
     else if (a.k === NUC || b.k === NUC) {
       const A = a.k === NUC ? a : b, L = A === a ? b : a, qa = A.q;
       if (qa) V += PHYS.KE * L.q * qa * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN));
@@ -3380,7 +3385,7 @@ function evAnti(a, b, r) {
    fly out of the chamber, neutral ones decay at once into γ rays), now and then kaons. The antiprotonic atom's
    cascade shakes out a few electrons first, and a struck nucleus is left hot and boils off a few nucleons. */
 function nuclearAnnihilation(a, b) {
-  if (a.dead || b.dead) return;
+  if (a.dead || b.dead || a.mu || b.mu) return; // (an antinucleon meets no nucleon in muonium, 1.12)
   const anti = a.anti ? a : b, mat = anti === a ? b : a;
   const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
   const vx = (a.m * avx + b.m * bvx) / (a.m + b.m), vy = (a.m * avy + b.m * bvy) / (a.m + b.m);
@@ -3451,7 +3456,7 @@ function twoGamma(x, y, E = 2 * ME_C2) {
 
 /* Bare proton meets a lone pair: dative bond (H⁺ + H₂O → H₃O⁺, H⁺ + NH₃ → NH₄⁺, H⁺ + Cl⁻ → HCl). */
 function evDative(H, D, r) {
-  if (H.dead || D.dead || opp(H, D) || H.ne !== 0 || H.Z !== 1 || D.ne === 0 || D.lp < 1 || hardMeet(H, D)) return;
+  if (H.dead || D.dead || H.bom || D.bom || opp(H, D) || H.ne !== 0 || H.Z !== 1 || D.ne === 0 || D.lp < 1 || hardMeet(H, D)) return;
   const capAfter = (() => {
     const vi = valenceInfo(D.Z, D.ne - 1); if (D.el.dblock) return 0;
     if (vi.n === 1) return vi.v === 1 ? 1 : 0;
@@ -3722,7 +3727,7 @@ const fusGate = () => W.ultra ? 2e-3 : R_FUS;
 function tryFusion(a, b, bd) {
   if (a.dead || b.dead) return false;
   if (opp(a, b)) { nuclearAnnihilation(a, b); return true; }
-  if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX) return false;
+  if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX || a.mu || b.mu) return false; // (a muon is no nucleon: nothing to fuse, 1.12)
   const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
   const mu = a.m * b.m / (a.m + b.m);
   const dvx = avx - bvx, dvy = avy - bvy;
@@ -3784,7 +3789,7 @@ function tryFusion(a, b, bd) {
 
 /* Neutron meets a nucleus: capture, fission, (n,p)/(n,α)/(n,t) or elastic scattering. */
 function neutronHit(n, T, b, R) {
-  if (n.dead || T.dead || (T.Z < 1 && !(T.N === 1 && T.k === NUC))) return false; // (a nucleus, or another free neutron: n–n is elastic below ~20 MeV, the dineutron being unbound)
+  if (n.dead || T.dead || T.mu || (T.Z < 1 && !(T.N === 1 && T.k === NUC))) return false; // (a nucleus, or another free neutron: n–n is elastic below ~20 MeV, the dineutron being unbound)
   if (opp(T, n)) { nuclearAnnihilation(T, n); return true; }
   if (n.rad || T.rad) { // fast (either of them): relativistic kinematics. Spallation, fission, … or diffraction; two nucleons below ~20 MeV scatter isotropically (s-wave)
     if (nuclearEncounter(n, T, R > 0 ? clamp((b || 0) / R, 0, 1) : rnd(), T.x, T.y)) return true;
@@ -5876,7 +5881,8 @@ function stepPlain(dt) {
   if (W.box.tw !== W.box.w || W.box.th !== W.box.h) moveWalls(dt); else { W.box.uw = 0; W.box.uh = 0; }
   // particles added from outside, or switched between MD and ballistic flight at the end of the last step
   rpMark(0);
-  if (W.fSpawn !== W.spawned || listsStale() || _wallMoved) { _noEv = true; computeForces(); _noEv = false; }
+  const boCh = (BO.on || BO.any) && boSync(); // (continuous bond orders: who takes part, 1.13)
+  if (boCh || W.fSpawn !== W.spawned || listsStale() || _wallMoved) { _noEv = true; computeForces(); _noEv = false; }
   _wallMoved = false;
   rpSkip();
   let tp = _profOn ? performance.now() : 0;
@@ -6117,7 +6123,10 @@ function measure() {
 }
 
 /* ------------------------------------------------------------------ world construction helpers */
+/* continuous bond orders (bo.js), asked of by the engine's force and energy passes */
+const BO = { on: false, any: false, pairs: [], np: 0, E: 0, cache: new Map(), Ztab: new Set([1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53]), bath: 0, changes: 0 };
 function clearWorld() {
+  BO.np = 0; BO.any = false; BO.E = 0;
   dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null; W.chain = null;
@@ -6125,7 +6134,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.at = W.at || 0;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.muAtoms = []; W.at = W.at || 0;
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }
@@ -6330,6 +6339,7 @@ function settleOverlaps() {
 function fireSpec(spec, x, y, ux, uy, KE, free) {
   if (spec.kind === 'gamma') { emitPhoton(x, y, KE, ux, uy); return null; }
   if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e'); return null; }
+  if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy); // (1.12: an atom, in MD)
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy) : null; // (a muon, pion …: from outside, as any fired particle)
   const ps = spawnClear(spec, x, y, 0, free);
   if (!ps.length) return null;
@@ -6391,6 +6401,7 @@ function totalEnergy0() {
     const a = md[i], b = md[j];
     const [dx, dy] = minImg(b.x - a.x, b.y - a.y), r2 = dx * dx + dy * dy, r = Math.sqrt(r2);
     if (a.k === NUC && b.k === NUC) {
+      if (a.bom && b.bom) continue; // (continuous bond orders: below)
       if (r >= RC) { // only metallic cohesion reaches farther
         if (a.isMetal && b.isMetal && a.ne > 0 && b.ne > 0 && !opp(a, b) && r < 1.05 * (a.mR + b.mR) && !(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id))) pe += metalV(a, b, r);
         continue;
@@ -6418,6 +6429,7 @@ function totalEnergy0() {
   }
   for (const bd of W.bonds) pe += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
+  if (BO.any) pe += boPass(false);
   if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls

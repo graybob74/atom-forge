@@ -29,11 +29,13 @@ The owner tests it on Windows (Ryzen 7950X3D, 16 threads, RTX 3090) and reports 
 ## Layout
 
 - `src/` — the page. `build.js` concatenates, in this order: `molecules.gen.js`, `objects.gen.js`, `data.js`,
-  `atomic.js`, `solver.js`, `orbitals.js`, `wasm.js`, `engine.js`, `threads.js`, `hep.js`, `props.js`, `chips.js`,
+  `atomic.js`, `solver.js`, `orbitals.js`, `wasm.js`, `engine.js`, `bo.js`, `threads.js`, `hep.js`, `props.js`, `chips.js`,
   `render.js`, `gl.js`, `builder.js`, `design.js`, `ui.js`, into `shell.html` + `body.html`. One shared scope: every
   top-level name is global across files.
   - `engine.js` — the world `W`, the particle store `S` (structure of arrays), forces, integration (RESPA inner steps
     for free leptons), events (bonds, reactions, captures, ionization), energy books, walls, neutrons, radiation.
+  - `bo.js` — Experimental continuous bond orders (1.13): member atoms' bond orders from their positions, energy and
+    analytic forces, membership and its energy booking (`boSync`); `BO` itself is made in engine.js.
   - `hep.js` — high-energy and nuclear physics: collisions, hadron production, decays, the collider, plasma.
   - `props.js` — placed objects (mirrors, lenses, prisms, screens, foils, plates). `chips.js` — transistor circuits.
   - `render.js` / `gl.js` — 2-D canvas and WebGL drawing. `ui.js` — tools, panels, setups (`PRESETS`), settings,

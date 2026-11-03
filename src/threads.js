@@ -138,7 +138,8 @@ function integrateSlots(s0, s1, dt) {
 }
 
 function threadsAvailable() { return SHARED_OK && typeof PAIR_KERNEL_SRC === 'string' && typeof Worker !== 'undefined' && typeof Blob !== 'undefined'; }
-function threadsDefault() { const c = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 2; return Math.max(0, Math.min(15, c - 1)); }
+const TH_MAXW = 31; // (workers at most besides the main thread: 32 threads, a 16-core processor's two per core; 1.13, was 15)
+function threadsDefault() { const c = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 2; return Math.max(0, Math.min(15, c - 1)); } // (Auto: up to 16 threads, one per core on the processors this was measured on; 32 is a choice)
 /* The worker's script: the kernel's constants and helpers as they are here, then the kernel text, then the loop. */
 function workerSource() {
   return `'use strict';
@@ -186,7 +187,7 @@ onmessage = (e) => {
         wex = wasm.exports;
       } catch (err) { wasm = null; wex = null; console.warn('Atom Forge worker: WebAssembly kernel unavailable, using JavaScript:', err.message || err); }
     }
-    if (m.wasm) { descOff = m.wasm.desc; ksOff = m.wasm.ks; sumTabOff = m.wasm.sumTab; ksArr = new Float64Array(mem.buffer, ksOff, 16); }
+    if (m.wasm) { descOff = m.wasm.desc; ksOff = m.wasm.ks; sumTabOff = m.wasm.sumTab; ksArr = new Float64Array(mem.buffer, ksOff, 32); }
     postMessage({ type: 'kernel', wasm: !!wex, me });
     Atomics.store(ctrl, me, TH_IDLE); // (a rebind request left on our word is served by this message)
     Atomics.store(ctrl, ctrlAt(me, 3), m.gen); // bound: the acknowledgement
@@ -245,7 +246,7 @@ onmessage = (e) => {
 /* Start (or resize) the pool. want = 0 turns it off. The workers bind asynchronously; until they all acknowledge, the
    forces run on one thread. */
 function threadsSet(want) {
-  want = Math.max(0, Math.min(15, Math.floor(want || 0)));
+  want = Math.max(0, Math.min(TH_MAXW, Math.floor(want || 0)));
   if (!threadsAvailable()) want = 0;
   TH.want = want;
   if (want === TH.n && TH.workers.length === want) return;
@@ -285,7 +286,7 @@ function threadsBind() {
   // the kernel module for the workers: each gets a stack of its own in the shared memory (allocated once)
   let wasm = null;
   if (WK.on && WK.ready && RC === 6) { // (the kernel has 6 Å built in: a longer reach runs the workers' JavaScript)
-    if (!TH.wks) TH.wks = wasmArray(Float64Array, 16);
+    if (!TH.wks) TH.wks = wasmArray(Float64Array, TH_MAXW + 1); // (a stiffness cell per worker)
     while (TH.stacks.length < n) TH.stacks.push(wasmAlloc(WK.STACK) + WK.STACK); // (the stack grows downwards from its top)
     wasm = { module: WK.module, desc: WK.desc.byteOffset, ks: TH.wks.byteOffset, sumTab: WK.sumTab.byteOffset };
   }

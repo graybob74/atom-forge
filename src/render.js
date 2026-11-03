@@ -117,6 +117,7 @@ function atomColor(p) {
     return heatHex(t);
   }
   if (p.anti && p.el) return mixHex(baseElColor(p.Z), ANTI_TINT, 0.5);
+  if (p.mu) return '#96e1ff'; // (muonium: the colour it had as an exo, 1.12)
   return p.el ? baseElColor(p.Z) : '#cccccc';
 }
 function mixHex(a, b, t) {
@@ -163,8 +164,10 @@ function render(rt) {
   if (R.view.hbonds) drawHBonds();
   if (R.view.ionic) drawIonic();
   if (!R.gl) drawChipsUnder();
+  R.lblLater = PI.on && PI.n && R.s >= 30 ? [] : null;
   drawParticles(rt);
   if (PI.on && PI.n) drawRings();
+  if (R.lblLater) { for (const a of R.lblLater) label(R.ctx, ...a); R.lblLater = null; }
   drawMeasure();
   drawChips(rt);
   drawExos(); drawStrings(rt);
@@ -405,7 +408,7 @@ function drawBonds(rt) {
   const lw = Math.min(W.ultra ? 6 : 1e9, orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)); // (ultra-realistic: a bond is not a rod; zoomed in to nuclei, a thin line)
   const off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * s)), aMul = orb ? 0.45 : 1;
   const X = S.x, Y = S.y, wrap = W.wall === 'wrap', hbw = W.box.w / 2, hbh = W.box.h / 2, cx = R.cx, cy = R.cy, hw = R.w / 2, hh = R.h / 2, Rw = R.w, Rh = R.h;
-  const bonds = W.bonds, nb = bonds.length;
+  const bonds = BO.any ? W.bonds.concat(boDrawBonds()) : W.bonds, nb = bonds.length; // (continuous bond orders: drawn from this step's orders)
   for (let k = 0; k < nb; k++) {
     const bd = bonds[k], a = bd.a, b = bd.b, ia = a.i, ib = b.i;
     const ax = X[ia], ay = Y[ia], bx = X[ib], by = Y[ib];
@@ -454,7 +457,7 @@ function drawBondsGL() {
   const s = R.s, orb = R.view.bohr === 'orb';
   const hw = Math.min(W.ultra ? 3 : 1e9, (orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)) / 2);
   const off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * s)), aMul = orb ? 0.45 : 1;
-  glBondsBuild(W.bonds, W.topo);
+  if (BO.any) glBondsBuild(W.bonds.concat(boDrawBonds()), -(R.boGen = (R.boGen || 0) + 1)); else glBondsBuild(W.bonds, W.topo); // (continuous bond orders: built again each frame)
   glDrawBonds(hw, off, aMul, W.wall === 'wrap', W.box.w / 2, W.box.h / 2);
 }
 /* The slot textures for this frame: positions always; the balls' colours and styles when they may have changed (per
@@ -554,24 +557,39 @@ function drawRings() {
 }
 function drawIonic() {
   if (R.s < 4) return;
-  const ions = [];
-  for (const p of W.parts) if (!p.dead && p.k === NUC && p.ne > 0 && Math.abs(p.q) >= 1) ions.push(p);
-  if (ions.length < 2) return;
-  ions.sort((a, b) => a.x - b.x);
-  const rOf = (p) => (p.ionic && p.ionR > 0 ? p.ionR : p.rd), ctx = R.ctx, byW = new Map();
-  for (let i = 0; i < ions.length; i++) {
-    const a = ions[i], ra = rOf(a);
-    for (let j = i + 1; j < ions.length; j++) {
-      const b = ions[j], dx = b.x - a.x;
+  // (1.12) The ions are lone ions and charged molecules (CN⁻, OH⁻, NO₃⁻ …: the whole molecule's net charge, wherever its
+  // formal charge sits). A line joins a cation and an anion in contact, drawn between their closest atoms; contact is
+  // judged with each atom's force-field size (half its LJ diameter ljR: a lone ion's ionic radius, an atom in a molecule
+  // its van der Waals size), not the drawing radius, which for an atom in a molecule is its small covalent one (C in
+  // CN⁻ reached only 1.99 Å from Na⁺, which it touches at 2.7 Å).
+  const at = [], seen = new Set();
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || p.ne <= 0 || p.q === 0 || seen.has(p)) continue;
+    const g = p.bonds.length ? molecule(p) : [p];
+    let Q = 0; for (const a of g) { seen.add(a); Q += a.q; }
+    if (Math.abs(Q) < 1) continue;
+    for (const a of g) at.push({ p: a, g, Q });
+  }
+  if (at.length < 2) return;
+  at.sort((a, b) => a.p.x - b.p.x);
+  const best = new Map(); // (one line for each pair of ions: their closest atoms)
+  for (let i = 0; i < at.length; i++) {
+    const A = at[i], a = A.p, ra = 0.5 * a.ljR;
+    for (let j = i + 1; j < at.length; j++) {
+      const B = at[j], b = B.p, dx = b.x - a.x;
       if (dx > 8) break;
-      if (a.q * b.q >= 0) continue;
-      const dy = b.y - a.y, r = Math.hypot(dx, dy), reach = 1.3 * (ra + rOf(b));
+      if (A.Q * B.Q >= 0) continue;
+      const dy = b.y - a.y, r = Math.hypot(dx, dy), reach = 1.3 * (ra + 0.5 * b.ljR);
       if (r > reach || r < 0.3) continue;
-      if (a.bonds.some(bd => other(bd, a) === b)) continue;
-      const w = clamp(0.8 + 0.35 * Math.sqrt(Math.abs(a.q * b.q)), 1, 2.6), k = w.toFixed(1);
-      let list = byW.get(k); if (!list) byW.set(k, list = []);
-      list.push(w2sx(a.x), w2sy(a.y), w2sx(b.x), w2sy(b.y));
+      const key = A.Q > 0 ? A.g[0].id + ':' + B.g[0].id : B.g[0].id + ':' + A.g[0].id, o = best.get(key);
+      if (!o || r < o.r) best.set(key, { r, a, b, qq: Math.abs(A.Q * B.Q) });
     }
+  }
+  const ctx = R.ctx, byW = new Map();
+  for (const { a, b, qq } of best.values()) {
+    const w = clamp(0.8 + 0.35 * Math.sqrt(qq), 1, 2.6), k = w.toFixed(1);
+    let list = byW.get(k); if (!list) byW.set(k, list = []);
+    list.push(w2sx(a.x), w2sy(a.y), w2sx(b.x), w2sy(b.y));
   }
   if (!byW.size) return;
   ctx.save(); ctx.strokeStyle = R.cvd ? 'rgba(240,228,66,0.6)' : 'rgba(255,196,120,0.6)'; ctx.setLineDash([1.5, 3.5]); ctx.lineCap = 'round';
@@ -626,7 +644,7 @@ function drawUltraParts(ctx, rt) {
     if (r <= 1500) {
       if (bohrMode === 'orb') drawOrbitalAtom(ctx, p, x, y, true);
       else if (bohrMode === 'on' || bohrMode === 'nuc' || (bohrMode === 'auto' && r >= 30)) drawBohr(ctx, p, x, y, r, rt, col, rn);
-      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
+      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
     } else { // inside the atom's electron cloud: a faint wash of its colour
       const c = hexc(col); ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.10)`;
       const d = Math.hypot(x - Wd / 2, y - Ht / 2);
@@ -834,7 +852,7 @@ function drawParticles(rt) {
     if (bohr) drawBohr(ctx, p, x, y, r, rt, col);
     else {
       if (!glBalls) drawSprite(ballSprite(col, r), x, y);
-      if (lblOn(p) && r >= 8.5) label(ctx, p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
+      if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
     }
     if (p.anti) { // antimatter: a dashed violet halo
       ctx.save(); ctx.strokeStyle = 'rgba(190,130,255,0.85)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
@@ -1035,6 +1053,8 @@ function drawLepton(ctx, p, x, y, bohrMode) {
   }
   drawSprite(ballSprite(col, R.lite ? r * 1.2 : r), x, y);
 }
+/* an atom's symbol; with quantum nuclei on, kept until the bead rings are drawn, so they never cover it (1.13) */
+function labelAtom(ctx, text, x, y, r, col) { if (R.lblLater) R.lblLater.push([text, x, y, r, col]); else label(ctx, text, x, y, r, col); }
 function label(ctx, text, x, y, r, col) {
   ctx.fillStyle = col;
   ctx.font = `600 ${Math.round(clamp(r * 0.95, 8, 30))}px "Hanken Grotesk", system-ui, sans-serif`;

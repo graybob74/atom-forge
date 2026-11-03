@@ -12,7 +12,7 @@
      angles         the game's VSEPR terms on partners with n > 0.5, weighted smoothly by the order
    Forces by numerical differentiation (a prototype). node tools/bo-proto2.js [mols|hhh|dyn|cost] */
 const B1 = require('./bo-proto.js'), { X } = B1;
-const EPS = +(process.env.BO_EPS || 0.1), P_LOW = +(process.env.BO_P || 1.1);
+const EPS = +(process.env.BO_EPS || 0.1), P_LOW = +(process.env.BO_P || 1.15);
 const cache = new Map();
 function pp(a, b) {
   const key = a.el.Z < b.el.Z ? a.el.Z * 128 + b.el.Z : b.el.Z * 128 + a.el.Z; let v = cache.get(key);
@@ -25,13 +25,16 @@ function pp(a, b) {
   return v;
 }
 const smin = (a, b) => { const h = Math.max(EPS - Math.abs(a - b), 0) / EPS; return Math.min(a, b) - h * h * EPS / 4; }; // (quadratic smooth minimum)
-const MODEL = process.env.BO_MODEL || 'E', BETA_K = +(process.env.BO_BK || 1);
+const MODEL = process.env.BO_MODEL || 'E', BETA_K = +(process.env.BO_BK || 1), W_IN = +(process.env.BO_WI || 0.05);
 /* (model E) past its single-bond length a raw order falls as a Gaussian, exp(−β d²), β = α₁² (a Morse well's own
    curvature: flat at the bond's length, so a stretched single bond frees its valence only as fast as it costs
    energy); shorter, Pauling's exp(−d/c) toward the double and triple bonds. */
 const betaOf = (P) => BETA_K * P.al[0] * P.al[0];
 function raw(r, P) {
-  const d = r - P.r[0]; let n = MODEL === 'E' && d > 0 ? Math.exp(-betaOf(P) * d * d) : Math.exp(-d / P.c);
+  const d = r - P.r[0]; let n;
+  if (MODEL === 'C') n = Math.exp(-d / P.c);
+  else if (d > 0) n = Math.exp(-betaOf(P) * d * d);
+  else { const w = W_IN, h = d * d / (d * d + w * w); n = Math.exp(-d * h / P.c); } // (Pauling's rule inward, eased in over W_IN so the slope is 0 at the single-bond length: no corner where every bond sits)
   if (d > 0.9) n *= d >= 1.3 ? 0 : 0.5 * (1 + Math.cos(Math.PI * (d - 0.9) / 0.4)); return Math.min(n, 3.5);
 }
 function Dof(P, n) { if (n <= 0) return 0; if (n < 1) return P.D[0] * Math.pow(n, P_LOW); const i = Math.min(1, Math.floor(n - 1)), f = Math.min(1, n - 1 - i); return P.D[i] + (P.D[i + 1] - P.D[i]) * f; }
@@ -51,10 +54,16 @@ const sminC = (a, b) => { const d = Math.abs(a - b); return Math.min(a, b) + (d 
 const sp = (x) => x <= -EPS_S ? 0 : x >= EPS_S ? x : (x + EPS_S) * (x + EPS_S) / (4 * EPS_S);
 function levelL(vals, V) { // the level L with Σ sp(v − L) = V, then rounded to L ≥ 0 (sp again): smooth in every value, partners of order 0 included
   let lo = -V - 1, hi = 4; for (const v of vals) hi = Math.max(hi, v + 1);
-  const f = (L) => { let t = 0; for (const v of vals) t += sp(v - L); return t - V; };
+  const fd = vals.map(v => { const t = Math.min(1, Math.max(0, v / (2 * EPS_S))); return t * t * (3 - 2 * t); }); // (a partner asking for nothing counts for nothing, as in orders)
+  const f = (L) => { let t = 0; for (let k = 0; k < vals.length; k++) t += sp(vals[k] - L) * fd[k]; return t - V; };
   for (let it = 0; it < 80; it++) { const mid = 0.5 * (lo + hi); if (f(mid) > 0) lo = mid; else hi = mid; }
   return sp(0.5 * (lo + hi));
 }
+/* (model F) no sharing at all: every pair keeps its raw order, and an atom whose partners add up to more than its
+   valence pays a smooth penalty, K_OVER·Δ²·s(Δ/W) (s rising smoothly from 0 to 1 over W), as ReaxFF's over-coordination
+   term does: the energy is smooth everywhere by construction. */
+const K_OVER = +(process.env.BO_KO || 8), W_OVER = +(process.env.BO_WO || 0.2);
+function overE(dl) { if (dl <= 0) return 0; const t = Math.min(1, dl / W_OVER), sm = t * t * t * (10 - 15 * t + 6 * t * t); return K_OVER * dl * dl * sm; }
 function orders(atoms, xy) {
   const na = atoms.length, pairs = [];
   for (let i = 0; i < na; i++) for (let j = i + 1; j < na; j++) {
@@ -62,12 +71,14 @@ function orders(atoms, xy) {
     if (r < P.r[0] + 1.3) { const n0 = raw(r, P); pairs.push({ i, j, r, P, n0, ne: taper(n0), n: 0 }); }
   }
   const V = atoms.map(p => X.capacity(p)), VH = atoms.map(p => X.hyperCap(p));
+  if (MODEL === 'F') { const S = new Float64Array(na), hyp = new Uint8Array(na); for (const q of pairs) { q.n = q.ne; S[q.i] += q.n; S[q.j] += q.n; if (atoms[q.j].el.en >= 3.0) hyp[q.i] = 1; if (atoms[q.i].el.en >= 3.0) hyp[q.j] = 1; } pairs.over = atoms.map((p, i) => S[i] - (hyp[i] ? VH[i] : V[i])); pairs.maxN = (q) => Math.min(V[q.i], V[q.j], 3); return pairs; }
   const by = atoms.map(() => []); pairs.forEach(q => { by[q.i].push(q); by[q.j].push(q); });
   // (each partner's demand first capped by what that partner can give at all, its own valence: compressing one O–H must
   // not take order from the other)
   const capOf = (q, i) => { const o = q.i === i ? q.j : q.i; return sminC(q.ne, Math.min(atoms[i].el.en >= 3.0 ? VH[o] : V[o], 3)); };
   const Lof = by.map((list, i) => { const hyp = list.some(q => atoms[q.i === i ? q.j : q.i].el.en >= 3.0); return levelL(list.map(q => capOf(q, i)), hyp ? VH[i] : V[i]); });
-  for (const q of pairs) q.n = Math.max(0, sminC(sp(capOf(q, q.i) - Lof[q.i]), sp(capOf(q, q.j) - Lof[q.j]))); // (a hard minimum: a smooth one takes EPS/4 off two equal answers, the usual case)
+  const fade = (c) => { const t = Math.min(1, Math.max(0, c / (2 * EPS_S))); return t * t * (3 - 2 * t); }; // (a partner asking for nothing gets nothing: sp's rounding would give it EPS_S/4)
+  for (const q of pairs) { const ci = capOf(q, q.i), cj = capOf(q, q.j); q.n = Math.max(0, sminC(sp(ci - Lof[q.i]) * fade(ci), sp(cj - Lof[q.j]) * fade(cj))); } // (a hard minimum: a smooth one takes EPS/4 off two equal answers, the usual case)
   // (model D) the order a pair may hold is what each atom's valence leaves after its other partners (their projected
   // orders), so its own distance comes only from its Morse curve: N = min(Vᵢ − Σ_{k≠j} n'ᵢₖ, Vⱼ − Σ_{k≠i} n'ⱼₖ, 3)
   const S = new Float64Array(na); for (const q of pairs) { S[q.i] += q.n; S[q.j] += q.n; }
@@ -79,8 +90,9 @@ function orders(atoms, xy) {
 }
 function energy(atoms, xy, detail) {
   const pairs = orders(atoms, xy); let Eb = 0, Ec = 0, Ea = 0;
+  if (pairs.over) for (const dl of pairs.over) Ec += overE(dl);
   for (const q of pairs) {
-    const N = MODEL === 'D' ? q.N : q.n;
+    const N = MODEL === 'D' ? q.N : MODEL === 'F' ? Math.min(q.n, pairs.maxN(q) + 0.5) : q.n;
     if (N > 1e-6) { const D = Dof(q.P, N), r0 = rOf(q.P, MODEL === 'D' ? Math.max(N, 1) : N), al = alOf(q.P, N), e = 1 - Math.exp(-al * (q.r - r0)), d = q.r - q.P.r[0], fc = d <= 0.9 ? 1 : d >= 1.3 ? 0 : 0.5 * (1 + Math.cos(Math.PI * (d - 0.9) / 0.4)); Eb += fc * D * (e * e - 1); }
     Ec += 0.05 * Math.pow(q.P.sig / q.r, 12);
   }
