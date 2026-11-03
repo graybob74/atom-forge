@@ -5205,7 +5205,11 @@ function isLR(p) { return p.k !== NUC || Math.abs(p.q) >= 1; }
    bond dipoles, whose weak pull on a free electron is outweighed close up by Pauli repulsion from the
    molecule's own electrons. (Kept, they would let an electron sit inside a water molecule's H atom.) */
 function qx(a, b) { return a.k === NUC && b.k === NUC ? a.q + a.qp : a.q; }
-function csh(a, b, s) { return (_lrOn && isLR(a) && isLR(b)) ? 0 : 1 / Math.sqrt(RC2 + s); }
+/* (1.09: between net charges summed beyond the cutoff, the soft-cored energy inside is shifted to meet the exact 1/r
+   outside at RC, as every other pair's meets zero there. It was left unshifted: a step of KE·qq·(1/RC − 1/√(RC² + s)),
+   0.037 eV for an electron and an O⁺, at each crossing, which the motion never felt but the energy books (events) did:
+   ionized water drifted 120–150 eV/ps, falling with a longer cutoff. The forces are unchanged.) */
+function csh(a, b, s) { return 1 / Math.sqrt(RC2 + s) - ((_lrOn && isLR(a) && isLR(b)) ? 1 / RC : 0); }
 /* A bare nucleus meeting an atom or ion. The ion's net charge lives in its electron cloud, so close in it acts
    like charge spread through a ball of radius BARE_SMEAR (exact Coulomb outside the ball). As a point charge it
    let a proton sink about 40 eV deep inside an anion, a state that does not exist: a real proton bonds to an
@@ -6437,7 +6441,7 @@ function phiE(x, y, skip, skip2) {
   const visit = (o, dx, dy, r2) => {
     if (o === skip || o === skip2 || o.fast || o.rad) return;
     const q = o.q, sf = o.k === NUC ? o.sEN : 0.04;
-    if (q) phi += PHYS.KE * q * (1 / Math.sqrt(r2 + sf) - (_lrOn && isLR(o) ? 0 : 1 / Math.sqrt(RC2 + sf)));
+    if (q) phi += PHYS.KE * q * (1 / Math.sqrt(r2 + sf) - (1 / Math.sqrt(RC2 + sf) - (_lrOn && isLR(o) ? 1 / RC : 0)));
   };
   nearby(x, y, RC, visit);
   for (const o of _late) { if (o.dead) continue; const dx = o.x - x, dy = o.y - y, r2 = dx * dx + dy * dy; if (r2 < RC2) visit(o, dx, dy, r2); }
@@ -6469,7 +6473,7 @@ function ejectElectron(p, KE, ux, uy, budget, tunnel) {
     if (closed && (Math.abs(ex) > hw || Math.abs(ey) > hh)) return -Infinity; // beyond the chamber wall
     // a ballistic (radiation-mode) lepton carries no potential energy: then only the energy at infinity counts
     if (Kfar > radThreshold(true)) return Kfar;
-    const phiSelf = qa ? PHYS.KE * qa * (1 / Math.sqrt(o * o + p.sEN) - (_lrOn && isLR(p) ? 0 : 1 / Math.sqrt(RC2 + p.sEN))) : 0;
+    const phiSelf = qa ? PHYS.KE * qa * (1 / Math.sqrt(o * o + p.sEN) - (1 / Math.sqrt(RC2 + p.sEN) - (_lrOn && isLR(p) ? 1 / RC : 0))) : 0;
     return Kfar - lq * (phiSelf + (grid ? phiE(ex, ey, p) : 0));
   };
   if (closed) { if (Math.abs(p.x + ux * off0) > hw) ux = -ux; if (Math.abs(p.y + uy * off0) > hh) uy = -uy; } // away from a wall

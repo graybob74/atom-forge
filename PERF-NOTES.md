@@ -130,6 +130,19 @@ engine stores and visits particles.
   tries agrees to 7·10⁻¹² eV. Left: most of the 33 s is delocalize, relink, restoreSnap and molecule over the whole
   chip on every event tried (since 1.05's resonance, each relink of a 1,000-atom molecule re-spreads its charges), the
   same kind of cost, not chased. Test: t_features "1.09 chip" (40 tries in the chip: 40 whole-chip sums → 0).
+- Ionized water's drift (the known limit, 120–170 eV/ps) came from the cutoff, as the accuracy benchmark suggested:
+  between net charges (free leptons, ions of charge ≥ 1) whose long-range part is summed exactly beyond RC, the
+  soft-cored energy inside RC was left unshifted (csh → 0), so the energy stepped by KE·qq·(1/RC − 1/√(RC² + s)) at
+  every crossing: 0.037 eV for an electron and an O⁺ (sEN 1.12 Å²), measured 0.0366 eV per crossing by regression. The
+  motion never felt the step (the forces on both sides are right), but every event books with the energy, so the
+  books and the motion parted at a steady rate. Now csh (and the two written-out copies in phiE and ejectElectron's
+  launch) shifts those pairs to meet 1/r at RC, as every other pair meets zero there. Forces unchanged; event energies
+  change by at most that step. bench-acc waterion, 400 steps, eV/ps: JavaScript kernels seeds 3, 5, 12: 137, 154,
+  138 → 1.6, 5.0, −5.5; WebAssembly: seeds 1, 2, 4, 6, 8: 167, 128, 135, 152, 116 → −3.2, 5.8, 19.8, 0.6, 6.3.
+  Test: t_features "1.09 ionized water drift" (Node harness, seeded; 131, 153 → 0, −1 eV/ps).
+- Found, not fixed: the ionized-water plasma can run away (impact ionization to ~150 free electrons, then keV jumps
+  at steps with big multiply charged clusters, e.g. +5,251 then −4,762 eV around H₁₈O₁₈²⁹⁺), before and after this
+  fix: seed 7 within 400 steps (old code), seed 3 within 3,000 steps (both). A lead for the next session.
 
 ## 1.08.0: Experimental: detailed nuclear collisions (an intranuclear cascade)
 - Settings → Experimental → Detailed nuclear collisions (`SET.inc` → `INC_ON`; `cascadeInto` in hep.js): a proton or

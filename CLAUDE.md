@@ -99,6 +99,9 @@ time-budgeted checks in `t_features` (the chain reaction's k readout, saves, sta
 
 ## Known limits (documented, not bugs to chase without a plan)
 
-Heavily ionized water gains about 100–170 eV over a run: electrons switching between free flight and the main
-integrator. Bonds are a force field (whole-number orders, measured energies), not quantum chemistry; bonds that resonate
-(alternative Kekulé structures) take their Pauling bond order, the mean over every structure (1.05; `resonance()`).
+Ionized water (liquid water, 40 molecules ionized, bath off) keeps its energy to a few eV/ps over 400 steps (1.09; it
+drifted 120–170 eV/ps from a step in the Coulomb energy at the 6 Å cutoff, not from free flight). Left: over a few
+thousand steps that plasma can run away (impact ionization to 150 free electrons, then keV jumps around big multiply
+charged clusters such as H₁₈O₁₈²⁹⁺); one seed in a few does it within 400 steps (seed 7), before and after 1.09.
+
+Bonds are a force field (whole-number orders, measured energies), not quantum chemistry; bonds that resonate (alternative Kekulé structures) take their Pauling bond order, the mean over every structure (1.05; `resonance()`).

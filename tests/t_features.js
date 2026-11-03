@@ -920,6 +920,24 @@ const { openPage } = require('./browser');
   });
   check(r49.n === 40 && r49.miss === 0 && r49.worst < 1e-6,
     `1.09: ${r49.n} bond tries in a ${r49.size}-atom chip costed locally (${r49.miss} whole-chip sums, exact to ${r49.worst.toExponential(0)} eV)`, '1.09 chip: ' + JSON.stringify(r49));
+  // 1.09: ionized water (liquid water, 40 molecules ionized, bath off) keeps its energy: the soft-cored Coulomb energy
+  // between net charges inside the cutoff now meets the exact 1/r outside it (a step of 0.037 eV for e⁻ + O⁺ at each
+  // crossing, 120–150 eV/ps of drift)
+  const r50 = (() => { // (in the Node harness, seeded: the page's randomness is not, and one run in a few of this plasma runs away, as before)
+    const out = [];
+    for (const seed of [3, 5]) {
+      const X = require('./load.js').load('all', { seed }), W = X.W;
+      X.PRESETS.water.build(); X.settleOverlaps();
+      const Os = W.parts.filter(p => p.Z === 8); for (let i = 0; i < 40; i++) X.userIonize(Os[i]);
+      X.settleOverlaps(); W.gamma = 0; W.slowmo = false; W.sources.length = 0; X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const run = (n) => { let adv = 0; for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); adv += X.step(W.dt); } return adv; };
+      run(30);
+      const tot = () => X.totalEnergy().total - W.ledger.nuc, E0 = tot(), fs = run(400) * X.PHYS.TU_S * 1e15, d = tot() - E0;
+      out.push({ seed, fs: +fs.toFixed(1), drift: +d.toFixed(2), perPs: +(d / (fs / 1000)).toFixed(1), freeE: W.nE });
+    }
+    return out;
+  })();
+  check(r50.every(r => r.freeE >= 20 && Math.abs(r.perPs) < 30), `1.09: ionized water, bath off: ${r50.map(r => `${r.drift} eV over ${r.fs} fs (${r.perPs} eV/ps)`).join(', ')}`, '1.09 ionized water drift: ' + JSON.stringify(r50));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
