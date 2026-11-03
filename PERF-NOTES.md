@@ -105,7 +105,7 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## 1.09.0 (in progress): bug fixes
+## 1.09.0: bug fixes (from the bug-fix session, applied from its patches)
 - Insulated chain reaction gained energy in jumps of up to 128 MeV in steps with no nuclear event: an atom the wall put
   back was set down on top of another atom already there. A recoiling fragment stopped in the wall (wallOrEscape) was
   clamped 0.6 Å inside, onto a fragment stopped there before it (two Pa ions 0.1 Å apart; the contact force, capped at
