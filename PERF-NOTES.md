@@ -77,10 +77,11 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
-- Slow motion folded into the speed menu (asked for by the user): the hourglass and the separate "slow-mo" state go;
-  the automatic slow-down for nuclear events sets the speed itself, to what slow motion gives today (the fastest
-  particle about a second across the box), and the readout shows that speed like any other. Slow motion on demand did
-  nothing below 1/512×, which made the two controls confusing side by side.
+- Slow motion folded into the speed menu (asked for by the user): the hourglass stays, as a shortcut that sets the
+  speed to what slow motion gives today (the fastest particle about a second across the box); the separate "slow-mo"
+  state goes, and so the readout always shows a speed from the menu. The automatic slow-down for nuclear events sets
+  the speed the same way (and back after). Slow motion on demand did nothing below 1/512×, which made the two
+  controls confusing side by side.
 - 1.12.0: the rest of the Experimental options (asked for by the user): charges that respond to their surroundings
   (charge equilibration; on hold since 1.07 as larger than it looked: the charges enter a dozen force and energy
   terms), continuous bond orders (below: neither prototype was ready), quantum nuclei (path integrals, ×14–30) and
