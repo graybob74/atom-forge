@@ -1106,7 +1106,7 @@ const { openPage } = require('./browser');
     o.open = await page.evaluate(() => !!DD.open && getComputedStyle(DD.open.pop).borderTopLeftRadius);
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.waitForTimeout(300);
     o.picked = await page.evaluate(() => [UI.preset, $('presetDD').textContent === $('preset').selectedOptions[0].textContent, !!DD.open, $('escModal').hidden]);
-    await page.evaluate(() => { loadPreset('ring'); syncPresetSelect(); }); await page.waitForTimeout(300);
+    await page.evaluate(() => { loadPreset('ring'); syncPresetSelect(); showTab('lab'); }); await page.waitForTimeout(300);
     await page.fill('#cFindA', 'urani'); await page.waitForTimeout(200);
     o.sugg = await page.evaluate(() => DD.open ? DD.open.items.map(i => i.t).join('|') : '');
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.waitForTimeout(300);
