@@ -82,6 +82,10 @@ engine stores and visits particles.
   state goes, and so the readout always shows a speed from the menu. The automatic slow-down for nuclear events sets
   the speed the same way (and back after). Slow motion on demand did nothing below 1/512×, which made the two
   controls confusing side by side.
+- On hold (the user's choice): a 3-D mode, as a separate mode chosen in the main menu rather than a setting: the
+  ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
+  game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
+  everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
 - 1.12.0: the rest of the Experimental options (asked for by the user): charges that respond to their surroundings
   (charge equilibration; on hold since 1.07 as larger than it looked: the charges enter a dozen force and energy
   terms), continuous bond orders (below: neither prototype was ready), quantum nuclei (path integrals, ×14–30) and
