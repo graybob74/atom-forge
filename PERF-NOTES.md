@@ -165,6 +165,22 @@ engine stores and visits particles.
 - **Beads covered the element symbols** with quantum nuclei on (the user's screenshot): the bead rings were drawn
   after the atoms and their labels. The symbols are now held back and drawn after the rings.
 
+- **Bug fixes from the bug-fix session** (applied from its patches; physics change approved by the user):
+- Muonium is an atom. It was an exo (XP.Mu) flying on straight lines that never collided, so it passed through
+  everything. Now muonium is an H atom in MD whose nucleus is a μ⁺ (p.mu): refresh gives it the muon's mass (0.1140 u
+  with its electron, a ninth of H's), so it collides, bonds and reacts by the ordinary chemistry. Made by muoniumForm,
+  fired, or placed from the palette, it is addMuonium (spawnItems, fireSpec, placeFly). It is named Mu (speciesLabel,
+  hill: MuCl, Mu₂; library names left off), drawn light blue with "Mu", and shown in the inspector as muonium. Saves
+  keep it (part field 5: bit 1 antimatter, bit 2 muonium). Its nucleus is no nucleon: guards on p.mu in tryFusion,
+  neutronHit, nuclearEncounter, nuclearAnnihilation, photoNuclear, muStop/kStop/hStop, muAtomTick and exoHits. The
+  muon decays (2.197 µs, on the nuclear clock: muoniumTick): μ⁺ → e⁺ + νₑ + ν̄μ, the electron set free, a molecule it
+  was in relinked as a radical; the books close through nucBegin/closeEvent (the neutrinos take the rest).
+  Measured: Mu at 0.5 eV past one Ar atom at impact parameters −1.5…1.5 Å, deflected more than 10° in 0 of 20 runs
+  before, 18 of 20 now. 20 Mu at 1 eV into 60 Cl₂ (3,000 steps): no reaction before; 13 × Mu + Cl₂ → MuCl + Cl, 17
+  bonded, now. The same into H₂: 11 MuH and 6 Mu₂. Insulated drift in those runs −0.35 to +0.63 eV, as for H atoms
+  fired the same way (−0.11 to −0.77 eV). MuCl and Mu decaying together: the books change by 0.0007 eV. t_energy passes.
+  Test: t_features "1.12 muonium".
+
 ## 1.12.0: induced charges and quantum nuclei (Experimental), realistic tags; prototypes for the rest
 - The particle bar's search (asked for by the user): the chip reads "Search…" (no emoji), the menu "Search particles",
   and its text box sits inside the menu with an 8 px margin (`.msearch`'s width: 100%, later in the sheet, had won over

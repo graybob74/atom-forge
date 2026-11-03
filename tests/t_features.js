@@ -1125,6 +1125,34 @@ const { openPage } = require('./browser');
   })();
   check(r67.err.open && !r67.err.running && r67.err.rep && r67.go && r67.nan.open && /Broken/.test(r67.nan.title) && r67.fixed && r67.beat && r67b.open && /unexpectedly/.test(r67b.title) && r67b.restore && r67b.clean,
     `1.13: crash handler: an error pauses with a dialog, broken numbers caught and removed, a session that died offered back from its autosave, a normal reload not`, '1.13 crash handler: ' + JSON.stringify({ r67, r67b }));
+  // 1.12: muonium is an atom (a hydrogen atom whose nucleus is a μ⁺, 0.1134 u): fired into chlorine it reacts as H does
+  // (Mu + Cl₂ → MuCl + Cl) and bounces off argon, where as an exo it flew straight through everything; it is named Mu,
+  // saved and loaded as Mu, and its muon's decay (e⁺ + νₑ + ν̄μ, the electron set free) keeps the books exactly
+  const r69 = await page.evaluate(() => {
+    const out = {};
+    const shoot = (tgt) => {
+      loadPreset('empty'); setRunning(false); baseWorld(60, 40, 300, 0); W.slowmo = false;
+      for (let i = 0; i < 60; i++) { const x = -26 + (i % 12) * 4.5, y = -16 + Math.floor(i / 12) * 7; if (tgt === 'Ar') addAtom('Ar', x, y); else addMolecule(tgt, x, y, i, 300); }
+      settleOverlaps(); forcesNoEvents(); W.fSpawn = W.spawned;
+      const mus = []; for (let i = 0; i < 20; i++) mus.push(fireSpec({ kind: 'exo', sp: 'Mu' }, -28, -18 + i * 1.8, 1, 0.05 * (i % 5 - 2), 1.0));
+      for (let i = 0; i < 3000; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
+      const dir = (o) => (o.k !== undefined ? Math.atan2(o.vy, o.vx) : Math.atan2(o.uy, o.ux));
+      return { atoms: mus.filter(o => o.k === NUC).length, turned: mus.filter(o => !o.dead && Math.abs(Math.cos(dir(o))) < 0.87).length,
+        rx: W.log.filter(l => /^Reaction: Mu \+ Cl₂ → ClMu \+ Cl/.test(l.text)).reduce((t, l) => t + l.n, 0), names: [...new Set(W.parts.filter(p => !p.dead && p.mu).map(speciesLabel))].sort().join(' ') };
+    };
+    out.ar = shoot('Ar'); out.cl = shoot('Cl2');
+    const d = worldToJSON(); worldFromJSON(d); out.reloaded = W.parts.filter(p => !p.dead && p.mu).length;
+    loadPreset('empty'); setRunning(false); baseWorld(40, 28, 300, 0); W.decayOn = true;
+    const cl = addAtom('Cl', 5, 0), b = addMuonium(6.3, 0, 0.03, 1, 0); addBond(b, cl, 1); relink([b, cl]); addMuonium(-5, 0, 0.03, 1, 0);
+    forcesNoEvents(); W.fSpawn = W.spawned;
+    out.m = +b.m.toFixed(4); out.mol = speciesLabel(b);
+    const tot = () => totalEnergy().total - W.ledger.nuc, E0 = tot(); W.warp = 1e13; W.dt = chooseDt(); step(W.dt);
+    out.decayed = W.parts.filter(p => !p.dead && p.mu).length === 0; out.dE = +(tot() - E0).toFixed(4);
+    out.after = W.parts.filter(p => !p.dead).map(speciesLabel).sort().join(' ');
+    return out;
+  });
+  check(r69.ar.atoms === 20 && r69.ar.turned >= 8 && r69.cl.rx >= 3 && /ClMu/.test(r69.cl.names) && r69.reloaded > 0 && r69.m < 0.115 && r69.mol === 'ClMu' && r69.decayed && Math.abs(r69.dE) < 0.01 && r69.after === 'Cl e⁺ e⁺ e⁻ e⁻',
+    `1.12: muonium is an atom (${r69.m} u): 20 fired into argon, ${r69.ar.turned} sent off course; into chlorine, ${r69.cl.rx} Mu + Cl₂ → MuCl + Cl (${r69.cl.names}); saved and loaded (${r69.reloaded}); MuCl and Mu decay to ${r69.after}, books ${r69.dE} eV`, '1.12 muonium: ' + JSON.stringify(r69));
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

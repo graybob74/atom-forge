@@ -249,6 +249,7 @@ function refresh(p) {
   p.el = Z > 0 ? ELEMENTS[Math.min(Z, Z_MAX)] : null;
   S.elrc[p.i] = p.el ? p.el.rc : 0; S.metal[p.i] = p.el && p.el.metal ? 1 : 0; // (the covalent radius and whether it is a metal, for the pair kernel)
   if (Z === 0) p.m = N * PHYS.MN;
+  else if (p.mu) p.m = MU_M / PHYS.AMU_MEV + p.ne * PHYS.ME; // (1.12: muonium, its nucleus a μ⁺: a hydrogen atom 1/9 the mass, hep.js addMuonium)
   else p.m = Math.max(0.5, Z * PHYS.MP + N * PHYS.MN + p.ne * PHYS.ME - bindingE(Z, N) / PHYS.AMU_MEV);
   p.im = 1 / p.m;
   p.q = (p.anti ? -1 : 1) * (Z - p.ne);
@@ -722,7 +723,7 @@ function molecule(p) {
 }
 function hill(atoms, plain) {
   const cnt = {}; let q = 0;
-  for (const a of atoms) { const s = a.el ? (a.anti ? barSym(a.el.sym) : a.el.sym) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
+  for (const a of atoms) { const s = a.mu ? 'Mu' : a.el ? (a.anti ? barSym(a.el.sym) : a.el.sym) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
   const keys = Object.keys(cnt);
   let order;
   if (cnt.C) order = ['C'].concat(cnt.H ? ['H'] : [], keys.filter(k => k !== 'C' && k !== 'H').sort());
@@ -734,7 +735,7 @@ function hill(atoms, plain) {
 }
 /* The formula with its isotopes written out, as chemists write them: D₂O, CH₃D, ¹³CH₄ (just hill() without any). */
 function isoFormula(atoms, plain) {
-  if (atoms.some(a => a.anti || !a.el) || !atoms.some(a => isoA(a))) return hill(atoms, plain);
+  if (atoms.some(a => a.anti || !a.el || a.mu) || !atoms.some(a => isoA(a))) return hill(atoms, plain);
   const cnt = new Map(); let q = 0;
   for (const a of atoms) { const k = a.el.sym + ' ' + isoA(a); cnt.set(k, (cnt.get(k) || 0) + 1); q += a.q || 0; }
   const els = [...new Set(atoms.map(a => a.el.sym))];
@@ -816,7 +817,7 @@ function isoName(n, d) {
   return (MOL_ISO_NAMES[n] && MOL_ISO_NAMES[n][d]) || `(${d})` + (/^[A-Z][a-z]/.test(n) ? n[0].toLowerCase() + n.slice(1) : n);
 }
 function moleculeName(atoms) {
-  if (!atoms.length) return null;
+  if (!atoms.length || atoms.some(a => a.mu)) return null; // (with muonium in it: the formula, MuCl, not hydrogen chloride's name, 1.12)
   const anti = atoms.every(a => a.anti);
   const m = libMatch(atoms), iso = !m && !anti ? isoDesc(atoms) : ''; // (one built with its isotopes keeps its own name)
   let n = m ? m.name : iso ? (libMatch(atoms, true) || {}).name || null : null;
@@ -898,6 +899,7 @@ function speciesLabel(p) {
   if (p.k === POS) return 'e⁺';
   if (p.Z === 0) return 'n';
   if (p.bonds.length) return isoFormula(molecule(p));
+  if (p.mu) return p.ne === 0 ? 'μ⁺' : 'Mu' + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''); // (1.12: muonium, Mu⁻ muonide; bare, a μ⁺)
   if (p.anti && p.ne === 0) return p.Z === 1 && p.N === 0 ? 'p̄' : nucSymA(p.Z, p.N, true) + sup((p.Z > 1 ? p.Z : '') + '-');
   if (p.ne === 0) {
     if (p.Z === 1 && p.N === 0) return 'p⁺';
@@ -2583,7 +2585,7 @@ function photoDissociate(bd, E) {
   // if the fragments can't get apart with this photon's energy, it is simply absorbed as heat
   if (kickPair(a, b, left) > left + 1e-6) { restoreSnap(sn); dumpHeat(E, a, b); return; }
   W.count.broken++;
-  log('chem', `Photodissociation: light (${(PHYS.HC / E).toFixed(0)} nm) split ${a.el.sym}–${b.el.sym}`);
+  log('chem', `Photodissociation: light (${(PHYS.HC / E).toFixed(0)} nm) split ${a.mu ? 'Mu' : a.el.sym}–${b.mu ? 'Mu' : b.el.sym}`);
 }
 function compton(p, E, ux, uy) {
   if (p.dead || p.ne === 0) return;
@@ -3037,7 +3039,7 @@ function evBreak(bd, r) {
     W.ledger.bath -= cost - have; // (drawn from the bath)
   } else kickPair(b, a, -cost, dx / rr, dy / rr);
   W.count.broken++;
-  log('chem', `Bond broke: ${a.el.sym}–${b.el.sym} (needed ${fmtE(bd.D)})${have < cost ? `, overstretched to ${rr.toFixed(1)} Å: the heat bath gave ${fmtE(cost - have)}` : ''}`);
+  log('chem', `Bond broke: ${a.mu ? 'Mu' : a.el.sym}–${b.mu ? 'Mu' : b.el.sym} (needed ${fmtE(bd.D)})${have < cost ? `, overstretched to ${rr.toFixed(1)} Å: the heat bath gave ${fmtE(cost - have)}` : ''}`);
 }
 
 /* Electron or positron meets a nucleus/atom. */
@@ -3383,7 +3385,7 @@ function evAnti(a, b, r) {
    fly out of the chamber, neutral ones decay at once into γ rays), now and then kaons. The antiprotonic atom's
    cascade shakes out a few electrons first, and a struck nucleus is left hot and boils off a few nucleons. */
 function nuclearAnnihilation(a, b) {
-  if (a.dead || b.dead) return;
+  if (a.dead || b.dead || a.mu || b.mu) return; // (an antinucleon meets no nucleon in muonium, 1.12)
   const anti = a.anti ? a : b, mat = anti === a ? b : a;
   const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
   const vx = (a.m * avx + b.m * bvx) / (a.m + b.m), vy = (a.m * avy + b.m * bvy) / (a.m + b.m);
@@ -3725,7 +3727,7 @@ const fusGate = () => W.ultra ? 2e-3 : R_FUS;
 function tryFusion(a, b, bd) {
   if (a.dead || b.dead) return false;
   if (opp(a, b)) { nuclearAnnihilation(a, b); return true; }
-  if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX) return false;
+  if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX || a.mu || b.mu) return false; // (a muon is no nucleon: nothing to fuse, 1.12)
   const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
   const mu = a.m * b.m / (a.m + b.m);
   const dvx = avx - bvx, dvy = avy - bvy;
@@ -3787,7 +3789,7 @@ function tryFusion(a, b, bd) {
 
 /* Neutron meets a nucleus: capture, fission, (n,p)/(n,α)/(n,t) or elastic scattering. */
 function neutronHit(n, T, b, R) {
-  if (n.dead || T.dead || (T.Z < 1 && !(T.N === 1 && T.k === NUC))) return false; // (a nucleus, or another free neutron: n–n is elastic below ~20 MeV, the dineutron being unbound)
+  if (n.dead || T.dead || T.mu || (T.Z < 1 && !(T.N === 1 && T.k === NUC))) return false; // (a nucleus, or another free neutron: n–n is elastic below ~20 MeV, the dineutron being unbound)
   if (opp(T, n)) { nuclearAnnihilation(T, n); return true; }
   if (n.rad || T.rad) { // fast (either of them): relativistic kinematics. Spallation, fission, … or diffraction; two nucleons below ~20 MeV scatter isotropically (s-wave)
     if (nuclearEncounter(n, T, R > 0 ? clamp((b || 0) / R, 0, 1) : rnd(), T.x, T.y)) return true;
@@ -6132,7 +6134,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.at = W.at || 0;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.muAtoms = []; W.at = W.at || 0;
   _rxCache.clear();
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return [s * gauss(), s * gauss()]; }
@@ -6337,6 +6339,7 @@ function settleOverlaps() {
 function fireSpec(spec, x, y, ux, uy, KE, free) {
   if (spec.kind === 'gamma') { emitPhoton(x, y, KE, ux, uy); return null; }
   if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e'); return null; }
+  if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy); // (1.12: an atom, in MD)
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy) : null; // (a muon, pion …: from outside, as any fired particle)
   const ps = spawnClear(spec, x, y, 0, free);
   if (!ps.length) return null;
