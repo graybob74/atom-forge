@@ -407,7 +407,7 @@ function drawBonds(rt) {
   const lw = Math.min(W.ultra ? 6 : 1e9, orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)); // (ultra-realistic: a bond is not a rod; zoomed in to nuclei, a thin line)
   const off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * s)), aMul = orb ? 0.45 : 1;
   const X = S.x, Y = S.y, wrap = W.wall === 'wrap', hbw = W.box.w / 2, hbh = W.box.h / 2, cx = R.cx, cy = R.cy, hw = R.w / 2, hh = R.h / 2, Rw = R.w, Rh = R.h;
-  const bonds = W.bonds, nb = bonds.length;
+  const bonds = BO.any ? W.bonds.concat(boDrawBonds()) : W.bonds, nb = bonds.length; // (continuous bond orders: drawn from this step's orders)
   for (let k = 0; k < nb; k++) {
     const bd = bonds[k], a = bd.a, b = bd.b, ia = a.i, ib = b.i;
     const ax = X[ia], ay = Y[ia], bx = X[ib], by = Y[ib];
@@ -456,7 +456,7 @@ function drawBondsGL() {
   const s = R.s, orb = R.view.bohr === 'orb';
   const hw = Math.min(W.ultra ? 3 : 1e9, (orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)) / 2);
   const off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * s)), aMul = orb ? 0.45 : 1;
-  glBondsBuild(W.bonds, W.topo);
+  if (BO.any) glBondsBuild(W.bonds.concat(boDrawBonds()), -(R.boGen = (R.boGen || 0) + 1)); else glBondsBuild(W.bonds, W.topo); // (continuous bond orders: built again each frame)
   glDrawBonds(hw, off, aMul, W.wall === 'wrap', W.box.w / 2, W.box.h / 2);
 }
 /* The slot textures for this frame: positions always; the balls' colours and styles when they may have changed (per

@@ -2899,7 +2899,7 @@ function hardMeet(a, b) {
   return 0.5 * Ma * Mb / (Ma + Mb) * (dvx * dvx + dvy * dvy) > HARD_MEET;
 }
 function evBond(a, b, r) {
-  if (a.dead || b.dead || bondBetween(a, b) || (a.bom && b.bom)) return;
+  if (a.dead || b.dead || bondBetween(a, b) || a.bom || b.bom) return; // (continuous bond orders: no stored bond to a member)
   if (!(a.cap - a.used > 0 && b.cap - b.used > 0) || !covalentOK(a, b)) return;
   if (a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) return;
   if (hardMeet(a, b)) return;
@@ -2935,7 +2935,7 @@ function snapTogetherIntra(bd) {
    exceeds the activation energy (Semenov–Polanyi); otherwise the repulsion simply bounces them apart. */
 const _rxTried = new Map();
 function evReact(X, A, rx, r) {
-  if (X.dead || A.dead || rx.topo !== W.topo) return;
+  if (X.dead || A.dead || rx.topo !== W.topo || X.bom || A.bom) return;
   if (!(X.cap - X.used > 0) || W.bonds.indexOf(rx.bd) < 0 || bondBetween(X, A)) return;
   const key = X.id * 131072 + A.id, last = _rxTried.get(key);
   if (last !== undefined && W.step - last < 30) return; // one test per encounter
@@ -3454,7 +3454,7 @@ function twoGamma(x, y, E = 2 * ME_C2) {
 
 /* Bare proton meets a lone pair: dative bond (H⁺ + H₂O → H₃O⁺, H⁺ + NH₃ → NH₄⁺, H⁺ + Cl⁻ → HCl). */
 function evDative(H, D, r) {
-  if (H.dead || D.dead || opp(H, D) || H.ne !== 0 || H.Z !== 1 || D.ne === 0 || D.lp < 1 || hardMeet(H, D)) return;
+  if (H.dead || D.dead || H.bom || D.bom || opp(H, D) || H.ne !== 0 || H.Z !== 1 || D.ne === 0 || D.lp < 1 || hardMeet(H, D)) return;
   const capAfter = (() => {
     const vi = valenceInfo(D.Z, D.ne - 1); if (D.el.dblock) return 0;
     if (vi.n === 1) return vi.v === 1 ? 1 : 0;

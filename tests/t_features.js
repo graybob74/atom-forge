@@ -1079,6 +1079,24 @@ const { openPage } = require('./browser');
   })();
   check(r66.classic.width < 0.05 && r66.quantum.width > 0.075 && r66.quantum.mean > r66.classic.mean + 0.01 && Math.abs(r66.flame.dE) < 0.5 && r66.flame.xfer > 20 && Math.abs(r66.off) < 1e-6,
     `1.12: quantum nuclei: H₂ at 300 K ${r66.classic.width} → ${r66.quantum.width} Å wide, ${r66.classic.mean} → ${r66.quantum.mean} Å long (16 beads); a flame with rings ${r66.flame.dE} eV over ${r66.flame.xfer} electron transfers; turning them off ${r66.off} eV`, '1.12 quantum nuclei: ' + JSON.stringify(r66));
+  // 1.13: continuous bond orders (Experimental): forces are the energy's slope, energy kept, switching it booked exactly
+  const r68 = (() => {
+    const X = require('./load.js').load('all', { seed: 3 }), W = X.W, S = X.S, out = {};
+    X.PRESETS.combustion.build(); X.settleOverlaps(); W.fSpawn = W.spawned; X.forcesNoEvents(); W.gamma = 0;
+    const tot = () => X.totalEnergy().total - W.ledger.nuc + W.ledger.bath;
+    const e0 = tot(), nb = W.bonds.length; X.boSet(true); out.on = { dE: +(tot() - e0).toFixed(6), bonds: nb + '→' + W.bonds.length, members: W.parts.filter(p => p.bom).length };
+    X.step(0.01); const E0 = tot(); for (let s = 0; s < 1500; s++) X.step(0.01); out.drift = +(tot() - E0).toFixed(4);
+    // forces against the energy's slope
+    X.forcesNoEvents(); const M = W.parts.filter(p => p.bom && !p.dead).slice(0, 30), f = M.map(p => [S.fx[p.i], S.fy[p.i]]);
+    const PE = () => { X.gridTouch(); const t = X.totalEnergy(); return t.pe + t.internal; }; let worst = 0;
+    M.forEach((p, k) => { for (const ax of [0, 1]) { const key = ax ? 'y' : 'x', v = p[key]; p[key] = v + 1e-6; const a = PE(); p[key] = v - 1e-6; const b = PE(); p[key] = v; worst = Math.max(worst, Math.abs(-(a - b) / 2e-6 - f[k][ax])); } });
+    out.force = +worst.toExponential(1);
+    const ords = X.boBonds().filter(b => b[2] > 0.5).map(b => b[2]); out.orders = [+Math.min(...ords).toFixed(2), +Math.max(...ords).toFixed(2)];
+    const e1 = tot(); X.boSet(false); out.off = { dE: +(tot() - e1).toFixed(6), bonds: W.bonds.length, members: W.parts.filter(p => p.bom).length };
+    return out;
+  })();
+  check(Math.abs(r68.on.dE) < 1e-6 && r68.on.members === 140 && Math.abs(r68.drift) < 0.1 && r68.force < 1e-3 && r68.orders[0] > 0.9 && r68.orders[1] < 2.1 && Math.abs(r68.off.dE) < 1e-6 && r68.off.bonds === 70 && r68.off.members === 0,
+    `1.13: continuous bond orders: H₂ + O₂ switched on (${r68.on.bonds} stored bonds) and off exactly, ${r68.drift} eV over 1,500 insulated steps, forces = −slope within ${r68.force} eV/Å, orders ${r68.orders.join('–')}`, '1.13 bond orders: ' + JSON.stringify(r68));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};

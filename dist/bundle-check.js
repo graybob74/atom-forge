@@ -5158,7 +5158,7 @@ function hardMeet(a, b) {
   return 0.5 * Ma * Mb / (Ma + Mb) * (dvx * dvx + dvy * dvy) > HARD_MEET;
 }
 function evBond(a, b, r) {
-  if (a.dead || b.dead || bondBetween(a, b) || (a.bom && b.bom)) return;
+  if (a.dead || b.dead || bondBetween(a, b) || a.bom || b.bom) return; // (continuous bond orders: no stored bond to a member)
   if (!(a.cap - a.used > 0 && b.cap - b.used > 0) || !covalentOK(a, b)) return;
   if (a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) return;
   if (hardMeet(a, b)) return;
@@ -5194,7 +5194,7 @@ function snapTogetherIntra(bd) {
    exceeds the activation energy (Semenov–Polanyi); otherwise the repulsion simply bounces them apart. */
 const _rxTried = new Map();
 function evReact(X, A, rx, r) {
-  if (X.dead || A.dead || rx.topo !== W.topo) return;
+  if (X.dead || A.dead || rx.topo !== W.topo || X.bom || A.bom) return;
   if (!(X.cap - X.used > 0) || W.bonds.indexOf(rx.bd) < 0 || bondBetween(X, A)) return;
   const key = X.id * 131072 + A.id, last = _rxTried.get(key);
   if (last !== undefined && W.step - last < 30) return; // one test per encounter
@@ -5713,7 +5713,7 @@ function twoGamma(x, y, E = 2 * ME_C2) {
 
 /* Bare proton meets a lone pair: dative bond (H⁺ + H₂O → H₃O⁺, H⁺ + NH₃ → NH₄⁺, H⁺ + Cl⁻ → HCl). */
 function evDative(H, D, r) {
-  if (H.dead || D.dead || opp(H, D) || H.ne !== 0 || H.Z !== 1 || D.ne === 0 || D.lp < 1 || hardMeet(H, D)) return;
+  if (H.dead || D.dead || H.bom || D.bom || opp(H, D) || H.ne !== 0 || H.Z !== 1 || D.ne === 0 || D.lp < 1 || hardMeet(H, D)) return;
   const capAfter = (() => {
     const vi = valenceInfo(D.Z, D.ne - 1); if (D.el.dblock) return 0;
     if (vi.n === 1) return vi.v === 1 ? 1 : 0;
@@ -8721,11 +8721,40 @@ wasmLoadModule(); // (the kernel module, now that its constants exist to be chec
    for exactly: the energy before and after at the same positions, the difference to the bath (as for quantum
    nuclei's rings). */
 // (BO itself is made in engine.js, which runs first and asks it)
-const BO_EPS = 0.03, BO_PLOW = 1.1, BO_TA = 0.15, BO_TB = 0.35, BO_SW = 0.5; // (smoothing; Dof's power below a single bond; the taper; the non-bonded switch's width)
+const BO_EPS = 0.03, BO_PLOW = 1.15, BO_WIN = 0.05, BO_TA = 0.15, BO_TB = 0.35, BO_SW = 0.5; // (smoothing; Dof's power below a single bond; the taper; the non-bonded switch's width)
 const boSp = (x) => x <= -BO_EPS ? 0 : x >= BO_EPS ? x : (x + BO_EPS) * (x + BO_EPS) / (4 * BO_EPS);
 const boSpD = (x) => x <= -BO_EPS ? 0 : x >= BO_EPS ? 1 : (x + BO_EPS) / (2 * BO_EPS);
 const boH = (d) => d < BO_EPS ? 0.5 * d * (1 - d / BO_EPS) * (1 - d / BO_EPS) : 0;
+const boFade = (c) => { const t = c <= 0 ? 0 : c >= 2 * BO_EPS ? 1 : c / (2 * BO_EPS); return t * t * (3 - 2 * t); }; // (a partner asking for nothing counts for nothing)
+const boFadeD = (c) => { if (c <= 0 || c >= 2 * BO_EPS) return 0; const t = c / (2 * BO_EPS); return 6 * t * (1 - t) / (2 * BO_EPS); };
 const boHD = (d) => d < BO_EPS ? 0.5 * (1 - d / BO_EPS) * (1 - d / BO_EPS) - d * (1 - d / BO_EPS) / BO_EPS : 0;
+/* Depth and stiffness of a bond of order N: the game's tables at whole orders, straight lines between (a power below a
+   single bond), the corners at 1, 2 and 3 rounded over ±0.05 by blending the two pieces either side (their values meet
+   at the corner): a corner put a jump in the force of every bond crossing it. [value, slope] */
+const BO_KH = 0.05;
+const BO_TG = new Map(); // (the VSEPR targets, sorted, by partners, lone pairs, period, all-hydrogen)
+let BO_C = new Float64Array(16), BO_F = new Float64Array(16); // (scratch for the level's solve)
+function boKnot(N, f, g) { // pieces f (left) and g (right) of a corner at round(N), blended over ±BO_KH
+  const K = Math.round(N), t = (N - K + BO_KH) / (2 * BO_KH);
+  if (t <= 0) return f(N); if (t >= 1) return g(N);
+  const w = t * t * (3 - 2 * t), dw = 6 * t * (1 - t) / (2 * BO_KH), a = f(N), b = g(N);
+  return [a[0] + w * (b[0] - a[0]), a[1] + w * (b[1] - a[1]) + dw * (b[0] - a[0])];
+}
+function boDepth(P, N) {
+  const D = P.D, p0 = (n) => n <= 0 ? [0, 0] : [D[0] * Math.pow(n, BO_PLOW), D[0] * BO_PLOW * Math.pow(n, BO_PLOW - 1)];
+  const p1 = (n) => [D[0] + (D[1] - D[0]) * (n - 1), D[1] - D[0]], p2 = (n) => [D[1] + (D[2] - D[1]) * (n - 2), D[2] - D[1]], p3 = () => [D[2], 0];
+  if (N < 1 - BO_KH) return p0(N); if (N < 1 + BO_KH) return boKnot(N, p0, p1);
+  if (N < 2 - BO_KH) return p1(N); if (N < 2 + BO_KH) return boKnot(N, p1, p2);
+  if (N < 3 - BO_KH) return p2(N); if (N < 3 + BO_KH) return boKnot(N, p2, p3);
+  return p3(N);
+}
+function boStiff(P, N) {
+  const A = P.al, p0 = () => [A[0], 0], p1 = (n) => [A[0] + (A[1] - A[0]) * (n - 1), A[1] - A[0]], p2 = (n) => [A[1] + (A[2] - A[1]) * (n - 2), A[2] - A[1]], p3 = () => [A[2], 0];
+  if (N < 1 - BO_KH) return p0(N); if (N < 1 + BO_KH) return boKnot(N, p0, p1);
+  if (N < 2 - BO_KH) return p1(N); if (N < 2 + BO_KH) return boKnot(N, p1, p2);
+  if (N < 3 - BO_KH) return p2(N); if (N < 3 + BO_KH) return boKnot(N, p2, p3);
+  return p3(N);
+}
 /* the pair's constants, by element pair */
 function boPP(ea, eb) {
   const key = ea.Z < eb.Z ? ea.Z * 128 + eb.Z : eb.Z * 128 + ea.Z; let v = BO.cache.get(key);
@@ -8780,91 +8809,126 @@ function boPass(forces) {
     const q = L[k], P = q.P, a = q.a, b = q.b;
     q.gr = 0; q.gn = 0; q.gca = 0; q.gcb = 0; q.n = 0; q.ne = 0; q.eL = 0; q.eM = 0;
     // the Lennard-Jones pair of the kernel (ljV, two atoms of no molecule), switched on from the bond's reach
-    const [rm, eps] = ljPair(a, b), rOn = Math.max(P.reach, 0.62 * rm + 0.05);
-    if (eps > 0 && q.r > rOn && q.r < 2.6 * rm) {
-      const s6 = Math.pow(rm / q.r, 6), V = eps * (s6 * s6 - 2 * s6 + LJ_VCUT), dV = eps * (-12 * s6 * s6 + 12 * s6) / q.r;
+    if (P.eps === undefined) { const lj = ljPair(a, b); P.rm = lj[0]; P.eps = lj[1]; P.rOn = Math.max(P.reach, 0.62 * lj[0] + 0.05); P.rCut = 2.6 * lj[0]; } // (members are neutral: the pair's Lennard-Jones constants are its elements')
+    const rm = P.rm, eps = P.eps, rOn = P.rOn;
+    if (eps > 0 && q.r > rOn && q.r < P.rCut) {
+      const s2 = rm * rm / (q.r * q.r), s6 = s2 * s2 * s2, V = eps * (s6 * s6 - 2 * s6 + LJ_VCUT), dV = eps * (-12 * s6 * s6 + 12 * s6) / q.r;
       const t = (q.r - rOn) / BO_SW, sw = t >= 1 ? 1 : t * t * (3 - 2 * t), dsw = t >= 1 ? 0 : 6 * t * (1 - t) / BO_SW;
       E += sw * V; q.eL = sw * V; q.gr += sw * dV + dsw * V;
     }
     if (q.r >= P.reach) continue;
     // raw order and its slope
     const d = q.r - P.r[0]; let n0, dn0;
-    if (d > 0) { n0 = Math.exp(-P.beta * d * d); dn0 = -2 * P.beta * d * n0; } else { n0 = Math.exp(-d / P.c); dn0 = -n0 / P.c; }
+    if (d > 0) { n0 = Math.exp(-P.beta * d * d); dn0 = -2 * P.beta * d * n0; } else { const w2 = BO_WIN * BO_WIN, h = d * d / (d * d + w2), hd = 2 * d * w2 / ((d * d + w2) * (d * d + w2)); n0 = Math.exp(-d * h / P.c); dn0 = -n0 * (h + d * hd) / P.c; } // (Pauling's rule inward, eased in over 0.05 Å: no corner at the single-bond length)
     if (d > 0.9) { const u = Math.PI * (d - 0.9) / 0.4, f = 0.5 * (1 + Math.cos(u)), fd = -0.5 * Math.sin(u) * Math.PI / 0.4; dn0 = dn0 * f + n0 * fd; n0 *= f; }
     if (n0 >= 3.5) { n0 = 3.5; dn0 = 0; }
     let ne, dne;
     if (n0 >= BO_TB) { ne = n0; dne = 1; } else if (n0 <= BO_TA) { ne = 0; dne = 0; } else { const w = BO_TB - BO_TA, t = (n0 - BO_TA) / w, s = t * t * (3 - 2 * t); ne = n0 * s; dne = s + n0 * 6 * t * (1 - t) / w; }
     q.ne = ne; q.dne = dne * dn0;
     // the soft core
-    const s12 = Math.pow(P.sig / q.r, 12); E += 0.05 * s12; q.gr += -0.6 * s12 / q.r;
+    const z2 = P.sig * P.sig / (q.r * q.r), z6 = z2 * z2 * z2, s12 = z6 * z6; E += 0.05 * s12; q.gr += -0.6 * s12 / q.r;
     let la = by.get(a); if (!la) by.set(a, la = []); la.push(q);
     let lb = by.get(b); if (!lb) by.set(b, lb = []); lb.push(q);
   }
   // caps, levels, orders
   const cap = (p) => { let v = p._boV; if (v === undefined) { p._boV = v = capacity(p); p._boVH = hyperCap(p); } return v; };
   for (const [p, list] of by) {
-    let hyp = false;
-    for (const q of list) { const o = q.a === p ? q.b : q.a; if (o.el.en >= 3.0) hyp = true; }
     cap(p);
-    const V = hyp ? p._boVH : p._boV;
     for (const q of list) { // atom p's view of each partner o: capped by what o can give
       const o = q.a === p ? q.b : q.a; cap(o);
       const C = Math.min(p.el.en >= 3.0 ? o._boVH : o._boV, 3), dd = Math.abs(q.ne - C), h = boH(dd), g = boHD(dd);
       const c = q.ne <= C ? q.ne + h : C + h, dc = q.ne <= C ? 1 - g : g;
       if (q.a === p) { q.ca = c; q.dca = dc; } else { q.cb = c; q.dcb = dc; }
     }
-    let lo = -V - 1, hi = 4; for (const q of list) hi = Math.max(hi, (q.a === p ? q.ca : q.cb) + 1);
-    for (let it = 0; it < 50; it++) { const mid = 0.5 * (lo + hi); let t = 0; for (const q of list) t += boSp((q.a === p ? q.ca : q.cb) - mid); if (t > V) lo = mid; else hi = mid; }
-    p._boLs = 0.5 * (lo + hi); p._boL = boSp(p._boLs); p._boGL = 0;
+    // an expanded octet (period 3 and on) toward electronegative partners, blended in as they come to ask: H = 1 − Π(1 − fade)
+    let keep = 1; const dV = p._boVH - p._boV;
+    if (dV) for (const q of list) { const o = q.a === p ? q.b : q.a; if (o.el.en >= 3.0) keep *= 1 - boFade(q.a === p ? q.ca : q.cb); }
+    const V = p._boV + dV * (1 - keep); p._boKeep = keep;
+    // the level: Σ sp(cₖ − L)·fade(cₖ) = V falls as L rises; Newton's steps from the last pass's level, kept inside a
+    // bracket (halving it when a step would leave it), to 1e-13
+    const m = list.length, cs = BO_C.length < m ? (BO_C = new Float64Array(2 * m)) : BO_C, fs = BO_F.length < m ? (BO_F = new Float64Array(2 * m)) : BO_F;
+    let lo = -V - 1, hi = 4;
+    for (let k = 0; k < m; k++) { const q = list[k], c = q.a === p ? q.ca : q.cb; cs[k] = c; fs[k] = boFade(c); if (c + 1 > hi) hi = c + 1; }
+    let L = p._boLs !== undefined && p._boLs > lo && p._boLs < hi ? p._boLs : 0.5 * (lo + hi);
+    for (let it = 0; it < 100; it++) {
+      let G = -V, U = 0; for (let k = 0; k < m; k++) { const x = cs[k] - L; G += boSp(x) * fs[k]; U += boSpD(x) * fs[k]; }
+      if (Math.abs(G) < 1e-13) break;
+      if (G > 0) lo = L; else hi = L;
+      let Ln = U > 0 ? L + G / U : NaN;
+      if (!(Ln > lo && Ln < hi)) Ln = 0.5 * (lo + hi);
+      if (hi - lo < 1e-15) break;
+      L = Ln;
+    }
+    p._boLs = L; p._boL = boSp(L); p._boGL = 0;
   }
   for (const [, list] of by) for (const q of list) {
     if (q.done === BO.changes + 0.5) continue; // (each pair once)
     q.done = BO.changes + 0.5;
-    const xa = q.ca - q.a._boL, xb = q.cb - q.b._boL, A = boSp(xa), B = boSp(xb), dd = Math.abs(A - B), h = boH(dd), g = boHD(dd);
-    q.n = Math.max(0, (A <= B ? A : B) + h); q.dA = (A <= B ? 1 - g : g) * boSpD(xa); q.dB = (A <= B ? g : 1 - g) * boSpD(xb);
+    const xa = q.ca - q.a._boL, xb = q.cb - q.b._boL, fa = boFade(q.ca), fb = boFade(q.cb), A = boSp(xa) * fa, B = boSp(xb) * fb, dd = Math.abs(A - B), h = boH(dd), g = boHD(dd);
+    q.n = Math.max(0, (A <= B ? A : B) + h);
+    const nA = A <= B ? 1 - g : g, nB = A <= B ? g : 1 - g; // (∂n/∂A, ∂n/∂B; A = sp(c − L)·fade(c))
+    q.sA = nA * boSpD(xa) * fa; q.tA = nA * boSp(xa) * boFadeD(q.ca); q.sB = nB * boSpD(xb) * fb; q.tB = nB * boSp(xb) * boFadeD(q.cb);
     // the pair's Morse curve of its order
     const N = q.n, P = q.P;
     if (N > 1e-6) {
-      let D, dD; if (N < 1) { D = P.D[0] * Math.pow(N, BO_PLOW); dD = P.D[0] * BO_PLOW * Math.pow(N, BO_PLOW - 1); } else { const i = Math.min(1, Math.floor(N - 1)), f = N - 1 - i; if (f >= 1) { D = P.D[i + 1]; dD = 0; } else { D = P.D[i] + (P.D[i + 1] - P.D[i]) * f; dD = P.D[i + 1] - P.D[i]; } }
-      const r0 = N > 0.05 ? P.r[0] - P.c * Math.log(N) : P.r[0] - P.c * Math.log(0.05), dr0 = N > 0.05 ? -P.c / N : 0;
-      let al, dal; if (N <= 1) { al = P.al[0]; dal = 0; } else if (N >= 3) { al = P.al[2]; dal = 0; } else { const f = Math.floor(N), s = P.al[Math.ceil(N) - 1] - P.al[f - 1]; al = P.al[f - 1] + s * (N - f); dal = f === Math.ceil(N) ? 0 : s; }
+      const [D, dD] = boDepth(P, N);
+      const N2 = N * N + 0.0025, r0 = P.r[0] - 0.5 * P.c * Math.log(N2), dr0 = -P.c * N / N2; // (Pauling's length, its logarithm rounded off below 0.05: a kink there put a jump in the force)
+      const [al, dal] = boStiff(P, N);
       const x = q.r - r0, ex = Math.exp(-al * x), e = 1 - ex, d = q.r - P.r[0];
       let fc = 1, dfc = 0; if (d > 0.9) { const u = Math.PI * (d - 0.9) / 0.4; fc = 0.5 * (1 + Math.cos(u)); dfc = -0.5 * Math.sin(u) * Math.PI / 0.4; }
       const M = D * (e * e - 1), dMdr = D * 2 * e * ex * al;
       E += fc * M; q.eM = fc * M; q.gr += fc * dMdr + dfc * M;
-      if (forces) { const w = 2 * D * al * al * fc * (S.im[q.a.i] + S.im[q.b.i]); if (w > _stiff) _stiff = w; } // (the bond's stiffness sets the longest step, as a stored bond's does)
+      if (forces) { const w = 8 * D * al * al * fc * (S.im[q.a.i] + S.im[q.b.i]); if (w > _stiff) _stiff = w; } // (the bond's stiffness sets the longest step, as a stored bond's does: four times its curvature at rest, for the sharper turns of the orders themselves; at the plain curvature a hot gallery drifted 1–3 eV in 60 fs, at this 0.05)
       q.gn += fc * ((e * e - 1) * dD - dMdr * dr0 + D * 2 * e * ex * x * dal);
     }
   }
   BO.changes++;
-  // angles: the game's VSEPR terms on partners with n > 0.4, the weakest blended in from 0.4 to 0.7, lone pairs
-  // blended between whole numbers
+  // angles: the game's VSEPR terms on the centre's partners. A partner of order 0.7 or more always counts; one between
+  // 0.4 and 0.7 counts with weight w = smoothstep((n − 0.4)/0.3): the energy is the expectation over which of those are
+  // in (each subset weighted by Π w · Π (1 − w)), smooth however many are on the way in or out at once. Lone pairs
+  // are blended between whole numbers (boAngles).
   for (const [c, list] of by) {
     if (c.el.dblock) continue;
-    const nb = []; for (const q of list) if (q.n > 0.4) nb.push(q);
-    if (nb.length < 2) continue;
-    let wk = 0; for (let k = 1; k < nb.length; k++) if (nb[k].n < nb[wk].n) wk = k;
-    const x = (nb[wk].n - 0.4) / 0.3, sw = x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x), dsw = x <= 0 || x >= 1 ? 0 : 6 * x * (1 - x) / 0.3;
-    const rest = nb.filter((_, k) => k !== wk);
-    const [eA, dA] = boAngles(c, nb, sw, forces), [eB, dB] = sw < 1 ? boAngles(c, rest, 1 - sw, forces) : [0, 0];
-    E += sw * eA + (1 - sw) * eB;
-    for (const q of nb) q.gn += sw * dA;
-    for (const q of rest) q.gn += (1 - sw) * dB;
-    nb[wk].gn += (eA - eB) * dsw;
+    const strong = [], zone = [], zw = [], zd = [];
+    for (const q of list) {
+      if (q.n >= 0.7) strong.push(q);
+      else if (q.n > 0.4) { const x = (q.n - 0.4) / 0.3; zone.push(q); zw.push(x * x * (3 - 2 * x)); zd.push(6 * x * (1 - x) / 0.3); }
+    }
+    if (strong.length + zone.length < 2) continue;
+    if (zone.length > 6) { const o = zone.map((q, k) => k).sort((u, v) => zone[v].n - zone[u].n).slice(0, 6); const z2 = o.map(k => zone[k]), w2 = o.map(k => zw[k]), d2 = o.map(k => zd[k]); zone.length = 0; zone.push(...z2); zw.length = 0; zw.push(...w2); zd.length = 0; zd.push(...d2); } // (at most 64 subsets: a crowd past that keeps its 6 strongest)
+    const z = zone.length;
+    for (let m = 0; m < 1 << z; m++) {
+      let wt = 1; const L = strong.slice();
+      for (let k = 0; k < z; k++) if (m & (1 << k)) { wt *= zw[k]; L.push(zone[k]); } else wt *= 1 - zw[k];
+      if (wt <= 0 || L.length < 2) continue;
+      const [e, dS] = boAngles(c, L, wt, forces);
+      E += wt * e;
+      if (dS) for (const q of L) q.gn += wt * dS;
+      for (let k = 0; k < z; k++) { // the weights' slopes: ∂wt/∂wₖ = wt/wₖ or −wt/(1 − wₖ), worked out without dividing
+        let o = 1; for (let j = 0; j < z; j++) if (j !== k) o *= m & (1 << j) ? zw[j] : 1 - zw[j];
+        zone[k].gn += (m & (1 << k) ? o : -o) * zd[k] * e;
+      }
+    }
   }
   BO.E = E;
   if (!forces) { for (const [p] of by) { p._boV = undefined; } return E; }
   // back through the orders to the distances
   for (let k = 0; k < n; k++) {
     const q = L[k]; if (!(q.n > 0) || !q.gn) continue;
-    const ga = q.gn * q.dA, gb = q.gn * q.dB;
-    q.gca += ga; q.a._boGL -= ga; q.gcb += gb; q.b._boGL -= gb;
+    q.gca += q.gn * (q.sA + q.tA); q.a._boGL -= q.gn * q.sA; q.gcb += q.gn * (q.sB + q.tB); q.b._boGL -= q.gn * q.sB;
   }
   for (const [p, list] of by) {
     if (p._boGL) {
-      const gs = p._boGL * boSpD(p._boLs); let Wt = 0;
-      for (const q of list) Wt += boSpD((q.a === p ? q.ca : q.cb) - p._boLs);
-      if (Wt > 0) for (const q of list) { const w = boSpD((q.a === p ? q.ca : q.cb) - p._boLs) * gs / Wt; if (q.a === p) q.gca += w; else q.gcb += w; }
+      // Σ sp(cₖ − L*)·fade(cₖ) = V: dL*/dcₖ = (sp′(cₖ − L*)·fade(cₖ) + sp(cₖ − L*)·fade′(cₖ)) / Σ sp′(cₖ − L*)·fade(cₖ)
+      const gs = p._boGL * boSpD(p._boLs); let U = 0;
+      for (const q of list) { const c = q.a === p ? q.ca : q.cb; U += boSpD(c - p._boLs) * boFade(c); }
+      if (U > 0) for (const q of list) { const c = q.a === p ? q.ca : q.cb, w = (boSpD(c - p._boLs) * boFade(c) + boSp(c - p._boLs) * boFadeD(c)) * gs / U; if (q.a === p) q.gca += w; else q.gcb += w; }
+      const dV = p._boVH - p._boV; // (and through the valence: dL*/dV = −1/U, dV/dcₖ = ΔV·fade′(cₖ)·Π_{j≠k}(1 − fadeⱼ))
+      if (U > 0 && dV) for (const q of list) {
+        const o = q.a === p ? q.b : q.a; if (o.el.en < 3.0) continue;
+        const c = q.a === p ? q.ca : q.cb, f = boFade(c); if (f >= 1) continue;
+        const w = -gs / U * dV * boFadeD(c) * p._boKeep / (1 - f); if (q.a === p) q.gca += w; else q.gcb += w;
+      }
     }
     p._boV = undefined;
   }
@@ -8890,7 +8954,7 @@ function boAngles(c, nb, wgt, forces) {
   const gaps = []; for (let k = 0; k < n; k++) gaps.push({ v: k === n - 1 ? angs[0].a + 2 * Math.PI - angs[k].a : angs[k + 1].a - angs[k].a, hi: k === n - 1 ? 0 : k + 1, lo: k });
   gaps.sort((u, v) => u.v - v.v);
   const e = (lp, w) => {
-    const tg = angleTargetsRaw(n, lp, per, allH).slice().sort((u, v) => u - v); let t = 0;
+    const key = ((n * 8 + lp) * 8 + per) * 2 + (allH ? 1 : 0); let tg = BO_TG.get(key); if (!tg) BO_TG.set(key, tg = angleTargetsRaw(n, lp, per, allH).slice().sort((u, v) => u - v)); let t = 0;
     for (let k = 0; k < n; k++) { const dv = gaps[k].v - tg[k]; t += 0.5 * ANGLE_K * dv * dv; if (w) { const gk = w * ANGLE_K * dv; angs[gaps[k].hi].g += gk; angs[gaps[k].lo].g -= gk; } }
     return t;
   };
@@ -8907,6 +8971,18 @@ function boAngles(c, nb, wgt, forces) {
   }
   return [E, dEds];
 }
+/* Member bonds as the renderer's bond records: a whole order, or a resonating 1.5 (between 1.25 and 1.75), fainter as the
+   order falls below 1 (drawn as a bond stretched by 1 − n of its fading length) */
+function boDrawBonds() {
+  const out = [];
+  for (let k = 0; k < BO.np; k++) {
+    const q = BO.pairs[k], n = q.n;
+    if (!(n > 0.15) || q.a.dead || q.b.dead || !q.a.bom || !q.b.bom) continue;
+    const ar = n >= 1.25 && n < 1.75;
+    out.push({ a: q.a, b: q.b, order: n >= 2.6 ? 3 : n >= 1.75 ? 2 : 1, arom: ar, fo: ar ? n : 0, r0: q.r - (1 - Math.min(n, 1)), rb: 1 });
+  }
+  return out;
+}
 /* The bond orders of the last pass, for drawing: [a, b, order] */
 function boBonds() { const out = []; for (let k = 0; k < BO.np; k++) { const q = BO.pairs[k]; if (q.n > 0.15 && !q.a.dead && !q.b.dead && q.a.bom && q.b.bom) out.push([q.a, q.b, q.n]); } return out; }
 /* At the start of a step (and when the setting changes): who is a member now, by whole clusters; joiners let go of
@@ -8914,6 +8990,10 @@ function boBonds() { const out = []; for (let k = 0; k < BO.np; k++) { const q =
    positions, the difference to the bath. Returns whether anything changed (the forces are then worked out again). */
 function boSync() {
   if (!BO.on && !BO.any) return false;
+  // (nothing that decides membership has changed: species, charges, stored bonds, particles made or lost, flags; and a
+  // full look every 64 steps anyway)
+  const sig = W.topo + ',' + W.dirty + ',' + W.spawned + ',' + W.deaths + ',' + _flagGen + ',' + BO.on;
+  if (sig === BO.sig && (W.step & 63)) return false;
   const parts = W.parts;
   // clusters: stored bonds, and for members the last orders above 0.3
   const adj = new Map(), link = (a, b) => { let l = adj.get(a); if (!l) adj.set(a, l = []); l.push(b); };
@@ -8933,23 +9013,16 @@ function boSync() {
   const C = [];
   for (const p of parts) if (!p.dead && p.k === NUC && !!p.bom !== !!want.get(p)) C.push(p);
   for (const p of parts) if (p.dead && p.bom) p.bom = false;
-  if (!C.length) { BO.any = BO.on && parts.some(p => p.bom); return false; }
+  if (!C.length) { BO.any = BO.on && parts.some(p => p.bom); BO.sig = sig; return false; }
   const set = new Set(C);
   for (const p of C) for (const bd of p.bonds) set.add(other(bd, p));
   const Eb = localPE(set) + boPass(false);
   // leavers: stored bonds from the last orders, the strongest first, as far as both atoms have valence left
   const leave = new Set(C.filter(p => p.bom));
   if (leave.size) {
-    const qs = []; for (let k = 0; k < BO.np; k++) { const q = BO.pairs[k]; if (q.n > 0.5 && leave.has(q.a) && leave.has(q.b)) qs.push(q); }
-    qs.sort((u, v) => v.n - u.n);
+    const whole = boWhole(leave);
     for (const p of leave) p.bom = false;
-    const used = new Map(), freeV = (p) => capacity(p) - (used.get(p) || 0);
-    for (const q of qs) {
-      if (q.a.dead || q.b.dead || bondBetween(q.a, q.b)) continue;
-      const o = Math.min(3, Math.max(1, Math.round(q.n)), freeV(q.a), freeV(q.b));
-      if (o < 1) continue;
-      addBond(q.a, q.b, o); used.set(q.a, (used.get(q.a) || 0) + o); used.set(q.b, (used.get(q.b) || 0) + o);
-    }
+    for (const [a, b, o] of whole) if (!bondBetween(a, b)) addBond(a, b, o);
     relink([...leave]);
   }
   // joiners: their stored bonds let go
@@ -8957,10 +9030,40 @@ function boSync() {
   for (const p of join) p.bom = true;
   for (const p of join) for (const bd of p.bonds.slice()) removeBond(bd);
   W.dirty++; W.topo++; vlInvalidate();
+  if (join.length) { BO.any = true; boRelax(join); }
   const Ea = localPE(set) + boPass(false);
   W.ledger.bath += Eb - Ea; BO.bath += Eb - Ea;
   BO.any = BO.on && parts.some(p => p.bom && !p.dead);
+  BO.sig = W.topo + ',' + W.dirty + ',' + W.spawned + ',' + W.deaths + ',' + _flagGen + ',' + BO.on;
   return true;
+}
+/* Joiners come with the stored bonds' shapes, a little off this chemistry's own (0.04 eV a bond, more in angles): left
+   as they are, the difference turns to heat, and a gallery of molecules jumped from 300 to 1,000 K. They are eased into
+   their shapes here first (steepest descent, at most 0.02 Å a move, 60 moves), inside the change whose energy goes to
+   the bath; their velocities are kept. */
+function boRelax(join) {
+  const FX = S.fx, FY = S.fy;
+  for (let it = 0; it < 60; it++) {
+    forcesNoEvents();
+    let fm = 0; for (const p of join) { const f = Math.hypot(FX[p.i], FY[p.i]); if (f > fm) fm = f; }
+    if (fm < 0.05) break;
+    const st = Math.min(0.002, 0.02 / fm);
+    for (const p of join) { p.x += FX[p.i] * st; p.y += FY[p.i] * st; }
+    gridTouch();
+  }
+}
+/* Whole bonds from the last orders (above 0.5), the strongest first, as far as both atoms have valence left: [a, b, order]
+   (for members leaving, and for saving a world) */
+function boWhole(only) {
+  const qs = []; for (let k = 0; k < BO.np; k++) { const q = BO.pairs[k]; if (q.n > 0.5 && q.a.bom && q.b.bom && !q.a.dead && !q.b.dead && (!only || (only.has(q.a) && only.has(q.b)))) qs.push(q); }
+  qs.sort((u, v) => v.n - u.n);
+  const used = new Map(), freeV = (p) => capacity(p) - (used.get(p) || 0), out = [];
+  for (const q of qs) {
+    const o = Math.min(3, Math.max(1, Math.round(q.n)), freeV(q.a), freeV(q.b));
+    if (o < 1) continue;
+    out.push([q.a, q.b, o]); used.set(q.a, (used.get(q.a) || 0) + o); used.set(q.b, (used.get(q.b) || 0) + o);
+  }
+  return out;
 }
 /* The setting: on or off. Turning it off gives every member stored bonds again (boSync). */
 function boSet(on) {
@@ -12363,7 +12466,7 @@ function drawBonds(rt) {
   const lw = Math.min(W.ultra ? 6 : 1e9, orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)); // (ultra-realistic: a bond is not a rod; zoomed in to nuclei, a thin line)
   const off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * s)), aMul = orb ? 0.45 : 1;
   const X = S.x, Y = S.y, wrap = W.wall === 'wrap', hbw = W.box.w / 2, hbh = W.box.h / 2, cx = R.cx, cy = R.cy, hw = R.w / 2, hh = R.h / 2, Rw = R.w, Rh = R.h;
-  const bonds = W.bonds, nb = bonds.length;
+  const bonds = BO.any ? W.bonds.concat(boDrawBonds()) : W.bonds, nb = bonds.length; // (continuous bond orders: drawn from this step's orders)
   for (let k = 0; k < nb; k++) {
     const bd = bonds[k], a = bd.a, b = bd.b, ia = a.i, ib = b.i;
     const ax = X[ia], ay = Y[ia], bx = X[ib], by = Y[ib];
@@ -12412,7 +12515,7 @@ function drawBondsGL() {
   const s = R.s, orb = R.view.bohr === 'orb';
   const hw = Math.min(W.ultra ? 3 : 1e9, (orb ? Math.max(1, 0.05 * s) : Math.max(1.4, 0.13 * s)) / 2);
   const off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * s)), aMul = orb ? 0.45 : 1;
-  glBondsBuild(W.bonds, W.topo);
+  if (BO.any) glBondsBuild(W.bonds.concat(boDrawBonds()), -(R.boGen = (R.boGen || 0) + 1)); else glBondsBuild(W.bonds, W.topo); // (continuous bond orders: built again each frame)
   glDrawBonds(hw, off, aMul, W.wall === 'wrap', W.box.w / 2, W.box.h / 2);
 }
 /* The slot textures for this frame: positions always; the balls' colours and styles when they may have changed (per
@@ -18693,6 +18796,7 @@ function worldToJSON() {
   const parts = ps.map(p => { const a = [p.k, p.Z, p.N, p.ne, p.anti ? 1 : 0, r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]; if (p.rad) a.push(p.KE); return a; });
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
+  if (BO.any) for (const [a, b, o] of boWhole()) { const i = ix.get(a), j = ix.get(b); if (i !== undefined && j !== undefined) bonds.push([i, j, o]); } // (continuous bond orders: kept as whole bonds, so the world opens either way)
   return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
     spf: W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
 }
@@ -21264,10 +21368,10 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { pi: 0, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { bo: 0, pi: 0, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
-const SET_OK = { pi: [0, 8, 16, 32], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
+const SET_OK = { bo: [0, 1], pi: [0, 8, 16, 32], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
 const SET = Object.assign({}, SET_DEF);
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -21345,6 +21449,7 @@ function applySettings() {
   $('fpsBadge').hidden = !SET.fps;
   threadsSet(SET.threads === 'auto' ? threadsDefault() : +SET.threads - 1); // (workers besides the main thread)
   piSet(SET.pi); // (Experimental: quantum nuclei)
+  boSet(!!SET.bo); // (Experimental: continuous bond orders, 1.13)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
@@ -21466,7 +21571,7 @@ function syncSettings() {
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
-  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
+  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segBo', String(SET.bo)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
@@ -21489,6 +21594,7 @@ function costLevel(a) {
 const COST_K = { physics: 'Time to work out the physics', drawing: 'Time to draw each frame', memory: 'Memory it takes' };
 function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toFixed(1) : +v.toFixed(2)); }
 const COSTS = {
+  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×17–45', 'Measured on one thread: liquid water ×17, hydrogen + oxygen ×21, the molecule gallery ×45 (every pair worked out every step, steps half as long)'] } }),
   segPi: () => ({ k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×7.8', 'Measured on liquid water: the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water: 16 times a step'], 32: ['×36', 'Measured on liquid water: 32 times a step'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–1.8', 'Measured: water 4,000 ×1.4, brine ×1.6, liquid water ×1.8'], 1: ['×2.7–4.6', 'Measured: brine ×2.7, liquid water ×2.8, 4,000 waters ×4.6'] } }),
   segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×1.3–2.6', 'Measured: brine ×1.3, liquid water ×2.2, 4,000 waters ×2.6 (JavaScript kernels)'], 12: ['×1.6–5.6', 'Measured: brine ×1.6, liquid water ×3.2, 4,000 waters ×5.6 (JavaScript kernels)'] } }),
@@ -21546,7 +21652,7 @@ function syncReal() {
 /* The Experimental tab's total (1.13, asked for by the user): the chosen settings' measured costs multiplied together,
    against everything at normal. A product is a fair guide (each one multiplies the work of a step) but not a
    measurement of that combination: the ranges are the setups the costs were measured on. */
-const EXP_SET = { segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
+const EXP_SET = { segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -21563,7 +21669,7 @@ function expTotal() {
 function syncExpTotal() {
   const el = $('expTotal'); if (!el) return;
   const t = expTotal(), txt = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
-  const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
+  const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', segBo: 'continuous bond orders', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -21619,7 +21725,7 @@ function settingsInit() {
   $('dMade').addEventListener('click', madeClick); bindSeg('segMap', (v) => { UI.mapView = v; UI.mapVer = -1; drawChainMap(); });
   $('chMap').addEventListener('mousemove', mapHover); $('chMap').addEventListener('mouseleave', () => { UI.mapHov = null; UI.mapVer = -1; drawChainMap(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
-  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
+  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); bindSeg('segBo', (v) => setSetting('bo', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));

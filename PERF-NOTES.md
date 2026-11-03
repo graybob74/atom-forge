@@ -86,10 +86,13 @@ engine stores and visits particles.
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
   everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
-- The rest of the Experimental options (asked for by the user; induced charges and quantum nuclei shipped in 1.12.0):
-  continuous bond orders next (prototype step 5 in tools/bo-proto2.js works: statics, the H + H₂ saddle and the energy
-  in dynamics right; to bring into the game as an Experimental mode), then electrons as waves (prototype parked:
-  tools/eff-proto.js). Each a physics-model change for the owner to approve.
+- The rest of the Experimental options (asked for by the user; induced charges and quantum nuclei shipped in 1.12.0,
+  continuous bond orders built for 1.13.0, waiting for the owner's OK): electrons as waves (prototype parked:
+  tools/eff-proto.js). A physics-model change for the owner to approve.
+- Continuous bond orders, next steps: partial charges that follow the orders (hydrogen bonds between members; needs the
+  charges' slopes in the forces, ∂q/∂r, against everything charged), protonation and ions inside the scheme instead of
+  handing a charged molecule back to stored bonds, crowded flat molecules (SF₆), and speed (×17–45 today: the pair
+  terms in the WebAssembly kernel, the steps longer).
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
@@ -112,7 +115,7 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## 1.13.0 (in progress): crash handler, Experimental total cost, beads under the symbols
+## 1.13.0 (in progress): crash handler, Experimental total cost, beads under the symbols, continuous bond orders
 
 - **Crash handler** (asked for by the user after a Ring-collider setup, Ca-40 + Au-197 at about 1 PeV with a τ⁻ placed,
   crashed the game; it ran 2,500 particles headless without an error, so it was most likely the tab freezing or running
@@ -127,6 +130,35 @@ engine stores and visits particles.
   left off) but offers it, with the report. The desktop window can close without telling the page, so there only a
   heartbeat that shows trouble (frames over a second, or memory past 70%) counts. Costs nothing measurable: one pass
   over the particles every 0.5 s and a small write every 2 s.
+- **Experimental: continuous bond orders** (asked for by the user: "a less hard-coded chemistry"; built overnight on
+  their "please try to finish the bond orders", off by default, for the owner to approve before it ships). `src/bo.js`
+  brings model E of the prototype (tools/bo-proto2.js, steps 1–5 in 1.12.0) into the engine with analytic forces
+  (tools/bo-fast.js first checked them against numerical ones: 1e-8 eV/Å). With it on, neutral molecules of non-metals
+  keep no stored bonds; each step every pair's order is worked out from the positions and the energy is a smooth
+  function of them. How it sits in the engine:
+  - membership by whole clusters (stored bonds, or orders over 0.3): a cluster joins when every atom qualifies and leaves
+    when one stops (an ion forms, a nucleus changes, it touches a metal); leavers get stored bonds from their orders
+    (the strongest first, as valence allows). Every change is measured (localPE of the changed atoms plus the whole
+    bond-order energy, before and after, same positions) and the difference goes to the bath, as for quantum nuclei.
+    The check runs at the start of a step, only when species, charges, bonds or particles changed (and every 64 steps).
+  - between members the kernel's non-bonded pair is left out (VL.ex = 1, after the usual marks) and bo.js adds the same
+    Lennard-Jones, switched on from r₁ + 1.3 to r₁ + 1.8 Å; totalEnergy, localPE and pairPE skip member pairs the same way.
+    No stored-bond event (bond, react, dative) touches a member: a classic O₃ reacting with a member made 4–6 eV.
+  - joiners are eased into this chemistry's shapes (60 steepest-descent moves, inside the booked change): left in the
+    stored bonds' shapes, the molecule gallery heated from 300 to 1,000 K.
+  - the bond stiffness (8·D·α², four times a Morse bond's curvature) limits the step: at the plain curvature a hot gallery
+    drifted 1–3 eV in 60 fs from the sharp turns of the orders' smoothing, at this 0.05 eV.
+  - drawn from the orders each frame (whole orders, a resonating 1.5, fainter below 1); saved worlds keep whole bonds.
+  Fixes on the way, each found by a jump in an insulated run: the level's sum and the orders now fade out partners that
+  ask for nothing (the prototype's last step, which this branch had missed: H₂ + O₂ drifted 15 eV); an expanded octet
+  is blended in as electronegative partners come to ask (it switched on at the edge of reach); the angle terms are the
+  expectation over which partners between orders 0.4 and 0.7 count (two F of SF₆ entering together jumped 2.2 eV);
+  Pauling's length below order 0.05 and the depth and stiffness at whole orders are rounded (each kink put a jump in
+  the force: 0.03–0.3 eV per crossing); the level is solved by bracketed Newton steps (2.2 → 1.5 ms a water step).
+  Measured (insulated, one thread): H₂ + O₂ 1,500 steps 0.01 eV; liquid water 0.03 eV over 8,500 steps and still water;
+  the molecule gallery 0.15 eV. Forces equal minus the energy's slope to 1e-5 eV/Å in all three. Cost against stored
+  bonds, per simulated time: water ×17, H₂ + O₂ ×21, the gallery ×45. Limits: members carry no partial charges (no
+  hydrogen bonds between them), a proton does not attach to a member, crowded flat molecules (SF₆) come apart.
 - **Experimental: the total cost** at the top of the tab (asked for by the user): the chosen settings' measured costs
   multiplied together against everything at normal, coloured like the tags (×1.8–4.7 for 9 Å reach and induced
   charges every 10th step). A guide, not a measurement of that combination.
