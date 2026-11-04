@@ -77,22 +77,6 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
-- Charge flowing back through a bond (asked for by the user: Ni⁺–C⁻ made by an electron hop and then a bond stays
-  that way; it never becomes the neutral Ni=C double bond, which is lower in energy): when two atoms with opposite
-  whole charges are bonded, try moving the electron back (the bond's order going up as valence allows) and keep it
-  when the energy, measured exactly as for any event, goes down. A physics change, approved by the user.
-- From "Honest approximations" (the user: "build everything that's worth doing", 1.14): unstable particles deflected
-  by the nuclei they pass (multiple Coulomb scattering; today they fly straight between hits); jets in high-energy
-  collisions (products along the collision axis, not an even spray); charm and bottom hadrons (D, B mesons and their
-  decays; today c and b quarks turn into light hadrons); relativity in the atomic solver (gold's 6s 2.7 eV too
-  shallow). Physics changes, approved by the user.
-- Every charged particle as a collider beam (asked for by the user, approved; 1.13 found it bigger than a menu entry):
-  μ±, π±, K±, τ±, Σ±, Ξ⁻, Ω⁻ and their antiparticles. They are flying exotics (W.exo), which the ring does not handle:
-  its dipole zones pass only W.parts with a matching beam tag (Bfield(x, y, null) skips them), the RF cavities,
-  kickers, separators, beam–beam forces and beamCollisions all work on parts. Needs: exotics steered, accelerated and
-  collided by the ring (or carried as parts), collision physics for the new pairs (μ⁺μ⁻ annihilation, π/K/hyperon on
-  nucleons through hadronHit, exotic on exotic), decay in flight around the ring (time dilation), and the menu and
-  search entries. Neutral particles cannot be steered by a ring and stay out.
 - Quantum chemistry for bonds (queued by the user, after the bond-order next steps): bonds and their energies from the
   electrons themselves (a minimal-basis method, tight-binding or semi-empirical: Hückel/extended-Hückel or DFTB), not a
   force field. Estimated ×100–10,000; a physics-model change for the owner to approve.
@@ -128,6 +112,59 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.15.0 (in progress): from the honest approximations, and charge flowing back through bonds
+
+- **Unstable particles are turned by the nuclei they pass** (multiple Coulomb scattering; the user: "build everything
+  that's worth doing" from the Physics tab's honest approximations). Each nucleus a charged exo passes within 1 Å turns
+  it by the small-angle Rutherford angle 2k·z·Z/(b·pv), screened by the atom's electrons (Thomas–Fermi, e^(−b/a),
+  a = 0.885 a₀ Z^−⅓), toward it, at most 0.3 rad a pass; the nucleus takes the sideways momentum and its recoil energy
+  comes from the exo (hep.js exoScatter, after exoIonize). μ⁺ through 31 Å of gold atoms: rms 6.7 mrad at 5 MeV,
+  0.67 at 50 MeV (∝ 1/pv). A flat chamber meets close nuclei more often than a real foil (a row of atoms every 2.6 Å
+  against a volume): about ten times Highland's width for the same thickness, said in the Physics tab.
+- **Charm and bottom mesons**: D⁰, D⁺, D⁺s, B⁺, B⁰ and their antiparticles (XP Dc0, Dc+, Ds+, B+, B0 …), PDG masses and
+  mean lives and their main decays (the rest of each total shared over them). Electron–positron collisions make charm
+  pairs above 3.75 GeV and bottom pairs above 10.6 GeV in their share of R (4/3 and 1/3 of the 3.95 above the bottom
+  threshold), with light hadrons from the energy left, as two jets. Quark content shown in Inspect (c, b); pulling a
+  heavy quark out by hand is not modelled. They fly through nuclei (their strong hits are not modelled). Hadron and
+  nuclear collisions still make no heavy flavour (far rarer there). 12 GeV e⁺e⁻: D or B in 10 of the hadronic events
+  of 300; decays keep the books to 0.0 eV.
+- **Jets**: already there (strings along the beams above 5 GeV in hadron collisions, e⁺e⁻ as two jets above 2.5 GeV,
+  nuclear collisions above 2 GeV); the Physics tab still said "an even spray". Text corrected.
+- **Relativity in the atom solver**: the scalar-relativistic radial equation (Koelling–Harmon, spin–orbit averaged),
+  first-order form, Runge–Kutta on the same grid, energy from the jump in the small component at the join
+  (solver.js scfOrbitalSR, SOLVER_REL on). Hydrogen-like gold 1s −3434.63 hartree (Dirac −3434.59; −3120.5 without).
+  Gold's 6s −6.51 → −8.31 eV (the measured ionization energy 9.23 eV), ⟨r⟩ 1.790 → 1.506 Å; mercury's 6s −7.71 →
+  −9.56 eV (10.44); light atoms unchanged (carbon 2p −8.99 → −8.98 eV). A gold atom takes 0.8 s instead of 0.3.
+- **Charge flows back through a bond** (the user: a Ni⁺–C⁻ made by an electron hop and then a bond never became the
+  neutral Ni=C). Every eighth step a few bonds between opposite whole charges are tried: the electron moves back,
+  the freed valence raises the bond's order as both atoms allow, the molecule's energy is measured exactly before and
+  after, and the change is kept (heat released) only when the energy falls. Ni⁺–C⁻ → Ni=C, 1.11 eV released. The
+  library's formal charges are kept, their energy rises when undone: ozone, CO, N₂O, nitric acid, nitrate, ammonia
+  borane, nitromethane (all 13 with opposite formal charges tried: none changed).
+- **Every charged particle as a collider beam** (asked for by the user, approved): μ±, τ±, π±, K±, Σ⁺, Σ⁻, Ξ⁻, Ω⁻, D⁺,
+  D⁺s, B⁺ and every antiparticle, 22 species in two new menu groups (Unstable leptons, Unstable hadrons) and the search
+  (muon, pion, kaon …). They stay in W.exo, marked xb, so they decay on their own clocks (time dilated); the ring flies
+  them on the same leapfrog path through magnets, cavities, kickers and separators as the beams of W.parts (the path
+  taken out of moveRad as radPath; bSpd/bMu give a flier's speed and mass whichever list it is in), and they radiate as
+  charges do (γ⁴: the ring's top energy for muons is the electrons' γ). Steps as short as the parts' beams (1.5 Å a
+  step): with the exos' own rule (4% of the box) a muon train lost 4 of 20 particles crossing transition; now none.
+  Meeting in the detector (hep.js xbHit): a lepton and its antilepton annihilate as e⁺e⁻ do (eeEvent, now with the
+  incoming lepton's mass in γγ and an electron-pair channel); a hadron and its antihadron annihilate into mesons (jets
+  above 5 GeV); a hadron on a proton or nucleus beam meets it as in matter (hadronHit); two other hadrons come through
+  as leading particles with hadrons made between them, inelastic in the share σ_inel/σ_tot of proton–proton at the same
+  energy above their masses; the rest scatter off each other's charge (nuclearScatter, now able to move an exo). Every
+  event keeps the books to 0.05 eV or better (μ⁺μ⁻ 1 GeV, π⁺π⁻, Σ⁻ on π⁺, D⁺D⁻, τ⁺τ⁻, K⁻ on gold). μ⁻μ⁺ in one ring at
+  1 GeV: all 20 kept to full energy, collisions from about frame 1,980. The collider's note says what the pair does and
+  how long each lives at its speed, in turns of the ring (a 1 GeV muon some 2×10¹¹, a 5 GeV τ about 9,000: decay
+  sped up in Time shows them decaying round the ring). Heavy-flavour hadrons meeting nuclei only scatter (as in matter).
+- **A screened nucleus repelled μ⁺ the wrong way**: exoScatter turned every particle toward a nucleus with electrons,
+  whatever its charge; a screened nucleus still pushes a positive particle away. Fixed (the size of the turn and the
+  momentum and energy books were right). The 0.92 muon-in-argon check now uses a denser argon lattice: in the old
+  sparse rows a 6 keV μ⁻, now turned up to 14° by a nucleus 0.1 Å off its path, wandered out before it was caught.
+- Known: a slow electron or positron left in a ring's bending magnet (a decay product, a few hundred eV) circles there
+  for good, as it would in a real uniform field, and its short inner steps through the magnets' fields cost several
+  milliseconds a step (τ beams make such products more often than the others).
 
 ## 1.14.0: slow motion as a speed, bond-order molecules named, the Speed test's Experimental line, the Particle Life card gone
 

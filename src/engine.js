@@ -2618,6 +2618,7 @@ function pairProduce(p, E) {
 
 /* ------------------------------------------------------------------ particle creation helpers */
 function radSpeed(p) {
+  if (p.xb) { exoSpeed(p); return; } // (an unstable particle in a collider's beam: hep.js, 1.15)
   const mc2 = (p.k !== NUC ? PHYS.MEC2 : p.m * PHYS.AMU_MEV) * 1e6;
   const g = 1 + p.KE / mc2;
   p.gam = g; p.sp = PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g)));
@@ -3288,7 +3289,11 @@ function impactIonize(L, A, ie, Erel) {
    held — rest mass, motion, lepton binding, bonds and Coulomb terms with their surroundings — minus what is
    left behind (an ion, freed leptons, knocked-out nucleons). The rest mass destroyed goes to the ledger. */
 const AMU_EV = PHYS.AMU_MEV * 1e6, ME_C2 = PHYS.ME * AMU_EV;
-function restE(p) { return (p.k === NUC ? p.m : PHYS.ME) * AMU_EV; }
+function restE(p) { return bMu(p) * AMU_EV; }
+/* A flying particle's speed (Å/tu) and rest mass (u): radiation-mode particles, and unstable ones in a collider's beam
+   (W.exo, mass in MeV; 1.15). */
+const bSpd = (p) => (p.xb ? p.v : p.sp);
+const bMu = (p) => (p.xb ? p.m / PHYS.AMU_MEV : p.k === NUC ? p.m : PHYS.ME);
 function keOf(p) { return p.rad ? p.KE : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy); }
 function inMD(p) { return !p.dead && !p.rad && !p.fast && !(p.k === NUC && p.Z === 0); }
 /* Pair potential exactly as totalEnergy() counts it. */
@@ -4393,7 +4398,7 @@ function radE(p, h, x, y, q, mrest) {
   // along it, leaving out the separators: their plates' fringe fields give back on the way out what they take on the
   // way in, so they only deflect (a hard-edged field region would not)
   const El = (E[0] - _Esep[0]) * p.ux + (E[1] - _Esep[1]) * p.uy;
-  const v0 = p.sp;
+  const v0 = bSpd(p);
   if (Et && v0 > 0) { // the momentum turns by qE⊥h / p
     const a = q * Et * h / (p.gam * mrest * v0), c = Math.cos(a), s = Math.sin(a);
     const ux = p.ux * c - p.uy * s, uy = p.ux * s + p.uy * c; p.ux = ux; p.uy = uy;
@@ -4401,7 +4406,7 @@ function radE(p, h, x, y, q, mrest) {
   if (!El) return v0 * h;
   const K0 = p.KE;
   p.KE = Math.max(1, K0 + q * El * v0 * h); radSpeed(p);
-  const d = (v0 + p.sp) / 2 * h;
+  const d = (v0 + bSpd(p)) / 2 * h;
   p.KE = Math.max(1, K0 + q * El * d); radSpeed(p);
   return d;
 }
@@ -4430,20 +4435,20 @@ function brems(p, tg, dE, x, y) {
   emitPhoton(x, y, k, p.ux * c - p.uy * s, p.ux * s + p.uy * c, { src: tg });
   W.count.photons++;
 }
-function moveRad(p, dt) {
-  const q = p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(p.Z - p.ne, 0) || p.Z) : p.q;
-  const mrest = p.k === NUC ? p.m : PHYS.ME, hasE = q && hasEfield();
-  const x0 = p.x, y0 = p.y;
+/* The path over dt through the accelerator's fields (and any field): leaves the end point in _rp, p where it was. */
+const _rp = [0, 0];
+function radPath(p, dt, q, mrest) {
+  const hasE = q && hasEfield();
   // Leapfrog steps: half the magnetic turn, the electric push and the move, the other half (second order, and a
   // uniform field keeps a circle a circle). In an accelerator the step is split exactly where the path crosses the
   // edge of a magnet or cavity: an edge landing anywhere within a step would be a small random kick, and kicks
   // like that grow a beam's oscillations turn after turn.
-  let x1 = x0, y1 = y0, rem = dt;
+  let x1 = p.x, y1 = p.y, rem = dt;
   const zoned = q && W.zones.length > 0;
   for (let guard = 0; rem > 1e-12 && guard < 40; guard++) {
     let h = rem, xb = null, yb = null;
     if (zoned) {
-      const L = p.sp * h, k0 = zoneKey(x1, y1, p);
+      const L = bSpd(p) * h, k0 = zoneKey(x1, y1, p);
       if (zoneKey(x1 + p.ux * L, y1 + p.uy * L, p) !== k0) { // an edge on the way: find it (along the line of the step)
         let lo = 0, hi = 1;
         for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (zoneKey(x1 + p.ux * L * m, y1 + p.uy * L * m, p) === k0) lo = m; else hi = m; }
@@ -4451,11 +4456,19 @@ function moveRad(p, dt) {
       }
     }
     radB(p, h / 2, x1, y1, q, mrest);
-    const dd = hasE ? radE(p, h, xb === null ? x1 + p.ux * p.sp * h / 2 : xb, yb === null ? y1 + p.uy * p.sp * h / 2 : yb, q, mrest) : p.sp * h;
+    const dd = hasE ? radE(p, h, xb === null ? x1 + p.ux * bSpd(p) * h / 2 : xb, yb === null ? y1 + p.uy * bSpd(p) * h / 2 : yb, q, mrest) : bSpd(p) * h;
     const xe = x1 + p.ux * dd, ye = y1 + p.uy * dd;
     radB(p, h / 2, xb === null ? xe : xb, yb === null ? ye : yb, q, mrest);
     x1 = xe; y1 = ye; rem -= h;
   }
+  _rp[0] = x1; _rp[1] = y1;
+}
+function moveRad(p, dt) {
+  const q = p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(p.Z - p.ne, 0) || p.Z) : p.q;
+  const mrest = p.k === NUC ? p.m : PHYS.ME;
+  const x0 = p.x, y0 = p.y;
+  radPath(p, dt, q, mrest);
+  let x1 = _rp[0], y1 = _rp[1];
   // energy deposition along the path
   const z = p.k === NUC ? p.Z : 1;
   const beta2 = (p.sp / PHYS.C) ** 2 || 1e-6;
@@ -4550,7 +4563,7 @@ function radVsFast(p, x0, y0, x1, y1) {
    keV every turn, so a small ring cannot hold electrons at high energy. Emitted as photons once a little has
    built up (protons radiate 10¹³ times less: left out). om: the turning rate (rad/tu). */
 function synchrotron(p, om, dt) {
-  const b = p.sp / PHYS.C, R = p.sp / om;
+  const b = bSpd(p) / PHYS.C, R = bSpd(p) / om;
   if (!(R > 0) || b < 0.05) return;
   const P = (2 / 3) * PHYS.KE * PHYS.C * Math.pow(p.gam * b, 4) / (R * R); // eV/tu (q = ±1)
   p.srad = (p.srad || 0) + P * dt;
@@ -4567,6 +4580,7 @@ function synchrotron(p, om, dt) {
 function beamCollisions(id0) {
   const fl = [];
   for (const p of W.parts) if (!p.dead && p.rad && p.id < id0) fl.push(p);
+  for (const o of W.exo) if (!o.dead && o.xb && o.beam && o.id < id0) fl.push(o); // (unstable particles in a beam, 1.15)
   if (fl.length < 2) return;
   const C = W.collider;
   // (with many fast products about, only pairs with a beam particle in them are looked at: the products fly apart)
@@ -4578,6 +4592,7 @@ function beamCollisions(id0) {
       const b = fl[j];
       if (b.dead || a.dead || b === a || (crowded && b.beam && b.id < a.id) || sameEv(a, b) || a.caught || b.caught) continue;
       const beams = C && a.beam && b.beam;
+      if ((a.xb || b.xb) && !beams) continue; // (an unstable particle meets only the other beam here)
       if (beams && a.beam === b.beam) continue; // one bunch flies together (and its own space charge is left out)
       const rx = b.ox - a.ox, ry = b.oy - a.oy;
       if (Math.abs(rx) > 60 || Math.abs(ry) > 60) continue;
@@ -4626,16 +4641,16 @@ function beamBeam(C, a, b, ex, ey, d) {
   const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(p.Z - p.ne, 0) || p.Z) : p.q);
   const qa = chg(a), qb = chg(b);
   if (!qa || !qb || !(C.bbN > 0)) return;
-  const ba = a.sp / PHYS.C, bb = b.sp / PHYS.C, vrel = Math.hypot(a.sp * a.ux - b.sp * b.ux, a.sp * a.uy - b.sp * b.uy);
+  const va = bSpd(a), vb = bSpd(b), ba = va / PHYS.C, bb = vb / PHYS.C, vrel = Math.hypot(va * a.ux - vb * b.ux, va * a.uy - vb * b.uy);
   if (!(vrel > 0)) return;
   const dp = 2 * PHYS.KE * qa * qb * (1 + ba * bb * Math.max(0, -(a.ux * b.ux + a.uy * b.uy))) * bbG(d) / vrel * C.bbN / Math.max(1, C.bunch); // (positive: repulsion)
   const kick = (p, sx, sy) => { // momentum dp along (sx, sy): turn the path by its sideways part over the momentum
-    const pm = p.gam * (p.k === NUC ? p.m : PHYS.ME) * p.sp; if (!(pm > 0)) return;
+    const v = bSpd(p), pm = p.gam * bMu(p) * v; if (!(pm > 0)) return;
     // (below full energy the pull is held at its full-energy strength, as the beam–beam tune shift of real hadron
     // beams is: their bunches are bigger at low energy, which spreads it out)
-    const hold = C.pvF && C.pvF[p.beam] > 0 ? Math.min(1, pm * p.sp / C.pvF[p.beam]) : 1;
+    const hold = C.pvF && C.pvF[p.beam] > 0 ? Math.min(1, pm * v / C.pvF[p.beam]) : 1;
     const ang = dp * hold * (sx * -p.uy + sy * p.ux) / pm, c = Math.cos(ang), s = Math.sin(ang), ux = p.ux * c - p.uy * s, uy = p.ux * s + p.uy * c;
-    p.ux = ux; p.uy = uy; p.vx = p.sp * ux; p.vy = p.sp * uy;
+    p.ux = ux; p.uy = uy; if (!p.xb) { p.vx = v * ux; p.vy = v * uy; }
   };
   kick(a, -ex / d, -ey / d); kick(b, ex / d, ey / d); // (repulsion pushes a away from b and b away from a)
 }
@@ -4644,6 +4659,7 @@ function beamBeam(C, a, b, ex, ey, d) {
    into mesons, nuclei touching above their Coulomb barrier react (new particles, new nuclei), light nuclei tunnel
    and fuse, and otherwise they scatter off each other's charge. */
 function beamHit(C, a, b, d, x, y, ex, ey) {
+  if (a.xb || b.xb) { xbHit(C, a, b, d, x, y, ex, ey); return; } // (unstable particles in a beam: hep.js, 1.15)
   const la = speciesLabel(a), lb = speciesLabel(b), hit = (txt) => { C.hits = (C.hits || 0) + 1; C.last = txt; };
   const lepA = a.k !== NUC, lepB = b.k !== NUC;
   if (lepA && lepB && a.k !== b.k) { eeEvent(a, b, x, y); return; } // (counts itself)
@@ -4712,10 +4728,11 @@ function nuclearScatter(a, b, d, ex, ey, reach = R_NN, rmap = 0) { // rmap (fm):
   const c = Math.cos(th), s = Math.sin(th), qx = A[1] * c - A[2] * s, qy = A[1] * s + A[2] * c;
   const A2 = boost(A[0], qx, qy, -bx, -by), B2 = boost(Bst, -qx, -qy, -bx, -by);
   const na = Math.hypot(A2[1], A2[2]) || 1, nb = Math.hypot(B2[1], B2[2]) || 1;
-  setMotion(a, Math.max(1e-6, A2[0] - ma), A2[1] / na, A2[2] / na);
-  setMotion(b, Math.max(1e-6, B2[0] - mb), B2[1] / nb, B2[2] / nb);
+  setMotionB(a, Math.max(1e-6, A2[0] - ma), A2[1] / na, A2[2] / na);
+  setMotionB(b, Math.max(1e-6, B2[0] - mb), B2[1] / nb, B2[2] / nb);
   return th0;
 }
+function setMotionB(p, KE, ux, uy) { if (!p.xb) { setMotion(p, KE, ux, uy); return; } p.KE = KE; p.ux = ux; p.uy = uy; exoSpeed(p); } // (an unstable particle in a beam: W.exo, 1.15)
 /* An electron and a positron in flight annihilate into two γ rays, back to back where their centre of mass is at
    rest, so in the lab they carry the pair's momentum too; all of their energy, mass included, goes into them. */
 function annihilateInFlight(a, b, x, y) {
@@ -4748,10 +4765,15 @@ function colliderRefill() {
   if (!C || !C.auto || !W.sources.length || W.sources.some(s => !(s.count <= 0))) return;
   let na = 0, nb = 0;
   for (const p of W.parts) if (!p.dead && p.beam) { if (p.beam === 'b') nb++; else na++; }
+  for (const o of W.exo) if (!o.dead && o.xb && o.beam) { if (o.beam === 'b') nb++; else na++; }
   if (na && nb && !(C.colTurns > 40)) return; // (a ring dumps what is left after 40 turns of collisions)
-  if (na + nb) { if (C.kind !== 'ring') return; for (const p of W.parts) if (!p.dead && p.beam) kill(p); }
+  if (na + nb) { if (C.kind !== 'ring') return; dumpBeams(); }
   refillSources(C);
   resetRings(C);
+}
+function dumpBeams() { // what is left of the beams goes to the beam dump
+  for (const p of W.parts) if (!p.dead && p.beam) kill(p);
+  for (const o of W.exo) if (!o.dead && o.xb && o.beam) { o.fate = 'sent to the beam dump'; exoLeaves(o, 'qObj'); }
 }
 function refillSources(C) { // each injector sends the next train: the set bunch, spread over the same length
   for (const s of W.sources) { s.count = C.bunch || 10; if (s.trainL) s.rate = s.vInj * Math.max(1, s.count - 1) / s.trainL; s.acc = 0.99 - s.rate * (s.delay || 0); } // (a linac's faster beam waits, to meet the other in the detector)
@@ -4777,11 +4799,13 @@ function resetRings(C) { // the magnets back at the injection field, the RF off 
 function rampRing() {
   const C = W.collider;
   if (!C || C.kind !== 'ring' || !C.rings) return;
-  for (const p of W.parts) { // each injection kicker fires once for the particles it brings in
-    if (p.dead || !p.injKick) continue;
+  const kicked = (p) => { // each injection kicker fires once for the particles it brings in
+    if (p.dead || !p.injKick) return;
     if (zoneLocal(p.injKick, p.x, p.y)) p.kickIn = true;
     else if (p.kickIn) { for (const g of C.rings) if (g.kick === p.injKick) g.cnt++; p.injKick = null; }
-  }
+  };
+  for (const p of W.parts) kicked(p);
+  for (const o of W.exo) if (o.xb) kicked(o);
   const dt = W.dt || 0;
   let all = C.rings.length > 0;
   for (const g of C.rings) {
@@ -4789,7 +4813,7 @@ function rampRing() {
     const mc2 = g.m * AMU_EV, E = g.running ? g.Es : g.inj, gam = 1 + E / mc2, bet = Math.sqrt(1 - 1 / (gam * gam)), v = PHYS.C * bet;
     if (g.running) {
       const Ts = g.circ * (1 + g.sepL * g.sep) / v, eta = g.alphaC - 1 / (gam * gam); // (the beams kept apart run on orbits a little shorter or longer: measured)
-      const U0 = g.lep ? 4 * Math.PI / 3 * PHYS.KE * gam ** 4 * bet ** 3 / g.rho : 0; // radiated per turn
+      const U0 = g.lep || g.srad ? 4 * Math.PI / 3 * PHYS.KE * gam ** 4 * bet ** 3 / g.rho : 0; // radiated per turn
       const want = g.ramping ? Math.min(0.12 * g.Es, g.gainCap, 3 * (g.Emax - g.Es)) : 0; // (gain per turn)
       if (g.ramping) g.qV = Math.max(g.qV, Math.max(Math.min(0.12 * g.Es, g.gainCap), 0.04 * g.Es) / (g.nCav * RF_S0), (want + U0) / (g.nCav * 0.95 * RF_SMAX)); // (per cavity: enough to hold a bunch even with nothing to gain, and to make up what electrons radiate)
       else { // at full energy the voltage comes down (slowly: adiabatically, so the bunch's energy spread shrinks with the bucket) to what holds the bunch
@@ -4979,7 +5003,7 @@ function chooseDt() {
   if (zoned) for (const s of W.sources) if (s.count > 0 && s.rate > 0) dt = Math.min(dt, 0.9 / s.rate); // (an injector sends in one particle a step)
   if (_stiff > 0) dt = Math.min(dt, 0.15 / Math.sqrt(_stiff));
   if (_mdL.length) dt = Math.min(dt, KMAX * innerDt());
-  for (const o of W.exo) if (!o.dead && o.v > 0) dt = Math.min(dt, 0.04 * Math.min(W.box.w, W.box.h) / o.v); // unstable particles in flight at near c: steps short enough that they cross the box in dozens of steps, not one
+  for (const o of W.exo) if (!o.dead && o.v > 0) dt = Math.min(dt, (o.xb && zoned ? 1.5 : 0.04 * Math.min(W.box.w, W.box.h)) / o.v); // (in a beam: as beams in an accelerator, 1.15) unstable particles in flight at near c: steps short enough that they cross the box in dozens of steps, not one
   return Math.max(DT_MIN, dt);
 }
 
@@ -5954,8 +5978,8 @@ function stepPlain(dt) {
     }
   }
   rpMark(3);
-  moveExos(dt, id0);
-  if (nRad >= 2) beamCollisions(id0);
+  const nXb = moveExos(dt, id0) || 0;
+  if (nRad + nXb >= 2) beamCollisions(id0);
   if (W.collider) { rampRing(); if (W.step % 16 === 0) colliderRefill(); }
   // the walls pass, unless the bath pass found every particle an atom inside the box at an atom's pace (or a neutron or light,
   // none of which there are) and nothing has moved, been made or changed since: it would do nothing
@@ -6005,14 +6029,16 @@ function stepPlain(dt) {
       const ux = src.ux * Math.cos(da) - src.uy * Math.sin(da), uy = src.ux * Math.sin(da) + src.uy * Math.cos(da);
       const [sx, sy] = srcPos(src), p = fireSpec(src.spec, sx + ox, sy + oy, ux, uy, src.KE, !!src.beam);
       if (p) p.srcRef = src;
+      if (p && src.beam && src.spec.kind === 'exo') xbMark(p); // (an unstable particle as a beam: hep.js, 1.15)
       if (p && src.count !== undefined && src.rate > 0) { // (a bunch's particles evenly spaced, each placed as far as it has come since it left, on the beam line even where the last one is close)
-        const sp = p.rad ? p.sp : Math.hypot(p.vx, p.vy), t = Math.min(src.acc / src.rate, 1.5 / Math.max(sp, 1e-9));
+        const sp = p.rad ? bSpd(p) : Math.hypot(p.vx, p.vy), t = Math.min(src.acc / src.rate, 1.5 / Math.max(sp, 1e-9));
         p.x = sx + ox + ux * sp * t; p.y = sy + oy + uy * sp * t; p.ox = p.x; p.oy = p.y;
       }
       if (p) {
         p.beam = src.beam || true;
         if (src.kick) { p.injKick = src.kick; p.kickIn = false; } // (the kicker fires for it as it comes by)
         if (src.track && !p.trk) { startTrack(p); p.trkKeep = true; }
+        if (p.xb) { p.trk.pts = [p.x, p.y]; p.trk.ts = [W.rt]; p.trk.tt = [W.t]; p.trk.beam = true; }
       }
     }
   }
@@ -6086,7 +6112,7 @@ function holdFactor(realDt) {
   if (!win) for (const o of W.exo) if (!o.dead) v = Math.max(v, o.v); // (unstable particles in flight count like anything else fast)
   for (const s of W.sources) { // what an injector is about to send in counts already
     if (s.count <= 0 || !(s.KE > 0)) continue;
-    const k = s.spec.kind, m = k === 'gamma' ? 0 : k === 'e' || k === 'pos' ? PHYS.ME : (s.spec.A || 1), g = m ? 1 + s.KE / (m * AMU_EV) : Infinity;
+    const k = s.spec.kind, m = k === 'gamma' ? 0 : k === 'e' || k === 'pos' ? PHYS.ME : k === 'exo' ? XP[s.spec.sp].m / PHYS.AMU_MEV : (s.spec.A || 1), g = m ? 1 + s.KE / (m * AMU_EV) : Infinity;
     v = Math.max(v, PHYS.C * Math.sqrt(1 - 1 / (g * g)));
   }
   const want = clamp(v > 0 ? (W.holdFrac || 0.02) * Math.min(W.box.w, W.box.h) / (v * (W.baseSpf || W.simPerFrame)) : 1, 1e-6, 1 / 8);

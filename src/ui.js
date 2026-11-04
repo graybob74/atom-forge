@@ -3083,6 +3083,15 @@ const BEAM_SPECIES = (() => {
   S.pbar = { lab: 'p̄', name: 'antiprotons', g: 'Antimatter', Z: 1, A: 1, anti: true };
   S.dbar = { lab: 'd̄', name: 'antideuterons', g: 'Antimatter', Z: 1, A: 2, anti: true };
   S.abar = { lab: 'ᾱ', name: 'anti-α particles', g: 'Antimatter', Z: 2, A: 4, anti: true };
+  // unstable particles (1.15): every charged one that lives long enough to steer, and its antiparticle (marked anti, so
+  // a particle and its antiparticle share one ring)
+  const UL = 'Unstable leptons', UH = 'Unstable hadrons';
+  for (const [k, name, g, anti] of [['mu-', 'muons', UL], ['mu+', 'antimuons', UL, 1], ['tau-', 'τ leptons', UL], ['tau+', 'anti-τ leptons', UL, 1],
+    ['pi+', 'positive pions', UH], ['pi-', 'negative pions', UH, 1], ['K+', 'positive kaons', UH], ['K-', 'negative kaons', UH, 1],
+    ['Sig+', 'Σ⁺ hyperons', UH], ['Sigb-', 'anti-Σ⁺ hyperons', UH, 1], ['Sig-', 'Σ⁻ hyperons', UH], ['Sigb+', 'anti-Σ⁻ hyperons', UH, 1],
+    ['Xi-', 'Ξ⁻ hyperons', UH], ['Xib+', 'anti-Ξ⁻ hyperons', UH, 1], ['Omg-', 'Ω⁻ hyperons', UH], ['Omgb+', 'anti-Ω⁻ hyperons', UH, 1],
+    ['Dc+', 'D⁺ mesons (charm)', UH], ['Dc-', 'D⁻ mesons (anticharm)', UH, 1], ['Ds+', 'D⁺s mesons (charm, strange)', UH], ['Ds-', 'D⁻s mesons', UH, 1],
+    ['B+', 'B⁺ mesons (bottom)', UH], ['B-', 'B⁻ mesons', UH, 1]]) S['x' + k] = { lab: XP[k].lab, name, g, exo: k, anti: !!anti };
   return S;
 })();
 const BEAM_PAIRS = { ee: ['pos', 'e'], pp: ['p', 'pbar'], dt: ['d', 't'], aa: ['au197', 'au197'] };
@@ -3091,7 +3100,8 @@ function beamInfo(k) {
   const s = BEAM_SPECIES[k] ? BEAM_SPECIES[k] : BEAM_SPECIES.e;
   if (s.info) return s.info;
   let i;
-  if (!s.Z) i = { m: PHYS.ME, q: k === 'pos' ? 1 : -1, lep: true, anti: k === 'pos', spec: { kind: k === 'pos' ? 'pos' : 'e' } };
+  if (s.exo) i = { m: XP[s.exo].m / PHYS.AMU_MEV, q: XP[s.exo].q, lep: false, srad: true, anti: !!s.anti, spec: { kind: 'exo', sp: s.exo }, exo: s.exo }; // (srad: radiates in the ring, as charges do)
+  else if (!s.Z) i = { m: PHYS.ME, q: k === 'pos' ? 1 : -1, lep: true, anti: k === 'pos', spec: { kind: k === 'pos' ? 'pos' : 'e' } };
   else {
     const N = s.A - s.Z;
     i = { m: s.Z * PHYS.MP + N * PHYS.MN - bindingE(s.Z, N) / PHYS.AMU_MEV, q: (s.anti ? -1 : 1) * s.Z, lep: false, anti: !!s.anti,
@@ -3111,13 +3121,13 @@ const speedOf = (m, KE) => { const g = 1 + KE / (m * AMU_EV); return PHYS.C * Ma
 /* Electrons bent with radius ρ level off where synchrotron light carries off each turn what the cavities can give
    (ΔE = (4π/3)(ke²/ρ)γ⁴β³ against a gain of 12% of the energy at most 60° from the crest). Nuclei: no limit here. */
 function ringTopE(I, E, rho) {
-  if (!I.lep) return Infinity;
+  if (!I.lep && !I.srad) return Infinity;
   let lo = 1e4, hi = E; // (the gain per turn is programmed as 12% of the energy, so solve 0.12E·sin60°/sin30° = U₀)
   for (let k = 0; k < 60; k++) { const m = Math.sqrt(lo * hi), g = 1 + m / (I.m * AMU_EV), b = Math.sqrt(1 - 1 / (g * g)); if (4 * Math.PI / 3 * PHYS.KE / rho * g ** 4 * b ** 3 > 0.12 * m * RF_SMAX / RF_S0) hi = m; else lo = m; }
   return lo;
 }
 /* Electrons and positrons are sped up only to 85% of that limit, where the RF still holds a bunch comfortably. */
-const ringCap = (I, E) => (I.lep ? Math.min(E, 0.85 * ringTopE(I, 1e12, LAT.rho)) : E);
+const ringCap = (I, E) => (I.lep || I.srad ? Math.min(E, 0.85 * ringTopE(I, 1e12, LAT.rho)) : E);
 /* ---- accelerator lattices
    A ring is laid out element by element along its design orbit, bending clockwise: bending magnets (sectors of
    uniform field, 45° each) with focusing (QF) and defocusing (QD) quadrupoles between them, the alternating-
@@ -3177,7 +3187,7 @@ function addInjector(C, I, tag, mk, sigma, inj, co = [0, 0], Lt = 14) {
 function ringDesc(C, I, tag, lat, kick, sExit, inj, E, alphaC, extra) {
   return Object.assign({ beam: tag, dip: lat.zones.filter(z => z.kind === 'dipole'), quads: lat.zones.filter(z => z.kind === 'quad'),
     cavs: lat.zones.filter(z => z.kind === 'cavity'), seps: lat.zones.filter(z => z.kind === 'sep'), kick, sExit, circ: lat.circ,
-    sign: Math.sign(I.q), qs: I.q, aq: Math.abs(I.q), m: I.m, lep: I.lep, rho: LAT.rho, h: LAT.h, alphaC, inj, Emax: E,
+    sign: Math.sign(I.q), qs: I.q, aq: Math.abs(I.q), m: I.m, lep: I.lep, srad: !!I.srad, rho: LAT.rho, h: LAT.h, alphaC, inj, Emax: E,
     gainCap: (E - inj) / 10, sepB: 0, sepTheta: 0, sepL: 0, nCav: 0, running: false, ramping: false, Es: inj, ss: 0, qV: 0, sep: 1, cnt: 0, N: C.bunch }, extra);
 }
 function centreLayout(segs) { // the box around the beam pipes and injection lines, and the shift that centres it
@@ -3273,6 +3283,7 @@ function setupCollider(kind, a, b, E, E2) {
   E2 = E2 === undefined || E2 === null ? null : clamp(E2, 2e4, 1e15); // beam 2's own energy (null: matched to beam 1)
   const A = beamInfo(a), B = beamInfo(b);
   for (const p of W.parts) if (!p.dead) kill(p);
+  for (const o of W.exo) o.dead = true; W.exo.length = 0; // (and any unstable particles, beams among them)
   W.zones.length = 0; W.sources.length = 0;
   const old = W.collider;
   const C = W.collider = { kind, a, b, E, E2, auto: old ? old.auto : true, bunch: old ? old.bunch : 10, sepMode: old && old.sepMode || 'auto', hits: 0, last: '', rings: [], colliding: false, colTurns: 0, pipes: [], injLines: [], dets: [] };
@@ -3344,8 +3355,9 @@ let BEAM_SUGG = [];
 function buildBeamSelects() {
   const opt = (v, t) => `<option value="${v}">${t}</option>`, grp = (g, o) => `<optgroup label="${g}">${o}</optgroup>`;
   const sp = Object.entries(BEAM_SPECIES).filter(([, s]) => s.g !== 'Any');
-  const html = grp('Leptons', sp.filter(([, s]) => !s.Z).map(([k, s]) => opt(k, `${s.lab} ${s.name}`)).join('')) +
-    grp('Antimatter', sp.filter(([, s]) => s.anti).map(([k, s]) => opt(k, `${s.lab} ${s.name}`)).join('')) +
+  const html = grp('Leptons', sp.filter(([, s]) => !s.Z && !s.exo).map(([k, s]) => opt(k, `${s.lab} ${s.name}`)).join('')) +
+    grp('Antimatter', sp.filter(([, s]) => s.anti && !s.exo).map(([k, s]) => opt(k, `${s.lab} ${s.name}`)).join('')) +
+    ['Unstable leptons', 'Unstable hadrons'].map(g => grp(g, sp.filter(([, s]) => s.g === g).map(([k, s]) => opt(k, `${s.lab} ${s.name}`)).join(''))).join('') +
     grp('Popular nuclei', sp.filter(([, s]) => s.Z && !s.anti).map(([k, s]) => opt(k, `${s.lab} ${s.name}`)).join('')) +
     grp('Any element (then pick the isotope)', ELEMENTS.slice(1, Z_TABLE + 1).map(E => opt('Z' + E.Z, `${E.sym} ${E.name} (${E.Z})`)).join(''));
   $('cBeamA').innerHTML = html; $('cBeamB').innerHTML = html;
@@ -3362,7 +3374,12 @@ const BEAM_FIND = new Map();
 const BEAM_WORDS = { electron: 'e', electrons: 'e', 'e-': 'e', 'e−': 'e', positron: 'pos', positrons: 'pos', 'e+': 'pos', antielectron: 'pos',
   proton: 'p', protons: 'p', p: 'p', 'p+': 'p', antiproton: 'pbar', antiprotons: 'pbar', pbar: 'pbar', 'p-': 'pbar', 'p̄': 'pbar',
   deuteron: 'd', deuterons: 'd', d: 'd', triton: 't', tritons: 't', t: 't', alpha: 'a', alphas: 'a', 'α': 'a', 'alpha particle': 'a', helion: 'he3',
-  antideuteron: 'dbar', antialpha: 'abar', 'anti-alpha': 'abar' };
+  antideuteron: 'dbar', antialpha: 'abar', 'anti-alpha': 'abar',
+  muon: 'xmu-', muons: 'xmu-', 'mu-': 'xmu-', 'μ-': 'xmu-', 'μ⁻': 'xmu-', antimuon: 'xmu+', antimuons: 'xmu+', 'mu+': 'xmu+', 'μ+': 'xmu+', 'μ⁺': 'xmu+',
+  tau: 'xtau-', 'tau-': 'xtau-', 'τ': 'xtau-', 'τ-': 'xtau-', 'tau+': 'xtau+', 'τ+': 'xtau+', antitau: 'xtau+',
+  pion: 'xpi+', pions: 'xpi+', 'pi+': 'xpi+', 'π+': 'xpi+', 'π⁺': 'xpi+', 'pi-': 'xpi-', 'π-': 'xpi-', 'π⁻': 'xpi-',
+  kaon: 'xK+', kaons: 'xK+', 'k+': 'xK+', 'k-': 'xK-', 'k⁺': 'xK+', 'k⁻': 'xK-', sigma: 'xSig+', xi: 'xXi-', 'ξ': 'xXi-', 'ξ-': 'xXi-', omega: 'xOmg-', 'ω': 'xOmg-', 'ω-': 'xOmg-',
+  'd meson': 'xDc+', 'd+': 'xDc+', 'd-': 'xDc-', 'ds+': 'xDs+', 'ds-': 'xDs-', 'b meson': 'xB+', 'b+': 'xB+', 'b-': 'xB-' };
 const EL_ALIASES = { aluminum: 13, sulphur: 16, cesium: 55 };
 function elementZ(w) { // a symbol, a name, or the only name that starts so
   if (EL_ALIASES[w]) return EL_ALIASES[w];
@@ -3458,6 +3475,7 @@ function makeNote(C, A, B) {
   const next = (thr, what, target) => { if (!(sym && rs < thr)) return ''; go = target || (thr / 2 - ma) * 1.04e6; return ` Next: ${what} from ${fmtE((thr / 2 - ma) * 1e6)} each.`; };
   const out = (text) => ({ text, go: go >= 2e4 && go <= 1e15 ? go : 0 });
   const list = (xs) => xs.length > 1 ? xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1] : xs[0];
+  if (A.exo || B.exo) return out(exoNote(A, B, EA, EB, rs, at, R, list));
   if (A.lep && B.lep) {
     if (A.anti === B.anti) return out(`${at}: like charges only scatter.`);
     const T = [[211.3, 'muon pairs'], [279.1, 'pion pairs (the ρ at 775 MeV)', 387.1e6], [987.4, 'kaon pairs (the φ at 1.02 GeV)', 509.22e6], [1876.5, 'proton–antiproton pairs'], [3553.7, 'τ pairs']];
@@ -3485,6 +3503,34 @@ function makeNote(C, A, B) {
   if (big && sNN >= qgpAt) plasma = ` At √s_NN = ${fmtE(sNN * 1e6)} per nucleon pair, a head-on overlap melts into a quark–gluon plasma (above about ${fmtE(qgpAt * 1e6)}), which freezes out into hundreds or thousands of hadrons.`;
   else if (big) { if (sym) go = A.A * (qgpAt / 2 - 938.9) * 1.06e6; plasma = ` A quark–gluon plasma needs √s_NN above about ${fmtE(qgpAt * 1e6)} per nucleon pair (now ${fmtE(sNN * 1e6)}): about ${fmtE(A.A * (qgpAt / 2 - 938.9) * 1e6)} a beam${A.A > 1 ? ` (${fmtE((qgpAt / 2 - 938.9) * 1e6)} per nucleon)` : ''}.`; }
   return out(`${at.replace('√s = ' + fmtE(rs * 1e6), fmtE(Ecm * 1e6) + ' of motion')} (${fmtE(eps * 1e6)} per nucleon), over their ${fmtE(VB * 1e6)} Coulomb barrier: ${how}${pion ? ', with pions' : ''}; the new nuclei then decay as usual.${plasma}`);
+}
+/* makeNote for beams of unstable particles (1.15): what they do when they meet (hep.js xbHit), and how long they live. */
+function exoNote(A, B, EA, EB, rs, at, R, list) {
+  const tok = (I) => (I.exo ? I.exo : I.key === 'e' ? 'e-' : I.key === 'pos' ? 'e+' : I.key === 'p' ? 'p' : I.key === 'pbar' ? 'pbar' : null);
+  const lepOf = (I) => (I.exo ? !Q_CONTENT[I.exo] : I.lep), ta = tok(A), tb = tok(B), ma = A.m * PHYS.AMU_MEV, mb = B.m * PHYS.AMU_MEV;
+  let t;
+  if (ta && tb && conjTok(ta) === tb && lepOf(A)) {
+    const T = [[1.022, 'electron pairs'], [211.3, 'muon pairs'], [279.1, 'pion pairs'], [987.4, 'kaon pairs'], [3553.7, 'τ pairs'], [3750, 'charm mesons']];
+    t = `${at}: ${A.lab} and ${B.lab} annihilate as an electron and a positron do, into ${list(['two γ rays'].concat(T.filter(x => rs > x[0]).map(x => x[1])))}, in proportion to their cross sections${rs > 2500 ? '; hadrons as two jets, back to back' : ''}.`;
+  } else if (ta && tb && conjTok(ta) === tb) t = `${at}: a hadron and its antihadron annihilate, each quark meeting its antiquark, into mesons (pions, now and then kaons or η)${rs > 5000 ? ', as two jets along the beams' : ''}.`;
+  else if (lepOf(A) || lepOf(B)) t = `${at}: ${lepOf(A) && lepOf(B) ? 'these leptons' : 'a lepton and a hadron'} only scatter off each other’s charge here, mostly by less than a degree at this energy (only turns of a degree or more count as collisions).`;
+  else {
+    const nuc = A.exo ? (B.exo ? null : B) : A, o = A.exo ? A : B;
+    if (nuc && !nuc.anti && strongExo(o.exo)) t = `${at}: close passes hit the ${nuc.A > 1 ? 'nucleus' : 'proton'} as in matter: ${o.lab} knocks nucleons out${/^(K-|Sig|Xi|Omg)/.test(o.exo) ? ', trades strangeness (K̄N → Λπ, Σ N → Λ N)' : ''} or makes new hadrons; the rest scatter off its charge.`;
+    else if (!ta || !tb) t = `${at}: ${o.lab} only scatters off the nucleus’s charge here (charm and bottom hadrons meeting nuclei are left out).`;
+    else {
+      const Ex = rs - ma - mb;
+      t = Ex > 160 ? `${at}: about four in five close passes are inelastic (as for protons at the same energy above their masses): both come through, with new hadrons made between them${rs > 5000 ? ' along strings stretched between the two' : ''}; the rest scatter.` : `${at}: ${fmtE(Ex * 1e6)} above their masses, short of making a pion: they only scatter.`;
+    }
+  }
+  const big = (n) => (n < 1e5 ? String(Math.max(0, Math.round(n))) : `${(n / 10 ** Math.floor(Math.log10(n))).toFixed(1)}×10${sup(Math.floor(Math.log10(n)))}`);
+  for (const [I, E] of [[A, EA], [B, EB]]) {
+    if (!I.exo || (I === B && A.exo && XP[A.exo].tau === XP[B.exo].tau && Math.abs(EA / EB - 1) < 1e-6)) continue; // (a particle and its antiparticle: one sentence)
+    const g = 1 + E / (I.m * AMU_EV), tl = XP[I.exo].tau * g, turn = R ? R[0].circ / speedOf(I.m, E) * PHYS.TU_S : 0;
+    const both = I === A && B.exo && XP[A.exo].tau === XP[B.exo].tau && Math.abs(EA / EB - 1) < 1e-6 && A.exo !== B.exo;
+    t += ` ${both ? `${A.lab} and ${B.lab} live` : `${I.lab} lives`} ${fmtTime(XP[I.exo].tau)}, ${fmtTime(tl)} at this speed (γ = ${fmtNum(g, 3)})${turn ? `: about ${big(tl / turn)} turns` : ''}${W.decayOn ? '' : ' (decay is off in Time)'}.`;
+  }
+  return t;
 }
 /* A speed as a fraction of light's: 0.065 c, 0.942 c, 0.99943 c (enough 9s to tell it from c). */
 function fmtBeta(b) {
@@ -3518,6 +3564,7 @@ function updateCollider() {
   const C = W.collider; if (!C || UI.tab !== 'lab') return;
   const st = { a: [0, 0, 0], b: [0, 0, 0] }; // per beam: count, kinetic energy, speed
   for (const p of W.parts) if (!p.dead && p.beam && st[p.beam]) { const t = st[p.beam]; t[0]++; t[1] += keOf(p); t[2] += p.rad ? p.sp : Math.hypot(p.vx, p.vy); }
+  for (const o of W.exo) if (!o.dead && o.xb && o.beam && st[o.beam]) { const t = st[o.beam]; t[0]++; t[1] += o.KE; t[2] += o.v; } // (unstable particles in a beam, 1.15)
   const two = (fa, fb, same) => (st.a[0] && st.b[0] ? (same ? fa : `${fa} · ${fb}`) : st.a[0] ? fa : st.b[0] ? fb : '—');
   const ea = st.a[1] / (st.a[0] || 1), eb = st.b[1] / (st.b[0] || 1), va = st.a[2] / (st.a[0] || 1) / PHYS.C, vb = st.b[2] / (st.b[0] || 1) / PHYS.C;
   const tile = (id, txt) => { const e = $(id); e.textContent = txt; e.classList.toggle('two', txt.includes('·')); };
@@ -3551,7 +3598,7 @@ function updateCollider() {
    what is left is dumped first and the magnets go back to the injection field, as at the start of a cycle. */
 function injectBeams() {
   const C = W.collider; if (!C) return;
-  if (C.kind === 'ring') { for (const p of W.parts) if (!p.dead && p.beam) kill(p); resetRings(C); }
+  if (C.kind === 'ring') { dumpBeams(); resetRings(C); }
   refillSources(C);
 }
 /* The hourglass shows slow motion whichever way it came: on demand (W.slowHold) or started by a nuclear event (W.slow).

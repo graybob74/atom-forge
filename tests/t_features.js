@@ -196,7 +196,7 @@ const { openPage } = require('./browser');
   // again; every step keeps the books exactly
   const r13 = await page.evaluate(() => {
     setRunning(false); const out = {}; const tot = () => totalEnergy().total - W.ledger.nuc;
-    loadPreset('empty'); W.box.w = W.box.tw = 120; W.box.h = W.box.th = 60; for (let i = 0; i < 12; i++) for (let j = 0; j < 6; j++) addAtom('Ar', -55 + i * 9.5, -25 + j * 9.5);
+    loadPreset('empty'); W.box.w = W.box.tw = 120; W.box.h = W.box.th = 60; for (let i = 0; i < 24; i++) for (let j = 0; j < 12; j++) addAtom('Ar', -55 + i * 4.75, -25 + j * 4.75); // (denser since 1.15: muons now scatter off the nuclei they pass, and in the old sparse rows one could wander out first)
     const m = addExo('mu-', -58, 3.6, 6000, 1, 0.003); for (let f = 0; f < 3000 && !m.dead; f++) simFrame(1 / 60, 25);
     out.ar = { fate: m.fate, bound: (W.muBound || []).length };
     let worst = 0; const keep = Object.assign({}, MU_RATES); MU_RATES.tr_dt = 1e30; MU_RATES.tr_pd = 1e30; MU_RATES.dt = 1e30;
@@ -1196,6 +1196,30 @@ const { openPage } = require('./browser');
   })();
   check(r77.nic[0] === 0 && r77.nic[1] === 0 && r77.nic[2] === '2' && r77.kept.length === 7,
     `1.15: charge back through a bond: Ni⁺–C⁻ became Ni=C; formal charges kept in ${r77.kept.join(', ')}`, '1.15 backflow: ' + JSON.stringify(r77));
+  // 1.15: every charged particle as a collider beam: a μ⁻μ⁺ ring injects, ramps to 1 GeV without losing a muon and
+  // collides them (annihilation, as e⁺e⁻); Σ⁻ on π⁺ in a linac comes through with new hadrons; energy kept exactly
+  const r78 = (() => {
+    const dE = [];
+    const X = require('./load.js').load('all', { seed: 3, patch: (s) => s.replace('function xbHit(C, a, b, d, x, y, ex, ey) {', 'function xbHit(C, a, b, d, x, y, ex, ey) { const e0 = totalEnergy().total - W.ledger.nuc; xbHit0(C, a, b, d, x, y, ex, ey); globalThis.__r78.push(Math.abs(totalEnergy().total - W.ledger.nuc - e0)); }\nfunction xbHit0(C, a, b, d, x, y, ex, ey) {') });
+    globalThis.__r78 = dE;
+    const W = X.W, out = {};
+    X.PRESETS.ring.build(); X.setupCollider('ring', 'xmu-', 'xmu+', 1e9); X.settleOverlaps(); W.baseSpf = W.simPerFrame;
+    const C = W.collider; let fewest = 99, top = 0;
+    for (let f = 0; f < 2300 && !(C.hits >= 3); f++) {
+      X.simFrame(1 / 60, 1e9);
+      const xs = W.exo.filter(o => o.xb && o.beam && !o.dead && !o.injKick);
+      if (C.rings[0].cnt >= 10 && !C.colliding) { fewest = Math.min(fewest, W.exo.filter(o => o.xb && o.beam && !o.dead).length); if (xs.length) top = Math.max(top, xs.reduce((s, o) => s + o.KE, 0) / xs.length); }
+    }
+    out.ring = { layout: C.layout, fewest, top: +(top / 1e9).toFixed(3), hits: C.hits, last: C.last };
+    X.PRESETS.linac.build(); X.setupCollider('linear', 'xSig-', 'xpi+', 5e9); X.settleOverlaps(); W.baseSpf = W.simPerFrame;
+    for (let f = 0; f < 800 && !(W.collider.hits >= 3); f++) X.simFrame(1 / 60, 1e9);
+    out.lin = { hits: W.collider.hits, last: W.collider.last };
+    out.dE = Math.max(0, ...dE); out.n = dE.length;
+    out.menu = Object.values(X.BEAM_SPECIES).filter(s => s.exo).length; out.find = X.beamFind('muon').v;
+    return out;
+  })();
+  check(r78.ring.layout === 'single' && r78.ring.fewest === 20 && r78.ring.top > 0.97 && r78.ring.hits >= 1 && /μ/.test(r78.ring.last) && r78.lin.hits >= 1 && /Σ⁻ \+ π⁺|π⁺ \+ Σ⁻/.test(r78.lin.last) && r78.dE < 1e-3 && r78.menu === 22 && r78.find === 'xmu-',
+    `1.15: unstable particles as beams: μ⁻μ⁺ in one ring, all 20 kept to ${r78.ring.top} GeV, then “${r78.ring.last}”; linac “${r78.lin.last.slice(0, 70)}…”; ${r78.n} encounters, energy kept to ${r78.dE.toExponential(0)} eV; ${r78.menu} species in the menus`, '1.15 exotic beams: ' + JSON.stringify(r78));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
