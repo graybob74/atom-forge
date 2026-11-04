@@ -619,11 +619,11 @@ function boBonds() { const out = []; for (let k = 0; k < BO.np; k++) { const q =
    their stored bonds, leavers get stored bonds from their last orders; the energy before and after, at the same
    positions, the difference to the bath. Returns whether anything changed (the forces are then worked out again). */
 /* The members' molecules (the atoms joined by orders above 0.3 in the last pass), for the soft intramolecular wall. Looked at
-   every step; when they change (a bond made or broken), the energy at the same positions before and after goes to the
+   every 8th step; when they change (a bond made or broken), the energy at the same positions before and after goes to the
    bath, as a stored bond's event does. Returns whether anything changed. */
 let BF_UF = new Int32Array(64);
 function bfClusters() {
-  if (!BO.any || BO.flat !== true || !BF.nm) return false;
+  if (!BO.any || BO.flat !== true || !BF.nm || (W.step & 7)) return false; // (every 8th step: a molecule made or split a few steps late keeps its old wall till then)
   const nm = BF.nm, mem = BF.mem, pa = BF.pa, pb = BF.pb, pn = BF.pn;
   if (BF_UF.length < nm) BF_UF = new Int32Array(2 * nm);
   const U = BF_UF, find = (x) => { while (U[x] !== x) { U[x] = U[U[x]]; x = U[x]; } return x; };
