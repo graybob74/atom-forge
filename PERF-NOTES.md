@@ -81,16 +81,11 @@ engine stores and visits particles.
   goal 45), against 0.55 at 0.90; on 32 threads 1.16 ms, every threaded phase waiting about 1 ms (the busy-waiting
   workers, main thread and browser threads outnumber the 32 hardware threads). Auto stays at 16 (its tag now says so);
   where the 0.10 ms since 0.90 went wants a profile on the owner's machine.
-- Continuous bond orders: charge that moves with the orders (found in 1.16; started in 1.19, the user: "start it").
-  A prototype (electron counts made continuous for member atoms, the internal energy piecewise linear between the
-  measured ionization energies, capacities and valences following them, the charges relaxed at each geometry) moves the
-  +1 of H₃O⁺ to the neighbouring water as the proton crosses, the curve symmetric; but the proton's barrier (O–O
-  relaxed, 2.65–2.69 Å) is 1.8 eV (2.2 before 1.19's repulsion), against about 0.1 eV real: two half O–H bonds cost
-  0.65 eV more than one whole in the bond-order energy, and the end states keep 0.7 eV of hydrogen-bond Coulomb the shared
-  state loses (0.37 eV of the 1.8 is the prototype's smoothing of the ionization corners). So, in order: (1) member
-  repulsion, done in 1.19; (2) a hydrogen-bond term for a shared proton (O–H–O), fitted so the barrier comes out near
-  0.1 eV, a physics-model change for the owner to approve; (3) the moving charge itself (continuous electron counts with
-  exact books, in Rust too). Steps 2–3 about 3–4 sessions.
+- Continuous bond orders: proton hops in liquid water (left from 1.20). The charge now moves with a proton (1.20), and in
+  the H₃O⁺·H₂O pair a shared proton is as low as the localized one; but in 300–700 K water a hydronium did not hop in
+  1.5 ps: from H₃O⁺·H₂O at 2.65 Å the proton meets 0.35 eV before the far water's order grows (the bond-order energy's
+  cost of splitting a hydrogen's valence, D·n^1.15), and the waters rarely come that close. Next: a flatter split for a
+  hydrogen between two N/O/F (the exponent below a single bond), then measure hops a picosecond.
 - Quantum chemistry for bonds (queued by the user, after the bond-order next steps): bonds and their energies from the
   electrons themselves (a minimal-basis method, tight-binding or semi-empirical: Hückel/extended-Hückel or DFTB), not a
   force field. Estimated ×100–10,000; a physics-model change for the owner to approve.
@@ -119,6 +114,35 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.20.0: bond orders: the charge moves with the orders
+
+- **Moving charge** (planned; the user: "do both", and the approvals left to Claude). A member atom's electrons are a
+  continuous count ν = ne + δ. Its internal energy, capacity, expanded capacity and valence follow ν (bo.js bfNuTab/bfNu:
+  the game's own values at whole counts, internalE, capacity, hyperCap, valenceInfo, straight lines between, the slopes
+  of the internal energy the measured ionization energies and electron affinity; each corner rounded over ±0.05 so the
+  whole-count value is exact). The pass gives ∂E/∂ν for every member (bfDqGrad: the internal energy, the capacities'
+  slopes through the levels and the pair ends, the valence through the angles' lone pairs, −φ), exact to 2e-7 eV against
+  differences, whole or fractional counts. δ moves with a mass (6 eV·tu²/e²) and a damping (2/tu, its work to the bath),
+  velocity Verlet beside the atoms (boDqA/boDqB), within a group of heavy atoms joined by orders above 0.02 (a group's
+  electrons conserved; hydrogens keep theirs). Every 8th step the groups are looked at again: a new group's count is made
+  whole, a count past half-way becomes the atom's own (ne changes, refresh), both booked to the bath at the same
+  positions. The kernel sees the moving share through S.qp.
+- **A shared proton's two structures mix** (bfShare): for a hydrogen between two N/O/F, −2V·√(e_a·e_b), e each side's
+  charge, V = 1.7 eV·4·n_a·n_b; without it the classical charges keep the +1 on one side (the other water's partial
+  charges hold it, 1.2 eV). Two more changes for the proton's path: the members' Coulomb and Lennard-Jones exclusions of
+  bonded and angle pairs rise from an order of 0.1 to 0.9 (was 0.3 to 0.7: the hydrogen passing between two waters lost
+  1 eV of Coulomb in 0.1 Å), and a hydrogen's order to N, O, F starts at a raw order of 0.04 (was 0.15). Members meet each
+  other without the kernel's ion–water doubling (K_IW stays for members against non-members).
+- Measured (H₃O⁺ + H₂O): the relaxed pair (O–O 2.71 Å, the charge 1.00/0.00) binds by 0.81 eV (stored bonds 0.83, 1.19
+  0.73); the proton held halfway between waters 2.65 Å apart is 0.07 eV below it, its charge split 0.50/0.50 (2.60 Å:
+  +0.11; 2.55: +0.43); a proton held 1.53 Å from its own oxygen and 0.97 from the other water's takes the +1 there.
+  Liquid water: half the H atoms hydrogen-bonded (48%), the closest O–O 2.52 Å; the dimer 2.79 Å as before. Insulated
+  300 steps: water 0.002 eV, brine 0.04, gallery 0.003, combustion 0.002; water with a hydronium 0.002–0.04 over 1,000
+  steps (1.19: 0.001–0.05). Rust the same (bocheck: energies to the last digit, forces 6e-14, ∂E/∂ν 2e-14).
+- Not yet: hops in liquid water (see the planned list). Cost against 1.19: water the same (whole counts take a fast
+  path; no group with two heavy atoms moves nothing), hydrogen + oxygen ×1.5, the gallery ×1.5 (its molecules' heavy
+  atoms all move). Against stored bonds: water ×8, hydrogen + oxygen ×9, the gallery ×15.
 
 ## 1.19.0: bond orders: member atoms repel inside the bonding reach
 

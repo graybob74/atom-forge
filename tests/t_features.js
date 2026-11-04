@@ -1339,6 +1339,49 @@ const { openPage } = require('./browser');
   const r82ok = (c) => c && c.dE < 1e-9 && c.dE0 < 1e-9 && c.dF < 1e-9 && c.dq < 1e-12 && c.dn < 1e-12;
   check(r82.wasm && r82ok(r82.gallery) && r82ok(r82.brine) && r82.calls > 40,
     `1.18: the orders' pass in WebAssembly: the JavaScript pass's energy, forces, charges and orders (the molecule gallery, ${r82.gallery?.np} pairs; brine in a wrapped box, ${r82.brine?.np}), ${r82.gallery?.speed}× and ${r82.brine?.speed}× as fast`, '1.18 wasm pass: ' + JSON.stringify(r82));
+  // 1.20: bond orders: moving charge. Members' electron counts are continuous and move within a molecule; a proton passing
+  // between two waters takes the charge with it; a shared proton's two structures mix
+  const r84 = (() => {
+    const out = {};
+    // ∂E/∂ν against differences, with whole and fractional counts (H₃O⁺, OH⁻, waters, ammonia after 100 steps)
+    for (const frac of [false, true]) {
+      const X = require('./load.js').load('all', { seed: 5 }), W = X.W;
+      X.addMolecule('H3Op', 0, 0, 0, 0); X.addMolecule('H2O', 2.6, 0.3, 2.8, 0); X.addMolecule('H2O', -1.5, 2.5, 1, 0); X.addMolecule('NH3', 3, 3, 0.4, 0); X.addMolecule('OHm', -3, -2, 0, 0); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      X.boSet(true); X.forcesNoEvents(); W.T = 300; for (let i = 0; i < 100; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+      const mem = W.parts.filter(p => p.bom && !p.dead); mem.forEach((p, i) => { p._dq = frac && p.Z > 1 ? ((i * 0.37) % 0.6) - 0.3 : 0; });
+      X.S.fx.fill(0); X.S.fy.fill(0); X.boPass(true); const G = mem.map(p => p._dqg); let worst = 0;
+      mem.forEach((p, u) => { const d = p._dq; p._dq = d + 1e-6; const e1 = X.boPass(false); p._dq = d - 1e-6; const e2 = X.boPass(false); p._dq = d; worst = Math.max(worst, Math.abs((e1 - e2) / 2e-6 - G[u])); });
+      out[frac ? 'dGfrac' : 'dG'] = worst;
+    }
+    // a proton held on the far side of two waters (O–O 2.5 Å): the +1 follows it to the far oxygen
+    { const X = require('./load.js').load('all', { seed: 3 }), W = X.W, R = 2.5, x = 1.53;
+      X.addMolecule('H3Op', 0, 0, 0, 0); X.addMolecule('H2O', R + 0.4, 0, -Math.PI / 2, 0); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      const at = W.parts.filter(p => !p.dead), Oa = at.find(p => p.Z === 8 && p.q === 1), Ob = at.find(p => p.Z === 8 && p.q === 0);
+      const Hs = at.filter(p => p.Z === 1 && X.bondBetween(p, Oa)).sort((a, b) => b.x - a.x)[0];
+      X.boSet(true); W.T = 0; W.Tset = 0; W.gamma = 3;
+      const hold = () => { for (const [p, px, py] of [[Oa, 0, 0], [Ob, R, 0], [Hs, x, 0]]) { p.x = px; p.y = py; p.vx = 0; p.vy = 0; } };
+      hold(); X.forcesNoEvents();
+      for (let i = 0; i < 2000; i++) { W.dt = Math.min(X.chooseDt(), 0.02); X.step(W.dt); hold(); }
+      out.hop = [Oa.q, Ob.q, X.BO.dqReal || 0]; }
+    // Eigen and Zundel: the ion pair relaxed against the proton held halfway between waters 2.65 Å apart
+    { const run = (held) => { const X = require('./load.js').load('all', { seed: 3 }), W = X.W, R = 2.65;
+        X.addMolecule('H3Op', 0, 0, 0, 0); X.addMolecule('H2O', 3.1, 0, -Math.PI / 2, 0); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+        const at = W.parts.filter(p => !p.dead), Oa = at.find(p => p.Z === 8 && p.q === 1), Ob = at.find(p => p.Z === 8 && p.q === 0);
+        const Hs = at.filter(p => p.Z === 1 && X.bondBetween(p, Oa)).sort((a, b) => b.x - a.x)[0];
+        X.boSet(true); W.T = 0; W.Tset = 0; W.gamma = 3;
+        const hold = () => { if (!held) return; for (const [p, px, py] of [[Oa, 0, 0], [Ob, R, 0], [Hs, R / 2, 0]]) { p.x = px; p.y = py; p.vx = 0; p.vy = 0; } };
+        hold(); X.forcesNoEvents(); for (let i = 0; i < 4000; i++) { W.dt = Math.min(X.chooseDt(), 0.02); X.step(W.dt); hold(); }
+        return [X.boPass(false), +(Oa.q - (Oa._dq || 0)).toFixed(2)]; };
+      const [E0] = run(false), [E1, qa] = run(true); out.zundel = +(E1 - E0).toFixed(3); out.zq = qa; }
+    // liquid water with a hydronium, insulated: the books close
+    { const X = require('./load.js').load('all', { seed: 3 }), W = X.W;
+      X.PRESETS.water.build(); X.addMolecule('H3Op', 0, 0, 0, 300); X.settleOverlaps(); X.boSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const run = (n) => { for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); } };
+      run(200); W.gamma = 0; const tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, E0 = tot(); run(400); out.drift = +Math.abs(tot() - E0).toFixed(4); }
+    return out;
+  })();
+  check(r84.dG < 1e-5 && r84.dGfrac < 1e-5 && r84.hop[0] === 0 && r84.hop[1] === 1 && r84.hop[2] >= 2 && Math.abs(r84.zundel) < 0.3 && Math.abs(r84.zq - 0.5) < 0.1 && r84.drift < 0.1,
+    `1.20: moving charge: ∂E/∂ν to ${r84.dG.toExponential(0)}/${r84.dGfrac.toExponential(0)}; a proton held by the far water takes the +1 there (charges ${r84.hop[0]}/${r84.hop[1]}); a proton shared between waters 2.65 Å apart ${r84.zundel} eV from H₃O⁺·H₂O, the charge split ${r84.zq}/${+(1 - r84.zq).toFixed(2)}; water with H₃O⁺ insulated ${r84.drift} eV`, '1.20 moving charge: ' + JSON.stringify(r84));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
