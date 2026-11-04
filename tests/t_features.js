@@ -1407,10 +1407,9 @@ const { openPage } = require('./browser');
   // the books in an insulated run; a shared proton finds the middle; charges placed where the electrons are on leaving
   const r86 = (() => {
     const out = {}, X0 = require('./load.js').load('all', { seed: 3 });
-    { const rd = (f) => JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'tools', 'xtb-ref', f), 'utf8'));
-      const G = rd('geoms.json'), R = rd('ref.json'); let dE = 0, dg = 0, nG = 0;
-      for (const g of G.filter((_, k) => k % 7 === 0)) {
-        const ref = R.find(x => x.name === g.name), r = X0.XTB.gfn1Energy(g.Z, g.xyz, g.charge || 0, g.uhf || 0, { grad: true }), d = X0.XTB.d3Disp(g.Z, g.xyz, {});
+    { const G = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'xtb-ref-sub.json'), 'utf8')); let dE = 0, dg = 0, nG = 0; // (every 7th of tools/xtb-ref's geometries, with tblite's numbers)
+      for (const g of G) {
+        const ref = g, r = X0.XTB.gfn1Energy(g.Z, g.xyz, g.charge || 0, g.uhf || 0, { grad: true }), d = X0.XTB.d3Disp(g.Z, g.xyz, {});
         dE = Math.max(dE, Math.abs(r.E + d.E - ref.E)); nG++;
         ref.grad.forEach((row, i) => row.forEach((v, k) => { dg = Math.max(dg, Math.abs(r.g[i][k] + d.g[i][k] - v)); }));
       }
