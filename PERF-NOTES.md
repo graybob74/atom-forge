@@ -116,7 +116,7 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## 1.16.0 (in progress): bond orders, next steps
+## 1.16.0: bond orders, next steps: partial charges, crowded molecules, ions, longer steps
 
 - **Partial charges that follow the bond orders** (continuous bond orders; the user: "do bond order next steps"). Each
   pair gives its atoms K·Δχ·h(n), K = 0.30 e per unit of Pauling electronegativity as a stored bond does, h = 1 + 0.2(n − 1)

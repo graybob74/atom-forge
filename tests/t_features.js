@@ -1252,6 +1252,30 @@ const { openPage } = require('./browser');
   })();
   check(r79.slope < 1e-6 && Math.abs(r79.pauli - 14.456) < 0.01 && r79.water.n === r79.water.free && r79.water.n >= 30 && Math.abs(r79.water.perPs) < 30 && r79.water.s[0] > 0.5 && r79.water.s[1] < 3.5 && r79.off < 1e-6 && r79.left === 0 && r79.recomb.packets >= 15 && r79.recomb.caught >= 15 && r79.recomb.dE < 0.2,
     `1.15: electrons as waves: forces the energy's slopes to ${r79.slope.toExponential(0)} eV/Å; ionized water with ${r79.water.n} packets (${r79.water.s.join('–')} Å) ${r79.water.perPs} eV/ps over ${r79.water.fs} fs; off again exact; ${r79.recomb.caught} recombinations of packets kept to ${r79.recomb.dE} eV`, '1.15 waves: ' + JSON.stringify(r79));
+  // 1.16: bond orders, next steps: partial charges from the orders (forces the energy's slopes, with an ion about),
+  // SF₆ holds together (no F–F orders), H₃O⁺ and OH⁻ stay members, energy kept at the longer steps
+  const r80 = (() => {
+    const L = require('./load.js'), out = {};
+    { const X = L.load('all', { seed: 3 }), W = X.W;
+      X.baseWorld(30, 30, 300, 0); W.wall = 'reflect';
+      X.addMolecule('H2O', 0, 0, 0, 0); X.addMolecule('H2O', 3.2, 0.4, 0, 0); const n = X.addAtom('Na', -2.6, 1.2); X.userIonize(n);
+      for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      X.boSet(true); X.forcesNoEvents();
+      const E = () => X.totalEnergy().total; let worst = 0;
+      for (const p of W.parts.filter(p => !p.dead && p.k === X.NUC)) { const h = 1e-5, x0 = p.x; X.forcesNoEvents(); const f = p.fx; p.x = x0 + h; const a = E(); p.x = x0 - h; const b = E(); p.x = x0; worst = Math.max(worst, Math.abs(-(a - b) / (2 * h) - f)); }
+      const O = W.parts.find(p => p.Z === 8 && p.bom); out.slope = worst; out.qO = +O.qp.toFixed(3); }
+    { const X = L.load('all', { seed: 2 }), W = X.W;
+      X.baseWorld(40, 40, 300, 0); W.wall = 'reflect'; X.addMolecule('SF6', -8, 0, 0, 300); X.addMolecule('H3Op', 8, 6, 0, 300); X.addMolecule('OHm', 8, -6, 0, 300);
+      for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      X.boSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, E0 = tot();
+      for (let i = 0; i < 1500; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+      const b = X.boBonds(); out.sf = b.filter(([p, q]) => (p.Z === 16) !== (q.Z === 16) && (p.Z === 9 || q.Z === 9)).map(x => +x[2].toFixed(2));
+      out.ff = b.filter(([p, q]) => p.Z === 9 && q.Z === 9).length; out.ions = W.parts.filter(p => p.bom && p.q !== 0).length; out.dE = +Math.abs(tot() - E0).toFixed(4); out.step = +(W.dt * X.PHYS.TU_S * 1e15).toFixed(3); }
+    return out;
+  })();
+  check(r80.slope < 1e-4 && r80.qO < -0.7 && r80.sf.length === 6 && Math.min(...r80.sf) > 0.95 && r80.ff === 0 && r80.ions === 2 && r80.dE < 0.01,
+    `1.16: bond orders: partial charges (O ${r80.qO}) with forces the slopes to ${r80.slope.toExponential(0)} eV/Å beside Na⁺; SF₆ S–F ${Math.min(...r80.sf)}–${Math.max(...r80.sf)}, no F–F; H₃O⁺ and OH⁻ members; ${r80.dE} eV over 1,500 insulated steps of ${r80.step} fs`, '1.16 bond orders: ' + JSON.stringify(r80));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
