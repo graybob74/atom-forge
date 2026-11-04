@@ -18,6 +18,7 @@
     </div>
     <div class="scen">
       <select class="select" id="preset" aria-label="Experiment setup"></select>
+      <button class="btn small leave3d" id="bLeave3d" hidden title="Leave the 3-D lab (a preview) for the flat game">3-D <span class="pv">Preview</span> · Leave</button>
       <button class="ibtn" id="bAskSetup" hidden title="Ask Claude for a setup: describe an experiment and Claude sets up the chamber" aria-label="Ask Claude for a setup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z M18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></svg></button>
       <button class="ibtn" id="bDisplay" title="Chamber only: no toolbar or panels (B; Esc to leave). Settings → Display has the window (borderless full screen, F11) and the cursor" aria-label="Chamber only" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <button class="ibtn" id="bSettings" title="Settings: performance mode, particle limit, theme, units" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.5 7.5 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 2.6-1.5l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
@@ -157,6 +158,7 @@
           </div>
           <div class="row"><span id="magCount">No magnets placed</span><button class="btn small" id="bMagClear">Remove magnets</button></div>
           <p class="note">Positive B points out of the screen (⊙). Charges curve; magnetic matter is pulled by gradients.</p>
+          <p class="note no3d" id="fields3dNote" hidden>Not in 3-D yet: fields and magnets work in the flat game only.</p>
         </section>
 
         <section class="group">
@@ -174,6 +176,7 @@
           <div class="row"><span>Box size</span><span class="val"><span id="boxW"></span> × <span id="boxH"></span> Å</span></div>
           <input type="range" id="boxSlider" min="0" max="100" step="1" aria-label="Box size">
           <p class="note">20 Å to 2 µm. Growing is a free expansion; shrinking closes in like a piston (an insulated gas heats up).</p>
+          <p class="note no3d" id="box3dNote" hidden>Not in 3-D yet: a 3-D box keeps the size its setup gives it.</p>
         </section>
 
         <section class="group">
@@ -614,6 +617,7 @@
     </section>
     <section class="sgroup spane" data-stab="exp" hidden>
       <div class="exptot" id="expTotal"></div>
+      <p class="note no3d" id="set3dNote" hidden>In the 3-D lab (a preview), induced charges, quantum nuclei, continuous and quantum bond orders, electrons as waves and the ultra-realistic mode are not available yet: they work in the flat game only.</p>
       <p class="note">More accurate physics, at a price in speed. Each cost was measured in this game (one thread, liquid water unless it says otherwise; tools/accbench in the source): ×2 means the same moment takes twice as long to work out. The coloured tags beside settings in every tab show what each choice costs, green for little or nothing to red for a lot.</p>
       <h3>Shorter longest step</h3>
       <div class="srow"><span>Longest time step</span><div class="seg" id="segDtMax" role="group" aria-label="Longest time step"><button data-v="0.04">0.4 fs (normal)</button><button data-v="0.02">0.2 fs</button><button data-v="0.01">0.1 fs</button></div></div>
@@ -734,6 +738,7 @@
       <button class="btn primary" data-mm="continue" id="mmContinue">Continue</button>
       <button class="btn" data-mm="empty">New empty chamber</button>
       <button class="btn" data-mm="setups">Experiments and challenges…</button>
+      <button class="btn" data-mm="lab3d" id="mm3d" title="The 3-D mode: molecules, liquids and gases in a cube you can turn">3-D lab… <span class="pv">Preview</span></button>
       <button class="btn" data-mm="gallery">Gallery</button>
       <button class="btn" data-mm="settings">Settings</button>
       <button class="btn" data-mm="help">Help</button>

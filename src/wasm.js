@@ -90,6 +90,7 @@ function wasmInstantiate() {
     for (let k = 0; k < want.length; k++) if (ex.af_const(k) !== want[k]) throw new Error('constant ' + k + ' differs: ' + ex.af_const(k) + ' vs ' + want[k]);
     WK.desc = wasmArray(Int32Array, 64); WK.ks = wasmArray(Float64Array, 8); WK.sumTab = wasmArray(Uint32Array, 64);
     WK.ready = true; WK.note = 'ready';
+    if (typeof _sharedGen === 'number') _sharedGen++; // (worker threads started before the module was ready are bound again, now with it)
   } catch (e) { WK.note = 'instantiate: ' + (e.message || e); WK.ready = false; WK.inst = null; WK.ex = null; }
 }
 /* The descriptor: where every array the kernels read is right now (they are reallocated when they grow). Filled

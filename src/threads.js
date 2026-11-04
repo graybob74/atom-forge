@@ -272,7 +272,6 @@ function threadsBind() {
   if (TH.fx.length !== n || (TH.fx[0] && TH.fx[0].length !== size)) {
     TH.fx = []; TH.fy = [];
     for (let w = 0; w < n; w++) { TH.fx.push(shArray(Float64Array, size)); TH.fy.push(shArray(Float64Array, size)); }
-    if (WK.on) for (let w = 0; w < n; w++) { WK.sumTab[2 * w] = TH.fx[w].byteOffset; WK.sumTab[2 * w + 1] = TH.fy[w].byteOffset; } // (af_sum's table)
   }
   const need = 9 * Math.ceil((np + Math.max(BD.a.length, 16)) / (n + 1)) + 64;
   if (TH.cq.length !== n || TH.cq[0].length < need) { TH.cq = []; for (let w = 0; w < n; w++) TH.cq.push(shArray(Int32Array, need)); }
@@ -288,6 +287,7 @@ function threadsBind() {
   if (WK.on && WK.ready && RC === 6) { // (the kernel has 6 Å built in: a longer reach runs the workers' JavaScript)
     if (!TH.wks) TH.wks = wasmArray(Float64Array, TH_MAXW + 1); // (a stiffness cell per worker)
     while (TH.stacks.length < n) TH.stacks.push(wasmAlloc(WK.STACK) + WK.STACK); // (the stack grows downwards from its top)
+    for (let w = 0; w < n; w++) { WK.sumTab[2 * w] = TH.fx[w].byteOffset; WK.sumTab[2 * w + 1] = TH.fy[w].byteOffset; } // (af_sum's table; here, as the module may be ready only after the buffers were made)
     wasm = { module: WK.module, desc: WK.desc.byteOffset, ks: TH.wks.byteOffset, sumTab: WK.sumTab.byteOffset };
   }
   for (let w = 0; w < n; w++) {

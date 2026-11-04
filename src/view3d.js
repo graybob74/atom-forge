@@ -10,8 +10,10 @@
    the atoms and one for the bonds), and the near edges, labels, badges and rings on the canvas above. Without WebGL 2
    (or with it switched off) everything goes on the one canvas, the atoms sorted far to near and each drawn after its
    half of each bond. Picking (pick3) takes the atom whose drawn disc is under the pointer that is nearest the camera.
-   Tools that take a point in the chamber get the point where the pointer's line of sight meets the box's middle plane
-   (z = 0; s2w3), so what they place lands under the pointer; stage 3 gives the tools depth.
+   Tools that take a point in the chamber (stage 3) get a point in depth: the atom under the pointer's, or failing one,
+   where the pointer's line of sight meets the plane through the camera's target square to the view (ptr3, s2w3); a
+   drag stays on the plane square to the view through where it began (s2wPlane). The Heat and Erase brushes act on what
+   is seen under them, all the way through (the cone from the eye, toolCone3).
    ========================================================================== */
 const CAM3 = { yaw: 0.6, pitch: 0.4, fov: 40 * Math.PI / 180 }; // the view a 3-D world starts with (and Fit goes back to)
 R.cam3 = { yaw: CAM3.yaw, pitch: CAM3.pitch, dist: 80, fov: CAM3.fov, tx: 0, ty: 0, tz: 0 };
@@ -49,16 +51,30 @@ function proj3(x, y, z, o) {
   o[0] = C3.hw + C3.F * (dx * C3.rx + dy * C3.ry + dz * C3.rz) / zc; o[1] = C3.hh - C3.F * (dx * C3.ux + dy * C3.uy + dz * C3.uz) / zc;
   return true;
 }
-/* The world point under a screen point: where its line of sight meets the plane z = 0 (the box's middle), or, seen
-   too nearly edge-on, the plane through the target square to the view. Always finite. */
-function s2w3(px, py) {
-  if (!C3.F || C3.hw !== R.w / 2) cam3Update();
+/* The world point under a screen point on the plane through the camera's target square to the view. Always finite. */
+function s2w3(px, py) { const c = R.cam3; return s2wPlane(px, py, [c.tx, c.ty, c.tz]); }
+/* The pointer's line of sight (not normalised: its part along the view direction is 1). */
+function ray3(px, py, o) {
+  cam3Update(); // (the camera as it is now: it may have turned since the last frame)
   const a = (px - C3.hw) / C3.F, b = (py - C3.hh) / C3.F;
-  const dx = C3.fx + a * C3.rx - b * C3.ux, dy = C3.fy + a * C3.ry - b * C3.uy, dz = C3.fz + a * C3.rz - b * C3.uz;
-  const L = Math.sqrt(dx * dx + dy * dy + dz * dz), t = dz !== 0 ? -C3.ez / dz : -1;
-  if (Math.abs(dz) / L > 0.2 && t > 0 && t < 40 * R.cam3.dist) return [C3.ex + t * dx, C3.ey + t * dy, 0];
-  const d = R.cam3.dist; // (forward has unit length and so does its part of the ray: the target plane is d along)
-  return [C3.ex + d * dx, C3.ey + d * dy, C3.ez + d * dz];
+  o[0] = C3.fx + a * C3.rx - b * C3.ux; o[1] = C3.fy + a * C3.ry - b * C3.uy; o[2] = C3.fz + a * C3.rz - b * C3.uz;
+  return o;
+}
+/* Where the pointer's line of sight meets the plane square to the view through the point P. */
+function s2wPlane(px, py, P) {
+  const r = ray3(px, py, [0, 0, 0]), d = Math.max(C3.near, (P[0] - C3.ex) * C3.fx + (P[1] - C3.ey) * C3.fy + (P[2] - C3.ez) * C3.fz);
+  return [C3.ex + d * r[0], C3.ey + d * r[1], C3.ez + d * r[2]];
+}
+/* The point a tool acts at: the centre of the atom under the pointer (nearest the camera), or the target plane's. */
+function ptr3(px, py) {
+  const p = pick3(px, py, 0);
+  return p ? [p.x, p.y, p.z || 0] : s2w3(px, py);
+}
+/* The Heat and Erase tools' reach: the cone from the eye through the pointer whose cross-section at the target plane is
+   the brush, radius R (inTool3 in the engine takes it). */
+function toolCone3(px, py, rad) {
+  const r = ray3(px, py, [0, 0, 0]), L = Math.sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+  return [C3.ex, C3.ey, C3.ez, r[0] / L, r[1] / L, r[2] / L, rad / (R.cam3.dist * L)]; // (the target plane is dist along the view, dist·L along this line)
 }
 /* The camera back to its starting angles, centred on the box and far enough off to see all of it. */
 function cam3Fit() {
@@ -214,6 +230,7 @@ function render3d(rt) {
     ctx.restore();
     R.ctx = ctx = R.cv.getContext('2d'); ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, R.w, R.h);
     drawBox3(ctx, true);
+    drawUnder3(ctx, rt);
     drawLabels3(ctx, vis);
   } else {
     // Canvas 2D: far to near, each atom after its halves of its bonds, so nearer things cover farther ones
@@ -249,7 +266,11 @@ function render3d(rt) {
       if (p.k === NUC && p.ne > 0) labelOne3(ctx, p, x, y, r, col);
     }
     drawBox3(ctx, true);
+    drawUnder3(ctx, rt);
   }
+  drawMeasure3(ctx);
+  drawFlashes3(ctx, rt);
+  drawEvents3(ctx, rt);
   drawMarks3(ctx);
   drawOverlay3(ctx);
   drawAxes3(ctx);
@@ -316,7 +337,7 @@ function drawMarks3(ctx) {
     ctx.beginPath(); ctx.arc(o[0], o[1], r + 5, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
 }
-/* What the tools show while used (a brush, the Grab tool's line, an aim, a selection box), on the middle plane. */
+/* What the tools show while used (a brush, the Grab tool's line, an aim, a selection box), where the tools act. */
 function drawOverlay3(ctx) {
   const A = _p3a, B = _p3b, F = C3.F, g = W.grab;
   ctx.save();
@@ -324,19 +345,168 @@ function drawOverlay3(ctx) {
     const rr = Math.max(7, (g.p.k === NUC ? g.p.rd : 0.15) * F / A[2] + 5);
     ctx.strokeStyle = 'rgba(255,209,102,0.9)'; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.arc(A[0], A[1], rr, 0, Math.PI * 2); ctx.stroke();
-    if (proj3(g.x, g.y, g.p.z, B)) { ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]); }
+    if (proj3(g.x, g.y, g.z === undefined ? g.p.z : g.z, B)) { ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]); }
   }
   const o = R.overlay;
   if (o) {
     ctx.strokeStyle = o.color || 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
-    if (o.brush && proj3(o.x, o.y, 0, A)) { ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(A[0], A[1], Math.max(3, o.brush * F / A[2]), 0, Math.PI * 2); ctx.stroke(); }
-    if (o.aim && seg3(o.aim.x0, o.aim.y0, 0, o.aim.x1, o.aim.y1, 0, A, B)) { ctx.setLineDash([]); ctx.strokeStyle = o.aim.color || 'rgba(255,209,102,0.85)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); }
-    if (o.box) {
+    if (o.brush && proj3(o.x, o.y, o.z || 0, A)) { ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(A[0], A[1], Math.max(3, o.brush * F / A[2]), 0, Math.PI * 2); ctx.stroke(); }
+    if (o.aim && seg3(o.aim.x0, o.aim.y0, o.aim.z0 || 0, o.aim.x1, o.aim.y1, o.aim.z1 || 0, A, B)) {
+      ctx.setLineDash([]); ctx.strokeStyle = o.aim.color || 'rgba(255,209,102,0.85)'; ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+      const L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, ux = (B[0] - A[0]) / L, uy = (B[1] - A[1]) / L; // (an arrowhead, and what is fired)
+      ctx.beginPath(); ctx.moveTo(B[0] + ux * 8, B[1] + uy * 8); ctx.lineTo(B[0] - uy * 5, B[1] + ux * 5); ctx.lineTo(B[0] + uy * 5, B[1] - ux * 5); ctx.fill();
+      if (o.aim.text) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText(o.aim.text, A[0] + 10, A[1] - 8); }
+    }
+    if (o.box3) { // the Select tool's box, on the screen (it takes the atoms drawn inside it)
+      const [x0, y0, x1, y1] = o.box3;
+      ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,209,102,0.9)'; ctx.fillStyle = 'rgba(255,209,102,0.08)'; ctx.beginPath(); ctx.rect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0)); ctx.fill(); ctx.stroke();
+    } else if (o.box) {
       const [x0, y0, x1, y1] = o.box, pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
       ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,209,102,0.9)'; ctx.fillStyle = 'rgba(255,209,102,0.08)'; ctx.beginPath();
       let ok = true; pts.forEach(([x, y], k) => { if (!proj3(x, y, 0, A)) ok = false; else if (k) ctx.lineTo(A[0], A[1]); else ctx.moveTo(A[0], A[1]); });
       if (ok) { ctx.closePath(); ctx.fill(); ctx.stroke(); }
     }
+  }
+  ctx.restore();
+}
+/* ---------- overlays (stage 3): trails, hydrogen bonds and ionic contacts, the Measure tool, flashes and events */
+/* Under the labels: particle trails (with each point's depth), hydrogen bonds and ionic contacts, faded with depth. */
+function drawUnder3(ctx, rt) {
+  if (R.view.tracks && W.tracks.length) drawTracks3(ctx, rt);
+  if (R.view.hbonds) drawHBonds3(ctx);
+  if (R.view.ionic) drawIonic3(ctx);
+}
+const _p3c = [0, 0, 0], _p3d = [0, 0, 0];
+function drawTracks3(ctx, rt) {
+  const win = trailWindow(), simClock = trailSim(), now = simClock ? W.t : rt, A = _p3c, B = _p3d;
+  const hbw = W.box.w / 2, hbh = W.box.h / 2, hbd = W.box.d / 2;
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let i = W.tracks.length - 1; i >= 0; i--) {
+    const t = W.tracks[i], T = simClock ? t.tt : t.ts;
+    const idle = T && T.length ? now - T[T.length - 1] : rt - t.upd;
+    if (idle > (T ? win : Math.min(win, 1.6))) { W.tracks.splice(i, 1); continue; }
+    if (T) { let k = 0; while (k < T.length - 2 && now - T[k] > win) k++; if (k) trkDrop(t, k); }
+    const pts = t.pts, pz = t.pz; if (pts.length < 4) continue;
+    ctx.strokeStyle = rgba(t.c, clamp(1 - idle / win, 0, 1) * 0.85); ctx.lineWidth = t.w; ctx.setLineDash(t.dash ? [3, 4] : []);
+    ctx.beginPath();
+    for (let k = 2; k < pts.length; k += 2) {
+      const x0 = pts[k - 2], y0 = pts[k - 1], x1 = pts[k], y1 = pts[k + 1], z0 = pz ? pz[(k >> 1) - 1] || 0 : 0, z1 = pz ? pz[k >> 1] || 0 : 0;
+      if (Math.abs(x1 - x0) > hbw || Math.abs(y1 - y0) > hbh || Math.abs(z1 - z0) > hbd) continue; // (a jump through a periodic wall)
+      if (seg3(x0, y0, z0, x1, y1, z1, A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+/* A hydrogen bond (as the flat view draws one): a polar H 1.5–2.3 Å from an N, O or F with a lone pair, not its own
+   partner; found through a coarse grid of the acceptors, so a box of liquid costs little. */
+function drawHBonds3(ctx) {
+  if (R.s < 3) return;
+  const H = [], cs = 2.4, grid = new Map(), key = (i, j, k) => (i * 4096 + j) * 4096 + k;
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC) continue;
+    if (p.polarH) H.push(p);
+    else if ((p.Z === 7 || p.Z === 8 || p.Z === 9) && p.ne > 0 && p.lp > 0) { const k = key(Math.floor(p.x / cs) + 2048, Math.floor(p.y / cs) + 2048, Math.floor(p.z / cs) + 2048); let l = grid.get(k); if (!l) grid.set(k, l = []); l.push(p); }
+  }
+  if (!H.length || !grid.size) return;
+  const A = _p3c, B = _p3d;
+  ctx.save(); ctx.strokeStyle = 'rgba(140,200,255,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.beginPath();
+  for (const h of H) {
+    const d = h.bonds[0] ? other(h.bonds[0], h) : null, ci = Math.floor(h.x / cs) + 2048, cj = Math.floor(h.y / cs) + 2048, ck = Math.floor(h.z / cs) + 2048;
+    for (let i = ci - 1; i <= ci + 1; i++) for (let j = cj - 1; j <= cj + 1; j++) for (let k = ck - 1; k <= ck + 1; k++) {
+      const l = grid.get(key(i, j, k)); if (!l) continue;
+      for (const a of l) {
+        if (a === d) continue;
+        const dx = a.x - h.x, dy = a.y - h.y, dz = a.z - h.z, r2 = dx * dx + dy * dy + dz * dz;
+        if (r2 < 1.5 * 1.5 || r2 > 2.3 * 2.3) continue;
+        if (seg3(h.x, h.y, h.z, a.x, a.y, a.z, A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+      }
+    }
+  }
+  ctx.stroke(); ctx.restore();
+}
+/* Ionic contacts (as drawIonic): a cation and an anion (lone ions or charged molecules) whose closest atoms touch. */
+function drawIonic3(ctx) {
+  const at = [], seen = new Set();
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || p.ne <= 0 || p.q === 0 || seen.has(p)) continue;
+    const g = linked(p) ? molecule(p) : [p];
+    let Q = 0; for (const a of g) { seen.add(a); Q += a.q; }
+    if (Math.abs(Q) < 1) continue;
+    for (const a of g) at.push({ p: a, g, Q });
+  }
+  if (at.length < 2) return;
+  at.sort((a, b) => a.p.x - b.p.x);
+  const best = new Map();
+  for (let i = 0; i < at.length; i++) {
+    const A = at[i], a = A.p, ra = 0.5 * a.ljR;
+    for (let j = i + 1; j < at.length; j++) {
+      const Bq = at[j], b = Bq.p, dx = b.x - a.x;
+      if (dx > 8) break;
+      if (A.Q * Bq.Q >= 0) continue;
+      const r = Math.hypot(dx, b.y - a.y, b.z - a.z), reach = 1.3 * (ra + 0.5 * b.ljR);
+      if (r > reach || r < 0.3) continue;
+      const key = A.Q > 0 ? A.g[0].id + ':' + Bq.g[0].id : Bq.g[0].id + ':' + A.g[0].id, o = best.get(key);
+      if (!o || r < o.r) best.set(key, { r, a, b, qq: Math.abs(A.Q * Bq.Q) });
+    }
+  }
+  if (!best.size) return;
+  const P = _p3c, Q = _p3d;
+  ctx.save(); ctx.strokeStyle = R.cvd ? 'rgba(240,228,66,0.6)' : 'rgba(255,196,120,0.6)'; ctx.setLineDash([1.5, 3.5]); ctx.lineCap = 'round';
+  for (const { a, b, qq } of best.values()) {
+    if (!seg3(a.x, a.y, a.z, b.x, b.y, b.z, P, Q)) continue;
+    ctx.lineWidth = clamp(0.8 + 0.35 * Math.sqrt(qq), 1, 2.6); ctx.beginPath(); ctx.moveTo(P[0], P[1]); ctx.lineTo(Q[0], Q[1]); ctx.stroke();
+  }
+  ctx.restore();
+}
+/* The Measure tool's marks (as drawMeasure): the lines between the atoms picked, each with its length in space, and the
+   angle in space at the middle atom of three (its arc drawn between the two lines as they appear). */
+function drawMeasure3(ctx) {
+  const m = (R.measure || []).filter(p => !p.dead); if (!m.length) return;
+  const P = []; for (const p of m) { const o = [0, 0, 0]; if (!proj3(p.x, p.y, p.z || 0, o)) return; P.push(o); }
+  const acc = cssVar('--accent') || '#6aa6ff';
+  ctx.save(); ctx.lineWidth = 1.6; ctx.strokeStyle = acc; ctx.fillStyle = acc; ctx.setLineDash([5, 3]);
+  ctx.beginPath(); P.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke(); ctx.setLineDash([]);
+  for (const [x, y, z] of P) { ctx.beginPath(); ctx.arc(x, y, Math.max(6, Math.min(18, 0.45 * C3.F / z)), 0, Math.PI * 2); ctx.stroke(); }
+  const tag = (t, x, y) => { ctx.font = '600 12px ' + (cssVar('--font-data') || 'monospace'); const w = ctx.measureText(t).width + 10; ctx.fillStyle = 'rgba(8,14,22,0.82)'; ctx.fillRect(x - w / 2, y - 10, w, 20); ctx.fillStyle = '#eaf2ff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y + 0.5); };
+  for (let i = 0; i + 1 < m.length; i++) tag(fmtA(measureDist(m[i], m[i + 1])), (P[i][0] + P[i + 1][0]) / 2, (P[i][1] + P[i + 1][1]) / 2 - 14);
+  if (m.length >= 3) {
+    const [bx, by] = P[1], a1 = Math.atan2(P[0][1] - by, P[0][0] - bx), a2 = Math.atan2(P[2][1] - by, P[2][0] - bx), r = 28;
+    let d = a2 - a1; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+    ctx.strokeStyle = acc; ctx.beginPath(); ctx.arc(bx, by, r, a1, a1 + d, d < 0); ctx.stroke();
+    const am = a1 + d / 2; tag(measureAngle(m[0], m[1], m[2]).toFixed(1) + '°', bx + Math.cos(am) * (r + 22), by + Math.sin(am) * (r + 22));
+  }
+  ctx.restore();
+}
+/* Flashes (sparks, captures, light given off) at their place in depth, sized for their distance. */
+function drawFlashes3(ctx, rt) {
+  if (R.lite) { W.flashes.length = 0; return; }
+  const o = _p3c;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let i = W.flashes.length - 1; i >= 0; i--) {
+    const f = W.flashes[i], age = rt - f.t0;
+    if (age > f.life) { W.flashes.splice(i, 1); continue; }
+    if (!proj3(f.x, f.y, f.z || 0, o)) continue;
+    const k = age / f.life, r = Math.min(Math.max(10, f.s * (C3.F / o[2]) * (0.6 + 1.6 * k)), 70 + 14 * f.s);
+    drawSprite(glowSprite(f.c, r * (R.flashK < 1 ? 0.6 : 1)), o[0], o[1], (1 - k) * 0.9 * R.flashK);
+  }
+  ctx.restore();
+}
+/* Events with a caption (as drawEvents, more simply): two rings where it happened, and the newest few captions. */
+function drawEvents3(ctx, rt) {
+  const evs = W.events; if (!evs.length) return;
+  for (let i = evs.length - 1; i >= 0; i--) if (rt - evs[i].t0 > EV_LIFE || rt < evs[i].t0 - 0.5) evs.splice(i, 1);
+  const o = _p3c;
+  ctx.save();
+  for (const e of evs.slice(-4)) {
+    if (!proj3(e.x, e.y, e.z || 0, o)) continue;
+    const age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
+    for (const d of [0, 0.3]) { const k = clamp((age - d) / 1.0, 0, 1); if (k <= 0 || k >= 1) continue; ctx.strokeStyle = rgba(c, (1 - k) * 0.85); ctx.lineWidth = 2.2 * (1 - k) + 0.6; ctx.beginPath(); ctx.arc(o[0], o[1], 5 + k * 46, 0, Math.PI * 2); ctx.stroke(); }
+    const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1); if (a <= 0.01) continue;
+    ctx.globalAlpha = a; ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(e.text).width + 16, bx = clamp(o[0] + 18, 8, R.w - w - 8), by = clamp(o[1] - 40, 8, R.h - 34);
+    ctx.fillStyle = 'rgba(7,11,17,0.88)'; ctx.fillRect(bx, by, w, 26); ctx.fillStyle = rgba(c, 1); ctx.fillRect(bx, by + 5, 3, 16);
+    ctx.fillStyle = '#eef3f8'; ctx.fillText(e.text, bx + 9, by + 13); ctx.globalAlpha = 1;
   }
   ctx.restore();
 }

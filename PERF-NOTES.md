@@ -137,8 +137,23 @@ engine stores and visits particles.
   two-finger turn and pinch. Preview setup "3-D: molecules in space (preview)" (Chemistry). Saving, undo and rewind
   refused in 3-D for now. 2-D frames unchanged pixel for pixel (t_3d). Frame (headless, software GL), 1,800 water atoms:
   2-D 0.4–1.5 ms, 3-D 1.2–2.3 ms (JavaScript projection of every particle for labels and glows).
-  Next: stage 3 (the mode in the main menu; tools in depth; Measure, H-bonds, tracks, light, flashes in 3-D; a save
-  format with z); stage 4 (the Rust kernel and threads in 3-D).
+  Stage 3 done (the mode): a "3-D lab… Preview" entry in the main menu with its own setups (empty cube, molecules in
+  space, liquid water 1,029 atoms in a 22 Å periodic cube, H₂ + O₂ 432 atoms at 600 K, hot hydrogen atoms, salt in
+  water 997 atoms) and a Leave button; tools in depth (Place at the atom under the pointer or the target plane, drags
+  on the plane facing the camera, Grab in 3-D, Select by the drawn positions, Heat and Erase through the brush's cone,
+  Push/Pull and Spark as a ball, Fire in the view plane, Measure distances and angles in space); trails, H-bonds,
+  ionic contacts, flashes and events drawn in 3-D; Inspect shows position and velocity with z; save format version 2
+  (d3: depth, z, vz to 1e-10; version 1 unchanged), so saves, shares, gallery, autosave, undo and rewind work in 3-D.
+  Not in 3-D (disabled, "Not in 3-D yet"): magnets, fields, objects, light, beam sources, the box-size slider, the
+  Experimental physics settings, the ultra mode, light/neutrinos/unstable particles/neutrons/positrons/antimatter in
+  the palette, Ask Claude; Fire capped below radiation-mode flight. Water and brine start with a strong bath for 0.2 ps
+  (laid out on a lattice they would heat to 600–1,300 K as hydrogen bonds form). Speed (Node, one thread): water 4.6
+  ms a step, brine 10.2, H₂ + O₂ 0.17. Open: hot hydrogen insulated drifts −5 eV over 4.6 ps (the 3-D H + H pairing
+  events at the 0.04 tu step).
+  Found on the way (a bug in 2-D too, fixed): threadsBind wrote the WebAssembly sum table before the module was ready
+  (in the page it compiles in the background): "Cannot set properties of null" in t_threads, now and then. The table is
+  written when the module is used, and the workers are bound again once it is ready.
+  Next: stage 4 (the Rust kernel and threads in 3-D).
 - Asked for (the user: "start 3D once you've completed the quantum thing"): a 3-D mode, as a separate mode chosen in the main menu rather than a setting: the
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch

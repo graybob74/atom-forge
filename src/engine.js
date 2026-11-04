@@ -935,13 +935,13 @@ function log(cls, text) {
 /* A flash marks an event for the eye (it is not light the simulation follows). Where events come thick and fast, as in
    a heavy-ion collision whose fragments go on knocking into one another, flashes would pile up into a glaring cloud,
    so one that would land on two others still young is left out. */
-function flash(x, y, rgb, size, life) {
+function flash(x, y, rgb, size, life, z = 0) { // (z: where in depth, 3-D)
   let near = 0;
   for (let i = W.flashes.length - 1; i >= 0; i--) {
     const f = W.flashes[i], d = Math.max(3, 0.6 * Math.max(f.s, size));
     if (W.rt - f.t0 < 0.5 * f.life && Math.abs(f.x - x) < d && Math.abs(f.y - y) < d && ++near >= 2) return;
   }
-  W.flashes.push({ x, y, c: rgb, s: size, life, t0: W.rt }); if (W.flashes.length > 300) W.flashes.shift();
+  W.flashes.push({ x, y, z, c: rgb, s: size, life, t0: W.rt }); if (W.flashes.length > 300) W.flashes.shift();
 }
 /* Nuclear events, kept for the renderer: where and what happened, with ghosts of the particles that
    vanished or changed identity, so an event reads as more than a flash. An isolated event also starts
@@ -2822,6 +2822,7 @@ function leptonExtras(total) {
   const t = W.tool, pull = t && t.active && t.type === 'pull', g = W.grab, gp = g && g.p && g.p.k !== NUC && !g.p.dead ? g.p.i : -1;
   const mdLI = _mdLI, nL = _nmdL, DEAD = S.dead, FAST = S.fast, RAD = S.rad, Q = S.q, X = S.x, Y = S.y, VX = S.vx, VY = S.vy, M = S.m, GX = S.gx, GY = S.gy, FX = S.fx, FY = S.fy, OBJ = S.obj;
   if (!hasE && !pull && gp < 0) return; // (nothing to add)
+  if (W.d3) { leptonExtras3(total, t, pull, g, gp); return; }
   for (let q = 0; q < nL; q++) {
     const i = mdLI[q];
     if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
@@ -2836,6 +2837,23 @@ function leptonExtras(total) {
     if (gp === i) { const mg = Math.max(M[i], GRAB_M); fx += mg * (6 * (g.x - X[i]) - 2.5 * VX[i]); fy += mg * (6 * (g.y - Y[i]) - 2.5 * VY[i]); }
     GX[i] += fx; GY[i] += fy;
     if (total) { FX[i] += fx; FY[i] += fy; }
+  }
+}
+
+/* (3-D) The same for free electrons in a 3-D world: Push/Pull's ball and the Grab spring, with z (no fields in 3-D yet). */
+function leptonExtras3(total, t, pull, g, gp) {
+  const mdLI = _mdLI, nL = _nmdL, DEAD = S.dead, FAST = S.fast, RAD = S.rad, X = S.x, Y = S.y, Zp = S.z, VX = S.vx, VY = S.vy, VZ = S.vz, M = S.m, GX = S.gx, GY = S.gy, GZ = S.gz, FX = S.fx, FY = S.fy, FZ = S.fz;
+  for (let q = 0; q < nL; q++) {
+    const i = mdLI[q];
+    if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
+    let fx = 0, fy = 0, fz = 0;
+    if (pull) {
+      const R = t.R, R2 = R * R, U0 = Math.min(20, Math.abs(t.s)), dx = t.x - X[i], dy = t.y - Y[i], dz = (t.z || 0) - Zp[i], d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 <= R2 && d2 >= 1e-8) { const d = Math.sqrt(d2), F = t.s > 0 ? 2 * U0 * d / R2 : -2 * U0 * (1 - d / R) / R; fx += F * dx / d; fy += F * dy / d; fz += F * dz / d; }
+    }
+    if (gp === i) { const mg = Math.max(M[i], GRAB_M), gz = g.z === undefined ? Zp[i] : g.z; fx += mg * (6 * (g.x - X[i]) - 2.5 * VX[i]); fy += mg * (6 * (g.y - Y[i]) - 2.5 * VY[i]); fz += mg * (6 * (gz - Zp[i]) - 2.5 * VZ[i]); }
+    GX[i] += fx; GY[i] += fy; GZ[i] += fz;
+    if (total) { FX[i] += fx; FY[i] += fy; FZ[i] += fz; }
   }
 }
 
@@ -3122,14 +3140,15 @@ function toolForces() {
     // gains more than |s|. Attract is a harmonic trap, U = s·(d/R)²: no force at the centre, so atoms pack
     // at their natural spacing instead of being rammed together. Repel is U = |s|·(1 − d/R)².
     const R = t.R, R2 = R * R, U0 = Math.abs(t.s), mdI = _mdI, nmd = _nmd, K = S.k, X = S.x, Y = S.y, FX = S.fx, FY = S.fy;
+    const d3 = W.d3, Zp = S.z, FZ = S.fz, tz = t.z || 0; // (3-D: a ball round the point (x, y, z))
     for (let q = 0; q < nmd; q++) {
       const i = mdI[q];
       if (K[i] !== NUC) continue; // free electrons: leptonExtras
-      const dx = t.x - X[i], dy = t.y - Y[i], d2 = dx * dx + dy * dy;
+      const dx = t.x - X[i], dy = t.y - Y[i], dz = d3 ? tz - Zp[i] : 0, d2 = dx * dx + dy * dy + dz * dz;
       if (d2 > R2 || d2 < 1e-8) continue;
       const d = Math.sqrt(d2);
       const F = t.s > 0 ? 2 * U0 * d / R2 : -2 * U0 * (1 - d / R) / R;
-      FX[i] += F * dx / d; FY[i] += F * dy / d;
+      FX[i] += F * dx / d; FY[i] += F * dy / d; if (d3) FZ[i] += F * dz / d;
     }
   }
   const g = W.grab;
@@ -3139,6 +3158,7 @@ function toolForces() {
     // a damped spring to the cursor, a = 2.5·(2.4·d − v), but never drawing it faster than GRAB_V: when the simulation
     // runs slowly the cursor gets far ahead, and an uncapped spring flung a big molecule at tens of km/s (its kinetic
     // energy read as millions of kelvin, and the tiny steps it forced froze the clock)
+    if (W.d3) { grabForces3(g, p, atoms); return; }
     let ux = 2.4 * (g.x - p.x), uy = 2.4 * (g.y - p.y);
     const vc = g.vcap || GRAB_V, u = Math.hypot(ux, uy); if (u > vc) { ux *= vc / u; uy *= vc / u; } // (vcap: set each frame by the Grab tool's strength, to keep up with the mouse)
     for (const a of atoms) {
@@ -3155,6 +3175,37 @@ function toolForces() {
       }
     }
   }
+}
+
+/* (3-D) The Grab tool's pull, as above, toward the point (g.x, g.y, g.z): the damped speed spring and, for Strong and
+   Very strong, the plain spring shared by mass. */
+function grabForces3(g, p, atoms) {
+  const gz = g.z === undefined ? p.z : g.z;
+  let ux = 2.4 * (g.x - p.x), uy = 2.4 * (g.y - p.y), uz = 2.4 * (gz - p.z);
+  const vc = g.vcap || GRAB_V, u = Math.sqrt(ux * ux + uy * uy + uz * uz); if (u > vc) { ux *= vc / u; uy *= vc / u; uz *= vc / u; }
+  for (const a of atoms) {
+    if (a.dead) continue;
+    a.fx += a.m * 2.5 * (ux - a.vx); a.fy += a.m * 2.5 * (uy - a.vy); a.fz += a.m * 2.5 * (uz - a.vz);
+  }
+  const kf = GRAB_F[g.s];
+  if (kf) {
+    const dx = g.x - p.x, dy = g.y - p.y, dz = gz - p.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz), F = Math.min(kf[1], kf[0] * d);
+    if (d > 1e-9) {
+      let mt = 0; for (const a of atoms) if (!a.dead) mt += a.m;
+      for (const a of atoms) { if (a.dead) continue; const f = F * a.m / mt; a.fx += f * dx / d; a.fy += f * dy / d; a.fz += f * dz / d; }
+    }
+  }
+}
+/* (3-D) Whether a point is inside the Heat tool's reach: the cone from the eye through the pointer that the brush's
+   circle is the cross-section of (cone: [eye x, y, z, unit direction x, y, z, radius over distance]), so it acts on what
+   is seen under the brush, all the way through; without a cone, a ball round (t.x, t.y, t.z). */
+function inTool3(t, x, y, z) {
+  const c = t.cone;
+  if (!c) { const dx = x - t.x, dy = y - t.y, dz = z - (t.z || 0); return dx * dx + dy * dy + dz * dz < t.R * t.R; }
+  const dx = x - c[0], dy = y - c[1], dz = z - c[2], s = dx * c[3] + dy * c[4] + dz * c[5];
+  if (!(s > 0)) return false;
+  const r = c[6] * s;
+  return dx * dx + dy * dy + dz * dz - s * s < r * r;
 }
 
 /* ------------------------------------------------------------------ momentum-conserving energy transfers */
@@ -3504,7 +3555,8 @@ function startTrack(p) {
     p.anti ? [190, 125, 255] : p.Z === 1 && p.N === 2 ? [110, 220, 235] : p.Z === 1 ? [255, 110, 100] : [255, 90, 60];
   const w = p.k !== NUC ? 1 : p.Z === 0 ? 1 : p.Z === 2 ? 2.2 : p.Z > 20 ? 3.2 : 1.6;
   _trkN++;
-  p.trk = { pts: [p.x, p.y], ts: [W.rt], tt: [W.t], c: col, w, t0: W.rt, upd: W.rt, dash: p.Z === 0 && p.k === NUC, beam: !!p.beam, p, seuI: 0, seuE0: 0, seuDep: 0 }; // (p, seu…: for the charge it frees crossing a chip, chips.js)
+  p.trk = { pts: [p.x, p.y], ts: [W.rt], tt: [W.t], c: col, w, t0: W.rt, upd: W.rt, dash: p.Z === 0 && p.k === NUC, beam: !!p.beam, p, seuI: 0, seuE0: 0, seuDep: 0 };
+  if (W.d3) p.trk.pz = [p.z]; // (3-D: each point's depth) // (p, seu…: for the charge it frees crossing a chip, chips.js)
   keepTrack(p.trk);
 }
 /* Trails fade 1.6 s after their particle stops or leaves (drawTracks). Past TRACK_MAX the oldest beam particles'
@@ -3520,27 +3572,27 @@ function keepTrack(t) {
 /* Drop a track's k oldest points (with their times; a chip's place along it moves back with them). */
 function trkDrop(t, k) {
   if (k <= 0) return;
-  t.pts.splice(0, 2 * k); if (t.ts) { t.ts.splice(0, k); t.tt.splice(0, k); }
+  t.pts.splice(0, 2 * k); if (t.ts) { t.ts.splice(0, k); t.tt.splice(0, k); } if (t.pz) t.pz.splice(0, k);
   if (t.seuI !== undefined) t.seuI = Math.max(0, t.seuI - 2 * k);
 }
 /* A track at its 400 points is thinned, not cut: every other point of its older half goes, so it keeps the time it
    spans (Settings → Particle trails) at a little less detail where it is oldest. */
 function trkThin(t) {
-  const n = t.pts.length >> 1, half = n >> 1, P = [], TS = [], TT = [];
+  const n = t.pts.length >> 1, half = n >> 1, P = [], TS = [], TT = [], PZ = t.pz ? [] : null;
   let seu = t.seuI !== undefined ? t.seuI >> 1 : -1, seuN = 0;
   for (let i = 0; i < n; i++) {
     if (i < half && (i & 1)) continue;
     if (i < seu) seuN++;
-    P.push(t.pts[2 * i], t.pts[2 * i + 1]); if (t.ts) { TS.push(t.ts[i]); TT.push(t.tt[i]); }
+    P.push(t.pts[2 * i], t.pts[2 * i + 1]); if (t.ts) { TS.push(t.ts[i]); TT.push(t.tt[i]); } if (PZ) PZ.push(t.pz[i]);
   }
-  t.pts = P; if (t.ts) { t.ts = TS; t.tt = TT; }
+  t.pts = P; if (t.ts) { t.ts = TS; t.tt = TT; } if (PZ) t.pz = PZ;
   if (seu >= 0) t.seuI = 2 * seuN;
 }
 function extendTrack(p) {
   const t = p.trk; if (!t) return;
   const n = t.pts.length;
   const lx = t.pts[n - 2], ly = t.pts[n - 1];
-  if (Math.abs(lx - p.x) + Math.abs(ly - p.y) > 0.4) { t.pts.push(p.x, p.y); if (t.ts) { t.ts.push(W.rt); t.tt.push(W.t); } if (t.pts.length > 800) trkThin(t); }
+  if (t.pz ? Math.abs(lx - p.x) + Math.abs(ly - p.y) + Math.abs(t.pz[t.pz.length - 1] - p.z) > 0.4 : Math.abs(lx - p.x) + Math.abs(ly - p.y) > 0.4) { t.pts.push(p.x, p.y); if (t.ts) { t.ts.push(W.rt); t.tt.push(W.t); } if (t.pz) t.pz.push(p.z); if (t.pts.length > 800) trkThin(t); }
   t.upd = W.rt;
 }
 /* Electrostatic potential (V) felt by an electron at (x, y) from nearby charges (soft-cored as in the forces). */
@@ -6567,6 +6619,12 @@ function outerB3(dt) {
   _wallNeed = -1;
   const PI = partsSync(), n = W.parts.length, seed = W.bathSeed, seedZ = (seed ^ 0x6A09E667) >>> 0, step = W.step, nz = _bathNz, nz3 = _bathNz3;
   const DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, VZ = S.vz, FX = S.fx, FY = S.fy, FZ = S.fz, GX = S.gx, GY = S.gy, GZ = S.gz, IM = S.im, FRESH = S.fresh;
+  // the Heat tool (a local bath at its temperature, in its cone) and Push/Pull (the atoms in its ball calmed to the
+  // chamber's temperature, about critically for their mass), as in the flat world
+  const t = W.tool, heat = !!(t && t.active && (t.type === 'heat' || t.type === 'pull')), Xp = S.x, Yp = S.y, Zp = S.z;
+  let hc1 = 1, hc2 = 0, hkT = 0, pullK = 0;
+  if (heat) { hc1 = Math.exp(-0.6 * dt); hc2 = Math.sqrt(1 - hc1 * hc1); hkT = PHYS.KB * (t.type === 'heat' ? t.T : W.T); if (t.type === 'pull') pullK = 2 * Math.abs(t.s) / (t.R * t.R); }
+  const reach = pullK ? { x: t.x, y: t.y, z: t.z, R: t.R } : t; // (Push/Pull: its ball, whatever the cone)
   for (let j = 0; j < n; j++) {
     const i = PI[j];
     if (DEAD[i] === 1 || RAD[i] === 1) continue;
@@ -6579,9 +6637,15 @@ function outerB3(dt) {
     let vx = VX[i], vy = VY[i], vz = VZ[i];
     if (fast) { vx += h * FX[i] * im; vy += h * FY[i] * im; vz += h * FZ[i] * im; }
     else { vx += h * (FX[i] - GX[i]) * im; vy += h * (FY[i] - GY[i]) * im; vz += h * (FZ[i] - GZ[i]) * im; }
-    if (gam > 0 && k === NUC) {
+    const inTool = heat && k === NUC && inTool3(reach, Xp[i], Yp[i], Zp[i]);
+    if (gam > 0 && k === NUC && !(inTool && pullK)) {
       const sg = Math.sqrt(kT * im); bathNoise(seed, step, i, nz); bathNoise(seedZ, step, i, nz3);
       vx = c1 * vx + c2 * sg * nz[0]; vy = c1 * vy + c2 * sg * nz[1]; vz = c1 * vz + c2 * sg * nz3[0];
+    }
+    if (inTool) {
+      let k1 = hc1, k2 = hc2;
+      if (pullK) { const g = Math.min(10, Math.max(0.6 * Math.min(1, 12 * im), 2 * Math.sqrt(pullK * im))); k1 = Math.exp(-g * dt); k2 = Math.sqrt(1 - k1 * k1); }
+      const sg = Math.sqrt(hkT * im); vx = k1 * vx + k2 * sg * gauss(); vy = k1 * vy + k2 * sg * gauss(); vz = k1 * vz + k2 * sg * gauss();
     }
     VX[i] = vx; VY[i] = vy; VZ[i] = vz;
   }
@@ -7513,9 +7577,9 @@ function relax3(atoms, passes) {
 function spark(x, y, R, E, z = 0) { // (z: in a 3-D world)
   const ps = [];
   nearby(x, y, R, (p) => { if (p.k === NUC && !p.dead) ps.push(p); }, z);
-  if (ps.length < 2) { flash(x, y, [255, 220, 120], R, 0.4); return; }
+  if (ps.length < 2) { flash(x, y, [255, 220, 120], R, 0.4, z); return; }
   const each = E / ps.length;
-  if (each > 0.5 * radThreshold(false)) { // fast: the atoms pair off at random, each pair taking its share (an odd one out leaves its share to the last pair)
+  if (each > 0.5 * radThreshold(false) && !W.d3) { // (3-D: flight in radiation mode is flat for now, so the pairs share it as below) // fast: the atoms pair off at random, each pair taking its share (an odd one out leaves its share to the last pair)
     for (let k = ps.length - 1; k > 0; k--) { const j = Math.floor(rnd() * (k + 1)); [ps[k], ps[j]] = [ps[j], ps[k]]; }
     const np = Math.floor(ps.length / 2);
     for (let k = 0; k < np; k++) sparkApart(ps[2 * k], ps[2 * k + 1], (k === np - 1 && ps.length % 2 ? 3 : 2) * each);
@@ -7523,7 +7587,7 @@ function spark(x, y, R, E, z = 0) { // (z: in a 3-D world)
     const a = ps[k], b = ps[(k + 1 + Math.floor(rnd() * (ps.length - 1))) % ps.length];
     kickPair(a, b, each);
   }
-  flash(x, y, [255, 220, 120], R, 0.5);
+  flash(x, y, [255, 220, 120], R, 0.5, z);
   log('tool', `Spark: ${fmtE(E)} dumped into ${ps.length} atoms`);
 }
 
@@ -7540,29 +7604,29 @@ function sparkApart(a, b, E) {
 
 /* ------------------------------------------------------------------ spawning (used by tools and presets) */
 /* spec: { kind: 'e' | 'pos' | 'n' | 'nuc' | 'atom' | 'mol' | 'gamma', Z, A, charge, bare, mol } */
-function spawnSpec(spec, x, y, T) {
+function spawnSpec(spec, x, y, T, z = 0) { // (z: in a 3-D world)
   if (W.parts.length >= MAX_PARTS) return [];
   const temp = T === undefined ? W.T : T;
   switch (spec.kind) {
     case 'e': case 'pos': {
-      const [vx, vy] = thermalV(PHYS.ME_SIM, temp);
-      return [addLepton(spec.kind === 'e' ? ELEC : POS, x, y, vx, vy)];
+      const [vx, vy, vz] = thermalV(PHYS.ME_SIM, temp);
+      return [addLepton(spec.kind === 'e' ? ELEC : POS, x, y, vx, vy, z, W.d3 ? vz : 0)];
     }
     case 'n': {
-      const p = addNuc(0, 1, 0, x, y); const [vx, vy] = thermalV(p.m, temp); p.vx = vx; p.vy = vy;
+      const p = addNuc(0, 1, 0, x, y, 0, 0, false, z); const [vx, vy, vz] = thermalV(p.m, temp); p.vx = vx; p.vy = vy; if (W.d3) p.vz = vz;
       return [p];
     }
     case 'nuc': {
-      const p = addNuc(spec.Z, spec.A - spec.Z, 0, x, y); const [vx, vy] = thermalV(p.m, temp); p.vx = vx; p.vy = vy; updateFast(p);
+      const p = addNuc(spec.Z, spec.A - spec.Z, 0, x, y, 0, 0, false, z); const [vx, vy, vz] = thermalV(p.m, temp); p.vx = vx; p.vy = vy; if (W.d3) p.vz = vz; updateFast(p);
       return [p];
     }
-    case 'atom': return [addAtom(spec.Z, x, y, { A: spec.A, charge: spec.charge || 0, bare: !!spec.bare, anti: !!spec.anti, T: temp })];
+    case 'atom': return [addAtom(spec.Z, x, y, { A: spec.A, charge: spec.charge || 0, bare: !!spec.bare, anti: !!spec.anti, T: temp, z })];
     case 'pbar': case 'nbar': { // an antiproton, or an antineutron (no charge: it annihilates on meeting a nucleus, or decays to p̄ e⁺ ν)
-      const p = spec.kind === 'pbar' ? addNuc(1, 0, 0, x, y, 0, 0, true) : addNuc(0, 1, 0, x, y, 0, 0, true);
-      const [vx, vy] = thermalV(p.m, temp); p.vx = vx; p.vy = vy; updateFast(p);
+      const p = spec.kind === 'pbar' ? addNuc(1, 0, 0, x, y, 0, 0, true, z) : addNuc(0, 1, 0, x, y, 0, 0, true, z);
+      const [vx, vy, vz] = thermalV(p.m, temp); p.vx = vx; p.vy = vy; if (W.d3) p.vz = vz; updateFast(p);
       return [p];
     }
-    case 'mol': return addMolecule(spec.mol, x, y, molWhole(MOLECULES[spec.mol]) ? 0 : rnd() * Math.PI * 2, temp); // (tiny objects go down as drawn)
+    case 'mol': return addMolecule(spec.mol, x, y, molWhole(MOLECULES[spec.mol]) ? 0 : rnd() * Math.PI * 2, temp, z); // (tiny objects go down as drawn)
   }
   return [];
 }
@@ -7590,7 +7654,7 @@ function crowdGrid() {
   }
   return (_crowd = { key, cs, cells });
 }
-function crowdedAt(group, dx, dy, skip) {
+function crowdedAt(group, dx, dy, skip, dz = 0) { // (dz: a move in depth, 3-D)
   if (W.parts.length > 1200 && W.wall !== 'wrap') { // (periodic walls: the plain check, which wraps distances)
     const { cs, cells } = crowdGrid();
     for (const a of group) {
@@ -7600,7 +7664,7 @@ function crowdedAt(group, dx, dy, skip) {
         const c = cells.get(i * 65536 + j); if (!c) continue;
         for (const o of c) {
           if (o.dead || skip.has(o)) continue;
-          const ex = o.x - ax, ey = o.y - ay, ez = o.z - a.z, lim = ra + keepR(o);
+          const ex = o.x - ax, ey = o.y - ay, ez = o.z - a.z - dz, lim = ra + keepR(o);
           if (ex * ex + ey * ey + ez * ez < lim * lim) return true;
         }
       }
@@ -7612,7 +7676,7 @@ function crowdedAt(group, dx, dy, skip) {
     const ax = a.x + dx, ay = a.y + dy, ra = keepR(a);
     for (const o of W.parts) {
       if (o.dead || o.k !== NUC || o.Z === 0 || skip.has(o)) continue;
-      const [ex, ey, ez] = minImg(o.x - ax, o.y - ay, o.z - a.z), lim = ra + keepR(o);
+      const [ex, ey, ez] = minImg(o.x - ax, o.y - ay, o.z - a.z - dz), lim = ra + keepR(o);
       if (ex * ex + ey * ey + ez * ez < lim * lim) return true;
     }
   }
@@ -7623,6 +7687,7 @@ function crowdedAt(group, dx, dy, skip) {
 function placeClear(group, maxR = 8, also = []) { // (also: particles it may sit on, e.g. its bond partners)
   const skip = new Set(group.concat(also));
   if (!crowdedAt(group, 0, 0, skip)) return true;
+  if (W.d3) return placeClear3(group, maxR, skip);
   const hw = W.box.w / 2 - 0.4, hh = W.box.h / 2 - 0.4, wrap = W.wall === 'wrap';
   for (let k = 1; k < 600; k++) {
     const rr = 0.3 * Math.sqrt(k), th = k * 2.39996;
@@ -7631,6 +7696,22 @@ function placeClear(group, maxR = 8, also = []) { // (also: particles it may sit
     if (!wrap && !group.every(a => Math.abs(a.x + dx) < hw && Math.abs(a.y + dy) < hh)) continue;
     if (!crowdedAt(group, dx, dy, skip)) {
       for (const a of group) { a.x += dx; a.y += dy; }
+      W.dirty++;
+      return true;
+    }
+  }
+  return false;
+}
+/* (3-D) The same search through a ball: points spread evenly through it (a golden spiral over the sphere of directions,
+   radii growing as the cube root, so the ball fills evenly), nearest first. */
+function placeClear3(group, maxR, skip) {
+  const hw = W.box.w / 2 - 0.4, hh = W.box.h / 2 - 0.4, hd = W.box.d / 2 - 0.4, wrap = W.wall === 'wrap', K = 1500;
+  for (let k = 1; k <= K; k++) {
+    const rr = maxR * Math.cbrt(k / K), ph = k * 2.39996, c = 1 - 2 * ((k * 0.6180339887) % 1), sn = Math.sqrt(Math.max(0, 1 - c * c));
+    const dx = rr * sn * Math.cos(ph), dy = rr * sn * Math.sin(ph), dz = rr * c;
+    if (!wrap && !group.every(a => Math.abs(a.x + dx) < hw && Math.abs(a.y + dy) < hh && Math.abs(a.z + dz) < hd)) continue;
+    if (!crowdedAt(group, dx, dy, skip, dz)) {
+      for (const a of group) { a.x += dx; a.y += dy; a.z += dz; a.ox = a.x; a.oy = a.y; a.oz = a.z; }
       W.dirty++;
       return true;
     }
@@ -7657,8 +7738,8 @@ function keepInside(group) {
 }
 /* Spawn inside the walls and keep clear; particles with no room are removed again. (free: a collider's injector,
    left where it is.) */
-function spawnClear(spec, x, y, T, free) {
-  const ps = spawnSpec(spec, x, y, T);
+function spawnClear(spec, x, y, T, free, z = 0) {
+  const ps = spawnSpec(spec, x, y, T, z);
   if (!free) keepInside(ps);
   if (ps.length && !placeClear(ps)) { for (const p of ps) kill(p); return []; }
   return ps;
@@ -7679,17 +7760,17 @@ function settleOverlaps() {
   }
 }
 /* Launch a projectile with kinetic energy KE (eV) along (ux, uy). */
-function fireSpec(spec, x, y, ux, uy, KE, free) {
+function fireSpec(spec, x, y, ux, uy, KE, free, z = 0, uz = 0) { // (z, uz: 3-D)
   if (spec.kind === 'gamma') { emitPhoton(x, y, KE, ux, uy); return null; }
   if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e'); return null; }
   if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy); // (1.12: an atom, in MD)
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy) : null; // (a muon, pion …: from outside, as any fired particle)
-  const ps = spawnClear(spec, x, y, 0, free);
+  const ps = spawnClear(spec, x, y, 0, free, z);
   if (!ps.length) return null;
-  if (ps.length === 1) { setMotion(ps[0], KE, ux, uy); if (!ps[0].trk && KE > 50) startTrack(ps[0]); return ps[0]; }
+  if (ps.length === 1) { setMotion(ps[0], KE, ux, uy, 0, 0, uz); if (!ps[0].trk && KE > 50) startTrack(ps[0]); return ps[0]; }
   let mt = 0; for (const a of ps) mt += a.m;
   const v = Math.sqrt(2 * KE / mt);
-  for (const a of ps) { a.vx = v * ux; a.vy = v * uy; updateFast(a); }
+  for (const a of ps) { a.vx = v * ux; a.vy = v * uy; if (W.d3) a.vz = v * uz; updateFast(a); }
   return ps[0];
 }
 function eraseAt(x, y, R) {
