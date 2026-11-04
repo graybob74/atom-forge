@@ -886,6 +886,7 @@ function boWhole(only) {
 }
 /* The setting: on or off. Turning it off gives every member stored bonds again (boSync). */
 function boSet(v) {
+  if (v && W.d3) return; // (not in 3-D yet: the members' forces and the quantum bonds' positions are flat)
   const on = !!v, qm = v === 2;
   if (on === BO.on && qm === BO.qm) return;
   if (BO.on && qm !== BO.qm && W.parts.length) { BO.on = false; boSync(); } // (the other model: every member leaves first, then joins again)

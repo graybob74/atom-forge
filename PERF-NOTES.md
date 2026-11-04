@@ -115,7 +115,23 @@ engine stores and visits particles.
   electrons. Cost: a 30-atom molecule about 120 basis functions, a few ms a step in JavaScript; liquid water's 240 atoms
   640 (×1,000), so an Experimental mode for small systems. To check a port, the reference implementation (pip tblite)
   needs the owner's OK to install here.
-- Next (the user: "start 3D once you've completed the quantum thing"): a 3-D mode, as a separate mode chosen in the main menu rather than a setting: the
+- In progress (branch v125, after 1.22): 3-D. Stage 1a done (the engine in the Node harness): `W.d3`, `W.box.d`,
+  `world3d(depth)`; z, vz, fz … in the store; 3-D grid, neighbour lists, kernels (JavaScript; WebAssembly and threads
+  bypassed in 3-D), walls, bath (3 degrees of freedom), events with z. Angles in 3-D: every pair of bonds at a centre,
+  (K/sin²θ₀)(cosθ − cosθ₀)² (the plain (θ − θ₀)² had a false minimum a flat CH₄ fell into), K(θ − π)² near linear;
+  VSEPR targets 180/120/109.47 (NH₃ 107, water 104.5), trigonal bipyramid and octahedron by the lowest-energy assignment;
+  new 3-D-only terms: out-of-plane for trigonal planar centres K_OOP·(u₁·u₂×u₃)² (2) and a torsion on double and
+  aromatic bonds K_TOR·(û₁·û₂×û₃)² (1.2; ethylene 2.7 eV at 90°). Molecules from the flat library: a random rotation,
+  ±0.15 Å jitter, relaxed. Measured: CH₄ 109.2–110.0°, NH₃ 106.2–107.0° (0.38 Å pyramid), water 105.0°, CO₂ 179.7°,
+  ethylene and benzene flat to 0.003 Å; 60 waters insulated 1,000 steps −0.003 eV; forces the slopes to 2e-8 eV/Å;
+  H atoms make H₂, H₂ + O₂ react. 2-D bit for bit unchanged (water, combustion, soup, gallery, 500 steps, seed 7) and
+  no slower. Cost: 720 atoms 1.70 ms a step in 3-D (JavaScript) against 0.58 in 2-D (3.2× the neighbour pairs).
+  Still 2-D only: nuclear reactions, hep.js, chips, objects, fields, lasers, beams, tools, light absorption, bond
+  orders, quantum bonds/nuclei, waves, responsive charges, box resizing, saving. Open: LJ_SCALE 2 and K_IW 2 (2-D
+  corrections) still on in 3-D; hypervalent lone pairs not compressing angles (SF₄ 120°, real ~102°).
+  Next: stage 2, drawing (perspective, an orbit camera); stage 3, the mode in the main menu and tools in depth;
+  stage 4, the Rust kernel and threads in 3-D.
+- Asked for (the user: "start 3D once you've completed the quantum thing"): a 3-D mode, as a separate mode chosen in the main menu rather than a setting: the
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
   everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
