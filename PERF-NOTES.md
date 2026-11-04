@@ -77,6 +77,8 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
+- Continuous bond orders: the orders' pass in WebAssembly (found in 1.16): it is nearly all of the remaining ×7–46
+  (3 ms a step for 240 water atoms in JavaScript); a Rust port of boPass beside the pair kernel, with the same checks.
 - Continuous bond orders: charge that moves with the orders (found in 1.16): a member's net charge sits on one atom as
   a whole unit, so a proton can't pass from H₃O⁺ to a neighbouring water (Grotthuss), an acid can't give its proton to
   water, and nitrate's N–O orders stay 1, 2, 1. Needs each atom's charge, and with it its valence, to follow the orders
@@ -154,6 +156,19 @@ engine stores and visits particles.
   neighbouring waters 0.9 eV, about water's real self-ionization) and four times the cost; taken out. A proton that hops
   needs the charge to move with the orders continuously (on the planned list). Nitrate's three N–O stay 1, 2, 1 (its
   formal charges sit on atoms), not the resonance's 1.33.
+
+- **Speed** (bond orders): the bond terms' share of the step control is now twice a bond's curvature at rest instead
+  of four times (1.13's choice, made before the orders' corners were rounded): steps 0.108 → 0.153 fs (water, gallery),
+  0.093 → 0.132 (combustion). Insulated after heating, 1,500 steps: gallery at 1,000 K 0.030 eV over 230 fs, water at
+  600 K 0.028, combustion at 2,500 K 0.049 (four times: 0.10, 0.013, −0.007 over 140–160 fs; the plain curvature: 25 eV
+  in 300 fs). Measured on one thread in Node against stored bonds (the WebAssembly kernel): liquid water ×60 → ×46, the
+  gallery ×42 → ×32, combustion ×13 → ×7 (water and the gallery were ×28–37 at 1.15, before the partial charges made the
+  molecules cling: more pairs). Per step the orders' pass is 3 ms for 240 water atoms, about 2,750 member pairs within
+  the cutoff: the Lennard-Jones and raw orders 23%, the partial charges 22%, collecting the pairs 11%, applying the forces
+  10%, the crowding factors 7%, levels, Morse terms, angles and the back-pass the rest. Tried and not worth it: letting
+  the WebAssembly kernel take the members' far pairs (the neighbour list's 1 Å skin leaves only pairs beyond 5.4 Å for
+  it, under a fifth), trimming the charge loop (no change within the timing noise). The real lever left is the orders'
+  pass itself in WebAssembly (on the planned list).
 
 ## 1.15.0: charged particles as collider beams, electrons as waves, the honest approximations, charge flowing back through bonds
 

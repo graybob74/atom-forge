@@ -9265,7 +9265,7 @@ function boPass(forces) {
       let fc = 1, dfc = 0; if (d > 0.9) { const u = Math.PI * (d - 0.9) / 0.4; fc = 0.5 * (1 + Math.cos(u)); dfc = -0.5 * Math.sin(u) * Math.PI / 0.4; }
       const M = D * (e * e - 1), dMdr = D * 2 * e * ex * al;
       E += fc * M; q.eM = fc * M; q.gr += fc * dMdr + dfc * M;
-      if (forces) { const w = 8 * D * al * al * fc * (S.im[q.a.i] + S.im[q.b.i]); if (w > _stiff) _stiff = w; } // (the bond's stiffness sets the longest step, as a stored bond's does: four times its curvature at rest, for the sharper turns of the orders themselves; at the plain curvature a hot gallery drifted 1–3 eV in 60 fs, at this 0.05)
+      if (forces) { const w = 4 * D * al * al * fc * (S.im[q.a.i] + S.im[q.b.i]); if (w > _stiff) _stiff = w; } // (the bond's stiffness sets the longest step, as a stored bond's does: twice its curvature at rest, for the sharper turns of the orders themselves; at the plain curvature a hot gallery drifted 1–3 eV in 60 fs (1.13), 25 eV in 300 fs (1.16); at twice, 0.03–0.05 eV in 200–230 fs (gallery 1,000 K, water 600 K, combustion 2,500 K); at four times (1.13–1.15) 0.01–0.10, with steps 1.41 times shorter)
       q.gn += fc * ((e * e - 1) * dD - dMdr * dr0 + D * 2 * e * ex * x * dal);
     }
   }
@@ -9391,15 +9391,16 @@ function boCoulomb(forces, n, L) {
   const adj = new Map();
   for (let k = 0; k < n; k++) { const q = L[k]; if (!(q.n > 0.3)) continue; let m = adj.get(q.a); if (!m) adj.set(q.a, m = new Map()); m.set(q.b, q); m = adj.get(q.b); if (!m) adj.set(q.b, m = new Map()); m.set(q.a, q); }
   let E = 0;
+  const c0 = 1 / Math.sqrt(RC2 + 0.09);
   for (let k = 0; k < n; k++) {
     const q = L[k], a = q.a, b = q.b, qa = a.q + a._boQ, qb = b.q + b._boQ; // (net charges too: ions are members since 1.16)
     if (!qa && !qb) continue;
     const b0 = boB(q.n); if (b0 >= 1) continue;
     let prod = 1, terms = null;
-    const ma = adj.get(a), mb = adj.get(b);
-    if (ma && mb && q.r < 4.4) for (const [c, q1] of ma) { const q2 = mb.get(c); if (!q2) continue; const w = boB(q1.n) * boB(q2.n); if (w <= 0) continue; prod *= 1 - w; (terms || (terms = [])).push(q1, q2, w); } // (q.r < 4.4: a 1-3 pair with both orders above 0.3 is never farther apart)
+    const ma = q.r < 4.4 ? adj.get(a) : null, mb = ma ? adj.get(b) : null;
+    if (ma && mb) for (const [c, q1] of ma) { const q2 = mb.get(c); if (!q2) continue; const w = boB(q1.n) * boB(q2.n); if (w <= 0) continue; prod *= 1 - w; (terms || (terms = [])).push(q1, q2, w); } // (q.r < 4.4: a 1-3 pair with both orders above 0.3 is never farther apart)
     const s = (1 - b0) * prod; if (!(s > 0)) continue;
-    const K = PHYS.KE * iwK(a, b), r2 = q.r * q.r, sq = Math.sqrt(r2 + 0.09), c = K * (1 / sq - csh(a, b, 0.09));
+    const K = a.ionic === b.ionic ? PHYS.KE : PHYS.KE * iwK(a, b), r2 = q.r * q.r, sq = Math.sqrt(r2 + 0.09), c = K * (1 / sq - (a.q === 0 || b.q === 0 ? c0 : csh(a, b, 0.09))); // (iwK and csh, the common case written out)
     E += s * c * qa * qb;
     if (!forces) continue;
     q.gr += -s * K * q.r / (sq * sq * sq) * qa * qb;
@@ -22545,7 +22546,7 @@ function costLevel(a) {
 const COST_K = { physics: 'Time to work out the physics', drawing: 'Time to draw each frame', memory: 'Memory it takes' };
 function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toFixed(1) : +v.toFixed(2)); }
 const COSTS = {
-  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×17–45', 'Measured on one thread: liquid water ×17, hydrogen + oxygen ×21, the molecule gallery ×45 (every pair worked out every step, steps half as long)'] } }),
+  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×7–46', 'Measured on one thread (1.16): hydrogen + oxygen ×7, the molecule gallery ×32, liquid water ×46 (its molecules hydrogen-bond now, so more pairs; every pair worked out every step, steps 2.6 times shorter)'] } }),
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–7', 'Measured on one thread: nothing without free electrons; liquid water with 40 free electrons ×6.5 (their inner steps 13 times shorter, for the packets\' breathing)'] } }),
   segPi: () => ({ k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×7.8', 'Measured on liquid water: the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water: 16 times a step'], 32: ['×36', 'Measured on liquid water: 32 times a step'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–1.8', 'Measured: water 4,000 ×1.4, brine ×1.6, liquid water ×1.8'], 1: ['×2.7–4.6', 'Measured: brine ×2.7, liquid water ×2.8, 4,000 waters ×4.6'] } }),
