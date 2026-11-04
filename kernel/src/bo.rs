@@ -229,22 +229,22 @@ fn lj(r: f64, rm: f64, eps: f64, cf: f64, vcut: f64) -> (f64, f64, f64) {
     (v, -eps * f0, m)
 }
 #[inline(always)]
-fn piece(dep: bool, k: i32, x: f64, v0: f64, v1: f64, v2: f64) -> (f64, f64) {
+fn piece(dep: bool, k: i32, x: f64, v0: f64, v1: f64, v2: f64, pw: f64) -> (f64, f64) {
     match k {
-        0 => if dep { if x <= 0.0 { (0.0, 0.0) } else { (v0 * x.powf(BO_PLOW), v0 * BO_PLOW * x.powf(BO_PLOW - 1.0)) } } else { (v0, 0.0) },
+        0 => if dep { if x <= 0.0 { (0.0, 0.0) } else { (v0 * x.powf(pw), v0 * pw * x.powf(pw - 1.0)) } } else { (v0, 0.0) },
         1 => (v0 + (v1 - v0) * (x - 1.0), v1 - v0),
         2 => (v1 + (v2 - v1) * (x - 2.0), v2 - v1),
         _ => (v2, 0.0),
     }
 }
-fn curve(dep: bool, n: f64, v0: f64, v1: f64, v2: f64) -> (f64, f64) {
+fn curve(dep: bool, n: f64, v0: f64, v1: f64, v2: f64, pw: f64) -> (f64, f64) {
     let h = BO_KH;
     let k: i32 = if n < 1.0 - h { 0 } else if n < 1.0 + h { -1 } else if n < 2.0 - h { 1 } else if n < 2.0 + h { -2 } else if n < 3.0 - h { 2 } else if n < 3.0 + h { -3 } else { 3 };
-    if k >= 0 { return piece(dep, k, n, v0, v1, v2); }
+    if k >= 0 { return piece(dep, k, n, v0, v1, v2, pw); }
     let kk = -k; let t = (n - kk as f64 + h) / (2.0 * h);
-    if t <= 0.0 { return piece(dep, kk - 1, n, v0, v1, v2); }
-    if t >= 1.0 { return piece(dep, kk, n, v0, v1, v2); }
-    let (a, as_) = piece(dep, kk - 1, n, v0, v1, v2); let (b, bs) = piece(dep, kk, n, v0, v1, v2);
+    if t <= 0.0 { return piece(dep, kk - 1, n, v0, v1, v2, pw); }
+    if t >= 1.0 { return piece(dep, kk, n, v0, v1, v2, pw); }
+    let (a, as_) = piece(dep, kk - 1, n, v0, v1, v2, pw); let (b, bs) = piece(dep, kk, n, v0, v1, v2, pw);
     let w = t * t * (3.0 - 2.0 * t); let dw = 6.0 * t * (1.0 - t) / (2.0 * h);
     (a + w * (b - a), as_ + w * (bs - as_) + dw * (b - a))
 }
@@ -390,9 +390,9 @@ pub unsafe fn pass1(b: &Bo, p: *mut f64) -> f64 {
         s(b.sa, k, na * sp_d(xa) * fa); s(b.ta, k, na * sp(xa) * fade_d(cak)); s(b.sb, k, nb * sp_d(xb) * fb); s(b.tb, k, nb * sp(xb) * fade_d(cbk));
         if nn > 1e-6 {
             let t = g(b.pt, k) as usize * PS; let r = g(b.pr, k); let r1 = g(tab, t); let c = g(tab, t + 1);
-            let (dpt, d_d) = curve(true, nn, g(tab, t + 5), g(tab, t + 6), g(tab, t + 7));
+            let (dpt, d_d) = curve(true, nn, g(tab, t + 5), g(tab, t + 6), g(tab, t + 7), g(tab, t + 15));
             let n2 = nn * nn + 0.0025; let r0 = r1 - 0.5 * c * n2.ln(); let dr0 = -c * nn / n2;
-            let (al, dal) = curve(false, nn, g(tab, t + 8), g(tab, t + 9), g(tab, t + 10));
+            let (al, dal) = curve(false, nn, g(tab, t + 8), g(tab, t + 9), g(tab, t + 10), BO_PLOW);
             let x = r - r0; let ex = (-al * x).exp(); let e1 = 1.0 - ex; let d = r - r1;
             let (mut fcut, mut dfc) = (1.0f64, 0.0f64);
             if d > 0.9 { let u = core::f64::consts::PI * (d - 0.9) / 0.4; fcut = 0.5 * (1.0 + u.cos()); dfc = -0.5 * u.sin() * core::f64::consts::PI / 0.4; }

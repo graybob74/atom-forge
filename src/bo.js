@@ -25,6 +25,15 @@
    proton passing between two waters bonds to the second one as it leaves the first, not only once it is 1.45 Å from it
    (the gap left a 1.2 eV barrier in a hop between waters 2.65 Å apart; 0.35 eV now). */
 const BO_TAH = 0.04, BO_TBH = 0.12;
+/* A hydrogen between two N, O or F (1.22): its bond's depth falls straight with the order below a single bond (power 1),
+   not as n^1.15, so a proton shared half and half between two waters keeps the whole of one O–H bond's depth: the power
+   cost such a split 0.2 eV, most of what was left of the hop's barrier. */
+const BO_PLOWH = 1.0;
+/* A charged member's electronegativity rises with its charge (1.22): χ + 0.45·q (Pauling units per e), as an ion's levels
+   do; H₃O⁺'s oxygen pulls its hydrogens' electrons harder, so they carry +0.50 (+0.37 before, with the +1 on the oxygen:
+   ab initio about +0.5), and OH⁻'s hydrogen less. The hydronium's hydrogen bonds tighten (its pair with a water 2.71 Å →
+   2.6), as a proton hop between waters needs. */
+const BO_CHIQ = 0.45;
 const BO_EPS = 0.03, BO_PLOW = 1.15, BO_WIN = 0.05, BO_TA = 0.15, BO_TB = 0.35, BO_SW = 0.5; // (smoothing; Dof's power below a single bond; the taper; the non-bonded switch's width)
 const boSp = (x) => x <= -BO_EPS ? 0 : x >= BO_EPS ? x : (x + BO_EPS) * (x + BO_EPS) / (4 * BO_EPS);
 const boSpD = (x) => x <= -BO_EPS ? 0 : x >= BO_EPS ? 1 : (x + BO_EPS) / (2 * BO_EPS);
@@ -40,8 +49,9 @@ function boPP(ea, eb) {
   if (!v) {
     const r = [1, 2, 3].map(o => bondLength(ea, eb, o)), D = [1, 2, 3].map(o => bondEnergy(ea, eb, o)), al = [1, 2, 3].map(o => morseA(ea, eb, o));
     const t = BONDS[bondKey(ea, eb)], two = !!(t && t.l && t.l[1]);
-    const c = two ? Math.min(0.45, Math.max(0.2, (r[0] - r[1]) / Math.LN2)) : Math.sqrt(BO_PLOW / 2) / al[0];
-    v = { r, D, al, c, sig: 0.62 * r[0], beta: al[0] * al[0], reach: r[0] + 1.3 };
+    const hx = (ea.Z === 1 && eb.Z >= 7 && eb.Z <= 9) || (eb.Z === 1 && ea.Z >= 7 && ea.Z <= 9), plow = hx ? BO_PLOWH : BO_PLOW; // (a hydrogen to N, O, F: its depth straight below a single bond, 1.22)
+    const c = two ? Math.min(0.45, Math.max(0.2, (r[0] - r[1]) / Math.LN2)) : Math.sqrt(plow / 2) / al[0];
+    v = { r, D, al, c, plow, sig: 0.62 * r[0], beta: al[0] * al[0], reach: r[0] + 1.3 };
     BO.cache.set(key, v);
   }
   return v;
@@ -77,7 +87,7 @@ function bfType(a, b) {
     if ((BF.nt + 1) * BF_PS > BF.PT.length) { const t = bfArr(Float64Array, BF.PT.length * 2); t.set(BF.PT); BF.PT = t; }
     const o = BF.nt * BF_PS, T = BF.PT;
     T[o] = P.r[0]; T[o + 1] = P.c; T[o + 2] = P.beta; T[o + 3] = P.sig; T[o + 4] = P.reach; T[o + 5] = P.D[0]; T[o + 6] = P.D[1]; T[o + 7] = P.D[2];
-    T[o + 8] = P.al[0]; T[o + 9] = P.al[1]; T[o + 10] = P.al[2]; T[o + 11] = P.rm; T[o + 12] = P.eps; T[o + 13] = P.rOn; T[o + 14] = P.rCut;
+    T[o + 8] = P.al[0]; T[o + 9] = P.al[1]; T[o + 10] = P.al[2]; T[o + 11] = P.rm; T[o + 12] = P.eps; T[o + 13] = P.rOn; T[o + 14] = P.rCut; T[o + 15] = P.plow;
     P.t = BF.nt++;
   }
   return P.t;
@@ -188,20 +198,20 @@ function bfPairsJS(useVL) {
   return n;
 }
 let _bfv = 0, _bfs = 0; // (a curve's value and slope: bfCurve, bfQh)
-function bfPiece(dep, k, x, V0, V1, V2) {
-  if (k === 0) { if (dep) { if (x <= 0) { _bfv = 0; _bfs = 0; } else { _bfv = V0 * Math.pow(x, BO_PLOW); _bfs = V0 * BO_PLOW * Math.pow(x, BO_PLOW - 1); } } else { _bfv = V0; _bfs = 0; } }
+function bfPiece(dep, k, x, V0, V1, V2, pw) {
+  if (k === 0) { if (dep) { if (x <= 0) { _bfv = 0; _bfs = 0; } else { _bfv = V0 * Math.pow(x, pw); _bfs = V0 * pw * Math.pow(x, pw - 1); } } else { _bfv = V0; _bfs = 0; } }
   else if (k === 1) { _bfv = V0 + (V1 - V0) * (x - 1); _bfs = V1 - V0; }
   else if (k === 2) { _bfv = V1 + (V2 - V1) * (x - 2); _bfs = V2 - V1; }
   else { _bfv = V2; _bfs = 0; }
 }
-function bfCurve(dep, N, V0, V1, V2) { // boDepth (dep) or boStiff, the corners at 1, 2, 3 rounded as boKnot does
+function bfCurve(dep, N, V0, V1, V2, pw = BO_PLOW) { // boDepth (dep) or boStiff, the corners at 1, 2, 3 rounded as boKnot does
   const H = BO_KH;
   let k = N < 1 - H ? 0 : N < 1 + H ? -1 : N < 2 - H ? 1 : N < 2 + H ? -2 : N < 3 - H ? 2 : N < 3 + H ? -3 : 3;
-  if (k >= 0) { bfPiece(dep, k, N, V0, V1, V2); return; }
+  if (k >= 0) { bfPiece(dep, k, N, V0, V1, V2, pw); return; }
   const K = -k, t = (N - K + H) / (2 * H);
-  if (t <= 0) { bfPiece(dep, K - 1, N, V0, V1, V2); return; }
-  if (t >= 1) { bfPiece(dep, K, N, V0, V1, V2); return; }
-  bfPiece(dep, K - 1, N, V0, V1, V2); const a = _bfv, as = _bfs; bfPiece(dep, K, N, V0, V1, V2); const b = _bfv, bs = _bfs;
+  if (t <= 0) { bfPiece(dep, K - 1, N, V0, V1, V2, pw); return; }
+  if (t >= 1) { bfPiece(dep, K, N, V0, V1, V2, pw); return; }
+  bfPiece(dep, K - 1, N, V0, V1, V2, pw); const a = _bfv, as = _bfs; bfPiece(dep, K, N, V0, V1, V2, pw); const b = _bfv, bs = _bfs;
   const w = t * t * (3 - 2 * t), dw = 6 * t * (1 - t) / (2 * H);
   _bfv = a + w * (b - a); _bfs = as + w * (bs - as) + dw * (b - a);
 }
@@ -307,7 +317,7 @@ function boPassJS(forces) {
     sA_[k] = nA * boSpD(xa) * fa; tA_[k] = nA * boSp(xa) * boFadeD(ca_[k]); sB_[k] = nB * boSpD(xb) * fb; tB_[k] = nB * boSp(xb) * boFadeD(cb_[k]);
     if (N > 1e-6) {
       const t = pt[k] * BF_PS, r = pr[k], r1 = PT[t], c = PT[t + 1];
-      bfCurve(true, N, PT[t + 5], PT[t + 6], PT[t + 7]); const D = _bfv, dD = _bfs;
+      bfCurve(true, N, PT[t + 5], PT[t + 6], PT[t + 7], PT[t + 15]); const D = _bfv, dD = _bfs;
       const N2 = N * N + 0.0025, r0 = r1 - 0.5 * c * Math.log(N2), dr0 = -c * N / N2;
       bfCurve(false, N, PT[t + 8], PT[t + 9], PT[t + 10]); const al = _bfv, dal = _bfs;
       const x = r - r0, ex = Math.exp(-al * x), e = 1 - ex, d = r - r1;
@@ -376,6 +386,8 @@ function boPassJS(forces) {
    valence, and −φ (its charge is Z − ν) */
 function bfDqGrad() {
   const nm = BF.nm, mem = BF.mem, gq = BF.mgq, phi = BF.mphi;
+  { const n = BF.np, pa = BF.pa, pb = BF.pb, pn = BF.pn, Gd = BF.mGd; // (the partial charges' share: χ moves with the charge)
+    for (let k = 0; k < n; k++) { if (!(pn[k] > 0) || !BF.pqc[k]) continue; bfQh(pn[k]); const a = pa[k], b = pb[k], w = BO_CHIQ * PARTIAL_K * _bfv * (phi[a] - phi[b]); Gd[a] += w; Gd[b] -= w; } }
   for (let m = 0; m < nm; m++) { gq[m] = BF.mGd[m] + BF.mdeI[m] + BF.mdcap[m] * BF.mGc[m] + BF.mdcapH[m] * BF.mGh[m] + BF.mdval[m] * BF.mGv[m] - phi[m]; mem[m]._dqg = gq[m]; }
 }
 /* angles (boPassObj's: strong partners always, those on the way in or out by the expectation over subsets) */
@@ -475,7 +487,7 @@ function bfCoulomb(forces, n) {
   for (let m = 0; m < nm; m++) { mq[m] = 0; phi[m] = 0; }
   for (let k = 0; k < n; k++) {
     if (!(pn[k] > 0)) continue;
-    const ea = men[pa[k]], eb = men[pb[k]]; if (ea === eb) continue;
+    const ea = men[pa[k]] + BO_CHIQ * mqn[pa[k]], eb = men[pb[k]] + BO_CHIQ * mqn[pb[k]]; if (ea === eb) continue; // (a charged atom's electronegativity moves with its charge, 1.22)
     bfQh(pn[k]); const qc = qc_[k] = PARTIAL_K * (eb - ea); qdh_[k] = _bfs;
     mq[pa[k]] += qc * _bfv; mq[pb[k]] -= qc * _bfv;
   }
@@ -757,17 +769,25 @@ function bfClusters() {
     if (Math.abs(p._dq || 0) > 0.5) real = true;
   }
   if (!ch && !qch && !real) return false;
+  let tot = null, moves = false;
+  if (qch) { // (the new groups: does any need its electrons made whole again, or its motion's share taken out?)
+    tot = new Map();
+    for (let m = 0; m < nm; m++) { const id = mem[UQ[m]].id, p = mem[m]; if (p.Z <= 1) continue; let t = tot.get(id); if (!t) tot.set(id, t = { s: 0, v: 0, n: 0, big: p, vs: 0 }); t.s += p._dq || 0; t.v += p._dqv || 0; t.vs += Math.abs(p._dqv || 0); t.n++; if (Math.abs(p._dq || 0) > Math.abs(t.big._dq || 0)) t.big = p; }
+    for (const t of tot.values()) if (Math.abs(Math.round(t.s) - t.s) > 1e-12 || (t.n > 1 ? Math.abs(t.v) > 1e-15 : t.vs > 0)) { moves = true; break; }
+  }
+  const relabel = () => {
+    for (let m = 0; m < nm; m++) { mem[m]._bcl = mem[U[m]].id; mem[m]._qcl = mem[UQ[m]].id; }
+    if (tot) { BO.dqOn = false; for (const t of tot.values()) if (t.n > 1) { BO.dqOn = true; break; } } // (no group with two heavy atoms: nothing can move)
+  };
+  if (!ch && !real && !moves) { relabel(); return false; } // (groups joined or parted with whole counts and no motion: nothing changes but the labels)
   // the books: everything these changes touch, at the same positions, before and after
   const set = real ? mem.filter(p => Math.abs(p._dq || 0) > 0.5) : null;
   const meas = () => { let e = boPass(false) + boDqKE(); if (set) { e += localPE(new Set(set)); for (const p of set) e += internalE(p); } return e; };
   const Eb = meas();
-  for (let m = 0; m < nm; m++) mem[m]._bcl = mem[U[m]].id;
-  if (qch) { // (new groups: each one's electrons whole again, its share of the motion taken out)
-    const tot = new Map();
-    for (let m = 0; m < nm; m++) { const id = mem[UQ[m]].id, p = mem[m]; p._qcl = id; if (p.Z <= 1) continue; let t = tot.get(id); if (!t) tot.set(id, t = { s: 0, v: 0, n: 0, big: p }); t.s += p._dq || 0; t.v += p._dqv || 0; t.n++; if (Math.abs(p._dq || 0) > Math.abs(t.big._dq || 0)) t.big = p; }
+  relabel();
+  if (moves) { // (new groups: each one's electrons whole again, its share of the motion taken out)
     for (const t of tot.values()) { const r = Math.round(t.s) - t.s; if (Math.abs(r) > 1e-12) t.big._dq = (t.big._dq || 0) + r; }
     for (let m = 0; m < nm; m++) { const p = mem[m]; if (p.Z <= 1) continue; const t = tot.get(p._qcl); if (t.n > 1 && t.v) p._dqv = (p._dqv || 0) - t.v / t.n; else if (t.n === 1) p._dqv = 0; }
-    BO.dqOn = false; for (const t of tot.values()) if (t.n > 1) { BO.dqOn = true; break; } // (no group with two heavy atoms: nothing can move)
   }
   if (set) for (const p of set) { const k = Math.round(p._dq); p._dq -= k; p.ne += k; refresh(p); } // (a count past half-way becomes the atom's own: H₃O⁺'s charge on the oxygen that now holds three hydrogens)
   const Ea = meas();
@@ -779,7 +799,7 @@ function bfClusters() {
    −∂E/∂ν (bfDqGrad) less its group's mean (so a group's electrons are conserved), and damped at BO_DQG: the charge
    settles where the energy is lowest within ~10 fs, the work of its damping going to the heat bath. Velocity Verlet with
    the atoms: a half kick and the drift before the force pass (boDqA), the other half kick after (boDqB). */
-const BO_DQM = 6, BO_DQG = 2, BO_QCL = 0.02; // (eV·tu²/e²; 1/tu; the order that joins two atoms' electrons)
+const BO_DQM = 6, BO_DQG = 2, BO_QCL = 0.005; // (eV·tu²/e²; 1/tu; the order that joins two atoms' electrons)
 function bfDqForces() { // (−∂E/∂ν less the group mean, onto p._dqf)
   const mem = BF.mem, tot = new Map();
   const ok = (p) => !p.dead && p.bom && p._qcl !== undefined && p.Z > 1; // (hydrogens keep their one electron: the charge moves between the heavier atoms)
