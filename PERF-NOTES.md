@@ -77,10 +77,20 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
-- Continuous bond orders: charge that moves with the orders (found in 1.16): a member's net charge sits on one atom as
-  a whole unit, so a proton can't pass from H₃O⁺ to a neighbouring water (Grotthuss), an acid can't give its proton to
-  water, and nitrate's N–O orders stay 1, 2, 1. Needs each atom's charge, and with it its valence, to follow the orders
-  continuously (a charge-equilibration step inside the orders' pass). A physics-model change for the owner to approve.
+- Speed (found from the owner's benchmarks, 1.18): 20,000 waters take 0.65 ms a step on 16 threads (39 fps at 1×, the
+  goal 45), against 0.55 at 0.90; on 32 threads 1.16 ms, every threaded phase waiting about 1 ms (the busy-waiting
+  workers, main thread and browser threads outnumber the 32 hardware threads). Auto stays at 16 (its tag now says so);
+  where the 0.10 ms since 0.90 went wants a profile on the owner's machine.
+- Continuous bond orders: charge that moves with the orders (found in 1.16; started in 1.19, the user: "start it").
+  A prototype (electron counts made continuous for member atoms, the internal energy piecewise linear between the
+  measured ionization energies, capacities and valences following them, the charges relaxed at each geometry) moves the
+  +1 of H₃O⁺ to the neighbouring water as the proton crosses, the curve symmetric; but the proton's barrier (O–O
+  relaxed, 2.65–2.69 Å) is 1.8 eV (2.2 before 1.19's repulsion), against about 0.1 eV real: two half O–H bonds cost
+  0.65 eV more than one whole in the bond-order energy, and the end states keep 0.7 eV of hydrogen-bond Coulomb the shared
+  state loses (0.37 eV of the 1.8 is the prototype's smoothing of the ionization corners). So, in order: (1) member
+  repulsion, done in 1.19; (2) a hydrogen-bond term for a shared proton (O–H–O), fitted so the barrier comes out near
+  0.1 eV, a physics-model change for the owner to approve; (3) the moving charge itself (continuous electron counts with
+  exact books, in Rust too). Steps 2–3 about 3–4 sessions.
 - Quantum chemistry for bonds (queued by the user, after the bond-order next steps): bonds and their energies from the
   electrons themselves (a minimal-basis method, tight-binding or semi-empirical: Hückel/extended-Hückel or DFTB), not a
   force field. Estimated ×100–10,000; a physics-model change for the owner to approve.
@@ -109,6 +119,30 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.19.0: bond orders: member atoms repel inside the bonding reach
+
+- **Found while starting "charge that moves with the orders"** (the user: "start it"): with bond orders on, nothing kept
+  two member atoms apart inside the bonding reach (2.8 Å for O–O): the members' Lennard-Jones was switched on only beyond
+  it, and the kernel leaves member pairs to bo.js. Two waters drew together to O–O 2.14 Å (stored bonds 2.79; real about
+  2.9), H₃O⁺·H₂O to 2.13 (2.70), liquid water's closest O–O 2.12 Å, the hydrogen-bond Coulomb pulling H to within 1.2 Å
+  of the other O.
+- **Fix** (bo.js bfCoulomb, kernel/src/bo.rs coulomb): every member pair gets the kernel's Lennard-Jones (ljFI's form: the
+  wall straight inside 0.62·rm, shifted to zero at 2.6·rm), weighted by (1 − g(n))·Πₖ(1 − b·b)·(1 − h(fᵢ)h(fⱼ)): off as
+  the pair's own order rises from 0.02 to 0.32, off for 1-3 pairs as the Coulomb is, and off between two atoms that both
+  have valence free (fᵢ = capacity − the atom's other orders, h rising to 1 at 0.3), so radicals meet without a wall (H +
+  OH, CH₃ + H, CH₃ + CH₃, NH₂ + H, H + H: the energy on the way in from 4 to 1.6 Å unchanged, ≤ 0.03 eV). A hydrogen's
+  size follows its orders to N, O and F (setSize's polar hydrogen, 1.2 Å). Within one molecule (the atoms joined by
+  orders above 0.3, looked at every 8th step, a change booked to the bath at the same positions) the kernel's soft
+  intramolecular form: half the depth, the wall from 0.8·rm. The wall's curvature joins the step control as the kernel's
+  does. All of it with exact slopes (forces = −∇E to 5e-7 eV/Å; the slopes of the orders, the free valences, the
+  hydrogens' sizes and the 1-3 weights in the back-pass); Rust the same to 6e-14 eV/Å.
+- After: the water dimer 2.79 Å (stored bonds 2.786), H₃O⁺·H₂O 2.74 (2.70), liquid water's closest O–O 2.54–2.56 Å
+  (stored 2.64), half the H atoms hydrogen-bonded (stored 57%; the same count, 2,000 steps after 2,000, bath on).
+  Insulated 300 steps: water 0.005 eV, brine 0.04, combustion 0.002, the gallery 0.10 (it reacts: 3 molecule changes
+  booked). Cost against stored bonds (one thread): water ×6 → ×8, the gallery ×8 → ×10, hydrogen + oxygen ×5 → ×6.
+- The 1.13–1.17 pass on objects (boPassObj and its helpers) is gone: it was kept only to check the flat pass against,
+  and the WebAssembly pass is checked against the flat one (r82); 1.17's check of the two (r81) went with it.
 
 ## 1.18.0: the bond orders' pass in WebAssembly (water ×17 → ×6)
 

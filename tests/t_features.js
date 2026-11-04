@@ -1276,21 +1276,45 @@ const { openPage } = require('./browser');
   })();
   check(r80.slope < 1e-4 && r80.qO < -0.7 && r80.sf.length === 6 && Math.min(...r80.sf) > 0.95 && r80.ff === 0 && r80.ions === 2 && r80.dE < 0.01,
     `1.16: bond orders: partial charges (O ${r80.qO}) with forces the slopes to ${r80.slope.toExponential(0)} eV/Å beside Na⁺; SF₆ S–F ${Math.min(...r80.sf)}–${Math.max(...r80.sf)}, no F–F; H₃O⁺ and OH⁻ members; ${r80.dE} eV over 1,500 insulated steps of ${r80.step} fs`, '1.16 bond orders: ' + JSON.stringify(r80));
-  // 1.17: the orders' pass on flat arrays gives the 1.16 pass's numbers (forces, charges, orders, energy), faster
-  const r81 = (() => {
-    const X = require('./load.js').load('all', { seed: 3 }), W = X.W, out = {};
-    X.PRESETS.gallery.build(); X.addMolecule('H3Op', 0, 0, 0, 300); X.addMolecule('SF6', 8, 0, 0, 300); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
-    X.settleOverlaps(); X.boSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned;
-    for (let i = 0; i < 40; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
-    X.forcesNoEvents();
-    const run = (f) => { X.S.fx.fill(0); X.S.fy.fill(0); const E = f(true), fx = Array.from(X.S.fx.subarray(0, X.S.hi)), q = W.parts.map(p => p.qp), ord = new Map(); for (let k = 0; k < X.BO.np; k++) { const t = X.boPairQ(k); if (t.n > 0) ord.set(Math.min(t.a.id, t.b.id) + ':' + Math.max(t.a.id, t.b.id), t.n); } return { E, fx, q, ord, t: (() => { const t0 = performance.now(); for (let i = 0; i < 20; i++) f(true); return (performance.now() - t0) / 20; })() }; };
-    const A = run(X.boPassObj), B = run(X.boPassJS);
-    out.dE = Math.abs(A.E - B.E); out.dF = Math.max(...A.fx.map((v, i) => Math.abs(v - B.fx[i]))); out.dq = Math.max(...A.q.map((v, i) => Math.abs(v - B.q[i])));
-    out.dn = 0; for (const [k, v] of A.ord) out.dn = Math.max(out.dn, Math.abs(v - (B.ord.get(k) || 0))); out.orders = A.ord.size + '/' + B.ord.size; out.speed = +(A.t / B.t).toFixed(1);
-    X.forcesNoEvents(); return out;
+  // (1.17's check of the flat pass against the object pass is gone with the object pass, 1.19; r82 checks WebAssembly against it)
+  // 1.19: bond orders: member atoms repel inside the bonding reach (Lennard-Jones by the orders), so water keeps its spacing
+  const r83 = (() => {
+    const out = {};
+    const dimer = (bo, ion) => {
+      const X = require('./load.js').load('all', { seed: 3 }), W = X.W;
+      X.addMolecule(ion ? 'H3Op' : 'H2O', 0, 0, 0, 0); X.addMolecule('H2O', 2.9, 0, Math.PI, 0); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      X.boSet(bo); X.forcesNoEvents(); W.T = 0; W.Tset = 0; W.gamma = 2;
+      for (let i = 0; i < 6000; i++) { W.dt = Math.min(X.chooseDt(), 0.02); X.step(W.dt); }
+      const O = W.parts.filter(p => !p.dead && p.Z === 8); return +Math.hypot(O[0].x - O[1].x, O[0].y - O[1].y).toFixed(3);
+    };
+    out.dimer = [dimer(false, false), dimer(true, false)]; out.ion = [dimer(false, true), dimer(true, true)];
+    // radicals still meet without a wall: H + OH and CH₃ + CH₃, the energy on the way in from 4 Å
+    const frag = { H: [[1, 0, 0]], OH: [[8, 0, 0], [1, -0.97, 0]], CH3: [[6, 0, 0], [1, -0.545, 0.944], [1, -0.545, -0.944], [1, -1.09, 0]] };
+    out.wall = [['OH', 'H'], ['CH3', 'CH3']].map(([a, b]) => {
+      const X = require('./load.js').load('all', { seed: 3 }), W = X.W;
+      const mk = (f, x0, flip) => frag[f].map(([Z, x, y]) => X.spawnSpec({ kind: 'atom', Z, A: Z === 1 ? 1 : 2 * Z }, x0 + (flip ? -x : x), y, 0)[0]);
+      const A = mk(a, 0, false), B = mk(b, 6, true); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      X.boSet(true); X.forcesNoEvents(); let e0 = null, top = -9;
+      for (let r = 4; r >= 1.6; r -= 0.1) { const dx = A[0].x + r - B[0].x; for (const p of B) { p.x += dx; X.S.x[p.i] = p.x; } const e = X.boPass(false); if (e0 === null) e0 = e; top = Math.max(top, e - e0); }
+      return +top.toFixed(3);
+    });
+    // forces are the energy's slopes (a few waters, a hydronium and ammonia, after 200 steps at 300 K)
+    { const X = require('./load.js').load('all', { seed: 5 }), W = X.W;
+      X.addMolecule('H3Op', 0, 0, 0, 0); X.addMolecule('H2O', 2.6, 0.3, 2.8, 0); X.addMolecule('H2O', -1.5, 2.5, 1, 0); X.addMolecule('NH3', 3, 3, 0.4, 0); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      X.boSet(true); X.forcesNoEvents(); W.T = 300; for (let i = 0; i < 200; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+      const mem = W.parts.filter(p => p.bom && !p.dead); X.S.fx.fill(0); X.S.fy.fill(0); X.boPass(true); const F = mem.map(p => [X.S.fx[p.i], X.S.fy[p.i]]); let worst = 0;
+      mem.forEach((p, u) => { for (const [A, c] of [[X.S.x, 0], [X.S.y, 1]]) { const x0 = A[p.i]; A[p.i] = x0 + 1e-5; const e1 = X.boPass(false); A[p.i] = x0 - 1e-5; const e2 = X.boPass(false); A[p.i] = x0; worst = Math.max(worst, Math.abs(-(e1 - e2) / 2e-5 - F[u][c])); } });
+      out.dF = worst; }
+    // liquid water insulated: the books still close
+    { const X = require('./load.js').load('all', { seed: 3 }), W = X.W;
+      X.PRESETS.water.build(); X.settleOverlaps(); X.boSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const run = (n) => { for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); } };
+      run(100); W.gamma = 0; const tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, E0 = tot(); run(300); out.drift = +Math.abs(tot() - E0).toFixed(4);
+      let oo = 9; const O = W.parts.filter(p => !p.dead && p.Z === 8); for (const a of O) for (const b of O) if (a.id < b.id) oo = Math.min(oo, Math.hypot(a.x - b.x, a.y - b.y)); out.ooMin = +oo.toFixed(2); }
+    return out;
   })();
-  check(r81.dE < 1e-9 && r81.dF < 1e-9 && r81.dq < 1e-12 && r81.dn < 1e-12 && r81.orders.split('/')[0] === r81.orders.split('/')[1],
-    `1.17: the orders' pass on flat arrays: the same energy (${r81.dE.toExponential(0)} eV), forces (${r81.dF.toExponential(0)} eV/Å), charges and ${r81.orders.split('/')[0]} orders as the object pass, ${r81.speed}× as fast`, '1.17 flat pass: ' + JSON.stringify(r81));
+  check(Math.abs(r83.dimer[1] - r83.dimer[0]) < 0.1 && Math.abs(r83.ion[1] - r83.ion[0]) < 0.1 && Math.max(...r83.wall) < 0.1 && r83.dF < 1e-5 && r83.drift < 0.02 && r83.ooMin > 2.4,
+    `1.19: bond orders keep water's spacing: the dimer's O–O ${r83.dimer[1]} Å (stored bonds ${r83.dimer[0]}), H₃O⁺·H₂O ${r83.ion[1]} (${r83.ion[0]}), liquid water's closest O–O ${r83.ooMin} Å; radicals meet without a wall (${r83.wall.join(', ')} eV); forces to ${r83.dF.toExponential(0)} eV/Å; insulated water ${r83.drift} eV`, '1.19 member repulsion: ' + JSON.stringify(r83));
   // 1.18: the orders' pass in WebAssembly (kernel/src/bo.rs) gives the JavaScript pass's numbers, faster
   const r82 = (() => {
     const X = require('./load.js').load('all', { seed: 3 }), W = X.W, out = { wasm: typeof X.WK.ex?.af_bo_pass1 === 'function' };

@@ -5254,7 +5254,7 @@ function threadsNote() {
   if (!threadsAvailable()) return 'One thread: this page is not cross-origin isolated, so the browser allows no shared memory. The desktop app runs the pair forces on all your processor\u2019s threads.' + kernel;
   const c = navigator.hardwareConcurrency || '?';
   if (!TH.n) return `One thread (this computer has ${c}).` + kernel;
-  const more = typeof SET !== 'undefined' && SET.threads === 'auto' && c > 16 ? ' Auto stops at 16, one a core; 32 adds each core\u2019s second thread, which may gain a little or lose a little: the Speed test tells.' : '';
+  const more = typeof SET !== 'undefined' && SET.threads === 'auto' && c > 16 ? ' Auto stops at 16, one a core; 32 adds each core\u2019s second thread, and on a 16-core Ryzen it was 1.8 times slower (20,000 waters: 1.16 ms a step against 0.65), the threads waiting on each other.' : '';
   return `${TH.n + 1} threads of ${c}${TH.state === 'starting' ? ', starting up' : TH.used ? ', in use: the forces, the heat bath, the integration and the neighbour list' : ' (used once a world is big enough: the small ones run on one thread)'}.` + more + kernel;
 }
 /* The benchmark: four reference worlds, each built and stepped here under the settings as they are (the water worlds
@@ -5384,7 +5384,7 @@ function costLevel(a) {
 const COST_K = { physics: 'Time to work out the physics', drawing: 'Time to draw each frame', memory: 'Memory it takes' };
 function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toFixed(1) : +v.toFixed(2)); }
 const COSTS = {
-  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×5–8', 'Measured on one thread (1.18): hydrogen + oxygen ×5, liquid water ×6, the molecule gallery ×8 (every pair worked out every step, steps 2.6 times shorter)'] } }),
+  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×6–10', 'Measured on one thread (1.19): hydrogen + oxygen ×6, liquid water ×8, the molecule gallery ×10 (every pair worked out every step, steps 2.6 times shorter)'] } }),
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–7', 'Measured on one thread: nothing without free electrons; liquid water with 40 free electrons ×6.5 (their inner steps 13 times shorter, for the packets\' breathing)'] } }),
   segPi: () => ({ k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×7.8', 'Measured on liquid water: the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water: 16 times a step'], 32: ['×36', 'Measured on liquid water: 32 times a step'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–1.8', 'Measured: water 4,000 ×1.4, brine ×1.6, liquid water ×1.8'], 1: ['×2.7–4.6', 'Measured: brine ×2.7, liquid water ×2.8, 4,000 waters ×4.6'] } }),
@@ -5402,7 +5402,7 @@ const COSTS = {
   segThreads: () => {
     const auto = threadsAvailable() ? threadsDefault() + 1 : 1, o = { auto: ['×1', auto > 1 ? auto + ' threads on this computer' : 'One thread: this page cannot share work between threads here'] };
     const hw = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || auto;
-    for (const n of [1, 2, 4, 8, 16, 32]) o[n] = n > hw ? ['×1', 'More threads than this computer has gain nothing'] : n > auto ? ['?', 'Past Auto: the second thread on each core (hyper-threading). It may gain a little or lose a little: Speed test (General) tells'] : n === auto ? ['×1', 'What Auto chooses here'] : ['up to ' + costX(auto / n), 'In a crowded box (small boxes run on one thread anyway)'];
+    for (const n of [1, 2, 4, 8, 16, 32]) o[n] = n > hw ? ['×1', 'More threads than this computer has gain nothing'] : n > auto ? ['×1.8', 'Past Auto: the second thread on each core (hyper-threading). Measured on a 16-core Ryzen 7950X3D: 20,000 waters 1.16 ms a step on 32 threads against 0.65 on 16, the threads waiting on each other'] : n === auto ? ['×1', 'What Auto chooses here'] : ['up to ' + costX(auto / n), 'In a crowded box (small boxes run on one thread anyway)'];
     return { k: 'physics', o };
   },
   segGl: () => ({ k: 'drawing', o: { gl: ['×1', 'Atoms and bonds drawn by the graphics card'], '2d': ['heavy', 'Canvas 2D draws every atom on the processor: much slower for thousands of atoms'] } }),
