@@ -110,7 +110,7 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## 1.15.0 (in progress): from the honest approximations, and charge flowing back through bonds
+## 1.15.0: charged particles as collider beams, electrons as waves, the honest approximations, charge flowing back through bonds
 
 - **Unstable particles are turned by the nuclei they pass** (multiple Coulomb scattering; the user: "build everything
   that's worth doing" from the Physics tab's honest approximations). Each nucleus a charged exo passes within 1 Å turns
