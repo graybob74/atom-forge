@@ -836,16 +836,20 @@ function choleskyInverse(S, n) {
 
 // Symmetric eigenproblem: Householder tridiagonalization + implicit QL (EISPACK tred2/tql2).
 // A (row-major, n x n) is overwritten by the eigenvectors (columns); returns ascending eigenvalues.
+// Both stages work on the transpose T (T[j*n+i] = V[i*n+j]: tred2's column walks and the QL rotations of eigenvector
+// rows then run along memory); the operations and their order are exactly tred2/tql2's on V. Only the lower triangle
+// of A is read.
 function symEig(V, n) {
   const d = new Float64Array(n), e = new Float64Array(n);
-  const at = (i, j) => V[i * n + j];
-  for (let j = 0; j < n; j++) d[j] = at(n - 1, j);
+  const T = V;
+  for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) { const t = T[i * n + j]; T[i * n + j] = T[j * n + i]; T[j * n + i] = t; }
+  for (let j = 0; j < n; j++) d[j] = T[j * n + n - 1];
   for (let i = n - 1; i > 0; i--) {
     let scale = 0, h = 0;
     for (let k = 0; k < i; k++) scale += Math.abs(d[k]);
     if (scale === 0) {
       e[i] = d[i - 1];
-      for (let j = 0; j < i; j++) { d[j] = at(i - 1, j); V[i * n + j] = 0; V[j * n + i] = 0; }
+      for (let j = 0; j < i; j++) { d[j] = T[j * n + i - 1]; T[j * n + i] = 0; T[i * n + j] = 0; }
     } else {
       for (let k = 0; k < i; k++) { d[k] /= scale; h += d[k] * d[k]; }
       let f = d[i - 1], g = Math.sqrt(h);
@@ -853,8 +857,9 @@ function symEig(V, n) {
       e[i] = scale * g; h -= f * g; d[i - 1] = f - g;
       for (let j = 0; j < i; j++) e[j] = 0;
       for (let j = 0; j < i; j++) {
-        f = d[j]; V[j * n + i] = f; g = e[j] + at(j, j) * f;
-        for (let k = j + 1; k <= i - 1; k++) { g += at(k, j) * d[k]; e[k] += at(k, j) * f; }
+        const tj = j * n;
+        f = d[j]; T[i * n + j] = f; g = e[j] + T[tj + j] * f;
+        for (let k = j + 1; k <= i - 1; k++) { const t = T[tj + k]; g += t * d[k]; e[k] += t * f; }
         e[j] = g;
       }
       f = 0;
@@ -862,32 +867,33 @@ function symEig(V, n) {
       const hh = f / (h + h);
       for (let j = 0; j < i; j++) e[j] -= hh * d[j];
       for (let j = 0; j < i; j++) {
+        const tj = j * n;
         f = d[j]; g = e[j];
-        for (let k = j; k <= i - 1; k++) V[k * n + j] -= (f * e[k] + g * d[k]);
-        d[j] = at(i - 1, j); V[i * n + j] = 0;
+        for (let k = j; k <= i - 1; k++) T[tj + k] -= (f * e[k] + g * d[k]);
+        d[j] = T[tj + i - 1]; T[tj + i] = 0;
       }
     }
     d[i] = h;
   }
   for (let i = 0; i < n - 1; i++) {
-    V[(n - 1) * n + i] = at(i, i); V[i * n + i] = 1;
-    const h = d[i + 1];
+    T[i * n + n - 1] = T[i * n + i]; T[i * n + i] = 1;
+    const h = d[i + 1], ti1 = (i + 1) * n;
     if (h !== 0) {
-      for (let k = 0; k <= i; k++) d[k] = at(k, i + 1) / h;
+      for (let k = 0; k <= i; k++) d[k] = T[ti1 + k] / h;
       for (let j = 0; j <= i; j++) {
+        const tj = j * n;
         let g = 0;
-        for (let k = 0; k <= i; k++) g += at(k, i + 1) * at(k, j);
-        for (let k = 0; k <= i; k++) V[k * n + j] -= g * d[k];
+        for (let k = 0; k <= i; k++) g += T[ti1 + k] * T[tj + k];
+        for (let k = 0; k <= i; k++) T[tj + k] -= g * d[k];
       }
     }
-    for (let k = 0; k <= i; k++) V[k * n + i + 1] = 0;
+    for (let k = 0; k <= i; k++) T[ti1 + k] = 0;
   }
-  for (let j = 0; j < n; j++) { d[j] = at(n - 1, j); V[(n - 1) * n + j] = 0; }
-  V[(n - 1) * n + n - 1] = 1;
+  for (let j = 0; j < n; j++) { d[j] = T[j * n + n - 1]; T[j * n + n - 1] = 0; }
+  T[(n - 1) * n + n - 1] = 1;
   e[0] = 0;
-  // the QL rotations work on eigenvector rows (Vt = V transposed), along memory
-  const Vt = new Float64Array(n * n);
-  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) Vt[j * n + i] = V[i * n + j];
+  // the QL rotations work on eigenvector rows (Vt = V transposed = T), along memory
+  const Vt = T;
   // QL iterations
   for (let i = 1; i < n; i++) e[i - 1] = e[i];
   e[n - 1] = 0;
@@ -943,7 +949,7 @@ function symEig(V, n) {
       for (let j = 0; j < n; j++) { const t = Vt[i * n + j]; Vt[i * n + j] = Vt[k * n + j]; Vt[k * n + j] = t; }
     }
   }
-  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) V[j * n + i] = Vt[i * n + j];
+  for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) { const t = T[i * n + j]; T[i * n + j] = T[j * n + i]; T[j * n + i] = t; }
   return d;
 }
 
