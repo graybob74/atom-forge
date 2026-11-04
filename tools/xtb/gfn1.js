@@ -12,7 +12,10 @@
 // energy), restricted open shell as tblite does it (one set of orbitals, separate alpha and beta Fermi levels), and the
 // same SCC loop: Broyden mixing of the shell charges (damping 0.4, memory 250), convergence when the energy change is
 // below 1e-6 Eh and the rms charge change below 2e-5 e, at most 250 iterations.
-// Left out: D3(BJ) dispersion (added separately), and the halogen-bond correction (only Cl, Br, I, At as donors).
+// Left out: D3(BJ) dispersion (added separately), and the halogen-bond correction. GFN1 gives that correction a
+// nonzero strength only for Br, I and At (Cl's is 0), with N, O, P, S as acceptors; molecules without Br/I/At are exact.
+// Note: GFN1 energies and charges do not depend on how each basis shell is normalized (H0 is built from S, so a
+// per-shell scale cancels in H C = S C e and in P·S); the primitives are still normalized exactly as tblite does.
 //
 // Elements: H to Rn (Z = 1..86), every element GFN1-xTB is parametrized for. The tables below were copied
 // mechanically from the tblite / mctc-lib Fortran sources (number text unchanged).
