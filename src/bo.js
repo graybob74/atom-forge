@@ -378,13 +378,13 @@ function boAngles(c, nb, wgt, forces) {
 }
 /* ---- the orders' pass on flat arrays (1.17): the same physics as boPassObj, written over typed arrays (pairs and members
    by index, the pair constants in a table) so that it runs without allocating and can move to WebAssembly as it is. */
-const BF = { np: 0, nm: 0, pcapN: 0, mcapN: 0, ns: 0, scap: 0, PT: new Float64Array(16 * 64), nt: 0, mem: [], inc: new Int32Array(256) };
+const BF = { useWasm: true, np: 0, nm: 0, pcapN: 0, mcapN: 0, ns: 0, scap: 0, PT: new Float64Array(16 * 64), nt: 0, mem: [], inc: new Int32Array(256) };
 const BF_PS = 16; // (the pair-type table's stride: r1 c β σ reach D1 D2 D3 α1 α2 α3 rm ε rOn rCut)
 function bfType(a, b) {
   const P = boPP(a.el, b.el);
   if (P.t === undefined) {
     if (P.eps === undefined) { const lj = ljPair(a, b); P.rm = lj[0]; P.eps = lj[1]; P.rOn = Math.max(P.reach, 0.62 * lj[0] + 0.05); P.rCut = 2.6 * lj[0]; }
-    if ((BF.nt + 1) * BF_PS > BF.PT.length) { const t = new Float64Array(BF.PT.length * 2); t.set(BF.PT); BF.PT = t; }
+    if ((BF.nt + 1) * BF_PS > BF.PT.length) { const t = bfArr(Float64Array, BF.PT.length * 2); t.set(BF.PT); BF.PT = t; }
     const o = BF.nt * BF_PS, T = BF.PT;
     T[o] = P.r[0]; T[o + 1] = P.c; T[o + 2] = P.beta; T[o + 3] = P.sig; T[o + 4] = P.reach; T[o + 5] = P.D[0]; T[o + 6] = P.D[1]; T[o + 7] = P.D[2];
     T[o + 8] = P.al[0]; T[o + 9] = P.al[1]; T[o + 10] = P.al[2]; T[o + 11] = P.rm; T[o + 12] = P.eps; T[o + 13] = P.rOn; T[o + 14] = P.rCut;
@@ -396,25 +396,32 @@ const BF_PF = ['r', 'ux', 'uy', 'gr', 'gn', 'gca', 'gcb', 'n', 'ne', 'ne0', 'dne
 const BF_PI = ['a', 'b', 't', 'ss', 'sn'];
 const BF_MF = ['en', 'cap', 'capH', 'val', 'ls', 'lv', 'gl', 'keep', 'q', 'phi', 'qn', 'im'];
 const BF_MI = ['slot', 'per', 'db', 'Z', 'f0', 'fc', 'fl'];
+const bfArr = (T, n) => WK.on ? wasmArray(T, n) : new T(n); // (in the module's memory when there is one: the Rust pass reads them, 1.18)
 function bfGrow(np, nm) {
-  if (np > BF.pcapN) { const c = Math.max(np * 2, 256); for (const k of BF_PF) BF['p' + k] = new Float64Array(c); for (const k of BF_PI) BF['p' + k] = new Int32Array(c); BF.pcapN = c; }
-  if (nm > BF.mcapN) { const c = Math.max(nm * 2, 64); for (const k of BF_MF) BF['m' + k] = new Float64Array(c); for (const k of BF_MI) BF['m' + k] = new Int32Array(c); BF.inc = new Int32Array(2 * Math.max(np * 2, 256) + 2 * c); BF.mcapN = c; }
-  if (BF.inc.length < 2 * np) BF.inc = new Int32Array(4 * np);
+  if (np > BF.pcapN) { const c = Math.max(np * 2, 256); for (const k of BF_PF) BF['p' + k] = bfArr(Float64Array, c); for (const k of BF_PI) BF['p' + k] = bfArr(Int32Array, c); BF.pcapN = c; }
+  if (nm > BF.mcapN) { const c = Math.max(nm * 2, 64); for (const k of BF_MF) BF['m' + k] = bfArr(Float64Array, c); for (const k of BF_MI) BF['m' + k] = bfArr(Int32Array, c); BF.inc = bfArr(Int32Array, 2 * Math.max(np * 2, 256) + 2 * c); BF.mcapN = c; }
+  if (BF.inc.length < 2 * np) BF.inc = bfArr(Int32Array, 4 * np);
 }
 /* members by index, and the pairs within the cutoff: from the neighbour list in a force pass, from the grid otherwise */
 let BF_SM = new Int32Array(256), BF_TZ = new Int32Array(128 * 128).fill(-1); // (slot → member index + 1; element pair → pair type)
-function bfCollect(useVL) {
+function bfMembers() {
   const mem = BF.mem;
   for (const p of mem) if (p.i < BF_SM.length) BF_SM[p.i] = 0; // (the last pass's members off the map)
   mem.length = 0;
-  if (BF_SM.length < S.size) BF_SM = new Int32Array(S.size * 2);
+  if (BF_SM.length < S.size) BF_SM = bfArr(Int32Array, S.size * 2);
   for (const p of W.parts) if (p.bom && !p.dead) { p._bm = mem.length; BF_SM[p.i] = mem.length + 1; mem.push(p); }
   const nm = mem.length; bfGrow(Math.max(BF.pcapN, 64), nm);
-  const ION = S.ionic;
   for (let m = 0; m < nm; m++) {
     const p = mem[m]; BF.mslot[m] = p.i; BF.men[m] = p.el.en || 2.6; BF.mval[m] = p.val; BF.mper[m] = periodOf(p.el.Z); BF.mdb[m] = p.el.dblock ? 1 : 0; BF.mZ[m] = p.Z;
     BF.mls[m] = p._boLs === undefined ? NaN : p._boLs; BF.mqn[m] = p.q; BF.mim[m] = S.im[p.i];
+    BF.mcap[m] = capacity(p); BF.mcapH[m] = hyperCap(p); BF.mfl[m] = _lrOn && isLR(p) ? 1 : 0;
   }
+  BF.nm = nm;
+  return nm;
+}
+function bfCollect(useVL) { bfMembers(); return bfPairsJS(useVL); }
+function bfPairsJS(useVL) {
+  const mem = BF.mem, ION = S.ionic;
   let n = 0;
   const X = S.x, Y = S.y, OBJ = S.obj, Zs = S.Z, Q = S.q, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2, c0 = 1 / Math.sqrt(RC2 + 0.09), KE = PHYS.KE, SM = BF_SM, TZ = BF_TZ;
   const put = (i, j, ma, mb, dx, dy, r2) => {
@@ -436,7 +443,7 @@ function bfCollect(useVL) {
       if (r2 < RC2 && r2 >= 1e-12) put(i, j, ma, mb, dx, dy, r2);
     }
   } else for (const a of mem) nearby(a.x, a.y, RC, (b, dx, dy, r2) => { if (b.bom && !b.dead && b !== a && b.id > a.id && r2 < RC2 && r2 >= 1e-12) put(a.i, b.i, a._bm, b._bm, dx, dy, r2); });
-  BF.np = n; BF.nm = nm;
+  BF.np = n;
   return n;
 }
 let _bfv = 0, _bfs = 0; // (a curve's value and slope: bfCurve, bfQh)
@@ -475,12 +482,13 @@ function bfCommon(a, b, inc, f0, fc, test, f) {
   for (let u = f0[a], e = u + fc[a]; u < e; u++) { const k = inc[u]; if (!test(k)) continue; const c = pa[k] === a ? pb[k] : pa[k]; if (BF_ST[c] === st) f(k, BF_MK[c]); }
 }
 let BF_CS = new Float64Array(16), BF_FS = new Float64Array(16);
-function boPass(forces) {
+function boPass(forces) { return BF.useWasm && bfWasmOK() ? bfPassWasm(forces) : boPassJS(forces); }
+function boPassJS(forces) {
   const n = bfCollect(forces), nm = BF.nm, PT = BF.PT;
   const pa = BF.pa, pb = BF.pb, pt = BF.pt, pr = BF.pr, gr = BF.pgr, gn = BF.pgn, gca = BF.pgca, gcb = BF.pgcb, pn = BF.pn, ne_ = BF.pne, ne0_ = BF.pne0, dne_ = BF.pdne, dne0_ = BF.pdne0;
   const ca_ = BF.pca, cb_ = BF.pcb, dca_ = BF.pdca, dcb_ = BF.pdcb, sA_ = BF.psA, tA_ = BF.ptA, sB_ = BF.psB, tB_ = BF.ptB, qc_ = BF.pqc, qdh_ = BF.pqdh, pss = BF.pss, psn = BF.psn;
   const f0 = BF.mf0, fc = BF.mfc, men = BF.men, mcap = BF.mcap, mcapH = BF.mcapH;
-  for (let m = 0; m < nm; m++) { fc[m] = 0; const p = BF.mem[m]; mcap[m] = capacity(p); mcapH[m] = hyperCap(p); }
+  for (let m = 0; m < nm; m++) fc[m] = 0;
   let E = 0; BF.ns = 0;
   // non-bonded (switched), raw orders, the taper, the soft core
   for (let k = 0; k < n; k++) {
@@ -723,8 +731,15 @@ function bfCoulomb(forces, n) {
       gn[k1] += Es * dsw * boBD(pn[k1]) * boB(pn[k2]); gn[k2] += Es * dsw * boB(pn[k1]) * boBD(pn[k2]);
     }
   }
+  if (forces) bfPhiOthers();
+  return E;
+}
+/* the potential at each member from the non-members it meets (the kernel's pairs: same coefficients, qeqC) and, for
+   an ion member, from the net charges beyond the cutoff */
+function bfPhiOthers() {
+  const phi = BF.mphi, QP = S.qp;
   let others = false; for (const p of W.parts) if (!p.bom && !p.dead && p.k === NUC && p.Z > 0) { others = true; break; }
-  if (forces && others) { // the potential at each member from the non-members it meets (the kernel's pairs: same coefficients, qeqC)
+  if (others) {
     const pi = VL.pi, pj = VL.pj, ex = VL.ex, OBJ = S.obj, X = S.x, Y = S.y, Q = S.q, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
     for (let k = 0; k < VL.np; k++) {
       if (ex[k]) continue;
@@ -737,10 +752,95 @@ function bfCoulomb(forces, n) {
       phi[m._bm] += qeqC(m, o, r2) * qo;
     }
   }
-  if (forces && _lrOn) for (const m of BF.mem) { // (an ion member's partial charge meets the net charges beyond the cutoff too)
+  if (_lrOn) for (const m of BF.mem) { // (an ion member's partial charge meets the net charges beyond the cutoff too)
     if (!isLR(m)) continue;
     for (const o of _charged) { if (o === m || o.dead || !isLR(o)) continue; const dx = o.x - m.x, dy = o.y - m.y, r2 = dx * dx + dy * dy; if (r2 >= RC2) phi[m._bm] += PHYS.KE * qx(o, m) / Math.sqrt(r2); }
   }
+}
+/* The same pass in WebAssembly (1.18; kernel/src/bo.rs): the JavaScript gathers the members (their capacities, flags)
+   and the pair types, the module finds the pairs from the neighbour list (a force pass; the grid's pairs otherwise are
+   found here) and does the rest; between its two halves the non-members' potential is added here (bfPhiOthers). The
+   arrays live in the module's memory (bfArr); a descriptor gives their offsets (B_* in bo.rs), a block the scalars. */
+const BFW = { desc: null, par: null, tgt: null, zs: new Int32Array(128), zrep: [], cap: 0 };
+const BF_DESC = ['pr', 'pux', 'puy', 'pgr', 'pgn', 'pgca', 'pgcb', 'pn', 'pne', 'pne0', 'pdne', 'pdne0', 'pca', 'pcb', 'pdca', 'pdcb', 'psA', 'ptA', 'psB', 'ptB', 'pqc', 'pqdh', 'pK', 'pcsh',
+  'pa', 'pb', 'pt', 'pss', 'psn', 'men', 'mcap', 'mcapH', 'mval', 'mls', 'mlv', 'mgl', 'mkeep', 'mq', 'mphi', 'mqn', 'mim', 'mslot', 'mper', 'mdb', 'mZ', 'mf0', 'mfc', 'mfl', 'inc'];
+function bfWasmOK() { return wasmReady() && typeof WK.ex.af_bo_pass1 === 'function' && bfWasmInit(); }
+function bfWasmInit() { // (the descriptor, the scalars and the angle targets, once; the tables moved into the module's memory)
+  if (!WK.on) return false;
+  if (!BFW.desc) {
+    BFW.desc = wasmArray(Int32Array, 80); BFW.par = wasmArray(Float64Array, 16);
+    const T = BFW.tgt = wasmArray(Float64Array, 1024 * 6); // (the angle targets for every key bfAngle can ask: ((nl·8 + lp)·8 + period)·2 + allH)
+    if (!WK.on) return false;
+    for (let nl = 2; nl <= 6; nl++) for (let lp = 0; lp < 8; lp++) for (let per = 0; per < 8; per++) for (let h = 0; h < 2; h++) {
+      const key = ((nl * 8 + lp) * 8 + per) * 2 + h, tg = angleTargetsRaw(nl, lp, per, !!h).slice().sort((u, v) => u - v);
+      for (let k = 0; k < nl; k++) T[key * 6 + k] = tg[k];
+    }
+    if (BF.PT.buffer !== WK.mem.buffer) { const t = wasmArray(Float64Array, BF.PT.length); t.set(BF.PT); BF.PT = t; }
+    if (BF_TZ.buffer !== WK.mem.buffer) { const t = wasmArray(Int32Array, BF_TZ.length); t.set(BF_TZ); BF_TZ = t; }
+    if (!WK.on) return false;
+  }
+  return true;
+}
+/* room in the scratch arrays for nm members (Rust allocates nothing) */
+function bfScratch(nm) {
+  const buf = WK.mem.buffer;
+  if (BFW.cap >= nm + 16 && BF_MK.buffer === buf && BF_ST.buffer === buf && BF_CS.buffer === buf && BF_FS.buffer === buf && BFA.list.buffer === buf && BFA.strong.buffer === buf && BF_T1.buffer === buf) return;
+  const c = 2 * nm + 32; BFW.cap = c;
+  BF_MK = wasmArray(Int32Array, c); BF_ST = wasmArray(Int32Array, c); BF_CS = wasmArray(Float64Array, c); BF_FS = wasmArray(Float64Array, c);
+  BFA.strong = wasmArray(Int32Array, c); BFA.zone = wasmArray(Int32Array, c); BFA.zw = wasmArray(Float64Array, c); BFA.zd = wasmArray(Float64Array, c); BFA.list = wasmArray(Int32Array, c);
+  BF_T1 = wasmArray(Int32Array, c); BF_T2 = wasmArray(Int32Array, c); BF_TW = wasmArray(Float64Array, c);
+}
+function bfSupRoom(n) {
+  if (BF_SUP1.length >= n && BF_SUP1.buffer === WK.mem.buffer) return;
+  const c = Math.max(256, 2 * n); BF_SUP1 = wasmArray(Int32Array, c); BF_SUP2 = wasmArray(Int32Array, c); BF_SUPS = wasmArray(Float64Array, c);
+}
+/* the descriptor; false when an array is not in the module's memory (a full plain memory gave the module up) */
+function bfDescFill() {
+  const d = BFW.desc, buf = WK.mem.buffer;
+  const put = (k, a) => { d[k] = a.byteOffset; return a.buffer === buf; };
+  let ok = true;
+  for (let k = 0; k < BF_DESC.length; k++) ok = put(k, BF[BF_DESC[k]]) && ok;
+  ok = put(49, BF.PT) && put(50, BFW.tgt) && put(51, BF_SM) && put(52, BF_TZ) && put(53, BF_SUP1) && put(54, BF_SUP2) && put(55, BF_SUPS) && put(56, BF_MK) && put(57, BF_ST) && ok;
+  ok = put(58, BF_CS) && put(59, BF_FS) && put(60, BFA.strong) && put(61, BFA.zone) && put(62, BFA.zw) && put(63, BFA.zd) && put(64, BFA.list) && put(65, BF_T1) && put(66, BF_T2) && put(67, BF_TW) && ok;
+  ok = put(68, S.x) && put(69, S.y) && put(70, S.Z) && put(71, S.q) && put(72, S.ionic) && put(73, S.fx) && put(74, S.fy) && put(75, VL.pi) && put(76, VL.pj) && ok;
+  return ok;
+}
+/* every pair of the members' elements has its type (the module reads BF_TZ) */
+function bfTypesAll() {
+  const zs = BFW.zs, rep = BFW.zrep, mem = BF.mem; let nz = 0;
+  for (const p of mem) { const z = p.Z; let k = 0; while (k < nz && zs[k] !== z) k++; if (k === nz) { zs[nz] = z; rep[nz] = p; nz++; } }
+  for (let u = 0; u < nz; u++) for (let v = u; v < nz; v++) {
+    const za = zs[u], zb = zs[v], key = za < zb ? za * 128 + zb : zb * 128 + za;
+    if (BF_TZ[key] < 0) BF_TZ[key] = bfType(rep[u], rep[v]);
+  }
+  for (let k = 0; k < nz; k++) rep[k] = null;
+}
+function bfPassWasm(forces) {
+  const ex = WK.ex, P = BFW.par, nm = bfMembers();
+  bfScratch(nm); bfSupRoom(0);
+  let n;
+  if (forces) {
+    bfTypesAll();
+    const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h;
+    P[3] = wrap ? 1 : 0; P[4] = bw; P[5] = bh; P[6] = bw / 2; P[7] = bh / 2; P[13] = VL.np; P[11] = BF.pcapN;
+    if (!bfDescFill()) return boPassJS(forces);
+    n = ex.af_bo_collect(BFW.desc.byteOffset, P.byteOffset);
+    if (n > BF.pcapN) { BF.pcapN = 0; bfGrow(n, 0); bfDescFill(); P[11] = BF.pcapN; n = ex.af_bo_collect(BFW.desc.byteOffset, P.byteOffset); }
+  } else n = bfPairsJS(false);
+  BF.np = n;
+  bfGrow(n, nm); bfSupRoom(4 * n);
+  if (!bfDescFill()) return boPassJS(forces);
+  P[0] = n; P[1] = nm; P[2] = forces ? 1 : 0; P[8] = _stiff; P[12] = BF_SUP1.length;
+  let E = ex.af_bo_pass1(BFW.desc.byteOffset, P.byteOffset);
+  if (P[10] === 1) { bfSupRoom(P[14]); bfDescFill(); P[12] = BF_SUP1.length; P[8] = _stiff; E = ex.af_bo_pass1(BFW.desc.byteOffset, P.byteOffset); }
+  _stiff = P[8]; BFW.calls = (BFW.calls || 0) + 1;
+  BO.changes++;
+  const QP = S.qp, mq = BF.mq, mem = BF.mem, fc = BF.mfc, mls = BF.mls;
+  for (let m = 0; m < nm; m++) { const p = mem[m]; QP[p.i] = mq[m]; p.qpol = mq[m]; p.qf = 0; p.qi = 0; if (fc[m]) p._boLs = mls[m]; }
+  BO.E = E; BO.np = n; BO.flat = true;
+  if (!forces) return E;
+  bfPhiOthers();
+  ex.af_bo_pass2(BFW.desc.byteOffset, P.byteOffset);
   return E;
 }
 /* the last pass's pair k as { a, b, n, r } (for the readers below) */
