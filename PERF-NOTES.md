@@ -77,6 +77,10 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
+- Continuous bond orders: charge that moves with the orders (found in 1.16): a member's net charge sits on one atom as
+  a whole unit, so a proton can't pass from H₃O⁺ to a neighbouring water (Grotthuss), an acid can't give its proton to
+  water, and nitrate's N–O orders stay 1, 2, 1. Needs each atom's charge, and with it its valence, to follow the orders
+  continuously (a charge-equilibration step inside the orders' pass). A physics-model change for the owner to approve.
 - Quantum chemistry for bonds (queued by the user, after the bond-order next steps): bonds and their energies from the
   electrons themselves (a minimal-basis method, tight-binding or semi-empirical: Hückel/extended-Hückel or DFTB), not a
   force field. Estimated ×100–10,000; a physics-model change for the owner to approve.
@@ -137,6 +141,19 @@ engine stores and visits particles.
   ClF₃, BrF₅, SiF₄, CF₂Cl₂, NF₃, PCl₃. Rings of equals keep their bonds (cyclopropane C–C 0.99, ethylene oxide's C–C
   1.02). It would also take the O–O out of a dioxirane and the N–N out of a diaziridine (neither is in the library), and
   diborane's B–B, which the real molecule doesn't have.
+
+- **Ions inside the bond-order scheme**: singly charged atoms of the chemistry's elements are members now when they are
+  part of a molecule (boOK: |q| ≤ 1; a lone ion such as brine's Cl⁻ stays with the kernel's ion–water terms), so H₃O⁺,
+  OH⁻, NH₄⁺, CN⁻, NO₃⁻, HCO₃⁻ keep their orders instead of going back to stored bonds. capacity() already counts an ion's
+  valence (O⁺ 3, O⁻ 1, N⁺ 4); member pairs meet with net plus partial charges, and an ion member's partial charge meets
+  the net charges beyond the cutoff (the long-range pairs) in its slope term. Each alone, 1,500 insulated steps:
+  0.0000–0.0004 eV, orders 0.99/1.99/2.99; H₃O⁺ in liquid water −0.048 eV; forces = −∇E to 5e-6 eV/Å with H₃O⁺ and OH⁻
+  in brine. Not done: the charge stays on its atom as a whole unit, so a proton does not pass from H₃O⁺ to a neighbouring
+  water (Grotthuss). Tried: an event moving one electron between the two atoms a proton sits between, kept when the energy
+  falls (as the 1.15 back-flow): never kept at 300 K (5.5 eV short with the proton 1.0 and 1.6 Å from the two oxygens;
+  neighbouring waters 0.9 eV, about water's real self-ionization) and four times the cost; taken out. A proton that hops
+  needs the charge to move with the orders continuously (on the planned list). Nitrate's three N–O stay 1, 2, 1 (its
+  formal charges sit on atoms), not the resonance's 1.33.
 
 ## 1.15.0: charged particles as collider beams, electrons as waves, the honest approximations, charge flowing back through bonds
 

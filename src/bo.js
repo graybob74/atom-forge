@@ -69,7 +69,7 @@ function boPP(ea, eb) {
 }
 /* Can this atom take part? (whole clusters decide: boSync) */
 function boOK(p) {
-  return p.k === NUC && !p.dead && !p.fast && !p.rad && !p.anti && p.Z > 0 && BO.Ztab.has(p.Z) && p.ne === p.Z && p.q === 0 && !p.exo && !p.mu;
+  return p.k === NUC && !p.dead && !p.fast && !p.rad && !p.anti && p.Z > 0 && BO.Ztab.has(p.Z) && p.ne > 0 && Math.abs(p.q) <= 1 && !p.exo && !p.mu; // (singly charged ions too, since 1.16: H₃O⁺, OH⁻, NH₄⁺)
 }
 /* The pairs of member atoms within the force reach: from the neighbour list in a force pass, from the grid otherwise. */
 function boCollect(useVL) {
@@ -107,7 +107,7 @@ function boPass(forces) {
   // non-bonded (switched), raw orders, the taper
   for (let k = 0; k < n; k++) {
     const q = L[k], P = q.P, a = q.a, b = q.b;
-    q.gr = 0; q.gn = 0; q.gca = 0; q.gcb = 0; q.n = 0; q.ne = 0; q.eL = 0; q.eM = 0;
+    q.gr = 0; q.gn = 0; q.gca = 0; q.gcb = 0; q.n = 0; q.ne = 0; q.ne0 = 0; q.sup = null; q.eL = 0; q.eM = 0;
     // the Lennard-Jones pair of the kernel (ljV, two atoms of no molecule), switched on from the bond's reach
     if (P.eps === undefined) { const lj = ljPair(a, b); P.rm = lj[0]; P.eps = lj[1]; P.rOn = Math.max(P.reach, 0.62 * lj[0] + 0.05); P.rCut = 2.6 * lj[0]; } // (members are neutral: the pair's Lennard-Jones constants are its elements')
     const rm = P.rm, eps = P.eps, rOn = P.rOn;
@@ -306,7 +306,7 @@ function boCoulomb(forces, n, L) {
   for (let k = 0; k < n; k++) { const q = L[k]; if (!(q.n > 0.3)) continue; let m = adj.get(q.a); if (!m) adj.set(q.a, m = new Map()); m.set(q.b, q); m = adj.get(q.b); if (!m) adj.set(q.b, m = new Map()); m.set(q.a, q); }
   let E = 0;
   for (let k = 0; k < n; k++) {
-    const q = L[k], a = q.a, b = q.b, qa = a._boQ, qb = b._boQ;
+    const q = L[k], a = q.a, b = q.b, qa = a.q + a._boQ, qb = b.q + b._boQ; // (net charges too: ions are members since 1.16)
     if (!qa && !qb) continue;
     const b0 = boB(q.n); if (b0 >= 1) continue;
     let prod = 1, terms = null;
@@ -339,6 +339,10 @@ function boCoulomb(forces, n, L) {
       const m = a.bom ? a : b, o = m === a ? b : a, qo = Q[o.i] + QP[o.i]; if (!qo) continue;
       m._boPhi += qeqC(m, o, r2) * qo;
     }
+  }
+  if (forces && _lrOn) for (const m of mem) { // (an ion member's partial charge meets the net charges beyond the cutoff too: computeForces' long-range pairs)
+    if (!isLR(m)) continue;
+    for (const o of _charged) { if (o === m || o.dead || !isLR(o)) continue; const dx = o.x - m.x, dy = o.y - m.y, r2 = dx * dx + dy * dy; if (r2 >= RC2) m._boPhi += PHYS.KE * qx(o, m) / Math.sqrt(r2); }
   }
   return E;
 }
@@ -424,7 +428,7 @@ function boSync() {
       for (const bd of a.bonds) { const o = other(bd, a); if (!seen.has(o)) { seen.add(o); cl.push(o); } }
       const l = adj.get(a); if (l) for (const o of l) if (!seen.has(o) && !o.dead) { seen.add(o); cl.push(o); }
     }
-    const ok = BO.on && cl.every(boOK);
+    const ok = BO.on && cl.every(boOK) && (cl.length > 1 || cl[0].q === 0); // (a lone ion, Cl⁻ in brine, stays with the kernel's ion–water terms)
     for (const a of cl) want.set(a, ok);
   }
   const C = [];
