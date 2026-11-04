@@ -817,6 +817,7 @@ function bfTypesAll() {
 }
 function bfPassWasm(forces) {
   const ex = WK.ex, P = BFW.par, nm = bfMembers();
+  if (!nm) return boPassJS(forces); // (nothing to do; the member arrays may not exist yet)
   bfScratch(nm); bfSupRoom(0);
   let n;
   if (forces) {

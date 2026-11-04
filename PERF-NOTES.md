@@ -77,9 +77,6 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
-- Continuous bond orders: the orders' pass in WebAssembly (found in 1.16; step 1, flat arrays, done in 1.17: ×46 → ×17
-  for liquid water): a Rust port of 1.17's boPass beside the pair kernel, built by GitHub Actions, with the same checks;
-  expected water ×17 → about ×10.
 - Continuous bond orders: charge that moves with the orders (found in 1.16): a member's net charge sits on one atom as
   a whole unit, so a proton can't pass from H₃O⁺ to a neighbouring water (Grotthuss), an acid can't give its proton to
   water, and nitrate's N–O orders stay 1, 2, 1. Needs each atom's charge, and with it its valence, to follow the orders
@@ -113,6 +110,26 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.18.0: the bond orders' pass in WebAssembly (water ×17 → ×6)
+
+- **The orders' pass in Rust** (the planned list's next item, step 2 of 2; the user: "Do part 2, then move on").
+  kernel/src/bo.rs is 1.17's flat boPass line for line, beside the pair kernel in the same module (built by GitHub
+  Actions, shared and plain memories): `af_bo_collect` finds the member pairs in the neighbour list (with the pair types,
+  iwK and the cutoff shift from per-member flags), `af_bo_pass1` does the raw orders, crowding, levels, orders, Morse
+  terms, angles (the targets in a table filled once from angleTargetsRaw) and the partial charges with the members' own
+  Coulomb pairs, and `af_bo_pass2`, after the JavaScript has added the non-members' potential (bfPhiOthers, which needs
+  the objects), goes back through the orders to the forces. The JavaScript keeps the members (capacities, flags), the
+  pair types' constants and the charges' copy into the store. The arrays live in the module's memory (bfArr; scratch
+  sized to the members, nothing allocated in Rust); without the module (or with its memory full) the JavaScript flat
+  pass runs, unchanged (boPassJS).
+- Checked: the same energy (to the last digit), forces within 4e-14 eV/Å, every charge and order equal, natively
+  (kernel/examples/bocheck.rs on memory images from tools/bodump.js: water, gallery, brine, combustion) and in Node
+  (shared and plain memories, with and without forces, the gallery with H₃O⁺ and SF₆, brine in a wrapped box). An
+  insulated water run gives the same drift to the last digit with the module, the plain module and no module.
+- A pass: 4× as fast (gallery 3.9×, brine 4.1×). Against stored bonds on one thread (Node, 400 steps): liquid water
+  ×15.7 → ×6.1 (0.44 ms a step against 0.19), the gallery ×16.3 → ×8.0, hydrogen + oxygen ×6.8 → ×4.6. What is left is
+  mostly the steps, 2.6 times shorter (0.153 fs against 0.398: the stiffer bonds' step control).
+
 ## 1.17.0: the bond orders' pass on flat arrays (2–3 times faster)
 
 - **The orders' pass rewritten over typed arrays** (the planned list's next item, step 1 of 2; the user: "Do what's
@@ -125,8 +142,7 @@ engine stores and visits particles.
   thread (Node, the WebAssembly kernel for both): liquid water ×46 → ×17, the gallery ×32 → ×15, hydrogen + oxygen ×7–8
   (its own pass was small already). The energy runs of 1.16 repeat exactly (water 0.028 eV, combustion 0.049; the
   gallery's path parts after a few hundred steps, as chaotic paths do with a last-digit difference: 0.078 eV).
-- Step 2, the same pass in WebAssembly (Rust), waits for the user: it would take the pass's 1.1 ms a step for water to
-  perhaps 0.4, so water ×17 → about ×10; the rest of the cost is the steps, 2.6 times shorter than stored bonds'.
+- Step 2, the same pass in WebAssembly (Rust): done in 1.18.
 
 ## 1.16.0: bond orders, next steps: partial charges, crowded molecules, ions, longer steps
 
