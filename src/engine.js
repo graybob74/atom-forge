@@ -2889,6 +2889,33 @@ function processEvents() {
     }
   }
   q.length = 0;
+  if ((W.step & 7) === 0 && W.bonds.length) backflow();
+}
+/* 1.15 (asked for by the user: Ni⁺–C⁻, made by an electron hop and then a bond, never became the neutral Ni=C). Two
+   bonded atoms with opposite whole charges: the electron may flow back through the bond, the valence it frees going
+   into the bond (one order more, as both atoms allow). Tried on the molecule as any event is, the energy measured
+   exactly before and after (localPE over the molecule, the two atoms' electrons); kept when it goes down, the
+   difference released as heat; undone otherwise. A few such bonds every eighth step. */
+function backflow() {
+  let tries = 0;
+  for (const bd of W.bonds.slice()) {
+    const a = bd.a, b = bd.b;
+    if (a.dead || b.dead || !(a.q * b.q < 0) || a.bom || b.bom || a.k !== NUC || b.k !== NUC || a.fast || b.fast || a.rad || b.rad) continue;
+    if (W.bonds.indexOf(bd) < 0) continue;
+    if (++tries > 8) break;
+    const pos = a.q > 0 ? a : b, neg = pos === a ? b : a;
+    if (pos.ne === 0 || neg.ne <= 0 || pos.Z === 0 || neg.Z === 0) continue;
+    const set = new Set(molecule(pos)), sn = snapshot(set);
+    const lab0 = speciesLabel(pos), E0 = localPE(set) + internalE(pos) + internalE(neg);
+    pos.ne++; neg.ne--; refresh(pos); refresh(neg);
+    if (bd.order < 3 && pos.cap - pos.used >= 1 && neg.cap - neg.used >= 1) setOrder(bd, bd.order + 1);
+    enforceValence(pos, null); enforceValence(neg, null);
+    closeSet(set);
+    const heat = E0 - (localPE(set) + internalE(pos) + internalE(neg));
+    if (!(heat > 0.01)) { restoreSnap(sn); continue; }
+    dumpHeat(heat, pos, neg);
+    log('chem', `Charge flowed back through a bond: ${lab0} → ${speciesLabel(pos)} (${fmtE(heat)} released)`);
+  }
 }
 
 /* Nothing bonds or reacts in flight or in a hard collision: past ten times the strongest bond's energy (the two

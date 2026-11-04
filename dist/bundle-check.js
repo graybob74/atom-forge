@@ -1794,8 +1794,8 @@ function fmtNum(x, d = 3) { // (thousands and millions written out: 12,400, 3.40
    average charge of all the others; the radial Schrödinger equation is solved numerically for every occupied
    subshell (Numerov's method on a logarithmic grid, eigenvalues by node counting and the cusp at the matching
    point), the charge density rebuilt from the orbitals found, the potential from that density, and round again
-   until nothing changes. Non-relativistic and spherically averaged (no spin polarisation): heavy atoms' inner
-   shells come out too shallow, and gold's 6s too large, as relativity is left out. Atomic units inside. */
+   until nothing changes. Scalar-relativistic since 1.15 (scfOrbitalSR, below; spin–orbit splitting averaged out) and
+   spherically averaged (no spin polarisation). Atomic units inside. */
 const HARTREE_EV = 27.211386, BOHR_A = 0.529177;
 let XALPHA = 1.0; // Slater's exchange parameter: his original 1, as in Herman and Skillman's tables (2/3 is Kohn–Sham's);
 // with Latter's tail it puts the outermost orbital energies closest to measured ionization energies
@@ -1871,6 +1871,62 @@ function scfOrbital(g, V, n, l, eGuess) {
   }
   return null;
 }
+/* 1.15 (from the honest approximations: gold's 6s came out 2.7 eV too shallow): the scalar-relativistic radial
+   equation (Koelling and Harmon 1977: the Dirac equation averaged over the two spin–orbit partners, j = l ± ½), in its
+   first-order form for P = r·R and the small component Q, integrated by Runge–Kutta on the same logarithmic grid,
+   outward from the nucleus (P ~ r^γ, γ = √(l(l+1) + 1 − (Z/c)²)) and inward from where the orbital has died away,
+   joined where it turns; the energy is corrected from the jump in Q at the join, c·P·ΔQ / ∫(P² + Q²), inside a
+   bracket kept by node counting. Checked against Dirac's hydrogen-like energies: gold's 1s −3434.63 hartree (Dirac
+   −3434.59; without relativity −3120.5). Used for every atom unless SOLVER_REL is turned off. */
+const SR_C = 137.035999;
+let SOLVER_REL = true;
+function scfOrbitalSR(g, V, n, l, Z, eGuess) {
+  const N = g.n, r = g.r, dx = g.dx, ll = l * (l + 1);
+  let elw = -Z * Z, eup = 0; for (let i = 0; i < N; i++) { const v = V[i] + ll / (2 * r[i] * r[i]); if (v < elw) elw = v; } elw = Math.max(elw, -Z * Z * 1.5); // (bounds)
+  eup = V[N - 1] + ll / (2 * r[N - 1] * r[N - 1]);
+  let e = eGuess !== undefined && eGuess > elw && eGuess < eup ? eGuess : 0.5 * (elw + eup);
+  const P = new Float64Array(N), Q = new Float64Array(N), nodes = n - l - 1;
+  const Vh = (i, t) => V[i] + (V[Math.min(i + 1, N - 1)] - V[i]) * t; // (linear in x between points)
+  const deriv = (x, Vv, rr, p, q, E) => { const M = 1 + (E - Vv) / (2 * SR_C * SR_C); return [2 * M * SR_C * rr * q + p, -q + rr * (ll / (2 * M * SR_C * rr * rr) + (Vv - E) / SR_C) * p]; };
+  for (let it = 0; it < 300; it++) {
+    // turning point
+    let icl = -1; for (let i = N - 2; i > 0; i--) if (V[i] + ll / (2 * r[i] * r[i]) < e) { icl = i; break; }
+    if (icl < 5 || icl > N - 10) { if (icl < 5) elw = e; else eup = e; e = 0.5 * (elw + eup); continue; }
+    // outward
+    const gam = Math.sqrt(Math.max(0.01, ll + 1 - (Z / SR_C) * (Z / SR_C)));
+    P[0] = Math.pow(r[0], gam); { const M = 1 + (e - V[0]) / (2 * SR_C * SR_C); Q[0] = (gam - 1) * P[0] / (2 * M * SR_C * r[0]); }
+    let nc = 0;
+    for (let i = 0; i < icl; i++) {
+      const rr0 = r[i], rr1 = r[i + 1], rh = Math.sqrt(rr0 * rr1), V0 = V[i], V1 = V[i + 1], Vm = 0.5 * (V0 + V1);
+      const [k1p, k1q] = deriv(0, V0, rr0, P[i], Q[i], e), [k2p, k2q] = deriv(0, Vm, rh, P[i] + 0.5 * dx * k1p, Q[i] + 0.5 * dx * k1q, e);
+      const [k3p, k3q] = deriv(0, Vm, rh, P[i] + 0.5 * dx * k2p, Q[i] + 0.5 * dx * k2q, e), [k4p, k4q] = deriv(0, V1, rr1, P[i] + dx * k3p, Q[i] + dx * k3q, e);
+      P[i + 1] = P[i] + dx / 6 * (k1p + 2 * k2p + 2 * k3p + k4p); Q[i + 1] = Q[i] + dx / 6 * (k1q + 2 * k2q + 2 * k3q + k4q);
+      if (P[i] * P[i + 1] < 0) nc++;
+      if (Math.abs(P[i + 1]) > 1e30) { for (let j = 0; j <= i + 1; j++) { P[j] *= 1e-30; Q[j] *= 1e-30; } }
+    }
+    if (nc !== nodes) { if (nc > nodes) eup = e; else elw = e; e = 0.5 * (elw + eup); if (eup - elw < 1e-12) return null; continue; }
+    const Po = P[icl], Qo = Q[icl];
+    // inward
+    const kap = Math.sqrt(Math.max(1e-6, -2 * e));
+    let iend = N - 1; while (iend > icl + 10 && kap * (r[iend] - r[icl]) > 60) iend--;
+    P[iend] = 1e-20; { const M = 1 + (e - V[iend]) / (2 * SR_C * SR_C); Q[iend] = (-kap * P[iend] - P[iend] / r[iend]) / (2 * M * SR_C); }
+    for (let i = iend; i > icl; i--) {
+      const rr0 = r[i], rr1 = r[i - 1], rh = Math.sqrt(rr0 * rr1), V0 = V[i], V1 = V[i - 1], Vm = 0.5 * (V0 + V1), h = -dx;
+      const [k1p, k1q] = deriv(0, V0, rr0, P[i], Q[i], e), [k2p, k2q] = deriv(0, Vm, rh, P[i] + 0.5 * h * k1p, Q[i] + 0.5 * h * k1q, e);
+      const [k3p, k3q] = deriv(0, Vm, rh, P[i] + 0.5 * h * k2p, Q[i] + 0.5 * h * k2q, e), [k4p, k4q] = deriv(0, V1, rr1, P[i] + h * k3p, Q[i] + h * k3q, e);
+      P[i - 1] = P[i] + h / 6 * (k1p + 2 * k2p + 2 * k3p + k4p); Q[i - 1] = Q[i] + h / 6 * (k1q + 2 * k2q + 2 * k3q + k4q);
+      if (Math.abs(P[i - 1]) > 1e30) { for (let j = i - 1; j <= iend; j++) { P[j] *= 1e-30; Q[j] *= 1e-30; } }
+    }
+    for (let i = iend + 1; i < N; i++) { P[i] = 0; Q[i] = 0; }
+    const sc = Po / P[icl], Qin = Q[icl] * sc; for (let i = icl; i <= iend; i++) { P[i] *= sc; Q[i] *= sc; }
+    let norm = 0; for (let i = 0; i < N; i++) norm += (P[i] * P[i] + Q[i] * Q[i]) * r[i] * dx;
+    const de = SR_C * Po * (Qo - Qin) / norm; // (the jump in the small component at the join, as the energy error)
+    if (de > 0) elw = e; else eup = e;
+    if (Math.abs(de) < 1e-11 * Math.max(1, Math.abs(e))) { const s = 1 / Math.sqrt(norm); for (let i = 0; i < N; i++) { P[i] *= s; Q[i] *= s; } return { e, P: P.slice(), Q: Q.slice() }; }
+    let en = e + de; if (!(en > elw && en < eup)) en = 0.5 * (elw + eup); e = en;
+  }
+  return null;
+}
 /* Thomas–Fermi screening (Tietz's fit) as the first guess. */
 function tfPhi(x) {
   const s = Math.sqrt(x);
@@ -1897,10 +1953,10 @@ function solveAtom(Z, ne, occ) {
   for (iters = 1; iters <= 160; iters++) {
     u.fill(0);
     for (const o of cfg) {
-      const res = scfOrbital(g, V, o.n, o.l, guess.get(o.n * 10 + o.l));
+      const res = SOLVER_REL ? scfOrbitalSR(g, V, o.n, o.l, Z, guess.get(o.n * 10 + o.l)) : scfOrbital(g, V, o.n, o.l, guess.get(o.n * 10 + o.l));
       if (!res) { o.fail = true; continue; }
       o.fail = false; o.e = res.e; o.P = res.P; guess.set(o.n * 10 + o.l, res.e);
-      for (let i = 0; i < N; i++) u[i] += o.c * res.P[i] * res.P[i];
+      for (let i = 0; i < N; i++) u[i] += o.c * (res.P[i] * res.P[i] + (res.Q ? res.Q[i] * res.Q[i] : 0)); // (scalar-relativistic: the small component's share of the density too)
     }
     if (cfg.some(o => o.fail)) break;
     // Hartree potential: Q(r)/r + ∫_r^∞ u/r' dr' (integrals in x: dr = r dx)
@@ -5148,6 +5204,33 @@ function processEvents() {
     }
   }
   q.length = 0;
+  if ((W.step & 7) === 0 && W.bonds.length) backflow();
+}
+/* 1.15 (asked for by the user: Ni⁺–C⁻, made by an electron hop and then a bond, never became the neutral Ni=C). Two
+   bonded atoms with opposite whole charges: the electron may flow back through the bond, the valence it frees going
+   into the bond (one order more, as both atoms allow). Tried on the molecule as any event is, the energy measured
+   exactly before and after (localPE over the molecule, the two atoms' electrons); kept when it goes down, the
+   difference released as heat; undone otherwise. A few such bonds every eighth step. */
+function backflow() {
+  let tries = 0;
+  for (const bd of W.bonds.slice()) {
+    const a = bd.a, b = bd.b;
+    if (a.dead || b.dead || !(a.q * b.q < 0) || a.bom || b.bom || a.k !== NUC || b.k !== NUC || a.fast || b.fast || a.rad || b.rad) continue;
+    if (W.bonds.indexOf(bd) < 0) continue;
+    if (++tries > 8) break;
+    const pos = a.q > 0 ? a : b, neg = pos === a ? b : a;
+    if (pos.ne === 0 || neg.ne <= 0 || pos.Z === 0 || neg.Z === 0) continue;
+    const set = new Set(molecule(pos)), sn = snapshot(set);
+    const lab0 = speciesLabel(pos), E0 = localPE(set) + internalE(pos) + internalE(neg);
+    pos.ne++; neg.ne--; refresh(pos); refresh(neg);
+    if (bd.order < 3 && pos.cap - pos.used >= 1 && neg.cap - neg.used >= 1) setOrder(bd, bd.order + 1);
+    enforceValence(pos, null); enforceValence(neg, null);
+    closeSet(set);
+    const heat = E0 - (localPE(set) + internalE(pos) + internalE(neg));
+    if (!(heat > 0.01)) { restoreSnap(sn); continue; }
+    dumpHeat(heat, pos, neg);
+    log('chem', `Charge flowed back through a bond: ${lab0} → ${speciesLabel(pos)} (${fmtE(heat)} released)`);
+  }
 }
 
 /* Nothing bonds or reacts in flight or in a hard collision: past ten times the strongest bond's energy (the two

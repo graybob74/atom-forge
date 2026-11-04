@@ -1177,6 +1177,25 @@ const { openPage } = require('./browser');
   })();
   check(Math.abs(r76.h1s + 3434.59) < 0.2 && r76.ok && r76.au6s < -8 && r76.au6s > -9.6 && r76.r6s < 1.6,
     `1.15: relativistic atom solver: hydrogen-like gold 1s ${r76.h1s} hartree (Dirac −3434.59); gold's 6s ${r76.au6s} eV (measured 9.23 eV to remove it; 6.51 without relativity), ⟨r⟩ ${r76.r6s} Å (1.790 without)`, '1.15 solver: ' + JSON.stringify(r76));
+  // 1.15: charge flows back through a bond when that lowers the energy: Ni⁺–C⁻ becomes Ni=C; the library's formal
+  // charges (ozone, CO, N₂O, nitric acid, nitrate, ammonia borane, nitromethane …) stay
+  const r77 = (() => {
+    const X = require('./load.js').load('all', { seed: 2 }), W = X.W, out = {};
+    X.baseWorld(30, 30, 300, 0.05); W.wall = 'reflect';
+    const ni = X.addAtom('Ni', -1.5, 0), c = X.addAtom('C', 1.5, 0); X.userIonize(ni); X.kill(W.parts.find(p => p.k === X.ELEC)); c.ne += 1; X.refresh(c); X.refresh(ni);
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    for (let f = 0; f < 300; f++) X.simFrame(1 / 60, 1e9);
+    out.nic = [ni.q, c.q, W.bonds.map(b => b.order).join()];
+    out.kept = [];
+    for (const k of ['O3', 'CO', 'N2O', 'HNO3', 'BH3NH3', 'NO3m', 'nitromethane']) {
+      X.baseWorld(60, 60, 300, 0.05); W.wall = 'reflect'; X.addMolecule(k, 0, 0, 0, 300); X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const n0 = W.log.length; for (let s = 0; s < 64; s++) { W.dt = X.chooseDt(); X.step(W.dt); }
+      if (!W.log.slice(n0).some(l => /Charge flowed back/.test(l.text))) out.kept.push(k);
+    }
+    return out;
+  })();
+  check(r77.nic[0] === 0 && r77.nic[1] === 0 && r77.nic[2] === '2' && r77.kept.length === 7,
+    `1.15: charge back through a bond: Ni⁺–C⁻ became Ni=C; formal charges kept in ${r77.kept.join(', ')}`, '1.15 backflow: ' + JSON.stringify(r77));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
