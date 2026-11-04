@@ -1382,6 +1382,27 @@ const { openPage } = require('./browser');
   })();
   check(r84.dG < 1e-5 && r84.dGfrac < 1e-5 && r84.hop[0] === 0 && r84.hop[1] === 1 && r84.hop[2] >= 2 && Math.abs(r84.zundel) < 0.3 && Math.abs(r84.zq - 0.5) < 0.1 && r84.drift < 0.1,
     `1.20: moving charge: ∂E/∂ν to ${r84.dG.toExponential(0)}/${r84.dGfrac.toExponential(0)}; a proton held by the far water takes the +1 there (charges ${r84.hop[0]}/${r84.hop[1]}); a proton shared between waters 2.65 Å apart ${r84.zundel} eV from H₃O⁺·H₂O, the charge split ${r84.zq}/${+(1 - r84.zq).toFixed(2)}; water with H₃O⁺ insulated ${r84.drift} eV`, '1.20 moving charge: ' + JSON.stringify(r84));
+  // 1.21: quantum nuclei: ring-polymer contraction (bonds and bends on every bead, the rest at the centres) and the
+  // rings kept in mode space: the same quantum spread and bond lengths as every bead, its forces the energy's slopes, faster
+  const r85 = (() => {
+    const out = {};
+    for (const rpc of [false, true]) {
+      const X = require('./load.js').load('all', { seed: 3 }), W = X.W;
+      X.PRESETS.water.build(); X.settleOverlaps(); X.PI.rpc = rpc; X.piSet(8); X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const run = (n) => { let tu = 0; for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); tu += X.step(W.dt); } return tu; };
+      run(200); W.gamma = 0; const tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, E0 = tot();
+      const t0 = performance.now(), tu = run(300), ms = (performance.now() - t0) / tu;
+      let sp = 0, nh = 0; for (const p of W.parts) if (!p.dead && p.Z === 1) { for (let k = 0; k < 8; k++) { const o = k * X.PI.cap + p.i; sp += Math.hypot(X.PI.ox[o], X.PI.oy[o]); } nh += 8; }
+      let oh = 0; for (const b of W.bonds) oh += Math.hypot(b.a.x - b.b.x, b.a.y - b.b.y);
+      X.forcesNoEvents(); const ats = W.parts.filter(p => !p.dead).slice(0, 8), F = ats.map(p => X.S.fx[p.i]); let dF = 0;
+      ats.forEach((p, u) => { const x0 = X.S.x[p.i]; X.S.x[p.i] = x0 + 1e-5; const e1 = X.piEnergy().pe; X.S.x[p.i] = x0 - 1e-5; const e2 = X.piEnergy().pe; X.S.x[p.i] = x0; dF = Math.max(dF, Math.abs(-(e1 - e2) / 2e-5 - F[u])); });
+      out[rpc ? 'c' : 'e'] = { ms, spread: +(sp / nh).toFixed(3), oh: +(oh / W.bonds.length).toFixed(4), drift: +Math.abs(tot() - E0).toFixed(4), dF };
+    }
+    out.speed = +(out.e.ms / out.c.ms).toFixed(1);
+    return out;
+  })();
+  check(Math.abs(r85.c.spread - r85.e.spread) < 0.01 && Math.abs(r85.c.oh - r85.e.oh) < 0.005 && r85.c.drift < 0.05 && r85.c.dF < 1e-5 && r85.e.dF < 1e-5 && r85.speed > 1.6,
+    `1.21: quantum nuclei contracted: H spread ${r85.c.spread} Å (every bead ${r85.e.spread}), O–H ${r85.c.oh} (${r85.e.oh}), insulated ${r85.c.drift} eV over 300 steps, forces to ${r85.c.dF.toExponential(0)} eV/Å, ${r85.speed}× as fast as every bead at 8`, '1.21 contraction: ' + JSON.stringify(r85));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};

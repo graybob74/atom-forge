@@ -115,6 +115,24 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.21.0: quantum nuclei 2–5 times faster (ring-polymer contraction, rings in mode space)
+
+- Asked by the user ("quantum beads are the most demanding thing in the experimental section"). Two changes:
+  - **Ring-polymer contraction** (after Markland & Manolopoulos 2008), Settings → Experimental → Bead forces, on by
+    default: the bonds' and bends' terms (stiff, short, where a ring's spread matters) on every bead (piFast: the bond
+    and angle kernels alone), everything else (the pairs between atoms and molecules, fields, walls) once at the rings'
+    centres; each bead's force the centres' rest plus its own bonds and bends. The energy the same way (piEnergy,
+    localPE for events: the whole at the centres, the bonds and bends averaged over the beads); the centres' forces are
+    its slopes to 1e-8 eV/Å. Events come from the centres' pass (they came from the first bead's). Not with continuous
+    bond orders or electrons as waves: every bead gets the whole force field there.
+  - **The rings kept in mode space** between steps (PIM): the normal-mode transforms (P² a ring, three a half step) were
+    73% of a contracted step at 16 beads; now one transform of the forces in and one of the positions out a step, in flat
+    loops (piTo/piFrom), the bead velocities written back only when something reads them. The same arithmetic: the runs
+    repeat to the last digit.
+- Liquid water, 8 beads, 300 steps: H spread 0.102 Å (every bead 0.100), O–H 0.976 Å (0.971), insulated 0.012 eV
+  (0.016). Cost on liquid water against classical (Node, one thread): 8 beads ×7.8 → ×1.4 contracted (×3.3 every bead),
+  16 ×17 → ×3 (×7), 32 ×36 → ×6 (×16).
+
 ## 1.20.0: bond orders: the charge moves with the orders
 
 - **Moving charge** (planned; the user: "do both", and the approvals left to Claude). A member atom's electrons are a
