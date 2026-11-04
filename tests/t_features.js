@@ -1276,6 +1276,21 @@ const { openPage } = require('./browser');
   })();
   check(r80.slope < 1e-4 && r80.qO < -0.7 && r80.sf.length === 6 && Math.min(...r80.sf) > 0.95 && r80.ff === 0 && r80.ions === 2 && r80.dE < 0.01,
     `1.16: bond orders: partial charges (O ${r80.qO}) with forces the slopes to ${r80.slope.toExponential(0)} eV/Å beside Na⁺; SF₆ S–F ${Math.min(...r80.sf)}–${Math.max(...r80.sf)}, no F–F; H₃O⁺ and OH⁻ members; ${r80.dE} eV over 1,500 insulated steps of ${r80.step} fs`, '1.16 bond orders: ' + JSON.stringify(r80));
+  // 1.17: the orders' pass on flat arrays gives the 1.16 pass's numbers (forces, charges, orders, energy), faster
+  const r81 = (() => {
+    const X = require('./load.js').load('all', { seed: 3 }), W = X.W, out = {};
+    X.PRESETS.gallery.build(); X.addMolecule('H3Op', 0, 0, 0, 300); X.addMolecule('SF6', 8, 0, 0, 300); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+    X.settleOverlaps(); X.boSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned;
+    for (let i = 0; i < 40; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+    X.forcesNoEvents();
+    const run = (f) => { X.S.fx.fill(0); X.S.fy.fill(0); const E = f(true), fx = Array.from(X.S.fx.subarray(0, X.S.hi)), q = W.parts.map(p => p.qp), ord = new Map(); for (let k = 0; k < X.BO.np; k++) { const t = X.boPairQ(k); if (t.n > 0) ord.set(Math.min(t.a.id, t.b.id) + ':' + Math.max(t.a.id, t.b.id), t.n); } return { E, fx, q, ord, t: (() => { const t0 = performance.now(); for (let i = 0; i < 20; i++) f(true); return (performance.now() - t0) / 20; })() }; };
+    const A = run(X.boPassObj), B = run(X.boPass);
+    out.dE = Math.abs(A.E - B.E); out.dF = Math.max(...A.fx.map((v, i) => Math.abs(v - B.fx[i]))); out.dq = Math.max(...A.q.map((v, i) => Math.abs(v - B.q[i])));
+    out.dn = 0; for (const [k, v] of A.ord) out.dn = Math.max(out.dn, Math.abs(v - (B.ord.get(k) || 0))); out.orders = A.ord.size + '/' + B.ord.size; out.speed = +(A.t / B.t).toFixed(1);
+    X.forcesNoEvents(); return out;
+  })();
+  check(r81.dE < 1e-9 && r81.dF < 1e-9 && r81.dq < 1e-12 && r81.dn < 1e-12 && r81.orders.split('/')[0] === r81.orders.split('/')[1],
+    `1.17: the orders' pass on flat arrays: the same energy (${r81.dE.toExponential(0)} eV), forces (${r81.dF.toExponential(0)} eV/Å), charges and ${r81.orders.split('/')[0]} orders as the object pass, ${r81.speed}× as fast`, '1.17 flat pass: ' + JSON.stringify(r81));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
