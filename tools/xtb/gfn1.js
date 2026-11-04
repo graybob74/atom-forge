@@ -838,8 +838,8 @@ function choleskyInverse(S, n) {
 // A (row-major, n x n) is overwritten by the eigenvectors (columns); returns ascending eigenvalues.
 // Both stages work on the transpose T (T[j*n+i] = V[i*n+j]: tred2's column walks and the QL rotations of eigenvector
 // rows then run along memory); the operations and their order are exactly tred2/tql2's on V. Only the lower triangle
-// of A is read.
-function symEig(V, n) {
+// of A is read. With rows = true the eigenvectors are left as rows instead (V[k*n+i] = component i of vector k).
+function symEig(V, n, rows = false) {
   const d = new Float64Array(n), e = new Float64Array(n);
   const T = V;
   for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) { const t = T[i * n + j]; T[i * n + j] = T[j * n + i]; T[j * n + i] = t; }
@@ -949,7 +949,7 @@ function symEig(V, n) {
       for (let j = 0; j < n; j++) { const t = Vt[i * n + j]; Vt[i * n + j] = Vt[k * n + j]; Vt[k * n + j] = t; }
     }
   }
-  for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) { const t = T[i * n + j]; T[i * n + j] = T[j * n + i]; T[j * n + i] = t; }
+  if (!rows) for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) { const t = T[i * n + j]; T[i * n + j] = T[j * n + i]; T[j * n + i] = t; }
   return d;
 }
 
@@ -1188,7 +1188,8 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const gam3 = el.map(e => e.gam3);
 
   // orthogonalizer and work arrays
-  const Li = choleskyInverse(S, nao);
+  const Li = choleskyInverse(S, nao), LiT = new Float64Array(nao * nao);
+  for (let m = 0; m < nao; m++) for (let k = m; k < nao; k++) LiT[m * nao + k] = Li[k * nao + m];
   const aoSh = new Int32Array(nao);
   for (let s = 0; s < nsh; s++) for (let k = 0; k < shN[s]; k++) aoSh[shAo[s] + k] = s;
   const H1 = new Float64Array(nao * nao), W = new Float64Array(nao * nao), P = new Float64Array(nao * nao), A = new Float64Array(nao * nao), Ct = new Float64Array(nao * nao);
@@ -1217,38 +1218,37 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       H1[m * nao + n] = H0[m * nao + n] - 0.5 * S[m * nao + n] * (vao[m] + vao[n]);
     mixer.set(qsh);
     // solve H1 C = S C e: A = Li H1 Li^T, A Y = Y e, C = Li^T Y
-    W.fill(0);
-    for (let m = 0; m < nao; m++) {                                  // W = Li H1 (rows: the inner loop runs along memory)
+    // (the products below are sums over k in increasing k, as dot products of rows: H1, S and P are exactly symmetric,
+    // and the zero terms that a loop could skip add nothing)
+    for (let m = 0; m < nao; m++) {                                  // W = Li H1, its lower triangle (all that A needs)
       const wm = m * nao;
-      for (let k = 0; k <= m; k++) { const l = Li[wm + k]; if (l === 0) continue; const hk = k * nao; for (let n = 0; n < nao; n++) W[wm + n] += l * H1[hk + n]; }
+      for (let n = 0; n <= m; n++) { const hn = n * nao; let v = 0; for (let k = 0; k <= m; k++) v += Li[wm + k] * H1[hn + k]; W[wm + n] = v; }
     }
     for (let m = 0; m < nao; m++) for (let n = 0; n <= m; n++) {    // A = W Li^T
       let v = 0; for (let k = 0; k <= n; k++) v += W[m * nao + k] * Li[n * nao + k];
       A[m * nao + n] = v; A[n * nao + m] = v;
     }
-    emo = symEig(A, nao);
+    emo = symEig(A, nao, true);                                      // A: the eigenvectors Y as rows
     // occupations: one set of orbitals, alpha and beta filled separately
     const fa = fermiFilling(nel[0], kt, emo), fb = fermiFilling(nel[1], kt, emo);
     focc = new Float64Array(nao);
     for (let k = 0; k < nao; k++) focc[k] = fa[k] + fb[k];
     const C = W;                                                     // C = Li^T Y, only the columns of orbitals holding anything
     let ncol = 0; for (let k = 0; k < nao; k++) if (focc[k] !== 0) ncol = k + 1;
-    C.fill(0);
     for (let m = 0; m < nao; m++) {
       const cm = m * nao;
-      for (let k = m; k < nao; k++) { const l = Li[k * nao + m]; if (l === 0) continue; const ak = k * nao; for (let n = 0; n < ncol; n++) C[cm + n] += l * A[ak + n]; }
+      for (let n = 0; n < ncol; n++) { const yn = n * nao; let v = 0; for (let k = m; k < nao; k++) v += LiT[cm + k] * A[yn + k]; C[cm + n] = v; }
+      for (let n = ncol; n < nao; n++) C[cm + n] = 0;
     }
     const ts = entropyTerm(fa, kt) + entropyTerm(fb, kt);
-    P.fill(0);
-    {                                                                // P = sum_k f_k C_k C_k^T, over orbitals holding anything (rows of C^T)
+    {                                                                // P = sum_k f_k C_k C_k^T, over orbitals holding anything
       let nk = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nk = k + 1;
-      for (let k = 0; k < nk; k++) for (let m = 0; m < nao; m++) Ct[k * nao + m] = C[m * nao + k];
-      for (let k = 0; k < nk; k++) {
-        const f = focc[k]; if (!(f > 1e-15)) continue;
-        const ck = k * nao;
-        for (let m = 0; m < nao; m++) { const cm = Ct[ck + m] * f; if (cm === 0) continue; const pm = m * nao; for (let n = m; n < nao; n++) P[pm + n] += cm * Ct[ck + n]; }
+      const Cf = Ct;                                                 // Cf_mk = C_mk f_k (0 for the orbitals left out)
+      for (let m = 0; m < nao; m++) for (let k = 0; k < nk; k++) Cf[m * nao + k] = focc[k] > 1e-15 ? C[m * nao + k] * focc[k] : 0;
+      for (let m = 0; m < nao; m++) {
+        const pm = m * nao;
+        for (let n = m; n < nao; n++) { const cn = n * nao; let v = 0; for (let k = 0; k < nk; k++) v += Cf[pm + k] * C[cn + k]; P[pm + n] = v; P[cn + m] = v; }
       }
-      for (let m = 0; m < nao; m++) for (let n = m + 1; n < nao; n++) P[n * nao + m] = P[m * nao + n];
     }
     // Mulliken shell charges and band energy
     const qn = new Float64Array(nsh);
@@ -1281,11 +1281,16 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   };
   // Mayer bond orders (opts.bonds): B_AB = sum over mu on A, nu on B of (PS)_mu,nu (PS)_nu,mu; a flat nat x nat array
   if (opts.bonds) {
-    const PS = new Float64Array(nao * nao);
-    for (let m = 0; m < nao; m++) for (let k = 0; k < nao; k++) { const p = P[m * nao + k]; if (p === 0) continue; for (let n = 0; n < nao; n++) PS[m * nao + n] += p * S[k * nao + n]; }
+    // (PS)_mn = sum_k P_mk S_kn = P row m . S row n (S symmetric), only for m, n on different atoms
     const aoAt = new Int32Array(nao); for (let s = 0; s < nsh; s++) for (let k = 0; k < shN[s]; k++) aoAt[shAo[s] + k] = shAt[s];
     const B = new Float64Array(nat * nat);
-    for (let m = 0; m < nao; m++) for (let n = 0; n < m; n++) { const a = aoAt[m], b = aoAt[n]; if (a === b) continue; const v = PS[m * nao + n] * PS[n * nao + m]; B[a * nat + b] += v; B[b * nat + a] += v; }
+    for (let m = 0; m < nao; m++) for (let n = 0; n < m; n++) {
+      const a = aoAt[m], b = aoAt[n]; if (a === b) continue;
+      const rm = m * nao, rn = n * nao;
+      let pmn = 0, pnm = 0;
+      for (let k = 0; k < nao; k++) { pmn += P[rm + k] * S[rn + k]; pnm += P[rn + k] * S[rm + k]; }
+      const v = pmn * pnm; B[a * nat + b] += v; B[b * nat + a] += v;
+    }
     out.bonds = B;
   }
 
