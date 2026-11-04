@@ -116,8 +116,9 @@ engine stores and visits particles.
   that's worth doing" from the Physics tab's honest approximations). Each nucleus a charged exo passes within 1 Å turns
   it by the small-angle Rutherford angle 2k·z·Z/(b·pv), screened by the atom's electrons (Thomas–Fermi, e^(−b/a),
   a = 0.885 a₀ Z^−⅓), toward it, at most 0.3 rad a pass; the nucleus takes the sideways momentum and its recoil energy
-  comes from the exo (hep.js exoScatter, after exoIonize). μ⁺ through 31 Å of gold atoms: rms 6.7 mrad at 5 MeV,
-  0.67 at 50 MeV (∝ 1/pv). A flat chamber meets close nuclei more often than a real foil (a row of atoms every 2.6 Å
+  comes from the exo (hep.js exoScatter, after exoIonize). μ⁺ through 31 Å of gold atoms (jumbled, as a foil): rms
+  7.7 mrad at 5 MeV, 1.03 at 50 MeV (∝ 1/pv; pv's ratio 8.6). Fired along a crystal's rows a μ⁺ channels between them
+  once the sign fix below is in (4.4 against 1.1). A flat chamber meets close nuclei more often than a real foil (a row of atoms every 2.6 Å
   against a volume): about ten times Highland's width for the same thickness, said in the Physics tab.
 - **Charm and bottom mesons**: D⁰, D⁺, D⁺s, B⁺, B⁰ and their antiparticles (XP Dc0, Dc+, Ds+, B+, B0 …), PDG masses and
   mean lives and their main decays (the rest of each total shared over them). Electron–positron collisions make charm

@@ -1143,7 +1143,7 @@ const { openPage } = require('./browser');
     for (const KE of [5e6, 50e6]) {
       const X = require('./load.js').load('all', { seed: 9 }), W = X.W;
       X.baseWorld(120, 80, 300, 0); W.wall = 'open'; W.decayOn = false;
-      for (let i = 0; i < 12; i++) for (let j = 0; j < 30; j++) X.addAtom('Au', -15 + i * 2.6 + (j % 2) * 1.3, -38 + j * 2.6);
+      for (let i = 0; i < 12; i++) for (let j = 0; j < 30; j++) X.addAtom('Au', -15 + i * 2.6 + (j % 2) * 1.3 + 0.8 * (X.rnd() - 0.5), -38 + j * 2.6 + 0.8 * (X.rnd() - 0.5)); // (jumbled, as in a foil: μ⁺ fired along a crystal's rows channels between them, since 1.15's sign fix)
       X.forcesNoEvents(); W.fSpawn = W.spawned;
       const os = []; for (let k = 0; k < 200; k++) os.push(X.addExo('mu+', -50, -30 + 60 * X.rnd(), KE, 1, 0));
       const last = new Map();
