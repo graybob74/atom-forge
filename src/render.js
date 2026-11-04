@@ -165,6 +165,7 @@ function render(rt) {
   if (R.view.ionic) drawIonic();
   if (!R.gl) drawChipsUnder();
   R.lblLater = PI.on && PI.n && R.s >= 30 ? [] : null;
+  if (WAVE.n) drawWaves(); // (Experimental: electrons as waves, 1.15)
   drawParticles(rt);
   if (PI.on && PI.n) drawRings();
   if (R.lblLater) { for (const a of R.lblLater) label(R.ctx, ...a); R.lblLater = null; }
@@ -955,6 +956,21 @@ function drawQGP() {
       ctx.fillStyle = `rgba(20,10,6,${(0.75 * a).toFixed(3)})`; ctx.fillRect(x - w / 2, ty - 13, w, 18);
       ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.fillText(t, x, ty); ctx.textAlign = 'left';
     }
+  }
+  ctx.restore();
+}
+/* Electrons as waves: each packet as a soft disc its size across (to its 1/e density), a faint ring for the spin up ones. */
+function drawWaves() {
+  const ctx = R.ctx, s = R.s, cx = R.cx, cy = R.cy, hw = R.w / 2, hh = R.h / 2;
+  ctx.save();
+  for (const p of WAVE.mem) {
+    if (!p.wm || p.dead) continue;
+    const x = (p.x - cx) * s + hw, y = (cy - p.y) * s + hh, r = Math.max(2, p.ws * s);
+    if (x < -r || y < -r || x > R.w + r || y > R.h + r) continue;
+    const c = hexc(p.k === ELEC ? E_COL : POS_COL), g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(c, 0.22)); g.addColorStop(1, rgba(c, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    if (p.spin > 0 && r > 6) { ctx.strokeStyle = rgba(c, 0.25); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, r * 0.7, 0, Math.PI * 2); ctx.stroke(); }
   }
   ctx.restore();
 }

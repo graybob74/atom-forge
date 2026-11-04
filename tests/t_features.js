@@ -196,7 +196,7 @@ const { openPage } = require('./browser');
   // again; every step keeps the books exactly
   const r13 = await page.evaluate(() => {
     setRunning(false); const out = {}; const tot = () => totalEnergy().total - W.ledger.nuc;
-    loadPreset('empty'); W.box.w = W.box.tw = 120; W.box.h = W.box.th = 60; for (let i = 0; i < 12; i++) for (let j = 0; j < 6; j++) addAtom('Ar', -55 + i * 9.5, -25 + j * 9.5);
+    loadPreset('empty'); W.box.w = W.box.tw = 120; W.box.h = W.box.th = 60; for (let i = 0; i < 24; i++) for (let j = 0; j < 12; j++) addAtom('Ar', -55 + i * 4.75, -25 + j * 4.75); // (denser since 1.15: muons now scatter off the nuclei they pass, and in the old sparse rows one could wander out first)
     const m = addExo('mu-', -58, 3.6, 6000, 1, 0.003); for (let f = 0; f < 3000 && !m.dead; f++) simFrame(1 / 60, 25);
     out.ar = { fate: m.fate, bound: (W.muBound || []).length };
     let worst = 0; const keep = Object.assign({}, MU_RATES); MU_RATES.tr_dt = 1e30; MU_RATES.tr_pd = 1e30; MU_RATES.dt = 1e30;
@@ -1137,6 +1137,121 @@ const { openPage } = require('./browser');
   check(r73.exp0 === 'Experimental: all normal' && /force reach 9 Å, continuous bond orders \(×/.test(r73.exp1) && r73.hold[1] && r73.hold[2] && /^1\/.+×$/.test(r73.hold[0]) && r73.back[1] && r73.back[0] === '1×' &&
     r73.auto[1] && r73.auto[2] && r73.auto[3] && r73.hand.slice(0, 3).every(Boolean) && /×$/.test(r73.hand[3]),
     `1.14: Speed test line "${r73.exp1}"; slow motion: the hourglass set ${r73.hold[0]} and gave back ${r73.back[0]}, an event set ${r73.auto[0]}, a speed chosen by hand (${r73.hand[3]}) ended it`, '1.14: ' + JSON.stringify(r73));
+  // 1.15: charged unstable particles are turned by the nuclei they pass (multiple Coulomb scattering), ∝ 1/pv
+  const r74 = (() => {
+    const out = {};
+    for (const KE of [5e6, 50e6]) {
+      const X = require('./load.js').load('all', { seed: 9 }), W = X.W;
+      X.baseWorld(120, 80, 300, 0); W.wall = 'open'; W.decayOn = false;
+      for (let i = 0; i < 12; i++) for (let j = 0; j < 30; j++) X.addAtom('Au', -15 + i * 2.6 + (j % 2) * 1.3 + 0.8 * (X.rnd() - 0.5), -38 + j * 2.6 + 0.8 * (X.rnd() - 0.5)); // (jumbled, as in a foil: μ⁺ fired along a crystal's rows channels between them, since 1.15's sign fix)
+      X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const os = []; for (let k = 0; k < 200; k++) os.push(X.addExo('mu+', -50, -30 + 60 * X.rnd(), KE, 1, 0));
+      const last = new Map();
+      for (let s = 0; s < 400; s++) { W.dt = Math.min(X.chooseDt(), 0.001); X.step(W.dt); for (const o of os) if (o.x > 20 && !last.has(o)) last.set(o, Math.atan2(o.uy, o.ux)); if (os.every(o => o.dead || last.has(o))) break; }
+      const th = [...last.values()]; out[KE / 1e6] = { n: th.length, rms: +(1000 * Math.sqrt(th.reduce((t, a) => t + a * a, 0) / th.length)).toFixed(2) };
+    }
+    return out;
+  })();
+  check(r74[5].n === 200 && r74[5].rms > 1 && r74[5].rms / r74[50].rms > 6 && r74[5].rms / r74[50].rms < 15,
+    `1.15: μ⁺ through 31 Å of gold atoms turned by the nuclei: rms ${r74[5].rms} mrad at 5 MeV, ${r74[50].rms} at 50 MeV`, '1.15 scattering: ' + JSON.stringify(r74));
+  // 1.15: charm and bottom mesons: e⁺e⁻ above the thresholds makes D and B pairs; they decay with exact books
+  const r75 = (() => {
+    const X = require('./load.js').load('all', { seed: 3 }), W = X.W, out = { heavy: 0, had: 0 };
+    X.baseWorld(200, 200, 300, 0); W.decayOn = false;
+    for (let k = 0; k < 400; k++) { const a = X.fireSpec({ kind: 'e' }, 0, 0, 1, 0, 6e9), b = X.fireSpec({ kind: 'pos' }, 0.01, 0, -1, 0, 6e9); X.eeEvent(a, b, 0, 0); const t = W.log[W.log.length - 1].text; if (!/2γ/.test(t)) out.had++; if (/D[⁰⁺⁻]|B[⁰⁺⁻]|D̄|B̄/.test(t)) out.heavy++; }
+    const Y = require('./load.js').load('all', { seed: 4 }), V = Y.W; Y.baseWorld(400, 400, 300, 0); V.decayOn = true; V.warp = 1e6; V.wall = 'reflect';
+    const tot = () => Y.totalEnergy().total - V.ledger.nuc + V.ledger.bath;
+    for (const sp of ['Dc0', 'Dc-', 'Ds+', 'B+', 'Bb0']) Y.addExo(sp, 0, 0, 1e6, 1, 0);
+    const E0 = tot(); for (let s = 0; s < 400; s++) { V.dt = 0.01; Y.step(0.01); Y.decayStep(0.01 * Y.PHYS.TU_S * V.warp); }
+    out.decays = V.log.filter(l => /^Decay in flight: (D|B)/.test(l.text)).length; out.dE = +(tot() - E0).toFixed(3); out.left = V.exo.filter(o => !o.dead && /^(D|B)/.test(o.lab)).length;
+    return out;
+  })();
+  check(r75.heavy >= 3 && r75.heavy < r75.had && r75.decays >= 5 && Math.abs(r75.dE) < 0.01 && r75.left === 0,
+    `1.15: charm and bottom: ${r75.heavy} of ${r75.had} hadronic e⁺e⁻ events at 12 GeV made D or B mesons; ${r75.decays} D/B decays, books ${r75.dE} eV`, '1.15 charm: ' + JSON.stringify(r75));
+  // 1.15: relativity in the atom solver: Dirac's hydrogen-like 1s for gold; gold's 6s deeper and smaller
+  const r76 = (() => {
+    const X = require('./load.js').load('all', { seed: 1 }), g = X.scfGrid(79, 60), V = new Float64Array(g.n);
+    for (let i = 0; i < g.n; i++) V[i] = -79 / g.r[i];
+    const h = X.scfOrbitalSR(g, V, 1, 0, 79), au = X.solveAtom(79, 79), s6 = au.orbitals.find(o => o.n === 6 && o.l === 0);
+    return { h1s: +h.e.toFixed(2), au6s: +s6.e.toFixed(2), r6s: +s6.rMean.toFixed(3), ok: au.ok };
+  })();
+  check(Math.abs(r76.h1s + 3434.59) < 0.2 && r76.ok && r76.au6s < -8 && r76.au6s > -9.6 && r76.r6s < 1.6,
+    `1.15: relativistic atom solver: hydrogen-like gold 1s ${r76.h1s} hartree (Dirac −3434.59); gold's 6s ${r76.au6s} eV (measured 9.23 eV to remove it; 6.51 without relativity), ⟨r⟩ ${r76.r6s} Å (1.790 without)`, '1.15 solver: ' + JSON.stringify(r76));
+  // 1.15: charge flows back through a bond when that lowers the energy: Ni⁺–C⁻ becomes Ni=C; the library's formal
+  // charges (ozone, CO, N₂O, nitric acid, nitrate, ammonia borane, nitromethane …) stay
+  const r77 = (() => {
+    const X = require('./load.js').load('all', { seed: 2 }), W = X.W, out = {};
+    X.baseWorld(30, 30, 300, 0.05); W.wall = 'reflect';
+    const ni = X.addAtom('Ni', -1.5, 0), c = X.addAtom('C', 1.5, 0); X.userIonize(ni); X.kill(W.parts.find(p => p.k === X.ELEC)); c.ne += 1; X.refresh(c); X.refresh(ni);
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    for (let f = 0; f < 300; f++) X.simFrame(1 / 60, 1e9);
+    out.nic = [ni.q, c.q, W.bonds.map(b => b.order).join()];
+    out.kept = [];
+    for (const k of ['O3', 'CO', 'N2O', 'HNO3', 'BH3NH3', 'NO3m', 'nitromethane']) {
+      X.baseWorld(60, 60, 300, 0.05); W.wall = 'reflect'; X.addMolecule(k, 0, 0, 0, 300); X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const n0 = W.log.length; for (let s = 0; s < 64; s++) { W.dt = X.chooseDt(); X.step(W.dt); }
+      if (!W.log.slice(n0).some(l => /Charge flowed back/.test(l.text))) out.kept.push(k);
+    }
+    return out;
+  })();
+  check(r77.nic[0] === 0 && r77.nic[1] === 0 && r77.nic[2] === '2' && r77.kept.length === 7,
+    `1.15: charge back through a bond: Ni⁺–C⁻ became Ni=C; formal charges kept in ${r77.kept.join(', ')}`, '1.15 backflow: ' + JSON.stringify(r77));
+  // 1.15: every charged particle as a collider beam: a μ⁻μ⁺ ring injects, ramps to 1 GeV without losing a muon and
+  // collides them (annihilation, as e⁺e⁻); Σ⁻ on π⁺ in a linac comes through with new hadrons; energy kept exactly
+  const r78 = (() => {
+    const dE = [];
+    const X = require('./load.js').load('all', { seed: 3, patch: (s) => s.replace('function xbHit(C, a, b, d, x, y, ex, ey) {', 'function xbHit(C, a, b, d, x, y, ex, ey) { const e0 = totalEnergy().total - W.ledger.nuc; xbHit0(C, a, b, d, x, y, ex, ey); globalThis.__r78.push(Math.abs(totalEnergy().total - W.ledger.nuc - e0)); }\nfunction xbHit0(C, a, b, d, x, y, ex, ey) {') });
+    globalThis.__r78 = dE;
+    const W = X.W, out = {};
+    X.PRESETS.ring.build(); X.setupCollider('ring', 'xmu-', 'xmu+', 1e9); X.settleOverlaps(); W.baseSpf = W.simPerFrame;
+    const C = W.collider; let fewest = 99, top = 0;
+    for (let f = 0; f < 2300 && !(C.hits >= 3); f++) {
+      X.simFrame(1 / 60, 1e9);
+      const xs = W.exo.filter(o => o.xb && o.beam && !o.dead && !o.injKick);
+      if (C.rings[0].cnt >= 10 && !C.colliding) { fewest = Math.min(fewest, W.exo.filter(o => o.xb && o.beam && !o.dead).length); if (xs.length) top = Math.max(top, xs.reduce((s, o) => s + o.KE, 0) / xs.length); }
+    }
+    out.ring = { layout: C.layout, fewest, top: +(top / 1e9).toFixed(3), hits: C.hits, last: C.last };
+    X.PRESETS.linac.build(); X.setupCollider('linear', 'xSig-', 'xpi+', 5e9); X.settleOverlaps(); W.baseSpf = W.simPerFrame;
+    for (let f = 0; f < 800 && !(W.collider.hits >= 3); f++) X.simFrame(1 / 60, 1e9);
+    out.lin = { hits: W.collider.hits, last: W.collider.last };
+    out.dE = Math.max(0, ...dE); out.n = dE.length;
+    out.menu = Object.values(X.BEAM_SPECIES).filter(s => s.exo).length; out.find = X.beamFind('muon').v;
+    return out;
+  })();
+  check(r78.ring.layout === 'single' && r78.ring.fewest === 20 && r78.ring.top > 0.97 && r78.ring.hits >= 1 && /μ/.test(r78.ring.last) && r78.lin.hits >= 1 && /Σ⁻ \+ π⁺|π⁺ \+ Σ⁻/.test(r78.lin.last) && r78.dE < 1e-3 && r78.menu === 22 && r78.find === 'xmu-',
+    `1.15: unstable particles as beams: μ⁻μ⁺ in one ring, all 20 kept to ${r78.ring.top} GeV, then “${r78.ring.last}”; linac “${r78.lin.last.slice(0, 70)}…”; ${r78.n} encounters, energy kept to ${r78.dE.toExponential(0)} eV; ${r78.menu} species in the menus`, '1.15 exotic beams: ' + JSON.stringify(r78));
+  // 1.15: electrons as waves (Experimental, eFF): forces are the energy's slopes; ionized water keeps its energy with the
+  // packets; twenty recombinations and turning it off keep the books
+  const r79 = (() => {
+    const L = require('./load.js'), out = {};
+    { const X = L.load('all', { seed: 4 }); let worst = 0;
+      for (let t = 0; t < 300; t++) {
+        const a = { ws: 0.2 + 2 * X.rnd(), q: -1, k: X.ELEC, spin: 1 }, b = { ws: 0.2 + 2 * X.rnd(), q: t % 3 ? -1 : 1, k: t % 3 ? X.ELEC : X.POS, spin: t % 2 ? 1 : -1 }, r = 0.02 + 6 * X.rnd(), h = 1e-6;
+        X.wavePair(a, b, r); const d = X._wd.slice(), fr = (X.wavePair(a, b, r + h) - X.wavePair(a, b, r - h)) / (2 * h);
+        a.ws += h; const p1 = X.wavePair(a, b, r); a.ws -= 2 * h; const m1 = X.wavePair(a, b, r); a.ws += h;
+        worst = Math.max(worst, Math.abs(fr - d[0]), Math.abs((p1 - m1) / (2 * h) - d[1]));
+      }
+      out.slope = worst; out.pauli = +X.wavePauli(0.5, 0.8, 0.8, true)[0].toFixed(3); }
+    { const X = L.load('all', { seed: 9 }), W = X.W;
+      X.PRESETS.water.build(); X.settleOverlaps();
+      const Os = W.parts.filter(p => p.Z === 8); for (let i = 0; i < 40; i++) X.userIonize(Os[i]);
+      X.settleOverlaps(); W.gamma = 0; W.slowmo = false; W.sources.length = 0; X.waveSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const tot = () => X.totalEnergy().total - W.ledger.nuc + W.ledger.bath, E0 = tot(); let tu = 0;
+      for (let i = 0; i < 200; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); tu += X.step(W.dt); }
+      const fs = tu * X.PHYS.TU_S * 1e15, ss = X.WAVE.mem.map(p => p.ws);
+      out.water = { fs: +fs.toFixed(1), perPs: +((tot() - E0) / fs * 1000).toFixed(1), n: X.WAVE.n, free: W.nE, s: [+Math.min(...ss).toFixed(2), +Math.max(...ss).toFixed(2)] };
+      const e1 = tot(); X.waveSet(false); out.off = Math.abs(tot() - e1); out.left = X.WAVE.n; }
+    { const X = L.load('all', { seed: 4 }), W = X.W;
+      X.baseWorld(30, 30, 300, 0); W.wall = 'reflect';
+      for (let i = 0; i < 20; i++) X.userIonize(X.addAtom('H', -12 + (i % 5) * 6, -12 + Math.floor(i / 5) * 6));
+      X.waveSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned; const n0 = X.WAVE.n;
+      const tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, E0 = tot();
+      for (let s = 0; s < 300; s++) { W.dt = X.chooseDt(); X.step(W.dt); }
+      out.recomb = { packets: n0, caught: W.count.recomb, dE: +Math.abs(tot() - E0).toFixed(3) }; }
+    return out;
+  })();
+  check(r79.slope < 1e-6 && Math.abs(r79.pauli - 14.456) < 0.01 && r79.water.n === r79.water.free && r79.water.n >= 30 && Math.abs(r79.water.perPs) < 30 && r79.water.s[0] > 0.5 && r79.water.s[1] < 3.5 && r79.off < 1e-6 && r79.left === 0 && r79.recomb.packets >= 15 && r79.recomb.caught >= 15 && r79.recomb.dE < 0.2,
+    `1.15: electrons as waves: forces the energy's slopes to ${r79.slope.toExponential(0)} eV/Å; ionized water with ${r79.water.n} packets (${r79.water.s.join('–')} Å) ${r79.water.perPs} eV/ps over ${r79.water.fs} fs; off again exact; ${r79.recomb.caught} recombinations of packets kept to ${r79.recomb.dE} eV`, '1.15 waves: ' + JSON.stringify(r79));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
