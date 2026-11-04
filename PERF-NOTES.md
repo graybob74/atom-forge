@@ -153,7 +153,17 @@ engine stores and visits particles.
   Found on the way (a bug in 2-D too, fixed): threadsBind wrote the WebAssembly sum table before the module was ready
   (in the page it compiles in the background): "Cannot set properties of null" in t_threads, now and then. The table is
   written when the module is used, and the workers are bound again once it is ready.
-  Next: stage 4 (the Rust kernel and threads in 3-D).
+  Stage 4 done (speed): af_forces3 in the Rust kernel (kernel/src/d3.rs: pairs, Morse bonds, the 3-D angles,
+  out-of-plane and torsions; descriptor entries 40–45 for z, vz and the 3-D angle tables, the 2-D export unchanged);
+  the 3-D JavaScript kernels inside the PAIR KERNEL markers for the workers; pairs, bonds, centres and dihedrals shared
+  out over the worker threads with a fixed-order sum; the 3-D neighbour list built on the threads (by particle ranges:
+  a 3-D box has few cells). The built module gives the JavaScript's forces bit for bit (water, brine, sparked H₂ + O₂,
+  a mixed box, molecules, hydrogen: 0 slots differ; 30-step runs identical). Node, one thread: liquid water (1,029
+  atoms) 4.3 → 2.7 ms a step (kernels 3.4 → 1.7); salt water 13 → 9.8 (its electron-transfer trials, ~130 a pass in
+  JavaScript, are most of the rest). Not threaded in 3-D: the integrator, bath and step size (0.02–0.07 ms at 1,000
+  atoms); af_fast3 (free electrons) not written.
+  Left for later: a 3-D release (the owner to choose when); the open items above; fields, objects, light, nuclear
+  reactions and the Experimental physics in 3-D.
 - Asked for (the user: "start 3D once you've completed the quantum thing"): a 3-D mode, as a separate mode chosen in the main menu rather than a setting: the
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
