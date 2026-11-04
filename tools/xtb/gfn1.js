@@ -508,6 +508,14 @@ function element(z) {
     en: num(T.pauling_en[z - 1]),
     minAlpha: Math.min(...shells.map(s => Math.min(...s.cg.alpha))),
   };
+  // for the integrals: the atom's distinct primitive exponents (ua), each shell's primitives as indices into them (pidx),
+  // and the onsite overlap blocks (vec = 0, no screening), flat by shell pair a * nsh + b, b <= a
+  const ua = [];
+  for (const s of shells) s.pidx = Int32Array.from(s.cg.alpha, a => { let k = ua.indexOf(a); if (k < 0) { k = ua.length; ua.push(a); } return k; });
+  e.ua = Float64Array.from(ua);
+  e.lmax = Math.max(...shells.map(s => s.l));
+  e.onsite = [];
+  for (let a = 0; a < nsh; a++) for (let b = 0; b <= a; b++) e.onsite[a * nsh + b] = overlapBlock(shells[a].cg, shells[b].cg, [0, 0, 0], 0);
   elemCache.set(z, e);
   return e;
 }
@@ -648,6 +656,156 @@ function overlapGradBlock(ci, cj, vec, r2, intcut = 25) {
   return { s: cartToSph(li, lj, s3d), ds: d3d.map(m => cartToSph(li, lj, m)) };
 }
 
+// ---- the integrals as gfn1Energy computes them: per atom pair, without allocation ----
+// The same arithmetic, operation for operation, as overlapBlock / overlapGradBlock above (the results are identical to
+// the bit), with the repeated work done once: each primitive pair's exponential and 1D moments once per atom pair
+// (shells of one atom share exponents: H's orthogonalized 2s contains the 1s primitives), the factors that depend only
+// on the two exponents once per element pair, and the onsite blocks (vec = 0) once per element.
+const CX = CART.map(l => Int32Array.from(l, c => c[0])), CY = CART.map(l => Int32Array.from(l, c => c[1])),
+  CZ = CART.map(l => Int32Array.from(l, c => c[2]));
+const pairCache = new Map();
+function pairTable(ei, ej) {
+  const key = ei.z * 128 + ej.z;
+  let t = pairCache.get(key);
+  if (t) return t;
+  const nI = ei.ua.length, nJ = ej.ua.length, n = nI * nJ;
+  t = { nI, nJ, ai: new Float64Array(n), aj: new Float64Array(n), aiaj: new Float64Array(n), oab: new Float64Array(n),
+    s3: new Float64Array(n), hs: new Float64Array(ei.shells.length * ej.shells.length) };
+  for (let P = 0; P < nI; P++) for (let Q = 0; Q < nJ; Q++) {
+    const ai = ei.ua[P], aj = ej.ua[Q], PQ = P * nJ + Q;
+    const eab = ai + aj, oab = 1 / eab;
+    t.ai[PQ] = ai; t.aj[PQ] = aj; t.aiaj[PQ] = ai * aj; t.oab[PQ] = oab; t.s3[PQ] = Math.sqrt(oab) ** 3;
+  }
+  for (let a = 0; a < ei.shells.length; a++) for (let b = 0; b < ej.shells.length; b++) t.hs[a * ej.shells.length + b] = hscale(ei, a, ej, b);
+  pairCache.set(key, t);
+  return t;
+}
+// scratch: per primitive pair the screening flag, exp prefactor and the 3 x 4 x 4 moment tables
+let PP_SKIP = new Uint8Array(256), PP_PRE = new Float64Array(256), PP_MOM = new Float64Array(256 * 48);
+function mom1d(li, lj, rpi, rpj, h, o) {        // moments1d into PP_MOM[o + a*4 + b]
+  const t = PP_MOM;
+  t[o] = 1;
+  if (li >= 1) { t[o + 4] = rpi; for (let i = 1; i < li; i++) t[o + (i + 1) * 4] = rpi * t[o + i * 4] + i * h * t[o + (i - 1) * 4]; }
+  if (lj >= 1) {
+    t[o + 1] = rpj;
+    for (let i = 1; i <= li; i++) t[o + i * 4 + 1] = rpj * t[o + i * 4] + i * h * t[o + (i - 1) * 4];
+    for (let j = 1; j < lj; j++) {
+      t[o + j + 1] = rpj * t[o + j] + j * h * t[o + j - 1];
+      for (let i = 1; i <= li; i++) t[o + i * 4 + j + 1] = rpj * t[o + i * 4 + j] + h * (i * t[o + (i - 1) * 4 + j] + j * t[o + i * 4 + j - 1]);
+    }
+  }
+}
+// every primitive pair of atoms i (exponents ei.ua) and j, vec = R_i - R_j: moments up to LI on i, LJ on j
+function primPairs(t, v0, v1, v2, r2, intcut, LI, LJ) {
+  const n = t.nI * t.nJ;
+  if (PP_PRE.length < n) { PP_SKIP = new Uint8Array(n); PP_PRE = new Float64Array(n); PP_MOM = new Float64Array(n * 48); }
+  const { ai: AI, aj: AJ, aiaj, oab: OAB, s3 } = t;
+  for (let PQ = 0; PQ < n; PQ++) {
+    const oab = OAB[PQ], est = aiaj[PQ] * r2 * oab;
+    if (est > intcut) { PP_SKIP[PQ] = 1; continue; }
+    PP_SKIP[PQ] = 0;
+    PP_PRE[PQ] = Math.exp(-est) * SQRTPI3 * s3[PQ];
+    const ai = AI[PQ], aj = AJ[PQ], h = 0.5 * oab, o = PQ * 48;
+    mom1d(LI, LJ, -v0 * aj * oab, v0 * ai * oab, h, o);
+    mom1d(LI, LJ, -v1 * aj * oab, v1 * ai * oab, h, o + 16);
+    mom1d(LI, LJ, -v2 * aj * oab, v2 * ai * oab, h, o + 32);
+  }
+}
+const BS = new Float64Array(36), BX = new Float64Array(36), BY = new Float64Array(36), BZ = new Float64Array(36);
+const SPH_T = new Float64Array(36), SPH_S = new Float64Array(36), SPH_X = new Float64Array(36), SPH_Y = new Float64Array(36), SPH_Z = new Float64Array(36);
+// cartToSph without allocation: returns src itself (no d function), or dst
+function cartToSphInto(li, lj, src, dst) {
+  const nci = CART[li].length;
+  let m = src, ncol = CART[lj].length;
+  if (lj === 2) {
+    const out = li === 2 ? SPH_T : dst;
+    for (let a = 0; a < nci; a++) for (let s = 0; s < 5; s++) {
+      let v = 0; for (let c = 0; c < 6; c++) v += DTRAFO[c][s] * m[a * 6 + c];
+      out[a * 5 + s] = v;
+    }
+    m = out; ncol = 5;
+  }
+  if (li === 2) {
+    for (let s = 0; s < 5; s++) for (let b = 0; b < ncol; b++) {
+      let v = 0; for (let c = 0; c < 6; c++) v += DTRAFO[c][s] * m[c * ncol + b];
+      dst[s * ncol + b] = v;
+    }
+    m = dst;
+  }
+  return m;
+}
+// overlap block of shells ci (prims -> exponent index pi) and cj after primPairs (nJ = t.nJ); spherical, in the returned array
+function shellS(ci, pi, cj, pj, nUj) {
+  const li = ci.l, lj = cj.l, xI = CX[li], yI = CY[li], zI = CZ[li], xJ = CX[lj], yJ = CY[lj], zJ = CZ[lj];
+  const nI = xI.length, nJ = xJ.length, M = PP_MOM, ca = ci.coeff, cb = cj.coeff, np = ca.length, nq = cb.length;
+  BS.fill(0, 0, nI * nJ);
+  for (let p = 0; p < np; p++) {
+    const P = pi[p] * nUj;
+    for (let q = 0; q < nq; q++) {
+      const PQ = P + pj[q];
+      if (PP_SKIP[PQ]) continue;
+      const cc = ca[p] * cb[q] * PP_PRE[PQ], o = PQ * 48;
+      if (nI === 1 && nJ === 1) { BS[0] += cc * M[o] * M[o + 16] * M[o + 32]; continue; }
+      for (let a = 0; a < nI; a++) {
+        const ox = o + xI[a] * 4, oy = o + 16 + yI[a] * 4, oz = o + 32 + zI[a] * 4, ab = a * nJ;
+        for (let b = 0; b < nJ; b++) BS[ab + b] += cc * M[ox + xJ[b]] * M[oy + yJ[b]] * M[oz + zJ[b]];
+      }
+    }
+  }
+  return li < 2 && lj < 2 ? BS : cartToSphInto(li, lj, BS, SPH_S);
+}
+// the same block and its derivative with respect to the centre of i (moments up to l_i + 1 needed); spherical blocks
+// are left in GB[0..3] (s, d/dx, d/dy, d/dz)
+const GB = [BS, BX, BY, BZ];
+function shellSG(ci, pi, cj, pj, nUj) {
+  const li = ci.l, lj = cj.l, xI = CX[li], yI = CY[li], zI = CZ[li], xJ = CX[lj], yJ = CY[lj], zJ = CZ[lj];
+  const nI = xI.length, nJ = xJ.length, M = PP_MOM, ca = ci.coeff, cb = cj.coeff, al = ci.alpha, np = ca.length, nq = cb.length;
+  const nn = nI * nJ;
+  BS.fill(0, 0, nn); BX.fill(0, 0, nn); BY.fill(0, 0, nn); BZ.fill(0, 0, nn);
+  for (let p = 0; p < np; p++) {
+    const P = pi[p] * nUj, a2 = 2 * al[p];
+    for (let q = 0; q < nq; q++) {
+      const PQ = P + pj[q];
+      if (PP_SKIP[PQ]) continue;
+      const cc = ca[p] * cb[q] * PP_PRE[PQ], o = PQ * 48;
+      for (let a = 0; a < nI; a++) {
+        const ax = xI[a], ay = yI[a], az = zI[a];
+        const ox = o + ax * 4, oy = o + 16 + ay * 4, oz = o + 32 + az * 4, ab = a * nJ;
+        for (let b = 0; b < nJ; b++) {
+          const bx = xJ[b], by = yJ[b], bz = zJ[b];
+          const tx = M[ox + bx], ty = M[oy + by], tz = M[oz + bz];
+          const dx = a2 * M[ox + 4 + bx] - (ax ? ax * M[ox - 4 + bx] : 0);
+          const dy = a2 * M[oy + 4 + by] - (ay ? ay * M[oy - 4 + by] : 0);
+          const dz = a2 * M[oz + 4 + bz] - (az ? az * M[oz - 4 + bz] : 0);
+          BS[ab + b] += cc * tx * ty * tz;
+          BX[ab + b] += cc * dx * ty * tz;
+          BY[ab + b] += cc * tx * dy * tz;
+          BZ[ab + b] += cc * tx * ty * dz;
+        }
+      }
+    }
+  }
+  if (li < 2 && lj < 2) { GB[0] = BS; GB[1] = BX; GB[2] = BY; GB[3] = BZ; }
+  else {
+    GB[0] = cartToSphInto(li, lj, BS, SPH_S); GB[1] = cartToSphInto(li, lj, BX, SPH_X);
+    GB[2] = cartToSphInto(li, lj, BY, SPH_Y); GB[3] = cartToSphInto(li, lj, BZ, SPH_Z);
+  }
+}
+// Math.hypot(x, y) computed the way V8 computes it (normalized, Kahan-compensated sum), without the builtin call
+function hypot2(x, y) {
+  const ax = Math.abs(x), ay = Math.abs(y);
+  if (x !== x || y !== y) return ax === Infinity || ay === Infinity ? Infinity : NaN;
+  let max = 0;
+  if (ax > max) max = ax;
+  if (ay > max) max = ay;
+  if (max === Infinity) return Infinity;
+  if (max === 0) return 0;
+  let sum = 0, comp = 0;
+  const n0 = ax / max; let summand = n0 * n0 - comp, prelim = sum + summand; comp = (prelim - sum) - summand; sum = prelim;
+  const n1 = ay / max; summand = n1 * n1 - comp; prelim = sum + summand; sum = prelim;
+  return Math.sqrt(sum) * max;
+}
+
 // ---- dense linear algebra ----
 // Cholesky S = L L^T, then the inverse of L (lower triangular), row-major n x n
 function choleskyInverse(S, n) {
@@ -727,6 +885,9 @@ function symEig(V, n) {
   for (let j = 0; j < n; j++) { d[j] = at(n - 1, j); V[(n - 1) * n + j] = 0; }
   V[(n - 1) * n + n - 1] = 1;
   e[0] = 0;
+  // the QL rotations work on eigenvector rows (Vt = V transposed), along memory
+  const Vt = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) Vt[j * n + i] = V[i * n + j];
   // QL iterations
   for (let i = 1; i < n; i++) e[i - 1] = e[i];
   e[n - 1] = 0;
@@ -760,10 +921,11 @@ function symEig(V, n) {
           e[i + 1] = s * r; s = e[i] / r; c = p / r;
           p = c * d[i] - s * g;
           d[i + 1] = h + s * (c * g + s * d[i]);
+          const r0 = i * n, r1 = r0 + n;
           for (let k = 0; k < n; k++) {
-            h = V[k * n + i + 1];
-            V[k * n + i + 1] = s * V[k * n + i] + c * h;
-            V[k * n + i] = c * V[k * n + i] - s * h;
+            h = Vt[r1 + k];
+            Vt[r1 + k] = s * Vt[r0 + k] + c * h;
+            Vt[r0 + k] = c * Vt[r0 + k] - s * h;
           }
         }
         p = -s * s2 * c3 * el1 * e[l] / dl1;
@@ -778,9 +940,10 @@ function symEig(V, n) {
     for (let j = i + 1; j < n; j++) if (d[j] < p) { k = j; p = d[j]; }
     if (k !== i) {
       d[k] = d[i]; d[i] = p;
-      for (let j = 0; j < n; j++) { const t = V[j * n + i]; V[j * n + i] = V[j * n + k]; V[j * n + k] = t; }
+      for (let j = 0; j < n; j++) { const t = Vt[i * n + j]; Vt[i * n + j] = Vt[k * n + j]; Vt[k * n + j] = t; }
     }
   }
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) V[j * n + i] = Vt[i * n + j];
   return d;
 }
 
@@ -811,8 +974,7 @@ function solveTransposed(A, b, n) {
 class Broyden {
   constructor(ndim, memory, damp) {
     this.n = ndim; this.memory = memory; this.damp = damp; this.iter = 0;
-    this.df = []; this.u = []; this.a = [];
-    for (let i = 0; i < memory; i++) this.a.push(new Float64Array(memory));
+    this.df = []; this.u = []; this.a = [];                // rows of a are made when first used (next())
     this.omega = new Float64Array(memory);
     this.q = new Float64Array(ndim); this.qlast = new Float64Array(ndim);
     this.dq = new Float64Array(ndim); this.dqlast = new Float64Array(ndim);
@@ -847,6 +1009,7 @@ class Broyden {
     for (let i = 0; i < n; i++) df[i] *= inv;
     this.df[it1] = df;
     const c = new Array(nhist), beta = [];
+    for (let ih = 0; ih < nhist; ih++) if (!this.a[hist[ih]]) this.a[hist[ih]] = new Float64Array(memory);
     for (let ih = 0; ih < nhist; ih++) {
       const i = hist[ih];
       c[ih] = this.omega[i] * dot(this.df[i], dq);
@@ -958,7 +1121,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   for (let s = 0; s < nsh; s++) { const p = el[shAt[s]].shells[shOf[s]]; selfE[s] = p.level - p.kcn * cn[shAt[s]]; }
 
   // overlap S and core Hamiltonian H0
-  const S = new Float64Array(nao * nao), H0 = new Float64Array(nao * nao);
+  const S = new Float64Array(nao * nao), H0 = new Float64Array(nao * nao), gcache = opts.grad ? new Array(nsh * nsh) : null;
   let minAlpha = Infinity;
   for (const e of el) minAlpha = Math.min(minAlpha, e.minAlpha);
   const cutoff = Math.min(Math.sqrt(2 * intcut / minAlpha), MAX_CUTOFF);
@@ -975,7 +1138,9 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
         for (let b = atSh[j]; b < atSh[j + 1]; b++) {
           if (i === j && b > a) continue;
           const pb = ej.shells[shOf[b]];
-          const blk = overlapBlock(pa.cg, pb.cg, vec, r2, intcut);
+          let blk;
+          if (gcache && i !== j) { const gb = overlapGradBlock(pa.cg, pb.cg, vec, r2, intcut); gcache[a * nsh + b] = gb; blk = gb.s; } // (with the gradient: the overlap's slopes now, at the same cost)
+          else blk = overlapBlock(pa.cg, pb.cg, vec, r2, intcut);
           let hij;
           if (i === j) hij = 0.5 * (selfE[a] + selfE[b]);
           else hij = 0.5 * (selfE[a] + selfE[b]) * hscale(ei, shOf[a], ej, shOf[b]) * (1 + pa.shpoly * rr) * (1 + pb.shpoly * rr);
@@ -1005,41 +1170,47 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const Li = choleskyInverse(S, nao);
   const aoSh = new Int32Array(nao);
   for (let s = 0; s < nsh; s++) for (let k = 0; k < shN[s]; k++) aoSh[shAo[s] + k] = s;
-  const H1 = new Float64Array(nao * nao), W = new Float64Array(nao * nao), P = new Float64Array(nao * nao);
+  const H1 = new Float64Array(nao * nao), W = new Float64Array(nao * nao), P = new Float64Array(nao * nao), A = new Float64Array(nao * nao), Ct = new Float64Array(nao * nao);
 
   // initial guess (SAD): atomic charges charge/nat, split over shells by reference occupation
   let qsh = new Float64Array(nsh);
   for (let s = 0; s < nsh; s++) qsh[s] = (n0sh[s] / n0at[shAt[s]]) * (charge / nat);
+  if (opts.qsh0 && opts.qsh0.length === nsh) for (let s = 0; s < nsh; s++) qsh[s] = opts.qsh0[s]; // (a start from earlier charges: the last step's, in a simulation)
+  // an outside potential at each atom (Hartree per unit of charge q, q = n0 - N): E_ext = sum_A q_A phi_A, in the SCC
+  const vext = opts.vext || null;
   let qat = new Float64Array(nat);
   const qatFromQsh = q => { const r = new Float64Array(nat); for (let s = 0; s < nsh; s++) r[shAt[s]] += q[s]; return r; };
   qat = qatFromQsh(qsh);
 
   const mixer = new Broyden(nsh, MAX_ITER, MIX_DAMP);
-  let iscf = 0, converged = false, eelec = 0, emo = null, focc = null;
+  let iscf = 0, converged = false, eelec = 0, eext = 0, emo = null, focc = null;
   const vsh = new Float64Array(nsh), vao = new Float64Array(nao);
   while (!converged && iscf < MAX_ITER) {
     const elast = eelec;
     if (iscf > 0) { mixer.next(); qsh = mixer.get(); qat = qatFromQsh(qsh); }
     iscf++;
     // potential: second order (shell) + third order (atom)
-    for (let a = 0; a < nsh; a++) { let v = 0; for (let b = 0; b < nsh; b++) v += J[a * nsh + b] * qsh[b]; vsh[a] = v + qat[shAt[a]] ** 2 * gam3[shAt[a]]; }
+    for (let a = 0; a < nsh; a++) { let v = 0; for (let b = 0; b < nsh; b++) v += J[a * nsh + b] * qsh[b]; vsh[a] = v + qat[shAt[a]] ** 2 * gam3[shAt[a]] + (vext ? vext[shAt[a]] : 0); }
     for (let m = 0; m < nao; m++) vao[m] = vsh[aoSh[m]];
     for (let m = 0; m < nao; m++) for (let n = 0; n < nao; n++)
       H1[m * nao + n] = H0[m * nao + n] - 0.5 * S[m * nao + n] * (vao[m] + vao[n]);
     mixer.set(qsh);
     // solve H1 C = S C e: A = Li H1 Li^T, A Y = Y e, C = Li^T Y
-    for (let m = 0; m < nao; m++) for (let n = 0; n < nao; n++) {   // W = Li H1
-      let v = 0; for (let k = 0; k <= m; k++) v += Li[m * nao + k] * H1[k * nao + n]; W[m * nao + n] = v;
+    W.fill(0);
+    for (let m = 0; m < nao; m++) {                                  // W = Li H1 (rows: the inner loop runs along memory)
+      const wm = m * nao;
+      for (let k = 0; k <= m; k++) { const l = Li[wm + k]; if (l === 0) continue; const hk = k * nao; for (let n = 0; n < nao; n++) W[wm + n] += l * H1[hk + n]; }
     }
-    const A = new Float64Array(nao * nao);
     for (let m = 0; m < nao; m++) for (let n = 0; n <= m; n++) {    // A = W Li^T
       let v = 0; for (let k = 0; k <= n; k++) v += W[m * nao + k] * Li[n * nao + k];
       A[m * nao + n] = v; A[n * nao + m] = v;
     }
     emo = symEig(A, nao);
     const C = W;                                                     // C = Li^T Y
-    for (let m = 0; m < nao; m++) for (let n = 0; n < nao; n++) {
-      let v = 0; for (let k = m; k < nao; k++) v += Li[k * nao + m] * A[k * nao + n]; C[m * nao + n] = v;
+    C.fill(0);
+    for (let m = 0; m < nao; m++) {
+      const cm = m * nao;
+      for (let k = m; k < nao; k++) { const l = Li[k * nao + m]; if (l === 0) continue; const ak = k * nao; for (let n = 0; n < nao; n++) C[cm + n] += l * A[ak + n]; }
     }
     // occupations: one set of orbitals, alpha and beta filled separately
     const fa = fermiFilling(nel[0], kt, emo), fb = fermiFilling(nel[1], kt, emo);
@@ -1047,14 +1218,15 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     for (let k = 0; k < nao; k++) focc[k] = fa[k] + fb[k];
     const ts = entropyTerm(fa, kt) + entropyTerm(fb, kt);
     P.fill(0);
-    for (let k = 0; k < nao; k++) {
-      const f = focc[k];
-      if (f === 0) continue;
-      for (let m = 0; m < nao; m++) {
-        const cm = C[m * nao + k] * f;
-        if (cm === 0) continue;
-        for (let n = 0; n < nao; n++) P[m * nao + n] += cm * C[n * nao + k];
+    {                                                                // P = sum_k f_k C_k C_k^T, over orbitals holding anything (rows of C^T)
+      let nk = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nk = k + 1;
+      for (let k = 0; k < nk; k++) for (let m = 0; m < nao; m++) Ct[k * nao + m] = C[m * nao + k];
+      for (let k = 0; k < nk; k++) {
+        const f = focc[k]; if (!(f > 1e-15)) continue;
+        const ck = k * nao;
+        for (let m = 0; m < nao; m++) { const cm = Ct[ck + m] * f; if (cm === 0) continue; const pm = m * nao; for (let n = m; n < nao; n++) P[pm + n] += cm * Ct[ck + n]; }
       }
+      for (let m = 0; m < nao; m++) for (let n = m + 1; n < nao; n++) P[n * nao + m] = P[m * nao + n];
     }
     // Mulliken shell charges and band energy
     const qn = new Float64Array(nsh);
@@ -1072,7 +1244,8 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     for (let a = 0; a < nsh; a++) { let v = 0; for (let b = 0; b < nsh; b++) v += J[a * nsh + b] * qsh[b]; e2 += 0.5 * v * qsh[a]; }
     let e3 = 0;
     for (let i = 0; i < nat; i++) e3 += qat[i] ** 3 * gam3[i] / 3;
-    eelec = e2 + e3 + ts + eband;
+    let ex = 0; if (vext) for (let i = 0; i < nat; i++) ex += qat[i] * vext[i];
+    eelec = e2 + e3 + ts + eband + ex; eext = ex;
     const econv = Math.abs(eelec - elast) < ECONV * acc;
     const pconv = mixer.error() < PCONV * acc;
     converged = econv && pconv;
@@ -1082,8 +1255,17 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const out = {
     E: Eh * AUTOEV, q: Array.from(qat), iterations: iscf, converged,
     qsh: Array.from(qsh), cn: Array.from(cn), Erep: erep * AUTOEV, Eelec: eelec * AUTOEV,
-    emo: Array.from(emo, x => x * AUTOEV), focc: Array.from(focc),
+    emo: Array.from(emo, x => x * AUTOEV), focc: Array.from(focc), Eext: eext * AUTOEV,
   };
+  // Mayer bond orders (opts.bonds): B_AB = sum over mu on A, nu on B of (PS)_mu,nu (PS)_nu,mu; a flat nat x nat array
+  if (opts.bonds) {
+    const PS = new Float64Array(nao * nao);
+    for (let m = 0; m < nao; m++) for (let k = 0; k < nao; k++) { const p = P[m * nao + k]; if (p === 0) continue; for (let n = 0; n < nao; n++) PS[m * nao + n] += p * S[k * nao + n]; }
+    const aoAt = new Int32Array(nao); for (let s = 0; s < nsh; s++) for (let k = 0; k < shN[s]; k++) aoAt[shAo[s] + k] = shAt[s];
+    const B = new Float64Array(nat * nat);
+    for (let m = 0; m < nao; m++) for (let n = 0; n < m; n++) { const a = aoAt[m], b = aoAt[n]; if (a === b) continue; const v = PS[m * nao + n] * PS[n * nao + m]; B[a * nat + b] += v; B[b * nat + a] += v; }
+    out.bonds = B;
+  }
 
   // ---- analytic nuclear gradient (as tblite's singlepoint: Hellmann-Feynman plus the explicit terms) ----
   // Uses what the last SCC iteration left: the density P and orbitals C/emo/focc from H1 built with the potential
@@ -1147,7 +1329,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
           const pa = ei.shells[shOf[a]];
           for (let b = atSh[j]; b < atSh[j + 1]; b++) {
             const pb = ej.shells[shOf[b]];
-            const { s, ds } = overlapGradBlock(pa.cg, pb.cg, vec, r2, intcut);
+            const { s, ds } = gcache[a * nsh + b] || overlapGradBlock(pa.cg, pb.cg, vec, r2, intcut);
             const polyi = 1 + pa.shpoly * rr, polyj = 1 + pb.shpoly * rr;
             const hs = hscale(ei, shOf[a], ej, shOf[b]) * polyi * polyj;
             const hij = 0.5 * (selfE[a] + selfE[b]) * hs;

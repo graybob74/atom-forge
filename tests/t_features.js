@@ -1403,6 +1403,66 @@ const { openPage } = require('./browser');
   })();
   check(Math.abs(r85.c.spread - r85.e.spread) < 0.01 && Math.abs(r85.c.oh - r85.e.oh) < 0.005 && r85.c.drift < 0.05 && r85.c.dF < 1e-5 && r85.e.dF < 1e-5 && r85.speed > 1.6,
     `1.21: quantum nuclei contracted: H spread ${r85.c.spread} Å (every bead ${r85.e.spread}), O–H ${r85.c.oh} (${r85.e.oh}), insulated ${r85.c.drift} eV over 300 steps, forces to ${r85.c.dF.toExponential(0)} eV/Å, ${r85.speed}× as fast as every bead at 8`, '1.21 contraction: ' + JSON.stringify(r85));
+  // 1.22: quantum bonds (GFN1-xTB): the port against tblite's own numbers; forces against the energy with an ion outside;
+  // the books in an insulated run; a shared proton finds the middle; charges placed where the electrons are on leaving
+  const r86 = (() => {
+    const out = {}, X0 = require('./load.js').load('all', { seed: 3 });
+    { const rd = (f) => JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'tools', 'xtb-ref', f), 'utf8'));
+      const G = rd('geoms.json'), R = rd('ref.json'); let dE = 0, dg = 0, nG = 0;
+      for (const g of G.filter((_, k) => k % 7 === 0)) {
+        const ref = R.find(x => x.name === g.name), r = X0.XTB.gfn1Energy(g.Z, g.xyz, g.charge || 0, g.uhf || 0, { grad: true }), d = X0.XTB.d3Disp(g.Z, g.xyz, {});
+        dE = Math.max(dE, Math.abs(r.E + d.E - ref.E)); nG++;
+        ref.grad.forEach((row, i) => row.forEach((v, k) => { dg = Math.max(dg, Math.abs(r.g[i][k] + d.g[i][k] - v)); }));
+      }
+      out.ref = { n: nG, dE: +dE.toExponential(1), dg: +dg.toExponential(1) }; }
+    // forces are the energy's slopes: a hydronium, two waters and ammonia, a sodium ion outside (its potential in the charges)
+    { const X = require('./load.js').load('all', { seed: 5 }), W = X.W;
+      X.addMolecule('H3Op', 0, 0, 0, 0); X.addMolecule('H2O', 2.6, 0.3, 2.8, 0); X.addMolecule('H2O', -1.5, 2.5, 1, 0); X.addMolecule('NH3', 3, 3, 0.4, 0); X.addAtom('Na', -3, -2, { charge: 1, T: 0 });
+      for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      X.boSet(2); X.forcesNoEvents(); W.T = 300; for (let i = 0; i < 60; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+      const mem = W.parts.filter(p => p.bom && !p.dead), all = W.parts.filter(p => !p.dead && p.k === X.NUC); out.members = mem.length;
+      X.forcesNoEvents(); const F = all.map(p => [X.S.fx[p.i], X.S.fy[p.i]]); let worst = 0;
+      const E = () => X.totalEnergy().pe;
+      all.forEach((p, u) => { for (const c of [0, 1]) { const A = c ? 'y' : 'x', x0 = p[A]; p[A] = x0 + 1e-4; X.gridTouch(); const e1 = E(); p[A] = x0 - 1e-4; X.gridTouch(); const e2 = E(); p[A] = x0; X.gridTouch(); worst = Math.max(worst, Math.abs(-(e1 - e2) / 2e-4 - F[u][c])); } });
+      out.dF = +worst.toExponential(1); }
+    // insulated: the books close
+    { const X = require('./load.js').load('all', { seed: 3 }), W = X.W;
+      X.addMolecule('H3Op', 0, 0, 0, 300); for (let k = 0; k < 3; k++) { const a = 2 * Math.PI * k / 3; X.addMolecule('H2O', 2.8 * Math.cos(a), 2.8 * Math.sin(a), a + Math.PI / 2 + 0.3 * k, 300); }
+      for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      X.settleOverlaps(); X.boSet(2); X.forcesNoEvents(); W.T = 300;
+      for (let i = 0; i < 100; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+      W.gamma = 0; const tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, E0 = tot();
+      const t0 = performance.now(); for (let i = 0; i < 400; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+      out.ms = +((performance.now() - t0) / 400).toFixed(1); out.drift = +Math.abs(tot() - E0).toFixed(5); out.fails = X.XQ.fails; }
+    // a proton between two waters held 2.45 Å apart, started on one: it settles in the middle (GFN1's single well)
+    { const X = require('./load.js').load('all', { seed: 3 }), W = X.W, R = 2.45;
+      X.addMolecule('H3Op', 0, 0, 0, 0); X.addMolecule('H2O', R + 0.4, 0, -Math.PI / 2, 0); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      const at = W.parts.filter(p => !p.dead), Oa = at.find(p => p.Z === 8 && p.q === 1), Ob = at.find(p => p.Z === 8 && p.q === 0);
+      const Hs = at.filter(p => p.Z === 1 && X.bondBetween(p, Oa)).sort((a, b) => b.x - a.x)[0];
+      X.boSet(2); W.T = 0; W.Tset = 0; W.gamma = 3;
+      const hold = () => { for (const [p, px, py] of [[Oa, 0, 0], [Ob, R, 0]]) { p.x = px; p.y = py; p.vx = 0; p.vy = 0; } };
+      hold(); Hs.x = 1.0; Hs.y = 0; X.forcesNoEvents();
+      for (let i = 0; i < 1500; i++) { W.dt = Math.min(X.chooseDt(), 0.02); X.step(W.dt); hold(); }
+      out.mid = +(Hs.x - R / 2).toFixed(3); out.split = +((Oa.q + X.S.qp[Oa.i]) - (Ob.q + X.S.qp[Ob.i])).toFixed(2); }
+    // leaving: the +1 goes to the oxygen holding three hydrogens, wherever the label was; paid exactly
+    { const X = require('./load.js').load('all', { seed: 3 }), W = X.W;
+      X.addMolecule('H3Op', 0, 0, 0, 300); for (let k = 0; k < 3; k++) { const a = 2 * Math.PI * k / 3; X.addMolecule('H2O', 2.8 * Math.cos(a), 2.8 * Math.sin(a), a + Math.PI / 2 + 0.3 * k, 300); }
+      for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      X.settleOverlaps(); X.boSet(2); X.forcesNoEvents();
+      const O = W.parts.filter(p => !p.dead && p.Z === 8), a = O.find(p => p.q === 1), b = O.find(p => p.q === 0);
+      a.ne += 1; X.refresh(a); b.ne -= 1; X.refresh(b); X.forcesNoEvents(); W.gamma = 0;
+      const tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, E0 = tot();
+      X.boSet(0); X.forcesNoEvents();
+      out.leave = [a.q, b.q, W.parts.filter(p => !p.dead && p.Z === 1 && !p.bonds.length).length, +Math.abs(tot() - E0).toExponential(0)]; }
+    // more than 40 atoms: none take part
+    { const X = require('./load.js').load('all', { seed: 3 }), W = X.W;
+      for (let k = 0; k < 14; k++) X.addMolecule('H2O', -12 + 3.2 * (k % 7), -3 + 4 * Math.floor(k / 7), k, 300);
+      for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+      X.settleOverlaps(); X.boSet(2); X.forcesNoEvents(); out.over = [W.parts.filter(p => p.bom).length, X.XQ.over]; }
+    return out;
+  })();
+  check(r86.ref.dE < 1e-8 && r86.ref.dg < 1e-8 && r86.members === 14 && r86.dF < 1e-5 && r86.drift < 0.01 && !r86.fails && Math.abs(r86.mid) < 0.08 && Math.abs(r86.split) < 0.1 && r86.leave[0] === 1 && r86.leave[1] === 0 && r86.leave[2] === 0 && r86.leave[3] < 1e-4 && r86.over[0] === 0 && r86.over[1] === 42,
+    `1.22: quantum bonds (GFN1-xTB): tblite's energies and forces to ${r86.ref.dE}/${r86.ref.dg} (${r86.ref.n} geometries); forces the energy's slopes to ${r86.dF} eV/Å with an ion outside; insulated ${r86.drift} eV over 400 steps (${r86.ms} ms a step, 13 atoms); a proton between waters 2.45 Å apart settles ${r86.mid} Å from the middle, the charge split ${r86.split}; leaving, the +1 goes to the oxygen with three hydrogens (${r86.leave.join('/')}); 42 atoms: none take part`, '1.22 quantum bonds: ' + JSON.stringify(r86));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};

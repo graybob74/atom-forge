@@ -48,7 +48,7 @@ function boPP(ea, eb) {
 }
 /* Can this atom take part? (whole clusters decide: boSync) */
 function boOK(p) {
-  return p.k === NUC && !p.dead && !p.fast && !p.rad && !p.anti && p.Z > 0 && BO.Ztab.has(p.Z) && p.ne > 0 && Math.abs(p.q) <= 1 && !p.exo && !p.mu; // (singly charged ions too, since 1.16: H₃O⁺, OH⁻, NH₄⁺)
+  return p.k === NUC && !p.dead && !p.fast && !p.rad && !p.anti && p.Z > 0 && (BO.qm ? p.Z <= 86 : BO.Ztab.has(p.Z)) && p.ne > 0 && Math.abs(p.q) <= 1 && !p.exo && !p.mu; // (singly charged ions too, since 1.16: H₃O⁺, OH⁻, NH₄⁺)
 }
 /* Crowded flat molecules (1.16). Two atoms bonded to one centre much more strongly than to each other don't bond to each
    other, as a stored molecule's 1-3 pairs don't: in a flat world SF₆'s six fluorines sit 60° apart, as far from each other
@@ -224,6 +224,7 @@ function bfCommon(a, b, inc, f0, fc, test, f) {
 }
 let BF_CS = new Float64Array(16), BF_FS = new Float64Array(16);
 function boPass(forces) {
+  if (BO.qm) return qmPass(forces); // (quantum bonds, 1.22: GFN1-xTB below)
   const E = BF.useWasm && bfWasmOK() ? bfPassWasm(forces) : boPassJS(forces);
   if (forces && BF.kq > 0 && BO.dqOn) { const w = BF.kq / BO_DQM; if (w > _stiff) _stiff = w; } // (the electron counts' stiffest corner, for the step)
   return E;
@@ -698,7 +699,7 @@ function bfPassWasm(forces) {
   return E;
 }
 /* the last pass's pair k as { a, b, n, r } (for the readers below) */
-const boPairQ = (k) => ({ a: BF.mem[BF.pa[k]], b: BF.mem[BF.pb[k]], n: BF.pn[k], r: BF.pr[k] });
+const boPairQ = (k) => BO.qm ? XQ.pq[k] : ({ a: BF.mem[BF.pa[k]], b: BF.mem[BF.pb[k]], n: BF.pn[k], r: BF.pr[k] });
 /* Who a member is bonded to, for naming and grouping (molecule(), the Data tab, Inspect, selection): its partners of
    order 0.5 or more in the last pass (1.14: molecules were shown as loose atoms, asked for by the user) */
 function boNbrs(p) {
@@ -797,7 +798,7 @@ function boDqB(dt) {
   for (const p of BF.mem) { if (!p._dqf && !p._dqv) continue; const v = (p._dqv || 0) + h * p._dqf, v2 = v * c; lost += 0.5 * BO_DQM * (v * v - v2 * v2); p._dqv = v2; }
   if (lost) { W.ledger.bath += lost; BO.bath += lost; }
 }
-function boDqKE() { let e = 0; for (const p of BF.mem) if (p._dqv && !p.dead && p.bom) e += 0.5 * BO_DQM * p._dqv * p._dqv; return e; }
+function boDqKE() { if (BO.qm) return 0; let e = 0; for (const p of BF.mem) if (p._dqv && !p.dead && p.bom) e += 0.5 * BO_DQM * p._dqv * p._dqv; return e; }
 function boSync() {
   if (!BO.on && !BO.any) return false;
   const clCh = bfClusters();
@@ -821,16 +822,23 @@ function boSync() {
     const ok = BO.on && cl.every(boOK) && (cl.length > 1 || cl[0].q === 0); // (a lone ion, Cl⁻ in brine, stays with the kernel's ion–water terms)
     for (const a of cl) want.set(a, ok);
   }
+  if (BO.qm) { // (quantum bonds: one calculation for every member together, so only a small system takes part: all or none)
+    let nw = 0; for (const v of want.values()) if (v) nw++;
+    XQ.over = nw > XQ.max ? nw : 0;
+    if (XQ.over) for (const a of want.keys()) want.set(a, false);
+  }
   const C = [];
   for (const p of parts) if (!p.dead && p.k === NUC && !!p.bom !== !!want.get(p)) C.push(p);
   for (const p of parts) if (p.dead && p.bom) p.bom = false;
   if (!C.length) { BO.any = BO.on && parts.some(p => p.bom); BO.sig = sig; return clCh; }
   const set = new Set(C);
   for (const p of C) for (const bd of p.bonds) set.add(other(bd, p));
-  const Eb = boPass(false) + localPE(set); // (the orders' pass first: it sets the members' partial charges, 1.16)
-  // leavers: stored bonds from the last orders, the strongest first, as far as both atoms have valence left
   const leave = new Set(C.filter(p => p.bom));
+  const intE = () => { let e = 0; if (BO.qm) for (const p of leave) e += internalE(p); return e; }; // (quantum bonds: the ions' charges are placed again, xqCharges)
+  const Eb = boPass(false) + localPE(set) + intE(); // (the orders' pass first: it sets the members' partial charges, 1.16)
+  // leavers: stored bonds from the last orders, the strongest first, as far as both atoms have valence left
   if (leave.size) {
+    if (BO.qm) xqCharges(leave);
     const whole = boWhole(leave);
     for (const p of leave) p.bom = false;
     for (const [a, b, o] of whole) if (!bondBetween(a, b)) addBond(a, b, o);
@@ -842,7 +850,7 @@ function boSync() {
   for (const p of join) for (const bd of p.bonds.slice()) removeBond(bd);
   W.dirty++; W.topo++; vlInvalidate();
   if (join.length) { BO.any = true; boRelax(join); }
-  const Ea = boPass(false) + localPE(set);
+  const Ea = boPass(false) + localPE(set) + intE();
   W.ledger.bath += Eb - Ea; BO.bath += Eb - Ea;
   BO.any = BO.on && parts.some(p => p.bom && !p.dead);
   BO.sig = W.topo + ',' + W.dirty + ',' + W.spawned + ',' + W.deaths + ',' + _flagGen + ',' + BO.on;
@@ -877,8 +885,123 @@ function boWhole(only) {
   return out;
 }
 /* The setting: on or off. Turning it off gives every member stored bonds again (boSync). */
-function boSet(on) {
-  on = !!on; if (on === BO.on) return;
-  BO.on = on;
+function boSet(v) {
+  const on = !!v, qm = v === 2;
+  if (on === BO.on && qm === BO.qm) return;
+  if (BO.on && qm !== BO.qm && W.parts.length) { BO.on = false; boSync(); } // (the other model: every member leaves first, then joins again)
+  BO.on = on; BO.qm = qm; XQ.qsh = null; XQ.qsh1 = null; XQ.sig = ''; XQ.pq.length = 0;
+  for (const p of W.parts) { p._dq = 0; p._dqv = 0; }
   if (W.parts.length) { boSync(); if (on) BO.any = true; }
+}
+
+/* ------------------------------------------------------------------ quantum bonds (Experimental, 1.22)
+   Settings → Experimental → Bond orders → Quantum: the members' energy and forces come from GFN1-xTB (Grimme, Bannwarth
+   and Shushkov 2017), a tight-binding quantum chemistry (a minimal basis of Slater-type orbitals, an extended Hückel
+   Hamiltonian, self-consistent charges to third order), with the D3(BJ) dispersion it was made with (src/xtb.js; it
+   matches tblite to 1e-11 eV and its forces to 5e-11 eV/Å on 70 test geometries, tools/xtb/check.js). The electrons
+   are worked out for every member at once, each step starting from the last step's charges: bonds, charges and
+   barriers come from the electrons, so a proton between two waters finds its own way across. The atoms lie in the
+   plane (z = 0), their orbitals in three dimensions.
+   Membership is the bond orders' (boSync: whole clusters, the energy at the same positions before and after to the
+   bath), but only for a small system: when more than XQ.max atoms would take part, none does. Non-members meet the
+   members through the kernel's pairs with the members' Mulliken charges; their potential at each member goes into the
+   self-consistent charges (outside potential), so the forces are the energy's exact slopes. The energy counted is
+   the binding energy: GFN1's less each member's free atom. Bond orders (Mayer's, from the density) are drawn and
+   decide the molecules. */
+const XQ = { max: 40, acc: 0.01, extra: true, qsh: null, qsh1: null, sig: '', pq: [], eAtom: new Map(), over: 0, calls: 0, it: 0, ms: 0, fails: 0 };
+function qmAtomE(Z) {
+  let e = XQ.eAtom.get(Z);
+  if (e === undefined) { e = XTB.gfn1Energy([Z], [[0, 0, 0]], 0, 0, { accuracy: XQ.acc }).E; XQ.eAtom.set(Z, e); }
+  return e;
+}
+/* the potential (eV per unit charge) at each member from the non-members: the kernel's pair coefficients (qeqC), as bfPhiOthers */
+function qmPhi(mem, phi) {
+  const QP = S.qp, Q = S.q;
+  for (const o of W.parts) {
+    if (o.bom || o.dead || o.k !== NUC || !o.Z || o.fast || o.rad) continue;
+    const qo = Q[o.i] + QP[o.i]; if (!qo) continue;
+    const lr = _lrOn && isLR(o);
+    for (let m = 0; m < mem.length; m++) {
+      const p = mem[m], [dx, dy] = minImg(o.x - p.x, o.y - p.y), r2 = dx * dx + dy * dy;
+      if (r2 < RC2) phi[m] += qeqC(p, o, r2) * qo;
+      else if (lr && isLR(p)) phi[m] += PHYS.KE * qx(o, p) / Math.sqrt(r2);
+    }
+  }
+}
+function qmPass(forces) {
+  const mem = [];
+  for (const p of W.parts) if (p.bom && !p.dead) mem.push(p);
+  const n = mem.length, QP = S.qp;
+  XQ.pq.length = 0; BO.np = 0; BO.flat = 'qm'; BO.changes++;
+  if (!n) { BO.E = 0; return 0; }
+  // positions: the plane, each member by the nearest image of the first (a wrapping box)
+  const Z = new Array(n), xyz = new Array(n), x0 = mem[0].x, y0 = mem[0].y;
+  let charge = 0, sig = '';
+  for (let m = 0; m < n; m++) { const p = mem[m], [dx, dy] = minImg(p.x - x0, p.y - y0); Z[m] = p.Z; xyz[m] = [x0 + dx, y0 + dy, 0]; charge += p.q; sig += p.id + ':' + p.Z + ','; }
+  charge = Math.round(charge);
+  const phi = new Float64Array(n); qmPhi(mem, phi);
+  const vext = new Float64Array(n); let anyV = false;
+  for (let m = 0; m < n; m++) { vext[m] = phi[m] / XTB.AUTOEV; if (phi[m]) anyV = true; }
+  const t0 = performance.now();
+  let r;
+  try { r = XTB.gfn1Energy(Z, xyz, charge, 0, { grad: forces, vext: anyV ? vext : null, qsh0: XQ.sig === sig ? xqGuess() : null, bonds: true, accuracy: XQ.acc }); }
+  catch (e) { r = null; }
+  if (!r || !r.converged) { XQ.fails++; if (!r) { BO.E = 0; return 0; } }
+  const d = XTB.d3Disp(Z, xyz, { grad: forces });
+  if (forces) { XQ.qsh1 = XQ.sig === sig ? XQ.qsh : null; XQ.qsh = r.qsh; XQ.sig = sig; XQ.calls++; XQ.it += r.iterations; XQ.ms += performance.now() - t0; } // (a measurement leaves the next step's start alone: runs stay the same however often the energy is read)
+  let E = r.E - r.Eext + d.E; // (the outside potential's energy is the kernel's pairs')
+  for (let m = 0; m < n; m++) E -= qmAtomE(Z[m]);
+  for (let m = 0; m < n; m++) { const p = mem[m], q = r.q[m]; QP[p.i] = q - p.q; p.qpol = q - p.q; p.qf = 0; p.qi = 0; }
+  // bond orders (Mayer's): drawn, and the molecules
+  const B = r.bonds;
+  for (let a = 0; a < n; a++) for (let b = 0; b < a; b++) {
+    const nb = B[a * n + b]; if (!(nb > 0.1)) continue;
+    const dx = xyz[a][0] - xyz[b][0], dy = xyz[a][1] - xyz[b][1];
+    XQ.pq.push({ a: mem[a], b: mem[b], n: nb, r: Math.hypot(dx, dy) });
+  }
+  BO.np = XQ.pq.length; BO.E = E;
+  if (forces) {
+    const FX = S.fx, FY = S.fy, gq = r.g, gd = d.g;
+    for (let m = 0; m < n; m++) { const i = mem[m].i; FX[i] -= gq[m][0] + gd[m][0]; FY[i] -= gq[m][1] + gd[m][1]; }
+    for (const q of XQ.pq) { if (q.n < 0.2) continue; const w = XQ_K * Math.min(q.n, 3) * (q.a.im + q.b.im); if (w > _stiff) _stiff = w; } // (a bond's stiffness, for the step: about 50 eV/Å² an order, O–H 49, C=O 75, C≡C 100)
+  }
+  return E;
+}
+const XQ_K = 50;
+/* Leaving quantum bonds, the atoms get whole charges where the electrons put them (a proton that hopped took the +1
+   along: the charge is the oxygen's that now holds three hydrogens). Molecules from the last bond orders (heavy atoms
+   by orders above 0.5, each hydrogen with its strongest partner above 0.2); each takes its rounded Mulliken charge
+   (the members' total kept), placed on the atom with the most bonds over its valence (a cation) or the fewest (an anion). */
+function xqCharges(leave) {
+  const mem = [...leave].filter(p => !p.dead), ix = new Map(mem.map((p, k) => [p, k])), n = mem.length, U = new Int32Array(n).map((_, k) => k);
+  const find = (x) => { while (U[x] !== x) { U[x] = U[U[x]]; x = U[x]; } return x; };
+  const best = new Array(n).fill(null), bsum = new Float64Array(n);
+  for (const q of XQ.pq) {
+    const a = ix.get(q.a), b = ix.get(q.b); if (a === undefined || b === undefined) continue;
+    if (q.n > 0.5) { bsum[a] += Math.round(q.n); bsum[b] += Math.round(q.n); }
+    if (q.a.Z > 1 && q.b.Z > 1) { if (q.n > 0.5) U[find(a)] = find(b); continue; }
+    for (const [h, o] of [[a, b], [b, a]]) if (mem[h].Z === 1 && q.n > 0.2 && (!best[h] || q.n > best[h].n)) best[h] = { o, n: q.n };
+  }
+  for (let h = 0; h < n; h++) if (best[h]) { const x = find(h), y = find(best[h].o); if (x !== y) U[x] = y; }
+  const fr = new Map(); for (let k = 0; k < n; k++) { const r = find(k); let f = fr.get(r); if (!f) fr.set(r, f = { at: [], qm: 0, lab: 0 }); f.at.push(k); f.qm += mem[k].q + S.qp[mem[k].i]; f.lab += mem[k].q; }
+  const F = [...fr.values()]; let lab = 0, sum = 0;
+  for (const f of F) { f.Q = Math.round(f.qm); lab += f.lab; sum += f.Q; }
+  while (sum !== lab) { const up = sum < lab; let pick = null, res = -Infinity; for (const f of F) { const r = up ? f.qm - f.Q : f.Q - f.qm; if (r > res) { res = r; pick = f; } } pick.Q += up ? 1 : -1; sum += up ? 1 : -1; }
+  for (const f of F) {
+    if (f.at.reduce((t, k) => t + mem[k].q, 0) === f.Q && f.at.every(k => mem[k].q === 0 || bsum[k] - capacity(mem[k]) === 0)) continue; // (already right)
+    for (const k of f.at) { const p = mem[k]; if (p.q) { p.ne += p.q; refresh(p); } }
+    for (let u = 0; u < Math.abs(f.Q); u++) {
+      const sg = Math.sign(f.Q); let pick = null, sc = -Infinity;
+      for (const k of f.at) { const p = mem[k]; if (p.ne - sg < 0 || p.ne - sg > p.Z + 1) continue; const v = sg * (bsum[k] - capacity(p)) + 0.5 * sg * (p.q + S.qp[p.i]) + (p.Z > 1 ? 0.25 : 0); if (v > sc) { sc = v; pick = p; } }
+      if (pick) { pick.ne -= sg; refresh(pick); }
+    }
+  }
+  W.dirty++;
+}
+/* the next step's starting charges: on from the last two steps' (a straight line), or the last step's */
+function xqGuess() {
+  const q = XQ.qsh, q1 = XQ.qsh1;
+  if (!XQ.extra || !q1 || q1.length !== q.length) return q;
+  const g = new Array(q.length); for (let k = 0; k < q.length; k++) g[k] = 2 * q[k] - q1[k];
+  return g;
 }
