@@ -13,6 +13,7 @@
 #![allow(clippy::too_many_arguments, clippy::missing_safety_doc)]
 pub mod fastmath;
 pub mod bo;
+pub mod d3;
 
 pub const RC2: f64 = 36.0; // RC = 6 Å
 pub const FCAP: f64 = 1e7;
@@ -384,10 +385,13 @@ pub unsafe extern "C" fn af_forces(desc: u32, q0: u32, q1: u32, b0: u32, b1: u32
     forces(0, desc as usize as *const i32, q0 as usize, q1 as usize, b0 as usize, b1 as usize, c0 as usize, c1 as usize,
         fxo as usize as *mut f64, fyo as usize as *mut f64, cq as usize as *mut i32, wrap != 0, bw, bh, hw, hh, step as i64, kstiff_out as usize as *mut f64) as u32
 }
-/// The constants the JS side checks against its own at start-up (a mismatch disables the module).
+/// The constants the JS side checks against its own at start-up (a mismatch in 0–7 disables the module, in 8–17 its
+/// 3-D kernels).
 #[no_mangle]
 pub extern "C" fn af_const(k: u32) -> f64 {
-    match k { 0 => K_COUL, 1 => RC2, 2 => FCAP, 3 => CORE_RMIN, 4 => BARE_SMEAR, 5 => R_ANN, 6 => ANGLE_K, 7 => D_LEN as f64, _ => 25.0 }
+    match k { 0 => K_COUL, 1 => RC2, 2 => FCAP, 3 => CORE_RMIN, 4 => BARE_SMEAR, 5 => R_ANN, 6 => ANGLE_K, 7 => D_LEN as f64,
+        // the 3-D kernels (d3.rs, af_forces3): the descriptor's length with the z entries, K_OOP, K_TOR, K3_DIV[0..7]
+        8 => d3::D3_LEN as f64, 9 => d3::K_OOP, 10 => d3::K_TOR, 11..=17 => d3::K3_DIV[(k - 11) as usize], _ => 26.0 }
 }
 /// Fill a f64 range with zeros (a worker clearing its force buffer).
 #[no_mangle]

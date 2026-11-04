@@ -2197,7 +2197,7 @@ function orbSubRadius(s) {
    can have workers at all; elsewhere (a page that is not cross-origin isolated) they are ordinary arrays. */
 const SHARED_OK = typeof SharedArrayBuffer !== 'undefined' && typeof Worker !== 'undefined' && (typeof crossOriginIsolated === 'undefined' || crossOriginIsolated);
 const WK = { on: false, use: true, ready: false, mem: null, module: null, inst: null, ex: null, top: 0, desc: null, ks: null, sumTab: null,
-  note: '', bytes: null, grows: 0, allocs: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0, plain: false, PLAIN_PAGES: 2048, useFast: true, ft: null, fks: null, fc: null, fcr: null, fastCalls: 0 }; // (plain: an ordinary memory of PLAIN_PAGES × 64 KB = 128 MB, never grown)
+  note: '', bytes: null, grows: 0, allocs: 0, has3: false, note3: '', calls3: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0, plain: false, PLAIN_PAGES: 2048, useFast: true, ft: null, fks: null, fc: null, fcr: null, fastCalls: 0 }; // (plain: an ordinary memory of PLAIN_PAGES × 64 KB = 128 MB, never grown)
 const WK_PAGE = 65536;
 /* Base64 to bytes (no atob in every worker-less environment; this is small and runs once). */
 function wasmBytes(b64) {
@@ -2265,6 +2265,16 @@ function wasmInstantiate() {
     // (36: the kernel's 6 Å cutoff, squared; a longer reach chosen in Experimental runs the JavaScript instead, setCutoff)
     for (let k = 0; k < want.length; k++) if (ex.af_const(k) !== want[k]) throw new Error('constant ' + k + ' differs: ' + ex.af_const(k) + ' vs ' + want[k]);
     WK.desc = wasmArray(Int32Array, 64); WK.ks = wasmArray(Float64Array, 8); WK.sumTab = wasmArray(Uint32Array, 64);
+    // the 3-D kernels (af_forces3, kernel 0.26 on): a module without them, or with other 3-D constants, leaves 3-D to the
+    // JavaScript (the 2-D kernels are used as before)
+    WK.has3 = false;
+    if (typeof ex.af_forces3 !== 'function') WK.note3 = 'no af_forces3 in this module';
+    else {
+      const want3 = [46, K_OOP, K_TOR, ...K3_DIV]; let bad = -1;
+      for (let k = 0; k < want3.length; k++) if (ex.af_const(8 + k) !== want3[k]) { bad = k; break; }
+      if (bad >= 0) WK.note3 = '3-D constant ' + (8 + bad) + ' differs: ' + ex.af_const(8 + bad) + ' vs ' + want3[bad];
+      else { WK.has3 = true; WK.note3 = 'ready'; }
+    }
     WK.ready = true; WK.note = 'ready';
     if (typeof _sharedGen === 'number') _sharedGen++; // (worker threads started before the module was ready are bound again, now with it)
   } catch (e) { WK.note = 'instantiate: ' + (e.message || e); WK.ready = false; WK.inst = null; WK.ex = null; }
@@ -2284,6 +2294,20 @@ function wasmDesc() {
   d[36] = AC.c.byteOffset; d[37] = AC.nb.byteOffset; d[38] = AC.cnt.byteOffset; d[39] = AC.tg.byteOffset;
 }
 function wasmReady() { return WK.ready && WK.use; }
+/* The 3-D kernels (af_forces3): descriptor entries 40–45 hold the z positions and velocities, and AC3's per-centre
+   targets and dihedral list (engine.js angleCentres3), all in the module's memory. */
+function wasm3Ready() { return WK.ready && WK.use && WK.has3; }
+function wasmDesc3() {
+  const d = WK.desc;
+  d[40] = S.z.byteOffset; d[41] = S.vz.byteOffset; d[42] = AC3.mode.byteOffset; d[43] = AC3.t0.byteOffset; d[44] = AC3.flat.byteOffset; d[45] = AC3.tq.byteOffset;
+}
+/* One 3-D force pass over the given ranges (pairs, bonds, angle centres, dihedrals) on this thread; both descriptors must
+   be current. Forces into FXo/FYo/FZo, candidates into CQ, the stiffest contact into _kStiff. */
+function wasmForces3(q0, q1, b0, b1, c0, c1, t0, t1, FXo, FYo, FZo, CQ, wrap, bw, bh, bd, hw, hh, hd, step) {
+  const nc = WK.ex.af_forces3(WK.desc.byteOffset, q0, q1, b0, b1, c0, c1, t0, t1, FXo.byteOffset, FYo.byteOffset, FZo.byteOffset, CQ.byteOffset, wrap ? 1 : 0, bw, bh, bd, hw, hh, hd, step, WK.ks.byteOffset);
+  _kStiff = WK.ks[0]; WK.calls3++;
+  return nc;
+}
 /* The free leptons' kernel (af_fast, from V36 on: an older module has none and the JavaScript runs): its table of
    offsets, candidate buffers and stiffness cell, made once; the lists it reads must be in the module's memory. */
 function wasmFastReady() {
@@ -3428,7 +3452,7 @@ function Bgrad(x, y, out) { // returns B and fills out=[dB/dx, dB/dy]
 /* ------------------------------------------------------------------ spatial grid */
 const G = { cols: 0, rows: 0, cw: 1, ch: 1, hx: 1, hy: 1, wrap: false, bits: 0, shift: 32, mask: 0, keys: new Int32Array(1), head: new Int32Array(1), next: new Int32Array(1),
   _list: [], _listN: -1, _listGen: -1, n: 0, px: new Float64Array(16), py: new Float64Array(16), occ: new Int32Array(16), nocc: 0, slots: 1, RL2: 0, fwd: null, builds: 0,
-  lay: 1, cd: 1, hz: 1, pz: new Float64Array(16) }; // (3-D: lay layers of cells along z, cd deep; a cell's key is (cz·rows + cy)·cols + cx)
+  lay: 1, cd: 1, hz: 1, pz: shArray(Float64Array, 16) }; // (3-D: lay layers of cells along z, cd deep; a cell's key is (cz·rows + cy)·cols + cx)
 /* Cell of a point: cells tile the box with a 1 Å margin for closed walls, and exactly for periodic ones, so that the
    cells at opposite edges are neighbours across the boundary (a margin there hid pairs within the cutoff). */
 /* G.list: the particles the grid was built over, as objects, in grid order (made the first time it is asked for after a
@@ -3515,7 +3539,7 @@ function buildGrid3(idx, n) {
   if (G.bits !== bits) { G.bits = bits; G.slots = 1 << bits; G.keys = shArray(Int32Array, G.slots); G.head = shArray(Int32Array, G.slots); G.shift = 32 - bits; G.mask = G.slots - 1; _sharedGen++; }
   G.keys.fill(-1);
   if (G.next.length < n) { G.next = shArray(Int32Array, n * 2 + 16); G.px = shArray(Float64Array, n * 2 + 16); G.py = shArray(Float64Array, n * 2 + 16); G.occ = shArray(Int32Array, n * 2 + 16); _sharedGen++; }
-  if (G.pz.length < G.next.length) G.pz = new Float64Array(G.next.length);
+  if (G.pz.length < G.next.length) { G.pz = shArray(Float64Array, G.next.length); _sharedGen++; } // (shared: the workers build the 3-D list from the grid)
   G.n = n; G.nocc = 0; _gridGen++;
   const X = S.x, Y = S.y, Zp = S.z, px = G.px, py = G.py, pz = G.pz, head = G.head, next = G.next, occ = G.occ, keys = G.keys, mask = G.mask, shift = G.shift, DEAD = S.dead, OBJ = S.obj;
   let nocc = 0;
@@ -3645,25 +3669,36 @@ function vlValid3() { // (3-D: the moves in z count, and the box's depth)
   }
   return worst <= HSKIN2;
 }
-/* 3-D: vlPairs over the box cells (the 26 around each, those with a greater key), one thread. */
-function vlPairs3(pi, pj, cap, idx, K, wrap, bw, bh, bd, hw, hh, hd) {
-  const g = G, keys = g.keys, head = g.head, next = g.next, px = g.px, py = g.py, pz = g.pz, occ = g.occ, cols = g.cols, rows = g.rows, lay = g.lay, gwrap = g.wrap;
-  const RL2 = g.RL2, f = new Int32Array(27);
-  let np = 0;
-  for (let oc = 0; oc < g.nocc; oc++) {
-    const c = occ[oc], key = keys[c], cx = key % cols, cy = ((key / cols) | 0) % rows, cz = (key / (cols * rows)) | 0;
-    let nf = 0;
-    for (let oz = -1; oz <= 1; oz++) for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
-      let x = cx + ox, y = cy + oy, z = cz + oz;
-      if (gwrap) { x = (x + cols) % cols; y = (y + rows) % rows; z = (z + lay) % lay; } else if (x < 0 || y < 0 || z < 0 || x >= cols || y >= rows || z >= lay) continue;
-      const k = (z * rows + y) * cols + x;
-      if (k <= key) continue;
-      const s = gridFind(k);
-      if (s === -1) continue;
-      let dup = false; for (let q = 0; q < nf; q++) if (f[q] === s) { dup = true; break; }
-      if (!dup) f[nf++] = s;
-    }
-    for (let i = head[c]; i !== -1; i = next[i]) {
+/* 3-D: vlPairs over the box cells (the 26 around each, those with a greater key). The pairs of the grid's particles
+   p0 ≤ k < p1, counted in the order the cells and their particles are walked (a box of a few cells, as the 3-D setups
+   have, cannot be shared out by cells), appended at pi[base …] up to base + cap; returns how many, or -1 when they would
+   not fit. As vlPairs, it runs on one thread (0, ∞) and, over ranges of particles, on the workers (threads.js
+   vlBuildAll3), the stretches joined in order giving the one-thread list pair for pair. */
+function vlPairs3(p0, p1, pi, pj, base, cap, g, idx, K, wrap, bw, bh, bd, hw, hh, hd) {
+  const keys = g.keys, head = g.head, next = g.next, px = g.px, py = g.py, pz = g.pz, occ = g.occ, cols = g.cols, rows = g.rows, lay = g.lay, gwrap = g.wrap, mask = g.mask, shift = g.shift;
+  const RL2 = g.RL2, f = g.fwd3 || (g.fwd3 = new Int32Array(27)), end = base + cap;
+  let np = base, ord = 0;
+  for (let oc = 0; oc < g.nocc && ord < p1; oc++) {
+    const c = occ[oc];
+    let nf = -1; // (the cell's forward neighbours, found when its first particle in range comes)
+    for (let i = head[c]; i !== -1; i = next[i], ord++) {
+      if (ord < p0) continue;
+      if (ord >= p1) break;
+      if (nf < 0) {
+        const key = keys[c], cx = key % cols, cy = ((key / cols) | 0) % rows, cz = (key / (cols * rows)) | 0;
+        nf = 0;
+        for (let oz = -1; oz <= 1; oz++) for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+          let x = cx + ox, y = cy + oy, z = cz + oz;
+          if (gwrap) { x = (x + cols) % cols; y = (y + rows) % rows; z = (z + lay) % lay; } else if (x < 0 || y < 0 || z < 0 || x >= cols || y >= rows || z >= lay) continue;
+          const k = (z * rows + y) * cols + x;
+          if (k <= key) continue;
+          let s = Math.imul(k, 0x9E3779B1) >>> shift; // (gridFind, inlined: the workers have no G)
+          for (;;) { const kk = keys[s]; if (kk === k) break; if (kk === -1) { s = -1; break; } s = (s + 1) & mask; }
+          if (s === -1) continue;
+          let dup = false; for (let q = 0; q < nf; q++) if (f[q] === s) { dup = true; break; }
+          if (!dup) f[nf++] = s;
+        }
+      }
       const si = idx[i];
       if (K[si] !== 0) continue; // (NUC = 0)
       const ax = px[i], ay = py[i], az = pz[i];
@@ -3673,12 +3708,12 @@ function vlPairs3(pi, pj, cap, idx, K, wrap, bw, bh, bd, hw, hh, hd) {
           if (K[sj] !== 0) continue;
           let dx = px[j] - ax, dy = py[j] - ay, dz = pz[j] - az;
           if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; }
-          if (dx * dx + dy * dy + dz * dz < RL2) { if (np >= cap) return -1; pi[np] = si; pj[np] = sj; np++; }
+          if (dx * dx + dy * dy + dz * dz < RL2) { if (np >= end) return -1; pi[np] = si; pj[np] = sj; np++; }
         }
       }
     }
   }
-  return np;
+  return np - base;
 }
 /* The pairs within RC + SKIN among the occupied cells o0 ≤ oc < o1 of the grid g (its arrays and shape), appended at
    pi[base …] up to base + cap: returns how many, or -1 when they would not fit. Each pair of neighbouring cells is
@@ -3728,6 +3763,7 @@ function vlPairs(o0, o1, pi, pj, base, cap, g, idx, K, wrap, bw, bh, hw, hh) {
   return np - base;
 }
 let vlBuildAll = function () { return -1; }; // eslint-disable-line no-unused-vars
+let vlBuildAll3 = function () { return -1; }; // eslint-disable-line no-unused-vars
 function vlRoom(cap) { VL.pi = shArray(Int32Array, cap); VL.pj = shArray(Int32Array, cap); _sharedGen++; } // (room for the pairs: the workers are rebound to the new arrays)
 function vlBuild() { // from the grid just built over _md (G.px/py are their positions now); nucleus–nucleus pairs only
   VL.builds++;
@@ -3747,8 +3783,8 @@ function vlBuild() { // from the grid just built over _md (G.px/py are their pos
   if (W.d3) { // (3-D: the depth and the z of each atom as the list saw it; one thread)
     VL.d = W.box.d; if (VL.bz.length < nN) VL.bz = new Float64Array(nN * 2 + 16);
     const Zp = S.z; for (let q = 0; q < nN; q++) VL.bz[q] = Zp[nI[q]];
-    let n3 = -1;
-    while (n3 < 0) { n3 = vlPairs3(VL.pi, VL.pj, VL.pi.length, _mdI, S.k, wrap, bw, bh, W.box.d, hw, hh, W.box.d / 2); if (n3 < 0) vlRoom(VL.pi.length * 2 + _nmd); }
+    let n3 = vlBuildAll3(); // (the threads, when the pool is up: -1 when they did not)
+    while (n3 < 0) { n3 = vlPairs3(0, Infinity, VL.pi, VL.pj, 0, VL.pi.length, G, _mdI, S.k, wrap, bw, bh, W.box.d, hw, hh, W.box.d / 2); if (n3 < 0) vlRoom(VL.pi.length * 2 + _nmd); }
     VL.np = n3; VL.valid = true; VL.exTopo = -1;
     return;
   }
@@ -4426,11 +4462,10 @@ function angleKernel(c0, c1, FXo, FYo, wrap, bw, bh, hw, hh) {
     FXo[pc] -= cfx; FYo[pc] -= cfy;
   }
 }
-/* ======================================================================== PAIR KERNEL END */
-/* ======================================================================== 3-D KERNELS (stage 1a)
-   The same physics as the pair, bond and angle kernels with distances and forces in three directions, on one thread
-   in JavaScript (a 3-D world bypasses the WebAssembly kernel and the workers). pairKernel3 is pairKernel line for line
-   with z added; keep the two the same. */
+/* ---- The 3-D kernels (stage 4: inside the markers, so that the worker threads run them too; kernel/src/d3.rs has
+   them in Rust, af_forces3). The same physics as the pair, bond and angle kernels with distances and forces in three
+   directions. pairKernel3 is pairKernel line for line with z added; keep the two the same. The bond angles in 3-D are
+   described with vsepr3 (outside the markers, with the per-centre targets AC3 that the kernels read). */
 function pairKernel3(pi, pj, ex, q0, q1, FXo, FYo, FZo, CQ, nc0, wrap, bw, bh, bd, hw, hh, hd, step) {
   const X = S.x, Y = S.y, Zp = S.z, VZ = S.vz, Z = S.Z, NE = S.ne, Q = S.q, QP = S.qp, ANTI = S.anti, ISM = S.isMetal, CAP = S.cap, USED = S.used, XD = S.xferD, XA = S.xferA, ID = S.id;
   const LJR = S.ljR, VX = S.vx, VY = S.vy, M = S.m, ELRC = S.elrc, LP = S.lp, MET = S.metal, IONIC = S.ionic;
@@ -4512,79 +4547,26 @@ function bondKernel3(b0, b1, FXo, FYo, FZo, CQ, nc, wrap, bw, bh, bd, hw, hh, hd
   }
   return nc;
 }
-/* ---- Bond angles in 3-D (VSEPR). The flat game's term (bonds sorted round a circle, the gaps between them held at
-   their targets) has no meaning in space. Here every pair of bonds at a centre has its own angle θ, held at its VSEPR
-   value θ₀, with the centre's bonds and lone pairs as the electron domains:
-     2 domains 180°; 3 domains 120°; 4 domains 109.47°, lone pairs closing the bonds up (NH₃ 107°, H₂O 104.5°, and the
-     heavier hydrides' 92–94°, as in the flat game);
-     5 domains (a trigonal bipyramid, lone pairs equatorial: ClF₃ T-shaped, SF₄ see-saw, PCl₅): two bonds axial (180°
-     between them), the rest equatorial (120°), 90° between the two kinds; which bonds are axial is the assignment of
-     lowest energy, so the energy stays continuous when it changes;
-     6 domains: XeF₄ two trans pairs (square planar); BrF₅, SF₆ each pair the nearer of 90° and 180°.
-   Each pair's term: about a bent target the cosine form (K₃/sin²θ₀)·(cos θ − cos θ₀)², as stiff as K₃(θ − θ₀)² at its
-   minimum; the plain angle form has false minima (four bonds bent to one side, an umbrella, is a local minimum of
-   ΣK(θ − θ₀)², 1.33 K above the tetrahedron, and a flat CH₄ relaxed into it), the cosine form has none (tried from 300
-   random starts). About 180° the angle form K₃(θ − π)², with θ from atan2(|u×v|, u·v) and its slope over sin θ finite
-   there, so a linear CO₂ bends harmonically (the cosine form would make it quartic). K₃ is set per centre so that
-   turning one bond against the others is as stiff as in the flat game (ANGLE_K·δ²): K₃ = ANGLE_K for two bonds,
-   ANGLE_K/2 for three (both its neighbours' angles change), ANGLE_K/1.5 for four.
-   Two terms the flat world never needed:
-     trigonal planar centres (three bonds, no lone pair: BF₃, a carbonyl or alkene carbon) are held flat by
-     E = K_OOP·(u₁·u₂×u₃)², the triple product of the bond directions (their pairs' 120° alone hold them flat only to
-     fourth order);
-     double and aromatic bonds between two such centres do not twist: E = K_TOR·(û₁·û₂×û₃)² over each dihedral
-     X–A=B–Y, which is K_TOR·sin²θ₁·sin²θ₂·sin²φ, smooth at every geometry (zero cis or trans), 2.7 eV over ethylene's
-     four dihedrals at 90° (its measured barrier, ~65 kcal/mol). */
+
 const K_OOP = 2.0, K_TOR = 1.2;
 const K3_DIV = [1, 1, 1, 2, 1.5, 2, 2];
 const _a3x = new Float64Array(6), _a3y = new Float64Array(6), _a3z = new Float64Array(6), _a3r = new Float64Array(6), _a3n = new Int32Array(6);
-const D2R = Math.PI / 180;
-/* [mode, θ₀, flat]: mode 0 one target θ₀ for every pair; 2 each pair the nearer of 90° and 180°; 3 two bonds axial and
-   the rest equatorial (180° between the axial pair, 90° axial–equatorial, 120° equatorial); 4 two trans pairs (180°, the
-   rest 90°). In 3 and 4 the roles are the bonds' assignment of lowest energy. flat: the out-of-plane term. */
-function vsepr3(n, lp, per, allH) {
-  const steric = n + lp;
-  if (n === 2) {
-    let th;
-    if (steric <= 2 || steric >= 5) th = Math.PI;
-    else if (steric === 3) th = 119.5 * D2R;
-    else th = (per >= 3 && allH) ? 92 * D2R : 104.5 * D2R;
-    return [0, th, 0];
-  }
-  if (steric <= 4) {
-    if (n === 3) return steric === 3 ? [0, A120, 1] : [0, (per >= 3 && allH) ? 93.5 * D2R : 107 * D2R, 0];
-    return [0, Math.acos(-1 / 3), 0]; // (n = 4)
-  }
-  if (steric === 5) return [3, 0, 0]; // (ClF₃ T-shaped, SF₄ see-saw, PCl₅: lone pairs equatorial)
-  if (steric === 6 && n === 4) return [4, 0, 0]; // (XeF₄: lone pairs trans, square planar)
-  return [2, 0, 0]; // (BrF₅, SF₆)
-}
-const _at3Cache = new Map();
-function angleTargets3(p, n) {
-  const lp = p.lp, per = p.el ? periodOf(p.el.Z) : 2;
-  let allH = true; for (const bd of p.bonds) if (other(bd, p).Z !== 1) { allH = false; break; }
-  const key = n * 1000 + lp * 100 + per * 10 + (allH ? 1 : 0);
-  let t = _at3Cache.get(key);
-  if (!t) { t = vsepr3(n, lp, per, allH); _at3Cache.set(key, t); }
-  return t;
-}
-/* A trigonal (sp²-like) centre: two or three bonds and one domain short of four (a double bond's ends, aromatic atoms). */
-function trig3(p) { const n = p.bonds.length; return n >= 2 && n + p.lp === 3 && !!p.el && !p.el.dblock; }
-function torsional3(bd) { return (bd.order === 2 || !!bd.arom) && trig3(bd.a) && trig3(bd.b); }
-/* The vector from slot i to slot j (minimum image), into _v3. */
-const _v3 = [0, 0, 0];
-function vec3(i, j) {
+/* The box the 3-D angle terms take minimum images in (KB3: set by the kernel's caller; angle3Centre and triple3 outside
+   the markers set it from W), and the vector from slot i to slot j in it, into _kv3. */
+const KB3 = { wrap: false, bw: 0, bh: 0, bd: 0 };
+const _kv3 = [0, 0, 0];
+function kvec3(i, j) {
   let dx = S.x[j] - S.x[i], dy = S.y[j] - S.y[i], dz = S.z[j] - S.z[i];
-  if (W.wall === 'wrap') { const bw = W.box.w, bh = W.box.h, bd = W.box.d;
+  if (KB3.wrap) { const bw = KB3.bw, bh = KB3.bh, bd = KB3.bd;
     if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw; if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh; if (dz > bd / 2) dz -= bd; else if (dz < -bd / 2) dz += bd; }
-  _v3[0] = dx; _v3[1] = dy; _v3[2] = dz; return _v3;
+  _kv3[0] = dx; _kv3[1] = dy; _kv3[2] = dz; return _kv3;
 }
 /* The angle terms of one centre (slot pc, neighbour slots nb[0 … n−1]): returns their energy, and adds their forces to
    FX/FY/FZ when given. The same function gives the kernel its forces and angleEnergy its energy. */
-function angle3Centre(pc, nb, n, mode, t0, flat, FX, FY, FZ) {
+function angle3CentreK(pc, nb, n, mode, t0, flat, FX, FY, FZ) {
   const ux = _a3x, uy = _a3y, uz = _a3z, rr = _a3r, K = ANGLE_K / K3_DIV[n];
   for (let k = 0; k < n; k++) {
-    const v = vec3(pc, nb[k]), r = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) || 1e-9;
+    const v = kvec3(pc, nb[k]), r = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) || 1e-9;
     ux[k] = v[0] / r; uy[k] = v[1] / r; uz[k] = v[2] / r; rr[k] = r;
   }
   // every pair's cos θ and θ (atan2 of the cross product's length: exact at every angle)
@@ -4634,7 +4616,7 @@ function angle3Centre(pc, nb, n, mode, t0, flat, FX, FY, FZ) {
     }
   }
   if (FX) { FX[pc] -= cfx; FY[pc] -= cfy; FZ[pc] -= cfz; }
-  if (flat && n === 3) E += triple3(pc, nb[0], pc, nb[1], pc, nb[2], K_OOP, FX, FY, FZ);
+  if (flat && n === 3) E += triple3K(pc, nb[0], pc, nb[1], pc, nb[2], K_OOP, FX, FY, FZ);
   return E;
 }
 const A90 = Math.PI / 2, A120 = 2 * Math.PI / 3;
@@ -4654,10 +4636,10 @@ function pairAngE(K, th, c, t) {
 /* E = Kt·(û₁·û₂×û₃)² for the three vectors b_k = x[k1] − x[k0] (minimum image): returns E, adds the forces when FX is
    given. An improper has all three from the centre; a dihedral X–A–B–Y is the chain X→A, A→B, B→Y. */
 const _tb = new Float64Array(9), _tl = new Float64Array(3);
-function triple3(i0, i1, j0, j1, k0, k1, Kt, FX, FY, FZ) {
+function triple3K(i0, i1, j0, j1, k0, k1, Kt, FX, FY, FZ) {
   const b = _tb, L = _tl, ends = [i0, i1, j0, j1, k0, k1];
   for (let m = 0; m < 3; m++) {
-    const v = vec3(ends[2 * m], ends[2 * m + 1]), l = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) || 1e-9;
+    const v = kvec3(ends[2 * m], ends[2 * m + 1]), l = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) || 1e-9;
     b[3 * m] = v[0] / l; b[3 * m + 1] = v[1] / l; b[3 * m + 2] = v[2] / l; L[m] = l;
   }
   const g1x = b[4] * b[8] - b[5] * b[7], g1y = b[5] * b[6] - b[3] * b[8], g1z = b[3] * b[7] - b[4] * b[6]; // u₂×u₃
@@ -4674,6 +4656,92 @@ function triple3(i0, i1, j0, j1, k0, k1, Kt, FX, FY, FZ) {
   }
   return Kt * T * T;
 }
+const _nb3 = new Int32Array(6);
+/* The angle terms of centres c0 ≤ c < c1 (AC, with AC3's targets) and the dihedrals t0 ≤ t < t1 (AC3.tq), in 3-D. */
+function angleKernel3(c0, c1, t0, t1, FX, FY, FZ, wrap, bw, bh, bd) {
+  KB3.wrap = wrap; KB3.bw = bw; KB3.bh = bh; KB3.bd = bd;
+  const cs = AC.c, nbs = AC.nb, cnt = AC.cnt, MODE = AC3.mode, T0 = AC3.t0, FLAT = AC3.flat;
+  for (let c = c0; c < c1; c++) {
+    const n = cnt[c], b0 = c * 6;
+    for (let k = 0; k < n; k++) _nb3[k] = nbs[b0 + k];
+    angle3CentreK(cs[c], _nb3, n, MODE[c], T0[c], FLAT[c], FX, FY, FZ);
+  }
+  const tq = AC3.tq;
+  for (let t = t0; t < t1; t++) { const X = tq[4 * t], A = tq[4 * t + 1], B = tq[4 * t + 2], Y = tq[4 * t + 3]; triple3K(X, A, A, B, B, Y, K_TOR, FX, FY, FZ); }
+}
+/* ======================================================================== PAIR KERNEL END */
+/* ======================================================================== 3-D (outside the kernels)
+   Bond-angle targets in 3-D, the per-centre arrays the 3-D kernels read, and the 3-D force pass (one thread here;
+   threads.js replaces nucleusPairs3 when workers are available). */
+/* ---- Bond angles in 3-D (VSEPR). The flat game's term (bonds sorted round a circle, the gaps between them held at
+   their targets) has no meaning in space. Here every pair of bonds at a centre has its own angle θ, held at its VSEPR
+   value θ₀, with the centre's bonds and lone pairs as the electron domains:
+     2 domains 180°; 3 domains 120°; 4 domains 109.47°, lone pairs closing the bonds up (NH₃ 107°, H₂O 104.5°, and the
+     heavier hydrides' 92–94°, as in the flat game);
+     5 domains (a trigonal bipyramid, lone pairs equatorial: ClF₃ T-shaped, SF₄ see-saw, PCl₅): two bonds axial (180°
+     between them), the rest equatorial (120°), 90° between the two kinds; which bonds are axial is the assignment of
+     lowest energy, so the energy stays continuous when it changes;
+     6 domains: XeF₄ two trans pairs (square planar); BrF₅, SF₆ each pair the nearer of 90° and 180°.
+   Each pair's term: about a bent target the cosine form (K₃/sin²θ₀)·(cos θ − cos θ₀)², as stiff as K₃(θ − θ₀)² at its
+   minimum; the plain angle form has false minima (four bonds bent to one side, an umbrella, is a local minimum of
+   ΣK(θ − θ₀)², 1.33 K above the tetrahedron, and a flat CH₄ relaxed into it), the cosine form has none (tried from 300
+   random starts). About 180° the angle form K₃(θ − π)², with θ from atan2(|u×v|, u·v) and its slope over sin θ finite
+   there, so a linear CO₂ bends harmonically (the cosine form would make it quartic). K₃ is set per centre so that
+   turning one bond against the others is as stiff as in the flat game (ANGLE_K·δ²): K₃ = ANGLE_K for two bonds,
+   ANGLE_K/2 for three (both its neighbours' angles change), ANGLE_K/1.5 for four.
+   Two terms the flat world never needed:
+     trigonal planar centres (three bonds, no lone pair: BF₃, a carbonyl or alkene carbon) are held flat by
+     E = K_OOP·(u₁·u₂×u₃)², the triple product of the bond directions (their pairs' 120° alone hold them flat only to
+     fourth order);
+     double and aromatic bonds between two such centres do not twist: E = K_TOR·(û₁·û₂×û₃)² over each dihedral
+     X–A=B–Y, which is K_TOR·sin²θ₁·sin²θ₂·sin²φ, smooth at every geometry (zero cis or trans), 2.7 eV over ethylene's
+     four dihedrals at 90° (its measured barrier, ~65 kcal/mol). */
+const D2R = Math.PI / 180;
+/* [mode, θ₀, flat]: mode 0 one target θ₀ for every pair; 2 each pair the nearer of 90° and 180°; 3 two bonds axial and
+   the rest equatorial (180° between the axial pair, 90° axial–equatorial, 120° equatorial); 4 two trans pairs (180°, the
+   rest 90°). In 3 and 4 the roles are the bonds' assignment of lowest energy. flat: the out-of-plane term. */
+function vsepr3(n, lp, per, allH) {
+  const steric = n + lp;
+  if (n === 2) {
+    let th;
+    if (steric <= 2 || steric >= 5) th = Math.PI;
+    else if (steric === 3) th = 119.5 * D2R;
+    else th = (per >= 3 && allH) ? 92 * D2R : 104.5 * D2R;
+    return [0, th, 0];
+  }
+  if (steric <= 4) {
+    if (n === 3) return steric === 3 ? [0, A120, 1] : [0, (per >= 3 && allH) ? 93.5 * D2R : 107 * D2R, 0];
+    return [0, Math.acos(-1 / 3), 0]; // (n = 4)
+  }
+  if (steric === 5) return [3, 0, 0]; // (ClF₃ T-shaped, SF₄ see-saw, PCl₅: lone pairs equatorial)
+  if (steric === 6 && n === 4) return [4, 0, 0]; // (XeF₄: lone pairs trans, square planar)
+  return [2, 0, 0]; // (BrF₅, SF₆)
+}
+const _at3Cache = new Map();
+function angleTargets3(p, n) {
+  const lp = p.lp, per = p.el ? periodOf(p.el.Z) : 2;
+  let allH = true; for (const bd of p.bonds) if (other(bd, p).Z !== 1) { allH = false; break; }
+  const key = n * 1000 + lp * 100 + per * 10 + (allH ? 1 : 0);
+  let t = _at3Cache.get(key);
+  if (!t) { t = vsepr3(n, lp, per, allH); _at3Cache.set(key, t); }
+  return t;
+}
+/* A trigonal (sp²-like) centre: two or three bonds and one domain short of four (a double bond's ends, aromatic atoms). */
+function trig3(p) { const n = p.bonds.length; return n >= 2 && n + p.lp === 3 && !!p.el && !p.el.dblock; }
+function torsional3(bd) { return (bd.order === 2 || !!bd.arom) && trig3(bd.a) && trig3(bd.b); }
+/* The vector from slot i to slot j (minimum image), into _v3. */
+const _v3 = [0, 0, 0];
+function vec3(i, j) {
+  let dx = S.x[j] - S.x[i], dy = S.y[j] - S.y[i], dz = S.z[j] - S.z[i];
+  if (W.wall === 'wrap') { const bw = W.box.w, bh = W.box.h, bd = W.box.d;
+    if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw; if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh; if (dz > bd / 2) dz -= bd; else if (dz < -bd / 2) dz += bd; }
+  _v3[0] = dx; _v3[1] = dy; _v3[2] = dz; return _v3;
+}
+/* The angle terms of one centre and the triple-product terms, for callers outside the kernels (energies, relax3): the
+   kernels' own functions in the box of W. */
+function kb3FromW() { KB3.wrap = W.wall === 'wrap'; KB3.bw = W.box.w; KB3.bh = W.box.h; KB3.bd = W.box.d; }
+function angle3Centre(pc, nb, n, mode, t0, flat, FX, FY, FZ) { kb3FromW(); return angle3CentreK(pc, nb, n, mode, t0, flat, FX, FY, FZ); }
+function triple3(i0, i1, j0, j1, k0, k1, Kt, FX, FY, FZ) { kb3FromW(); return triple3K(i0, i1, j0, j1, k0, k1, Kt, FX, FY, FZ); }
 /* The dihedrals X–A=B–Y of a double or aromatic bond between two trigonal centres: cb(X, A, B, Y). */
 function torsionsOf3(bd, cb) {
   if (!torsional3(bd)) return;
@@ -4693,45 +4761,40 @@ function angleEnergy3(p) {
   return E;
 }
 /* The centres' 3-D targets (per AC centre) and the dihedral list, made again when bonding or species change. */
-const AC3 = { mode: new Uint8Array(64), t0: new Float64Array(64), flat: new Uint8Array(64), topo: -1, dirty: -1, parts: null, len: -1, nt: 0, tq: new Int32Array(256) };
+const AC3 = { mode: shArray(Uint8Array, 64), t0: shArray(Float64Array, 64), flat: shArray(Uint8Array, 64), topo: -1, dirty: -1, parts: null, len: -1, nt: 0, tq: shArray(Int32Array, 256) }; // (shared: the WebAssembly kernel and the workers read them)
 function angleCentres3() {
   angleCentres();
   if (AC3.topo === W.topo && AC3.dirty === W.dirty && AC3.parts === W.parts && AC3.len === W.parts.length) return;
   AC3.topo = W.topo; AC3.dirty = W.dirty; AC3.parts = W.parts; AC3.len = W.parts.length;
-  if (AC3.mode.length < AC.n) { const m = AC.n * 2 + 64; AC3.mode = new Uint8Array(m); AC3.t0 = new Float64Array(m); AC3.flat = new Uint8Array(m); }
+  if (AC3.mode.length < AC.n) { const m = AC.n * 2 + 64; AC3.mode = shArray(Uint8Array, m); AC3.t0 = shArray(Float64Array, m); AC3.flat = shArray(Uint8Array, m); _sharedGen++; }
   for (let c = 0; c < AC.n; c++) { const t = angleTargets3(S.obj[AC.c[c]], AC.cnt[c]); AC3.mode[c] = t[0]; AC3.t0[c] = t[1]; AC3.flat[c] = t[2]; }
   let nt = 0;
   for (const bd of W.bonds) {
     if (bd.a.dead || bd.b.dead) continue;
     torsionsOf3(bd, (X, A, B, Y) => {
-      if (4 * nt + 4 > AC3.tq.length) { const q = new Int32Array(AC3.tq.length * 2); q.set(AC3.tq); AC3.tq = q; }
+      if (4 * nt + 4 > AC3.tq.length) { const q = shArray(Int32Array, AC3.tq.length * 2); q.set(AC3.tq); AC3.tq = q; _sharedGen++; }
       AC3.tq[4 * nt] = X.i; AC3.tq[4 * nt + 1] = A.i; AC3.tq[4 * nt + 2] = B.i; AC3.tq[4 * nt + 3] = Y.i; nt++;
     });
   }
   AC3.nt = nt;
 }
-const _nb3 = new Int32Array(6);
-function angleKernel3(FX, FY, FZ) {
-  const cs = AC.c, nbs = AC.nb, cnt = AC.cnt;
-  for (let c = 0; c < AC.n; c++) {
-    const n = cnt[c], b0 = c * 6;
-    for (let k = 0; k < n; k++) _nb3[k] = nbs[b0 + k];
-    angle3Centre(cs[c], _nb3, n, AC3.mode[c], AC3.t0[c], AC3.flat[c], FX, FY, FZ);
-  }
-  const tq = AC3.tq;
-  for (let t = 0; t < AC3.nt; t++) { const X = tq[4 * t], A = tq[4 * t + 1], B = tq[4 * t + 2], Y = tq[4 * t + 3]; triple3(X, A, A, B, B, Y, K_TOR, FX, FY, FZ); }
-}
-/* The nucleus pairs, bonds and angles of a 3-D world (computeForces1's nucleusPairs, one thread). */
-function nucleusPairs3(wrap, bw, bh, hw, hh) {
+/* The nucleus pairs, bonds and angles of a 3-D world (computeForces1's nucleusPairs): the WebAssembly kernel (af_forces3)
+   when the module has it, else the JavaScript; one thread here, threads.js replaces this when workers are available. */
+let nucleusPairs3 = function (wrap, bw, bh, hw, hh) {
   bondArrays(); angleCentres3();
-  const CQ = candidateRoom(VL.np + BD.n), bd = W.box.d, hd = bd / 2;
+  const CQ = candidateRoom(VL.np + BD.n), bd = W.box.d, hd = bd / 2, t0 = _profOn ? performance.now() : 0;
   _kStiff = 0;
-  let nc = pairKernel3(VL.pi, VL.pj, VL.ex, 0, VL.np, S.fx, S.fy, S.fz, CQ, 0, wrap, bw, bh, bd, hw, hh, hd, W.step);
-  nc = bondKernel3(0, BD.n, S.fx, S.fy, S.fz, CQ, nc, wrap, bw, bh, bd, hw, hh, hd);
-  angleKernel3(S.fx, S.fy, S.fz);
+  let nc;
+  if (wasm3Ready()) { wasmDesc(); wasmDesc3(); nc = wasmForces3(0, VL.np, 0, BD.n, 0, AC.n, 0, AC3.nt, S.fx, S.fy, S.fz, CQ, wrap, bw, bh, bd, hw, hh, hd, W.step); }
+  else {
+    nc = pairKernel3(VL.pi, VL.pj, VL.ex, 0, VL.np, S.fx, S.fy, S.fz, CQ, 0, wrap, bw, bh, bd, hw, hh, hd, W.step);
+    nc = bondKernel3(0, BD.n, S.fx, S.fy, S.fz, CQ, nc, wrap, bw, bh, bd, hw, hh, hd);
+    angleKernel3(0, AC.n, 0, AC3.nt, S.fx, S.fy, S.fz, wrap, bw, bh, bd);
+  }
   if (_kStiff > _stiff) _stiff = _kStiff; _kStiff = 0;
+  if (_profOn) { _tKernels += performance.now() - t0; TH_LAST.used = 0; }
   evalCandidates(CQ, nc);
-}
+};
 /* ======================================================================== 3-D KERNELS END */
 /* The kernel's candidates become events here, with the chemistry that needs the particle objects, in the order the
    kernel noted them (so one thread or many give the same event queue). r is the pair's distance now. */
@@ -16515,10 +16578,12 @@ function xqGuess() {
    synchronous call. Needs SharedArrayBuffer, i.e. a cross-origin isolated page (the desktop app; a plain page falls back
    to one thread). The kernel's text is embedded by build.js as PAIR_KERNEL_SRC.
    ========================================================================== */
-const TH = { n: 0, want: 0, workers: [], ctrl: null, prm: null, fx: [], fy: [], cq: [], boundGen: -1, ready: 0, gen: 0, acks: null,
+const TH = { n: 0, want: 0, workers: [], ctrl: null, prm: null, fx: [], fy: [], fz: [], cq: [], boundGen: -1, ready: 0, gen: 0, acks: null,
   minPairs: 1500, used: 0, lastMs: 0, state: 'off', note: '', wks: null, stacks: [], wasmOn: [] };
 const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13, TH_DT = 14, TH_DTD = 15;
 // control layout: [0, n) worker states; then 10 per worker: pair range (2), candidate count, ack (the generation bound), bond range (2), angle range (2), the generation wanted, spare; prm: per worker stiffness, then the box
+// (3-D: prm[n + 25] 1, the depth and its half at n + 26, n + 27, and from 8·n + 32 two per worker: its range of dihedrals;
+//  the 3-D list: n + 28 1, the grid's layers and occupied cells at n + 29, n + 30)
 function thCtrl(w, k) { return TH.n + 10 * w + k; }
 /* The heat bath's noise: two normals from (seed, step, slot), the same on any thread and in any order, so a bath stirred
    on sixteen threads is the very simulation one thread gives, step for step. The slot's hash (murmur3's finaliser) picks
@@ -16567,6 +16632,30 @@ function bufSum(s0, s1, FX, FY, bufs, prm, base) {
     for (let k = 0; k < 4; k += 2) {
       const a = prm[o + k] > s0 ? prm[o + k] : s0, e = prm[o + k + 1] < s1 ? prm[o + k + 1] : s1;
       for (let s = a; s < e; s++) { FX[s] += BX[s]; FY[s] += BY[s]; }
+    }
+  }
+}
+/* The same in 3-D: the dihedrals t0 ≤ t < t1 (AC3.tq) count with the bonds and angles, and the z buffers are cleared and
+   summed with the others. */
+function bufSpans3(q0, q1, b0, b1, c0, c1, t0, t1, pi, pj, out, o) {
+  bufSpans(q0, q1, b0, b1, c0, c1, pi, pj, out, o);
+  if (t1 <= t0) return;
+  let lo = 2147483647, hi = -1;
+  const tq = AC3.tq;
+  for (let k = 4 * t0; k < 4 * t1; k++) { const v = tq[k]; if (v < lo) lo = v; if (v > hi) hi = v; }
+  // widen: the dihedrals' slots join the second interval (or the first, when there is no second); merged when they meet
+  let l1 = out[o], h1 = out[o + 1] - 1, l2 = out[o + 2], h2 = out[o + 3] - 1;
+  if (h2 >= l2) { if (lo < l2) l2 = lo; if (hi > h2) h2 = hi; } else if (h1 >= l1) { l2 = lo; h2 = hi; } else { l1 = lo; h1 = hi; l2 = 0; h2 = -1; }
+  if (h1 >= l1 && h2 >= l2 && l2 <= h1 + 1 && l1 <= h2 + 1) { l1 = Math.min(l1, l2); h1 = Math.max(h1, h2); l2 = 0; h2 = -1; }
+  out[o] = l1; out[o + 1] = h1 + 1; out[o + 2] = l2; out[o + 3] = h2 + 1;
+}
+function bufZeroZ(FZ, sp) { for (let k = 0; k < 4; k += 2) if (sp[k + 1] > sp[k]) FZ.fill(0, sp[k], sp[k + 1]); }
+function bufSum3(s0, s1, FX, FY, FZ, bufs, prm, base) {
+  for (let b = 0; b < bufs.length; b++) {
+    const BX = bufs[b][0], BY = bufs[b][1], BZ = bufs[b][2], o = base + 4 * b;
+    for (let k = 0; k < 4; k += 2) {
+      const a = prm[o + k] > s0 ? prm[o + k] : s0, e = prm[o + k + 1] < s1 ? prm[o + k + 1] : s1;
+      for (let s = a; s < e; s++) { FX[s] += BX[s]; FY[s] += BY[s]; FZ[s] += BZ[s]; }
     }
   }
 }
@@ -16653,7 +16742,7 @@ const RC2 = ${RC2}, FCAP = ${FCAP}, CORE_RMIN = ${CORE_RMIN}, BARE_SMEAR = ${BAR
 ${zblA.toString()}
 ${zblD.toString()}
 ${zblD2.toString()}
-let S = null, AC = null, BD = null;
+let S = null, AC = null, BD = null, AC3 = null;
 ${PAIR_KERNEL_SRC}
 ${integrateSlots.toString()}
 ${bathTableMake.toString()}
@@ -16664,11 +16753,15 @@ ${dtSlots.toString()}
 ${bufSpans.toString()}
 ${bufZero.toString()}
 ${bufSum.toString()}
+${bufSpans3.toString()}
+${bufZeroZ.toString()}
+${bufSum3.toString()}
 ${vlPairs.toString()}
+${vlPairs3.toString()}
 ${exRange.toString()}
 let GV = null, mdI = null, exl = null, exn = null;
-let SPAN0 = 0; const spPrev = new Float64Array(4);
-let pi, pj, ex, FXo, FYo, CQ, ctrl, prm, me, nW, bufs, mem = null, wasm = null, wex = null, descOff = 0, ksOff = 0, ksArr = null, sumTabOff = 0;
+let SPAN0 = 0, TQ0 = 0; const spPrev = new Float64Array(4), spPrevZ = new Float64Array(4);
+let pi, pj, ex, FXo, FYo, FZo = null, CQ, ctrl, prm, me, nW, bufs, mem = null, wasm = null, wex = null, descOff = 0, ksOff = 0, ksArr = null, sumTabOff = 0;
 const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13, TH_DT = 14, TH_DTD = 15;
 function ctrlAt(w, k) { return nW + 10 * w + k; }
 onmessage = (e) => {
@@ -16681,10 +16774,12 @@ onmessage = (e) => {
     pi = view(m.pi); pj = view(m.pj); ex = view(m.ex);
     AC = {}; for (const k in m.AC) AC[k] = view(m.AC[k]);
     BD = {}; for (const k in m.BD) BD[k] = view(m.BD[k]);
-    bufs = m.bufs.map(b => [view(b[0]), view(b[1])]);
+    AC3 = {}; for (const k in m.AC3) AC3[k] = view(m.AC3[k]);
+    bufs = m.bufs.map(b => b[2] ? [view(b[0]), view(b[1]), view(b[2])] : [view(b[0]), view(b[1])]);
     GV = { fwd: null }; for (const k in m.G) GV[k] = view(m.G[k]); mdI = view(m.mdI); exl = view(m.exl); exn = view(m.exn);
-    me = m.me; nW = m.nW; FXo = bufs[me][0]; FYo = bufs[me][1]; SPAN0 = 4 * nW + 32;
+    me = m.me; nW = m.nW; FXo = bufs[me][0]; FYo = bufs[me][1]; FZo = bufs[me][2] || null; SPAN0 = 4 * nW + 32; TQ0 = 8 * nW + 32;
     spPrev[0] = 0; spPrev[1] = FXo.length; spPrev[2] = 0; spPrev[3] = 0; // (a buffer just bound: cleared whole at its first pass)
+    spPrevZ[0] = 0; spPrevZ[1] = FZo ? FZo.length : 0; spPrevZ[2] = 0; spPrevZ[3] = 0; // (the z buffer: what the last 3-D pass left in it)
     CQ = view(m.cq); ctrl = new Int32Array(m.ctrl); prm = new Float64Array(m.prm);
     if (m.wasm && !wasm) { // the kernel module on the shared memory, with a stack of this worker's own
       try {
@@ -16710,6 +16805,25 @@ onmessage = (e) => {
       const wrap = prm[nW] === 1, bw = prm[nW + 1], bh = prm[nW + 2], hw = prm[nW + 3], hh = prm[nW + 4], step = prm[nW + 5];
       let nc;
       bufZero(FXo, FYo, spPrev); // (what the last pass left in this buffer: then it is all zeros)
+      if (prm[nW + 25] === 1) { // 3-D: z too, and the dihedrals; the WebAssembly kernel when the module has it
+        const bd = prm[nW + 26], hd = prm[nW + 27], t0 = prm[TQ0 + 2 * me], t1 = prm[TQ0 + 2 * me + 1];
+        bufZeroZ(FZo, spPrevZ);
+        bufSpans3(q0, q1, b0, b1, c0, c1, t0, t1, pi, pj, prm, SPAN0 + 4 * me);
+        for (let k = 0; k < 4; k++) spPrevZ[k] = spPrev[k] = prm[SPAN0 + 4 * me + k];
+        if (wex && prm[nW + 7] === 1 && typeof wex.af_forces3 === 'function') {
+          nc = wex.af_forces3(descOff, q0, q1, b0, b1, c0, c1, t0, t1, FXo.byteOffset, FYo.byteOffset, FZo.byteOffset, CQ.byteOffset, wrap ? 1 : 0, bw, bh, bd, hw, hh, hd, step, ksOff + 8 * me);
+          prm[me] = ksArr[me];
+        } else {
+          _kStiff = 0;
+          nc = pairKernel3(pi, pj, ex, q0, q1, FXo, FYo, FZo, CQ, 0, wrap, bw, bh, bd, hw, hh, hd, step);
+          nc = bondKernel3(b0, b1, FXo, FYo, FZo, CQ, nc, wrap, bw, bh, bd, hw, hh, hd);
+          angleKernel3(c0, c1, t0, t1, FXo, FYo, FZo, wrap, bw, bh, bd);
+          prm[me] = _kStiff;
+        }
+        ctrl[ctrlAt(me, 2)] = nc;
+        Atomics.store(ctrl, me, TH_DONE); Atomics.notify(ctrl, me);
+        continue;
+      }
       bufSpans(q0, q1, b0, b1, c0, c1, pi, pj, prm, SPAN0 + 4 * me);
       for (let k = 0; k < 4; k++) spPrev[k] = prm[SPAN0 + 4 * me + k];
       if (wex && prm[nW + 7] === 1) { // the WebAssembly kernels (the main thread filled the descriptor before this order)
@@ -16725,7 +16839,8 @@ onmessage = (e) => {
       ctrl[ctrlAt(me, 2)] = nc;
       Atomics.store(ctrl, me, TH_DONE); Atomics.notify(ctrl, me);
     } else if (st === TH_SUM) { // sum every buffer onto the store's forces for this worker's slots, in buffer order
-      bufSum(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], S.fx, S.fy, bufs, prm, SPAN0);
+      if (prm[nW + 25] === 1) bufSum3(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], S.fx, S.fy, S.fz, bufs, prm, SPAN0);
+      else bufSum(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], S.fx, S.fy, bufs, prm, SPAN0);
       Atomics.store(ctrl, me, TH_SUMMED); Atomics.notify(ctrl, me);
     } else if (st === TH_INTEG) {
       prm[nW + 32 + 3 * me] = integrateSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm[nW + 6]);
@@ -16733,7 +16848,8 @@ onmessage = (e) => {
     } else if (st === TH_VL) { // this worker's stretch of the neighbour list, from its range of the grid's occupied cells
       GV.cols = prm[nW + 14]; GV.rows = prm[nW + 15]; GV.wrap = prm[nW + 16] === 1; GV.mask = prm[nW + 17]; GV.shift = prm[nW + 18]; GV.RL2 = prm[nW + 19];
       const base = ctrl[ctrlAt(me, 4)], cap = ctrl[ctrlAt(me, 5)];
-      ctrl[ctrlAt(me, 2)] = vlPairs(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], pi, pj, base, cap, GV, mdI, S.k, prm[nW] === 1, prm[nW + 1], prm[nW + 2], prm[nW + 3], prm[nW + 4]);
+      if (prm[nW + 28] === 1) { GV.lay = prm[nW + 29]; GV.nocc = prm[nW + 30]; ctrl[ctrlAt(me, 2)] = vlPairs3(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], pi, pj, base, cap, GV, mdI, S.k, prm[nW] === 1, prm[nW + 1], prm[nW + 2], prm[nW + 26], prm[nW + 3], prm[nW + 4], prm[nW + 27]); } // (3-D: a range of the grid's particles)
+      else ctrl[ctrlAt(me, 2)] = vlPairs(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], pi, pj, base, cap, GV, mdI, S.k, prm[nW] === 1, prm[nW + 1], prm[nW + 2], prm[nW + 3], prm[nW + 4]);
       Atomics.store(ctrl, me, TH_VLD); Atomics.notify(ctrl, me);
     } else if (st === TH_EX) { // the exclusion marks of this worker's range of pairs
       exRange(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], ex, pi, pj, S.k, S.Z, S.ne, S.mol, S.id, exl, exn, prm[nW + 20]);
@@ -16757,12 +16873,12 @@ function threadsSet(want) {
   TH.want = want;
   if (want === TH.n && TH.workers.length === want) return;
   for (const w of TH.workers) w.terminate();
-  TH.workers = []; TH.n = want; TH.boundGen = -1; TH.ready = 0; TH.fx = []; TH.fy = []; TH.cq = []; TH.wasmOn = [];
+  TH.workers = []; TH.n = want; TH.boundGen = -1; TH.ready = 0; TH.fx = []; TH.fy = []; TH.fz = []; TH.cq = []; TH.wasmOn = [];
   TH.state = want ? 'starting' : (threadsAvailable() ? 'off' : 'unavailable');
   if (!want) return;
   const url = URL.createObjectURL(new Blob([workerSource()], { type: 'text/javascript' }));
   TH.ctrl = new Int32Array(new SharedArrayBuffer(4 * (want + 10 * want + 8)));
-  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (8 * want + 32))); // (… then from nW + 32, three per worker: chooseDt's maxima; from 4·nW + 32, four per worker: its force buffer's intervals, bufSpans)
+  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (10 * want + 32))); // (… then from nW + 32, three per worker: chooseDt's maxima; from 4·nW + 32, four per worker: its force buffer's intervals, bufSpans; from 8·nW + 32, two per worker: its dihedrals in 3-D)
   for (let w = 0; w < want; w++) {
     const wk = new Worker(url);
     wk.onerror = (e) => { TH.note = 'worker error: ' + (e.message || e); console.warn('Atom Forge threads:', TH.note); threadsSet(0); };
@@ -16779,15 +16895,18 @@ function threadsBind() {
     TH.fx = []; TH.fy = [];
     for (let w = 0; w < n; w++) { TH.fx.push(shArray(Float64Array, size)); TH.fy.push(shArray(Float64Array, size)); }
   }
+  if (W.d3 && (TH.fz.length !== n || (TH.fz[0] && TH.fz[0].length !== size))) { TH.fz = []; for (let w = 0; w < n; w++) TH.fz.push(shArray(Float64Array, size)); } // (3-D: z buffers, made when first needed)
+  if (TH.fz.length && TH.fz[0].length !== size) TH.fz = []; // (left from a 3-D world and outgrown: made again when 3-D needs them)
   const need = 9 * Math.ceil((np + Math.max(BD.a.length, 16)) / (n + 1)) + 64;
   if (TH.cq.length !== n || TH.cq[0].length < need) { TH.cq = []; for (let w = 0; w < n; w++) TH.cq.push(shArray(Int32Array, need)); }
   const d = (a) => ({ t: a.constructor.name, b: WK.on ? null : a.buffer, off: a.byteOffset, len: a.length });
-  const Sdesc = {}, ACd = {}, BDd = {};
+  const Sdesc = {}, ACd = {}, BDd = {}, AC3d = {};
   for (const k of S_ALL) Sdesc[k] = d(S[k]);
   for (const k of ['c', 'nb', 'cnt', 'tg']) ACd[k] = d(AC[k]);
   for (const k of ['a', 'b', 'r0', 'al', 'D', 'rb']) BDd[k] = d(BD[k]);
-  const bufs = TH.fx.map((a, w) => [d(a), d(TH.fy[w])]);
-  const Gd = {}; for (const k of ['keys', 'head', 'next', 'px', 'py', 'occ']) Gd[k] = d(G[k]);
+  for (const k of ['mode', 't0', 'flat', 'tq']) AC3d[k] = d(AC3[k]);
+  const bufs = TH.fx.map((a, w) => TH.fz.length === n ? [d(a), d(TH.fy[w]), d(TH.fz[w])] : [d(a), d(TH.fy[w])]);
+  const Gd = {}; for (const k of ['keys', 'head', 'next', 'px', 'py', 'occ', 'pz']) Gd[k] = d(G[k]);
   // the kernel module for the workers: each gets a stack of its own in the shared memory (allocated once)
   let wasm = null;
   if (WK.on && WK.ready && RC === 6) { // (the kernel has 6 Å built in: a longer reach runs the workers' JavaScript)
@@ -16800,7 +16919,7 @@ function threadsBind() {
     // a worker waiting on its word is woken to come back for the message; one not yet running just gets the message
     Atomics.store(TH.ctrl, thCtrl(w, 8), gen); // (what it should be bound to: one still in its binding handler sees it there)
     if (Atomics.load(TH.ctrl, w) === TH_IDLE) { Atomics.store(TH.ctrl, w, TH_REBIND); Atomics.notify(TH.ctrl, w); }
-    TH.workers[w].postMessage({ type: 'bind', S: Sdesc, AC: ACd, BD: BDd, pi: d(VL.pi), pj: d(VL.pj), ex: d(VL.ex), bufs, cq: d(TH.cq[w]), ctrl: TH.ctrl.buffer, prm: TH.prm.buffer, me: w, nW: n, gen, G: Gd, mdI: d(_mdI), exl: d(_exl), exn: d(_exlN),
+    TH.workers[w].postMessage({ type: 'bind', S: Sdesc, AC: ACd, BD: BDd, AC3: AC3d, pi: d(VL.pi), pj: d(VL.pj), ex: d(VL.ex), bufs, cq: d(TH.cq[w]), ctrl: TH.ctrl.buffer, prm: TH.prm.buffer, me: w, nW: n, gen, G: Gd, mdI: d(_mdI), exl: d(_exl), exn: d(_exlN),
       mem: WK.on ? WK.mem : null, wasm: wasm ? Object.assign({ stackTop: TH.stacks[w] }, wasm) : null });
   }
 }
@@ -16821,7 +16940,7 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   const t0 = performance.now(), n = TH.n, ctrl = TH.ctrl, prm = TH.prm, nb = BD.n, na = AC.n;
   const wk = wasmReady();
   if (wk) wasmDesc(); // (the workers read the descriptor too: before they are sent off)
-  prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh; prm[n + 5] = W.step; prm[n + 7] = wk ? 1 : 0; prm[n + 24] = S.hi;
+  prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh; prm[n + 5] = W.step; prm[n + 7] = wk ? 1 : 0; prm[n + 24] = S.hi; prm[n + 25] = 0;
   // pairs, bonds and angle centres shared out: the workers' ranges first, a half share for the main thread last (it also
   // dispatches, and must not be the one the others wait for)
   const per = Math.ceil(np / (n + 0.5)), bper = Math.ceil(nb / (n + 0.5)), aper = Math.ceil(na / (n + 0.5));
@@ -16863,6 +16982,59 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   TH.used = n + 1; TH.lastMs = performance.now() - t0; TH.tKernel = t1 - t0; TH.tWait = t2 - t1; TH.tRest = TH.lastMs - (t2 - t0); // (the main thread's share, the wait for the workers, the reduction and events)
   TH_LAST.used = n + 1; TH_LAST.ms = TH.lastMs; TH_LAST.wait = TH.tWait;
 };
+/* The 3-D nucleus pair forces on all threads (replaces engine.js's one-thread nucleusPairs3): as in 2-D, with z buffers
+   and the dihedrals shared out too; af_forces3 on every thread when the module has it, else the JavaScript 3-D kernels. */
+const nucleusPairs31 = nucleusPairs3;
+nucleusPairs3 = function (wrap, bw, bh, hw, hh) {
+  const np = VL.np;
+  if (!TH.n || np < TH.minPairs * (TH.n + 1)) { TH.used = 0; nucleusPairs31(wrap, bw, bh, hw, hh); return; }
+  bondArrays(); angleCentres3(); // (before the readiness check: they may grow the shared arrays)
+  if (TH.fz.length !== TH.n || TH.fz[0].length !== S.size) TH.boundGen = -1; // (no z buffers yet: bound again, with them)
+  if (!threadsReady()) { TH.used = 0; nucleusPairs31(wrap, bw, bh, hw, hh); return; }
+  const t0 = performance.now(), n = TH.n, ctrl = TH.ctrl, prm = TH.prm, nb = BD.n, na = AC.n, nt = AC3.nt, bd = W.box.d, hd = bd / 2;
+  const wk = wasm3Ready();
+  if (wk) { wasmDesc(); wasmDesc3(); } // (the workers read the descriptor too: before they are sent off)
+  prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh; prm[n + 5] = W.step; prm[n + 7] = wk ? 1 : 0; prm[n + 24] = S.hi;
+  prm[n + 25] = 1; prm[n + 26] = bd; prm[n + 27] = hd;
+  const per = Math.ceil(np / (n + 0.5)), bper = Math.ceil(nb / (n + 0.5)), aper = Math.ceil(na / (n + 0.5)), tper = Math.ceil(nt / (n + 0.5)), TQ0 = 8 * n + 32;
+  for (let w = 0; w < n; w++) {
+    ctrl[thCtrl(w, 0)] = Math.min(np, w * per); ctrl[thCtrl(w, 1)] = Math.min(np, (w + 1) * per);
+    ctrl[thCtrl(w, 4)] = Math.min(nb, w * bper); ctrl[thCtrl(w, 5)] = Math.min(nb, (w + 1) * bper);
+    ctrl[thCtrl(w, 6)] = Math.min(na, w * aper); ctrl[thCtrl(w, 7)] = Math.min(na, (w + 1) * aper);
+    prm[TQ0 + 2 * w] = Math.min(nt, w * tper); prm[TQ0 + 2 * w + 1] = Math.min(nt, (w + 1) * tper);
+    Atomics.store(ctrl, w, TH_PAIRS); Atomics.notify(ctrl, w);
+  }
+  const CQ = candidateRoom(per + bper);
+  _kStiff = 0;
+  const q0 = Math.min(np, n * per), b0 = Math.min(nb, n * bper), c0 = Math.min(na, n * aper), tq0 = Math.min(nt, n * tper);
+  let nc0;
+  if (wk) nc0 = wasmForces3(q0, np, b0, nb, c0, na, tq0, nt, S.fx, S.fy, S.fz, CQ, wrap, bw, bh, bd, hw, hh, hd, W.step);
+  else {
+    nc0 = pairKernel3(VL.pi, VL.pj, VL.ex, q0, np, S.fx, S.fy, S.fz, CQ, 0, wrap, bw, bh, bd, hw, hh, hd, W.step);
+    nc0 = bondKernel3(b0, nb, S.fx, S.fy, S.fz, CQ, nc0, wrap, bw, bh, bd, hw, hh, hd);
+    angleKernel3(c0, na, tq0, nt, S.fx, S.fy, S.fz, wrap, bw, bh, bd);
+  }
+  let stiff = _kStiff; _kStiff = 0;
+  const t1 = performance.now();
+  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_DONE) { /* spin */ } }
+  const t2 = performance.now();
+  thPh('pairs', t0, t1, t2);
+  const hi = S.hi, sper = Math.ceil(hi / (n + 1));
+  for (let w = 0; w < n; w++) {
+    ctrl[thCtrl(w, 0)] = Math.min(hi, w * sper); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * sper);
+    Atomics.store(ctrl, w, TH_SUM); Atomics.notify(ctrl, w);
+  }
+  if (!TH.bufs3 || TH.bufs3.length !== n || TH.bufs3[0][0] !== TH.fx[0] || TH.bufs3[0][2] !== TH.fz[0]) TH.bufs3 = TH.fx.map((a, w) => [a, TH.fy[w], TH.fz[w]]);
+  bufSum3(Math.min(hi, n * sper), hi, S.fx, S.fy, S.fz, TH.bufs3, prm, 4 * n + 32);
+  const t3 = performance.now();
+  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_SUMMED) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); if (prm[w] > stiff) stiff = prm[w]; }
+  thPh('sum', t2, t3, performance.now());
+  if (stiff > _stiff) _stiff = stiff;
+  for (let w = 0; w < n; w++) evalCandidates(TH.cq[w], ctrl[thCtrl(w, 2)]);
+  evalCandidates(CQ, nc0);
+  TH.used = n + 1; TH.lastMs = performance.now() - t0; TH.tKernel = t1 - t0; TH.tWait = t2 - t1; TH.tRest = TH.lastMs - (t2 - t0);
+  TH_LAST.used = n + 1; TH_LAST.ms = TH.lastMs; TH_LAST.wait = TH.tWait;
+};
 /* A nudge at the start of a step: a worker asleep on its word wakes and spins, so the step's passes find it awake. */
 threadsPrewake = function () {
   if (!TH.n || TH.used < 2) return;
@@ -16896,13 +17068,46 @@ vlBuildAll = function () {
   const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, cap = VL.pi.length, per = Math.floor(cap / (n + 1)), oper = Math.ceil(nocc / (n + 1));
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh;
-  prm[n + 14] = G.cols; prm[n + 15] = G.rows; prm[n + 16] = G.wrap ? 1 : 0; prm[n + 17] = G.mask; prm[n + 18] = G.shift; prm[n + 19] = RL2;
+  prm[n + 14] = G.cols; prm[n + 15] = G.rows; prm[n + 16] = G.wrap ? 1 : 0; prm[n + 17] = G.mask; prm[n + 18] = G.shift; prm[n + 19] = RL2; prm[n + 28] = 0;
   for (let w = 0; w < n; w++) {
     ctrl[thCtrl(w, 0)] = Math.min(nocc, w * oper); ctrl[thCtrl(w, 1)] = Math.min(nocc, (w + 1) * oper); ctrl[thCtrl(w, 4)] = w * per; ctrl[thCtrl(w, 5)] = per;
     Atomics.store(ctrl, w, TH_VL); Atomics.notify(ctrl, w);
   }
   const t0 = performance.now();
   const mine = vlPairs(Math.min(nocc, n * oper), nocc, VL.pi, VL.pj, n * per, cap - n * per, G, _mdI, S.k, wrap, bw, bh, hw, hh);
+  let short = mine < 0, np = 0;
+  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_VLD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); if (ctrl[thCtrl(w, 2)] < 0) short = true; }
+  if (short) { TH.vlNote = 'short'; vlRoom(cap * 2 + _nmd); return -1; }
+  TH.vlNote = 'ok';
+  const pi = VL.pi, pj = VL.pj;
+  for (let w = 0; w < n; w++) { // close the stretches up, in order
+    const cnt = ctrl[thCtrl(w, 2)], src = w * per;
+    if (src !== np) { pi.copyWithin(np, src, src + cnt); pj.copyWithin(np, src, src + cnt); }
+    np += cnt;
+  }
+  if (n * per !== np) { pi.copyWithin(np, n * per, n * per + mine); pj.copyWithin(np, n * per, n * per + mine); }
+  np += mine;
+  TH.vlMs = performance.now() - t0; TH.vlBuilds = (TH.vlBuilds || 0) + 1;
+  return np;
+};
+/* The 3-D neighbour list on all threads: the grid's particles shared out in the order they are walked (vlPairs3), each
+   thread writing its own stretch, the stretches closed up in order: the one-thread list, pair for pair. -1 when the pool
+   is not up or a stretch ran out of room (the arrays are grown; the engine builds it). */
+vlBuildAll3 = function () {
+  const ng = G.n;
+  if (!TH.n || ng < 32 * (TH.n + 1)) { TH.vlNote = 'few particles'; return -1; }
+  if (!threadsReady()) { TH.vlNote = 'not ready'; return -1; }
+  const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, cap = VL.pi.length, per = Math.floor(cap / (n + 1)), pper = Math.ceil(ng / (n + 1));
+  const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2;
+  prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh;
+  prm[n + 14] = G.cols; prm[n + 15] = G.rows; prm[n + 16] = G.wrap ? 1 : 0; prm[n + 17] = G.mask; prm[n + 18] = G.shift; prm[n + 19] = RL2;
+  prm[n + 26] = bd; prm[n + 27] = hd; prm[n + 28] = 1; prm[n + 29] = G.lay; prm[n + 30] = G.nocc;
+  for (let w = 0; w < n; w++) {
+    ctrl[thCtrl(w, 0)] = Math.min(ng, w * pper); ctrl[thCtrl(w, 1)] = Math.min(ng, (w + 1) * pper); ctrl[thCtrl(w, 4)] = w * per; ctrl[thCtrl(w, 5)] = per;
+    Atomics.store(ctrl, w, TH_VL); Atomics.notify(ctrl, w);
+  }
+  const t0 = performance.now();
+  const mine = vlPairs3(Math.min(ng, n * pper), Infinity, VL.pi, VL.pj, n * per, cap - n * per, G, _mdI, S.k, wrap, bw, bh, bd, hw, hh, hd);
   let short = mine < 0, np = 0;
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_VLD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); if (ctrl[thCtrl(w, 2)] < 0) short = true; }
   if (short) { TH.vlNote = 'short'; vlRoom(cap * 2 + _nmd); return -1; }
@@ -30936,4 +31141,4 @@ function init() {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
 /* ---- pair kernel for the workers ---- */
-const PAIR_KERNEL_SRC = "/* ======================================================================== PAIR KERNEL BEGIN\n   The forces between two nuclei, atoms or ions (everything in pairForce's nucleus branch, with the stiffness note),\n   reading the store S alone — no particle objects — so the same text runs inside a Web Worker on the shared store.\n   Whatever needs the objects (the chemistry of an event) is not decided here: the kernel notes a *candidate*\n   (kind, i, j) in a queue, and the main thread turns candidates into events (evalCandidates), in the order they\n   were noted. Forces go to the output arrays FXo/FYo (the store's own fx/fy on one thread, a worker's buffer\n   otherwise); the stiffest contact met is left in _kStiff. Everything the kernel uses is defined inside the\n   markers or in the kernel prelude (KERNEL_GLOBALS). */\nconst CAND_BOND = 1, CAND_REACT = 2, CAND_XFER = 3, CAND_HOT = 4, CAND_ANTI = 5, CAND_DATIVE = 6, CAND_XFERB = 7, CAND_BREAK = 8; // (XFERB: bare nucleus and atom; BREAK: a bond, by its index)\nlet _kStiff = 0;\nfunction kStiff(k, i, j) { const w = k * (S.im[i] + S.im[j]); if (w > _kStiff) _kStiff = w; }\nfunction coreFI(i, j, r, c) { // repulsive force (positive outwards) of the screened-nuclear core inside the contact point c\n  if (r >= c) return 0;\n  const Zi = S.Z[i], Zj = S.Z[j], k = K_COUL * Zi * Zj, al = zblA(Zi, Zj), rr = r > CORE_RMIN ? r : CORE_RMIN;\n  kStiff(zblD2(k, al, rr), i, j);\n  return -(zblD(k, al, rr) - zblD(k, al, c));\n}\nfunction ljFI(i, j, r, qa, qb) { // Lennard-Jones with the Born wall, soft intramolecular wall and the core (ljPair, softPair, ljF)\n  const qi = S.q[i], qj = S.q[j], qq = qi * qj;\n  let rm, eps;\n  if (S.ionic[i] === 1 && S.ionic[j] === 1 && qq < 0) { rm = S.ionR[i] + S.ionR[j]; eps = K_COUL * Math.abs(qq) / (12 * rm); }\n  else {\n    rm = 0.5 * (S.ljR[i] + S.ljR[j]);\n    eps = S.ljS[i] * S.ljS[j];\n    if (qq < 0) eps = Math.max(eps, K_COUL * Math.abs(qq) / (12 * rm));\n  }\n  if (eps <= 0 || r > 2.6 * rm) return 0;\n  const mi = S.mol[i], sm = mi !== 0 && mi === S.mol[j] && qa * qb > -0.06; // (softPair)\n  if (sm) eps *= 0.5;\n  const c = (sm ? 0.8 : 0.62) * rm, rr = r < c ? c : r;\n  const sr = rm / rr, s3 = sr * sr * sr, s6 = s3 * s3;\n  if (r < 0.8 * rm && r >= c) kStiff(eps * (156 * s6 * s6 - 84 * s6) / (rr * rr), i, j);\n  const cc = sm ? 0.45 * rm : c;\n  return 12 * eps * (s6 * s6 - s6) / rr + (r < cc ? coreFI(i, j, r, cc) : 0);\n}\nfunction metalFI(i, j, r) {\n  const rm = 0.5 * (S.mR[i] + S.mR[j]);\n  if (r > 2.1 * rm) return 0;\n  const D = Math.sqrt(S.mD[i] * S.mD[j]), al = 3.5 / rm;\n  const c = 0.6 * rm, rr = r < c ? c : r;\n  const e = Math.exp(-al * (rr - rm));\n  if (r < 0.85 * rm && r >= c) kStiff(2 * D * al * al * e * (2 * e - 1), i, j);\n  return -2 * D * al * (1 - e) * e + (r < c ? coreFI(i, j, r, c) : 0);\n}\n/* Matter–antimatter pair: Coulomb only, annihilation once the electron clouds or nuclei touch. */\nfunction antiPairI(i, j, r, CQ, nc) {\n  const qa = S.q[i] + S.qp[i], qb = S.q[j] + S.qp[j], ni = S.ne[i], nj = S.ne[j];\n  const soft = ni > 0 && nj > 0 ? 0.09 : (ni === 0 && nj === 0) ? 0.0016 : 0.04;\n  let f = 0;\n  if (qa !== 0 && qb !== 0) {\n    const s2 = r * r + soft; f = K_COUL * qa * qb * r / (s2 * Math.sqrt(s2));\n    if (r < 3) kStiff(K_COUL * Math.abs(qa * qb) * (Math.abs(soft - 2 * r * r) + s2) / (s2 * s2 * Math.sqrt(s2)), i, j);\n  }\n  const touch = ni > 0 && nj > 0 ? 0.5 * (S.ljR[i] + S.ljR[j]) : ni > 0 ? 0.55 * S.elrc[i] + 0.25 : nj > 0 ? 0.55 * S.elrc[j] + 0.25 : R_ANN;\n  if (r < touch) { CQ[nc] = CAND_ANTI; CQ[nc + 1] = i; CQ[nc + 2] = j; nc += 3; }\n  _kN = nc;\n  return f;\n}\nlet _kN = 0; // (candidates written so far, passed back from the helpers)\n/* All nucleus pairs q0 ≤ q < q1 of the neighbour list (pi, pj with exclusion marks ex): forces into FXo/FYo, candidates\n   into CQ from entry nc0 on (3 ints each). Returns the number of entries in CQ. */\nfunction pairKernel(pi, pj, ex, q0, q1, FXo, FYo, CQ, nc0, wrap, bw, bh, hw, hh, step) {\n  const X = S.x, Y = S.y, Z = S.Z, NE = S.ne, Q = S.q, QP = S.qp, ANTI = S.anti, ISM = S.isMetal, CAP = S.cap, USED = S.used, XD = S.xferD, XA = S.xferA, ID = S.id;\n  const LJR = S.ljR, VX = S.vx, VY = S.vy, M = S.m, ELRC = S.elrc, LP = S.lp, MET = S.metal, IONIC = S.ionic;\n  let nc = nc0;\n  for (let q = q0; q < q1; q++) {\n    const exq = ex[q];\n    if (exq === 1) continue;\n    const i = pi[q], j = pj[q];\n    let dx = X[j] - X[i], dy = Y[j] - Y[i];\n    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }\n    const r2 = dx * dx + dy * dy;\n    if (!(r2 < RC2 && r2 > 1e-10)) continue;\n    const Zi = Z[i], Zj = Z[j];\n    if (Zi === 0 || Zj === 0) continue; // neutrons fly straight\n    const r = Math.sqrt(r2), ni = NE[i], nj = NE[j];\n    let f = 0;\n    if (ANTI[i] !== ANTI[j]) { _kN = nc; f = antiPairI(i, j, r, CQ, nc); nc = _kN; }\n    else if (ni > 0 && nj > 0) { // two atoms or ions (atomAtom)\n      const qi = Q[i], qj = Q[j], qa = qi + QP[i], qb = qj + QP[j];\n      if (qa !== 0 && qb !== 0) { const s2 = r * r + 0.09; f += (IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? qj === 0 : qi === 0) ? K_IW : 1) * K_COUL * qa * qb * r / (s2 * Math.sqrt(s2)); } // (K_IW: an ion and a polar molecule)\n      if (ISM[i] === 1 && ISM[j] === 1) f += metalFI(i, j, r);\n      else {\n        f += ljFI(i, j, r, qa, qb);\n        const fa = CAP[i] - USED[i], fb = CAP[j] - USED[j];\n        if (fa > 0 && fb > 0) { if (r < 3.6) { CQ[nc] = CAND_BOND; CQ[nc + 1] = i; CQ[nc + 2] = j; nc += 3; } } // two radicals: a bond may form\n        else if ((fa > 0) !== (fb > 0) && r < 3.6) { CQ[nc] = CAND_REACT; CQ[nc + 1] = fa > 0 ? i : j; CQ[nc + 2] = fa > 0 ? j : i; nc += 3; } // a radical at a molecule: a reaction may run\n      }\n      // electron transfer (ionic bonding, charge exchange) — checked occasionally for candidate pairs\n      if (((XD[i] === 1 && XA[j] === 1) || (XD[j] === 1 && XA[i] === 1)) && (qi <= 0 || qj <= 0) && r < 5.5 && ((step + ID[i] + ID[j]) % 8 === 0)) { CQ[nc] = CAND_XFER; CQ[nc + 1] = i; CQ[nc + 2] = j; nc += 3; }\n      // energetic collisions can excite or ionize\n      const contact = 0.42 * (LJR[i] + LJR[j]);\n      if (r < contact) {\n        const dvx = VX[j] - VX[i], dvy = VY[j] - VY[i], v2 = dvx * dvx + dvy * dvy;\n        const mu = M[i] * M[j] / (M[i] + M[j]);\n        if (0.5 * mu * v2 > 1.4) { CQ[nc] = CAND_HOT; CQ[nc + 1] = i; CQ[nc + 2] = j; nc += 3; }\n      }\n    } else { // a bare nucleus meeting an atom, ion or another bare nucleus (bareInteract)\n      const bare = ni === 0 ? i : j, o = ni === 0 ? j : i;\n      const qa = Q[i] + QP[i], qb = Q[j] + QP[j];\n      if (qa !== 0 && qb !== 0) {\n        if (ni === 0 && nj === 0) {\n          const soft = 0.0016, s2 = r * r + soft; f += K_COUL * qa * qb * r / (s2 * Math.sqrt(s2));\n          if (r < 3 && qa * qb < 0) kStiff(K_COUL * Math.abs(qa * qb) * (Math.abs(soft - 2 * r * r) + s2) / (s2 * s2 * Math.sqrt(s2)), i, j);\n        } else {\n          f += K_COUL * qa * qb * (r >= BARE_SMEAR ? 1 / (r * r) : r / (BARE_SMEAR * BARE_SMEAR * BARE_SMEAR)); // (smearF)\n          if (r < 3 && qa * qb < 0) kStiff(K_COUL * Math.abs(qa * qb) * (r >= BARE_SMEAR ? 2 / (r * r * r) : 1 / (BARE_SMEAR * BARE_SMEAR * BARE_SMEAR)), i, j);\n        }\n      }\n      if (NE[o] > 0) {\n        const rc = ELRC[o], rw = 0.55 * rc + 0.25;\n        if (r < rw) f += 8 * (rw - r) / rw + coreFI(i, j, r, rw);\n        if (r < rc + 0.5) {\n          if (Z[bare] === 1 && LP[o] > 0 && MET[o] === 0) { CQ[nc] = CAND_DATIVE; CQ[nc + 1] = bare; CQ[nc + 2] = o; nc += 3; }\n          else if ((step + ID[i] + ID[j]) % 3 === 0) { CQ[nc] = CAND_XFERB; CQ[nc + 1] = o; CQ[nc + 2] = bare; nc += 3; }\n        }\n      }\n    }\n    if (f > FCAP) f = FCAP; else if (f < -FCAP) f = -FCAP;\n    const fx = f * dx / r, fy = f * dy / r;\n    FXo[j] += fx; FYo[j] += fy; FXo[i] -= fx; FYo[i] -= fy;\n  }\n  return nc;\n}\n/* The bonds b0 ≤ k < b1 (Morse): forces, and a break candidate where a bond is stretched past rb. */\nfunction bondKernel(b0, b1, FXo, FYo, CQ, nc, wrap, bw, bh, hw, hh) {\n  const X = S.x, Y = S.y, A = BD.a, B = BD.b, R0 = BD.r0, AL = BD.al, DD = BD.D, RB = BD.rb;\n  for (let k = b0; k < b1; k++) {\n    const i = A[k], j = B[k];\n    let dx = X[j] - X[i], dy = Y[j] - Y[i];\n    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }\n    const r = Math.sqrt(dx * dx + dy * dy) || 1e-6;\n    const d = r - R0[k], al = AL[k];\n    const e = Math.exp(-al * (d < -0.6 ? -0.6 : d));\n    let f = -2 * DD[k] * al * (1 - e) * e;\n    if (f > FCAP) f = FCAP; else if (f < -FCAP) f = -FCAP;\n    const fx = f * dx / r, fy = f * dy / r;\n    FXo[j] += fx; FYo[j] += fy; FXo[i] -= fx; FYo[i] -= fy;\n    if (d > RB[k]) { CQ[nc] = CAND_BREAK; CQ[nc + 1] = k; CQ[nc + 2] = 0; nc += 3; }\n  }\n  return nc;\n}\n/* The angle (VSEPR) terms of centres c0 ≤ c < c1 (AC: centre slot, neighbour slots, target angles). */\nconst _ang = new Float64Array(6), _rad = new Float64Array(6), _nbr = new Int32Array(6), _gap = new Float64Array(6), _tgt = new Float64Array(6), _ord = new Int32Array(6), _sn = new Float64Array(6), _cs = new Float64Array(6);\nconst _gi = new Int32Array(6), _ts = new Float64Array(6);\nfunction angleKernel(c0, c1, FXo, FYo, wrap, bw, bh, hw, hh) {\n  const X = S.x, Y = S.y, cs = AC.c, nbs = AC.nb, cnt = AC.cnt, tgs = AC.tg;\n  for (let c = c0; c < c1; c++) {\n    const pc = cs[c], n = cnt[c], px = X[pc], py = Y[pc], b0 = c * 6;\n    for (let i = 0; i < n; i++) {\n      const o = nbs[b0 + i];\n      let dx = X[o] - px, dy = Y[o] - py;\n      if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }\n      const rr = Math.sqrt(dx * dx + dy * dy); // (not Math.hypot: its overflow guard costs more than the whole centre)\n      _nbr[i] = o; _rad[i] = rr < 0.3 ? 0.3 : rr; _ord[i] = i;\n      if (rr > 0) { _sn[i] = dy / rr; _cs[i] = dx / rr; } else { _sn[i] = 0; _cs[i] = 1; } // (sin and cos of the bond's direction)\n      if (n > 2) _ang[i] = Math.atan2(dy, dx);\n    }\n    if (n === 2) { // two bonds: one angle between them, the common case (water, CO₂, every –CH₂– …), with no sorting\n      // the counter-clockwise angle from bond 0 to bond 1, in [0, 2π): the gap after bond 0; the other gap is the rest\n      let g = Math.atan2(_cs[0] * _sn[1] - _sn[0] * _cs[1], _cs[0] * _cs[1] + _sn[0] * _sn[1]);\n      if (g < 0) g += 2 * Math.PI;\n      const t0 = tgs[b0], t1 = tgs[b0 + 1], g1 = 2 * Math.PI - g;\n      const lo = t0 < t1 ? t0 : t1, hi = t0 < t1 ? t1 : t0;\n      const tg0 = g <= g1 ? lo : hi, tg1 = g <= g1 ? hi : lo; // targets matched to gaps by rank\n      const d = ANGLE_K * ((g1 - tg1) - (g - tg0)); // dE/dφ at bond 0; the opposite at bond 1\n      const F0 = -d / _rad[0], F1 = d / _rad[1];\n      const o0 = _nbr[0], o1 = _nbr[1];\n      const fx0 = -_sn[0] * F0, fy0 = _cs[0] * F0, fx1 = -_sn[1] * F1, fy1 = _cs[1] * F1;\n      FXo[o0] += fx0; FYo[o0] += fy0; FXo[o1] += fx1; FYo[o1] += fy1;\n      FXo[pc] -= fx0 + fx1; FYo[pc] -= fy0 + fy1;\n      continue;\n    }\n    // insertion sort by angle (n ≤ 6)\n    for (let i = 1; i < n; i++) { const v = _ord[i]; let j = i - 1; while (j >= 0 && _ang[_ord[j]] > _ang[v]) { _ord[j + 1] = _ord[j]; j--; } _ord[j + 1] = v; }\n    for (let k = 0; k < n; k++) {\n      const i = _ord[k], j = _ord[(k + 1) % n];\n      let g = _ang[j] - _ang[i]; if (k === n - 1) g += 2 * Math.PI;\n      _gap[k] = g; _gi[k] = k;\n    }\n    for (let k = 0; k < n; k++) _ts[k] = tgs[b0 + k];\n    // match targets to gaps by rank\n    for (let i = 1; i < n; i++) { const v = _gi[i]; let j = i - 1; while (j >= 0 && _gap[_gi[j]] > _gap[v]) { _gi[j + 1] = _gi[j]; j--; } _gi[j + 1] = v; }\n    for (let i = 1; i < n; i++) { const v = _ts[i]; let j = i - 1; while (j >= 0 && _ts[j] > v) { _ts[j + 1] = _ts[j]; j--; } _ts[j + 1] = v; }\n    for (let k = 0; k < n; k++) _tgt[_gi[k]] = _ts[k];\n    let cfx = 0, cfy = 0;\n    for (let k = 0; k < n; k++) {\n      const i = _ord[k];\n      const prev = (k - 1 + n) % n;\n      const dEdphi = ANGLE_K * ((_gap[prev] - _tgt[prev]) - (_gap[k] - _tgt[k]));\n      const Ft = -dEdphi / _rad[i];\n      const fx = -_sn[i] * Ft, fy = _cs[i] * Ft;\n      const o = _nbr[i];\n      FXo[o] += fx; FYo[o] += fy; cfx += fx; cfy += fy;\n    }\n    FXo[pc] -= cfx; FYo[pc] -= cfy;\n  }\n}\n";
+const PAIR_KERNEL_SRC = "/* ======================================================================== PAIR KERNEL BEGIN\n   The forces between two nuclei, atoms or ions (everything in pairForce's nucleus branch, with the stiffness note),\n   reading the store S alone — no particle objects — so the same text runs inside a Web Worker on the shared store.\n   Whatever needs the objects (the chemistry of an event) is not decided here: the kernel notes a *candidate*\n   (kind, i, j) in a queue, and the main thread turns candidates into events (evalCandidates), in the order they\n   were noted. Forces go to the output arrays FXo/FYo (the store's own fx/fy on one thread, a worker's buffer\n   otherwise); the stiffest contact met is left in _kStiff. Everything the kernel uses is defined inside the\n   markers or in the kernel prelude (KERNEL_GLOBALS). */\nconst CAND_BOND = 1, CAND_REACT = 2, CAND_XFER = 3, CAND_HOT = 4, CAND_ANTI = 5, CAND_DATIVE = 6, CAND_XFERB = 7, CAND_BREAK = 8; // (XFERB: bare nucleus and atom; BREAK: a bond, by its index)\nlet _kStiff = 0;\nfunction kStiff(k, i, j) { const w = k * (S.im[i] + S.im[j]); if (w > _kStiff) _kStiff = w; }\nfunction coreFI(i, j, r, c) { // repulsive force (positive outwards) of the screened-nuclear core inside the contact point c\n  if (r >= c) return 0;\n  const Zi = S.Z[i], Zj = S.Z[j], k = K_COUL * Zi * Zj, al = zblA(Zi, Zj), rr = r > CORE_RMIN ? r : CORE_RMIN;\n  kStiff(zblD2(k, al, rr), i, j);\n  return -(zblD(k, al, rr) - zblD(k, al, c));\n}\nfunction ljFI(i, j, r, qa, qb) { // Lennard-Jones with the Born wall, soft intramolecular wall and the core (ljPair, softPair, ljF)\n  const qi = S.q[i], qj = S.q[j], qq = qi * qj;\n  let rm, eps;\n  if (S.ionic[i] === 1 && S.ionic[j] === 1 && qq < 0) { rm = S.ionR[i] + S.ionR[j]; eps = K_COUL * Math.abs(qq) / (12 * rm); }\n  else {\n    rm = 0.5 * (S.ljR[i] + S.ljR[j]);\n    eps = S.ljS[i] * S.ljS[j];\n    if (qq < 0) eps = Math.max(eps, K_COUL * Math.abs(qq) / (12 * rm));\n  }\n  if (eps <= 0 || r > 2.6 * rm) return 0;\n  const mi = S.mol[i], sm = mi !== 0 && mi === S.mol[j] && qa * qb > -0.06; // (softPair)\n  if (sm) eps *= 0.5;\n  const c = (sm ? 0.8 : 0.62) * rm, rr = r < c ? c : r;\n  const sr = rm / rr, s3 = sr * sr * sr, s6 = s3 * s3;\n  if (r < 0.8 * rm && r >= c) kStiff(eps * (156 * s6 * s6 - 84 * s6) / (rr * rr), i, j);\n  const cc = sm ? 0.45 * rm : c;\n  return 12 * eps * (s6 * s6 - s6) / rr + (r < cc ? coreFI(i, j, r, cc) : 0);\n}\nfunction metalFI(i, j, r) {\n  const rm = 0.5 * (S.mR[i] + S.mR[j]);\n  if (r > 2.1 * rm) return 0;\n  const D = Math.sqrt(S.mD[i] * S.mD[j]), al = 3.5 / rm;\n  const c = 0.6 * rm, rr = r < c ? c : r;\n  const e = Math.exp(-al * (rr - rm));\n  if (r < 0.85 * rm && r >= c) kStiff(2 * D * al * al * e * (2 * e - 1), i, j);\n  return -2 * D * al * (1 - e) * e + (r < c ? coreFI(i, j, r, c) : 0);\n}\n/* Matter–antimatter pair: Coulomb only, annihilation once the electron clouds or nuclei touch. */\nfunction antiPairI(i, j, r, CQ, nc) {\n  const qa = S.q[i] + S.qp[i], qb = S.q[j] + S.qp[j], ni = S.ne[i], nj = S.ne[j];\n  const soft = ni > 0 && nj > 0 ? 0.09 : (ni === 0 && nj === 0) ? 0.0016 : 0.04;\n  let f = 0;\n  if (qa !== 0 && qb !== 0) {\n    const s2 = r * r + soft; f = K_COUL * qa * qb * r / (s2 * Math.sqrt(s2));\n    if (r < 3) kStiff(K_COUL * Math.abs(qa * qb) * (Math.abs(soft - 2 * r * r) + s2) / (s2 * s2 * Math.sqrt(s2)), i, j);\n  }\n  const touch = ni > 0 && nj > 0 ? 0.5 * (S.ljR[i] + S.ljR[j]) : ni > 0 ? 0.55 * S.elrc[i] + 0.25 : nj > 0 ? 0.55 * S.elrc[j] + 0.25 : R_ANN;\n  if (r < touch) { CQ[nc] = CAND_ANTI; CQ[nc + 1] = i; CQ[nc + 2] = j; nc += 3; }\n  _kN = nc;\n  return f;\n}\nlet _kN = 0; // (candidates written so far, passed back from the helpers)\n/* All nucleus pairs q0 ≤ q < q1 of the neighbour list (pi, pj with exclusion marks ex): forces into FXo/FYo, candidates\n   into CQ from entry nc0 on (3 ints each). Returns the number of entries in CQ. */\nfunction pairKernel(pi, pj, ex, q0, q1, FXo, FYo, CQ, nc0, wrap, bw, bh, hw, hh, step) {\n  const X = S.x, Y = S.y, Z = S.Z, NE = S.ne, Q = S.q, QP = S.qp, ANTI = S.anti, ISM = S.isMetal, CAP = S.cap, USED = S.used, XD = S.xferD, XA = S.xferA, ID = S.id;\n  const LJR = S.ljR, VX = S.vx, VY = S.vy, M = S.m, ELRC = S.elrc, LP = S.lp, MET = S.metal, IONIC = S.ionic;\n  let nc = nc0;\n  for (let q = q0; q < q1; q++) {\n    const exq = ex[q];\n    if (exq === 1) continue;\n    const i = pi[q], j = pj[q];\n    let dx = X[j] - X[i], dy = Y[j] - Y[i];\n    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }\n    const r2 = dx * dx + dy * dy;\n    if (!(r2 < RC2 && r2 > 1e-10)) continue;\n    const Zi = Z[i], Zj = Z[j];\n    if (Zi === 0 || Zj === 0) continue; // neutrons fly straight\n    const r = Math.sqrt(r2), ni = NE[i], nj = NE[j];\n    let f = 0;\n    if (ANTI[i] !== ANTI[j]) { _kN = nc; f = antiPairI(i, j, r, CQ, nc); nc = _kN; }\n    else if (ni > 0 && nj > 0) { // two atoms or ions (atomAtom)\n      const qi = Q[i], qj = Q[j], qa = qi + QP[i], qb = qj + QP[j];\n      if (qa !== 0 && qb !== 0) { const s2 = r * r + 0.09; f += (IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? qj === 0 : qi === 0) ? K_IW : 1) * K_COUL * qa * qb * r / (s2 * Math.sqrt(s2)); } // (K_IW: an ion and a polar molecule)\n      if (ISM[i] === 1 && ISM[j] === 1) f += metalFI(i, j, r);\n      else {\n        f += ljFI(i, j, r, qa, qb);\n        const fa = CAP[i] - USED[i], fb = CAP[j] - USED[j];\n        if (fa > 0 && fb > 0) { if (r < 3.6) { CQ[nc] = CAND_BOND; CQ[nc + 1] = i; CQ[nc + 2] = j; nc += 3; } } // two radicals: a bond may form\n        else if ((fa > 0) !== (fb > 0) && r < 3.6) { CQ[nc] = CAND_REACT; CQ[nc + 1] = fa > 0 ? i : j; CQ[nc + 2] = fa > 0 ? j : i; nc += 3; } // a radical at a molecule: a reaction may run\n      }\n      // electron transfer (ionic bonding, charge exchange) — checked occasionally for candidate pairs\n      if (((XD[i] === 1 && XA[j] === 1) || (XD[j] === 1 && XA[i] === 1)) && (qi <= 0 || qj <= 0) && r < 5.5 && ((step + ID[i] + ID[j]) % 8 === 0)) { CQ[nc] = CAND_XFER; CQ[nc + 1] = i; CQ[nc + 2] = j; nc += 3; }\n      // energetic collisions can excite or ionize\n      const contact = 0.42 * (LJR[i] + LJR[j]);\n      if (r < contact) {\n        const dvx = VX[j] - VX[i], dvy = VY[j] - VY[i], v2 = dvx * dvx + dvy * dvy;\n        const mu = M[i] * M[j] / (M[i] + M[j]);\n        if (0.5 * mu * v2 > 1.4) { CQ[nc] = CAND_HOT; CQ[nc + 1] = i; CQ[nc + 2] = j; nc += 3; }\n      }\n    } else { // a bare nucleus meeting an atom, ion or another bare nucleus (bareInteract)\n      const bare = ni === 0 ? i : j, o = ni === 0 ? j : i;\n      const qa = Q[i] + QP[i], qb = Q[j] + QP[j];\n      if (qa !== 0 && qb !== 0) {\n        if (ni === 0 && nj === 0) {\n          const soft = 0.0016, s2 = r * r + soft; f += K_COUL * qa * qb * r / (s2 * Math.sqrt(s2));\n          if (r < 3 && qa * qb < 0) kStiff(K_COUL * Math.abs(qa * qb) * (Math.abs(soft - 2 * r * r) + s2) / (s2 * s2 * Math.sqrt(s2)), i, j);\n        } else {\n          f += K_COUL * qa * qb * (r >= BARE_SMEAR ? 1 / (r * r) : r / (BARE_SMEAR * BARE_SMEAR * BARE_SMEAR)); // (smearF)\n          if (r < 3 && qa * qb < 0) kStiff(K_COUL * Math.abs(qa * qb) * (r >= BARE_SMEAR ? 2 / (r * r * r) : 1 / (BARE_SMEAR * BARE_SMEAR * BARE_SMEAR)), i, j);\n        }\n      }\n      if (NE[o] > 0) {\n        const rc = ELRC[o], rw = 0.55 * rc + 0.25;\n        if (r < rw) f += 8 * (rw - r) / rw + coreFI(i, j, r, rw);\n        if (r < rc + 0.5) {\n          if (Z[bare] === 1 && LP[o] > 0 && MET[o] === 0) { CQ[nc] = CAND_DATIVE; CQ[nc + 1] = bare; CQ[nc + 2] = o; nc += 3; }\n          else if ((step + ID[i] + ID[j]) % 3 === 0) { CQ[nc] = CAND_XFERB; CQ[nc + 1] = o; CQ[nc + 2] = bare; nc += 3; }\n        }\n      }\n    }\n    if (f > FCAP) f = FCAP; else if (f < -FCAP) f = -FCAP;\n    const fx = f * dx / r, fy = f * dy / r;\n    FXo[j] += fx; FYo[j] += fy; FXo[i] -= fx; FYo[i] -= fy;\n  }\n  return nc;\n}\n/* The bonds b0 ≤ k < b1 (Morse): forces, and a break candidate where a bond is stretched past rb. */\nfunction bondKernel(b0, b1, FXo, FYo, CQ, nc, wrap, bw, bh, hw, hh) {\n  const X = S.x, Y = S.y, A = BD.a, B = BD.b, R0 = BD.r0, AL = BD.al, DD = BD.D, RB = BD.rb;\n  for (let k = b0; k < b1; k++) {\n    const i = A[k], j = B[k];\n    let dx = X[j] - X[i], dy = Y[j] - Y[i];\n    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }\n    const r = Math.sqrt(dx * dx + dy * dy) || 1e-6;\n    const d = r - R0[k], al = AL[k];\n    const e = Math.exp(-al * (d < -0.6 ? -0.6 : d));\n    let f = -2 * DD[k] * al * (1 - e) * e;\n    if (f > FCAP) f = FCAP; else if (f < -FCAP) f = -FCAP;\n    const fx = f * dx / r, fy = f * dy / r;\n    FXo[j] += fx; FYo[j] += fy; FXo[i] -= fx; FYo[i] -= fy;\n    if (d > RB[k]) { CQ[nc] = CAND_BREAK; CQ[nc + 1] = k; CQ[nc + 2] = 0; nc += 3; }\n  }\n  return nc;\n}\n/* The angle (VSEPR) terms of centres c0 ≤ c < c1 (AC: centre slot, neighbour slots, target angles). */\nconst _ang = new Float64Array(6), _rad = new Float64Array(6), _nbr = new Int32Array(6), _gap = new Float64Array(6), _tgt = new Float64Array(6), _ord = new Int32Array(6), _sn = new Float64Array(6), _cs = new Float64Array(6);\nconst _gi = new Int32Array(6), _ts = new Float64Array(6);\nfunction angleKernel(c0, c1, FXo, FYo, wrap, bw, bh, hw, hh) {\n  const X = S.x, Y = S.y, cs = AC.c, nbs = AC.nb, cnt = AC.cnt, tgs = AC.tg;\n  for (let c = c0; c < c1; c++) {\n    const pc = cs[c], n = cnt[c], px = X[pc], py = Y[pc], b0 = c * 6;\n    for (let i = 0; i < n; i++) {\n      const o = nbs[b0 + i];\n      let dx = X[o] - px, dy = Y[o] - py;\n      if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }\n      const rr = Math.sqrt(dx * dx + dy * dy); // (not Math.hypot: its overflow guard costs more than the whole centre)\n      _nbr[i] = o; _rad[i] = rr < 0.3 ? 0.3 : rr; _ord[i] = i;\n      if (rr > 0) { _sn[i] = dy / rr; _cs[i] = dx / rr; } else { _sn[i] = 0; _cs[i] = 1; } // (sin and cos of the bond's direction)\n      if (n > 2) _ang[i] = Math.atan2(dy, dx);\n    }\n    if (n === 2) { // two bonds: one angle between them, the common case (water, CO₂, every –CH₂– …), with no sorting\n      // the counter-clockwise angle from bond 0 to bond 1, in [0, 2π): the gap after bond 0; the other gap is the rest\n      let g = Math.atan2(_cs[0] * _sn[1] - _sn[0] * _cs[1], _cs[0] * _cs[1] + _sn[0] * _sn[1]);\n      if (g < 0) g += 2 * Math.PI;\n      const t0 = tgs[b0], t1 = tgs[b0 + 1], g1 = 2 * Math.PI - g;\n      const lo = t0 < t1 ? t0 : t1, hi = t0 < t1 ? t1 : t0;\n      const tg0 = g <= g1 ? lo : hi, tg1 = g <= g1 ? hi : lo; // targets matched to gaps by rank\n      const d = ANGLE_K * ((g1 - tg1) - (g - tg0)); // dE/dφ at bond 0; the opposite at bond 1\n      const F0 = -d / _rad[0], F1 = d / _rad[1];\n      const o0 = _nbr[0], o1 = _nbr[1];\n      const fx0 = -_sn[0] * F0, fy0 = _cs[0] * F0, fx1 = -_sn[1] * F1, fy1 = _cs[1] * F1;\n      FXo[o0] += fx0; FYo[o0] += fy0; FXo[o1] += fx1; FYo[o1] += fy1;\n      FXo[pc] -= fx0 + fx1; FYo[pc] -= fy0 + fy1;\n      continue;\n    }\n    // insertion sort by angle (n ≤ 6)\n    for (let i = 1; i < n; i++) { const v = _ord[i]; let j = i - 1; while (j >= 0 && _ang[_ord[j]] > _ang[v]) { _ord[j + 1] = _ord[j]; j--; } _ord[j + 1] = v; }\n    for (let k = 0; k < n; k++) {\n      const i = _ord[k], j = _ord[(k + 1) % n];\n      let g = _ang[j] - _ang[i]; if (k === n - 1) g += 2 * Math.PI;\n      _gap[k] = g; _gi[k] = k;\n    }\n    for (let k = 0; k < n; k++) _ts[k] = tgs[b0 + k];\n    // match targets to gaps by rank\n    for (let i = 1; i < n; i++) { const v = _gi[i]; let j = i - 1; while (j >= 0 && _gap[_gi[j]] > _gap[v]) { _gi[j + 1] = _gi[j]; j--; } _gi[j + 1] = v; }\n    for (let i = 1; i < n; i++) { const v = _ts[i]; let j = i - 1; while (j >= 0 && _ts[j] > v) { _ts[j + 1] = _ts[j]; j--; } _ts[j + 1] = v; }\n    for (let k = 0; k < n; k++) _tgt[_gi[k]] = _ts[k];\n    let cfx = 0, cfy = 0;\n    for (let k = 0; k < n; k++) {\n      const i = _ord[k];\n      const prev = (k - 1 + n) % n;\n      const dEdphi = ANGLE_K * ((_gap[prev] - _tgt[prev]) - (_gap[k] - _tgt[k]));\n      const Ft = -dEdphi / _rad[i];\n      const fx = -_sn[i] * Ft, fy = _cs[i] * Ft;\n      const o = _nbr[i];\n      FXo[o] += fx; FYo[o] += fy; cfx += fx; cfy += fy;\n    }\n    FXo[pc] -= cfx; FYo[pc] -= cfy;\n  }\n}\n/* ---- The 3-D kernels (stage 4: inside the markers, so that the worker threads run them too; kernel/src/d3.rs has\n   them in Rust, af_forces3). The same physics as the pair, bond and angle kernels with distances and forces in three\n   directions. pairKernel3 is pairKernel line for line with z added; keep the two the same. The bond angles in 3-D are\n   described with vsepr3 (outside the markers, with the per-centre targets AC3 that the kernels read). */\nfunction pairKernel3(pi, pj, ex, q0, q1, FXo, FYo, FZo, CQ, nc0, wrap, bw, bh, bd, hw, hh, hd, step) {\n  const X = S.x, Y = S.y, Zp = S.z, VZ = S.vz, Z = S.Z, NE = S.ne, Q = S.q, QP = S.qp, ANTI = S.anti, ISM = S.isMetal, CAP = S.cap, USED = S.used, XD = S.xferD, XA = S.xferA, ID = S.id;\n  const LJR = S.ljR, VX = S.vx, VY = S.vy, M = S.m, ELRC = S.elrc, LP = S.lp, MET = S.metal, IONIC = S.ionic;\n  let nc = nc0;\n  for (let q = q0; q < q1; q++) {\n    const exq = ex[q];\n    if (exq === 1) continue;\n    const i = pi[q], j = pj[q];\n    let dx = X[j] - X[i], dy = Y[j] - Y[i], dz = Zp[j] - Zp[i];\n    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; }\n    const r2 = dx * dx + dy * dy + dz * dz;\n    if (!(r2 < RC2 && r2 > 1e-10)) continue;\n    const Zi = Z[i], Zj = Z[j];\n    if (Zi === 0 || Zj === 0) continue; // neutrons fly straight\n    const r = Math.sqrt(r2), ni = NE[i], nj = NE[j];\n    let f = 0;\n    if (ANTI[i] !== ANTI[j]) { _kN = nc; f = antiPairI(i, j, r, CQ, nc); nc = _kN; }\n    else if (ni > 0 && nj > 0) { // two atoms or ions (atomAtom)\n      const qi = Q[i], qj = Q[j], qa = qi + QP[i], qb = qj + QP[j];\n      if (qa !== 0 && qb !== 0) { const s2 = r * r + 0.09; f += (IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? qj === 0 : qi === 0) ? K_IW : 1) * K_COUL * qa * qb * r / (s2 * Math.sqrt(s2)); } // (K_IW: an ion and a polar molecule)\n      if (ISM[i] === 1 && ISM[j] === 1) f += metalFI(i, j, r);\n      else {\n        f += ljFI(i, j, r, qa, qb);\n        const fa = CAP[i] - USED[i], fb = CAP[j] - USED[j];\n        if (fa > 0 && fb > 0) { if (r < 3.6) { CQ[nc] = CAND_BOND; CQ[nc + 1] = i; CQ[nc + 2] = j; nc += 3; } } // two radicals: a bond may form\n        else if ((fa > 0) !== (fb > 0) && r < 3.6) { CQ[nc] = CAND_REACT; CQ[nc + 1] = fa > 0 ? i : j; CQ[nc + 2] = fa > 0 ? j : i; nc += 3; } // a radical at a molecule: a reaction may run\n      }\n      // electron transfer (ionic bonding, charge exchange) — checked occasionally for candidate pairs\n      if (((XD[i] === 1 && XA[j] === 1) || (XD[j] === 1 && XA[i] === 1)) && (qi <= 0 || qj <= 0) && r < 5.5 && ((step + ID[i] + ID[j]) % 8 === 0)) { CQ[nc] = CAND_XFER; CQ[nc + 1] = i; CQ[nc + 2] = j; nc += 3; }\n      // energetic collisions can excite or ionize\n      const contact = 0.42 * (LJR[i] + LJR[j]);\n      if (r < contact) {\n        const dvx = VX[j] - VX[i], dvy = VY[j] - VY[i], dvz = VZ[j] - VZ[i], v2 = dvx * dvx + dvy * dvy + dvz * dvz;\n        const mu = M[i] * M[j] / (M[i] + M[j]);\n        if (0.5 * mu * v2 > 1.4) { CQ[nc] = CAND_HOT; CQ[nc + 1] = i; CQ[nc + 2] = j; nc += 3; }\n      }\n    } else { // a bare nucleus meeting an atom, ion or another bare nucleus (bareInteract)\n      const bare = ni === 0 ? i : j, o = ni === 0 ? j : i;\n      const qa = Q[i] + QP[i], qb = Q[j] + QP[j];\n      if (qa !== 0 && qb !== 0) {\n        if (ni === 0 && nj === 0) {\n          const soft = 0.0016, s2 = r * r + soft; f += K_COUL * qa * qb * r / (s2 * Math.sqrt(s2));\n          if (r < 3 && qa * qb < 0) kStiff(K_COUL * Math.abs(qa * qb) * (Math.abs(soft - 2 * r * r) + s2) / (s2 * s2 * Math.sqrt(s2)), i, j);\n        } else {\n          f += K_COUL * qa * qb * (r >= BARE_SMEAR ? 1 / (r * r) : r / (BARE_SMEAR * BARE_SMEAR * BARE_SMEAR)); // (smearF)\n          if (r < 3 && qa * qb < 0) kStiff(K_COUL * Math.abs(qa * qb) * (r >= BARE_SMEAR ? 2 / (r * r * r) : 1 / (BARE_SMEAR * BARE_SMEAR * BARE_SMEAR)), i, j);\n        }\n      }\n      if (NE[o] > 0) {\n        const rc = ELRC[o], rw = 0.55 * rc + 0.25;\n        if (r < rw) f += 8 * (rw - r) / rw + coreFI(i, j, r, rw);\n        if (r < rc + 0.5) {\n          if (Z[bare] === 1 && LP[o] > 0 && MET[o] === 0) { CQ[nc] = CAND_DATIVE; CQ[nc + 1] = bare; CQ[nc + 2] = o; nc += 3; }\n          else if ((step + ID[i] + ID[j]) % 3 === 0) { CQ[nc] = CAND_XFERB; CQ[nc + 1] = o; CQ[nc + 2] = bare; nc += 3; }\n        }\n      }\n    }\n    if (f > FCAP) f = FCAP; else if (f < -FCAP) f = -FCAP;\n    const fx = f * dx / r, fy = f * dy / r, fz = f * dz / r;\n    FXo[j] += fx; FYo[j] += fy; FZo[j] += fz; FXo[i] -= fx; FYo[i] -= fy; FZo[i] -= fz;\n  }\n  return nc;\n}\n/* The bonds (Morse) in 3-D: bondKernel with z. */\nfunction bondKernel3(b0, b1, FXo, FYo, FZo, CQ, nc, wrap, bw, bh, bd, hw, hh, hd) {\n  const X = S.x, Y = S.y, Zp = S.z, A = BD.a, B = BD.b, R0 = BD.r0, AL = BD.al, DD = BD.D, RB = BD.rb;\n  for (let k = b0; k < b1; k++) {\n    const i = A[k], j = B[k];\n    let dx = X[j] - X[i], dy = Y[j] - Y[i], dz = Zp[j] - Zp[i];\n    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; }\n    const r = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;\n    const d = r - R0[k], al = AL[k];\n    const e = Math.exp(-al * (d < -0.6 ? -0.6 : d));\n    let f = -2 * DD[k] * al * (1 - e) * e;\n    if (f > FCAP) f = FCAP; else if (f < -FCAP) f = -FCAP;\n    const fx = f * dx / r, fy = f * dy / r, fz = f * dz / r;\n    FXo[j] += fx; FYo[j] += fy; FZo[j] += fz; FXo[i] -= fx; FYo[i] -= fy; FZo[i] -= fz;\n    if (d > RB[k]) { CQ[nc] = CAND_BREAK; CQ[nc + 1] = k; CQ[nc + 2] = 0; nc += 3; }\n  }\n  return nc;\n}\n\nconst K_OOP = 2.0, K_TOR = 1.2;\nconst K3_DIV = [1, 1, 1, 2, 1.5, 2, 2];\nconst _a3x = new Float64Array(6), _a3y = new Float64Array(6), _a3z = new Float64Array(6), _a3r = new Float64Array(6), _a3n = new Int32Array(6);\n/* The box the 3-D angle terms take minimum images in (KB3: set by the kernel's caller; angle3Centre and triple3 outside\n   the markers set it from W), and the vector from slot i to slot j in it, into _kv3. */\nconst KB3 = { wrap: false, bw: 0, bh: 0, bd: 0 };\nconst _kv3 = [0, 0, 0];\nfunction kvec3(i, j) {\n  let dx = S.x[j] - S.x[i], dy = S.y[j] - S.y[i], dz = S.z[j] - S.z[i];\n  if (KB3.wrap) { const bw = KB3.bw, bh = KB3.bh, bd = KB3.bd;\n    if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw; if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh; if (dz > bd / 2) dz -= bd; else if (dz < -bd / 2) dz += bd; }\n  _kv3[0] = dx; _kv3[1] = dy; _kv3[2] = dz; return _kv3;\n}\n/* The angle terms of one centre (slot pc, neighbour slots nb[0 … n−1]): returns their energy, and adds their forces to\n   FX/FY/FZ when given. The same function gives the kernel its forces and angleEnergy its energy. */\nfunction angle3CentreK(pc, nb, n, mode, t0, flat, FX, FY, FZ) {\n  const ux = _a3x, uy = _a3y, uz = _a3z, rr = _a3r, K = ANGLE_K / K3_DIV[n];\n  for (let k = 0; k < n; k++) {\n    const v = kvec3(pc, nb[k]), r = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) || 1e-9;\n    ux[k] = v[0] / r; uy[k] = v[1] / r; uz[k] = v[2] / r; rr[k] = r;\n  }\n  // every pair's cos θ and θ (atan2 of the cross product's length: exact at every angle)\n  const PC = _apc, PT = _apt, PE = _ape, TG = _atg;\n  let np = 0;\n  for (let k = 0; k < n; k++) for (let l = k + 1; l < n; l++) {\n    const c = ux[k] * ux[l] + uy[k] * uy[l] + uz[k] * uz[l];\n    const cx = uy[k] * uz[l] - uz[k] * uy[l], cy = uz[k] * ux[l] - ux[k] * uz[l], cz = ux[k] * uy[l] - uy[k] * ux[l];\n    PC[np] = c; PT[np] = Math.atan2(Math.sqrt(cx * cx + cy * cy + cz * cz), c); np++;\n  }\n  // each pair's target (TG: 0 → t0, 1 → 90°, 2 → 120°, 3 → 180°)\n  if (mode === 0) TG.fill(0, 0, np);\n  else if (mode === 2) { for (let q = 0; q < np; q++) TG[q] = pairAngE(K, PT[q], PC[q], Math.PI) <= pairAngE(K, PT[q], PC[q], A90) ? 3 : 1; } // (each pair the nearer of 90° and 180°)\n  else { // 3: two bonds axial, the rest equatorial (of a trigonal bipyramid); 4: the bonds in two trans pairs (square planar). The assignment of lowest energy, so the energy is continuous where two cross\n    for (let q = 0; q < np; q++) { PE[3 * q] = pairAngE(K, PT[q], PC[q], A90); PE[3 * q + 1] = pairAngE(K, PT[q], PC[q], A120); PE[3 * q + 2] = pairAngE(K, PT[q], PC[q], Math.PI); }\n    let best = Infinity, bk = 0, bl = 0;\n    if (mode === 3) {\n      for (let a = 0; a < n; a++) for (let b2 = a + 1; b2 < n; b2++) {\n        let e = 0, q = 0;\n        for (let k = 0; k < n; k++) for (let l = k + 1; l < n; l++, q++) { const ax = (k === a || k === b2 ? 1 : 0) + (l === a || l === b2 ? 1 : 0); e += PE[3 * q + (ax === 2 ? 2 : ax === 1 ? 0 : 1)]; }\n        if (e < best) { best = e; bk = a; bl = b2; }\n      }\n      let q = 0;\n      for (let k = 0; k < n; k++) for (let l = k + 1; l < n; l++, q++) { const ax = (k === bk || k === bl ? 1 : 0) + (l === bk || l === bl ? 1 : 0); TG[q] = ax === 2 ? 3 : ax === 1 ? 1 : 2; }\n    } else { // (n = 4) partner of bond 0: 1, 2 or 3; the other two the second trans pair\n      for (let m = 1; m < 4; m++) {\n        let e = 0, q = 0;\n        for (let k = 0; k < 4; k++) for (let l = k + 1; l < 4; l++, q++) e += PE[3 * q + (transPair(k, l, m) ? 2 : 0)];\n        if (e < best) { best = e; bk = m; }\n      }\n      let q = 0;\n      for (let k = 0; k < 4; k++) for (let l = k + 1; l < 4; l++, q++) TG[q] = transPair(k, l, bk) ? 3 : 1;\n    }\n  }\n  let E = 0, cfx = 0, cfy = 0, cfz = 0, q = 0;\n  for (let k = 0; k < n; k++) for (let l = k + 1; l < n; l++, q++) {\n    const c = PC[q], tg = TG[q];\n    E += pairAngE(K, PT[q], c, tg === 0 ? t0 : tg === 1 ? A90 : tg === 2 ? A120 : Math.PI);\n    const g = _pg; // (the force on bond k is g/r_k·(u_l − c·u_k), on bond l likewise)\n    if (FX && g !== 0) {\n      const ak = g / rr[k], al = g / rr[l];\n      const fkx = ak * (ux[l] - c * ux[k]), fky = ak * (uy[l] - c * uy[k]), fkz = ak * (uz[l] - c * uz[k]);\n      const flx = al * (ux[k] - c * ux[l]), fly = al * (uy[k] - c * uy[l]), flz = al * (uz[k] - c * uz[l]);\n      const ok = nb[k], ol = nb[l];\n      FX[ok] += fkx; FY[ok] += fky; FZ[ok] += fkz; FX[ol] += flx; FY[ol] += fly; FZ[ol] += flz;\n      cfx += fkx + flx; cfy += fky + fly; cfz += fkz + flz;\n    }\n  }\n  if (FX) { FX[pc] -= cfx; FY[pc] -= cfy; FZ[pc] -= cfz; }\n  if (flat && n === 3) E += triple3K(pc, nb[0], pc, nb[1], pc, nb[2], K_OOP, FX, FY, FZ);\n  return E;\n}\nconst A90 = Math.PI / 2, A120 = 2 * Math.PI / 3;\nconst _apc = new Float64Array(15), _apt = new Float64Array(15), _ape = new Float64Array(45), _atg = new Uint8Array(15);\nfunction transPair(k, l, m) { return (k === 0 && l === m) || (k !== 0 && l !== m && k !== m); } // (bonds 0 and m trans, the other two trans)\n/* One pair's term at angle θ (cos θ = c) for the target t: about a bent target the cosine form (K/sin²t)·(cos θ − cos t)²,\n   as stiff as K(θ − t)² at its minimum and free of that form's false minima (four bonds all bent to one side, an\n   umbrella, is a local minimum of ΣK(θ − θ₀)², 1.33 K above the tetrahedron, which a flat CH₄ relaxed into; of the\n   cosine form it is a saddle); about 180° the angle form K(θ − π)², which the cosine form would make quartic, with\n   its slope over sin θ finite at 180°. Returns the energy; _pg: the factor g for the forces. */\nlet _pg = 0;\nfunction pairAngE(K, th, c, t) {\n  if (t > 3.14159) { const d = th - Math.PI, s = Math.sin(th); _pg = s > 1e-9 ? 2 * K * d / s : -2 * K; return K * d * d; } // (d/sin θ → −1 at 180°)\n  const st = Math.sin(t), Kc = K / (st * st), dc = c - Math.cos(t);\n  _pg = -2 * Kc * dc; return Kc * dc * dc;\n}\n/* E = Kt·(û₁·û₂×û₃)² for the three vectors b_k = x[k1] − x[k0] (minimum image): returns E, adds the forces when FX is\n   given. An improper has all three from the centre; a dihedral X–A–B–Y is the chain X→A, A→B, B→Y. */\nconst _tb = new Float64Array(9), _tl = new Float64Array(3);\nfunction triple3K(i0, i1, j0, j1, k0, k1, Kt, FX, FY, FZ) {\n  const b = _tb, L = _tl, ends = [i0, i1, j0, j1, k0, k1];\n  for (let m = 0; m < 3; m++) {\n    const v = kvec3(ends[2 * m], ends[2 * m + 1]), l = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) || 1e-9;\n    b[3 * m] = v[0] / l; b[3 * m + 1] = v[1] / l; b[3 * m + 2] = v[2] / l; L[m] = l;\n  }\n  const g1x = b[4] * b[8] - b[5] * b[7], g1y = b[5] * b[6] - b[3] * b[8], g1z = b[3] * b[7] - b[4] * b[6]; // u₂×u₃\n  const T = b[0] * g1x + b[1] * g1y + b[2] * g1z;\n  if (FX) {\n    const g2x = b[7] * b[2] - b[8] * b[1], g2y = b[8] * b[0] - b[6] * b[2], g2z = b[6] * b[1] - b[7] * b[0]; // u₃×u₁\n    const g3x = b[1] * b[5] - b[2] * b[4], g3y = b[2] * b[3] - b[0] * b[5], g3z = b[0] * b[4] - b[1] * b[3]; // u₁×u₂\n    const gx = [g1x, g2x, g3x], gy = [g1y, g2y, g3y], gz = [g1z, g2z, g3z], w = 2 * Kt * T;\n    for (let m = 0; m < 3; m++) { // dE/db_m = 2KtT·(g_m − T·u_m)/|b_m|: minus it on the far end, plus it on the near end\n      const a = w / L[m], Gx = a * (gx[m] - T * b[3 * m]), Gy = a * (gy[m] - T * b[3 * m + 1]), Gz = a * (gz[m] - T * b[3 * m + 2]);\n      const n0 = ends[2 * m], n1 = ends[2 * m + 1];\n      FX[n1] -= Gx; FY[n1] -= Gy; FZ[n1] -= Gz; FX[n0] += Gx; FY[n0] += Gy; FZ[n0] += Gz;\n    }\n  }\n  return Kt * T * T;\n}\nconst _nb3 = new Int32Array(6);\n/* The angle terms of centres c0 ≤ c < c1 (AC, with AC3's targets) and the dihedrals t0 ≤ t < t1 (AC3.tq), in 3-D. */\nfunction angleKernel3(c0, c1, t0, t1, FX, FY, FZ, wrap, bw, bh, bd) {\n  KB3.wrap = wrap; KB3.bw = bw; KB3.bh = bh; KB3.bd = bd;\n  const cs = AC.c, nbs = AC.nb, cnt = AC.cnt, MODE = AC3.mode, T0 = AC3.t0, FLAT = AC3.flat;\n  for (let c = c0; c < c1; c++) {\n    const n = cnt[c], b0 = c * 6;\n    for (let k = 0; k < n; k++) _nb3[k] = nbs[b0 + k];\n    angle3CentreK(cs[c], _nb3, n, MODE[c], T0[c], FLAT[c], FX, FY, FZ);\n  }\n  const tq = AC3.tq;\n  for (let t = t0; t < t1; t++) { const X = tq[4 * t], A = tq[4 * t + 1], B = tq[4 * t + 2], Y = tq[4 * t + 3]; triple3K(X, A, A, B, B, Y, K_TOR, FX, FY, FZ); }\n}\n";

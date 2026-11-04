@@ -21,7 +21,7 @@
    can have workers at all; elsewhere (a page that is not cross-origin isolated) they are ordinary arrays. */
 const SHARED_OK = typeof SharedArrayBuffer !== 'undefined' && typeof Worker !== 'undefined' && (typeof crossOriginIsolated === 'undefined' || crossOriginIsolated);
 const WK = { on: false, use: true, ready: false, mem: null, module: null, inst: null, ex: null, top: 0, desc: null, ks: null, sumTab: null,
-  note: '', bytes: null, grows: 0, allocs: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0, plain: false, PLAIN_PAGES: 2048, useFast: true, ft: null, fks: null, fc: null, fcr: null, fastCalls: 0 }; // (plain: an ordinary memory of PLAIN_PAGES × 64 KB = 128 MB, never grown)
+  note: '', bytes: null, grows: 0, allocs: 0, has3: false, note3: '', calls3: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0, plain: false, PLAIN_PAGES: 2048, useFast: true, ft: null, fks: null, fc: null, fcr: null, fastCalls: 0 }; // (plain: an ordinary memory of PLAIN_PAGES × 64 KB = 128 MB, never grown)
 const WK_PAGE = 65536;
 /* Base64 to bytes (no atob in every worker-less environment; this is small and runs once). */
 function wasmBytes(b64) {
@@ -89,6 +89,16 @@ function wasmInstantiate() {
     // (36: the kernel's 6 Å cutoff, squared; a longer reach chosen in Experimental runs the JavaScript instead, setCutoff)
     for (let k = 0; k < want.length; k++) if (ex.af_const(k) !== want[k]) throw new Error('constant ' + k + ' differs: ' + ex.af_const(k) + ' vs ' + want[k]);
     WK.desc = wasmArray(Int32Array, 64); WK.ks = wasmArray(Float64Array, 8); WK.sumTab = wasmArray(Uint32Array, 64);
+    // the 3-D kernels (af_forces3, kernel 0.26 on): a module without them, or with other 3-D constants, leaves 3-D to the
+    // JavaScript (the 2-D kernels are used as before)
+    WK.has3 = false;
+    if (typeof ex.af_forces3 !== 'function') WK.note3 = 'no af_forces3 in this module';
+    else {
+      const want3 = [46, K_OOP, K_TOR, ...K3_DIV]; let bad = -1;
+      for (let k = 0; k < want3.length; k++) if (ex.af_const(8 + k) !== want3[k]) { bad = k; break; }
+      if (bad >= 0) WK.note3 = '3-D constant ' + (8 + bad) + ' differs: ' + ex.af_const(8 + bad) + ' vs ' + want3[bad];
+      else { WK.has3 = true; WK.note3 = 'ready'; }
+    }
     WK.ready = true; WK.note = 'ready';
     if (typeof _sharedGen === 'number') _sharedGen++; // (worker threads started before the module was ready are bound again, now with it)
   } catch (e) { WK.note = 'instantiate: ' + (e.message || e); WK.ready = false; WK.inst = null; WK.ex = null; }
@@ -108,6 +118,20 @@ function wasmDesc() {
   d[36] = AC.c.byteOffset; d[37] = AC.nb.byteOffset; d[38] = AC.cnt.byteOffset; d[39] = AC.tg.byteOffset;
 }
 function wasmReady() { return WK.ready && WK.use; }
+/* The 3-D kernels (af_forces3): descriptor entries 40–45 hold the z positions and velocities, and AC3's per-centre
+   targets and dihedral list (engine.js angleCentres3), all in the module's memory. */
+function wasm3Ready() { return WK.ready && WK.use && WK.has3; }
+function wasmDesc3() {
+  const d = WK.desc;
+  d[40] = S.z.byteOffset; d[41] = S.vz.byteOffset; d[42] = AC3.mode.byteOffset; d[43] = AC3.t0.byteOffset; d[44] = AC3.flat.byteOffset; d[45] = AC3.tq.byteOffset;
+}
+/* One 3-D force pass over the given ranges (pairs, bonds, angle centres, dihedrals) on this thread; both descriptors must
+   be current. Forces into FXo/FYo/FZo, candidates into CQ, the stiffest contact into _kStiff. */
+function wasmForces3(q0, q1, b0, b1, c0, c1, t0, t1, FXo, FYo, FZo, CQ, wrap, bw, bh, bd, hw, hh, hd, step) {
+  const nc = WK.ex.af_forces3(WK.desc.byteOffset, q0, q1, b0, b1, c0, c1, t0, t1, FXo.byteOffset, FYo.byteOffset, FZo.byteOffset, CQ.byteOffset, wrap ? 1 : 0, bw, bh, bd, hw, hh, hd, step, WK.ks.byteOffset);
+  _kStiff = WK.ks[0]; WK.calls3++;
+  return nc;
+}
 /* The free leptons' kernel (af_fast, from V36 on: an older module has none and the JavaScript runs): its table of
    offsets, candidate buffers and stiffness cell, made once; the lists it reads must be in the module's memory. */
 function wasmFastReady() {
