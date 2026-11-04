@@ -87,7 +87,16 @@ pub const B_FX: usize = 73;
 pub const B_FY: usize = 74;
 pub const B_VPI: usize = 75;
 pub const B_VPJ: usize = 76;
-pub const B_LEN: usize = 77;
+pub const B_PFA: usize = 77; // (1.19: dE/d(free valence) of each pair's two atoms)
+pub const B_PFB: usize = 78;
+pub const B_MLJR: usize = 79; // (the member's Lennard-Jones size and √depth, its element's)
+pub const B_MLJS: usize = 80;
+pub const B_MPOL: usize = 81; // (a hydrogen's polarity: its orders to N, O, F)
+pub const B_MGW: usize = 82;
+pub const B_MSN: usize = 83; // (the sum of its orders)
+pub const B_MGF: usize = 84;
+pub const B_MCL: usize = 85; // (its molecule, i32)
+pub const B_LEN: usize = 86;
 
 // the scalars (a f64 block)
 pub const P_N: usize = 0; // pairs (out of collect, in to the passes)
@@ -129,6 +138,7 @@ pub struct Bo {
     inc: *mut i32, tab: *mut f64, tgt: *mut f64, sm: *mut i32, tz: *mut i32, sup1: *mut i32, sup2: *mut i32, sups: *mut f64, mk: *mut i32, st: *mut i32,
     cs: *mut f64, fs: *mut f64, strong: *mut i32, zone: *mut i32, zw: *mut f64, zd: *mut f64, list: *mut i32, t1: *mut i32, t2: *mut i32, tw: *mut f64,
     x: *mut f64, y: *mut f64, z: *mut i16, q: *mut f64, ionic: *mut u8, fx: *mut f64, fy: *mut f64, vpi: *mut i32, vpj: *mut i32,
+    pfa: *mut f64, pfb: *mut f64, mljr: *mut f64, mljs: *mut f64, mpol: *mut f64, mgw: *mut f64, msn: *mut f64, mgf: *mut f64, mcl: *mut i32,
 }
 #[inline(always)]
 unsafe fn ptr<T>(base: usize, d: *const i32, k: usize) -> *mut T { (base + *d.add(k) as u32 as usize) as *mut T }
@@ -148,6 +158,8 @@ pub unsafe fn bo_desc(base: usize, d: *const i32) -> Bo {
         t1: ptr(base, d, B_T1), t2: ptr(base, d, B_T2), tw: ptr(base, d, B_TW),
         x: ptr(base, d, B_X), y: ptr(base, d, B_Y), z: ptr(base, d, B_Z), q: ptr(base, d, B_Q), ionic: ptr(base, d, B_IONIC), fx: ptr(base, d, B_FX), fy: ptr(base, d, B_FY),
         vpi: ptr(base, d, B_VPI), vpj: ptr(base, d, B_VPJ),
+        pfa: ptr(base, d, B_PFA), pfb: ptr(base, d, B_PFB), mljr: ptr(base, d, B_MLJR), mljs: ptr(base, d, B_MLJS), mpol: ptr(base, d, B_MPOL), mgw: ptr(base, d, B_MGW),
+        msn: ptr(base, d, B_MSN), mgf: ptr(base, d, B_MGF), mcl: ptr(base, d, B_MCL),
     }
 }
 #[inline(always)]
@@ -174,6 +186,26 @@ fn fade_d(c: f64) -> f64 { if c <= 0.0 || c >= 2.0 * BO_EPS { return 0.0; } let 
 fn bb(n: f64) -> f64 { if n <= 0.3 { return 0.0; } if n >= 0.7 { return 1.0; } let t = (n - 0.3) / 0.4; t * t * (3.0 - 2.0 * t) }
 #[inline(always)]
 fn bb_d(n: f64) -> f64 { if n <= 0.3 || n >= 0.7 { return 0.0; } let t = (n - 0.3) / 0.4; 6.0 * t * (1.0 - t) / 0.4 }
+pub const BO_LJ0: f64 = 0.02;
+pub const BO_LJW: f64 = 0.3;
+pub const BO_RHP: f64 = 1.2;
+pub const BO_FV: f64 = 0.3;
+#[inline(always)]
+fn hf(f: f64) -> f64 { let t = f / BO_FV; if t <= 0.0 { 0.0 } else if t >= 1.0 { 1.0 } else { t * t * (3.0 - 2.0 * t) } }
+#[inline(always)]
+fn hf_d(f: f64) -> f64 { let t = f / BO_FV; if t <= 0.0 || t >= 1.0 { 0.0 } else { 6.0 * t * (1.0 - t) / BO_FV } }
+#[inline(always)]
+fn gg(n: f64) -> f64 { let t = (n - BO_LJ0) / BO_LJW; if t <= 0.0 { 0.0 } else if t >= 1.0 { 1.0 } else { t * t * (3.0 - 2.0 * t) } }
+#[inline(always)]
+fn gg_d(n: f64) -> f64 { let t = (n - BO_LJ0) / BO_LJW; if t <= 0.0 || t >= 1.0 { 0.0 } else { 6.0 * t * (1.0 - t) / BO_LJW } }
+/// Lennard-Jones with the kernel's inner wall (straight inside cf·rm, its force held): (V, dV/dr, dV/drm)
+#[inline(always)]
+fn lj(r: f64, rm: f64, eps: f64, cf: f64, vcut: f64) -> (f64, f64, f64) {
+    let c = cf * rm; let rr = if r < c { c } else { r }; let s2 = rm * rm / (rr * rr); let s6 = s2 * s2 * s2; let f0 = 12.0 * (s6 * s6 - s6) / rr;
+    let v = eps * (s6 * s6 - 2.0 * s6 + vcut + if r < c { f0 * (c - r) } else { 0.0 });
+    let m = if r >= c { 12.0 * eps * (s6 * s6 - s6) / rm } else { eps * f0 * r / rm };
+    (v, -eps * f0, m)
+}
 #[inline(always)]
 fn piece(dep: bool, k: i32, x: f64, v0: f64, v1: f64, v2: f64) -> (f64, f64) {
     match k {
@@ -253,7 +285,6 @@ unsafe fn bt(b: &Bo, k: usize) -> bool { g(b.pr, k) < g(b.tab, g(b.pt, k) as usi
 /// boPass up to the energy (see the module's note). Returns the energy; P_STATUS 1 when the crowding list is full.
 pub unsafe fn pass1(b: &Bo, p: *mut f64) -> f64 {
     let n = g(p, P_N) as usize; let nm = g(p, P_NM) as usize; let forces = g(p, P_FORCES) != 0.0; let tab = b.tab;
-    let lj_vcut = 2.0 * 2.6f64.powf(-6.0) - 2.6f64.powf(-12.0);
     s(p, P_STATUS, 0.0);
     for m in 0..nm { s(b.fc, m, 0); s(b.st, m, 0); }
     let mut e = 0.0f64;
@@ -261,12 +292,6 @@ pub unsafe fn pass1(b: &Bo, p: *mut f64) -> f64 {
     for k in 0..n {
         let t = g(b.pt, k) as usize * PS; let r = g(b.pr, k);
         s(b.gr, k, 0.0); s(b.gn, k, 0.0); s(b.gca, k, 0.0); s(b.gcb, k, 0.0); s(b.pn, k, 0.0); s(b.ne, k, 0.0); s(b.ne0, k, 0.0); s(b.dne, k, 0.0); s(b.dne0, k, 0.0); s(b.psn, k, 0); s(b.qc, k, 0.0);
-        let rm = g(tab, t + 11); let eps = g(tab, t + 12); let ron = g(tab, t + 13);
-        if eps > 0.0 && r > ron && r < g(tab, t + 14) {
-            let s2 = rm * rm / (r * r); let s6 = s2 * s2 * s2; let v = eps * (s6 * s6 - 2.0 * s6 + lj_vcut); let dv = eps * (-12.0 * s6 * s6 + 12.0 * s6) / r;
-            let u = (r - ron) / BO_SW; let sw = if u >= 1.0 { 1.0 } else { u * u * (3.0 - 2.0 * u) }; let dsw = if u >= 1.0 { 0.0 } else { 6.0 * u * (1.0 - u) / BO_SW };
-            e += sw * v; ad(b.gr, k, sw * dv + dsw * v);
-        }
         if r >= g(tab, t + 4) { continue; }
         let r1 = g(tab, t); let c = g(tab, t + 1); let beta = g(tab, t + 2); let d = r - r1;
         let (mut n0, mut dn0);
@@ -353,9 +378,9 @@ pub unsafe fn pass1(b: &Bo, p: *mut f64) -> f64 {
             ad(b.gn, k, fcut * ((e1 * e1 - 1.0) * d_d - dmdr * dr0 + dpt * 2.0 * e1 * ex * x * dal));
         }
     }
-    s(p, P_STIFF, stiff);
     e += angles_all(b, forces, nm);
-    e += coulomb(b, &mut stamp, forces, n, nm);
+    e += coulomb(b, &mut stamp, forces, n, nm, &mut stiff);
+    s(p, P_STIFF, stiff);
     s(p, P_E, e);
     e
 }
@@ -441,8 +466,9 @@ unsafe fn angles_all(b: &Bo, forces: bool, nm: usize) -> f64 {
     }
     e
 }
-/// the partial charges and the members' own Coulomb pairs (bfCoulomb up to the non-members' potential)
-unsafe fn coulomb(b: &Bo, stamp: &mut i32, forces: bool, n: usize, nm: usize) -> f64 {
+/// the partial charges, the members' own Coulomb pairs and their Lennard-Jones pairs (bfCoulomb up to the non-members' potential)
+unsafe fn coulomb(b: &Bo, stamp: &mut i32, forces: bool, n: usize, nm: usize, stiff: &mut f64) -> f64 {
+    let vcut = 2.0 * 2.6f64.powf(-6.0) - 2.6f64.powf(-12.0); let shp = 0.002f64.sqrt();
     for m in 0..nm { s(b.mq, m, 0.0); s(b.mphi, m, 0.0); }
     for k in 0..n {
         if !(g(b.pn, k) > 0.0) { continue; }
@@ -450,30 +476,82 @@ unsafe fn coulomb(b: &Bo, stamp: &mut i32, forces: bool, n: usize, nm: usize) ->
         let (v, sl) = qh(g(b.pn, k)); let qc = PARTIAL_K * (eb - ea); s(b.qc, k, qc); s(b.qdh, k, sl);
         ad(b.mq, a, qc * v); ad(b.mq, c, -(qc * v));
     }
+    let nof = |z: i32| (7..=9).contains(&z);
+    for m in 0..nm {
+        let mut x = 0.0; let u0 = g(b.f0, m) as usize; let u1 = u0 + g(b.fc, m) as usize; for u in u0..u1 { x += g(b.pn, g(b.inc, u) as usize); }
+        s(b.msn, m, x); s(b.mgf, m, 0.0);
+    }
+    for m in 0..nm {
+        s(b.mgw, m, 0.0); s(b.mpol, m, 0.0); if g(b.mz, m) != 1 { continue; }
+        let mut x = 0.0; let u0 = g(b.f0, m) as usize; let u1 = u0 + g(b.fc, m) as usize;
+        for u in u0..u1 { let k = g(b.inc, u) as usize; let o = if g(b.pa, k) as usize == m { g(b.pb, k) } else { g(b.pa, k) } as usize; if nof(g(b.mz, o)) { x += g(b.pn, k); } }
+        s(b.mpol, m, if x >= 1.0 { 1.0 } else if x <= 0.0 { 0.0 } else { x * x * (3.0 - 2.0 * x) });
+    }
     let mut e = 0.0;
     for k in 0..n {
-        let a = g(b.pa, k) as usize; let c = g(b.pb, k) as usize; let qa = g(b.mqn, a) + g(b.mq, a); let qb = g(b.mqn, c) + g(b.mq, c);
-        if qa == 0.0 && qb == 0.0 { continue; }
-        let b0 = bb(g(b.pn, k)); if b0 >= 1.0 { continue; }
+        let a = g(b.pa, k) as usize; let c = g(b.pb, k) as usize; let qa = g(b.mqn, a) + g(b.mq, a); let qb = g(b.mqn, c) + g(b.mq, c); let nk = g(b.pn, k);
+        let b0 = bb(nk); let g0 = gg(nk); s(b.pfa, k, 0.0); s(b.pfb, k, 0.0); if b0 >= 1.0 { continue; }
+        let r = g(b.pr, k); let ha = g(b.mz, a) == 1; let hb = g(b.mz, c) == 1;
+        let lra = g(b.mljr, a); let lrb = g(b.mljr, c); let lsa = g(b.mljs, a); let lsb = g(b.mljs, c);
+        let ra = if ha { lra + (BO_RHP - lra) * g(b.mpol, a) } else { lra }; let rb = if hb { lrb + (BO_RHP - lrb) * g(b.mpol, c) } else { lrb };
+        let sa = if ha { lsa + (shp - lsa) * g(b.mpol, a) } else { lsa }; let sb = if hb { lsb + (shp - lsb) * g(b.mpol, c) } else { lsb };
+        let rm = 0.5 * (ra + rb); let eps = sa * sb; let ljon = g0 < 1.0 && eps > 0.0 && r < 2.6 * rm; let ch = qa != 0.0 || qb != 0.0;
+        if !ljon && !ch { continue; }
         let mut prod = 1.0f64; let mut nt = 0usize;
-        if g(b.pr, k) < 4.4 {
+        if r < 4.4 {
             common(b, stamp, a, c, |j| g(b.pn, j) > 0.3, |k1, k2| {
                 let w = bb(g(b.pn, k1)) * bb(g(b.pn, k2)); if w <= 0.0 { return; }
                 prod *= 1.0 - w; s(b.t1, nt, k1 as i32); s(b.t2, nt, k2 as i32); s(b.tw, nt, w); nt += 1;
             });
         }
-        let sw = (1.0 - b0) * prod; if !(sw > 0.0) { continue; }
-        let kk = g(b.pk, k); let r = g(b.pr, k); let sq = (r * r + 0.09).sqrt(); let cc = kk * (1.0 / sq - g(b.pcsh, k));
-        e += sw * cc * qa * qb;
+        if !(prod > 0.0) { continue; }
+        let mut es = 0.0f64; let mut vv = 0.0f64;
+        if ch {
+            let sw = (1.0 - b0) * prod; let kk = g(b.pk, k); let sq = (r * r + 0.09).sqrt(); let cc = kk * (1.0 / sq - g(b.pcsh, k));
+            es = cc * qa * qb; e += sw * es;
+            if forces { ad(b.gr, k, -sw * kk * r / (sq * sq * sq) * qa * qb); ad(b.mphi, a, sw * cc * qb); ad(b.mphi, c, sw * cc * qa); }
+        }
+        let mut wfk = 0.0f64;
+        if ljon {
+            let inr = if r < g(b.tab, g(b.pt, k) as usize * PS + 4) { nk } else { 0.0 };
+            let xa = g(b.mcap, a) - (g(b.msn, a) - inr); let xb = g(b.mcap, c) - (g(b.msn, c) - inr); let ha_ = hf(xa); let hb_ = hf(xb);
+            wfk = 1.0 - ha_ * hb_;
+            let wl = (1.0 - g0) * prod * wfk; let same = g(b.mcl, a) == g(b.mcl, c);
+            let (v, fv, mv) = lj(r, rm, if same { 0.5 * eps } else { eps }, if same { 0.8 } else { 0.62 }, vcut);
+            vv = v; e += wl * vv;
+            if forces {
+                ad(b.gr, k, wl * fv);
+                if !same && r < 0.8 * rm && r >= 0.62 * rm { let s6 = (rm / r).powi(6); let kw = wl * eps * (156.0 * s6 * s6 - 84.0 * s6) / (r * r) * (g(b.mim, a) + g(b.mim, c)); if kw > *stiff { *stiff = kw; } }
+                let dve = vv / eps;
+                if ha { ad(b.mgw, a, wl * (0.5 * mv * (BO_RHP - lra) + dve * sb * (shp - lsa))); }
+                if hb { ad(b.mgw, c, wl * (0.5 * mv * (BO_RHP - lrb) + dve * sa * (shp - lsb))); }
+                let vw = (1.0 - g0) * prod * vv; let fa = -vw * hf_d(xa) * hb_; let fb = -vw * ha_ * hf_d(xb);
+                s(b.pfa, k, fa); s(b.pfb, k, fb); ad(b.mgf, a, fa); ad(b.mgf, c, fb);
+            }
+        }
         if !forces { continue; }
-        ad(b.gr, k, -sw * kk * r / (sq * sq * sq) * qa * qb);
-        ad(b.mphi, a, sw * cc * qb); ad(b.mphi, c, sw * cc * qa);
-        let es = cc * qa * qb;
-        if es == 0.0 { continue; }
-        if b0 > 0.0 { ad(b.gn, k, -(es * bb_d(g(b.pn, k)) * prod)); }
-        for t in 0..nt {
-            let k1 = g(b.t1, t) as usize; let k2 = g(b.t2, t) as usize; let w = g(b.tw, t); let dsw = -(1.0 - b0) * prod / (1.0 - w);
-            ad(b.gn, k1, es * dsw * bb_d(g(b.pn, k1)) * bb(g(b.pn, k2))); ad(b.gn, k2, es * dsw * bb(g(b.pn, k1)) * bb_d(g(b.pn, k2)));
+        let c1 = es * (1.0 - b0) + vv * (1.0 - g0) * wfk;
+        ad(b.gn, k, -((es * bb_d(nk) + vv * gg_d(nk) * wfk) * prod));
+        if c1 != 0.0 {
+            for t in 0..nt {
+                let k1 = g(b.t1, t) as usize; let k2 = g(b.t2, t) as usize; let w = g(b.tw, t); let dsw = -c1 * prod / (1.0 - w);
+                ad(b.gn, k1, dsw * bb_d(g(b.pn, k1)) * bb(g(b.pn, k2))); ad(b.gn, k2, dsw * bb(g(b.pn, k1)) * bb_d(g(b.pn, k2)));
+            }
+        }
+    }
+    if forces {
+        for k in 0..n { // (free valence: every order of an atom but the pair's own)
+            if !(g(b.pr, k) < g(b.tab, g(b.pt, k) as usize * PS + 4)) { continue; }
+            let a = g(b.pa, k) as usize; let c = g(b.pb, k) as usize;
+            ad(b.gn, k, -((g(b.mgf, a) - g(b.pfa, k)) + (g(b.mgf, c) - g(b.pfb, k))));
+        }
+        for m in 0..nm { // (the hydrogens' sizes back to their orders)
+            if g(b.mgw, m) == 0.0 { continue; }
+            let u0 = g(b.f0, m) as usize; let u1 = u0 + g(b.fc, m) as usize;
+            let mut x = 0.0; for u in u0..u1 { let k = g(b.inc, u) as usize; let o = if g(b.pa, k) as usize == m { g(b.pb, k) } else { g(b.pa, k) } as usize; if nof(g(b.mz, o)) { x += g(b.pn, k); } }
+            if x <= 0.0 || x >= 1.0 { continue; }
+            let d = g(b.mgw, m) * 6.0 * x * (1.0 - x);
+            for u in u0..u1 { let k = g(b.inc, u) as usize; let o = if g(b.pa, k) as usize == m { g(b.pb, k) } else { g(b.pa, k) } as usize; if nof(g(b.mz, o)) { ad(b.gn, k, d); } }
         }
     }
     e
