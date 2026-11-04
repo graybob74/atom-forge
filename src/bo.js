@@ -124,12 +124,13 @@ function boPass(forces) {
     if (n0 >= 3.5) { n0 = 3.5; dn0 = 0; }
     let ne, dne;
     if (n0 >= BO_TB) { ne = n0; dne = 1; } else if (n0 <= BO_TA) { ne = 0; dne = 0; } else { const w = BO_TB - BO_TA, t = (n0 - BO_TA) / w, s = t * t * (3 - 2 * t); ne = n0 * s; dne = s + n0 * 6 * t * (1 - t) / w; }
-    q.ne = ne; q.dne = dne * dn0;
+    q.ne = ne; q.dne = dne * dn0; q.ne0 = ne; q.dne0 = q.dne; q.sup = null;
     // the soft core
     const z2 = P.sig * P.sig / (q.r * q.r), z6 = z2 * z2 * z2, s12 = z6 * z6; E += 0.05 * s12; q.gr += -0.6 * s12 / q.r;
     let la = by.get(a); if (!la) by.set(a, la = []); la.push(q);
     let lb = by.get(b); if (!lb) by.set(b, lb = []); lb.push(q);
   }
+  boCrowd(n, L);
   // caps, levels, orders
   const cap = (p) => { let v = p._boV; if (v === undefined) { p._boV = v = capacity(p); p._boVH = hyperCap(p); } return v; };
   for (const [p, list] of by) {
@@ -238,12 +239,46 @@ function boPass(forces) {
   const FX = S.fx, FY = S.fy;
   for (let k = 0; k < n; k++) {
     const q = L[k];
-    if (q.r < q.P.reach) q.gr += (q.gca * q.dca + q.gcb * q.dcb) * q.dne;
+    if (!(q.r < q.P.reach)) continue;
+    const G = q.gca * q.dca + q.gcb * q.dcb; // (∂E/∂ne)
+    q.gr += G * q.dne;
+    if (q.sup && G) for (let t = 0; t < q.sup.length; t += 3) { // (through the crowding factors: boCrowd)
+      const q1 = q.sup[t], q2 = q.sup[t + 1], sg = q.sup[t + 2], b1 = boB(q1.ne0), b2 = boB(q2.ne0), w = b1 * b2 * sg;
+      let o = 1; for (let u = 0; u < q.sup.length; u += 3) if (u !== t) o *= 1 - boB(q.sup[u].ne0) * boB(q.sup[u + 1].ne0) * q.sup[u + 2];
+      const dEw = -G * q.ne0 * o; // (∂E/∂w: ne = ne0·Π(1 − w))
+      if (w >= 0) { q1.gr += dEw * boBD(q1.ne0) * b2 * sg * q1.dne0; q2.gr += dEw * b1 * boBD(q2.ne0) * sg * q2.dne0; }
+    }
+  }
+  for (let k = 0; k < n; k++) {
+    const q = L[k];
     if (!q.gr) continue;
     const fx = q.gr * q.ux, fy = q.gr * q.uy, i = q.a.i, j = q.b.i;
     FX[j] -= fx; FY[j] -= fy; FX[i] += fx; FY[i] += fy;
   }
   return E;
+}
+/* Crowded flat molecules (1.16). Two atoms bonded to one centre much more strongly than to each other don't bond to each
+   other, as a stored molecule's 1-3 pairs don't: in a flat world SF₆'s six fluorines sit 60° apart, as far from each other
+   as from the sulfur, near an F–F bond's length, and each F split its one valence three ways (S–F 0.5, F–F 0.2–0.34; PCl₅'s
+   chlorines 0.4 to each other). A pair i–j's raw order is multiplied by Πₖ(1 − b(n⁰ᵢₖ)·b(n⁰ₖⱼ)·σ), over the centres k it
+   shares, σ rising from 0 to 1 as the weaker bond to the centre beats the i–j bond by 0.4 to 0.8 eV (single bonds'
+   energies): S–F against F–F 1.8 eV (out), P–Cl against Cl–Cl 0.9, a ring of equals (cyclopropane, epoxides) 0–0.1 (kept);
+   diborane's B–B goes, as in the real molecule (its bridging hydrogens hold it). Raw orders only, so no circle. */
+function boCrowd(n, L) {
+  const adj = new Map();
+  for (let k = 0; k < n; k++) { const q = L[k]; if (!(q.r < q.P.reach) || !(q.ne0 > 0.3)) continue; let m = adj.get(q.a); if (!m) adj.set(q.a, m = new Map()); m.set(q.b, q); m = adj.get(q.b); if (!m) adj.set(q.b, m = new Map()); m.set(q.a, q); }
+  for (let k = 0; k < n; k++) {
+    const q = L[k]; if (!(q.r < q.P.reach) || !(q.ne0 > 0)) continue;
+    const ma = adj.get(q.a), mb = adj.get(q.b); if (!ma || !mb) continue;
+    let P = 1, sup = null;
+    for (const [c, q1] of ma) {
+      const q2 = mb.get(c); if (!q2) continue;
+      const d = Math.min(q1.P.D[0], q2.P.D[0]) - q.P.D[0]; if (d <= 0.4) continue;
+      const t = Math.min(1, (d - 0.4) / 0.4), sg = t * t * (3 - 2 * t), w = boB(q1.ne0) * boB(q2.ne0) * sg; if (w <= 0) continue;
+      P *= 1 - w; (sup || (sup = [])).push(q1, q2, sg);
+    }
+    if (sup) { q.sup = sup; q.ne = q.ne0 * P; q.dne = q.dne0 * P; }
+  }
 }
 /* Partial charges that follow the orders (1.16). Each pair gives its atoms K·Δχ·h(n) (K = 0.30 e per unit of Pauling
    electronegativity, as a stored bond does), h(n) = 1 + 0.2(n − 1) at and above a single bond, the order itself below it

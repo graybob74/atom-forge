@@ -127,6 +127,17 @@ engine stores and visits particles.
   gallery −0.024, combustion +0.006. Cost: water ×2.1 on top of bond orders (the charge pass is 17%; the rest is the
   molecules clinging, more pairs within reach).
 
+- **Crowded flat molecules** (bond orders): in a flat world SF₆'s six F sit 60° apart, as far from each other as from
+  the S and near an F–F bond's length, so each F split its one valence three ways: S–F 0.44–0.54, F–F 0.19–0.34 after
+  1,500 steps; PCl₅'s Cl 0.40 to each other, CF₂Cl₂ 0.40. Now a pair's raw order is multiplied by Πₖ(1 − b(n⁰ᵢₖ)b(n⁰ₖⱼ)σ)
+  over the centres k it shares (boCrowd), σ from 0 to 1 as the weaker bond to the centre beats the pair's own by 0.4 to
+  0.8 eV (single-bond energies: S–F 3.39 against F–F 1.61; P–Cl 3.38 against Cl–Cl 2.51): raw orders only, so nothing
+  circular, and the forces carry it (checked by differences, 1e-6 eV/Å; SF₆ + PCl₅ + CF₂Cl₂ + water insulated 1,500
+  steps: 0.0000 eV). After: S–F 0.99–1.00, P–Cl 0.99, C–F/C–Cl 0.99, no ligand–ligand order at all in SF₆, PCl₅, SF₄,
+  ClF₃, BrF₅, SiF₄, CF₂Cl₂, NF₃, PCl₃. Rings of equals keep their bonds (cyclopropane C–C 0.99, ethylene oxide's C–C
+  1.02). It would also take the O–O out of a dioxirane and the N–N out of a diaziridine (neither is in the library), and
+  diborane's B–B, which the real molecule doesn't have.
+
 ## 1.15.0: charged particles as collider beams, electrons as waves, the honest approximations, charge flowing back through bonds
 
 - **Unstable particles are turned by the nuclei they pass** (multiple Coulomb scattering; the user: "build everything

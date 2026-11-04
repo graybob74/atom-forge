@@ -1488,7 +1488,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <p class="note">Atoms are not points: a nucleus, light ones most, is spread out by its zero-point motion and can tunnel through barriers. With this on every atom is a ring of beads (path-integral molecular dynamics), each feeling the forces at its own copy of the world; zoomed in, the beads show as small dots over each atom. At 300 K the H₂ bond spreads from 0.037 to 0.089 Å wide (16 beads) and lengthens from 0.746 to 0.764 Å (measured 0.766); heavy hydrogen spreads less, from the masses alone. The heat bath keeps the rings at its temperature. In an insulated box the rings need shorter steps: liquid water drifts 0.27 eV in 30 fs at the usual step, 0.07 at 0.2 fs (Longest time step above). Free electrons, bare nuclei and fast particles stay points. Costs ×7.8 (8 beads), ×17 (16), ×36 (32) on liquid water.</p>
       <h3>Continuous bond orders</h3>
       <div class="srow"><span>Bond orders</span><div class="seg" id="segBo" role="group" aria-label="Continuous bond orders"><button data-v="0">Stored (normal)</button><button data-v="1">From the positions</button></div></div>
-      <p class="note">Normally a bond is stored with a whole-number order, and bonds form, break and swap partners as events, each with its measured energy. With this on, neutral molecules of non-metals (H, B, C, N, O, F, Si, P, S, Cl, Br, I) keep no stored bonds: every pair's bond order is worked out at every step from where the atoms are, so a bond stretches, weakens and breaks continuously, new ones grow, and a reaction finds its own barrier (H + H₂: 0.41 eV, measured 0.42). Statics match the stored bonds within 0.04 eV a bond. Their partial charges follow the orders (as a stored bond's do), so they hydrogen-bond: liquid water keeps 55% of its H atoms in hydrogen bonds, as with stored bonds (49%), against 28% before 1.16. Its limits for now: a molecule that gains a charge or touches a metal or an ion's bond goes back to stored bonds, and crowded flat molecules such as SF₆ come apart. Changing it books the energy difference to the heat bath. Costs ×17 (liquid water) to ×45 (the molecule gallery): every pair worked out every step, and steps half as long.</p>
+      <p class="note">Normally a bond is stored with a whole-number order, and bonds form, break and swap partners as events, each with its measured energy. With this on, neutral molecules of non-metals (H, B, C, N, O, F, Si, P, S, Cl, Br, I) keep no stored bonds: every pair's bond order is worked out at every step from where the atoms are, so a bond stretches, weakens and breaks continuously, new ones grow, and a reaction finds its own barrier (H + H₂: 0.41 eV, measured 0.42). Statics match the stored bonds within 0.04 eV a bond. Their partial charges follow the orders (as a stored bond's do), so they hydrogen-bond: liquid water keeps 55% of its H atoms in hydrogen bonds, as with stored bonds (49%), against 28% before 1.16. Its limits for now: a molecule that gains a charge or touches a metal or an ion's bond goes back to stored bonds; crowded flat molecules such as SF₆ hold together since 1.16 (two atoms bonded to one centre much more strongly than to each other don't bond to each other, as a stored molecule's 1-3 pairs don't). Changing it books the energy difference to the heat bath. Costs ×17 (liquid water) to ×45 (the molecule gallery): every pair worked out every step, and steps half as long.</p>
       <h3>Electrons as waves</h3>
       <div class="srow"><span>Free electrons</span><div class="seg" id="segWave" role="group" aria-label="Electrons as waves"><button data-v="0">Points (normal)</button><button data-v="1">Wave packets</button></div></div>
       <p class="note">Each free electron and positron becomes a wave packet with a size and a spin, drawn as a faint disc (the electron force field of Su and Goddard, eFF): squeezing a packet costs kinetic energy (3ħ²/2mₑs², 11.4 eV at 1 Å), two packets meet as spread-out charges, and two electrons whose waves overlap push apart, strongly with the same spin and weakly with opposite ones (the Pauli principle). So free electrons crowd less, and a dense electron gas holds itself up. The packets' sizes move as coordinates of their own, and their energy is part of the books. With ions and atoms the free electrons still meet as points, so captures, scattering and ionization stay as calibrated; an atom's own electrons are not particles here and stay as they are. A free packet spreads to 2 Å at most (beyond, a spring holds it, as eFF's users bound it). A packet that appears or goes away hands its energy to its own motion, or, when that can't take it, to the heat bath. Costs ×6.5 in liquid water with 40 free electrons (their own steps 13 times shorter, for the packets' breathing, which takes a few hundredths of a femtosecond), nothing where there are none. Measured: the forces are the energy's slopes to 10⁻⁶ eV/Å, and that water keeps its energy to a few eV a picosecond (about as without).</p>
@@ -10810,12 +10810,13 @@ function boPass(forces) {
     if (n0 >= 3.5) { n0 = 3.5; dn0 = 0; }
     let ne, dne;
     if (n0 >= BO_TB) { ne = n0; dne = 1; } else if (n0 <= BO_TA) { ne = 0; dne = 0; } else { const w = BO_TB - BO_TA, t = (n0 - BO_TA) / w, s = t * t * (3 - 2 * t); ne = n0 * s; dne = s + n0 * 6 * t * (1 - t) / w; }
-    q.ne = ne; q.dne = dne * dn0;
+    q.ne = ne; q.dne = dne * dn0; q.ne0 = ne; q.dne0 = q.dne; q.sup = null;
     // the soft core
     const z2 = P.sig * P.sig / (q.r * q.r), z6 = z2 * z2 * z2, s12 = z6 * z6; E += 0.05 * s12; q.gr += -0.6 * s12 / q.r;
     let la = by.get(a); if (!la) by.set(a, la = []); la.push(q);
     let lb = by.get(b); if (!lb) by.set(b, lb = []); lb.push(q);
   }
+  boCrowd(n, L);
   // caps, levels, orders
   const cap = (p) => { let v = p._boV; if (v === undefined) { p._boV = v = capacity(p); p._boVH = hyperCap(p); } return v; };
   for (const [p, list] of by) {
@@ -10924,12 +10925,46 @@ function boPass(forces) {
   const FX = S.fx, FY = S.fy;
   for (let k = 0; k < n; k++) {
     const q = L[k];
-    if (q.r < q.P.reach) q.gr += (q.gca * q.dca + q.gcb * q.dcb) * q.dne;
+    if (!(q.r < q.P.reach)) continue;
+    const G = q.gca * q.dca + q.gcb * q.dcb; // (∂E/∂ne)
+    q.gr += G * q.dne;
+    if (q.sup && G) for (let t = 0; t < q.sup.length; t += 3) { // (through the crowding factors: boCrowd)
+      const q1 = q.sup[t], q2 = q.sup[t + 1], sg = q.sup[t + 2], b1 = boB(q1.ne0), b2 = boB(q2.ne0), w = b1 * b2 * sg;
+      let o = 1; for (let u = 0; u < q.sup.length; u += 3) if (u !== t) o *= 1 - boB(q.sup[u].ne0) * boB(q.sup[u + 1].ne0) * q.sup[u + 2];
+      const dEw = -G * q.ne0 * o; // (∂E/∂w: ne = ne0·Π(1 − w))
+      if (w >= 0) { q1.gr += dEw * boBD(q1.ne0) * b2 * sg * q1.dne0; q2.gr += dEw * b1 * boBD(q2.ne0) * sg * q2.dne0; }
+    }
+  }
+  for (let k = 0; k < n; k++) {
+    const q = L[k];
     if (!q.gr) continue;
     const fx = q.gr * q.ux, fy = q.gr * q.uy, i = q.a.i, j = q.b.i;
     FX[j] -= fx; FY[j] -= fy; FX[i] += fx; FY[i] += fy;
   }
   return E;
+}
+/* Crowded flat molecules (1.16). Two atoms bonded to one centre much more strongly than to each other don't bond to each
+   other, as a stored molecule's 1-3 pairs don't: in a flat world SF₆'s six fluorines sit 60° apart, as far from each other
+   as from the sulfur, near an F–F bond's length, and each F split its one valence three ways (S–F 0.5, F–F 0.2–0.34; PCl₅'s
+   chlorines 0.4 to each other). A pair i–j's raw order is multiplied by Πₖ(1 − b(n⁰ᵢₖ)·b(n⁰ₖⱼ)·σ), over the centres k it
+   shares, σ rising from 0 to 1 as the weaker bond to the centre beats the i–j bond by 0.4 to 0.8 eV (single bonds'
+   energies): S–F against F–F 1.8 eV (out), P–Cl against Cl–Cl 0.9, a ring of equals (cyclopropane, epoxides) 0–0.1 (kept);
+   diborane's B–B goes, as in the real molecule (its bridging hydrogens hold it). Raw orders only, so no circle. */
+function boCrowd(n, L) {
+  const adj = new Map();
+  for (let k = 0; k < n; k++) { const q = L[k]; if (!(q.r < q.P.reach) || !(q.ne0 > 0.3)) continue; let m = adj.get(q.a); if (!m) adj.set(q.a, m = new Map()); m.set(q.b, q); m = adj.get(q.b); if (!m) adj.set(q.b, m = new Map()); m.set(q.a, q); }
+  for (let k = 0; k < n; k++) {
+    const q = L[k]; if (!(q.r < q.P.reach) || !(q.ne0 > 0)) continue;
+    const ma = adj.get(q.a), mb = adj.get(q.b); if (!ma || !mb) continue;
+    let P = 1, sup = null;
+    for (const [c, q1] of ma) {
+      const q2 = mb.get(c); if (!q2) continue;
+      const d = Math.min(q1.P.D[0], q2.P.D[0]) - q.P.D[0]; if (d <= 0.4) continue;
+      const t = Math.min(1, (d - 0.4) / 0.4), sg = t * t * (3 - 2 * t), w = boB(q1.ne0) * boB(q2.ne0) * sg; if (w <= 0) continue;
+      P *= 1 - w; (sup || (sup = [])).push(q1, q2, sg);
+    }
+    if (sup) { q.sup = sup; q.ne = q.ne0 * P; q.dne = q.dne0 * P; }
+  }
 }
 /* Partial charges that follow the orders (1.16). Each pair gives its atoms K·Δχ·h(n) (K = 0.30 e per unit of Pauling
    electronegativity, as a stored bond does), h(n) = 1 + 0.2(n − 1) at and above a single bond, the order itself below it
