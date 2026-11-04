@@ -15462,7 +15462,7 @@ function shellSG(ci, pi, cj, pj, nUj) {
 // Math.hypot(x, y) computed the way V8 computes it (normalized, Kahan-compensated sum), without the builtin call
 function hypot2(x, y) {
   const ax = Math.abs(x), ay = Math.abs(y);
-  if (x !== x || y !== y) return ax === Infinity || ay === Infinity ? Infinity : NaN;
+  if (Number.isNaN(x) || Number.isNaN(y)) return ax === Infinity || ay === Infinity ? Infinity : NaN;
   let max = 0;
   if (ax > max) max = ax;
   if (ay > max) max = ay;
