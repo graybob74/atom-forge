@@ -1137,6 +1137,37 @@ const { openPage } = require('./browser');
   check(r73.exp0 === 'Experimental: all normal' && /force reach 9 Å, continuous bond orders \(×/.test(r73.exp1) && r73.hold[1] && r73.hold[2] && /^1\/.+×$/.test(r73.hold[0]) && r73.back[1] && r73.back[0] === '1×' &&
     r73.auto[1] && r73.auto[2] && r73.auto[3] && r73.hand.slice(0, 3).every(Boolean) && /×$/.test(r73.hand[3]),
     `1.14: Speed test line "${r73.exp1}"; slow motion: the hourglass set ${r73.hold[0]} and gave back ${r73.back[0]}, an event set ${r73.auto[0]}, a speed chosen by hand (${r73.hand[3]}) ended it`, '1.14: ' + JSON.stringify(r73));
+  // 1.15: charged unstable particles are turned by the nuclei they pass (multiple Coulomb scattering), ∝ 1/pv
+  const r74 = (() => {
+    const out = {};
+    for (const KE of [5e6, 50e6]) {
+      const X = require('./load.js').load('all', { seed: 9 }), W = X.W;
+      X.baseWorld(120, 80, 300, 0); W.wall = 'open'; W.decayOn = false;
+      for (let i = 0; i < 12; i++) for (let j = 0; j < 30; j++) X.addAtom('Au', -15 + i * 2.6 + (j % 2) * 1.3, -38 + j * 2.6);
+      X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const os = []; for (let k = 0; k < 200; k++) os.push(X.addExo('mu+', -50, -30 + 60 * X.rnd(), KE, 1, 0));
+      const last = new Map();
+      for (let s = 0; s < 400; s++) { W.dt = Math.min(X.chooseDt(), 0.001); X.step(W.dt); for (const o of os) if (o.x > 20 && !last.has(o)) last.set(o, Math.atan2(o.uy, o.ux)); if (os.every(o => o.dead || last.has(o))) break; }
+      const th = [...last.values()]; out[KE / 1e6] = { n: th.length, rms: +(1000 * Math.sqrt(th.reduce((t, a) => t + a * a, 0) / th.length)).toFixed(2) };
+    }
+    return out;
+  })();
+  check(r74[5].n === 200 && r74[5].rms > 1 && r74[5].rms / r74[50].rms > 6 && r74[5].rms / r74[50].rms < 15,
+    `1.15: μ⁺ through 31 Å of gold atoms turned by the nuclei: rms ${r74[5].rms} mrad at 5 MeV, ${r74[50].rms} at 50 MeV`, '1.15 scattering: ' + JSON.stringify(r74));
+  // 1.15: charm and bottom mesons: e⁺e⁻ above the thresholds makes D and B pairs; they decay with exact books
+  const r75 = (() => {
+    const X = require('./load.js').load('all', { seed: 3 }), W = X.W, out = { heavy: 0, had: 0 };
+    X.baseWorld(200, 200, 300, 0); W.decayOn = false;
+    for (let k = 0; k < 400; k++) { const a = X.fireSpec({ kind: 'e' }, 0, 0, 1, 0, 6e9), b = X.fireSpec({ kind: 'pos' }, 0.01, 0, -1, 0, 6e9); X.eeEvent(a, b, 0, 0); const t = W.log[W.log.length - 1].text; if (!/2γ/.test(t)) out.had++; if (/D[⁰⁺⁻]|B[⁰⁺⁻]|D̄|B̄/.test(t)) out.heavy++; }
+    const Y = require('./load.js').load('all', { seed: 4 }), V = Y.W; Y.baseWorld(400, 400, 300, 0); V.decayOn = true; V.warp = 1e6; V.wall = 'reflect';
+    const tot = () => Y.totalEnergy().total - V.ledger.nuc + V.ledger.bath;
+    for (const sp of ['Dc0', 'Dc-', 'Ds+', 'B+', 'Bb0']) Y.addExo(sp, 0, 0, 1e6, 1, 0);
+    const E0 = tot(); for (let s = 0; s < 400; s++) { V.dt = 0.01; Y.step(0.01); Y.decayStep(0.01 * Y.PHYS.TU_S * V.warp); }
+    out.decays = V.log.filter(l => /^Decay in flight: (D|B)/.test(l.text)).length; out.dE = +(tot() - E0).toFixed(3); out.left = V.exo.filter(o => !o.dead && /^(D|B)/.test(o.lab)).length;
+    return out;
+  })();
+  check(r75.heavy >= 3 && r75.heavy < r75.had && r75.decays >= 5 && Math.abs(r75.dE) < 0.01 && r75.left === 0,
+    `1.15: charm and bottom: ${r75.heavy} of ${r75.had} hadronic e⁺e⁻ events at 12 GeV made D or B mesons; ${r75.decays} D/B decays, books ${r75.dE} eV`, '1.15 charm: ' + JSON.stringify(r75));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
