@@ -24,7 +24,12 @@
 //   Z: atomic numbers; xyz: [[x, y, z], ...] in Å; charge: total charge; uhf: number of unpaired electrons.
 //   E: total energy in eV without dispersion; q: Mulliken atomic partial charges (e).
 //   opts: { accuracy (tblite's accuracy, default 1: SCC thresholds and the integral cutoff follow it as in tblite),
-//   kt (electronic temperature in Hartree, default 300 K), verbose }
+//   kt (electronic temperature in Hartree, default 300 K), verbose, grad }
+//   With opts.grad: also g, the analytic nuclear gradient [[dE/dx, dE/dy, dE/dz], ...] in eV/Å (of E, so no
+//   dispersion), computed as tblite does after the SCC: repulsion, Coulomb (output charges), and through the
+//   overlap/H0 derivatives the density, the energy-weighted density and the last SCC potential, plus the
+//   coordination-number chain rule for the CN-shifted levels. It matches tblite's gradient to round-off; how close
+//   it is to the true derivative of E depends on SCC convergence (~1e-5 eV/Å at the default accuracy).
 
 const T = {
   rep_alpha: [ // 86
@@ -604,6 +609,45 @@ function cartToSph(li, lj, s3d) {
   return m;
 }
 
+// Overlap block and its derivative with respect to the position of atom i (= d/d vec, since vec = R_i - R_j).
+// Moving the centre of a Cartesian Gaussian x^l exp(-a x^2) by dA_x changes it by 2a x^(l+1) e^.. - l x^(l-1) e^..,
+// so each derivative is a combination of overlaps with the i-side angular momentum raised or lowered by one.
+// Returns { s, ds: [dS/dx, dS/dy, dS/dz] }, each spherical nsi x nsj row-major as overlapBlock gives.
+const TABG = [0, 1, 2].map(() => [0, 1, 2, 3].map(() => new Float64Array(4)));
+function overlapGradBlock(ci, cj, vec, r2, intcut = 25) {
+  const li = ci.l, lj = cj.l, cartI = CART[li], cartJ = CART[lj], nI = cartI.length, nJ = cartJ.length;
+  const s3d = new Float64Array(nI * nJ), d3d = [new Float64Array(nI * nJ), new Float64Array(nI * nJ), new Float64Array(nI * nJ)];
+  const [TX, TY, TZ] = TABG;
+  for (let p = 0; p < ci.alpha.length; p++) {
+    const ai = ci.alpha[p];
+    for (let q = 0; q < cj.alpha.length; q++) {
+      const aj = cj.alpha[q];
+      const eab = ai + aj, oab = 1 / eab, est = ai * aj * r2 * oab;
+      if (est > intcut) continue;                       // same screening as the energy
+      const pre = Math.exp(-est) * SQRTPI3 * Math.sqrt(oab) ** 3;
+      for (let k = 0; k < 3; k++) moments1d(li + 1, lj, -vec[k] * aj * oab, vec[k] * ai * oab, oab, TABG[k]);
+      const cc = ci.coeff[p] * cj.coeff[q] * pre, a2 = 2 * ai;
+      for (let a = 0; a < nI; a++) {
+        const [ax, ay, az] = cartI[a];
+        for (let b = 0; b < nJ; b++) {
+          const [bx, by, bz] = cartJ[b];
+          const tx = TX[ax][bx], ty = TY[ay][by], tz = TZ[az][bz];
+          // derivative of each 1D factor with respect to the i-side centre
+          const dx = a2 * TX[ax + 1][bx] - (ax ? ax * TX[ax - 1][bx] : 0);
+          const dy = a2 * TY[ay + 1][by] - (ay ? ay * TY[ay - 1][by] : 0);
+          const dz = a2 * TZ[az + 1][bz] - (az ? az * TZ[az - 1][bz] : 0);
+          const ab = a * nJ + b;
+          s3d[ab] += cc * tx * ty * tz;
+          d3d[0][ab] += cc * dx * ty * tz;
+          d3d[1][ab] += cc * tx * dy * tz;
+          d3d[2][ab] += cc * tx * ty * dz;
+        }
+      }
+    }
+  }
+  return { s: cartToSph(li, lj, s3d), ds: d3d.map(m => cartToSph(li, lj, m)) };
+}
+
 // ---- dense linear algebra ----
 // Cholesky S = L L^T, then the inverse of L (lower triangular), row-major n x n
 function choleskyInverse(S, n) {
@@ -1035,11 +1079,127 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     if (opts.verbose) console.log(iscf, (eelec + erep).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
   }
   const Eh = erep + eelec;
-  return {
+  const out = {
     E: Eh * AUTOEV, q: Array.from(qat), iterations: iscf, converged,
     qsh: Array.from(qsh), cn: Array.from(cn), Erep: erep * AUTOEV, Eelec: eelec * AUTOEV,
     emo: Array.from(emo, x => x * AUTOEV), focc: Array.from(focc),
   };
+
+  // ---- analytic nuclear gradient (as tblite's singlepoint: Hellmann-Feynman plus the explicit terms) ----
+  // Uses what the last SCC iteration left: the density P and orbitals C/emo/focc from H1 built with the potential
+  // vao of that iteration's input charges, and the output (Mulliken) shell charges qsh for the Coulomb term.
+  // Converged, this is the derivative of E; tblite makes exactly the same choices, so the two agree to round-off.
+  if (opts.grad) {
+    const g = [];
+    for (let i = 0; i < nat; i++) g.push([0, 0, 0]);          // Hartree/Bohr while summing
+    const C = W;                                               // the last iteration's MO coefficients (columns)
+
+    // energy-weighted density matrix: Wd = sum_k focc_k emo_k C_k C_k^T (with Fermi smearing this is still exact)
+    const Wd = new Float64Array(nao * nao);
+    for (let k = 0; k < nao; k++) {
+      const fe = focc[k] * emo[k];
+      if (fe === 0) continue;
+      for (let m = 0; m < nao; m++) {
+        const cm = C[m * nao + k] * fe;
+        if (cm === 0) continue;
+        for (let n = 0; n < nao; n++) Wd[m * nao + n] += cm * C[n * nao + k];
+      }
+    }
+
+    // repulsion: E_ij = Zi Zj exp(-sqrt(ai aj) r^1.5) / r
+    for (let i = 0; i < nat; i++) for (let j = 0; j < i; j++) {
+      const v = [xyz[i][0] - xyz[j][0], xyz[i][1] - xyz[j][1], xyz[i][2] - xyz[j][2]];
+      const r2 = v[0] ** 2 + v[1] ** 2 + v[2] ** 2;
+      if (r2 > REP_CUTOFF ** 2 || r2 < 1e-12) continue;
+      const r = Math.sqrt(r2), a = Math.sqrt(el[i].repAlpha * el[j].repAlpha);
+      const e = el[i].repZeff * el[j].repZeff * Math.exp(-a * Math.pow(r, REP_KEXP)) / Math.pow(r, REP_REXP);
+      const dEdr = -e * (a * REP_KEXP * Math.pow(r, REP_KEXP - 1) + REP_REXP / r);
+      for (let k = 0; k < 3; k++) { const f = dEdr * v[k] / r; g[i][k] += f; g[j][k] -= f; }
+    }
+
+    // second-order Coulomb, with the output shell charges: E2 = 1/2 sum q_a q_b / sqrt(R^2 + eta^-2)
+    for (let a = 0; a < nsh; a++) for (let b = 0; b < a; b++) {
+      const i = shAt[a], j = shAt[b];
+      if (i === j) continue;                                   // onsite gamma does not depend on positions
+      const ga = el[i].shells[shOf[a]].hubbard, gb = el[j].shells[shOf[b]].hubbard;
+      const gam = 2 / (1 / ga + 1 / gb);
+      const v = [xyz[i][0] - xyz[j][0], xyz[i][1] - xyz[j][1], xyz[i][2] - xyz[j][2]];
+      const f = -qsh[a] * qsh[b] * Math.pow(v[0] ** 2 + v[1] ** 2 + v[2] ** 2 + Math.pow(gam, -2), -1.5);
+      for (let k = 0; k < 3; k++) { g[i][k] += f * v[k]; g[j][k] -= f * v[k]; }
+    }
+    // (the third-order term is onsite: no explicit position dependence)
+
+    // H0 and overlap: for each atom pair (counted once, hence the factors 2), the derivative of
+    //   sum P_mn H0_mn  -  sum W_mn S_mn  -  1/2 sum P_mn S_mn (v_m + v_n)
+    // through S, and through the distance polynomial in H0. dEdcn collects dE/dCN through the CN-shifted levels.
+    const dEdcn = new Float64Array(nat);
+    for (let i = 0; i < nat; i++) {
+      const ei = el[i];
+      for (let j = 0; j < i; j++) {
+        const ej = el[j];
+        const vec = [xyz[i][0] - xyz[j][0], xyz[i][1] - xyz[j][1], xyz[i][2] - xyz[j][2]];
+        const r2 = vec[0] ** 2 + vec[1] ** 2 + vec[2] ** 2;
+        if (r2 < Number.EPSILON || r2 > cutoff * cutoff) continue;
+        const rr = Math.sqrt(Math.sqrt(r2) / (ei.rad + ej.rad));
+        const dG = [0, 0, 0];
+        let dcni = 0, dcnj = 0;
+        for (let a = atSh[i]; a < atSh[i + 1]; a++) {
+          const pa = ei.shells[shOf[a]];
+          for (let b = atSh[j]; b < atSh[j + 1]; b++) {
+            const pb = ej.shells[shOf[b]];
+            const { s, ds } = overlapGradBlock(pa.cg, pb.cg, vec, r2, intcut);
+            const polyi = 1 + pa.shpoly * rr, polyj = 1 + pb.shpoly * rr;
+            const hs = hscale(ei, shOf[a], ej, shOf[b]) * polyi * polyj;
+            const hij = 0.5 * (selfE[a] + selfE[b]) * hs;
+            // d(polyi*polyj)/d vec = dpoly * vec  (rr = sqrt(r / (rad_i + rad_j)), so d rr / d vec = rr vec / (2 r^2))
+            const dpolyH = 0.5 * (selfE[a] + selfE[b]) * hscale(ei, shOf[a], ej, shOf[b]) *
+              (polyi * pb.shpoly + polyj * pa.shpoly) * 0.5 * rr / r2;
+            const na = shN[a], nb = shN[b];
+            let ps = 0;                                         // sum P S over the block
+            for (let x = 0; x < na; x++) for (let y = 0; y < nb; y++) {
+              const mu = shAo[a] + x, nu = shAo[b] + y, xy = x * nb + y;
+              const p = P[mu * nao + nu], sv = s[xy];
+              const sval = 2 * p * hij - 2 * Wd[mu * nao + nu] - p * (vao[mu] + vao[nu]);
+              const t = 2 * p * sv * dpolyH;
+              dG[0] += sval * ds[0][xy] + t * vec[0];
+              dG[1] += sval * ds[1][xy] + t * vec[1];
+              dG[2] += sval * ds[2][xy] + t * vec[2];
+              ps += p * sv;
+            }
+            // selfE = level - kcn * CN, so d hij / d CN_i = -kcn_a * hs / 2; the pair appears twice in sum P H0
+            dcni -= pa.kcn * hs * ps;
+            dcnj -= pb.kcn * hs * ps;
+          }
+        }
+        dEdcn[i] += dcni; dEdcn[j] += dcnj;
+        for (let k = 0; k < 3; k++) { g[i][k] += dG[k]; g[j][k] -= dG[k]; }
+      }
+      // onsite blocks: H0_mn = S_mn (selfE_a + selfE_b) / 2 depends on CN_i only
+      for (let a = atSh[i]; a < atSh[i + 1]; a++) {
+        const ka = ei.shells[shOf[a]].kcn;
+        for (let x = 0; x < shN[a]; x++) {
+          const mu = shAo[a] + x;
+          for (let n = shAo[atSh[i]]; n < (i + 1 < nat ? shAo[atSh[i + 1]] : nao); n++) dEdcn[i] -= ka * P[mu * nao + n] * S[mu * nao + n];
+        }
+      }
+    }
+
+    // coordination numbers: CN_i = sum_j 1 / (1 + exp(-k (rc/r - 1)))
+    for (let i = 0; i < nat; i++) for (let j = 0; j < i; j++) {
+      const v = [xyz[i][0] - xyz[j][0], xyz[i][1] - xyz[j][1], xyz[i][2] - xyz[j][2]];
+      const r2 = v[0] ** 2 + v[1] ** 2 + v[2] ** 2;
+      if (r2 > CN_CUTOFF ** 2 || r2 < 1e-12) continue;
+      const r = Math.sqrt(r2), rc = el[i].rcov + el[j].rcov;
+      const ex = Math.exp(-CN_KCN * (rc / r - 1)), c = 1 / (1 + ex);
+      const dcdr = -c * c * ex * CN_KCN * rc / r2;
+      const f = (dEdcn[i] + dEdcn[j]) * dcdr / r;
+      for (let k = 0; k < 3; k++) { g[i][k] += f * v[k]; g[j][k] -= f * v[k]; }
+    }
+
+    const conv = AUTOEV * AATOAU;                              // Hartree/Bohr -> eV/Å
+    out.g = g.map(r => [r[0] * conv, r[1] * conv, r[2] * conv]);
+  }
+  return out;
 }
 
-module.exports = { gfn1Energy, BOHR, AUTOEV, _internal: { element, overlapBlock, symEig, choleskyInverse } };
+module.exports = { gfn1Energy, BOHR, AUTOEV, _internal: { element, overlapBlock, overlapGradBlock, symEig, choleskyInverse } };
