@@ -1168,6 +1168,15 @@ const { openPage } = require('./browser');
   })();
   check(r75.heavy >= 3 && r75.heavy < r75.had && r75.decays >= 5 && Math.abs(r75.dE) < 0.01 && r75.left === 0,
     `1.15: charm and bottom: ${r75.heavy} of ${r75.had} hadronic e⁺e⁻ events at 12 GeV made D or B mesons; ${r75.decays} D/B decays, books ${r75.dE} eV`, '1.15 charm: ' + JSON.stringify(r75));
+  // 1.15: relativity in the atom solver: Dirac's hydrogen-like 1s for gold; gold's 6s deeper and smaller
+  const r76 = (() => {
+    const X = require('./load.js').load('all', { seed: 1 }), g = X.scfGrid(79, 60), V = new Float64Array(g.n);
+    for (let i = 0; i < g.n; i++) V[i] = -79 / g.r[i];
+    const h = X.scfOrbitalSR(g, V, 1, 0, 79), au = X.solveAtom(79, 79), s6 = au.orbitals.find(o => o.n === 6 && o.l === 0);
+    return { h1s: +h.e.toFixed(2), au6s: +s6.e.toFixed(2), r6s: +s6.rMean.toFixed(3), ok: au.ok };
+  })();
+  check(Math.abs(r76.h1s + 3434.59) < 0.2 && r76.ok && r76.au6s < -8 && r76.au6s > -9.6 && r76.r6s < 1.6,
+    `1.15: relativistic atom solver: hydrogen-like gold 1s ${r76.h1s} hartree (Dirac −3434.59); gold's 6s ${r76.au6s} eV (measured 9.23 eV to remove it; 6.51 without relativity), ⟨r⟩ ${r76.r6s} Å (1.790 without)`, '1.15 solver: ' + JSON.stringify(r76));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
