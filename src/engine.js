@@ -6189,12 +6189,14 @@ function stepPlain(dt) {
   }
   if (_profOn) { const t = performance.now(); _tInteg += t - tp; _rpT = t; }
   const tf1 = _tForces;
+  if (BO.any) boDqA(dt); // (continuous bond orders: the electron counts' opening half kick and drift, 1.20)
   outerForces();
   if (PI.on) piClose(dt);
   if (_profOn) PROF.rp[1] -= _tForces - tf1; // (the force pass itself is counted under forces)
   rpMark(1);
   if (_profOn) tp = performance.now();
   outerB(dt);
+  if (BO.any) boDqB(dt);
   if (_profOn) { _tBath += performance.now() - tp; _rpT = performance.now(); }
   // the events the force pass found come after the closing kick (0.65), when every velocity belongs to the same moment
   // as the positions: a reaction or bond judged and paid half a kick early created or lost that half kick's work
@@ -6722,6 +6724,7 @@ function totalEnergy0() {
     if (!(p.k === NUC && p.Z === 0) && !p.rad && !p.fast) { md.push(p); if (mags) pe += magU(p, kTm); if (p.qi) pe += qeqSelf(p); }
   }
   for (const o of W.exo) if (!o.dead) ke += o.KE; // unstable particles in flight (their rest mass is in the nuclear ledger)
+  if (BO.any) ke += boDqKE(); // (continuous bond orders: the electron counts' motion, 1.20)
   const boE = BO.any ? boPass(false) : 0; // (continuous bond orders: first, as it sets the members' partial charges from where they are, 1.16)
   if (WAVE.n) pe += waveEnergy(); // (Experimental: electrons as waves)
   for (let i = 0; i < md.length; i++) for (let j = i + 1; j < md.length; j++) {

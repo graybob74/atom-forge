@@ -21,6 +21,10 @@
    for exactly: the energy before and after at the same positions, the difference to the bath (as for quantum
    nuclei's rings). */
 // (BO itself is made in engine.js, which runs first and asks it)
+/* A hydrogen's order to N, O or F starts at a raw order of 0.04 (rising to whole at 0.12), not 0.15 (0.35) (1.20): a
+   proton passing between two waters bonds to the second one as it leaves the first, not only once it is 1.45 Å from it
+   (the gap left a 1.2 eV barrier in a hop between waters 2.65 Å apart; 0.35 eV now). */
+const BO_TAH = 0.04, BO_TBH = 0.12;
 const BO_EPS = 0.03, BO_PLOW = 1.15, BO_WIN = 0.05, BO_TA = 0.15, BO_TB = 0.35, BO_SW = 0.5; // (smoothing; Dof's power below a single bond; the taper; the non-bonded switch's width)
 const boSp = (x) => x <= -BO_EPS ? 0 : x >= BO_EPS ? x : (x + BO_EPS) * (x + BO_EPS) / (4 * BO_EPS);
 const boSpD = (x) => x <= -BO_EPS ? 0 : x >= BO_EPS ? 1 : (x + BO_EPS) / (2 * BO_EPS);
@@ -80,7 +84,7 @@ function bfType(a, b) {
 }
 const BF_PF = ['r', 'ux', 'uy', 'gr', 'gn', 'gca', 'gcb', 'n', 'ne', 'ne0', 'dne', 'dne0', 'ca', 'cb', 'dca', 'dcb', 'sA', 'tA', 'sB', 'tB', 'qc', 'qdh', 'K', 'csh', 'fa', 'fb'];
 const BF_PI = ['a', 'b', 't', 'ss', 'sn'];
-const BF_MF = ['en', 'cap', 'capH', 'val', 'ls', 'lv', 'gl', 'keep', 'q', 'phi', 'qn', 'im', 'ljR', 'ljS', 'pol', 'gw', 'sn', 'gf'];
+const BF_MF = ['en', 'cap', 'capH', 'val', 'ls', 'lv', 'gl', 'keep', 'q', 'phi', 'qn', 'im', 'ljR', 'ljS', 'pol', 'gw', 'sn', 'gf', 'dcap', 'dcapH', 'dval', 'deI', 'gq', 'Gc', 'Gh', 'Gv', 'Gd'];
 const BF_MI = ['slot', 'per', 'db', 'Z', 'f0', 'fc', 'fl', 'cl'];
 const bfArr = (T, n) => WK.on ? wasmArray(T, n) : new T(n); // (in the module's memory when there is one: the Rust pass reads them, 1.18)
 function bfGrow(np, nm) {
@@ -90,21 +94,70 @@ function bfGrow(np, nm) {
 }
 /* members by index, and the pairs within the cutoff: from the neighbour list in a force pass, from the grid otherwise */
 let BF_SM = new Int32Array(256), BF_TZ = new Int32Array(128 * 128).fill(-1); // (slot → member index + 1; element pair → pair type)
+/* Moving charge (1.20). A member's electrons are a continuous count ν = ne + δ: δ moves within its molecule (bfDq), so
+   the +1 of H₃O⁺ can pass to a neighbouring water with the proton. Its internal energy, capacity, expanded capacity and
+   valence follow ν: each the game's own value at whole counts (internalE, capacity, hyperCap, valenceInfo), straight lines
+   between (the internal energy's slopes are the measured ionization energies and electron affinity), each corner rounded
+   over ±BO_QW so that the value at a whole count is exact (Q below: the slope dips and overshoots within the corner). */
+const BO_QW = 0.05;
+const BO_NU = new Map(); // (Z → { E, cap, capH, val } at whole counts 0 … Z + 2)
+function bfNuTab(Z) {
+  let T = BO_NU.get(Z); if (T) return T;
+  const el = ELEMENTS[Math.min(Z, Z_MAX)], n = Z + 3; T = { E: new Float64Array(n), cap: new Float64Array(n), capH: new Float64Array(n), val: new Float64Array(n), at: [] };
+  let E = 0;
+  for (let ne = 0; ne < n; ne++) {
+    if (ne > 0) { const ie = ionE(Z, ne); E -= isFinite(ie) ? ie : 0; }
+    T.E[ne] = E;
+    if (ne === 0) continue;
+    const vi = valenceInfo(Z, ne), f = { el, Z, ne, q: Z - ne, val: vi.v, nOut: vi.n, cap: 0 };
+    f.cap = capacity(f); T.cap[ne] = f.cap; T.capH[ne] = hyperCap(f); T.val[ne] = vi.v;
+  }
+  BO_NU.set(Z, T); return T;
+}
+let _qv = 0, _qd = 0, _qdd = 0; // (bfNu's value, slope and curvature)
+function bfNu(tab, nu) {
+  const top = tab.length - 2; let K = Math.floor(nu); if (K < 0) K = 0; else if (K > top) K = top;
+  const x = nu - K, sK = tab[K + 1] - tab[K];
+  _qv = tab[K] + sK * x; _qd = sK; _qdd = 0;
+  if (x < BO_QW && K > 0) { // (the corner at K, from its right: the right line plus ΔS·ε·(Q(t) − t))
+    const dS = sK - (tab[K] - tab[K - 1]), t = x / BO_QW;
+    if (dS) { _qv += dS * BO_QW * (t / 2 + 0.75 * t * t - 0.25 * t * t * t * t - t); _qd += dS * (0.5 + 1.5 * t - t * t * t - 1); _qdd = dS / BO_QW * (1.5 - 3 * t * t); }
+  } else if (x > 1 - BO_QW && K + 1 <= top) { // (the corner at K + 1, from its left: the left line plus ΔS·ε·Q(t))
+    const dS = (tab[K + 2] - tab[K + 1]) - sK, t = (x - 1) / BO_QW;
+    if (dS) { _qv += dS * BO_QW * (t / 2 + 0.75 * t * t - 0.25 * t * t * t * t); _qd += dS * (0.5 + 1.5 * t - t * t * t); _qdd = dS / BO_QW * (1.5 - 3 * t * t); }
+  }
+}
 function bfMembers() {
   const mem = BF.mem;
   for (const p of mem) if (p.i < BF_SM.length) BF_SM[p.i] = 0; // (the last pass's members off the map)
   mem.length = 0;
   if (BF_SM.length < S.size) BF_SM = bfArr(Int32Array, S.size * 2);
   for (const p of W.parts) if (p.bom && !p.dead) { p._bm = mem.length; BF_SM[p.i] = mem.length + 1; mem.push(p); }
-  const nm = mem.length; bfGrow(Math.max(BF.pcapN, 64), nm);
+  const nm = mem.length; bfGrow(Math.max(BF.pcapN, 64), Math.max(nm, 1));
+  let eI = 0, kq = 0;
   for (let m = 0; m < nm; m++) {
     const p = mem[m]; BF.mslot[m] = p.i; BF.men[m] = p.el.en || 2.6; BF.mval[m] = p.val; BF.mper[m] = periodOf(p.el.Z); BF.mdb[m] = p.el.dblock ? 1 : 0; BF.mZ[m] = p.Z;
     BF.mls[m] = p._boLs === undefined ? NaN : p._boLs; BF.mqn[m] = p.q; BF.mim[m] = S.im[p.i];
-    BF.mcap[m] = capacity(p); BF.mcapH[m] = hyperCap(p); BF.mfl[m] = _lrOn && isLR(p) ? 1 : 0;
+    BF.mfl[m] = _lrOn && isLR(p) ? 1 : 0;
+    { // (the electron count's share: capacity, expanded capacity, valence and internal energy follow ν = ne + δ)
+      const T = bfNuTab(p.Z), d = p._dq || 0;
+      if (d === 0) { // (a whole count, as most are: the values and slopes there, made once)
+        let w = T.at[p.ne]; if (!w) { w = T.at[p.ne] = new Float64Array(8); const nu = p.ne; bfNu(T.cap, nu); w[0] = _qv; w[1] = _qd; bfNu(T.capH, nu); w[2] = _qv; w[3] = _qd; bfNu(T.val, nu); w[4] = _qv; w[5] = _qd; bfNu(T.E, nu); w[6] = _qd; w[7] = _qdd; }
+        BF.mcap[m] = w[0]; BF.mdcap[m] = w[1]; BF.mcapH[m] = w[2]; BF.mdcapH[m] = w[3]; BF.mval[m] = w[4]; BF.mdval[m] = w[5]; BF.mdeI[m] = w[6]; if (w[7] > kq && p.Z > 1) kq = w[7];
+        BF.mqn[m] = p.q;
+      } else {
+        const nu = p.ne + d;
+        bfNu(T.cap, nu); BF.mcap[m] = _qv; BF.mdcap[m] = _qd;
+        bfNu(T.capH, nu); BF.mcapH[m] = _qv; BF.mdcapH[m] = _qd;
+        bfNu(T.val, nu); BF.mval[m] = _qv; BF.mdval[m] = _qd;
+        bfNu(T.E, nu); eI += _qv - T.E[p.ne]; BF.mdeI[m] = _qd; if (_qdd > kq) kq = _qdd;
+        BF.mqn[m] = p.q - d;
+      }
+    }
     BF.mcl[m] = p._bcl === undefined ? -1 - m : p._bcl; // (its molecule: the atoms joined by orders above 0.3, bfClusters)
     BF.mljR[m] = p.el.uffR; BF.mljS[m] = Math.sqrt(p.el.uffD * LJ_SCALE); // (the atom's own size: a hydrogen's shrinks with its bonds to N, O, F, bfCoulomb)
   }
-  BF.nm = nm;
+  BF.nm = nm; BF.eI = eI; BF.kq = kq;
   return nm;
 }
 function bfCollect(useVL) { bfMembers(); return bfPairsJS(useVL); }
@@ -117,7 +170,7 @@ function bfPairsJS(useVL) {
     const r = Math.sqrt(r2), za = Zs[i], zb = Zs[j], key = za < zb ? za * 128 + zb : zb * 128 + za;
     let t = TZ[key]; if (t < 0) t = TZ[key] = bfType(OBJ[i], OBJ[j]);
     BF.pa[n] = ma; BF.pb[n] = mb; BF.pr[n] = r; BF.pux[n] = dx / r; BF.puy[n] = dy / r; BF.pt[n] = t;
-    BF.pK[n] = ION[i] === ION[j] ? KE : KE * iwK(OBJ[i], OBJ[j]); BF.pcsh[n] = Q[i] === 0 || Q[j] === 0 ? c0 : csh(OBJ[i], OBJ[j], 0.09);
+    BF.pK[n] = KE; BF.pcsh[n] = Q[i] === 0 || Q[j] === 0 ? c0 : csh(OBJ[i], OBJ[j], 0.09);
     n++;
   };
   if (useVL) {
@@ -170,7 +223,11 @@ function bfCommon(a, b, inc, f0, fc, test, f) {
   for (let u = f0[a], e = u + fc[a]; u < e; u++) { const k = inc[u]; if (!test(k)) continue; const c = pa[k] === a ? pb[k] : pa[k]; if (BF_ST[c] === st) f(k, BF_MK[c]); }
 }
 let BF_CS = new Float64Array(16), BF_FS = new Float64Array(16);
-function boPass(forces) { return BF.useWasm && bfWasmOK() ? bfPassWasm(forces) : boPassJS(forces); }
+function boPass(forces) {
+  const E = BF.useWasm && bfWasmOK() ? bfPassWasm(forces) : boPassJS(forces);
+  if (forces && BF.kq > 0 && BO.dqOn) { const w = BF.kq / BO_DQM; if (w > _stiff) _stiff = w; } // (the electron counts' stiffest corner, for the step)
+  return E;
+}
 function boPassJS(forces) {
   const n = bfCollect(forces), nm = BF.nm, PT = BF.PT;
   const pa = BF.pa, pb = BF.pb, pt = BF.pt, pr = BF.pr, gr = BF.pgr, gn = BF.pgn, gca = BF.pgca, gcb = BF.pgcb, pn = BF.pn, ne_ = BF.pne, ne0_ = BF.pne0, dne_ = BF.pdne, dne0_ = BF.pdne0;
@@ -188,7 +245,8 @@ function boPassJS(forces) {
     if (d > 0.9) { const u = Math.PI * (d - 0.9) / 0.4, f = 0.5 * (1 + Math.cos(u)), fd = -0.5 * Math.sin(u) * Math.PI / 0.4; dn0 = dn0 * f + n0 * fd; n0 *= f; }
     if (n0 >= 3.5) { n0 = 3.5; dn0 = 0; }
     let ne, dne;
-    if (n0 >= BO_TB) { ne = n0; dne = 1; } else if (n0 <= BO_TA) { ne = 0; dne = 0; } else { const w = BO_TB - BO_TA, u = (n0 - BO_TA) / w, s = u * u * (3 - 2 * u); ne = n0 * s; dne = s + n0 * 6 * u * (1 - u) / w; }
+    const zA = BF.mZ[pa[k]], zB = BF.mZ[pb[k]], hb = (zA === 1 && zB >= 7 && zB <= 9) || (zB === 1 && zA >= 7 && zA <= 9), TA = hb ? BO_TAH : BO_TA, TB = hb ? BO_TBH : BO_TB; // (a hydrogen to N, O, F: its order starts lower, 1.20)
+    if (n0 >= TB) { ne = n0; dne = 1; } else if (n0 <= TA) { ne = 0; dne = 0; } else { const w = TB - TA, u = (n0 - TA) / w, s = u * u * (3 - 2 * u); ne = n0 * s; dne = s + n0 * 6 * u * (1 - u) / w; }
     ne_[k] = ne; dne_[k] = dne * dn0; ne0_[k] = ne; dne0_[k] = dne_[k];
     const sg = PT[t + 3], z2 = sg * sg / (r * r), z6 = z2 * z2 * z2, s12 = z6 * z6; E += 0.05 * s12; gr[k] += -0.6 * s12 / r;
     fc[pa[k]]++; fc[pb[k]]++;
@@ -263,9 +321,12 @@ function boPassJS(forces) {
   BO.changes++;
   E += bfAnglesAll(forces);
   E += bfCoulomb(forces, n);
+  E += bfShare(forces, n);
+  E += BF.eI; // (the members' internal energies off their whole electron counts, moving charge)
   BO.E = E; BO.np = n; BO.flat = true;
   for (let m = 0; m < nm; m++) if (fc[m]) BF.mem[m]._boLs = mls[m];
   if (!forces) return E;
+  const Gc = BF.mGc, Gh = BF.mGh; for (let m = 0; m < nm; m++) { Gc[m] = BF.mgf[m]; Gh[m] = 0; } // (∂E/∂capacity: the free valences' share first)
   // back through the orders to the distances
   const phi = BF.mphi;
   for (let k = 0; k < n; k++) {
@@ -279,6 +340,7 @@ function boPassJS(forces) {
     const hi0 = f0[m], Ls = mls[m], gs = mgl[m] * boSpD(Ls); let U = 0;
     for (let u = hi0; u < hi0 + cnt; u++) { const k = inc[u], c = pa[k] === m ? ca_[k] : cb_[k]; U += boSpD(c - Ls) * boFade(c); }
     if (U > 0) for (let u = hi0; u < hi0 + cnt; u++) { const k = inc[u], c = pa[k] === m ? ca_[k] : cb_[k], w = (boSpD(c - Ls) * boFade(c) + boSp(c - Ls) * boFadeD(c)) * gs / U; if (pa[k] === m) gca[k] += w; else gcb[k] += w; }
+    if (U > 0) { const dEV = -gs / U; Gc[m] += mkeep[m] * dEV; Gh[m] += (1 - mkeep[m]) * dEV; } // (the level's share of the capacities)
     const dV = mcapH[m] - mcap[m];
     if (U > 0 && dV) for (let u = hi0; u < hi0 + cnt; u++) {
       const k = inc[u], o = pa[k] === m ? pb[k] : pa[k]; if (men[o] < 3.0) continue;
@@ -289,6 +351,9 @@ function boPassJS(forces) {
   for (let k = 0; k < n; k++) {
     if (!bt(k)) continue;
     const G = gca[k] * dca_[k] + gcb[k] * dcb_[k];
+    { const a = pa[k], b = pb[k]; // (each end's cap on its partner: dc/dC = 1 − dc/dn below 3)
+      if (men[a] >= 3.0) { if (mcapH[b] < 3) Gh[b] += gca[k] * (1 - dca_[k]); } else if (mcap[b] < 3) Gc[b] += gca[k] * (1 - dca_[k]);
+      if (men[b] >= 3.0) { if (mcapH[a] < 3) Gh[a] += gcb[k] * (1 - dcb_[k]); } else if (mcap[a] < 3) Gc[a] += gcb[k] * (1 - dcb_[k]); }
     gr[k] += G * dne_[k];
     const s0 = pss[k], ns = psn[k];
     if (ns && G) for (let t = 0; t < ns; t++) {
@@ -298,6 +363,7 @@ function boPassJS(forces) {
       if (w >= 0) { gr[k1] += dEw * boBD(ne0_[k1]) * b2 * sg * dne0_[k1]; gr[k2] += dEw * b1 * boBD(ne0_[k2]) * sg * dne0_[k2]; }
     }
   }
+  bfDqGrad();
   const FX = S.fx, FY = S.fy, slot = BF.mslot, ux = BF.pux, uy = BF.puy;
   for (let k = 0; k < n; k++) {
     const g = gr[k]; if (!g) continue;
@@ -305,6 +371,12 @@ function boPassJS(forces) {
     FX[j] -= fx; FY[j] -= fy; FX[i] += fx; FY[i] += fy;
   }
   return E;
+}
+/* ∂E/∂ν for every member (the force on its electron count), from the pass's own slopes: internal energy, capacities,
+   valence, and −φ (its charge is Z − ν) */
+function bfDqGrad() {
+  const nm = BF.nm, mem = BF.mem, gq = BF.mgq, phi = BF.mphi;
+  for (let m = 0; m < nm; m++) { gq[m] = BF.mGd[m] + BF.mdeI[m] + BF.mdcap[m] * BF.mGc[m] + BF.mdcapH[m] * BF.mGh[m] + BF.mdval[m] * BF.mGv[m] - phi[m]; mem[m]._dqg = gq[m]; }
 }
 /* angles (boPassObj's: strong partners always, those on the way in or out by the expectation over subsets) */
 const BFA = { a: new Float64Array(8), dx: new Float64Array(8), dy: new Float64Array(8), g: new Float64Array(8), o: new Int32Array(8), ord: new Int32Array(8), gv: new Float64Array(8), ghi: new Int32Array(8), glo: new Int32Array(8), gord: new Int32Array(8), list: new Int32Array(16), strong: new Int32Array(64), zone: new Int32Array(64), zw: new Float64Array(64), zd: new Float64Array(64) };
@@ -344,7 +416,7 @@ function bfAngle(c, list, nl, wgt, forces) {
 }
 function bfAnglesAll(forces) {
   const nm = BF.nm, f0 = BF.mf0, fc = BF.mfc, inc = BF.inc, pn = BF.pn, gn = BF.pgn, A = BFA;
-  let E = 0;
+  let E = 0; const Gv = BF.mGv; Gv.fill(0, 0, nm);
   for (let c = 0; c < nm; c++) {
     const cnt = fc[c]; if (!cnt || BF.mdb[c]) continue;
     if (A.strong.length < cnt) { A.strong = new Int32Array(2 * cnt); A.zone = new Int32Array(2 * cnt); A.zw = new Float64Array(2 * cnt); A.zd = new Float64Array(2 * cnt); }
@@ -367,7 +439,7 @@ function bfAnglesAll(forces) {
       if (wt <= 0 || nl < 2) continue;
       const e = bfAngle(c, A.list, nl, wt, forces), dS = _adS;
       E += wt * e;
-      if (dS) for (let u = 0; u < nl; u++) gn[A.list[u]] += wt * dS;
+      if (dS) { for (let u = 0; u < nl; u++) gn[A.list[u]] += wt * dS; Gv[c] -= wt * dS; } // (the lone pairs' share: ∂E/∂valence = −∂E/∂Σorders)
       for (let u = 0; u < z; u++) {
         let o = 1; for (let j = 0; j < z; j++) if (j !== u) o *= mask & (1 << j) ? A.zw[j] : 1 - A.zw[j];
         gn[A.zone[u]] += (mask & (1 << u) ? o : -o) * A.zd[u] * e;
@@ -387,6 +459,12 @@ function bfLJ(r, rm, eps, cf) {
   _ljV = eps * (s6 * s6 - 2 * s6 + LJ_VCUT + (r < c ? F0 * (c - r) : 0)); _ljF = -eps * F0;
   _ljM = r >= c ? 12 * eps * (s6 * s6 - s6) / rm : eps * F0 * r / rm;
 }
+/* The exclusions of bonded (1-2) and angle (1-3) pairs from the members' Coulomb and Lennard-Jones (1.20): rising from an
+   order of 0.1 to 0.9, so that a pair passing a proton between partners changes them gradually (it was 0.3 to 0.7, and
+   the hydrogen passing between two waters lost 1 eV of Coulomb in 0.1 Å). */
+const BO_X0 = 0.1, BO_X1 = 0.9;
+const boX = (n) => { if (n <= BO_X0) return 0; if (n >= BO_X1) return 1; const t = (n - BO_X0) / (BO_X1 - BO_X0); return t * t * (3 - 2 * t); };
+const boXD = (n) => { if (n <= BO_X0 || n >= BO_X1) return 0; const t = (n - BO_X0) / (BO_X1 - BO_X0); return 6 * t * (1 - t) / (BO_X1 - BO_X0); };
 const BO_FV = 0.3; // (a pair whose atoms both have this much valence free can bond: no wall between them)
 const boHf = (f) => { const t = f / BO_FV; return t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t); };
 const boHfD = (f) => { const t = f / BO_FV; return t <= 0 || t >= 1 ? 0 : 6 * t * (1 - t) / BO_FV; };
@@ -401,7 +479,7 @@ function bfCoulomb(forces, n) {
     bfQh(pn[k]); const qc = qc_[k] = PARTIAL_K * (eb - ea); qdh_[k] = _bfs;
     mq[pa[k]] += qc * _bfv; mq[pb[k]] -= qc * _bfv;
   }
-  for (let m = 0; m < nm; m++) { const p = BF.mem[m]; QP[p.i] = mq[m]; p.qpol = mq[m]; p.qf = 0; p.qi = 0; }
+  for (let m = 0; m < nm; m++) { const p = BF.mem[m], q = mq[m] - (p._dq || 0); QP[p.i] = q; p.qpol = q; p.qf = 0; p.qi = 0; } // (a moving count's share too: the kernel meets the member's whole charge)
   const f0 = BF.mf0, fc = BF.mfc, inc = BF.inc, mZ = BF.mZ, pol = BF.mpol, gw = BF.mgw, LR = BF.mljR, LS = BF.mljS;
   // a hydrogen bonded to N, O or F is small (setSize's polar hydrogen): its size follows its orders to them
   const SN = BF.msn, GF = BF.mgf, MC = BF.mcap, fa_ = BF.pfa, fb_ = BF.pfb;
@@ -414,15 +492,15 @@ function bfCoulomb(forces, n) {
   let E = 0;
   for (let k = 0; k < n; k++) {
     const a = pa[k], b = pb[k], qa = mqn[a] + mq[a], qb = mqn[b] + mq[b], nk = pn[k];
-    const b0 = boB(nk), g0 = boG(nk); fa_[k] = 0; fb_[k] = 0; if (b0 >= 1) continue;
+    const b0 = boX(nk), g0 = boG(nk); fa_[k] = 0; fb_[k] = 0; if (b0 >= 1) continue;
     const r = pr[k], ha = mZ[a] === 1, hb = mZ[b] === 1;
     const Ra = ha ? LR[a] + (BO_RHP - LR[a]) * pol[a] : LR[a], Rb = hb ? LR[b] + (BO_RHP - LR[b]) * pol[b] : LR[b];
     const Sa = ha ? LS[a] + (BO_SHP - LS[a]) * pol[a] : LS[a], Sb = hb ? LS[b] + (BO_SHP - LS[b]) * pol[b] : LS[b];
     const rm = 0.5 * (Ra + Rb), eps = Sa * Sb, lj = g0 < 1 && eps > 0 && r < 2.6 * rm, ch = qa !== 0 || qb !== 0;
     if (!lj && !ch) continue;
     let prod = 1, nt = 0;
-    if (r < 4.4) bfCommon(a, b, inc, f0, fc, (j) => pn[j] > 0.3, (k1, k2) => {
-      const w = boB(pn[k1]) * boB(pn[k2]); if (w <= 0) return;
+    if (r < 4.4) bfCommon(a, b, inc, f0, fc, (j) => pn[j] > BO_X0, (k1, k2) => {
+      const w = boX(pn[k1]) * boX(pn[k2]); if (w <= 0) return;
       prod *= 1 - w; if (nt >= BF_T1.length) { const g = (x, T) => { const y = new T(x.length * 2); y.set(x); return y; }; BF_T1 = g(BF_T1, Int32Array); BF_T2 = g(BF_T2, Int32Array); BF_TW = g(BF_TW, Float64Array); } BF_T1[nt] = k1; BF_T2[nt] = k2; BF_TW[nt] = w; nt++;
     });
     if (!(prod > 0)) continue;
@@ -451,10 +529,10 @@ function bfCoulomb(forces, n) {
     }
     if (!forces) continue;
     const C1 = Es * (1 - b0) + V * (1 - g0) * wfk; // (the 1-3 weight's slope, both terms)
-    gn[k] -= (Es * boBD(nk) + V * boGD(nk) * wfk) * prod;
+    gn[k] -= (Es * boXD(nk) + V * boGD(nk) * wfk) * prod;
     if (C1) for (let t = 0; t < nt; t++) {
       const k1 = BF_T1[t], k2 = BF_T2[t], w = BF_TW[t], dsw = -C1 * prod / (1 - w);
-      gn[k1] += dsw * boBD(pn[k1]) * boB(pn[k2]); gn[k2] += dsw * boB(pn[k1]) * boBD(pn[k2]);
+      gn[k1] += dsw * boXD(pn[k1]) * boX(pn[k2]); gn[k2] += dsw * boX(pn[k1]) * boXD(pn[k2]);
     }
   }
   if (forces) for (let k = 0; k < n; k++) { // (free valence: every order of an atom but the pair's own)
@@ -473,6 +551,40 @@ function bfCoulomb(forces, n) {
 }
 /* the potential at each member from the non-members it meets (the kernel's pairs: same coefficients, qeqC) and, for
    an ion member, from the net charges beyond the cutoff */
+/* A proton shared between two atoms that can each hold the charge (1.20): the two ways of drawing it (the charge on one
+   side, or on the other) mix, as a valence-bond picture's two structures do, lowering the energy by −2V·√(e_a·e_b), e
+   the charge each side holds (a smooth max of its whole-count charge, each sign apart), V = BO_SHV·4·n_a·n_b from the
+   hydrogen's two orders. Classical charges alone keep the charge on one side (the other side's partial charges hold it
+   there); this term is what lets it spread across a Zundel-like O–H–O and follow the proton. Only N, O and F. */
+const BO_SHV = 1.7, BO_SHE = 0.05; // (eV at an even split; the square root's rounding)
+function bfShare(forces, n) {
+  const nm = BF.nm, mZ = BF.mZ, f0 = BF.mf0, fc = BF.mfc, inc = BF.inc, pa = BF.pa, pb = BF.pb, pn = BF.pn, mqn = BF.mqn, Gd = BF.mGd, gn = BF.pgn;
+  Gd.fill(0, 0, nm);
+  let E = 0;
+  for (let h = 0; h < nm; h++) {
+    if (mZ[h] !== 1 || fc[h] < 2) continue;
+    const u0 = f0[h], u1 = u0 + fc[h];
+    for (let u = u0; u < u1; u++) {
+      const k1 = inc[u], a = pa[k1] === h ? pb[k1] : pa[k1], n1 = pn[k1]; if (!(n1 > 0) || mZ[a] < 7 || mZ[a] > 9) continue;
+      for (let v = u + 1; v < u1; v++) {
+        const k2 = inc[v], b = pa[k2] === h ? pb[k2] : pa[k2], n2 = pn[k2]; if (!(n2 > 0) || mZ[b] < 7 || mZ[b] > 9) continue;
+        const m1 = n1 < 1 ? n1 : 1, m2 = n2 < 1 ? n2 : 1, V = BO_SHV * 4 * m1 * m2; // (orders past 1 count as 1)
+        let T = 0, dTa = 0, dTb = 0;
+        for (const sg of [1, -1]) {
+          const xa = sg * mqn[a], xb = sg * mqn[b], ea = boSp(xa), eb = boSp(xb), pr = ea * eb; if (!(pr > 0)) continue;
+          const r = Math.sqrt(pr + BO_SHE * BO_SHE); T += r - BO_SHE;
+          if (forces) { dTa += eb / (2 * r) * boSpD(xa) * sg; dTb += ea / (2 * r) * boSpD(xb) * sg; } // (∂/∂q; ν = Z − q: ∂/∂ν = −∂/∂q)
+        }
+        if (!T) continue;
+        E -= 2 * V * T;
+        if (!forces) continue;
+        Gd[a] += 2 * V * dTa; Gd[b] += 2 * V * dTb; // (−∂(−2VT)/∂q = 2V·∂T/∂q, as ∂/∂ν)
+        if (n1 < 1) gn[k1] -= 2 * BO_SHV * 4 * m2 * T; if (n2 < 1) gn[k2] -= 2 * BO_SHV * 4 * m1 * T;
+      }
+    }
+  }
+  return E;
+}
 function bfPhiOthers() {
   const phi = BF.mphi, QP = S.qp;
   let others = false; for (const p of W.parts) if (!p.bom && !p.dead && p.k === NUC && p.Z > 0) { others = true; break; }
@@ -505,7 +617,7 @@ function bfWasmOK() { return wasmReady() && typeof WK.ex.af_bo_pass1 === 'functi
 function bfWasmInit() { // (the descriptor, the scalars and the angle targets, once; the tables moved into the module's memory)
   if (!WK.on) return false;
   if (!BFW.desc) {
-    BFW.desc = wasmArray(Int32Array, 96); BFW.par = wasmArray(Float64Array, 16);
+    BFW.desc = wasmArray(Int32Array, 112); BFW.par = wasmArray(Float64Array, 16);
     const T = BFW.tgt = wasmArray(Float64Array, 1024 * 6); // (the angle targets for every key bfAngle can ask: ((nl·8 + lp)·8 + period)·2 + allH)
     if (!WK.on) return false;
     for (let nl = 2; nl <= 6; nl++) for (let lp = 0; lp < 8; lp++) for (let per = 0; per < 8; per++) for (let h = 0; h < 2; h++) {
@@ -541,6 +653,7 @@ function bfDescFill() {
   ok = put(58, BF_CS) && put(59, BF_FS) && put(60, BFA.strong) && put(61, BFA.zone) && put(62, BFA.zw) && put(63, BFA.zd) && put(64, BFA.list) && put(65, BF_T1) && put(66, BF_T2) && put(67, BF_TW) && ok;
   ok = put(68, S.x) && put(69, S.y) && put(70, S.Z) && put(71, S.q) && put(72, S.ionic) && put(73, S.fx) && put(74, S.fy) && put(75, VL.pi) && put(76, VL.pj) && ok;
   ok = put(77, BF.pfa) && put(78, BF.pfb) && put(79, BF.mljR) && put(80, BF.mljS) && put(81, BF.mpol) && put(82, BF.mgw) && put(83, BF.msn) && put(84, BF.mgf) && put(85, BF.mcl) && ok; // (1.19)
+  ok = put(86, BF.mdcap) && put(87, BF.mdcapH) && put(88, BF.mdval) && put(89, BF.mdeI) && put(90, BF.mgq) && put(91, BF.mGc) && put(92, BF.mGh) && put(93, BF.mGv) && put(94, BF.mGd) && ok; // (1.20)
   return ok;
 }
 /* every pair of the members' elements has its type (the module reads BF_TZ) */
@@ -575,11 +688,13 @@ function bfPassWasm(forces) {
   _stiff = P[8]; BFW.calls = (BFW.calls || 0) + 1;
   BO.changes++;
   const QP = S.qp, mq = BF.mq, mem = BF.mem, fc = BF.mfc, mls = BF.mls;
-  for (let m = 0; m < nm; m++) { const p = mem[m]; QP[p.i] = mq[m]; p.qpol = mq[m]; p.qf = 0; p.qi = 0; if (fc[m]) p._boLs = mls[m]; }
+  for (let m = 0; m < nm; m++) { const p = mem[m], q = mq[m] - (p._dq || 0); QP[p.i] = q; p.qpol = q; p.qf = 0; p.qi = 0; if (fc[m]) p._boLs = mls[m]; }
+  E += BF.eI;
   BO.E = E; BO.np = n; BO.flat = true;
   if (!forces) return E;
   bfPhiOthers();
   ex.af_bo_pass2(BFW.desc.byteOffset, P.byteOffset);
+  { const nm2 = BF.nm, mem2 = BF.mem, gq = BF.mgq; for (let m = 0; m < nm2; m++) mem2[m]._dqg = gq[m]; }
   return E;
 }
 /* the last pass's pair k as { a, b, n, r } (for the readers below) */
@@ -621,23 +736,68 @@ function boBonds() { const out = []; for (let k = 0; k < BO.np; k++) { const q =
 /* The members' molecules (the atoms joined by orders above 0.3 in the last pass), for the soft intramolecular wall. Looked at
    every 8th step; when they change (a bond made or broken), the energy at the same positions before and after goes to the
    bath, as a stored bond's event does. Returns whether anything changed. */
-let BF_UF = new Int32Array(64);
+let BF_UF = new Int32Array(64), BF_UQ = new Int32Array(64);
 function bfClusters() {
   if (!BO.any || BO.flat !== true || !BF.nm || (W.step & 7)) return false; // (every 8th step: a molecule made or split a few steps late keeps its old wall till then)
   const nm = BF.nm, mem = BF.mem, pa = BF.pa, pb = BF.pb, pn = BF.pn;
-  if (BF_UF.length < nm) BF_UF = new Int32Array(2 * nm);
-  const U = BF_UF, find = (x) => { while (U[x] !== x) { U[x] = U[U[x]]; x = U[x]; } return x; };
-  for (let m = 0; m < nm; m++) U[m] = m;
-  for (let k = 0; k < BF.np; k++) if (pn[k] > 0.3) { const x = find(pa[k]), y = find(pb[k]); if (x !== y) { if (mem[x].id < mem[y].id) U[y] = x; else U[x] = y; } }
-  let ch = false;
-  for (let m = 0; m < nm; m++) { const p = mem[m]; if (p.dead || !p.bom) return false; if (p._bcl !== mem[find(m)].id) { ch = true; break; } } // (a member left since: boSync's own pass sorts it)
-  if (!ch) return false;
-  const Eb = boPass(false);
-  for (let m = 0; m < nm; m++) mem[m]._bcl = mem[find(m)].id;
-  const Ea = boPass(false);
-  W.ledger.bath += Eb - Ea; BO.bath += Eb - Ea; BO.clChanges = (BO.clChanges || 0) + 1;
+  if (BF_UF.length < nm) { BF_UF = new Int32Array(2 * nm); BF_UQ = new Int32Array(2 * nm); }
+  const mk = (U, th) => {
+    const find = (x) => { while (U[x] !== x) { U[x] = U[U[x]]; x = U[x]; } return x; };
+    for (let m = 0; m < nm; m++) U[m] = m;
+    for (let k = 0; k < BF.np; k++) if (pn[k] > th) { const x = find(pa[k]), y = find(pb[k]); if (x !== y) { if (mem[x].id < mem[y].id) U[y] = x; else U[x] = y; } }
+    for (let m = 0; m < nm; m++) U[m] = find(m);
+  };
+  mk(BF_UF, 0.3); mk(BF_UQ, BO_QCL); // (molecules for the wall; the wider groups the electrons move within)
+  const U = BF_UF, UQ = BF_UQ;
+  let ch = false, qch = false, real = false;
+  for (let m = 0; m < nm; m++) {
+    const p = mem[m]; if (p.dead || !p.bom) return false; // (a member left since: boSync's own pass sorts it)
+    if (p._bcl !== mem[U[m]].id) ch = true;
+    if (p._qcl !== mem[UQ[m]].id) qch = true;
+    if (Math.abs(p._dq || 0) > 0.5) real = true;
+  }
+  if (!ch && !qch && !real) return false;
+  // the books: everything these changes touch, at the same positions, before and after
+  const set = real ? mem.filter(p => Math.abs(p._dq || 0) > 0.5) : null;
+  const meas = () => { let e = boPass(false) + boDqKE(); if (set) { e += localPE(new Set(set)); for (const p of set) e += internalE(p); } return e; };
+  const Eb = meas();
+  for (let m = 0; m < nm; m++) mem[m]._bcl = mem[U[m]].id;
+  if (qch) { // (new groups: each one's electrons whole again, its share of the motion taken out)
+    const tot = new Map();
+    for (let m = 0; m < nm; m++) { const id = mem[UQ[m]].id, p = mem[m]; p._qcl = id; if (p.Z <= 1) continue; let t = tot.get(id); if (!t) tot.set(id, t = { s: 0, v: 0, n: 0, big: p }); t.s += p._dq || 0; t.v += p._dqv || 0; t.n++; if (Math.abs(p._dq || 0) > Math.abs(t.big._dq || 0)) t.big = p; }
+    for (const t of tot.values()) { const r = Math.round(t.s) - t.s; if (Math.abs(r) > 1e-12) t.big._dq = (t.big._dq || 0) + r; }
+    for (let m = 0; m < nm; m++) { const p = mem[m]; if (p.Z <= 1) continue; const t = tot.get(p._qcl); if (t.n > 1 && t.v) p._dqv = (p._dqv || 0) - t.v / t.n; else if (t.n === 1) p._dqv = 0; }
+    BO.dqOn = false; for (const t of tot.values()) if (t.n > 1) { BO.dqOn = true; break; } // (no group with two heavy atoms: nothing can move)
+  }
+  if (set) for (const p of set) { const k = Math.round(p._dq); p._dq -= k; p.ne += k; refresh(p); } // (a count past half-way becomes the atom's own: H₃O⁺'s charge on the oxygen that now holds three hydrogens)
+  const Ea = meas();
+  W.ledger.bath += Eb - Ea; BO.bath += Eb - Ea; BO.clChanges = (BO.clChanges || 0) + 1; if (set) BO.dqReal = (BO.dqReal || 0) + set.length;
+  if (set) { W.dirty++; vlInvalidate(); }
   return true;
 }
+/* The electrons' motion (moving charge, 1.20): each member's count ν = ne + δ has a velocity and a mass BO_DQM, pushed by
+   −∂E/∂ν (bfDqGrad) less its group's mean (so a group's electrons are conserved), and damped at BO_DQG: the charge
+   settles where the energy is lowest within ~10 fs, the work of its damping going to the heat bath. Velocity Verlet with
+   the atoms: a half kick and the drift before the force pass (boDqA), the other half kick after (boDqB). */
+const BO_DQM = 6, BO_DQG = 2, BO_QCL = 0.02; // (eV·tu²/e²; 1/tu; the order that joins two atoms' electrons)
+function bfDqForces() { // (−∂E/∂ν less the group mean, onto p._dqf)
+  const mem = BF.mem, tot = new Map();
+  const ok = (p) => !p.dead && p.bom && p._qcl !== undefined && p.Z > 1; // (hydrogens keep their one electron: the charge moves between the heavier atoms)
+  for (const p of mem) { if (!ok(p)) continue; let t = tot.get(p._qcl); if (!t) tot.set(p._qcl, t = { g: 0, n: 0 }); t.g += p._dqg || 0; t.n++; }
+  for (const p of mem) { if (!ok(p)) { p._dqf = 0; continue; } const t = tot.get(p._qcl); p._dqf = t.n > 1 ? -((p._dqg || 0) - t.g / t.n) : 0; }
+}
+function boDqA(dt) {
+  if (!BO.any || BO.flat !== true || !BO.dqOn) return;
+  bfDqForces(); const h = 0.5 * dt / BO_DQM;
+  for (const p of BF.mem) { if (!p._dqf && !p._dqv) continue; p._dqv = (p._dqv || 0) + h * p._dqf; p._dq = (p._dq || 0) + p._dqv * dt; }
+}
+function boDqB(dt) {
+  if (!BO.any || BO.flat !== true || !BO.dqOn) return;
+  bfDqForces(); const h = 0.5 * dt / BO_DQM, c = Math.exp(-BO_DQG * dt); let lost = 0;
+  for (const p of BF.mem) { if (!p._dqf && !p._dqv) continue; const v = (p._dqv || 0) + h * p._dqf, v2 = v * c; lost += 0.5 * BO_DQM * (v * v - v2 * v2); p._dqv = v2; }
+  if (lost) { W.ledger.bath += lost; BO.bath += lost; }
+}
+function boDqKE() { let e = 0; for (const p of BF.mem) if (p._dqv && !p.dead && p.bom) e += 0.5 * BO_DQM * p._dqv * p._dqv; return e; }
 function boSync() {
   if (!BO.on && !BO.any) return false;
   const clCh = bfClusters();

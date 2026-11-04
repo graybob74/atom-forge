@@ -16,7 +16,7 @@ fn main() {
         let nm = u32_(&f, 20); let n_exp = u32_(&f, 24); let hi = u32_(&f, 28); let e_exp = f64_(&f, 32);
         let mut o = hdr;
         let rd = |o: &mut usize, k: usize| -> Vec<f64> { let v = (0..k).map(|i| f64_(&f, *o + 8 * i)).collect(); *o += 8 * k; v };
-        let fx_e = rd(&mut o, hi); let fy_e = rd(&mut o, hi); let pn_e = rd(&mut o, n_exp); let mq_e = rd(&mut o, nm); let po = rd(&mut o, nm);
+        let fx_e = rd(&mut o, hi); let fy_e = rd(&mut o, hi); let pn_e = rd(&mut o, n_exp); let mq_e = rd(&mut o, nm); let po = rd(&mut o, nm); let gq_e = rd(&mut o, nm);
         o = (o + 7) & !7;
         let mut mem: Vec<u64> = vec![0; (mem_len + 7) / 8];
         let base = mem.as_mut_ptr() as usize;
@@ -35,15 +35,16 @@ fn main() {
         let dt = t0.elapsed();
         let d = (base + desc) as *const i32;
         let arr = |k: usize| unsafe { (base + *d.add(k) as usize) as *const f64 };
-        let (fx, fy, pn, mq) = (arr(B_FX), arr(B_FY), arr(B_PN), arr(B_MQ));
+        let (fx, fy, pn, mq, gq) = (arr(B_FX), arr(B_FY), arr(B_PN), arr(B_MQ), arr(B_MGQ));
         let mut df = 0.0f64; let mut fmax = 0.0f64;
         for i in 0..hi { unsafe { df = df.max((*fx.add(i) - fx_e[i]).abs()).max((*fy.add(i) - fy_e[i]).abs()); fmax = fmax.max(fx_e[i].abs()); } }
         let mut dn = 0.0f64; for k in 0..n_exp.min(n) { unsafe { dn = dn.max((*pn.add(k) - pn_e[k]).abs()); } }
         let mut dq = 0.0f64; for m in 0..nm { unsafe { dq = dq.max((*mq.add(m) - mq_e[m]).abs()); } }
+        let mut dg = 0.0f64; for m in 0..nm { unsafe { dg = dg.max((*gq.add(m) - gq_e[m]).abs()); } }
         let st = unsafe { *p.add(P_STATUS) };
-        println!("{}: members {} pairs {} ({}) | E {:.12} vs {:.12} (Δ {:.2e}) | forces Δ {:.2e} (max {:.2e}) | orders Δ {:.2e} | charges Δ {:.2e} | status {} | {:.3} ms",
-            path, nm, n, n_exp, e, e_exp, (e - e_exp).abs(), df, fmax, dn, dq, st, dt.as_secs_f64() * 1e3);
-        if n != n_exp || (e - e_exp).abs() > 1e-9 * e_exp.abs().max(1.0) || df > 1e-8 || dn > 1e-10 || dq > 1e-10 || st != 0.0 { bad += 1; }
+        println!("{}: members {} pairs {} ({}) | E {:.12} vs {:.12} (Δ {:.2e}) | forces Δ {:.2e} (max {:.2e}) | orders Δ {:.2e} | charges Δ {:.2e} | ∂E/∂ν Δ {:.2e} | status {} | {:.3} ms",
+            path, nm, n, n_exp, e, e_exp, (e - e_exp).abs(), df, fmax, dn, dq, dg, st, dt.as_secs_f64() * 1e3);
+        if n != n_exp || (e - e_exp).abs() > 1e-9 * e_exp.abs().max(1.0) || df > 1e-8 || dn > 1e-10 || dq > 1e-10 || dg > 1e-8 || st != 0.0 { bad += 1; }
     }
     if bad > 0 { eprintln!("{} dump(s) differ", bad); std::process::exit(1); }
     println!("the bond orders' pass agrees");
