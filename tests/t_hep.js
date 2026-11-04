@@ -185,7 +185,7 @@ for (const [a, b, E, want, frames] of [['p', 'p', 3e8, /π/, 1500], ['c12', 'c12
   for (let f = 0; f < 400; f++) {
     const r = X.simFrame(1 / 60, 1e9);
     const live = W.exo.filter(o => !o.dead).length;
-    if (live) { inFlight++; made = true; minSlow = Math.min(minSlow, r.slow); }
+    if (live) { inFlight++; made = true; minSlow = Math.min(minSlow, r.slow * W.simPerFrame / W.baseSpf); } // (1.14: slow motion sets the speed)
     if (made && !live) break;
   }
   const ev = W.events.map(e => e.text).find(t => /p̄ \+ p|mesons/.test(t)) || ''; // (head-on, or on the wall should they miss)

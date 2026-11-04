@@ -77,6 +77,10 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
+- Charge flowing back through a bond (asked for by the user: Ni⁺–C⁻ made by an electron hop and then a bond stays
+  that way; it never becomes the neutral Ni=C double bond, which is lower in energy): when two atoms with opposite
+  whole charges are bonded, try moving the electron back (the bond's order going up as valence allows) and keep it
+  when the energy, measured exactly as for any event, goes down. A physics change, approved by the user.
 - From "Honest approximations" (the user: "build everything that's worth doing", 1.14): unstable particles deflected
   by the nuclei they pass (multiple Coulomb scattering; today they fly straight between hits); jets in high-energy
   collisions (products along the collision axis, not an even spray); charm and bottom hadrons (D, B mesons and their

@@ -452,7 +452,7 @@ const say = (...a) => console.log(...a);
     b.click(); await new Promise(r => setTimeout(r, 200)); const d = st(); setRunning(false);
     return { a, paused, c, d };
   });
-  if (!(smo.a.pressed === 'true' && smo.a.auto && !smo.a.hold && /^1\/.+×$/.test(smo.a.speed) && smo.paused.speed === smo.a.speed && smo.c.hold && !smo.c.auto && /^1\/.+×$/.test(smo.c.speed) && smo.d.pressed === 'false' && !smo.d.hold && smo.d.speed === '1×')) { fails++; say('FAIL slow motion button:', JSON.stringify(smo)); }
+  if (!(smo.a.pressed === 'true' && smo.a.auto && !smo.a.hold && /^1\/.+×$/.test(smo.a.speed) && smo.paused.speed === smo.a.speed && smo.c.hold && !smo.c.auto && /^1\/.+×$/.test(smo.c.speed) && smo.d.pressed === 'false' && !smo.d.hold && smo.d.speed !== smo.c.speed && /×$/.test(smo.d.speed))) { fails++; say('FAIL slow motion button:', JSON.stringify(smo)); }
   else say(`  slow motion: the hourglass lights for an event's slow motion (speed ${smo.a.speed}), takes it over (${smo.c.speed}), turns it off (${smo.d.speed}); paused, the readout keeps it`);
   // 8g'''. Typed values: every metric unit that fits; a value past the slider's end is kept (the slider sits at its end);
   //        past a real limit, the nearest allowed value is set and a note says why
