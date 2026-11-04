@@ -278,7 +278,8 @@ const say = (...a) => console.log(...a);
   await page.waitForTimeout(120);
   const q2 = await page.evaluate((id) => ({ open: !document.getElementById('qmenu').hidden, sel: !!R.sel && R.sel.id === id }), qa.id);
   await page.mouse.click(qa.x, qa.y, { button: 'right' }); await page.waitForTimeout(120);
-  if (await page.isVisible('#qmenu')) await page.locator('#qmenu .qmi', { hasText: 'Follow it' }).first().click();
+  for (let k = 0; k < 3 && !(await page.locator('#qmenu:not([hidden]) .qmi', { hasText: 'Follow it' }).count()); k++) { say('  (quick menu without Follow it: ' + JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('#qmenu .qmi')].slice(0, 3).map(e => e.textContent.trim()))) + '; right-click again)'); await page.keyboard.press('Escape'); await page.waitForTimeout(200); await page.mouse.click(qa.x, qa.y, { button: 'right' }); await page.waitForTimeout(250); } // (a slow frame can take the right-click before the Inspect panel has settled: try again)
+  if (await page.isVisible('#qmenu')) await page.locator('#qmenu .qmi', { hasText: 'Follow it' }).first().click({ timeout: 5000 }).catch(() => {});
   await page.evaluate((id) => { const p = W.parts.find(p => p.id === id); if (p) p.vx = 0.03; setRunning(true); }, qa.id); // (fast enough to have moved under load too
   await page.waitForTimeout(600);
   const qf = await page.evaluate((id) => { setRunning(false); const p = W.parts.find(p => p.id === id); return { on: R.follow === p, d: p ? Math.hypot(R.cx - p.x, R.cy - p.y) : -1, x: p ? p.x : 0 }; }, qa.id);
