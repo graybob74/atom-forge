@@ -119,6 +119,14 @@ engine stores and visits particles.
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
   everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
+- Continuous bond orders for more elements (asked by the user after 1.21, "can you add the rest?"): today H, B, C, N,
+  O, F, Si, P, S, Cl, Br, I. The covalent p-block left (Ge, As, Se, Sn, Sb, Te) fits the same model: the game's bond
+  table already has measured energies for them; each needs its valence, angle targets (periods 4–5), electronegativity
+  and size checked, and the molecules relaxed and compared with stored bonds as for the first twelve. Not metals
+  (their electrons are shared through the whole metal, not bond by bond with a fixed valence: the game keeps its
+  metallic cohesion for them; a metal bond-order model, embedded-atom style, would be a separate project), not ionic
+  pairs (charges already), not the noble gases. A physics-model change for the owner to approve. Every element up to
+  Rn is in quantum bonds (1.22) for small systems.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
