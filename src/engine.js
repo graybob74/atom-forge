@@ -2154,8 +2154,8 @@ function computeForces1() {
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   if (VL.exTopo !== W.topo || VL.exDirty !== W.dirty) vlExclusions();
   if (_profOn) { const t = performance.now(); _tLists += t - tp; tp = t; }
+  if (BO.any) boPass(true); // (continuous bond orders, 1.13: bo.js; before the kernel, which needs the members' partial charges, 1.16)
   nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
-  if (BO.any) boPass(true); // (continuous bond orders, 1.13: bo.js)
   if (_profOn) tp = performance.now();
   if (nmdL) { // pairs with a free lepton in them, from the inner steps' list
     if (!flValid()) flBuild();
@@ -6722,6 +6722,7 @@ function totalEnergy0() {
     if (!(p.k === NUC && p.Z === 0) && !p.rad && !p.fast) { md.push(p); if (mags) pe += magU(p, kTm); if (p.qi) pe += qeqSelf(p); }
   }
   for (const o of W.exo) if (!o.dead) ke += o.KE; // unstable particles in flight (their rest mass is in the nuclear ledger)
+  const boE = BO.any ? boPass(false) : 0; // (continuous bond orders: first, as it sets the members' partial charges from where they are, 1.16)
   if (WAVE.n) pe += waveEnergy(); // (Experimental: electrons as waves)
   for (let i = 0; i < md.length; i++) for (let j = i + 1; j < md.length; j++) {
     const a = md[i], b = md[j];
@@ -6755,7 +6756,7 @@ function totalEnergy0() {
   }
   for (const bd of W.bonds) pe += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
-  if (BO.any) pe += boPass(false);
+  pe += boE;
   if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls

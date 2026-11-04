@@ -77,6 +77,12 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
+- Continuous bond orders: the orders' pass in WebAssembly (found in 1.16): it is nearly all of the remaining ×7–46
+  (3 ms a step for 240 water atoms in JavaScript); a Rust port of boPass beside the pair kernel, with the same checks.
+- Continuous bond orders: charge that moves with the orders (found in 1.16): a member's net charge sits on one atom as
+  a whole unit, so a proton can't pass from H₃O⁺ to a neighbouring water (Grotthuss), an acid can't give its proton to
+  water, and nitrate's N–O orders stay 1, 2, 1. Needs each atom's charge, and with it its valence, to follow the orders
+  continuously (a charge-equilibration step inside the orders' pass). A physics-model change for the owner to approve.
 - Quantum chemistry for bonds (queued by the user, after the bond-order next steps): bonds and their energies from the
   electrons themselves (a minimal-basis method, tight-binding or semi-empirical: Hückel/extended-Hückel or DFTB), not a
   force field. Estimated ×100–10,000; a physics-model change for the owner to approve.
@@ -109,6 +115,60 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.16.0: bond orders, next steps: partial charges, crowded molecules, ions, longer steps
+
+- **Partial charges that follow the bond orders** (continuous bond orders; the user: "do bond order next steps"). Each
+  pair gives its atoms K·Δχ·h(n), K = 0.30 e per unit of Pauling electronegativity as a stored bond does, h = 1 + 0.2(n − 1)
+  above a single bond and the order itself below (the corner at 1 rounded over ±0.05), so a breaking bond's charges fade
+  with it. Members meet non-members through the kernel (S.qp, set by boPass, which now runs before the kernel) and each
+  other in bo.js (boCoulomb): the same soft Coulomb (iwK, the 0.09 Å² core, the cutoff shift), bonded and angle pairs
+  left out smoothly, weight (1 − b(nᵢⱼ))·Πₖ(1 − b(nᵢₖ)b(nₖⱼ)), b from 0 at order 0.3 to 1 at 0.7. Forces carry the
+  charges' slopes, φᵢ·∂qᵢ/∂n into the orders' back-pass, φ from both kinds of pair (qeqC for the kernel's). Checked by
+  differences: forces = −∇E to 1e-6 eV/Å (water, brine, one water and a Na⁺; the gallery 2e-5 on a 3 eV/Å force).
+  Found on the way: totalEnergy summed the members' pairs with non-members before boPass set their charges (stale by a
+  call; harmless between steps, wrong in a difference test) — the orders' pass now comes first there too. Water's
+  charges: O −0.741, H +0.370 (stored: −0.744, +0.372). Liquid water (2,000 steps after 2,000, bath on): 55% of H atoms
+  hydrogen-bonded, stored bonds 49%, bond orders before 28%. Insulated, 300 steps: water −0.001 eV, brine −0.016, the
+  gallery −0.024, combustion +0.006. Cost: water ×2.1 on top of bond orders (the charge pass is 17%; the rest is the
+  molecules clinging, more pairs within reach).
+
+- **Crowded flat molecules** (bond orders): in a flat world SF₆'s six F sit 60° apart, as far from each other as from
+  the S and near an F–F bond's length, so each F split its one valence three ways: S–F 0.44–0.54, F–F 0.19–0.34 after
+  1,500 steps; PCl₅'s Cl 0.40 to each other, CF₂Cl₂ 0.40. Now a pair's raw order is multiplied by Πₖ(1 − b(n⁰ᵢₖ)b(n⁰ₖⱼ)σ)
+  over the centres k it shares (boCrowd), σ from 0 to 1 as the weaker bond to the centre beats the pair's own by 0.4 to
+  0.8 eV (single-bond energies: S–F 3.39 against F–F 1.61; P–Cl 3.38 against Cl–Cl 2.51): raw orders only, so nothing
+  circular, and the forces carry it (checked by differences, 1e-6 eV/Å; SF₆ + PCl₅ + CF₂Cl₂ + water insulated 1,500
+  steps: 0.0000 eV). After: S–F 0.99–1.00, P–Cl 0.99, C–F/C–Cl 0.99, no ligand–ligand order at all in SF₆, PCl₅, SF₄,
+  ClF₃, BrF₅, SiF₄, CF₂Cl₂, NF₃, PCl₃. Rings of equals keep their bonds (cyclopropane C–C 0.99, ethylene oxide's C–C
+  1.02). It would also take the O–O out of a dioxirane and the N–N out of a diaziridine (neither is in the library), and
+  diborane's B–B, which the real molecule doesn't have.
+
+- **Ions inside the bond-order scheme**: singly charged atoms of the chemistry's elements are members now when they are
+  part of a molecule (boOK: |q| ≤ 1; a lone ion such as brine's Cl⁻ stays with the kernel's ion–water terms), so H₃O⁺,
+  OH⁻, NH₄⁺, CN⁻, NO₃⁻, HCO₃⁻ keep their orders instead of going back to stored bonds. capacity() already counts an ion's
+  valence (O⁺ 3, O⁻ 1, N⁺ 4); member pairs meet with net plus partial charges, and an ion member's partial charge meets
+  the net charges beyond the cutoff (the long-range pairs) in its slope term. Each alone, 1,500 insulated steps:
+  0.0000–0.0004 eV, orders 0.99/1.99/2.99; H₃O⁺ in liquid water −0.048 eV; forces = −∇E to 5e-6 eV/Å with H₃O⁺ and OH⁻
+  in brine. Not done: the charge stays on its atom as a whole unit, so a proton does not pass from H₃O⁺ to a neighbouring
+  water (Grotthuss). Tried: an event moving one electron between the two atoms a proton sits between, kept when the energy
+  falls (as the 1.15 back-flow): never kept at 300 K (5.5 eV short with the proton 1.0 and 1.6 Å from the two oxygens;
+  neighbouring waters 0.9 eV, about water's real self-ionization) and four times the cost; taken out. A proton that hops
+  needs the charge to move with the orders continuously (on the planned list). Nitrate's three N–O stay 1, 2, 1 (its
+  formal charges sit on atoms), not the resonance's 1.33.
+
+- **Speed** (bond orders): the bond terms' share of the step control is now twice a bond's curvature at rest instead
+  of four times (1.13's choice, made before the orders' corners were rounded): steps 0.108 → 0.153 fs (water, gallery),
+  0.093 → 0.132 (combustion). Insulated after heating, 1,500 steps: gallery at 1,000 K 0.030 eV over 230 fs, water at
+  600 K 0.028, combustion at 2,500 K 0.049 (four times: 0.10, 0.013, −0.007 over 140–160 fs; the plain curvature: 25 eV
+  in 300 fs). Measured on one thread in Node against stored bonds (the WebAssembly kernel): liquid water ×60 → ×46, the
+  gallery ×42 → ×32, combustion ×13 → ×7 (water and the gallery were ×28–37 at 1.15, before the partial charges made the
+  molecules cling: more pairs). Per step the orders' pass is 3 ms for 240 water atoms, about 2,750 member pairs within
+  the cutoff: the Lennard-Jones and raw orders 23%, the partial charges 22%, collecting the pairs 11%, applying the forces
+  10%, the crowding factors 7%, levels, Morse terms, angles and the back-pass the rest. Tried and not worth it: letting
+  the WebAssembly kernel take the members' far pairs (the neighbour list's 1 Å skin leaves only pairs beyond 5.4 Å for
+  it, under a fifth), trimming the charge loop (no change within the timing noise). The real lever left is the orders'
+  pass itself in WebAssembly (on the planned list).
 
 ## 1.15.0: charged particles as collider beams, electrons as waves, the honest approximations, charge flowing back through bonds
 
