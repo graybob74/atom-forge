@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v6
         with: { python-version: '3.12' }
       - name: Install tblite
-        run: pip install tblite numpy
+        run: pip install tblite dftd3 numpy
       - name: Evaluate
         run: python tools/xtb-ref/ref.py tools/xtb-ref/geoms.json tools/xtb-ref/ref.json
       - name: Commit the numbers to this branch
