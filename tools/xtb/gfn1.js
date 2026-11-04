@@ -420,7 +420,7 @@ const lt3 = (arr, l, z) => arr[(z - 1) * 3 + l];          // arrays indexed (0:2
 const num = x => +x;
 
 // ---- STO-nG expansion (basis/slater.f90, expansion set "gfn1") ----
-const DFACT = [1, 1, 3, 15, 105, 945, 10395, 135135];
+const DFACT = [1, 1, 3, 15, 105, 945, 10395, 135135];  // DFACT[l] = (2l-1)!!
 const TOP = 2 / Math.PI;
 function slaterToGauss(ng, n, l, zeta) {
   if (n > 5 && !(n === 6 && ng === 6)) throw new Error('STO-nG: principal quantum number not supported');
@@ -448,7 +448,7 @@ function slaterToGauss(ng, n, l, zeta) {
     } else tab(T.pAlpha6, T.pCoeff6, 6);
   } else throw new Error('STO-nG: ng must be 1..6');
   // normalize the primitives
-  for (let k = 0; k < ng; k++) c[k] = c[k] * Math.pow(TOP * a[k], 0.75) * Math.pow(Math.sqrt(4 * a[k]), l) / Math.sqrt(DFACT[l + 1]);
+  for (let k = 0; k < ng; k++) c[k] = c[k] * Math.pow(TOP * a[k], 0.75) * Math.pow(Math.sqrt(4 * a[k]), l) / Math.sqrt(DFACT[l]);
   return { l, alpha: a, coeff: c };
 }
 
