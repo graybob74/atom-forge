@@ -89,6 +89,17 @@ engine stores and visits particles.
 - Quantum chemistry for bonds (queued by the user, after the bond-order next steps): bonds and their energies from the
   electrons themselves (a minimal-basis method, tight-binding or semi-empirical: Hückel/extended-Hückel or DFTB), not a
   force field. Estimated ×100–10,000; a physics-model change for the owner to approve.
+  Step 1 started (after 1.21; the user: "start 3D once you've completed the quantum thing"): `node tools/tb-proto.js
+  [molecules]`, a self-consistent tight-binding model (DFTB2's form) in the flat world: H 1s and B–F 2s 2p (pz out of
+  the plane, the π system), Slater–Koster hoppings of Harrison's universal form with a per-pair scale and an exponential
+  decay, Fermi smearing, Mulliken charges made self-consistent (U and Klopman–Ohno γ), an exponential repulsion fitted
+  per element pair on a reference molecule (the game's bond length, energy and stiffness). Found: with one scale and
+  a repulsion per pair it fits H₂ exactly and CH₄ (17.12 eV, C–H 1.090 Å), and gives H + H₂ a barrier of 0.33 eV at
+  0.95 Å untold (measured 0.42 at 0.93); but no scale fits N–H, O–H, F–H or C–O on their hydrides (water's atomization
+  4.1 eV against 9.6 at best), the exponential repulsion is bounded at short range (ethylene collapsed), and Harrison's
+  atomic levels put H above C in electronegativity (CH₄'s C +0.76). Next: real two-centre parameters (Slater–Koster
+  tables for H, C, N, O, or the electronic part of an open semi-empirical set such as GFN1-xTB's) and a repulsion with a
+  core; then analytic forces and a measured cost. Several sessions; the user to choose this or 3-D next.
 - On hold (the user's choice): a 3-D mode, as a separate mode chosen in the main menu rather than a setting: the
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
