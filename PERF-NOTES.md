@@ -129,8 +129,16 @@ engine stores and visits particles.
   Still 2-D only: nuclear reactions, hep.js, chips, objects, fields, lasers, beams, tools, light absorption, bond
   orders, quantum bonds/nuclei, waves, responsive charges, box resizing, saving. Open: LJ_SCALE 2 and K_IW 2 (2-D
   corrections) still on in 3-D; hypervalent lone pairs not compressing angles (SF₄ 120°, real ~102°).
-  Next: stage 2, drawing (perspective, an orbit camera); stage 3, the mode in the main menu and tools in depth;
-  stage 4, the Rust kernel and threads in 3-D.
+  Stage 2 done (drawing, `src/view3d.js`): a perspective camera R.cam3 {yaw, pitch, dist, fov, target} orbiting the
+  box; WebGL atoms and bonds from a z-carrying slot texture (GL_T3) with depth testing (the ball shader writes the
+  sphere's front depth), glows additive; Canvas 2D fallback sorted far to near; a wireframe cube (near edges in front),
+  faint grids on the far faces, a depth fade, an axis marker; labels and badges where not covered; picking the nearest
+  disc under the pointer (pick3); right/middle/Alt-drag orbit, Shift+right pan, wheel zoom, arrows orbit, 0 fits,
+  two-finger turn and pinch. Preview setup "3-D: molecules in space (preview)" (Chemistry). Saving, undo and rewind
+  refused in 3-D for now. 2-D frames unchanged pixel for pixel (t_3d). Frame (headless, software GL), 1,800 water atoms:
+  2-D 0.4–1.5 ms, 3-D 1.2–2.3 ms (JavaScript projection of every particle for labels and glows).
+  Next: stage 3 (the mode in the main menu; tools in depth; Measure, H-bonds, tracks, light, flashes in 3-D; a save
+  format with z); stage 4 (the Rust kernel and threads in 3-D).
 - Asked for (the user: "start 3D once you've completed the quantum thing"): a 3-D mode, as a separate mode chosen in the main menu rather than a setting: the
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch

@@ -890,11 +890,13 @@ function onDown(e) {
     endToolAction();
     const [a, b] = [...UI.pointers.values()];
     UI.drag = { kind: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), s0: R.s, mid: [(a.x + b.x) / 2, (a.y + b.y) / 2], c0: [R.cx, R.cy] };
+    if (W.d3) Object.assign(UI.drag, { dist0: R.cam3.dist, yaw0: R.cam3.yaw, pitch0: R.cam3.pitch }); // (3-D: two fingers turn the view and pinch zooms)
     return;
   }
   const rc = e.button === 2 || (e.button === 0 && e.ctrlKey && e.pointerType === 'mouse'); // (Ctrl-click: a Mac's right-click)
   if (!rc) lpStart(e, px, py);
   if (QM.open) { closeQuickMenu(); if (!rc) { UI.drag = { kind: 'none' }; return; } } // a click outside the menu only closes it
+  if (W.d3 && (e.button === 1 || rc || (e.button === 0 && e.altKey && !UI.spaceDown))) { UI.drag = { kind: e.shiftKey ? 'pan' : 'orbit', x: px, y: py, lx: px, ly: py, cx: R.cx, cy: R.cy, rc }; return; } // (3-D: right, middle or Alt+left drag turns the view; with Shift, pans)
   if (e.button === 1 || rc || UI.spaceDown) { UI.drag = { kind: 'pan', x: px, y: py, cx: R.cx, cy: R.cy, rc }; return; }
   const [wx, wy] = s2w(px, py);
   const t = UI.tool;
@@ -1121,6 +1123,7 @@ function grabGroup(p) {
   return out;
 }
 function pickNear(px, py, maxPx) {
+  if (W.d3) return pick3(px, py, maxPx);
   const hit = pickAt(px, py, 10);
   if (hit) return hit;
   let best = null, bd = maxPx * maxPx;
@@ -1154,6 +1157,7 @@ function onMove(e) {
     const dd = Math.hypot(a.x - b.x, a.y - b.y);
     const s = clamp(d.s0 * dd / Math.max(10, d.d0), 0.01, zoomMax());
     const mid = [(a.x + b.x) / 2, (a.y + b.y) / 2];
+    if (W.d3 && d.dist0) { const c = R.cam3; c.dist = clamp(d.dist0 * Math.max(10, d.d0) / Math.max(10, dd), 0.5, 1e6); c.yaw = d.yaw0 - (mid[0] - d.mid[0]) * 0.008; c.pitch = clamp(d.pitch0 + (mid[1] - d.mid[1]) * 0.008, -CAM3_PITCH, CAM3_PITCH); return; }
     // keep the world point under the initial midpoint under the current midpoint
     const wmx = (d.mid[0] - R.w / 2) / d.s0 + d.c0[0], wmy = d.c0[1] - (d.mid[1] - R.h / 2) / d.s0;
     R.s = s; R.cx = wmx - (mid[0] - R.w / 2) / s; R.cy = wmy + (mid[1] - R.h / 2) / s;
@@ -1161,7 +1165,9 @@ function onMove(e) {
   }
   if (d) {
     switch (d.kind) {
-      case 'pan': R.cx = d.cx - (px - d.x) / R.s; R.cy = d.cy + (py - d.y) / R.s; if (Math.hypot(px - d.x, py - d.y) >= 6) R.follow = null; break;
+      case 'orbit': cam3Orbit(px - d.lx, py - d.ly); d.lx = px; d.ly = py; break; // (3-D)
+      case 'pan': if (W.d3) { const lx = d.lx === undefined ? d.x : d.lx, ly = d.ly === undefined ? d.y : d.ly; cam3Pan(px - lx, py - ly); d.lx = px; d.ly = py; if (Math.hypot(px - d.x, py - d.y) >= 6) R.follow = null; break; }
+        R.cx = d.cx - (px - d.x) / R.s; R.cy = d.cy + (py - d.y) / R.s; if (Math.hypot(px - d.x, py - d.y) >= 6) R.follow = null; break;
       case 'spray': {
         const sp = UI.spec || SPEC_P, gap = Math.max(1.4, specSize(sp) * 2.2);
         if (Math.hypot(wx - d.lx, wy - d.ly) >= gap) { placeSpec(sp, wx, wy, 1); d.lx = wx; d.ly = wy; }
@@ -1291,6 +1297,7 @@ function onWheel(e) {
   if (SET.zoomTo === 'centre') zoomAt(R.w / 2, R.h / 2, f); else zoomAt(px, py, f);
 }
 function zoomAt(px, py, f) {
+  if (W.d3) { cam3Zoom(f); return; } // (3-D: nearer or farther, toward the target)
   const [wx, wy] = s2w(px, py);
   R.s = clamp(R.s * f, 0.01, zoomMax());
   R.cx = wx - (px - R.w / 2) / R.s; R.cy = wy + (py - R.h / 2) / R.s;
@@ -2462,6 +2469,7 @@ function worldFromJSON(d) {
   return { n, nb, skipped: d.parts.length - n };
 }
 function saveWorld() {
+  if (W.d3) { log('tool', NO_SAVE_3D); return; }
   const d = worldToJSON(), name = `atom-forge-world-${(UI.preset || 'world').replace(/[^a-z0-9-]/gi, '')}.json`;
   fileSave(name, JSON.stringify(d)).then((ok) => { if (ok) log('tool', `World saved: ${d.parts.length.toLocaleString('en-US')} particles, ${d.bonds.length.toLocaleString('en-US')} bonds${d.chips ? `; ${d.chips} chip${d.chips === 1 ? '' : 's'} saved as plain atoms` : ''}${d.left ? `; ${d.left} particle${d.left === 1 ? '' : 's'} in flight left out` : ''}`); });
 }
@@ -2512,6 +2520,7 @@ function shareInit() {
   $('bShare').onclick = async () => {
     $('shareOut').value = ''; $('shareCopy').disabled = true; $('shareCopied').textContent = ''; $('shareErr').textContent = ''; $('shareIn').value = '';
     $('shareInfo').textContent = 'Making the code …'; showModal('shareModal');
+    if (W.d3) { $('shareInfo').textContent = NO_SAVE_3D + ': there is no code to share. A code from someone else can still be opened below.'; return; }
     const d = worldToJSON(), code = await shareEncode(d), kb = code.length / 1024;
     $('shareOut').value = code; $('shareCopy').disabled = false;
     $('shareInfo').textContent = `${d.parts.length.toLocaleString('en-US')} particles and ${d.bonds.length.toLocaleString('en-US')} bonds in ${kb < 1000 ? Math.ceil(kb) + ' KB' : (kb / 1024).toFixed(1) + ' MB'} of text.` +
@@ -2626,6 +2635,7 @@ function galRender() {
 async function galSave() {
   const say = (t) => { $('galMsg').textContent = t; };
   const list = galIndex();
+  if (W.d3) { say(NO_SAVE_3D + '.'); return; }
   if (list.length >= GAL_MAX) { say(`The gallery holds ${GAL_MAX} worlds: delete one first.`); return; }
   const d = worldToJSON(), code = await shareEncode(d), id = 'g' + Date.now().toString(36);
   const P = PRESETS[UI.preset], name = ($('galName').value || '').trim().slice(0, 50) || (P ? P.name.replace(/^✓ /, '') : 'My world');
@@ -3660,6 +3670,11 @@ const PRESETS = {
       const rows = [['H2O', 'CO2', 'NH3', 'CH4', 'O3', 'SF6'], ['ethanol', 'acetic', 'benzene', 'caffeine', 'aspirin', 'glucose'],
         ['coronene', 'adenine', 'thymine', 'glycine', 'urea', 'vitaminC'], ['dopamine', 'serotonin', 'paracetamol', 'nicotine', 'XeF4', 'H2SO4']];
       rows.forEach((r, j) => r.forEach((k, i) => addMolecule(k, -35 + i * 14, 20.5 - j * 13.7, 0, 300))); } },
+  mol3d: { group: 'Chemistry', name: '3-D: molecules in space (preview)', tool: 'inspect', spec: { kind: 'mol', mol: 'H2O' },
+    hint: '<b>Preview of the 3-D mode: water, methane, ammonia, carbon dioxide and benzene at 300 K in a 30 Å cube.</b> Methane is a tetrahedron, ammonia a low pyramid, water bent, CO₂ straight and benzene a flat ring. Turn the view with a right-drag, Alt+drag or the arrow keys; pan with Shift+right-drag; zoom with the wheel; <b>0</b> fits the box again. Click an atom to inspect it. The tools still act on the box’s middle plane, and 3-D worlds cannot be saved yet.',
+    build() { baseWorld(30, 30, 300, 0.05); world3d(30);
+      const keys = ['benzene', 'CH4', 'H2O', 'NH3', 'CO2', 'CH4', 'H2O', 'NH3', 'CO2', 'benzene', 'H2O', 'CH4', 'NH3', 'CO2', 'H2O'];
+      keys.forEach((k, n) => addMolecule(k, -9 + (n % 3) * 9 + (rnd() - 0.5), -9 + (Math.floor(n / 3) % 3) * 9 + (rnd() - 0.5), rnd() * 6, 300, n < 9 ? -6.5 : 6.5)); } },
   salt: { group: 'Chemistry', name: 'Salt crystal', tool: 'heat', spec: { kind: 'atom', Z: 11, A: 23 },
     hint: '<b>Na⁺ and Cl⁻ ions in a square lattice.</b> Coulomb attraction holds them; Born repulsion stops them collapsing. Heat it to melt it, or drop in neutral Na and Cl atoms: an electron jumps from Na to Cl when that releases energy (ionic bonding).',
     build() { baseWorld(50, 36, 300, 0.05); const a = 2.76;
@@ -4216,7 +4231,7 @@ function frame(now) {
       rewTick(now); grTick(now); prioAutoTick(now);
     }
     tf1 = performance.now();
-    if (R.follow) { if (R.follow.dead) R.follow = null; else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
+    if (R.follow) { if (R.follow.dead) R.follow = null; else if (W.d3) cam3Follow(R.follow); else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
     render(W.rt);
     if (REC.on) recCapture();
     tf2 = performance.now();
@@ -4383,12 +4398,12 @@ function rewTick(now) {
 }
 function rewNote() {
   const n = REW.snaps.length, span = n > 1 ? (REW.snaps[n - 1].rt - REW.snaps[0].rt) / 1000 : 0;
-  return !SET.rewOn ? 'Off: nothing is kept.' : !undoOK() ? 'This setup keeps none: its chips, beams, lasers or ramp cannot be put back.' : `Now: ${n} snapshots, ${span.toFixed(0)} s back, ${(REW.bytes / 1048576).toFixed(1)} MB.`;
+  return !SET.rewOn ? 'Off: nothing is kept.' : W.d3 ? '3-D worlds keep none yet.' : !undoOK() ? 'This setup keeps none: its chips, beams, lasers or ramp cannot be put back.' : `Now: ${n} snapshots, ${span.toFixed(0)} s back, ${(REW.bytes / 1048576).toFixed(1)} MB.`;
 }
 function rewOpen() {
   if (REW.open) return;
   if (!SET.rewOn) { log('tool', 'Rewind is off (Settings → General)'); return; }
-  if (!undoOK()) { log('tool', 'Rewind keeps nothing in this setup: its chips, beams, lasers or ramp cannot be put back'); return; }
+  if (!undoOK()) { log('tool', W.d3 ? 'Rewind keeps nothing in 3-D worlds for now (the 3-D mode is a preview)' : 'Rewind keeps nothing in this setup: its chips, beams, lasers or ramp cannot be put back'); return; }
   if (!REW.snaps.length) { log('tool', 'Nothing kept yet to rewind to: it keeps the world while it runs'); return; }
   REW.wasRun = UI.running; setRunning(false); REW.now = rewPack(); REW.open = true; REW.i = REW.snaps.length;
   const sl = $('rewSlider'); sl.max = String(REW.snaps.length); sl.value = String(REW.i);
@@ -4614,7 +4629,8 @@ function viewFlagsSave() { store('viewflags', JSON.stringify(R.view)); }
    or a temperature ramp cannot be saved that way, so there undo is off. */
 const UNDO = { back: [], fwd: [], size: 0 };
 const UNDO_MAX = 40, UNDO_CHARS = 60e6;
-function undoOK() { return !W.chips.length && !W.collider && !(W.lasers && W.lasers.length) && !W.ramp && !UI.menu; }
+function undoOK() { return !W.chips.length && !W.collider && !(W.lasers && W.lasers.length) && !W.ramp && !UI.menu && !W.d3; } // (3-D, stage 2: a saved world is flat, so none is kept)
+const NO_SAVE_3D = '3-D worlds cannot be saved yet (the 3-D mode is a preview)';
 function undoSnap(label) { const d = worldToJSON(); return { d, txt: null, t: W.t, cam: [R.s, R.cx, R.cy], label, n: d.parts.length * 60 + 200 }; }
 function undoMark(label) {
   if (!undoOK()) { UNDO.back.length = 0; UNDO.fwd.length = 0; UNDO.size = 0; return; }
@@ -4629,7 +4645,7 @@ function undoRestore(sn) {
 }
 function undoStep(dir) {
   const from = dir < 0 ? UNDO.back : UNDO.fwd, to = dir < 0 ? UNDO.fwd : UNDO.back;
-  if (!undoOK()) { log('tool', 'Undo is off in this setup: its chips, beams, lasers or ramp cannot be put back'); return; }
+  if (!undoOK()) { log('tool', W.d3 ? 'Undo is off in 3-D worlds for now (the 3-D mode is a preview)' : 'Undo is off in this setup: its chips, beams, lasers or ramp cannot be put back'); return; }
   const sn = from.pop(); if (!sn) { log('tool', dir < 0 ? 'Nothing to undo' : 'Nothing to redo'); return; }
   UNDO.size -= sn.n;
   const cur = undoSnap(sn.label); to.push(cur); UNDO.size += cur.n;
@@ -5140,6 +5156,7 @@ function onKey(e) {
   if ((k === 'Delete' || k === 'Backspace') && R.msel.size) { deleteSelection(); return; }
   if ((k === 'Delete' || k === 'Backspace') && R.sel) { undoMark('Delete'); kill(R.sel); R.sel = null; renderInspect(); return; }
   if (tag === 'INPUT') return; // range sliders keep their arrow keys and letters stay safe
+  if (W.d3 && /^Arrow(Left|Right|Up|Down)$/.test(k) && tag !== 'BUTTON') { e.preventDefault(); const st = e.shiftKey ? 45 : 12; cam3Orbit(k === 'ArrowLeft' ? -st : k === 'ArrowRight' ? st : 0, k === 'ArrowUp' ? -st : k === 'ArrowDown' ? st : 0); return; } // (3-D: the arrow keys turn the view)
   if (k === '/') { e.preventDefault(); const fb = document.querySelector('#palette [data-find]'); if (fb) pfindOpen(fb); return; }
   if (k === 'v' || k === 'V') { toggleParticleView(); return; }
   if (k === 'b' || k === 'B') { setChamberOnly(!DM.on); return; }

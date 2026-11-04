@@ -21284,6 +21284,7 @@ const ZOOM_MAX = 4000; // px per Å: about 0.25 Å across the view, well inside 
 const ZOOM_ULTRA = 4e8; // the ultra-realistic mode's: about 0.3 fm across the view, a proton's radius fills a third of it
 function zoomMax() { return W.ultra ? ZOOM_ULTRA : ZOOM_MAX; }
 function fitView(margin = 28) {
+  if (W.d3) { R.cx = 0; R.cy = 0; R.follow = null; cam3Fit(); return; } // (3-D: the camera back to its starting view of the whole box; view3d.js)
   const bw = W.box.tw, bh = W.box.th;
   R.s = Math.min((R.w - margin * 2) / bw, (R.h - margin * 2) / bh);
   R.s = clamp(R.s, 0.01, 400);
@@ -21291,7 +21292,7 @@ function fitView(margin = 28) {
 }
 function w2sx(x) { return (x - R.cx) * R.s + R.w / 2; }
 function w2sy(y) { return (R.cy - y) * R.s + R.h / 2; }
-function s2w(px, py) { return [(px - R.w / 2) / R.s + R.cx, R.cy - (py - R.h / 2) / R.s]; }
+function s2w(px, py) { if (W.d3) { const q = s2w3(px, py); return [q[0], q[1]]; } return [(px - R.w / 2) / R.s + R.cx, R.cy - (py - R.h / 2) / R.s]; }
 function rgba(c, a) { return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
 function hexRGB(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 const _hexCache = {};
@@ -21391,6 +21392,7 @@ function luminance(hex) { const [r, g, b] = hexc(hex); return 0.2126 * r + 0.715
 
 /* ---------- main draw ---------- */
 function render(rt) {
+  if (W.d3) { render3d(rt); return; } // (a 3-D world: view3d.js)
   R.time = rt;
   const dpr = R.dpr;
   // the WebGL layer (gl.js) takes the balls, glows and bonds when it can: the background goes on the canvas under it and
@@ -23055,6 +23057,7 @@ function lightHead(o, kind) {
 }
 /* The nearest photon, neutrino or unstable particle to a point on the screen, within extra pixels (for the Inspect tool). */
 function pickLight(px, py, extra = 10) {
+  if (W.d3) return null; // (3-D, stage 2: light in flight is not drawn)
   const [wx, wy] = s2w(px, py); let best = null, bd = extra * extra;
   const consider = (o, kind) => { const h = lightHead(o, kind); if (!h) return; const dx = (h[0] - wx) * R.s, dy = (h[1] - wy) * R.s, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; best = { kind, o }; } };
   for (const o of W.exo) if (!o.dead) consider(o, 'exo');
@@ -23063,6 +23066,7 @@ function pickLight(px, py, extra = 10) {
   return best;
 }
 function pickAt(px, py, extra = 6) {
+  if (W.d3) return pick3(px, py, extra); // (3-D: the nearest the camera of those under the pointer; view3d.js)
   const [wx, wy] = s2w(px, py);
   let best = null, bd = Infinity;
   for (const p of W.parts) {
@@ -23086,8 +23090,8 @@ function pickAt(px, py, extra = 6) {
    everything on #cv as before.
    ========================================================================== */
 const GL = { ok: false, tried: false, on: true, cv: null, gl: null, w: 0, h: 0, note: '', calls: 0, balls: 0, glows: 0, segs: 0, shown: null, slots: 0, bondVerts: 0 };
-const GL_V = { ball: null, glow: null, seg: null, slot: null, bond: null }; // programs
-const GL_B = { ball: null, glow: null, seg: null }; // instance buffers: { ab, f32, u8, n, cap, vao, buf }
+const GL_V = { ball: null, glow: null, seg: null, slot: null, bond: null, slot3: null, bond3: null, ball3: null, glow3: null }; // programs (…3: the 3-D view's)
+const GL_B = { ball: null, glow: null, seg: null, ball3: null, glow3: null }; // instance buffers: { ab, f32, u8, n, cap, vao, buf }
 /* The slot textures: every store slot's position (RG32F), its colour (RGBA8, alpha 0 = not a ball) and its ball style
    (RGBA32F: radius in Å, the smallest and largest radius in pixels it is drawn at). The atoms and the bonds are drawn
    from these by the GPU: the positions are uploaded each frame straight from the store (no per-atom JavaScript), the
@@ -23242,7 +23246,8 @@ function glCompile(gl, vs, fs) {
   const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   const u = (n) => gl.getUniformLocation(p, n);
-  return { p, u_res: u('u_res'), u_dpr: u('u_dpr'), u_pos: u('u_pos'), u_sty: u('u_sty'), u_col: u('u_col'), u_view: u('u_view'), u_half: u('u_half'), u_box: u('u_box'), u_bond: u('u_bond') };
+  return { p, u_res: u('u_res'), u_dpr: u('u_dpr'), u_pos: u('u_pos'), u_sty: u('u_sty'), u_col: u('u_col'), u_view: u('u_view'), u_half: u('u_half'), u_box: u('u_box'), u_bond: u('u_bond'),
+    u_eye: u('u_eye'), u_rt: u('u_rt'), u_up: u('u_up'), u_fw: u('u_fw'), u_F: u('u_F'), u_depth: u('u_depth'), u_fog: u('u_fog'), u_fogc: u('u_fogc'), u_maxr: u('u_maxr'), u_min: u('u_min') }; // (u_eye …: the 3-D programs')
 }
 /* A vertex buffer with its vertex array: interleaved attributes, one vertex per ball or glow (points), four per segment
    (quads, drawn with a shared index buffer). */
@@ -23276,14 +23281,18 @@ function glInit() {
   try {
     if (typeof document === 'undefined') throw new Error('no document');
     const cv = document.getElementById('cvgl') || document.createElement('canvas');
-    const gl = cv.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
+    const gl = cv.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, depth: true, /* (a depth buffer for the 3-D view; the flat drawing never turns the depth test on) */ stencil: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
     if (!gl) throw new Error('WebGL 2 unavailable');
     GL.cv = cv; GL.gl = gl;
     GL.quadIdx = gl.createBuffer(); GL.quadIdxN = 0; glQuadIndices(4096);
     GL_V.ball = glCompile(gl, GL_VS_POINT, GL_FS_BALL); GL_V.glow = glCompile(gl, GL_VS_POINT, GL_FS_GLOW); GL_V.seg = glCompile(gl, GL_VS_SEG, GL_FS_SEG);
     GL_V.slot = glCompile(gl, GL_VS_SLOT, GL_FS_BALL); GL_V.bond = glCompile(gl, GL_VS_BOND, GL_FS_BOND);
+    GL_V.slot3 = glCompile(gl, GL_VS_SLOT3, GL_FS_BALL3); GL_V.bond3 = glCompile(gl, GL_VS_BOND3, GL_FS_BOND3); GL_V.ball3 = glCompile(gl, GL_VS_POINT3, GL_FS_BALL3); GL_V.glow3 = glCompile(gl, GL_VS_POINT3, GL_FS_GLOW);
+    const l3 = [[0, 3, gl.FLOAT, false, 0], [1, 1, gl.FLOAT, false, 12], [2, 4, gl.UNSIGNED_BYTE, true, 16]];
+    GL_B.ball3 = glBuffer(gl, GL_B3_STRIDE, l3, 1); GL_B.glow3 = glBuffer(gl, GL_B3_STRIDE, l3, 1);
+    GL.maxPt = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)[1];
     const tex = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
-    GL_T.pos = tex(); GL_T.col = tex(); GL_T.sty = tex(); GL_T.rows = 0; GL_BD.gen = -1; GL_BD.nb = -1; GL_BD.n = 0;
+    GL_T.pos = tex(); GL_T.col = tex(); GL_T.sty = tex(); GL_T3.pos = tex(); GL_T3.rows = 0; GL_T.rows = 0; GL_BD.gen = -1; GL_BD.nb = -1; GL_BD.n = 0;
     GL_BD.vao = gl.createVertexArray(); gl.bindVertexArray(GL_BD.vao); GL_BD.buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL_BD.buf);
     for (const [loc, size, off] of [[0, 2, 0], [1, 4, 8], [2, 2, 24]]) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 32, off); }
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, GL.quadIdx); gl.bindVertexArray(null);
@@ -23427,6 +23436,505 @@ function glFlush() {
   if (GL_B.glow.n) { glDrawBuf(GL_V.glow, GL_B.glow, true); GL.glows += GL_B.glow.n; }
   if (GL_B.ball.n) { glDrawBuf(GL_V.ball, GL_B.ball, false); GL.balls += GL_B.ball.n; }
   GL_B.ball.n = 0; GL_B.glow.n = 0; GL_B.seg.n = 0;
+}
+
+/* ---- the 3-D view (view3d.js): the same balls, bonds and glows in perspective, depth-tested
+   Positions with z go in a texture of their own (RGBA32F: x, y, z), uploaded each frame as the flat one is; the
+   colour and style textures and the bonds' vertex buffer are the flat ones. The camera is a basis (eye, right, up,
+   forward) and a focal length in pixels: a point's view depth is its distance along forward, and it lands on the
+   screen at the centre plus F·(right, −up)/depth. The vertex shaders project and set a linear depth (the screen
+   positions are computed here, so w stays 1); the ball's fragment shader writes the depth of the sphere's front
+   surface at that pixel, so balls cut into each other and bonds vanish into them properly. With distance, colours
+   fade a little toward the chamber's background (u_fog: the depths over which, and how much). */
+const GL_T3 = { rows: 0, pos: null, A: null };
+const GL_B3_STRIDE = 20; // bytes per item: x, y (CSS px of the view), view depth (Å), radius (px), colour
+const GL3_CAM = `uniform vec3 u_eye; uniform vec3 u_rt; uniform vec3 u_up; uniform vec3 u_fw; uniform float u_F;
+uniform vec2 u_half; uniform vec2 u_res; uniform vec2 u_depth; uniform vec3 u_fog;
+float dep(float z) { return clamp((z - u_depth.x) / (u_depth.y - u_depth.x), 0.0, 1.0); }
+vec4 clipAt(vec2 p, float z) { p += vec2(${GL_OV}.0); return vec4(p.x / u_res.x * 2.0 - 1.0, 1.0 - p.y / u_res.y * 2.0, dep(z) * 2.0 - 1.0, 1.0); }
+float fogAt(float z) { return clamp((z - u_fog.x) / max(1e-3, u_fog.y - u_fog.x), 0.0, 1.0) * u_fog.z; }`;
+const GL_VS_SLOT3 = `#version 300 es
+uniform sampler2D u_pos; uniform sampler2D u_sty; uniform sampler2D u_col;
+uniform float u_dpr; uniform float u_maxr;
+${GL3_CAM}
+out float v_r; out vec4 v_col; out float v_z; out float v_rw; out float v_fog;
+void main() {
+  ivec2 t = ivec2(gl_VertexID & ${GL_TW - 1}, gl_VertexID >> 11);
+  vec4 sty = texelFetch(u_sty, t, 0); vec4 col = texelFetch(u_col, t, 0);
+  vec3 d = texelFetch(u_pos, t, 0).xyz - u_eye; float z = dot(d, u_fw);
+  if (col.a <= 0.0 || z < u_depth.x) { gl_Position = vec4(2.0, 2.0, 0.0, 1.0); gl_PointSize = 0.0; v_r = 0.0; v_col = vec4(0.0); v_z = 1.0; v_rw = 0.0; v_fog = 0.0; return; }
+  float r = min(max(sty.y, sty.x * u_F / z), u_maxr);
+  gl_Position = clipAt(vec2(u_half.x + u_F * dot(d, u_rt) / z, u_half.y - u_F * dot(d, u_up) / z), z);
+  gl_PointSize = 2.0 * (r + 1.0) * u_dpr;
+  v_r = r; v_col = vec4(col.rgb, 1.0); v_z = z; v_rw = r * z / u_F; v_fog = fogAt(z);
+}`;
+/* Items (free leptons, bare nuclei, glows) already projected by the caller: their place on the screen and depth. */
+const GL_VS_POINT3 = `#version 300 es
+layout(location=0) in vec3 a_pos; layout(location=1) in float a_rad; layout(location=2) in vec4 a_col;
+uniform float u_dpr;
+${GL3_CAM}
+out float v_r; out vec4 v_col; out float v_z; out float v_rw; out float v_fog;
+void main() {
+  gl_Position = clipAt(a_pos.xy, a_pos.z);
+  gl_PointSize = 2.0 * (a_rad + 1.0) * u_dpr;
+  v_r = a_rad; v_col = a_col; v_z = a_pos.z; v_rw = a_rad * a_pos.z / u_F; v_fog = fogAt(a_pos.z);
+}`;
+/* The flat ball's shading, faded with distance, and the depth of the sphere's surface at the fragment. */
+const GL_FS_BALL3 = GL_FS_BALL.replace('in float v_r; in vec4 v_col;', 'in float v_r; in vec4 v_col; in float v_z; in float v_rw; in float v_fog;\nuniform vec2 u_depth; uniform vec3 u_fogc;')
+  .replace('o = vec4(col * a, a);', `col = mix(col, u_fogc, v_fog);
+  float h = sqrt(max(0.0, 1.0 - d * d / (v_r * v_r)));
+  gl_FragDepth = clamp((v_z - v_rw * h - u_depth.x) / (u_depth.y - u_depth.x), 0.0, 1.0);
+  o = vec4(col * a, a);`);
+/* A half-bond lane in 3-D: both ends projected, the quad built across the projected line as in the flat view, its
+   width and the lanes' spacing scaled by the depth of the half's middle (with the flat view's least pixel sizes). */
+const GL_VS_BOND3 = `#version 300 es
+layout(location=0) in vec2 a_ab; layout(location=1) in vec4 a_q; layout(location=2) in vec2 a_r;
+uniform sampler2D u_pos; uniform sampler2D u_col;
+uniform vec4 u_box;                    // half the box (Å) in x, y, z; periodic (1) or not
+uniform vec3 u_bond;                   // half the stroke width (Å), the lane offset (Å), the opacity factor
+uniform vec2 u_min;                    // the least half width and lane offset (px)
+${GL3_CAM}
+out vec2 v_lc; out vec2 v_dim; out vec4 v_col; out vec2 v_caps; out float v_fog;
+void main() {
+  int ia = int(a_ab.x), ib = int(a_ab.y);
+  vec3 pa = texelFetch(u_pos, ivec2(ia & ${GL_TW - 1}, ia >> 11), 0).xyz, pb = texelFetch(u_pos, ivec2(ib & ${GL_TW - 1}, ib >> 11), 0).xyz;
+  vec3 d = pb - pa, ea = pa - u_eye, eb = pb - u_eye;
+  float za = dot(ea, u_fw), zb = dot(eb, u_fw);
+  if ((u_box.w > 0.5 && (abs(d.x) > u_box.x || abs(d.y) > u_box.y || abs(d.z) > u_box.z)) || za < u_depth.x || zb < u_depth.x) { gl_Position = vec4(2.0, 2.0, 0.0, 1.0); v_col = vec4(0.0); v_lc = vec2(0.0); v_dim = vec2(1.0); v_caps = vec2(0.0); v_fog = 0.0; return; }
+  vec2 A = vec2(u_half.x + u_F * dot(ea, u_rt) / za, u_half.y - u_F * dot(ea, u_up) / za), B = vec2(u_half.x + u_F * dot(eb, u_rt) / zb, u_half.y - u_F * dot(eb, u_up) / zb), M = (A + B) * 0.5;
+  bool first = a_q.x < 0.5;
+  vec2 P0 = first ? A : M, P1 = first ? M : B, dd = P1 - P0;
+  float z0 = first ? za : 0.5 * (za + zb), z1 = first ? 0.5 * (za + zb) : zb, sc = u_F / (0.5 * (z0 + z1));
+  float L = length(dd); vec2 u = L > 0.0 ? dd / L : vec2(1.0, 0.0), n = vec2(-u.y, u.x);
+  float hw = max(u_min.x, u_bond.x * sc) * a_q.w, e = hw + 1.0, off = max(u_min.y, u_bond.y * sc);
+  int c = int(a_q.y + 0.5);
+  float along = c < 2 ? -e : L + e, across = (c == 0 || c == 2) ? -e : e;
+  float z = mix(z0, z1, L > 0.0 ? clamp(along / L, 0.0, 1.0) : 0.0);
+  gl_Position = clipAt(P0 + u * along + n * (across + a_q.z * off), z);
+  v_lc = vec2(along, across); v_dim = vec2(L, hw);
+  float stretch = clamp((length(d) - a_r.x) / a_r.y, 0.0, 1.0);
+  int ic = first ? ia : ib;
+  vec4 col = texelFetch(u_col, ivec2(ic & ${GL_TW - 1}, ic >> 11), 0);
+  v_col = vec4(col.rgb, (0.95 - stretch * 0.6) * u_bond.z);
+  v_caps = first ? vec2(1.0, 0.0) : vec2(0.0, 1.0); v_fog = fogAt(z);
+}`;
+const GL_FS_BOND3 = GL_FS_BOND.replace('in vec2 v_caps;', 'in vec2 v_caps; in float v_fog;\nuniform vec3 u_fogc;').replace('o = vec4(v_col.rgb * a, a);', 'o = vec4(mix(v_col.rgb, u_fogc, v_fog) * a, a);');
+/* The positions with z of slots 0 ≤ i < hi into their texture (every frame, in 3-D). */
+function glSlotPositions3(hi) {
+  const gl = GL.gl, rows = Math.max(1, Math.ceil(hi / GL_TW));
+  if (rows > GL_T3.rows) {
+    const A = new Float32Array(rows * GL_TW * 4); if (GL_T3.A) A.set(GL_T3.A); GL_T3.A = A; GL_T3.rows = rows;
+    gl.bindTexture(gl.TEXTURE_2D, GL_T3.pos); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, GL_TW, rows, 0, gl.RGBA, gl.FLOAT, null);
+  }
+  const A = GL_T3.A, X = S.x, Y = S.y, Z = S.z;
+  for (let i = 0; i < hi; i++) { const o = 4 * i; A[o] = X[i]; A[o + 1] = Y[i]; A[o + 2] = Z[i]; }
+  gl.bindTexture(gl.TEXTURE_2D, GL_T3.pos); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, GL_TW, rows, gl.RGBA, gl.FLOAT, A.subarray(0, rows * GL_TW * 4));
+}
+/* The camera's uniforms (C: view3d.js's camera of this frame). */
+function glCam3(prog, C) {
+  const gl = GL.gl;
+  gl.uniform2f(prog.u_res, R.w + 2 * GL_OV, R.h + 2 * GL_OV); if (prog.u_dpr) gl.uniform1f(prog.u_dpr, R.dpr);
+  gl.uniform2f(prog.u_half, R.w / 2, R.h / 2);
+  gl.uniform3f(prog.u_eye, C.ex, C.ey, C.ez); gl.uniform3f(prog.u_rt, C.rx, C.ry, C.rz); gl.uniform3f(prog.u_up, C.ux, C.uy, C.uz); gl.uniform3f(prog.u_fw, C.fx, C.fy, C.fz);
+  gl.uniform1f(prog.u_F, C.F); gl.uniform2f(prog.u_depth, C.near, C.far); gl.uniform3f(prog.u_fog, C.fog0, C.fog1, C.fogK);
+  if (prog.u_fogc) gl.uniform3f(prog.u_fogc, C.fogc[0] / 255, C.fogc[1] / 255, C.fogc[2] / 255);
+}
+function glBind3(prog, withStyle) {
+  const gl = GL.gl;
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, GL_T3.pos); gl.uniform1i(prog.u_pos, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, GL_T.col); gl.uniform1i(prog.u_col, 1);
+  if (withStyle) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, GL_T.sty); gl.uniform1i(prog.u_sty, 2); }
+  gl.activeTexture(gl.TEXTURE0);
+}
+/* The frame's depth buffer and test (the flat view never turns them on; glEnd3 turns them off again). */
+function glBegin3() { const gl = GL.gl; gl.clearDepth(1); gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); GL_B.ball3.n = 0; GL_B.glow3.n = 0; }
+function glEnd3() { const gl = GL.gl; gl.depthMask(true); gl.disable(gl.DEPTH_TEST); }
+function glDrawSlots3(hi, C) {
+  if (!hi) return;
+  const gl = GL.gl, prog = GL_V.slot3;
+  gl.useProgram(prog.p); glCam3(prog, C); glBind3(prog, true);
+  gl.uniform1f(prog.u_maxr, Math.max(4, GL.maxPt / (2 * R.dpr) - 1)); // (a sprite no bigger than the largest point the GPU draws)
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.bindVertexArray(null);
+  gl.drawArrays(gl.POINTS, 0, hi);
+  GL.calls++; GL.slots += hi;
+}
+function glDrawBonds3(C, hwA, offA, minHw, minOff, wrap) {
+  if (!GL_BD.n) return;
+  const gl = GL.gl, prog = GL_V.bond3;
+  gl.useProgram(prog.p); glCam3(prog, C); glBind3(prog, false);
+  gl.uniform4f(prog.u_box, W.box.w / 2, W.box.h / 2, W.box.d / 2, wrap ? 1 : 0); gl.uniform3f(prog.u_bond, hwA, offA, 1); gl.uniform2f(prog.u_min, minHw, minOff);
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.bindVertexArray(GL_BD.vao);
+  gl.drawElements(gl.TRIANGLES, GL_BD.n * 6, gl.UNSIGNED_INT, 0);
+  gl.bindVertexArray(null);
+  GL.calls++; GL.segs += GL_BD.n;
+}
+/* Items: x, y in CSS pixels of the view, z the view depth (Å), r in pixels, colours as [r, g, b] 0–255. */
+function glItem3(b, x, y, z, r, c, A) {
+  if (b.n >= b.cap) glGrow(b, b.n + 1);
+  const o = b.n * 5, u = b.n * 20; b.f32[o] = x; b.f32[o + 1] = y; b.f32[o + 2] = z; b.f32[o + 3] = r; b.u8[u + 16] = c[0]; b.u8[u + 17] = c[1]; b.u8[u + 18] = c[2]; b.u8[u + 19] = A; b.n++;
+}
+function glBall3(x, y, z, r, c) { glItem3(GL_B.ball3, x, y, z, r, c, 255); }
+function glGlow3(x, y, z, r, c, alpha) { glItem3(GL_B.glow3, x, y, z, r, c, Math.round(alpha * 255)); }
+/* The items queued: balls depth-tested and written; glows additive, tested but not written. */
+function glFlush3(C) {
+  const gl = GL.gl;
+  for (const [b, prog, add] of [[GL_B.ball3, GL_V.ball3, false], [GL_B.glow3, GL_V.glow3, true]]) {
+    if (!b.n) continue;
+    gl.useProgram(prog.p); glCam3(prog, C);
+    gl.depthMask(!add); gl.blendFunc(gl.ONE, add ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
+    gl.bindVertexArray(b.vao); gl.bindBuffer(gl.ARRAY_BUFFER, b.buf);
+    gl.bufferData(gl.ARRAY_BUFFER, b.u8.subarray(0, b.n * b.stride), gl.DYNAMIC_DRAW);
+    gl.drawArrays(gl.POINTS, 0, b.n);
+    gl.bindVertexArray(null);
+    GL.calls++; if (add) GL.glows += b.n; else GL.balls += b.n;
+    b.n = 0;
+  }
+  gl.depthMask(true);
+}
+
+/* ---- view3d.js ---- */
+/* ============================================================================
+   Atom Forge — the 3-D view (stage 2): a perspective camera on a 3-D world (W.d3), and its drawing
+   The camera (R.cam3) orbits a target point (the box's centre unless panned): yaw about the vertical, pitch above or
+   below the horizon, a distance and a vertical field of view. yaw = pitch = 0 looks down −z with x to the right and y
+   up, as the flat view does. Each frame cam3Update turns it into a basis (C3: eye, right, up, forward), a focal length
+   in pixels and the depths the box spans (for the depth buffer's range and the fade with distance).
+   render() hands a 3-D world to render3d: the background and the box's far edges (with a faint grid on its far faces)
+   on the canvas under the WebGL layer, the atoms, bonds and glows on the layer (gl.js: depth-tested, one draw call for
+   the atoms and one for the bonds), and the near edges, labels, badges and rings on the canvas above. Without WebGL 2
+   (or with it switched off) everything goes on the one canvas, the atoms sorted far to near and each drawn after its
+   half of each bond. Picking (pick3) takes the atom whose drawn disc is under the pointer that is nearest the camera.
+   Tools that take a point in the chamber get the point where the pointer's line of sight meets the box's middle plane
+   (z = 0; s2w3), so what they place lands under the pointer; stage 3 gives the tools depth.
+   ========================================================================== */
+const CAM3 = { yaw: 0.6, pitch: 0.4, fov: 40 * Math.PI / 180 }; // the view a 3-D world starts with (and Fit goes back to)
+R.cam3 = { yaw: CAM3.yaw, pitch: CAM3.pitch, dist: 80, fov: CAM3.fov, tx: 0, ty: 0, tz: 0 };
+const C3 = { ex: 0, ey: 0, ez: 80, rx: 1, ry: 0, rz: 0, ux: 0, uy: 1, uz: 0, fx: 0, fy: 0, fz: -1, F: 500, hw: 0, hh: 0, near: 0.05, far: 200, fog0: 0, fog1: 1, fogK: 0.5, fogc: [6, 10, 16] };
+const CAM3_PITCH = 1.55; // (just short of straight down or up: the basis needs a horizon)
+/* The camera of this frame, from R.cam3 and the view's size. Also sets R.s to the pixels per Å at the target's depth,
+   for the code that sizes things by the zoom (the scale bar, pick margins, the tools' brushes). */
+function cam3Update() {
+  const c = R.cam3;
+  if (!(c.pitch >= -CAM3_PITCH)) c.pitch = -CAM3_PITCH; else if (c.pitch > CAM3_PITCH) c.pitch = CAM3_PITCH;
+  if (!(c.dist > 0)) c.dist = 80;
+  const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch), cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
+  C3.ex = c.tx + c.dist * cp * sy; C3.ey = c.ty + c.dist * sp; C3.ez = c.tz + c.dist * cp * cy;
+  C3.fx = -cp * sy; C3.fy = -sp; C3.fz = -cp * cy;
+  C3.rx = cy; C3.ry = 0; C3.rz = -sy;
+  C3.ux = -sy * sp; C3.uy = cp; C3.uz = -cy * sp;
+  C3.F = (R.h / 2) / Math.tan(c.fov / 2); C3.hw = R.w / 2; C3.hh = R.h / 2;
+  R.s = C3.F / c.dist;
+  const hx = W.box.w / 2, hy = W.box.h / 2, hz = (W.box.d || W.box.h) / 2;
+  let z0 = Infinity, z1 = -Infinity;
+  for (let k = 0; k < 8; k++) {
+    const z = ((k & 1 ? hx : -hx) - C3.ex) * C3.fx + ((k & 2 ? hy : -hy) - C3.ey) * C3.fy + ((k & 4 ? hz : -hz) - C3.ez) * C3.fz;
+    if (z < z0) z0 = z; if (z > z1) z1 = z;
+  }
+  C3.near = Math.max(0.05, 0.005 * c.dist);
+  C3.far = Math.max(z1, c.dist) * 2 + 20; // (beyond it, depth is held at the far end: nothing is cut off)
+  C3.fog0 = Math.max(C3.near, z0); C3.fog1 = Math.max(C3.fog0 + 1, z1); C3.fogK = 0.55;
+  C3.fogc = hexc(CHAMBER.bg0);
+}
+/* A world point on the screen: o = [x, y (CSS px), view depth (Å)]; false when it is behind the camera. */
+function proj3(x, y, z, o) {
+  const dx = x - C3.ex, dy = y - C3.ey, dz = z - C3.ez, zc = dx * C3.fx + dy * C3.fy + dz * C3.fz;
+  o[2] = zc;
+  if (!(zc > C3.near)) return false;
+  o[0] = C3.hw + C3.F * (dx * C3.rx + dy * C3.ry + dz * C3.rz) / zc; o[1] = C3.hh - C3.F * (dx * C3.ux + dy * C3.uy + dz * C3.uz) / zc;
+  return true;
+}
+/* The world point under a screen point: where its line of sight meets the plane z = 0 (the box's middle), or, seen
+   too nearly edge-on, the plane through the target square to the view. Always finite. */
+function s2w3(px, py) {
+  if (!C3.F || C3.hw !== R.w / 2) cam3Update();
+  const a = (px - C3.hw) / C3.F, b = (py - C3.hh) / C3.F;
+  const dx = C3.fx + a * C3.rx - b * C3.ux, dy = C3.fy + a * C3.ry - b * C3.uy, dz = C3.fz + a * C3.rz - b * C3.uz;
+  const L = Math.sqrt(dx * dx + dy * dy + dz * dz), t = dz !== 0 ? -C3.ez / dz : -1;
+  if (Math.abs(dz) / L > 0.2 && t > 0 && t < 40 * R.cam3.dist) return [C3.ex + t * dx, C3.ey + t * dy, 0];
+  const d = R.cam3.dist; // (forward has unit length and so does its part of the ray: the target plane is d along)
+  return [C3.ex + d * dx, C3.ey + d * dy, C3.ez + d * dz];
+}
+/* The camera back to its starting angles, centred on the box and far enough off to see all of it. */
+function cam3Fit() {
+  const c = R.cam3;
+  c.yaw = CAM3.yaw; c.pitch = CAM3.pitch; c.fov = CAM3.fov; c.tx = 0; c.ty = 0; c.tz = 0;
+  const rb = 0.5 * Math.hypot(W.box.w, W.box.h, W.box.d || W.box.h), aspect = R.w > 0 && R.h > 0 ? R.w / R.h : 1.5;
+  const half = Math.min(c.fov / 2, Math.atan(Math.tan(c.fov / 2) * aspect));
+  c.dist = rb / Math.sin(half) * 0.9;
+  cam3Update();
+}
+function cam3Orbit(dpx, dpy) { const c = R.cam3; c.yaw -= dpx * 0.008; c.pitch = clamp(c.pitch + dpy * 0.008, -CAM3_PITCH, CAM3_PITCH); }
+function cam3Pan(dpx, dpy) {
+  const c = R.cam3, k = c.dist / (C3.F || 500);
+  c.tx += (-dpx * C3.rx + dpy * C3.ux) * k; c.ty += (-dpx * C3.ry + dpy * C3.uy) * k; c.tz += (-dpx * C3.rz + dpy * C3.uz) * k;
+}
+function cam3Zoom(f) { const c = R.cam3; if (f > 0) c.dist = clamp(c.dist / f, 0.5, 1e6); cam3Update(); }
+function cam3Follow(p) { const c = R.cam3; c.tx = p.x; c.ty = p.y; c.tz = p.z || 0; }
+
+/* ---------- picking */
+/* The particle whose drawn disc is under (px, py), the nearest the camera; failing that, the one whose disc's edge is
+   nearest, within extra pixels. */
+function pick3(px, py, extra = 6) {
+  cam3Update();
+  const o = [0, 0, 0];
+  let hit = null, hz = Infinity, near = null, nd = Infinity;
+  for (const p of W.parts) {
+    if (p.dead || !proj3(p.x, p.y, p.z, o)) continue;
+    const sc = C3.F / o[2], r = p.k === NUC ? Math.max(p.Z === 0 ? 2.2 : 2.4, Math.max(p.rd, 0.2) * sc) : Math.max(1.8, 0.15 * sc);
+    const d = Math.hypot(o[0] - px, o[1] - py);
+    if (d <= r) { if (o[2] < hz) { hz = o[2]; hit = p; } }
+    else if (d - r < extra && d - r < nd) { nd = d - r; near = p; }
+  }
+  return hit || near;
+}
+
+/* ---------- drawing */
+let _pv = new Float32Array(0); // per slot this frame: screen x, y, view depth, radius in px (−1: not drawn)
+const _p3a = [0, 0, 0], _p3b = [0, 0, 0];
+/* A segment between two world points, cut where it passes behind the camera; false when none of it is in front. */
+function seg3(ax, ay, az, bx, by, bz, A, B) {
+  const za = (ax - C3.ex) * C3.fx + (ay - C3.ey) * C3.fy + (az - C3.ez) * C3.fz, zb = (bx - C3.ex) * C3.fx + (by - C3.ey) * C3.fy + (bz - C3.ez) * C3.fz, n = C3.near * 1.01;
+  if (za < n && zb < n) return false;
+  if (za < n) { const t = (n - za) / (zb - za); ax += (bx - ax) * t; ay += (by - ay) * t; az += (bz - az) * t; }
+  else if (zb < n) { const t = (n - zb) / (za - zb); bx += (ax - bx) * t; by += (ay - by) * t; bz += (az - bz) * t; }
+  return proj3(ax, ay, az, A) && proj3(bx, by, bz, B);
+}
+/* The box: an edge is near (drawn over the atoms) when either face it bounds faces the camera, else far (under them);
+   the far faces carry a faint grid when the grid is on. */
+function drawBox3(ctx, front) {
+  const hx = W.box.w / 2, hy = W.box.h / 2, hz = W.box.d / 2, H = [hx, hy, hz], E = [C3.ex, C3.ey, C3.ez];
+  const faces = (ax, s) => s * E[ax] > H[ax]; // (the face of axis ax on side s faces the camera)
+  const A = _p3a, B = _p3b, P = [0, 0, 0], Q = [0, 0, 0];
+  ctx.save();
+  if (!front && R.view.grid) { // the grid on the far faces
+    let step = 10; while (step * R.s < 36) step *= 2; while (step * R.s > 160 && step > 0.5) step /= 2;
+    ctx.strokeStyle = 'rgba(130,170,210,0.07)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let ax = 0; ax < 3; ax++) for (const s of [-1, 1]) {
+      if (faces(ax, s)) continue;
+      const u = (ax + 1) % 3, v = (ax + 2) % 3;
+      for (const [a, b] of [[u, v], [v, u]]) for (let t = Math.ceil(-H[a] / step) * step; t <= H[a] + 1e-9; t += step) {
+        if (Math.abs(Math.abs(t) - H[a]) < 1e-6) continue; // (the edges themselves are drawn as edges)
+        P[ax] = s * H[ax]; Q[ax] = s * H[ax]; P[a] = t; Q[a] = t; P[b] = -H[b]; Q[b] = H[b];
+        if (seg3(P[0], P[1], P[2], Q[0], Q[1], Q[2], A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+      }
+    }
+    ctx.stroke();
+  }
+  ctx.strokeStyle = front ? CHAMBER.box : 'rgba(150,185,220,0.22)'; ctx.lineWidth = W.wall === 'reflect' ? 1.5 : 1;
+  if (W.wall === 'wrap') ctx.setLineDash([6, 5]); else if (W.wall === 'open') ctx.setLineDash([2, 6]);
+  ctx.beginPath();
+  for (let ax = 0; ax < 3; ax++) { // the four edges along each axis
+    const u = (ax + 1) % 3, v = (ax + 2) % 3;
+    for (const su of [-1, 1]) for (const sv of [-1, 1]) {
+      if ((faces(u, su) || faces(v, sv)) !== front) continue;
+      P[ax] = -H[ax]; Q[ax] = H[ax]; P[u] = Q[u] = su * H[u]; P[v] = Q[v] = sv * H[v];
+      if (seg3(P[0], P[1], P[2], Q[0], Q[1], Q[2], A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+/* The world's axes, small, in a corner (which way x, y and z point from here). */
+function drawAxes3(ctx) {
+  const x0 = 34, y0 = R.h - 58, L = 20;
+  ctx.save(); ctx.lineWidth = 1.5; ctx.font = '600 10px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const ax = [['x', 1, 0, 0, '#ff7a6b'], ['y', 0, 1, 0, '#7ee08a'], ['z', 0, 0, 1, '#6ba8ff']];
+  ax.sort((a, b) => (a[1] * C3.fx + a[2] * C3.fy + a[3] * C3.fz) < (b[1] * C3.fx + b[2] * C3.fy + b[3] * C3.fz) ? 1 : -1); // (the one pointing away first)
+  for (const [n, x, y, z, c] of ax) {
+    const sx = x * C3.rx + y * C3.ry + z * C3.rz, sy = -(x * C3.ux + y * C3.uy + z * C3.uz);
+    ctx.strokeStyle = c; ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + sx * L, y0 + sy * L); ctx.stroke();
+    ctx.fillText(n, x0 + sx * (L + 8), y0 + sy * (L + 8));
+  }
+  ctx.restore();
+}
+const _fogHex = new Map();
+function fogHex(col, f) { const q = Math.round(f * 12), k = col + q; let h = _fogHex.get(k); if (!h) { if (_fogHex.size > 512) _fogHex.clear(); h = mixHex(col, CHAMBER.bg0, q / 12); _fogHex.set(k, h); } return h; }
+function fog3(z) { return clamp((z - C3.fog0) / Math.max(1e-3, C3.fog1 - C3.fog0), 0, 1) * C3.fogK; }
+const ELEM_SYM = (p) => (p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym);
+
+function render3d(rt) {
+  R.time = rt;
+  const dpr = R.dpr;
+  R.gl = !!R.cvbg && typeof glReady === 'function' && glReady();
+  _colFrame++;
+  if (typeof glShow === 'function') glShow(R.gl);
+  cam3Update();
+  const gl = R.gl, hi = S.hi;
+  if (gl) { glBegin(); glSlotsPrepare(); glSlotPositions3(hi); }
+  let ctx = gl ? R.ctxbg : R.ctx;
+  R.ctx = ctx;
+  ctx.save(); // (each canvas is left as found: the flat drawing counts on state carried from frame to frame)
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const bg = ctx.createRadialGradient(R.w / 2, R.h / 2, 0, R.w / 2, R.h / 2, Math.max(R.w, R.h) * 0.75);
+  bg.addColorStop(0, CHAMBER.bg1); bg.addColorStop(1, CHAMBER.bg0);
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, R.w, R.h);
+  drawBox3(ctx, false);
+  // every particle projected once: where it is on the screen, how deep, how big
+  if (_pv.length < hi * 4) _pv = new Float32Array(Math.max(hi, 1024) * 4);
+  const V = _pv, o = _p3a, parts = W.parts, F = C3.F, pad = 60, as = R.as, lite = R.lite;
+  const vis = [];
+  for (let j = 0; j < parts.length; j++) {
+    const p = parts[j], i = p.i, b = 4 * i;
+    V[b + 3] = -1;
+    if (p.dead || !proj3(p.x, p.y, p.z, o)) continue;
+    if (o[0] < -pad || o[1] < -pad || o[0] > R.w + pad || o[1] > R.h + pad) continue;
+    const sc = F / o[2];
+    const r = p.k !== NUC ? Math.max(1.8, 0.12 * sc) : p.Z === 0 ? Math.max(2.2, 0.2 * sc) : p.ne === 0 ? Math.max(2.6, p.rd * as * sc) : Math.max(2.4, p.rd * as * sc);
+    V[b] = o[0]; V[b + 1] = o[1]; V[b + 2] = o[2]; V[b + 3] = r;
+    vis.push(p);
+  }
+  const eCol = hexc(E_COL), pCol = hexc(POS_COL), wrap = W.wall === 'wrap', hbw = W.box.w / 2, hbh = W.box.h / 2, hbd = W.box.d / 2;
+  // glows: hot atoms and light given off (as in the flat view), and the free leptons' and bare nuclei's
+  const glowsOf = (p, b, put) => {
+    if (p.k === NUC && p.ne > 0 && !(p.tLocal > 900) && !(p.glow > 0.02)) return; // (most atoms: none)
+    const sc = F / V[b + 2];
+    if (p.k === NUC && p.ne > 0 && p.tLocal > 900 && !p.fast) put(clamp(p.rd * as * sc * 3.2, 6, 48), blackbodyRGB(p.tLocal), clamp((p.tLocal - 900) / 4000, 0, 0.7));
+    if (p.glow > 0.02 && p.glowC) put(clamp(p.rd * as * sc * 5, 10, 32), p.glowC, p.glow);
+    if (p.k !== NUC) put(clamp(V[b + 3] * 4.5, 7, 28), p.k === ELEC ? eCol : pCol, p.rad ? 1 : 0.55);
+    else if (p.ne === 0 && p.Z > 0) put(V[b + 3] * 3.2, p.anti ? [190, 120, 255] : [255, 110, 90], 0.35);
+  };
+  const ballCol = (p) => (p.k === ELEC ? E_COL : p.k !== NUC ? POS_COL : p.Z === 0 ? N_COL : p.ne === 0 ? (p.anti ? '#be78ff' : '#ff6e5a') : atomColor(p));
+  if (gl) {
+    glBegin3();
+    glDrawSlots3(hi, C3); // atoms and neutrons: one draw call from the slot textures
+    glBondsBuild(W.bonds, W.topo); glDrawBonds3(C3, 0.065, 0.11, 0.7, 2, wrap);
+    for (const p of vis) {
+      const b = 4 * p.i;
+      if (!lite && (p.k !== NUC || p.ne === 0 || p.tLocal > 900 || p.glow > 0.02)) glowsOf(p, b, (r, c, a) => glGlow3(V[b], V[b + 1], V[b + 2], r, c, a));
+      if (p.k !== NUC) glBall3(V[b], V[b + 1], V[b + 2], lite ? V[b + 3] * 1.2 : V[b + 3], p.k === ELEC ? eCol : pCol);
+      else if (p.Z > 0 && p.ne === 0) glBall3(V[b], V[b + 1], V[b + 2], V[b + 3], hexc(ballCol(p)));
+    }
+    glFlush3(C3); glEnd3();
+    ctx.restore();
+    R.ctx = ctx = R.cv.getContext('2d'); ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, R.w, R.h);
+    drawBox3(ctx, true);
+    drawLabels3(ctx, vis);
+  } else {
+    // Canvas 2D: far to near, each atom after its halves of its bonds, so nearer things cover farther ones
+    vis.sort((a, b) => V[4 * b.i + 2] - V[4 * a.i + 2]);
+    if (!lite) { ctx.globalCompositeOperation = 'lighter'; for (const p of vis) { const b = 4 * p.i; glowsOf(p, b, (r, c, a) => drawSprite(glowSprite(c, r), V[b], V[b + 1], a)); } ctx.globalCompositeOperation = 'source-over'; }
+    const fc = CHAMBER.bg0;
+    ctx.lineCap = 'round';
+    for (const p of vis) {
+      const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2], r = V[b + 3], col = ballCol(p);
+      if (p.k === NUC && p.bonds.length) for (const bd of p.bonds) { // this atom's half of each bond
+        const q = bd.a === p ? bd.b : bd.a, c = 4 * q.i;
+        if (q.dead) continue;
+        const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
+        if (wrap && (Math.abs(dx) > hbw || Math.abs(dy) > hbh || Math.abs(dz) > hbd)) continue;
+        let qx, qy, qz;
+        if (V[c + 3] >= 0) { qx = V[c]; qy = V[c + 1]; qz = V[c + 2]; } else if (proj3(q.x, q.y, q.z, _p3b)) { qx = _p3b[0]; qy = _p3b[1]; qz = _p3b[2]; } else continue;
+        const mx = (x + qx) / 2, my = (y + qy) / 2, zm = 0.75 * z + 0.25 * qz, sc = F / zm;
+        const L = Math.hypot(mx - x, my - y) || 1, nx = -(my - y) / L, ny = (mx - x) / L;
+        const ar = !!bd.arom, n = ar ? 2 : bd.order, wm = n > 1 ? 0.7 : 1, hw = Math.max(0.7, 0.065 * sc), off = Math.max(2, 0.11 * sc);
+        const stretch = clamp((Math.sqrt(dx * dx + dy * dy + dz * dz) - bd.r0) / (bd.rb || 1.5), 0, 1), al = 0.95 - stretch * 0.6;
+        ctx.strokeStyle = fogHex(atomColor(p), fog3(zm));
+        for (let k = 0; k < n; k++) {
+          const of = (k - (n - 1) / 2) * off, wq = ar && k === 1 ? 0.7 * clamp((bd.fo || 1.5) - 1, 0.1, 1) : wm;
+          ctx.globalAlpha = al; ctx.lineWidth = 2 * hw * wq;
+          ctx.beginPath(); ctx.moveTo(x + nx * of, y + ny * of); ctx.lineTo(mx + nx * of, my + ny * of); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+      const rr = p.k !== NUC && lite ? r * 1.2 : r, sp = ballSprite(col, 24), k = rr / 24; // (one sprite a colour, scaled)
+      ctx.drawImage(sp.c, x - sp.size * k / 2, y - sp.size * k / 2, sp.size * k, sp.size * k);
+      const f = fog3(z);
+      if (f > 0.02) { ctx.globalAlpha = f; ctx.fillStyle = fc; ctx.beginPath(); ctx.arc(x, y, rr + 0.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+      if (p.k === NUC && p.ne > 0) labelOne3(ctx, p, x, y, r, col);
+    }
+    drawBox3(ctx, true);
+  }
+  drawMarks3(ctx);
+  drawOverlay3(ctx);
+  drawAxes3(ctx);
+  drawScaleBar();
+  ctx.restore();
+}
+/* An atom's symbol and charge badge, as the flat view draws them. */
+function labelOne3(ctx, p, x, y, r, col) {
+  if (lblOn(p) && r >= 8.5) label(ctx, ELEM_SYM(p), x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
+  if (p.q !== 0 && r >= 5 && badgeOn(p)) chargeBadge(ctx, p.q, x + r * 0.78, y - r * 0.78, r);
+}
+/* Labels over the WebGL layer: only for atoms whose centre no nearer atom covers (found through a coarse grid of the
+   drawn discs), far ones first so the nearer go on top. */
+function drawLabels3(ctx, vis) {
+  const V = _pv, cand = [];
+  for (const p of vis) { if (p.k !== NUC || p.ne === 0) continue; const r = V[4 * p.i + 3]; if ((r >= 8.5 && lblOn(p)) || (p.q !== 0 && r >= 5 && badgeOn(p))) cand.push(p); }
+  if (!cand.length) return;
+  const CS = 48, gw = Math.ceil((R.w + 120) / CS) + 1, gh = Math.ceil((R.h + 120) / CS) + 1, grid = new Map();
+  for (const q of vis) {
+    const b = 4 * q.i, r = V[b + 3]; if (r < 3) continue;
+    const c0 = Math.max(0, Math.floor((V[b] - r + 60) / CS)), c1 = Math.min(gw - 1, Math.floor((V[b] + r + 60) / CS)), r0 = Math.max(0, Math.floor((V[b + 1] - r + 60) / CS)), r1 = Math.min(gh - 1, Math.floor((V[b + 1] + r + 60) / CS));
+    for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) { const k = cy * gw + cx; let l = grid.get(k); if (!l) grid.set(k, l = []); l.push(q); }
+  }
+  cand.sort((a, b) => V[4 * b.i + 2] - V[4 * a.i + 2]);
+  for (const p of cand) {
+    const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2];
+    const l = grid.get(Math.floor((y + 60) / CS) * gw + Math.floor((x + 60) / CS));
+    let hidden = false;
+    if (l) for (const q of l) { if (q === p) continue; const c = 4 * q.i; if (V[c + 2] < z && Math.hypot(V[c] - x, V[c + 1] - y) < V[c + 3] * 0.8) { hidden = true; break; } }
+    if (!hidden) labelOne3(ctx, p, x, y, V[b + 3], atomColor(p));
+  }
+}
+/* Selection, hover and the names from Identify molecules, at the projected places. */
+function drawMarks3(ctx) {
+  const o = _p3a, F = C3.F;
+  const ring = (p) => (proj3(p.x, p.y, p.z, o) ? Math.max(6, (p.k === NUC ? p.rd : 0.15) * F / o[2]) : -1);
+  if (R.msel.size) {
+    ctx.save(); ctx.strokeStyle = 'rgba(255,209,102,0.85)'; ctx.fillStyle = 'rgba(255,209,102,0.35)'; ctx.lineWidth = 1.5;
+    const many = R.msel.size > 2500;
+    ctx.beginPath();
+    for (const p of R.msel) { if (p.dead) continue; const r = ring(p); if (r < 0) continue; const rr = Math.max(4, r - 2) + (many ? 1 : 3); ctx.moveTo(o[0] + rr, o[1]); ctx.arc(o[0], o[1], rr, 0, Math.PI * 2); }
+    if (many) ctx.fill(); else ctx.stroke();
+    ctx.restore();
+  }
+  if (R.molTags.length) {
+    const now = W.rt; let live = 0;
+    ctx.save(); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const t of R.molTags) {
+      const left = t.until - now; if (left <= 0 || t.p.dead) continue; live++;
+      const r = ring(t.p); if (r < 0) continue;
+      const x = o[0], y = o[1] - r - 10;
+      ctx.globalAlpha = Math.min(1, left / 1.5); const w = ctx.measureText(t.text).width + 10;
+      ctx.fillStyle = 'rgba(16,27,36,0.78)'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 8, w, 16, 4); ctx.fill();
+      ctx.fillStyle = '#ffd166'; ctx.fillText(t.text, x, y);
+    }
+    ctx.restore();
+    if (!live) R.molTags.length = 0;
+  }
+  for (const p of [R.sel, R.hover]) {
+    if (!p || p.dead) continue;
+    const r = ring(p); if (r < 0) continue;
+    ctx.save(); ctx.strokeStyle = p === R.sel ? '#ffd166' : 'rgba(255,255,255,0.6)'; ctx.lineWidth = p === R.sel ? 2 : 1;
+    ctx.setLineDash(p === R.sel ? [] : [3, 3]);
+    ctx.beginPath(); ctx.arc(o[0], o[1], r + 5, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  }
+}
+/* What the tools show while used (a brush, the Grab tool's line, an aim, a selection box), on the middle plane. */
+function drawOverlay3(ctx) {
+  const A = _p3a, B = _p3b, F = C3.F, g = W.grab;
+  ctx.save();
+  if (g && g.p && !g.p.dead && proj3(g.p.x, g.p.y, g.p.z, A)) {
+    const rr = Math.max(7, (g.p.k === NUC ? g.p.rd : 0.15) * F / A[2] + 5);
+    ctx.strokeStyle = 'rgba(255,209,102,0.9)'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(A[0], A[1], rr, 0, Math.PI * 2); ctx.stroke();
+    if (proj3(g.x, g.y, g.p.z, B)) { ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]); }
+  }
+  const o = R.overlay;
+  if (o) {
+    ctx.strokeStyle = o.color || 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+    if (o.brush && proj3(o.x, o.y, 0, A)) { ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(A[0], A[1], Math.max(3, o.brush * F / A[2]), 0, Math.PI * 2); ctx.stroke(); }
+    if (o.aim && seg3(o.aim.x0, o.aim.y0, 0, o.aim.x1, o.aim.y1, 0, A, B)) { ctx.setLineDash([]); ctx.strokeStyle = o.aim.color || 'rgba(255,209,102,0.85)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); }
+    if (o.box) {
+      const [x0, y0, x1, y1] = o.box, pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+      ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,209,102,0.9)'; ctx.fillStyle = 'rgba(255,209,102,0.08)'; ctx.beginPath();
+      let ok = true; pts.forEach(([x, y], k) => { if (!proj3(x, y, 0, A)) ok = false; else if (k) ctx.lineTo(A[0], A[1]); else ctx.moveTo(A[0], A[1]); });
+      if (ok) { ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    }
+  }
+  ctx.restore();
 }
 
 /* ---- builder.js ---- */
@@ -26496,11 +27004,13 @@ function onDown(e) {
     endToolAction();
     const [a, b] = [...UI.pointers.values()];
     UI.drag = { kind: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), s0: R.s, mid: [(a.x + b.x) / 2, (a.y + b.y) / 2], c0: [R.cx, R.cy] };
+    if (W.d3) Object.assign(UI.drag, { dist0: R.cam3.dist, yaw0: R.cam3.yaw, pitch0: R.cam3.pitch }); // (3-D: two fingers turn the view and pinch zooms)
     return;
   }
   const rc = e.button === 2 || (e.button === 0 && e.ctrlKey && e.pointerType === 'mouse'); // (Ctrl-click: a Mac's right-click)
   if (!rc) lpStart(e, px, py);
   if (QM.open) { closeQuickMenu(); if (!rc) { UI.drag = { kind: 'none' }; return; } } // a click outside the menu only closes it
+  if (W.d3 && (e.button === 1 || rc || (e.button === 0 && e.altKey && !UI.spaceDown))) { UI.drag = { kind: e.shiftKey ? 'pan' : 'orbit', x: px, y: py, lx: px, ly: py, cx: R.cx, cy: R.cy, rc }; return; } // (3-D: right, middle or Alt+left drag turns the view; with Shift, pans)
   if (e.button === 1 || rc || UI.spaceDown) { UI.drag = { kind: 'pan', x: px, y: py, cx: R.cx, cy: R.cy, rc }; return; }
   const [wx, wy] = s2w(px, py);
   const t = UI.tool;
@@ -26727,6 +27237,7 @@ function grabGroup(p) {
   return out;
 }
 function pickNear(px, py, maxPx) {
+  if (W.d3) return pick3(px, py, maxPx);
   const hit = pickAt(px, py, 10);
   if (hit) return hit;
   let best = null, bd = maxPx * maxPx;
@@ -26760,6 +27271,7 @@ function onMove(e) {
     const dd = Math.hypot(a.x - b.x, a.y - b.y);
     const s = clamp(d.s0 * dd / Math.max(10, d.d0), 0.01, zoomMax());
     const mid = [(a.x + b.x) / 2, (a.y + b.y) / 2];
+    if (W.d3 && d.dist0) { const c = R.cam3; c.dist = clamp(d.dist0 * Math.max(10, d.d0) / Math.max(10, dd), 0.5, 1e6); c.yaw = d.yaw0 - (mid[0] - d.mid[0]) * 0.008; c.pitch = clamp(d.pitch0 + (mid[1] - d.mid[1]) * 0.008, -CAM3_PITCH, CAM3_PITCH); return; }
     // keep the world point under the initial midpoint under the current midpoint
     const wmx = (d.mid[0] - R.w / 2) / d.s0 + d.c0[0], wmy = d.c0[1] - (d.mid[1] - R.h / 2) / d.s0;
     R.s = s; R.cx = wmx - (mid[0] - R.w / 2) / s; R.cy = wmy + (mid[1] - R.h / 2) / s;
@@ -26767,7 +27279,9 @@ function onMove(e) {
   }
   if (d) {
     switch (d.kind) {
-      case 'pan': R.cx = d.cx - (px - d.x) / R.s; R.cy = d.cy + (py - d.y) / R.s; if (Math.hypot(px - d.x, py - d.y) >= 6) R.follow = null; break;
+      case 'orbit': cam3Orbit(px - d.lx, py - d.ly); d.lx = px; d.ly = py; break; // (3-D)
+      case 'pan': if (W.d3) { const lx = d.lx === undefined ? d.x : d.lx, ly = d.ly === undefined ? d.y : d.ly; cam3Pan(px - lx, py - ly); d.lx = px; d.ly = py; if (Math.hypot(px - d.x, py - d.y) >= 6) R.follow = null; break; }
+        R.cx = d.cx - (px - d.x) / R.s; R.cy = d.cy + (py - d.y) / R.s; if (Math.hypot(px - d.x, py - d.y) >= 6) R.follow = null; break;
       case 'spray': {
         const sp = UI.spec || SPEC_P, gap = Math.max(1.4, specSize(sp) * 2.2);
         if (Math.hypot(wx - d.lx, wy - d.ly) >= gap) { placeSpec(sp, wx, wy, 1); d.lx = wx; d.ly = wy; }
@@ -26897,6 +27411,7 @@ function onWheel(e) {
   if (SET.zoomTo === 'centre') zoomAt(R.w / 2, R.h / 2, f); else zoomAt(px, py, f);
 }
 function zoomAt(px, py, f) {
+  if (W.d3) { cam3Zoom(f); return; } // (3-D: nearer or farther, toward the target)
   const [wx, wy] = s2w(px, py);
   R.s = clamp(R.s * f, 0.01, zoomMax());
   R.cx = wx - (px - R.w / 2) / R.s; R.cy = wy + (py - R.h / 2) / R.s;
@@ -28068,6 +28583,7 @@ function worldFromJSON(d) {
   return { n, nb, skipped: d.parts.length - n };
 }
 function saveWorld() {
+  if (W.d3) { log('tool', NO_SAVE_3D); return; }
   const d = worldToJSON(), name = `atom-forge-world-${(UI.preset || 'world').replace(/[^a-z0-9-]/gi, '')}.json`;
   fileSave(name, JSON.stringify(d)).then((ok) => { if (ok) log('tool', `World saved: ${d.parts.length.toLocaleString('en-US')} particles, ${d.bonds.length.toLocaleString('en-US')} bonds${d.chips ? `; ${d.chips} chip${d.chips === 1 ? '' : 's'} saved as plain atoms` : ''}${d.left ? `; ${d.left} particle${d.left === 1 ? '' : 's'} in flight left out` : ''}`); });
 }
@@ -28118,6 +28634,7 @@ function shareInit() {
   $('bShare').onclick = async () => {
     $('shareOut').value = ''; $('shareCopy').disabled = true; $('shareCopied').textContent = ''; $('shareErr').textContent = ''; $('shareIn').value = '';
     $('shareInfo').textContent = 'Making the code …'; showModal('shareModal');
+    if (W.d3) { $('shareInfo').textContent = NO_SAVE_3D + ': there is no code to share. A code from someone else can still be opened below.'; return; }
     const d = worldToJSON(), code = await shareEncode(d), kb = code.length / 1024;
     $('shareOut').value = code; $('shareCopy').disabled = false;
     $('shareInfo').textContent = `${d.parts.length.toLocaleString('en-US')} particles and ${d.bonds.length.toLocaleString('en-US')} bonds in ${kb < 1000 ? Math.ceil(kb) + ' KB' : (kb / 1024).toFixed(1) + ' MB'} of text.` +
@@ -28232,6 +28749,7 @@ function galRender() {
 async function galSave() {
   const say = (t) => { $('galMsg').textContent = t; };
   const list = galIndex();
+  if (W.d3) { say(NO_SAVE_3D + '.'); return; }
   if (list.length >= GAL_MAX) { say(`The gallery holds ${GAL_MAX} worlds: delete one first.`); return; }
   const d = worldToJSON(), code = await shareEncode(d), id = 'g' + Date.now().toString(36);
   const P = PRESETS[UI.preset], name = ($('galName').value || '').trim().slice(0, 50) || (P ? P.name.replace(/^✓ /, '') : 'My world');
@@ -29266,6 +29784,11 @@ const PRESETS = {
       const rows = [['H2O', 'CO2', 'NH3', 'CH4', 'O3', 'SF6'], ['ethanol', 'acetic', 'benzene', 'caffeine', 'aspirin', 'glucose'],
         ['coronene', 'adenine', 'thymine', 'glycine', 'urea', 'vitaminC'], ['dopamine', 'serotonin', 'paracetamol', 'nicotine', 'XeF4', 'H2SO4']];
       rows.forEach((r, j) => r.forEach((k, i) => addMolecule(k, -35 + i * 14, 20.5 - j * 13.7, 0, 300))); } },
+  mol3d: { group: 'Chemistry', name: '3-D: molecules in space (preview)', tool: 'inspect', spec: { kind: 'mol', mol: 'H2O' },
+    hint: '<b>Preview of the 3-D mode: water, methane, ammonia, carbon dioxide and benzene at 300 K in a 30 Å cube.</b> Methane is a tetrahedron, ammonia a low pyramid, water bent, CO₂ straight and benzene a flat ring. Turn the view with a right-drag, Alt+drag or the arrow keys; pan with Shift+right-drag; zoom with the wheel; <b>0</b> fits the box again. Click an atom to inspect it. The tools still act on the box’s middle plane, and 3-D worlds cannot be saved yet.',
+    build() { baseWorld(30, 30, 300, 0.05); world3d(30);
+      const keys = ['benzene', 'CH4', 'H2O', 'NH3', 'CO2', 'CH4', 'H2O', 'NH3', 'CO2', 'benzene', 'H2O', 'CH4', 'NH3', 'CO2', 'H2O'];
+      keys.forEach((k, n) => addMolecule(k, -9 + (n % 3) * 9 + (rnd() - 0.5), -9 + (Math.floor(n / 3) % 3) * 9 + (rnd() - 0.5), rnd() * 6, 300, n < 9 ? -6.5 : 6.5)); } },
   salt: { group: 'Chemistry', name: 'Salt crystal', tool: 'heat', spec: { kind: 'atom', Z: 11, A: 23 },
     hint: '<b>Na⁺ and Cl⁻ ions in a square lattice.</b> Coulomb attraction holds them; Born repulsion stops them collapsing. Heat it to melt it, or drop in neutral Na and Cl atoms: an electron jumps from Na to Cl when that releases energy (ionic bonding).',
     build() { baseWorld(50, 36, 300, 0.05); const a = 2.76;
@@ -29822,7 +30345,7 @@ function frame(now) {
       rewTick(now); grTick(now); prioAutoTick(now);
     }
     tf1 = performance.now();
-    if (R.follow) { if (R.follow.dead) R.follow = null; else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
+    if (R.follow) { if (R.follow.dead) R.follow = null; else if (W.d3) cam3Follow(R.follow); else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
     render(W.rt);
     if (REC.on) recCapture();
     tf2 = performance.now();
@@ -29989,12 +30512,12 @@ function rewTick(now) {
 }
 function rewNote() {
   const n = REW.snaps.length, span = n > 1 ? (REW.snaps[n - 1].rt - REW.snaps[0].rt) / 1000 : 0;
-  return !SET.rewOn ? 'Off: nothing is kept.' : !undoOK() ? 'This setup keeps none: its chips, beams, lasers or ramp cannot be put back.' : `Now: ${n} snapshots, ${span.toFixed(0)} s back, ${(REW.bytes / 1048576).toFixed(1)} MB.`;
+  return !SET.rewOn ? 'Off: nothing is kept.' : W.d3 ? '3-D worlds keep none yet.' : !undoOK() ? 'This setup keeps none: its chips, beams, lasers or ramp cannot be put back.' : `Now: ${n} snapshots, ${span.toFixed(0)} s back, ${(REW.bytes / 1048576).toFixed(1)} MB.`;
 }
 function rewOpen() {
   if (REW.open) return;
   if (!SET.rewOn) { log('tool', 'Rewind is off (Settings → General)'); return; }
-  if (!undoOK()) { log('tool', 'Rewind keeps nothing in this setup: its chips, beams, lasers or ramp cannot be put back'); return; }
+  if (!undoOK()) { log('tool', W.d3 ? 'Rewind keeps nothing in 3-D worlds for now (the 3-D mode is a preview)' : 'Rewind keeps nothing in this setup: its chips, beams, lasers or ramp cannot be put back'); return; }
   if (!REW.snaps.length) { log('tool', 'Nothing kept yet to rewind to: it keeps the world while it runs'); return; }
   REW.wasRun = UI.running; setRunning(false); REW.now = rewPack(); REW.open = true; REW.i = REW.snaps.length;
   const sl = $('rewSlider'); sl.max = String(REW.snaps.length); sl.value = String(REW.i);
@@ -30220,7 +30743,8 @@ function viewFlagsSave() { store('viewflags', JSON.stringify(R.view)); }
    or a temperature ramp cannot be saved that way, so there undo is off. */
 const UNDO = { back: [], fwd: [], size: 0 };
 const UNDO_MAX = 40, UNDO_CHARS = 60e6;
-function undoOK() { return !W.chips.length && !W.collider && !(W.lasers && W.lasers.length) && !W.ramp && !UI.menu; }
+function undoOK() { return !W.chips.length && !W.collider && !(W.lasers && W.lasers.length) && !W.ramp && !UI.menu && !W.d3; } // (3-D, stage 2: a saved world is flat, so none is kept)
+const NO_SAVE_3D = '3-D worlds cannot be saved yet (the 3-D mode is a preview)';
 function undoSnap(label) { const d = worldToJSON(); return { d, txt: null, t: W.t, cam: [R.s, R.cx, R.cy], label, n: d.parts.length * 60 + 200 }; }
 function undoMark(label) {
   if (!undoOK()) { UNDO.back.length = 0; UNDO.fwd.length = 0; UNDO.size = 0; return; }
@@ -30235,7 +30759,7 @@ function undoRestore(sn) {
 }
 function undoStep(dir) {
   const from = dir < 0 ? UNDO.back : UNDO.fwd, to = dir < 0 ? UNDO.fwd : UNDO.back;
-  if (!undoOK()) { log('tool', 'Undo is off in this setup: its chips, beams, lasers or ramp cannot be put back'); return; }
+  if (!undoOK()) { log('tool', W.d3 ? 'Undo is off in 3-D worlds for now (the 3-D mode is a preview)' : 'Undo is off in this setup: its chips, beams, lasers or ramp cannot be put back'); return; }
   const sn = from.pop(); if (!sn) { log('tool', dir < 0 ? 'Nothing to undo' : 'Nothing to redo'); return; }
   UNDO.size -= sn.n;
   const cur = undoSnap(sn.label); to.push(cur); UNDO.size += cur.n;
@@ -30746,6 +31270,7 @@ function onKey(e) {
   if ((k === 'Delete' || k === 'Backspace') && R.msel.size) { deleteSelection(); return; }
   if ((k === 'Delete' || k === 'Backspace') && R.sel) { undoMark('Delete'); kill(R.sel); R.sel = null; renderInspect(); return; }
   if (tag === 'INPUT') return; // range sliders keep their arrow keys and letters stay safe
+  if (W.d3 && /^Arrow(Left|Right|Up|Down)$/.test(k) && tag !== 'BUTTON') { e.preventDefault(); const st = e.shiftKey ? 45 : 12; cam3Orbit(k === 'ArrowLeft' ? -st : k === 'ArrowRight' ? st : 0, k === 'ArrowUp' ? -st : k === 'ArrowDown' ? st : 0); return; } // (3-D: the arrow keys turn the view)
   if (k === '/') { e.preventDefault(); const fb = document.querySelector('#palette [data-find]'); if (fb) pfindOpen(fb); return; }
   if (k === 'v' || k === 'V') { toggleParticleView(); return; }
   if (k === 'b' || k === 'B') { setChamberOnly(!DM.on); return; }

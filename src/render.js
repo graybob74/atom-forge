@@ -30,6 +30,7 @@ const ZOOM_MAX = 4000; // px per Å: about 0.25 Å across the view, well inside 
 const ZOOM_ULTRA = 4e8; // the ultra-realistic mode's: about 0.3 fm across the view, a proton's radius fills a third of it
 function zoomMax() { return W.ultra ? ZOOM_ULTRA : ZOOM_MAX; }
 function fitView(margin = 28) {
+  if (W.d3) { R.cx = 0; R.cy = 0; R.follow = null; cam3Fit(); return; } // (3-D: the camera back to its starting view of the whole box; view3d.js)
   const bw = W.box.tw, bh = W.box.th;
   R.s = Math.min((R.w - margin * 2) / bw, (R.h - margin * 2) / bh);
   R.s = clamp(R.s, 0.01, 400);
@@ -37,7 +38,7 @@ function fitView(margin = 28) {
 }
 function w2sx(x) { return (x - R.cx) * R.s + R.w / 2; }
 function w2sy(y) { return (R.cy - y) * R.s + R.h / 2; }
-function s2w(px, py) { return [(px - R.w / 2) / R.s + R.cx, R.cy - (py - R.h / 2) / R.s]; }
+function s2w(px, py) { if (W.d3) { const q = s2w3(px, py); return [q[0], q[1]]; } return [(px - R.w / 2) / R.s + R.cx, R.cy - (py - R.h / 2) / R.s]; }
 function rgba(c, a) { return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
 function hexRGB(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 const _hexCache = {};
@@ -137,6 +138,7 @@ function luminance(hex) { const [r, g, b] = hexc(hex); return 0.2126 * r + 0.715
 
 /* ---------- main draw ---------- */
 function render(rt) {
+  if (W.d3) { render3d(rt); return; } // (a 3-D world: view3d.js)
   R.time = rt;
   const dpr = R.dpr;
   // the WebGL layer (gl.js) takes the balls, glows and bonds when it can: the background goes on the canvas under it and
@@ -1801,6 +1803,7 @@ function lightHead(o, kind) {
 }
 /* The nearest photon, neutrino or unstable particle to a point on the screen, within extra pixels (for the Inspect tool). */
 function pickLight(px, py, extra = 10) {
+  if (W.d3) return null; // (3-D, stage 2: light in flight is not drawn)
   const [wx, wy] = s2w(px, py); let best = null, bd = extra * extra;
   const consider = (o, kind) => { const h = lightHead(o, kind); if (!h) return; const dx = (h[0] - wx) * R.s, dy = (h[1] - wy) * R.s, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; best = { kind, o }; } };
   for (const o of W.exo) if (!o.dead) consider(o, 'exo');
@@ -1809,6 +1812,7 @@ function pickLight(px, py, extra = 10) {
   return best;
 }
 function pickAt(px, py, extra = 6) {
+  if (W.d3) return pick3(px, py, extra); // (3-D: the nearest the camera of those under the pointer; view3d.js)
   const [wx, wy] = s2w(px, py);
   let best = null, bd = Infinity;
   for (const p of W.parts) {

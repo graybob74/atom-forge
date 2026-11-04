@@ -20,7 +20,7 @@ lane() { # lane name, suites...
   done
 }
 lane A t_lint t_data t_nuclear t_energy t_physics t_collider t_molecules t_design t_chips t_wasm t_features t_touch &
-lane B t_page t_threads t_select t_gl t_hep t_regress t_fuzz t_compat &
+lane B t_page t_threads t_select t_gl t_3d t_hep t_regress t_fuzz t_compat &
 wait
 cat "$OUT/A.summary" "$OUT/B.summary"
 echo "logs in $OUT"
