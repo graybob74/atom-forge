@@ -271,6 +271,23 @@ function boAngles(c, nb, wgt, forces) {
   }
   return [E, dEds];
 }
+/* Who a member is bonded to, for naming and grouping (molecule(), the Data tab, Inspect, selection): its partners of
+   order 0.5 or more in the last pass (1.14: molecules were shown as loose atoms, asked for by the user) */
+function boNbrs(p) {
+  if (!p.bom || !BO.any) return [];
+  if (BO.adjAt !== BO.changes) { // (made again once a pass)
+    BO.adjAt = BO.changes; const m = BO.adj = new Map();
+    for (let k = 0; k < BO.np; k++) { const q = BO.pairs[k]; if (q.n >= 0.5 && q.a.bom && q.b.bom && !q.a.dead && !q.b.dead) { let l = m.get(q.a); if (!l) m.set(q.a, l = []); l.push(q.b); l = m.get(q.b); if (!l) m.set(q.b, l = []); l.push(q.a); } }
+  }
+  return BO.adj.get(p) || [];
+}
+/* A member molecule as stand-in atoms with whole stored-style bonds (boWhole), for what reads bonds and their orders:
+   the SMILES writer of Identify molecules (1.14) */
+function boProxy(mol) {
+  const map = new Map(mol.map(a => [a, { k: a.k, dead: false, el: a.el, q: a.q, Z: a.Z, N: a.N, A: a.A, anti: a.anti, mu: a.mu, x: a.x, y: a.y, bonds: [] }]));
+  for (const [a, b, o] of boWhole(new Set(mol))) { const pa = map.get(a), pb = map.get(b), bd = { a: pa, b: pb, order: o }; pa.bonds.push(bd); pb.bonds.push(bd); }
+  return mol.map(a => map.get(a));
+}
 /* Member bonds as the renderer's bond records: a whole order, or a resonating 1.5 (between 1.25 and 1.75), fainter as the
    order falls below 1 (drawn as a bond stretched by 1 − n of its fading length) */
 function boDrawBonds() {

@@ -1006,12 +1006,12 @@ function finishSelBox(d) {
   }
   for (const p of picked) {
     if (d.add && tiny && R.msel.has(p)) { // Shift-click on a selected particle: out it goes (its molecule with it, when molecules are picked whole)
-      const g = OPT.select.whole && p.k === NUC && p.bonds.length ? molecule(p) : [p];
+      const g = OPT.select.whole && p.k === NUC && linked(p) ? molecule(p) : [p];
       for (const a of g) R.msel.delete(a);
       continue;
     }
     R.msel.add(p);
-    if (OPT.select.whole && p.k === NUC && p.bonds.length) for (const a of molecule(p)) if (!a.dead) R.msel.add(a);
+    if (OPT.select.whole && p.k === NUC && linked(p)) for (const a of molecule(p)) if (!a.dead) R.msel.add(a);
   }
   selChanged();
 }
@@ -1332,7 +1332,7 @@ function updateHover(px, py) {
   else if (p.Z === 0) { t1 = p.anti ? 'Antineutron' : 'Neutron'; t2 = `KE ${fmtE(ke)} · t½ ≈ 10 min`; }
   else if (p.ne === 0) { t1 = `${speciesLabel(p)} — ${p.anti && p.Z === 1 && p.N === 0 ? 'antiproton' : (p.anti ? 'anti-' : '') + nucName(p.Z, p.N) + ' nucleus'}`; t2 = `${lifeText(p.nuc, p)} · KE ${fmtE(ke)}`; }
   else {
-    const mol = p.bonds.length ? molecule(p) : null;
+    const mol = linked(p) ? molecule(p) : null;
     const nm = mol ? moleculeName(mol) : null, en = elemName(p);
     t1 = mol ? `${en} in ${isoFormula(mol)}${nm ? ' (' + nm + ')' : ''}` : `${en}${p.q ? ((p.anti ? -p.q : p.q) > 0 ? ' cation ' : ' anion ') + speciesLabel(p) : ' atom'}`;
     const ic = p.q || (mol && mol.some(a => a.q)) ? ionicCluster(p) : null, it = ic && ionicText(ic, true); // (held ionically: the compound's name)
@@ -1660,7 +1660,7 @@ function renderInspect() {
   } else {
     const el = p.el, nuc = p.nuc || nuclideInfo(p.Z, p.N), A = p.Z + p.N;
     const qs = p.q ? (Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '−') : '';
-    const mol = p.bonds.length ? molecule(p) : null, mname = mol ? moleculeName(mol) : null;
+    const mol = linked(p) ? molecule(p) : null, mname = mol ? moleculeName(mol) : null;
     const lep = p.anti ? 'positron' : 'electron', aq = p.anti ? -p.q : p.q; // aq > 0: short of leptons (a cation)
     const iso = elemName(p) + '-' + A;
     const title = p.ne === 0 ? (p.anti ? (p.Z === 1 && p.N === 0 ? 'Antiproton' : `Anti-${nucName(p.Z, p.N).toLowerCase()} nucleus`)
@@ -1922,12 +1922,12 @@ function speciesCounts(ionic = true) { // (ionic: ionic compounds as their formu
     if (p.k === ELEC) { key = 'e⁻'; name = 'free electrons'; col = E_COL; }
     else if (p.k === POS) { key = 'e⁺'; name = 'positrons'; col = POS_COL; }
     else if (p.Z === 0) { key = p.anti ? 'n̄' : 'n'; name = p.anti ? 'antineutrons' : 'neutrons'; col = p.anti ? NBAR_COL : N_COL; }
-    else if (ionic && p.ne > 0 && (p.q || (p.bonds.length && molecule(p).some(a => a.q))) && (cl = ionicCluster(p)) && (ci = ionicName(cl))) { // an ionic compound: its formula units
+    else if (ionic && p.ne > 0 && (p.q || (linked(p) && molecule(p).some(a => a.q))) && (cl = ionicCluster(p)) && (ci = ionicName(cl))) { // an ionic compound: its formula units
       for (const a of cl) seen.add(a);
       key = ci.formula; name = (ci.name || 'ionic compound') + (ci.units > 1 ? ' (formula units, in contact)' : ''); col = atomColor(p);
       const e = c.get(key) || { n: 0, name, col }; e.n += ci.units; c.set(key, e); continue;
     }
-    else if (p.bonds.length) { const m = molecule(p); for (const a of m) seen.add(a); key = isoFormula(m); name = moleculeName(m) || (p.anti ? 'antimatter molecule' : ''); col = atomColor(p); }
+    else if (linked(p)) { const m = molecule(p); for (const a of m) seen.add(a); key = isoFormula(m); name = moleculeName(m) || (p.anti ? 'antimatter molecule' : ''); col = atomColor(p); }
     else if (p.ne === 0) { key = speciesLabel(p); name = p.anti ? (p.Z === 1 && p.N === 0 ? 'antiprotons' : 'anti-' + nucName(p.Z, p.N).toLowerCase() + ' nuclei') : nucName(p.Z, p.N) + ' nuclei'; col = p.anti ? PBAR_COL : P_COL; }
     else { const aq = p.anti ? -p.q : p.q; key = speciesLabel(p) + (p.N + p.Z !== COMMON_A[p.Z] ? ` (${p.Z + p.N})` : ''); name = elemName(p) + (aq ? (aq > 0 ? ' cations' : ' anions') : ' atoms'); col = atomColor(p); }
     seen.add(p);
@@ -1959,7 +1959,7 @@ function wallPressure(mols, T) {
 function renderData() {
   const m = measure();
   let mols = 0; const seen = new Set();
-  for (const p of W.parts) if (!p.dead && p.bonds.length && !seen.has(p)) { mols++; for (const a of molecule(p)) seen.add(a); }
+  for (const p of W.parts) if (!p.dead && linked(p) && !seen.has(p)) { mols++; for (const a of molecule(p)) seen.add(a); }
   const tiles = [
     ['Measured T', fmtT(m.T)], ['Bath', W.gamma ? fmtT(W.T) : 'insulated'],
     ['Simulated time', fmtTime(W.t * PHYS.TU_S)], ['Decay speed', !W.decayOn ? 'paused' : warpWords()],
@@ -2423,7 +2423,7 @@ function worldToJSON() {
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
   if (BO.any) for (const [a, b, o] of boWhole()) { const i = ix.get(a), j = ix.get(b); if (i !== undefined && j !== undefined) bonds.push([i, j, o]); } // (continuous bond orders: kept as whole bonds, so the world opens either way)
   return { app: 'Atom Forge', v: 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey,
-    spf: W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -3000,7 +3000,7 @@ function syncLabText() {
 
 /* The Motion readout: the set speed, and while slow motion holds time back, how far it has slowed it. */
 function motionText() { // the motion the simulation actually gets through each frame (less than it is set to in slow motion, or at the computer's limit)
-  const slow = (W.slowHold || UI.slow || autoSlowOn()) && UI.adv > 0 && UI.adv < 0.9 * W.simPerFrame;
+  const slow = UI.slow && UI.adv > 0 && UI.adv < 0.9 * W.simPerFrame; // (light in flight holding time back; slow motion itself is the speed shown, 1.14)
   if (!(UI.adv > 0) || (!UI.running && !slow)) return `${fmtTime(W.simPerFrame * PHYS.TU_S)} per 1/60 s`; // (paused in slow motion: still shows the slow motion it was in)
   return `${slow ? 'slow motion: ' : ''}${fmtTime(Math.min(UI.adv, W.simPerFrame) * PHYS.TU_S)} per 1/60 s${!slow && UI.capped ? ' (as fast as this computer goes)' : ''}`; // (per sixtieth of a second, whatever the frame rate: simFrame keeps to real time)
 }
@@ -3019,15 +3019,10 @@ function speedText(m) {
 function rateText(spf) { return fmtTime(spfRate(spf)).replace(/\.0+ /, ' ').replace(/(\.\d*?)0+ /, '$1 ') + '/s'; }
 /* Every speed the buttons and the menu offer, fastest first: 16× down to 1/512× in halvings, then whole decades of
    simulated time per second down to 1 ys a second. */
-function speedLadder() {
-  const L = [];
-  for (let k = SPEED_MAX; k >= SPEED_MIN; k--) L.push(UI.baseSpf * Math.pow(2, k));
-  const r0 = spfRate(UI.baseSpf * Math.pow(2, SPEED_MIN));
-  for (let e = Math.floor(Math.log10(r0 * 0.999)); e >= -24; e--) L.push(Math.pow(10, e) / (PHYS.TU_S * 60));
-  return L;
-}
-function setSpeed(spf) {
-  W.simPerFrame = spf; UI.ach = 1; UI.capped = false;
+function speedLadder() { return speedLadderW(); } // (engine.js: slow motion picks its speeds from the same ladder)
+function setSpeed(spf) { // (a speed chosen by hand: slow motion, on demand or automatic, lets go, 1.14)
+  if (W.slowSet || W.slowHold) { W.slowSet = 0; W.slowHold = false; W.slow = null; W.hold = null; syncSlowmo(); }
+  W.simPerFrame = spf; W.userSpf = spf; UI.ach = 1; UI.capped = false;
   syncSpeed(); $('spdSlider').value = sFromSpd(W.simPerFrame); syncLabText();
 }
 function speedIndex(L) { let best = 0, bd = Infinity; for (let i = 0; i < L.length; i++) { const d = Math.abs(Math.log(L[i] / W.simPerFrame)); if (d < bd) { bd = d; best = i; } } return best; }
@@ -3054,9 +3049,9 @@ function stepSpeed(dir) { // (the − and + buttons, [ and ]: the next speed dow
 function syncSpeed() {
   const m = W.simPerFrame / UI.baseSpf, v = $('speedVal');
   // the speed actually reached: at the computer's limit (amber) less than asked, as each frame's physics time is used up
-  v.textContent = (UI.slow || W.slowHold) && !ultraSlow() ? 'slow-mo' + (Math.abs(m - 1) > 1e-6 ? ' ' + speedText(m) : '') : speedText(UI.capped ? m * clamp(UI.ach || 1, 1e-4, 1) : m); // (the speed setting shows in automatic slow motion too, 0.91)
-  v.classList.toggle('cap', !!UI.capped && !UI.slow);
-  v.classList.toggle('slow', (!!UI.slow || !!W.slowHold) && !ultraSlow());
+  v.textContent = speedText(UI.capped && !W.slowSet ? m * clamp(UI.ach || 1, 1e-4, 1) : m); // (1.14: always a speed from the menu; slow motion sets one) // (the speed setting shows in automatic slow motion too, 0.91)
+  v.classList.toggle('cap', !!UI.capped && !UI.slow && !W.slowSet);
+  v.classList.toggle('slow', !!W.slowSet);
   const k = Math.round(Math.log2(m));
   $('bSlower').disabled = spfRate(W.simPerFrame) <= ULTRA_SLOWEST * 1.01; $('bFaster').disabled = k >= SPEED_MAX;
   const rate = W.simPerFrame * PHYS.TU_S * 60 * Math.min(1, UI.ach || 1);
@@ -3567,12 +3562,12 @@ function syncSlowmo() {
   b.setAttribute('aria-pressed', String(on));
   b.classList.toggle('primary', on);
   b.classList.toggle('auto', auto);
-  b.title = auto ? 'Slow motion (started by a nuclear event): press to keep it on, press again to turn it off (\\)' : 'Slow motion: time slows until the fastest particle takes about a second to cross the box (\\)';
+  b.title = auto ? 'Slow motion (started by a nuclear event: it set the speed): press to keep it, press again to go back to your speed (\\)' : on ? 'Slow motion: it sets the speed so the fastest particle takes about a second to cross the box; press to go back to your speed (\\)' : 'Slow motion: sets the speed so the fastest particle takes about a second to cross the box (\\)';
 }
 function toggleSlowmo() {
-  if (W.slowHold) { W.slowHold = false; W.slow = null; } // off: the automatic kind too
-  else { W.slowHold = true; if (autoSlowOn()) W.slow = null; } // on (taking over from the automatic kind)
-  W.hold = null; syncSlowmo(); syncSpeed();
+  if (W.slowHold) { W.slowHold = false; W.slow = null; if (W.slowSet) { W.simPerFrame = W.userSpf; W.slowSet = 0; } } // off: the automatic kind too; back to the speed chosen
+  else { W.slowHold = true; if (autoSlowOn()) W.slow = null; } // on (taking over from the automatic kind): the next frame sets the speed
+  W.hold = null; syncSlowmo(); syncSpeed(); $('spdSlider').value = sFromSpd(W.simPerFrame); syncLabText();
 }
 
 /* ------------------------------------------------------------------ presets */
@@ -4162,6 +4157,7 @@ function frame(now) {
         UI.adv = UI.adv > 0 ? Math.exp(0.85 * Math.log(UI.adv) + 0.15 * Math.log(Math.max(1e-12, adv60))) : adv60; // (smoothed, for the Motion readout)
         const capped = UI.ach < 0.8, slow = r.slow < 0.6;
         if (capped !== !!UI.capped || slow !== !!UI.slow) { UI.capped = capped; UI.slow = slow; syncSpeed(); }
+        if (W.simPerFrame !== UI.shownSpf) { UI.shownSpf = W.simPerFrame; syncSpeed(); $('spdSlider').value = sFromSpd(W.simPerFrame); syncLabText(); } // (slow motion set a speed, 1.14)
         if ((W.slowHold ? 2 : 0) + (autoSlowOn() && !W.slowHold ? 1 : 0) !== (UI.smShown || 0)) syncSlowmo(); // (the hourglass follows the automatic slow motion)
       }
       UI.stepOnce = false;
@@ -5577,7 +5573,7 @@ function qmMotion(list) {
 let _umo = 0; // (one undo mark per menu: a slider's many steps are one change)
 function undoMarkOnce(what) { if (_umo !== QM.serial) { _umo = QM.serial; undoMark(what); } }
 function qmParticle(p) {
-  const atom = p.k === NUC && p.Z > 0, mol = atom && p.bonds.length ? molecule(p) : null;
+  const atom = p.k === NUC && p.Z > 0, mol = atom && linked(p) ? molecule(p) : null;
   const ke = p.rad ? p.KE : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy);
   let t1, spec = null;
   if (p.k === ELEC || p.k === POS) { t1 = p.k === ELEC ? 'Free electron' : 'Positron'; spec = { kind: p.k === ELEC ? 'e' : 'pos' }; }
@@ -5628,7 +5624,7 @@ function removeAll(match) { let n = 0; for (const q of W.parts) if (!q.dead && m
 function molsLike(f) { // every molecule in the box with this formula
   const seen = new Set(), out = [];
   for (const q of W.parts) {
-    if (q.dead || q.k !== NUC || !q.bonds.length || seen.has(q)) continue;
+    if (q.dead || q.k !== NUC || !linked(q) || seen.has(q)) continue;
     const m = molecule(q); for (const a of m) seen.add(a);
     if (isoFormula(m) === f) out.push(m);
   }

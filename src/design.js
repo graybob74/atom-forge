@@ -531,13 +531,14 @@ function smilesWrite(mol) {
 function chamberKinds() {
   const seen = new Set(), kinds = new Map();
   for (const p of W.parts) {
-    if (p.dead || p.k !== NUC || !p.bonds.length || seen.has(p)) continue;
-    const mol = molecule(p); for (const a of mol) seen.add(a);
+    if (p.dead || p.k !== NUC || !linked(p) || seen.has(p)) continue;
+    const orig = molecule(p); for (const a of orig) seen.add(a);
+    const mol = orig.some(a => a.bom) ? boProxy(orig) : orig; // (continuous bond orders: whole bonds from the orders, 1.14)
     if (mol.some(a => a.k !== NUC || a.dead || !a.el)) continue;
     const lib = libMatch(mol), name = moleculeName(mol), f = isoFormula(mol), smi = smilesWrite(mol), key = (name || '') + '|' + (smi || f);
     let k = kinds.get(key);
     if (!k) { k = { name, f, smi, mol, lib, n: 0, mols: [], byClaude: false }; kinds.set(key, k); }
-    k.n++; if (k.mols.length < ID_TAGS_PER_KIND) k.mols.push(mol);
+    k.n++; if (k.mols.length < ID_TAGS_PER_KIND) k.mols.push(orig);
   }
   return [...kinds.values()].sort((a, b) => b.n - a.n);
 }

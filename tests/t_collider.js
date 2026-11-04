@@ -196,7 +196,7 @@ for (const [a, b, E, layout] of [['pos', 'e', 2e6, 'single'], ['p', 'pbar', 2e6,
   X.settleOverlaps(); W.baseSpf = W.simPerFrame;
   const C = W.collider; C.auto = false;
   let topA = 0, topB = 0, f = 0;
-  for (; f < 1400 && !(C.hits > 0); f++) {
+  for (; f < 3000 && !(C.hits > 0); f++) { // (1.14: slow motion runs at the menu's nearest speed, a little slower or faster than before)
     X.simFrame(1 / 60, 1e9);
     if (!C.colliding) for (const [k, g] of [['a', C.rings[0]], ['b', C.rings[1]]]) { const ps = W.parts.filter(p => p.beam === k && !p.dead && !p.injKick); if (ps.length) { const m = ps.reduce((s, p) => s + p.KE, 0) / ps.length; if (k === 'a') topA = Math.max(topA, m); else topB = Math.max(topB, m); } }
   }
@@ -323,7 +323,8 @@ for (const KE of [2e6, 5e6]) { // (losses well under 1% a turn, so the formula f
   for (let f = 0; f < 20; f++) { X.simFrame(1 / 60, 1e9); xs.push(p.x); }
   const per = (xs[19] - xs[9]) / 10, want = 0.02 * 300;
   info(`slow motion: a 200 keV α particle moves ${per.toFixed(2)} Å per frame (2% of the box: ${want.toFixed(1)} Å)`);
-  if (Math.abs(per / want - 1) > 0.1) bad(`slow motion: ${per.toFixed(2)} Å per frame, expected ${want.toFixed(1)}`);
+  // (1.14: slow motion sets the menu's speed nearest the one that gives 2%: halvings down to 1/512×, decades of time a second below)
+  if (!(per <= want * (W.simPerFrame < W.baseSpf / 512 ? 3.3 : 1.5) && per >= want / (W.simPerFrame < W.baseSpf / 512 ? 3.3 : 1.5))) bad(`slow motion: ${per.toFixed(2)} Å per frame, expected ${want.toFixed(1)} to within a menu step`);
   W.slowHold = false; W.hold = null;
   const x0 = p.x, ux0 = p.ux; X.simFrame(1 / 60, 1e9);
   const bounced = p.ux * ux0 < 0; // (closed walls reflect it: reaching the wall within the frame is fast enough)
@@ -339,7 +340,7 @@ for (const KE of [2e6, 5e6]) { // (losses well under 1% a turn, so the formula f
     X.PRESETS.annihilation.build(); X.settleOverlaps(); W.baseSpf = W.simPerFrame;
     W.slowHold = true; W.hold = null; W.slowmo = nuc;
     let before = 1, after = 1, ev = -1;
-    for (let f = 0; f < 200 && !(ev >= 0 && f > ev + 30); f++) { const r = X.simFrame(1 / 60, 1e9); if (ev < 0 && W.events.length) ev = f; if (ev < 0) before = r.slow; else after = Math.min(after, r.slow); }
+    for (let f = 0; f < 200 && !(ev >= 0 && f > ev + 30); f++) { const r = X.simFrame(1 / 60, 1e9); if (ev < 0 && W.events.length) ev = f; const sl = r.slow * W.simPerFrame / W.baseSpf; if (ev < 0) before = sl; else after = Math.min(after, sl); } // (1.14: slow motion sets the speed itself)
     fs[nuc] = [before, after, ev];
   }
   info(`slow motion on demand: an annihilation took it from ${fs.false[0].toExponential(2)} to ${fs.false[1].toExponential(2)} with nuclear slow motion off, to ${fs.true[1].toExponential(2)} with it on`);

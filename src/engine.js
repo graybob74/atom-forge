@@ -718,9 +718,14 @@ function ionizationCost(p) { return ionE(p.Z, p.ne) + breakCostIfCharged(p, -1);
 
 function molecule(p) {
   const seen = new Set([p]), out = [p];
-  for (let i = 0; i < out.length; i++) for (const bd of out[i].bonds) { const o = other(bd, out[i]); if (!seen.has(o)) { seen.add(o); out.push(o); } }
+  for (let i = 0; i < out.length; i++) {
+    for (const bd of out[i].bonds) { const o = other(bd, out[i]); if (!seen.has(o)) { seen.add(o); out.push(o); } }
+    if (out[i].bom) for (const o of boNbrs(out[i])) if (!seen.has(o)) { seen.add(o); out.push(o); } // (continuous bond orders: their bonds, 1.14)
+  }
   return out;
 }
+/* bonded to anything (a stored bond, or with continuous bond orders an order of 0.5 or more) */
+function linked(p) { return p.bonds.length > 0 || (p.bom && boNbrs(p).length > 0); }
 function hill(atoms, plain) {
   const cnt = {}; let q = 0;
   for (const a of atoms) { const s = a.mu ? 'Mu' : a.el ? (a.anti ? barSym(a.el.sym) : a.el.sym) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
@@ -792,7 +797,7 @@ function libMatch(atoms, plain) {
   const cands = libIndex().get(f);
   if (!cands) return null;
   const ix = new Map(atoms.map((a, i) => [a, i]));
-  const adj = atoms.map(a => a.bonds.map(bd => ix.get(other(bd, a))).filter(j => j !== undefined));
+  const adj = atoms.map(a => a.bonds.map(bd => ix.get(other(bd, a))).concat(a.bom ? boNbrs(a).map(o => ix.get(o)) : []).filter(j => j !== undefined));
   const h = f + ':' + graphHash(atoms.map(a => { const A = plain ? 0 : isoA(a); return A ? a.el.sym + A : a.el.sym; }), adj);
   for (const c of cands) if (c.h === h) return c.m;
   return null;
@@ -898,7 +903,7 @@ function speciesLabel(p) {
   if (p.k === ELEC) return 'e⁻';
   if (p.k === POS) return 'e⁺';
   if (p.Z === 0) return 'n';
-  if (p.bonds.length) return isoFormula(molecule(p));
+  if (linked(p)) return isoFormula(molecule(p));
   if (p.mu) return p.ne === 0 ? 'μ⁺' : 'Mu' + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''); // (1.12: muonium, Mu⁻ muonide; bare, a μ⁺)
   if (p.anti && p.ne === 0) return p.Z === 1 && p.N === 0 ? 'p̄' : nucSymA(p.Z, p.N, true) + sup((p.Z > 1 ? p.Z : '') + '-');
   if (p.ne === 0) {
@@ -6006,11 +6011,37 @@ function stepPlain(dt) {
    box in a few femtoseconds, i.e. within one frame. Time eases down until the fastest of them moves about 2%
    of the box per frame, then eases back once they have left or slowed, at most ~3 s of real time later.
    Everything slows together; nothing is faked. */
-function slowFactor(realDt) {
-  const h = W.slowHold ? holdFactor(realDt) : 1;
-  const o = Math.min(h, eventSlow(realDt));
-  if (!W.flights.length) return o;
-  return clamp(lightSlow() * o, 1e-9, 1); // (light in flight: its pace at 1×, times any slow motion; the speed set scales it through simPerFrame, as it scales everything)
+function slowFactor() {
+  if (!W.flights.length) return 1;
+  return clamp(lightSlow(), 1e-9, 1); // (light in flight: its pace at 1×; the speed set, slow motion's included, scales it through simPerFrame, as it scales everything)
+}
+/* 1.14 (asked for by the user): slow motion is a speed. The hourglass (W.slowHold) and the automatic slow-down for nuclear
+   events (W.slow) no longer hold time back behind the speed shown: each frame they set the speed itself, to the
+   menu's speed nearest what they want (never above the speed chosen), so the readout always shows a speed from the menu. W.userSpf keeps the
+   speed chosen by hand, which comes back when they let go; choosing a speed by hand (the menu, − and +) ends both.
+   W.slowSet is the speed slow motion set (0 when none). The hourglass wants the fastest particle to cross about 2% of
+   the box a frame at the setup's own speed (and never more than an eighth of it); the automatic kind the same, scaled by
+   the speed chosen. Set slower than 1/512× by hand, neither acts (deepSlow). */
+function speedLadderW() { // the menu's speeds, fastest first (ui.js speedLadder shows these): 16× … 1/512× in halvings, then decades of simulated time a second down to 1 ys
+  const base = W.baseSpf || W.simPerFrame, L = [];
+  for (let k = 4; k >= -9; k--) L.push(base * Math.pow(2, k));
+  const r0 = base * Math.pow(2, -9) * PHYS.TU_S * 60;
+  for (let e = Math.floor(Math.log10(r0 * 0.999)); e >= -24; e--) L.push(Math.pow(10, e) / (PHYS.TU_S * 60));
+  return L;
+}
+function ladderNear(spf) { const L = speedLadderW(); let best = L[0], bd = Infinity; for (const v of L) { const d = Math.abs(Math.log(v / spf)); if (d < bd) { bd = d; best = v; } } return best; } // (the menu's speed nearest in ratio: within √2 down to 1/512×, within √10 among the decades below)
+function slowSpeed(realDt) {
+  if (W.slowSet && Math.abs(W.simPerFrame / W.slowSet - 1) > 1e-9) { W.slowSet = 0; W.slowHold = false; W.slow = null; W.hold = null; } // (a speed chosen meanwhile: it stays)
+  if (!W.slowSet) W.userSpf = W.simPerFrame;
+  const user = W.userSpf, base = W.baseSpf || user;
+  let spf = user;
+  if (user >= base / 512 * 0.99) {
+    if (W.slowHold) spf = Math.min(user, base * holdFactor(realDt));
+    const ev = eventSlow(realDt); if (ev < 1) spf = Math.min(spf, user * ev);
+  } else { W.slowHold = false; W.slow = null; }
+  const set = W.slowHold || spf < user * 0.999 ? Math.min(user, ladderNear(spf)) : user;
+  W.slowSet = W.slowHold || set !== user ? set : 0;
+  if (W.simPerFrame !== set) W.simPerFrame = set;
 }
 /* Slow motion on demand: time eases down until the fastest particles move about 2% of the box per frame (at the
    setup's normal speed; the speed buttons still scale it), and always to an eighth of normal at least. With slow
@@ -6042,7 +6073,7 @@ function eventSlow(realDt) {
   if (!S) return 1;
   const age = W.rt - S.t0;
   let want = 1;
-  const base = W.baseSpf || W.simPerFrame, slower = clamp(base / W.simPerFrame, 1, 64); // (slowed down further with the speed buttons: it lasts that much longer too, up to 64 times, 0.91)
+  const base = W.baseSpf || W.simPerFrame, slower = clamp(base / (W.userSpf || W.simPerFrame), 1, 64); // (slowed down further with the speed buttons: it lasts that much longer too, up to 64 times, 0.91)
   if (S.on && W.slowmo && age < 3 * slower) {
     let v = 0;
     for (const p of W.parts) {
@@ -6070,17 +6101,18 @@ const FRAME_REF = 1 / 60;
 /* Set slower than 1/512× of the setup's speed: the extreme slow motion (the speed buttons go on in decades of simulated
    time per second, down to 1 ys a second; ui.js stepSpeed). There each frame takes exactly the time set, automatic
    slow motion stays out, and resonances live their mean lives on the clock (hep.js moveExos). */
-function deepSlow() { return W.simPerFrame < (W.baseSpf || W.simPerFrame) / 512 * 0.99; }
+function deepSlow() { const s = W.slowSet ? W.userSpf : W.simPerFrame; return s < (W.baseSpf || W.simPerFrame) / 512 * 0.99; } // (the speed chosen: slow motion's own speeds can go lower, 1.14)
 function simFrame(realDt, budgetMs) {
   const t0 = performance.now();
   let simAdv = 0, steps = 0, cut = false;
+  slowSpeed(realDt); // (slow motion sets the speed: 1.14)
   let slow = slowFactor(realDt); const fr = clamp(realDt / FRAME_REF, 0.01, 3);
   if (deepSlow()) slow = 1; // (set slower than 1/512×: the pace is exactly what is set, a yoctosecond a second at the slowest; automatic slow motion stays out of it) // (the frame's share of a sixtieth: any frame rate up to 6,000 fps advances the same simulated time per second)
-  let target = W.simPerFrame * slow * fr; const floor = deepSlow() && W.simPerFrame < DT_MIN ? 1e-18 : W.flights.length || slow < 0.999 ? 1e-9 : DT_MIN; // (ultra-realistic, set below one shortest step: a step a frame, however short, down to a yoctosecond a second) // (with light in flight, or in slow motion, a frame may be shorter than the shortest normal step: slowed down that far, what is followed is still seen to slow; at a step a frame this costs nothing, 0.91)
+  let target = W.simPerFrame * slow * fr; const floor = deepSlow() && W.simPerFrame < DT_MIN ? 1e-18 : W.flights.length || slow < 0.999 || W.slowSet ? 1e-9 : DT_MIN; // (ultra-realistic, set below one shortest step: a step a frame, however short, down to a yoctosecond a second) // (with light in flight, or in slow motion, a frame may be shorter than the shortest normal step: slowed down that far, what is followed is still seen to slow; at a step a frame this costs nothing, 0.91)
   // set below one shortest step a frame (1/512× of a fine setup): the frames' time is saved up and run once it makes a
   // whole step, so the motion is as slow as asked and not one step a frame, whatever the fps. (Slow motion keeps its
   // floor of a step a frame: it follows fast particles, which must move every frame to be followed.)
-  if (target < floor && slow >= 0.999) { W._carry = (W._carry || 0) + target; if (W._carry < floor) target = 0; else { target = W._carry; W._carry = 0; } } else W._carry = 0;
+  if (target < floor && slow >= 0.999 && !W.slowSet) { W._carry = (W._carry || 0) + target; if (W._carry < floor) target = 0; else { target = W._carry; W._carry = 0; } } else W._carry = 0;
   while (simAdv < target - Math.min(1e-9, 1e-3 * target)) {
     // particles added from outside (tools, setups): the step size must see their forces and contacts first
     if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; }
@@ -6129,7 +6161,7 @@ function clearWorld() {
   BO.np = 0; BO.any = false; BO.E = 0;
   dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
-  W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.nucWin = null; W.made = null; W.chain = null;
+  W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.slowSet = 0; W.nucWin = null; W.made = null; W.chain = null;
   W.grab = null; W.topo++;
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;

@@ -77,6 +77,11 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
+- From "Honest approximations" (the user: "build everything that's worth doing", 1.14): unstable particles deflected
+  by the nuclei they pass (multiple Coulomb scattering; today they fly straight between hits); jets in high-energy
+  collisions (products along the collision axis, not an even spray); charm and bottom hadrons (D, B mesons and their
+  decays; today c and b quarks turn into light hadrons); relativity in the atomic solver (gold's 6s 2.7 eV too
+  shallow). Physics changes, approved by the user.
 - Every charged particle as a collider beam (asked for by the user, approved; 1.13 found it bigger than a menu entry):
   μ±, π±, K±, τ±, Σ±, Ξ⁻, Ω⁻ and their antiparticles. They are flying exotics (W.exo), which the ring does not handle:
   its dipole zones pass only W.parts with a matching beam tag (Bfield(x, y, null) skips them), the RF cavities,
@@ -84,14 +89,6 @@ engine stores and visits particles.
   collided by the ring (or carried as parts), collision physics for the new pairs (μ⁺μ⁻ annihilation, π/K/hyperon on
   nucleons through hadronHit, exotic on exotic), decay in flight around the ring (time dilation), and the menu and
   search entries. Neutral particles cannot be steered by a ring and stay out.
-- Speed test: list the Experimental settings in the results' settings line (asked for by the user, 1.13): it runs
-  under them (force reach, induced charges, quantum nuclei, shorter steps, bond orders …) but the line names only
-  particles, drawing, budget, priority, threads and kernel, so a slow result cannot be told from a slow setting.
-- Slow motion folded into the speed menu (asked for by the user): the hourglass stays, as a shortcut that sets the
-  speed to what slow motion gives today (the fastest particle about a second across the box); the separate "slow-mo"
-  state goes, and so the readout always shows a speed from the menu. The automatic slow-down for nuclear events sets
-  the speed the same way (and back after). Slow motion on demand did nothing below 1/512×, which made the two
-  controls confusing side by side.
 - Quantum chemistry for bonds (queued by the user, after the bond-order next steps): bonds and their energies from the
   electrons themselves (a minimal-basis method, tight-binding or semi-empirical: Hückel/extended-Hückel or DFTB), not a
   force field. Estimated ×100–10,000; a physics-model change for the owner to approve.
@@ -127,6 +124,34 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.14.0: slow motion as a speed, bond-order molecules named, the Speed test's Experimental line, the Particle Life card gone
+
+- **Slow motion is a speed** (asked for by the user: the hourglass and a separate "slow-mo" state side by side were
+  confusing, and slow motion on demand did nothing below 1/512×). The hourglass and the automatic slow-down for nuclear
+  events no longer hold time back behind the speed shown: each frame they set the speed itself, to the menu's speed
+  nearest what they want (never above the speed chosen), so the readout always shows a speed from the menu (1/8×,
+  1/920× …). The speed chosen by hand (W.userSpf) comes back when they let go (the hourglass pressed again; the
+  event's products gone); choosing a speed by hand ends both. What they want is as before: the hourglass, the fastest
+  particle about 2% of the box a frame at the setup's speed (at most an eighth of it); the automatic kind, the same
+  scaled by the speed chosen. Set below 1/512× by hand, neither acts (deepSlow now asks the speed chosen, so slow
+  motion's own low speeds keep the ordinary physics). Saves keep the speed chosen. Light in flight still holds time
+  back as before (slowFactor is now only that). engine.js slowSpeed, speedLadderW (the menu's ladder, shared with ui.js).
+  Tests changed with it: the collider's 2%-a-frame check allows a menu step either way; the p + p̄ different-energy
+  ring gets 3,000 frames to its first collision (1,484 now, 1,335 before: its slow motion is a little slower).
+- **Speed test**: the settings line names the Experimental settings and their combined cost ("Experimental: force
+  reach 9 Å, continuous bond orders (×22–117 the normal work)", or "all normal"), asked for by the user.
+- **Physics tab**: the "Compared with Particle Life" card is gone (asked for by the user).
+- **Continuous bond orders: molecules named again** (the user: molecules were not identified with bond orders on).
+  Members keep no stored bonds, so everything that found a molecule through p.bonds saw loose atoms. molecule() now
+  also follows a member's partners of order 0.5 or more (boNbrs, made once a pass from the last orders), linked(p)
+  replaces p.bonds.length where a molecule is looked for (labels, Inspect, the Data tab's list, selection, the same-
+  formula finder, the drawing of a picked molecule), the library match reads the same neighbours, and Identify
+  molecules writes SMILES from whole bonds made from the orders (boProxy). H₂ + O₂: H₂ "Hydrogen", O₂ "Oxygen"; the
+  molecule gallery: water, carbon dioxide, ammonia, methane, ethanol, acetic acid, benzene … named as with stored bonds.
+- **Hexazine with bond orders falls into three N₂** (reported by the user): checked, and that is right. A flat N₆
+  ring is not a minimum (neither the even nor the alternating ring is, PCCP 2024, 26, 3569); here it comes apart even
+  at 1 K. Stored bonds hold it only because they cannot change by themselves.
 
 ## 1.13.0: crash handler, dropdowns, 32 threads, Experimental total cost, beads under the symbols, continuous bond orders
 
