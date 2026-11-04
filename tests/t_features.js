@@ -1220,6 +1220,38 @@ const { openPage } = require('./browser');
   })();
   check(r78.ring.layout === 'single' && r78.ring.fewest === 20 && r78.ring.top > 0.97 && r78.ring.hits >= 1 && /μ/.test(r78.ring.last) && r78.lin.hits >= 1 && /Σ⁻ \+ π⁺|π⁺ \+ Σ⁻/.test(r78.lin.last) && r78.dE < 1e-3 && r78.menu === 22 && r78.find === 'xmu-',
     `1.15: unstable particles as beams: μ⁻μ⁺ in one ring, all 20 kept to ${r78.ring.top} GeV, then “${r78.ring.last}”; linac “${r78.lin.last.slice(0, 70)}…”; ${r78.n} encounters, energy kept to ${r78.dE.toExponential(0)} eV; ${r78.menu} species in the menus`, '1.15 exotic beams: ' + JSON.stringify(r78));
+  // 1.15: electrons as waves (Experimental, eFF): forces are the energy's slopes; ionized water keeps its energy with the
+  // packets; twenty recombinations and turning it off keep the books
+  const r79 = (() => {
+    const L = require('./load.js'), out = {};
+    { const X = L.load('all', { seed: 4 }); let worst = 0;
+      for (let t = 0; t < 300; t++) {
+        const a = { ws: 0.2 + 2 * X.rnd(), q: -1, k: X.ELEC, spin: 1 }, b = { ws: 0.2 + 2 * X.rnd(), q: t % 3 ? -1 : 1, k: t % 3 ? X.ELEC : X.POS, spin: t % 2 ? 1 : -1 }, r = 0.02 + 6 * X.rnd(), h = 1e-6;
+        X.wavePair(a, b, r); const d = X._wd.slice(), fr = (X.wavePair(a, b, r + h) - X.wavePair(a, b, r - h)) / (2 * h);
+        a.ws += h; const p1 = X.wavePair(a, b, r); a.ws -= 2 * h; const m1 = X.wavePair(a, b, r); a.ws += h;
+        worst = Math.max(worst, Math.abs(fr - d[0]), Math.abs((p1 - m1) / (2 * h) - d[1]));
+      }
+      out.slope = worst; out.pauli = +X.wavePauli(0.5, 0.8, 0.8, true)[0].toFixed(3); }
+    { const X = L.load('all', { seed: 9 }), W = X.W;
+      X.PRESETS.water.build(); X.settleOverlaps();
+      const Os = W.parts.filter(p => p.Z === 8); for (let i = 0; i < 40; i++) X.userIonize(Os[i]);
+      X.settleOverlaps(); W.gamma = 0; W.slowmo = false; W.sources.length = 0; X.waveSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const tot = () => X.totalEnergy().total - W.ledger.nuc + W.ledger.bath, E0 = tot(); let tu = 0;
+      for (let i = 0; i < 200; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); tu += X.step(W.dt); }
+      const fs = tu * X.PHYS.TU_S * 1e15, ss = X.WAVE.mem.map(p => p.ws);
+      out.water = { fs: +fs.toFixed(1), perPs: +((tot() - E0) / fs * 1000).toFixed(1), n: X.WAVE.n, free: W.nE, s: [+Math.min(...ss).toFixed(2), +Math.max(...ss).toFixed(2)] };
+      const e1 = tot(); X.waveSet(false); out.off = Math.abs(tot() - e1); out.left = X.WAVE.n; }
+    { const X = L.load('all', { seed: 4 }), W = X.W;
+      X.baseWorld(30, 30, 300, 0); W.wall = 'reflect';
+      for (let i = 0; i < 20; i++) X.userIonize(X.addAtom('H', -12 + (i % 5) * 6, -12 + Math.floor(i / 5) * 6));
+      X.waveSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned; const n0 = X.WAVE.n;
+      const tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, E0 = tot();
+      for (let s = 0; s < 300; s++) { W.dt = X.chooseDt(); X.step(W.dt); }
+      out.recomb = { packets: n0, caught: W.count.recomb, dE: +Math.abs(tot() - E0).toFixed(3) }; }
+    return out;
+  })();
+  check(r79.slope < 1e-6 && Math.abs(r79.pauli - 14.456) < 0.01 && r79.water.n === r79.water.free && r79.water.n >= 30 && Math.abs(r79.water.perPs) < 30 && r79.water.s[0] > 0.5 && r79.water.s[1] < 3.5 && r79.off < 1e-6 && r79.left === 0 && r79.recomb.packets >= 15 && r79.recomb.caught >= 15 && r79.recomb.dE < 0.2,
+    `1.15: electrons as waves: forces the energy's slopes to ${r79.slope.toExponential(0)} eV/Å; ionized water with ${r79.water.n} packets (${r79.water.s.join('–')} Å) ${r79.water.perPs} eV/ps over ${r79.water.fs} fs; off again exact; ${r79.recomb.caught} recombinations of packets kept to ${r79.recomb.dE} eV`, '1.15 waves: ' + JSON.stringify(r79));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};

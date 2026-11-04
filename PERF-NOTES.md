@@ -84,9 +84,6 @@ engine stores and visits particles.
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
   everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
-- The rest of the Experimental options (asked for by the user; induced charges and quantum nuclei shipped in 1.12.0,
-  continuous bond orders shipped in 1.13.0, approved by the owner): electrons as waves (prototype parked:
-  tools/eff-proto.js). A physics-model change for the owner to approve.
 - Continuous bond orders, next steps: partial charges that follow the orders (hydrogen bonds between members; needs the
   charges' slopes in the forces, ∂q/∂r, against everything charged), protonation and ions inside the scheme instead of
   handing a charged molecule back to stored bonds, crowded flat molecules (SF₆), and speed (×17–45 today: the pair
@@ -162,6 +159,27 @@ engine stores and visits particles.
   whatever its charge; a screened nucleus still pushes a positive particle away. Fixed (the size of the turn and the
   momentum and energy books were right). The 0.92 muon-in-argon check now uses a denser argon lattice: in the old
   sparse rows a 6 keV μ⁻, now turned up to 14° by a nucleus 0.1 Å off its path, wandered out before it was caught.
+- **Electrons as waves** (Settings → Experimental; the last of the user's Experimental options, approved): every free
+  electron and positron in MD becomes an eFF wave packet (Su and Goddard 2007; the 1.12 prototype, tools/eff-proto.js):
+  a size s that moves with mass ¾ mₑ, kinetic energy 3ħ²/(2mₑs²) (11.43 eV·Å²/s²), packets meeting as smeared charges
+  erf(r/σ)/r, σ² = (sᵢ²+sⱼ²)/2, eFF's Pauli term between two of the same kind (same spin strong, opposite weak; spins
+  alternate by id), and packet–ion attraction smeared too, σ² = s²/2 + 1.273·sE (the ion's soft core folded in, so a
+  tight packet meets it as the point electron does). Worked as a correction on top of the point leptons' own soft
+  Coulomb (engine.js waveForces, in both the fast and the whole force passes), so the WebAssembly kernel and every
+  other code path are untouched. A free packet spreads to 2 Å, then a spring (20 eV/Å²); energies counted from there.
+  erf(x)/x from a table every 0.01 with cubic Hermite pieces (slopes exact to the values: forces = −∇E to 1e-6 eV/Å,
+  checked by differences on leptons, sizes and ions); the Pauli term's 1 − S² by expm1 (a cap on S² made a false well
+  where two same-spin packets overlap, which threw 1–2 eV a step). Books: who is a packet is settled at each step's start
+  and after events (waveSync); a joiner takes the size where joining costs nothing, or near an ion (less bound as a
+  packet) the largest size paid from its motion, and stays a point while its motion can't pay; a leaver's packet energy
+  goes into its motion; an event that ends a packet counts its share with ions and packets (joinEnergy, or kill() keeps
+  it) and the rest is given off as light. Steps: the packets' breathing (a few hundredths of a femtosecond) sets the
+  free electrons' own steps (8 × the size's stiffness in the step control: two packets 1.2 Å apart kept to 0.01 eV
+  over 24 fs; at 2 × 0.38 eV). Measured, liquid water with 40 free electrons, bath off, 400 steps: drift −0.4 to +0.4 eV
+  over 77–86 fs (−5 to +5 eV/ps; points: 0 to −1), packets 1.1–3 Å; cost ×6.5 (×13 inner steps). Twenty H⁺ + e⁻
+  recombining as packets: 0.02 eV. Turning it off returns every packet's energy exactly. Not done: packets don't meet
+  neutral atoms (as points don't), an atom's own electrons stay book-kept, and the size of a freshly ejected electron is
+  not its orbital's.
 - Known: a slow electron or positron left in a ring's bending magnet (a decay product, a few hundred eV) circles there
   for good, as it would in a real uniform field, and its short inner steps through the magnets' fields cost several
   milliseconds a step (τ beams make such products more often than the others).

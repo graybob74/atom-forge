@@ -2689,6 +2689,7 @@ function setSize(p) {
 
 function kill(p) {
   if (p.dead) return;
+  if (p.wm) p.wDeadE = p.wBooked ? 0 : waveIonShare(p); // (electrons as waves: its share with the ions and packets, for waveSync to give off)
   p.dead = true; W.deaths++;
   if (p.k === NUC && p.Z === 0 && !p.anti) kEnd(p);
   if (p.k === ELEC) W.nE--;
@@ -3901,6 +3902,7 @@ function localPE(set, skip) {
       if (r2 < RC2) visit(o, dx, dy, r2);
     }
   }
+  if (WAVE.n) V += waveLocal(set, skip); // (electrons as waves: the packets' share with these ions, 1.15)
   if (_lrOn) { // exact long-range Coulomb between net charges beyond the cutoff (as in computeForces)
     for (const p of set) {
       if (p.k !== NUC || p.dead || p.fast || p.rad || !isLR(p)) continue;
@@ -4533,6 +4535,7 @@ function computeForces1() {
   if (W.objs.length) objForces(mdI, nmd); // (placed objects: soft walls on the atoms' edges, props.js)
   toolForces();
   leptonExtras(true);
+  if (WAVE.n) waveForces(true); // (Experimental: electrons as waves, 1.15)
   if (_profOn) _tAfter += performance.now() - tp;
 }
 /* The soft walls' push on the atoms in MD past them (electrons: in leptonExtras). Its own small function: inside the
@@ -4588,6 +4591,235 @@ function leptonExtras(total) {
     if (total) { FX[i] += fx; FY[i] += fy; }
   }
 }
+
+/* ---- Experimental: electrons as waves (1.15). Su and Goddard's electron force field (eFF, PRL 99, 185003, 2007): each
+   free electron and positron in MD is a spherical Gaussian wave packet with a centre, a size s and a spin, and its size
+   moves as a coordinate of its own (mass ¾ mₑ). Its kinetic energy 3ħ²/(2mₑ)·(1/s²) grows as it is squeezed; two
+   packets meet as smeared charges, erf(r/σ)/r with σ² = (sᵢ² + sⱼ²)/2, and two of the same kind repel as their waves
+   overlap (the Pauli principle: strongly with the same spin, weakly with opposite spins). It is worked out as a
+   correction on top of the point electrons' own soft Coulomb, so with ions and atoms the free electrons meet as before
+   (their captures, scattering and ionization as calibrated); only how they meet each other changes. A free packet
+   spreads; here it spreads to W_SMAX at most (a stiff spring beyond, as eFF's users bound it), and its energy is counted
+   from there (a packet resting at that size carries none). Who is a packet is settled at the start of each step and
+   after events (waveSync): a joiner takes the size at which joining costs nothing, a leaver hands its packet energy to
+   its own motion (or, gone, to the heat bath), so the books stay exact. */
+const WAVE = { on: false, mem: [], n: 0, sp: -1, bath: 0 };
+const W_CT = 11.4299, W_SMAX = 2.0, W_KC = 20, W_MS = 0.75 * PHYS.ME, W_IMS = 1 / W_MS; // eV·Å², Å, eV/Å², u
+const HA_EV = HARTREE_EV, TWO_SQPI = 2 / Math.sqrt(Math.PI);
+function waveSelf(s) { return W_CT * (1 / (s * s) - 1 / (W_SMAX * W_SMAX)) + (s > W_SMAX ? 0.5 * W_KC * (s - W_SMAX) * (s - W_SMAX) : 0); }
+function waveSelfD(s) { return -2 * W_CT / (s * s * s) + (s > W_SMAX ? W_KC * (s - W_SMAX) : 0); }
+/* erf(r/σ)/r and its derivatives in r and σ. g(x) = erf(x)/x comes from a table every 0.01 (values and slopes worked out
+   once, by the series below x = 2.5 and the continued fraction above), joined by cubic Hermite pieces: smooth, the slope
+   the exact derivative of the value (so forces and energy agree to rounding), within about 1e-10 of the true function. */
+const ERF_H = 0.01, ERF_N = 601, _eg = new Float64Array(ERF_N + 1), _egp = new Float64Array(ERF_N + 1);
+(function erfTable() {
+  for (let k = 0; k <= ERF_N; k++) {
+    const x = k * ERF_H;
+    let erf;
+    if (x < 2.5) { const x2 = x * x; let t = 1, g = 1; for (let n = 1; n < 80; n++) { t *= -x2 / n; const d = t / (2 * n + 1); g += d; if (Math.abs(d) < 1e-18) break; } erf = TWO_SQPI * g * x; }
+    else { let f = x; for (let m = 60; m >= 1; m--) f = x + (m / 2) / f; erf = 1 - Math.exp(-x * x) / (Math.sqrt(Math.PI) * f); }
+    _eg[k] = x > 0 ? erf / x : TWO_SQPI;
+    _egp[k] = x > 0 ? (TWO_SQPI * Math.exp(-x * x) * x - erf) / (x * x) : 0;
+  }
+})();
+const _ef = [0, 0, 0];
+function erfOverR(r, sg) {
+  const x = r / sg;
+  if (x >= 6) { _ef[0] = 1 / r; _ef[1] = -1 / (r * r); _ef[2] = 0; return _ef; }
+  const u = x / ERF_H, k = Math.floor(u), t = u - k, t2 = t * t, t3 = t2 * t;
+  const g0 = _eg[k], g1 = _eg[k + 1], m0 = _egp[k] * ERF_H, m1 = _egp[k + 1] * ERF_H;
+  const g = (2 * t3 - 3 * t2 + 1) * g0 + (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) * g1 + (t3 - t2) * m1;
+  const gp = ((6 * t2 - 6 * t) * g0 + (3 * t2 - 4 * t + 1) * m0 + (-6 * t2 + 6 * t) * g1 + (3 * t2 - 2 * t) * m1) / ERF_H;
+  _ef[0] = g / sg; _ef[1] = gp / (sg * sg); _ef[2] = -(g + gp * x) / (sg * sg);
+  return _ef;
+}
+/* eFF's Pauli energy (eV) of two packets of the same kind at r (Å), sizes si, sj (Å), and its derivatives: _pw =
+   [E, ∂E/∂r, ∂E/∂si, ∂E/∂sj]. Same spin: [S²/(1−S²) + (1−ρ)S²/(1+S²)]·ΔT, opposite: −ρS²/(1+S²)·ΔT, ρ = −0.2, with
+   r̄ = 1.125r, s̄ = 0.9s (in bohr and hartree). */
+const _pw = [0, 0, 0, 0];
+function wavePauli(r, si, sj, same) {
+  const R = 1.125 * r / BOHR_A, a = 0.9 * si / BOHR_A, b = 0.9 * sj / BOHR_A, a2 = a * a, b2 = b * b, sum = a2 + b2, u = R * R;
+  if (u > 20 * sum) { _pw[0] = _pw[1] = _pw[2] = _pw[3] = 0; return _pw; } // (S² < e⁻⁴⁰: nothing)
+  const lS2 = 3 * Math.log(2 * a * b / sum) - 2 * u / sum, S2 = Math.exp(lS2);
+  if (S2 < 1e-16) { _pw[0] = _pw[1] = _pw[2] = _pw[3] = 0; return _pw; }
+  const sum2 = sum * sum, dT = 1.5 * (1 / a2 + 1 / b2) - 2 * (3 * sum - 2 * u) / sum2;
+  let g, gp;
+  // (1 − S² to full precision: two equal same-spin packets nearly on top of each other have S² → 1 and ΔT → 0, and
+  // their product stays finite, about 1/s̄² hartree; a cap on S² there made a false well)
+  if (same) { const d1 = Math.max(-Math.expm1(lS2), 1e-15), d2 = 1 + S2; g = S2 / d1 + 1.2 * S2 / d2; gp = 1 / (d1 * d1) + 1.2 / (d2 * d2); }
+  else { const d2 = 1 + S2; g = 0.2 * S2 / d2; gp = 0.2 / (d2 * d2); }
+  const lu = -1 / sum, la = 1.5 * (1 / a - 2 * a / sum) + 2 * a * u / sum2, lb = 1.5 * (1 / b - 2 * b / sum) + 2 * b * u / sum2; // ∂ ln S
+  const Tu = 4 / sum2, w = 8 * (3 * sum - 2 * u) / (sum2 * sum), Ta = -3 / (a2 * a) - 12 * a / sum2 + a * w, Tb = -3 / (b2 * b) - 12 * b / sum2 + b * w;
+  const k = gp * 2 * S2 * dT;
+  _pw[0] = g * dT * HA_EV;
+  _pw[1] = (k * lu + g * Tu) * 2 * R * (1.125 / BOHR_A) * HA_EV;
+  _pw[2] = (k * la + g * Ta) * (0.9 / BOHR_A) * HA_EV;
+  _pw[3] = (k * lb + g * Tb) * (0.9 / BOHR_A) * HA_EV;
+  return _pw;
+}
+/* A pair of packets: the energy (eV) eFF adds to the point electrons' own soft Coulomb, tapered to nothing at the cutoff;
+   _wd = [∂E/∂r, ∂E/∂si, ∂E/∂sj]. */
+const _wd = [0, 0, 0];
+function wavePair(pi, pj, r) {
+  const si = pi.ws, sj = pj.ws, sg = Math.sqrt(0.5 * (si * si + sj * sj)), kq = PHYS.KE * pi.q * pj.q, s2 = r * r + 0.04, sq = Math.sqrt(s2);
+  erfOverR(r, sg);
+  let E = kq * (_ef[0] - 1 / sq), dr = kq * (_ef[1] + r / (s2 * sq));
+  const dsg = kq * _ef[2] / (2 * sg);
+  let di = dsg * si, dj = dsg * sj;
+  if (pi.k === pj.k) { wavePauli(r, si, sj, pi.spin === pj.spin); E += _pw[0]; dr += _pw[1]; di += _pw[2]; dj += _pw[3]; }
+  const r1 = RC - 1.5;
+  if (r > r1) { const x = (r - r1) / 1.5, sw = 1 - x * x * (3 - 2 * x), dsw = -6 * x * (1 - x) / 1.5; dr = dr * sw + E * dsw; di *= sw; dj *= sw; E *= sw; }
+  _wd[0] = dr; _wd[1] = di; _wd[2] = dj;
+  return E;
+}
+/* A packet and an ion (net charge, Z > 0): eFF's smeared attraction, erf(r/σ)/r with σ² = s²/2 + 1.273·sE (the ion's own
+   soft core folded in, so a tight packet meets it as a point electron does), as a correction to the point electron's
+   soft Coulomb; _wi = [∂E/∂r, ∂E/∂s]. */
+const _wi = [0, 0];
+function wavePairIon(p, A, r) {
+  const s = p.ws, sE = A.sEN, sg = Math.sqrt(0.5 * s * s + 1.273 * sE), kq = PHYS.KE * p.q * A.q, s2 = r * r + sE, sq = Math.sqrt(s2);
+  erfOverR(r, sg);
+  let E = kq * (_ef[0] - 1 / sq), dr = kq * (_ef[1] + r / (s2 * sq)), ds = kq * _ef[2] * s / (2 * sg);
+  const r1 = RC - 1.5;
+  if (r > r1) { const x = (r - r1) / 1.5, sw = 1 - x * x * (3 - 2 * x), dsw = -6 * x * (1 - x) / 1.5; dr = dr * sw + E * dsw; ds *= sw; E *= sw; }
+  _wi[0] = dr; _wi[1] = ds;
+  return E;
+}
+const waveIon = (A) => A.k === NUC && A.Z > 0 && A.q !== 0 && !A.dead && !A.fast && !A.rad;
+/* The packets' forces (added to the fast forces, and with total to the whole ones) and their size forces wg. */
+function waveForces(total) {
+  if (!WAVE.n) return;
+  const OBJ = S.obj, GX = S.gx, GY = S.gy, FX = S.fx, FY = S.fy, X = S.x, Y = S.y, DEAD = S.dead, FAST = S.fast, RAD = S.rad, IM = S.im, Q = S.q, Z = S.Z;
+  let stiff = _stiffL;
+  for (const p of WAVE.mem) { if (!p.wm) continue; const s = p.ws; p.wg = -waveSelfD(s); const w = 8 * (6 * W_CT / (s * s * s * s) + (s > W_SMAX ? W_KC : 0)) * W_IMS; if (w > stiff) stiff = w; } // (the size's own stiffness, with room for the pairs': measured, 8 keeps two packets 1.2 Å apart to 0.01 eV over 24 fs)
+  if (!flValid()) { lazyCatch(); flBuild(); if (_gxOn) gxAddFL(); }
+  const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
+  const li = FL.li, lj = FL.lj, nl = FL.nl;
+  for (let k = 0; k < nl; k++) {
+    const L = li[k], M = lj[k];
+    if (DEAD[L] === 1 || FAST[L] === 1 || RAD[L] === 1 || DEAD[M] === 1 || FAST[M] === 1 || RAD[M] === 1) continue;
+    const a = OBJ[L], b = OBJ[M];
+    if (!a.wm || !b.wm) continue;
+    let dx = X[M] - X[L], dy = Y[M] - Y[L];
+    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
+    const r2 = dx * dx + dy * dy;
+    if (!(r2 < RC2 && r2 > 1e-14)) continue;
+    const r = Math.sqrt(r2);
+    wavePair(a, b, r);
+    const fx = -_wd[0] * dx / r, fy = -_wd[0] * dy / r; // (on b; −that on a)
+    GX[M] += fx; GY[M] += fy; GX[L] -= fx; GY[L] -= fy;
+    if (total) { FX[M] += fx; FY[M] += fy; FX[L] -= fx; FY[L] -= fy; }
+    a.wg -= _wd[1]; b.wg -= _wd[2];
+    const w = Math.abs(_wd[0]) / Math.max(r, 0.25 * Math.min(a.ws, b.ws)) * (IM[L] + IM[M]); if (w > stiff) stiff = w; // (step control: how fast the pair's pull changes)
+  }
+  const la = FL.la, lb = FL.lb, na = FL.na;
+  for (let k = 0; k < na; k++) {
+    const L = la[k], A = lb[k];
+    if (Q[A] === 0 || Z[A] === 0 || DEAD[L] === 1 || FAST[L] === 1 || RAD[L] === 1 || DEAD[A] === 1 || FAST[A] === 1 || RAD[A] === 1) continue;
+    const a = OBJ[L];
+    if (!a.wm) continue;
+    let dx = X[A] - X[L], dy = Y[A] - Y[L];
+    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
+    const r2 = dx * dx + dy * dy;
+    if (!(r2 < RC2 && r2 > 1e-14)) continue;
+    const r = Math.sqrt(r2);
+    wavePairIon(a, OBJ[A], r);
+    const fx = -_wi[0] * dx / r, fy = -_wi[0] * dy / r; // (on the ion; −that on the packet)
+    GX[A] += fx; GY[A] += fy; GX[L] -= fx; GY[L] -= fy;
+    if (total) { FX[A] += fx; FY[A] += fy; FX[L] -= fx; FY[L] -= fy; }
+    a.wg -= _wi[1];
+  }
+  _stiffL = stiff;
+}
+/* The packets' energy (eV): each one's own (its size's kinetic energy and motion), every pair's, and with the ions. A
+   packet gone (dead) keeps its own and its pairs' until waveSync books them; its share with the ions went with the event
+   that ended it (localPE counts it: waveLocal). */
+function waveEnergy() {
+  let E = 0;
+  const m = WAVE.mem, ions = [];
+  for (const A of W.parts) if (waveIon(A)) ions.push(A);
+  for (let i = 0; i < m.length; i++) {
+    const a = m[i]; if (!a.wm) continue;
+    E += waveSelf(a.ws) + 0.5 * W_MS * a.wv * a.wv;
+    if (a.dead) { E += a.wDeadE || 0; continue; } // (gone: its share with the others as it was then, unless an event counted it, until waveSync gives it off)
+    for (let j = i + 1; j < m.length; j++) { const b = m[j]; if (!b.wm || b.dead) continue; const [dx, dy] = minImg(b.x - a.x, b.y - a.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePair(a, b, r); }
+    for (const A of ions) { const [dx, dy] = minImg(A.x - a.x, A.y - a.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePairIon(a, A, r); }
+  }
+  return E;
+}
+/* For localPE (an event's energy before and after): the packets' share with the ions of the set. */
+function waveLocal(set, skip) {
+  let V = 0;
+  for (const A of set) {
+    if (!waveIon(A)) continue;
+    for (const a of WAVE.mem) { if (!a.wm || a.dead || a === skip) continue; const [dx, dy] = minImg(A.x - a.x, A.y - a.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) V += wavePairIon(a, A, r); }
+  }
+  return V;
+}
+function waveIonShare(p) { // a packet's share with every ion and every other live packet (eV)
+  let E = 0;
+  for (const b of WAVE.mem) { if (!b.wm || b.dead || b === p) continue; const [dx, dy] = minImg(b.x - p.x, b.y - p.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePair(p, b, r); }
+  for (const A of W.parts) { if (!waveIon(A)) continue; const [dx, dy] = minImg(A.x - p.x, A.y - p.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePairIon(p, A, r); }
+  return E;
+}
+function waveShare(p, s, ions) { // what a packet of size s adds with the current members (its motion left out), and with the ions
+  const ws = p.ws; p.ws = s;
+  let E = waveSelf(s);
+  for (const b of WAVE.mem) { if (!b.wm || b.dead || b === p) continue; const [dx, dy] = minImg(b.x - p.x, b.y - p.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePair(p, b, r); }
+  if (ions) for (const A of ions) { const [dx, dy] = minImg(A.x - p.x, A.y - p.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePairIon(p, A, r); }
+  p.ws = ws;
+  return E;
+}
+function waveGive(p, E) { // energy E (eV) into p's motion (gone: as light, where it was); what it cannot take goes to the heat bath
+  if (p.dead && E > 1e-9) { const a = (p.id % 360) * Math.PI / 180; emitPhoton(p.x, p.y, E, Math.cos(a), Math.sin(a)); return; }
+  if (!p.dead && E !== 0) {
+    if (p.rad) { if (p.KE + E > 1) { p.KE += E; radSpeed(p); p.vx = p.sp * p.ux; p.vy = p.sp * p.uy; return; } }
+    else {
+      const K0 = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy), K1 = K0 + E;
+      if (K1 >= 0) {
+        if (K0 > 1e-12) { const f = Math.sqrt(K1 / K0); p.vx *= f; p.vy *= f; }
+        else { const v = Math.sqrt(2 * K1 / p.m), a = (p.id % 360) * Math.PI / 180; p.vx = v * Math.cos(a); p.vy = v * Math.sin(a); }
+        if (typeof updateFast === 'function') updateFast(p);
+        return;
+      }
+    }
+  }
+  W.ledger.bath += E; WAVE.bath += E;
+}
+/* Who is a packet: every free electron and positron in MD while the option is on. A joiner takes the size at which
+   joining costs nothing (or, near an ion, where a packet is less bound than a point, the largest size, the cost paid from
+   its own motion; one whose motion can't pay stays a point for now and tries again later). A leaver's packet energy goes
+   into its motion; a packet that ended (caught, annihilated) gives its own and its pairs' energy off as light. full:
+   look through every particle for joiners (at the start of a step); otherwise only when particles were made. Returns
+   whether anything changed. */
+function waveSync(full) {
+  if (!WAVE.on && !WAVE.n) return false;
+  let ch = false, ions = null;
+  const ionList = () => ions || (ions = W.parts.filter(waveIon));
+  for (const p of WAVE.mem) {
+    if (!p.wm || (WAVE.on && !p.dead && !p.fast && !p.rad)) continue;
+    const E = p.dead ? waveSelf(p.ws) + 0.5 * W_MS * p.wv * p.wv + (p.wDeadE || 0) : waveShare(p, p.ws, ionList()) + 0.5 * W_MS * p.wv * p.wv;
+    p.wm = false; ch = true;
+    waveGive(p, E);
+  }
+  if (ch) WAVE.mem = WAVE.mem.filter(p => p.wm);
+  if (WAVE.on && (full || WAVE.sp !== W.spawned)) {
+    WAVE.sp = W.spawned;
+    for (const p of W.parts) {
+      if (p.wm || p.dead || p.k === NUC || p.fast || p.rad) continue;
+      const io = ionList();
+      let s0 = W_SMAX, J = waveShare(p, W_SMAX, io);
+      if (J < 0) { let lo = 0.05, hi = W_SMAX; for (let it = 0; it < 50; it++) { const m = 0.5 * (lo + hi); if (waveShare(p, m, io) > 0) lo = m; else hi = m; } s0 = hi; J = waveShare(p, s0, io); }
+      if (J > 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy)) continue; // (its motion can't pay for it yet)
+      p.spin = p.id & 1 ? 1 : -1; p.wv = 0; p.wg = 0;
+      p.ws = s0; p.wm = true; WAVE.mem.push(p); ch = true;
+      if (J !== 0) waveGive(p, -J);
+    }
+  }
+  WAVE.n = WAVE.mem.length;
+  return ch;
+}
+function waveSet(on) { WAVE.on = !!on; if (W.parts) { waveSync(true); W.fSpawn = -1; } }
 
 function magneticMatterForce(p, kT) {
   const B = Bgrad(p.x, p.y, _bg);
@@ -5502,6 +5734,7 @@ function joinEnergy(L, A) {
   const [dx, dy] = minImg(L.x - A.x, L.y - A.y), r2 = dx * dx + dy * dy;
   const qa0 = A.q, lpe = !(L.fast || L.rad); // (a lepton in flight carries no potential energy in the books)
   const V0 = (lpe ? PHYS.KE * L.q * qa0 * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN)) : 0) + (grid ? localPE(set, L) + (lpe ? L.q * phiE(L.x, L.y, A, L) : 0) : 0);
+  const Vw = L.wm && !L.dead ? waveIonShare(L) : 0; // (electrons as waves: the packet's share with every ion and packet, which goes with it)
   let K0 = keOf(L);
   for (const p of set) K0 += 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy);
   const I0 = internalE(A);
@@ -5510,7 +5743,7 @@ function joinEnergy(L, A) {
   enforceValence(A, null); closeSet(set);
   const V1 = grid ? localPE(set, L) : 0, I1 = internalE(A);
   let K1 = 0; for (const p of set) K1 += 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy);
-  return { E: (K0 + V0 + I0) - (K1 + V1 + I1), sn };
+  return { E: (K0 + V0 + Vw + I0) - (K1 + V1 + I1), sn };
 }
 /* A capture or attachment that the energy cannot pay for is put back exactly as it was: the forces already worked
    out still hold (_undone tells the steps so: no needless recount of every force), and the lepton waits before it
@@ -5542,7 +5775,7 @@ function capture(L, A, Etot) {
     }
     Eph = 0;
   }
-  kill(L);
+  L.wBooked = true; kill(L); // (wBooked: joinEnergy counted the packet's share with the ions)
   const ie = ionE(A.Z, A.ne);
   W.count.recomb++;
   if (A.ne === 1 && A.Z <= 10) {
@@ -5577,7 +5810,7 @@ function attach(L, A, Erel) {
   // forming an anion may break bonds (dissociative attachment); all of it is in the energy balance
   const t0 = W.topo, d0 = W.dirty, tr = joinEnergy(L, A), Eph = tr.E;
   if (!(Eph >= 0)) { undoJoin(L, tr.sn, t0, d0); return false; }
-  kill(L);
+  L.wBooked = true; kill(L); // (wBooked: joinEnergy counted the packet's share with the ions)
   if (Eph > 0.05) emitPhoton(A.x, A.y, Eph, undefined, undefined, { src: A, depth: 2 });
   log('em', `${L.k === POS ? 'Positron' : 'Electron'} attachment: ${L.k === POS ? 'e⁺' : 'e⁻'} + ${A.anti ? barSym(A.el.sym) : A.el.sym} → ${speciesLabel(A)} (affinity ${fmtE(A.el.ea)})`);
   return true;
@@ -7477,6 +7710,7 @@ function computeFast() {
     const C = WK.fc, CR = WK.fcr, OBJ = S.obj;
     for (let c = 0; c < nc; c++) queue(C[3 * c] === 1 ? EV.LEPTON : EV.ANNIH, OBJ[C[3 * c + 1]], OBJ[C[3 * c + 2]], null, CR[c]);
     leptonExtras(false);
+    if (WAVE.n) waveForces(false);
     return;
   }
   { // lepton–atom pairs: the physics of leptonNuc, written out here because this is the innermost loop of all (a function
@@ -7538,6 +7772,7 @@ function computeFast() {
     }
   }
   leptonExtras(false);
+  if (WAVE.n) waveForces(false);
 }
 /* Outer half-kick: the slow part on everything in MD (atoms turn in a magnetic field here, electrons on their own
    steps); ballistic nuclei kick, turn and fly as before; ballistic electrons fly in moveFastLeptons. */
@@ -7625,7 +7860,7 @@ function innerSteps(Dt) {
       if (left <= 0 || L < 0.8 * dti) { const n = Math.max(1, Math.ceil(rem / L - 1e-9)); dti = rem / n; left = n; }
     } else { dti = rem; left = 1; }
     left--;
-    const h = 0.5 * dti;
+    const h = 0.5 * dti, wv = WAVE.n > 0;
     if (!_mdL.length) { // no free lepton among the stepped particles: the fast part is zero and this is the plain drift
       const mdI = _mdI, nmd = _nmd, DEAD = S.dead, RAD = S.rad, FAST = S.fast, VX = S.vx, VY = S.vy, X = S.x, Y = S.y, FRESH = S.fresh;
       for (let q = 0; q < nmd; q++) {
@@ -7645,6 +7880,7 @@ function innerSteps(Dt) {
         const i = L[k];
         if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
         const im = IM[i]; VX[i] += h * GX[i] * im; VY[i] += h * GY[i] * im;
+        if (wv && K[i] !== NUC) { const p = OBJ[i]; if (p.wm) p.wv += h * p.wg * W_IMS; } // (a packet's size)
       }
       // the lepton pair list's check, from the positions this loop leaves (flValid's loop, folded in)
       const flOk = useL && !wrap && FL.gen === _mdGen && FL.n === nmd && FL.w === W.box.w && FL.h === W.box.h && FL.wall === W.wall, BX = FL.bx, BY = FL.by;
@@ -7655,9 +7891,10 @@ function innerSteps(Dt) {
         if (lz && (q < 0 || q >= nmd || mdI[q] !== i)) { if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue; } // (a list slot outside the MD set's order: no list position to check)
         else if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) { if (flOk) { const dx = X[i] - BX[q], dy = Y[i] - BY[q], d2 = dx * dx + dy * dy; if (d2 > worst) worst = d2; } continue; }
         FRESH[i] = 0;
-        if (!useL) { const im = IM[i]; VX[i] += h * GX[i] * im; VY[i] += h * GY[i] * im; }
+        if (!useL) { const im = IM[i]; VX[i] += h * GX[i] * im; VY[i] += h * GY[i] * im; if (wv && K[i] !== NUC && OBJ[i].wm) OBJ[i].wv += h * OBJ[i].wg * W_IMS; }
         if (K[i] !== NUC) {
           const p = OBJ[i];
+          if (wv && p.wm) { p.ws += p.wv * dti; if (p.ws < 1e-3) p.ws = 1e-3; } // (a packet's size drifts too)
           // a free lepton in a magnetic field moves on an exact arc between the kicks: its guiding centre then drifts
           // across the field exactly (only the kicks move it), however many turns it makes in a field of any strength
           const lx0 = X[i], ly0 = Y[i];
@@ -7677,12 +7914,13 @@ function innerSteps(Dt) {
     if (_mdL.length) computeFast();
     _flPre = -1;
     {
-      const DEAD = S.dead, RAD = S.rad, FAST = S.fast, VX = S.vx, VY = S.vy, GX = S.gx, GY = S.gy, IM = S.im, FRESH = S.fresh;
+      const DEAD = S.dead, RAD = S.rad, FAST = S.fast, VX = S.vx, VY = S.vy, GX = S.gx, GY = S.gy, IM = S.im, FRESH = S.fresh, K = S.k, OBJ = S.obj;
       const L = useL ? _gxL : _mdI, n = useL ? _gxN : _nmd;
       for (let k = 0; k < n; k++) {
         const i = L[k];
         if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1 || FRESH[i] === 1) continue; // fresh: born since the last drift, already current
         VX[i] += h * GX[i] * IM[i]; VY[i] += h * GY[i] * IM[i];
+        if (wv && K[i] !== NUC) { const p = OBJ[i]; if (p.wm) p.wv += h * p.wg * W_IMS; }
       }
     }
     // the events found by the force pass (a lepton at an atom, a positron at an electron) come after the closing kick,
@@ -7691,7 +7929,8 @@ function innerSteps(Dt) {
     if (_mdL.length) {
       const st0 = W.spawned + W.topo + W.dirty - _undone; // (changes put back exactly, as by undoJoin, need no recount)
       processEvents(); // (events that may look at other atoms bring the far ones up to date first: lzNeed)
-      if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; if (_gxOn) gxReset(); } // (the force pass set the fast forces afresh, for the next opening kick)
+      const wch = (WAVE.on || WAVE.n) && waveSync(false); // (electrons as waves: packets gone or made by the events)
+      if (wch || W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; if (_gxOn) gxReset(); } // (the force pass set the fast forces afresh, for the next opening kick)
     }
     rem -= dti;
   }
@@ -8253,7 +8492,8 @@ function stepPlain(dt) {
   // particles added from outside, or switched between MD and ballistic flight at the end of the last step
   rpMark(0);
   const boCh = (BO.on || BO.any) && boSync(); // (continuous bond orders: who takes part, 1.13)
-  if (boCh || W.fSpawn !== W.spawned || listsStale() || _wallMoved) { _noEv = true; computeForces(); _noEv = false; }
+  const wvCh = (WAVE.on || WAVE.n) && waveSync(true); // (electrons as waves: who is a packet, 1.15)
+  if (boCh || wvCh || W.fSpawn !== W.spawned || listsStale() || _wallMoved) { _noEv = true; computeForces(); _noEv = false; }
   _wallMoved = false;
   rpSkip();
   let tp = _profOn ? performance.now() : 0;
@@ -8529,7 +8769,7 @@ function clearWorld() {
   BO.np = 0; BO.any = false; BO.E = 0;
   dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
-  W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.slowSet = 0; W.nucWin = null; W.made = null; W.chain = null;
+  W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.slowSet = 0; WAVE.mem = []; WAVE.n = 0; W.nucWin = null; W.made = null; W.chain = null;
   W.grab = null; W.topo++;
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
@@ -8797,6 +9037,7 @@ function totalEnergy0() {
     if (!(p.k === NUC && p.Z === 0) && !p.rad && !p.fast) { md.push(p); if (mags) pe += magU(p, kTm); if (p.qi) pe += qeqSelf(p); }
   }
   for (const o of W.exo) if (!o.dead) ke += o.KE; // unstable particles in flight (their rest mass is in the nuclear ledger)
+  if (WAVE.n) pe += waveEnergy(); // (Experimental: electrons as waves)
   for (let i = 0; i < md.length; i++) for (let j = i + 1; j < md.length; j++) {
     const a = md[i], b = md[j];
     const [dx, dy] = minImg(b.x - a.x, b.y - a.y), r2 = dx * dx + dy * dy, r = Math.sqrt(r2);
@@ -12628,6 +12869,7 @@ function render(rt) {
   if (R.view.ionic) drawIonic();
   if (!R.gl) drawChipsUnder();
   R.lblLater = PI.on && PI.n && R.s >= 30 ? [] : null;
+  if (WAVE.n) drawWaves(); // (Experimental: electrons as waves, 1.15)
   drawParticles(rt);
   if (PI.on && PI.n) drawRings();
   if (R.lblLater) { for (const a of R.lblLater) label(R.ctx, ...a); R.lblLater = null; }
@@ -13418,6 +13660,21 @@ function drawQGP() {
       ctx.fillStyle = `rgba(20,10,6,${(0.75 * a).toFixed(3)})`; ctx.fillRect(x - w / 2, ty - 13, w, 18);
       ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.fillText(t, x, ty); ctx.textAlign = 'left';
     }
+  }
+  ctx.restore();
+}
+/* Electrons as waves: each packet as a soft disc its size across (to its 1/e density), a faint ring for the spin up ones. */
+function drawWaves() {
+  const ctx = R.ctx, s = R.s, cx = R.cx, cy = R.cy, hw = R.w / 2, hh = R.h / 2;
+  ctx.save();
+  for (const p of WAVE.mem) {
+    if (!p.wm || p.dead) continue;
+    const x = (p.x - cx) * s + hw, y = (cy - p.y) * s + hh, r = Math.max(2, p.ws * s);
+    if (x < -r || y < -r || x > R.w + r || y > R.h + r) continue;
+    const c = hexc(p.k === ELEC ? E_COL : POS_COL), g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(c, 0.22)); g.addColorStop(1, rgba(c, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    if (p.spin > 0 && r > 6) { ctx.strokeStyle = rgba(c, 0.25); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, r * 0.7, 0, Math.PI * 2); ctx.stroke(); }
   }
   ctx.restore();
 }
@@ -21955,7 +22212,7 @@ function onKey(e) {
 /* ------------------------------------------------------------------ settings
    Kept in this browser. Performance mode sets the speed settings together: room for 12,000 particles, drawing at
    standard resolution, no glows; each can still be changed on its own. */
-const SET_DEF = { bo: 0, pi: 0, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { wave: 0, bo: 0, pi: 0, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250 };
 const SET_PERF = { maxParts: 12000, res: 'standard', budget: 10, effects: false };
 const SET_OK = { bo: [0, 1], pi: [0, 8, 16, 32], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16', '32'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000] };
@@ -22037,6 +22294,7 @@ function applySettings() {
   threadsSet(SET.threads === 'auto' ? threadsDefault() : +SET.threads - 1); // (workers besides the main thread)
   piSet(SET.pi); // (Experimental: quantum nuclei)
   boSet(!!SET.bo); // (Experimental: continuous bond orders, 1.13)
+  waveSet(!!SET.wave); // (Experimental: electrons as waves, 1.15)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
@@ -22159,7 +22417,7 @@ function syncSettings() {
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
-  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segBo', String(SET.bo)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
+  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segBo', String(SET.bo)); setSegValue('segWave', String(SET.wave)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
@@ -22183,6 +22441,7 @@ const COST_K = { physics: 'Time to work out the physics', drawing: 'Time to draw
 function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toFixed(1) : +v.toFixed(2)); }
 const COSTS = {
   segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×17–45', 'Measured on one thread: liquid water ×17, hydrogen + oxygen ×21, the molecule gallery ×45 (every pair worked out every step, steps half as long)'] } }),
+  segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–7', 'Measured on one thread: nothing without free electrons; liquid water with 40 free electrons ×6.5 (their inner steps 13 times shorter, for the packets\' breathing)'] } }),
   segPi: () => ({ k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×7.8', 'Measured on liquid water: the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water: 16 times a step'], 32: ['×36', 'Measured on liquid water: 32 times a step'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–1.8', 'Measured: water 4,000 ×1.4, brine ×1.6, liquid water ×1.8'], 1: ['×2.7–4.6', 'Measured: brine ×2.7, liquid water ×2.8, 4,000 waters ×4.6'] } }),
   segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×1.3–2.6', 'Measured: brine ×1.3, liquid water ×2.2, 4,000 waters ×2.6 (JavaScript kernels)'], 12: ['×1.6–5.6', 'Measured: brine ×1.6, liquid water ×3.2, 4,000 waters ×5.6 (JavaScript kernels)'] } }),
@@ -22241,7 +22500,7 @@ function syncReal() {
 /* The Experimental tab's total (1.13, asked for by the user): the chosen settings' measured costs multiplied together,
    against everything at normal. A product is a fair guide (each one multiplies the work of a step) but not a
    measurement of that combination: the ranges are the setups the costs were measured on. */
-const EXP_SET = { segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
+const EXP_SET = { segWave: 'wave', segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -22263,6 +22522,7 @@ function expSummary() {
   if (SET.qeq) on.push(`induced charges ${SET.qeq === 1 ? 'every step' : 'every ' + SET.qeq + 'th step'}`);
   if (SET.pi) on.push(`quantum nuclei ${SET.pi} beads`);
   if (SET.bo) on.push('continuous bond orders');
+  if (SET.wave) on.push('electrons as waves');
   if (SET.resBig) on.push('large ring resonance');
   if (SET.inc) on.push('detailed nuclear collisions');
   if (SET.ultra) on.push('ultra-realistic');
@@ -22273,7 +22533,7 @@ function expSummary() {
 function syncExpTotal() {
   const el = $('expTotal'); if (!el) return;
   const t = expTotal(), txt = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
-  const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', segBo: 'continuous bond orders', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
+  const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', segBo: 'continuous bond orders', segWave: 'electrons as waves', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -22329,7 +22589,7 @@ function settingsInit() {
   $('dMade').addEventListener('click', madeClick); bindSeg('segMap', (v) => { UI.mapView = v; UI.mapVer = -1; drawChainMap(); });
   $('chMap').addEventListener('mousemove', mapHover); $('chMap').addEventListener('mouseleave', () => { UI.mapHov = null; UI.mapVer = -1; drawChainMap(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
-  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); bindSeg('segBo', (v) => setSetting('bo', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
+  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); bindSeg('segBo', (v) => setSetting('bo', +v)); bindSeg('segWave', (v) => setSetting('wave', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
