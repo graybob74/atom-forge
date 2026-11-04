@@ -4469,8 +4469,8 @@ function computeForces1() {
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   if (VL.exTopo !== W.topo || VL.exDirty !== W.dirty) vlExclusions();
   if (_profOn) { const t = performance.now(); _tLists += t - tp; tp = t; }
+  if (BO.any) boPass(true); // (continuous bond orders, 1.13: bo.js; before the kernel, which needs the members' partial charges, 1.16)
   nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
-  if (BO.any) boPass(true); // (continuous bond orders, 1.13: bo.js)
   if (_profOn) tp = performance.now();
   if (nmdL) { // pairs with a free lepton in them, from the inner steps' list
     if (!flValid()) flBuild();
@@ -9037,6 +9037,7 @@ function totalEnergy0() {
     if (!(p.k === NUC && p.Z === 0) && !p.rad && !p.fast) { md.push(p); if (mags) pe += magU(p, kTm); if (p.qi) pe += qeqSelf(p); }
   }
   for (const o of W.exo) if (!o.dead) ke += o.KE; // unstable particles in flight (their rest mass is in the nuclear ledger)
+  const boE = BO.any ? boPass(false) : 0; // (continuous bond orders: first, as it sets the members' partial charges from where they are, 1.16)
   if (WAVE.n) pe += waveEnergy(); // (Experimental: electrons as waves)
   for (let i = 0; i < md.length; i++) for (let j = i + 1; j < md.length; j++) {
     const a = md[i], b = md[j];
@@ -9070,7 +9071,7 @@ function totalEnergy0() {
   }
   for (const bd of W.bonds) pe += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
-  if (BO.any) pe += boPass(false);
+  pe += boE;
   if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls
@@ -9099,7 +9100,7 @@ wasmLoadModule(); // (the kernel module, now that its constants exist to be chec
                  order; forces by the chain rule backwards (tools/bo-fast.js checks them against numerical ones)
    Between member atoms the usual non-bonded pair (the kernel's) is left out (VL.ex = 1) and replaced here by the same
    Lennard-Jones, switched on smoothly from r₁ + 1.3 to r₁ + 1.8 Å, where the bond terms have let go. Member atoms carry
-   no partial charges (a limit of this first version: no hydrogen bonds between them).
+   partial charges from their orders since 1.16 (boCoulomb), so hydrogen bonds form between them.
    Membership is by whole clusters (stored bonds for the rest, these orders above 0.3 for members): a cluster joins
    when all its atoms qualify (its stored bonds are let go) and leaves when one stops qualifying (an ion forms, a
    nucleus changes): it gets stored bonds again, whole orders shared out from its last orders. Each change is paid
@@ -9295,11 +9296,14 @@ function boPass(forces) {
       }
     }
   }
+  E += boCoulomb(forces, n, L); // (1.16: partial charges from the orders)
   BO.E = E;
   if (!forces) { for (const [p] of by) { p._boV = undefined; } return E; }
   // back through the orders to the distances
   for (let k = 0; k < n; k++) {
-    const q = L[k]; if (!(q.n > 0) || !q.gn) continue;
+    const q = L[k]; if (!(q.n > 0)) continue;
+    if (q.qc) q.gn += (q.a._boPhi - q.b._boPhi) * q.qc * q.qdh; // (the charges' slopes: ∂E/∂qₐ = φₐ, ∂qₐ/∂n = −∂q_b/∂n)
+    if (!q.gn) continue;
     q.gca += q.gn * (q.sA + q.tA); q.a._boGL -= q.gn * q.sA; q.gcb += q.gn * (q.sB + q.tB); q.b._boGL -= q.gn * q.sB;
   }
   for (const [p, list] of by) {
@@ -9324,6 +9328,68 @@ function boPass(forces) {
     if (!q.gr) continue;
     const fx = q.gr * q.ux, fy = q.gr * q.uy, i = q.a.i, j = q.b.i;
     FX[j] -= fx; FY[j] -= fy; FX[i] += fx; FY[i] += fy;
+  }
+  return E;
+}
+/* Partial charges that follow the orders (1.16). Each pair gives its atoms K·Δχ·h(n) (K = 0.30 e per unit of Pauling
+   electronegativity, as a stored bond does), h(n) = 1 + 0.2(n − 1) at and above a single bond, the order itself below it
+   (fading out as the bond breaks), the corner at 1 rounded over ±0.05. The members' charges meet everything charged as a
+   stored molecule's do: non-members through the kernel (S.qp), each other here, the same soft Coulomb, with bonded (1-2)
+   and angle (1-3) pairs left out smoothly: weight (1 − b(nᵢⱼ))·Πₖ(1 − b(nᵢₖ)·b(nₖⱼ)), b rising from 0 at order 0.3 to
+   1 at 0.7. The charges depend on the positions, so the forces carry their slopes too: φᵢ·∂qᵢ/∂n for every order, φ the
+   potential at the atom from every charge it meets (the kernel's pairs and these), into the orders' own back-pass. */
+const boQh = (N) => N < 1 - BO_KH ? [N, 1] : N > 1 + BO_KH ? [1 + 0.2 * (N - 1), 0.2] : boKnot(N, (x) => [x, 1], (x) => [1 + 0.2 * (x - 1), 0.2]);
+const boB = (n) => { if (n <= 0.3) return 0; if (n >= 0.7) return 1; const t = (n - 0.3) / 0.4; return t * t * (3 - 2 * t); };
+const boBD = (n) => { if (n <= 0.3 || n >= 0.7) return 0; const t = (n - 0.3) / 0.4; return 6 * t * (1 - t) / 0.4; };
+function boCoulomb(forces, n, L) {
+  const QP = S.qp, mem = [];
+  for (const p of W.parts) if (p.bom && !p.dead) { p._boQ = 0; p._boPhi = 0; mem.push(p); }
+  for (let k = 0; k < n; k++) {
+    const q = L[k]; q.qc = 0;
+    if (!(q.n > 0)) continue;
+    const ea = q.a.el.en || 2.6, eb = q.b.el.en || 2.6; if (ea === eb) continue;
+    const hh = boQh(q.n); q.qc = PARTIAL_K * (eb - ea); q.qh = hh[0]; q.qdh = hh[1];
+    q.a._boQ += q.qc * hh[0]; q.b._boQ -= q.qc * hh[0];
+  }
+  for (const p of mem) { QP[p.i] = p._boQ; p.qpol = p._boQ; p.qf = 0; p.qi = 0; }
+  // bonded and angle neighbours, for the exclusions
+  const adj = new Map();
+  for (let k = 0; k < n; k++) { const q = L[k]; if (!(q.n > 0.3)) continue; let m = adj.get(q.a); if (!m) adj.set(q.a, m = new Map()); m.set(q.b, q); m = adj.get(q.b); if (!m) adj.set(q.b, m = new Map()); m.set(q.a, q); }
+  let E = 0;
+  for (let k = 0; k < n; k++) {
+    const q = L[k], a = q.a, b = q.b, qa = a._boQ, qb = b._boQ;
+    if (!qa && !qb) continue;
+    const b0 = boB(q.n); if (b0 >= 1) continue;
+    let prod = 1, terms = null;
+    const ma = adj.get(a), mb = adj.get(b);
+    if (ma && mb && q.r < 4.4) for (const [c, q1] of ma) { const q2 = mb.get(c); if (!q2) continue; const w = boB(q1.n) * boB(q2.n); if (w <= 0) continue; prod *= 1 - w; (terms || (terms = [])).push(q1, q2, w); } // (q.r < 4.4: a 1-3 pair with both orders above 0.3 is never farther apart)
+    const s = (1 - b0) * prod; if (!(s > 0)) continue;
+    const K = PHYS.KE * iwK(a, b), r2 = q.r * q.r, sq = Math.sqrt(r2 + 0.09), c = K * (1 / sq - csh(a, b, 0.09));
+    E += s * c * qa * qb;
+    if (!forces) continue;
+    q.gr += -s * K * q.r / (sq * sq * sq) * qa * qb;
+    a._boPhi += s * c * qb; b._boPhi += s * c * qa;
+    const Es = c * qa * qb; // ∂E/∂s
+    if (!Es) continue;
+    if (b0 > 0) q.gn -= Es * boBD(q.n) * prod;
+    if (terms) for (let t = 0; t < terms.length; t += 3) {
+      const q1 = terms[t], q2 = terms[t + 1], w = terms[t + 2], dsw = -(1 - b0) * prod / (1 - w);
+      q1.gn += Es * dsw * boBD(q1.n) * boB(q2.n); q2.gn += Es * dsw * boB(q1.n) * boBD(q2.n);
+    }
+  }
+  let others = false; for (const p of W.parts) if (!p.bom && !p.dead && p.k === NUC && p.Z > 0) { others = true; break; }
+  if (forces && others) { // the potential at each member from the non-members it meets (the kernel's pairs: same coefficients, qeqC)
+    const pi = VL.pi, pj = VL.pj, ex = VL.ex, OBJ = S.obj, X = S.x, Y = S.y, Q = S.q, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
+    for (let k = 0; k < VL.np; k++) {
+      if (ex[k]) continue;
+      const i = pi[k], j = pj[k], a = OBJ[i], b = OBJ[j];
+      if (!a || !b || a.bom === b.bom || a.k !== NUC || b.k !== NUC || !a.Z || !b.Z || a.dead || b.dead || a.fast || b.fast || a.rad || b.rad) continue;
+      let dx = X[j] - X[i], dy = Y[j] - Y[i];
+      if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
+      const r2 = dx * dx + dy * dy; if (r2 >= RC2) continue;
+      const m = a.bom ? a : b, o = m === a ? b : a, qo = Q[o.i] + QP[o.i]; if (!qo) continue;
+      m._boPhi += qeqC(m, o, r2) * qo;
+    }
   }
   return E;
 }
@@ -9418,7 +9484,7 @@ function boSync() {
   if (!C.length) { BO.any = BO.on && parts.some(p => p.bom); BO.sig = sig; return false; }
   const set = new Set(C);
   for (const p of C) for (const bd of p.bonds) set.add(other(bd, p));
-  const Eb = localPE(set) + boPass(false);
+  const Eb = boPass(false) + localPE(set); // (the orders' pass first: it sets the members' partial charges, 1.16)
   // leavers: stored bonds from the last orders, the strongest first, as far as both atoms have valence left
   const leave = new Set(C.filter(p => p.bom));
   if (leave.size) {
@@ -9433,7 +9499,7 @@ function boSync() {
   for (const p of join) for (const bd of p.bonds.slice()) removeBond(bd);
   W.dirty++; W.topo++; vlInvalidate();
   if (join.length) { BO.any = true; boRelax(join); }
-  const Ea = localPE(set) + boPass(false);
+  const Ea = boPass(false) + localPE(set);
   W.ledger.bath += Eb - Ea; BO.bath += Eb - Ea;
   BO.any = BO.on && parts.some(p => p.bom && !p.dead);
   BO.sig = W.topo + ',' + W.dirty + ',' + W.spawned + ',' + W.deaths + ',' + _flagGen + ',' + BO.on;

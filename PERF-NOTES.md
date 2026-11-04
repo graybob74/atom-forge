@@ -110,6 +110,23 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.16.0 (in progress): bond orders, next steps
+
+- **Partial charges that follow the bond orders** (continuous bond orders; the user: "do bond order next steps"). Each
+  pair gives its atoms K·Δχ·h(n), K = 0.30 e per unit of Pauling electronegativity as a stored bond does, h = 1 + 0.2(n − 1)
+  above a single bond and the order itself below (the corner at 1 rounded over ±0.05), so a breaking bond's charges fade
+  with it. Members meet non-members through the kernel (S.qp, set by boPass, which now runs before the kernel) and each
+  other in bo.js (boCoulomb): the same soft Coulomb (iwK, the 0.09 Å² core, the cutoff shift), bonded and angle pairs
+  left out smoothly, weight (1 − b(nᵢⱼ))·Πₖ(1 − b(nᵢₖ)b(nₖⱼ)), b from 0 at order 0.3 to 1 at 0.7. Forces carry the
+  charges' slopes, φᵢ·∂qᵢ/∂n into the orders' back-pass, φ from both kinds of pair (qeqC for the kernel's). Checked by
+  differences: forces = −∇E to 1e-6 eV/Å (water, brine, one water and a Na⁺; the gallery 2e-5 on a 3 eV/Å force).
+  Found on the way: totalEnergy summed the members' pairs with non-members before boPass set their charges (stale by a
+  call; harmless between steps, wrong in a difference test) — the orders' pass now comes first there too. Water's
+  charges: O −0.741, H +0.370 (stored: −0.744, +0.372). Liquid water (2,000 steps after 2,000, bath on): 55% of H atoms
+  hydrogen-bonded, stored bonds 49%, bond orders before 28%. Insulated, 300 steps: water −0.001 eV, brine −0.016, the
+  gallery −0.024, combustion +0.006. Cost: water ×2.1 on top of bond orders (the charge pass is 17%; the rest is the
+  molecules clinging, more pairs within reach).
+
 ## 1.15.0: charged particles as collider beams, electrons as waves, the honest approximations, charge flowing back through bonds
 
 - **Unstable particles are turned by the nuclei they pass** (multiple Coulomb scattering; the user: "build everything
