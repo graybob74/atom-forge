@@ -77,6 +77,10 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
+- Speed (found from the owner's benchmarks, 1.18): 20,000 waters take 0.65 ms a step on 16 threads (39 fps at 1×, the
+  goal 45), against 0.55 at 0.90; on 32 threads 1.16 ms, every threaded phase waiting about 1 ms (the busy-waiting
+  workers, main thread and browser threads outnumber the 32 hardware threads). Auto stays at 16 (its tag now says so);
+  where the 0.10 ms since 0.90 went wants a profile on the owner's machine.
 - Continuous bond orders: charge that moves with the orders (found in 1.16): a member's net charge sits on one atom as
   a whole unit, so a proton can't pass from H₃O⁺ to a neighbouring water (Grotthuss), an acid can't give its proton to
   water, and nitrate's N–O orders stay 1, 2, 1. Needs each atom's charge, and with it its valence, to follow the orders

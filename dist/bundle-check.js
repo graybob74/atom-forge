@@ -22886,7 +22886,7 @@ function threadsNote() {
   if (!threadsAvailable()) return 'One thread: this page is not cross-origin isolated, so the browser allows no shared memory. The desktop app runs the pair forces on all your processor\u2019s threads.' + kernel;
   const c = navigator.hardwareConcurrency || '?';
   if (!TH.n) return `One thread (this computer has ${c}).` + kernel;
-  const more = typeof SET !== 'undefined' && SET.threads === 'auto' && c > 16 ? ' Auto stops at 16, one a core; 32 adds each core\u2019s second thread, which may gain a little or lose a little: the Speed test tells.' : '';
+  const more = typeof SET !== 'undefined' && SET.threads === 'auto' && c > 16 ? ' Auto stops at 16, one a core; 32 adds each core\u2019s second thread, and on a 16-core Ryzen it was 1.8 times slower (20,000 waters: 1.16 ms a step against 0.65), the threads waiting on each other.' : '';
   return `${TH.n + 1} threads of ${c}${TH.state === 'starting' ? ', starting up' : TH.used ? ', in use: the forces, the heat bath, the integration and the neighbour list' : ' (used once a world is big enough: the small ones run on one thread)'}.` + more + kernel;
 }
 /* The benchmark: four reference worlds, each built and stepped here under the settings as they are (the water worlds
@@ -23034,7 +23034,7 @@ const COSTS = {
   segThreads: () => {
     const auto = threadsAvailable() ? threadsDefault() + 1 : 1, o = { auto: ['×1', auto > 1 ? auto + ' threads on this computer' : 'One thread: this page cannot share work between threads here'] };
     const hw = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || auto;
-    for (const n of [1, 2, 4, 8, 16, 32]) o[n] = n > hw ? ['×1', 'More threads than this computer has gain nothing'] : n > auto ? ['?', 'Past Auto: the second thread on each core (hyper-threading). It may gain a little or lose a little: Speed test (General) tells'] : n === auto ? ['×1', 'What Auto chooses here'] : ['up to ' + costX(auto / n), 'In a crowded box (small boxes run on one thread anyway)'];
+    for (const n of [1, 2, 4, 8, 16, 32]) o[n] = n > hw ? ['×1', 'More threads than this computer has gain nothing'] : n > auto ? ['×1.8', 'Past Auto: the second thread on each core (hyper-threading). Measured on a 16-core Ryzen 7950X3D: 20,000 waters 1.16 ms a step on 32 threads against 0.65 on 16, the threads waiting on each other'] : n === auto ? ['×1', 'What Auto chooses here'] : ['up to ' + costX(auto / n), 'In a crowded box (small boxes run on one thread anyway)'];
     return { k: 'physics', o };
   },
   segGl: () => ({ k: 'drawing', o: { gl: ['×1', 'Atoms and bonds drawn by the graphics card'], '2d': ['heavy', 'Canvas 2D draws every atom on the processor: much slower for thousands of atoms'] } }),
