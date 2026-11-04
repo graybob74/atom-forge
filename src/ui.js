@@ -5384,7 +5384,7 @@ function costLevel(a) {
 const COST_K = { physics: 'Time to work out the physics', drawing: 'Time to draw each frame', memory: 'Memory it takes' };
 function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toFixed(1) : +v.toFixed(2)); }
 const COSTS = {
-  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×8–17', 'Measured on one thread (1.17): hydrogen + oxygen ×8, the molecule gallery ×15, liquid water ×17 (every pair worked out every step, steps 2.6 times shorter)'] } }),
+  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×5–8', 'Measured on one thread (1.18): hydrogen + oxygen ×5, liquid water ×6, the molecule gallery ×8 (every pair worked out every step, steps 2.6 times shorter)'] } }),
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–7', 'Measured on one thread: nothing without free electrons; liquid water with 40 free electrons ×6.5 (their inner steps 13 times shorter, for the packets\' breathing)'] } }),
   segPi: () => ({ k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×7.8', 'Measured on liquid water: the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water: 16 times a step'], 32: ['×36', 'Measured on liquid water: 32 times a step'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–1.8', 'Measured: water 4,000 ×1.4, brine ×1.6, liquid water ×1.8'], 1: ['×2.7–4.6', 'Measured: brine ×2.7, liquid water ×2.8, 4,000 waters ×4.6'] } }),

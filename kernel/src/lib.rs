@@ -12,6 +12,7 @@
 //! threads), each with its own stack (set by the JS side through the exported `__stack_pointer`).
 #![allow(clippy::too_many_arguments, clippy::missing_safety_doc)]
 pub mod fastmath;
+pub mod bo;
 
 pub const RC2: f64 = 36.0; // RC = 6 Å
 pub const FCAP: f64 = 1e7;

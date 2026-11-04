@@ -1284,13 +1284,37 @@ const { openPage } = require('./browser');
     for (let i = 0; i < 40; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
     X.forcesNoEvents();
     const run = (f) => { X.S.fx.fill(0); X.S.fy.fill(0); const E = f(true), fx = Array.from(X.S.fx.subarray(0, X.S.hi)), q = W.parts.map(p => p.qp), ord = new Map(); for (let k = 0; k < X.BO.np; k++) { const t = X.boPairQ(k); if (t.n > 0) ord.set(Math.min(t.a.id, t.b.id) + ':' + Math.max(t.a.id, t.b.id), t.n); } return { E, fx, q, ord, t: (() => { const t0 = performance.now(); for (let i = 0; i < 20; i++) f(true); return (performance.now() - t0) / 20; })() }; };
-    const A = run(X.boPassObj), B = run(X.boPass);
+    const A = run(X.boPassObj), B = run(X.boPassJS);
     out.dE = Math.abs(A.E - B.E); out.dF = Math.max(...A.fx.map((v, i) => Math.abs(v - B.fx[i]))); out.dq = Math.max(...A.q.map((v, i) => Math.abs(v - B.q[i])));
     out.dn = 0; for (const [k, v] of A.ord) out.dn = Math.max(out.dn, Math.abs(v - (B.ord.get(k) || 0))); out.orders = A.ord.size + '/' + B.ord.size; out.speed = +(A.t / B.t).toFixed(1);
     X.forcesNoEvents(); return out;
   })();
   check(r81.dE < 1e-9 && r81.dF < 1e-9 && r81.dq < 1e-12 && r81.dn < 1e-12 && r81.orders.split('/')[0] === r81.orders.split('/')[1],
     `1.17: the orders' pass on flat arrays: the same energy (${r81.dE.toExponential(0)} eV), forces (${r81.dF.toExponential(0)} eV/Å), charges and ${r81.orders.split('/')[0]} orders as the object pass, ${r81.speed}× as fast`, '1.17 flat pass: ' + JSON.stringify(r81));
+  // 1.18: the orders' pass in WebAssembly (kernel/src/bo.rs) gives the JavaScript pass's numbers, faster
+  const r82 = (() => {
+    const X = require('./load.js').load('all', { seed: 3 }), W = X.W, out = { wasm: typeof X.WK.ex?.af_bo_pass1 === 'function' };
+    if (!out.wasm) return out;
+    const cmp = (label) => {
+      const run = (f, forces) => { X.S.fx.fill(0); X.S.fy.fill(0); const ls = X.BF.mem.map(p => p._boLs), E = f(forces), fx = Array.from(X.S.fx.subarray(0, X.S.hi)), fy = Array.from(X.S.fy.subarray(0, X.S.hi)), q = W.parts.map(p => p.qp), n = Array.from(X.BF.pn.subarray(0, X.BO.np)); X.BF.mem.forEach((p, m) => { p._boLs = ls[m]; }); return { E, fx, fy, q, n }; };
+      const t = (f) => { const t0 = performance.now(); for (let i = 0; i < 30; i++) f(true); return (performance.now() - t0) / 30; };
+      const A = run(X.boPassJS, true), B = run(X.boPass, true), A0 = run(X.boPassJS, false), B0 = run(X.boPass, false);
+      const d = (u, v) => Math.max(0, ...u.map((x, i) => Math.abs(x - v[i])));
+      out[label] = { dE: Math.abs(A.E - B.E), dE0: Math.abs(A0.E - B0.E), dF: Math.max(d(A.fx, B.fx), d(A.fy, B.fy)), dq: d(A.q, B.q), dn: A.n.length === B.n.length ? d(A.n, B.n) : 1, np: B.n.length, speed: +(t(X.boPassJS) / t(X.boPass)).toFixed(1) };
+    };
+    X.PRESETS.gallery.build(); X.addMolecule('H3Op', 0, 0, 0, 300); X.addMolecule('SF6', 8, 0, 0, 300); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+    X.settleOverlaps(); X.boSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned;
+    for (let i = 0; i < 40; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+    X.forcesNoEvents(); cmp('gallery'); out.calls = X.BFW.calls;
+    X.PRESETS.brine.build(); W.wall = 'wrap'; for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+    X.boSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned;
+    for (let i = 0; i < 20; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+    X.forcesNoEvents(); cmp('brine');
+    return out;
+  })();
+  const r82ok = (c) => c && c.dE < 1e-9 && c.dE0 < 1e-9 && c.dF < 1e-9 && c.dq < 1e-12 && c.dn < 1e-12;
+  check(r82.wasm && r82ok(r82.gallery) && r82ok(r82.brine) && r82.calls > 40,
+    `1.18: the orders' pass in WebAssembly: the JavaScript pass's energy, forces, charges and orders (the molecule gallery, ${r82.gallery?.np} pairs; brine in a wrapped box, ${r82.brine?.np}), ${r82.gallery?.speed}× and ${r82.brine?.speed}× as fast`, '1.18 wasm pass: ' + JSON.stringify(r82));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
