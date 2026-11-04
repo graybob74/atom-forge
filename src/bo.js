@@ -100,8 +100,8 @@ function boCollect(useVL) {
 }
 /* The energy of the member atoms (bond terms, angles, the switched non-bonded pairs), and with forces on, their forces
    into S.fx, S.fy. */
-function boPass(forces) {
-  const n = boCollect(forces), L = BO.pairs;
+function boPassObj(forces) { // (the 1.13–1.16 pass on objects, kept for checking boPass against: tests)
+  const n = boCollect(forces), L = BO.pairs; BO.flat = false;
   const by = new Map(); // atom → its bond-term pairs
   let E = 0;
   // non-bonded (switched), raw orders, the taper
@@ -376,13 +376,382 @@ function boAngles(c, nb, wgt, forces) {
   }
   return [E, dEds];
 }
+/* ---- the orders' pass on flat arrays (1.17): the same physics as boPassObj, written over typed arrays (pairs and members
+   by index, the pair constants in a table) so that it runs without allocating and can move to WebAssembly as it is. */
+const BF = { np: 0, nm: 0, pcapN: 0, mcapN: 0, ns: 0, scap: 0, PT: new Float64Array(16 * 64), nt: 0, mem: [], inc: new Int32Array(256) };
+const BF_PS = 16; // (the pair-type table's stride: r1 c β σ reach D1 D2 D3 α1 α2 α3 rm ε rOn rCut)
+function bfType(a, b) {
+  const P = boPP(a.el, b.el);
+  if (P.t === undefined) {
+    if (P.eps === undefined) { const lj = ljPair(a, b); P.rm = lj[0]; P.eps = lj[1]; P.rOn = Math.max(P.reach, 0.62 * lj[0] + 0.05); P.rCut = 2.6 * lj[0]; }
+    if ((BF.nt + 1) * BF_PS > BF.PT.length) { const t = new Float64Array(BF.PT.length * 2); t.set(BF.PT); BF.PT = t; }
+    const o = BF.nt * BF_PS, T = BF.PT;
+    T[o] = P.r[0]; T[o + 1] = P.c; T[o + 2] = P.beta; T[o + 3] = P.sig; T[o + 4] = P.reach; T[o + 5] = P.D[0]; T[o + 6] = P.D[1]; T[o + 7] = P.D[2];
+    T[o + 8] = P.al[0]; T[o + 9] = P.al[1]; T[o + 10] = P.al[2]; T[o + 11] = P.rm; T[o + 12] = P.eps; T[o + 13] = P.rOn; T[o + 14] = P.rCut;
+    P.t = BF.nt++;
+  }
+  return P.t;
+}
+const BF_PF = ['r', 'ux', 'uy', 'gr', 'gn', 'gca', 'gcb', 'n', 'ne', 'ne0', 'dne', 'dne0', 'ca', 'cb', 'dca', 'dcb', 'sA', 'tA', 'sB', 'tB', 'qc', 'qdh', 'K', 'csh'];
+const BF_PI = ['a', 'b', 't', 'ss', 'sn'];
+const BF_MF = ['en', 'cap', 'capH', 'val', 'ls', 'lv', 'gl', 'keep', 'q', 'phi', 'qn', 'im'];
+const BF_MI = ['slot', 'per', 'db', 'Z', 'f0', 'fc', 'fl'];
+function bfGrow(np, nm) {
+  if (np > BF.pcapN) { const c = Math.max(np * 2, 256); for (const k of BF_PF) BF['p' + k] = new Float64Array(c); for (const k of BF_PI) BF['p' + k] = new Int32Array(c); BF.pcapN = c; }
+  if (nm > BF.mcapN) { const c = Math.max(nm * 2, 64); for (const k of BF_MF) BF['m' + k] = new Float64Array(c); for (const k of BF_MI) BF['m' + k] = new Int32Array(c); BF.inc = new Int32Array(2 * Math.max(np * 2, 256) + 2 * c); BF.mcapN = c; }
+  if (BF.inc.length < 2 * np) BF.inc = new Int32Array(4 * np);
+}
+/* members by index, and the pairs within the cutoff: from the neighbour list in a force pass, from the grid otherwise */
+let BF_SM = new Int32Array(256), BF_TZ = new Int32Array(128 * 128).fill(-1); // (slot → member index + 1; element pair → pair type)
+function bfCollect(useVL) {
+  const mem = BF.mem;
+  for (const p of mem) if (p.i < BF_SM.length) BF_SM[p.i] = 0; // (the last pass's members off the map)
+  mem.length = 0;
+  if (BF_SM.length < S.size) BF_SM = new Int32Array(S.size * 2);
+  for (const p of W.parts) if (p.bom && !p.dead) { p._bm = mem.length; BF_SM[p.i] = mem.length + 1; mem.push(p); }
+  const nm = mem.length; bfGrow(Math.max(BF.pcapN, 64), nm);
+  const ION = S.ionic;
+  for (let m = 0; m < nm; m++) {
+    const p = mem[m]; BF.mslot[m] = p.i; BF.men[m] = p.el.en || 2.6; BF.mval[m] = p.val; BF.mper[m] = periodOf(p.el.Z); BF.mdb[m] = p.el.dblock ? 1 : 0; BF.mZ[m] = p.Z;
+    BF.mls[m] = p._boLs === undefined ? NaN : p._boLs; BF.mqn[m] = p.q; BF.mim[m] = S.im[p.i];
+  }
+  let n = 0;
+  const X = S.x, Y = S.y, OBJ = S.obj, Zs = S.Z, Q = S.q, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2, c0 = 1 / Math.sqrt(RC2 + 0.09), KE = PHYS.KE, SM = BF_SM, TZ = BF_TZ;
+  const put = (i, j, ma, mb, dx, dy, r2) => {
+    if (n >= BF.pcapN) { const keep = {}; for (const k of BF_PF.concat(BF_PI)) keep[k] = BF['p' + k]; BF.pcapN = 0; bfGrow(n + 1, 0); for (const k of BF_PF.concat(BF_PI)) BF['p' + k].set(keep[k].subarray(0, n)); }
+    const r = Math.sqrt(r2), za = Zs[i], zb = Zs[j], key = za < zb ? za * 128 + zb : zb * 128 + za;
+    let t = TZ[key]; if (t < 0) t = TZ[key] = bfType(OBJ[i], OBJ[j]);
+    BF.pa[n] = ma; BF.pb[n] = mb; BF.pr[n] = r; BF.pux[n] = dx / r; BF.puy[n] = dy / r; BF.pt[n] = t;
+    BF.pK[n] = ION[i] === ION[j] ? KE : KE * iwK(OBJ[i], OBJ[j]); BF.pcsh[n] = Q[i] === 0 || Q[j] === 0 ? c0 : csh(OBJ[i], OBJ[j], 0.09);
+    n++;
+  };
+  if (useVL) {
+    const pi = VL.pi, pj = VL.pj;
+    for (let k = 0, np = VL.np; k < np; k++) {
+      const i = pi[k], j = pj[k], ma = SM[i] - 1, mb = SM[j] - 1;
+      if (ma < 0 || mb < 0) continue;
+      let dx = X[j] - X[i], dy = Y[j] - Y[i];
+      if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
+      const r2 = dx * dx + dy * dy;
+      if (r2 < RC2 && r2 >= 1e-12) put(i, j, ma, mb, dx, dy, r2);
+    }
+  } else for (const a of mem) nearby(a.x, a.y, RC, (b, dx, dy, r2) => { if (b.bom && !b.dead && b !== a && b.id > a.id && r2 < RC2 && r2 >= 1e-12) put(a.i, b.i, a._bm, b._bm, dx, dy, r2); });
+  BF.np = n; BF.nm = nm;
+  return n;
+}
+let _bfv = 0, _bfs = 0; // (a curve's value and slope: bfCurve, bfQh)
+function bfPiece(dep, k, x, V0, V1, V2) {
+  if (k === 0) { if (dep) { if (x <= 0) { _bfv = 0; _bfs = 0; } else { _bfv = V0 * Math.pow(x, BO_PLOW); _bfs = V0 * BO_PLOW * Math.pow(x, BO_PLOW - 1); } } else { _bfv = V0; _bfs = 0; } }
+  else if (k === 1) { _bfv = V0 + (V1 - V0) * (x - 1); _bfs = V1 - V0; }
+  else if (k === 2) { _bfv = V1 + (V2 - V1) * (x - 2); _bfs = V2 - V1; }
+  else { _bfv = V2; _bfs = 0; }
+}
+function bfCurve(dep, N, V0, V1, V2) { // boDepth (dep) or boStiff, the corners at 1, 2, 3 rounded as boKnot does
+  const H = BO_KH;
+  let k = N < 1 - H ? 0 : N < 1 + H ? -1 : N < 2 - H ? 1 : N < 2 + H ? -2 : N < 3 - H ? 2 : N < 3 + H ? -3 : 3;
+  if (k >= 0) { bfPiece(dep, k, N, V0, V1, V2); return; }
+  const K = -k, t = (N - K + H) / (2 * H);
+  if (t <= 0) { bfPiece(dep, K - 1, N, V0, V1, V2); return; }
+  if (t >= 1) { bfPiece(dep, K, N, V0, V1, V2); return; }
+  bfPiece(dep, K - 1, N, V0, V1, V2); const a = _bfv, as = _bfs; bfPiece(dep, K, N, V0, V1, V2); const b = _bfv, bs = _bfs;
+  const w = t * t * (3 - 2 * t), dw = 6 * t * (1 - t) / (2 * H);
+  _bfv = a + w * (b - a); _bfs = as + w * (bs - as) + dw * (b - a);
+}
+function bfQh(N) { // boQh
+  const H = BO_KH;
+  if (N < 1 - H) { _bfv = N; _bfs = 1; return; } if (N > 1 + H) { _bfv = 1 + 0.2 * (N - 1); _bfs = 0.2; return; }
+  const t = (N - 1 + H) / (2 * H);
+  if (t <= 0) { _bfv = N; _bfs = 1; return; } if (t >= 1) { _bfv = 1 + 0.2 * (N - 1); _bfs = 0.2; return; }
+  const a = N, b = 1 + 0.2 * (N - 1), w = t * t * (3 - 2 * t), dw = 6 * t * (1 - t) / (2 * H);
+  _bfv = a + w * (b - a); _bfs = 1 + w * (0.2 - 1) + dw * (b - a);
+}
+let BF_SUP1 = new Int32Array(256), BF_SUP2 = new Int32Array(256), BF_SUPS = new Float64Array(256), BF_MK = new Int32Array(64), BF_ST = new Int32Array(64), BF_STAMP = 0;
+function bfSupPush(q1, q2, sg) { if (BF.ns >= BF_SUP1.length) { const g = (a, T) => { const b = new T(a.length * 2); b.set(a); return b; }; BF_SUP1 = g(BF_SUP1, Int32Array); BF_SUP2 = g(BF_SUP2, Int32Array); BF_SUPS = g(BF_SUPS, Float64Array); } BF_SUP1[BF.ns] = q1; BF_SUP2[BF.ns] = q2; BF_SUPS[BF.ns] = sg; BF.ns++; }
+/* the shared partners of a pair's two members, through their incident pairs passing test(k): calls f(k1, k2) for each */
+function bfCommon(a, b, inc, f0, fc, test, f) {
+  if (BF_MK.length < BF.nm) { BF_MK = new Int32Array(BF.nm * 2); BF_ST = new Int32Array(BF.nm * 2); BF_STAMP = 0; }
+  const st = ++BF_STAMP, pa = BF.pa, pb = BF.pb;
+  for (let u = f0[b], e = u + fc[b]; u < e; u++) { const k = inc[u]; if (!test(k)) continue; const c = pa[k] === b ? pb[k] : pa[k]; BF_MK[c] = k; BF_ST[c] = st; }
+  for (let u = f0[a], e = u + fc[a]; u < e; u++) { const k = inc[u]; if (!test(k)) continue; const c = pa[k] === a ? pb[k] : pa[k]; if (BF_ST[c] === st) f(k, BF_MK[c]); }
+}
+let BF_CS = new Float64Array(16), BF_FS = new Float64Array(16);
+function boPass(forces) {
+  const n = bfCollect(forces), nm = BF.nm, PT = BF.PT;
+  const pa = BF.pa, pb = BF.pb, pt = BF.pt, pr = BF.pr, gr = BF.pgr, gn = BF.pgn, gca = BF.pgca, gcb = BF.pgcb, pn = BF.pn, ne_ = BF.pne, ne0_ = BF.pne0, dne_ = BF.pdne, dne0_ = BF.pdne0;
+  const ca_ = BF.pca, cb_ = BF.pcb, dca_ = BF.pdca, dcb_ = BF.pdcb, sA_ = BF.psA, tA_ = BF.ptA, sB_ = BF.psB, tB_ = BF.ptB, qc_ = BF.pqc, qdh_ = BF.pqdh, pss = BF.pss, psn = BF.psn;
+  const f0 = BF.mf0, fc = BF.mfc, men = BF.men, mcap = BF.mcap, mcapH = BF.mcapH;
+  for (let m = 0; m < nm; m++) { fc[m] = 0; const p = BF.mem[m]; mcap[m] = capacity(p); mcapH[m] = hyperCap(p); }
+  let E = 0; BF.ns = 0;
+  // non-bonded (switched), raw orders, the taper, the soft core
+  for (let k = 0; k < n; k++) {
+    const t = pt[k] * BF_PS, r = pr[k];
+    gr[k] = 0; gn[k] = 0; gca[k] = 0; gcb[k] = 0; pn[k] = 0; ne_[k] = 0; ne0_[k] = 0; dne_[k] = 0; dne0_[k] = 0; psn[k] = 0; qc_[k] = 0;
+    const rm = PT[t + 11], eps = PT[t + 12], rOn = PT[t + 13];
+    if (eps > 0 && r > rOn && r < PT[t + 14]) {
+      const s2 = rm * rm / (r * r), s6 = s2 * s2 * s2, V = eps * (s6 * s6 - 2 * s6 + LJ_VCUT), dV = eps * (-12 * s6 * s6 + 12 * s6) / r;
+      const u = (r - rOn) / BO_SW, sw = u >= 1 ? 1 : u * u * (3 - 2 * u), dsw = u >= 1 ? 0 : 6 * u * (1 - u) / BO_SW;
+      E += sw * V; gr[k] += sw * dV + dsw * V;
+    }
+    if (r >= PT[t + 4]) continue;
+    const r1 = PT[t], c = PT[t + 1], beta = PT[t + 2], d = r - r1; let n0, dn0;
+    if (d > 0) { n0 = Math.exp(-beta * d * d); dn0 = -2 * beta * d * n0; } else { const w2 = BO_WIN * BO_WIN, h = d * d / (d * d + w2), hd = 2 * d * w2 / ((d * d + w2) * (d * d + w2)); n0 = Math.exp(-d * h / c); dn0 = -n0 * (h + d * hd) / c; }
+    if (d > 0.9) { const u = Math.PI * (d - 0.9) / 0.4, f = 0.5 * (1 + Math.cos(u)), fd = -0.5 * Math.sin(u) * Math.PI / 0.4; dn0 = dn0 * f + n0 * fd; n0 *= f; }
+    if (n0 >= 3.5) { n0 = 3.5; dn0 = 0; }
+    let ne, dne;
+    if (n0 >= BO_TB) { ne = n0; dne = 1; } else if (n0 <= BO_TA) { ne = 0; dne = 0; } else { const w = BO_TB - BO_TA, u = (n0 - BO_TA) / w, s = u * u * (3 - 2 * u); ne = n0 * s; dne = s + n0 * 6 * u * (1 - u) / w; }
+    ne_[k] = ne; dne_[k] = dne * dn0; ne0_[k] = ne; dne0_[k] = dne_[k];
+    const sg = PT[t + 3], z2 = sg * sg / (r * r), z6 = z2 * z2 * z2, s12 = z6 * z6; E += 0.05 * s12; gr[k] += -0.6 * s12 / r;
+    fc[pa[k]]++; fc[pb[k]]++;
+  }
+  // each member's bond-term pairs, in order
+  let acc = 0; for (let m = 0; m < nm; m++) { f0[m] = acc; acc += fc[m]; fc[m] = 0; }
+  if (BF.inc.length < acc) BF.inc = new Int32Array(acc * 2);
+  const inc = BF.inc;
+  for (let k = 0; k < n; k++) { if (pr[k] >= PT[pt[k] * BF_PS + 4]) continue; const a = pa[k], b = pb[k]; inc[f0[a] + fc[a]++] = k; inc[f0[b] + fc[b]++] = k; }
+  const bt = (k) => pr[k] < PT[pt[k] * BF_PS + 4];
+  // crowded flat molecules (boCrowd)
+  for (let k = 0; k < n; k++) {
+    if (!bt(k) || !(ne0_[k] > 0)) continue;
+    let P = 1; const s0 = BF.ns;
+    bfCommon(pa[k], pb[k], inc, f0, fc, (j) => ne0_[j] > 0.3, (k1, k2) => {
+      const dd = Math.min(PT[pt[k1] * BF_PS + 5], PT[pt[k2] * BF_PS + 5]) - PT[pt[k] * BF_PS + 5]; if (dd <= 0.4) return;
+      const u = Math.min(1, (dd - 0.4) / 0.4), sg = u * u * (3 - 2 * u), w = boB(ne0_[k1]) * boB(ne0_[k2]) * sg; if (w <= 0) return;
+      P *= 1 - w; bfSupPush(k1, k2, sg);
+    });
+    if (BF.ns > s0) { pss[k] = s0; psn[k] = BF.ns - s0; ne_[k] = ne0_[k] * P; dne_[k] = dne0_[k] * P; }
+  }
+  // caps, levels
+  const mls = BF.mls, mlv = BF.mlv, mgl = BF.mgl, mkeep = BF.mkeep;
+  for (let m = 0; m < nm; m++) {
+    const cnt = fc[m]; mgl[m] = 0; if (!cnt) continue;
+    const hi0 = f0[m], en3 = men[m] >= 3.0;
+    for (let u = hi0; u < hi0 + cnt; u++) {
+      const k = inc[u], o = pa[k] === m ? pb[k] : pa[k], C = Math.min(en3 ? mcapH[o] : mcap[o], 3), ne = ne_[k], dd = Math.abs(ne - C), h = boH(dd), g = boHD(dd);
+      const c = ne <= C ? ne + h : C + h, dc = ne <= C ? 1 - g : g;
+      if (pa[k] === m) { ca_[k] = c; dca_[k] = dc; } else { cb_[k] = c; dcb_[k] = dc; }
+    }
+    let keep = 1; const dV = mcapH[m] - mcap[m];
+    if (dV) for (let u = hi0; u < hi0 + cnt; u++) { const k = inc[u], o = pa[k] === m ? pb[k] : pa[k]; if (men[o] >= 3.0) keep *= 1 - boFade(pa[k] === m ? ca_[k] : cb_[k]); }
+    const V = mcap[m] + dV * (1 - keep); mkeep[m] = keep;
+    if (BF_CS.length < cnt) { BF_CS = new Float64Array(2 * cnt); BF_FS = new Float64Array(2 * cnt); }
+    const cs = BF_CS, fs = BF_FS;
+    let lo = -V - 1, hi = 4;
+    for (let u = 0; u < cnt; u++) { const k = inc[hi0 + u], c = pa[k] === m ? ca_[k] : cb_[k]; cs[u] = c; fs[u] = boFade(c); if (c + 1 > hi) hi = c + 1; }
+    let L = mls[m] > lo && mls[m] < hi ? mls[m] : 0.5 * (lo + hi);
+    for (let it = 0; it < 100; it++) {
+      let G = -V, U = 0; for (let u = 0; u < cnt; u++) { const x = cs[u] - L; G += boSp(x) * fs[u]; U += boSpD(x) * fs[u]; }
+      if (Math.abs(G) < 1e-13) break;
+      if (G > 0) lo = L; else hi = L;
+      let Ln = U > 0 ? L + G / U : NaN;
+      if (!(Ln > lo && Ln < hi)) Ln = 0.5 * (lo + hi);
+      if (hi - lo < 1e-15) break;
+      L = Ln;
+    }
+    mls[m] = L; mlv[m] = boSp(L);
+  }
+  // orders and the Morse terms
+  const IM = BF.mim;
+  for (let k = 0; k < n; k++) {
+    if (!bt(k)) continue;
+    const a = pa[k], b = pb[k], xa = ca_[k] - mlv[a], xb = cb_[k] - mlv[b], fa = boFade(ca_[k]), fb = boFade(cb_[k]), A = boSp(xa) * fa, B = boSp(xb) * fb, dd = Math.abs(A - B), h = boH(dd), g = boHD(dd);
+    const N = pn[k] = Math.max(0, (A <= B ? A : B) + h);
+    const nA = A <= B ? 1 - g : g, nB = A <= B ? g : 1 - g;
+    sA_[k] = nA * boSpD(xa) * fa; tA_[k] = nA * boSp(xa) * boFadeD(ca_[k]); sB_[k] = nB * boSpD(xb) * fb; tB_[k] = nB * boSp(xb) * boFadeD(cb_[k]);
+    if (N > 1e-6) {
+      const t = pt[k] * BF_PS, r = pr[k], r1 = PT[t], c = PT[t + 1];
+      bfCurve(true, N, PT[t + 5], PT[t + 6], PT[t + 7]); const D = _bfv, dD = _bfs;
+      const N2 = N * N + 0.0025, r0 = r1 - 0.5 * c * Math.log(N2), dr0 = -c * N / N2;
+      bfCurve(false, N, PT[t + 8], PT[t + 9], PT[t + 10]); const al = _bfv, dal = _bfs;
+      const x = r - r0, ex = Math.exp(-al * x), e = 1 - ex, d = r - r1;
+      let fcut = 1, dfc = 0; if (d > 0.9) { const u = Math.PI * (d - 0.9) / 0.4; fcut = 0.5 * (1 + Math.cos(u)); dfc = -0.5 * Math.sin(u) * Math.PI / 0.4; }
+      const M = D * (e * e - 1), dMdr = D * 2 * e * ex * al;
+      E += fcut * M; gr[k] += fcut * dMdr + dfc * M;
+      if (forces) { const w = 4 * D * al * al * fcut * (IM[a] + IM[b]); if (w > _stiff) _stiff = w; } // (twice the bond's curvature at rest: boPassObj's note)
+      gn[k] += fcut * ((e * e - 1) * dD - dMdr * dr0 + D * 2 * e * ex * x * dal);
+    }
+  }
+  BO.changes++;
+  E += bfAnglesAll(forces);
+  E += bfCoulomb(forces, n);
+  BO.E = E; BO.np = n; BO.flat = true;
+  for (let m = 0; m < nm; m++) if (fc[m]) BF.mem[m]._boLs = mls[m];
+  if (!forces) return E;
+  // back through the orders to the distances
+  const phi = BF.mphi;
+  for (let k = 0; k < n; k++) {
+    if (!(pn[k] > 0)) continue;
+    if (qc_[k]) gn[k] += (phi[pa[k]] - phi[pb[k]]) * qc_[k] * qdh_[k];
+    const G = gn[k]; if (!G) continue;
+    gca[k] += G * (sA_[k] + tA_[k]); mgl[pa[k]] -= G * sA_[k]; gcb[k] += G * (sB_[k] + tB_[k]); mgl[pb[k]] -= G * sB_[k];
+  }
+  for (let m = 0; m < nm; m++) {
+    const cnt = fc[m]; if (!cnt || !mgl[m]) continue;
+    const hi0 = f0[m], Ls = mls[m], gs = mgl[m] * boSpD(Ls); let U = 0;
+    for (let u = hi0; u < hi0 + cnt; u++) { const k = inc[u], c = pa[k] === m ? ca_[k] : cb_[k]; U += boSpD(c - Ls) * boFade(c); }
+    if (U > 0) for (let u = hi0; u < hi0 + cnt; u++) { const k = inc[u], c = pa[k] === m ? ca_[k] : cb_[k], w = (boSpD(c - Ls) * boFade(c) + boSp(c - Ls) * boFadeD(c)) * gs / U; if (pa[k] === m) gca[k] += w; else gcb[k] += w; }
+    const dV = mcapH[m] - mcap[m];
+    if (U > 0 && dV) for (let u = hi0; u < hi0 + cnt; u++) {
+      const k = inc[u], o = pa[k] === m ? pb[k] : pa[k]; if (men[o] < 3.0) continue;
+      const c = pa[k] === m ? ca_[k] : cb_[k], f = boFade(c); if (f >= 1) continue;
+      const w = -gs / U * dV * boFadeD(c) * mkeep[m] / (1 - f); if (pa[k] === m) gca[k] += w; else gcb[k] += w;
+    }
+  }
+  for (let k = 0; k < n; k++) {
+    if (!bt(k)) continue;
+    const G = gca[k] * dca_[k] + gcb[k] * dcb_[k];
+    gr[k] += G * dne_[k];
+    const s0 = pss[k], ns = psn[k];
+    if (ns && G) for (let t = 0; t < ns; t++) {
+      const k1 = BF_SUP1[s0 + t], k2 = BF_SUP2[s0 + t], sg = BF_SUPS[s0 + t], b1 = boB(ne0_[k1]), b2 = boB(ne0_[k2]), w = b1 * b2 * sg;
+      let o = 1; for (let u = 0; u < ns; u++) if (u !== t) o *= 1 - boB(ne0_[BF_SUP1[s0 + u]]) * boB(ne0_[BF_SUP2[s0 + u]]) * BF_SUPS[s0 + u];
+      const dEw = -G * ne0_[k] * o;
+      if (w >= 0) { gr[k1] += dEw * boBD(ne0_[k1]) * b2 * sg * dne0_[k1]; gr[k2] += dEw * b1 * boBD(ne0_[k2]) * sg * dne0_[k2]; }
+    }
+  }
+  const FX = S.fx, FY = S.fy, slot = BF.mslot, ux = BF.pux, uy = BF.puy;
+  for (let k = 0; k < n; k++) {
+    const g = gr[k]; if (!g) continue;
+    const fx = g * ux[k], fy = g * uy[k], i = slot[pa[k]], j = slot[pb[k]];
+    FX[j] -= fx; FY[j] -= fy; FX[i] += fx; FY[i] += fy;
+  }
+  return E;
+}
+/* angles (boPassObj's: strong partners always, those on the way in or out by the expectation over subsets) */
+const BFA = { a: new Float64Array(8), dx: new Float64Array(8), dy: new Float64Array(8), g: new Float64Array(8), o: new Int32Array(8), ord: new Int32Array(8), gv: new Float64Array(8), ghi: new Int32Array(8), glo: new Int32Array(8), gord: new Int32Array(8), list: new Int32Array(16), strong: new Int32Array(64), zone: new Int32Array(64), zw: new Float64Array(64), zd: new Float64Array(64) };
+let _adS = 0;
+function bfAngle(c, list, nl, wgt, forces) {
+  _adS = 0;
+  if (nl < 2 || nl > 6) return 0;
+  const pa = BF.pa, pb = BF.pb, pn = BF.pn, ux = BF.pux, uy = BF.puy, pr = BF.pr, A = BFA;
+  let sum = 0; for (let u = 0; u < nl; u++) sum += pn[list[u]];
+  const lpr0 = (BF.mval[c] - sum) / 2, lpr = Math.max(0, lpr0), l0 = Math.floor(lpr), f = lpr - l0, dfds = lpr0 > 0 ? -0.5 : 0;
+  const per = BF.mper[c]; let allH = true;
+  for (let u = 0; u < nl; u++) {
+    const k = list[u], o = pa[k] === c ? pb[k] : pa[k], sg = pa[k] === c ? 1 : -1;
+    if (BF.mZ[o] !== 1) allH = false;
+    A.o[u] = o; A.a[u] = Math.atan2(sg * uy[k], sg * ux[k]); A.dx[u] = sg * ux[k] * pr[k]; A.dy[u] = sg * uy[k] * pr[k]; A.g[u] = 0; A.ord[u] = u;
+  }
+  for (let i = 1; i < nl; i++) { const v = A.ord[i]; let j = i - 1; while (j >= 0 && A.a[A.ord[j]] > A.a[v]) { A.ord[j + 1] = A.ord[j]; j--; } A.ord[j + 1] = v; } // (by angle)
+  for (let k = 0; k < nl; k++) { const lo = A.ord[k], hi = A.ord[k === nl - 1 ? 0 : k + 1]; A.gv[k] = k === nl - 1 ? A.a[A.ord[0]] + 2 * Math.PI - A.a[lo] : A.a[hi] - A.a[lo]; A.ghi[k] = hi; A.glo[k] = lo; A.gord[k] = k; }
+  for (let i = 1; i < nl; i++) { const v = A.gord[i]; let j = i - 1; while (j >= 0 && A.gv[A.gord[j]] > A.gv[v]) { A.gord[j + 1] = A.gord[j]; j--; } A.gord[j + 1] = v; } // (gaps, smallest first)
+  const e = (lp, w) => {
+    const key = ((nl * 8 + lp) * 8 + per) * 2 + (allH ? 1 : 0); let tg = BO_TG.get(key); if (!tg) BO_TG.set(key, tg = angleTargetsRaw(nl, lp, per, allH).slice().sort((u, v) => u - v)); let t = 0;
+    for (let k = 0; k < nl; k++) { const gi = A.gord[k], dv = A.gv[gi] - tg[k]; t += 0.5 * ANGLE_K * dv * dv; if (w) { const gk = w * ANGLE_K * dv; A.g[A.ghi[gi]] += gk; A.g[A.glo[gi]] -= gk; } }
+    return t;
+  };
+  let E;
+  if (f > 1e-9) { const e0 = e(l0, forces ? wgt * (1 - f) : 0), e1 = e(l0 + 1, forces ? wgt * f : 0); E = (1 - f) * e0 + f * e1; _adS = (e1 - e0) * dfds; }
+  else E = e(l0, forces ? wgt : 0);
+  if (forces) {
+    const FX = S.fx, FY = S.fy, i = BF.mslot[c];
+    for (let u = 0; u < nl; u++) {
+      const g = A.g[u]; if (!g) continue;
+      const dx = A.dx[u], dy = A.dy[u], r2 = dx * dx + dy * dy, gx = g * -dy / r2, gy = g * dx / r2, j = BF.mslot[A.o[u]];
+      FX[j] -= gx; FY[j] -= gy; FX[i] += gx; FY[i] += gy;
+    }
+  }
+  return E;
+}
+function bfAnglesAll(forces) {
+  const nm = BF.nm, f0 = BF.mf0, fc = BF.mfc, inc = BF.inc, pn = BF.pn, gn = BF.pgn, A = BFA;
+  let E = 0;
+  for (let c = 0; c < nm; c++) {
+    const cnt = fc[c]; if (!cnt || BF.mdb[c]) continue;
+    if (A.strong.length < cnt) { A.strong = new Int32Array(2 * cnt); A.zone = new Int32Array(2 * cnt); A.zw = new Float64Array(2 * cnt); A.zd = new Float64Array(2 * cnt); }
+    let ns = 0, z = 0;
+    for (let u = f0[c]; u < f0[c] + cnt; u++) {
+      const k = inc[u], N = pn[k];
+      if (N >= 0.7) A.strong[ns++] = k;
+      else if (N > 0.4) { const x = (N - 0.4) / 0.3; A.zone[z] = k; A.zw[z] = x * x * (3 - 2 * x); A.zd[z] = 6 * x * (1 - x) / 0.3; z++; }
+    }
+    if (ns + z < 2) continue;
+    if (z > 6) { // (at most 64 subsets: a crowd past that keeps its 6 strongest, as boPassObj)
+      const o = []; for (let u = 0; u < z; u++) o.push(u); o.sort((u, v) => pn[A.zone[v]] - pn[A.zone[u]]);
+      const zk = o.slice(0, 6).map(u => [A.zone[u], A.zw[u], A.zd[u]]); z = 6; zk.forEach(([k, w, d], u) => { A.zone[u] = k; A.zw[u] = w; A.zd[u] = d; });
+    }
+    if (A.list.length < ns + z) A.list = new Int32Array(2 * (ns + z));
+    for (let mask = 0; mask < 1 << z; mask++) {
+      let wt = 1, nl = 0;
+      for (let u = 0; u < ns; u++) A.list[nl++] = A.strong[u];
+      for (let u = 0; u < z; u++) if (mask & (1 << u)) { wt *= A.zw[u]; A.list[nl++] = A.zone[u]; } else wt *= 1 - A.zw[u];
+      if (wt <= 0 || nl < 2) continue;
+      const e = bfAngle(c, A.list, nl, wt, forces), dS = _adS;
+      E += wt * e;
+      if (dS) for (let u = 0; u < nl; u++) gn[A.list[u]] += wt * dS;
+      for (let u = 0; u < z; u++) {
+        let o = 1; for (let j = 0; j < z; j++) if (j !== u) o *= mask & (1 << j) ? A.zw[j] : 1 - A.zw[j];
+        gn[A.zone[u]] += (mask & (1 << u) ? o : -o) * A.zd[u] * e;
+      }
+    }
+  }
+  return E;
+}
+/* the partial charges (boCoulomb's) */
+let BF_T1 = new Int32Array(16), BF_T2 = new Int32Array(16), BF_TW = new Float64Array(16);
+function bfCoulomb(forces, n) {
+  const nm = BF.nm, QP = S.qp, mq = BF.mq, phi = BF.mphi, mqn = BF.mqn, men = BF.men, pa = BF.pa, pb = BF.pb, pn = BF.pn, pr = BF.pr, qc_ = BF.pqc, qdh_ = BF.pqdh, gr = BF.pgr, gn = BF.pgn, K_ = BF.pK, csh_ = BF.pcsh;
+  for (let m = 0; m < nm; m++) { mq[m] = 0; phi[m] = 0; }
+  for (let k = 0; k < n; k++) {
+    if (!(pn[k] > 0)) continue;
+    const ea = men[pa[k]], eb = men[pb[k]]; if (ea === eb) continue;
+    bfQh(pn[k]); const qc = qc_[k] = PARTIAL_K * (eb - ea); qdh_[k] = _bfs;
+    mq[pa[k]] += qc * _bfv; mq[pb[k]] -= qc * _bfv;
+  }
+  for (let m = 0; m < nm; m++) { const p = BF.mem[m]; QP[p.i] = mq[m]; p.qpol = mq[m]; p.qf = 0; p.qi = 0; }
+  const f0 = BF.mf0, fc = BF.mfc, inc = BF.inc;
+  let E = 0;
+  for (let k = 0; k < n; k++) {
+    const a = pa[k], b = pb[k], qa = mqn[a] + mq[a], qb = mqn[b] + mq[b];
+    if (!qa && !qb) continue;
+    const b0 = boB(pn[k]); if (b0 >= 1) continue;
+    let prod = 1, nt = 0;
+    if (pr[k] < 4.4) bfCommon(a, b, inc, f0, fc, (j) => pn[j] > 0.3, (k1, k2) => {
+      const w = boB(pn[k1]) * boB(pn[k2]); if (w <= 0) return;
+      prod *= 1 - w; if (nt >= BF_T1.length) { const g = (x, T) => { const y = new T(x.length * 2); y.set(x); return y; }; BF_T1 = g(BF_T1, Int32Array); BF_T2 = g(BF_T2, Int32Array); BF_TW = g(BF_TW, Float64Array); } BF_T1[nt] = k1; BF_T2[nt] = k2; BF_TW[nt] = w; nt++;
+    });
+    const s = (1 - b0) * prod; if (!(s > 0)) continue;
+    const K = K_[k], r = pr[k], sq = Math.sqrt(r * r + 0.09), c = K * (1 / sq - csh_[k]);
+    E += s * c * qa * qb;
+    if (!forces) continue;
+    gr[k] += -s * K * r / (sq * sq * sq) * qa * qb;
+    phi[a] += s * c * qb; phi[b] += s * c * qa;
+    const Es = c * qa * qb;
+    if (!Es) continue;
+    if (b0 > 0) gn[k] -= Es * boBD(pn[k]) * prod;
+    for (let t = 0; t < nt; t++) {
+      const k1 = BF_T1[t], k2 = BF_T2[t], w = BF_TW[t], dsw = -(1 - b0) * prod / (1 - w);
+      gn[k1] += Es * dsw * boBD(pn[k1]) * boB(pn[k2]); gn[k2] += Es * dsw * boB(pn[k1]) * boBD(pn[k2]);
+    }
+  }
+  let others = false; for (const p of W.parts) if (!p.bom && !p.dead && p.k === NUC && p.Z > 0) { others = true; break; }
+  if (forces && others) { // the potential at each member from the non-members it meets (the kernel's pairs: same coefficients, qeqC)
+    const pi = VL.pi, pj = VL.pj, ex = VL.ex, OBJ = S.obj, X = S.x, Y = S.y, Q = S.q, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
+    for (let k = 0; k < VL.np; k++) {
+      if (ex[k]) continue;
+      const i = pi[k], j = pj[k], a = OBJ[i], b = OBJ[j];
+      if (!a || !b || a.bom === b.bom || a.k !== NUC || b.k !== NUC || !a.Z || !b.Z || a.dead || b.dead || a.fast || b.fast || a.rad || b.rad) continue;
+      let dx = X[j] - X[i], dy = Y[j] - Y[i];
+      if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
+      const r2 = dx * dx + dy * dy; if (r2 >= RC2) continue;
+      const m = a.bom ? a : b, o = m === a ? b : a, qo = Q[o.i] + QP[o.i]; if (!qo) continue;
+      phi[m._bm] += qeqC(m, o, r2) * qo;
+    }
+  }
+  if (forces && _lrOn) for (const m of BF.mem) { // (an ion member's partial charge meets the net charges beyond the cutoff too)
+    if (!isLR(m)) continue;
+    for (const o of _charged) { if (o === m || o.dead || !isLR(o)) continue; const dx = o.x - m.x, dy = o.y - m.y, r2 = dx * dx + dy * dy; if (r2 >= RC2) phi[m._bm] += PHYS.KE * qx(o, m) / Math.sqrt(r2); }
+  }
+  return E;
+}
+/* the last pass's pair k as { a, b, n, r } (for the readers below) */
+const boPairQ = (k) => BO.flat === false ? BO.pairs[k] : { a: BF.mem[BF.pa[k]], b: BF.mem[BF.pb[k]], n: BF.pn[k], r: BF.pr[k] };
 /* Who a member is bonded to, for naming and grouping (molecule(), the Data tab, Inspect, selection): its partners of
    order 0.5 or more in the last pass (1.14: molecules were shown as loose atoms, asked for by the user) */
 function boNbrs(p) {
   if (!p.bom || !BO.any) return [];
   if (BO.adjAt !== BO.changes) { // (made again once a pass)
     BO.adjAt = BO.changes; const m = BO.adj = new Map();
-    for (let k = 0; k < BO.np; k++) { const q = BO.pairs[k]; if (q.n >= 0.5 && q.a.bom && q.b.bom && !q.a.dead && !q.b.dead) { let l = m.get(q.a); if (!l) m.set(q.a, l = []); l.push(q.b); l = m.get(q.b); if (!l) m.set(q.b, l = []); l.push(q.a); } }
+    for (let k = 0; k < BO.np; k++) { const q = boPairQ(k); if (q.n >= 0.5 && q.a.bom && q.b.bom && !q.a.dead && !q.b.dead) { let l = m.get(q.a); if (!l) m.set(q.a, l = []); l.push(q.b); l = m.get(q.b); if (!l) m.set(q.b, l = []); l.push(q.a); } }
   }
   return BO.adj.get(p) || [];
 }
@@ -398,7 +767,7 @@ function boProxy(mol) {
 function boDrawBonds() {
   const out = [];
   for (let k = 0; k < BO.np; k++) {
-    const q = BO.pairs[k], n = q.n;
+    const q = boPairQ(k), n = q.n;
     if (!(n > 0.15) || q.a.dead || q.b.dead || !q.a.bom || !q.b.bom) continue;
     const ar = n >= 1.25 && n < 1.75;
     out.push({ a: q.a, b: q.b, order: n >= 2.6 ? 3 : n >= 1.75 ? 2 : 1, arom: ar, fo: ar ? n : 0, r0: q.r - (1 - Math.min(n, 1)), rb: 1 });
@@ -406,7 +775,7 @@ function boDrawBonds() {
   return out;
 }
 /* The bond orders of the last pass, for drawing: [a, b, order] */
-function boBonds() { const out = []; for (let k = 0; k < BO.np; k++) { const q = BO.pairs[k]; if (q.n > 0.15 && !q.a.dead && !q.b.dead && q.a.bom && q.b.bom) out.push([q.a, q.b, q.n]); } return out; }
+function boBonds() { const out = []; for (let k = 0; k < BO.np; k++) { const q = boPairQ(k); if (q.n > 0.15 && !q.a.dead && !q.b.dead && q.a.bom && q.b.bom) out.push([q.a, q.b, q.n]); } return out; }
 /* At the start of a step (and when the setting changes): who is a member now, by whole clusters; joiners let go of
    their stored bonds, leavers get stored bonds from their last orders; the energy before and after, at the same
    positions, the difference to the bath. Returns whether anything changed (the forces are then worked out again). */
@@ -419,7 +788,7 @@ function boSync() {
   const parts = W.parts;
   // clusters: stored bonds, and for members the last orders above 0.3
   const adj = new Map(), link = (a, b) => { let l = adj.get(a); if (!l) adj.set(a, l = []); l.push(b); };
-  for (let k = 0; k < BO.np; k++) { const q = BO.pairs[k]; if (q.n > 0.3 && q.a.bom && q.b.bom && !q.a.dead && !q.b.dead) { link(q.a, q.b); link(q.b, q.a); } }
+  for (let k = 0; k < BO.np; k++) { const q = boPairQ(k); if (q.n > 0.3 && q.a.bom && q.b.bom && !q.a.dead && !q.b.dead) { link(q.a, q.b); link(q.b, q.a); } }
   const want = new Map(), seen = new Set();
   for (const p of parts) {
     if (p.dead || p.k !== NUC || seen.has(p)) continue;
@@ -477,7 +846,7 @@ function boRelax(join) {
 /* Whole bonds from the last orders (above 0.5), the strongest first, as far as both atoms have valence left: [a, b, order]
    (for members leaving, and for saving a world) */
 function boWhole(only) {
-  const qs = []; for (let k = 0; k < BO.np; k++) { const q = BO.pairs[k]; if (q.n > 0.5 && q.a.bom && q.b.bom && !q.a.dead && !q.b.dead && (!only || (only.has(q.a) && only.has(q.b)))) qs.push(q); }
+  const qs = []; for (let k = 0; k < BO.np; k++) { const q = boPairQ(k); if (q.n > 0.5 && q.a.bom && q.b.bom && !q.a.dead && !q.b.dead && (!only || (only.has(q.a) && only.has(q.b)))) qs.push(q); }
   qs.sort((u, v) => v.n - u.n);
   const used = new Map(), freeV = (p) => capacity(p) - (used.get(p) || 0), out = [];
   for (const q of qs) {

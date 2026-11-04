@@ -77,8 +77,9 @@ engine stores and visits particles.
   checks and times the native build; Settings shows the kernel in use.
 
 ## Planned features (1.x), in the order the user chose
-- Continuous bond orders: the orders' pass in WebAssembly (found in 1.16): it is nearly all of the remaining ×7–46
-  (3 ms a step for 240 water atoms in JavaScript); a Rust port of boPass beside the pair kernel, with the same checks.
+- Continuous bond orders: the orders' pass in WebAssembly (found in 1.16; step 1, flat arrays, done in 1.17: ×46 → ×17
+  for liquid water): a Rust port of 1.17's boPass beside the pair kernel, built by GitHub Actions, with the same checks;
+  expected water ×17 → about ×10.
 - Continuous bond orders: charge that moves with the orders (found in 1.16): a member's net charge sits on one atom as
   a whole unit, so a proton can't pass from H₃O⁺ to a neighbouring water (Grotthuss), an acid can't give its proton to
   water, and nitrate's N–O orders stay 1, 2, 1. Needs each atom's charge, and with it its valence, to follow the orders
@@ -90,10 +91,6 @@ engine stores and visits particles.
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
   everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
-- Continuous bond orders, next steps: partial charges that follow the orders (hydrogen bonds between members; needs the
-  charges' slopes in the forces, ∂q/∂r, against everything charged), protonation and ions inside the scheme instead of
-  handing a charged molecule back to stored bonds, crowded flat molecules (SF₆), and speed (×17–45 today: the pair
-  terms in the WebAssembly kernel, the steps longer).
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
@@ -115,6 +112,21 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.17.0: the bond orders' pass on flat arrays (2–3 times faster)
+
+- **The orders' pass rewritten over typed arrays** (the planned list's next item, step 1 of 2; the user: "Do what's
+  next"). Pairs and members by index (bo.js BF: the pairs' distances, raw and final orders, their slopes, the crowding
+  factors' partners in one buffer; each member's bond-term pairs as an incidence list; the pair constants in a table of
+  16 numbers per element pair; slot → member and element pair → type in flat maps), no Maps, closures or arrays made in the
+  loops. The same arithmetic in the same order as the 1.16 pass (kept as boPassObj for the check): energies equal,
+  forces within 7e-15 eV/Å, charges and every order equal (water, gallery, combustion, brine, brine with H₃O⁺ and SF₆).
+  A pass: water 2.78 → 1.44 ms, gallery 4.8 → 2.6, brine 12 → 4.0, combustion 1.0 → 0.6. Against stored bonds on one
+  thread (Node, the WebAssembly kernel for both): liquid water ×46 → ×17, the gallery ×32 → ×15, hydrogen + oxygen ×7–8
+  (its own pass was small already). The energy runs of 1.16 repeat exactly (water 0.028 eV, combustion 0.049; the
+  gallery's path parts after a few hundred steps, as chaotic paths do with a last-digit difference: 0.078 eV).
+- Step 2, the same pass in WebAssembly (Rust), waits for the user: it would take the pass's 1.1 ms a step for water to
+  perhaps 0.4, so water ×17 → about ×10; the rest of the cost is the steps, 2.6 times shorter than stored bonds'.
 
 ## 1.16.0: bond orders, next steps: partial charges, crowded molecules, ions, longer steps
 
