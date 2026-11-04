@@ -127,6 +127,13 @@ engine stores and visits particles.
   metallic cohesion for them; a metal bond-order model, embedded-atom style, would be a separate project), not ionic
   pairs (charges already), not the noble gases. A physics-model change for the owner to approve. Every element up to
   Rn is in quantum bonds (1.22) for small systems.
+- Bond orders for metals (asked by the user after 1.21, to come after 3-D): a many-body metal model in which a metal
+  atom's bonding comes from its surroundings rather than from whole bonds with a fixed valence: the embedded-atom form
+  (Daw & Baskes 1984; each atom's energy a function of the electron density its neighbours give it), or the
+  second-moment tight-binding form (Finnis–Sinclair, Cleri–Rosato), fitted per metal to measured cohesive energy,
+  lattice constant, elastic constants and vacancy energy; metal–non-metal pairs (oxides, hydrides, complexes) the hard
+  part. Would replace the game's metallic cohesion for member metals, so surfaces, clusters, melting and alloys come out
+  of one model. Several sessions; a physics-model change for the owner to approve.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
