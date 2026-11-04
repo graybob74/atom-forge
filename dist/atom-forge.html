@@ -10710,6 +10710,10 @@ wasmLoadModule(); // (the kernel module, now that its constants exist to be chec
    for exactly: the energy before and after at the same positions, the difference to the bath (as for quantum
    nuclei's rings). */
 // (BO itself is made in engine.js, which runs first and asks it)
+/* A hydrogen's order to N, O or F starts at a raw order of 0.04 (rising to whole at 0.12), not 0.15 (0.35) (1.20): a
+   proton passing between two waters bonds to the second one as it leaves the first, not only once it is 1.45 Å from it
+   (the gap left a 1.2 eV barrier in a hop between waters 2.65 Å apart; 0.35 eV now). */
+const BO_TAH = 0.04, BO_TBH = 0.12;
 const BO_EPS = 0.03, BO_PLOW = 1.15, BO_WIN = 0.05, BO_TA = 0.15, BO_TB = 0.35, BO_SW = 0.5; // (smoothing; Dof's power below a single bond; the taper; the non-bonded switch's width)
 const boSp = (x) => x <= -BO_EPS ? 0 : x >= BO_EPS ? x : (x + BO_EPS) * (x + BO_EPS) / (4 * BO_EPS);
 const boSpD = (x) => x <= -BO_EPS ? 0 : x >= BO_EPS ? 1 : (x + BO_EPS) / (2 * BO_EPS);
@@ -10769,7 +10773,7 @@ function bfType(a, b) {
 }
 const BF_PF = ['r', 'ux', 'uy', 'gr', 'gn', 'gca', 'gcb', 'n', 'ne', 'ne0', 'dne', 'dne0', 'ca', 'cb', 'dca', 'dcb', 'sA', 'tA', 'sB', 'tB', 'qc', 'qdh', 'K', 'csh', 'fa', 'fb'];
 const BF_PI = ['a', 'b', 't', 'ss', 'sn'];
-const BF_MF = ['en', 'cap', 'capH', 'val', 'ls', 'lv', 'gl', 'keep', 'q', 'phi', 'qn', 'im', 'ljR', 'ljS', 'pol', 'gw', 'sn', 'gf', 'dcap', 'dcapH', 'dval', 'deI', 'gq', 'Gc', 'Gh', 'Gv'];
+const BF_MF = ['en', 'cap', 'capH', 'val', 'ls', 'lv', 'gl', 'keep', 'q', 'phi', 'qn', 'im', 'ljR', 'ljS', 'pol', 'gw', 'sn', 'gf', 'dcap', 'dcapH', 'dval', 'deI', 'gq', 'Gc', 'Gh', 'Gv', 'Gd'];
 const BF_MI = ['slot', 'per', 'db', 'Z', 'f0', 'fc', 'fl', 'cl'];
 const bfArr = (T, n) => WK.on ? wasmArray(T, n) : new T(n); // (in the module's memory when there is one: the Rust pass reads them, 1.18)
 function bfGrow(np, nm) {
@@ -10923,7 +10927,8 @@ function boPassJS(forces) {
     if (d > 0.9) { const u = Math.PI * (d - 0.9) / 0.4, f = 0.5 * (1 + Math.cos(u)), fd = -0.5 * Math.sin(u) * Math.PI / 0.4; dn0 = dn0 * f + n0 * fd; n0 *= f; }
     if (n0 >= 3.5) { n0 = 3.5; dn0 = 0; }
     let ne, dne;
-    if (n0 >= BO_TB) { ne = n0; dne = 1; } else if (n0 <= BO_TA) { ne = 0; dne = 0; } else { const w = BO_TB - BO_TA, u = (n0 - BO_TA) / w, s = u * u * (3 - 2 * u); ne = n0 * s; dne = s + n0 * 6 * u * (1 - u) / w; }
+    const zA = BF.mZ[pa[k]], zB = BF.mZ[pb[k]], hb = (zA === 1 && zB >= 7 && zB <= 9) || (zB === 1 && zA >= 7 && zA <= 9), TA = hb ? BO_TAH : BO_TA, TB = hb ? BO_TBH : BO_TB; // (a hydrogen to N, O, F: its order starts lower, 1.20)
+    if (n0 >= TB) { ne = n0; dne = 1; } else if (n0 <= TA) { ne = 0; dne = 0; } else { const w = TB - TA, u = (n0 - TA) / w, s = u * u * (3 - 2 * u); ne = n0 * s; dne = s + n0 * 6 * u * (1 - u) / w; }
     ne_[k] = ne; dne_[k] = dne * dn0; ne0_[k] = ne; dne0_[k] = dne_[k];
     const sg = PT[t + 3], z2 = sg * sg / (r * r), z6 = z2 * z2 * z2, s12 = z6 * z6; E += 0.05 * s12; gr[k] += -0.6 * s12 / r;
     fc[pa[k]]++; fc[pb[k]]++;
@@ -10998,6 +11003,7 @@ function boPassJS(forces) {
   BO.changes++;
   E += bfAnglesAll(forces);
   E += bfCoulomb(forces, n);
+  E += bfShare(forces, n);
   E += BF.eI; // (the members' internal energies off their whole electron counts, moving charge)
   BO.E = E; BO.np = n; BO.flat = true;
   for (let m = 0; m < nm; m++) if (fc[m]) BF.mem[m]._boLs = mls[m];
@@ -11052,7 +11058,7 @@ function boPassJS(forces) {
    valence, and −φ (its charge is Z − ν) */
 function bfDqGrad() {
   const nm = BF.nm, mem = BF.mem, gq = BF.mgq, phi = BF.mphi;
-  for (let m = 0; m < nm; m++) { gq[m] = BF.mdeI[m] + BF.mdcap[m] * BF.mGc[m] + BF.mdcapH[m] * BF.mGh[m] + BF.mdval[m] * BF.mGv[m] - phi[m]; mem[m]._dqg = gq[m]; }
+  for (let m = 0; m < nm; m++) { gq[m] = BF.mGd[m] + BF.mdeI[m] + BF.mdcap[m] * BF.mGc[m] + BF.mdcapH[m] * BF.mGh[m] + BF.mdval[m] * BF.mGv[m] - phi[m]; mem[m]._dqg = gq[m]; }
 }
 /* angles (boPassObj's: strong partners always, those on the way in or out by the expectation over subsets) */
 const BFA = { a: new Float64Array(8), dx: new Float64Array(8), dy: new Float64Array(8), g: new Float64Array(8), o: new Int32Array(8), ord: new Int32Array(8), gv: new Float64Array(8), ghi: new Int32Array(8), glo: new Int32Array(8), gord: new Int32Array(8), list: new Int32Array(16), strong: new Int32Array(64), zone: new Int32Array(64), zw: new Float64Array(64), zd: new Float64Array(64) };
@@ -11135,6 +11141,12 @@ function bfLJ(r, rm, eps, cf) {
   _ljV = eps * (s6 * s6 - 2 * s6 + LJ_VCUT + (r < c ? F0 * (c - r) : 0)); _ljF = -eps * F0;
   _ljM = r >= c ? 12 * eps * (s6 * s6 - s6) / rm : eps * F0 * r / rm;
 }
+/* The exclusions of bonded (1-2) and angle (1-3) pairs from the members' Coulomb and Lennard-Jones (1.20): rising from an
+   order of 0.1 to 0.9, so that a pair passing a proton between partners changes them gradually (it was 0.3 to 0.7, and
+   the hydrogen passing between two waters lost 1 eV of Coulomb in 0.1 Å). */
+const BO_X0 = 0.1, BO_X1 = 0.9;
+const boX = (n) => { if (n <= BO_X0) return 0; if (n >= BO_X1) return 1; const t = (n - BO_X0) / (BO_X1 - BO_X0); return t * t * (3 - 2 * t); };
+const boXD = (n) => { if (n <= BO_X0 || n >= BO_X1) return 0; const t = (n - BO_X0) / (BO_X1 - BO_X0); return 6 * t * (1 - t) / (BO_X1 - BO_X0); };
 const BO_FV = 0.3; // (a pair whose atoms both have this much valence free can bond: no wall between them)
 const boHf = (f) => { const t = f / BO_FV; return t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t); };
 const boHfD = (f) => { const t = f / BO_FV; return t <= 0 || t >= 1 ? 0 : 6 * t * (1 - t) / BO_FV; };
@@ -11162,15 +11174,15 @@ function bfCoulomb(forces, n) {
   let E = 0;
   for (let k = 0; k < n; k++) {
     const a = pa[k], b = pb[k], qa = mqn[a] + mq[a], qb = mqn[b] + mq[b], nk = pn[k];
-    const b0 = boB(nk), g0 = boG(nk); fa_[k] = 0; fb_[k] = 0; if (b0 >= 1) continue;
+    const b0 = boX(nk), g0 = boG(nk); fa_[k] = 0; fb_[k] = 0; if (b0 >= 1) continue;
     const r = pr[k], ha = mZ[a] === 1, hb = mZ[b] === 1;
     const Ra = ha ? LR[a] + (BO_RHP - LR[a]) * pol[a] : LR[a], Rb = hb ? LR[b] + (BO_RHP - LR[b]) * pol[b] : LR[b];
     const Sa = ha ? LS[a] + (BO_SHP - LS[a]) * pol[a] : LS[a], Sb = hb ? LS[b] + (BO_SHP - LS[b]) * pol[b] : LS[b];
     const rm = 0.5 * (Ra + Rb), eps = Sa * Sb, lj = g0 < 1 && eps > 0 && r < 2.6 * rm, ch = qa !== 0 || qb !== 0;
     if (!lj && !ch) continue;
     let prod = 1, nt = 0;
-    if (r < 4.4) bfCommon(a, b, inc, f0, fc, (j) => pn[j] > 0.3, (k1, k2) => {
-      const w = boB(pn[k1]) * boB(pn[k2]); if (w <= 0) return;
+    if (r < 4.4) bfCommon(a, b, inc, f0, fc, (j) => pn[j] > BO_X0, (k1, k2) => {
+      const w = boX(pn[k1]) * boX(pn[k2]); if (w <= 0) return;
       prod *= 1 - w; if (nt >= BF_T1.length) { const g = (x, T) => { const y = new T(x.length * 2); y.set(x); return y; }; BF_T1 = g(BF_T1, Int32Array); BF_T2 = g(BF_T2, Int32Array); BF_TW = g(BF_TW, Float64Array); } BF_T1[nt] = k1; BF_T2[nt] = k2; BF_TW[nt] = w; nt++;
     });
     if (!(prod > 0)) continue;
@@ -11199,10 +11211,10 @@ function bfCoulomb(forces, n) {
     }
     if (!forces) continue;
     const C1 = Es * (1 - b0) + V * (1 - g0) * wfk; // (the 1-3 weight's slope, both terms)
-    gn[k] -= (Es * boBD(nk) + V * boGD(nk) * wfk) * prod;
+    gn[k] -= (Es * boXD(nk) + V * boGD(nk) * wfk) * prod;
     if (C1) for (let t = 0; t < nt; t++) {
       const k1 = BF_T1[t], k2 = BF_T2[t], w = BF_TW[t], dsw = -C1 * prod / (1 - w);
-      gn[k1] += dsw * boBD(pn[k1]) * boB(pn[k2]); gn[k2] += dsw * boB(pn[k1]) * boBD(pn[k2]);
+      gn[k1] += dsw * boXD(pn[k1]) * boX(pn[k2]); gn[k2] += dsw * boX(pn[k1]) * boXD(pn[k2]);
     }
   }
   if (forces) for (let k = 0; k < n; k++) { // (free valence: every order of an atom but the pair's own)
@@ -11221,6 +11233,40 @@ function bfCoulomb(forces, n) {
 }
 /* the potential at each member from the non-members it meets (the kernel's pairs: same coefficients, qeqC) and, for
    an ion member, from the net charges beyond the cutoff */
+/* A proton shared between two atoms that can each hold the charge (1.20): the two ways of drawing it (the charge on one
+   side, or on the other) mix, as a valence-bond picture's two structures do, lowering the energy by −2V·√(e_a·e_b), e
+   the charge each side holds (a smooth max of its whole-count charge, each sign apart), V = BO_SHV·4·n_a·n_b from the
+   hydrogen's two orders. Classical charges alone keep the charge on one side (the other side's partial charges hold it
+   there); this term is what lets it spread across a Zundel-like O–H–O and follow the proton. Only N, O and F. */
+const BO_SHV = 1.7, BO_SHE = 0.05; // (eV at an even split; the square root's rounding)
+function bfShare(forces, n) {
+  const nm = BF.nm, mZ = BF.mZ, f0 = BF.mf0, fc = BF.mfc, inc = BF.inc, pa = BF.pa, pb = BF.pb, pn = BF.pn, mqn = BF.mqn, Gd = BF.mGd, gn = BF.pgn;
+  Gd.fill(0, 0, nm);
+  let E = 0;
+  for (let h = 0; h < nm; h++) {
+    if (mZ[h] !== 1 || fc[h] < 2) continue;
+    const u0 = f0[h], u1 = u0 + fc[h];
+    for (let u = u0; u < u1; u++) {
+      const k1 = inc[u], a = pa[k1] === h ? pb[k1] : pa[k1], n1 = pn[k1]; if (!(n1 > 0) || mZ[a] < 7 || mZ[a] > 9) continue;
+      for (let v = u + 1; v < u1; v++) {
+        const k2 = inc[v], b = pa[k2] === h ? pb[k2] : pa[k2], n2 = pn[k2]; if (!(n2 > 0) || mZ[b] < 7 || mZ[b] > 9) continue;
+        const m1 = n1 < 1 ? n1 : 1, m2 = n2 < 1 ? n2 : 1, V = BO_SHV * 4 * m1 * m2; // (orders past 1 count as 1)
+        let T = 0, dTa = 0, dTb = 0;
+        for (const sg of [1, -1]) {
+          const xa = sg * mqn[a], xb = sg * mqn[b], ea = boSp(xa), eb = boSp(xb), pr = ea * eb; if (!(pr > 0)) continue;
+          const r = Math.sqrt(pr + BO_SHE * BO_SHE); T += r - BO_SHE;
+          if (forces) { dTa += eb / (2 * r) * boSpD(xa) * sg; dTb += ea / (2 * r) * boSpD(xb) * sg; } // (∂/∂q; ν = Z − q: ∂/∂ν = −∂/∂q)
+        }
+        if (!T) continue;
+        E -= 2 * V * T;
+        if (!forces) continue;
+        Gd[a] += 2 * V * dTa; Gd[b] += 2 * V * dTb; // (−∂(−2VT)/∂q = 2V·∂T/∂q, as ∂/∂ν)
+        if (n1 < 1) gn[k1] -= 2 * BO_SHV * 4 * m2 * T; if (n2 < 1) gn[k2] -= 2 * BO_SHV * 4 * m1 * T;
+      }
+    }
+  }
+  return E;
+}
 function bfPhiOthers() {
   const phi = BF.mphi, QP = S.qp;
   let others = false; for (const p of W.parts) if (!p.bom && !p.dead && p.k === NUC && p.Z > 0) { others = true; break; }
@@ -11413,7 +11459,7 @@ function bfClusters() {
    −∂E/∂ν (bfDqGrad) less its group's mean (so a group's electrons are conserved), and damped at BO_DQG: the charge
    settles where the energy is lowest within ~10 fs, the work of its damping going to the heat bath. Velocity Verlet with
    the atoms: a half kick and the drift before the force pass (boDqA), the other half kick after (boDqB). */
-const BO_DQM = 6, BO_DQG = 2, BO_QCL = 0.1; // (eV·tu²/e²; 1/tu; the order that joins two atoms' electrons)
+const BO_DQM = 6, BO_DQG = 2, BO_QCL = 0.02; // (eV·tu²/e²; 1/tu; the order that joins two atoms' electrons)
 function bfDqForces() { // (−∂E/∂ν less the group mean, onto p._dqf)
   const mem = BF.mem, tot = new Map();
   const ok = (p) => !p.dead && p.bom && p._qcl !== undefined && p.Z > 1; // (hydrogens keep their one electron: the charge moves between the heavier atoms)
