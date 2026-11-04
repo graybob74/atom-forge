@@ -84,8 +84,16 @@ engine stores and visits particles.
 - Continuous bond orders: proton hops in liquid water (left from 1.20). The charge now moves with a proton (1.20), and in
   the H₃O⁺·H₂O pair a shared proton is as low as the localized one; but in 300–700 K water a hydronium did not hop in
   1.5 ps: from H₃O⁺·H₂O at 2.65 Å the proton meets 0.35 eV before the far water's order grows (the bond-order energy's
-  cost of splitting a hydrogen's valence, D·n^1.15), and the waters rarely come that close. Next: a flatter split for a
-  hydrogen between two N/O/F (the exponent below a single bond), then measure hops a picosecond.
+  cost of splitting a hydrogen's valence, D·n^1.15), and the waters rarely come that close.
+  Tried after 1.21 (branch v123, not released): a straight depth (power 1) for H–N/O/F, a charge-dependent
+  electronegativity (χ + 0.45·q: H₃O⁺'s hydrogens +0.50, its oxygen −0.51, as ab initio), electron groups joined at
+  orders above 0.005. The shared proton then sits 0.87 eV below the localized one at O–O 2.65 Å and the proton's own
+  barrier at O–O 2.55 Å is 0.05 eV; but no hop in an ion pair or in water at 300–500 K over 3 ps: the hydronium's
+  hydrogen bonds stay long (O–O 2.7 Å, real 2.5–2.6; the two oxygens' like charges and their Lennard-Jones hold them
+  apart), so its proton never comes within 1.6 Å of a second oxygen, where its order and the charge's group begin.
+  What would do it: an explicit hydrogen-bond term (as reactive force fields have) or the quantum chemistry below,
+  which gets hydrogen bonds and proton sharing from the electrons. On hold for the quantum chemistry (the user:
+  "finish quantum chemistry and hops first").
 - Quantum chemistry for bonds (queued by the user, after the bond-order next steps): bonds and their energies from the
   electrons themselves (a minimal-basis method, tight-binding or semi-empirical: Hückel/extended-Hückel or DFTB), not a
   force field. Estimated ×100–10,000; a physics-model change for the owner to approve.
@@ -100,6 +108,13 @@ engine stores and visits particles.
   atomic levels put H above C in electronegativity (CH₄'s C +0.76). Next: real two-centre parameters (Slater–Koster
   tables for H, C, N, O, or the electronic part of an open semi-empirical set such as GFN1-xTB's) and a repulsion with a
   core; then analytic forces and a measured cost. Several sessions; the user to choose this or 3-D next.
+  The route chosen next: GFN1-xTB (Grimme, Bannwarth & Shushkov 2017), a published semi-empirical tight-binding method
+  with parameters for every element (its open implementation, tblite, LGPL, holds them): an STO-nG minimal basis (H with
+  a diffuse 2s), an extended-Hückel Hamiltonian scaled by distance and coordination number, shell-resolved charge
+  self-consistency with third order, a repulsion and D3 dispersion. It gives hydrogen bonds and proton sharing from the
+  electrons. Cost: a 30-atom molecule about 120 basis functions, a few ms a step in JavaScript; liquid water's 240 atoms
+  640 (×1,000), so an Experimental mode for small systems. To check a port, the reference implementation (pip tblite)
+  needs the owner's OK to install here.
 - On hold (the user's choice): a 3-D mode, as a separate mode chosen in the main menu rather than a setting: the
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
