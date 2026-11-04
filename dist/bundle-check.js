@@ -9699,7 +9699,7 @@ function bfWasmOK() { return wasmReady() && typeof WK.ex.af_bo_pass1 === 'functi
 function bfWasmInit() { // (the descriptor, the scalars and the angle targets, once; the tables moved into the module's memory)
   if (!WK.on) return false;
   if (!BFW.desc) {
-    BFW.desc = wasmArray(Int32Array, 96); BFW.par = wasmArray(Float64Array, 16);
+    BFW.desc = wasmArray(Int32Array, 112); BFW.par = wasmArray(Float64Array, 16);
     const T = BFW.tgt = wasmArray(Float64Array, 1024 * 6); // (the angle targets for every key bfAngle can ask: ((nl·8 + lp)·8 + period)·2 + allH)
     if (!WK.on) return false;
     for (let nl = 2; nl <= 6; nl++) for (let lp = 0; lp < 8; lp++) for (let per = 0; per < 8; per++) for (let h = 0; h < 2; h++) {
@@ -9735,6 +9735,7 @@ function bfDescFill() {
   ok = put(58, BF_CS) && put(59, BF_FS) && put(60, BFA.strong) && put(61, BFA.zone) && put(62, BFA.zw) && put(63, BFA.zd) && put(64, BFA.list) && put(65, BF_T1) && put(66, BF_T2) && put(67, BF_TW) && ok;
   ok = put(68, S.x) && put(69, S.y) && put(70, S.Z) && put(71, S.q) && put(72, S.ionic) && put(73, S.fx) && put(74, S.fy) && put(75, VL.pi) && put(76, VL.pj) && ok;
   ok = put(77, BF.pfa) && put(78, BF.pfb) && put(79, BF.mljR) && put(80, BF.mljS) && put(81, BF.mpol) && put(82, BF.mgw) && put(83, BF.msn) && put(84, BF.mgf) && put(85, BF.mcl) && ok; // (1.19)
+  ok = put(86, BF.mdcap) && put(87, BF.mdcapH) && put(88, BF.mdval) && put(89, BF.mdeI) && put(90, BF.mgq) && put(91, BF.mGc) && put(92, BF.mGh) && put(93, BF.mGv) && put(94, BF.mGd) && ok; // (1.20)
   return ok;
 }
 /* every pair of the members' elements has its type (the module reads BF_TZ) */

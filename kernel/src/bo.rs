@@ -96,7 +96,16 @@ pub const B_MGW: usize = 82;
 pub const B_MSN: usize = 83; // (the sum of its orders)
 pub const B_MGF: usize = 84;
 pub const B_MCL: usize = 85; // (its molecule, i32)
-pub const B_LEN: usize = 86;
+pub const B_MDCAP: usize = 86; // (1.20, moving charge: the slopes of capacity, expanded capacity, valence, internal energy in ν)
+pub const B_MDCAPH: usize = 87;
+pub const B_MDVAL: usize = 88;
+pub const B_MDEI: usize = 89;
+pub const B_MGQ: usize = 90; // (out: ∂E/∂ν)
+pub const B_MGC: usize = 91;
+pub const B_MGH: usize = 92;
+pub const B_MGV: usize = 93;
+pub const B_MGD: usize = 94;
+pub const B_LEN: usize = 95;
 
 // the scalars (a f64 block)
 pub const P_N: usize = 0; // pairs (out of collect, in to the passes)
@@ -139,6 +148,7 @@ pub struct Bo {
     cs: *mut f64, fs: *mut f64, strong: *mut i32, zone: *mut i32, zw: *mut f64, zd: *mut f64, list: *mut i32, t1: *mut i32, t2: *mut i32, tw: *mut f64,
     x: *mut f64, y: *mut f64, z: *mut i16, q: *mut f64, ionic: *mut u8, fx: *mut f64, fy: *mut f64, vpi: *mut i32, vpj: *mut i32,
     pfa: *mut f64, pfb: *mut f64, mljr: *mut f64, mljs: *mut f64, mpol: *mut f64, mgw: *mut f64, msn: *mut f64, mgf: *mut f64, mcl: *mut i32,
+    mdcap: *mut f64, mdcaph: *mut f64, mdval: *mut f64, mdei: *mut f64, mgq: *mut f64, mgc: *mut f64, mgh: *mut f64, mgv: *mut f64, mgd: *mut f64,
 }
 #[inline(always)]
 unsafe fn ptr<T>(base: usize, d: *const i32, k: usize) -> *mut T { (base + *d.add(k) as u32 as usize) as *mut T }
@@ -160,6 +170,8 @@ pub unsafe fn bo_desc(base: usize, d: *const i32) -> Bo {
         vpi: ptr(base, d, B_VPI), vpj: ptr(base, d, B_VPJ),
         pfa: ptr(base, d, B_PFA), pfb: ptr(base, d, B_PFB), mljr: ptr(base, d, B_MLJR), mljs: ptr(base, d, B_MLJS), mpol: ptr(base, d, B_MPOL), mgw: ptr(base, d, B_MGW),
         msn: ptr(base, d, B_MSN), mgf: ptr(base, d, B_MGF), mcl: ptr(base, d, B_MCL),
+        mdcap: ptr(base, d, B_MDCAP), mdcaph: ptr(base, d, B_MDCAPH), mdval: ptr(base, d, B_MDVAL), mdei: ptr(base, d, B_MDEI), mgq: ptr(base, d, B_MGQ),
+        mgc: ptr(base, d, B_MGC), mgh: ptr(base, d, B_MGH), mgv: ptr(base, d, B_MGV), mgd: ptr(base, d, B_MGD),
     }
 }
 #[inline(always)]
@@ -186,6 +198,16 @@ fn fade_d(c: f64) -> f64 { if c <= 0.0 || c >= 2.0 * BO_EPS { return 0.0; } let 
 fn bb(n: f64) -> f64 { if n <= 0.3 { return 0.0; } if n >= 0.7 { return 1.0; } let t = (n - 0.3) / 0.4; t * t * (3.0 - 2.0 * t) }
 #[inline(always)]
 fn bb_d(n: f64) -> f64 { if n <= 0.3 || n >= 0.7 { return 0.0; } let t = (n - 0.3) / 0.4; 6.0 * t * (1.0 - t) / 0.4 }
+pub const BO_TAH: f64 = 0.04; // (1.20: a hydrogen's order to N, O, F starts lower)
+pub const BO_TBH: f64 = 0.12;
+pub const BO_X0: f64 = 0.1; // (1.20: the 1-2 and 1-3 exclusions from 0.1 to 0.9)
+pub const BO_X1: f64 = 0.9;
+pub const BO_SHV: f64 = 1.7; // (1.20: the shared proton's mixing, eV at an even split)
+pub const BO_SHE: f64 = 0.05;
+#[inline(always)]
+fn bx(n: f64) -> f64 { if n <= BO_X0 { return 0.0; } if n >= BO_X1 { return 1.0; } let t = (n - BO_X0) / (BO_X1 - BO_X0); t * t * (3.0 - 2.0 * t) }
+#[inline(always)]
+fn bx_d(n: f64) -> f64 { if n <= BO_X0 || n >= BO_X1 { return 0.0; } let t = (n - BO_X0) / (BO_X1 - BO_X0); 6.0 * t * (1.0 - t) / (BO_X1 - BO_X0) }
 pub const BO_LJ0: f64 = 0.02;
 pub const BO_LJW: f64 = 0.3;
 pub const BO_RHP: f64 = 1.2;
@@ -258,8 +280,7 @@ pub unsafe fn collect(b: &Bo, p: *mut f64) -> usize {
             s(b.pa, n, ma); s(b.pb, n, mb); s(b.pr, n, r); s(b.pux, n, dx / r); s(b.puy, n, dy / r); s(b.pt, n, g(b.tz, key as usize));
             let ia = g(b.ionic, i); let ib = g(b.ionic, j); let qa = g(b.q, i); let qb = g(b.q, j);
             // iwK: an ion and a neutral partner of the other kind, K_IW
-            let kf = if ia == ib { ke } else if if ia != 0 { qb == 0.0 } else { qa == 0.0 } { ke * crate::K_IW } else { ke };
-            s(b.pk, n, kf);
+            let _ = (ia, ib); s(b.pk, n, ke); // (members meet each other without the ion–water doubling, 1.20)
             let cs = if qa == 0.0 || qb == 0.0 { c0 } else { c0 - if g(b.mfl, ma as usize) != 0 && g(b.mfl, mb as usize) != 0 { 1.0 / crate::RC2.sqrt() } else { 0.0 } };
             s(b.pcsh, n, cs);
         }
@@ -300,8 +321,11 @@ pub unsafe fn pass1(b: &Bo, p: *mut f64) -> f64 {
         if d > 0.9 { let u = core::f64::consts::PI * (d - 0.9) / 0.4; let f = 0.5 * (1.0 + u.cos()); let fd = -0.5 * u.sin() * core::f64::consts::PI / 0.4; dn0 = dn0 * f + n0 * fd; n0 *= f; }
         if n0 >= 3.5 { n0 = 3.5; dn0 = 0.0; }
         let (ne, dne);
-        if n0 >= BO_TB { ne = n0; dne = 1.0; } else if n0 <= BO_TA { ne = 0.0; dne = 0.0; }
-        else { let w = BO_TB - BO_TA; let u = (n0 - BO_TA) / w; let ss = u * u * (3.0 - 2.0 * u); ne = n0 * ss; dne = ss + n0 * 6.0 * u * (1.0 - u) / w; }
+        let za = g(b.mz, g(b.pa, k) as usize); let zb = g(b.mz, g(b.pb, k) as usize);
+        let hbd = (za == 1 && (7..=9).contains(&zb)) || (zb == 1 && (7..=9).contains(&za));
+        let (ta, tb) = if hbd { (BO_TAH, BO_TBH) } else { (BO_TA, BO_TB) };
+        if n0 >= tb { ne = n0; dne = 1.0; } else if n0 <= ta { ne = 0.0; dne = 0.0; }
+        else { let w = tb - ta; let u = (n0 - ta) / w; let ss = u * u * (3.0 - 2.0 * u); ne = n0 * ss; dne = ss + n0 * 6.0 * u * (1.0 - u) / w; }
         s(b.ne, k, ne); s(b.dne, k, dne * dn0); s(b.ne0, k, ne); s(b.dne0, k, dne * dn0);
         let sg = g(tab, t + 3); let z2 = sg * sg / (r * r); let z6 = z2 * z2 * z2; let s12 = z6 * z6; e += 0.05 * s12; ad(b.gr, k, -0.6 * s12 / r);
         let a = g(b.pa, k) as usize; let c2 = g(b.pb, k) as usize; s(b.fc, a, g(b.fc, a) + 1); s(b.fc, c2, g(b.fc, c2) + 1);
@@ -380,6 +404,7 @@ pub unsafe fn pass1(b: &Bo, p: *mut f64) -> f64 {
     }
     e += angles_all(b, forces, nm);
     e += coulomb(b, &mut stamp, forces, n, nm, &mut stiff);
+    e += share(b, forces, nm);
     s(p, P_STIFF, stiff);
     s(p, P_E, e);
     e
@@ -432,6 +457,7 @@ unsafe fn angle(b: &Bo, c: usize, nl: usize, wgt: f64, forces: bool) -> (f64, f6
 }
 unsafe fn angles_all(b: &Bo, forces: bool, nm: usize) -> f64 {
     let mut e = 0.0;
+    for m in 0..nm { s(b.mgv, m, 0.0); }
     for c in 0..nm {
         let cnt = g(b.fc, c) as usize; if cnt == 0 || g(b.mdb, c) != 0 { continue; }
         let mut ns = 0usize; let mut z = 0usize; let f0 = g(b.f0, c) as usize;
@@ -457,7 +483,7 @@ unsafe fn angles_all(b: &Bo, forces: bool, nm: usize) -> f64 {
             if wt <= 0.0 || nl < 2 { continue; }
             let (ea, ds) = angle(b, c, nl, wt, forces);
             e += wt * ea;
-            if ds != 0.0 { for u in 0..nl { ad(b.gn, g(b.list, u) as usize, wt * ds); } }
+            if ds != 0.0 { for u in 0..nl { ad(b.gn, g(b.list, u) as usize, wt * ds); } ad(b.mgv, c, -(wt * ds)); }
             for u in 0..z {
                 let mut o = 1.0f64; for j in 0..z { if j != u { o *= if mask & (1 << j) != 0 { g(b.zw, j) } else { 1.0 - g(b.zw, j) }; } }
                 ad(b.gn, g(b.zone, u) as usize, (if mask & (1 << u) != 0 { o } else { -o }) * g(b.zd, u) * ea);
@@ -490,7 +516,7 @@ unsafe fn coulomb(b: &Bo, stamp: &mut i32, forces: bool, n: usize, nm: usize, st
     let mut e = 0.0;
     for k in 0..n {
         let a = g(b.pa, k) as usize; let c = g(b.pb, k) as usize; let qa = g(b.mqn, a) + g(b.mq, a); let qb = g(b.mqn, c) + g(b.mq, c); let nk = g(b.pn, k);
-        let b0 = bb(nk); let g0 = gg(nk); s(b.pfa, k, 0.0); s(b.pfb, k, 0.0); if b0 >= 1.0 { continue; }
+        let b0 = bx(nk); let g0 = gg(nk); s(b.pfa, k, 0.0); s(b.pfb, k, 0.0); if b0 >= 1.0 { continue; }
         let r = g(b.pr, k); let ha = g(b.mz, a) == 1; let hb = g(b.mz, c) == 1;
         let lra = g(b.mljr, a); let lrb = g(b.mljr, c); let lsa = g(b.mljs, a); let lsb = g(b.mljs, c);
         let ra = if ha { lra + (BO_RHP - lra) * g(b.mpol, a) } else { lra }; let rb = if hb { lrb + (BO_RHP - lrb) * g(b.mpol, c) } else { lrb };
@@ -499,8 +525,8 @@ unsafe fn coulomb(b: &Bo, stamp: &mut i32, forces: bool, n: usize, nm: usize, st
         if !ljon && !ch { continue; }
         let mut prod = 1.0f64; let mut nt = 0usize;
         if r < 4.4 {
-            common(b, stamp, a, c, |j| g(b.pn, j) > 0.3, |k1, k2| {
-                let w = bb(g(b.pn, k1)) * bb(g(b.pn, k2)); if w <= 0.0 { return; }
+            common(b, stamp, a, c, |j| g(b.pn, j) > BO_X0, |k1, k2| {
+                let w = bx(g(b.pn, k1)) * bx(g(b.pn, k2)); if w <= 0.0 { return; }
                 prod *= 1.0 - w; s(b.t1, nt, k1 as i32); s(b.t2, nt, k2 as i32); s(b.tw, nt, w); nt += 1;
             });
         }
@@ -531,11 +557,11 @@ unsafe fn coulomb(b: &Bo, stamp: &mut i32, forces: bool, n: usize, nm: usize, st
         }
         if !forces { continue; }
         let c1 = es * (1.0 - b0) + vv * (1.0 - g0) * wfk;
-        ad(b.gn, k, -((es * bb_d(nk) + vv * gg_d(nk) * wfk) * prod));
+        ad(b.gn, k, -((es * bx_d(nk) + vv * gg_d(nk) * wfk) * prod));
         if c1 != 0.0 {
             for t in 0..nt {
                 let k1 = g(b.t1, t) as usize; let k2 = g(b.t2, t) as usize; let w = g(b.tw, t); let dsw = -c1 * prod / (1.0 - w);
-                ad(b.gn, k1, dsw * bb_d(g(b.pn, k1)) * bb(g(b.pn, k2))); ad(b.gn, k2, dsw * bb(g(b.pn, k1)) * bb_d(g(b.pn, k2)));
+                ad(b.gn, k1, dsw * bx_d(g(b.pn, k1)) * bx(g(b.pn, k2))); ad(b.gn, k2, dsw * bx(g(b.pn, k1)) * bx_d(g(b.pn, k2)));
             }
         }
     }
@@ -556,9 +582,42 @@ unsafe fn coulomb(b: &Bo, stamp: &mut i32, forces: bool, n: usize, nm: usize, st
     }
     e
 }
+/// the shared proton's mixing (bfShare)
+unsafe fn share(b: &Bo, forces: bool, nm: usize) -> f64 {
+    for m in 0..nm { s(b.mgd, m, 0.0); }
+    let nof = |z: i32| (7..=9).contains(&z);
+    let mut e = 0.0;
+    for h in 0..nm {
+        if g(b.mz, h) != 1 || g(b.fc, h) < 2 { continue; }
+        let u0 = g(b.f0, h) as usize; let u1 = u0 + g(b.fc, h) as usize;
+        for u in u0..u1 {
+            let k1 = g(b.inc, u) as usize; let a = if g(b.pa, k1) as usize == h { g(b.pb, k1) } else { g(b.pa, k1) } as usize; let n1 = g(b.pn, k1);
+            if !(n1 > 0.0) || !nof(g(b.mz, a)) { continue; }
+            for v in u + 1..u1 {
+                let k2 = g(b.inc, v) as usize; let c = if g(b.pa, k2) as usize == h { g(b.pb, k2) } else { g(b.pa, k2) } as usize; let n2 = g(b.pn, k2);
+                if !(n2 > 0.0) || !nof(g(b.mz, c)) { continue; }
+                let m1 = if n1 < 1.0 { n1 } else { 1.0 }; let m2 = if n2 < 1.0 { n2 } else { 1.0 }; let vv = BO_SHV * 4.0 * m1 * m2;
+                let mut t = 0.0f64; let mut dta = 0.0f64; let mut dtb = 0.0f64;
+                for sg in [1.0f64, -1.0] {
+                    let xa = sg * g(b.mqn, a); let xb = sg * g(b.mqn, c); let ea = sp(xa); let eb = sp(xb); let pr = ea * eb; if !(pr > 0.0) { continue; }
+                    let r = (pr + BO_SHE * BO_SHE).sqrt(); t += r - BO_SHE;
+                    if forces { dta += eb / (2.0 * r) * sp_d(xa) * sg; dtb += ea / (2.0 * r) * sp_d(xb) * sg; }
+                }
+                if t == 0.0 { continue; }
+                e -= 2.0 * vv * t;
+                if !forces { continue; }
+                ad(b.mgd, a, 2.0 * vv * dta); ad(b.mgd, c, 2.0 * vv * dtb);
+                if n1 < 1.0 { ad(b.gn, k1, -(2.0 * BO_SHV * 4.0 * m2 * t)); }
+                if n2 < 1.0 { ad(b.gn, k2, -(2.0 * BO_SHV * 4.0 * m1 * t)); }
+            }
+        }
+    }
+    e
+}
 /// back through the orders to the distances, and the forces (boPass after the energy; the potential mphi complete)
 pub unsafe fn pass2(b: &Bo, p: *mut f64) {
     let n = g(p, P_N) as usize; let nm = g(p, P_NM) as usize;
+    for m in 0..nm { s(b.mgc, m, g(b.mgf, m)); s(b.mgh, m, 0.0); }
     for k in 0..n {
         if !(g(b.pn, k) > 0.0) { continue; }
         let a = g(b.pa, k) as usize; let c = g(b.pb, k) as usize;
@@ -571,6 +630,7 @@ pub unsafe fn pass2(b: &Bo, p: *mut f64) {
         let hi0 = g(b.f0, m) as usize; let ls = g(b.mls, m); let gs = g(b.mgl, m) * sp_d(ls); let mut uu = 0.0f64;
         for u in hi0..hi0 + cnt { let k = g(b.inc, u) as usize; let c = if g(b.pa, k) as usize == m { g(b.ca, k) } else { g(b.cb, k) }; uu += sp_d(c - ls) * fade(c); }
         if uu > 0.0 { for u in hi0..hi0 + cnt { let k = g(b.inc, u) as usize; let am = g(b.pa, k) as usize == m; let c = if am { g(b.ca, k) } else { g(b.cb, k) }; let w = (sp_d(c - ls) * fade(c) + sp(c - ls) * fade_d(c)) * gs / uu; if am { ad(b.gca, k, w); } else { ad(b.gcb, k, w); } } }
+        if uu > 0.0 { let dev = -gs / uu; ad(b.mgc, m, g(b.mkeep, m) * dev); ad(b.mgh, m, (1.0 - g(b.mkeep, m)) * dev); }
         let dv = g(b.mcaph, m) - g(b.mcap, m);
         if uu > 0.0 && dv != 0.0 {
             for u in hi0..hi0 + cnt {
@@ -583,6 +643,11 @@ pub unsafe fn pass2(b: &Bo, p: *mut f64) {
     for k in 0..n {
         if !bt(b, k) { continue; }
         let gg = g(b.gca, k) * g(b.dca, k) + g(b.gcb, k) * g(b.dcb, k);
+        {
+            let a = g(b.pa, k) as usize; let c = g(b.pb, k) as usize;
+            if g(b.men, a) >= 3.0 { if g(b.mcaph, c) < 3.0 { ad(b.mgh, c, g(b.gca, k) * (1.0 - g(b.dca, k))); } } else if g(b.mcap, c) < 3.0 { ad(b.mgc, c, g(b.gca, k) * (1.0 - g(b.dca, k))); }
+            if g(b.men, c) >= 3.0 { if g(b.mcaph, a) < 3.0 { ad(b.mgh, a, g(b.gcb, k) * (1.0 - g(b.dcb, k))); } } else if g(b.mcap, a) < 3.0 { ad(b.mgc, a, g(b.gcb, k) * (1.0 - g(b.dcb, k))); }
+        }
         ad(b.gr, k, gg * g(b.dne, k));
         let s0 = g(b.pss, k) as usize; let ns = g(b.psn, k) as usize;
         if ns != 0 && gg != 0.0 {
@@ -593,6 +658,9 @@ pub unsafe fn pass2(b: &Bo, p: *mut f64) {
                 if w >= 0.0 { ad(b.gr, k1, dew * bb_d(g(b.ne0, k1)) * b2 * sg * g(b.dne0, k1)); ad(b.gr, k2, dew * b1 * bb_d(g(b.ne0, k2)) * sg * g(b.dne0, k2)); }
             }
         }
+    }
+    for m in 0..nm { // (∂E/∂ν: bfDqGrad)
+        s(b.mgq, m, g(b.mgd, m) + g(b.mdei, m) + g(b.mdcap, m) * g(b.mgc, m) + g(b.mdcaph, m) * g(b.mgh, m) + g(b.mdval, m) * g(b.mgv, m) - g(b.mphi, m));
     }
     for k in 0..n {
         let gg = g(b.gr, k); if gg == 0.0 { continue; }
