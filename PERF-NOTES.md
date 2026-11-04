@@ -81,7 +81,7 @@ engine stores and visits particles.
   goal 45), against 0.55 at 0.90; on 32 threads 1.16 ms, every threaded phase waiting about 1 ms (the busy-waiting
   workers, main thread and browser threads outnumber the 32 hardware threads). Auto stays at 16 (its tag now says so);
   where the 0.10 ms since 0.90 went wants a profile on the owner's machine.
-- Continuous bond orders: proton hops in liquid water (left from 1.20). The charge now moves with a proton (1.20), and in
+- Done in 1.22 (quantum bonds, below), kept for the record. Continuous bond orders: proton hops in liquid water (left from 1.20). The charge now moves with a proton (1.20), and in
   the H₃O⁺·H₂O pair a shared proton is as low as the localized one; but in 300–700 K water a hydronium did not hop in
   1.5 ps: from H₃O⁺·H₂O at 2.65 Å the proton meets 0.35 eV before the far water's order grows (the bond-order energy's
   cost of splitting a hydrogen's valence, D·n^1.15), and the waters rarely come that close.
@@ -94,7 +94,7 @@ engine stores and visits particles.
   What would do it: an explicit hydrogen-bond term (as reactive force fields have) or the quantum chemistry below,
   which gets hydrogen bonds and proton sharing from the electrons. On hold for the quantum chemistry (the user:
   "finish quantum chemistry and hops first").
-- Quantum chemistry for bonds (queued by the user, after the bond-order next steps): bonds and their energies from the
+- Done in 1.22 (quantum bonds, below), kept for the record. Quantum chemistry for bonds (queued by the user, after the bond-order next steps): bonds and their energies from the
   electrons themselves (a minimal-basis method, tight-binding or semi-empirical: Hückel/extended-Hückel or DFTB), not a
   force field. Estimated ×100–10,000; a physics-model change for the owner to approve.
   Step 1 started (after 1.21; the user: "start 3D once you've completed the quantum thing"): `node tools/tb-proto.js
@@ -115,7 +115,7 @@ engine stores and visits particles.
   electrons. Cost: a 30-atom molecule about 120 basis functions, a few ms a step in JavaScript; liquid water's 240 atoms
   640 (×1,000), so an Experimental mode for small systems. To check a port, the reference implementation (pip tblite)
   needs the owner's OK to install here.
-- On hold (the user's choice): a 3-D mode, as a separate mode chosen in the main menu rather than a setting: the
+- Next (the user: "start 3D once you've completed the quantum thing"): a 3-D mode, as a separate mode chosen in the main menu rather than a setting: the
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
   everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
@@ -155,6 +155,41 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.22.0: quantum bonds (GFN1-xTB), proton hops
+
+- Asked by the user (quantum chemistry for bonds; "finish quantum chemistry and hops first"; the physics-model change
+  left to me overnight, "if the numbers are good"). Settings → Experimental → Bond orders → **Quantum (GFN1-xTB)**: the
+  members' energy and forces from their electrons, every step.
+- **The method**: GFN1-xTB (Grimme, Bannwarth & Shushkov, J. Chem. Theory Comput. 13, 1989 (2017)), with its D3(BJ)
+  dispersion (s6 1, s8 2.4, a1 0.63, a2 5.0). A JavaScript port (`tools/xtb/gfn1.js`, `d3.js`, `d3-data.js`; the page's
+  copy `src/xtb.js`, made by `node tools/xtb/mksrc.js`): STO-nG minimal basis (H 1s + diffuse 2s), extended-Hückel H0
+  scaled by distance and coordination number, shell-resolved second-order and atomic third-order charge
+  self-consistency (Broyden mixing), Fermi smearing at 300 K, repulsion; every element H–Rn with s, p, d shells. Not
+  ported: the halogen-bond correction (Br, I, At only).
+- **Checked against the reference programs** (tblite and simple-dftd3, installed on a GitHub Actions runner,
+  `.github/workflows/xtb-ref.yml`, 70 geometries in `tools/xtb-ref/`): energies to 1.3e-11 eV, Mulliken charges to
+  4e-13, analytic forces to 5.5e-11 eV/Å (`node tools/xtb/check.js`); D3 to 1e-13 eV and 6e-13 eV/Å
+  (`check-d3.js`); finite differences 3e-7 (h = 1e-4 Å; Richardson 6e-9), sulfur's d shells included.
+- **In the game** (`bo.js`, `qmPass`): membership is the bond orders' (`boSync`: whole clusters, the energy before and
+  after at the same positions to the bath); all members are one calculation, so up to 40 atoms (`XQ.max`; more and none
+  take part). The plane is z = 0, the orbitals 3-D. Each step starts from the last two steps' charges (extrapolated: 6.8
+  → 5.2 SCC iterations, ~3 at the game's accuracy). Non-members meet members through the kernel's pairs with the
+  members' Mulliken charges; their potential at each member goes into the SCC as an outside potential, so the forces
+  are the energy's exact slopes (an ion outside: 8e-7 eV/Å). Energy counted: GFN1's less each member's free atom.
+  Bonds drawn and molecules from Mayer bond orders. Leaving (the setting off, a 41st atom, an ion past ±1), molecules
+  get stored bonds and whole charges where the electrons put them (`xqCharges`: a hydronium's +1 on the oxygen with three
+  hydrogens even after the proton hopped), the change paid exactly (6e-7 eV, the electron's mass).
+- **Proton hops** (the reason): a hydronium with 3–5 waters at 300 K, 0.66 ps, three seeds: the oxygens close in to
+  2.43–2.66 Å (bond orders: 2.7+), a shared proton rattles between two oxygens 5–20 times and the charge moves on to new
+  oxygens 1–2 times. A proton between waters held 2.45 Å apart settles in the middle (GFN1's single well; the charge
+  split evenly). GFN1's limits stay: H + H₂ barrier 0.17 eV (measured 0.42).
+- **Energy**: hydronium with three waters insulated, 400 steps: 1e-5 eV; with five, 1,000 steps: 1 meV.
+- **Speed** (Node, one thread; the port made 2× faster for warm-started steps, bit for bit the same: integrals per
+  primitive pair once, pair tables, allocation-free kernels, row-major Householder/QL): 19 atoms 6.6 ms a step (was 11),
+  40 atoms 50 ms, against 0.006–0.02 ms with stored bonds, the steps half as long (0.022 tu): about 1/30 of normal speed
+  at 19 atoms, 1/200 at 40. Cost tag ×1000+.
+- Test: t_features 1.22 block (port against the reference, forces, books, the shared proton, leaving, the 40-atom cap).
 
 ## 1.21.0: quantum nuclei 2–5 times faster (ring-polymer contraction, rings in mode space)
 
