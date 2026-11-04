@@ -565,7 +565,7 @@ function drawIonic() {
   const at = [], seen = new Set();
   for (const p of W.parts) {
     if (p.dead || p.k !== NUC || p.ne <= 0 || p.q === 0 || seen.has(p)) continue;
-    const g = p.bonds.length ? molecule(p) : [p];
+    const g = linked(p) ? molecule(p) : [p];
     let Q = 0; for (const a of g) { seen.add(a); Q += a.q; }
     if (Math.abs(Q) < 1) continue;
     for (const a of g) at.push({ p: a, g, Q });

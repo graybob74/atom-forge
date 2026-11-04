@@ -652,14 +652,15 @@ const { openPage } = require('./browser');
     loadPreset('empty'); setRunning(false); W.slowmo = true;
     const base = W.baseSpf || W.simPerFrame;
     addNuc(0, 1, 0, 0, 0, 3000, 0); // (a fast neutron: what slow motion follows)
-    W.simPerFrame = base; W.slow = { t0: W.rt - 0.01, on: true, f: 1 }; const a = slowFactor(1 / 60) * W.simPerFrame;
-    W.simPerFrame = base / 16; W.slow = { t0: W.rt - 0.01, on: true, f: 1 }; const b = slowFactor(1 / 60) * W.simPerFrame;
-    W.simPerFrame = base; W.slow = null;
-    out.ratio = a / b;
+    // (1.14: slow motion sets the speed, a speed from the menu at or below what it wants: the ratio is 16 to within a step of the menu)
+    W.slowSet = 0; W.simPerFrame = base; W.slow = { t0: W.rt - 0.01, on: true, f: 1 }; slowSpeed(1 / 60); const a = W.simPerFrame; out.ladderA = speedLadder().includes(a);
+    W.slowSet = 0; W.simPerFrame = base / 16; W.slow = { t0: W.rt - 0.01, on: true, f: 1 }; slowSpeed(1 / 60); const b = W.simPerFrame;
+    W.slowSet = 0; W.simPerFrame = base; W.slow = null;
+    out.ratio = a / b; out.a = a / base;
     return out;
   });
-  check(r31.wait && r31.gap >= 0 && r31.gap < 1e-9 && Math.abs(r31.ratio - 16) < 0.5,
-    `0.91: light leaves the prism when its path inside has been crossed (gap ${r31.gap}); automatic slow motion at 1/16× runs ${r31.ratio && r31.ratio.toFixed(1)} times slower than at 1×`, '0.91: ' + JSON.stringify(r31));
+  check(r31.wait && r31.gap >= 0 && r31.gap < 1e-9 && r31.ladderA && r31.a < 0.5 && r31.ratio > 16 / 10.01 && r31.ratio < 16 * 10.01,
+    `0.91: light leaves the prism when its path inside has been crossed (gap ${r31.gap}); automatic slow motion set ${r31.a && r31.a.toPrecision(2)}× from 1×, ${r31.ratio && r31.ratio.toFixed(1)} times slower again from 1/16× (to the menu's steps)`, '0.91: ' + JSON.stringify(r31));
   // 0.92: an electron at the bottom of a molecular cation's well is captured even when the capture must break a π bond
   // (C=F⁺ + e⁻ → C–F·): it used to stay there for ever, every try undone
   const r32 = await page.evaluate(() => {
@@ -1092,10 +1093,11 @@ const { openPage } = require('./browser');
     M.forEach((p, k) => { for (const ax of [0, 1]) { const key = ax ? 'y' : 'x', v = p[key]; p[key] = v + 1e-6; const a = PE(); p[key] = v - 1e-6; const b = PE(); p[key] = v; worst = Math.max(worst, Math.abs(-(a - b) / 2e-6 - f[k][ax])); } });
     out.force = +worst.toExponential(1);
     const ords = X.boBonds().filter(b => b[2] > 0.5).map(b => b[2]); out.orders = [+Math.min(...ords).toFixed(2), +Math.max(...ords).toFixed(2)];
+    { const h = W.parts.find(p => p.bom && p.Z === 1), o = W.parts.find(p => p.bom && p.Z === 8); out.names = [X.speciesLabel(h), X.moleculeName(X.molecule(h)), X.speciesLabel(o), X.moleculeName(X.molecule(o))]; } // (1.14: named as molecules)
     const e1 = tot(); X.boSet(false); out.off = { dE: +(tot() - e1).toFixed(6), bonds: W.bonds.length, members: W.parts.filter(p => p.bom).length };
     return out;
   })();
-  check(Math.abs(r68.on.dE) < 1e-6 && r68.on.members === 140 && Math.abs(r68.drift) < 0.1 && r68.force < 1e-3 && r68.orders[0] > 0.9 && r68.orders[1] < 2.1 && Math.abs(r68.off.dE) < 1e-6 && r68.off.bonds === 70 && r68.off.members === 0,
+  check(Math.abs(r68.on.dE) < 1e-6 && r68.on.members === 140 && Math.abs(r68.drift) < 0.1 && r68.force < 1e-3 && r68.orders[0] > 0.9 && r68.orders[1] < 2.1 && Math.abs(r68.off.dE) < 1e-6 && r68.off.bonds === 70 && r68.off.members === 0 && r68.names.join() === 'H₂,Hydrogen,O₂,Oxygen',
     `1.13: continuous bond orders: H₂ + O₂ switched on (${r68.on.bonds} stored bonds) and off exactly, ${r68.drift} eV over 1,500 insulated steps, forces = −slope within ${r68.force} eV/Å, orders ${r68.orders.join('–')}`, '1.13 bond orders: ' + JSON.stringify(r68));
   // 1.13: every select opens the page's own list (rounded, animated); keys choose; the beam search suggests in the same list
   const r72 = await (async () => {
@@ -1115,6 +1117,26 @@ const { openPage } = require('./browser');
   })();
   check(r72.all && r72.open === '12px' && r72.picked[0] !== 'soup' && r72.picked[1] && !r72.picked[2] && r72.picked[3] && /Uranium/.test(r72.sugg) && r72.beam === 'Z92',
     `1.13: dropdowns: every select has the page's list (12 px corners), arrow + Enter chose ${r72.picked[0]}, the beam search suggested ${r72.sugg.split('|').length} and took ${r72.beam}`, '1.13 dropdowns: ' + JSON.stringify(r72));
+  // 1.14: the Speed test names the Experimental settings; slow motion is a speed from the menu (the hourglass sets it and
+  // gives it back; the automatic kind sets one and goes back by itself; a speed chosen by hand ends it)
+  const r73 = await page.evaluate(async () => {
+    const w = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
+    o.exp0 = expSummary(); SET.rc = 9; SET.bo = 1; o.exp1 = expSummary(); SET.rc = 6; SET.bo = 0;
+    loadPreset('chain'); setRunning(true); await w(400);
+    toggleSlowmo(); await w(500);
+    o.hold = [$('speedVal').textContent, speedLadder().includes(W.simPerFrame), W.simPerFrame < W.baseSpf];
+    toggleSlowmo(); await w(150); o.back = [$('speedVal').textContent, W.simPerFrame === W.baseSpf];
+    const sm = W.slowmo; W.slowmo = true; // (slow motion for nuclear events: an earlier check may have turned it off)
+    loadPreset('empty'); setRunning(true); await w(100);
+    W.slow = { t0: W.rt, on: true, fresh: false, f: 1 }; fireSpec(isoSpec(2, 4, 0), 0, 0, 1, 0, 5e5, false); await w(300);
+    o.auto = [$('speedVal').textContent, speedLadder().includes(W.simPerFrame), W.simPerFrame < W.baseSpf, $('bSlowmo').classList.contains('auto')];
+    const sAuto = W.simPerFrame; stepSpeed(1); await w(150); o.hand = [W.simPerFrame > sAuto && speedLadder().includes(W.simPerFrame), !W.slowSet, !W.slow, $('speedVal').textContent];
+    setSpeed(W.baseSpf); setRunning(false); W.slowmo = sm;
+    return o;
+  });
+  check(r73.exp0 === 'Experimental: all normal' && /force reach 9 Å, continuous bond orders \(×/.test(r73.exp1) && r73.hold[1] && r73.hold[2] && /^1\/.+×$/.test(r73.hold[0]) && r73.back[1] && r73.back[0] === '1×' &&
+    r73.auto[1] && r73.auto[2] && r73.auto[3] && r73.hand.slice(0, 3).every(Boolean) && /×$/.test(r73.hand[3]),
+    `1.14: Speed test line "${r73.exp1}"; slow motion: the hourglass set ${r73.hold[0]} and gave back ${r73.back[0]}, an event set ${r73.auto[0]}, a speed chosen by hand (${r73.hand[3]}) ended it`, '1.14: ' + JSON.stringify(r73));
   // 1.13: the crash handler: an error in a frame, broken numbers, and a session that never left normally
   const r67 = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
