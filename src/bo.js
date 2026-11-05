@@ -477,6 +477,59 @@ function bfTorsions3(forces, n) {
       }
     }
   }
+  return E + bfTors1(forces, n);
+}
+/* Single bonds' twist (3-D, 1.25): the stored bonds' threefold terms (engine.js TOR1, tors1K), weighted as the orders say.
+   A pair A–B counts as single by σ = b(n)·(1 − τ(n)) (fading as it breaks and as it becomes double); an end is sp² by
+   D = Σ τ over its other bonds (at most 1); a dihedral X–A–B–Y takes the sp³–sp³ term with σ(1 − D_A)(1 − D_B)·b_X·b_Y
+   and, about C–C, the sp³–sp² term on the double bond's partner, σ(1 − D_A)·τ(n_BY)·b_X (and the same the other way).
+   Every weight's slope goes to its orders. */
+const bfTau = (n) => { const x = (n - BO_TOR0) / BO_TORW; return x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x); };
+const bfTauD = (n) => { const x = (n - BO_TOR0) / BO_TORW; return x <= 0 || x >= 1 ? 0 : 6 * x * (1 - x) / BO_TORW; };
+/* (C–C's own: this model's 1-4 contacts already give ethane 0.041 eV, against the stored bonds' 0.025, so its k's are
+   fitted again on the same measured barriers; C–O, C–N, O–O and the sp³–sp² terms come out right with the stored ones) */
+const TOR1B = { CC0: [0.0049, 0, 0, 0.0049], CC1: [0.0021, 0, 0, 0.0021], CC2: [0.0056, -0.0781, -0.0659, -0.0308] };
+function bfT1Key(zx, za, zb, zy) { // (the sp³–sp³ entry of TOR1 by elements, as tor1Key)
+  const lo = Math.min(za, zb), hi = Math.max(za, zb);
+  if (lo === 6 && hi === 6) return TOR1B['CC' + ((zx > 1 ? 1 : 0) + (zy > 1 ? 1 : 0))];
+  return lo === 6 && hi === 8 ? TOR1.CO : lo === 6 && hi === 7 ? TOR1.CN : lo === 8 && hi === 8 ? TOR1.OO : null;
+}
+function bfTors1(forces, n) {
+  const pa = BF.pa, pb = BF.pb, pn = BF.pn, gn = BF.pgn, f0 = BF.mf0, fc = BF.mfc, inc = BF.inc, slot = BF.mslot, mZ = BF.mZ, mdb = BF.mdb;
+  const FX = forces ? S.fx : null, FY = forces ? S.fy : null, FZ = forces ? S.fz : null;
+  let E = 0;
+  const side = (M, k) => { let s = 0; for (let u = f0[M], ue = u + fc[M]; u < ue; u++) { const j = inc[u]; if (j !== k) s += bfTau(pn[j]); } return s; };
+  for (let k = 0; k < n; k++) {
+    const N = pn[k]; if (!(N > 0.3) || !(N < BO_TOR0 + BO_TORW)) continue;
+    const A = pa[k], B = pb[k]; if (mdb[A] || mdb[B] || fc[A] < 2 || fc[B] < 2) continue;
+    const sig = boB(N) * (1 - bfTau(N)), dsig = boBD(N) * (1 - bfTau(N)) - boB(N) * bfTauD(N); if (!(sig > 0) && !dsig) continue;
+    const SA = side(A, k), SB = side(B, k), DA = Math.min(1, SA), DB = Math.min(1, SB), cc = mZ[A] === 6 && mZ[B] === 6;
+    let gS = 0, gDA = 0, gDB = 0;
+    for (let u = f0[A], ue = u + fc[A]; u < ue; u++) {
+      const k1 = inc[u]; if (k1 === k) continue; const n1 = pn[k1]; if (!(n1 > 0.3)) continue;
+      const X = pa[k1] === A ? pb[k1] : pa[k1], bX = boB(n1), dbX = boBD(n1), tX = bfTau(n1), dtX = bfTauD(n1), zX = mZ[X];
+      for (let v = f0[B], ve = v + fc[B]; v < ve; v++) {
+        const k2 = inc[v]; if (k2 === k) continue; const n2 = pn[k2]; if (!(n2 > 0.3)) continue;
+        const Y = pa[k2] === B ? pb[k2] : pa[k2]; if (Y === X) continue;
+        const bY = boB(n2), dbY = boBD(n2), tY = bfTau(n2), dtY = bfTauD(n2), zY = mZ[Y];
+        const terms = [];
+        { const K = bfT1Key(zX, mZ[A], mZ[B], zY); if (K) terms.push([K, (1 - DA) * (1 - DB) * bX * bY, -(1 - DB) * bX * bY, -(1 - DA) * bX * bY, (1 - DA) * (1 - DB) * dbX * bY, (1 - DA) * (1 - DB) * bX * dbY]); }
+        if (cc && (zY === 6 || zY === 8) && tY > 0) terms.push([zY === 6 ? TOR1['CC=C'] : TOR1['CC=O'], (1 - DA) * tY * bX, -tY * bX, 0, (1 - DA) * tY * dbX, (1 - DA) * dtY * bX]);
+        if (cc && (zX === 6 || zX === 8) && tX > 0) terms.push([zX === 6 ? TOR1['CC=C'] : TOR1['CC=O'], (1 - DB) * tX * bY, 0, -tX * bY, (1 - DB) * dtX * bY, (1 - DB) * tX * dbY]);
+        for (const [K, w, wA, wB, w1, w2] of terms) { // (w and its slopes in D_A, D_B, n₁, n₂, all without σ)
+          if (!(w > 0) && !w1 && !w2 && !wA && !wB) continue;
+          const sx = slot[X], sa = slot[A], sb = slot[B], sy = slot[Y], e = tors1K(sx, sa, sb, sy, K[0], K[1], K[2], K[3], null, null, null);
+          if (forces && sig * w > 0) { const c = sig * w; tors1K(sx, sa, sb, sy, c * K[0], c * K[1], c * K[2], c * K[3], FX, FY, FZ); }
+          E += sig * w * e; gS += w * e; gDA += sig * wA * e; gDB += sig * wB * e;
+          gn[k1] += sig * w1 * e; gn[k2] += sig * w2 * e;
+        }
+        if (!terms.length) continue;
+      }
+    }
+    gn[k] += dsig * gS;
+    if (gDA && SA < 1) for (let u = f0[A], ue = u + fc[A]; u < ue; u++) { const j = inc[u]; if (j !== k) gn[j] += gDA * bfTauD(pn[j]); }
+    if (gDB && SB < 1) for (let u = f0[B], ue = u + fc[B]; u < ue; u++) { const j = inc[u]; if (j !== k) gn[j] += gDB * bfTauD(pn[j]); }
+  }
   return E;
 }
 function bfAnglesAll(forces) {

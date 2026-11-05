@@ -222,7 +222,7 @@ engine stores and visits particles.
       muonium, hypernuclei, the collider, the plasma, nuclear reactions (hep.js on flat four-momenta; route in 1.24.0).
     - Done in 1.25 (for the owner's OK; the JavaScript pass, the WebAssembly one below). Continuous bond orders ("From the positions"): a 3-D version of bo.js's derivatives and the kernel pass.
     Both are physics in 3-D: energy and cost measured, the owner's OK as each lands.
-  - Single bonds' twist barrier in 3-D (the owner, after 1.24.0, through the main session; to build in 1.25 on v128):
+  - Done in 1.25 (for the owner's OK; the 1.25 section). Single bonds' twist barrier in 3-D (the owner, after 1.24.0, through the main session; to build in 1.25 on v128):
     today only double and aromatic bonds resist twisting (stored bonds' K_TOR, bond orders' bfTorsions3), so single
     bonds spin freely. A threefold torsion for single bonds (sp³–sp³ and the common sp²–sp³ cases) in the stored-bond
     3-D engine and in the bond orders' 3-D pass, fitted to measured barriers: ethane ≈ 2.9 kcal/mol (0.12 eV), propane
@@ -258,7 +258,7 @@ engine stores and visits particles.
 ## 1.25 (in progress)
 
 The "For 1.25" list, part 1 (branch v128): hexazine with quantum bonds, Settings descriptions, continuous bond orders for
-Ge–Te, continuous bond orders in 3-D.
+Ge–Te, continuous bond orders in 3-D, and single bonds' twist barrier in 3-D (added by the owner during the build).
 
 - **Hexazine stays whole with quantum bonds** (the owner: "Hexazine doesn't fly apart with quantum bond orders in 2d").
   An investigation; nothing in the physics changed. Measured with the game's own GFN1-xTB + D3 (`XTB.gfn1Energy`,
@@ -415,7 +415,64 @@ Ge–Te, continuous bond orders in 3-D.
   - Screenshots: 125-before-bo3d-settings.png (the choice greyed in 3-D), 125-after-bo3d-settings.png,
     125-before-bo3d.png, 125-after-bo3d.png (the molecules in space with bond orders, drawn from the orders).
   - Tests: t_3d's "not in 3-D" list and f_124's Experimental check now expect the choice open in 3-D.
-- Tests: tests/f_125.js (t_features' 1.25 block, or `node tests/f_125.js [hexazine settings bo6 bo3d]`). `bo3d` fails on
+- **Single bonds' twist barrier in 3-D** (the owner after 1.24.0, added to 1.25 through the main session; physics in 3-D,
+  for his OK). Before, only double and aromatic bonds resisted twisting; single bonds turned against nothing but their
+  ends' 1-4 contacts: ethane 0.026 eV (measured 0.126), methanol 0.002 (0.046), butane gauche 0.056 above anti (0.029),
+  its anti→gauche barrier 0.094 (0.147), syn 0.376 (~0.22: the 1-4 contacts, their Lennard-Jones doubled for the flat
+  world and still so in 3-D, push too hard), hydrogen peroxide flat trans (measured 112°).
+  - The term (engine.js `TOR1`, `tors1K`, `tors1Of3`): each dihedral X–A–B–Y about a single bond,
+    E = F·(k₀ + k₁ cos φ + k₂ cos 2φ + k₃ cos 3φ), F = sin³θ₁ sin³θ₂ / sin⁶(109.47°) (1 at tetrahedral angles; it takes
+    the term away smoothly as an end goes straight), written as a polynomial in u·v and |u|²|v|² (u = b̂₁×b̂₂, v = b̂₂×b̂₃)
+    so it is smooth at every geometry; forces analytic. Which dihedrals: single, non-aromatic bonds between two
+    non-d-block atoms with other partners; sp³–sp³: C–C (k by how many of X, Y are heavy), C–O, C–N, O–O; sp³–sp²
+    (one end with a double bond): only C–C, only on the dihedral to the double bond's partner (C=C or C=O; the other
+    partner's would cancel it), the double bond eclipsed at the minimum. Nothing for other central pairs (Si, S, P …),
+    bonds between two sp² ends (butadiene's middle), aromatic or triple ends (toluene's methyl, measured ~0, turns
+    freely). The k's (eV), fitted in this game on top of its own 1-4 contacts (relaxed scans, the dihedral's four
+    atoms held): C–C H/H 0.00583 (k₀ = k₃), H/heavy 0.0058, heavy/heavy k₀..k₃ 0.0056, −0.068, −0.0447, −0.0134 (the
+    negative k₁, k₂ take back the doubled 1-4 contacts' syn excess), C–O 0.0070, C–N 0.00717, O–O 0, 0.0015, 0.0585,
+    0.0028, C–C=C 0.024 (k₃ = −k₀), C–C=O 0.0118. Single-bond dihedrals are listed with the double bonds' (`AC3.sq`,
+    when bonding changes) and their forces added after the kernels on the main thread (`tors1Forces3`: the force pass,
+    the beads' contracted pass `piFast`); their energy in `angleEnergy3` (each bond's dihedrals with its lower-id atom),
+    so events, the books and `relax3` see them. The WebAssembly kernel and the workers are untouched.
+  - In the bond orders' 3-D pass (bo.js `bfTors1`): the same terms weighted as the orders say: a pair is single by
+    b(n)·(1 − τ(n)) (fading as it breaks and as it turns double, τ as the double bonds' twist), an end sp² by the sum of
+    τ over its other bonds; sp³–sp³ dihedrals weighted (1 − D_A)(1 − D_B)·b_X·b_Y, sp³–sp² ones by τ of the double bond;
+    every weight's slope to its orders. C–C fitted again (`TOR1B`: this model's own 1-4 contacts give ethane 0.041 eV
+    against stored 0.025): H/H 0.0049, H/heavy 0.0021, heavy/heavy 0.0056, −0.0781, −0.0659, −0.0308; the rest as stored.
+  - Barriers now (eV; relaxed, the four atoms held; stored / bond orders / measured, the measured values from memory of
+    the literature: the web was refused from here):
+    | | stored | orders | measured |
+    |---|---|---|---|
+    | ethane | 0.126 | 0.126 | 0.126 (2.9 kcal/mol) |
+    | propane (methyl) | 0.144 | 0.141 (0.156 at one eclipse) | 0.143 (3.3) |
+    | butane gauche − anti | 0.031–0.034 (min at 65–70°) | 0.026–0.028 (55–65°) | 0.026–0.039 (0.6–0.9) |
+    | butane anti → gauche | 0.152 | 0.150 | ~0.147 (3.4) |
+    | butane syn | 0.218 | 0.224 | ~0.20–0.26 (4.6–6) |
+    | methanol | 0.046 | 0.047 | 0.046 (1.07) |
+    | methylamine | 0.085 | 0.085 | 0.086 (1.98) |
+    | H₂O₂ minimum / trans / cis | 112° / 0.047 / 0.301 | 112° / 0.046 / 0.295 | 111.5° / 0.048 / 0.305 |
+    | propene (methyl) | 0.082 | 0.078 | 0.086 (1.98) |
+    | acetaldehyde (methyl) | 0.049 | 0.046 | 0.050 (1.16) |
+  - Butane's populations: from the relaxed profile (Boltzmann over the dihedral, 5° steps) at 300 K anti 62% / gauche
+    38% stored, 58 / 42 with bond orders (measured in the gas at room temperature about 60–70% anti); at 600 K 47 / 53.
+    Molecular dynamics, 64 butanes in a 44 Å cube with stored bonds and the bath at 600 K, 24 ps: anti 38.9%, gauche
+    61.1% (828 changes: the whole molecule's motion, not the profile alone).
+  - Forces against the energy's slope (h 2e-6, molecules moved 0.1 Å at random): stored ethane 2e-9 eV/Å, butane 4e-9,
+    methanol 2e-9, methylamine 2e-9, H₂O₂ 1e-9, propene 4e-9, acetaldehyde 2e-9, ethanol 2e-9; bond orders 1.3e-8,
+    1.3e-8, 2e-9, 9e-9, 8e-9, 7e-9, 3e-8, 4e-8, butadiene 1e-7.
+  - Insulated: single molecules at ~900 K for 4 ps (butane, ethanol, H₂O₂, propene): books within 7e-4 eV, as before
+    (4e-4). A box of 64 organic molecules (512 atoms, 512 single-bond dihedrals), 1.22 ps: −0.38 eV against −0.29 on
+    1.24.0, both the same at half the step (−0.38, −0.30): not the integration but the existing jumps of molecules
+    meeting at the cutoffs; bond orders, 8 molecules, 0.23 ps: −0.018 eV.
+  - Cost: that box 0.82 ms a step against 0.62 (+30%, the dihedrals in JavaScript on the main thread; two loaded cores);
+    nothing where there are no single-bond dihedrals (water, brine, H₂ + O₂, the molecules in space).
+  - The 3-D tiny objects: only polyethylene has single-bond dihedrals (693); relaxed with the twist it moved up to
+    0.40 Å (0.16 rms, 1.23 eV lower), so it was settled again with tools/objgen3.js (held at 300 K for 2 ps, 236/236
+    atoms, 235/235 bonds); salt, gold, the droplet and graphene have none and are unchanged.
+  - Unchanged: the 24 flat setups' fingerprints and the seven Experimental runs (2-D has no twist), and the six 3-D setups' (none has a single-bond dihedral).
+- Tests: tests/f_125.js (t_features' 1.25 block, or `node tests/f_125.js [hexazine settings bo6 bo3d tors1]`). `tors1`
+  fails on 1.24.0 (ethane 0.026 eV, H₂O₂ flat). `bo3d` fails on
   1.24.0 (no member in 3-D, the choice greyed). `bo6` fails on
   1.24.0 (no member among the six molecules; with antimony added by hand, the 0.078 eV step). `settings` fails on
   1.24.0 (18 descriptions under rows, 80 px overflow); `hexazine` records the measurements above and passes on 1.24.0

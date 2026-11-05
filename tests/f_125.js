@@ -152,6 +152,44 @@ PARTS.bo3d = async (page, check, say) => {
     '1.25 bond orders in 3-D: ' + JSON.stringify({ slope, water, pcl5, tw, books, ui }));
 };
 
+/* ---- 5. single bonds' twist in 3-D (stored bonds and bond orders): ethane's, methanol's and butane's barriers near the
+   measured ones (relaxed, the dihedral's four atoms held), hydrogen peroxide twisted, forces the energy's slope,
+   polyethylene still whole at room temperature */
+PARTS.tors1 = async (page, check, say) => {
+  const scan = (key, pat, bo, degs) => { // energies (eV) at the given dihedrals, relative to the lowest
+    const X = load('all', { seed: 4 }), W = X.W, S = X.S; X.PRESETS.empty.build(); X.setBox(30, 30); X.world3d(30); X.addMolecule(key, 0, 0, 0.3, 0, 0); X.forcesNoEvents(); if (bo) X.boSet(1);
+    const P = W.parts.filter(p => !p.dead), sym = pat.split('-'), nb = (p) => P.filter(q => q !== p && Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) < 1.25 * (p.el.rc + q.el.rc));
+    let quad = null;
+    for (const A of P) if (!quad && A.el.sym === sym[1]) for (const B of nb(A)) if (!quad && B.el.sym === sym[2]) for (const x of nb(A)) if (!quad && x !== B && x.el.sym === sym[0]) for (const y of nb(B)) if (!quad && y !== A && y !== x && y.el.sym === sym[3]) quad = [x, A, B, y];
+    const [Xa, A, B, Y] = quad, side = new Set([B]); { const st = [B]; while (st.length) { const u = st.pop(); for (const v of nb(u)) if (v !== A && !side.has(v)) { side.add(v); st.push(v); } } }
+    const fixed = new Set();
+    const relax = (its) => { for (let it = 0; it < its; it++) { X.forcesNoEvents(); let fm = 0; for (const p of P) if (!fixed.has(p)) fm = Math.max(fm, Math.hypot(S.fx[p.i], S.fy[p.i], S.fz[p.i])); if (fm < 3e-4) break; const st = Math.min(0.002, 0.01 / fm); for (const p of P) if (!fixed.has(p)) { p.x += S.fx[p.i] * st; p.y += S.fy[p.i] * st; p.z += S.fz[p.i] * st; } X.gridTouch(); } };
+    const dih = () => { const b1 = [A.x - Xa.x, A.y - Xa.y, A.z - Xa.z], b2 = [B.x - A.x, B.y - A.y, B.z - A.z], b3 = [Y.x - B.x, Y.y - B.y, Y.z - B.z], cr = (u, v) => [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2], n1 = cr(b1, b2), n2 = cr(b2, b3), m = cr(n1, b2); return Math.atan2(dot(m, n2) / Math.hypot(...b2), dot(n1, n2)) * 180 / Math.PI; };
+    const turn = (deg) => { const ax = [B.x - A.x, B.y - A.y, B.z - A.z], L = Math.hypot(...ax); ax.forEach((v, i) => { ax[i] = v / L; }); const t = deg * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
+      for (const p of side) { if (p === B) continue; const v = [p.x - B.x, p.y - B.y, p.z - B.z], d = v[0] * ax[0] + v[1] * ax[1] + v[2] * ax[2], cr = [ax[1] * v[2] - ax[2] * v[1], ax[2] * v[0] - ax[0] * v[2], ax[0] * v[1] - ax[1] * v[0]]; p.x = B.x + v[0] * c + cr[0] * s + ax[0] * d * (1 - c); p.y = B.y + v[1] * c + cr[1] * s + ax[1] * d * (1 - c); p.z = B.z + v[2] * c + cr[2] * s + ax[2] * d * (1 - c); } X.gridTouch(); };
+    relax(6000); quad.forEach(p => fixed.add(p));
+    const out = degs.map(d => { const cur = dih(); let delta = cur - d; turn(delta); if (Math.abs(dih() - d) > 1 && Math.abs(Math.abs(dih() - d) - 360) > 1) turn(-2 * delta); relax(3000); return X.totalEnergy().pe; });
+    const lo = Math.min(...out); return out.map(e => +(e - lo).toFixed(3));
+  };
+  const r = {};
+  for (const bo of [0, 1]) {
+    const t = bo ? 'orders' : 'stored';
+    r[t] = { ethane: scan('C2H6', 'H-C-C-H', bo, [60, 0])[1], methanol: scan('CH3OH', 'H-C-O-H', bo, [60, 0])[1], butane: scan('butane', 'C-C-C-C', bo, [180, 65, 120, 0]), h2o2: scan('H2O2', 'H-O-O-H', bo, [180, 112, 0]) };
+  }
+  // slopes, stored and bond orders: butane + ethanol + H₂O₂ + acetaldehyde in space, jiggled
+  const sl = [0, 1].map(bo => { const X = load('all', { seed: 4 }); X.PRESETS.empty.build(); X.setBox(30, 30); X.world3d(30); X.addMolecule('butane', -6, 0, 0.7, 0, 1); X.addMolecule('ethanol', 5, 3, 0.2, 0, -2); X.addMolecule('H2O2', 5, -5, 1.1, 0, 3); X.addMolecule('acetaldehyde', -5, -6, 2, 0, -3); X.forcesNoEvents(); if (bo) X.boSet(1);
+    let s = 7; const rr = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; }; for (const p of X.W.parts) { p.x += 0.1 * rr(); p.y += 0.1 * rr(); p.z += 0.1 * rr(); } X.gridTouch(); return +slopeErr(X, 2e-6).toExponential(1); });
+  // polyethylene (3-D) at 300 K, 600 steps: every bond kept
+  const XP = load('all', { seed: 3 }), W = XP.W; XP.baseWorld(40, 40, 300, 0.05); XP.world3d(40); XP.addMolecule('polyethylene3', 0, 0, 0, 300, 0); XP.forcesNoEvents(); W.fSpawn = W.spawned;
+  const nb0 = W.bonds.length; for (let i = 0; i < 600; i++) { if (W.fSpawn !== W.spawned) { XP.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = XP.chooseDt(); XP.step(W.dt); }
+  const pe = { bonds: [nb0, W.bonds.length], dihedrals: XP.AC3.ns };
+  say('  single bonds\' twist in 3-D: ' + JSON.stringify({ r, sl, pe }));
+  const near = (a, v, d) => Math.abs(a - v) <= d, ok = (q) => near(q.ethane, 0.126, 0.015) && near(q.methanol, 0.046, 0.008) && near(q.butane[1] - q.butane[0], 0.029, 0.012) && near(q.butane[2] - q.butane[0], 0.147, 0.02) && near(q.butane[3] - q.butane[0], 0.22, 0.03) && q.h2o2[1] < q.h2o2[0] && near(q.h2o2[0] - q.h2o2[1], 0.048, 0.01) && near(q.h2o2[2] - q.h2o2[1], 0.305, 0.03);
+  check(ok(r.stored) && ok(r.orders) && sl[0] < 1e-6 && sl[1] < 1e-5 && pe.bonds[0] === pe.bonds[1] && pe.dihedrals > 600,
+    `1.25: single bonds' twist in 3-D (measured: ethane 0.126 eV, methanol 0.046, butane gauche 0.029, anti→gauche 0.147, syn ~0.22, H₂O₂ trans 0.048 and cis 0.305 above its 112° minimum): stored bonds ethane ${r.stored.ethane}, methanol ${r.stored.methanol}, butane ${r.stored.butane.slice(1).map(v => +(v - r.stored.butane[0]).toFixed(3)).join(' / ')}, H₂O₂ ${+(r.stored.h2o2[0] - r.stored.h2o2[1]).toFixed(3)} / ${+(r.stored.h2o2[2] - r.stored.h2o2[1]).toFixed(3)}; bond orders ${r.orders.ethane}, ${r.orders.methanol}, ${r.orders.butane.slice(1).map(v => +(v - r.orders.butane[0]).toFixed(3)).join(' / ')}, ${+(r.orders.h2o2[0] - r.orders.h2o2[1]).toFixed(3)} / ${+(r.orders.h2o2[2] - r.orders.h2o2[1]).toFixed(3)}; forces the slope to ${sl[0]} / ${sl[1]} eV/Å; polyethylene keeps its ${pe.bonds[1]} bonds at 300 K`,
+    '1.25 single bonds\' twist: ' + JSON.stringify({ r, sl, pe }));
+};
+
 module.exports = async function f125(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
