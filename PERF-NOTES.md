@@ -214,6 +214,13 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## Next (after 1.23.1, in progress)
+
+- The "realistic" tag (1.12) was missing on three Experimental choices that were added later: bond orders (now on
+  Quantum, the bonds from the electrons), bead forces (on Every bead, the exact path integral) and free electrons (on
+  Wave packets). Added to `REAL` in ui.js; t_settings checks the tag sits on those three and on 32 beads (before: no
+  tag on any choice of the three rows).
+
 ## 1.23.1: freezes fixed and reported, a desktop watchdog, Experimental settings reset at start, lit 3-D atoms
 
 - **What froze the page** (the owner, desktop app: "spamming atoms with some experimental settings enabled … fissions

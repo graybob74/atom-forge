@@ -193,6 +193,11 @@ async function narrow() {
   const t = await page.evaluate(() => ({ t: $('setPrevT').textContent, src: !$('setPrevImg').hidden && $('setPrevImg').src === SETSHOTS.segFog3 }));
   check(t.t === 'Depth fog' && t.src && !errors.length, `a tap on a row shows its preview ("${t.t}")`, { t, errors });
   await page.screenshot({ path: path.join(__dirname, '.tmp', 'settings-narrow.png') });
+  // 1.23.1: the "realistic" tag on the choice closest to nature, also for bond orders (quantum), bead forces (every bead)
+  // and free electrons (wave packets), which were missing it
+  await page.evaluate(() => openSettings('exp')); await page.waitForTimeout(200);
+  const rl = await page.evaluate(() => Object.fromEntries(['segBo', 'segPiRpc', 'segWave', 'segPi'].map(id => [id, [...$(id).querySelectorAll('button')].filter(b => b.querySelector('.rl') && b.querySelector('.rl').textContent === 'realistic').map(b => b.dataset.v).join(',')])));
+  check(rl.segBo === '2' && rl.segPiRpc === '0' && rl.segWave === '1' && rl.segPi === '32', 'the realistic tag on quantum bonds, every-bead forces, wave electrons and 32 beads', rl);
   await browser.close();
 }
 
