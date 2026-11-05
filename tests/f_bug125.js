@@ -32,6 +32,23 @@ PARTS.hardSphere = async (page, check, say) => {
   check(r.headOn === 180 && r.half === 120 && r.grazing < 6, `bug fix 11: a flat hard-sphere hit turns the pair by ${r.headOn}° head-on, ${r.half}° at b = R/2, ${r.grazing}° grazing`, 'bugfix hardSphere: ' + JSON.stringify(r));
 };
 
+/* 10. Space held pans, as Help says ("drag with the right button (or Space held) to move"); Space alone still plays and
+   pauses. Before: nothing set UI.spaceDown, so a drag with Space held used the tool, and a held Space toggled play on
+   every key repeat. */
+PARTS.spacePan = async (page, check, say) => {
+  const box = await page.evaluate(() => { hideModal && document.querySelectorAll('.modal').forEach(m => { m.hidden = true; }); loadPreset('water'); setRunning(false); setTool('inspect'); const r = $('cv').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, cx: R.cx, cy: R.cy }; });
+  await page.mouse.move(box.x, box.y);
+  await page.keyboard.down('Space'); await page.waitForTimeout(60);
+  await page.mouse.down(); await page.mouse.move(box.x + 120, box.y + 60, { steps: 6 }); await page.mouse.up();
+  await page.keyboard.up('Space'); await page.waitForTimeout(60);
+  const a = await page.evaluate(() => ({ cx: R.cx, cy: R.cy, running: UI.running, held: UI.spaceDown }));
+  await page.keyboard.press('Space'); await page.waitForTimeout(60);
+  const b = await page.evaluate(() => { const r = UI.running; setRunning(false); return r; });
+  const r = { moved: +Math.hypot(a.cx - box.cx, a.cy - box.cy).toFixed(2), runningAfterPan: a.running, held: a.held, spaceAlonePlays: b };
+  check(r.moved > 1 && !r.runningAfterPan && !r.held && r.spaceAlonePlays, `bug fix 10: Space held + drag pans the view (${r.moved} Å) and leaves play/pause as it was; Space alone plays`, 'bugfix spacePan: ' + JSON.stringify(r));
+};
+PARTS.spacePan.page = true;
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {

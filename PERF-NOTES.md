@@ -276,7 +276,7 @@ engine stores and visits particles.
   - 3-D: Inspect can't pick unstable particles or photons in flight; quantum nuclei's beads aren't drawn; some
     Experimental descriptions still describe the flat case; the Magnet tool's pole buttons keep the flat ⊙/⊗ signs.
   - A charged particle's search for atoms on its path goes over every atom (the grid would make it local).
-  - Help says holding Space pans, but nothing sets UI.spaceDown.
+  - [fixed after 1.25] Help says holding Space pans, but nothing sets UI.spaceDown.
   - [fixed after 1.25] Flat game: hardSphere turns a pair by π − 2·acos(b/R), inverted (a head-on hit passes straight through, a grazing
     one bounces back); the 3-D version (1.25) uses the right angle.
   - exoElastic measures the whole box's energy on every pass (slow; 3-D's elastic hits booked from the recoil in 1.25).
@@ -907,6 +907,12 @@ books hashed apart).
   through and a grazing one bounced back. Now 2·acos(b/R) (= π − 2·asin(b/R), as hardSphere3 in 3-D). Turn measured
   for b = 0, R/2, 0.999R: 0°, 60°, 175° before; 180°, 120°, 5° after. Fingerprints: muonium, nif and sns change (their
   fast atoms collide), nothing else. Check: f_bug125 "hardSphere".
+- 10. Space held to pan (Help: "drag with the right button (or Space held) to move"): onDown pans while UI.spaceDown,
+  but nothing ever set it, and a held Space toggled play on every key repeat. Now Space's keydown (not its repeats)
+  sets it and keyup (or leaving the window) clears it; a drag that starts while it is held pans and puts play/pause
+  back as it was, so Space alone still plays and pauses. Page: Space held + a drag moved the view 0 Å and left it
+  running before; 6.5 Å, still paused, after; Space alone plays (both). Fingerprints unchanged. Check: f_bug125
+  "spacePan" (page).
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

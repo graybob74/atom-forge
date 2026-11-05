@@ -938,6 +938,7 @@ function onDown(e) {
   if (!rc) lpStart(e, px, py);
   if (QM.open) { closeQuickMenu(); if (!rc) { UI.drag = { kind: 'none' }; return; } } // a click outside the menu only closes it
   if (W.d3 && (e.button === 1 || rc || (e.button === 0 && e.altKey && !UI.spaceDown))) { UI.drag = { kind: e.shiftKey ? 'pan' : 'orbit', x: px, y: py, lx: px, ly: py, cx: R.cx, cy: R.cy, rc }; return; } // (3-D: right, middle or Alt+left drag turns the view; with Shift, pans)
+  if (UI.spaceDown && !rc && e.button !== 1 && !UI.spacePan) { UI.spacePan = true; setRunning(!UI.running); } // (Space held to pan: its press did not mean play / pause)
   if (e.button === 1 || rc || UI.spaceDown) { UI.drag = { kind: 'pan', x: px, y: py, cx: R.cx, cy: R.cy, rc }; return; }
   const t = UI.tool;
   let [wx, wy] = s2w(px, py), wz = 0;
@@ -5528,7 +5529,7 @@ function onKey(e) {
     openQuickMenu(inside ? m[0] : R.w / 2, inside ? m[1] : R.h / 2); return;
   }
   if (W.d3 && fly3Down(e)) { e.preventDefault(); return; } // (3-D: W A S D, Q E, and Space / Shift while flying move the camera, 1.23.2)
-  if (k === ' ') { if (tag === 'BUTTON') return; e.preventDefault(); if (REW.open) { rewCommit(); return; } setRunning(!UI.running); return; }
+  if (k === ' ') { if (tag === 'BUTTON') return; e.preventDefault(); if (e.repeat) return; UI.spaceDown = true; UI.spacePan = false; if (REW.open) { rewCommit(); return; } setRunning(!UI.running); return; } // (held, a drag pans: Help's "Space held"; bug fix after 1.25: nothing set spaceDown, and a held Space toggled play over and over)
   if (k === '.') { UI.stepOnce = true; return; }
   if (k === '[') { stepSpeed(-1); return; }
   if (k === ']') { stepSpeed(1); return; }
@@ -6620,7 +6621,8 @@ function init() {
   { const v = /\d+\.\d+\.\d+|V\d+/.exec(document.title || ''); const tag = $('verTag'); if (tag) tag.textContent = v ? v[0] : ''; } // (the version, from the page's title: 0.40.0)
   qmInit(); settingsInit(); optLoad(); menusInit(); rewInit(); grInit(); tourInit(); aiInit(); chipsInit();
   window.addEventListener('keydown', onKey);
-  window.addEventListener('keyup', fly3Up); window.addEventListener('blur', () => FLY3.keys.clear()); // (3-D flying: keys let go)
+  window.addEventListener('keyup', fly3Up); window.addEventListener('blur', () => { FLY3.keys.clear(); UI.spaceDown = false; });
+  window.addEventListener('keyup', (e) => { if (e.key === ' ') UI.spaceDown = false; }); // (Space let go: no more panning) // (3-D flying: keys let go)
   $('zIn').onclick = () => zoomAt(R.w / 2, R.h / 2, 1.25);
   $('zOut').onclick = () => zoomAt(R.w / 2, R.h / 2, 0.8);
   $('zFit').onclick = () => fitView();
