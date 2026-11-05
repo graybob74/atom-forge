@@ -21,6 +21,7 @@
 const G1 = require('./gfn1.js')._shared;
 const D2 = require('./gfn2-data.js');
 const D4 = require('./d4.js');
+const SPIN = require('./spin.js');                    // (spin polarization, 1.26)
 const { T, DTRAFO, CART, symEig, choleskyInverse, Broyden, fermiFilling, entropyTerm, integralCutoff, KT_DEFAULT, EVTOAU, AATOAU, MAX_ITER, MIX_DAMP, ECONV, PCONV, MAX_CUTOFF, DFACT, TOP } = G1;
 const AUTOEV = 27.211386245988, BOHR = 0.529177210903;
 const num = x => +x;
@@ -345,7 +346,8 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const qatOf = q => { const r = new Float64Array(nat); for (let s = 0; s < nsh; s++) r[shAt[s]] += q[s]; return r; };
   let qat = qatOf(qsh);
   const maxIter = opts.maxIter > 0 ? Math.min(MAX_ITER, opts.maxIter) : MAX_ITER;
-  const mixer = new Broyden(ndim, maxIter, MIX_DAMP), mv = new Float64Array(ndim);
+  const sp = !!opts.spin;                              // (spin polarization, 1.26: two channels, spinSCC below)
+  const mixer = new Broyden(sp ? 2 * ndim : ndim, maxIter, MIX_DAMP), mv = new Float64Array(ndim);
   const vsh = new Float64Array(nsh), vat = new Float64Array(nat), vao = new Float64Array(nao), vdp = new Float64Array(3 * nat), vqp = new Float64Array(6 * nat);
   const wq = new Float64Array(nao * nao);
   let iscf = 0, converged = false, eelec = 0, eext = 0, emo = null, focc = null, parts = null;
@@ -368,7 +370,132 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     }
     return e;
   };
-  while (!converged && iscf < maxIter) {
+  // the potentials from the input charges and moments (the charge channel): vsh, vat, vdp, vqp, then vao, and wq,
+  // the multipole part of H1 (as the loop below)
+  const chargePotentials = () => {
+    for (let a = 0; a < nsh; a++) { let v = 0; for (let b = 0; b < nsh; b++) v += J[a * nsh + b] * qsh[b]; vsh[a] = v + qsh[a] * qsh[a] * gam3[a]; }
+    vat.fill(0); vdp.fill(0); vqp.fill(0);
+    for (let a = 0; a < nat; a++) {
+      const ax = X[3 * a], ay = X[3 * a + 1], az = X[3 * a + 2], da = 3 * a, ta = 6 * a;
+      for (let b = 0; b < nat; b++) {
+        if (a === b) continue;
+        const x = X[3 * b] - ax, y = X[3 * b + 1] - ay, z = X[3 * b + 2] - az, h3 = H3[a * nat + b], h5 = H5[a * nat + b], db = 3 * b, tb = 6 * b;
+        vat[a] += -h3 * (dp[db] * x + dp[db + 1] * y + dp[db + 2] * z)
+          + h5 * (qp[tb] * x * x + 2 * qp[tb + 1] * x * y + qp[tb + 2] * y * y + 2 * qp[tb + 3] * x * z + 2 * qp[tb + 4] * y * z + qp[tb + 5] * z * z);
+        const r2 = x * x + y * y + z * z, mw = dp[db] * x + dp[db + 1] * y + dp[db + 2] * z;
+        vdp[da] += qat[b] * h3 * x + h5 * (dp[db] * r2 - 3 * x * mw);
+        vdp[da + 1] += qat[b] * h3 * y + h5 * (dp[db + 1] * r2 - 3 * y * mw);
+        vdp[da + 2] += qat[b] * h3 * z + h5 * (dp[db + 2] * r2 - 3 * z * mw);
+        const qb = qat[b] * h5;
+        vqp[ta] += qb * x * x; vqp[ta + 1] += qb * 2 * x * y; vqp[ta + 2] += qb * y * y;
+        vqp[ta + 3] += qb * 2 * x * z; vqp[ta + 4] += qb * 2 * y * z; vqp[ta + 5] += qb * z * z;
+      }
+      const e = el[a];
+      for (let c = 0; c < 3; c++) vdp[da + c] += 2 * e.dk * dp[da + c];
+      for (let c = 0; c < 6; c++) vqp[ta + c] += 2 * e.qk * qp[ta + c] * MPSCALE[c];
+      if (vext) vat[a] += vext[a];
+    }
+    D4.d4Potential(disp, qat, vat);
+    for (let m = 0; m < nao; m++) vao[m] = vsh[aoSh[m]] + vat[aoAt[m]];
+    for (let n = 0; n < nao; n++) {
+      const B = aoAt[n], o = n * nao, d0 = vdp[3 * B], d1 = vdp[3 * B + 1], d2 = vdp[3 * B + 2];
+      const t0 = vqp[6 * B], t1 = vqp[6 * B + 1], t2 = vqp[6 * B + 2], t3 = vqp[6 * B + 3], t4 = vqp[6 * B + 4], t5 = vqp[6 * B + 5];
+      for (let m = 0; m < nao; m++) wq[o + m] = DC[0][o + m] * d0 + DC[1][o + m] * d1 + DC[2][o + m] * d2
+        + QC[0][o + m] * t0 + QC[1][o + m] * t1 + QC[2][o + m] * t2 + QC[3][o + m] * t3 + QC[4][o + m] * t4 + QC[5][o + m] * t5;
+    }
+  };
+  // Mulliken populations of a density: per shell (P S), dipoles and quadrupoles per atom (P D, P Q), into qn/dn/tn
+  // (negative: electrons), and the band energy sum H0 P
+  const populations = (P, qn, dn, tn) => {
+    let eband = 0;
+    for (let n = 0; n < nao; n++) {
+      const o = n * nao, B = aoAt[n];
+      let ps = 0, s0 = 0, s1 = 0, s2 = 0, u0 = 0, u1 = 0, u2 = 0, u3 = 0, u4 = 0, u5 = 0;
+      for (let m = 0; m < nao; m++) {
+        const p = P[o + m];
+        ps += p * S[o + m]; eband += H0[o + m] * p;
+        s0 += p * DC[0][o + m]; s1 += p * DC[1][o + m]; s2 += p * DC[2][o + m];
+        u0 += p * QC[0][o + m]; u1 += p * QC[1][o + m]; u2 += p * QC[2][o + m]; u3 += p * QC[3][o + m]; u4 += p * QC[4][o + m]; u5 += p * QC[5][o + m];
+      }
+      qn[aoSh[n]] -= ps;
+      dn[3 * B] -= s0; dn[3 * B + 1] -= s1; dn[3 * B + 2] -= s2;
+      tn[6 * B] -= u0; tn[6 * B + 1] -= u1; tn[6 * B + 2] -= u2; tn[6 * B + 3] -= u3; tn[6 * B + 4] -= u4; tn[6 * B + 5] -= u5;
+    }
+    return eband;
+  };
+  // the SCC with spin polarization (1.26; tblite with a spin-polarization container, nspin = 2): the state is the
+  // charge channel (shell charges, atomic dipoles and quadrupoles) and the magnetization channel (the same moments of
+  // N_beta - N_alpha), mixed as one vector in tblite's order [q, m, dp, dp_m, qp, qp_m]; only the shell
+  // magnetizations act (the on-site spin term), H_alpha = H_c + H_m and H_beta = H_c - H_m, H_m = -1/2 S (v_m + v_m)
+  let SPN = null;
+  function spinSCC() {
+    const w = SPIN.spinTable(Z, i => el[i].shells, atSh, shAt, nsh, opts.spin === true ? 1 : +opts.spin);
+    let msh = new Float64Array(nsh), dm = new Float64Array(3 * nat), tm = new Float64Array(6 * nat);
+    const g0 = opts.qsh0;
+    if (g0 && g0.length === 2 * ndim) {
+      for (let s = 0; s < nsh; s++) { qsh[s] = g0[s]; msh[s] = g0[nsh + s]; }
+      for (let k = 0; k < 3 * nat; k++) { dp[k] = g0[2 * nsh + k]; dm[k] = g0[2 * nsh + 3 * nat + k]; }
+      for (let k = 0; k < 6 * nat; k++) { qp[k] = g0[2 * nsh + 6 * nat + k]; tm[k] = g0[2 * nsh + 12 * nat + k]; }
+    } else if (opts.m0 && opts.m0.length === nsh) msh = Float64Array.from(opts.m0);
+    qat = qatOf(qsh);
+    const N2 = 2 * ndim, vec = new Float64Array(N2);
+    const packS = (q, m, d, dM, t, tM, out) => {
+      out.set(q, 0); out.set(m, nsh); out.set(d, 2 * nsh); out.set(dM, 2 * nsh + 3 * nat);
+      const o1 = 2 * nsh + 6 * nat, o2 = o1 + 6 * nat;
+      for (let k = 0; k < 6 * nat; k++) { const f = MPSCALE[k % 6] === 2 ? R2 : 1; out[o1 + k] = t[k] * f; out[o2 + k] = tM[k] * f; }
+      return out;
+    };
+    const unpackS = (v) => {
+      for (let s = 0; s < nsh; s++) { qsh[s] = v[s]; msh[s] = v[nsh + s]; }
+      for (let k = 0; k < 3 * nat; k++) { dp[k] = v[2 * nsh + k]; dm[k] = v[2 * nsh + 3 * nat + k]; }
+      const o1 = 2 * nsh + 6 * nat, o2 = o1 + 6 * nat;
+      for (let k = 0; k < 6 * nat; k++) { const f = MPSCALE[k % 6] === 2 ? R2 : 1; qp[k] = v[o1 + k] / f; tm[k] = v[o2 + k] / f; }
+    };
+    const vm = new Float64Array(nsh), vaoM = new Float64Array(nao), Ha = new Float64Array(nao * nao), Hb = new Float64Array(nao * nao);
+    const Wa = new Float64Array(nao * nao), Wb = new Float64Array(nao * nao), Aa = new Float64Array(nao * nao), Ab = new Float64Array(nao * nao);
+    const Pa = new Float64Array(nao * nao), Pb = new Float64Array(nao * nao), Pm = new Float64Array(nao * nao);
+    let ea = null, eb = null, fa = null, fb = null, espin = 0;
+    while (!converged && iscf < maxIter) {
+      const elast = eelec;
+      if (iscf > 0) { mixer.next(); unpackS(mixer.q); qat = qatOf(qsh); }
+      iscf++;
+      chargePotentials();
+      SPIN.spinPot(w, atSh, shAt, nsh, msh, vm);
+      for (let m = 0; m < nao; m++) vaoM[m] = vm[aoSh[m]];
+      for (let m = 0; m < nao; m++) for (let n = 0; n < nao; n++) {
+        const k = m * nao + n, hc = H0[k] - 0.5 * S[k] * (vao[m] + vao[n]) - 0.5 * (wq[n * nao + m] + wq[k]), hm = -0.5 * S[k] * (vaoM[m] + vaoM[n]);
+        Ha[k] = hc + hm; Hb[k] = hc - hm;
+      }
+      mixer.set(packS(qsh, msh, dp, dm, qp, tm, vec));
+      ea = SPIN.solveChannel(symEig, Ha, Li, nao, Wa, Aa); eb = SPIN.solveChannel(symEig, Hb, Li, nao, Wb, Ab);
+      if (opts.spinFree) [fa, fb] = SPIN.fermiShared(fermiFilling, nocc, kt, ea, eb);
+      else { fa = fermiFilling(nel[0], kt, ea); fb = fermiFilling(nel[1], kt, eb); }
+      SPIN.channelDensity(Wa, Aa, LiT, fa, nao, Ct, Pa); SPIN.channelDensity(Wb, Ab, LiT, fb, nao, Ct, Pb);
+      for (let k = 0; k < nao * nao; k++) { P[k] = Pa[k] + Pb[k]; Pm[k] = Pa[k] - Pb[k]; }
+      const qn = new Float64Array(nsh), dn = new Float64Array(3 * nat), tn = new Float64Array(6 * nat);
+      const mn = new Float64Array(nsh), dmn = new Float64Array(3 * nat), tmn = new Float64Array(6 * nat);
+      const eband = populations(P, qn, dn, tn);
+      populations(Pm, mn, dmn, tmn);                  // (-(alpha - beta): N_beta - N_alpha, tblite's sign)
+      for (let s = 0; s < nsh; s++) qn[s] += n0sh[s];
+      qsh = qn; dp = dn; qp = tn; qat = qatOf(qsh); msh = mn; dm = dmn; tm = tmn;
+      mixer.diff(packS(qsh, msh, dp, dm, qp, tm, new Float64Array(N2)));
+      let e2 = 0;
+      for (let a = 0; a < nsh; a++) { let v = 0; for (let b = 0; b < nsh; b++) v += J[a * nsh + b] * qsh[b]; e2 += 0.5 * v * qsh[a]; }
+      let e3 = 0; for (let a = 0; a < nsh; a++) e3 += qsh[a] ** 3 * gam3[a] / 3;
+      const eaes = aesEnergy(qat, dp, qp), ed2 = D4.d4Energy2(disp, qat);
+      let ex = 0; if (vext) for (let i = 0; i < nat; i++) ex += qat[i] * vext[i];
+      espin = SPIN.spinPot(w, atSh, shAt, nsh, msh, new Float64Array(nsh));
+      const ts = entropyTerm(fa, kt) + entropyTerm(fb, kt);
+      eelec = eband + e2 + e3 + eaes + ed2 + espin + ts + ex; eext = ex;
+      parts = { eband, e2, e3, eaes, ed2, espin, ts };
+      converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc;
+      if (opts.verbose) console.log(iscf, (eelec + erep + edisp3).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
+    }
+    emo = ea; focc = fa;
+    return { msh, dm, tm, vaoM, Pa, Pb, Pm, Wa, Wb, ea, eb, fa, fb, espin };
+  }
+  if (sp) SPN = spinSCC();
+  while (!sp && !converged && iscf < maxIter) {
     const elast = eelec;
     if (iscf > 0) { mixer.next(); unpack(mixer.q); qat = qatOf(qsh); }
     iscf++;
@@ -477,7 +604,14 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     emo: Array.from(emo, x => x * AUTOEV), focc: Array.from(focc),
     parts: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, v * AUTOEV])),
   };
-  if (opts.bonds) {                                   // Mayer bond orders, as gfn1.js
+  if (SPN) {                                          // (spin polarization, 1.26; spin: N_alpha - N_beta per atom)
+    const m = SPN.msh, mat = new Float64Array(nat);
+    for (let s = 0; s < nsh; s++) mat[shAt[s]] -= m[s];
+    Object.assign(out, { msh: Array.from(m), spin: Array.from(mat), guess: [...qsh, ...m, ...dp, ...SPN.dm, ...qp, ...SPN.tm], Espin: SPN.espin * AUTOEV,
+      emoB: Array.from(SPN.eb, x => x * AUTOEV), foccB: Array.from(SPN.fb), nAlpha: SPN.fa.reduce((a, b) => a + b, 0), nBeta: SPN.fb.reduce((a, b) => a + b, 0) });
+  }
+  if (opts.bonds && SPN) out.bonds = SPIN.mayerSpin(SPN.Pa, SPN.Pb, S, aoAt, nat, nao);
+  else if (opts.bonds) {                                   // Mayer bond orders, as gfn1.js
     const B = new Float64Array(nat * nat);
     for (let m = 0; m < nao; m++) for (let n = 0; n < m; n++) {
       const a = aoAt[m], b = aoAt[n]; if (a === b) continue;
@@ -496,7 +630,8 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     const dEdcn = new Float64Array(nat);              // through the GFN coordination numbers (levels, multipole radii)
     const C = W;
     const Wd = new Float64Array(nao * nao), ck = new Float64Array(nao);
-    for (let k = 0; k < nao; k++) {
+    if (SPN) { SPIN.addWDensity(SPN.Wa, SPN.fa, SPN.ea, nao, Wd); SPIN.addWDensity(SPN.Wb, SPN.fb, SPN.eb, nao, Wd); } // (both channels, 1.26)
+    for (let k = 0; k < (SPN ? 0 : nao); k++) {
       const fe = focc[k] * emo[k];
       if (fe === 0) continue;
       for (let m = 0; m < nao; m++) ck[m] = C[m * nao + k];
@@ -578,7 +713,8 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
               const mu = shAo[a] + x;
               for (let y = 0; y < nb; y++) {
                 const nu = shAo[b] + y, k = x * nb + y, idx = mu * nao + nu, p = P[idx], sv = BLK[0][k];
-                const sval = 2 * p * hij - 2 * Wd[idx] - p * (vao[mu] + vao[nu]);
+                let sval = 2 * p * hij - 2 * Wd[idx] - p * (vao[mu] + vao[nu]);
+                if (SPN) sval -= SPN.Pm[idx] * (SPN.vaoM[mu] + SPN.vaoM[nu]); // (the magnetization's potential, 1.26)
                 const t = 2 * p * sv * dpolyH;
                 ps += p * sv;
                 const di = [BLK[1][k], BLK[2][k], BLK[3][k]];
