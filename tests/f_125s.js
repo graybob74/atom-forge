@@ -97,6 +97,36 @@ PARTS.settings3d = async (page, check, say, openPage) => {
   }
 };
 
+/* ---- the 3-D tab's Labels row with Off and On hover (the owner: "add a setting to remove labels in 3d because ... 10
+   bajillion letters is overstimulating"): one switch with Graphics → Labels and the view menu's Labels, kept across a
+   reload; drawn labels counted by wrapping label() through a render of the molecules in space */
+PARTS.labels3d = async (page, check, say) => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(res => setTimeout(res, ms)), out = {};
+    hideModal('setModal'); loadPreset('mol3d'); setRunning(false); setSetting('axes3', true); cam3Fit(); R.cam3.dist *= 0.5; cam3Update();
+    const lab0 = window.label; let n = 0, who = new Set(); window.label = function (ctx, txt, x, y) { n++; who.add(txt + '@' + Math.round(x) + ',' + Math.round(y)); return lab0.apply(this, arguments); };
+    const count = () => { n = 0; who = new Set(); render(W.rt); return n; };
+    openSettings('d3'); await wait(50);
+    out.choices = [...$('segLbl3').querySelectorAll('button')].map(b => b.dataset.v).join(' ');
+    const click = (v) => { const b = $('segLbl3').querySelector(`[data-v="${v}"]`); if (b) b.click(); };
+    click('all'); out.all = count(); out.allSet = [SET.labels, SET.lbl3, R.view.labels, $('segLabels').querySelector('[aria-pressed="true"]').dataset.v].join(' ');
+    click('front'); out.front = count();
+    click('off'); out.off = count(); const vc = document.querySelector('[data-view="labels"]'); out.offSet = [R.view.labels, vc ? vc.checked : null, $('segLabels').querySelector('[aria-pressed="true"]').dataset.v].join(' ');
+    out.kept = JSON.parse(store('viewflags') || '{}').labels;
+    click('hover'); R.hover = W.parts.find(p => p.Z === 8 && !p.dead); R.sel = null; out.hover = count(); out.hoverSet = [SET.labels, R.view.labels, $('segLabels').querySelector('[aria-pressed="true"]').dataset.v].join(' ');
+    R.hover = null; out.hoverNone = count();
+    // Graphics → Labels → Never shows as Off in the 3-D row, and Always as the 3-D row's own choice (front, chosen last)
+    $('segLabels').querySelector('[data-v="never"]').click(); syncSettings(); out.fromGfx = $('segLbl3').querySelector('[aria-pressed="true"]').dataset.v;
+    $('segLabels').querySelector('[data-v="always"]').click(); syncSettings(); out.fromGfx2 = $('segLbl3').querySelector('[aria-pressed="true"]').dataset.v;
+    window.label = lab0; click('front'); hideModal('setModal'); loadPreset('water'); setRunning(false);
+    return out;
+  });
+  check(r.choices === 'off hover front all' && r.all > r.front && r.front > 3 && r.off === 0 && r.hover === 1 && r.hoverNone === 0
+    && r.allSet === 'always all true always' && r.offSet === 'false false never' && r.kept === false && r.hoverSet === 'hover true hover' && r.fromGfx === 'off' && r.fromGfx2 === 'front',
+    `1.25 3-D labels: the 3-D tab's Labels row offers Off, On hover, Front atoms only and All atoms (labels drawn: all ${r.all}, front ${r.front}, off ${r.off}, hover ${r.hover} on the hovered atom, ${r.hoverNone} with none), one switch with Graphics → Labels and the view menu's checkbox, kept`,
+    '1.25 labels3d: ' + JSON.stringify(r));
+};
+
 module.exports = async function f125s(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

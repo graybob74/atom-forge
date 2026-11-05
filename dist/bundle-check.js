@@ -32301,7 +32301,7 @@ function syncSettings() {
   $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
   setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segPiRpc', String(SET.piRpc)); setSegValue('segBo', String(SET.bo)); setSegValue('segWave', String(SET.wave)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   setSegValue('segMetal', String(SET.metal)); // (1.25)
-  setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3);
+  setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); // (Off and On hover are Graphics → Labels' Never and On hover, 1.25) setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3);
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
@@ -32366,7 +32366,7 @@ const COSTS = {
 const COSTS3 = {
   segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry (in 3-D with single bonds’ twist barriers since 1.25: +30% a step in a box of organic molecules, nothing in water)'], 1: ['×18–23', 'Measured in 3-D on one thread (1.25): liquid water ×18–22, the molecules in space ×18–23, hydrogen + oxygen ×18 (every pair worked out every step on the JavaScript pass, the 3-D angles and twists with them, steps 2.6 times shorter; the flat game’s WebAssembly pass is not in 3-D yet)'], 2: ['×1000+', 'Measured in 3-D on one thread (1.25): a hydronium and five waters (19 atoms) 5.7 ms a step (the flat game 7.7), steps half as long: a small world runs in slow motion'] } }),
   segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured in 3-D on one thread (1.25): nothing without metal atoms; an aluminium ball of 959 atoms ×1.8 (its own pass about 0.7 µs an atom a step); a copper ball ×0.8–1.0 (its steps go to electron-transfer estimates either way)'] } }),
-  segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–3', 'Measured in 3-D on one thread (1.25): nothing without free electrons; 40 free electrons among neon atoms ×2.2 (the flat game ×2.4), six Na⁺ among twelve ×3.2 (1.24); in ionized liquid water ×1.7, its electrons caught again within a few dozen steps in 3-D'] } }),
+  segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–3', 'Measured in 3-D on one thread (1.25): nothing without free electrons; 40 free electrons among neon atoms ×2.2 (the flat game ×2.4), six Na⁺ among twelve ×3.2 (1.24); in ionized liquid water ×1.5–2.2, its electrons caught again within a few dozen steps in 3-D'] } }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.6', 'Measured on liquid water in 3-D (1.25): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×2.7', 'Measured on liquid water in 3-D: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water in 3-D: 32 beads, the rest once'] } }
     : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×17', 'Measured on liquid water in 3-D (1.25): the force field worked out 8 times a step'], 16: ['×30', 'Measured on liquid water in 3-D: 16 times a step'], 32: ['×48', 'Measured on liquid water in 3-D: 32 times a step'] } },
   segPiRpc: () => ({ k: 'physics', o: { 1: ['×1', 'Bonds and bends on every bead (where the spread matters), the pairs between atoms at the rings’ centres: ring-polymer contraction'], 0: ['×7–10', 'The whole force field on every bead: exact; in 3-D (liquid water, 1.25) 10 times the work at 8 beads, 7.5 at 32'] } }),
@@ -32551,7 +32551,7 @@ const SDESC = {
   segFog3: ['Depth fog', 'How much far atoms and bonds fade toward the background, a cue for which is in front. Off draws every atom in full colour.'],
   segBox3: ['Box', 'How the walls are drawn: the twelve edges with a faint grid on the far faces (when the grid is on in Lab → View), the edges alone, or nothing. The walls work the same either way.'],
   setAxes3: ['Axis marker', 'The small x, y and z arrows in the corner that show which way the world’s axes point from where you look.'],
-  segLbl3: ['Labels in 3-D', 'Front atoms only puts symbols on atoms no nearer atom covers, which keeps a liquid readable. All atoms labels every atom big enough to carry one, hidden ones too.'],
+  segLbl3: ['Labels in 3-D', 'Off draws no element symbols; On hover only on the atom under the mouse and the one inspected. Front atoms only puts symbols on atoms no nearer atom covers, which keeps a liquid readable; All atoms labels every atom big enough to carry one, hidden ones too. The same switch as Graphics → Labels and Lab → View → Labels (Off is Never there). Charge badges, the + or − on ions, follow Graphics → Charge badges.'],
   segOrbit3: ['Orbit speed', 'How far the view turns for a drag (right-drag, Alt+drag or two fingers).'],
   setOrbitInv: ['Invert orbit', 'Turns the view the other way for the same drag: as if you moved the camera rather than the box.'],
   segSpin3: ['Turntable', 'The view turns slowly about the vertical by itself, running or paused: one turn a minute, or one in 20 seconds. It holds still while you turn the view by hand.'],
@@ -32573,7 +32573,7 @@ const SDESC = {
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
    on which mode you're in ... There should also be 3d pictures in 3d mode"). While the world is 3-D (W.d3) the pane takes
    the 3-D lab's descriptions (SDESC3, STAB_DESC3) and costs (COSTS3), and its pictures ("key@3d", "key:value@3d" in
-   SETSHOTS; where there is none, the flat picture marked "In the flat game"); in the flat game only the flat ones (and the
+   SETSHOTS; where there is none, the flat picture marked "Picture from the flat game"); in the flat game only the flat ones (and the
    3-D tab's own pictures, as before). Notes under a row marked data-m="2d" or "3d" show in that mode only. A row that
    works in one mode only (SMODE_ONLY, and the 3-D tab's rows) is dimmed in the other with a "2-D only" / "3-D only" tag
    and still works: what it sets applies there. setModeSync switches it all when the mode changes (mode3dSync) and when
@@ -32832,7 +32832,9 @@ function settingsInit() {
   $('setExport').onclick = () => exportLibrary(); $('setImport').onclick = () => importLibrary();
   $('setDelMols').onclick = (e) => twoPress(e.currentTarget, () => { for (const k of Object.keys(MOLECULES)) if (MOLECULES[k].mine) myMolRemove(k); log('tool', 'My molecules deleted'); syncSettings(); });
   $('setDelIsos').onclick = (e) => twoPress(e.currentTarget, () => { MYISO.length = 0; myIsoStore(); buildToolOpts(); log('tool', 'Saved isotopes deleted'); syncSettings(); });
-  bindSeg('segFov3', (v) => setSetting('fov3', +v)); bindSeg('segProj3', (v) => setSetting('proj3', v)); bindSeg('segFog3', (v) => setSetting('fog3', v)); bindSeg('segBox3', (v) => setSetting('box3', v)); bindSeg('segLbl3', (v) => setSetting('lbl3', v));
+  bindSeg('segFov3', (v) => setSetting('fov3', +v)); bindSeg('segProj3', (v) => setSetting('proj3', v)); bindSeg('segFog3', (v) => setSetting('fog3', v)); bindSeg('segBox3', (v) => setSetting('box3', v)); bindSeg('segLbl3', (v) => { // (Off and On hover too, kept with Graphics → Labels and the view menu's Labels; the owner: "add a setting to remove labels in 3d because ... 10 bajillion letters is overstimulating", 1.25)
+    R.view.labels = v !== 'off'; viewFlagsSave(); if (v === 'front' || v === 'all') { SET.lbl3 = v; SET.labels = 'always'; } else if (v === 'hover') SET.labels = 'hover';
+    setSetting('labels', SET.labels); const c = document.querySelector('[data-view="labels"]'); if (c) c.checked = R.view.labels; });
   bindSeg('segOrbit3', (v) => setSetting('orbit3', +v)); bindSeg('segSpin3', (v) => setSetting('spin3', +v)); $('setAxes3').onchange = (e) => setSetting('axes3', e.target.checked); $('setOrbitInv').onchange = (e) => setSetting('orbitInv', e.target.checked);
   setPrevInit();
   $('setReset').onclick = () => { Object.assign(SET, SET_DEF); store('settings', JSON.stringify(SET)); applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts(); };

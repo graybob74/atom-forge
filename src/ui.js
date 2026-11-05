@@ -5762,7 +5762,7 @@ function syncSettings() {
   $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
   setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segPiRpc', String(SET.piRpc)); setSegValue('segBo', String(SET.bo)); setSegValue('segWave', String(SET.wave)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   setSegValue('segMetal', String(SET.metal)); // (1.25)
-  setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3);
+  setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); // (Off and On hover are Graphics → Labels' Never and On hover, 1.25) setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3);
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
@@ -6012,7 +6012,7 @@ const SDESC = {
   segFog3: ['Depth fog', 'How much far atoms and bonds fade toward the background, a cue for which is in front. Off draws every atom in full colour.'],
   segBox3: ['Box', 'How the walls are drawn: the twelve edges with a faint grid on the far faces (when the grid is on in Lab → View), the edges alone, or nothing. The walls work the same either way.'],
   setAxes3: ['Axis marker', 'The small x, y and z arrows in the corner that show which way the world’s axes point from where you look.'],
-  segLbl3: ['Labels in 3-D', 'Front atoms only puts symbols on atoms no nearer atom covers, which keeps a liquid readable. All atoms labels every atom big enough to carry one, hidden ones too.'],
+  segLbl3: ['Labels in 3-D', 'Off draws no element symbols; On hover only on the atom under the mouse and the one inspected. Front atoms only puts symbols on atoms no nearer atom covers, which keeps a liquid readable; All atoms labels every atom big enough to carry one, hidden ones too. The same switch as Graphics → Labels and Lab → View → Labels (Off is Never there). Charge badges, the + or − on ions, follow Graphics → Charge badges.'],
   segOrbit3: ['Orbit speed', 'How far the view turns for a drag (right-drag, Alt+drag or two fingers).'],
   setOrbitInv: ['Invert orbit', 'Turns the view the other way for the same drag: as if you moved the camera rather than the box.'],
   segSpin3: ['Turntable', 'The view turns slowly about the vertical by itself, running or paused: one turn a minute, or one in 20 seconds. It holds still while you turn the view by hand.'],
@@ -6293,7 +6293,9 @@ function settingsInit() {
   $('setExport').onclick = () => exportLibrary(); $('setImport').onclick = () => importLibrary();
   $('setDelMols').onclick = (e) => twoPress(e.currentTarget, () => { for (const k of Object.keys(MOLECULES)) if (MOLECULES[k].mine) myMolRemove(k); log('tool', 'My molecules deleted'); syncSettings(); });
   $('setDelIsos').onclick = (e) => twoPress(e.currentTarget, () => { MYISO.length = 0; myIsoStore(); buildToolOpts(); log('tool', 'Saved isotopes deleted'); syncSettings(); });
-  bindSeg('segFov3', (v) => setSetting('fov3', +v)); bindSeg('segProj3', (v) => setSetting('proj3', v)); bindSeg('segFog3', (v) => setSetting('fog3', v)); bindSeg('segBox3', (v) => setSetting('box3', v)); bindSeg('segLbl3', (v) => setSetting('lbl3', v));
+  bindSeg('segFov3', (v) => setSetting('fov3', +v)); bindSeg('segProj3', (v) => setSetting('proj3', v)); bindSeg('segFog3', (v) => setSetting('fog3', v)); bindSeg('segBox3', (v) => setSetting('box3', v)); bindSeg('segLbl3', (v) => { // (Off and On hover too, kept with Graphics → Labels and the view menu's Labels; the owner: "add a setting to remove labels in 3d because ... 10 bajillion letters is overstimulating", 1.25)
+    R.view.labels = v !== 'off'; viewFlagsSave(); if (v === 'front' || v === 'all') { SET.lbl3 = v; SET.labels = 'always'; } else if (v === 'hover') SET.labels = 'hover';
+    setSetting('labels', SET.labels); const c = document.querySelector('[data-view="labels"]'); if (c) c.checked = R.view.labels; });
   bindSeg('segOrbit3', (v) => setSetting('orbit3', +v)); bindSeg('segSpin3', (v) => setSetting('spin3', +v)); $('setAxes3').onchange = (e) => setSetting('axes3', e.target.checked); $('setOrbitInv').onchange = (e) => setSetting('orbitInv', e.target.checked);
   setPrevInit();
   $('setReset').onclick = () => { Object.assign(SET, SET_DEF); store('settings', JSON.stringify(SET)); applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts(); };
