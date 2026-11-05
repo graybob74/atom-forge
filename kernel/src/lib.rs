@@ -15,6 +15,7 @@ pub mod fastmath;
 pub mod bo;
 pub mod d3;
 pub mod vl;
+pub mod mb;
 
 pub const RC2: f64 = 36.0; // RC = 6 Å
 pub const FCAP: f64 = 1e7;

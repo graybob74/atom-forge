@@ -167,5 +167,41 @@ function wasmForces(q0, q1, b0, b1, c0, c1, FXo, FYo, CQ, wrap, bw, bh, hw, hh, 
   _kStiff = WK.ks[0]; WK.calls++;
   return nc;
 }
+/* Bond orders for metals (bometal.js mbPass, 1.25): the pair loop, the embedding and the forces in the module (af_mb,
+   kernel/src/mb.rs, 1.26), after mbPass has gathered and sorted the members (MBF.sx … in cell order, MBF.start, the pair
+   table MBF.pt): those are copied in (a few arrays of the members' length), the pairs' scratch lives here. The same loop in
+   the same order; exp is the module's, so the energy and forces agree with the JavaScript's to rounding. false: not run
+   (no module, or an array not in its memory): mbPass goes on in JavaScript. */
+const MBW = { t: null, p: null, cm: 0, cc: 0, ct: 0, cap: 0, calls: 0 };
+function mbWasm(nm, nt, nx, ny, nz, cut2, forces, d3, wrap, bw, bh, bd) {
+  if (!wasmReady() || typeof WK.ex.af_mb !== 'function') return false;
+  if (forces && !wasmIn(S.fx, S.fy, S.fz, S.im)) return false;
+  const nc = nx * ny * nz, W8 = (T, n) => wasmArray(T, n);
+  if (!MBW.t) { MBW.t = W8(Int32Array, 24); MBW.p = W8(Float64Array, 24); }
+  if (MBW.cm < nm) { const c = nm * 2 + 64; MBW.cm = c; for (const k of ['sx', 'sy', 'sz', 'rho', 'fd']) MBW[k] = W8(Float64Array, c); for (const k of ['ss', 'sty', 'sa']) MBW[k] = W8(Int32Array, c); }
+  if (MBW.cc < nc + 1) { MBW.cc = nc * 2 + 64; MBW.start = W8(Int32Array, MBW.cc); }
+  if (MBW.ct < nt) { MBW.ct = nt * 2 + 4; MBW.pt = W8(Float64Array, MBW.ct * MBW.ct * 8); MBW.eps = W8(Float64Array, MBW.ct); }
+  const room = (cap) => { MBW.cap = cap; for (const k of ['pa', 'pb']) MBW[k] = W8(Int32Array, cap); for (const k of ['ux', 'uy', 'uz', 'vr', 'dr', 'pk', 'rr']) MBW[k] = W8(Float64Array, cap); };
+  if (forces && MBW.cap < nm * (d3 ? 12 : 6) + 64) room(nm * (d3 ? 24 : 10) + 64);
+  if (!WK.on) return false; // (a full plain memory gave the module up)
+  MBW.sx.set(MBF.sx.subarray(0, nm)); MBW.sy.set(MBF.sy.subarray(0, nm)); MBW.sz.set(MBF.sz.subarray(0, nm));
+  MBW.ss.set(MBF.ss.subarray(0, nm)); MBW.sty.set(MBF.st.subarray(0, nm)); MBW.sa.set(MBF.sa.subarray(0, nm));
+  MBW.start.set(MBF.start.subarray(0, nc + 1)); MBW.pt.set(MBF.pt.subarray(0, nt * nt * 8)); MBW.eps.set(MBF.eps.subarray(0, nt));
+  const P = MBW.p, T = MBW.t;
+  P[0] = nm; P[1] = nt; P[2] = nx; P[3] = ny; P[4] = nz; P[5] = d3 ? 1 : 0; P[6] = wrap ? 1 : 0; P[7] = bw; P[8] = bh; P[9] = bd; P[10] = bw / 2; P[11] = bh / 2; P[12] = bd / 2; P[13] = cut2; P[14] = forces ? 1 : 0;
+  for (let tries = 0; tries < 3; tries++) {
+    ['sx', 'sy', 'sz', 'ss', 'sty', 'sa', 'start', 'pt', 'eps', 'rho', 'fd'].forEach((k, q) => { T[q] = MBW[k].byteOffset; });
+    ['pa', 'pb', 'ux', 'uy', 'uz', 'vr', 'dr', 'pk', 'rr'].forEach((k, q) => { T[11 + q] = forces ? MBW[k].byteOffset : 0; });
+    T[20] = S.fx.byteOffset; T[21] = S.fy.byteOffset; T[22] = S.fz.byteOffset; T[23] = S.im.byteOffset;
+    P[15] = forces ? MBW.cap : 0;
+    WK.ex.af_mb(T.byteOffset, P.byteOffset);
+    if (P[20] !== 1) break;
+    room(Math.ceil(P[16] * 1.25) + 64); if (!WK.on) return false; // (more pairs than room: room for them, and again)
+  }
+  if (P[20] === 1) return false;
+  MBO.np = P[16]; MBO.E = P[17] + P[18]; MBW.calls++;
+  if (forces && P[19] > _stiff) _stiff = P[19];
+  return true;
+}
 wasmMemoryInit();
 if (typeof module !== 'undefined') module.exports = { WK, SHARED_OK, wasmArray, wasmAlloc };

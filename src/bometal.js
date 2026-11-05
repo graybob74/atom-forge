@@ -182,6 +182,7 @@ function mbPass(forces) {
   if (MBF.sx.length < nm) { for (const k of ['sx', 'sy', 'sz', 'rho', 'fd']) MBF[k] = new Float64Array(nm * 2 + 64); for (const k of ['ss', 'st', 'sa']) MBF[k] = new Int32Array(nm * 2 + 64); }
   const SX = MBF.sx, SY = MBF.sy, SZ = MBF.sz, SS = MBF.ss, STY = MBF.st, SA = MBF.sa;
   for (let s = 0; s < nm; s++) { const a = ord[s], i = m[a]; SX[s] = X[i]; SY[s] = Y[i]; SZ[s] = d3 ? Zp[i] : 0; SS[s] = i; STY[s] = ty[a] * nt; SA[s] = AN[i]; }
+  if (MBO.useWasm !== false && mbWasm(nm, nt, nx, ny, nz, cut2, forces, d3, wrap, bw, bh, bd)) return MBO.E; // (the rest in the module when it can, 1.26: wasm.js; MBO.useWasm false: the JavaScript below)
   // pairs: each cell against itself (the later member only) and its neighbouring cells of higher number, each once
   const rho = MBF.rho; rho.fill(0, 0, nm);
   let np = 0, Erep = 0;
