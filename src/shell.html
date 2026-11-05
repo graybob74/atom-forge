@@ -784,6 +784,8 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .smo { display: inline-block; margin-left: 7px; padding: 0 6px; border-radius: 9px; border: 1px solid #c9a227; color: #c9a227; font: 600 10px var(--font-data, ui-monospace, monospace); line-height: 15px; vertical-align: 1px; white-space: nowrap; }
 .sprev-cap { position: absolute; right: 6px; top: 6px; padding: 1px 7px; border-radius: 6px; background: rgba(8, 13, 20, 0.82); color: #c9d4e0; font-size: 11px; pointer-events: none; }
 .sprev-cap[hidden] { display: none; }
+.sprev-cap .cap-s { display: none; }
+@media (max-width: 760px), (max-height: 560px) { .sprev-cap { right: 3px; top: 3px; padding: 0 4px; font-size: 10px; } .sprev-cap .cap-l { display: none; } .sprev-cap .cap-s { display: inline; } } /* (the strip's thumbnail is small: a short mark) */
 @media (max-width: 760px), (max-height: 560px) {
   #setModal > .sdialog { height: 100%; }
   .sbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 10px; }

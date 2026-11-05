@@ -615,6 +615,90 @@ charges before and after).
   3-D, Help). Each fails on 1.24.0 (no model). t_features' 1.10 check lists every realistic tag in Settings: the new one added to
   its list.
 
+### 1.25: Settings by mode, 3-D pictures
+
+The owner: "since the numbers for 3d are very different, the settings menu should change based on which mode you're in
+... There should also be 3d pictures in 3d mode", and (through the main session) "the 3-D pictures must appear only in
+3-D mode". Display and text work; nothing in the physics changed (the engine files are untouched; the 24 flat setups'
+fingerprints, 300 steps, seed 7, identical to 6f5d75f).
+
+- **The mode** is the world's (`W.d3`; the main menu's 3-D screen loads a 3-D world behind it, so Settings opened from
+  there is the 3-D lab's). Settings' title carries it ("2-D game" / "3-D lab"). `setModeSync` (ui.js) switches
+  everything below; it runs when Settings opens and from `mode3dSync` when the mode changes, so an open Settings follows
+  a 3-D setup chosen under it, and main menu → 3-D → Settings and back → 2-D → Settings need no reload.
+- **Cost tags by mode**: `COSTS3` holds the 3-D lab's tags, `costOf(id)` picks this mode's for the rows, the preview
+  pane, the Experimental total and the Speed test's settings line. Measured the way the flat ones were (one thread, the
+  bath off after settling, events on, ms a simulated fs against the same box with the setting off), by the new
+  `tools/accbench/bench-mode.js <scenario> <variant>` with flat and 3-D twins: liquid water (the setups: 240 atoms flat,
+  1,029 in 3-D), salt water (726 / 997), 40 free electrons among 40 neon atoms, an aluminium patch / ball (223 / 959
+  atoms), a copper patch / ball (283 / 959), a hydronium and five waters (19 atoms), the molecules in space (72). Two
+  rounds, interleaved, on two cores shared with another agent's work (so ±30% run to run; the 3-D numbers, whose steps
+  are longer, held better):
+
+  | setting | flat tag (unchanged) | flat, measured here | 3-D tag | 3-D, measured here |
+  |---|---|---|---|---|
+  | longest step 0.2 / 0.1 fs | ×1.7 / ×2.8 | water ×1.3–1.5 / ×1.6–1.8; brine ×1.5–1.8 / ×2.5–2.8 | ×2 / ×3.5 | water ×2.1–2.2 / ×3.4–3.5; brine ×2.0–2.1 / ×3.3–4.1 |
+  | force reach 9 / 12 Å | ×1.3–2.6 / ×1.6–5.6 | water ×1.0–1.1 / ×1.1–1.6; brine ×1.1 / ×1.6–1.8 | ×3.5–5 / ×7–17 | water ×4.9–5.0 / ×12–17; brine ×3.5–4.6 / ×6.6–6.9 |
+  | induced charges every 10th / every step | ×1.4–1.8 / ×2.7–4.6 | water ×1.7–2.6 / ×1.3–4.8 (noisy); brine ×1.7–1.9 / ×1.3–2.1 | ×1.6–2.4 / ×3.2–4.2 | water ×1.8–4.0 / ×3.6–7.8 (noisy; 1.24's ×1.6 / ×4.2); brine ×2.4–3.5 / ×1.9–3.4 |
+  | quantum nuclei 8 / 16 / 32 beads, contracted | ×1.4 / ×3 / ×6 | ×0.7–1.0 / ×1.3–2.6 / ×5.7 | ×1.6 / ×2.7 / ×6 | ×1.6–2.0 / ×2.6–2.7 / ×6.1–6.2 |
+  | the same, every bead | ×3.3 / ×7 / ×16 | ×2.5–2.7 / ×3.6–4.8 / ×7.9–9.9 | ×17 / ×30 / ×48 | ×16–18 / ×29–31 / ×46–51 |
+  | bead forces: every bead against contracted | ×2.3–2.7 | — | ×7–10 | 10 at 8 beads, 7.5 at 32 |
+  | bond orders from the positions | ×8–15 | water ×5.4–5.8 | ×18–23 | water ×18–20, molecules in space ×18–23 (1.25's bo3d: ×22, H₂ + O₂ ×18) |
+  | quantum bonds (19 atoms) | ×1000+ | 7.7–8.2 ms a step | ×1000+ | 5.7–5.9 ms a step |
+  | electrons as waves | ×1–7 | neon + 40 e⁻ ×2.2–2.5; ionized water ×2.2–4.4 | ×1–3 | neon + 40 e⁻ ×2.1–2.2; ionized water ×1.5–2.2 (below); 1.24's six Na⁺ + 12 e⁻ ×3.2 |
+  | many-body metals | ×1–2 | Al ×2.3 (one clean round), Cu ×0.1–0.7 | ×1–2 | Al ×1.8 (one clean round), Cu ×0.8–1.0 |
+  | detailed nuclear collisions | ×1–1.05 | — | ×1 (the flat game only) | nothing to measure: no nucleon hits nuclei in 3-D (v129 keeps the cascade flat, `!W.d3`) |
+  | ultra-realistic | ×1 | — | ×1 | 1.24: 3.33 / 3.38 ms a step |
+
+  The flat tags were left as they were: they come from calmer machines and longer runs (1.10–1.22), and the flat
+  re-measurements here agree within the noise except bond orders from the positions (water ×5.4–5.8 against the tag's
+  ×8–15: the tag's water ×8 is from 1.20; written down, not changed). Single bonds' twist in 3-D (always on, no setting):
+  +30% a step in a box of organic molecules, nothing in water (1.25's tors1), said in the 3-D Experimental overview and
+  in Stored's 3-D tip.
+- **Descriptions by mode**: `SDESC3` (13 settings) and `STAB_DESC3` (Graphics, Controls, Experimental) in 3-D,
+  `STAB_DESC2` (the 3-D tab seen from the flat game). In 3-D: atom size (seeing past near atoms), labels (the 3-D tab
+  decides which atoms), trails (each point's depth), drawing engine (Canvas 2D sorts far to near), wheel zoom (camera
+  nearer or farther; Shift + wheel the placing plane), zoom toward (flat only), detailed nuclear collisions (flat only),
+  longest step, force reach (partners grow as the cube of the reach), induced charges (three directions), quantum nuclei
+  (beads not drawn), bond orders (3-D angles, the twist of double, aromatic and single bonds), metals (the crystal's
+  measured values exact), electrons as waves (drawn as points), ultra-realistic (the camera stops at 0.5 Å). The
+  Experimental notes under the rows (the pane's long text) were split into a common part and a part for each mode
+  (`data-m="2d"` / `"3d"`, shown in their mode only): the flat-only sentences 1.24.0 noted ("averaged in the plane",
+  "the atoms stay in the plane", "zoomed in, the beads show as small dots", "drawn as a faint disc", the zoom to nuclei,
+  the flat melting points, "crowded flat molecules") now say so, and each has a 3-D counterpart with its 3-D costs.
+  Settings → Experimental's 3-D note says detailed nuclear collisions are the exception.
+- **One mode only**: detailed nuclear collisions and zoom toward in the 3-D lab, and every row of the 3-D tab in the
+  flat game, are dimmed with a "2-D only" / "3-D only" tag (`SMODE_ONLY`, `.smode-off`, `.smo`); they still work (what
+  they set applies in their mode), so the 3-D tab can be set before going to the 3-D lab. Nothing was hidden: a tab or
+  a row that vanished with the mode would be harder to find.
+- **3-D pictures** (`tools/setshots.js`, keys `key@3d`, `key:value@3d`): atom size, labels, charge badges, glows, fewer
+  flashes, colour-blind colours, particle trails (electrons fired in slow motion through a 3-D box), bond orders from
+  the positions, quantum bonds (a proton shared by two waters, set up as the flat picture is). `setShotFor` takes a
+  3-D picture first in 3-D (a choice's, then the setting's) and never one in the flat game (the enlarged view shows the
+  pane's picture, so it follows). Where no 3-D picture makes sense the flat one shows in 3-D with a "Picture from the
+  flat game" mark ("2-D" on a narrow screen): the window's own settings (interface size, panel side, chamber only,
+  theme, tips, frame rate, resolution: the window looks the same in both, so a 3-D copy would add ~280 KB for nothing;
+  made and measured, then left out) and what is not drawn in 3-D (quantum nuclei's beads, wave packets, the
+  ultra-realistic mode's sizes). The 3-D tab's own pictures show in both modes, as before. Size: 9 pictures, 270 KB;
+  src/setshots.gen.js 797 → 1,049 KB (+252 KB), the page 4.07 MB; under t_settings' 1,200 KB budget, so it stayed.
+  1280 × 720, WebP quality 0.72, as the rest.
+- **Checked at 1360 and 390 px in both modes** (screenshots 125s-before-* and 125s-after-*-{2d,3d}-{exp,gfx,d3,ctl}-{1360,390}.png
+  in the session's scratchpad): at 390 px the other mode's notes are hidden in the list too (a `[hidden]` rule over the
+  narrow layout's `display: block`), nothing runs past the edge (0 px), and the strip's small thumbnail carries a short
+  "2-D" mark.
+- **Found, not changed**: (1) in 3-D, liquid water with 40 molecules ionized catches its 40 electrons again within ~30
+  steps (the flat water keeps all 40 over the same steps), so ionized water is a poor 3-D benchmark for waves: the bench
+  ionizes after the warm-up and a neon box was added. (2) Quantum nuclei with every bead's whole force field cost ×17–48
+  in 3-D against ×3–10 flat (contracted: about the same in both): worth a look for the speed session (where the 3-D
+  per-bead pass runs). (3) The flat bond-order tag (×8–15) measures ×5.4–5.8 here.
+- Tests: tests/f_125s.js `settings3d` (t_features' 1.25 area, one line; or `node tests/f_125s.js`): the mode in the
+  title; the cost tags differ by mode (bond orders ×8–15 / ×18–23, force reach, quantum nuclei, induced charges, longest
+  step); the 3-D words and notes (none of the other mode's shown); the one-mode tags; in the flat game every picture
+  shown (82 rows and choices, and the enlarged view) is a flat one and none is marked; in 3-D the 9 settings with a 3-D
+  picture show it (23 rows and choices, the enlarged view too), the rest the flat one marked; it switches with Settings
+  open, and through main menu → 3-D → Settings → back to 2-D; at 390 px each mode's notes only, no overflow. Fails on
+  6f5d75f (no mode: the pane has no mark to read). t_settings accepts the `@3d` keys as their setting's.
+
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
 The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on branch v127.
