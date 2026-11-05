@@ -185,31 +185,16 @@ engine stores and visits particles.
   of one model. Several sessions; a physics-model change for the owner to approve.
 - Asked by the user after 1.23.1 (collected; wait for "build it"). The user: "this should be 1.23.2" (with the fixes
   already in the 1.23.2 section), "and for 1.24 add the rest of the experimental options to 3d". For 1.23.2:
-  - 3-D ions: "ions should be modeled differently in 3d because when they get bigger it overlaps with other
-    particles". Measured on 1.23.1 (brine3d, 800 steps, atom size 1): no ion's drawn ball overlaps a neighbour's
+  - 3-D ions (open: the measurements for the owner's decision are in the 1.23.2 section): "ions should be modeled
+    differently in 3d because when they get bigger it overlaps with other particles". Measured on 1.23.1 (brine3d, 800 steps, atom size 1): no ion's drawn ball overlaps a neighbour's
     (closest Na⁺–O 1.89 Å against 1.10 drawn, Cl⁻–H 1.73 against 1.47), but Na⁺–O comes closer than real (~2.4 Å),
     likely the flat world's K_IW 2 and LJ_SCALE 2 still on in 3-D (the open item under 1.23.0). Which ions and setup
     the user saw it in: asked for (a screenshot). The likely fix is the open K_IW/LJ_SCALE item; physics, needs his OK.
-  - 3-D: WASD movement, a camera that flies through the world so every part can be seen (with Q/E or Space/Shift for
-    up and down, speed by the zoom).
-  - Move Ultra-realistic mode into the Experimental tab (it then goes back to normal at every start, 1.23.1).
-  - 3-D tiny objects (the Objects library: the flat game's tiny objects as 3-D builds in the 3-D lab).
-  - Separate molecule libraries for 2-D and 3-D, each holding only the molecules that fit it (flat builds in the flat
-    game, 3-D shapes in the 3-D lab). Molecules made with Ask Claude go to the library of the mode they were made
-    for, with a 2-D / 3-D drop-down when building one with Claude.
-  - Remove the "3-D PREVIEW · Leave" button on the 3-D lab's bar (the user: "if i want to leave i go to the main
-    menu"); keep the Preview tag.
-  - Fast particles leave the box in 3-D too (the user: "make sure that fast particles still leave the box in 3d").
-    From the code (not yet measured): in 2-D a closed box's walls stop what reaches them in radiation flight (charged
-    particles past their radiation threshold, fast neutrons by the Container setting: wallStops, neutronLeaves) and
-    it leaves, its energy counted as escaped; recoiling atoms are stopped and set back at the wall's temperature. In 3-D
-    there is no radiation flight yet (fast is cleared, 3542) and walls3 bounces everything back except antimatter, so
-    a 1 MeV proton or a fission neutron would stay in the box. To do: the same rules in walls3 by speed (KE past
-    radThreshold), measured with a proton, an α and a fast neutron; energy booked as escaped (t_energy).
-  - Remove Performance mode (the user: "i feel like performance mode has become obsolete"): the Settings checkbox that
-    set four settings at once (SET_PERF: particle limit 12,000, standard resolution, no glows) and put them back when
-    turned off. The four stay as separate settings. Someone who had it on keeps the values it set (they are what the
-    game runs with now), and the prePerf memory is dropped; the Settings preview picture and text for it go too.
+  - Done in 1.23.2 (the section below): WASD flying in 3-D; Ultra-realistic in the Experimental tab; 3-D tiny objects
+    (five; the rest left out, reasons below); separate 2-D and 3-D libraries with Ask Claude's 2-D / 3-D choice; the
+    Leave button gone (a Preview label); fast particles leaving the 3-D box; Performance mode gone. Also asked during
+    the build and done there: Settings pictures enlarged on a click (animated) at 1280 × 720, the 3-D axis marker and
+    scale bar above the tool's bar, the "On hold" note gone, main-menu presses that were lost, the Gallery's spacing.
   For 1.24:
   - The rest of the Experimental settings in 3-D: induced charges, quantum nuclei, continuous and quantum bond orders,
     electrons as waves, the ultra-realistic mode (today flat only, set3dNote). Physics in 3-D; needs his OK as each
@@ -279,6 +264,98 @@ engine stores and visits particles.
   frame, when a line first asks), so the lines start at the ions' edges and pass behind atoms in front of them.
   t_3d: Na⁺–Cl⁻ with an argon in front of part of the contact: 28 points drawn, none on either ion or on the argon
   (before: the line began at each ion's centre and crossed the argon).
+- **Flying the 3-D camera** (asked for by the owner): W/S forward and back along the line of sight, A/D to the sides,
+  E/Q up and down (the world's vertical); while one of those is held, Space and Shift also go up and down. Space on
+  its own still plays and pauses (it is the game's most used key), so it only flies while flying; Shift alone does
+  nothing. The camera's target moves with it (`R.cam3.tx/ty/tz`), so turning afterwards circles the new place. Speed
+  ¾ of the distance to the target a second (1.5 Å/s at least, three box diagonals at most), so it is as useful a few Å
+  from a molecule as across the box; it eases in and out over ~0.1 s and follows the frame's own time (`fly3Tick`).
+  Only in 3-D, never while a text field has the keys or a dialog or the main menu is open; keys let go when the window
+  loses the focus. Clashes moved: in 3-D, S (Spark) and E (Erase) fly, so Spark is Z and Erase X there (`key3`, shown
+  on the tool buttons, their titles, the quick menu and the shortcut list); D (Objects) is off in 3-D anyway. In the
+  shortcut list (a "3-D lab" group), Help (Moving around), Settings → 3-D (a note) and the 3-D menu's note. Measured
+  (headless): W held 0.5 s at the fitted view (50 Å off) moved the camera 18.7 Å straight ahead (along the view to
+  0.999); D + Space 9.5 Å up without pausing.
+- **Ultra-realistic mode in Settings → Experimental** (asked for by the owner): it is now one of `SET_EXP`, so it is off
+  again at each start like the rest of the tab (1.23.1); behaviour unchanged; its note says so, `#ultraBadge`'s title
+  and the decay-speed note say Settings → Experimental; saves record it with the other Experimental settings.
+- **The 3-D bar's Leave button is gone** (the owner: "if i want to leave i go to the main menu"): a "3-D Preview" label
+  (`#tag3d`, not a button) stays; the main menu (Esc → Main menu) always opens on the 2-D / 3-D choice, which leads back
+  to the flat game. t_3d now leaves through the menu.
+- **Performance mode is gone** (the owner: "obsolete"): the checkbox, `SET_PERF`, `perfOn`, `prePerf`, its description;
+  the four settings it set stay, each on its own. A stored settings object that had it on keeps the values it set
+  (12,000 particles, standard drawing, no glows), and `prePerf`/`perf` are dropped from storage on load. `setSetting`
+  now takes only real settings. The tests and tools/bench-page.js that turned it on set the four instead.
+- **Fast particles leave the 3-D box** (the owner: "make sure that fast particles still leave the box in 3d"). The 3-D
+  world has no radiation flight (its collision search is flat), so its fast particles are stepped; `walls3` (and
+  `leptonWall` for free electrons) now decide by speed what the flat walls decide by radiation flight: past
+  `radThreshold` for its kind, a charged particle reaching a closed wall is stopped in it (`W.count.wallStop`, its charge
+  to the wall), a recoiling atom (Z ≥ 3 with electrons) is set back just inside at the wall's temperature (`wallStop3`);
+  an open wall now books what leaves too. The escaped energy is what the world loses, measured (motion, internal
+  energy, the whole molecule's localPE before and after; a free electron's field energy). `setMotion` in 3-D now keeps
+  every speed in the stepped set with its z (before, a particle past the threshold flew flat, z held, meeting nuclei at
+  any depth); neutrons move in depth and meet nuclei by their 3-D distance, and `wallOrEscape` has the z faces.
+  Measured in the empty 3-D box (30 Å, insulated), 1.23.1 → 1.23.2: a 1 MeV proton and a 5 MeV α set moving by
+  velocity bounced for ever (3,000 steps, 0.17 tu, books −0.08 eV) → stopped in the wall after 293 steps, escaped 1 MeV
+  / 5 MeV, books −0.005 / −0.008 eV; by setMotion they flew flat at z = 0 → now in depth (z = 15, the face); a 50 keV
+  electron bounced → stopped (books 0); a 100 keV U recoil bounced → set back at 300 K (books −0.009 eV); a 2 MeV
+  neutron's depth never changed (z = 0 for 120 tu) → it moves in z and bounces off a reflecting wall, and leaves when
+  Container lets fast neutrons out (escaped 2 MeV); an open box lost 1 MeV from the books → 0. No chain reaction or
+  fission exists in 3-D (nuclear reactions are flat-only), so none was measured. Flat game bit for bit the same (water,
+  combustion, soup, gallery, chain, brine, fusion, U series, 300 steps, seed 7: identical).
+  Found, not changed: a fast neutron among waters in 3-D leaks 50–85 eV over 1,500 steps (its collisions' kinematics
+  are flat; 85 eV before this change, 48 after); a 100 keV U atom among waters ~1 eV (stepped hard collisions, the
+  same before). In the flat game, `walls()`'s open-wall branch kills without booking escaped (a hole in the books in
+  open 2-D boxes, for stepped particles; not touched, the flat game kept bit for bit).
+- **Separate libraries for 2-D and 3-D** (asked for by the owner). The rule, from the library itself (`molFits`): every
+  ordinary molecule (177, at most 36 atoms) is a flat drawing the 3-D lab lifts and relaxes into its shape in space
+  (place3), so it is in both; the tiny objects and anything over 90 atoms (`molWhole`) are flat builds, 2-D only; the
+  new 3-D objects (with z) are 3-D only; a molecule of your own made for one mode is in that one only (`mode`, saved as
+  `m` in `mymols` and exports); those kept before 1.23.2 (no mode), plain molecules, in both. The library (counts,
+  categories, search, the "3-D" tag on its title), the palette and Place follow it; picking one of the other mode's
+  says where it is. Ask Claude (the builder) has a For 2-D / For 3-D choice beside its button, starting at the open
+  mode; Claude's design is saved to that library (and library hits come from it); a lattice too big to be anything but
+  flat stays 2-D, and says so. Molecules built by hand are in both. 2-D: 190 entries, 3-D: 178 (with the tests' three).
+- **3-D tiny objects** (asked for by the owner): five, built in space by `tools/objgen3.js` into `src/objects3.gen.js`
+  (OBJECT3_LIB, the flat format plus z), settled with the engine's 3-D forces (a quench), turned to their principal
+  axes, and checked to hold at 300 K for 2 ps: a salt cube (216 ions, rock salt, 6 a side, 1.6 nm), a gold
+  nanoparticle (147 atoms, an fcc cuboctahedron), a water droplet (123 molecules, 2 nm), a graphene flake (150 C, five
+  rings a side so it fits a 30 Å cube; flat in space), polyethylene (the flat object's 78-carbon chain lifted and
+  relaxed: tetrahedral carbons). Placed one at a time as built, kept inside the box, moved to the nearest clear spot,
+  and not at all when the box is too small or full (a 3-D box keeps its size). Left out: the chips (transistor,
+  inverter, memory cells: their wiring is flat-only, chips.js), Kevlar and cellulose (rods 3.3–4.8 nm: longer than the
+  3-D lab's cubes until box sizes come to 3-D), the quantum dot (InP's zincblende needs four bonds an atom; the engine's
+  In and P make three), the membrane (a 3-D bilayer patch would be thousands of atoms), and the folded biomolecules
+  (DNA, the WW domain, chignolin, oxytocin: their folds need measured coordinates; a flat drawing relaxed in space is
+  not the fold). The placed objects (mirrors, lenses …) stay out of 3-D (the owner).
+- **Settings pictures open large** (asked for by the owner: "able to be clicked on and zoomed in on, upscale res if
+  needed", "make sure it's animated"): a click, a tap, Enter or Space on the preview opens it over the page, fitted to
+  the window over a dark backdrop; it grows out of the thumbnail (laid out at its large size, starting transformed onto
+  the thumbnail, the transform easing away in 0.22 s while the backdrop darkens) and shrinks back into it on close
+  (click, Esc, ×; the focus back on the preview). Instant with the Motion setting off or reduced motion. Once open: the
+  wheel, a pinch or +/− zoom about the pointer (1–6×), a drag pans. Works at 390 px wide. The pictures are now
+  1280 × 720 (laid out at 640 × 360 and drawn at 2× from pages photographed at 2×; WebP quality 0.72): 343 KB → 778 KB
+  for the 30 (t_settings' budget 600 → 1,200 KB, and their size check).
+- **3-D axis marker and scale bar above the tool's bar** (the owner's screenshot: only the tips of y and x showed): both
+  sat at fixed heights from the chamber's bottom, under the tool's options bar (its top 57 px up). They now sit above
+  whatever bar reaches over the left corner (`chamberBottomInset`: the tool's options and the rewind bar, measured from
+  the page at most five times a second), in 3-D and 2-D (the flat scale bar was covered too). Checked at 1360 and 700 px.
+- **"On hold: very large" gone** from the Experimental tab (3-D came in 1.23, quantum bonds in 1.22); Help's limits now
+  mention the 3-D lab and quantum bonds' molecular orbitals.
+- **Main-menu presses that took several clicks** (the owner): the menu's card slid and tilted after the mouse (up to
+  22 px and 7°) and buttons moved on hover and shrank on press, so a button slid away from a pointer coming to it and a
+  press and release could land on different things. Measured (headless, presses 3–5 px inside a button's edge after
+  coming from the corner): the 2-D tile 7 of 12, the 3-D tile 0 of 12; with hover and press still alone, 8 and 0; with
+  the card still too, 12 and 12. The card is now still (the chamber and the glow behind it still follow the mouse),
+  hover and press change colour, glow and brightness only, and the menu holds still while pressed and does not sway by
+  itself under the pointer. The quick menu's "Follow it" (t_page's flaky check): 1 miss in 85 tries (a right-click on a
+  still atom opening the empty-space menu), not reproduced with tracing; t_page's retry removed as asked.
+- **The Gallery was spread over the window** (the owner's screenshot at 1024 × 800): 1.23 gave `.sdialog`, which the
+  Gallery, My experiments, Share and Ask for a setup share, Settings' fixed 800 px height and two grid rows, so their
+  few rows were stretched apart. Settings' window is now `#setModal > .sdialog`; the others are back to 560 px wide and
+  as tall as their contents (Gallery 804 → 208 px, rows 256 → 26 px apart; Ask 804 → 386; My experiments 804 → 170).
+- Tests: tests/f_1232.js (run by t_features' 1.23.2 block, or alone): each item above; on 1.23.1 the first three fail
+  and the rest stop with errors (the functions they use do not exist there).
 
 ## 1.23.1: freezes fixed and reported, a desktop watchdog, Experimental settings reset at start, lit 3-D atoms
 
