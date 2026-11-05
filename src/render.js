@@ -1777,6 +1777,24 @@ function drawOverlay() {
   }
   ctx.restore();
 }
+/* How far up from the chamber's bottom edge the corner marks (the scale bar; the 3-D axis marker) sit clear of the bars
+   laid over the chamber's bottom (the tool's options; the rewind bar), measured from the page as it is laid out: they
+   covered both in 1.23 (the owner's screenshot: only the tips of y and x showed). Looked up at most five times a
+   second (a layout read), so a bar that wraps to two lines or goes away is followed within a fifth of a second. Only
+   bars that reach over the left corner count. (1.23.2) */
+const BOT_IN = { t: -1e9, v: 0 };
+function chamberBottomInset() {
+  const now = typeof performance !== 'undefined' ? performance.now() : 0;
+  if (now - BOT_IN.t < 200 || !R.cv || !R.cv.getBoundingClientRect || typeof document === 'undefined') return BOT_IN.v;
+  BOT_IN.t = now; let v = 0;
+  const c = R.cv.getBoundingClientRect();
+  for (const id of ['tooloptsHS', 'rewBar']) {
+    const el = document.getElementById(id); if (!el || el.hidden || !el.offsetParent) continue;
+    const b = el.getBoundingClientRect(); if (!b.height || b.left - c.left > 240 || b.top >= c.bottom || b.bottom <= c.top) continue;
+    v = Math.max(v, c.bottom - b.top + 4);
+  }
+  return (BOT_IN.v = clamp(v, 0, Math.max(0, R.h - 80)));
+}
 function drawScaleBar() {
   const ctx = R.ctx;
   const targetPx = 110;
@@ -1784,7 +1802,7 @@ function drawScaleBar() {
   const pow = Math.pow(10, Math.floor(Math.log10(raw)));
   let len = pow; for (const m of [1, 2, 5, 10]) if (m * pow <= raw) len = m * pow;
   const px = len * R.s;
-  const x = 16, y = R.h - 18;
+  const x = 16, y = R.h - 18 - chamberBottomInset(); // (above the bars over the chamber's bottom, 1.23.2)
   ctx.save();
   ctx.strokeStyle = CHAMBER.text; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + px, y); ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4); ctx.moveTo(x + px, y - 4); ctx.lineTo(x + px, y + 4); ctx.stroke();

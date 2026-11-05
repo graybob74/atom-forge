@@ -176,7 +176,7 @@ function drawBox3(ctx, front) {
 }
 /* The world's axes, small, in a corner (which way x, y and z point from here). */
 function drawAxes3(ctx) {
-  const x0 = 34, y0 = R.h - 58, L = 20;
+  const x0 = 34, y0 = R.h - 58 - chamberBottomInset(), L = 20; // (above the tool's options bar, 1.23.2)
   ctx.save(); ctx.lineWidth = 1.5; ctx.font = '600 10px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const ax = [['x', 1, 0, 0, '#ff7a6b'], ['y', 0, 1, 0, '#7ee08a'], ['z', 0, 0, 1, '#6ba8ff']];
   ax.sort((a, b) => (a[1] * C3.fx + a[2] * C3.fy + a[3] * C3.fz) < (b[1] * C3.fx + b[2] * C3.fy + b[3] * C3.fz) ? 1 : -1); // (the one pointing away first)

@@ -5400,6 +5400,7 @@ function onKey(e) {
     closeQuickMenu();
   }
   if (e.key === 'F11') { e.preventDefault(); setWindowMode(DM.win === 'borderless' ? 'windowed' : 'borderless'); return; }
+  if (SHOT.open) { if (e.key === 'Escape') { e.preventDefault(); shotClose(); } else if (e.key === '+' || e.key === '=') shotZoom(1.25, innerWidth / 2, innerHeight / 2); else if (e.key === '-') shotZoom(0.8, innerWidth / 2, innerHeight / 2); return; } // (the enlarged Settings picture has the keys while open, 1.23.2)
   if (e.key === 'Escape') {
     if (!$('pmenu').hidden) { pmenuClose(); return; }
     if (!$('escModal').hidden) { e.preventDefault(); closeEscMenu(); return; }
@@ -5962,6 +5963,78 @@ function setPrevInit() {
   box.addEventListener('focusin', (e) => setPrevFrom(e.target));
 }
 function openSettings(tab) { $('setModal').hidden = false; if (tab) setTabS(tab); else setPrevShow(UI.stab || 'perf', null); syncSettings(); showModal('setModal'); }
+/* A Settings picture enlarged (asked for by the owner, 1.23.2): a click, a tap, Enter or Space on the preview opens it
+   over the page, fitted to the window (aspect kept, 16 px clear), over a dark backdrop. It grows out of the preview:
+   the picture is laid out at its large place and size and starts transformed back onto the thumbnail, then the
+   transform eases away (0.22 s, ease-out) while the backdrop darkens; closing runs it back into the thumbnail. With
+   Settings → Display → animations off or the system's reduced motion (MO.on false) it opens and closes at once. Once
+   open: the wheel or a pinch zooms about the pointer (1–6×), a drag pans; a click without a drag, Esc or × closes,
+   and the focus goes back to the preview. */
+const SHOT = { open: false, base: null, z: 1, px: 0, py: 0, drag: null, pts: new Map(), pinch: null, t: 0 };
+function shotRect(el) { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }
+function shotApply() {
+  const b = SHOT.base, im = $('shotBoxImg'); if (!b) return;
+  im.style.transform = `translate(${b.x + SHOT.px}px, ${b.y + SHOT.py}px) scale(${SHOT.z})`;
+  $('shotBox').classList.toggle('zoomed', SHOT.z > 1.001);
+}
+function shotFrom(r) { // (the transform that lays the large picture over the rect r, the thumbnail's)
+  const b = SHOT.base; return `translate(${r.x}px, ${r.y}px) scale(${r.w / b.w}, ${r.h / b.h})`;
+}
+function shotOpen() {
+  const th = $('setPrevImg'); if (th.hidden || !th.src) return;
+  const box = $('shotBox'), im = $('shotBoxImg'), anim = MO.on;
+  const nw = th.naturalWidth || 1280, nh = th.naturalHeight || 720, vw = innerWidth, vh = innerHeight, m = vw < 520 ? 8 : 16;
+  const k = Math.min((vw - 2 * m) / nw, (vh - 2 * m - 26) / nh), w = nw * k, h = nh * k; // (fit to the window, larger than its pixels if need be)
+  SHOT.base = { x: (vw - w) / 2, y: (vh - h - 26) / 2, w, h }; SHOT.z = 1; SHOT.px = SHOT.py = 0; SHOT.open = true; SHOT.t = performance.now();
+  im.src = th.src; im.alt = th.alt; im.style.width = w + 'px'; im.style.height = h + 'px';
+  box.classList.remove('anim', 'on', 'zoomed'); box.hidden = false;
+  if (anim) { im.style.transform = shotFrom(shotRect(th)); void im.offsetWidth; box.classList.add('anim'); }
+  box.classList.add('on'); shotApply();
+  $('shotBoxX').focus();
+}
+function shotClose() {
+  if (!SHOT.open) return; SHOT.open = false;
+  const box = $('shotBox'), im = $('shotBoxImg'), th = $('setPrevImg');
+  const done = () => { if (!SHOT.open) { box.hidden = true; box.classList.remove('anim', 'on', 'zoomed', 'panning'); } };
+  if (MO.on && !th.hidden && th.offsetWidth) { box.classList.add('anim'); box.classList.remove('on'); im.style.transform = shotFrom(shotRect(th)); setTimeout(done, 240); }
+  else done();
+  if (!th.hidden) th.focus();
+}
+function shotZoom(f, cx, cy) {
+  const z0 = SHOT.z, z = clamp(z0 * f, 1, 6), b = SHOT.base; if (z === z0) return;
+  const ox = b.x + SHOT.px, oy = b.y + SHOT.py; // (the point under (cx, cy) stays put)
+  SHOT.px = cx - (cx - ox) * z / z0 - b.x; SHOT.py = cy - (cy - oy) * z / z0 - b.y; SHOT.z = z;
+  if (z <= 1.001) { SHOT.z = 1; SHOT.px = SHOT.py = 0; }
+  $('shotBox').classList.remove('anim'); shotApply();
+}
+function shotInit() {
+  const box = $('shotBox'), th = $('setPrevImg');
+  th.addEventListener('click', shotOpen);
+  th.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); shotOpen(); } });
+  $('shotBoxX').addEventListener('click', (e) => { e.stopPropagation(); shotClose(); });
+  box.addEventListener('wheel', (e) => { e.preventDefault(); shotZoom(Math.exp(-e.deltaY * 0.0022), e.clientX, e.clientY); }, { passive: false });
+  box.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('#shotBoxX')) return;
+    SHOT.pts.set(e.pointerId, [e.clientX, e.clientY]); try { box.setPointerCapture(e.pointerId); } catch (err) { /* (not capturable) */ }
+    if (SHOT.pts.size === 2) { const [a, c] = [...SHOT.pts.values()]; SHOT.pinch = { d: Math.hypot(a[0] - c[0], a[1] - c[1]) }; SHOT.drag = null; }
+    else SHOT.drag = { x: e.clientX, y: e.clientY, px: SHOT.px, py: SHOT.py, moved: false };
+  });
+  box.addEventListener('pointermove', (e) => {
+    if (!SHOT.pts.has(e.pointerId)) return; SHOT.pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (SHOT.pinch && SHOT.pts.size === 2) { const [a, c] = [...SHOT.pts.values()], d = Math.hypot(a[0] - c[0], a[1] - c[1]); shotZoom(d / Math.max(1, SHOT.pinch.d), (a[0] + c[0]) / 2, (a[1] + c[1]) / 2); SHOT.pinch.d = d; return; }
+    const g = SHOT.drag; if (!g) return;
+    if (Math.hypot(e.clientX - g.x, e.clientY - g.y) > 4) g.moved = true;
+    if (g.moved && SHOT.z > 1) { SHOT.px = g.px + e.clientX - g.x; SHOT.py = g.py + e.clientY - g.y; box.classList.add('panning'); box.classList.remove('anim'); shotApply(); }
+  });
+  const up = (e) => {
+    const was = SHOT.pts.has(e.pointerId); SHOT.pts.delete(e.pointerId); box.classList.remove('panning');
+    if (SHOT.pinch) { if (!SHOT.pts.size) SHOT.pinch = null; SHOT.drag = null; return; }
+    const g = SHOT.drag; SHOT.drag = null;
+    if (was && g && !g.moved && e.type === 'pointerup' && performance.now() - SHOT.t > 120) shotClose(); // (a click without a drag closes)
+  };
+  box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+  window.addEventListener('resize', () => { if (SHOT.open) { const z = SHOT.z; SHOT.open = false; box.hidden = true; shotOpen(); if (z > 1) shotZoom(z, innerWidth / 2, innerHeight / 2); } });
+}
 function setTabS(k) {
   UI.stab = k;
   for (const b of document.querySelectorAll('.stabs [data-stab]')) b.setAttribute('aria-selected', String(b.dataset.stab === k));
@@ -5978,6 +6051,7 @@ function settingsInit() {
   settingsLoad(); applySettings();
   $('bSettings').onclick = () => openSettings();
   $('setClose').onclick = () => hideModal('setModal');
+  shotInit(); // (the preview picture enlarged on a click, 1.23.2)
   bindSeg('segMax', (v) => setSetting('maxParts', +v));
   bindSeg('segRes', (v) => setSetting('res', v));
   bindSeg('segBudget', (v) => setSetting('budget', +v));

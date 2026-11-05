@@ -540,7 +540,7 @@
     <header><h2 id="setTitle">Settings</h2><button class="btn small" id="setClose">Close</button></header>
     <div class="sbody">
     <aside class="sprev" id="setPrev" aria-label="About the setting under the pointer">
-      <figure class="sprev-fig" id="setPrevFig"><img id="setPrevImg" alt="" hidden><svg class="sprev-ph" id="setPrevPh" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><ellipse cx="16" cy="16" rx="13" ry="5.2"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(60 16 16)"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(-60 16 16)"/></g><circle cx="16" cy="16" r="1.8" fill="currentColor"/></svg></figure>
+      <figure class="sprev-fig" id="setPrevFig"><img id="setPrevImg" alt="" hidden tabindex="0" role="button" title="Click to see it large"><svg class="sprev-ph" id="setPrevPh" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><ellipse cx="16" cy="16" rx="13" ry="5.2"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(60 16 16)"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(-60 16 16)"/></g><circle cx="16" cy="16" r="1.8" fill="currentColor"/></svg></figure>
       <div class="sprev-txt" aria-live="polite"><h3 id="setPrevT"></h3><div class="sprev-d" id="setPrevD"></div></div>
     </aside>
     <div class="sbox">
@@ -788,3 +788,9 @@
 </div>
 
 <div class="ghost" id="dragGhost" hidden aria-hidden="true"></div>
+
+<div class="shotbox" id="shotBox" hidden role="dialog" aria-modal="true" aria-label="The picture, enlarged">
+  <img id="shotBoxImg" alt="" draggable="false">
+  <button class="ibtn shotbox-x" id="shotBoxX" title="Close (Esc)" aria-label="Close the enlarged picture"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+  <p class="shotbox-hint" id="shotBoxHint">Wheel or pinch to zoom, drag to look around · click or Esc to close</p>
+</div>
