@@ -205,6 +205,137 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.23.1: freezes fixed and reported, a desktop watchdog, Experimental settings reset at start, lit 3-D atoms
+
+- **What froze the page** (the owner, desktop app: "spamming atoms with some experimental settings enabled … fissions
+  … chaotic"; the 1.13 crash handler cannot run while a frame never ends). Found with `tools/stress.js` (new: spams
+  atoms light and heavy, U-235/Pu-239, neutrons, molecules, electrons, ions, sparks, heat and speed changes into the
+  headless page under eight Experimental combinations, times every frame, and pauses a page that stops answering for
+  10 s through the DevTools protocol to read its stack; `--prof` adds where slow frames went). Headless, two slow cores.
+  - **Quantum bonds**: hangs of 12–20 s, again and again (every placement that joined). (a) The charges of loose atoms
+    and radicals never settle: the SCC ran all 250 iterations, and its Broyden mixer's cost grows with the cube of its
+    history (10 loose atoms 3.7 s a calculation, 40 heavy atoms 18 s at 60 iterations). (b) The joiners' relaxation
+    (`boRelax`) made 60 calculations a join. (c) The cap counted atoms, not orbitals: 40 heavy atoms (9 orbitals each
+    from silicon on, 360 in all) took part. (d) With quantum nuclei every bead is a calculation of its own. (e) Inside
+    the inner steps every electron event recomputed all forces, so one calculation per event, thrown away (the step's
+    end works them out again before any kick uses them). Fixed: the game's SCC stops at 40 iterations
+    (`gfn1Energy(…, { maxIter })`; settled calculations take 2–5 warm, 11–20 cold, so these are unchanged), at
+    40/√beads with quantum nuclei (14 at 8 beads, at least 8: a step makes two calculations a bead); a calculation
+    takes part only up to 160 orbitals (40 light atoms fit: 13 waters are 104) and beads × orbitals³ ≤ 160³ (8 beads:
+    80, 10 waters); the relaxation makes at most 2·160³/(beads·orbitals³) passes (60 for small clusters, 2 at 160) and
+    stops at the first calculation that did not settle; the inner steps' recount holds the quantum pass (`_qmHold`; the
+    members keep their last charges meanwhile). Measured (Node): 30 loose light atoms joining, a 72 s step → 2.4 s, then
+    0.42 s a step; 10 loose atoms joining 60 calculations of 250 iterations (minutes) → 9 calculations, 208 iterations,
+    0.6 s; 30 heavy atoms and 13 waters with 8 beads now stay with stored bonds (before: 18 s a calculation); a
+    hydronium and two waters with electrons fired in, 15.2 → 2.6 calculations a step.
+  - **Continuous bond orders**: frames of 4–9 s with beads, 0.6–1.5 s without, at every join: `boRelax` made 60 force
+    passes over the whole world (every bead). Now 36,000 / (particles × beads) passes, 6 to 60: worlds up to 600
+    particles join exactly as before (the molecule gallery and liquid water: same temperatures after the join, 484 and
+    549 K); 1,200 atoms 30 passes, 2,200 atoms 16; 300 atoms with 16 beads 7. (Fewer passes at 330 atoms, tried first,
+    left the gallery 160 K hotter after its join: not done.)
+  - The stress test after the fixes (`node tools/stress.js --secs 180`, headless on two slow cores, so several times
+    the owner's times): no hangs in any of eight combinations (1.23.0: 10 hangs of 12–20 s in each quantum-bond
+    combination in 100–120 s, the page answering once). Worst frames: plain 1.3 s (2,300 particles), bond orders 1.3 s,
+    waves 1.9 s, ultra-realistic 1.4 s, quantum bonds with 8 beads 5.9 s (216 batches of chaos served in 3 min, against
+    57 before the bead caps), quantum bonds with waves 7.7 s (median of the frames over 1 s: 1.75 s), bond orders with 16
+    beads and induced charges every step 6.4 s, everything on 5.4 s. Left (bounded, not frozen): with quantum bonds, a
+    join of a full 160-orbital cluster whose charges do not settle is about five calculations of 1–1.5 s here; with
+    beads and bond orders or waves (not contracted) every electron event in the inner steps recomputes every bead.
+  - Counted from the world, never timed, so runs stay the same from a seed. Energy books unchanged in kind: the
+    relaxation is inside the measured change; a calculation that did not settle was already used as it was.
+- **The mid-frame mark** (the 1.13 heartbeat could not tell a freeze from the desktop window closing without a word to
+  the page): each frame writes a mark into browser storage as it starts (`crashMarkOn`) and removes it as it ends. A
+  window never closes inside a frame (the page's script runs one thing at a time), so a mark found at the next start
+  means the page died in one: froze or crashed, in the desktop app too. Each window has its own key; a mark under 2 s
+  old belongs to another window busy right now and is left. The mark says what was going on (brought up to date once a
+  second): setup, particles by kind, ions, bond-order members, beads, waves, unsettled quantum calculations, the step,
+  threads, memory, the Experimental settings, the slowest recent frame. The next start offers the report and the
+  autosave ("It stopped in the middle of a frame: it froze (or crashed) while working out a step"). Cost: 18.5 µs a
+  frame (a write and a remove of a 330-byte mark; 0.1% of the time at 60 fps), headless.
+- **The desktop watchdog** (`desktop/src-tauri/src/lib.rs`): the page sends a `heartbeat` command once a second from
+  its frames. No heartbeat for 8 s while the window is visible, not minimised and in front: a native box "Atom Forge
+  stopped responding" (Win32 MessageBoxW: Abort quits, Retry reloads, Ignore waits; Enter waits). The clock is held
+  while the window is hidden, minimised or behind another (the page's frames stop or slow there), before the first
+  heartbeat, and after any gap in the watchdog's own ticks over 3 s (sleep). Nothing ends without the player's answer.
+  Retry ends this app's WebView2 renderer processes (its descendants whose command line has `--type=renderer`: a reload
+  alone would be sent to the same stuck process) and navigates to the page again; no heartbeat 15 s later, the app
+  restarts. **Untested on Windows**: no Windows target or crates could be fetched here; the Rust was type-checked with
+  the Win32 code switched on against a stub of the few Tauri calls it uses (`get_webview_window`, `is_visible`,
+  `is_minimized`, `is_focused`, `url`, `navigate`, `restart`, `exit`, `manage`, `invoke_handler`, `setup`). Manual steps
+  in `desktop/TEST-CHECKLIST.md` (8). The workflow already runs on `workflow_dispatch` (any branch).
+- **Experimental settings back to normal at each start** (asked for by the owner): the Experimental tab (longest step,
+  large-ring resonance, detailed nuclear collisions, force reach, induced charges, quantum nuclei and their bead forces,
+  bond orders, electrons as waves) is not read back from storage; every other tab is. A note at the top of the tab says
+  so. Saved worlds never held Experimental state (bond orders saved as whole bonds, no beads, no packet sizes), so a
+  world or autosave made with them opens with the physics as set, normal after a start: the energy books start clean
+  from stored bonds, as any load. Saves now record which were on (`exp`), and loading one made with settings that are
+  off now says so in the log.
+- **Fixed on the way: an error outside the simulation stopped the game for good.** The frame asked for the next one only
+  at its end, so an error past the simulation's own catch (readouts, panels, the inspector's drawing) ended the loop:
+  the crash dialog came up, and after Keep going nothing moved again (checked: simulated time stood still). The frame's
+  body is now in try/finally: the mark cleared and the next frame asked for whatever happens.
+- **Fixed on the way: Continue after a restart brought back the start setup afresh**, not the last session: at start
+  the main menu opened after `UI.started` was set and autosaved the freshly loaded setup over the last session's (a
+  world of 96 particles came back as the fresh 56). The crash dialog's "Carry on from the autosave" had the same fault.
+  The menu now opens before.
+- Suite: `tools/runtests.sh` passed except t_threads (the 3-D "not ready" under load; passes alone) and one t_features
+  check; t_features alone passed once whole and failed one different statistical or time-budgeted check in each of
+  two more runs (the chain reaction's k, argon's wall pressure Z = 1.45 ± 0.12; under the parallel load, CO left in
+  300 K air), none in code this touches. Worth watching.
+- Test: t_features 1.23.1 block (fails on 1.23.0 in every part: the join stopped over budget at 250 iterations a
+  calculation, 30 heavy atoms in, 39 atoms with beads, 15.2 calculations a step, 60 passes, no report in the desktop
+  app, Experimental kept, Continue 56 for 86).
+- Found, not changed: GFN1's self-consistency does not settle for loose atoms and radicals close together (10 C, N, O, H
+  atoms 1.6–4 Å apart: not in 250 iterations); such steps use unsettled charges, so their forces are not the energy's
+  slopes and an insulated run drifts (as in 1.22). Electrons as waves with 2,000 particles still make 1–2 s frames
+  here (the inner steps at many electrons: bounded, 400 inner steps at most).
+
+### Test: the 3-D thread checks wait for the workers
+
+`t_threads`' 3-D molecules check failed 4 runs in 4 on 1.23.0 alone and 2 in 5 on this branch ("not ready"; once a 2e-16 force difference, one pass on one thread against one on two). After a setup loads, the workers acknowledge the new world's memory on their own time, and the check measured synchronously before they had. It now waits for them (up to 15 s): 4 runs in 4 pass. The game was not affected: it runs a frame or two on one thread until they are ready.
+
+### 3-D atoms and bonds lit as solid objects
+
+- **Lit balls in 3-D** (the owner: "make the atoms actually 3d instead of drawn 2d but looking at the screen"; a display
+  fix). In 1.23 a 3-D atom was the flat game's painted ball (a radial gradient, its highlight at the upper left of the
+  screen) on a sprite facing the camera: turning the view never moved the highlight or the shaded side, so the atoms
+  read as discs facing the viewer. Now the ball's fragment shader rebuilds the sphere's normal from the place in the
+  sprite (as it already did for the depth) and lights it: ambient; a key light fixed in the world (`LIGHT3` in
+  view3d.js, mostly from above, from the upper left at the starting view; `cam3Update` turns it into view space,
+  `C3.lx …`); a soft fill from near the camera (lower right), so the side away from the key light stays readable on the
+  dark background; a rim on the dark side's edge; a white Blinn–Phong highlight. The diffuse colour is whatever the
+  colour texture holds: element colours, the colour-blind palette, charge and heat colours. `LIT3` and `lit3()` in
+  gl.js: the GLSL and the same sum in JavaScript. Free leptons and bare nuclei (the queued balls) are lit the same way;
+  glows unchanged.
+- **Bonds as cylinders**: each half-bond lane (single, double, triple, the resonating pair as before, each atom's
+  colour on its half) is shaded across its width as a thin cylinder (normal between the screen direction square to the
+  bond and the eye's direction square to its axis; round at the atom's end) lit by the same light, with the cylinder's
+  depth written, so bonds go into the balls cleanly.
+- **No dark seam where balls overlap**: antialiased edge pixels wrote depth, so a ball drawn later behind them was
+  hidden there and the background showed through as a thin dark ring. Now balls and bonds are drawn in two passes: the
+  fully covered core (opaque, depth written), then only the 1-px antialiasing ring (blended over what the cores left,
+  depth tested, not written). `glFlush3(C, hi, bond)` draws the slots, the bonds and the queued balls, cores then
+  edges, then the glows: 6 draw calls instead of 3 (plus glows).
+- **Canvas 2D (no WebGL 2)**: balls are sprites shaded pixel by pixel with `lit3` (`litSprite3`: one a colour for the
+  light of this frame, rounded to 1/40, so a turning view remakes them every few degrees; radius 32 px, was 24); bond
+  lanes get a gradient across their width with the cylinder's colours (`cylStops3`, 7 stops), lanes under 3 px one
+  colour. Still sorted far to near. WebGL and Canvas 2D frames agree (t_3d: mean difference 0.08, 0.12% of pixels off
+  by > 24).
+- The flat game is untouched: its shaders and sprites are not changed (`GL_FS_BALL3` no longer derives from
+  `GL_FS_BALL`); t_3d's 2-D frame after a 3-D one is identical (mean difference 0), t_gl passes.
+- Measured: an O atom (69 px radius), the view turned 90° about the vertical: the brightest spot was at (−0.34, −0.39)
+  radii from the centre both times (1.23, WebGL and Canvas 2D); now (−0.31, −0.47) → (−0.11, −0.78), 0.37 radii
+  moved, within 0.008 radii of where the light puts it, both paths. Frame time (headless Chromium,
+  1360 × 860 at 1×, the 1.23 build and this one alternated, medians; the GPU here is SwiftShader on two shared CPU
+  cores, so its numbers are rough): JavaScript time unchanged (Molecules in space 0.10 → 0.11 ms, Liquid water 2.86 →
+  2.93 ms; 1,800 waters 2.65 → 2.56 ms); with the GPU's work waited for, Liquid water 60.6 → 77.5 ms still, 59.3 →
+  63.3 ms turning, Molecules in space 2.1 → 10.6 ms (the second pass and three more draw calls, ~0.5–1 ms each in
+  software; without the edge pass 2.4 ms); 1,800 waters 72.9 → 71.6 ms. Canvas 2D: Liquid water 19.9 → 29.5 ms
+  still, 20.1 → 26.5 ms turning (the bonds' gradients); 1,800 waters 40.5 → 38.4 ms (thin bonds one colour).
+- Settings pictures of the 3-D tab and the 3-D menu remade (`tools/setshots.js`, 30 pictures 343 KB, were 321 KB).
+- Tests: t_3d "lit balls" (fails on 1.23: the highlight does not move).
+- Not done: contact darkening where atoms touch (it needs a screen-space pass reading the depth buffer; not cheap).
+
 ## 1.23.0: the 3-D lab (Preview), Settings with pictures, a 2-D / 3-D first screen
 
 - **3-D** (asked by the user, "a separate mode chosen in the main menu"): built in four stages, recorded in the planned

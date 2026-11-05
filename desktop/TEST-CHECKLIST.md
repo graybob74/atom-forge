@@ -20,5 +20,11 @@ if Windows lacks it (Windows 11 has it).
    preset), the Elements and Molecules dialogs, dark/light theme, window resize.
 7. **Fonts.** With no internet the app falls back to system fonts (Google Fonts are blocked by the isolation headers
    unless fetched with CORS, which the page now does) — looks slightly different, works the same.
+8. **Watchdog (1.23.1).** Press F12, Console, and type `simFrame = () => { for (;;) {} }` then Enter, and click back on
+   the game window: within about 10 s a box "Atom Forge stopped responding" appears (Abort quits, Retry reloads,
+   Ignore waits). Choose Retry: the game reloads (within a few seconds; if not, it restarts itself after 15 s) and
+   offers "Atom Forge stopped unexpectedly last time" with the autosave and a report saying it stopped in the middle of
+   a frame. Also check that minimising the window, or switching to another window for a minute, never brings the box,
+   and that closing the window normally and starting again offers nothing.
 
 If anything fails: press F12 (or right-click → Inspect) in the app to open the developer tools, click the Console tab and send me a screenshot of any red lines; Settings also shows the last script error under the particle count.

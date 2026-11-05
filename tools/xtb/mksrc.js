@@ -10,7 +10,7 @@ const out = `/* ----------------------------------------------------------------
    compare them with tblite and simple-dftd3). */
 const XTB = (() => {
   const M = {}, require = (n) => M[n];
-${mod('d3-data.js')}${mod('d3.js')}${mod('gfn1.js')}  return { gfn1Energy: M['./gfn1.js'].gfn1Energy, d3Disp: M['./d3.js'].d3Disp, AUTOEV: M['./gfn1.js'].AUTOEV, BOHR: M['./gfn1.js'].BOHR };
+${mod('d3-data.js')}${mod('d3.js')}${mod('gfn1.js')}  return { gfn1Energy: M['./gfn1.js'].gfn1Energy, nAO: M['./gfn1.js'].nAO, d3Disp: M['./d3.js'].d3Disp, AUTOEV: M['./gfn1.js'].AUTOEV, BOHR: M['./gfn1.js'].BOHR };
 })();
 `;
 fs.writeFileSync(path.join(__dirname, '..', '..', 'src', 'xtb.js'), out);

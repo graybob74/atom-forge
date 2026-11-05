@@ -159,12 +159,15 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   // molecules setup with the pass forced onto both threads (flat centres, dihedrals).
   await page.evaluate(() => { setRunning(false); setSetting('threads', '2'); loadPreset('water3d'); setRunning(false); });
   await page.waitForFunction(() => { forcesNoEvents(); return TH.state === 'on' && TH.used === 2; }, null, { timeout: 15000 }).catch(() => {});
-  const r3 = await page.evaluate(() => {
+  const r3 = await page.evaluate(async () => {
     const out = {};
     for (const key of ['water3d', 'brine3d', 'mol3d']) {
       loadPreset(key); setRunning(false); W.gamma = 0.05;
       const minPairs = TH.minPairs; if (key === 'mol3d') TH.minPairs = 10;
       for (let k = 0; k < 30; k++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
+      // (the workers acknowledge a new world's memory on their own time: wait for them, up to 15 s, so the measurement is
+      // not taken while they are still 'starting'; a synchronous run could catch them before, the old 'not ready' flake)
+      for (const t0 = performance.now(); !threadsReady() && performance.now() - t0 < 15000;) await new Promise(r => setTimeout(r, 20));
       const n = S.hi, copy = () => [Float64Array.from(S.fx.subarray(0, n)), Float64Array.from(S.fy.subarray(0, n)), Float64Array.from(S.fz.subarray(0, n))];
       const diff = (A, B) => { let m = 0, scale = 0; for (let a = 0; a < 3; a++) for (let i = 0; i < n; i++) { m = Math.max(m, Math.abs(A[a][i] - B[a][i])); scale = Math.max(scale, Math.abs(A[a][i])); } return { m, scale }; };
       const evs = () => W.evq.map(e => e.type + ':' + (e.a && e.a.id) + ':' + (e.b && e.b.id)).join(' ');

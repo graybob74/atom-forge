@@ -1562,6 +1562,7 @@ function nearby3(x, y, z, R, cb) {
 
 /* ------------------------------------------------------------------ pair interactions */
 let _noEv = false;
+let _qmHold = false; // (inside the inner steps: the quantum bonds' pass is held, 1.23.1; innerSteps)
 function queue(type, a, b, c, r) { if (!_noEv) W.evq.push({ type, a, b, c, r }); }
 
 /* Short-range core. Inside the contact point c, where the Lennard-Jones wall is continued linearly (its
@@ -2735,7 +2736,7 @@ function computeForces1() {
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   if (VL.exTopo !== W.topo || VL.exDirty !== W.dirty) vlExclusions();
   if (_profOn) { const t = performance.now(); _tLists += t - tp; tp = t; }
-  if (BO.any) boPass(true); // (continuous bond orders, 1.13: bo.js; before the kernel, which needs the members' partial charges, 1.16)
+  if (BO.any && !(_qmHold && BO.qm)) boPass(true); // (continuous bond orders, 1.13: bo.js; before the kernel, which needs the members' partial charges, 1.16)
   const d3 = W.d3;
   if (d3) nucleusPairs3(wrap, bw, bh, hw, hh); // (3-D: the JavaScript kernels, one thread)
   else nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
@@ -6471,7 +6472,10 @@ function innerSteps(Dt) {
       const st0 = W.spawned + W.topo + W.dirty - _undone; // (changes put back exactly, as by undoJoin, need no recount)
       processEvents(); // (events that may look at other atoms bring the far ones up to date first: lzNeed)
       const wch = (WAVE.on || WAVE.n) && waveSync(false); // (electrons as waves: packets gone or made by the events)
-      if (wch || W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; if (_gxOn) gxReset(); } // (the force pass set the fast forces afresh, for the next opening kick)
+      // (quantum bonds held, 1.23.1: this pass is for the fast forces; the atoms' own are worked out again at the step's end,
+      // outerForces, before any kick uses them, so a GFN1 calculation here was thrown away, one for each event: 24–44 s
+      // frames with electrons about; the members keep their last charges meanwhile)
+      if (wch || W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; _qmHold = true; try { computeForces(); } finally { _qmHold = false; } _noEv = false; if (_gxOn) gxReset(); } // (the force pass set the fast forces afresh, for the next opening kick)
     }
     rem -= dti;
   }
