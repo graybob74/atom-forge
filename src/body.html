@@ -2,7 +2,7 @@
   <header class="topbar">
     <div class="brand">
       <svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="16" cy="16" rx="13" ry="5.2"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(60 16 16)"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(-60 16 16)"/></g><circle cx="14.6" cy="15.2" r="2.3" fill="#ff5a4e"/><circle cx="17.4" cy="16.8" r="2.3" fill="#a9b4c2"/><circle cx="28.6" cy="16.5" r="1.5" fill="#4da8ff"/></svg>
-      <span>Atom Forge</span><span class="ver" id="verTag" title="Version"></span><span class="ver ultra" id="ultraBadge" hidden title="Ultra-realistic mode (Settings → General): true sizes and rates, nothing made easier to see">ultra-realistic</span><small>particles, atoms and molecules from real physics</small>
+      <span>Atom Forge</span><span class="ver" id="verTag" title="Version"></span><span class="ver ultra" id="ultraBadge" hidden title="Ultra-realistic mode (Settings → Experimental): true sizes and rates, nothing made easier to see">ultra-realistic</span><small>particles, atoms and molecules from real physics</small>
     </div>
     <div class="transport">
       <button class="ibtn primary" id="bPlay" title="Pause (Space)" aria-label="Pause"><svg viewBox="0 0 24 24" aria-hidden="true"><g id="icoPause"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></g><path id="icoPlay" d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.3-7.2a.8.8 0 0 0 0-1.4L8.2 4.1a.8.8 0 0 0-1.2.7z" fill="currentColor" style="display:none"/></svg></button>
@@ -18,10 +18,10 @@
     </div>
     <div class="scen">
       <select class="select" id="preset" aria-label="Experiment setup"></select>
-      <button class="btn small leave3d" id="bLeave3d" hidden title="Leave the 3-D lab (a preview) for the flat game">3-D <span class="pv">Preview</span> · Leave</button>
+      <span class="tag3d" id="tag3d" hidden title="The 3-D lab is a preview. The main menu (Esc → Main menu) leads back to the 2-D game">3-D <span class="pv">Preview</span></span>
       <button class="ibtn" id="bAskSetup" hidden title="Ask Claude for a setup: describe an experiment and Claude sets up the chamber" aria-label="Ask Claude for a setup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z M18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></svg></button>
       <button class="ibtn" id="bDisplay" title="Chamber only: no toolbar or panels (B; Esc to leave). Settings → Display has the window (borderless full screen, F11) and the cursor" aria-label="Chamber only" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      <button class="ibtn" id="bSettings" title="Settings: performance mode, particle limit, theme, units" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.5 7.5 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 2.6-1.5l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
+      <button class="ibtn" id="bSettings" title="Settings: particle limit, drawing, theme, units" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.5 7.5 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 2.6-1.5l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
     </div>
     <div class="readouts">
       <div class="ro"><span class="k">Temperature</span><span class="v" id="roT">—</span></div>
@@ -546,7 +546,6 @@
     <div class="sbox">
     <div class="stabs" role="tablist" aria-label="Settings categories"><button role="tab" data-stab="perf" aria-selected="true">Performance</button><button role="tab" data-stab="gfx" aria-selected="false">Graphics</button><button role="tab" data-stab="disp" aria-selected="false">Display</button><button role="tab" data-stab="ctl" aria-selected="false">Controls</button><button role="tab" data-stab="gen" aria-selected="false">General</button><button role="tab" data-stab="d3" aria-selected="false">3-D</button><button role="tab" data-stab="ai" aria-selected="false">Claude</button><button role="tab" data-stab="exp" aria-selected="false">Experimental</button></div>
     <section class="sgroup spane" data-stab="perf">
-      <label class="check sbig"><input type="checkbox" id="setPerf"> <span><b>Performance mode</b><small>Room for 12,000 particles instead of 4,000, drawn at standard resolution without glows. A fuller box still runs slower: every step has more to work out.</small></span></label>
       <div class="srow"><span>Particle limit</span><div class="seg" id="segMax" role="group" aria-label="Particle limit"><button data-v="2000">2,000</button><button data-v="4000">4,000</button><button data-v="8000">8,000</button><button data-v="12000">12,000</button><button data-v="20000">20,000</button></div></div>
       <div class="srow"><span>Drawing</span><div class="seg" id="segRes" role="group" aria-label="Drawing resolution"><button data-v="sharp" title="At your screen's full resolution">Sharp</button><button data-v="standard" title="One drawn pixel per screen point">Standard</button><button data-v="fast" title="Three quarters resolution: softer, quickest">Fast</button></div></div>
       <div class="srow"><span>Priority</span><span class="prio"><small>Smooth</small><input type="range" id="setPrio" min="0" max="4" step="1" value="0" aria-label="Priority: smooth frame rate or simulation speed"><small>Fast</small><label class="check prioauto" title="Pick the position by itself, from how fast each would run this setup"><input type="checkbox" id="setPrioAuto"> Auto</label></span></div>
@@ -604,9 +603,6 @@
       <div class="srow"><span>Lengths in</span><div class="seg" id="segLUnit" role="group" aria-label="Lengths in"><button data-v="A">Å</button><button data-v="nm">nm</button><button data-v="pm">pm</button></div></div>
       <label class="check"><input type="checkbox" id="setTips"> A tip for each setup</label>
       <label class="check"><input type="checkbox" id="setSlow"> Slow motion for nuclear events</label>
-      <h3>Ultra-realistic mode</h3>
-      <label class="check"><input type="checkbox" id="setUltra"> Ultra-realistic: true sizes and rates, nothing made easier to see</label>
-      <p class="note">Nuclei are drawn and hit at their true size, about 1/100,000 of their atom (a dot of one pixel marks where a bare nucleus or a free electron is), so beams almost never hit anything and fusion and nuclear reactions are rare; slow neutrons are still caught, as their wavelength is large. Decays run at their real rates, with nothing sped up or held back to be seen. You can zoom in 100,000 times further, far enough to see a nucleus inside its atom, and slow time down to a yoctosecond (10⁻²⁴ s) a second, slow enough to watch a φ meson (1.5×10⁻²² s) live and decay.</p>
       <h3>Rewind</h3>
       <label class="check"><input type="checkbox" id="setRew"> Keep the last while it runs, to drag back through (, or the ⟲ button)</label>
       <div class="srow"><span>How far back</span><div class="seg" id="segRewSpan" role="group" aria-label="How far back"><button data-v="30">30 s</button><button data-v="60">1 min</button><button data-v="120">2 min</button><button data-v="300">5 min</button></div></div>
@@ -652,6 +648,9 @@
       <h3>Electrons as waves</h3>
       <div class="srow"><span>Free electrons</span><div class="seg" id="segWave" role="group" aria-label="Electrons as waves"><button data-v="0">Points (normal)</button><button data-v="1">Wave packets</button></div></div>
       <p class="note">Each free electron and positron becomes a wave packet with a size and a spin, drawn as a faint disc (the electron force field of Su and Goddard, eFF): squeezing a packet costs kinetic energy (3ħ²/2mₑs², 11.4 eV at 1 Å), two packets meet as spread-out charges, and two electrons whose waves overlap push apart, strongly with the same spin and weakly with opposite ones (the Pauli principle). So free electrons crowd less, and a dense electron gas holds itself up. The packets' sizes move as coordinates of their own, and their energy is part of the books. With ions and atoms the free electrons still meet as points, so captures, scattering and ionization stay as calibrated; an atom's own electrons are not particles here and stay as they are. A free packet spreads to 2 Å at most (beyond, a spring holds it, as eFF's users bound it). A packet that appears or goes away hands its energy to its own motion, or, when that can't take it, to the heat bath. Costs ×6.5 in liquid water with 40 free electrons (their own steps 13 times shorter, for the packets' breathing, which takes a few hundredths of a femtosecond), nothing where there are none. Measured: the forces are the energy's slopes to 10⁻⁶ eV/Å, and that water keeps its energy to a few eV a picosecond (about as without).</p>
+      <h3>Ultra-realistic mode</h3>
+      <label class="check"><input type="checkbox" id="setUltra"> Ultra-realistic: true sizes and rates, nothing made easier to see</label>
+      <p class="note">(Moved here from General in 1.23.2: like the rest of this tab it is off again each time the game starts.) Nuclei are drawn and hit at their true size, about 1/100,000 of their atom (a dot of one pixel marks where a bare nucleus or a free electron is), so beams almost never hit anything and fusion and nuclear reactions are rare; slow neutrons are still caught, as their wavelength is large. Decays run at their real rates, with nothing sped up or held back to be seen. You can zoom in 100,000 times further, far enough to see a nucleus inside its atom, and slow time down to a yoctosecond (10⁻²⁴ s) a second, slow enough to watch a φ meson (1.5×10⁻²² s) live and decay.</p>
       <h3>On hold: very large</h3>
       <p class="note"><b>Real 3-D</b>: estimated ×10–100. <b>Quantum chemistry for bonds</b>: estimated ×100–10,000.</p>
     </section>
@@ -664,6 +663,7 @@
       <label class="check"><input type="checkbox" id="setAxes3"> Axis marker in the corner (which way x, y and z point)</label>
       <div class="srow"><span>Labels</span><div class="seg" id="segLbl3" role="group" aria-label="Labels in 3-D"><button data-v="front" title="Only on atoms no nearer atom covers">Front atoms only</button><button data-v="all" title="On every atom big enough to carry one, hidden ones too">All atoms</button></div></div>
       <h3>Turning the view</h3>
+      <p class="note" id="set3dKeys">Flying: <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move the camera forward, left, back and right, <kbd>E</kbd> and <kbd>Q</kbd> up and down (Space and Shift too while one of those is held; Space alone plays and pauses), at a speed that follows the zoom; turning afterwards circles the new place. In 3-D, Spark is <kbd>Z</kbd> and Erase <kbd>X</kbd>.</p>
       <div class="srow"><span>Orbit speed</span><div class="seg" id="segOrbit3" role="group" aria-label="Orbit speed"><button data-v="0.5">Slow</button><button data-v="1">Normal</button><button data-v="2">Fast</button></div></div>
       <label class="check"><input type="checkbox" id="setOrbitInv"> Invert orbit: a drag moves the camera the other way</label>
       <div class="srow"><span>Turntable</span><div class="seg" id="segSpin3" role="group" aria-label="Turntable"><button data-v="0">Off</button><button data-v="6" title="One turn a minute">Slow</button><button data-v="18" title="One turn in 20 seconds">Faster</button></div></div>
@@ -726,6 +726,7 @@
       <h4>Moving around</h4>
       <ul>
         <li>Mouse: scroll to zoom, drag with the right button (or Space held) to move. Touch: pinch to zoom, two fingers to move, a tap to use the tool.</li>
+        <li>In the 3-D lab: right-drag, Alt+drag or the arrow keys turn the view, Shift+right-drag moves it, the wheel zooms, 0 fits the box. <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> fly the camera through the world (forward, left, back, right), <kbd>E</kbd> and <kbd>Q</kbd> up and down (Space and Shift too while flying; Space alone still pauses), faster the further out you are; turning afterwards circles the new place. There Spark is <kbd>Z</kbd> and Erase <kbd>X</kbd>.</li>
         <li>Time: slower and faster down to 1/512×, slow motion on demand (the hourglass), one frame at a time (.), and ⟲ to rewind the last minute or so. <kbd>Ctrl+Z</kbd> undoes.</li>
       </ul>
       <h4>Keeping and sharing</h4>
@@ -779,7 +780,7 @@
       <button class="btn primary" data-mm="continue" id="mmContinue3">Continue</button>
       <div class="mm-btns mm-set3" id="mmList3"></div>
       <div class="mm-row"><button class="btn" data-mm="gallery">Gallery</button><button class="btn" data-mm="settings3">Settings</button><button class="btn" data-mm="help">Help</button></div>
-      <p class="mm-note3d">The 3-D mode is a preview: right-drag, Alt+drag or the arrow keys turn the view, the wheel zooms, 0 fits the box. Fields, magnets, light, nuclear physics and chips stay in the 2-D game for now.</p>
+      <p class="mm-note3d">The 3-D mode is a preview: right-drag, Alt+drag or the arrow keys turn the view, the wheel zooms, W A S D fly (E and Q up and down), 0 fits the box. Fields, magnets, light, nuclear physics and chips stay in the 2-D game for now.</p>
     </div>
     <div class="mm-setups" id="mmSetups" hidden><button class="btn small" data-mm="back">← Back</button><div class="mm-list" id="mmList"></div></div>
     <p class="mm-note" id="mmNote"></p>

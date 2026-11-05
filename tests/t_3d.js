@@ -82,14 +82,14 @@ async function stage3(page, clip, errors) {
       const ms = (performance.now() - t0) / 200; render(W.rt);
       const opts = [...document.querySelectorAll('#preset option')].map(o => o.value).filter(v => v !== '__mine');
       out[k] = { d3: W.d3, n0, n: W.parts.filter(p => !p.dead).length, ok: W.parts.every(p => p.dead || [p.x, p.y, p.z, p.vx, p.vy, p.vz].every(Number.isFinite)), inBox: W.parts.every(p => p.dead || Math.abs(p.z) <= W.box.d / 2 + 1),
-        T: Math.round(measure().T), ms: +ms.toFixed(2), listAll3d: opts.length >= 5 && opts.every(v => PRESETS[v] && PRESETS[v].d3), leave: !$('bLeave3d').hidden };
+        T: Math.round(measure().T), ms: +ms.toFixed(2), listAll3d: opts.length >= 5 && opts.every(v => PRESETS[v] && PRESETS[v].d3), leave: !$('tag3d').hidden && !$('bLeave3d') };
     }
     return out;
   });
   const rk = Object.keys(runs);
   console.log('  3-D setups, 200 steps each in the page: ' + rk.map(k => `${k} ${runs[k].n0} atoms ${runs[k].ms} ms/step ${runs[k].T} K`).join('; '));
   check(rk.length >= 5 && rk.every(k => runs[k].d3 && runs[k].ok && runs[k].inBox && runs[k].listAll3d && runs[k].leave) && rk.filter(k => runs[k].n0 >= 500).every(k => runs[k].n0 <= 1500) && errors.length === 0,
-    `every 3-D setup (${rk.length}) builds and runs 200 steps, finite and inside its box; the setup list shows only 3-D setups, with Leave beside it`, runs);
+    `every 3-D setup (${rk.length}) builds and runs 200 steps, finite and inside its box; the setup list shows only 3-D setups, with the Preview label (no Leave button: 1.23.2) beside it`, runs);
 
   // Place: on the plane through the camera's target square to the view, under the pointer; over an atom, at its depth
   const pl = await page.evaluate((DEPTH) => {
@@ -207,11 +207,14 @@ async function stage3(page, clip, errors) {
   const old = await page.evaluate((txt) => { const all = JSON.parse(txt), e = all.water || Object.values(all)[0], w = e.d || e; const r = worldFromJSON(w); return { r: typeof r === 'string' ? r : r.n, d3: W.d3, depth: W.box.d, z0: W.parts.every(p => p.z === 0), list: !!document.querySelector('#preset option[value="water"]') }; }, require('fs').readFileSync(path.join(__dirname, 'fixtures', 'worlds-0.64.0.json'), 'utf8'));
   check(typeof old.r === 'number' && old.r > 0 && !old.d3 && old.depth === 0 && old.z0 && old.list, `an old flat save (0.64.0) opens flat (${old.r} particles), with the flat setup list`, old);
 
-  // Leave 3-D: the flat game back (its setups, its tools)
-  await page.evaluate(() => { loadPreset('water'); loadPreset('combustion3d'); });
-  await page.click('#bLeave3d');
-  const lv = await page.evaluate(() => ({ d3: W.d3, preset: UI.preset, hidden: $('bLeave3d').hidden, magnet: document.querySelector('.tool[data-tool="magnet"]').classList.contains('no3d'), bSlider: $('bSlider').disabled, has2d: !!document.querySelector('#preset option[value="soup"]'), has3d: !!document.querySelector('#preset option[value="water3d"]'), bo: [...$('segBo').querySelectorAll('button')].some(b => b.disabled) }));
-  check(!lv.d3 && lv.preset === 'water' && lv.hidden && !lv.magnet && !lv.bSlider && lv.has2d && !lv.has3d && !lv.bo, `Leave 3-D: back to the flat setup last open (${lv.preset}), the flat list and every tool`, lv);
+  // Out of 3-D through the main menu (the Leave button went in 1.23.2): 2-D, then a flat setup; the flat game back (its setups, its tools)
+  await page.evaluate(() => { loadPreset('water'); loadPreset('combustion3d'); showMainMenu(); });
+  await page.waitForTimeout(150);
+  await page.click('#mmMode2d'); await page.waitForTimeout(150);
+  await page.evaluate(() => { mmSetups(); }); await page.waitForTimeout(100);
+  await page.click('#mmList [data-mmp="water"]'); await page.waitForTimeout(250);
+  const lv = await page.evaluate(() => ({ d3: W.d3, preset: UI.preset, hidden: $('tag3d').hidden && !$('bLeave3d'), magnet: document.querySelector('.tool[data-tool="magnet"]').classList.contains('no3d'), bSlider: $('bSlider').disabled, has2d: !!document.querySelector('#preset option[value="soup"]'), has3d: !!document.querySelector('#preset option[value="water3d"]'), bo: [...$('segBo').querySelectorAll('button')].some(b => b.disabled) }));
+  check(!lv.d3 && lv.preset === 'water' && lv.hidden && !lv.magnet && !lv.bSlider && lv.has2d && !lv.has3d && !lv.bo, `out of 3-D by the main menu (2-D, then ${lv.preset}): the flat list and every tool, no Preview label`, lv);
 }
 
 /* The main menu: it opens on the choice of 2-D or 3-D; 3-D leads to the 3-D lab's menu, which lists the 3-D setups

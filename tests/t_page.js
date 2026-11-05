@@ -414,13 +414,14 @@ const say = (...a) => console.log(...a);
   if (!(/Remove all .+ \(5\)/.test(raText) && raLeft.p === 0 && raLeft.e === 3)) { fails++; say('FAIL remove all:', JSON.stringify({ raText, raLeft })); }
   else say(`  quick menu: “${raText.trim()}” removed every proton; the 3 electrons stayed`);
   check('remove all');
-  // 8g. Settings: performance mode raises the particle limit (and the place tool puts down 100 at a click) and lightens
-  //     the drawing; temperatures in °C; all kept over a reload; back to defaults
+  // 8g. Settings: a 12,000 particle limit (and the place tool puts down 100 at a click), standard drawing, no glows
+  //     (what performance mode set, gone in 1.23.2); temperatures in °C; all kept over a reload; back to defaults
   await page.selectOption('#preset', 'empty'); await page.waitForTimeout(250);
   await page.click('#bSettings'); await page.waitForTimeout(200);
   const st0 = await page.evaluate(() => ({ open: !document.getElementById('setModal').hidden, max: MAX_PARTS }));
   await showSet('#segBudget'); await page.click('#segBudget button[data-v="16"]'); await page.waitForTimeout(100);
-  await showSet('#setPerf'); await page.click('#setPerf'); await page.waitForTimeout(150);
+  await showSet('#segMax'); await page.click('#segMax button[data-v="12000"]'); await showSet('#segRes'); await page.click('#segRes button[data-v="standard"]');
+  await showSet('#setFx'); await page.click('#setFx'); await page.waitForTimeout(150);
   const st1 = await page.evaluate(() => ({ max: MAX_PARTS, lite: R.lite, dpr: R.dprMax, budget: UI.budget }));
   await showSet('#segTUnit'); await page.click('#segTUnit button[data-v="C"]'); await page.waitForTimeout(400);
   const tC = await page.textContent('#roT');
@@ -433,15 +434,15 @@ const say = (...a) => console.log(...a);
   await page.reload(); await page.waitForTimeout(900);
   const st2 = await page.evaluate(() => ({ max: MAX_PARTS, lite: R.lite, unit: T_UNIT }));
   await page.click('#bSettings'); await page.waitForTimeout(150);
-  await showSet('#setPerf'); await page.click('#setPerf'); await page.waitForTimeout(150); // off again: what it replaced comes back (16 ms), even after the reload
-  const st2b = await page.evaluate(() => ({ max: MAX_PARTS, lite: R.lite, budget: UI.budget, perf: document.getElementById('setPerf').checked }));
+  await showSet('#segMax'); await page.click('#segMax button[data-v="4000"]'); await showSet('#setFx'); await page.click('#setFx'); await page.waitForTimeout(150); // back by hand: the budget (16 ms) kept over the reload
+  const st2b = await page.evaluate(() => ({ max: MAX_PARTS, lite: R.lite, budget: UI.budget, perf: !!document.getElementById('setPerf') }));
   await showSet('#setReset'); await page.click('#setReset'); await page.waitForTimeout(150);
   const st3 = await page.evaluate(() => ({ max: MAX_PARTS, lite: R.lite, unit: T_UNIT }));
   await page.click('#setClose');
-  if (!(st0.open && st0.max === 4000 && st1.max === 12000 && st1.lite && st1.dpr === 1 && st1.budget === 10 && /°C/.test(tC) && n100b - n100 >= 80 && st2.max === 12000 && st2.unit === 'C'
+  if (!(st0.open && st0.max === 4000 && st1.max === 12000 && st1.lite && st1.dpr === 1 && st1.budget === 16 && /°C/.test(tC) && n100b - n100 >= 80 && st2.max === 12000 && st2.unit === 'C'
     && st2b.max === 4000 && !st2b.lite && st2b.budget === 16 && !st2b.perf && st3.max === 4000 && !st3.lite && st3.unit === 'K')) {
     fails++; say('FAIL settings:', JSON.stringify({ st0, st1, tC, placed: n100b - n100, st2, st2b, st3 }));
-  } else say(`  settings: performance mode ${st1.max.toLocaleString('en-US')} particles, ${n100b - n100} argon atoms at a click, ${tC.split(' → ')[0]}; kept over a reload; off again puts physics back to ${st2b.budget} ms; then reset`);
+  } else say(`  settings: ${st1.max.toLocaleString('en-US')} particles, ${n100b - n100} argon atoms at a click, ${tC.split(' → ')[0]}; kept over a reload; the physics budget kept at ${st2b.budget} ms; then reset`);
   // 8g''. The hourglass follows slow motion started by an event (lit, dashed), takes it over when pressed, turns it off when
   //       pressed again; paused in slow motion, the Motion readout still says slow motion
   const smo = await page.evaluate(async () => {

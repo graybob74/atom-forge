@@ -64,7 +64,7 @@ async function diffPng(page, a, b) {
   check(views.offBySetting && views.onBySetting, 'the Drawing setting switches the layer off and on');
   // cost: the 12,000-atom world drawn with the layer and without, JavaScript time only
   const cost = await page.evaluate(() => {
-    setSetting('perf', true); baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, dx = 560 / nx, dy = 360 / ny;
+    setSetting('maxParts', 12000); setSetting('res', 'standard'); setSetting('effects', false); baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, dx = 560 / nx, dy = 360 / ny;
     for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) { if (W.parts.length + 3 > 12000) break; addMolecule('H2O', -280 + (i + 0.5) * dx + (Math.random() - 0.5) * 0.4, -180 + (j + 0.5) * dy + (Math.random() - 0.5) * 0.4, Math.random() * 6, 300); }
     settleOverlaps(); fitView(); setRunning(false);
     const time = (f) => { f(); const t0 = performance.now(); for (let i = 0; i < 5; i++) f(); return (performance.now() - t0) / 5; };
