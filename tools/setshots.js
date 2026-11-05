@@ -5,14 +5,14 @@
    from a page photographed at 2×; 640 × 360 before) into src/setshots.gen.js, one global map SETSHOTS from the
    setting's key (its control's id in Settings; "id:value" for one choice's own picture; menu2d and menu3d for the
    main menu's first screen) to its picture. Run from the repository root:
-     node tools/setshots.js [key …] [--png DIR] [--q 0.5]
+     node tools/setshots.js [key …] [--png DIR] [--q 0.72]
    With keys, only those are made again (the others are kept from the file). --png also writes each picture as a PNG
    into DIR, to look at. Builds the page first. */
 const fs = require('fs'), path = require('path'), { execSync } = require('child_process');
 const ROOT = path.join(__dirname, '..');
 const OUT = path.join(ROOT, 'src', 'setshots.gen.js');
 const args = process.argv.slice(2), opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = args[i + 1]; args.splice(i, 2); return v; };
-const PNG_DIR = opt('--png', null), Q = +opt('--q', '0.5'), ONLY = args.filter(a => !a.startsWith('--'));
+const PNG_DIR = opt('--png', null), Q = +opt('--q', '0.72'), ONLY = args.filter(a => !a.startsWith('--'));
 const W = 640, H = 360, S = 2; // (the picture's layout, in pixels, and its scale: 1280 × 720 written, 1.23.2)
 /* (a shot's fit: true shows each panel's whole window, letterboxed, instead of a crop; labelTop puts the labels at the
    top, clear of marks drawn at the bottom) */

@@ -221,6 +221,17 @@ engine stores and visits particles.
   - Magnets and fields in 3-D (the Magnet tool, the B and E sliders and the field direction; fields3dNote).
   - The Light tool in 3-D (light in 3-D today flies out of the box unabsorbed, engine.js 3411).
   - Not the placed objects (mirrors, lenses, prisms, screens…: the user, "keep objects out for now").
+  For 1.25 (reported by the owner; not built yet):
+  - "Hexazine doesn't fly apart with quantum bond orders in 2d" (the owner, after 1.23.1). Hexazine (N₆ ring) is very
+    unstable in reality (it falls apart to 3 N₂, releasing a lot of energy); with quantum bonds (GFN1-xTB, Experimental
+    → Bond orders → Quantum) it stays whole in the flat game. To find out: whether GFN1-xTB itself gives the ring a
+    barrier (single-point scan along the N₆ → 3 N₂ path, compare with published high-level barriers), whether the flat
+    world (in-plane only, no out-of-plane distortion) holds it, or a game-side cause (charges, D3, membership). A
+    physics question for the owner.
+  - "it repeats the description in the settings menu, but it's supposed to be in the sidebar only" (the owner): a
+    setting's description shows both under the setting in the Settings list and in the side preview pane (1.23's
+    sidebar); he wants it in the sidebar only. Seen on quantum bond orders; check every tab. Keep what the sidebar can't
+    show (e.g. live readouts, cost tags) where it is.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).

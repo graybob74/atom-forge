@@ -3514,7 +3514,7 @@ function radSpeed(p) {
 function setMotion(p, KE, ux, uy, bvx = 0, bvy = 0, uz = 0, bvz = 0) { // (uz, bvz: 3-D)
   const isLep = p.k !== NUC, neutron = p.k === NUC && p.Z === 0;
   const thr = neutron ? NEUTRON_RAD : radThreshold(isLep);
-  if (W.d3 && !(KE > thr)) { // (3-D: the same, with z; flight in radiation mode stays flat for now)
+  if (W.d3) { // (3-D: the same, with z, at any energy (1.23.2): the radiation flight is flat, so a fast particle stays in the stepped set, moving in depth, and walls3 stops it at a closed box's wall by its speed, as the flat walls stop radiation flight; before, one past the threshold flew flat, z held, meeting nuclei at any depth)
     p.rad = false;
     const vv = 2 * KE * p.im, ub = ux * bvx + uy * bvy + uz * bvz, disc = ub * ub - (bvx * bvx + bvy * bvy + bvz * bvz) + vv;
     if ((bvx || bvy || bvz) && disc >= 0 && Math.sqrt(disc) > ub) { const w = Math.sqrt(disc) - ub; p.vx = bvx + w * ux; p.vy = bvy + w * uy; p.vz = bvz + w * uz; }
@@ -5224,8 +5224,8 @@ function neutronLeaves(p) {
   return false;
 }
 function wallOrEscape(p, escape, x0, y0) {
-  const hw = W.box.w / 2, hh = W.box.h / 2;
-  if (p.x >= -hw && p.x <= hw && p.y >= -hh && p.y <= hh) return false;
+  const hw = W.box.w / 2, hh = W.box.h / 2, d3 = W.d3, hd = d3 ? W.box.d / 2 : 0; // (3-D: the z faces too, 1.23.2)
+  if (p.x >= -hw && p.x <= hw && p.y >= -hh && p.y <= hh && (!d3 || (p.z >= -hd && p.z <= hd))) return false;
   if (x0 !== undefined && W.wall !== 'wrap') { // the track ends (or turns) where the path meets the wall, not past it
     const c = wallCross(x0, y0, p.x, p.y, hw, hh);
     if (p.trk) { const pts = p.trk.pts; if (pts.length >= 2) { pts[pts.length - 2] = c[0]; pts[pts.length - 1] = c[1]; } }
@@ -5236,8 +5236,8 @@ function wallOrEscape(p, escape, x0, y0) {
     // and comes back off it at the wall's temperature; its kinetic energy goes into the wall. Everything else
     // (α, protons, neutrons, fast electrons, bare nuclei) is reflected by the walls below: a closed box keeps its
     // particles in — only light (photons, neutrinos) and the mesons of annihilations (W.exo) leave it.
-    const K0 = p.rad ? p.KE : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy);
-    p.x = clamp(p.x, -hw + 0.6, hw - 0.6); p.y = clamp(p.y, -hh + 0.6, hh - 0.6);
+    const K0 = p.rad ? p.KE : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + (d3 ? p.vz * p.vz : 0));
+    p.x = clamp(p.x, -hw + 0.6, hw - 0.6); p.y = clamp(p.y, -hh + 0.6, hh - 0.6); if (d3) p.z = clamp(p.z, -hd + 0.6, hd - 0.6);
     // (1.09: and clear of what is already there. Two fragments stopped at the same stretch of wall were set down 0.1 Å
     // apart; the capped contact force then threw them out at 64 MeV each, energy from nowhere in an insulated chain reaction)
     _crowd = null; placeClear([p], 8, p.bonds.map(bd => other(bd, p))); _crowd = null;
@@ -5245,8 +5245,9 @@ function wallOrEscape(p, escape, x0, y0) {
     const [vx, vy] = thermalV(p.m, W.T);
     p.vx = p.x >= hw - 0.61 ? -Math.abs(vx) : p.x <= -hw + 0.61 ? Math.abs(vx) : vx;
     p.vy = p.y >= hh - 0.61 ? -Math.abs(vy) : p.y <= -hh + 0.61 ? Math.abs(vy) : vy;
+    if (d3) { const vz = thermalV(p.m, W.T)[2]; p.vz = p.z >= hd - 0.61 ? -Math.abs(vz) : p.z <= -hd + 0.61 ? Math.abs(vz) : vz; }
     const U = _nmd ? localPE(new Set([p])) : 0;
-    W.ledger.escaped += K0 - 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy) - U;
+    W.ledger.escaped += K0 - 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + (d3 ? p.vz * p.vz : 0)) - U;
     W.spawned++; _late.push(p); // forces must be recomputed for it
     if (p.trk) { extendTrack(p); p.trk = null; }
     updateFast(p);
@@ -5261,6 +5262,7 @@ function wallOrEscape(p, escape, x0, y0) {
   if (W.wall === 'wrap') {
     if (p.x < -hw) p.x += W.box.w; else if (p.x > hw) p.x -= W.box.w;
     if (p.y < -hh) p.y += W.box.h; else if (p.y > hh) p.y -= W.box.h;
+    if (d3) { if (p.z < -hd) p.z += W.box.d; else if (p.z > hd) p.z -= W.box.d; }
     return false;
   }
   if (p.x < -hw) { p.x = -hw + (-hw - p.x) % W.box.w; p.vx = Math.abs(p.vx); p.ux = Math.abs(p.ux); }
@@ -5790,13 +5792,15 @@ function moveNeutron(p, dt, c1, c2, kT) {
   // nuclei in the MD set, by the two paths' closest approach (a slow nucleus drifting into a neutron at rest meets it
   // too); fast nuclei and other neutrons: neutronPairs, before this pass
   const hits = relTargets(x0, y0, p.vx, p.vy, dt, 1.0, (t) => t.k === NUC && t.Z > 0, p.rad || KE > 1e3);
-  for (const [, tg, b] of hits) {
+  for (const [, tg, b0] of hits) {
     if (tg.dead || sameEv(p, tg)) continue;
     const R = nucReach(p, tg); // (a nucleus is hit where it is drawn)
+    const b = W.d3 ? Math.hypot(b0, tg.z - p.z) : b0; // (3-D: its depth counts too, 1.23.2; the search is still in the plane)
     if (b < R && neutronHit(p, tg, b, R)) break;
   }
   if (p.dead) return;
   p.x += p.vx * dt; p.y += p.vy * dt;
+  if (W.d3) p.z += p.vz * dt; // (3-D: in depth too, 1.23.2: it kept its z)
   if (W.objs.length && objPath(p, x0, y0)) return; // (placed objects: props.js)
   const KE2 = keOf(p);
   if (p.trk) extendTrack(p);
@@ -6747,7 +6751,8 @@ function walls3(p) {
   const hw0 = W.box.w / 2, hh0 = W.box.h / 2, hd0 = W.box.d / 2;
   const out = (hw, hh, hd) => p.x < -hw || p.x > hw || p.y < -hh || p.y > hh || p.z < -hd || p.z > hd;
   if ((p.k === POS || p.anti) && W.wall === 'reflect' && out(hw0, hh0, hd0)) { annihilateAtWall(p); return; }
-  if (W.wall === 'open') { if (out(hw0, hh0, hd0)) { chargeTo(p.q, 'qOut'); kill(p); } return; }
+  if (W.wall === 'open') { if (out(hw0, hh0, hd0)) wallStop3(p, 'qOut'); return; } // (its energy counted as escaped, 1.23.2)
+  if (W.wall === 'reflect' && out(hw0, hh0, hd0) && 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) > radThreshold(p.k !== NUC)) { wallStop3(p); return; } // (fast: stopped in the wall, 1.23.2)
   if (!p.fast) { // soft walls handle slow particles; only rescue deep escapees, handing back their potential energy
     const m = 1.5, rin = p.k === NUC ? wallIn(p) : 0, hw = hw0 - rin, hh = hh0 - rin, hd = hd0 - rin;
     if (!out(hw + m, hh + m, hd + m)) return;
@@ -6766,6 +6771,36 @@ function walls3(p) {
   if (p.x < -hw0) { p.x = -hw0 + Math.min(W.box.w, -hw0 - p.x); p.vx = Math.abs(p.vx); } else if (p.x > hw0) { p.x = hw0 - Math.min(W.box.w, p.x - hw0); p.vx = -Math.abs(p.vx); }
   if (p.y < -hh0) { p.y = -hh0 + Math.min(W.box.h, -hh0 - p.y); p.vy = Math.abs(p.vy); } else if (p.y > hh0) { p.y = hh0 - Math.min(W.box.h, p.y - hh0); p.vy = -Math.abs(p.vy); }
   if (p.z < -hd0) { p.z = -hd0 + Math.min(W.box.d, -hd0 - p.z); p.vz = Math.abs(p.vz); } else if (p.z > hd0) { p.z = hd0 - Math.min(W.box.d, p.z - hd0); p.vz = -Math.abs(p.vz); }
+}
+/* 3-D: what a closed box's wall stops, and what leaves through an open one (asked for by the owner, 1.23.2: "make sure
+   that fast particles still leave the box in 3d"). The 3-D world has no radiation flight (its collision search is
+   flat), so a fast particle stays in the stepped set; walls3 decides by speed what the flat walls decide by radiation
+   flight (wallOrEscape): past radThreshold for its kind (2 keV for nuclei, 1 keV for electrons, more in a hot box), a
+   charged particle reaching a closed wall is stopped in it and leaves the simulation (W.count.wallStop, its charge to
+   the wall); a recoiling atom (Z ≥ 3 with electrons) is stopped and set back just inside at the wall's temperature.
+   The energy books stay exact: the escaped energy is what the world loses, measured (its motion, its internal energy,
+   and the potential energy of its whole molecule before and after, localPE; a free electron's from the field it sits
+   in, as switchMode measures it). Before, walls3 bounced everything back but antimatter: a 1 MeV proton stayed in the
+   box for ever, in steps a thousandth as long. */
+function wallStop3(p, where) {
+  const ke = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz), nuc = p.k === NUC;
+  const set = nuc ? setOf(molecule(p)) : null, U0 = nuc ? localPE(set) : p.q * phiE(p.x, p.y, p, undefined, p.z);
+  if (!where && nuc && p.ne > 0 && p.Z >= 3) { // a recoiling atom: stopped within nanometres, back off the wall at its temperature
+    const hw = W.box.w / 2 - 0.6, hh = W.box.h / 2 - 0.6, hd = W.box.d / 2 - 0.6;
+    p.x = clamp(p.x, -hw, hw); p.y = clamp(p.y, -hh, hh); p.z = clamp(p.z, -hd, hd);
+    _crowd = null; placeClear([p], 8, p.bonds.map(bd => other(bd, p))); _crowd = null;
+    const v = thermalV(p.m, W.T), into = (c, h, u) => (c >= h - 0.01 ? -Math.abs(u) : c <= -h + 0.01 ? Math.abs(u) : u);
+    p.vx = into(p.x, hw, v[0]); p.vy = into(p.y, hh, v[1]); p.vz = into(p.z, hd, v[2]);
+    W.ledger.escaped += ke + U0 - 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) - localPE(set);
+    _wallMoved = true;
+    return;
+  }
+  const I0 = internalE(p), partners = p.bonds.map(bd => other(bd, p));
+  if (!where) W.count.wallStop++;
+  chargeTo(p.q, where);
+  kill(p); if (partners.length) relink(partners.filter(q => !q.dead));
+  let U1 = 0; if (nuc) { const rest = new Set(); for (const q of set) if (!q.dead) rest.add(q); U1 = rest.size ? localPE(rest) : 0; }
+  W.ledger.escaped += ke + I0 + U0 - U1;
 }
 /* Periodic housekeeping: π-bond formation between adjacent radicals, field ionization, electron shedding. */
 /* Counters that let the step skip whole-store loops with nothing to do, exactly:
