@@ -262,7 +262,7 @@ engine stores and visits particles.
     orders in 3-D in WebAssembly (above).
   Bugs on record (found while building 1.23.2–1.25; not fixed yet, for a bug-fix session; the owner: "keep these bugs
   on record"):
-  - Flat copper with the normal pair model turns itself into ions: 120 of 127 atoms of a flat Cu lump within 2 ps at
+  - [looked at after 1.25: a model choice, for the owner] Flat copper with the normal pair model turns itself into ions: 120 of 127 atoms of a flat Cu lump within 2 ps at
     300 K (Ag, Au, Fe, Na don't). Screenshot 125m-flat-pairs.png.
   - Dense metals in 3-D are slow with either metal model: 767 Cu atoms about 80 ms a step, nearly all estimating
     electron transfers.
@@ -986,6 +986,13 @@ books hashed apart).
   bond deeper than stored); PCl₅ and SbCl₅ have 0.9 and 0.6 eV to spare. A fix means changing that rule's threshold
   or the As–Cl/Cl–Cl table (both change how every crowded molecule bonds), not correcting a slip: not changed.
   (Real AsCl₅ falls apart above −50 °C.)
+- 1. Flat copper turning itself into ions (normal pair model): looked at, left for the owner as a model choice. The
+  books are exact (each transfer is measured), so this is what the flat pair model predicts, not a slip: its Cu–Cu
+  spacing (2.64 Å) is short enough that the pull of a Cu⁺Cu⁻ pair (with the flat world's stronger Coulomb between ions)
+  pays IE − EA (6.49 eV) once a few pairs line up (Ag, with a smaller IE − EA but a longer spacing, does not). In a
+  real metal the conduction electrons screen such a pair and nothing happens; giving the flat pair model that
+  screening (e.g. no electron transfer between two atoms of a metal joined by metallic cohesion, or a screened
+  Coulomb inside a metal) changes how metals behave: the owner's call. Many-body copper (Experimental) stays neutral.
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
