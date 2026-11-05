@@ -1751,6 +1751,8 @@ const { openPage } = require('./browser');
   }
   // 1.23.2: the checks are in f_1232.js (also runnable alone: node tests/f_1232.js)
   await require('./f_1232.js')(page, check, say, openPage);
+  // 1.24: the checks are in f_124.js (also runnable alone: node tests/f_124.js [part …])
+  await require('./f_124.js')(page, check, say, openPage);
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

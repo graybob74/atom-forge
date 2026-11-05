@@ -459,6 +459,7 @@ function buildToolOpts() {
       h = `<span class="lbl">Placing</span><span><span class="swatch" style="background:${specColor(sp)}"></span> <b>${esc(specLabel(sp))}</b> <span class="help">${esc(specName(sp))}</span></span>
         ${savedIsoHTML()}${isoPickerHTML(sp)}${isObject(sp) ? `<span class="help">${MOLECULES[sp.mol].atoms.length} atoms, one per click. Keep the bath near room temperature or it falls apart.</span>`
           : `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']].concat(MAX_PARTS >= 8000 ? [[100, '100']] : []), o.count)}</span><span data-g="rest">${seg('Moving', [['false', 'At the bath temperature'], ['true', 'At rest']], String(!!o.rest))}</span>`}`;
+      if (W.d3) h += rangeCtl('oPD', 'Depth', -100, 100, Math.round(100 * P3.off / plane3Lim()), plane3Text()) + '<span class="help">The plane things go on (Shift + wheel); over an atom, they go against its near side.</span>'; // (3-D: the placing plane, 1.24)
       break;
     case 'grab':
       h = `<span data-g="mol">${seg('Grab', [['true', 'Whole molecule or crystal'], ['false', 'Single atom']], String(o.mol))}</span><span data-g="s">${seg('Strength', [['gentle', 'Gentle'], ['strong', 'Strong'], ['max', 'Very strong']], o.s)}</span><span class="help">${o.s === 'gentle' ? 'At most 3 km/s: it trails the mouse at high speeds.' : o.s === 'strong' ? 'Keeps up with the mouse (30 km/s, 8 eV/Å).' : 'Keeps up when dragged fast (100 km/s, 30 eV/Å).'}</span>`;
@@ -473,7 +474,7 @@ function buildToolOpts() {
       const fs = fireSpecNow() || SPEC_P;
       if (W.d3) { // (3-D: the projectiles that work there, single shots below the flat-only flight of radiation mode)
         h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
-          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Drag to aim (in the plane facing you). In 3-D: single shots up to ${fmtE(0.95 * radThreshold(true))} for electrons and ${fmtE(0.95 * radThreshold(false))} for atoms for now; light, neutrons, antimatter, unstable particles and beam sources: ${NOT_3D.toLowerCase()}.</span>`;
+          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots up to ${fmtE(0.95 * radThreshold(true))} for electrons and ${fmtE(0.95 * radThreshold(false))} for atoms for now; light, neutrons, antimatter, unstable particles and beam sources: ${NOT_3D.toLowerCase()}.</span>`;
         break;
       }
       h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
@@ -565,6 +566,7 @@ function buildToolOpts() {
       case 'oS': { o.s = v; out.textContent = fmtE(pullU()); $('oSword').textContent = `${pullWord(pullU())} at ${fmtT(W.T)}`;
         for (const b of el.querySelectorAll('[data-g="s"] .opt')) b.setAttribute('aria-pressed', String(+b.dataset.v === v)); break; }
       case 'oPE': o.Es = v; out.textContent = fmtE(placeE()); break;
+      case 'oPD': plane3Set(v / 100 * plane3Lim()); out.textContent = plane3Text(); break; // (3-D: the placing plane, 1.24)
       case 'oOf': o.f = v; out.textContent = objFText(v); break;
       case 'oOV': o.Vs = v; out.textContent = objVText(objV()); break;
       case 'oOL': o.layers = v; out.textContent = String(v); break;
@@ -932,7 +934,7 @@ function onDown(e) {
   let [wx, wy] = s2w(px, py), wz = 0;
   if (W.d3) { // (3-D: the point in depth: the atom under the pointer's, else the target plane's; the brushes that reach through everything seen, the target plane's)
     if (TOOLS_NO3D.has(t)) { UI.drag = { kind: 'none' }; return; }
-    [wx, wy, wz] = t === 'heat' || t === 'erase' ? s2w3(px, py) : ptr3(px, py);
+    [wx, wy, wz] = t === 'heat' || t === 'erase' ? s2w3(px, py) : t === 'place' && !UI.pasting ? place3At(px, py, UI.spec || SPEC_P) : ptr3(px, py); // (Place: against the surface of the atom under the pointer, else on the placing plane, 1.24)
   }
   const plane = W.d3 ? [wx, wy, wz] : null; // (a drag in 3-D keeps to the plane square to the view through where it began)
   if (UI.pasting) { // a paste picked up with Ctrl+V: this click puts it down (Shift: and keeps it for another)
@@ -989,7 +991,7 @@ function onDown(e) {
       break;
     }
     case 'fire': case 'light':
-      UI.drag = { kind: t, x0: wx, y0: wy, x1: wx, y1: wy, z0: wz, z1: wz, acc: 0, plane };
+      UI.drag = { kind: t, x0: wx, y0: wy, x1: wx, y1: wy, z0: wz, z1: wz, acc: 0, plane, px0: px, py0: py, px1: px, py1: py }; // (px…: 3-D, a click fires from the camera, 1.24)
       break;
     case 'objects': {
       const ob = objAtPx(px, py);
@@ -1245,7 +1247,7 @@ function onMove(e) {
       case 'magnet': d.m.x = wx + d.ox; d.m.y = wy + d.oy; break;
       case 'objnew': d.ob.x1 = wx; d.ob.y1 = wy; W.dirty++; break;
       case 'objmove': { const dx = wx - d.lx, dy = wy - d.ly; d.ob.x0 += dx; d.ob.x1 += dx; d.ob.y0 += dy; d.ob.y1 += dy; d.lx = wx; d.ly = wy; W.dirty++; break; }
-      case 'fire': case 'light': d.x1 = wx; d.y1 = wy; d.z1 = wz; break;
+      case 'fire': case 'light': d.x1 = wx; d.y1 = wy; d.z1 = wz; d.px1 = px; d.py1 = py; break;
       case 'erase': if (W.d3) eraseHere3(px, py); else eraseHere(wx, wy); break;
       case 'selbox': d.x1 = wx; d.y1 = wy; d.px1 = px; d.py1 = py; break;
       case 'selmove': moveSelection(wx - d.lx, wy - d.ly, wz - d.lz); d.lx = wx; d.ly = wy; d.lz = wz; d.moved = true; break;
@@ -1254,8 +1256,20 @@ function onMove(e) {
   const b = brushFor(UI.tool);
   R.overlay = b ? { x: wx, y: wy, z: wz, brush: b.r, color: b.c } : null;
   if (UI.tool === 'magnet' && !d) R.overlay = { x: wx, y: wy, ghostMagnet: { R: OPT.magnet.R, B: magB() } };
-  if (d && (d.kind === 'fire' || d.kind === 'light')) R.overlay = { aim: aimOverlay(d) };
+  if (d && (d.kind === 'fire' || d.kind === 'light')) R.overlay = W.d3 && click3(d) ? over3(px, py, d.kind) : { aim: aimOverlay(d) };
+  else if (W.d3 && !d && !QM.open) { const o3 = over3(px, py, UI.tool); if (o3) R.overlay = o3; }
+  else if (W.d3 && d && d.kind === 'spray') R.overlay = { place3: { x: wx, y: wy, z: wz, at: null, spec: UI.spec || SPEC_P } };
   if (d && d.kind === 'selbox') R.overlay = { box: [d.x0, d.y0, d.x1, d.y1], box3: [d.px, d.py, px, py] };
+}
+/* (3-D, 1.24) What the pointer shows with no drag: Place, the placing plane and a ghost where the item would go (against
+   the surface of the atom under the pointer, or on the plane); Fire, a crosshair from the camera (and a ring on the
+   atom it would go straight at); pasting, the plane. A drag shorter than 6 px is a click (click3). */
+function click3(d) { return d.px0 === undefined || Math.hypot(d.px1 - d.px0, d.py1 - d.py0) < 6; }
+function over3(px, py, t) {
+  if (UI.pasting) return { plane3: true };
+  if (t === 'place') { const sp = UI.spec || SPEC_P, [x, y, z, at] = place3At(px, py, sp); return { place3: { x, y, z, at, spec: sp } }; }
+  if (t === 'fire') { const p = pick3(px, py, 0), at = p && p.k === NUC && p.Z > 0 ? p : null, sp = fireSpecNow() || SPEC_P; return { fire3: { px: [px, py], at, text: `${specLabel(sp)}  ${fmtE(fireKE3())}${at ? '  → ' + speciesLabel(at) : ''}` } }; }
+  return null;
 }
 function aimOverlay(d) {
   const L = Math.hypot(d.x1 - d.x0, d.y1 - d.y0);
@@ -1286,9 +1300,15 @@ function endToolAction() {
     W.lasers.push({ x0: d.x0, y0: d.y0, ux, uy, E: lightE(), rate: OPT.light.rate, acc: 0 });
     log('tool', `Laser on: ${wavelengthText(lightE()).lam}, ${OPT.light.rate} photons/s`); buildToolOpts();
   }
-  if (d && d.kind === 'fire' && W.d3) { // (3-D: along the drag, in the plane square to the view; a click fires to the right of the screen)
-    const [ux, uy, uz] = fireDir3(d), sp = fireSpecNow() || SPEC_P, KE = fireKE3();
-    if (fireOK3(sp)) { fireSpec(sp, d.x0, d.y0, ux, uy, KE, false, d.z0, uz); log('tool', `Fired ${specLabel(sp)} at ${fmtE(KE)}`); }
+  if (d && d.kind === 'fire' && W.d3) { // (3-D: a click fires from the camera toward the pointer, straight at an atom under it (1.24, the owner's choice); a drag, along the drag in the plane square to the view)
+    const sp = fireSpecNow() || SPEC_P, KE = fireKE3();
+    if (fireOK3(sp)) {
+      if (click3(d)) {
+        const f = fire3From(d.px0, d.py0);
+        if (!f) log('tool', 'Fire: the line of sight misses the box; aim into it');
+        else { fireSpec(sp, f.o[0], f.o[1], f.u[0], f.u[1], KE, false, f.o[2], f.u[2]); log('tool', `Fired ${specLabel(sp)} at ${fmtE(KE)}${f.at ? ` at ${speciesLabel(f.at)}` : ' from the camera'}`); }
+      } else { const [ux, uy, uz] = fireDir3(d); fireSpec(sp, d.x0, d.y0, ux, uy, KE, false, d.z0, uz); log('tool', `Fired ${specLabel(sp)} at ${fmtE(KE)}`); }
+    }
   } else if (d && d.kind === 'fire') {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
@@ -1361,6 +1381,13 @@ function onWheel(e) {
   e.preventDefault();
   closeQuickMenu();
   const [px, py] = evPos(e);
+  if (W.d3 && e.shiftKey && !e.ctrlKey) { // (3-D: Shift + wheel moves the placing plane farther (wheel up) or nearer, 1.24; Chromium on Windows turns Shift + wheel sideways)
+    const dv = (e.deltaY || e.deltaX) * (e.deltaMode === 1 ? 33 : 1);
+    plane3Set(P3.off - dv / 100 * Math.max(0.25, 0.04 * plane3Lim()));
+    const el = $('oPD'); if (el) { el.value = Math.round(100 * P3.off / plane3Lim()); $('oPDV').textContent = plane3Text(); }
+    if (!UI.drag) { const o3 = over3(px, py, UI.tool); R.overlay = o3 || R.overlay; }
+    return;
+  }
   const f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015) * (SET.wheel || 1)); // (Settings → Controls: speed, and toward the mouse or the centre)
   if (SET.zoomTo === 'centre') zoomAt(R.w / 2, R.h / 2, f); else zoomAt(px, py, f);
 }
@@ -5236,7 +5263,7 @@ function wakeTick() {
 /* Keyboard shortcuts (?) */
 const KEYS = [['Simulation', [['Space', 'Play / pause'], ['.', 'One frame'], ['R', 'Reload the setup'], ['[ / ]', 'Slower / faster'], ['\\', 'Slow motion'], [',', 'Rewind: back a step'], ['Ctrl+Z', 'Undo'], ['Ctrl+Shift+Z, Ctrl+Y', 'Redo']]],
   ['View', [['+ / −, wheel', 'Zoom'], ['0', 'Fit the box'], ['1 … 9', 'Go to a kept view'], ['Shift+1 … 9', 'Keep this view'], ['V', 'Particle view'], ['O', 'Orbitals'], ['B', 'Chamber only'], ['F11', 'Borderless full screen'], ['Esc', 'Menu (or leave chamber only, drop the selection)']]],
-  ['3-D lab', [['W / S', 'Fly forward / back'], ['A / D', 'Fly left / right'], ['E / Q', 'Fly up / down'], ['Space / Shift', 'Up / down while flying (Space alone plays and pauses)'], ['Arrows', 'Turn the view'], ['Z / X', 'Spark / Erase (S and E fly in 3-D)']]],
+  ['3-D lab', [['W / S', 'Fly forward / back'], ['A / D', 'Fly left / right'], ['E / Q', 'Fly up / down'], ['Space / Shift', 'Up / down while flying (Space alone plays and pauses)'], ['Arrows', 'Turn the view'], ['Z / X', 'Spark / Erase (S and E fly in 3-D)'], ['Shift + wheel', 'Move the placing plane farther / nearer'], ['Click with Fire', 'Fire from the camera at the pointer (straight at an atom under it)']]],
   ['Particles', [['/', 'Find a particle by typing']]],
   ['Selection', [['Ctrl+C / Ctrl+V', 'Copy / paste'], ['Ctrl+A', 'Select all'], ['Delete', 'Delete the selected particle']]],
   ['Help', [['?', 'This list'], ['Shift+F10, menu key', 'Quick menu at the mouse'], ['Long press', 'Quick menu (touch, pen)']]]];

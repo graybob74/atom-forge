@@ -22591,8 +22591,51 @@ function proj3(x, y, z, o) {
   o[0] = C3.hw + C3.F * (dx * C3.rx + dy * C3.ry + dz * C3.rz) / zc; o[1] = C3.hh - C3.F * (dx * C3.ux + dy * C3.uy + dz * C3.uz) / zc;
   return true;
 }
-/* The world point under a screen point on the plane through the camera's target square to the view. Always finite. */
-function s2w3(px, py) { const c = R.cam3; return s2wPlane(px, py, [c.tx, c.ty, c.tz]); }
+/* The placing plane (1.24, asked for by the owner: "a better system for more accurate placing and firing in 3d"): the
+   plane square to the view that tools put things on, P3.off Å beyond the camera's target along the view (0: through
+   the target, as in 1.23). Shift + wheel or the Place tool's Depth slider move it; it is drawn while placing (a faint
+   grid where it cuts the box, a ghost of the item and a line down to the floor, drawPlace3). P3.shown: until when the
+   grid stays up after the plane is moved with another tool. */
+const P3 = { off: 0, shown: 0 };
+function plane3Pt() { const c = R.cam3; cam3Update(); const o = P3.off; return [c.tx + o * C3.fx, c.ty + o * C3.fy, c.tz + o * C3.fz]; }
+function plane3Lim() { return 0.5 * Math.hypot(W.box.w, W.box.h, W.box.d || W.box.h) + 2; } // (the plane can be put anywhere across the box)
+function plane3Set(off) { cam3Update(); const L = plane3Lim(); P3.off = clamp(off, Math.max(-L, -(C3.D - 2 * C3.near - 0.5)), L); P3.shown = (W.rt || 0) + 1.5; return P3.off; }
+function plane3Text() { const o = P3.off; return Math.abs(o) < 0.05 ? 'at the centre' : `${fmtNum(Math.abs(o), 2)} Å ${o > 0 ? 'farther' : 'nearer'}`; }
+/* The world point under a screen point on the placing plane. Always finite. */
+function s2w3(px, py) { return s2wPlane(px, py, plane3Pt()); }
+/* Where the Place tool puts an item (1.24): against the surface of the atom under the pointer, on the side the pointer
+   meets (the near side: where its line of sight enters the atom's ball, out along the surface there by the two sizes),
+   or failing an atom, on the placing plane. Returns [x, y, z, atom or null]. */
+function place3At(px, py, spec) {
+  const p = pick3(px, py, 0);
+  if (!p || p.k !== NUC || p.Z === 0) { const w = s2w3(px, py); return [w[0], w[1], w[2], null]; }
+  const r = ray3(px, py, [0, 0, 0]), L = Math.hypot(r[0], r[1], r[2]), ux = r[0] / L, uy = r[1] / L, uz = r[2] / L;
+  const cx = p.x - C3.ex, cy = p.y - C3.ey, cz = p.z - C3.ez, tc = cx * ux + cy * uy + cz * uz; // (along the line, the nearest approach to the centre)
+  const a = Math.max(0.3, rd3(p)), dx = ux * tc - cx, dy = uy * tc - cy, dz = uz * tc - cz, d2 = dx * dx + dy * dy + dz * dz, back = Math.sqrt(Math.max(0, a * a - d2));
+  let nx = dx - back * ux, ny = dy - back * uy, nz = dz - back * uz; const nl = Math.hypot(nx, ny, nz); // (the surface's normal where the line enters; at the very centre, toward the eye)
+  if (nl < 1e-6) { nx = -ux; ny = -uy; nz = -uz; } else { nx /= nl; ny /= nl; nz /= nl; }
+  const sep = (p.ne > 0 ? Math.max(0.8, 0.5 * (p.el && p.el.uffR || 3)) : 0.6) + (spec ? specSize(spec) : 1); // (contact: the two items' sizes, as placements are spaced)
+  return [p.x + nx * sep, p.y + ny * sep, p.z + nz * sep, p];
+}
+/* Fire from the camera (1.24, the owner's choice): from the eye toward the pointer, first-person style, or straight at
+   the atom under it. A projectile starts at the eye when the eye is inside the box, else where the line of sight enters
+   the box (1 Å in). Returns { o: start, u: unit direction, at: the atom aimed at or null }, or null when the line of
+   sight misses the box. */
+function fire3From(px, py) {
+  const r = ray3(px, py, [0, 0, 0]), L = Math.hypot(r[0], r[1], r[2]); let u = [r[0] / L, r[1] / L, r[2] / L];
+  const E = [C3.ex, C3.ey, C3.ez], H = [W.box.w / 2 - 1, W.box.h / 2 - 1, (W.box.d || W.box.h) / 2 - 1];
+  let t0 = 0, t1 = Infinity;
+  for (let k = 0; k < 3; k++) { // (the slabs: where the line is inside the box)
+    if (Math.abs(u[k]) < 1e-12) { if (Math.abs(E[k]) > H[k]) return null; continue; }
+    let a = (-H[k] - E[k]) / u[k], b = (H[k] - E[k]) / u[k]; if (a > b) { const t = a; a = b; b = t; }
+    t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+  }
+  if (!(t0 <= t1)) return null;
+  const o = [E[0] + u[0] * t0, E[1] + u[1] * t0, E[2] + u[2] * t0];
+  const p = pick3(px, py, 0), at = p && !p.dead && p.k === NUC && p.Z > 0 ? p : null;
+  if (at) { const dx = at.x - o[0], dy = at.y - o[1], dz = at.z - o[2], d = Math.hypot(dx, dy, dz); if (d > 1e-6) u = [dx / d, dy / d, dz / d]; } // (straight at it)
+  return { o, u, at };
+}
 /* The pointer's line of sight (not normalised: its part along the view direction is 1). */
 function ray3(px, py, o) {
   cam3Update(); // (the camera as it is now: it may have turned since the last frame)
@@ -22866,6 +22909,7 @@ function render3d(rt) {
   drawFlashes3(ctx, rt);
   drawEvents3(ctx, rt);
   drawMarks3(ctx);
+  if (!R.menu) drawPlace3(ctx); // (the placing plane, the ghost, Fire's aim from the camera, 1.24)
   drawOverlay3(ctx);
   if (V3.axes && !R.menu) drawAxes3(ctx); // (not behind the main menu)
   drawScaleBar();
@@ -22960,6 +23004,78 @@ function drawOverlay3(ctx) {
       let ok = true; pts.forEach(([x, y], k) => { if (!proj3(x, y, 0, A)) ok = false; else if (k) ctx.lineTo(A[0], A[1]); else ctx.moveTo(A[0], A[1]); });
       if (ok) { ctx.closePath(); ctx.fill(); ctx.stroke(); }
     }
+  }
+  ctx.restore();
+}
+/* The placing plane, drawn (1.24): a faint grid where the plane cuts the box and its outline, then the ghost of what the
+   Place tool would put down (R.overlay.place3: its atoms on the plane, faint, in their colours; ringed when it goes
+   against an atom's surface) with a dashed line straight down to the box's floor and a small ring there, so its depth
+   reads against the box. Fire's aim from the camera: a crosshair, and a ring on the atom it would go straight at. */
+function plane3Poly(P) { // where the plane through P square to the view cuts the box: the corners, in order round it
+  const H = [W.box.w / 2, W.box.h / 2, (W.box.d || W.box.h) / 2], f = [C3.fx, C3.fy, C3.fz], c = P[0] * f[0] + P[1] * f[1] + P[2] * f[2], pts = [];
+  for (let ax = 0; ax < 3; ax++) { const u = (ax + 1) % 3, v = (ax + 2) % 3; if (Math.abs(f[ax]) < 1e-12) continue;
+    for (const su of [-1, 1]) for (const sv of [-1, 1]) { const q = [0, 0, 0]; q[u] = su * H[u]; q[v] = sv * H[v]; q[ax] = (c - q[u] * f[u] - q[v] * f[v]) / f[ax]; if (Math.abs(q[ax]) <= H[ax] + 1e-9) pts.push(q); } }
+  if (pts.length < 3) return [];
+  let mx = 0, my = 0, mz = 0; for (const q of pts) { mx += q[0]; my += q[1]; mz += q[2]; } mx /= pts.length; my /= pts.length; mz /= pts.length;
+  const ang = (q) => Math.atan2((q[0] - mx) * C3.ux + (q[1] - my) * C3.uy + (q[2] - mz) * C3.uz, (q[0] - mx) * C3.rx + (q[1] - my) * C3.ry + (q[2] - mz) * C3.rz);
+  return pts.sort((a, b) => ang(a) - ang(b));
+}
+function drawPlace3(ctx) {
+  const o = R.overlay, pl = o && o.place3, fa = o && o.fire3, showGrid = !!pl || (o && o.plane3) || (W.rt || 0) < P3.shown;
+  if (!showGrid && !fa) return;
+  const A = _p3a, B = _p3b, F = C3.F;
+  ctx.save();
+  if (showGrid) {
+    const P = plane3Pt(), poly = plane3Poly(P);
+    if (poly.length >= 3) {
+      const depth = Math.max(C3.near, (P[0] - C3.ex) * C3.fx + (P[1] - C3.ey) * C3.fy + (P[2] - C3.ez) * C3.fz), sp = F / depth;
+      let step = 10; while (step * sp < 30) step *= 2; while (step * sp > 120 && step > 0.5) step /= 2;
+      const H = [W.box.w / 2, W.box.h / 2, (W.box.d || W.box.h) / 2], R3 = [C3.rx, C3.ry, C3.rz], U3 = [C3.ux, C3.uy, C3.uz];
+      let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+      for (const q of poly) { const a = (q[0] - P[0]) * R3[0] + (q[1] - P[1]) * R3[1] + (q[2] - P[2]) * R3[2], b = (q[0] - P[0]) * U3[0] + (q[1] - P[1]) * U3[1] + (q[2] - P[2]) * U3[2]; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+      const line = (S, D, len) => { // a grid line through S along D, cut to the box (the slabs)
+        let t0 = -len, t1 = len;
+        for (let k = 0; k < 3; k++) { if (Math.abs(D[k]) < 1e-12) { if (Math.abs(S[k]) > H[k]) return; continue; } let a = (-H[k] - S[k]) / D[k], b = (H[k] - S[k]) / D[k]; if (a > b) { const t = a; a = b; b = t; } t0 = Math.max(t0, a); t1 = Math.min(t1, b); }
+        if (t1 - t0 < 1e-6) return;
+        if (seg3(S[0] + D[0] * t0, S[1] + D[1] * t0, S[2] + D[2] * t0, S[0] + D[0] * t1, S[1] + D[1] * t1, S[2] + D[2] * t1, A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+      };
+      const len = 2 * plane3Lim() + 4;
+      ctx.strokeStyle = 'rgba(255,209,102,0.13)'; ctx.lineWidth = 1; ctx.beginPath();
+      for (let a = Math.ceil(a0 / step) * step; a <= a1; a += step) line([P[0] + a * R3[0], P[1] + a * R3[1], P[2] + a * R3[2]], U3, len);
+      for (let b = Math.ceil(b0 / step) * step; b <= b1; b += step) line([P[0] + b * U3[0], P[1] + b * U3[1], P[2] + b * U3[2]], R3, len);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,209,102,0.42)'; ctx.lineWidth = 1.2; ctx.beginPath(); let ok = true;
+      poly.forEach((q, k) => { if (!proj3(q[0], q[1], q[2], A)) ok = false; else if (k) ctx.lineTo(A[0], A[1]); else ctx.moveTo(A[0], A[1]); });
+      if (ok) { ctx.closePath(); ctx.stroke(); }
+    }
+  }
+  if (pl && proj3(pl.x, pl.y, pl.z, A)) {
+    const sc = F / A[2], hy = W.box.h / 2, hx = W.box.w / 2, hz = (W.box.d || W.box.h) / 2;
+    if (Math.abs(pl.x) <= hx && Math.abs(pl.z) <= hz && pl.y > -hy && seg3(pl.x, pl.y, pl.z, pl.x, -hy, pl.z, A, B)) { // the drop line, and a ring on the floor
+      ctx.strokeStyle = 'rgba(255,209,102,0.55)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); let ok = true; for (let k = 0; k <= 20; k++) { const th = k / 20 * 2 * Math.PI; if (!proj3(pl.x + 0.8 * Math.cos(th), -hy, pl.z + 0.8 * Math.sin(th), B)) { ok = false; break; } if (k) ctx.lineTo(B[0], B[1]); else ctx.moveTo(B[0], B[1]); }
+      if (ok) ctx.stroke();
+      proj3(pl.x, pl.y, pl.z, A);
+    }
+    const sp = pl.spec, atoms = sp && sp.kind === 'mol' && MOLECULES[sp.mol] ? MOLECULES[sp.mol].atoms : null;
+    ctx.globalAlpha = 0.45;
+    if (atoms && atoms.length <= 400) { // (a molecule: its atoms as drawn in the flat library, on the plane facing you; placed, it is turned at random)
+      let mx = 0, my = 0; for (const a of atoms) { mx += a[1]; my += a[2]; } mx /= atoms.length; my /= atoms.length;
+      const as = R.as || 1;
+      for (const a of atoms) { const Z = SYM2Z[a[0]], el = ELEMENTS[Z], r = Math.max(1.5, (0.3 + 0.28 * (el.rc || 1)) * as * sc), x = A[0] + (a[1] - mx) * sc, y = A[1] - (a[2] - my) * sc;
+        ctx.fillStyle = el.color || '#ccc'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+    } else {
+      const r = sp && sp.kind === 'atom' && !sp.bare ? Math.max(3, (0.3 + 0.28 * (ELEMENTS[sp.Z].rc || 1)) * (R.as || 1) * sc) : sp && sp.kind === 'mol' ? Math.max(4, molRadius(sp.mol) * sc) : Math.max(3, 0.25 * sc);
+      ctx.fillStyle = sp ? specColor(sp) : '#ffd166'; ctx.beginPath(); ctx.arc(A[0], A[1], r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (pl.at && !pl.at.dead && proj3(pl.at.x, pl.at.y, pl.at.z, B)) { ctx.strokeStyle = 'rgba(255,209,102,0.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(B[0], B[1], Math.max(6, rd3(pl.at) * (R.as || 1) * F / B[2]) + 3, 0, Math.PI * 2); ctx.stroke(); }
+  }
+  if (fa) {
+    const [x, y] = fa.px; ctx.strokeStyle = fa.at ? 'rgba(255,110,90,0.95)' : 'rgba(255,209,102,0.85)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x - 3, y); ctx.moveTo(x + 3, y); ctx.lineTo(x + 9, y); ctx.moveTo(x, y - 9); ctx.lineTo(x, y - 3); ctx.moveTo(x, y + 3); ctx.lineTo(x, y + 9); ctx.stroke();
+    if (fa.at && !fa.at.dead && proj3(fa.at.x, fa.at.y, fa.at.z, A)) { const r = Math.max(7, rd3(fa.at) * (R.as || 1) * F / A[2]) + 4; ctx.beginPath(); ctx.arc(A[0], A[1], r, 0, Math.PI * 2); ctx.stroke(); }
+    if (fa.text) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText(fa.text, x + 12, y - 10); }
   }
   ctx.restore();
 }
@@ -25785,6 +25901,7 @@ function buildToolOpts() {
       h = `<span class="lbl">Placing</span><span><span class="swatch" style="background:${specColor(sp)}"></span> <b>${esc(specLabel(sp))}</b> <span class="help">${esc(specName(sp))}</span></span>
         ${savedIsoHTML()}${isoPickerHTML(sp)}${isObject(sp) ? `<span class="help">${MOLECULES[sp.mol].atoms.length} atoms, one per click. Keep the bath near room temperature or it falls apart.</span>`
           : `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']].concat(MAX_PARTS >= 8000 ? [[100, '100']] : []), o.count)}</span><span data-g="rest">${seg('Moving', [['false', 'At the bath temperature'], ['true', 'At rest']], String(!!o.rest))}</span>`}`;
+      if (W.d3) h += rangeCtl('oPD', 'Depth', -100, 100, Math.round(100 * P3.off / plane3Lim()), plane3Text()) + '<span class="help">The plane things go on (Shift + wheel); over an atom, they go against its near side.</span>'; // (3-D: the placing plane, 1.24)
       break;
     case 'grab':
       h = `<span data-g="mol">${seg('Grab', [['true', 'Whole molecule or crystal'], ['false', 'Single atom']], String(o.mol))}</span><span data-g="s">${seg('Strength', [['gentle', 'Gentle'], ['strong', 'Strong'], ['max', 'Very strong']], o.s)}</span><span class="help">${o.s === 'gentle' ? 'At most 3 km/s: it trails the mouse at high speeds.' : o.s === 'strong' ? 'Keeps up with the mouse (30 km/s, 8 eV/Å).' : 'Keeps up when dragged fast (100 km/s, 30 eV/Å).'}</span>`;
@@ -25799,7 +25916,7 @@ function buildToolOpts() {
       const fs = fireSpecNow() || SPEC_P;
       if (W.d3) { // (3-D: the projectiles that work there, single shots below the flat-only flight of radiation mode)
         h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
-          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Drag to aim (in the plane facing you). In 3-D: single shots up to ${fmtE(0.95 * radThreshold(true))} for electrons and ${fmtE(0.95 * radThreshold(false))} for atoms for now; light, neutrons, antimatter, unstable particles and beam sources: ${NOT_3D.toLowerCase()}.</span>`;
+          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots up to ${fmtE(0.95 * radThreshold(true))} for electrons and ${fmtE(0.95 * radThreshold(false))} for atoms for now; light, neutrons, antimatter, unstable particles and beam sources: ${NOT_3D.toLowerCase()}.</span>`;
         break;
       }
       h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
@@ -25891,6 +26008,7 @@ function buildToolOpts() {
       case 'oS': { o.s = v; out.textContent = fmtE(pullU()); $('oSword').textContent = `${pullWord(pullU())} at ${fmtT(W.T)}`;
         for (const b of el.querySelectorAll('[data-g="s"] .opt')) b.setAttribute('aria-pressed', String(+b.dataset.v === v)); break; }
       case 'oPE': o.Es = v; out.textContent = fmtE(placeE()); break;
+      case 'oPD': plane3Set(v / 100 * plane3Lim()); out.textContent = plane3Text(); break; // (3-D: the placing plane, 1.24)
       case 'oOf': o.f = v; out.textContent = objFText(v); break;
       case 'oOV': o.Vs = v; out.textContent = objVText(objV()); break;
       case 'oOL': o.layers = v; out.textContent = String(v); break;
@@ -26258,7 +26376,7 @@ function onDown(e) {
   let [wx, wy] = s2w(px, py), wz = 0;
   if (W.d3) { // (3-D: the point in depth: the atom under the pointer's, else the target plane's; the brushes that reach through everything seen, the target plane's)
     if (TOOLS_NO3D.has(t)) { UI.drag = { kind: 'none' }; return; }
-    [wx, wy, wz] = t === 'heat' || t === 'erase' ? s2w3(px, py) : ptr3(px, py);
+    [wx, wy, wz] = t === 'heat' || t === 'erase' ? s2w3(px, py) : t === 'place' && !UI.pasting ? place3At(px, py, UI.spec || SPEC_P) : ptr3(px, py); // (Place: against the surface of the atom under the pointer, else on the placing plane, 1.24)
   }
   const plane = W.d3 ? [wx, wy, wz] : null; // (a drag in 3-D keeps to the plane square to the view through where it began)
   if (UI.pasting) { // a paste picked up with Ctrl+V: this click puts it down (Shift: and keeps it for another)
@@ -26315,7 +26433,7 @@ function onDown(e) {
       break;
     }
     case 'fire': case 'light':
-      UI.drag = { kind: t, x0: wx, y0: wy, x1: wx, y1: wy, z0: wz, z1: wz, acc: 0, plane };
+      UI.drag = { kind: t, x0: wx, y0: wy, x1: wx, y1: wy, z0: wz, z1: wz, acc: 0, plane, px0: px, py0: py, px1: px, py1: py }; // (px…: 3-D, a click fires from the camera, 1.24)
       break;
     case 'objects': {
       const ob = objAtPx(px, py);
@@ -26571,7 +26689,7 @@ function onMove(e) {
       case 'magnet': d.m.x = wx + d.ox; d.m.y = wy + d.oy; break;
       case 'objnew': d.ob.x1 = wx; d.ob.y1 = wy; W.dirty++; break;
       case 'objmove': { const dx = wx - d.lx, dy = wy - d.ly; d.ob.x0 += dx; d.ob.x1 += dx; d.ob.y0 += dy; d.ob.y1 += dy; d.lx = wx; d.ly = wy; W.dirty++; break; }
-      case 'fire': case 'light': d.x1 = wx; d.y1 = wy; d.z1 = wz; break;
+      case 'fire': case 'light': d.x1 = wx; d.y1 = wy; d.z1 = wz; d.px1 = px; d.py1 = py; break;
       case 'erase': if (W.d3) eraseHere3(px, py); else eraseHere(wx, wy); break;
       case 'selbox': d.x1 = wx; d.y1 = wy; d.px1 = px; d.py1 = py; break;
       case 'selmove': moveSelection(wx - d.lx, wy - d.ly, wz - d.lz); d.lx = wx; d.ly = wy; d.lz = wz; d.moved = true; break;
@@ -26580,8 +26698,20 @@ function onMove(e) {
   const b = brushFor(UI.tool);
   R.overlay = b ? { x: wx, y: wy, z: wz, brush: b.r, color: b.c } : null;
   if (UI.tool === 'magnet' && !d) R.overlay = { x: wx, y: wy, ghostMagnet: { R: OPT.magnet.R, B: magB() } };
-  if (d && (d.kind === 'fire' || d.kind === 'light')) R.overlay = { aim: aimOverlay(d) };
+  if (d && (d.kind === 'fire' || d.kind === 'light')) R.overlay = W.d3 && click3(d) ? over3(px, py, d.kind) : { aim: aimOverlay(d) };
+  else if (W.d3 && !d && !QM.open) { const o3 = over3(px, py, UI.tool); if (o3) R.overlay = o3; }
+  else if (W.d3 && d && d.kind === 'spray') R.overlay = { place3: { x: wx, y: wy, z: wz, at: null, spec: UI.spec || SPEC_P } };
   if (d && d.kind === 'selbox') R.overlay = { box: [d.x0, d.y0, d.x1, d.y1], box3: [d.px, d.py, px, py] };
+}
+/* (3-D, 1.24) What the pointer shows with no drag: Place, the placing plane and a ghost where the item would go (against
+   the surface of the atom under the pointer, or on the plane); Fire, a crosshair from the camera (and a ring on the
+   atom it would go straight at); pasting, the plane. A drag shorter than 6 px is a click (click3). */
+function click3(d) { return d.px0 === undefined || Math.hypot(d.px1 - d.px0, d.py1 - d.py0) < 6; }
+function over3(px, py, t) {
+  if (UI.pasting) return { plane3: true };
+  if (t === 'place') { const sp = UI.spec || SPEC_P, [x, y, z, at] = place3At(px, py, sp); return { place3: { x, y, z, at, spec: sp } }; }
+  if (t === 'fire') { const p = pick3(px, py, 0), at = p && p.k === NUC && p.Z > 0 ? p : null, sp = fireSpecNow() || SPEC_P; return { fire3: { px: [px, py], at, text: `${specLabel(sp)}  ${fmtE(fireKE3())}${at ? '  → ' + speciesLabel(at) : ''}` } }; }
+  return null;
 }
 function aimOverlay(d) {
   const L = Math.hypot(d.x1 - d.x0, d.y1 - d.y0);
@@ -26612,9 +26742,15 @@ function endToolAction() {
     W.lasers.push({ x0: d.x0, y0: d.y0, ux, uy, E: lightE(), rate: OPT.light.rate, acc: 0 });
     log('tool', `Laser on: ${wavelengthText(lightE()).lam}, ${OPT.light.rate} photons/s`); buildToolOpts();
   }
-  if (d && d.kind === 'fire' && W.d3) { // (3-D: along the drag, in the plane square to the view; a click fires to the right of the screen)
-    const [ux, uy, uz] = fireDir3(d), sp = fireSpecNow() || SPEC_P, KE = fireKE3();
-    if (fireOK3(sp)) { fireSpec(sp, d.x0, d.y0, ux, uy, KE, false, d.z0, uz); log('tool', `Fired ${specLabel(sp)} at ${fmtE(KE)}`); }
+  if (d && d.kind === 'fire' && W.d3) { // (3-D: a click fires from the camera toward the pointer, straight at an atom under it (1.24, the owner's choice); a drag, along the drag in the plane square to the view)
+    const sp = fireSpecNow() || SPEC_P, KE = fireKE3();
+    if (fireOK3(sp)) {
+      if (click3(d)) {
+        const f = fire3From(d.px0, d.py0);
+        if (!f) log('tool', 'Fire: the line of sight misses the box; aim into it');
+        else { fireSpec(sp, f.o[0], f.o[1], f.u[0], f.u[1], KE, false, f.o[2], f.u[2]); log('tool', `Fired ${specLabel(sp)} at ${fmtE(KE)}${f.at ? ` at ${speciesLabel(f.at)}` : ' from the camera'}`); }
+      } else { const [ux, uy, uz] = fireDir3(d); fireSpec(sp, d.x0, d.y0, ux, uy, KE, false, d.z0, uz); log('tool', `Fired ${specLabel(sp)} at ${fmtE(KE)}`); }
+    }
   } else if (d && d.kind === 'fire') {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
@@ -26687,6 +26823,13 @@ function onWheel(e) {
   e.preventDefault();
   closeQuickMenu();
   const [px, py] = evPos(e);
+  if (W.d3 && e.shiftKey && !e.ctrlKey) { // (3-D: Shift + wheel moves the placing plane farther (wheel up) or nearer, 1.24; Chromium on Windows turns Shift + wheel sideways)
+    const dv = (e.deltaY || e.deltaX) * (e.deltaMode === 1 ? 33 : 1);
+    plane3Set(P3.off - dv / 100 * Math.max(0.25, 0.04 * plane3Lim()));
+    const el = $('oPD'); if (el) { el.value = Math.round(100 * P3.off / plane3Lim()); $('oPDV').textContent = plane3Text(); }
+    if (!UI.drag) { const o3 = over3(px, py, UI.tool); R.overlay = o3 || R.overlay; }
+    return;
+  }
   const f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015) * (SET.wheel || 1)); // (Settings → Controls: speed, and toward the mouse or the centre)
   if (SET.zoomTo === 'centre') zoomAt(R.w / 2, R.h / 2, f); else zoomAt(px, py, f);
 }
@@ -30562,7 +30705,7 @@ function wakeTick() {
 /* Keyboard shortcuts (?) */
 const KEYS = [['Simulation', [['Space', 'Play / pause'], ['.', 'One frame'], ['R', 'Reload the setup'], ['[ / ]', 'Slower / faster'], ['\\', 'Slow motion'], [',', 'Rewind: back a step'], ['Ctrl+Z', 'Undo'], ['Ctrl+Shift+Z, Ctrl+Y', 'Redo']]],
   ['View', [['+ / −, wheel', 'Zoom'], ['0', 'Fit the box'], ['1 … 9', 'Go to a kept view'], ['Shift+1 … 9', 'Keep this view'], ['V', 'Particle view'], ['O', 'Orbitals'], ['B', 'Chamber only'], ['F11', 'Borderless full screen'], ['Esc', 'Menu (or leave chamber only, drop the selection)']]],
-  ['3-D lab', [['W / S', 'Fly forward / back'], ['A / D', 'Fly left / right'], ['E / Q', 'Fly up / down'], ['Space / Shift', 'Up / down while flying (Space alone plays and pauses)'], ['Arrows', 'Turn the view'], ['Z / X', 'Spark / Erase (S and E fly in 3-D)']]],
+  ['3-D lab', [['W / S', 'Fly forward / back'], ['A / D', 'Fly left / right'], ['E / Q', 'Fly up / down'], ['Space / Shift', 'Up / down while flying (Space alone plays and pauses)'], ['Arrows', 'Turn the view'], ['Z / X', 'Spark / Erase (S and E fly in 3-D)'], ['Shift + wheel', 'Move the placing plane farther / nearer'], ['Click with Fire', 'Fire from the camera at the pointer (straight at an atom under it)']]],
   ['Particles', [['/', 'Find a particle by typing']]],
   ['Selection', [['Ctrl+C / Ctrl+V', 'Copy / paste'], ['Ctrl+A', 'Select all'], ['Delete', 'Delete the selected particle']]],
   ['Help', [['?', 'This list'], ['Shift+F10, menu key', 'Quick menu at the mouse'], ['Long press', 'Quick menu (touch, pen)']]]];

@@ -252,6 +252,39 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.24 (in progress)
+
+The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on branch v127.
+
+- **Placing and firing in 3-D** (the owner's three choices: "there should be a better system for more accurate placing
+  and firing in 3d"). A UI change; the engine is untouched.
+  - The placing plane: tools put things on the plane square to the view `P3.off` Å beyond the camera's target (0, the
+    1.23 plane, by default; `plane3Pt`, `s2w3`). It is drawn while the Place tool is out, while pasting, and for 1.5 s
+    after it moves: a faint grid where it cuts the box and the outline of the cut (`plane3Poly`, `drawPlace3`), a ghost of
+    the item at the pointer (an atom in its colour and size; a molecule's atoms as the library draws them, on the plane;
+    placed, it is still turned at random), and a dashed line straight down to the box's floor with a small ring there, so
+    its depth reads. Shift + wheel moves the plane farther (wheel up) or nearer (`deltaX` too: Chromium on Windows turns
+    Shift + wheel sideways), in steps of 4% of the box's half-diagonal; Place's options bar has a Depth slider (−100…100
+    of the half-diagonal, "4.5 Å nearer"). Limited to the box (and in front of the eye).
+  - Placing against an atom: over an atom (pick3's exact disc, no margin), the item goes against the atom's near side:
+    where the pointer's line of sight enters the atom's ball, out along the surface there by the two sizes (`place3At`:
+    the atom's ½·UFF diameter and the item's `specSize`, as placements are spaced), then cleared as any placement. The
+    ghost shows there with a ring on the atom. Measured (headless, Molecules in space): a C put over an O at its centre
+    lands 3.68 Å from it, straight toward the camera (cos 1.00); before, the C went to the O's centre and was moved to
+    the nearest clear spot, on any side.
+  - Firing from the camera: a click (a drag under 6 px) with Fire shoots from the eye when the eye is inside the box,
+    else from where the line of sight enters the box (1 Å in), toward the pointer, and straight at the atom under the
+    pointer when there is one (`fire3From`); the pointer shows a crosshair, red with a ring on that atom, and what would
+    be fired. A drag still aims in the plane facing the camera from where it began (1.23). Measured: an electron fired by
+    a click on an N atom left 1 Å inside the box's face with its velocity on the line to the atom (cos 1.0000); before, a
+    click fired to the right of the screen from the plane point.
+  - Help (Moving around), the shortcut list's 3-D group (Shift + wheel; a click with Fire) and Settings → 3-D's keys
+    note say so.
+  - Screenshots: 124-before-place-atom.png, 124-before-fire-aim.png; 124-after-place-atom.png, 124-after-place-empty.png,
+    124-after-place-nearer.png, 124-after-fire-aim.png.
+- Tests: tests/f_124.js (run by t_features' 1.24 block, or alone: `node tests/f_124.js [place box fields light hep
+  exp]`); each part fails on 1.23.2 (`place`: P3 is not defined).
+
 ## 1.23.2 (in progress)
 
 - The "realistic" tag (1.12) was missing on three Experimental choices that were added later: bond orders (now on
