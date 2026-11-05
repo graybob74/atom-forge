@@ -20,7 +20,10 @@
    ions and heated to 6,000 K); ion pairs keep the classic metallic pair, an ion and a member only the contact core.
    Energy books: totalEnergy adds mbPass(false); localPE and regionE add mbLocal(set), exact for any change to the set's
    atoms (their own embedding, their neighbours' embedding less what it is without the set, the pair repulsions touching
-   the set); switching the setting books the difference at the same positions to the bath (mbSet). */
+   the set); switching the setting books the difference at the same positions to the bath (mbSet); evTransfer's quick
+   estimate adds a lower bound on what the transfer costs the metal (mbXferLB). The pass runs after the kernels, on the main
+   thread, in JavaScript (0.3 µs a member a step flat, 0.7 in 3-D). Flat sheets have six neighbours, not twelve: they hold
+   about 0.78 of the crystal's cohesive energy and melt 1.1–1.5 times too hot (PERF-NOTES, 1.25). */
 const MBO = { on: false, any: false, E: 0, bath: 0, n: 0, np: 0, par: new Map(), pp: new Map() };
 const MB_ON = 1.15, MB_OFF = 1.35, MB_K = 0.02; // (the switch, in r₀; ε/ξ: the square root rounded off below ρ ≈ ε², so a lone atom's force stays smooth)
 /* Measured values: [cohesive energy eV/atom, nearest-neighbour distance Å, bulk modulus GPa, vacancy formation energy eV

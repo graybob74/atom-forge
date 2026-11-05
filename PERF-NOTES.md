@@ -309,6 +309,11 @@ charges before and after).
   alloy; insulated, 55 Cu atoms at 1,500 K over 3,000 steps of 0.4 fs drift 0.0001 eV, 127 atoms over 3,000 steps of
   2 fs 0.009 eV. The stiffness the step size reads (the pair's own curvature) never shortens the game's 0.4 fs step for
   any metal tried (Cu, Na, W, Al, Au: limits 0.2–0.4 tu against 0.04).
+- **Energy in the setups with metals**, t_energy's way (bath, fields and decay off, 300 frames, 4.6 ps; total plus what
+  went to the bath), many-body against pairs: oven (10 Na) 0.000 / 0.000 eV, magnet (20 Fe) 0.015 / 0.012, Na + Cl₂
+  challenge (salt forms: 6 ions) −0.005 / 0.024, U series 0.000 / 0.000. (Counted without the bath, the oven moved 2.1 eV
+  once: a glowing wall's 589 nm photon taken up by a sodium atom, paid by the bath as designed; with pairs that run
+  happened to see none.)
 - **Cost** (one thread, CPU time, interleaved runs; the machine shared with two other sessions): the pass is 0.28 µs
   a member a step flat (769 Al atoms 0.22 ms, 955 Cu 0.28 ms) and 0.67 µs in 3-D (767 Cu 0.51 ms), in JavaScript.
   Whole steps: a flat Al patch of 769 atoms 0.33 → 0.63 ms (×1.9; its WebAssembly pairs are cheap); a flat Cu patch of
@@ -331,7 +336,8 @@ charges before and after).
 - Tests: tests/f_125m.js (t_features "1.25 (metals)"): fit (Cu, Al, W, Na crystals, the dimer's many-body signature),
   forces (2-D, 3-D, alloy; insulated drift), books (localPE exact for a move, an ion, an atom removed; switching to the
   bath), ions (a hot flat Cu patch stays neutral), page (the setting, tags, Speed-test line, members in a setup and in
-  3-D, Help). Each fails on 1.24.0 (no model).
+  3-D, Help). Each fails on 1.24.0 (no model). t_features' 1.10 check lists every realistic tag in Settings: the new one added to
+  its list.
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
