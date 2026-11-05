@@ -18284,7 +18284,7 @@ function qmPass(forces) {
   for (let m = 0; m < n; m++) { vext[m] = phi[m] / XTB.AUTOEV; if (phi[m]) anyV = true; }
   const t0 = performance.now();
   let r;
-  try { r = XTB.gfn1Energy(Z, xyz, charge, 0, { grad: forces, vext: anyV ? vext : null, qsh0: XQ.sig === sig ? xqGuess() : null, bonds: true, accuracy: XQ.acc, maxIter: XQ.maxIt }); }
+  try { r = XTB.gfn1Energy(Z, xyz, charge, 0, { grad: forces, vext: anyV ? vext : null, qsh0: XQ.sig === sig ? xqGuess() : null, bonds: true, accuracy: XQ.acc, maxIter: PI.on ? Math.max(8, Math.floor(XQ.maxIt / Math.sqrt(PI.P))) : XQ.maxIt }); } // (with beads, each a calculation, fewer: 14 at 8 beads; settled ones take 2–5, 1.23.1)
   catch (e) { r = null; }
   if (!r || !r.converged) { XQ.fails++; if (!r) { BO.E = 0; return 0; } }
   const d = XTB.d3Disp(Z, xyz, { grad: forces });

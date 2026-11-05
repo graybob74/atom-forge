@@ -219,7 +219,8 @@ engine stores and visits particles.
     from silicon on, 360 in all) took part. (d) With quantum nuclei every bead is a calculation of its own. (e) Inside
     the inner steps every electron event recomputed all forces, so one calculation per event, thrown away (the step's
     end works them out again before any kick uses them). Fixed: the game's SCC stops at 40 iterations
-    (`gfn1Energy(…, { maxIter })`; settled calculations take 2–5 warm, 11–20 cold, so these are unchanged); a calculation
+    (`gfn1Energy(…, { maxIter })`; settled calculations take 2–5 warm, 11–20 cold, so these are unchanged), at
+    40/√beads with quantum nuclei (14 at 8 beads, at least 8: a step makes two calculations a bead); a calculation
     takes part only up to 160 orbitals (40 light atoms fit: 13 waters are 104) and beads × orbitals³ ≤ 160³ (8 beads:
     80, 10 waters); the relaxation makes at most 2·160³/(beads·orbitals³) passes (60 for small clusters, 2 at 160) and
     stops at the first calculation that did not settle; the inner steps' recount holds the quantum pass (`_qmHold`; the
@@ -232,6 +233,14 @@ engine stores and visits particles.
     particles join exactly as before (the molecule gallery and liquid water: same temperatures after the join, 484 and
     549 K); 1,200 atoms 30 passes, 2,200 atoms 16; 300 atoms with 16 beads 7. (Fewer passes at 330 atoms, tried first,
     left the gallery 160 K hotter after its join: not done.)
+  - The stress test after the fixes (`node tools/stress.js --secs 180`, headless on two slow cores, so several times
+    the owner's times): no hangs in any of eight combinations (1.23.0: 10 hangs of 12–20 s in each quantum-bond
+    combination in 100–120 s, the page answering once). Worst frames: plain 1.3 s (2,300 particles), bond orders 1.3 s,
+    waves 1.9 s, ultra-realistic 1.4 s, quantum bonds with 8 beads 5.9 s (216 batches of chaos served in 3 min, against
+    57 before the bead caps), quantum bonds with waves 7.7 s (median of the frames over 1 s: 1.75 s), bond orders with 16
+    beads and induced charges every step 6.4 s, everything on 5.4 s. Left (bounded, not frozen): with quantum bonds, a
+    join of a full 160-orbital cluster whose charges do not settle is about five calculations of 1–1.5 s here; with
+    beads and bond orders or waves (not contracted) every electron event in the inner steps recomputes every bead.
   - Counted from the world, never timed, so runs stay the same from a seed. Energy books unchanged in kind: the
     relaxation is inside the measured change; a calculation that did not settle was already used as it was.
 - **The mid-frame mark** (the 1.13 heartbeat could not tell a freeze from the desktop window closing without a word to
@@ -269,6 +278,10 @@ engine stores and visits particles.
   the main menu opened after `UI.started` was set and autosaved the freshly loaded setup over the last session's (a
   world of 96 particles came back as the fresh 56). The crash dialog's "Carry on from the autosave" had the same fault.
   The menu now opens before.
+- Suite: `tools/runtests.sh` passed except t_threads (the 3-D "not ready" under load; passes alone) and one t_features
+  check; t_features alone passed once whole and failed one different statistical or time-budgeted check in each of
+  two more runs (the chain reaction's k, argon's wall pressure Z = 1.45 ± 0.12; under the parallel load, CO left in
+  300 K air), none in code this touches. Worth watching.
 - Test: t_features 1.23.1 block (fails on 1.23.0 in every part: the join stopped over budget at 250 iterations a
   calculation, 30 heavy atoms in, 39 atoms with beads, 15.2 calculations a step, 60 passes, no report in the desktop
   app, Experimental kept, Continue 56 for 86).
