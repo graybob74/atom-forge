@@ -5802,6 +5802,18 @@ function glowTick(realDt) {
   W.glowAcc = (W.glowAcc || 0) + Math.min(GLOW.MAX, GLOW.N0 * Math.pow(T / 5800, 4) * per / 400) * realDt;
   let n = Math.floor(W.glowAcc); W.glowAcc -= n; n = Math.min(n, 20);
   const kT = PHYS.KB * T;
+  if (W.d3) { // (3-D, 1.24: from a point on any of the six faces, by area, into the box with Lambert's cosine law)
+    const hd = W.box.d / 2, A = [hh * hd, hh * hd, hw * hd, hw * hd, hw * hh, hw * hh], tot = A.reduce((a, b) => a + b, 0), H = [hw, hh, hd];
+    for (let i = 0; i < n; i++) {
+      let s = rnd() * tot, f = 0; while (f < 5 && s >= A[f]) { s -= A[f]; f++; }
+      const ax = f >> 1, sg = f & 1 ? 1 : -1, P = [0, 0, 0], N = [0, 0, 0], u = (ax + 1) % 3, v = (ax + 2) % 3;
+      P[ax] = sg * H[ax]; P[u] = (2 * rnd() - 1) * H[u]; P[v] = (2 * rnd() - 1) * H[v]; N[ax] = -sg;
+      const st = Math.sqrt(rnd()), ct = Math.sqrt(1 - st * st), ph = rnd() * 2 * Math.PI, D = [0, 0, 0];
+      D[ax] = N[ax] * ct; D[u] = st * Math.cos(ph); D[v] = st * Math.sin(ph);
+      glowPhoton3(P[0] + N[0] * 0.01, P[1] + N[1] * 0.01, P[2] + N[2] * 0.01, kT * planckX(), D[0], D[1], D[2]);
+    }
+    return;
+  }
   for (let i = 0; i < n; i++) {
     let s = rnd() * per, x, y, nx, ny;
     if (s < 2 * hw) { x = -hw + s; y = -hh; nx = 0; ny = 1; } else if ((s -= 2 * hw) < 2 * hh) { x = hw; y = -hh + s; nx = -1; ny = 0; }
@@ -5809,6 +5821,16 @@ function glowTick(realDt) {
     const th = Math.asin(2 * rnd() - 1), c = Math.cos(th), sn = Math.sin(th), ux = nx * c - ny * sn, uy = ny * c + nx * sn;
     glowPhoton(x + nx * 0.01, y + ny * 0.01, kT * planckX(), ux, uy);
   }
+}
+function glowPhoton3(x, y, z, E, ux, uy, uz) { // (3-D wall light, 1.24: as glowPhoton, along a line in depth)
+  specRecord(E, null, -1);
+  const hit = rayInteract3(x, y, z, ux, uy, uz, E, null);
+  let x1, y1, z1;
+  if (hit) { x1 = hit.x; y1 = hit.y; z1 = hit.z; } else { const t = rayExit3(x, y, z, ux, uy, uz); x1 = x + ux * t; y1 = y + uy * t; z1 = z + uz * t; }
+  if (hit) W.ledger.bath -= E; // (an atom took it: the bath paid)
+  W.rays.push({ x0: x, y0: y, z0: z, x1, y1, z1, E, c: photonColor(E), t0: W.rt, ts: W.t, len: Math.hypot(x1 - x, y1 - y, z1 - z), nu: false });
+  if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
+  if (hit && hit.after) hit.after();
 }
 function glowPhoton(x, y, E, ux, uy, bounce) {
   if (!bounce) specRecord(E, null, -1);
@@ -5823,6 +5845,7 @@ function glowPhoton(x, y, E, ux, uy, bounce) {
 }
 function emitPhoton(x, y, E, ux, uy, opts) {
   if (!(E > 0)) return;
+  if (W.d3) { emitPhoton3(x, y, E, ux, uy, opts); return; } // (3-D: its own path, 1.24)
   const cont = opts && opts.cont; // (the same photon going on from a mirror, lens or prism: props.js)
   if (!cont) specRecord(E, opts && opts.src);
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
@@ -5842,6 +5865,99 @@ function emitPhoton(x, y, E, ux, uy, opts) {
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
   if (hit && hit.after) hit.after();
 }
+/* Light in 3-D (1.24, the owner: "the Light tool in 3-D"; before, light left a 3-D box unabsorbed and was not drawn).
+   A photon's line has a depth: it starts at opts.z (else its source atom's depth, else 0) and goes along (ux, uy, uz)
+   (opts.uz; with no direction given, at random on the sphere); what it meets is found along that line in 3-D
+   (rayInteract3: the atoms within 0.6 Å of the line, the flat strip's half-width, nearest first, by the flat game's
+   rules and odds for each atom met), and it leaves through the box's six faces (rayExit3). Rays and photons in flight
+   carry z0, z1 for drawing (view3d.js). Placed objects stay out of 3-D. */
+function emitPhoton3(x, y, E, ux, uy, opts) {
+  const cont = opts && opts.cont, src = opts && opts.src;
+  if (!cont) specRecord(E, src);
+  const z = opts && opts.z !== undefined ? opts.z : src ? src.z || 0 : 0;
+  let uz;
+  if (ux === undefined) { const u = rndDir(); ux = u[0]; uy = u[1]; uz = u[2]; }
+  else { uz = opts && opts.uz !== undefined ? opts.uz : 0; const L = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1; ux /= L; uy /= L; uz /= L; }
+  if (!cont) W.count.photons++;
+  const dly = (opts && opts.delay) || 0;
+  if (opts && opts.travel && dly) opts = Object.assign({}, opts, { delay: 0 });
+  const depth = (opts && opts.depth) || 0;
+  const hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract3(x, y, z, ux, uy, uz, E, src);
+  let x1, y1, z1;
+  if (hit) { x1 = hit.x; y1 = hit.y; z1 = hit.z; }
+  else { const t = rayExit3(x, y, z, ux, uy, uz); x1 = x + ux * t; y1 = y + uy * t; z1 = z + uz * t; }
+  const lab = photonLabel(E, src), len = Math.hypot(x1 - x, y1 - y, z1 - z);
+  if (opts && opts.travel) { W.flights.push({ x0: x, y0: y, z0: z, x1, y1, z1, E, c: photonColor(E), t0: W.t + dly, len, hit, lab }); return; }
+  if (!hit) W.ledger.escaped += E;
+  W.rays.push({ x0: x, y0: y, z0: z, x1, y1, z1, E, c: photonColor(E), t0: W.rt, ts: W.t + dly, len, nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' });
+  if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
+  if (hit && hit.after) hit.after();
+}
+function rayExit3(x, y, z, ux, uy, uz) {
+  const hw = W.box.w / 2, hh = W.box.h / 2, hd = W.box.d / 2;
+  let t = 1e9;
+  if (ux > 1e-9) t = Math.min(t, (hw - x) / ux); else if (ux < -1e-9) t = Math.min(t, (-hw - x) / ux);
+  if (uy > 1e-9) t = Math.min(t, (hh - y) / uy); else if (uy < -1e-9) t = Math.min(t, (-hh - y) / uy);
+  if (uz > 1e-9) t = Math.min(t, (hd - z) / uz); else if (uz < -1e-9) t = Math.min(t, (-hd - z) / uz);
+  return Math.max(0, t);
+}
+/* rayInteract along a line in 3-D: the same events with the same odds for each atom the line passes within 0.6 Å of,
+   their consequences in 3-D (Compton scattering turned about a random axis; the pair leaving back to back in a random
+   direction; ions, fluorescence and dissociation as in the flat world, which already work in 3-D). Nuclear reactions
+   are flat-only (1.24, item 5): a photon that would knock a neutron out makes a pair there instead. */
+function rayInteract3(x, y, z, ux, uy, uz, E, src) {
+  const tmax = rayExit3(x, y, z, ux, uy, uz);
+  _rayHits.length = 0;
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || p.Z === 0 || p === src) continue;
+    const dx = p.x - x, dy = p.y - y, dz = p.z - z, t = dx * ux + dy * uy + dz * uz;
+    if (t < 0.05 || t > tmax) continue;
+    const ex = dx - t * ux, ey = dy - t * uy, ez = dz - t * uz, d = Math.sqrt(ex * ex + ey * ey + ez * ez);
+    if (d < 0.6) _rayHits.push([t, p, d]);
+  }
+  if (!_rayHits.length) return null;
+  _rayHits.sort((a, b) => a[0] - b[0]);
+  for (const [t, p] of _rayHits) {
+    const hx = x + ux * t, hy = y + uy * t, hz = z + uz * t;
+    if (E >= 1e5) {
+      if (E > 6e6 && !p.anti && rnd() < 0.0015 * p.Z * Math.min(1, gdrSigma(p.Z, p.N, E / 1e6) / (5.2 * p.Z * p.Z))) return { x: hx, y: hy, z: hz, p, after: () => pairProduce3(p, E) };
+      if (E > 1.022e6 && rnd() < 0.0015 * p.Z) return { x: hx, y: hy, z: hz, p, after: () => pairProduce3(p, E) };
+      if (p.ne > 0 && rnd() < 0.012 * p.ne) return { x: hx, y: hy, z: hz, p, after: () => compton3(p, E, ux, uy, uz) };
+      continue;
+    }
+    if (p.ne > 0) {
+      const ie = ionizationCost(p);
+      if (E >= ie && rnd() < 0.6 * Math.min(1, Math.pow(ie / E, 1.5) * 2)) return { x: hx, y: hy, z: hz, p, after: () => photoIonize(p, E - ie, ie) };
+      if (p.bonds.length && E < ie) {
+        let weak = null; for (const bd of p.bonds) if (!weak || bd.D < weak.D) weak = bd;
+        if (weak && E >= weak.D && E >= 1.77 && rnd() < 0.35) return { x: hx, y: hy, z: hz, p, after: () => photoDissociate(weak, E) };
+      }
+      const L = LINES[p.el.sym];
+      if (L && p.q === 0) for (const [nm] of L.l) if (Math.abs(PHYS.HC / E - nm) < 1.5) {
+        if (rnd() < 0.6) return { x: hx, y: hy, z: hz, p, after: () => { glow(p, wavelengthRGB(nm)); W.count.photons++; emitPhoton(p.x, p.y, E, undefined, undefined, { depth: 9, src: p }); } };
+      }
+      if (E < 1.6 && p.bonds.length && rnd() < 0.3 && irActive(p)) return { x: hx, y: hy, z: hz, p, after: () => { const o = other(p.bonds[0], p); kickPair(p, o, E); } };
+    }
+  }
+  return null;
+}
+function compton3(p, E, ux, uy, uz) {
+  if (p.dead || p.ne === 0) return;
+  const k = E / 511e3, ct = 2 * rnd() - 1, Ep = E / (1 + k * (1 - ct)), Te = E - Ep;
+  const u = turn3(ux, uy, uz, Math.acos(ct)), nx = u[0], ny = u[1], nz = u[2];
+  const KEe = Te - ionizationCost(p);
+  if (KEe > 0.05 && ejectElectron(p, KEe, ux, uy, undefined, undefined, uz)) W.count.ionize++; else dumpHeat(Te, p, p);
+  emitPhoton(p.x, p.y, Ep, nx, ny, { depth: 2, src: p, uz: nz });
+}
+function pairProduce3(p, E) {
+  if (W.parts.length > MAX_PARTS) return;
+  const T = (E - 2 * ME_C2) / 2, u = rndDir(), ux = u[0], uy = u[1], uz = u[2];
+  const e = addLepton(ELEC, p.x + 0.2 * ux, p.y + 0.2 * uy, 0, 0, p.z + 0.2 * uz); setMotion(e, Math.max(1, T), ux, uy, 0, 0, uz);
+  const ps = addLepton(POS, p.x - 0.2 * ux, p.y - 0.2 * uy, 0, 0, p.z - 0.2 * uz); setMotion(ps, Math.max(1, T), -ux, -uy, 0, 0, -uz);
+  W.ledger.nuc -= 2 * ME_C2;
+  log('nuc', `Pair production: γ (${fmtE(E)}) → e⁻ + e⁺ near ${speciesLabel(p)}`);
+  nucEvent('pair', p.x, p.y, `Pair production: γ → e⁻ + e⁺`, [], `${fmtE(E)} γ ray`);
+}
 /* Photons in flight that have come as far as they were going: what they were to hit happens now (unless it is gone,
    when the light flies on out), and their trace fades as any ray's does. */
 function landFlights() {
@@ -5852,6 +5968,7 @@ function landFlights() {
     // its streak (the last 4 Å, as drawn in flight) fades where it landed: no line drawn back to where it came from
     const L = f.len || 1, d0 = Math.max(0, L - 4);
     W.rays.push({ x0: f.x0 + (f.x1 - f.x0) * d0 / L, y0: f.y0 + (f.y1 - f.y0) * d0 / L, x1: f.x1, y1: f.y1, E: f.E, c: f.c, t0: W.rt, landed: true, nu: false });
+    if (f.z0 !== undefined) { const r = W.rays[W.rays.length - 1]; r.z0 = f.z0 + (f.z1 - f.z0) * d0 / L; r.z1 = f.z1; } // (3-D, 1.24)
     if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
     if (f.hit && f.hit.after && !(f.hit.p && f.hit.p.dead)) f.hit.after(); else W.ledger.escaped += f.E;
   }
@@ -6148,7 +6265,7 @@ function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {
     ex = p.x + dx * o; ey = p.y + dy * o; if (d3) ez = p.z + dz * o;
     if (closed && (Math.abs(ex) > hw || Math.abs(ey) > hh || (d3 && Math.abs(ez) > hd))) return -Infinity; // beyond the chamber wall
     // a ballistic (radiation-mode) lepton carries no potential energy: then only the energy at infinity counts
-    if (Kfar > radThreshold(true)) return Kfar;
+    if (Kfar > radThreshold(true) && !d3) return Kfar; // (3-D: no radiation flight, a fast electron is stepped with its potential energy like any other, 1.24: a Compton electron lost the ion's 10–16 eV pull)
     const phiSelf = qa ? PHYS.KE * qa * (1 / Math.sqrt(o * o + p.sEN) - (1 / Math.sqrt(RC2 + p.sEN) - (_lrOn && isLR(p) ? 1 / RC : 0))) : 0;
     return Kfar - lq * (phiSelf + (grid ? phiE(ex, ey, p, undefined, ez) : 0));
   };
@@ -6872,13 +6989,14 @@ function evAnnihFree(a, b) {
   const S = annihBegin([a, b]);
   const gh = [a, b].map(ghostOf);
   kill(a); kill(b);
-  twoGamma(x, y, annihEnd(S));
+  twoGamma(x, y, annihEnd(S), 0.5 * (a.z + b.z));
   W.count.annih++;
   nucEvent('annih', x, y, 'e⁺ + e⁻ → 2γ', gh, '511 keV each');
   log('nuc', 'Annihilation: e⁺ + e⁻ → 2γ (511 keV each)');
 }
 /* Two back-to-back γ rays sharing E (two electron masses plus whatever kinetic and binding energy). */
-function twoGamma(x, y, E = 2 * ME_C2) {
+function twoGamma(x, y, E = 2 * ME_C2, z = 0) {
+  if (W.d3) { const u = rndDir(), ux = u[0], uy = u[1], uz = u[2]; emitPhoton(x, y, E / 2, ux, uy, { z, uz }); emitPhoton(x, y, E / 2, -ux, -uy, { z, uz: -uz }); flash(x, y, [255, 255, 255], 3, 0.4, z); return; } // (3-D: back to back in any direction, at its depth, 1.24)
   const th = rnd() * 2 * Math.PI, ux = Math.cos(th), uy = Math.sin(th);
   emitPhoton(x, y, E / 2, ux, uy); emitPhoton(x, y, E / 2, -ux, -uy);
   flash(x, y, [255, 255, 255], 3, 0.4);
@@ -7655,14 +7773,15 @@ function annihilateAtWall(p, where) {
   W.ledger.nuc += wallM;
   const E = annihEnd(S) + wallM;
   W.count.annih++;
+  const z = W.d3 ? clamp(p.z, -W.box.d / 2, W.box.d / 2) : 0; // (3-D: where on the wall, 1.24)
   if (nNuc > 0) {
-    for (let i = 0; i < nLep; i++) twoGamma(x, y, 2 * ME_C2);
+    for (let i = 0; i < nLep; i++) twoGamma(x, y, 2 * ME_C2, z);
     const Ep = (E - nLep * 2 * ME_C2) / nNuc, nP = p.k === NUC ? p.Z : 0; // (each antinucleon meets a proton or a neutron of the wall)
     for (let i = 0; i < nNuc; i++) { const Q = (rnd() < 0.5 ? 1 : 0) - (i < nP ? 1 : 0); chargeTo(-Q, where || 'qWall'); mesonBurst(x, y, Ep, 0, 0, Q); }
     nucEvent('annih', x, y, `${lbl} hits the wall → mesons + γ`, gh, fmtE(E));
     log('nuc', `Annihilation at the wall: ${lbl} meets ordinary matter → mesons + γ rays (${fmtE(E)})`);
   } else {
-    twoGamma(x, y, E);
+    twoGamma(x, y, E, z);
     nucEvent('annih', x, y, 'e⁺ hits the wall → 2γ', gh, '511 keV each');
     log('nuc', 'Annihilation at the wall: e⁺ + e⁻ (wall) → 2γ (511 keV each)');
   }
@@ -10357,7 +10476,7 @@ function settleOverlaps() {
 }
 /* Launch a projectile with kinetic energy KE (eV) along (ux, uy). */
 function fireSpec(spec, x, y, ux, uy, KE, free, z = 0, uz = 0) { // (z, uz: 3-D)
-  if (spec.kind === 'gamma') { emitPhoton(x, y, KE, ux, uy); return null; }
+  if (spec.kind === 'gamma') { if (W.d3) emitPhoton(x, y, KE, ux, uy, { z, uz }); else emitPhoton(x, y, KE, ux, uy); return null; } // (3-D: along its direction in depth, 1.24)
   if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e'); return null; }
   if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy); // (1.12: an atom, in MD)
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy) : null; // (a muon, pion …: from outside, as any fired particle)
@@ -23011,6 +23130,7 @@ function render3d(rt) {
     drawUnder3(ctx, rt);
   }
   drawMeasure3(ctx);
+  if (R.view.rays) drawLight3(ctx, rt); // (light, 1.24)
   drawFlashes3(ctx, rt);
   drawEvents3(ctx, rt);
   drawMarks3(ctx);
@@ -23181,6 +23301,39 @@ function drawPlace3(ctx) {
     ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x - 3, y); ctx.moveTo(x + 3, y); ctx.lineTo(x + 9, y); ctx.moveTo(x, y - 9); ctx.lineTo(x, y - 3); ctx.moveTo(x, y + 3); ctx.lineTo(x, y + 9); ctx.stroke();
     if (fa.at && !fa.at.dead && proj3(fa.at.x, fa.at.y, fa.at.z, A)) { const r = Math.max(7, rd3(fa.at) * (R.as || 1) * F / A[2]) + 4; ctx.beginPath(); ctx.arc(A[0], A[1], r, 0, Math.PI * 2); ctx.stroke(); }
     if (fa.text) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText(fa.text, x + 12, y - 10); }
+  }
+  ctx.restore();
+}
+/* Light in 3-D (1.24): rays (W.rays) and photons in flight (W.flights) along their lines in depth, as the flat view draws
+   them (drawRays, drawFlights): a ray's line grows at c on the simulation's clock and fades once it has arrived; a photon
+   in flight is a 4 Å streak behind a bright head. Lines with no depth (z0 undefined) lie at z = 0. */
+function drawLight3(ctx, rt) {
+  if (!W.rays.length && !W.flights.length) return;
+  const A = _p3c, B = _p3d, life = 0.45;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+  for (let i = W.rays.length - 1; i >= 0; i--) {
+    const r = W.rays[i], m = rayFrac(r);
+    if (m >= 1 && r.ta === undefined) r.ta = rt;
+    const k = r.ta === undefined ? 0 : (rt - r.ta) / life;
+    if (k > 1 || rt - r.t0 > 30) { W.rays.splice(i, 1); continue; }
+    const a = (1 - k) * (r.nu ? 0.35 : 0.85), z0 = r.z0 || 0, z1 = r.z1 === undefined ? z0 : r.z1;
+    const hx = r.x0 + (r.x1 - r.x0) * m, hy = r.y0 + (r.y1 - r.y0) * m, hz = z0 + (z1 - z0) * m;
+    if (!seg3(r.x0, r.y0, z0, hx, hy, hz, A, B)) continue;
+    r.hx = B[0]; r.hy = B[1]; r.alpha = a;
+    ctx.strokeStyle = rgba(r.c, a * 0.5); ctx.lineWidth = r.E >= 1e5 ? 1.2 : 1.6;
+    if (r.nu) ctx.setLineDash([1, 5]); else if (r.E >= 1e5) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    if (!r.nu) { ctx.setLineDash([]); drawSprite(glowSprite(r.c, 7), B[0], B[1], a); }
+  }
+  ctx.setLineDash([]);
+  for (const f of W.flights) {
+    const d = Math.min(f.len, (W.t - f.t0) * PHYS.C), L = f.len || 1, d0 = Math.max(0, d - 4);
+    if (d < 0) continue;
+    const z0 = f.z0 || 0, z1 = f.z1 === undefined ? z0 : f.z1;
+    if (!seg3(f.x0 + (f.x1 - f.x0) * d0 / L, f.y0 + (f.y1 - f.y0) * d0 / L, z0 + (z1 - z0) * d0 / L, f.x0 + (f.x1 - f.x0) * d / L, f.y0 + (f.y1 - f.y0) * d / L, z0 + (z1 - z0) * d / L, A, B)) continue;
+    const g = ctx.createLinearGradient(A[0], A[1], B[0], B[1]); g.addColorStop(0, rgba(f.c, 0)); g.addColorStop(1, rgba(f.c, 0.9));
+    ctx.strokeStyle = g; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    drawSprite(glowSprite(f.c, 9), B[0], B[1], 1);
   }
   ctx.restore();
 }
@@ -26074,7 +26227,7 @@ function buildToolOpts() {
         rangeCtl('oRate', 'Intensity', 5, 400, o.rate, o.rate + '/s') +
         `<span data-g="mount">${seg('Mode', [['false', 'While held'], ['true', 'Leave on (laser)']], String(!!o.mount))}</span>` +
         (W.lasers.length ? `<button class="opt" id="oLaserClear">Turn off ${W.lasers.length > 1 ? `all ${W.lasers.length} lasers` : 'the laser'}</button>` : '') +
-        `<span class="help">${o.mount ? 'Stays on after release (Erase removes it). ' : ''}Time slows while light is in flight, so you can see it move.</span>`;
+        `<span class="help">${W.d3 ? 'In 3-D: a click (held) shines from the camera toward the pointer, straight at an atom under it; a drag aims in the plane facing you. ' : ''}${o.mount ? 'Stays on after release (Erase removes it). ' : ''}Time slows while light is in flight, so you can see it move.</span>`;
       break;
     }
     case 'objects': {
@@ -26441,7 +26594,7 @@ function placeObject3(spec, x, y, z) {
 const FLY_KINDS = new Set(['exo', 'nu', 'gamma']); // (unstable particles, neutrinos, light: not atoms; placed by placeFly)
 function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
   if (W.d3 && !spec3dOK(spec)) { log('tool', `${specLabel(spec)}: ${NOT_3D.toLowerCase()}`); return []; }
-  if (FLY_KINDS.has(spec.kind)) return placeFly(spec, x, y, count);
+  if (FLY_KINDS.has(spec.kind)) return placeFly(spec, x, y, count, z);
   if (isObject(spec)) return W.d3 ? placeObject3(spec, x, y, z) : placeObject(spec, x, y);
   const out = [];
   const sz = specSize(spec);
@@ -26460,8 +26613,9 @@ function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
    life: Lab → Decay speed to see the slow ones go); light and neutrinos cannot be still, so they leave the click in a
    random direction with the energy set (Place → Energy). */
 const placeE = () => Math.pow(10, OPT.place.Es / 100); // eV, 1 eV … 1 GeV
-function placeFly(spec, x, y, count) {
+function placeFly(spec, x, y, count, z = 0) {
   _evTag = 0;
+  if (W.d3 && spec.kind === 'gamma') { for (let i = 0; i < count; i++) emitPhoton(x, y, placeE(), undefined, undefined, { travel: true, z }); return []; } // (3-D: a random direction on the sphere, from its depth, 1.24)
   for (let i = 0; i < count; i++) {
     const [ux, uy] = rdir();
     if (spec.kind === 'exo' && spec.sp === 'Mu') addMuonium(x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), PHYS.KB * W.T, ux, uy); // (1.12: an atom, in MD)
@@ -26847,6 +27001,7 @@ function click3(d) { return d.px0 === undefined || Math.hypot(d.px1 - d.px0, d.p
 function over3(px, py, t) {
   if (UI.pasting) return { plane3: true };
   if (t === 'place') { const sp = UI.spec || SPEC_P, [x, y, z, at] = place3At(px, py, sp); return { place3: { x, y, z, at, spec: sp } }; }
+  if (t === 'light') { const p = pick3(px, py, 0), at = p && p.k === NUC && p.Z > 0 ? p : null, w = wavelengthText(lightE()); return { fire3: { px: [px, py], at, text: `${w.lam}  ${w.band}${at ? '  → ' + speciesLabel(at) : ''}` } }; }
   if (t === 'fire') { const p = pick3(px, py, 0), at = p && p.k === NUC && p.Z > 0 ? p : null, sp = fireSpecNow() || SPEC_P; return { fire3: { px: [px, py], at, text: `${specLabel(sp)}  ${fmtE(fireKE3())}${at ? '  → ' + speciesLabel(at) : ''}` } }; }
   return null;
 }
@@ -26872,7 +27027,10 @@ function endToolAction() {
     }
     W.dirty++; log('tool', `${objText(ob)} placed`); buildToolOpts();
   }
-  if (d && d.kind === 'light' && OPT.light.mount) {
+  if (d && d.kind === 'light' && OPT.light.mount && W.d3) { // (3-D: a laser along the aim, 1.24)
+    const a = light3Aim(d);
+    if (a) { if (W.lasers.length >= 12) W.lasers.shift(); W.lasers.push({ x0: a.o[0], y0: a.o[1], z0: a.o[2], ux: a.u[0], uy: a.u[1], uz: a.u[2], E: lightE(), rate: OPT.light.rate, acc: 0 }); log('tool', `Laser on: ${wavelengthText(lightE()).lam}, ${OPT.light.rate} photons/s`); buildToolOpts(); }
+  } else if (d && d.kind === 'light' && OPT.light.mount) {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
     if (W.lasers.length >= 12) W.lasers.shift();
@@ -26913,7 +27071,7 @@ function fireDir3(d) {
   if (L < 0.3) { cam3Update(); return [C3.rx, C3.ry, C3.rz]; }
   return [ux / L, uy / L, uz / L];
 }
-function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return Math.min(fireKE(), 0.95 * radThreshold(lep)); }
+function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return sp.kind === 'gamma' ? fireKE() : Math.min(fireKE(), 0.95 * radThreshold(lep)); } // (light: any energy, 1.24)
 function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(sp)}: ${NOT_3D.toLowerCase()} (Fire)`); return false; }
 /* Grab, Strong and Very strong: it keeps up with the mouse in real time, whatever the speed setting or slow motion.
    The spring may draw the atoms along faster (vcap: the gap closed in about 0.12 s of watching, up to the strength's
@@ -26984,11 +27142,18 @@ function toolTick(realDt) {
   if (W.ramp) rampTick(realDt);
   for (const L of W.lasers) { // lasers left on: the same light, all the time
     L.acc += L.rate * realDt;
-    while (L.acc >= 1) { L.acc -= 1; const off = (rnd() - 0.5) * 0.8; emitPhoton(L.x0 - L.uy * off, L.y0 + L.ux * off, L.E, L.ux, L.uy, { travel: true }); }
+    while (L.acc >= 1) { L.acc -= 1; const off = (rnd() - 0.5) * 0.8;
+      if (L.z0 !== undefined) { const q = perp3(L.ux, L.uy, L.uz); emitPhoton(L.x0 + q[0] * off, L.y0 + q[1] * off, L.E, L.ux, L.uy, { travel: true, z: L.z0 + q[2] * off, uz: L.uz }); continue; } // (3-D, 1.24)
+      emitPhoton(L.x0 - L.uy * off, L.y0 + L.ux * off, L.E, L.ux, L.uy, { travel: true }); }
   }
   if (!d) return;
   if (d.kind === 'light' && OPT.light.mount) return; // (aiming a laser: it shines once it is set down)
-  if (d.kind === 'light') {
+  if (d.kind === 'light' && W.d3) { // (3-D, 1.24: held, a click shines from the camera toward the pointer (straight at an atom under it), a drag along the drag in the plane facing the camera)
+    const a = light3Aim(d); if (!a) return;
+    d.acc += OPT.light.rate * realDt;
+    const E = lightE(), q = perp3(a.u[0], a.u[1], a.u[2]);
+    while (d.acc >= 1) { d.acc -= 1; const off = (rnd() - 0.5) * 1.6; emitPhoton(a.o[0] + q[0] * off, a.o[1] + q[1] * off, E, a.u[0], a.u[1], { travel: true, z: a.o[2] + q[2] * off, uz: a.u[2] }); }
+  } else if (d.kind === 'light') {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
     d.acc += OPT.light.rate * realDt;
@@ -27001,6 +27166,17 @@ function toolTick(realDt) {
   }
 }
 
+/* (3-D, 1.24) The Light tool's beam: from the camera (fire3From) for a click, else from where the drag began along it;
+   null when the line of sight misses the box. perp3: a unit vector square to u (for the beam's width), on the screen. */
+function light3Aim(d) {
+  if (click3(d)) { if (!d.aim3) d.aim3 = fire3From(d.px0, d.py0) || { miss: true }; return d.aim3.miss ? null : d.aim3; } // (kept for the hold: the pointer's first aim)
+  return { o: [d.x0, d.y0, d.z0 || 0], u: fireDir3(d) };
+}
+function perp3(ux, uy, uz) {
+  cam3Update(); let px = uy * C3.fz - uz * C3.fy, py = uz * C3.fx - ux * C3.fz, pz = ux * C3.fy - uy * C3.fx; let L = Math.hypot(px, py, pz);
+  if (L < 0.1) { px = C3.rx; py = C3.ry; pz = C3.rz; L = 1; }
+  return [px / L, py / L, pz / L];
+}
 /* ------------------------------------------------------------------ hover tooltip */
 function updateHover(px, py) {
   const p = pickAt(px, py, 6);
@@ -29637,7 +29813,7 @@ function buildPresetSelect() {
    and the Experimental physics that is flat only (induced charges, quantum nuclei, continuous bond orders, electrons
    as waves) and the ultra-realistic mode. The mode follows the world (W.d3): a setup or a saved world sets it. */
 const NOT_3D = 'Not in 3-D yet';
-const TOOLS_NO3D = new Set(['objects', 'light']); // (the Magnet tool works in 3-D since 1.24)
+const TOOLS_NO3D = new Set(['objects']); // (the Magnet and Light tools work in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };
 function is3dPreset(k) { return !!(PRESETS[k] && PRESETS[k].d3); }
 /* What can be put in a 3-D world: atoms and ions (not antimatter), molecules of the 3-D library (molFits: not the flat
@@ -29646,7 +29822,7 @@ function spec3dOK(s) {
   if (!s) return false;
   if (s.kind === 'mol') return molFits(MOLECULES[s.mol], true);
   if (s.kind === 'atom') return !s.anti;
-  return s.kind === 'e';
+  return s.kind === 'e' || s.kind === 'gamma'; // (light since 1.24)
 }
 const NO3D_CTL = ['setUltra', 'bAskSetup']; // (single controls; the box-size slider, fields and magnets work in 3-D since 1.24)
 const NO3D_SEG = ['segQeq', 'segPi', 'segPiRpc', 'segBo', 'segWave']; // (button groups)

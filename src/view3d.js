@@ -395,6 +395,7 @@ function render3d(rt) {
     drawUnder3(ctx, rt);
   }
   drawMeasure3(ctx);
+  if (R.view.rays) drawLight3(ctx, rt); // (light, 1.24)
   drawFlashes3(ctx, rt);
   drawEvents3(ctx, rt);
   drawMarks3(ctx);
@@ -565,6 +566,39 @@ function drawPlace3(ctx) {
     ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x - 3, y); ctx.moveTo(x + 3, y); ctx.lineTo(x + 9, y); ctx.moveTo(x, y - 9); ctx.lineTo(x, y - 3); ctx.moveTo(x, y + 3); ctx.lineTo(x, y + 9); ctx.stroke();
     if (fa.at && !fa.at.dead && proj3(fa.at.x, fa.at.y, fa.at.z, A)) { const r = Math.max(7, rd3(fa.at) * (R.as || 1) * F / A[2]) + 4; ctx.beginPath(); ctx.arc(A[0], A[1], r, 0, Math.PI * 2); ctx.stroke(); }
     if (fa.text) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText(fa.text, x + 12, y - 10); }
+  }
+  ctx.restore();
+}
+/* Light in 3-D (1.24): rays (W.rays) and photons in flight (W.flights) along their lines in depth, as the flat view draws
+   them (drawRays, drawFlights): a ray's line grows at c on the simulation's clock and fades once it has arrived; a photon
+   in flight is a 4 Å streak behind a bright head. Lines with no depth (z0 undefined) lie at z = 0. */
+function drawLight3(ctx, rt) {
+  if (!W.rays.length && !W.flights.length) return;
+  const A = _p3c, B = _p3d, life = 0.45;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+  for (let i = W.rays.length - 1; i >= 0; i--) {
+    const r = W.rays[i], m = rayFrac(r);
+    if (m >= 1 && r.ta === undefined) r.ta = rt;
+    const k = r.ta === undefined ? 0 : (rt - r.ta) / life;
+    if (k > 1 || rt - r.t0 > 30) { W.rays.splice(i, 1); continue; }
+    const a = (1 - k) * (r.nu ? 0.35 : 0.85), z0 = r.z0 || 0, z1 = r.z1 === undefined ? z0 : r.z1;
+    const hx = r.x0 + (r.x1 - r.x0) * m, hy = r.y0 + (r.y1 - r.y0) * m, hz = z0 + (z1 - z0) * m;
+    if (!seg3(r.x0, r.y0, z0, hx, hy, hz, A, B)) continue;
+    r.hx = B[0]; r.hy = B[1]; r.alpha = a;
+    ctx.strokeStyle = rgba(r.c, a * 0.5); ctx.lineWidth = r.E >= 1e5 ? 1.2 : 1.6;
+    if (r.nu) ctx.setLineDash([1, 5]); else if (r.E >= 1e5) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    if (!r.nu) { ctx.setLineDash([]); drawSprite(glowSprite(r.c, 7), B[0], B[1], a); }
+  }
+  ctx.setLineDash([]);
+  for (const f of W.flights) {
+    const d = Math.min(f.len, (W.t - f.t0) * PHYS.C), L = f.len || 1, d0 = Math.max(0, d - 4);
+    if (d < 0) continue;
+    const z0 = f.z0 || 0, z1 = f.z1 === undefined ? z0 : f.z1;
+    if (!seg3(f.x0 + (f.x1 - f.x0) * d0 / L, f.y0 + (f.y1 - f.y0) * d0 / L, z0 + (z1 - z0) * d0 / L, f.x0 + (f.x1 - f.x0) * d / L, f.y0 + (f.y1 - f.y0) * d / L, z0 + (z1 - z0) * d / L, A, B)) continue;
+    const g = ctx.createLinearGradient(A[0], A[1], B[0], B[1]); g.addColorStop(0, rgba(f.c, 0)); g.addColorStop(1, rgba(f.c, 0.9));
+    ctx.strokeStyle = g; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    drawSprite(glowSprite(f.c, 9), B[0], B[1], 1);
   }
   ctx.restore();
 }

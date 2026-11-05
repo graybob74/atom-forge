@@ -325,6 +325,29 @@ The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on bra
   coincident pair at the start), in 2-D and 3-D; and the flat game's books in a field miss −q E·Δr whenever an event
   changes a charge (a proton capturing an electron: about 0.2 eV in 0.2 V/Å), as the events measure the energy without
   the applied field.
+- **Light in 3-D** (the Light tool, light in Place and Fire; before, light left a 3-D box unabsorbed, engine.js
+  rayInteract's `if (W.d3) return null`, and nothing drew it). A photon's line has a depth (`emitPhoton3`: from opts.z,
+  else its source atom's depth; along (ux, uy, opts.uz), or at random on the sphere): what it meets is found along that
+  line (`rayInteract3`: the atoms within 0.6 Å of it, the flat strip's half-width, nearest first, with the flat game's
+  events and odds for each atom met: photoionization, dissociation, line absorption and fluorescence, IR heating,
+  Compton scattering turned about a random axis (`compton3`), pair production back to back in a random direction
+  (`pairProduce3`)), and it leaves through the six faces (`rayExit3`). Nuclear photo-reactions stay flat-only (a γ that
+  would knock out a neutron makes a pair there). e⁺e⁻ annihilation's two γ rays go back to back in 3-D at the pair's depth
+  (`twoGamma`); glowing walls emit from all six faces by Lambert's law (`glowTick`, `glowPhoton3`). Drawn (`drawLight3`):
+  rays growing at c and fading, photons in flight as streaks, as the flat view. The Light tool: held, a click shines
+  from the camera toward the pointer (straight at an atom under it), a drag along the drag in the plane facing you; a
+  laser keeps the aim (`light3Aim`, `perp3` for the beam's width). Light (γ) can be placed (random directions) and fired
+  in 3-D, at any energy.
+  Found and fixed on the way (3-D only): an electron set free with more than the radiation threshold (1 keV) was
+  launched as if it would fly ballistically, its potential energy at the launch point left out (`ejectElectron`); in
+  3-D it is stepped with it, so a 1 MeV γ's Compton electron lost the ion's pull, 10–16 eV an event. Now 0.0000 eV.
+  Measured (Node, insulated, 40–60 photons into 64 waters or 125 sodium atoms in a 24 Å cube; books = Δtotal − light put
+  in, escaped light counted): IR 0.124 eV +0.007–0.010; 7.5 eV −0.066 (8 bonds broken); 20 eV +0.16 / −0.20 (8–10
+  ionizations, 17 bonds broken); sodium's 589 nm line 0.000 (absorbed and re-emitted, 74 photons); 10 keV +0.008; 1 MeV
+  −21 eV before the fix → +0.026 / −0.17 after; 5 MeV into lead −32 → +0.78 eV (of 300 MeV). The same photons in 2-D:
+  +0.026, −0.35, −3.1, 0.000, +0.006, −2.0, −78 eV. Light costs nothing until it is used (a search over the atoms per
+  photon, as in 2-D). 2-D and 3-D fingerprints unchanged. Screenshots 124-before-light.png (the tool disabled),
+  124-after-light.png (Lyman-α held on a sodium atom in the middle of the cube).
 - Tests: tests/f_124.js (run by t_features' 1.24 block, or alone: `node tests/f_124.js [place box fields light hep
   exp]`); each part fails on 1.23.2 (`place`: P3 is not defined).
 

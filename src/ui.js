@@ -504,7 +504,7 @@ function buildToolOpts() {
         rangeCtl('oRate', 'Intensity', 5, 400, o.rate, o.rate + '/s') +
         `<span data-g="mount">${seg('Mode', [['false', 'While held'], ['true', 'Leave on (laser)']], String(!!o.mount))}</span>` +
         (W.lasers.length ? `<button class="opt" id="oLaserClear">Turn off ${W.lasers.length > 1 ? `all ${W.lasers.length} lasers` : 'the laser'}</button>` : '') +
-        `<span class="help">${o.mount ? 'Stays on after release (Erase removes it). ' : ''}Time slows while light is in flight, so you can see it move.</span>`;
+        `<span class="help">${W.d3 ? 'In 3-D: a click (held) shines from the camera toward the pointer, straight at an atom under it; a drag aims in the plane facing you. ' : ''}${o.mount ? 'Stays on after release (Erase removes it). ' : ''}Time slows while light is in flight, so you can see it move.</span>`;
       break;
     }
     case 'objects': {
@@ -871,7 +871,7 @@ function placeObject3(spec, x, y, z) {
 const FLY_KINDS = new Set(['exo', 'nu', 'gamma']); // (unstable particles, neutrinos, light: not atoms; placed by placeFly)
 function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
   if (W.d3 && !spec3dOK(spec)) { log('tool', `${specLabel(spec)}: ${NOT_3D.toLowerCase()}`); return []; }
-  if (FLY_KINDS.has(spec.kind)) return placeFly(spec, x, y, count);
+  if (FLY_KINDS.has(spec.kind)) return placeFly(spec, x, y, count, z);
   if (isObject(spec)) return W.d3 ? placeObject3(spec, x, y, z) : placeObject(spec, x, y);
   const out = [];
   const sz = specSize(spec);
@@ -890,8 +890,9 @@ function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
    life: Lab → Decay speed to see the slow ones go); light and neutrinos cannot be still, so they leave the click in a
    random direction with the energy set (Place → Energy). */
 const placeE = () => Math.pow(10, OPT.place.Es / 100); // eV, 1 eV … 1 GeV
-function placeFly(spec, x, y, count) {
+function placeFly(spec, x, y, count, z = 0) {
   _evTag = 0;
+  if (W.d3 && spec.kind === 'gamma') { for (let i = 0; i < count; i++) emitPhoton(x, y, placeE(), undefined, undefined, { travel: true, z }); return []; } // (3-D: a random direction on the sphere, from its depth, 1.24)
   for (let i = 0; i < count; i++) {
     const [ux, uy] = rdir();
     if (spec.kind === 'exo' && spec.sp === 'Mu') addMuonium(x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), PHYS.KB * W.T, ux, uy); // (1.12: an atom, in MD)
@@ -1277,6 +1278,7 @@ function click3(d) { return d.px0 === undefined || Math.hypot(d.px1 - d.px0, d.p
 function over3(px, py, t) {
   if (UI.pasting) return { plane3: true };
   if (t === 'place') { const sp = UI.spec || SPEC_P, [x, y, z, at] = place3At(px, py, sp); return { place3: { x, y, z, at, spec: sp } }; }
+  if (t === 'light') { const p = pick3(px, py, 0), at = p && p.k === NUC && p.Z > 0 ? p : null, w = wavelengthText(lightE()); return { fire3: { px: [px, py], at, text: `${w.lam}  ${w.band}${at ? '  → ' + speciesLabel(at) : ''}` } }; }
   if (t === 'fire') { const p = pick3(px, py, 0), at = p && p.k === NUC && p.Z > 0 ? p : null, sp = fireSpecNow() || SPEC_P; return { fire3: { px: [px, py], at, text: `${specLabel(sp)}  ${fmtE(fireKE3())}${at ? '  → ' + speciesLabel(at) : ''}` } }; }
   return null;
 }
@@ -1302,7 +1304,10 @@ function endToolAction() {
     }
     W.dirty++; log('tool', `${objText(ob)} placed`); buildToolOpts();
   }
-  if (d && d.kind === 'light' && OPT.light.mount) {
+  if (d && d.kind === 'light' && OPT.light.mount && W.d3) { // (3-D: a laser along the aim, 1.24)
+    const a = light3Aim(d);
+    if (a) { if (W.lasers.length >= 12) W.lasers.shift(); W.lasers.push({ x0: a.o[0], y0: a.o[1], z0: a.o[2], ux: a.u[0], uy: a.u[1], uz: a.u[2], E: lightE(), rate: OPT.light.rate, acc: 0 }); log('tool', `Laser on: ${wavelengthText(lightE()).lam}, ${OPT.light.rate} photons/s`); buildToolOpts(); }
+  } else if (d && d.kind === 'light' && OPT.light.mount) {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
     if (W.lasers.length >= 12) W.lasers.shift();
@@ -1343,7 +1348,7 @@ function fireDir3(d) {
   if (L < 0.3) { cam3Update(); return [C3.rx, C3.ry, C3.rz]; }
   return [ux / L, uy / L, uz / L];
 }
-function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return Math.min(fireKE(), 0.95 * radThreshold(lep)); }
+function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return sp.kind === 'gamma' ? fireKE() : Math.min(fireKE(), 0.95 * radThreshold(lep)); } // (light: any energy, 1.24)
 function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(sp)}: ${NOT_3D.toLowerCase()} (Fire)`); return false; }
 /* Grab, Strong and Very strong: it keeps up with the mouse in real time, whatever the speed setting or slow motion.
    The spring may draw the atoms along faster (vcap: the gap closed in about 0.12 s of watching, up to the strength's
@@ -1414,11 +1419,18 @@ function toolTick(realDt) {
   if (W.ramp) rampTick(realDt);
   for (const L of W.lasers) { // lasers left on: the same light, all the time
     L.acc += L.rate * realDt;
-    while (L.acc >= 1) { L.acc -= 1; const off = (rnd() - 0.5) * 0.8; emitPhoton(L.x0 - L.uy * off, L.y0 + L.ux * off, L.E, L.ux, L.uy, { travel: true }); }
+    while (L.acc >= 1) { L.acc -= 1; const off = (rnd() - 0.5) * 0.8;
+      if (L.z0 !== undefined) { const q = perp3(L.ux, L.uy, L.uz); emitPhoton(L.x0 + q[0] * off, L.y0 + q[1] * off, L.E, L.ux, L.uy, { travel: true, z: L.z0 + q[2] * off, uz: L.uz }); continue; } // (3-D, 1.24)
+      emitPhoton(L.x0 - L.uy * off, L.y0 + L.ux * off, L.E, L.ux, L.uy, { travel: true }); }
   }
   if (!d) return;
   if (d.kind === 'light' && OPT.light.mount) return; // (aiming a laser: it shines once it is set down)
-  if (d.kind === 'light') {
+  if (d.kind === 'light' && W.d3) { // (3-D, 1.24: held, a click shines from the camera toward the pointer (straight at an atom under it), a drag along the drag in the plane facing the camera)
+    const a = light3Aim(d); if (!a) return;
+    d.acc += OPT.light.rate * realDt;
+    const E = lightE(), q = perp3(a.u[0], a.u[1], a.u[2]);
+    while (d.acc >= 1) { d.acc -= 1; const off = (rnd() - 0.5) * 1.6; emitPhoton(a.o[0] + q[0] * off, a.o[1] + q[1] * off, E, a.u[0], a.u[1], { travel: true, z: a.o[2] + q[2] * off, uz: a.u[2] }); }
+  } else if (d.kind === 'light') {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
     d.acc += OPT.light.rate * realDt;
@@ -1431,6 +1443,17 @@ function toolTick(realDt) {
   }
 }
 
+/* (3-D, 1.24) The Light tool's beam: from the camera (fire3From) for a click, else from where the drag began along it;
+   null when the line of sight misses the box. perp3: a unit vector square to u (for the beam's width), on the screen. */
+function light3Aim(d) {
+  if (click3(d)) { if (!d.aim3) d.aim3 = fire3From(d.px0, d.py0) || { miss: true }; return d.aim3.miss ? null : d.aim3; } // (kept for the hold: the pointer's first aim)
+  return { o: [d.x0, d.y0, d.z0 || 0], u: fireDir3(d) };
+}
+function perp3(ux, uy, uz) {
+  cam3Update(); let px = uy * C3.fz - uz * C3.fy, py = uz * C3.fx - ux * C3.fz, pz = ux * C3.fy - uy * C3.fx; let L = Math.hypot(px, py, pz);
+  if (L < 0.1) { px = C3.rx; py = C3.ry; pz = C3.rz; L = 1; }
+  return [px / L, py / L, pz / L];
+}
 /* ------------------------------------------------------------------ hover tooltip */
 function updateHover(px, py) {
   const p = pickAt(px, py, 6);
@@ -4067,7 +4090,7 @@ function buildPresetSelect() {
    and the Experimental physics that is flat only (induced charges, quantum nuclei, continuous bond orders, electrons
    as waves) and the ultra-realistic mode. The mode follows the world (W.d3): a setup or a saved world sets it. */
 const NOT_3D = 'Not in 3-D yet';
-const TOOLS_NO3D = new Set(['objects', 'light']); // (the Magnet tool works in 3-D since 1.24)
+const TOOLS_NO3D = new Set(['objects']); // (the Magnet and Light tools work in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };
 function is3dPreset(k) { return !!(PRESETS[k] && PRESETS[k].d3); }
 /* What can be put in a 3-D world: atoms and ions (not antimatter), molecules of the 3-D library (molFits: not the flat
@@ -4076,7 +4099,7 @@ function spec3dOK(s) {
   if (!s) return false;
   if (s.kind === 'mol') return molFits(MOLECULES[s.mol], true);
   if (s.kind === 'atom') return !s.anti;
-  return s.kind === 'e';
+  return s.kind === 'e' || s.kind === 'gamma'; // (light since 1.24)
 }
 const NO3D_CTL = ['setUltra', 'bAskSetup']; // (single controls; the box-size slider, fields and magnets work in 3-D since 1.24)
 const NO3D_SEG = ['segQeq', 'segPi', 'segPiRpc', 'segBo', 'segWave']; // (button groups)

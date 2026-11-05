@@ -112,6 +112,35 @@ PARTS.fields = async (page, check, say) => {
     `1.24: fields in 3-D: B, E (+z) and B's axis set from the Lab (they were disabled), the Magnet tool puts a ball in depth; an electron circles at m·v⊥/qB about each axis (${gy.map(g => g.ax + ' ' + g.ratio).join(', ')}) and drifts along it exactly; a magnet's pull is the slope of its energy (${sl.map(s => s.el + ' ' + s.rel).join(', ')}), iron pulled in, argon pushed out; eight electrons insulated, books ${bk.map(b => b.books).join(' / ')} eV without / with B and E`, '1.24 fields: ' + JSON.stringify({ ui, mg, flat, gy, sl, bk }));
 };
 
+/* ---- 4. light in 3-D: the Light tool shines from the camera at an atom (photons with depth, absorbed in 3-D); the books
+   against the light put in (IR, UV, a γ ray's Compton electron exact at its event) */
+PARTS.light = async (page, check, say) => {
+  const pg = await page.evaluate(async () => {
+    loadPreset('d3empty'); for (let i = 0; i < 27; i++) addAtom('Na', -8 + (i % 3) * 8, -8 + ((i / 3 | 0) % 3) * 8, { z: -8 + (i / 9 | 0) * 8 }); setRunning(true); cam3Fit(); $('hint').hidden = true;
+    setTool('light'); OPT.light.s = 200.86; OPT.light.rate = 200; OPT.light.mount = false; buildToolOpts(); cam3Update();
+    const r = R.cv.getBoundingClientRect(), o = [0, 0, 0], p = W.parts.find(q => q.Z === 11 && Math.abs(q.x) < 1 && Math.abs(q.y) < 1 && Math.abs(q.z) < 1); proj3(p.x, p.y, p.z, o);
+    return { tool: UI.tool, at: [o[0] + r.left, o[1] + r.top], id: p.id, ph0: W.count.photons };
+  });
+  await page.mouse.move(pg.at[0], pg.at[1]); await page.mouse.down(); await page.waitForTimeout(900);
+  const fl = await page.evaluate((id) => { cam3Update(); const p = W.parts.find(q => q.id === id), f = W.flights.concat([]).filter(f => f.z0 !== undefined), deep = f.filter(f => Math.abs(f.z0) > 1).length;
+    const toward = f.filter(f => { const dx = f.x1 - f.x0, dy = f.y1 - f.y0, dz = f.z1 - f.z0, L = Math.hypot(dx, dy, dz); return L > 0 && Math.hypot(p.x - (f.x0 + dx * ((p.x - f.x0) * dx + (p.y - f.y0) * dy + (p.z - f.z0) * dz) / (L * L)), p.y - (f.y0 + dy * ((p.x - f.x0) * dx + (p.y - f.y0) * dy + (p.z - f.z0) * dz) / (L * L)), p.z - (f.z0 + dz * ((p.x - f.x0) * dx + (p.y - f.y0) * dy + (p.z - f.z0) * dz) / (L * L))) < 1.5; }).length;
+    return { n: f.length, deep, toward, ph: W.count.photons, ion: W.count.ionize }; }, pg.id);
+  await page.mouse.up(); await page.evaluate(() => setRunning(false));
+  const bk = [['water', 0.124], ['water', 20], ['Na', 2.104], ['water', 1e6]].map(([what, E]) => {
+    const X = load('all', { seed: 4 }), W = X.W; X.PRESETS.empty.build(); X.setBox(24, 24); X.world3d(24); W.gamma = 0;
+    let k = 0; if (what === 'water') { for (let i = 0; i < 64; i++) X.addMolecule('H2O', -9 + (i % 4) * 5.5, -9 + (i >> 2 & 3) * 5.5, k++, 300, -9 + (i >> 4) * 5.5); } else for (let i = 0; i < 125; i++) X.addAtom('Na', -9 + (i % 5) * 4.5, -9 + ((i / 5 | 0) % 5) * 4.5, { z: -9 + (i / 25 | 0) * 4.5, T: 300 });
+    const go = (n) => { for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); } };
+    X.forcesNoEvents(); W.fSpawn = W.spawned; go(50);
+    const e0 = X.totalEnergy().total, c0 = W.count.photons, i0 = W.count.ionize; let Ein = 0, ev = 0;
+    for (let i = 0; i < 40; i++) { const t = 2 * Math.PI * i / 40, b0 = X.totalEnergy().total - e0 - Ein; X.emitPhoton(-11.9, 4 * Math.sin(3 * t), E, 1, 0.05 * Math.sin(t), { z: 4 * Math.cos(5 * t), uz: 0.05 * Math.cos(t) }); Ein += E; X.forcesNoEvents(); W.fSpawn = W.spawned; ev = Math.max(ev, Math.abs(X.totalEnergy().total - e0 - Ein - b0)); go(10); }
+    go(100);
+    return { what, E, books: +(X.totalEnergy().total - e0 - Ein).toFixed(3), event: +ev.toFixed(4), photons: W.count.photons - c0, ionize: W.count.ionize - i0 };
+  });
+  say('  3-D light: ' + JSON.stringify({ pg, fl, bk }));
+  check(pg.tool === 'light' && fl.n > 20 && fl.deep > 0.5 * fl.n && fl.toward > 0.8 * fl.n && fl.ion > 0 && bk.every(b => Math.abs(b.books) < 0.3) && bk[3].event < 1e-3 && bk[1].ionize > 0 && bk[2].photons > 40,
+    `1.24: light in 3-D: the Light tool held on a sodium atom sends ${fl.n} photons in flight, in depth, ${fl.toward} of them on the line to it from the camera, and ionizes (${fl.ion}); books against the light put in: ${bk.map(b => `${b.what} ${b.E} eV ${b.books}`).join(', ')} eV; a 1 MeV γ's Compton events exact (worst ${bk[3].event} eV: before the fix in ejectElectron, 10–16 eV each)`, '1.24 light: ' + JSON.stringify({ pg, fl, bk }));
+};
+
 module.exports = async function f124(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
