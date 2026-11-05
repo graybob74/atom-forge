@@ -292,7 +292,71 @@ Ge–Te, continuous bond orders in 3-D.
   gen 2, d3 1, ai 1, exp 11); at 390 px overflow 13 / 80 px (Performance / Experimental) → 1 / 0. Screenshots
   125-before-settings-exp-1360.png, 125-before-settings-exp-390.png, 125-after-settings-exp-1360.png,
   125-after-settings-exp-390.png.
-- Tests: tests/f_125.js (t_features' 1.25 block, or `node tests/f_125.js [hexazine settings …]`). `settings` fails on
+- **Continuous bond orders for Ge, As, Se, Sn, Sb, Te** (the owner after 1.21: "can you add the rest?"; physics, for
+  his OK). The model is the twelve elements' own: every constant comes from the game's tables (bond lengths and energies,
+  Morse widths, valences and capacities, expanded octets toward F, O and Cl, the VSEPR targets by period, Pauling
+  electronegativities 2.01, 2.18, 2.55, 1.96, 2.05, 2.10, the UFF sizes), so adding them is `BO.Ztab` (engine.js) and
+  two things found on the way:
+  - Tin is a metal in the game (metallic cohesion between bare tin atoms). Its molecules (SnCl₄, SnH₄) take part; a
+    cluster made of metal atoms only stays with stored/metallic bonding (`boMetal` in boSync's membership; not for
+    quantum bonds, which take every element), and a member atom is not treated as a bare metal by the pair kernel
+    (`setSize`'s `isMetal`, as a stored SnCl₄'s tin is not). Measured: 16 tin atoms beside an SnCl₄ with bond orders on:
+    0 of 16 join (all 16 keep metallic bonding), SnCl₄'s 5 join, books 0.0000 eV over 1,000 steps. (The metal model on
+    v130 may want to take tin over; the rule is one line.)
+  - A bug of the model, met first here: the 1-3 (angle) exclusions of the members' Coulomb and Lennard-Jones were looked
+    for only between atoms closer than 4.4 Å (bo.js and kernel/src/bo.rs). SbCl₃'s Cl–Sb–Cl (2.33 Å bonds) opened past
+    143° crosses 4.4 Å, and the pair's whole Coulomb and Lennard-Jones came on in one step: ±0.089 eV jumps every
+    ~700 steps in a GeCl₄ + SbCl₃ box (books +0.089 eV over 0.36 ps, independent of the step size). Now the reach is two
+    bonds' (2 × the largest bond reach r₁ + 1.3 Å among the pair types met, `BF.r13`, ≥ 4.4; passed to the kernel in the
+    scalar slot 15, `P_R13`, which was unused). Exactly the same results wherever no bonded angle's ends are past 4.4 Å
+    (the twelve elements' runs: identical, the Experimental fingerprints below). Kernel rebuilt by CI (wasm.yml on v128,
+    commit fea8c51); native check `bocheck` on a dump with SbCl₃ at 150° (tools/bodump.js `heavy`): JavaScript and Rust
+    agree to 0 eV / 1e-15 eV/Å; with the old 4.4 Å, 0.081 eV apart. SbCl₃ swept from 140° to 160°: largest change
+    between 0.25° steps 0.078 eV before, 0.0044 after (the angle term's own).
+  - Statics (flat, relaxed, energy per bond against the same molecule with stored bonds; stored / bond orders / measured
+    gas-phase values from standard heats of formation, lengths from microwave and electron diffraction; the measured
+    values from memory of the tables, not looked up here):
+    | molecule | length stored / orders / real (Å) | energy a bond stored / orders (Δ) / real (eV) |
+    |---|---|---|
+    | GeH₄ | 1.530 / 1.532 / 1.525 | 2.985 / 2.962 (−0.022) / 2.99 |
+    | AsH₃ | 1.520 / 1.506 / 1.511 | 2.560 / 2.537 (−0.023) / 3.07 |
+    | H₂Se | 1.460 / 1.462 / 1.460 | 2.861 / 2.821 (−0.039) / 3.28 |
+    | SnH₄ | 1.678 / 1.680 / 1.711 | 3.100 / 3.076 (−0.023) / 2.62 |
+    | SbH₃ | 1.687 / 1.672 / 1.704 | 2.909 / 2.884 (−0.025) / 2.66 |
+    | H₂Te | 1.681 / 1.683 / 1.658 | 2.922 / 2.883 (−0.040) / 2.76 |
+    | GeCl₄ | 2.117 / 2.118 / 2.113 | 3.551 / 3.524 (−0.027) / 3.51 |
+    | AsCl₃ | 2.122 / 2.104 / 2.162 | 2.971 / 2.959 (−0.012) / 3.21 |
+    | SnCl₄ | 2.280 / 2.282 / 2.281 | 3.265 / 3.240 (−0.025) / 3.26 |
+    | SbCl₃ | 2.310 / 2.292 / 2.333 | 3.113 / 3.101 (−0.012) / 3.25 |
+    | SeO₂ | 1.549 / 1.491 / 1.608 | 4.270 / 4.266 (−0.005) / – |
+    | TeO₂ | 1.670 / 1.631 / ~1.83 | 5.609 / 5.604 (−0.005) / – |
+    | As₂ (triple) | 1.895 / 1.985 / 2.103 | 3.556 / 3.549 (−0.007) / – |
+    | Se₂ (double) | 2.018 / 2.034 / 2.166 | 3.120 / 3.109 (−0.011) / – |
+    | AsF₅, TeF₆, SbCl₅, TeCl₄, SeF₄ | within 0.002 Å | −0.016 to −0.037 |
+    The orders match the stored bonds within 0.005–0.040 eV a bond (the twelve: PH₃ −0.028, H₂S −0.046) and 0.02 Å (single
+    bonds); multiple bonds come 0.04–0.09 Å off the stored lengths (SO₂ −0.017 the same way). Angles are the game's VSEPR
+    targets (both models): hydrides 92–93.7° (real 90.3–92.1°), AsCl₃ and SbCl₃ 107° (real 98.6°, 97.2°), as PCl₃ (107,
+    real 100.3). Against the real molecules, what is off is the game's bond table, shared with stored bonds: As–H, Se–H
+    and the chlorides of As and Sb are 4–17% too weak (the table's As–H 247 kJ/mol, Se–H 276; from heats of formation
+    297 and 317), Sn–H, Sb–H and Te–H 6–18% too strong (no table entry: Pauling's estimate from the homonuclear bonds),
+    and the heavy multiple bonds 0.1–0.2 Å too short (the 0.87/0.78 contraction is for the second row). Measured entries
+    for those pairs would change stored bonds too: left for the owner (a table change, not this item).
+  - Found, not changed (a flat-world limit): AsCl₅'s five chlorines, 2.46 Å apart in the plane, bond to each other (Cl–Cl
+    orders 0.39; 0.78 eV a bond deeper than stored) because As–Cl (2.97 eV) beats Cl–Cl by only 0.46 eV and the
+    crowding rule (1.16) acts from 0.4–0.8 eV; PCl₅ and SbCl₅ are fine (their chlorines 2.4 and 2.7 Å apart with 0.9 and
+    0.6 eV to spare). Real AsCl₅ falls apart above −50 °C.
+  - Dynamics (flat, insulated after 200 steps with the bath; 12 molecules, 48 atoms: GeH₄, AsH₃, H₂Se, SnH₄, SbH₃, H₂Te,
+    GeCl₄, SbCl₃, SeO₂, AsF₃, SnCl₄, TeCl₂; against the same box made of Si, P, S analogues), 3,000 steps (0.55 ps):
+    books +0.012 eV at 300 K, −0.029 at 1,500 K; the analogues −0.010 and −0.005 (JavaScript pass: +0.014, −0.029). Cost
+    on one thread (two loaded cores): 0.225 ms a step with bond orders against 0.097 stored (the analogues 0.169 against
+    0.061), steps 2.2 times shorter, as for the twelve.
+  - Forces against the energy's slope: SbCl₃ at 150° 1.2e-9 eV/Å (JavaScript and WebAssembly), SbCl₃, SeO₂ and SO₂ in
+    other shapes 3e-7, 6e-9, 7e-9.
+  - Unchanged: the 24 flat setups' fingerprints (300 steps, seed 7), the six 3-D setups' and the seven Experimental runs
+    (both bond-order kinds among them), after the kernel's rebuild too; and the Experimental runs on the JavaScript pass.
+  - Text: Settings → Experimental's note lists the six (tin in its molecules); bo.js's header.
+- Tests: tests/f_125.js (t_features' 1.25 block, or `node tests/f_125.js [hexazine settings bo6 …]`). `bo6` fails on
+  1.24.0 (no member among the six molecules; with antimony added by hand, the 0.078 eV step). `settings` fails on
   1.24.0 (18 descriptions under rows, 80 px overflow); `hexazine` records the measurements above and passes on 1.24.0
   too (nothing changed).
 
