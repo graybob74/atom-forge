@@ -2474,10 +2474,84 @@ function angleEnergy3(p) {
   const t = angleTargets3(p, n);
   let E = angle3Centre(p.i, nb, n, t[0], t[1], t[2], null, null, null);
   for (const bd of p.bonds) if (p.id < other(bd, p).id) torsionsOf3(bd, (X, A, B, Y) => { E += triple3(X.i, A.i, A.i, B.i, B.i, Y.i, K_TOR, null, null, null); });
+  for (const bd of p.bonds) if (p.id < other(bd, p).id) tors1Of3(bd, (X, A, B, Y, k) => { E += tors1K(X.i, A.i, B.i, Y.i, k[0], k[1], k[2], k[3], null, null, null); }); // (the single bonds' twist, 1.25; KB3 set by triple3 or below)
   return E;
 }
+/* ---- Single bonds' twist (3-D, 1.25; the owner: single bonds should have their real twist barrier). Before, only double
+   and aromatic bonds resisted twisting, and ethane's methyls turned against nothing but their hydrogens' contact (0.025 eV
+   against a measured 0.126). Each dihedral X–A–B–Y about a single bond has
+     E = F·(k₀ + k₁ cos φ + k₂ cos 2φ + k₃ cos 3φ),  F = sin³θ₁·sin³θ₂ / sin⁶(109.47°)
+   (φ the dihedral, 0 when X and Y eclipse; θ₁, θ₂ the bond angles X–A–B and A–B–Y). Written through u = b̂₁×b̂₂ and
+   v = b̂₂×b̂₃ (|u|·|v|·cos φ = u·v), F·cos nφ is a polynomial in u·v and |u|²|v|², smooth at every geometry and
+   vanishing where an end goes straight (as the double bonds' term does); F is 1 at tetrahedral angles. The k's, per
+   dihedral, by the central bond and its ends (TOR1), fitted in this game to the measured barriers on top of what its
+   1-4 contacts already give (PERF-NOTES 1.25): sp³–sp³ C–C (by how many of X, Y are heavy atoms), C–O, C–N, O–O
+   (hydrogen peroxide's twofold shape); sp³–sp² C–C=C and C–C=O, counted only on the dihedrals to the double bond's
+   partner (the other partner's would cancel them), the double bond eclipsed at the minimum (propene, acetaldehyde).
+   Not given one: other central pairs (Si, S, P …), bonds between two sp² ends (butadiene's middle), aromatic ends. */
+const TOR1 = { // [k0, k1, k2, k3] eV
+  CC0: [0.00583, 0, 0, 0.00583], CC1: [0.0058, 0, 0, 0.0058], CC2: [0.0056, -0.068, -0.0447, -0.0134],
+  CO: [0.0070, 0, 0, 0.0070], CN: [0.00717, 0, 0, 0.00717], OO: [0, 0.0015, 0.0585, 0.0028],
+  'CC=C': [0.0240, 0, 0, -0.0240], 'CC=O': [0.0118, 0, 0, -0.0118],
+};
+const TOR1_F0 = Math.pow(8 / 9, 3); // (sin⁶ of the tetrahedral angle)
+/* the end's double bond other than the central one (an sp² end), or null; aromatic or triple: 'x' (no term) */
+function tor1End(p, bd) {
+  let d = null;
+  for (const b of p.bonds) { if (b === bd) continue; if (b.arom || b.order >= 3) return 'x'; if (b.order === 2) { if (d) return 'x'; d = b; } }
+  return d;
+}
+function tor1Key(X, A, B, Y, dA, dB) {
+  const a = A.el.sym, b = B.el.sym, pair = a < b ? a + b : b + a;
+  if (dA === 'x' || dB === 'x' || (dA && dB)) return null;
+  if (dA || dB) { // (sp³–sp²: only the dihedral to the double bond's partner)
+    if (pair !== 'CC') return null;
+    const [d, e, f] = dB ? [dB, B, Y] : [dA, A, X]; if ((d.a === e ? d.b : d.a) !== f) return null;
+    const z = f.el.sym; return z === 'C' ? 'CC=C' : z === 'O' ? 'CC=O' : null;
+  }
+  if (pair === 'CC') return 'CC' + ((X.Z > 1 ? 1 : 0) + (Y.Z > 1 ? 1 : 0));
+  return pair === 'CO' ? 'CO' : pair === 'CN' ? 'CN' : pair === 'OO' ? 'OO' : null;
+}
+/* The single-bond dihedrals of bond bd: cb(X, A, B, Y, k) with k the TOR1 entry. */
+function tors1Of3(bd, cb) {
+  if (bd.order !== 1 || bd.arom) return;
+  const A = bd.a, B = bd.b; if (!A.el || !B.el || A.el.dblock || B.el.dblock || A.bonds.length < 2 || B.bonds.length < 2) return;
+  const dA = tor1End(A, bd), dB = tor1End(B, bd);
+  for (const ba of A.bonds) { if (ba === bd) continue; const X = other(ba, A);
+    for (const bb of B.bonds) { if (bb === bd) continue; const Y = other(bb, B); if (X === Y) continue; const key = tor1Key(X, A, B, Y, dA, dB), k = key && TOR1[key]; if (k) cb(X, A, B, Y, k); } }
+}
+/* One dihedral's term (slots x, a, b, y): returns E, adds the forces when FX is given (vectors by kvec3: set KB3 first). */
+const _t1 = new Float64Array(9), _t1l = new Float64Array(3);
+function tors1K(x, a, b, y, k0, k1, k2, k3, FX, FY, FZ) {
+  const e = _t1, L = _t1l, ends = [x, a, a, b, b, y];
+  for (let m = 0; m < 3; m++) { const v = kvec3(ends[2 * m], ends[2 * m + 1]), l = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) || 1e-9; e[3 * m] = v[0] / l; e[3 * m + 1] = v[1] / l; e[3 * m + 2] = v[2] / l; L[m] = l; }
+  const ux = e[1] * e[5] - e[2] * e[4], uy = e[2] * e[3] - e[0] * e[5], uz = e[0] * e[4] - e[1] * e[3]; // u = b̂₁×b̂₂
+  const vx = e[4] * e[8] - e[5] * e[7], vy = e[5] * e[6] - e[3] * e[8], vz = e[3] * e[7] - e[4] * e[6]; // v = b̂₂×b̂₃
+  const uu = ux * ux + uy * uy + uz * uz, vv = vx * vx + vy * vy + vz * vz, P = uu * vv, R = Math.sqrt(P), C = ux * vx + uy * vy + uz * vz;
+  const E = (k0 * P * R + k1 * C * P + k2 * (2 * C * C - P) * R + k3 * (4 * C * C * C - 3 * C * P)) / TOR1_F0;
+  if (!FX) return E;
+  const dC = (k1 * P + 4 * k2 * C * R + k3 * (12 * C * C - 3 * P)) / TOR1_F0;
+  const dP = R > 1e-12 ? (1.5 * k0 * R + k1 * C + k2 * (-R + (2 * C * C - P) / (2 * R)) - 3 * k3 * C) / TOR1_F0 : 0;
+  const gux = dC * vx + dP * 2 * ux * vv, guy = dC * vy + dP * 2 * uy * vv, guz = dC * vz + dP * 2 * uz * vv; // ∂E/∂u
+  const gvx = dC * ux + dP * 2 * vx * uu, gvy = dC * uy + dP * 2 * vy * uu, gvz = dC * uz + dP * 2 * vz * uu; // ∂E/∂v
+  // ∂E/∂b̂₁ = b̂₂×gu; ∂E/∂b̂₂ = gu×b̂₁ + b̂₃×gv; ∂E/∂b̂₃ = gv×b̂₂
+  const G = [e[4] * guz - e[5] * guy, e[5] * gux - e[3] * guz, e[3] * guy - e[4] * gux,
+    guy * e[2] - guz * e[1] + e[7] * gvz - e[8] * gvy, guz * e[0] - gux * e[2] + e[8] * gvx - e[6] * gvz, gux * e[1] - guy * e[0] + e[6] * gvy - e[7] * gvx,
+    gvy * e[5] - gvz * e[4], gvz * e[3] - gvx * e[5], gvx * e[4] - gvy * e[3]];
+  for (let m = 0; m < 3; m++) { // (to the raw bond vectors: the part across each, over its length; −∂E/∂b on the far end, + on the near end)
+    const gx = G[3 * m], gy = G[3 * m + 1], gz = G[3 * m + 2], d = gx * e[3 * m] + gy * e[3 * m + 1] + gz * e[3 * m + 2], il = 1 / L[m];
+    const Gx = (gx - d * e[3 * m]) * il, Gy = (gy - d * e[3 * m + 1]) * il, Gz = (gz - d * e[3 * m + 2]) * il, n0 = ends[2 * m], n1 = ends[2 * m + 1];
+    FX[n1] -= Gx; FY[n1] -= Gy; FZ[n1] -= Gz; FX[n0] += Gx; FY[n0] += Gy; FZ[n0] += Gz;
+  }
+  return E;
+}
+/* The single-bond dihedrals' forces (AC3.sq, made with the dihedral list): after the kernels, on the main thread. */
+function tors1Forces3(FX, FY, FZ) {
+  kb3FromW(); const sq = AC3.sq, sk = AC3.sk;
+  for (let t = 0; t < AC3.ns; t++) tors1K(sq[4 * t], sq[4 * t + 1], sq[4 * t + 2], sq[4 * t + 3], sk[4 * t], sk[4 * t + 1], sk[4 * t + 2], sk[4 * t + 3], FX, FY, FZ);
+}
 /* The centres' 3-D targets (per AC centre) and the dihedral list, made again when bonding or species change. */
-const AC3 = { mode: shArray(Uint8Array, 64), t0: shArray(Float64Array, 64), flat: shArray(Uint8Array, 64), topo: -1, dirty: -1, parts: null, len: -1, nt: 0, tq: shArray(Int32Array, 256) }; // (shared: the WebAssembly kernel and the workers read them)
+const AC3 = { mode: shArray(Uint8Array, 64), t0: shArray(Float64Array, 64), flat: shArray(Uint8Array, 64), topo: -1, dirty: -1, parts: null, len: -1, nt: 0, tq: shArray(Int32Array, 256), ns: 0, sq: new Int32Array(256), sk: new Float64Array(256) }; // (sq, sk: the single bonds' dihedrals and their k's, 1.25: main thread only) // (shared: the WebAssembly kernel and the workers read them)
 function angleCentres3() {
   angleCentres();
   if (AC3.topo === W.topo && AC3.dirty === W.dirty && AC3.parts === W.parts && AC3.len === W.parts.length) return;
@@ -2493,6 +2567,15 @@ function angleCentres3() {
     });
   }
   AC3.nt = nt;
+  let ns = 0;
+  for (const bd of W.bonds) {
+    if (bd.a.dead || bd.b.dead) continue;
+    tors1Of3(bd, (X, A, B, Y, k) => {
+      if (4 * ns + 4 > AC3.sq.length) { const q = new Int32Array(AC3.sq.length * 2); q.set(AC3.sq); AC3.sq = q; const r = new Float64Array(AC3.sk.length * 2); r.set(AC3.sk); AC3.sk = r; }
+      AC3.sq[4 * ns] = X.i; AC3.sq[4 * ns + 1] = A.i; AC3.sq[4 * ns + 2] = B.i; AC3.sq[4 * ns + 3] = Y.i; for (let m = 0; m < 4; m++) AC3.sk[4 * ns + m] = k[m]; ns++;
+    });
+  }
+  AC3.ns = ns;
 }
 /* The nucleus pairs, bonds and angles of a 3-D world (computeForces1's nucleusPairs): the WebAssembly kernel (af_forces3)
    when the module has it, else the JavaScript; one thread here, threads.js replaces this when workers are available. */
@@ -2793,7 +2876,7 @@ function computeForces1() {
   if (_profOn) { const t = performance.now(); _tLists += t - tp; tp = t; }
   if (BO.any && !(_qmHold && BO.qm)) boPass(true); // (continuous bond orders, 1.13: bo.js; before the kernel, which needs the members' partial charges, 1.16)
   const d3 = W.d3;
-  if (d3) nucleusPairs3(wrap, bw, bh, hw, hh); // (3-D: the JavaScript kernels, one thread)
+  if (d3) { nucleusPairs3(wrap, bw, bh, hw, hh); if (AC3.ns) tors1Forces3(S.fx, S.fy, S.fz); } // (3-D: the kernels; then the single bonds' twist, 1.25)
   else nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
   if (_profOn) tp = performance.now();
   if (nmdL && d3) leptonPairs3(); // (3-D)
@@ -7218,6 +7301,7 @@ function piFast() { // the bonds' and angles' forces alone, into S.fx/S.fy (clea
     _kStiff = 0;
     if (wasm3Ready()) { wasmDesc(); wasmDesc3(); wasmForces3(0, 0, 0, BD.n, 0, AC.n, 0, AC3.nt, S.fx, S.fy, S.fz, CQ, wrap, bw, bh, bd, hw, hh, hd, W.step); }
     else { bondKernel3(0, BD.n, S.fx, S.fy, S.fz, CQ, 0, wrap, bw, bh, bd, hw, hh, hd); angleKernel3(0, AC.n, 0, AC3.nt, S.fx, S.fy, S.fz, wrap, bw, bh, bd); }
+    if (AC3.ns) tors1Forces3(S.fx, S.fy, S.fz); // (the single bonds' twist, 1.25)
     if (_kStiff > _stiff) _stiff = _kStiff; _kStiff = 0;
     return;
   }
@@ -7949,6 +8033,7 @@ function relax3(atoms, passes) {
       for (let k = 0; k < nb; k++) _nb3[k] = other(p.bonds[k], p).i;
       const t = angleTargets3(p, nb); angle3Centre(p.i, _nb3, nb, t[0], t[1], t[2], FX, FY, FZ);
       for (const bd of p.bonds) if (p.id < other(bd, p).id) torsionsOf3(bd, (X, A, B, Y) => { triple3(X.i, A.i, A.i, B.i, B.i, Y.i, K_TOR, FX, FY, FZ); });
+      for (const bd of p.bonds) if (p.id < other(bd, p).id) tors1Of3(bd, (X, A, B, Y, k) => { kb3FromW(); tors1K(X.i, A.i, B.i, Y.i, k[0], k[1], k[2], k[3], FX, FY, FZ); }); // (1.25)
     }
   };
   let E = energy(), h = 0.02;

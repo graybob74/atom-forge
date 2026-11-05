@@ -222,6 +222,14 @@ engine stores and visits particles.
       muonium, hypernuclei, the collider, the plasma, nuclear reactions (hep.js on flat four-momenta; route in 1.24.0).
     - Done in 1.25 (for the owner's OK; the JavaScript pass, the WebAssembly one below). Continuous bond orders ("From the positions"): a 3-D version of bo.js's derivatives and the kernel pass.
     Both are physics in 3-D: energy and cost measured, the owner's OK as each lands.
+  - Single bonds' twist barrier in 3-D (the owner, after 1.24.0, through the main session; to build in 1.25 on v128):
+    today only double and aromatic bonds resist twisting (stored bonds' K_TOR, bond orders' bfTorsions3), so single
+    bonds spin freely. A threefold torsion for single bonds (sp³–sp³ and the common sp²–sp³ cases) in the stored-bond
+    3-D engine and in the bond orders' 3-D pass, fitted to measured barriers: ethane ≈ 2.9 kcal/mol (0.12 eV), propane
+    ~3.3, butane anti–gauche ≈ 0.6–0.9 and its syn barrier, methanol ≈ 1.07, methylamine ≈ 1.98, hydrogen peroxide's
+    twofold shape. The flat game unchanged (2-D has no twist). Physics in 3-D: barriers against the measured ones,
+    butane's anti/gauche populations at 300 K, insulated drift, forces against the slope, cost, the 3-D tiny objects
+    (polyethylene) still whole; for the owner's OK.
   - Continuous bond orders in 3-D in WebAssembly (left from 1.25): the 3-D angle term, its targets and roles, the
     torsions and the z arrays in kernel/src/bo.rs (wasm.yml builds it on a working branch), checked natively with a 3-D
     dump; liquid water in 3-D with bond orders costs ×22 a simulated ps on the JavaScript pass.
