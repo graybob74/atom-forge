@@ -195,26 +195,13 @@ engine stores and visits particles.
     Leave button gone (a Preview label); fast particles leaving the 3-D box; Performance mode gone. Also asked during
     the build and done there: Settings pictures enlarged on a click (animated) at 1280 × 720, the 3-D axis marker and
     scale bar above the tool's bar, the "On hold" note gone, main-menu presses that were lost, the Gallery's spacing.
-  For 1.24:
-  - The rest of the Experimental settings in 3-D: induced charges, quantum nuclei, continuous and quantum bond orders,
-    electrons as waves, the ultra-realistic mode (today flat only, set3dNote). Physics in 3-D; needs his OK as each
-    lands, with its energy and cost measured.
-  - The rest of the particles in 3-D (the user: "like pions and such"): the high-energy and nuclear side (hep.js:
-    hadrons such as pions, kaons, muons and their decays, the collider, plasma), today flat only.
-  - Box size in 3-D (the Lab panel's slider; "Not in 3-D yet": box3dNote): growing a free expansion, shrinking a piston,
-    as in 2-D, with the depth too.
-  - Magnets and fields in 3-D (the Magnet tool, the B and E sliders and the field direction; fields3dNote).
-  - The Light tool in 3-D (light in 3-D today flies out of the box unabsorbed, engine.js 3411).
-  - Not the placed objects (mirrors, lenses, prisms, screens…: the user, "keep objects out for now").
-  - Placing and firing in 3-D (the owner: "there should be a better system for more accurate placing and firing in
-    3d"; he chose these three, not a 3-D aim arrow tilted by a second drag):
-    - A visible placing plane: a faint grid at the depth things are placed at (today s2w3's plane through the camera
-      target, square to the view), a ghost of the item and a drop line to the box floor so its depth reads; a modifier
-      + wheel (or a slider) moves the plane nearer or farther.
-    - Placing next to what you point at: hovering an atom (pick3) places the new item against its surface on the side
-      facing the camera, instead of on the plane.
-    - Firing from the camera: with the WASD camera (1.23.2), fire from the eye toward the pointer (first-person
-      style); clicking an atom aims straight at it.
+  Done in 1.24.0 (the section above): placing and firing in 3-D (placing plane, placing against an atom, firing from
+  the camera), box size, magnets and fields, light, the unstable particles in flight, and the Experimental settings
+  except continuous bond orders. Placed objects stay out of 3-D (the owner).
+  Left in the flat game from the 1.24 list (reasons and numbers in the 1.24.0 section; several sessions each):
+  - The nuclear side of the particles in 3-D: nuclear hits by hadrons, captures at rest (muonic atoms, nuclear stars),
+    muonium, hypernuclei, the collider, the plasma, nuclear reactions (hep.js is written on flat four-momenta).
+  - Continuous bond orders ("From the positions") in 3-D: a 3-D version of bo.js's derivatives and the kernel pass.
   For 1.25 (reported by the owner; not built yet):
   - "Hexazine doesn't fly apart with quantum bond orders in 2d" (the owner, after 1.23.1). Hexazine (N₆ ring) is very
     unstable in reality (it falls apart to 3 N₂, releasing a lot of energy); with quantum bonds (GFN1-xTB, Experimental
@@ -251,6 +238,185 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
+
+The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on branch v127.
+
+- **Placing and firing in 3-D** (the owner's three choices: "there should be a better system for more accurate placing
+  and firing in 3d"). A UI change; the engine is untouched.
+  - The placing plane: tools put things on the plane square to the view `P3.off` Å beyond the camera's target (0, the
+    1.23 plane, by default; `plane3Pt`, `s2w3`). It is drawn while the Place tool is out, while pasting, and for 1.5 s
+    after it moves: a faint grid where it cuts the box and the outline of the cut (`plane3Poly`, `drawPlace3`), a ghost of
+    the item at the pointer (an atom in its colour and size; a molecule's atoms as the library draws them, on the plane;
+    placed, it is still turned at random), and a dashed line straight down to the box's floor with a small ring there, so
+    its depth reads. Shift + wheel moves the plane farther (wheel up) or nearer (`deltaX` too: Chromium on Windows turns
+    Shift + wheel sideways), in steps of 4% of the box's half-diagonal; Place's options bar has a Depth slider (−100…100
+    of the half-diagonal, "4.5 Å nearer"). Limited to the box (and in front of the eye).
+  - Placing against an atom: over an atom (pick3's exact disc, no margin), the item goes against the atom's near side:
+    where the pointer's line of sight enters the atom's ball, out along the surface there by the two sizes (`place3At`:
+    the atom's ½·UFF diameter and the item's `specSize`, as placements are spaced), then cleared as any placement. The
+    ghost shows there with a ring on the atom. Measured (headless, Molecules in space): a C put over an O at its centre
+    lands 3.68 Å from it, straight toward the camera (cos 1.00); before, the C went to the O's centre and was moved to
+    the nearest clear spot, on any side.
+  - Firing from the camera: a click (a drag under 6 px) with Fire shoots from the eye when the eye is inside the box,
+    else from where the line of sight enters the box (1 Å in), toward the pointer, and straight at the atom under the
+    pointer when there is one (`fire3From`); the pointer shows a crosshair, red with a ring on that atom, and what would
+    be fired. A drag still aims in the plane facing the camera from where it began (1.23). Measured: an electron fired by
+    a click on an N atom left 1 Å inside the box's face with its velocity on the line to the atom (cos 1.0000); before, a
+    click fired to the right of the screen from the plane point.
+  - Help (Moving around), the shortcut list's 3-D group (Shift + wheel; a click with Fire) and Settings → 3-D's keys
+    note say so.
+  - Screenshots: 124-before-place-atom.png, 124-before-fire-aim.png; 124-after-place-atom.png, 124-after-place-empty.png,
+    124-after-place-nearer.png, 124-after-fire-aim.png.
+- **Box size in 3-D** (the Lab's slider; box3dNote): the slider scales width, height and depth together (`W.box.td`,
+  the depth wanted; the typed width scales all three, the typed height sets height and depth), 20 Å to 2 µm (a saved 3-D
+  world's depth now loads up to 2 µm too, was 200 nm). `moveWalls3` is the flat `moveWalls` with the depth: growing jumps
+  the walls out (a free expansion), shrinking sweeps them through the empty space to the outermost particles and then
+  moves all six faces in at the flat game's 0.6 Å/tu, the walls' speed (`uw`, `uh`, `ud`) going into the bounce of fast
+  particles (`walls3`) and free electrons (`leptonWall`'s z faces) as in 2-D. The soft walls push the atoms as before.
+  Measured (Node, 64 argon atoms in a 30 Å cube, insulated): squeezed to 20 Å, 333 → 869 K by the piston's work 4.319 eV
+  (counted as the soft walls' energy jumps when they move), the books 0.006 eV against it after 24 tu (in a longer run
+  from another start, 41.05 eV of work, books −0.26 eV after 120 tu: the 900–5,000 K gas's own insulated drift); grown to
+  40 Å, a free expansion: books −0.002 eV. The flat game's own piston, the same gas in 2-D: 606 eV of work, books −15 eV.
+  Unchanged: every 2-D fingerprint (24 setups, 300 steps, seed 7) and the six 3-D setups' (the walls' speed is 0 when the
+  box keeps its size, and the bounce is then the old one exactly). Screenshots 124-before-box-panel.png (the slider
+  disabled), 124-after-box-panel.png, 124-after-box-shrunk.png (20 × 20 × 20 Å).
+- **Magnets and fields in 3-D** (fields3dNote; physics in 3-D: the flat game's laws, applied with the depth). Every
+  magnetic field in a 3-D world points along one axis, `W.Bax3` (the Lab's new "B points along x / y / z", default z):
+  the uniform field and every magnet's. A magnet is a ball (centre with a depth, the Magnet tool's radius; inside, its
+  field; outside, the flat disc's fall-off by the 3-D distance: `Bfield3`, `Bgrad3`). With all of B along one fixed axis
+  the field is one number times that axis, so the flat game's exact turning carries over unchanged to the two velocity
+  components across the axis (`B3P`; `rotateB3`, the Boris half turns in `outerA3`/`outerB3` for charged atoms and ions;
+  `gyrate3`, the exact arc of a free electron in the inner steps, its step limits in `innerDt3` as in `innerDt`), the
+  component along the axis drifting straight. E has a z part (`W.Ez`, the Lab's new +z / −z direction buttons): its
+  force on charged atoms in the force pass and on free leptons (`leptonExtras3`). Magnetic matter (iron's moment,
+  paramagnets, diamagnets) is pulled by |B|'s gradient in three directions (`magneticMatterForce3`; its energy, magU, reads
+  Bfield3). The Magnet tool places a ball at the placing point (or picks one on the screen to drag on the plane facing
+  the camera: `magnetAt3`), Erase removes magnets in its cone, the quick menu finds them; drawn as a dashed ball with a
+  glow, its pole's colour and an arrow along the axis (`drawMagnet3`, the tool's ghost too), and the corner's axis marker
+  shows B and E as arrows. Saved: magnets with z, `d3.Ez`, `d3.Bax`. The flat game unchanged: the new controls are
+  hidden there (`.only3d`), its own note hidden in 3-D (`.only2d`).
+  Measured (Node): an electron in 2,000 T along x, y and z circles on m·v⊥/(qB) to 4 digits (ratio 1.0000 each), drifts
+  along the axis exactly, energy to 1e-18 eV; a magnet's pull on Fe and Ar matches the slope of the energy (magU) in x, y
+  and z to 4e-11 and 3e-10 (iron pulled in, argon pushed out); insulated books over 3,000 steps (120 tu; with an
+  electric field, total + Σ −q E·r): eight free electrons −1.32 eV with no field, +0.04 eV (B 300 T along z), −0.46
+  (along y), −0.37 (B 300 T and E 0.05 V/Å), −0.19 (3,000 T and E), the same electrons in 2-D +4.5 eV; Na⁺/Cl⁻ ions
+  among argon −0.44 eV with no field, −0.40 (B 3,000 T), +0.56 (E 0.3 V/Å), +0.12 (both); iron and oxygen atoms pulled
+  in by a 50,000 T magnet, heated to 19,000 K, books +0.055 eV (along z) and +0.015 (along x). Cost: brine3d 9.75 →
+  10.78 ms a step with 1,000 T (its ions turned; two loaded cores, near the noise), water3d 3.79 → 3.26 (noise). 2-D
+  and 3-D fingerprints unchanged. Screenshots 124-before-fields-panel.png (disabled), 124-after-fields-panel.png,
+  124-after-fields-magnet.png (a 20 kT magnet, B along y, E along +z: the corner's arrows).
+  Found, not changed (setups of my own while measuring, 1.23.2 the same): free electrons put down almost on top of
+  each other gain hundreds of eV in their first steps (330 → 985 eV for eight; the step size cannot follow a near
+  coincident pair at the start), in 2-D and 3-D; and the flat game's books in a field miss −q E·Δr whenever an event
+  changes a charge (a proton capturing an electron: about 0.2 eV in 0.2 V/Å), as the events measure the energy without
+  the applied field.
+- **Light in 3-D** (the Light tool, light in Place and Fire; before, light left a 3-D box unabsorbed, engine.js
+  rayInteract's `if (W.d3) return null`, and nothing drew it). A photon's line has a depth (`emitPhoton3`: from opts.z,
+  else its source atom's depth; along (ux, uy, opts.uz), or at random on the sphere): what it meets is found along that
+  line (`rayInteract3`: the atoms within 0.6 Å of it, the flat strip's half-width, nearest first, with the flat game's
+  events and odds for each atom met: photoionization, dissociation, line absorption and fluorescence, IR heating,
+  Compton scattering turned about a random axis (`compton3`), pair production back to back in a random direction
+  (`pairProduce3`)), and it leaves through the six faces (`rayExit3`). Nuclear photo-reactions stay flat-only (a γ that
+  would knock out a neutron makes a pair there). e⁺e⁻ annihilation's two γ rays go back to back in 3-D at the pair's depth
+  (`twoGamma`); glowing walls emit from all six faces by Lambert's law (`glowTick`, `glowPhoton3`). Drawn (`drawLight3`):
+  rays growing at c and fading, photons in flight as streaks, as the flat view. The Light tool: held, a click shines
+  from the camera toward the pointer (straight at an atom under it), a drag along the drag in the plane facing you; a
+  laser keeps the aim (`light3Aim`, `perp3` for the beam's width). Light (γ) can be placed (random directions) and fired
+  in 3-D, at any energy.
+  Found and fixed on the way (3-D only): an electron set free with more than the radiation threshold (1 keV) was
+  launched as if it would fly ballistically, its potential energy at the launch point left out (`ejectElectron`); in
+  3-D it is stepped with it, so a 1 MeV γ's Compton electron lost the ion's pull, 10–16 eV an event. Now 0.0000 eV.
+  Measured (Node, insulated, 40–60 photons into 64 waters or 125 sodium atoms in a 24 Å cube; books = Δtotal − light put
+  in, escaped light counted): IR 0.124 eV +0.007–0.010; 7.5 eV −0.066 (8 bonds broken); 20 eV +0.16 / −0.20 (8–10
+  ionizations, 17 bonds broken); sodium's 589 nm line 0.000 (absorbed and re-emitted, 74 photons); 10 keV +0.008; 1 MeV
+  −21 eV before the fix → +0.026 / −0.17 after; 5 MeV into lead −32 → +0.78 eV (of 300 MeV). The same photons in 2-D:
+  +0.026, −0.35, −3.1, 0.000, +0.006, −2.0, −78 eV. Light costs nothing until it is used (a search over the atoms per
+  photon, as in 2-D). 2-D and 3-D fingerprints unchanged. Screenshots 124-before-light.png (the tool disabled),
+  124-after-light.png (Lyman-α held on a sodium atom in the middle of the cube).
+- **The rest of the particles in 3-D, in part** (the owner: "like pions and such"; physics in 3-D, for his OK). Built:
+  unstable particles (pions, kaons, muons, τ, hyperons, charmed and bottom hadrons, resonances) in flight in depth
+  (`addExo` with z and uz; `moveExos3`, `flyExo3`: straight, or turned about the magnetic field's axis), ionizing and
+  scattering off the atoms they pass along a line in 3-D (`segTargets3`, `exoIonize3`, `exoScatter3`: the flat rules),
+  leaving through the six faces, and decaying in flight or at rest (`decayExo3`). A decay is worked out in the
+  particle's rest frame as in the flat game (`phaseSpace`), its plane turned to a random orientation in space (`plane3`,
+  `emb3`) and boosted to the lab in 3-D (`boost3`); products in depth (`spawnItems3`; photons and neutrinos with z and uz,
+  `emitNeutrino`'s 3-D branch). A charged particle slowed below 2 keV among atoms stops (its last keV to them as heat) and
+  waits at rest for its decay. Neutrinos, positrons and the unstable particles are in the 3-D particle menus, placed
+  (nearly at rest, in depth) and fired (at any energy). e⁺ meeting an atom's electron or another atom now sends its γ rays
+  from its own depth (`annihilateBound`, `evAnti`). Drawn: `drawExos3` (glow, ball or ring, name), tracks in depth.
+  Measured (Node): π⁺ at rest, 300–400 decays: the μ⁺ at 29.792 MeV/c every time (two-body exact), isotropic (mean
+  direction ≤ 0.04, ⟨u²⟩ 0.31–0.36 against ⅓ for 300), books 1.9e-6 eV; K⁺ at 500 MeV decaying in flight along
+  (0.6, 0.48, 0.64): momentum of the products against the kaon's to 4.6e-16 (relative), energy exact (books ≤ 2e-7 eV);
+  ten 20 MeV μ⁻ and ten 50 MeV π⁺ through liquid water (1,029 atoms, insulated): books −0.95 and −0.53 eV over 200 steps
+  (−1.1, −0.26, −0.41 eV for 20 μ⁻, π⁺, π⁻ over 400); positrons annihilating in water: ≤ 0.41 eV an annihilation.
+  Cost: a neutral one nothing measurable; a charged one about 13 µs a step in a 1,029-atom box (its search over the
+  atoms along its path; 100 in flight 1.3 ms a step).
+  Not built (much harder than planned; the instruction: stop and write down why): the high-energy and nuclear side is
+  written on flat four-momenta [E, px, py] and flat collision searches throughout: in hep.js 19 calls of `phaseSpace`
+  (whose uniform intermediate masses are exact only in 2-D; 3-D needs GENBOD's weights), 10 of `twoBody`, 22 of
+  `p4of`/`exoP4`, 19 of `rdir`; nuclear collisions are found by radiation flight's flat path search (`fastEncounters`,
+  `fastFastNuclear`, `beamCollisions`), which the 3-D world does not have (its fast particles are stepped); the collider
+  is a ring of zones laid out in the plane. So in 3-D, for now: no nuclear hits by hadrons (a pion passes a nucleus
+  without reacting), no captures at rest (π⁻, K⁻, μ⁻ stopped in matter decay at rest, as free ones would; real ones are
+  captured: muonic atoms, nuclear stars), no muonium, no hypernuclei, no collider, no quark–gluon plasma, no nuclear
+  reactions between atoms or nuclei (fission, fusion). The route found for them: the same embedding, each event worked
+  out in the plane through its incoming momenta (exact for two bodies: their momenta span a plane) and turned into
+  place, plus a 3-D closest-approach search for nuclear reach among stepped fast nuclei; several sessions. 2-D and 3-D
+  fingerprints unchanged. Screenshots: 124-before-hep.png (K⁺ refused), 124-after-hep.png (kaons and π⁻ fired through
+  water, tracks in depth, B along y).
+- **The Experimental settings in 3-D, but for continuous bond orders** (the owner: "add the rest of the experimental
+  options to 3d"; physics in 3-D, for his OK). Each kept its flat form with the depth added; the flat game's own runs with
+  them on are bit for bit the same (seven setups with induced charges, 8 beads contracted and full, waves, both bond
+  orders: identical before and after). Measured (Node, insulated after settling, the same setup with the option off for
+  the drift it starts from; costs on one thread, two loaded cores):
+  - Induced charges (`qeqUpdate`, `qeqClear`: pairs, the long-range part and the applied field with z; the molecules'
+    motion paying in three directions): liquid water (1,029 atoms), 600 steps: books −0.04 eV (every step), +0.26 (every
+    10th), against +0.23 off; mean induced charge 0.09 e (the flat water's 0.06); 2.5 → 10.4 ms a step (every step),
+    4.1 (every 10th) (flat: 0.18 → 0.66).
+  - Quantum nuclei (the beads' offsets, velocities and forces with z: `PI.oz/vz/fz`, `PIM.qz/vz/fz`, every mode, the
+    thermostat, the contraction's bonds and 3-D angles, out-of-plane and torsions (`piFast`); a new world's rings made
+    afresh, flat or with depth): 27 waters, 600 steps: books −0.003 eV (8 beads, contracted), −0.006 (8, every bead),
+    −0.020 (16), against −0.013 off; a hydrogen's ring 0.16 Å across, 0.09 in z alone (isotropic); 0.04 → 0.32 ms a step
+    (8 contracted), 0.37 (every bead), 0.44 (16). The beads are not drawn in 3-D (the flat view's dots).
+  - Quantum bonds (GFN1-xTB is three-dimensional: the members' positions now with their depth, the slope in z, the
+    outside potential and the joiners' relaxation in 3-D; drawn as bonds in the 3-D view): three waters, ammonia and
+    methane (18 members): water's angle 105–109°, the force on an oxygen equal to the energy's slope in x, y and z to
+    5e-7 eV/Å, books within 2e-5 eV over 1,000 steps (1,122 calculations, none unsettled), 5 ms a step.
+  - Electrons as waves (eFF is three-dimensional to begin with: the packets' pairs and their meeting with ions in 3-D,
+    `waveForces3`; their size moving in the 3-D inner steps; who is a packet after events): six Na⁺ among twelve free
+    electrons, 2,000 steps: books +0.09 eV (−0.10 to the bath as packets joined) against +0.24 as points; flat −0.05.
+    0.19 → 0.61 ms a step (flat 0.15 → 0.62).
+  - Ultra-realistic: allowed in 3-D; it holds the decay speed at real rates and resonances to their own lifetimes; the
+    3-D lab has no nuclear reactions yet, so its chemistry is unchanged (liquid water, 200 steps: identical with it on,
+    3.33 / 3.38 ms a step).
+  - Not built: continuous bond orders ("From the positions"; stays flat-only, its button disabled in 3-D, the setting
+    back on when the flat game is open again). Its forces are a flat analytic derivative pass, ~470 lines of JavaScript
+    over dx, dy (orders, the taper, the soft core, angles and the electron counts, bo.js `boPassJS`) and the same in the
+    Rust kernel (`bfPassWasm`, built by CI, not editable here); a 3-D version is a rewrite of every derivative with its
+    slope checks. Several sessions.
+  Settings → Experimental's 3-D note and the controls follow (`NO3D_BTN`: only that one button off in 3-D). Screenshots
+  124-before-exp.png (greyed), 124-after-exp.png.
+- Tests: tests/f_124.js (run by t_features' 1.24 block, or alone: `node tests/f_124.js [place box fields light hep
+  exp]`); each part fails on 1.23.2 (`place`: P3 is not defined; `box`, `fields`, `light`, `hep`, `exp`: the controls
+  disabled or the functions missing). t_3d's "disabled in 3-D" check now expects the 1.24 limits (Objects, bond orders
+  from the positions, antimatter); t_page clicks only the visible field-direction buttons (the ±z ones are hidden in
+  the flat game; it timed out on them).
+- The flat game bit for bit the same throughout: 24 setups × 300 steps (seed 7) and seven runs with the Experimental
+  settings on (induced charges, 8 beads contracted and full, waves, both bond orders): identical to 1.23.2 after every
+  item; the six 3-D setups too (nothing in them uses what was added); t_3d's 2-D frame after a 3-D one: 0 difference.
+- Suite: `tools/runtests.sh` (two lanes on two cores): all passed but t_page (the ±z buttons, fixed above; passes
+  alone) and t_features' 1.14 speed readout (the chain setup showing 1/1.3× under load, the known flake; it gave back
+  1/1.7× once alone right after the lanes, then t_features passed whole alone; that block alone gives 1× three times
+  out of three on 1.23.2 and on this branch).
+- Found, not changed: Inspect cannot pick an unstable particle or a photon in flight in 3-D (`pickLight` works on the
+  flat projection); quantum nuclei's beads are not drawn in 3-D; the Experimental descriptions still describe the flat
+  case in places (induced charges "averaged in the plane"); the Magnet tool's pole buttons keep the flat ⊙/⊗ signs (in
+  3-D, N means along +axis); a charged unstable particle's search for the atoms on its path goes over every atom (13 µs
+  a particle a step at 1,029 atoms; the grid would make it local). From 1.23.2, met while measuring: free electrons put
+  down almost on top of each other gain hundreds of eV in their first steps; and in the flat game an event that changes
+  a charge in an applied electric field misses −q E·Δr from the books.
 
 ## 1.23.2: a flying 3-D camera, smaller 3-D ions, fast particles leave the 3-D box, separate 2-D and 3-D libraries, 3-D tiny objects, menus that click the first time
 

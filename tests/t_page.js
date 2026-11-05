@@ -90,7 +90,7 @@ const say = (...a) => console.log(...a);
     await page.waitForTimeout(120);
     check('slider ' + id);
   }
-  for (const seg of ['segBath', 'segEdir', 'segWall']) for (const b of await page.$$(`#${seg} button`)) { await b.click(); await page.waitForTimeout(80); }
+  for (const seg of ['segBath', 'segEdir', 'segWall']) for (const b of await page.$$(`#${seg} button`)) { if (!(await b.isVisible())) continue; await b.click(); await page.waitForTimeout(80); } // (1.24: the E field's ±z buttons are the 3-D lab's, hidden in the flat game)
   for (const id of ['chkDecay', 'chkSlowmo']) { await page.click('#' + id); await page.waitForTimeout(80); await page.click('#' + id); }
   for (const id of ['bSlower', 'bFaster', 'bFaster', 'bPlay', 'bStep', 'bPlay', 'zIn', 'zOut', 'zFit', 'bMagClear', 'bSrcClear']) await tryClick(page.locator('#' + id));
   check('lab controls');

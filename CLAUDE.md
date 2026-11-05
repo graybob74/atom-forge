@@ -48,6 +48,7 @@ The owner tests it on Windows (Ryzen 7950X3D, 16 threads, RTX 3090) and reports 
     saving, graphs, narrator, tour, Help. `builder.js` — molecule builder. `design.js` — Ask Claude (SMILES, lattices).
   - `molecules.gen.js` / `objects.gen.js` — generated libraries. Objects: `node tools/objgen.js [key …]`. Molecules:
     the original generator is not in the repo; after a force-field change re-settle with `node tools/molrelax.js [key …]`.
+  - `objects3.gen.js` — the 3-D lab's tiny objects (1.23.2, built in space with z), made by `node tools/objgen3.js [key …]`.
   - `wasm/` — the Rust kernel (`kernel/`) built by GitHub Actions (`wasm.yml`) and committed; never edit the .wasm.
 - `tests/` — `load.js` (Node harness: `load('all', { seed, patch })` returns every top-level name), `browser.js`
   (headless Chromium page; `window.AF_NO_PAUSE` is set so setups do not start paused), `t_*.js` suites, `fixtures/`.
@@ -65,8 +66,10 @@ tools/runtests.sh [tag]            # every suite, two lanes, ~15 min; the releas
 ```
 
 Known flakes under the parallel load of `runtests.sh` (rerun alone before believing them): `t_chips` (radiation upset)
-and `t_collider` (³⁵⁶Og + ²⁴⁹Cf "nothing listed as made"), `t_page` (a 15 s timeout choosing a collider beam); and when anything else runs at the same time, the
-time-budgeted checks in `t_features` (the chain reaction's k readout, saves, start paused) can miss by a little.
+and `t_collider` (³⁵⁶Og + ²⁴⁹Cf "nothing listed as made"), `t_page` (a 15 s timeout choosing a collider beam; the
+slow-motion button check, the hourglass lit by a 500 keV α's event within 400 ms); and when anything else runs at the
+same time, the time-budgeted checks in `t_features` (the chain reaction's k readout, saves, start paused, the 1.14
+speed readout: on two cores the chain setup can't hold 1× and shows 1/1.3×) can miss by a little.
 
 ## Engine rules that bugs usually come from
 

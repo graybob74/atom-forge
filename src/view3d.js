@@ -68,8 +68,51 @@ function proj3(x, y, z, o) {
   o[0] = C3.hw + C3.F * (dx * C3.rx + dy * C3.ry + dz * C3.rz) / zc; o[1] = C3.hh - C3.F * (dx * C3.ux + dy * C3.uy + dz * C3.uz) / zc;
   return true;
 }
-/* The world point under a screen point on the plane through the camera's target square to the view. Always finite. */
-function s2w3(px, py) { const c = R.cam3; return s2wPlane(px, py, [c.tx, c.ty, c.tz]); }
+/* The placing plane (1.24, asked for by the owner: "a better system for more accurate placing and firing in 3d"): the
+   plane square to the view that tools put things on, P3.off Å beyond the camera's target along the view (0: through
+   the target, as in 1.23). Shift + wheel or the Place tool's Depth slider move it; it is drawn while placing (a faint
+   grid where it cuts the box, a ghost of the item and a line down to the floor, drawPlace3). P3.shown: until when the
+   grid stays up after the plane is moved with another tool. */
+const P3 = { off: 0, shown: 0 };
+function plane3Pt() { const c = R.cam3; cam3Update(); const o = P3.off; return [c.tx + o * C3.fx, c.ty + o * C3.fy, c.tz + o * C3.fz]; }
+function plane3Lim() { return 0.5 * Math.hypot(W.box.w, W.box.h, W.box.d || W.box.h) + 2; } // (the plane can be put anywhere across the box)
+function plane3Set(off) { cam3Update(); const L = plane3Lim(); P3.off = clamp(off, Math.max(-L, -(C3.D - 2 * C3.near - 0.5)), L); P3.shown = (W.rt || 0) + 1.5; return P3.off; }
+function plane3Text() { const o = P3.off; return Math.abs(o) < 0.05 ? 'at the centre' : `${fmtNum(Math.abs(o), 2)} Å ${o > 0 ? 'farther' : 'nearer'}`; }
+/* The world point under a screen point on the placing plane. Always finite. */
+function s2w3(px, py) { return s2wPlane(px, py, plane3Pt()); }
+/* Where the Place tool puts an item (1.24): against the surface of the atom under the pointer, on the side the pointer
+   meets (the near side: where its line of sight enters the atom's ball, out along the surface there by the two sizes),
+   or failing an atom, on the placing plane. Returns [x, y, z, atom or null]. */
+function place3At(px, py, spec) {
+  const p = pick3(px, py, 0);
+  if (!p || p.k !== NUC || p.Z === 0) { const w = s2w3(px, py); return [w[0], w[1], w[2], null]; }
+  const r = ray3(px, py, [0, 0, 0]), L = Math.hypot(r[0], r[1], r[2]), ux = r[0] / L, uy = r[1] / L, uz = r[2] / L;
+  const cx = p.x - C3.ex, cy = p.y - C3.ey, cz = p.z - C3.ez, tc = cx * ux + cy * uy + cz * uz; // (along the line, the nearest approach to the centre)
+  const a = Math.max(0.3, rd3(p)), dx = ux * tc - cx, dy = uy * tc - cy, dz = uz * tc - cz, d2 = dx * dx + dy * dy + dz * dz, back = Math.sqrt(Math.max(0, a * a - d2));
+  let nx = dx - back * ux, ny = dy - back * uy, nz = dz - back * uz; const nl = Math.hypot(nx, ny, nz); // (the surface's normal where the line enters; at the very centre, toward the eye)
+  if (nl < 1e-6) { nx = -ux; ny = -uy; nz = -uz; } else { nx /= nl; ny /= nl; nz /= nl; }
+  const sep = (p.ne > 0 ? Math.max(0.8, 0.5 * (p.el && p.el.uffR || 3)) : 0.6) + (spec ? specSize(spec) : 1); // (contact: the two items' sizes, as placements are spaced)
+  return [p.x + nx * sep, p.y + ny * sep, p.z + nz * sep, p];
+}
+/* Fire from the camera (1.24, the owner's choice): from the eye toward the pointer, first-person style, or straight at
+   the atom under it. A projectile starts at the eye when the eye is inside the box, else where the line of sight enters
+   the box (1 Å in). Returns { o: start, u: unit direction, at: the atom aimed at or null }, or null when the line of
+   sight misses the box. */
+function fire3From(px, py) {
+  const r = ray3(px, py, [0, 0, 0]), L = Math.hypot(r[0], r[1], r[2]); let u = [r[0] / L, r[1] / L, r[2] / L];
+  const E = [C3.ex, C3.ey, C3.ez], H = [W.box.w / 2 - 1, W.box.h / 2 - 1, (W.box.d || W.box.h) / 2 - 1];
+  let t0 = 0, t1 = Infinity;
+  for (let k = 0; k < 3; k++) { // (the slabs: where the line is inside the box)
+    if (Math.abs(u[k]) < 1e-12) { if (Math.abs(E[k]) > H[k]) return null; continue; }
+    let a = (-H[k] - E[k]) / u[k], b = (H[k] - E[k]) / u[k]; if (a > b) { const t = a; a = b; b = t; }
+    t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+  }
+  if (!(t0 <= t1)) return null;
+  const o = [E[0] + u[0] * t0, E[1] + u[1] * t0, E[2] + u[2] * t0];
+  const p = pick3(px, py, 0), at = p && !p.dead && p.k === NUC && p.Z > 0 ? p : null;
+  if (at) { const dx = at.x - o[0], dy = at.y - o[1], dz = at.z - o[2], d = Math.hypot(dx, dy, dz); if (d > 1e-6) u = [dx / d, dy / d, dz / d]; } // (straight at it)
+  return { o, u, at };
+}
 /* The pointer's line of sight (not normalised: its part along the view direction is 1). */
 function ray3(px, py, o) {
   cam3Update(); // (the camera as it is now: it may have turned since the last frame)
@@ -191,6 +234,18 @@ function drawAxes3(ctx) {
     ctx.strokeStyle = c; ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + sx * L, y0 + sy * L); ctx.stroke();
     ctx.fillText(n, x0 + sx * (L + 8), y0 + sy * (L + 8));
   }
+  // the applied fields (1.24): B along its axis, E along its direction, each an arrow beside the axes with its letter
+  const fld = [];
+  if (W.Bz) { const u = AX3[W.Bax3] || AX3.z, s = W.Bz > 0 ? 1 : -1; fld.push(['B', u[0] * s, u[1] * s, u[2] * s, W.Bz > 0 ? '#ff7a6b' : '#6ba8ff']); }
+  const E = Math.hypot(W.Ex || 0, W.Ey || 0, W.Ez || 0); if (E > 0) fld.push(['E', W.Ex / E, W.Ey / E, (W.Ez || 0) / E, '#ffd678']);
+  fld.forEach(([n, x, y, z, c], k) => {
+    const cx = x0 + 70 + 52 * k, sx = x * C3.rx + y * C3.ry + z * C3.rz, sy = -(x * C3.ux + y * C3.uy + z * C3.uz);
+    ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - sx * L * 0.8, y0 - sy * L * 0.8); ctx.lineTo(cx + sx * L * 0.8, y0 + sy * L * 0.8); ctx.stroke();
+    const l = Math.hypot(sx, sy);
+    if (l > 0.15) { const ux = sx / l, uy = sy / l, ex = cx + sx * L * 0.8, ey = y0 + sy * L * 0.8; ctx.beginPath(); ctx.moveTo(ex + ux * 5, ey + uy * 5); ctx.lineTo(ex - uy * 4, ey + ux * 4); ctx.lineTo(ex + uy * 4, ey - ux * 4); ctx.fill(); }
+    else { ctx.beginPath(); ctx.arc(cx, y0, 4, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.fillText(n, cx + 14, y0 - 16);
+  });
   ctx.restore();
 }
 function fog3(z) { return clamp((z - C3.fog0) / Math.max(1e-3, C3.fog1 - C3.fog0), 0, 1) * C3.fogK; }
@@ -282,7 +337,7 @@ function render3d(rt) {
   const ballCol = (p) => (p.k === ELEC ? E_COL : p.k !== NUC ? POS_COL : p.Z === 0 ? N_COL : p.ne === 0 ? (p.anti ? '#be78ff' : '#ff6e5a') : atomColor(p));
   if (gl) {
     glBegin3();
-    glBondsBuild(W.bonds, W.topo);
+    if (BO.any) glBondsBuild(W.bonds.concat(boDrawBonds()), -(R.boGen = (R.boGen || 0) + 1)); else glBondsBuild(W.bonds, W.topo); // (quantum bonds' orders, drawn from this step's, as the flat view does, 1.24)
     for (const p of vis) {
       const b = 4 * p.i;
       if (!lite && (p.k !== NUC || p.ne === 0 || p.tLocal > 900 || p.glow > 0.02)) glowsOf(p, b, (r, c, a) => glGlow3(V[b], V[b + 1], V[b + 2], r, c, a));
@@ -302,9 +357,10 @@ function render3d(rt) {
     if (!lite) { ctx.globalCompositeOperation = 'lighter'; for (const p of vis) { const b = 4 * p.i; glowsOf(p, b, (r, c, a) => drawSprite(glowSprite(c, r), V[b], V[b + 1], a)); } ctx.globalCompositeOperation = 'source-over'; }
     const fc = CHAMBER.bg0;
     ctx.lineCap = 'round';
+    let boB = null; if (BO.any) { boB = new Map(); for (const bd of boDrawBonds()) for (const a of [bd.a, bd.b]) { let l = boB.get(a); if (!l) boB.set(a, l = []); l.push(bd); } } // (quantum bonds' orders, 1.24)
     for (const p of vis) {
-      const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2], r = V[b + 3], col = ballCol(p);
-      if (p.k === NUC && p.bonds.length) for (const bd of p.bonds) { // this atom's half of each bond
+      const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2], r = V[b + 3], col = ballCol(p), pb = boB && boB.get(p) ? p.bonds.concat(boB.get(p)) : p.bonds;
+      if (p.k === NUC && pb.length) for (const bd of pb) { // this atom's half of each bond
         const q = bd.a === p ? bd.b : bd.a, c = 4 * q.i;
         if (q.dead) continue;
         const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
@@ -340,9 +396,12 @@ function render3d(rt) {
     drawUnder3(ctx, rt);
   }
   drawMeasure3(ctx);
+  if (R.view.rays) drawLight3(ctx, rt); // (light, 1.24)
+  drawExos3(ctx); // (unstable particles, 1.24)
   drawFlashes3(ctx, rt);
   drawEvents3(ctx, rt);
   drawMarks3(ctx);
+  if (!R.menu) { drawMagnets3(ctx); drawPlace3(ctx); } // (magnets; the placing plane, the ghost, Fire's aim from the camera, 1.24)
   drawOverlay3(ctx);
   if (V3.axes && !R.menu) drawAxes3(ctx); // (not behind the main menu)
   drawScaleBar();
@@ -439,6 +498,150 @@ function drawOverlay3(ctx) {
     }
   }
   ctx.restore();
+}
+/* The placing plane, drawn (1.24): a faint grid where the plane cuts the box and its outline, then the ghost of what the
+   Place tool would put down (R.overlay.place3: its atoms on the plane, faint, in their colours; ringed when it goes
+   against an atom's surface) with a dashed line straight down to the box's floor and a small ring there, so its depth
+   reads against the box. Fire's aim from the camera: a crosshair, and a ring on the atom it would go straight at. */
+function plane3Poly(P) { // where the plane through P square to the view cuts the box: the corners, in order round it
+  const H = [W.box.w / 2, W.box.h / 2, (W.box.d || W.box.h) / 2], f = [C3.fx, C3.fy, C3.fz], c = P[0] * f[0] + P[1] * f[1] + P[2] * f[2], pts = [];
+  for (let ax = 0; ax < 3; ax++) { const u = (ax + 1) % 3, v = (ax + 2) % 3; if (Math.abs(f[ax]) < 1e-12) continue;
+    for (const su of [-1, 1]) for (const sv of [-1, 1]) { const q = [0, 0, 0]; q[u] = su * H[u]; q[v] = sv * H[v]; q[ax] = (c - q[u] * f[u] - q[v] * f[v]) / f[ax]; if (Math.abs(q[ax]) <= H[ax] + 1e-9) pts.push(q); } }
+  if (pts.length < 3) return [];
+  let mx = 0, my = 0, mz = 0; for (const q of pts) { mx += q[0]; my += q[1]; mz += q[2]; } mx /= pts.length; my /= pts.length; mz /= pts.length;
+  const ang = (q) => Math.atan2((q[0] - mx) * C3.ux + (q[1] - my) * C3.uy + (q[2] - mz) * C3.uz, (q[0] - mx) * C3.rx + (q[1] - my) * C3.ry + (q[2] - mz) * C3.rz);
+  return pts.sort((a, b) => ang(a) - ang(b));
+}
+function drawPlace3(ctx) {
+  const o = R.overlay, pl = o && o.place3, fa = o && o.fire3, showGrid = !!pl || (o && o.plane3) || (W.rt || 0) < P3.shown;
+  if (!showGrid && !fa) return;
+  const A = _p3a, B = _p3b, F = C3.F;
+  ctx.save();
+  if (showGrid) {
+    const P = plane3Pt(), poly = plane3Poly(P);
+    if (poly.length >= 3) {
+      const depth = Math.max(C3.near, (P[0] - C3.ex) * C3.fx + (P[1] - C3.ey) * C3.fy + (P[2] - C3.ez) * C3.fz), sp = F / depth;
+      let step = 10; while (step * sp < 30) step *= 2; while (step * sp > 120 && step > 0.5) step /= 2;
+      const H = [W.box.w / 2, W.box.h / 2, (W.box.d || W.box.h) / 2], R3 = [C3.rx, C3.ry, C3.rz], U3 = [C3.ux, C3.uy, C3.uz];
+      let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+      for (const q of poly) { const a = (q[0] - P[0]) * R3[0] + (q[1] - P[1]) * R3[1] + (q[2] - P[2]) * R3[2], b = (q[0] - P[0]) * U3[0] + (q[1] - P[1]) * U3[1] + (q[2] - P[2]) * U3[2]; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+      const line = (S, D, len) => { // a grid line through S along D, cut to the box (the slabs)
+        let t0 = -len, t1 = len;
+        for (let k = 0; k < 3; k++) { if (Math.abs(D[k]) < 1e-12) { if (Math.abs(S[k]) > H[k]) return; continue; } let a = (-H[k] - S[k]) / D[k], b = (H[k] - S[k]) / D[k]; if (a > b) { const t = a; a = b; b = t; } t0 = Math.max(t0, a); t1 = Math.min(t1, b); }
+        if (t1 - t0 < 1e-6) return;
+        if (seg3(S[0] + D[0] * t0, S[1] + D[1] * t0, S[2] + D[2] * t0, S[0] + D[0] * t1, S[1] + D[1] * t1, S[2] + D[2] * t1, A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+      };
+      const len = 2 * plane3Lim() + 4;
+      ctx.strokeStyle = 'rgba(255,209,102,0.13)'; ctx.lineWidth = 1; ctx.beginPath();
+      for (let a = Math.ceil(a0 / step) * step; a <= a1; a += step) line([P[0] + a * R3[0], P[1] + a * R3[1], P[2] + a * R3[2]], U3, len);
+      for (let b = Math.ceil(b0 / step) * step; b <= b1; b += step) line([P[0] + b * U3[0], P[1] + b * U3[1], P[2] + b * U3[2]], R3, len);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,209,102,0.42)'; ctx.lineWidth = 1.2; ctx.beginPath(); let ok = true;
+      poly.forEach((q, k) => { if (!proj3(q[0], q[1], q[2], A)) ok = false; else if (k) ctx.lineTo(A[0], A[1]); else ctx.moveTo(A[0], A[1]); });
+      if (ok) { ctx.closePath(); ctx.stroke(); }
+    }
+  }
+  if (pl && proj3(pl.x, pl.y, pl.z, A)) {
+    const sc = F / A[2], hy = W.box.h / 2, hx = W.box.w / 2, hz = (W.box.d || W.box.h) / 2;
+    if (Math.abs(pl.x) <= hx && Math.abs(pl.z) <= hz && pl.y > -hy && seg3(pl.x, pl.y, pl.z, pl.x, -hy, pl.z, A, B)) { // the drop line, and a ring on the floor
+      ctx.strokeStyle = 'rgba(255,209,102,0.55)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); let ok = true; for (let k = 0; k <= 20; k++) { const th = k / 20 * 2 * Math.PI; if (!proj3(pl.x + 0.8 * Math.cos(th), -hy, pl.z + 0.8 * Math.sin(th), B)) { ok = false; break; } if (k) ctx.lineTo(B[0], B[1]); else ctx.moveTo(B[0], B[1]); }
+      if (ok) ctx.stroke();
+      proj3(pl.x, pl.y, pl.z, A);
+    }
+    const sp = pl.spec, atoms = sp && sp.kind === 'mol' && MOLECULES[sp.mol] ? MOLECULES[sp.mol].atoms : null;
+    ctx.globalAlpha = 0.45;
+    if (atoms && atoms.length <= 400) { // (a molecule: its atoms as drawn in the flat library, on the plane facing you; placed, it is turned at random)
+      let mx = 0, my = 0; for (const a of atoms) { mx += a[1]; my += a[2]; } mx /= atoms.length; my /= atoms.length;
+      const as = R.as || 1;
+      for (const a of atoms) { const Z = SYM2Z[a[0]], el = ELEMENTS[Z], r = Math.max(1.5, (0.3 + 0.28 * (el.rc || 1)) * as * sc), x = A[0] + (a[1] - mx) * sc, y = A[1] - (a[2] - my) * sc;
+        ctx.fillStyle = el.color || '#ccc'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+    } else {
+      const r = sp && sp.kind === 'atom' && !sp.bare ? Math.max(3, (0.3 + 0.28 * (ELEMENTS[sp.Z].rc || 1)) * (R.as || 1) * sc) : sp && sp.kind === 'mol' ? Math.max(4, molRadius(sp.mol) * sc) : Math.max(3, 0.25 * sc);
+      ctx.fillStyle = sp ? specColor(sp) : '#ffd166'; ctx.beginPath(); ctx.arc(A[0], A[1], r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (pl.at && !pl.at.dead && proj3(pl.at.x, pl.at.y, pl.at.z, B)) { ctx.strokeStyle = 'rgba(255,209,102,0.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(B[0], B[1], Math.max(6, rd3(pl.at) * (R.as || 1) * F / B[2]) + 3, 0, Math.PI * 2); ctx.stroke(); }
+  }
+  if (fa) {
+    const [x, y] = fa.px; ctx.strokeStyle = fa.at ? 'rgba(255,110,90,0.95)' : 'rgba(255,209,102,0.85)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x - 3, y); ctx.moveTo(x + 3, y); ctx.lineTo(x + 9, y); ctx.moveTo(x, y - 9); ctx.lineTo(x, y - 3); ctx.moveTo(x, y + 3); ctx.lineTo(x, y + 9); ctx.stroke();
+    if (fa.at && !fa.at.dead && proj3(fa.at.x, fa.at.y, fa.at.z, A)) { const r = Math.max(7, rd3(fa.at) * (R.as || 1) * F / A[2]) + 4; ctx.beginPath(); ctx.arc(A[0], A[1], r, 0, Math.PI * 2); ctx.stroke(); }
+    if (fa.text) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText(fa.text, x + 12, y - 10); }
+  }
+  ctx.restore();
+}
+/* Light in 3-D (1.24): rays (W.rays) and photons in flight (W.flights) along their lines in depth, as the flat view draws
+   them (drawRays, drawFlights): a ray's line grows at c on the simulation's clock and fades once it has arrived; a photon
+   in flight is a 4 Å streak behind a bright head. Lines with no depth (z0 undefined) lie at z = 0. */
+function drawLight3(ctx, rt) {
+  if (!W.rays.length && !W.flights.length) return;
+  const A = _p3c, B = _p3d, life = 0.45;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+  for (let i = W.rays.length - 1; i >= 0; i--) {
+    const r = W.rays[i], m = rayFrac(r);
+    if (m >= 1 && r.ta === undefined) r.ta = rt;
+    const k = r.ta === undefined ? 0 : (rt - r.ta) / life;
+    if (k > 1 || rt - r.t0 > 30) { W.rays.splice(i, 1); continue; }
+    const a = (1 - k) * (r.nu ? 0.35 : 0.85), z0 = r.z0 || 0, z1 = r.z1 === undefined ? z0 : r.z1;
+    const hx = r.x0 + (r.x1 - r.x0) * m, hy = r.y0 + (r.y1 - r.y0) * m, hz = z0 + (z1 - z0) * m;
+    if (!seg3(r.x0, r.y0, z0, hx, hy, hz, A, B)) continue;
+    r.hx = B[0]; r.hy = B[1]; r.alpha = a;
+    ctx.strokeStyle = rgba(r.c, a * 0.5); ctx.lineWidth = r.E >= 1e5 ? 1.2 : 1.6;
+    if (r.nu) ctx.setLineDash([1, 5]); else if (r.E >= 1e5) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    if (!r.nu) { ctx.setLineDash([]); drawSprite(glowSprite(r.c, 7), B[0], B[1], a); }
+  }
+  ctx.setLineDash([]);
+  for (const f of W.flights) {
+    const d = Math.min(f.len, (W.t - f.t0) * PHYS.C), L = f.len || 1, d0 = Math.max(0, d - 4);
+    if (d < 0) continue;
+    const z0 = f.z0 || 0, z1 = f.z1 === undefined ? z0 : f.z1;
+    if (!seg3(f.x0 + (f.x1 - f.x0) * d0 / L, f.y0 + (f.y1 - f.y0) * d0 / L, z0 + (z1 - z0) * d0 / L, f.x0 + (f.x1 - f.x0) * d / L, f.y0 + (f.y1 - f.y0) * d / L, z0 + (z1 - z0) * d / L, A, B)) continue;
+    const g = ctx.createLinearGradient(A[0], A[1], B[0], B[1]); g.addColorStop(0, rgba(f.c, 0)); g.addColorStop(1, rgba(f.c, 0.9));
+    ctx.strokeStyle = g; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    drawSprite(glowSprite(f.c, 9), B[0], B[1], 1);
+  }
+  ctx.restore();
+}
+/* Unstable particles in flight in 3-D (1.24): as the flat view draws them (drawExos), a glow, a small ball (charged) or
+   ring (neutral) and the name, at their depth; their tracks are trails (drawTracks3). */
+function drawExos3(ctx) {
+  if (!W.exo.length) return;
+  const A = _p3c;
+  ctx.save(); ctx.font = '600 10px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  for (const o of W.exo) {
+    if (o.dead || !proj3(o.x, o.y, o.z || 0, A)) continue;
+    const x = A[0], y = A[1]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
+    const c = XP[o.sp].col;
+    ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55); ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = rgba(c, 0.95); ctx.strokeStyle = rgba(c, 0.95); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, o.q ? 2.4 : 2.6, 0, Math.PI * 2); if (o.q) ctx.fill(); else ctx.stroke();
+    ctx.fillText(o.lab, x, y - 5);
+  }
+  ctx.restore();
+}
+/* Magnets in 3-D (1.24): each a ball (dashed outline, a faint glow, N red / S blue) with an arrow through it along the
+   field's axis (W.Bax3; N: its field along +axis), and its strength above it. The Magnet tool's ghost likewise. */
+const AX3 = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+function drawMagnet3(ctx, x, y, z, Rm, B, ghost) {
+  const A = _p3a, Bp = _p3b; if (!proj3(x, y, z, A)) return;
+  const r = Rm * C3.F / A[2], col = B >= 0 ? [255, 96, 86] : [86, 140, 255];
+  ctx.save();
+  if (!ghost) { const g = ctx.createRadialGradient(A[0], A[1], r * 0.2, A[0], A[1], r * 1.6); g.addColorStop(0, rgba(col, 0.16)); g.addColorStop(0.6, rgba(col, 0.07)); g.addColorStop(1, rgba(col, 0)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(A[0], A[1], r * 1.6, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = rgba(col, ghost ? 0.5 : 0.6); ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(A[0], A[1], r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  const u = AX3[W.Bax3] || AX3.z, s = B >= 0 ? 1 : -1, L = 0.8 * Rm;
+  if (seg3(x - s * u[0] * L, y - s * u[1] * L, z - s * u[2] * L, x + s * u[0] * L, y + s * u[1] * L, z + s * u[2] * L, A, Bp)) {
+    ctx.strokeStyle = rgba(col, 0.85); ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(Bp[0], Bp[1]); ctx.stroke();
+    const dx = Bp[0] - A[0], dy = Bp[1] - A[1], l = Math.hypot(dx, dy);
+    if (l > 4) { const ux = dx / l, uy = dy / l; ctx.beginPath(); ctx.moveTo(Bp[0] + ux * 6, Bp[1] + uy * 6); ctx.lineTo(Bp[0] - uy * 4, Bp[1] + ux * 4); ctx.lineTo(Bp[0] + uy * 4, Bp[1] - ux * 4); ctx.fill(); }
+    else { ctx.beginPath(); ctx.arc(Bp[0], Bp[1], 3.5, 0, Math.PI * 2); ctx.stroke(); } // (end on: ⊙)
+  }
+  if (!ghost && proj3(x, y, z, A)) { ctx.font = '600 12px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(col, 0.9); ctx.textAlign = 'center'; ctx.fillText((B >= 0 ? 'N ' : 'S ') + fmtTesla(Math.abs(B)), A[0], A[1] - r - 8); }
+  ctx.restore();
+}
+function drawMagnets3(ctx) {
+  for (const m of W.magnets) drawMagnet3(ctx, m.x, m.y, m.z || 0, m.R, m.B, false);
+  const o = R.overlay; if (o && o.ghostMagnet) drawMagnet3(ctx, o.x, o.y, o.z || 0, o.ghostMagnet.R, o.ghostMagnet.B, true);
 }
 /* ---------- overlays (stage 3): trails, hydrogen bonds and ionic contacts, the Measure tool, flashes and events */
 /* Under the labels: particle trails (with each point's depth), hydrogen bonds and ionic contacts, faded with depth. */

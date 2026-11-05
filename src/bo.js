@@ -867,10 +867,11 @@ function boRelax(join) {
   for (let it = 0; it < n; it++) {
     forcesNoEvents();
     if (BO.qm && XQ.fails > f0) break; // (the electrons did not settle: their forces lead nowhere, 1.23.1)
-    let fm = 0; for (const p of join) { const f = Math.hypot(FX[p.i], FY[p.i]); if (f > fm) fm = f; }
+    const FZ = S.fz, d3 = W.d3; // (3-D: in depth too, 1.24)
+    let fm = 0; for (const p of join) { const f = d3 ? Math.hypot(FX[p.i], FY[p.i], FZ[p.i]) : Math.hypot(FX[p.i], FY[p.i]); if (f > fm) fm = f; }
     if (fm < 0.05) break;
     const st = Math.min(0.002, 0.02 / fm);
-    for (const p of join) { p.x += FX[p.i] * st; p.y += FY[p.i] * st; }
+    for (const p of join) { p.x += FX[p.i] * st; p.y += FY[p.i] * st; if (d3) p.z += FZ[p.i] * st; }
     gridTouch();
   }
 }
@@ -898,7 +899,7 @@ function boWhole(only) {
 }
 /* The setting: on or off. Turning it off gives every member stored bonds again (boSync). */
 function boSet(v) {
-  if (v && W.d3) return; // (not in 3-D yet: the members' forces and the quantum bonds' positions are flat)
+  if (v === 1 && W.d3) return; // (continuous bond orders are not in 3-D yet: their forces are flat; quantum bonds are, 1.24: GFN1-xTB is three-dimensional)
   const on = !!v, qm = v === 2;
   if (on === BO.on && qm === BO.qm) return;
   if (BO.on && qm !== BO.qm && W.parts.length) { BO.on = false; boSync(); } // (the other model: every member leaves first, then joins again)
@@ -935,7 +936,7 @@ function qmPhi(mem, phi) {
     const qo = Q[o.i] + QP[o.i]; if (!qo) continue;
     const lr = _lrOn && isLR(o);
     for (let m = 0; m < mem.length; m++) {
-      const p = mem[m], [dx, dy] = minImg(o.x - p.x, o.y - p.y), r2 = dx * dx + dy * dy;
+      const p = mem[m], [dx, dy, dz] = minImg(o.x - p.x, o.y - p.y, o.z - p.z), r2 = W.d3 ? dx * dx + dy * dy + dz * dz : dx * dx + dy * dy; // (3-D: in depth too, 1.24)
       if (r2 < RC2) phi[m] += qeqC(p, o, r2) * qo;
       else if (lr && isLR(p)) phi[m] += PHYS.KE * qx(o, p) / Math.sqrt(r2);
     }
@@ -947,10 +948,10 @@ function qmPass(forces) {
   const n = mem.length, QP = S.qp;
   XQ.pq.length = 0; BO.np = 0; BO.flat = 'qm'; BO.changes++;
   if (!n) { BO.E = 0; return 0; }
-  // positions: the plane, each member by the nearest image of the first (a wrapping box)
-  const Z = new Array(n), xyz = new Array(n), x0 = mem[0].x, y0 = mem[0].y;
+  // positions: the plane, each member by the nearest image of the first (a wrapping box); in 3-D, in space (1.24)
+  const Z = new Array(n), xyz = new Array(n), x0 = mem[0].x, y0 = mem[0].y, z0 = mem[0].z, d3 = W.d3;
   let charge = 0, sig = '';
-  for (let m = 0; m < n; m++) { const p = mem[m], [dx, dy] = minImg(p.x - x0, p.y - y0); Z[m] = p.Z; xyz[m] = [x0 + dx, y0 + dy, 0]; charge += p.q; sig += p.id + ':' + p.Z + ','; }
+  for (let m = 0; m < n; m++) { const p = mem[m], [dx, dy, dz] = minImg(p.x - x0, p.y - y0, p.z - z0); Z[m] = p.Z; xyz[m] = [x0 + dx, y0 + dy, d3 ? z0 + dz : 0]; charge += p.q; sig += p.id + ':' + p.Z + ','; }
   charge = Math.round(charge);
   const phi = new Float64Array(n); qmPhi(mem, phi);
   const vext = new Float64Array(n); let anyV = false;
@@ -969,13 +970,14 @@ function qmPass(forces) {
   const B = r.bonds;
   for (let a = 0; a < n; a++) for (let b = 0; b < a; b++) {
     const nb = B[a * n + b]; if (!(nb > 0.1)) continue;
-    const dx = xyz[a][0] - xyz[b][0], dy = xyz[a][1] - xyz[b][1];
-    XQ.pq.push({ a: mem[a], b: mem[b], n: nb, r: Math.hypot(dx, dy) });
+    const dx = xyz[a][0] - xyz[b][0], dy = xyz[a][1] - xyz[b][1], dz = xyz[a][2] - xyz[b][2];
+    XQ.pq.push({ a: mem[a], b: mem[b], n: nb, r: d3 ? Math.sqrt(dx * dx + dy * dy + dz * dz) : Math.hypot(dx, dy) });
   }
   BO.np = XQ.pq.length; BO.E = E;
   if (forces) {
     const FX = S.fx, FY = S.fy, gq = r.g, gd = d.g;
     for (let m = 0; m < n; m++) { const i = mem[m].i; FX[i] -= gq[m][0] + gd[m][0]; FY[i] -= gq[m][1] + gd[m][1]; }
+    if (d3) { const FZ = S.fz; for (let m = 0; m < n; m++) FZ[mem[m].i] -= gq[m][2] + gd[m][2]; } // (3-D: the slope in depth, 1.24)
     for (const q of XQ.pq) { if (q.n < 0.2) continue; const w = XQ_K * Math.min(q.n, 3) * (q.a.im + q.b.im); if (w > _stiff) _stiff = w; } // (a bond's stiffness, for the step: about 50 eV/Å² an order, O–H 49, C=O 75, C≡C 100)
   }
   return E;

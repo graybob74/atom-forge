@@ -174,15 +174,15 @@ async function stage3(page, clip, errors) {
   // what is not in 3-D yet is disabled, with a note
   const dis = await page.evaluate(() => {
     const t = (id) => { const b = document.querySelector(`.tool[data-tool="${id}"]`); return { no3d: b.classList.contains('no3d'), aria: b.getAttribute('aria-disabled'), title: b.title }; };
-    setTool('inspect'); setTool('magnet'); const still = UI.tool;
+    setTool('inspect'); setTool('objects'); const still = UI.tool;
     const pal = [...document.querySelectorAll('#palette .chip')].map(b => b.textContent.trim());
-    return { magnet: t('magnet'), objects: t('objects'), light: t('light'), place: t('place'), still, bSlider: $('bSlider').disabled, boxSlider: $('boxSlider').disabled, bo: [...$('segBo').querySelectorAll('button')].every(b => b.disabled), pi: [...$('segPi').querySelectorAll('button')].every(b => b.disabled),
-      wave: [...$('segWave').querySelectorAll('button')].every(b => b.disabled), qeq: [...$('segQeq').querySelectorAll('button')].every(b => b.disabled), ultra: $('setUltra').disabled, notes: ['fields3dNote', 'set3dNote', 'box3dNote'].every(id => !$(id).hidden),
+    return { magnet: t('magnet'), objects: t('objects'), light: t('light'), place: t('place'), still, bSlider: $('bSlider').disabled, boxSlider: $('boxSlider').disabled, bo: [...$('segBo').querySelectorAll('button')].map(b => b.disabled).join(), pi: [...$('segPi').querySelectorAll('button')].some(b => b.disabled),
+      wave: [...$('segWave').querySelectorAll('button')].some(b => b.disabled), qeq: [...$('segQeq').querySelectorAll('button')].some(b => b.disabled), ultra: $('setUltra').disabled, notes: ['fields3dNote', 'set3dNote', 'box3dNote'].every(id => !$(id).hidden),
       gamma: pal.some(x => /^γ/.test(x) || /Light ▾/.test(x)), antiP: pal.some(x => x === 'p̄'), pbarOK: spec3dOK({ kind: 'pbar' }), molOK: spec3dOK({ kind: 'mol', mol: 'H2O' }) };
   });
-  console.log(`  not in 3-D yet: Magnet ${dis.magnet.title}; Objects ${dis.objects.aria}; Light ${dis.light.no3d}; pressing Magnet leaves the tool ${dis.still}`);
-  check(['magnet', 'objects', 'light'].every(k => dis[k].no3d && dis[k].aria === 'true' && /Not in 3-D yet/.test(dis[k].title)) && !dis.place.no3d && dis.still === 'inspect' && dis.bSlider && dis.boxSlider && dis.bo && dis.pi && dis.wave && dis.qeq && dis.ultra && dis.notes && !dis.gamma && !dis.antiP && !dis.pbarOK && dis.molOK,
-    'what does not work in 3-D yet is disabled with "Not in 3-D yet": Magnet, Objects and Light, fields, the box size, the flat-only Experimental physics; light and antimatter are not in the particle bar', dis);
+  console.log(`  not in 3-D yet: Objects ${dis.objects.title}; pressing Objects leaves the tool ${dis.still}; Magnet ${dis.magnet.no3d}, Light ${dis.light.no3d} (1.24: in 3-D)`);
+  check(dis.objects.no3d && dis.objects.aria === 'true' && /Not in 3-D yet/.test(dis.objects.title) && !dis.magnet.no3d && !dis.light.no3d && !dis.place.no3d && dis.still === 'inspect' && !dis.bSlider && !dis.boxSlider && dis.bo === 'false,true,false' && !dis.pi && !dis.wave && !dis.qeq && !dis.ultra && dis.notes && dis.gamma && !dis.antiP && !dis.pbarOK && dis.molOK,
+    'what does not work in 3-D yet is disabled with "Not in 3-D yet": Objects, bond orders from the positions, antimatter in the particle bar; Magnet, Light, fields, the box size, light and the rest of the Experimental tab work (1.24)', dis);
 
   // saving: a 3-D world round-trips through the save format (z and vz to 1e-9), through a share code, undo and the autosave
   const sv = await page.evaluate(async () => {

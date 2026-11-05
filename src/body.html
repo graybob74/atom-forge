@@ -154,11 +154,15 @@
           <div class="row"><span>Electric field E</span><span class="val" id="eVal">0 V/Å</span></div>
           <input type="range" id="eSlider" min="0" max="300" step="1" value="0" aria-label="Electric field strength">
           <div class="seg" id="segEdir" role="group" aria-label="Electric field direction">
-            <button data-v="0">→</button><button data-v="90">↑</button><button data-v="180">←</button><button data-v="270">↓</button>
+            <button data-v="0">→</button><button data-v="90">↑</button><button data-v="180">←</button><button data-v="270">↓</button><button class="only3d" data-v="z" title="Along +z (3-D)">+z</button><button class="only3d" data-v="-z" title="Along −z (3-D)">−z</button>
+          </div>
+          <div class="row only3d"><span>B points along</span></div>
+          <div class="seg only3d" id="segBdir" role="group" aria-label="Magnetic field direction (3-D)">
+            <button data-v="x" title="The red axis">x</button><button data-v="y" title="The green axis (up)">y</button><button data-v="z" title="The blue axis">z</button>
           </div>
           <div class="row"><span id="magCount">No magnets placed</span><button class="btn small" id="bMagClear">Remove magnets</button></div>
-          <p class="note">Positive B points out of the screen (⊙). Charges curve; magnetic matter is pulled by gradients.</p>
-          <p class="note no3d" id="fields3dNote" hidden>Not in 3-D yet: fields and magnets work in the flat game only.</p>
+          <p class="note only2d">Positive B points out of the screen (⊙). Charges curve; magnetic matter is pulled by gradients.</p>
+          <p class="note" id="fields3dNote" hidden>In 3-D, B (the uniform field and every magnet's) points along the axis chosen above, positive along it; magnets are balls. The arrows in the corner show B and E.</p>
         </section>
 
         <section class="group">
@@ -176,7 +180,7 @@
           <div class="row"><span>Box size</span><span class="val"><span id="boxW"></span> × <span id="boxH"></span> Å</span></div>
           <input type="range" id="boxSlider" min="0" max="100" step="1" aria-label="Box size">
           <p class="note">20 Å to 2 µm. Growing is a free expansion; shrinking closes in like a piston (an insulated gas heats up).</p>
-          <p class="note no3d" id="box3dNote" hidden>Not in 3-D yet: a 3-D box keeps the size its setup gives it.</p>
+          <p class="note" id="box3dNote" hidden>In 3-D the slider scales width, height and depth together; the walls move in on all six faces.</p>
         </section>
 
         <section class="group">
@@ -410,7 +414,7 @@
         <section class="card warn">
           <h4>Honest approximations</h4>
           <ul>
-            <li><b>Two dimensions.</b> Densities, neighbour counts and the Maxwell–Boltzmann law are 2D, and van der Waals well depths are doubled to make up for the missing neighbours. Melting and boiling points are therefore only roughly right. Molecules are flat too: a tetrahedral carbon becomes a cross with 90° angles, and 3-D shapes such as the cyclohexane chair are pressed flat. The 3-D lab (main menu → 3-D, a preview) puts atoms and molecules in a cube instead, with their real 3-D angles, for chemistry, liquids and gases; nuclear physics, fields, light and chips are in the flat game only for now.</li>
+            <li><b>Two dimensions.</b> Densities, neighbour counts and the Maxwell–Boltzmann law are 2D, and van der Waals well depths are doubled to make up for the missing neighbours. Melting and boiling points are therefore only roughly right. Molecules are flat too: a tetrahedral carbon becomes a cross with 90° angles, and 3-D shapes such as the cyclohexane chair are pressed flat. The 3-D lab (main menu → 3-D, a preview) puts atoms and molecules in a cube instead, with their real 3-D angles, for chemistry, liquids and gases, with fields, magnets, light and unstable particles (pions, kaons, muons) too; nuclear reactions, the collider, placed objects and chips are in the flat game only for now.</li>
             <li><b>Ions in water pull twice as hard.</b> In a flat world an ion has about half the solvent around it that it has in space (3–4 water molecules against 6), and the solvent screens charge far less, so with the plain Coulomb force salt would never dissolve and an Na⁺ and a Cl⁻ in water would never part. The pull between a free ion and a polar molecule's partial charges is doubled to make up for it: an ion's shell then holds it about as strongly as real water does, a lone ion pair parts, and a crystal dissolves from its corners. Energy is conserved as before. A side effect: salts that barely dissolve in real water because their bonding is partly covalent (silver chloride) dissolve here like table salt.</li>
             <li><b>Electrons are not solved for as waves while atoms move.</b> Bound electrons are book-kept (shells, configurations, energies). The orbitals the Orbitals view draws come from that bookkeeping, with Slater's rules, which overestimate the size of heavy atoms' outer s orbitals, until the quantum solver has been run for a species; either way they are pictures and steer nothing. The solver includes relativity as an average over each orbital's two spin–orbit partners (gold's 6s comes out 8.3 eV deep against the measured 9.2 eV ionization energy, and 16% smaller than without it; without relativity it was 6.5 eV), but not the spin–orbit splitting itself nor the electrons' spins, and treats one atom at a time: real orbitals also mix into molecular orbitals when atoms bond, which nothing here computes, except Settings → Experimental → Bond orders → Quantum (GFN1-xTB), which works out the molecular orbitals of up to 40 atoms at every step. Free electrons are classical point charges, unless Settings → Experimental → Electrons as waves makes them wave packets (eFF: a size, a spin, the Pauli principle between them); even then a packet meets ions and atoms as a smeared charge, not as a solved wave.</li>
             <li><b>Rule-based chemistry.</b> A bond's energy depends on the element pair and bond order, not the rest of the molecule (every O–H bond is the same), so some reaction heats are off by tens of kJ/mol.</li>
@@ -620,7 +624,7 @@
     <section class="sgroup spane" data-stab="exp" hidden>
       <div class="exptot" id="expTotal"></div>
       <p class="note" id="expReset"><b>These go back to normal each time the game starts.</b></p>
-      <p class="note no3d" id="set3dNote" hidden>In the 3-D lab (a preview), induced charges, quantum nuclei, continuous and quantum bond orders, electrons as waves and the ultra-realistic mode are not available yet: they work in the flat game only.</p>
+      <p class="note no3d" id="set3dNote" hidden>In the 3-D lab (a preview), bond orders "From the positions" are not available yet (the flat game only); induced charges, quantum nuclei (their beads are not drawn in 3-D), quantum bonds, electrons as waves and the ultra-realistic mode work in 3-D too.</p>
       <p class="note">More accurate physics, at a price in speed. Each cost was measured in this game (one thread, liquid water unless it says otherwise; tools/accbench in the source): ×2 means the same moment takes twice as long to work out. The coloured tags beside settings in every tab show what each choice costs, green for little or nothing to red for a lot.</p>
       <h3>Shorter longest step</h3>
       <div class="srow"><span>Longest time step</span><div class="seg" id="segDtMax" role="group" aria-label="Longest time step"><button data-v="0.04">0.4 fs (normal)</button><button data-v="0.02">0.2 fs</button><button data-v="0.01">0.1 fs</button></div></div>
@@ -661,7 +665,7 @@
       <label class="check"><input type="checkbox" id="setAxes3"> Axis marker in the corner (which way x, y and z point)</label>
       <div class="srow"><span>Labels</span><div class="seg" id="segLbl3" role="group" aria-label="Labels in 3-D"><button data-v="front" title="Only on atoms no nearer atom covers">Front atoms only</button><button data-v="all" title="On every atom big enough to carry one, hidden ones too">All atoms</button></div></div>
       <h3>Turning the view</h3>
-      <p class="note" id="set3dKeys">Flying: <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move the camera forward, left, back and right, <kbd>E</kbd> and <kbd>Q</kbd> up and down (Space and Shift too while one of those is held; Space alone plays and pauses), at a speed that follows the zoom; turning afterwards circles the new place. In 3-D, Spark is <kbd>Z</kbd> and Erase <kbd>X</kbd>.</p>
+      <p class="note" id="set3dKeys">Flying: <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move the camera forward, left, back and right, <kbd>E</kbd> and <kbd>Q</kbd> up and down (Space and Shift too while one of those is held; Space alone plays and pauses), at a speed that follows the zoom; turning afterwards circles the new place. In 3-D, Spark is <kbd>Z</kbd> and Erase <kbd>X</kbd>. <kbd>Shift</kbd> + wheel moves the placing plane farther or nearer; a click with Fire shoots from the camera.</p>
       <div class="srow"><span>Orbit speed</span><div class="seg" id="segOrbit3" role="group" aria-label="Orbit speed"><button data-v="0.5">Slow</button><button data-v="1">Normal</button><button data-v="2">Fast</button></div></div>
       <label class="check"><input type="checkbox" id="setOrbitInv"> Invert orbit: a drag moves the camera the other way</label>
       <div class="srow"><span>Turntable</span><div class="seg" id="segSpin3" role="group" aria-label="Turntable"><button data-v="0">Off</button><button data-v="6" title="One turn a minute">Slow</button><button data-v="18" title="One turn in 20 seconds">Faster</button></div></div>
@@ -725,6 +729,7 @@
       <ul>
         <li>Mouse: scroll to zoom, drag with the right button (or Space held) to move. Touch: pinch to zoom, two fingers to move, a tap to use the tool.</li>
         <li>In the 3-D lab: right-drag, Alt+drag or the arrow keys turn the view, Shift+right-drag moves it, the wheel zooms, 0 fits the box. <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> fly the camera through the world (forward, left, back, right), <kbd>E</kbd> and <kbd>Q</kbd> up and down (Space and Shift too while flying; Space alone still pauses), faster the further out you are; turning afterwards circles the new place. There Spark is <kbd>Z</kbd> and Erase <kbd>X</kbd>.</li>
+        <li>Placing in 3-D: things go on the placing plane facing you, drawn as a faint grid where it cuts the box, with a ghost of the item and a line down to the floor; <kbd>Shift</kbd> + wheel (or Place's Depth slider) moves it farther or nearer. Over an atom, they go against its near side. Fire: a click shoots from the camera toward the pointer, straight at an atom under it; a drag aims in the plane facing you.</li>
         <li>Time: slower and faster down to 1/512×, slow motion on demand (the hourglass), one frame at a time (.), and ⟲ to rewind the last minute or so. <kbd>Ctrl+Z</kbd> undoes.</li>
       </ul>
       <h4>Keeping and sharing</h4>
@@ -778,7 +783,7 @@
       <button class="btn primary" data-mm="continue" id="mmContinue3">Continue</button>
       <div class="mm-btns mm-set3" id="mmList3"></div>
       <div class="mm-row"><button class="btn" data-mm="gallery">Gallery</button><button class="btn" data-mm="settings3">Settings</button><button class="btn" data-mm="help">Help</button></div>
-      <p class="mm-note3d">The 3-D mode is a preview: right-drag, Alt+drag or the arrow keys turn the view, the wheel zooms, W A S D fly (E and Q up and down), 0 fits the box. Fields, magnets, light, nuclear physics and chips stay in the 2-D game for now.</p>
+      <p class="mm-note3d">The 3-D mode is a preview: right-drag, Alt+drag or the arrow keys turn the view, the wheel zooms, W A S D fly (E and Q up and down), 0 fits the box. Fields, magnets, light and unstable particles work in 3-D too; nuclear reactions, the collider, placed objects and chips stay in the 2-D game for now.</p>
     </div>
     <div class="mm-setups" id="mmSetups" hidden><button class="btn small" data-mm="back">← Back</button><div class="mm-list" id="mmList"></div></div>
     <p class="mm-note" id="mmNote"></p>
