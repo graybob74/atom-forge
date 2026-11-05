@@ -183,7 +183,8 @@ engine stores and visits particles.
   lattice constant, elastic constants and vacancy energy; metal–non-metal pairs (oxides, hydrides, complexes) the hard
   part. Would replace the game's metallic cohesion for member metals, so surfaces, clusters, melting and alloys come out
   of one model. Several sessions; a physics-model change for the owner to approve.
-- Asked by the user after 1.23.1 (collected; wait for "build it"):
+- Asked by the user after 1.23.1 (collected; wait for "build it"). The user: "this should be 1.23.2" (with the fixes
+  already in the 1.23.2 section), "and for 1.24 add the rest of the experimental options to 3d". For 1.23.2:
   - 3-D ions: "ions should be modeled differently in 3d because when they get bigger it overlaps with other
     particles". Measured on 1.23.1 (brine3d, 800 steps, atom size 1): no ion's drawn ball overlaps a neighbour's
     (closest Na⁺–O 1.89 Å against 1.10 drawn, Cl⁻–H 1.73 against 1.47), but Na⁺–O comes closer than real (~2.4 Å),
@@ -193,6 +194,13 @@ engine stores and visits particles.
     up and down, speed by the zoom).
   - Move Ultra-realistic mode into the Experimental tab (it then goes back to normal at every start, 1.23.1).
   - 3-D tiny objects (the Objects library: the flat game's tiny objects as 3-D builds in the 3-D lab).
+  - Separate molecule libraries for 2-D and 3-D, each holding only the molecules that fit it (flat builds in the flat
+    game, 3-D shapes in the 3-D lab). Molecules made with Ask Claude go to the library of the mode they were made
+    for, with a 2-D / 3-D drop-down when building one with Claude.
+  For 1.24:
+  - The rest of the Experimental settings in 3-D: induced charges, quantum nuclei, continuous and quantum bond orders,
+    electrons as waves, the ultra-realistic mode (today flat only, set3dNote). Physics in 3-D; needs his OK as each
+    lands, with its energy and cost measured.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
@@ -215,7 +223,7 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## Next (after 1.23.1, in progress)
+## 1.23.2 (in progress)
 
 - The "realistic" tag (1.12) was missing on three Experimental choices that were added later: bond orders (now on
   Quantum, the bonds from the electrons), bead forces (on Every bead, the exact path integral) and free electrons (on
