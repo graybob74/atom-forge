@@ -776,6 +776,7 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .sbox > .stabs { position: sticky; top: 0; z-index: 3; background: var(--surface); padding-top: 8px; }
 .sbox .spane > .srow, .sbox .spane > label.check { margin-inline: -8px; padding: 3px 8px; border-radius: 8px; transition: background 0.12s; }
 .sbox .spane > .sprev-on { background: var(--accent-soft); }
+.sbox .spane > p.sdn, .sbox .spane > p.sintro { display: none; } /* (a setting's description is in the preview pane beside the list, not under it too, 1.25) */
 @media (max-width: 760px), (max-height: 560px) {
   #setModal > .sdialog { height: 100%; }
   .sbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
@@ -783,7 +784,8 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
   .sprev-txt { height: 100%; }
   .sprev h3 { font-size: 14px; margin-bottom: 2px; }
   .sprev-d p, .sprev-d p.note, .sprev-d ul { font-size: 12px; margin-bottom: 4px; }
-  .sbox { padding-inline: 12px; }
+  .sbox, .sbox > .sgroup { grid-template-columns: minmax(0, 1fr); } .sbox { padding-inline: 12px; } .sbox .spane > label.check { flex-wrap: wrap; } /* (one column as wide as the box: at 390 px the tabs' row widened it to 412 px and every description ran off the right edge, 1.25) */
+  .sbox .spane > p.sdn, .sbox .spane > p.sintro { display: block; } .sprev-notes { display: none; } /* (stacked, the pane is a short strip: the long descriptions stay in the list, 1.25) */
 }
 @media (max-width: 420px) { .sprev { grid-template-columns: 96px minmax(0, 1fr); height: 84px; } }
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }
@@ -1509,11 +1511,9 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <div class="srow"><span>Speed test</span><button class="btn small" id="setBench">Run benchmark</button></div>
       <p class="note" id="setBenchOut" aria-live="polite"></p>
       <p class="note" id="setStats" aria-live="polite"></p>
-      <p class="note">More physics per frame runs the simulation faster at the cost of smoothness. The place tool offers 100 at a click once the limit is 8,000 or more.</p>
     </section>
     <section class="sgroup spane" data-stab="gfx" hidden>
       <div class="srow"><span>Frame-rate cap</span><div class="seg" id="segFpsCap" role="group" aria-label="Frame-rate cap"><button data-v="0" title="As often as the monitor refreshes">Monitor</button><button data-v="30">30</button><button data-v="60">60</button><button data-v="120">120</button><button data-v="144">144</button></div></div>
-      <p class="note">Fewer frames leave more of each second for the physics in a crowded box, and run the graphics card cooler. A browser cannot draw faster than the monitor refreshes.</p>
       <div class="srow"><span>Atom size</span><div class="seg" id="segAtom" role="group" aria-label="Atom size"><button data-v="1" title="Atoms as big as they are: touching in a liquid or solid">True size</button><button data-v="0.7">Smaller</button><button data-v="0.45" title="Small balls: see past them in a crowded box">Small</button></div></div>
       <div class="srow"><span>Labels</span><div class="seg" id="segLabels" role="group" aria-label="Labels"><button data-v="always">Always</button><button data-v="hover" title="Only on the atom under the mouse and the one inspected">On hover</button><button data-v="never">Never</button></div></div>
       <div class="srow"><span>Charge badges</span><div class="seg" id="segBadges" role="group" aria-label="Charge badges"><button data-v="always">Always</button><button data-v="hover">On hover</button><button data-v="never">Never</button></div></div>
@@ -1531,7 +1531,6 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <div class="srow"><span>Interface size</span><div class="seg" id="segUi" role="group" aria-label="Interface size"><button data-v="0.9">90%</button><button data-v="1">100%</button><button data-v="1.1">110%</button><button data-v="1.25">125%</button><button data-v="1.5">150%</button></div></div>
       <div class="srow"><span>Lab panel</span><div class="seg" id="segSide" role="group" aria-label="Lab panel"><button data-v="right">On the right</button><button data-v="left">On the left</button></div></div>
       <div class="srow"><span>Panel width</span><span><span class="note" id="setPw"></span> <button class="btn small" id="setPwReset">Reset</button></span></div>
-      <p class="note">Drag the panel's inner edge to make it wider or narrower.</p>
       <label class="check"><input type="checkbox" id="setMotion"> Interface animations: buttons, sliders, tabs and menus that move</label>
       <div class="srow"><span>Theme</span><div class="seg" id="segTheme" role="group" aria-label="Theme"><button data-v="system">System</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div></div>
       <p class="note" id="setWinNote">The desktop app remembers its window: size, position and which monitor, and whether it was full screen.</p>
@@ -1551,7 +1550,6 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <label class="check"><input type="checkbox" id="setAutosave"> Keep the chamber as it is when I leave (Continue in the main menu)</label>
       <div class="srow"><span>Temperatures in</span><div class="seg" id="segTUnit" role="group" aria-label="Temperature unit"><button data-v="K">kelvin</button><button data-v="C">°C</button><button data-v="F">°F</button></div></div>
       <div class="srow"><span>Energies in</span><div class="seg" id="segEUnit" role="group" aria-label="Energies in"><button data-v="eV">eV</button><button data-v="kJ">kJ/mol</button><button data-v="kcal">kcal/mol</button></div></div>
-      <p class="note">kJ/mol and kcal/mol for chemistry: energies of 1 keV and up stay in eV.</p>
       <div class="srow"><span>Lengths in</span><div class="seg" id="segLUnit" role="group" aria-label="Lengths in"><button data-v="A">Å</button><button data-v="nm">nm</button><button data-v="pm">pm</button></div></div>
       <label class="check"><input type="checkbox" id="setTips"> A tip for each setup</label>
       <label class="check"><input type="checkbox" id="setSlow"> Slow motion for nuclear events</label>
@@ -1560,7 +1558,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <div class="srow"><span>How far back</span><div class="seg" id="segRewSpan" role="group" aria-label="How far back"><button data-v="30">30 s</button><button data-v="60">1 min</button><button data-v="120">2 min</button><button data-v="300">5 min</button></div></div>
       <div class="srow"><span>A snapshot every</span><div class="seg" id="segRewEvery" role="group" aria-label="A snapshot every"><button data-v="0.25">¼ s</button><button data-v="0.5">½ s</button><button data-v="1">1 s</button><button data-v="2">2 s</button></div></div>
       <div class="srow"><span>Memory, at most</span><div class="seg" id="segRewMem" role="group" aria-label="Memory for rewind"><button data-v="100">100 MB</button><button data-v="250">250 MB</button><button data-v="500">500 MB</button><button data-v="1000">1 GB</button></div></div>
-      <p class="note" id="setRewNote"></p>
+      <p class="note" id="setRewNote" aria-live="polite"></p>
       <h3>Help</h3>
       <div class="srow"><span>A short tour of the controls</span><button class="btn small" id="setTour">Show the tour</button></div>
       <h3>Kept in this browser</h3>
@@ -1573,7 +1571,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <div class="exptot" id="expTotal"></div>
       <p class="note" id="expReset"><b>These go back to normal each time the game starts.</b></p>
       <p class="note no3d" id="set3dNote" hidden>In the 3-D lab (a preview), bond orders "From the positions" are not available yet (the flat game only); induced charges, quantum nuclei (their beads are not drawn in 3-D), quantum bonds, electrons as waves and the ultra-realistic mode work in 3-D too.</p>
-      <p class="note">More accurate physics, at a price in speed. Each cost was measured in this game (one thread, liquid water unless it says otherwise; tools/accbench in the source): ×2 means the same moment takes twice as long to work out. The coloured tags beside settings in every tab show what each choice costs, green for little or nothing to red for a lot.</p>
+      <p class="note sintro">More accurate physics, at a price in speed. Each cost was measured in this game (one thread, liquid water unless it says otherwise; tools/accbench in the source): ×2 means the same moment takes twice as long to work out. The coloured tags beside settings in every tab show what each choice costs, green for little or nothing to red for a lot.</p>
       <h3>Shorter longest step</h3>
       <div class="srow"><span>Longest time step</span><div class="seg" id="segDtMax" role="group" aria-label="Longest time step"><button data-v="0.04">0.4 fs (normal)</button><button data-v="0.02">0.2 fs</button><button data-v="0.01">0.1 fs</button></div></div>
       <p class="note">Calm matter is moved on in steps of 0.4 fs (busy scenes already take shorter ones). Shorter steps keep the energy books a little more exact: liquid water drifts 0.07 eV/ps at 0.2 fs and 0.06 at 0.1 fs, against 0.17; salt water −0.44 and −0.22 against −0.56. Costs ×1.6–1.8 and ×2.6–2.9 where the steps are at their longest; nothing in hot plasmas and ionized water, whose steps are shorter anyway.</p>
@@ -1605,7 +1603,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <p class="note">(Moved here from General in 1.23.2: like the rest of this tab it is off again each time the game starts.) Nuclei are drawn and hit at their true size, about 1/100,000 of their atom (a dot of one pixel marks where a bare nucleus or a free electron is), so beams almost never hit anything and fusion and nuclear reactions are rare; slow neutrons are still caught, as their wavelength is large. Decays run at their real rates, with nothing sped up or held back to be seen. You can zoom in 100,000 times further, far enough to see a nucleus inside its atom, and slow time down to a yoctosecond (10⁻²⁴ s) a second, slow enough to watch a φ meson (1.5×10⁻²² s) live and decay.</p>
     </section>
     <section class="sgroup spane" data-stab="d3" hidden>
-      <p class="note">These change how the 3-D lab looks and turns (main menu → 3-D). They apply in the 3-D mode only; the flat game is not affected.</p>
+      <p class="note sintro">These change how the 3-D lab looks and turns (main menu → 3-D). They apply in the 3-D mode only; the flat game is not affected.</p>
       <div class="srow"><span>Field of view</span><div class="seg" id="segFov3" role="group" aria-label="Field of view"><button data-v="30" title="Narrow: less perspective, like a long lens">30°</button><button data-v="40">40°</button><button data-v="55">55°</button><button data-v="70" title="Wide: strong perspective, near atoms loom large">70°</button></div></div>
       <div class="srow"><span>Projection</span><div class="seg" id="segProj3" role="group" aria-label="Projection"><button data-v="persp" title="Far things look smaller, as the eye sees them">Perspective</button><button data-v="ortho" title="Everything at its true size whatever its depth: parallel edges stay parallel">Orthographic</button></div></div>
       <div class="srow"><span>Depth fog</span><div class="seg" id="segFog3" role="group" aria-label="Depth fog"><button data-v="off">Off</button><button data-v="low">Low</button><button data-v="normal">Normal</button><button data-v="high">High</button></div></div>
@@ -33662,11 +33660,11 @@ const STAB_DESC = {
   gen: ['General', 'What opens at start, the units the readouts use, rewind, the tour, and what this browser keeps.'],
   d3: ['3-D', 'How the 3-D lab looks and turns: the camera’s lens and projection, fog with depth, the box, the axis marker, labels and a slow turntable; and the keys that fly the camera (W A S D, E and Q). They apply in the 3-D mode only.'],
   ai: ['Claude', 'Access to Claude for Ask Claude and Identify molecules, where this page has none of its own.'],
-  exp: ['Experimental', 'More accurate physics, at a price in speed, and the ultra-realistic mode; all back to normal each time the game starts. Every cost was measured in this game: ×2 means the same moment takes twice as long to work out. The box at the top multiplies the chosen costs together.'],
+  exp: ['Experimental', 'More accurate physics, at a price in speed, and the ultra-realistic mode; all back to normal each time the game starts. Every cost was measured in this game (one thread, liquid water unless it says otherwise; tools/accbench in the source): ×2 means the same moment takes twice as long to work out. The coloured tags beside settings in every tab show what each choice costs, green for little or nothing to red for a lot; the box at the top multiplies the chosen costs together.'],
 };
 const SDESC = {
   // Performance
-  segMax: ['Particle limit', 'The most particles the chamber holds. The limit itself costs nothing; a box filled to it takes longer to work out each step.'],
+  segMax: ['Particle limit', 'The most particles the chamber holds. The limit itself costs nothing; a box filled to it takes longer to work out each step. The Place tool offers 100 at a click once the limit is 8,000 or more.'],
   segRes: ['Drawing resolution', 'How many pixels the chamber is drawn with. Sharp uses the screen’s full resolution; Standard and Fast draw fewer pixels, quicker on big or high-density screens.'],
   setPrio: ['Priority', 'Smooth keeps the frame rate up; Fast lets the physics take more of each frame, so the simulation runs faster but the picture may stutter. Auto picks the position from how this setup runs.'],
   segBudget: ['Physics per frame', 'The time each frame may spend on physics. More runs the simulation faster when the box is busy, at the cost of fewer frames a second.'],
@@ -33674,7 +33672,7 @@ const SDESC = {
   segGl: ['Drawing engine', 'WebGL draws the atoms and bonds on the graphics card. Canvas 2D draws everything on the processor, slower with thousands of atoms; use it only if WebGL misbehaves.'],
   setBench: ['Speed test', 'Builds four reference worlds, times a step of each and a second of real frames under the settings as they are, and says where the time goes. It replaces the current setup while it runs.'],
   // Graphics
-  segFpsCap: ['Frame-rate cap', 'At most this many frames a second. Fewer frames leave more time for physics and run the graphics card cooler.'],
+  segFpsCap: ['Frame-rate cap', 'At most this many frames a second. Fewer frames leave more of each second for the physics in a crowded box, and run the graphics card cooler. A browser cannot draw faster than the monitor refreshes.'],
   segAtom: ['Atom size', 'True size draws atoms as big as they are, touching in a liquid or solid. Smaller and Small shrink the balls so you can see past them into a crowded box.'],
   segLabels: ['Labels', 'The element symbol on each atom: on every atom, only on the one under the mouse and the one inspected, or never.'],
   segBadges: ['Charge badges', 'The small + or − badge on each ion: always, only on hover, or never.'],
@@ -33777,10 +33775,9 @@ function setPrevShow(key, opt) {
       : [`<li><span class="oc c${costLevel(c.on[0])}">${esc('on ' + c.on[0])}</span> ${esc(c.on[1])}</li>`];
     h += `<h4>Cost: ${esc((COST_K[c.k] || c.k).toLowerCase())}${c.t ? ' (' + esc(c.t.toLowerCase()) + ')' : ''}</h4><ul class="sprev-cost">${items.join('')}</ul>`;
   }
-  for (let n = row && row.nextElementSibling; n && n.classList.contains('note'); n = n.nextElementSibling) { // the notes printed under it
-    if (n.hidden || n.id === 'setBenchOut' || n.id === 'setStats' || !n.textContent.trim()) continue;
-    h += `<p class="note">${esc(n.textContent.trim())}</p>`;
-  }
+  let nt = ''; // the row's description notes (.sdn): shown here only, beside the list; on a narrow screen they stay in the list and not here (1.25)
+  for (let n = row && row.nextElementSibling; n && n.classList.contains('note'); n = n.nextElementSibling) if (n.classList.contains('sdn') && !n.hidden && n.textContent.trim()) nt += `<p class="note">${esc(n.textContent.trim())}</p>`;
+  if (nt) h += `<div class="sprev-notes">${nt}</div>`;
   $('setPrevT').textContent = D ? D[0] : (row ? row.textContent.trim().slice(0, 40) : key);
   $('setPrevD').innerHTML = h; $('setPrevD').scrollTop = 0;
 }
@@ -33790,7 +33787,10 @@ function setPrevFrom(t) {
   setPrevShow(setRowKey(row), b ? b.dataset.v : null);
 }
 function setPrevInit() {
-  for (const r of setRows()) setRowKey(r);
+  for (const r of setRows()) { // (a row's notes are descriptions (.sdn), shown in the preview pane only, but its live readouts (aria-live: priority, threads, the speed test, rewind's use) stay under it; the owner: "it repeats the description in the settings menu, but it's supposed to be in the sidebar only", 1.25)
+    setRowKey(r);
+    for (let n = r.nextElementSibling; n && n.classList.contains('note'); n = n.nextElementSibling) if (!n.hasAttribute('aria-live')) n.classList.add('sdn');
+  }
   const box = document.querySelector('#setModal .sbox');
   box.addEventListener('pointerover', (e) => { if (e.pointerType !== 'touch') setPrevFrom(e.target); });
   box.addEventListener('pointerdown', (e) => setPrevFrom(e.target)); // (a tap on touch)
