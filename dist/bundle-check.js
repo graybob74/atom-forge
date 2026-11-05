@@ -4229,6 +4229,7 @@ function localPE(set, skip) {
   }
   if (WAVE.n) V += waveLocal(set, skip); // (electrons as waves: the packets' share with these ions, 1.15)
   if (MBO.on) V += mbLocal(set); // (metals' many-body energy, 1.25)
+  if (SITES.any) V += sitesLocal(set, skip); // (off-atom charge sites, 1.26)
   if (_lrOn) { // exact long-range Coulomb between net charges beyond the cutoff (as in computeForces)
     for (const p of set) {
       if (p.k !== NUC || p.dead || p.fast || p.rad || !isLR(p)) continue;
@@ -5293,6 +5294,7 @@ function computeForces1() {
   const d3 = W.d3;
   if (d3) { nucleusPairs3(wrap, bw, bh, hw, hh); if (AC3.ns) tors1Forces3(S.fx, S.fy, S.fz); } // (3-D: the kernels; then the single bonds' twist, 1.25)
   else nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
+  if (SITES.any) sitesForces(S.fx, S.fy, S.fz); // (Experimental: off-atom charge sites, 1.26: sites.js)
   if (_profOn) tp = performance.now();
   if (nmdL && d3) leptonPairs3(); // (3-D)
   else if (nmdL) { // pairs with a free lepton in them, from the inner steps' list
@@ -6964,7 +6966,7 @@ function pairPE(a, b) {
   const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z), r2 = dx * dx + dy * dy + dz * dz;
   let V = 0;
   if (r2 < RC2) {
-    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom)) V += nucPairV(a, b, r2); }
+    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom)) V += nucPairV(a, b, r2); if (SITES.any) V += sitesPairE(a, b); } // (off-atom charge sites, 1.26)
     else if (a.k === NUC || b.k === NUC) {
       const A = a.k === NUC ? a : b, L = A === a ? b : a, qa = A.q;
       if (qa) V += PHYS.KE * L.q * qa * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN));
@@ -10375,6 +10377,7 @@ function qeqUpdate() {
   let S0 = 0; for (const m of list) for (const p of m) S0 += qeqSelf(p);
   // φ = ∂U/∂q at each atom, from the charges as they are, plus the applied field's −E·r; then each molecule's charges
   for (let k = 0; k < np; k++) { const a = PA[k], b = PB[k], c = PC[k]; if (mark[a]) phi[a] += c * (Q[b] + QP[b]); if (mark[b]) phi[b] += c * (Q[a] + QP[a]); }
+  const sE0 = SITES.any ? sitesQeq(mark, phi) : 0; // (off-atom charge sites, 1.26: their share of φ, and of the energy before)
   const old = new Float64Array(nIn); let o = 0;
   for (const m of list) {
     let sw = 0, sp = 0; for (const p of m) { old[o++] = p.qp; const w = 1 / (QEQ.kappa * qeqHard(p)); sw += w; sp += w * phi[p.i]; }
@@ -10386,6 +10389,7 @@ function qeqUpdate() {
   // the exact change of the potential energy: the pairs' Coulomb parts and the polarization energy
   let dU = -S0; for (const m of list) for (const p of m) dU += qeqSelf(p);
   for (let k = 0; k < np; k++) { const a = PA[k], b = PB[k]; dU += PC[k] * ((Q[a] + QP[a]) * (Q[b] + QP[b]) - Q0[k]); }
+  if (SITES.any) dU += sitesQeqE() - sE0;
   // the molecules' own motion pays for it, about their centre of mass
   const VX = S.vx, VY = S.vy, VZ = S.vz, M = S.m;
   let M0 = 0, Px = 0, Py = 0, Pz = 0; for (const m of list) for (const p of m) { const i = p.i; M0 += M[i]; Px += M[i] * VX[i]; Py += M[i] * VY[i]; if (d3) Pz += M[i] * VZ[i]; }
@@ -11158,6 +11162,7 @@ function totalEnergy0() {
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
   pe += boE;
   if (MBO.on) pe += mbPass(false); // (metals' many-body energy, 1.25)
+  if (SITES.any) pe += sitesTotal(); // (off-atom charge sites, 1.26)
   if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls
@@ -17956,6 +17961,353 @@ function mbSet(v) {
   if (mets.size) { const Ea = localPE(mets); W.ledger.bath += Eb - Ea; MBO.bath += Eb - Ea; }
   MBO.any = on && [...mets].some(p => mbIs(p.i));
 }
+
+/* ---- sites.js ---- */
+/* ---- Experimental: directional forces from off-atom charge sites (1.26; Settings → Experimental). A site is a point
+   that carries part of an atom's charge, placed from the atom and its bonded neighbours, so the molecule's charge has a
+   shape a point charge per atom cannot give:
+   - Lone pairs (SITES.lp, 3-D): an sp³ oxygen with two single bonds (water, alcohols, ethers, peroxides) puts its partial
+     charge on two lone pairs at the tetrahedral directions, LP_O.d from the nucleus (as the TIP5P water model does); an
+     sp³ nitrogen with three single bonds (ammonia, amines) on one, along its pyramid's axis. Hydrogen bonds then point
+     where the lone pairs are: water's network comes out tetrahedral.
+   - σ-holes (SITES.sh, both modes): a chlorine, bromine or iodine with one bond (to carbon or to another halogen) has a
+     small positive site on the far side of its bond, with the same charge taken off the atom (its belt more negative), as
+     force fields' "extra point" models do: halogen bonds C–X···N point straight along the C–X axis.
+   - π clouds (SITES.pi, 3-D): an aromatic carbon puts a negative site above and below the ring (PI_S.d along the ring's
+     normal), the same charge added to the carbon: benzene's quadrupole, so rings stack offset or T-shaped, not face to face.
+   Between atoms of different molecules within the cutoff only (a molecule's own atoms keep their point charges): each
+   pair's Coulomb energy, worked out between the two charge sets (the atom with what it keeps, and its sites), replaces
+   the pair kernel's atom-to-atom one, faded back to it between RC − SW_W and RC (a smooth step on the atoms' distance,
+   so nothing jumps at the cutoff; sums of charges are kept, so the shift to zero at the cutoff is the same). The same
+   soft Coulomb (1/√(r² + 0.09)) and ion–molecule weight (iwK) as the kernel. A correction added after the kernels on the
+   main thread (the WebAssembly kernel and the workers are untouched): sitesForces in the force pass, sitesLocal in
+   localPE (events), sitesTotal in totalEnergy, sitesPairE in pairPE, and the induced charges' φ and energy change
+   (qeqUpdate) see it. Off: nothing runs (SITES.any false), the game bit for bit as before. */
+const SITES = { lp: 0, sh: 0, pi: 0, any: false, n: 0, rings: 0, pairs: 0, bath: 0, soft: 0.09 }; // (soft: the softening (Å²) of a site's Coulomb: a lone pair or a π cloud is a spread of charge, not a point)
+const LP_O = { d: 0.70, a: 54.7356, f: 0.5, m: 0, fm: 0 }, LP_N = { d: 0.30, f: 0.4 }; // (d Å from the nucleus; f: the share of the atom's partial charge the lone pairs carry)
+const LP_NS = 1.116; // (|û₁ + û₂ + û₃| for ammonia's 107°: the N site sits LP_N.d out along the axis there, nearer as the pyramid flattens)
+const SH = { 17: [1.60, 0.10], 35: [1.90, 0.085], 53: [2.20, 0.08] }; // (σ-hole site: [distance from the halogen, Å, as force fields' extra points; charge, e, fitted on CH₃X···NH₃, 1.26])
+const PI_S = { d: 0.70, q: 0.07 }; // (π sites: distance from the ring's plane, Å; charge of each, e)
+/* π-stacking's dispersion (with SITES.pi): between ring atoms of two aromatic molecules (an aromatic carbon, a hydrogen on
+   one) the pair kernel's Lennard-Jones (UFF, doubled for the flat world's cohesion, LJ_SCALE) is replaced by OPLS-AA's
+   aromatic one (Jorgensen and Severance 1990: C σ 3.55 Å, ε 0.070 kcal/mol; H σ 2.42 Å, ε 0.030; geometric means), faded
+   out with the sites' step before the cutoff; inside the kernel's inner wall (0.62 rm) the difference goes on straight,
+   so the kernel's core is kept. PIJ: [rm Å, ε eV] by Z. */
+const PIJ = { 6: [3.985, 1.4 * 0.070 / 23.0605], 1: [2.716, 0.030 / 23.0605] }; // (the carbons' ε 1.4 times OPLS's: fitted with the π sites' charge on the benzene dimer's three shapes, 1.26)
+const SW_W = 1.0, SOFT_S = 0.09; // (the fade's width before the cutoff, Å; the kernel's softening, Å²)
+function sitesSet(kind, on) {
+  const was = SITES.lp + ',' + SITES.sh + ',' + SITES.pi, live = W.parts && W.parts.length;
+  const Eb = live && SITES.any ? sitesTotal() : 0;
+  if (typeof kind === 'number') { SITES.lp = kind ? 1 : 0; SITES.sh = kind ? 1 : 0; SITES.pi = kind ? 1 : 0; } // (tests: all three)
+  else SITES[kind] = on ? 1 : 0;
+  SITES.any = !!(SITES.lp || SITES.sh || SITES.pi); SD.key = '';
+  if (!live || was === SITES.lp + ',' + SITES.sh + ',' + SITES.pi) return;
+  const Ea = SITES.any ? sitesTotal() : 0;
+  W.ledger.bath += Eb - Ea; SITES.bath += Eb - Ea; // (switched with molecules in the box: the energy difference is booked to the heat bath, as the other Experimental models do)
+  W.fSpawn = -1; // (the forces again before the next step)
+}
+/* An atom's sites now (live: from its bonds and its neighbours' positions), into out: ns sites at offsets o (from the
+   atom), charges sq (each = w·qa + b), the atom keeping aq; with w and b for the induced charges' φ. 0 if it has none. */
+const _sg = { ns: 0, o: new Float64Array(9), sq: new Float64Array(3), w: new Float64Array(3), b: new Float64Array(3), aq: 0, aw: 1, ab: 0, kind: 0 };
+function siteKind(p) {
+  if (p.k !== NUC || p.Z === 0 || p.ne === 0 || p.dead || p.fast || p.rad || p.anti || p.bom || p.q !== 0) return 0;
+  const n = p.bonds.length, Z = p.Z;
+  if (SITES.lp && W.d3 && (Z === 8 || Z === 7)) {
+    if (n !== (Z === 8 ? 2 : 3)) return 0;
+    for (const bd of p.bonds) if (bd.order !== 1 || bd.arom) return 0;
+    return Z === 8 ? 1 : 2;
+  }
+  if (SITES.sh && SH[Z] && n === 1) {
+    const bd = p.bonds[0], o = other(bd, p);
+    if (bd.order !== 1 || bd.arom || !(o.Z === 6 || SH[o.Z] || o.Z === 9)) return 0;
+    return 3;
+  }
+  if (SITES.pi && W.d3 && Z === 6 && n === 3) { for (const bd of p.bonds) if (bd.arom) return 4; }
+  return 0;
+}
+const _sv = new Float64Array(9), _su = new Float64Array(9), _sr = new Float64Array(3);
+function siteVecs(p, n) { // bond vectors to the neighbours (minimum image), their lengths and unit vectors
+  for (let k = 0; k < n; k++) {
+    const o = other(p.bonds[k], p);
+    let dx = o.x - p.x, dy = o.y - p.y, dz = W.d3 ? o.z - p.z : 0;
+    if (W.wall === 'wrap') { const bw = W.box.w, bh = W.box.h; if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw; if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh; if (W.d3) { const bd = W.box.d; if (dz > bd / 2) dz -= bd; else if (dz < -bd / 2) dz += bd; } }
+    const r = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-9;
+    _sv[3 * k] = dx; _sv[3 * k + 1] = dy; _sv[3 * k + 2] = dz; _sr[k] = r; _su[3 * k] = dx / r; _su[3 * k + 1] = dy / r; _su[3 * k + 2] = dz / r;
+  }
+}
+function siteGeom(p, out) {
+  const kind = siteKind(p); out.kind = kind; out.ns = 0;
+  if (!kind) return 0;
+  const qa = p.q + p.qp, o = out.o;
+  if (kind === 1) { // O: two lone pairs, d(cos α b̂ ± sin α n̂), b̂ = −(û₁+û₂)/|…|, n̂ = û₁×û₂/|…|
+    siteVecs(p, 2);
+    const sx = _su[0] + _su[3], sy = _su[1] + _su[4], sz = _su[2] + _su[5], sl = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1e-9;
+    const cx = _su[1] * _su[5] - _su[2] * _su[4], cy = _su[2] * _su[3] - _su[0] * _su[5], cz = _su[0] * _su[4] - _su[1] * _su[3], cl = Math.sqrt(cx * cx + cy * cy + cz * cz) || 1e-9;
+    const ca = Math.cos(LP_O.a * Math.PI / 180), sa = Math.sin(LP_O.a * Math.PI / 180), a = -LP_O.d * ca / sl, b = LP_O.d * sa / cl, m = LP_O.m / sl;
+    o[0] = a * sx + b * cx; o[1] = a * sy + b * cy; o[2] = a * sz + b * cz;
+    o[3] = a * sx - b * cx; o[4] = a * sy - b * cy; o[5] = a * sz - b * cz;
+    o[6] = m * sx; o[7] = m * sy; o[8] = m * sz; // (M: toward the hydrogens, as TIP4P's; it keeps the molecule's dipole)
+    out.ns = LP_O.fm ? 3 : 2; const w = LP_O.f / 2; out.w[0] = out.w[1] = w; out.w[2] = LP_O.fm; out.b[0] = out.b[1] = out.b[2] = 0; out.aw = 1 - LP_O.f - LP_O.fm; out.ab = 0;
+  } else if (kind === 2) { // N: one lone pair, −(d/LP_NS)(û₁+û₂+û₃)
+    siteVecs(p, 3);
+    const k = -LP_N.d / LP_NS;
+    o[0] = k * (_su[0] + _su[3] + _su[6]); o[1] = k * (_su[1] + _su[4] + _su[7]); o[2] = k * (_su[2] + _su[5] + _su[8]);
+    out.ns = 1; out.w[0] = LP_N.f; out.b[0] = 0; out.aw = 1 - LP_N.f; out.ab = 0;
+  } else if (kind === 3) { // halogen: +q at d beyond the atom, along the bond
+    siteVecs(p, 1);
+    const s = SH[p.Z];
+    o[0] = -s[0] * _su[0]; o[1] = -s[0] * _su[1]; o[2] = -s[0] * _su[2];
+    out.ns = 1; out.w[0] = 0; out.b[0] = s[1]; out.aw = 1; out.ab = -s[1];
+  } else { // aromatic carbon: −q at ±d along the normal n = v₁×v₂ + v₂×v₃ + v₃×v₁
+    siteVecs(p, 3);
+    let nx = 0, ny = 0, nz = 0;
+    for (let k = 0; k < 3; k++) { const a = 3 * k, b = 3 * ((k + 1) % 3); nx += _su[a + 1] * _su[b + 2] - _su[a + 2] * _su[b + 1]; ny += _su[a + 2] * _su[b] - _su[a] * _su[b + 2]; nz += _su[a] * _su[b + 1] - _su[a + 1] * _su[b]; }
+    const nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1e-9, s = PI_S.d / nl;
+    o[0] = s * nx; o[1] = s * ny; o[2] = s * nz; o[3] = -o[0]; o[4] = -o[1]; o[5] = -o[2];
+    out.ns = 2; out.w[0] = out.w[1] = 0; out.b[0] = out.b[1] = -PI_S.q; out.aw = 1; out.ab = 2 * PI_S.q;
+  }
+  for (let m = 0; m < out.ns; m++) out.sq[m] = out.w[m] * qa + out.b[m];
+  out.aq = out.aw * qa + out.ab;
+  return out.ns;
+}
+/* The gradient on the offsets (g, per site, eV/Å) carried back to the atom and its neighbours as forces: an offset
+   depends only on the bond vectors v = r(neighbour) − r(atom), so −∂E/∂v goes to the neighbour and +∂E/∂v to the atom. */
+const _gu = new Float64Array(9);
+function siteBack(p, kind, g, FX, FY, FZ) {
+  const n = kind === 1 ? 2 : kind === 3 ? 1 : 3;
+  siteVecs(p, n);
+  _gu.fill(0);
+  if (kind === 1) {
+    const sx = _su[0] + _su[3], sy = _su[1] + _su[4], sz = _su[2] + _su[5], sl = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1e-9;
+    const cx = _su[1] * _su[5] - _su[2] * _su[4], cy = _su[2] * _su[3] - _su[0] * _su[5], cz = _su[0] * _su[4] - _su[1] * _su[3], cl = Math.sqrt(cx * cx + cy * cy + cz * cz) || 1e-9;
+    // o± = −d·ca·ŝ ± d·sa·ĉ: gradients on ŝ and ĉ
+    const ca = Math.cos(LP_O.a * Math.PI / 180), sa = Math.sin(LP_O.a * Math.PI / 180), dc = -LP_O.d * ca, ds = LP_O.d * sa, m = LP_O.fm ? LP_O.m : 0;
+    const gsx = dc * (g[0] + g[3]) + m * g[6], gsy = dc * (g[1] + g[4]) + m * g[7], gsz = dc * (g[2] + g[5]) + m * g[8];
+    const gcx = ds * (g[0] - g[3]), gcy = ds * (g[1] - g[4]), gcz = ds * (g[2] - g[5]);
+    // unit vectors: g_raw = (g − û(û·g))/|raw|
+    const hx = sx / sl, hy = sy / sl, hz = sz / sl, dd = hx * gsx + hy * gsy + hz * gsz;
+    const Gsx = (gsx - hx * dd) / sl, Gsy = (gsy - hy * dd) / sl, Gsz = (gsz - hz * dd) / sl; // (on s = û₁ + û₂)
+    const kx = cx / cl, ky = cy / cl, kz = cz / cl, de = kx * gcx + ky * gcy + kz * gcz;
+    const Gcx = (gcx - kx * de) / cl, Gcy = (gcy - ky * de) / cl, Gcz = (gcz - kz * de) / cl; // (on c = û₁ × û₂)
+    // c = û₁ × û₂: ∂/∂û₁ = û₂ × G, ∂/∂û₂ = G × û₁
+    _gu[0] = Gsx + (_su[4] * Gcz - _su[5] * Gcy); _gu[1] = Gsy + (_su[5] * Gcx - _su[3] * Gcz); _gu[2] = Gsz + (_su[3] * Gcy - _su[4] * Gcx);
+    _gu[3] = Gsx + (Gcy * _su[2] - Gcz * _su[1]); _gu[4] = Gsy + (Gcz * _su[0] - Gcx * _su[2]); _gu[5] = Gsz + (Gcx * _su[1] - Gcy * _su[0]);
+  } else if (kind === 2) {
+    const k = -LP_N.d / LP_NS; for (let m = 0; m < 3; m++) { _gu[3 * m] = k * g[0]; _gu[3 * m + 1] = k * g[1]; _gu[3 * m + 2] = k * g[2]; }
+  } else if (kind === 3) {
+    const d = -SH[p.Z][0]; _gu[0] = d * g[0]; _gu[1] = d * g[1]; _gu[2] = d * g[2];
+  } else {
+    let nx = 0, ny = 0, nz = 0;
+    for (let k = 0; k < 3; k++) { const a = 3 * k, b = 3 * ((k + 1) % 3); nx += _su[a + 1] * _su[b + 2] - _su[a + 2] * _su[b + 1]; ny += _su[a + 2] * _su[b] - _su[a] * _su[b + 2]; nz += _su[a] * _su[b + 1] - _su[a + 1] * _su[b]; }
+    const nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1e-9, hx = nx / nl, hy = ny / nl, hz = nz / nl;
+    const gx = PI_S.d * (g[0] - g[3]), gy = PI_S.d * (g[1] - g[4]), gz = PI_S.d * (g[2] - g[5]), dn = hx * gx + hy * gy + hz * gz;
+    const Gx = (gx - hx * dn) / nl, Gy = (gy - hy * dn) / nl, Gz = (gz - hz * dn) / nl; // (on n)
+    for (let k = 0; k < 3; k++) { // n = Σ ûₐ × û_b over (1,2), (2,3), (3,1): ∂/∂ûₐ += û_b × G, ∂/∂û_b += G × ûₐ
+      const a = 3 * k, b = 3 * ((k + 1) % 3);
+      _gu[a] += _su[b + 1] * Gz - _su[b + 2] * Gy; _gu[a + 1] += _su[b + 2] * Gx - _su[b] * Gz; _gu[a + 2] += _su[b] * Gy - _su[b + 1] * Gx;
+      _gu[b] += Gy * _su[a + 2] - Gz * _su[a + 1]; _gu[b + 1] += Gz * _su[a] - Gx * _su[a + 2]; _gu[b + 2] += Gx * _su[a + 1] - Gy * _su[a];
+    }
+  }
+  const i = p.i;
+  for (let k = 0; k < n; k++) { // û = v/r: ∂/∂v = (g − û(û·g))/r; v = r(o) − r(p)
+    const a = 3 * k, r = _sr[k], ux = _su[a], uy = _su[a + 1], uz = _su[a + 2], gx = _gu[a], gy = _gu[a + 1], gz = _gu[a + 2], d = ux * gx + uy * gy + uz * gz;
+    const vx = (gx - ux * d) / r, vy = (gy - uy * d) / r, vz = (gz - uz * d) / r, j = other(p.bonds[k], p).i;
+    FX[j] -= vx; FY[j] -= vy; FX[i] += vx; FY[i] += vy; if (FZ) { FZ[j] -= vz; FZ[i] += vz; }
+  }
+}
+/* One pair's energy correction: a's charge set against b's (sa, sb: the two atoms' _sg-like site data, ns 0 for a plain
+   atom), d = r(b) − r(a). With grad, the gradients: on the two atoms (ga, gb: 3 each) and on each site's offset (goa,
+   gob). With dq, ∂E/∂qa of each atom (into _pdq). */
+const _pdq = [0, 0];
+function sitePairE(a, b, sa, sb, dx, dy, dz, grad, ga, gb, goa, gob, dq) {
+  const r2 = dx * dx + dy * dy + dz * dz;
+  if (r2 >= RC2) return 0;
+  const r = Math.sqrt(r2), qa = a.q + a.qp, qb = b.q + b.qp;
+  const k = PHYS.KE * ((a.ionic !== b.ionic && (a.ionic ? b.q === 0 : a.q === 0)) ? K_IW : 1);
+  const r1 = RC - SW_W; let sw = 1, dsw = 0;
+  if (r > r1) { const x = (r - r1) / SW_W; sw = 1 - x * x * x * (10 - 15 * x + 6 * x * x); dsw = -30 * x * x * (1 - x) * (1 - x) / SW_W; }
+  const na = sa.ns, nb = sb.ns;
+  // the atom-to-atom term the kernel has
+  const s0 = r2 + SOFT_S, g0 = 1 / Math.sqrt(s0);
+  let E = -qa * qb * g0;
+  if (grad) { const f = qa * qb * g0 / s0 * k * sw; ga[0] -= f * dx; ga[1] -= f * dy; ga[2] -= f * dz; gb[0] += f * dx; gb[1] += f * dy; gb[2] += f * dz; } // (∂(−qq·g)/∂r_b = +qq·g³·d)
+  if (dq) { _pdq[0] = -qb * g0; _pdq[1] = -qa * g0; }
+  for (let m = -1; m < na; m++) {
+    const Qa = m < 0 ? (na ? sa.aq : qa) : sa.sq[m], oax = m < 0 ? 0 : sa.o[3 * m], oay = m < 0 ? 0 : sa.o[3 * m + 1], oaz = m < 0 ? 0 : sa.o[3 * m + 2];
+    const wa = m < 0 ? (na ? sa.aw : 1) : sa.w[m];
+    for (let l = -1; l < nb; l++) {
+      const Qb = l < 0 ? (nb ? sb.aq : qb) : sb.sq[l], obx = l < 0 ? 0 : sb.o[3 * l], oby = l < 0 ? 0 : sb.o[3 * l + 1], obz = l < 0 ? 0 : sb.o[3 * l + 2];
+      const ex = dx + obx - oax, ey = dy + oby - oay, ez = dz + obz - oaz, s = ex * ex + ey * ey + ez * ez + (m < 0 && l < 0 ? SOFT_S : SITES.soft), g = 1 / Math.sqrt(s);
+      E += Qa * Qb * g;
+      if (dq) { const wb = l < 0 ? (nb ? sb.aw : 1) : sb.w[l]; _pdq[0] += wa * Qb * g; _pdq[1] += wb * Qa * g; }
+      if (grad && (Qa !== 0 && Qb !== 0)) {
+        const f = Qa * Qb * g / s * k * sw, fx = f * ex, fy = f * ey, fz = f * ez; // (∂(QQ·g)/∂r_b = −QQ·g³·e)
+        gb[0] -= fx; gb[1] -= fy; gb[2] -= fz; ga[0] += fx; ga[1] += fy; ga[2] += fz;
+        if (l >= 0) { gob[3 * l] -= fx; gob[3 * l + 1] -= fy; gob[3 * l + 2] -= fz; }
+        if (m >= 0) { goa[3 * m] += fx; goa[3 * m + 1] += fy; goa[3 * m + 2] += fz; }
+      }
+    }
+  }
+  if (grad && dsw) { const f = k * E * dsw / r; ga[0] -= f * dx; ga[1] -= f * dy; ga[2] -= f * dz; gb[0] += f * dx; gb[1] += f * dy; gb[2] += f * dz; }
+  if (dq) { _pdq[0] *= k * sw; _pdq[1] *= k * sw; }
+  return k * sw * E;
+}
+/* ---- the force pass: the site atoms' list (kept while bonding, species and the switches are the same), their sites at
+   the positions now, every pair of the neighbour list between different molecules with a site atom in it. */
+const SD = { idx: new Int32Array(0), rg: new Uint8Array(0), at: [], dat: [], key: '', n: new Int32Array(0), q: new Float64Array(0), o: new Float64Array(0), go: new Float64Array(0) };
+const _nos = { ns: 0 };
+function sitesPrep() {
+  const key = W.topo + ':' + W.dirty + ':' + W.parts.length + ':' + W.spawned + ':' + W.deaths + ':' + _flagGen + ':' + SITES.lp + SITES.sh + SITES.pi + ':' + (W.d3 ? 1 : 0) + ':' + BO.any;
+  if (SD.idx.length < S.size) { SD.idx = new Int32Array(S.size * 2).fill(-1); SD.key = ''; }
+  if (key !== SD.key) {
+    for (const p of SD.at) if (p.i >= 0 && p.i < SD.idx.length) SD.idx[p.i] = -1;
+    SD.at = []; for (const p of W.parts) if (siteKind(p)) { SD.idx[p.i] = SD.at.length; SD.at.push(p); }
+    if (SD.rg.length < S.size) SD.rg = new Uint8Array(S.size * 2); else SD.rg.fill(0); SITES.rings = 0;
+    if (SITES.pi) for (const p of W.parts) if (!p.dead && ringType(p)) { SD.rg[p.i] = 1; SITES.rings++; }
+    while (SD.dat.length < SD.at.length) SD.dat.push({ ns: 0, o: new Float64Array(9), sq: new Float64Array(3), w: new Float64Array(3), b: new Float64Array(3), aq: 0, aw: 1, ab: 0, kind: 0 });
+    const m = SD.at.length; if (SD.n.length < m) { SD.n = new Int32Array(m * 2 + 16); SD.q = new Float64Array(4 * (m * 2 + 16)); SD.o = new Float64Array(12 * (m * 2 + 16)); SD.go = new Float64Array(12 * (m * 2 + 16)); }
+    SD.key = key; SITES.n = SD.at.length;
+  }
+  // flat copies for the force loop: per site atom 1 + ns charges (the atom's own first, at offset 0) and their offsets
+  const N = SD.n, Qs = SD.q, Os = SD.o;
+  for (let k = 0; k < SD.at.length; k++) {
+    const d = SD.dat[k], ns = siteGeom(SD.at[k], d); N[k] = ns + 1; Qs[4 * k] = d.aq; Os[12 * k] = Os[12 * k + 1] = Os[12 * k + 2] = 0;
+    for (let m = 0; m < ns; m++) { Qs[4 * k + 1 + m] = d.sq[m]; Os[12 * k + 3 + 3 * m] = d.o[3 * m]; Os[12 * k + 4 + 3 * m] = d.o[3 * m + 1]; Os[12 * k + 5 + 3 * m] = d.o[3 * m + 2]; }
+  }
+  SD.go.fill(0, 0, 12 * SD.at.length);
+}
+const _gq = new Float64Array(9);
+function sitesForces(FX, FY, FZ) {
+  sitesPrep();
+  const nat = SD.at.length; if (!nat && !SITES.rings) return;
+  const pi = VL.pi, pj = VL.pj, ex = VL.ex, np = VL.np, X = S.x, Y = S.y, Zp = S.z, NE = S.ne, Z = S.Z, K = S.k, ANTI = S.anti, idx = SD.idx, Q = S.q, QP = S.qp, IONIC = S.ionic, RG = SD.rg, OBJ = S.obj;
+  const N = SD.n, Qs = SD.q, Os = SD.o, GO = SD.go, soft = SITES.soft, r1 = RC - SW_W;
+  const d3 = W.d3, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2;
+  let npairs = 0;
+  for (let q = 0; q < np; q++) {
+    const i = pi[q], j = pj[q], ki = idx[i], kj = idx[j], ring = RG[i] === 1 && RG[j] === 1;
+    if (ki < 0 && kj < 0 && !ring) continue;
+    if (ex[q] !== 0 || K[i] !== NUC || K[j] !== NUC || Z[i] === 0 || Z[j] === 0 || NE[i] === 0 || NE[j] === 0 || ANTI[i] !== ANTI[j]) continue;
+    let dx = X[j] - X[i], dy = Y[j] - Y[i], dz = d3 ? Zp[j] - Zp[i] : 0;
+    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (d3) { if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; } }
+    const r2 = dx * dx + dy * dy + dz * dz;
+    if (r2 >= RC2) continue;
+    npairs++;
+    if (ring) { const r = Math.sqrt(r2); piLJ(OBJ[i], OBJ[j], r); const f = _pl[1] / r; FX[i] += f * dx; FY[i] += f * dy; FX[j] -= f * dx; FY[j] -= f * dy; if (d3) { FZ[i] += f * dz; FZ[j] -= f * dz; } if (ki < 0 && kj < 0) continue; }
+    const qa = Q[i] + QP[i], qb = Q[j] + QP[j], k = K_COUL * ((IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? Q[j] === 0 : Q[i] === 0)) ? K_IW : 1);
+    const r = Math.sqrt(r2); let sw = 1, dsw = 0;
+    if (r > r1) { const x = (r - r1) / SW_W; sw = 1 - x * x * x * (10 - 15 * x + 6 * x * x); dsw = -30 * x * x * (1 - x) * (1 - x) / SW_W; }
+    const ks = k * sw, s0 = r2 + SOFT_S, g0 = 1 / Math.sqrt(s0);
+    let E = -qa * qb * g0, fax = 0, fay = 0, faz = 0; // (fa: −∂E/∂r_a for the pair's atom-position terms; r_b gets the opposite)
+    { const f = qa * qb * g0 / s0 * ks; fax += f * dx; fay += f * dy; faz += f * dz; }
+    const na = ki >= 0 ? N[ki] : 1, nb = kj >= 0 ? N[kj] : 1, ba = 4 * ki, bb = 4 * kj, oa = 12 * ki, ob = 12 * kj;
+    for (let m = 0; m < na; m++) {
+      const Qa = ki >= 0 ? Qs[ba + m] : qa; if (Qa === 0) continue;
+      const oax = m ? Os[oa + 3 * m] : 0, oay = m ? Os[oa + 3 * m + 1] : 0, oaz = m ? Os[oa + 3 * m + 2] : 0;
+      for (let l = 0; l < nb; l++) {
+        const Qb = kj >= 0 ? Qs[bb + l] : qb; if (Qb === 0) continue;
+        const ex_ = dx + (l ? Os[ob + 3 * l] : 0) - oax, ey = dy + (l ? Os[ob + 3 * l + 1] : 0) - oay, ez = dz + (l ? Os[ob + 3 * l + 2] : 0) - oaz;
+        const s = ex_ * ex_ + ey * ey + ez * ez + (m === 0 && l === 0 ? SOFT_S : soft), g = 1 / Math.sqrt(s), qq = Qa * Qb;
+        E += qq * g;
+        const f = qq * g / s * ks, fx = f * ex_, fy = f * ey, fz = f * ez; // (∂(QQ·g)/∂r_b = −QQ·g³·e)
+        fax -= fx; fay -= fy; faz -= fz;
+        if (l) { GO[ob + 3 * l] -= fx; GO[ob + 3 * l + 1] -= fy; GO[ob + 3 * l + 2] -= fz; }
+        if (m) { GO[oa + 3 * m] += fx; GO[oa + 3 * m + 1] += fy; GO[oa + 3 * m + 2] += fz; }
+      }
+    }
+    if (dsw) { const f = k * E * dsw / r; fax += f * dx; fay += f * dy; faz += f * dz; }
+    FX[i] += fax; FY[i] += fay; FX[j] -= fax; FY[j] -= fay;
+    if (d3) { FZ[i] += faz; FZ[j] -= faz; }
+  }
+  for (let k = 0; k < nat; k++) {
+    const b = 12 * k; let any = false; for (let m = 0; m < 9; m++) { _gq[m] = GO[b + 3 + m]; if (_gq[m]) any = true; }
+    if (any) siteBack(SD.at[k], SD.dat[k].kind, _gq, FX, FY, d3 ? FZ : null);
+  }
+  SITES.pairs = npairs;
+}
+/* The correction between two atoms as the energy books see it (pairPE, sitesLocal, sitesTotal): live sites. */
+const _sga = { ns: 0, o: new Float64Array(9), sq: new Float64Array(3), w: new Float64Array(3), b: new Float64Array(3), aq: 0, aw: 1, ab: 0, kind: 0 };
+const _sgb = { ns: 0, o: new Float64Array(9), sq: new Float64Array(3), w: new Float64Array(3), b: new Float64Array(3), aq: 0, aw: 1, ab: 0, kind: 0 };
+function sitesPairOK(a, b) {
+  return a !== b && a.k === NUC && b.k === NUC && a.Z > 0 && b.Z > 0 && a.ne > 0 && b.ne > 0 && !a.dead && !b.dead && !a.fast && !b.fast && !a.rad && !b.rad &&
+    !a.anti === !b.anti && !(a.mol !== 0 && a.mol === b.mol) && !(a.bom && b.bom);
+}
+function ringType(p) { // 1: an aromatic carbon (three bonds), 2: a hydrogen on one; 0 otherwise (π-stacking's dispersion)
+  if (!SITES.pi || !W.d3 || p.k !== NUC || p.ne === 0 || p.bom) return 0;
+  if (p.Z === 6) { if (p.bonds.length !== 3) return 0; for (const bd of p.bonds) if (bd.arom) return 1; return 0; }
+  if (p.Z === 1 && p.bonds.length === 1) { const c = other(p.bonds[0], p); return ringType(c) === 1 ? 2 : 0; }
+  return 0;
+}
+/* The ring pair's dispersion difference at r (eV) and its slope (eV/Å), into _pl. */
+const _pl = [0, 0];
+function piLJ(a, b, r) {
+  const pa = PIJ[a.Z], pb = PIJ[b.Z], rm = Math.sqrt(pa[0] * pb[0]), eps = Math.sqrt(pa[1] * pb[1]);
+  const [rmo, epo] = ljPair(a, b), c = 0.62 * rmo, x = r < c ? c : r;
+  const r1 = RC - SW_W; let sw = 1, dsw = 0;
+  if (x > r1) { const t = (x - r1) / SW_W; sw = 1 - t * t * t * (10 - 15 * t + 6 * t * t); dsw = -30 * t * t * (1 - t) * (1 - t) / SW_W; }
+  const s6 = Math.pow(rm / x, 6), En = eps * (s6 * s6 - 2 * s6), dEn = -12 * eps * (s6 * s6 - s6) / x;
+  const o6 = Math.pow(rmo / x, 6), Eo = epo > 0 && x <= 2.6 * rmo ? epo * (o6 * o6 - 2 * o6 + LJ_VCUT) : 0, dEo = epo > 0 && x <= 2.6 * rmo ? -12 * epo * (o6 * o6 - o6) / x : 0;
+  const E = (En - Eo) * sw, dE = (dEn - dEo) * sw + (En - Eo) * dsw;
+  _pl[0] = r < c ? E + dE * (r - c) : E; _pl[1] = dE;
+  return _pl[0];
+}
+function sitesPairE(a, b) {
+  if (!SITES.any || !sitesPairOK(a, b)) return 0;
+  const na = siteGeom(a, _sga), nb = siteGeom(b, _sgb), rg = SITES.pi && ringType(a) && ringType(b);
+  if (!na && !nb && !rg) return 0;
+  const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z), d2 = dx * dx + dy * dy + (W.d3 ? dz * dz : 0);
+  if (d2 >= RC2) return 0;
+  return (na || nb ? sitePairE(a, b, _sga, _sgb, dx, dy, W.d3 ? dz : 0, false, null, null, null, null, false) : 0) + (rg ? piLJ(a, b, Math.sqrt(d2)) : 0);
+}
+function sitesLocal(set, skip) {
+  let V = 0;
+  for (const p of set) {
+    if (p.k !== NUC || p.Z === 0 || p.ne === 0 || p.fast || p.rad || p.dead) continue;
+    const visit = (o) => {
+      if (o === p || o === skip || (set.has(o) && o.id < p.id)) return;
+      V += sitesPairE(p, o);
+    };
+    nearby(p.x, p.y, RC, visit, p.z);
+    for (const o of _late) if (!o.dead) { const [dx, dy, dz] = minImg(o.x - p.x, o.y - p.y, o.z - p.z); if (dx * dx + dy * dy + dz * dz < RC2) visit(o); }
+  }
+  return V;
+}
+function sitesTotal() {
+  const md = W.parts.filter(p => p.k === NUC && p.Z > 0 && p.ne > 0 && !p.dead && !p.fast && !p.rad);
+  const g = md.map(p => { const o = { ns: 0, o: new Float64Array(9), sq: new Float64Array(3), w: new Float64Array(3), b: new Float64Array(3), aq: 0, aw: 1, ab: 0, kind: 0 }; siteGeom(p, o); return o; });
+  const rg = md.map(p => ringType(p));
+  let V = 0;
+  for (let i = 0; i < md.length; i++) {
+    const a = md[i], ga = g[i];
+    for (let j = i + 1; j < md.length; j++) {
+      const b = md[j], gb = g[j], ring = rg[i] && rg[j]; if (!ga.ns && !gb.ns && !ring) continue;
+      if (!sitesPairOK(a, b)) continue;
+      const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z), d2 = dx * dx + dy * dy + (W.d3 ? dz * dz : 0);
+      if (d2 >= RC2) continue;
+      if (ga.ns || gb.ns) V += sitePairE(a, b, ga, gb, dx, dy, W.d3 ? dz : 0, false, null, null, null, null, false);
+      if (ring) V += piLJ(a, b, Math.sqrt(d2));
+    }
+  }
+  return V;
+}
+/* The induced charges (qeqUpdate): ∂E/∂qa at the marked atoms, from the neighbour list's pairs, and the whole correction
+   (to measure its change when the charges change). */
+function sitesQeq(mark, phi) {
+  sitesPrep();
+  const pi = VL.pi, pj = VL.pj, ex = VL.ex, np = VL.np, OBJ = S.obj, idx = SD.idx;
+  let V = 0;
+  for (let q = 0; q < np; q++) {
+    const i = pi[q], j = pj[q], ki = idx[i], kj = idx[j];
+    if ((ki < 0 && kj < 0) || ex[q] !== 0) continue;
+    const a = OBJ[i], b = OBJ[j]; if (!sitesPairOK(a, b)) continue;
+    const sa = ki >= 0 ? SD.dat[ki] : _nos, sb = kj >= 0 ? SD.dat[kj] : _nos;
+    const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z);
+    V += sitePairE(a, b, sa, sb, dx, dy, W.d3 ? dz : 0, false, null, null, null, null, !!phi);
+    if (phi) { if (mark[i]) phi[i] += _pdq[0]; if (mark[j]) phi[j] += _pdq[1]; }
+  }
+  return V;
+}
+function sitesQeqE() { SD.key = ''; return sitesQeq(null, null); } // (after the charges changed: the sites' charges again)
 
 /* ---- threads.js ---- */
 /* ============================================================================
@@ -32742,11 +33094,14 @@ const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 
   fov3: [30, 40, 55, 70], proj3: ['persp', 'ortho'], fog3: ['off', 'low', 'normal', 'high'], box3: ['grid', 'edges', 'off'], lbl3: ['front', 'all'], orbit3: [0.5, 1, 2], spin3: [0, 6, 18] };
 const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the farthest atoms fade toward the background)
 Object.assign(SET_DEF, { metal: 0 }); SET_OK.metal = [0, 1]; // (Experimental: bond orders for metals, 1.25)
+Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
+SET_EXP.push('lps', 'sigh', 'pis'); // (1.26)
 const EXP_NAME = { dtMax: 'shorter longest step', resBig: 'resonance in large rings', inc: 'detailed nuclear collisions', rc: 'longer force reach', qeq: 'induced charges', pi: 'quantum nuclei', piRpc: 'exact bead forces', bo: 'bond orders', wave: 'electrons as waves', ultra: 'the ultra-realistic mode' }; // (ultra: in the Experimental tab since 1.23.2)
 EXP_NAME.metal = 'many-body metals'; // (1.25)
+EXP_NAME.lps = 'lone pairs'; EXP_NAME.sigh = 'halogen σ-holes'; EXP_NAME.pis = 'π-stacking'; // (1.26)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -32824,6 +33179,7 @@ function applySettings() {
   PI.rpc = SET.piRpc !== 0; piSet(SET.pi); // (Experimental: quantum nuclei; contracted bead forces, 1.21)
   boSet(SET.bo); // (Experimental: continuous bond orders, 1.13; 2: quantum bonds, 1.22)
   mbSet(SET.metal); // (Experimental: bond orders for metals, 1.25)
+  sitesSet('lp', SET.lps); sitesSet('sh', SET.sigh); sitesSet('pi', SET.pis); // (Experimental: directional forces, 1.26)
   waveSet(!!SET.wave); // (Experimental: electrons as waves, 1.15)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
@@ -32941,6 +33297,7 @@ function syncSettings() {
   $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
   setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segPiRpc', String(SET.piRpc)); setSegValue('segBo', String(SET.bo)); setSegValue('segWave', String(SET.wave)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   setSegValue('segMetal', String(SET.metal)); // (1.25)
+  setSegValue('segLps', String(SET.lps)); setSegValue('segSigh', String(SET.sigh)); setSegValue('segPis', String(SET.pis)); // (1.26)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -32966,6 +33323,9 @@ function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toF
 const COSTS = {
   segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×8–15', 'Measured on one thread (1.20): liquid water ×8, hydrogen + oxygen ×9, the molecule gallery ×15 (every pair worked out every step, steps 2.6 times shorter)'], 2: ['×1000+', 'Measured on one thread (1.22): a hydronium and five waters (19 atoms) 6.6 ms a step, 40 atoms 50 ms, against 0.006–0.02 with stored bonds, the steps half as long: a small world runs in slow motion, about 1/30 of normal speed at 19 atoms, 1/200 at 40'] } }),
   segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured on one thread (1.25): nothing without metal atoms; a flat aluminium patch of 769 atoms ×1.9 (its own pass 0.22 ms a step); a flat copper patch ×0.6 and a 3-D copper ball ×0.9 (most of the electron-transfer trials between metal atoms are skipped)'] } }), // (1.25)
+  segLps: () => ({ k: 'physics', o: { 0: ['×1', 'Charges at the nuclei'], 1: ['×1', 'The 3-D lab only: nothing changes in the flat game'] } }), // (1.26)
+  segSigh: () => ({ k: 'physics', o: { 0: ['×1', 'Halogens charged at their nuclei'], 1: ['×1–2', 'Measured on one thread (1.26): nothing without bonded chlorine, bromine or iodine; a flat box of 48 halomethanes and Br₂ (204 atoms) ×1.7–2.0 (a JavaScript pass after the WebAssembly kernel)'] } }), // (1.26)
+  segPis: () => ({ k: 'physics', o: { 0: ['×1', 'Rings charged at their nuclei'], 1: ['×1', 'The 3-D lab only: nothing changes in the flat game'] } }), // (1.26)
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–7', 'Measured on one thread: nothing without free electrons; liquid water with 40 free electrons ×6.5 (their inner steps 13 times shorter, for the packets\' breathing)'] } }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.4', 'Measured on liquid water (1.21): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×3', 'Measured on liquid water: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water: 32 beads, the rest once'] } }
     : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×3.3', 'Measured on liquid water (1.21): the force field worked out 8 times a step'], 16: ['×7', 'Measured on liquid water: 16 times a step'], 32: ['×16', 'Measured on liquid water: 32 times a step'] } },
@@ -33006,6 +33366,9 @@ const COSTS = {
 const COSTS3 = {
   segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry (in 3-D with single bonds’ twist barriers since 1.25: +30% a step in a box of organic molecules, nothing in water)'], 1: ['×18–23', 'Measured in 3-D on one thread (1.25): liquid water ×18–22, the molecules in space ×18–23, hydrogen + oxygen ×18 (every pair worked out every step on the JavaScript pass, the 3-D angles and twists with them, steps 2.6 times shorter; the flat game’s WebAssembly pass is not in 3-D yet)'], 2: ['×1000+', 'Measured in 3-D on one thread (1.25): a hydronium and five waters (19 atoms) 5.7 ms a step (the flat game 7.7), steps half as long: a small world runs in slow motion'] } }),
   segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured in 3-D on one thread (1.25): nothing without metal atoms; an aluminium ball of 959 atoms ×1.8 (its own pass about 0.7 µs an atom a step); a copper ball ×0.8–1.0 (its steps go to electron-transfer estimates either way)'] } }),
+  segLps: () => ({ k: 'physics', o: { 0: ['×1', 'Charges at the nuclei'], 1: ['×2–2.6', 'Measured in 3-D on one thread (1.26): liquid water (1,029 atoms) ×2.1–2.6, every oxygen with two lone pairs (a JavaScript pass over the pairs with an O or N in them); nothing without such atoms'] } }), // (1.26)
+  segSigh: () => ({ k: 'physics', o: { 0: ['×1', 'Halogens charged at their nuclei'], 1: ['×1–2.7', 'Measured in 3-D on one thread (1.26): nothing without bonded chlorine, bromine or iodine; a box of 125 chloromethanes and Br₂ (515 atoms) ×2.0–2.7'] } }), // (1.26)
+  segPis: () => ({ k: 'physics', o: { 0: ['×1', 'Rings charged at their nuclei'], 1: ['×1–10', 'Measured in 3-D on one thread (1.26): nothing without aromatic rings; a box of 125 benzenes (1,500 atoms, every atom a ring atom) ×5.5–9.5 (the rings\' own dispersion and π points in JavaScript)'] } }), // (1.26)
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–3', 'Measured in 3-D on one thread (1.25): nothing without free electrons; 40 free electrons among neon atoms ×2.2 (the flat game ×2.4), six Na⁺ among twelve ×3.2 (1.24); in ionized liquid water ×1.5–2.2, its electrons caught again within a few dozen steps in 3-D'] } }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.6', 'Measured on liquid water in 3-D (1.25): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×2.7', 'Measured on liquid water in 3-D: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water in 3-D: 32 beads, the rest once'] } }
     : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×17', 'Measured on liquid water in 3-D (1.25): the force field worked out 8 times a step'], 16: ['×30', 'Measured on liquid water in 3-D: 16 times a step'], 32: ['×48', 'Measured on liquid water in 3-D: 32 times a step'] } },
@@ -33034,6 +33397,7 @@ const REAL = {
   segBo: ['2', 'Bonds from the electrons themselves (quantum chemistry), not from a stored table'],
   segWave: ['1', 'An electron is a wave with a size and a spin, not a point'],
   segMetal: ['1', 'In a real metal an atom\u2019s bonding depends on how many neighbours it has, not on a sum of pairs'], // (1.25)
+  segLps: ['1', 'An oxygen\u2019s or nitrogen\u2019s lone pairs point in set directions, so hydrogen bonds do too'], segSigh: ['1', 'A bonded halogen is positive on the tip of its bond'], segPis: ['1', 'A ring\u2019s π electrons sit above and below it'], // (1.26)
   segAtom: ['1', 'Atoms as big as they are'],
   setResBig: [true, 'Every ring system gets its resonance worked out exactly'],
   setInc: [true, 'A nucleon followed through the nucleus collision by collision, as in nature'],
@@ -33051,6 +33415,7 @@ function syncReal() {
    measurement of that combination: the ranges are the setups the costs were measured on. */
 const EXP_SET = { segWave: 'wave', segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
 EXP_SET.segMetal = 'metal'; // (1.25)
+EXP_SET.segLps = 'lps'; EXP_SET.segSigh = 'sigh'; EXP_SET.segPis = 'pis'; // (1.26)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -33074,6 +33439,7 @@ function expSummary() {
   if (SET.bo) on.push(SET.bo === 2 ? 'quantum bonds (GFN1-xTB)' : 'continuous bond orders');
   if (SET.wave) on.push('electrons as waves');
   if (SET.metal) on.push('many-body metals'); // (1.25)
+  if (SET.lps) on.push('lone pairs'); if (SET.sigh) on.push('halogen σ-holes'); if (SET.pis) on.push('π-stacking'); // (1.26)
   if (SET.resBig) on.push('large ring resonance');
   if (SET.inc) on.push('detailed nuclear collisions');
   if (SET.ultra) on.push('ultra-realistic');
@@ -33086,6 +33452,7 @@ function syncExpTotal() {
   const t = expTotal(), txt = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
   const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', segBo: 'continuous bond orders', segWave: 'electrons as waves', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
   names.segMetal = 'many-body metals'; // (1.25)
+  names.segLps = 'lone pairs'; names.segSigh = 'halogen σ-holes'; names.segPis = 'π-stacking'; // (1.26)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -33208,6 +33575,9 @@ const SDESC = {
   segPiRpc: ['Bead forces', 'Contracted works out the bonds and bends on every bead and the rest once at each ring’s centre (fast); Every bead works out the whole force field on every bead (exact).'],
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, drawn as thinner or thicker bonds that stretch and break smoothly. Quantum works out the electrons themselves (GFN1-xTB): a proton shared between two waters shows half-bonds to both.'],
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours (a tight-binding model fitted to each metal), so a lone pair is short and strong, an atom at a surface holds harder to each neighbour, and a vacancy costs less than the bonds it breaks.'], // (1.25)
+  segLps: ['Lone pairs', 'The 3-D lab only. There an oxygen with two single bonds or a nitrogen with three carries its partial charge on lone pairs pointing out at the tetrahedral directions, so hydrogen bonds form where they point and water makes a tetrahedral network. A flat world has no room for the directions out of its plane.'], // (1.26)
+  segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
+  segPis: ['π-stacking', 'The 3-D lab only. There an aromatic ring carries its π electrons as charge above and below it, and two rings meet with a dispersion fitted to the benzene dimer, so they stack offset or edge to face. A flat world has no above or below.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin, drawn as a faint cloud (the electron force field, eFF), instead of a point.'],
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
@@ -33240,10 +33610,13 @@ const SDESC3 = {
   segPi: ['Quantum nuclei', 'Every atom becomes a ring of beads (path-integral molecular dynamics) spread in all three directions by its zero-point motion. In the 3-D lab the beads are not drawn: the picture is the flat game’s.'],
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, with the 3-D angles and the twist of double, aromatic and single bonds, drawn as thinner or thicker bonds. Quantum works out the electrons themselves (GFN1-xTB) with the atoms free in all three directions.'],
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours, fitted on a close-packed crystal: in the 3-D lab a crystal has its measured cohesive energy, spacing, stiffness and vacancy energy exactly (copper 3.49 eV, 2.56 Å, 137 GPa, 1.28 eV).'],
+  segLps: ['Lone pairs', 'An oxygen with two single bonds (water, alcohols, ethers) or a nitrogen with three (ammonia, amines) carries its partial charge on lone pairs at the tetrahedral directions, as the TIP5P water model does: hydrogen bonds form where the lone pairs point, and water\u2019s neighbours sit at the corners of a tetrahedron.'], // (1.26)
+  segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond, C–X···N at 180°). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
+  segPis: ['π-stacking', 'An aromatic ring carries its π electrons as charge on points above and below it, and ring atoms of two aromatic molecules meet with a dispersion fitted to the benzene dimer: rings stack offset or edge to face, as benzene does, rather than face to face.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size. The 3-D camera comes no nearer than half an ångström, so it does not zoom in to a nucleus: the picture is the flat game’s. Experimental: off again each time the game starts.'],
 };
-const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d' }; // (and every row of the 3-D tab: '3d')
+const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
 function setRowOnly(r) { const k = setRowKey(r), p = r.closest('.spane'); return SMODE_ONLY[k] || (p && p.dataset.stab === 'd3' ? '3d' : ''); }
 /* The picture for a key (and a choice) in this mode: in 3-D its 3-D version first; in the flat game never a 3-D one. */
 function setShotFor(key, opt) {
@@ -33426,6 +33799,7 @@ function settingsInit() {
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
   bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); bindSeg('segPiRpc', (v) => setSetting('piRpc', +v)); bindSeg('segBo', (v) => setSetting('bo', +v)); bindSeg('segWave', (v) => setSetting('wave', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
   bindSeg('segMetal', (v) => setSetting('metal', +v)); // (1.25)
+  bindSeg('segLps', (v) => setSetting('lps', +v)); bindSeg('segSigh', (v) => setSetting('sigh', +v)); bindSeg('segPis', (v) => setSetting('pis', +v)); // (1.26)
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));

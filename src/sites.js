@@ -20,7 +20,7 @@
    localPE (events), sitesTotal in totalEnergy, sitesPairE in pairPE, and the induced charges' φ and energy change
    (qeqUpdate) see it. Off: nothing runs (SITES.any false), the game bit for bit as before. */
 const SITES = { lp: 0, sh: 0, pi: 0, any: false, n: 0, rings: 0, pairs: 0, bath: 0, soft: 0.09 }; // (soft: the softening (Å²) of a site's Coulomb: a lone pair or a π cloud is a spread of charge, not a point)
-const LP_O = { d: 0.70, a: 54.7356, f: 1.0, m: 0, fm: 0 }, LP_N = { d: 0.70, f: 1.0 }; // (d Å from the nucleus; f: the share of the atom's partial charge the lone pairs carry)
+const LP_O = { d: 0.70, a: 54.7356, f: 0.5, m: 0, fm: 0 }, LP_N = { d: 0.30, f: 0.4 }; // (d Å from the nucleus; f: the share of the atom's partial charge the lone pairs carry)
 const LP_NS = 1.116; // (|û₁ + û₂ + û₃| for ammonia's 107°: the N site sits LP_N.d out along the axis there, nearer as the pyramid flattens)
 const SH = { 17: [1.60, 0.10], 35: [1.90, 0.085], 53: [2.20, 0.08] }; // (σ-hole site: [distance from the halogen, Å, as force fields' extra points; charge, e, fitted on CH₃X···NH₃, 1.26])
 const PI_S = { d: 0.70, q: 0.07 }; // (π sites: distance from the ring's plane, Å; charge of each, e)
