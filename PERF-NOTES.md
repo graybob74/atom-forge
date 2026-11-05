@@ -201,6 +201,8 @@ engine stores and visits particles.
   - The rest of the Experimental settings in 3-D: induced charges, quantum nuclei, continuous and quantum bond orders,
     electrons as waves, the ultra-realistic mode (today flat only, set3dNote). Physics in 3-D; needs his OK as each
     lands, with its energy and cost measured.
+  - The rest of the particles in 3-D (the user: "like pions and such"): the high-energy and nuclear side (hep.js:
+    hadrons such as pions, kaons, muons and their decays, the collider, plasma), today flat only.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
