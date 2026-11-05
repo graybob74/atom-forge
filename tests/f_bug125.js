@@ -61,6 +61,19 @@ PARTS.coCold = async (page, check, say) => {
   check(a === 6 && b === 6, `bug fix 19: six CO among O₂ at 300 K keep their triple bonds, seeded (${a}, again ${b})`, 'bugfix coCold: ' + JSON.stringify({ a, b }));
 };
 
+/* 12. A hadron's elastic pass by a nucleus in the flat game (exoElastic) books the recoil over the struck molecule and
+   what touches it (regionE), not the whole box (totalEnergy, O(N²)): 30 ms a call at 1,200 atoms before, under 3 now;
+   the books exact either way. */
+PARTS.exoElastic = async (page, check, say) => {
+  const X = fresh(2), W = X.W;
+  X.baseWorld(90, 60, 300, 0); for (let i = 0; i < 400; i++) X.addMolecule('H2O', -42 + (i % 20) * 4.3, -27 + Math.floor(i / 20) * 2.8, i, 300);
+  X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned;
+  const Os = W.parts.filter(p => p.Z === 8); let ms = 0, worst = 0;
+  for (let k = 0; k < 20; k++) { const tg = Os[k * 7], o = X.addExo('pi+', tg.x - 1, tg.y, 300e6, 1, 0); const E0 = X.totalEnergy().total, t = performance.now(); X.exoElastic(o, tg); ms += performance.now() - t; worst = Math.max(worst, Math.abs(X.totalEnergy().total - E0)); o.dead = true; }
+  const r = { atoms: W.parts.length, ms: +(ms / 20).toFixed(2), worst: +worst.toExponential(1) };
+  check(r.ms < 3 && r.worst < 1e-3, `bug fix 12: a pion's elastic pass among ${r.atoms} atoms booked in ${r.ms} ms, exact to ${r.worst} eV`, 'bugfix exoElastic: ' + JSON.stringify(r));
+};
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {

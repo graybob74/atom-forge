@@ -20801,14 +20801,14 @@ function exoElastic(o, tg) {
   const R = 1.2 * Math.cbrt(Math.max(1, tg.Z + tg.N)) + 1.2, th = gauss() * 197.327 / (p * R);
   if (W.d3) return exoElastic3(o, tg, p, th);
   const [nx, ny] = turn2(o.ux, o.uy, th), qx = p * (o.ux - nx), qy = p * (o.uy - ny); // (MeV/c given to the nucleus)
-  const Ebefore = totalEnergy().total; // (the books: whatever the kick does to the nucleus's surroundings is paid by the hadron)
+  const T = new Set(molecule(tg)), Ebefore = regionE(T); // (the books: whatever the kick does to the nucleus and its surroundings is paid by the hadron; measured over its molecule and what it touches, not the whole box: bug fix 12 after 1.25)
   const K0 = keOf(tg), Pt = p4of(tg), mt = restE(tg) / MEV, px = Pt[1] + qx, py = Pt[2] + qy, pm = Math.hypot(px, py); // (relativistic: the nucleus may itself be fast)
   setMotion(tg, (Math.sqrt(mt * mt + pm * pm) - mt) * MEV, pm > 0 ? px / pm : 1, pm > 0 ? py / pm : 0);
   const dK = keOf(tg) - K0;
   if (dK > 20 && tg.bonds.length) for (const bd of tg.bonds.slice()) removeBond(bd);
   if (dK > 10) tg.nucProd = true; // (sent flying by a nuclear event: slow motion for nuclear events, when off, does not follow it)
   o.ux = nx; o.uy = ny;
-  const paid = totalEnergy().total - Ebefore; // (the nucleus's recoil, bonds it broke, forces it now flies too fast to feel)
+  const paid = regionE(T) - Ebefore; // (the nucleus's recoil, bonds it broke, forces it now flies too fast to feel)
   o.KE = Math.max(1, o.KE - paid); exoSpeed(o);
   o.hitId = tg.id;
   return false;

@@ -279,7 +279,7 @@ engine stores and visits particles.
   - [fixed after 1.25] Help says holding Space pans, but nothing sets UI.spaceDown.
   - [fixed after 1.25] Flat game: hardSphere turns a pair by π − 2·acos(b/R), inverted (a head-on hit passes straight through, a grazing
     one bounces back); the 3-D version (1.25) uses the right angle.
-  - exoElastic measures the whole box's energy on every pass (slow; 3-D's elastic hits booked from the recoil in 1.25).
+  - [fixed after 1.25] exoElastic measures the whole box's energy on every pass (slow; 3-D's elastic hits booked from the recoil in 1.25).
   - Muonium formation misses up to tens of eV (2-D and 3-D: the muon stopped without paying its potential energy).
   - 3-D: MeV electrons and positrons are stepped faster than light (−367 eV over 150 γ rays of 20 MeV into lead).
   - K⁻ absorption keeps momentum only to 0.002 (2-D and 3-D).
@@ -919,6 +919,11 @@ books hashed apart).
   4, 6 and 10 of 1–10 two CO join, CO + CO → C₂O₂ (ΔH −85 kJ/mol, as the bond table allows; real OCCO is not bound),
   leaving 4. That is the model's chemistry, written down for the owner, not changed. Fingerprints unchanged (tests
   only).
+- 12. exoElastic (a hadron's elastic pass by a nucleus, flat game) measured the whole box's energy, totalEnergy (every
+  pair), twice a pass to book the recoil. Now regionE over the struck molecule (its atoms against everything they
+  touch: the same terms as totalEnergy's for them), as exact and local. 20 passes of a 300 MeV π⁺ among 1,200 atoms
+  of water: 29 ms a call before, 0.8 ms after; the books exact both times (1.4·10⁻⁵ eV). Fingerprints unchanged.
+  Check: f_bug125 "exoElastic".
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
