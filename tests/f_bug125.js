@@ -154,6 +154,15 @@ PARTS.coincident = async (page, check, say) => {
   check(r.flat < 3 && r.d3 < 5, `bug fix 7: eight electrons put down 0.02–1 Å apart keep the books to ${r.flat} eV (flat), ${r.d3} eV (3-D)`, 'bugfix coincident: ' + JSON.stringify(r));
 };
 
+/* 18. The flat bond-order cost tag, re-measured on a quiet machine (one thread, 400 steps, ms a simulated fs): liquid
+   water ×7.5–9.2 (seeds 3, 5, 7, 9, 12), salt water ×5.9–7.4; the 1.25 re-measurement's ×5.4–5.8 was taken under load.
+   The tag: ×6–15 (was ×8–15), its words with the new numbers. */
+PARTS.boTag = async (page, check, say) => {
+  const r = await page.evaluate(() => { loadPreset('water'); setRunning(false); const c = COSTS.segBo(); return { tag: c.o[1][0], text: c.o[1][1] }; });
+  check(r.tag === '×6–15' && /water ×7\.5–9\.2/.test(r.text) && /salt water ×5\.9–7\.4/.test(r.text), `bug fix 18: the flat bond-order tag ${r.tag} (${r.text.slice(0, 90)}…)`, 'bugfix boTag: ' + JSON.stringify(r));
+};
+PARTS.boTag.page = true;
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {

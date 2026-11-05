@@ -286,7 +286,7 @@ engine stores and visits particles.
   - [looked at after 1.25: physics, not a bug] 3-D: ionized water recaptures its free electrons within about 30 steps (40 ionized molecules); flat water keeps
     all 40.
   - 3-D: quantum nuclei with forces on every bead cost ×17–48 (×3–10 flat); for the speed work.
-  - Settings: the flat bond-order cost tag says ×8–15, liquid water measured ×5.4–5.8 (1.25).
+  - [fixed after 1.25] Settings: the flat bond-order cost tag says ×8–15, liquid water measured ×5.4–5.8 (1.25).
   - [fixed after 1.25] Test: t_features' 0.95 CO block (six CO among O₂ keep triple) follows the page's random stream (4 of 6 once).
   Model limits written down, not bugs: GFN1-xTB keeps hexazine whole (its own 0.53 eV barrier, 1.67 eV release); the
   game's bond table has As–H, Se–H and the As/Sb chlorides 4–17% weak, Sn–H, Sb–H, Te–H 6–18% strong (the 1.25 section).
@@ -975,6 +975,11 @@ books hashed apart).
   −10 to −32 eV, median −20: sunk below the depth the capture can pay, more than the 12 eV the neighbourhood may lend,
   0.92). That is the flat model's soft ion well in a molecule (deeper than the ion binds), written down for the owner
   as a model question, not changed.
+- 18. The flat bond-order cost tag (×8–15) against the 1.25 re-measurement (water ×5.4–5.8). Re-measured on a quiet
+  machine (4 cores, load 0.5, one thread, bench-mode.js, 300–400 steps, ms a simulated fs): liquid water ×7.5–9.2
+  (seeds 3, 5, 7, 9, 12: 8.6, 7.5, 8.1, 8.6, 9.2), salt water ×5.9–7.4 (seeds 12, 3). So the 1.25 figure was taken under
+  load and the old water ×8 holds. The tag is now ×6–15, its words with these numbers (and 1.20's H₂ + O₂ ×9, gallery
+  ×15). f_125s's two tag checks follow. Fingerprints unchanged. Check: f_bug125 "boTag" (page).
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
