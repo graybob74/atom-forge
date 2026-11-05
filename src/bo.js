@@ -940,7 +940,7 @@ function boSync() {
     for (const a of cl) want.set(a, ok);
   }
   if (BO.qm) { // (quantum bonds: one calculation for every member together, so only a small system takes part: all or none)
-    let nw = 0, nao = 0; for (const [a, v] of want) if (v) { nw++; nao += XTB.nAO(a.Z); }
+    let nw = 0, nao = 0; for (const [a, v] of want) if (v) { nw++; nao += xqNAO(a.Z); }
     // (and only while one calculation stays affordable, 1.23.1: its cost grows with the cube of the orbitals, and with quantum
     // nuclei every bead has its own; 40 heavy atoms, 360 orbitals, took 18 s a step and froze the page)
     XQ.over = nw > XQ.max || nao > XQ.maxAO || nao * nao * nao * (PI.on ? PI.P : 1) > XQ.maxCost ? nw : 0;
@@ -997,7 +997,7 @@ function boRelax(join) {
    anything joined). Counted from the world, not timed, so runs stay the same from a seed. */
 function boRelaxPasses() {
   const P = PI.on ? PI.P : 1;
-  if (BO.qm) { let nao = 0; for (const p of W.parts) if (p.bom && !p.dead) nao += XTB.nAO(p.Z); return Math.max(2, Math.min(60, Math.floor(2 * 160 * 160 * 160 / (P * Math.max(1, nao * nao * nao))))); }
+  if (BO.qm) { let nao = 0; for (const p of W.parts) if (p.bom && !p.dead) nao += xqNAO(p.Z); return Math.max(2, Math.min(60, Math.floor(2 * 160 * 160 * 160 / (P * Math.max(1, nao * nao * nao))))); }
   let n = 0; for (const p of W.parts) if (!p.dead) n++;
   return Math.max(6, Math.min(60, Math.floor(36000 / (P * Math.max(1, n))))); // (60 up to 600 particles: those worlds join as before)
 }
@@ -1023,6 +1023,16 @@ function boSet(v) {
   for (const p of W.parts) { p._dq = 0; p._dqv = 0; }
   if (W.parts.length) { boSync(); if (on) BO.any = true; }
 }
+/* The quantum method (1.26): 1 GFN1-xTB, 2 GFN2-xTB. With quantum bonds on, the members leave under the one and join
+   under the other (boSync books each change's energy to the bath, as switching models does). */
+function boQmMethod(m) {
+  m = m === 2 ? 2 : 1;
+  if (m === XQ.method) return;
+  const was = BO.on && BO.qm && W.parts.length;
+  if (was) { BO.on = false; boSync(); }
+  XQ.method = m; XQ.qsh = null; XQ.qsh1 = null; XQ.sig = ''; XQ.pq.length = 0;
+  if (was) { BO.on = true; boSync(); BO.any = true; }
+}
 
 /* ------------------------------------------------------------------ quantum bonds (Experimental, 1.22)
    Settings → Experimental → Bond orders → Quantum: the members' energy and forces come from GFN1-xTB (Grimme, Bannwarth
@@ -1038,12 +1048,15 @@ function boSet(v) {
    self-consistent charges (outside potential), so the forces are the energy's exact slopes. The energy counted is
    the binding energy: GFN1's less each member's free atom. Bond orders (Mayer's, from the density) are drawn and
    decide the molecules. */
-const XQ = { max: 40, maxAO: 160, maxCost: 160 * 160 * 160, maxIt: 40, acc: 0.01, extra: true, qsh: null, qsh1: null, sig: '', pq: [], eAtom: new Map(), over: 0, calls: 0, it: 0, ms: 0, fails: 0 };
+const XQ = { method: 1, max: 40, maxAO: 160, maxCost: 160 * 160 * 160, maxIt: 40, acc: 0.01, extra: true, qsh: null, qsh1: null, sig: '', pq: [], eAtom: new Map(), over: 0, calls: 0, it: 0, ms: 0, fails: 0 };
 function qmAtomE(Z) {
-  let e = XQ.eAtom.get(Z);
-  if (e === undefined) { e = XTB.gfn1Energy([Z], [[0, 0, 0]], 0, 0, { accuracy: XQ.acc }).E; XQ.eAtom.set(Z, e); }
+  const key = XQ.method === 2 ? 1000 + Z : Z; // (each method's own free atoms, 1.26)
+  let e = XQ.eAtom.get(key);
+  if (e === undefined) { e = (XQ.method === 2 ? XTB.gfn2Energy : XTB.gfn1Energy)([Z], [[0, 0, 0]], 0, 0, { accuracy: XQ.acc }).E; XQ.eAtom.set(key, e); }
   return e;
 }
+/* a member's orbitals under the method chosen (GFN2 gives hydrogen one, GFN1 two): what a calculation's cost grows with */
+const xqNAO = (Z) => XQ.method === 2 ? XTB.nAO2(Z) : XTB.nAO(Z);
 /* the potential (eV per unit charge) at each member from the non-members: the kernel's pair coefficients (qeqC), as bfPhiOthers */
 function qmPhi(mem, phi) {
   const QP = S.qp, Q = S.q;
@@ -1074,12 +1087,13 @@ function qmPass(forces) {
   for (let m = 0; m < n; m++) { vext[m] = phi[m] / XTB.AUTOEV; if (phi[m]) anyV = true; }
   const t0 = performance.now();
   let r;
-  try { r = XTB.gfn1Energy(Z, xyz, charge, 0, { grad: forces, vext: anyV ? vext : null, qsh0: XQ.sig === sig ? xqGuess() : null, bonds: true, accuracy: XQ.acc, maxIter: PI.on ? Math.max(8, Math.floor(XQ.maxIt / Math.sqrt(PI.P))) : XQ.maxIt }); } // (with beads, each a calculation, fewer: 14 at 8 beads; settled ones take 2–5, 1.23.1)
+  const qmE = XQ.method === 2 ? XTB.gfn2Energy : XTB.gfn1Energy; // (GFN2-xTB, 1.26: its D4 dispersion is inside, self-consistent)
+  try { r = qmE(Z, xyz, charge, 0, { grad: forces, vext: anyV ? vext : null, qsh0: XQ.sig === sig ? xqGuess() : null, bonds: true, accuracy: XQ.acc, maxIter: PI.on ? Math.max(8, Math.floor(XQ.maxIt / Math.sqrt(PI.P))) : XQ.maxIt }); } // (with beads, each a calculation, fewer: 14 at 8 beads; settled ones take 2–5, 1.23.1)
   catch (e) { r = null; }
   if (!r || !r.converged) { XQ.fails++; if (!r) { BO.E = 0; return 0; } }
-  const d = XTB.d3Disp(Z, xyz, { grad: forces });
-  if (forces) { XQ.qsh1 = XQ.sig === sig ? XQ.qsh : null; XQ.qsh = r.qsh; XQ.sig = sig; XQ.calls++; XQ.it += r.iterations; XQ.ms += performance.now() - t0; } // (a measurement leaves the next step's start alone: runs stay the same however often the energy is read)
-  let E = r.E - r.Eext + d.E; // (the outside potential's energy is the kernel's pairs')
+  const d = XQ.method === 2 ? null : XTB.d3Disp(Z, xyz, { grad: forces });
+  if (forces) { XQ.qsh1 = XQ.sig === sig ? XQ.qsh : null; XQ.qsh = r.guess || r.qsh; XQ.sig = sig; XQ.calls++; XQ.it += r.iterations; XQ.ms += performance.now() - t0; } // (a measurement leaves the next step's start alone: runs stay the same however often the energy is read)
+  let E = r.E - r.Eext + (d ? d.E : 0); // (the outside potential's energy is the kernel's pairs')
   for (let m = 0; m < n; m++) E -= qmAtomE(Z[m]);
   for (let m = 0; m < n; m++) { const p = mem[m], q = r.q[m]; QP[p.i] = q - p.q; p.qpol = q - p.q; p.qf = 0; p.qi = 0; }
   // bond orders (Mayer's): drawn, and the molecules
@@ -1091,9 +1105,14 @@ function qmPass(forces) {
   }
   BO.np = XQ.pq.length; BO.E = E;
   if (forces) {
-    const FX = S.fx, FY = S.fy, gq = r.g, gd = d.g;
-    for (let m = 0; m < n; m++) { const i = mem[m].i; FX[i] -= gq[m][0] + gd[m][0]; FY[i] -= gq[m][1] + gd[m][1]; }
-    if (d3) { const FZ = S.fz; for (let m = 0; m < n; m++) FZ[mem[m].i] -= gq[m][2] + gd[m][2]; } // (3-D: the slope in depth, 1.24)
+    const FX = S.fx, FY = S.fy, gq = r.g, gd = d ? d.g : null;
+    if (gd) {
+      for (let m = 0; m < n; m++) { const i = mem[m].i; FX[i] -= gq[m][0] + gd[m][0]; FY[i] -= gq[m][1] + gd[m][1]; }
+      if (d3) { const FZ = S.fz; for (let m = 0; m < n; m++) FZ[mem[m].i] -= gq[m][2] + gd[m][2]; } // (3-D: the slope in depth, 1.24)
+    } else { // (GFN2: the dispersion's slope is in r.g, 1.26)
+      for (let m = 0; m < n; m++) { const i = mem[m].i; FX[i] -= gq[m][0]; FY[i] -= gq[m][1]; }
+      if (d3) { const FZ = S.fz; for (let m = 0; m < n; m++) FZ[mem[m].i] -= gq[m][2]; }
+    }
     for (const q of XQ.pq) { if (q.n < 0.2) continue; const w = XQ_K * Math.min(q.n, 3) * (q.a.im + q.b.im); if (w > _stiff) _stiff = w; } // (a bond's stiffness, for the step: about 50 eV/Å² an order, O–H 49, C=O 75, C≡C 100)
   }
   return E;
