@@ -1,4 +1,4 @@
-<title>Atom Forge 1.22.0</title>
+<title>Atom Forge 1.23.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -146,6 +146,14 @@ body.panel-left .psplit { left: auto; right: -8px; }
 .tool:hover { background: var(--surface-2); }
 .tool[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
 .tool kbd { font-family: var(--font-data); font-size: 9.5px; opacity: 0.55; }
+/* the 3-D lab (stage 3): tools not in 3-D yet are greyed (their tooltip says so); the Preview tag; the Leave button */
+.tool.no3d { opacity: 0.32; cursor: not-allowed; }
+.tool.no3d:hover { background: transparent; }
+.pv { display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  background: rgba(255, 196, 90, 0.18); color: #ffc45a; vertical-align: 1px; }
+.leave3d { white-space: nowrap; }
+.mm-note3d { margin: 2px 0 8px; font-size: 12.5px; color: var(--muted); max-width: 46ch; }
+.note.no3d { color: #ffc45a; }
 
 .stage { position: relative; min-width: 0; min-height: 0; border-radius: var(--r); overflow: hidden; background: var(--ch-bg);
   border: 1px solid var(--line); box-shadow: var(--shadow); }
@@ -556,6 +564,43 @@ body.mo .ddpop.out { animation: ddOut 0.1s ease-in both; pointer-events: none; }
 .mm-list button { text-align: left; background: rgba(20, 30, 42, 0.6); color: #eef3f8; border: 1px solid rgba(160, 190, 220, 0.18); border-radius: 8px; padding: 7px 10px; font-size: 13.5px; }
 .mm-list button:hover { border-color: var(--accent); }
 .mm-note { font-size: 12px; opacity: 0.65; margin: 0; }
+/* The first screen: 2-D or 3-D, two windows onto the chamber side by side (a still of each mode from tools/setshots.js),
+   Continue above them when a chamber was kept. The 2-D and 3-D menus below it keep the one column of buttons. */
+.mmenu[data-v="choose"] .mm-card { width: min(640px, 100%); }
+.mm-choose { display: grid; gap: 12px; transform-style: preserve-3d; }
+.mm-choose > .btn, .mm-row .btn { transform: translateZ(36px); background: rgba(20, 30, 42, 0.72); color: #eef3f8; border-color: rgba(160, 190, 220, 0.25); backdrop-filter: blur(4px); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35); transition: transform 0.18s ease, border-color 0.18s, box-shadow 0.18s; }
+.mm-choose > .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); padding: 11px 14px; text-align: left; font-size: 15px; }
+.mm-cont small { font-weight: 500; opacity: 0.8; margin-left: 6px; }
+.mm-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; transform-style: preserve-3d; }
+.mm-mode { display: grid; gap: 4px; align-content: start; text-align: left; padding: 8px 8px 14px; border-radius: 14px; color: #eef3f8; font: inherit;
+  background: rgba(20, 30, 42, 0.72); border: 1px solid rgba(160, 190, 220, 0.25); backdrop-filter: blur(4px);
+  transform: translateZ(40px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4); transition: transform 0.18s ease, border-color 0.18s, box-shadow 0.18s; }
+.mm-mode:hover, .mm-mode:focus-visible { transform: translateZ(62px) translateY(-4px); border-color: var(--accent); box-shadow: 0 18px 38px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--accent), 0 0 26px rgba(90, 150, 255, 0.35); outline: none; }
+.mm-mode:active { transform: translateZ(34px) scale(0.985); transition-duration: 0.06s; }
+.mm-shot { display: block; aspect-ratio: 16 / 9; border-radius: 9px; overflow: hidden; margin-bottom: 8px; background: var(--ch-bg); border: 1px solid rgba(160, 190, 220, 0.18); }
+.mm-shot[hidden] { display: none; }
+.mm-shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.mm-mname { padding: 0 6px; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }
+.mm-mname .pv { vertical-align: 7px; }
+.mm-mline { padding: 0 6px; font-size: 13px; line-height: 1.4; color: rgba(238, 243, 248, 0.72); }
+.mm-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; transform-style: preserve-3d; }
+.mm-row .btn { padding: 8px 12px; font-size: 13.5px; }
+.mm-row .btn[hidden] { display: none; }
+.mm-row .btn:hover, .mm-choose > .btn:hover, .mm-choose > .btn:focus-visible { transform: translateZ(50px); border-color: var(--accent); }
+.mm-btns .btn.mm-back { justify-self: start; padding: 4px 10px; font-size: 12.5px; transform: translateZ(24px); box-shadow: none; }
+.mm-btns .btn.mm-back:hover, .mm-btns .btn.mm-back:focus-visible { transform: translateZ(30px) translateX(-3px); }
+.mm-set3 { display: grid; gap: 8px; }
+#mmBtns3 .mm-note3d { color: rgba(238, 243, 248, 0.62); font-size: 12px; margin: 2px 0 0; transform: translateZ(20px); }
+#mmTag .pv { margin-left: 4px; }
+.mmenu.in .mm-mode, .mmenu.in .mm-choose > .btn, .mmenu.in .mm-row .btn { animation: mmIn 0.6s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 70ms + 120ms); }
+@media (max-width: 600px) {
+  .mm-modes { grid-template-columns: 1fr; }
+  .mm-mode { grid-template-columns: 112px minmax(0, 1fr); column-gap: 10px; padding: 8px; }
+  .mm-shot { grid-row: span 2; margin: 0; }
+  .mm-mname { font-size: 22px; padding: 0; } .mm-mline { padding: 0; font-size: 12.5px; }
+  .mm-title { font-size: 34px; }
+}
+@media (max-height: 640px) { .mm-shot { display: none; } .mm-mode { grid-template-columns: none; padding: 12px 14px; } .mm-mname, .mm-mline { padding: 0; } }
 body.menu .stage > :not(canvas) { display: none !important; }
 body.menu .topbar, body.menu .tools-wrap, body.menu .panel { display: none; }
 body.menu .app { padding: 0; gap: 0; grid-template-rows: minmax(0, 1fr); }
@@ -690,7 +735,40 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .gball { display: block; width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35); }
 .gball.e { width: 13px; height: 13px; }
 .ndialog { width: min(860px, 100%); }
-.sdialog { width: min(560px, 100%); gap: 12px; }
+/* Settings: two panes in one window (asked for by the user, from a sketch): on the left a preview of the setting under
+   the pointer (a picture from the game and what it does), on the right the settings in a box of their own, scrolling
+   under their tabs. Narrow windows stack the preview, smaller, above the box. */
+.sdialog { width: min(1010px, 100%); height: min(800px, 100%); gap: 12px; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.sbody { display: grid; grid-template-columns: minmax(240px, 310px) minmax(0, 1fr); gap: 16px; min-height: 0; }
+.sprev { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 14px; min-height: 0; align-content: start; }
+.sprev-fig { position: relative; margin: 0; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; display: grid; place-items: center;
+  background: radial-gradient(120% 120% at 50% 40%, #0c1520, var(--ch-bg)); border: 1px solid var(--ch-line); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.sprev-fig img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.sprev-fig img[hidden], .sprev-ph[hidden] { display: none; }
+.sprev-ph { width: 26%; color: var(--ch-dim); opacity: 0.32; }
+.sprev-txt { min-height: 0; overflow: auto; padding-right: 4px; }
+.sprev h3 { margin: 0 0 6px; font-size: 16px; font-weight: 700; letter-spacing: -0.005em; text-transform: none; color: var(--fg); }
+.sprev-d p { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }
+.sprev-d p.note { font-size: 12.5px; }
+.sprev-d ul { margin: 0 0 8px; padding-left: 16px; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.sprev-d li { margin: 3px 0; } .sprev-d li b { color: var(--fg); font-weight: 650; }
+.sprev-d h4 { margin: 12px 0 5px; font-size: 12.5px; font-weight: 700; color: var(--fg); }
+.sprev-d ul.sprev-cost { list-style: none; padding: 0; }
+.sprev-cost .oc { display: inline-block; min-width: 34px; text-align: center; padding: 0 5px; border-radius: 7px; font: 600 10px var(--font-data); line-height: 15px; color: #fff; vertical-align: 1px; }
+.sbox { min-height: 0; overflow: auto; border: 1px solid var(--line); border-radius: 12px; padding: 0 16px 16px; display: grid; gap: 12px; align-content: start; background: var(--surface); overscroll-behavior: contain; }
+.sbox > .stabs { position: sticky; top: 0; z-index: 3; background: var(--surface); padding-top: 8px; }
+.sbox .spane > .srow, .sbox .spane > label.check { margin-inline: -8px; padding: 3px 8px; border-radius: 8px; transition: background 0.12s; }
+.sbox .spane > .sprev-on { background: var(--accent-soft); }
+@media (max-width: 760px), (max-height: 560px) {
+  .sdialog { height: 100%; }
+  .sbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
+  .sprev { grid-template-columns: 132px minmax(0, 1fr); grid-template-rows: none; gap: 12px; height: 92px; align-items: start; }
+  .sprev-txt { height: 100%; }
+  .sprev h3 { font-size: 14px; margin-bottom: 2px; }
+  .sprev-d p, .sprev-d p.note, .sprev-d ul { font-size: 12px; margin-bottom: 4px; }
+  .sbox { padding-inline: 12px; }
+}
+@media (max-width: 420px) { .sprev { grid-template-columns: 96px minmax(0, 1fr); height: 84px; } }
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }
 .gcard { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface-2); display: flex; flex-direction: column; }
 .gcard img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: #05080c; cursor: pointer; }

@@ -331,18 +331,19 @@ const { openPage } = require('./browser');
       const out = { menu: !$('mainMenu').hidden && UI.menu && UI.running, hidden: getComputedStyle(document.querySelector('.panel')).display === 'none' };
       { const cx0 = R.cx; $('mainMenu').dispatchEvent(new PointerEvent('pointermove', { clientX: 5, clientY: 5, bubbles: true })); for (let i = 0; i < 60; i++) mmTick(1 / 60);
         const tf = getComputedStyle(document.querySelector('.mm-card')).transform; out.depth = MMP.still || (R.cx !== cx0 && +$('mainMenu').style.getPropertyValue('--mx') < -0.5 && tf.startsWith('matrix3d')); }
+      out.choose = !$('mmChoose').hidden; document.querySelector('[data-mm="mode2d"]').click(); out.menu2d = !$('mmBtns').hidden; // (1.25: the 2-D / 3-D choice first)
       document.querySelector('[data-mm="setups"]').click(); out.list = $('mmList').querySelectorAll('button').length;
       document.querySelector('[data-mmp="water"]').click(); await wait(300);
       out.water = !UI.menu && UI.preset === 'water' && getComputedStyle(document.querySelector('.panel')).display !== 'none';
       placeSpec({ kind: 'atom', Z: 11, A: 23 }, 0, 0, 1); const n = W.parts.filter(p => !p.dead).length;
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       await wait(100); out.esc = !$('escModal').hidden && !UI.running;
-      document.querySelector('[data-esc="menu"]').click(); await wait(300); out.back = UI.menu && !$('mmContinue').hidden;
-      document.querySelector('[data-mm="continue"]').click(); await wait(300);
+      document.querySelector('[data-esc="menu"]').click(); await wait(300); out.back = UI.menu && !$('mmCont0').hidden && !$('mmChoose').hidden;
+      document.querySelector('#mmCont0').click(); await wait(300);
       out.cont = !UI.menu && W.parts.filter(p => !p.dead).length === n && UI.preset === 'water';
       return out;
     });
-    check(r19.menu && r19.depth && r19.hidden && r19.list > 20 && r19.water && r19.esc && r19.back && r19.cont,
+    check(r19.menu && r19.depth && r19.hidden && r19.choose && r19.menu2d && r19.list > 20 && r19.water && r19.esc && r19.back && r19.cont,
       `menus: the main menu at start over a running setup, its layers following the mouse in depth; ${r19.list} setups to pick from; Esc pauses with its menu; Main menu, then Continue, puts the same ${'chamber'} back`, 'menus: ' + JSON.stringify(r19));
     if (m.errors.length) { fails++; say('FAIL menu page errors:', m.errors.join(' | ').slice(0, 600)); }
     await m.browser.close();
@@ -1566,6 +1567,93 @@ const { openPage } = require('./browser');
   });
   check(r71.normal.hit && r71.normal.dE < 1e-9 && r71.normal.dP < 1e-9 && !r71.ultraMiss.hit && r71.ultraHit.hit && r71.ultraHit.dE < 1e-9 && r71.ultraHit.dP < 1e-9 && r71.gasKE < 0.05 && r71.gasScat > 10,
     `1.12: μp scattering off H: a pass 0.1 Å off scatters in normal play, not in ultra-realistic (0.003 Å off does), each exact (ΔE ${r71.normal.dE.toExponential(0)} eV); 10 μp at 1 eV in H₂ at 20 K: ${r71.gasScat} scatterings, mean ${r71.gasKE} eV`, '1.12 muonic scattering: ' + JSON.stringify(r71));
+  // 3-D (stage 1a): the engine in three directions, in the Node harness (nothing draws it yet)
+  const r3d = (() => {
+    const L3 = (seed) => require('./load.js').load('all', { seed }), out = {};
+    const run = (X, n, cap) => { const W = X.W; for (let s = 0; s < n; s++) { W.dt = cap ? Math.min(cap, X.chooseDt()) : X.chooseDt(); X.step(W.dt); } };
+    const books = (X) => X.totalEnergy().total + X.W.ledger.bath - X.W.ledger.nuc;
+    const ang = (c, a, b) => { const ux = a.x - c.x, uy = a.y - c.y, uz = a.z - c.z, vx = b.x - c.x, vy = b.y - c.y, vz = b.z - c.z; return Math.acos((ux * vx + uy * vy + uz * vz) / Math.hypot(ux, uy, uz) / Math.hypot(vx, vy, vz)) * 180 / Math.PI; };
+    const angles = (m) => { const a = []; for (const p of m) if (p.Z > 1 && p.bonds.length >= 2) { const nb = p.bonds.map(bd => bd.a === p ? bd.b : bd.a); for (let i = 0; i < nb.length; i++) for (let j = i + 1; j < nb.length; j++) a.push(ang(p, nb[i], nb[j])); } return a; };
+    const plane = (ps) => { // rms distance from the best plane: the smallest eigenvalue of the positions' covariance (Jacobi)
+      const n = ps.length, c = [0, 0, 0]; for (const p of ps) { c[0] += p.x / n; c[1] += p.y / n; c[2] += p.z / n; }
+      const A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]; for (const p of ps) { const d = [p.x - c[0], p.y - c[1], p.z - c[2]]; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) A[i][j] += d[i] * d[j]; }
+      for (let sw = 0; sw < 50; sw++) for (let p = 0; p < 3; p++) for (let q = p + 1; q < 3; q++) { if (Math.abs(A[p][q]) < 1e-15) continue; const th = 0.5 * Math.atan2(2 * A[p][q], A[q][q] - A[p][p]), cs = Math.cos(th), sn = Math.sin(th);
+        for (let k = 0; k < 3; k++) { const a = A[k][p], b = A[k][q]; A[k][p] = cs * a - sn * b; A[k][q] = sn * a + cs * b; } for (let k = 0; k < 3; k++) { const a = A[p][k], b = A[q][k]; A[p][k] = cs * a - sn * b; A[q][k] = sn * a + cs * b; } }
+      return Math.sqrt(Math.max(0, Math.min(A[0][0], A[1][1], A[2][2])) / n);
+    };
+    // shapes: placed flat from the library, relaxed in space at T ≈ 0 (a strong bath at 1 K)
+    { const X = L3(5), W = X.W; X.baseWorld(40, 40, 1, 0.5); X.world3d(40);
+      const keys = ['CH4', 'NH3', 'H2O', 'CO2', 'C2H4', 'benzene'], m = {};
+      keys.forEach((k, i) => { m[k] = X.addMolecule(k, -14 + (i % 3) * 14, -8 + Math.floor(i / 3) * 16, 0, 1, i % 2 ? 6 : -6); });
+      X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned; run(X, 3000);
+      const span = (a) => [+Math.min(...a).toFixed(2), +Math.max(...a).toFixed(2)];
+      const nh = m.NH3, N = nh.find(p => p.Z === 7), [a, b, c] = nh.filter(p => p.Z === 1);
+      const nx = (b.y - a.y) * (c.z - a.z) - (b.z - a.z) * (c.y - a.y), ny = (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z), nz = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+      out.shapes = { CH4: span(angles(m.CH4)), NH3: span(angles(m.NH3)), pyr: +Math.abs(((N.x - a.x) * nx + (N.y - a.y) * ny + (N.z - a.z) * nz) / Math.hypot(nx, ny, nz)).toFixed(3),
+        H2O: span(angles(m.H2O)), CO2: span(angles(m.CO2)), C2H4: span(angles(m.C2H4)), C2H4flat: +plane(m.C2H4).toFixed(4), benzene: +plane(m.benzene).toFixed(4),
+        intact: Object.values(m).every(g => g.every(p => !p.dead)) && W.bonds.length === 4 + 3 + 2 + 2 + 5 + 12 };
+    }
+    // energy: 60 waters at 300 K in a 18 Å cube, then insulated for 1,000 steps
+    { const X = L3(7), W = X.W, L = 18; X.baseWorld(L, L, 300, 0.05); X.world3d(L); let k = 0;
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) for (let l = 0; l < 4; l++) if (k++ < 60) X.addMolecule('H2O', (i - 1.5) * L / 4, (j - 1.5) * L / 4, 0, 300, (l - 1.5) * L / 4);
+      X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned; run(X, 1000);
+      W.gamma = 0; const E0 = books(X); run(X, 1000);
+      out.water = { dE: +(books(X) - E0).toFixed(4), T: Math.round(X.measure().T), n: W.parts.length };
+    }
+    // the forces are the energy's slopes in x, y and z (molecules, ions and a free electron, each atom moved off its place)
+    { const X = L3(4), W = X.W; X.baseWorld(24, 24, 300, 0.05); X.world3d(24);
+      X.addMolecule('CH4', -6, -6, 0, 300, -3); X.addMolecule('H2O', 0, -6, 0, 300, 3); X.addMolecule('CO2', 6, -6, 0, 300, 0); X.addMolecule('C2H4', -6, 3, 0, 300, 2); X.addMolecule('benzene', 4, 4, 0, 300, -2);
+      X.addMolecule('SF4', -8, -1, 0, 300, 7); X.addMolecule('PCl5', 7, -1, 0, 300, -7);
+      X.addAtom('Na', -9, 9, { charge: 1, z: 6 }); X.addAtom('Cl', -6.5, 9.5, { charge: -1, z: 7 }); X.addLepton(X.ELEC, 9, -9, 0, 0, 9);
+      for (const p of W.parts) { p.x += 0.15 * (X.rnd() - 0.5); p.y += 0.15 * (X.rnd() - 0.5); p.z += 0.15 * (X.rnd() - 0.5); }
+      X.forcesNoEvents(); let worst = 0, n = 0; const h = 1e-5;
+      for (const p of W.parts) for (const c of ['x', 'y', 'z']) { const F = p['f' + c], x0 = p[c]; p[c] = x0 + h; const Ep = X.totalEnergy().pe; p[c] = x0 - h; const Em = X.totalEnergy().pe; p[c] = x0; worst = Math.max(worst, Math.abs(F + (Ep - Em) / (2 * h))); n++; }
+      out.fd = { n, worst: +worst.toExponential(2) };
+    }
+    // chemistry: hydrogen atoms pair up in a hot box; insulated, the books close through the events
+    { const X = L3(11), W = X.W; X.baseWorld(24, 24, 1500, 0.05); X.world3d(24);
+      for (let i = 0; i < 60; i++) X.addAtom('H', 22 * (X.rnd() - 0.5), 22 * (X.rnd() - 0.5), { z: 22 * (X.rnd() - 0.5) });
+      X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned; run(X, 2000);
+      out.H = { H2: W.bonds.length, formed: W.count.bonds };
+      const Y = L3(2), V = Y.W; Y.baseWorld(20, 20, 1500, 0); Y.world3d(20);
+      for (let i = 0; i < 60; i++) Y.addAtom('H', 18 * (Y.rnd() - 0.5), 18 * (Y.rnd() - 0.5), { z: 18 * (Y.rnd() - 0.5) });
+      Y.settleOverlaps(); Y.forcesNoEvents(); V.fSpawn = V.spawned; const E0 = books(Y); run(Y, 3000, 0.01);
+      out.Hins = { events: V.count.bonds + V.count.broken, dE: +(books(Y) - E0).toFixed(4), T: Math.round(Y.measure().T) };
+    }
+    // hydrogen and oxygen at 2,500 K, set off with a spark (as the flat game's setup is): radicals react to OH and on
+    { const X = L3(11), W = X.W, T = 2500; X.baseWorld(30, 30, T, 0.05); X.world3d(30); let k = 0;
+      for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) for (let l = 0; l < 4; l++) X.addMolecule(k++ % 3 === 0 ? 'O2' : 'H2', -12 + i * 6 + (X.rnd() - 0.5), -12 + j * 6 + (X.rnd() - 0.5), X.rnd() * 6, T, -10.5 + l * 7);
+      X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned; run(X, 200); X.spark(0, 0, 6, 100, 0); run(X, 4000);
+      const made = new Set(); for (const p of W.parts) if (!p.dead && p.k === X.NUC && p.Z === 8) made.add(X.hill(X.molecule(p)));
+      out.HO = { react: W.count.react, made: [...made].sort() };
+    }
+    // walls in z: closed walls hold everything inside the depth; periodic ones wrap it
+    for (const wall of ['reflect', 'wrap']) {
+      const X = L3(6), W = X.W; X.baseWorld(16, 16, 2000, 0); X.world3d(12); W.wall = wall;
+      const ps = []; for (let i = 0; i < 40; i++) ps.push(X.addAtom('Ar', 14 * (X.rnd() - 0.5), 14 * (X.rnd() - 0.5), { z: 10 * (X.rnd() - 0.5) }));
+      X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned;
+      let zmax = 0, wraps = 0; const zl = ps.map(p => p.z);
+      for (let s = 0; s < 3000; s++) { W.dt = X.chooseDt(); X.step(W.dt); ps.forEach((p, i) => { zmax = Math.max(zmax, Math.abs(p.z)); if (Math.abs(p.z - zl[i]) > 6) wraps++; zl[i] = p.z; }); }
+      out[wall] = { zmax: +zmax.toFixed(3), wraps };
+    }
+    // the flat game is unchanged: liquid water, seed 3, 300 steps, to the last bit of every position and velocity (1.22.0's)
+    { const X = L3(3), W = X.W; X.PRESETS.water.build(); X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned; run(X, 300);
+      const f = new Float64Array(1), u = new Uint32Array(f.buffer); let h = 0x811c9dc5;
+      for (const p of W.parts) for (const v of [p.x, p.y, p.vx, p.vy]) { f[0] = v; for (const w of u) { h ^= w; h = Math.imul(h, 0x01000193) >>> 0; } }
+      out.flat = { hash: h.toString(16), zero: W.parts.every(p => p.z === 0 && p.vz === 0) };
+    }
+    return out;
+  })();
+  { const s = r3d.shapes, in2 = (a, lo, hi) => a[0] >= lo && a[1] <= hi;
+    check(in2(s.CH4, 108, 111) && in2(s.NH3, 105, 109) && s.pyr > 0.3 && in2(s.H2O, 102.5, 106.5) && s.CO2[0] >= 178 && in2(s.C2H4, 117, 123) && s.C2H4flat < 0.05 && s.benzene < 0.05 && s.intact,
+      `3-D (stage 1a): shapes in space from the flat library: H–C–H ${s.CH4.join('–')}°, H–N–H ${s.NH3.join('–')}° (N ${s.pyr} Å off the H₃ plane), water ${s.H2O[0]}°, CO₂ ${s.CO2[0]}°, ethylene ${s.C2H4.join('–')}° and flat to ${s.C2H4flat} Å, benzene flat to ${s.benzene} Å`, '3-D shapes: ' + JSON.stringify(s));
+    check(Math.abs(r3d.water.dE) < 0.05 && r3d.fd.worst < 1e-5,
+      `3-D (stage 1a): 60 waters at ${r3d.water.T} K insulated for 1,000 steps: books ${r3d.water.dE} eV; forces the energy's slopes in x, y, z to ${r3d.fd.worst} eV/Å (${r3d.fd.n} components)`, '3-D energy and forces: ' + JSON.stringify([r3d.water, r3d.fd]));
+    check(r3d.H.H2 >= 5 && r3d.Hins.events >= 5 && Math.abs(r3d.Hins.dE) < 0.02 && r3d.HO.react > 0 && r3d.HO.made.some(f => f === 'HO' || f === 'H₂O'),
+      `3-D (stage 1a): chemistry: ${r3d.H.H2} H₂ from hot H atoms; insulated, ${r3d.Hins.events} bond events with the books at ${r3d.Hins.dE} eV; H₂ + O₂ at 2,500 K sparked: ${r3d.HO.react} reactions, made ${r3d.HO.made.join(' ')}`, '3-D chemistry: ' + JSON.stringify([r3d.H, r3d.Hins, r3d.HO]));
+    check(r3d.reflect.zmax < 6.5 && r3d.wrap.zmax <= 6 && r3d.wrap.wraps > 0 && r3d.flat.hash === '40ceab5a' && r3d.flat.zero,
+      `3-D (stage 1a): z within the 12 Å depth (closed walls: |z| ≤ ${r3d.reflect.zmax}; periodic: ${r3d.wrap.wraps} wraps); the flat game unchanged to the bit (water, 300 steps: ${r3d.flat.hash})`, '3-D walls / flat: ' + JSON.stringify([r3d.reflect, r3d.wrap, r3d.flat]));
+  }
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

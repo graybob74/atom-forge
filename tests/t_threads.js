@@ -151,6 +151,64 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   say('benchmark:', bench.rows.join('\n           '));
   say('threads note:', bench.note);
   check(!bench.busy && bench.rows.length === 5 && /threads/.test(bench.rows[0]) && /20,000-atom goal/.test(bench.rows[1]) && /room for \d+ fps/.test(bench.rows[2]), 'the in-app benchmark ran its four worlds and judged the 20,000-atom goal', bench);
+  // 3-D (stage 4): the 3-D pair, bond, angle and dihedral forces shared over two threads give the one-thread forces to
+  // rounding, the same events in the same order, and the same forces to the bit when run twice; each worker's buffers (z
+  // too) are zero outside the intervals it reports; energy is kept over 40 insulated steps; and with af_forces3 (when the
+  // module has it: skipped with a note before CI rebuilds it) the WebAssembly kernels on both threads equal the JavaScript
+  // 3-D kernels to rounding. Liquid water (70,000 pairs), salt in water (ions, electron-transfer candidates), and the
+  // molecules setup with the pass forced onto both threads (flat centres, dihedrals).
+  await page.evaluate(() => { setRunning(false); setSetting('threads', '2'); loadPreset('water3d'); setRunning(false); });
+  await page.waitForFunction(() => { forcesNoEvents(); return TH.state === 'on' && TH.used === 2; }, null, { timeout: 15000 }).catch(() => {});
+  const r3 = await page.evaluate(() => {
+    const out = {};
+    for (const key of ['water3d', 'brine3d', 'mol3d']) {
+      loadPreset(key); setRunning(false); W.gamma = 0.05;
+      const minPairs = TH.minPairs; if (key === 'mol3d') TH.minPairs = 10;
+      for (let k = 0; k < 30; k++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
+      const n = S.hi, copy = () => [Float64Array.from(S.fx.subarray(0, n)), Float64Array.from(S.fy.subarray(0, n)), Float64Array.from(S.fz.subarray(0, n))];
+      const diff = (A, B) => { let m = 0, scale = 0; for (let a = 0; a < 3; a++) for (let i = 0; i < n; i++) { m = Math.max(m, Math.abs(A[a][i] - B[a][i])); scale = Math.max(scale, Math.abs(A[a][i])); } return { m, scale }; };
+      const evs = () => W.evq.map(e => e.type + ':' + (e.a && e.a.id) + ':' + (e.b && e.b.id)).join(' ');
+      W.evq.length = 0;
+      computeForces(); const A = copy(), evA = evs(), used = TH.used; W.evq.length = 0;
+      let outside = 0; const SP = 4 * TH.n + 32;
+      for (let w = 0; w < TH.n; w++) { const o = SP + 4 * w, a = TH.prm; for (let q = 0; q < TH.fx[w].length; q++) { const inI = (q >= a[o] && q < a[o + 1]) || (q >= a[o + 2] && q < a[o + 3]); if (!inI && (TH.fx[w][q] !== 0 || TH.fy[w][q] !== 0 || TH.fz[w][q] !== 0)) outside++; } }
+      computeForces(); const B = copy(); W.evq.length = 0;
+      TH.minPairs = 1e9; computeForces(); const C = copy(), evC = evs(); W.evq.length = 0; TH.minPairs = key === 'mol3d' ? 10 : minPairs;
+      let wk = { has3: WK.has3, note: WK.note3 };
+      if (WK.has3) {
+        WK.use = true; const c3 = WK.calls3; computeForces(); const Fw = copy(), evw = evs(); W.evq.length = 0; const usedW = TH.used, calls = WK.calls3 - c3;
+        WK.use = false; computeForces(); const Fj = copy(), evj = evs(); W.evq.length = 0; WK.use = true;
+        wk = Object.assign(wk, { usedW, calls, workers: TH.wasmOn.slice(0, TH.n), vs: diff(Fw, Fj), evSame: evw === evj });
+      }
+      // the 3-D neighbour list built on two threads is the one-thread list, pair for pair
+      forcesNoEvents(); buildGrid(_mdI, _nmd);
+      const vb0 = TH.vlBuilds || 0; vlBuild(); const L2 = [VL.np, Int32Array.from(VL.pi.subarray(0, VL.np)), Int32Array.from(VL.pj.subarray(0, VL.np))], vlThreaded = (TH.vlBuilds || 0) > vb0, vlNote = TH.vlNote;
+      const keepVl = vlBuildAll3; vlBuildAll3 = () => -1; vlBuild(); vlBuildAll3 = keepVl;
+      const vlSame = L2[0] === VL.np && L2[1].every((v, i) => v === VL.pi[i]) && L2[2].every((v, i) => v === VL.pj[i]);
+      vlExclusions();
+      // energy over 40 insulated steps on two threads
+      W.gamma = 0; forcesNoEvents(); W.fSpawn = W.spawned;
+      const tot = () => totalEnergy().total - W.ledger.nuc, E0 = tot();
+      for (let k = 0; k < 40; k++) { W.dt = chooseDt(); step(W.dt); }
+      const drift = tot() - E0, usedRun = TH.used;
+      TH.minPairs = minPairs;
+      out[key] = { n, np: VL.np, centres: AC.n, dihedrals: AC3.nt, used, usedRun, same: diff(A, B), vs1: diff(A, C), evN: evA ? evA.split(' ').length : 0, evSame: evA === evC, outside, drift: +drift.toFixed(4), wk, vl: { same: vlSame, threaded: vlThreaded, note: vlNote, np: L2[0] } };
+    }
+    return out;
+  });
+  for (const [key, v] of Object.entries(r3)) {
+    say(`3-D ${key}:`, JSON.stringify(v));
+    check(v.used === 2 && v.usedRun === 2, `3-D ${key}: the force pass ran on two threads`, v);
+    check(v.same.m === 0, `3-D ${key}: two threads twice, forces identical to the bit`, v.same);
+    check(v.vs1.m <= 1e-9 * Math.max(1, v.vs1.scale), `3-D ${key}: two threads vs one, forces equal to rounding (${v.np} pairs, ${v.centres} centres, ${v.dihedrals} dihedrals)`, v.vs1);
+    check(v.evSame, `3-D ${key}: two threads vs one, the same ${v.evN} events in the same order`);
+    check(v.outside === 0, `3-D ${key}: the workers' force buffers (x, y and z) are zero outside the intervals they report`, v.outside);
+    check(v.vl.same && v.vl.threaded, `3-D ${key}: the neighbour list built on two threads is the one-thread list, pair for pair (${v.vl.np} pairs)`, v.vl);
+    check(Math.abs(v.drift) < 3, `3-D ${key}: energy kept over 40 insulated steps on two threads (${v.drift} eV)`, v.drift);
+    if (v.wk.has3) check(v.wk.usedW === 2 && v.wk.calls > 0 && v.wk.workers[0] === true && v.wk.vs.m <= 1e-9 * Math.max(1, v.wk.vs.scale) && v.wk.evSame,
+      `3-D ${key}: af_forces3 on both threads equals the JavaScript 3-D kernels to rounding, the same events`, v.wk);
+    else say(`  (3-D ${key}: the WebAssembly 3-D check is skipped: ${v.wk.note}; it runs once CI has rebuilt kernel.wasm)`);
+  }
   // 1.13: up to 32 threads (a 16-core processor's two per core): 31 workers give the one-thread forces to rounding
   await page.evaluate(() => { setRunning(false); setSetting('threads', '32'); TH.minPairs = 100; });
   await page.evaluate(BUILD);

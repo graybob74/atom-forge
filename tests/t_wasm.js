@@ -115,5 +115,74 @@ for (const scen of ['waterion', 'flashbyte', 'combustion']) {
   if (ca !== cb) fail(scen + ': events differ ' + ca + ' vs ' + cb);
   if (Math.abs(ea - eb) > 1e-6 * Math.max(1, Math.abs(ea))) fail(scen + ': energies differ');
 }
+// 3. the 3-D kernels (af_forces3, kernel 0.26 on) against the JavaScript 3-D kernels: on frozen 3-D states the same
+//    forces to rounding (1e-10 of the slot's force, as in 2-D), the same candidates in the same order, the same stiffness;
+//    whole 3-D runs with and without the module agree closely and queue the same events. Skipped with a note while the
+//    committed module has no af_forces3 (until CI rebuilds it from kernel/src/d3.rs).
+function build3(X, scen) {
+  const W = X.W;
+  if (scen === 'mix3d') { // (every 3-D angle mode, flat centres and dihedrals, metals, bare nuclei, antimatter, ions; walls)
+    X.baseWorld(30, 30, 300, 0.05); X.world3d(30);
+    ['benzene', 'C2H4', 'CO2', 'SF6', 'PCl5', 'XeF4', 'ClF3', 'SF4', 'BrF5', 'BF3', 'CH4', 'NH3', 'H2O', 'H2O', 'NaOH', 'FeCl3'].forEach((k, n) =>
+      X.addMolecule(k, -10 + (n % 4) * 6.5, -10 + Math.floor(n / 4) * 6.5, X.rnd() * 6, 300, (n % 2 ? -1 : 1) * 6));
+    for (let k = 0; k < 6; k++) X.addAtom('Na', -3 + (k % 3) * 3.1, 12, { z: -12 + Math.floor(k / 3) * 3.1 });
+    for (let k = 0; k < 4; k++) X.addAtom('Cu', 8 + (k % 2) * 2.6, 12, { z: 8 + Math.floor(k / 2) * 2.6 });
+    for (let k = 0; k < 3; k++) X.addAtom('H', 12, -12 + 3 * k, { bare: true, z: 2 * k });
+    X.addAtom('He', -12, -12, { bare: true, z: 0 });
+    X.addAtom('H', -12, 12, { anti: true, z: -2 }); X.addAtom('H', -11, 12, { anti: true, z: 2 });
+    X.addAtom('Cl', 0, -13, { charge: -1, z: 0 }); X.addAtom('Na', 2.5, -13, { charge: 1, z: 0 });
+    X.settleOverlaps();
+  } else { X.PRESETS[scen === 'combustion3d-spark' ? 'combustion3d' : scen].build(); X.settleOverlaps(); }
+  W.decayOn = false;
+}
+{
+  const X = load('all', { seed: 12 }), { WK } = X;
+  if (!WK.has3) console.log(`3-D kernels: skipped (${WK.note3}; they are checked once CI has rebuilt kernel.wasm from kernel/src/d3.rs)`);
+  else {
+    for (const scen of ['water3d', 'brine3d', 'combustion3d-spark', 'mix3d', 'mol3d', 'hydrogen3d']) {
+      X.clearWorld(); build3(X, scen); steps(X, 30);
+      if (scen === 'combustion3d-spark') { X.spark(0, 0, 6, 150, 0); X.spark(8, -8, 6, 150, 8); steps(X, 60); }
+      X.forcesNoEvents(); X.bondArrays(); X.angleCentres3();
+      const { W, S, VL, BD, AC, AC3 } = X, n = S.hi, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d;
+      const F1 = [0, 1, 2].map(() => X.shArray(Float64Array, n)), F2 = [0, 1, 2].map(() => X.shArray(Float64Array, n));
+      const cq1 = X.shArray(Int32Array, 9 * (VL.np + BD.n) + 64), cq2 = X.shArray(Int32Array, cq1.length);
+      X._kStiff = 0;
+      let nc1 = X.pairKernel3(VL.pi, VL.pj, VL.ex, 0, VL.np, F1[0], F1[1], F1[2], cq1, 0, wrap, bw, bh, bd, bw / 2, bh / 2, bd / 2, W.step);
+      nc1 = X.bondKernel3(0, BD.n, F1[0], F1[1], F1[2], cq1, nc1, wrap, bw, bh, bd, bw / 2, bh / 2, bd / 2);
+      X.angleKernel3(0, AC.n, 0, AC3.nt, F1[0], F1[1], F1[2], wrap, bw, bh, bd);
+      const ks1 = X._kStiff; X._kStiff = 0;
+      X.wasmDesc(); X.wasmDesc3();
+      const nc2 = X.wasmForces3(0, VL.np, 0, BD.n, 0, AC.n, 0, AC3.nt, F2[0], F2[1], F2[2], cq2, wrap, bw, bh, bd, bw / 2, bh / 2, bd / 2, W.step);
+      const ks2 = X._kStiff;
+      let maxrel = 0, nbit = 0;
+      for (let i = 0; i < n; i++) {
+        const sc = Math.max(Math.abs(F1[0][i]), Math.abs(F1[1][i]), Math.abs(F1[2][i]), 1e-6);
+        let same = true; for (let a = 0; a < 3; a++) { maxrel = Math.max(maxrel, Math.abs(F1[a][i] - F2[a][i]) / sc); if (F1[a][i] !== F2[a][i]) same = false; }
+        if (!same) nbit++;
+      }
+      let same = nc1 === nc2; for (let k = 0; same && k < nc1; k++) same = cq1[k] === cq2[k];
+      const ksOk = Math.abs(ks1 - ks2) <= 1e-9 * Math.max(ks1, 1e-300);
+      console.log(`3-D ${scen}: ${n} slots, ${VL.np} pairs, ${BD.n} bonds, ${AC.n} centres, ${AC3.nt} dihedrals: ${nbit} slots not bit-identical, max rel force difference ${maxrel.toExponential(2)}, ${nc1 / 3} candidates ${same ? 'same' : 'DIFFERENT'}, stiffness ${ksOk ? 'same' : 'DIFFERENT'}`);
+      if (maxrel > 1e-10) fail('3-D ' + scen + ': forces differ by ' + maxrel);
+      if (!same) fail('3-D ' + scen + ': candidates differ');
+      if (!ksOk) fail('3-D ' + scen + ': stiffness differs ' + ks1 + ' vs ' + ks2);
+    }
+    // whole 3-D runs with and without the module (the step's force passes on af_forces3, or on the JavaScript)
+    for (const scen of ['water3d', 'mix3d']) {
+      const A = load('all', { seed: 7 }), B = load('all', { seed: 7 });
+      B.WK.has3 = false; // (B: the module for 2-D as usual, the JavaScript in 3-D)
+      build3(A, scen); build3(B, scen);
+      const c0 = A.WK.calls3; steps(A, 30); steps(B, 30);
+      const n = Math.min(A.S.hi, B.S.hi); let maxd = 0;
+      for (let i = 0; i < n; i++) { if (A.S.dead[i] || B.S.dead[i]) continue; maxd = Math.max(maxd, Math.abs(A.S.x[i] - B.S.x[i]), Math.abs(A.S.y[i] - B.S.y[i]), Math.abs(A.S.z[i] - B.S.z[i])); }
+      const ca = JSON.stringify(A.W.count), cb = JSON.stringify(B.W.count), ea = A.totalEnergy().total, eb = B.totalEnergy().total;
+      console.log(`3-D ${scen}, 30 steps with and without af_forces3 (${A.WK.calls3 - c0} calls): positions within ${maxd.toExponential(2)} Å, events ${ca === cb ? 'same' : 'DIFFERENT'}, energy ${ea.toFixed(6)} vs ${eb.toFixed(6)} eV`);
+      if (!(A.WK.calls3 - c0 >= 30) || B.WK.calls3 !== 0) fail('3-D ' + scen + ': af_forces3 not used as asked');
+      if (maxd > 1e-5) fail('3-D ' + scen + ': runs diverged by ' + maxd); // (the angle terms' atan2 and sin differ from V8's in the last bit now and then; 30 steps of water keep that far below this)
+      if (ca !== cb) fail('3-D ' + scen + ': events differ ' + ca + ' vs ' + cb);
+      if (Math.abs(ea - eb) > 1e-6 * Math.max(1, Math.abs(ea))) fail('3-D ' + scen + ': energies differ');
+    }
+  }
+}
 if (fails) { console.log(fails + ' wasm failure(s)'); process.exit(1); }
 console.log('wasm checks passed');

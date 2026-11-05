@@ -10,8 +10,8 @@
    everything on #cv as before.
    ========================================================================== */
 const GL = { ok: false, tried: false, on: true, cv: null, gl: null, w: 0, h: 0, note: '', calls: 0, balls: 0, glows: 0, segs: 0, shown: null, slots: 0, bondVerts: 0 };
-const GL_V = { ball: null, glow: null, seg: null, slot: null, bond: null }; // programs
-const GL_B = { ball: null, glow: null, seg: null }; // instance buffers: { ab, f32, u8, n, cap, vao, buf }
+const GL_V = { ball: null, glow: null, seg: null, slot: null, bond: null, slot3: null, bond3: null, ball3: null, glow3: null }; // programs (…3: the 3-D view's)
+const GL_B = { ball: null, glow: null, seg: null, ball3: null, glow3: null }; // instance buffers: { ab, f32, u8, n, cap, vao, buf }
 /* The slot textures: every store slot's position (RG32F), its colour (RGBA8, alpha 0 = not a ball) and its ball style
    (RGBA32F: radius in Å, the smallest and largest radius in pixels it is drawn at). The atoms and the bonds are drawn
    from these by the GPU: the positions are uploaded each frame straight from the store (no per-atom JavaScript), the
@@ -166,7 +166,8 @@ function glCompile(gl, vs, fs) {
   const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   const u = (n) => gl.getUniformLocation(p, n);
-  return { p, u_res: u('u_res'), u_dpr: u('u_dpr'), u_pos: u('u_pos'), u_sty: u('u_sty'), u_col: u('u_col'), u_view: u('u_view'), u_half: u('u_half'), u_box: u('u_box'), u_bond: u('u_bond') };
+  return { p, u_res: u('u_res'), u_dpr: u('u_dpr'), u_pos: u('u_pos'), u_sty: u('u_sty'), u_col: u('u_col'), u_view: u('u_view'), u_half: u('u_half'), u_box: u('u_box'), u_bond: u('u_bond'),
+    u_eye: u('u_eye'), u_rt: u('u_rt'), u_up: u('u_up'), u_fw: u('u_fw'), u_F: u('u_F'), u_depth: u('u_depth'), u_fog: u('u_fog'), u_fogc: u('u_fogc'), u_maxr: u('u_maxr'), u_min: u('u_min') }; // (u_eye …: the 3-D programs')
 }
 /* A vertex buffer with its vertex array: interleaved attributes, one vertex per ball or glow (points), four per segment
    (quads, drawn with a shared index buffer). */
@@ -200,14 +201,18 @@ function glInit() {
   try {
     if (typeof document === 'undefined') throw new Error('no document');
     const cv = document.getElementById('cvgl') || document.createElement('canvas');
-    const gl = cv.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
+    const gl = cv.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, depth: true, /* (a depth buffer for the 3-D view; the flat drawing never turns the depth test on) */ stencil: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
     if (!gl) throw new Error('WebGL 2 unavailable');
     GL.cv = cv; GL.gl = gl;
     GL.quadIdx = gl.createBuffer(); GL.quadIdxN = 0; glQuadIndices(4096);
     GL_V.ball = glCompile(gl, GL_VS_POINT, GL_FS_BALL); GL_V.glow = glCompile(gl, GL_VS_POINT, GL_FS_GLOW); GL_V.seg = glCompile(gl, GL_VS_SEG, GL_FS_SEG);
     GL_V.slot = glCompile(gl, GL_VS_SLOT, GL_FS_BALL); GL_V.bond = glCompile(gl, GL_VS_BOND, GL_FS_BOND);
+    GL_V.slot3 = glCompile(gl, GL_VS_SLOT3, GL_FS_BALL3); GL_V.bond3 = glCompile(gl, GL_VS_BOND3, GL_FS_BOND3); GL_V.ball3 = glCompile(gl, GL_VS_POINT3, GL_FS_BALL3); GL_V.glow3 = glCompile(gl, GL_VS_POINT3, GL_FS_GLOW);
+    const l3 = [[0, 3, gl.FLOAT, false, 0], [1, 1, gl.FLOAT, false, 12], [2, 4, gl.UNSIGNED_BYTE, true, 16]];
+    GL_B.ball3 = glBuffer(gl, GL_B3_STRIDE, l3, 1); GL_B.glow3 = glBuffer(gl, GL_B3_STRIDE, l3, 1);
+    GL.maxPt = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)[1];
     const tex = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
-    GL_T.pos = tex(); GL_T.col = tex(); GL_T.sty = tex(); GL_T.rows = 0; GL_BD.gen = -1; GL_BD.nb = -1; GL_BD.n = 0;
+    GL_T.pos = tex(); GL_T.col = tex(); GL_T.sty = tex(); GL_T3.pos = tex(); GL_T3.rows = 0; GL_T.rows = 0; GL_BD.gen = -1; GL_BD.nb = -1; GL_BD.n = 0;
     GL_BD.vao = gl.createVertexArray(); gl.bindVertexArray(GL_BD.vao); GL_BD.buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL_BD.buf);
     for (const [loc, size, off] of [[0, 2, 0], [1, 4, 8], [2, 2, 24]]) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 32, off); }
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, GL.quadIdx); gl.bindVertexArray(null);
@@ -351,5 +356,161 @@ function glFlush() {
   if (GL_B.glow.n) { glDrawBuf(GL_V.glow, GL_B.glow, true); GL.glows += GL_B.glow.n; }
   if (GL_B.ball.n) { glDrawBuf(GL_V.ball, GL_B.ball, false); GL.balls += GL_B.ball.n; }
   GL_B.ball.n = 0; GL_B.glow.n = 0; GL_B.seg.n = 0;
+}
+
+/* ---- the 3-D view (view3d.js): the same balls, bonds and glows in perspective, depth-tested
+   Positions with z go in a texture of their own (RGBA32F: x, y, z), uploaded each frame as the flat one is; the
+   colour and style textures and the bonds' vertex buffer are the flat ones. The camera is a basis (eye, right, up,
+   forward) and a focal length in pixels: a point's view depth is its distance along forward, and it lands on the
+   screen at the centre plus F·(right, −up)/depth. The vertex shaders project and set a linear depth (the screen
+   positions are computed here, so w stays 1); the ball's fragment shader writes the depth of the sphere's front
+   surface at that pixel, so balls cut into each other and bonds vanish into them properly. With distance, colours
+   fade a little toward the chamber's background (u_fog: the depths over which, and how much). */
+const GL_T3 = { rows: 0, pos: null, A: null };
+const GL_B3_STRIDE = 20; // bytes per item: x, y (CSS px of the view), view depth (Å), radius (px), colour
+const GL3_CAM = `uniform vec3 u_eye; uniform vec3 u_rt; uniform vec3 u_up; uniform vec3 u_fw; uniform float u_F;
+uniform vec2 u_half; uniform vec2 u_res; uniform vec2 u_depth; uniform vec3 u_fog;
+float dep(float z) { return clamp((z - u_depth.x) / (u_depth.y - u_depth.x), 0.0, 1.0); }
+vec4 clipAt(vec2 p, float z) { p += vec2(${GL_OV}.0); return vec4(p.x / u_res.x * 2.0 - 1.0, 1.0 - p.y / u_res.y * 2.0, dep(z) * 2.0 - 1.0, 1.0); }
+float fogAt(float z) { return clamp((z - u_fog.x) / max(1e-3, u_fog.y - u_fog.x), 0.0, 1.0) * u_fog.z; }`;
+const GL_VS_SLOT3 = `#version 300 es
+uniform sampler2D u_pos; uniform sampler2D u_sty; uniform sampler2D u_col;
+uniform float u_dpr; uniform float u_maxr;
+${GL3_CAM}
+out float v_r; out vec4 v_col; out float v_z; out float v_rw; out float v_fog;
+void main() {
+  ivec2 t = ivec2(gl_VertexID & ${GL_TW - 1}, gl_VertexID >> 11);
+  vec4 sty = texelFetch(u_sty, t, 0); vec4 col = texelFetch(u_col, t, 0);
+  vec3 d = texelFetch(u_pos, t, 0).xyz - u_eye; float z = dot(d, u_fw);
+  if (col.a <= 0.0 || z < u_depth.x) { gl_Position = vec4(2.0, 2.0, 0.0, 1.0); gl_PointSize = 0.0; v_r = 0.0; v_col = vec4(0.0); v_z = 1.0; v_rw = 0.0; v_fog = 0.0; return; }
+  float r = min(max(sty.y, sty.x * u_F / z), u_maxr);
+  gl_Position = clipAt(vec2(u_half.x + u_F * dot(d, u_rt) / z, u_half.y - u_F * dot(d, u_up) / z), z);
+  gl_PointSize = 2.0 * (r + 1.0) * u_dpr;
+  v_r = r; v_col = vec4(col.rgb, 1.0); v_z = z; v_rw = r * z / u_F; v_fog = fogAt(z);
+}`;
+/* Items (free leptons, bare nuclei, glows) already projected by the caller: their place on the screen and depth. */
+const GL_VS_POINT3 = `#version 300 es
+layout(location=0) in vec3 a_pos; layout(location=1) in float a_rad; layout(location=2) in vec4 a_col;
+uniform float u_dpr;
+${GL3_CAM}
+out float v_r; out vec4 v_col; out float v_z; out float v_rw; out float v_fog;
+void main() {
+  gl_Position = clipAt(a_pos.xy, a_pos.z);
+  gl_PointSize = 2.0 * (a_rad + 1.0) * u_dpr;
+  v_r = a_rad; v_col = a_col; v_z = a_pos.z; v_rw = a_rad * a_pos.z / u_F; v_fog = fogAt(a_pos.z);
+}`;
+/* The flat ball's shading, faded with distance, and the depth of the sphere's surface at the fragment. */
+const GL_FS_BALL3 = GL_FS_BALL.replace('in float v_r; in vec4 v_col;', 'in float v_r; in vec4 v_col; in float v_z; in float v_rw; in float v_fog;\nuniform vec2 u_depth; uniform vec3 u_fogc;')
+  .replace('o = vec4(col * a, a);', `col = mix(col, u_fogc, v_fog);
+  float h = sqrt(max(0.0, 1.0 - d * d / (v_r * v_r)));
+  gl_FragDepth = clamp((v_z - v_rw * h - u_depth.x) / (u_depth.y - u_depth.x), 0.0, 1.0);
+  o = vec4(col * a, a);`);
+/* A half-bond lane in 3-D: both ends projected, the quad built across the projected line as in the flat view, its
+   width and the lanes' spacing scaled by the depth of the half's middle (with the flat view's least pixel sizes). */
+const GL_VS_BOND3 = `#version 300 es
+layout(location=0) in vec2 a_ab; layout(location=1) in vec4 a_q; layout(location=2) in vec2 a_r;
+uniform sampler2D u_pos; uniform sampler2D u_col;
+uniform vec4 u_box;                    // half the box (Å) in x, y, z; periodic (1) or not
+uniform vec3 u_bond;                   // half the stroke width (Å), the lane offset (Å), the opacity factor
+uniform vec2 u_min;                    // the least half width and lane offset (px)
+${GL3_CAM}
+out vec2 v_lc; out vec2 v_dim; out vec4 v_col; out vec2 v_caps; out float v_fog;
+void main() {
+  int ia = int(a_ab.x), ib = int(a_ab.y);
+  vec3 pa = texelFetch(u_pos, ivec2(ia & ${GL_TW - 1}, ia >> 11), 0).xyz, pb = texelFetch(u_pos, ivec2(ib & ${GL_TW - 1}, ib >> 11), 0).xyz;
+  vec3 d = pb - pa, ea = pa - u_eye, eb = pb - u_eye;
+  float za = dot(ea, u_fw), zb = dot(eb, u_fw);
+  if ((u_box.w > 0.5 && (abs(d.x) > u_box.x || abs(d.y) > u_box.y || abs(d.z) > u_box.z)) || za < u_depth.x || zb < u_depth.x) { gl_Position = vec4(2.0, 2.0, 0.0, 1.0); v_col = vec4(0.0); v_lc = vec2(0.0); v_dim = vec2(1.0); v_caps = vec2(0.0); v_fog = 0.0; return; }
+  vec2 A = vec2(u_half.x + u_F * dot(ea, u_rt) / za, u_half.y - u_F * dot(ea, u_up) / za), B = vec2(u_half.x + u_F * dot(eb, u_rt) / zb, u_half.y - u_F * dot(eb, u_up) / zb), M = (A + B) * 0.5;
+  bool first = a_q.x < 0.5;
+  vec2 P0 = first ? A : M, P1 = first ? M : B, dd = P1 - P0;
+  float z0 = first ? za : 0.5 * (za + zb), z1 = first ? 0.5 * (za + zb) : zb, sc = u_F / (0.5 * (z0 + z1));
+  float L = length(dd); vec2 u = L > 0.0 ? dd / L : vec2(1.0, 0.0), n = vec2(-u.y, u.x);
+  float hw = max(u_min.x, u_bond.x * sc) * a_q.w, e = hw + 1.0, off = max(u_min.y, u_bond.y * sc);
+  int c = int(a_q.y + 0.5);
+  float along = c < 2 ? -e : L + e, across = (c == 0 || c == 2) ? -e : e;
+  float z = mix(z0, z1, L > 0.0 ? clamp(along / L, 0.0, 1.0) : 0.0);
+  gl_Position = clipAt(P0 + u * along + n * (across + a_q.z * off), z);
+  v_lc = vec2(along, across); v_dim = vec2(L, hw);
+  float stretch = clamp((length(d) - a_r.x) / a_r.y, 0.0, 1.0);
+  int ic = first ? ia : ib;
+  vec4 col = texelFetch(u_col, ivec2(ic & ${GL_TW - 1}, ic >> 11), 0);
+  v_col = vec4(col.rgb, (0.95 - stretch * 0.6) * u_bond.z);
+  v_caps = first ? vec2(1.0, 0.0) : vec2(0.0, 1.0); v_fog = fogAt(z);
+}`;
+const GL_FS_BOND3 = GL_FS_BOND.replace('in vec2 v_caps;', 'in vec2 v_caps; in float v_fog;\nuniform vec3 u_fogc;').replace('o = vec4(v_col.rgb * a, a);', 'o = vec4(mix(v_col.rgb, u_fogc, v_fog) * a, a);');
+/* The positions with z of slots 0 ≤ i < hi into their texture (every frame, in 3-D). */
+function glSlotPositions3(hi) {
+  const gl = GL.gl, rows = Math.max(1, Math.ceil(hi / GL_TW));
+  if (rows > GL_T3.rows) {
+    const A = new Float32Array(rows * GL_TW * 4); if (GL_T3.A) A.set(GL_T3.A); GL_T3.A = A; GL_T3.rows = rows;
+    gl.bindTexture(gl.TEXTURE_2D, GL_T3.pos); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, GL_TW, rows, 0, gl.RGBA, gl.FLOAT, null);
+  }
+  const A = GL_T3.A, X = S.x, Y = S.y, Z = S.z;
+  for (let i = 0; i < hi; i++) { const o = 4 * i; A[o] = X[i]; A[o + 1] = Y[i]; A[o + 2] = Z[i]; }
+  gl.bindTexture(gl.TEXTURE_2D, GL_T3.pos); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, GL_TW, rows, gl.RGBA, gl.FLOAT, A.subarray(0, rows * GL_TW * 4));
+}
+/* The camera's uniforms (C: view3d.js's camera of this frame). */
+function glCam3(prog, C) {
+  const gl = GL.gl;
+  gl.uniform2f(prog.u_res, R.w + 2 * GL_OV, R.h + 2 * GL_OV); if (prog.u_dpr) gl.uniform1f(prog.u_dpr, R.dpr);
+  gl.uniform2f(prog.u_half, R.w / 2, R.h / 2);
+  gl.uniform3f(prog.u_eye, C.ex, C.ey, C.ez); gl.uniform3f(prog.u_rt, C.rx, C.ry, C.rz); gl.uniform3f(prog.u_up, C.ux, C.uy, C.uz); gl.uniform3f(prog.u_fw, C.fx, C.fy, C.fz);
+  gl.uniform1f(prog.u_F, C.F); gl.uniform2f(prog.u_depth, C.near, C.far); gl.uniform3f(prog.u_fog, C.fog0, C.fog1, C.fogK);
+  if (prog.u_fogc) gl.uniform3f(prog.u_fogc, C.fogc[0] / 255, C.fogc[1] / 255, C.fogc[2] / 255);
+}
+function glBind3(prog, withStyle) {
+  const gl = GL.gl;
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, GL_T3.pos); gl.uniform1i(prog.u_pos, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, GL_T.col); gl.uniform1i(prog.u_col, 1);
+  if (withStyle) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, GL_T.sty); gl.uniform1i(prog.u_sty, 2); }
+  gl.activeTexture(gl.TEXTURE0);
+}
+/* The frame's depth buffer and test (the flat view never turns them on; glEnd3 turns them off again). */
+function glBegin3() { const gl = GL.gl; gl.clearDepth(1); gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); GL_B.ball3.n = 0; GL_B.glow3.n = 0; }
+function glEnd3() { const gl = GL.gl; gl.depthMask(true); gl.disable(gl.DEPTH_TEST); }
+function glDrawSlots3(hi, C) {
+  if (!hi) return;
+  const gl = GL.gl, prog = GL_V.slot3;
+  gl.useProgram(prog.p); glCam3(prog, C); glBind3(prog, true);
+  gl.uniform1f(prog.u_maxr, Math.max(4, GL.maxPt / (2 * R.dpr) - 1)); // (a sprite no bigger than the largest point the GPU draws)
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.bindVertexArray(null);
+  gl.drawArrays(gl.POINTS, 0, hi);
+  GL.calls++; GL.slots += hi;
+}
+function glDrawBonds3(C, hwA, offA, minHw, minOff, wrap) {
+  if (!GL_BD.n) return;
+  const gl = GL.gl, prog = GL_V.bond3;
+  gl.useProgram(prog.p); glCam3(prog, C); glBind3(prog, false);
+  gl.uniform4f(prog.u_box, W.box.w / 2, W.box.h / 2, W.box.d / 2, wrap ? 1 : 0); gl.uniform3f(prog.u_bond, hwA, offA, 1); gl.uniform2f(prog.u_min, minHw, minOff);
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.bindVertexArray(GL_BD.vao);
+  gl.drawElements(gl.TRIANGLES, GL_BD.n * 6, gl.UNSIGNED_INT, 0);
+  gl.bindVertexArray(null);
+  GL.calls++; GL.segs += GL_BD.n;
+}
+/* Items: x, y in CSS pixels of the view, z the view depth (Å), r in pixels, colours as [r, g, b] 0–255. */
+function glItem3(b, x, y, z, r, c, A) {
+  if (b.n >= b.cap) glGrow(b, b.n + 1);
+  const o = b.n * 5, u = b.n * 20; b.f32[o] = x; b.f32[o + 1] = y; b.f32[o + 2] = z; b.f32[o + 3] = r; b.u8[u + 16] = c[0]; b.u8[u + 17] = c[1]; b.u8[u + 18] = c[2]; b.u8[u + 19] = A; b.n++;
+}
+function glBall3(x, y, z, r, c) { glItem3(GL_B.ball3, x, y, z, r, c, 255); }
+function glGlow3(x, y, z, r, c, alpha) { glItem3(GL_B.glow3, x, y, z, r, c, Math.round(alpha * 255)); }
+/* The items queued: balls depth-tested and written; glows additive, tested but not written. */
+function glFlush3(C) {
+  const gl = GL.gl;
+  for (const [b, prog, add] of [[GL_B.ball3, GL_V.ball3, false], [GL_B.glow3, GL_V.glow3, true]]) {
+    if (!b.n) continue;
+    gl.useProgram(prog.p); glCam3(prog, C);
+    gl.depthMask(!add); gl.blendFunc(gl.ONE, add ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
+    gl.bindVertexArray(b.vao); gl.bindBuffer(gl.ARRAY_BUFFER, b.buf);
+    gl.bufferData(gl.ARRAY_BUFFER, b.u8.subarray(0, b.n * b.stride), gl.DYNAMIC_DRAW);
+    gl.drawArrays(gl.POINTS, 0, b.n);
+    gl.bindVertexArray(null);
+    GL.calls++; if (add) GL.glows += b.n; else GL.balls += b.n;
+    b.n = 0;
+  }
+  gl.depthMask(true);
 }
 if (typeof module !== 'undefined') module.exports = { GL, glInit, glReady };
