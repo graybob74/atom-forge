@@ -197,6 +197,8 @@ engine stores and visits particles.
   - Separate molecule libraries for 2-D and 3-D, each holding only the molecules that fit it (flat builds in the flat
     game, 3-D shapes in the 3-D lab). Molecules made with Ask Claude go to the library of the mode they were made
     for, with a 2-D / 3-D drop-down when building one with Claude.
+  - Remove the "3-D PREVIEW · Leave" button on the 3-D lab's bar (the user: "if i want to leave i go to the main
+    menu"); keep the Preview tag.
   For 1.24:
   - The rest of the Experimental settings in 3-D: induced charges, quantum nuclei, continuous and quantum bond orders,
     electrons as waves, the ultra-realistic mode (today flat only, set3dNote). Physics in 3-D; needs his OK as each
