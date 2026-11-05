@@ -102,6 +102,12 @@ function cam3Fit() {
   c.dist = rb / Math.sin(half) * 0.9;
   cam3Update();
 }
+/* How big a particle is drawn in 3-D (Å, before the atom-size setting). A lone ion is drawn on the atoms' own scale
+   (0.3 + 0.28·r) from 0.7 of its ionic radius (1.23.2, the owner: "just draw ions smaller"; display only): Cl⁻ 0.65 Å,
+   a little larger than a Cl atom (0.58), not 1.09; Na⁺ 0.50, a little smaller than a Na atom (0.76), not 0.61; anions
+   (0.56–0.73) still bigger than cations (0.39–0.57, Cs⁺ 0.63). In a crowd of waters an anion's ball had been two to
+   three times its neighbours' and covered them. Everything else as in the flat game (p.rd); the flat game unchanged. */
+function rd3(p) { return p.ionic && p.ionR > 0 ? 0.3 + 0.2 * p.ionR : p.rd; }
 function cam3Orbit(dpx, dpy) { const c = R.cam3; c.yaw -= dpx * 0.008; c.pitch = clamp(c.pitch + dpy * 0.008, -CAM3_PITCH, CAM3_PITCH); }
 function cam3Pan(dpx, dpy) {
   const c = R.cam3, k = (C3.D || c.dist) / (C3.F || 500);
@@ -119,7 +125,7 @@ function pick3(px, py, extra = 6) {
   let hit = null, hz = Infinity, near = null, nd = Infinity;
   for (const p of W.parts) {
     if (p.dead || !proj3(p.x, p.y, p.z, o)) continue;
-    const sc = C3.F / o[2], r = p.k === NUC ? Math.max(p.Z === 0 ? 2.2 : 2.4, Math.max(p.rd, 0.2) * sc) : Math.max(1.8, 0.15 * sc);
+    const sc = C3.F / o[2], r = p.k === NUC ? Math.max(p.Z === 0 ? 2.2 : 2.4, Math.max(rd3(p), 0.2) * sc) : Math.max(1.8, 0.15 * sc);
     const d = Math.hypot(o[0] - px, o[1] - py);
     if (d <= r) { if (o[2] < hz) { hz = o[2]; hit = p; } }
     else if (d - r < extra && d - r < nd) { nd = d - r; near = p; }
@@ -259,7 +265,7 @@ function render3d(rt) {
     if (p.dead || !proj3(p.x, p.y, p.z, o)) continue;
     if (o[0] < -pad || o[1] < -pad || o[0] > R.w + pad || o[1] > R.h + pad) continue;
     const sc = F / o[2];
-    const r = p.k !== NUC ? Math.max(1.8, 0.12 * sc) : p.Z === 0 ? Math.max(2.2, 0.2 * sc) : p.ne === 0 ? Math.max(2.6, p.rd * as * sc) : Math.max(2.4, p.rd * as * sc);
+    const r = p.k !== NUC ? Math.max(1.8, 0.12 * sc) : p.Z === 0 ? Math.max(2.2, 0.2 * sc) : p.ne === 0 ? Math.max(2.6, p.rd * as * sc) : Math.max(2.4, rd3(p) * as * sc);
     V[b] = o[0]; V[b + 1] = o[1]; V[b + 2] = o[2]; V[b + 3] = r;
     vis.push(p);
   }
@@ -268,8 +274,8 @@ function render3d(rt) {
   const glowsOf = (p, b, put) => {
     if (p.k === NUC && p.ne > 0 && !(p.tLocal > 900) && !(p.glow > 0.02)) return; // (most atoms: none)
     const sc = F / V[b + 2];
-    if (p.k === NUC && p.ne > 0 && p.tLocal > 900 && !p.fast) put(clamp(p.rd * as * sc * 3.2, 6, 48), blackbodyRGB(p.tLocal), clamp((p.tLocal - 900) / 4000, 0, 0.7));
-    if (p.glow > 0.02 && p.glowC) put(clamp(p.rd * as * sc * 5, 10, 32), p.glowC, p.glow);
+    if (p.k === NUC && p.ne > 0 && p.tLocal > 900 && !p.fast) put(clamp(rd3(p) * as * sc * 3.2, 6, 48), blackbodyRGB(p.tLocal), clamp((p.tLocal - 900) / 4000, 0, 0.7));
+    if (p.glow > 0.02 && p.glowC) put(clamp(rd3(p) * as * sc * 5, 10, 32), p.glowC, p.glow);
     if (p.k !== NUC) put(clamp(V[b + 3] * 4.5, 7, 28), p.k === ELEC ? eCol : pCol, p.rad ? 1 : 0.55);
     else if (p.ne === 0 && p.Z > 0) put(V[b + 3] * 3.2, p.anti ? [190, 120, 255] : [255, 110, 90], 0.35);
   };
@@ -371,7 +377,7 @@ function drawLabels3(ctx, vis) {
 /* Selection, hover and the names from Identify molecules, at the projected places. */
 function drawMarks3(ctx) {
   const o = _p3a, F = C3.F;
-  const ring = (p) => (proj3(p.x, p.y, p.z, o) ? Math.max(6, (p.k === NUC ? p.rd : 0.15) * F / o[2]) : -1);
+  const ring = (p) => (proj3(p.x, p.y, p.z, o) ? Math.max(6, (p.k === NUC ? rd3(p) : 0.15) * F / o[2]) : -1);
   if (R.msel.size) {
     ctx.save(); ctx.strokeStyle = 'rgba(255,209,102,0.85)'; ctx.fillStyle = 'rgba(255,209,102,0.35)'; ctx.lineWidth = 1.5;
     const many = R.msel.size > 2500;
@@ -407,7 +413,7 @@ function drawOverlay3(ctx) {
   const A = _p3a, B = _p3b, F = C3.F, g = W.grab;
   ctx.save();
   if (g && g.p && !g.p.dead && proj3(g.p.x, g.p.y, g.p.z, A)) {
-    const rr = Math.max(7, (g.p.k === NUC ? g.p.rd : 0.15) * F / A[2] + 5);
+    const rr = Math.max(7, (g.p.k === NUC ? rd3(g.p) : 0.15) * F / A[2] + 5);
     ctx.strokeStyle = 'rgba(255,209,102,0.9)'; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.arc(A[0], A[1], rr, 0, Math.PI * 2); ctx.stroke();
     if (proj3(g.x, g.y, g.z === undefined ? g.p.z : g.z, B)) { ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]); }

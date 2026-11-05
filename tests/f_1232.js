@@ -120,6 +120,10 @@ module.exports = async function f1232(page, check, say, openPage) {
     await m.browser.close(); return out;
   })();
   check(mm.mmMode2d === 6 && mm.mmMode3d === 6, `1.23.2: the main menu's 2-D and 3-D buttons take every press 3–5 px inside their edges (${mm.mmMode2d}/6, ${mm.mmMode3d}/6; 1.23.1: 7/12 and 0/12, the card sliding away from the pointer)`, '1.23.2 main menu presses: ' + JSON.stringify(mm));
+  // ---- the chamber never scrolls (it could, by the WebGL canvas's 64 px margin, when something in it was scrolled into
+  //      view: the chamber then sat 66 px off where the pointer is read, and a right-click on an atom missed it)
+  const scr = await page.evaluate(() => { const st = document.querySelector('.stage'), l0 = R.cv.getBoundingClientRect().left; st.scrollLeft = 200; st.scrollTop = 200; const r = { sl: st.scrollLeft, st: st.scrollTop, moved: R.cv.getBoundingClientRect().left - l0 }; st.scrollLeft = 0; st.scrollTop = 0; return r; });
+  check(!scr.sl && !scr.st && !scr.moved, '1.23.2: the chamber cannot be scrolled out from under the pointer (1.23.1: by 66 px)', '1.23.2 chamber scroll: ' + JSON.stringify(scr));
   // ---- the Gallery (and the other small dialogs) stack from the top: no rows spread over the window (1024 × 800)
   await page.setViewportSize({ width: 1024, height: 800 }); await page.waitForTimeout(250);
   const dl = {};
@@ -134,6 +138,17 @@ module.exports = async function f1232(page, check, say, openPage) {
   await page.setViewportSize({ width: 1360, height: 860 }); await page.waitForTimeout(200);
   check(dl.galModal.gap < 32 && dl.galModal.h < 400 && dl.mineModal.gap < 32 && dl.askModal.h < 500 && sd > 700,
     `1.23.2: the Gallery stacks from the top (${dl.galModal.h} px tall, rows at most ${dl.galModal.gap} px apart; 1.23.1: 804 px, 256 apart), and My experiments and Ask Claude for a setup too; Settings keeps its tall window (${sd} px)`, '1.23.2 dialogs: ' + JSON.stringify([dl, sd]));
+  // ---- 3-D: lone ions drawn on the atoms' scale (the owner: "just draw ions smaller"; display only, the flat game as it was)
+  const ion = await page.evaluate(() => {
+    loadPreset('brine3d'); setRunning(false); render(W.rt);
+    const cl = W.parts.find(p => p.Z === 17 && p.q < 0), na = W.parts.find(p => p.Z === 11 && p.q > 0), o = W.parts.find(p => p.Z === 8);
+    const sty = (p) => +(GL_T.styA[4 * p.i] / R.as).toFixed(3);
+    const out = { cl3: +rd3(cl).toFixed(2), na3: +rd3(na).toFixed(2), clAtom: +(0.3 + 0.28 * cl.el.rc).toFixed(2), naAtom: +(0.3 + 0.28 * na.el.rc).toFixed(2), o: +rd3(o).toFixed(2), gl: R.gl ? [sty(cl), sty(na)] : null };
+    loadPreset('brine'); setRunning(false); render(W.rt); const cl2 = W.parts.find(p => p.Z === 17 && p.q < 0); out.cl2 = +cl2.rd.toFixed(2); out.gl2 = R.gl ? +(GL_T.styA[4 * cl2.i] / R.as).toFixed(3) : null;
+    return out;
+  });
+  check(ion.cl3 > ion.clAtom && ion.cl3 < 0.72 && ion.na3 < ion.naAtom && ion.na3 < ion.cl3 && ion.cl2 === 1.09 && (!ion.gl || (Math.abs(ion.gl[0] - ion.cl3) < 0.01 && Math.abs(ion.gl[1] - ion.na3) < 0.01)) && (ion.gl2 === null || Math.abs(ion.gl2 - 1.09) < 0.01),
+    `1.23.2: 3-D lone ions drawn on the atoms' scale: Cl⁻ ${ion.cl3} Å (a Cl atom ${ion.clAtom}; was 1.09), Na⁺ ${ion.na3} (a Na atom ${ion.naAtom}; was 0.61), the GL balls the same; the flat game's Cl⁻ still ${ion.cl2}`, '1.23.2 ion size: ' + JSON.stringify(ion));
   // ---- fast particles leave a closed 3-D box (Node): a 1 MeV proton, a 5 MeV α, a 50 keV electron stopped in the wall,
   //      a 100 keV uranium recoil set back at the wall's temperature, a 2 MeV neutron by the Container setting; the books exact
   const { load } = require('./load.js');

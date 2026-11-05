@@ -473,7 +473,7 @@ function glSlotsPrepare() {
   const hi = S.hi;
   glSlotPositions(hi);
   const mode = R.view.color, bohr = R.view.bohr, perFrame = mode !== 'element';
-  const sig = `${W.topo}|${W.dirty}|${W.spawned}|${W.deaths}|${mode}|${bohr}|${hi}|${R.as}|${R.cvd}`;
+  const sig = `${W.topo}|${W.dirty}|${W.spawned}|${W.deaths}|${mode}|${bohr}|${hi}|${R.as}|${R.cvd}|${W.d3 ? 3 : 2}`;
   if (!perFrame && sig === _stySig && (++_styFrame & 7)) return;
   _stySig = sig; _styFrame = 0;
   const C = GL_T.colA, Y = GL_T.styA, DEAD = S.dead, K = S.k, Z = S.Z, NE = S.ne, ANTI = S.anti, OBJ = S.obj;
@@ -483,7 +483,7 @@ function glSlotsPrepare() {
     if (DEAD[i] === 1 || K[i] !== NUC || (Z[i] > 0 && NE[i] === 0)) { C[c4 + 3] = 0; continue; }
     if (Z[i] === 0) { Y[c4] = 0.2; Y[c4 + 1] = 2.2; Y[c4 + 2] = 1e9; C[c4] = nCol[0]; C[c4 + 1] = nCol[1]; C[c4 + 2] = nCol[2]; C[c4 + 3] = 255; continue; }
     const p = OBJ[i], col = mode === 'element' ? elColor(Z[i], ANTI[i] === 1) : hexc(atomColor(p));
-    Y[c4] = p.rd * R.as; Y[c4 + 1] = 2.4; Y[c4 + 2] = maxAtom; C[c4] = col[0]; C[c4 + 1] = col[1]; C[c4 + 2] = col[2]; C[c4 + 3] = 255;
+    Y[c4] = (W.d3 && typeof rd3 === 'function' ? rd3(p) : p.rd) * R.as; Y[c4 + 1] = 2.4; Y[c4 + 2] = maxAtom; C[c4] = col[0]; C[c4 + 1] = col[1]; C[c4 + 2] = col[2]; C[c4 + 3] = 255; // (3-D: lone ions drawn smaller, rd3, 1.23.2)
   }
   glSlotStyle(hi);
 }
@@ -1789,7 +1789,7 @@ function chamberBottomInset() {
   BOT_IN.t = now; let v = 0;
   const c = R.cv.getBoundingClientRect();
   for (const id of ['tooloptsHS', 'rewBar']) {
-    const el = document.getElementById(id); if (!el || el.hidden || !el.offsetParent) continue;
+    const el = document.getElementById(id); if (!el || el.hidden || !el.offsetParent || getComputedStyle(el).visibility === 'hidden') continue; // (not drawn: covers nothing)
     const b = el.getBoundingClientRect(); if (!b.height || b.left - c.left > 240 || b.top >= c.bottom || b.bottom <= c.top) continue;
     v = Math.max(v, c.bottom - b.top + 4);
   }

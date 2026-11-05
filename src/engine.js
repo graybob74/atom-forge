@@ -809,8 +809,9 @@ function libMatch(atoms, plain) {
   const ix = new Map(atoms.map((a, i) => [a, i]));
   const adj = atoms.map(a => a.bonds.map(bd => ix.get(other(bd, a))).concat(a.bom ? boNbrs(a).map(o => ix.get(o)) : []).filter(j => j !== undefined));
   const h = f + ':' + graphHash(atoms.map(a => { const A = plain ? 0 : isoA(a); return A ? a.el.sym + A : a.el.sym; }), adj);
-  for (const c of cands) if (c.h === h) return c.m;
-  return null;
+  let alt = null;
+  for (const c of cands) if (c.h === h) { if (molFits(c.m, W.d3)) return c.m; alt = alt || c.m; } // (the open mode's library first: the 3-D builds are named in 3-D, 1.23.2)
+  return alt;
 }
 /* Isotopes in a molecule: atoms other than the element's usual isotope (COMMON_A, what the chamber makes unless told
    otherwise; an atom gives its mass number as A, a particle as Z + N), written as IUPAC writes an isotopically

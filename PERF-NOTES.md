@@ -185,7 +185,7 @@ engine stores and visits particles.
   of one model. Several sessions; a physics-model change for the owner to approve.
 - Asked by the user after 1.23.1 (collected; wait for "build it"). The user: "this should be 1.23.2" (with the fixes
   already in the 1.23.2 section), "and for 1.24 add the rest of the experimental options to 3d". For 1.23.2:
-  - 3-D ions (open: the measurements for the owner's decision are in the 1.23.2 section): "ions should be modeled
+  - 3-D ions (done in 1.23.2 as display only, the owner's choice; the physics candidates measured there, not changed): "ions should be modeled
     differently in 3d because when they get bigger it overlaps with other particles". Measured on 1.23.1 (brine3d, 800 steps, atom size 1): no ion's drawn ball overlaps a neighbour's
     (closest Na⁺–O 1.89 Å against 1.10 drawn, Cl⁻–H 1.73 against 1.47), but Na⁺–O comes closer than real (~2.4 Å),
     likely the flat world's K_IW 2 and LJ_SCALE 2 still on in 3-D (the open item under 1.23.0). Which ions and setup
@@ -348,14 +348,29 @@ engine stores and visits particles.
   coming from the corner): the 2-D tile 7 of 12, the 3-D tile 0 of 12; with hover and press still alone, 8 and 0; with
   the card still too, 12 and 12. The card is now still (the chamber and the glow behind it still follow the mouse),
   hover and press change colour, glow and brightness only, and the menu holds still while pressed and does not sway by
-  itself under the pointer. The quick menu's "Follow it" (t_page's flaky check): 1 miss in 85 tries (a right-click on a
-  still atom opening the empty-space menu), not reproduced with tracing; t_page's retry removed as asked.
+  itself under the pointer.
+  And the quick menu (t_page's "Follow it" check, which failed now and then on 1.23, and had a retry added): the
+  chamber (`.stage`, overflow hidden) could be scrolled, by up to 66 px (the WebGL canvas reaches 64 px past it on each
+  side), whenever something inside it was scrolled into view (headless, Playwright's click on a quick-menu item did it;
+  for a player, keyboard focus, find in page or the browser's own scroll-into-view can). The chamber then sat 66 px
+  left of where the pointer is read (evPos), so a right-click on an atom opened the empty-space menu, until it scrolled
+  back. Measured: three pages at once, 40 right-click → Inspect → right-click → Follow it each: 10 of 120 missed, the
+  chamber jumping 9 times; now `overflow: clip` (and a scroll listener back to 0): 0 of 120, no jumps. t_page's retry
+  removed: its check fails on the bug again.
 - **The Gallery was spread over the window** (the owner's screenshot at 1024 × 800): 1.23 gave `.sdialog`, which the
   Gallery, My experiments, Share and Ask for a setup share, Settings' fixed 800 px height and two grid rows, so their
   few rows were stretched apart. Settings' window is now `#setModal > .sdialog`; the others are back to 560 px wide and
   as tall as their contents (Gallery 804 → 208 px, rows 256 → 26 px apart; Ask 804 → 386; My experiments 804 → 170).
-- **3-D ions "overlapping"** (the owner: "ions should be modeled differently in 3d because when they get bigger it
-  overlaps with other particles"): investigated, nothing changed (the candidates are physics, for the owner to decide).
+- **3-D ions drawn smaller** (the owner: "ions should be modeled differently in 3d because when they get bigger it
+  overlaps with other particles"; his decision on the numbers below: "just draw ions smaller", display only, no physics
+  change). In the 3-D lab a lone ion is now drawn on the atoms' own scale, 0.3 + 0.28·(0.7 × its ionic radius)
+  (`rd3` in view3d.js: the balls, picking, rings, glows, label places and the GL slot styles alike); the flat game is
+  unchanged (its Cl⁻ still 1.09). Drawn radii before → after (Å; the neutral atom's in brackets): Na⁺ 0.61 → 0.50
+  (0.76), K⁺ 0.83 → 0.58 (0.87), Cs⁺ 1.00 → 0.63 (0.98), Mg²⁺ 0.43 → 0.44 (0.69), Ca²⁺ 0.60 → 0.50 (0.79), Al³⁺ 0.32 →
+  0.41 (0.64), Cl⁻ 1.09 → 0.66 (0.59), Br⁻ 1.18 → 0.69 (0.64), I⁻ 1.32 → 0.74 (0.69), F⁻ 0.80 → 0.57 (0.46), O²⁻ 0.84 →
+  0.58 (0.48), S²⁻ 1.10 → 0.67 (0.59): anions a little larger than their atoms and still bigger than cations, cations
+  smaller than theirs. Screenshots of brine3d close up before and after: 1232-ions3d-near.png, 1232-ions3d-after-near.png
+  (in the session's scratchpad). What was measured first, for the decision:
   Drawn balls: twelve ions put into liquid water (3-D and flat, 1,500 steps, atom size 1): no ion's ball overlaps a
   neighbour's anywhere; the closest, centre distance over the two drawn radii, O²⁻–H 1.11, F⁻–H 1.16, S²⁻–H 1.17,
   I⁻–H 1.22, Cl⁻–H 1.27, cations 1.7–1.8 (the same in 2-D). The GL balls use the same radius (`p.rd`, from the slot
@@ -370,7 +385,7 @@ engine stores and visits particles.
   Na⁺–Cl⁻ contact pair formed in any of the four (the ions start apart; a crystal dissolving was not measured). So
   K_IW 1 in 3-D brings the coordination numbers and density right and the distances 0.1 Å nearer; the rest of the
   shortfall is the ions' own size (ljR = 2 × ionic radius, ε 0.02 eV), a third candidate. All three are physics changes
-  for the owner's OK; a display-only option would be drawing ions at a fixed fraction of the neighbours' sizes.
+  for the owner's OK; he chose the display (above) and none of the physics.
 - Tests: tests/f_1232.js (run by t_features' 1.23.2 block, or alone): each item above; on 1.23.1 the first three fail
   and the rest stop with errors (the functions they use do not exist there).
 

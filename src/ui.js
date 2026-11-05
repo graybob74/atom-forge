@@ -6433,6 +6433,7 @@ function qmInit() {
 /* ------------------------------------------------------------------ init */
 function init() {
   rInit($('cv'), $('cvbg'));
+  { const st = document.querySelector('.stage'); if (st) st.addEventListener('scroll', () => { if (st.scrollLeft || st.scrollTop) { st.scrollLeft = 0; st.scrollTop = 0; } }); } // (the chamber never scrolls: where overflow: clip is not known, 1.23.2)
   ddInit(); // (the page's own dropdowns, 1.13)
   UI.budget = 10;
   const sv = store('bohr'); if (sv) setAtomView(sv);

@@ -241,7 +241,7 @@ async function menu3d() {
   const t0 = Date.now();
   await menu3d();
   const { browser, page, errors } = await openPage({ settle: 800 });
-  await page.addStyleTag({ content: '#fpsBadge, #hint, #tooloptsHS { visibility: hidden !important; }' }); // (a frame rate and a note that change between shots)
+  await page.addStyleTag({ content: '#fpsBadge, #hint, #tooloptsHS, #paletteBar { visibility: hidden !important; }' }); // (a frame rate and a note that change between shots; the particle bar over the chamber, whose scroll can sit a pixel apart after the main menu (1.23.2: t_3d leaves 3-D through it): the drawing is what is compared)
   const clip = await page.evaluate(() => { const b = document.getElementById('cv').getBoundingClientRect(); return { x: b.left, y: b.top, width: Math.floor(b.width), height: Math.floor(b.height) }; });
   const shot = () => page.screenshot({ clip });
 
