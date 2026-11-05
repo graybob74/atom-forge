@@ -183,6 +183,15 @@ engine stores and visits particles.
   lattice constant, elastic constants and vacancy energy; metal–non-metal pairs (oxides, hydrides, complexes) the hard
   part. Would replace the game's metallic cohesion for member metals, so surfaces, clusters, melting and alloys come out
   of one model. Several sessions; a physics-model change for the owner to approve.
+- Asked by the user after 1.23.1 (collected; wait for "build it"):
+  - 3-D ions: "ions should be modeled differently in 3d because when they get bigger it overlaps with other
+    particles". Measured on 1.23.1 (brine3d, 800 steps, atom size 1): no ion's drawn ball overlaps a neighbour's
+    (closest Na⁺–O 1.89 Å against 1.10 drawn, Cl⁻–H 1.73 against 1.47), but Na⁺–O comes closer than real (~2.4 Å),
+    likely the flat world's K_IW 2 and LJ_SCALE 2 still on in 3-D (the open item under 1.23.0). Which ions and setup
+    the user saw it in: asked for (a screenshot). The likely fix is the open K_IW/LJ_SCALE item; physics, needs his OK.
+  - 3-D: WASD movement, a camera that flies through the world so every part can be seen (with Q/E or Space/Shift for
+    up and down, speed by the zoom).
+  - Move Ultra-realistic mode into the Experimental tab (it then goes back to normal at every start, 1.23.1).
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
