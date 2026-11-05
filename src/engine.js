@@ -1558,6 +1558,7 @@ function vlExclusions() {
     ex[q] = (mi !== 0 && mi === MOL[j] && K[i] === NUC && K[j] === NUC && Z[i] > 0 && Z[j] > 0 && NE[i] > 0 && NE[j] > 0) ? (OBJ[i].excl.has(ID[j]) ? 1 : 2) : 0; // (2: one molecule, not excluded)
   }
   if (BO.any) for (let q = 0; q < np; q++) { const a = OBJ[pi[q]], b = OBJ[pj[q]]; if (a && b && a.bom && b.bom) ex[q] = 1; } // (continuous bond orders: their pairs are bo.js's)
+  if (MBO.on) mbExMark(np, pi, pj, ex); // (many-body metals: a member and an O or H partner are bometal.js's, 1.26)
   VL.exTopo = W.topo; VL.exDirty = W.dirty;
 }
 function vlInvalidate() { VL.valid = false; }
@@ -1804,6 +1805,7 @@ function localPE(set, skip) {
       if (set.has(o) && o.id < p.id) return;
       if (p.mol !== 0 && p.mol === o.mol && p.excl && p.excl.has(o.id)) return;
       if (p.bom && o.bom) return; // (continuous bond orders: bo.js's)
+      if (MBO.on && mbEx(p, o)) return; // (many-body metals and their O and H partners: bometal.js's, 1.26)
       V += nucPairV(p, o, r2);
     };
     nearby(p.x, p.y, RC, visit, p.z);
@@ -1939,6 +1941,7 @@ function covalentOK(a, b) {
   if (!a.el || !b.el || a.ne === 0 || b.ne === 0 || opp(a, b)) return false;
   if (a.el.metal && b.el.metal) return false;
   if ((a.el.metal || b.el.metal) && Math.abs((a.el.en || 2.5) - (b.el.en || 2.5)) >= 1.7) return false;
+  if (MBO.on && (MB_X[a.Z] || MB_X[b.Z]) && (mbIs(a.i) || mbIs(b.i))) return false; // (a many-body metal's bonds to O and H are bometal.js's, 1.26)
   return true;
 }
 
@@ -4129,6 +4132,7 @@ function processEvents() {
   }
   q.length = 0;
   if ((W.step & 7) === 0 && W.bonds.length) backflow();
+  if (MBO.on && MBO.n && W.bonds.length) mbEvents(); // (many-body metals: molecules of O and H splitting on the metal, 1.26)
 }
 /* 1.15 (asked for by the user: Ni⁺–C⁻, made by an electron hop and then a bond, never became the neutral Ni=C). Two
    bonded atoms with opposite whole charges: the electron may flow back through the bond, the valence it frees going
@@ -4550,7 +4554,7 @@ function pairPE(a, b) {
   const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z), r2 = dx * dx + dy * dy + dz * dz;
   let V = 0;
   if (r2 < RC2) {
-    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom)) V += nucPairV(a, b, r2); }
+    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom) && !(MBO.on && mbEx(a, b))) V += nucPairV(a, b, r2); } // (mbEx: many-body metals' partners, 1.26)
     else if (a.k === NUC || b.k === NUC) {
       const A = a.k === NUC ? a : b, L = A === a ? b : a, qa = A.q;
       if (qa) V += PHYS.KE * L.q * qa * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN));
@@ -8715,6 +8719,7 @@ function totalEnergy0() {
     const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z), r2 = dx * dx + dy * dy + dz * dz, r = Math.sqrt(r2);
     if (a.k === NUC && b.k === NUC) {
       if (a.bom && b.bom) continue; // (continuous bond orders: below)
+      if (MBO.on && mbEx(a, b)) continue; // (many-body metals and their O and H partners: below, 1.26)
       if (r >= RC) { // only metallic cohesion reaches farther
         if (a.isMetal && b.isMetal && a.ne > 0 && b.ne > 0 && !opp(a, b) && r < 1.05 * (a.mR + b.mR) && !(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id))) pe += metalV(a, b, r);
         continue;
