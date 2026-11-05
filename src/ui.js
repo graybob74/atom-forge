@@ -472,7 +472,7 @@ function buildToolOpts() {
       break;
     case 'fire': {
       const fs = fireSpecNow() || SPEC_P;
-      if (W.d3) { // (3-D: the projectiles that work there, single shots below the flat-only flight of radiation mode)
+      if (W.d3) { // (3-D: the projectiles that work there, single shots; atoms and leptons below radiation mode's energies, as they are stepped there)
         h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
           rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots; electrons and positrons up to ${fmtE(0.95 * radThreshold(true))}, atoms up to ${fmtE(0.95 * radThreshold(false))}; light, neutrinos and unstable particles at any energy; neutrons, antimatter and beam sources: ${NOT_3D.toLowerCase()}.</span>`;
         break;
@@ -4087,10 +4087,11 @@ function buildPresetSelect() {
 /* ------------------------------------------------------------------ the 3-D lab (stage 3)
    A mode of its own, chosen in the main menu (3-D lab): its setups are those marked d3 (the group G3D), and while a
    3-D world is open the setup list shows only them, with a 3-D Preview label beside it; the main menu (2-D) goes back
-   to the flat game (the Leave button went in 1.23.2, asked for by the owner). What does not work in 3-D yet is hidden or disabled with a note: the Magnet, Objects and Light tools, fields
-   and magnets, the box's size, light, neutrinos, unstable particles, neutrons and antimatter in the particle menus,
-   and the Experimental physics that is flat only (induced charges, quantum nuclei, continuous bond orders, electrons
-   as waves) and the ultra-realistic mode. The mode follows the world (W.d3): a setup or a saved world sets it. */
+   to the flat game (the Leave button went in 1.23.2, asked for by the owner). What does not work in 3-D yet is hidden or disabled with a note: the Objects tool,
+   neutrons and antimatter in the particle menus, Ask Claude for a setup, and continuous bond orders ("From the
+   positions"). Since 1.24 the Magnet and Light tools, fields, the box's size, light, neutrinos, positrons, unstable
+   particles and the rest of the Experimental tab work in 3-D. The mode follows the world (W.d3): a setup or a saved
+   world sets it. */
 const NOT_3D = 'Not in 3-D yet';
 const TOOLS_NO3D = new Set(['objects']); // (the Magnet and Light tools work in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };

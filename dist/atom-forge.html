@@ -1362,7 +1362,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
         <section class="card warn">
           <h4>Honest approximations</h4>
           <ul>
-            <li><b>Two dimensions.</b> Densities, neighbour counts and the Maxwell–Boltzmann law are 2D, and van der Waals well depths are doubled to make up for the missing neighbours. Melting and boiling points are therefore only roughly right. Molecules are flat too: a tetrahedral carbon becomes a cross with 90° angles, and 3-D shapes such as the cyclohexane chair are pressed flat. The 3-D lab (main menu → 3-D, a preview) puts atoms and molecules in a cube instead, with their real 3-D angles, for chemistry, liquids and gases; nuclear physics, fields, light and chips are in the flat game only for now.</li>
+            <li><b>Two dimensions.</b> Densities, neighbour counts and the Maxwell–Boltzmann law are 2D, and van der Waals well depths are doubled to make up for the missing neighbours. Melting and boiling points are therefore only roughly right. Molecules are flat too: a tetrahedral carbon becomes a cross with 90° angles, and 3-D shapes such as the cyclohexane chair are pressed flat. The 3-D lab (main menu → 3-D, a preview) puts atoms and molecules in a cube instead, with their real 3-D angles, for chemistry, liquids and gases, with fields, magnets, light and unstable particles (pions, kaons, muons) too; nuclear reactions, the collider, placed objects and chips are in the flat game only for now.</li>
             <li><b>Ions in water pull twice as hard.</b> In a flat world an ion has about half the solvent around it that it has in space (3–4 water molecules against 6), and the solvent screens charge far less, so with the plain Coulomb force salt would never dissolve and an Na⁺ and a Cl⁻ in water would never part. The pull between a free ion and a polar molecule's partial charges is doubled to make up for it: an ion's shell then holds it about as strongly as real water does, a lone ion pair parts, and a crystal dissolves from its corners. Energy is conserved as before. A side effect: salts that barely dissolve in real water because their bonding is partly covalent (silver chloride) dissolve here like table salt.</li>
             <li><b>Electrons are not solved for as waves while atoms move.</b> Bound electrons are book-kept (shells, configurations, energies). The orbitals the Orbitals view draws come from that bookkeeping, with Slater's rules, which overestimate the size of heavy atoms' outer s orbitals, until the quantum solver has been run for a species; either way they are pictures and steer nothing. The solver includes relativity as an average over each orbital's two spin–orbit partners (gold's 6s comes out 8.3 eV deep against the measured 9.2 eV ionization energy, and 16% smaller than without it; without relativity it was 6.5 eV), but not the spin–orbit splitting itself nor the electrons' spins, and treats one atom at a time: real orbitals also mix into molecular orbitals when atoms bond, which nothing here computes, except Settings → Experimental → Bond orders → Quantum (GFN1-xTB), which works out the molecular orbitals of up to 40 atoms at every step. Free electrons are classical point charges, unless Settings → Experimental → Electrons as waves makes them wave packets (eFF: a size, a spin, the Pauli principle between them); even then a packet meets ions and atoms as a smeared charge, not as a solved wave.</li>
             <li><b>Rule-based chemistry.</b> A bond's energy depends on the element pair and bond order, not the rest of the molecule (every O–H bond is the same), so some reaction heats are off by tens of kJ/mol.</li>
@@ -1731,7 +1731,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <button class="btn primary" data-mm="continue" id="mmContinue3">Continue</button>
       <div class="mm-btns mm-set3" id="mmList3"></div>
       <div class="mm-row"><button class="btn" data-mm="gallery">Gallery</button><button class="btn" data-mm="settings3">Settings</button><button class="btn" data-mm="help">Help</button></div>
-      <p class="mm-note3d">The 3-D mode is a preview: right-drag, Alt+drag or the arrow keys turn the view, the wheel zooms, W A S D fly (E and Q up and down), 0 fits the box. Fields, magnets, light, nuclear physics and chips stay in the 2-D game for now.</p>
+      <p class="mm-note3d">The 3-D mode is a preview: right-drag, Alt+drag or the arrow keys turn the view, the wheel zooms, W A S D fly (E and Q up and down), 0 fits the box. Fields, magnets, light and unstable particles work in 3-D too; nuclear reactions, the collider, placed objects and chips stay in the 2-D game for now.</p>
     </div>
     <div class="mm-setups" id="mmSetups" hidden><button class="btn small" data-mm="back">← Back</button><div class="mm-list" id="mmList"></div></div>
     <p class="mm-note" id="mmNote"></p>
@@ -28214,7 +28214,7 @@ function buildToolOpts() {
       break;
     case 'fire': {
       const fs = fireSpecNow() || SPEC_P;
-      if (W.d3) { // (3-D: the projectiles that work there, single shots below the flat-only flight of radiation mode)
+      if (W.d3) { // (3-D: the projectiles that work there, single shots; atoms and leptons below radiation mode's energies, as they are stepped there)
         h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
           rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots; electrons and positrons up to ${fmtE(0.95 * radThreshold(true))}, atoms up to ${fmtE(0.95 * radThreshold(false))}; light, neutrinos and unstable particles at any energy; neutrons, antimatter and beam sources: ${NOT_3D.toLowerCase()}.</span>`;
         break;
@@ -31829,10 +31829,11 @@ function buildPresetSelect() {
 /* ------------------------------------------------------------------ the 3-D lab (stage 3)
    A mode of its own, chosen in the main menu (3-D lab): its setups are those marked d3 (the group G3D), and while a
    3-D world is open the setup list shows only them, with a 3-D Preview label beside it; the main menu (2-D) goes back
-   to the flat game (the Leave button went in 1.23.2, asked for by the owner). What does not work in 3-D yet is hidden or disabled with a note: the Magnet, Objects and Light tools, fields
-   and magnets, the box's size, light, neutrinos, unstable particles, neutrons and antimatter in the particle menus,
-   and the Experimental physics that is flat only (induced charges, quantum nuclei, continuous bond orders, electrons
-   as waves) and the ultra-realistic mode. The mode follows the world (W.d3): a setup or a saved world sets it. */
+   to the flat game (the Leave button went in 1.23.2, asked for by the owner). What does not work in 3-D yet is hidden or disabled with a note: the Objects tool,
+   neutrons and antimatter in the particle menus, Ask Claude for a setup, and continuous bond orders ("From the
+   positions"). Since 1.24 the Magnet and Light tools, fields, the box's size, light, neutrinos, positrons, unstable
+   particles and the rest of the Experimental tab work in 3-D. The mode follows the world (W.d3): a setup or a saved
+   world sets it. */
 const NOT_3D = 'Not in 3-D yet';
 const TOOLS_NO3D = new Set(['objects']); // (the Magnet and Light tools work in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };

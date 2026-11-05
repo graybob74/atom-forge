@@ -195,7 +195,9 @@ engine stores and visits particles.
     Leave button gone (a Preview label); fast particles leaving the 3-D box; Performance mode gone. Also asked during
     the build and done there: Settings pictures enlarged on a click (animated) at 1280 × 720, the 3-D axis marker and
     scale bar above the tool's bar, the "On hold" note gone, main-menu presses that were lost, the Gallery's spacing.
-  For 1.24:
+  For 1.24 (built on branch v127, the "1.24 (in progress)" section: all six, except continuous bond orders and the
+  nuclear side of the particles (nuclear hits and captures, the collider, the plasma, nuclear reactions), which stay
+  flat with the reasons and numbers written there):
   - The rest of the Experimental settings in 3-D: induced charges, quantum nuclei, continuous and quantum bond orders,
     electrons as waves, the ultra-realistic mode (today flat only, set3dNote). Physics in 3-D; needs his OK as each
     lands, with its energy and cost measured.
