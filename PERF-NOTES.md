@@ -312,6 +312,88 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.26 (in progress)
+
+### 1.26: metal oxides, alloys, directional metals
+
+The owner's "For 1.26" entries (branch v132, from the combined 1.25 at cc8a0fd): extensions of Settings → Experimental →
+Metals → Many-body (src/bometal.js); physics-model changes for the owner's OK. Default settings unchanged: with Many-body
+off every setup is bit for bit 1.25's (the 53 flat setups and the six 3-D ones, 300 steps, seed 7: identical
+fingerprints of positions, velocities, charges). With Many-body on, the setups whose metals meet no O or H atom and no
+non-metal ion are also identical (oven, salt, brine, chain, photonuc, isolde, sns, useries, crt, ch_split); the four that differ have O/H on the metal
+(magnet, brine3d) or a Cl⁻ next to sodium (ch_salt, flame: the image term), as they should. Reference values: the web
+was refused by the proxy from this session again, so the data below are standard values from memory (CRC/NBS heats of
+formation, Wyckoff structures, bulk moduli from the literature), flagged here: worth a check against the books.
+
+**1. Oxides and hydrides.** Before: a metal atom that bonded to O or H left the many-body model for a stored Morse bond
+(losing its 3 eV of metal bonding at once), O₂ meeting the metal did nothing (1.25, O₂ over a 3-D Cu(100) slab at 600 K,
+1.2 ps: 0 O atoms bound), and an ion near a metal felt only the contact core.
+- **The model**: O and H atoms with a free valence ("partners": an O atom, an O with one single bond such as OH or
+  peroxo at half weight, an H atom; neutral) join the second-moment model as an alloy component, in Cleri and Rosato's
+  way: per metal–partner pair a repulsion A·e^(−p(r/r₀−1)) at the partner's weight w, the hopping squared
+  ξ²·e^(−2q(r/r₀−1)) in both atoms' densities (the metal's at the partner's weight), the partner's own embedding
+  −w·√ρ. A metal atom's density then holds its O and H neighbours, so its bonds to other metal atoms weaken as it
+  oxidizes (the many-body coupling a stored bond lacked). O and H with their valence used up (O₂, water, OH's H) meet
+  the metal as before. Two partners have no many-body pair (theirs is the classic chemistry's: LJ, bonds, reactions).
+  A member metal and a partner: the kernels skip the pair (vlExclusions marks it, as bond orders' pairs are; localPE,
+  regionE and totalEnergy skip it too; no kernel or WebAssembly change), and covalentOK refuses a stored bond between a
+  member metal and O or H (the first runs made CuO₂ by the classic radical reaction).
+- **The fit** (`node tools/mbfit.js [--write]`, a few seconds a compound): each reference compound's crystal is built in
+  a periodic 3-D box in the game itself (unrelaxed; everything the game has there counts: metal–metal pairs, the
+  partners' Lennard-Jones), r₀ = its measured metal–partner distance (corundum's mean of 1.86 and 1.97 Å), q/p = 0.4,
+  and A, ξ, p solved for: the measured heat of formation from the bulk metal and the game's O₂ / H₂, no force on
+  uniform scaling, the measured bulk modulus (p kept to 3–20; 9 where none is known). 31 compounds: Cu₂O, Ag₂O
+  (cuprite), Al₂O₃, Cr₂O₃ (corundum), FeO, CoO, NiO, MnO, MgO, CaO, SrO, BaO (rocksalt), Li₂O, Na₂O, K₂O
+  (antifluorite), BeO, ZnO (wurtzite), TiO₂, SnO₂ (rutile), ZrO₂, CeO₂, UO₂ (fluorite); LiH, NaH, KH (rocksalt),
+  MgH₂ (rutile), TiH₂, ZrH₂ (fluorite), PdH (rocksalt, −0.2 eV an H), CuH (wurtzite, +27.5 kJ/mol), AlH₃ (as ReO₃-type
+  cubic). Other metals take their group's (or the nearest fitted) constants, r₀ scaled by the game's radii (Au, Pt, Pd
+  oxides from Ag and Ni; Ni and Pt hydrides from Pd).
+
+  | | model | measured |
+  |---|---|---|
+  | each fitted compound: ΔHf, metal–O/H distance | exact (e.g. Cu₂O −168.6 kJ/mol at 1.849 Å, Al₂O₃ −1675.7 at 1.913, FeO −272.0 at 2.154, NaH −56.3 at 2.440) | the same |
+  | bulk moduli | exact for 21; Cu₂O 119, BeO 238, SnO₂ 232 GPa (p at its floor of 3) | 112, 212, 205 |
+  | hematite Fe₂O₃ with FeO's constants (not fitted) | −596 kJ/mol, lattice +7% | −824 (the model has no oxidation states: Fe³⁺ and Fe²⁺ bond alike) |
+  | CuO with Cu₂O's (as rocksalt) | −203 kJ/mol, lattice +6% | −157 (tenorite) |
+  | O on a close-packed (111) face, fcc hollow, unrelaxed, against the O atom: Cu, Ag, Ni, Pt, Al | −5.26 eV at 1.34 Å, −3.48, −5.9 (in the surface plane), −4.02, −11.4 (in the surface plane) | about −4.8, −3.6, −5.5, −4.3, −7.4 (DFT values from memory, ±0.3) |
+  | H on (111): Cu, Pd, Pt | −2.19, −2.26, −1.77 eV | about −2.4, −2.9, −2.7 |
+
+  O on Cu, Ag, Pt is within 10%; on open or very oxophilic metals (Al, Mg, Ca, the alkalis, Ni) the O atom sinks into
+  the top layer and is overbound (Al by half): the second-moment form gives a site with few metal neighbours nearly the
+  bulk oxide's binding. Tried: a ratio κ between the metal's ξ and the partner's (fitted to the surface binding): it ran
+  to its ends (Cu 4, Al 0.25) and moved Cu's binding by 0.02 eV; not used (`--kappa` keeps it in the tool).
+- **Molecules splitting on the metal** (`mbEvents`, every fourth step): a bond between two partners' elements (O=O, H–H,
+  O–H, O–O) whose atom comes within 0.6 Å past its pair's reach of a member and is moving toward it is tried broken,
+  the pieces moved apart out of each other's core and toward their nearest members (up to 1.2 Å, as evBond's
+  snapTogether moves molecules), the energy measured exactly (localPE over the molecule with the many-body part), kept
+  when the meeting's energy along the line of centres reaches an Evans–Polanyi activation energy from that heat (as
+  reaction(): max(0.05, 0.5 + 0.25·ΔH) downhill, 0.5 + 0.75·ΔH uphill), the heat released or taken from the meeting;
+  undone otherwise. The reverse (two partners bonding, O₂ or H₂ leaving) is the classic evBond, measured the same way.
+  O₂ over the 3-D Cu(100) slab at 600 K, 1.2 ps: 2 O₂ split, their 4 O atoms bound (1.25: none); a flat Cu patch in O₂,
+  O, H and H₂ at 1,500 K: O₂ split 3 times, 7 O atoms bound, no ions made. H₂ on Cu stays whole (uphill: H on Cu is
+  endothermic against H₂, as measured).
+- **An ion near the metal** feels its image: a pair term −c·q²/(r² + a²)² between the ion and each member (each metal atom
+  polarized by its field), c = k/(4π·n) for the metal's atom density so that summed over a half-space it is the
+  conductor's −k·q²/4z far out, a = r₀/2, to 6 Å. Non-metal ions only: with metal ions too a Cu lump paid its own atoms
+  for becoming Cu⁺ and Cu⁻ (the transfer trials ×5 in a 3-D test). F⁻ at contact with a Cu ball: −0.97 eV; Cl⁻ 2.5 Å
+  over a flat Cu edge −1.6 eV, at 4 Å −0.35. evTransfer's lower bound counts the image's change for the two atoms.
+- **Forces and energy**: forces are the energy's slopes to 5.6e-9 eV/Å flat and 1.6e-8 in 3-D (Cu with O, H, an OH at
+  half weight and a Cl⁻); localPE's many-body part exact for a partner, a member, an ion moved and for O₂ split on the
+  metal (1e-10 to 7e-10 eV); insulated, the flat patch in O₂/O/H/H₂ at 1,500 K over 6,000 steps of 0.4 fs with three
+  splittings: 0.066 eV (0.0085 at half the step: the integrator on hot H₂ and OH, not the events; another seed 0.017),
+  the 3-D ball with the same gases at 1,200 K over 1,500 steps 0.008 eV.
+- **Cost** (one thread, CPU time; two cores shared with three other agents, ±30%): a flat Cu patch with 24 O atoms on
+  it ×1.22 against pairs (bare ×1.6), a flat Cu patch in 160 waters ×1.12, a 3-D Cu ball with 18 O atoms ×0.95 (bare
+  ×1.5). The setting's tag stays ×1–2 in both modes.
+- **Found, not changed**: with the normal pairs, an O atom or an ion right next to a metal atom has forces off the
+  energy's slope by 1–5e-4 eV/Å (Cl⁻ or O at 1.2–2.4 Å from Cu, Many-body off; with Many-body on the O is the model's
+  and exact). Metal ions are not image-pulled; the metal giving an electron to an ion still makes a localized Cu⁺ (no
+  Fermi sea), as in 1.25. Bonds to O and H on the metal are drawn as no lines.
+- Tests: tests/f_126m.js (t_features "1.26 (metals)"): oxide (Cu₂O, Al₂O₃, FeO, NaH, MgH₂ at their measured values;
+  hematite), surface (the flat patch in O₂/O/H/H₂: splitting, bound O, energy, no ions), forces (2-D and 3-D with
+  partners and a Cl⁻), books (moves, O₂ split, an F⁻'s image), page (Settings words in both modes, the note, Help).
+  Each fails on cc8a0fd.
+
 ## 1.25 (in progress)
 
 Approved by the owner on 2026-11-05 (after the reports): bond orders for metals (Many-body, flat melting left as it

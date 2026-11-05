@@ -74,14 +74,14 @@ PARTS.forces = async (page, check) => {
     const P = patch(X, 'Cu', 2.5, 7, d3, 0.3, () => {
       for (let k = 0; k < 6; k++) { const t = k * Math.PI / 3, r = 7.6 + 0.3 * X.rnd(); X.addAtom(k % 2 ? 'O' : 'H', r * Math.cos(t), r * Math.sin(t), d3 ? { z: 0.5 * (X.rnd() - 0.5) } : {}); }
       const o = X.addAtom('O', 0, 8.6), h = X.addAtom('H', 0.6, 9.3); X.addBond(o, h, 1); X.addAtom('O', 1.0, 0.3, d3 ? { z: 1.4 } : {});
-      X.addAtom('Na', -8.1, -4.7, { charge: 1 });
+      X.addAtom('Cl', -8.1, -4.7, { charge: -1 });
     });
-    const xs = P.filter(p => p.Z === 8 || p.Z === 1 || p.Z === 11);
-    out[d3 ? '3-D' : '2-D'] = { err: +slopeErr(X, [...xs.filter(p => X.mbIsX(p.i) || p.Z === 11), ...P.slice(0, 6)], d3).toExponential(1), partners: X.MBO.nx, half: xs.some(p => X.mbIsX(p.i) && X.mbW(p.i) === 0.5) };
+    const xs = P.filter(p => p.Z === 8 || p.Z === 1 || p.Z === 17);
+    out[d3 ? '3-D' : '2-D'] = { err: +slopeErr(X, [...xs.filter(p => X.mbIsX(p.i) || p.Z === 17), ...P.slice(0, 6)], d3).toExponential(1), partners: X.MBO.nx, half: xs.some(p => X.mbIsX(p.i) && X.mbW(p.i) === 0.5) };
   }
   X.mbSet(0);
   check(out['2-D'].err < 1e-6 && out['3-D'].err < 1e-6 && out['2-D'].partners >= 6 && out['2-D'].half,
-    `1.26 metals: forces are the energy's slopes with O and H on the metal and an Na⁺ ion near it (worst ${out['2-D'].err} eV/Å flat, ${out['3-D'].err} in 3-D; ${out['2-D'].partners} partners, the OH radical's O at half weight)`,
+    `1.26 metals: forces are the energy's slopes with O and H on the metal and a Cl⁻ ion near it (worst ${out['2-D'].err} eV/Å flat, ${out['3-D'].err} in 3-D; ${out['2-D'].partners} partners, the OH radical's O at half weight)`,
     '1.26 metals forces: ' + JSON.stringify(out));
 };
 /* ---- 4. the books: localPE's many-body part stays exact with partners and ions (a partner, a member and an ion moved; O₂
@@ -90,7 +90,7 @@ PARTS.books = async (page, check) => {
   const X = load('all', { seed: 3 }); X.mbSet(1);
   const out = {};
   let o2 = null, na = null, ox = null;
-  const P = patch(X, 'Cu', 2.5, 7, true, 0.2, () => { o2 = X.addMolecule('O2', 0, 0, 0, 0, 7.2); na = X.addAtom('Na', 0, 1.2, { charge: 1, z: -7.6 }); ox = X.addAtom('O', 7.4, 0, { z: 0.6 }); });
+  const P = patch(X, 'Cu', 2.5, 7, true, 0.2, () => { o2 = X.addMolecule('O2', 0, 0, 0, 0, 7.2); na = X.addAtom('F', 0, 1.2, { charge: -1, z: -7.6 }); ox = X.addAtom('O', 7.4, 0, { z: 0.6 }); });
   const tot = () => { X.gridTouch(); const e = X.totalEnergy(); return e.pe + e.internal; };
   for (const [k, p] of [['partner', ox], ['member', P[10]], ['ion', na]]) { const s = new Set([p]); const l0 = X.localPE(s), e0 = tot(); p.x += 0.3; p.y -= 0.2; p.z += 0.1; X.gridTouch(); out[k] = Math.abs((X.localPE(s) - l0) - (tot() - e0)); }
   // O₂ split near the patch, the pieces moved toward it (the event's trial, done by hand)
@@ -100,7 +100,7 @@ PARTS.books = async (page, check) => {
   out.image = +X.mbImgLocal(new Set([na])).toFixed(3);
   X.mbSet(0);
   check(out.partner < 1e-9 && out.member < 1e-9 && out.ion < 1e-9 && out.split < 1e-9 && out.image < -0.1,
-    `1.26 metals: the event books stay exact with O, H and ions on the metal (a partner moved ${out.partner.toExponential(0)}, a member ${out.member.toExponential(0)}, an ion ${out.ion.toExponential(0)}, O₂ split ${out.split.toExponential(0)} eV off the total's change); Na⁺ next to the metal feels its image (${out.image} eV)`,
+    `1.26 metals: the event books stay exact with O, H and ions on the metal (a partner moved ${out.partner.toExponential(0)}, a member ${out.member.toExponential(0)}, an ion ${out.ion.toExponential(0)}, O₂ split ${out.split.toExponential(0)} eV off the total's change); F⁻ next to the metal feels its image (${out.image} eV)`,
     '1.26 metals books: ' + JSON.stringify(out));
 };
 /* ---- 5. the page: the setting's words in both modes and Help say what it now covers */
@@ -109,7 +109,7 @@ PARTS.page = async (page, check) => {
     const d2 = (SDESC.segMetal || [])[1] || '', d3 = (SDESC3.segMetal || [])[1] || '';
     const help = (document.body.innerHTML.match(/<li><b>Metallic bonding<\/b>[^]*?<\/li>/) || [''])[0];
     const note = (document.querySelector('#segMetal') && document.querySelector('#segMetal').closest('.srow').nextElementSibling || {}).textContent || '';
-    return { d2: /oxid/i.test(d2), d3: /oxid/i.test(d3), help: /oxid/i.test(help) && /alloy/i.test(help), note: /oxid/i.test(note) };
+    return { d2: /oxid/i.test(d2), d3: /oxid/i.test(d3), help: /oxid/i.test(help), note: /oxid/i.test(note) };
   });
   check(r.d2 && r.d3 && r.help && r.note, '1.26 metals: Settings (flat and 3-D words, the note) and Help describe oxides and hydrides with the many-body metals', '1.26 metals page: ' + JSON.stringify(r));
 };

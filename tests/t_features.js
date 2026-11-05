@@ -1757,6 +1757,8 @@ const { openPage } = require('./browser');
   await require('./f_125.js')(page, check, say, openPage);
   // 1.25 (metals): the checks are in f_125m.js (also runnable alone: node tests/f_125m.js [part …])
   await require('./f_125m.js')(page, check, say, openPage);
+  // 1.26 (metals): oxides, hydrides, alloys and directional bonding for the many-body metals: f_126m.js (node tests/f_126m.js [part …])
+  await require('./f_126m.js')(page, check, say, openPage);
   await require('./f_125s.js')(page, check, say, openPage); // 1.25 (Settings by mode, 3-D pictures): f_125s.js, also alone
   // 1.25 (nuclear 3-D): the checks are in f_125n.js (also runnable alone: node tests/f_125n.js [--node] [part …])
   await require('./f_125n.js')(page, check, say, openPage);

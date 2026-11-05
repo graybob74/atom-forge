@@ -367,9 +367,10 @@ function mbPass(forces) {
    "image" (−k·q²/4z over a flat conductor). Here as a pair term between the ion and each member, φ = −c·q²/(r² + a²)²
    (each metal atom polarized by the ion's field), with c = k/(4π·n) for the metal's atom density n, so that summed over a
    half-space of atoms it gives the conductor's −k·q²/4z far from the surface; a = r₀/2 softens it at contact; out to
-   6 Å (switched off from 5). Pairwise, so localPE holds it exactly; ions are not members (their electrons are their own). */
+   6 Å (switched off from 5). Pairwise, so localPE holds it exactly; ions are not members (their electrons are their own). Ions of
+   non-metals only (Cl⁻, F⁻, NH₄⁺'s N …): inside a metal the term would pay a metal atom for becoming an ion. */
 const MB_IMG_ON = 5, MB_IMG_OFF = 6;
-const mbIon = (i) => S.k[i] === NUC && S.q[i] !== 0 && S.ne[i] > 0 && S.dead[i] === 0 && S.fast[i] === 0 && S.rad[i] === 0 && !S.obj[i].bom;
+const mbIon = (i) => S.k[i] === NUC && S.q[i] !== 0 && S.ne[i] > 0 && S.metal[i] === 0 && S.dead[i] === 0 && S.fast[i] === 0 && S.rad[i] === 0 && !S.obj[i].bom; // (not a metal's ion: Cu⁺ among Cu atoms pulled by its image made a lump ionize itself (the transfer trials ×5); a metal ion keeps 1.25's contact core)
 function mbImgC(Z) { const r0 = mbParam(Z).r0; return [PHYS.KE * r0 * r0 * r0 / (4 * Math.PI * Math.SQRT2), 0.25 * r0 * r0]; } // ([c, a²])
 /* the image term between ion p and member o at distance r (energy, and its slope into _ms) */
 function mbImgV(q, Zm, r) {
@@ -414,6 +415,10 @@ function mbImgLocal(set) {
       if (ion && mbIs(o.i)) E += mbImgV(p.q, o.Z, Math.sqrt(r2));
       else if (mem && !set.has(o) && mbIon(o.i) && !mbIs(o.i)) E += mbImgV(o.q, p.Z, Math.sqrt(r2));
     };
+    if (!ion && _charged.length < 64) { // (a member: only ions can pair with it, and every ion is in _charged (refresh); few of them: those, not the grid)
+      for (const o of _charged) { if (o.dead || o.k !== NUC) continue; const [dx, dy, dz] = minImg(o.x - p.x, o.y - p.y, W.d3 ? o.z - p.z : 0); v(o, dx, dy, dx * dx + dy * dy + dz * dz); }
+      continue;
+    }
     nearby(p.x, p.y, MB_IMG_OFF, v, p.z);
     for (const o of _late) { if (o.dead) continue; const [dx, dy, dz] = minImg(o.x - p.x, o.y - p.y, W.d3 ? o.z - p.z : 0), r2 = dx * dx + dy * dy + dz * dz; v(o, dx, dy, r2); }
   }
