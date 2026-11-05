@@ -919,8 +919,13 @@ function closeEvent(S, made, x, y, Ein = 0, mIn = 0) {
     if (left < 0) left = settleRest(S, Qrel, made, left);
     let Er = 0; for (const r of made.rays) Er += r[1];
     const f = Er > 0 ? Math.max(0, left) / Er : 0;
+    if (made.z3 !== undefined) { // (3-D: along their directions in depth, 1.24)
+      for (const [it, E, ux, uy, uz] of made.rays) { if (it.t === 'g') emitPhoton(x, y, E * f, ux, uy, { z: made.z3, uz }); else emitNeutrino(x, y, E * f, ux, uy, !!it.anti, undefined, it.fl || 'e', made.z3, uz); }
+      if (!(Er > 0) && left > 0) emitPhoton(x, y, left, undefined, undefined, { z: made.z3 });
+    } else {
     for (const [it, E, ux, uy] of made.rays) { if (it.t === 'g') emitPhoton(x, y, E * f, ux, uy); else emitNeutrino(x, y, E * f, ux, uy, !!it.anti, undefined, it.fl || 'e'); }
     if (!(Er > 0) && left > 0) emitPhoton(x, y, left);
+    }
   } else if (Math.abs(left) > 1e-7 * Math.max(1, Math.abs(Qrel))) settleRest(S, Qrel, made, left);
 }
 function settleRest(S, Qrel, made, left) {
@@ -951,11 +956,13 @@ function tally(items, ins, how) {
    their mean life stretched by time dilation (γτ), on the same clock as radioactive decay (W.warp speeds both). A
    π⁰ lives 8.4×10⁻¹⁷ s, about 25 nm of flight: it decays in the chamber; charged pions, kaons and muons live
    nanoseconds to microseconds and leave it, as in a real detector, unless decay is sped up. */
-function addExo(sp, x, y, KE, ux, uy, m) {
+function addExo(sp, x, y, KE, ux, uy, m, z = 0, uz = 0) { // (z, uz: 3-D, 1.24)
   const d = XP[sp];
   const o = { id: W.nextId++, sp, lab: d.lab, m: m || d.m, ev: _evTag, q: d.q, x, y, ux, uy, KE: Math.max(0, KE), gam: 1, v: 0, born: W.rt, bx0: x, by0: y, dead: false, trk: null };
+  if (W.d3) { const L = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1; o.ux = ux / L; o.uy = uy / L; o.uz = uz / L; o.z = z; o.bz0 = z; }
   exoSpeed(o);
   o.trk = { pts: [x, y], ts: [W.rt], tt: [W.t], c: d.col, w: d.q ? 1.4 : 1.1, t0: W.rt, upd: W.rt, dash: !d.q };
+  if (W.d3) o.trk.pz = [z];
   keepTrack(o.trk);
   W.exo.push(o);
   return o;
@@ -971,6 +978,7 @@ function exoHeld(o) {
   return !!m && W.rt - o.born < m.t && Math.hypot(o.x - o.bx0, o.y - o.by0) < m.d;
 }
 function moveExos(dt, id0) {
+  if (W.d3) return moveExos3(dt, id0); // (3-D, 1.24)
   if (W.muBound && W.muBound.length) muBoundTick(dt);
   if (W.muAtoms && W.muAtoms.length) muoniumTick(dt);
   for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res && !W.ultra && !deepSlow()) { if (exoHeld(o)) o.wait = true; else decayExo(o); } } // (resonances: gone within a proton's width, whatever the decay clock)
@@ -1028,8 +1036,171 @@ function flyExo(o, h) {
 }
 function exoTrack(o) {
   const t = o.trk, n = t.pts.length;
+  if (t.pz) { if (Math.abs(t.pts[n - 2] - o.x) + Math.abs(t.pts[n - 1] - o.y) + Math.abs(t.pz[t.pz.length - 1] - o.z) > 0.4) { t.pts.push(o.x, o.y); t.pz.push(o.z); if (t.ts) { t.ts.push(W.rt); t.tt.push(W.t); } if (t.pts.length > 800) trkThin(t); } t.upd = W.rt; return; } // (3-D, 1.24)
   if (Math.abs(t.pts[n - 2] - o.x) + Math.abs(t.pts[n - 1] - o.y) > 0.4) { t.pts.push(o.x, o.y); if (t.ts) { t.ts.push(W.rt); t.tt.push(W.t); } if (t.pts.length > 800) trkThin(t); }
   t.upd = W.rt;
+}
+/* ---- 3-D (1.24; the owner: "the rest of the particles in 3-D, like pions and such"). Unstable particles (pions, kaons,
+   muons, hyperons …) fly in depth (o.z, o.uz): straight, or turned about the magnetic field's axis (B3U, as the flat
+   flight turns them about z); they ionize the atoms they pass and are scattered by their nuclei along a line in 3-D
+   (exoIonize3, exoScatter3, the flat game's rules); they leave through the six faces, and decay in flight or at rest.
+   A decay is worked out in the particle's rest frame exactly as in the flat game (phaseSpace: the energies and the
+   momenta in a plane), and that plane is turned to a random orientation in space (a uniform rotation: e1 uniform on the
+   sphere, e2 uniform round it) before the boost to the lab (boost3), so energy and momentum are kept exactly in three
+   directions and a two-body decay comes out isotropic; a three-body decay's momenta lie in a plane anyway, though their
+   energies are shared by the flat world's phase space. Not in 3-D yet: the particles' nuclear hits and captures at rest
+   (a particle slowed below 2 keV is left at rest to decay there: right for positive ones, and for negative ones in
+   empty space), muonic atoms and muonium, the collider, the quark–gluon plasma and nuclear reactions. */
+const B3U = { x: ['uy', 'uz'], y: ['uz', 'ux'], z: ['ux', 'uy'] };
+function boost3(E, px, py, pz, bx, by, bz) {
+  const b2 = bx * bx + by * by + bz * bz;
+  if (!(b2 > 1e-30)) return [E, px, py, pz];
+  const g = 1 / Math.sqrt(1 - b2), bp = bx * px + by * py + bz * pz, k = ((g - 1) * bp / b2 - g * E);
+  return [g * (E - bp), px + k * bx, py + k * by, pz + k * bz];
+}
+function plane3() { const a = rndDir(), e1 = [a[0], a[1], a[2]], t = turn3(e1[0], e1[1], e1[2], Math.PI / 2); return [e1, [t[0], t[1], t[2]]]; } // (a random plane: e1, e2 orthonormal, uniformly oriented)
+const emb3 = (v, e1, e2) => [v[0], v[1] * e1[0] + v[2] * e2[0], v[1] * e1[1] + v[2] * e2[1], v[1] * e1[2] + v[2] * e2[2]];
+/* spawnItems with four-momenta [E, px, py, pz] at (x, y, z). */
+function spawnItems3(items, moms, x, y, z) {
+  const made = { ps: [], xs: [], rays: [], lost: 0, z3: z };
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i], P = moms[i], m = massOf(it), pm = Math.sqrt(P[1] * P[1] + P[2] * P[2] + P[3] * P[3]);
+    let ux, uy, uz;
+    if (pm > 1e-12) { ux = P[1] / pm; uy = P[2] / pm; uz = P[3] / pm; } else { const u = rndDir(); ux = u[0]; uy = u[1]; uz = u[2]; }
+    const K = Math.max(0, P[0] - m) * MEV, ox = x + ux * 0.08, oy = y + uy * 0.08, oz = z + uz * 0.08;
+    if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy, uz]); continue; }
+    if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; continue; }
+    if (it.Z > Z_MAX) { made.lost += P[0] * MEV; continue; }
+    if (it.t === 'x' && (XP[it.sp].atom || it.sp === 'Mu')) { made.lost += P[0] * MEV; continue; } // (muonic atoms and muonium: not in 3-D yet; never made by a decay)
+    if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m, oz, uz); made.xs.push(o); pairNote(o); continue; }
+    const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy, 0, 0, oz) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti, oz);
+    setMotion(q, K, ux, uy, 0, 0, uz);
+    if (!q.trk && K > 2000) startTrack(q);
+    made.ps.push(q);
+  }
+  return made;
+}
+function decayExo3(o) {
+  const d = XP[o.sp], toks = pickBr(d.dec), items = toks.map(item), ms = items.map(massOf);
+  const vs = phaseSpace(o.m, ms);
+  if (!vs) { exoLeaves(o); return; }
+  const [e1, e2] = plane3(), b = o.v / PHYS.C, bx = b * o.ux, by = b * o.uy, bz = b * o.uz;
+  const S = nucBegin([]);
+  o.dead = true;
+  const keepTag = _evTag; _evTag = o.ev;
+  const made = spawnItems3(items, vs.map(v => { const w = emb3(v, e1, e2); return boost3(w[0], w[1], w[2], w[3], -bx, -by, -bz); }), o.x, o.y, o.z);
+  _evTag = keepTag;
+  closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
+  W.count.decay++;
+  const txt = `${o.lab} → ${summarize(items)}`, life = d.tau * o.gam;
+  o.fate = `decayed: ${txt}`;
+  flash(o.x, o.y, d.col, EXO_QUIET.has(o.sp) ? 2 : 3.5, 0.35, o.z);
+  tally(items, [], `Decay in flight: ${txt}`);
+  if (!EXO_QUIET.has(o.sp)) {
+    nucEvent('pdecay', o.x, o.y, `Decay in flight: ${txt}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.12, lbl: o.lab }], `mean life ${fmtTime(d.tau)}, ${fmtTime(life)} at its speed${boostTag()}`);
+    log('nuc', `Decay in flight: ${txt} (mean life ${fmtTime(d.tau)}, γ = ${fmtNum(o.gam, 3)})`);
+  } else log('nuc', `Decay: ${txt}`);
+}
+function flyExo3(o, h) {
+  const mu = o.m / PHYS.AMU_MEV, x0 = o.x, y0 = o.y, z0 = o.z, P = B3U[W.Bax3] || B3U.z, a = P[0], c = P[1];
+  let rem = h;
+  for (let k = 0; k < 64 && rem > 1e-15; k++) {
+    let s = rem, om = 0;
+    if (o.q) { const B = Bfield3(o.x, o.y, o.z); if (B) { om = o.q * B * PHYS.LOR / (o.gam * mu); if (Math.abs(om) * s > 0.2) s = 0.2 / Math.abs(om); } }
+    if (om) [o[a], o[c]] = turn2(o[a], o[c], -om * s / 2);
+    o.x += o.ux * o.v * s; o.y += o.uy * o.v * s; o.z += o.uz * o.v * s;
+    if (om) [o[a], o[c]] = turn2(o[a], o[c], -om * s / 2);
+    rem -= s;
+  }
+  exoTrack(o);
+  if (o.q && o.v > 0) exoIonize3(o, x0, y0, z0);
+  if (o.q && o.v > 0 && !o.dead) exoScatter3(o, x0, y0, z0);
+}
+/* The atoms within R of the segment (x0, y0, z0) → (x1, y1, z1), nearest the start first: [t, atom, distance]. */
+const _hits3 = [];
+function segTargets3(x0, y0, z0, x1, y1, z1, R, filter) {
+  _hits3.length = 0;
+  const dx = x1 - x0, dy = y1 - y0, dz = z1 - z0, L2 = dx * dx + dy * dy + dz * dz;
+  if (!(L2 > 0)) return _hits3;
+  const lo = [Math.min(x0, x1) - R, Math.min(y0, y1) - R, Math.min(z0, z1) - R], hi = [Math.max(x0, x1) + R, Math.max(y0, y1) + R, Math.max(z0, z1) + R];
+  for (const p of W.parts) {
+    if (p.dead || p.x < lo[0] || p.x > hi[0] || p.y < lo[1] || p.y > hi[1] || p.z < lo[2] || p.z > hi[2] || !filter(p)) continue;
+    const px = p.x - x0, py = p.y - y0, pz = p.z - z0, t = (px * dx + py * dy + pz * dz) / L2;
+    if (t < 0 || t >= 1) continue;
+    const ex = px - t * dx, ey = py - t * dy, ez = pz - t * dz, b2 = ex * ex + ey * ey + ez * ez;
+    if (b2 < R * R) _hits3.push([t, p, Math.sqrt(b2)]);
+  }
+  if (_hits3.length > 1) _hits3.sort((a, b) => a[0] - b[0]);
+  return _hits3;
+}
+function exoIonize3(o, x0, y0, z0) {
+  const beta2 = Math.max(1e-8, (o.v / PHYS.C) ** 2), z2 = o.q * o.q;
+  const hits = segTargets3(x0, y0, z0, o.x, o.y, o.z, 1.0, (t) => t.k === NUC && t.Z > 0 && t.ne > 0).slice();
+  let lost = 0;
+  for (const [, tg, b] of hits) {
+    if (tg.dead || tg.ne <= 0) continue;
+    const w = 1 / (1 + (b / 0.4) * (b / 0.4));
+    const dE = Math.min(0.3 * o.KE, 0.0047 * z2 * tg.ne / beta2 * w);
+    if (dE < 0.01) continue;
+    o.KE -= dE; lost += dE;
+    if (W.nucWin) for (const m of molecule(tg)) m.nucProd = true;
+    const ie = ionizationCost(tg), n = turn3(o.ux, o.uy, o.uz, Math.PI / 2), nx = n[0], ny = n[1], nz = n[2]; // (square to the path, at a random azimuth)
+    if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) { if (ejectElectron(tg, dE - ie, nx, ny, undefined, undefined, nz)) W.count.ionize++; else dumpHeat(dE, tg, tg); }
+    else { const dv = Math.sqrt(2 * dE * tg.im); tg.vx += nx * dv * 0.7; tg.vy += ny * dv * 0.7; tg.vz += nz * dv * 0.7; updateFast(tg); }
+    if (o.KE <= 1) break;
+  }
+  if (lost > 0) { o.KE = Math.max(0.5, o.KE); exoSpeed(o); }
+}
+function exoScatter3(o, x0, y0, z0) {
+  const hits = segTargets3(x0, y0, z0, o.x, o.y, o.z, 1.0, (t) => t.k === NUC && t.Z > 0 && !t.dead).slice();
+  if (!hits.length) return;
+  const mc2 = o.m * MEV, E = o.KE + mc2, pc = Math.sqrt(Math.max(0, o.KE * (o.KE + 2 * mc2))), pv = pc * pc / E;
+  if (!(pv > 0)) return;
+  for (const [, tg, b0] of hits) {
+    if (tg.dead) continue;
+    const b = Math.max(b0, 0.01), Zs = tg.Z, a = tg.ne > 0 ? 0.885 * 0.529177 / Math.cbrt(Zs) : Infinity;
+    let th = 2 * PHYS.KE * Math.abs(o.q) * Zs / (b * pv) * (a === Infinity ? 1 : Math.exp(-b / a));
+    if (!(th > 1e-7)) continue;
+    th = Math.min(th, 0.3);
+    const sx = tg.x - x0, sy = tg.y - y0, sz = tg.z - z0, sp = sx * o.ux + sy * o.uy + sz * o.uz; // (toward the nucleus, square to the path)
+    let nx = sx - sp * o.ux, ny = sy - sp * o.uy, nz = sz - sp * o.uz; const nl = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (nl < 1e-9) continue; nx /= nl; ny /= nl; nz /= nl;
+    const q = (tg.anti ? -1 : 1) * Math.sign(o.q), sg = q < 0 ? 1 : -1, c = Math.cos(th), s_ = Math.sin(th); // (an opposite charge pulled toward it, a like one pushed away)
+    const ux = o.ux * c + sg * nx * s_, uy = o.uy * c + sg * ny * s_, uz = o.uz * c + sg * nz * s_;
+    const pU = pc / (PHYS.AMU_MEV * MEV) * PHYS.C, dpx = pU * (o.ux - ux), dpy = pU * (o.uy - uy), dpz = pU * (o.uz - uz);
+    const vx = tg.vx + dpx / tg.m, vy = tg.vy + dpy / tg.m, vz = tg.vz + dpz / tg.m, dK = 0.5 * tg.m * (vx * vx + vy * vy + vz * vz - tg.vx * tg.vx - tg.vy * tg.vy - tg.vz * tg.vz);
+    if (!(dK < o.KE - 1)) continue;
+    tg.vx = vx; tg.vy = vy; tg.vz = vz; updateFast(tg);
+    o.ux = ux; o.uy = uy; o.uz = uz; o.KE -= dK;
+  }
+  exoSpeed(o);
+}
+function moveExos3(dt, id0) {
+  for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res && !W.ultra && !deepSlow()) { if (exoHeld(o)) o.wait = true; else decayExo3(o); } }
+  const n0 = W.exo.length;
+  if (!n0) return 0;
+  const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, H = [W.box.w / 2, W.box.h / 2, W.box.d / 2];
+  const out = (o) => Math.abs(o.x) > H[0] || Math.abs(o.y) > H[1] || Math.abs(o.z) > H[2];
+  for (let i = 0; i < n0; i++) {
+    const o = W.exo[i];
+    if (o.dead || (id0 !== undefined && o.id >= id0)) continue;
+    let h = dt, dec = false;
+    if (clock > 0) { const tl = XP[o.sp].tau * o.gam, P = 1 - Math.exp(-clock / tl); if (rnd() < P) { dec = true; h = dt * Math.min(1, -Math.log(1 - rnd() * P) * tl / clock); } }
+    const d = XP[o.sp];
+    if (dec && exoHeld(o)) { dec = false; h = dt; o.wait = true; }
+    if (o.stop) h = 0; // (at rest: it waits for its decay)
+    if (h > 0) flyExo3(o, h);
+    if (o.wait && out(o)) { o.x = clamp(o.x, -H[0], H[0]); o.y = clamp(o.y, -H[1], H[1]); o.z = clamp(o.z, -H[2], H[2]); dec = true; }
+    if (d.res && !dec && !W.ultra && !deepSlow()) continue;
+    if (out(o)) { exoLeaves(o); continue; }
+    if (dec) { decayExo3(o); continue; }
+    if (!o.stop && o.KE < MU_STOP && o.q) { // (slowed in matter to a couple of keV: at rest here, its last keV given to the atoms about it as heat; nuclear captures are flat-only for now)
+      const near = segTargets3(o.x - 1, o.y, o.z, o.x + 1, o.y, o.z, 3, (t) => t.k === NUC && t.Z > 0 && !t.dead)[0];
+      if (near) { dumpHeat(o.KE, near[1], near[1]); o.KE = 0; exoSpeed(o); o.stop = true; }
+    }
+  }
+  if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
+  return 0;
 }
 /* ---- unstable particles as a collider's beams (1.15). Every charged particle that lives long enough to be steered can be
    a beam: muons and τ leptons, charged pions and kaons, the charged hyperons (Σ⁺, Σ⁻, Ξ⁻, Ω⁻), charmed and bottom mesons

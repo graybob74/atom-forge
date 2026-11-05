@@ -3575,10 +3575,17 @@ function rayFrac(r) { return r.landed || !(r.len > 0) ? 1 : clamp((W.t - r.ts) *
 function lightSlow() { return clamp(0.015 * Math.min(W.box.w, W.box.h) / (PHYS.C * (W.baseSpf || W.simPerFrame)), 1e-7, 1); } // (against the setup's normal speed: light crosses the box in about 70 frames at 1×, and the speed buttons and slow motion then scale that as they scale everything else)
 /* ν and ν̄ of each flavour: νₑ, ν̄ₑ, νμ, ν̄μ, ντ, ν̄τ */
 function nuLab(anti, fl) { return (anti ? 'ν̄' : 'ν') + ({ e: 'ₑ', mu: 'μ', tau: 'τ' })[fl || 'e']; }
-function emitNeutrino(x, y, E, ux, uy, anti = false, how = 'a particle decay or reaction', fl = 'e') {
+function emitNeutrino(x, y, E, ux, uy, anti = false, how = 'a particle decay or reaction', fl = 'e', z = 0, uz = 0) { // (z, uz: 3-D, 1.24)
+  const sym = nuLab(anti, fl);
+  if (W.d3) { // (3-D: from its depth, in any direction; it passes through everything)
+    if (ux === undefined) { const u = rndDir(); ux = u[0]; uy = u[1]; uz = u[2]; } else { const L = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1; ux /= L; uy /= L; uz /= L; }
+    const t = rayExit3(x, y, z, ux, uy, uz);
+    W.rays.push({ x0: x, y0: y, z0: z, x1: x + ux * t, y1: y + uy * t, z1: z + uz * t, E, c: [120, 255, 170], t0: W.rt, ts: W.t, len: t, nu: true, anti, fl, how, lab: sym + ' ' + fmtE(E) });
+  } else {
   if (ux === undefined) { const th = rnd() * 2 * Math.PI; ux = Math.cos(th); uy = Math.sin(th); }
-  const t = rayExit(x, y, ux, uy), sym = nuLab(anti, fl);
+  const t = rayExit(x, y, ux, uy);
   W.rays.push({ x0: x, y0: y, x1: x + ux * t, y1: y + uy * t, E, c: [120, 255, 170], t0: W.rt, ts: W.t, len: t, nu: true, anti, fl, how, lab: sym + ' ' + fmtE(E) });
+  }
   W.ledger.escaped += E;
   // the Data tab's "Made here": neutrinos and antineutrinos counted, with the energy they carried off
   const M = W.made || (W.made = { nuc: new Map(), part: new Map() });
@@ -4499,10 +4506,10 @@ function settleKE(S, Qrel, ps) {
 
 function annihilateBound(Pp, A) {
   if (A.ne <= 0 || A.dead || Pp.dead) return;
-  const x = Pp.x, y = Pp.y, who = speciesLabel(A);
+  const x = Pp.x, y = Pp.y, z = Pp.z, who = speciesLabel(A);
   const S = annihBegin([Pp, A]);
   kill(Pp); A.ne--; refresh(A); enforceValence(A, null); relink([A]);
-  twoGamma(x, y, annihEnd(S));
+  twoGamma(x, y, annihEnd(S), z); // (z: 3-D, 1.24)
   W.count.annih++;
   nucEvent('annih', x, y, `${Pp.k === POS ? 'e⁺' : 'e⁻'} + ${who} → ${speciesLabel(A)} + 2γ`, [ghostOf(Pp)], '511 keV each');
   log('nuc', `Annihilation: ${Pp.k === POS ? 'e⁺ meets an electron' : 'e⁻ meets a positron'} of ${who} → 2γ (511 keV each)`);
@@ -4516,7 +4523,7 @@ function evAnti(a, b, r) {
     const la = speciesLabel(a), lb = speciesLabel(b);
     const S = annihBegin([a, b]);
     a.ne--; b.ne--; refresh(a); refresh(b); enforceValence(a, null); enforceValence(b, null); relink([a, b]);
-    twoGamma(x, y, annihEnd(S)); W.count.annih++;
+    twoGamma(x, y, annihEnd(S), 0.5 * (a.z + b.z)); W.count.annih++; // (z: 3-D, 1.24)
     nucEvent('annih', x, y, `${la} touches ${lb}: e⁻ + e⁺ → 2γ`, [], '511 keV each');
     log('nuc', `Annihilation: ${la} touches ${lb}; an electron and a positron → 2γ (511 keV each)`);
     return;
@@ -8072,9 +8079,9 @@ function settleOverlaps() {
 /* Launch a projectile with kinetic energy KE (eV) along (ux, uy). */
 function fireSpec(spec, x, y, ux, uy, KE, free, z = 0, uz = 0) { // (z, uz: 3-D)
   if (spec.kind === 'gamma') { if (W.d3) emitPhoton(x, y, KE, ux, uy, { z, uz }); else emitPhoton(x, y, KE, ux, uy); return null; } // (3-D: along its direction in depth, 1.24)
-  if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e'); return null; }
+  if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e', z, uz); return null; }
   if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy); // (1.12: an atom, in MD)
-  if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy) : null; // (a muon, pion …: from outside, as any fired particle)
+  if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy, undefined, z, uz) : null; // (a muon, pion …: from outside, as any fired particle; 3-D: in depth, 1.24)
   const ps = spawnClear(spec, x, y, 0, free, z);
   if (!ps.length) return null;
   if (ps.length === 1) { setMotion(ps[0], KE, ux, uy, 0, 0, uz); if (!ps[0].trk && KE > 50) startTrack(ps[0]); return ps[0]; }

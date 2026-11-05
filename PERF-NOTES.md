@@ -348,6 +348,37 @@ The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on bra
   +0.026, −0.35, −3.1, 0.000, +0.006, −2.0, −78 eV. Light costs nothing until it is used (a search over the atoms per
   photon, as in 2-D). 2-D and 3-D fingerprints unchanged. Screenshots 124-before-light.png (the tool disabled),
   124-after-light.png (Lyman-α held on a sodium atom in the middle of the cube).
+- **The rest of the particles in 3-D, in part** (the owner: "like pions and such"; physics in 3-D, for his OK). Built:
+  unstable particles (pions, kaons, muons, τ, hyperons, charmed and bottom hadrons, resonances) in flight in depth
+  (`addExo` with z and uz; `moveExos3`, `flyExo3`: straight, or turned about the magnetic field's axis), ionizing and
+  scattering off the atoms they pass along a line in 3-D (`segTargets3`, `exoIonize3`, `exoScatter3`: the flat rules),
+  leaving through the six faces, and decaying in flight or at rest (`decayExo3`). A decay is worked out in the
+  particle's rest frame as in the flat game (`phaseSpace`), its plane turned to a random orientation in space (`plane3`,
+  `emb3`) and boosted to the lab in 3-D (`boost3`); products in depth (`spawnItems3`; photons and neutrinos with z and uz,
+  `emitNeutrino`'s 3-D branch). A charged particle slowed below 2 keV among atoms stops (its last keV to them as heat) and
+  waits at rest for its decay. Neutrinos, positrons and the unstable particles are in the 3-D particle menus, placed
+  (nearly at rest, in depth) and fired (at any energy). e⁺ meeting an atom's electron or another atom now sends its γ rays
+  from its own depth (`annihilateBound`, `evAnti`). Drawn: `drawExos3` (glow, ball or ring, name), tracks in depth.
+  Measured (Node): π⁺ at rest, 300–400 decays: the μ⁺ at 29.792 MeV/c every time (two-body exact), isotropic (mean
+  direction ≤ 0.04, ⟨u²⟩ 0.31–0.36 against ⅓ for 300), books 1.9e-6 eV; K⁺ at 500 MeV decaying in flight along
+  (0.6, 0.48, 0.64): momentum of the products against the kaon's to 4.6e-16 (relative), energy exact (books ≤ 2e-7 eV);
+  ten 20 MeV μ⁻ and ten 50 MeV π⁺ through liquid water (1,029 atoms, insulated): books −0.95 and −0.53 eV over 200 steps
+  (−1.1, −0.26, −0.41 eV for 20 μ⁻, π⁺, π⁻ over 400); positrons annihilating in water: ≤ 0.41 eV an annihilation.
+  Cost: a neutral one nothing measurable; a charged one about 13 µs a step in a 1,029-atom box (its search over the
+  atoms along its path; 100 in flight 1.3 ms a step).
+  Not built (much harder than planned; the instruction: stop and write down why): the high-energy and nuclear side is
+  written on flat four-momenta [E, px, py] and flat collision searches throughout: in hep.js 19 calls of `phaseSpace`
+  (whose uniform intermediate masses are exact only in 2-D; 3-D needs GENBOD's weights), 10 of `twoBody`, 22 of
+  `p4of`/`exoP4`, 19 of `rdir`; nuclear collisions are found by radiation flight's flat path search (`fastEncounters`,
+  `fastFastNuclear`, `beamCollisions`), which the 3-D world does not have (its fast particles are stepped); the collider
+  is a ring of zones laid out in the plane. So in 3-D, for now: no nuclear hits by hadrons (a pion passes a nucleus
+  without reacting), no captures at rest (π⁻, K⁻, μ⁻ stopped in matter decay at rest, as free ones would; real ones are
+  captured: muonic atoms, nuclear stars), no muonium, no hypernuclei, no collider, no quark–gluon plasma, no nuclear
+  reactions between atoms or nuclei (fission, fusion). The route found for them: the same embedding, each event worked
+  out in the plane through its incoming momenta (exact for two bodies: their momenta span a plane) and turned into
+  place, plus a 3-D closest-approach search for nuclear reach among stepped fast nuclei; several sessions. 2-D and 3-D
+  fingerprints unchanged. Screenshots: 124-before-hep.png (K⁺ refused), 124-after-hep.png (kaons and π⁻ fired through
+  water, tracks in depth, B along y).
 - Tests: tests/f_124.js (run by t_features' 1.24 block, or alone: `node tests/f_124.js [place box fields light hep
   exp]`); each part fails on 1.23.2 (`place`: P3 is not defined).
 

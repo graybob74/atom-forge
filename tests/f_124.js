@@ -141,6 +141,42 @@ PARTS.light = async (page, check, say) => {
     `1.24: light in 3-D: the Light tool held on a sodium atom sends ${fl.n} photons in flight, in depth, ${fl.toward} of them on the line to it from the camera, and ionizes (${fl.ion}); books against the light put in: ${bk.map(b => `${b.what} ${b.E} eV ${b.books}`).join(', ')} eV; a 1 MeV γ's Compton events exact (worst ${bk[3].event} eV: before the fix in ejectElectron, 10–16 eV each)`, '1.24 light: ' + JSON.stringify({ pg, fl, bk }));
 };
 
+/* ---- 5. unstable particles in 3-D: placed and fired in depth; decays at rest isotropic with the right momentum, in flight
+   keeping momentum in three directions; muons and pions through water, positrons annihilating: the books */
+PARTS.hep = async (page, check, say) => {
+  const pg = await page.evaluate(() => {
+    loadPreset('d3empty'); setRunning(false); cam3Fit();
+    const ok = ['pi+', 'K-', 'mu-', 'Lam'].map(sp => spec3dOK({ kind: 'exo', sp })), nu = spec3dOK({ kind: 'nu' }), pos = spec3dOK({ kind: 'pos' }), mu = spec3dOK({ kind: 'exo', sp: 'muP' });
+    placeSpec({ kind: 'exo', sp: 'pi+' }, 1, 2, 1, 5); const o = W.exo[W.exo.length - 1];
+    fireSpec({ kind: 'exo', sp: 'mu+' }, -10, 0, 1, 0, 1e8, false, -3, 0.5); const m = W.exo[W.exo.length - 1];
+    render(W.rt);
+    return { ok, nu, pos, mu, z: o ? o.z : null, mz: m ? +m.uz.toFixed(3) : null, menu: pcats().some(([, l]) => l.some(s => s.kind === 'exo')) };
+  });
+  const books = (X) => X.totalEnergy().total - X.W.ledger.nuc;
+  const rest = (() => { const X = load('all', { seed: 5 }), W = X.W; X.PRESETS.d3empty.build(); W.gamma = 0; const cs = [], ps = []; let bk = 0;
+    for (let k = 0; k < 300; k++) { const o = X.addExo('pi+', 0, 0, 1e-6, 1, 0, undefined, 0, 0), b0 = books(X); X.decayExo3(o); const mu = W.exo.filter(e => !e.dead && e.sp === 'mu+').pop(); bk = Math.max(bk, Math.abs(books(X) - b0)); ps.push(Math.sqrt(mu.KE / 1e6 * (mu.KE / 1e6 + 2 * mu.m))); cs.push([mu.ux, mu.uy, mu.uz]); mu.dead = true; }
+    const m = (f) => cs.reduce((a, c) => a + f(c), 0) / cs.length;
+    return { p: +Math.min(...ps).toFixed(3), p1: +Math.max(...ps).toFixed(3), mean: Math.max(...[0, 1, 2].map(i => Math.abs(m(c => c[i])))), sq: [0, 1, 2].map(i => +m(c => c[i] ** 2).toFixed(3)), books: bk }; })();
+  const fly = (() => { const X = load('all', { seed: 6 }), W = X.W; X.PRESETS.d3empty.build(); let worst = 0, n = 0;
+    while (n < 40) { const o = X.addExo('K+', 0, 0, 500e6, 0.6, 0.48, undefined, 0, 0.64), P = Math.sqrt(500 * (500 + 2 * o.m)), ex0 = W.exo.length, r0 = W.rays.length, pa0 = W.parts.length; X.decayExo3(o);
+      if (W.parts.length > pa0) { for (const e of W.exo) e.dead = true; continue; } // (decays with an electron or positron: momentum in W.parts, not summed here)
+      const s = [0, 0, 0]; for (const e of W.exo.slice(ex0)) { const p = Math.sqrt(e.KE / 1e6 * (e.KE / 1e6 + 2 * e.m)); s[0] += p * e.ux; s[1] += p * e.uy; s[2] += p * e.uz; e.dead = true; }
+      for (const r of W.rays.slice(r0)) { const L = r.len || 1, E = r.E / 1e6; s[0] += E * (r.x1 - r.x0) / L; s[1] += E * (r.y1 - r.y0) / L; s[2] += E * (r.z1 - r.z0) / L; }
+      worst = Math.max(worst, Math.hypot(s[0] - P * 0.6, s[1] - P * 0.48, s[2] - P * 0.64) / P); n++; }
+    return { n, worst }; })();
+  const water = ['mu-', 'pi+'].map(sp => { const X = load('all', { seed: 7 }), W = X.W; X.PRESETS.water3d.build(); W.gamma = 0; W.decayOn = true; W.warp = 1e7;
+    const go = (n) => { for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); } };
+    go(10); for (let k = 0; k < 10; k++) X.addExo(sp, -10.5, -6 + 1.2 * k, sp === 'mu-' ? 2e7 : 5e7, 1, 0.1 * Math.sin(k), undefined, -5 + k, 0.1 * Math.cos(k));
+    const b1 = books(X); go(200); return { sp, books: +(books(X) - b1).toFixed(3), left: W.exo.filter(o => !o.dead).length }; });
+  const pos = (() => { const X = load('all', { seed: 8 }), W = X.W; X.PRESETS.water3d.build(); W.gamma = 0; const go = (n) => { for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); } };
+    go(10); let worst = 0, n = 0, zs = 0;
+    for (let k = 0; k < 5; k++) { const p = X.addLepton(X.POS, -10, -5 + 2 * k, 0, 0, -4 + 2 * k, 0); X.setMotion(p, 200, 1, 0.05, 0, 0, 0.02); X.forcesNoEvents(); W.fSpawn = W.spawned; const b = books(X), r0 = W.rays.length; let s = 0; while (!p.dead && s < 3000) { go(1); s++; } if (p.dead) { n++; worst = Math.max(worst, Math.abs(books(X) - b)); for (const r of W.rays.slice(r0)) if (r.z0 !== undefined && Math.abs(r.z0) > 0.5) zs++; } }
+    return { n, worst: +worst.toFixed(3), zs }; })();
+  say('  3-D particles: ' + JSON.stringify({ pg, rest, fly, water, pos }));
+  check(pg.ok.every(Boolean) && pg.nu && pg.pos && !pg.mu && pg.menu && pg.z === 5 && pg.mz === 0.447 && rest.p === 29.792 && rest.p1 === 29.792 && rest.mean < 0.1 && rest.sq.every(v => Math.abs(v - 1 / 3) < 0.05) && rest.books < 1e-4 && fly.n === 40 && fly.worst < 1e-9 && water.every(w => Math.abs(w.books) < 3) && pos.n >= 4 && pos.worst < 0.5 && pos.zs > 0,
+    `1.24: unstable particles in 3-D: pions, kaons, muons, hyperons, neutrinos and positrons in the 3-D menus, placed and fired in depth; π⁺ at rest → μ⁺ at ${rest.p} MeV/c every time, isotropic (⟨u²⟩ ${rest.sq.join(', ')}), books ${rest.books.toExponential(1)} eV; K⁺ at 500 MeV decaying in flight keeps its momentum to ${fly.worst.toExponential(1)} in x, y and z; muons and pions through water: books ${water.map(w => w.sp + ' ' + w.books).join(', ')} eV; positrons annihilating in water: worst ${pos.worst} eV, their γ rays at their depth`, '1.24 particles: ' + JSON.stringify({ pg, rest, fly, water, pos }));
+};
+
 module.exports = async function f124(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

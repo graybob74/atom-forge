@@ -396,6 +396,7 @@ function render3d(rt) {
   }
   drawMeasure3(ctx);
   if (R.view.rays) drawLight3(ctx, rt); // (light, 1.24)
+  drawExos3(ctx); // (unstable particles, 1.24)
   drawFlashes3(ctx, rt);
   drawEvents3(ctx, rt);
   drawMarks3(ctx);
@@ -599,6 +600,22 @@ function drawLight3(ctx, rt) {
     const g = ctx.createLinearGradient(A[0], A[1], B[0], B[1]); g.addColorStop(0, rgba(f.c, 0)); g.addColorStop(1, rgba(f.c, 0.9));
     ctx.strokeStyle = g; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
     drawSprite(glowSprite(f.c, 9), B[0], B[1], 1);
+  }
+  ctx.restore();
+}
+/* Unstable particles in flight in 3-D (1.24): as the flat view draws them (drawExos), a glow, a small ball (charged) or
+   ring (neutral) and the name, at their depth; their tracks are trails (drawTracks3). */
+function drawExos3(ctx) {
+  if (!W.exo.length) return;
+  const A = _p3c;
+  ctx.save(); ctx.font = '600 10px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  for (const o of W.exo) {
+    if (o.dead || !proj3(o.x, o.y, o.z || 0, A)) continue;
+    const x = A[0], y = A[1]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
+    const c = XP[o.sp].col;
+    ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55); ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = rgba(c, 0.95); ctx.strokeStyle = rgba(c, 0.95); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, o.q ? 2.4 : 2.6, 0, Math.PI * 2); if (o.q) ctx.fill(); else ctx.stroke();
+    ctx.fillText(o.lab, x, y - 5);
   }
   ctx.restore();
 }

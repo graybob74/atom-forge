@@ -474,7 +474,7 @@ function buildToolOpts() {
       const fs = fireSpecNow() || SPEC_P;
       if (W.d3) { // (3-D: the projectiles that work there, single shots below the flat-only flight of radiation mode)
         h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
-          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots up to ${fmtE(0.95 * radThreshold(true))} for electrons and ${fmtE(0.95 * radThreshold(false))} for atoms for now; light, neutrons, antimatter, unstable particles and beam sources: ${NOT_3D.toLowerCase()}.</span>`;
+          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots; electrons and positrons up to ${fmtE(0.95 * radThreshold(true))}, atoms up to ${fmtE(0.95 * radThreshold(false))}; light, neutrinos and unstable particles at any energy; neutrons, antimatter and beam sources: ${NOT_3D.toLowerCase()}.</span>`;
         break;
       }
       h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
@@ -893,6 +893,8 @@ const placeE = () => Math.pow(10, OPT.place.Es / 100); // eV, 1 eV … 1 GeV
 function placeFly(spec, x, y, count, z = 0) {
   _evTag = 0;
   if (W.d3 && spec.kind === 'gamma') { for (let i = 0; i < count; i++) emitPhoton(x, y, placeE(), undefined, undefined, { travel: true, z }); return []; } // (3-D: a random direction on the sphere, from its depth, 1.24)
+  if (W.d3 && spec.kind === 'nu') { for (let i = 0; i < count; i++) emitNeutrino(x, y, placeE(), undefined, undefined, !!spec.anti, 'placed by hand', spec.fl || 'e', z); return []; }
+  if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], undefined, z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
   for (let i = 0; i < count; i++) {
     const [ux, uy] = rdir();
     if (spec.kind === 'exo' && spec.sp === 'Mu') addMuonium(x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), PHYS.KB * W.T, ux, uy); // (1.12: an atom, in MD)
@@ -1348,7 +1350,7 @@ function fireDir3(d) {
   if (L < 0.3) { cam3Update(); return [C3.rx, C3.ry, C3.rz]; }
   return [ux / L, uy / L, uz / L];
 }
-function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return sp.kind === 'gamma' ? fireKE() : Math.min(fireKE(), 0.95 * radThreshold(lep)); } // (light: any energy, 1.24)
+function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return sp.kind === 'gamma' || sp.kind === 'nu' || sp.kind === 'exo' ? fireKE() : Math.min(fireKE(), 0.95 * radThreshold(lep)); } // (light, neutrinos and unstable particles: any energy, 1.24)
 function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(sp)}: ${NOT_3D.toLowerCase()} (Fire)`); return false; }
 /* Grab, Strong and Very strong: it keeps up with the mouse in real time, whatever the speed setting or slow motion.
    The spring may draw the atoms along faster (vcap: the gap closed in about 0.12 s of watching, up to the strength's
@@ -4099,7 +4101,8 @@ function spec3dOK(s) {
   if (!s) return false;
   if (s.kind === 'mol') return molFits(MOLECULES[s.mol], true);
   if (s.kind === 'atom') return !s.anti;
-  return s.kind === 'e' || s.kind === 'gamma'; // (light since 1.24)
+  if (s.kind === 'exo') { const d = XP[s.sp]; return !!d && !d.atom && !d.hyp && !d.stuck && s.sp !== 'Mu'; } // (unstable particles since 1.24: not the muonic atoms, muonium or hypernuclei)
+  return s.kind === 'e' || s.kind === 'pos' || s.kind === 'gamma' || s.kind === 'nu'; // (light since 1.24; positrons and neutrinos since 1.24)
 }
 const NO3D_CTL = ['setUltra', 'bAskSetup']; // (single controls; the box-size slider, fields and magnets work in 3-D since 1.24)
 const NO3D_SEG = ['segQeq', 'segPi', 'segPiRpc', 'segBo', 'segWave']; // (button groups)
