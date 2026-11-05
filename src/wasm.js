@@ -21,7 +21,7 @@
    can have workers at all; elsewhere (a page that is not cross-origin isolated) they are ordinary arrays. */
 const SHARED_OK = typeof SharedArrayBuffer !== 'undefined' && typeof Worker !== 'undefined' && (typeof crossOriginIsolated === 'undefined' || crossOriginIsolated);
 const WK = { on: false, use: true, ready: false, mem: null, module: null, inst: null, ex: null, top: 0, desc: null, ks: null, sumTab: null,
-  note: '', bytes: null, grows: 0, allocs: 0, has3: false, note3: '', calls3: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0, plain: false, PLAIN_PAGES: 2048, useFast: true, ft: null, fks: null, fc: null, fcr: null, fastCalls: 0 }; // (plain: an ordinary memory of PLAIN_PAGES × 64 KB = 128 MB, never grown)
+  note: '', bytes: null, grows: 0, allocs: 0, has3: false, note3: '', calls3: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0, plain: false, PLAIN_PAGES: 2048, useFast: true, ft: null, fks: null, fc: null, fcr: null, fastCalls: 0, bufs: new Set(), vlCalls: 0, t1Calls: 0 }; // (bufs: every buffer object the memory has had, wasmIn, 1.26) // (plain: an ordinary memory of PLAIN_PAGES × 64 KB = 128 MB, never grown)
 const WK_PAGE = 65536;
 /* Base64 to bytes (no atob in every worker-less environment; this is small and runs once). */
 function wasmBytes(b64) {
@@ -48,7 +48,7 @@ function wasmMemoryInit() {
       WK.mem = new WebAssembly.Memory({ initial: WK.PLAIN_PAGES, maximum: WK.PLAIN_PAGES }); // its full size at once: it must never grow
       WK.plain = true;
     }
-    WK.top = WK.ARENA0;
+    WK.top = WK.ARENA0; WK.bufs.add(WK.mem.buffer);
     WK.on = true;
   } catch (e) { WK.note = 'memory: ' + (e.message || e); WK.on = false; WK.mem = null; WK.plain = false; }
 }
@@ -59,10 +59,17 @@ function wasmAlloc(bytes) {
     if (WK.plain) return -1; // (an ordinary memory cannot grow without detaching every view: the caller falls back)
     const need = Math.ceil((end - WK.mem.buffer.byteLength) * 1.25 / WK_PAGE) + 1;
     if (WK.mem.buffer.byteLength / WK_PAGE + need > WK.MAX_PAGES) throw new Error('Atom Forge: the WebAssembly memory is full');
-    WK.mem.grow(need); WK.grows++;
+    WK.mem.grow(need); WK.grows++; WK.bufs.add(WK.mem.buffer); // (a shared memory hands out a new buffer object after it grows; the views made before stay on the old one, wasmIn)
   }
   WK.top = end; WK.allocs++;
   return off;
+}
+/* Are these arrays in the module's memory? (1.26) After a shared memory grows, its buffer is a new object and the views
+   made before keep the old one (the same memory): comparing with WK.mem.buffer alone took them for strangers. */
+function wasmIn(...arrs) {
+  if (!WK.mem) return false;
+  for (const a of arrs) if (!a || !WK.bufs.has(a.buffer)) return false;
+  return true;
 }
 function wasmArray(T, n) { // (allocate first: a shared memory may grow, and the buffer object is refreshed by the growth)
   const off = wasmAlloc(n * T.BYTES_PER_ELEMENT);

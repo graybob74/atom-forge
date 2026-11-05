@@ -14,7 +14,7 @@ const TH = { n: 0, want: 0, workers: [], ctrl: null, prm: null, fx: [], fy: [], 
 const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13, TH_DT = 14, TH_DTD = 15;
 // control layout: [0, n) worker states; then 10 per worker: pair range (2), candidate count, ack (the generation bound), bond range (2), angle range (2), the generation wanted, spare; prm: per worker stiffness, then the box
 // (3-D: prm[n + 25] 1, the depth and its half at n + 26, n + 27, and from 8·n + 32 two per worker: its range of dihedrals;
-//  the 3-D list: n + 28 1, the grid's layers and occupied cells at n + 29, n + 30)
+//  the 3-D list: n + 28 1, the grid's layers and occupied cells at n + 29, n + 30; n + 31 1: the list's walk in the module, 1.26)
 function thCtrl(w, k) { return TH.n + 10 * w + k; }
 /* The heat bath's noise: two normals from (seed, step, slot), the same on any thread and in any order, so a bath stirred
    on sixteen threads is the very simulation one thread gives, step for step. The slot's hash (murmur3's finaliser) picks
@@ -189,6 +189,8 @@ ${bufZeroZ.toString()}
 ${bufSum3.toString()}
 ${vlPairs.toString()}
 ${vlPairs3.toString()}
+${vlPairsW.toString()}
+${vlPairs3W.toString()}
 ${exRange.toString()}
 let GV = null, mdI = null, exl = null, exn = null;
 let SPAN0 = 0, TQ0 = 0; const spPrev = new Float64Array(4), spPrevZ = new Float64Array(4);
@@ -279,8 +281,9 @@ onmessage = (e) => {
     } else if (st === TH_VL) { // this worker's stretch of the neighbour list, from its range of the grid's occupied cells
       GV.cols = prm[nW + 14]; GV.rows = prm[nW + 15]; GV.wrap = prm[nW + 16] === 1; GV.mask = prm[nW + 17]; GV.shift = prm[nW + 18]; GV.RL2 = prm[nW + 19];
       const base = ctrl[ctrlAt(me, 4)], cap = ctrl[ctrlAt(me, 5)];
-      if (prm[nW + 28] === 1) { GV.lay = prm[nW + 29]; GV.nocc = prm[nW + 30]; ctrl[ctrlAt(me, 2)] = vlPairs3(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], pi, pj, base, cap, GV, mdI, S.k, prm[nW] === 1, prm[nW + 1], prm[nW + 2], prm[nW + 26], prm[nW + 3], prm[nW + 4], prm[nW + 27]); } // (3-D: a range of the grid's particles)
-      else ctrl[ctrlAt(me, 2)] = vlPairs(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], pi, pj, base, cap, GV, mdI, S.k, prm[nW] === 1, prm[nW + 1], prm[nW + 2], prm[nW + 3], prm[nW + 4]);
+      const vok = !!(wex && mem && typeof wex.af_vl3 === 'function' && prm[nW + 31] === 1); // (the module's walk, 1.26: this worker's views are on its memory; the main thread's choice in prm)
+      if (prm[nW + 28] === 1) { GV.lay = prm[nW + 29]; GV.nocc = prm[nW + 30]; ctrl[ctrlAt(me, 2)] = vlPairs3W(vok, wex, ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], pi, pj, base, cap, GV, mdI, S.k, prm[nW] === 1, prm[nW + 1], prm[nW + 2], prm[nW + 26], prm[nW + 3], prm[nW + 4], prm[nW + 27]); } // (3-D: a range of the grid's particles)
+      else { ctrl[ctrlAt(me, 2)] = vlPairsW(vok, wex, ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], pi, pj, base, cap, GV, mdI, S.k, prm[nW] === 1, prm[nW + 1], prm[nW + 2], prm[nW + 3], prm[nW + 4]); }
       Atomics.store(ctrl, me, TH_VLD); Atomics.notify(ctrl, me);
     } else if (st === TH_EX) { // the exclusion marks of this worker's range of pairs
       exRange(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], ex, pi, pj, S.k, S.Z, S.ne, S.mol, S.id, exl, exn, prm[nW + 20]);
@@ -500,12 +503,13 @@ vlBuildAll = function () {
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh;
   prm[n + 14] = G.cols; prm[n + 15] = G.rows; prm[n + 16] = G.wrap ? 1 : 0; prm[n + 17] = G.mask; prm[n + 18] = G.shift; prm[n + 19] = RL2; prm[n + 28] = 0;
+  const vok = vlWasmOk(); prm[n + 31] = vok ? 1 : 0;
   for (let w = 0; w < n; w++) {
     ctrl[thCtrl(w, 0)] = Math.min(nocc, w * oper); ctrl[thCtrl(w, 1)] = Math.min(nocc, (w + 1) * oper); ctrl[thCtrl(w, 4)] = w * per; ctrl[thCtrl(w, 5)] = per;
     Atomics.store(ctrl, w, TH_VL); Atomics.notify(ctrl, w);
   }
   const t0 = performance.now();
-  const mine = vlPairs(Math.min(nocc, n * oper), nocc, VL.pi, VL.pj, n * per, cap - n * per, G, _mdI, S.k, wrap, bw, bh, hw, hh);
+  const mine = vlPairsW(vok, WK.ex, Math.min(nocc, n * oper), nocc, VL.pi, VL.pj, n * per, cap - n * per, G, _mdI, S.k, wrap, bw, bh, hw, hh); // (in the module when it can, 1.26)
   let short = mine < 0, np = 0;
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_VLD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); if (ctrl[thCtrl(w, 2)] < 0) short = true; }
   if (short) { TH.vlNote = 'short'; vlRoom(cap * 2 + _nmd); return -1; }
@@ -533,12 +537,13 @@ vlBuildAll3 = function () {
   prm[n] = wrap ? 1 : 0; prm[n + 1] = bw; prm[n + 2] = bh; prm[n + 3] = hw; prm[n + 4] = hh;
   prm[n + 14] = G.cols; prm[n + 15] = G.rows; prm[n + 16] = G.wrap ? 1 : 0; prm[n + 17] = G.mask; prm[n + 18] = G.shift; prm[n + 19] = RL2;
   prm[n + 26] = bd; prm[n + 27] = hd; prm[n + 28] = 1; prm[n + 29] = G.lay; prm[n + 30] = G.nocc;
+  const vok = vlWasmOk(); prm[n + 31] = vok ? 1 : 0;
   for (let w = 0; w < n; w++) {
     ctrl[thCtrl(w, 0)] = Math.min(ng, w * pper); ctrl[thCtrl(w, 1)] = Math.min(ng, (w + 1) * pper); ctrl[thCtrl(w, 4)] = w * per; ctrl[thCtrl(w, 5)] = per;
     Atomics.store(ctrl, w, TH_VL); Atomics.notify(ctrl, w);
   }
   const t0 = performance.now();
-  const mine = vlPairs3(Math.min(ng, n * pper), Infinity, VL.pi, VL.pj, n * per, cap - n * per, G, _mdI, S.k, wrap, bw, bh, bd, hw, hh, hd);
+  const mine = vlPairs3W(vok, WK.ex, Math.min(ng, n * pper), Infinity, VL.pi, VL.pj, n * per, cap - n * per, G, _mdI, S.k, wrap, bw, bh, bd, hw, hh, hd); // (in the module when it can, 1.26)
   let short = mine < 0, np = 0;
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_VLD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); if (ctrl[thCtrl(w, 2)] < 0) short = true; }
   if (short) { TH.vlNote = 'short'; vlRoom(cap * 2 + _nmd); return -1; }
