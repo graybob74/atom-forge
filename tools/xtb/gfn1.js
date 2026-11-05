@@ -1421,4 +1421,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
 
 /* the number of atomic orbitals of an element (its shells' 2l + 1 summed): what a calculation's cost grows with */
 function nAO(z) { return element(z).shells.reduce((t, s) => t + 2 * s.l + 1, 0); }
-module.exports = { gfn1Energy, nAO, BOHR, AUTOEV, _internal: { element, overlapBlock, overlapGradBlock, symEig, choleskyInverse } };
+module.exports = { gfn1Energy, nAO, BOHR, AUTOEV, _internal: { element, overlapBlock, overlapGradBlock, symEig, choleskyInverse },
+  // (shared with gfn2.js, 1.26: the STO-nG tables, mctc-lib's radii and electronegativities, the linear algebra, the
+  // mixer and the Fermi filling; nothing here changes for GFN1)
+  _shared: { T, DTRAFO, CART, symEig, choleskyInverse, Broyden, fermiFilling, entropyTerm, integralCutoff, KT_DEFAULT, EVTOAU, AATOAU, MAX_ITER, MIX_DAMP, ECONV, PCONV, MAX_CUTOFF, DFACT, TOP } };
