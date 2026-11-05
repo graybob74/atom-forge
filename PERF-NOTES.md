@@ -272,7 +272,7 @@ engine stores and visits particles.
     a 100 keV U atom among waters about 1 eV.
   - [fixed after 1.25] In the flat game the open-wall branch of walls() removes particles without booking their energy as escaped.
   - [fixed after 1.25] In the flat game an event that changes a charge in an applied electric field misses −q·E·Δr from the books.
-  - Free electrons put down almost on top of each other gain hundreds of eV in their first steps.
+  - [fixed after 1.25] Free electrons put down almost on top of each other gain hundreds of eV in their first steps.
   - 3-D: Inspect can't pick unstable particles or photons in flight; quantum nuclei's beads aren't drawn; some
     Experimental descriptions still describe the flat case; the Magnet tool's pole buttons keep the flat ⊙/⊗ signs.
   - [fixed after 1.25] A charged particle's search for atoms on its path goes over every atom (the grid would make it local).
@@ -958,6 +958,15 @@ books hashed apart).
   energy there does not change with the mode). Ten protons and their electrons recombining among argon in 0.2 V/Å,
   6 seeds, 1,500 steps: up to 0.80 eV off before, 0.03 eV after (60 captures). No field, no change. Fingerprints: neon
   (the discharge has a field) changes, nothing else; t_energy passes. Check: f_bug125 "efield".
+- 7. Free electrons put down almost on top of each other. In 3-D electrons stay stepped (the inner steps), whose length
+  followed their speed (LEP_STEP/v, 0.2 Å a step), acceleration and the pairs' stiffness, but not how fast two of them
+  sweep past each other's soft core (0.2 Å): at the hundreds of Å/tu such a cluster flies apart with, each close pass
+  gained or lost eV. Now computeFast3 notes each lepton pair's pass rate (relative speed over the softened distance,
+  _passL) and innerDt3 keeps an inner step under 3% of that crossing time (10% left 29 eV, 1% 0.3 eV). Eight electrons
+  in a 1 Å row, pairs 0.02 Å apart, insulated, 16 tu: 3-D −116 eV before, −2.1 eV after, the run 35% longer (0.47 →
+  0.64 s); the flat game 0.1 eV both (past 20 eV electrons fly there, colliding along their paths). Earlier mention:
+  330 → 985 eV for eight with a 300 T field (1.24). Fingerprints unchanged (no setup starts with free electrons
+  together). Check: f_bug125 "coincident".
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

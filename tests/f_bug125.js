@@ -140,6 +140,20 @@ PARTS.efield = async (page, check, say) => {
   check(r.worst < 0.1 && r.caps >= 20, `bug fix 6: ${r.caps} captures in a 0.2 V/Å field, the books (with the field's energy) kept to ${r.worst} eV`, 'bugfix efield: ' + JSON.stringify(r));
 };
 
+/* 7. Free electrons put down almost on top of each other: eight in a 1 Å row (pairs 0.02 Å apart), insulated. In 3-D
+   (where electrons stay stepped) each close pass at hundreds of Å/tu gained or lost eV: −116 eV over 16 tu before;
+   the inner step now resolves the pass (_passL). The flat game (they fly once past 20 eV) about 1 eV, as before. */
+PARTS.coincident = async (page, check, say) => {
+  const run = (d3) => { const X = fresh(1), W = X.W;
+    if (d3) { X.PRESETS.empty.build(); X.setBox(400, 400); X.world3d(400); } else X.baseWorld(400, 400, 300, 0.05);
+    W.gamma = 0; for (let i = 0; i < 8; i++) X.addLepton(X.ELEC, (i % 4) * 1.0 + 0.02 * (i >> 2), 0, 0, 0, 0);
+    X.forcesNoEvents(); W.fSpawn = W.spawned; const E0 = X.totalEnergy().total; let t = 0, worst = 0;
+    while (t < 16) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); t += X.step(W.dt); worst = Math.max(worst, Math.abs(X.totalEnergy().total - E0)); }
+    return +worst.toFixed(2); };
+  const r = { flat: run(false), d3: run(true) };
+  check(r.flat < 3 && r.d3 < 5, `bug fix 7: eight electrons put down 0.02–1 Å apart keep the books to ${r.flat} eV (flat), ${r.d3} eV (3-D)`, 'bugfix coincident: ' + JSON.stringify(r));
+};
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {

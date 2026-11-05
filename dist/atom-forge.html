@@ -5843,7 +5843,7 @@ const K_IW = 2;
 const iwK = (a, b) => (a.ionic !== b.ionic && (a.ionic ? b.q === 0 : a.q === 0) ? K_IW : 1);
 /* Stiffest close contact this step, as curvature over reduced mass (1/tu²): chooseDt keeps ω·dt small there,
    so hard collisions are integrated as accurately as gentle ones. */
-let _stiff = 0, _stiffL = 0, _lepEvOff = false;
+let _stiff = 0, _stiffL = 0, _passL = 0, _lepEvOff = false;
 function noteStiff(k, a, b) {
   const w = k * (a.im + b.im);
   if (a.k !== NUC || b.k !== NUC) { if (w > _stiffL) _stiffL = w; } else if (w > _stiff) _stiff = w;
@@ -10921,6 +10921,10 @@ function innerDt3() { // (3-D: speeds and accelerations in three directions; a m
     if (a > 0) dt = Math.min(dt, Math.sqrt(0.04 / a));
   }
   if (_stiffL > 0) dt = Math.min(dt, 0.15 / Math.sqrt(_stiffL));
+  // (bug fix 7 after 1.25: two free leptons sweeping past each other at hundreds of Å/tu cross their soft core, 0.2 Å, in
+  // less than an inner step's LEP_STEP; the step must resolve the pass (3% of the core's crossing time: 10% left 29 eV, 3% 2 eV, 1% 0.3 eV), or each
+  // close pass gains or loses eV: eight electrons put down in a 1 Å cluster drifted by 30–120 eV in 3-D)
+  if (_passL > 0) dt = Math.min(dt, 0.03 / Math.sqrt(_passL));
   return Math.max(DT_MIN, dt);
 }
 /* A pair with at least one free lepton, fast part only (the same physics as pairForce). dx, dy: j − i. */
@@ -11095,7 +11099,7 @@ function flBuild3() {
 }
 /* 3-D: the fast part for the inner steps (computeFast in JavaScript, with z). */
 function computeFast3() {
-  _stiffL = 0;
+  _stiffL = 0; _passL = 0;
   const GX = S.gx, GY = S.gy, GZ = S.gz, mdI = _mdI, nmd = _nmd;
   for (let q = 0; q < nmd; q++) { const i = mdI[q]; GX[i] = 0; GY[i] = 0; GZ[i] = 0; }
   if (!_mdL.length) return;
@@ -11119,6 +11123,7 @@ function computeFast3() {
         const s2 = r2 + 0.04, Q = S.q;
         f = PHYS.KE * Q[L] * Q[A] * r / (s2 * Math.sqrt(s2));
         { const w = PHYS.KE * (Math.abs(0.04 - 2 * r2) + s2) / (s2 * s2 * Math.sqrt(s2)) * (S.im[L] + S.im[A]); if (w > _stiffL) _stiffL = w; }
+        { const ux = S.vx[A] - S.vx[L], uy = S.vy[A] - S.vy[L], uz = S.vz[A] - S.vz[L], w = (ux * ux + uy * uy + uz * uz) / s2; if (w > _passL) _passL = w; } // (how fast the pair sweeps past its own core: bug fix 7 after 1.25)
         if (S.k[L] !== S.k[A] && r < 0.3 && !_lepEvOff) queue(EV.ANNIH, S.obj[L], S.obj[A], null, r);
       }
       if (f > FCAP) f = FCAP; else if (f < -FCAP) f = -FCAP;
