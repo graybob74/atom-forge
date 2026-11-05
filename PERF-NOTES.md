@@ -282,6 +282,19 @@ The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on bra
     note say so.
   - Screenshots: 124-before-place-atom.png, 124-before-fire-aim.png; 124-after-place-atom.png, 124-after-place-empty.png,
     124-after-place-nearer.png, 124-after-fire-aim.png.
+- **Box size in 3-D** (the Lab's slider; box3dNote): the slider scales width, height and depth together (`W.box.td`,
+  the depth wanted; the typed width scales all three, the typed height sets height and depth), 20 Å to 2 µm (a saved 3-D
+  world's depth now loads up to 2 µm too, was 200 nm). `moveWalls3` is the flat `moveWalls` with the depth: growing jumps
+  the walls out (a free expansion), shrinking sweeps them through the empty space to the outermost particles and then
+  moves all six faces in at the flat game's 0.6 Å/tu, the walls' speed (`uw`, `uh`, `ud`) going into the bounce of fast
+  particles (`walls3`) and free electrons (`leptonWall`'s z faces) as in 2-D. The soft walls push the atoms as before.
+  Measured (Node, 64 argon atoms in a 30 Å cube, insulated): squeezed to 20 Å, 333 → 869 K by the piston's work 4.319 eV
+  (counted as the soft walls' energy jumps when they move), the books 0.006 eV against it after 24 tu (in a longer run
+  from another start, 41.05 eV of work, books −0.26 eV after 120 tu: the 900–5,000 K gas's own insulated drift); grown to
+  40 Å, a free expansion: books −0.002 eV. The flat game's own piston, the same gas in 2-D: 606 eV of work, books −15 eV.
+  Unchanged: every 2-D fingerprint (24 setups, 300 steps, seed 7) and the six 3-D setups' (the walls' speed is 0 when the
+  box keeps its size, and the bounce is then the old one exactly). Screenshots 124-before-box-panel.png (the slider
+  disabled), 124-after-box-panel.png, 124-after-box-shrunk.png (20 × 20 × 20 Å).
 - Tests: tests/f_124.js (run by t_features' 1.24 block, or alone: `node tests/f_124.js [place box fields light hep
   exp]`); each part fails on 1.23.2 (`place`: P3 is not defined).
 

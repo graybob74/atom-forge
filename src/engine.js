@@ -6541,7 +6541,7 @@ function leptonWall(p) {
   else if (p.x > hw) { p.x = hw - Math.min(W.box.w, p.x - hw); p.vx = 2 * uw - p.vx; if (p.vx > 0) p.vx = -p.vx; }
   if (p.y < -hh) { p.y = -hh + Math.min(W.box.h, -hh - p.y); p.vy = -2 * uh - p.vy; if (p.vy < 0) p.vy = -p.vy; }
   else if (p.y > hh) { p.y = hh - Math.min(W.box.h, p.y - hh); p.vy = 2 * uh - p.vy; if (p.vy > 0) p.vy = -p.vy; }
-  if (W.d3) { const hd = W.box.d / 2; if (p.z < -hd) { p.z = -hd + Math.min(W.box.d, -hd - p.z); p.vz = Math.abs(p.vz); } else if (p.z > hd) { p.z = hd - Math.min(W.box.d, p.z - hd); p.vz = -Math.abs(p.vz); } }
+  if (W.d3) { const hd = W.box.d / 2, ud = W.box.ud || 0; if (p.z < -hd) { p.z = -hd + Math.min(W.box.d, -hd - p.z); p.vz = -2 * ud - p.vz; if (p.vz < 0) p.vz = -p.vz; } else if (p.z > hd) { p.z = hd - Math.min(W.box.d, p.z - hd); p.vz = 2 * ud - p.vz; if (p.vz > 0) p.vz = -p.vz; } } // (the piston's speed in depth too, 1.24)
 }
 /* Ballistic electrons and positrons (20 eV – 1 keV) fly in straight segments and look for collisions along every
    one. A segment ends just past the next wall (reflected or wrapped there), and is at most 45% of the box across
@@ -6713,6 +6713,19 @@ function moveWalls(dt) {
   b.uw = w1 < b.w ? -step / (2 * dt) : 0; b.uh = h1 < b.h ? -step / (2 * dt) : 0; // (the walls' own speed where they touch anything)
   b.w = w1; b.h = h1;
 }
+/* 3-D (1.24, the Lab's box-size slider in 3-D): moveWalls with the depth. The slider scales width, height and depth
+   together (td, the depth wanted); growing is a free expansion, shrinking a piston on all six faces at the flat game's
+   wall speed (0.6 Å/tu), after the walls sweep through the empty space to the outermost particles. The walls' speed
+   (uw, uh, ud) is what a particle bouncing off a hard wall meets (walls3, leptonWall), so a squeezed gas heats as in 2-D. */
+function moveWalls3(dt) {
+  const b = W.box, step = 0.6 * dt * 2;
+  let ex = 0, ey = 0, ez = 0;
+  for (const p of W.parts) { if (p.dead || p.rad) continue; const ax = Math.abs(p.x), ay = Math.abs(p.y), az = Math.abs(p.z); if (ax > ex) ex = ax; if (ay > ey) ey = ay; if (az > ez) ez = az; }
+  const to = (cur, tgt, e) => (tgt >= cur ? tgt : Math.max(tgt, Math.min(cur - step, 2 * (e + 2))));
+  const td = b.td > 0 ? b.td : b.d, w1 = to(b.w, b.tw, ex), h1 = to(b.h, b.th, ey), d1 = to(b.d, td, ez);
+  b.uw = w1 < b.w ? -step / (2 * dt) : 0; b.uh = h1 < b.h ? -step / (2 * dt) : 0; b.ud = d1 < b.d ? -step / (2 * dt) : 0;
+  b.w = w1; b.h = h1; b.d = d1;
+}
 let _wallMoved = false; // (walls: a particle rescued from deep in a wall since the last force pass)
 function walls(p) {
   if (p.dead || p.rad || (p.k === NUC && p.Z === 0)) return;
@@ -6772,9 +6785,10 @@ function walls3(p) {
     _wallMoved = true;
     return;
   }
-  if (p.x < -hw0) { p.x = -hw0 + Math.min(W.box.w, -hw0 - p.x); p.vx = Math.abs(p.vx); } else if (p.x > hw0) { p.x = hw0 - Math.min(W.box.w, p.x - hw0); p.vx = -Math.abs(p.vx); }
-  if (p.y < -hh0) { p.y = -hh0 + Math.min(W.box.h, -hh0 - p.y); p.vy = Math.abs(p.vy); } else if (p.y > hh0) { p.y = hh0 - Math.min(W.box.h, p.y - hh0); p.vy = -Math.abs(p.vy); }
-  if (p.z < -hd0) { p.z = -hd0 + Math.min(W.box.d, -hd0 - p.z); p.vz = Math.abs(p.vz); } else if (p.z > hd0) { p.z = hd0 - Math.min(W.box.d, p.z - hd0); p.vz = -Math.abs(p.vz); }
+  const uw = W.box.uw || 0, uh = W.box.uh || 0, ud = W.box.ud || 0; // (a wall moving in as a piston: the bounce off it, 1.24)
+  if (p.x < -hw0) { p.x = -hw0 + Math.min(W.box.w, -hw0 - p.x); p.vx = Math.abs(-2 * uw - p.vx); } else if (p.x > hw0) { p.x = hw0 - Math.min(W.box.w, p.x - hw0); p.vx = -Math.abs(2 * uw - p.vx); }
+  if (p.y < -hh0) { p.y = -hh0 + Math.min(W.box.h, -hh0 - p.y); p.vy = Math.abs(-2 * uh - p.vy); } else if (p.y > hh0) { p.y = hh0 - Math.min(W.box.h, p.y - hh0); p.vy = -Math.abs(2 * uh - p.vy); }
+  if (p.z < -hd0) { p.z = -hd0 + Math.min(W.box.d, -hd0 - p.z); p.vz = Math.abs(-2 * ud - p.vz); } else if (p.z > hd0) { p.z = hd0 - Math.min(W.box.d, p.z - hd0); p.vz = -Math.abs(2 * ud - p.vz); }
 }
 /* 3-D: what a closed box's wall stops, and what leaves through an open one (asked for by the owner, 1.23.2: "make sure
    that fast particles still leave the box in 3d"). The 3-D world has no radiation flight (its collision search is
@@ -7265,7 +7279,8 @@ function stepPlain(dt) {
   bathFollow(dt);
   threadsPrewake();
   const id0 = W.nextId; // particles born during this step start flying in the next one
-  if (W.box.tw !== W.box.w || W.box.th !== W.box.h) moveWalls(dt); else { W.box.uw = 0; W.box.uh = 0; }
+  if (W.d3) { const b = W.box; if (b.tw !== b.w || b.th !== b.h || (b.td > 0 && b.td !== b.d)) moveWalls3(dt); else { b.uw = 0; b.uh = 0; b.ud = 0; } } // (3-D: the depth too, 1.24)
+  else if (W.box.tw !== W.box.w || W.box.th !== W.box.h) moveWalls(dt); else { W.box.uw = 0; W.box.uh = 0; }
   // particles added from outside, or switched between MD and ballistic flight at the end of the last step
   rpMark(0);
   const boCh = (BO.on || BO.any) && boSync(); // (continuous bond orders: who takes part, 1.13)
@@ -7554,7 +7569,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.d3 = false; W.box.d = 0; // (a new world is flat; world3d makes it 3-D)
+  W.d3 = false; W.box.d = 0; W.box.td = 0; W.box.ud = 0; // (a new world is flat; world3d makes it 3-D)
   W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.muAtoms = []; W.at = W.at || 0;
   _rxCache.clear();
 }
@@ -7566,7 +7581,7 @@ function world3d(d) {
   if (typeof boSet === 'function' && (BO.on || BO.any)) boSet(0);
   if (PI.on) piSet(0);
   if (WAVE.on || WAVE.n) waveSet(false);
-  W.d3 = true; W.box.d = d > 0 ? d : W.box.h;
+  W.d3 = true; W.box.d = W.box.td = d > 0 ? d : W.box.h; W.box.ud = 0; // (td: the depth the box-size slider wants, 1.24)
   VL.valid = false; FL.gen = -1; _mdGen++; _clsN = -1; gridTouch(); W.dirty++; W.fSpawn = -1;
 }
 function thermalV(m, T) { const s = Math.sqrt(PHYS.KB * T / m); return W.d3 ? [s * gauss(), s * gauss(), s * gauss()] : [s * gauss(), s * gauss()]; } // (3-D: a third draw, only there)
