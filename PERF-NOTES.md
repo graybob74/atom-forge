@@ -290,6 +290,10 @@ engine stores and visits particles.
   slopes and an insulated run drifts (as in 1.22). Electrons as waves with 2,000 particles still make 1–2 s frames
   here (the inner steps at many electrons: bounded, 400 inner steps at most).
 
+### Test: the 3-D thread checks wait for the workers
+
+`t_threads`' 3-D molecules check failed 4 runs in 4 on 1.23.0 alone and 2 in 5 on this branch ("not ready"; once a 2e-16 force difference, one pass on one thread against one on two). After a setup loads, the workers acknowledge the new world's memory on their own time, and the check measured synchronously before they had. It now waits for them (up to 15 s): 4 runs in 4 pass. The game was not affected: it runs a frame or two on one thread until they are ready.
+
 ### 3-D atoms and bonds lit as solid objects
 
 - **Lit balls in 3-D** (the owner: "make the atoms actually 3d instead of drawn 2d but looking at the screen"; a display
