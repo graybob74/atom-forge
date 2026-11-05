@@ -10079,7 +10079,7 @@ function wallOrEscape(p, escape, x0, y0) {
   if (W.wall === 'open' || (W.wall === 'reflect' && wallStops(p)) || neutronLeaves(p)) {
     if (W.wall === 'reflect') { if (!(p.k === NUC && p.Z === 0 && (W.nWall === 'pass' || W.nWall === 'fast'))) W.count.wallStop++; if (x0 !== undefined) { p.x = _wc[0]; p.y = _wc[1]; } }
     if (p.k === NUC && p.Z === 0) W.ledger.escaped += keOf(p);
-    else if (p.rad) W.ledger.escaped += p.KE;
+    else W.ledger.escaped += keOf(p) + internalE(p); // (bug fix after 1.25: a fast one not in radiation flight, an electron or an atom, left unbooked; in flight it has no potential energy in the books)
     chargeTo(p.q); kill(p); return true;
   }
   if (W.wall === 'wrap') {
@@ -11460,7 +11460,7 @@ function innerSteps3(Dt) {
    resized), and is lost through an open one. A positron meets the wall's own electrons. */
 function leptonWall(p) {
   if (W.d3 && W.wall === 'open') { wallStop3(p, 'qOut'); return; } // (3-D: its energy counted as escaped, 1.23.2)
-  if (W.wall === 'open') { chargeTo(p.q, 'qOut'); kill(p); return; }
+  if (W.wall === 'open') { wallOut2(p); return; } // (its energy counted as escaped: bug fix after 1.25)
   if (p.k === POS) { annihilateAtWall(p); return; }
   if (W.d3 && 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) > radThreshold(true)) { wallStop3(p); return; } // (3-D: a fast electron is stopped in a closed wall, as radiation flight is in the flat box, 1.23.2)
   const hw = W.box.w / 2, hh = W.box.h / 2, uw = W.box.uw, uh = W.box.uh;
@@ -11667,7 +11667,7 @@ function walls(p) {
   }
   if (W.d3) { walls3(p); return; }
   if ((p.k === POS || p.anti) && W.wall === 'reflect' && (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh)) { annihilateAtWall(p); return; }
-  if (W.wall === 'open') { if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh) { chargeTo(p.q, 'qOut'); kill(p); } return; }
+  if (W.wall === 'open') { if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh) wallOut2(p); return; }
   const uw = W.box.uw, uh = W.box.uh;
   if (!p.fast) { // soft walls handle slow particles; only rescue deep escapees, handing back their potential energy
     const m = 1.5, rin = p.k === NUC ? wallIn(p) : 0, hw = hw0 - rin, hh = hh0 - rin; // (the wall where its edge meets it)
@@ -11759,6 +11759,18 @@ function wallStop3(p, where) {
   kill(p); if (partners.length) relink(partners.filter(q => !q.dead));
   let U1 = 0; if (nuc) { const rest = new Set(); for (const q of set) if (!q.dead) rest.add(q); U1 = rest.size ? localPE(rest) : 0; }
   W.ledger.escaped += ke + I0 + U0 - U1;
+}
+/* A particle leaving through an open wall in the flat game: its energy (motion, potential energy with what stays,
+   electrons' binding) goes to ledger.escaped, as wallStop3 books it in 3-D (bug fix after 1.25: it was removed
+   unbooked, a water molecule taking about 2 keV of the books with it). */
+function wallOut2(p) {
+  const nuc = p.k === NUC, ke = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy), set = nuc ? setOf(molecule(p)) : null;
+  const U0 = nuc ? localPE(set) : p.fast ? 0 : p.q * phiE(p.x, p.y, p), I0 = internalE(p), partners = p.bonds.map(bd => other(bd, p));
+  chargeTo(p.q, 'qOut');
+  kill(p); if (partners.length) relink(partners.filter(q => !q.dead));
+  let U1 = 0; if (nuc) { const rest = new Set(); for (const q of set) if (!q.dead) rest.add(q); U1 = rest.size ? localPE(rest) : 0; }
+  W.ledger.escaped += ke + I0 + U0 - U1;
+  _wallMoved = true; // (the forces it put on what stays are gone: the next step starts from forces without it)
 }
 /* Periodic housekeeping: π-bond formation between adjacent radicals, field ionization, electron shedding. */
 /* Counters that let the step skip whole-store loops with nothing to do, exactly:

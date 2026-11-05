@@ -270,7 +270,7 @@ engine stores and visits particles.
     are fine.
   - In 3-D a fast neutron among waters lets 50–85 eV slip from the energy books over 1,500 steps (48 eV after 1.23.2);
     a 100 keV U atom among waters about 1 eV.
-  - In the flat game the open-wall branch of walls() removes particles without booking their energy as escaped.
+  - [fixed after 1.25] In the flat game the open-wall branch of walls() removes particles without booking their energy as escaped.
   - In the flat game an event that changes a charge in an applied electric field misses −q·E·Δr from the books.
   - Free electrons put down almost on top of each other gain hundreds of eV in their first steps.
   - 3-D: Inspect can't pick unstable particles or photons in flight; quantum nuclei's beads aren't drawn; some
@@ -888,6 +888,20 @@ Physics in 3-D: each stage's numbers below are for the owner's OK.
   heavy nucleus takes the fireball model; MeV electrons and positrons are stepped in MD at speeds past c (no radiation
   flight for leptons in 3-D: −367 eV over 150 20-MeV γ rays into lead); muonium formation (both games) puts the atom where
   the muon stopped without paying its potential energy there (up to tens of eV).
+
+### Bug fixes after 1.25
+The "Bugs on record" list (planned list, for 1.26), fixed in the bug-fix session on branch bugfix-125. Checks: tests/f_bug125.js
+(called from t_features). Fingerprints: tools/fingerprint.sh (every setup, seed 7, 300 steps; the state and the energy
+books hashed apart).
+- 5. Open walls in the flat game booked nothing. A particle leaving through an open wall was killed with its motion,
+  its potential energy with what stayed and its electrons' binding left out of the books (walls() for atoms,
+  leptonWall for free electrons on their inner steps); wallOrEscape's open branch booked only neutrons and particles in
+  radiation flight, not a fast electron or atom between. Now wallOut2 books what leaves as wallStop3 does in 3-D
+  (kinetic + internalE + its potential energy with what stays, the rest relinked), and the next step starts from forces
+  without it (_wallMoved: the step's opening kick used forces from the departed particle). 8 waters and an ion pair
+  leaving an open box over 1,500 steps: the books changed by +19,230 eV before, −0.007 eV after. Fingerprints: the
+  books of annihilation, crt, pionbeam and sns change (what leaves is now counted); pionbeam's state too (a free
+  electron leaving: the forces refreshed after it). Check: f_bug125 "openWall".
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
