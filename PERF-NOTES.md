@@ -283,7 +283,7 @@ engine stores and visits particles.
   - [fixed after 1.25] Muonium formation misses up to tens of eV (2-D and 3-D: the muon stopped without paying its potential energy).
   - 3-D: MeV electrons and positrons are stepped faster than light (−367 eV over 150 γ rays of 20 MeV into lead).
   - [fixed after 1.25] K⁻ absorption keeps momentum only to 0.002 (2-D and 3-D).
-  - 3-D: ionized water recaptures its free electrons within about 30 steps (40 ionized molecules); flat water keeps
+  - [looked at after 1.25: physics, not a bug] 3-D: ionized water recaptures its free electrons within about 30 steps (40 ionized molecules); flat water keeps
     all 40.
   - 3-D: quantum nuclei with forces on every bead cost ×17–48 (×3–10 flat); for the speed work.
   - Settings: the flat bond-order cost tag says ×8–15, liquid water measured ×5.4–5.8 (1.25).
@@ -967,6 +967,14 @@ books hashed apart).
   0.64 s); the flat game 0.1 eV both (past 20 eV electrons fly there, colliding along their paths). Earlier mention:
   330 → 985 eV for eight with a 300 T field (1.24). Fingerprints unchanged (no setup starts with free electrons
   together). Check: f_bug125 "coincident".
+- 16. 3-D ionized water recapturing its electrons: physics, not a bug; nothing changed. 40 of water3d's molecules
+  ionized (userIonize: the electron set off at 1 eV beside its ion), insulated: in 3-D 39 are captured within 20 steps
+  (joinEnergy releases 5.4–16 eV each, median 10.7: an electron at 1 eV in its parent cation's field is bound and falls
+  in, as geminate recombination in water is fast), books −0.27 eV over 200 steps. The flat water is the odd one: its
+  27 electrons sit 0.1–0.4 Å from their cations with 0–5 eV and are never captured (157 tries in 60 steps, joinEnergy
+  −10 to −32 eV, median −20: sunk below the depth the capture can pay, more than the 12 eV the neighbourhood may lend,
+  0.92). That is the flat model's soft ion well in a molecule (deeper than the ion binds), written down for the owner
+  as a model question, not changed.
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
