@@ -617,11 +617,12 @@ const FUSION_S = {
 /* Most-probable fission fragment mass numbers (light, heavy peaks). */
 const FISSION = { light: 95, heavy: 139, sigma: 5.5 };
 
-/* Molecule library (src/molecules.gen.js, and the tiny objects of src/objects.gen.js): key → { name, cat, note, radical,
+/* Molecule library (src/molecules.gen.js, the tiny objects of src/objects.gen.js and their 3-D builds of src/objects3.gen.js): key → { name, cat, note, radical,
    atoms [sym, x, y, charge], bonds [i, j, order] }. */
 const MOLECULES = (() => {
   const M = {};
   for (const m of MOLECULE_LIB.concat(OBJECT_LIB)) M[m.k] = { key: m.k, name: m.n, cat: m.c, note: m.d, radical: !!m.r, atoms: m.a, bonds: m.b };
+  for (const m of OBJECT3_LIB) M[m.k] = { key: m.k, name: m.n, cat: m.c, note: m.d, radical: !!m.r, atoms: m.a, bonds: m.b, z: m.z }; // (the 3-D tiny objects, 1.23.2: their depths; the 3-D library only, molFits)
   return M;
 })();
 

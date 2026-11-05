@@ -473,7 +473,7 @@ function glSlotsPrepare() {
   const hi = S.hi;
   glSlotPositions(hi);
   const mode = R.view.color, bohr = R.view.bohr, perFrame = mode !== 'element';
-  const sig = `${W.topo}|${W.dirty}|${W.spawned}|${W.deaths}|${mode}|${bohr}|${hi}|${R.as}|${R.cvd}`;
+  const sig = `${W.topo}|${W.dirty}|${W.spawned}|${W.deaths}|${mode}|${bohr}|${hi}|${R.as}|${R.cvd}|${W.d3 ? 3 : 2}`;
   if (!perFrame && sig === _stySig && (++_styFrame & 7)) return;
   _stySig = sig; _styFrame = 0;
   const C = GL_T.colA, Y = GL_T.styA, DEAD = S.dead, K = S.k, Z = S.Z, NE = S.ne, ANTI = S.anti, OBJ = S.obj;
@@ -483,7 +483,7 @@ function glSlotsPrepare() {
     if (DEAD[i] === 1 || K[i] !== NUC || (Z[i] > 0 && NE[i] === 0)) { C[c4 + 3] = 0; continue; }
     if (Z[i] === 0) { Y[c4] = 0.2; Y[c4 + 1] = 2.2; Y[c4 + 2] = 1e9; C[c4] = nCol[0]; C[c4 + 1] = nCol[1]; C[c4 + 2] = nCol[2]; C[c4 + 3] = 255; continue; }
     const p = OBJ[i], col = mode === 'element' ? elColor(Z[i], ANTI[i] === 1) : hexc(atomColor(p));
-    Y[c4] = p.rd * R.as; Y[c4 + 1] = 2.4; Y[c4 + 2] = maxAtom; C[c4] = col[0]; C[c4 + 1] = col[1]; C[c4 + 2] = col[2]; C[c4 + 3] = 255;
+    Y[c4] = (W.d3 && typeof rd3 === 'function' ? rd3(p) : p.rd) * R.as; Y[c4 + 1] = 2.4; Y[c4 + 2] = maxAtom; C[c4] = col[0]; C[c4 + 1] = col[1]; C[c4 + 2] = col[2]; C[c4 + 3] = 255; // (3-D: lone ions drawn smaller, rd3, 1.23.2)
   }
   glSlotStyle(hi);
 }
@@ -1777,6 +1777,24 @@ function drawOverlay() {
   }
   ctx.restore();
 }
+/* How far up from the chamber's bottom edge the corner marks (the scale bar; the 3-D axis marker) sit clear of the bars
+   laid over the chamber's bottom (the tool's options; the rewind bar), measured from the page as it is laid out: they
+   covered both in 1.23 (the owner's screenshot: only the tips of y and x showed). Looked up at most five times a
+   second (a layout read), so a bar that wraps to two lines or goes away is followed within a fifth of a second. Only
+   bars that reach over the left corner count. (1.23.2) */
+const BOT_IN = { t: -1e9, v: 0 };
+function chamberBottomInset() {
+  const now = typeof performance !== 'undefined' ? performance.now() : 0;
+  if (now - BOT_IN.t < 200 || !R.cv || !R.cv.getBoundingClientRect || typeof document === 'undefined') return BOT_IN.v;
+  BOT_IN.t = now; let v = 0;
+  const c = R.cv.getBoundingClientRect();
+  for (const id of ['tooloptsHS', 'rewBar']) {
+    const el = document.getElementById(id); if (!el || el.hidden || !el.offsetParent || getComputedStyle(el).visibility === 'hidden') continue; // (not drawn: covers nothing)
+    const b = el.getBoundingClientRect(); if (!b.height || b.left - c.left > 240 || b.top >= c.bottom || b.bottom <= c.top) continue;
+    v = Math.max(v, c.bottom - b.top + 4);
+  }
+  return (BOT_IN.v = clamp(v, 0, Math.max(0, R.h - 80)));
+}
 function drawScaleBar() {
   const ctx = R.ctx;
   const targetPx = 110;
@@ -1784,7 +1802,7 @@ function drawScaleBar() {
   const pow = Math.pow(10, Math.floor(Math.log10(raw)));
   let len = pow; for (const m of [1, 2, 5, 10]) if (m * pow <= raw) len = m * pow;
   const px = len * R.s;
-  const x = 16, y = R.h - 18;
+  const x = 16, y = R.h - 18 - chamberBottomInset(); // (above the bars over the chamber's bottom, 1.23.2)
   ctx.save();
   ctx.strokeStyle = CHAMBER.text; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + px, y); ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4); ctx.moveTo(x + px, y - 4); ctx.lineTo(x + px, y + 4); ctx.stroke();

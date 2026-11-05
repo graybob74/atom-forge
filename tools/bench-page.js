@@ -20,7 +20,7 @@ const { openPage } = require(path.join(root, 'tests', 'browser.js'));
     };
     const res = {};
     setRunning(false);
-    setSetting('perf', true); // performance mode: 12,000 particles, standard resolution, no glows, 10 ms budget
+    setSetting('maxParts', 12000); setSetting('res', 'standard'); setSetting('effects', false); setSetting('budget', 10); // (what performance mode set, before 1.23.2: 12,000 particles, standard resolution, no glows, 10 ms budget)
     for (const name of Object.keys(scen)) {
       Math.random = seeded(12);
       scen[name]();

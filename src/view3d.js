@@ -102,6 +102,12 @@ function cam3Fit() {
   c.dist = rb / Math.sin(half) * 0.9;
   cam3Update();
 }
+/* How big a particle is drawn in 3-D (Å, before the atom-size setting). A lone ion is drawn on the atoms' own scale
+   (0.3 + 0.28·r) from 0.7 of its ionic radius (1.23.2, the owner: "just draw ions smaller"; display only): Cl⁻ 0.65 Å,
+   a little larger than a Cl atom (0.58), not 1.09; Na⁺ 0.50, a little smaller than a Na atom (0.76), not 0.61; anions
+   (0.56–0.73) still bigger than cations (0.39–0.57, Cs⁺ 0.63). In a crowd of waters an anion's ball had been two to
+   three times its neighbours' and covered them. Everything else as in the flat game (p.rd); the flat game unchanged. */
+function rd3(p) { return p.ionic && p.ionR > 0 ? 0.3 + 0.2 * p.ionR : p.rd; }
 function cam3Orbit(dpx, dpy) { const c = R.cam3; c.yaw -= dpx * 0.008; c.pitch = clamp(c.pitch + dpy * 0.008, -CAM3_PITCH, CAM3_PITCH); }
 function cam3Pan(dpx, dpy) {
   const c = R.cam3, k = (C3.D || c.dist) / (C3.F || 500);
@@ -119,7 +125,7 @@ function pick3(px, py, extra = 6) {
   let hit = null, hz = Infinity, near = null, nd = Infinity;
   for (const p of W.parts) {
     if (p.dead || !proj3(p.x, p.y, p.z, o)) continue;
-    const sc = C3.F / o[2], r = p.k === NUC ? Math.max(p.Z === 0 ? 2.2 : 2.4, Math.max(p.rd, 0.2) * sc) : Math.max(1.8, 0.15 * sc);
+    const sc = C3.F / o[2], r = p.k === NUC ? Math.max(p.Z === 0 ? 2.2 : 2.4, Math.max(rd3(p), 0.2) * sc) : Math.max(1.8, 0.15 * sc);
     const d = Math.hypot(o[0] - px, o[1] - py);
     if (d <= r) { if (o[2] < hz) { hz = o[2]; hit = p; } }
     else if (d - r < extra && d - r < nd) { nd = d - r; near = p; }
@@ -176,7 +182,7 @@ function drawBox3(ctx, front) {
 }
 /* The world's axes, small, in a corner (which way x, y and z point from here). */
 function drawAxes3(ctx) {
-  const x0 = 34, y0 = R.h - 58, L = 20;
+  const x0 = 34, y0 = R.h - 58 - chamberBottomInset(), L = 20; // (above the tool's options bar, 1.23.2)
   ctx.save(); ctx.lineWidth = 1.5; ctx.font = '600 10px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const ax = [['x', 1, 0, 0, '#ff7a6b'], ['y', 0, 1, 0, '#7ee08a'], ['z', 0, 0, 1, '#6ba8ff']];
   ax.sort((a, b) => (a[1] * C3.fx + a[2] * C3.fy + a[3] * C3.fz) < (b[1] * C3.fx + b[2] * C3.fy + b[3] * C3.fz) ? 1 : -1); // (the one pointing away first)
@@ -259,7 +265,7 @@ function render3d(rt) {
     if (p.dead || !proj3(p.x, p.y, p.z, o)) continue;
     if (o[0] < -pad || o[1] < -pad || o[0] > R.w + pad || o[1] > R.h + pad) continue;
     const sc = F / o[2];
-    const r = p.k !== NUC ? Math.max(1.8, 0.12 * sc) : p.Z === 0 ? Math.max(2.2, 0.2 * sc) : p.ne === 0 ? Math.max(2.6, p.rd * as * sc) : Math.max(2.4, p.rd * as * sc);
+    const r = p.k !== NUC ? Math.max(1.8, 0.12 * sc) : p.Z === 0 ? Math.max(2.2, 0.2 * sc) : p.ne === 0 ? Math.max(2.6, p.rd * as * sc) : Math.max(2.4, rd3(p) * as * sc);
     V[b] = o[0]; V[b + 1] = o[1]; V[b + 2] = o[2]; V[b + 3] = r;
     vis.push(p);
   }
@@ -268,8 +274,8 @@ function render3d(rt) {
   const glowsOf = (p, b, put) => {
     if (p.k === NUC && p.ne > 0 && !(p.tLocal > 900) && !(p.glow > 0.02)) return; // (most atoms: none)
     const sc = F / V[b + 2];
-    if (p.k === NUC && p.ne > 0 && p.tLocal > 900 && !p.fast) put(clamp(p.rd * as * sc * 3.2, 6, 48), blackbodyRGB(p.tLocal), clamp((p.tLocal - 900) / 4000, 0, 0.7));
-    if (p.glow > 0.02 && p.glowC) put(clamp(p.rd * as * sc * 5, 10, 32), p.glowC, p.glow);
+    if (p.k === NUC && p.ne > 0 && p.tLocal > 900 && !p.fast) put(clamp(rd3(p) * as * sc * 3.2, 6, 48), blackbodyRGB(p.tLocal), clamp((p.tLocal - 900) / 4000, 0, 0.7));
+    if (p.glow > 0.02 && p.glowC) put(clamp(rd3(p) * as * sc * 5, 10, 32), p.glowC, p.glow);
     if (p.k !== NUC) put(clamp(V[b + 3] * 4.5, 7, 28), p.k === ELEC ? eCol : pCol, p.rad ? 1 : 0.55);
     else if (p.ne === 0 && p.Z > 0) put(V[b + 3] * 3.2, p.anti ? [190, 120, 255] : [255, 110, 90], 0.35);
   };
@@ -287,6 +293,7 @@ function render3d(rt) {
     ctx.restore();
     R.ctx = ctx = R.cv.getContext('2d'); ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, R.w, R.h);
     drawBox3(ctx, true);
+    _occ3.vis = vis; _occ3.built = false;
     drawUnder3(ctx, rt);
     drawLabels3(ctx, vis);
   } else {
@@ -329,6 +336,7 @@ function render3d(rt) {
       if (p.k === NUC && p.ne > 0) labelOne3(ctx, p, x, y, r, col);
     }
     drawBox3(ctx, true);
+    _occ3.vis = vis; _occ3.built = false;
     drawUnder3(ctx, rt);
   }
   drawMeasure3(ctx);
@@ -369,7 +377,7 @@ function drawLabels3(ctx, vis) {
 /* Selection, hover and the names from Identify molecules, at the projected places. */
 function drawMarks3(ctx) {
   const o = _p3a, F = C3.F;
-  const ring = (p) => (proj3(p.x, p.y, p.z, o) ? Math.max(6, (p.k === NUC ? p.rd : 0.15) * F / o[2]) : -1);
+  const ring = (p) => (proj3(p.x, p.y, p.z, o) ? Math.max(6, (p.k === NUC ? rd3(p) : 0.15) * F / o[2]) : -1);
   if (R.msel.size) {
     ctx.save(); ctx.strokeStyle = 'rgba(255,209,102,0.85)'; ctx.fillStyle = 'rgba(255,209,102,0.35)'; ctx.lineWidth = 1.5;
     const many = R.msel.size > 2500;
@@ -405,7 +413,7 @@ function drawOverlay3(ctx) {
   const A = _p3a, B = _p3b, F = C3.F, g = W.grab;
   ctx.save();
   if (g && g.p && !g.p.dead && proj3(g.p.x, g.p.y, g.p.z, A)) {
-    const rr = Math.max(7, (g.p.k === NUC ? g.p.rd : 0.15) * F / A[2] + 5);
+    const rr = Math.max(7, (g.p.k === NUC ? rd3(g.p) : 0.15) * F / A[2] + 5);
     ctx.strokeStyle = 'rgba(255,209,102,0.9)'; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.arc(A[0], A[1], rr, 0, Math.PI * 2); ctx.stroke();
     if (proj3(g.x, g.y, g.z === undefined ? g.p.z : g.z, B)) { ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]); }
@@ -472,7 +480,6 @@ function drawHBonds3(ctx) {
     else if ((p.Z === 7 || p.Z === 8 || p.Z === 9) && p.ne > 0 && p.lp > 0) { const k = key(Math.floor(p.x / cs) + 2048, Math.floor(p.y / cs) + 2048, Math.floor(p.z / cs) + 2048); let l = grid.get(k); if (!l) grid.set(k, l = []); l.push(p); }
   }
   if (!H.length || !grid.size) return;
-  const A = _p3c, B = _p3d;
   ctx.save(); ctx.strokeStyle = 'rgba(140,200,255,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.beginPath();
   for (const h of H) {
     const d = h.bonds[0] ? other(h.bonds[0], h) : null, ci = Math.floor(h.x / cs) + 2048, cj = Math.floor(h.y / cs) + 2048, ck = Math.floor(h.z / cs) + 2048;
@@ -482,11 +489,49 @@ function drawHBonds3(ctx) {
         if (a === d) continue;
         const dx = a.x - h.x, dy = a.y - h.y, dz = a.z - h.z, r2 = dx * dx + dy * dy + dz * dz;
         if (r2 < 1.5 * 1.5 || r2 > 2.3 * 2.3) continue;
-        if (seg3(h.x, h.y, h.z, a.x, a.y, a.z, A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+        occLine3(ctx, h.x, h.y, h.z, a.x, a.y, a.z);
       }
     }
   }
   ctx.stroke(); ctx.restore();
+}
+/* Lines drawn on the overlay after the atoms (hydrogen bonds, ionic contacts) hidden where a ball is in front of them
+   (1.23.1+: they were drawn over every atom). The line is followed in pieces about 2 px long; a piece shows where no
+   ball's front surface is nearer than the line there (the ends lie inside their own atoms, so they start at the balls'
+   edges as a bond does). The balls drawn this frame are binned on the screen once, when a line first asks. */
+const _occ3 = { vis: null, built: false, cell: 32, map: new Map() }, _p3e = [0, 0, 0];
+function occBuild3() {
+  const o = _occ3, V = _pv, cs = o.cell; o.map.clear(); o.built = true;
+  if (!o.vis) return;
+  for (const p of o.vis) {
+    const b = 4 * p.i, r = V[b + 3]; if (r < 0) continue;
+    const i0 = Math.floor((V[b] - r) / cs), i1 = Math.floor((V[b] + r) / cs), j0 = Math.floor((V[b + 1] - r) / cs), j1 = Math.floor((V[b + 1] + r) / cs);
+    if ((i1 - i0 + 1) * (j1 - j0 + 1) > 4096) continue; // (a ball filling the screen: the camera is inside the crowd)
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = i * 65536 + j; let l = o.map.get(k); if (!l) o.map.set(k, l = []); l.push(b); }
+  }
+}
+function occHidden3(x, y, d) {
+  const o = _occ3, l = o.map.get(Math.floor(x / o.cell) * 65536 + Math.floor(y / o.cell)); if (!l) return false;
+  const V = _pv, F = C3.F;
+  for (const b of l) {
+    const r = V[b + 3], dx = x - V[b], dy = y - V[b + 1], q = (dx * dx + dy * dy) / (r * r);
+    if (q >= 1) continue;
+    if (d > V[b + 2] - (r * V[b + 2] / F) * Math.sqrt(1 - q)) return true; // (the sphere's front surface there, in Å of depth)
+  }
+  return false;
+}
+/* Adds the visible pieces of the line a–b to the current path. */
+function occLine3(ctx, ax, ay, az, bx, by, bz) {
+  if (!_occ3.built) occBuild3();
+  const A = _p3c, B = _p3d, P = _p3e;
+  if (!seg3(ax, ay, az, bx, by, bz, A, B)) return;
+  const n = Math.min(400, Math.max(2, Math.ceil(Math.hypot(B[0] - A[0], B[1] - A[1]) / 2)));
+  let open = false;
+  for (let k = 0; k <= n; k++) {
+    const t = k / n;
+    const ok = proj3(ax + (bx - ax) * t, ay + (by - ay) * t, az + (bz - az) * t, P) && !occHidden3(P[0], P[1], P[2]);
+    if (ok) { if (open) ctx.lineTo(P[0], P[1]); else { ctx.moveTo(P[0], P[1]); open = true; } } else open = false;
+  }
 }
 /* Ionic contacts (as drawIonic): a cation and an anion (lone ions or charged molecules) whose closest atoms touch. */
 function drawIonic3(ctx) {
@@ -514,11 +559,9 @@ function drawIonic3(ctx) {
     }
   }
   if (!best.size) return;
-  const P = _p3c, Q = _p3d;
   ctx.save(); ctx.strokeStyle = R.cvd ? 'rgba(240,228,66,0.6)' : 'rgba(255,196,120,0.6)'; ctx.setLineDash([1.5, 3.5]); ctx.lineCap = 'round';
   for (const { a, b, qq } of best.values()) {
-    if (!seg3(a.x, a.y, a.z, b.x, b.y, b.z, P, Q)) continue;
-    ctx.lineWidth = clamp(0.8 + 0.35 * Math.sqrt(qq), 1, 2.6); ctx.beginPath(); ctx.moveTo(P[0], P[1]); ctx.lineTo(Q[0], Q[1]); ctx.stroke();
+    ctx.lineWidth = clamp(0.8 + 0.35 * Math.sqrt(qq), 1, 2.6); ctx.beginPath(); occLine3(ctx, a.x, a.y, a.z, b.x, b.y, b.z); ctx.stroke();
   }
   ctx.restore();
 }

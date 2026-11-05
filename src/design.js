@@ -343,11 +343,13 @@ function aiText(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f
 function aiLibraryHit(text) {
   const t = text.toLowerCase().replace(/^(an?|the|some)\s+/, '').replace(/[.!?]+$/, '').trim(), tf = t.replace(/\s+/g, '');
   if (!t) return null;
+  const d3 = aiModeFor() === '3d'; // (only the chosen library's, 1.23.2)
   for (const k in MOLECULES) {
+    if (!molFits(MOLECULES[k], d3)) continue;
     const n = MOLECULES[k].name.toLowerCase(), bare = n.replace(/\s*\(.*\)\s*$/, ''), par = (/\(([^)]*)\)\s*$/.exec(n) || [])[1];
     if (k.toLowerCase() === tf || n === t || bare === t || par === t) return k;
   }
-  if (/\d/.test(tf) || tf.length <= 3) for (const k in MOLECULES) if (molPlainFormula(k).toLowerCase() === tf) return k;
+  if (/\d/.test(tf) || tf.length <= 3) for (const k in MOLECULES) if (molFits(MOLECULES[k], d3) && molPlainFormula(k).toLowerCase() === tf) return k;
   return null;
 }
 /* Apply Claude's answer. Returns null when it is done (built, or Claude said it cannot be), else what went wrong. */
@@ -410,14 +412,18 @@ function mbLoadDesign(G, name, note) {
     : `Claude: ${note || 'here it is.'} Check it, then Build & use.`);
 }
 function mbSig() { return JSON.stringify([MB.atoms.map(a => [a.id, a.el, a.q, a.A || 0]), MB.bonds.map(b => [b.a, b.b, b.o]), MB.fill, MB.hA]); }
+/* The library Claude's design goes to (1.23.2): the 2-D / 3-D choice beside Ask Claude, the open mode by default. */
+function aiModeFor() { const s = typeof document !== 'undefined' && document.getElementById('aiMode'); return s && (s.value === '2d' || s.value === '3d') ? s.value : (W.d3 ? '3d' : '2d'); }
 function aiAddLattice(L, name, note, cat) {
-  const k = 'my' + Date.now().toString(36) + (MB.seq++).toString(36);
-  myMolAdd({ k, n: name.slice(0, 40), r: 0, a: L.atoms, b: L.bonds, d: 'Designed by Claude.' + (note ? ' ' + note : ''), c: molCatOk(cat) ? cat : molCatGuess(L.atoms, L.bonds) });
+  const k = 'my' + Date.now().toString(36) + (MB.seq++).toString(36), md = aiModeFor();
+  myMolAdd({ k, n: name.slice(0, 40), r: 0, a: L.atoms, b: L.bonds, m: md, d: 'Designed by Claude.' + (note ? ' ' + note : ''), c: molCatOk(cat) ? cat : molCatGuess(L.atoms, L.bonds) });
+  if (md === '3d' && molWhole(MOLECULES[k])) log('tool', `${MOLECULES[k].name}: a lattice this big is laid out flat, so it goes to the 2-D library`); // (a flat build: molFits keeps it 2-D)
   myMolsSave();
   aiPick(k, note);
 }
 function aiPick(key, note) {
   hideModal('bldModal'); hideModal('molModal');
+  if (!molFits(MOLECULES[key], W.d3)) { log('tool', `${MOLECULES[key].name} is in the ${W.d3 ? '2-D' : '3-D'} library: it is placed from ${W.d3 ? 'the 2-D game' : 'the 3-D lab'} (main menu)`); return; } // (made for the other mode, 1.23.2)
   selectSpec({ kind: 'mol', mol: key });
   log('tool', `${MOLECULES[key].name} is ready to place (${MOLECULES[key].atoms.length} atoms)${note ? '. ' + note : ''}`);
 }

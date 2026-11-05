@@ -93,7 +93,8 @@ async function pane() {
       const [id, v] = k.split(':');
       if (!(rowKeys.has(id) && (v === undefined || $(id).querySelector(`[data-v="${v}"]`))) && !/^menu[23]d$/.test(k)) out.bad.push(k + ' (no such row)');
       const im = new Image(); im.src = SETSHOTS[k];
-      try { await im.decode(); if (im.naturalWidth !== 640 || im.naturalHeight !== 360) out.bad.push(k + ` ${im.naturalWidth}×${im.naturalHeight}`); } catch (e) { out.bad.push(k + ' does not decode'); }
+      try { await im.decode(); if (im.naturalWidth !== 1280 || im.naturalHeight !== 720) // (1280 × 720 since 1.23.2)
+        out.bad.push(k + ` ${im.naturalWidth}×${im.naturalHeight}`); } catch (e) { out.bad.push(k + ' does not decode'); }
     }
     return out;
   });
@@ -193,6 +194,11 @@ async function narrow() {
   const t = await page.evaluate(() => ({ t: $('setPrevT').textContent, src: !$('setPrevImg').hidden && $('setPrevImg').src === SETSHOTS.segFog3 }));
   check(t.t === 'Depth fog' && t.src && !errors.length, `a tap on a row shows its preview ("${t.t}")`, { t, errors });
   await page.screenshot({ path: path.join(__dirname, '.tmp', 'settings-narrow.png') });
+  // 1.23.1: the "realistic" tag on the choice closest to nature, also for bond orders (quantum), bead forces (every bead)
+  // and free electrons (wave packets), which were missing it
+  await page.evaluate(() => openSettings('exp')); await page.waitForTimeout(200);
+  const rl = await page.evaluate(() => Object.fromEntries(['segBo', 'segPiRpc', 'segWave', 'segPi'].map(id => [id, [...$(id).querySelectorAll('button')].filter(b => b.querySelector('.rl') && b.querySelector('.rl').textContent === 'realistic').map(b => b.dataset.v).join(',')])));
+  check(rl.segBo === '2' && rl.segPiRpc === '0' && rl.segWave === '1' && rl.segPi === '32', 'the realistic tag on quantum bonds, every-bead forces, wave electrons and 32 beads', rl);
   await browser.close();
 }
 
@@ -200,7 +206,7 @@ function size() {
   const gen = fs.statSync(path.join(__dirname, '..', 'src', 'setshots.gen.js')).size, page = fs.statSync(path.join(__dirname, '..', 'dist', 'atom-forge.html')).size;
   const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'setshots.gen.js'), 'utf8'), n = (src.match(/data:image\/webp/g) || []).length;
   console.log(`  pictures: ${n} WebP, ${(gen / 1024).toFixed(0)} KB added to the page (${(page / 1048576).toFixed(2)} MB in all)`);
-  check(gen < 600 * 1024, `the pictures add ${(gen / 1024).toFixed(0)} KB, under 600 KB`);
+  check(gen < 1200 * 1024, `the pictures add ${(gen / 1024).toFixed(0)} KB, under 1,200 KB (1280 × 720 since 1.23.2, for the enlarged view: 771 KB; 343 KB at 640 × 360 before)`);
 }
 
 (async () => {

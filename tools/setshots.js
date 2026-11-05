@@ -1,18 +1,19 @@
 'use strict';
 /* Pictures for Settings' preview pane: each one a small scene in the built page (headless Chromium), the setting applied,
    and the chamber photographed; comparisons put two or three photographs side by side, each labelled with its choice.
-   Written as WebP data URLs (640 × 360: 320 × 180 at 2×) into src/setshots.gen.js, one global map SETSHOTS from the
+   Written as WebP data URLs (1280 × 720 since 1.23.2, for the enlarged view: laid out as 640 × 360 and drawn at 2×,
+   from a page photographed at 2×; 640 × 360 before) into src/setshots.gen.js, one global map SETSHOTS from the
    setting's key (its control's id in Settings; "id:value" for one choice's own picture; menu2d and menu3d for the
    main menu's first screen) to its picture. Run from the repository root:
-     node tools/setshots.js [key …] [--png DIR] [--q 0.62]
+     node tools/setshots.js [key …] [--png DIR] [--q 0.72]
    With keys, only those are made again (the others are kept from the file). --png also writes each picture as a PNG
    into DIR, to look at. Builds the page first. */
 const fs = require('fs'), path = require('path'), { execSync } = require('child_process');
 const ROOT = path.join(__dirname, '..');
 const OUT = path.join(ROOT, 'src', 'setshots.gen.js');
 const args = process.argv.slice(2), opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = args[i + 1]; args.splice(i, 2); return v; };
-const PNG_DIR = opt('--png', null), Q = +opt('--q', '0.62'), ONLY = args.filter(a => !a.startsWith('--'));
-const W = 640, H = 360; // (the picture, in pixels)
+const PNG_DIR = opt('--png', null), Q = +opt('--q', '0.72'), ONLY = args.filter(a => !a.startsWith('--'));
+const W = 640, H = 360, S = 2; // (the picture's layout, in pixels, and its scale: 1280 × 720 written, 1.23.2)
 /* (a shot's fit: true shows each panel's whole window, letterboxed, instead of a crop; labelTop puts the labels at the
    top, clear of marks drawn at the bottom) */
 const VW = 960, VH = 540; // (the page's window: the chamber fills it, so a picture is the chamber at two thirds)
@@ -54,10 +55,9 @@ const SHOTS = [
   { key: 'segTheme', full: true, scene: P2('water', 12, 0, 0, 0), crop: { x: 0.75, y: 0.5, z: 1.15 },
     panels: [{ label: 'Light', run: SET('theme', 'light') }, { label: 'Dark', run: SET('theme', 'dark') }], after: SET('theme', 'dark') },
   { key: 'setTips', full: true, crop: { x: 0.32, y: 0.3, z: 1.9 }, scene: `${SET('tips', true)} loadPreset('combustion'); setRunning(false);`, keepHint: true, panels: [{ label: '', run: '' }] },
-  // ---- General
+  // ---- Experimental (the ultra-realistic mode moved here from General, 1.23.2)
   { key: 'setUltra', scene: `baseWorld(40, 28, 300, 0); for (const [x, y] of [[-3, 2], [2.5, 3], [0, -2.5]]) spawnSpec(SPEC_P, x, y, 0); for (const [x, y] of [[-4, -3], [4, -1]]) spawnSpec({ kind: 'e' }, x, y, 0); addAtom('H', 4.5, 3.6); addAtom('He', -4.6, 3.8); setRunning(false); R.s = 42; R.cx = 0; R.cy = 0;`,
     panels: [{ label: 'Normal', run: SET('ultra', false) }, { label: 'Ultra-realistic', run: SET('ultra', true) }], after: SET('ultra', false) },
-  // ---- Experimental
   { key: 'segPi', scene: `baseWorld(30, 20, 300, 0.05); addMolecule('H2O', 0, 0, 0.3, 0); setRunning(false); R.s = 58;`, crop: { z: 2.6 },
     panels: [{ label: 'Off', run: CENTRE }, { label: '16 beads', run: `${SET('pi', 16)} for (let i = 0; i < 300; i++) { W.dt = chooseDt(); step(W.dt); } ${CENTRE}` }], after: SET('pi', 0) },
   { key: 'segWave', scene: `baseWorld(30, 20, 300, 0); for (const [x, y] of [[-4, 2], [-1, -2.5], [2.5, 2.2], [4.2, -1.8], [0.5, 0.4]]) spawnSpec({ kind: 'e' }, x, y, 0); addAtom('Ne', -4.5, -3); addAtom('Ne', 4.6, 3.4); setRunning(false); R.s = 36; R.cx = 0; R.cy = 0;`,
@@ -109,7 +109,7 @@ const SHOTS = [
     return (pages[dpr] = p);
   };
   for (const sh of todo) {
-    const { page, errors } = await pageFor(sh.dpr || 1);
+    const { page, errors } = await pageFor(sh.dpr || 2); // (2×: sharp at 1280 × 720, 1.23.2)
     const style = await page.addStyleTag({ content: `${sh.keepBadge ? '' : '#fpsBadge,'} ${sh.keepHint ? '' : '#hint,'} #narr, .tip, #tour, .toast, #toasts { visibility: hidden !important; }` });
     await page.evaluate((full) => { setChamberOnly(!full); R.hover = null; R.sel = null; }, !!sh.full);
     await page.waitForTimeout(150);
@@ -126,9 +126,9 @@ const SHOTS = [
     }
     if (sh.after) await page.evaluate(sh.after);
     await style.evaluate((n) => n.remove());
-    const url = await page.evaluate(async ([caps, crop, W, H, Q, fit, top]) => {
+    const url = await page.evaluate(async ([caps, crop, W, H, Q, fit, top, S]) => {
       const load = (s) => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = s; });
-      const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+      const cv = document.createElement('canvas'); cv.width = W * S; cv.height = H * S; const g = cv.getContext('2d'); g.scale(S, S); // (laid out at 640 × 360, drawn at S×)
       g.fillStyle = '#05090e'; g.fillRect(0, 0, W, H);
       const n = caps.length, pw = W / n;
       for (let k = 0; k < n; k++) {
@@ -169,7 +169,7 @@ const SHOTS = [
         }
       }
       return cv.toDataURL('image/webp', Q);
-    }, [caps, sh.crop || null, W, H, Q, !!sh.fit, !!sh.labelTop]);
+    }, [caps, sh.crop || null, W, H, Q, !!sh.fit, !!sh.labelTop, S]);
     if (!/^data:image\/webp;base64,/.test(url)) throw new Error(sh.key + ': this Chromium did not encode WebP');
     out[sh.key] = url;
     const kb = (url.length / 1024).toFixed(1);
@@ -181,7 +181,7 @@ const SHOTS = [
   }
   for (const p of Object.values(pages)) await p.browser.close();
   const keys = Object.keys(out).sort();
-  const body = `'use strict';\n/* Generated by tools/setshots.js: pictures for Settings' preview pane and the main menu's first screen (key → WebP\n   data URL, 640 × 360). Do not edit; run node tools/setshots.js [key …] again. */\nconst SETSHOTS = {\n${keys.map(k => `  ${JSON.stringify(k)}: ${JSON.stringify(out[k])},`).join('\n')}\n};\nif (typeof module !== 'undefined') module.exports = { SETSHOTS };\n`;
+  const body = `'use strict';\n/* Generated by tools/setshots.js: pictures for Settings' preview pane and the main menu's first screen (key → WebP\n   data URL, 1280 × 720). Do not edit; run node tools/setshots.js [key …] again. */\nconst SETSHOTS = {\n${keys.map(k => `  ${JSON.stringify(k)}: ${JSON.stringify(out[k])},`).join('\n')}\n};\nif (typeof module !== 'undefined') module.exports = { SETSHOTS };\n`;
   fs.writeFileSync(OUT, body);
   console.log(`${keys.length} pictures, ${(body.length / 1024).toFixed(0)} KB in src/setshots.gen.js`);
 })().catch((e) => { console.error(e); process.exit(1); });

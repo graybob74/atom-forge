@@ -11,7 +11,8 @@ const t0 = Date.now();
 for (const key of Object.keys(X.MOLECULES)) {
   const M = X.MOLECULES[key];
   const ext = (k) => Math.max(...M.atoms.map(a => a[k])) - Math.min(...M.atoms.map(a => a[k])); // (a box with room for the big objects)
-  X.clearWorld(); W.box.w = W.box.tw = Math.max(60, ext(1) + 24); W.box.h = W.box.th = Math.max(60, ext(2) + 24); W.T = 5; W.gamma = 1; W.wall = 'reflect'; W.decayOn = false;
+  X.clearWorld(); W.d3 = false; W.box.d = 0; W.box.w = W.box.tw = Math.max(60, ext(1) + 24); W.box.h = W.box.th = Math.max(60, ext(2) + 24); W.T = 5; W.gamma = 1; W.wall = 'reflect'; W.decayOn = false;
+  if (M.z) X.world3d(Math.max(60, Math.max(...M.z) - Math.min(...M.z) + 24)); // (the 3-D tiny objects, 1.23.2: in a 3-D world, the only one they are for)
   const atoms = X.addMolecule(key, 0, 0, M.cat === 'objects' ? 0 : 0.4, 5); // (objects go down as drawn)
   if (!atoms.length) { bad(`${key}: not placed`); continue; }
   n++;

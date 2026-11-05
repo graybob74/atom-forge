@@ -82,14 +82,14 @@ async function stage3(page, clip, errors) {
       const ms = (performance.now() - t0) / 200; render(W.rt);
       const opts = [...document.querySelectorAll('#preset option')].map(o => o.value).filter(v => v !== '__mine');
       out[k] = { d3: W.d3, n0, n: W.parts.filter(p => !p.dead).length, ok: W.parts.every(p => p.dead || [p.x, p.y, p.z, p.vx, p.vy, p.vz].every(Number.isFinite)), inBox: W.parts.every(p => p.dead || Math.abs(p.z) <= W.box.d / 2 + 1),
-        T: Math.round(measure().T), ms: +ms.toFixed(2), listAll3d: opts.length >= 5 && opts.every(v => PRESETS[v] && PRESETS[v].d3), leave: !$('bLeave3d').hidden };
+        T: Math.round(measure().T), ms: +ms.toFixed(2), listAll3d: opts.length >= 5 && opts.every(v => PRESETS[v] && PRESETS[v].d3), leave: !$('tag3d').hidden && !$('bLeave3d') };
     }
     return out;
   });
   const rk = Object.keys(runs);
   console.log('  3-D setups, 200 steps each in the page: ' + rk.map(k => `${k} ${runs[k].n0} atoms ${runs[k].ms} ms/step ${runs[k].T} K`).join('; '));
   check(rk.length >= 5 && rk.every(k => runs[k].d3 && runs[k].ok && runs[k].inBox && runs[k].listAll3d && runs[k].leave) && rk.filter(k => runs[k].n0 >= 500).every(k => runs[k].n0 <= 1500) && errors.length === 0,
-    `every 3-D setup (${rk.length}) builds and runs 200 steps, finite and inside its box; the setup list shows only 3-D setups, with Leave beside it`, runs);
+    `every 3-D setup (${rk.length}) builds and runs 200 steps, finite and inside its box; the setup list shows only 3-D setups, with the Preview label (no Leave button: 1.23.2) beside it`, runs);
 
   // Place: on the plane through the camera's target square to the view, under the pointer; over an atom, at its depth
   const pl = await page.evaluate((DEPTH) => {
@@ -207,11 +207,14 @@ async function stage3(page, clip, errors) {
   const old = await page.evaluate((txt) => { const all = JSON.parse(txt), e = all.water || Object.values(all)[0], w = e.d || e; const r = worldFromJSON(w); return { r: typeof r === 'string' ? r : r.n, d3: W.d3, depth: W.box.d, z0: W.parts.every(p => p.z === 0), list: !!document.querySelector('#preset option[value="water"]') }; }, require('fs').readFileSync(path.join(__dirname, 'fixtures', 'worlds-0.64.0.json'), 'utf8'));
   check(typeof old.r === 'number' && old.r > 0 && !old.d3 && old.depth === 0 && old.z0 && old.list, `an old flat save (0.64.0) opens flat (${old.r} particles), with the flat setup list`, old);
 
-  // Leave 3-D: the flat game back (its setups, its tools)
-  await page.evaluate(() => { loadPreset('water'); loadPreset('combustion3d'); });
-  await page.click('#bLeave3d');
-  const lv = await page.evaluate(() => ({ d3: W.d3, preset: UI.preset, hidden: $('bLeave3d').hidden, magnet: document.querySelector('.tool[data-tool="magnet"]').classList.contains('no3d'), bSlider: $('bSlider').disabled, has2d: !!document.querySelector('#preset option[value="soup"]'), has3d: !!document.querySelector('#preset option[value="water3d"]'), bo: [...$('segBo').querySelectorAll('button')].some(b => b.disabled) }));
-  check(!lv.d3 && lv.preset === 'water' && lv.hidden && !lv.magnet && !lv.bSlider && lv.has2d && !lv.has3d && !lv.bo, `Leave 3-D: back to the flat setup last open (${lv.preset}), the flat list and every tool`, lv);
+  // Out of 3-D through the main menu (the Leave button went in 1.23.2): 2-D, then a flat setup; the flat game back (its setups, its tools)
+  await page.evaluate(() => { loadPreset('water'); loadPreset('combustion3d'); showMainMenu(); });
+  await page.waitForTimeout(150);
+  await page.evaluate(() => $('mmMode2d').click()); await page.waitForTimeout(150); // (the menu's buttons move as it comes in: clicked from the page)
+  await page.evaluate(() => { mmSetups(); }); await page.waitForTimeout(100);
+  await page.evaluate(() => document.querySelector('#mmList [data-mmp="water"]').click()); await page.waitForTimeout(250);
+  const lv = await page.evaluate(() => ({ d3: W.d3, preset: UI.preset, hidden: $('tag3d').hidden && !$('bLeave3d'), magnet: document.querySelector('.tool[data-tool="magnet"]').classList.contains('no3d'), bSlider: $('bSlider').disabled, has2d: !!document.querySelector('#preset option[value="soup"]'), has3d: !!document.querySelector('#preset option[value="water3d"]'), bo: [...$('segBo').querySelectorAll('button')].some(b => b.disabled) }));
+  check(!lv.d3 && lv.preset === 'water' && lv.hidden && !lv.magnet && !lv.bSlider && lv.has2d && !lv.has3d && !lv.bo, `out of 3-D by the main menu (2-D, then ${lv.preset}): the flat list and every tool, no Preview label`, lv);
 }
 
 /* The main menu: it opens on the choice of 2-D or 3-D; 3-D leads to the 3-D lab's menu, which lists the 3-D setups
@@ -238,7 +241,7 @@ async function menu3d() {
   const t0 = Date.now();
   await menu3d();
   const { browser, page, errors } = await openPage({ settle: 800 });
-  await page.addStyleTag({ content: '#fpsBadge, #hint, #tooloptsHS { visibility: hidden !important; }' }); // (a frame rate and a note that change between shots)
+  await page.addStyleTag({ content: '#fpsBadge, #hint, #tooloptsHS, #paletteBar { visibility: hidden !important; }' }); // (a frame rate and a note that change between shots; the particle bar over the chamber, whose scroll can sit a pixel apart after the main menu (1.23.2: t_3d leaves 3-D through it): the drawing is what is compared)
   const clip = await page.evaluate(() => { const b = document.getElementById('cv').getBoundingClientRect(); return { x: b.left, y: b.top, width: Math.floor(b.width), height: Math.floor(b.height) }; });
   const shot = () => page.screenshot({ clip });
 
@@ -370,6 +373,22 @@ async function menu3d() {
   check(!back.d3 && back.depth === 0 && back.allZ0 && Math.abs(back.s - flat.s) < 1e-9 && mb.mean === 0 && mb.off === 0, 'a 2-D world afterwards is flat and draws as before', [back, mb]);
   const ld = await page.evaluate(() => { loadPreset('mol3d'); loadPreset('empty'); return W.d3; });
   check(ld === false, 'choosing another setup makes the world flat again');
+
+  // 1.23.1+: ionic contacts and hydrogen bonds hidden behind nearer atoms (they were drawn over every atom): an ion pair
+  // with an argon atom in front of part of its contact; no drawn point of the line lies on the argon or on either
+  // ion (their balls are in front of the line there), and the line still shows between them
+  const occ = await page.evaluate(() => {
+    loadPreset('d3empty'); setRunning(false);
+    // (the view square to the pair: the line keeps one depth, so wherever it crosses an ion's disc it is inside the ball)
+    const na = addAtom('Na', -1.7, 0, { charge: 1, z: 0, T: 0 }), cl = addAtom('Cl', 1.7, 0, { charge: -1, z: 0, T: 0 }), ar = addAtom('Ar', 0, 0.45, { z: 3, T: 0 });
+    Object.assign(R.cam3, { tx: 0, ty: 0, tz: 0, yaw: 0, pitch: 0, dist: 12 }); cam3Update();
+    R.view.ionic = true; render(W.rt);
+    const pts = [], rec = { save() {}, restore() {}, beginPath() {}, stroke() {}, setLineDash() {}, moveTo(x, y) { pts.push([x, y]); }, lineTo(x, y) { pts.push([x, y]); } };
+    _occ3.built = false; drawIonic3(rec);
+    const V = _pv, on = (p) => pts.filter(([x, y]) => Math.hypot(x - V[4 * p.i], y - V[4 * p.i + 1]) < 0.95 * V[4 * p.i + 3]).length;
+    return { ionic: [na.ionic, cl.ionic], pts: pts.length, onNa: on(na), onCl: on(cl), onAr: on(ar), rAr: +V[4 * ar.i + 3].toFixed(1) };
+  });
+  check(occ.pts > 4 && occ.onNa === 0 && occ.onCl === 0 && occ.onAr === 0, `3-D ionic contact drawn only where no ball is in front (${occ.pts} points; on Na⁺ ${occ.onNa}, Cl⁻ ${occ.onCl}, the argon in front ${occ.onAr})`, occ);
 
   const errs = errors.filter(e => !/warning/.test(e));
   check(errs.length === 0, 'no page errors', errs.slice(0, 3));

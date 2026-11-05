@@ -34,7 +34,7 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   say('isolated page:', JSON.stringify(iso));
   check(iso.iso && iso.avail && iso.shared, 'page is cross-origin isolated with shared memory', iso);
   // one worker (the test machine may have two cores only), on the big water world
-  await page.evaluate(() => { setRunning(false); setSetting('perf', true); setSetting('threads', '2'); });
+  await page.evaluate(() => { setRunning(false); setSetting('maxParts', 12000); setSetting('res', 'standard'); setSetting('effects', false); setSetting('threads', '2'); });
   await page.evaluate(BUILD);
   await page.waitForFunction(() => { forcesNoEvents(); return TH.state === 'on' && TH.used === 2; }, null, { timeout: 15000 }).catch(() => {});
   const st = await page.evaluate(() => ({ state: TH.state, n: TH.n, used: TH.used, np: VL.np, note: TH.note }));
