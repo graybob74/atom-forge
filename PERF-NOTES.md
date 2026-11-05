@@ -264,7 +264,7 @@ engine stores and visits particles.
   on record"):
   - [looked at after 1.25: a model choice, for the owner] Flat copper with the normal pair model turns itself into ions: 120 of 127 atoms of a flat Cu lump within 2 ps at
     300 K (Ag, Au, Fe, Na don't). Screenshot 125m-flat-pairs.png.
-  - Dense metals in 3-D are slow with either metal model: 767 Cu atoms about 80 ms a step, nearly all estimating
+  - [fixed after 1.25] Dense metals in 3-D are slow with either metal model: 767 Cu atoms about 80 ms a step, nearly all estimating
     electron transfers.
   - [looked at after 1.25: a model choice, for the owner] In the flat world AsCl₅'s five chlorines bond to each other with bond orders (Cl–Cl orders 0.39); PCl₅ and SbCl₅
     are fine.
@@ -993,6 +993,13 @@ books hashed apart).
   real metal the conduction electrons screen such a pair and nothing happens; giving the flat pair model that
   screening (e.g. no electron transfer between two atoms of a metal joined by metallic cohesion, or a screened
   Coulomb inside a metal) changes how metals behave: the owner's call. Many-body copper (Experimental) stays neutral.
+- 2. Dense metals in 3-D were slow: nearly all of a step went to the electron-transfer estimates (transferDE), each
+  pair tried walking every atom within 6 Å four times (localPhi), which in a neutral metal adds nothing. Now
+  chargedCount() counts the charged particles (net or partial) once per change of the world, and localPhi returns 0
+  at once when nothing but the pair itself is charged: the same numbers, so the same run bit for bit. A ball of 959 Cu
+  atoms in 3-D (bench-mode's cu3, seed 12, 40 steps): 77 ms a step before, 6.9 after (the many-body model: 76 → 6.7);
+  the flat Cu patch 2.3 → 1.0 ms; final states identical. Where the metal does hold ions the walks still run (the flat
+  copper of item 1). Fingerprints unchanged. Check: f_bug125 "metal3".
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

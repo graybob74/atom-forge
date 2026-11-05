@@ -163,6 +163,20 @@ PARTS.boTag = async (page, check, say) => {
 };
 PARTS.boTag.page = true;
 
+/* 2. A dense metal in 3-D: the electron-transfer estimates walked every atom within 6 Å four times a pair tried, adding
+   nothing when no particle is charged (localPhi, now skipped then). A ball of 767 Cu atoms (bench-mode's cu3): about
+   76 ms a step before, under 25 now; the same run, bit for bit. */
+PARTS.metal3 = async (page, check, say) => {
+  const X = fresh(12), W = X.W; X.setMaxParts(12000);
+  const a = 2.56, R = 14, c = a * Math.SQRT2, B = [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]], n = Math.ceil(R / c) + 1;
+  X.baseWorld(R * 6, R * 6, 300, 0.05); X.world3d(R * 6);
+  for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) for (let k = -n; k <= n; k++) for (const b of B) { const x = (i + b[0]) * c, y = (j + b[1]) * c, z = (k + b[2]) * c; if (x * x + y * y + z * z <= R * R) X.addAtom('Cu', x, y, { z, T: 300 }); }
+  X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned; go(X, 10); W.gamma = 0;
+  const t0 = performance.now(); go(X, 30); const ms = (performance.now() - t0) / 30;
+  const r = { atoms: W.parts.filter(p => !p.dead).length, ms: +ms.toFixed(1) };
+  check(r.atoms > 700 && r.ms < 25, `bug fix 2: ${r.atoms} Cu atoms in 3-D, ${r.ms} ms a step`, 'bugfix metal3: ' + JSON.stringify(r));
+};
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {

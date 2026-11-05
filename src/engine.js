@@ -4799,7 +4799,18 @@ function evDative(H, D, r) {
 }
 
 /* Electron transfer between a donor and an acceptor when it lowers the total energy (Born–Haber). */
+/* (bug fix 2 after 1.25) How many particles carry a charge (net or partial), counted once per change of the world: in
+   a neutral metal none does, and localPhi's walk over every atom within 6 Å (hundreds in a dense 3-D metal, four walks
+   for each pair of atoms tried for an electron transfer) adds nothing. */
+const _chg = { key: '', n: 0 };
+function chargedCount() {
+  const key = W.step + ':' + W.dirty + ':' + W.topo + ':' + W.spawned + ':' + W.deaths + ':' + W.parts.length;
+  if (_chg.key !== key) { let n = 0; for (const p of W.parts) if (!p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0) n++; _chg.key = key; _chg.n = n; }
+  return _chg.n;
+}
 function localPhi(x, y, skipA, skipB, z = 0) {
+  const chg = (p) => (p && !p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0 ? 1 : 0);
+  if (chargedCount() - chg(skipA) - chg(skipB) <= 0) return 0; // (nothing charged but the pair itself: the walk would add nothing)
   let phi = 0;
   nearby(x, y, RC, (p, dx, dy, r2) => {
     if (p === skipA || p === skipB) return;
