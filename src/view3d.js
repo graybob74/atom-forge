@@ -6,10 +6,11 @@
    up, as the flat view does. Each frame cam3Update turns it into a basis (C3: eye, right, up, forward), a focal length
    in pixels and the depths the box spans (for the depth buffer's range and the fade with distance).
    render() hands a 3-D world to render3d: the background and the box's far edges (with a faint grid on its far faces)
-   on the canvas under the WebGL layer, the atoms, bonds and glows on the layer (gl.js: depth-tested, one draw call for
-   the atoms and one for the bonds), and the near edges, labels, badges and rings on the canvas above. Without WebGL 2
-   (or with it switched off) everything goes on the one canvas, the atoms sorted far to near and each drawn after its
-   half of each bond. Picking (pick3) takes the atom whose drawn disc is under the pointer that is nearest the camera.
+   on the canvas under the WebGL layer, the atoms, bonds and glows on the layer (gl.js: depth-tested, the atoms and the
+   bonds each one draw call a pass: cores, then antialiased edges; lit as spheres and cylinders by a light fixed in the
+   world, LIGHT3), and the near edges, labels, badges and rings on the canvas above. Without WebGL 2 (or with it
+   switched off) everything goes on the one canvas, the atoms sorted far to near and each drawn after its half of each
+   bond, shaded alike (litSprite3, cylStops3). Picking (pick3) takes the atom whose drawn disc is under the pointer that is nearest the camera.
    Tools that take a point in the chamber (stage 3) get a point in depth: the atom under the pointer's, or failing one,
    where the pointer's line of sight meets the plane through the camera's target square to the view (ptr3, s2w3); a
    drag stays on the plane square to the view through where it began (s2wPlane). The Heat and Erase brushes act on what
@@ -17,7 +18,11 @@
    ========================================================================== */
 const CAM3 = { yaw: 0.6, pitch: 0.4, fov: 40 * Math.PI / 180 }; // the view a 3-D world starts with (and Fit goes back to)
 R.cam3 = { yaw: CAM3.yaw, pitch: CAM3.pitch, dist: 80, fov: CAM3.fov, tx: 0, ty: 0, tz: 0 };
-const C3 = { ex: 0, ey: 0, ez: 80, rx: 1, ry: 0, rz: 0, ux: 0, uy: 1, uz: 0, fx: 0, fy: 0, fz: -1, F: 500, D: 80, hw: 0, hh: 0, near: 0.05, far: 200, fog0: 0, fog1: 1, fogK: 0.5, fogc: [6, 10, 16] };
+const C3 = { ex: 0, ey: 0, ez: 80, rx: 1, ry: 0, rz: 0, ux: 0, uy: 1, uz: 0, fx: 0, fy: 0, fz: -1, F: 500, D: 80, hw: 0, hh: 0, near: 0.05, far: 200, fog0: 0, fog1: 1, fogK: 0.5, fogc: [6, 10, 16], lx: 0, ly: 0, lz: 1, L: [0, 0, 1] };
+/* The key light's direction (toward the light, unit), fixed in the world: mostly from above, so the tops of the balls are
+   lit from any side; from the starting view it comes from the upper left and in front, where the flat ball's highlight
+   is (gl.js: LIT3, lit3). C3.lx … is it in view space (x right, y up, z toward the eye) for this frame. */
+const LIGHT3 = (() => { const v = [-0.35, 0.85, 0.4], l = Math.hypot(v[0], v[1], v[2]); return v.map(c => c / l); })();
 /* Settings → 3-D (display and camera only; set by applySettings in ui.js): the field of view (degrees), the projection
    (orthographic: the eye moved far back along the same line with a field of view of 1°, the distance scaled so that the
    target plane keeps its size: sizes then change less than 1% across a 30 Å box, and every path that projects, picks
@@ -51,6 +56,9 @@ function cam3Update() {
   C3.far = Math.max(z1, D) * 2 + 20; // (beyond it, depth is held at the far end: nothing is cut off)
   C3.fog0 = Math.max(C3.near, z0); C3.fog1 = Math.max(C3.fog0 + 1, z1); C3.fogK = V3.fog;
   C3.fogc = hexc(CHAMBER.bg0);
+  const [Lx, Ly, Lz] = LIGHT3;
+  C3.lx = Lx * C3.rx + Ly * C3.ry + Lz * C3.rz; C3.ly = Lx * C3.ux + Ly * C3.uy + Lz * C3.uz; C3.lz = -(Lx * C3.fx + Ly * C3.fy + Lz * C3.fz);
+  C3.L[0] = C3.lx; C3.L[1] = C3.ly; C3.L[2] = C3.lz;
 }
 /* A world point on the screen: o = [x, y (CSS px), view depth (Å)]; false when it is behind the camera. */
 function proj3(x, y, z, o) {
@@ -179,9 +187,49 @@ function drawAxes3(ctx) {
   }
   ctx.restore();
 }
-const _fogHex = new Map();
-function fogHex(col, f) { const q = Math.round(f * 12), k = col + q; let h = _fogHex.get(k); if (!h) { if (_fogHex.size > 512) _fogHex.clear(); h = mixHex(col, CHAMBER.bg0, q / 12); _fogHex.set(k, h); } return h; }
 function fog3(z) { return clamp((z - C3.fog0) / Math.max(1e-3, C3.fog1 - C3.fog0), 0, 1) * C3.fogK; }
+/* Canvas 2D's lit balls: one sprite a colour for the light as it falls this frame (the view-space light rounded to
+   1/40, so a turning camera remakes them every few degrees), shaded pixel by pixel as gl.js's ball shader shades. */
+const LIT_R = 32; // (the sprite's radius, CSS px; drawn scaled to each ball)
+const _lit3 = { key: '', dpr: 0, by: new Map() };
+function litSprite3(col) {
+  const L = C3.L, q = [Math.round(L[0] * 40), Math.round(L[1] * 40), Math.round(L[2] * 40)], key = q.join(',');
+  if (_lit3.key !== key || _lit3.dpr !== R.dpr) { _lit3.by.clear(); _lit3.key = key; _lit3.dpr = R.dpr; }
+  let sp = _lit3.by.get(col); if (sp) return sp;
+  const dpr = R.dpr, size = Math.ceil((2 * LIT_R + 4) * dpr), c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'), im = g.createImageData(size, size), D = im.data, mid = size / 2, rp = LIT_R * dpr;
+  const ql = Math.hypot(q[0], q[1], q[2]) || 1, Lq = [q[0] / ql, q[1] / ql, q[2] / ql], [cr, cg, cb] = hexc(col), o = [0, 0, 0];
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const qx = x + 0.5 - mid, qy = y + 0.5 - mid, d = Math.sqrt(qx * qx + qy * qy), a = clamp(rp + 0.5 - d, 0, 1);
+    if (a <= 0) continue;
+    const m = Math.max(d, rp), sx = qx / m, sy = qy / m;
+    lit3(sx, -sy, Math.sqrt(Math.max(0, 1 - sx * sx - sy * sy)), Lq, cr / 255, cg / 255, cb / 255, o);
+    const k = 4 * (y * size + x); D[k] = Math.round(o[0] * 255); D[k + 1] = Math.round(o[1] * 255); D[k + 2] = Math.round(o[2] * 255); D[k + 3] = Math.round(a * 255);
+  }
+  g.putImageData(im, 0, 0);
+  sp = { c, size: size / dpr };
+  _lit3.by.set(col, sp);
+  return sp;
+}
+/* Canvas 2D's bonds: a lane's colours across its width (CYL_S: −1 one edge, 1 the other), as gl.js's bond shader shades
+   the cylinder: (dx, dy, dz) the bond in the world, (nx, ny) the screen's direction square to it, f the depth fade;
+   mid: only the middle one (CYL_S[3]), for a lane too thin to show the shading across it. */
+const CYL_S = [-1, -0.7, -0.35, 0, 0.35, 0.7, 1];
+const _cyl = [[0, 0, 0], CYL_S.map(() => '')];
+function cylStops3(col, dx, dy, dz, nx, ny, f, mid) {
+  let ax = dx * C3.rx + dy * C3.ry + dz * C3.rz, ay = dx * C3.ux + dy * C3.uy + dz * C3.uz, az = -(dx * C3.fx + dy * C3.fy + dz * C3.fz);
+  const la = Math.hypot(ax, ay, az) || 1; ax /= la; ay /= la; az /= la;
+  let vx = -az * ax, vy = -az * ay, vz = 1 - az * az; const lv = Math.hypot(vx, vy, vz);
+  if (lv > 1e-4) { vx /= lv; vy /= lv; vz /= lv; } else { vx = 0; vy = 0; vz = 1; }
+  const [cr, cg, cb] = hexc(col), fc = C3.fogc, o = _cyl[0], out = _cyl[1];
+  for (let j = mid ? 3 : 0; j < (mid ? 4 : CYL_S.length); j++) {
+    const s = CYL_S[j], h = Math.sqrt(Math.max(0, 1 - s * s));
+    let px = s * nx + h * vx, py = -s * ny + h * vy, pz = h * vz; const l = Math.hypot(px, py, pz) || 1;
+    lit3(px / l, py / l, pz / l, C3.L, cr / 255, cg / 255, cb / 255, o);
+    out[j] = `rgb(${Math.round(o[0] * 255 * (1 - f) + fc[0] * f)},${Math.round(o[1] * 255 * (1 - f) + fc[1] * f)},${Math.round(o[2] * 255 * (1 - f) + fc[2] * f)})`;
+  }
+  return out;
+}
 const ELEM_SYM = (p) => (p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym);
 
 function render3d(rt) {
@@ -228,15 +276,14 @@ function render3d(rt) {
   const ballCol = (p) => (p.k === ELEC ? E_COL : p.k !== NUC ? POS_COL : p.Z === 0 ? N_COL : p.ne === 0 ? (p.anti ? '#be78ff' : '#ff6e5a') : atomColor(p));
   if (gl) {
     glBegin3();
-    glDrawSlots3(hi, C3); // atoms and neutrons: one draw call from the slot textures
-    glBondsBuild(W.bonds, W.topo); glDrawBonds3(C3, 0.065, 0.11, 0.7, 2, wrap);
+    glBondsBuild(W.bonds, W.topo);
     for (const p of vis) {
       const b = 4 * p.i;
       if (!lite && (p.k !== NUC || p.ne === 0 || p.tLocal > 900 || p.glow > 0.02)) glowsOf(p, b, (r, c, a) => glGlow3(V[b], V[b + 1], V[b + 2], r, c, a));
       if (p.k !== NUC) glBall3(V[b], V[b + 1], V[b + 2], lite ? V[b + 3] * 1.2 : V[b + 3], p.k === ELEC ? eCol : pCol);
       else if (p.Z > 0 && p.ne === 0) glBall3(V[b], V[b + 1], V[b + 2], V[b + 3], hexc(ballCol(p)));
     }
-    glFlush3(C3); glEnd3();
+    glFlush3(C3, hi, [0.065, 0.11, 0.7, 2, wrap]); glEnd3(); // (atoms and neutrons from the slot textures, bonds, these balls; then glows)
     ctx.restore();
     R.ctx = ctx = R.cv.getContext('2d'); ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, R.w, R.h);
     drawBox3(ctx, true);
@@ -261,15 +308,21 @@ function render3d(rt) {
         const L = Math.hypot(mx - x, my - y) || 1, nx = -(my - y) / L, ny = (mx - x) / L;
         const ar = !!bd.arom, n = ar ? 2 : bd.order, wm = n > 1 ? 0.7 : 1, hw = Math.max(0.7, 0.065 * sc), off = Math.max(2, 0.11 * sc);
         const stretch = clamp((Math.sqrt(dx * dx + dy * dy + dz * dz) - bd.r0) / (bd.rb || 1.5), 0, 1), al = 0.95 - stretch * 0.6;
-        ctx.strokeStyle = fogHex(atomColor(p), fog3(zm));
+        const thin = hw * wm < 1.5, stops = cylStops3(atomColor(p), dx, dy, dz, nx, ny, fog3(zm), thin); // (thin: one colour, the middle's)
         for (let k = 0; k < n; k++) {
-          const of = (k - (n - 1) / 2) * off, wq = ar && k === 1 ? 0.7 * clamp((bd.fo || 1.5) - 1, 0.1, 1) : wm;
-          ctx.globalAlpha = al; ctx.lineWidth = 2 * hw * wq;
+          const of = (k - (n - 1) / 2) * off, wq = ar && k === 1 ? 0.7 * clamp((bd.fo || 1.5) - 1, 0.1, 1) : wm, w = hw * wq;
+          if (thin) ctx.strokeStyle = stops[3];
+          else { // (across the lane: a cylinder's shading)
+            const gr = ctx.createLinearGradient(x + nx * (of - w), y + ny * (of - w), x + nx * (of + w), y + ny * (of + w));
+            for (let j = 0; j < CYL_S.length; j++) gr.addColorStop((CYL_S[j] + 1) / 2, stops[j]);
+            ctx.strokeStyle = gr;
+          }
+          ctx.globalAlpha = al; ctx.lineWidth = 2 * w;
           ctx.beginPath(); ctx.moveTo(x + nx * of, y + ny * of); ctx.lineTo(mx + nx * of, my + ny * of); ctx.stroke();
         }
         ctx.globalAlpha = 1;
       }
-      const rr = p.k !== NUC && lite ? r * 1.2 : r, sp = ballSprite(col, 24), k = rr / 24; // (one sprite a colour, scaled)
+      const rr = p.k !== NUC && lite ? r * 1.2 : r, sp = litSprite3(col), k = rr / LIT_R; // (one sprite a colour, scaled)
       ctx.drawImage(sp.c, x - sp.size * k / 2, y - sp.size * k / 2, sp.size * k, sp.size * k);
       const f = fog3(z);
       if (f > 0.02) { ctx.globalAlpha = f; ctx.fillStyle = fc; ctx.beginPath(); ctx.arc(x, y, rr + 0.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
