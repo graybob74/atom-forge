@@ -7946,7 +7946,28 @@ function qeqC(p, o, r2) {
   if (p.ne === 0 && o.ne === 0) return K * (1 / Math.sqrt(r2 + 0.0016) - csh(p, o, 0.0016));
   return K * (smearV(Math.sqrt(r2)) - cshPt(p, o));
 }
-const QB = { mark: new Uint8Array(0), phi: new Float64Array(0), pa: new Int32Array(1024), pb: new Int32Array(1024), pc: new Float64Array(1024), q0: new Float64Array(1024) };
+const QB = { mark: shArray(Uint8Array, 16), phi: new Float64Array(0), pa: shArray(Int32Array, 1024), pb: shArray(Int32Array, 1024), pc: shArray(Float64Array, 1024), q0: shArray(Float64Array, 1024), useWasm: true, t: null, p: null, calls: 0 }; // (in the module's memory: af_qeq finds the list's pairs, 1.26)
+/* qeqUpdate's pairs from the neighbour list in the module (af_qeq, kernel/src/qeq.rs, 1.26): the same tests, the same
+   coefficients (qeqC: square roots and divisions, equal to the bit) in the same order, into QB.pa … QB.q0. The number of
+   pairs, or -1 when it cannot (no module; an array not in its memory; an atom with more exclusions than the lists hold),
+   and the JavaScript loop runs. The exclusions are the atoms' own (excl), from exclLists' arrays. */
+function qeqPairsWasm() {
+  if (!wasmReady() || typeof WK.ex.af_qeq !== 'function') return -1;
+  if (_exlTopo !== W.topo || _exlDirty !== W.dirty) exclLists();
+  if (!_exlOk) return -1;
+  const need = VL.np + 16;
+  if (QB.pa.length < need) { QB.pa = shArray(Int32Array, need * 2); QB.pb = shArray(Int32Array, need * 2); QB.pc = shArray(Float64Array, need * 2); QB.q0 = shArray(Float64Array, need * 2); }
+  if (!QB.t) { QB.t = wasmArray(Int32Array, 24); QB.p = wasmArray(Float64Array, 16); }
+  if (!WK.on) return -1;
+  const A = [VL.pi, VL.pj, QB.mark, S.k, S.Z, S.dead, S.fast, S.rad, S.mol, S.id, S.x, S.y, S.z, S.q, S.qp, S.ne, S.anti, S.ionic, _exl, _exlN, QB.pa, QB.pb, QB.pc, QB.q0];
+  if (!wasmIn(...A)) return -1;
+  const T = QB.t, P = QB.p; for (let k = 0; k < 24; k++) T[k] = A[k].byteOffset;
+  P[0] = VL.np; P[1] = W.wall === 'wrap' ? 1 : 0; P[2] = W.box.w; P[3] = W.box.h; P[4] = W.box.d; P[5] = W.d3 ? 1 : 0; P[6] = _lrOn ? 1 : 0; P[7] = RC; P[8] = RC2; P[9] = PHYS.KE; P[10] = K_IW; P[11] = BARE_SMEAR; P[12] = EXW; P[13] = QB.pa.length;
+  WK.ex.af_qeq(T.byteOffset, P.byteOffset);
+  if (P[14] > QB.pa.length) return -1; // (cannot happen: at most one a pair of the list)
+  QB.calls++;
+  return P[14];
+}
 function qeqUpdate() {
   const mols = new Map(); // molecule id → its atoms (every atom bonded, an ordinary atom in MD)
   for (const p of W.parts) {
@@ -7955,7 +7976,7 @@ function qeqUpdate() {
   }
   const list = []; for (const m of mols.values()) if (m.length >= 2 && m.length <= QEQ.maxMol) list.push(m);
   if (!list.length) return;
-  if (QB.mark.length < S.size) { QB.mark = new Uint8Array(S.size * 2); QB.phi = new Float64Array(S.size * 2); }
+  if (QB.mark.length < S.size) { QB.mark = shArray(Uint8Array, S.size * 2); QB.phi = new Float64Array(S.size * 2); }
   const mark = QB.mark, phi = QB.phi, Ex = W.Ex || 0, Ey = W.Ey || 0, X = S.x, Y = S.y, Q = S.q, QP = S.qp, OBJ = S.obj, d3 = W.d3, Zp = S.z, Ez = d3 ? W.Ez || 0 : 0; // (3-D: in depth too, 1.24)
   let nIn = 0;
   for (const m of list) for (const p of m) { const i = p.i; mark[i] = 1; phi[i] = d3 ? -(Ex * X[i] + Ey * Y[i] + Ez * Zp[i]) : -(Ex * X[i] + Ey * Y[i]); nIn++; }
@@ -7964,11 +7985,12 @@ function qeqUpdate() {
   // beyond the cutoff
   let np = 0;
   const push = (a, b, c) => {
-    if (np >= QB.pa.length) { const g = (T, o) => { const n = new T(o.length * 2); n.set(o); return n; }; QB.pa = g(Int32Array, QB.pa); QB.pb = g(Int32Array, QB.pb); QB.pc = g(Float64Array, QB.pc); QB.q0 = g(Float64Array, QB.q0); }
+    if (np >= QB.pa.length) { const g = (T, o) => { const n = shArray(T, o.length * 2); n.set(o); return n; }; QB.pa = g(Int32Array, QB.pa); QB.pb = g(Int32Array, QB.pb); QB.pc = g(Float64Array, QB.pc); QB.q0 = g(Float64Array, QB.q0); }
     QB.pa[np] = a; QB.pb[np] = b; QB.pc[np] = c; QB.q0[np] = (Q[a] + QP[a]) * (Q[b] + QP[b]); np++;
   };
   const pi = VL.pi, pj = VL.pj, K = S.k, Zs = S.Z, DEAD = S.dead, FAST = S.fast, RAD = S.rad, MOL = S.mol, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
-  for (let k = 0, n = VL.np; k < n; k++) {
+  if (QB.useWasm && (np = qeqPairsWasm()) >= 0) { /* (the list's pairs in the module: the same pairs, coefficients and order, 1.26) */ } else
+  for (let k = (np = 0), n = VL.np; k < n; k++) {
     const i = pi[k], j = pj[k]; if (!mark[i] && !mark[j]) continue;
     if (K[i] !== NUC || K[j] !== NUC || Zs[i] === 0 || Zs[j] === 0 || DEAD[i] || DEAD[j] || FAST[i] || FAST[j] || RAD[i] || RAD[j]) continue;
     let dx = X[j] - X[i], dy = Y[j] - Y[i], dz = d3 ? Zp[j] - Zp[i] : 0;
