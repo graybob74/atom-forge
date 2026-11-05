@@ -682,6 +682,14 @@ fingerprints, 300 steps, seed 7, identical to 6f5d75f).
   ultra-realistic mode's sizes). The 3-D tab's own pictures show in both modes, as before. Size: 9 pictures, 270 KB;
   src/setshots.gen.js 797 → 1,049 KB (+252 KB), the page 4.07 MB; under t_settings' 1,200 KB budget, so it stayed.
   1280 × 720, WebP quality 0.72, as the rest.
+- **Labels off in 3-D** (the owner, through the main session: "add a setting to remove labels in 3d because ... 10
+  bajillion letters is overstimulating"). Labels could already be turned off (Graphics → Labels → Never, or Lab → View
+  → Labels), and that worked in 3-D, but the 3-D tab's own Labels row offered only Front atoms only / All atoms, so he
+  didn't find it. The row now offers Off, On hover, Front atoms only, All atoms: one switch with Graphics → Labels and
+  the view menu's checkbox (Off is Never there and unticks the box; On hover is On hover; Front and All set the 3-D
+  choice and Always), kept like the others (`R.view.labels` in viewflags, `SET.labels`, `SET.lbl3`). Its description
+  says so, and that charge badges follow Graphics → Charge badges. Measured on the molecules in space (labels drawn in
+  one frame): All 64, Front 62, Off 0, On hover 1 (the hovered atom), 0 with nothing hovered.
 - **Checked at 1360 and 390 px in both modes** (screenshots 125s-before-* and 125s-after-*-{2d,3d}-{exp,gfx,d3,ctl}-{1360,390}.png
   in the session's scratchpad): at 390 px the other mode's notes are hidden in the list too (a `[hidden]` rule over the
   narrow layout's `display: block`), nothing runs past the edge (0 px), and the strip's small thumbnail carries a short
@@ -697,7 +705,9 @@ fingerprints, 300 steps, seed 7, identical to 6f5d75f).
   shown (82 rows and choices, and the enlarged view) is a flat one and none is marked; in 3-D the 9 settings with a 3-D
   picture show it (23 rows and choices, the enlarged view too), the rest the flat one marked; it switches with Settings
   open, and through main menu → 3-D → Settings → back to 2-D; at 390 px each mode's notes only, no overflow. Fails on
-  6f5d75f (no mode: the pane has no mark to read). t_settings accepts the `@3d` keys as their setting's.
+  6f5d75f (no mode: the pane has no mark to read). `labels3d`: the 3-D Labels row's four choices, labels drawn in each
+  (above), the switch shared with Graphics → Labels and the view menu, kept; fails on 6f5d75f (two choices). t_settings
+  accepts the `@3d` keys as their setting's (its reload check caught a sync line cut short while building this).
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
