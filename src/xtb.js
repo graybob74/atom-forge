@@ -7972,7 +7972,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const Eh = erep + eelec + edisp3;
   const out = {
     E: Eh * AUTOEV, q: Array.from(qat), iterations: iscf, converged,
-    qsh: Array.from(qsh), guess: Array.from(pack(qsh, dp, qp, new Float64Array(ndim))), dp: Array.from(dp), qp: Array.from(qp),
+    qsh: Array.from(qsh), guess: [...qsh, ...dp, ...qp], dp: Array.from(dp), qp: Array.from(qp), // (guess: the whole state, a start for the next call)
     cn: Array.from(cn), Erep: erep * AUTOEV, Eelec: eelec * AUTOEV, Edisp: (parts.ed2 + edisp3) * AUTOEV, Eext: eext * AUTOEV,
     emo: Array.from(emo, x => x * AUTOEV), focc: Array.from(focc),
     parts: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, v * AUTOEV])),
