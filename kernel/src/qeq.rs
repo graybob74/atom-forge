@@ -63,11 +63,12 @@ pub unsafe fn qeq_pairs_at(t: &[usize], p: *mut f64) {
     let d3 = r(p, QP_D3) != 0.0; let lr = r(p, QP_LR) != 0.0; let rc = r(p, QP_RC); let rc2 = r(p, QP_RC2); let ke = r(p, QP_KE); let kiw = r(p, QP_KIW); let sa = r(p, QP_SMEAR);
     let exw = r(p, QP_EXW) as usize; let cap = r(p, QP_CAP) as usize;
     let islr = |i: usize| r(q, i).abs() >= 1.0; // (isLR: a nucleus with a net charge of at least 1; only nuclei here)
-    let csh = |i: usize, j: usize, s: f64| 1.0 / (rc2 + s).sqrt() - (if lr && islr(i) && islr(j) { 1.0 / rc } else { 0.0 });
+    let (c009, c0016, c004, irc) = (1.0 / (rc2 + 0.09).sqrt(), 1.0 / (rc2 + 0.0016).sqrt(), 1.0 / (rc2 + 0.04).sqrt(), 1.0 / rc); // (csh's 1/√(RC² + s) for its three softenings, worked out once: the same numbers)
+    let csh = |i: usize, j: usize, c0: f64| c0 - (if lr && islr(i) && islr(j) { irc } else { 0.0 });
     let mut np = 0usize;
     for k in 0..n {
         let i = r(pi, k) as usize; let j = r(pj, k) as usize; if r(mark, i) == 0 && r(mark, j) == 0 { continue; }
-        if r(kk, i) != 0 || r(kk, j) != 0 || r(zs, i) == 0 || r(zs, j) == 0 || r(dead, i) != 0 || r(dead, j) != 0 || r(fast, i) != 0 || r(fast, j) != 0 || r(rad, i) != 0 || r(rad, j) != 0 { continue; }
+        if (r(kk, i) | r(kk, j) | r(dead, i) | r(dead, j) | r(fast, i) | r(fast, j) | r(rad, i) | r(rad, j)) != 0 || r(zs, i) == 0 || r(zs, j) == 0 { continue; } // (flags 0 or 1: one test)
         let mut dx = r(x, j) - r(x, i); let mut dy = r(y, j) - r(y, i); let mut dz = if d3 { r(pz, j) - r(pz, i) } else { 0.0 };
         if wrap { if dx > hw { dx -= bw; } else if dx < -hw { dx += bw; } if dy > hh { dy -= bh; } else if dy < -hh { dy += bh; } if d3 { if dz > bd / 2.0 { dz -= bd; } else if dz < -bd / 2.0 { dz += bd; } } }
         let r2 = if d3 { dx * dx + dy * dy + dz * dz } else { dx * dx + dy * dy }; if r2 >= rc2 { continue; }
@@ -79,10 +80,10 @@ pub unsafe fn qeq_pairs_at(t: &[usize], p: *mut f64) {
         }
         // qeqC
         let (nei, nej) = (r(ne, i), r(ne, j));
-        let c = if r(anti, i) != r(anti, j) { let sf = if nei > 0 && nej > 0 { 0.09 } else if nei == 0 && nej == 0 { 0.0016 } else { 0.04 }; ke * (1.0 / (r2 + sf).sqrt() - csh(i, j, sf)) }
-            else if nei > 0 && nej > 0 { let ii = r(ionic, i); let ij = r(ionic, j); let iw = if ii != ij && (if ii != 0 { r(q, j) == 0.0 } else { r(q, i) == 0.0 }) { kiw } else { 1.0 }; iw * ke * (1.0 / (r2 + 0.09).sqrt() - csh(i, j, 0.09)) }
-            else if nei == 0 && nej == 0 { ke * (1.0 / (r2 + 0.0016).sqrt() - csh(i, j, 0.0016)) }
-            else { let rr = r2.sqrt(); let sv = if rr >= sa { 1.0 / rr } else { (3.0 * sa * sa - rr * rr) / (2.0 * sa * sa * sa) }; ke * (sv - (if lr && islr(i) && islr(j) { 0.0 } else { 1.0 / rc })) };
+        let c = if r(anti, i) != r(anti, j) { let (sf, c0) = if nei > 0 && nej > 0 { (0.09, c009) } else if nei == 0 && nej == 0 { (0.0016, c0016) } else { (0.04, c004) }; ke * (1.0 / (r2 + sf).sqrt() - csh(i, j, c0)) }
+            else if nei > 0 && nej > 0 { let ii = r(ionic, i); let ij = r(ionic, j); let iw = if ii != ij && (if ii != 0 { r(q, j) == 0.0 } else { r(q, i) == 0.0 }) { kiw } else { 1.0 }; iw * ke * (1.0 / (r2 + 0.09).sqrt() - csh(i, j, c009)) }
+            else if nei == 0 && nej == 0 { ke * (1.0 / (r2 + 0.0016).sqrt() - csh(i, j, c0016)) }
+            else { let rr = r2.sqrt(); let sv = if rr >= sa { 1.0 / rr } else { (3.0 * sa * sa - rr * rr) / (2.0 * sa * sa * sa) }; ke * (sv - (if lr && islr(i) && islr(j) { 0.0 } else { irc })) };
         if c == 0.0 || c.is_nan() { continue; } // (JS: if (c) push)
         if np < cap { *pa.add(np) = i as i32; *pb.add(np) = j as i32; *pc.add(np) = c; *q0.add(np) = (r(q, i) + r(qp, i)) * (r(q, j) + r(qp, j)); }
         np += 1;
