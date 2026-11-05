@@ -205,6 +205,48 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.24.0 (next): 3-D atoms and bonds lit as solid objects
+
+- **Lit balls in 3-D** (the owner: "make the atoms actually 3d instead of drawn 2d but looking at the screen"; a display
+  fix). In 1.23 a 3-D atom was the flat game's painted ball (a radial gradient, its highlight at the upper left of the
+  screen) on a sprite facing the camera: turning the view never moved the highlight or the shaded side, so the atoms
+  read as discs facing the viewer. Now the ball's fragment shader rebuilds the sphere's normal from the place in the
+  sprite (as it already did for the depth) and lights it: ambient; a key light fixed in the world (`LIGHT3` in
+  view3d.js, mostly from above, from the upper left at the starting view; `cam3Update` turns it into view space,
+  `C3.lx …`); a soft fill from near the camera (lower right), so the side away from the key light stays readable on the
+  dark background; a rim on the dark side's edge; a white Blinn–Phong highlight. The diffuse colour is whatever the
+  colour texture holds: element colours, the colour-blind palette, charge and heat colours. `LIT3` and `lit3()` in
+  gl.js: the GLSL and the same sum in JavaScript. Free leptons and bare nuclei (the queued balls) are lit the same way;
+  glows unchanged.
+- **Bonds as cylinders**: each half-bond lane (single, double, triple, the resonating pair as before, each atom's
+  colour on its half) is shaded across its width as a thin cylinder (normal between the screen direction square to the
+  bond and the eye's direction square to its axis; round at the atom's end) lit by the same light, with the cylinder's
+  depth written, so bonds go into the balls cleanly.
+- **No dark seam where balls overlap**: antialiased edge pixels wrote depth, so a ball drawn later behind them was
+  hidden there and the background showed through as a thin dark ring. Now balls and bonds are drawn in two passes: the
+  fully covered core (opaque, depth written), then only the 1-px antialiasing ring (blended over what the cores left,
+  depth tested, not written). `glFlush3(C, hi, bond)` draws the slots, the bonds and the queued balls, cores then
+  edges, then the glows: 6 draw calls instead of 3 (plus glows).
+- **Canvas 2D (no WebGL 2)**: balls are sprites shaded pixel by pixel with `lit3` (`litSprite3`: one a colour for the
+  light of this frame, rounded to 1/40, so a turning view remakes them every few degrees; radius 32 px, was 24); bond
+  lanes get a gradient across their width with the cylinder's colours (`cylStops3`, 7 stops), lanes under 3 px one
+  colour. Still sorted far to near. WebGL and Canvas 2D frames agree (t_3d: mean difference 0.08, 0.12% of pixels off
+  by > 24).
+- The flat game is untouched: its shaders and sprites are not changed (`GL_FS_BALL3` no longer derives from
+  `GL_FS_BALL`); t_3d's 2-D frame after a 3-D one is identical (mean difference 0), t_gl passes.
+- Measured: an O atom (69 px radius), the view turned 90° about the vertical: the brightest spot was at (−0.34, −0.39)
+  radii from the centre both times (1.23, WebGL and Canvas 2D); now (−0.31, −0.47) → (−0.11, −0.78), 0.37 radii
+  moved, within 0.008 radii of where the light puts it, both paths. Frame time (headless Chromium,
+  1360 × 860 at 1×, the 1.23 build and this one alternated, medians; the GPU here is SwiftShader on two shared CPU
+  cores, so its numbers are rough): JavaScript time unchanged (Molecules in space 0.10 → 0.11 ms, Liquid water 2.86 →
+  2.93 ms; 1,800 waters 2.65 → 2.56 ms); with the GPU's work waited for, Liquid water 60.6 → 77.5 ms still, 59.3 →
+  63.3 ms turning, Molecules in space 2.1 → 10.6 ms (the second pass and three more draw calls, ~0.5–1 ms each in
+  software; without the edge pass 2.4 ms); 1,800 waters 72.9 → 71.6 ms. Canvas 2D: Liquid water 19.9 → 29.5 ms
+  still, 20.1 → 26.5 ms turning (the bonds' gradients); 1,800 waters 40.5 → 38.4 ms (thin bonds one colour).
+- Settings pictures of the 3-D tab and the 3-D menu remade (`tools/setshots.js`, 30 pictures 343 KB, were 321 KB).
+- Tests: t_3d "lit balls" (fails on 1.23: the highlight does not move).
+- Not done: contact darkening where atoms touch (it needs a screen-space pass reading the depth buffer; not cheap).
+
 ## 1.23.0: the 3-D lab (Preview), Settings with pictures, a 2-D / 3-D first screen
 
 - **3-D** (asked by the user, "a separate mode chosen in the main menu"): built in four stages, recorded in the planned

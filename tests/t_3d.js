@@ -26,6 +26,44 @@ async function measure(page, a, b) {
     return out;
   }, [a.toString('base64'), b ? b.toString('base64') : null]);
 }
+/* ---- Lit balls (1.24): the atoms are spheres lit by a light fixed in the world. One O atom close up, drawn with WebGL
+   and with Canvas 2D; turning the camera 90° about the vertical moves its highlight across the ball, to where the light
+   (turned into the view) puts it: the brightest spot is where the sphere's normal is halfway between the light and the
+   eye. Labels off, so the symbol is not the brightest thing. */
+async function litBalls(page, clip, shot) {
+  // the brightest spot on the ball (the centroid of its pixels within 6 of the largest r+g+b), in CSS px of the chamber
+  const brightest = (png, v) => page.evaluate(async ([s, cx, cy, r]) => {
+    const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = 'data:image/png;base64,' + s; });
+    const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+    const d = g.getImageData(0, 0, im.width, im.height).data, k = im.width / document.getElementById('cv').getBoundingClientRect().width;
+    const on = (j) => Math.hypot(((j % im.width) + 0.5) / k - cx, (Math.floor(j / im.width) + 0.5) / k - cy) < 0.95 * r;
+    let m = 0; for (let i = 0; i < d.length; i += 4) if (on(i / 4)) m = Math.max(m, d[i] + d[i + 1] + d[i + 2]);
+    let sx = 0, sy = 0, n = 0; for (let i = 0; i < d.length; i += 4) if (on(i / 4) && d[i] + d[i + 1] + d[i + 2] >= m - 6) { const j = i / 4; sx += j % im.width; sy += Math.floor(j / im.width); n++; }
+    return { x: (sx / n + 0.5) / k, y: (sy / n + 0.5) / k, sum: m };
+  }, [png.toString('base64'), v.cx, v.cy, v.r]);
+  await page.mouse.move(1, 1); // (no hover ring)
+  const out = {};
+  for (const gl of [true, false]) for (const turn of [0, 1]) {
+    const v = await page.evaluate(([gl, turn]) => {
+      baseWorld(30, 30, 300, 0); world3d(30); setRunning(false); R.view.labels = false; R.hover = null;
+      const a = addAtom('O', 0, 0, { z: 0, T: 0 }); Object.assign(R.cam3, { yaw: 0.6 + turn * Math.PI / 2, pitch: 0.3, dist: 7, tx: 0, ty: 0, tz: 0 });
+      GL.on = gl; render(W.rt);
+      const o = [0, 0, 0]; proj3(a.x, a.y, a.z, o); const r = _pv[4 * a.i + 3];
+      const L = C3.L, hl = Math.hypot(L[0], L[1], L[2] + 1); // (Blinn–Phong: the brightest normal is halfway between the light and the eye)
+      return { gl: R.gl, cx: o[0], cy: o[1], r, ex: o[0] + r * L[0] / hl, ey: o[1] - r * L[1] / hl, L: [...L] };
+    }, [gl, turn]);
+    const b = await brightest(await shot(), v);
+    v.bx = b.x; v.by = b.y; v.off = Math.hypot(b.x - v.ex, b.y - v.ey) / v.r; // (from where the light puts it, in radii)
+    out[(gl ? 'gl' : 'c2d') + turn] = v;
+  }
+  await page.evaluate(() => { R.view.labels = true; GL.on = true; });
+  const moved = (k) => Math.hypot((out[k + 1].bx - out[k + 1].cx) - (out[k + 0].bx - out[k + 0].cx), (out[k + 1].by - out[k + 1].cy) - (out[k + 0].by - out[k + 0].cy)) / out[k + 0].r;
+  const f = (v) => `(${((v.bx - v.cx) / v.r).toFixed(2)}, ${((v.by - v.cy) / v.r).toFixed(2)})`;
+  console.log(`  lit balls: an O atom ${out.gl0.r.toFixed(0)} px across its radius; the highlight, in radii from the centre: WebGL ${f(out.gl0)} → ${f(out.gl1)} turned 90°, Canvas 2D ${f(out.c2d0)} → ${f(out.c2d1)}; it moved ${moved('gl').toFixed(2)} and ${moved('c2d').toFixed(2)} radii; off where the light puts it by at most ${Math.max(...Object.values(out).map(v => v.off)).toFixed(3)} radii`);
+  check(out.gl0.gl && !out.c2d0.gl && out.gl0.r > 40 && moved('gl') > 0.25 && moved('c2d') > 0.25 && Object.values(out).every(v => v.off < 0.08),
+    'the atoms are lit by a light fixed in the world: turning the view 90° moves the highlight across the ball to where the light puts it (WebGL and Canvas 2D)', out);
+}
+
 /* ---- Stage 3: the 3-D lab as a mode, the tools in depth, the overlays, saving. */
 // the depth of a world point along the camera's view (its distance from the plane through the eye square to the view)
 const DEPTH = `(x, y, z) => { cam3Update(); return (x - C3.ex) * C3.fx + (y - C3.ey) * C3.fy + (z - C3.ez) * C3.fz; }`;
@@ -273,6 +311,8 @@ async function menu3d() {
   const pick2 = await page.evaluate(([fid, nid]) => { const near = W.parts.find(p => p.id === nid), far = W.parts.find(p => p.id === fid); kill(near); render(W.rt); const o = [0, 0, 0]; proj3(far.x, far.y, far.z, o); return pickAt(o[0], o[1]) === far; }, pick.ids);
   console.log(`  two atoms ${pick.line.toFixed(2)} px apart on the screen, 6 Å apart in depth: picked the nearer (${pick.atCentre}); clicked: ${clicked.sel === pick.ids[1] ? 'the nearer' : clicked.sel}; with it gone, the farther (${pick2}); an atom off to the side (${pick.side})`);
   check(pick.line < 0.01 && pick.atCentre && pick.side && pick2 && clicked.sel === pick.ids[1] && clicked.hover === pick.ids[1], 'picking takes the atom under the pointer nearest the camera (pickAt, Inspect click, hover)', [pick, clicked, pick2]);
+
+  await litBalls(page, clip, shot);
 
   await stage3(page, clip, errors);
 
