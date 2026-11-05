@@ -1,7 +1,7 @@
 'use strict';
 /* The 1.26 checks for the WebAssembly speed-ups (kernel/src/vl.rs, d3.rs tors1, bo.rs's 3-D pass, mb.rs, qeq.rs; the
    JavaScript stays the reference), run by t_features (its "1.26 (speed)" block) or alone:
-     node tests/f_126w.js [part …]   (parts: vl, tors1, bo3, mb, qeq, page)
+     node tests/f_126w.js [part …]   (parts: vl, tors1, bo3, mb, qeq, grow, page)
    Each part fails on 1.25.0 (no such export, no wasmIn). Node harness, one thread, deterministic; page: the same paths in
    the headless page (its module compiled in the background, the plain memory without isolation). (check(ok, good, bad)) */
 const { load } = require('./load');
@@ -97,6 +97,21 @@ PARTS.qeq = async (page, check) => {
     r.push(`${pre} ${a.h === b.h ? 'same' : 'DIFFERENT'} (${b.calls} module passes, ${b.n} updates)`); ok = ok && a.h === b.h && b.calls >= n && a.calls === 0 && b.n === a.n;
   }
   check(ok, `1.26 induced charges' pairs in WebAssembly: every-step updates to the bit (${r.join(', ')})`, '1.26 qeq: ' + JSON.stringify(r));
+};
+/* ---- 5a. after the module's memory grows (a shared memory hands out a new buffer object; the views made before keep the
+   old one): the flat bond orders and the free electrons' kernel still run in the module (on 1.25 they went to the
+   JavaScript for good, and the bond orders' scratch arrays were made again at every pass), the run the same to the bit */
+PARTS.grow = async (page, check) => {
+  const run = (grow) => {
+    const X = load('all', { seed: 3 }), W = X.W; X.PRESETS.water.build(); W.decayOn = false; X.boSet(1);
+    for (let k = 0; k < 6; k++) X.spawnSpec({ kind: 'e' }, -20 + 8 * k, 12, 300);
+    if (grow) X.wasmArray(Float64Array, 3e6); // (24 MB: past the 16 MB the memory starts with)
+    const g0 = X.WK.grows, b0 = X.BFW.calls || 0, f0 = X.WK.fastCalls, top0 = X.WK.top; steps(X, 30);
+    return { h: hash(X), grew: X.WK.grows - g0 + (grow ? 1 : 0), bo: (X.BFW.calls || 0) - b0, fast: X.WK.fastCalls - f0, mb: +((X.WK.top - top0) / 1048576).toFixed(2), inMem: (() => { try { return X.wasmIn(X.S.x, X.VL.pi); } catch (e) { return null; } })() }; // (null: no wasmIn, 1.25)
+  };
+  const a = run(false), b = run(true);
+  check(b.grew > 0 && b.inMem && b.bo >= 30 && b.fast > 0 && b.fast === a.fast && a.h === b.h && b.mb < 1,
+    `1.26 after the memory grows: the bond orders' passes (${b.bo}) and the free electrons' kernel (${b.fast} calls) stay in the module, nothing reallocated (${b.mb} MB more in 30 steps), the run the same to the bit`, '1.26 grow: ' + JSON.stringify({ a, b }));
 };
 /* ---- 6. the page: the paths taken in the headless page's own module (the 3-D bond orders, the list's walk) */
 PARTS.page = async (page, check) => {

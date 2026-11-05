@@ -146,8 +146,7 @@ function wasmFastReady() {
   if (!WK.ft) { WK.ft = wasmArray(Int32Array, 16); WK.fks = wasmArray(Float64Array, 1); if (!WK.on) return false; } // (a full memory gives the kernels up: the JavaScript runs)
   const need = 3 * (FL.na + FL.nl + 8);
   if (!WK.fc || WK.fc.length < need) { WK.fc = wasmArray(Int32Array, need * 2); WK.fcr = wasmArray(Float64Array, need); if (!WK.on) return false; }
-  const mem = WK.mem.buffer;
-  return FL.la.buffer === mem && FL.lb.buffer === mem && FL.li.buffer === mem && FL.lj.buffer === mem && _mdLI.buffer === mem && _chI.buffer === mem;
+  return wasmIn(FL.la, FL.lb, FL.li, FL.lj, _mdLI, _chI); // (wasmIn: still the module's after the memory grew; comparing with WK.mem.buffer sent every pass after a growth to the JavaScript, 1.26)
 }
 function wasmFast(na, nl, nmdl, nch, lrOn, wrap, bw, bh, hw, hh, evOn) {
   const t = WK.ft;
