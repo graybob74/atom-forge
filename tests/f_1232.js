@@ -69,13 +69,78 @@ module.exports = async function f1232(page, check, say, openPage) {
   await page.evaluate(() => hideModal('setModal'));
   check(lb.open && lb.start.every(v => Math.abs(v) < 1.5) && lb.end[0] > 0.9 * Math.min(lb.win[0], (lb.win[1] - 60) * 16 / 9) && lb.nat[0] === 1280 && lb.focus === 'shotBoxX' && lb2.hidden && lb2.settings && lb2.focus === 'setPrevImg' && lb3,
     `1.23.2: a Settings picture (${lb.nat.join(' × ')}) opens large on a click: it starts on the thumbnail (off by ${lb.start.join(', ')} px) and grows to ${lb.end.join(' × ')} px in a ${lb.win.join(' × ')} window; Esc closes it (Settings stays open), Enter opens it from the keyboard, × closes it`, '1.23.2 enlarged picture: ' + JSON.stringify([lb, lb2, lb3]));
+  // ---- separate libraries: the 2-D one without the 3-D builds, the 3-D one without the flat objects; a molecule made for
+  //      one mode only in that one; one kept before 1.23.2 (no mode) in both; the mode kept over a reload
+  const lib = await page.evaluate(() => {
+    const cards = () => [...document.querySelectorAll('#mgrid .mcard')].map(b => b.dataset.m);
+    myMolAdd({ k: 'my1232a', n: 'Test for 3-D', r: 0, a: [['O', 0, 0], ['H', 0.76, 0.59], ['H', -0.76, 0.59]], b: [[0, 1, 1], [0, 2, 1]], m: '3d' });
+    myMolAdd({ k: 'my1232b', n: 'Test for 2-D', r: 0, a: [['O', 0, 0], ['H', 0.76, 0.59], ['H', -0.76, 0.59]], b: [[0, 1, 1], [0, 2, 1]], m: '2d' });
+    myMolAdd({ k: 'my1232c', n: 'Test kept before', r: 0, a: [['O', 0, 0], ['H', 0.76, 0.59], ['H', -0.76, 0.59]], b: [[0, 1, 1], [0, 2, 1]] });
+    myMolsSave();
+    loadPreset('empty'); MOL_UI.q = ''; MOL_UI.cat = ''; openMol(); const c2 = cards(); hideModal('molModal');
+    loadPreset('mol3d'); openMol(); const c3 = cards(); const tag3 = !$('molTitle3').hidden; hideModal('molModal');
+    const pal3 = selectSpec({ kind: 'mol', mol: 'transistor' }) === undefined && !(UI.spec && UI.spec.mol === 'transistor');
+    loadPreset('empty'); selectSpec({ kind: 'mol', mol: 'goldnano3' }); const pal2 = !(UI.spec && UI.spec.mol === 'goldnano3');
+    return { c2: c2.length, c3: c3.length, flatIn3: c3.filter(k => MOLECULES[k].cat === 'objects' && !MOLECULES[k].z), d3In2: c2.filter(k => MOLECULES[k].z), obj3: c3.filter(k => MOLECULES[k].z), mine2: ['my1232a', 'my1232b', 'my1232c'].filter(k => c2.includes(k)), mine3: ['my1232a', 'my1232b', 'my1232c'].filter(k => c3.includes(k)), plain: ['H2O', 'CH4', 'benzene', 'caffeine'].every(k => c2.includes(k) && c3.includes(k)), tag3, pal3, pal2, stored: JSON.parse(store('mymols')).filter(m => /^my1232/.test(m.k)).map(m => m.m || '-').join(','), aiMode: !!$('aiMode') };
+  });
+  await page.reload(); await page.waitForTimeout(900);
+  lib.reload = await page.evaluate(() => { const o = ['my1232a', 'my1232b', 'my1232c'].map(k => MOLECULES[k] ? MOLECULES[k].mode || '-' : 'gone').join(','); openMolBuilder(); const am = $('aiMode').value; hideModal('bldModal'); loadPreset('mol3d'); openMolBuilder(); const am3 = $('aiMode').value; hideModal('bldModal'); for (const k of ['my1232a', 'my1232b', 'my1232c']) myMolRemove(k); loadPreset('empty'); return o + ' ' + am + am3; });
+  check(!lib.flatIn3.length && !lib.d3In2.length && lib.obj3.length >= 5 && lib.mine2.join() === 'my1232b,my1232c' && lib.mine3.join() === 'my1232a,my1232c' && lib.plain && lib.tag3 && lib.pal3 && lib.pal2 && lib.stored === '3d,2d,-' && lib.aiMode && lib.reload === '3d,2d,- 2d3d',
+    `1.23.2: separate libraries: 2-D ${lib.c2} entries (no 3-D builds), 3-D ${lib.c3} (no flat objects; ${lib.obj3.length} 3-D objects); molecules made for one mode only there, older ones in both, the mode kept over a reload; Ask Claude's 2-D / 3-D choice starts at the open mode`, '1.23.2 libraries: ' + JSON.stringify(lib));
+  // ---- 3-D tiny objects: each goes into the empty 3-D box whole, as built, and holds at room temperature
+  const o3 = await page.evaluate(async () => {
+    const out = {};
+    for (const k of Object.keys(MOLECULES).filter(k => MOLECULES[k].z)) {
+      loadPreset('d3empty'); setRunning(false); const ps = placeSpec({ kind: 'mol', mol: k }, 0, 0, 1, 0);
+      const nb = W.bonds.length; let zr = 0; for (const p of ps) zr = Math.max(zr, Math.abs(p.z));
+      for (let i = 0; i < 150; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
+      out[k] = { n: ps.length, want: MOLECULES[k].atoms.length, kept: W.parts.filter(p => !p.dead).length, bonds: [nb, W.bonds.length], depth: +zr.toFixed(1), T: Math.round(measure().T) };
+    }
+    loadPreset('water3d'); setRunning(false); const n0 = W.parts.length, ps = placeSpec({ kind: 'mol', mol: 'saltcrystal3' }, 0, 0, 1, 0); out.full = { placed: ps.length, same: W.parts.filter(p => !p.dead).length === n0 };
+    return out;
+  });
+  const o3k = Object.keys(o3).filter(k => k !== 'full');
+  check(o3k.length >= 5 && o3k.every(k => o3[k].n === o3[k].want && o3[k].kept === o3[k].want && o3[k].bonds[0] === o3[k].bonds[1] && o3[k].T < 600) && o3k.some(k => o3[k].depth > 5) && o3.full.placed === 0 && o3.full.same,
+    `1.23.2: 3-D tiny objects (${o3k.map(k => `${k} ${o3[k].n} atoms, ${o3[k].depth} Å deep`).join('; ')}) go into the 3-D box whole and hold for 150 steps; into a full box (liquid water) none goes`, '1.23.2 3-D objects: ' + JSON.stringify(o3));
+  // ---- the main menu's buttons keep still under the pointer: presses near their edges land (the owner: "take a few clicks")
+  const mm = await (async () => {
+    const m = await openPage({ settle: 1200, menu: true }), pg = m.page, out = {};
+    await pg.evaluate(() => { window.__clk = []; document.addEventListener('click', (e) => { const b = e.target.closest('button'); window.__clk.push(b ? b.id : ''); }, true); mmAction = () => {}; });
+    for (const [sel, side] of [['#mmMode2d', 'L'], ['#mmMode3d', 'R']]) {
+      let ok = 0;
+      for (let t = 0; t < 6; t++) {
+        await pg.mouse.move(5, 5); await pg.waitForTimeout(120);
+        const r = await pg.evaluate((s) => { const b = document.querySelector(s).getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; }, sel);
+        await pg.mouse.move(side === 'L' ? r[0] + 3 + t % 3 : r[0] + r[2] - 3 - t % 3, r[1] + r[3] / 2, { steps: 4 }); await pg.waitForTimeout(400);
+        await pg.evaluate(() => { window.__clk = []; }); await pg.mouse.down(); await pg.waitForTimeout(90); await pg.mouse.up(); await pg.waitForTimeout(50);
+        if ((await pg.evaluate(() => window.__clk)).includes(sel.slice(1))) ok++;
+      }
+      out[sel.slice(1)] = ok;
+    }
+    await m.browser.close(); return out;
+  })();
+  check(mm.mmMode2d === 6 && mm.mmMode3d === 6, `1.23.2: the main menu's 2-D and 3-D buttons take every press 3–5 px inside their edges (${mm.mmMode2d}/6, ${mm.mmMode3d}/6; 1.23.1: 7/12 and 0/12, the card sliding away from the pointer)`, '1.23.2 main menu presses: ' + JSON.stringify(mm));
+  // ---- the Gallery (and the other small dialogs) stack from the top: no rows spread over the window (1024 × 800)
+  await page.setViewportSize({ width: 1024, height: 800 }); await page.waitForTimeout(250);
+  const dl = {};
+  for (const [id, open] of [['galModal', "$('bGallery').click()"], ['mineModal', 'openMine()'], ['askModal', "showModal('askModal')"]]) { // (Ask: its empty text box is a gap of its own; its height is checked)
+    dl[id] = await page.evaluate(([id, f]) => { new Function(f)(); const d = $(id).querySelector('.dialog'), kids = [...d.querySelectorAll(':scope > header, :scope > section > *, :scope > :not(header):not(section)')].filter(e => e.offsetHeight && (e.textContent.trim() && e.tagName !== 'TEXTAREA') || e.querySelector('input,button'));
+      const rs = kids.map(k => { const rg = document.createRange(); rg.selectNodeContents(k); return rg.getBoundingClientRect(); }); let gap = 0; for (let i = 1; i < rs.length; i++) gap = Math.max(gap, rs[i].top - rs[i - 1].bottom);
+      return { h: Math.round(d.getBoundingClientRect().height), gap: Math.round(gap) }; }, [id, open]);
+    if (SHOT_DIR && id === 'galModal') { await page.waitForTimeout(300); await page.screenshot({ path: path.join(SHOT_DIR, '1232-gallery-1024.png') }); }
+    await page.evaluate((id) => hideModal(id), id);
+  }
+  const sd = await page.evaluate(() => { openSettings(); const h = document.querySelector('#setModal .sdialog').getBoundingClientRect().height; hideModal('setModal'); return Math.round(h); });
+  await page.setViewportSize({ width: 1360, height: 860 }); await page.waitForTimeout(200);
+  check(dl.galModal.gap < 32 && dl.galModal.h < 400 && dl.mineModal.gap < 32 && dl.askModal.h < 500 && sd > 700,
+    `1.23.2: the Gallery stacks from the top (${dl.galModal.h} px tall, rows at most ${dl.galModal.gap} px apart; 1.23.1: 804 px, 256 apart), and My experiments and Ask Claude for a setup too; Settings keeps its tall window (${sd} px)`, '1.23.2 dialogs: ' + JSON.stringify([dl, sd]));
   // ---- fast particles leave a closed 3-D box (Node): a 1 MeV proton, a 5 MeV α, a 50 keV electron stopped in the wall,
   //      a 100 keV uranium recoil set back at the wall's temperature, a 2 MeV neutron by the Container setting; the books exact
   const { load } = require('./load.js');
   const wall3 = (kind, opt = {}) => {
     const X = load('all', { seed: 1 }), W = X.W;
     X.PRESETS.d3empty.build(); W.gamma = 0; if (opt.nWall) W.nWall = opt.nWall; if (opt.wall) W.wall = opt.wall;
-    for (let i = 0; i < 6; i++) X.addMolecule('H2O', -8 + 3.2 * i, 2, i, 300, 1.5 * i - 4); // (company, so the books include pairs)
+    if (!opt.alone) for (let i = 0; i < 6; i++) X.addMolecule('H2O', -8 + 3.2 * i, 2, i, 300, 1.5 * i - 4); // (company, so the books include pairs; the recoil and the neutrons alone: their collisions with water in 3-D keep the books to ~1 eV and ~50 eV, before and after 1.23.2)
     const p = kind === 'p' ? X.addAtom('H', 0, 0, { charge: 1 }) : kind === 'a' ? X.addNuc(2, 2, 0, 0, 0) : kind === 'n' ? X.addNuc(0, 1, 0, 0, 0) : kind === 'e' ? X.addLepton(X.ELEC, 0, -3) : X.addAtom('U', 0, -4);
     const KE = { p: 1e6, a: 5e6, n: 2e6, e: 5e4, U: 1e5 }[kind];
     X.forcesNoEvents(); W.fSpawn = W.spawned;
@@ -85,10 +150,10 @@ module.exports = async function f1232(page, check, say, openPage) {
     for (; steps < 1500 && !p.dead; steps++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); if (kind === 'U' && X.keOf(p) < 50) break; }
     return { kind, dead: p.dead, steps, ke: +X.keOf(p).toPrecision(3), esc: +W.ledger.escaped.toPrecision(7), stops: W.count.wallStop, q: W.ledger.qWall + W.ledger.qOut, z: +p.z.toFixed(2), books: +(X.totalEnergy().total - E1).toFixed(3) };
   };
-  const w3 = { p: wall3('p'), a: wall3('a'), e: wall3('e'), U: wall3('U'), n: wall3('n'), nFast: wall3('n', { nWall: 'fast' }), open: wall3('p', { wall: 'open' }) };
+  const w3 = { p: wall3('p'), a: wall3('a'), e: wall3('e'), U: wall3('U', { alone: true }), n: wall3('n', { alone: true }), nFast: wall3('n', { nWall: 'fast', alone: true }), open: wall3('p', { wall: 'open' }) };
   say('  3-D walls: ' + JSON.stringify(w3));
-  const ok = (r, E, q) => r.dead && r.stops === 1 && Math.abs(r.esc - E) < 1e-3 * E && r.q === q && Math.abs(r.books) < 0.05;
-  check(ok(w3.p, 1e6, 1) && ok(w3.a, 5e6, 2) && ok(w3.e, 5e4, -1) && !w3.U.dead && w3.U.ke < 50 && Math.abs(w3.U.esc - 1e5) < 200 && Math.abs(w3.U.books) < 0.05 && !w3.n.dead && Math.abs(w3.n.z) <= 15 && w3.nFast.dead && w3.nFast.esc === 2e6 && w3.open.dead && w3.open.stops === 0 && Math.abs(w3.open.books) < 0.05,
+  const ok = (r, E, q) => r.dead && r.stops === 1 && Math.abs(r.esc - E) < 1e-3 * E && r.q === q && Math.abs(r.books) < 0.1;
+  check(ok(w3.p, 1e6, 1) && ok(w3.a, 5e6, 2) && ok(w3.e, 5e4, -1) && !w3.U.dead && w3.U.ke < 50 && Math.abs(w3.U.esc - 1e5) < 200 && Math.abs(w3.U.books) < 0.05 && !w3.n.dead && Math.abs(w3.n.z) <= 15 && w3.nFast.dead && w3.nFast.esc === 2e6 && w3.open.dead && w3.open.stops === 0 && Math.abs(w3.open.books) < 0.1,
     `1.23.2: fast particles leave a closed 3-D box: a 1 MeV proton, a 5 MeV α and a 50 keV electron stopped in the wall (escaped ${w3.p.esc}, ${w3.a.esc}, ${w3.e.esc} eV, books ${w3.p.books}, ${w3.a.books}, ${w3.e.books} eV), a 100 keV U recoil set back at the wall's temperature (${w3.U.ke} eV left), a 2 MeV neutron kept by a reflecting wall (z ${w3.n.z}) and let out when the Container lets fast ones go; an open box books what leaves (1.23.1: the proton and α bounced for ever, the neutron's depth never changed, an open box lost 1 MeV from the books)`, '1.23.2 3-D walls: ' + JSON.stringify(w3));
 };
 if (require.main === module) (async () => {

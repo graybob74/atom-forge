@@ -1749,6 +1749,8 @@ const { openPage } = require('./browser');
   check(JSON.stringify(pb.set) === '[0,false,6,false,16]' && pb.note && pb.loaded.said && !pb.loaded.bo && pb.cont[1] === pb.cont[0],
     `1.23.1: the Experimental settings start at normal (other settings kept: ${pb.set.slice(3).join(', ')}); a world saved with them opens with normal physics and says so; Continue after a restart brings back the last session (${pb.cont[1]} particles)`, '1.23.1 Experimental reset, Continue: ' + JSON.stringify(pb));
   }
+  // 1.23.2: the checks are in f_1232.js (also runnable alone: node tests/f_1232.js)
+  await require('./f_1232.js')(page, check, say, openPage);
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

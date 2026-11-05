@@ -5327,11 +5327,12 @@ function hideMainMenu() {
    toward it); with no mouse it sways slowly on its own. Off with Reduce motion (the system setting). Behind the 3-D
    menu the 3-D world turns slowly (a full turn in about a minute), off to the right of the card, and leans toward the
    mouse a little. */
-const MMP = { mx: 0, my: 0, x: 0, y: 0, t: 0, last: 0, base: null, base3: null, still: false };
+const MMP = { mx: 0, my: 0, x: 0, y: 0, t: 0, last: 0, base: null, base3: null, still: false, down: false, over: false }; // (down: a pointer pressed on the menu; over: the pointer on a button, where it does not sway by itself, 1.23.2)
 function mmTick(dt) {
   if (!UI.menu || !MMP.base) return;
   MMP.t += dt;
-  const idle = performance.now() - MMP.last > 2500, tx = idle ? 0.35 * Math.sin(MMP.t * 0.37) : MMP.mx, ty = idle ? 0.25 * Math.sin(MMP.t * 0.29 + 1) : MMP.my;
+  if (MMP.down) return; // (held still while a button is pressed, so the press and the release land on the same button, 1.23.2)
+  const idle = performance.now() - MMP.last > 2500 && !MMP.over, tx = idle ? 0.35 * Math.sin(MMP.t * 0.37) : MMP.mx, ty = idle ? 0.25 * Math.sin(MMP.t * 0.29 + 1) : MMP.my;
   const k = 1 - Math.exp(-dt * (idle ? 1.2 : 5));
   MMP.x += (tx - MMP.x) * k; MMP.y += (ty - MMP.y) * k;
   if (W.d3 && MMP.base3) { // (the 3-D world behind the 3-D menu: a turntable, the box to the right of the card)
@@ -5375,7 +5376,10 @@ function menusInit() {
   document.addEventListener('pointerdown', (e) => { if (!$('pmenu').hidden && !e.target.closest('#pmenu, #palette .cat')) pmenuClose(); }, true);
   MMP.still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   $('mainMenu').addEventListener('pointermove', (e) => { MMP.mx = clamp(2 * e.clientX / innerWidth - 1, -1, 1); MMP.my = clamp(2 * e.clientY / innerHeight - 1, -1, 1); MMP.last = performance.now(); });
-  $('mainMenu').addEventListener('pointerleave', () => { MMP.mx = 0; MMP.my = 0; });
+  $('mainMenu').addEventListener('pointerleave', () => { MMP.mx = 0; MMP.my = 0; MMP.over = false; MMP.down = false; });
+  $('mainMenu').addEventListener('pointerover', (e) => { MMP.over = !!e.target.closest('button'); });
+  $('mainMenu').addEventListener('pointerdown', () => { MMP.down = true; });
+  window.addEventListener('pointerup', () => { MMP.down = false; }); window.addEventListener('pointercancel', () => { MMP.down = false; });
   mmList3();
   for (const [k, img] of [['menu2d', $('mmShot2d')], ['menu3d', $('mmShot3d')]]) { if (SETSHOTS[k]) img.src = SETSHOTS[k]; else img.parentElement.hidden = true; }
   $('mmVer').textContent = (/\d+\.\d+\.\d+/.exec(document.title) || [''])[0];
@@ -5499,6 +5503,7 @@ function settingsLoad() {
   try { o = JSON.parse(store('settings') || 'null'); } catch (e) { o = null; }
   if (o && typeof o === 'object') {
     for (const k in SET_DEF) if (setOk(k, o[k]) && !SET_EXP.includes(k)) SET[k] = o[k]; // (the Experimental tab starts at normal each time: asked for by the owner, 1.23.1)
+    if ('prePerf' in o || 'perf' in o) store('settings', JSON.stringify(SET)); // (Performance mode's memory dropped, 1.23.2; the values it set are kept above)
   }
 }
 /* The ultra-realistic mode (Settings → Experimental since 1.23.2, so back to normal at each start; General before; 1.03): true nuclear sizes and cross sections (hep.js ultraReach,

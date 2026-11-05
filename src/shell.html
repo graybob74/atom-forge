@@ -515,8 +515,9 @@ body.mo .ddpop.out { animation: ddOut 0.1s ease-in both; pointer-events: none; }
   background: radial-gradient(42% 52% at calc(26% + var(--mx) * 4%) calc(50% + var(--my) * 4%), rgba(90, 150, 255, 0.16), transparent 70%),
     radial-gradient(30% 40% at calc(70% - var(--mx) * 6%) calc(30% - var(--my) * 5%), rgba(255, 120, 200, 0.07), transparent 70%);
   transform: translate3d(calc(var(--mx) * -14px), calc(var(--my) * -10px), 0); }
-.mm-card { position: relative; transform-style: preserve-3d; will-change: transform;
-  transform: translate3d(calc(var(--mx) * -22px), calc(var(--my) * -16px), 0) rotateY(calc(var(--mx) * 7deg)) rotateX(calc(var(--my) * -6deg)); }
+.mm-card { position: relative; transform-style: preserve-3d; } /* (still, 1.23.2: it slid and tilted away from the mouse, up to 22 px and 7°, so a button
+   moved out from under a pointer coming to it, most near its edges: 0 of 12 presses 3 px inside the 3-D tile's right edge
+   landed. The depth stays in the chamber and the glow behind it, which still follow the mouse.) */
 .mm-brand { transform: translateZ(70px); }
 .mm-title { background: linear-gradient(100deg, #eef3f8 30%, #9cc4ff 45%, #eef3f8 60%) 0 0 / 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
   animation: mmShine 7s ease-in-out infinite; text-shadow: none; filter: drop-shadow(0 6px 18px rgba(80, 140, 255, 0.35)); }
@@ -524,10 +525,12 @@ body.mo .ddpop.out { animation: ddOut 0.1s ease-in both; pointer-events: none; }
 .mm-btns, .mm-setups { transform-style: preserve-3d; }
 .mm-btns .btn, .mm-setups > .btn { transform: translateZ(36px); transition: transform 0.18s ease, border-color 0.18s, box-shadow 0.18s, background 0.18s;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35); }
-.mm-btns .btn:hover, .mm-btns .btn:focus-visible { transform: translateZ(58px) translateX(6px); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--accent), 0 0 22px rgba(90, 150, 255, 0.35); }
-.mm-btns .btn:active { transform: translateZ(30px) translateX(4px) scale(0.98); transition-duration: 0.06s; }
-.mm-list button { transition: transform 0.15s ease, border-color 0.15s; }
-.mm-list button:hover { transform: translateX(5px); }
+/* (1.23.2: hovering or pressing a button no longer moves it: a button that slid away under a pointer near its edge on
+   hover, or shrank from under it on press, lost the click; the owner: "sometimes take a few clicks to actually press") */
+.mm-btns .btn:hover, .mm-btns .btn:focus-visible { box-shadow: 0 16px 34px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--accent), 0 0 22px rgba(90, 150, 255, 0.35); }
+.mm-btns .btn:active { filter: brightness(0.88); transition-duration: 0.06s; }
+.mm-list button { transition: box-shadow 0.15s ease, border-color 0.15s; }
+.mm-list button:hover { box-shadow: inset 4px 0 0 var(--accent); }
 .mm-note { transform: translateZ(20px); }
 /* coming in: the parts rise from the chamber one after another; going: the card falls back and fades */
 .mmenu.in .mm-brand > *, .mmenu.in .mm-btns .btn { animation: mmIn 0.6s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 70ms + 120ms); }
@@ -575,8 +578,8 @@ body.mo .ddpop.out { animation: ddOut 0.1s ease-in both; pointer-events: none; }
 .mm-mode { display: grid; gap: 4px; align-content: start; text-align: left; padding: 8px 8px 14px; border-radius: 14px; color: #eef3f8; font: inherit;
   background: rgba(20, 30, 42, 0.72); border: 1px solid rgba(160, 190, 220, 0.25); backdrop-filter: blur(4px);
   transform: translateZ(40px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4); transition: transform 0.18s ease, border-color 0.18s, box-shadow 0.18s; }
-.mm-mode:hover, .mm-mode:focus-visible { transform: translateZ(62px) translateY(-4px); border-color: var(--accent); box-shadow: 0 18px 38px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--accent), 0 0 26px rgba(90, 150, 255, 0.35); outline: none; }
-.mm-mode:active { transform: translateZ(34px) scale(0.985); transition-duration: 0.06s; }
+.mm-mode:hover, .mm-mode:focus-visible { border-color: var(--accent); box-shadow: 0 18px 38px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--accent), 0 0 26px rgba(90, 150, 255, 0.35); outline: none; }
+.mm-mode:active { filter: brightness(0.9); transition-duration: 0.06s; }
 .mm-shot { display: block; aspect-ratio: 16 / 9; border-radius: 9px; overflow: hidden; margin-bottom: 8px; background: var(--ch-bg); border: 1px solid rgba(160, 190, 220, 0.18); }
 .mm-shot[hidden] { display: none; }
 .mm-shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -588,7 +591,7 @@ body.mo .ddpop.out { animation: ddOut 0.1s ease-in both; pointer-events: none; }
 .mm-row .btn[hidden] { display: none; }
 .mm-row .btn:hover, .mm-choose > .btn:hover, .mm-choose > .btn:focus-visible { transform: translateZ(50px); border-color: var(--accent); }
 .mm-btns .btn.mm-back { justify-self: start; padding: 4px 10px; font-size: 12.5px; transform: translateZ(24px); box-shadow: none; }
-.mm-btns .btn.mm-back:hover, .mm-btns .btn.mm-back:focus-visible { transform: translateZ(30px) translateX(-3px); }
+
 .mm-set3 { display: grid; gap: 8px; }
 #mmBtns3 .mm-note3d { color: rgba(238, 243, 248, 0.62); font-size: 12px; margin: 2px 0 0; transform: translateZ(20px); }
 #mmTag .pv { margin-left: 4px; }
@@ -738,7 +741,8 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 /* Settings: two panes in one window (asked for by the user, from a sketch): on the left a preview of the setting under
    the pointer (a picture from the game and what it does), on the right the settings in a box of their own, scrolling
    under their tabs. Narrow windows stack the preview, smaller, above the box. */
-.sdialog { width: min(1010px, 100%); height: min(800px, 100%); gap: 12px; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.sdialog { width: min(560px, 100%); gap: 12px; } /* (the smaller dialogs: gallery, share code, my experiments, ask for a setup; 1.23.2: 1.23 gave them Settings' fixed 800 px height with its two rows, so their few rows were stretched over the whole window) */
+#setModal > .sdialog { width: min(1010px, 100%); height: min(800px, 100%); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
 .sbody { display: grid; grid-template-columns: minmax(240px, 310px) minmax(0, 1fr); gap: 16px; min-height: 0; }
 .sprev { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 14px; min-height: 0; align-content: start; }
 .sprev-fig { position: relative; margin: 0; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; display: grid; place-items: center;
@@ -771,7 +775,7 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .sbox .spane > .srow, .sbox .spane > label.check { margin-inline: -8px; padding: 3px 8px; border-radius: 8px; transition: background 0.12s; }
 .sbox .spane > .sprev-on { background: var(--accent-soft); }
 @media (max-width: 760px), (max-height: 560px) {
-  .sdialog { height: 100%; }
+  #setModal > .sdialog { height: 100%; }
   .sbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
   .sprev { grid-template-columns: 132px minmax(0, 1fr); grid-template-rows: none; gap: 12px; height: 92px; align-items: start; }
   .sprev-txt { height: 100%; }
