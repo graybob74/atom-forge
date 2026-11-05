@@ -231,7 +231,7 @@ engine stores and visits particles.
     twofold shape. The flat game unchanged (2-D has no twist). Physics in 3-D: barriers against the measured ones,
     butane's anti/gauche populations at 300 K, insulated drift, forces against the slope, cost, the 3-D tiny objects
     (polyethylene) still whole; for the owner's OK.
-  - Continuous bond orders in 3-D in WebAssembly (left from 1.25): the 3-D angle term, its targets and roles, the
+  - Done in 1.26 (branch v134, the section "1.26: WebAssembly speed-ups"). Continuous bond orders in 3-D in WebAssembly (left from 1.25): the 3-D angle term, its targets and roles, the
     torsions and the z arrays in kernel/src/bo.rs (wasm.yml builds it on a working branch), checked natively with a 3-D
     dump; liquid water in 3-D with bond orders costs ×22 a simulated ps on the JavaScript pass.
   For 1.26 (the owner, after 1.24.0; not built yet):
@@ -259,7 +259,7 @@ engine stores and visits particles.
     polarizability that differs by direction for induced charges.
   - Also left from 1.25: the collider in 3-D (the 1.25 section: ring zones, radiation flight in the z = 0 plane, 3-D
     jet axes, 3-D collider setups; several sessions), the Experimental intranuclear cascade in 3-D, and continuous bond
-    orders in 3-D in WebAssembly (above).
+    orders in 3-D in WebAssembly (above; done in 1.26).
   Bugs on record (found while building 1.23.2–1.25; not fixed yet, for a bug-fix session; the owner: "keep these bugs
   on record"):
   - Flat copper with the normal pair model turns itself into ions: 120 of 127 atoms of a flat Cu lump within 2 ps at
@@ -285,7 +285,12 @@ engine stores and visits particles.
   - K⁻ absorption keeps momentum only to 0.002 (2-D and 3-D).
   - 3-D: ionized water recaptures its free electrons within about 30 steps (40 ionized molecules); flat water keeps
     all 40.
-  - 3-D: quantum nuclei with forces on every bead cost ×17–48 (×3–10 flat); for the speed work.
+  - 3-D: quantum nuclei with forces on every bead cost ×17–48 (×3–10 flat); for the speed work. Measured in 1.26 (v134):
+    most of the difference is the neighbour list made again for every bead (each bead's positions move the hydrogens
+    past the list's half skin), and in the 3-D setups' small boxes (two cells a side) that walk checks every pair: 62% of
+    a step at 8 beads on 1.25, 48% with the walk in WebAssembly (1.26; ×1.3 a step). A list kept per bead (each bead's
+    own, valid for several steps as a centroid's is) would take most of it away, but changes the order of the pairs
+    (rounding, and bead 0's event order): left for the owner, written in the 1.26 section.
   - Settings: the flat bond-order cost tag says ×8–15, liquid water measured ×5.4–5.8 (1.25).
   - Test: t_features' 0.95 CO block (six CO among O₂ keep triple) follows the page's random stream (4 of 6 once).
   Model limits written down, not bugs: GFN1-xTB keeps hexazine whole (its own 0.53 eV barrier, 1.67 eV release); the

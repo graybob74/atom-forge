@@ -54,7 +54,7 @@ PARTS.settings3d = async (page, check, say, openPage) => {
   check(d2.mode === '2-D game' && d3.mode === '3-D lab',
     `1.25 Settings by mode: the title says which (${d2.mode} / ${d3.mode})`, '1.25 settings3d mode tag: ' + JSON.stringify([d2.mode, d3.mode]));
   const tagDiff = ['segBo', 'segRc', 'segPi', 'segQeq', 'segDtMax'].filter(id => d2.tags[id] !== d3.tags[id]);
-  check(tagDiff.length === 5 && /×18/.test(d3.tags.segBo) && /×8–15/.test(d2.tags.segBo) && /×7–17/.test(d3.tags.segRc),
+  check(tagDiff.length === 5 && /×(18|7–14)/.test(d3.tags.segBo) && /×8–15/.test(d2.tags.segBo) && /×7–17/.test(d3.tags.segRc),
     `1.25 Settings by mode: the cost tags are this mode's: bond orders ${d2.tags.segBo} / ${d3.tags.segBo}, force reach ${d2.tags.segRc} / ${d3.tags.segRc}, quantum nuclei ${d2.tags.segPi} / ${d3.tags.segPi}`,
     '1.25 settings3d tags: ' + JSON.stringify({ d2: d2.tags, d3: d3.tags }));
   check(/twist/.test(d3.desc.segBo) && !/twist/.test(d2.desc.segBo) && /not drawn/.test(d3.desc.segPi) && /camera/.test(d3.desc.segWheel) && /3-D lab/.test(d3.desc.exp) && d2.desc.exp !== d3.desc.exp
@@ -74,7 +74,7 @@ PARTS.settings3d = async (page, check, say, openPage) => {
     `1.25 Settings by mode: in 3-D the ${r.k3.length} settings with a 3-D picture show it (${want3.length} rows and choices; enlarged: ${d3.big}), the rest the flat one marked "Picture from the flat game" (${flat3.length}, e.g. quantum nuclei); 3-D pictures ${r.kb3} KB`,
     '1.25 settings3d 3-D pictures: ' + JSON.stringify({ k3: r.k3, wrong3, big: d3.big, orphans, flat3 }));
   check(r.live.open && r.live.mode === '3-D lab' && r.live.paneChanged && r.live.tagsChanged && /@3d$/.test(r.live.pic)
-    && r.menu3.d3 && r.menu3.mode === '3-D lab' && /×18/.test(r.menu3.bo) && !r.menu2.d3 && r.menu2.mode === '2-D game' && /×8–15/.test(r.menu2.bo),
+    && r.menu3.d3 && r.menu3.mode === '3-D lab' && /×(18|7–14)/.test(r.menu3.bo) /* (1.26: the 3-D tag ×7–14 with the WebAssembly pass) */ && !r.menu2.d3 && r.menu2.mode === '2-D game' && /×8–15/.test(r.menu2.bo),
     '1.25 Settings by mode: it switches with the mode without a reload (a 3-D setup chosen with Settings open; main menu → 3-D → Settings, and back to 2-D → Settings)',
     '1.25 settings3d switching: ' + JSON.stringify({ live: r.live, menu3: r.menu3, menu2: r.menu2 }));
   // narrow: 390 px wide, both modes: the notes of the other mode are not shown in the list, and nothing runs off the edge
