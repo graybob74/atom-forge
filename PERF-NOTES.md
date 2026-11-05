@@ -199,6 +199,13 @@ engine stores and visits particles.
     for, with a 2-D / 3-D drop-down when building one with Claude.
   - Remove the "3-D PREVIEW · Leave" button on the 3-D lab's bar (the user: "if i want to leave i go to the main
     menu"); keep the Preview tag.
+  - Fast particles leave the box in 3-D too (the user: "make sure that fast particles still leave the box in 3d").
+    From the code (not yet measured): in 2-D a closed box's walls stop what reaches them in radiation flight (charged
+    particles past their radiation threshold, fast neutrons by the Container setting: wallStops, neutronLeaves) and
+    it leaves, its energy counted as escaped; recoiling atoms are stopped and set back at the wall's temperature. In 3-D
+    there is no radiation flight yet (fast is cleared, 3542) and walls3 bounces everything back except antimatter, so
+    a 1 MeV proton or a fission neutron would stay in the box. To do: the same rules in walls3 by speed (KE past
+    radThreshold), measured with a proton, an α and a fast neutron; energy booked as escaped (t_energy).
   For 1.24:
   - The rest of the Experimental settings in 3-D: induced charges, quantum nuclei, continuous and quantum bond orders,
     electrons as waves, the ultra-realistic mode (today flat only, set3dNote). Physics in 3-D; needs his OK as each
