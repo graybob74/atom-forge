@@ -108,6 +108,22 @@ PARTS.kStop = async (page, check, say) => {
   check(r.flat.n === 12 && r.d3.n === 12 && r.flat.worst < 1e-9 && r.d3.worst < 1e-9 && r.flat.books < 1e-3 && r.d3.books < 1e-3, `bug fix 15: K⁻ absorbed on carbon keeps momentum to ${r.flat.worst} (flat), ${r.d3.worst} MeV/c (3-D), books to ${r.flat.books}, ${r.d3.books} eV`, 'bugfix kStop: ' + JSON.stringify(r));
 };
 
+/* 13. Muonium formation pays its potential energy: the muonium atom is made clear of the atoms (muClear), not on top of
+   the one the muon took the electron from. 3-D water, a μ⁺ stopping 0.67 Å from an oxygen: the books moved by up to
+   17.7 eV at the formation before; now exact. */
+PARTS.muonium = async (page, check, say) => {
+  const one = (d3) => { let worst = 0, n = 0;
+    for (let s = 1; s <= 20; s++) { const X = fresh(s), W = X.W;
+      if (d3) { X.PRESETS.empty.build(); X.setBox(24, 24); X.world3d(24); W.gamma = 0; } else X.baseWorld(30, 24, 300, 0);
+      W.decayOn = false; for (let i = 0; i < 20; i++) X.addMolecule('H2O', -9 + (i % 5) * 4.5, -8 + Math.floor(i / 5) * 4.5, i, 300, d3 ? ((i % 3) - 1) * 4 : 0);
+      X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const O = W.parts.find(p => p.Z === 8), o = X.addExo('mu+', O.x + 0.6, O.y + 0.3, 1000, 1, 0, undefined, O.z || 0, 0);
+      const E0 = books(X); if (X.muoniumForm(o)) { n++; worst = Math.max(worst, Math.abs(books(X) - E0)); } }
+    return { n, worst: +worst.toFixed(4) }; };
+  const r = { flat: one(false), d3: one(true) };
+  check(r.flat.n >= 8 && r.d3.n >= 8 && r.flat.worst < 0.01 && r.d3.worst < 0.01, `bug fix 13: muonium formed beside oxygen pays its potential energy: books to ${r.flat.worst} eV (flat, ${r.flat.n} formed), ${r.d3.worst} eV (3-D, ${r.d3.n})`, 'bugfix muonium: ' + JSON.stringify(r));
+};
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {

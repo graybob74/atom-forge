@@ -280,7 +280,7 @@ engine stores and visits particles.
   - [fixed after 1.25] Flat game: hardSphere turns a pair by π − 2·acos(b/R), inverted (a head-on hit passes straight through, a grazing
     one bounces back); the 3-D version (1.25) uses the right angle.
   - [fixed after 1.25] exoElastic measures the whole box's energy on every pass (slow; 3-D's elastic hits booked from the recoil in 1.25).
-  - Muonium formation misses up to tens of eV (2-D and 3-D: the muon stopped without paying its potential energy).
+  - [fixed after 1.25] Muonium formation misses up to tens of eV (2-D and 3-D: the muon stopped without paying its potential energy).
   - 3-D: MeV electrons and positrons are stepped faster than light (−367 eV over 150 γ rays of 20 MeV into lead).
   - [fixed after 1.25] K⁻ absorption keeps momentum only to 0.002 (2-D and 3-D).
   - 3-D: ionized water recaptures its free electrons within about 30 steps (40 ionized molecules); flat water keeps
@@ -940,6 +940,16 @@ books hashed apart).
   the momentum they had riding on the atom. K⁻ (800 eV) on a moving carbon atom, 30 seeds: |Σp out − p in| up to
   0.90 MeV/c before, 6·10⁻¹⁴ (flat) and 9·10⁻¹⁴ MeV/c (3-D) after; the books exact both times (8·10⁻⁶ eV).
   Fingerprints: hyperfactory changes (its kaons are absorbed), nothing else. Check: f_bug125 "kStop".
+- 13. Muonium formation: the muonium atom was made where the muon stopped, beside (often inside) the atom it took the
+  electron from, and when its potential energy there was more than the event could release (the γ ray cannot carry a
+  negative energy) the rest was made from nothing. Now muClear moves the muon first (an exo, with no potential energy
+  in the books) to the nearest spot where a hydrogen-sized atom sits clear of every atom (85% of the contact distance,
+  as separate() keeps fragments). μ⁺ at 1 keV stopping 0.67 Å from an oxygen in water, 20 seeds: 3-D books moved by up
+  to 17.7 eV (mean 5.1) at the formation before, 0.000 eV after; flat 0 before and after (there the new muonium atom
+  flies fast at first and joins the stepped atoms through switchMode, which pays). Over 300 steps after it, 3-D 0.7 eV
+  worst. Found, not changed: a light atom flying fast in the flat game (muonium stays in flight down to 18 eV) jumps
+  the books by ±1–12 eV in pairs as it passes molecules (mean −0.04 eV over 12 runs). Fingerprints unchanged. Check:
+  f_bug125 "muonium".
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

@@ -547,6 +547,7 @@ function muoniumForm(o) {
   o.KE -= give; exoSpeed(o);
   const el = speciesLabel(tg), e = ejectElectron(tg, 0.05);
   if (!e) { o.KE += give; exoSpeed(o); return false; }
+  muClear(o); // (bug fix 13 after 1.25: where the muonium atom will be, clear of the atoms: put where the muon stopped, beside the atom it robbed, its potential energy there (tens of eV) was more than the event could pay)
   const Pt = add4(exoP4(o), p4of(e)), M = mass4(Pt), vs = phaseSpace(M, [XP.Mu.m, 0]);
   if (!vs) return false;
   const bx = Pt[1] / Pt[0], by = Pt[2] / Pt[0], bz = (Pt[3] || 0) / Pt[0];
@@ -554,6 +555,22 @@ function muoniumForm(o) {
   return true;
 }
 
+/* The nearest spot to the muon at which a hydrogen-sized atom sits clear of every atom (85% of their contact distance,
+   as separate() keeps fragments): the muon (an exo, with no potential energy in the books) is moved there before the
+   muonium atom is made in its place. */
+function muClear(o) {
+  const rH = 0.6, need = (p) => (p.k !== NUC ? 0 : p.ne > 0 ? 0.85 * (rH + 0.5 * p.ljR) : 0.6);
+  const ok = (x, y, z) => { let fine = true; nearby(x, y, 4, (p, dx, dy, r2) => { if (p.dead || p.k !== NUC || p.Z === 0) return; const n = need(p); if (r2 < n * n) { fine = false; return false; } }, z); return fine; };
+  const z0 = o.z || 0;
+  if (ok(o.x, o.y, z0)) return;
+  const hw = W.box.w / 2 - 0.5, hh = W.box.h / 2 - 0.5, hd = W.d3 ? W.box.d / 2 - 0.5 : 0;
+  for (let k = 1; k < 1500; k++) {
+    const r = 0.1 * Math.cbrt(k) * (W.d3 ? 3 : 2), th = k * 2.39996, c = W.d3 ? 1 - 2 * ((k * 0.618034) % 1) : 0, sn = Math.sqrt(1 - c * c);
+    const x = o.x + r * sn * Math.cos(th), y = o.y + r * sn * Math.sin(th), z = z0 + r * c;
+    if (Math.abs(x) > hw || Math.abs(y) > hh || (W.d3 && Math.abs(z) > hd)) continue;
+    if (ok(x, y, z)) { o.x = x; o.y = y; if (W.d3) o.z = z; return; }
+  }
+}
 /* Muonium as an atom (1.12). Muonium is a hydrogen atom whose nucleus is a μ⁺: Bohr's radius and 13.5 eV binding, as H
    (the reduced mass differs by 0.4%), but 0.1134 u, a ninth of H's mass. It was an exo flying on a straight line, so it
    passed through atoms; now it is an H atom in MD with p.mu set: its mass is the muon's (refresh), it is named Mu, and it
