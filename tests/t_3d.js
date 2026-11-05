@@ -371,6 +371,22 @@ async function menu3d() {
   const ld = await page.evaluate(() => { loadPreset('mol3d'); loadPreset('empty'); return W.d3; });
   check(ld === false, 'choosing another setup makes the world flat again');
 
+  // 1.23.1+: ionic contacts and hydrogen bonds hidden behind nearer atoms (they were drawn over every atom): an ion pair
+  // with an argon atom in front of part of its contact; no drawn point of the line lies on the argon or on either
+  // ion (their balls are in front of the line there), and the line still shows between them
+  const occ = await page.evaluate(() => {
+    loadPreset('d3empty'); setRunning(false);
+    // (the view square to the pair: the line keeps one depth, so wherever it crosses an ion's disc it is inside the ball)
+    const na = addAtom('Na', -1.7, 0, { charge: 1, z: 0, T: 0 }), cl = addAtom('Cl', 1.7, 0, { charge: -1, z: 0, T: 0 }), ar = addAtom('Ar', 0, 0.45, { z: 3, T: 0 });
+    Object.assign(R.cam3, { tx: 0, ty: 0, tz: 0, yaw: 0, pitch: 0, dist: 12 }); cam3Update();
+    R.view.ionic = true; render(W.rt);
+    const pts = [], rec = { save() {}, restore() {}, beginPath() {}, stroke() {}, setLineDash() {}, moveTo(x, y) { pts.push([x, y]); }, lineTo(x, y) { pts.push([x, y]); } };
+    _occ3.built = false; drawIonic3(rec);
+    const V = _pv, on = (p) => pts.filter(([x, y]) => Math.hypot(x - V[4 * p.i], y - V[4 * p.i + 1]) < 0.95 * V[4 * p.i + 3]).length;
+    return { ionic: [na.ionic, cl.ionic], pts: pts.length, onNa: on(na), onCl: on(cl), onAr: on(ar), rAr: +V[4 * ar.i + 3].toFixed(1) };
+  });
+  check(occ.pts > 4 && occ.onNa === 0 && occ.onCl === 0 && occ.onAr === 0, `3-D ionic contact drawn only where no ball is in front (${occ.pts} points; on Na⁺ ${occ.onNa}, Cl⁻ ${occ.onCl}, the argon in front ${occ.onAr})`, occ);
+
   const errs = errors.filter(e => !/warning/.test(e));
   check(errs.length === 0, 'no page errors', errs.slice(0, 3));
   await browser.close();

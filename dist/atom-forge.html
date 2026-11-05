@@ -24430,6 +24430,7 @@ function render3d(rt) {
     ctx.restore();
     R.ctx = ctx = R.cv.getContext('2d'); ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, R.w, R.h);
     drawBox3(ctx, true);
+    _occ3.vis = vis; _occ3.built = false;
     drawUnder3(ctx, rt);
     drawLabels3(ctx, vis);
   } else {
@@ -24472,6 +24473,7 @@ function render3d(rt) {
       if (p.k === NUC && p.ne > 0) labelOne3(ctx, p, x, y, r, col);
     }
     drawBox3(ctx, true);
+    _occ3.vis = vis; _occ3.built = false;
     drawUnder3(ctx, rt);
   }
   drawMeasure3(ctx);
@@ -24615,7 +24617,6 @@ function drawHBonds3(ctx) {
     else if ((p.Z === 7 || p.Z === 8 || p.Z === 9) && p.ne > 0 && p.lp > 0) { const k = key(Math.floor(p.x / cs) + 2048, Math.floor(p.y / cs) + 2048, Math.floor(p.z / cs) + 2048); let l = grid.get(k); if (!l) grid.set(k, l = []); l.push(p); }
   }
   if (!H.length || !grid.size) return;
-  const A = _p3c, B = _p3d;
   ctx.save(); ctx.strokeStyle = 'rgba(140,200,255,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.beginPath();
   for (const h of H) {
     const d = h.bonds[0] ? other(h.bonds[0], h) : null, ci = Math.floor(h.x / cs) + 2048, cj = Math.floor(h.y / cs) + 2048, ck = Math.floor(h.z / cs) + 2048;
@@ -24625,11 +24626,49 @@ function drawHBonds3(ctx) {
         if (a === d) continue;
         const dx = a.x - h.x, dy = a.y - h.y, dz = a.z - h.z, r2 = dx * dx + dy * dy + dz * dz;
         if (r2 < 1.5 * 1.5 || r2 > 2.3 * 2.3) continue;
-        if (seg3(h.x, h.y, h.z, a.x, a.y, a.z, A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+        occLine3(ctx, h.x, h.y, h.z, a.x, a.y, a.z);
       }
     }
   }
   ctx.stroke(); ctx.restore();
+}
+/* Lines drawn on the overlay after the atoms (hydrogen bonds, ionic contacts) hidden where a ball is in front of them
+   (1.23.1+: they were drawn over every atom). The line is followed in pieces about 2 px long; a piece shows where no
+   ball's front surface is nearer than the line there (the ends lie inside their own atoms, so they start at the balls'
+   edges as a bond does). The balls drawn this frame are binned on the screen once, when a line first asks. */
+const _occ3 = { vis: null, built: false, cell: 32, map: new Map() }, _p3e = [0, 0, 0];
+function occBuild3() {
+  const o = _occ3, V = _pv, cs = o.cell; o.map.clear(); o.built = true;
+  if (!o.vis) return;
+  for (const p of o.vis) {
+    const b = 4 * p.i, r = V[b + 3]; if (r < 0) continue;
+    const i0 = Math.floor((V[b] - r) / cs), i1 = Math.floor((V[b] + r) / cs), j0 = Math.floor((V[b + 1] - r) / cs), j1 = Math.floor((V[b + 1] + r) / cs);
+    if ((i1 - i0 + 1) * (j1 - j0 + 1) > 4096) continue; // (a ball filling the screen: the camera is inside the crowd)
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = i * 65536 + j; let l = o.map.get(k); if (!l) o.map.set(k, l = []); l.push(b); }
+  }
+}
+function occHidden3(x, y, d) {
+  const o = _occ3, l = o.map.get(Math.floor(x / o.cell) * 65536 + Math.floor(y / o.cell)); if (!l) return false;
+  const V = _pv, F = C3.F;
+  for (const b of l) {
+    const r = V[b + 3], dx = x - V[b], dy = y - V[b + 1], q = (dx * dx + dy * dy) / (r * r);
+    if (q >= 1) continue;
+    if (d > V[b + 2] - (r * V[b + 2] / F) * Math.sqrt(1 - q)) return true; // (the sphere's front surface there, in Å of depth)
+  }
+  return false;
+}
+/* Adds the visible pieces of the line a–b to the current path. */
+function occLine3(ctx, ax, ay, az, bx, by, bz) {
+  if (!_occ3.built) occBuild3();
+  const A = _p3c, B = _p3d, P = _p3e;
+  if (!seg3(ax, ay, az, bx, by, bz, A, B)) return;
+  const n = Math.min(400, Math.max(2, Math.ceil(Math.hypot(B[0] - A[0], B[1] - A[1]) / 2)));
+  let open = false;
+  for (let k = 0; k <= n; k++) {
+    const t = k / n;
+    const ok = proj3(ax + (bx - ax) * t, ay + (by - ay) * t, az + (bz - az) * t, P) && !occHidden3(P[0], P[1], P[2]);
+    if (ok) { if (open) ctx.lineTo(P[0], P[1]); else { ctx.moveTo(P[0], P[1]); open = true; } } else open = false;
+  }
 }
 /* Ionic contacts (as drawIonic): a cation and an anion (lone ions or charged molecules) whose closest atoms touch. */
 function drawIonic3(ctx) {
@@ -24657,11 +24696,9 @@ function drawIonic3(ctx) {
     }
   }
   if (!best.size) return;
-  const P = _p3c, Q = _p3d;
   ctx.save(); ctx.strokeStyle = R.cvd ? 'rgba(240,228,66,0.6)' : 'rgba(255,196,120,0.6)'; ctx.setLineDash([1.5, 3.5]); ctx.lineCap = 'round';
   for (const { a, b, qq } of best.values()) {
-    if (!seg3(a.x, a.y, a.z, b.x, b.y, b.z, P, Q)) continue;
-    ctx.lineWidth = clamp(0.8 + 0.35 * Math.sqrt(qq), 1, 2.6); ctx.beginPath(); ctx.moveTo(P[0], P[1]); ctx.lineTo(Q[0], Q[1]); ctx.stroke();
+    ctx.lineWidth = clamp(0.8 + 0.35 * Math.sqrt(qq), 1, 2.6); ctx.beginPath(); occLine3(ctx, a.x, a.y, a.z, b.x, b.y, b.z); ctx.stroke();
   }
   ctx.restore();
 }

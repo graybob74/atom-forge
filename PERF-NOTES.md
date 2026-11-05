@@ -192,6 +192,7 @@ engine stores and visits particles.
   - 3-D: WASD movement, a camera that flies through the world so every part can be seen (with Q/E or Space/Shift for
     up and down, speed by the zoom).
   - Move Ultra-realistic mode into the Experimental tab (it then goes back to normal at every start, 1.23.1).
+  - 3-D tiny objects (the Objects library: the flat game's tiny objects as 3-D builds in the 3-D lab).
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
@@ -220,6 +221,12 @@ engine stores and visits particles.
   Quantum, the bonds from the electrons), bead forces (on Every bead, the exact path integral) and free electrons (on
   Wave packets). Added to `REAL` in ui.js; t_settings checks the tag sits on those three and on 32 beads (before: no
   tag on any choice of the three rows).
+- 3-D: ionic contacts and hydrogen bonds were drawn over every atom (the user: "ionic bond lines are drawn in front
+  of all atoms"): they go on the overlay canvas after the balls. Now each line is followed in pieces about 2 px long
+  and a piece shows only where no ball's front surface is nearer (`occLine3`; the balls binned on the screen once a
+  frame, when a line first asks), so the lines start at the ions' edges and pass behind atoms in front of them.
+  t_3d: Na⁺–Cl⁻ with an argon in front of part of the contact: 28 points drawn, none on either ion or on the argon
+  (before: the line began at each ion's centre and crossed the argon).
 
 ## 1.23.1: freezes fixed and reported, a desktop watchdog, Experimental settings reset at start, lit 3-D atoms
 
