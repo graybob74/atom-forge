@@ -331,18 +331,19 @@ const { openPage } = require('./browser');
       const out = { menu: !$('mainMenu').hidden && UI.menu && UI.running, hidden: getComputedStyle(document.querySelector('.panel')).display === 'none' };
       { const cx0 = R.cx; $('mainMenu').dispatchEvent(new PointerEvent('pointermove', { clientX: 5, clientY: 5, bubbles: true })); for (let i = 0; i < 60; i++) mmTick(1 / 60);
         const tf = getComputedStyle(document.querySelector('.mm-card')).transform; out.depth = MMP.still || (R.cx !== cx0 && +$('mainMenu').style.getPropertyValue('--mx') < -0.5 && tf.startsWith('matrix3d')); }
+      out.choose = !$('mmChoose').hidden; document.querySelector('[data-mm="mode2d"]').click(); out.menu2d = !$('mmBtns').hidden; // (1.25: the 2-D / 3-D choice first)
       document.querySelector('[data-mm="setups"]').click(); out.list = $('mmList').querySelectorAll('button').length;
       document.querySelector('[data-mmp="water"]').click(); await wait(300);
       out.water = !UI.menu && UI.preset === 'water' && getComputedStyle(document.querySelector('.panel')).display !== 'none';
       placeSpec({ kind: 'atom', Z: 11, A: 23 }, 0, 0, 1); const n = W.parts.filter(p => !p.dead).length;
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       await wait(100); out.esc = !$('escModal').hidden && !UI.running;
-      document.querySelector('[data-esc="menu"]').click(); await wait(300); out.back = UI.menu && !$('mmContinue').hidden;
-      document.querySelector('[data-mm="continue"]').click(); await wait(300);
+      document.querySelector('[data-esc="menu"]').click(); await wait(300); out.back = UI.menu && !$('mmCont0').hidden && !$('mmChoose').hidden;
+      document.querySelector('#mmCont0').click(); await wait(300);
       out.cont = !UI.menu && W.parts.filter(p => !p.dead).length === n && UI.preset === 'water';
       return out;
     });
-    check(r19.menu && r19.depth && r19.hidden && r19.list > 20 && r19.water && r19.esc && r19.back && r19.cont,
+    check(r19.menu && r19.depth && r19.hidden && r19.choose && r19.menu2d && r19.list > 20 && r19.water && r19.esc && r19.back && r19.cont,
       `menus: the main menu at start over a running setup, its layers following the mouse in depth; ${r19.list} setups to pick from; Esc pauses with its menu; Main menu, then Continue, puts the same ${'chamber'} back`, 'menus: ' + JSON.stringify(r19));
     if (m.errors.length) { fails++; say('FAIL menu page errors:', m.errors.join(' | ').slice(0, 600)); }
     await m.browser.close();

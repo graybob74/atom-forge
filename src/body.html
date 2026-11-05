@@ -538,7 +538,13 @@
 <div class="modal" id="setModal" hidden>
   <div class="dialog sdialog" role="dialog" aria-modal="true" aria-labelledby="setTitle">
     <header><h2 id="setTitle">Settings</h2><button class="btn small" id="setClose">Close</button></header>
-    <div class="stabs" role="tablist" aria-label="Settings categories"><button role="tab" data-stab="perf" aria-selected="true">Performance</button><button role="tab" data-stab="gfx" aria-selected="false">Graphics</button><button role="tab" data-stab="disp" aria-selected="false">Display</button><button role="tab" data-stab="ctl" aria-selected="false">Controls</button><button role="tab" data-stab="gen" aria-selected="false">General</button><button role="tab" data-stab="ai" aria-selected="false">Claude</button><button role="tab" data-stab="exp" aria-selected="false">Experimental</button></div>
+    <div class="sbody">
+    <aside class="sprev" id="setPrev" aria-label="About the setting under the pointer">
+      <figure class="sprev-fig" id="setPrevFig"><img id="setPrevImg" alt="" hidden><svg class="sprev-ph" id="setPrevPh" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><ellipse cx="16" cy="16" rx="13" ry="5.2"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(60 16 16)"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(-60 16 16)"/></g><circle cx="16" cy="16" r="1.8" fill="currentColor"/></svg></figure>
+      <div class="sprev-txt" aria-live="polite"><h3 id="setPrevT"></h3><div class="sprev-d" id="setPrevD"></div></div>
+    </aside>
+    <div class="sbox">
+    <div class="stabs" role="tablist" aria-label="Settings categories"><button role="tab" data-stab="perf" aria-selected="true">Performance</button><button role="tab" data-stab="gfx" aria-selected="false">Graphics</button><button role="tab" data-stab="disp" aria-selected="false">Display</button><button role="tab" data-stab="ctl" aria-selected="false">Controls</button><button role="tab" data-stab="gen" aria-selected="false">General</button><button role="tab" data-stab="d3" aria-selected="false">3-D</button><button role="tab" data-stab="ai" aria-selected="false">Claude</button><button role="tab" data-stab="exp" aria-selected="false">Experimental</button></div>
     <section class="sgroup spane" data-stab="perf">
       <label class="check sbig"><input type="checkbox" id="setPerf"> <span><b>Performance mode</b><small>Room for 12,000 particles instead of 4,000, drawn at standard resolution without glows. A fuller box still runs slower: every step has more to work out.</small></span></label>
       <div class="srow"><span>Particle limit</span><div class="seg" id="segMax" role="group" aria-label="Particle limit"><button data-v="2000">2,000</button><button data-v="4000">4,000</button><button data-v="8000">8,000</button><button data-v="12000">12,000</button><button data-v="20000">20,000</button></div></div>
@@ -648,11 +654,26 @@
       <h3>On hold: very large</h3>
       <p class="note"><b>Real 3-D</b>: estimated ×10–100. <b>Quantum chemistry for bonds</b>: estimated ×100–10,000.</p>
     </section>
+    <section class="sgroup spane" data-stab="d3" hidden>
+      <p class="note">These change how the 3-D lab looks and turns (main menu → 3-D). They apply in the 3-D mode only; the flat game is not affected.</p>
+      <div class="srow"><span>Field of view</span><div class="seg" id="segFov3" role="group" aria-label="Field of view"><button data-v="30" title="Narrow: less perspective, like a long lens">30°</button><button data-v="40">40°</button><button data-v="55">55°</button><button data-v="70" title="Wide: strong perspective, near atoms loom large">70°</button></div></div>
+      <div class="srow"><span>Projection</span><div class="seg" id="segProj3" role="group" aria-label="Projection"><button data-v="persp" title="Far things look smaller, as the eye sees them">Perspective</button><button data-v="ortho" title="Everything at its true size whatever its depth: parallel edges stay parallel">Orthographic</button></div></div>
+      <div class="srow"><span>Depth fog</span><div class="seg" id="segFog3" role="group" aria-label="Depth fog"><button data-v="off">Off</button><button data-v="low">Low</button><button data-v="normal">Normal</button><button data-v="high">High</button></div></div>
+      <div class="srow"><span>Box</span><div class="seg" id="segBox3" role="group" aria-label="How the box is drawn"><button data-v="grid" title="The twelve edges, and a faint grid on the far faces when the grid is on (Lab → View)">Edges and grid</button><button data-v="edges">Edges only</button><button data-v="off" title="No box drawn: the walls still work">Hidden</button></div></div>
+      <label class="check"><input type="checkbox" id="setAxes3"> Axis marker in the corner (which way x, y and z point)</label>
+      <div class="srow"><span>Labels</span><div class="seg" id="segLbl3" role="group" aria-label="Labels in 3-D"><button data-v="front" title="Only on atoms no nearer atom covers">Front atoms only</button><button data-v="all" title="On every atom big enough to carry one, hidden ones too">All atoms</button></div></div>
+      <h3>Turning the view</h3>
+      <div class="srow"><span>Orbit speed</span><div class="seg" id="segOrbit3" role="group" aria-label="Orbit speed"><button data-v="0.5">Slow</button><button data-v="1">Normal</button><button data-v="2">Fast</button></div></div>
+      <label class="check"><input type="checkbox" id="setOrbitInv"> Invert orbit: a drag moves the camera the other way</label>
+      <div class="srow"><span>Turntable</span><div class="seg" id="segSpin3" role="group" aria-label="Turntable"><button data-v="0">Off</button><button data-v="6" title="One turn a minute">Slow</button><button data-v="18" title="One turn in 20 seconds">Faster</button></div></div>
+    </section>
     <section class="sgroup spane" data-stab="ai" hidden>
       <div class="srow"><span>API key</span><input type="password" class="msearch skey" id="setApiKey" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" aria-label="Claude API key"></div>
       <div class="srow"><span>Model</span><input type="text" class="msearch skey" id="setApiModel" placeholder="claude-sonnet-5-5" autocomplete="off" spellcheck="false" aria-label="Claude model"></div>
       <p class="note" id="setApiNote">On claude.ai, Ask Claude and Identify molecules use your Claude account directly and need no key. Elsewhere (the desktop app, a saved copy of the page) paste an API key from console.anthropic.com: it stays in this browser's storage, is sent only to api.anthropic.com, and each request is billed to that account (a fraction of a cent).</p>
     </section>
+    </div>
+    </div>
   </div>
 </div>
 
@@ -731,18 +752,33 @@
   </div>
 </div>
 
-<div class="mmenu" id="mainMenu" hidden>
+<div class="mmenu" id="mainMenu" data-v="choose" hidden>
   <div class="mm-card">
-    <div class="mm-brand"><span class="mm-title">Atom Forge</span><span class="mm-ver" id="mmVer"></span><small>particles, atoms and molecules from real physics</small></div>
-    <div class="mm-btns" id="mmBtns">
+    <div class="mm-brand"><span class="mm-title">Atom Forge</span><span class="mm-ver" id="mmVer"></span><small id="mmTag">particles, atoms and molecules from real physics</small></div>
+    <div class="mm-choose" id="mmChoose">
+      <button class="btn primary mm-cont" data-mm="continue" id="mmCont0">Continue <small id="mmContWhere"></small></button>
+      <div class="mm-modes" role="group" aria-label="Choose 2-D or 3-D">
+        <button class="mm-mode" data-mm="mode2d" id="mmMode2d"><span class="mm-shot"><img id="mmShot2d" alt=""></span><span class="mm-mname">2-D</span><span class="mm-mline">The whole game in a flat chamber: chemistry, light, fields, nuclear and particle physics, chips.</span></button>
+        <button class="mm-mode" data-mm="mode3d" id="mmMode3d"><span class="mm-shot"><img id="mmShot3d" alt=""></span><span class="mm-mname">3-D <span class="pv">Preview</span></span><span class="mm-mline">Atoms and molecules in a cube you can turn: liquids, gases and reactions in depth.</span></button>
+      </div>
+      <div class="mm-row"><button class="btn" data-mm="settings">Settings</button><button class="btn" data-mm="help">Help</button><button class="btn danger" data-mm="quit" id="mmQuit0">Quit</button></div>
+    </div>
+    <div class="mm-btns" id="mmBtns" hidden>
+      <button class="btn small mm-back" data-mm="choose">← 2-D or 3-D</button>
       <button class="btn primary" data-mm="continue" id="mmContinue">Continue</button>
       <button class="btn" data-mm="empty">New empty chamber</button>
       <button class="btn" data-mm="setups">Experiments and challenges…</button>
-      <button class="btn" data-mm="lab3d" id="mm3d" title="The 3-D mode: molecules, liquids and gases in a cube you can turn">3-D lab… <span class="pv">Preview</span></button>
       <button class="btn" data-mm="gallery">Gallery</button>
       <button class="btn" data-mm="settings">Settings</button>
       <button class="btn" data-mm="help">Help</button>
       <button class="btn danger" data-mm="quit" id="mmQuit">Quit</button>
+    </div>
+    <div class="mm-btns" id="mmBtns3" hidden>
+      <button class="btn small mm-back" data-mm="choose">← 2-D or 3-D</button>
+      <button class="btn primary" data-mm="continue" id="mmContinue3">Continue</button>
+      <div class="mm-btns mm-set3" id="mmList3"></div>
+      <div class="mm-row"><button class="btn" data-mm="gallery">Gallery</button><button class="btn" data-mm="settings3">Settings</button><button class="btn" data-mm="help">Help</button></div>
+      <p class="mm-note3d">The 3-D mode is a preview: right-drag, Alt+drag or the arrow keys turn the view, the wheel zooms, 0 fits the box. Fields, magnets, light, nuclear physics and chips stay in the 2-D game for now.</p>
     </div>
     <div class="mm-setups" id="mmSetups" hidden><button class="btn small" data-mm="back">← Back</button><div class="mm-list" id="mmList"></div></div>
     <p class="mm-note" id="mmNote"></p>

@@ -17,7 +17,14 @@
    ========================================================================== */
 const CAM3 = { yaw: 0.6, pitch: 0.4, fov: 40 * Math.PI / 180 }; // the view a 3-D world starts with (and Fit goes back to)
 R.cam3 = { yaw: CAM3.yaw, pitch: CAM3.pitch, dist: 80, fov: CAM3.fov, tx: 0, ty: 0, tz: 0 };
-const C3 = { ex: 0, ey: 0, ez: 80, rx: 1, ry: 0, rz: 0, ux: 0, uy: 1, uz: 0, fx: 0, fy: 0, fz: -1, F: 500, hw: 0, hh: 0, near: 0.05, far: 200, fog0: 0, fog1: 1, fogK: 0.5, fogc: [6, 10, 16] };
+const C3 = { ex: 0, ey: 0, ez: 80, rx: 1, ry: 0, rz: 0, ux: 0, uy: 1, uz: 0, fx: 0, fy: 0, fz: -1, F: 500, D: 80, hw: 0, hh: 0, near: 0.05, far: 200, fog0: 0, fog1: 1, fogK: 0.5, fogc: [6, 10, 16] };
+/* Settings → 3-D (display and camera only; set by applySettings in ui.js): the field of view (degrees), the projection
+   (orthographic: the eye moved far back along the same line with a field of view of 1°, the distance scaled so that the
+   target plane keeps its size: sizes then change less than 1% across a 30 Å box, and every path that projects, picks
+   or draws in 3-D works unchanged), how strongly far things fade into the background, the box (edges and the far
+   faces' grid, edges only, none), the axis marker, and labels on the front atoms only or on all. */
+const V3 = { fov: 40, ortho: false, fog: 0.55, box: 'grid', axes: true, lbl: 'front' };
+const ORTHO_FOV = Math.PI / 180;
 const CAM3_PITCH = 1.55; // (just short of straight down or up: the basis needs a horizon)
 /* The camera of this frame, from R.cam3 and the view's size. Also sets R.s to the pixels per Å at the target's depth,
    for the code that sizes things by the zoom (the scale bar, pick margins, the tools' brushes). */
@@ -25,22 +32,24 @@ function cam3Update() {
   const c = R.cam3;
   if (!(c.pitch >= -CAM3_PITCH)) c.pitch = -CAM3_PITCH; else if (c.pitch > CAM3_PITCH) c.pitch = CAM3_PITCH;
   if (!(c.dist > 0)) c.dist = 80;
+  c.fov = V3.fov * Math.PI / 180;
+  const fe = V3.ortho ? ORTHO_FOV : c.fov, D = V3.ortho ? c.dist * Math.tan(c.fov / 2) / Math.tan(fe / 2) : c.dist; // (orthographic: the eye far back, D)
   const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch), cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
-  C3.ex = c.tx + c.dist * cp * sy; C3.ey = c.ty + c.dist * sp; C3.ez = c.tz + c.dist * cp * cy;
+  C3.ex = c.tx + D * cp * sy; C3.ey = c.ty + D * sp; C3.ez = c.tz + D * cp * cy; C3.D = D;
   C3.fx = -cp * sy; C3.fy = -sp; C3.fz = -cp * cy;
   C3.rx = cy; C3.ry = 0; C3.rz = -sy;
   C3.ux = -sy * sp; C3.uy = cp; C3.uz = -cy * sp;
-  C3.F = (R.h / 2) / Math.tan(c.fov / 2); C3.hw = R.w / 2; C3.hh = R.h / 2;
-  R.s = C3.F / c.dist;
+  C3.F = (R.h / 2) / Math.tan(fe / 2); C3.hw = R.w / 2; C3.hh = R.h / 2;
+  R.s = C3.F / D;
   const hx = W.box.w / 2, hy = W.box.h / 2, hz = (W.box.d || W.box.h) / 2;
   let z0 = Infinity, z1 = -Infinity;
   for (let k = 0; k < 8; k++) {
     const z = ((k & 1 ? hx : -hx) - C3.ex) * C3.fx + ((k & 2 ? hy : -hy) - C3.ey) * C3.fy + ((k & 4 ? hz : -hz) - C3.ez) * C3.fz;
     if (z < z0) z0 = z; if (z > z1) z1 = z;
   }
-  C3.near = Math.max(0.05, 0.005 * c.dist);
-  C3.far = Math.max(z1, c.dist) * 2 + 20; // (beyond it, depth is held at the far end: nothing is cut off)
-  C3.fog0 = Math.max(C3.near, z0); C3.fog1 = Math.max(C3.fog0 + 1, z1); C3.fogK = 0.55;
+  C3.near = Math.max(0.05, 0.005 * D);
+  C3.far = Math.max(z1, D) * 2 + 20; // (beyond it, depth is held at the far end: nothing is cut off)
+  C3.fog0 = Math.max(C3.near, z0); C3.fog1 = Math.max(C3.fog0 + 1, z1); C3.fogK = V3.fog;
   C3.fogc = hexc(CHAMBER.bg0);
 }
 /* A world point on the screen: o = [x, y (CSS px), view depth (Å)]; false when it is behind the camera. */
@@ -74,12 +83,12 @@ function ptr3(px, py) {
    the brush, radius R (inTool3 in the engine takes it). */
 function toolCone3(px, py, rad) {
   const r = ray3(px, py, [0, 0, 0]), L = Math.sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
-  return [C3.ex, C3.ey, C3.ez, r[0] / L, r[1] / L, r[2] / L, rad / (R.cam3.dist * L)]; // (the target plane is dist along the view, dist·L along this line)
+  return [C3.ex, C3.ey, C3.ez, r[0] / L, r[1] / L, r[2] / L, rad / (C3.D * L)]; // (the target plane is D along the view, D·L along this line)
 }
 /* The camera back to its starting angles, centred on the box and far enough off to see all of it. */
 function cam3Fit() {
   const c = R.cam3;
-  c.yaw = CAM3.yaw; c.pitch = CAM3.pitch; c.fov = CAM3.fov; c.tx = 0; c.ty = 0; c.tz = 0;
+  c.yaw = CAM3.yaw; c.pitch = CAM3.pitch; c.fov = V3.fov * Math.PI / 180; c.tx = 0; c.ty = 0; c.tz = 0;
   const rb = 0.5 * Math.hypot(W.box.w, W.box.h, W.box.d || W.box.h), aspect = R.w > 0 && R.h > 0 ? R.w / R.h : 1.5;
   const half = Math.min(c.fov / 2, Math.atan(Math.tan(c.fov / 2) * aspect));
   c.dist = rb / Math.sin(half) * 0.9;
@@ -87,7 +96,7 @@ function cam3Fit() {
 }
 function cam3Orbit(dpx, dpy) { const c = R.cam3; c.yaw -= dpx * 0.008; c.pitch = clamp(c.pitch + dpy * 0.008, -CAM3_PITCH, CAM3_PITCH); }
 function cam3Pan(dpx, dpy) {
-  const c = R.cam3, k = c.dist / (C3.F || 500);
+  const c = R.cam3, k = (C3.D || c.dist) / (C3.F || 500);
   c.tx += (-dpx * C3.rx + dpy * C3.ux) * k; c.ty += (-dpx * C3.ry + dpy * C3.uy) * k; c.tz += (-dpx * C3.rz + dpy * C3.uz) * k;
 }
 function cam3Zoom(f) { const c = R.cam3; if (f > 0) c.dist = clamp(c.dist / f, 0.5, 1e6); cam3Update(); }
@@ -127,8 +136,9 @@ function drawBox3(ctx, front) {
   const hx = W.box.w / 2, hy = W.box.h / 2, hz = W.box.d / 2, H = [hx, hy, hz], E = [C3.ex, C3.ey, C3.ez];
   const faces = (ax, s) => s * E[ax] > H[ax]; // (the face of axis ax on side s faces the camera)
   const A = _p3a, B = _p3b, P = [0, 0, 0], Q = [0, 0, 0];
+  if (V3.box === 'off') return; // (Settings → 3-D: no box drawn)
   ctx.save();
-  if (!front && R.view.grid) { // the grid on the far faces
+  if (!front && R.view.grid && V3.box === 'grid') { // the grid on the far faces
     let step = 10; while (step * R.s < 36) step *= 2; while (step * R.s > 160 && step > 0.5) step /= 2;
     ctx.strokeStyle = 'rgba(130,170,210,0.07)'; ctx.lineWidth = 1; ctx.beginPath();
     for (let ax = 0; ax < 3; ax++) for (const s of [-1, 1]) {
@@ -273,7 +283,7 @@ function render3d(rt) {
   drawEvents3(ctx, rt);
   drawMarks3(ctx);
   drawOverlay3(ctx);
-  drawAxes3(ctx);
+  if (V3.axes && !R.menu) drawAxes3(ctx); // (not behind the main menu)
   drawScaleBar();
   ctx.restore();
 }
@@ -299,7 +309,7 @@ function drawLabels3(ctx, vis) {
     const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2];
     const l = grid.get(Math.floor((y + 60) / CS) * gw + Math.floor((x + 60) / CS));
     let hidden = false;
-    if (l) for (const q of l) { if (q === p) continue; const c = 4 * q.i; if (V[c + 2] < z && Math.hypot(V[c] - x, V[c + 1] - y) < V[c + 3] * 0.8) { hidden = true; break; } }
+    if (l && V3.lbl !== 'all') for (const q of l) { if (q === p) continue; const c = 4 * q.i; if (V[c + 2] < z && Math.hypot(V[c] - x, V[c + 1] - y) < V[c + 3] * 0.8) { hidden = true; break; } }
     if (!hidden) labelOne3(ctx, p, x, y, V[b + 3], atomColor(p));
   }
 }
