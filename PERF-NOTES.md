@@ -248,7 +248,90 @@ engine stores and visits particles.
 
 ### 1.25: bond orders for metals
 
-(In progress: stage 1, the model in 2-D and 3-D, its setting and checks. Numbers below; melting and cost being measured.)
+Asked by the owner after 1.21 (the planned entry "Bond orders for metals"); a physics-model change for the owner to
+approve. Settings → Experimental → Metals: Pairs (normal) / Many-body. Off by default and at every start, like the
+rest of the tab; the flat game and the 3-D setups with it off are bit for bit the same (24 flat setups and the 11
+setups with metal atoms, 300–600 steps, seed 7; the six 3-D setups: identical hashes of positions, velocities and
+charges before and after).
+
+- **Its own switch, not a third "From the positions" choice**: the metals' cohesion is a separate term (the kernels'
+  metallic pair), not stored bonds, so it works under every bond-order choice, and in 3-D, where "From the
+  positions" is not yet; and it keeps bo.js untouched (a parallel branch rebuilds its 3-D pass).
+- **The model** (`src/bometal.js`, `MBO`): the second-moment tight-binding form (Finnis & Sinclair 1984; Cleri &
+  Rosato 1993; the square-root case of the embedded-atom method). Each member atom holds
+  Eᵢ = Σⱼ A·e^(−p(r/r₀ − 1)) − √ρᵢ, ρᵢ = Σⱼ ξ²·e^(−2q(r/r₀ − 1)): a core repulsion less the band energy, which grows as
+  the square root of the band's second moment. Neighbours count to 1.15·r₀ and fade out by 1.35·r₀ (quintic switch,
+  before a close-packed lattice's second shell at 1.41·r₀); the square root is rounded below ρ ≈ (0.02ξ)² so a lone
+  atom's force stays smooth. Unlike pairs (alloys): r₀, p, q averaged, A and ξ geometric means.
+- **The fit**, per metal, in closed form, on a close-packed crystal (12 neighbours): the vacancy energy over the
+  cohesive energy fixes q/p, the bulk modulus p·q, the cohesive energy ξ, equilibrium at the measured spacing A.
+  Data (`MB_DATA`): cohesive energies, nearest-neighbour distances, bulk moduli from Kittel's tables (heavy actinides
+  from sublimation enthalpies), vacancy energies from Ehrhart's (Landolt–Börnstein); 0.33·Ec where none is measured;
+  elements nothing measured (Fr, Rf on) take their homolog's. q/p is kept to 0.15–0.45 (Mg, Cr, Mo hit the lower end:
+  their measured vacancy energy, half the cohesive energy, is past what 12 nearest neighbours can give). The web was
+  not reachable from this session (proxy refused), so the tables are from those standard sources as recalled: worth a
+  check against the books before release. Cross-check against published fits (Cleri & Rosato's five-shell values):
+  Cu p 10.60 / q 2.45 (published 10.96 / 2.28), Au 10.98 / 3.90 (10.23 / 4.04), Pt 10.44 / 3.82 (10.61 / 4.00), Pb
+  10.61 / 3.37 (9.58 / 3.65), Ag 12.2 / 2.67 (10.9 / 3.14), Al 7.07 / 2.77 (8.61 / 2.52).
+- **Members**: neutral atoms setSize treats as metallic (a metal, no stored bonds; not a quantum-bonds member). Their
+  mD is 0 while it is on, so the kernels' metal pair (JavaScript, WebAssembly, workers, 2-D and 3-D) keeps only its
+  contact core and nothing in the kernels changed. Ions are not members: in the first build a flat Cu patch turned
+  itself into Cu⁺Cu⁻ pairs and heated to 6,000 K (an ion pair kept both the metal's bonding and the charges' pull, and
+  few-neighbour atoms sit at 2.2 Å, where the pull pays for the electron: 6.49 eV at 2.2 Å against IE − EA 6.49 eV).
+  An ion keeps the classic pair with other ions, and only the contact core with members (no image-charge pull).
+- **Energy books**: totalEnergy adds the pass's energy; localPE and regionE add `mbLocal(set)`: the set's members'
+  embedding, their neighbours' embedding less what it is without the set, and the repulsions touching the set; the
+  rest does not depend on the set's atoms, so a before/after difference is exact for any change to them (a move, an
+  ion made, an atom removed: 2e-10, 2e-10, 4e-15 eV against the total's change). Switching books the difference at the
+  same positions to the bath (Cu patch: −95 eV; total + bath kept exactly). evTransfer's quick estimate adds a lower
+  bound on what the transfer costs the metal (the leavers' own embedding less their repulsions; neighbours only lose
+  more), computed only when the estimate would pass anyway: without it nearly every pair of neighbours in a Cu lump was
+  sent to the exact trial and refused.
+- **Measured against reference** (3-D crystal values exact by construction; the checks recompute them):
+
+  | | model | measured |
+  |---|---|---|
+  | Cu fcc: Ec, r₀, B, vacancy (relaxed) | 3.49 eV, 2.56 Å, 137 GPa, 1.276 eV | 3.49, 2.56, 137, 1.28 |
+  | Cu (100) surface energy | 1.17 J/m² | 1.79 (liquid-extrapolated mean, Tyson & Miller); second-moment and EAM models are 30–40% low |
+  | dimers: Cu₂, Ag₂, Au₂, Na₂, Al₂, Pt₂ | 2.90 eV at 2.17 Å, 2.39, 4.33, 0.90, 4.33, 6.85 | 2.01 at 2.22, 1.65, 2.29, 0.73, 1.5, 3.14 (overbound, as in every second-moment model) |
+  | heats of solution (3-D, dilute, relaxed): Ag in Cu, Cu in Ag, Au in Cu, Cu in Au, Ni in Cu, Cu in Ni | +0.30, +0.23, 0.00, +0.02, +0.04, +0.05 eV | about +0.39, +0.28, −0.13, −0.19, +0.03, +0.11 |
+  | Ni–Al (strong compounds) | +0.14 / −0.09 eV | about −1.5: not reproduced (needs fitted cross terms) |
+  | flat sheet (2-D, triangular, six neighbours): Cu Ec, spacing | 2.73 eV, 2.45 Å | — (pairs: 0.78 eV, 2.64 Å) |
+
+- **Melting** (heated in steps of 0.1·Tm, 4 ps each, by the bath; liquid when the bond-orientational order ψ₆ falls
+  below 0.68 and atoms diffuse more than half a spacing in 4 ps). A flat patch of 241 atoms (free edges, which lower it):
+  Al ~1,000 K (real 933), Na ~440 K (371), Cu ~2,000 K (1,358), Au ~2,000 K (1,337), W ~5,500 K (3,695): ×1.1–1.5,
+  so a flat many-body metal melts too high. The pair model in the same Al patch: ~650 K (×0.7). Copper with pairs
+  could not be measured: it ionizes (below). In 3-D a ball of 739 Cu atoms softens from 1,200 K and is liquid
+  (diffusing a spacing in 4 ps) by 1,600–1,700 K; a ball that small melts below the bulk, so this says only that the
+  bulk is near or somewhat above the real 1,358 K. Not measured: a bulk coexistence run in 3-D (hours on this machine).
+- **Forces and energy**: forces equal minus the energy's slope to 2e-9 eV/Å flat, 4e-8 in 3-D, 3e-9 in a Cu–Ag–Au
+  alloy; insulated, 55 Cu atoms at 1,500 K over 3,000 steps of 0.4 fs drift 0.0001 eV, 127 atoms over 3,000 steps of
+  2 fs 0.009 eV. The stiffness the step size reads (the pair's own curvature) never shortens the game's 0.4 fs step for
+  any metal tried (Cu, Na, W, Al, Au: limits 0.2–0.4 tu against 0.04).
+- **Cost** (one thread, CPU time, interleaved runs; the machine shared with two other sessions): the pass is 0.28 µs
+  a member a step flat (769 Al atoms 0.22 ms, 955 Cu 0.28 ms) and 0.67 µs in 3-D (767 Cu 0.51 ms), in JavaScript.
+  Whole steps: a flat Al patch of 769 atoms 0.33 → 0.63 ms (×1.9; its WebAssembly pairs are cheap); a flat Cu patch of
+  955 atoms 15.0 → 9.6 ms (×0.64) and a 3-D Cu ball of 767 84 → 78 ms (×0.93): copper's steps go mostly to
+  electron-transfer trials between metal atoms, most of which the lower bound now skips. Water (no metal) ×1.0.
+  Setups with metals part ways from the first steps (other events, free electrons), so their costs moved ×0.9–2 for
+  reasons of their own. The setting's tag: ×1–2.
+- **Found, not changed** (for the bug-fix session):
+  - With the normal pairs, a flat copper lump turns itself into ions: 120 of 127 atoms Cu⁺/Cu⁻ within 2 ps at 300 K
+    (Ag, Au, Fe, Na: none). The pair model's Cu–Cu spacing (2.64 Å) is short enough for the pull of a Cu⁺Cu⁻ pair to
+    pay for the electron (IE − EA 6.49 eV) once a few pairs line up. Many-body copper stays neutral.
+  - Dense metals in 3-D are slow with either model: 767 Cu atoms take 80 ms a step, nearly all in transferDE's
+    estimates (localPhi's grid walks over ~30 atoms a cell, for every metal pair within 5.5 Å every 8 steps).
+- **Left, and why**: a flat-world correction (one factor on A and ξ in 2-D only, about 0.6–0.7, would bring the flat
+  patches' melting to the real temperatures at the price of their cohesive energy, as the pair model does): the
+  owner's choice; fitted cross terms for strongly bound alloys (Ni–Al, Cu–Au's ordering); metal–non-metal pairs (oxides,
+  hydrides) stay the classic chemistry's; image-charge pull between an ion and a metal; dimers and small clusters
+  overbound (a fifth constant would be needed); bcc metals (Fe, W, Na) are fitted on a close-packed crystal, so they
+  crystallize close-packed.
+- Tests: tests/f_125m.js (t_features "1.25 (metals)"): fit (Cu, Al, W, Na crystals, the dimer's many-body signature),
+  forces (2-D, 3-D, alloy; insulated drift), books (localPE exact for a move, an ion, an atom removed; switching to the
+  bath), ions (a hot flat Cu patch stays neutral), page (the setting, tags, Speed-test line, members in a setup and in
+  3-D, Help). Each fails on 1.24.0 (no model).
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

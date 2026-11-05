@@ -107,15 +107,16 @@ function mbIs(i) {
 /* the embedding energy and its slope: F(ρ) = −(√(ρ + ε²) − ε) */
 const mbF = (rho, eps) => -(Math.sqrt(rho + eps * eps) - eps);
 /* ---- the pass over every member: energy, and with forces true their forces (into S.fx …) and the step's stiffness */
-const MBF = { m: new Int32Array(64), ty: new Int32Array(64), rho: new Float64Array(64), fd: new Float64Array(64), cell: new Int32Array(64), ord: new Int32Array(64), start: new Int32Array(64), fill: new Int32Array(64),
+const MBF = { m: new Int32Array(64), ty: new Int32Array(64), rho: new Float64Array(64), fd: new Float64Array(64), // (rho, fd: by cell order)
+  cell: new Int32Array(64), ord: new Int32Array(64), start: new Int32Array(64), fill: new Int32Array(64),
   pa: new Int32Array(256), pb: new Int32Array(256), pux: new Float64Array(256), puy: new Float64Array(256), puz: new Float64Array(256),
   pvr: new Float64Array(256), pdr: new Float64Array(256), pk: new Float64Array(256), prr: new Float64Array(256),
-  zt: new Int32Array(Z_MAX + 2), tz: [], pt: new Float64Array(64), eps: new Float64Array(8) };
+  zt: new Int32Array(Z_MAX + 2), tz: [], pt: new Float64Array(64), eps: new Float64Array(8),
+  sx: new Float64Array(64), sy: new Float64Array(64), sz: new Float64Array(64), ss: new Int32Array(64), st: new Int32Array(64), sa: new Int32Array(64), nb: new Int32Array(27) };
 function mbGrowM(n) {
   if (MBF.m.length >= n) return;
   const N = n * 2 + 64;
   for (const k of ['m', 'ty', 'cell', 'ord']) MBF[k] = new Int32Array(N);
-  for (const k of ['rho', 'fd']) MBF[k] = new Float64Array(N);
 }
 function mbGrowP(n) {
   if (MBF.pa.length >= n) return;
@@ -174,57 +175,71 @@ function mbPass(forces) {
   if (MBF.fill.length < nc) MBF.fill = new Int32Array(nc * 2 + 64);
   const fill = MBF.fill; fill.set(start.subarray(0, nc));
   for (let a = 0; a < nm; a++) ord[fill[cell[a]]++] = a;
-  // pairs: each member against the members of its cell and the neighbouring ones (each cell once), the later one only
+  // the members in cell order, positions and types side by side (the pair loop then reads memory in order)
+  if (MBF.sx.length < nm) { for (const k of ['sx', 'sy', 'sz', 'rho', 'fd']) MBF[k] = new Float64Array(nm * 2 + 64); for (const k of ['ss', 'st', 'sa']) MBF[k] = new Int32Array(nm * 2 + 64); }
+  const SX = MBF.sx, SY = MBF.sy, SZ = MBF.sz, SS = MBF.ss, STY = MBF.st, SA = MBF.sa;
+  for (let s = 0; s < nm; s++) { const a = ord[s], i = m[a]; SX[s] = X[i]; SY[s] = Y[i]; SZ[s] = d3 ? Zp[i] : 0; SS[s] = i; STY[s] = ty[a] * nt; SA[s] = AN[i]; }
+  // pairs: each cell against itself (the later member only) and its neighbouring cells of higher number, each once
   const rho = MBF.rho; rho.fill(0, 0, nm);
   let np = 0, Erep = 0;
-  const offs = (n, w) => n === 1 ? [0] : n === 2 && w ? [0, 1] : [-1, 0, 1];
-  const ox = offs(nx, wrap), oy = offs(ny, wrap), oz = d3 ? offs(nz, wrap) : [0];
-  if (forces) mbGrowP(nm * (d3 ? 40 : 12) + 64);
-  for (let a = 0; a < nm; a++) {
-    const i = m[a], c = cell[a], cx = c % nx, cy = Math.floor(c / nx) % ny, cz = Math.floor(c / (nx * ny)), ai = AN[i], xi = X[i], yi = Y[i], zi = d3 ? Zp[i] : 0, tro = ty[a] * nt;
-    for (const dzc of oz) {
+  if (forces) mbGrowP(nm * (d3 ? 24 : 10) + 64);
+  let PA = MBF.pa, PB = MBF.pb, UX = MBF.pux, UY = MBF.puy, UZ = MBF.puz, VR = MBF.pvr, DR = MBF.pdr, PK = MBF.pk, RR = MBF.prr, cap = PA.length;
+  const nb = MBF.nb;
+  for (let c = 0; c < nc; c++) {
+    const s0 = start[c], s1 = start[c + 1];
+    if (s0 === s1) continue;
+    const cx = c % nx, cy = Math.floor(c / nx) % ny, cz = Math.floor(c / (nx * ny));
+    let nn = 0;
+    for (let dzc = d3 ? -1 : 0; dzc <= (d3 ? 1 : 0); dzc++) {
       let kz = cz + dzc; if (kz < 0 || kz >= nz) { if (!wrap) continue; kz = (kz + nz) % nz; }
-      for (const dyc of oy) {
+      for (let dyc = -1; dyc <= 1; dyc++) {
         let ky = cy + dyc; if (ky < 0 || ky >= ny) { if (!wrap) continue; ky = (ky + ny) % ny; }
-        for (const dxc of ox) {
+        for (let dxc = -1; dxc <= 1; dxc++) {
           let kx = cx + dxc; if (kx < 0 || kx >= nx) { if (!wrap) continue; kx = (kx + nx) % nx; }
           const k = (kz * ny + ky) * nx + kx;
-          for (let s = start[k], e = start[k + 1]; s < e; s++) {
-            const b = ord[s];
-            if (b <= a) continue;
-            const j = m[b];
-            let dx = X[j] - xi, dy = Y[j] - yi, dz = d3 ? Zp[j] - zi : 0;
-            if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (d3) { if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; } }
-            const r2 = dx * dx + dy * dy + dz * dz;
-            if (r2 >= cut2) continue;
-            const o = (tro + ty[b]) * 8;
-            if (r2 >= PT[o + 7] || r2 < 1e-12 || AN[j] !== ai) continue; // (matter and antimatter: the kernel's annihilation pair)
-            const r = Math.sqrt(r2), r0 = PT[o + 4], on = PT[o + 5];
-            let sw = 1, swd = 0;
-            if (r > on) { const w = PT[o + 6] - on, t = (r - on) / w; sw = 1 - t * t * t * (10 - t * (15 - 6 * t)); swd = -30 * t * t * (1 - t) * (1 - t) / w; }
-            const pr = PT[o + 2], qr = PT[o + 3], er = PT[o] * Math.exp(pr * (r0 - r)), ed = PT[o + 1] * Math.exp(qr * (r0 - r));
-            Erep += er * sw; rho[a] += ed * sw; rho[b] += ed * sw;
-            if (forces) {
-              if (np >= MBF.pa.length) mbGrowP(np + 1);
-              MBF.pa[np] = a; MBF.pb[np] = b; MBF.pux[np] = dx / r; MBF.puy[np] = dy / r; MBF.puz[np] = dz / r;
-              MBF.pvr[np] = er * (swd - pr * sw); MBF.pdr[np] = ed * (swd - qr * sw); // (the slopes of the repulsion and of the pair's density)
-              MBF.pk[np] = er * pr * pr * sw; MBF.prr[np] = ed * qr * qr * sw; // (their curvatures, for the step's stiffness)
-            }
-            np++;
+          if (k < c) continue;
+          let dup = false; for (let u = 0; u < nn; u++) if (nb[u] === k) { dup = true; break; } // (a box two cells wide: −1 and +1 are one cell)
+          if (!dup) nb[nn++] = k;
+        }
+      }
+    }
+    for (let s = s0; s < s1; s++) {
+      const xi = SX[s], yi = SY[s], zi = SZ[s], tro = STY[s], ai = SA[s];
+      for (let u = 0; u < nn; u++) {
+        const k = nb[u], e = start[k + 1];
+        for (let t = k === c ? s + 1 : start[k]; t < e; t++) {
+          let dx = SX[t] - xi, dy = SY[t] - yi, dz = SZ[t] - zi;
+          if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (d3) { if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; } }
+          const r2 = dx * dx + dy * dy + dz * dz;
+          if (r2 >= cut2) continue;
+          const o = (tro + STY[t] / nt) * 8;
+          if (r2 >= PT[o + 7] || r2 < 1e-12 || SA[t] !== ai) continue; // (matter and antimatter: the kernel's annihilation pair)
+          const r = Math.sqrt(r2), r0 = PT[o + 4], on = PT[o + 5];
+          let sw = 1, swd = 0;
+          if (r > on) { const w = PT[o + 6] - on, q = (r - on) / w; sw = 1 - q * q * q * (10 - q * (15 - 6 * q)); swd = -30 * q * q * (1 - q) * (1 - q) / w; }
+          const pr = PT[o + 2], qr = PT[o + 3], er = PT[o] * Math.exp(pr * (r0 - r)), ed = PT[o + 1] * Math.exp(qr * (r0 - r));
+          Erep += er * sw; rho[s] += ed * sw; rho[t] += ed * sw;
+          if (forces) {
+            if (np >= cap) { mbGrowP(np + 1); PA = MBF.pa; PB = MBF.pb; UX = MBF.pux; UY = MBF.puy; UZ = MBF.puz; VR = MBF.pvr; DR = MBF.pdr; PK = MBF.pk; RR = MBF.prr; cap = PA.length; }
+            const ir = 1 / r;
+            PA[np] = s; PB[np] = t; UX[np] = dx * ir; UY[np] = dy * ir; UZ[np] = dz * ir;
+            VR[np] = er * (swd - pr * sw); DR[np] = ed * (swd - qr * sw); // (the slopes of the repulsion and of the pair's density)
+            PK[np] = er * pr * pr * sw; RR[np] = ed * qr * qr * sw; // (their curvatures, for the step's stiffness)
           }
+          np++;
         }
       }
     }
   }
   let Eemb = 0;
   const fd = MBF.fd, EPS = MBF.eps;
-  for (let a = 0; a < nm; a++) { const eps = EPS[ty[a]], sq = Math.sqrt(rho[a] + eps * eps); Eemb -= sq - eps; fd[a] = -0.5 / sq; }
+  for (let s = 0; s < nm; s++) { const eps = EPS[STY[s] / nt], sq = Math.sqrt(rho[s] + eps * eps); Eemb -= sq - eps; fd[s] = -0.5 / sq; }
   MBO.np = np; MBO.E = Erep + Eemb;
   if (forces) {
-    const FX = S.fx, FY = S.fy, FZ = S.fz, IM = S.im, PA = MBF.pa, PB = MBF.pb, UX = MBF.pux, UY = MBF.puy, UZ = MBF.puz, VR = MBF.pvr, DR = MBF.pdr, PK = MBF.pk, RR = MBF.prr;
+    const FX = S.fx, FY = S.fy, FZ = S.fz, IM = S.im;
     let st = 0;
     for (let k = 0; k < np; k++) {
-      const a = PA[k], b = PB[k], i = m[a], j = m[b], fsum = fd[a] + fd[b];
+      const a = PA[k], b = PB[k], i = SS[a], j = SS[b], fsum = fd[a] + fd[b];
       const g = -(VR[k] + fsum * DR[k]); // (−dE/dr)
       const fx = g * UX[k], fy = g * UY[k];
       FX[j] += fx; FY[j] += fy; FX[i] -= fx; FY[i] -= fy;
