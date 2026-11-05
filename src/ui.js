@@ -4104,8 +4104,8 @@ function spec3dOK(s) {
   if (s.kind === 'exo') { const d = XP[s.sp]; return !!d && !d.atom && !d.hyp && !d.stuck && s.sp !== 'Mu'; } // (unstable particles since 1.24: not the muonic atoms, muonium or hypernuclei)
   return s.kind === 'e' || s.kind === 'pos' || s.kind === 'gamma' || s.kind === 'nu'; // (light since 1.24; positrons and neutrinos since 1.24)
 }
-const NO3D_CTL = ['setUltra', 'bAskSetup']; // (single controls; the box-size slider, fields and magnets work in 3-D since 1.24)
-const NO3D_SEG = ['segQeq', 'segPi', 'segPiRpc', 'segBo', 'segWave']; // (button groups)
+const NO3D_CTL = ['bAskSetup']; // (single controls; the box-size slider, fields, magnets and the ultra-realistic mode work in 3-D since 1.24)
+const NO3D_BTN = ['#segBo button[data-v="1"]']; // (single choices: continuous bond orders from the positions; the rest of the Experimental tab works in 3-D since 1.24)
 function mode3dSync() {
   const on = !!W.d3, changed = on !== MODE3.on;
   MODE3.on = on;
@@ -4119,7 +4119,8 @@ function mode3dSync() {
     const kb = b.querySelector('kbd'); if (kb) kb.textContent = toolKey(t); // (3-D: Spark and Erase on Z and X, their letters fly the camera, 1.23.2)
   }
   for (const id of NO3D_CTL) { const el = $(id); if (!el) continue; if (el.dataset.t0 === undefined) el.dataset.t0 = el.title || ''; el.disabled = on; el.title = on ? NOT_3D : el.dataset.t0; }
-  for (const id of NO3D_SEG) { const el = $(id); if (el) for (const b of el.querySelectorAll('button')) { b.disabled = on; b.title = on ? NOT_3D : b.title === NOT_3D ? '' : b.title; } }
+  for (const sel of NO3D_BTN) for (const b of document.querySelectorAll(sel)) { if (b.dataset.t0 === undefined) b.dataset.t0 = b.title || ''; b.disabled = on; b.title = on ? NOT_3D : b.dataset.t0; }
+  if (changed && typeof SET !== 'undefined' && UI.started) boSet(SET.bo); // (continuous bond orders: off in 3-D, back on in the flat game when set, 1.24)
   for (const id of ['fields3dNote', 'box3dNote', 'set3dNote']) { const el = $(id); if (el) el.hidden = !on; }
   const lv = $('tag3d'); if (lv) lv.hidden = !on; // (the Preview label; the Leave button went in 1.23.2: the main menu leads out)
   if (on && TOOLS_NO3D.has(UI.tool)) setTool('inspect');

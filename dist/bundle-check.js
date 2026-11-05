@@ -5455,6 +5455,7 @@ const waveIon = (A) => A.k === NUC && A.Z > 0 && A.q !== 0 && !A.dead && !A.fast
 /* The packets' forces (added to the fast forces, and with total to the whole ones) and their size forces wg. */
 function waveForces(total) {
   if (!WAVE.n) return;
+  if (W.d3) { waveForces3(total); return; } // (3-D, 1.24)
   const OBJ = S.obj, GX = S.gx, GY = S.gy, FX = S.fx, FY = S.fy, X = S.x, Y = S.y, DEAD = S.dead, FAST = S.fast, RAD = S.rad, IM = S.im, Q = S.q, Z = S.Z;
   let stiff = _stiffL;
   for (const p of WAVE.mem) { if (!p.wm) continue; const s = p.ws; p.wg = -waveSelfD(s); const w = 8 * (6 * W_CT / (s * s * s * s) + (s > W_SMAX ? W_KC : 0)) * W_IMS; if (w > stiff) stiff = w; } // (the size's own stiffness, with room for the pairs': measured, 8 keeps two packets 1.2 Å apart to 0.01 eV over 24 fs)
@@ -5497,6 +5498,49 @@ function waveForces(total) {
   }
   _stiffL = stiff;
 }
+/* 3-D (1.24): waveForces with the depth: the same pairs (the lepton list), distances and forces in three directions. eFF
+   is a three-dimensional model to begin with (spherical packets, 3ħ²/2mₑs²): only the geometry changes. */
+function waveForces3(total) {
+  const OBJ = S.obj, GX = S.gx, GY = S.gy, GZ = S.gz, FX = S.fx, FY = S.fy, FZ = S.fz, X = S.x, Y = S.y, Zp = S.z, DEAD = S.dead, FAST = S.fast, RAD = S.rad, IM = S.im, Q = S.q, Z = S.Z;
+  let stiff = _stiffL;
+  for (const p of WAVE.mem) { if (!p.wm) continue; const s = p.ws; p.wg = -waveSelfD(s); const w = 8 * (6 * W_CT / (s * s * s * s) + (s > W_SMAX ? W_KC : 0)) * W_IMS; if (w > stiff) stiff = w; }
+  if (!flValid()) { lazyCatch(); flBuild(); }
+  const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2;
+  const mi = (k, a, b) => { let dx = X[b] - X[a], dy = Y[b] - Y[a], dz = Zp[b] - Zp[a]; if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; } _w3[0] = dx; _w3[1] = dy; _w3[2] = dz; };
+  const li = FL.li, lj = FL.lj, nl = FL.nl;
+  for (let k = 0; k < nl; k++) {
+    const L = li[k], M = lj[k];
+    if (DEAD[L] === 1 || FAST[L] === 1 || RAD[L] === 1 || DEAD[M] === 1 || FAST[M] === 1 || RAD[M] === 1) continue;
+    const a = OBJ[L], b = OBJ[M];
+    if (!a.wm || !b.wm) continue;
+    mi(k, L, M); const dx = _w3[0], dy = _w3[1], dz = _w3[2], r2 = dx * dx + dy * dy + dz * dz;
+    if (!(r2 < RC2 && r2 > 1e-14)) continue;
+    const r = Math.sqrt(r2);
+    wavePair(a, b, r);
+    const fx = -_wd[0] * dx / r, fy = -_wd[0] * dy / r, fz = -_wd[0] * dz / r;
+    GX[M] += fx; GY[M] += fy; GZ[M] += fz; GX[L] -= fx; GY[L] -= fy; GZ[L] -= fz;
+    if (total) { FX[M] += fx; FY[M] += fy; FZ[M] += fz; FX[L] -= fx; FY[L] -= fy; FZ[L] -= fz; }
+    a.wg -= _wd[1]; b.wg -= _wd[2];
+    const w = Math.abs(_wd[0]) / Math.max(r, 0.25 * Math.min(a.ws, b.ws)) * (IM[L] + IM[M]); if (w > stiff) stiff = w;
+  }
+  const la = FL.la, lb = FL.lb, na = FL.na;
+  for (let k = 0; k < na; k++) {
+    const L = la[k], A = lb[k];
+    if (Q[A] === 0 || Z[A] === 0 || DEAD[L] === 1 || FAST[L] === 1 || RAD[L] === 1 || DEAD[A] === 1 || FAST[A] === 1 || RAD[A] === 1) continue;
+    const a = OBJ[L];
+    if (!a.wm) continue;
+    mi(k, L, A); const dx = _w3[0], dy = _w3[1], dz = _w3[2], r2 = dx * dx + dy * dy + dz * dz;
+    if (!(r2 < RC2 && r2 > 1e-14)) continue;
+    const r = Math.sqrt(r2);
+    wavePairIon(a, OBJ[A], r);
+    const fx = -_wi[0] * dx / r, fy = -_wi[0] * dy / r, fz = -_wi[0] * dz / r;
+    GX[A] += fx; GY[A] += fy; GZ[A] += fz; GX[L] -= fx; GY[L] -= fy; GZ[L] -= fz;
+    if (total) { FX[A] += fx; FY[A] += fy; FZ[A] += fz; FX[L] -= fx; FY[L] -= fy; FZ[L] -= fz; }
+    a.wg -= _wi[1];
+  }
+  _stiffL = stiff;
+}
+const _w3 = [0, 0, 0];
 /* The packets' energy (eV): each one's own (its size's kinetic energy and motion), every pair's, and with the ions. A
    packet gone (dead) keeps its own and its pairs' until waveSync books them; its share with the ions went with the event
    that ended it (localPE counts it: waveLocal). */
@@ -5508,8 +5552,8 @@ function waveEnergy() {
     const a = m[i]; if (!a.wm) continue;
     E += waveSelf(a.ws) + 0.5 * W_MS * a.wv * a.wv;
     if (a.dead) { E += a.wDeadE || 0; continue; } // (gone: its share with the others as it was then, unless an event counted it, until waveSync gives it off)
-    for (let j = i + 1; j < m.length; j++) { const b = m[j]; if (!b.wm || b.dead) continue; const [dx, dy] = minImg(b.x - a.x, b.y - a.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePair(a, b, r); }
-    for (const A of ions) { const [dx, dy] = minImg(A.x - a.x, A.y - a.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePairIon(a, A, r); }
+    for (let j = i + 1; j < m.length; j++) { const b = m[j]; if (!b.wm || b.dead) continue; const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z), r = hyp3(dx, dy, dz); if (r < RC && r > 1e-7) E += wavePair(a, b, r); }
+    for (const A of ions) { const [dx, dy, dz] = minImg(A.x - a.x, A.y - a.y, A.z - a.z), r = hyp3(dx, dy, dz); if (r < RC && r > 1e-7) E += wavePairIon(a, A, r); }
   }
   return E;
 }
@@ -5518,33 +5562,33 @@ function waveLocal(set, skip) {
   let V = 0;
   for (const A of set) {
     if (!waveIon(A)) continue;
-    for (const a of WAVE.mem) { if (!a.wm || a.dead || a === skip) continue; const [dx, dy] = minImg(A.x - a.x, A.y - a.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) V += wavePairIon(a, A, r); }
+    for (const a of WAVE.mem) { if (!a.wm || a.dead || a === skip) continue; const [dx, dy, dz] = minImg(A.x - a.x, A.y - a.y, A.z - a.z), r = hyp3(dx, dy, dz); if (r < RC && r > 1e-7) V += wavePairIon(a, A, r); }
   }
   return V;
 }
 function waveIonShare(p) { // a packet's share with every ion and every other live packet (eV)
   let E = 0;
-  for (const b of WAVE.mem) { if (!b.wm || b.dead || b === p) continue; const [dx, dy] = minImg(b.x - p.x, b.y - p.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePair(p, b, r); }
-  for (const A of W.parts) { if (!waveIon(A)) continue; const [dx, dy] = minImg(A.x - p.x, A.y - p.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePairIon(p, A, r); }
+  for (const b of WAVE.mem) { if (!b.wm || b.dead || b === p) continue; const [dx, dy, dz] = minImg(b.x - p.x, b.y - p.y, b.z - p.z), r = hyp3(dx, dy, dz); if (r < RC && r > 1e-7) E += wavePair(p, b, r); }
+  for (const A of W.parts) { if (!waveIon(A)) continue; const [dx, dy, dz] = minImg(A.x - p.x, A.y - p.y, A.z - p.z), r = hyp3(dx, dy, dz); if (r < RC && r > 1e-7) E += wavePairIon(p, A, r); }
   return E;
 }
 function waveShare(p, s, ions) { // what a packet of size s adds with the current members (its motion left out), and with the ions
   const ws = p.ws; p.ws = s;
   let E = waveSelf(s);
-  for (const b of WAVE.mem) { if (!b.wm || b.dead || b === p) continue; const [dx, dy] = minImg(b.x - p.x, b.y - p.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePair(p, b, r); }
-  if (ions) for (const A of ions) { const [dx, dy] = minImg(A.x - p.x, A.y - p.y), r = Math.hypot(dx, dy); if (r < RC && r > 1e-7) E += wavePairIon(p, A, r); }
+  for (const b of WAVE.mem) { if (!b.wm || b.dead || b === p) continue; const [dx, dy, dz] = minImg(b.x - p.x, b.y - p.y, b.z - p.z), r = hyp3(dx, dy, dz); if (r < RC && r > 1e-7) E += wavePair(p, b, r); }
+  if (ions) for (const A of ions) { const [dx, dy, dz] = minImg(A.x - p.x, A.y - p.y, A.z - p.z), r = hyp3(dx, dy, dz); if (r < RC && r > 1e-7) E += wavePairIon(p, A, r); }
   p.ws = ws;
   return E;
 }
 function waveGive(p, E) { // energy E (eV) into p's motion (gone: as light, where it was); what it cannot take goes to the heat bath
-  if (p.dead && E > 1e-9) { const a = (p.id % 360) * Math.PI / 180; emitPhoton(p.x, p.y, E, Math.cos(a), Math.sin(a)); return; }
+  if (p.dead && E > 1e-9) { const a = (p.id % 360) * Math.PI / 180; if (W.d3) emitPhoton(p.x, p.y, E, Math.cos(a), Math.sin(a), { z: p.z }); else emitPhoton(p.x, p.y, E, Math.cos(a), Math.sin(a)); return; }
   if (!p.dead && E !== 0) {
     if (p.rad) { if (p.KE + E > 1) { p.KE += E; radSpeed(p); p.vx = p.sp * p.ux; p.vy = p.sp * p.uy; return; } }
     else {
-      const K0 = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy), K1 = K0 + E;
+      const K0 = W.d3 ? 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy), K1 = K0 + E; // (3-D: the depth too, 1.24)
       if (K1 >= 0) {
-        if (K0 > 1e-12) { const f = Math.sqrt(K1 / K0); p.vx *= f; p.vy *= f; }
-        else { const v = Math.sqrt(2 * K1 / p.m), a = (p.id % 360) * Math.PI / 180; p.vx = v * Math.cos(a); p.vy = v * Math.sin(a); }
+        if (K0 > 1e-12) { const f = Math.sqrt(K1 / K0); p.vx *= f; p.vy *= f; if (W.d3) p.vz *= f; }
+        else { const v = Math.sqrt(2 * K1 / p.m), a = (p.id % 360) * Math.PI / 180; p.vx = v * Math.cos(a); p.vy = v * Math.sin(a); if (W.d3) p.vz = 0; }
         if (typeof updateFast === 'function') updateFast(p);
         return;
       }
@@ -5576,7 +5620,7 @@ function waveSync(full) {
       const io = ionList();
       let s0 = W_SMAX, J = waveShare(p, W_SMAX, io);
       if (J < 0) { let lo = 0.05, hi = W_SMAX; for (let it = 0; it < 50; it++) { const m = 0.5 * (lo + hi); if (waveShare(p, m, io) > 0) lo = m; else hi = m; } s0 = hi; J = waveShare(p, s0, io); }
-      if (J > 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy)) continue; // (its motion can't pay for it yet)
+      if (J > (W.d3 ? 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy))) continue; // (its motion can't pay for it yet)
       p.spin = p.id & 1 ? 1 : -1; p.wv = 0; p.wg = 0;
       p.ws = s0; p.wm = true; WAVE.mem.push(p); ch = true;
       if (J !== 0) waveGive(p, -J);
@@ -5585,7 +5629,7 @@ function waveSync(full) {
   WAVE.n = WAVE.mem.length;
   return ch;
 }
-function waveSet(on) { if (on && W.d3) return; WAVE.on = !!on; if (W.parts) { waveSync(true); W.fSpawn = -1; } }
+function waveSet(on) { WAVE.on = !!on; if (W.parts) { waveSync(true); W.fSpawn = -1; } }
 
 const _bg3 = [0, 0, 0];
 function magneticMatterForce(p, kT) {
@@ -8816,6 +8860,7 @@ function computeFast3() {
     }
   }
   leptonExtras(false);
+  if (WAVE.n) waveForces(false); // (electrons as waves in 3-D, 1.24)
 }
 /* The fast part alone, for the inner steps: free leptons with atoms and ions, with each other, with distant charges,
    and their own single-particle forces. */
@@ -9105,7 +9150,7 @@ function innerSteps3(Dt) {
       if (left <= 0 || L < 0.8 * dti) { const n = Math.max(1, Math.ceil(rem / L - 1e-9)); dti = rem / n; left = n; }
     } else { dti = rem; left = 1; }
     left--;
-    const h = 0.5 * dti, lep = _mdL.length > 0, hasB = lep && hasBfield();
+    const h = 0.5 * dti, lep = _mdL.length > 0, hasB = lep && hasBfield(), wv = lep && WAVE.n > 0;
     const mdI = _mdI, nmd = _nmd, DEAD = S.dead, RAD = S.rad, K = S.k, FAST = S.fast, VX = S.vx, VY = S.vy, VZ = S.vz, GX = S.gx, GY = S.gy, GZ = S.gz, IM = S.im;
     const X = S.x, Y = S.y, Zp = S.z, OX = S.ox, OY = S.oy, OZ = S.oz, FRESH = S.fresh, OBJ = S.obj;
     for (let q = 0; q < nmd; q++) {
@@ -9113,6 +9158,7 @@ function innerSteps3(Dt) {
       if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
       FRESH[i] = 0;
       if (lep) { const im = IM[i]; VX[i] += h * GX[i] * im; VY[i] += h * GY[i] * im; VZ[i] += h * GZ[i] * im; }
+      if (wv && K[i] !== NUC) { const p = OBJ[i]; if (p.wm) { p.wv += h * p.wg * W_IMS; p.ws += p.wv * dti; if (p.ws < 1e-3) p.ws = 1e-3; } } // (a packet's size: its half kick and drift, as innerSteps, 1.24)
       if (hasB && K[i] !== NUC && OBJ[i].Bl !== 0) gyrate3(OBJ[i], OBJ[i].Bl, dti); // (a free lepton in a magnetic field: the exact arc, as innerSteps, 1.24)
       else { X[i] += VX[i] * dti; Y[i] += VY[i] * dti; Zp[i] += VZ[i] * dti; }
       if (K[i] !== NUC) {
@@ -9129,10 +9175,12 @@ function innerSteps3(Dt) {
       const i = mdI[q];
       if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1 || FRESH[i] === 1) continue;
       const im = IM[i]; VX[i] += h * GX[i] * im; VY[i] += h * GY[i] * im; VZ[i] += h * GZ[i] * im;
+      if (wv && K[i] !== NUC) { const p = OBJ[i]; if (p.wm) p.wv += h * p.wg * W_IMS; }
     }
     const st0 = W.spawned + W.topo + W.dirty - _undone;
     processEvents();
-    if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; }
+    const wch = (WAVE.on || WAVE.n) && waveSync(false); // (electrons as waves: packets gone or made by the events, as innerSteps, 1.24)
+    if (wch || W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; _qmHold = true; try { computeForces(); } finally { _qmHold = false; } _noEv = false; }
     rem -= dti;
   }
 }
@@ -9508,12 +9556,12 @@ function bondsCanRise() {
    what the rings' thermostat gives or takes is booked to the bath. Free electrons, bare nuclei and fast particles stay
    classical points. */
 const PI_OMEGA = 1.5; // tu⁻¹: the frequency every ring's internal modes are given (their masses scaled to it; sampling is the same)
-const PI = { rpc: true, fGen: 0, fresh: [], on: false, P: 0, n: 0, cap: 0, ox: null, oy: null, vx: null, vy: null, fx: null, fy: null, id: null, list: new Int32Array(0), C: null, om: null, T: 300, bath: 0 };
+const PI = { rpc: true, fGen: 0, fresh: [], on: false, P: 0, n: 0, cap: 0, ox: null, oy: null, vx: null, vy: null, fx: null, fy: null, oz: null, vz: null, fz: null, id: null, list: new Int32Array(0), C: null, om: null, T: 300, bath: 0 }; // (oz, vz, fz: the beads' depth in 3-D, 1.24)
 function piSet(P) {
-  P = (P === 8 || P === 16 || P === 32) && !W.d3 ? P : 0; // (not in 3-D yet)
+  P = P === 8 || P === 16 || P === 32 ? P : 0; // (in 3-D too since 1.24: the beads carry z)
   if (P === PI.P) return;
   if (PI.on && PI.n && W.parts.length) { const e1 = piEnergy().total, e0 = totalEnergy0().total; W.ledger.bath += e1 - e0; PI.bath += e1 - e0; } // (the rings let go: their energy to the bath)
-  PI.ox = PI.oy = PI.vx = PI.vy = PI.fx = PI.fy = PI.id = null; PIM.valid = false; PIM.vStale = false; PIM.qx = null;
+  PI.ox = PI.oy = PI.vx = PI.vy = PI.fx = PI.fy = PI.oz = PI.vz = PI.fz = PI.id = null; PIM.valid = false; PIM.vStale = false; PIM.qx = null;
   PI.P = P; PI.on = P > 0; PI.cap = 0; PI.n = 0;
   if (!P) return;
   const C = [], om = []; // the free ring's normal modes (orthonormal) and their frequencies over ω_P
@@ -9537,17 +9585,18 @@ function piList() {
     const cap = S.size, grow = (a) => { const b = new Float64Array(P * cap); if (a) for (let k = 0; k < P; k++) b.set(a.subarray(k * PI.cap, (k + 1) * PI.cap), k * cap); return b; };
     PI.ox = grow(PI.ox && PI.cap ? PI.ox : null); PI.oy = grow(PI.oy && PI.cap ? PI.oy : null); PI.vx = grow(PI.vx && PI.cap ? PI.vx : null); PI.vy = grow(PI.vy && PI.cap ? PI.vy : null);
     PI.fx = new Float64Array(P * cap); PI.fy = new Float64Array(P * cap);
+    if (W.d3) { PI.oz = grow(PI.oz && PI.cap ? PI.oz : null); PI.vz = grow(PI.vz && PI.cap ? PI.vz : null); PI.fz = new Float64Array(P * cap); } // (3-D: the depth, 1.24)
     const id = new Int32Array(cap).fill(-1); if (PI.id && PI.cap) id.set(PI.id.subarray(0, PI.cap)); PI.id = id; PI.cap = cap;
   }
   // a ring that is gone (its atom dead, gone fast or bare, or its slot reused) takes its internal energy with it: to the bath
   if (PI.n) { const gone = new Set(); for (let a = 0; a < PI.n; a++) { const i = PI.list[a], p = S.obj[i]; if (!p || p.dead || p.id !== PI.id[i] || p.k !== NUC || p.Z === 0 || p.ne === 0 || p.fast || p.rad) gone.add(i); }
-    if (gone.size) { const E = piRingE(gone); W.ledger.bath += E; PI.bath += E; for (const i of gone) { PI.id[i] = -1; for (let k = 0; k < P; k++) { PI.ox[k * PI.cap + i] = 0; PI.oy[k * PI.cap + i] = 0; PI.vx[k * PI.cap + i] = 0; PI.vy[k * PI.cap + i] = 0; } } } }
+    if (gone.size) { const E = piRingE(gone); W.ledger.bath += E; PI.bath += E; for (const i of gone) { PI.id[i] = -1; for (let k = 0; k < P; k++) { PI.ox[k * PI.cap + i] = 0; PI.oy[k * PI.cap + i] = 0; PI.vx[k * PI.cap + i] = 0; PI.vy[k * PI.cap + i] = 0; if (PI.oz) { PI.oz[k * PI.cap + i] = 0; PI.vz[k * PI.cap + i] = 0; } } } } }
   const L = PI.list.length >= W.parts.length ? PI.list : (PI.list = new Int32Array(W.parts.length * 2 + 16)), cap = PI.cap;
   let n = 0;
   for (const p of W.parts) {
     if (p.dead || p.k !== NUC || p.Z === 0 || p.ne === 0 || p.fast || p.rad) continue;
     const i = p.i;
-    if (PI.id[i] !== p.id) { PI.id[i] = p.id; for (let k = 0; k < P; k++) { PI.ox[k * cap + i] = 0; PI.oy[k * cap + i] = 0; PI.vx[k * cap + i] = 0; PI.vy[k * cap + i] = 0; } PI.fresh.push(i); }
+    if (PI.id[i] !== p.id) { PI.id[i] = p.id; for (let k = 0; k < P; k++) { PI.ox[k * cap + i] = 0; PI.oy[k * cap + i] = 0; PI.vx[k * cap + i] = 0; PI.vy[k * cap + i] = 0; if (PI.oz) { PI.oz[k * cap + i] = 0; PI.vz[k * cap + i] = 0; } } PI.fresh.push(i); }
     L[n++] = i;
   }
   PI.n = n;
@@ -9555,9 +9604,10 @@ function piList() {
 function piShift(k, sign) { // move every ring's atom to its bead k (sign 1), or back exactly where it was (−1)
   const X = S.x, Y = S.y, L = PI.list, n = PI.n, base = k * PI.cap;
   if (sign > 0) {
-    if (!PI.sx || PI.sx.length < n) { PI.sx = new Float64Array(n * 2 + 16); PI.sy = new Float64Array(n * 2 + 16); }
+    if (!PI.sx || PI.sx.length < n) { PI.sx = new Float64Array(n * 2 + 16); PI.sy = new Float64Array(n * 2 + 16); PI.sz = new Float64Array(n * 2 + 16); }
     for (let a = 0; a < n; a++) { const i = L[a]; PI.sx[a] = X[i]; PI.sy[a] = Y[i]; X[i] += PI.ox[base + i]; Y[i] += PI.oy[base + i]; }
-  } else for (let a = 0; a < n; a++) { const i = L[a]; X[i] = PI.sx[a]; Y[i] = PI.sy[a]; }
+    if (PI.oz) { const Zp = S.z; for (let a = 0; a < n; a++) { const i = L[a]; PI.sz[a] = Zp[i]; Zp[i] += PI.oz[base + i]; } } // (3-D, 1.24)
+  } else { for (let a = 0; a < n; a++) { const i = L[a]; X[i] = PI.sx[a]; Y[i] = PI.sy[a]; } if (PI.oz) { const Zp = S.z; for (let a = 0; a < n; a++) Zp[L[a]] = PI.sz[a]; } }
 }
 /* Ring-polymer contraction (1.21, after Markland & Manolopoulos 2008): the force field split into the bonds' and angles'
    terms (stiff, short, where the quantum spread matters: worked out on every bead) and everything else (the pairs between
@@ -9567,6 +9617,15 @@ function piShift(k, sign) { // move every ring's atom to its bead k (sign 1), or
 function piContract() { return PI.rpc && !BO.any && !WAVE.n; }
 function piFast() { // the bonds' and angles' forces alone, into S.fx/S.fy (cleared first), at the positions now
   const hi = S.hi; S.fx.fill(0, 0, hi); S.fy.fill(0, 0, hi);
+  if (W.d3) { // (3-D: the bonds, the 3-D angles, out-of-plane and torsion terms, 1.24)
+    S.fz.fill(0, 0, hi); bondArrays(); angleCentres3();
+    const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2, CQ = candidateRoom(VL.np + BD.n);
+    _kStiff = 0;
+    if (wasm3Ready()) { wasmDesc(); wasmDesc3(); wasmForces3(0, 0, 0, BD.n, 0, AC.n, 0, AC3.nt, S.fx, S.fy, S.fz, CQ, wrap, bw, bh, bd, hw, hh, hd, W.step); }
+    else { bondKernel3(0, BD.n, S.fx, S.fy, S.fz, CQ, 0, wrap, bw, bh, bd, hw, hh, hd); angleKernel3(0, AC.n, 0, AC3.nt, S.fx, S.fy, S.fz, wrap, bw, bh, bd); }
+    if (_kStiff > _stiff) _stiff = _kStiff; _kStiff = 0;
+    return;
+  }
   bondArrays(); angleCentres();
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2, CQ = candidateRoom(VL.np + BD.n);
   _kStiff = 0;
@@ -9580,7 +9639,7 @@ function piFastE() { // their energy (as totalEnergy0 counts it)
   for (const p of W.parts) if (!p.dead && !p.rad && !p.fast && !(p.k === NUC && p.Z === 0) && p.bonds.length >= 2) e += angleEnergy(p);
   return e;
 }
-const PIC = { cx: new Float64Array(0), cy: new Float64Array(0), gx: new Float64Array(0), gy: new Float64Array(0), fx: new Float64Array(0), fy: new Float64Array(0), mx: new Float64Array(0), my: new Float64Array(0) };
+const PIC = { cx: new Float64Array(0), cy: new Float64Array(0), gx: new Float64Array(0), gy: new Float64Array(0), fx: new Float64Array(0), fy: new Float64Array(0), mx: new Float64Array(0), my: new Float64Array(0), cz: new Float64Array(0), gz: new Float64Array(0), fz: new Float64Array(0), mz: new Float64Array(0) }; // (…z: 3-D, 1.24)
 function piForcesC() {
   const P = PI.P, cap = PI.cap, L = PI.list, n = PI.n, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, hi = S.hi;
   if (PIC.cx.length < hi) for (const k of Object.keys(PIC)) PIC[k] = new Float64Array(2 * hi + 64);
@@ -9588,13 +9647,18 @@ function piForcesC() {
   if (_profOn) { const t0 = performance.now(); computeForces1(); _tForces += performance.now() - t0; _nPasses++; } else computeForces1(); // (the whole force field at the centres; its events too)
   const st = _stiff;
   for (let i = 0; i < hi; i++) { C.cx[i] = FX[i]; C.cy[i] = FY[i]; C.gx[i] = GX[i]; C.gy[i] = GY[i]; C.mx[i] = 0; C.my[i] = 0; }
+  const d3 = !!PI.oz, FZ = S.fz, GZ = S.gz; // (3-D: the depth too, 1.24)
+  if (d3) for (let i = 0; i < hi; i++) { C.cz[i] = FZ[i]; C.gz[i] = GZ[i]; C.mz[i] = 0; }
   piFast(); for (let i = 0; i < hi; i++) { C.fx[i] = FX[i]; C.fy[i] = FY[i]; } // (the split part at the centres, taken out below)
+  if (d3) for (let i = 0; i < hi; i++) C.fz[i] = FZ[i];
   for (let k = 0; k < P; k++) {
     piShift(k, 1); piFast(); piShift(k, -1);
     for (let a = 0; a < n; a++) { const i = L[a], o = k * cap + i; PI.fx[o] = C.cx[i] - C.fx[i] + FX[i]; PI.fy[o] = C.cy[i] - C.fy[i] + FY[i]; C.mx[i] += FX[i]; C.my[i] += FY[i]; }
+    if (d3) for (let a = 0; a < n; a++) { const i = L[a], o = k * cap + i; PI.fz[o] = C.cz[i] - C.fz[i] + FZ[i]; C.mz[i] += FZ[i]; }
   }
   for (let i = 0; i < hi; i++) { FX[i] = C.cx[i]; FY[i] = C.cy[i]; GX[i] = C.gx[i]; GY[i] = C.gy[i]; }
   for (let a = 0; a < n; a++) { const i = L[a]; FX[i] = C.cx[i] - C.fx[i] + C.mx[i] / P; FY[i] = C.cy[i] - C.fy[i] + C.my[i] / P; }
+  if (d3) { for (let i = 0; i < hi; i++) { FZ[i] = C.cz[i]; GZ[i] = C.gz[i]; } for (let a = 0; a < n; a++) { const i = L[a]; FZ[i] = C.cz[i] - C.fz[i] + C.mz[i] / P; } }
   if (st > _stiff) _stiff = st;
   PI.fGen++;
 }
@@ -9602,6 +9666,7 @@ function piForces() {
   if (piContract()) return piForcesC();
   const P = PI.P, cap = PI.cap, L = PI.list, n = PI.n, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, hi = S.hi;
   const ax = new Float64Array(hi), ay = new Float64Array(hi), gx = new Float64Array(hi), gy = new Float64Array(hi), ev = _noEv;
+  const d3 = !!PI.oz, FZ = S.fz, GZ = S.gz, az = d3 ? new Float64Array(hi) : null, gz = d3 ? new Float64Array(hi) : null; // (3-D, 1.24)
   for (let k = 0; k < P; k++) {
     piShift(k, 1);
     if (k > 0) _noEv = true; // (events from the first bead's pass only: they act on the centroids)
@@ -9610,21 +9675,25 @@ function piForces() {
     piShift(k, -1);
     for (let i = 0; i < hi; i++) { ax[i] += FX[i]; ay[i] += FY[i]; gx[i] += GX[i]; gy[i] += GY[i]; }
     for (let a = 0; a < n; a++) { const i = L[a]; PI.fx[k * cap + i] = FX[i]; PI.fy[k * cap + i] = FY[i]; }
+    if (d3) { for (let i = 0; i < hi; i++) { az[i] += FZ[i]; gz[i] += GZ[i]; } for (let a = 0; a < n; a++) { const i = L[a]; PI.fz[k * cap + i] = FZ[i]; } }
   }
   for (let i = 0; i < hi; i++) { FX[i] = ax[i] / P; FY[i] = ay[i] / P; GX[i] = gx[i] / P; GY[i] = gy[i] / P; }
+  if (d3) for (let i = 0; i < hi; i++) { FZ[i] = az[i] / P; GZ[i] = gz[i] / P; }
   PI.fGen++;
 }
 /* The rings' internal modes: a half step of thermostat and force, then (piOpen) the free springs over the step; after
    the force pass (piClose) the other half kick and thermostat. */
-function piModes(fn) { // fn(i, m, qx, qy, vx, vy) on each ring's internal normal-mode coordinates (arrays over j ≥ 1), written back
+function piModes(fn) { // fn(i, m, qx, qy, vx, vy, qz, vz) on each ring's internal normal-mode coordinates (arrays over j ≥ 1), written back (qz, vz: 3-D, else null)
   piSyncV(); PIM.valid = false;
-  const P = PI.P, cap = PI.cap, C = PI.C, L = PI.list, M = S.m;
-  const qx = new Float64Array(P), qy = new Float64Array(P), wx = new Float64Array(P), wy = new Float64Array(P);
+  const P = PI.P, cap = PI.cap, C = PI.C, L = PI.list, M = S.m, d3 = !!PI.oz;
+  const qx = new Float64Array(P), qy = new Float64Array(P), wx = new Float64Array(P), wy = new Float64Array(P), qz = d3 ? new Float64Array(P) : null, wz = d3 ? new Float64Array(P) : null;
   for (let a = 0; a < PI.n; a++) {
     const i = L[a];
     for (let j = 1; j < P; j++) { let sx = 0, sy = 0, ux = 0, uy = 0; const c = C[j]; for (let k = 0; k < P; k++) { const o = k * cap + i; sx += c[k] * PI.ox[o]; sy += c[k] * PI.oy[o]; ux += c[k] * PI.vx[o]; uy += c[k] * PI.vy[o]; } qx[j] = sx; qy[j] = sy; wx[j] = ux; wy[j] = uy; }
-    fn(i, M[i], qx, qy, wx, wy);
+    if (d3) for (let j = 1; j < P; j++) { let sz = 0, uz = 0; const c = C[j]; for (let k = 0; k < P; k++) { const o = k * cap + i; sz += c[k] * PI.oz[o]; uz += c[k] * PI.vz[o]; } qz[j] = sz; wz[j] = uz; }
+    fn(i, M[i], qx, qy, wx, wy, qz, wz);
     for (let k = 0; k < P; k++) { let sx = 0, sy = 0, ux = 0, uy = 0; for (let j = 1; j < P; j++) { const c = C[j][k]; sx += c * qx[j]; sy += c * qy[j]; ux += c * wx[j]; uy += c * wy[j]; } const o = k * cap + i; PI.ox[o] = sx; PI.oy[o] = sy; PI.vx[o] = ux; PI.vy[o] = uy; }
+    if (d3) for (let k = 0; k < P; k++) { let sz = 0, uz = 0; for (let j = 1; j < P; j++) { const c = C[j][k]; sz += c * qz[j]; uz += c * wz[j]; } const o = k * cap + i; PI.oz[o] = sz; PI.vz[o] = uz; }
   }
 }
 function piWP() { return PI.P * PHYS.KB * Math.max(PI.T, 1) / (6.582119569e-16 / PHYS.TU_S); }
@@ -9635,26 +9704,28 @@ function piFreq(j, wP) { return Math.min(PI.om[j] * wP, PI_OMEGA); }
 /* The rings' state is kept in mode space between steps (PIM: positions and velocities by mode, valid while nothing else
    has touched the bead arrays); per step one transform of the forces in and one of the positions out (for the force
    pass and the drawing). The bead velocities are written back only when something reads them (piSyncV). */
-const PIM = { valid: false, vStale: false, qx: null, qy: null, vx: null, vy: null, fx: null, fy: null, fGen: -1 };
-function piModeRoom() { const need = PI.P * PI.n; if (!PIM.qx || PIM.qx.length < need) { const m = 2 * need + 64; for (const k of ['qx', 'qy', 'vx', 'vy', 'fx', 'fy']) PIM[k] = new Float64Array(m); PIM.valid = false; PIM.fGen = -1; } }
-function piSyncV() { if (PIM.vStale && PIM.valid) piFrom(PIM.vx, PIM.vy, PI.vx, PI.vy); PIM.vStale = false; }
+const PIM = { valid: false, vStale: false, qx: null, qy: null, vx: null, vy: null, fx: null, fy: null, qz: null, vz: null, fz: null, fGen: -1 }; // (…z: 3-D, 1.24)
+function piModeRoom() { const need = PI.P * PI.n, d3 = !!PI.oz; if (!PIM.qx || PIM.qx.length < need || (d3 && (!PIM.qz || PIM.qz.length < PIM.qx.length))) { const m = 2 * need + 64; for (const k of ['qx', 'qy', 'vx', 'vy', 'fx', 'fy'].concat(d3 ? ['qz', 'vz', 'fz'] : [])) PIM[k] = new Float64Array(m); PIM.valid = false; PIM.fGen = -1; } }
+function piSyncV() { if (PIM.vStale && PIM.valid) { piFrom(PIM.vx, PIM.vy, PI.vx, PI.vy); if (PI.oz) piFrom(PIM.vz, null, PI.vz, null); } PIM.vStale = false; }
 function piEnsure() {
-  piModeRoom();
-  if (!PIM.valid) { piTo(PI.ox, PI.oy, PIM.qx, PIM.qy); piTo(PI.vx, PI.vy, PIM.vx, PIM.vy); PIM.valid = true; PIM.vStale = false; PIM.fGen = -1; }
-  if (PIM.fGen !== PI.fGen) { piTo(PI.fx, PI.fy, PIM.fx, PIM.fy); PIM.fGen = PI.fGen; }
+  piModeRoom(); const d3 = !!PI.oz;
+  if (!PIM.valid) { piTo(PI.ox, PI.oy, PIM.qx, PIM.qy); piTo(PI.vx, PI.vy, PIM.vx, PIM.vy); if (d3) { piTo(PI.oz, null, PIM.qz, null); piTo(PI.vz, null, PIM.vz, null); } PIM.valid = true; PIM.vStale = false; PIM.fGen = -1; }
+  if (PIM.fGen !== PI.fGen) { piTo(PI.fx, PI.fy, PIM.fx, PIM.fy); if (d3) piTo(PI.fz, null, PIM.fz, null); PIM.fGen = PI.fGen; }
 }
-function piTo(sx, sy, dx, dy) {
+function piTo(sx, sy, dx, dy) { // (sy, dy null: one component, the depth, 1.24)
   const P = PI.P, cap = PI.cap, C = PI.C, L = PI.list, n = PI.n;
+  if (!sy) { dx.fill(0, 0, P * n); for (let j = 1; j < P; j++) { const cj = C[j], b = j * n; for (let k = 0; k < P; k++) { const c = cj[k], o = k * cap; for (let a = 0; a < n; a++) dx[b + a] += c * sx[L[a] + o]; } } return; }
   dx.fill(0, 0, P * n); dy.fill(0, 0, P * n);
   for (let j = 1; j < P; j++) { const cj = C[j], b = j * n; for (let k = 0; k < P; k++) { const c = cj[k], o = k * cap; for (let a = 0; a < n; a++) { const i = L[a] + o; dx[b + a] += c * sx[i]; dy[b + a] += c * sy[i]; } } }
 }
 function piFrom(sx, sy, dx, dy) {
   const P = PI.P, cap = PI.cap, C = PI.C, L = PI.list, n = PI.n;
+  if (!sy) { for (let k = 0; k < P; k++) { const o = k * cap; for (let a = 0; a < n; a++) dx[L[a] + o] = 0; for (let j = 1; j < P; j++) { const c = C[j][k], b = j * n; for (let a = 0; a < n; a++) dx[L[a] + o] += c * sx[b + a]; } } return; }
   for (let k = 0; k < P; k++) { const o = k * cap; for (let a = 0; a < n; a++) { dx[L[a] + o] = 0; dy[L[a] + o] = 0; } for (let j = 1; j < P; j++) { const c = C[j][k], b = j * n; for (let a = 0; a < n; a++) { const i = L[a] + o; dx[i] += c * sx[b + a]; dy[i] += c * sy[b + a]; } } }
 }
 function piKickTherm(h) { // half a step: the force field on each internal mode, and the thermostat
   const P = PI.P, n = PI.n, L = PI.list, M = S.m, wP = piWP(), kTP = P * PHYS.KB * Math.max(PI.T, 1), therm = W.gamma > 0;
-  piEnsure(); const WX = PIM.vx, WY = PIM.vy, FX = PIM.fx, FY = PIM.fy;
+  piEnsure(); const WX = PIM.vx, WY = PIM.vy, FX = PIM.fx, FY = PIM.fy, d3 = !!PI.oz, WZ = PIM.vz, FZ = PIM.fz; // (3-D, 1.24)
   let dK = 0;
   for (let j = 1; j < P; j++) {
     const w = PI.om[j] * wP, sc = w > PI_OMEGA ? (w / PI_OMEGA) * (w / PI_OMEGA) : 1, b = j * n; // (piMass's scale)
@@ -9668,6 +9739,7 @@ function piKickTherm(h) { // half a step: the force field on each internal mode,
         dK += 0.5 * mj * (vx * vx + vy * vy - k0);
       }
       WX[u] = vx; WY[u] = vy;
+      if (d3) { let vz = WZ[u] + h * FZ[u] / mj; if (therm) { const sd = Math.sqrt(kTP / mj), k0 = vz * vz; vz = c1 * vz + c2 * sd * gauss(); dK += 0.5 * mj * (vz * vz - k0); } WZ[u] = vz; }
     }
   }
   PIM.vStale = true;
@@ -9677,9 +9749,9 @@ function piKickTherm(h) { // half a step: the force field on each internal mode,
    (each internal mode drawn from its own equilibrium); the energy that takes comes from the bath. */
 function piSpread(slots) {
   const set = new Set(slots), e0 = piEnergy().total, P = PI.P, wP = piWP(), kTP = P * PHYS.KB * Math.max(PI.T, 1);
-  piModes((i, m, qx, qy, wx, wy) => {
+  piModes((i, m, qx, qy, wx, wy, qz, wz) => {
     if (!set.has(i)) return;
-    for (let j = 1; j < P; j++) { const w = PI.om[j] * wP, sq = Math.sqrt(kTP / m) / w, sv = Math.sqrt(kTP / piMass(m, j, wP)); qx[j] = sq * gauss(); qy[j] = sq * gauss(); wx[j] = sv * gauss(); wy[j] = sv * gauss(); }
+    for (let j = 1; j < P; j++) { const w = PI.om[j] * wP, sq = Math.sqrt(kTP / m) / w, sv = Math.sqrt(kTP / piMass(m, j, wP)); qx[j] = sq * gauss(); qy[j] = sq * gauss(); wx[j] = sv * gauss(); wy[j] = sv * gauss(); if (qz) { qz[j] = sq * gauss(); wz[j] = sv * gauss(); } }
   });
   const dE = piEnergy().total - e0; PI.bath -= dE; W.ledger.bath -= dE;
 }
@@ -9689,18 +9761,19 @@ function piOpen(dt) {
   if (PI.fresh.length) piSpread(PI.fresh.slice());
   piKickTherm(dt / 2);
   const wP = piWP(), P = PI.P, n = PI.n;
-  piEnsure(); const QX = PIM.qx, QY = PIM.qy, VX = PIM.vx, VY = PIM.vy;
+  piEnsure(); const QX = PIM.qx, QY = PIM.qy, VX = PIM.vx, VY = PIM.vy, d3 = !!PI.oz, QZ = PIM.qz, VZ = PIM.vz;
   for (let j = 1; j < P; j++) { // (each mode a free oscillator over the step)
     const w = piFreq(j, wP), c = Math.cos(w * dt), sn = Math.sin(w * dt), b = j * n;
     for (let a = 0; a < n; a++) { const u = b + a; let q = QX[u], v = VX[u]; QX[u] = q * c + v * sn / w; VX[u] = -q * w * sn + v * c; q = QY[u]; v = VY[u]; QY[u] = q * c + v * sn / w; VY[u] = -q * w * sn + v * c; }
+    if (d3) for (let a = 0; a < n; a++) { const u = b + a, q = QZ[u], v = VZ[u]; QZ[u] = q * c + v * sn / w; VZ[u] = -q * w * sn + v * c; }
   }
-  piFrom(QX, QY, PI.ox, PI.oy); PIM.vStale = true; // (the beads' positions for the force pass and the drawing)
+  piFrom(QX, QY, PI.ox, PI.oy); if (d3) piFrom(QZ, null, PI.oz, null); PIM.vStale = true; // (the beads' positions for the force pass and the drawing)
 }
 function piClose(dt) { if (PI.n) piKickTherm(dt / 2); }
 /* The rings' internal energy (kinetic in the modes' masses, and the springs), /P; of the slots in only, if given. */
 function piRingE(only) {
   const P = PI.P, wP = piWP(); let E = 0;
-  piModes((i, m, qx, qy, wx, wy) => { if (only && !only.has(i)) return; for (let j = 1; j < P; j++) { const w = PI.om[j] * wP; E += 0.5 * piMass(m, j, wP) * (wx[j] * wx[j] + wy[j] * wy[j]) + 0.5 * m * w * w * (qx[j] * qx[j] + qy[j] * qy[j]); } });
+  piModes((i, m, qx, qy, wx, wy, qz, wz) => { if (only && !only.has(i)) return; for (let j = 1; j < P; j++) { const w = PI.om[j] * wP; E += 0.5 * piMass(m, j, wP) * (wx[j] * wx[j] + wy[j] * wy[j]) + 0.5 * m * w * w * (qx[j] * qx[j] + qy[j] * qy[j]); if (qz) E += 0.5 * piMass(m, j, wP) * wz[j] * wz[j] + 0.5 * m * w * w * qz[j] * qz[j]; } }); // (qz, wz: 3-D)
   return E / P;
 }
 /* The energy with rings: the potential averaged over the beads, and the rings' internal kinetic and spring energy /P. */
@@ -9738,9 +9811,9 @@ function qeqClear() {
   const set = new Set(atoms), U0 = localPE(set);
   for (const p of atoms) { p.qi = 0; p.qp = p.qpol + p.qf; }
   const dU = localPE(set) - U0;
-  let M0 = 0, Px = 0, Py = 0; for (const p of atoms) { M0 += p.m; Px += p.m * p.vx; Py += p.m * p.vy; }
-  const Vx = Px / M0, Vy = Py / M0; let Kr = 0; for (const p of atoms) Kr += 0.5 * p.m * ((p.vx - Vx) ** 2 + (p.vy - Vy) ** 2);
-  if (Kr > dU) { const f = Math.sqrt((Kr - dU) / Kr); for (const p of atoms) { p.vx = Vx + f * (p.vx - Vx); p.vy = Vy + f * (p.vy - Vy); } } else W.ledger.bath -= dU; // (a box too cold to pay: the books note it)
+  let M0 = 0, Px = 0, Py = 0, Pz = 0; for (const p of atoms) { M0 += p.m; Px += p.m * p.vx; Py += p.m * p.vy; if (W.d3) Pz += p.m * p.vz; }
+  const Vx = Px / M0, Vy = Py / M0, Vz = Pz / M0; let Kr = 0; for (const p of atoms) Kr += W.d3 ? 0.5 * p.m * ((p.vx - Vx) ** 2 + (p.vy - Vy) ** 2 + (p.vz - Vz) ** 2) : 0.5 * p.m * ((p.vx - Vx) ** 2 + (p.vy - Vy) ** 2); // (3-D: the depth too, 1.24)
+  if (Kr > dU) { const f = Math.sqrt((Kr - dU) / Kr); for (const p of atoms) { p.vx = Vx + f * (p.vx - Vx); p.vy = Vy + f * (p.vy - Vy); if (W.d3) p.vz = Vz + f * (p.vz - Vz); } } else W.ledger.bath -= dU; // (a box too cold to pay: the books note it)
   _noEv = true; computeForces(); _noEv = false;
 }
 function qeqHard(p) { const e = p.el; return Math.max(3, (e && e.ie1 ? e.ie1 : 10) - (e && e.ea ? e.ea : 0)); }
@@ -9765,9 +9838,9 @@ function qeqUpdate() {
   const list = []; for (const m of mols.values()) if (m.length >= 2 && m.length <= QEQ.maxMol) list.push(m);
   if (!list.length) return;
   if (QB.mark.length < S.size) { QB.mark = new Uint8Array(S.size * 2); QB.phi = new Float64Array(S.size * 2); }
-  const mark = QB.mark, phi = QB.phi, Ex = W.Ex || 0, Ey = W.Ey || 0, X = S.x, Y = S.y, Q = S.q, QP = S.qp, OBJ = S.obj;
+  const mark = QB.mark, phi = QB.phi, Ex = W.Ex || 0, Ey = W.Ey || 0, X = S.x, Y = S.y, Q = S.q, QP = S.qp, OBJ = S.obj, d3 = W.d3, Zp = S.z, Ez = d3 ? W.Ez || 0 : 0; // (3-D: in depth too, 1.24)
   let nIn = 0;
-  for (const m of list) for (const p of m) { const i = p.i; mark[i] = 1; phi[i] = -(Ex * X[i] + Ey * Y[i]); nIn++; }
+  for (const m of list) for (const p of m) { const i = p.i; mark[i] = 1; phi[i] = d3 ? -(Ex * X[i] + Ey * Y[i] + Ez * Zp[i]) : -(Ex * X[i] + Ey * Y[i]); nIn++; }
   // every pair with an atom of the set whose energy depends on its charges, once, with its coefficient (the pair's
   // energy is c·qa·qb): from the neighbour list (every pair within the cutoff is on it), and between net charges
   // beyond the cutoff
@@ -9780,16 +9853,16 @@ function qeqUpdate() {
   for (let k = 0, n = VL.np; k < n; k++) {
     const i = pi[k], j = pj[k]; if (!mark[i] && !mark[j]) continue;
     if (K[i] !== NUC || K[j] !== NUC || Zs[i] === 0 || Zs[j] === 0 || DEAD[i] || DEAD[j] || FAST[i] || FAST[j] || RAD[i] || RAD[j]) continue;
-    let dx = X[j] - X[i], dy = Y[j] - Y[i];
-    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
-    const r2 = dx * dx + dy * dy; if (r2 >= RC2) continue;
+    let dx = X[j] - X[i], dy = Y[j] - Y[i], dz = d3 ? Zp[j] - Zp[i] : 0;
+    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (d3) { const bd = W.box.d; if (dz > bd / 2) dz -= bd; else if (dz < -bd / 2) dz += bd; } }
+    const r2 = d3 ? dx * dx + dy * dy + dz * dz : dx * dx + dy * dy; if (r2 >= RC2) continue;
     const a = OBJ[i], b = OBJ[j];
     if (MOL[i] !== 0 && MOL[i] === MOL[j] && a.excl && a.excl.has(b.id)) continue;
     const c = qeqC(a, b, r2); if (c) push(i, j, c);
   }
   if (_lrOn) for (const m of list) for (const p of m) if (isLR(p)) for (const o of _charged) {
     if (o === p || o.dead || o.fast || o.rad || !isLR(o) || (mark[o.i] && o.id < p.id)) continue;
-    const dx = o.x - p.x, dy = o.y - p.y, r2 = dx * dx + dy * dy;
+    const dx = o.x - p.x, dy = o.y - p.y, dz = d3 ? o.z - p.z : 0, r2 = d3 ? dx * dx + dy * dy + dz * dz : dx * dx + dy * dy;
     if (r2 >= RC2) push(p.i, o.i, PHYS.KE / Math.sqrt(r2));
   }
   const PA = QB.pa, PB = QB.pb, PC = QB.pc, Q0 = QB.q0;
@@ -9808,12 +9881,12 @@ function qeqUpdate() {
   let dU = -S0; for (const m of list) for (const p of m) dU += qeqSelf(p);
   for (let k = 0; k < np; k++) { const a = PA[k], b = PB[k]; dU += PC[k] * ((Q[a] + QP[a]) * (Q[b] + QP[b]) - Q0[k]); }
   // the molecules' own motion pays for it, about their centre of mass
-  const VX = S.vx, VY = S.vy, M = S.m;
-  let M0 = 0, Px = 0, Py = 0; for (const m of list) for (const p of m) { const i = p.i; M0 += M[i]; Px += M[i] * VX[i]; Py += M[i] * VY[i]; }
-  const Vx = Px / M0, Vy = Py / M0; let Kr = 0; for (const m of list) for (const p of m) { const i = p.i; Kr += 0.5 * M[i] * ((VX[i] - Vx) ** 2 + (VY[i] - Vy) ** 2); }
+  const VX = S.vx, VY = S.vy, VZ = S.vz, M = S.m;
+  let M0 = 0, Px = 0, Py = 0, Pz = 0; for (const m of list) for (const p of m) { const i = p.i; M0 += M[i]; Px += M[i] * VX[i]; Py += M[i] * VY[i]; if (d3) Pz += M[i] * VZ[i]; }
+  const Vx = Px / M0, Vy = Py / M0, Vz = Pz / M0; let Kr = 0; for (const m of list) for (const p of m) { const i = p.i; Kr += d3 ? 0.5 * M[i] * ((VX[i] - Vx) ** 2 + (VY[i] - Vy) ** 2 + (VZ[i] - Vz) ** 2) : 0.5 * M[i] * ((VX[i] - Vx) ** 2 + (VY[i] - Vy) ** 2); }
   if (!(Kr > 0) || dU > 0.5 * Kr) { o = 0; for (const m of list) for (const p of m) { QP[p.i] = old[o++]; p.qi = p.qp - p.qpol - p.qf; } QEQ.skipped++; return; }
   const f = Math.sqrt((Kr - dU) / Kr);
-  for (const m of list) for (const p of m) { const i = p.i; VX[i] = Vx + f * (VX[i] - Vx); VY[i] = Vy + f * (VY[i] - Vy); }
+  for (const m of list) for (const p of m) { const i = p.i; VX[i] = Vx + f * (VX[i] - Vx); VY[i] = Vy + f * (VY[i] - Vy); if (d3) VZ[i] = Vz + f * (VZ[i] - Vz); }
   QEQ.n++; QEQ.dU += dU;
   _noEv = true; computeForces(); _noEv = false; // (the forces for the new charges)
 }
@@ -10003,7 +10076,7 @@ function stepPlain(dt) {
   rpMark(5);
   if (W.step % 25 === 0) housekeeping();
   if (W.step % 10 === 0) localTemps();
-  if (QEQ.every && !W.d3 && W.step % QEQ.every === 0) qeqUpdate(); // (Experimental: charges that respond to their surroundings)
+  if (QEQ.every && W.step % QEQ.every === 0) qeqUpdate(); // (Experimental: charges that respond to their surroundings; in 3-D too since 1.24)
   { const y = dt - (W.tc || 0), t = W.t + y; W.tc = (t - W.t) - y; W.t = t; } // (compensated: a yoctosecond a frame is far below the last digit of a clock past 1,000 tu, 1.03)
   if (W.flights.length) landFlights();
   rpMark(6);
@@ -10179,6 +10252,7 @@ function clearWorld() {
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
   W.d3 = false; W.box.d = 0; W.box.td = 0; W.box.ud = 0; W.Ez = 0; W.Bax3 = 'z'; // (a new world is flat; world3d makes it 3-D; Ez, Bax3: 3-D fields, 1.24)
+  if (PI.cap) { PI.ox = PI.oy = PI.vx = PI.vy = PI.fx = PI.fy = PI.oz = PI.vz = PI.fz = PI.id = null; PI.cap = 0; PI.n = 0; PIM.valid = false; PIM.vStale = false; PIM.qx = null; PIM.qz = null; } // (quantum nuclei: a new world's rings are made afresh, flat or with depth, 1.24)
   W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.muAtoms = []; W.at = W.at || 0;
   _rxCache.clear();
 }
@@ -10187,9 +10261,7 @@ function clearWorld() {
    only are switched off and refuse to come on: continuous bond orders and quantum bonds, quantum nuclei, electrons as
    waves, charges that respond to their surroundings. */
 function world3d(d) {
-  if (typeof boSet === 'function' && (BO.on || BO.any)) boSet(0);
-  if (PI.on) piSet(0);
-  if (WAVE.on || WAVE.n) waveSet(false);
+  if (typeof boSet === 'function' && (BO.on || BO.any) && !BO.qm) boSet(0); // (continuous bond orders: flat only; quantum bonds work in 3-D since 1.24)
   W.d3 = true; W.box.d = W.box.td = d > 0 ? d : W.box.h; W.box.ud = 0; // (td: the depth the box-size slider wants, 1.24)
   VL.valid = false; FL.gen = -1; _mdGen++; _clsN = -1; gridTouch(); W.dirty++; W.fSpawn = -1;
 }
@@ -16775,10 +16847,11 @@ function boRelax(join) {
   for (let it = 0; it < n; it++) {
     forcesNoEvents();
     if (BO.qm && XQ.fails > f0) break; // (the electrons did not settle: their forces lead nowhere, 1.23.1)
-    let fm = 0; for (const p of join) { const f = Math.hypot(FX[p.i], FY[p.i]); if (f > fm) fm = f; }
+    const FZ = S.fz, d3 = W.d3; // (3-D: in depth too, 1.24)
+    let fm = 0; for (const p of join) { const f = d3 ? Math.hypot(FX[p.i], FY[p.i], FZ[p.i]) : Math.hypot(FX[p.i], FY[p.i]); if (f > fm) fm = f; }
     if (fm < 0.05) break;
     const st = Math.min(0.002, 0.02 / fm);
-    for (const p of join) { p.x += FX[p.i] * st; p.y += FY[p.i] * st; }
+    for (const p of join) { p.x += FX[p.i] * st; p.y += FY[p.i] * st; if (d3) p.z += FZ[p.i] * st; }
     gridTouch();
   }
 }
@@ -16806,7 +16879,7 @@ function boWhole(only) {
 }
 /* The setting: on or off. Turning it off gives every member stored bonds again (boSync). */
 function boSet(v) {
-  if (v && W.d3) return; // (not in 3-D yet: the members' forces and the quantum bonds' positions are flat)
+  if (v === 1 && W.d3) return; // (continuous bond orders are not in 3-D yet: their forces are flat; quantum bonds are, 1.24: GFN1-xTB is three-dimensional)
   const on = !!v, qm = v === 2;
   if (on === BO.on && qm === BO.qm) return;
   if (BO.on && qm !== BO.qm && W.parts.length) { BO.on = false; boSync(); } // (the other model: every member leaves first, then joins again)
@@ -16843,7 +16916,7 @@ function qmPhi(mem, phi) {
     const qo = Q[o.i] + QP[o.i]; if (!qo) continue;
     const lr = _lrOn && isLR(o);
     for (let m = 0; m < mem.length; m++) {
-      const p = mem[m], [dx, dy] = minImg(o.x - p.x, o.y - p.y), r2 = dx * dx + dy * dy;
+      const p = mem[m], [dx, dy, dz] = minImg(o.x - p.x, o.y - p.y, o.z - p.z), r2 = W.d3 ? dx * dx + dy * dy + dz * dz : dx * dx + dy * dy; // (3-D: in depth too, 1.24)
       if (r2 < RC2) phi[m] += qeqC(p, o, r2) * qo;
       else if (lr && isLR(p)) phi[m] += PHYS.KE * qx(o, p) / Math.sqrt(r2);
     }
@@ -16855,10 +16928,10 @@ function qmPass(forces) {
   const n = mem.length, QP = S.qp;
   XQ.pq.length = 0; BO.np = 0; BO.flat = 'qm'; BO.changes++;
   if (!n) { BO.E = 0; return 0; }
-  // positions: the plane, each member by the nearest image of the first (a wrapping box)
-  const Z = new Array(n), xyz = new Array(n), x0 = mem[0].x, y0 = mem[0].y;
+  // positions: the plane, each member by the nearest image of the first (a wrapping box); in 3-D, in space (1.24)
+  const Z = new Array(n), xyz = new Array(n), x0 = mem[0].x, y0 = mem[0].y, z0 = mem[0].z, d3 = W.d3;
   let charge = 0, sig = '';
-  for (let m = 0; m < n; m++) { const p = mem[m], [dx, dy] = minImg(p.x - x0, p.y - y0); Z[m] = p.Z; xyz[m] = [x0 + dx, y0 + dy, 0]; charge += p.q; sig += p.id + ':' + p.Z + ','; }
+  for (let m = 0; m < n; m++) { const p = mem[m], [dx, dy, dz] = minImg(p.x - x0, p.y - y0, p.z - z0); Z[m] = p.Z; xyz[m] = [x0 + dx, y0 + dy, d3 ? z0 + dz : 0]; charge += p.q; sig += p.id + ':' + p.Z + ','; }
   charge = Math.round(charge);
   const phi = new Float64Array(n); qmPhi(mem, phi);
   const vext = new Float64Array(n); let anyV = false;
@@ -16877,13 +16950,14 @@ function qmPass(forces) {
   const B = r.bonds;
   for (let a = 0; a < n; a++) for (let b = 0; b < a; b++) {
     const nb = B[a * n + b]; if (!(nb > 0.1)) continue;
-    const dx = xyz[a][0] - xyz[b][0], dy = xyz[a][1] - xyz[b][1];
-    XQ.pq.push({ a: mem[a], b: mem[b], n: nb, r: Math.hypot(dx, dy) });
+    const dx = xyz[a][0] - xyz[b][0], dy = xyz[a][1] - xyz[b][1], dz = xyz[a][2] - xyz[b][2];
+    XQ.pq.push({ a: mem[a], b: mem[b], n: nb, r: d3 ? Math.sqrt(dx * dx + dy * dy + dz * dz) : Math.hypot(dx, dy) });
   }
   BO.np = XQ.pq.length; BO.E = E;
   if (forces) {
     const FX = S.fx, FY = S.fy, gq = r.g, gd = d.g;
     for (let m = 0; m < n; m++) { const i = mem[m].i; FX[i] -= gq[m][0] + gd[m][0]; FY[i] -= gq[m][1] + gd[m][1]; }
+    if (d3) { const FZ = S.fz; for (let m = 0; m < n; m++) FZ[mem[m].i] -= gq[m][2] + gd[m][2]; } // (3-D: the slope in depth, 1.24)
     for (const q of XQ.pq) { if (q.n < 0.2) continue; const w = XQ_K * Math.min(q.n, 3) * (q.a.im + q.b.im); if (w > _stiff) _stiff = w; } // (a bond's stiffness, for the step: about 50 eV/Å² an order, O–H 49, C=O 75, C≡C 100)
   }
   return E;
@@ -23250,7 +23324,7 @@ function render3d(rt) {
   const ballCol = (p) => (p.k === ELEC ? E_COL : p.k !== NUC ? POS_COL : p.Z === 0 ? N_COL : p.ne === 0 ? (p.anti ? '#be78ff' : '#ff6e5a') : atomColor(p));
   if (gl) {
     glBegin3();
-    glBondsBuild(W.bonds, W.topo);
+    if (BO.any) glBondsBuild(W.bonds.concat(boDrawBonds()), -(R.boGen = (R.boGen || 0) + 1)); else glBondsBuild(W.bonds, W.topo); // (quantum bonds' orders, drawn from this step's, as the flat view does, 1.24)
     for (const p of vis) {
       const b = 4 * p.i;
       if (!lite && (p.k !== NUC || p.ne === 0 || p.tLocal > 900 || p.glow > 0.02)) glowsOf(p, b, (r, c, a) => glGlow3(V[b], V[b + 1], V[b + 2], r, c, a));
@@ -23270,9 +23344,10 @@ function render3d(rt) {
     if (!lite) { ctx.globalCompositeOperation = 'lighter'; for (const p of vis) { const b = 4 * p.i; glowsOf(p, b, (r, c, a) => drawSprite(glowSprite(c, r), V[b], V[b + 1], a)); } ctx.globalCompositeOperation = 'source-over'; }
     const fc = CHAMBER.bg0;
     ctx.lineCap = 'round';
+    let boB = null; if (BO.any) { boB = new Map(); for (const bd of boDrawBonds()) for (const a of [bd.a, bd.b]) { let l = boB.get(a); if (!l) boB.set(a, l = []); l.push(bd); } } // (quantum bonds' orders, 1.24)
     for (const p of vis) {
-      const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2], r = V[b + 3], col = ballCol(p);
-      if (p.k === NUC && p.bonds.length) for (const bd of p.bonds) { // this atom's half of each bond
+      const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2], r = V[b + 3], col = ballCol(p), pb = boB && boB.get(p) ? p.bonds.concat(boB.get(p)) : p.bonds;
+      if (p.k === NUC && pb.length) for (const bd of pb) { // this atom's half of each bond
         const q = bd.a === p ? bd.b : bd.a, c = 4 * q.i;
         if (q.dead) continue;
         const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
@@ -30022,8 +30097,8 @@ function spec3dOK(s) {
   if (s.kind === 'exo') { const d = XP[s.sp]; return !!d && !d.atom && !d.hyp && !d.stuck && s.sp !== 'Mu'; } // (unstable particles since 1.24: not the muonic atoms, muonium or hypernuclei)
   return s.kind === 'e' || s.kind === 'pos' || s.kind === 'gamma' || s.kind === 'nu'; // (light since 1.24; positrons and neutrinos since 1.24)
 }
-const NO3D_CTL = ['setUltra', 'bAskSetup']; // (single controls; the box-size slider, fields and magnets work in 3-D since 1.24)
-const NO3D_SEG = ['segQeq', 'segPi', 'segPiRpc', 'segBo', 'segWave']; // (button groups)
+const NO3D_CTL = ['bAskSetup']; // (single controls; the box-size slider, fields, magnets and the ultra-realistic mode work in 3-D since 1.24)
+const NO3D_BTN = ['#segBo button[data-v="1"]']; // (single choices: continuous bond orders from the positions; the rest of the Experimental tab works in 3-D since 1.24)
 function mode3dSync() {
   const on = !!W.d3, changed = on !== MODE3.on;
   MODE3.on = on;
@@ -30037,7 +30112,8 @@ function mode3dSync() {
     const kb = b.querySelector('kbd'); if (kb) kb.textContent = toolKey(t); // (3-D: Spark and Erase on Z and X, their letters fly the camera, 1.23.2)
   }
   for (const id of NO3D_CTL) { const el = $(id); if (!el) continue; if (el.dataset.t0 === undefined) el.dataset.t0 = el.title || ''; el.disabled = on; el.title = on ? NOT_3D : el.dataset.t0; }
-  for (const id of NO3D_SEG) { const el = $(id); if (el) for (const b of el.querySelectorAll('button')) { b.disabled = on; b.title = on ? NOT_3D : b.title === NOT_3D ? '' : b.title; } }
+  for (const sel of NO3D_BTN) for (const b of document.querySelectorAll(sel)) { if (b.dataset.t0 === undefined) b.dataset.t0 = b.title || ''; b.disabled = on; b.title = on ? NOT_3D : b.dataset.t0; }
+  if (changed && typeof SET !== 'undefined' && UI.started) boSet(SET.bo); // (continuous bond orders: off in 3-D, back on in the flat game when set, 1.24)
   for (const id of ['fields3dNote', 'box3dNote', 'set3dNote']) { const el = $(id); if (el) el.hidden = !on; }
   const lv = $('tag3d'); if (lv) lv.hidden = !on; // (the Preview label; the Leave button went in 1.23.2: the main menu leads out)
   if (on && TOOLS_NO3D.has(UI.tool)) setTool('inspect');

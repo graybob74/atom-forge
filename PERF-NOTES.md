@@ -379,6 +379,38 @@ The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on bra
   place, plus a 3-D closest-approach search for nuclear reach among stepped fast nuclei; several sessions. 2-D and 3-D
   fingerprints unchanged. Screenshots: 124-before-hep.png (K⁺ refused), 124-after-hep.png (kaons and π⁻ fired through
   water, tracks in depth, B along y).
+- **The Experimental settings in 3-D, but for continuous bond orders** (the owner: "add the rest of the experimental
+  options to 3d"; physics in 3-D, for his OK). Each kept its flat form with the depth added; the flat game's own runs with
+  them on are bit for bit the same (seven setups with induced charges, 8 beads contracted and full, waves, both bond
+  orders: identical before and after). Measured (Node, insulated after settling, the same setup with the option off for
+  the drift it starts from; costs on one thread, two loaded cores):
+  - Induced charges (`qeqUpdate`, `qeqClear`: pairs, the long-range part and the applied field with z; the molecules'
+    motion paying in three directions): liquid water (1,029 atoms), 600 steps: books −0.04 eV (every step), +0.26 (every
+    10th), against +0.23 off; mean induced charge 0.09 e (the flat water's 0.06); 2.5 → 10.4 ms a step (every step),
+    4.1 (every 10th) (flat: 0.18 → 0.66).
+  - Quantum nuclei (the beads' offsets, velocities and forces with z: `PI.oz/vz/fz`, `PIM.qz/vz/fz`, every mode, the
+    thermostat, the contraction's bonds and 3-D angles, out-of-plane and torsions (`piFast`); a new world's rings made
+    afresh, flat or with depth): 27 waters, 600 steps: books −0.003 eV (8 beads, contracted), −0.006 (8, every bead),
+    −0.020 (16), against −0.013 off; a hydrogen's ring 0.16 Å across, 0.09 in z alone (isotropic); 0.04 → 0.32 ms a step
+    (8 contracted), 0.37 (every bead), 0.44 (16). The beads are not drawn in 3-D (the flat view's dots).
+  - Quantum bonds (GFN1-xTB is three-dimensional: the members' positions now with their depth, the slope in z, the
+    outside potential and the joiners' relaxation in 3-D; drawn as bonds in the 3-D view): three waters, ammonia and
+    methane (18 members): water's angle 105–109°, the force on an oxygen equal to the energy's slope in x, y and z to
+    5e-7 eV/Å, books within 2e-5 eV over 1,000 steps (1,122 calculations, none unsettled), 5 ms a step.
+  - Electrons as waves (eFF is three-dimensional to begin with: the packets' pairs and their meeting with ions in 3-D,
+    `waveForces3`; their size moving in the 3-D inner steps; who is a packet after events): six Na⁺ among twelve free
+    electrons, 2,000 steps: books +0.09 eV (−0.10 to the bath as packets joined) against +0.24 as points; flat −0.05.
+    0.19 → 0.61 ms a step (flat 0.15 → 0.62).
+  - Ultra-realistic: allowed in 3-D; it holds the decay speed at real rates and resonances to their own lifetimes; the
+    3-D lab has no nuclear reactions yet, so its chemistry is unchanged (liquid water, 200 steps: identical with it on,
+    3.33 / 3.38 ms a step).
+  - Not built: continuous bond orders ("From the positions"; stays flat-only, its button disabled in 3-D, the setting
+    back on when the flat game is open again). Its forces are a flat analytic derivative pass, ~470 lines of JavaScript
+    over dx, dy (orders, the taper, the soft core, angles and the electron counts, bo.js `boPassJS`) and the same in the
+    Rust kernel (`bfPassWasm`, built by CI, not editable here); a 3-D version is a rewrite of every derivative with its
+    slope checks. Several sessions.
+  Settings → Experimental's 3-D note and the controls follow (`NO3D_BTN`: only that one button off in 3-D). Screenshots
+  124-before-exp.png (greyed), 124-after-exp.png.
 - Tests: tests/f_124.js (run by t_features' 1.24 block, or alone: `node tests/f_124.js [place box fields light hep
   exp]`); each part fails on 1.23.2 (`place`: P3 is not defined).
 

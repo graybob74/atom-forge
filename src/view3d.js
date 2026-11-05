@@ -337,7 +337,7 @@ function render3d(rt) {
   const ballCol = (p) => (p.k === ELEC ? E_COL : p.k !== NUC ? POS_COL : p.Z === 0 ? N_COL : p.ne === 0 ? (p.anti ? '#be78ff' : '#ff6e5a') : atomColor(p));
   if (gl) {
     glBegin3();
-    glBondsBuild(W.bonds, W.topo);
+    if (BO.any) glBondsBuild(W.bonds.concat(boDrawBonds()), -(R.boGen = (R.boGen || 0) + 1)); else glBondsBuild(W.bonds, W.topo); // (quantum bonds' orders, drawn from this step's, as the flat view does, 1.24)
     for (const p of vis) {
       const b = 4 * p.i;
       if (!lite && (p.k !== NUC || p.ne === 0 || p.tLocal > 900 || p.glow > 0.02)) glowsOf(p, b, (r, c, a) => glGlow3(V[b], V[b + 1], V[b + 2], r, c, a));
@@ -357,9 +357,10 @@ function render3d(rt) {
     if (!lite) { ctx.globalCompositeOperation = 'lighter'; for (const p of vis) { const b = 4 * p.i; glowsOf(p, b, (r, c, a) => drawSprite(glowSprite(c, r), V[b], V[b + 1], a)); } ctx.globalCompositeOperation = 'source-over'; }
     const fc = CHAMBER.bg0;
     ctx.lineCap = 'round';
+    let boB = null; if (BO.any) { boB = new Map(); for (const bd of boDrawBonds()) for (const a of [bd.a, bd.b]) { let l = boB.get(a); if (!l) boB.set(a, l = []); l.push(bd); } } // (quantum bonds' orders, 1.24)
     for (const p of vis) {
-      const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2], r = V[b + 3], col = ballCol(p);
-      if (p.k === NUC && p.bonds.length) for (const bd of p.bonds) { // this atom's half of each bond
+      const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2], r = V[b + 3], col = ballCol(p), pb = boB && boB.get(p) ? p.bonds.concat(boB.get(p)) : p.bonds;
+      if (p.k === NUC && pb.length) for (const bd of pb) { // this atom's half of each bond
         const q = bd.a === p ? bd.b : bd.a, c = 4 * q.i;
         if (q.dead) continue;
         const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
