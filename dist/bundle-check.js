@@ -3447,7 +3447,7 @@ function hasBfield() {
   return false;
 }
 function hasEfield() {
-  if (W.Ex !== 0 || W.Ey !== 0 || (W.objs.length && hasPlates())) return true;
+  if (W.Ex !== 0 || W.Ey !== 0 || (W.objs.length && hasPlates()) || (W.d3 && W.Ez)) return true; // (3-D: along z too, 1.24)
   const zs = W.zones;
   for (let i = 0; i < zs.length; i++) { const k = zs[i].kind; if (k === 'cavity' || k === 'sep') return true; }
   return false;
@@ -3488,6 +3488,7 @@ function Efield(x, y, p) {
   return _E;
 }
 function Bfield(x, y, p) {
+  if (W.d3) return Bfield3(x, y, p ? p.z : 0); // (3-D: along the chosen axis, magnets as balls, 1.24)
   let B = W.Bz;
   if (W.zones.length) B += zonesB(x, y, p);
   const ms = W.magnets;
@@ -3500,6 +3501,59 @@ function Bfield(x, y, p) {
     B += m.B * Math.exp(-u * u);
   }
   return B;
+}
+/* 3-D fields (1.24; the owner: "magnets and fields in 3-D"). Every magnetic field in a 3-D world points along one axis,
+   W.Bax3 ('x', 'y' or 'z'; the Lab's B direction): the uniform field W.Bz and every magnet's (a magnet is a ball of
+   radius R, its field B inside and falling off outside as the flat game's disc does, by the distance in 3-D). With all
+   of it along one fixed axis, the field at a point is one number times that axis, so the flat game's exact turning
+   (rotateB, a Boris rotation, and gyrate, an exact arc) works unchanged on the two velocity components across the axis
+   (B3P: x→(y, z), y→(z, x), z→(x, y), each pair turned as (vx, vy) is about z), the one along it untouched. The
+   electric field has a z part too (W.Ez: the Lab's ±z buttons). */
+const B3P = { x: ['y', 'z', 'vy', 'vz'], y: ['z', 'x', 'vz', 'vx'], z: ['x', 'y', 'vx', 'vy'] };
+function Bfield3(x, y, z) {
+  let B = W.Bz;
+  const ms = W.magnets;
+  for (let i = 0; i < ms.length; i++) {
+    const m = ms[i], dx = x - m.x, dy = y - m.y, dz = z - (m.z || 0), d2 = dx * dx + dy * dy + dz * dz, R = m.R;
+    if (d2 < R * R) { B += m.B; continue; }
+    const far = 2.4 * R;
+    if (d2 >= far * far) continue;
+    const u = (Math.sqrt(d2) - R) / (0.35 * R);
+    B += m.B * Math.exp(-u * u);
+  }
+  return B;
+}
+function Bgrad3(x, y, z, out) { // B (along the axis) and out = its gradient [d/dx, d/dy, d/dz]
+  let B = W.Bz, gx = 0, gy = 0, gz = 0;
+  for (const m of W.magnets) {
+    const dx = x - m.x, dy = y - m.y, dz = z - (m.z || 0), d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (d < m.R) { B += m.B; continue; }
+    const s = 0.35 * m.R, u = (d - m.R) / s;
+    if (u > 4) continue;
+    const e = Math.exp(-u * u), Bm = m.B * e, dBdd = -2 * u / s * Bm;
+    B += Bm; gx += dBdd * dx / d; gy += dBdd * dy / d; gz += dBdd * dz / d;
+  }
+  out[0] = gx; out[1] = gy; out[2] = gz;
+  return B;
+}
+/* The turn of a charged particle's velocity by half a magnetic kick (frac of the step), in place: rotateB's Boris
+   rotation on the pair across the axis. */
+function rotateB3(p, frac) {
+  const B = Bfield3(p.x, p.y, p.z); if (B === 0) return;
+  const P = B3P[W.Bax3] || B3P.z, a = P[2], b = P[3], va = p[a], vb = p[b];
+  const tt = p.q * B * PHYS.LOR * p.im * 0.5 * frac, s = 2 * tt / (1 + tt * tt);
+  const vpa = va + vb * tt, vpb = vb - va * tt;
+  p[a] = va + vpb * s; p[b] = vb - vpa * s;
+}
+/* gyrate in 3-D: the exact arc across the axis, a straight drift along it. */
+function gyrate3(p, B, h) {
+  const P = B3P[W.Bax3] || B3P.z, xa = P[0], xb = P[1], a = P[2], b = P[3], ax = W.Bax3 === 'x' ? 'x' : W.Bax3 === 'y' ? 'y' : 'z';
+  const om = p.q * B * PHYS.LOR * p.im, ph = om * h, va = p[a], vb = p[b];
+  const c = Math.cos(ph), sn = Math.sin(ph);
+  let u, w; if (Math.abs(ph) < 1e-5) { u = h; w = 0.5 * ph * h; } else { u = sn / om; w = 2 * Math.sin(0.5 * ph) ** 2 / om; }
+  p[xa] += va * u + vb * w; p[xb] += vb * u - va * w;
+  p[a] = va * c + vb * sn; p[b] = vb * c - va * sn;
+  p[ax] += p['v' + ax] * h;
 }
 function Bgrad(x, y, out) { // returns B and fills out=[dB/dx, dB/dy]
   let B = W.Bz, gx = 0, gy = 0;
@@ -5200,7 +5254,7 @@ function computeForces1() {
       const i = mdI[q];
       if (K[i] !== NUC) continue; // free electrons: leptonExtras
       const qt = Q[i] + QP[i];
-      if (hasE && qt !== 0) { const E = Efield(X[i], Y[i], OBJ[i]); FX[i] += qt * E[0]; FY[i] += qt * E[1]; }
+      if (hasE && qt !== 0) { const E = Efield(X[i], Y[i], OBJ[i]); FX[i] += qt * E[0]; FY[i] += qt * E[1]; if (d3) S.fz[i] += qt * W.Ez; } // (3-D: its z part, 1.24)
       if (hasB && NE[i] > 0) magneticMatterForce(OBJ[i], kT);
     }
   }
@@ -5268,7 +5322,7 @@ function leptonExtras(total) {
   const t = W.tool, pull = t && t.active && t.type === 'pull', g = W.grab, gp = g && g.p && g.p.k !== NUC && !g.p.dead ? g.p.i : -1;
   const mdLI = _mdLI, nL = _nmdL, DEAD = S.dead, FAST = S.fast, RAD = S.rad, Q = S.q, X = S.x, Y = S.y, VX = S.vx, VY = S.vy, M = S.m, GX = S.gx, GY = S.gy, FX = S.fx, FY = S.fy, OBJ = S.obj;
   if (!hasE && !pull && gp < 0) return; // (nothing to add)
-  if (W.d3) { leptonExtras3(total, t, pull, g, gp); return; }
+  if (W.d3) { leptonExtras3(total, t, pull, g, gp, hasE); return; }
   for (let q = 0; q < nL; q++) {
     const i = mdLI[q];
     if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
@@ -5287,12 +5341,13 @@ function leptonExtras(total) {
 }
 
 /* (3-D) The same for free electrons in a 3-D world: Push/Pull's ball and the Grab spring, with z (no fields in 3-D yet). */
-function leptonExtras3(total, t, pull, g, gp) {
+function leptonExtras3(total, t, pull, g, gp, hasE) {
   const mdLI = _mdLI, nL = _nmdL, DEAD = S.dead, FAST = S.fast, RAD = S.rad, X = S.x, Y = S.y, Zp = S.z, VX = S.vx, VY = S.vy, VZ = S.vz, M = S.m, GX = S.gx, GY = S.gy, GZ = S.gz, FX = S.fx, FY = S.fy, FZ = S.fz;
   for (let q = 0; q < nL; q++) {
     const i = mdLI[q];
     if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
     let fx = 0, fy = 0, fz = 0;
+    if (hasE) { const E = Efield(X[i], Y[i], S.obj[i]), q = S.q[i]; fx += q * E[0]; fy += q * E[1]; fz += q * W.Ez; } // (an applied field, 1.24)
     if (pull) {
       const R = t.R, R2 = R * R, U0 = Math.min(20, Math.abs(t.s)), dx = t.x - X[i], dy = t.y - Y[i], dz = (t.z || 0) - Zp[i], d2 = dx * dx + dy * dy + dz * dz;
       if (d2 <= R2 && d2 >= 1e-8) { const d = Math.sqrt(d2), F = t.s > 0 ? 2 * U0 * d / R2 : -2 * U0 * (1 - d / R) / R; fx += F * dx / d; fy += F * dy / d; fz += F * dz / d; }
@@ -5532,7 +5587,9 @@ function waveSync(full) {
 }
 function waveSet(on) { if (on && W.d3) return; WAVE.on = !!on; if (W.parts) { waveSync(true); W.fSpawn = -1; } }
 
+const _bg3 = [0, 0, 0];
 function magneticMatterForce(p, kT) {
+  if (W.d3) { magneticMatterForce3(p, kT); return; }
   const B = Bgrad(p.x, p.y, _bg);
   const gB = Math.hypot(_bg[0], _bg[1]);
   if (gB === 0) return;
@@ -5554,6 +5611,18 @@ function magneticMatterForce(p, kT) {
   p.fx += F * s * _bg[0]; p.fy += F * s * _bg[1];
 }
 
+/* 3-D (1.24): the same pull, by the gradient of |B| in three directions (magU, whose slope it is, reads Bfield3). */
+function magneticMatterForce3(p, kT) {
+  const B = Bgrad3(p.x, p.y, p.z, _bg3);
+  if (_bg3[0] === 0 && _bg3[1] === 0 && _bg3[2] === 0) return;
+  const s = B >= 0 ? 1 : -1, absB = Math.abs(B);
+  let F = 0;
+  const fe = FERRO[p.Z];
+  if (fe && p.tLocal < fe[0]) F += fe[1] * PHYS.MU_B * Math.tanh(absB / 2);
+  else if (unpairedOf(p) > 0) { const n = unpairedOf(p), mu = Math.sqrt(n * (n + 2)) * PHYS.MU_B, x = mu * absB / kT; F += mu * (x < 1e-3 ? x / 3 : 1 / Math.tanh(x) - 1 / x); }
+  F -= 2 * 2.2e-10 * p.ne * Math.pow(0.5 * p.el.rc, 2) * absB;
+  p.fx += F * s * _bg3[0]; p.fy += F * s * _bg3[1]; p.fz += F * s * _bg3[2];
+}
 /* The potential energy whose gradient magneticMatterForce applies (eV): −2m·ln cosh(|B|/2) for a ferromagnet's
    saturated moment, the Langevin free energy −kT·ln(sinh x / x) for a paramagnet, +κB² for diamagnetism. Counted
    in the energy totals, so an iron filing pulled onto a pole gains no energy from nowhere. */
@@ -8384,14 +8453,18 @@ function innerDt() {
   if (g && g.p && g.p.k !== NUC && !g.p.dead && !g.p.fast) dt = Math.min(dt, 0.2 * g.p.m / Math.max(g.p.m, GRAB_M));
   return Math.max(DT_MIN, dt);
 }
-function innerDt3() { // (3-D: speeds and accelerations in three directions; no magnetic field)
+function innerDt3() { // (3-D: speeds and accelerations in three directions; a magnetic field as innerDt, 1.24)
   let dt = DT_MAX;
+  const hasB = hasBfield(), Q = S.q, X = S.x, Y = S.y, Zp = S.z, OBJ = S.obj;
   const mdLI = _mdLI, nL = _nmdL, DEAD = S.dead, FAST = S.fast, RAD = S.rad, IM = S.im, VX = S.vx, VY = S.vy, VZ = S.vz, GX = S.gx, GY = S.gy, GZ = S.gz;
   for (let q = 0; q < nL; q++) {
     const i = mdLI[q];
     if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
     const im = IM[i], v = Math.sqrt(VX[i] * VX[i] + VY[i] * VY[i] + VZ[i] * VZ[i]), a = Math.sqrt(GX[i] * GX[i] + GY[i] * GY[i] + GZ[i] * GZ[i]) * im;
-    if (v > 0) dt = Math.min(dt, LEP_STEP / v);
+    const p = OBJ[i]; p.Bl = hasB && Q[i] !== 0 ? Bfield3(X[i], Y[i], Zp[i]) : 0; // (used by this inner step's arcs)
+    const om = p.omB = Math.abs(Q[i] * p.Bl * PHYS.LOR * im);
+    if (om > 0) { dt = Math.min(dt, 2 / om); const d = 2 * v / om; if (d > LEP_STEP) dt = Math.min(dt, 2 / om * Math.asin(LEP_STEP / d)); if (v > 0) dt = Math.min(dt, 4 * LEP_STEP / v); } // (as innerDt; along the axis it drifts straight, at most 4 steps' length)
+    else if (v > 0) dt = Math.min(dt, LEP_STEP / v);
     if (a > 0) dt = Math.min(dt, Math.sqrt(0.04 / a));
   }
   if (_stiffL > 0) dt = Math.min(dt, 0.15 / Math.sqrt(_stiffL));
@@ -8734,7 +8807,7 @@ function outerA(dt) {
 }
 /* 3-D: outerA with z (no magnetic field: its turning is 2-D only for now). */
 function outerA3(dt) {
-  const h = 0.5 * dt, PI = partsSync(), n = W.parts.length;
+  const h = 0.5 * dt, PI = partsSync(), n = W.parts.length, hasB = hasBfield(), Q = S.q, OBJ = S.obj; // (a magnetic field: half a turn after the half kick, as outerA, 1.24)
   const DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, VZ = S.vz, FX = S.fx, FY = S.fy, FZ = S.fz, GX = S.gx, GY = S.gy, GZ = S.gz, IM = S.im;
   const X = S.x, Y = S.y, Zp = S.z, OX = S.ox, OY = S.oy, OZ = S.oz, FRESH = S.fresh, BALL = S.ballistic;
   for (let j = 0; j < n; j++) {
@@ -8748,10 +8821,12 @@ function outerA3(dt) {
     if (fast) {
       if (k !== NUC) continue;
       VX[i] += h * FX[i] * im; VY[i] += h * FY[i] * im; VZ[i] += h * FZ[i] * im;
+      if (hasB && Q[i] !== 0) rotateB3(OBJ[i], h);
       X[i] += VX[i] * dt; Y[i] += VY[i] * dt; Zp[i] += VZ[i] * dt;
       continue;
     }
     VX[i] += h * (FX[i] - GX[i]) * im; VY[i] += h * (FY[i] - GY[i]) * im; VZ[i] += h * (FZ[i] - GZ[i]) * im;
+    if (hasB && Q[i] !== 0 && k === NUC) rotateB3(OBJ[i], h);
   }
 }
 /* outerA and the single drift of innerSteps done together, elementwise over the slots, when there is no magnetic field
@@ -8904,7 +8979,7 @@ function innerSteps3(Dt) {
       if (left <= 0 || L < 0.8 * dti) { const n = Math.max(1, Math.ceil(rem / L - 1e-9)); dti = rem / n; left = n; }
     } else { dti = rem; left = 1; }
     left--;
-    const h = 0.5 * dti, lep = _mdL.length > 0;
+    const h = 0.5 * dti, lep = _mdL.length > 0, hasB = lep && hasBfield();
     const mdI = _mdI, nmd = _nmd, DEAD = S.dead, RAD = S.rad, K = S.k, FAST = S.fast, VX = S.vx, VY = S.vy, VZ = S.vz, GX = S.gx, GY = S.gy, GZ = S.gz, IM = S.im;
     const X = S.x, Y = S.y, Zp = S.z, OX = S.ox, OY = S.oy, OZ = S.oz, FRESH = S.fresh, OBJ = S.obj;
     for (let q = 0; q < nmd; q++) {
@@ -8912,7 +8987,8 @@ function innerSteps3(Dt) {
       if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
       FRESH[i] = 0;
       if (lep) { const im = IM[i]; VX[i] += h * GX[i] * im; VY[i] += h * GY[i] * im; VZ[i] += h * GZ[i] * im; }
-      X[i] += VX[i] * dti; Y[i] += VY[i] * dti; Zp[i] += VZ[i] * dti;
+      if (hasB && K[i] !== NUC && OBJ[i].Bl !== 0) gyrate3(OBJ[i], OBJ[i].Bl, dti); // (a free lepton in a magnetic field: the exact arc, as innerSteps, 1.24)
+      else { X[i] += VX[i] * dti; Y[i] += VY[i] * dti; Zp[i] += VZ[i] * dti; }
       if (K[i] !== NUC) {
         if (wrap) {
           if (X[i] < -hw) { X[i] += bw; OX[i] += bw; } else if (X[i] > hw) { X[i] -= bw; OX[i] -= bw; }
@@ -9081,6 +9157,7 @@ function outerB3(dt) {
   let hc1 = 1, hc2 = 0, hkT = 0, pullK = 0;
   if (heat) { hc1 = Math.exp(-0.6 * dt); hc2 = Math.sqrt(1 - hc1 * hc1); hkT = PHYS.KB * (t.type === 'heat' ? t.T : W.T); if (t.type === 'pull') pullK = 2 * Math.abs(t.s) / (t.R * t.R); }
   const reach = pullK ? { x: t.x, y: t.y, z: t.z, R: t.R } : t; // (Push/Pull: its ball, whatever the cone)
+  const hasB = hasBfield();
   for (let j = 0; j < n; j++) {
     const i = PI[j];
     if (DEAD[i] === 1 || RAD[i] === 1) continue;
@@ -9090,6 +9167,7 @@ function outerB3(dt) {
     const fast = FAST[i] === 1;
     if (fast && k !== NUC) continue;
     const im = IM[i];
+    if (hasB && S.q[i] !== 0 && k === NUC) rotateB3(S.obj[i], h); // (a magnetic field: half a turn before the half kick, as outerB, 1.24)
     let vx = VX[i], vy = VY[i], vz = VZ[i];
     if (fast) { vx += h * FX[i] * im; vy += h * FY[i] * im; vz += h * FZ[i] * im; }
     else { vx += h * (FX[i] - GX[i]) * im; vy += h * (FY[i] - GY[i]) * im; vz += h * (FZ[i] - GZ[i]) * im; }
@@ -9974,7 +10052,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.d3 = false; W.box.d = 0; W.box.td = 0; W.box.ud = 0; // (a new world is flat; world3d makes it 3-D)
+  W.d3 = false; W.box.d = 0; W.box.td = 0; W.box.ud = 0; W.Ez = 0; W.Bax3 = 'z'; // (a new world is flat; world3d makes it 3-D; Ez, Bax3: 3-D fields, 1.24)
   W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.muAtoms = []; W.at = W.at || 0;
   _rxCache.clear();
 }
@@ -22772,6 +22850,18 @@ function drawAxes3(ctx) {
     ctx.strokeStyle = c; ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + sx * L, y0 + sy * L); ctx.stroke();
     ctx.fillText(n, x0 + sx * (L + 8), y0 + sy * (L + 8));
   }
+  // the applied fields (1.24): B along its axis, E along its direction, each an arrow beside the axes with its letter
+  const fld = [];
+  if (W.Bz) { const u = AX3[W.Bax3] || AX3.z, s = W.Bz > 0 ? 1 : -1; fld.push(['B', u[0] * s, u[1] * s, u[2] * s, W.Bz > 0 ? '#ff7a6b' : '#6ba8ff']); }
+  const E = Math.hypot(W.Ex || 0, W.Ey || 0, W.Ez || 0); if (E > 0) fld.push(['E', W.Ex / E, W.Ey / E, (W.Ez || 0) / E, '#ffd678']);
+  fld.forEach(([n, x, y, z, c], k) => {
+    const cx = x0 + 70 + 52 * k, sx = x * C3.rx + y * C3.ry + z * C3.rz, sy = -(x * C3.ux + y * C3.uy + z * C3.uz);
+    ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - sx * L * 0.8, y0 - sy * L * 0.8); ctx.lineTo(cx + sx * L * 0.8, y0 + sy * L * 0.8); ctx.stroke();
+    const l = Math.hypot(sx, sy);
+    if (l > 0.15) { const ux = sx / l, uy = sy / l, ex = cx + sx * L * 0.8, ey = y0 + sy * L * 0.8; ctx.beginPath(); ctx.moveTo(ex + ux * 5, ey + uy * 5); ctx.lineTo(ex - uy * 4, ey + ux * 4); ctx.lineTo(ex + uy * 4, ey - ux * 4); ctx.fill(); }
+    else { ctx.beginPath(); ctx.arc(cx, y0, 4, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.fillText(n, cx + 14, y0 - 16);
+  });
   ctx.restore();
 }
 function fog3(z) { return clamp((z - C3.fog0) / Math.max(1e-3, C3.fog1 - C3.fog0), 0, 1) * C3.fogK; }
@@ -22924,7 +23014,7 @@ function render3d(rt) {
   drawFlashes3(ctx, rt);
   drawEvents3(ctx, rt);
   drawMarks3(ctx);
-  if (!R.menu) drawPlace3(ctx); // (the placing plane, the ghost, Fire's aim from the camera, 1.24)
+  if (!R.menu) { drawMagnets3(ctx); drawPlace3(ctx); } // (magnets; the placing plane, the ghost, Fire's aim from the camera, 1.24)
   drawOverlay3(ctx);
   if (V3.axes && !R.menu) drawAxes3(ctx); // (not behind the main menu)
   drawScaleBar();
@@ -23093,6 +23183,29 @@ function drawPlace3(ctx) {
     if (fa.text) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText(fa.text, x + 12, y - 10); }
   }
   ctx.restore();
+}
+/* Magnets in 3-D (1.24): each a ball (dashed outline, a faint glow, N red / S blue) with an arrow through it along the
+   field's axis (W.Bax3; N: its field along +axis), and its strength above it. The Magnet tool's ghost likewise. */
+const AX3 = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+function drawMagnet3(ctx, x, y, z, Rm, B, ghost) {
+  const A = _p3a, Bp = _p3b; if (!proj3(x, y, z, A)) return;
+  const r = Rm * C3.F / A[2], col = B >= 0 ? [255, 96, 86] : [86, 140, 255];
+  ctx.save();
+  if (!ghost) { const g = ctx.createRadialGradient(A[0], A[1], r * 0.2, A[0], A[1], r * 1.6); g.addColorStop(0, rgba(col, 0.16)); g.addColorStop(0.6, rgba(col, 0.07)); g.addColorStop(1, rgba(col, 0)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(A[0], A[1], r * 1.6, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = rgba(col, ghost ? 0.5 : 0.6); ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(A[0], A[1], r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  const u = AX3[W.Bax3] || AX3.z, s = B >= 0 ? 1 : -1, L = 0.8 * Rm;
+  if (seg3(x - s * u[0] * L, y - s * u[1] * L, z - s * u[2] * L, x + s * u[0] * L, y + s * u[1] * L, z + s * u[2] * L, A, Bp)) {
+    ctx.strokeStyle = rgba(col, 0.85); ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(Bp[0], Bp[1]); ctx.stroke();
+    const dx = Bp[0] - A[0], dy = Bp[1] - A[1], l = Math.hypot(dx, dy);
+    if (l > 4) { const ux = dx / l, uy = dy / l; ctx.beginPath(); ctx.moveTo(Bp[0] + ux * 6, Bp[1] + uy * 6); ctx.lineTo(Bp[0] - uy * 4, Bp[1] + ux * 4); ctx.lineTo(Bp[0] + uy * 4, Bp[1] - ux * 4); ctx.fill(); }
+    else { ctx.beginPath(); ctx.arc(Bp[0], Bp[1], 3.5, 0, Math.PI * 2); ctx.stroke(); } // (end on: ⊙)
+  }
+  if (!ghost && proj3(x, y, z, A)) { ctx.font = '600 12px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(col, 0.9); ctx.textAlign = 'center'; ctx.fillText((B >= 0 ? 'N ' : 'S ') + fmtTesla(Math.abs(B)), A[0], A[1] - r - 8); }
+  ctx.restore();
+}
+function drawMagnets3(ctx) {
+  for (const m of W.magnets) drawMagnet3(ctx, m.x, m.y, m.z || 0, m.R, m.B, false);
+  const o = R.overlay; if (o && o.ghostMagnet) drawMagnet3(ctx, o.x, o.y, o.z || 0, o.ghostMagnet.R, o.ghostMagnet.B, true);
 }
 /* ---------- overlays (stage 3): trails, hydrogen bonds and ionic contacts, the Measure tool, flashes and events */
 /* Under the labels: particle trails (with each point's depth), hydrogen bonds and ionic contacts, faded with depth. */
@@ -26368,6 +26481,12 @@ function brushFor(tool) {
   return null;
 }
 function magnetAt(x, y) { for (let i = W.magnets.length - 1; i >= 0; i--) { const m = W.magnets[i]; if (Math.hypot(m.x - x, m.y - y) < m.R) return m; } return null; }
+/* (3-D, 1.24) The magnet whose ball is drawn under the pointer, the nearest the camera. */
+function magnetAt3(px, py) {
+  cam3Update(); const o = [0, 0, 0]; let best = null, bz = Infinity;
+  for (const m of W.magnets) if (proj3(m.x, m.y, m.z || 0, o) && Math.hypot(o[0] - px, o[1] - py) < Math.max(8, m.R * C3.F / o[2]) && o[2] < bz) { bz = o[2]; best = m; }
+  return best;
+}
 
 const UNDO_TOOLS = new Set(['place', 'erase', 'fire', 'spark', 'heat', 'pull', 'magnet', 'light', 'objects']); // (tools that change the world when pressed: undo can take them back)
 function onDown(e) {
@@ -26437,13 +26556,15 @@ function onDown(e) {
       UI.drag = { kind: 'none' };
       break;
     case 'magnet': {
-      const m = magnetAt(wx, wy);
-      if (m) UI.drag = { kind: 'magnet', m, ox: m.x - wx, oy: m.y - wy };
+      const m = W.d3 ? magnetAt3(px, py) : magnetAt(wx, wy);
+      if (m && W.d3) { const at = [m.x, m.y, m.z || 0], q = s2wPlane(px, py, at); UI.drag = { kind: 'magnet', m, ox: m.x - q[0], oy: m.y - q[1], oz: at[2] - q[2], plane: at }; } // (3-D: dragged on the plane facing the camera through it, 1.24)
+      else if (m) UI.drag = { kind: 'magnet', m, ox: m.x - wx, oy: m.y - wy };
       else {
         const nm = { x: wx, y: wy, R: OPT.magnet.R, B: magB() };
+        if (W.d3) nm.z = wz; // (3-D: a ball, 1.24)
         W.magnets.push(nm);
         log('tool', `Magnet placed: ${magB() >= 0 ? 'N' : 'S'} pole, ${fmtTesla(Math.abs(nm.B))}`);
-        UI.drag = { kind: 'magnet', m: nm, ox: 0, oy: 0 };
+        UI.drag = { kind: 'magnet', m: nm, ox: 0, oy: 0, oz: 0, plane };
       }
       break;
     }
@@ -26652,6 +26773,7 @@ function eraseHere(wx, wy) {
 function eraseHere3(px, py) {
   const reach = { cone: toolCone3(px, py, OPT.erase.R) }; let n = 0;
   for (const p of W.parts) if (!p.dead && inTool3(reach, p.x, p.y, p.z)) { kill(p); n++; }
+  for (let i = W.magnets.length - 1; i >= 0; i--) { const m = W.magnets[i]; if (inTool3(reach, m.x, m.y, m.z || 0)) W.magnets.splice(i, 1); } // (magnets too, 1.24)
   if (R.sel && R.sel.dead) R.sel = null;
   return n;
 }
@@ -26701,7 +26823,7 @@ function onMove(e) {
         }
         break;
       case 'tool': if (W.tool) { W.tool.x = wx; W.tool.y = wy; if (W.d3) { W.tool.z = wz; if (W.tool.type === 'heat') W.tool.cone = toolCone3(px, py, W.tool.R); } } break;
-      case 'magnet': d.m.x = wx + d.ox; d.m.y = wy + d.oy; break;
+      case 'magnet': d.m.x = wx + d.ox; d.m.y = wy + d.oy; if (W.d3) d.m.z = wz + (d.oz || 0); break;
       case 'objnew': d.ob.x1 = wx; d.ob.y1 = wy; W.dirty++; break;
       case 'objmove': { const dx = wx - d.lx, dy = wy - d.ly; d.ob.x0 += dx; d.ob.x1 += dx; d.ob.y0 += dy; d.ob.y1 += dy; d.lx = wx; d.ly = wy; W.dirty++; break; }
       case 'fire': case 'light': d.x1 = wx; d.y1 = wy; d.z1 = wz; d.px1 = px; d.py1 = py; break;
@@ -26712,7 +26834,7 @@ function onMove(e) {
   } else if (!QM.open) { updateHover(px, py, wx, wy); R.objHover = W.objs.length && !R.hover ? objAtPx(px, py) : null; }
   const b = brushFor(UI.tool);
   R.overlay = b ? { x: wx, y: wy, z: wz, brush: b.r, color: b.c } : null;
-  if (UI.tool === 'magnet' && !d) R.overlay = { x: wx, y: wy, ghostMagnet: { R: OPT.magnet.R, B: magB() } };
+  if (UI.tool === 'magnet' && !d) R.overlay = { x: wx, y: wy, z: wz, ghostMagnet: { R: OPT.magnet.R, B: magB() } };
   if (d && (d.kind === 'fire' || d.kind === 'light')) R.overlay = W.d3 && click3(d) ? over3(px, py, d.kind) : { aim: aimOverlay(d) };
   else if (W.d3 && !d && !QM.open) { const o3 = over3(px, py, UI.tool); if (o3) R.overlay = o3; }
   else if (W.d3 && d && d.kind === 'spray') R.overlay = { place3: { x: wx, y: wy, z: wz, at: null, spec: UI.spec || SPEC_P } };
@@ -27986,9 +28108,9 @@ function worldToJSON() {
   if (BO.any) for (const [a, b, o] of boWhole()) { const i = ix.get(a), j = ix.get(b); if (i !== undefined && j !== undefined) bonds.push([i, j, o]); } // (continuous bond orders: kept as whole bonds, so the world opens either way)
   // a 3-D world (version 2): its depth, and each particle's z and vz beside the flat fields (to 1e-10: a reload puts each
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
-  const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
+  const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, Ez: W.Ez || 0, Bax: W.Bax3 || 'z', z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -28020,7 +28142,8 @@ function worldFromJSON(d) {
   }
   let nb = 0;
   for (const b of d.bonds) { if (!Array.isArray(b)) continue; const [i, j, o] = b; const a = made[i], c = made[j]; if (a && c && a !== c && [1, 2, 3].includes(o)) { addBond(a, c, o); nb++; } }
-  if (Array.isArray(d.magnets) && !W.d3) for (const m of d.magnets.slice(0, 50)) if (m && Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.B)) W.magnets.push({ x: m.x, y: m.y, R: num(m.R, 1, 1000, 10), B: clamp(m.B, -1e9, 1e9) });
+  if (Array.isArray(d.magnets)) for (const m of d.magnets.slice(0, 50)) if (m && Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.B)) { const mm = { x: m.x, y: m.y, R: num(m.R, 1, 1000, 10), B: clamp(m.B, -1e9, 1e9) }; if (W.d3) mm.z = num(m.z, -1e4, 1e4, 0); W.magnets.push(mm); } // (3-D: balls with a depth, 1.24)
+  if (W.d3) { W.Ez = num(d3.Ez, -50, 50, 0); W.Bax3 = ['x', 'y', 'z'].includes(d3.Bax) ? d3.Bax : 'z'; } // (3-D fields, 1.24)
   if (Array.isArray(d.objs) && !W.d3) for (const o of d.objs.slice(0, 200)) { const ob = objFromJSON(o); if (ob) W.objs.push(ob); }
   R.objSel = null;
   W.dirty++; W.spawned++; W.topo++; W.hist = { t: [], T: [], bath: [] }; R.sel = null; R.msel.clear(); R.oSel.clear();
@@ -28502,7 +28625,8 @@ function bindLab() {
   bindSeg('segBath', (v) => { W.gamma = +v; syncLabText(); });
   $('bSlider').oninput = (e) => { W.Bz = bFromS(+e.target.value); syncLabText(); };
   $('eSlider').oninput = (e) => { UI.E = +e.target.value / 100; applyE(); syncLabText(); };
-  bindSeg('segEdir', (v) => { UI.Eang = +v; applyE(); });
+  bindSeg('segEdir', (v) => { UI.Eang = v === 'z' || v === '-z' ? v : +v; applyE(); }); // (3-D: ±z too, 1.24)
+  bindSeg('segBdir', (v) => { W.Bax3 = v; log('tool', `Magnetic field along ${v} (3-D)`); });
   $('bMagClear').onclick = () => { W.magnets.length = 0; syncLabText(); };
   bindSeg('segWall', (v) => { W.wall = v; syncNWall(); });
   bindSeg('segNWall', (v) => { W.nWall = v; syncNWall(); log('tool', `Neutrons at the walls: ${{ reflect: 'bounce back (a reflector)', absorb: 'absorbed, the slow ones most (the 1/v law)', pass: 'pass through', fast: 'fast ones (over 0.1 MeV) leave, slower ones bounce back' }[v]}`); });
@@ -28533,7 +28657,8 @@ function bindLab() {
 }
 function setBathT(T) { W.T = clamp(T, 1, 1e9); }
 function applyE() {
-  const a = (UI.Eang || 0) * Math.PI / 180;
+  if (W.d3) { W.Ez = UI.Eang === 'z' ? UI.E : UI.Eang === '-z' ? -UI.E : 0; if (W.Ez) { W.Ex = 0; W.Ey = 0; return; } } // (3-D: along ±z, 1.24)
+  const a = (typeof UI.Eang === 'number' ? UI.Eang : 0) * Math.PI / 180; // (±z, a 3-D choice, is none in the plane)
   W.Ex = UI.E * Math.cos(a); W.Ey = UI.E * Math.sin(a);
   if (Math.abs(W.Ex) < 1e-12) W.Ex = 0; if (Math.abs(W.Ey) < 1e-12) W.Ey = 0;
 }
@@ -28543,7 +28668,9 @@ function syncLab() {
   $('bSlider').value = sFromB(W.Bz);
   UI.E = Math.hypot(W.Ex, W.Ey);
   if (UI.E) UI.Eang = Math.round(((Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) + 360) % 360);
-  $('eSlider').value = Math.round(UI.E * 100); setSegValue('segEdir', UI.Eang || 0);
+  else if (W.d3 && W.Ez) { UI.E = Math.abs(W.Ez); UI.Eang = W.Ez > 0 ? 'z' : '-z'; } // (3-D: along z, 1.24)
+  else if (UI.Eang === 'z' || UI.Eang === '-z') { if (!W.d3) UI.Eang = 0; }
+  $('eSlider').value = Math.round(UI.E * 100); setSegValue('segEdir', UI.Eang || 0); setSegValue('segBdir', W.Bax3 || 'z');
   setSegValue('segWall', W.wall); syncNWall(); $('chkGlow').checked = !!W.glow; rampSync();
   UI.aspect = W.box.th / W.box.tw; if (W.d3) UI.aspectD = (W.box.td || W.box.d) / W.box.tw; // (3-D: the depth's share, kept as the slider scales the box, 1.24)
   $('boxSlider').value = sFromBox(W.box.tw);
@@ -29510,7 +29637,7 @@ function buildPresetSelect() {
    and the Experimental physics that is flat only (induced charges, quantum nuclei, continuous bond orders, electrons
    as waves) and the ultra-realistic mode. The mode follows the world (W.d3): a setup or a saved world sets it. */
 const NOT_3D = 'Not in 3-D yet';
-const TOOLS_NO3D = new Set(['magnet', 'objects', 'light']);
+const TOOLS_NO3D = new Set(['objects', 'light']); // (the Magnet tool works in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };
 function is3dPreset(k) { return !!(PRESETS[k] && PRESETS[k].d3); }
 /* What can be put in a 3-D world: atoms and ions (not antimatter), molecules of the 3-D library (molFits: not the flat
@@ -29521,8 +29648,8 @@ function spec3dOK(s) {
   if (s.kind === 'atom') return !s.anti;
   return s.kind === 'e';
 }
-const NO3D_CTL = ['bSlider', 'eSlider', 'bMagClear', 'setUltra', 'bAskSetup']; // (single controls; the box-size slider works in 3-D since 1.24)
-const NO3D_SEG = ['segEdir', 'segQeq', 'segPi', 'segPiRpc', 'segBo', 'segWave']; // (button groups)
+const NO3D_CTL = ['setUltra', 'bAskSetup']; // (single controls; the box-size slider, fields and magnets work in 3-D since 1.24)
+const NO3D_SEG = ['segQeq', 'segPi', 'segPiRpc', 'segBo', 'segWave']; // (button groups)
 function mode3dSync() {
   const on = !!W.d3, changed = on !== MODE3.on;
   MODE3.on = on;
@@ -31875,7 +32002,7 @@ function openQuickMenu(px, py) {
   const m = $('qmenu'); if (!m) return;
   hideTip(); QM.acts = []; QM.ranges = []; QM.serial = (QM.serial || 0) + 1;
   const forced = QM.forceObj; QM.forceObj = null;
-  const [wx, wy, wz] = W.d3 ? ptr3(px, py) : s2w(px, py), p = forced ? null : pickNear(px, py, 14), mag = p || forced ? null : magnetAt(wx, wy); // (3-D: the point in depth, as the tools take it)
+  const [wx, wy, wz] = W.d3 ? ptr3(px, py) : s2w(px, py), p = forced ? null : pickNear(px, py, 14), mag = p || forced ? null : W.d3 ? magnetAt3(px, py) : magnetAt(wx, wy); // (3-D: the point in depth, as the tools take it)
   const src = p || mag || forced ? null : W.sources.find(s => { if (s.beam) return false; const [px, py] = srcPos(s); return Math.hypot(px - wx, py - wy) < Math.max(1.5, 12 / R.s); }); // (where it is drawn: srcPos keeps it inside the box)
   const ob = forced || (p || mag || src ? null : objAtPx(px, py)), under = p ? objAtPx(px, py) : null; // (an object under the particle: reachable from its menu, 0.70)
   m.innerHTML = (p ? qmParticle(p) + (under ? qmBtn(`The ${OBJ_NAME[under.kind].toLowerCase()} under it…`, () => { QM.forceObj = under; openQuickMenu(px, py); }) : '') : mag ? qmMagnet(mag) : src ? qmSource(src) : ob ? qmObject(ob) : qmHere(wx, wy, wz || 0)) + qmGlobal(px, py, wx, wy, wz || 0);

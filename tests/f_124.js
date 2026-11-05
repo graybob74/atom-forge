@@ -70,6 +70,48 @@ PARTS.box = async (page, check, say) => {
     `1.24: box size in 3-D: the slider sets 20 × 20 × 20 Å (it was disabled); an insulated argon gas squeezed 30 → 20 Å heats ${sq.T[0]} → ${sq.T[1]} K by the piston's ${sq.work} eV (books ${sq.books} eV against it); grown to 40 Å, a free expansion (books ${gr.dE} eV)`, '1.24 box: ' + JSON.stringify({ ui, sq, gr }));
 };
 
+/* ---- 3. magnets and fields in 3-D: the Lab's B and E (with ±z) and B's axis, the Magnet tool placing a ball; an electron
+   circles exactly about each axis; a magnet's pull is the slope of its energy in x, y and z; the books with B and E */
+PARTS.fields = async (page, check, say) => {
+  const ui = await page.evaluate(async () => {
+    loadPreset('mol3d'); setRunning(false); showTab('lab', true); cam3Fit();
+    const dis = ['bSlider', 'eSlider', 'bMagClear'].filter(id => $(id).disabled);
+    document.querySelector('#segBdir button[data-v="x"]').click(); document.querySelector('#segEdir button[data-v="z"]').click();
+    const e = $('eSlider'); e.value = 20; e.dispatchEvent(new Event('input'));
+    setTool('magnet'); return { dis, ax: W.Bax3, Ez: W.Ez, Ex: W.Ex, tool: UI.tool, vis: getComputedStyle($('segBdir')).display !== 'none' };
+  });
+  await page.mouse.move(560, 520); await page.mouse.down(); await page.mouse.up(); await page.waitForTimeout(80);
+  const mg = await page.evaluate(() => { const m = W.magnets[0]; return m ? { z: Number.isFinite(m.z), n: W.magnets.length } : null; });
+  const flat = await page.evaluate(() => { loadPreset('empty'); return { vis: getComputedStyle($('segBdir')).display !== 'none', dis: $('bSlider').disabled }; });
+  const gy = ['x', 'y', 'z'].map(ax => { // an electron in 2,000 T along each axis
+    const X = load('all', { seed: 1 }), W = X.W; X.PRESETS.d3empty.build(); W.gamma = 0; W.Bz = 2000; W.Bax3 = ax;
+    const e = X.addLepton(X.ELEC, 0, 0, 0, 0, 0); X.forcesNoEvents(); W.fSpawn = W.spawned; e.vx = 0.36; e.vy = 0.288; e.vz = 0.384;
+    const u = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }[ax], vpar = e.vx * u[0] + e.vy * u[1] + e.vz * u[2], vperp = Math.sqrt(0.36 - vpar * vpar), rth = vperp / Math.abs(e.q * W.Bz * X.PHYS.LOR * e.im);
+    const ia = { x: [1, 2], y: [2, 0], z: [0, 1] }[ax], ip = { x: 0, y: 1, z: 2 }[ax], pts = [], p0 = [e.x, e.y, e.z][ip], t0 = W.t;
+    for (let i = 0; i < 300; i++) { W.dt = X.chooseDt(); X.step(W.dt); pts.push([e.x, e.y, e.z]); }
+    const ext = (k) => Math.max(...pts.map(p => p[k])) - Math.min(...pts.map(p => p[k]));
+    return { ax, ratio: +(Math.max(ext(ia[0]), ext(ia[1])) / (2 * rth)).toFixed(4), along: +((pts[299][ip] - p0) / (vpar * (W.t - t0))).toFixed(5) };
+  });
+  const sl = ['Fe', 'Ar'].map(el => { // a magnet's pull against the slope of its energy
+    const X = load('all', { seed: 3 }), W = X.W; X.PRESETS.d3empty.build(); W.Bax3 = 'x';
+    const p = X.addAtom(el, 4.1, 1.3, { z: -2.2, T: 300 }); p.tLocal = 300; W.magnets.push({ x: 0, y: 0, z: 0, R: 3, B: 2e4 }); X.forcesNoEvents();
+    const f = [p.fx, p.fy, p.fz], h = 1e-5; let err = 0, mag = 0;
+    ['x', 'y', 'z'].forEach((k, j) => { const v = p[k]; p[k] = v + h; const a = X.totalEnergy().pe; p[k] = v - h; const b = X.totalEnergy().pe; p[k] = v; const g = -(a - b) / (2 * h); err = Math.max(err, Math.abs(g - f[j])); mag = Math.max(mag, Math.abs(f[j])); });
+    return { el, rel: +(err / mag).toExponential(1), towards: f[0] * -4.1 + f[1] * -1.3 + f[2] * 2.2 > 0 };
+  });
+  const bk = [[0, 0], [300, 0.05]].map(([B, E]) => { // eight electrons, insulated, 1,500 steps: the books (with the field's potential energy −qE·r)
+    const X = load('all', { seed: 2 }), W = X.W; X.PRESETS.empty.build(); X.setBox(30, 30); X.world3d(30); W.gamma = 0; W.Bz = B; W.Bax3 = 'y'; W.Ez = E;
+    for (let i = 0; i < 8; i++) { const e = X.addLepton(X.ELEC, -9 + (i % 4) * 6, 9 - 4 * Math.floor(i / 4), (i % 3) * 6 - 5, 0, 0); e.vx = 20 * Math.cos(i); e.vy = 12 * Math.sin(i); e.vz = 16 * Math.sin(i); }
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    const tot = () => { let u = 0; for (const p of W.parts) if (!p.dead) u -= p.q * W.Ez * p.z; return X.totalEnergy().total + u; };
+    const e0 = tot(); for (let i = 0; i < 1500; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+    return { B, E, books: +(tot() - e0).toFixed(3) };
+  });
+  say('  3-D fields: ' + JSON.stringify({ ui, mg, flat, gy, sl, bk }));
+  check(!ui.dis.length && ui.ax === 'x' && ui.Ez === 0.2 && ui.Ex === 0 && ui.tool === 'magnet' && ui.vis && mg && mg.z && !flat.vis && !flat.dis && gy.every(g => Math.abs(g.ratio - 1) < 1e-3 && Math.abs(g.along - 1) < 1e-4) && sl.every(s => s.rel < 1e-5) && sl[0].towards && !sl[1].towards && bk.every(b => Math.abs(b.books) < 1.5),
+    `1.24: fields in 3-D: B, E (+z) and B's axis set from the Lab (they were disabled), the Magnet tool puts a ball in depth; an electron circles at m·v⊥/qB about each axis (${gy.map(g => g.ax + ' ' + g.ratio).join(', ')}) and drifts along it exactly; a magnet's pull is the slope of its energy (${sl.map(s => s.el + ' ' + s.rel).join(', ')}), iron pulled in, argon pushed out; eight electrons insulated, books ${bk.map(b => b.books).join(' / ')} eV without / with B and E`, '1.24 fields: ' + JSON.stringify({ ui, mg, flat, gy, sl, bk }));
+};
+
 module.exports = async function f124(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

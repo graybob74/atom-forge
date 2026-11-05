@@ -154,11 +154,15 @@
           <div class="row"><span>Electric field E</span><span class="val" id="eVal">0 V/Å</span></div>
           <input type="range" id="eSlider" min="0" max="300" step="1" value="0" aria-label="Electric field strength">
           <div class="seg" id="segEdir" role="group" aria-label="Electric field direction">
-            <button data-v="0">→</button><button data-v="90">↑</button><button data-v="180">←</button><button data-v="270">↓</button>
+            <button data-v="0">→</button><button data-v="90">↑</button><button data-v="180">←</button><button data-v="270">↓</button><button class="only3d" data-v="z" title="Along +z (3-D)">+z</button><button class="only3d" data-v="-z" title="Along −z (3-D)">−z</button>
+          </div>
+          <div class="row only3d"><span>B points along</span></div>
+          <div class="seg only3d" id="segBdir" role="group" aria-label="Magnetic field direction (3-D)">
+            <button data-v="x" title="The red axis">x</button><button data-v="y" title="The green axis (up)">y</button><button data-v="z" title="The blue axis">z</button>
           </div>
           <div class="row"><span id="magCount">No magnets placed</span><button class="btn small" id="bMagClear">Remove magnets</button></div>
-          <p class="note">Positive B points out of the screen (⊙). Charges curve; magnetic matter is pulled by gradients.</p>
-          <p class="note no3d" id="fields3dNote" hidden>Not in 3-D yet: fields and magnets work in the flat game only.</p>
+          <p class="note only2d">Positive B points out of the screen (⊙). Charges curve; magnetic matter is pulled by gradients.</p>
+          <p class="note" id="fields3dNote" hidden>In 3-D, B (the uniform field and every magnet's) points along the axis chosen above, positive along it; magnets are balls. The arrows in the corner show B and E.</p>
         </section>
 
         <section class="group">

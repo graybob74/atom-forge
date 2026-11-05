@@ -1042,7 +1042,7 @@ function hasBfield() {
   return false;
 }
 function hasEfield() {
-  if (W.Ex !== 0 || W.Ey !== 0 || (W.objs.length && hasPlates())) return true;
+  if (W.Ex !== 0 || W.Ey !== 0 || (W.objs.length && hasPlates()) || (W.d3 && W.Ez)) return true; // (3-D: along z too, 1.24)
   const zs = W.zones;
   for (let i = 0; i < zs.length; i++) { const k = zs[i].kind; if (k === 'cavity' || k === 'sep') return true; }
   return false;
@@ -1083,6 +1083,7 @@ function Efield(x, y, p) {
   return _E;
 }
 function Bfield(x, y, p) {
+  if (W.d3) return Bfield3(x, y, p ? p.z : 0); // (3-D: along the chosen axis, magnets as balls, 1.24)
   let B = W.Bz;
   if (W.zones.length) B += zonesB(x, y, p);
   const ms = W.magnets;
@@ -1095,6 +1096,59 @@ function Bfield(x, y, p) {
     B += m.B * Math.exp(-u * u);
   }
   return B;
+}
+/* 3-D fields (1.24; the owner: "magnets and fields in 3-D"). Every magnetic field in a 3-D world points along one axis,
+   W.Bax3 ('x', 'y' or 'z'; the Lab's B direction): the uniform field W.Bz and every magnet's (a magnet is a ball of
+   radius R, its field B inside and falling off outside as the flat game's disc does, by the distance in 3-D). With all
+   of it along one fixed axis, the field at a point is one number times that axis, so the flat game's exact turning
+   (rotateB, a Boris rotation, and gyrate, an exact arc) works unchanged on the two velocity components across the axis
+   (B3P: x→(y, z), y→(z, x), z→(x, y), each pair turned as (vx, vy) is about z), the one along it untouched. The
+   electric field has a z part too (W.Ez: the Lab's ±z buttons). */
+const B3P = { x: ['y', 'z', 'vy', 'vz'], y: ['z', 'x', 'vz', 'vx'], z: ['x', 'y', 'vx', 'vy'] };
+function Bfield3(x, y, z) {
+  let B = W.Bz;
+  const ms = W.magnets;
+  for (let i = 0; i < ms.length; i++) {
+    const m = ms[i], dx = x - m.x, dy = y - m.y, dz = z - (m.z || 0), d2 = dx * dx + dy * dy + dz * dz, R = m.R;
+    if (d2 < R * R) { B += m.B; continue; }
+    const far = 2.4 * R;
+    if (d2 >= far * far) continue;
+    const u = (Math.sqrt(d2) - R) / (0.35 * R);
+    B += m.B * Math.exp(-u * u);
+  }
+  return B;
+}
+function Bgrad3(x, y, z, out) { // B (along the axis) and out = its gradient [d/dx, d/dy, d/dz]
+  let B = W.Bz, gx = 0, gy = 0, gz = 0;
+  for (const m of W.magnets) {
+    const dx = x - m.x, dy = y - m.y, dz = z - (m.z || 0), d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (d < m.R) { B += m.B; continue; }
+    const s = 0.35 * m.R, u = (d - m.R) / s;
+    if (u > 4) continue;
+    const e = Math.exp(-u * u), Bm = m.B * e, dBdd = -2 * u / s * Bm;
+    B += Bm; gx += dBdd * dx / d; gy += dBdd * dy / d; gz += dBdd * dz / d;
+  }
+  out[0] = gx; out[1] = gy; out[2] = gz;
+  return B;
+}
+/* The turn of a charged particle's velocity by half a magnetic kick (frac of the step), in place: rotateB's Boris
+   rotation on the pair across the axis. */
+function rotateB3(p, frac) {
+  const B = Bfield3(p.x, p.y, p.z); if (B === 0) return;
+  const P = B3P[W.Bax3] || B3P.z, a = P[2], b = P[3], va = p[a], vb = p[b];
+  const tt = p.q * B * PHYS.LOR * p.im * 0.5 * frac, s = 2 * tt / (1 + tt * tt);
+  const vpa = va + vb * tt, vpb = vb - va * tt;
+  p[a] = va + vpb * s; p[b] = vb - vpa * s;
+}
+/* gyrate in 3-D: the exact arc across the axis, a straight drift along it. */
+function gyrate3(p, B, h) {
+  const P = B3P[W.Bax3] || B3P.z, xa = P[0], xb = P[1], a = P[2], b = P[3], ax = W.Bax3 === 'x' ? 'x' : W.Bax3 === 'y' ? 'y' : 'z';
+  const om = p.q * B * PHYS.LOR * p.im, ph = om * h, va = p[a], vb = p[b];
+  const c = Math.cos(ph), sn = Math.sin(ph);
+  let u, w; if (Math.abs(ph) < 1e-5) { u = h; w = 0.5 * ph * h; } else { u = sn / om; w = 2 * Math.sin(0.5 * ph) ** 2 / om; }
+  p[xa] += va * u + vb * w; p[xb] += vb * u - va * w;
+  p[a] = va * c + vb * sn; p[b] = vb * c - va * sn;
+  p[ax] += p['v' + ax] * h;
 }
 function Bgrad(x, y, out) { // returns B and fills out=[dB/dx, dB/dy]
   let B = W.Bz, gx = 0, gy = 0;
@@ -2795,7 +2849,7 @@ function computeForces1() {
       const i = mdI[q];
       if (K[i] !== NUC) continue; // free electrons: leptonExtras
       const qt = Q[i] + QP[i];
-      if (hasE && qt !== 0) { const E = Efield(X[i], Y[i], OBJ[i]); FX[i] += qt * E[0]; FY[i] += qt * E[1]; }
+      if (hasE && qt !== 0) { const E = Efield(X[i], Y[i], OBJ[i]); FX[i] += qt * E[0]; FY[i] += qt * E[1]; if (d3) S.fz[i] += qt * W.Ez; } // (3-D: its z part, 1.24)
       if (hasB && NE[i] > 0) magneticMatterForce(OBJ[i], kT);
     }
   }
@@ -2863,7 +2917,7 @@ function leptonExtras(total) {
   const t = W.tool, pull = t && t.active && t.type === 'pull', g = W.grab, gp = g && g.p && g.p.k !== NUC && !g.p.dead ? g.p.i : -1;
   const mdLI = _mdLI, nL = _nmdL, DEAD = S.dead, FAST = S.fast, RAD = S.rad, Q = S.q, X = S.x, Y = S.y, VX = S.vx, VY = S.vy, M = S.m, GX = S.gx, GY = S.gy, FX = S.fx, FY = S.fy, OBJ = S.obj;
   if (!hasE && !pull && gp < 0) return; // (nothing to add)
-  if (W.d3) { leptonExtras3(total, t, pull, g, gp); return; }
+  if (W.d3) { leptonExtras3(total, t, pull, g, gp, hasE); return; }
   for (let q = 0; q < nL; q++) {
     const i = mdLI[q];
     if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
@@ -2882,12 +2936,13 @@ function leptonExtras(total) {
 }
 
 /* (3-D) The same for free electrons in a 3-D world: Push/Pull's ball and the Grab spring, with z (no fields in 3-D yet). */
-function leptonExtras3(total, t, pull, g, gp) {
+function leptonExtras3(total, t, pull, g, gp, hasE) {
   const mdLI = _mdLI, nL = _nmdL, DEAD = S.dead, FAST = S.fast, RAD = S.rad, X = S.x, Y = S.y, Zp = S.z, VX = S.vx, VY = S.vy, VZ = S.vz, M = S.m, GX = S.gx, GY = S.gy, GZ = S.gz, FX = S.fx, FY = S.fy, FZ = S.fz;
   for (let q = 0; q < nL; q++) {
     const i = mdLI[q];
     if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
     let fx = 0, fy = 0, fz = 0;
+    if (hasE) { const E = Efield(X[i], Y[i], S.obj[i]), q = S.q[i]; fx += q * E[0]; fy += q * E[1]; fz += q * W.Ez; } // (an applied field, 1.24)
     if (pull) {
       const R = t.R, R2 = R * R, U0 = Math.min(20, Math.abs(t.s)), dx = t.x - X[i], dy = t.y - Y[i], dz = (t.z || 0) - Zp[i], d2 = dx * dx + dy * dy + dz * dz;
       if (d2 <= R2 && d2 >= 1e-8) { const d = Math.sqrt(d2), F = t.s > 0 ? 2 * U0 * d / R2 : -2 * U0 * (1 - d / R) / R; fx += F * dx / d; fy += F * dy / d; fz += F * dz / d; }
@@ -3127,7 +3182,9 @@ function waveSync(full) {
 }
 function waveSet(on) { if (on && W.d3) return; WAVE.on = !!on; if (W.parts) { waveSync(true); W.fSpawn = -1; } }
 
+const _bg3 = [0, 0, 0];
 function magneticMatterForce(p, kT) {
+  if (W.d3) { magneticMatterForce3(p, kT); return; }
   const B = Bgrad(p.x, p.y, _bg);
   const gB = Math.hypot(_bg[0], _bg[1]);
   if (gB === 0) return;
@@ -3149,6 +3206,18 @@ function magneticMatterForce(p, kT) {
   p.fx += F * s * _bg[0]; p.fy += F * s * _bg[1];
 }
 
+/* 3-D (1.24): the same pull, by the gradient of |B| in three directions (magU, whose slope it is, reads Bfield3). */
+function magneticMatterForce3(p, kT) {
+  const B = Bgrad3(p.x, p.y, p.z, _bg3);
+  if (_bg3[0] === 0 && _bg3[1] === 0 && _bg3[2] === 0) return;
+  const s = B >= 0 ? 1 : -1, absB = Math.abs(B);
+  let F = 0;
+  const fe = FERRO[p.Z];
+  if (fe && p.tLocal < fe[0]) F += fe[1] * PHYS.MU_B * Math.tanh(absB / 2);
+  else if (unpairedOf(p) > 0) { const n = unpairedOf(p), mu = Math.sqrt(n * (n + 2)) * PHYS.MU_B, x = mu * absB / kT; F += mu * (x < 1e-3 ? x / 3 : 1 / Math.tanh(x) - 1 / x); }
+  F -= 2 * 2.2e-10 * p.ne * Math.pow(0.5 * p.el.rc, 2) * absB;
+  p.fx += F * s * _bg3[0]; p.fy += F * s * _bg3[1]; p.fz += F * s * _bg3[2];
+}
 /* The potential energy whose gradient magneticMatterForce applies (eV): −2m·ln cosh(|B|/2) for a ferromagnet's
    saturated moment, the Langevin free energy −kT·ln(sinh x / x) for a paramagnet, +κB² for diamagnetism. Counted
    in the energy totals, so an iron filing pulled onto a pole gains no energy from nowhere. */
@@ -5979,14 +6048,18 @@ function innerDt() {
   if (g && g.p && g.p.k !== NUC && !g.p.dead && !g.p.fast) dt = Math.min(dt, 0.2 * g.p.m / Math.max(g.p.m, GRAB_M));
   return Math.max(DT_MIN, dt);
 }
-function innerDt3() { // (3-D: speeds and accelerations in three directions; no magnetic field)
+function innerDt3() { // (3-D: speeds and accelerations in three directions; a magnetic field as innerDt, 1.24)
   let dt = DT_MAX;
+  const hasB = hasBfield(), Q = S.q, X = S.x, Y = S.y, Zp = S.z, OBJ = S.obj;
   const mdLI = _mdLI, nL = _nmdL, DEAD = S.dead, FAST = S.fast, RAD = S.rad, IM = S.im, VX = S.vx, VY = S.vy, VZ = S.vz, GX = S.gx, GY = S.gy, GZ = S.gz;
   for (let q = 0; q < nL; q++) {
     const i = mdLI[q];
     if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
     const im = IM[i], v = Math.sqrt(VX[i] * VX[i] + VY[i] * VY[i] + VZ[i] * VZ[i]), a = Math.sqrt(GX[i] * GX[i] + GY[i] * GY[i] + GZ[i] * GZ[i]) * im;
-    if (v > 0) dt = Math.min(dt, LEP_STEP / v);
+    const p = OBJ[i]; p.Bl = hasB && Q[i] !== 0 ? Bfield3(X[i], Y[i], Zp[i]) : 0; // (used by this inner step's arcs)
+    const om = p.omB = Math.abs(Q[i] * p.Bl * PHYS.LOR * im);
+    if (om > 0) { dt = Math.min(dt, 2 / om); const d = 2 * v / om; if (d > LEP_STEP) dt = Math.min(dt, 2 / om * Math.asin(LEP_STEP / d)); if (v > 0) dt = Math.min(dt, 4 * LEP_STEP / v); } // (as innerDt; along the axis it drifts straight, at most 4 steps' length)
+    else if (v > 0) dt = Math.min(dt, LEP_STEP / v);
     if (a > 0) dt = Math.min(dt, Math.sqrt(0.04 / a));
   }
   if (_stiffL > 0) dt = Math.min(dt, 0.15 / Math.sqrt(_stiffL));
@@ -6329,7 +6402,7 @@ function outerA(dt) {
 }
 /* 3-D: outerA with z (no magnetic field: its turning is 2-D only for now). */
 function outerA3(dt) {
-  const h = 0.5 * dt, PI = partsSync(), n = W.parts.length;
+  const h = 0.5 * dt, PI = partsSync(), n = W.parts.length, hasB = hasBfield(), Q = S.q, OBJ = S.obj; // (a magnetic field: half a turn after the half kick, as outerA, 1.24)
   const DEAD = S.dead, RAD = S.rad, K = S.k, Z = S.Z, FAST = S.fast, VX = S.vx, VY = S.vy, VZ = S.vz, FX = S.fx, FY = S.fy, FZ = S.fz, GX = S.gx, GY = S.gy, GZ = S.gz, IM = S.im;
   const X = S.x, Y = S.y, Zp = S.z, OX = S.ox, OY = S.oy, OZ = S.oz, FRESH = S.fresh, BALL = S.ballistic;
   for (let j = 0; j < n; j++) {
@@ -6343,10 +6416,12 @@ function outerA3(dt) {
     if (fast) {
       if (k !== NUC) continue;
       VX[i] += h * FX[i] * im; VY[i] += h * FY[i] * im; VZ[i] += h * FZ[i] * im;
+      if (hasB && Q[i] !== 0) rotateB3(OBJ[i], h);
       X[i] += VX[i] * dt; Y[i] += VY[i] * dt; Zp[i] += VZ[i] * dt;
       continue;
     }
     VX[i] += h * (FX[i] - GX[i]) * im; VY[i] += h * (FY[i] - GY[i]) * im; VZ[i] += h * (FZ[i] - GZ[i]) * im;
+    if (hasB && Q[i] !== 0 && k === NUC) rotateB3(OBJ[i], h);
   }
 }
 /* outerA and the single drift of innerSteps done together, elementwise over the slots, when there is no magnetic field
@@ -6499,7 +6574,7 @@ function innerSteps3(Dt) {
       if (left <= 0 || L < 0.8 * dti) { const n = Math.max(1, Math.ceil(rem / L - 1e-9)); dti = rem / n; left = n; }
     } else { dti = rem; left = 1; }
     left--;
-    const h = 0.5 * dti, lep = _mdL.length > 0;
+    const h = 0.5 * dti, lep = _mdL.length > 0, hasB = lep && hasBfield();
     const mdI = _mdI, nmd = _nmd, DEAD = S.dead, RAD = S.rad, K = S.k, FAST = S.fast, VX = S.vx, VY = S.vy, VZ = S.vz, GX = S.gx, GY = S.gy, GZ = S.gz, IM = S.im;
     const X = S.x, Y = S.y, Zp = S.z, OX = S.ox, OY = S.oy, OZ = S.oz, FRESH = S.fresh, OBJ = S.obj;
     for (let q = 0; q < nmd; q++) {
@@ -6507,7 +6582,8 @@ function innerSteps3(Dt) {
       if (DEAD[i] === 1 || FAST[i] === 1 || RAD[i] === 1) continue;
       FRESH[i] = 0;
       if (lep) { const im = IM[i]; VX[i] += h * GX[i] * im; VY[i] += h * GY[i] * im; VZ[i] += h * GZ[i] * im; }
-      X[i] += VX[i] * dti; Y[i] += VY[i] * dti; Zp[i] += VZ[i] * dti;
+      if (hasB && K[i] !== NUC && OBJ[i].Bl !== 0) gyrate3(OBJ[i], OBJ[i].Bl, dti); // (a free lepton in a magnetic field: the exact arc, as innerSteps, 1.24)
+      else { X[i] += VX[i] * dti; Y[i] += VY[i] * dti; Zp[i] += VZ[i] * dti; }
       if (K[i] !== NUC) {
         if (wrap) {
           if (X[i] < -hw) { X[i] += bw; OX[i] += bw; } else if (X[i] > hw) { X[i] -= bw; OX[i] -= bw; }
@@ -6676,6 +6752,7 @@ function outerB3(dt) {
   let hc1 = 1, hc2 = 0, hkT = 0, pullK = 0;
   if (heat) { hc1 = Math.exp(-0.6 * dt); hc2 = Math.sqrt(1 - hc1 * hc1); hkT = PHYS.KB * (t.type === 'heat' ? t.T : W.T); if (t.type === 'pull') pullK = 2 * Math.abs(t.s) / (t.R * t.R); }
   const reach = pullK ? { x: t.x, y: t.y, z: t.z, R: t.R } : t; // (Push/Pull: its ball, whatever the cone)
+  const hasB = hasBfield();
   for (let j = 0; j < n; j++) {
     const i = PI[j];
     if (DEAD[i] === 1 || RAD[i] === 1) continue;
@@ -6685,6 +6762,7 @@ function outerB3(dt) {
     const fast = FAST[i] === 1;
     if (fast && k !== NUC) continue;
     const im = IM[i];
+    if (hasB && S.q[i] !== 0 && k === NUC) rotateB3(S.obj[i], h); // (a magnetic field: half a turn before the half kick, as outerB, 1.24)
     let vx = VX[i], vy = VY[i], vz = VZ[i];
     if (fast) { vx += h * FX[i] * im; vy += h * FY[i] * im; vz += h * FZ[i] * im; }
     else { vx += h * (FX[i] - GX[i]) * im; vy += h * (FY[i] - GY[i]) * im; vz += h * (FZ[i] - GZ[i]) * im; }
@@ -7569,7 +7647,7 @@ function clearWorld() {
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
   _Tb = 0; // (a new world: the bath it has followed is its own)
-  W.d3 = false; W.box.d = 0; W.box.td = 0; W.box.ud = 0; // (a new world is flat; world3d makes it 3-D)
+  W.d3 = false; W.box.d = 0; W.box.td = 0; W.box.ud = 0; W.Ez = 0; W.Bax3 = 'z'; // (a new world is flat; world3d makes it 3-D; Ez, Bax3: 3-D fields, 1.24)
   W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.muAtoms = []; W.at = W.at || 0;
   _rxCache.clear();
 }

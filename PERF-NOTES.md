@@ -295,6 +295,36 @@ The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on bra
   Unchanged: every 2-D fingerprint (24 setups, 300 steps, seed 7) and the six 3-D setups' (the walls' speed is 0 when the
   box keeps its size, and the bounce is then the old one exactly). Screenshots 124-before-box-panel.png (the slider
   disabled), 124-after-box-panel.png, 124-after-box-shrunk.png (20 × 20 × 20 Å).
+- **Magnets and fields in 3-D** (fields3dNote; physics in 3-D: the flat game's laws, applied with the depth). Every
+  magnetic field in a 3-D world points along one axis, `W.Bax3` (the Lab's new "B points along x / y / z", default z):
+  the uniform field and every magnet's. A magnet is a ball (centre with a depth, the Magnet tool's radius; inside, its
+  field; outside, the flat disc's fall-off by the 3-D distance: `Bfield3`, `Bgrad3`). With all of B along one fixed axis
+  the field is one number times that axis, so the flat game's exact turning carries over unchanged to the two velocity
+  components across the axis (`B3P`; `rotateB3`, the Boris half turns in `outerA3`/`outerB3` for charged atoms and ions;
+  `gyrate3`, the exact arc of a free electron in the inner steps, its step limits in `innerDt3` as in `innerDt`), the
+  component along the axis drifting straight. E has a z part (`W.Ez`, the Lab's new +z / −z direction buttons): its
+  force on charged atoms in the force pass and on free leptons (`leptonExtras3`). Magnetic matter (iron's moment,
+  paramagnets, diamagnets) is pulled by |B|'s gradient in three directions (`magneticMatterForce3`; its energy, magU, reads
+  Bfield3). The Magnet tool places a ball at the placing point (or picks one on the screen to drag on the plane facing
+  the camera: `magnetAt3`), Erase removes magnets in its cone, the quick menu finds them; drawn as a dashed ball with a
+  glow, its pole's colour and an arrow along the axis (`drawMagnet3`, the tool's ghost too), and the corner's axis marker
+  shows B and E as arrows. Saved: magnets with z, `d3.Ez`, `d3.Bax`. The flat game unchanged: the new controls are
+  hidden there (`.only3d`), its own note hidden in 3-D (`.only2d`).
+  Measured (Node): an electron in 2,000 T along x, y and z circles on m·v⊥/(qB) to 4 digits (ratio 1.0000 each), drifts
+  along the axis exactly, energy to 1e-18 eV; a magnet's pull on Fe and Ar matches the slope of the energy (magU) in x, y
+  and z to 4e-11 and 3e-10 (iron pulled in, argon pushed out); insulated books over 3,000 steps (120 tu; with an
+  electric field, total + Σ −q E·r): eight free electrons −1.32 eV with no field, +0.04 eV (B 300 T along z), −0.46
+  (along y), −0.37 (B 300 T and E 0.05 V/Å), −0.19 (3,000 T and E), the same electrons in 2-D +4.5 eV; Na⁺/Cl⁻ ions
+  among argon −0.44 eV with no field, −0.40 (B 3,000 T), +0.56 (E 0.3 V/Å), +0.12 (both); iron and oxygen atoms pulled
+  in by a 50,000 T magnet, heated to 19,000 K, books +0.055 eV (along z) and +0.015 (along x). Cost: brine3d 9.75 →
+  10.78 ms a step with 1,000 T (its ions turned; two loaded cores, near the noise), water3d 3.79 → 3.26 (noise). 2-D
+  and 3-D fingerprints unchanged. Screenshots 124-before-fields-panel.png (disabled), 124-after-fields-panel.png,
+  124-after-fields-magnet.png (a 20 kT magnet, B along y, E along +z: the corner's arrows).
+  Found, not changed (setups of my own while measuring, 1.23.2 the same): free electrons put down almost on top of
+  each other gain hundreds of eV in their first steps (330 → 985 eV for eight; the step size cannot follow a near
+  coincident pair at the start), in 2-D and 3-D; and the flat game's books in a field miss −q E·Δr whenever an event
+  changes a charge (a proton capturing an electron: about 0.2 eV in 0.2 V/Å), as the events measure the energy without
+  the applied field.
 - Tests: tests/f_124.js (run by t_features' 1.24 block, or alone: `node tests/f_124.js [place box fields light hep
   exp]`); each part fails on 1.23.2 (`place`: P3 is not defined).
 

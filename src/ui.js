@@ -911,6 +911,12 @@ function brushFor(tool) {
   return null;
 }
 function magnetAt(x, y) { for (let i = W.magnets.length - 1; i >= 0; i--) { const m = W.magnets[i]; if (Math.hypot(m.x - x, m.y - y) < m.R) return m; } return null; }
+/* (3-D, 1.24) The magnet whose ball is drawn under the pointer, the nearest the camera. */
+function magnetAt3(px, py) {
+  cam3Update(); const o = [0, 0, 0]; let best = null, bz = Infinity;
+  for (const m of W.magnets) if (proj3(m.x, m.y, m.z || 0, o) && Math.hypot(o[0] - px, o[1] - py) < Math.max(8, m.R * C3.F / o[2]) && o[2] < bz) { bz = o[2]; best = m; }
+  return best;
+}
 
 const UNDO_TOOLS = new Set(['place', 'erase', 'fire', 'spark', 'heat', 'pull', 'magnet', 'light', 'objects']); // (tools that change the world when pressed: undo can take them back)
 function onDown(e) {
@@ -980,13 +986,15 @@ function onDown(e) {
       UI.drag = { kind: 'none' };
       break;
     case 'magnet': {
-      const m = magnetAt(wx, wy);
-      if (m) UI.drag = { kind: 'magnet', m, ox: m.x - wx, oy: m.y - wy };
+      const m = W.d3 ? magnetAt3(px, py) : magnetAt(wx, wy);
+      if (m && W.d3) { const at = [m.x, m.y, m.z || 0], q = s2wPlane(px, py, at); UI.drag = { kind: 'magnet', m, ox: m.x - q[0], oy: m.y - q[1], oz: at[2] - q[2], plane: at }; } // (3-D: dragged on the plane facing the camera through it, 1.24)
+      else if (m) UI.drag = { kind: 'magnet', m, ox: m.x - wx, oy: m.y - wy };
       else {
         const nm = { x: wx, y: wy, R: OPT.magnet.R, B: magB() };
+        if (W.d3) nm.z = wz; // (3-D: a ball, 1.24)
         W.magnets.push(nm);
         log('tool', `Magnet placed: ${magB() >= 0 ? 'N' : 'S'} pole, ${fmtTesla(Math.abs(nm.B))}`);
-        UI.drag = { kind: 'magnet', m: nm, ox: 0, oy: 0 };
+        UI.drag = { kind: 'magnet', m: nm, ox: 0, oy: 0, oz: 0, plane };
       }
       break;
     }
@@ -1195,6 +1203,7 @@ function eraseHere(wx, wy) {
 function eraseHere3(px, py) {
   const reach = { cone: toolCone3(px, py, OPT.erase.R) }; let n = 0;
   for (const p of W.parts) if (!p.dead && inTool3(reach, p.x, p.y, p.z)) { kill(p); n++; }
+  for (let i = W.magnets.length - 1; i >= 0; i--) { const m = W.magnets[i]; if (inTool3(reach, m.x, m.y, m.z || 0)) W.magnets.splice(i, 1); } // (magnets too, 1.24)
   if (R.sel && R.sel.dead) R.sel = null;
   return n;
 }
@@ -1244,7 +1253,7 @@ function onMove(e) {
         }
         break;
       case 'tool': if (W.tool) { W.tool.x = wx; W.tool.y = wy; if (W.d3) { W.tool.z = wz; if (W.tool.type === 'heat') W.tool.cone = toolCone3(px, py, W.tool.R); } } break;
-      case 'magnet': d.m.x = wx + d.ox; d.m.y = wy + d.oy; break;
+      case 'magnet': d.m.x = wx + d.ox; d.m.y = wy + d.oy; if (W.d3) d.m.z = wz + (d.oz || 0); break;
       case 'objnew': d.ob.x1 = wx; d.ob.y1 = wy; W.dirty++; break;
       case 'objmove': { const dx = wx - d.lx, dy = wy - d.ly; d.ob.x0 += dx; d.ob.x1 += dx; d.ob.y0 += dy; d.ob.y1 += dy; d.lx = wx; d.ly = wy; W.dirty++; break; }
       case 'fire': case 'light': d.x1 = wx; d.y1 = wy; d.z1 = wz; d.px1 = px; d.py1 = py; break;
@@ -1255,7 +1264,7 @@ function onMove(e) {
   } else if (!QM.open) { updateHover(px, py, wx, wy); R.objHover = W.objs.length && !R.hover ? objAtPx(px, py) : null; }
   const b = brushFor(UI.tool);
   R.overlay = b ? { x: wx, y: wy, z: wz, brush: b.r, color: b.c } : null;
-  if (UI.tool === 'magnet' && !d) R.overlay = { x: wx, y: wy, ghostMagnet: { R: OPT.magnet.R, B: magB() } };
+  if (UI.tool === 'magnet' && !d) R.overlay = { x: wx, y: wy, z: wz, ghostMagnet: { R: OPT.magnet.R, B: magB() } };
   if (d && (d.kind === 'fire' || d.kind === 'light')) R.overlay = W.d3 && click3(d) ? over3(px, py, d.kind) : { aim: aimOverlay(d) };
   else if (W.d3 && !d && !QM.open) { const o3 = over3(px, py, UI.tool); if (o3) R.overlay = o3; }
   else if (W.d3 && d && d.kind === 'spray') R.overlay = { place3: { x: wx, y: wy, z: wz, at: null, spec: UI.spec || SPEC_P } };
@@ -2529,9 +2538,9 @@ function worldToJSON() {
   if (BO.any) for (const [a, b, o] of boWhole()) { const i = ix.get(a), j = ix.get(b); if (i !== undefined && j !== undefined) bonds.push([i, j, o]); } // (continuous bond orders: kept as whole bonds, so the world opens either way)
   // a 3-D world (version 2): its depth, and each particle's z and vz beside the flat fields (to 1e-10: a reload puts each
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
-  const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
+  const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, Ez: W.Ez || 0, Bax: W.Bax3 || 'z', z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -2563,7 +2572,8 @@ function worldFromJSON(d) {
   }
   let nb = 0;
   for (const b of d.bonds) { if (!Array.isArray(b)) continue; const [i, j, o] = b; const a = made[i], c = made[j]; if (a && c && a !== c && [1, 2, 3].includes(o)) { addBond(a, c, o); nb++; } }
-  if (Array.isArray(d.magnets) && !W.d3) for (const m of d.magnets.slice(0, 50)) if (m && Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.B)) W.magnets.push({ x: m.x, y: m.y, R: num(m.R, 1, 1000, 10), B: clamp(m.B, -1e9, 1e9) });
+  if (Array.isArray(d.magnets)) for (const m of d.magnets.slice(0, 50)) if (m && Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.B)) { const mm = { x: m.x, y: m.y, R: num(m.R, 1, 1000, 10), B: clamp(m.B, -1e9, 1e9) }; if (W.d3) mm.z = num(m.z, -1e4, 1e4, 0); W.magnets.push(mm); } // (3-D: balls with a depth, 1.24)
+  if (W.d3) { W.Ez = num(d3.Ez, -50, 50, 0); W.Bax3 = ['x', 'y', 'z'].includes(d3.Bax) ? d3.Bax : 'z'; } // (3-D fields, 1.24)
   if (Array.isArray(d.objs) && !W.d3) for (const o of d.objs.slice(0, 200)) { const ob = objFromJSON(o); if (ob) W.objs.push(ob); }
   R.objSel = null;
   W.dirty++; W.spawned++; W.topo++; W.hist = { t: [], T: [], bath: [] }; R.sel = null; R.msel.clear(); R.oSel.clear();
@@ -3045,7 +3055,8 @@ function bindLab() {
   bindSeg('segBath', (v) => { W.gamma = +v; syncLabText(); });
   $('bSlider').oninput = (e) => { W.Bz = bFromS(+e.target.value); syncLabText(); };
   $('eSlider').oninput = (e) => { UI.E = +e.target.value / 100; applyE(); syncLabText(); };
-  bindSeg('segEdir', (v) => { UI.Eang = +v; applyE(); });
+  bindSeg('segEdir', (v) => { UI.Eang = v === 'z' || v === '-z' ? v : +v; applyE(); }); // (3-D: ±z too, 1.24)
+  bindSeg('segBdir', (v) => { W.Bax3 = v; log('tool', `Magnetic field along ${v} (3-D)`); });
   $('bMagClear').onclick = () => { W.magnets.length = 0; syncLabText(); };
   bindSeg('segWall', (v) => { W.wall = v; syncNWall(); });
   bindSeg('segNWall', (v) => { W.nWall = v; syncNWall(); log('tool', `Neutrons at the walls: ${{ reflect: 'bounce back (a reflector)', absorb: 'absorbed, the slow ones most (the 1/v law)', pass: 'pass through', fast: 'fast ones (over 0.1 MeV) leave, slower ones bounce back' }[v]}`); });
@@ -3076,7 +3087,8 @@ function bindLab() {
 }
 function setBathT(T) { W.T = clamp(T, 1, 1e9); }
 function applyE() {
-  const a = (UI.Eang || 0) * Math.PI / 180;
+  if (W.d3) { W.Ez = UI.Eang === 'z' ? UI.E : UI.Eang === '-z' ? -UI.E : 0; if (W.Ez) { W.Ex = 0; W.Ey = 0; return; } } // (3-D: along ±z, 1.24)
+  const a = (typeof UI.Eang === 'number' ? UI.Eang : 0) * Math.PI / 180; // (±z, a 3-D choice, is none in the plane)
   W.Ex = UI.E * Math.cos(a); W.Ey = UI.E * Math.sin(a);
   if (Math.abs(W.Ex) < 1e-12) W.Ex = 0; if (Math.abs(W.Ey) < 1e-12) W.Ey = 0;
 }
@@ -3086,7 +3098,9 @@ function syncLab() {
   $('bSlider').value = sFromB(W.Bz);
   UI.E = Math.hypot(W.Ex, W.Ey);
   if (UI.E) UI.Eang = Math.round(((Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) + 360) % 360);
-  $('eSlider').value = Math.round(UI.E * 100); setSegValue('segEdir', UI.Eang || 0);
+  else if (W.d3 && W.Ez) { UI.E = Math.abs(W.Ez); UI.Eang = W.Ez > 0 ? 'z' : '-z'; } // (3-D: along z, 1.24)
+  else if (UI.Eang === 'z' || UI.Eang === '-z') { if (!W.d3) UI.Eang = 0; }
+  $('eSlider').value = Math.round(UI.E * 100); setSegValue('segEdir', UI.Eang || 0); setSegValue('segBdir', W.Bax3 || 'z');
   setSegValue('segWall', W.wall); syncNWall(); $('chkGlow').checked = !!W.glow; rampSync();
   UI.aspect = W.box.th / W.box.tw; if (W.d3) UI.aspectD = (W.box.td || W.box.d) / W.box.tw; // (3-D: the depth's share, kept as the slider scales the box, 1.24)
   $('boxSlider').value = sFromBox(W.box.tw);
@@ -4053,7 +4067,7 @@ function buildPresetSelect() {
    and the Experimental physics that is flat only (induced charges, quantum nuclei, continuous bond orders, electrons
    as waves) and the ultra-realistic mode. The mode follows the world (W.d3): a setup or a saved world sets it. */
 const NOT_3D = 'Not in 3-D yet';
-const TOOLS_NO3D = new Set(['magnet', 'objects', 'light']);
+const TOOLS_NO3D = new Set(['objects', 'light']); // (the Magnet tool works in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };
 function is3dPreset(k) { return !!(PRESETS[k] && PRESETS[k].d3); }
 /* What can be put in a 3-D world: atoms and ions (not antimatter), molecules of the 3-D library (molFits: not the flat
@@ -4064,8 +4078,8 @@ function spec3dOK(s) {
   if (s.kind === 'atom') return !s.anti;
   return s.kind === 'e';
 }
-const NO3D_CTL = ['bSlider', 'eSlider', 'bMagClear', 'setUltra', 'bAskSetup']; // (single controls; the box-size slider works in 3-D since 1.24)
-const NO3D_SEG = ['segEdir', 'segQeq', 'segPi', 'segPiRpc', 'segBo', 'segWave']; // (button groups)
+const NO3D_CTL = ['setUltra', 'bAskSetup']; // (single controls; the box-size slider, fields and magnets work in 3-D since 1.24)
+const NO3D_SEG = ['segQeq', 'segPi', 'segPiRpc', 'segBo', 'segWave']; // (button groups)
 function mode3dSync() {
   const on = !!W.d3, changed = on !== MODE3.on;
   MODE3.on = on;
@@ -6418,7 +6432,7 @@ function openQuickMenu(px, py) {
   const m = $('qmenu'); if (!m) return;
   hideTip(); QM.acts = []; QM.ranges = []; QM.serial = (QM.serial || 0) + 1;
   const forced = QM.forceObj; QM.forceObj = null;
-  const [wx, wy, wz] = W.d3 ? ptr3(px, py) : s2w(px, py), p = forced ? null : pickNear(px, py, 14), mag = p || forced ? null : magnetAt(wx, wy); // (3-D: the point in depth, as the tools take it)
+  const [wx, wy, wz] = W.d3 ? ptr3(px, py) : s2w(px, py), p = forced ? null : pickNear(px, py, 14), mag = p || forced ? null : W.d3 ? magnetAt3(px, py) : magnetAt(wx, wy); // (3-D: the point in depth, as the tools take it)
   const src = p || mag || forced ? null : W.sources.find(s => { if (s.beam) return false; const [px, py] = srcPos(s); return Math.hypot(px - wx, py - wy) < Math.max(1.5, 12 / R.s); }); // (where it is drawn: srcPos keeps it inside the box)
   const ob = forced || (p || mag || src ? null : objAtPx(px, py)), under = p ? objAtPx(px, py) : null; // (an object under the particle: reachable from its menu, 0.70)
   m.innerHTML = (p ? qmParticle(p) + (under ? qmBtn(`The ${OBJ_NAME[under.kind].toLowerCase()} under it…`, () => { QM.forceObj = under; openQuickMenu(px, py); }) : '') : mag ? qmMagnet(mag) : src ? qmSource(src) : ob ? qmObject(ob) : qmHere(wx, wy, wz || 0)) + qmGlobal(px, py, wx, wy, wz || 0);

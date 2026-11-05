@@ -234,6 +234,18 @@ function drawAxes3(ctx) {
     ctx.strokeStyle = c; ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + sx * L, y0 + sy * L); ctx.stroke();
     ctx.fillText(n, x0 + sx * (L + 8), y0 + sy * (L + 8));
   }
+  // the applied fields (1.24): B along its axis, E along its direction, each an arrow beside the axes with its letter
+  const fld = [];
+  if (W.Bz) { const u = AX3[W.Bax3] || AX3.z, s = W.Bz > 0 ? 1 : -1; fld.push(['B', u[0] * s, u[1] * s, u[2] * s, W.Bz > 0 ? '#ff7a6b' : '#6ba8ff']); }
+  const E = Math.hypot(W.Ex || 0, W.Ey || 0, W.Ez || 0); if (E > 0) fld.push(['E', W.Ex / E, W.Ey / E, (W.Ez || 0) / E, '#ffd678']);
+  fld.forEach(([n, x, y, z, c], k) => {
+    const cx = x0 + 70 + 52 * k, sx = x * C3.rx + y * C3.ry + z * C3.rz, sy = -(x * C3.ux + y * C3.uy + z * C3.uz);
+    ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - sx * L * 0.8, y0 - sy * L * 0.8); ctx.lineTo(cx + sx * L * 0.8, y0 + sy * L * 0.8); ctx.stroke();
+    const l = Math.hypot(sx, sy);
+    if (l > 0.15) { const ux = sx / l, uy = sy / l, ex = cx + sx * L * 0.8, ey = y0 + sy * L * 0.8; ctx.beginPath(); ctx.moveTo(ex + ux * 5, ey + uy * 5); ctx.lineTo(ex - uy * 4, ey + ux * 4); ctx.lineTo(ex + uy * 4, ey - ux * 4); ctx.fill(); }
+    else { ctx.beginPath(); ctx.arc(cx, y0, 4, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.fillText(n, cx + 14, y0 - 16);
+  });
   ctx.restore();
 }
 function fog3(z) { return clamp((z - C3.fog0) / Math.max(1e-3, C3.fog1 - C3.fog0), 0, 1) * C3.fogK; }
@@ -386,7 +398,7 @@ function render3d(rt) {
   drawFlashes3(ctx, rt);
   drawEvents3(ctx, rt);
   drawMarks3(ctx);
-  if (!R.menu) drawPlace3(ctx); // (the placing plane, the ghost, Fire's aim from the camera, 1.24)
+  if (!R.menu) { drawMagnets3(ctx); drawPlace3(ctx); } // (magnets; the placing plane, the ghost, Fire's aim from the camera, 1.24)
   drawOverlay3(ctx);
   if (V3.axes && !R.menu) drawAxes3(ctx); // (not behind the main menu)
   drawScaleBar();
@@ -555,6 +567,29 @@ function drawPlace3(ctx) {
     if (fa.text) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText(fa.text, x + 12, y - 10); }
   }
   ctx.restore();
+}
+/* Magnets in 3-D (1.24): each a ball (dashed outline, a faint glow, N red / S blue) with an arrow through it along the
+   field's axis (W.Bax3; N: its field along +axis), and its strength above it. The Magnet tool's ghost likewise. */
+const AX3 = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+function drawMagnet3(ctx, x, y, z, Rm, B, ghost) {
+  const A = _p3a, Bp = _p3b; if (!proj3(x, y, z, A)) return;
+  const r = Rm * C3.F / A[2], col = B >= 0 ? [255, 96, 86] : [86, 140, 255];
+  ctx.save();
+  if (!ghost) { const g = ctx.createRadialGradient(A[0], A[1], r * 0.2, A[0], A[1], r * 1.6); g.addColorStop(0, rgba(col, 0.16)); g.addColorStop(0.6, rgba(col, 0.07)); g.addColorStop(1, rgba(col, 0)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(A[0], A[1], r * 1.6, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = rgba(col, ghost ? 0.5 : 0.6); ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(A[0], A[1], r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  const u = AX3[W.Bax3] || AX3.z, s = B >= 0 ? 1 : -1, L = 0.8 * Rm;
+  if (seg3(x - s * u[0] * L, y - s * u[1] * L, z - s * u[2] * L, x + s * u[0] * L, y + s * u[1] * L, z + s * u[2] * L, A, Bp)) {
+    ctx.strokeStyle = rgba(col, 0.85); ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(Bp[0], Bp[1]); ctx.stroke();
+    const dx = Bp[0] - A[0], dy = Bp[1] - A[1], l = Math.hypot(dx, dy);
+    if (l > 4) { const ux = dx / l, uy = dy / l; ctx.beginPath(); ctx.moveTo(Bp[0] + ux * 6, Bp[1] + uy * 6); ctx.lineTo(Bp[0] - uy * 4, Bp[1] + ux * 4); ctx.lineTo(Bp[0] + uy * 4, Bp[1] - ux * 4); ctx.fill(); }
+    else { ctx.beginPath(); ctx.arc(Bp[0], Bp[1], 3.5, 0, Math.PI * 2); ctx.stroke(); } // (end on: ⊙)
+  }
+  if (!ghost && proj3(x, y, z, A)) { ctx.font = '600 12px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(col, 0.9); ctx.textAlign = 'center'; ctx.fillText((B >= 0 ? 'N ' : 'S ') + fmtTesla(Math.abs(B)), A[0], A[1] - r - 8); }
+  ctx.restore();
+}
+function drawMagnets3(ctx) {
+  for (const m of W.magnets) drawMagnet3(ctx, m.x, m.y, m.z || 0, m.R, m.B, false);
+  const o = R.overlay; if (o && o.ghostMagnet) drawMagnet3(ctx, o.x, o.y, o.z || 0, o.ghostMagnet.R, o.ghostMagnet.B, true);
 }
 /* ---------- overlays (stage 3): trails, hydrogen bonds and ionic contacts, the Measure tool, flashes and events */
 /* Under the labels: particle trails (with each point's depth), hydrogen bonds and ionic contacts, faded with depth. */
