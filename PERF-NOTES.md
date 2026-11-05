@@ -340,7 +340,10 @@ Physics in 3-D: each stage's numbers below are for the owner's OK.
   - Found and fixed on the way (3-D only): an electron set free from an atom in flight lost the electron's share of the
     atom's motion, ½mₑv² (the atom's mass drops by mₑ at the same speed): 117 eV for a 50 MeV ²³⁵U, 0.5–2.6 keV a
     Compton event on fission fragments (`ejectElectron`); a 3-D e⁺e⁻ pair was put down beside the nucleus without its
-    potential energy (`pairProduce3`; the flat pair flies in radiation mode and has none): now its motion pays it.
+    potential energy (`pairProduce3`; the flat pair flies in radiation mode and has none): now its motion pays it. And
+    with atoms in flight: a recoiling atom stopped in a closed wall (`wallStop3`, 1.23.2) was booked as if stepped; one in
+    flight is now measured as the books count it (`regionE`) and put back into the stepped set: f_1232's 100 keV uranium
+    recoil books 0.0000 eV (1.86 eV before this fix).
   - Measured (Node, single events between steps unless said):
     - ²¹⁰Po α decay, 200 at rest: books ≤ 2.4×10⁻⁵ eV; α against the daughter's recoil 0.0032 of the α's momentum (the
       two shaken-off electrons carry the rest); α directions isotropic, ⟨u²⟩ 0.336, 0.373, 0.291. ¹⁴C β decay, 100: books

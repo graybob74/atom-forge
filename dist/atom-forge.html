@@ -11607,6 +11607,17 @@ function walls3(p) {
 function wallStop3(p, where) {
   const ke = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz), nuc = p.k === NUC;
   const set = nuc ? setOf(molecule(p)) : null, U0 = nuc ? localPE(set) : p.q * phiE(p.x, p.y, p, undefined, p.z);
+  if (!where && nuc && p.ne > 0 && p.Z >= 3 && p.fast) { // (1.25: one in flight, as atoms fly in 3-D now: back into the stepped set at the wall's temperature, the books measured over its molecule as totalEnergy counts it, flight or not: regionE)
+    const T = new Set(set), E0 = regionE(T), hw = W.box.w / 2 - 0.6, hh = W.box.h / 2 - 0.6, hd = W.box.d / 2 - 0.6;
+    p.fast = false; if (S.inMD[p.i] === 0 && !_late.includes(p)) _late.push(p);
+    p.x = clamp(p.x, -hw, hw); p.y = clamp(p.y, -hh, hh); p.z = clamp(p.z, -hd, hd);
+    _crowd = null; placeClear([p], 8, p.bonds.map(bd => other(bd, p))); _crowd = null;
+    const v = thermalV(p.m, W.T), into = (c, h, u) => (c >= h - 0.01 ? -Math.abs(u) : c <= -h + 0.01 ? Math.abs(u) : u);
+    p.vx = into(p.x, hw, v[0]); p.vy = into(p.y, hh, v[1]); p.vz = into(p.z, hd, v[2]);
+    W.ledger.escaped += E0 - regionE(T);
+    _wallMoved = true;
+    return;
+  }
   if (!where && nuc && p.ne > 0 && p.Z >= 3) { // a recoiling atom: stopped within nanometres, back off the wall at its temperature
     const hw = W.box.w / 2 - 0.6, hh = W.box.h / 2 - 0.6, hd = W.box.d / 2 - 0.6;
     p.x = clamp(p.x, -hw, hw); p.y = clamp(p.y, -hh, hh); p.z = clamp(p.z, -hd, hd);
