@@ -8955,7 +8955,7 @@ function hardSphere(a, b, bimp, R) {
   const M = a.m + b.m, Vx = (a.m * avx + b.m * bvx) / M, Vy = (a.m * avy + b.m * bvy) / M;
   const rvx = avx - bvx, rvy = avy - bvy;
   const th = 2 * Math.acos(clamp(bimp / R, 0, 1)) * (rnd() < 0.5 ? 1 : -1);
-  const c = Math.cos(Math.PI - Math.abs(th)), s = Math.sin(Math.PI - Math.abs(th)) * Math.sign(th);
+  const c = Math.cos(th), s = Math.sin(th); // (bug fix after 1.25: the relative velocity turns by 2·acos(b/R) = π − 2·asin(b/R), back for a head-on hit and not at all for a grazing one; it turned by π − 2·acos(b/R), the other way round)
   const nx = rvx * c - rvy * s, ny = rvx * s + rvy * c;
   setVel(a, Vx + nx * b.m / M, Vy + ny * b.m / M);
   setVel(b, Vx - nx * a.m / M, Vy - ny * a.m / M);

@@ -277,7 +277,7 @@ engine stores and visits particles.
     Experimental descriptions still describe the flat case; the Magnet tool's pole buttons keep the flat ⊙/⊗ signs.
   - A charged particle's search for atoms on its path goes over every atom (the grid would make it local).
   - Help says holding Space pans, but nothing sets UI.spaceDown.
-  - Flat game: hardSphere turns a pair by π − 2·acos(b/R), inverted (a head-on hit passes straight through, a grazing
+  - [fixed after 1.25] Flat game: hardSphere turns a pair by π − 2·acos(b/R), inverted (a head-on hit passes straight through, a grazing
     one bounces back); the 3-D version (1.25) uses the right angle.
   - exoElastic measures the whole box's energy on every pass (slow; 3-D's elastic hits booked from the recoil in 1.25).
   - Muonium formation misses up to tens of eV (2-D and 3-D: the muon stopped without paying its potential energy).
@@ -902,6 +902,11 @@ books hashed apart).
   leaving an open box over 1,500 steps: the books changed by +19,230 eV before, −0.007 eV after. Fingerprints: the
   books of annihilation, crt, pionbeam and sns change (what leaves is now counted); pionbeam's state too (a free
   electron leaving: the forces refreshed after it). Check: f_bug125 "openWall".
+- 11. The flat game's hard-sphere collision (hardSphere: a fast atom meeting an atom, both with electrons) turned the
+  pair's relative velocity by π − 2·acos(b/R), which is the wrong way round: a head-on hit (b = 0) passed straight
+  through and a grazing one bounced back. Now 2·acos(b/R) (= π − 2·asin(b/R), as hardSphere3 in 3-D). Turn measured
+  for b = 0, R/2, 0.999R: 0°, 60°, 175° before; 180°, 120°, 5° after. Fingerprints: muonium, nif and sns change (their
+  fast atoms collide), nothing else. Check: f_bug125 "hardSphere".
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

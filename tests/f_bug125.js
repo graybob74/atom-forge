@@ -22,6 +22,16 @@ PARTS.openWall = async (page, check, say) => {
   check(r.left < 10 && Math.abs(r.books) < 0.1, `bug fix 5: an open flat box: ${27 - r.left} particles left, books ${r.books} eV`, 'bugfix openWall: ' + JSON.stringify(r));
 };
 
+/* 11. The flat game's hard-sphere collision turns the pair by 2·acos(b/R): head-on back, grazing straight on. Before, it
+   turned by π − 2·acos(b/R): a head-on hit passed straight through (0°), a grazing one bounced back (180°). */
+PARTS.hardSphere = async (page, check, say) => {
+  const X = fresh(1), W = X.W; X.baseWorld(30, 20, 300, 0);
+  const turn = (b) => { const a = X.addAtom('Ar', 0, 0), t = X.addAtom('Ar', 1, 0); a.vx = 1; a.vy = 0; t.vx = 0; t.vy = 0; X.hardSphere(a, t, b, 1);
+    const rx = a.vx - t.vx, ry = a.vy - t.vy, ang = Math.acos(Math.max(-1, Math.min(1, rx / Math.hypot(rx, ry)))) * 180 / Math.PI; X.kill(a); X.kill(t); return Math.round(ang); };
+  const r = { headOn: turn(0), half: turn(0.5), grazing: turn(0.999) };
+  check(r.headOn === 180 && r.half === 120 && r.grazing < 6, `bug fix 11: a flat hard-sphere hit turns the pair by ${r.headOn}° head-on, ${r.half}° at b = R/2, ${r.grazing}° grazing`, 'bugfix hardSphere: ' + JSON.stringify(r));
+};
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {
