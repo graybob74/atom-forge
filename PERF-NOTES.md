@@ -386,6 +386,13 @@ engine stores and visits particles.
   K_IW 1 in 3-D brings the coordination numbers and density right and the distances 0.1 Å nearer; the rest of the
   shortfall is the ions' own size (ljR = 2 × ionic radius, ε 0.02 eV), a third candidate. All three are physics changes
   for the owner's OK; he chose the display (above) and none of the physics.
+- Test updates: t_features' 1.10 check now expects the realistic tags added earlier in 1.23.2 (it failed since then:
+  "1 0.01 12 1 32 0 2 1"), and its menus check a still card (the chamber still follows the mouse); t_3d leaves 3-D
+  through the main menu and compares the drawing without the particle bar over it; t_molecules puts the 3-D builds in
+  a 3-D world; t_page, t_gl, t_threads and tools/bench-page.js set the four settings Performance mode set.
+- Suite: `tools/runtests.sh` passed but for t_features (the two expectations above, fixed; then it passed alone) and
+  t_page's slow-motion button check (the hourglass lit by a 500 keV α's event within 400 ms: missed under the two
+  lanes' load in both runs, passes alone; time-budgeted, worth adding to the flake list). t_page and t_features pass alone.
 - Tests: tests/f_1232.js (run by t_features' 1.23.2 block, or alone): each item above; on 1.23.1 the first three fail
   and the rest stop with errors (the functions they use do not exist there).
 
