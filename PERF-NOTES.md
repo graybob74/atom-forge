@@ -356,6 +356,10 @@ Physics in 3-D: each stage's numbers below are for the owner's OK.
     - 10 π⁺ at 50 MeV through liquid water (1,029 atoms, f_124's run): 5 reactions, their recoils a cascade of keV–MeV
       O and H in flight; books +10.4 eV over 200 steps (1.24: −0.53, no reactions); the step 6×10⁻⁴ tu while they fly
       (the flat game's rule for atoms in flight, 3.5 Å a step; a 50 MeV proton 3.5×10⁻⁴).
+  - Cost: nothing without events (liquid water, 1,029 atoms, 60 steps, CPU time a step: 3.7–3.8 ms on 1.24.0, 3.2–5.0 on
+    this branch, alternating runs; the walls pass now squares vz too). An atom in flight searches the atoms along its
+    path each step (a scan of the box, ~10 µs at 1,029 atoms, as the unstable particles'); the step while atoms fly is
+    the flat game's rule, 3.5 Å a step at their speed.
   - Unchanged: the flat fingerprints, the six 3-D setups', the eight flat hep scenarios (bit for bit). f_124's 3-D
     particles check now expects muonic atoms in the 3-D menus and allows 30 eV on its π⁺ run (the reactions above).
   - Test: tests/f_125n.js part `reactions`; fails on 1.24.0 (α at z = 0, ⟨u_z²⟩ 0, fission books 64 eV, no proton
