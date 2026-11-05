@@ -74,6 +74,23 @@ PARTS.exoElastic = async (page, check, say) => {
   check(r.ms < 3 && r.worst < 1e-3, `bug fix 12: a pion's elastic pass among ${r.atoms} atoms booked in ${r.ms} ms, exact to ${r.worst} eV`, 'bugfix exoElastic: ' + JSON.stringify(r));
 };
 
+/* 9. The 3-D search for the atoms along a particle's path (segTargets3) walks the grid's cells around the path (plus the
+   nuclei in flight and the newly made), not every particle: 126 µs a search among 8,232 atoms before, under 30 now,
+   with the same atoms found. */
+PARTS.segGrid = async (page, check, say) => {
+  const X = fresh(7), W = X.W;
+  X.PRESETS.empty.build(); X.setBox(60, 60); X.world3d(60); W.gamma = 0.05;
+  let i = 0; for (let a = 0; a < 14; a++) for (let b = 0; b < 14; b++) for (let c = 0; c < 14; c++) X.addMolecule('H2O', -27 + a * 4, -27 + b * 4, i++, 300, -27 + c * 4);
+  go(X, 3);
+  const segs = []; for (let k = 0; k < 1000; k++) segs.push([(X.rnd() - 0.5) * 58, (X.rnd() - 0.5) * 58, (X.rnd() - 0.5) * 58]);
+  const filt = (t) => t.k === X.NUC && t.Z > 0, t0 = performance.now(); let got = '';
+  for (const [x, y, z] of segs) got += X.segTargets3(x, y, z, x + 0.8, y + 0.3, z - 0.2, 1.0, filt).map(h => h[1].id).join(',') + ';';
+  const us = (performance.now() - t0); let want = '';
+  for (const [x, y, z] of segs) { const L = []; for (const p of W.parts) { if (p.dead || !filt(p)) continue; const dx = 0.8, dy = 0.3, dz = -0.2, L2 = dx * dx + dy * dy + dz * dz, px = p.x - x, py = p.y - y, pz = p.z - z, t = (px * dx + py * dy + pz * dz) / L2; if (t < 0 || t >= 1) continue; const ex = px - t * dx, ey = py - t * dy, ez = pz - t * dz; if (ex * ex + ey * ey + ez * ez < 1) L.push([t, p.id]); } want += L.sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(h => h[1]).join(',') + ';'; }
+  const r = { atoms: W.parts.length, us: +(us / segs.length * 1000).toFixed(1), same: got === want, hits: (got.match(/\d+/g) || []).length };
+  check(r.us < 30 && r.same && r.hits > 30, `bug fix 9: a path search among ${r.atoms} atoms in 3-D takes ${r.us} µs (the grid's cells), the same ${r.hits} atoms found as over every atom`, 'bugfix segGrid: ' + JSON.stringify(r));
+};
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {

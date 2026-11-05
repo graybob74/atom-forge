@@ -1273,8 +1273,19 @@ function segTargets3(x0, y0, z0, x1, y1, z1, R, filter) {
     const ex = px - t * dx, ey = py - t * dy, ez = pz - t * dz, b2 = ex * ex + ey * ey + ez * ez;
     if (b2 < R * R) _hits3.push([t, p, Math.sqrt(b2)]);
   };
-  for (const p of W.parts) test(p);
-  if (_hits3.length > 1) _hits3.sort((a, b) => a[0] - b[0]);
+  // (bug fix 9 after 1.25: the cells the segment's box covers, not every particle; plus what the grid does not hold:
+  // nuclei flying fast or in radiation flight since the lists were made, and particles made since)
+  gridEnsure();
+  if (G.n <= 32 || !(G.cd > 0) || _flagGen !== _flagGenForces) for (const p of W.parts) test(p);
+  else {
+    const m = SKIN_F, cx = (v) => Math.floor((v + G.hx) / G.cw), cy = (v) => Math.floor((v + G.hy) / G.ch), cz = (v) => Math.floor((v + G.hz) / G.cd), L = G.list;
+    gridWalk3(cx(lo[0] - m), cy(lo[1] - m), cx(hi[0] + m), cy(hi[1] + m), cz(lo[2] - m), cz(hi[2] + m), (i) => { test(L[i]); });
+    for (const p of _fastNuc) test(p);
+    for (const p of _radNuc) test(p);
+    for (const p of _late) test(p);
+    if (_hits3.length > 1) { const seen = new Set(); let j = 0; for (const h of _hits3) if (!seen.has(h[1])) { seen.add(h[1]); _hits3[j++] = h; } _hits3.length = j; }
+  }
+  if (_hits3.length > 1) _hits3.sort((a, b) => a[0] - b[0] || a[1].id - b[1].id);
   return _hits3;
 }
 /* (1.25) The nuclei along a particle's path this step, found once and shared by its ionization, scattering and nuclear

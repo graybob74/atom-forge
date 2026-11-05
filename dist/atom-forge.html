@@ -7000,7 +7000,7 @@ function angleForces() { angleCentres(); angleKernel(0, AC.n, S.fx, S.fy, W.wall
 
 /* ------------------------------------------------------------------ force computation */
 const _bg = [0, 0];
-let _fastNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
+let _fastNuc = [], _radNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
 let _mdI = shArray(Int32Array, 4096), _nmd = 0, _mdLI = shArray(Int32Array, 256), _nmdL = 0, _chI = shArray(Int32Array, 256), _nch = 0, _mdNI = new Int32Array(4096), _nmdN = 0; // the slots of _md, _mdL, _charged and the MD nuclei
 let _mdGen = 0, _mdPrev = new Int32Array(4096), _nmdPrev = -1, _nFastLep = 0; // _mdGen counts the changes of the MD set (_md as a set of slots)
 function computeForces() {
@@ -7031,7 +7031,7 @@ function computeForces1() {
     if (W.d3) { S.fz.fill(0, 0, hi); S.gz.fill(0, 0, hi); }
     _late.length = 0; _flagGenForces = _flagGen; _clsHits++;
   } else {
-  _fastNuc.length = 0; _charged.length = 0; _mdL.length = 0; _nNucMD = 0;
+  _fastNuc.length = 0; _radNuc.length = 0; _charged.length = 0; _mdL.length = 0; _nNucMD = 0;
   let nmd = 0, nmdL = 0, nch0 = 0, nmdN = 0, nFastLep = 0;
   for (let j = 0; j < n; j++) {
     const i = PI[j];
@@ -7039,7 +7039,7 @@ function computeForces1() {
     FX[i] = 0; FY[i] = 0; GX[i] = 0; GY[i] = 0; NEAR[i] = 0; INMD[i] = 0;
     const k = K[i];
     if (k === NUC && Z[i] === 0) continue;       // neutrons fly straight
-    if (RAD[i] === 1) continue;
+    if (RAD[i] === 1) { if (k === NUC) _radNuc.push(OBJ[i]); continue; } // (_radNuc: nuclei in radiation flight, for segTargets3)
     if (FAST[i] === 1) { // ballistic between collisions, but an applied electric field still pushes on them
       if (fieldE && Q[i]) { const E = Efield(X[i], Y[i], OBJ[i]); FX[i] = Q[i] * E[0]; FY[i] = Q[i] * E[1]; }
       if (k === NUC) _fastNuc.push(OBJ[i]); else nFastLep++;
@@ -21632,8 +21632,19 @@ function segTargets3(x0, y0, z0, x1, y1, z1, R, filter) {
     const ex = px - t * dx, ey = py - t * dy, ez = pz - t * dz, b2 = ex * ex + ey * ey + ez * ez;
     if (b2 < R * R) _hits3.push([t, p, Math.sqrt(b2)]);
   };
-  for (const p of W.parts) test(p);
-  if (_hits3.length > 1) _hits3.sort((a, b) => a[0] - b[0]);
+  // (bug fix 9 after 1.25: the cells the segment's box covers, not every particle; plus what the grid does not hold:
+  // nuclei flying fast or in radiation flight since the lists were made, and particles made since)
+  gridEnsure();
+  if (G.n <= 32 || !(G.cd > 0) || _flagGen !== _flagGenForces) for (const p of W.parts) test(p);
+  else {
+    const m = SKIN_F, cx = (v) => Math.floor((v + G.hx) / G.cw), cy = (v) => Math.floor((v + G.hy) / G.ch), cz = (v) => Math.floor((v + G.hz) / G.cd), L = G.list;
+    gridWalk3(cx(lo[0] - m), cy(lo[1] - m), cx(hi[0] + m), cy(hi[1] + m), cz(lo[2] - m), cz(hi[2] + m), (i) => { test(L[i]); });
+    for (const p of _fastNuc) test(p);
+    for (const p of _radNuc) test(p);
+    for (const p of _late) test(p);
+    if (_hits3.length > 1) { const seen = new Set(); let j = 0; for (const h of _hits3) if (!seen.has(h[1])) { seen.add(h[1]); _hits3[j++] = h; } _hits3.length = j; }
+  }
+  if (_hits3.length > 1) _hits3.sort((a, b) => a[0] - b[0] || a[1].id - b[1].id);
   return _hits3;
 }
 /* (1.25) The nuclei along a particle's path this step, found once and shared by its ionization, scattering and nuclear

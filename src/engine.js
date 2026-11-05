@@ -2808,7 +2808,7 @@ function angleForces() { angleCentres(); angleKernel(0, AC.n, S.fx, S.fy, W.wall
 
 /* ------------------------------------------------------------------ force computation */
 const _bg = [0, 0];
-let _fastNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
+let _fastNuc = [], _radNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
 let _mdI = shArray(Int32Array, 4096), _nmd = 0, _mdLI = shArray(Int32Array, 256), _nmdL = 0, _chI = shArray(Int32Array, 256), _nch = 0, _mdNI = new Int32Array(4096), _nmdN = 0; // the slots of _md, _mdL, _charged and the MD nuclei
 let _mdGen = 0, _mdPrev = new Int32Array(4096), _nmdPrev = -1, _nFastLep = 0; // _mdGen counts the changes of the MD set (_md as a set of slots)
 function computeForces() {
@@ -2839,7 +2839,7 @@ function computeForces1() {
     if (W.d3) { S.fz.fill(0, 0, hi); S.gz.fill(0, 0, hi); }
     _late.length = 0; _flagGenForces = _flagGen; _clsHits++;
   } else {
-  _fastNuc.length = 0; _charged.length = 0; _mdL.length = 0; _nNucMD = 0;
+  _fastNuc.length = 0; _radNuc.length = 0; _charged.length = 0; _mdL.length = 0; _nNucMD = 0;
   let nmd = 0, nmdL = 0, nch0 = 0, nmdN = 0, nFastLep = 0;
   for (let j = 0; j < n; j++) {
     const i = PI[j];
@@ -2847,7 +2847,7 @@ function computeForces1() {
     FX[i] = 0; FY[i] = 0; GX[i] = 0; GY[i] = 0; NEAR[i] = 0; INMD[i] = 0;
     const k = K[i];
     if (k === NUC && Z[i] === 0) continue;       // neutrons fly straight
-    if (RAD[i] === 1) continue;
+    if (RAD[i] === 1) { if (k === NUC) _radNuc.push(OBJ[i]); continue; } // (_radNuc: nuclei in radiation flight, for segTargets3)
     if (FAST[i] === 1) { // ballistic between collisions, but an applied electric field still pushes on them
       if (fieldE && Q[i]) { const E = Efield(X[i], Y[i], OBJ[i]); FX[i] = Q[i] * E[0]; FY[i] = Q[i] * E[1]; }
       if (k === NUC) _fastNuc.push(OBJ[i]); else nFastLep++;

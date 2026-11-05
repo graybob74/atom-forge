@@ -275,7 +275,7 @@ engine stores and visits particles.
   - Free electrons put down almost on top of each other gain hundreds of eV in their first steps.
   - 3-D: Inspect can't pick unstable particles or photons in flight; quantum nuclei's beads aren't drawn; some
     Experimental descriptions still describe the flat case; the Magnet tool's pole buttons keep the flat ⊙/⊗ signs.
-  - A charged particle's search for atoms on its path goes over every atom (the grid would make it local).
+  - [fixed after 1.25] A charged particle's search for atoms on its path goes over every atom (the grid would make it local).
   - [fixed after 1.25] Help says holding Space pans, but nothing sets UI.spaceDown.
   - [fixed after 1.25] Flat game: hardSphere turns a pair by π − 2·acos(b/R), inverted (a head-on hit passes straight through, a grazing
     one bounces back); the 3-D version (1.25) uses the right angle.
@@ -924,6 +924,15 @@ books hashed apart).
   touch: the same terms as totalEnergy's for them), as exact and local. 20 passes of a 300 MeV π⁺ among 1,200 atoms
   of water: 29 ms a call before, 0.8 ms after; the books exact both times (1.4·10⁻⁵ eV). Fingerprints unchanged.
   Check: f_bug125 "exoElastic".
+- 9. The 3-D search for the atoms along a particle's path this step (segTargets3: ionization, scattering and nuclear
+  hits of charged unstable particles, muonic atoms, fast nuclei) went over every particle. It now walks the neighbour
+  grid's cells around the segment (a skin's margin for atoms that drifted since the grid was made), plus the lists the
+  grid does not hold: nuclei flying fast (_fastNuc) or in radiation flight (_radNuc, new, filled with them) and
+  particles made since (_late); with stale lists, or a grid of 32 or fewer, it goes over every particle as before. The
+  same atoms found, sorted as before (ties by id). 1,000 searches among 8,232 atoms of 3-D water: 122–126 µs a search
+  before, 8–14 µs after, the same 133 atoms. (The flat game's segTargets already used the grid. In a small box such as
+  water3d's, 22 Å with 8 cells, the grid is the whole box: no gain there, nothing lost.) Fingerprints unchanged;
+  f_125n passes. Check: f_bug125 "segGrid".
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
