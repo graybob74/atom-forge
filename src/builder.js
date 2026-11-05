@@ -622,7 +622,7 @@ function molCatGuess(atoms, bonds) {
 function myMolAdd(m) {
   const cat = molCatOk(m.c) ? m.c : 'custom';
   if (cat === 'custom' && !MOLECULE_CATS.some(c => c[0] === 'custom')) MOLECULE_CATS.unshift(['custom', 'My molecules']);
-  MOLECULES[m.k] = { key: m.k, name: m.n, cat, mine: true, radical: !!m.r, atoms: m.a, bonds: m.b, desc: m.d || '',
+  MOLECULES[m.k] = { key: m.k, name: m.n, cat, mine: true, radical: !!m.r, atoms: m.a, bonds: m.b, desc: m.d || '', mode: m.m === '2d' || m.m === '3d' ? m.m : undefined, // (mode: the library it was made for, 1.23.2; none: both)
     note: (m.d || 'Built in the molecule builder.') + (m.r ? ' It has a free valence (a radical), so it will react.' : '') };
   _molThumb.delete(m.k); _molPlain.delete(m.k); _molR.delete(m.k);
   _libIdx = null; // names in the chamber now know it too
@@ -645,11 +645,12 @@ function myMolsSave() {
 }
 /* The user's molecules as kept and exported: c is the category when not My molecules. */
 function myMolsList() {
-  return Object.values(MOLECULES).filter(m => m.mine).map(m => { const o = { k: m.key, n: m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds }; if (m.desc) o.d = m.desc; if (m.cat !== 'custom') o.c = m.cat; return o; });
+  return Object.values(MOLECULES).filter(m => m.mine).map(m => { const o = { k: m.key, n: m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds }; if (m.desc) o.d = m.desc; if (m.cat !== 'custom') o.c = m.cat; if (m.mode) o.m = m.mode; return o; }); // (m: made for the 2-D or the 3-D library, 1.23.2)
 }
 function myMolValid(m) {
   if (!m || typeof m.k !== 'string' || !/^my[0-9a-z]+$/.test(m.k) || typeof m.n !== 'string' || !Array.isArray(m.a) || !Array.isArray(m.b)) return false;
   if (m.c !== undefined && typeof m.c !== 'string') return false;
+  if (m.m !== undefined && m.m !== '2d' && m.m !== '3d') return false; // (1.23.2: the mode it was made for)
   if (!m.a.length || m.a.length > MYMOL_MAX || MOLECULES[m.k] || (m.d !== undefined && typeof m.d !== 'string')) return false;
   for (const a of m.a) {
     if (!Array.isArray(a) || !SYM2Z[a[0]] || !Number.isFinite(a[1]) || !Number.isFinite(a[2])) return false;
@@ -671,7 +672,7 @@ function myMolsLoad() {
     if (!myMolValid(m)) continue;
     let c = m.c;
     if (c === undefined && /^(Designed by Claude|Identified)/.test(m.d || '')) { c = molCatGuess(m.a, m.b); moved++; } // (saved before V40 into My molecules: Claude's go to their category)
-    myMolAdd({ k: m.k, n: m.n.slice(0, 40), r: m.r, a: m.a, b: m.b, d: (m.d || '').slice(0, 500), c });
+    myMolAdd({ k: m.k, n: m.n.slice(0, 40), r: m.r, a: m.a, b: m.b, d: (m.d || '').slice(0, 500), c, m: m.m }); // (kept before 1.23.2: no m, in both libraries)
   }
   if (moved) myMolsSave();
 }
@@ -770,6 +771,7 @@ function mbBuildRun(info, name) {
   const atoms = info.mol.atoms.map((a, i) => { const r = [a.el, +best.xy[i][0].toFixed(2), +best.xy[i][1].toFixed(2)]; if (a.q || a.A) r.push(a.q || 0); if (a.A) r.push(a.A); return r; });
   const byClaude = MB.aiSig && MB.aiSig === mbSig(), catPick = mbCatPicked(); // (byClaude: still as Claude designed it: keep its note)
   myMolAdd({ k, n: name || (old && old.name) || info.name || info.formula, r: best.free ? 1 : 0, a: atoms, b: info.mol.bonds.map(b => b.slice()),
+    m: old ? old.mode : byClaude ? aiModeFor() : undefined, // (Claude's design: the library chosen beside Ask Claude, 1.23.2)
     d: old ? old.desc : byClaude ? 'Designed by Claude.' + (MB.aiNote ? ' ' + MB.aiNote : '') : '', c: catPick === 'custom' ? undefined : catPick || (old ? (old.cat !== 'custom' ? old.cat : undefined) : byClaude ? (molCatOk(MB.aiCat) ? MB.aiCat : molCatGuess(atoms, info.mol.bonds)) : undefined) }); // (Claude's design: filed under its category)
   myMolsSave();
   if (old) log('tool', `Builder: ${MOLECULES[k].name} saved; copies already in the chamber are as they were`);
@@ -1139,6 +1141,7 @@ function openMolBuilder() {
   MB.edit = null; MB.loadSig = null; mbSyncEdit(); mbCatFill('');
   if (!MB.palOK) { $('bldPal').innerHTML = mbPaletteHTML(); MB.palOK = true; }
   $('bldFill').checked = MB.fill; $('bldHA').value = String(MB.hA);
+  { const am = $('aiMode'); if (am && !AI.busy) { am.value = W.d3 ? '3d' : '2d'; if (typeof ddSync === 'function') ddSync(); } } // (Ask Claude builds for the mode open now, 1.23.2)
   MB.msg = '';
   if (!AI.busy) aiSay('');
   aiSync();

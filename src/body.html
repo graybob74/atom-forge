@@ -439,7 +439,7 @@
 
 <div class="modal" id="molModal" hidden>
   <div class="dialog mdialog" role="dialog" aria-modal="true" aria-labelledby="molTitle">
-    <header><h2 id="molTitle">Molecules <span class="count" id="molCount"></span></h2><div class="hbtns"><button class="btn small" id="molBuild">Build your own…</button><button class="btn small" id="molClose">Close</button></div></header>
+    <header><h2 id="molTitle">Molecules <span class="pv" id="molTitle3" hidden title="The 3-D lab's library: the molecules and tiny objects that fit 3-D">3-D</span> <span class="count" id="molCount"></span></h2><div class="hbtns"><button class="btn small" id="molBuild">Build your own…</button><button class="btn small" id="molClose">Close</button></div></header>
     <div class="mtools">
       <input type="search" class="msearch" id="molSearch" placeholder="Search molecules" aria-label="Search molecules" autocomplete="off" spellcheck="false">
       <div class="mcats" id="molCats" role="group" aria-label="Categories"></div>
@@ -453,7 +453,7 @@
   <div class="dialog bdialog" role="dialog" aria-modal="true" aria-labelledby="bldTitle">
     <header><h2 id="bldTitle">Molecule builder</h2><button class="btn small" id="bldClose">Close</button></header>
     <div class="aibox" id="aiBox" hidden>
-      <div class="brow"><input class="msearch" id="aiAsk" maxlength="200" placeholder="Ask Claude to build it: caffeine, nylon, a salt crystal, a bit of insulin …" autocomplete="off" spellcheck="false" aria-label="What Claude should build"><button class="btn go" id="aiGo" title="Claude answers with a recipe; the page builds it and checks every bond. Uses your own Claude usage.">Ask Claude</button></div>
+      <div class="brow"><input class="msearch" id="aiAsk" maxlength="200" placeholder="Ask Claude to build it: caffeine, nylon, a salt crystal, a bit of insulin …" autocomplete="off" spellcheck="false" aria-label="What Claude should build"><select class="select aimode" id="aiMode" aria-label="Which library it is for" title="Which library the molecule goes to: the 2-D game's or the 3-D lab's"><option value="2d">For 2-D</option><option value="3d">For 3-D</option></select><button class="btn go" id="aiGo" title="Claude answers with a recipe; the page builds it and checks every bond. Uses your own Claude usage.">Ask Claude</button></div>
       <p class="note aimsg" id="aiMsg" aria-live="polite" hidden></p>
     </div>
     <div class="bpal" id="bldPal"></div>

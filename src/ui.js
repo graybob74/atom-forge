@@ -2869,7 +2869,7 @@ function libraryFromJSON(d) {
   let nm = 0, ni = 0;
   if (Array.isArray(d.mymols)) for (const m of d.mymols) {
     if (!myMolValid(m) || Object.values(MOLECULES).some(x => x.name.toLowerCase() === String(m.n).toLowerCase())) continue;
-    myMolAdd({ k: m.k, n: String(m.n).slice(0, 40), r: m.r, a: m.a, b: m.b, d: String(m.d || '').slice(0, 500), c: m.c }); nm++;
+    myMolAdd({ k: m.k, n: String(m.n).slice(0, 40), r: m.r, a: m.a, b: m.b, d: String(m.d || '').slice(0, 500), c: m.c, m: m.m }); nm++;
   }
   if (nm) myMolsSave();
   if (Array.isArray(d.myisos)) for (const r of d.myisos) {
