@@ -308,14 +308,14 @@ engine stores and visits particles.
   same before). In the flat game, `walls()`'s open-wall branch kills without booking escaped (a hole in the books in
   open 2-D boxes, for stepped particles; not touched, the flat game kept bit for bit).
 - **Separate libraries for 2-D and 3-D** (asked for by the owner). The rule, from the library itself (`molFits`): every
-  ordinary molecule (177, at most 36 atoms) is a flat drawing the 3-D lab lifts and relaxes into its shape in space
+  ordinary molecule (171, at most 36 atoms) is a flat drawing the 3-D lab lifts and relaxes into its shape in space
   (place3), so it is in both; the tiny objects and anything over 90 atoms (`molWhole`) are flat builds, 2-D only; the
   new 3-D objects (with z) are 3-D only; a molecule of your own made for one mode is in that one only (`mode`, saved as
   `m` in `mymols` and exports); those kept before 1.23.2 (no mode), plain molecules, in both. The library (counts,
   categories, search, the "3-D" tag on its title), the palette and Place follow it; picking one of the other mode's
   says where it is. Ask Claude (the builder) has a For 2-D / For 3-D choice beside its button, starting at the open
   mode; Claude's design is saved to that library (and library hits come from it); a lattice too big to be anything but
-  flat stays 2-D, and says so. Molecules built by hand are in both. 2-D: 190 entries, 3-D: 178 (with the tests' three).
+  flat stays 2-D, and says so. Molecules built by hand are in both. 2-D: 188 entries (171 molecules, 17 objects), 3-D: 176 (171, 5).
 - **3-D tiny objects** (asked for by the owner): five, built in space by `tools/objgen3.js` into `src/objects3.gen.js`
   (OBJECT3_LIB, the flat format plus z), settled with the engine's 3-D forces (a quench), turned to their principal
   axes, and checked to hold at 300 K for 2 ps: a salt cube (216 ions, rock salt, 6 a side, 1.6 nm), a gold
@@ -354,6 +354,23 @@ engine stores and visits particles.
   Gallery, My experiments, Share and Ask for a setup share, Settings' fixed 800 px height and two grid rows, so their
   few rows were stretched apart. Settings' window is now `#setModal > .sdialog`; the others are back to 560 px wide and
   as tall as their contents (Gallery 804 → 208 px, rows 256 → 26 px apart; Ask 804 → 386; My experiments 804 → 170).
+- **3-D ions "overlapping"** (the owner: "ions should be modeled differently in 3d because when they get bigger it
+  overlaps with other particles"): investigated, nothing changed (the candidates are physics, for the owner to decide).
+  Drawn balls: twelve ions put into liquid water (3-D and flat, 1,500 steps, atom size 1): no ion's ball overlaps a
+  neighbour's anywhere; the closest, centre distance over the two drawn radii, O²⁻–H 1.11, F⁻–H 1.16, S²⁻–H 1.17,
+  I⁻–H 1.22, Cl⁻–H 1.27, cations 1.7–1.8 (the same in 2-D). The GL balls use the same radius (`p.rd`, from the slot
+  styles) as picking. What likely reads as overlap: anions are drawn two to three times the size of water's atoms
+  (Cl⁻ 1.09 Å against O 0.48 and H 0.39; Cl as an atom 0.59: "when they get bigger"), so in perspective a near anion
+  covers the waters around it (screenshots 1232-ions3d-*.png), and every ion sits 0.2–0.5 Å closer to water than real.
+  Measured in brine3d (8 Na⁺, 8 Cl⁻, 300 K, JavaScript kernels, 2,000 steps sampled), against real:
+  as now (K_IW 2, LJ_SCALE 2): Na⁺–O peak 2.15 Å, 6.25 waters within 3.1 Å; Cl⁻–O 2.85 Å, 9.7 within 3.8; Cl⁻–H
+  1.95 Å; a 123-water droplet's middle 1.04 g/cm³. K_IW 1: Na⁺–O 2.25, 5.6; Cl⁻–O 2.95, 8.5; Cl⁻–H 2.05; 0.98.
+  LJ_SCALE 1: Na⁺–O 2.05, 6.9; Cl⁻–O 2.85, 10.0; Cl⁻–H 1.85; 1.01. Both 1: Na⁺–O 2.15, 5.5; Cl⁻–O 2.95, 8.55; Cl⁻–H
+  2.05; 0.99. Real: Na⁺–O 2.36–2.43 Å, 5.5–6 waters; Cl⁻–O 3.1–3.2 Å, about 6–7; Cl⁻–H 2.2–2.3; water 0.997. No
+  Na⁺–Cl⁻ contact pair formed in any of the four (the ions start apart; a crystal dissolving was not measured). So
+  K_IW 1 in 3-D brings the coordination numbers and density right and the distances 0.1 Å nearer; the rest of the
+  shortfall is the ions' own size (ljR = 2 × ionic radius, ε 0.02 eV), a third candidate. All three are physics changes
+  for the owner's OK; a display-only option would be drawing ions at a fixed fraction of the neighbours' sizes.
 - Tests: tests/f_1232.js (run by t_features' 1.23.2 block, or alone): each item above; on 1.23.1 the first three fail
   and the rest stop with errors (the functions they use do not exist there).
 
