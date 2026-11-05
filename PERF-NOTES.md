@@ -206,6 +206,10 @@ engine stores and visits particles.
     there is no radiation flight yet (fast is cleared, 3542) and walls3 bounces everything back except antimatter, so
     a 1 MeV proton or a fission neutron would stay in the box. To do: the same rules in walls3 by speed (KE past
     radThreshold), measured with a proton, an α and a fast neutron; energy booked as escaped (t_energy).
+  - Remove Performance mode (the user: "i feel like performance mode has become obsolete"): the Settings checkbox that
+    set four settings at once (SET_PERF: particle limit 12,000, standard resolution, no glows) and put them back when
+    turned off. The four stay as separate settings. Someone who had it on keeps the values it set (they are what the
+    game runs with now), and the prePerf memory is dropped; the Settings preview picture and text for it go too.
   For 1.24:
   - The rest of the Experimental settings in 3-D: induced charges, quantum nuclei, continuous and quantum bond orders,
     electrons as waves, the ultra-realistic mode (today flat only, set3dNote). Physics in 3-D; needs his OK as each
