@@ -244,6 +244,12 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.25 (in progress)
+
+### 1.25: bond orders for metals
+
+(In progress: stage 1, the model in 2-D and 3-D, its setting and checks. Numbers below; melting and cost being measured.)
+
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
 The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on branch v127.

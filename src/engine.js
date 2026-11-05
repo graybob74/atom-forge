@@ -375,7 +375,7 @@ function setSize(p) {
   p.ljS = Math.sqrt(p.ljE);
   p.isMetal = el.metal && p.bonds.length === 0 && Math.abs(p.q) <= 1;
   if (el.metal) {
-    p.mD = PHYS.KB * Math.max(el.tm, 150) / 0.45;
+    p.mD = MBO.on && p.isMetal && p.q === 0 ? 0 : PHYS.KB * Math.max(el.tm, 150) / 0.45; // (no depth for a many-body member, a neutral metal atom: its cohesion is bometal.js's, 1.25)
     p.mR = 2 * el.rc * ((el.cat === 'am' || el.cat === 'ae' || el.cat === 'pt') ? 1.12 : 1.0);
     if (p.isMetal && 2.1 * p.mR > RC) _farMetalSeen = true;
   }
@@ -1814,6 +1814,7 @@ function localPE(set, skip) {
     }
   }
   if (WAVE.n) V += waveLocal(set, skip); // (electrons as waves: the packets' share with these ions, 1.15)
+  if (MBO.on) V += mbLocal(set); // (metals' many-body energy, 1.25)
   if (_lrOn) { // exact long-range Coulomb between net charges beyond the cutoff (as in computeForces)
     for (const p of set) {
       if (p.k !== NUC || p.dead || p.fast || p.rad || !isLR(p)) continue;
@@ -2840,6 +2841,7 @@ function computeForces1() {
     b.fx += fx; b.fy += fy; a.fx -= fx; a.fy -= fy;
     if (dz) { const fz = f * dz / r; b.fz += fz; a.fz -= fz; }
   });
+  if (MBO.on) mbPass(true); // (Experimental: bond orders for metals, 1.25: bometal.js)
   // (bonds and angles: with the nucleus pairs, above)
   // external fields
   const hasE = hasEfield(), hasB = hasBfield() && W.magnets.length > 0;
@@ -4492,6 +4494,7 @@ function regionE(T) {
     if (W.wall === 'reflect') E += wallPE(p);
     E += objPE(p);
   }
+  if (MBO.on) E += mbLocal(T); // (metals' many-body energy, 1.25)
   return E;
 }
 function restSum(T) { let m = 0; for (const p of T) if (!p.dead) m += restE(p); return m; }
@@ -4745,6 +4748,7 @@ function evTransfer(a, b, r) {
   // with both, hop rates obey detailed balance (uphill ∝ e^(−ΔE/kT), as in surface hopping).
   const mu = d.m * acc.m / (d.m + acc.m), dvx = d.vx - acc.vx, dvy = d.vy - acc.vy, dvz = d.vz - acc.vz;
   const Ek = 0.5 * mu * (dvx * dvx + dvy * dvy + dvz * dvz);
+  if (MBO.on && dE <= Ek + 0.5) dE += mbXferLB(d, acc); // (many-body metals, 1.25: an atom made an ion leaves the metal; at least its own share of it is lost)
   if (dE > Ek + 0.5 || rnd() > 0.3) return; // the cheap estimate says it can't be afforded
   const bd0 = speciesLabel(d), ba0 = speciesLabel(acc);
   // exact energy change with the model's own potentials (sizes, charges, electronic energies, any
@@ -8246,6 +8250,7 @@ function totalEnergy0() {
   for (const bd of W.bonds) pe += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
   pe += boE;
+  if (MBO.on) pe += mbPass(false); // (metals' many-body energy, 1.25)
   if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls
