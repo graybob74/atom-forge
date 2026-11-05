@@ -5269,6 +5269,7 @@ function wallOrEscape(p, escape, x0, y0) {
   if (p.x > hw) { p.x = hw - (p.x - hw) % W.box.w; p.vx = -Math.abs(p.vx); p.ux = -Math.abs(p.ux); }
   if (p.y < -hh) { p.y = -hh + (-hh - p.y) % W.box.h; p.vy = Math.abs(p.vy); p.uy = Math.abs(p.uy); }
   if (p.y > hh) { p.y = hh - (p.y - hh) % W.box.h; p.vy = -Math.abs(p.vy); p.uy = -Math.abs(p.uy); }
+  if (d3) { if (p.z < -hd) { p.z = -hd + (-hd - p.z) % W.box.d; p.vz = Math.abs(p.vz); } else if (p.z > hd) { p.z = hd - (p.z - hd) % W.box.d; p.vz = -Math.abs(p.vz); } } // (3-D, 1.23.2)
   return false;
 }
 
@@ -6530,8 +6531,10 @@ function innerSteps3(Dt) {
 /* A free electron reaching the box edge bounces off a closed wall elastically (off the piston, when the box is
    resized), and is lost through an open one. A positron meets the wall's own electrons. */
 function leptonWall(p) {
+  if (W.d3 && W.wall === 'open') { wallStop3(p, 'qOut'); return; } // (3-D: its energy counted as escaped, 1.23.2)
   if (W.wall === 'open') { chargeTo(p.q, 'qOut'); kill(p); return; }
   if (p.k === POS) { annihilateAtWall(p); return; }
+  if (W.d3 && 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) > radThreshold(true)) { wallStop3(p); return; } // (3-D: a fast electron is stopped in a closed wall, as radiation flight is in the flat box, 1.23.2)
   const hw = W.box.w / 2, hh = W.box.h / 2, uw = W.box.uw, uh = W.box.uh;
   if (p.x < -hw) { p.x = -hw + Math.min(W.box.w, -hw - p.x); p.vx = -2 * uw - p.vx; if (p.vx < 0) p.vx = -p.vx; }
   else if (p.x > hw) { p.x = hw - Math.min(W.box.w, p.x - hw); p.vx = 2 * uw - p.vx; if (p.vx > 0) p.vx = -p.vx; }
