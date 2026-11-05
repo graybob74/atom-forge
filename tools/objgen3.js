@@ -5,7 +5,8 @@
    temperature for 2 ps, and written to src/objects3.gen.js as OBJECT3_LIB (the flat library's format, with z: each
    atom's depth). Run from the repository root:  node tools/objgen3.js [key …] [--quick]
    Left out, with the reason in PERF-NOTES (1.23.2): the chips (transistor, inverter, memory cells: their wiring is
-   flat-only, chips.js), the quantum dot (InP's zincblende needs four bonds an atom; the engine's In and P make three),
+   flat-only, chips.js), Kevlar and cellulose (rods 3.3–4.8 nm long: longer than the 3-D lab's cubes, which keep their
+   size until box sizes come to 3-D), the quantum dot (InP's zincblende needs four bonds an atom; the engine's In and P make three),
    the membrane (a 3-D bilayer patch would be thousands of atoms), and the folded biomolecules (DNA, the WW domain,
    chignolin, oxytocin: their 3-D folds need measured coordinates; a flat drawing relaxed in space is not the fold). */
 const fs = require('fs'), path = require('path');
@@ -19,6 +20,26 @@ function world(L) { X.baseWorld(L, L, 1, 0.5); X.world3d(L); W.decayOn = false; 
 function centred(ps) {
   let cx = 0, cy = 0, cz = 0; for (const p of ps) { cx += p.x; cy += p.y; cz += p.z; } cx /= ps.length; cy /= ps.length; cz /= ps.length;
   return ps.map(p => [p.x - cx, p.y - cy, p.z - cz]);
+}
+/* Turned so its longest extent lies along x, the next along y and its thinnest along z (the principal axes of its
+   spread, by Jacobi rotations): it then fits the 3-D lab's cubes (22–36 Å, fixed until box sizes come to 3-D) as
+   well as it can, and a flat sheet faces the starting view. */
+function aligned(xyz) {
+  const C = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (const v of xyz) for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C[i][j] += v[i] * v[j];
+  const V = [[1, 0, 0], [0, 1, 0], [0, 0, 1]], A = C.map(r => r.slice());
+  for (let sweep = 0; sweep < 30; sweep++) for (let p = 0; p < 2; p++) for (let q = p + 1; q < 3; q++) {
+    if (Math.abs(A[p][q]) < 1e-12) continue;
+    const th = 0.5 * Math.atan2(2 * A[p][q], A[q][q] - A[p][p]), c = Math.cos(th), s = Math.sin(th);
+    for (let k = 0; k < 3; k++) { const akp = A[k][p], akq = A[k][q]; A[k][p] = c * akp - s * akq; A[k][q] = s * akp + c * akq; }
+    for (let k = 0; k < 3; k++) { const apk = A[p][k], aqk = A[q][k]; A[p][k] = c * apk - s * aqk; A[q][k] = s * apk + c * aqk; }
+    for (let k = 0; k < 3; k++) { const vkp = V[k][p], vkq = V[k][q]; V[k][p] = c * vkp - s * vkq; V[k][q] = s * vkp + c * vkq; }
+  }
+  const ord = [0, 1, 2].sort((a, b) => A[b][b] - A[a][a]); // (largest spread first)
+  const ax = ord.map(i => [V[0][i], V[1][i], V[2][i]]);
+  const cr = [ax[0][1] * ax[1][2] - ax[0][2] * ax[1][1], ax[0][2] * ax[1][0] - ax[0][0] * ax[1][2], ax[0][0] * ax[1][1] - ax[0][1] * ax[1][0]];
+  ax[2] = cr; // (right-handed: a turn, not a mirror image, so chiral molecules keep their hand)
+  return xyz.map(v => ax.map(a => a[0] * v[0] + a[1] * v[1] + a[2] * v[2]));
 }
 const run = (n) => { for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); } };
 /* Settle: a quench in a strong bath from room temperature to 1 K (the shape the forces hold), then the atoms at rest. */
@@ -47,7 +68,9 @@ function record(o, ps) {
   const ix = new Map(ps.map((p, i) => [p, i]));
   o.atoms = ps.map(p => { const r = [p.el.sym, 0, 0]; if (p.q) r.push(Math.round(p.q)); return r; });
   o.bonds = []; for (const bd of W.bonds) if (ix.has(bd.a) && ix.has(bd.b)) o.bonds.push([ix.get(bd.a), ix.get(bd.b), bd.order]);
-  o.xyz = centred(ps);
+  o.xyz = aligned(centred(ps));
+  const ext = [0, 1, 2].map(i => Math.max(...o.xyz.map(v => v[i])) - Math.min(...o.xyz.map(v => v[i])));
+  console.log(`    extent ${ext.map(e => e.toFixed(1)).join(' × ')} Å`);
 }
 
 const OBJ = [];
@@ -83,9 +106,32 @@ const lifted = (k2, k3, n, d, L = 50) => () => {
   world(o.L); const ps = X.addMolecule(k2, 0, 0, 0, 0, 0);
   X.forcesNoEvents(); quench(ps, 1600); record(o, ps); return o;
 };
-OBJ.push(lifted('graphene', 'graphene3', 'Graphene flake (3-D)', 'One sheet of graphite in 3-D: 216 carbon atoms in a flat honeycomb 2.6 nm across, edged with hydrogen. A sheet of graphene is flat in space too: one atom thick, its π bonds keep it flat (it ripples a little when warm). Pencil lead is stacks of these sheets, 0.34 nm apart.'));
+OBJ.push(() => { // a graphene flake, five rings to a side (the flat game's six would not fit a 30 Å cube)
+  const o = { k: 'graphene3', n: 'Graphene flake (3-D)', L: 50, d: 'One sheet of graphite in 3-D: 150 carbon atoms in a flat honeycomb 2.1 nm across, edged with hydrogen. Graphene is flat in space too, one atom thick: its π bonds hold it flat, and it ripples a little when warm. Pencil lead is stacks of these sheets, 0.34 nm apart; a single sheet is the strongest material ever measured.' };
+  world(o.L); const s = 1.42, k = 5, key = (x, y) => Math.round(x * 100) + ',' + Math.round(y * 100), at = new Map(), C = [], edges = new Set();
+  for (let q = -(k - 1); q <= k - 1; q++) for (let r = -(k - 1); r <= k - 1; r++) {
+    if (Math.abs(q + r) > k - 1) continue;
+    const cx = Math.sqrt(3) * s * (q + r / 2), cy = 1.5 * s * r, vs = [];
+    for (let m = 0; m < 6; m++) { const t = Math.PI / 6 + m * Math.PI / 3, x = cx + s * Math.cos(t), y = cy + s * Math.sin(t), kk = key(x, y); if (!at.has(kk)) { at.set(kk, C.length); C.push([x, y]); } vs.push(at.get(kk)); }
+    for (let m = 0; m < 6; m++) { const u = vs[m], v = vs[(m + 1) % 6]; edges.add(Math.min(u, v) + '-' + Math.max(u, v)); }
+  }
+  const E = [...edges].map(e => e.split('-').map(Number)), nC = C.length, adj = Array.from({ length: nC }, () => []);
+  for (const [u, v] of E) { adj[u].push(v); adj[v].push(u); }
+  const side = new Array(nC).fill(-1); side[0] = 0; const st = [0]; while (st.length) { const u = st.pop(); for (const v of adj[u]) if (side[v] < 0) { side[v] = 1 - side[u]; st.push(v); } }
+  const mate = new Array(nC).fill(-1), aug = (u, seen) => { for (const v of adj[u]) { if (seen.has(v)) continue; seen.add(v); if (mate[v] < 0 || aug(mate[v], seen)) { mate[u] = v; mate[v] = u; return true; } } return false; };
+  for (let u = 0; u < nC; u++) if (side[u] === 0 && mate[u] < 0) aug(u, new Set());
+  if (mate.some(m => m < 0)) throw new Error('graphene3: no Kekulé structure');
+  const ps = C.map(([x, y]) => X.addAtom('C', x, y, { T: 0, z: 0 }));
+  for (const [u, v] of E) X.addBond(ps[u], ps[v], mate[u] === v ? 2 : 1);
+  const hl = X.bondLength(X.ELEMENTS[6], X.ELEMENTS[1], 1);
+  for (let i = 0; i < nC; i++) if (adj[i].length === 2) { // (an edge carbon: a hydrogen outward, between its two bonds)
+    const [a, b] = adj[i], ux = 2 * C[i][0] - C[a][0] - C[b][0], uy = 2 * C[i][1] - C[a][1] - C[b][1], L = Math.hypot(ux, uy);
+    const h = X.addAtom('H', C[i][0] + hl * ux / L, C[i][1] + hl * uy / L, { T: 0, z: 0 }); X.addBond(ps[i], h, 1); ps.push(h);
+  }
+  for (const p of ps) p.z += 0.02 * (X.rnd() - 0.5); // (a hair off the plane: it may ripple, and stays flat if it would)
+  X.forcesNoEvents(); quench(ps, 1600); record(o, ps); return o;
+});
 OBJ.push(lifted('polyethylene', 'polyethylene3', 'Polyethylene (3-D)', 'One molecule of polyethylene in 3-D: a chain of 78 carbons, each with its two hydrogens above and below the zigzag of the chain, folded back and forth as the chains lie in the plastic\'s crystals. In 3-D each carbon is a tetrahedron, as in the real plastic.'));
-OBJ.push(lifted('kevlar', 'kevlar3', 'Kevlar (3-D)', 'Two chains of Kevlar in 3-D: benzene rings linked by amide groups into stiff rods 4 nm long, held side by side by hydrogen bonds between their N–H and C=O groups. Weight for weight a Kevlar fibre is about five times stronger than steel.'));
 
 const r2 = (v) => Math.round(v * 100) / 100;
 function entry(o) {

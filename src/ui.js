@@ -854,10 +854,10 @@ function placeObject(spec, x, y) {
    put but kept inside the box, moved to the nearest clear spot (placeClear), and not at all when the box is too small
    or too full for it (a 3-D box keeps its size). */
 function placeObject3(spec, x, y, z) {
-  const M = MOLECULES[spec.mol], m = 1.5;
-  let r = 0; const n = M.atoms.length; let cx = 0, cy = 0, cz = 0; for (let i = 0; i < n; i++) { cx += M.atoms[i][1]; cy += M.atoms[i][2]; cz += M.z[i]; } cx /= n; cy /= n; cz /= n;
-  for (let i = 0; i < n; i++) r = Math.max(r, Math.hypot(M.atoms[i][1] - cx, M.atoms[i][2] - cy, M.z[i] - cz));
-  const lx = W.box.w / 2 - r - m, ly = W.box.h / 2 - r - m, lz = W.box.d / 2 - r - m;
+  const M = MOLECULES[spec.mol], m = 1.2, n = M.atoms.length;
+  let cx = 0, cy = 0, cz = 0; for (let i = 0; i < n; i++) { cx += M.atoms[i][1]; cy += M.atoms[i][2]; cz += M.z[i]; } cx /= n; cy /= n; cz /= n;
+  let hx = 0, hy = 0, hz = 0; for (let i = 0; i < n; i++) { hx = Math.max(hx, Math.abs(M.atoms[i][1] - cx)); hy = Math.max(hy, Math.abs(M.atoms[i][2] - cy)); hz = Math.max(hz, Math.abs(M.z[i] - cz)); }
+  const lx = W.box.w / 2 - hx - m, ly = W.box.h / 2 - hy - m, lz = W.box.d / 2 - hz - m, r = Math.max(hx, hy, hz);
   if (lx < 0 || ly < 0 || lz < 0) { log('tool', `${M.name} is ${fmtNum(2 * r / 10, 2)} nm across: too big for this ${fmtNum(W.box.w / 10, 2)} nm box`); return []; }
   const ps = spawnSpec(spec, clamp(x, -lx, lx), clamp(y, -ly, ly), undefined, clamp(z, -lz, lz));
   if (!ps.length) return [];
