@@ -478,6 +478,12 @@ Ge–Te, continuous bond orders in 3-D, and single bonds' twist barrier in 3-D (
   1.24.0 (no member among the six molecules; with antimony added by hand, the 0.078 eV step). `settings` fails on
   1.24.0 (18 descriptions under rows, 80 px overflow); `hexazine` records the measurements above and passes on 1.24.0
   too (nothing changed).
+- Suites (part 1, alone on two cores shared with two other agents' work): t_lint, t_3d, t_settings, t_wasm, t_threads,
+  t_energy, t_physics, f_124 and f_125 pass. t_features whole, twice: everything new passes; failing were the known
+  time-budgeted 1.14 speed readout (1/1.3× and 1/1.5× at a load average of 7) once each, 0.64's saves once, and 0.95's
+  six CO among O₂ once (4 kept triple): that block's outcome follows the page's random stream, which earlier time-budgeted
+  blocks move; the same box in Node, seeds 1–8, keeps 6 6 6 4 6 4 6 6 triple on 1.24.0 and on this branch alike.
+  tools/runtests.sh not run here (the main session runs it after merging v128, v129 and v130).
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
