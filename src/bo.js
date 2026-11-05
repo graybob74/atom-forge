@@ -1,6 +1,6 @@
 /* ------------------------------------------------------------------ continuous bond orders (Experimental, 1.13)
    With Settings → Experimental → Continuous bond orders on, neutral molecules of non-metals (H, B, C, N, O, F, Si, P,
-   S, Cl, Br, I) keep no stored bonds: every pair's bond order is worked out at every step from where the atoms are, and
+   S, Cl, Br, I; Ge, As, Se, Sn, Sb, Te since 1.25, tin in its molecules only) keep no stored bonds: every pair's bond order is worked out at every step from where the atoms are, and
    the energy is a smooth function of the positions (model E, tools/bo-proto2.js; the derivation and its checks in
    PERF-NOTES, 1.12 and 1.13). So bonds stretch, weaken and break, and new ones grow, continuously, and reactions find
    their own barriers (H + H₂: 0.41 eV, measured 0.42) instead of the classic chemistry's events.
@@ -50,6 +50,7 @@ function boPP(ea, eb) {
 function boOK(p) {
   return p.k === NUC && !p.dead && !p.fast && !p.rad && !p.anti && p.Z > 0 && (BO.qm ? p.Z <= 86 : BO.Ztab.has(p.Z)) && p.ne > 0 && Math.abs(p.q) <= 1 && !p.exo && !p.mu; // (singly charged ions too, since 1.16: H₃O⁺, OH⁻, NH₄⁺)
 }
+const boMetal = (p) => !!(p.el && p.el.metal); // (tin, of the bond orders' elements, 1.25)
 /* Crowded flat molecules (1.16). Two atoms bonded to one centre much more strongly than to each other don't bond to each
    other, as a stored molecule's 1-3 pairs don't: in a flat world SF₆'s six fluorines sit 60° apart, as far from each other
    as from the sulfur, near an F–F bond's length, and each F split its one valence three ways (S–F 0.5, F–F 0.2–0.34; PCl₅'s
@@ -68,7 +69,7 @@ const boB = (n) => { if (n <= 0.3) return 0; if (n >= 0.7) return 1; const t = (
 const boBD = (n) => { if (n <= 0.3 || n >= 0.7) return 0; const t = (n - 0.3) / 0.4; return 6 * t * (1 - t) / 0.4; };
 /* ---- the orders' pass on flat arrays (1.17; the 1.13–1.17 pass on objects it replaced is gone since 1.19), written over typed arrays (pairs and members
    by index, the pair constants in a table) so that it runs without allocating and can move to WebAssembly as it is. */
-const BF = { useWasm: true, np: 0, nm: 0, pcapN: 0, mcapN: 0, ns: 0, scap: 0, PT: new Float64Array(16 * 64), nt: 0, mem: [], inc: new Int32Array(256) };
+const BF = { useWasm: true, np: 0, nm: 0, pcapN: 0, mcapN: 0, ns: 0, scap: 0, PT: new Float64Array(16 * 64), nt: 0, mem: [], inc: new Int32Array(256), r13: 4.4 }; // (r13: how far apart an angle's (1-3) two ends can be, bfType)
 const BF_PS = 16; // (the pair-type table's stride: r1 c β σ reach D1 D2 D3 α1 α2 α3 rm ε rOn rCut)
 function bfType(a, b) {
   const P = boPP(a.el, b.el);
@@ -79,6 +80,7 @@ function bfType(a, b) {
     T[o] = P.r[0]; T[o + 1] = P.c; T[o + 2] = P.beta; T[o + 3] = P.sig; T[o + 4] = P.reach; T[o + 5] = P.D[0]; T[o + 6] = P.D[1]; T[o + 7] = P.D[2];
     T[o + 8] = P.al[0]; T[o + 9] = P.al[1]; T[o + 10] = P.al[2]; T[o + 11] = P.rm; T[o + 12] = P.eps; T[o + 13] = P.rOn; T[o + 14] = P.rCut;
     P.t = BF.nt++;
+    if (2 * P.reach > BF.r13) BF.r13 = 2 * P.reach; // (a 1-3 pair is looked for out to two bonds' reach: it was 4.4 Å, and SbCl₃'s Cl–Sb–Cl, 2.33 Å bonds at 143°, crossed it and lost its exclusion in one step, 0.089 eV, 1.25)
   }
   return P.t;
 }
@@ -500,7 +502,7 @@ function bfCoulomb(forces, n) {
     const rm = 0.5 * (Ra + Rb), eps = Sa * Sb, lj = g0 < 1 && eps > 0 && r < 2.6 * rm, ch = qa !== 0 || qb !== 0;
     if (!lj && !ch) continue;
     let prod = 1, nt = 0;
-    if (r < 4.4) bfCommon(a, b, inc, f0, fc, (j) => pn[j] > BO_X0, (k1, k2) => {
+    if (r < BF.r13) bfCommon(a, b, inc, f0, fc, (j) => pn[j] > BO_X0, (k1, k2) => {
       const w = boX(pn[k1]) * boX(pn[k2]); if (w <= 0) return;
       prod *= 1 - w; if (nt >= BF_T1.length) { const g = (x, T) => { const y = new T(x.length * 2); y.set(x); return y; }; BF_T1 = g(BF_T1, Int32Array); BF_T2 = g(BF_T2, Int32Array); BF_TW = g(BF_TW, Float64Array); } BF_T1[nt] = k1; BF_T2[nt] = k2; BF_TW[nt] = w; nt++;
     });
@@ -683,7 +685,7 @@ function bfPassWasm(forces) {
   BF.np = n;
   bfGrow(n, nm); bfSupRoom(4 * n);
   if (!bfDescFill()) return boPassJS(forces);
-  P[0] = n; P[1] = nm; P[2] = forces ? 1 : 0; P[8] = _stiff; P[12] = BF_SUP1.length;
+  P[0] = n; P[1] = nm; P[2] = forces ? 1 : 0; P[8] = _stiff; P[12] = BF_SUP1.length; P[15] = BF.r13;
   let E = ex.af_bo_pass1(BFW.desc.byteOffset, P.byteOffset);
   if (P[10] === 1) { bfSupRoom(P[14]); bfDescFill(); P[12] = BF_SUP1.length; P[8] = _stiff; E = ex.af_bo_pass1(BFW.desc.byteOffset, P.byteOffset); }
   _stiff = P[8]; BFW.calls = (BFW.calls || 0) + 1;
@@ -819,7 +821,7 @@ function boSync() {
       for (const bd of a.bonds) { const o = other(bd, a); if (!seen.has(o)) { seen.add(o); cl.push(o); } }
       const l = adj.get(a); if (l) for (const o of l) if (!seen.has(o) && !o.dead) { seen.add(o); cl.push(o); }
     }
-    const ok = BO.on && cl.every(boOK) && (cl.length > 1 || cl[0].q === 0); // (a lone ion, Cl⁻ in brine, stays with the kernel's ion–water terms)
+    const ok = BO.on && cl.every(boOK) && (cl.length > 1 || cl[0].q === 0) && (BO.qm || !cl.every(boMetal)); // (a lone ion, Cl⁻ in brine, stays with the kernel's ion–water terms; and metal alone, tin, with its metallic cohesion: only its molecules (SnCl₄, SnH₄) take part, 1.25)
     for (const a of cl) want.set(a, ok);
   }
   if (BO.qm) { // (quantum bonds: one calculation for every member together, so only a small system takes part: all or none)

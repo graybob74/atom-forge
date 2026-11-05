@@ -123,7 +123,7 @@ pub const P_PCAP: usize = 11;
 pub const P_SUPCAP: usize = 12;
 pub const P_VLNP: usize = 13;
 pub const P_NS: usize = 14;
-pub const P_CHANGES: usize = 15; // (unused here: the JavaScript counts)
+pub const P_R13: usize = 15; // (how far apart an angle's two ends can be: the 1-3 exclusions are looked for inside it; was 4.4 Å fixed, 1.25)
 pub const P_LEN: usize = 16;
 
 pub const BO_EPS: f64 = 0.03;
@@ -403,7 +403,8 @@ pub unsafe fn pass1(b: &Bo, p: *mut f64) -> f64 {
         }
     }
     e += angles_all(b, forces, nm);
-    e += coulomb(b, &mut stamp, forces, n, nm, &mut stiff);
+    let r13 = { let v = g(p, P_R13); if v > 0.0 { v } else { 4.4 } }; // (0 from a page before 1.25: the old fixed reach)
+    e += coulomb(b, &mut stamp, forces, n, nm, &mut stiff, r13);
     e += share(b, forces, nm);
     s(p, P_STIFF, stiff);
     s(p, P_E, e);
@@ -493,7 +494,7 @@ unsafe fn angles_all(b: &Bo, forces: bool, nm: usize) -> f64 {
     e
 }
 /// the partial charges, the members' own Coulomb pairs and their Lennard-Jones pairs (bfCoulomb up to the non-members' potential)
-unsafe fn coulomb(b: &Bo, stamp: &mut i32, forces: bool, n: usize, nm: usize, stiff: &mut f64) -> f64 {
+unsafe fn coulomb(b: &Bo, stamp: &mut i32, forces: bool, n: usize, nm: usize, stiff: &mut f64, r13: f64) -> f64 {
     let vcut = 2.0 * 2.6f64.powf(-6.0) - 2.6f64.powf(-12.0); let shp = 0.002f64.sqrt();
     for m in 0..nm { s(b.mq, m, 0.0); s(b.mphi, m, 0.0); }
     for k in 0..n {
@@ -524,7 +525,7 @@ unsafe fn coulomb(b: &Bo, stamp: &mut i32, forces: bool, n: usize, nm: usize, st
         let rm = 0.5 * (ra + rb); let eps = sa * sb; let ljon = g0 < 1.0 && eps > 0.0 && r < 2.6 * rm; let ch = qa != 0.0 || qb != 0.0;
         if !ljon && !ch { continue; }
         let mut prod = 1.0f64; let mut nt = 0usize;
-        if r < 4.4 {
+        if r < r13 {
             common(b, stamp, a, c, |j| g(b.pn, j) > BO_X0, |k1, k2| {
                 let w = bx(g(b.pn, k1)) * bx(g(b.pn, k2)); if w <= 0.0 { return; }
                 prod *= 1.0 - w; s(b.t1, nt, k1 as i32); s(b.t2, nt, k2 as i32); s(b.tw, nt, w); nt += 1;
