@@ -115,7 +115,7 @@ engine stores and visits particles.
   electrons. Cost: a 30-atom molecule about 120 basis functions, a few ms a step in JavaScript; liquid water's 240 atoms
   640 (×1,000), so an Experimental mode for small systems. To check a port, the reference implementation (pip tblite)
   needs the owner's OK to install here.
-- In progress (branch v125, after 1.22): 3-D. Stage 1a done (the engine in the Node harness): `W.d3`, `W.box.d`,
+- Done in 1.23.0 (the 3-D lab, Preview; section below), the stages kept for the record: 3-D. Stage 1a done (the engine in the Node harness): `W.d3`, `W.box.d`,
   `world3d(depth)`; z, vz, fz … in the store; 3-D grid, neighbour lists, kernels (JavaScript; WebAssembly and threads
   bypassed in 3-D), walls, bath (3 degrees of freedom), events with z. Angles in 3-D: every pair of bonds at a centre,
   (K/sin²θ₀)(cosθ − cosθ₀)² (the plain (θ − θ₀)² had a false minimum a flat CH₄ fell into), K(θ − π)² near linear;
@@ -204,6 +204,31 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.23.0: the 3-D lab (Preview), Settings with pictures, a 2-D / 3-D first screen
+
+- **3-D** (asked by the user, "a separate mode chosen in the main menu"): built in four stages, recorded in the planned
+  list's 3-D item. The engine in three directions (3-D angles, out-of-plane and double-bond torsion terms in 3-D only),
+  drawing in perspective with an orbit camera, the 3-D lab with six setups and tools in depth, save format version 2
+  (z, vz, depth), and the Rust kernel (`af_forces3`) and worker threads in 3-D. The flat game bit for bit the same
+  (four setups, 500 steps, before and after). Liquid water in 3-D (1,029 atoms) 2.7 ms a step on one thread.
+- **Settings with a preview pane** (the user's sketch: picture and description on the left, settings on the right, one
+  rounded window): hovering, focusing or tapping a setting shows a picture of what it does (30 pictures from the game
+  itself, `tools/setshots.js` → `src/setshots.gen.js`, WebP 640×360, 321 KB) and its description (all 71 rows, every
+  tab an overview; cost tags explained). Narrow screens: a strip above the settings.
+- **3-D settings tab** (display and camera only): field of view (30/40/55/70°), perspective or orthographic, depth fog,
+  box edges and grid, axis marker, labels (front atoms or all), orbit speed, invert orbit, turntable. Defaults give the
+  old picture exactly.
+- **A first screen choosing 2-D or 3-D** in the main menu's style (Continue, two tiles with pictures, Settings, Help);
+  2-D leads to the old menu, 3-D to a 3-D menu (its six setups, a turning 3-D background); Esc or "← 2-D or 3-D" goes
+  back; "Start with: where I left off" still skips it.
+- **Fixed** (2-D too): worker threads could be bound before the WebAssembly module was ready ("Cannot set properties of
+  null" now and then at start-up); they are bound again once it is.
+- Tests: t_features 3-D block, `tests/t_3d.js`, `tests/t_settings.js` (both lane B), 3-D blocks in t_wasm and
+  t_threads. Known under parallel load: t_threads' 3-D block can find the pool "not ready" (passes alone).
+- Open (for the owner): the two flat-world boosts (LJ_SCALE 2, K_IW 2) still on in 3-D; SF₄-type lone pairs not
+  compressing angles; hot hydrogen in 3-D insulated −5 eV over 4.6 ps; fields, objects, light, nuclear reactions and
+  the Experimental physics not yet in 3-D.
 
 ## 1.22.0: quantum bonds (GFN1-xTB), proton hops
 
