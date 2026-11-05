@@ -491,7 +491,7 @@ function buildToolOpts() {
       break;
     case 'spark':
       h = rangeCtl('oE', 'Energy', 0, 900, o.s, fmtE(sparkE())) + radCtl(t, o.R) +
-        (W.d3 ? '<span class="help">Shared by the atoms within the radius of the atom under the pointer (or of the middle of the box), in pairs. In 3-D nuclear reactions are not in yet.</span>' : '<span class="help">Shared by the atoms in the radius. keV: they fly apart; MeV: nuclear reactions.</span>');
+        (W.d3 ? '<span class="help">Shared by the atoms within the radius of the atom under the pointer (or of the middle of the box), in pairs. keV: they fly apart; MeV: nuclear reactions.</span>' : '<span class="help">Shared by the atoms in the radius. keV: they fly apart; MeV: nuclear reactions.</span>');
       break;
     case 'magnet':
       h = `<span data-g="pol">${seg('Pole', [[1, 'N ⊙'], [-1, 'S ⊗']], o.pol)}</span>` + rangeCtl('oB', 'Field', 100, 900, o.s, fmtTesla(Math.abs(magB()))) +
@@ -894,7 +894,7 @@ function placeFly(spec, x, y, count, z = 0) {
   _evTag = 0;
   if (W.d3 && spec.kind === 'gamma') { for (let i = 0; i < count; i++) emitPhoton(x, y, placeE(), undefined, undefined, { travel: true, z }); return []; } // (3-D: a random direction on the sphere, from its depth, 1.24)
   if (W.d3 && spec.kind === 'nu') { for (let i = 0; i < count; i++) emitNeutrino(x, y, placeE(), undefined, undefined, !!spec.anti, 'placed by hand', spec.fl || 'e', z); return []; }
-  if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], undefined, z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
+  if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (spec.sp === 'Mu') addMuonium(x + k * u[0], y + k * u[1], 1.5 * PHYS.KB * W.T, u[0], u[1], 1, z + k * u[2], u[2]); else if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], undefined, z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
   for (let i = 0; i < count; i++) {
     const [ux, uy] = rdir();
     if (spec.kind === 'exo' && spec.sp === 'Mu') addMuonium(x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), PHYS.KB * W.T, ux, uy); // (1.12: an atom, in MD)
@@ -1343,14 +1343,14 @@ function endToolAction() {
   if (R.overlay && R.overlay.aim) R.overlay = null;
 }
 /* (3-D) Fire: the direction of the drag (it stays in the plane square to the view), or with none, the screen's right;
-   the energy, below where flight in radiation mode starts (that flight is flat for now); the projectiles that work in
-   3-D (atoms, molecules, electrons and protons; not light, neutrinos, unstable particles, neutrons or antimatter yet). */
+   the energy (electrons and positrons below where flight in radiation mode starts: that flight is flat); every
+   projectile but antimatter works in 3-D (1.25: neutrons, and atoms and nuclei at any energy). */
 function fireDir3(d) {
   let ux = d.x1 - d.x0, uy = d.y1 - d.y0, uz = d.z1 - d.z0; const L = Math.sqrt(ux * ux + uy * uy + uz * uz);
   if (L < 0.3) { cam3Update(); return [C3.rx, C3.ry, C3.rz]; }
   return [ux / L, uy / L, uz / L];
 }
-function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return sp.kind === 'gamma' || sp.kind === 'nu' || sp.kind === 'exo' ? fireKE() : Math.min(fireKE(), 0.95 * radThreshold(lep)); } // (light, neutrinos and unstable particles: any energy, 1.24)
+function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return lep ? Math.min(fireKE(), 0.95 * radThreshold(lep)) : fireKE(); } // (light, neutrinos and unstable particles: any energy, 1.24; atoms, nuclei and neutrons too since 1.25, as atoms fly in 3-D and meet nuclei there)
 function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(sp)}: ${NOT_3D.toLowerCase()} (Fire)`); return false; }
 /* Grab, Strong and Very strong: it keeps up with the mouse in real time, whatever the speed setting or slow motion.
    The spring may draw the atoms along faster (vcap: the gap closed in about 0.12 s of watching, up to the strength's
@@ -4088,9 +4088,11 @@ function buildPresetSelect() {
    A mode of its own, chosen in the main menu (3-D lab): its setups are those marked d3 (the group G3D), and while a
    3-D world is open the setup list shows only them, with a 3-D Preview label beside it; the main menu (2-D) goes back
    to the flat game (the Leave button went in 1.23.2, asked for by the owner). What does not work in 3-D yet is hidden or disabled with a note: the Objects tool,
-   neutrons and antimatter in the particle menus, and Ask Claude for a setup. Since 1.24 the Magnet and Light tools, fields, the box's size, light, neutrinos, positrons, unstable
-   particles and the rest of the Experimental tab work in 3-D, continuous bond orders since 1.25. The mode follows the world (W.d3): a setup or a saved
-   world sets it. */
+   antimatter in the particle menus, Ask Claude for a setup. Since 1.24 the Magnet and Light tools, fields, the box's size, light, neutrinos, positrons, unstable
+   particles and the rest of the Experimental tab work in 3-D; since 1.25 the unstable particles' captures and hits on
+   nuclei too (muonic atoms, muonium and hypernuclei in the particle menus), and nuclear reactions (decay, neutrons in
+   the menus, fission, fusion, fast nuclei, the giant dipole resonance). The mode follows the world (W.d3): a setup or a
+   saved world sets it. Continuous bond orders work in 3-D since 1.25. */
 const NOT_3D = 'Not in 3-D yet';
 const TOOLS_NO3D = new Set(['objects']); // (the Magnet and Light tools work in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };
@@ -4101,8 +4103,8 @@ function spec3dOK(s) {
   if (!s) return false;
   if (s.kind === 'mol') return molFits(MOLECULES[s.mol], true);
   if (s.kind === 'atom') return !s.anti;
-  if (s.kind === 'exo') { const d = XP[s.sp]; return !!d && !d.atom && !d.hyp && !d.stuck && s.sp !== 'Mu'; } // (unstable particles since 1.24: not the muonic atoms, muonium or hypernuclei)
-  return s.kind === 'e' || s.kind === 'pos' || s.kind === 'gamma' || s.kind === 'nu'; // (light since 1.24; positrons and neutrinos since 1.24)
+  if (s.kind === 'exo') return !!XP[s.sp]; // (unstable particles since 1.24; muonic atoms, muonium and hypernuclei since 1.25)
+  return s.kind === 'e' || s.kind === 'pos' || s.kind === 'gamma' || s.kind === 'nu' || s.kind === 'n'; // (light since 1.24; positrons and neutrinos since 1.24; neutrons since 1.25)
 }
 const NO3D_CTL = ['bAskSetup']; // (single controls; the box-size slider, fields, magnets and the ultra-realistic mode work in 3-D since 1.24)
 const NO3D_BTN = []; // (single choices off in 3-D: none since 1.25, when continuous bond orders from the positions came to 3-D; the rest of the Experimental tab works in 3-D since 1.24)
@@ -5421,7 +5423,7 @@ function mmTick(dt) {
 function mmSetups(d3 = false) { // (d3: the 3-D lab's setups; otherwise the flat game's)
   const groups = new Map();
   for (const [k, p] of Object.entries(PRESETS)) { if (!p.name || k === 'ai' || !!p.d3 !== d3) continue; const g = p.group || 'Other'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push([k, p.name]); }
-  let i = 0; $('mmList').innerHTML = (d3 ? `<p class="mm-note3d">The 3-D mode is a preview: atoms, molecules, liquids and gases in a cube you can turn (right-drag or Alt+drag, the wheel to zoom, W A S D to fly, E and Q up and down, 0 to fit). Fields, magnets, light, nuclear physics and chips stay in the flat game for now.</p>` : '') +
+  let i = 0; $('mmList').innerHTML = (d3 ? `<p class="mm-note3d">The 3-D mode is a preview: atoms, molecules, liquids and gases in a cube you can turn (right-drag or Alt+drag, the wheel to zoom, W A S D to fly, E and Q up and down, 0 to fit). Fields, magnets, light and unstable particles work in 3-D too, with their captures and hits on nuclei (muonic atoms, nuclear stars, muonium), and nuclear reactions: decay, neutrons, fission, fusion; the collider, antimatter, placed objects and chips stay in the flat game for now.</p>` : '') +
     [...groups].map(([g, list]) => `<h4>${esc(g)}</h4>` + list.map(([k, n]) => `<button data-mmp="${esc(k)}" style="--i:${Math.min(i++, 14)}">${esc(n)}</button>`).join('')).join('');
   $('mmChoose').hidden = true; $('mmBtns').hidden = true; $('mmBtns3').hidden = true; $('mmSetups').hidden = false; $('mmList').scrollTop = 0;
 }

@@ -1758,6 +1758,8 @@ const { openPage } = require('./browser');
   // 1.25 (metals): the checks are in f_125m.js (also runnable alone: node tests/f_125m.js [part …])
   await require('./f_125m.js')(page, check, say, openPage);
   await require('./f_125s.js')(page, check, say, openPage); // 1.25 (Settings by mode, 3-D pictures): f_125s.js, also alone
+  // 1.25 (nuclear 3-D): the checks are in f_125n.js (also runnable alone: node tests/f_125n.js [--node] [part …])
+  await require('./f_125n.js')(page, check, say, openPage);
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
