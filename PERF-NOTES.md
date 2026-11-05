@@ -456,8 +456,9 @@ Ge–Te, continuous bond orders in 3-D, and single bonds' twist barrier in 3-D (
     | acetaldehyde (methyl) | 0.049 | 0.046 | 0.050 (1.16) |
   - Butane's populations: from the relaxed profile (Boltzmann over the dihedral, 5° steps) at 300 K anti 62% / gauche
     38% stored, 58 / 42 with bond orders (measured in the gas at room temperature about 60–70% anti); at 600 K 47 / 53.
-    Molecular dynamics, 64 butanes in a 44 Å cube with stored bonds and the bath at 600 K, 24 ps: anti 38.9%, gauche
-    61.1% (828 changes: the whole molecule's motion, not the profile alone).
+    Molecular dynamics, 64 butanes in a 44 Å cube with stored bonds and the bath: at 300 K over 49 ps anti 66.9%, gauche
+    33.1% (114 changes between them), at 600 K over 24 ps anti 38.9%, gauche 61.1% (828 changes; the whole molecule's
+    motion, not the profile alone). Before (1.24.0) the barrier was 0.094 eV and gauche 0.056 above anti.
   - Forces against the energy's slope (h 2e-6, molecules moved 0.1 Å at random): stored ethane 2e-9 eV/Å, butane 4e-9,
     methanol 2e-9, methylamine 2e-9, H₂O₂ 1e-9, propene 4e-9, acetaldehyde 2e-9, ethanol 2e-9; bond orders 1.3e-8,
     1.3e-8, 2e-9, 9e-9, 8e-9, 7e-9, 3e-8, 4e-8, butadiene 1e-7.
