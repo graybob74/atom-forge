@@ -266,7 +266,7 @@ engine stores and visits particles.
     300 K (Ag, Au, Fe, Na don't). Screenshot 125m-flat-pairs.png.
   - Dense metals in 3-D are slow with either metal model: 767 Cu atoms about 80 ms a step, nearly all estimating
     electron transfers.
-  - In the flat world AsCl₅'s five chlorines bond to each other with bond orders (Cl–Cl orders 0.39); PCl₅ and SbCl₅
+  - [looked at after 1.25: a model choice, for the owner] In the flat world AsCl₅'s five chlorines bond to each other with bond orders (Cl–Cl orders 0.39); PCl₅ and SbCl₅
     are fine.
   - In 3-D a fast neutron among waters lets 50–85 eV slip from the energy books over 1,500 steps (48 eV after 1.23.2);
     a 100 keV U atom among waters about 1 eV.
@@ -980,6 +980,12 @@ books hashed apart).
   (seeds 3, 5, 7, 9, 12: 8.6, 7.5, 8.1, 8.6, 9.2), salt water ×5.9–7.4 (seeds 12, 3). So the 1.25 figure was taken under
   load and the old water ×8 holds. The tag is now ×6–15, its words with these numbers (and 1.20's H₂ + O₂ ×9, gallery
   ×15). f_125s's two tag checks follow. Fingerprints unchanged. Check: f_bug125 "boTag" (page).
+- 3. AsCl₅ with bond orders on (flat): looked at, left for the owner as a model choice. The cause is written down in
+  1.25 (bond orders for the heavier elements): the five chlorines sit 2.46 Å apart in the plane, As–Cl (2.97 eV) beats
+  Cl–Cl by only 0.46 eV, and the crowding rule (1.16) acts from 0.4–0.8 eV, so the Cl pairs take order 0.39 (0.78 eV a
+  bond deeper than stored); PCl₅ and SbCl₅ have 0.9 and 0.6 eV to spare. A fix means changing that rule's threshold
+  or the As–Cl/Cl–Cl table (both change how every crowded molecule bonds), not correcting a slip: not changed.
+  (Real AsCl₅ falls apart above −50 °C.)
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
