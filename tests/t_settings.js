@@ -65,10 +65,10 @@ async function pane() {
   await page.evaluate(() => openSettings('gfx')); await page.waitForTimeout(200);
   const tab = await page.evaluate(() => ({ t: $('setPrevT').textContent, img: !$('setPrevImg').hidden }));
   check(tab.t === 'Graphics' && !tab.img, 'a tab opens on its overview in the preview pane (no picture)', tab);
-  const show = () => page.evaluate(() => ({ t: $('setPrevT').textContent, d: $('setPrevD').textContent.trim(), src: $('setPrevImg').hidden ? '' : $('setPrevImg').src, ph: !$('setPrevPh').hidden, on: (document.querySelector('#setModal .sprev-on') || {}).dataset ? document.querySelector('#setModal .sprev-on').dataset.sk : null }));
+  const show = () => page.evaluate(() => ({ t: $('setPrevT').textContent, d: $('setPrevD').textContent.trim(), src: $('setPrevImg').hidden ? '' : $('setPrevImg').src, ph: getComputedStyle($('setPrevPh')).display !== 'none', on: (document.querySelector('#setModal .sprev-on') || {}).dataset ? document.querySelector('#setModal .sprev-on').dataset.sk : null }));
   await page.hover('#segAtom', { position: { x: 5, y: 5 } }); await page.waitForTimeout(100);
   const h = await show(), want = await page.evaluate(() => SETSHOTS.segAtom);
-  check(h.t === 'Atom size' && h.d.length > 40 && h.src === want && h.on === 'segAtom', `hovering Atom size shows its picture and "${h.d.slice(0, 60)}…", the row marked`, { t: h.t, d: h.d.slice(0, 80), src: h.src.slice(0, 40), on: h.on });
+  check(h.t === 'Atom size' && h.d.length > 40 && h.src === want && !h.ph && h.on === 'segAtom', `hovering Atom size shows its picture and "${h.d.slice(0, 60)}…", the placeholder gone, the row marked`, { ph: h.ph, t: h.t, d: h.d.slice(0, 80), src: h.src.slice(0, 40), on: h.on });
   // keyboard: focus moves to a checkbox
   await page.evaluate(() => $('setCvd').focus()); await page.waitForTimeout(50);
   const k = await show();

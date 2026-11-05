@@ -5184,7 +5184,7 @@ function mmBg(d3) {
   loadPreset(d3 ? MM_BG3 : bg[Math.floor(Math.random() * bg.length)] || 'empty');
   if (keep) store('preset', keep); // (the setup behind the menu is not the one to start with next time)
   $('hint').hidden = true; $('narr').hidden = true; W.slowmo = false; setRunning(true); fitView();
-  if (!d3 && R.w > 700) { R.s *= 0.9; R.cx -= Math.min(0.2 * R.w, 260) / R.s; } // (the setup off to the right of the menu)
+  if (!d3 && R.w > 700) { R.s *= 0.85; R.cx -= Math.min(0.26 * R.w, 360) / R.s; } // (the setup off to the right of the menu)
   MMP.base = [R.s, R.cx, R.cy]; MMP.base3 = d3 ? { yaw: R.cam3.yaw, pitch: R.cam3.pitch, dist: R.cam3.dist * (R.w > 700 ? 1.3 : 1.1) } : null;
   W.slowmo = store('slowmo') !== '0';
 }
@@ -5847,7 +5847,8 @@ function setPrevShow(key, opt) {
   { const r = document.querySelector(`#setModal [data-sk="${key}"]`); if (r) r.classList.add('sprev-on'); }
   const img = $('setPrevImg'), ph = $('setPrevPh'), tab = STAB_DESC[key], D = SDESC[key] || null;
   const shots = SETSHOTS, src = (opt !== null && shots[key + ':' + opt]) || shots[key] || '';
-  img.hidden = !src; ph.hidden = !!src; if (src) { img.src = src; img.alt = 'What it looks like: ' + (D ? D[0] : key); } else img.removeAttribute('src');
+  img.hidden = !src; ph.toggleAttribute('hidden', !!src); // (an SVG element has no hidden property: the attribute)
+  if (src) { img.src = src; img.alt = 'What it looks like: ' + (D ? D[0] : key); } else img.removeAttribute('src');
   $('setPrev').classList.toggle('noimg', !src);
   if (tab) { $('setPrevT').textContent = tab[0]; $('setPrevD').innerHTML = `<p>${esc(tab[1])}</p>`; return; }
   const el = $(key), row = el ? el.closest('.srow, label.check') : document.querySelector(`#setModal [data-sk="${key}"]`);
