@@ -271,7 +271,7 @@ engine stores and visits particles.
   - In 3-D a fast neutron among waters lets 50–85 eV slip from the energy books over 1,500 steps (48 eV after 1.23.2);
     a 100 keV U atom among waters about 1 eV.
   - [fixed after 1.25] In the flat game the open-wall branch of walls() removes particles without booking their energy as escaped.
-  - In the flat game an event that changes a charge in an applied electric field misses −q·E·Δr from the books.
+  - [fixed after 1.25] In the flat game an event that changes a charge in an applied electric field misses −q·E·Δr from the books.
   - Free electrons put down almost on top of each other gain hundreds of eV in their first steps.
   - 3-D: Inspect can't pick unstable particles or photons in flight; quantum nuclei's beads aren't drawn; some
     Experimental descriptions still describe the flat case; the Magnet tool's pole buttons keep the flat ⊙/⊗ signs.
@@ -950,6 +950,14 @@ books hashed apart).
   worst. Found, not changed: a light atom flying fast in the flat game (muonium stays in flight down to 18 eV) jumps
   the books by ±1–12 eV in pairs as it passes molecules (mean −0.04 eV over 12 runs). Fingerprints unchanged. Check:
   f_bug125 "muonium".
+- 6. In an applied electric field the books (total + Σ q·φ, φ = −E·r: totalEnergy leaves the field out, as it does
+  work) missed −q·E·Δr whenever an event changed a charge: the events measure the energy without the field. Now
+  fieldPhi / fieldU give the uniform field's potential and a particle's energy in it (q + partial charge for an atom,
+  as the force has it), and the event measures count it: localPE and regionE for their atoms, ejectElectron's launch
+  and joinEnergy (captures) for the lepton; switchMode leaves it out (the field pushes a particle in flight too, so its
+  energy there does not change with the mode). Ten protons and their electrons recombining among argon in 0.2 V/Å,
+  6 seeds, 1,500 steps: up to 0.80 eV off before, 0.03 eV after (60 captures). No field, no change. Fingerprints: neon
+  (the discharge has a field) changes, nothing else; t_energy passes. Check: f_bug125 "efield".
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

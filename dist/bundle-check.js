@@ -4199,6 +4199,7 @@ function localPE(set, skip) {
   }
   V += centresAngleE(centres);
   if (W.magnets.length) { const kT = PHYS.KB * Math.max(W.T, 1); for (const p of set) if (!p.dead) V += magU(p, kT); }
+  if (W.Ex || W.Ey || (W.d3 && W.Ez)) for (const p of set) if (!p.dead) V += fieldU(p); // (the applied field, bug fix 6 after 1.25)
   for (const p of set) if (p.qi) V += qeqSelf(p); // (the polarization energy of induced charges, 1.12)
   farMetalPairs((a, b, dx, dy, r) => { V += metalV(a, b, r); }, set);
   if (W.wall === 'reflect' || W.objs.length) { // soft walls (and placed objects')
@@ -6318,8 +6319,8 @@ function switchMode(p, toFast) {
   }
   const one = new Set([p]);
   let U;
-  if (toFast) U = p.k === NUC ? localPE(one) : p.q * phiE(p.x, p.y, p, undefined, p.z);
-  else { p.fast = false; U = p.k === NUC ? localPE(one) : p.q * phiE(p.x, p.y, p, undefined, p.z); p.fast = true; }
+  if (toFast) U = p.k === NUC ? localPE(one) - fieldU(p) : p.q * phiE(p.x, p.y, p, undefined, p.z); // (the applied field pushes it in flight too: its energy there does not change with the mode)
+  else { p.fast = false; U = p.k === NUC ? localPE(one) - fieldU(p) : p.q * phiE(p.x, p.y, p, undefined, p.z); p.fast = true; }
   const ke = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz), k2 = toFast ? ke + U : ke - U;
   if (!(k2 > 0.05 * ke)) return; // stay in the current mode
   const f = Math.sqrt(k2 / ke);
@@ -6381,6 +6382,16 @@ function extendTrack(p) {
   t.upd = W.rt;
 }
 /* Electrostatic potential (V) felt by an electron at (x, y) from nearby charges (soft-cored as in the forces). */
+/* The applied uniform field's potential at (x, y, z) (V: φ = −E·r) and a particle's energy in it (q·φ, with an atom's
+   partial charge, as the force has it). totalEnergy leaves it out (the field does work on the books, which tests
+   count as total + Σ q·φ); an event that changes a charge or moves one must count it, or it misses −q E·Δr (bug fix 6
+   after 1.25): localPE and regionE include it for their atoms, ejectElectron and joinEnergy for the lepton. */
+function fieldPhi(x, y, z) { return -(W.Ex * x + W.Ey * y + (W.d3 ? (W.Ez || 0) * (z || 0) : 0)); }
+function fieldU(p) {
+  if (!W.Ex && !W.Ey && !(W.d3 && W.Ez)) return 0;
+  const q = p.k === NUC ? p.q + (p.qp || 0) : p.q;
+  return q ? q * fieldPhi(p.x, p.y, p.z) : 0;
+}
 function phiE(x, y, skip, skip2, z = 0) { // (3-D: at (x, y, z))
   let phi = 0;
   const visit = (o, dx, dy, r2) => {
@@ -6421,7 +6432,7 @@ function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {
     // a ballistic (radiation-mode) lepton carries no potential energy: then only the energy at infinity counts
     if (Kfar > radThreshold(true) && !d3) return Kfar; // (3-D: no radiation flight, a fast electron is stepped with its potential energy like any other, 1.24: a Compton electron lost the ion's 10–16 eV pull)
     const phiSelf = qa && !fastIon ? PHYS.KE * qa * (1 / Math.sqrt(o * o + p.sEN) - (1 / Math.sqrt(RC2 + p.sEN) - (_lrOn && isLR(p) ? 1 / RC : 0))) : 0;
-    return Kfar - lq * (phiSelf + (grid ? phiE(ex, ey, p, undefined, ez) : 0));
+    return Kfar - lq * (phiSelf + (grid ? phiE(ex, ey, p, undefined, ez) : 0) + fieldPhi(ex, ey, ez)); // (the applied field too: bug fix 6 after 1.25)
   };
   if (closed) { if (Math.abs(p.x + ux * off0) > hw) ux = -ux; if (Math.abs(p.y + uy * off0) > hh) uy = -uy; if (d3 && Math.abs(p.z + uz * off0) > hd) uz = -uz; } // away from a wall
   let off = off0, KEl = launch(off, ux, uy, uz);
@@ -6847,7 +6858,7 @@ function joinEnergy(L, A) {
   const grid = _nmd > 0, set = setOf(molecule(A)), sn = snapshot(set);
   const [dx, dy, dz] = minImg(L.x - A.x, L.y - A.y, L.z - A.z), r2 = dx * dx + dy * dy + dz * dz;
   const qa0 = A.q, lpe = !(L.fast || L.rad); // (a lepton in flight carries no potential energy in the books)
-  const V0 = (lpe ? PHYS.KE * L.q * qa0 * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN)) : 0) + (grid ? localPE(set, L) + (lpe ? L.q * phiE(L.x, L.y, A, L, L.z) : 0) : 0);
+  const V0 = (lpe ? PHYS.KE * L.q * qa0 * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN)) : 0) + (grid ? localPE(set, L) + (lpe ? L.q * phiE(L.x, L.y, A, L, L.z) : 0) : 0) + fieldU(L) + (grid ? 0 : fieldU(A)); // (the lepton's energy in the applied field goes with it: bug fix 6 after 1.25)
   const Vw = L.wm && !L.dead ? waveIonShare(L) : 0; // (electrons as waves: the packet's share with every ion and packet, which goes with it)
   let K0 = keOf(L);
   for (const p of set) K0 += 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz);
@@ -6855,7 +6866,7 @@ function joinEnergy(L, A) {
   const px = L.m * L.vx + A.m * A.vx, py = L.m * L.vy + A.m * A.vy, pz = L.m * L.vz + A.m * A.vz;
   A.ne++; refresh(A); A.vx = px / A.m; A.vy = py / A.m; if (W.d3) A.vz = pz / A.m;
   enforceValence(A, null); closeSet(set);
-  const V1 = grid ? localPE(set, L) : 0, I1 = internalE(A);
+  const V1 = grid ? localPE(set, L) : fieldU(A), I1 = internalE(A);
   let K1 = 0; for (const p of set) K1 += 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz);
   return { E: (K0 + V0 + Vw + I0) - (K1 + V1 + I1), sn };
 }
@@ -6992,7 +7003,7 @@ function regionE(T) {
   const seenB = new Set();
   for (const p of T) {
     if (p.dead) continue;
-    E += restE(p) + keOf(p) + internalE(p);
+    E += restE(p) + keOf(p) + internalE(p) + fieldU(p); // (fieldU: the applied field, bug fix 6 after 1.25)
     for (const bd of p.bonds) if (!seenB.has(bd)) { seenB.add(bd); E += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b)); }
     if (!inMD(p)) continue;
     for (const o of md) if (o !== p && !(T.has(o) && o.id < p.id)) E += pairPE(p, o);

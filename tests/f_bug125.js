@@ -124,6 +124,22 @@ PARTS.muonium = async (page, check, say) => {
   check(r.flat.n >= 8 && r.d3.n >= 8 && r.flat.worst < 0.01 && r.d3.worst < 0.01, `bug fix 13: muonium formed beside oxygen pays its potential energy: books to ${r.flat.worst} eV (flat, ${r.flat.n} formed), ${r.d3.worst} eV (3-D, ${r.d3.n})`, 'bugfix muonium: ' + JSON.stringify(r));
 };
 
+/* 6. Events that change a charge in an applied electric field book −q·E·Δr: ten protons and their electrons recombining
+   among argon in 0.2 V/Å, books counted as total + Σ q·φ (φ = −E·r): up to 0.8 eV off over 1,500 steps before, under
+   0.05 after. */
+PARTS.efield = async (page, check, say) => {
+  let worst = 0, caps = 0;
+  for (let s = 1; s <= 6; s++) { const X = fresh(s), W = X.W;
+    X.baseWorld(40, 30, 300, 0); W.Ex = 0.2; W.Ey = 0.05; W.slowmo = false;
+    for (let i = 0; i < 10; i++) X.userIonize(X.addAtom('H', -15 + i * 3, -5));
+    for (let i = 0; i < 10; i++) X.addAtom('Ar', -15 + i * 3, 5);
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    const B = () => { let f = 0; for (const p of W.parts) if (!p.dead && p.q) f += (p.k === X.NUC ? p.q + (p.qp || 0) : p.q) * -(W.Ex * p.x + W.Ey * p.y); return books(X) + f; };
+    const E0 = B(); go(X, 1500); worst = Math.max(worst, Math.abs(B() - E0)); caps += W.log.filter(l => /captured|Recombination/.test(l.text)).reduce((t, l) => t + l.n, 0); }
+  const r = { worst: +worst.toFixed(3), caps };
+  check(r.worst < 0.1 && r.caps >= 20, `bug fix 6: ${r.caps} captures in a 0.2 V/Å field, the books (with the field's energy) kept to ${r.worst} eV`, 'bugfix efield: ' + JSON.stringify(r));
+};
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {
