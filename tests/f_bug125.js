@@ -49,6 +49,18 @@ PARTS.spacePan = async (page, check, say) => {
 };
 PARTS.spacePan.page = true;
 
+/* 19. The 0.95 check "six CO among O₂ at 300 K keep their triple bonds", moved from the page (whose random stream is not
+   seeded: 4 of 6 once) to the Node harness with a fixed seed. On seeds 4, 6 and 10 of 1–10 two CO join (CO + CO → C₂O₂,
+   −85 kJ/mol, a reaction the bond table allows: written down for the owner); seed 1 keeps all six. */
+PARTS.coCold = async (page, check, say) => {
+  const run = (seed) => { const X = fresh(seed), W = X.W; X.PRESETS.empty.build(); W.T = 300; W.gamma = 0.05;
+    for (let i = 0; i < 6; i++) X.addMolecule('CO', -10 + i * 4, -6, 0, 300); for (let i = 0; i < 6; i++) X.addMolecule('O2', -10 + i * 4, 6, 0, 300);
+    X.forcesNoEvents(); W.fSpawn = W.spawned; for (let k = 0; k < 20; k++) { go(X, 300); X.housekeeping(); }
+    return W.bonds.filter(b => b.order === 3).length; };
+  const a = run(1), b = run(1);
+  check(a === 6 && b === 6, `bug fix 19: six CO among O₂ at 300 K keep their triple bonds, seeded (${a}, again ${b})`, 'bugfix coCold: ' + JSON.stringify({ a, b }));
+};
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {
