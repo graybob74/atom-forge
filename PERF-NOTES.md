@@ -282,7 +282,7 @@ engine stores and visits particles.
   - [fixed after 1.25] exoElastic measures the whole box's energy on every pass (slow; 3-D's elastic hits booked from the recoil in 1.25).
   - Muonium formation misses up to tens of eV (2-D and 3-D: the muon stopped without paying its potential energy).
   - 3-D: MeV electrons and positrons are stepped faster than light (−367 eV over 150 γ rays of 20 MeV into lead).
-  - K⁻ absorption keeps momentum only to 0.002 (2-D and 3-D).
+  - [fixed after 1.25] K⁻ absorption keeps momentum only to 0.002 (2-D and 3-D).
   - 3-D: ionized water recaptures its free electrons within about 30 steps (40 ionized molecules); flat water keeps
     all 40.
   - 3-D: quantum nuclei with forces on every bead cost ×17–48 (×3–10 flat); for the speed work.
@@ -933,6 +933,13 @@ books hashed apart).
   before, 8–14 µs after, the same 133 atoms. (The flat game's segTargets already used the grid. In a small box such as
   water3d's, 22 Å with 8 cells, the grid is the whole box: no gain there, nothing lost.) Fingerprints unchanged;
   f_125n passes. Check: f_bug125 "segGrid".
+- 15. K⁻ absorption at rest (kStop) took the kaon at rest and the struck nucleus in the atom's frame without the atom's
+  motion, and freed the electrons in random directions: momentum kept only to about 0.9 MeV/c (2-D and 3-D). Now the
+  kaon's own four-momentum (exoP4) goes in, the struck nucleon comes from struckNucleon (the same spectator model,
+  boosted by the atom's motion; the same random draws in the same order), and the freed electrons share between them
+  the momentum they had riding on the atom. K⁻ (800 eV) on a moving carbon atom, 30 seeds: |Σp out − p in| up to
+  0.90 MeV/c before, 6·10⁻¹⁴ (flat) and 9·10⁻¹⁴ MeV/c (3-D) after; the books exact both times (8·10⁻⁶ eV).
+  Fingerprints: hyperfactory changes (its kaons are absorbed), nothing else. Check: f_bug125 "kStop".
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

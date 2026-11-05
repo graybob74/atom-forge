@@ -18895,12 +18895,12 @@ function hypCatch(Zr, Nr, mres, Pr, PL, bx, by, items, moms, bz = 0) { // (bz: 3
 function kStop(o) {
   const tg = stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.mu);
   if (!tg) return false;
-  const Z = tg.Z, N = tg.N, onP = rnd() < Z / (Z + N), Zr = Z - (onP ? 1 : 0), Nr = N - (onP ? 0 : 1);
   // the struck nucleon moves inside the nucleus (Fermi motion, up to about 250 MeV/c; none in a lone proton), and the rest
-  // recoils against it: that is what leaves some Λ slow enough to stay
-  const mres = Zr + Nr ? nucMeV(Zr, Nr) : 0, mN = nucMeV(Z, N) - mres, kF = Zr + Nr ? 250 * Math.sqrt(rnd()) : 0, f = rdir();
-  const Er = Math.sqrt(mres * mres + kF * kF), PN = [mres + mN - Er, ...f.map(c => kF * c)], Pres = [Er, ...f.map(c => -kF * c)]; // (spectator model: they add up to the nucleus exactly)
-  const Pe = add4(W.d3 ? [XP['K-'].m + o.KE / MEV, 0, 0, 0] : [XP['K-'].m + o.KE / MEV, 0, 0], PN), me = mass4(Pe), pi = onP ? 'pi0' : 'pi-', ex = Pe[1] / Pe[0], ey = Pe[2] / Pe[0], ez = (Pe[3] || 0) / Pe[0];
+  // recoils against it: that is what leaves some Λ slow enough to stay. (Bug fix 15 after 1.25: with the kaon's own
+  // momentum and the atom's motion, struckNucleon's spectator model in the atom's frame; the kaon was taken at rest and
+  // the nucleus's motion left out, momentum kept only to 0.9 MeV/c. The same random draws, in the same order.)
+  const { onP, Zr, Nr, mres, PN, Pres } = struckNucleon(tg);
+  const Pe = add4(exoP4(o), PN), me = mass4(Pe), pi = onP ? 'pi0' : 'pi-', ex = Pe[1] / Pe[0], ey = Pe[2] / Pe[0], ez = (Pe[3] || 0) / Pe[0];
   if (!(me > LAM_M + XP[pi].m)) return false;
   const u = rdir(), [vL0, vp0] = twoBody(me, LAM_M, XP[pi].m, ...u), vL = toLab(vL0, ex, ey, ez), vp = toLab(vp0, ex, ey, ez);
   const items = [], moms = [], x = tg.x, y = tg.y, el = hitLabel(tg);
@@ -18908,7 +18908,13 @@ function kStop(o) {
   let hyp = false;
   if (Zr + Nr >= 2) hyp = hypCatch(Zr, Nr, mres, Pres, vL, 0, 0, items, moms);
   if (!hyp) { items.push(item('Lam')); moms.push(vL); if (Zr + Nr) residualInto(Zr, Nr, mres, Pres, false, items, moms); }
+  const e0 = moms.length;
   for (let i = 0; i < tg.ne; i++) { items.push(item('e-')); moms.push(randDir4(PHYS.MEC2, 5 / MEV)); }
+  if (tg.ne) { // (the freed electrons carry, between them, the momentum they had riding on the atom: the nucleus's share is in PN, Pres)
+    const Pa = p4of(tg), Pb = p4of(tg, true), n = tg.ne, d = Pa.length;
+    for (let c = 1; c < d; c++) { let k = 0; for (let i = e0; i < moms.length; i++) k += moms[i][c]; const sh = (Pa[c] - Pb[c] - k) / n; for (let i = e0; i < moms.length; i++) moms[i][c] += sh; }
+    for (let i = e0; i < moms.length; i++) { let p2 = 0; for (let c = 1; c < d; c++) p2 += moms[i][c] * moms[i][c]; moms[i][0] = Math.sqrt(PHYS.MEC2 * PHYS.MEC2 + p2); }
+  }
   const txt = `K⁻ + ${el} → ${summarize(items.filter(it => it.t !== 'e'))}`;
   exoEvent(o, [tg], items, moms, x, y, 'capture', txt, hyp ? 'kaon absorbed: the Λ stayed, a hypernucleus' : `kaon absorbed: K⁻${onP ? 'p → Λπ⁰' : 'n → Λπ⁻'}`, tg.z);
   return true;

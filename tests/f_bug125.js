@@ -91,6 +91,23 @@ PARTS.segGrid = async (page, check, say) => {
   check(r.us < 30 && r.same && r.hits > 30, `bug fix 9: a path search among ${r.atoms} atoms in 3-D takes ${r.us} µs (the grid's cells), the same ${r.hits} atoms found as over every atom`, 'bugfix segGrid: ' + JSON.stringify(r));
 };
 
+/* 15. A K⁻ absorbed at rest (kStop) keeps momentum exactly, flat and 3-D: the kaon's own momentum and the atom's motion
+   go in, the freed electrons carry their share. Before: the kaon taken at rest and the nucleus's motion left out,
+   |Σp out − p in| up to 0.9 MeV/c. */
+PARTS.kStop = async (page, check, say) => {
+  const one = (d3) => { let worst = 0, n = 0, bk = 0;
+    for (let s = 1; s <= 12; s++) { const X = fresh(s), W = X.W;
+      if (d3) { X.PRESETS.empty.build(); X.setBox(20, 20); X.world3d(20); } else X.baseWorld(30, 20, 300, 0);
+      const tg = X.addAtom('C', 0, 0); tg.vx = 0.05; tg.vy = -0.03; if (d3) tg.vz = 0.02;
+      X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const o = X.addExo('K-', -0.3, 0.1, 800, 0.6, 0.8, undefined, 0, 0), Pin = X.add4(X.exoP4(o), X.p4of(tg)), E0 = books(X);
+      let got = null; const oe = X.exoEvent; X.exoEvent = function (o2, tgs, items, moms, ...r) { got = moms.reduce((a, m) => X.add4(a, m), d3 ? [0, 0, 0, 0] : [0, 0, 0]); return oe(o2, tgs, items, moms, ...r); };
+      if (X.kStop(o) && got) { worst = Math.max(worst, Math.hypot(got[1] - Pin[1], got[2] - Pin[2], (got[3] || 0) - (Pin[3] || 0))); n++; bk = Math.max(bk, Math.abs(books(X) - E0)); } }
+    return { n, worst: +worst.toExponential(1), books: +bk.toExponential(1) }; };
+  const r = { flat: one(false), d3: one(true) };
+  check(r.flat.n === 12 && r.d3.n === 12 && r.flat.worst < 1e-9 && r.d3.worst < 1e-9 && r.flat.books < 1e-3 && r.d3.books < 1e-3, `bug fix 15: K⁻ absorbed on carbon keeps momentum to ${r.flat.worst} (flat), ${r.d3.worst} MeV/c (3-D), books to ${r.flat.books}, ${r.d3.books} eV`, 'bugfix kStop: ' + JSON.stringify(r));
+};
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {
