@@ -823,8 +823,10 @@ function boSync() {
     for (const a of cl) want.set(a, ok);
   }
   if (BO.qm) { // (quantum bonds: one calculation for every member together, so only a small system takes part: all or none)
-    let nw = 0; for (const v of want.values()) if (v) nw++;
-    XQ.over = nw > XQ.max ? nw : 0;
+    let nw = 0, nao = 0; for (const [a, v] of want) if (v) { nw++; nao += XTB.nAO(a.Z); }
+    // (and only while one calculation stays affordable, 1.23.1: its cost grows with the cube of the orbitals, and with quantum
+    // nuclei every bead has its own; 40 heavy atoms, 360 orbitals, took 18 s a step and froze the page)
+    XQ.over = nw > XQ.max || nao > XQ.maxAO || nao * nao * nao * (PI.on ? PI.P : 1) > XQ.maxCost ? nw : 0;
     if (XQ.over) for (const a of want.keys()) want.set(a, false);
   }
   const C = [];
@@ -861,15 +863,25 @@ function boSync() {
    their shapes here first (steepest descent, at most 0.02 Å a move, 60 moves), inside the change whose energy goes to
    the bath; their velocities are kept. */
 function boRelax(join) {
-  const FX = S.fx, FY = S.fy;
-  for (let it = 0; it < 60; it++) {
+  const FX = S.fx, FY = S.fy, n = boRelaxPasses(), f0 = XQ.fails;
+  for (let it = 0; it < n; it++) {
     forcesNoEvents();
+    if (BO.qm && XQ.fails > f0) break; // (the electrons did not settle: their forces lead nowhere, 1.23.1)
     let fm = 0; for (const p of join) { const f = Math.hypot(FX[p.i], FY[p.i]); if (f > fm) fm = f; }
     if (fm < 0.05) break;
     const st = Math.min(0.002, 0.02 / fm);
     for (const p of join) { p.x += FX[p.i] * st; p.y += FY[p.i] * st; }
     gridTouch();
   }
+}
+/* How many moves the joiners get: 60, fewer where each move (a force pass over everything, every bead) is dear (1.23.1:
+   spawning into 500 atoms with bond orders and beads made 4–9 s frames, into quantum bonds 12 s hangs, each time
+   anything joined). Counted from the world, not timed, so runs stay the same from a seed. */
+function boRelaxPasses() {
+  const P = PI.on ? PI.P : 1;
+  if (BO.qm) { let nao = 0; for (const p of W.parts) if (p.bom && !p.dead) nao += XTB.nAO(p.Z); return Math.max(2, Math.min(60, Math.floor(2 * 160 * 160 * 160 / (P * Math.max(1, nao * nao * nao))))); }
+  let n = 0; for (const p of W.parts) if (!p.dead) n++;
+  return Math.max(6, Math.min(60, Math.floor(36000 / (P * Math.max(1, n))))); // (60 up to 600 particles: those worlds join as before)
 }
 /* Whole bonds from the last orders (above 0.5), the strongest first, as far as both atoms have valence left: [a, b, order]
    (for members leaving, and for saving a world) */
@@ -909,7 +921,7 @@ function boSet(v) {
    self-consistent charges (outside potential), so the forces are the energy's exact slopes. The energy counted is
    the binding energy: GFN1's less each member's free atom. Bond orders (Mayer's, from the density) are drawn and
    decide the molecules. */
-const XQ = { max: 40, acc: 0.01, extra: true, qsh: null, qsh1: null, sig: '', pq: [], eAtom: new Map(), over: 0, calls: 0, it: 0, ms: 0, fails: 0 };
+const XQ = { max: 40, maxAO: 160, maxCost: 160 * 160 * 160, maxIt: 40, acc: 0.01, extra: true, qsh: null, qsh1: null, sig: '', pq: [], eAtom: new Map(), over: 0, calls: 0, it: 0, ms: 0, fails: 0 };
 function qmAtomE(Z) {
   let e = XQ.eAtom.get(Z);
   if (e === undefined) { e = XTB.gfn1Energy([Z], [[0, 0, 0]], 0, 0, { accuracy: XQ.acc }).E; XQ.eAtom.set(Z, e); }
@@ -945,7 +957,7 @@ function qmPass(forces) {
   for (let m = 0; m < n; m++) { vext[m] = phi[m] / XTB.AUTOEV; if (phi[m]) anyV = true; }
   const t0 = performance.now();
   let r;
-  try { r = XTB.gfn1Energy(Z, xyz, charge, 0, { grad: forces, vext: anyV ? vext : null, qsh0: XQ.sig === sig ? xqGuess() : null, bonds: true, accuracy: XQ.acc }); }
+  try { r = XTB.gfn1Energy(Z, xyz, charge, 0, { grad: forces, vext: anyV ? vext : null, qsh0: XQ.sig === sig ? xqGuess() : null, bonds: true, accuracy: XQ.acc, maxIter: XQ.maxIt }); }
   catch (e) { r = null; }
   if (!r || !r.converged) { XQ.fails++; if (!r) { BO.E = 0; return 0; } }
   const d = XTB.d3Disp(Z, xyz, { grad: forces });
@@ -969,6 +981,7 @@ function qmPass(forces) {
   return E;
 }
 const XQ_K = 50;
+
 /* Leaving quantum bonds, the atoms get whole charges where the electrons put them (a proton that hopped took the +1
    along: the charge is the oxygen's that now holds three hydrogens). Molecules from the last bond orders (heavy atoms
    by orders above 0.5, each hydrogen with its strongest partner above 0.2); each takes its rounded Mulliken charge

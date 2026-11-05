@@ -205,6 +205,78 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.23.1 (in progress)
+
+- **What froze the page** (the owner, desktop app: "spamming atoms with some experimental settings enabled … fissions
+  … chaotic"; the 1.13 crash handler cannot run while a frame never ends). Found with `tools/stress.js` (new: spams
+  atoms light and heavy, U-235/Pu-239, neutrons, molecules, electrons, ions, sparks, heat and speed changes into the
+  headless page under eight Experimental combinations, times every frame, and pauses a page that stops answering for
+  10 s through the DevTools protocol to read its stack; `--prof` adds where slow frames went). Headless, two slow cores.
+  - **Quantum bonds**: hangs of 12–20 s, again and again (every placement that joined). (a) The charges of loose atoms
+    and radicals never settle: the SCC ran all 250 iterations, and its Broyden mixer's cost grows with the cube of its
+    history (10 loose atoms 3.7 s a calculation, 40 heavy atoms 18 s at 60 iterations). (b) The joiners' relaxation
+    (`boRelax`) made 60 calculations a join. (c) The cap counted atoms, not orbitals: 40 heavy atoms (9 orbitals each
+    from silicon on, 360 in all) took part. (d) With quantum nuclei every bead is a calculation of its own. (e) Inside
+    the inner steps every electron event recomputed all forces, so one calculation per event, thrown away (the step's
+    end works them out again before any kick uses them). Fixed: the game's SCC stops at 40 iterations
+    (`gfn1Energy(…, { maxIter })`; settled calculations take 2–5 warm, 11–20 cold, so these are unchanged); a calculation
+    takes part only up to 160 orbitals (40 light atoms fit: 13 waters are 104) and beads × orbitals³ ≤ 160³ (8 beads:
+    80, 10 waters); the relaxation makes at most 2·160³/(beads·orbitals³) passes (60 for small clusters, 2 at 160) and
+    stops at the first calculation that did not settle; the inner steps' recount holds the quantum pass (`_qmHold`; the
+    members keep their last charges meanwhile). Measured (Node): 30 loose light atoms joining, a 72 s step → 2.4 s, then
+    0.42 s a step; 10 loose atoms joining 60 calculations of 250 iterations (minutes) → 9 calculations, 208 iterations,
+    0.6 s; 30 heavy atoms and 13 waters with 8 beads now stay with stored bonds (before: 18 s a calculation); a
+    hydronium and two waters with electrons fired in, 15.2 → 2.6 calculations a step.
+  - **Continuous bond orders**: frames of 4–9 s with beads, 0.6–1.5 s without, at every join: `boRelax` made 60 force
+    passes over the whole world (every bead). Now 36,000 / (particles × beads) passes, 6 to 60: worlds up to 600
+    particles join exactly as before (the molecule gallery and liquid water: same temperatures after the join, 484 and
+    549 K); 1,200 atoms 30 passes, 2,200 atoms 16; 300 atoms with 16 beads 7. (Fewer passes at 330 atoms, tried first,
+    left the gallery 160 K hotter after its join: not done.)
+  - Counted from the world, never timed, so runs stay the same from a seed. Energy books unchanged in kind: the
+    relaxation is inside the measured change; a calculation that did not settle was already used as it was.
+- **The mid-frame mark** (the 1.13 heartbeat could not tell a freeze from the desktop window closing without a word to
+  the page): each frame writes a mark into browser storage as it starts (`crashMarkOn`) and removes it as it ends. A
+  window never closes inside a frame (the page's script runs one thing at a time), so a mark found at the next start
+  means the page died in one: froze or crashed, in the desktop app too. Each window has its own key; a mark under 2 s
+  old belongs to another window busy right now and is left. The mark says what was going on (brought up to date once a
+  second): setup, particles by kind, ions, bond-order members, beads, waves, unsettled quantum calculations, the step,
+  threads, memory, the Experimental settings, the slowest recent frame. The next start offers the report and the
+  autosave ("It stopped in the middle of a frame: it froze (or crashed) while working out a step"). Cost: 18.5 µs a
+  frame (a write and a remove of a 330-byte mark; 0.1% of the time at 60 fps), headless.
+- **The desktop watchdog** (`desktop/src-tauri/src/lib.rs`): the page sends a `heartbeat` command once a second from
+  its frames. No heartbeat for 8 s while the window is visible, not minimised and in front: a native box "Atom Forge
+  stopped responding" (Win32 MessageBoxW: Abort quits, Retry reloads, Ignore waits; Enter waits). The clock is held
+  while the window is hidden, minimised or behind another (the page's frames stop or slow there), before the first
+  heartbeat, and after any gap in the watchdog's own ticks over 3 s (sleep). Nothing ends without the player's answer.
+  Retry ends this app's WebView2 renderer processes (its descendants whose command line has `--type=renderer`: a reload
+  alone would be sent to the same stuck process) and navigates to the page again; no heartbeat 15 s later, the app
+  restarts. **Untested on Windows**: no Windows target or crates could be fetched here; the Rust was type-checked with
+  the Win32 code switched on against a stub of the few Tauri calls it uses (`get_webview_window`, `is_visible`,
+  `is_minimized`, `is_focused`, `url`, `navigate`, `restart`, `exit`, `manage`, `invoke_handler`, `setup`). Manual steps
+  in `desktop/TEST-CHECKLIST.md` (8). The workflow already runs on `workflow_dispatch` (any branch).
+- **Experimental settings back to normal at each start** (asked for by the owner): the Experimental tab (longest step,
+  large-ring resonance, detailed nuclear collisions, force reach, induced charges, quantum nuclei and their bead forces,
+  bond orders, electrons as waves) is not read back from storage; every other tab is. A note at the top of the tab says
+  so. Saved worlds never held Experimental state (bond orders saved as whole bonds, no beads, no packet sizes), so a
+  world or autosave made with them opens with the physics as set, normal after a start: the energy books start clean
+  from stored bonds, as any load. Saves now record which were on (`exp`), and loading one made with settings that are
+  off now says so in the log.
+- **Fixed on the way: an error outside the simulation stopped the game for good.** The frame asked for the next one only
+  at its end, so an error past the simulation's own catch (readouts, panels, the inspector's drawing) ended the loop:
+  the crash dialog came up, and after Keep going nothing moved again (checked: simulated time stood still). The frame's
+  body is now in try/finally: the mark cleared and the next frame asked for whatever happens.
+- **Fixed on the way: Continue after a restart brought back the start setup afresh**, not the last session: at start
+  the main menu opened after `UI.started` was set and autosaved the freshly loaded setup over the last session's (a
+  world of 96 particles came back as the fresh 56). The crash dialog's "Carry on from the autosave" had the same fault.
+  The menu now opens before.
+- Test: t_features 1.23.1 block (fails on 1.23.0 in every part: the join stopped over budget at 250 iterations a
+  calculation, 30 heavy atoms in, 39 atoms with beads, 15.2 calculations a step, 60 passes, no report in the desktop
+  app, Experimental kept, Continue 56 for 86).
+- Found, not changed: GFN1's self-consistency does not settle for loose atoms and radicals close together (10 C, N, O, H
+  atoms 1.6–4 Å apart: not in 250 iterations); such steps use unsettled charges, so their forces are not the energy's
+  slopes and an insulated run drifts (as in 1.22). Electrons as waves with 2,000 particles still make 1–2 s frames
+  here (the inner steps at many electrons: bounded, 400 inner steps at most).
+
 ## 1.23.0: the 3-D lab (Preview), Settings with pictures, a 2-D / 3-D first screen
 
 - **3-D** (asked by the user, "a separate mode chosen in the main menu"): built in four stages, recorded in the planned

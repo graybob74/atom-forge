@@ -1204,10 +1204,13 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const qatFromQsh = q => { const r = new Float64Array(nat); for (let s = 0; s < nsh; s++) r[shAt[s]] += q[s]; return r; };
   qat = qatFromQsh(qsh);
 
-  const mixer = new Broyden(nsh, MAX_ITER, MIX_DAMP);
+  // (opts.maxIter: a lower cap for the game, 1.23.1: charges that do not settle, as among loose radicals, ran all 250
+  // iterations, and the mixer's cost grows with the cube of its history: 3.7 s for 10 atoms, every step)
+  const maxIter = opts.maxIter > 0 ? Math.min(MAX_ITER, opts.maxIter) : MAX_ITER;
+  const mixer = new Broyden(nsh, maxIter, MIX_DAMP);
   let iscf = 0, converged = false, eelec = 0, eext = 0, emo = null, focc = null;
   const vsh = new Float64Array(nsh), vao = new Float64Array(nao);
-  while (!converged && iscf < MAX_ITER) {
+  while (!converged && iscf < maxIter) {
     const elast = eelec;
     if (iscf > 0) { mixer.next(); qsh = mixer.get(); qat = qatFromQsh(qsh); }
     iscf++;
@@ -1416,4 +1419,6 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   return out;
 }
 
-module.exports = { gfn1Energy, BOHR, AUTOEV, _internal: { element, overlapBlock, overlapGradBlock, symEig, choleskyInverse } };
+/* the number of atomic orbitals of an element (its shells' 2l + 1 summed): what a calculation's cost grows with */
+function nAO(z) { return element(z).shells.reduce((t, s) => t + 2 * s.l + 1, 0); }
+module.exports = { gfn1Energy, nAO, BOHR, AUTOEV, _internal: { element, overlapBlock, overlapGradBlock, symEig, choleskyInverse } };

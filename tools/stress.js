@@ -4,12 +4,12 @@
    several combinations, and times every frame. A frame over the limit is reported with where its time went; a page that
    does not answer for HANG s is a hang: the main thread is paused through the DevTools protocol and its stack printed.
 
-   usage: node tools/stress.js [--secs 120] [--combo name,name|all] [--seed 1] [--limit 1000] [--hang 10] [--cap 4000]
+   usage: node tools/stress.js [--secs 120] [--combo name,name|all] [--seed 1] [--limit 1000] [--hang 10] [--cap 4000] [--prof]
    (node build.js first). Exit code 1 if any frame went over the limit or the page hung. */
 const path = require('path'), fs = require('fs');
 const { openPage, pageFile } = require(path.join(__dirname, '..', 'tests', 'browser.js'));
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
-const SECS = +arg('secs', 120), SEED = +arg('seed', 1), LIMIT = +arg('limit', 1000), HANG = +arg('hang', 10) * 1000, CAP = +arg('cap', 4000);
+const PROF = process.argv.includes('--prof'), SECS = +arg('secs', 120), SEED = +arg('seed', 1), LIMIT = +arg('limit', 1000), HANG = +arg('hang', 10) * 1000, CAP = +arg('cap', 4000);
 const COMBOS = {
   plain: {},
   bo: { bo: 1, inc: true, qeq: 10, rc: 9 },
@@ -39,7 +39,7 @@ function chaos(r) {
     else if (u < 0.45) acts.push(['place', pick([{ kind: 'atom', Z: 92, A: 235 }, { kind: 'atom', Z: 94, A: 239 }]), x, y, 1 + Math.floor(r() * 8)]);
     else if (u < 0.52) acts.push(['place', { kind: 'n' }, x, y, 1 + Math.floor(r() * 10)]);
     else if (u < 0.57) acts.push(['fire', { kind: 'n' }, x, y, r() * 6.283, pick([0.025, 1e3, 1e6, 1.4e7])]);
-    else if (u < 0.65) acts.push(['place', { kind: 'mol', mol: pick(['H2O', 'O2', 'H2', 'CH4', 'NH3', 'CO2', 'C6H6', 'N2', 'HCl', 'C2H5OH', 'NaCl']) }, x, y, 1 + Math.floor(r() * 10)]);
+    else if (u < 0.65) acts.push(['place', { kind: 'mol', mol: pick(['H2O', 'O2', 'H2', 'CH4', 'NH3', 'CO2', 'benzene', 'N2', 'HCl', 'ethanol', 'NaCl', 'H2O2', 'SF6', 'H3Op', 'OHm']) }, x, y, 1 + Math.floor(r() * 10)]);
     else if (u < 0.70) acts.push(['place', pick([{ kind: 'e' }, { kind: 'pos' }, { kind: 'atom', Z: 1, A: 1, bare: true }, { kind: 'atom', Z: 2, A: 4, bare: true }]), x, y, 1 + Math.floor(r() * 10)]);
     else if (u < 0.75) acts.push(['place', { kind: 'atom', Z: pick([11, 17, 8, 26, 29, 79]), charge: pick([-1, 1, 2, 3]) }, x, y, 1 + Math.floor(r() * 6)]);
     else if (u < 0.80) acts.push(['spark', x, y, 2 + r() * 8, pick([5, 50, 500, 5e3])]);
@@ -66,6 +66,17 @@ function doChaos(acts, cap) { // (in the page)
   return out;
 }
 
+/* a CPU profile's functions by inclusive time (a function counted once per sample however deep it recurs) */
+function hot(profile, top = 18) {
+  const byId = new Map(profile.nodes.map(n => [n.id, n])), parent = new Map();
+  for (const n of profile.nodes) for (const c of n.children || []) parent.set(c, n.id);
+  const incl = new Map(), dts = profile.timeDeltas; let total = 0;
+  profile.samples.forEach((id, k) => {
+    const dt = dts[k + 1] !== undefined ? dts[k + 1] / 1000 : 1; total += dt; const seen = new Set();
+    for (let x = id; x !== undefined; x = parent.get(x)) { const n = byId.get(x), f = n.callFrame, key = `${f.functionName || '(anon)'} ${f.url ? where(f.lineNumber) : ''}`; if (!seen.has(key)) { seen.add(key); incl.set(key, (incl.get(key) || 0) + dt); } }
+  });
+  return [...incl].filter(([k]) => !/^\((root|program|idle|anon)\)/.test(k)).sort((a, b) => b[1] - a[1]).slice(0, top).map(([k, v]) => `${k} ${Math.round(v)}`).join(' | ') + ` (of ${Math.round(total)} ms)`;
+}
 async function stack(cdp) { // pause the main thread and read where it is
   const paused = new Promise((ok) => cdp.once('Debugger.paused', ok));
   await cdp.send('Debugger.pause');
@@ -81,6 +92,7 @@ async function runCombo(name, set) {
   const { browser, page, errors } = await openPage({ settle: 800 });
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Debugger.enable');
+  if (PROF) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 1000 }); await cdp.send('Profiler.start'); }
   await page.addScriptTag({ content: 'window.doChaos = ' + doChaos.toString() });
   await page.evaluate(([set]) => {
     loadPreset('empty');
@@ -108,7 +120,9 @@ async function runCombo(name, set) {
     }
     ticks++; worst = Math.max(worst, res.worst); maxN = Math.max(maxN, res.n);
     lastInfo = `${res.n} particles, t ${res.t.toFixed(1)} tu, dt ${(+res.dt).toExponential(2)}, spf ${(+res.spf).toExponential(2)}`;
-    for (const l of res.long) { longs.push(l); if (l[0] !== 'sim' ? l[0] > LIMIT : l[1] > LIMIT) console.log(`  [${name}] long frame ${JSON.stringify(l)} (${lastInfo})`); }
+    let slow = false;
+    for (const l of res.long) { longs.push(l); if (l[0] !== 'sim' ? l[0] > LIMIT : l[1] > LIMIT) { slow = true; console.log(`  [${name}] long frame ${JSON.stringify(l)} (${lastInfo})`); } }
+    if (PROF && (slow || ticks % 15 === 0)) { const { profile } = await cdp.send('Profiler.stop'); if (slow) console.log('    where: ' + hot(profile)); await cdp.send('Profiler.start'); }
     if (res.crash) { console.log(`  [${name}] crash dialog: ${res.crash}`); await page.evaluate(() => crashClose(true)); }
     if (res.e.length) console.log(`  [${name}] errors: ${res.e.slice(0, 3).join('; ')}`);
     await new Promise(ok => setTimeout(ok, 150));

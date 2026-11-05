@@ -3938,6 +3938,7 @@ function nearby3(x, y, z, R, cb) {
 
 /* ------------------------------------------------------------------ pair interactions */
 let _noEv = false;
+let _qmHold = false; // (inside the inner steps: the quantum bonds' pass is held, 1.23.1; innerSteps)
 function queue(type, a, b, c, r) { if (!_noEv) W.evq.push({ type, a, b, c, r }); }
 
 /* Short-range core. Inside the contact point c, where the Lennard-Jones wall is continued linearly (its
@@ -5111,7 +5112,7 @@ function computeForces1() {
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
   if (VL.exTopo !== W.topo || VL.exDirty !== W.dirty) vlExclusions();
   if (_profOn) { const t = performance.now(); _tLists += t - tp; tp = t; }
-  if (BO.any) boPass(true); // (continuous bond orders, 1.13: bo.js; before the kernel, which needs the members' partial charges, 1.16)
+  if (BO.any && !(_qmHold && BO.qm)) boPass(true); // (continuous bond orders, 1.13: bo.js; before the kernel, which needs the members' partial charges, 1.16)
   const d3 = W.d3;
   if (d3) nucleusPairs3(wrap, bw, bh, hw, hh); // (3-D: the JavaScript kernels, one thread)
   else nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
@@ -8847,7 +8848,10 @@ function innerSteps(Dt) {
       const st0 = W.spawned + W.topo + W.dirty - _undone; // (changes put back exactly, as by undoJoin, need no recount)
       processEvents(); // (events that may look at other atoms bring the far ones up to date first: lzNeed)
       const wch = (WAVE.on || WAVE.n) && waveSync(false); // (electrons as waves: packets gone or made by the events)
-      if (wch || W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; if (_gxOn) gxReset(); } // (the force pass set the fast forces afresh, for the next opening kick)
+      // (quantum bonds held, 1.23.1: this pass is for the fast forces; the atoms' own are worked out again at the step's end,
+      // outerForces, before any kick uses them, so a GFN1 calculation here was thrown away, one for each event: 24–44 s
+      // frames with electrons about; the members keep their last charges meanwhile)
+      if (wch || W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; _qmHold = true; try { computeForces(); } finally { _qmHold = false; } _noEv = false; if (_gxOn) gxReset(); } // (the force pass set the fast forces afresh, for the next opening kick)
     }
     rem -= dti;
   }
@@ -15375,10 +15379,13 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const qatFromQsh = q => { const r = new Float64Array(nat); for (let s = 0; s < nsh; s++) r[shAt[s]] += q[s]; return r; };
   qat = qatFromQsh(qsh);
 
-  const mixer = new Broyden(nsh, MAX_ITER, MIX_DAMP);
+  // (opts.maxIter: a lower cap for the game, 1.23.1: charges that do not settle, as among loose radicals, ran all 250
+  // iterations, and the mixer's cost grows with the cube of its history: 3.7 s for 10 atoms, every step)
+  const maxIter = opts.maxIter > 0 ? Math.min(MAX_ITER, opts.maxIter) : MAX_ITER;
+  const mixer = new Broyden(nsh, maxIter, MIX_DAMP);
   let iscf = 0, converged = false, eelec = 0, eext = 0, emo = null, focc = null;
   const vsh = new Float64Array(nsh), vao = new Float64Array(nao);
-  while (!converged && iscf < MAX_ITER) {
+  while (!converged && iscf < maxIter) {
     const elast = eelec;
     if (iscf > 0) { mixer.next(); qsh = mixer.get(); qat = qatFromQsh(qsh); }
     iscf++;
@@ -15587,10 +15594,12 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   return out;
 }
 
-module.exports = { gfn1Energy, BOHR, AUTOEV, _internal: { element, overlapBlock, overlapGradBlock, symEig, choleskyInverse } };
+/* the number of atomic orbitals of an element (its shells' 2l + 1 summed): what a calculation's cost grows with */
+function nAO(z) { return element(z).shells.reduce((t, s) => t + 2 * s.l + 1, 0); }
+module.exports = { gfn1Energy, nAO, BOHR, AUTOEV, _internal: { element, overlapBlock, overlapGradBlock, symEig, choleskyInverse } };
 
   return module.exports; })();
-  return { gfn1Energy: M['./gfn1.js'].gfn1Energy, d3Disp: M['./d3.js'].d3Disp, AUTOEV: M['./gfn1.js'].AUTOEV, BOHR: M['./gfn1.js'].BOHR };
+  return { gfn1Energy: M['./gfn1.js'].gfn1Energy, nAO: M['./gfn1.js'].nAO, d3Disp: M['./d3.js'].d3Disp, AUTOEV: M['./gfn1.js'].AUTOEV, BOHR: M['./gfn1.js'].BOHR };
 })();
 
 /* ---- bo.js ---- */
@@ -16419,8 +16428,10 @@ function boSync() {
     for (const a of cl) want.set(a, ok);
   }
   if (BO.qm) { // (quantum bonds: one calculation for every member together, so only a small system takes part: all or none)
-    let nw = 0; for (const v of want.values()) if (v) nw++;
-    XQ.over = nw > XQ.max ? nw : 0;
+    let nw = 0, nao = 0; for (const [a, v] of want) if (v) { nw++; nao += XTB.nAO(a.Z); }
+    // (and only while one calculation stays affordable, 1.23.1: its cost grows with the cube of the orbitals, and with quantum
+    // nuclei every bead has its own; 40 heavy atoms, 360 orbitals, took 18 s a step and froze the page)
+    XQ.over = nw > XQ.max || nao > XQ.maxAO || nao * nao * nao * (PI.on ? PI.P : 1) > XQ.maxCost ? nw : 0;
     if (XQ.over) for (const a of want.keys()) want.set(a, false);
   }
   const C = [];
@@ -16457,15 +16468,25 @@ function boSync() {
    their shapes here first (steepest descent, at most 0.02 Å a move, 60 moves), inside the change whose energy goes to
    the bath; their velocities are kept. */
 function boRelax(join) {
-  const FX = S.fx, FY = S.fy;
-  for (let it = 0; it < 60; it++) {
+  const FX = S.fx, FY = S.fy, n = boRelaxPasses(), f0 = XQ.fails;
+  for (let it = 0; it < n; it++) {
     forcesNoEvents();
+    if (BO.qm && XQ.fails > f0) break; // (the electrons did not settle: their forces lead nowhere, 1.23.1)
     let fm = 0; for (const p of join) { const f = Math.hypot(FX[p.i], FY[p.i]); if (f > fm) fm = f; }
     if (fm < 0.05) break;
     const st = Math.min(0.002, 0.02 / fm);
     for (const p of join) { p.x += FX[p.i] * st; p.y += FY[p.i] * st; }
     gridTouch();
   }
+}
+/* How many moves the joiners get: 60, fewer where each move (a force pass over everything, every bead) is dear (1.23.1:
+   spawning into 500 atoms with bond orders and beads made 4–9 s frames, into quantum bonds 12 s hangs, each time
+   anything joined). Counted from the world, not timed, so runs stay the same from a seed. */
+function boRelaxPasses() {
+  const P = PI.on ? PI.P : 1;
+  if (BO.qm) { let nao = 0; for (const p of W.parts) if (p.bom && !p.dead) nao += XTB.nAO(p.Z); return Math.max(2, Math.min(60, Math.floor(2 * 160 * 160 * 160 / (P * Math.max(1, nao * nao * nao))))); }
+  let n = 0; for (const p of W.parts) if (!p.dead) n++;
+  return Math.max(6, Math.min(60, Math.floor(36000 / (P * Math.max(1, n))))); // (60 up to 600 particles: those worlds join as before)
 }
 /* Whole bonds from the last orders (above 0.5), the strongest first, as far as both atoms have valence left: [a, b, order]
    (for members leaving, and for saving a world) */
@@ -16505,7 +16526,7 @@ function boSet(v) {
    self-consistent charges (outside potential), so the forces are the energy's exact slopes. The energy counted is
    the binding energy: GFN1's less each member's free atom. Bond orders (Mayer's, from the density) are drawn and
    decide the molecules. */
-const XQ = { max: 40, acc: 0.01, extra: true, qsh: null, qsh1: null, sig: '', pq: [], eAtom: new Map(), over: 0, calls: 0, it: 0, ms: 0, fails: 0 };
+const XQ = { max: 40, maxAO: 160, maxCost: 160 * 160 * 160, maxIt: 40, acc: 0.01, extra: true, qsh: null, qsh1: null, sig: '', pq: [], eAtom: new Map(), over: 0, calls: 0, it: 0, ms: 0, fails: 0 };
 function qmAtomE(Z) {
   let e = XQ.eAtom.get(Z);
   if (e === undefined) { e = XTB.gfn1Energy([Z], [[0, 0, 0]], 0, 0, { accuracy: XQ.acc }).E; XQ.eAtom.set(Z, e); }
@@ -16541,7 +16562,7 @@ function qmPass(forces) {
   for (let m = 0; m < n; m++) { vext[m] = phi[m] / XTB.AUTOEV; if (phi[m]) anyV = true; }
   const t0 = performance.now();
   let r;
-  try { r = XTB.gfn1Energy(Z, xyz, charge, 0, { grad: forces, vext: anyV ? vext : null, qsh0: XQ.sig === sig ? xqGuess() : null, bonds: true, accuracy: XQ.acc }); }
+  try { r = XTB.gfn1Energy(Z, xyz, charge, 0, { grad: forces, vext: anyV ? vext : null, qsh0: XQ.sig === sig ? xqGuess() : null, bonds: true, accuracy: XQ.acc, maxIter: XQ.maxIt }); }
   catch (e) { r = null; }
   if (!r || !r.converged) { XQ.fails++; if (!r) { BO.E = 0; return 0; } }
   const d = XTB.d3Disp(Z, xyz, { grad: forces });
@@ -16565,6 +16586,7 @@ function qmPass(forces) {
   return E;
 }
 const XQ_K = 50;
+
 /* Leaving quantum bonds, the atoms get whole charges where the electrons put them (a proton that hopped took the +1
    along: the charge is the oxygen's that now holds three hydrogens). Molecules from the last bond orders (heavy atoms
    by orders above 0.5, each hydrogen with its strongest partner above 0.2); each takes its rounded Mulliken charge
@@ -27501,7 +27523,7 @@ function worldToJSON() {
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
   const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.d, z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => ({ x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -27539,6 +27561,10 @@ function worldFromJSON(d) {
   W.dirty++; W.spawned++; W.topo++; W.hist = { t: [], T: [], bath: [] }; R.sel = null; R.msel.clear(); R.oSel.clear();
   mode3dSync(); syncLab(); fitView(); renderInspect(); buildToolOpts();
   const n = made.filter(Boolean).length;
+  // (made with Experimental physics that is not on now, e.g. after a restart put it back to normal: the world is saved in
+  // normal physics' terms, whole bonds and points, so it opens in the physics set now, and says so, 1.23.1)
+  const was = d.exp && typeof d.exp === 'object' ? Object.keys(d.exp).filter(k => SET_EXP.includes(k) && d.exp[k] !== SET[k]) : [];
+  if (was.length) log('tool', `Saved with Experimental settings that are not on now (${was.map(k => EXP_NAME[k]).join(', ')}): opened with the physics as set (Settings → Experimental to turn them on again)`);
   return { n, nb, skipped: d.parts.length - n };
 }
 function saveWorld() {
@@ -29345,68 +29371,70 @@ function frame(now) {
     if (now < (UI.nextDue || 0) - 0.75) { requestAnimationFrame(frame); return; }
     UI.nextDue = Math.max(now, (UI.nextDue || 0) + iv);
   }
-  const realDt = Math.min(0.1, Math.max(0, (now - UI.last) / 1000));
-  if (UI.menu) mmTick(realDt);
-  else spin3Tick(realDt);
-  viewTick(realDt);
-  UI.last = now; UI.vis += realDt; UI.fps = UI.fps ? 0.95 * UI.fps + 0.05 / Math.max(1e-3, realDt) : 60;
-  UI.fpsN = (UI.fpsN || 0) + 1; // (the frame-rate counter: frames counted over half a second)
-  // the frame's phases are timed; the worst frame of each badge period is shown with where its time went (a stutter's trail)
-  const FP = UI.fp || (UI.fp = { sim: 0, draw: 0, ui: 0, worst: 0, worstTxt: '', shown: '' });
-  if (now - (UI.fpsT || 0) >= 500) {
-    if (UI.fpsT) {
-      UI.fpsNow = UI.fpsN * 1000 / (now - UI.fpsT);
-      FP.shown = FP.worst > 40 ? ` · worst ${FP.worst.toFixed(0)} ms (${FP.worstTxt})` : '';
-      if (SET.fps) $('fpsBadge').textContent = Math.round(UI.fpsNow) + ' fps' + (TH.used > 1 ? ` · ${TH.used} threads` : '') + (UI.running ? ` · sim ${(FP.simAvg || 0).toFixed(1)} draw ${(FP.drawAvg || 0).toFixed(1)} ms` : '') + FP.shown;
-      FP.worst = 0;
-    }
-    UI.fpsT = now; UI.fpsN = 0;
-  }
-  const tf0 = performance.now(); let tf1 = tf0, tf2 = tf0;
-  try {
-    if (UI.running || UI.stepOnce) {
-      // the simulation's budget for this frame: Settings' figure at most, less when the drawing and the panels of the last
-      // frames would not leave a 60 fps frame otherwise (the step that overshoots the budget is allowed for too)
-      const room = frameAim() - (FP.drawAvg || 0) - (FP.uiAvg || 0) - (FP.stepAvg || 0);
-      const sped = W.simPerFrame > UI.baseSpf * 1.01, cap = sped ? Math.max(14, frameCap(room)) : frameCap(room); // (sped up: at least 14 ms, never less than Settings gives)
-      const budget = Math.max(3, Math.min(cap, room));
-      FP.budget = budget;
-      const r = simFrame(UI.running ? realDt : 1 / 60, budget);
-      if (r.steps > 0) FP.stepAvg = 0.8 * (FP.stepAvg || 0) + 0.2 * ((performance.now() - tf0) / r.steps);
-      if (UI.running) {
-        UI.ach = 0.92 * (UI.ach || 1) + 0.08 * Math.min(1, r.simAdv / Math.max(1e-12, r.target));
-        const adv60 = r.simAdv / (r.fr || 1); // (per sixtieth of a second: what the Motion setting means, whatever the frame rate)
-        UI.adv = UI.adv > 0 ? Math.exp(0.85 * Math.log(UI.adv) + 0.15 * Math.log(Math.max(1e-12, adv60))) : adv60; // (smoothed, for the Motion readout)
-        const capped = UI.ach < 0.8, slow = r.slow < 0.6;
-        if (capped !== !!UI.capped || slow !== !!UI.slow) { UI.capped = capped; UI.slow = slow; syncSpeed(); }
-        if (W.simPerFrame !== UI.shownSpf) { UI.shownSpf = W.simPerFrame; syncSpeed(); $('spdSlider').value = sFromSpd(W.simPerFrame); syncLabText(); } // (slow motion set a speed, 1.14)
-        if ((W.slowHold ? 2 : 0) + (autoSlowOn() && !W.slowHold ? 1 : 0) !== (UI.smShown || 0)) syncSlowmo(); // (the hourglass follows the automatic slow motion)
+  crashMarkOn(); // (inside a frame: cleared at its end, so a mark found at the next start means the page died in one, 1.23.1)
+  try { // (always the next frame, 1.23.1: an error past the simulation's own catch, in the readouts or panels, ended the loop for good, and the crash dialog's Keep going could not start it again)
+    const realDt = Math.min(0.1, Math.max(0, (now - UI.last) / 1000));
+    if (UI.menu) mmTick(realDt);
+    else spin3Tick(realDt);
+    viewTick(realDt);
+    UI.last = now; UI.vis += realDt; UI.fps = UI.fps ? 0.95 * UI.fps + 0.05 / Math.max(1e-3, realDt) : 60;
+    UI.fpsN = (UI.fpsN || 0) + 1; // (the frame-rate counter: frames counted over half a second)
+    // the frame's phases are timed; the worst frame of each badge period is shown with where its time went (a stutter's trail)
+    const FP = UI.fp || (UI.fp = { sim: 0, draw: 0, ui: 0, worst: 0, worstTxt: '', shown: '' });
+    if (now - (UI.fpsT || 0) >= 500) {
+      if (UI.fpsT) {
+        UI.fpsNow = UI.fpsN * 1000 / (now - UI.fpsT);
+        FP.shown = FP.worst > 40 ? ` · worst ${FP.worst.toFixed(0)} ms (${FP.worstTxt})` : '';
+        if (SET.fps) $('fpsBadge').textContent = Math.round(UI.fpsNow) + ' fps' + (TH.used > 1 ? ` · ${TH.used} threads` : '') + (UI.running ? ` · sim ${(FP.simAvg || 0).toFixed(1)} draw ${(FP.drawAvg || 0).toFixed(1)} ms` : '') + FP.shown;
+        FP.worst = 0;
       }
-      UI.stepOnce = false;
-      toolTick(realDt);
-      histTick(now);
-      if (now - (UI.lastAuto || 0) > 20000) { UI.lastAuto = now; autosave(); }
-      rewTick(now); grTick(now); prioAutoTick(now); calmTick();
+      UI.fpsT = now; UI.fpsN = 0;
     }
-    tf1 = performance.now();
-    if (R.follow) { if (R.follow.dead) R.follow = null; else if (W.d3) cam3Follow(R.follow); else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
-    render(W.rt);
-    if (REC.on) recCapture();
-    tf2 = performance.now();
-  } catch (err) { console.error(err); crashError(err, 'frame'); }
-  if (UI.started) crashTick(now, performance.now() - tf0);
-  if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); ddSync(); if (!$('setModal').hidden) settingsStats(); }
-  if (now - UI.lastPanel > 450) { UI.lastPanel = now; updatePanel(); }
-  else if (UI.tab === 'inspect' && UI.running) drawInspectBohr();
-  if (UI.tab === 'inspect') qDraw(realDt);
-  const tf3 = performance.now(), total = tf3 - tf0, gap = tf0 - (UI.lastFrameEnd || tf0); // (gap: time between frames not spent here — the browser, or a stall elsewhere)
-  UI.lastFrameEnd = tf3;
-  FP.sim = tf1 - tf0; FP.draw = tf2 - tf1; FP.ui = tf3 - tf2;
-  FP.drawAvg = 0.9 * (FP.drawAvg || FP.draw) + 0.1 * FP.draw; FP.uiAvg = 0.9 * (FP.uiAvg || FP.ui) + 0.1 * FP.ui; FP.simAvg = 0.9 * (FP.simAvg || FP.sim) + 0.1 * FP.sim; // (smoothed: what the next frame's budget allows for)
-  const worstNow = Math.max(total, gap);
-  const heap = performance.memory ? performance.memory.usedJSHeapSize : 0, freed = (FP.heap || 0) - heap; FP.heap = heap; // (Chromium: a heap that shrank by megabytes marks a garbage collection)
-  if (worstNow > FP.worst) { FP.worst = worstNow; FP.worstTxt = (gap > total ? `${gap.toFixed(0)} ms between frames` : `sim ${FP.sim.toFixed(0)}, draw ${FP.draw.toFixed(0)}, panels ${FP.ui.toFixed(0)}`) + (freed > 2e6 ? `, memory cleanup freed ${(freed / 1e6).toFixed(0)} MB` : ''); }
-  requestAnimationFrame(frame);
+    const tf0 = performance.now(); let tf1 = tf0, tf2 = tf0;
+    try {
+      if (UI.running || UI.stepOnce) {
+        // the simulation's budget for this frame: Settings' figure at most, less when the drawing and the panels of the last
+        // frames would not leave a 60 fps frame otherwise (the step that overshoots the budget is allowed for too)
+        const room = frameAim() - (FP.drawAvg || 0) - (FP.uiAvg || 0) - (FP.stepAvg || 0);
+        const sped = W.simPerFrame > UI.baseSpf * 1.01, cap = sped ? Math.max(14, frameCap(room)) : frameCap(room); // (sped up: at least 14 ms, never less than Settings gives)
+        const budget = Math.max(3, Math.min(cap, room));
+        FP.budget = budget;
+        const r = simFrame(UI.running ? realDt : 1 / 60, budget);
+        if (r.steps > 0) FP.stepAvg = 0.8 * (FP.stepAvg || 0) + 0.2 * ((performance.now() - tf0) / r.steps);
+        if (UI.running) {
+          UI.ach = 0.92 * (UI.ach || 1) + 0.08 * Math.min(1, r.simAdv / Math.max(1e-12, r.target));
+          const adv60 = r.simAdv / (r.fr || 1); // (per sixtieth of a second: what the Motion setting means, whatever the frame rate)
+          UI.adv = UI.adv > 0 ? Math.exp(0.85 * Math.log(UI.adv) + 0.15 * Math.log(Math.max(1e-12, adv60))) : adv60; // (smoothed, for the Motion readout)
+          const capped = UI.ach < 0.8, slow = r.slow < 0.6;
+          if (capped !== !!UI.capped || slow !== !!UI.slow) { UI.capped = capped; UI.slow = slow; syncSpeed(); }
+          if (W.simPerFrame !== UI.shownSpf) { UI.shownSpf = W.simPerFrame; syncSpeed(); $('spdSlider').value = sFromSpd(W.simPerFrame); syncLabText(); } // (slow motion set a speed, 1.14)
+          if ((W.slowHold ? 2 : 0) + (autoSlowOn() && !W.slowHold ? 1 : 0) !== (UI.smShown || 0)) syncSlowmo(); // (the hourglass follows the automatic slow motion)
+        }
+        UI.stepOnce = false;
+        toolTick(realDt);
+        histTick(now);
+        if (now - (UI.lastAuto || 0) > 20000) { UI.lastAuto = now; autosave(); }
+        rewTick(now); grTick(now); prioAutoTick(now); calmTick();
+      }
+      tf1 = performance.now();
+      if (R.follow) { if (R.follow.dead) R.follow = null; else if (W.d3) cam3Follow(R.follow); else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
+      render(W.rt);
+      if (REC.on) recCapture();
+      tf2 = performance.now();
+    } catch (err) { console.error(err); crashError(err, 'frame'); }
+    if (UI.started) crashTick(now, performance.now() - tf0);
+    if (now - UI.lastUI > 250) { UI.lastUI = now; updateReadouts(); ddSync(); if (!$('setModal').hidden) settingsStats(); }
+    if (now - UI.lastPanel > 450) { UI.lastPanel = now; updatePanel(); }
+    else if (UI.tab === 'inspect' && UI.running) drawInspectBohr();
+    if (UI.tab === 'inspect') qDraw(realDt);
+    const tf3 = performance.now(), total = tf3 - tf0, gap = tf0 - (UI.lastFrameEnd || tf0); // (gap: time between frames not spent here — the browser, or a stall elsewhere)
+    UI.lastFrameEnd = tf3;
+    FP.sim = tf1 - tf0; FP.draw = tf2 - tf1; FP.ui = tf3 - tf2;
+    FP.drawAvg = 0.9 * (FP.drawAvg || FP.draw) + 0.1 * FP.draw; FP.uiAvg = 0.9 * (FP.uiAvg || FP.ui) + 0.1 * FP.ui; FP.simAvg = 0.9 * (FP.simAvg || FP.sim) + 0.1 * FP.sim; // (smoothed: what the next frame's budget allows for)
+    const worstNow = Math.max(total, gap);
+    const heap = performance.memory ? performance.memory.usedJSHeapSize : 0, freed = (FP.heap || 0) - heap; FP.heap = heap; // (Chromium: a heap that shrank by megabytes marks a garbage collection)
+    if (worstNow > FP.worst) { FP.worst = worstNow; FP.worstTxt = (gap > total ? `${gap.toFixed(0)} ms between frames` : `sim ${FP.sim.toFixed(0)}, draw ${FP.draw.toFixed(0)}, panels ${FP.ui.toFixed(0)}`) + (freed > 2e6 ? `, memory cleanup freed ${(freed / 1e6).toFixed(0)} MB` : ''); }
+  } finally { crashMarkOff(); requestAnimationFrame(frame); }
 }
 function pausedText() { const b = $('pausedBadge'); if (b) b.textContent = UI.readyStart ? 'READY · press Space or ▶ to start' : 'PAUSED'; }
 function setRunning(r) {
@@ -29980,6 +30008,12 @@ function crashState() {
   return { ver: (/\d+\.\d+\.\d+/.exec(document.title) || ['?'])[0], preset: UI.preset, n, t: W.t, spf: W.simPerFrame, base: UI.baseSpf, running: !!UI.running, menu: !!UI.menu,
     heap: m ? Math.round(m.usedJSHeapSize / 1e6) : 0, limit: m ? Math.round(m.jsHeapSizeLimit / 1e6) : 0, desktop: !!tauriWin(), at: Date.now() };
 }
+/* what was going on, for the mid-frame mark (1.23.1): the Experimental settings, what the chamber held, the step */
+function crashScene() {
+  const c = { atoms: 0, ions: 0, e: 0, pos: 0, n: 0, bo: 0 };
+  for (const p of W.parts) { if (p.dead) continue; if (p.k === NUC) { if (p.Z === 0) c.n++; else { c.atoms++; if (p.q) c.ions++; if (p.bom) c.bo++; } } else if (p.k === ELEC) c.e++; else if (p.k === POS) c.pos++; }
+  return { exp: expOn(), ultra: !!SET.ultra, d3: !!W.d3, c, exo: W.exo.length, light: W.flights.length, beads: PI.on ? PI.P : 0, waves: WAVE.n || 0, xq: BO.qm ? XQ.fails : undefined, dt: +(W.dt || 0).toPrecision(3), threads: TH.used || 1, worstTxt: UI.fp ? UI.fp.worstTxt : '' };
+}
 function crashReport(head, st, extra) {
   const pr = PRESETS[st.preset], set = {};
   for (const k in SET) if (!/key|token/i.test(k)) set[k] = SET[k]; // (never an API key)
@@ -30016,6 +30050,7 @@ function crashBad() { const bad = []; for (const p of W.parts) if (!p.dead && !(
 /* every half second while the game runs: broken numbers, memory, the heartbeat */
 function crashTick(now, frameMs) {
   CRASH.worst = Math.max(CRASH.worst, frameMs);
+  if (!CRASH.markTxt || now - CRASH.markAt >= 1000) crashMarkText(now);
   if (now - CRASH.beatAt >= 2000 || frameMs > 500) { // the heartbeat
     CRASH.beatAt = now; const st = crashState(); st.worst = Math.round(CRASH.worst); CRASH.worst = 0;
     store('beat', JSON.stringify(st));
@@ -30042,11 +30077,44 @@ function crashTick(now, frameMs) {
   }
 }
 function crashBye() { store('beat', ''); CRASH.beatAt = 0; } // (the page left normally: no heartbeat to find next time)
+/* The mid-frame mark (1.23.1). The heartbeat cannot tell a freeze from a desktop window closed without a word to the
+   page; this can: each frame writes a mark into browser storage as it starts and removes it as it ends. A window is
+   never closed in the middle of a frame (the page's script runs one thing at a time), so a mark found at the next start
+   means the page died inside one: froze (and was closed, or reloaded by the desktop app's watchdog) or crashed. The
+   mark holds what was going on (crashState, crashScene), brought up to date once a second; each window has its own key.
+   Cost: two storage calls a frame (measured in PERF-NOTES). The desktop app also gets a heartbeat a second (its
+   watchdog, desktop/src-tauri). */
+CRASH.mk = 'atomforge.frame.' + Date.now().toString(36) + '.' + Math.floor(performance.now() * 1000).toString(36);
+function crashMarkOn() { if (CRASH.markTxt) try { localStorage.setItem(CRASH.mk, '{"f":' + Date.now() + ',' + CRASH.markTxt); } catch (e) { /* (storage off) */ } }
+function crashMarkOff() { if (CRASH.markTxt) try { localStorage.removeItem(CRASH.mk); } catch (e) { /* (storage off) */ } }
+function crashMarkText(now) { // (once a second: what the mark says)
+  CRASH.markAt = now;
+  try { CRASH.markTxt = JSON.stringify(Object.assign(crashState(), crashScene())).slice(1); } catch (e) { CRASH.markTxt = '"err":1}'; }
+  const T = window.__TAURI__; // (the desktop app's watchdog: a heartbeat a second from the frames, 1.23.1)
+  if (T && T.core && T.core.invoke && !CRASH.noBeat) T.core.invoke('heartbeat').catch(() => { CRASH.noBeat = true; }); // (an older shell without the command: stop asking)
+}
+/* marks left by windows that died inside a frame (not this one, nor one in a frame right now): the newest, all removed */
+function crashMidFrame() {
+  let mid = null;
+  try {
+    const keys = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('atomforge.frame.') && k !== CRASH.mk) keys.push(k); }
+    for (const k of keys) {
+      let m = null; try { m = JSON.parse(localStorage.getItem(k)); } catch (e) { m = null; }
+      if (m && Date.now() - m.f < 2000) continue; // (another window, inside a frame just now)
+      localStorage.removeItem(k);
+      if (m && m.f && (!mid || m.f > mid.f)) mid = m;
+    }
+  } catch (e) { /* (storage off) */ }
+  if (!mid || Date.now() - mid.f > 14 * 864e5) return null;
+  mid.at = mid.f; mid.midFrame = true; mid.n = mid.n || 0;
+  return mid;
+}
 /* the last session's heartbeat, if it never left normally; in the desktop app, whose window may close without telling
    the page, only one that was struggling (frames over a second, or memory past 70%) counts */
 function crashPrev() {
   let st = null; try { st = JSON.parse(store('beat') || 'null'); } catch (e) { st = null; }
   store('beat', '');
+  const mid = crashMidFrame(); if (mid) return mid; // (died inside a frame: in the desktop app too, 1.23.1)
   if (!st || !st.at || Date.now() - st.at > 14 * 864e5) return null;
   const strained = (st.worst || 0) > 1000 || (st.limit && st.heap / st.limit > 0.7);
   return st.desktop && !strained ? null : st;
@@ -30055,8 +30123,16 @@ function crashRecover(st) {
   const d = autosaved(), pr = PRESETS[st.preset], mem = st.limit && st.heap / st.limit > 0.7;
   const was = `${pr ? pr.name : 'a setup'} with ${st.n.toLocaleString('en-US')} particles${st.heap ? `, using ${st.heap} of ${st.limit} MB of memory` : ''}${st.worst > 1000 ? `, its frames taking ${(st.worst / 1000).toFixed(1)} s` : ''}`;
   const when = d && d.savedAt ? new Date(d.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-  crashShow({ title: 'Atom Forge stopped unexpectedly last time', text: `It was running ${was}. It probably ${mem ? 'ran out of memory' : 'froze or crashed'}.` + (d ? ` The autosave from ${when} can be put back${d.fresh ? ' (this setup is kept as its name: it starts afresh)' : ''}; if the same thing happens again, start fresh instead.` : ''),
-    report: crashReport('stopped unexpectedly (froze or crashed)', st, ''), actions: (d ? [['restore', `Carry on from the autosave${when ? ' (' + when + ')' : ''}`]] : []).concat([['fresh', UI.menu ? 'Close' : 'Start fresh']]) });
+  const exp = st.exp && Object.keys(st.exp).length ? Object.keys(st.exp).map(k => EXP_NAME[k] || k) : [];
+  const how = st.midFrame ? 'stopped in the middle of a frame: it froze (or crashed) while working out a step' : `probably ${mem ? 'ran out of memory' : 'froze or crashed'}`;
+  crashShow({ title: 'Atom Forge stopped unexpectedly last time', text: `It was running ${was}${exp.length ? `, with Experimental ${exp.join(', ')} on` : ''}. It ${how}.` + (d ? ` The autosave from ${when} can be put back${d.fresh ? ' (this setup is kept as its name: it starts afresh)' : ''}${exp.length ? ' with normal physics' : ''}; if the same thing happens again, start fresh instead.` : ''),
+    report: crashReport(st.midFrame ? 'froze or crashed in the middle of a frame' : 'stopped unexpectedly (froze or crashed)', st, st.midFrame ? crashSceneText(st) : ''), actions: (d ? [['restore', `Carry on from the autosave${when ? ' (' + when + ')' : ''}`]] : []).concat([['fresh', UI.menu ? 'Close' : 'Start fresh']]) });
+}
+function crashSceneText(st) {
+  const c = st.c || {};
+  return [`Experimental: ${st.exp && Object.keys(st.exp).length ? Object.entries(st.exp).map(([k, v]) => `${EXP_NAME[k] || k}${typeof v === 'boolean' ? '' : ` (${k === 'bo' ? (v === 2 ? 'quantum' : 'from the positions') : v})`}`).join(', ') : 'all normal'}${st.ultra ? '; ultra-realistic on' : ''}${st.d3 ? '; 3-D' : ''}`,
+    `In the chamber: ${c.atoms || 0} atoms (${c.ions || 0} ions, ${c.bo || 0} with bond orders), ${c.e || 0} electrons, ${c.pos || 0} positrons, ${c.n || 0} neutrons, ${st.exo || 0} unstable particles, ${st.light || 0} light in flight${st.beads ? `; ${st.beads} beads` : ''}${st.waves ? `; ${st.waves} electron waves` : ''}${st.xq !== undefined ? `; quantum bonds unsettled ${st.xq} times` : ''}`,
+    `Step ${st.dt} tu; ${st.threads} thread${st.threads > 1 ? 's' : ''}${st.worstTxt ? `; slowest recent frame: ${st.worstTxt}` : ''}; the frame began ${new Date(st.f).toLocaleTimeString()}`].join('\n');
 }
 function crashAction(a) {
   if (a === 'copy') {
@@ -30400,13 +30476,16 @@ const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 
   fov3: [30, 40, 55, 70], proj3: ['persp', 'ortho'], fog3: ['off', 'low', 'normal', 'high'], box3: ['grid', 'edges', 'off'], lbl3: ['front', 'all'], orbit3: [0.5, 1, 2], spin3: [0, 6, 18] };
 const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the farthest atoms fade toward the background)
 const SET = Object.assign({}, SET_DEF);
+const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
+const EXP_NAME = { dtMax: 'shorter longest step', resBig: 'resonance in large rings', inc: 'detailed nuclear collisions', rc: 'longer force reach', qeq: 'induced charges', pi: 'quantum nuclei', piRpc: 'exact bead forces', bo: 'bond orders', wave: 'electrons as waves' };
+function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const perfOn = () => Object.keys(SET_PERF).every(k => SET[k] === SET_PERF[k]);
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
   let o = null;
   try { o = JSON.parse(store('settings') || 'null'); } catch (e) { o = null; }
   if (o && typeof o === 'object') {
-    for (const k in SET_DEF) if (setOk(k, o[k])) SET[k] = o[k];
+    for (const k in SET_DEF) if (setOk(k, o[k]) && !SET_EXP.includes(k)) SET[k] = o[k]; // (the Experimental tab starts at normal each time: asked for by the owner, 1.23.1)
     const pp = o.prePerf; // what performance mode replaced, to put back when it is turned off
     if (pp && typeof pp === 'object' && Object.keys(SET_PERF).every(k => setOk(k, pp[k]))) SET.prePerf = pp;
   }
@@ -31385,10 +31464,11 @@ function init() {
   const direct = !!hash || window.AF_NO_MENU;
   loadPreset(startPreset); buildToolOpts();
   setRunning(true);
-  UI.started = true;
   const prev = crashPrev(); // (the last session froze or crashed: offer its autosave rather than carry on into it)
-  if (!direct && SET.start === 'menu') showMainMenu();
-  else if (!direct && SET.start === 'last' && !prev) restoreAutosave();
+  const menu = !direct && SET.start === 'menu';
+  if (menu) showMainMenu(); // (before UI.started, so it keeps the last session's autosave: it saved the fresh start setup over it, and Continue and the crash dialog brought that back, 1.23.1)
+  UI.started = true;
+  if (!menu && !direct && SET.start === 'last' && !prev) restoreAutosave();
   if (prev && !window.AF_NO_MENU) crashRecover(prev);
   if (!direct && SET.start !== 'menu' && !store('toured')) setTimeout(tourStart, 600);
   UI.last = performance.now();

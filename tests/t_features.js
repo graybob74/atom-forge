@@ -1654,6 +1654,101 @@ const { openPage } = require('./browser');
     check(r3d.reflect.zmax < 6.5 && r3d.wrap.zmax <= 6 && r3d.wrap.wraps > 0 && r3d.flat.hash === '40ceab5a' && r3d.flat.zero,
       `3-D (stage 1a): z within the 12 Å depth (closed walls: |z| ≤ ${r3d.reflect.zmax}; periodic: ${r3d.wrap.wraps} wraps); the flat game unchanged to the bit (water, 300 steps: ${r3d.flat.hash})`, '3-D walls / flat: ' + JSON.stringify([r3d.reflect, r3d.wrap, r3d.flat]));
   }
+  { const load = (seed, patch) => require('./load.js').load('all', { seed, patch }), { pageFile } = require('./browser');
+    // 1.23.1: what froze the page (the owner: spamming atoms with Experimental settings on). Quantum bonds: a calculation's
+    // charges that never settle ran 250 iterations, the joiners' relaxation 60 calculations, heavy atoms 9 orbitals each,
+    // every bead its own calculation, and the inner steps one more for each electron event; bond orders' relaxation 60
+    // passes over the whole world. Each is bounded now. Then the mid-frame mark (a page that died inside a frame is
+    // reported at the next start, in the desktop app too) and the Experimental settings back to normal at each start.
+    const r231 = (() => {
+      const out = {};
+      const counted = (X) => { const c = { calls: 0, it: 0, worst: 0 }, f = X.XTB.gfn1Energy; X.XTB.gfn1Energy = (...a) => { const r = f(...a); c.calls++; c.it += r.iterations; c.worst = Math.max(c.worst, r.iterations); return r; }; return c; };
+      const spiral = (X, zs, d) => zs.forEach((Z, k) => { const a = k * 2.39996, r = d * Math.sqrt(k + 0.5); X.addAtom(Z, r * Math.cos(a), r * Math.sin(a), { T: 300 }); });
+      // ten loose light atoms join quantum bonds: the join's iterations (1.23.0: 60 calculations of 250, 3.7 s each)
+      { const X = load(1), W = X.W; X.PRESETS.empty.build(); spiral(X, Array.from({ length: 10 }, (_, i) => [1, 6, 7, 8][i % 4]), 2.2);
+        const c = counted(X); const f = X.XTB.gfn1Energy; let over = false;
+        X.XTB.gfn1Energy = (...a) => { if (c.it > 2000) { over = true; throw new Error('over the budget'); } return f(...a); }; // (1.23.0 would take minutes: stopped)
+        try { X.boSet(2); X.forcesNoEvents(); W.dt = X.chooseDt(); X.step(W.dt); } catch (e) { over = true; }
+        out.join = { members: W.parts.filter(p => p.bom).length, calls: c.calls, it: c.it, worst: c.worst, over }; }
+      // thirty heavy atoms (270 orbitals; 1.23.0: all took part, 18 s a calculation): none take part
+      { const X = load(1), W = X.W; X.PRESETS.empty.build(); spiral(X, Array.from({ length: 30 }, (_, i) => [26, 29, 47, 79, 53][i % 5]), 2.6);
+        const c = counted(X), f = X.XTB.gfn1Energy; X.XTB.gfn1Energy = (...a) => { if (c.calls > 0) throw new Error('over the budget'); return f(...a); };
+        try { X.boSet(2); X.forcesNoEvents(); } catch (e) { /* (1.23.0: stopped) */ }
+        out.heavy = { members: W.parts.filter(p => p.bom).length }; }
+      // thirteen waters (104 orbitals): all 39 alone, none with 8 beads (each bead a calculation)
+      { const X = load(3), W = X.W; X.PRESETS.empty.build();
+        for (let i = 0; i < 13; i++) X.addMolecule('H2O', -6 + (i % 4) * 3.2, -5 + Math.floor(i / 4) * 3.4, i, 300);
+        for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+        X.settleOverlaps(); X.boSet(2); X.forcesNoEvents(); const alone = W.parts.filter(p => p.bom).length;
+        X.piSet(8); W.dirty++; const c = counted(X), f = X.XTB.gfn1Energy; X.XTB.gfn1Energy = (...a) => { if (c.calls > 40) throw new Error('over the budget'); return f(...a); };
+        try { X.forcesNoEvents(); W.dt = X.chooseDt(); X.step(W.dt); } catch (e) { /* (1.23.0: stopped) */ }
+        out.beads = { alone, beads: W.parts.filter(p => p.bom).length }; }
+      // electrons about a hydronium and two waters in quantum bonds: calculations a step (the inner steps' passes held)
+      { const X = load(2), W = X.W; X.PRESETS.empty.build();
+        X.addMolecule('H3Op', 0, 0, 0, 300); X.addMolecule('H2O', 2.8, 0, 1, 300); X.addMolecule('H2O', -1.4, 2.4, 2, 300);
+        for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+        X.settleOverlaps(); X.boSet(2); X.forcesNoEvents(); W.fSpawn = W.spawned;
+        for (let i = 0; i < 24; i++) { const a = i * 0.26; X.fireSpec({ kind: 'e' }, 9 * Math.cos(a), 9 * Math.sin(a), -Math.cos(a), -Math.sin(a), 3 + (i % 5)); }
+        const c = counted(X);
+        for (let i = 0; i < 60; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+        out.inner = { perStep: +(c.calls / 60).toFixed(2), e: W.parts.filter(p => !p.dead && p.k === X.ELEC).length }; }
+      // continuous bond orders: 1,200 atoms of water joining at once: the relaxation's force passes (1.23.0: 60, each over everything)
+      { let passes = 0; globalThis.__af231 = () => passes++;
+        const X = load(4, (s) => s.replace('function forcesNoEvents() {', 'function forcesNoEvents() { if (globalThis.__af231) globalThis.__af231();')), W = X.W;
+        X.baseWorld(120, 80, 300, 0.05);
+        for (let i = 0; i < 400; i++) X.addMolecule('H2O', -57 + (i % 25) * 4.7, -38 + Math.floor(i / 25) * 4.8, i, 300);
+        X.settleOverlaps(); X.forcesNoEvents(); passes = 0; X.boSet(1);
+        out.big = { atoms: W.parts.filter(p => !p.dead).length, passes, members: W.parts.filter(p => p.bom).length }; delete globalThis.__af231; }
+      return out;
+    })();
+    // the page: a frame that never ends (as the owner's), the tab closed, the game opened again: the report is offered,
+    // in the desktop app too (its heartbeat alone could not tell); a normal reload offers nothing; the Experimental
+    // settings start at normal, other settings as saved; a world saved with them opens with normal physics and says so
+    const r231b = await (async () => {
+      const m = await openPage({ settle: 900, menu: true }), o = {};
+      await m.ctx.addInitScript(() => { window.__TAURI__ = { window: { getCurrentWindow: () => ({ setFullscreen: async () => {}, close: async () => {} }) }, core: { invoke: async () => { window.__beats = (window.__beats || 0) + 1; } } }; }); // (as the desktop app)
+      await m.page.reload(); await m.page.waitForTimeout(900);
+      await m.page.evaluate(() => { hideMainMenu(); loadPreset('soup'); SET.bo = 1; SET.inc = true; SET.rc = 9; SET.fps = false; SET.budget = 16; applySettings(); store('settings', JSON.stringify(SET)); setRunning(true); });
+      await m.page.waitForTimeout(2300);
+      o.beats = await m.page.evaluate(() => { autosave(); const b = window.__beats || 0; simFrame = () => { const t0 = Date.now(); while (Date.now() - t0 < 120000) { /* a frame that never ends */ } return { steps: 0, simAdv: 0, target: 0, slow: 1, fr: 1 }; }; return b; });
+      await m.page.waitForTimeout(1500); await m.page.close({ runBeforeUnload: false }); // (the hung tab closed)
+      const p2 = await m.ctx.newPage(); await p2.goto('file://' + pageFile()); await p2.waitForTimeout(1200);
+      Object.assign(o, await p2.evaluate(() => ({ open: !$('crashModal').hidden, title: $('crashTitle').textContent, mid: /middle of a frame/.test($('crashReport').value) && /Experimental: .*bond orders/.test($('crashReport').value) && /In the chamber: \d+ atoms/.test($('crashReport').value), restore: !!document.querySelector('[data-crash=restore]'),
+        set: [SET.bo, SET.inc, SET.rc, SET.fps, SET.budget], note: typeof $('expReset') === 'object' && !!$('expReset') && /back to normal each time the game starts/.test($('expReset').textContent) })));
+      o.loaded = await p2.evaluate(() => { const b = document.querySelector('[data-crash=restore]'); if (b) b.click(); else restoreAutosave(); return { n: W.parts.filter(p => !p.dead).length, said: W.log.some(l => /Saved with Experimental settings/.test(l.text)), bo: BO.on }; });
+      // Continue in the main menu after a restart: the last session's world, not the start setup afresh (1.23.0 saved the
+      // fresh one over it as the menu opened)
+      o.cont = await p2.evaluate(() => { for (let i = 0; i < 40; i++) addAtom('Ar', -20 + i, 5); autosave(); return W.parts.filter(p => !p.dead).length; });
+      await p2.reload(); await p2.waitForTimeout(1000);
+      o.cont = [o.cont, await p2.evaluate(() => { const b = $('mmCont0'); if (b && !b.hidden) b.click(); else restoreAutosave(); return W.parts.filter(p => !p.dead).length; })];
+      await p2.reload(); await p2.waitForTimeout(1000);
+      o.clean = await p2.evaluate(() => $('crashModal').hidden);
+      await p2.evaluate(() => localStorage.setItem('atomforge.frame.other', '{"f":' + Date.now() + ',"n":5}')); // (another window, inside a frame just now)
+      await p2.reload(); await p2.waitForTimeout(1000);
+      o.live = await p2.evaluate(() => { const shown = !$('crashModal').hidden; localStorage.removeItem('atomforge.frame.other'); return shown; });
+      await m.browser.close(); return o;
+    })();
+  // an error in the readouts (past the simulation's own catch): the dialog, and Keep going carries on (1.23.0: the frame
+  // loop had ended, so nothing moved again)
+  const r231c = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    loadPreset('soup'); setRunning(true); await wait(300);
+    const f = updateReadouts; let once = true; updateReadouts = (...a) => { if (once) { once = false; throw new Error('test ui boom'); } return f(...a); };
+    await wait(600); updateReadouts = f;
+    const open = !$('crashModal').hidden, b = document.querySelector('[data-crash=go]'); if (b) b.click();
+    const t0 = W.t; await wait(800); setRunning(false);
+    return { open, moved: W.t > t0 };
+  });
+  for (let i = errors.length - 1; i >= 0; i--) if (/test ui boom/.test(errors[i])) errors.splice(i, 1); // (thrown on purpose)
+  check(r231c.open && r231c.moved, '1.23.1: an error in the readouts opens the dialog, and Keep going carries on (the frame loop goes on)', '1.23.1 frame loop after an error: ' + JSON.stringify(r231c));
+  const j = r231.join, pb = r231b;
+  check(!j.over && j.members === 10 && j.worst <= 40 && j.it < 600 && r231.heavy.members === 0 && r231.beads.alone === 39 && r231.beads.beads === 0 && r231.inner.perStep < 6 && r231.big.passes <= 32 && r231.big.members === 1200,
+    `1.23.1: quantum bonds bounded: ten loose atoms join in ${j.calls} calculations, ${j.it} iterations (1.23.0: 60 of 250); 30 heavy atoms (270 orbitals) and 13 waters with 8 beads stay out (1.23.0: in, 18 s a calculation); with electrons about ${r231.inner.perStep} calculations a step (1.23.0: 15); bond orders: 1,200 atoms join in ${r231.big.passes} force passes (1.23.0: 60)`, '1.23.1 freeze bounds: ' + JSON.stringify(r231));
+  check(pb.beats >= 1 && pb.open && /unexpectedly/.test(pb.title) && pb.mid && pb.restore && pb.clean && !pb.live,
+    `1.23.1: a frame that never ended (the tab closed while stuck, as the desktop app) is reported at the next start with the Experimental settings and what the chamber held, its autosave offered; a normal reload and a window busy in a frame just now are not`, '1.23.1 mid-frame mark: ' + JSON.stringify(pb));
+  check(JSON.stringify(pb.set) === '[0,false,6,false,16]' && pb.note && pb.loaded.said && !pb.loaded.bo && pb.cont[1] === pb.cont[0],
+    `1.23.1: the Experimental settings start at normal (other settings kept: ${pb.set.slice(3).join(', ')}); a world saved with them opens with normal physics and says so; Continue after a restart brings back the last session (${pb.cont[1]} particles)`, '1.23.1 Experimental reset, Continue: ' + JSON.stringify(pb));
+  }
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
