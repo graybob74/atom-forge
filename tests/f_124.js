@@ -178,13 +178,13 @@ PARTS.hep = async (page, check, say) => {
 };
 
 /* ---- 6. the Experimental settings in 3-D: induced charges, quantum nuclei, quantum bonds, electrons as waves and the
-   ultra-realistic mode on in a 3-D world (their controls enabled; continuous bond orders still flat-only), each with
+   ultra-realistic mode on in a 3-D world (their controls enabled; continuous bond orders too since 1.25), each with
    its insulated books */
 PARTS.exp = async (page, check, say) => {
   const ui = await page.evaluate(() => {
     loadPreset('water3d'); setRunning(false);
     const en = (sel) => [...document.querySelectorAll(sel)].map(b => !b.disabled);
-    const r = { qeq: en('#segQeq button'), pi: en('#segPi button'), rpc: en('#segPiRpc button'), wave: en('#segWave button'), bo: en('#segBo button'), ultra: !$('setUltra').disabled, note: /From the positions/.test($('set3dNote').textContent) && !/induced charges, quantum nuclei, continuous/.test($('set3dNote').textContent) };
+    const r = { qeq: en('#segQeq button'), pi: en('#segPi button'), rpc: en('#segPiRpc button'), wave: en('#segWave button'), bo: en('#segBo button'), ultra: !$('setUltra').disabled, note: /from the positions/i.test($('set3dNote').textContent) && !/induced charges, quantum nuclei, continuous/.test($('set3dNote').textContent) };
     loadPreset('empty'); r.flat = en('#segBo button'); return r;
   });
   const go = (X, n) => { const W = X.W; for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); } };
@@ -202,8 +202,8 @@ PARTS.exp = async (page, check, say) => {
     return { packets: X.WAVE.mem.filter(p => p.wm && !p.dead).length, books: +(X.totalEnergy().total - e0 + (W.ledger.bath - b0)).toFixed(4) }; })();
   say('  3-D Experimental: ' + JSON.stringify({ ui, qeq, pi, qm, wave }));
   const all = (a) => a.every(Boolean);
-  check(all(ui.qeq) && all(ui.pi) && all(ui.rpc) && all(ui.wave) && ui.bo[0] && !ui.bo[1] && ui.bo[2] && ui.ultra && ui.note && all(ui.flat) && qeq.n >= 200 && qeq.qi > 0.03 && Math.abs(qeq.books) < 0.5 && pi.beads === 8 && pi.rz > 0.03 && Math.abs(pi.books) < 0.1 && qm.mem >= 10 && qm.slope < 1e-5 && qm.fz && Math.abs(qm.books) < 0.05 && qm.fails === 0 && wave.packets >= 4 && Math.abs(wave.books) < 0.3,
-    `1.24: Experimental settings in 3-D (bond orders "From the positions" still flat-only): induced charges in liquid water, ${qeq.n} updates, ⟨|qi|⟩ ${qeq.qi} e, books ${qeq.books} eV over 200 steps; quantum nuclei, 8 beads, hydrogen rings ${pi.rz} Å deep in z, books ${pi.books} eV; quantum bonds, ${qm.mem} members, force = slope to ${qm.slope} eV/Å in x, y and z, books ${qm.books} eV; electrons as waves, ${wave.packets} packets, books ${wave.books} eV`, '1.24 Experimental: ' + JSON.stringify({ ui, qeq, pi, qm, wave }));
+  check(all(ui.qeq) && all(ui.pi) && all(ui.rpc) && all(ui.wave) && ui.bo[0] && ui.bo[1] && ui.bo[2] && ui.ultra && ui.note && all(ui.flat) && qeq.n >= 200 && qeq.qi > 0.03 && Math.abs(qeq.books) < 0.5 && pi.beads === 8 && pi.rz > 0.03 && Math.abs(pi.books) < 0.1 && qm.mem >= 10 && qm.slope < 1e-5 && qm.fz && Math.abs(qm.books) < 0.05 && qm.fails === 0 && wave.packets >= 4 && Math.abs(wave.books) < 0.3,
+    `1.24: Experimental settings in 3-D (bond orders "From the positions" too since 1.25): induced charges in liquid water, ${qeq.n} updates, ⟨|qi|⟩ ${qeq.qi} e, books ${qeq.books} eV over 200 steps; quantum nuclei, 8 beads, hydrogen rings ${pi.rz} Å deep in z, books ${pi.books} eV; quantum bonds, ${qm.mem} members, force = slope to ${qm.slope} eV/Å in x, y and z, books ${qm.books} eV; electrons as waves, ${wave.packets} packets, books ${wave.books} eV`, '1.24 Experimental: ' + JSON.stringify({ ui, qeq, pi, qm, wave }));
 };
 
 module.exports = async function f124(page, check, say, openPage, only) {

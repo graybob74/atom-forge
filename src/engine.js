@@ -7853,10 +7853,9 @@ function clearWorld() {
 }
 /* Make the (empty) world 3-D, depth d Å (by default as deep as it is high): positions from −d/2 to +d/2 in z, walls on
    the z faces too (periodic walls wrap z). Stage 1a: the engine only (Node; nothing draws it). The modes that are flat
-   only are switched off and refuse to come on: continuous bond orders and quantum bonds, quantum nuclei, electrons as
-   waves, charges that respond to their surroundings. */
+   only were switched off here once; since 1.24 (quantum bonds, nuclei, waves, induced charges) and 1.25 (continuous
+   bond orders) they all work in 3-D. */
 function world3d(d) {
-  if (typeof boSet === 'function' && (BO.on || BO.any) && !BO.qm) boSet(0); // (continuous bond orders: flat only; quantum bonds work in 3-D since 1.24)
   W.d3 = true; W.box.d = W.box.td = d > 0 ? d : W.box.h; W.box.ud = 0; // (td: the depth the box-size slider wants, 1.24)
   VL.valid = false; FL.gen = -1; _mdGen++; _clsN = -1; gridTouch(); W.dirty++; W.fSpawn = -1;
 }

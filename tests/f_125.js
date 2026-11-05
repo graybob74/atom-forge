@@ -109,6 +109,49 @@ PARTS.bo6 = async (page, check, say) => {
     '1.25 bond orders Ge–Te: ' + JSON.stringify({ mem, all, stat, tin, js, wa }));
 };
 
+/* ---- 4. continuous bond orders in 3-D: the members join in a 3-D world, their forces are the energy's slope in x, y and
+   z, the stored bonds' 3-D shapes come out (water's angle, PCl₅'s bipyramid), ethylene resists twisting as with stored
+   bonds, an insulated box keeps its energy; in the page the choice is open in 3-D and the orders are drawn */
+PARTS.bo3d = async (page, check, say) => {
+  const world = (X) => { X.PRESETS.empty.build(); X.setBox(30, 30); X.world3d(30); };
+  // slopes: benzene, H₃O⁺ and SbCl₃ in space, jiggled
+  const XS = load('all', { seed: 4 }); world(XS); XS.addMolecule('benzene', -6, 0, 0.7, 0, 1); XS.addMolecule('H3Op', 5, 3, 0.2, 0, -2); mol(XS, 'Sb', 'Cl', 3, 1, 5, -5, 2);
+  XS.forcesNoEvents(); XS.boSet(1);
+  { let s = 7; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; }; for (const p of XS.W.parts) { p.x += 0.08 * r(); p.y += 0.08 * r(); p.z += 0.08 * r(); } XS.gridTouch(); }
+  const slope = { members: XS.W.parts.filter(p => p.bom).length, all: XS.W.parts.length, err: +slopeErr(XS, 2e-6).toExponential(1), fz: XS.W.parts.some(p => Math.abs(XS.S.fz[p.i]) > 0.01) };
+  // shapes: water and PCl₅ relaxed with bond orders
+  const shape = (key) => { const X = load('all', { seed: 4 }); world(X); X.addMolecule(key, 0, 0, 0.3, 0, 0); X.forcesNoEvents(); X.boSet(1); relaxed(X, 4000);
+    const P = X.W.parts, c = P.find(p => p.Z !== 1 && p.Z !== 17) || P[0], nb = P.filter(p => p !== c), a = [];
+    for (let i = 0; i < nb.length; i++) for (let j = i + 1; j < nb.length; j++) { const u = [nb[i].x - c.x, nb[i].y - c.y, nb[i].z - c.z], v = [nb[j].x - c.x, nb[j].y - c.y, nb[j].z - c.z]; a.push(+(Math.acos((u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / Math.hypot(...u) / Math.hypot(...v)) * 180 / Math.PI).toFixed(1)); }
+    return a.sort((x, y) => x - y); };
+  const water = shape('H2O'), pcl5 = shape('PCl5');
+  // ethylene turned 90° about its C=C: the energy it costs, stored bonds and bond orders
+  const twist = (bo) => {
+    const X = load('all', { seed: 4 }), W = X.W; world(X); X.addMolecule('C2H4', 0, 0, 0, 0, 0); X.forcesNoEvents(); if (bo) X.boSet(1);
+    const C = W.parts.filter(p => p.Z === 6), c0 = C[0], c1 = C[1], e0 = X.totalEnergy().pe, ax = [c1.x - c0.x, c1.y - c0.y, c1.z - c0.z], L = Math.hypot(...ax); ax.forEach((v, i) => { ax[i] = v / L; });
+    for (const h of W.parts.filter(p => p.Z === 1 && Math.hypot(p.x - c1.x, p.y - c1.y, p.z - c1.z) < 1.3)) { const v = [h.x - c1.x, h.y - c1.y, h.z - c1.z], d = v[0] * ax[0] + v[1] * ax[1] + v[2] * ax[2], cr = [ax[1] * v[2] - ax[2] * v[1], ax[2] * v[0] - ax[0] * v[2], ax[0] * v[1] - ax[1] * v[0]]; h.x = c1.x + cr[0] + ax[0] * d; h.y = c1.y + cr[1] + ax[1] * d; h.z = c1.z + cr[2] + ax[2] * d; }
+    X.gridTouch(); return +(X.totalEnergy().pe - e0).toFixed(3);
+  };
+  const tw = [twist(0), twist(1)];
+  // books: the molecules in space, insulated, 600 steps
+  const XB = load('all', { seed: 7 }), W = XB.W; XB.PRESETS.mol3d.build(); XB.forcesNoEvents(); XB.boSet(1);
+  const go = (n) => { for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { XB.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = XB.chooseDt(); XB.step(W.dt); } };
+  go(100); W.gamma = 0; const e0 = XB.totalEnergy().total + W.ledger.bath; go(600);
+  const books = { members: W.parts.filter(p => p.bom && !p.dead).length, all: W.parts.filter(p => !p.dead).length, d: +(XB.totalEnergy().total + W.ledger.bath - e0).toFixed(4) };
+  // the page: the choice open in 3-D, the orders drawn
+  const ui = await page.evaluate(async () => {
+    loadPreset('mol3d'); const open = ![...$('segBo').querySelectorAll('button')].some(b => b.disabled);
+    SET.bo = 1; boSet(1); setRunning(true); await new Promise(r => setTimeout(r, 1200)); setRunning(false);
+    const r = { open, members: W.parts.filter(p => p.bom).length, drawn: boDrawBonds().length, stored: W.bonds.length };
+    SET.bo = 0; boSet(0); return r;
+  });
+  say('  bond orders in 3-D: ' + JSON.stringify({ slope, water, pcl5, tw, books, ui }));
+  const near = (a, v, d) => Math.abs(a - v) <= d;
+  check(slope.members === slope.all && slope.err < 1e-5 && slope.fz && near(water[0], 104.5, 1.5) && pcl5.filter(a => near(a, 90, 1.5)).length === 6 && pcl5.filter(a => near(a, 120, 1.5)).length === 3 && near(pcl5[9], 180, 1.5) && tw[1] > 2.3 && Math.abs(tw[1] - tw[0]) < 0.1 * tw[0] && books.members === books.all && Math.abs(books.d) < 0.02 && ui.open && ui.members > 50 && ui.drawn > 30 && ui.stored === 0,
+    `1.25: continuous bond orders in 3-D: benzene, H₃O⁺ and SbCl₃ in space join (${slope.members} atoms) and their forces are the energy's slope in x, y and z to ${slope.err} eV/Å; relaxed, water bends to ${water[0]}° and PCl₅ is a trigonal bipyramid (${pcl5.join('/')}°); ethylene turned 90° costs ${tw[1]} eV (stored bonds ${tw[0]}); the molecules in space, insulated, 600 steps: books ${books.d} eV; in the page the choice is open in 3-D and ${ui.drawn} orders are drawn`,
+    '1.25 bond orders in 3-D: ' + JSON.stringify({ slope, water, pcl5, tw, books, ui }));
+};
+
 module.exports = async function f125(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

@@ -203,25 +203,28 @@ engine stores and visits particles.
     muonium, hypernuclei, the collider, the plasma, nuclear reactions (hep.js is written on flat four-momenta).
   - Continuous bond orders ("From the positions") in 3-D: a 3-D version of bo.js's derivatives and the kernel pass.
   For 1.25 (reported by the owner; not built yet):
-  - "Hexazine doesn't fly apart with quantum bond orders in 2d" (the owner, after 1.23.1). Hexazine (N₆ ring) is very
+  - Investigated in 1.25 (the 1.25 section: GFN1-xTB's own barrier, 0.53 eV; nothing changed). "Hexazine doesn't fly apart with quantum bond orders in 2d" (the owner, after 1.23.1). Hexazine (N₆ ring) is very
     unstable in reality (it falls apart to 3 N₂, releasing a lot of energy); with quantum bonds (GFN1-xTB, Experimental
     → Bond orders → Quantum) it stays whole in the flat game. To find out: whether GFN1-xTB itself gives the ring a
     barrier (single-point scan along the N₆ → 3 N₂ path, compare with published high-level barriers), whether the flat
     world (in-plane only, no out-of-plane distortion) holds it, or a game-side cause (charges, D3, membership). A
     physics question for the owner.
-  - "it repeats the description in the settings menu, but it's supposed to be in the sidebar only" (the owner): a
+  - Done in 1.25. "it repeats the description in the settings menu, but it's supposed to be in the sidebar only" (the owner): a
     setting's description shows both under the setting in the Settings list and in the side preview pane (1.23's
     sidebar); he wants it in the sidebar only. Seen on quantum bond orders; check every tab. Keep what the sidebar can't
     show (e.g. live readouts, cost tags) where it is.
-  - Continuous bond orders for more elements (Ge, As, Se, Sn, Sb, Te): the entry "Continuous bond orders for more
+  - Done in 1.25 (for the owner's OK). Continuous bond orders for more elements (Ge, As, Se, Sn, Sb, Te): the entry "Continuous bond orders for more
     elements" above (planned for 1.25).
   - Bond orders for metals (an embedded-atom / second-moment many-body model): the entry "Bond orders for metals" above
     (planned for 1.25).
   - In 3-D (the owner, after 1.24.0: "add them both to 3d in 1.25"), the two parts of the 1.24 list left flat:
     - The nuclear side of the particles: nuclear hits by hadrons, captures at rest (muonic atoms, nuclear stars),
       muonium, hypernuclei, the collider, the plasma, nuclear reactions (hep.js on flat four-momenta; route in 1.24.0).
-    - Continuous bond orders ("From the positions"): a 3-D version of bo.js's derivatives and the kernel pass.
+    - Done in 1.25 (for the owner's OK; the JavaScript pass, the WebAssembly one below). Continuous bond orders ("From the positions"): a 3-D version of bo.js's derivatives and the kernel pass.
     Both are physics in 3-D: energy and cost measured, the owner's OK as each lands.
+  - Continuous bond orders in 3-D in WebAssembly (left from 1.25): the 3-D angle term, its targets and roles, the
+    torsions and the z arrays in kernel/src/bo.rs (wasm.yml builds it on a working branch), checked natively with a 3-D
+    dump; liquid water in 3-D with bond orders costs ×22 a simulated ps on the JavaScript pass.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
@@ -355,7 +358,57 @@ Ge–Te, continuous bond orders in 3-D.
   - Unchanged: the 24 flat setups' fingerprints (300 steps, seed 7), the six 3-D setups' and the seven Experimental runs
     (both bond-order kinds among them), after the kernel's rebuild too; and the Experimental runs on the JavaScript pass.
   - Text: Settings → Experimental's note lists the six (tin in its molecules); bo.js's header.
-- Tests: tests/f_125.js (t_features' 1.25 block, or `node tests/f_125.js [hexazine settings bo6 …]`). `bo6` fails on
+- **Continuous bond orders in 3-D** (the owner after 1.24.0: "add them both to 3d in 1.25"; physics in 3-D, for his OK).
+  What was flat in bo.js, and what it is now:
+  - The pairs (`bfPairsJS`): found in depth (the 3-D neighbour list, or `nearby` with z; minimum image in z), their z
+    directions in `BF.puz`; the radial terms (orders, Morse, soft core, Coulomb, Lennard-Jones, the shared proton) were
+    already along the pair, so their forces only gain a z part. `bfPhiOthers` (the non-members' potential) in depth.
+  - The angles: the flat term (bonds sorted round a circle, the gaps held at their targets, atan2) has no meaning in space.
+    `bfAngle3` uses the stored bonds' own 3-D term (engine.js `angle3CentreK`: every pair of bonds at its VSEPR angle from
+    `vsepr3`, the bipyramid's and octahedron's lowest-energy roles, the out-of-plane term of a trigonal-planar centre),
+    with the flat term's subsets (bonds between orders 0.4 and 0.7 weighted in and out) and its lone pairs' fraction
+    (the energy between two counts of lone pairs, its slope to the orders); the forces go through scratch arrays, scaled
+    by the subset's weight.
+  - New in 3-D (the flat world never needed it): double and aromatic bonds don't twist (`bfTorsions3`): the stored bonds'
+    torsion (K_TOR·(û₁·û₂×û₃)² over each X–A=B–Y) weighted by how double A–B is (0 at an order of 1.1, full at 1.5, so
+    benzene's 1.5 in full as a stored aromatic bond) and how bonded X–A and B–Y are (0 at 0.3, 1 at 0.7); its slopes go to
+    the three orders and the positions. A linear end (a triple bond, an allene's middle) gives no twist by itself. The
+    stored model also asks both ends to be trigonal; here that is left to the orders (a carbon with a double bond has two
+    other partners), written down as a difference.
+  - Membership, joining and leaving, moving charge, the clusters: unchanged (they were dimension-free; boRelax moves in z
+    since 1.24). `boSet` no longer refuses 3-D, `world3d` no longer turns it off, Settings → Experimental's button is
+    open in 3-D (`NO3D_BTN` empty) and its 3-D note says so; the 3-D view draws the orders as it did quantum bonds'.
+  - The WebAssembly pass stays flat: in 3-D the JavaScript pass runs (`boPass`). wasm.yml does build on working branches
+    (v128's kernel was rebuilt by it for the 1-3 reach above), so a Rust 3-D pass is possible; it was not written here:
+    it needs the 3-D angle term, its targets and roles, the torsions and the z arrays ported to kernel/src/bo.rs and a 3-D
+    dump for the native check (bocheck), a session of its own, and the module cannot be built here (no wasm32 target
+    offline) to test before CI. Cost of the JavaScript pass below; in the flat game the module made bond orders ×17 → ×6
+    (1.18), so a Rust 3-D pass might bring 3-D to about a third of the cost below. On the planned list.
+  - Measured (Node, one thread, two loaded cores):
+    - Forces against the energy's slope in x, y and z (each molecule moved 0.08 Å at random from its shape; h = 2e-6):
+      water 3.9e-7 eV/Å (largest force 0.8), NH₃ 4e-8, CH₄ 1.5e-6 (h 1e-5), ethylene 7e-7 (16 eV/Å), benzene 1.5e-6 (21),
+      H₂O₂ 6e-7, SF₄ 4e-7, H₃O⁺ 7e-8, CO₂ 9e-8 (24), PCl₅ 1.3e-7, butadiene 4.3e-7 (38 eV/Å); benzene + H₃O⁺ + SbCl₃
+      together 1e-7 (f_125).
+    - Shapes, relaxed (stored / orders): water 104.5° / 105.1°, NH₃ 107.0° / 106.8–107.8°, CH₄ 109.5° / 109.2–110.5°,
+      SF₄ see-saw 90/120/180° / 90/120.6/180°, PCl₅ bipyramid both 90×6/120×3/180°, CO₂ 180° both. Energy a bond against
+      stored: water −0.049 eV, NH₃ −0.037, CH₄ −0.042, ethylene −0.036, benzene −0.188, CO₂ −0.030, SF₄ −0.022, PCl₅
+      −0.028, H₂O₂ −0.045, methanol −0.044; the flat game's same molecules: ethylene −0.037, benzene −0.197, CO₂ −0.038
+      (3-D agrees with 2-D: the differences are the model's, benzene's from its 1.5 orders).
+    - Ethylene turned 90° about its C=C: 2.654 eV with bond orders, 2.683 stored (30°: 0.645 / 0.653, 60°: 1.939 / 1.961).
+    - Insulated books (after 100 steps with the bath; stored bonds in brackets): molecules in space (72 atoms) 600
+      steps +0.004 eV (−0.001 over 2,000); liquid water, 1,029 atoms, 400 steps +0.016 (+0.031); H₂ + O₂ at 600 K, 432
+      atoms, 400 steps −0.010 (−0.049); hot hydrogen atoms, 200, 400 steps −0.121 (−0.020): a step-size error, the same in
+      the flat game (64 hot H atoms with bond orders −0.203 eV in 400 steps; at half the step +0.011 in 3-D, +0.009 flat).
+    - Cost (ms a step; s a simulated ps): liquid water 1,029 atoms 53.2 against 6.2 stored (×8.6 a step; steps 2.6
+      times shorter: 347 s a ps against 15.8, ×22); H₂ + O₂ 3.75 against 0.66 (28 s a ps against 1.6, ×18); molecules in
+      space 0.91 against 0.11 (×22 a ps). The flat liquid water (240 atoms) with the module: 5.5 against 0.35 ms.
+  - Unchanged: the flat game (24 setups' fingerprints, the seven Experimental runs) and the six 3-D setups (bond orders
+    off).
+  - Screenshots: 125-before-bo3d-settings.png (the choice greyed in 3-D), 125-after-bo3d-settings.png,
+    125-before-bo3d.png, 125-after-bo3d.png (the molecules in space with bond orders, drawn from the orders).
+  - Tests: t_3d's "not in 3-D" list and f_124's Experimental check now expect the choice open in 3-D.
+- Tests: tests/f_125.js (t_features' 1.25 block, or `node tests/f_125.js [hexazine settings bo6 bo3d]`). `bo3d` fails on
+  1.24.0 (no member in 3-D, the choice greyed). `bo6` fails on
   1.24.0 (no member among the six molecules; with antimony added by hand, the 0.078 eV step). `settings` fails on
   1.24.0 (18 descriptions under rows, 80 px overflow); `hexazine` records the measurements above and passes on 1.24.0
   too (nothing changed).
