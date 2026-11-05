@@ -244,6 +244,156 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.25 (in progress)
+
+### 1.25: the nuclear side in 3-D
+
+The owner, after 1.24.0: "add them both to 3d in 1.25"; this is the nuclear side of the particles (branch v129), built in
+stages in the order of the task: captures at rest and nuclear hits first, then nuclear reactions, the collider, the plasma.
+Physics in 3-D: each stage's numbers below are for the owner's OK.
+
+- **Stage 1: captures at rest, nuclear hits, muonic atoms, muonium, hypernuclei; neutrons and fast atoms in depth.**
+  - The route. 1.24.0 proposed working each event out in the plane of its incoming momenta and turning it into place.
+    Measured on 1.24's own embedding, that keeps two-body events exact but lays every product of an event in one plane: a
+    nuclear star (a π⁻ absorbed by oxygen: 4–6 prongs) comes out flat, and compound-nucleus cooling, step after step,
+    stays in that plane. So instead every four-momentum in a 3-D world is [E, px, py, pz] and the helpers take either
+    length (`add4`, `mass4`, `toLab`/`toRest` → `boost3`, `twoBody` with uz, `rdir` on the sphere, `randDir4`, `p4of`,
+    `exoP4`, `vel4`, `pmag`): the event code is the flat game's, line for line, and in the flat world its arithmetic and
+    random draws are exactly those of 1.24 (fingerprints below). Changed only where the dimension matters:
+    `phaseSpace3` (GENBOD with its weights Πq, kept by rejection against James's bound: in three dimensions the two-body
+    phase space grows with the momentum, so the flat game's unweighted draw is wrong there; 2.5 draws a call on average
+    in the measurements below, never the 3,000-draw cap), Fermi break-up's weights in 3-D (volume, (Πm/M)^3/2,
+    E^(3n−5)/2, Γ(3(n−1)/2): `fermiInto`, `lnGamma`), `jetMomenta3` (transverse momentum round the axis in two
+    components), the elastic turns (`exoElastic3`, `elasticTurn3`: about an axis across the path at a random azimuth),
+    `binaryInto` (`turnU`). 1.24's decays at rest and in flight now use the 3-D phase space instead of the turned plane.
+  - Wired in 3-D (`moveExos3`): a μ⁻ slowed below 2 keV is caught (`muStop`: muonic hydrogen flies, scatters off
+    hydrogen nuclei in 3-D (`muAtomScatter3`), moves to heavier isotopes and fuses, μCF; in a heavier atom it decays in
+    orbit or is captured by the nucleus, `muBoundTick`), a stopped K⁻ (`kStop`, the Λ sometimes staying: hypernuclei,
+    `hypCatch`, `hypDecay`), π⁻, Σ⁻, Ξ⁻, Ω⁻ (`hStop`) are absorbed, a slow μ⁺ may take an electron (`muoniumForm`; muonium
+    an atom in MD at its depth, `addMuonium` with z), strongly interacting particles meet the nuclei on their path
+    (`exoHits3` → `hadronHit`); muonic atoms bounce off reflecting walls as in the flat game; events are drawn at their
+    depth (`nucEvent`'s z). The nearest atom for a capture is found in 3-D (`stopTarget`). Muonic atoms, muonium and
+    hypernuclei are in the 3-D particle menus (spec3dOK); placed muonium is an atom in depth.
+  - Neutrons in 3-D (the products of nearly every star): their path search is in depth (`relTargets3`; 1.23.2 searched
+    the plane and added the depth to the miss distance), neutron pairs too (`nnMeet3`), and their reactions have 3-D
+    kinematics (`neutronHit3`: capture with the γ ray and the recoil on the sphere, (n,p), (n,α), (n,t) by
+    `launchProducts3`, fission in depth, elastic scattering isotropic in the centre of mass; above 20 MeV the relativistic
+    reactions, `nuclearEncounter`, as a flat neutron in radiation flight). Before, a neutron's scatter left vz alone and
+    (n,x) products and fission fragments were put down at z = 0.
+  - Fast atoms fly in 3-D (`updateFast`: an atom past 25 Å/tu leaves the stepped set, as in the flat game, and comes back
+    below 18; `fastEncounters3`: hard spheres and Rutherford scattering along its path in depth, turned in the plane of the
+    path and the target, `turnPair3`; `fastFastNuclear3`). 1.23.2 kept them stepped because the flat collision search
+    was the only one; stepped, a keV–MeV atom shrank the step to 2×10⁻⁵ tu and its passes through molecules broke the
+    books by keV (below). Electrons stay stepped in 3-D. Fusion of fast nuclei and their nuclear reactions in 3-D: stage 2.
+  - Measured (Node; 64 waters in an 18 Å 3-D box, open walls, insulated; events called between steps):
+    - Books per event: 40 π⁻ stars on oxygen worst 3×10⁻⁵ eV; 40 K⁻ absorptions 5×10⁻⁵; 40 π⁺ at 300 MeV and 30 K⁻ at
+      2 GeV meeting oxygen 2×10⁻⁵; Σ⁻ and Ξ⁻ 30 and 28 eV in one event each in 40 (in both: a 2.7 MeV γ ray making an e⁺e⁻
+      pair at once beside a nucleus; `pairProduce3`, as the flat `pairProduce`, puts the pair 0.4 Å apart without their
+      potential energy: 45 eV of 2.7 MeV, found, not changed); μ⁺ → muonium up to 84 eV (the flat game the same, 96 eV:
+      the muonium atom is put where the muon stopped, next to the atom it took the electron from, and its potential
+      energy there is not paid; found, not changed). μ⁻ captured in oxygen: 5×10⁻¹⁰ eV.
+    - Momentum in three directions: Σp of the products against the incoming four-momenta, worst relative 2×10⁻¹⁶–6×10⁻¹⁶
+      (π⁻, Σ⁻, Ξ⁻, hits); K⁻ absorption 0.002, as in the flat game (0.0019: the struck nucleon's Fermi motion is given
+      without the atom's own).
+    - Isotropy at rest: π⁻ stars, 189 prongs: mean direction ≤ 0.03, ⟨u²⟩ 0.39, 0.34, 0.28 (⅓ each; 40 events); the
+      check in f_125n: 179 prongs ⟨u²⟩ 0.331, 0.321, 0.348. Not flat: |u₁·u₂×u₃| of three prongs 0.39 on average (0 in a plane;
+      1.24's turned plane would give 0).
+    - 3-D phase space: three massless bodies sharing 1 GeV, m₁₂² < M²/4 in 0.44 of 4,000 (even over the Dalitz plot:
+      0.4375); 1.24's turned flat phase space 0.51 (flat: 0.5).
+    - Stepped in 3-D water (decay off): of four each put down at 1.5 keV beside oxygen, π⁻, K⁻, μ⁻, Σ⁻ three each caught
+      within 12 steps (the fourth's nearest atom a hydrogen: μ⁻ makes μp there), one μ⁺ in four made muonium (60% tried,
+      some next to ions); 1.24: none (they stopped and waited to decay). 30 π⁺ at 300 MeV through the box: 3 reactions
+      (1.24: 0). μCF in a 3-D D–T gas (125 atoms, 3 Å apart, decay ×10⁶): 3 fusions in 400 steps.
+    - Fast atoms (Node, one atom fired through the 64 waters, insulated): H at 500 keV books 0 eV in 5 steps (1.24:
+      −208 eV in 194 steps of 10⁻⁴ tu), O at 300 keV +0.03 eV over 1,500 steps (stopped, then part of the box; 1.24: tens of
+      keV, 3,000 steps without leaving). What it heats can still run away: 300 keV in 64 waters is 4.7 keV a molecule, and
+      that plasma drifts by keV a step (the ionized-water known limit), in 1.24 and now.
+    - Cost (Node, one thread, two loaded cores: noisy): a particle's search for the nuclei on its path is now made once a
+      step and shared by its ionization, scattering and nuclear hits (`segFor3`): 9–11 µs at 1,029 atoms (one 1.24 scan:
+      15–21 µs, two a step for a charged one). 40 π⁻ at 5 MeV in liquid water (1,029 atoms): the three together 4–7 ms a
+      step, about 1.6 of 1.24's two. A diffractive pass no longer measures the whole box's energy (`exoElastic3`: 65 ms a
+      call at 1,029 atoms in the flat game's way; now the recoil's kinetic energy, exactly).
+  - Unchanged: every flat fingerprint (53 setups, 300 steps, seed 7) and the six 3-D setups'; eight flat hep scenarios
+    (stops in water, hits at 50 MeV–2 GeV on C, Fe, Pb, O, H, hypernucleus decays, μCF, muonic atoms in C–Pb, muonium,
+    the pion beam, the hyperon factory; 300–2,500 steps) bit for bit.
+  - Found, not changed (flat game): `hardSphere` turns a pair's relative velocity by π − 2·acos(b/R), so a head-on pass
+    goes straight through and a grazing one turns back (the hard-sphere deflection is 2·acos(b/R)); 3-D uses the right
+    one. `exoElastic` measures the whole box's energy twice per pass (65 ms at 1,029 atoms; flat setups are smaller).
+  - Test: tests/f_125n.js part `capture` (t_features' "1.25 (nuclear 3-D)" block; `node tests/f_125n.js [--node]
+    capture`); fails on 1.24.0 (no capture, no reaction, 1.24's phase space 0.51).
+
+- **Stage 2: nuclear reactions in 3-D** (committed with stage 1: the stars' products, MeV nucleons and keV–MeV recoils,
+  need it to be sound; measured on stage 1 alone, a π⁻ star's neutrons, with the flat neutron reactions, broke the books
+  by MeV a step, and its fast recoils, stepped, by keV).
+  - Radioactive decay (`doDecay3`): α, p, n, 2p, 2n, β±, electron capture in depth, the emitted particle, the neutrino
+    and the recoil on the sphere (the neutrino along the direction its momentum gave the recoil; the flat game draws it
+    afresh), spontaneous fission through `fission`'s 3-D branch. Before, a decay in a 3-D world put its α or electron at
+    z = 0 (a jump through the box) and turned the daughter in the plane.
+  - Fission in depth (`fission`: fragments back to back along a direction on the sphere, prompt neutrons on the sphere,
+    γ rays from its depth); fusion (`tryFusion3`, from `fastEncounters3` and `fastFastNuclear3` within the fusion gate);
+    fast nuclei past 2 keV meet nuclei within reach as in radiation flight (`nuclearEncounter` at the target's depth:
+    Fermi break-up, compound nucleus, deep-inelastic, spallation, fragmentation, diffraction; the Experimental
+    intranuclear cascade stays flat: its nucleus is a disc) and lose energy to the electrons of the atoms they pass
+    (`fastStop3`: moveRad's stopping, the push square to the path exact); the giant dipole resonance (`photoNuclear` with
+    the γ ray's depth; 1.24 made a pair instead). Neutrons in the 3-D particle menus; Fire sends atoms and nuclei at any
+    energy (was capped below 2 keV).
+  - Found and fixed on the way (3-D only): an electron set free from an atom in flight lost the electron's share of the
+    atom's motion, ½mₑv² (the atom's mass drops by mₑ at the same speed): 117 eV for a 50 MeV ²³⁵U, 0.5–2.6 keV a
+    Compton event on fission fragments (`ejectElectron`); a 3-D e⁺e⁻ pair was put down beside the nucleus without its
+    potential energy (`pairProduce3`; the flat pair flies in radiation mode and has none): now its motion pays it.
+  - Measured (Node, single events between steps unless said):
+    - ²¹⁰Po α decay, 200 at rest: books ≤ 2.4×10⁻⁵ eV; α against the daughter's recoil 0.0032 of the α's momentum (the
+      two shaken-off electrons carry the rest); α directions isotropic, ⟨u²⟩ 0.336, 0.373, 0.291. ¹⁴C β decay, 100: books
+      ≤ 2×10⁻⁶ eV. 1.24: books the same, but the α at z = 0, ⟨u_z²⟩ 0.
+    - ²³⁵U + thermal n, 40 fissions: books ≤ 6×10⁻⁵ eV (1.24: up to 64 eV); fragments back to back, cos −1.0000; 180
+      neutrons isotropic, ⟨u²⟩ 0.313, 0.370, 0.317 (1.24: 0.43, 0.44, 0.14).
+    - D + T at 120 keV, 40 fusions: books ≤ 10⁻⁶ eV; the neutrons isotropic (⟨u²⟩ 0.26, 0.35, 0.40 over 40).
+    - 40 protons at 50 MeV aimed at a 3-D carbon lattice (125 atoms): 28 reactions in 30 steps, books −1.2 eV over the
+      run (1.24: 0 reactions, +3,025 eV: the protons and their recoils stepped).
+    - 13.5 MeV γ on ²⁰⁸Pb, 30 called directly: 30 photonuclear, books ≤ 0.03 eV, neutrons in depth (1.24: 30, 56 eV, flat).
+    - 20 MeV γ rays into a 3-D lead block (150): books −367 eV after the pair fix (−4,163 for 400 before): what is left is
+      the MeV electrons and positrons stepped in MD at speeds past c (3-D has no radiation flight for them), in 1.24 too.
+    - 10 π⁺ at 50 MeV through liquid water (1,029 atoms, f_124's run): 5 reactions, their recoils a cascade of keV–MeV
+      O and H in flight; books +10.4 eV over 200 steps (1.24: −0.53, no reactions); the step 6×10⁻⁴ tu while they fly
+      (the flat game's rule for atoms in flight, 3.5 Å a step; a 50 MeV proton 3.5×10⁻⁴).
+  - Unchanged: the flat fingerprints, the six 3-D setups', the eight flat hep scenarios (bit for bit). f_124's 3-D
+    particles check now expects muonic atoms in the 3-D menus and allows 30 eV on its π⁺ run (the reactions above).
+  - Test: tests/f_125n.js part `reactions`; fails on 1.24.0 (α at z = 0, ⟨u_z²⟩ 0, fission books 64 eV, no proton
+    reactions, photonuclear books 56 eV).
+
+- **Stage 3: the collider in 3-D: not built** (much harder than planned; written down as the task asked). The collider is
+  flat machinery throughout: its ring is zones laid out in the plane (`W.zones`: dipoles, quadrupoles, RF cavities,
+  separators, kickers; `zoneLocal`, `rampRing`, `colliderRefill`, `inDetector`), its beams fly in radiation mode along
+  `radPath` (the zones' fields, synchrotron radiation, the RF), and they meet in `beamCollisions`/`beamHit`/`xbHit`, whose
+  e⁺e⁻ jets, annihilations and inelastic collisions turn jet axes in the plane (`eeEvent`, `xbAnnihilate`, `xbInelastic`:
+  `turn2`, `jetMomenta` on [ax, ay]) and whose elastic passes use the flat `nuclearScatter`. The 3-D world has no radiation
+  flight at all (1.23.2: everything is stepped; since this stage atoms fly ballistically, non-relativistically, and
+  electrons stay stepped), the 3-D view draws no zones, and the collider setups are flat presets with their own panel.
+  What is ready: everything a collision makes is now worked out in 3-D (hep.js's events above, `jetMomenta3`). The route:
+  beams kept in the z = 0 plane in radiation flight (allowing `rad` for beam particles in 3-D; `radPath` unchanged), the
+  zones drawn at z = 0 in view3d, the jet axes of `eeEvent` and `xb*` through `turnU`/`jetMomenta3`, a 3-D `nuclearScatter`,
+  3-D collider setups and their panel in the 3-D lab. Several sessions; nothing of it is in this branch.
+- **Stage 4: the quark–gluon plasma in 3-D** (by fixed target: there is no collider in 3-D). A heavy nucleus fired at
+  hundreds of GeV a nucleon (Fire now takes atoms and nuclei at any energy in 3-D) meets a nucleus in flight
+  (`fastEncounters3` → `nuclearEncounter` → `fragmentInto`): the overlap melts and freezes out (`qgpHadrons`,
+  `jetMomenta3` with the thermal option: transverse momenta round the beam in both directions across it), drawn at its
+  depth (`drawQGP3`: the flat view's swelling, cooling drop and its caption; `addQGP` keeps the depth). Antinucleons made
+  in 3-D leave the books as escaped energy (antimatter is not in 3-D yet: its annihilation is flat-only). Measured
+  (Node): ²⁰⁸Pb at 200 GeV a nucleon on a lead atom, √s_NN 19.4 GeV: a plasma froze into 1,705 hadrons (782 unstable ones
+  in flight, the rest nucleons and nuclei), books −0.016 eV, 207 ms for the event (Node, two loaded cores); across the
+  beam ⟨u_y²⟩ 0.026, ⟨u_z²⟩ 0.030 (the flat game's spray is in its plane). At 30 GeV a nucleon (√s_NN 7.6 GeV, below the
+  plasma's 3 GeV a nucleon in the fireball) the same pass fragments instead (298 hadrons, books −0.002 eV).
+  Test: tests/f_125n.js part `plasma` (fails on 1.24.0: no reaction in 3-D).
+- Screenshots (scratchpad): 125n-before-stars.png (1.24: six π⁻ and K⁻ stopped in liquid water, nothing caught),
+  125n-after-stars.png (the same: captions in depth, "π⁻ caught by ¹⁶O in H₂O", "K⁻ + ¹⁶O → ¹⁵N + π⁰ + Λ"),
+  125n-after-fission.png (six ²³⁵U fissions in an empty cube), 125n-after-qgp.png (a quark–gluon plasma in depth).
+- Not changed, found on the way: in the flat game `hardSphere`'s deflection is inverted (above); `exoElastic` measures the
+  whole box's energy per pass; `pairProduce`'s pair is exact only because it flies in radiation mode. In 3-D: the
+  Experimental intranuclear cascade stays flat (its nucleus is a disc), so in 3-D a nucleon above 40 MeV a nucleon on a
+  heavy nucleus takes the fireball model; MeV electrons and positrons are stepped in MD at speeds past c (no radiation
+  flight for leptons in 3-D: −367 eV over 150 20-MeV γ rays into lead); muonium formation (both games) puts the atom where
+  the muon stopped without paying its potential energy there (up to tens of eV).
+
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
 The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on branch v127.

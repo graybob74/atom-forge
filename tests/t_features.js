@@ -1753,6 +1753,8 @@ const { openPage } = require('./browser');
   await require('./f_1232.js')(page, check, say, openPage);
   // 1.24: the checks are in f_124.js (also runnable alone: node tests/f_124.js [part …])
   await require('./f_124.js')(page, check, say, openPage);
+  // 1.25 (nuclear 3-D): the checks are in f_125n.js (also runnable alone: node tests/f_125n.js [--node] [part …])
+  await require('./f_125n.js')(page, check, say, openPage);
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
