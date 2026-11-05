@@ -777,6 +777,13 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .sbox .spane > .srow, .sbox .spane > label.check { margin-inline: -8px; padding: 3px 8px; border-radius: 8px; transition: background 0.12s; }
 .sbox .spane > .sprev-on { background: var(--accent-soft); }
 .sbox .spane > p.sdn, .sbox .spane > p.sintro { display: none; } /* (a setting's description is in the preview pane beside the list, not under it too, 1.25) */
+.sbox .spane > p[hidden] { display: none !important; } /* (a note for the other mode, 1.25) */
+.smode { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--line); font: 600 11px var(--font-data, ui-monospace, monospace); line-height: 16px; vertical-align: 3px; color: var(--muted); letter-spacing: 0.02em; text-transform: none; }
+#setModal.m3d .smode { border-color: #6f9cff; color: #6f9cff; }
+.sbox .spane > .smode-off { opacity: 0.55; } .sbox .spane > .smode-off:hover, .sbox .spane > .smode-off.sprev-on { opacity: 0.8; } /* (a setting for the other mode: it works, and applies there, 1.25) */
+.smo { display: inline-block; margin-left: 7px; padding: 0 6px; border-radius: 9px; border: 1px solid #c9a227; color: #c9a227; font: 600 10px var(--font-data, ui-monospace, monospace); line-height: 15px; vertical-align: 1px; white-space: nowrap; }
+.sprev-cap { position: absolute; right: 6px; top: 6px; padding: 1px 7px; border-radius: 6px; background: rgba(8, 13, 20, 0.82); color: #c9d4e0; font-size: 11px; pointer-events: none; }
+.sprev-cap[hidden] { display: none; }
 @media (max-width: 760px), (max-height: 560px) {
   #setModal > .sdialog { height: 100%; }
   .sbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 10px; }

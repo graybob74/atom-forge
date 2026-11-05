@@ -3,8 +3,9 @@
    and the chamber photographed; comparisons put two or three photographs side by side, each labelled with its choice.
    Written as WebP data URLs (1280 × 720 since 1.23.2, for the enlarged view: laid out as 640 × 360 and drawn at 2×,
    from a page photographed at 2×; 640 × 360 before) into src/setshots.gen.js, one global map SETSHOTS from the
-   setting's key (its control's id in Settings; "id:value" for one choice's own picture; menu2d and menu3d for the
-   main menu's first screen) to its picture. Run from the repository root:
+   setting's key (its control's id in Settings; "id:value" for one choice's own picture; "id@3d" and "id:value@3d" for
+   the 3-D lab's own version, shown in 3-D mode only (1.25); menu2d and menu3d for the main menu's first screen) to its
+   picture. Run from the repository root:
      node tools/setshots.js [key …] [--png DIR] [--q 0.72]
    With keys, only those are made again (the others are kept from the file). --png also writes each picture as a PNG
    into DIR, to look at. Builds the page first. */
@@ -87,6 +88,32 @@ const SHOTS = [
     panels: [{ label: 'Normal', run: `${CAM(0.6, 0.4, 0, true)} R.cam3.yaw -= 0.8;`, draw: { drag: 1, arc: 0.8 } }, { label: 'Inverted', run: `${CAM(0.6, 0.4, 0, true)} R.cam3.yaw += 0.8;`, draw: { drag: 1, arc: -0.8 } }], labelTop: true },
   { key: 'segSpin3', scene: `${MOL3}`,
     panels: [{ label: '0 s', run: `${CAM(0.6, 0.4, 0, true)}` }, { label: '5 s', run: `${CAM(0.6, 0.4, 0, true)} R.cam3.yaw += 0.52;` }, { label: '10 s', run: `${CAM(0.6, 0.4, 0, true)} R.cam3.yaw += 1.05;`, draw: { arc: -1.05 } }], labelTop: true },
+  // ---- 3-D versions of the flat game's pictures (1.25, asked for by the owner: "There should also be 3d pictures in 3d mode"):
+  // key@3d (or key:value@3d), shown in the 3-D lab only, where what the setting changes is drawn in the chamber. None for
+  // the window's own settings (interface size, panel side, chamber only, theme, tips, frame rate, resolution: the same
+  // in both) and for what is not drawn in 3-D (quantum nuclei's beads, electrons as waves, the ultra-realistic mode's
+  // sizes): those show the flat picture, marked as such
+  { key: 'segAtom@3d', scene: `baseWorld(14, 14, 300, 0.05); world3d(14); setRunning(false); lattice3(12, 3, (x, y, z, i, j, l) => addMolecule('H2O', x, y, i + 2 * j + 3 * l, 0, z)); settleOverlaps(); ${SET('axes3', false)} ${CAM(0.6, 0.4, 0, true)} R.cam3.dist *= 0.75;`,
+    panels: [{ label: 'True size', run: SET('atomScale', 1) }, { label: 'Small', run: SET('atomScale', 0.45) }], after: `${SET('atomScale', 1)} ${SET('axes3', true)}` },
+  { key: 'segLabels@3d', scene: `baseWorld(14, 14, 300, 0.05); world3d(14); setRunning(false); addMolecule('CH3OH', -1.5, 0.6, 0.4, 0, 1); addMolecule('H2O', 2.6, -1.2, 2, 0, -1.5); addMolecule('NH3', -2.4, -2.4, 1.2, 0, -2.5); ${SET('axes3', false)} ${CAM(0.35, 0.3, 11, false)}`,
+    panels: [{ label: 'Always', run: `R.view.labels = true; ${SET('labels', 'always')} R.hover = null;` }, { label: 'On hover', run: `${SET('labels', 'hover')} R.hover = W.parts.find(p => p.Z === 8);` }, { label: 'Never', run: `R.view.labels = false; R.hover = null;` }],
+    after: `R.view.labels = true; ${SET('labels', 'always')} R.hover = null; ${SET('axes3', true)}` },
+  { key: 'segBadges@3d', scene: `baseWorld(14, 14, 300, 0.05); world3d(14); setRunning(false); addAtom('Na', -2.6, 0.4, { charge: 1, z: 0.5 }); addAtom('Cl', 2.8, -0.3, { charge: -1, z: -0.5 }); addAtom('Na', 1.5, 3.6, { charge: 1, z: -3 }); addAtom('Cl', -1.8, -3.8, { charge: -1, z: 3 }); lattice3(12, 3, (x, y, z, i, j, l) => { if ((i + j + l) % 2) addMolecule('H2O', x, y, i + 2 * j + 3 * l, 0, z); }); settleOverlaps(); ${SET('axes3', false)} ${CAM(0.6, 0.35, 0, true)} R.cam3.dist *= 0.8;`,
+    panels: [{ label: 'Always', run: SET('badges', 'always') }, { label: 'Never', run: SET('badges', 'never') }], after: `${SET('badges', 'always')} ${SET('axes3', true)}` },
+  { key: 'setFx@3d', scene: `baseWorld(16, 16, 3000, 0); world3d(16); for (const [x, y, z] of [[-3.2, 1.5, 2], [1.5, 2.8, -3], [3.6, -1.2, 1]]) spawnSpec(SPEC_P, x, y, 0, z); for (const [x, y, z] of [[-1.2, -1.8, -2], [-4, -2.6, 3], [2.2, 0.6, 3.5], [0, 3.6, -1]]) spawnSpec({ kind: 'e' }, x, y, 0, z); addAtom('H', 4.4, 2.6, { z: -2 }); addAtom('H', -4.6, 3.6, { z: 1 }); setRunning(false); ${SET('axes3', false)} ${CAM(0.5, 0.3, 0, true)} R.cam3.dist *= 0.7;`,
+    panels: [{ label: 'On', run: SET('effects', true) }, { label: 'Off', run: SET('effects', false) }], after: `${SET('effects', true)} ${SET('axes3', true)}` },
+  { key: 'setFlash@3d', scene: `baseWorld(24, 24, 600, 0.05); world3d(24); [['H2', -7, 4, 3], ['O2', -2, -5, -4], ['H2O', 5, 3, 5], ['H2', 7, -4, -2], ['O2', 1, 6, -6], ['H2O', -6, -3, 6]].forEach(([k, x, y, z], n) => addMolecule(k, x, y, n, 0, z)); setRunning(false); ${SET('axes3', false)} ${CAM(0.6, 0.4, 0, true)} R.cam3.dist *= 0.85; for (let k = 0; k < 7; k++) flash(-9 + 3 * k, (k % 2 ? 4 : -4), [255, 200, 120], 3 + k % 3, 3, (k % 3 - 1) * 6); W.rt += 0.15;`,
+    panels: [{ label: 'Normal', run: SET('flashLow', false) }, { label: 'Fewer flashes', run: SET('flashLow', true) }], after: `${SET('flashLow', false)} ${SET('axes3', true)}` },
+  { key: 'setCvd@3d', scene: `baseWorld(14, 14, 300, 0.05); world3d(14); addMolecule('glycine', -1.5, 1.8, 0.2, 0, 1); addMolecule('NH3', 3.2, -1.6, 0.5, 0, -1); addAtom('Na', -3.4, -2.6, { charge: 1, z: -2 }); addAtom('Cl', 0.4, -3.4, { charge: -1, z: 2 }); setRunning(false); ${SET('axes3', false)} ${CAM(0.3, 0.25, 13, false)}`,
+    panels: [{ label: 'Standard', run: SET('cvd', false) }, { label: 'Colour-blind friendly', run: SET('cvd', true) }], after: `${SET('cvd', false)} ${SET('axes3', true)}` },
+  { key: 'segTrail@3d', scene: `baseWorld(30, 30, 300, 0.05); world3d(30); addAtom('Ar', 0, 0, { z: 0 }); ${SET('axes3', false)} ${SET('trail', 4)} ${CAM(0.6, 0.4, 0, true)} R.view.tracks = true;
+      for (let k = 0; k < 14; k++) { const u = rndDir(); fireSpec({ kind: 'e' }, 2 * u[0], 2 * u[1], u[0], u[1], 300 + 30 * k, false, 2 * u[2], u[2]); } W.simPerFrame = W.baseSpf = 1e-4; setRunning(true);`, wait: 4500,
+    panels: [{ label: 'Long (4 s)', run: `setRunning(false);` }, { label: 'Short (½ s)', run: SET('trail', 0.5) }], after: `${SET('trail', 0.5)} ${SET('axes3', true)}` },
+  { key: 'segBo@3d', scene: `baseWorld(12, 12, 300, 0); world3d(12); addAtom('H', -1.05, 0.9, { z: 0.3 }); addAtom('H', -0.1, 0.9, { z: 0 }); addAtom('H', 1.05, 0.9, { z: -0.3 }); addAtom('O', -0.9, -1.2, { z: -0.2 }); addAtom('H', 0.15, -1.2, { z: 0 }); addAtom('O', 1.35, -1.2, { z: 0.25 }); setRunning(false); ${SET('axes3', false)} ${CAM(0.35, 0.3, 7.5, false)}`,
+    panels: [{ label: 'Stored', run: '' }, { label: 'From the positions', run: `${SET('bo', 1)} W.dt = 1e-4; step(W.dt);` }], after: `${SET('bo', 0)} ${SET('axes3', true)}` },
+  { key: 'segBo:2@3d', scene: `${SET('bo', 0)} baseWorld(12, 12, 300, 0.05); world3d(12); addMolecule('H3Op', -1.2, 0, 0, 0, 0); { const O = W.parts.find(p => p.Z === 8), h = W.parts.filter(p => p.Z === 1).reduce((a, b) => (b.x > a.x ? b : a)), L = Math.hypot(h.x - O.x, h.y - O.y, h.z - O.z), u = [(h.x - O.x) / L, (h.y - O.y) / L, (h.z - O.z) / L];
+      addMolecule('H2O', O.x + 2.45 * u[0] + 0.25, O.y + 2.45 * u[1], 2.2, 0, O.z + 2.45 * u[2]); } ${SET('bo', 2)} setRunning(false); for (let i = 0; i < 30; i++) { W.dt = chooseDt(); step(W.dt); } ${SET('axes3', false)} ${CAM(0.3, 0.35, 8, false)}`,
+    panels: [{ label: 'Quantum: a proton shared by two waters', run: '' }], after: `${SET('bo', 0)} ${SET('axes3', true)}` },
   // ---- the main menu's first screen
   { key: 'menu2d', scene: `loadPreset('gallery'); setRunning(false); fitView(); R.s *= 2.3; R.cy += 2;`, panels: [{ label: '', run: '' }] },
   { key: 'menu3d', scene: `loadPreset('water3d'); setRunning(false); ${SET('axes3', false)} ${CAM(0.55, 0.38, 0, true)} R.cam3.dist *= 0.86;`, panels: [{ label: '', run: '' }], after: SET('axes3', true) },

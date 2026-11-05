@@ -4122,6 +4122,7 @@ function mode3dSync() {
   for (const sel of NO3D_BTN) for (const b of document.querySelectorAll(sel)) { if (b.dataset.t0 === undefined) b.dataset.t0 = b.title || ''; b.disabled = on; b.title = on ? NOT_3D : b.dataset.t0; }
   if (changed && typeof SET !== 'undefined' && UI.started) boSet(SET.bo); // (the bond orders' setting applied to the new world, 1.24; in 3-D too since 1.25)
   for (const id of ['fields3dNote', 'box3dNote', 'set3dNote']) { const el = $(id); if (el) el.hidden = !on; }
+  if (changed && typeof setModeSync === 'function') setModeSync(); // (Settings follows the mode: its costs, words and pictures, 1.25)
   const lv = $('tag3d'); if (lv) lv.hidden = !on; // (the Preview label; the Leave button went in 1.23.2: the main menu leads out)
   if (on && TOOLS_NO3D.has(UI.tool)) setTool('inspect');
   if (changed && $('palette')) buildPalette();
@@ -5819,6 +5820,24 @@ const COSTS = {
   segTrail: () => ({ k: 'drawing', o: { 0.5: ['×1', 'The shortest trails'], 1.5: ['slight', 'Three times as much trail: more drawing with many fast particles'], 4: ['some', 'Eight times as much trail: the most drawing with many fast particles'] } }),
   setRew: () => ({ k: 'memory', on: ['up to ' + SET.rewMem + ' MB', 'A snapshot of the box every ' + SET.rewEvery + ' s, kept for ' + SET.rewSpan + ' s, at most ' + SET.rewMem + ' MB; copying it takes a little time'] }),
 };
+/* The 3-D lab's own costs (1.25, Settings by mode; the owner: "since the numbers for 3d are very different, the settings
+   menu should change based on which mode you're in"): measured in the 3-D lab the same way as the flat ones (one thread,
+   tools/accbench/bench-mode.js: liquid water, 1,029 atoms, unless it says otherwise), shown while the world is 3-D
+   (costOf). A setting missing here costs the same in both. */
+const COSTS3 = {
+  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry (in 3-D with single bonds’ twist barriers since 1.25: +30% a step in a box of organic molecules, nothing in water)'], 1: ['×18–23', 'Measured in 3-D on one thread (1.25): liquid water ×18–22, the molecules in space ×18–23, hydrogen + oxygen ×18 (every pair worked out every step on the JavaScript pass, the 3-D angles and twists with them, steps 2.6 times shorter; the flat game’s WebAssembly pass is not in 3-D yet)'], 2: ['×1000+', 'Measured in 3-D on one thread (1.25): a hydronium and five waters (19 atoms) 5.7 ms a step (the flat game 7.7), steps half as long: a small world runs in slow motion'] } }),
+  segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured in 3-D on one thread (1.25): nothing without metal atoms; an aluminium ball of 959 atoms ×1.8 (its own pass about 0.7 µs an atom a step); a copper ball ×0.8–1.0 (its steps go to electron-transfer estimates either way)'] } }),
+  segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–3', 'Measured in 3-D on one thread (1.25): nothing without free electrons; 40 free electrons among neon atoms ×2.2 (the flat game ×2.4), six Na⁺ among twelve ×3.2 (1.24); in ionized liquid water ×1.7, its electrons caught again within a few dozen steps in 3-D'] } }),
+  segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.6', 'Measured on liquid water in 3-D (1.25): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×2.7', 'Measured on liquid water in 3-D: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water in 3-D: 32 beads, the rest once'] } }
+    : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×17', 'Measured on liquid water in 3-D (1.25): the force field worked out 8 times a step'], 16: ['×30', 'Measured on liquid water in 3-D: 16 times a step'], 32: ['×48', 'Measured on liquid water in 3-D: 32 times a step'] } },
+  segPiRpc: () => ({ k: 'physics', o: { 1: ['×1', 'Bonds and bends on every bead (where the spread matters), the pairs between atoms at the rings’ centres: ring-polymer contraction'], 0: ['×7–10', 'The whole force field on every bead: exact; in 3-D (liquid water, 1.25) 10 times the work at 8 beads, 7.5 at 32'] } }),
+  segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.6–2.4', 'Measured in 3-D (1.25): liquid water ×1.6–1.9, salt water ×2.4'], 1: ['×3.2–4.2', 'Measured in 3-D (1.25): salt water ×3.2, liquid water ×3.7–4.2'] } }),
+  segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×3.5–5', 'Measured in 3-D (1.25): salt water ×3.5, liquid water ×4.9 (JavaScript kernels; in space the partners within reach grow as the cube of the reach)'], 12: ['×7–17', 'Measured in 3-D (1.25): salt water ×6.6–6.9, liquid water ×12–17 (JavaScript kernels)'] } }),
+  segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×2', 'Measured in 3-D (1.25): liquid water and salt water ×2.0–2.2 where steps are at their longest (a 3-D step costs about the same whatever its length); nothing where they are already short'], 0.01: ['×3.5', 'Measured in 3-D (1.25): liquid water ×3.4–3.5, salt water ×3.3–4.1 where steps are at their longest; nothing where they are already short'] } }),
+  setInc: () => ({ k: 'physics', on: ['×1', 'Nothing in the 3-D lab: nucleons do not strike nuclei there yet (the flat game only)'] }),
+  setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24)'] }),
+};
+function costOf(id) { return (W.d3 && COSTS3[id] ? COSTS3[id] : COSTS[id])(); } // (this mode's costs, 1.25)
 function costTag(el, cls, text, tip) {
   let t = el.querySelector(':scope > .' + cls.split(' ')[0]);
   if (!text) { if (t) t.remove(); return; }
@@ -5857,7 +5876,7 @@ function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
   for (const id in EXP_SET) {
-    const c = COSTS[id](), v = SET[EXP_SET[id]], a = c.o ? c.o[String(v)] : v ? c.on : null;
+    const c = costOf(id), v = SET[EXP_SET[id]], a = c.o ? c.o[String(v)] : v ? c.on : null;
     if (!a) continue;
     const m = String(a[0]).match(/×\s*([0-9.]+)(?:\s*–\s*([0-9.]+))?/); if (!m) continue;
     const l = +m[1], h = +(m[2] || m[1]); lo *= l; hi *= h;
@@ -5895,7 +5914,7 @@ function syncCosts() {
     const el = $(id); if (!el) continue;
     const row = el.closest('.srow') ? el.closest('.srow').firstElementChild : el.closest('label');
     if (!row) continue;
-    const c = COSTS[id]();
+    const c = costOf(id);
     costTag(row, 'cost-k', c.k, (COST_K[c.k] || '') + (c.t ? ': ' + c.t : ''));
     if (c.o) for (const b of el.querySelectorAll('button')) { const a = c.o[b.dataset.v]; costTag(b, 'oc c' + (a ? costLevel(a[0]) : 0), a ? a[0] : '', a ? a[1] : ''); }
     else { costTag(row, 'cost c' + costLevel(c.on[0]), 'on ' + c.on[0], 'Turned on: ' + c.on[1]); row.querySelector(':scope > .cost').classList.toggle('dim', !el.checked); }
@@ -6012,6 +6031,62 @@ const SDESC = {
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours (a tight-binding model fitted to each metal), so a lone pair is short and strong, an atom at a surface holds harder to each neighbour, and a vacancy costs less than the bonds it breaks.'], // (1.25)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin, drawn as a faint cloud (the electron force field, eFF), instead of a point.'],
 };
+/* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
+   on which mode you're in ... There should also be 3d pictures in 3d mode"). While the world is 3-D (W.d3) the pane takes
+   the 3-D lab's descriptions (SDESC3, STAB_DESC3) and costs (COSTS3), and its pictures ("key@3d", "key:value@3d" in
+   SETSHOTS; where there is none, the flat picture marked "In the flat game"); in the flat game only the flat ones (and the
+   3-D tab's own pictures, as before). Notes under a row marked data-m="2d" or "3d" show in that mode only. A row that
+   works in one mode only (SMODE_ONLY, and the 3-D tab's rows) is dimmed in the other with a "2-D only" / "3-D only" tag
+   and still works: what it sets applies there. setModeSync switches it all when the mode changes (mode3dSync) and when
+   Settings opens. */
+const STAB_DESC3 = {
+  gfx: ['Graphics', 'How atoms, labels, glows and trails look, in the 3-D lab as in the flat game; the 3-D tab has what is the 3-D view’s own (fog, the box, labels on the front atoms only). Point at a setting to see what it changes.'],
+  ctl: ['Controls', 'In the 3-D lab the wheel moves the camera nearer or farther (Shift + wheel moves the placing plane), right-drag or Alt+drag turns the view, and W A S D, E and Q fly the camera: the 3-D tab sets how it turns. Zoom toward is for the flat game.'],
+  exp: ['Experimental', 'More accurate physics, at a price in speed, and the ultra-realistic mode; all back to normal each time the game starts. The costs shown here are the 3-D lab’s, measured in it (one thread, liquid water of 1,029 atoms unless it says otherwise; tools/accbench/bench-mode.js in the source): in space each atom has more neighbours, so some settings cost much more than in the flat game. Detailed nuclear collisions are for the flat game only. Always on in 3-D (no setting): single bonds resist twisting with their measured barriers (ethane 0.126 eV), +30% a step in a box of organic molecules.'],
+};
+const STAB_DESC2 = {
+  d3: ['3-D', 'How the 3-D lab looks and turns: the camera’s lens and projection, fog with depth, the box, the axis marker, labels and a slow turntable; and the keys that fly the camera (W A S D, E and Q). They apply in the 3-D lab only (main menu → 3-D): set here, they are ready for it.'],
+};
+const SDESC3 = {
+  segAtom: ['Atom size', 'True size draws atoms as big as they are, touching in a liquid. Smaller and Small shrink the balls so you can see into the box, past the near atoms to the far ones.'],
+  segLabels: ['Labels', 'The element symbol on each atom: on every atom, only on the one under the mouse and the one inspected, or never. Which atoms carry one in depth (the front ones only, or all) is in the 3-D tab.'],
+  segTrail: ['Particle trails', 'How long the paths of fast particles stay on screen: the last half second, 1.5 s or 4 s. In 3-D a trail keeps each point’s depth and fades with distance.'],
+  segGl: ['Drawing engine', 'WebGL draws the atoms and bonds on the graphics card, lit as balls and rods, with a depth buffer. Canvas 2D draws everything on the processor, sorted far to near: much slower with thousands of atoms; use it only if WebGL misbehaves.'],
+  segWheel: ['Wheel zoom', 'How far each notch of the mouse wheel moves the camera nearer or farther. Shift + wheel moves the plane things are placed on.'],
+  segZoomTo: ['Zoom toward', 'The flat game only: there the wheel zooms toward the point under the mouse or the middle of the view. In the 3-D lab it moves the camera toward what it looks at.'],
+  setInc: ['Detailed nuclear collisions', 'The flat game only: in the 3-D lab nucleons do not strike nuclei yet, so this changes nothing there. In the flat game a nucleon that strikes a nucleus is followed through it collision by collision (an intranuclear cascade).'],
+  segDtMax: ['Longest time step', 'Calm matter moves on in steps of 0.4 fs. Shorter steps keep the energy books a little more exact; in the 3-D lab a step costs about the same whatever its length, so the cost follows the number of steps.'],
+  segRc: ['Force reach', 'How far van der Waals and partial-charge forces reach. Longer keeps more of the pull between molecules; in space the partners within reach grow as the cube of the reach, so it costs much more than in the flat game.'],
+  segQeq: ['Induced charges', 'Each molecule’s charges shift with the electric field around it, in all three directions, so water turns its dipole toward an ion or a field (charge equilibration).'],
+  segPi: ['Quantum nuclei', 'Every atom becomes a ring of beads (path-integral molecular dynamics) spread in all three directions by its zero-point motion. In the 3-D lab the beads are not drawn: the picture is the flat game’s.'],
+  segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, with the 3-D angles and the twist of double, aromatic and single bonds, drawn as thinner or thicker bonds. Quantum works out the electrons themselves (GFN1-xTB) with the atoms free in all three directions.'],
+  segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours, fitted on a close-packed crystal: in the 3-D lab a crystal has its measured cohesive energy, spacing, stiffness and vacancy energy exactly (copper 3.49 eV, 2.56 Å, 137 GPa, 1.28 eV).'],
+  segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
+  setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size. The 3-D camera comes no nearer than half an ångström, so it does not zoom in to a nucleus: the picture is the flat game’s. Experimental: off again each time the game starts.'],
+};
+const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d' }; // (and every row of the 3-D tab: '3d')
+function setRowOnly(r) { const k = setRowKey(r), p = r.closest('.spane'); return SMODE_ONLY[k] || (p && p.dataset.stab === 'd3' ? '3d' : ''); }
+/* The picture for a key (and a choice) in this mode: in 3-D its 3-D version first; in the flat game never a 3-D one. */
+function setShotFor(key, opt) {
+  const s = SETSHOTS, ks = (opt !== null && opt !== undefined ? [key + ':' + opt] : []).concat(key);
+  const k = (W.d3 && ks.map(x => x + '@3d').find(x => s[x])) || ks.find(x => s[x]) || '';
+  const row = document.querySelector(`#setModal [data-sk="${key}"]`), own3 = !!row && setRowOnly(row) === '3d';
+  return { key: k, src: k ? s[k] : '', flat: !!k && !!W.d3 && !k.endsWith('@3d') && !own3 && !STAB_DESC[key] }; // (flat: a flat picture shown in the 3-D lab, marked)
+}
+function setModeSync() {
+  const modal = $('setModal'); if (!modal) return;
+  const d3 = !!W.d3, m = d3 ? '3d' : '2d';
+  modal.classList.toggle('m3d', d3);
+  const t = $('setMode'); if (t) { t.textContent = d3 ? '3-D lab' : '2-D game'; t.title = d3 ? 'Costs, descriptions and pictures for the 3-D lab' : 'Costs, descriptions and pictures for the flat game'; }
+  for (const n of modal.querySelectorAll('[data-m]')) n.hidden = n.dataset.m !== m;
+  for (const r of setRows()) {
+    const only = setRowOnly(r), off = !!only && only !== m, host = r.matches('.srow') ? r.firstElementChild : r;
+    r.classList.toggle('smode-off', off);
+    costTag(host, 'smo', off ? (only === '3d' ? '3-D only' : '2-D only') : '', off ? (only === '3d' ? 'For the 3-D lab (main menu → 3-D): set here, it applies there' : 'For the flat game: set here, it applies there') : '');
+  }
+  syncCosts();
+  const k = SPREV.key, o = SPREV.opt; SPREV.key = null; if (k) setPrevShow(k, o); // (the pane shown again in this mode)
+}
 const SPREV = { key: null, opt: null };
 /* A row's key: its control's id (the first control with one), or "row" and its words for a row with no control. */
 function setRowKey(row) {
@@ -6027,10 +6102,12 @@ function setPrevShow(key, opt) {
   SPREV.key = key; SPREV.opt = opt;
   for (const r of document.querySelectorAll('#setModal .sprev-on')) r.classList.remove('sprev-on');
   { const r = document.querySelector(`#setModal [data-sk="${key}"]`); if (r) r.classList.add('sprev-on'); }
-  const img = $('setPrevImg'), ph = $('setPrevPh'), tab = STAB_DESC[key], D = SDESC[key] || null;
-  const shots = SETSHOTS, src = (opt !== null && shots[key + ':' + opt]) || shots[key] || '';
+  const img = $('setPrevImg'), ph = $('setPrevPh'), tab = (W.d3 ? STAB_DESC3[key] : STAB_DESC2[key]) || STAB_DESC[key], D = (W.d3 && SDESC3[key]) || SDESC[key] || null; // (this mode's words, 1.25)
+  const shot = setShotFor(key, opt), src = shot.src;
   img.hidden = !src; ph.toggleAttribute('hidden', !!src); // (an SVG element has no hidden property: the attribute)
-  if (src) { img.src = src; img.alt = 'What it looks like: ' + (D ? D[0] : key); } else img.removeAttribute('src');
+  if (src) { img.src = src; img.alt = 'What it looks like' + (shot.flat ? ' in the flat game: ' : ': ') + (D ? D[0] : key); } else img.removeAttribute('src');
+  img.dataset.key = shot.key; // (which picture, for the checks)
+  $('setPrevCap').hidden = !shot.flat;
   $('setPrev').classList.toggle('noimg', !src);
   if (tab) { $('setPrevT').textContent = tab[0]; $('setPrevD').innerHTML = `<p>${esc(tab[1])}</p>`; return; }
   const el = $(key), row = el ? el.closest('.srow, label.check') : document.querySelector(`#setModal [data-sk="${key}"]`);
@@ -6040,7 +6117,7 @@ function setPrevShow(key, opt) {
     if (tips.length) h += `<ul>${tips.join('')}</ul>`;
   }
   if (COSTS[key]) { // the cost tags, as the row shows them, with what each means
-    const c = COSTS[key](), lab = (v) => { const b = el && el.querySelector(`[data-v="${v}"]`); return b ? segLabel(b) : String(v); };
+    const c = costOf(key), lab = (v) => { const b = el && el.querySelector(`[data-v="${v}"]`); return b ? segLabel(b) : String(v); };
     const items = c.o ? Object.entries(c.o).filter(([, a]) => a[0]).map(([v, a]) => `<li><span class="oc c${costLevel(a[0])}">${esc(a[0])}</span> <b>${esc(lab(v))}</b>${a[1] ? ': ' + esc(a[1]) : ''}</li>`)
       : [`<li><span class="oc c${costLevel(c.on[0])}">${esc('on ' + c.on[0])}</span> ${esc(c.on[1])}</li>`];
     h += `<h4>Cost: ${esc((COST_K[c.k] || c.k).toLowerCase())}${c.t ? ' (' + esc(c.t.toLowerCase()) + ')' : ''}</h4><ul class="sprev-cost">${items.join('')}</ul>`;
@@ -6066,7 +6143,7 @@ function setPrevInit() {
   box.addEventListener('pointerdown', (e) => setPrevFrom(e.target)); // (a tap on touch)
   box.addEventListener('focusin', (e) => setPrevFrom(e.target));
 }
-function openSettings(tab) { $('setModal').hidden = false; if (tab) setTabS(tab); else setPrevShow(UI.stab || 'perf', null); syncSettings(); showModal('setModal'); }
+function openSettings(tab) { $('setModal').hidden = false; setModeSync(); if (tab) setTabS(tab); else setPrevShow(UI.stab || 'perf', null); syncSettings(); showModal('setModal'); }
 /* A Settings picture enlarged (asked for by the owner, 1.23.2): a click, a tap, Enter or Space on the preview opens it
    over the page, fitted to the window (aspect kept, 16 px clear), over a dark backdrop. It grows out of the preview:
    the picture is laid out at its large place and size and starts transformed back onto the thumbnail, then the
