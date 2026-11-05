@@ -195,28 +195,13 @@ engine stores and visits particles.
     Leave button gone (a Preview label); fast particles leaving the 3-D box; Performance mode gone. Also asked during
     the build and done there: Settings pictures enlarged on a click (animated) at 1280 × 720, the 3-D axis marker and
     scale bar above the tool's bar, the "On hold" note gone, main-menu presses that were lost, the Gallery's spacing.
-  For 1.24 (built on branch v127, the "1.24 (in progress)" section: all six, except continuous bond orders and the
-  nuclear side of the particles (nuclear hits and captures, the collider, the plasma, nuclear reactions), which stay
-  flat with the reasons and numbers written there):
-  - The rest of the Experimental settings in 3-D: induced charges, quantum nuclei, continuous and quantum bond orders,
-    electrons as waves, the ultra-realistic mode (today flat only, set3dNote). Physics in 3-D; needs his OK as each
-    lands, with its energy and cost measured.
-  - The rest of the particles in 3-D (the user: "like pions and such"): the high-energy and nuclear side (hep.js:
-    hadrons such as pions, kaons, muons and their decays, the collider, plasma), today flat only.
-  - Box size in 3-D (the Lab panel's slider; "Not in 3-D yet": box3dNote): growing a free expansion, shrinking a piston,
-    as in 2-D, with the depth too.
-  - Magnets and fields in 3-D (the Magnet tool, the B and E sliders and the field direction; fields3dNote).
-  - The Light tool in 3-D (light in 3-D today flies out of the box unabsorbed, engine.js 3411).
-  - Not the placed objects (mirrors, lenses, prisms, screens…: the user, "keep objects out for now").
-  - Placing and firing in 3-D (the owner: "there should be a better system for more accurate placing and firing in
-    3d"; he chose these three, not a 3-D aim arrow tilted by a second drag):
-    - A visible placing plane: a faint grid at the depth things are placed at (today s2w3's plane through the camera
-      target, square to the view), a ghost of the item and a drop line to the box floor so its depth reads; a modifier
-      + wheel (or a slider) moves the plane nearer or farther.
-    - Placing next to what you point at: hovering an atom (pick3) places the new item against its surface on the side
-      facing the camera, instead of on the plane.
-    - Firing from the camera: with the WASD camera (1.23.2), fire from the eye toward the pointer (first-person
-      style); clicking an atom aims straight at it.
+  Done in 1.24.0 (the section above): placing and firing in 3-D (placing plane, placing against an atom, firing from
+  the camera), box size, magnets and fields, light, the unstable particles in flight, and the Experimental settings
+  except continuous bond orders. Placed objects stay out of 3-D (the owner).
+  Left in the flat game from the 1.24 list (reasons and numbers in the 1.24.0 section; several sessions each):
+  - The nuclear side of the particles in 3-D: nuclear hits by hadrons, captures at rest (muonic atoms, nuclear stars),
+    muonium, hypernuclei, the collider, the plasma, nuclear reactions (hep.js is written on flat four-momenta).
+  - Continuous bond orders ("From the positions") in 3-D: a 3-D version of bo.js's derivatives and the kernel pass.
   For 1.25 (reported by the owner; not built yet):
   - "Hexazine doesn't fly apart with quantum bond orders in 2d" (the owner, after 1.23.1). Hexazine (N₆ ring) is very
     unstable in reality (it falls apart to 3 N₂, releasing a lot of energy); with quantum bonds (GFN1-xTB, Experimental
@@ -254,7 +239,7 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## 1.24 (in progress)
+## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
 The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on branch v127.
 
@@ -433,7 +418,7 @@ The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on bra
   down almost on top of each other gain hundreds of eV in their first steps; and in the flat game an event that changes
   a charge in an applied electric field misses −q E·Δr from the books.
 
-## 1.23.2 (in progress)
+## 1.23.2: a flying 3-D camera, smaller 3-D ions, fast particles leave the 3-D box, separate 2-D and 3-D libraries, 3-D tiny objects, menus that click the first time
 
 - The "realistic" tag (1.12) was missing on three Experimental choices that were added later: bond orders (now on
   Quantum, the bonds from the electrons), bead forces (on Every bead, the exact path integral) and free electrons (on
