@@ -5849,9 +5849,9 @@ const STAB_DESC = {
   disp: ['Display', 'The window, the size and layout of the controls, animations and the light or dark theme.'],
   ctl: ['Controls', 'How the mouse wheel zooms, what the tools remember, and when the game pauses by itself.'],
   gen: ['General', 'What opens at start, the units the readouts use, rewind, the tour, and what this browser keeps.'],
-  d3: ['3-D', 'How the 3-D lab looks and turns: the camera’s lens and projection, fog with depth, the box, the axis marker, labels and a slow turntable. They apply in the 3-D mode only.'],
+  d3: ['3-D', 'How the 3-D lab looks and turns: the camera’s lens and projection, fog with depth, the box, the axis marker, labels and a slow turntable; and the keys that fly the camera (W A S D, E and Q). They apply in the 3-D mode only.'],
   ai: ['Claude', 'Access to Claude for Ask Claude and Identify molecules, where this page has none of its own.'],
-  exp: ['Experimental', 'More accurate physics, at a price in speed. Every cost was measured in this game: ×2 means the same moment takes twice as long to work out. The box at the top multiplies the chosen costs together.'],
+  exp: ['Experimental', 'More accurate physics, at a price in speed, and the ultra-realistic mode; all back to normal each time the game starts. Every cost was measured in this game: ×2 means the same moment takes twice as long to work out. The box at the top multiplies the chosen costs together.'],
 };
 const SDESC = {
   // Performance
