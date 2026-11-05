@@ -1524,7 +1524,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <label class="check"><input type="checkbox" id="setStartPaused"> Start setups paused, ready at their first moment (Space or ▶ starts them)</label>
       <label class="check"><input type="checkbox" id="setWake"> Keep the screen awake while it runs (the screen can sleep again when paused)</label>
       <div class="srow"><span>Keyboard shortcuts</span><button class="btn small" id="setKeys">Show them (?)</button></div>
-      <div class="srow"><span>Undo</span><span class="note">Ctrl+Z, and Ctrl+Shift+Z or Ctrl+Y to redo</span></div>
+      <div class="srow" data-sk="rowUndo"><span>Undo</span><span class="note">Ctrl+Z, and Ctrl+Shift+Z or Ctrl+Y to redo</span></div>
     </section>
     <section class="sgroup spane" data-stab="gen" hidden>
       <div class="srow"><span>Start with</span><div class="seg" id="segStart" role="group" aria-label="Start with"><button data-v="menu">The main menu</button><button data-v="last">Where I left off</button><button data-v="setup">The last setup, fresh</button></div></div>
@@ -32512,7 +32512,7 @@ const SDESC = {
   segCursor: ['Hide the resting cursor', 'Hides the mouse pointer when it rests over the chamber: never, only in chamber-only view, or always.'],
   segUi: ['Interface size', 'The size of buttons, panels and text. The chamber itself is not zoomed.'],
   segSide: ['Lab panel', 'Which side of the chamber the Lab, Inspect, Data, Log and Physics panel sits on.'],
-  setPw: ['Panel width', 'How wide the side panel is. Drag the panel’s inner edge to change it; Reset puts it back to 356 px.'],
+  setPwReset: ['Panel width', 'How wide the side panel is. Drag the panel’s inner edge to change it; Reset puts it back to 356 px.'],
   setMotion: ['Interface animations', 'Buttons, sliders, tabs and menus that move: a pill that slides to the chosen button, tracks that fill. Off is still, and so is the system’s Reduce motion.'],
   segTheme: ['Theme', 'Light or dark panels and controls, or whichever the system uses. The chamber is dark in both.'],
   // Controls
@@ -32570,7 +32570,7 @@ const SPREV = { key: null, opt: null };
 /* A row's key: its control's id (the first control with one), or "row" and its words for a row with no control. */
 function setRowKey(row) {
   if (row.dataset.sk) return row.dataset.sk;
-  const c = row.querySelector('.seg[id], input[id], button[id], span[id]');
+  const c = row.querySelector('.seg[id], input[id], button[id]') || row.querySelector('span[id]'); // (a control first: a row's own words may carry an id too)
   return (row.dataset.sk = c ? c.id : 'row' + row.textContent.trim().split(/\s+/)[0]);
 }
 function setRows() { return [...document.querySelectorAll('#setModal .spane > .srow, #setModal .spane > label.check')]; }

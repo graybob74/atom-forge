@@ -156,7 +156,7 @@ async function view3d() {
     for (const [k, v] of [['fov3', 40], ['proj3', 'persp'], ['fog3', 'normal'], ['box3', 'grid'], ['axes3', true], ['lbl3', 'front']]) setSetting(k, v); R.view.hbonds = true; return a === b;
   });
   check(flat, 'the 3-D settings leave a 2-D frame unchanged');
-  check(errors.length === 0, 'no page errors in the 3-D settings', errors);
+  check(errors.filter(e => !/willReadFrequently/.test(e)).length === 0, 'no page errors in the 3-D settings', errors); // (the warning about reading pixels back is this test's own)
   await browser.close();
 }
 
