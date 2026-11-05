@@ -217,6 +217,11 @@ engine stores and visits particles.
     elements" above (planned for 1.25).
   - Bond orders for metals (an embedded-atom / second-moment many-body model): the entry "Bond orders for metals" above
     (planned for 1.25).
+  - In 3-D (the owner, after 1.24.0: "add them both to 3d in 1.25"), the two parts of the 1.24 list left flat:
+    - The nuclear side of the particles: nuclear hits by hadrons, captures at rest (muonic atoms, nuclear stars),
+      muonium, hypernuclei, the collider, the plasma, nuclear reactions (hep.js on flat four-momenta; route in 1.24.0).
+    - Continuous bond orders ("From the positions"): a 3-D version of bo.js's derivatives and the kernel pass.
+    Both are physics in 3-D: energy and cost measured, the owner's OK as each lands.
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
