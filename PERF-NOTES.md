@@ -414,7 +414,24 @@ The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on bra
   Settings → Experimental's 3-D note and the controls follow (`NO3D_BTN`: only that one button off in 3-D). Screenshots
   124-before-exp.png (greyed), 124-after-exp.png.
 - Tests: tests/f_124.js (run by t_features' 1.24 block, or alone: `node tests/f_124.js [place box fields light hep
-  exp]`); each part fails on 1.23.2 (`place`: P3 is not defined).
+  exp]`); each part fails on 1.23.2 (`place`: P3 is not defined; `box`, `fields`, `light`, `hep`, `exp`: the controls
+  disabled or the functions missing). t_3d's "disabled in 3-D" check now expects the 1.24 limits (Objects, bond orders
+  from the positions, antimatter); t_page clicks only the visible field-direction buttons (the ±z ones are hidden in
+  the flat game; it timed out on them).
+- The flat game bit for bit the same throughout: 24 setups × 300 steps (seed 7) and seven runs with the Experimental
+  settings on (induced charges, 8 beads contracted and full, waves, both bond orders): identical to 1.23.2 after every
+  item; the six 3-D setups too (nothing in them uses what was added); t_3d's 2-D frame after a 3-D one: 0 difference.
+- Suite: `tools/runtests.sh` (two lanes on two cores): all passed but t_page (the ±z buttons, fixed above; passes
+  alone) and t_features' 1.14 speed readout (the chain setup showing 1/1.3× under load, the known flake; it gave back
+  1/1.7× once alone right after the lanes, then t_features passed whole alone; that block alone gives 1× three times
+  out of three on 1.23.2 and on this branch).
+- Found, not changed: Inspect cannot pick an unstable particle or a photon in flight in 3-D (`pickLight` works on the
+  flat projection); quantum nuclei's beads are not drawn in 3-D; the Experimental descriptions still describe the flat
+  case in places (induced charges "averaged in the plane"); the Magnet tool's pole buttons keep the flat ⊙/⊗ signs (in
+  3-D, N means along +axis); a charged unstable particle's search for the atoms on its path goes over every atom (13 µs
+  a particle a step at 1,029 atoms; the grid would make it local). From 1.23.2, met while measuring: free electrons put
+  down almost on top of each other gain hundreds of eV in their first steps; and in the flat game an event that changes
+  a charge in an applied electric field misses −q E·Δr from the books.
 
 ## 1.23.2 (in progress)
 
