@@ -252,7 +252,7 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## 1.23.2 (in progress)
+## 1.23.2: a flying 3-D camera, smaller 3-D ions, fast particles leave the 3-D box, separate 2-D and 3-D libraries, 3-D tiny objects, menus that click the first time
 
 - The "realistic" tag (1.12) was missing on three Experimental choices that were added later: bond orders (now on
   Quantum, the bonds from the electrons), bead forces (on Every bead, the exact path integral) and free electrons (on
