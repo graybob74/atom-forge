@@ -212,6 +212,11 @@ engine stores and visits particles.
     lands, with its energy and cost measured.
   - The rest of the particles in 3-D (the user: "like pions and such"): the high-energy and nuclear side (hep.js:
     hadrons such as pions, kaons, muons and their decays, the collider, plasma), today flat only.
+  - Box size in 3-D (the Lab panel's slider; "Not in 3-D yet": box3dNote): growing a free expansion, shrinking a piston,
+    as in 2-D, with the depth too.
+  - Magnets and fields in 3-D (the Magnet tool, the B and E sliders and the field direction; fields3dNote).
+  - The Light tool in 3-D (light in 3-D today flies out of the box unabsorbed, engine.js 3411).
+  - Not the placed objects (mirrors, lenses, prisms, screens…: the user, "keep objects out for now").
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).
