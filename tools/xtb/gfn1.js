@@ -979,8 +979,9 @@ function solveTransposed(A, b, n) {
 
 // ---- modified Broyden mixer (scf/mixer/broyden.f90) ----
 class Broyden {
-  constructor(ndim, memory, damp) {
+  constructor(ndim, memory, damp, o = null) {
     this.n = ndim; this.memory = memory; this.damp = damp; this.iter = 0;
+    this.o = o; this.best = Infinity;                      // (o: Atom Forge's safeguards, 1.26 (GFN2 and spin only; null: tblite's mixer as it is))
     this.df = []; this.u = []; this.a = [];                // rows of a are made when first used (next())
     this.omega = new Float64Array(memory);
     this.q = new Float64Array(ndim); this.qlast = new Float64Array(ndim);
@@ -992,6 +993,11 @@ class Broyden {
   error() { let s = 0; for (let i = 0; i < this.n; i++) s += this.dq[i] ** 2 / this.n; return Math.sqrt(s); }
   next() {
     const n = this.n, q = this.q, dq = this.dq, alpha = this.damp;
+    if (this.o) {                                          // (a residual far above the best so far: the history leads astray; start it again)
+      const e = this.error();
+      if (e < this.best) this.best = e;
+      else if (this.o.restart && e > this.o.restart * this.best && this.iter > 1) { this.iter = 0; this.df = []; this.u = []; this.a = []; this.best = e; this.restarts = (this.restarts || 0) + 1; }
+    }
     this.iter++;
     const iter = this.iter, itn = iter - 1, memory = this.memory;
     const it1 = (itn - 1) % memory;               // 0-based slot
@@ -1209,7 +1215,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   // iterations, and the mixer's cost grows with the cube of its history: 3.7 s for 10 atoms, every step)
   const maxIter = opts.maxIter > 0 ? Math.min(MAX_ITER, opts.maxIter) : MAX_ITER;
   const sp = !!opts.spin;                                              // (spin polarization, 1.26: two channels, below)
-  const mixer = new Broyden(sp ? 2 * nsh : nsh, maxIter, MIX_DAMP);
+  const mixer = new Broyden(sp ? 2 * nsh : nsh, opts.mix && opts.mix.memory || maxIter, opts.mix && opts.mix.damp || MIX_DAMP, opts.mix || null);
   let iscf = 0, converged = false, eelec = 0, eext = 0, emo = null, focc = null;
   const vsh = new Float64Array(nsh), vao = new Float64Array(nao);
   let SPN = null;                                                      // the spin channels' state, for the output and the gradient

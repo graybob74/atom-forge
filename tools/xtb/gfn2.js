@@ -347,7 +347,11 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   let qat = qatOf(qsh);
   const maxIter = opts.maxIter > 0 ? Math.min(MAX_ITER, opts.maxIter) : MAX_ITER;
   const sp = !!opts.spin;                              // (spin polarization, 1.26: two channels, spinSCC below)
-  const mixer = new Broyden(sp ? 2 * ndim : ndim, maxIter, MIX_DAMP), mv = new Float64Array(ndim);
+  // (opts.anneal {kt0, hold, cycles}: the electrons start hotter and cool to kt, as tblite's newer annealing: kt0 for the
+  // first `hold` iterations, then down in a straight line over `cycles`; settled only at kt. Atom Forge xTB's SCC aid, 1.26)
+  const AN = opts.anneal || null;
+  const ktAt = (it) => !AN ? kt : it < AN.hold ? AN.kt0 : it < AN.hold + AN.cycles ? AN.kt0 + (it - AN.hold + 1) / AN.cycles * (kt - AN.kt0) : kt;
+  const mixer = new Broyden(sp ? 2 * ndim : ndim, opts.mix && opts.mix.memory || maxIter, opts.mix && opts.mix.damp || MIX_DAMP, opts.mix || null), mv = new Float64Array(ndim);
   const vsh = new Float64Array(nsh), vat = new Float64Array(nat), vao = new Float64Array(nao), vdp = new Float64Array(3 * nat), vqp = new Float64Array(6 * nat);
   const wq = new Float64Array(nao * nao);
   let iscf = 0, converged = false, eelec = 0, eext = 0, emo = null, focc = null, parts = null;
@@ -468,8 +472,9 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       }
       mixer.set(packS(qsh, msh, dp, dm, qp, tm, vec));
       ea = SPIN.solveChannel(symEig, Ha, Li, nao, Wa, Aa); eb = SPIN.solveChannel(symEig, Hb, Li, nao, Wb, Ab);
-      if (opts.spinFree) [fa, fb] = SPIN.fermiShared(fermiFilling, nocc, kt, ea, eb);
-      else { fa = fermiFilling(nel[0], kt, ea); fb = fermiFilling(nel[1], kt, eb); }
+      const ktn = ktAt(iscf - 1);
+      if (opts.spinFree) [fa, fb] = SPIN.fermiShared(fermiFilling, nocc, ktn, ea, eb);
+      else { fa = fermiFilling(nel[0], ktn, ea); fb = fermiFilling(nel[1], ktn, eb); }
       SPIN.channelDensity(Wa, Aa, LiT, fa, nao, Ct, Pa); SPIN.channelDensity(Wb, Ab, LiT, fb, nao, Ct, Pb);
       for (let k = 0; k < nao * nao; k++) { P[k] = Pa[k] + Pb[k]; Pm[k] = Pa[k] - Pb[k]; }
       const qn = new Float64Array(nsh), dn = new Float64Array(3 * nat), tn = new Float64Array(6 * nat);
@@ -485,10 +490,10 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       const eaes = aesEnergy(qat, dp, qp), ed2 = D4.d4Energy2(disp, qat);
       let ex = 0; if (vext) for (let i = 0; i < nat; i++) ex += qat[i] * vext[i];
       espin = SPIN.spinPot(w, atSh, shAt, nsh, msh, new Float64Array(nsh));
-      const ts = entropyTerm(fa, kt) + entropyTerm(fb, kt);
+      const ts = entropyTerm(fa, ktn) + entropyTerm(fb, ktn);
       eelec = eband + e2 + e3 + eaes + ed2 + espin + ts + ex; eext = ex;
       parts = { eband, e2, e3, eaes, ed2, espin, ts };
-      converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc;
+      converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc && ktn <= kt;
       if (opts.verbose) console.log(iscf, (eelec + erep + edisp3).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
     }
     emo = ea; focc = fa;
@@ -546,7 +551,8 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       A[m * nao + n] = v; A[n * nao + m] = v;
     }
     emo = symEig(A, nao, true);
-    const fa = fermiFilling(nel[0], kt, emo), fb = fermiFilling(nel[1], kt, emo);
+    const ktn = AN ? ktAt(iscf - 1) : kt;
+    const fa = fermiFilling(nel[0], ktn, emo), fb = fermiFilling(nel[1], ktn, emo);
     focc = new Float64Array(nao);
     for (let k = 0; k < nao; k++) focc[k] = fa[k] + fb[k];
     const C = W;
@@ -556,7 +562,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       for (let n = 0; n < ncol; n++) { const yn = n * nao; let v = 0; for (let k = m; k < nao; k++) v += LiT[cm + k] * A[yn + k]; C[cm + n] = v; }
       for (let n = ncol; n < nao; n++) C[cm + n] = 0;
     }
-    const ts = entropyTerm(fa, kt) + entropyTerm(fb, kt);
+    const ts = entropyTerm(fa, ktn) + entropyTerm(fb, ktn);
     {
       let nk = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nk = k + 1;
       const Cf = Ct;
@@ -593,7 +599,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     let ex = 0; if (vext) for (let i = 0; i < nat; i++) ex += qat[i] * vext[i];
     eelec = eband + e2 + e3 + eaes + ed2 + ts + ex; eext = ex;
     parts = { eband, e2, e3, eaes, ed2, ts };
-    converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc;
+    converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc && ktn <= kt;
     if (opts.verbose) console.log(iscf, (eelec + erep + edisp3).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
   }
   const Eh = erep + eelec + edisp3;
