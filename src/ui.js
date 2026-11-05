@@ -5920,11 +5920,11 @@ const STAB_DESC = {
   gen: ['General', 'What opens at start, the units the readouts use, rewind, the tour, and what this browser keeps.'],
   d3: ['3-D', 'How the 3-D lab looks and turns: the camera’s lens and projection, fog with depth, the box, the axis marker, labels and a slow turntable; and the keys that fly the camera (W A S D, E and Q). They apply in the 3-D mode only.'],
   ai: ['Claude', 'Access to Claude for Ask Claude and Identify molecules, where this page has none of its own.'],
-  exp: ['Experimental', 'More accurate physics, at a price in speed, and the ultra-realistic mode; all back to normal each time the game starts. Every cost was measured in this game: ×2 means the same moment takes twice as long to work out. The box at the top multiplies the chosen costs together.'],
+  exp: ['Experimental', 'More accurate physics, at a price in speed, and the ultra-realistic mode; all back to normal each time the game starts. Every cost was measured in this game (one thread, liquid water unless it says otherwise; tools/accbench in the source): ×2 means the same moment takes twice as long to work out. The coloured tags beside settings in every tab show what each choice costs, green for little or nothing to red for a lot; the box at the top multiplies the chosen costs together.'],
 };
 const SDESC = {
   // Performance
-  segMax: ['Particle limit', 'The most particles the chamber holds. The limit itself costs nothing; a box filled to it takes longer to work out each step.'],
+  segMax: ['Particle limit', 'The most particles the chamber holds. The limit itself costs nothing; a box filled to it takes longer to work out each step. The Place tool offers 100 at a click once the limit is 8,000 or more.'],
   segRes: ['Drawing resolution', 'How many pixels the chamber is drawn with. Sharp uses the screen’s full resolution; Standard and Fast draw fewer pixels, quicker on big or high-density screens.'],
   setPrio: ['Priority', 'Smooth keeps the frame rate up; Fast lets the physics take more of each frame, so the simulation runs faster but the picture may stutter. Auto picks the position from how this setup runs.'],
   segBudget: ['Physics per frame', 'The time each frame may spend on physics. More runs the simulation faster when the box is busy, at the cost of fewer frames a second.'],
@@ -5932,7 +5932,7 @@ const SDESC = {
   segGl: ['Drawing engine', 'WebGL draws the atoms and bonds on the graphics card. Canvas 2D draws everything on the processor, slower with thousands of atoms; use it only if WebGL misbehaves.'],
   setBench: ['Speed test', 'Builds four reference worlds, times a step of each and a second of real frames under the settings as they are, and says where the time goes. It replaces the current setup while it runs.'],
   // Graphics
-  segFpsCap: ['Frame-rate cap', 'At most this many frames a second. Fewer frames leave more time for physics and run the graphics card cooler.'],
+  segFpsCap: ['Frame-rate cap', 'At most this many frames a second. Fewer frames leave more of each second for the physics in a crowded box, and run the graphics card cooler. A browser cannot draw faster than the monitor refreshes.'],
   segAtom: ['Atom size', 'True size draws atoms as big as they are, touching in a liquid or solid. Smaller and Small shrink the balls so you can see past them into a crowded box.'],
   segLabels: ['Labels', 'The element symbol on each atom: on every atom, only on the one under the mouse and the one inspected, or never.'],
   segBadges: ['Charge badges', 'The small + or − badge on each ion: always, only on hover, or never.'],
@@ -6035,10 +6035,9 @@ function setPrevShow(key, opt) {
       : [`<li><span class="oc c${costLevel(c.on[0])}">${esc('on ' + c.on[0])}</span> ${esc(c.on[1])}</li>`];
     h += `<h4>Cost: ${esc((COST_K[c.k] || c.k).toLowerCase())}${c.t ? ' (' + esc(c.t.toLowerCase()) + ')' : ''}</h4><ul class="sprev-cost">${items.join('')}</ul>`;
   }
-  for (let n = row && row.nextElementSibling; n && n.classList.contains('note'); n = n.nextElementSibling) { // the notes printed under it
-    if (n.hidden || n.id === 'setBenchOut' || n.id === 'setStats' || !n.textContent.trim()) continue;
-    h += `<p class="note">${esc(n.textContent.trim())}</p>`;
-  }
+  let nt = ''; // the row's description notes (.sdn): shown here only, beside the list; on a narrow screen they stay in the list and not here (1.25)
+  for (let n = row && row.nextElementSibling; n && n.classList.contains('note'); n = n.nextElementSibling) if (n.classList.contains('sdn') && !n.hidden && n.textContent.trim()) nt += `<p class="note">${esc(n.textContent.trim())}</p>`;
+  if (nt) h += `<div class="sprev-notes">${nt}</div>`;
   $('setPrevT').textContent = D ? D[0] : (row ? row.textContent.trim().slice(0, 40) : key);
   $('setPrevD').innerHTML = h; $('setPrevD').scrollTop = 0;
 }
@@ -6048,7 +6047,10 @@ function setPrevFrom(t) {
   setPrevShow(setRowKey(row), b ? b.dataset.v : null);
 }
 function setPrevInit() {
-  for (const r of setRows()) setRowKey(r);
+  for (const r of setRows()) { // (a row's notes are descriptions (.sdn), shown in the preview pane only, but its live readouts (aria-live: priority, threads, the speed test, rewind's use) stay under it; the owner: "it repeats the description in the settings menu, but it's supposed to be in the sidebar only", 1.25)
+    setRowKey(r);
+    for (let n = r.nextElementSibling; n && n.classList.contains('note'); n = n.nextElementSibling) if (!n.hasAttribute('aria-live')) n.classList.add('sdn');
+  }
   const box = document.querySelector('#setModal .sbox');
   box.addEventListener('pointerover', (e) => { if (e.pointerType !== 'touch') setPrevFrom(e.target); });
   box.addEventListener('pointerdown', (e) => setPrevFrom(e.target)); // (a tap on touch)

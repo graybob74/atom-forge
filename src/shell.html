@@ -776,6 +776,7 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .sbox > .stabs { position: sticky; top: 0; z-index: 3; background: var(--surface); padding-top: 8px; }
 .sbox .spane > .srow, .sbox .spane > label.check { margin-inline: -8px; padding: 3px 8px; border-radius: 8px; transition: background 0.12s; }
 .sbox .spane > .sprev-on { background: var(--accent-soft); }
+.sbox .spane > p.sdn, .sbox .spane > p.sintro { display: none; } /* (a setting's description is in the preview pane beside the list, not under it too, 1.25) */
 @media (max-width: 760px), (max-height: 560px) {
   #setModal > .sdialog { height: 100%; }
   .sbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
@@ -783,7 +784,8 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
   .sprev-txt { height: 100%; }
   .sprev h3 { font-size: 14px; margin-bottom: 2px; }
   .sprev-d p, .sprev-d p.note, .sprev-d ul { font-size: 12px; margin-bottom: 4px; }
-  .sbox { padding-inline: 12px; }
+  .sbox, .sbox > .sgroup { grid-template-columns: minmax(0, 1fr); } .sbox { padding-inline: 12px; } .sbox .spane > label.check { flex-wrap: wrap; } /* (one column as wide as the box: at 390 px the tabs' row widened it to 412 px and every description ran off the right edge, 1.25) */
+  .sbox .spane > p.sdn, .sbox .spane > p.sintro { display: block; } .sprev-notes { display: none; } /* (stacked, the pane is a short strip: the long descriptions stay in the list, 1.25) */
 }
 @media (max-width: 420px) { .sprev { grid-template-columns: 96px minmax(0, 1fr); height: 84px; } }
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }

@@ -244,6 +244,58 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+## 1.25 (in progress)
+
+The "For 1.25" list, part 1 (branch v128): hexazine with quantum bonds, Settings descriptions, continuous bond orders for
+Ge–Te, continuous bond orders in 3-D.
+
+- **Hexazine stays whole with quantum bonds** (the owner: "Hexazine doesn't fly apart with quantum bond orders in 2d").
+  An investigation; nothing in the physics changed. Measured with the game's own GFN1-xTB + D3 (`XTB.gfn1Energy`,
+  `d3Disp`; scripts in the session's scratchpad, the numbers repeated by tests/f_125.js `hexazine`):
+  - GFN1-xTB itself gives the ring a barrier. Flat D₆h ring: N–N 1.296 Å. In-plane path to 3 N₂ (D₃h: the three long
+    N···N stretched together, the short bonds and angles relaxed at each point): highest at long N···N 1.60–1.65 Å, short
+    1.17 Å, **0.53 eV above the ring**; one N₂ leaving first (two long bonds stretched, the rest relaxed): 0.53 eV too.
+    Past 1.65 Å it runs downhill to 3 N₂. The whole reaction releases **only 1.67 eV** in GFN1-xTB (N₂ comes out 14.6 eV
+    bound against a real 9.8; the ring is overbound more). From bond energies the real release is about 9–10 eV
+    (3 N≡N 29.4 eV against six N–N of order 1.5, about 18–19 eV). Published high-level work (Saxe & Schaefer 1983;
+    Glukhovtsev & Schleyer 1992; Gagliardi et al. 1998–2000, from memory: the web was not reachable from here, the
+    proxy refused it) puts planar hexazine at best a shallow minimum with a small barrier to 3 N₂, of the same order
+    as GFN1's (tenths of an eV to about 1 eV); worth checking before quoting a number to the owner.
+  - The flat world does not hold it. In 3-D GFN1 puckers the flat ring (D₆h is a second-order saddle there: an
+    out-of-plane pair of modes at 250i cm⁻¹; the puckered ring is 0.15 eV lower, atoms 0.23 Å out of the plane), and the
+    barrier from it is a little higher, 0.62 eV (concerted) and 0.62 (one N₂ first), against 0.53 flat.
+  - Nothing on the game's side: Mulliken charges on the ring 0.000 (by symmetry), D3 changes the barrier by 0.001 eV,
+    the electronic temperature by nothing, all six atoms are members, the SCC converges in 3 iterations; the books hold
+    (insulated runs below: ≤ 0.007 eV over 5 ps).
+  - So it stays whole because 0.53 eV is a lot for picoseconds: at 300 K a 10¹³/s attempt rate gives ~80 µs, 10⁸ times
+    longer than the game runs. In the game (six N atoms in the ring, quantum bonds, insulated, the temperature given at
+    the start; the ring takes half of it): 2-D from 300 and 1,000 K whole over 0.4 and 6.1 ps; from 1,500 K whole over
+    4.9 ps (3 seeds); from 2,000 K three N₂ after 0.98 and 0.17 ps (2 of 3 seeds); from 3,000 K after 0.027 ps, 6,000 K
+    0.015 ps. 3-D: whole from 1,500 K (3 seeds), from 2,000 K three N₂ after 2.2 ps (1 of 2 seeds), 3,000 K 0.17 ps,
+    6,000 K 0.064 ps. Heated (Heat tool, a spark, a fast atom), it does fly apart, but with a fifth of the real energy.
+  - What would change it is a choice of model, not a bug: GFN1-xTB's nitrogen energies (the release 1.7 eV against
+    ~9–10). For the owner.
+- **Settings: a setting's description in the side pane only** (the owner: "it repeats the description in the settings
+  menu, but it's supposed to be in the sidebar only"; display fix). The notes printed under a row (its long description)
+  were shown under it in the list and copied into the side pane (1.23). Now (`setPrevInit`) a row's notes are marked as
+  its description (`.sdn`) unless they are live readouts (`aria-live`: priority, threads, the speed test, rewind's use,
+  which stay under their row, and are no longer copied into the pane as a stale snapshot); the list hides them beside the
+  pane, the pane shows them. The two tab introductions (Experimental, 3-D) are hidden in the list too (`.sintro`): the
+  pane's tab overview says the same (the Experimental one now carries the note's extra lines). Four notes that only
+  repeated the pane's description were folded into it (Physics per frame / Particle limit, Frame-rate cap, Panel width,
+  Energies in). Kept in the list: cost tags, "These go back to normal each time the game starts", the 3-D note and the
+  flying keys. Narrow screens (≤ 760 px wide or ≤ 560 tall, where the pane is a strip about 90 px high on top): the
+  descriptions stay in the list and the strip shows the picture, the short description and the costs. Found and fixed
+  there: at 390 px the list was 412–436 px wide (the tabs' row and the Experimental checkboxes' tags set its width), so
+  every description ran 13–80 px off the right edge; now one column the box's width, the checkbox rows wrap (worst
+  overflow 1 px, rounding). Before/after: visible descriptions under rows at 1360 px, 18 → 0 (perf 1, gfx 1, disp 1,
+  gen 2, d3 1, ai 1, exp 11); at 390 px overflow 13 / 80 px (Performance / Experimental) → 1 / 0. Screenshots
+  125-before-settings-exp-1360.png, 125-before-settings-exp-390.png, 125-after-settings-exp-1360.png,
+  125-after-settings-exp-390.png.
+- Tests: tests/f_125.js (t_features' 1.25 block, or `node tests/f_125.js [hexazine settings …]`). `settings` fails on
+  1.24.0 (18 descriptions under rows, 80 px overflow); `hexazine` records the measurements above and passes on 1.24.0
+  too (nothing changed).
+
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
 The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on branch v127.
