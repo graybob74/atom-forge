@@ -210,9 +210,9 @@ async function stage3(page, clip, errors) {
   // Out of 3-D through the main menu (the Leave button went in 1.23.2): 2-D, then a flat setup; the flat game back (its setups, its tools)
   await page.evaluate(() => { loadPreset('water'); loadPreset('combustion3d'); showMainMenu(); });
   await page.waitForTimeout(150);
-  await page.click('#mmMode2d'); await page.waitForTimeout(150);
+  await page.evaluate(() => $('mmMode2d').click()); await page.waitForTimeout(150); // (the menu's buttons move as it comes in: clicked from the page)
   await page.evaluate(() => { mmSetups(); }); await page.waitForTimeout(100);
-  await page.click('#mmList [data-mmp="water"]'); await page.waitForTimeout(250);
+  await page.evaluate(() => document.querySelector('#mmList [data-mmp="water"]').click()); await page.waitForTimeout(250);
   const lv = await page.evaluate(() => ({ d3: W.d3, preset: UI.preset, hidden: $('tag3d').hidden && !$('bLeave3d'), magnet: document.querySelector('.tool[data-tool="magnet"]').classList.contains('no3d'), bSlider: $('bSlider').disabled, has2d: !!document.querySelector('#preset option[value="soup"]'), has3d: !!document.querySelector('#preset option[value="water3d"]'), bo: [...$('segBo').querySelectorAll('button')].some(b => b.disabled) }));
   check(!lv.d3 && lv.preset === 'water' && lv.hidden && !lv.magnet && !lv.bSlider && lv.has2d && !lv.has3d && !lv.bo, `out of 3-D by the main menu (2-D, then ${lv.preset}): the flat list and every tool, no Preview label`, lv);
 }

@@ -7582,18 +7582,34 @@ function addAtom(sym, x, y, opts = {}) {
 }
 /* Tiny objects, and anything else as big (Claude's lattices, large built molecules), go down one at a time, as drawn. */
 function molWhole(M) { return !!M && (M.cat === 'objects' || M.atoms.length > 90); }
+/* Which library a molecule belongs to (1.23.2, asked for by the owner: "separate molecule libraries for 2-D and 3-D").
+   The rule, from the library itself: every ordinary molecule (at most 36 atoms, all of them) is a flat drawing that the
+   3-D lab lifts out of its plane and relaxes into its shape in space (place3), so it is in both; the tiny objects and
+   anything over 90 atoms (molWhole) are flat builds, 2-D only; the 3-D tiny objects (stored with z) are 3-D only; a
+   molecule of your own made for one mode (Ask Claude's 2-D / 3-D choice) is in that one only, and those kept before
+   1.23.2, plain molecules, in both. */
+function molFits(M, d3) {
+  if (!M) return false;
+  if (M.z) return !!d3;
+  if (molWhole(M)) return !d3;
+  if (M.mode === '2d') return !d3;
+  if (M.mode === '3d') return !!d3;
+  return true;
+}
 function addMolecule(key, x, y, rot = 0, T, z = 0) {
   const M = MOLECULES[key];
   if (!M) return [];
   const c = Math.cos(rot), s = Math.sin(rot);
   let cx = 0, cy = 0; for (const a of M.atoms) { cx += a[1]; cy += a[2]; } cx /= M.atoms.length; cy /= M.atoms.length;
-  const atoms = M.atoms.map(([sym, ax, ay, q, A]) => { // (A: the mass number of an isotope other than the usual one)
+  const in3 = !!(M.z && W.d3); let cz = 0; if (in3) { for (const v of M.z) cz += v; cz /= M.z.length; } // (a 3-D build, 1.23.2: its own depths)
+  const atoms = M.atoms.map(([sym, ax, ay, q, A], i) => { // (A: the mass number of an isotope other than the usual one)
     const dx = ax - cx, dy = ay - cy;
-    const p = addAtom(sym, x + dx * c - dy * s, y + dx * s + dy * c, { charge: q || 0, A: A || 0, T: 0, z });
+    const p = addAtom(sym, x + dx * c - dy * s, y + dx * s + dy * c, { charge: q || 0, A: A || 0, T: 0, z: in3 ? z + M.z[i] - cz : z });
     return p;
   });
   for (const [i, j, o] of M.bonds) addBond(atoms[i], atoms[j], o);
-  if (W.d3) place3(atoms, x, y, z); // (3-D: tipped at random, jiggled out of its plane, and relaxed into its shape in space)
+  if (in3) { for (const p of atoms) { p.ox = p.x; p.oy = p.y; p.oz = p.z; } W.dirty++; } // (already relaxed in 3-D: put down as built)
+  else if (W.d3) place3(atoms, x, y, z); // (3-D: tipped at random, jiggled out of its plane, and relaxed into its shape in space)
   // whole-molecule thermal motion
   let mt = 0; for (const a of atoms) mt += a.m;
   const [vx, vy, vz] = thermalV(mt, T !== undefined ? T : W.T);

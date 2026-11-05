@@ -168,7 +168,7 @@ engine stores and visits particles.
   ordinary game stays flat (a 2-D "locker"), and the 3-D mode gives full 3-D. Kept apart because 3-D would slow the
   game (a cube as wide as today's box holds about 50 times the atoms, each with 2–3 times the neighbours) and touch
   everything: the engine, walls, drawing, every tool, picking in depth, the flattened molecule library, the chips.
-- Continuous bond orders for more elements (asked by the user after 1.21, "can you add the rest?"): today H, B, C, N,
+- Continuous bond orders for more elements (asked by the user after 1.21, "can you add the rest?"; planned for 1.25): today H, B, C, N,
   O, F, Si, P, S, Cl, Br, I. The covalent p-block left (Ge, As, Se, Sn, Sb, Te) fits the same model: the game's bond
   table already has measured energies for them; each needs its valence, angle targets (periods 4–5), electronegativity
   and size checked, and the molecules relaxed and compared with stored bonds as for the first twelve. Not metals
@@ -176,7 +176,7 @@ engine stores and visits particles.
   metallic cohesion for them; a metal bond-order model, embedded-atom style, would be a separate project), not ionic
   pairs (charges already), not the noble gases. A physics-model change for the owner to approve. Every element up to
   Rn is in quantum bonds (1.22) for small systems.
-- Bond orders for metals (asked by the user after 1.21, to come after 3-D): a many-body metal model in which a metal
+- Bond orders for metals (asked by the user after 1.21, to come after 3-D; planned for 1.25): a many-body metal model in which a metal
   atom's bonding comes from its surroundings rather than from whole bonds with a fixed valence: the embedded-atom form
   (Daw & Baskes 1984; each atom's energy a function of the electron density its neighbours give it), or the
   second-moment tight-binding form (Finnis–Sinclair, Cleri–Rosato), fitted per metal to measured cohesive energy,
@@ -221,6 +221,15 @@ engine stores and visits particles.
   - Magnets and fields in 3-D (the Magnet tool, the B and E sliders and the field direction; fields3dNote).
   - The Light tool in 3-D (light in 3-D today flies out of the box unabsorbed, engine.js 3411).
   - Not the placed objects (mirrors, lenses, prisms, screens…: the user, "keep objects out for now").
+  - Placing and firing in 3-D (the owner: "there should be a better system for more accurate placing and firing in
+    3d"; he chose these three, not a 3-D aim arrow tilted by a second drag):
+    - A visible placing plane: a faint grid at the depth things are placed at (today s2w3's plane through the camera
+      target, square to the view), a ghost of the item and a drop line to the box floor so its depth reads; a modifier
+      + wheel (or a slider) moves the plane nearer or farther.
+    - Placing next to what you point at: hovering an atom (pick3) places the new item against its surface on the side
+      facing the camera, instead of on the plane.
+    - Firing from the camera: with the WASD camera (1.23.2), fire from the eye toward the pointer (first-person
+      style); clicking an atom aims straight at it.
   For 1.25 (reported by the owner; not built yet):
   - "Hexazine doesn't fly apart with quantum bond orders in 2d" (the owner, after 1.23.1). Hexazine (N₆ ring) is very
     unstable in reality (it falls apart to 3 N₂, releasing a lot of energy); with quantum bonds (GFN1-xTB, Experimental
@@ -232,6 +241,10 @@ engine stores and visits particles.
     setting's description shows both under the setting in the Settings list and in the side preview pane (1.23's
     sidebar); he wants it in the sidebar only. Seen on quantum bond orders; check every tab. Keep what the sidebar can't
     show (e.g. live readouts, cost tags) where it is.
+  - Continuous bond orders for more elements (Ge, As, Se, Sn, Sb, Te): the entry "Continuous bond orders for more
+    elements" above (planned for 1.25).
+  - Bond orders for metals (an embedded-atom / second-moment many-body model): the entry "Bond orders for metals" above
+    (planned for 1.25).
 - Continuous bond orders (a less hard-coded chemistry): bond order worked out from the atoms' distances and
   arrangement, as reactive research force fields do, instead of stored whole-number orders (a big rewrite of the
   chemistry; asked for by the user).

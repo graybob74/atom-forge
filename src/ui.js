@@ -291,6 +291,7 @@ function placeHint() {
 }
 function selectSpec(s) {
   if (W.d3 && !spec3dOK(s)) { log('tool', `${specLabel(s)}: ${NOT_3D.toLowerCase()}`); return; }
+  if (!W.d3 && s && s.kind === 'mol' && MOLECULES[s.mol] && !molFits(MOLECULES[s.mol], false)) { log('tool', `${MOLECULES[s.mol].name}: made for the 3-D lab (main menu → 3-D)`); return; } // (the 3-D library's own, 1.23.2)
   UI.spec = s;
   if (!QUICK.some(q => q !== 'sep' && sameSpec(q.spec, s))) UI.customSpec = s;
   buildPalette();
@@ -741,7 +742,8 @@ function molSearch(q) {
   const t = q.trim().toLowerCase(), tf = t.replace(/\s+/g, '');
   const out = [];
   for (const k in MOLECULES) {
-    const m = MOLECULES[k], n = m.name.toLowerCase(), f = molPlainFormula(k).toLowerCase();
+    const m = MOLECULES[k]; if (!molFits(m, W.d3)) continue; // (this mode's library only, 1.23.2)
+    const n = m.name.toLowerCase(), f = molPlainFormula(k).toLowerCase();
     let sc = 0;
     if (n.startsWith(t) || n.split(/[\s(,-]+/).some(w => w.startsWith(t))) sc = 4;
     else if (n.includes(t)) sc = 3;
@@ -763,7 +765,7 @@ function renderMolList() {
   } else {
     for (const [c, name] of MOLECULE_CATS) {
       if (MOL_UI.cat && c !== MOL_UI.cat) continue;
-      const ks = Object.keys(MOLECULES).filter(k => MOLECULES[k].cat === c);
+      const ks = Object.keys(MOLECULES).filter(k => MOLECULES[k].cat === c && molFits(MOLECULES[k], W.d3)); // (this mode's library, 1.23.2)
       if (!ks.length) continue;
       html += `<section class="msec">${MOL_UI.cat ? '' : `<h3>${esc(name)}</h3>`}<div class="mgrid">${ks.map(molCard).join('')}</div></section>`;
     }
@@ -773,10 +775,10 @@ function renderMolList() {
   for (const b of $('molCats').querySelectorAll('.mcat')) b.setAttribute('aria-pressed', String(b.dataset.c === MOL_UI.cat));
 }
 function renderMolCats() {
-  const n = Object.keys(MOLECULES).length, count = (c) => Object.values(MOLECULES).filter(m => m.cat === c).length;
+  const fit = Object.values(MOLECULES).filter(m => molFits(m, W.d3)), n = fit.length, count = (c) => fit.filter(m => m.cat === c).length; // (this mode's library, 1.23.2)
   if (MOL_UI.cat && !count(MOL_UI.cat)) MOL_UI.cat = '';
   $('molCount').textContent = String(n);
-  $('molSearch').placeholder = `Search ${n} molecules by name, formula or use`;
+  $('molSearch').placeholder = `Search ${n} molecules${W.d3 ? ' for 3-D' : ''} by name, formula or use`; { const t = $('molTitle3'); if (t) t.hidden = !W.d3; }
   $('molCats').innerHTML = `<button class="mcat" data-c="" aria-pressed="true">All<span>${n}</span></button>` +
     MOLECULE_CATS.filter(([c]) => count(c)).map(([c, name]) => `<button class="mcat" data-c="${c}" aria-pressed="false">${esc(name)}<span>${count(c)}</span></button>`).join('');
 }
@@ -848,11 +850,27 @@ function placeObject(spec, x, y) {
   log('tool', `The box opened to ${fmtNum(W.box.w / 10, 3)} nm wide to make room for ${M.name}`);
   return ps;
 }
+/* A 3-D tiny object (1.23.2) goes down one at a time, as built (turned about the vertical only), centred where it is
+   put but kept inside the box, moved to the nearest clear spot (placeClear), and not at all when the box is too small
+   or too full for it (a 3-D box keeps its size). */
+function placeObject3(spec, x, y, z) {
+  const M = MOLECULES[spec.mol], m = 1.5;
+  let r = 0; const n = M.atoms.length; let cx = 0, cy = 0, cz = 0; for (let i = 0; i < n; i++) { cx += M.atoms[i][1]; cy += M.atoms[i][2]; cz += M.z[i]; } cx /= n; cy /= n; cz /= n;
+  for (let i = 0; i < n; i++) r = Math.max(r, Math.hypot(M.atoms[i][1] - cx, M.atoms[i][2] - cy, M.z[i] - cz));
+  const lx = W.box.w / 2 - r - m, ly = W.box.h / 2 - r - m, lz = W.box.d / 2 - r - m;
+  if (lx < 0 || ly < 0 || lz < 0) { log('tool', `${M.name} is ${fmtNum(2 * r / 10, 2)} nm across: too big for this ${fmtNum(W.box.w / 10, 2)} nm box`); return []; }
+  const ps = spawnSpec(spec, clamp(x, -lx, lx), clamp(y, -ly, ly), undefined, clamp(z, -lz, lz));
+  if (!ps.length) return [];
+  _crowd = null; const ok = placeClear(ps, Math.max(8, r)); _crowd = null;
+  if (!ok) { for (const p of ps) kill(p); W.parts = W.parts.filter(p => !p.dead); W.dirty++; log('tool', `No room for ${M.name} here: clear a space first`); return []; }
+  W.dirty++;
+  return ps;
+}
 const FLY_KINDS = new Set(['exo', 'nu', 'gamma']); // (unstable particles, neutrinos, light: not atoms; placed by placeFly)
 function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
   if (W.d3 && !spec3dOK(spec)) { log('tool', `${specLabel(spec)}: ${NOT_3D.toLowerCase()}`); return []; }
   if (FLY_KINDS.has(spec.kind)) return placeFly(spec, x, y, count);
-  if (isObject(spec)) return placeObject(spec, x, y);
+  if (isObject(spec)) return W.d3 ? placeObject3(spec, x, y, z) : placeObject(spec, x, y);
   const out = [];
   const sz = specSize(spec);
   if (W.d3) cam3Update();
@@ -4011,11 +4029,11 @@ const NOT_3D = 'Not in 3-D yet';
 const TOOLS_NO3D = new Set(['magnet', 'objects', 'light']);
 const MODE3 = { on: null, last2d: null };
 function is3dPreset(k) { return !!(PRESETS[k] && PRESETS[k].d3); }
-/* What can be put in a 3-D world: atoms and ions (not antimatter), molecules (not the tiny objects, laid out flat),
-   and free electrons. */
+/* What can be put in a 3-D world: atoms and ions (not antimatter), molecules of the 3-D library (molFits: not the flat
+   tiny objects; the 3-D ones, 1.23.2), and free electrons. */
 function spec3dOK(s) {
   if (!s) return false;
-  if (s.kind === 'mol') return !!MOLECULES[s.mol] && !molWhole(MOLECULES[s.mol]);
+  if (s.kind === 'mol') return molFits(MOLECULES[s.mol], true);
   if (s.kind === 'atom') return !s.anti;
   return s.kind === 'e';
 }
