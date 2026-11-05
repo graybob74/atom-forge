@@ -131,7 +131,14 @@ const MBX_FIT = {
 /* ---- alloys (1.26): pairs of metals with constants of their own, [A (the pair's whole repulsion) eV, ξ eV, p, q, r₀ Å] by
    smaller Z * 128 + larger, fitted (tools/mbfit.js --alloys) to a strongly bound compound's measured heat of formation at
    its measured lattice (p, q the two metals' means, r₀ its a–b distance); other pairs mix the two metals' constants. */
-const MBA_FIT = {};
+const MBA_FIT = {
+  1692: [0.320445, 1.92607, 9.4181, 2.47001, 2.50022], // Ni–Al: NiAl (B2), ΔHf -117.6 kJ/mol
+  2844: [0.360358, 2.08898, 10.142, 2.29361, 2.61107], // Ti–Ni: TiNi (B2), ΔHf -68 kJ/mol
+  1690: [0.350112, 1.82481, 8.69396, 2.5321, 2.51927], // Fe–Al: FeAl (B2), ΔHf -56 kJ/mol
+  3742: [0.15607, 0.990478, 11.9037, 2.46946, 2.55477], // Cu–Zn: CuZn (B2), ΔHf -24.6 kJ/mol
+  3791: [0.342467, 1.68373, 10.7907, 3.17152, 2.65094], // Cu–Au: Cu3Au (L12), ΔHf -28.4 kJ/mol
+  1686: [0.36729, 2.00202, 7.79748, 2.59504, 2.84938], // Ti–Al: TiAl (L10), ΔHf -75.2 kJ/mol
+};
 function mbXP(Zm, Zx) {
   const key = Zm * 128 + Zx;
   let v = MBO.xp.get(key);

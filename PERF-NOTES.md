@@ -394,6 +394,34 @@ formation, Wyckoff structures, bulk moduli from the literature), flagged here: w
   partners and a Cl⁻), books (moves, O₂ split, an F⁻'s image), page (Settings words in both modes, the note, Help).
   Each fails on cc8a0fd.
 
+**2. Alloys.** Before: unlike metals mixed their constants (r₀, p, q averaged, A and ξ geometric means), so strongly
+bound pairs came out barely bound (an Al atom in Ni +0.15 eV, Ni in Al −0.09; Cu₃Au −0.022 eV an atom against −0.074
+measured).
+- **The model**: a pair of metals may have constants of its own (`MBA_FIT`: the pair's whole repulsion A and its ξ, with
+  p and q the two metals' means and r₀ the compound's a–b distance); the rest still mix. Fitted by
+  `node tools/mbfit.js --alloys [--write]` on one compound each, its crystal built in the game as for the oxides
+  (unrelaxed): the measured heat of formation at the measured lattice, no force on scaling. NiAl (B2, −58.8 kJ/mol of
+  atoms), NiTi (B2, −34), FeAl (B2, −28), CuZn (β-brass, B2, −12.3), Cu₃Au (L1₂, −7.1), TiAl (L1₀, −37.6) (from memory).
+- **Measured** (3-D, periodic, 108 sites; relaxed by quenching unless said):
+
+  | | 1.25 (mixed) | 1.26 | measured |
+  |---|---|---|---|
+  | Ni₃Al (L1₂, not fitted), at its best lattice | — | −169.7 kJ/mol, lattice −0.6% | −165.2 |
+  | CuAu (L1₀, not fitted) | — | −17.6 kJ/mol, lattice 0.0% | −18.2 |
+  | an Al atom dissolved in Ni / Ni in Al | +0.15 / −0.09 eV | −1.72 / −0.93 | about −1.5 / strongly bound |
+  | Au in Cu / Cu in Au | 0.00 / +0.03 | −0.20 / −0.13 | about −0.13 / −0.19 |
+  | Cu₃Au ordered, random (both relaxed), eV an atom | −0.022, −0.003 | −0.074, −0.040 | −0.074, about −0.05 |
+  | Cu₃Au ordering (ordered − random) | −0.019 | −0.033 | about −0.02 to −0.03 (disordering enthalpy) |
+  | disordered CuAu, heat of mixing | −0.001 | −0.042 | about −0.05 |
+  | Ag in Cu, Cu in Ni (no constants of their own) | +0.30, +0.05 | unchanged | +0.39, +0.03 |
+
+  Not measured: the order–disorder temperature itself (a Monte Carlo of swaps, hours here); the ordering energy says
+  Cu₃Au orders, by about the right amount.
+- **Forces and energy**: the same pair code with other constants (the forces part of f_125m's Cu–Ag–Au and f_126m's).
+- **Cost**: none (a table lookup when the pair table is made).
+- Tests: f_126m `alloy` (Ni₃Al and CuAu within 10%, Al in Ni below −1 eV, Cu₃Au ordered below random); fails on cc8a0fd
+  (Al in Ni +0.15).
+
 ## 1.25 (in progress)
 
 Approved by the owner on 2026-11-05 (after the reports): bond orders for metals (Many-body, flat melting left as it

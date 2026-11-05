@@ -1,7 +1,7 @@
 'use strict';
 /* The 1.26 checks for the many-body metals' oxides, hydrides, alloys and directional bonding (Settings → Experimental →
    Metals → Many-body; src/bometal.js), run by t_features (its "1.26 (metals)" block) or alone: node tests/f_126m.js
-   [part …] (parts: oxide, surface, forces, books, page). Each fails on 1.25 (cc8a0fd). The physics parts run in the Node
+   [part …] (parts: oxide, surface, forces, books, alloy, page). Each fails on 1.25 (cc8a0fd). The physics parts run in the Node
    harness (deterministic); page in the t_features page. (check(ok, good, bad); say(...)) */
 const { load } = require('./load');
 const PARTS = {};
@@ -103,13 +103,38 @@ PARTS.books = async (page, check) => {
     `1.26 metals: the event books stay exact with O, H and ions on the metal (a partner moved ${out.partner.toExponential(0)}, a member ${out.member.toExponential(0)}, an ion ${out.ion.toExponential(0)}, O₂ split ${out.split.toExponential(0)} eV off the total's change); F⁻ next to the metal feels its image (${out.image} eV)`,
     '1.26 metals books: ' + JSON.stringify(out));
 };
+/* ---- 6. alloys: strongly bound pairs have constants of their own, fitted to one compound each (NiAl, Cu₃Au …); the
+   other compound of the pair comes out (Ni₃Al, CuAu), Al dissolves in Ni with a large heat, Cu₃Au is lower ordered than
+   at random (1.25: Al in Ni +0.15 eV, the mixed constants) */
+PARTS.alloy = async (page, check) => {
+  const F = require('../tools/mbfit.js'), X = F.X; X.mbSet(1);
+  const out = {};
+  for (const c of F.ALCHECK) {
+    const pa = X.mbParam(X.SYM2Z[c[0]]), pb = X.mbParam(X.SYM2Z[c[1]]);
+    let best = Infinity; for (let s = 0.96; s <= 1.04; s += 0.004) best = Math.min(best, F.energy(c, s).E);
+    out[c[0] + c[2] + c[1]] = { dHf: +((best + c[2] * pa.Ec + c[3] * pb.Ec) * KJ).toFixed(1), meas: c[4] };
+  }
+  // one Al atom in a periodic Ni crystal (3-D, 108 sites, unrelaxed) against bulk Ni and bulk Al
+  const fcc = (sym, a, n, sub) => { const cc = a * Math.SQRT2, L = n * cc; X.baseWorld(L, L, 1, 0); X.W.gamma = 0; X.world3d(L); X.W.wall = 'wrap'; const B = [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]]; let k = 0; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) for (let l = 0; l < n; l++) for (const b of B) X.addAtom(sub(k++, i + b[0], j + b[1], l + b[2]) || sym, (i + b[0] + 0.25) * cc - L / 2, (j + b[1] + 0.25) * cc - L / 2, { z: (l + b[2] + 0.25) * cc - L / 2 }); X.gridTouch(); X.vlInvalidate(); X.computeForces(); return X.totalEnergy().pe; };
+  const ni = X.mbParam(28), al = X.mbParam(13), E0 = fcc('Ni', ni.r0, 3, () => 0), E1 = fcc('Ni', ni.r0, 3, (k) => k === 13 ? 'Al' : 0);
+  out.AlInNi = +(E1 - E0 * 107 / 108 + al.Ec).toFixed(2);
+  // Cu₃Au: L1₂ against one fixed random arrangement of the same atoms, both at a = 2.651 Å (unrelaxed)
+  const perm = []; for (let k = 0; k < 108; k++) perm.push(k < 27 ? 'Au' : 'Cu'); for (let k = 107, g = 12345; k > 0; k--) { g = (g * 1103515245 + 12345) % 2147483648; const j = g % (k + 1); [perm[k], perm[j]] = [perm[j], perm[k]]; }
+  const eo = fcc('Cu', 2.651, 3, (k, x, y, z) => (x % 1 === 0 && y % 1 === 0 && z % 1 === 0) ? 'Au' : 0), er = fcc('Cu', 2.651, 3, (k) => perm[k]);
+  out.ordering = +((eo - er) / 108).toFixed(3);
+  X.mbSet(0);
+  const ok = (o) => Math.abs(o.dHf / o.meas - 1) < 0.1;
+  check(ok(out.Ni3Al) && ok(out.Cu1Au) && out.AlInNi < -1 && out.ordering < -0.01,
+    `1.26 metals: alloys with constants of their own (fitted on NiAl, Cu₃Au, NiTi, FeAl, CuZn, TiAl): Ni₃Al ${out.Ni3Al.dHf} kJ/mol (measured −165.2), CuAu ${out.Cu1Au.dHf} (−18.2), an Al atom in Ni ${out.AlInNi} eV (unrelaxed; 1.25: +0.15), Cu₃Au ordered ${-out.ordering} eV an atom below random`,
+    '1.26 metals alloy: ' + JSON.stringify(out));
+};
 /* ---- 5. the page: the setting's words in both modes and Help say what it now covers */
 PARTS.page = async (page, check) => {
   const r = await page.evaluate(() => {
     const d2 = (SDESC.segMetal || [])[1] || '', d3 = (SDESC3.segMetal || [])[1] || '';
     const help = (document.body.innerHTML.match(/<li><b>Metallic bonding<\/b>[^]*?<\/li>/) || [''])[0];
     const note = (document.querySelector('#segMetal') && document.querySelector('#segMetal').closest('.srow').nextElementSibling || {}).textContent || '';
-    return { d2: /oxid/i.test(d2), d3: /oxid/i.test(d3), help: /oxid/i.test(help), note: /oxid/i.test(note) };
+    return { d2: /oxid/i.test(d2), d3: /oxid/i.test(d3), help: /oxid/i.test(help) && /alloy/i.test(help), note: /oxid/i.test(note) };
   });
   check(r.d2 && r.d3 && r.help && r.note, '1.26 metals: Settings (flat and 3-D words, the note) and Help describe oxides and hydrides with the many-body metals', '1.26 metals page: ' + JSON.stringify(r));
 };
