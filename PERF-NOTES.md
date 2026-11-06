@@ -262,7 +262,7 @@ engine stores and visits particles.
     orders in 3-D in WebAssembly (above; done in 1.26).
   Bugs on record (found while building 1.23.2–1.25; not fixed yet, for a bug-fix session; the owner: "keep these bugs
   on record"):
-  - [looked at after 1.25: a model choice, for the owner] Flat copper with the normal pair model turns itself into ions: 120 of 127 atoms of a flat Cu lump within 2 ps at
+  - [fixed in 1.26: the section "1.26: copper ions"] Flat copper with the normal pair model turns itself into ions: 120 of 127 atoms of a flat Cu lump within 2 ps at
     300 K (Ag, Au, Fe, Na don't). Screenshot 125m-flat-pairs.png.
   - [fixed after 1.25] Dense metals in 3-D are slow with either metal model: 767 Cu atoms about 80 ms a step, nearly all estimating
     electron transfers.
@@ -336,10 +336,12 @@ Waiting for the owner:
 - The spin-branch booking bug goes to a bug-fix session (prompt written 2026-11-05, branch bugfix-126 from v136).
 - Approved (the owner, 2026-11-05: "ok sounds good"): Polarized becomes the normal Spins setting once the spin-branch
   booking bug is fixed (not before).
+- Decided (the owner, 2026-11-05: "fix cu ions"): the bug session's model question #1 (flat Cu ions), fixed on branch
+  v137 (the section "1.26: copper ions").
 - To decide: the spin-branch booking change (a polarized step that fails to settle
   restarts paired and the switch back is paid to the bath although nothing changed: books jump ~0.3 eV in 1 of 4 hot
-  radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #1 (flat Cu ions),
-  #3 (AsCl₅) and #16 (3-D water recapture, physics).
+  radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #3 (AsCl₅) and #16
+  (3-D water recapture, physics).
 
 For 1.27 (not built): polarizability that differs by direction; a different form for close-packed metals' directions
 (fourth moment or MEAM screening; the owner: "try bigger model later"), fitted with the liquid held to 1.25's and fcc/hcp/bcc in order; another Atom Forge xTB only with a new plan for
@@ -348,6 +350,59 @@ benzene's induced charges ×14 too large; O₂ near NH₃ never settles (quantum
 Test on record: t_features' 1.23.1 "Continue after a restart" check fails on 1.25 (v128) as on 1.26: the restored world has
 1–3 particles more than were saved (72 → 73, 73 → 74); for a bug-fix session. t_page's slow-motion button check fails
 alone on both here too (the known flake).
+
+### 1.26: copper ions (the owner: "fix cu ions")
+
+Item 1 of the "Bugs on record" (the bug session's model question #1), approved as a physics change; branch v137 (from
+v136). Check: tests/f_cu126.js (t_features, alone).
+- **What was wrong.** With the normal pair metals a lump of copper turned itself into ions: 118 of a flat 127-atom lump
+  Cu⁺/Cu⁻ within 2 ps at 300 K (seed 7, bath on). It was not only copper and not only flat: every metal that can hold an
+  extra electron (electron affinity 0.7 eV or more: Cu, Ag, Au, Ni, Pt …) did it in 3-D at 300 K, and flat at 1,000 K.
+- **Why.** The books were exact; the pair model predicted it. evTransfer let a neutral metal atom give its electron
+  to a neighbour in the same metal when the pull of the Cu⁺Cu⁻ pair (with the other pairs lined up beside it, stronger in
+  the flat world) paid IE − EA (6.49 eV for Cu). In a real metal the conduction electrons belong to the whole piece and
+  screen such a pair: two atoms of one metal do not become a cation and an anion.
+- **What changed** (engine.js: ionPairInMetal, inMetal, one test in evTransfer). A transfer is refused when it would
+  make a cation and an anion of two metal atoms (donor's charge ≥ 0, acceptor's ≤ 0) within their metallic reach
+  (2.1·r_m) and one of the two sits in a metal: another metal atom in its first shell, 1.3·r_m (a close-packed crystal's
+  second shell is at 1.41·r_m, the flat sheet's at 1.73). The other way round (it lowers or keeps the charges) is
+  taken instead when it is open. Same in 2-D and 3-D, pairs and many-body. Not touched: a metal giving electrons to O,
+  Cl …; charges already in a metal moving on or cancelling (Cu⁺ + Cu → Cu + Cu⁺, Cu⁺ + Cu⁻ → 2 Cu); lone metal atoms (a
+  vapour: the flame's K + Cu → K⁺ + Cu⁻); ions with no metal neighbours. The test runs after the cheap estimate and its
+  random draw, so a run differs from 1.26 only from the first transfer it refuses. A "screened Coulomb inside a metal"
+  was the other option; it would change the forces in every kernel (JavaScript, the WebAssembly kernel, workers, 2-D
+  and 3-D) and the pull of every ion near a metal, so not taken.
+- **Before → after**, ions in a lump after 2 ps (seed 7, bath at T; flat lump 127 atoms, 3-D fcc ball 141; pair model):
+
+  | | flat 300 K | flat 1,000 K | 3-D 300 K | 3-D 1,000 K |
+  |---|---|---|---|---|
+  | Cu | 118 → 0 | 122 → 0 | 138 → 0 | 136 → 0 |
+  | Ni | 120 → 0 | 121 → 0 | 136 → 0 | 140 → 0 |
+  | Ag | 0 → 0 | 116 → 0 | 136 → 0 | 136 → 0 |
+  | Au | 0 → 0 | 116 → 0 | 134 → 0 | 134 → 0 |
+  | Fe, Na, Al | 0 → 0 (runs identical) | 0 → 0 (identical) | 0 → 0 (identical) | 0 → 0 (identical) |
+
+  Many-body (Experimental): 0 ions before and after for all seven, runs identical. The ionizing lumps had heated
+  (insulated flat Cu: 6,400 K after 2 ps, 3-D 5,700 K); now they stay put. Insulated, 2 ps: flat Cu −0.016 → −0.0001 eV,
+  3-D −0.017 → −0.0015 eV. Cost: a dense 3-D ball of 959 Cu atoms 8.6–16 ms a step before, 7.1–12 after (noise; the
+  walk runs only for a transfer the estimate already allows); a lump that ionized before is 3–6× faster now (the ions'
+  localPhi walks gone).
+- **Oxidation and salts** (a flat lump of 61 atoms ringed by 16 atoms or molecules, 600 K, seed 7): Na + Cl₂ 13 Na⁺ /
+  13 Cl⁻ in 2 ps before and after (3-D 7/7, identical runs); Na + Cl atoms 3/3, Al + O atoms (6 Al⁺, 2 Al²⁺, 1 Al³⁺; 5 O⁻,
+  4 O²⁻), Fe + O atoms (2 Fe–O bonds): identical runs. Copper: + Cl atoms 29 Cu⁺ / 29 Cu⁻ and no Cl⁻ before, 1 Cu⁺ + 1 Cl⁻
+  after; + O atoms 30 ion pairs and no Cu–O bond before, 2 Cu–O bonds and no ions after; Ag + Cl atoms 27 Ag⁺, 25 Ag⁻, 2
+  Cl⁻ before, 1 Ag⁺ + 1 Cl⁻ after. With O₂ or Cl₂ molecules a neutral Cu, Ni, Al or Fe lump does not react in 2 ps at
+  600 K, before (where the lump had not ionized) or after. No setup is an electrochemical cell.
+- **Fingerprints** (tools/fingerprint.js, all 59 setups, flat and 3-D, seed 7, 300 steps): none changes, state or
+  books. The setups with metal atoms hold Na (salt, brine, brine3d, ch_salt, oven), Fe (magnet), Pb (photonuc), Hg (sns),
+  Zn (crt), U (chain, isolde, useries, ch_split): none of these metals holds a stable anion, so no ion pair could be made
+  between them anyway; the flame's Li, Na, K and Cu are a vapour (its 17 transfers in 300 steps, K/Li → Cu, as before).
+- **Left, for the owner**: alkali aurides (CsAu, RbAu: real ionic compounds of two metals) can no longer form inside a
+  Cs–Au mix; surface ionization (K⁺ off hot tungsten) was never modelled. A lone pair of metal atoms (a dimer) still
+  trades electrons as before.
+- Check: f_cu126 "lump" (flat Cu, 3-D Cu, flat Ni at 300 K keep 0 ions; before 116, 138, 118 in 0.5/0.24 ps) and
+  "still" (lone K and Cu still allowed, two Cu in a lump refused, Cu⁺ in a lump still takes an electron, a Na lump among
+  Cl atoms still makes salt: 7 Na⁺ in 1 ps). Fails on v136 (both parts), passes now.
 
 ### 1.26: GFN2 refit (second attempt)
 
@@ -1949,7 +2004,8 @@ books hashed apart).
   pays IE − EA (6.49 eV) once a few pairs line up (Ag, with a smaller IE − EA but a longer spacing, does not). In a
   real metal the conduction electrons screen such a pair and nothing happens; giving the flat pair model that
   screening (e.g. no electron transfer between two atoms of a metal joined by metallic cohesion, or a screened
-  Coulomb inside a metal) changes how metals behave: the owner's call. Many-body copper (Experimental) stays neutral.
+  Coulomb inside a metal) changes how metals behave: the owner's call. Many-body copper (Experimental) stays neutral. (Fixed
+  in 1.26 with the owner's OK: the section "1.26: copper ions".)
 - 2. Dense metals in 3-D were slow: nearly all of a step went to the electron-transfer estimates (transferDE), each
   pair tried walking every atom within 6 Å four times (localPhi), which in a neutral metal adds nothing. Now
   chargedCount() counts the charged particles (net or partial) once per change of the world, and localPhi returns 0
