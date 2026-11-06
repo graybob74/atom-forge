@@ -439,6 +439,10 @@ each part fails on v136 and passes here.
   sns (state and books): both have nucleus–nucleus passes above 25 MeV a nucleon in those steps (3 and 14), which now
   diffract by distance and no longer draw a random number for it. No fireball fell back to the compound nucleus there,
   and no 3-D setup has a nucleus in flight past 1% of c: the six 3-D setups and the other 51 flat ones are unchanged.
+- Test change: f_125n's plasma check (one ²⁰⁸Pb at 200 GeV a nucleon on lead in 3-D, its spray as wide across the beam
+  in y as in z, within 40%) now pools three events (seeds 31–33). With 3-D hits now centred (b = R·u) seed 31 alone
+  came out at uz²/uy² = 1.40 and failed by a hair; one event's ratio scatters 0.72–1.40 over six seeds (v136: 1.04–1.33),
+  as its hadrons come in correlated clusters. Pooled: 0.0253 and 0.0284 (v136: 0.0263 and 0.0294).
 
 ### 1.26: GFN2 refit (second attempt)
 
