@@ -377,6 +377,40 @@ Test on record: t_features' 1.23.1 "Continue after a restart" check fails on 1.2
 1–3 particles more than were saved (72 → 73, 73 → 74); for a bug-fix session. t_page's slow-motion button check fails
 alone on both here too (the known flake).
 
+### 1.26: 3-D sweep and settings audit
+
+The owner: "there are MANY bugs so please do a general bug search in 3d mode … and make sure every change actually
+applies correctly" ("just fix as much as you can … i trust your judgement"). Branch v139 (from v136). Checks:
+tests/f_sweep3d.js (t_features, one line; or `node tests/f_sweep3d.js [--node] [part …]`), each failing on v136.
+Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
+
+- 1. The particle view did nothing in 3-D (the owner's report). V, the view menu's Particle view, Lab → View → Atom
+  detail and the chamber's two buttons set `R.view.bohr`, which only the flat drawing read: render3d drew its lit balls
+  whatever was chosen (Shells and Orbitals likewise). Now each is the flat game's own picture at the particle's place,
+  facing the camera and sized for its distance (`det3`, `drawDet3`: R.s set to the scale at that depth for the flat code,
+  Canvas 2D, far to near): every nucleus's nucleons with its own electrons in their shells (`drawNucView`), a bond's shared
+  electrons between its nuclei (`bondPairs3`, `bondPair` split out of the flat `drawBondPairs`, the flat picture
+  unchanged), free nucleons and bare nuclei, free electrons, and the unstable particles' insides (`exoInside`: quarks,
+  a hypernucleus's Λ, a muonic atom's orbit). Shells skip atoms drawn under 12 px (unreadable there; a box of 1,029
+  waters drew its shells in 180 ms a frame, headless, now 39). Frame (headless, software GL, water3d, 1,029 atoms):
+  balls 4–7 ms, particle view 31–66, orbitals 37–39; Molecules in space under 1.5 ms in every mode. Measured: Molecules in
+  space, particle view: 72 of 72 atoms drawn as nucleons and electrons, 59 of 59 bonds as electron pairs (before: 0).
+  Check: f_sweep3d "pview" (page). Fingerprints unchanged (drawing only).
+- 2. The ultra-realistic mode in 3-D (the owner's report: "doesn't work in 3d"). What it does, measured in 3-D: decays
+  at real rates and resonances at their own lifetimes (shared with the flat game: `W.warp` 1, `minShow` 0, moveExos3's
+  `!W.ultra`), and nuclei hit at their true size (nucReach → ultraReach in moveNeutron, exoHits3, fastEncounters3,
+  tryFusion3's gate): 60 slow neutrons (0.18 eV) through a 5×5×5 lattice of ²³⁵U atoms, 1,500 steps, seed 3: enlarged
+  nuclei 114 fissions and 47 captures (a chain), true size none (the flat game's row of 25: 8 fissions and 13 captures →
+  4 and 4). So the physics applied; the picture did not: the 3-D camera stopped at 0.5 Å and every particle was drawn
+  enlarged, so turning it on changed nothing to see. Now, as the flat game's mode: free electrons are points, neutrons and
+  bare nuclei at 1.2·A^⅓ fm, an atom its ball until larger than the view and then a faint wash, with its nucleus at true
+  size at the centre (`ultraOne3`, the flat `ultraNucleus`: nucleons, the skin, quarks from 26 px); bond lanes capped
+  thin; the camera comes in to 2·10⁻⁵ Å (2 fm, `cam3Min`; the near plane to 10⁻⁸ Å; flying from 3·10⁻⁵ Å/s) and back to
+  0.5 Å when the mode goes off. Drawn on Canvas 2D (the WebGL layer is single precision): water3d's frame 4–7 → 20–25 ms
+  (headless). The 3-D descriptions (the row's pane, the Experimental note, the cost tag) say so. Measured: zoomed on a
+  carbon atom of Molecules in space the camera reaches 2·10⁻⁵ Å (499 px a fm; a nucleon with its u, d, d), before 0.5 Å.
+  Check: f_sweep3d "ultra3d" (page). Fingerprints unchanged.
+
 ### 1.26: copper ions (the owner: "fix cu ions")
 
 Item 1 of the "Bugs on record" (the bug session's model question #1), approved as a physics change; branch v137 (from

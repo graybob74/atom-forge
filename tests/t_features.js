@@ -1777,6 +1777,7 @@ const { openPage } = require('./browser');
   // 1.26 (speed): the WebAssembly speed-ups' checks are in f_126w.js (also runnable alone: node tests/f_126w.js [part …])
   await alone('f_126w.js');
   await alone('f_cu126.js'); // 1.26 (copper ions): no Cu⁺Cu⁻ pair made inside a metal; f_cu126.js, also alone
+  await alone('f_sweep3d.js');
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

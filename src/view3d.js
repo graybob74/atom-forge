@@ -52,7 +52,7 @@ function cam3Update() {
     const z = ((k & 1 ? hx : -hx) - C3.ex) * C3.fx + ((k & 2 ? hy : -hy) - C3.ey) * C3.fy + ((k & 4 ? hz : -hz) - C3.ez) * C3.fz;
     if (z < z0) z0 = z; if (z > z1) z1 = z;
   }
-  C3.near = Math.max(0.05, 0.005 * D);
+  C3.near = Math.max(W.ultra ? 1e-8 : 0.05, 0.005 * D); // (ultra-realistic: the camera comes in to nuclear sizes)
   C3.far = Math.max(z1, D) * 2 + 20; // (beyond it, depth is held at the far end: nothing is cut off)
   C3.fog0 = Math.max(C3.near, z0); C3.fog1 = Math.max(C3.fog0 + 1, z1); C3.fogK = V3.fog;
   C3.fogc = hexc(CHAMBER.bg0);
@@ -156,7 +156,10 @@ function cam3Pan(dpx, dpy) {
   const c = R.cam3, k = (C3.D || c.dist) / (C3.F || 500);
   c.tx += (-dpx * C3.rx + dpy * C3.ux) * k; c.ty += (-dpx * C3.ry + dpy * C3.uy) * k; c.tz += (-dpx * C3.rz + dpy * C3.uz) * k;
 }
-function cam3Zoom(f) { const c = R.cam3; if (f > 0) c.dist = clamp(c.dist / f, 0.5, 1e6); cam3Update(); }
+/* The camera's nearest approach to its target: half an ångström, or in the ultra-realistic mode 2·10⁻⁵ Å (2 fm), where a
+   proton fills a third of the view, as the flat game's deepest zoom (1.26 sweep: it stopped at 0.5 Å in 3-D). */
+function cam3Min() { return W.ultra ? 2e-5 : 0.5; }
+function cam3Zoom(f) { const c = R.cam3; if (f > 0) c.dist = clamp(c.dist / f, cam3Min(), 1e6); cam3Update(); }
 function cam3Follow(p) { const c = R.cam3; c.tx = p.x; c.ty = p.y; c.tz = p.z || 0; }
 
 /* ---------- picking */
@@ -292,11 +295,72 @@ function cylStops3(col, dx, dy, dz, nx, ny, f, mid) {
   return out;
 }
 const ELEM_SYM = (p) => (p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym);
+/* (1.26 sweep: the owner, "the particle view doesn't work in 3d", "ultra-realistic mode doesn't work in 3d") How atoms
+   are drawn besides the lit balls: the particle view ('nuc': nucleons and electrons, V), shells ('on'), orbitals ('orb')
+   and the ultra-realistic mode's true sizes ('ultra'); '' for the lit balls (Auto and Spheres). Each is the flat game's
+   own picture, facing the camera at the particle's place and sized for its distance (R.s set to the scale there for the
+   flat drawing code), on Canvas 2D, far to near. Before, the 3-D view drew lit balls whatever was chosen. */
+function det3() { const v = R.view.bohr; return W.ultra ? 'ultra' : v === 'nuc' || v === 'orb' || v === 'on' ? v : ''; }
+/* One particle in a detailed mode at (x, y), depth z, ball radius r (px); false: draw it as a lit ball. */
+function drawDet3(ctx, p, x, y, z, r, col, rt, det) {
+  const s0 = R.s; R.s = C3.F / z;
+  try {
+    if (det === 'ultra') return ultraOne3(ctx, p, x, y, r, rt, col);
+    if (p.k !== NUC) { drawLepton(ctx, p, x, y, det); return true; }
+    if (det === 'nuc') {
+      if (p.Z === 0 || p.ne === 0) { // a free nucleon (a neutron, the same size as those in nuclei) or a bare nucleus, every nucleon shown, with a faint halo
+        const nsp = nucleusSprite(p.Z, p.N, nucleonR(), p.anti);
+        if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(p.Z === 0 ? [150, 165, 185] : p.anti ? [190, 120, 255] : [255, 110, 90], Math.max(p.Z === 0 ? 6 : 7, nsp.rn * (p.Z === 0 ? 4 : 3.2))), x, y, p.Z === 0 ? 0.3 : 0.4); ctx.globalCompositeOperation = 'source-over'; }
+        drawSprite(nsp, x, y); return true;
+      }
+      drawNucView(p, x, y, r, rt); return true;
+    }
+    if (p.Z === 0 || p.ne === 0) return false;
+    if (det === 'on') { if (r < 12) return false; drawBohr(ctx, p, x, y, r, rt, col); return true; } // (shells on an atom under 12 px are unreadable: a lit ball; a box of 1,000 waters drew its shells in 180 ms, headless)
+    const rv = drawOrbitalAtom(ctx, p, x, y);
+    if (lblOn(p) && rv >= 12) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = CHAMBER.dim; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(speciesLabel(p), x, y + rv + 9); }
+    return true;
+  } finally { R.s = s0; }
+}
+/* The ultra-realistic mode in 3-D (as drawUltraParts): a free lepton a point, a neutron or a bare nucleus at its true
+   size (1.2·A^⅓ fm, a dot below a pixel), an atom its ball (or shells, orbitals) until that is larger than the view, then
+   a faint wash, with its nucleus at its true size at the centre. The camera may come in to a few fm (cam3Zoom). */
+function ultraOne3(ctx, p, x, y, r, rt, col) {
+  const diag = Math.hypot(R.w, R.h);
+  if (p.k !== NUC) { ctx.fillStyle = p.k === ELEC ? E_COL : POS_COL; ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5); return true; }
+  const rn = trueRfm(p) * FM * R.s;
+  if (p.Z === 0 || p.ne === 0) { ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag, p.id || 0); if (rn > 7 && lblOn(p)) smallTag(ctx, speciesLabel(p), x, y + rn + 9); return true; }
+  if (r <= 1500) {
+    const v = R.view.bohr;
+    if (v === 'orb') drawOrbitalAtom(ctx, p, x, y, true);
+    else if (v === 'on' || v === 'nuc') drawBohr(ctx, p, x, y, r, rt, col, rn);
+    else { const sp = litSprite3(col), k = r / LIT_R; ctx.drawImage(sp.c, x - sp.size * k / 2, y - sp.size * k / 2, sp.size * k, sp.size * k); labelOne3(ctx, p, x, y, r, col); }
+  } else { // inside the atom's electron cloud: a faint wash of its colour
+    const c = hexc(col); ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.10)`;
+    if (Math.hypot(x - R.w / 2, y - R.h / 2) + diag / 2 < r) ctx.fillRect(0, 0, R.w, R.h); else { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+  }
+  if (rn >= 0.5) { ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag, p.id || 0); if (rn > 7 && lblOn(p)) smallTag(ctx, nucSym(p.Z, p.N), x, y + rn + 9); }
+  return true;
+}
+/* The particle view's bonds (as drawBondPairs): each bond's shared electrons between its two nuclei, drawn with the
+   nearer of its atoms (so after the farther one), sized for the bond's middle. */
+function bondPairs3(ctx, p, pb, z) {
+  const A = _p3c, B = _p3d, s0 = R.s, wrap = W.wall === 'wrap';
+  for (const bd of pb) {
+    const q = bd.a === p ? bd.b : bd.a; if (q.dead || !bd.order) continue;
+    if (wrap && (Math.abs(q.x - p.x) > W.box.w / 2 || Math.abs(q.y - p.y) > W.box.h / 2 || Math.abs(q.z - p.z) > W.box.d / 2)) continue;
+    if (!proj3(q.x, q.y, q.z, B) || B[2] < z || (B[2] === z && q.id < p.id)) continue; // (the nearer atom draws it: the farther one first)
+    if (!proj3(bd.a.x, bd.a.y, bd.a.z, A) || !proj3(bd.b.x, bd.b.y, bd.b.z, B)) continue;
+    R.s = C3.F / (0.5 * (A[2] + B[2]));
+    bondPair(ctx, bd, A[0], A[1], B[0], B[1]);
+  }
+  R.s = s0;
+}
 
 function render3d(rt) {
   R.time = rt;
-  const dpr = R.dpr;
-  R.gl = !!R.cvbg && typeof glReady === 'function' && glReady();
+  const dpr = R.dpr, det = det3();
+  R.gl = !!R.cvbg && typeof glReady === 'function' && glReady() && !det; // (the particle view, shells, orbitals and true sizes: Canvas 2D, as the flat game draws them, 1.26 sweep)
   _colFrame++;
   if (typeof glShow === 'function') glShow(R.gl);
   cam3Update();
@@ -318,9 +382,10 @@ function render3d(rt) {
     const p = parts[j], i = p.i, b = 4 * i;
     V[b + 3] = -1;
     if (p.dead || !proj3(p.x, p.y, p.z, o)) continue;
-    if (o[0] < -pad || o[1] < -pad || o[0] > R.w + pad || o[1] > R.h + pad) continue;
     const sc = F / o[2];
     const r = p.k !== NUC ? Math.max(1.8, 0.12 * sc) : p.Z === 0 ? Math.max(2.2, 0.2 * sc) : p.ne === 0 ? Math.max(2.6, p.rd * as * sc) : Math.max(2.4, rd3(p) * as * sc);
+    const cut = pad + (det ? Math.min(r, 4 * (R.w + R.h)) : 0); // (a near atom drawn larger than the view, its centre off the screen, still covers it: the true sizes' wash)
+    if (o[0] < -cut || o[1] < -cut || o[0] > R.w + cut || o[1] > R.h + cut) continue;
     V[b] = o[0]; V[b + 1] = o[1]; V[b + 2] = o[2]; V[b + 3] = r;
     vis.push(p);
   }
@@ -360,7 +425,8 @@ function render3d(rt) {
     let boB = null; if (BO.any) { boB = new Map(); for (const bd of boDrawBonds()) for (const a of [bd.a, bd.b]) { let l = boB.get(a); if (!l) boB.set(a, l = []); l.push(bd); } } // (quantum bonds' orders, 1.24)
     for (const p of vis) {
       const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2], r = V[b + 3], col = ballCol(p), pb = boB && boB.get(p) ? p.bonds.concat(boB.get(p)) : p.bonds;
-      if (p.k === NUC && pb.length) for (const bd of pb) { // this atom's half of each bond
+      if (det === 'nuc') { if (p.k === NUC && pb.length) bondPairs3(ctx, p, pb, z); } // (the particle view: a bond is its shared electrons, drawn with the nearer atom)
+      else if (p.k === NUC && pb.length) for (const bd of pb) { // this atom's half of each bond
         const q = bd.a === p ? bd.b : bd.a, c = 4 * q.i;
         if (q.dead) continue;
         const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
@@ -369,7 +435,7 @@ function render3d(rt) {
         if (V[c + 3] >= 0) { qx = V[c]; qy = V[c + 1]; qz = V[c + 2]; } else if (proj3(q.x, q.y, q.z, _p3b)) { qx = _p3b[0]; qy = _p3b[1]; qz = _p3b[2]; } else continue;
         const mx = (x + qx) / 2, my = (y + qy) / 2, zm = 0.75 * z + 0.25 * qz, sc = F / zm;
         const L = Math.hypot(mx - x, my - y) || 1, nx = -(my - y) / L, ny = (mx - x) / L;
-        const ar = !!bd.arom, n = ar ? 2 : bd.order, wm = n > 1 ? 0.7 : 1, hw = Math.max(0.7, 0.065 * sc), off = Math.max(2, 0.11 * sc);
+        const ar = !!bd.arom, n = ar ? 2 : bd.order, wm = n > 1 ? 0.7 : 1, hw = Math.min(W.ultra ? 3 : 1e9, Math.max(0.7, 0.065 * sc)), off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * sc)); // (ultra-realistic: a bond is not a rod; zoomed in to nuclei, a thin line, as in the flat game)
         const stretch = clamp((Math.sqrt(dx * dx + dy * dy + dz * dz) - bd.r0) / (bd.rb || 1.5), 0, 1), al = 0.95 - stretch * 0.6;
         const thin = hw * wm < 1.5, stops = cylStops3(atomColor(p), dx, dy, dz, nx, ny, fog3(zm), thin); // (thin: one colour, the middle's)
         for (let k = 0; k < n; k++) {
@@ -385,6 +451,7 @@ function render3d(rt) {
         }
         ctx.globalAlpha = 1;
       }
+      if (det && drawDet3(ctx, p, x, y, z, r, col, rt, det)) continue;
       const rr = p.k !== NUC && lite ? r * 1.2 : r, sp = litSprite3(col), k = rr / LIT_R; // (one sprite a colour, scaled)
       ctx.drawImage(sp.c, x - sp.size * k / 2, y - sp.size * k / 2, sp.size * k, sp.size * k);
       const f = fog3(z);
@@ -636,6 +703,11 @@ function drawExos3(ctx) {
     if (o.dead || !proj3(o.x, o.y, o.z || 0, A)) continue;
     const x = A[0], y = A[1]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
     const c = XP[o.sp].col;
+    if (R.view.bohr === 'nuc') { // (the particle view, as the flat view: a hadron's quarks, a hypernucleus's Λ, a muonic atom's orbit, at the scale where it is, 1.26 sweep)
+      const s0 = R.s, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')); R.s = C3.F / A[2];
+      let top = 0; try { top = exoInside(ctx, o, x, y, c, hx); } finally { R.s = s0; }
+      if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; }
+    }
     ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55); ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = rgba(c, 0.95); ctx.strokeStyle = rgba(c, 0.95); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, o.q ? 2.4 : 2.6, 0, Math.PI * 2); if (o.q) ctx.fill(); else ctx.stroke();
     ctx.fillText(o.lab, x, y - 5);
