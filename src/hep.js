@@ -2489,7 +2489,7 @@ function eeEvent(a, b, x, y) {
   const H = hadronParts(s), xb = a.xb || b.xb, ml = restE(a) / MEV / 1000; // (a muon and an antimuon, or a τ pair, in a collider's beams: 1.15)
   const neg = (p) => (p.xb ? p.q < 0 : p.k === ELEC), Pneg = neg(a) ? Pa : Pb;
   const ew = M > EW.EEMIN ? ewEE(s) : null; // (the Z, W pairs and Z pairs, above 10 GeV: below it nothing changes, 1.27)
-  const isr = ew && RP.res ? eeISR(s) : null; // (Resonance widths on: the Z's line shape with the beams' own radiation, 1.27 item 29)
+  const isr = ew && RP.res ? eeISR(s, ml) : null; // (Resonance widths on: the Z's line shape with the beams' own radiation, 1.27 item 29)
   if (ew && W.zscan && W.zscan.run) W.zscan.tot = 0; // (the energy scan, item 31: this collision's total cross section, summed below)
   const ch = pickBr([[sigGG(s, xb ? ml : 0), 'gg'], [xb ? sigLL(s, PHYS.MEC2 / 1000) : 0, 'ee'], [sigLL(s, XP['mu-'].m / 1000), 'mm'], [sigLL(s, XP['tau-'].m / 1000), 'tt'], [H.rho, 'rho'], [H.omega, 'omega'], [H.phi, 'phi'], [H.cont, 'cont'], [H.cc, 'cc'], [H.bb, 'bb']].concat(ew ? [[ew.Z, 'Z'], [ew.WW, 'WW'], [ew.ZZ, 'ZZ']] : []).map(c => { if (c[1] === 'Z' && isr) c[0] = isr.Z; if (ew && W.zscan && W.zscan.run) W.zscan.tot += Math.max(0, c[0]); return c; })); // (isr: the Z's σ with the beams' radiation, 1.27 item 29)
   let toks = null, ang = null, zf = null, isrV = null, isrS = 0, isrE = 0;
@@ -3447,17 +3447,17 @@ function ewEE(s) {
    μμ and the rest through a photon, 2–3% of the collisions at the Z) keep their Born values; x < 1 MeV/(√s/2) is left
    unradiated (the shift is under 1 MeV). */
 const ISR = { n: 600 };
-function isrPar(s) { const b = 2 * ALPHA / Math.PI * (Math.log(s / (PHYS.MEC2 * PHYS.MEC2 / 1e6)) - 1); return { b, d: 0.75 * b + ALPHA / Math.PI * (Math.PI * Math.PI / 3 - 0.5) }; }
-function eeISR(s) {
-  if (ISR.s === s) return ISR.r;
-  const { b, d } = isrPar(s), n = ISR.n, sZ = (q) => ewEE(q).Z;
+function isrPar(s, m) { const b = 2 * ALPHA / Math.PI * (Math.log(s / (m * m)) - 1); return { b, d: 0.75 * b + ALPHA / Math.PI * (Math.PI * Math.PI / 3 - 0.5) }; }
+function eeISR(s, m = PHYS.MEC2 / 1000) { // (m: the beams' lepton mass, GeV: a muon collider's beams radiate less, β 0.061 at the Z)
+  if (ISR.s === s && ISR.m === m) return ISR.r;
+  const { b, d } = isrPar(s, m), n = ISR.n, sZ = (q) => ewEE(q).Z;
   let A = 0, B = 0;
   for (let i = 0; i <= n; i++) { // Simpson: (1 + δ)∫σ(s(1 − t^(1/β)))dt (the singular part, x = t^(1/β)) − β∫(1 − x/2)σ(s(1 − x))dx
     const w = i === 0 || i === n ? 1 : i % 2 ? 4 : 2, t = i / n, x = Math.pow(t, 1 / b);
     A += w * (x < 1 ? sZ(s * (1 - x)) : 0); B += w * (t < 1 ? (1 - t / 2) * sZ(s * (1 - t)) : 0);
   }
   const r = { Z: ((1 + d) * A - b * B) / (3 * n), b, d, pk: 1.001 * sZ(EW.MZ * EW.MZ) };
-  ISR.s = s; ISR.r = r; return r;
+  ISR.s = s; ISR.m = m; ISR.r = r; return r;
 }
 /* x for one collision that made a Z: from G(x)σ_Born(s(1 − x)), by rejection; 0 below 1 MeV of photon energy. */
 function isrDraw(s, r) {

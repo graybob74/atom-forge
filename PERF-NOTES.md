@@ -2799,7 +2799,7 @@ No network here: every value marked "from memory" below is worth a check against
   hep.js eeISR, isrDraw, wwAng, in eeEvent). Gated by that switch, as the owner's rule asks (normal settings unchanged):
   the beams' radiation is the Z's line shape, the switch's subject; the W/Z code itself stays always on. Initial-state
   radiation: the Kuraev–Fadin radiator with soft photons to all orders, G(x) = βx^(β−1)(1 + δ) − β(1 − x/2), β =
-  (2α/π)(ln(s/mₑ²) − 1) = 0.1077 at the Z, δ = ¾β + (α/π)(π²/3 − ½); the Z's σ = ∫G(x)σ_Born(s(1 − x))dx (Simpson, 600
+  (2α/π)(ln(s/m²) − 1) = 0.1077 at the Z (m the beams' lepton: a muon collider's beams 0.061), δ = ¾β + (α/π)(π²/3 − ½); the Z's σ = ∫G(x)σ_Born(s(1 − x))dx (Simpson, 600
   intervals, x = t^(1/β) for the singular part); a collision that makes a Z draws its x from G·σ_Born by rejection, the Z
   at √s' with one photon (x√s/2) along a beam (either), A_FB at √s'; x below 1 MeV of photon left unradiated. Hadrons:
   peak 30.59 nb at 91.19 GeV (Born 41.51; measured at LEP 30.4–30.5, from memory), highest 30.72 at 91.28 (moved up 0.09
