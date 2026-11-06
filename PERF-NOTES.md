@@ -314,6 +314,34 @@ engine stores and visits particles.
 
 ## 1.26 (in progress)
 
+### 1.26: combined (branch v136)
+
+1.25 with every fix after it (v128) and the five 1.26 branches merged: GFN2 and spins with both refits (v131, v135),
+metals (v132), directional forces (v133), WebAssembly speed-ups (v134). Conflicts were Settings texts and cost tags
+(each row kept with its newest measured number: the 3-D bond-order tag ×7–14 from the WebAssembly pass, the quantum
+nuclei tags from the bug fix (×8/×17/×29; exact bead forces then ×5–6 over the contracted rings), the induced charges'
+from v134) and one engine line (the many-body partners' exclusion and the charge sites' pair energy, both kept).
+The metals pass's WebAssembly port (v134) knew 1.25's model only: it now takes the first eight entries of 1.26's
+nine-entry pair table and runs only for plain metals (no O/H partners, no directional metals; the image term after it),
+the JavaScript pass otherwise; f_126w mb is exact again (ΔE 0, forces 0, 30 steps 0 Å apart) and f_126m passes.
+Test fixes: t_features' 1.10 Settings list now has the five 1.26 rows marked real; runtests.sh copies tools/ (the
+metals checks read tools/mbfit.js) and gives each suite 3 GB (t_features, every version's checks in one process,
+ran out of the 2 GB heap).
+
+Waiting for the owner:
+- Approvals already given: GFN2 as a choice; metals items 1–3 ("ship and fix!"); directional forces; the nuclear side
+  and continuous bond orders in 3-D.
+- To decide: close-packed metals' angular terms (item 4 below: keep 1.25's, ship the tried constants, or a bigger
+  form); Polarized as the normal Spins setting; the spin-branch booking change (a polarized step that fails to settle
+  restarts paired and the switch back is paid to the bath although nothing changed: books jump ~0.3 eV in 1 of 4 hot
+  radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #1 (flat Cu ions),
+  #3 (AsCl₅) and #16 (3-D water recapture, physics).
+
+For 1.27 (not built): polarizability that differs by direction; a different form for close-packed metals' directions
+(fourth moment or MEAM screening) if the owner wants item 4; another Atom Forge xTB only with a new plan for
+radical barriers. Found and on record: 3-D water 14–18% too dense; the 6 Å cutoff's false peak; C–F charges about 2×;
+benzene's induced charges ×14 too large; O₂ near NH₃ never settles (quantum bonds).
+
 ### 1.26: GFN2 refit (second attempt)
 
 Asked by the owner: improve GFN2, keeping what it is best at (water clusters, non-covalent binding, geometries) and

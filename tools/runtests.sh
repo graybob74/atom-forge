@@ -7,7 +7,7 @@ set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"; TAG="${1:-run}"
 SNAP="${TMPDIR:-/tmp}/atomforge-snap-$TAG-$$"
 rm -rf "$SNAP"; mkdir -p "$SNAP"
-cp -r "$REPO/src" "$REPO/tests" "$REPO/build.js" "$SNAP/"
+cp -r "$REPO/src" "$REPO/tests" "$REPO/tools" "$REPO/build.js" "$SNAP/" # (tools: the 1.26 metals checks read tools/mbfit.js)
 mkdir -p "$SNAP/dist"
 cd "$SNAP" && node build.js >/dev/null || { echo "BUILD FAILED"; exit 1; }
 OUT="$SNAP/out"; mkdir -p "$OUT"
@@ -15,7 +15,7 @@ lane() { # lane name, suites...
   local name="$1"; shift
   for s in "$@"; do
     local t0=$(date +%s)
-    node "tests/$s.js" > "$OUT/$s.log" 2>&1; local rc=$?
+    node --max-old-space-size=3072 "tests/$s.js" > "$OUT/$s.log" 2>&1; local rc=$? # (t_features holds every version's checks in one process: past 2 GB in 1.26)
     printf "%-12s rc=%d  %5ds  %s\n" "$s" "$rc" "$(( $(date +%s) - t0 ))" "$(tail -n 1 "$OUT/$s.log" | cut -c1-110)" >> "$OUT/$name.summary"
   done
 }
