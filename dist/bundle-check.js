@@ -3784,6 +3784,19 @@ function vlValid(pre) { // pre ≥ 0: the threaded integrator's largest squared 
   }
   return worst <= HSKIN2;
 }
+/* (bug fix 17 after 1.25) Quantum nuclei in 3-D with every bead's full force pass: a 3-D ring reaches 0.5 Å from its
+   centre (the flat game's far less), past half the list's skin, so each bead's pass found the list out of date and
+   rebuilt the grid and the list (six times a step of eight passes in liquid water: three quarters of the step). While
+   that mode runs in 3-D the list reaches PI_SKIN3 farther (and the cells with it) and stays valid for moves up to half
+   its wider skin: every bead's pass uses the same list. The forces are the same (a pair is worked out where it is, the
+   list only says which to look at). */
+const PI_SKIN3 = 1.4;
+let _vlE = 0, _hskin3 = HSKIN2;
+function vlReachSet(E) {
+  if (E === _vlE) return;
+  _vlE = E; RL = RC + SKIN + E; RL2 = RL * RL; CELL_MIN = RC + Math.max(SKIN + E, SKIN_F); _hskin3 = 0.25 * (SKIN + E) * (SKIN + E);
+  _mdGen++; VL.valid = false; gridTouch(); _gridStale = true;
+}
 function vlValid3() { // (3-D: the moves in z count, and the box's depth)
   VL.checks++;
   if (!VL.valid || VL.gen !== _mdGen || VL.w !== W.box.w || VL.h !== W.box.h || VL.d !== W.box.d || VL.wall !== W.wall) return false;
@@ -3796,7 +3809,7 @@ function vlValid3() { // (3-D: the moves in z count, and the box's depth)
     if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; }
     const d2 = dx * dx + dy * dy + dz * dz; if (d2 > worst) worst = d2;
   }
-  return worst <= HSKIN2;
+  return worst <= _hskin3;
 }
 /* 3-D: vlPairs over the box cells (the 26 around each, those with a greater key). The pairs of the grid's particles
    p0 ≤ k < p1, counted in the order the cells and their particles are walked (a box of a few cells, as the 3-D setups
@@ -5238,6 +5251,7 @@ let _mdI = shArray(Int32Array, 4096), _nmd = 0, _mdLI = shArray(Int32Array, 256)
 let _mdGen = 0, _mdPrev = new Int32Array(4096), _nmdPrev = -1, _nFastLep = 0; // _mdGen counts the changes of the MD set (_md as a set of slots)
 function computeForces() {
   if (PI.on && PI.n) return piForces();
+  if (_vlE) vlReachSet(0); // (quantum nuclei off: the list's usual reach again)
   if (_profOn) { const t0 = performance.now(), k0 = _tKernels; computeForces1(); _tForces += performance.now() - t0; _nPasses++; if (TH_LAST.used) { _tKernels = k0 + TH_LAST.ms; _tWait += TH_LAST.wait; } return; }
   computeForces1();
 }
@@ -6290,7 +6304,12 @@ function updateFast(p) {
   if (p.rad) return;
   if (p.k === NUC && p.Z === 0) { p.fast = true; return; }
   if (W.d3) { // (3-D: electrons stay in the stepped set, the step size following them (1.23); atoms fly ballistically past V_FAST_ON as in the flat game, their collisions found along their paths in depth, fastEncounters3 (1.25))
-    if (p.k !== NUC) { if (p.fast) p.fast = false; return; }
+    if (p.k !== NUC) { // (bug fix 14 after 1.25: past LEP3_ON a lepton flies, at its true speed, moveFastLeptons3; below it, stepped as before)
+      const ke = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz);
+      if (!p.fast && ke > LEP3_ON) switchMode(p, true);
+      else if (p.fast && ke < LEP3_OFF) switchMode(p, false);
+      return;
+    }
     const v2 = p.vx * p.vx + p.vy * p.vy + p.vz * p.vz;
     if (!p.fast && v2 > V_FAST_ON * V_FAST_ON) switchMode(p, true);
     else if (p.fast && v2 < V_FAST_OFF * V_FAST_OFF) switchMode(p, false);
@@ -9733,6 +9752,7 @@ function leptonWall(p) {
    one. A segment ends just past the next wall (reflected or wrapped there), and is at most 45% of the box across
    or a quarter turn in a magnetic field. An applied electric field is exact on a segment (uniform acceleration). */
 function moveFastLeptons(Dt, id0) {
+  if (W.d3) { moveFastLeptons3(Dt, id0); return; }
   const hasB = hasBfield(), hasE = hasEfield();
   const hw = W.box.w / 2, hh = W.box.h / 2, Lmax = 0.45 * Math.min(W.box.w, W.box.h), look = _nNucMD > 0;
   const DEAD = S.dead, RAD = S.rad, K = S.k, FAST = S.fast, BALL = S.ballistic, ID = S.id, OBJ = S.obj;
@@ -9990,7 +10010,7 @@ function walls3(p) {
    box for ever, in steps a thousandth as long. */
 function wallStop3(p, where) {
   const ke = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz), nuc = p.k === NUC;
-  const set = nuc ? setOf(molecule(p)) : null, U0 = nuc ? localPE(set) : p.q * phiE(p.x, p.y, p, undefined, p.z);
+  const set = nuc ? setOf(molecule(p)) : null, U0 = nuc ? localPE(set) : p.fast ? 0 : p.q * phiE(p.x, p.y, p, undefined, p.z); // (a lepton in flight carries no potential energy in the books: bug fix 14 after 1.25)
   if (!where && nuc && p.ne > 0 && p.Z >= 3 && p.fast) { // (1.25: one in flight, as atoms fly in 3-D now: back into the stepped set at the wall's temperature, the books measured over its molecule as totalEnergy counts it, flight or not: regionE)
     const T = new Set(set), E0 = regionE(T), hw = W.box.w / 2 - 0.6, hh = W.box.h / 2 - 0.6, hd = W.box.d / 2 - 0.6;
     p.fast = false; if (S.inMD[p.i] === 0 && !_late.includes(p)) _late.push(p);
@@ -10030,6 +10050,53 @@ function wallOut2(p) {
   let U1 = 0; if (nuc) { const rest = new Set(); for (const q of set) if (!q.dead) rest.add(q); U1 = rest.size ? localPE(rest) : 0; }
   W.ledger.escaped += ke + I0 + U0 - U1;
   _wallMoved = true; // (the forces it put on what stays are gone: the next step starts from forces without it)
+}
+/* (bug fix 14 after 1.25) Fast electrons and positrons in 3-D. They were all stepped, with ½mv² for their energy and v
+   for their speed, so an MeV one moved at several times c (a 10 MeV electron 6c), in inner steps held at DT_MIN that
+   carried it 4 Å past every nucleus, and the books slipped (−367 eV over 150 γ rays of 20 MeV into lead). Past LEP3_ON
+   (25 keV, where ½mv² puts it at 0.3c) a lepton now leaves the stepped set (switchMode pays its potential energy, as for
+   atoms in flight) and flies straight at its relativistic speed, its kinetic energy still ½m|v|² of the stored v (so the
+   books are as before); a magnetic field turns it at qB/γm; along its path it loses energy to the atoms' electrons as in
+   the flat game's radiation flight (≈ n_e/β² for each, closest passes most; the electrons set free square to its path,
+   exact: what it loses, they get). Below LEP3_OFF (20 keV) it is stepped again. Walls: leptonWall (a closed wall stops
+   it, its energy escaped). */
+const LEP3_ON = 25e3, LEP3_OFF = 20e3;
+function moveFastLeptons3(Dt, id0) {
+  const hasB = hasBfield(), DEAD = S.dead, RAD = S.rad, K = S.k, FAST = S.fast, ID = S.id, OBJ = S.obj;
+  const hw = W.box.w / 2, hh = W.box.h / 2, hd = W.box.d / 2, Lmax = 0.45 * Math.min(W.box.w, W.box.h, W.box.d);
+  for (let j = 0; j < W.parts.length; j++) {
+    const si = partsSync()[j];
+    if (DEAD[si] === 1 || RAD[si] === 1 || K[si] === NUC || FAST[si] === 0 || ID[si] >= id0) continue;
+    const p = OBJ[si];
+    let rem = Dt;
+    for (let seg = 0; seg < 200 && rem > 1e-15 && !p.dead && p.fast; seg++) { // (segments of at most 45% of the box: walls and wrapping met one at a time)
+      let v = Math.sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz); if (!(v > 0)) break;
+      const K0 = 0.5 * p.m * v * v, g = 1 + K0 / (PHYS.MEC2 * 1e6), vr = PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g))), sc = vr / v;
+      const h = Math.min(rem, Lmax / vr); rem -= h;
+      const x0 = p.x, y0 = p.y, z0 = p.z, B = hasB ? Bfield3(p.x, p.y, p.z) : 0;
+      if (B) { gyrate3(p, B, h / g); p.x = x0 + (p.x - x0) * sc * g; p.y = y0 + (p.y - y0) * sc * g; p.z = z0 + (p.z - z0) * sc * g; } // (the arc of angle qB·t/γm, its length vr·t)
+      else { p.x += p.vx * sc * h; p.y += p.vy * sc * h; p.z += p.vz * sc * h; }
+      p.ox = x0; p.oy = y0; p.oz = z0;
+      // energy given to the electrons of the atoms it passes
+      v = Math.sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz);
+      const ux = p.vx / v, uy = p.vy / v, uz = p.vz / v, beta2 = Math.max(1e-8, (vr / PHYS.C) ** 2);
+      let Ke = K0;
+      for (const [, tg, b] of segTargets3(x0, y0, z0, p.x, p.y, p.z, 1.0, (t) => t.k === NUC && t.Z > 0 && t.ne > 0 && !t.fast).slice()) {
+        if (tg.dead || tg.ne <= 0) continue;
+        const w = 1 / (1 + (b / 0.4) * (b / 0.4)), dE = Math.min(0.3 * Ke, 0.0047 * tg.ne / beta2 * w);
+        if (dE < 0.01) continue;
+        Ke -= dE;
+        const ie = ionizationCost(tg), n = turn3(ux, uy, uz, Math.PI / 2);
+        if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) { if (ejectElectron(tg, dE - ie, n[0], n[1], undefined, undefined, n[2])) W.count.ionize++; else dumpHeat(dE, tg, tg); }
+        else { const vn = tg.vx * n[0] + tg.vy * n[1] + tg.vz * n[2], a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); tg.vx += n[0] * a; tg.vy += n[1] * a; tg.vz += n[2] * a; updateFast(tg); }
+        if (Ke <= 1) break;
+      }
+      if (Ke < K0) { const f = Math.sqrt(Math.max(0, Ke) / K0); p.vx *= f; p.vy *= f; p.vz *= f; }
+      if (p.trk) extendTrack(p); else if (Ke > 2e3) startTrack(p);
+      if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh || p.z < -hd || p.z > hd) { if (W.wall === 'wrap') walls(p); else leptonWall(p); }
+      if (!p.dead) updateFast(p);
+    }
+  }
 }
 /* Periodic housekeeping: π-bond formation between adjacent radicals, field ionization, electron shedding. */
 /* Counters that let the step skip whole-store loops with nothing to do, exactly:
@@ -10218,7 +10285,8 @@ function piForcesC() {
   PI.fGen++;
 }
 function piForces() {
-  if (piContract()) return piForcesC();
+  if (piContract()) { vlReachSet(0); return piForcesC(); }
+  vlReachSet(PI.oz ? PI_SKIN3 : 0); // (3-D: a list every bead's pass can use, bug fix 17 after 1.25)
   const P = PI.P, cap = PI.cap, L = PI.list, n = PI.n, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, hi = S.hi;
   const ax = new Float64Array(hi), ay = new Float64Array(hi), gx = new Float64Array(hi), gy = new Float64Array(hi), ev = _noEv;
   const d3 = !!PI.oz, FZ = S.fz, GZ = S.gz, az = d3 ? new Float64Array(hi) : null, gz = d3 ? new Float64Array(hi) : null; // (3-D, 1.24)
@@ -23608,8 +23676,22 @@ function lightHead(o, kind) {
   const m = rayFrac(o); return [o.x0 + (o.x1 - o.x0) * m, o.y0 + (o.y1 - o.y0) * m];
 }
 /* The nearest photon, neutrino or unstable particle to a point on the screen, within extra pixels (for the Inspect tool). */
+function lightHead3(o, kind) { // (3-D: where it is drawn, with its depth; lines without one lie at z = 0, as drawLight3 has them)
+  if (kind === 'exo') return o.dead ? null : [o.x, o.y, o.z || 0];
+  const z0 = o.z0 || 0, z1 = o.z1 === undefined ? z0 : o.z1;
+  let m;
+  if (kind === 'flight') { if (W.t < o.t0) return null; m = clamp((W.t - o.t0) * PHYS.C, 0, o.len) / (o.len || 1); } else m = rayFrac(o);
+  return [o.x0 + (o.x1 - o.x0) * m, o.y0 + (o.y1 - o.y0) * m, z0 + (z1 - z0) * m];
+}
 function pickLight(px, py, extra = 10) {
-  if (W.d3) return null; // (3-D, stage 2: light in flight is not drawn)
+  if (W.d3) { // (bug fix 8 after 1.25: in 3-D its head projected through the camera; it was not looked for at all)
+    cam3Update(); const P = [0, 0, 0]; let best3 = null, b3 = extra * extra;
+    const near = (o, kind) => { const h = lightHead3(o, kind); if (!h || !proj3(h[0], h[1], h[2], P)) return; const d2 = (P[0] - px) ** 2 + (P[1] - py) ** 2; if (d2 < b3) { b3 = d2; best3 = { kind, o }; } };
+    for (const o of W.exo) if (!o.dead) near(o, 'exo');
+    for (const f of W.flights) near(f, 'flight');
+    for (const r of W.rays) if (!r.landed) near(r, 'ray');
+    return best3;
+  }
   const [wx, wy] = s2w(px, py); let best = null, bd = extra * extra;
   const consider = (o, kind) => { const h = lightHead(o, kind); if (!h) return; const dx = (h[0] - wx) * R.s, dy = (h[1] - wy) * R.s, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; best = { kind, o }; } };
   for (const o of W.exo) if (!o.dead) consider(o, 'exo');
@@ -24627,6 +24709,7 @@ function render3d(rt) {
   }
   drawMeasure3(ctx);
   if (R.view.rays) drawLight3(ctx, rt); // (light, 1.24)
+  if (PI.on && PI.n) drawRings3(ctx); // (quantum nuclei's beads in depth: bug fix 8 after 1.25)
   drawExos3(ctx); // (unstable particles, 1.24)
   drawFlashes3(ctx, rt);
   drawQGP3(ctx); // (a quark–gluon plasma at its depth, 1.25)
@@ -24799,6 +24882,26 @@ function drawPlace3(ctx) {
     ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x - 3, y); ctx.moveTo(x + 3, y); ctx.lineTo(x + 9, y); ctx.moveTo(x, y - 9); ctx.lineTo(x, y - 3); ctx.moveTo(x, y + 3); ctx.lineTo(x, y + 9); ctx.stroke();
     if (fa.at && !fa.at.dead && proj3(fa.at.x, fa.at.y, fa.at.z, A)) { const r = Math.max(7, rd3(fa.at) * (R.as || 1) * F / A[2]) + 4; ctx.beginPath(); ctx.arc(A[0], A[1], r, 0, Math.PI * 2); ctx.stroke(); }
     if (fa.text) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText(fa.text, x + 12, y - 10); }
+  }
+  ctx.restore();
+}
+/* Quantum nuclei in 3-D: each atom's ring of beads (offsets PI.ox, oy, oz from its centre) through the camera, as the
+   flat drawRings draws them (once an Å is 30 px or more where the atom is); they were not drawn in 3-D. */
+function drawRings3(ctx) {
+  cam3Update();
+  const P = PI.P, cap = PI.cap, L = PI.list, c = [0, 0, 0], b = [0, 0, 0], pts = [];
+  ctx.save();
+  for (let a = 0; a < PI.n; a++) {
+    const i = L[a], p = S.obj[i]; if (!p || p.dead || !proj3(p.x, p.y, p.z, c)) continue;
+    const sc = C3.F / c[2]; if (sc < 30 || c[0] < -20 || c[1] < -20 || c[0] > R.w + 20 || c[1] > R.h + 20) continue;
+    pts.length = 0;
+    for (let k = 0; k < P; k++) { const o = k * cap + i; if (!proj3(p.x + PI.ox[o], p.y + PI.oy[o], p.z + (PI.oz ? PI.oz[o] : 0), b)) { pts.length = 0; break; } pts.push(b[0], b[1]); }
+    if (!pts.length) continue;
+    const rb = clamp(0.035 * sc, 1, 4);
+    ctx.globalAlpha = 1 - 0.8 * fog3(c[2]); // (the farther, the fainter, as the fog dims the atoms) ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let k = 0; k <= P; k++) { const j = (k % P) * 2; k ? ctx.lineTo(pts[j], pts[j + 1]) : ctx.moveTo(pts[j], pts[j + 1]); }
+    ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let k = 0; k < P; k++) { ctx.beginPath(); ctx.arc(pts[2 * k], pts[2 * k + 1], rb, 0, Math.PI * 2); ctx.fill(); }
   }
   ctx.restore();
 }
@@ -27754,7 +27857,7 @@ function buildToolOpts() {
         (W.d3 ? '<span class="help">Shared by the atoms within the radius of the atom under the pointer (or of the middle of the box), in pairs. keV: they fly apart; MeV: nuclear reactions.</span>' : '<span class="help">Shared by the atoms in the radius. keV: they fly apart; MeV: nuclear reactions.</span>');
       break;
     case 'magnet':
-      h = `<span data-g="pol">${seg('Pole', [[1, 'N ⊙'], [-1, 'S ⊗']], o.pol)}</span>` + rangeCtl('oB', 'Field', 100, 900, o.s, fmtTesla(Math.abs(magB()))) +
+      h = `<span data-g="pol">${seg('Pole', W.d3 ? [[1, `N +${W.Bax3 || 'z'}`], [-1, `S −${W.Bax3 || 'z'}`]] : [[1, 'N ⊙'], [-1, 'S ⊗']], o.pol)}</span>` + rangeCtl('oB', 'Field', 100, 900, o.s, fmtTesla(Math.abs(magB()))) +
         radCtl(t, o.R) + `<button class="opt" id="oMagClear">Remove all</button>`;
       break;
     case 'light': {
@@ -33092,7 +33195,7 @@ const COSTS3 = {
   segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured in 3-D on one thread (1.25): nothing without metal atoms; an aluminium ball of 959 atoms ×1.8 (its own pass about 0.7 µs an atom a step); a copper ball ×0.8–1.0 (its steps go to electron-transfer estimates either way)'] } }),
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–3', 'Measured in 3-D on one thread (1.25): nothing without free electrons; 40 free electrons among neon atoms ×2.2 (the flat game ×2.4), six Na⁺ among twelve ×3.2 (1.24); in ionized liquid water ×1.5–2.2, its electrons caught again within a few dozen steps in 3-D'] } }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.6', 'Measured on liquid water in 3-D (1.25): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×2.7', 'Measured on liquid water in 3-D: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water in 3-D: 32 beads, the rest once'] } }
-    : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×17', 'Measured on liquid water in 3-D (1.25): the force field worked out 8 times a step'], 16: ['×30', 'Measured on liquid water in 3-D: 16 times a step'], 32: ['×48', 'Measured on liquid water in 3-D: 32 times a step'] } },
+    : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×8', 'Measured on liquid water in 3-D (after 1.25): the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water in 3-D: 16 times a step'], 32: ['×29', 'Measured on liquid water in 3-D: 32 times a step'] } },
   segPiRpc: () => ({ k: 'physics', o: { 1: ['×1', 'Bonds and bends on every bead (where the spread matters), the pairs between atoms at the rings’ centres: ring-polymer contraction'], 0: ['×7–10', 'The whole force field on every bead: exact; in 3-D (liquid water, 1.25) 10 times the work at 8 beads, 7.5 at 32'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.6–2.4', 'Measured in 3-D (1.25): liquid water ×1.6–1.9, salt water ×2.4'], 1: ['×3.2–4.2', 'Measured in 3-D (1.25): salt water ×3.2, liquid water ×3.7–4.2'] } }),
   segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×3.5–5', 'Measured in 3-D (1.25): salt water ×3.5, liquid water ×4.9 (JavaScript kernels; in space the partners within reach grow as the cube of the reach)'], 12: ['×7–17', 'Measured in 3-D (1.25): salt water ×6.6–6.9, liquid water ×12–17 (JavaScript kernels)'] } }),
@@ -33321,7 +33424,7 @@ const SDESC3 = {
   segDtMax: ['Longest time step', 'Calm matter moves on in steps of 0.4 fs. Shorter steps keep the energy books a little more exact; in the 3-D lab a step costs about the same whatever its length, so the cost follows the number of steps.'],
   segRc: ['Force reach', 'How far van der Waals and partial-charge forces reach. Longer keeps more of the pull between molecules; in space the partners within reach grow as the cube of the reach, so it costs much more than in the flat game.'],
   segQeq: ['Induced charges', 'Each molecule’s charges shift with the electric field around it, in all three directions, so water turns its dipole toward an ion or a field (charge equilibration).'],
-  segPi: ['Quantum nuclei', 'Every atom becomes a ring of beads (path-integral molecular dynamics) spread in all three directions by its zero-point motion. In the 3-D lab the beads are not drawn: the picture is the flat game’s.'],
+  segPi: ['Quantum nuclei', 'Every atom becomes a ring of beads (path-integral molecular dynamics) spread in all three directions by its zero-point motion; in the 3-D lab the rings are drawn in depth round each atom when you are close enough (an ångström 30 pixels or more).'],
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, with the 3-D angles and the twist of double, aromatic and single bonds, drawn as thinner or thicker bonds. Quantum works out the electrons themselves (GFN1-xTB) with the atoms free in all three directions.'],
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours, fitted on a close-packed crystal: in the 3-D lab a crystal has its measured cohesive energy, spacing, stiffness and vacancy energy exactly (copper 3.49 eV, 2.56 Å, 137 GPa, 1.28 eV).'],
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],

@@ -192,6 +192,59 @@ PARTS.lrFlip = async (page, check, say) => {
   check(r.on0 && !r.on1 && Math.abs(r.books) < 1e-6, `bug fix 4: ${r.charges} net charges switch the long-range sum off; the books keep across it (${r.books} eV)`, 'bugfix lrFlip: ' + JSON.stringify(r));
 };
 
+/* 14. MeV electrons and positrons in 3-D fly at their true speed. Before: stepped with ½mv² for the energy and v for the
+   speed (a 10 MeV electron at 6.3c), in inner steps held at DT_MIN, and the books slipped: 20 MeV pairs made in a 3-D
+   lead block, 30 pairs × 25 steps, −6,301 eV in all (worst pair 211 eV). Now past 25 keV they fly (moveFastLeptons3). */
+PARTS.lep3 = async (page, check, say) => {
+  const sp = (() => { const X = fresh(1), W = X.W; X.PRESETS.empty.build(); X.setBox(6000, 6000); X.world3d(6000); W.gamma = 0;
+    const e = X.addLepton(X.ELEC, -2900, 0, 0, 0, 0); X.setMotion(e, 10e6, 1, 0, 0, 0, 0); X.forcesNoEvents(); W.fSpawn = W.spawned;
+    const x0 = e.x; let t = 0; for (let i = 0; i < 3; i++) { W.dt = X.chooseDt(); t += X.step(W.dt); } return +((e.x - x0) / t / X.PHYS.C).toFixed(4); })();
+  let sum = 0, worst = 0, n = 0;
+  for (const seed of [1, 2, 3]) { const X = fresh(seed), W = X.W; X.PRESETS.empty.build(); X.setBox(30, 30); X.world3d(30); W.gamma = 0; W.decayOn = false;
+    const pbs = []; for (let a = 0; a < 6; a++) for (let b = 0; b < 6; b++) for (let c = 0; c < 6; c++) pbs.push(X.addAtom('Pb', -7.5 + a * 3, -7.5 + b * 3, { z: -7.5 + c * 3, T: 0 }));
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    for (let k = 0; k < 4; k++) { const E0 = books(X); X.pairProduce3(pbs[(k * 37 + seed * 11) % pbs.length], 20e6); const E1 = books(X), made = E1 - E0 - 20e6; go(X, 25); const d = books(X) - E1 + made; sum += d; worst = Math.max(worst, Math.abs(d)); n++; } }
+  const r = { speed: sp, pairs: n, sum: +sum.toFixed(2), worst: +worst.toFixed(2) };
+  check(r.speed < 1 && r.speed > 0.99 && r.worst < 5, `bug fix 14: a 10 MeV electron in 3-D flies at ${r.speed}c; ${r.pairs} pairs of 20 MeV in lead keep the books to ${r.worst} eV each (${r.sum} in all)`, 'bugfix lep3: ' + JSON.stringify(r));
+};
+
+/* 8. 3-D display gaps: Inspect picks an unstable particle or a photon in flight where it is drawn in depth (pickLight
+   returned nothing in 3-D); quantum nuclei's bead rings are drawn in 3-D (drawRings3); the Magnet tool's poles say
+   N +axis / S −axis in 3-D (the flat ⊙/⊗ signs before); the quantum-nuclei descriptions no longer say the beads are not
+   drawn. */
+PARTS.display3 = async (page, check, say) => {
+  const r = await page.evaluate(() => {
+    const out = {};
+    loadPreset('d3empty'); setRunning(false); setTool('inspect'); fitView();
+    const o = addExo('pi+', 2, 1, 1e6, 1, 0, undefined, 3, 0); cam3Update(); const P = [0, 0, 0]; proj3(o.x, o.y, o.z, P);
+    const got = pickLight(P[0] + 2, P[1] - 1, 12); out.exo = !!got && got.kind === 'exo' && got.o === o; o.dead = true;
+    emitPhoton3(-5, 0, 2e6, 1, 0, { z: 2, uz: 0, travel: true }); const f = W.flights[W.flights.length - 1] || W.rays[W.rays.length - 1];
+    if (f) { const kind = W.flights.includes(f) ? 'flight' : 'ray'; W.t += 1e-4; const h = lightHead3(f, kind); if (h && proj3(h[0], h[1], h[2], P)) { const g = pickLight(P[0], P[1], 12); out.light = !!g && g.o === f; } }
+    loadPreset('water3d'); setRunning(false); setSetting('pi', 8); for (let k = 0; k < 20; k++) { W.dt = chooseDt(); step(W.dt); }
+    const a0 = W.parts.find(p => PI.n && !p.dead && p.k === NUC); if (a0) { R.cam3.tx = a0.x; R.cam3.ty = a0.y; R.cam3.tz = a0.z; } R.cam3.dist = 4; cam3Update(); out.piN = PI.n;
+    const ctx = R.ctx, arc = ctx.arc; let n = 0; ctx.arc = function (...a) { n++; return arc.apply(this, a); }; try { drawRings3(ctx); } finally { ctx.arc = arc; }
+    out.beads = n; setSetting('pi', 0);
+    setTool('magnet'); out.poles = [...document.querySelectorAll('#toolopts [data-g="pol"] button')].map(b => b.textContent).join(' ');
+    return out;
+  });
+  check(r.exo && r.light !== false && r.beads > 8 && /N \+z/.test(r.poles) && /S −z/.test(r.poles), `bug fix 8: in 3-D Inspect picks an unstable particle (${r.exo}) and light in flight (${r.light}) where they are drawn; ${r.beads} beads drawn; magnet poles "${r.poles}"`, 'bugfix display3: ' + JSON.stringify(r));
+};
+PARTS.display3.page = true;
+
+/* 17. Quantum nuclei in 3-D with the whole force field on every bead: each bead's pass found the neighbour list out of
+   date (a 3-D ring reaches 0.5 Å from its centre, past half the list's skin) and rebuilt the grid and the list, six
+   times a step of eight passes in liquid water (52 ms a step). Now the list reaches farther while that mode runs in
+   3-D and serves every bead (19 ms); the run the same to 10⁻¹⁴ Å. */
+PARTS.pi3 = async (page, check, say) => {
+  const run = (E) => { const X = load('all', { seed: 12, patch: E === undefined ? undefined : (s) => s.replace('const PI_SKIN3 = 1.4;', 'const PI_SKIN3 = ' + E + '; //') }), W = X.W;
+    X.PRESETS.water3d.build(); X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned; X.piSet(8); X.PI.rpc = false; W.gamma = 0;
+    go(X, 5); const b0 = X.VL.builds, t0 = performance.now(); go(X, 10); const ms = (performance.now() - t0) / 10;
+    return { ms, builds: (X.VL.builds - b0) / 10, pos: W.parts.map(p => [p.x, p.y, p.z]) }; };
+  const a = run(), b = run(0); let mx = 0; a.pos.forEach((p, i) => { mx = Math.max(mx, Math.hypot(p[0] - b.pos[i][0], p[1] - b.pos[i][1], p[2] - b.pos[i][2])); });
+  const r = { ms: +a.ms.toFixed(1), msOldLists: +b.ms.toFixed(1), builds: a.builds, buildsOld: b.builds, diff: +mx.toExponential(1) };
+  check(r.builds === 0 && r.buildsOld > 2 && r.ms < 0.6 * r.msOldLists && r.diff < 1e-9, `bug fix 17: 3-D quantum nuclei, 8 beads, every bead's full pass: ${r.ms} ms a step (${r.msOldLists} with the list rebuilt per bead, ${r.buildsOld} times a step), the same run to ${r.diff} Å`, 'bugfix pi3: ' + JSON.stringify(r));
+};
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {

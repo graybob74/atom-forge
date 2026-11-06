@@ -273,7 +273,7 @@ engine stores and visits particles.
   - [fixed after 1.25] In the flat game the open-wall branch of walls() removes particles without booking their energy as escaped.
   - [fixed after 1.25] In the flat game an event that changes a charge in an applied electric field misses −q·E·Δr from the books.
   - [fixed after 1.25] Free electrons put down almost on top of each other gain hundreds of eV in their first steps.
-  - 3-D: Inspect can't pick unstable particles or photons in flight; quantum nuclei's beads aren't drawn; some
+  - [fixed after 1.25] 3-D: Inspect can't pick unstable particles or photons in flight; quantum nuclei's beads aren't drawn; some
     Experimental descriptions still describe the flat case; the Magnet tool's pole buttons keep the flat ⊙/⊗ signs.
   - [fixed after 1.25] A charged particle's search for atoms on its path goes over every atom (the grid would make it local).
   - [fixed after 1.25] Help says holding Space pans, but nothing sets UI.spaceDown.
@@ -281,11 +281,11 @@ engine stores and visits particles.
     one bounces back); the 3-D version (1.25) uses the right angle.
   - [fixed after 1.25] exoElastic measures the whole box's energy on every pass (slow; 3-D's elastic hits booked from the recoil in 1.25).
   - [fixed after 1.25] Muonium formation misses up to tens of eV (2-D and 3-D: the muon stopped without paying its potential energy).
-  - 3-D: MeV electrons and positrons are stepped faster than light (−367 eV over 150 γ rays of 20 MeV into lead).
+  - [fixed after 1.25] 3-D: MeV electrons and positrons are stepped faster than light (−367 eV over 150 γ rays of 20 MeV into lead).
   - [fixed after 1.25] K⁻ absorption keeps momentum only to 0.002 (2-D and 3-D).
   - [looked at after 1.25: physics, not a bug] 3-D: ionized water recaptures its free electrons within about 30 steps (40 ionized molecules); flat water keeps
     all 40.
-  - 3-D: quantum nuclei with forces on every bead cost ×17–48 (×3–10 flat); for the speed work.
+  - [fixed after 1.25] 3-D: quantum nuclei with forces on every bead cost ×17–48 (×3–10 flat); for the speed work.
   - [fixed after 1.25] Settings: the flat bond-order cost tag says ×8–15, liquid water measured ×5.4–5.8 (1.25).
   - [fixed after 1.25] Test: t_features' 0.95 CO block (six CO among O₂ keep triple) follows the page's random stream (4 of 6 once).
   Model limits written down, not bugs: GFN1-xTB keeps hexazine whole (its own 0.53 eV barrier, 1.67 eV release); the
@@ -1012,6 +1012,43 @@ books hashed apart).
   around multiply charged clusters, the known limit in CLAUDE.md), not chased. A 100 keV U atom among the waters: +1.5
   to +15.6 eV over 1,500 steps (1.23.2: about 1 eV; its recoils now fly). Fingerprints unchanged (no setup crosses 220
   charges in 300 steps); t_energy passes. Check: f_bug125 "lrFlip".
+
+From the bug-fix session (branch bugfix-125): items 8, 14 and 17 of the "Bugs on record" list. Checks: tests/f_bug125.js
+(called from t_features).
+- 8. 3-D display gaps. (a) Inspect could not pick an unstable particle or a photon in flight in 3-D (pickLight returned
+  nothing there): now their heads are taken with their depth (lightHead3, as drawLight3 and drawExos3 draw them) and
+  projected through the camera; a π⁺ and a γ ray in flight in d3empty are picked where they are drawn (before: neither).
+  (b) Quantum nuclei's bead rings were not drawn in 3-D: drawRings3 draws each ring through the camera (offsets in x, y
+  and depth), once an ångström is 30 px or more where the atom is, fainter with the fog; water3d with 8 beads, close
+  up: 24 bead dots drawn (before: none). (c) The Magnet tool's pole buttons kept the flat ⊙/⊗ in 3-D, where a pole's
+  field is along the chosen axis: now "N +z" / "S −z" (the axis as set). (d) The Experimental texts still flat-only:
+  quantum nuclei's (Settings' pane and its 3-D note said the beads are not drawn) now say where they are drawn; the
+  others were checked (1.25's Settings by mode already gives each a 3-D note). Fingerprints unchanged (drawing only).
+  Check: f_bug125 "display3" (page).
+- 14. MeV electrons and positrons in 3-D were stepped faster than light: 3-D keeps every lepton stepped, with ½mv² for
+  its energy and v for its speed, so a 10 MeV electron moved at 6.3c, in inner steps held at DT_MIN that carried it
+  about 4 Å past every nucleus. Now a lepton past 25 keV (where ½mv² puts it at 0.3c) leaves the stepped set
+  (switchMode pays its potential energy, as for atoms in flight) and flies (moveFastLeptons3): straight at its
+  relativistic speed, or on an arc of angle qB·t/γm in a magnetic field, in segments of at most 45% of the box; its
+  kinetic energy stays ½m|v|² of the stored velocity, so the books are unchanged; along its path it gives energy to
+  the atoms' electrons as the flat game's radiation flight does (≈ n_e/β² each, the electrons set free square to the
+  path, exactly what it loses); a closed wall stops it (leptonWall/wallStop3, its energy escaped). Below 20 keV it is
+  stepped again. Measured: a 10 MeV electron 6.26c before, 0.999c after; 20 MeV pairs made inside a 3-D lead block
+  (6³ atoms), 30 pairs × 25 steps: books −6,301 eV in all (worst pair 211 eV) before, −3.3 eV (worst 0.8) after.
+  wallStop3 now books no potential energy for a lepton in flight (it has none in the books: a 1 MeV γ's Compton electron
+  stopped in the wall had put −0.6 to −1.2 eV in f_124's light check). Not ported (the flat radiation flight has them): bremsstrahlung, Mott scattering off a nucleus crossed, and an
+  electric field's push in flight above 25 keV. Fingerprints unchanged (no 3-D setup has leptons past 25 keV);
+  t_energy, t_3d and f_125n pass. Check: f_bug125 "lep3".
+- 17. Quantum nuclei in 3-D with the whole force field on every bead cost ×17–48 (flat ×3–10). Why: a 3-D ring reaches
+  up to 0.51 Å from its centre in liquid water, past half the neighbour list's 1 Å skin, so each bead's pass found the
+  list out of date and rebuilt the grid and the list: 6.1 rebuilds a step of 8 passes (the profile: vlPairs3 1.5 s of
+  2.6 s), against none in the flat game. Now while that mode runs in 3-D the list reaches PI_SKIN3 (1.4 Å) farther, the
+  cells with it, and stays valid for moves up to half its wider skin: every bead's pass uses the same list, no
+  rebuild in a step (vlReachSet; back to the usual reach when the mode or quantum nuclei go off). The forces are worked
+  out where the pairs are, the list only says which to look at: 40 steps of water3d with 8 beads, positions the same
+  to 6·10⁻¹⁵ Å and the same drift. water3d (1,029 atoms), 8 beads: 52 → 19 ms a step; bench-mode's costs against
+  stored, ms a simulated fs: 8 beads ×15.4 → ×8.0, 16 ×17 (was ×29–31), 32 ×29 (was ×46–51). The 3-D tags and note
+  now say ×8, ×17, ×29. Fingerprints unchanged (quantum nuclei are off by default). Check: f_bug125 "pi3".
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

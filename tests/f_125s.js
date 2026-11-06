@@ -57,9 +57,9 @@ PARTS.settings3d = async (page, check, say, openPage) => {
   check(tagDiff.length === 5 && /×18/.test(d3.tags.segBo) && /×6–15/.test(d2.tags.segBo) && /×7–17/.test(d3.tags.segRc),
     `1.25 Settings by mode: the cost tags are this mode's: bond orders ${d2.tags.segBo} / ${d3.tags.segBo}, force reach ${d2.tags.segRc} / ${d3.tags.segRc}, quantum nuclei ${d2.tags.segPi} / ${d3.tags.segPi}`,
     '1.25 settings3d tags: ' + JSON.stringify({ d2: d2.tags, d3: d3.tags }));
-  check(/twist/.test(d3.desc.segBo) && !/twist/.test(d2.desc.segBo) && /not drawn/.test(d3.desc.segPi) && /camera/.test(d3.desc.segWheel) && /3-D lab/.test(d3.desc.exp) && d2.desc.exp !== d3.desc.exp
+  check(/twist/.test(d3.desc.segBo) && !/twist/.test(d2.desc.segBo) && /drawn in depth/.test(d3.desc.segPi) && /camera/.test(d3.desc.segWheel) && /3-D lab/.test(d3.desc.exp) && d2.desc.exp !== d3.desc.exp
     && d2.notes['3d'] === 0 && d3.notes['2d'] === 0 && d2.notes['2d'] > 5 && d3.notes['3d'] > 5,
-    `1.25 Settings by mode: descriptions and notes follow the mode (3-D: the twist in bond orders, quantum nuclei's beads not drawn, the wheel moving the camera; notes ${d2.notes['2d']} flat / ${d3.notes['3d']} 3-D, none of the other mode's shown)`,
+    `1.25 Settings by mode: descriptions and notes follow the mode (3-D: the twist in bond orders, quantum nuclei's beads drawn in depth (bug fix 8 after 1.25), the wheel moving the camera; notes ${d2.notes['2d']} flat / ${d3.notes['3d']} 3-D, none of the other mode's shown)`,
     '1.25 settings3d words: ' + JSON.stringify({ notes2: d2.notes, notes3: d3.notes, bo3: d3.desc.segBo.slice(0, 160), pi3: d3.desc.segPi.slice(0, 160) }));
   check(d3.only.setInc === '2-D only dim' && d3.only.segZoomTo === '2-D only dim' && d3.only.segFov3 === '' && d2.only.segFov3 === '3-D only dim' && d2.only.setAxes3 === '3-D only dim' && d2.only.setInc === '',
     '1.25 Settings by mode: one-mode settings dimmed with a tag in the other (3-D: detailed nuclear collisions and zoom toward "2-D only"; flat: the 3-D tab "3-D only")', '1.25 settings3d only: ' + JSON.stringify({ d2: d2.only, d3: d3.only }));
