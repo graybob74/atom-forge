@@ -536,6 +536,30 @@ nuclei, Mesons, Baryons, Resonances, Light, Antimatter, Exotic atoms and nuclei)
 selected, copied, saved and let decay, flat and in 3-D. Checks: tests/f_swx.js (t_features runs it alone;
 `node tests/f_swx.js [--node] [part …]`); each part fails on v136 and passes here.
 
+Per particle and mode ("fixed": what changed for it; every row was placed, fired at 1 keV–1 PeV, inspected, erased,
+undone, saved and let decay through the page, and run in Node for its decay at rest, its books and speed):
+
+| Menu | Particle | Flat | 3-D |
+|---|---|---|---|
+| Leptons | e⁻, e⁺ | fixed: Mott recoils and sub-ionization pushes booked; a remainder settled on one e⁻ no longer past c | fine (25 keV+ flight since bug fix 14; 1 PeV within 0.13 eV) |
+| Leptons | μ⁻ | fixed: muonic atoms' mean lives (Al, Ca, Pb …), the muon in the atom's mass, saves/undo kept it; decays in flight with exact γ | fixed: the same |
+| Leptons | μ⁺ | fixed: saves/undo kept it; muonium texts; decays in flight with exact γ | fixed: saves/undo kept it |
+| Leptons | τ⁻, τ⁺ | fixed: saves/undo kept it; Inspect's decay list (ντ, not "nutau"); exact γ | fixed: the same |
+| Neutrinos | νₑ ν̄ₑ νμ ν̄μ ντ ν̄τ | fine (placed and fired at 1 keV–1 PeV; pass through, books 0) | fine |
+| Nucleons | p⁺ | fixed: atoms it knocks into flight keep the books (setVel, nuclearCollision) | fine |
+| Nucleons | n | fixed: an elastic hit sending a bonded atom into flight booked | fixed: faster than light (1 GeV 1.46c, 1 PeV 1,460c) → its true speed |
+| Nucleons / Antimatter | p̄, n̄ | fine (annihilation books within 0.01 eV on p, H, p̄) | not in 3-D (antimatter is flat-only, by design) |
+| Light nuclei | ²H⁺ ³H⁺ ³He²⁺ α | fixed: knock-on recoils booked (a 1 MeV α +46–66 eV before, ±1 now) | fixed: the elastic turn of a slow hadron off them when fast (+147 MeV a 1 TeV α's cascade); PeV debris |
+| Mesons | π⁺ π⁻ π⁰ K⁺ K⁻ K⁰s K⁰ʟ η | fixed: saves/undo kept it; elastic turns off fast nuclei (energy from nothing); exact γ in flight | fixed: the same |
+| Baryons | Λ Λ̄ | fixed: mean life to PDG 2024; saves/undo kept it; elastic turns; exact γ | fixed: the same |
+| Baryons | Σ⁺ Σ⁻ Ξ⁰ Ξ⁻ Ω⁻ and antis | fixed: saves/undo kept it; elastic turns; exact γ | fixed: the same; Σ⁺'s 3-D stop heat (−5 eV per 200) booked |
+| Resonances | ρ⁰ ρ± ω φ K*⁺ K*⁻ K*⁰ K̄*⁰ Δ⁺⁺ Δ⁺ Δ⁰ Δ⁻ | fixed: saves/undo kept it (with each one's own mass); fine at Ultra-realistic rates | fixed: the same |
+| Light | γ | fine (1 keV–1 PeV; showers at 1 PeV within 10⁻¹⁰) | fine |
+| Antimatter | H̄, ²H̄⁻, ⁴H̄ē²⁻ | fine (books ≤ 2.4 eV on p, H, p̄) | not in 3-D (by design) |
+| Exotic atoms | μp μd μt | fixed: Select, copy, paste, move, Delete; Inspect's Delete; a proton it scatters at 1 PeV no longer 933c | fixed: Select … Delete, Inspect's Delete |
+| Exotic atoms | Mu | fixed: decay books (Mott, recoils); texts (μ⁺ + e⁻ → muonium, Mu⁺) | fine (books of 200 decaying: +9 eV, the dense Mu/Mu₂ plasma's integration) |
+| Exotic atoms | ³ΛH … ²⁰⁸ΛPb (13) | fixed: saves/undo kept it; Select; elastic turns (+3 keV–13 MeV per shot at 1 keV–1 MeV before); lengths in Inspect | fixed: the same; stopping beside a lone nucleus (−0.03 eV each) booked |
+
 - **Books when a fast charged particle crosses a nucleus (flat game).** Found with muonium: 200 muonium atoms decaying
   in an insulated box moved the books +214 eV. Two slips, both general (any MeV electron or positron through matter):
   1. Mott scattering (`nuclearScatter`, a lepton crossing a nucleus where it is drawn) gave the struck atom its recoil
@@ -672,6 +696,27 @@ selected, copied, saved and let decay, flat and in 3-D. Checks: tests/f_swx.js (
   internal names of the neutrinos (μp: "p e⁻ ν̄ numu"; τ: "nutau", "numub"): now through the products' own labels
   (νμ, ν̄μ, ντ, d, t, α). Lengths read "1.5e+2 nm" (a hypernucleus's mean distance) and a resonance's "0.0000013 nm":
   now "150 nm", and pm and fm below a nanometre. Check: f_swx "texts".
+
+- **Left for the owner (model questions, not changed):**
+  - Below the reaction threshold a close pass deflects at its distance in Å, not mapped onto nuclear distances (v138:
+    a head-on 1 MeV α on α gives the target 133 eV flat, 33 eV in 3-D, not the whole 1 MeV of a real backscatter);
+    mapping it as the collider's `nuclearScatter` does is a model change.
+  - Unstable particles do not meet each other (a pion through muonic hydrogen or a Λ passes it): they meet only atoms
+    and nuclei (W.parts), and each other only as a collider's beams.
+  - The muon caught at 2 keV keeps its momentum out of the atom (above, point 3 of muonic atoms).
+  - Muon mean lives between the measured elements come from the Goulard–Primakoff form; Ar-40 643 ns (about 540
+    measured), Th and U 84–85 (about 77): more measured elements in MU_TAU would pin them. The table's values are from
+    memory of the paper (no network here), each consistent with its capture rate: worth a check against the paper.
+  - The approved realistic-particle switches (μp handing its muon to heavier nuclei, electrons seeing Z − 1, the
+    muonic cascade's X-rays, positronium …) are not built; nothing here is in their way (the rates by element and the
+    muon's mass are what they need).
+  - Remaining books noise: the flat game's hot debris (5–59 eV in 1 in 25 shots, the known limit of light fast atoms);
+    200 muonium atoms decaying in a crowd (+173 eV flat, +9 eV 3-D, the integration of a dense hot Mu/Mu₂/e⁻ plasma);
+    a 3-D hypertriton decaying at 1 PeV keeps momentum only to 2.5×10⁻⁵ (its residual nucleus's own boosts at
+    γ ≈ 3×10⁵; the books are settled exactly).
+- **Found in the other session's areas (not changed):** the Lab tab's Particles readout counts atoms, nuclei and leptons
+  only: twelve unstable particles placed beside five atoms read "5". The 3-D lab has no particle view (so a muonic
+  atom's muon is drawn only in the flat game's).
 
 ### 1.26: GFN2 refit (second attempt)
 
