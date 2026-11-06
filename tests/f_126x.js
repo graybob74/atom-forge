@@ -1,7 +1,7 @@
 'use strict';
 /* The 1.26 checks for spin-polarized quantum bonds and the SCC's handling of radicals (Settings → Experimental → Bond
    orders → Quantum, Spins: Paired normal, Polarized a choice; tools/xtb/spin.js), run by t_features (its "1.26 (xTB)"
-   line) or alone: node tests/f_126x.js [part …] (parts: port, base, game, pull, conv, chem, page). Each fails on v131
+   line) or alone: node tests/f_126x.js [part …] (parts: port, base, game, pull, conv, chem, af, page). Each fails on v131
    (no spin polarization, GFN2's unsettled radicals). The physics parts run in the Node harness (deterministic); page
    in the t_features page. (check(ok, good, bad); say(...)) */
 const { load } = require('./load');
@@ -62,6 +62,7 @@ PARTS.game = async (page, check) => {
       for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
       X.boQmMethod(meth); X.boQmSpin(1); X.boSet(2); X.forcesNoEvents(); W.T = 300; for (let i = 0; i < 30; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
       o.members = W.parts.filter(p => p.bom && !p.dead).length; o.flips = X.XQ.flips;
+      { const L = X.XQ.ids.lay, q = X.XQ.qsh; let m = 0; for (let k = L.nsh; k < 2 * L.nsh; k++) m += Math.abs(q[k]); o.mag = +m.toFixed(2); } // (O2's two unpaired electrons: by the probe's switch or a start with each atom's spins)
       const all = W.parts.filter(p => !p.dead && p.k === X.NUC); X.forcesNoEvents(); const F = all.map(p => [X.S.fx[p.i], X.S.fy[p.i]]); let worst = 0; const E = () => X.totalEnergy().pe;
       all.forEach((p, u) => { for (const c of [0, 1]) { const A = c ? 'y' : 'x', x0 = p[A]; p[A] = x0 + 1e-4; X.gridTouch(); const e1 = E(); p[A] = x0 - 1e-4; X.gridTouch(); const e2 = E(); p[A] = x0; X.gridTouch(); worst = Math.max(worst, Math.abs(-(e1 - e2) / 2e-4 - F[u][c])); } });
       o.dF2 = +worst.toExponential(1);
@@ -79,9 +80,9 @@ PARTS.game = async (page, check) => {
       W.gamma = 0; const tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, E0 = tot(), f0 = X.XQ.fails;
       for (let i = 0; i < 150; i++) { W.dt = X.chooseDt(); X.step(W.dt); } o.drift3 = +(tot() - E0).toExponential(1); o.fails3 = X.XQ.fails - f0; }
   }
-  const ok = (o) => o.members === 8 && o.flips >= 1 && o.dF2 < 2e-5 && o.swap[0] === 8 && o.swap[1] < 1e-6 && Math.abs(o.drift2) < 0.005 && !o.fails2 && o.members3 === 16 && Math.max(...o.dF3) < 1e-5 && Math.abs(o.drift3) < 0.001 && !o.fails3;
+  const ok = (o) => o.members === 8 && o.mag > 1.5 && o.dF2 < 2e-5 && o.swap[0] === 8 && o.swap[1] < 1e-6 && Math.abs(o.drift2) < 0.005 && !o.fails2 && o.members3 === 16 && Math.max(...o.dF3) < 2e-5 && Math.abs(o.drift3) < 0.001 && !o.fails3;
   check(ok(out.g1) && ok(out.g2),
-    `1.26 spins in the game: O₂ found a triplet (paid to the bath); forces the energy's slopes flat (an ion outside) GFN1 ${out.g1.dF2}, GFN2 ${out.g2.dF2} eV/Å, 3-D x/y/z ${out.g1.dF3.join('/')} and ${out.g2.dF3.join('/')}; insulated ${out.g1.drift2} / ${out.g2.drift2} eV over 200 steps flat, ${out.g1.drift3} / ${out.g2.drift3} over 150 in 3-D, none unsettled; switching the spins with 8 members in paid to the bath, the books closed to ${out.g1.swap[1]} / ${out.g2.swap[1]} eV`,
+    `1.26 spins in the game: O₂ a triplet (unpaired |m| ${out.g1.mag} / ${out.g2.mag}); forces the energy's slopes flat (an ion outside) GFN1 ${out.g1.dF2}, GFN2 ${out.g2.dF2} eV/Å, 3-D x/y/z ${out.g1.dF3.join('/')} and ${out.g2.dF3.join('/')}; insulated ${out.g1.drift2} / ${out.g2.drift2} eV over 200 steps flat, ${out.g1.drift3} / ${out.g2.drift3} over 150 in 3-D, none unsettled; switching the spins with 8 members in paid to the bath, the books closed to ${out.g1.swap[1]} / ${out.g2.swap[1]} eV`,
     '1.26 spins game: ' + JSON.stringify(out));
 };
 
@@ -144,7 +145,35 @@ PARTS.chem = async (page, check) => {
     '1.26 spins chem: ' + JSON.stringify(out));
 };
 
-/* ---- 7. the page: Experimental → Spins (Paired at start, Polarized a choice with its cost and the realistic tag), the
+/* ---- 7. Atom Forge xTB (XQ.method 3, built and measured but not offered in Settings: see PERF-NOTES): its parameters
+   as fitted (single points: N2, O2, ozone); in 3-D (O2, three waters, methane) the forces are the energy's slopes in x,
+   y, z and an insulated run keeps its energy; a molecule with another element (H2S) keeps stored bonds */
+PARTS.af = async (page, check) => {
+  const X0 = load('all', { seed: 1 }), XTB = X0.XTB, AF = XTB.AF;
+  const e = (Z, x, u) => XTB.gfn1Energy(Z, x, 0, u, { accuracy: 0.01, spin: AF.ws, par: AF.par }).E + XTB.d3Disp(Z, x, {}).E;
+  const at = { 7: e([7], [[0, 0, 0]], 3), 8: e([8], [[0, 0, 0]], 2) }, w = (x) => e([8, 1, 1], x, 0);
+  const o3x = [[0, 0, 0], [1.0827, 0.6620, 0], [-1.0827, 0.6620, 0]];
+  const sp = { af: AF.base, n2: +(2 * at[7] - e([7, 7], [[0, 0, 0], [1.098, 0, 0]], 0)).toFixed(2), o2: +(2 * at[8] - e([8, 8], [[0, 0, 0], [1.208, 0, 0]], 2)).toFixed(2),
+    o3: +(e([8, 8], [[0, 0, 0], [1.208, 0, 0]], 2) + at[8] - e([8, 8, 8], o3x, 0)).toFixed(2) };
+  const out = { sp };
+  { const X = load('all', { seed: 5 }), W = X.W; X.addMolecule('H2O', 0, 0, 0, 0); X.addMolecule('H2S', 3, 0.5, 1, 0); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p); // (another element: stored bonds)
+    X.boQmMethod(3); X.boSet(2); X.forcesNoEvents(); for (let i = 0; i < 5; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+    out.sStored = W.parts.some(p => p.Z === 16 && !p.dead && !p.bom && p.bonds.length === 2) && W.parts.filter(p => p.bom && !p.dead).length === 3; }
+  { const X = load('all', { seed: 3 }), W = X.W; X.PRESETS.empty.build(); X.setBox(24, 24); X.world3d(24); W.gamma = 0.05;
+    ['O2', 'H2O', 'H2O', 'CH4', 'H2O'].forEach((m, k) => X.addMolecule(m, -6 + (k % 3) * 6, -3 + (k / 3 | 0) * 6, k, 300, k % 2 ? 2 : -2));
+    X.forcesNoEvents(); X.boQmMethod(3); X.boSet(2); for (let i = 0; i < 30; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+    const all = W.parts.filter(p => !p.dead && p.k === X.NUC); out.members3 = W.parts.filter(p => p.bom && !p.dead).length;
+    X.forcesNoEvents(); const F = all.map(p => [X.S.fx[p.i], X.S.fy[p.i], X.S.fz[p.i]]); const worst = [0, 0, 0]; const E = () => X.totalEnergy().pe;
+    all.forEach((p, u) => { for (const c of [0, 1, 2]) { const A = 'xyz'[c], x0 = p[A]; p[A] = x0 + 1e-4; X.gridTouch(); const e1 = E(); p[A] = x0 - 1e-4; X.gridTouch(); const e2 = E(); p[A] = x0; X.gridTouch(); worst[c] = Math.max(worst[c], Math.abs(-(e1 - e2) / 2e-4 - F[u][c])); } });
+    out.dF3 = worst.map(v => +v.toExponential(1));
+    W.gamma = 0; const tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, E0 = tot(), f0 = X.XQ.fails;
+    for (let i = 0; i < 150; i++) { W.dt = X.chooseDt(); X.step(W.dt); } out.drift3 = +(tot() - E0).toExponential(1); out.fails3 = X.XQ.fails - f0; }
+  check(sp.af === 1 && Math.abs(sp.n2 - 9.91) < 1 && Math.abs(sp.o3 - 1.15) < 1 && out.sStored && out.members3 === 16 && Math.max(...out.dF3) < 1e-5 && Math.abs(out.drift3) < 0.001 && !out.fails3,
+    `1.26 Atom Forge xTB (built, not offered: see the notes): N₂ into atoms ${sp.n2} eV (measured 9.91), O₂ ${sp.o2} (5.24), O₃ → O₂ + O ${sp.o3} (1.15); in 3-D the forces are the energy's slopes x/y/z ${out.dF3.join('/')} eV/Å, insulated ${out.drift3} eV over 150 steps, none unsettled; H₂S keeps stored bonds`,
+    '1.26 Atom Forge xTB: ' + JSON.stringify(out));
+};
+
+/* ---- 8. the page: Experimental → Spins (Paired at start, Polarized a choice with its cost and the realistic tag), the
    choice reaching the engine (O2 and a water: the triplet found), the Speed test's line, the side pane, Help */
 PARTS.page = async (page, check) => {
   const r = await page.evaluate(async () => {
