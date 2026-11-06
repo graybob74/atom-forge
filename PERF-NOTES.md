@@ -480,7 +480,73 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
   products". Now each passes its depth, and the marking is within 4 Å in depth too in 3-D. A positron annihilating on
   an oxygen at z = 7.05, a quark pulled out of a carbon at z = 7, a 5 MeV pair at a lead atom at z = −6: captions at
   z 0, 0, 0 before; 7.05, 7, −6 after. Fingerprints: every setup identical (59, seed 7, 300 steps). Check: f_sweep3d
-  "eventsZ" (Node). (A muon's decay in a muonic atom, hep.js line ~606, has the same gap: the other session's area, left.)
+  "eventsZ" (Node). (Muonium's decay, hep.js muoniumTick, has the same gap: the other session's area, left.)
+
+**Settings audit** (both modes; every choice of every row set through setSetting in Liquid water and in Molecules in
+space, the engine's or the drawing's own variable read back, a frame drawn; the Experimental rows also run 10 steps in
+water, Molecules in space and Salt in water, 3-D; then 64 settings set off their normal, the page reloaded: every
+non-Experimental one kept, every Experimental one back to normal; no page errors). "Applies" = the value reaches what it
+sets, in that mode.
+
+| tab | setting | flat | 3-D | measured / note |
+|---|---|---|---|---|
+| Performance | Max particles | applies | applies | MAX_PARTS 2,000 … 20,000 |
+| | Resolution | applies | applies | R.dprMax 2 / 1 / 0.75 |
+| | Physics budget | applies | applies | UI.budget 6 … 24 ms |
+| | Priority, Auto | applies | applies | prioNow 0 … 4 |
+| | Threads | applies | applies | not measurable headless (no shared memory here); t_threads |
+| | Drawing engine | applies | applies | WebGL / Canvas 2D (3-D's Canvas path sorted far to near) |
+| Graphics | Frame-rate cap | applies | applies | read by the frame loop |
+| | Atom size | applies | applies | 3-D oxygen drawn 6.75 / 4.72 / 3.04 px |
+| | Labels (with View → Labels) | applies | applies | flat 80 labels / hover 0 / off 0; 3-D: f_125s labels3d |
+| | Charge badges | applies | applies | R.badges, labelOne3 |
+| | Effects (glows) | applies | applies | R.lite |
+| | Fewer flashes | applies | applies | R.flashK 0.3 (drawFlashes3 too) |
+| | Colour-blind colours | applies | applies | oxygen #FF0D0D → #d55e00 |
+| | Trails, trail clock | applies | applies | trailWindow 0.5 / 1.5 / 4 s; drawTracks3 |
+| | FPS readout | applies | applies | the badge hidden / shown |
+| Display | Window | n/a | n/a | the desktop app only |
+| | Cursor | applies | applies | cursorHides |
+| | Interface size, panel side, width | applies | applies | --ui, panel-left, --pw |
+| | Motion, theme | applies | applies | |
+| Controls | Wheel speed | applies | applies | one notch: ×1.078 / ×1.162 / ×1.350 in both (3-D: the camera's distance) |
+| | Zoom toward | applies | 2-D only (marked) | the 3-D wheel zooms toward the target |
+| | Keep tool options, pause when hidden, start paused, keep awake | applies | applies | (start paused: t_features; the test page sets AF_NO_PAUSE) |
+| General | Start with, autosave | applies | applies | autosave keeps a 3-D world (d3, z) |
+| | Units (temperature, energy, length) | applies | applies | 300 K / 26.9 °C / 80.3 °F; 1.50 Å / 0.150 nm / 150 pm (3-D Measure too) |
+| | Setup tips | **fixed** (item 11) | **fixed** | turned back on, the tip shows again at once |
+| | Rewind (on, span, every, memory) | applies | applies | 3-D: 7 snapshots in 3 s, rewound to the start of the run |
+| 3-D | field of view, projection, fog, box, axes, labels, orbit speed, invert, spin | 3-D only (marked) | applies | V3 values; spin 6°/s: 0.052 rad in 0.5 s |
+| Claude | API key, model | applies | applies | t_page (mocked) |
+| Experimental | Longest step | applies | applies | step 0.04 → 0.01 tu |
+| | Resonance in large rings | applies | applies | RES_BIG |
+| | Detailed nuclear collisions | applies | 2-D only (marked) | INC_ON |
+| | Force reach | applies | applies | RC 6 / 9 / 12 |
+| | Induced charges | applies | applies | QEQ.every 10 / 1; the charges move |
+| | Quantum nuclei, bead forces | applies | applies | rings on 240 (water), 72, 997 (salt water) atoms |
+| | Bond orders (positions / quantum) | applies | applies | from the positions: 240, 72, 981 members; quantum joins worlds of up to 40 atoms only (0 of 240 / 72; 6 of 6 in two waters), as designed |
+| | Quantum method, spins | applies | applies | XQ.method 1 / 2, XQ.spin |
+| | Metals | applies | applies | 6 Cu members in Molecules in space |
+| | Lone pairs | 3-D only (marked) | applies | 7 sites (Molecules in space), 327 (salt water) |
+| | Halogen σ-holes | applies | applies | one site a C–Cl |
+| | π-stacking | 3-D only (marked) | applies | 12 sites, 24 rings (two benzenes) |
+| | Electrons as waves | applies | applies | free electrons as packets (3-D: 1 of 1) |
+| | Ultra-realistic | applies | **fixed** (item 2) | the picture and the camera at true sizes in 3-D |
+
+**Found, left as they are** (why, numbers):
+- Argon in 3-D: the wall pressure's Z 0.48 ± 0.08 against helium's 0.84–0.89 (item 5): the flat world's doubled van der
+  Waals wells (LJ_SCALE 2) are still on in 3-D (the open item from 1.23.0); physics, for the owner.
+- Placing a Δ⁻ in Molecules in space (it decays at once to n π⁻; the π⁻ is caught): books −2.9 eV over 300 steps (Δ⁰
+  +0.6; the other 66 particles of the 3-D menus placed and fired at 10 MeV: under 0.5 eV each). A 100 keV electron
+  fired through 3-D water: −4.3 eV over 400 steps (500 eV −0.18, 10 keV +0.10, 1 MeV −0.14). Not chased.
+- Moving a selection keeps its atoms clear of others (moveSelection's crowd check): in liquid water an 80 px drag moved
+  a molecule 0.97 Å; as designed.
+- Saves keep no unstable particles in flight (both modes; worldToJSON keeps nuclei, atoms, ions and free leptons).
+- The narrator calls H + H₂ → H₂ + H "endothermic, the new bonds are weaker" when the measured ΔE is a few meV either way
+  (both modes): its wording follows the sign of a near-zero heat.
+- 3-D event captions draw no ghost rings for what vanished (the flat view's dashed rings); the caption and rings are there.
+- In the other session's area (not touched): muonium's decay (hep.js `muoniumTick`, the μ⁺ → e⁺ ν ν̄ caption) is put at
+  z = 0 in 3-D, as the captions of item 15 were (its products are at their depth).
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 
