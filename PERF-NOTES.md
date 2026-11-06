@@ -1944,6 +1944,12 @@ anything"), and the Settings section they live in. Checks: tests/f_rp1.js (t_fea
     nearly bare.
   - The transfer rates for elements other than N and O are scaled, not measured; MU_TAU's and XA_KA's values are from
     memory of the compilations (no network here) and are worth a check against the papers.
+- **Test change:** t_features' 1.10 Settings check counts four "realistic when on" checkbox tags (Exotic atoms beside
+  resonance in large rings, detailed nuclear collisions and Ultra-realistic), not three.
+- **Suites** (2-core machine): alone t_lint, t_energy, t_hep, t_3d, t_settings, f_swx, f_hep126, f_sweep3d, f_rp1 pass;
+  t_features alone: f_rp1 passes, two misses (the 1.10 count above, fixed; the 1.14 slow-motion readout 1/1.3×, the known
+  two-core flake); tools/runtests.sh: 21 of 22 pass, t_features' one miss the f_bug125 "exoElastic" timing check (6.5 ms
+  under both lanes' load), which passes alone (f_bug125 alone: all pass).
 
 ## 1.25.0: the nuclear side in 3-D, continuous bond orders in 3-D with single bonds' twist, many-body metals, Settings by mode with 3-D pictures, 3-D labels off, 21 bug fixes
 
