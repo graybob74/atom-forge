@@ -481,6 +481,12 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
   an oxygen at z = 7.05, a quark pulled out of a carbon at z = 7, a 5 MeV pair at a lead atom at z = −6: captions at
   z 0, 0, 0 before; 7.05, 7, −6 after. Fingerprints: every setup identical (59, seed 7, 300 steps). Check: f_sweep3d
   "eventsZ" (Node). (Muonium's decay, hep.js muoniumTick, has the same gap: the other session's area, left.)
+- 16. Test (the record's "Continue after a restart" failure: the restored world 1–3 particles more than saved, 72 → 73,
+  73 → 74): not a bug in Continue. The check counted the world right after an explicit autosave and compared it with
+  what Continue brought back after a reload, but the page saves again as it closes (pagehide, visibilitychange) and its
+  world was still running, so the last save held the world a moment later (a free electron more). Reproduced: the soup
+  running, 96 counted at the explicit save, 87 saved at the reload and 87 brought back by Continue. The check now pauses
+  first (t_features' 1.23.1 block); Continue itself unchanged.
 
 **Settings audit** (both modes; every choice of every row set through setSetting in Liquid water and in Molecules in
 space, the engine's or the drawing's own variable read back, a frame drawn; the Experimental rows also run 10 steps in
