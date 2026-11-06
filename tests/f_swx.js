@@ -46,6 +46,57 @@ PARTS.loneHeat = async (page, check, say) => {
   check(Math.abs(r.d3) < 1e-3 && Math.abs(r.flat) < 1e-6, `1.26 sweep: heat with no partner to share it (one atom, insulated) stays in the books (3-D: a 1 keV hypernucleus stopping beside a lone atom ${r.d3} eV; flat ${r.flat} eV)`, 'swx loneHeat: ' + JSON.stringify(r));
 };
 
+/* The debris of a 1 PeV event (α on α at rest, head on), over 300 steps: decays in flight boosted with γ from 1 − β²
+   (at γ ≈ 10⁵ it keeps ~10⁻⁶ of itself), and hits whose remainder (10⁻⁷ of 100 TeV) was left unsettled or sat on a single
+   product: 0.1–0.9 MeV off before (10 PeV: 27–94 MeV); now the books' own rounding, a few eV. */
+PARTS.pevBooks = async (page, check, say) => {
+  const r = [];
+  for (const d3 of [false, true]) for (const seed of [1, 2]) {
+    const X = load('all', { seed }), W = X.W;
+    X.PRESETS[d3 ? 'd3empty' : 'empty'].build(); W.T = 0; W.gamma = 0; W.wall = 'reflect'; W.decayOn = true;
+    X.addNuc(2, 2, 0, 0, 0); const p = X.addNuc(2, 2, 0, -3, 0); X.setMotion(p, 1e15, 1, 0, 0, 0, 0, 0);
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    const E0 = books(X); go(X, 300); r.push(+(books(X) - E0).toFixed(1));
+  }
+  check(r.every(v => Math.abs(v) < 100), `1.26 sweep: a 1 PeV α on α, its debris's books over 300 steps within ${Math.max(...r.map(Math.abs))} eV (flat and 3-D; before 0.1–0.9 MeV)`, 'swx pevBooks: ' + JSON.stringify(r));
+};
+
+/* A hadron's elastic turn off a nucleus (exoElastic): the nucleus takes the momentum given in the lab, its recoil energy
+   paid by the hadron, floored at 1 eV; a slow hadron meeting a fast nucleus (a cascade's) could not pay, and the rest was
+   made from nothing (a 4 MeV π⁻ and a 650 MeV proton: +47 MeV). Now such a turn is made in their own frame, exactly. */
+PARTS.elasticCM = async (page, check, say) => {
+  const r = {};
+  for (const d3 of [false, true]) {
+    const X = load('all', { seed: 4 }), W = X.W; X.PRESETS[d3 ? 'd3empty' : 'empty'].build(); W.T = 0; W.gamma = 0; W.decayOn = false;
+    let worst = 0;
+    for (let k = 0; k < 8; k++) {
+      const tg = X.addNuc(1, 0, 0, 2, 0); X.setMotion(tg, 6.5e8, 1, 0, 0, 0, 0, 0);
+      const o = X.addExo('pi-', 0, 0, 4e6, 1, 0, undefined, 0, 0);
+      X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const E0 = books(X); for (let j = 0; j < 4 * k; j++) X.rnd(); X.exoElastic(o, tg); worst = Math.max(worst, Math.abs(books(X) - E0));
+      X.kill(tg); o.dead = true; W.exo.length = 0;
+    }
+    r[d3 ? 'd3' : 'flat'] = +worst.toExponential(1);
+  }
+  check(r.flat < 1e-3 && r.d3 < 1e-3, `1.26 sweep: a slow π⁻ turned off a fast proton keeps the books (flat ${r.flat} eV, 3-D ${r.d3} eV; before up to tens of MeV)`, 'swx elasticCM: ' + JSON.stringify(r));
+};
+
+/* 3-D neutrons in flight moved at ½mv²'s speed (1 PeV: 1,460c); now at the relativistic speed for that energy, as a
+   nucleus in flight (bug fix A of 1.26), the books unchanged. */
+PARTS.neutron3 = async (page, check, say) => {
+  const X = load('all', { seed: 1 }), W = X.W; X.PRESETS.d3empty.build(); W.T = 0; W.gamma = 0; W.wall = 'open';
+  const r = {};
+  for (const KE of [1e6, 1e9, 1e15]) {
+    const n = X.addNuc(0, 1, 0, -10, 0, 0, 0, false, 0); X.setMotion(n, KE, 0.6, 0, 0, 0, 0.8, 0);
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    const x0 = n.x, z0 = n.z, E0 = books(X), dt = 1e-5; X.step(dt);
+    r[KE] = { c: +(Math.hypot(n.x - x0, n.z - z0) / dt / X.PHYS.C).toFixed(6), books: +(books(X) - E0).toExponential(1) };
+    X.kill(n);
+  }
+  const want = (KE) => { const g = 1 + KE / (X.PHYS.MN * X.PHYS.AMU_MEV * 1e6); return Math.sqrt(1 - 1 / (g * g)); };
+  check(Object.entries(r).every(([KE, v]) => Math.abs(v.c - want(+KE)) < 1e-4 && Math.abs(v.books) < 1e-3 * (+KE) * 1e-9 + 1e-6), `1.26 sweep: a 3-D neutron flies at its true speed (1 MeV ${r[1e6].c}c, 1 GeV ${r[1e9].c}c, 1 PeV ${r[1e15].c}c)`, 'swx neutron3: ' + JSON.stringify(r));
+};
+
 module.exports = async function fswx(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

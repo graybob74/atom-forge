@@ -561,6 +561,32 @@ selected, copied, saved and let decay, flat and in 3-D. Checks: tests/f_swx.js (
   −5.0. Now the bath takes it, or in an insulated box the one atom (an exact push in a random direction). A 1 keV
   ¹³ΛC stopping beside a lone carbon in 3-D: −1,000 eV before, 0 after. Fingerprints unchanged (no setup met that
   case). Check: f_swx "loneHeat".
+- **A PeV event's debris (both games; v138's finding).** The books of a 1 PeV α on α moved 0.1–0.9 MeV over the
+  debris's next 300 steps (10 PeV: 27–94 MeV; 4 seeds flat and 3-D), for three reasons:
+  1. Decays in flight (`decayExo`, `decayExo3`, `hypDecay`) boosted their products with γ from 1 − β², which at
+     γ ≈ 10⁵ keeps ~10⁻⁶ of itself. Now the particle's own γ (`o.gam`, 1 + K/m) is passed to the boost (`boost`,
+     `boost3`, `toLab`: an optional exact γ, taken past γ = 100 only, so everything slower is bit for bit as before); a
+     hit's products (`exoOut`) are boosted with γ = E/M of the same four-momentum, so they add up to it exactly.
+  2. `closeEvent` settled a remainder only past 10⁻⁷ of the event's energy: 0.1–0.2 MeV of a 100 TeV hit stayed open.
+     Past 100 keV it now settles down to 0.01 eV (or 10⁻¹⁵ of the event, the books' own rounding); below, as before.
+  3. `settleRest` moved the remainder between the products about their centre of mass (`shareKE`), which does nothing
+     for one product alone (a hit whose other products are unstable particles, a nucleon out of a nucleon–nucleon
+     pass): up to 0.25 MeV a hit stayed open, and −4.5 eV once in the annihilation setup. Now the fastest product takes
+     it itself; with nothing made but what was carried off (antinucleons in 3-D, no room), what left takes it.
+  - After: 1 PeV within ±2 eV over 300 steps (8 runs), 10 PeV within ±24 eV (4 runs), flat and 3-D.
+- **A slow hadron turned off a fast nucleus (both games).** `exoElastic` gives the nucleus the momentum the turn takes
+  from the hadron and has the hadron pay the recoil energy, floored at 1 eV. With the nucleus itself fast (a cascade's
+  nucleons) that recoil can exceed the hadron's energy, and the rest was made from nothing: +47 MeV for a 4 MeV π⁻ and
+  a 650 MeV proton; a 1 TeV α through a few molecules in 3-D +147 MeV over 80 steps (+31–55 MeV a hit). Now when the
+  hadron can't pay, the turn is made in the pair's own frame, exactly (`exoElasticCM`; flat: the nucleus's
+  surroundings measured as before, their potential energy paid by the hadron). The 1 TeV α: −3.8 keV over the run.
+- **Neutrons faster than light in 3-D (v138's finding).** `moveNeutron` moved a 3-D neutron at the speed of ½m|v|²
+  (1 PeV: 1,460c; 1 GeV: 1.46c), as v138 found for atoms in flight. Now at the relativistic speed for that energy
+  (`flyScale3`; the books keep ½m|v|²; under 1% of c the stored speed, bit for bit), its path search with it, and
+  neutron pairs (`nnMeet3`) too. 1 GeV 0.8748c, 1 PeV 1c.
+- Fingerprints (seed 7, 300 steps) for these three: annihilation and pionbeam change (point 3: a single product now
+  takes its remainder: −4.5 eV in annihilation, 7×10⁻⁶ eV in pionbeam); none else, no 3-D setup. Checks: f_swx
+  "pevBooks", "elasticCM", "neutron3".
 - **Texts.** A μ⁺ taking an electron said "Recombination: p⁺ + e⁻ → H atom", and a bare μ⁺ bonding "Proton bonded:
   H⁺ + …": now "μ⁺ + e⁻ → muonium" and "Muon bonded: Mu⁺ + …".
 

@@ -152,7 +152,7 @@ function p4of(p, bare) { // bare: a nucleus without its electrons (they ride alo
 }
 const add4 = (a, b) => (a.length > 3 ? [a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3]] : [a[0] + b[0], a[1] + b[1], a[2] + b[2]]);
 const mass4 = (v) => (v.length > 3 ? Math.sqrt(Math.max(0, v[0] * v[0] - v[1] * v[1] - v[2] * v[2] - v[3] * v[3])) : Math.sqrt(Math.max(0, v[0] * v[0] - v[1] * v[1] - v[2] * v[2])));
-const toLab = (v, bx, by, bz) => (v.length > 3 ? boost3(v[0], v[1], v[2], v[3], -bx, -by, -bz) : boost(v[0], v[1], v[2], -bx, -by)); // from a frame moving at (bx, by[, bz]) (units of c) to the lab
+const toLab = (v, bx, by, bz, g) => (v.length > 3 ? boost3(v[0], v[1], v[2], v[3], -bx, -by, -bz, g) : boost(v[0], v[1], v[2], -bx, -by, g)); // from a frame moving at (bx, by[, bz]) (units of c) to the lab (g: its Lorentz factor, when known exactly, 1.26)
 const toRest = (v, bx, by, bz) => (v.length > 3 ? boost3(v[0], v[1], v[2], v[3], bx, by, bz) : boost(v[0], v[1], v[2], bx, by)); // and back
 const vel4 = (P) => (P.length > 3 ? [P[1] / P[0], P[2] / P[0], P[3] / P[0]] : [P[1] / P[0], P[2] / P[0]]); // (the velocity of a four-momentum's frame: toLab(v, ...vel4(P)))
 const pmag = (v) => (v.length > 3 ? Math.sqrt(v[1] * v[1] + v[2] * v[2] + v[3] * v[3]) : Math.hypot(v[1], v[2])); // (a four-momentum's |p|)
@@ -283,8 +283,8 @@ function hypDecay(o) {
     const Ex = Ar >= 2 ? 6 * rnd() : 0, mres = Ar ? nucMeV(Zr, Nr) + Ex : 0;
     const vs = phaseSpace(d.m, Ar ? [mres, ...oth.map(massOf)] : oth.map(massOf)); if (!vs) continue;
     const items = [], moms = []; let j = 0;
-    if (Ar) residualInto(Zr, Nr, mres, toLab(vs[j++], bx, by, bz), false, items, moms);
-    for (const it of oth) { items.push(it); moms.push(toLab(vs[j++], bx, by, bz)); }
+    if (Ar) residualInto(Zr, Nr, mres, toLab(vs[j++], bx, by, bz, o.gam), false, items, moms); // (o.gam: its γ itself, 1.26)
+    for (const it of oth) { items.push(it); moms.push(toLab(vs[j++], bx, by, bz, o.gam)); }
     const S = nucBegin([]); o.dead = true;
     const made = spawnItems(items, moms, o.x, o.y, o.z);
     closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
@@ -369,9 +369,9 @@ function exoOut(outs, Pin, sN, Ex, items, moms) {
   if (Mres) ms.push(Mres);
   if (!(M > ms.reduce((t, m) => t + m, 0) + 0.01)) return false;
   const vs = phaseSpace(M, ms); if (!vs) return false;
-  const bx = Pin[1] / Pin[0], by = Pin[2] / Pin[0], bz = (Pin[3] || 0) / Pin[0];
-  outs.forEach((it, i) => { items.push(it); moms.push(toLab(vs[i], bx, by, bz)); });
-  if (Mres) residualInto(sN.Zr, sN.Nr, Mres, toLab(vs[vs.length - 1], bx, by, bz), false, items, moms);
+  const bx = Pin[1] / Pin[0], by = Pin[2] / Pin[0], bz = (Pin[3] || 0) / Pin[0], g = Pin[0] / M; // (g: the frame's γ as E/M, so the products add up to Pin exactly: from 1 − β² a 100 TeV hadron's hit kept ~10⁻⁹ of its energy unsettled, 0.1–0.2 MeV, 1.26)
+  outs.forEach((it, i) => { items.push(it); moms.push(toLab(vs[i], bx, by, bz, g)); });
+  if (Mres) residualInto(sN.Zr, sN.Nr, Mres, toLab(vs[vs.length - 1], bx, by, bz, g), false, items, moms);
   return true;
 }
 /* What was hit, for captions: the nucleus, and the molecule it is in when it is in one (¹⁶O in H₂O). */
@@ -450,6 +450,7 @@ function exoElastic(o, tg) {
   const [nx, ny] = turn2(o.ux, o.uy, th), qx = p * (o.ux - nx), qy = p * (o.uy - ny); // (MeV/c given to the nucleus)
   const T = new Set(molecule(tg)), Ebefore = regionE(T); // (the books: whatever the kick does to the nucleus and its surroundings is paid by the hadron; measured over its molecule and what it touches, not the whole box: bug fix 12 after 1.25)
   const K0 = keOf(tg), Pt = p4of(tg), mt = restE(tg) / MEV, px = Pt[1] + qx, py = Pt[2] + qy, pm = Math.hypot(px, py); // (relativistic: the nucleus may itself be fast)
+  if ((Math.sqrt(mt * mt + pm * pm) - mt) * MEV - K0 >= o.KE - 1) { exoElasticCM(o, tg, th, T, Ebefore); return false; } // (the hadron can't pay that recoil: a nucleus flying into it. Its energy was floored at 1 eV and the rest made from nothing, +47 MeV for a 4 MeV π⁻ meeting a 650 MeV proton; in their own frame instead, exactly, 1.26)
   setMotion(tg, (Math.sqrt(mt * mt + pm * pm) - mt) * MEV, pm > 0 ? px / pm : 1, pm > 0 ? py / pm : 0);
   const dK = keOf(tg) - K0;
   if (dK > 20 && tg.bonds.length) for (const bd of tg.bonds.slice()) removeBond(bd);
@@ -464,6 +465,7 @@ function exoElastic(o, tg) {
 function exoElastic3(o, tg, p, th) {
   const n = turn3(o.ux, o.uy, o.uz, Math.abs(th)), nx = n[0], ny = n[1], nz = n[2], qx = p * (o.ux - nx), qy = p * (o.uy - ny), qz = p * (o.uz - nz);
   const K0 = keOf(tg), Pt = p4of(tg), mt = restE(tg) / MEV, px = Pt[1] + qx, py = Pt[2] + qy, pz = Pt[3] + qz, pm = Math.sqrt(px * px + py * py + pz * pz), K1 = (Math.sqrt(mt * mt + pm * pm) - mt) * MEV;
+  if (K1 - K0 >= o.KE - 1) { exoElasticCM(o, tg, th); return false; } // (the hadron can't pay that recoil (a nucleus flying into it): its energy was floored at 1 eV and the rest made from nothing, +31–55 MeV a hit in a 1 TeV α's cascade; in their own frame instead, exactly, 1.26)
   // (the books, without measuring the whole box's energy (tens of ms at a thousand atoms): the nucleus is given exactly K1;
   // its bonds stay, to stretch or break in the steps that follow, unless it goes into flight, where switchMode breaks them
   // and pays for them from its motion; the hadron pays K1 − K0)
@@ -473,6 +475,23 @@ function exoElastic3(o, tg, p, th) {
   o.KE = Math.max(1, o.KE - (K1 - K0)); exoSpeed(o);
   o.hitId = tg.id;
   return false;
+}
+/* (1.26) The elastic turn in the pair's own frame, exactly (energy and momentum): for a hadron too slow to pay the lab
+   recipe's recoil, i.e. a nucleus in flight running into it. The hadron's momentum there is turned by th (flat: in the
+   plane; 3-D: about an axis across it at a random azimuth); both boosted back. Flat: the nucleus's surroundings (T, its
+   energy Ebefore) measured as exoElastic does, any change of potential energy (bonds, flight) paid by the hadron. */
+function exoElasticCM(o, tg, th, T, Ebefore) {
+  const Po = exoP4(o), Pt = p4of(tg), P = add4(Po, Pt), M = mass4(P), b = vel4(P), A = toRest(Po, ...b), pc = pmag(A), mt = restE(tg) / MEV;
+  const u0 = A.length > 3 ? [A[1] / pc, A[2] / pc, A[3] / pc] : [A[1] / pc, A[2] / pc], u = turnU(u0, th);
+  const Ao = toLab([A[0], ...u.map(c => pc * c)], ...b), At = toLab([M - A[0], ...u.map(c => -pc * c)], ...b), na = pmag(Ao) || 1, nt = pmag(At) || 1;
+  setMotion(tg, Math.max(0, At[0] - mt) * MEV, At[1] / nt, At[2] / nt, 0, 0, At.length > 3 ? At[3] / nt : 0);
+  if (keOf(tg) > 10 + Pt[0] * MEV - mt * MEV) tg.nucProd = true;
+  o.ux = Ao[1] / na; o.uy = Ao[2] / na; if (Ao.length > 3) o.uz = Ao[3] / na;
+  const K0 = o.KE;
+  o.KE = Math.max(0, Ao[0] - o.m) * MEV;
+  if (T) { if (tg.bonds.length && tg.rad) for (const bd of tg.bonds.slice()) removeBond(bd); o.KE = Math.max(1, K0 - (regionE(T) - Ebefore)); } // (flat: what the nucleus and its surroundings gained, potential energy included, from the hadron)
+  exoSpeed(o);
+  o.hitId = tg.id;
 }
 /* A γ ray above about 8 MeV absorbed by a nucleus as a whole (the giant dipole resonance: the protons swing against the
    neutrons), which then boils off a neutron (or two, or a proton) as any hot nucleus does. Cross-section a Lorentzian
@@ -1090,10 +1109,17 @@ function closeEvent(S, made, x, y, Ein = 0, mIn = 0) {
     for (const [it, E, ux, uy] of made.rays) { if (it.t === 'g') emitPhoton(x, y, E * f, ux, uy); else emitNeutrino(x, y, E * f, ux, uy, !!it.anti, undefined, it.fl || 'e'); }
     if (!(Er > 0) && left > 0) emitPhoton(x, y, left);
     }
-  } else if (Math.abs(left) > 1e-7 * Math.max(1, Math.abs(Qrel))) settleRest(S, Qrel, made, left);
+  } else if (Math.abs(left) > Math.min(1e-7 * Math.max(1, Math.abs(Qrel)), Math.max(0.01, 1e-15 * Math.abs(Qrel)))) settleRest(S, Qrel, made, left); // (past 100 keV the remainder is settled down to 0.01 eV (or the books' own rounding): 10⁻⁷ of a 100 TeV hit left 0.1–0.2 MeV unsettled, from boosts at γ in the hundreds; below, as before, 1.26)
 }
 function settleRest(S, Qrel, made, left) {
   if (made.ps.length) for (let k = 0; k < 3 && Math.abs(left) > 1e-6; k++) { shareKE(made.ps, left); left = nucLeft(S, Qrel); }
+  for (let k = 0; k < 3 && Math.abs(left) > 1e-6 && made.ps.length; k++) { // (shareKE moves energy only between the products, about their centre of mass: one product alone (a hit whose other products are unstable, or a nucleon from a nucleon–nucleon pass) kept the remainder, up to 0.25 MeV a hit in a 1 PeV event's debris; the fastest product takes it itself, 1.26)
+    let q = null; for (const p of made.ps) if (!p.dead && (!q || keOf(p) > keOf(q))) q = p;
+    const K = q ? keOf(q) : 0; if (!(K > 0) || !(K + left > 0)) break;
+    if (q.rad) { q.KE = K + left; radSpeed(q); q.vx = q.sp * q.ux; q.vy = q.sp * q.uy; } else { const f = Math.sqrt((K + left) / K); q.vx *= f; q.vy *= f; q.vz *= f; updateFast(q); }
+    left = nucLeft(S, Qrel);
+  }
+  if (Math.abs(left) > 1e-6 && !made.ps.length && !made.xs.length && made.lost > 0) { W.ledger.escaped += left; return 0; } // (every product carried off (antinucleons in 3-D, no room): they take the remainder with them, 1.26)
   if (Math.abs(left) > 1e-6 && made.xs.length) { // the unstable particles take the rest, in proportion to their motion
     let K = 0; for (const o of made.xs) K += o.KE;
     let given = 0;
@@ -1219,10 +1245,10 @@ function exoTrack(o) {
    hypernucleus), a slow μ⁺ may take an electron (muonium, an atom in MD), and strongly interacting particles meet the
    nuclei on their path (hadronHit, exoHits3). */
 const B3U = { x: ['uy', 'uz'], y: ['uz', 'ux'], z: ['ux', 'uy'] };
-function boost3(E, px, py, pz, bx, by, bz) {
+function boost3(E, px, py, pz, bx, by, bz, g0) { // (g0: as boost's, 1.26)
   const b2 = bx * bx + by * by + bz * bz;
   if (!(b2 > 1e-30)) return [E, px, py, pz];
-  const g = 1 / Math.sqrt(1 - b2), bp = bx * px + by * py + bz * pz, k = ((g - 1) * bp / b2 - g * E);
+  const g = g0 && b2 > 0.9999 ? g0 : 1 / Math.sqrt(1 - b2), bp = bx * px + by * py + bz * pz, k = ((g - 1) * bp / b2 - g * E);
   return [g * (E - bp), px + k * bx, py + k * by, pz + k * bz];
 }
 /* spawnItems with four-momenta [E, px, py, pz] at (x, y, z). */
@@ -1256,7 +1282,7 @@ function decayExo3(o) {
   const S = nucBegin([]);
   o.dead = true;
   const keepTag = _evTag; _evTag = o.ev;
-  const made = spawnItems3(items, vs.map(v => boost3(v[0], v[1], v[2], v[3], -bx, -by, -bz)), o.x, o.y, o.z);
+  const made = spawnItems3(items, vs.map(v => boost3(v[0], v[1], v[2], v[3], -bx, -by, -bz, o.gam)), o.x, o.y, o.z); // (its γ itself: from 1 − β² it kept ~10⁻⁶ of itself at γ ≈ 10⁵, the products of a PeV event's debris 0.1–0.9 MeV off over their decays, 1.26)
   _evTag = keepTag;
   closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
   W.count.decay++;
@@ -1569,7 +1595,7 @@ function decayExo(o) {
   const S = nucBegin([]);
   o.dead = true;
   const keepTag = _evTag; _evTag = o.ev; // (its products belong to the collision that made it: the pair masses pair them with the rest)
-  const made = spawnItems(items, vs.map(v => toLab(v, bx, by)), o.x, o.y);
+  const made = spawnItems(items, vs.map(v => toLab(v, bx, by, 0, o.gam)), o.x, o.y); // (its γ itself, as decayExo3, 1.26)
   _evTag = keepTag;
   closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
   W.count.decay++;
