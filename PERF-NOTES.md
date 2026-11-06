@@ -2543,6 +2543,15 @@ checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png,
   200 eV; 0.5 and 1.5 keV exact). Any ionization making a ~1 keV electron does it; Klein–Nishina's forward scattering makes
   such Compton electrons a little more often (seed 18's water box: two events, 50 and 124 eV). Fixing it changes the flat
   game off too, so it is left for main.
+- **Suites** (2-core machine shared with the part-3 session; after merging v145 at 2e5a21c, part 3): alone t_lint, t_energy,
+  t_hep, t_physics, t_3d, t_settings, t_fuzz, t_touch, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_swx, f_hep126, f_sweep3d pass; the
+  fingerprints of all 59 setups equal v145's (2e5a21c). t_features alone: f_rp7 and every f_ file pass; 3 misses, all
+  timing: the chain reaction's k readout and 1.21's contraction time (both on record as two-core flakes), and the glowing
+  walls' oven (mean photon 2.81 kT, a photon after the walls were set to wrap): its frames run on a 25 ms budget, and
+  alone in the page it passes on this branch (2.745, 2.713 kT, none) as on v145 (2.718, 2.634, none). tools/runtests.sh:
+  stopped at its 30-minute limit with t_features (lane A) still running; the other 20 suites ran: 19 pass, t_fuzz missed
+  once (seed 17, "S²⁻ kept electrons it cannot hold", under both lanes' load) and passed alone (24 worlds, 326 s);
+  t_touch, not reached, passed alone.
 - **For the owner (physics questions, written down, not decided):**
   - Give X-rays of 10–100 keV their Compton share (in light elements it passes the photoelectric effect near 25–30 keV);
     the box does none below 100 keV, with either switch.
