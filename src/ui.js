@@ -198,7 +198,7 @@ function buildTools() {
   nav.addEventListener('click', (e) => { const b = e.target.closest('.tool'); if (b) setTool(b.dataset.tool); });
 }
 function setTool(id) {
-  if (W.d3 && TOOLS_NO3D.has(id)) { const t = TOOLS.find(x => x.id === id); log('tool', `${t ? t.name : id}: ${NOT_3D.toLowerCase()}`); return; }
+  if (W.d3 && TOOLS_NO3D.has(id)) { const t = TOOLS.find(x => x.id === id); log('tool', `${t ? t.name : id}: ${not3d()}`); return; }
   UI.tool = id; UI.pasting = false; R.ghost = null; if (id !== 'objects') R.objSel = null;
   for (const b of document.querySelectorAll('.tool')) b.setAttribute('aria-pressed', b.dataset.tool === id ? 'true' : 'false');
   if (W.tool) W.tool.active = false;
@@ -290,7 +290,7 @@ function placeHint() {
   h.style.top = (pal.offsetTop + pal.offsetHeight + 8) + 'px';
 }
 function selectSpec(s) {
-  if (W.d3 && !spec3dOK(s)) { log('tool', `${specLabel(s)}: ${NOT_3D.toLowerCase()}`); return; }
+  if (W.d3 && !spec3dOK(s)) { log('tool', `${specLabel(s)}: ${not3d()}`); return; }
   if (!W.d3 && s && s.kind === 'mol' && MOLECULES[s.mol] && !molFits(MOLECULES[s.mol], false)) { log('tool', `${MOLECULES[s.mol].name}: made for the 3-D lab (main menu → 3-D)`); return; } // (the 3-D library's own, 1.23.2)
   UI.spec = s;
   if (!QUICK.some(q => q !== 'sep' && sameSpec(q.spec, s))) UI.customSpec = s;
@@ -472,9 +472,9 @@ function buildToolOpts() {
       break;
     case 'fire': {
       const fs = fireSpecNow() || SPEC_P;
-      if (W.d3) { // (3-D: the projectiles that work there, single shots; atoms and leptons below radiation mode's energies, as they are stepped there)
+      if (W.d3) { // (3-D: the projectiles that work there, single shots, at any energy)
         h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
-          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots; electrons and positrons up to ${fmtE(0.95 * radThreshold(true))}, atoms up to ${fmtE(0.95 * radThreshold(false))}; light, neutrinos and unstable particles at any energy; neutrons, antimatter and beam sources: ${NOT_3D.toLowerCase()}.</span>`;
+          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots, at any energy; antimatter and beam sources: ${not3d()}.</span>`;
         break;
       }
       h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
@@ -870,7 +870,7 @@ function placeObject3(spec, x, y, z) {
 }
 const FLY_KINDS = new Set(['exo', 'nu', 'gamma']); // (unstable particles, neutrinos, light: not atoms; placed by placeFly)
 function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
-  if (W.d3 && !spec3dOK(spec)) { log('tool', `${specLabel(spec)}: ${NOT_3D.toLowerCase()}`); return []; }
+  if (W.d3 && !spec3dOK(spec)) { log('tool', `${specLabel(spec)}: ${not3d()}`); return []; }
   if (FLY_KINDS.has(spec.kind)) return placeFly(spec, x, y, count, z);
   if (isObject(spec)) return W.d3 ? placeObject3(spec, x, y, z) : placeObject(spec, x, y);
   const out = [];
@@ -1035,7 +1035,7 @@ function onDown(e) {
     }
     case 'select': {
       const p = pickAt(px, py, 8);
-      if (((p && R.msel.has(p)) || (!p && R.oSel.size && R.oSel.has(objAtPx(px, py)))) && !e.shiftKey) UI.drag = { kind: 'selmove', lx: wx, ly: wy, lz: wz, moved: false, plane }; // on the selection (a particle or an object in it): drag moves it
+      if (((p && R.msel.has(p)) || (!p && R.oSel.size && R.oSel.has(objAtPx(px, py)))) && !e.shiftKey) { undoMark('Move the selection'); UI.drag = { kind: 'selmove', lx: wx, ly: wy, lz: wz, moved: false, plane }; } // on the selection (a particle or an object in it): drag moves it (Ctrl+Z takes it back: 1.26 sweep, it could not be undone)
       else UI.drag = { kind: 'selbox', x0: wx, y0: wy, x1: wx, y1: wy, px, py, px1: px, py1: py, add: e.shiftKey, hit: p };
       break;
     }
@@ -1084,6 +1084,7 @@ function moveSelection(ddx, ddy, ddz = 0) { // (ddz: 3-D)
   }
 }
 function deleteSelection() {
+  if (selCount()) undoMark('Delete the selection'); // (Ctrl+Z puts it back, as a deleted atom: 1.26 sweep)
   let n = 0; for (const p of R.msel) if (!p.dead) { kill(p); n++; }
   for (const ob of R.oSel) { objRemove(ob); n++; } R.oSel.clear();
   R.msel.clear(); if (R.sel && R.sel.dead) { R.sel = null; renderInspect(); }
@@ -1209,6 +1210,8 @@ function eraseHere3(px, py) {
   for (const p of W.parts) if (!p.dead && inTool3(reach, p.x, p.y, p.z)) { kill(p); n++; }
   for (const o of W.exo) if (!o.dead && !o.xb && inTool3(reach, o.x, o.y, o.z || 0)) { o.dead = true; o.fate = 'erased'; n++; } // (unstable particles and muonic hydrogen, in W.exo, 1.26 bug fix)
   for (let i = W.magnets.length - 1; i >= 0; i--) { const m = W.magnets[i]; if (inTool3(reach, m.x, m.y, m.z || 0)) W.magnets.splice(i, 1); } // (magnets too, 1.24)
+  const r1 = { cone: toolCone3(px, py, OPT.erase.R + 1.5) }; // (lasers left on, at their housing (drawLasers3), as the flat Erase takes them: it left them on in 3-D, 1.26 sweep)
+  for (let i = W.lasers.length - 1; i >= 0; i--) { const L = W.lasers[i]; if (inTool3(r1, L.x0, L.y0, L.z0 || 0)) W.lasers.splice(i, 1); }
   if (R.sel && R.sel.dead) R.sel = null;
   return n;
 }
@@ -1226,7 +1229,7 @@ function onMove(e) {
     const dd = Math.hypot(a.x - b.x, a.y - b.y);
     const s = clamp(d.s0 * dd / Math.max(10, d.d0), 0.01, zoomMax());
     const mid = [(a.x + b.x) / 2, (a.y + b.y) / 2];
-    if (W.d3 && d.dist0) { const c = R.cam3; c.dist = clamp(d.dist0 * Math.max(10, d.d0) / Math.max(10, dd), 0.5, 1e6); c.yaw = d.yaw0 - (mid[0] - d.mid[0]) * 0.008 * orbitK(); c.pitch = clamp(d.pitch0 + (mid[1] - d.mid[1]) * 0.008 * orbitK(), -CAM3_PITCH, CAM3_PITCH); return; }
+    if (W.d3 && d.dist0) { const c = R.cam3; c.dist = clamp(d.dist0 * Math.max(10, d.d0) / Math.max(10, dd), cam3Min(), 1e6); c.yaw = d.yaw0 - (mid[0] - d.mid[0]) * 0.008 * orbitK(); c.pitch = clamp(d.pitch0 + (mid[1] - d.mid[1]) * 0.008 * orbitK(), -CAM3_PITCH, CAM3_PITCH); return; }
     // keep the world point under the initial midpoint under the current midpoint
     const wmx = (d.mid[0] - R.w / 2) / d.s0 + d.c0[0], wmy = d.c0[1] - (d.mid[1] - R.h / 2) / d.s0;
     R.s = s; R.cx = wmx - (mid[0] - R.w / 2) / s; R.cy = wmy + (mid[1] - R.h / 2) / s;
@@ -1352,8 +1355,8 @@ function fireDir3(d) {
   if (L < 0.3) { cam3Update(); return [C3.rx, C3.ry, C3.rz]; }
   return [ux / L, uy / L, uz / L];
 }
-function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return lep ? Math.min(fireKE(), 0.95 * radThreshold(lep)) : fireKE(); } // (light, neutrinos and unstable particles: any energy, 1.24; atoms, nuclei and neutrons too since 1.25, as atoms fly in 3-D and meet nuclei there)
-function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(sp)}: ${NOT_3D.toLowerCase()} (Fire)`); return false; }
+function fireKE3() { return fireKE(); } // (every projectile at any energy: light, neutrinos and unstable particles since 1.24; atoms, nuclei and neutrons since 1.25, as atoms fly in 3-D and meet nuclei there; electrons and positrons since the 1.26 sweep: they were held below 950 eV, flat radiation flight's threshold, but since bug fix 14 after 1.25 a lepton past 25 keV flies in 3-D)
+function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(sp)}: ${not3d()} (Fire)`); return false; }
 /* Grab, Strong and Very strong: it keeps up with the mouse in real time, whatever the speed setting or slow motion.
    The spring may draw the atoms along faster (vcap: the gap closed in about 0.12 s of watching, up to the strength's
    limit), and where simulated time crawls (slow motion, a heavy world) the hand itself carries what it holds toward
@@ -2085,19 +2088,21 @@ function speciesCounts(ionic = true) { // (ionic: ionic compounds as their formu
    liquid), above 1 where they are squeezed against each other. Free electrons bounce off the walls on their own and are
    not counted. */
 const PRS = { sig: '', Ts: 0, Tn: 0 };
+const pUnit = () => (W.d3 ? 'Pa' : 'N/m'); // (3-D: pressure is force per area)
 function wallPressure(mols, T) {
   let free = 0; for (const p of W.parts) if (!p.dead && p.k === NUC && !p.bonds.length && !p.rad && !p.beam) free++;
-  const N = mols + free, L = 2 * (W.box.w + W.box.h), A = W.box.w * W.box.h, PB = W.pB;
+  const d3 = !!W.d3, bd = W.box.d || W.box.h, N = mols + free, PB = W.pB; // (3-D: the six faces' area and the volume, in pascals; it was the flat perimeter and area, N/m, 1.26 sweep)
+  const L = d3 ? 2 * (W.box.w * W.box.h + W.box.w * bd + W.box.h * bd) : 2 * (W.box.w + W.box.h), A = d3 ? W.box.w * W.box.h * bd : W.box.w * W.box.h;
   // averaged since the conditions last changed (box, walls, bath, what is free to move): a dilute gas hits the walls seldom
-  const sig = [W.box.w, W.box.h, W.wall, Math.round(Math.log(Math.max(1, W.T)) * 30), N].join();
+  const sig = [W.box.w, W.box.h, d3 ? bd : 0, W.wall, Math.round(Math.log(Math.max(1, W.T)) * 30), N].join();
   if (sig !== PRS.sig) { PRS.sig = sig; PRS.Ts = 0; PRS.Tn = 0; if (PB) { PB.blocks.length = 0; PB.s = 0; PB.t = 0; } }
   if (T > 0) { PRS.Ts += T; PRS.Tn++; }
   if (!N || !PB || PB.blocks.length < 4 || !PRS.Tn) return null;
   const b = PB.blocks, n = b.length; let s = 0, s2 = 0; for (const v of b) { s += v; s2 += v * v; }
   const F = s / n, se = Math.sqrt(Math.max(0, s2 / n - F * F) / n), Tm = PRS.Ts / PRS.Tn;
-  const P = F / L, ideal = N * PHYS.KB * Tm / A, Z = P / ideal, zErr = se / L / ideal; // (eV/Å²)
-  const ok = zErr < 0.15, ps = n * 0.5;
-  return { P: P * 16.0218, Z, ok, zErr, title: `The walls are pushed with ${fmtSI(P * 16.0218, 'N/m', 3)} on average over ${fmtNum(ps, 3)} ps (in 2-D, pressure is force per length of wall). An ideal gas of these ${N} free movers at ${fmtT(Tm)} would push ${fmtSI(ideal * 16.0218, 'N/m', 3)}: Z = ${Z.toFixed(2)} ± ${zErr.toFixed(2)}. ` +
+  const P = F / L, ideal = N * PHYS.KB * Tm / A, Z = P / ideal, zErr = se / L / ideal; // (eV/Å², 3-D eV/Å³)
+  const ok = zErr < 0.15, ps = n * 0.5, k = d3 ? 1.602177e11 : 16.0218, u = pUnit();
+  return { P: P * k, Z, ok, zErr, title: `The walls are pushed with ${fmtSI(P * k, u, 3)} on average over ${fmtNum(ps, 3)} ps (${d3 ? 'force per area of wall' : 'in 2-D, pressure is force per length of wall'}). An ideal gas of these ${N} free movers at ${fmtT(Tm)} would push ${fmtSI(ideal * k, u, 3)}: Z = ${Z.toFixed(2)} ± ${zErr.toFixed(2)}. ` +
     (!ok ? 'Still averaging: in a thin gas the particles hit the walls seldom.' : Z > 0.85 && Z < 1.15 ? 'It behaves like an ideal gas.' : Z <= 0.85 ? 'Below 1: the attractions between the particles pull them together, as in a dense gas or a liquid.' : 'Above 1: the particles are squeezed against each other.') };
 }
 function renderData() {
@@ -2111,7 +2116,7 @@ function renderData() {
     ['Free electrons', String(W.nE)], ['Ionized', (m.ionFrac * 100).toFixed(0) + '%'],
   ];
   const pr = W.wall === 'reflect' ? wallPressure(mols, m.T) : null;
-  if (pr) tiles.push(['Wall pressure', `${fmtSI(pr.P, 'N/m', 2)}`, pr.title], ['vs ideal gas', pr.ok ? `Z = ${pr.Z.toFixed(2)}` : 'averaging …', pr.title]);
+  if (pr) tiles.push(['Wall pressure', `${fmtSI(pr.P, pUnit(), 2)}`, pr.title], ['vs ideal gas', pr.ok ? `Z = ${pr.Z.toFixed(2)}` : 'averaging …', pr.title]);
   $('dTiles').innerHTML = tiles.map(([k, v, t]) => `<div class="tile"${t ? ` title="${esc(t)}"` : ''}><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('');
   const sp = speciesCounts();
   $('dSpecies').innerHTML = sp.length ? sp.slice(0, 40).map(([k, e]) => `<tr><td class="f"><span class="sw" style="background:${e.col}"></span>${esc(k)}</td><td class="nm">${esc(e.name)}</td><td class="n">${e.n}</td></tr>`).join('')
@@ -2700,6 +2705,14 @@ function recMime() {
   for (const m of ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4']) if (MediaRecorder.isTypeSupported(m)) return m;
   return '';
 }
+/* The chamber's canvas layers (under the WebGL layer, the WebGL layer, the overlay) drawn into a w × h picture: each
+   layer's part over the chamber, as it is seen (1.26 sweep: the WebGL layer reaches 64 px past the chamber on each side,
+   and drawn whole it was shrunk toward the middle, its atoms off their labels and bonds by up to 40 px at the edges, in
+   recorded videos and gallery pictures). Call it right after render(): the WebGL layer keeps no copy of its frame. */
+function layersInto(ctx, w, h) {
+  const base = $('cv').getBoundingClientRect();
+  for (const id of ['cvbg', 'cvgl', 'cv']) { const c = $(id); if (c && c.width && !c.hidden && c.style.display !== 'none') try { const r = c.getBoundingClientRect(), kx = c.width / Math.max(1, r.width), ky = c.height / Math.max(1, r.height); ctx.drawImage(c, (base.left - r.left) * kx, (base.top - r.top) * ky, base.width * kx, base.height * ky, 0, 0, w, h); } catch (e) { /* (a canvas that cannot be read) */ } }
+}
 function recSize() { const c = $('cv'), k = Math.min(1, 1280 / Math.max(1, c.width)); return [Math.max(2, Math.round(c.width * k / 2) * 2), Math.max(2, Math.round(c.height * k / 2) * 2)]; }
 function recCapture() {
   if (!UI.running) return;
@@ -2710,7 +2723,7 @@ function recCapture() {
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   const ctx = cv.getContext('2d');
   ctx.fillStyle = getComputedStyle($('cv').parentNode).backgroundColor || '#000'; ctx.fillRect(0, 0, w, h);
-  for (const id of ['cvbg', 'cvgl', 'cv']) { const c = $(id); if (c && c.width && !c.hidden && c.style.display !== 'none') try { ctx.drawImage(c, 0, 0, w, h); } catch (e) { /* (a canvas that cannot be read) */ } }
+  layersInto(ctx, w, h);
   const i = REC.frames.length; REC.frames.push(null); REC.pend++;
   cv.toBlob((b) => { REC.pend--; REC.frames[i] = b; }, 'image/jpeg', 0.85);
   recShow();
@@ -2773,7 +2786,7 @@ function galDel(k) { try { localStorage.removeItem('atomforge.' + k); } catch (e
 function galThumb() {
   const c = $('cv'), w = 240, h = Math.max(1, Math.round(240 * c.height / Math.max(1, c.width))), t = document.createElement('canvas'); t.width = w; t.height = h;
   const ctx = t.getContext('2d'); ctx.fillStyle = '#05080c'; ctx.fillRect(0, 0, w, h);
-  for (const id of ['cvbg', 'cvgl', 'cv']) { const e = $(id); if (e && e.width) try { ctx.drawImage(e, 0, 0, w, h); } catch (err) { /* (unreadable) */ } }
+  try { render(W.rt || 0); } catch (e) { /* (a picture of what was last drawn) */ } layersInto(ctx, w, h); // (drawn now: the WebGL layer's frame is gone once the browser has shown it, so the picture had no atoms where it drew them, 1.26 sweep)
   try { return t.toDataURL('image/jpeg', 0.75); } catch (e) { return ''; }
 }
 function galRender() {
@@ -4104,6 +4117,7 @@ function buildPresetSelect() {
    the menus, fission, fusion, fast nuclei, the giant dipole resonance). The mode follows the world (W.d3): a setup or a
    saved world sets it. Continuous bond orders work in 3-D since 1.25. */
 const NOT_3D = 'Not in 3-D yet';
+const not3d = () => 'not in 3-D yet'; // (in a sentence: NOT_3D.toLowerCase() gave "not in 3-d yet", 1.26 sweep)
 const TOOLS_NO3D = new Set(['objects']); // (the Magnet and Light tools work in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };
 function is3dPreset(k) { return !!(PRESETS[k] && PRESETS[k].d3); }
@@ -4616,7 +4630,7 @@ function fly3Tick(dt) {
   const K = FLY3.keys, c = R.cam3, ax = (K.has('KeyD') ? 1 : 0) - (K.has('KeyA') ? 1 : 0), az = (K.has('KeyW') ? 1 : 0) - (K.has('KeyS') ? 1 : 0);
   const ay = (K.has('KeyE') || K.has('Space') ? 1 : 0) - (K.has('KeyQ') || K.has('Shift') ? 1 : 0);
   const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch), cy = Math.cos(c.yaw), sy = Math.sin(c.yaw); // (the view's forward and right, as cam3Update makes them)
-  const diag = Math.hypot(W.box.w, W.box.h, W.box.d || W.box.h), sp0 = clamp(0.75 * c.dist, 1.5, 3 * Math.max(diag, 10));
+  const diag = Math.hypot(W.box.w, W.box.h, W.box.d || W.box.h), sp0 = clamp(0.75 * c.dist, W.ultra ? 3e-5 : 1.5, 3 * Math.max(diag, 10)); // (ultra-realistic: from a few fm, slow enough to fly among nuclei, 1.26 sweep)
   const n = Math.hypot(ax, ay, az) || 1, want = [(ax * cy - az * cp * sy) / n * sp0, (ay - az * sp) / n * sp0, (-ax * sy - az * cp * cy) / n * sp0];
   const kk = 1 - Math.exp(-dt / 0.06); // (eases in and out over about a tenth of a second)
   for (let i = 0; i < 3; i++) { v[i] += (want[i] - v[i]) * kk; if (!K.size && Math.abs(v[i]) < 1e-3 * sp0) v[i] = 0; }
@@ -4752,7 +4766,7 @@ function rewInit() {
    how many there are of each species; the quantities chosen are drawn as strips, and all of it exports as CSV. */
 const GR = { t: [], rt: [], cols: {}, sp: new Map(), last: 0, max: 2400 };
 const GR_FIX = [['T', 'Temperature', (v) => fmtT(v)], ['Te', 'Electron temperature', (v) => fmtT(v)], ['n', 'Particles', (v) => Math.round(v).toLocaleString('en-US')],
-  ['freeE', 'Free electrons', (v) => Math.round(v).toLocaleString('en-US')], ['ion', 'Ionized atoms', (v) => (100 * v).toFixed(1) + '%'], ['P', 'Wall pressure', (v) => fmtSI(v, 'N/m', 2)],
+  ['freeE', 'Free electrons', (v) => Math.round(v).toLocaleString('en-US')], ['ion', 'Ionized atoms', (v) => (100 * v).toFixed(1) + '%'], ['P', 'Wall pressure', (v) => fmtSI(v, pUnit(), 2)],
   ['chem', 'Chemical heat released', (v) => fmtE(v)], ['nuc', 'Nuclear energy released', (v) => fmtE(v)], ['esc', 'Energy escaped', (v) => fmtE(v)],
   ['pv', 'Graphed particle: speed', (v) => fmtSpeed(v)], ['pk', 'Graphed particle: kinetic energy', (v) => fmtE(v)], ['pd', 'Graphed particle: distance from where it started', (v) => fmtA(v)]];
 /* One particle to follow on the graph (right-click it → Graph it): its speed, energy and how far it has gone. */
@@ -4812,7 +4826,7 @@ function grCsv() {
   const n = GR.t.length; if (!n) { log('tool', 'Nothing recorded yet for the graph'); return; }
   const fix = GR_FIX.filter(([c]) => GR.cols[c]), sp = [...GR.sp];
   const q = (x) => '"' + String(x).replace(/"/g, '""') + '"';
-  const head = ['simulated time (s)', 'watching time (s)', ...fix.map(([, l]) => l + ({ T: ' (K)', Te: ' (K)', P: ' (N/m)', chem: ' (eV)', nuc: ' (eV)', esc: ' (eV)', ion: ' (fraction)' }[fix.find(f => f[1] === l)[0]] || '')), ...sp.map(([k, o]) => k + (o.name ? ' ' + o.name : ''))].map(q).join(',');
+  const head = ['simulated time (s)', 'watching time (s)', ...fix.map(([, l]) => l + ({ T: ' (K)', Te: ' (K)', P: ` (${pUnit()})`, chem: ' (eV)', nuc: ' (eV)', esc: ' (eV)', ion: ' (fraction)' }[fix.find(f => f[1] === l)[0]] || '')), ...sp.map(([k, o]) => k + (o.name ? ' ' + o.name : ''))].map(q).join(',');
   const lines = [head];
   for (let i = 0; i < n; i++) lines.push([(GR.t[i] * PHYS.TU_S).toExponential(6), (GR.rt[i] - GR.rt[0]).toFixed(2), ...fix.map(([c]) => (Number.isFinite(GR.cols[c][i]) ? +GR.cols[c][i].toPrecision(7) : '')), ...sp.map(([, o]) => o.v[i])].join(','));
   fileSave(`atom-forge-${(UI.preset || 'world').replace(/[^a-z0-9-]/gi, '')}-graph.csv`, lines.join('\n') + '\n', 'text/csv').then((ok) => { if (ok) log('tool', `Graph exported: ${n} rows, ${lines[0].split(',').length} columns`); });
@@ -4875,11 +4889,13 @@ function drawPairs() {
 }
 /* ------------------------------------------------------------------ the tour */
 const TOUR = [
-  ['#stage', 'The chamber', 'Everything here follows real physics: atoms, electrons, nuclei and light. Scroll to zoom, drag with the right button to move around.'],
-  ['.tools-wrap', 'Tools', 'Place, grab, select, push and pull, fire, heat, spark, magnets, objects (mirrors, lenses, screens, walls…), light, erase, measure, inspect. The letter under each is its key. Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.'],
+  ['#stage', 'The chamber', 'Everything here follows real physics: atoms, electrons, nuclei and light. Scroll to zoom, drag with the right button to move around.',
+    'Everything here follows real physics: atoms, electrons, nuclei and light, in a cube. Scroll to zoom; drag with the right button (or Alt, or the arrow keys) to turn the view, Shift and the right button to move it; W A S D fly the camera; 0 fits the box.'],
+  ['.tools-wrap', 'Tools', 'Place, grab, select, push and pull, fire, heat, spark, magnets, objects (mirrors, lenses, screens, walls…), light, erase, measure, inspect. The letter under each is its key. Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.',
+    'Place, grab, select, push and pull, fire, heat, spark, magnets, light, erase, measure, inspect (objects are for the flat game). The letter under each is its key (here Spark is Z and Erase X: S and E fly). Things go on the placing plane facing you (Shift + wheel moves it). Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.'],
   ['#paletteBar', 'What to place', 'Pick a particle, an element or a molecule here; Elements… and Molecules… have the rest, every isotope included.'],
   ['.transport', 'Time', 'Play and pause (Space): a setup waits at its first moment until you start it. One frame at a time (.), reload, slower and faster down to 1/512×, and slow motion. ⟲ rewinds (,): drag back through the last minute.'],
-  ['#preset', 'Experiments', 'Ready-made setups, from water and salt to a chain reaction, a collider and challenges.'],
+  ['#preset', 'Experiments', 'Ready-made setups, from water and salt to a chain reaction, a collider and challenges.', 'Ready-made setups for the 3-D lab: molecules in space, liquid water, salt water, hydrogen and oxygen. The main menu (Esc) leads back to the flat game and its setups.'],
   ['.panel .tabs', 'The lab panel', 'Lab sets the conditions (temperature, fields, walls); Inspect shows anything you click; Data has graphs and counts; Log tells what happened; Physics explains how it works.'],
   ['#bSettings', 'Settings and help', 'Settings has graphics, display, controls and a benchmark. Esc opens the menu, with Help (what the simulation does and does not do), the keys (? lists them) and this tour; Ctrl+Z undoes.'],
 ];
@@ -4887,7 +4903,7 @@ const TS = { i: 0 };
 function tourStart() { if (UI.menu) return; TS.i = 0; $('tour').hidden = false; tourShow(); }
 function tourEnd() { $('tour').hidden = true; store('toured', '1'); }
 function tourShow() {
-  const [sel, title, text] = TOUR[TS.i], el = document.querySelector(sel);
+  const [sel, title, t2, t3] = TOUR[TS.i], text = W.d3 && t3 ? t3 : t2, el = document.querySelector(sel); // (the 3-D lab's own words where they differ, 1.26 sweep)
   if (!el || !el.getBoundingClientRect().width) { if (TS.i < TOUR.length - 1) { TS.i++; tourShow(); } else tourEnd(); return; }
   const r = el.getBoundingClientRect(), pad = 6, hole = $('tourHole').style;
   hole.left = (r.left - pad) + 'px'; hole.top = (r.top - pad) + 'px'; hole.width = (r.width + 2 * pad) + 'px'; hole.height = (r.height + 2 * pad) + 'px';
@@ -5608,7 +5624,7 @@ function ultraApply() {
   const on = !!SET.ultra; if (on === !!W.ultra) return;
   if (!on && W.preUltra) { W.warp = W.preUltra.warp; W.minShow = W.preUltra.minShow; }
   W.ultra = on; ultraHold();
-  if (!on) R.s = Math.min(R.s, ZOOM_MAX); // (back inside the normal zoom)
+  if (!on) { R.s = Math.min(R.s, ZOOM_MAX); if (R.cam3 && R.cam3.dist < 0.5) R.cam3.dist = 0.5; } // (back inside the normal zoom; the 3-D camera too, 1.26 sweep)
   if (typeof syncSpeed === 'function' && $('speedVal')) syncSpeed();
   $('ultraBadge').hidden = !on;
 }
@@ -5868,7 +5884,7 @@ const COSTS3 = {
   segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×3.5–5', 'Measured in 3-D (1.25): salt water ×3.5, liquid water ×4.9 (JavaScript kernels; in space the partners within reach grow as the cube of the reach)'], 12: ['×7–17', 'Measured in 3-D (1.25): salt water ×6.6–6.9, liquid water ×12–17 (JavaScript kernels)'] } }),
   segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×2', 'Measured in 3-D (1.25): liquid water and salt water ×2.0–2.2 where steps are at their longest (a 3-D step costs about the same whatever its length); nothing where they are already short'], 0.01: ['×3.5', 'Measured in 3-D (1.25): liquid water ×3.4–3.5, salt water ×3.3–4.1 where steps are at their longest; nothing where they are already short'] } }),
   setInc: () => ({ k: 'physics', on: ['×1', 'Nothing in the 3-D lab: nucleons do not strike nuclei there yet (the flat game only)'] }),
-  setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24)'] }),
+  setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24); the true sizes are drawn without the WebGL layer (liquid water: 7 → 25 ms a frame, headless, 1.26)'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
@@ -6122,7 +6138,7 @@ const SDESC3 = {
   segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond, C–X···N at 180°). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
   segPis: ['π-stacking', 'An aromatic ring carries its π electrons as charge on points above and below it, and ring atoms of two aromatic molecules meet with a dispersion fitted to the benzene dimer: rings stack offset or edge to face, as benzene does, rather than face to face.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
-  setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size. The 3-D camera comes no nearer than half an ångström, so it does not zoom in to a nucleus: the picture is the flat game’s. Experimental: off again each time the game starts.'],
+  setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
 const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
 function setRowOnly(r) { const k = setRowKey(r), p = r.closest('.spane'); return SMODE_ONLY[k] || (p && p.dataset.stab === 'd3' ? '3d' : ''); }
@@ -6344,7 +6360,7 @@ function settingsInit() {
   $('setChamber').onchange = (e) => setChamberOnly(e.target.checked);
   bindSeg('segTUnit', (v) => setSetting('tunit', v));
   $('setFx').onchange = (e) => setSetting('effects', e.target.checked);
-  $('setTips').onchange = (e) => setSetting('tips', e.target.checked);
+  $('setTips').onchange = (e) => { setSetting('tips', e.target.checked); if (e.target.checked && $('hintText').innerHTML && !UI.menu) { $('hint').hidden = false; hintFit(); } }; // (turned back on: this setup's tip shows again now, not at the next setup, 1.26 settings audit)
   $('setFps').onchange = (e) => setSetting('fps', e.target.checked);
   $('setUltra').onchange = (e) => setSetting('ultra', e.target.checked);
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
@@ -6509,7 +6525,7 @@ function qmHere(wx, wy, wz = 0) {
   return `<div class="qlbl">Place one here</div><div class="qchips">` + list.slice(0, 16).map(s => qmBtn(specLabel(s), () => placeSpec(s, wx, wy, 1, wz),
     { cls: 'qchip' + (sameSpec(s, sp) ? ' on' : ''), title: specName(s), html: `<span class="sw" style="background:${specColor(s)}"></span>${esc(specLabel(s))}` })).join('') + '</div>' +
     qm2(qmBtn('Spark here', () => spark(wx, wy, OPT.spark.R, sparkE(), wz), { title: `Dump ${fmtE(sparkE())} into the atoms here` }),
-      qmBtn('Magnet here', W.d3 ? () => {} : () => { const nm = { x: wx, y: wy, R: OPT.magnet.R, B: magB() }; W.magnets.push(nm); log('tool', `Magnet placed: ${nm.B >= 0 ? 'N' : 'S'} pole, ${fmtTesla(Math.abs(nm.B))}`); }, W.d3 ? { off: true, title: NOT_3D } : {}));
+      qmBtn('Magnet here', () => { const nm = { x: wx, y: wy, R: OPT.magnet.R, B: magB() }; if (W.d3) nm.z = wz; W.magnets.push(nm); log('tool', `Magnet placed: ${nm.B >= 0 ? 'N' : 'S'} pole, ${fmtTesla(Math.abs(nm.B))}`); })); // (3-D: a ball at the point, as the Magnet tool's since 1.24; it was left greyed "Not in 3-D yet", 1.26 sweep)
 }
 function qmGlobal(px, py, wx, wy, wz = 0) {
   return '<div class="qsep"></div><div class="qtools" role="group" aria-label="Tools">' +

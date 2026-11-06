@@ -377,6 +377,190 @@ Test on record: t_features' 1.23.1 "Continue after a restart" check fails on 1.2
 1–3 particles more than were saved (72 → 73, 73 → 74); for a bug-fix session. t_page's slow-motion button check fails
 alone on both here too (the known flake).
 
+### 1.26: 3-D sweep and settings audit
+
+The owner: "there are MANY bugs so please do a general bug search in 3d mode … and make sure every change actually
+applies correctly" ("just fix as much as you can … i trust your judgement"). Branch v139 (from v136). Checks:
+tests/f_sweep3d.js (t_features, one line; or `node tests/f_sweep3d.js [--node] [part …]`), each failing on v136.
+Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
+
+- 1. The particle view did nothing in 3-D (the owner's report). V, the view menu's Particle view, Lab → View → Atom
+  detail and the chamber's two buttons set `R.view.bohr`, which only the flat drawing read: render3d drew its lit balls
+  whatever was chosen (Shells and Orbitals likewise). Now each is the flat game's own picture at the particle's place,
+  facing the camera and sized for its distance (`det3`, `drawDet3`: R.s set to the scale at that depth for the flat code,
+  Canvas 2D, far to near): every nucleus's nucleons with its own electrons in their shells (`drawNucView`), a bond's shared
+  electrons between its nuclei (`bondPairs3`, `bondPair` split out of the flat `drawBondPairs`, the flat picture
+  unchanged), free nucleons and bare nuclei, free electrons, and the unstable particles' insides (`exoInside`: quarks,
+  a hypernucleus's Λ, a muonic atom's orbit). Shells skip atoms drawn under 12 px (unreadable there; a box of 1,029
+  waters drew its shells in 180 ms a frame, headless, now 39). Frame (headless, software GL, water3d, 1,029 atoms):
+  balls 4–7 ms, particle view 31–66, orbitals 37–39; Molecules in space under 1.5 ms in every mode. Measured: Molecules in
+  space, particle view: 72 of 72 atoms drawn as nucleons and electrons, 59 of 59 bonds as electron pairs (before: 0).
+  Check: f_sweep3d "pview" (page). Fingerprints unchanged (drawing only).
+- 2. The ultra-realistic mode in 3-D (the owner's report: "doesn't work in 3d"). What it does, measured in 3-D: decays
+  at real rates and resonances at their own lifetimes (shared with the flat game: `W.warp` 1, `minShow` 0, moveExos3's
+  `!W.ultra`), and nuclei hit at their true size (nucReach → ultraReach in moveNeutron, exoHits3, fastEncounters3,
+  tryFusion3's gate): 60 slow neutrons (0.18 eV) through a 5×5×5 lattice of ²³⁵U atoms, 1,500 steps, seed 3: enlarged
+  nuclei 114 fissions and 47 captures (a chain), true size none (the flat game's row of 25: 8 fissions and 13 captures →
+  4 and 4). So the physics applied; the picture did not: the 3-D camera stopped at 0.5 Å and every particle was drawn
+  enlarged, so turning it on changed nothing to see. Now, as the flat game's mode: free electrons are points, neutrons and
+  bare nuclei at 1.2·A^⅓ fm, an atom its ball until larger than the view and then a faint wash, with its nucleus at true
+  size at the centre (`ultraOne3`, the flat `ultraNucleus`: nucleons, the skin, quarks from 26 px); bond lanes capped
+  thin; the camera comes in to 2·10⁻⁵ Å (2 fm, `cam3Min`; the near plane to 10⁻⁸ Å; flying from 3·10⁻⁵ Å/s) and back to
+  0.5 Å when the mode goes off. Drawn on Canvas 2D (the WebGL layer is single precision): water3d's frame 4–7 → 20–25 ms
+  (headless). The 3-D descriptions (the row's pane, the Experimental note, the cost tag) say so. Measured: zoomed on a
+  carbon atom of Molecules in space the camera reaches 2·10⁻⁵ Å (499 px a fm; a nucleon with its u, d, d), before 0.5 Å.
+  Check: f_sweep3d "ultra3d" (page). Fingerprints unchanged.
+- 3. Fire in 3-D held electrons and positrons below 950 eV (`fireKE3`: 0.95 × the flat radiation flight's 1 keV, from
+  1.24, when 3-D had no flight for leptons and MeV electrons were stepped faster than light); bug fix 14 after 1.25 gave
+  them flight past 25 keV, the cap stayed. The slider read 950 eV past that point, and the note under it still said
+  atoms stop at 1.9 keV and neutrons cannot be fired (both work since 1.25). Now every projectile goes at the energy set,
+  the note says "single shots, at any energy; antimatter and beam sources: not in 3-D yet". Measured (Node, water3d,
+  insulated after 50 steps, one electron fired across the box, 400 steps after): 500 eV books −0.18 eV, 10 keV +0.10,
+  100 keV −4.3 (44 ionizations), 1 MeV −0.14; positrons the same (they fly alike). A click at an oxygen with 1 MeV set:
+  950 eV before, 1,000,000 eV after. Also "Not in 3-D yet" inside a sentence was lowercased whole ("not in 3-d yet"): the
+  Fire note and the log lines for tools and particles refused in 3-D (`not3d()`). Check: f_sweep3d "fireLep" (page).
+  Fingerprints unchanged (interface only).
+- 4. The quick menu's "Magnet here" (right-click on empty space) stayed greyed "Not in 3-D yet" in the 3-D lab, though
+  magnets work there since 1.24. Now it puts a magnet ball at the point in depth (the point the tools take, `ptr3`), as
+  the Magnet tool does. Check: f_sweep3d "qmMagnet" (page; before: the button disabled, 0 magnets).
+- 5. Data → Wall pressure and "vs ideal gas" in 3-D used the flat formula (`wallPressure`): the soft walls' push summed
+  over all six faces (softWalls3) divided by the perimeter of one face, in N/m, against an ideal gas N·k·T over one
+  face's area, so Z meant nothing. Now in 3-D: force over the six faces' area in pascals, against N·k·T over the
+  volume (`pUnit()`: Pa in 3-D, N/m flat, in the tile, its title, the graph and the CSV's column). 108 helium atoms
+  in a 40 Å cube at 300 K, 20,000 steps (seed 4): before "0.037 N/m", Z 1.33 ± 0.07; after 5.9–6.2 MPa, Z 0.84–0.89
+  ± 0.05 (ideal 6.9 MPa; the soft walls' inset takes the rest, the flat game's helium 0.82–0.88 the same way). Found,
+  not changed: argon in the same box gives Z 0.48 ± 0.08 (flat 0.82): the flat world's doubled van der Waals wells
+  (LJ_SCALE 2) still on in 3-D make argon stickier than real (the open item from 1.23.0). Check: f_sweep3d "pressure"
+  (Node). Fingerprints unchanged (interface only).
+- 6. The Physics tab in the 3-D lab began "atoms move in a two-dimensional chamber" and said nothing about 3-D. Now that
+  sentence follows the mode ("three-dimensional box"), and a card "In the 3-D lab" (shown there only) says what is three-
+  dimensional, which two flat corrections are still on (liquids a little too dense) and what is not in 3-D yet; Help's
+  "What it does" mentions the cube. Check: f_sweep3d "physText" (page).
+- 7. The tour (Esc → Tour) in the 3-D lab gave the flat game's controls: "drag with the right button to move around"
+  (in 3-D that turns the view), the Objects tool, S and E (they fly the camera in 3-D: Spark is Z, Erase X), "a chain
+  reaction, a collider" among the setups. Its cards now carry 3-D words where they differ (`TOUR`'s fourth entry, used
+  in 3-D): turning, moving, flying and fitting the camera, the placing plane, the 3-D setups. Check: f_sweep3d
+  "tour3d" (page).
+- 8. The chamber's scale bar was drawn behind the main menu (the 3-D axis marker was already left out there): at
+  1280 × 720 it ran under the 3-D menu's note at the bottom left. Now `drawScaleBar` draws nothing while the menu is open
+  (both modes). Check: f_sweep3d "menuScale" (page; before: "5 Å" drawn under the menu).
+- 9. A laser left on in 3-D (Light → Mode → Leave on) was not drawn at all (the flat `drawSources` draws its housing and
+  a faint beam; render3d had nothing), and Erase over it left it on (`eraseHere3` took particles and magnets only),
+  though its note says "Erase removes it": the only way off was the options bar's button. Now `drawLasers3` draws the
+  beam to where it leaves the box and a small housing at its start, in its light's colour, and Erase's cone (its radius
+  + 1.5 Å, as the flat Erase) takes it. Measured in the page: a Lyman-α laser set on a benzene carbon, Erase at the same
+  point: 1 laser left before, 0 after. Check: f_sweep3d "laser3d" (page).
+- 10. The 3-D event captions (`drawEvents3`, "as drawEvents, more simply") drew the first line only: no second line (a
+  decay's energy and speed-up, a capture's "μ⁻ + p → n + ν inside the nucleus", a decay in orbit's mean life) and no
+  close-up of a decaying nucleus, so Lab → View → Decay close-ups did nothing in 3-D. Now as the flat view: the second
+  line, the close-up (`drawDecayInset`) and captions kept clear of each other. ²¹²Po α decays in the empty 3-D box:
+  sub-line and close-up drawn (before: neither). Check: f_sweep3d "events3d" (page).
+- 11. Settings audit: General → Setup tips turned off hid the setup's tip; turned back on, it stayed hidden until another
+  setup was loaded (applySettings only hides it). Now the current setup's tip shows again at once. Check: f_sweep3d
+  "tipsBack" (page).
+- 12. Moving a selection (Select tool, a drag on it) and deleting it (Delete, the options bar's Delete) were not marked for
+  undo, in both modes: Ctrl+Z took back whatever came before (after Select all → Delete, Molecules in space stayed empty:
+  0 of 72 back). Help says Ctrl+Z undoes; the tools that change the world (Place, Erase, Grab …) are marked. Now both are:
+  72 of 72 back, the moved molecules back where they were (flat water likewise). Check: f_sweep3d "selUndo" (page).
+- 13. Lab → Record video drew each canvas layer whole into the frame (`recCapture`); the WebGL layer, which holds the
+  atoms and bonds (3-D, and the flat game's balls), reaches 64 px past the chamber on each side (1.23.2), so in the
+  video it was shrunk toward the middle: atoms off their labels, rings, measure marks and the box's front edges by up to
+  about 40 px near the edges (0.873 of the distance from the centre at 878 px wide). Now each layer's part over the
+  chamber is drawn. A carbon atom 150 px from the left edge of the empty 3-D box: the frame's pixel there rgb 98, 99, 101
+  (the atom) after, 9, 15, 22 (background) before. Both modes. Check: f_sweep3d "recAlign" (page).
+- 14. The gallery's picture of a world (`galThumb`, Keep in the gallery) took the layers the same way, and outside the
+  frame, when the WebGL layer's frame is already gone (no preserveDrawingBuffer): the atoms were missing or misplaced in
+  the picture. Now it draws a frame first and uses the same composition (`layersInto`, shared with the recorder). The
+  carbon atom of item 13: rgb 89, 93, 102 at its place after, 9, 13, 24 before. Check: f_sweep3d "galThumb" (page).
+- 15. Event captions and rings at the wrong depth in 3-D: pair production in 3-D (`pairProduce3`), a positron meeting an
+  atom's electron (`annihilateBound`) or a free electron (`evAnnihFree`), matter touching antimatter (`evAnti`),
+  annihilation at the wall (`annihilateAtWall`), a hypernucleus's decay (hep.js `hypDecay`) and a quark pulled out by
+  hand (`quarkRip`, its flash too) gave nucEvent no depth, so the caption and its rings were drawn at z = 0 wherever
+  the event was; and nucEvent marked what an event sent flying by x and y alone (any depth) for slow motion's "nuclear
+  products". Now each passes its depth, and the marking is within 4 Å in depth too in 3-D. A positron annihilating on
+  an oxygen at z = 7.05, a quark pulled out of a carbon at z = 7, a 5 MeV pair at a lead atom at z = −6: captions at
+  z 0, 0, 0 before; 7.05, 7, −6 after. Fingerprints: every setup identical (59, seed 7, 300 steps). Check: f_sweep3d
+  "eventsZ" (Node). (Muonium's decay, hep.js muoniumTick, has the same gap: the other session's area, left.)
+- 16. Test (the record's "Continue after a restart" failure: the restored world 1–3 particles more than saved, 72 → 73,
+  73 → 74): not a bug in Continue. The check counted the world right after an explicit autosave and compared it with
+  what Continue brought back after a reload, but the page saves again as it closes (pagehide, visibilitychange) and its
+  world was still running, so the last save held the world a moment later (a free electron more). Reproduced: the soup
+  running, 96 counted at the explicit save, 87 saved at the reload and 87 brought back by Continue. The check now pauses
+  first (t_features' 1.23.1 block); Continue itself unchanged.
+
+Suite (branch v139 at e0025bc): t_lint, t_3d, t_settings, t_energy pass alone; t_page alone failed its slow-motion
+button check once (the known flake) and passed in the lanes; `tools/runtests.sh` (two lanes, load 5–10 from another
+session's tests): every suite passed but t_features' f_bug125 "exoElastic" timing check (3.5 ms under the load against its
+limit; 0.86 ms alone, passes), the known f_bug125 timing flake. t_features alone earlier: 1.25 labels3d's hover count 0
+once (passes alone and in the lanes run). Fingerprints (59 setups, seed 7, 300 steps): identical to v136 after every
+engine change (items 15; nothing else touched the engine).
+
+**Settings audit** (both modes; every choice of every row set through setSetting in Liquid water and in Molecules in
+space, the engine's or the drawing's own variable read back, a frame drawn; the Experimental rows also run 10 steps in
+water, Molecules in space and Salt in water, 3-D; then 64 settings set off their normal, the page reloaded: every
+non-Experimental one kept, every Experimental one back to normal; no page errors). "Applies" = the value reaches what it
+sets, in that mode.
+
+| tab | setting | flat | 3-D | measured / note |
+|---|---|---|---|---|
+| Performance | Max particles | applies | applies | MAX_PARTS 2,000 … 20,000 |
+| | Resolution | applies | applies | R.dprMax 2 / 1 / 0.75 |
+| | Physics budget | applies | applies | UI.budget 6 … 24 ms |
+| | Priority, Auto | applies | applies | prioNow 0 … 4 |
+| | Threads | applies | applies | not measurable headless (no shared memory here); t_threads |
+| | Drawing engine | applies | applies | WebGL / Canvas 2D (3-D's Canvas path sorted far to near) |
+| Graphics | Frame-rate cap | applies | applies | read by the frame loop |
+| | Atom size | applies | applies | 3-D oxygen drawn 6.75 / 4.72 / 3.04 px |
+| | Labels (with View → Labels) | applies | applies | flat 80 labels / hover 0 / off 0; 3-D: f_125s labels3d |
+| | Charge badges | applies | applies | R.badges, labelOne3 |
+| | Effects (glows) | applies | applies | R.lite |
+| | Fewer flashes | applies | applies | R.flashK 0.3 (drawFlashes3 too) |
+| | Colour-blind colours | applies | applies | oxygen #FF0D0D → #d55e00 |
+| | Trails, trail clock | applies | applies | trailWindow 0.5 / 1.5 / 4 s; drawTracks3 |
+| | FPS readout | applies | applies | the badge hidden / shown |
+| Display | Window | n/a | n/a | the desktop app only |
+| | Cursor | applies | applies | cursorHides |
+| | Interface size, panel side, width | applies | applies | --ui, panel-left, --pw |
+| | Motion, theme | applies | applies | |
+| Controls | Wheel speed | applies | applies | one notch: ×1.078 / ×1.162 / ×1.350 in both (3-D: the camera's distance) |
+| | Zoom toward | applies | 2-D only (marked) | the 3-D wheel zooms toward the target |
+| | Keep tool options, pause when hidden, start paused, keep awake | applies | applies | (start paused: t_features; the test page sets AF_NO_PAUSE) |
+| General | Start with, autosave | applies | applies | autosave keeps a 3-D world (d3, z) |
+| | Units (temperature, energy, length) | applies | applies | 300 K / 26.9 °C / 80.3 °F; 1.50 Å / 0.150 nm / 150 pm (3-D Measure too) |
+| | Setup tips | **fixed** (item 11) | **fixed** | turned back on, the tip shows again at once |
+| | Rewind (on, span, every, memory) | applies | applies | 3-D: 7 snapshots in 3 s, rewound to the start of the run |
+| 3-D | field of view, projection, fog, box, axes, labels, orbit speed, invert, spin | 3-D only (marked) | applies | V3 values; spin 6°/s: 0.052 rad in 0.5 s |
+| Claude | API key, model | applies | applies | t_page (mocked) |
+| Experimental | Longest step | applies | applies | step 0.04 → 0.01 tu |
+| | Resonance in large rings | applies | applies | RES_BIG |
+| | Detailed nuclear collisions | applies | 2-D only (marked) | INC_ON |
+| | Force reach | applies | applies | RC 6 / 9 / 12 |
+| | Induced charges | applies | applies | QEQ.every 10 / 1; the charges move |
+| | Quantum nuclei, bead forces | applies | applies | rings on 240 (water), 72, 997 (salt water) atoms |
+| | Bond orders (positions / quantum) | applies | applies | from the positions: 240, 72, 981 members; quantum joins worlds of up to 40 atoms only (0 of 240 / 72; 6 of 6 in two waters), as designed |
+| | Quantum method, spins | applies | applies | XQ.method 1 / 2, XQ.spin |
+| | Metals | applies | applies | 6 Cu members in Molecules in space |
+| | Lone pairs | 3-D only (marked) | applies | 7 sites (Molecules in space), 327 (salt water) |
+| | Halogen σ-holes | applies | applies | one site a C–Cl |
+| | π-stacking | 3-D only (marked) | applies | 12 sites, 24 rings (two benzenes) |
+| | Electrons as waves | applies | applies | free electrons as packets (3-D: 1 of 1) |
+| | Ultra-realistic | applies | **fixed** (item 2) | the picture and the camera at true sizes in 3-D |
+
+**Found, left as they are** (why, numbers):
+- Argon in 3-D: the wall pressure's Z 0.48 ± 0.08 against helium's 0.84–0.89 (item 5): the flat world's doubled van der
+  Waals wells (LJ_SCALE 2) are still on in 3-D (the open item from 1.23.0); physics, for the owner.
+- Placing a Δ⁻ in Molecules in space (it decays at once to n π⁻; the π⁻ is caught): books −2.9 eV over 300 steps (Δ⁰
+  +0.6; the other 66 particles of the 3-D menus placed and fired at 10 MeV: under 0.5 eV each). A 100 keV electron
+  fired through 3-D water: −4.3 eV over 400 steps (500 eV −0.18, 10 keV +0.10, 1 MeV −0.14). Not chased.
+- Moving a selection keeps its atoms clear of others (moveSelection's crowd check): in liquid water an 80 px drag moved
+  a molecule 0.97 Å; as designed.
+- Saves keep no unstable particles in flight (both modes; worldToJSON keeps nuclei, atoms, ions and free leptons).
+- The narrator calls H + H₂ → H₂ + H "endothermic, the new bonds are weaker" when the measured ΔE is a few meV either way
+  (both modes): its wording follows the sign of a near-zero heat.
+- 3-D event captions draw no ghost rings for what vanished (the flat view's dashed rings); the caption and rings are there.
+- In the other session's area (not touched): muonium's decay (hep.js `muoniumTick`, the μ⁺ → e⁺ ν ν̄ caption) is put at
+  z = 0 in 3-D, as the captions of item 15 were (its products are at their depth).
+
 ### 1.26: copper ions (the owner: "fix cu ions")
 
 Item 1 of the "Bugs on record" (the bug session's model question #1), approved as a physics change; branch v137 (from

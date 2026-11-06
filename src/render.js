@@ -490,13 +490,22 @@ function glSlotsPrepare() {
 /* Particle view: a bond is its shared electrons, one pair per bond order, swirling between the two nuclei and
    sitting nearer the more electronegative atom. */
 function drawBondPairs(rt) {
-  const ctx = R.ctx, s = R.s, er = electronR(), sep = Math.max(1.6, 0.1 * s), off = Math.max(3, 0.24 * s);
+  const ctx = R.ctx;
   ctx.save();
   for (const bd of W.bonds) {
     const a = bd.a, b = bd.b;
     if (W.wall === 'wrap' && (Math.abs(b.x - a.x) > W.box.w / 2 || Math.abs(b.y - a.y) > W.box.h / 2)) continue;
     const x0 = w2sx(a.x), y0 = w2sy(a.y), x1 = w2sx(b.x), y1 = w2sy(b.y);
     if ((x0 < -40 && x1 < -40) || (x0 > R.w + 40 && x1 > R.w + 40) || (y0 < -40 && y1 < -40) || (y0 > R.h + 40 && y1 > R.h + 40)) continue;
+    bondPair(ctx, bd, x0, y0, x1, y1);
+  }
+  ctx.restore();
+}
+/* One bond's shared electrons between its two nuclei drawn at (x0, y0) and (x1, y1), sized by R.s (the 3-D view sets it
+   to the scale at the bond's depth: the particle view in 3-D, 1.26 sweep). */
+function bondPair(ctx, bd, x0, y0, x1, y1) {
+  const a = bd.a, b = bd.b, s = R.s, er = electronR(), sep = Math.max(1.6, 0.1 * s), off = Math.max(3, 0.24 * s);
+  {
     const L = Math.hypot(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / L, uy = (y1 - y0) / L, nx = -uy, ny = ux;
     // between the edges of the two (enlarged) nuclei, nearer the more electronegative atom
     const ra = nucleonR() * rnUnit(a.Z + a.N), rb = nucleonR() * rnUnit(b.Z + b.N);
@@ -512,7 +521,6 @@ function drawBondPairs(rt) {
       drawSprite(sp, cx + dx, cy + dy); drawSprite(sp, cx - dx, cy - dy);
     }
   }
-  ctx.restore();
 }
 function drawHBonds() {
   if (R.s < 6) return;
@@ -1806,6 +1814,7 @@ function chamberBottomInset() {
   return (BOT_IN.v = clamp(v, 0, Math.max(0, R.h - 80)));
 }
 function drawScaleBar() {
+  if (R.menu) return; // (not behind the main menu, as the 3-D axis marker: it ran under the 3-D menu's note at 1280 × 720, 1.26 sweep)
   const ctx = R.ctx;
   const targetPx = 110;
   const raw = targetPx / R.s;

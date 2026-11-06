@@ -3431,7 +3431,7 @@ function nucEvent(kind, x, y, text, ghosts, sub, nuc, z = 0) { // (z: where in d
   // what the event sent flying (new this frame, or fast) is marked, and for a few seconds so is anything new (what
   // its products knock loose): with slow motion for nuclear events off, slow motion on demand does not slow down
   // further to follow them
-  for (const p of W.parts) if (!p.dead && !p.beam && (p.born === W.rt || p.rad || p.fast || keOf(p) > 10) && Math.abs(p.x - x) < 4 && Math.abs(p.y - y) < 4) p.nucProd = true; // (keOf: a struck nucleus that stays itself, as the proton of π⁰p → p + π⁰, sent off below the fast threshold, 0.93)
+  for (const p of W.parts) if (!p.dead && !p.beam && (p.born === W.rt || p.rad || p.fast || keOf(p) > 10) && Math.abs(p.x - x) < 4 && Math.abs(p.y - y) < 4 && (!W.d3 || Math.abs(p.z - z) < 4)) p.nucProd = true; // (3-D: near it in depth too, 1.26 sweep) (keOf: a struck nucleus that stays itself, as the proton of π⁰p → p + π⁰, sent off below the fast threshold, 0.93)
   W.nucWin = { t0: W.nucWin && W.nucWin.t1 >= W.rt ? W.nucWin.t0 : W.rt, t1: W.rt + 3 };
 }
 /* What nuclear events have made, for the Data tab: W.made holds each nuclide (and each unstable particle) made by a
@@ -6201,7 +6201,7 @@ function pairProduce3(p, E) {
   W.ledger.nuc -= 2 * ME_C2;
   settleKE(S, E - 2 * ME_C2, [e, ps]);
   log('nuc', `Pair production: γ (${fmtE(E)}) → e⁻ + e⁺ near ${speciesLabel(p)}`);
-  nucEvent('pair', p.x, p.y, `Pair production: γ → e⁻ + e⁺`, [], `${fmtE(E)} γ ray`);
+  nucEvent('pair', p.x, p.y, `Pair production: γ → e⁻ + e⁺`, [], `${fmtE(E)} γ ray`, undefined, p.z); // (its caption at its depth: it was at z = 0, 1.26 sweep)
 }
 /* Photons in flight that have come as far as they were going: what they were to hit happens now (unless it is gone,
    when the light flies on out), and their trace fades as any ray's does. */
@@ -7197,7 +7197,7 @@ function annihilateBound(Pp, A) {
   kill(Pp); A.ne--; refresh(A); enforceValence(A, null); relink([A]);
   twoGamma(x, y, annihEnd(S), z); // (z: 3-D, 1.24)
   W.count.annih++;
-  nucEvent('annih', x, y, `${Pp.k === POS ? 'e⁺' : 'e⁻'} + ${who} → ${speciesLabel(A)} + 2γ`, [ghostOf(Pp)], '511 keV each');
+  nucEvent('annih', x, y, `${Pp.k === POS ? 'e⁺' : 'e⁻'} + ${who} → ${speciesLabel(A)} + 2γ`, [ghostOf(Pp)], '511 keV each', undefined, z || 0); // (z: its caption at its depth, 1.26 sweep)
   log('nuc', `Annihilation: ${Pp.k === POS ? 'e⁺ meets an electron' : 'e⁻ meets a positron'} of ${who} → 2γ (511 keV each)`);
 }
 /* Matter touches antimatter. Electron clouds meet first: a bound e⁻ and a bound e⁺ annihilate. Once a
@@ -7210,7 +7210,7 @@ function evAnti(a, b, r) {
     const S = annihBegin([a, b]);
     a.ne--; b.ne--; refresh(a); refresh(b); enforceValence(a, null); enforceValence(b, null); relink([a, b]);
     twoGamma(x, y, annihEnd(S), 0.5 * (a.z + b.z)); W.count.annih++; // (z: 3-D, 1.24)
-    nucEvent('annih', x, y, `${la} touches ${lb}: e⁻ + e⁺ → 2γ`, [], '511 keV each');
+    nucEvent('annih', x, y, `${la} touches ${lb}: e⁻ + e⁺ → 2γ`, [], '511 keV each', undefined, 0.5 * ((a.z || 0) + (b.z || 0))); // (at its depth, 1.26 sweep)
     log('nuc', `Annihilation: ${la} touches ${lb}; an electron and a positron → 2γ (511 keV each)`);
     return;
   }
@@ -7279,7 +7279,7 @@ function evAnnihFree(a, b) {
   kill(a); kill(b);
   twoGamma(x, y, annihEnd(S), 0.5 * (a.z + b.z));
   W.count.annih++;
-  nucEvent('annih', x, y, 'e⁺ + e⁻ → 2γ', gh, '511 keV each');
+  nucEvent('annih', x, y, 'e⁺ + e⁻ → 2γ', gh, '511 keV each', undefined, 0.5 * ((a.z || 0) + (b.z || 0))); // (at its depth, 1.26 sweep)
   log('nuc', 'Annihilation: e⁺ + e⁻ → 2γ (511 keV each)');
 }
 /* Two back-to-back γ rays sharing E (two electron masses plus whatever kinetic and binding energy). */
@@ -8386,11 +8386,11 @@ function annihilateAtWall(p, where) {
     for (let i = 0; i < nLep; i++) twoGamma(x, y, 2 * ME_C2, z);
     const Ep = (E - nLep * 2 * ME_C2) / nNuc, nP = p.k === NUC ? p.Z : 0; // (each antinucleon meets a proton or a neutron of the wall)
     for (let i = 0; i < nNuc; i++) { const Q = (rnd() < 0.5 ? 1 : 0) - (i < nP ? 1 : 0); chargeTo(-Q, where || 'qWall'); mesonBurst(x, y, Ep, 0, 0, Q); }
-    nucEvent('annih', x, y, `${lbl} hits the wall → mesons + γ`, gh, fmtE(E));
+    nucEvent('annih', x, y, `${lbl} hits the wall → mesons + γ`, gh, fmtE(E), undefined, z);
     log('nuc', `Annihilation at the wall: ${lbl} meets ordinary matter → mesons + γ rays (${fmtE(E)})`);
   } else {
     twoGamma(x, y, E, z);
-    nucEvent('annih', x, y, 'e⁺ hits the wall → 2γ', gh, '511 keV each');
+    nucEvent('annih', x, y, 'e⁺ hits the wall → 2γ', gh, '511 keV each', undefined, z); // (where on the wall in 3-D: it was put at z = 0, 1.26 sweep)
     log('nuc', 'Annihilation at the wall: e⁺ + e⁻ (wall) → 2γ (511 keV each)');
   }
 }
@@ -23656,7 +23656,7 @@ function hypDecay(o) {
     const made = spawnItems(items, moms, o.x, o.y, o.z);
     closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
     const txt = `${d.lab} → ${summarize(items)}`; o.fate = `decayed: ${txt}`; W.count.decay++;
-    nucEvent('pdecay', o.x, o.y, `Hypernucleus decay: ${txt}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.15, lbl: d.lab }], how);
+    nucEvent('pdecay', o.x, o.y, `Hypernucleus decay: ${txt}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.15, lbl: d.lab }], how, undefined, o.z); // (at its depth in 3-D, as its flash: 1.26 sweep)
     log('nuc', `Hypernucleus decay: ${txt} (${how})`); flash(o.x, o.y, d.col, 3.5, 0.4, o.z); tally(items, [d.lab], txt);
     return;
   }
@@ -25366,7 +25366,7 @@ function quarkRip(tg, rest, meson) {
     o.dead = true; o.fate = 'pulled apart by hand: ' + txt;
     const made = spawnItems(items, moms, x, y, o.z);
     closeEvent(S, made, x, y, (Ms * E / o.m) * MEV, o.m * MEV);
-    return ripDone(x, y, txt, [o.lab], items, made, R1[0]);
+    return ripDone(x, y, txt, [o.lab], items, made, R1[0], o.z);
   }
   const p = tg.p;
   if (!p || p.dead || p.k !== NUC || p.Z + p.N < 1) return null;
@@ -25400,12 +25400,12 @@ function quarkRip(tg, rest, meson) {
   }
   relink(partners.filter(q => !q.dead));
   closeEvent(S, made, x, y, (Ms - m0) * (P[0] / m0) * MEV, 0);
-  nucEvent('reaction', x, y, txt, gh, 'a quark pulled out by hand');
-  return ripDone(x, y, txt, ins, items, made, RIP_NUC[R1[0]] ? null : R1[0]);
+  nucEvent('reaction', x, y, txt, gh, 'a quark pulled out by hand', undefined, z);
+  return ripDone(x, y, txt, ins, items, made, RIP_NUC[R1[0]] ? null : R1[0], z);
 }
-function ripDone(x, y, txt, ins, items, made, hyp) {
+function ripDone(x, y, txt, ins, items, made, hyp, z = 0) { // (z: the event's caption and flash at its depth in 3-D; they were put at z = 0, 1.26 sweep)
   log('nuc', `${txt} (a quark pulled out by hand)`);
-  flash(x, y, [255, 200, 160], 4, 0.6);
+  flash(x, y, [255, 200, 160], 4, 0.6, z);
   W.count.nreact++;
   tally(items, ins, txt);
   const xo = hyp ? made.xs.find(o => o.sp === hyp) : null;
@@ -27035,13 +27035,22 @@ function glSlotsPrepare() {
 /* Particle view: a bond is its shared electrons, one pair per bond order, swirling between the two nuclei and
    sitting nearer the more electronegative atom. */
 function drawBondPairs(rt) {
-  const ctx = R.ctx, s = R.s, er = electronR(), sep = Math.max(1.6, 0.1 * s), off = Math.max(3, 0.24 * s);
+  const ctx = R.ctx;
   ctx.save();
   for (const bd of W.bonds) {
     const a = bd.a, b = bd.b;
     if (W.wall === 'wrap' && (Math.abs(b.x - a.x) > W.box.w / 2 || Math.abs(b.y - a.y) > W.box.h / 2)) continue;
     const x0 = w2sx(a.x), y0 = w2sy(a.y), x1 = w2sx(b.x), y1 = w2sy(b.y);
     if ((x0 < -40 && x1 < -40) || (x0 > R.w + 40 && x1 > R.w + 40) || (y0 < -40 && y1 < -40) || (y0 > R.h + 40 && y1 > R.h + 40)) continue;
+    bondPair(ctx, bd, x0, y0, x1, y1);
+  }
+  ctx.restore();
+}
+/* One bond's shared electrons between its two nuclei drawn at (x0, y0) and (x1, y1), sized by R.s (the 3-D view sets it
+   to the scale at the bond's depth: the particle view in 3-D, 1.26 sweep). */
+function bondPair(ctx, bd, x0, y0, x1, y1) {
+  const a = bd.a, b = bd.b, s = R.s, er = electronR(), sep = Math.max(1.6, 0.1 * s), off = Math.max(3, 0.24 * s);
+  {
     const L = Math.hypot(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / L, uy = (y1 - y0) / L, nx = -uy, ny = ux;
     // between the edges of the two (enlarged) nuclei, nearer the more electronegative atom
     const ra = nucleonR() * rnUnit(a.Z + a.N), rb = nucleonR() * rnUnit(b.Z + b.N);
@@ -27057,7 +27066,6 @@ function drawBondPairs(rt) {
       drawSprite(sp, cx + dx, cy + dy); drawSprite(sp, cx - dx, cy - dy);
     }
   }
-  ctx.restore();
 }
 function drawHBonds() {
   if (R.s < 6) return;
@@ -28351,6 +28359,7 @@ function chamberBottomInset() {
   return (BOT_IN.v = clamp(v, 0, Math.max(0, R.h - 80)));
 }
 function drawScaleBar() {
+  if (R.menu) return; // (not behind the main menu, as the 3-D axis marker: it ran under the 3-D menu's note at 1280 × 720, 1.26 sweep)
   const ctx = R.ctx;
   const targetPx = 110;
   const raw = targetPx / R.s;
@@ -29063,7 +29072,7 @@ function cam3Update() {
     const z = ((k & 1 ? hx : -hx) - C3.ex) * C3.fx + ((k & 2 ? hy : -hy) - C3.ey) * C3.fy + ((k & 4 ? hz : -hz) - C3.ez) * C3.fz;
     if (z < z0) z0 = z; if (z > z1) z1 = z;
   }
-  C3.near = Math.max(0.05, 0.005 * D);
+  C3.near = Math.max(W.ultra ? 1e-8 : 0.05, 0.005 * D); // (ultra-realistic: the camera comes in to nuclear sizes)
   C3.far = Math.max(z1, D) * 2 + 20; // (beyond it, depth is held at the far end: nothing is cut off)
   C3.fog0 = Math.max(C3.near, z0); C3.fog1 = Math.max(C3.fog0 + 1, z1); C3.fogK = V3.fog;
   C3.fogc = hexc(CHAMBER.bg0);
@@ -29167,7 +29176,10 @@ function cam3Pan(dpx, dpy) {
   const c = R.cam3, k = (C3.D || c.dist) / (C3.F || 500);
   c.tx += (-dpx * C3.rx + dpy * C3.ux) * k; c.ty += (-dpx * C3.ry + dpy * C3.uy) * k; c.tz += (-dpx * C3.rz + dpy * C3.uz) * k;
 }
-function cam3Zoom(f) { const c = R.cam3; if (f > 0) c.dist = clamp(c.dist / f, 0.5, 1e6); cam3Update(); }
+/* The camera's nearest approach to its target: half an ångström, or in the ultra-realistic mode 2·10⁻⁵ Å (2 fm), where a
+   proton fills a third of the view, as the flat game's deepest zoom (1.26 sweep: it stopped at 0.5 Å in 3-D). */
+function cam3Min() { return W.ultra ? 2e-5 : 0.5; }
+function cam3Zoom(f) { const c = R.cam3; if (f > 0) c.dist = clamp(c.dist / f, cam3Min(), 1e6); cam3Update(); }
 function cam3Follow(p) { const c = R.cam3; c.tx = p.x; c.ty = p.y; c.tz = p.z || 0; }
 
 /* ---------- picking */
@@ -29303,11 +29315,72 @@ function cylStops3(col, dx, dy, dz, nx, ny, f, mid) {
   return out;
 }
 const ELEM_SYM = (p) => (p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym);
+/* (1.26 sweep: the owner, "the particle view doesn't work in 3d", "ultra-realistic mode doesn't work in 3d") How atoms
+   are drawn besides the lit balls: the particle view ('nuc': nucleons and electrons, V), shells ('on'), orbitals ('orb')
+   and the ultra-realistic mode's true sizes ('ultra'); '' for the lit balls (Auto and Spheres). Each is the flat game's
+   own picture, facing the camera at the particle's place and sized for its distance (R.s set to the scale there for the
+   flat drawing code), on Canvas 2D, far to near. Before, the 3-D view drew lit balls whatever was chosen. */
+function det3() { const v = R.view.bohr; return W.ultra ? 'ultra' : v === 'nuc' || v === 'orb' || v === 'on' ? v : ''; }
+/* One particle in a detailed mode at (x, y), depth z, ball radius r (px); false: draw it as a lit ball. */
+function drawDet3(ctx, p, x, y, z, r, col, rt, det) {
+  const s0 = R.s; R.s = C3.F / z;
+  try {
+    if (det === 'ultra') return ultraOne3(ctx, p, x, y, r, rt, col);
+    if (p.k !== NUC) { drawLepton(ctx, p, x, y, det); return true; }
+    if (det === 'nuc') {
+      if (p.Z === 0 || p.ne === 0) { // a free nucleon (a neutron, the same size as those in nuclei) or a bare nucleus, every nucleon shown, with a faint halo
+        const nsp = nucleusSprite(p.Z, p.N, nucleonR(), p.anti);
+        if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(p.Z === 0 ? [150, 165, 185] : p.anti ? [190, 120, 255] : [255, 110, 90], Math.max(p.Z === 0 ? 6 : 7, nsp.rn * (p.Z === 0 ? 4 : 3.2))), x, y, p.Z === 0 ? 0.3 : 0.4); ctx.globalCompositeOperation = 'source-over'; }
+        drawSprite(nsp, x, y); return true;
+      }
+      drawNucView(p, x, y, r, rt); return true;
+    }
+    if (p.Z === 0 || p.ne === 0) return false;
+    if (det === 'on') { if (r < 12) return false; drawBohr(ctx, p, x, y, r, rt, col); return true; } // (shells on an atom under 12 px are unreadable: a lit ball; a box of 1,000 waters drew its shells in 180 ms, headless)
+    const rv = drawOrbitalAtom(ctx, p, x, y);
+    if (lblOn(p) && rv >= 12) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = CHAMBER.dim; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(speciesLabel(p), x, y + rv + 9); }
+    return true;
+  } finally { R.s = s0; }
+}
+/* The ultra-realistic mode in 3-D (as drawUltraParts): a free lepton a point, a neutron or a bare nucleus at its true
+   size (1.2·A^⅓ fm, a dot below a pixel), an atom its ball (or shells, orbitals) until that is larger than the view, then
+   a faint wash, with its nucleus at its true size at the centre. The camera may come in to a few fm (cam3Zoom). */
+function ultraOne3(ctx, p, x, y, r, rt, col) {
+  const diag = Math.hypot(R.w, R.h);
+  if (p.k !== NUC) { ctx.fillStyle = p.k === ELEC ? E_COL : POS_COL; ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5); return true; }
+  const rn = trueRfm(p) * FM * R.s;
+  if (p.Z === 0 || p.ne === 0) { ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag, p.id || 0); if (rn > 7 && lblOn(p)) smallTag(ctx, speciesLabel(p), x, y + rn + 9); return true; }
+  if (r <= 1500) {
+    const v = R.view.bohr;
+    if (v === 'orb') drawOrbitalAtom(ctx, p, x, y, true);
+    else if (v === 'on' || v === 'nuc') drawBohr(ctx, p, x, y, r, rt, col, rn);
+    else { const sp = litSprite3(col), k = r / LIT_R; ctx.drawImage(sp.c, x - sp.size * k / 2, y - sp.size * k / 2, sp.size * k, sp.size * k); labelOne3(ctx, p, x, y, r, col); }
+  } else { // inside the atom's electron cloud: a faint wash of its colour
+    const c = hexc(col); ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.10)`;
+    if (Math.hypot(x - R.w / 2, y - R.h / 2) + diag / 2 < r) ctx.fillRect(0, 0, R.w, R.h); else { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+  }
+  if (rn >= 0.5) { ultraNucleus(ctx, x, y, rn, p.Z, p.N, p.anti, diag, p.id || 0); if (rn > 7 && lblOn(p)) smallTag(ctx, nucSym(p.Z, p.N), x, y + rn + 9); }
+  return true;
+}
+/* The particle view's bonds (as drawBondPairs): each bond's shared electrons between its two nuclei, drawn with the
+   nearer of its atoms (so after the farther one), sized for the bond's middle. */
+function bondPairs3(ctx, p, pb, z) {
+  const A = _p3c, B = _p3d, s0 = R.s, wrap = W.wall === 'wrap';
+  for (const bd of pb) {
+    const q = bd.a === p ? bd.b : bd.a; if (q.dead || !bd.order) continue;
+    if (wrap && (Math.abs(q.x - p.x) > W.box.w / 2 || Math.abs(q.y - p.y) > W.box.h / 2 || Math.abs(q.z - p.z) > W.box.d / 2)) continue;
+    if (!proj3(q.x, q.y, q.z, B) || B[2] < z || (B[2] === z && q.id < p.id)) continue; // (the nearer atom draws it: the farther one first)
+    if (!proj3(bd.a.x, bd.a.y, bd.a.z, A) || !proj3(bd.b.x, bd.b.y, bd.b.z, B)) continue;
+    R.s = C3.F / (0.5 * (A[2] + B[2]));
+    bondPair(ctx, bd, A[0], A[1], B[0], B[1]);
+  }
+  R.s = s0;
+}
 
 function render3d(rt) {
   R.time = rt;
-  const dpr = R.dpr;
-  R.gl = !!R.cvbg && typeof glReady === 'function' && glReady();
+  const dpr = R.dpr, det = det3();
+  R.gl = !!R.cvbg && typeof glReady === 'function' && glReady() && !det; // (the particle view, shells, orbitals and true sizes: Canvas 2D, as the flat game draws them, 1.26 sweep)
   _colFrame++;
   if (typeof glShow === 'function') glShow(R.gl);
   cam3Update();
@@ -29329,9 +29402,10 @@ function render3d(rt) {
     const p = parts[j], i = p.i, b = 4 * i;
     V[b + 3] = -1;
     if (p.dead || !proj3(p.x, p.y, p.z, o)) continue;
-    if (o[0] < -pad || o[1] < -pad || o[0] > R.w + pad || o[1] > R.h + pad) continue;
     const sc = F / o[2];
     const r = p.k !== NUC ? Math.max(1.8, 0.12 * sc) : p.Z === 0 ? Math.max(2.2, 0.2 * sc) : p.ne === 0 ? Math.max(2.6, p.rd * as * sc) : Math.max(2.4, rd3(p) * as * sc);
+    const cut = pad + (det ? Math.min(r, 4 * (R.w + R.h)) : 0); // (a near atom drawn larger than the view, its centre off the screen, still covers it: the true sizes' wash)
+    if (o[0] < -cut || o[1] < -cut || o[0] > R.w + cut || o[1] > R.h + cut) continue;
     V[b] = o[0]; V[b + 1] = o[1]; V[b + 2] = o[2]; V[b + 3] = r;
     vis.push(p);
   }
@@ -29371,7 +29445,8 @@ function render3d(rt) {
     let boB = null; if (BO.any) { boB = new Map(); for (const bd of boDrawBonds()) for (const a of [bd.a, bd.b]) { let l = boB.get(a); if (!l) boB.set(a, l = []); l.push(bd); } } // (quantum bonds' orders, 1.24)
     for (const p of vis) {
       const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2], r = V[b + 3], col = ballCol(p), pb = boB && boB.get(p) ? p.bonds.concat(boB.get(p)) : p.bonds;
-      if (p.k === NUC && pb.length) for (const bd of pb) { // this atom's half of each bond
+      if (det === 'nuc') { if (p.k === NUC && pb.length) bondPairs3(ctx, p, pb, z); } // (the particle view: a bond is its shared electrons, drawn with the nearer atom)
+      else if (p.k === NUC && pb.length) for (const bd of pb) { // this atom's half of each bond
         const q = bd.a === p ? bd.b : bd.a, c = 4 * q.i;
         if (q.dead) continue;
         const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
@@ -29380,7 +29455,7 @@ function render3d(rt) {
         if (V[c + 3] >= 0) { qx = V[c]; qy = V[c + 1]; qz = V[c + 2]; } else if (proj3(q.x, q.y, q.z, _p3b)) { qx = _p3b[0]; qy = _p3b[1]; qz = _p3b[2]; } else continue;
         const mx = (x + qx) / 2, my = (y + qy) / 2, zm = 0.75 * z + 0.25 * qz, sc = F / zm;
         const L = Math.hypot(mx - x, my - y) || 1, nx = -(my - y) / L, ny = (mx - x) / L;
-        const ar = !!bd.arom, n = ar ? 2 : bd.order, wm = n > 1 ? 0.7 : 1, hw = Math.max(0.7, 0.065 * sc), off = Math.max(2, 0.11 * sc);
+        const ar = !!bd.arom, n = ar ? 2 : bd.order, wm = n > 1 ? 0.7 : 1, hw = Math.min(W.ultra ? 3 : 1e9, Math.max(0.7, 0.065 * sc)), off = Math.min(W.ultra ? 8 : 1e9, Math.max(2, 0.11 * sc)); // (ultra-realistic: a bond is not a rod; zoomed in to nuclei, a thin line, as in the flat game)
         const stretch = clamp((Math.sqrt(dx * dx + dy * dy + dz * dz) - bd.r0) / (bd.rb || 1.5), 0, 1), al = 0.95 - stretch * 0.6;
         const thin = hw * wm < 1.5, stops = cylStops3(atomColor(p), dx, dy, dz, nx, ny, fog3(zm), thin); // (thin: one colour, the middle's)
         for (let k = 0; k < n; k++) {
@@ -29396,6 +29471,7 @@ function render3d(rt) {
         }
         ctx.globalAlpha = 1;
       }
+      if (det && drawDet3(ctx, p, x, y, z, r, col, rt, det)) continue;
       const rr = p.k !== NUC && lite ? r * 1.2 : r, sp = litSprite3(col), k = rr / LIT_R; // (one sprite a colour, scaled)
       ctx.drawImage(sp.c, x - sp.size * k / 2, y - sp.size * k / 2, sp.size * k, sp.size * k);
       const f = fog3(z);
@@ -29414,7 +29490,7 @@ function render3d(rt) {
   drawQGP3(ctx); // (a quark–gluon plasma at its depth, 1.25)
   drawEvents3(ctx, rt);
   drawMarks3(ctx);
-  if (!R.menu) { drawMagnets3(ctx); drawPlace3(ctx); } // (magnets; the placing plane, the ghost, Fire's aim from the camera, 1.24)
+  if (!R.menu) { drawMagnets3(ctx); drawLasers3(ctx); drawPlace3(ctx); } // (magnets; the placing plane, the ghost, Fire's aim from the camera, 1.24)
   drawOverlay3(ctx);
   if (V3.axes && !R.menu) drawAxes3(ctx); // (not behind the main menu)
   drawScaleBar();
@@ -29647,6 +29723,11 @@ function drawExos3(ctx) {
     if (o.dead || !proj3(o.x, o.y, o.z || 0, A)) continue;
     const x = A[0], y = A[1]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
     const c = XP[o.sp].col;
+    if (R.view.bohr === 'nuc') { // (the particle view, as the flat view: a hadron's quarks, a hypernucleus's Λ, a muonic atom's orbit, at the scale where it is, 1.26 sweep)
+      const s0 = R.s, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')); R.s = C3.F / A[2];
+      let top = 0; try { top = exoInside(ctx, o, x, y, c, hx); } finally { R.s = s0; }
+      if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; }
+    }
     ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55); ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = rgba(c, 0.95); ctx.strokeStyle = rgba(c, 0.95); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, o.q ? 2.4 : 2.6, 0, Math.PI * 2); if (o.q) ctx.fill(); else ctx.stroke();
     ctx.fillText(o.lab, x, y - 5);
@@ -29670,6 +29751,21 @@ function drawMagnet3(ctx, x, y, z, Rm, B, ghost) {
     else { ctx.beginPath(); ctx.arc(Bp[0], Bp[1], 3.5, 0, Math.PI * 2); ctx.stroke(); } // (end on: ⊙)
   }
   if (!ghost && proj3(x, y, z, A)) { ctx.font = '600 12px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(col, 0.9); ctx.textAlign = 'center'; ctx.fillText((B >= 0 ? 'N ' : 'S ') + fmtTesla(Math.abs(B)), A[0], A[1] - r - 8); }
+  ctx.restore();
+}
+/* Lasers left on in 3-D (as the flat drawSources): the beam faintly to where it leaves the box and a small housing at its
+   start, its colour the light's, so a laser can be seen and erased there (1.26 sweep: nothing was drawn). */
+function drawLasers3(ctx) {
+  if (!W.lasers.length) return;
+  const A = _p3a, B = _p3b;
+  ctx.save();
+  for (const L of W.lasers) {
+    const z0 = L.z0 || 0, uz = L.uz || 0, c = photonColor(L.E), t = rayExit3(L.x0, L.y0, z0, L.ux, L.uy, uz);
+    if (seg3(L.x0, L.y0, z0, L.x0 + L.ux * t, L.y0 + L.uy * t, z0 + uz * t, A, B)) { ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},0.22)`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); }
+    if (!proj3(L.x0, L.y0, z0, A)) continue;
+    ctx.fillStyle = 'rgba(70,80,95,0.9)'; ctx.strokeStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(A[0], A[1], 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
   ctx.restore();
 }
 function drawMagnets3(ctx) {
@@ -29857,21 +29953,34 @@ function drawQGP3(ctx) {
   }
   ctx.restore();
 }
-/* Events with a caption (as drawEvents, more simply): two rings where it happened, and the newest few captions. */
+/* Events with a caption (as drawEvents): two rings where it happened, and the newest few captions with their second line
+   and, for a decay, the close-up of its nucleus (Lab → View → Decay close-ups), kept clear of each other (1.26 sweep:
+   the 3-D captions had the first line only, so the close-ups setting did nothing in 3-D). */
 function drawEvents3(ctx, rt) {
   const evs = W.events; if (!evs.length) return;
   for (let i = evs.length - 1; i >= 0; i--) if (rt - evs[i].t0 > EV_LIFE || rt < evs[i].t0 - 0.5) evs.splice(i, 1);
-  const o = _p3c;
+  const o = _p3c, placed = [];
   ctx.save();
-  for (const e of evs.slice(-4)) {
+  const shown = evs.slice(-4);
+  for (let i = shown.length - 1; i >= 0; i--) {
+    const e = shown[i];
     if (!proj3(e.x, e.y, e.z || 0, o)) continue;
-    const age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
-    for (const d of [0, 0.3]) { const k = clamp((age - d) / 1.0, 0, 1); if (k <= 0 || k >= 1) continue; ctx.strokeStyle = rgba(c, (1 - k) * 0.85); ctx.lineWidth = 2.2 * (1 - k) + 0.6; ctx.beginPath(); ctx.arc(o[0], o[1], 5 + k * 46, 0, Math.PI * 2); ctx.stroke(); }
+    const x = o[0], y = o[1], age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
+    for (const d of [0, 0.3]) { const k = clamp((age - d) / 1.0, 0, 1); if (k <= 0 || k >= 1) continue; ctx.strokeStyle = rgba(c, (1 - k) * 0.85); ctx.lineWidth = 2.2 * (1 - k) + 0.6; ctx.beginPath(); ctx.arc(x, y, 5 + k * 46, 0, Math.PI * 2); ctx.stroke(); }
     const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1); if (a <= 0.01) continue;
-    ctx.globalAlpha = a; ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    const w = ctx.measureText(e.text).width + 16, bx = clamp(o[0] + 18, 8, R.w - w - 8), by = clamp(o[1] - 40, 8, R.h - 34);
-    ctx.fillStyle = 'rgba(7,11,17,0.88)'; ctx.fillRect(bx, by, w, 26); ctx.fillStyle = rgba(c, 1); ctx.fillRect(bx, by + 5, 3, 16);
-    ctx.fillStyle = '#eef3f8'; ctx.fillText(e.text, bx + 9, by + 13); ctx.globalAlpha = 1;
+    ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; const w1 = ctx.measureText(e.text).width;
+    ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; const w2 = e.sub ? ctx.measureText(e.sub).width : 0;
+    const ins = e.nuc && R.view.decayCards && R.w > 360 ? 58 : 0, bw = Math.min(R.w - 16, Math.max(w1, w2) + 22 + ins), bh = ins ? 58 : e.sub ? 40 : 26;
+    let bx = clamp(x + 18, 8, R.w - bw - 8), by = clamp(y - 40, 8, R.h - bh - 8);
+    for (let k = 0; k < 6; k++) { const hit = placed.find(q => bx < q[2] + 6 && bx + bw + 6 > q[0] && by < q[3] + 6 && by + bh + 6 > q[1]); if (!hit) break; by = hit[3] + 6; }
+    by = clamp(by, 8, R.h - bh - 8); placed.push([bx, by, bx + bw, by + bh]);
+    ctx.globalAlpha = a; ctx.fillStyle = 'rgba(7,11,17,0.88)'; ctx.fillRect(bx, by, bw, bh); ctx.fillStyle = rgba(c, 1); ctx.fillRect(bx, by + 5, 3, bh - 10);
+    if (ins) drawDecayInset(ctx, e, bx + 6 + ins / 2, by + bh / 2, ins / 2 - 3, age, c);
+    const tx = bx + 9 + ins, ty = ins ? by + bh / 2 - 7 : by + (e.sub ? 14 : bh / 2);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; ctx.fillStyle = '#eef3f8'; ctx.fillText(e.text, tx, ty, bw - 18 - ins);
+    if (e.sub) { ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(c, 1); ctx.fillText(e.sub, tx, ty + 15, bw - 18 - ins); }
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
@@ -32260,7 +32369,7 @@ function buildTools() {
   nav.addEventListener('click', (e) => { const b = e.target.closest('.tool'); if (b) setTool(b.dataset.tool); });
 }
 function setTool(id) {
-  if (W.d3 && TOOLS_NO3D.has(id)) { const t = TOOLS.find(x => x.id === id); log('tool', `${t ? t.name : id}: ${NOT_3D.toLowerCase()}`); return; }
+  if (W.d3 && TOOLS_NO3D.has(id)) { const t = TOOLS.find(x => x.id === id); log('tool', `${t ? t.name : id}: ${not3d()}`); return; }
   UI.tool = id; UI.pasting = false; R.ghost = null; if (id !== 'objects') R.objSel = null;
   for (const b of document.querySelectorAll('.tool')) b.setAttribute('aria-pressed', b.dataset.tool === id ? 'true' : 'false');
   if (W.tool) W.tool.active = false;
@@ -32352,7 +32461,7 @@ function placeHint() {
   h.style.top = (pal.offsetTop + pal.offsetHeight + 8) + 'px';
 }
 function selectSpec(s) {
-  if (W.d3 && !spec3dOK(s)) { log('tool', `${specLabel(s)}: ${NOT_3D.toLowerCase()}`); return; }
+  if (W.d3 && !spec3dOK(s)) { log('tool', `${specLabel(s)}: ${not3d()}`); return; }
   if (!W.d3 && s && s.kind === 'mol' && MOLECULES[s.mol] && !molFits(MOLECULES[s.mol], false)) { log('tool', `${MOLECULES[s.mol].name}: made for the 3-D lab (main menu → 3-D)`); return; } // (the 3-D library's own, 1.23.2)
   UI.spec = s;
   if (!QUICK.some(q => q !== 'sep' && sameSpec(q.spec, s))) UI.customSpec = s;
@@ -32534,9 +32643,9 @@ function buildToolOpts() {
       break;
     case 'fire': {
       const fs = fireSpecNow() || SPEC_P;
-      if (W.d3) { // (3-D: the projectiles that work there, single shots; atoms and leptons below radiation mode's energies, as they are stepped there)
+      if (W.d3) { // (3-D: the projectiles that work there, single shots, at any energy)
         h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
-          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots; electrons and positrons up to ${fmtE(0.95 * radThreshold(true))}, atoms up to ${fmtE(0.95 * radThreshold(false))}; light, neutrinos and unstable particles at any energy; neutrons, antimatter and beam sources: ${NOT_3D.toLowerCase()}.</span>`;
+          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots, at any energy; antimatter and beam sources: ${not3d()}.</span>`;
         break;
       }
       h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
@@ -32932,7 +33041,7 @@ function placeObject3(spec, x, y, z) {
 }
 const FLY_KINDS = new Set(['exo', 'nu', 'gamma']); // (unstable particles, neutrinos, light: not atoms; placed by placeFly)
 function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
-  if (W.d3 && !spec3dOK(spec)) { log('tool', `${specLabel(spec)}: ${NOT_3D.toLowerCase()}`); return []; }
+  if (W.d3 && !spec3dOK(spec)) { log('tool', `${specLabel(spec)}: ${not3d()}`); return []; }
   if (FLY_KINDS.has(spec.kind)) return placeFly(spec, x, y, count, z);
   if (isObject(spec)) return W.d3 ? placeObject3(spec, x, y, z) : placeObject(spec, x, y);
   const out = [];
@@ -33097,7 +33206,7 @@ function onDown(e) {
     }
     case 'select': {
       const p = pickAt(px, py, 8);
-      if (((p && R.msel.has(p)) || (!p && R.oSel.size && R.oSel.has(objAtPx(px, py)))) && !e.shiftKey) UI.drag = { kind: 'selmove', lx: wx, ly: wy, lz: wz, moved: false, plane }; // on the selection (a particle or an object in it): drag moves it
+      if (((p && R.msel.has(p)) || (!p && R.oSel.size && R.oSel.has(objAtPx(px, py)))) && !e.shiftKey) { undoMark('Move the selection'); UI.drag = { kind: 'selmove', lx: wx, ly: wy, lz: wz, moved: false, plane }; } // on the selection (a particle or an object in it): drag moves it (Ctrl+Z takes it back: 1.26 sweep, it could not be undone)
       else UI.drag = { kind: 'selbox', x0: wx, y0: wy, x1: wx, y1: wy, px, py, px1: px, py1: py, add: e.shiftKey, hit: p };
       break;
     }
@@ -33146,6 +33255,7 @@ function moveSelection(ddx, ddy, ddz = 0) { // (ddz: 3-D)
   }
 }
 function deleteSelection() {
+  if (selCount()) undoMark('Delete the selection'); // (Ctrl+Z puts it back, as a deleted atom: 1.26 sweep)
   let n = 0; for (const p of R.msel) if (!p.dead) { kill(p); n++; }
   for (const ob of R.oSel) { objRemove(ob); n++; } R.oSel.clear();
   R.msel.clear(); if (R.sel && R.sel.dead) { R.sel = null; renderInspect(); }
@@ -33271,6 +33381,8 @@ function eraseHere3(px, py) {
   for (const p of W.parts) if (!p.dead && inTool3(reach, p.x, p.y, p.z)) { kill(p); n++; }
   for (const o of W.exo) if (!o.dead && !o.xb && inTool3(reach, o.x, o.y, o.z || 0)) { o.dead = true; o.fate = 'erased'; n++; } // (unstable particles and muonic hydrogen, in W.exo, 1.26 bug fix)
   for (let i = W.magnets.length - 1; i >= 0; i--) { const m = W.magnets[i]; if (inTool3(reach, m.x, m.y, m.z || 0)) W.magnets.splice(i, 1); } // (magnets too, 1.24)
+  const r1 = { cone: toolCone3(px, py, OPT.erase.R + 1.5) }; // (lasers left on, at their housing (drawLasers3), as the flat Erase takes them: it left them on in 3-D, 1.26 sweep)
+  for (let i = W.lasers.length - 1; i >= 0; i--) { const L = W.lasers[i]; if (inTool3(r1, L.x0, L.y0, L.z0 || 0)) W.lasers.splice(i, 1); }
   if (R.sel && R.sel.dead) R.sel = null;
   return n;
 }
@@ -33288,7 +33400,7 @@ function onMove(e) {
     const dd = Math.hypot(a.x - b.x, a.y - b.y);
     const s = clamp(d.s0 * dd / Math.max(10, d.d0), 0.01, zoomMax());
     const mid = [(a.x + b.x) / 2, (a.y + b.y) / 2];
-    if (W.d3 && d.dist0) { const c = R.cam3; c.dist = clamp(d.dist0 * Math.max(10, d.d0) / Math.max(10, dd), 0.5, 1e6); c.yaw = d.yaw0 - (mid[0] - d.mid[0]) * 0.008 * orbitK(); c.pitch = clamp(d.pitch0 + (mid[1] - d.mid[1]) * 0.008 * orbitK(), -CAM3_PITCH, CAM3_PITCH); return; }
+    if (W.d3 && d.dist0) { const c = R.cam3; c.dist = clamp(d.dist0 * Math.max(10, d.d0) / Math.max(10, dd), cam3Min(), 1e6); c.yaw = d.yaw0 - (mid[0] - d.mid[0]) * 0.008 * orbitK(); c.pitch = clamp(d.pitch0 + (mid[1] - d.mid[1]) * 0.008 * orbitK(), -CAM3_PITCH, CAM3_PITCH); return; }
     // keep the world point under the initial midpoint under the current midpoint
     const wmx = (d.mid[0] - R.w / 2) / d.s0 + d.c0[0], wmy = d.c0[1] - (d.mid[1] - R.h / 2) / d.s0;
     R.s = s; R.cx = wmx - (mid[0] - R.w / 2) / s; R.cy = wmy + (mid[1] - R.h / 2) / s;
@@ -33414,8 +33526,8 @@ function fireDir3(d) {
   if (L < 0.3) { cam3Update(); return [C3.rx, C3.ry, C3.rz]; }
   return [ux / L, uy / L, uz / L];
 }
-function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return lep ? Math.min(fireKE(), 0.95 * radThreshold(lep)) : fireKE(); } // (light, neutrinos and unstable particles: any energy, 1.24; atoms, nuclei and neutrons too since 1.25, as atoms fly in 3-D and meet nuclei there)
-function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(sp)}: ${NOT_3D.toLowerCase()} (Fire)`); return false; }
+function fireKE3() { return fireKE(); } // (every projectile at any energy: light, neutrinos and unstable particles since 1.24; atoms, nuclei and neutrons since 1.25, as atoms fly in 3-D and meet nuclei there; electrons and positrons since the 1.26 sweep: they were held below 950 eV, flat radiation flight's threshold, but since bug fix 14 after 1.25 a lepton past 25 keV flies in 3-D)
+function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(sp)}: ${not3d()} (Fire)`); return false; }
 /* Grab, Strong and Very strong: it keeps up with the mouse in real time, whatever the speed setting or slow motion.
    The spring may draw the atoms along faster (vcap: the gap closed in about 0.12 s of watching, up to the strength's
    limit), and where simulated time crawls (slow motion, a heavy world) the hand itself carries what it holds toward
@@ -34147,19 +34259,21 @@ function speciesCounts(ionic = true) { // (ionic: ionic compounds as their formu
    liquid), above 1 where they are squeezed against each other. Free electrons bounce off the walls on their own and are
    not counted. */
 const PRS = { sig: '', Ts: 0, Tn: 0 };
+const pUnit = () => (W.d3 ? 'Pa' : 'N/m'); // (3-D: pressure is force per area)
 function wallPressure(mols, T) {
   let free = 0; for (const p of W.parts) if (!p.dead && p.k === NUC && !p.bonds.length && !p.rad && !p.beam) free++;
-  const N = mols + free, L = 2 * (W.box.w + W.box.h), A = W.box.w * W.box.h, PB = W.pB;
+  const d3 = !!W.d3, bd = W.box.d || W.box.h, N = mols + free, PB = W.pB; // (3-D: the six faces' area and the volume, in pascals; it was the flat perimeter and area, N/m, 1.26 sweep)
+  const L = d3 ? 2 * (W.box.w * W.box.h + W.box.w * bd + W.box.h * bd) : 2 * (W.box.w + W.box.h), A = d3 ? W.box.w * W.box.h * bd : W.box.w * W.box.h;
   // averaged since the conditions last changed (box, walls, bath, what is free to move): a dilute gas hits the walls seldom
-  const sig = [W.box.w, W.box.h, W.wall, Math.round(Math.log(Math.max(1, W.T)) * 30), N].join();
+  const sig = [W.box.w, W.box.h, d3 ? bd : 0, W.wall, Math.round(Math.log(Math.max(1, W.T)) * 30), N].join();
   if (sig !== PRS.sig) { PRS.sig = sig; PRS.Ts = 0; PRS.Tn = 0; if (PB) { PB.blocks.length = 0; PB.s = 0; PB.t = 0; } }
   if (T > 0) { PRS.Ts += T; PRS.Tn++; }
   if (!N || !PB || PB.blocks.length < 4 || !PRS.Tn) return null;
   const b = PB.blocks, n = b.length; let s = 0, s2 = 0; for (const v of b) { s += v; s2 += v * v; }
   const F = s / n, se = Math.sqrt(Math.max(0, s2 / n - F * F) / n), Tm = PRS.Ts / PRS.Tn;
-  const P = F / L, ideal = N * PHYS.KB * Tm / A, Z = P / ideal, zErr = se / L / ideal; // (eV/Å²)
-  const ok = zErr < 0.15, ps = n * 0.5;
-  return { P: P * 16.0218, Z, ok, zErr, title: `The walls are pushed with ${fmtSI(P * 16.0218, 'N/m', 3)} on average over ${fmtNum(ps, 3)} ps (in 2-D, pressure is force per length of wall). An ideal gas of these ${N} free movers at ${fmtT(Tm)} would push ${fmtSI(ideal * 16.0218, 'N/m', 3)}: Z = ${Z.toFixed(2)} ± ${zErr.toFixed(2)}. ` +
+  const P = F / L, ideal = N * PHYS.KB * Tm / A, Z = P / ideal, zErr = se / L / ideal; // (eV/Å², 3-D eV/Å³)
+  const ok = zErr < 0.15, ps = n * 0.5, k = d3 ? 1.602177e11 : 16.0218, u = pUnit();
+  return { P: P * k, Z, ok, zErr, title: `The walls are pushed with ${fmtSI(P * k, u, 3)} on average over ${fmtNum(ps, 3)} ps (${d3 ? 'force per area of wall' : 'in 2-D, pressure is force per length of wall'}). An ideal gas of these ${N} free movers at ${fmtT(Tm)} would push ${fmtSI(ideal * k, u, 3)}: Z = ${Z.toFixed(2)} ± ${zErr.toFixed(2)}. ` +
     (!ok ? 'Still averaging: in a thin gas the particles hit the walls seldom.' : Z > 0.85 && Z < 1.15 ? 'It behaves like an ideal gas.' : Z <= 0.85 ? 'Below 1: the attractions between the particles pull them together, as in a dense gas or a liquid.' : 'Above 1: the particles are squeezed against each other.') };
 }
 function renderData() {
@@ -34173,7 +34287,7 @@ function renderData() {
     ['Free electrons', String(W.nE)], ['Ionized', (m.ionFrac * 100).toFixed(0) + '%'],
   ];
   const pr = W.wall === 'reflect' ? wallPressure(mols, m.T) : null;
-  if (pr) tiles.push(['Wall pressure', `${fmtSI(pr.P, 'N/m', 2)}`, pr.title], ['vs ideal gas', pr.ok ? `Z = ${pr.Z.toFixed(2)}` : 'averaging …', pr.title]);
+  if (pr) tiles.push(['Wall pressure', `${fmtSI(pr.P, pUnit(), 2)}`, pr.title], ['vs ideal gas', pr.ok ? `Z = ${pr.Z.toFixed(2)}` : 'averaging …', pr.title]);
   $('dTiles').innerHTML = tiles.map(([k, v, t]) => `<div class="tile"${t ? ` title="${esc(t)}"` : ''}><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('');
   const sp = speciesCounts();
   $('dSpecies').innerHTML = sp.length ? sp.slice(0, 40).map(([k, e]) => `<tr><td class="f"><span class="sw" style="background:${e.col}"></span>${esc(k)}</td><td class="nm">${esc(e.name)}</td><td class="n">${e.n}</td></tr>`).join('')
@@ -34762,6 +34876,14 @@ function recMime() {
   for (const m of ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4']) if (MediaRecorder.isTypeSupported(m)) return m;
   return '';
 }
+/* The chamber's canvas layers (under the WebGL layer, the WebGL layer, the overlay) drawn into a w × h picture: each
+   layer's part over the chamber, as it is seen (1.26 sweep: the WebGL layer reaches 64 px past the chamber on each side,
+   and drawn whole it was shrunk toward the middle, its atoms off their labels and bonds by up to 40 px at the edges, in
+   recorded videos and gallery pictures). Call it right after render(): the WebGL layer keeps no copy of its frame. */
+function layersInto(ctx, w, h) {
+  const base = $('cv').getBoundingClientRect();
+  for (const id of ['cvbg', 'cvgl', 'cv']) { const c = $(id); if (c && c.width && !c.hidden && c.style.display !== 'none') try { const r = c.getBoundingClientRect(), kx = c.width / Math.max(1, r.width), ky = c.height / Math.max(1, r.height); ctx.drawImage(c, (base.left - r.left) * kx, (base.top - r.top) * ky, base.width * kx, base.height * ky, 0, 0, w, h); } catch (e) { /* (a canvas that cannot be read) */ } }
+}
 function recSize() { const c = $('cv'), k = Math.min(1, 1280 / Math.max(1, c.width)); return [Math.max(2, Math.round(c.width * k / 2) * 2), Math.max(2, Math.round(c.height * k / 2) * 2)]; }
 function recCapture() {
   if (!UI.running) return;
@@ -34772,7 +34894,7 @@ function recCapture() {
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   const ctx = cv.getContext('2d');
   ctx.fillStyle = getComputedStyle($('cv').parentNode).backgroundColor || '#000'; ctx.fillRect(0, 0, w, h);
-  for (const id of ['cvbg', 'cvgl', 'cv']) { const c = $(id); if (c && c.width && !c.hidden && c.style.display !== 'none') try { ctx.drawImage(c, 0, 0, w, h); } catch (e) { /* (a canvas that cannot be read) */ } }
+  layersInto(ctx, w, h);
   const i = REC.frames.length; REC.frames.push(null); REC.pend++;
   cv.toBlob((b) => { REC.pend--; REC.frames[i] = b; }, 'image/jpeg', 0.85);
   recShow();
@@ -34835,7 +34957,7 @@ function galDel(k) { try { localStorage.removeItem('atomforge.' + k); } catch (e
 function galThumb() {
   const c = $('cv'), w = 240, h = Math.max(1, Math.round(240 * c.height / Math.max(1, c.width))), t = document.createElement('canvas'); t.width = w; t.height = h;
   const ctx = t.getContext('2d'); ctx.fillStyle = '#05080c'; ctx.fillRect(0, 0, w, h);
-  for (const id of ['cvbg', 'cvgl', 'cv']) { const e = $(id); if (e && e.width) try { ctx.drawImage(e, 0, 0, w, h); } catch (err) { /* (unreadable) */ } }
+  try { render(W.rt || 0); } catch (e) { /* (a picture of what was last drawn) */ } layersInto(ctx, w, h); // (drawn now: the WebGL layer's frame is gone once the browser has shown it, so the picture had no atoms where it drew them, 1.26 sweep)
   try { return t.toDataURL('image/jpeg', 0.75); } catch (e) { return ''; }
 }
 function galRender() {
@@ -36166,6 +36288,7 @@ function buildPresetSelect() {
    the menus, fission, fusion, fast nuclei, the giant dipole resonance). The mode follows the world (W.d3): a setup or a
    saved world sets it. Continuous bond orders work in 3-D since 1.25. */
 const NOT_3D = 'Not in 3-D yet';
+const not3d = () => 'not in 3-D yet'; // (in a sentence: NOT_3D.toLowerCase() gave "not in 3-d yet", 1.26 sweep)
 const TOOLS_NO3D = new Set(['objects']); // (the Magnet and Light tools work in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };
 function is3dPreset(k) { return !!(PRESETS[k] && PRESETS[k].d3); }
@@ -36678,7 +36801,7 @@ function fly3Tick(dt) {
   const K = FLY3.keys, c = R.cam3, ax = (K.has('KeyD') ? 1 : 0) - (K.has('KeyA') ? 1 : 0), az = (K.has('KeyW') ? 1 : 0) - (K.has('KeyS') ? 1 : 0);
   const ay = (K.has('KeyE') || K.has('Space') ? 1 : 0) - (K.has('KeyQ') || K.has('Shift') ? 1 : 0);
   const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch), cy = Math.cos(c.yaw), sy = Math.sin(c.yaw); // (the view's forward and right, as cam3Update makes them)
-  const diag = Math.hypot(W.box.w, W.box.h, W.box.d || W.box.h), sp0 = clamp(0.75 * c.dist, 1.5, 3 * Math.max(diag, 10));
+  const diag = Math.hypot(W.box.w, W.box.h, W.box.d || W.box.h), sp0 = clamp(0.75 * c.dist, W.ultra ? 3e-5 : 1.5, 3 * Math.max(diag, 10)); // (ultra-realistic: from a few fm, slow enough to fly among nuclei, 1.26 sweep)
   const n = Math.hypot(ax, ay, az) || 1, want = [(ax * cy - az * cp * sy) / n * sp0, (ay - az * sp) / n * sp0, (-ax * sy - az * cp * cy) / n * sp0];
   const kk = 1 - Math.exp(-dt / 0.06); // (eases in and out over about a tenth of a second)
   for (let i = 0; i < 3; i++) { v[i] += (want[i] - v[i]) * kk; if (!K.size && Math.abs(v[i]) < 1e-3 * sp0) v[i] = 0; }
@@ -36814,7 +36937,7 @@ function rewInit() {
    how many there are of each species; the quantities chosen are drawn as strips, and all of it exports as CSV. */
 const GR = { t: [], rt: [], cols: {}, sp: new Map(), last: 0, max: 2400 };
 const GR_FIX = [['T', 'Temperature', (v) => fmtT(v)], ['Te', 'Electron temperature', (v) => fmtT(v)], ['n', 'Particles', (v) => Math.round(v).toLocaleString('en-US')],
-  ['freeE', 'Free electrons', (v) => Math.round(v).toLocaleString('en-US')], ['ion', 'Ionized atoms', (v) => (100 * v).toFixed(1) + '%'], ['P', 'Wall pressure', (v) => fmtSI(v, 'N/m', 2)],
+  ['freeE', 'Free electrons', (v) => Math.round(v).toLocaleString('en-US')], ['ion', 'Ionized atoms', (v) => (100 * v).toFixed(1) + '%'], ['P', 'Wall pressure', (v) => fmtSI(v, pUnit(), 2)],
   ['chem', 'Chemical heat released', (v) => fmtE(v)], ['nuc', 'Nuclear energy released', (v) => fmtE(v)], ['esc', 'Energy escaped', (v) => fmtE(v)],
   ['pv', 'Graphed particle: speed', (v) => fmtSpeed(v)], ['pk', 'Graphed particle: kinetic energy', (v) => fmtE(v)], ['pd', 'Graphed particle: distance from where it started', (v) => fmtA(v)]];
 /* One particle to follow on the graph (right-click it → Graph it): its speed, energy and how far it has gone. */
@@ -36874,7 +36997,7 @@ function grCsv() {
   const n = GR.t.length; if (!n) { log('tool', 'Nothing recorded yet for the graph'); return; }
   const fix = GR_FIX.filter(([c]) => GR.cols[c]), sp = [...GR.sp];
   const q = (x) => '"' + String(x).replace(/"/g, '""') + '"';
-  const head = ['simulated time (s)', 'watching time (s)', ...fix.map(([, l]) => l + ({ T: ' (K)', Te: ' (K)', P: ' (N/m)', chem: ' (eV)', nuc: ' (eV)', esc: ' (eV)', ion: ' (fraction)' }[fix.find(f => f[1] === l)[0]] || '')), ...sp.map(([k, o]) => k + (o.name ? ' ' + o.name : ''))].map(q).join(',');
+  const head = ['simulated time (s)', 'watching time (s)', ...fix.map(([, l]) => l + ({ T: ' (K)', Te: ' (K)', P: ` (${pUnit()})`, chem: ' (eV)', nuc: ' (eV)', esc: ' (eV)', ion: ' (fraction)' }[fix.find(f => f[1] === l)[0]] || '')), ...sp.map(([k, o]) => k + (o.name ? ' ' + o.name : ''))].map(q).join(',');
   const lines = [head];
   for (let i = 0; i < n; i++) lines.push([(GR.t[i] * PHYS.TU_S).toExponential(6), (GR.rt[i] - GR.rt[0]).toFixed(2), ...fix.map(([c]) => (Number.isFinite(GR.cols[c][i]) ? +GR.cols[c][i].toPrecision(7) : '')), ...sp.map(([, o]) => o.v[i])].join(','));
   fileSave(`atom-forge-${(UI.preset || 'world').replace(/[^a-z0-9-]/gi, '')}-graph.csv`, lines.join('\n') + '\n', 'text/csv').then((ok) => { if (ok) log('tool', `Graph exported: ${n} rows, ${lines[0].split(',').length} columns`); });
@@ -36937,11 +37060,13 @@ function drawPairs() {
 }
 /* ------------------------------------------------------------------ the tour */
 const TOUR = [
-  ['#stage', 'The chamber', 'Everything here follows real physics: atoms, electrons, nuclei and light. Scroll to zoom, drag with the right button to move around.'],
-  ['.tools-wrap', 'Tools', 'Place, grab, select, push and pull, fire, heat, spark, magnets, objects (mirrors, lenses, screens, walls…), light, erase, measure, inspect. The letter under each is its key. Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.'],
+  ['#stage', 'The chamber', 'Everything here follows real physics: atoms, electrons, nuclei and light. Scroll to zoom, drag with the right button to move around.',
+    'Everything here follows real physics: atoms, electrons, nuclei and light, in a cube. Scroll to zoom; drag with the right button (or Alt, or the arrow keys) to turn the view, Shift and the right button to move it; W A S D fly the camera; 0 fits the box.'],
+  ['.tools-wrap', 'Tools', 'Place, grab, select, push and pull, fire, heat, spark, magnets, objects (mirrors, lenses, screens, walls…), light, erase, measure, inspect. The letter under each is its key. Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.',
+    'Place, grab, select, push and pull, fire, heat, spark, magnets, light, erase, measure, inspect (objects are for the flat game). The letter under each is its key (here Spark is Z and Erase X: S and E fly). Things go on the placing plane facing you (Shift + wheel moves it). Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.'],
   ['#paletteBar', 'What to place', 'Pick a particle, an element or a molecule here; Elements… and Molecules… have the rest, every isotope included.'],
   ['.transport', 'Time', 'Play and pause (Space): a setup waits at its first moment until you start it. One frame at a time (.), reload, slower and faster down to 1/512×, and slow motion. ⟲ rewinds (,): drag back through the last minute.'],
-  ['#preset', 'Experiments', 'Ready-made setups, from water and salt to a chain reaction, a collider and challenges.'],
+  ['#preset', 'Experiments', 'Ready-made setups, from water and salt to a chain reaction, a collider and challenges.', 'Ready-made setups for the 3-D lab: molecules in space, liquid water, salt water, hydrogen and oxygen. The main menu (Esc) leads back to the flat game and its setups.'],
   ['.panel .tabs', 'The lab panel', 'Lab sets the conditions (temperature, fields, walls); Inspect shows anything you click; Data has graphs and counts; Log tells what happened; Physics explains how it works.'],
   ['#bSettings', 'Settings and help', 'Settings has graphics, display, controls and a benchmark. Esc opens the menu, with Help (what the simulation does and does not do), the keys (? lists them) and this tour; Ctrl+Z undoes.'],
 ];
@@ -36949,7 +37074,7 @@ const TS = { i: 0 };
 function tourStart() { if (UI.menu) return; TS.i = 0; $('tour').hidden = false; tourShow(); }
 function tourEnd() { $('tour').hidden = true; store('toured', '1'); }
 function tourShow() {
-  const [sel, title, text] = TOUR[TS.i], el = document.querySelector(sel);
+  const [sel, title, t2, t3] = TOUR[TS.i], text = W.d3 && t3 ? t3 : t2, el = document.querySelector(sel); // (the 3-D lab's own words where they differ, 1.26 sweep)
   if (!el || !el.getBoundingClientRect().width) { if (TS.i < TOUR.length - 1) { TS.i++; tourShow(); } else tourEnd(); return; }
   const r = el.getBoundingClientRect(), pad = 6, hole = $('tourHole').style;
   hole.left = (r.left - pad) + 'px'; hole.top = (r.top - pad) + 'px'; hole.width = (r.width + 2 * pad) + 'px'; hole.height = (r.height + 2 * pad) + 'px';
@@ -37670,7 +37795,7 @@ function ultraApply() {
   const on = !!SET.ultra; if (on === !!W.ultra) return;
   if (!on && W.preUltra) { W.warp = W.preUltra.warp; W.minShow = W.preUltra.minShow; }
   W.ultra = on; ultraHold();
-  if (!on) R.s = Math.min(R.s, ZOOM_MAX); // (back inside the normal zoom)
+  if (!on) { R.s = Math.min(R.s, ZOOM_MAX); if (R.cam3 && R.cam3.dist < 0.5) R.cam3.dist = 0.5; } // (back inside the normal zoom; the 3-D camera too, 1.26 sweep)
   if (typeof syncSpeed === 'function' && $('speedVal')) syncSpeed();
   $('ultraBadge').hidden = !on;
 }
@@ -37930,7 +38055,7 @@ const COSTS3 = {
   segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×3.5–5', 'Measured in 3-D (1.25): salt water ×3.5, liquid water ×4.9 (JavaScript kernels; in space the partners within reach grow as the cube of the reach)'], 12: ['×7–17', 'Measured in 3-D (1.25): salt water ×6.6–6.9, liquid water ×12–17 (JavaScript kernels)'] } }),
   segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×2', 'Measured in 3-D (1.25): liquid water and salt water ×2.0–2.2 where steps are at their longest (a 3-D step costs about the same whatever its length); nothing where they are already short'], 0.01: ['×3.5', 'Measured in 3-D (1.25): liquid water ×3.4–3.5, salt water ×3.3–4.1 where steps are at their longest; nothing where they are already short'] } }),
   setInc: () => ({ k: 'physics', on: ['×1', 'Nothing in the 3-D lab: nucleons do not strike nuclei there yet (the flat game only)'] }),
-  setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24)'] }),
+  setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24); the true sizes are drawn without the WebGL layer (liquid water: 7 → 25 ms a frame, headless, 1.26)'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
@@ -38184,7 +38309,7 @@ const SDESC3 = {
   segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond, C–X···N at 180°). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
   segPis: ['π-stacking', 'An aromatic ring carries its π electrons as charge on points above and below it, and ring atoms of two aromatic molecules meet with a dispersion fitted to the benzene dimer: rings stack offset or edge to face, as benzene does, rather than face to face.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
-  setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size. The 3-D camera comes no nearer than half an ångström, so it does not zoom in to a nucleus: the picture is the flat game’s. Experimental: off again each time the game starts.'],
+  setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
 const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
 function setRowOnly(r) { const k = setRowKey(r), p = r.closest('.spane'); return SMODE_ONLY[k] || (p && p.dataset.stab === 'd3' ? '3d' : ''); }
@@ -38406,7 +38531,7 @@ function settingsInit() {
   $('setChamber').onchange = (e) => setChamberOnly(e.target.checked);
   bindSeg('segTUnit', (v) => setSetting('tunit', v));
   $('setFx').onchange = (e) => setSetting('effects', e.target.checked);
-  $('setTips').onchange = (e) => setSetting('tips', e.target.checked);
+  $('setTips').onchange = (e) => { setSetting('tips', e.target.checked); if (e.target.checked && $('hintText').innerHTML && !UI.menu) { $('hint').hidden = false; hintFit(); } }; // (turned back on: this setup's tip shows again now, not at the next setup, 1.26 settings audit)
   $('setFps').onchange = (e) => setSetting('fps', e.target.checked);
   $('setUltra').onchange = (e) => setSetting('ultra', e.target.checked);
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
@@ -38571,7 +38696,7 @@ function qmHere(wx, wy, wz = 0) {
   return `<div class="qlbl">Place one here</div><div class="qchips">` + list.slice(0, 16).map(s => qmBtn(specLabel(s), () => placeSpec(s, wx, wy, 1, wz),
     { cls: 'qchip' + (sameSpec(s, sp) ? ' on' : ''), title: specName(s), html: `<span class="sw" style="background:${specColor(s)}"></span>${esc(specLabel(s))}` })).join('') + '</div>' +
     qm2(qmBtn('Spark here', () => spark(wx, wy, OPT.spark.R, sparkE(), wz), { title: `Dump ${fmtE(sparkE())} into the atoms here` }),
-      qmBtn('Magnet here', W.d3 ? () => {} : () => { const nm = { x: wx, y: wy, R: OPT.magnet.R, B: magB() }; W.magnets.push(nm); log('tool', `Magnet placed: ${nm.B >= 0 ? 'N' : 'S'} pole, ${fmtTesla(Math.abs(nm.B))}`); }, W.d3 ? { off: true, title: NOT_3D } : {}));
+      qmBtn('Magnet here', () => { const nm = { x: wx, y: wy, R: OPT.magnet.R, B: magB() }; if (W.d3) nm.z = wz; W.magnets.push(nm); log('tool', `Magnet placed: ${nm.B >= 0 ? 'N' : 'S'} pole, ${fmtTesla(Math.abs(nm.B))}`); })); // (3-D: a ball at the point, as the Magnet tool's since 1.24; it was left greyed "Not in 3-D yet", 1.26 sweep)
 }
 function qmGlobal(px, py, wx, wy, wz = 0) {
   return '<div class="qsep"></div><div class="qtools" role="group" aria-label="Tools">' +

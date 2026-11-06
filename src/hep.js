@@ -289,7 +289,7 @@ function hypDecay(o) {
     const made = spawnItems(items, moms, o.x, o.y, o.z);
     closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
     const txt = `${d.lab} → ${summarize(items)}`; o.fate = `decayed: ${txt}`; W.count.decay++;
-    nucEvent('pdecay', o.x, o.y, `Hypernucleus decay: ${txt}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.15, lbl: d.lab }], how);
+    nucEvent('pdecay', o.x, o.y, `Hypernucleus decay: ${txt}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.15, lbl: d.lab }], how, undefined, o.z); // (at its depth in 3-D, as its flash: 1.26 sweep)
     log('nuc', `Hypernucleus decay: ${txt} (${how})`); flash(o.x, o.y, d.col, 3.5, 0.4, o.z); tally(items, [d.lab], txt);
     return;
   }
@@ -1999,7 +1999,7 @@ function quarkRip(tg, rest, meson) {
     o.dead = true; o.fate = 'pulled apart by hand: ' + txt;
     const made = spawnItems(items, moms, x, y, o.z);
     closeEvent(S, made, x, y, (Ms * E / o.m) * MEV, o.m * MEV);
-    return ripDone(x, y, txt, [o.lab], items, made, R1[0]);
+    return ripDone(x, y, txt, [o.lab], items, made, R1[0], o.z);
   }
   const p = tg.p;
   if (!p || p.dead || p.k !== NUC || p.Z + p.N < 1) return null;
@@ -2033,12 +2033,12 @@ function quarkRip(tg, rest, meson) {
   }
   relink(partners.filter(q => !q.dead));
   closeEvent(S, made, x, y, (Ms - m0) * (P[0] / m0) * MEV, 0);
-  nucEvent('reaction', x, y, txt, gh, 'a quark pulled out by hand');
-  return ripDone(x, y, txt, ins, items, made, RIP_NUC[R1[0]] ? null : R1[0]);
+  nucEvent('reaction', x, y, txt, gh, 'a quark pulled out by hand', undefined, z);
+  return ripDone(x, y, txt, ins, items, made, RIP_NUC[R1[0]] ? null : R1[0], z);
 }
-function ripDone(x, y, txt, ins, items, made, hyp) {
+function ripDone(x, y, txt, ins, items, made, hyp, z = 0) { // (z: the event's caption and flash at its depth in 3-D; they were put at z = 0, 1.26 sweep)
   log('nuc', `${txt} (a quark pulled out by hand)`);
-  flash(x, y, [255, 200, 160], 4, 0.6);
+  flash(x, y, [255, 200, 160], 4, 0.6, z);
   W.count.nreact++;
   tally(items, ins, txt);
   const xo = hyp ? made.xs.find(o => o.sp === hyp) : null;

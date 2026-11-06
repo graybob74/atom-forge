@@ -1715,7 +1715,7 @@ const { openPage } = require('./browser');
       o.loaded = await p2.evaluate(() => { const b = document.querySelector('[data-crash=restore]'); if (b) b.click(); else restoreAutosave(); return { n: W.parts.filter(p => !p.dead).length, said: W.log.some(l => /Saved with Experimental settings/.test(l.text)), bo: BO.on }; });
       // Continue in the main menu after a restart: the last session's world, not the start setup afresh (1.23.0 saved the
       // fresh one over it as the menu opened)
-      o.cont = await p2.evaluate(() => { for (let i = 0; i < 40; i++) addAtom('Ar', -20 + i, 5); autosave(); return W.parts.filter(p => !p.dead).length; });
+      o.cont = await p2.evaluate(() => { setRunning(false); for (let i = 0; i < 40; i++) addAtom('Ar', -20 + i, 5); autosave(); return W.parts.filter(p => !p.dead).length; }); // (paused: the page saves again as it closes (pagehide), and a running world had changed by then: 73 counted, 74 brought back, 1.26 sweep)
       await p2.reload(); await p2.waitForTimeout(1000);
       o.cont = [o.cont, await p2.evaluate(() => { const b = $('mmCont0'); if (b && !b.hidden) b.click(); else restoreAutosave(); return W.parts.filter(p => !p.dead).length; })];
       await p2.reload(); await p2.waitForTimeout(1000);
@@ -1778,6 +1778,7 @@ const { openPage } = require('./browser');
   await alone('f_126w.js');
   await alone('f_cu126.js'); // 1.26 (copper ions): no Cu⁺Cu⁻ pair made inside a metal; f_cu126.js, also alone
   await alone('f_hep126.js'); // 1.26 bug fixes: collisions at extreme energy, muonic atoms, muonium's nucleus (node tests/f_hep126.js [--node] [part …])
+  await alone('f_sweep3d.js'); // 1.26 3-D sweep and settings audit
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
