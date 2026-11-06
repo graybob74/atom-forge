@@ -2751,8 +2751,9 @@ function hfInto(hq, fx, fixed, mN) { // the heavy hadrons into hadronize's fixed
      below the resonances, the big resonances as single-level Breit–Wigner shapes; scattering constant), joining the
      present table's fast shares from 1 keV to 100 keV. In the normal view nuclei are met as they are drawn, enlarged:
      a neutron meets each about as often, and the cross sections decide what the meeting does (their shares). With
-     Ultra-realistic on (true sizes), a nucleus is met inside its measured cross section, √(σ_tot/π) in radius, so the
-     rates themselves are measured (¹⁰B takes thermal neutrons 11,600 times as readily as ¹H). */
+     Ultra-realistic on (true sizes), a nucleus is met inside its measured cross section (in 3-D √(σ_tot/π) in radius; in the
+     flat game a width σ_tot/1.2 Å, NXS_H), so the rates themselves are measured (¹⁰B absorbs thermal neutrons 11,600 times
+     as readily as ¹H). */
 const NUC_SPIN = { // 'Z_N': [2I, μ (μN)]
   '0_1': [1, -1.91304], '1_0': [1, 2.79285], '1_1': [2, 0.857438], '1_2': [1, 2.97896], '2_1': [1, -2.12762], '3_3': [2, 0.822047], '3_4': [3, 3.25644],
   '4_5': [3, -1.1778], '5_5': [6, 1.80064], '5_6': [3, 2.68865], '6_7': [1, 0.702412], '7_7': [2, 0.403761], '7_8': [1, -0.283189], '8_9': [5, -1.89379],
@@ -2956,8 +2957,9 @@ function nxsShares(Z, N, E, X) { // the shares of a meeting (null: no data, the 
 function nxsSigma(Z, N, E) { const d = NXS[Z + '_' + N]; if (!d) return 0; const o = nxsAt(d, Math.min(E, NXS_LO)); return o.s + o.c + o.f + o.p + o.a + o.t; }
 function nxsReach(n, T) { // true size (Ultra-realistic): met inside the measured cross section, √(σ/π) (1 b = 10⁻⁸ Å²); else the present reach
   const v = W.d3 ? [T.vx, T.vy, T.vz] : velOf(T), dx = n.vx - v[0], dy = n.vy - v[1], dz = W.d3 ? n.vz - v[2] : 0, E = 0.5 * PHYS.MN * (dx * dx + dy * dy + dz * dz), sg = E < NXS_HI ? nxsSigma(T.Z, T.N, E) : 0;
-  return sg > 0 ? Math.min(0.9, Math.sqrt(sg * 1e-8 / Math.PI)) : nucReach(n, T);
+  return sg > 0 ? Math.min(0.9, W.d3 ? Math.sqrt(sg * 1e-8 / Math.PI) : sg * 1e-8 / (2 * NXS_H)) : nucReach(n, T);
 }
+const NXS_H = 1.2; // (Å: the flat game as a slab this thick, the strip light meets atoms in (rayInteract: 0.6 Å each side); a nucleus of cross section σ then blocks a width σ/NXS_H of it on average, so the flat game's rates go as σ, as in space, 1.27)
 function capDone(T, lbl, gh, x, y, z, gs) { // (the capture's log and counts, its lines named)
   const txt = `Neutron capture: ${lbl} + n → ${nucSym(T.Z, T.N)} + ${gs.length > 1 ? gs.length + ' γ' : 'γ'}`;
   W.count.ncap++; flash(x, y, [200, 220, 255], 3, 0.4, z);
