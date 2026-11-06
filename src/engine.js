@@ -743,7 +743,9 @@ function separate(a, b) {
   for (const q of mb) { q.x += ex / r * sh; q.y += ey / r * sh; if (ez) q.z += ez / r * sh; }
 }
 /* Energy needed to remove one electron, including bonds that must then break. */
-function ionizationCost(p) { return ionE(zChem(p), p.ne) + breakCostIfCharged(p, -1); }
+function ionizationCost(p) { return ionE(zChem(p), p.ne) * muIonF(p) + breakCostIfCharged(p, -1); }
+/* (Muonium as hydrogen, 1.27: muonium's levels are hydrogen's with its own reduced mass, 13.540 eV for 13.598; hep.js MU_IONF) */
+function muIonF(p) { return p.mu && typeof RP !== 'undefined' && RP.mu ? MU_IONF : 1; }
 
 function molecule(p) {
   const seen = new Set([p]), out = [p];
@@ -1922,12 +1924,12 @@ function internalE(p) {
   if (p.k !== NUC || p.Z === 0 || p.ne === 0) return 0;
   let E = 0;
   for (let k = 1; k <= p.ne; k++) E -= ionE(zChem(p), k);
-  return E;
+  return p.mu ? E * muIonF(p) : E; // (1.27)
 }
 function neutralInternalE(p) { // the same atom with as many electrons as protons
   if (p.k !== NUC || p.Z === 0) return 0;
   let E = 0; const zc = zChem(p); for (let k = 1; k <= zc; k++) E -= ionE(zc, k);
-  return E;
+  return p.mu ? E * muIonF(p) : E; // (1.27)
 }
 function metalV(a, b, r) {
   const rm = 0.5 * (a.mR + b.mR);
@@ -4424,7 +4426,7 @@ function evLepton(L, A, r) {
   if (clash(L, A)) { // a positron at ordinary matter, or an electron at antimatter
     if (r > rh || L.hit === A.id) return;
     L.hit = A.id;
-    if (A.ne > 0) { lzNeed(); annihilateBound(L, A); } else elasticScatter(L, A, 0);
+    if (A.ne > 0) { lzNeed(); if (!(typeof RP !== 'undefined' && RP.ps && psFromAtom(L, A, Erel))) annihilateBound(L, A); } else elasticScatter(L, A, 0); // (the Positronium switch: in the Ore gap it takes an electron instead, hep.js, 1.27)
     return;
   }
   // recombination into an ion (positive for matter, negative for antimatter): bound leptons are captured,
@@ -4848,6 +4850,7 @@ function nuclearAnnihilation(a, b) {
 }
 function evAnnihFree(a, b) {
   if (a.dead || b.dead) return;
+  if (typeof RP !== 'undefined' && RP.ps && psFromFree(a, b)) return; // (the Positronium switch: a slow pair binds instead, hep.js, 1.27)
   const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y);
   const S = annihBegin([a, b]);
   const gh = [a, b].map(ghostOf);

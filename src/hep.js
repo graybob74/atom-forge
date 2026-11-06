@@ -570,7 +570,8 @@ function muoniumForm(o) {
   const Pt = add4(exoP4(o), p4of(e)), M = mass4(Pt), vs = phaseSpace(M, [XP.Mu.m, 0]);
   if (!vs) return false;
   const bx = Pt[1] / Pt[0], by = Pt[2] / Pt[0], bz = (Pt[3] || 0) / Pt[0];
-  exoEvent(o, [e], [item('Mu'), item('g')], vs.map(v => toLab(v, bx, by, bz)), o.x, o.y, 'capture', `Muonium: μ⁺ took an electron from ${el}`, 'μ⁺e⁻, a hydrogen atom 1/9 the mass, 13.5 eV bound', o.z);
+  const made = exoEvent(o, [e], [item('Mu'), item('g')], vs.map(v => toLab(v, bx, by, bz)), o.x, o.y, 'capture', `Muonium: μ⁺ took an electron from ${el}`, 'μ⁺e⁻, a hydrogen atom 1/9 the mass, 13.5 eV bound', o.z);
+  if (o.spin && made.ps[0]) made.ps[0].spin = o.spin.slice(); // (the muon keeps its spin, 1.27)
   return true;
 }
 
@@ -600,6 +601,7 @@ function addMuonium(x, y, KE, ux, uy, ne = 1, z = 0, uz = 0) { // (z, uz: 3-D, 1
   const p = addNuc(1, 0, ne, x, y, 0, 0, false, z); p.mu = true; refresh(p);
   setMotion(p, KE, ux, uy, 0, 0, uz);
   (W.muAtoms || (W.muAtoms = [])).push(p);
+  if (RP.mu) { muSpinInit(p, KE >= 1 ? [ux, uy, uz] : null); p.eSpin = rnd() < 0.5 ? 1 : -1; } // (its muon's spin and its electron's, along the field or against it, 1.27)
   return p;
 }
 /* The muon of a muonium atom (or of μ⁺ bare, or bonded in MuCl …) decays: μ⁺ → e⁺ νₑ ν̄μ; the electrons it held go
@@ -610,13 +612,14 @@ function muoniumTick(dt) {
   for (let i = L.length - 1; i >= 0; i--) {
     const p = L[i];
     if (!p || p.dead || !p.mu) { L.splice(i, 1); continue; }
+    if (p.spin && RP.mu) muSpinTurn(p, clock); // (μSR: its muon's spin precesses, 1.27)
     if (!(clock > 0) || rnd() >= 1 - Math.exp(-clock / XP['mu+'].tau)) continue;
     L.splice(i, 1);
     const x = p.x, y = p.y, z = p.z, lbl = speciesLabel(p), ne = p.ne, [vx, vy] = velOf(p), partners = p.bonds.map(bd => other(bd, p));
     const S = nucBegin([p]), gh = [ghostOf(p)];
     kill(p); relink(partners.filter(q => !q.dead));
     const items = ['e+', 'nu', 'numub'].map(item), bx = vx / PHYS.C, by = vy / PHYS.C, bz = W.d3 ? p.vz / PHYS.C : 0; // (bz: 3-D, 1.25)
-    const vs = phaseSpace(MU_M, items.map(massOf)), moms = vs.map(v => toLab(v, bx, by, bz));
+    const vs = p.spin && RP.mu ? muSpinDecay(p.spin) : phaseSpace(MU_M, items.map(massOf)), moms = vs.map(v => toLab(v, bx, by, bz)); // (μSR: the positron along the muon's spin, the Michel spectrum, 1.27)
     for (let k = 0; k < ne; k++) { items.push(item('e-')); moms.push(randDir4(PHYS.MEC2, (1 + rnd()) / MEV)); }
     const made = spawnItems(items, moms, x, y, z);
     closeEvent(S, made, x, y, 0, 0);
@@ -1286,6 +1289,258 @@ function xaInfo(p) {
   return { name: 'muonic', n: B.n || 1, Eb: B.Eb, tau, cap: lc / (lc + ld), lines: B.lines || null, aug: B.aug || 0, zx: !!B.zx, n0: B.n0 || 0, from: B.from || '' };
 }
 
+/* ---- Realistic particles 2: positronium (1.27, Experimental: Settings → Experimental → Realistic particles →
+   Positronium; approved by the owner, 2026-11-05). Off (RP.ps false), no positronium is made and every setup is as
+   before, bit for bit. On:
+   - Forming (psFromAtom, psFromFree). A positron takes an electron and becomes positronium, Ps (e⁺e⁻, bound by 6.803 eV,
+     half hydrogen's, its orbit twice hydrogen's). From an atom or molecule it touches (evLepton) in the Ore gap: its
+     energy E between I − 6.8 eV and I, I the electron's binding there (ionizationCost: 13.6 eV for H, 12.6 for water,
+     3.6 for Cl⁻). Below I − 6.8 Ps can't form (the pair would be bound less than the electron was); above I ionization
+     competes; outside the gap the positron annihilates on contact as before. From a free electron (the two within
+     0.3 Å, evAnnihFree): a pair with less than 6.8 eV of its own energy to spare forms Ps, a photon taking the
+     difference (the spur: the electrons a positron's own track set free); faster pairs annihilate as before. Either
+     way the books are exact (nucBegin, closeEvent): Ps gets what is left.
+   - Spin. Para-Ps (the singlet, 1 in 4) lives 125.14 ps (7990.9 µs⁻¹, Al-Ramadhan & Gidley, PRL 72, 1632, 1994) and
+     gives 2 γ of 511 keV back to back; ortho-Ps (the triplet, 3 in 4) lives 142.05 ns in vacuum (7.0404 µs⁻¹,
+     Vallery, Zitzewitz & Gidley, PRL 90, 203402, 2003) and gives 3 γ sharing 1,022 keV in a plane, their energies
+     drawn from the Ore–Powell matrix element (Phys. Rev. 75, 1696, 1949), each continuous up to 511 keV (psDecay).
+   - In matter (psMatter). Pick-off: o-Ps's positron annihilates (2 γ) with an electron of the molecules around it, at
+     a rate in proportion to the electron density within 5 Å, scaled so liquid water gives water's measured o-Ps life,
+     1.80 ns (positron annihilation lifetime spectroscopy at room temperature); the flat game's water is its own
+     reference (0.85 e/Å² measured in the water setup), the 3-D one real water's 0.334 e/Å³. Spin conversion: O₂, whose
+     two unpaired electrons exchange spin with the Ps's, turns o-Ps into p-Ps (and back, three times as often, by the
+     states' counts) at n·σ·v, σ = 1.5×10⁻¹⁹ cm² (the thermal o-Ps–O₂ conversion cross section measured in O₂ gas, as I
+     know it: no network here, worth a check); its local density is counted as the electrons are.
+   - What it can't make real: Ps passes through atoms (in nature its electron's repulsion holds it in a bubble about
+     3 Å across; the pick-off rate stands for that), keeps the energy it was made with (no thermalizing collisions),
+     reacts with nothing (no PsH, no oxidation by O₂; other radicals don't convert it), and has one mass for both spin
+     states (they differ by 0.84 meV). At the game's timescale 142 ns is forever: an o-Ps in vacuum outlives any
+     run unless decay is sped up (Lab → Decay speed); 125 ps is about 12,300 tu.
+   Ps is an unstable particle in W.exo (pPs, oPs), so Select, Erase, Inspect, saves and undo take it as they take a muon. */
+const PS_B = PHYS.RY / 2, PS_M = 2 * PHYS.ME * PHYS.AMU_MEV - PS_B / MEV; // (binding eV: μ = mₑ/2; mass MeV)
+const PS_TAU_W = 1.80e-9, PS_R = 5, PS_RHO = { 2: 0.85, 3: 0.334 }, PS_SIGC = 1.5e-19, PS_NW = 3.34e22; // (o-Ps in water s; sampling radius Å; water's electron density; σ cm²; water molecules cm⁻³)
+const PS_LPO = 1 / PS_TAU_W - 1 / 1.4205e-7; // (the pick-off rate in water, s⁻¹)
+RP.ps = false; RP.mu = false; // (Experimental → Realistic particles: positronium, muonium as hydrogen; ui.js applySettings)
+XP.pPs = { lab: 'p-Ps', m: PS_M, q: 0, tau: 1.2514e-10, col: [255, 170, 235], cc: 'pPs', ps: true, dec: [[1, ['g', 'g']]] };
+XP.oPs = { lab: 'o-Ps', m: PS_M, q: 0, tau: 1.4205e-7, col: [235, 140, 255], cc: 'oPs', ps: true, dec: [[1, ['g', 'g', 'g']]] };
+/* A new Ps at (x, y, z) moving along (ux, uy, uz), para 1 in 4. Its energy comes from closeEvent. */
+function psMake(x, y, z, ux, uy, uz) {
+  const sp = rnd() < 0.25 ? 'pPs' : 'oPs';
+  return W.d3 ? addExo(sp, x, y, 0, ux, uy, undefined, z, uz) : addExo(sp, x, y, 0, ux, uy);
+}
+const psDir = (px, py, pz) => { const L = Math.hypot(px, py, W.d3 ? pz : 0); return L > 0 ? [px / L, py / L, W.d3 ? pz / L : 0] : (() => { const u = rdir(); return [u[0], u[1], u[2] || 0]; })(); };
+/* A positron (or an electron at antimatter) touching atom A with Erel of motion: Ps in the Ore gap. True if made. */
+function psFromAtom(L, A, Erel) {
+  if (L.dead || A.dead || A.ne <= 0 || A.muB) return false;
+  const I = ionizationCost(A), Eas = Erel + pairPE(L, A); // (its energy apart from the pull between them: at an ion the contact energy holds the well's depth)
+  if (!(Eas > I - PS_B) || !(Eas < I)) return false;
+  // (on trial: the electron taken, the positron's charge off, measured; the remainder is what Ps would carry)
+  const set = setOf(molecule(A)), T = new Set(set); T.add(L);
+  const E0 = regionE(T), sn = snapshot(set), q0 = L.q;
+  A.ne--; refresh(A); enforceValence(A, null); relink([A]); L.q = 0;
+  const avail = E0 - regionE(set) - PS_M * MEV; // (what Ps would carry: all before, less what stays and its rest energy)
+  L.q = q0; restoreSnap(sn);
+  if (!(avail > 0.01)) return false;
+  const x = L.x, y = L.y, z = L.z || 0, who = speciesLabel(A), u = psDir(L.m * L.vx + PHYS.ME * A.vx, L.m * L.vy + PHYS.ME * A.vy, L.m * (L.vz || 0) + PHYS.ME * (A.vz || 0));
+  const S = nucBegin([L, A]);
+  kill(L); A.ne--; refresh(A); enforceValence(A, null); relink([A]);
+  const o = psMake(x, y, z, u[0], u[1], u[2]);
+  closeEvent(S, { ps: [], xs: [o], rays: [], lost: 0 }, x, y, 0, 0);
+  psNote(o, `${L.k === POS ? 'e⁺' : 'e⁻'} + ${who} → ${o.lab} + ${speciesLabel(A)}`, `in the Ore gap (${fmtE(I - PS_B)}–${fmtE(I)}): it took an electron bound by ${fmtE(I)}`, z);
+  return true;
+}
+/* A free positron and electron within 0.3 Å: Ps if they have less than its binding to spare; a photon takes the rest. */
+function psFromFree(a, b) {
+  if (a.dead || b.dead) return false;
+  const T = new Set([a, b]), M = a.m + b.m, px = a.m * a.vx + b.m * b.vx, py = a.m * a.vy + b.m * b.vy, pz = a.m * (a.vz || 0) + b.m * (b.vz || 0);
+  if (a.rad || b.rad) return false;
+  const Kcm = 0.5 * (px * px + py * py + (W.d3 ? pz * pz : 0)) / M, Eg = regionE(T) - PS_M * MEV - Kcm;
+  if (!(Eg > 0.01 && Eg < 2 * PS_B)) return false;
+  const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y), z = 0.5 * ((a.z || 0) + (b.z || 0)), u = psDir(px, py, pz);
+  const S = nucBegin([a, b]);
+  kill(a); kill(b);
+  const o = psMake(x, y, z, u[0], u[1], u[2]), d = rdir();
+  o.KE = Kcm; exoSpeed(o);
+  const made = { ps: [], xs: [o], rays: [[item('g'), 1, d[0], d[1], d[2] || 0]], lost: 0 };
+  if (W.d3) made.z3 = z;
+  closeEvent(S, made, x, y, 0, 0);
+  psNote(o, `e⁺ + e⁻ → ${o.lab} + γ`, `a free electron caught: the photon carries ${fmtE(Eg)}`, z);
+  return true;
+}
+function psNote(o, txt, sub, z) {
+  W.count.react++;
+  nucEvent('capture', o.x, o.y, `Positronium: ${txt}`, [], sub, undefined, z);
+  log('nuc', `Positronium: ${txt} (${o.sp === 'pPs' ? 'para, spins opposite: 2γ in 125 ps' : 'ortho, spins parallel: 3γ in 142 ns in vacuum, sooner in matter'})`);
+}
+/* What surrounds a Ps: electrons and O₂ molecules within PS_R, as densities against liquid water's. */
+function psEnv(o) {
+  let ne = 0, nO2 = 0;
+  nearby(o.x, o.y, PS_R, (p) => {
+    if (p.k === NUC) { if (p.Z > 0) ne += p.ne; if (p.Z === 8 && !p.muB && p.q === 0 && p.bonds.length === 1) { const q = other(p.bonds[0], p); if (q.Z === 8 && q.bonds.length === 1 && !q.muB && q.q === 0) nO2 += 0.5; } }
+    else if (p.k === ELEC) ne++;
+  }, o.z);
+  const V = W.d3 ? 4 / 3 * Math.PI * PS_R ** 3 : Math.PI * PS_R * PS_R, ref = PS_RHO[W.d3 ? 3 : 2];
+  return { e: ne / V / ref, o2: nO2 / V / (ref / 10) }; // (electron density over water's; O₂ number density over water's molecules)
+}
+/* Its rates here (s⁻¹, in its own time): pick-off, and spin conversion away from its state. */
+function psRates(o) {
+  const env = psEnv(o), v = o.v * 1e-8 / PHYS.TU_S, conv = env.o2 * PS_NW * PS_SIGC * v;
+  return { po: PS_LPO * env.e, conv: o.sp === 'oPs' ? conv : 3 * conv, env };
+}
+/* Each step of a Ps (clock: lab seconds of the decay clock): pick-off or conversion. True if it is gone. */
+function psMatter(o, clock) {
+  const r = psRates(o), lt = r.po + r.conv, dt = clock / o.gam;
+  if (!(lt > 0) || !(rnd() < 1 - Math.exp(-lt * dt))) return false;
+  if (rnd() * lt < r.conv) { // (spin exchange with O₂: the other state; same mass, nothing to book)
+    const was = o.lab; o.sp = o.sp === 'oPs' ? 'pPs' : 'oPs'; o.lab = XP[o.sp].lab; o.trk.c = XP[o.sp].col;
+    log('nuc', `Positronium: ${was} → ${o.lab}, its spin turned by an O₂ molecule's unpaired electrons`);
+    return false;
+  }
+  psDecay(o, true);
+  return true;
+}
+/* Ps annihilating: para (or pick-off) 2 γ back to back in its frame, ortho 3 γ in a plane (Ore–Powell); boosted by its
+   motion; the books close exactly (closeEvent: the photons share what the Ps carried). */
+function psDecay(o, pick) {
+  const M = o.m, n = pick || o.sp === 'pPs' ? 2 : 3, vs = [];
+  if (n === 2) { const u = rdir(); vs.push(...twoBody(M, 0, 0, ...u)); }
+  else {
+    let x1 = 1, x2 = 0.5;
+    for (let k = 0; k < 400; k++) {
+      const a = rnd(), b = rnd(); if (a + b < 1) continue;
+      const c = 2 - a - b, w = ((1 - a) / (b * c)) ** 2 + ((1 - b) / (a * c)) ** 2 + ((1 - c) / (a * b)) ** 2;
+      if (rnd() * 2 < w) { x1 = a; x2 = b; break; }
+    }
+    const E1 = x1 * M / 2, E2 = x2 * M / 2, E3 = M - E1 - E2, c12 = clamp((E3 * E3 - E1 * E1 - E2 * E2) / (2 * E1 * E2), -1, 1), s12 = Math.sqrt(1 - c12 * c12) * (rnd() < 0.5 ? 1 : -1);
+    const p = [[E1, 0], [E2 * c12, E2 * s12]]; p.push([-p[0][0] - p[1][0], -p[0][1] - p[1][1]]);
+    const Es = [E1, E2, E3];
+    if (W.d3) { // (the decay plane at random: a random normal, and a turn within the plane)
+      const nrm = rndDir(), t = Math.abs(nrm[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+      let e1 = [t[1] * nrm[2] - t[2] * nrm[1], t[2] * nrm[0] - t[0] * nrm[2], t[0] * nrm[1] - t[1] * nrm[0]]; const L1 = Math.hypot(...e1); e1 = e1.map(v => v / L1);
+      const e2 = [nrm[1] * e1[2] - nrm[2] * e1[1], nrm[2] * e1[0] - nrm[0] * e1[2], nrm[0] * e1[1] - nrm[1] * e1[0]], th = 2 * Math.PI * rnd(), c = Math.cos(th), s = Math.sin(th);
+      for (let i = 0; i < 3; i++) { const a = p[i][0] * c - p[i][1] * s, b = p[i][0] * s + p[i][1] * c; vs.push([Es[i], a * e1[0] + b * e2[0], a * e1[1] + b * e2[1], a * e1[2] + b * e2[2]]); }
+    } else { const th = 2 * Math.PI * rnd(), c = Math.cos(th), s = Math.sin(th); for (let i = 0; i < 3; i++) vs.push([Es[i], p[i][0] * c - p[i][1] * s, p[i][0] * s + p[i][1] * c]); }
+  }
+  const b = o.v / PHYS.C, bx = b * o.ux, by = b * o.uy, bz = W.d3 ? b * o.uz : 0;
+  const made = { ps: [], xs: [], rays: [], lost: 0 };
+  for (const v of vs) { const L = toLab(v, bx, by, bz, o.gam), pm = pmag(L) || 1; made.rays.push(W.d3 ? [item('g'), L[0] * MEV, L[1] / pm, L[2] / pm, L[3] / pm] : [item('g'), L[0] * MEV, L[1] / pm, L[2] / pm]); }
+  if (W.d3) made.z3 = o.z;
+  const S = nucBegin([]);
+  o.dead = true;
+  closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
+  W.count.annih++;
+  const txt = pick ? `${o.lab} pick-off: its positron meets an electron of the molecules around it → 2γ` : o.sp === 'pPs' ? 'p-Ps → 2γ (511 keV each, back to back)' : `o-Ps → 3γ (${made.rays.map(r => fmtE(r[1])).join(', ')})`;
+  o.fate = txt;
+  flash(o.x, o.y, [255, 255, 255], 3, 0.4, W.d3 ? o.z : undefined);
+  nucEvent('annih', o.x, o.y, `Positronium: ${txt}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.12, lbl: o.lab }], pick ? 'in matter o-Ps lives nanoseconds, not 142 ns' : o.sp === 'pPs' ? 'mean life 125 ps' : 'mean life 142 ns in vacuum', undefined, W.d3 ? o.z : 0);
+  log('nuc', `Positronium: ${txt}`);
+}
+/* Inspect's words for a Ps (ui.js): its state and its expected life here. */
+function psInfo(o) {
+  const r = psRates(o), own = 1 / XP[o.sp].tau, life = 1 / (own + r.po + r.conv);
+  return { para: o.sp === 'pPs', Eb: PS_B, size: 2 * 0.529177, life, po: r.po, conv: r.conv, rho: r.env.e };
+}
+
+/* ---- Realistic particles 4: muonium as the lightest hydrogen isotope, and μSR (1.27, Experimental: Settings →
+   Experimental → Realistic particles → Muonium as hydrogen; approved by the owner, 2026-11-05). Off (RP.mu false), as
+   before, bit for bit. Muonium (μ⁺e⁻) has been an H atom in MD with the muon's mass since 1.12 (0.11398 u: the muon,
+   0.113429 u, and its electron), bonding by hydrogen's force field (Mu + Cl₂ → MuCl + Cl). On:
+   - Its binding is hydrogen's with the reduced mass, 13.540 eV (H 13.598: Rydberg × m_red/mₑ, 0.995187 against
+     0.999456), in its internal energy and ionization cost (engine.js internalE, ionizationCost: MU_IONF). Its chemistry
+     stays hydrogen's force field, with its own mass, which gives the isotope effects (Mu–X vibrates about 2.9 times
+     faster than H–X; with Quantum nuclei its rings spread as its mass asks: zero-point energy about 3× hydrogen's).
+   - The muon's spin (o.spin, p.spin: a unit vector). A μ⁺ fired or made by a decay has its spin against its flight
+     (π⁺ → μ⁺ν: the muon is born fully polarized backward, as a surface-muon beam is); one placed at rest has it across
+     the field (+x; in 3-D across the field's axis), as a polarized beam stopped in a sample has for transverse-field
+     μSR. It precesses about the magnetic field on the decay clock (proper time): a free μ⁺, or one in a molecule
+     (diamagnetic: MuH, MuCl, MuOH), at γ_μ/2π = 135.5388 MHz/T. Muonium keeps its electron's spin (o.eSpin, along the
+     field or against it, 1 in 2 when it forms): with it along the field its muon turns at ν₁₂ and against it at ν₃₄ of
+     the Breit–Rabi levels (hyperfine ν₀ = 4,463.302 MHz; at low field ν₁₂ → 1.3945 MHz/G, the triplet's precession;
+     ν₃₄ → ν₀, which averages the other half out, as in nature, where that half oscillates at ν₀ instead of turning).
+   - Its decay: the positron's energy and direction from the Michel distribution with the muon's polarization,
+     x²[(3 − 2x) + (2x − 1)·cos θ] (θ from the spin; on average 1 + cos θ / 3), the two neutrinos sharing the rest; in
+     the flat game the in-plane angle has that law (what a detector ring in the plane sees). So a ring of detectors
+     around a muon sample in a field sees the precession.
+   - What it can't make real: muonium in a radical (a muonated radical's hyperfine coupling) precesses here as a
+     diamagnetic muon; the electron spin of a muonium that bonds and frees itself again is the one it formed with;
+     spin relaxation (nuclear dipoles, collisions) is left out; the muon's chemical shift (ppm) too. */
+const MU_GM = 135.5388e6, MU_GE = 28024.951e6, MU_NU0 = 4463.302e6; // (Hz/T, Hz/T, Hz: CODATA 2018)
+const MU_IONF = (1 + PHYS.ME / (1.007825 - PHYS.ME)) / (1 + PHYS.ME / (XP['mu+'].m / PHYS.AMU_MEV)); // (Mu's binding over H's: 0.995729)
+/* The spin a μ⁺ is given when it is made (u: its direction of flight, or null at rest). */
+function muSpinInit(o, u) {
+  if (u && Math.hypot(u[0], u[1], u[2] || 0) > 0) { const L = Math.hypot(u[0], u[1], W.d3 ? u[2] || 0 : 0); o.spin = [-u[0] / L, -u[1] / L, W.d3 ? -(u[2] || 0) / L : 0]; }
+  else o.spin = W.d3 && W.Bax3 === 'x' ? [0, 1, 0] : [1, 0, 0];
+}
+/* The muon's precession rate (Hz, signed: positive turns it right-handed about the field's axis) in a field B (T). */
+function muRate(p, B) {
+  const free = p.k === NUC ? !(p.ne === 1 && !p.bonds.length) : true;
+  if (free) return -MU_GM * B;
+  const b = Math.abs(B), x = b * (MU_GE + MU_GM) / MU_NU0, nm = (MU_GE - MU_GM) * b / 2, r = Math.sqrt(1 + x * x) * MU_NU0 / 2, sg = B < 0 ? -1 : 1;
+  return (p.eSpin > 0 ? MU_NU0 / 2 + nm - r : -(MU_NU0 / 2 - nm + r)) * sg;
+}
+/* Turn its spin over dt seconds of its own time. */
+function muSpinTurn(p, dt) {
+  if (!p.spin || !(dt > 0)) return;
+  const B = W.d3 ? Bfield3(p.x, p.y, p.z || 0) : Bfield(p.x, p.y, null), f = muRate(p, B);
+  if (!f) return;
+  const a = 2 * Math.PI * f * dt, c = Math.cos(a), s = Math.sin(a), ax = W.d3 ? W.Bax3 || 'z' : 'z', s0 = p.spin;
+  const [i, j] = ax === 'x' ? [1, 2] : ax === 'y' ? [2, 0] : [0, 1], u = s0[i], v = s0[j];
+  s0[i] = u * c - v * s; s0[j] = u * s + v * c;
+}
+/* The decay at rest of a μ⁺ with spin s: [e⁺, νₑ, ν̄μ] four-momenta (MeV) in its rest frame. */
+function muSpinDecay(s) {
+  const mm = MU_M, me = XA_ME, Wm = (mm * mm + me * me) / (2 * mm), x0 = me / Wm;
+  let x = 1; for (let k = 0; k < 200; k++) { const t = x0 + (1 - x0) * rnd(); if (rnd() < t * t * (3 - 2 * t)) { x = t; break; } }
+  const P = Math.min(1, Math.hypot(s[0], s[1], W.d3 ? s[2] : 0)), a = P * (2 * x - 1) / (3 - 2 * x);
+  let dir;
+  if (W.d3) {
+    let c = 0; for (let k = 0; k < 200; k++) { c = 2 * rnd() - 1; if (rnd() * (1 + Math.abs(a)) < 1 + a * c) break; }
+    const sh = P > 0 ? s.map(v => v / Math.hypot(s[0], s[1], s[2])) : [0, 0, 1], t = Math.abs(sh[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+    let e1 = [t[1] * sh[2] - t[2] * sh[1], t[2] * sh[0] - t[0] * sh[2], t[0] * sh[1] - t[1] * sh[0]]; const L = Math.hypot(...e1); e1 = e1.map(v => v / L);
+    const e2 = [sh[1] * e1[2] - sh[2] * e1[1], sh[2] * e1[0] - sh[0] * e1[2], sh[0] * e1[1] - sh[1] * e1[0]], ph = 2 * Math.PI * rnd(), sn = Math.sqrt(1 - c * c);
+    dir = [0, 1, 2].map(i => c * sh[i] + sn * (Math.cos(ph) * e1[i] + Math.sin(ph) * e2[i]));
+  } else {
+    let ph = 0; for (let k = 0; k < 200; k++) { ph = 2 * Math.PI * rnd(); if (rnd() * (1 + Math.abs(a)) < 1 + a * Math.cos(ph)) break; }
+    const s0 = P > 0 ? Math.atan2(s[1], s[0]) : 0; dir = [Math.cos(s0 + ph), Math.sin(s0 + ph)];
+  }
+  const Ee = x * Wm, pe = Math.sqrt(Math.max(0, Ee * Ee - me * me));
+  const e = W.d3 ? [Ee, pe * dir[0], pe * dir[1], pe * dir[2]] : [Ee, pe * dir[0], pe * dir[1]], R = neg4(mm - Ee, e), M = mass4(R);
+  const vv = twoBody(M, 0, 0, ...rdir()), b = vel4(R);
+  return [e, toLab(vv[0], ...b), toLab(vv[1], ...b)];
+}
+/* A μ⁺ in W.exo with a spin decays (decayExo, decayExo3): as they do, with the positron from muSpinDecay. */
+function muExoDecay(o) {
+  const items = XP['mu+'].dec[0][1].map(item), b = o.v / PHYS.C, bx = b * o.ux, by = b * o.uy, bz = W.d3 ? b * o.uz : 0;
+  const vs = muSpinDecay(o.spin), S = nucBegin([]);
+  o.dead = true;
+  const keepTag = _evTag; _evTag = o.ev;
+  const made = spawnItems(items, vs.map(v => toLab(v, bx, by, bz, o.gam)), o.x, o.y, o.z || 0);
+  _evTag = keepTag;
+  closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
+  W.count.decay++;
+  const txt = `μ⁺ → ${summarize(items)}`; o.fate = `decayed: ${txt}`;
+  flash(o.x, o.y, XP['mu+'].col, 3.5, 0.35, W.d3 ? o.z : undefined);
+  tally(items, [], `Decay in flight: ${txt}`);
+  nucEvent('pdecay', o.x, o.y, `Decay: ${txt}, the e⁺ along the muon's spin`, [{ x: o.x, y: o.y, k: 'x', rd: 0.12, lbl: o.lab }], `mean life ${fmtTime(XP['mu+'].tau)}${boostTag()}`, undefined, W.d3 ? o.z : 0);
+  log('nuc', `Decay: ${txt} (the positron comes out preferentially along the muon's spin)`);
+}
+/* The switch (ui.js applySettings): with muonium in the box its binding changes (13.598 ↔ 13.540 eV); the difference is
+   booked to the heat bath, as the other Experimental models do. Its spins are given when it is made, not here. */
+function rpMuSet(on) {
+  on = !!on; if (RP.mu === on) return;
+  const L = (W.muAtoms || []).filter(p => p && !p.dead && p.mu);
+  let E0 = 0; for (const p of L) E0 += internalE(p);
+  RP.mu = on;
+  let E1 = 0; for (const p of L) E1 += internalE(p);
+  if (L.length) { W.ledger.bath += E0 - E1; W.fSpawn = -1; }
+}
+/* Inspect's words for a muon's spin (ui.js): its direction and its precession here. */
+function muSpinInfo(p) {
+  if (!p.spin) return null;
+  const B = W.d3 ? Bfield3(p.x, p.y, p.z || 0) : Bfield(p.x, p.y, null), f = muRate(p, B), s = p.spin;
+  return { s: s.slice(), B, f, free: p.k !== NUC || !(p.ne === 1 && !p.bonds.length), eSpin: p.eSpin || 0 };
+}
+
 /* ---- making the products, and the books */
 const MAX_EXO = 1500;
 /* Products at (x, y): items with their lab four-momenta. Nuclei, nucleons and leptons join W.parts, unstable particles
@@ -1378,6 +1633,7 @@ function addExo(sp, x, y, KE, ux, uy, m, z = 0, uz = 0) { // (z, uz: 3-D, 1.24)
   if (W.d3) o.trk.pz = [z];
   keepTrack(o.trk);
   W.exo.push(o);
+  if (sp === 'mu+' && RP.mu) muSpinInit(o, KE >= 1 ? [o.ux, o.uy, o.uz || 0] : null); // (Muonium as hydrogen: its spin, for μSR, 1.27)
   return o;
 }
 function exoSpeed(o) { const g = 1 + o.KE / (o.m * MEV); o.gam = g; o.v = PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g))); }
@@ -1414,12 +1670,14 @@ function moveExos(dt, id0) {
     if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
     if (d.res && !dec && !W.ultra && !deepSlow()) continue; // (a held resonance: only flies) (ultra-realistic: resonances fly and decay on the clock, with their own mean lives, ħ/Γ)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
-      const kept = d.atom || d.hyp || d.muonium || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      const kept = d.atom || d.hyp || d.muonium || d.ps || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
       if (kept && W.wall === 'wrap') { if (Math.abs(o.x) > hw) o.x -= Math.sign(o.x) * 2 * hw; if (Math.abs(o.y) > hh) o.y -= Math.sign(o.y) * 2 * hh; } // (a periodic box: across, as atoms go (the trail is drawn across the edge as theirs is); muonic hydrogen left the box there, its energy escaped, 1.26 bug fix)
       else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
       else if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
       if (Math.abs(o.y) > hh) { o.y = Math.sign(o.y) * (2 * hh - Math.abs(o.y)); o.uy = -o.uy; }
     }
+    if (d.ps && !dec && clock > 0 && psMatter(o, clock)) continue; // (positronium in matter: pick-off, spin conversion, 1.27)
+    if (o.spin && RP.mu) muSpinTurn(o, clock * h / dt / o.gam); // (μSR: the μ⁺'s spin precesses, in its own time, up to its decay, 1.27)
     if (dec) { if (d.hyp) hypDecay(o); else decayExo(o); continue; }
     if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (a beam's: in the ring's vacuum; thrown out of the beam, the detector stops it)
     const xa = RP.exo && XA_SPS.has(o.sp);
@@ -1503,6 +1761,8 @@ function spawnItems3(items, moms, x, y, z) {
   return made;
 }
 function decayExo3(o) {
+  if (XP[o.sp].ps) { psDecay(o); return; } // (positronium, 1.27)
+  if (o.spin && RP.mu && o.sp === 'mu+') { muExoDecay(o); return; } // (μSR, 1.27)
   const d = XP[o.sp], toks = pickBr(d.dec), items = toks.map(item), ms = items.map(massOf);
   const vs = phaseSpace(o.m, ms); // (3-D phase space, 1.25; 1.24 turned the flat one's plane at random)
   if (!vs) { exoLeaves(o); return; }
@@ -1639,13 +1899,15 @@ function moveExos3(dt, id0) {
     if (o.wait && out(o)) { o.x = clamp(o.x, -H[0], H[0]); o.y = clamp(o.y, -H[1], H[1]); o.z = clamp(o.z, -H[2], H[2]); dec = true; }
     if (d.res && !dec && !W.ultra && !deepSlow()) continue;
     if (out(o)) {
-      const kept = d.atom || d.hyp || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      const kept = d.atom || d.hyp || d.ps || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
       if (kept && W.wall === 'wrap') { for (const [k, h] of [['x', H[0]], ['y', H[1]], ['z', H[2]]]) if (Math.abs(o[k]) > h) o[k] -= Math.sign(o[k]) * 2 * h; } // (a periodic box: across, as atoms go, 1.26 bug fix)
       else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (as in the flat game: slow muons and muonic hydrogen kept in, 1.25)
       else if (Math.abs(o.x) > H[0]) { o.x = Math.sign(o.x) * (2 * H[0] - Math.abs(o.x)); o.ux = -o.ux; }
       if (Math.abs(o.y) > H[1]) { o.y = Math.sign(o.y) * (2 * H[1] - Math.abs(o.y)); o.uy = -o.uy; }
       if (Math.abs(o.z) > H[2]) { o.z = Math.sign(o.z) * (2 * H[2] - Math.abs(o.z)); o.uz = -o.uz; }
     }
+    if (d.ps && !dec && clock > 0 && psMatter(o, clock)) continue; // (1.27)
+    if (o.spin && RP.mu) muSpinTurn(o, clock * (o.stop ? 1 : h / dt) / o.gam); // (1.27)
     if (dec) { if (d.hyp) hypDecay(o); else decayExo3(o); continue; }
     // captures at rest and nuclear hits, as in the flat game (1.25): a stopped μ⁻ makes a muonic atom, K⁻ and π⁻, Σ⁻, Ξ⁻, Ω⁻ are
     // absorbed by a nucleus, a μ⁺ may take an electron (muonium); strongly interacting ones meet the nuclei on their path
@@ -1821,6 +2083,8 @@ function exoLeaves(o, where) { // its energy, mass included, leaves the books (i
 }
 const EXO_QUIET = new Set(['pi0', 'eta', 'rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm', 'Dbmm', 'Dbm', 'Db0', 'Dbp']); // decays too common and too quick to caption each one
 function decayExo(o) {
+  if (XP[o.sp].ps) { psDecay(o); return; } // (positronium, 1.27)
+  if (o.spin && RP.mu && o.sp === 'mu+') { muExoDecay(o); return; } // (μSR, 1.27)
   const d = XP[o.sp], toks = pickBr(d.dec), items = toks.map(item), ms = items.map(massOf);
   const vs = phaseSpace(o.m, ms);
   if (!vs) { exoLeaves(o); return; }

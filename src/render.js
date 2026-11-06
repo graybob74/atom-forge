@@ -996,7 +996,7 @@ function drawExos() {
     const x = w2sx(o.x), y = w2sy(o.y);
     if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
     const c = XP[o.sp].col, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''));
-    if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
+    if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (o.spin && RP.mu) spinArrow(ctx, x, y, o.spin); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
     ctx.globalCompositeOperation = 'lighter';
     drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55);
     ctx.globalCompositeOperation = 'source-over';
@@ -1029,6 +1029,12 @@ function exoInside(ctx, o, x, y, c, hx) {
     const R0 = nsp.rn + Math.max(3, b * 1.5), th = W.at * 5 + o.id; // the muon, a few hundred times closer in than an electron
     ctx.strokeStyle = rgba(c, 0.45); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke();
     drawSprite(ballSprite(hx, Math.max(1.2, electronR() * 0.9)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
+    return R0 + 2;
+  }
+  if (d.ps) { // positronium (1.27): an electron and a positron going round their middle, its orbit twice hydrogen's
+    const R0 = Math.max(6, 0.53 * R.s), th = W.at * 2.5 + o.id, er = electronR(), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th);
+    ctx.strokeStyle = rgba(c, 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
     return R0 + 2;
   }
   if (d.muonium) { // muonium: a μ⁺ for a nucleus, its electron on hydrogen's orbit (the reduced mass is 0.5% off hydrogen's)
@@ -1245,10 +1251,18 @@ function drawNucView(p, x, y, r, rt) {
   }
   if (p.mu) muNucleus(R.ctx, x, y); else drawSprite(nsp, x, y);
   if (p.muB) muOrbit(R.ctx, p, x, y, rn);
+  if (p.mu && p.spin && RP.mu) spinArrow(R.ctx, x, y, p.spin); // (its muon's spin, 1.27)
 }
 /* (1.26) The muon of a muonic atom in the particle view: a point circling just outside the nucleus (its orbit is 207
    times closer in than a 1s electron's, inside the innermost shell), in the colour the muon has in flight. It was not
    drawn: the atom looked plain. */
+/* (1.27) A muon's spin in the particle view: a small arrow from it, in the plane (screen y is down). */
+function spinArrow(ctx, x, y, s) {
+  const L = Math.hypot(s[0], s[1]); if (!(L > 0.05)) return;
+  const len = 14 * Math.min(1, L), ux = s[0] / L, uy = -s[1] / L, ex = x + len * ux, ey = y + len * uy;
+  ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey);
+  ctx.moveTo(ex, ey); ctx.lineTo(ex - 4 * ux + 2.5 * uy, ey - 4 * uy - 2.5 * ux); ctx.moveTo(ex, ey); ctx.lineTo(ex - 4 * ux - 2.5 * uy, ey - 4 * uy + 2.5 * ux); ctx.stroke();
+}
 function muOrbit(ctx, p, x, y, rn) {
   const er = electronR(), R0 = rn + Math.max(1.5, 0.8 * er), th = W.at * 6 + p.id;
   drawSprite(ballSprite('#6ef5c8', Math.max(1.5, er * 1.2)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
