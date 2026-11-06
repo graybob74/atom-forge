@@ -244,6 +244,43 @@ PARTS.books = async (page, check) => {
   check(r.flat.n === 200 && r.d3.n === 200 && r.flat.worst < 1e-5 && r.d3.worst < 1e-5 && r.boxOn.events > 20 && r.boxOn.worst < r.boxOff.worst + 2.5,
     `1.27 realistic particles 7: books with the switch on: 200 Compton events on water's O and H flat and 3-D exact to ${Math.max(r.flat.worst, r.d3.worst)} eV (flat ${r.flat.known} with ejectElectron's known 1 keV slip, the same off); γ rays into running liquid water, worst event on ${r.boxOn.worst} eV, off ${r.boxOff.worst} eV (${r.boxOn.events} and ${r.boxOff.events} events: the ionized water's own limit)`, 'rp7 books: ' + JSON.stringify(r));
 };
+/* With part 3's switch (Charged particles in matter, RP.cpm), alone and together. cpm on, polarization off: the
+   fingerprints of the setups with γ rays, pairs and fast particles equal part 3's own (v145 at 2e5a21c, cpm on). Both on:
+   Compton's odds are part 3's (Klein–Nishina's total cross section against 1 MeV's, cpmGamma) times the flat game's
+   polarized weight (knPlaneW): of 40,000 photons of 511 keV meeting a carbon atom, polarized across the plane, in it, and
+   unpolarized, against those odds; the scattered photon carries its new polarization; Cherenkov photons are polarized
+   in the plane of the track and the photon, across the photon (flat and 3-D); a Compton event's books exact. */
+const FP_CPM = { annihilation: '6e27fa8e 968f3b31', photonuc: '973b5a68 2bfc18db', sns: '41a05426 1cd4521e', linac: '7c6eb010 2b70ae2c' };
+PARTS.both = async (page, check) => {
+  const bad = [], r = {};
+  for (const k of Object.keys(FP_CPM)) {
+    const X = load('all', { seed: 7 }), W = X.W, P = X.PRESETS[k]; X.RP.cpm = true;
+    P.build(); X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned;
+    for (let i = 0; i < 300; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+    const parts = W.parts.filter(p => !p.dead).map(p => [p.k, p.Z, p.N, p.ne, p.x, p.y, p.z || 0, p.vx, p.vy, p.vz || 0, p.KE || 0].join(',')).join(';');
+    const exo = W.exo.filter(o => !o.dead).map(o => [o.sp, o.x, o.y, o.KE].join(',')).join(';');
+    const got = h(parts + '|' + exo + '|' + W.bonds.length) + ' ' + h(JSON.stringify(W.ledger));
+    if (got !== FP_CPM[k]) bad.push(`${k} ${got} (part 3 ${FP_CPM[k]})`);
+  }
+  { const X = load('all', { seed: 18 }), W = X.W; X.RP.cpm = true; X.RP.pol = true; fresh(X, false);
+    const E = 511e3, c = X.addAtom('C', 3, 0); c.vx = c.vy = 0; X.forcesNoEvents();
+    const base = 0.012 * 6 * X.cpmKN(E) / X.CPM_KN1, N = 40000;
+    for (const [nm, pol] of [['across', [0, 0, 1]], ['in', [0, -1, 0]], ['un', null]]) { let n = 0; for (let i = 0; i < N; i++) if (X.rayInteract(-10, 0, 1, 0, E, null, pol)) n++; r[nm] = [n, Math.round(N * base * (pol ? X.knPlaneW(E, pol, 1, 0) : 1))]; }
+    W.rays = []; const E0 = books(X) + E; X.compton(c, E, 1, 0, [0, 0, 1]); r.books = +Math.abs(books(X) - E0).toExponential(1); r.carried = !!(W.rays.find(q => !q.nu) || {}).pol;
+  }
+  for (const d3 of [false, true]) {
+    const X = load('all', { seed: 19 }), W = X.W; X.RP.cpm = true; X.RP.pol = true; X.RP.cpmX = 1e6; fresh(X, d3);
+    Object.assign(X.CPM, { n: 1.333, b2: 0.9999, z: 1, ux: 1, uy: 0, uz: 0, K: 1e9, d3 }); W.rays = []; X.cpmCkv(-10, 0, 0, 20);
+    let worst = 0, n = 0; for (const q of W.rays) { if (q.nu || !q.pol) continue; const L = Math.hypot(q.x1 - q.x0, q.y1 - q.y0, (q.z1 || 0) - (q.z0 || 0)), u = [(q.x1 - q.x0) / L, (q.y1 - q.y0) / L, ((q.z1 || 0) - (q.z0 || 0)) / L], e = q.pol;
+      const nrm = [u[1] * 0 - u[2] * 0, u[2] * 1 - u[0] * 0, u[0] * 0 - u[1] * 1]; // (u × the track: across the plane of track and photon)
+      worst = Math.max(worst, Math.abs(e[0] * u[0] + e[1] * u[1] + e[2] * u[2]), Math.abs(e[0] * nrm[0] + e[1] * nrm[1] + e[2] * nrm[2]) / (Math.hypot(...nrm) || 1)); n++; }
+    r[d3 ? 'ck3' : 'ck'] = [n, W.rays.filter(q => !q.nu).length, +worst.toExponential(1)];
+  }
+  const sd = (x) => 3.5 * Math.sqrt(Math.max(1, x));
+  const ok = !bad.length && ['across', 'in', 'un'].every(k => Math.abs(r[k][0] - r[k][1]) < sd(r[k][1])) && r.across[0] > 1.5 * r.in[0] && r.books < 1e-6 && r.carried
+    && r.ck[0] > 5 && r.ck[0] === r.ck[1] && r.ck[2] < 1e-9 && r.ck3[0] > 5 && r.ck3[0] === r.ck3[1] && r.ck3[2] < 1e-9;
+  check(ok, `1.27 realistic particles 7 with part 3: Charged particles in matter alone as part 3 made it (fingerprints of ${Object.keys(FP_CPM).join(', ')}); both on, of 40,000 photons of 511 keV at a carbon atom ${r.across[0]} Compton-scatter polarized across the plane, ${r.in[0]} in it, ${r.un[0]} unpolarized (part 3's odds × knPlaneW: ${r.across[1]}, ${r.in[1]}, ${r.un[1]}), the scattered photon polarized, books within ${r.books} eV; Cherenkov photons polarized in the plane of track and photon (${r.ck[0]} flat, ${r.ck3[0]} in 3-D, to ${Math.max(r.ck[2], r.ck3[2])})`, 'rp7 both: ' + JSON.stringify({ bad, r }));
+};
 /* The Settings row (page): one more compact line in Realistic particles, after Nuclear spin …, with its cost tag, switch
    and side-pane description; it sets RP.pol, is saved, and is off again at start (SET_EXP). With it on the Light tool
    offers its polarization and the Objects tool a polarizer, and Inspect shows a laser photon's polarization; off, none. */

@@ -1926,6 +1926,9 @@ anything"), and the Settings section they live in. Checks: tests/f_rp1.js (t_fea
     1.5 keV muon fired into insulated liquid water slows to its capture (below 30 eV; by O or by H, as the Z law draws):
     3-D 0.1–0.24 eV over the run; the flat game −2.7 to +6.5 eV over 70–120 steps, the known limit of ionized water (the
     muon's last keV ionizes a few molecules).
+  - With part 3: cpm alone, the fingerprints of annihilation, photonuc, sns, linac and water3d equal part 3's own (v145 at
+    2e5a21c, cpm on); both on, of 40,000 photons of 511 keV meeting a carbon atom 4,812 scatter polarized across the
+    plane, 3,004 in it, 3,924 unpolarized (part 3's odds × knPlaneW: 4,757, 3,057, 3,907).
   - Switch off: the fingerprints of all 59 setups (seed 7, 300 steps) unchanged against v136; f_rp1 "off" keeps seven
     of them (mucf, pionbeam, muonium, hyperfactory, annihilation, water, water3d) against v136's hashes.
   - Cost: off, nothing (one flag test per slow μ⁻, π⁻, K⁻). On, ×1 where nothing is caught (pionbeam 2.63 → 2.70 ms a
@@ -2237,6 +2240,178 @@ Screenshots: scratchpad rp5/set-desk.png, set-phone.png, inspect-nmr.png.
     agrees with the others where they meet (e.g. the lines sum to their levels, 1/τ against Γ), but a check against the
     tables is worth it.
 
+### 1.27: realistic particles 3 (charged particles in matter)
+
+Branch v144 (from v142 at 0fa22fa, parts 1, 2 and 4). Part 3 of the approved plan (the owner, 2026-11-05: "I ok all of
+them, just please make sure it doesnt mess with anything"): its own switch in Settings → Experimental → Realistic
+particles, after Muonium as hydrogen, "Charged particles in matter" (SET.rpCpm → RP.cpm), off at start and back to off
+on reload (SET_EXP), one compact line with its cost tag (flat and 3-D tables), its description in the side pane (flat
+and 3-D texts); the 3-D lab's note names it (and positronium and muonium, which work in 3-D too). Code: hep.js after
+part 4's block ("Realistic particles 3": cpmSeg, cpmEnv, cpmL, cpmAtom, cpmBrems, cpmCkv, cpmGamma, cpmPairSig,
+cpmShare, cpmPair), hooks behind `RP.cpm` in the five places a fast charged particle loses energy to the atoms it passes
+(engine.js moveRad, fastStop3, moveFastLeptons3; hep.js exoIonize, exoIonize3) and the two places a γ ray meets an atom
+(rayInteract, rayInteract3). Checks: tests/f_rp3.js (t_features runs it alone; `node tests/f_rp3.js [--node] [part …]`),
+every part fails on v142 (no switch there) and passes here.
+
+**What was there.** Every fast charged particle lost, at each atom it passed within ~1 Å, a fixed share
+0.0047·z²·nₑ/β² weighted by how close it passed (Bethe without his logarithm; calibrated for slow ions): the same
+amount every time, so no straggling, and an electron set free with what that atom took, never more than a few hundred eV
+(no δ-rays near T_max). That form is low for fast particles: in the flat game's water a minimum-ionizing electron lost
+about a quarter of the real 2 MeV/cm, in 3-D (whose reach normalizes it differently) a twelfth. Bremsstrahlung (flat
+radiation flight only) by a rule of thumb, T·Z/800 MeV of the collision loss; none in 3-D. γ rays of 100 keV and more met
+each atom within 0.6 Å at fixed odds (Compton 0.012 an electron, pairs 0.0015·Z, at any energy), about 10⁷ times
+nature's so that light does something in a nanometre; a pair left back to back in a random direction, sharing the
+energy evenly. No Cherenkov light.
+
+**With the switch on** (all of it flat and 3-D):
+- *Mean loss.* Bethe's formula (PDG eq. 34.5) for each atom passed, with its element's mean excitation energy I (NIST /
+  ICRU 37 and 49: H 19.2, C 78, N 82, O 95, Al 166, Si 173, Fe 286, Cu 322, Pb 823 eV …, others 12Z + 7 or
+  9.76Z + 58.8Z^−0.19) and the density effect's high-energy form δ = 2 ln βγ + 2 ln(ħω_p/I) − 1, ħω_p = 28.816 √(ρ⟨Z/A⟩) eV
+  from the electron density within 4 Å of the path (water 21.5 eV); e± by Rohrlich and Carlson's formula (ICRU 37:
+  T_max = T/2 for e⁻, T for e⁺). The game's own per-atom form stands where it is larger (slow ions, below where Bethe
+  holds); above, it is scaled up to Bethe's by the ratio of the logarithms (`CPM.Lg`: the game's form read as a Bethe
+  logarithm for its reach, 4.5 flat and 1.8 in 3-D for 1 Å). The flat game's liquid water (0.85 e/Å²) stands for real
+  water (0.334 e/Å³): CPM_LAM = 2.545 Å converts its areal densities, as positronium's pick-off does.
+- *Straggling and δ-rays.* Of that mean, the share in close collisions (energy transfer T from T_c = max(10 eV, the
+  atom's ionization energy + 1) to T_max) is drawn collision by collision: a Poisson number at each atom passed, T from
+  the free-electron spectrum 1/T² (× (1 − β²T/T_max) for heavy particles), each setting an electron free with T less its
+  binding at cos θ = (T/p_δ)(E + mₑc²)/p; it flies and ionizes in turn. The distant collisions (the rest) are given as
+  before. Møller's and Bhabha's own spectra (their terms near T/2 and T) are left at 1/T².
+- *Bremsstrahlung (e±).* At each atom passed (including bare nuclei), a photon with the chance σ_X·s·F / A: σ_X the
+  atom's share of 1/X₀ (Tsai: 4αr_e²[Z²(L_rad − f(Z)) + nₑL'_rad], PDG eq. 34.26–27), F the spectrum
+  (4/3 − 4/3 y + y²)/k integrated from k_min = max(100 eV, 10⁻³T) to T, A the tube's cross-section (πR² in 3-D, 2R·CPM_LAM
+  flat), s = min(1, φ_rad/φ_cs) the unscreened (Heitler: 16/3 slow, 4 ln 2γ − 4/3 relativistic) over the complete-screening
+  value, which brings the rate down below a few tens of MeV (water at 1 MeV: radiative loss 0.0132 MeV cm²/g, ESTAR 0.0129;
+  at 10 MeV 0.74 of E/X₀ against ESTAR's 0.63). The photon within ~1/γ of the way, its energy taken from the electron
+  exactly. An e± crossing a drawn (enlarged) nucleus meets that atom (radiates, ionizes) before it is turned by it.
+- *Cherenkov light.* Where the 4 Å round the path's middle are liquid water (H and O ≥ 90%, more H than O, no Si) or
+  silica glass (Si and O ≥ 90%, Si ≥ 20%) at ≥ 40% of water's atom density (0.04 atoms/Å³; the flat game's over
+  CPM_LAM), n = 1.333 or 1.458 (589 nm; dispersion left out; molecules the track ionized still count as water), and
+  β > 1/n: a Poisson number of photons, 369.81 z²(1 − 1/β²n²) per eV per cm over 300–600 nm (2.066–4.133 eV, flat in
+  energy), on the cone cos θ = 1/βn (flat: on either side in the plane), from points along the step, as real photons
+  (emitPhoton: screens, detectors and the spectroscope see them; 2–4 eV passes through water).
+- *γ rays (≥ 100 keV).* At each atom within 0.6 Å, in this order: the giant dipole resonance as before; a pair with the
+  chance 0.012·(σ_nuc + σ_trip)/σ_KN(1 MeV), Compton scattering with 0.012·nₑ·σ_KN(E)/σ_KN(1 MeV): the measured cross
+  sections against each other, scaled as the game's light (its Compton odds at 1 MeV unchanged). σ_KN is Klein–Nishina's
+  total; σ_nuc Maximon's Born forms (near threshold, k < 4, and the high-energy series), less the Coulomb correction
+  (28/9)f(Z) brought in over 2–100 MeV in ln k, at most Tsai's complete-screening (28/9)(L_rad − f) − 2/27, all × αr_e²Z²;
+  σ_trip (the atom's electrons, from 4mₑc²) the same Born value for Z = 1 less 3.23 (the high-energy gap between
+  (28/9) ln 2k − 218/27 and Borsellino's − 11.3), at most (28/9)L'_rad − 2/27, × nₑ. The pair (cpmPair, which also
+  replaces pairProduce/pairProduce3 after a failed photonuclear try): the electron's share ε from Bethe–Heitler with
+  screening (sampled as Geant4's G4BetheHeitlerModel does with Butcher and Messel's screening functions; uniform below
+  2 MeV), each member forward within u·mₑc²/E (Urban's form of Tsai's angles), the two 0.4 Å apart across the photon's way;
+  the triplet's electron (1/T² from 1 keV to a third of what is left: an approximation) set free with its binding. Books
+  as pairProduce3's (nucBegin, settleKE) flat too: a slow member is stepped with its pull. Compton's angles stay as they
+  are (part 7).
+- *Showers* come from these together; what the box can't hold is said below.
+
+**What the box can't make real, and how the game handles it.** Radiation lengths are centimetres (water 36 cm, lead
+0.56 cm): a 10 nm box is 3×10⁻⁸ of one in water, 2×10⁻⁶ in lead. At nature's rates a 1 GeV electron crossing 25 Å of
+lead (flat, real lead's density) radiates a photon above 1 MeV about once in 3×10⁵ crossings; Cherenkov light in water is 3.3×10⁻⁶ photons an ångström
+(one in about 3,000 crossings of a 100 Å box: shown at nature's rate, not scaled, because each photon's 2–4 eV is taken
+from the particle and a scaled count would be a made-up energy loss); a shower can't develop, and what is made leaves the
+box (its energy counted as escaped). γ rays do convert (the game's light is ~10⁷ times nature's), so a γ ray above
+1.022 MeV in matter makes forward pairs and their δ-rays. RP.cpmX scales bremsstrahlung and Cherenkov light (×1 = nature)
+the way decay speed-up scales decays; only the checks set it. With it at 10⁶, eight 1 GeV electrons into a 25 × 18 Å
+lead block make 141 photons and 27 pairs (the books check). Also not real here: a minimum-ionizing particle's loss in a
+nanometre is mostly far below its mean (the mean is carried by rare hard collisions: in 60 tracks across the flat
+water, about 0.1 δ-ray above T_c expected for a 1 GeV electron), so the mean is seen only for slow, densely ionizing
+particles; e± multiple scattering beyond the existing nucleus crossings, photoelectric absorption of γ rays above
+100 keV (dominant in lead below ~500 keV), muon bremsstrahlung and pair production (∝ 1/m², negligible below ~100 GeV),
+Cherenkov light in other transparent media (ice, plastics, organic liquids) and in gases (their n − 1 ~ 10⁻⁴).
+
+**Data and sources** (no network here; values from memory are marked, worth checking): PDG Review "Passage of particles
+through matter" (Bethe eq. 34.5, Tsai's X₀ eq. 34.26–27, the critical energies; from memory); NIST/ICRU mean excitation
+energies (from memory); ESTAR/ASTAR spot values quoted below (from memory); XCOM attenuation (from memory: lead at
+10 MeV 0.0497 cm²/g, water 0.0222); Maximon 1968 pair formulas as used by Hubbell, Gimm and Øverbø (1980) for XCOM's
+pair term; Borsellino's triplet asymptote; Klein–Nishina (theory); Frank–Tamm (theory); Geant4's G4BetheHeitlerModel
+sampling and Urban's angles (from memory of the code); refractive indices water 1.333, fused silica 1.4585 at 589 nm.
+
+**Numbers** (Node; f_rp3 and scratchpad rp3/p*.js):
+- X₀ from the formula, g/cm²: C 42.70, Al 24.01, Fe 13.84, Cu 12.86, Pb 6.37, water 36.08 (PDG's to the digit). Measured
+  in the game (photons counted over 1 GeV tracks, rare processes ×3×10⁵ in lead, ×10⁷ in water, at the density the
+  lattice stands for): lead 6.56–6.95, water 33.9–34.2 (±4% statistical); the photons' spectrum by decade of k/E
+  0.376 / 0.349 / 0.275 (Tsai 0.365 / 0.353 / 0.282). Critical energy (Rossi: collision loss over X₀ equals E) from the
+  same functions: water 78.9 MeV (PDG 78.33), lead 8.0 MeV (7.43).
+- Mean ionization loss in the game's water, eV/Å, off → on (real: ESTAR/PSTAR/ASTAR collision stopping): flat 5 MeV α
+  5.38 → 8.52 (8.9); 3-D 3.23 → 10.55 (the 3-D water 14–18% too dense, on record). For fast particles the tracks
+  across the box show the soft part only (rare δ-rays carry the mean): flat 1 MeV e⁻ 0.0025 → 0.0116 (mean 0.0187),
+  1 GeV e⁻ 0.0011 → 0.0058 (0.024), 100 MeV p 0.0098 → 0.0148 (0.073); 3-D 0.0006 → 0.0049, 0.0004 → 0.0063,
+  0.0063 → 0.0170. Each atom's mean (cpmAtom alone, 2,000 passes): 5 MeV α at O 50.6 ± 2.8 against 54.1 eV,
+  1 MeV p 18.4 ± 2.0 against 15.8.
+- Straggling: 5 MeV α across 16 Å of flat water (432 tracks): most probable 41.6 eV (Landau 40.6), FWHM 4.78 ξ (Landau
+  4.02 ξ; ξ = 17.4 eV, κ = ξ/T_max = 0.006, T_c ~ ξ so Landau's soft side is narrow here), mean 125 eV, 90th percentile
+  3.5× the median, largest 3.9 keV; off the spread came only from where tracks passed atoms (90th percentile 1.9× the
+  median, largest 240 eV in the first run).
+- δ-rays (the sampler at an oxygen, ~92,000 each): 100 MeV p up to 190.8 of T_max 229.2 keV, share above T_max/100
+  0.00655 (law 0.00626), mean 142.5 (138.6) eV; 1 MeV e⁻ up to 357.8 keV (T/2 = 500); the direction to 10⁻⁵ of the
+  kinematics. In flat water 5 MeV α free electrons up to 1.67 keV (T_max 2.74).
+- Cherenkov: water 41.39° (1/βn: 41.39°), 316 photons/cm counted (Frank–Tamm 334 for 300–600 nm; the brief's ~250/cm
+  is a narrower band: 350–550 nm gives 208), 300 keV e⁻ 14.94° (14.97, slowing as it goes), 3 GeV p 39.43°, silica
+  46.69° (46.70), 3-D water 41.39°; none from 150 keV e⁻ or 300 MeV p (below threshold), in lead, or in a vapour at a
+  fifth of the liquid's density.
+- Pairs: none of 4,000 γ rays of 1.00–1.02 MeV at lead; 133 of 2,000 at 2 MeV. At 10 MeV: lead 12.6 b (pair, XCOM
+  ≈ 12.7 b from its 0.0497 cm²/g less Compton, from memory), water 0.142 b a molecule; the game's ratio 89.3 (the
+  cross sections' 88.9; Z² alone 102); Compton at Klein–Nishina's rate to 0.3%. Lead's total at 10 MeV 0.0488 cm²/g
+  (pair 0.0366 + Compton 0.0122, no photoelectric) against XCOM's 0.0497; water 0.0218 against 0.0222. At 100 MeV lead's
+  pair 0.108 cm²/g is probably ~15% high (no gradual screening: the smaller of the unscreened and completely screened
+  values); at 1 GeV 0.121 (7/9X₀ = 0.122). Pairs forward (median 0.13 rad at 10 MeV), unequal (80% more than 20% apart).
+- Books: 3-D, each 0.2 Å tick of the fast particles (moveFastLeptons3, fastEncounters3, exoIonize3) with the rest of
+  the world between steps: within 4×10⁻⁶ eV (lead, 66 photons, 7 pairs) and 5×10⁻⁴ eV (water: δ-rays, 26 Cherenkov
+  photons); each pair (flat and 3-D, with the triplet) within 2.4×10⁻⁷ eV. Flat: each event of this part (an atom's
+  loss with its δ-rays and photons, each pair, each Cherenkov emission) within 5×10⁻⁴ eV, less ejectElectron's own residue
+  (below).
+- Off: tools/fingerprint.js (seed 7, 300 steps), all 59 setups flat and 3-D the same as v142 at 0fa22fa, bit for bit
+  (one lane, before and after); f_rp3 "off" keeps nine of them (cloud, photonuc, pet, pionbeam, crt, linac, water,
+  water3d, seu). On, over 300 steps: photonuc (12 pairs) and pionbeam (20 δ-rays) change; cloud, pet, linac, crt,
+  rutherford, emtube, water3d and seu stay as off.
+- Cost (one thread, the machine shared): nothing where no fast charged particle crosses matter; a fast particle's pass
+  through water flat ×0.8 (1 MeV e⁻, fewer small ionizations) to ×1.4 (5 MeV α, 50 → 69 µs an ångström), in 3-D ×1.3
+  (1 MeV e⁻ 75 → 96) to ×1.5 (5 MeV α 76 → 112); setups ×1.0–1.3 a step (pion beam 7.2 → 8.7 ms, linac 0.40 → 0.51,
+  photonuc 7.3 → 8.4, cloud 0.48 → 0.53, water3d 2.64 → 2.69).
+
+**Found, not changed:**
+- The flat game's ejectElectron is not exact beside ions and free electrons in a crowded, ionized lattice: in eight
+  1 GeV electrons' passes through a lead block the electrons it set free missed the books by up to 48.7 eV with the switch
+  off (102 eV on, with more ionization), in water up to 39 eV off (0.12 on); on fresh water it is exact (10⁻⁶ eV). The
+  same 300 ticks: 17 of 85 ejections over 0.01 eV on, 9 of 42 off.
+- The flat radiation flight's old loop pushes atoms that are themselves in radiation flight through their velocity,
+  which their stored energy doesn't see (a leak of what the push gives); with the switch on such atoms (and ballistic
+  ones, as 3-D's fastStop3 already does) are not ionized.
+- 3-D: a lattice of unbonded O and Pb atoms at 0 K crossed by four 1 GeV electrons drifts by −1.3×10⁸ eV over 40 steps
+  with the switch off (−8.5×10⁷ on), all in innerSteps (the free electrons' inner steps among the ions): the known
+  ionized-plasma limit at its worst, worth a bug-fix session.
+- ejectElectron at the particle cap puts the electron's energy in the bath and returns null, after which every caller
+  in the radiation code also calls dumpHeat with it (counted twice).
+
+**For the owner (physics questions, written down, not decided):**
+- Showers and Cherenkov light are at nature's rates, so in a nanometre box they are almost never seen. A "matter depth"
+  setting (RP.cpmX, ×10⁶ say) would show them, with the caveat that it scales the rare processes only (the collisions
+  can't be scaled without cooking the atoms), so a scaled shower's critical energy would be 10⁶ times too low. Expose it?
+- The mean loss is now Bethe's for fast particles when the switch is on (needed for the critical energy and the
+  radiation length to agree with each other); slow ions keep the game's calibration. In 3-D the change is large
+  (×3 for a 5 MeV α, ×8 for a 1 MeV electron).
+- Compton scattering's odds now follow Klein–Nishina with energy (unchanged at 1 MeV: ×1.36 at 511 keV, ×0.24 at
+  10 MeV); its angles stay for part 7. The giant dipole resonance keeps its old scale (0.0015·Z·σ_GDR/5.2Z² mb), so
+  against the new pair odds it is now 16 times rarer than its own cross section says (lead at 13.5 MeV: the game's
+  σ_GDR 376 mb against σ_pair 15.6 b, ratio 0.024; its odds a pass 0.0013 against the pair's 0.885, ratio 0.0015;
+  before, against the old pair odds 0.123, 0.011); unify it too?
+- Not built: photoelectric absorption of γ rays above 100 keV, e± multiple scattering, Møller/Bhabha's exact spectra,
+  the triplet's measured recoil spectrum, Cherenkov dispersion and other media, muon radiative losses.
+- The brief's ~250 photons/cm is for a narrower band than its 300–600 nm (which gives 334).
+
+**Test change:** t_features' 1.10 Settings check counts seven "realistic when on" tags (part 1's four, parts 2 and 4's two,
+this one). f_rp3 "off", "straggle", "delta", "ckv", "brems", "pair", "books" (Node) and "layout" (page); on v142 they
+fail (no RP.cpm, no cpmGamma: checked in a worktree of 0fa22fa).
+
+**Suites** (2-core machine, another session's tests running beside): alone t_lint, t_energy, t_hep, t_physics, t_3d,
+t_settings, f_rp1, f_rp2, f_rp3, f_swx, f_hep126, f_sweep3d pass; tools/fingerprint.js all 59 the same as v142 with
+the switch off. t_features alone: f_rp1, f_rp2, f_rp3 pass; misses only timing checks while the other session ran
+its tests: 1.21 contraction speed (1.2× against > 1.6; alone 3.23×) and f_bug125's exoElastic (3.06 ms against < 3;
+alone 1.1 ms). tools/runtests.sh: 21 of 22 pass; t_features' four misses are timing ones under both lanes' load: the
+1.14 speed readout (1/1.3×, the known two-core flake), exoElastic (4.15 ms) with f_bug125 "alone" for it, and 0.51's
+strings/plasma "qgpLog" (the plasma formed, 1,037 hadrons, its log line not found within the frame-budgeted run; with
+the switch off, so none of this part's code runs there; alone in the page it passed 3 of 3).
 ### 1.27: realistic particles 7 (photon polarization, Klein–Nishina)
 
 Branch v146 (from v145 at 178816e, the combined 1.27 with parts 1, 2, 4, 5 and 6). Part 7 of the seven approved
@@ -2250,7 +2425,7 @@ polPS/polFromPS, knScatter, rpCompton, knPlaneW, polPair, polText), hooks in eng
 twoGamma), hep.js (psDecay's two γ, closeEvent passes a ray's pol), props.js (mirror, splitter, lens, prismTrace7, the
 polarizer), ui.js (Light tool and lasers, Objects tool, quick menu, Inspect, Settings), render.js (the polarizer, the
 mark on a photon in flight). Checks: tests/f_rp7.js (t_features runs it alone; `node tests/f_rp7.js [--node] [part …]`):
-off, angles, asym, sources, pairs, optics, books, page; every part but books fails on v145 (no switch there; books
+off, angles, asym, sources, pairs, optics, books, both, page; every part but books fails on v145 (no switch there; books
 checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png, optics.png, inspect.png.
 
 - **What a photon carries, and the choice for the flat game.** A linear polarization, a unit vector across its direction
@@ -2284,10 +2459,14 @@ checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png,
     1.2% an electron, is already 0.98 for lead, so there the ×4/3 is capped at 1); (2) for an unpolarized photon ψ is
     drawn afresh with every proposal, so θ comes from the unpolarized law (1 + cos²θ at low energy); drawing ψ first
     and θ after would give (1 + 2cos²θ)/2 (found by the χ² check: 666 against 19 dof before this).
-  - *The rate (kept; for the owner).* A γ ray of 100 keV or more meets an atom's electrons at 1.2% each, whatever its
-    energy; Klein–Nishina's total cross section falls with energy: σ/σ_T = 0.96 at 10 keV, 0.74 at 100 keV, 0.43 at 511 keV,
-    0.32 at 1 MeV, 0.12 at 5 MeV, 0.077 at 10 MeV, 0.012 at 100 MeV (computed from the formula). So the box's MeV γ rays
-    Compton-scatter 2–8 times too often against its 100 keV ones. And below 100 keV the box does no Compton scattering
+  - *The rate: part 3's.* With this switch alone, a γ ray of 100 keV or more meets an atom's electrons at 1.2% each,
+    whatever its energy, as before; Klein–Nishina's total cross section falls with energy: σ/σ_T = 0.96 at 10 keV, 0.74 at
+    100 keV, 0.43 at 511 keV, 0.32 at 1 MeV, 0.12 at 5 MeV, 0.077 at 10 MeV, 0.012 at 100 MeV (computed from the formula).
+    Part 3 (Charged particles in matter, RP.cpm, merged from v145 at 2e5a21c) makes Compton's odds follow that total
+    cross section (cpmGamma: cpmKN(E)/cpmKN(1 MeV), ×1.36 at 511 keV), with pair production by its measured cross
+    sections; this part reuses it and adds only the flat game's polarized weight (cpmGamma's w = knPlaneW) and the
+    angles. The switches work alone and together (f_rp7 "both": cpm alone fingerprints as part 3 made it; both on, the
+    odds are part 3's × knPlaneW). Below 100 keV the box does no Compton scattering
     (X-rays ionize or pass), so the 10 keV check is of the scattering itself (knScatter), not of the box.
 - **Optics (flat game, props.js).** Mirror and beam splitter: the reflection mirrors the vector (ε − 2(ε·n)n: an ideal
   metal, r_s = −1, r_p = +1, linear stays linear, unpolarized stays unpolarized); passing a splitter keeps it (as the
@@ -2308,6 +2487,9 @@ checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png,
 - **Rayleigh/Thomson scattering: none to act on.** The box has no elastic scattering of light by atoms or free electrons
   (rayInteract only absorbs, ionizes, dissociates, fluoresces or Compton-scatters above 100 keV). Adding it would be a
   new process (rates ∝ λ⁻⁴): for later, if the owner wants it (with photons as waves it would come naturally).
+- **Cherenkov light (with part 3 on).** Its photons are polarized in the plane of the track and the photon, across the
+  photon (cpmCkv: polAcross of the track's direction; Jelley, *Čerenkov Radiation*, from memory): in the flat game in
+  the plane. Checked: 63 photons flat and 63 in 3-D, each across its path and in that plane to 2×10⁻¹⁶.
 - **Inspect and the view.** Inspect's photon card has "Polarization" with the switch on: "linear, in the plane (across its
   path)", "linear, across the plane (out of the screen)", "linear, at N° from the plane", in 3-D the vector and its angle
   from vertical, or "unpolarized (…)". A photon in flight (flat) carries a mark at its head: a bar across its path for the
@@ -2320,7 +2502,8 @@ checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png,
   Hornbostel 1948: perpendicular over parallel Compton coincidences at 82° 2.85 in quantum mechanics, a definite pair at
   most 1.63, Bohm and Aharonov 1957; Wu and Shaknov 1950 measured 2.04 with their wide detectors); polarized γ lines
   from oriented nuclei and the angular correlations of cascade γ rays (⁶⁰Co's 1,173–1,332 keV pair); π⁰ → 2γ's
-  perpendicular polarizations (built for e⁺e⁻ only); polarization in 3-D optics (no 3-D optics); Compton scattering
+  perpendicular polarizations (built for e⁺e⁻ only); bremsstrahlung's partial polarization (unpolarized here; Cherenkov light
+  is polarized, below); polarization in 3-D optics (no 3-D optics); Compton scattering
   off bound electrons' momenta (Doppler broadening) and their binding's suppression at small angles (Waller–Hartree).
 - **Numbers** (Node; f_rp7 and scratchpad rp7/*.js):
   - Klein–Nishina angles, 60,000 unpolarized scatterings each, χ² over 20 bins (19 dof): 3-D in cos θ 22.9, 16.1, 18.9
@@ -2361,9 +2544,8 @@ checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png,
   such Compton electrons a little more often (seed 18's water box: two events, 50 and 124 eV). Fixing it changes the flat
   game off too, so it is left for main.
 - **For the owner (physics questions, written down, not decided):**
-  - The Compton rate: make it follow Klein–Nishina's total cross section (σ/σ_T above), so MeV γ rays go 2–8 times
-    farther in matter than now, and give X-rays of 10–100 keV their Compton share (in light elements it passes the
-    photoelectric effect near 25–30 keV)?
+  - Give X-rays of 10–100 keV their Compton share (in light elements it passes the photoelectric effect near 25–30 keV);
+    the box does none below 100 keV, with either switch.
   - Rayleigh and Thomson scattering of light (elastic, λ⁻⁴, polarizing at 90°: the blue, polarized sky) are not in the
     box: add them (with photons as waves, or before)?
   - π⁰ → 2γ with perpendicular polarizations, and cascade γ–γ angular correlations (⁶⁰Co): add them?
