@@ -23,6 +23,13 @@ function softFor(p) {
   return Math.min(9, Math.max(0.02, Math.pow(PHYS.KE * q / ie, 2)));
 }
 const V_FAST_ON = 25, V_FAST_OFF = 18;     // ballistic mode thresholds (Å/tu)
+/* (1.26 bug fix) A nucleus flying in 3-D (no radiation flight there) keeps ½m|v|² of its stored velocity as its kinetic
+   energy, as the books count it, but moves at the relativistic speed for that energy: the stored v of a 1 PeV α is 730c,
+   447 Å a shortest step, so it left the box in one step without meeting what lay on its path. This is the factor from the
+   stored speed to the true one (it does not depend on the mass); under 1% of c the two differ by less than 10⁻⁴ and the
+   stored speed is used as before. */
+const FLY_REL2 = 9.3e4; // (Å/tu)²: 1% of c, squared
+function flyScale3(v2) { if (!(v2 > FLY_REL2)) return 1; const g = 1 + 0.5 * v2 / (PHYS.AMU_MEV * 1e6); return PHYS.C * Math.sqrt(1 - 1 / (g * g)) / Math.sqrt(v2); }
 const ESC_E_NEUTRON = 1e3; // eV: faster neutrons leave through the walls
 const NEUTRON_RAD = 2e7;   // eV: faster neutrons fly at their relativistic speed with their energy stored (radiation mode)
 /* Radiation-mode thresholds (eV): well above the thermal energies of the bath, so plasmas stay thermal. The bath's
@@ -5834,7 +5841,8 @@ function nnMeet(i, j, dt) { // the closest approach of the two paths this step; 
   if (a.Z === 0) neutronHit(a, b, bb, R); else neutronHit(b, a, bb, R);
 }
 function nnMeet3(a, b, dt) {
-  const rx = b.x - a.x, ry = b.y - a.y, rz = b.z - a.z, dx = (b.vx - a.vx) * dt, dy = (b.vy - a.vy) * dt, dz = (b.vz - a.vz) * dt;
+  const fs = (p) => (p.Z > 0 ? flyScale3(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) : 1), sa = fs(a), sb = fs(b); // (a nucleus in flight at its true speed, as it moves, 1.26 bug fix)
+  const rx = b.x - a.x, ry = b.y - a.y, rz = b.z - a.z, dx = (b.vx * sb - a.vx * sa) * dt, dy = (b.vy * sb - a.vy * sa) * dt, dz = (b.vz * sb - a.vz * sa) * dt;
   if (Math.abs(ry) > 1 + Math.abs(dy) || Math.abs(rz) > 1 + Math.abs(dz)) return;
   const R = nucReach(a, b), L2 = dx * dx + dy * dy + dz * dz, t0 = L2 > 0 ? -(rx * dx + ry * dy + rz * dz) / L2 : 0, t = clamp(t0, 0, 1), ex = rx + t * dx, ey = ry + t * dy, ez = rz + t * dz, bb = Math.sqrt(ex * ex + ey * ey + ez * ez);
   if (t0 > 1 || bb >= R || sameEv(a, b)) return;
@@ -6720,7 +6728,7 @@ function chooseDt() {
       const k = K[i];
       if (k === NUC && Z[i] === 0) continue;
       const v2 = VX[i] * VX[i] + VY[i] * VY[i] + VZ[i] * VZ[i];
-      if (FAST[i] === 1) { if (k === NUC && v2 > vfn) vfn = v2; continue; }
+      if (FAST[i] === 1) { if (k === NUC) { const s = flyScale3(v2), w2 = v2 * s * s; if (w2 > vfn) vfn = w2; } continue; } // (its true speed, 1.26 bug fix)
       if (k !== NUC) continue;
       if (v2 > vmax) vmax = v2;
       const a2 = (FX[i] * FX[i] + FY[i] * FY[i] + FZ[i] * FZ[i]) * IM[i] * IM[i];
@@ -7161,7 +7169,8 @@ function outerA3(dt) {
       if (k !== NUC) continue;
       VX[i] += h * FX[i] * im; VY[i] += h * FY[i] * im; VZ[i] += h * FZ[i] * im;
       if (hasB && Q[i] !== 0) rotateB3(OBJ[i], h);
-      X[i] += VX[i] * dt; Y[i] += VY[i] * dt; Zp[i] += VZ[i] * dt;
+      const sc = flyScale3(VX[i] * VX[i] + VY[i] * VY[i] + VZ[i] * VZ[i]) * dt; // (at its true speed, not past c, 1.26 bug fix)
+      X[i] += VX[i] * sc; Y[i] += VY[i] * sc; Zp[i] += VZ[i] * sc;
       continue;
     }
     VX[i] += h * (FX[i] - GX[i]) * im; VY[i] += h * (FY[i] - GY[i]) * im; VZ[i] += h * (FZ[i] - GZ[i]) * im;
@@ -8301,9 +8310,11 @@ function stepPlain(dt) {
       }
       const p = OBJ[i];
       if (FAST[i] === 1 && W.objs.length && objPath(p, p.ox, p.oy)) continue; // (placed objects: props.js)
+      let met = false;
+      if (d3 && !wrap && FAST[i] === 1 && k === NUC && (X[i] < -hw || X[i] > hw || Y[i] < -hh || Y[i] > hh || Zp[i] < -hd || Zp[i] > hd)) { met = true; fastEncounters(p); if (p.dead) continue; } // (3-D: leaving the box this step, it meets what lay on its way out before the wall takes it, as the flat radiation flight does, 1.26 bug fix)
       walls(p);
       updateFast(p);
-      if (p.fast && !p.dead) fastEncounters(p);
+      if (p.fast && !p.dead && !met) fastEncounters(p);
       if (p.trk && !p.rad) {
         extendTrack(p);
         if (!p.trkKeep && 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy) < 200) p.trk = null;
@@ -8395,12 +8406,20 @@ function slowSpeed(realDt) {
 /* Slow motion on demand: time eases down until the fastest particles move about 2% of the box per frame (at the
    setup's normal speed; the speed buttons still scale it), and always to an eighth of normal at least. With slow
    motion for nuclear events off, what nuclear events send flying (and what it knocks loose) is left out. */
+function speedNow(p) { // Å/tu, as it moves (3-D: with its depth, and a nucleus in flight at its true speed, 1.26 bug fix: slow motion looked at the speed in the plane, so a particle fired along the view, or a 1 PeV α at its stored 730c, was not slowed for)
+  if (p.rad) return p.sp;
+  if (!W.d3) return Math.hypot(p.vx, p.vy);
+  const v2 = p.vx * p.vx + p.vy * p.vy + p.vz * p.vz, v = Math.sqrt(v2);
+  if (!p.fast) return v;
+  if (p.k === NUC) return v * flyScale3(v2);
+  const g = 1 + 0.5 * p.m * v2 / (PHYS.MEC2 * 1e6); return Math.min(v, PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g)))); // (a lepton in flight, as moveFastLeptons3 moves it)
+}
 function holdFactor(realDt) {
   let v = 0;
   const win = !W.slowmo && W.nucWin ? W.nucWin : null;
   for (const p of W.parts) {
     if (p.dead) continue;
-    const sp = p.rad ? p.sp : Math.hypot(p.vx, p.vy);
+    const sp = speedNow(p);
     if (p.nucProd && !p.rad && 0.5 * p.m * sp * sp < 10) p.nucProd = false; // (once it has slowed down it counts again)
     if (win && (p.nucProd || (!p.beam && p.born >= win.t0 && p.born <= win.t1))) continue;
     if (sp > v) v = sp;
@@ -8427,7 +8446,7 @@ function eventSlow(realDt) {
     let v = 0;
     for (const p of W.parts) {
       if (p.dead || p.born < S.t0 - 1e-9 || (p.k !== NUC && !p.rad)) continue; // stray slow electrons don't hold time up
-      v = Math.max(v, p.rad ? p.sp : Math.hypot(p.vx, p.vy));
+      v = Math.max(v, speedNow(p)); // (3-D: with its depth and true speed, 1.26 bug fix)
     }
     for (const o of W.exo) if (!o.dead && o.born >= S.t0 - 1e-9) v = Math.max(v, o.v); // pions, kaons, muons in flight: near c, so a frame moves them 2% of the box too
     want = v > 0 ? clamp(0.02 * Math.min(W.box.w, W.box.h) / (v * base), 1 / 50000, 1) : 1; // (against the setup's normal speed, as the slow-motion button: the products cross about 2% of the box a frame at 1×, and the speed buttons scale that, 0.91; it was against the speed as set, which cancelled them out)
@@ -8839,6 +8858,11 @@ function eraseAt(x, y, R) {
     if (p.dead) continue;
     const dx = p.x - x, dy = p.y - y;
     if (dx * dx + dy * dy < R2) { kill(p); n++; }
+  }
+  for (const o of W.exo) { // (unstable particles and muonic hydrogen too: they live in W.exo, so the brush passed over them, 1.26 bug fix; as an erased atom, what it carried leaves with it)
+    if (o.dead || o.xb) continue;
+    const dx = o.x - x, dy = o.y - y;
+    if (dx * dx + dy * dy < R2) { o.dead = true; o.fate = 'erased'; n++; }
   }
   return n;
 }

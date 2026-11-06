@@ -1165,8 +1165,10 @@ function moveExos(dt, id0) {
     if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
     if (d.res && !dec && !W.ultra && !deepSlow()) continue; // (a held resonance: only flies) (ultra-realistic: resonances fly and decay on the clock, with their own mean lives, ħ/Γ)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
-      if (!((d.atom || d.hyp || d.muonium || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP)) && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
-      if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
+      const kept = d.atom || d.hyp || d.muonium || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      if (kept && W.wall === 'wrap') { if (Math.abs(o.x) > hw) o.x -= Math.sign(o.x) * 2 * hw; if (Math.abs(o.y) > hh) o.y -= Math.sign(o.y) * 2 * hh; } // (a periodic box: across, as atoms go (the trail is drawn across the edge as theirs is); muonic hydrogen left the box there, its energy escaped, 1.26 bug fix)
+      else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
+      else if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
       if (Math.abs(o.y) > hh) { o.y = Math.sign(o.y) * (2 * hh - Math.abs(o.y)); o.uy = -o.uy; }
     }
     if (dec) { if (d.hyp) hypDecay(o); else decayExo(o); continue; }
@@ -1383,8 +1385,10 @@ function moveExos3(dt, id0) {
     if (o.wait && out(o)) { o.x = clamp(o.x, -H[0], H[0]); o.y = clamp(o.y, -H[1], H[1]); o.z = clamp(o.z, -H[2], H[2]); dec = true; }
     if (d.res && !dec && !W.ultra && !deepSlow()) continue;
     if (out(o)) {
-      if (!((d.atom || d.hyp || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP)) && W.wall === 'reflect')) { exoLeaves(o); continue; } // (as in the flat game: slow muons and muonic hydrogen kept in, 1.25)
-      if (Math.abs(o.x) > H[0]) { o.x = Math.sign(o.x) * (2 * H[0] - Math.abs(o.x)); o.ux = -o.ux; }
+      const kept = d.atom || d.hyp || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      if (kept && W.wall === 'wrap') { for (const [k, h] of [['x', H[0]], ['y', H[1]], ['z', H[2]]]) if (Math.abs(o[k]) > h) o[k] -= Math.sign(o[k]) * 2 * h; } // (a periodic box: across, as atoms go, 1.26 bug fix)
+      else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (as in the flat game: slow muons and muonic hydrogen kept in, 1.25)
+      else if (Math.abs(o.x) > H[0]) { o.x = Math.sign(o.x) * (2 * H[0] - Math.abs(o.x)); o.ux = -o.ux; }
       if (Math.abs(o.y) > H[1]) { o.y = Math.sign(o.y) * (2 * H[1] - Math.abs(o.y)); o.uy = -o.uy; }
       if (Math.abs(o.z) > H[2]) { o.z = Math.sign(o.z) * (2 * H[2] - Math.abs(o.z)); o.uz = -o.uz; }
     }
@@ -1822,6 +1826,7 @@ function nnInelastic(a, b, x, y, P, M) {
    and at high energy about a third of touching passes are diffraction (nuclear elastic scattering at a small angle).
    Returns a caption if something happened (the nuclei may survive it: diffraction), else null. */
 const HIT_COUL = 30;
+const DIFF_SHARE = 0.35; // (of the nucleus–nucleus passes that could react above 25 MeV a nucleon, the share that diffracts instead: the outermost)
 function nuclearEncounter(a, b, u, x, y, z) {
   _evZ3 = z === undefined ? b.z || 0 : z; // (3-D: where in depth its products start, 1.25)
   if (a.mu || b.mu) return false; // (muonium's nucleus is a muon: it feels no strong force, 1.12)
@@ -1833,7 +1838,7 @@ function nuclearEncounter(a, b, u, x, y, z) {
   const bx = P[1] / P[0], by = P[2] / P[0], bz = (P[3] || 0) / P[0], As = toRest(Pa, bx, by, bz), Bs0 = toRest(Pb, bx, by, bz)[0], ps = pmag(As);
   if (!(ps > 0)) return null;
   const vrel = ps / As[0] + ps / Bs0, K = Z1 * Z2 ? 1.44 * Z1 * Z2 / (ps * vrel) : 0;
-  const Rc = 1.2 * (Math.cbrt(A1) + Math.cbrt(A2)), b3 = W.ultra ? clamp(u, 0, 1) * ultraReach(a, b) / FM : Math.max(Rc, HIT_COUL * K) * Math.sqrt(clamp(u, 0, 1)); // (ultra: the pass's own distance)
+  const Rc = 1.2 * (Math.cbrt(A1) + Math.cbrt(A2)), bTop = W.ultra ? ultraReach(a, b) / FM : Math.max(Rc, HIT_COUL * K), b3 = bTop * (W.ultra || W.d3 ? clamp(u, 0, 1) : Math.sqrt(clamp(u, 0, 1))); // (ultra: the pass's own distance) (the flat game's passes, spread along a line, are spread over the nucleus's disc by the square root; a 3-D pass's distance is spread over that disc already, so it is taken as it is: with the root, a 3-D hit came out off centre, b³ uniform instead of b², 1.26 bug fix)
   if (A1 === 1 && A2 === 1) { // two nucleons: inelastic inside √(σ_inel/π), diffraction out to √(σ_tot/π)
     if (b3 < Math.sqrt(nnTable(NN_INEL, M) / (10 * Math.PI))) return nnInelastic(a, b, x, y, P, M);
     if (Ecm > 20 && b3 < Math.sqrt(nnTable(NN_TOT, M) / (10 * Math.PI))) return diffract(a, b, ps, 1.6);
@@ -1846,10 +1851,10 @@ function nuclearEncounter(a, b, u, x, y, z) {
   const bg = RB * Math.sqrt(1 - VB / Ecm);
   if (b3 >= bg) return null;
   const eps = Ecm * A / (A1 * A2); // relative kinetic energy per nucleon
-  if (eps > 25 && rnd() < 0.35) return diffract(a, b, ps, RB);
+  if (eps > 25 && (W.ultra && !W.d3 ? b3 / Math.min(bg, bTop) : (b3 / Math.min(bg, bTop)) ** 2) > 1 - DIFF_SHARE) return diffract(a, b, ps, RB); // (the outer 35% of the passes that reach here diffract, as the two-nucleon passes do outside their inelastic core; it was a 35% draw at any distance, so a head-on 1 PeV α on α passed through one time in three, turned by 10⁻⁹ rad, 1.26 bug fix)
   const items = [], moms = [];
   let kind = 'reaction', sub;
-  let dtFused = false;
+  let dtFused = false, slow = false;
   if (A <= 16 && eps < 150) {
     // D–T keeps its measured fusion cross section here too (gamowP): ⁴He + n as often as that gives, and otherwise
     // only the other ways apart (rather than ⁴He + n as often as phase space alone would make it, many times too often)
@@ -1866,10 +1871,13 @@ function nuclearEncounter(a, b, u, x, y, z) {
     const one = A1 === 1 ? a : A2 === 1 ? b : null, many = one === a ? b : a;
     const inc = INC_ON && !W.d3 && !anti && one && many.Z + many.N > 16 && eps >= 40 && eps < 10000 && cascadeInto(one, many, one === a ? Pa : Pb, one === a ? Pb : Pa, b3, items, moms); // (Experimental: the intranuclear cascade)
     if (inc === 'pass') return null;
-    if (!inc && !fragmentInto(a, b, Pa, Pb, b3, anti, items, moms)) return null;
-    sub = `${Math.min(A1, A2) === 1 ? 'spallation' : 'fragmentation'}, ${fmtE(eps * MEV)} per nucleon` + (_incLast ? `: a cascade of ${_incLast.coll} collisions, ${_incLast.out} out fast, ${fmtE(_incLast.Ex * MEV)} left to boil off` : '');
-    if (_qgpLast) { const g = _qgpLast; kind = 'qgp'; sub = `quark–gluon plasma: ${g.Bp} nucleons melted at √s_NN = ${fmtE(g.sNN * MEV)}, froze out into ${g.n.toLocaleString('en-US')} hadrons`; addQGP(x, y, g.n, g.sNN); }
-  } else {
+    if (!inc && !fragmentInto(a, b, Pa, Pb, b3, anti, items, moms)) { if (A <= 16 || eps >= 40) return null; slow = true; } // (between 15 and 40 MeV a nucleon, a fireball with no consistent outcome (too little energy for its spectators' excitation) is the slow side's compound nucleus or exchange below; it was nothing, so a head-on α on gold at 100 MeV passed through one time in three, 1.26 bug fix)
+    else {
+      sub = `${Math.min(A1, A2) === 1 ? 'spallation' : 'fragmentation'}, ${fmtE(eps * MEV)} per nucleon` + (_incLast ? `: a cascade of ${_incLast.coll} collisions, ${_incLast.out} out fast, ${fmtE(_incLast.Ex * MEV)} left to boil off` : '');
+      if (_qgpLast) { const g = _qgpLast; kind = 'qgp'; sub = `quark–gluon plasma: ${g.Bp} nucleons melted at √s_NN = ${fmtE(g.sNN * MEV)}, froze out into ${g.n.toLocaleString('en-US')} hadrons`; addQGP(x, y, g.n, g.sNN); }
+    }
+  } else slow = true;
+  if (slow) {
     const ZZ = Z1 * Z2, light = Math.min(A1, A2) <= 4, pCN = light ? 1 : 1 / (1 + Math.exp((ZZ - 1700) / 120));
     if ((light || b3 < 0.75 * bg) && rnd() < pCN) {
       const Zc = Z1 + Z2, Nc = a.N + b.N;

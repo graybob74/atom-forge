@@ -1207,6 +1207,7 @@ function eraseHere(wx, wy) {
 function eraseHere3(px, py) {
   const reach = { cone: toolCone3(px, py, OPT.erase.R) }; let n = 0;
   for (const p of W.parts) if (!p.dead && inTool3(reach, p.x, p.y, p.z)) { kill(p); n++; }
+  for (const o of W.exo) if (!o.dead && !o.xb && inTool3(reach, o.x, o.y, o.z || 0)) { o.dead = true; o.fate = 'erased'; n++; } // (unstable particles and muonic hydrogen, in W.exo, 1.26 bug fix)
   for (let i = W.magnets.length - 1; i >= 0; i--) { const m = W.magnets[i]; if (inTool3(reach, m.x, m.y, m.z || 0)) W.magnets.splice(i, 1); } // (magnets too, 1.24)
   if (R.sel && R.sel.dead) R.sel = null;
   return n;
@@ -1542,6 +1543,7 @@ function qSubject(p, X) { // what to look inside: { key, content, name, note }
   if (X && X.kind === 'exo' && (XP[X.o.sp].atom || XP[X.o.sp].stuck || XP[X.o.sp].hyp)) return null; // (a muonic atom: its nucleus is inside, too small to show here)
   if (X && X.kind === 'exo') { const c = Q_CONTENT[X.o.sp]; return c ? { key: 'x' + X.o.id, content: c, o: X.o } : { key: 'x' + X.o.id, lepton: true }; }
   if (!p || p.k !== NUC || p.Z + p.N < 1) return null;
+  if (p.mu) return { key: 'mu' + p.id, lepton: true, mu: true }; // (muonium: its nucleus is a μ⁺, a lepton with no quarks; it was shown as hydrogen's proton, uud, 1.26 bug fix)
   const one = p.Z + p.N === 1, which = one ? (p.Z ? 'p' : 'n') : (p.Z === 0 ? 'n' : p.N === 0 ? 'p' : QV.pick);
   const nm = (p.anti ? 'anti' : '') + (which === 'p' ? 'proton' : 'neutron');
   return { key: p.id + which, content: Q_CONTENT[(which) + (p.anti ? 'bar' : '')], p, one, both: !one && p.Z > 0 && p.N > 0, which, head: !one ? 'Inside one of its nucleons' : p.ne > 0 ? `Inside its nucleus, ${/^[aeiou]/.test(nm) ? 'an' : 'a'} ${nm}` : 'Inside' };
@@ -1569,6 +1571,7 @@ function qReset(sub) {
 }
 function quarkSecHTML(sub) {
   if (!sub) return '';
+  if (sub.mu) return `<section class="group"><h3>Inside its nucleus, a positive muon</h3><p class="note">Nothing: the muon (μ⁺) is a lepton, like the electron, 207 times heavier. As far as any experiment has found, leptons are not made of anything smaller; they feel no strong force and have no quarks, so this “nucleus” has no nucleons, and nothing in it can react as a nucleus does.</p></section>`;
   if (sub.lepton) return `<section class="group"><h3>Inside</h3><p class="note">Nothing: it is a lepton, like the electron. As far as any experiment has found, leptons are not made of anything smaller; they feel no strong force and have no quarks.</p></section>`;
   if (QV.key !== sub.key) qReset(sub);
   QV.subj = sub;
@@ -1809,7 +1812,7 @@ function renderInspect() {
     const icl = p.ne > 0 && (p.q || (mol && mol.some(a => a.q))) ? ionicCluster(p) : null, itx = icl && ionicText(icl, true);
     const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : '') + (itx ? ` · held ionically in ${itx}` : ''))
       + (p.Z > Z_TABLE ? ' · never made in any lab: its properties are predictions' : '');
-    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${A}</span><span class="s">${p.mu ? 'Mu' : symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
+    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${p.mu ? '' : A}</span><span class="s">${p.mu ? 'Mu' : symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
       <div><div class="ins-title">${esc(muT || title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
     pills = p.mu ? `<span class="pill hot">its muon decays: mean life 2.197 µs (e⁺ + νₑ + ν̄μ)</span>` : `<span class="pill ${nuc.stable || bareStable(nuc, p) ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
     if (!nuc.stable && nuc.modes.length) pills += `<span class="pill hot">${esc(nuc.modes.map(m => modeLabel(m.mode)).join(' / '))}</span>`;
@@ -1818,6 +1821,7 @@ function renderInspect() {
     if (p.ne > 0 && unpairedOf(p) > 0) pills += `<span class="pill em">paramagnetic</span>`;
     if (FERRO[p.Z] && (p.tLocal || 0) < FERRO[p.Z][0]) pills += `<span class="pill em">ferromagnetic (Curie ${FERRO[p.Z][0]} K)</span>`;
     if (p.anti) pills += `<span class="pill" style="color:${PBAR_COL};border-color:${PBAR_COL}">antimatter: annihilates on contact with matter</span>`;
+    if (p.muB) { const lc = 32 * muZeff(p.Z) ** 4, ld = 1 / 2.197e-6; pills += `<span class="pill hot">muonic atom: a μ⁻ in its innermost orbit, mean life ${fmtTime(1 / (lc + ld))}</span>`; kv.push(['Muon', `bound by ${fmtE(p.muB.Eb)}, 207 times closer in than a 1s electron; captured by the nucleus (μ⁻ + p → n + ν) ${Math.round(100 * lc / (lc + ld))}% of the time, else it decays in orbit`]); } // (a muonic atom showed as a plain atom, 1.26 bug fix)
     if (p.ne > 0) {
       kv.push([p.anti ? 'Positrons' : 'Electrons', `${p.ne} (${configString(p.Z, p.ne)})`]);
       kv.push([p.anti ? 'Valence positrons' : 'Valence electrons', String(p.val)]);
@@ -1844,11 +1848,11 @@ function renderInspect() {
     }
   }
   const lepW = p.anti ? 'a positron' : 'an electron';
-  const pspec = p.k === NUC && p.Z > 0 ? isoSpec(p.Z, p.Z + p.N, p.ne ? p.q : 0, p.ne === 0, p.anti) : null, sf = pspec ? saveBtnFace(pspec) : null;
+  const pspec = p.k === NUC && p.Z > 0 && !p.mu /* (muonium: not an isotope of hydrogen to keep, 1.26 bug fix) */ ? isoSpec(p.Z, p.Z + p.N, p.ne ? p.q : 0, p.ne === 0, p.anti) : null, sf = pspec ? saveBtnFace(pspec) : null;
   const actions = p.k === NUC && p.Z > 0 ? `<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
       <button class="btn small" data-act="ion" ${p.ne > 0 ? '' : 'disabled'}>Remove ${lepW}</button>
       <button class="btn small" data-act="add" ${p.ne < p.Z + maxExtraElectrons(p.Z) ? '' : 'disabled'}>Add ${lepW}</button>
-      <button class="btn small savebtn" data-act="save" aria-pressed="${sf.on}" title="${esc(sf.title)}">${sf.text}</button>
+      ${sf ? `<button class="btn small savebtn" data-act="save" aria-pressed="${sf.on}" title="${esc(sf.title)}">${sf.text}</button>` : ''}
       <button class="btn small" data-act="del">Delete</button></div>` : `<div class="row" style="justify-content:flex-start"><button class="btn small" data-act="del">Delete</button></div>`;
   const od = box.querySelector('#insOrbs'); if (od) UI.orbOpen = od.open;
   const sd = box.querySelector('#insSolver'); if (sd) UI.solverOpen = sd.open;
@@ -2558,7 +2562,7 @@ const SAVE_KINDS = new Set([NUC, ELEC, POS]);
 function worldToJSON() {
   const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.caught);
   const ix = new Map(ps.map((p, i) => [p, i])), r6 = (v) => Math.round(v * 1e6) / 1e6;
-  const parts = ps.map(p => { const a = [p.k, p.Z, p.N, p.ne, (p.anti ? 1 : 0) | (p.mu ? 2 : 0), r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]; if (p.rad) a.push(p.KE); return a; });
+  const parts = ps.map(p => { const a = [p.k, p.Z, p.N, p.ne, (p.anti ? 1 : 0) | (p.mu ? 2 : 0) | (p.muB ? 4 : 0), r6(p.x), r6(p.y), r6(p.vx), r6(p.vy)]; if (p.rad) a.push(p.KE); return a; });
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { if (bd.a !== p) continue; const j = ix.get(bd.b); if (j !== undefined) bonds.push([ix.get(p), j, bd.order]); }
   if (BO.any) for (const [a, b, o] of boWhole()) { const i = ix.get(a), j = ix.get(b); if (i !== undefined && j !== undefined) bonds.push([i, j, o]); } // (continuous bond orders: kept as whole bonds, so the world opens either way)
@@ -2566,7 +2570,7 @@ function worldToJSON() {
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
   const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, Ez: W.Ez || 0, Bax: W.Bax3 || 'z', z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, xa: W.exo.filter(o => !o.dead && (XP[o.sp].atom || XP[o.sp].stuck)).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0]), magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -2589,7 +2593,7 @@ function worldFromJSON(d) {
     if (![x, y, vx, vy].every(Number.isFinite)) { made.push(null); continue; }
     const px = clamp(x, -hw, hw), py = clamp(y, -hh, hh), j3 = made.length, pz = d3 && Number.isFinite(d3.z[j3]) ? clamp(d3.z[j3], -hd, hd) : 0, vz = d3 && Number.isFinite(d3.vz[j3]) ? d3.vz[j3] : 0;
     let p = null;
-    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } p = (anti & 2) && Z === 1 && N === 0 ? addMuonium(px, py, 0, 1, 0, ne) : addNuc(Z, N, ne, px, py, vx, vy, anti === 1, pz); if (anti & 2) { p.vx = vx; p.vy = vy; updateFast(p); } } // (field 5: 1 antimatter, 2 muonium, 1.12)
+    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } p = (anti & 2) && Z === 1 && N === 0 ? addMuonium(px, py, 0, 1, 0, ne) : addNuc(Z, N, ne, px, py, vx, vy, (anti & 1) === 1, pz); if (anti & 2) { p.vx = vx; p.vy = vy; updateFast(p); } if ((anti & 4) && Z >= 2) { const Eb = MU_EB(Z) * MEV; p.muB = { m: MU_M * MEV - Eb, Eb }; W.muBound.push(p); } } // (field 5: 1 antimatter, 2 muonium, 1.12; 4 a muonic atom, whose muon was lost on saving and on undo, 1.26 bug fix)
     else if (k === ELEC || k === POS) p = addLepton(k, px, py, vx, vy, pz, vz);
     if (p && W.d3) { p.vz = vz; if (pz && !p.z) { p.z = pz; p.oz = pz; } updateFast(p); }
     const KE = q[9], v = Math.hypot(vx, vy);
@@ -2598,6 +2602,10 @@ function worldFromJSON(d) {
   }
   let nb = 0;
   for (const b of d.bonds) { if (!Array.isArray(b)) continue; const [i, j, o] = b; const a = made[i], c = made[j]; if (a && c && a !== c && [1, 2, 3].includes(o)) { addBond(a, c, o); nb++; } }
+  if (Array.isArray(d.xa)) for (const q of d.xa.slice(0, MAX_EXO)) { // (muonic hydrogen and (μα)⁺: unstable, in W.exo, they were left out of saves and undo, 1.26 bug fix)
+    if (!Array.isArray(q) || !XP[q[0]] || !(XP[q[0]].atom || XP[q[0]].stuck) || ![q[1], q[2], q[3], q[4], q[5], q[6], q[7]].every(Number.isFinite)) continue;
+    const o = addExo(q[0], clamp(q[1], -hw, hw), clamp(q[2], -hh, hh), Math.max(0, q[4]), q[5], q[6], undefined, W.d3 ? clamp(q[3], -hd, hd) : 0, W.d3 ? q[7] : 0); o.cyc = q[8] | 0;
+  }
   if (Array.isArray(d.magnets)) for (const m of d.magnets.slice(0, 50)) if (m && Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.B)) { const mm = { x: m.x, y: m.y, R: num(m.R, 1, 1000, 10), B: clamp(m.B, -1e9, 1e9) }; if (W.d3) mm.z = num(m.z, -1e4, 1e4, 0); W.magnets.push(mm); } // (3-D: balls with a depth, 1.24)
   if (W.d3) { W.Ez = num(d3.Ez, -50, 50, 0); W.Bax3 = ['x', 'y', 'z'].includes(d3.Bax) ? d3.Bax : 'z'; } // (3-D fields, 1.24)
   if (Array.isArray(d.objs) && !W.d3) for (const o of d.objs.slice(0, 200)) { const ob = objFromJSON(o); if (ob) W.objs.push(ob); }
