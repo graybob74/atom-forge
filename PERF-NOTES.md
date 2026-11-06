@@ -2706,6 +2706,16 @@ checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png,
 
 ### 1.27: combined (branch v145; not released)
 
+**The owner's feature list (2026-11-06): ALL APPROVED** ("I approve all of them"; the bug fixes wait for his credits).
+18 keep part 3's Bethe energy loss with its switch on (decided: kept, nothing to build); 19 photons as waves; 20 a bigger
+model for close-packed metals; 21 polarizability by direction; 22 Rayleigh scattering; 23 stopped kaons make Σ too; 24
+unstable particles interacting with each other; 25 the Higgs boson; 26 a "matter depth" option for showers and Cherenkov
+light; 27 the polarization correlation of π⁰ → 2γ and of γ–γ cascades (⁶⁰Co); 28 charm and bottom from nucleus–nucleus
+collisions; 29 the Z peak lowered by the beams' own radiation, and the W pair's forward peak; 30 hydrogen in molecules
+catching muons at the measured rate; 31 an automatic energy scan in the LEP setup; 32 positronium on the particle menu.
+Order, to spend the owner's limited usage well: the small ones first in one session (23, 26–32), then the medium ones
+(21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
+
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
 ones that need approval"): 1 3-D van der Waals and ion–water pull at their true strength; 2 water's (and molecules')
