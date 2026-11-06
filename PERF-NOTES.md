@@ -716,6 +716,12 @@ undone, saved and let decay through the page, and run in Node for its decay at r
     200 muonium atoms decaying in a crowd (+173 eV flat, +9 eV 3-D, the integration of a dense hot Mu/Mu₂/e⁻ plasma);
     a 3-D hypertriton decaying at 1 PeV keeps momentum only to 2.5×10⁻⁵ (its residual nucleus's own boosts at
     γ ≈ 3×10⁵; the books are settled exactly).
+- **Suites** (2-core machine shared with another session): t_lint, t_energy, t_hep, t_collider, t_3d pass alone;
+  t_features alone: 2 misses, both known ones (the chain reaction's k readout: 5 fissions and 16 neutron ends in the
+  frames allowed, its page random stream, before and after this branch alike in Node over three seeds; the 1.23.1
+  Continue check, 73 → 74, on record since 1.25); tools/runtests.sh: 21 of 22 pass, t_features' one miss the f_bug125
+  "pi3" timing check (54 ms against its limit under both lanes' load), which passes alone (18 ms); the chain and Continue
+  checks passed there.
 - **Found in the other session's areas (not changed):** the Lab tab's Particles readout counts atoms, nuclei and leptons
   only: twelve unstable particles placed beside five atoms read "5". The 3-D lab has no particle view (so a muonic
   atom's muon is drawn only in the flat game's).
