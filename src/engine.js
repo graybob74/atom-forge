@@ -258,15 +258,22 @@ function addLepton(kind, x, y, vx = 0, vy = 0, z = 0, vz = 0) {
 }
 
 /* Recompute everything derived from Z, N, ne and bonding. */
+/* An atom's mass (u): a neutron's, muonium's (1.12: its nucleus a μ⁺, a hydrogen atom 1/9 the mass, hep.js addMuonium),
+   or the nucleus's and its electrons', with the muon of a muonic atom (bound: its mass less the binding; 1.26, it was
+   left out, 0.9% of carbon's, 2.8% of helium's; restE leaves it out, as its rest mass is booked apart, hep.js muStop). */
+function atomMass(p) {
+  const Z = p.Z, N = p.N;
+  if (Z === 0) return N * PHYS.MN;
+  if (p.mu) return MU_M / PHYS.AMU_MEV + p.ne * PHYS.ME;
+  return Math.max(0.5, Z * PHYS.MP + N * PHYS.MN + p.ne * PHYS.ME - bindingE(Z, N) / PHYS.AMU_MEV) + (p.muB ? p.muB.m / (PHYS.AMU_MEV * 1e6) : 0);
+}
 function refresh(p) {
   if (p.k !== NUC) return;
   W.dirty++;
   const Z = p.Z, N = p.N;
   p.el = Z > 0 ? ELEMENTS[Math.min(Z, Z_MAX)] : null;
   S.elrc[p.i] = p.el ? p.el.rc : 0; S.metal[p.i] = p.el && p.el.metal ? 1 : 0; // (the covalent radius and whether it is a metal, for the pair kernel)
-  if (Z === 0) p.m = N * PHYS.MN;
-  else if (p.mu) p.m = MU_M / PHYS.AMU_MEV + p.ne * PHYS.ME; // (1.12: muonium, its nucleus a μ⁺: a hydrogen atom 1/9 the mass, hep.js addMuonium)
-  else p.m = Math.max(0.5, Z * PHYS.MP + N * PHYS.MN + p.ne * PHYS.ME - bindingE(Z, N) / PHYS.AMU_MEV);
+  p.m = atomMass(p);
   p.im = 1 / p.m;
   p.q = (p.anti ? -1 : 1) * (Z - p.ne);
   p.sEN = Z > 0 ? softFor(p) : SOFT_EN;
@@ -3545,9 +3552,18 @@ function dumpHeat(E, a, b) {
   if (!(E > 0)) return;
   W.ledger.chem += E;
   const third = nearestThird(a, b, 6);
-  if (third) { kickPair(rnd() < 0.5 ? a : b, third, E); return; }
+  if (third) { if (kickPair(rnd() < 0.5 ? a : b, third, E)) return; }
+  else if (W.gamma > 0) { W.ledger.bath += E; return; }
+  else if (kickPair(a, b, E)) return;
+  // (no pair could take it: one atom alone (dumpHeat(E, tg, tg): a stopped particle's last keV, an ionization that
+  // could not free its electron) or one in flight; kickPair took nothing and E left the books (a 3-D hypernucleus
+  // stopping beside a lone nucleus −0.03 eV each, 1.26): the bath takes it, or in an insulated box the atom itself)
   if (W.gamma > 0) { W.ledger.bath += E; return; }
-  kickPair(a, b, E);
+  const p = [a, b, third].find(q => q && !q.dead && !q.rad) || [a, b, third].find(q => q && !q.dead);
+  if (!p) { W.ledger.escaped += E; return; }
+  if (p.rad) { p.KE += E; radSpeed(p); p.vx = p.sp * p.ux; p.vy = p.sp * p.uy; return; }
+  const u = rndDir(), vn = p.vx * u[0] + p.vy * u[1] + p.vz * u[2], s = -vn + Math.sqrt(vn * vn + 2 * E * p.im);
+  p.vx += u[0] * s; p.vy += u[1] * s; if (W.d3) p.vz += u[2] * s; updateFast(p);
 }
 
 /* ------------------------------------------------------------------ photons
@@ -4582,7 +4598,7 @@ function capture(L, A, Etot) {
   } else if (Eph > 0) dumpHeat(Eph, A, A);
   const after = speciesLabel(A);
   if (A.ne === 1 && A.Z === 1) log('em', A.anti ? `Antihydrogen formed: p̄ + e⁺ → H̄ (${fmtE(ie)} binding, the same light as hydrogen)`
-    : `Recombination: p⁺ + e⁻ → H atom (${fmtE(ie)} binding, light emitted)`);
+    : A.mu ? `Recombination: μ⁺ + e⁻ → muonium (${fmtE(ie)} binding, light emitted)` : `Recombination: p⁺ + e⁻ → H atom (${fmtE(ie)} binding, light emitted)`); // (muonium's nucleus is a μ⁺, 1.26)
   else log('em', `${A.anti ? 'Positron' : 'Electron'} captured: ${before} + ${A.anti ? 'e⁺' : 'e⁻'} → ${after}`);
 }
 function attach(L, A, Erel) {
@@ -4621,7 +4637,7 @@ function restE(p) { return bMu(p) * AMU_EV; }
 /* A flying particle's speed (Å/tu) and rest mass (u): radiation-mode particles, and unstable ones in a collider's beam
    (W.exo, mass in MeV; 1.15). */
 const bSpd = (p) => (p.xb ? p.v : p.sp);
-const bMu = (p) => (p.xb ? p.m / PHYS.AMU_MEV : p.k === NUC ? p.m : PHYS.ME);
+const bMu = (p) => (p.xb ? p.m / PHYS.AMU_MEV : p.k === NUC ? (p.muB ? p.m - p.muB.m / AMU_EV : p.m) : PHYS.ME); // (a muonic atom's bound muon is in its mass (atomMass) but not in its rest energy here: that is booked apart, 1.26)
 function keOf(p) { return p.rad ? p.KE : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz); }
 function inMD(p) { return !p.dead && !p.rad && !p.fast && !(p.k === NUC && p.Z === 0); }
 /* Pair potential exactly as totalEnergy() counts it. */
@@ -4863,7 +4879,7 @@ function evDative(H, D, r) {
   } else dumpHeat(heat, H, D);
   W.count.react++;
   const mol = molecule(D), nm = moleculeName(mol);
-  log('chem', `Proton bonded: H⁺ + ${before} → ${hill(mol)}${nm ? ' (' + nm + ')' : ''}`);
+  log('chem', `${H.mu ? 'Muon bonded: Mu⁺' : 'Proton bonded: H⁺'} + ${before} → ${hill(mol)}${nm ? ' (' + nm + ')' : ''}`); // (a bare μ⁺ (muonium's nucleus) is not a proton, 1.26)
 }
 
 /* Electron transfer between a donor and an acceptor when it lowers the total energy (Born–Haber). */
@@ -5154,7 +5170,12 @@ function setVel(p, vx, vy) {
   const KE = 0.5 * p.m * v * v;
   const neutron = p.k === NUC && p.Z === 0;
   if (KE > (neutron ? NEUTRON_RAD : radThreshold(p.k !== NUC))) {
+    // (a stepped atom sent into flight leaves the stepped set: its bonds break and its potential energy with what stays
+    // is paid from its motion, as switchMode does for flight below this; kept, a bond to an atom in flight stretched
+    // with no force on it: a neutron's elastic hit sent a Pb bonded to C off at 83 keV, the books +108 eV, 1.26)
+    const md = _nmd > 0 && p.k === NUC && p.Z > 0 && inMD(p), set = md ? closeSet(setOf([p])) : null, U0 = md ? localPE(set) : 0;
     p.rad = true; p.fast = true; p.KE = KE; p.ux = vx / v; p.uy = vy / v; radSpeed(p);
+    if (md) { for (const bd of p.bonds.slice()) removeBond(bd); p.KE = Math.max(1e-6, KE - (localPE(closeSet(set)) - U0)); radSpeed(p); }
     p.vx = p.sp * p.ux; p.vy = p.sp * p.uy; if (!p.trk) startTrack(p);
   } else {
     p.rad = false; p.vx = vx; p.vy = vy; updateFast(p);
@@ -5865,7 +5886,7 @@ function nnMeet(i, j, dt) { // the closest approach of the two paths this step; 
   if (a.Z === 0) neutronHit(a, b, bb, R); else neutronHit(b, a, bb, R);
 }
 function nnMeet3(a, b, dt) {
-  const fs = (p) => (p.Z > 0 ? flyScale3(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) : 1), sa = fs(a), sb = fs(b); // (a nucleus in flight at its true speed, as it moves, 1.26 bug fix)
+  const fs = (p) => flyScale3(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz), sa = fs(a), sb = fs(b); // (a nucleus in flight at its true speed, as it moves, 1.26 bug fix; a neutron too, as moveNeutron now moves it, 1.26)
   const rx = b.x - a.x, ry = b.y - a.y, rz = b.z - a.z, dx = (b.vx * sb - a.vx * sa) * dt, dy = (b.vy * sb - a.vy * sa) * dt, dz = (b.vz * sb - a.vz * sa) * dt;
   if (Math.abs(ry) > 1 + Math.abs(dy) || Math.abs(rz) > 1 + Math.abs(dz)) return;
   const R = nucReach(a, b), L2 = dx * dx + dy * dy + dz * dz, t0 = L2 > 0 ? -(rx * dx + ry * dy + rz * dz) / L2 : 0, t = clamp(t0, 0, 1), ex = rx + t * dx, ey = ry + t * dy, ez = rz + t * dz, bb = Math.sqrt(ex * ex + ey * ey + ez * ez);
@@ -6039,10 +6060,12 @@ function nuclearCollision(p, t, b) {
   const rec = (Math.PI - th) / 2 * -sgn;
   const rx = p.ux * Math.cos(rec) - p.uy * Math.sin(rec), ry = p.ux * Math.sin(rec) + p.uy * Math.cos(rec);
   if (t.rad) { t.KE += T; radSpeed(t); }
-  else {
-    for (const bd of t.bonds.slice()) if (T > bd.D) removeBond(bd);
-    const [tvx, tvy] = velOf(t);
-    setVel(t, tvx + Math.sqrt(2 * T / mt) * rx, tvy + Math.sqrt(2 * T / mt) * ry);
+  else { // (the target gains exactly T, bonds it breaks paid from it: the push √(2T/m) on an atom already moving gave it more or less than T (its cross term), and the broken bonds were free; a 1 MeV α through a few molecules +56–76 eV, 1.26)
+    const brk = t.bonds.filter(bd => T > bd.D);
+    let Tk = T;
+    if (brk.length) { const set = closeSet(setOf([t])), sn = snapshot(set), U0 = localPE(set); for (const bd of brk) removeBond(bd); Tk = T - (localPE(closeSet(set)) - U0); if (Tk < 0) { restoreSnap(sn); Tk = T; } } // (they break only if T pays what breaking them costs, measured)
+    const [tvx, tvy] = velOf(t), vr = tvx * rx + tvy * ry, a = Tk > 0 ? -vr + Math.sqrt(vr * vr + 2 * Tk / mt) : 0;
+    setVel(t, tvx + a * rx, tvy + a * ry);
   }
   return T;
 }
@@ -6183,8 +6206,8 @@ function moveRad(p, dt) {
     if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) {
       if (ejectElectron(tg, dE - ie, nx, ny)) W.count.ionize++; else dumpHeat(dE, tg, tg);
     } else {
-      const dv = Math.sqrt(2 * dE * tg.im);
-      tg.vx += nx * dv * 0.7; tg.vy += ny * dv * 0.7; updateFast(tg);
+      const vn = tg.vx * nx + tg.vy * ny, a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); // (a push square to the path giving it exactly dE, as fastStop3 in 3-D: 0.7·√(2dE/m) gave about half, the rest lost from the books (a 20 MeV electron's H recoil through a water molecule −6.5 eV), 1.26)
+      tg.vx += nx * a; tg.vy += ny * a; updateFast(tg);
     }
     if (p.KE <= 0) break;
   }
@@ -6361,10 +6384,10 @@ function detectorStop(p) {
   W.ledger.escaped += p.KE; chargeTo(p.q, 'qObj'); kill(p); return true;
 }
 /* Lorentz boost of (E, px, py) by velocity (bx, by) (units of c). */
-function boost(E, px, py, bx, by) {
+function boost(E, px, py, bx, by, g0) { // (g0: the frame's Lorentz factor when known exactly, taken past γ = 100; from 1 − β² it keeps only ~10⁻⁶ of itself at γ ≈ 10⁵ (below 100 as before, bit for bit), 1.26)
   const b2 = bx * bx + by * by;
   if (!(b2 > 1e-30)) return [E, px, py];
-  const g = 1 / Math.sqrt(1 - b2), bp = bx * px + by * py, k = ((g - 1) * bp / b2 - g * E);
+  const g = g0 && b2 > 0.9999 ? g0 : 1 / Math.sqrt(1 - b2), bp = bx * px + by * py, k = ((g - 1) * bp / b2 - g * E);
   return [g * (E - bp), px + k * bx, py + k * by];
 }
 /* A close pass (within the enlarged reach) scatters by Rutherford's law in the pair's own frame,
@@ -6395,8 +6418,20 @@ function nuclearScatter(a, b, d, ex, ey, reach = R_NN, rmap = 0) { // rmap (fm):
   const c = Math.cos(th), s = Math.sin(th), qx = A[1] * c - A[2] * s, qy = A[1] * s + A[2] * c;
   const A2 = boost(A[0], qx, qy, -bx, -by), B2 = boost(Bst, -qx, -qy, -bx, -by);
   const na = Math.hypot(A2[1], A2[2]) || 1, nb = Math.hypot(B2[1], B2[2]) || 1;
+  // (a stepped particle this turn sends into flight leaves the stepped set: its bonds break and its potential energy
+  // with what stays is paid from its motion, as switchMode does; it was left out of the books: a 2–20 MeV electron
+  // through the H of a water molecule +4.8 eV, a muon decay's positron off a bare μ⁺ in a muonium cluster −17.6 eV, 1.26)
+  const md = [a, b].filter(p => !p.xb && inMD(p)), set = md.length ? closeSet(setOf(md)) : null, U0 = set ? localPE(set) : 0;
   setMotionB(a, Math.max(1e-6, A2[0] - ma), A2[1] / na, A2[2] / na);
   setMotionB(b, Math.max(1e-6, B2[0] - mb), B2[1] / nb, B2[2] / nb);
+  if (set) {
+    const fl = md.filter(p => p.rad);
+    if (fl.length) {
+      for (const p of fl) for (const bd of p.bonds.slice()) removeBond(bd);
+      const owed = localPE(closeSet(set)) - U0, p = fl[0];
+      p.KE = Math.max(1e-6, p.KE - owed); radSpeed(p); p.vx = p.sp * p.ux; p.vy = p.sp * p.uy;
+    }
+  }
   return th0;
 }
 function setMotionB(p, KE, ux, uy) { if (!p.xb) { setMotion(p, KE, ux, uy); return; } p.KE = KE; p.ux = ux; p.uy = uy; exoSpeed(p); } // (an unstable particle in a beam: W.exo, 1.15)
@@ -6538,7 +6573,8 @@ function moveNeutron(p, dt, c1, c2, kT) {
   const x0 = p.x, y0 = p.y;
   // nuclei in the MD set, by the two paths' closest approach (a slow nucleus drifting into a neutron at rest meets it
   // too); fast nuclei and other neutrons: neutronPairs, before this pass
-  const hits = W.d3 ? relTargets3(x0, y0, p.z, p.vx, p.vy, p.vz, dt, 1.0, (t) => t.k === NUC && t.Z > 0, KE > 1e3) : relTargets(x0, y0, p.vx, p.vy, dt, 1.0, (t) => t.k === NUC && t.Z > 0, p.rad || KE > 1e3); // (3-D: the closest approach in three directions, 1.25)
+  const s3 = W.d3 ? flyScale3(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) : 1; // (3-D: at its true speed, as a nucleus in flight (the books keep ½m|v|²; under 1% of c the stored speed, bit for bit): a 1 PeV neutron moved at 1,460c, 1.26)
+  const hits = W.d3 ? relTargets3(x0, y0, p.z, p.vx * s3, p.vy * s3, p.vz * s3, dt, 1.0, (t) => t.k === NUC && t.Z > 0, KE > 1e3) : relTargets(x0, y0, p.vx, p.vy, dt, 1.0, (t) => t.k === NUC && t.Z > 0, p.rad || KE > 1e3); // (3-D: the closest approach in three directions, 1.25)
   for (const [, tg, b0] of hits) {
     if (tg.dead || sameEv(p, tg)) continue;
     const R = nucReach(p, tg); // (a nucleus is hit where it is drawn)
@@ -6546,8 +6582,8 @@ function moveNeutron(p, dt, c1, c2, kT) {
     if (b < R && neutronHit(p, tg, b, R)) break;
   }
   if (p.dead) return;
-  p.x += p.vx * dt; p.y += p.vy * dt;
-  if (W.d3) p.z += p.vz * dt; // (3-D: in depth too, 1.23.2: it kept its z)
+  if (W.d3) { const sc = flyScale3(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) * dt; p.x += p.vx * sc; p.y += p.vy * sc; p.z += p.vz * sc; } // (3-D: in depth too, 1.23.2: it kept its z; at its true speed, 1.26)
+  else { p.x += p.vx * dt; p.y += p.vy * dt; }
   if (W.objs.length && objPath(p, x0, y0)) return; // (placed objects: props.js)
   const KE2 = keOf(p);
   if (p.trk) extendTrack(p);

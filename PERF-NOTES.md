@@ -713,6 +713,203 @@ each part fails on v136 and passes here.
   were the known timing ones (1.14 speed readout 1/1.3×, f_bug125 pi3's 0.8 ratio; 1.24 light and f_bug125 segGrid in an
   earlier lone run under load), each passing alone.
 
+### 1.26: exotic-particle sweep
+
+Branch v140 (from v136 with v137 and v138). Every particle of the particle menus (Leptons, Neutrinos, Nucleons, Light
+nuclei, Mesons, Baryons, Resonances, Light, Antimatter, Exotic atoms and nuclei) placed, fired, inspected, erased,
+selected, copied, saved and let decay, flat and in 3-D. Checks: tests/f_swx.js (t_features runs it alone;
+`node tests/f_swx.js [--node] [part …]`); each part fails on v136 and passes here.
+
+Per particle and mode ("fixed": what changed for it; every row was placed, fired at 1 keV–1 PeV, inspected, erased,
+undone, saved and let decay through the page, and run in Node for its decay at rest, its books and speed):
+
+| Menu | Particle | Flat | 3-D |
+|---|---|---|---|
+| Leptons | e⁻, e⁺ | fixed: Mott recoils and sub-ionization pushes booked; a remainder settled on one e⁻ no longer past c | fine (25 keV+ flight since bug fix 14; 1 PeV within 0.13 eV) |
+| Leptons | μ⁻ | fixed: muonic atoms' mean lives (Al, Ca, Pb …), the muon in the atom's mass, saves/undo kept it; decays in flight with exact γ | fixed: the same |
+| Leptons | μ⁺ | fixed: saves/undo kept it; muonium texts; decays in flight with exact γ | fixed: saves/undo kept it |
+| Leptons | τ⁻, τ⁺ | fixed: saves/undo kept it; Inspect's decay list (ντ, not "nutau"); exact γ | fixed: the same |
+| Neutrinos | νₑ ν̄ₑ νμ ν̄μ ντ ν̄τ | fine (placed and fired at 1 keV–1 PeV; pass through, books 0) | fine |
+| Nucleons | p⁺ | fixed: atoms it knocks into flight keep the books (setVel, nuclearCollision) | fine |
+| Nucleons | n | fixed: an elastic hit sending a bonded atom into flight booked | fixed: faster than light (1 GeV 1.46c, 1 PeV 1,460c) → its true speed |
+| Nucleons / Antimatter | p̄, n̄ | fine (annihilation books within 0.01 eV on p, H, p̄) | not in 3-D (antimatter is flat-only, by design) |
+| Light nuclei | ²H⁺ ³H⁺ ³He²⁺ α | fixed: knock-on recoils booked (a 1 MeV α +46–66 eV before, ±1 now) | fixed: the elastic turn of a slow hadron off them when fast (+147 MeV a 1 TeV α's cascade); PeV debris |
+| Mesons | π⁺ π⁻ π⁰ K⁺ K⁻ K⁰s K⁰ʟ η | fixed: saves/undo kept it; elastic turns off fast nuclei (energy from nothing); exact γ in flight | fixed: the same |
+| Baryons | Λ Λ̄ | fixed: mean life to PDG 2024; saves/undo kept it; elastic turns; exact γ | fixed: the same |
+| Baryons | Σ⁺ Σ⁻ Ξ⁰ Ξ⁻ Ω⁻ and antis | fixed: saves/undo kept it; elastic turns; exact γ | fixed: the same; Σ⁺'s 3-D stop heat (−5 eV per 200) booked |
+| Resonances | ρ⁰ ρ± ω φ K*⁺ K*⁻ K*⁰ K̄*⁰ Δ⁺⁺ Δ⁺ Δ⁰ Δ⁻ | fixed: saves/undo kept it (with each one's own mass); fine at Ultra-realistic rates | fixed: the same |
+| Light | γ | fine (1 keV–1 PeV; showers at 1 PeV within 10⁻¹⁰) | fine |
+| Antimatter | H̄, ²H̄⁻, ⁴H̄ē²⁻ | fine (books ≤ 2.4 eV on p, H, p̄) | not in 3-D (by design) |
+| Exotic atoms | μp μd μt | fixed: Select, copy, paste, move, Delete; Inspect's Delete; a proton it scatters at 1 PeV no longer 933c | fixed: Select … Delete, Inspect's Delete |
+| Exotic atoms | Mu | fixed: decay books (Mott, recoils); texts (μ⁺ + e⁻ → muonium, Mu⁺) | fine (books of 200 decaying: +9 eV, the dense Mu/Mu₂ plasma's integration) |
+| Exotic atoms | ³ΛH … ²⁰⁸ΛPb (13) | fixed: saves/undo kept it; Select; elastic turns (+3 keV–13 MeV per shot at 1 keV–1 MeV before); lengths in Inspect | fixed: the same; stopping beside a lone nucleus (−0.03 eV each) booked |
+
+- **Books when a fast charged particle crosses a nucleus (flat game).** Found with muonium: 200 muonium atoms decaying
+  in an insulated box moved the books +214 eV. Two slips, both general (any MeV electron or positron through matter):
+  1. Mott scattering (`nuclearScatter`, a lepton crossing a nucleus where it is drawn) gave the struck atom its recoil
+     with `setMotion`, which puts it straight into radiation flight; its bonds and its potential energy with what stays
+     were left out of the books. A 20 MeV electron through the H nucleus of a water molecule: +4.8 eV (the O–H bond);
+     a muon decay's positron off a bare μ⁺ beside another −17.6 eV (their repulsion). Now a stepped atom sent into
+     flight there has its bonds broken and the potential energy it leaves paid from its motion, as `switchMode` does.
+  2. An ionizing pass that could not free an electron (dE under the ionization cost) pushed the atom by
+     0.7·√(2dE/m) square to the path: about half of dE, the rest gone (in `moveRad`, and in `exoIonize`/`exoIonize3`
+     for unstable particles; 3-D atoms in flight, `fastStop3`, were already exact): the H recoil of the pass above
+     −6.5 eV. Now the push gives exactly dE, whatever the atom's own motion.
+  - After: 20 passes, 2 and 20 MeV, H of water and bare μ⁺: within 0.04 eV a pass (before up to +7.1, −6.5, −17.6).
+    The 200 muonium atoms still drift (+173 eV over 400 steps, 3-D +9 eV): a hot, dense, light Mu/Mu₂/e⁻ plasma whose
+    steps are the known limit (bug fix 13 after 1.25: a light atom flying fast in the flat game jumps the books by
+    ±1–12 eV as it passes molecules; the integrator in a crowd of 0.11 u atoms), not an event's booking.
+  - Fingerprints (all 59 setups, seed 7, 300 steps): annihilation, hyperfactory, isolde, nif, photonuc, pionbeam and sns
+    change (their radiation-flight ions and leptons ionize at low dE, now pushing exactly; sns also from the Mott
+    change); the rest, and every 3-D setup, unchanged. Check: f_swx "flatKicks".
+- **Heat with no partner (both games).** `dumpHeat(E, a, a)` (one atom: a stopped unstable particle's last keV in 3-D,
+  an ionization that could not free its electron) with no third atom within 6 Å in an insulated box called
+  `kickPair(a, a)`, which takes nothing: E left the books (ledger.chem counted it). Every 3-D hypernucleus placed at
+  rest moved the books −5.6 eV over 200 (0.03 eV each, its placing energy, given to a lone product nucleus); Σ⁺ in 3-D
+  −5.0. Now the bath takes it, or in an insulated box the one atom (an exact push in a random direction). A 1 keV
+  ¹³ΛC stopping beside a lone carbon in 3-D: −1,000 eV before, 0 after. Fingerprints unchanged (no setup met that
+  case). Check: f_swx "loneHeat".
+- **A PeV event's debris (both games; v138's finding).** The books of a 1 PeV α on α moved 0.1–0.9 MeV over the
+  debris's next 300 steps (10 PeV: 27–94 MeV; 4 seeds flat and 3-D), for three reasons:
+  1. Decays in flight (`decayExo`, `decayExo3`, `hypDecay`) boosted their products with γ from 1 − β², which at
+     γ ≈ 10⁵ keeps ~10⁻⁶ of itself. Now the particle's own γ (`o.gam`, 1 + K/m) is passed to the boost (`boost`,
+     `boost3`, `toLab`: an optional exact γ, taken past γ = 100 only, so everything slower is bit for bit as before); a
+     hit's products (`exoOut`) are boosted with γ = E/M of the same four-momentum, so they add up to it exactly.
+  2. `closeEvent` settled a remainder only past 10⁻⁷ of the event's energy: 0.1–0.2 MeV of a 100 TeV hit stayed open.
+     Past 100 keV it now settles down to 0.01 eV (or 10⁻¹⁵ of the event, the books' own rounding); below, as before.
+  3. `settleRest` moved the remainder between the products about their centre of mass (`shareKE`), which does nothing
+     for one product alone (a hit whose other products are unstable particles, a nucleon out of a nucleon–nucleon
+     pass): up to 0.25 MeV a hit stayed open, and −4.5 eV once in the annihilation setup. Now the fastest product takes
+     it itself; with nothing made but what was carried off (antinucleons in 3-D, no room), what left takes it.
+  - After: 1 PeV within ±2 eV over 300 steps (8 runs), 10 PeV within ±24 eV (4 runs), flat and 3-D.
+- **A slow hadron turned off a fast nucleus (both games).** `exoElastic` gives the nucleus the momentum the turn takes
+  from the hadron and has the hadron pay the recoil energy, floored at 1 eV. With the nucleus itself fast (a cascade's
+  nucleons) that recoil can exceed the hadron's energy, and the rest was made from nothing: +47 MeV for a 4 MeV π⁻ and
+  a 650 MeV proton; a 1 TeV α through a few molecules in 3-D +147 MeV over 80 steps (+31–55 MeV a hit). Now when the
+  hadron can't pay, the turn is made in the pair's own frame, exactly (`exoElasticCM`; flat: the nucleus's
+  surroundings measured as before, their potential energy paid by the hadron). The 1 TeV α: −3.8 keV over the run.
+- **Neutrons faster than light in 3-D (v138's finding).** `moveNeutron` moved a 3-D neutron at the speed of ½m|v|²
+  (1 PeV: 1,460c; 1 GeV: 1.46c), as v138 found for atoms in flight. Now at the relativistic speed for that energy
+  (`flyScale3`; the books keep ½m|v|²; under 1% of c the stored speed, bit for bit), its path search with it, and
+  neutron pairs (`nnMeet3`) too. 1 GeV 0.8748c, 1 PeV 1c.
+- Fingerprints (seed 7, 300 steps) for these three: annihilation and pionbeam change (point 3: a single product now
+  takes its remainder: −4.5 eV in annihilation, 7×10⁻⁶ eV in pionbeam); none else, no 3-D setup. Checks: f_swx
+  "pevBooks", "elasticCM", "neutron3".
+- **Atoms knocked into flight (flat game).** Found firing every particle at 1 keV–1 PeV through a row of three waters, a
+  carbon, a lead and a hydrogen atom (insulated, 80 steps, 3 seeds): the flat game's books moved more than 10 eV in 185
+  of 1,332 runs (more than 50 eV in 71), 3-D in 18 of 1,242. Besides the points above, two slips:
+  1. `setVel` sent a stepped atom past its flight threshold straight into radiation flight with its bonds kept (a bond
+     to an atom in flight stretches with no force on it) and its potential energy out of the books, as `nuclearScatter`
+     did: a neutron's elastic hit sent a lead atom bonded to carbon off at 83 keV, +108 eV. Now it breaks them and pays
+     the potential energy it leaves from its motion (as `switchMode` does below the threshold); its 3-D twin keeps
+     everything stepped already.
+  2. `nuclearCollision` (a nucleus in flight passing an atom, ZBL) pushed the target by √(2T/m) whatever its own motion
+     (the target gained more or less than the T taken from the projectile) and broke every bond weaker than T for free
+     (a bond broken at its compressed geometry costs up to 23 eV). Now the target gains exactly T; its bonds break only
+     if T pays what breaking them costs, measured, and that is taken from T. A 1 MeV α through the row: +46, +46, +61 eV
+     before (seeds 1–3), +0.2, +1.1, −0.1 after.
+  - After all the fixes of this section, the same sweep: flat more than 10 eV in 84 of 1,332 runs (more than 50 eV in 33,
+    all but 8 of them electrons, positrons and γ rays at 1 PeV, 10⁻¹⁰ of their energy: the showers' own rounding), the
+    rest 5–59 eV in the debris's chemistry and hot light atoms (the known limit of bug fix 13 after 1.25); 3-D more than
+    10 eV in 1 run (a 1 TeV Λ: 1.3 eV is the worst of the others).
+  - Insulated, 300 steps (seed 7): annihilation −153 → +3.3 eV; nif +1.1 → −0.5; fusion 0 → 0. Fingerprints: fusion, nif
+    and sns change from point 1 (an atom sent into flight while bonded), annihilation, pionbeam and sns from point 2.
+    Check: f_swx "flatRecoil".
+- **Faster than light.** Muonic hydrogen fired at 1 PeV scattered off a proton (`muAtomScatter`, flat) set the proton's
+  velocity by hand, non-relativistically and with no flight: 933c. A remainder handed to one product (point 3 of the PeV
+  fix, as first written) scaled an electron's velocity the same way: 52c. Both now go through `setVel` in the flat game
+  (into radiation flight at the true speed); in 3-D the flight's own speed rule holds. The fire sweep's other speed
+  readings: nothing stepped or flying past c in either game (the products' stored speed checked each step). Check:
+  f_swx "muFast".
+- **Muonic atoms (v138's findings).**
+  1. Mean lives (`muRates`, hep.js). The capture rate 32·Z_eff⁴ s⁻¹ had no neutron excess. Now the mean lives measured
+     for natural elements (Suzuki, Measday & Roalsvig, Phys. Rev. C 35, 2212, 1987) hold where measured (`MU_TAU`), and
+     the Goulard–Primakoff form (Z_eff⁴·261 s⁻¹·[1 − 0.040·A/2Z + 0.26·(A − 2Z)/2Z − 3.24·((A − Z)/2A + (A − 2Z)/8AZ)],
+     that paper's fit) carries them to the other elements and isotopes, scaled to the measured elements on either side;
+     decay in orbit is the free muon's slowed by the Huff factor (≈ 1 − 2.2×10⁻⁵ Z²: 0.85 for lead). Game before → now
+     (measured), ns: C 2,045 → 2,026 (2,026.3), N 1,952 → 1,907 (1,906.8), O 1,831 → 1,795 (1,795.4), F 1,687 → 1,464
+     (1,463.5), Na 1,374 → 1,204 (1,204.0), Mg 1,222 → 1,067 (1,067.2), Al 1,077 → 864 (864.0), Si 941 → 756 (756.0),
+     P 817 → 611 (611.2), S 707 → 555 (554.6), K 454 → 435 (435.2), Ca 392 → 333 (332.7), Ti 307 → 329 (329.3), V 273 →
+     285 (284.5), Fe 193 → 206 (206.0), Ni 168 → 157 (156.6), Cu 156 → 164 (163.5), Zn 146 → 159 (159.4), Zr 77 → 110
+     (110.4), Pb 23 → 75.4 (75.4). Between them (the form): Ne 1,525 → 1,196, Cl 610 → 542, Ar 526 → 643, Cr 243 → 239,
+     Mn 216 → 240, Co 180 → 201, Br 105 → 152, Ag 57 → 87, Sn 50 → 96, I 46 → 93, Ba 43 → 101, W 28 → 78, Au 25 → 72,
+     Bi 23 → 73, Th 21 → 84, U 20 → 85; He–B within 3% of the free muon's 2,197 before and after. Capture share now: C 8%,
+     O 18%, Al 61%, Ca 85%, Fe 91%, Pb 97% (Pb was 99%). Caveat: there is no network here, so the measured values are
+     the published table as I know it, each checked for consistency (1/τ = Λc + Q·λ against the capture rates Λc of the
+     same table); worth a look against the paper. Where the form stands alone, values I am less sure of differ by up to
+     ~10–20% (Ar-40: 643 against about 540 measured; Th and U 84–85 against about 77): adding more measured elements
+     to MU_TAU sharpens it. Inspect's muonic-atom pill and capture share use the same rates.
+  2. Mass. The atom's mass left out its muon (`atomMass`, engine.js: +0.113 u, less the binding; 0.9% of carbon, 2.8% of
+     helium); its rest energy (`restE`) still leaves it out, as the muon's is booked apart. When it is caught, decays or
+     is captured, the atom keeps its speed and its kinetic energy changes by ½m_μv²: those events now begin with the atom
+     in their books (`nucBegin([atom])`), so their X-rays or neutrinos pay it exactly. 3-D and flat, a carbon and a lead
+     atom at 5 Å/tu (½m_μv² ≈ 1.7 eV): catching books to 3×10⁻⁶ eV; decay and capture steps within 0.18 eV (the electrons
+     a capture frees beside a +81 ion, in their first step); 16 of 16 events. Saves and undo put the muon's mass back.
+  3. The momentum of the muon caught at 2 keV (0.65 MeV/c): not a bug; nothing changed. Handed to the atom it would
+     kick carbon by 19 eV and lead by 1.1 eV in one go; a real muon is slowed to eV energies through the medium first,
+     spread over the many atoms of its last micrometres (the game stops it at 2 keV for speed), then caught; the X-ray
+     cascade's recoil is under an eV. The books are exact either way.
+  4. Select and Inspect. The Select tool passed over muonic hydrogen (μp, μd, μt), (μα)⁺ and hypernuclei, which live
+     with the unstable particles (W.exo); now a click or a box picks them, and copy, paste, move and Delete take them
+     (pasted nearly at rest, as placed). A particle in flight's Inspect card had no Delete button; now it has (as the
+     Erase tool takes one). The particle view drew a muonic atom without its muon; now a green point circles just
+     outside the nucleus (the muon's colour in flight). Screenshot: scratchpad mu-pv2.png. (The 3-D lab has no particle
+     view.) Copy and paste kept only the nucleus: muonium came back as hydrogen and a muonic atom as a plain one; now
+     both are made again as they were.
+  - Fingerprints unchanged (no setup makes a muonic atom in 300 steps). Checks: f_swx "muonic", "muSelect", "copyMu"
+    (page).
+- **Saves and undo with unstable particles.** Only muonic hydrogen and (μα)⁺ were saved (1.26 bug fix B): a placed
+  muon, pion, kaon, hyperon, resonance or hypernucleus was gone after a save was read back, and an undo of anything else
+  (undo is a save read back) took it away too; found by the page sweep below (every unstable particle of the menus,
+  flat and 3-D). Now `xa` holds every one in W.exo but a collider's beams, with a resonance's own mass (drawn from its
+  width) and the 3-D "at rest" mark; a hypernucleus's entry is made on reading. Saves from before read as before.
+  Fingerprints unchanged. Check: f_swx "saveExo" (page).
+- **Λ mean life.** 2.632×10⁻¹⁰ s, the older value; PDG 2024 gives 2.617×10⁻¹⁰ s (the header says PDG 2024): now that
+  (the Λ̄ follows). Fingerprints unchanged.
+- **Checked and fine** (no change): masses, mean lives and branching fractions of every unstable particle on the menus
+  against PDG 2024 (μ, τ, π, K, η, Λ, Σ, Ξ, Ω, ρ, ω, φ, K*, Δ and their antiparticles; resonances' ħ/Γ); muonium's and
+  muonic hydrogen's masses and bindings; decay at rest, 200 of each placed at rest, flat and 3-D: mean lives within
+  the counting error, branching as listed, products' charges and kinds right, books within 10⁻⁴ eV; at Ultra-realistic
+  rates (true clock, warp 1) the resonances, π⁰ and η decay at once with their branchings, the longer-lived wait, books
+  within 10⁻⁴ eV.
+- **The page sweep** (tests through the page's own tools, scratchpad pgsweep.js): every particle of the menus, flat (74)
+  and 3-D (73), placed with a click of Place, picked with a click of Inspect (its card: no "undefined", "NaN" or "null"),
+  the placing undone with Ctrl+Z, placed again and taken with a click of Erase, saved and read back, then fired with a
+  drag of Fire at 1 keV, 1 MeV, 1 GeV and 1 PeV through eight atoms and run: every step worked for every particle but the
+  saves above; no page errors, nothing faster than light after the fixes, no odd texts in the event log.
+- **Texts.** A μ⁺ taking an electron said "Recombination: p⁺ + e⁻ → H atom", and a bare μ⁺ bonding "Proton bonded:
+  H⁺ + …": now "μ⁺ + e⁻ → muonium" and "Muon bonded: Mu⁺ + …". Inspect's "Decays to" for a particle in flight showed the
+  internal names of the neutrinos (μp: "p e⁻ ν̄ numu"; τ: "nutau", "numub"): now through the products' own labels
+  (νμ, ν̄μ, ντ, d, t, α). Lengths read "1.5e+2 nm" (a hypernucleus's mean distance) and a resonance's "0.0000013 nm":
+  now "150 nm", and pm and fm below a nanometre. Check: f_swx "texts".
+
+- **Left for the owner (model questions, not changed):**
+  - Below the reaction threshold a close pass deflects at its distance in Å, not mapped onto nuclear distances (v138:
+    a head-on 1 MeV α on α gives the target 133 eV flat, 33 eV in 3-D, not the whole 1 MeV of a real backscatter);
+    mapping it as the collider's `nuclearScatter` does is a model change.
+  - Unstable particles do not meet each other (a pion through muonic hydrogen or a Λ passes it): they meet only atoms
+    and nuclei (W.parts), and each other only as a collider's beams.
+  - The muon caught at 2 keV keeps its momentum out of the atom (above, point 3 of muonic atoms).
+  - Muon mean lives between the measured elements come from the Goulard–Primakoff form; Ar-40 643 ns (about 540
+    measured), Th and U 84–85 (about 77): more measured elements in MU_TAU would pin them. The table's values are from
+    memory of the paper (no network here), each consistent with its capture rate: worth a check against the paper.
+  - The approved realistic-particle switches (μp handing its muon to heavier nuclei, electrons seeing Z − 1, the
+    muonic cascade's X-rays, positronium …) are not built; nothing here is in their way (the rates by element and the
+    muon's mass are what they need).
+  - Remaining books noise: the flat game's hot debris (5–59 eV in 1 in 25 shots, the known limit of light fast atoms);
+    200 muonium atoms decaying in a crowd (+173 eV flat, +9 eV 3-D, the integration of a dense hot Mu/Mu₂/e⁻ plasma);
+    a 3-D hypertriton decaying at 1 PeV keeps momentum only to 2.5×10⁻⁵ (its residual nucleus's own boosts at
+    γ ≈ 3×10⁵; the books are settled exactly).
+- **Suites** (2-core machine shared with another session): t_lint, t_energy, t_hep, t_collider, t_3d pass alone;
+  t_features alone: 2 misses, both known ones (the chain reaction's k readout: 5 fissions and 16 neutron ends in the
+  frames allowed, its page random stream, before and after this branch alike in Node over three seeds; the 1.23.1
+  Continue check, 73 → 74, on record since 1.25); tools/runtests.sh: 21 of 22 pass, t_features' one miss the f_bug125
+  "pi3" timing check (54 ms against its limit under both lanes' load), which passes alone (18 ms); the chain and Continue
+  checks passed there.
+- **Found in the other session's areas (not changed):** the Lab tab's Particles readout counts atoms, nuclei and leptons
+  only: twelve unstable particles placed beside five atoms read "5". The 3-D lab has no particle view (so a muonic
+  atom's muon is drawn only in the flat game's).
+
 ### 1.26: GFN2 refit (second attempt)
 
 Asked by the owner: improve GFN2, keeping what it is best at (water clusters, non-covalent binding, geometries) and

@@ -529,7 +529,7 @@ function buildToolOpts() {
       break;
     }
     case 'select': {
-      const n = selCount(), clip = UI.clip ? UI.clip.parts.length : 0;
+      const n = selCount(), clip = UI.clip ? UI.clip.parts.length + (UI.clip.exo ? UI.clip.exo.length : 0) : 0;
       h = `<span data-g="whole">${seg('Box picks', [['true', 'Whole molecules'], ['false', 'Atoms only']], String(o.whole))}</span>` +
         `<span class="num" id="oSelN">${UI.pasting ? 'click where the copy goes (Shift-click: several; Esc cancels)' : n ? n.toLocaleString('en-US') + ' selected' : 'nothing selected'}</span>` +
         `<button class="opt" id="oSelCopy" ${n ? '' : 'disabled'} title="Ctrl+C">Copy</button><button class="opt" id="oSelPaste" ${clip ? '' : 'disabled'} ${UI.pasting ? 'aria-pressed="true"' : ''} title="Ctrl+V: pick the copy up, then click where it goes">${UI.pasting ? 'Placing' : 'Paste'}${clip ? ' ' + clip.toLocaleString('en-US') : ''}</button>` +
@@ -1034,7 +1034,7 @@ function onDown(e) {
       break;
     }
     case 'select': {
-      const p = pickAt(px, py, 8);
+      const lx = pickAt(px, py, 8) ? null : pickLight(px, py, 10), p = pickAt(px, py, 8) || (lx && lx.kind === 'exo' && selectableX(lx.o) ? lx.o : null); // (muonic hydrogen and the other exotic atoms in W.exo too, 1.26)
       if (((p && R.msel.has(p)) || (!p && R.oSel.size && R.oSel.has(objAtPx(px, py)))) && !e.shiftKey) { undoMark('Move the selection'); UI.drag = { kind: 'selmove', lx: wx, ly: wy, lz: wz, moved: false, plane }; } // on the selection (a particle or an object in it): drag moves it (Ctrl+Z takes it back: 1.26 sweep, it could not be undone)
       else UI.drag = { kind: 'selbox', x0: wx, y0: wy, x1: wx, y1: wy, px, py, px1: px, py1: py, add: e.shiftKey, hit: p };
       break;
@@ -1045,37 +1045,44 @@ function onDown(e) {
 function selCount() { let n = R.oSel.size; for (const p of R.msel) if (!p.dead) n++; return n; }
 function selChanged() { if (UI.tool === 'select') buildToolOpts(); }
 function clearSelection() { R.msel.clear(); R.oSel.clear(); selChanged(); }
-function selectAll() { R.msel.clear(); for (const p of W.parts) if (!p.dead && selectable(p)) R.msel.add(p); if (UI.tool !== 'select') setTool('select'); selChanged(); }
+function selectAll() { R.msel.clear(); for (const p of W.parts) if (!p.dead && selectable(p)) R.msel.add(p); for (const o of W.exo) if (selectableX(o)) R.msel.add(o); if (UI.tool !== 'select') setTool('select'); selChanged(); }
 const selectable = (p) => (p.k === NUC || p.k === ELEC || p.k === POS) && !p.beam; // (photons, flying exotics and a collider's beams are not picked up)
+/* (1.26) The exotic atoms and nuclei that live in W.exo (muonic hydrogen, (μα)⁺, hypernuclei: placed from the Exotic atoms
+   menu and slow), picked by the Select tool as atoms are: moved, deleted, copied and pasted. Select passed them by. */
+const selectableX = (o) => !!o && !o.dead && !o.xb && !!XP[o.sp] && !!(XP[o.sp].atom || XP[o.sp].stuck || XP[o.sp].hyp);
+const isX = (p) => p.sp !== undefined && p.lab !== undefined && p.k === undefined; // (a W.exo member in R.msel)
 /* The box, done: everything inside it (and, if asked, the rest of each molecule touched). */
 function finishSelBox(d) {
   const tiny = W.d3 ? Math.hypot(d.px1 - d.px, d.py1 - d.py) < 4 : Math.hypot(w2sx(d.x1) - d.px, w2sy(d.y1) - d.py) < 4; // (a click, not a box)
   if (!d.add) { R.msel.clear(); R.oSel.clear(); }
   let picked = [];
-  if (tiny) { if (d.hit && selectable(d.hit)) picked = [d.hit]; else { const ob = objAtPx(d.px, d.py); if (ob) { if (d.add && R.oSel.has(ob)) R.oSel.delete(ob); else R.oSel.add(ob); } } }
+  if (tiny) { if (d.hit && (selectableX(d.hit) || (!isX(d.hit) && selectable(d.hit)))) picked = [d.hit]; else { const ob = objAtPx(d.px, d.py); if (ob) { if (d.add && R.oSel.has(ob)) R.oSel.delete(ob); else R.oSel.add(ob); } } }
   else if (W.d3) { // (3-D: the atoms whose centres are drawn inside the box on the screen)
     const x0 = Math.min(d.px, d.px1), x1 = Math.max(d.px, d.px1), y0 = Math.min(d.py, d.py1), y1 = Math.max(d.py, d.py1), o = [0, 0, 0];
     cam3Update();
     for (const p of W.parts) if (!p.dead && selectable(p) && proj3(p.x, p.y, p.z, o) && o[0] >= x0 && o[0] <= x1 && o[1] >= y0 && o[1] <= y1) picked.push(p);
+    for (const p of W.exo) if (selectableX(p) && proj3(p.x, p.y, p.z, o) && o[0] >= x0 && o[0] <= x1 && o[1] >= y0 && o[1] <= y1) picked.push(p);
   } else {
     const x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1), y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
     for (const p of W.parts) if (!p.dead && selectable(p) && p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) picked.push(p);
+    for (const p of W.exo) if (selectableX(p) && p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) picked.push(p);
     for (const ob of W.objs) { const mx = (ob.x0 + ob.x1) / 2, my = (ob.y0 + ob.y1) / 2; if (mx >= x0 && mx <= x1 && my >= y0 && my <= y1) R.oSel.add(ob); } // (placed objects, by their middle: 0.70)
   }
   for (const p of picked) {
     if (d.add && tiny && R.msel.has(p)) { // Shift-click on a selected particle: out it goes (its molecule with it, when molecules are picked whole)
-      const g = OPT.select.whole && p.k === NUC && linked(p) ? molecule(p) : [p];
+      const g = OPT.select.whole && p.k === NUC && !isX(p) && linked(p) ? molecule(p) : [p];
       for (const a of g) R.msel.delete(a);
       continue;
     }
     R.msel.add(p);
-    if (OPT.select.whole && p.k === NUC && linked(p)) for (const a of molecule(p)) if (!a.dead) R.msel.add(a);
+    if (OPT.select.whole && p.k === NUC && !isX(p) && linked(p)) for (const a of molecule(p)) if (!a.dead) R.msel.add(a);
   }
   selChanged();
 }
 function moveSelection(ddx, ddy, ddz = 0) { // (ddz: 3-D)
   for (const ob of R.oSel) { ob.x0 += ddx; ob.x1 += ddx; ob.y0 += ddy; ob.y1 += ddy; W.dirty++; } // (objects in it go along)
-  const g = [...R.msel].filter(a => !a.dead); if (!g.length) return;
+  for (const o of R.msel) if (isX(o) && !o.dead) { o.x += ddx; o.y += ddy; if (W.d3) o.z += ddz; o.x = clamp(o.x, -W.box.w / 2, W.box.w / 2); o.y = clamp(o.y, -W.box.h / 2, W.box.h / 2); if (W.d3) o.z = clamp(o.z, -W.box.d / 2, W.box.d / 2); o.KE = Math.min(o.KE, 0.03); exoSpeed(o); } // (exotic atoms: moved, and stopped as the atoms are, 1.26)
+  const g = [...R.msel].filter(a => !a.dead && !isX(a)); if (!g.length) return;
   const skip = R.msel, stuck = crowdedAt(g, 0, 0, skip);
   for (const f of [1, 0.5, 0.25]) {
     if (!stuck && crowdedAt(g, ddx * f, ddy * f, skip, ddz * f)) continue;
@@ -1085,7 +1092,7 @@ function moveSelection(ddx, ddy, ddz = 0) { // (ddz: 3-D)
 }
 function deleteSelection() {
   if (selCount()) undoMark('Delete the selection'); // (Ctrl+Z puts it back, as a deleted atom: 1.26 sweep)
-  let n = 0; for (const p of R.msel) if (!p.dead) { kill(p); n++; }
+  let n = 0; for (const p of R.msel) if (!p.dead) { if (isX(p)) { p.dead = true; p.fate = 'deleted'; } else kill(p); n++; } // (an exotic atom in W.exo goes as the Erase tool takes it, 1.26)
   for (const ob of R.oSel) { objRemove(ob); n++; } R.oSel.clear();
   R.msel.clear(); if (R.sel && R.sel.dead) { R.sel = null; renderInspect(); }
   if (n) log('tool', `Deleted ${n.toLocaleString('en-US')} selected particle${n === 1 ? '' : 's'}`);
@@ -1093,13 +1100,15 @@ function deleteSelection() {
 }
 /* The clipboard: the selected nuclei, atoms, ions and free leptons, relative to their centre, with the bonds among them. */
 function copySelection() {
-  const ps = [...R.msel].filter(p => !p.dead && selectable(p)), obs = [...R.oSel];
-  if (!ps.length && !obs.length && R.sel && !R.sel.dead && selectable(R.sel)) ps.push(R.sel);
-  if (!ps.length && !obs.length) return;
-  let cx = 0, cy = 0; for (const p of ps) { cx += p.x; cy += p.y; } for (const ob of obs) { cx += (ob.x0 + ob.x1) / 2; cy += (ob.y0 + ob.y1) / 2; } cx /= ps.length + obs.length; cy /= ps.length + obs.length;
-  let cz = 0; if (W.d3 && ps.length) { for (const p of ps) cz += p.z; cz /= ps.length; } // (3-D: the depths too, about their middle)
+  const xs = [...R.msel].filter(o => isX(o) && selectableX(o)); // (exotic atoms, 1.26: pasted again as made by hand)
+  const ps = [...R.msel].filter(p => !p.dead && !isX(p) && selectable(p)), obs = [...R.oSel];
+  if (!ps.length && !obs.length && !xs.length && R.selX && R.selX.kind === 'exo' && selectableX(R.selX.o)) xs.push(R.selX.o);
+  if (!ps.length && !obs.length && !xs.length && R.sel && !R.sel.dead && selectable(R.sel)) ps.push(R.sel);
+  if (!ps.length && !obs.length && !xs.length) return;
+  let cx = 0, cy = 0; for (const p of ps.concat(xs)) { cx += p.x; cy += p.y; } for (const ob of obs) { cx += (ob.x0 + ob.x1) / 2; cy += (ob.y0 + ob.y1) / 2; } cx /= ps.length + xs.length + obs.length; cy /= ps.length + xs.length + obs.length;
+  let cz = 0; if (W.d3 && ps.length + xs.length) { for (const p of ps.concat(xs)) cz += p.z; cz /= ps.length + xs.length; } // (3-D: the depths too, about their middle)
   const idx = new Map(ps.map((p, i) => [p, i]));
-  const parts = ps.map(p => ({ k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, dx: p.x - cx, dy: p.y - cy, dz: W.d3 ? p.z - cz : 0, rd: p.k === NUC ? p.rd : 0.15, el: p.el }));
+  const parts = ps.map(p => ({ k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, mu: !!p.mu, muB: !!p.muB, dx: p.x - cx, dy: p.y - cy, dz: W.d3 ? p.z - cz : 0, rd: p.k === NUC ? p.rd : 0.15, el: p.el })); // (mu, muB: muonium pasted as hydrogen and a muonic atom as a plain one, 1.26)
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { const i = idx.get(bd.a), j = idx.get(bd.b); if (i !== undefined && j !== undefined && bd.a === p) bonds.push([i, j, bd.order]); }
   // working parts (transistors, gates, memory cells) whose atoms are all in the selection go with it, wired and in the
@@ -1109,14 +1118,15 @@ function copySelection() {
     label: ch.label, broken: ch.broken, nb0: ch.nb0, q0: ch.q0 ? ch.q0.slice() : null, inFrom: ch.inFrom ? whole.indexOf(ch.inFrom) : -1 }));
   const partial = W.chips.filter(ch => !whole.includes(ch) && ch.ps.some(p => idx.has(p))).length;
   const objs = obs.map(ob => { const o = objToJSON(ob); o.x0 -= cx; o.x1 -= cx; o.y0 -= cy; o.y1 -= cy; return o; }); // (placed objects, relative to the centre: 0.70)
-  UI.clip = { parts, bonds, chips, objs, at: W.rt };
-  log('tool', `Copied ${parts.length.toLocaleString('en-US')} particle${parts.length === 1 ? '' : 's'}${bonds.length ? ` and ${bonds.length.toLocaleString('en-US')} bond${bonds.length === 1 ? '' : 's'}` : ''}${chips.length ? `, with ${chips.length} working part${chips.length === 1 ? '' : 's'}` : ''}${partial ? ` (${partial} part${partial === 1 ? ' is' : 's are'} only partly selected: those atoms paste as plain atoms)` : ''}`);
+  const exo = xs.map(o => ({ sp: o.sp, dx: o.x - cx, dy: o.y - cy, dz: W.d3 ? o.z - cz : 0 }));
+  UI.clip = { parts, bonds, chips, objs, exo, at: W.rt };
+  log('tool', `Copied ${(parts.length + exo.length).toLocaleString('en-US')} particle${parts.length + exo.length === 1 ? '' : 's'}${bonds.length ? ` and ${bonds.length.toLocaleString('en-US')} bond${bonds.length === 1 ? '' : 's'}` : ''}${chips.length ? `, with ${chips.length} working part${chips.length === 1 ? '' : 's'}` : ''}${partial ? ` (${partial} part${partial === 1 ? ' is' : 's are'} only partly selected: those atoms paste as plain atoms)` : ''}`);
   selChanged();
 }
 /* Ctrl+V picks the copy up: it follows the pointer as a ghost until a click puts it down (onDown), so it lands exactly
    where it is wanted; Escape or another tool puts it away. */
 function armPaste() {
-  if (!UI.clip || !UI.clip.parts.length) return;
+  if (!UI.clip || !(UI.clip.parts.length || (UI.clip.exo && UI.clip.exo.length))) return;
   if (UI.tool !== 'select') setTool('select');
   UI.pasting = true;
   const m = UI.mouse, inside = m && m[0] >= 0 && m[1] >= 0 && m[0] <= R.w && m[1] <= R.h, [wx, wy] = inside ? s2w(m[0], m[1]) : [R.cx, R.cy];
@@ -1127,15 +1137,17 @@ function cancelPaste() { UI.pasting = false; R.ghost = null; if (UI.tool === 'se
 /* Paste at a point (the pointer, or the middle of the view): the copies are nudged to a clear spot nearby if they would land
    on something, given one thermal velocity as a group, and become the selection (so they can be moved or pasted again). */
 function pasteClip(wx, wy, wz = 0) { // (wz: 3-D)
-  const c = UI.clip; if (!c || (!c.parts.length && !(c.objs && c.objs.length))) return;
+  const c = UI.clip; if (!c || (!c.parts.length && !(c.objs && c.objs.length) && !(c.exo && c.exo.length))) return;
   if (wx === undefined) { const m = UI.mouse, inside = m && m[0] >= 0 && m[1] >= 0 && m[0] <= R.w && m[1] <= R.h; if (W.d3) [wx, wy, wz] = inside ? ptr3(m[0], m[1]) : s2w3(R.w / 2, R.h / 2); else [wx, wy] = inside ? s2w(m[0], m[1]) : [R.cx, R.cy]; }
   if (W.d3 && c.objs && c.objs.length) { log('tool', 'Paste: placed objects are not in 3-D yet'); if (!c.parts.length) return; }
   const madeObj = (W.d3 ? [] : c.objs || []).map(o => objFromJSON(Object.assign({}, o, { x0: o.x0 + wx, x1: o.x1 + wx, y0: o.y0 + wy, y1: o.y1 + wy }))).filter(Boolean);
   for (const ob of madeObj) W.objs.push(ob); if (madeObj.length) { W.dirty++; R.oSel.clear(); for (const ob of madeObj) R.oSel.add(ob); }
-  if (!c.parts.length) { log('tool', `Pasted ${madeObj.length} object${madeObj.length === 1 ? '' : 's'}`); selChanged(); return; }
+  const pasteX = () => (c.exo || []).filter(q => XP[q.sp] && W.exo.length < MAX_EXO).map(q => { const u = rdir(); return addExo(q.sp, clamp(wx + q.dx, -W.box.w / 2, W.box.w / 2), clamp(wy + q.dy, -W.box.h / 2, W.box.h / 2), 0.03, u[0], u[1], undefined, W.d3 ? clamp(wz + (q.dz || 0), -W.box.d / 2, W.box.d / 2) : 0, u[2] || 0); }); // (exotic atoms, made again as by hand: nearly at rest, 1.26)
+  if (!c.parts.length) { const mx = pasteX(); if (mx.length) { R.msel.clear(); for (const o of mx) R.msel.add(o); if (UI.tool !== 'select') setTool('select'); } log('tool', mx.length ? `Pasted ${mx.length} particle${mx.length === 1 ? '' : 's'}` : `Pasted ${madeObj.length} object${madeObj.length === 1 ? '' : 's'}`); selChanged(); return; }
   if (W.parts.length + c.parts.length > MAX_PARTS) { log('tool', `Paste: no room for ${c.parts.length.toLocaleString('en-US')} more particles (the limit is ${MAX_PARTS.toLocaleString('en-US')}; Settings → Max particles)`); return; }
   const zOf = (q) => (W.d3 ? wz + (q.dz || 0) : 0); // (3-D: at the depth pasted at; a copy from a flat world goes in flat, at that depth)
-  const made = c.parts.map(q => q.k === NUC ? addNuc(q.Z, q.N, q.ne, wx + q.dx, wy + q.dy, 0, 0, q.anti, zOf(q)) : addLepton(q.k, wx + q.dx, wy + q.dy, 0, 0, zOf(q)));
+  const made = c.parts.map(q => q.k === NUC ? (q.mu && q.Z === 1 && q.N === 0 ? addMuonium(wx + q.dx, wy + q.dy, 0, 1, 0, q.ne, zOf(q)) : addNuc(q.Z, q.N, q.ne, wx + q.dx, wy + q.dy, 0, 0, q.anti, zOf(q))) : addLepton(q.k, wx + q.dx, wy + q.dy, 0, 0, zOf(q)));
+  c.parts.forEach((q, i) => { const p = made[i]; if (q.muB && p && p.Z >= 2) { const Eb = MU_EB(p.Z) * MEV; p.muB = { m: MU_M * MEV - Eb, Eb }; p.m = atomMass(p); p.im = 1 / p.m; (W.muBound || (W.muBound = [])).push(p); } }); // (a muonic atom's copy keeps its muon, made again: 1.26)
   for (const [i, j, o] of c.bonds) if (made[i] && made[j]) addBond(made[i], made[j], o);
   // a clear spot near the pointer (as the Place tool finds one); none within a few radii of the group: nothing is pasted,
   // rather than copies landing on top of what is there (which would fly apart hot)
@@ -1157,9 +1169,10 @@ function pasteClip(wx, wy, wz = 0) { // (wz: 3-D)
       ch.label = q.label ? q.label + ' (copy)' : ''; ch.broken = q.broken; if (q.nb0 !== undefined) ch.nb0 = q.nb0; if (q.q0) ch.q0 = q.q0.slice(); return ch; });
     c.chips.forEach((q, k) => { if (mk[k] && q.inFrom >= 0) mk[k].inFrom = mk[q.inFrom]; });
   }
-  R.msel.clear(); for (const p of made) R.msel.add(p);
+  const mx = pasteX();
+  R.msel.clear(); for (const p of made.concat(mx)) R.msel.add(p);
   if (UI.tool !== 'select') setTool('select');
-  log('tool', `Pasted ${made.length.toLocaleString('en-US')} particle${made.length === 1 ? '' : 's'}${nch ? `, with ${nch} working part${nch === 1 ? '' : 's'}` : ''}`);
+  log('tool', `Pasted ${(made.length + mx.length).toLocaleString('en-US')} particle${made.length + mx.length === 1 ? '' : 's'}${nch ? `, with ${nch} working part${nch === 1 ? '' : 's'}` : ''}`);
   selChanged();
 }
 /* The particle under the pointer, or failing that the nearest one within maxPx: hot atoms move several
@@ -1744,7 +1757,7 @@ function selXHTML() {
     kv.push(...gyroRows(d.q, m / PHYS.AMU_MEV, o.gam, o.v, o.x, o.y, null));
     kv.push(['Kinetic energy', fmtE(o.KE)], ['Total energy', fmtE(o.KE + m * 1e6)], ['Speed', fmtSpeed(o.v)], ['Lorentz factor γ', fmtNum(o.gam, 4)],
       ['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)],
-      d.hyp ? ['Decays by', `Λ → p π⁻ or n π⁰ inside (mesonic, ${Math.round(100 * hypMesonic(d.Z + d.N + 1))}%), or Λp → np and Λn → nn (non-mesonic: 176 MeV to the two nucleons, which usually break the nucleus)`] : ['Decays to', d.dec.map(([b, ps]) => `${ps.map(t => (XP[t] ? XP[t].lab : ({ 'e-': 'e⁻', 'e+': 'e⁺', nu: 'ν', nub: 'ν̄', g: 'γ', p: 'p', n: 'n', pbar: 'p̄', nbar: 'n̄' })[t] || t)).join(' ')} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
+      d.hyp ? ['Decays by', `Λ → p π⁻ or n π⁰ inside (mesonic, ${Math.round(100 * hypMesonic(d.Z + d.N + 1))}%), or Λp → np and Λn → nn (non-mesonic: 176 MeV to the two nucleons, which usually break the nucleus)`] : ['Decays to', d.dec.map(([b, ps]) => `${ps.map(t => labelOf(item(t))).join(' ')} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
     about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the hydrogen nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, except in the ultra-realistic mode. Bound by ${fmtE(d.Eb * 1e6)}.`
       : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
       : XP_ABOUT[d.hyp ? 'hy' : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg'].find(k => o.sp.startsWith(k)) || 'eta'] || '';
@@ -1773,13 +1786,17 @@ function selXHTML() {
     status = live ? 'In flight' : X.kind === 'flight' || o.hitP || o.landed ? 'Arrived' : nu ? 'Gone: it left the chamber' : 'Gone: it left the chamber, or was absorbed';
   }
   return `<div class="ins-head"><div class="tilebox" style="border-color:${col}"><span class="s">${esc(sym)}</span></div><div><b>${esc(title)}</b><div class="note">${esc(status)}</div></div></div>
-    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${about ? `<p class="note">${esc(about)}</p>` : ''}${X.kind === 'exo' ? quarkSecHTML(qSubject(null, X)) : ''}`;
+    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${about ? `<p class="note">${esc(about)}</p>` : ''}${X.kind === 'exo' ? quarkSecHTML(qSubject(null, X)) : ''}${X.kind === 'exo' && live && !o.xb ? '<div class="row" style="justify-content:flex-start"><button class="btn small" data-act="delx">Delete</button></div>' : ''}`; // (Delete, as an atom's card has: muonic hydrogen and the other particles in flight had none, 1.26)
 }
 function renderInspect() {
   const box = $('tp-inspect');
   if (QV.drag && performance.now() - QV.drag.at < 3000) return; // (pulling a quark: the card stays as it is until it is let go)
   QV.drag = null;
-  if (R.selX && !R.sel) { box.innerHTML = selXHTML(); _insCv = null; restoreScroll('tp-inspect'); return; }
+  if (R.selX && !R.sel) {
+    box.innerHTML = selXHTML(); _insCv = null; restoreScroll('tp-inspect');
+    box.onclick = (e) => { const b = e.target.closest('[data-act="delx"]'); if (!b || !R.selX || R.selX.kind !== 'exo') return; const o = R.selX.o; undoMark('Delete'); if (!o.dead) { o.dead = true; o.fate = 'deleted'; R.msel.delete(o); log('tool', `Deleted ${o.lab}`); } R.selX = null; renderInspect(); }; // (as the Erase tool takes one, 1.26)
+    return;
+  }
   const p = R.sel && !R.sel.dead ? R.sel : null;
   if (!p) {
     box.innerHTML = `<div class="empty"><b>Nothing selected.</b> Pick the Inspect tool (I) and click any particle to see its electron configuration, bonds, nucleus and energies. Photons, neutrinos, and pions, kaons and muons in flight can be clicked too.</div>`;
@@ -1824,7 +1841,7 @@ function renderInspect() {
     if (p.ne > 0 && unpairedOf(p) > 0) pills += `<span class="pill em">paramagnetic</span>`;
     if (FERRO[p.Z] && (p.tLocal || 0) < FERRO[p.Z][0]) pills += `<span class="pill em">ferromagnetic (Curie ${FERRO[p.Z][0]} K)</span>`;
     if (p.anti) pills += `<span class="pill" style="color:${PBAR_COL};border-color:${PBAR_COL}">antimatter: annihilates on contact with matter</span>`;
-    if (p.muB) { const lc = 32 * muZeff(p.Z) ** 4, ld = 1 / 2.197e-6; pills += `<span class="pill hot">muonic atom: a μ⁻ in its innermost orbit, mean life ${fmtTime(1 / (lc + ld))}</span>`; kv.push(['Muon', `bound by ${fmtE(p.muB.Eb)}, 207 times closer in than a 1s electron; captured by the nucleus (μ⁻ + p → n + ν) ${Math.round(100 * lc / (lc + ld))}% of the time, else it decays in orbit`]); } // (a muonic atom showed as a plain atom, 1.26 bug fix)
+    if (p.muB) { const [lc, ld] = muRates(p.Z, p.N); pills += `<span class="pill hot">muonic atom: a μ⁻ in its innermost orbit, mean life ${fmtTime(1 / (lc + ld))}</span>`; kv.push(['Muon', `bound by ${fmtE(p.muB.Eb)}, 207 times closer in than a 1s electron; captured by the nucleus (μ⁻ + p → n + ν) ${Math.round(100 * lc / (lc + ld))}% of the time, else it decays in orbit`]); } // (a muonic atom showed as a plain atom, 1.26 bug fix)
     if (p.ne > 0) {
       kv.push([p.anti ? 'Positrons' : 'Electrons', `${p.ne} (${configString(p.Z, p.ne)})`]);
       kv.push([p.anti ? 'Valence positrons' : 'Valence electrons', String(p.val)]);
@@ -2575,7 +2592,7 @@ function worldToJSON() {
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
   const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, Ez: W.Ez || 0, Bax: W.Bax3 || 'z', z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, xa: W.exo.filter(o => !o.dead && (XP[o.sp].atom || XP[o.sp].stuck)).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0]), magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0]), /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -2598,7 +2615,7 @@ function worldFromJSON(d) {
     if (![x, y, vx, vy].every(Number.isFinite)) { made.push(null); continue; }
     const px = clamp(x, -hw, hw), py = clamp(y, -hh, hh), j3 = made.length, pz = d3 && Number.isFinite(d3.z[j3]) ? clamp(d3.z[j3], -hd, hd) : 0, vz = d3 && Number.isFinite(d3.vz[j3]) ? d3.vz[j3] : 0;
     let p = null;
-    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } p = (anti & 2) && Z === 1 && N === 0 ? addMuonium(px, py, 0, 1, 0, ne) : addNuc(Z, N, ne, px, py, vx, vy, (anti & 1) === 1, pz); if (anti & 2) { p.vx = vx; p.vy = vy; updateFast(p); } if ((anti & 4) && Z >= 2) { const Eb = MU_EB(Z) * MEV; p.muB = { m: MU_M * MEV - Eb, Eb }; W.muBound.push(p); } } // (field 5: 1 antimatter, 2 muonium, 1.12; 4 a muonic atom, whose muon was lost on saving and on undo, 1.26 bug fix)
+    if (k === NUC) { if (!Number.isInteger(Z) || Z < 0 || Z > Z_MAX || !Number.isInteger(N) || N < 0 || N > 400 || !Number.isInteger(ne) || ne < 0 || ne > Z + 3) { made.push(null); continue; } p = (anti & 2) && Z === 1 && N === 0 ? addMuonium(px, py, 0, 1, 0, ne) : addNuc(Z, N, ne, px, py, vx, vy, (anti & 1) === 1, pz); if (anti & 2) { p.vx = vx; p.vy = vy; updateFast(p); } if ((anti & 4) && Z >= 2) { const Eb = MU_EB(Z) * MEV; p.muB = { m: MU_M * MEV - Eb, Eb }; p.m = atomMass(p); p.im = 1 / p.m; W.muBound.push(p); } } // (field 5: 1 antimatter, 2 muonium, 1.12; 4 a muonic atom, whose muon was lost on saving and on undo, 1.26 bug fix)
     else if (k === ELEC || k === POS) p = addLepton(k, px, py, vx, vy, pz, vz);
     if (p && W.d3) { p.vz = vz; if (pz && !p.z) { p.z = pz; p.oz = pz; } updateFast(p); }
     const KE = q[9], v = Math.hypot(vx, vy);
@@ -2607,9 +2624,12 @@ function worldFromJSON(d) {
   }
   let nb = 0;
   for (const b of d.bonds) { if (!Array.isArray(b)) continue; const [i, j, o] = b; const a = made[i], c = made[j]; if (a && c && a !== c && [1, 2, 3].includes(o)) { addBond(a, c, o); nb++; } }
-  if (Array.isArray(d.xa)) for (const q of d.xa.slice(0, MAX_EXO)) { // (muonic hydrogen and (μα)⁺: unstable, in W.exo, they were left out of saves and undo, 1.26 bug fix)
-    if (!Array.isArray(q) || !XP[q[0]] || !(XP[q[0]].atom || XP[q[0]].stuck) || ![q[1], q[2], q[3], q[4], q[5], q[6], q[7]].every(Number.isFinite)) continue;
-    const o = addExo(q[0], clamp(q[1], -hw, hw), clamp(q[2], -hh, hh), Math.max(0, q[4]), q[5], q[6], undefined, W.d3 ? clamp(q[3], -hd, hd) : 0, W.d3 ? q[7] : 0); o.cyc = q[8] | 0;
+  if (Array.isArray(d.xa)) for (const q of d.xa.slice(0, MAX_EXO)) { // (unstable particles: muonic hydrogen and (μα)⁺ since the 1.26 bug fixes, every one since the exotic-particle sweep)
+    if (!Array.isArray(q) || typeof q[0] !== 'string' || ![q[1], q[2], q[3], q[4], q[5], q[6], q[7]].every(Number.isFinite)) continue;
+    const hy = /^hy(\d+)_(\d+)$/.exec(q[0]); if (hy && !XP[q[0]]) hypSpecies(+hy[1], +hy[2]); // (a hypernucleus's entry is made when first needed)
+    if (!XP[q[0]] || q[0] === 'Mu') continue;
+    const m = Number.isFinite(q[9]) && q[9] > 0 ? q[9] : undefined; // (a resonance's own mass, drawn from its width)
+    const o = addExo(q[0], clamp(q[1], -hw, hw), clamp(q[2], -hh, hh), Math.max(0, q[4]), q[5], q[6], m, W.d3 ? clamp(q[3], -hd, hd) : 0, W.d3 ? q[7] : 0); o.cyc = q[8] | 0; if (q[10] & 1) o.stop = true;
   }
   if (Array.isArray(d.magnets)) for (const m of d.magnets.slice(0, 50)) if (m && Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.B)) { const mm = { x: m.x, y: m.y, R: num(m.R, 1, 1000, 10), B: clamp(m.B, -1e9, 1e9) }; if (W.d3) mm.z = num(m.z, -1e4, 1e4, 0); W.magnets.push(mm); } // (3-D: balls with a depth, 1.24)
   if (W.d3) { W.Ez = num(d3.Ez, -50, 50, 0); W.Bax3 = ['x', 'y', 'z'].includes(d3.Bax) ? d3.Bax : 'z'; } // (3-D fields, 1.24)
@@ -3715,7 +3735,8 @@ function fmtBeta(b) {
   if (b < 0.995) return b.toFixed(3) + ' c';
   return Math.min(1 - 1e-9, b).toFixed(Math.min(7, Math.ceil(-Math.log10(1 - b)) + 1)) + ' c';
 }
-const fmtLen = (m) => (m >= 1000 ? fmtNum(m / 1000, 2) + ' km' : m >= 1 ? m.toPrecision(2) + ' m' : m >= 0.01 ? (m * 100).toPrecision(2) + ' cm' : m >= 1e-3 ? (m * 1e3).toPrecision(2) + ' mm' : m >= 1e-6 ? (m * 1e6).toPrecision(2) + ' µm' : (m * 1e9).toPrecision(2) + ' nm');
+const twoFig = (v) => String(Number(v.toPrecision(2))); // (two figures, never as 1.5e+2, 1.26)
+const fmtLen = (m) => (m >= 1000 ? fmtNum(m / 1000, 2) + ' km' : m >= 1 ? twoFig(m) + ' m' : m >= 0.01 ? twoFig(m * 100) + ' cm' : m >= 1e-3 ? twoFig(m * 1e3) + ' mm' : m >= 1e-6 ? twoFig(m * 1e6) + ' µm' : m >= 1e-9 ? twoFig(m * 1e9) + ' nm' : m >= 1e-12 ? twoFig(m * 1e12) + ' pm' : twoFig(m * 1e15) + ' fm'); // (a mean distance of 150 nm read "1.5e+2 nm", a ρ's 1.3 fm "0.0000013 nm", 1.26)
 /* Real-world scale: the same beams in real magnets, and this machine's fields. */
 function scaleNote(C) {
   const A = beamInfo(C.a), B = beamInfo(C.b), R = C.kind === 'ring' && C.rings && C.rings.length ? C.rings : null; // (a ring's own top energy: electrons are held back by radiation)
