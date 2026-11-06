@@ -95,7 +95,7 @@ PARTS.hadrons = async (page, check, say) => {
       r.worst = Math.max(r.worst, Math.abs(books(X) - E0));
       const Es = W.rays.slice(r0).map(q => q.E / 1e3);
       if (sp === 'pi-') { const pieces = W.parts.filter(p => !p.dead && p.k === X.NUC).length; r.starN++; if (pieces >= 3) r.star++; if (Es.some(e => Math.abs(e - 99.1) < 0.2)) r.piKa++; }
-      else { if (Es.some(e => Math.abs(e - 62.9) < 0.2)) r.kKa++; if (W.exo.some(o => !o.dead && (o.sp === 'Lam' || XP_hyp(X, o.sp)))) r.lam++; }
+      else { if (Es.some(e => Math.abs(e - 62.9) < 0.2)) r.kKa++; if (W.exo.some(o => !o.dead && (o.sp === 'Lam' || o.sp === 'Sig+' || o.sp === 'Sig-' || XP_hyp(X, o.sp)))) r.lam++; } // (a Σ too since features 23, 1.27: Σπ two times in three, the Σ often turned into a Λ)
     }
     for (let k = 0; k < 150; k++) {
       fresh(X, d3); const h = X.addAtom('H', 0, 0); h.vx = h.vy = h.vz = 0; X.forcesNoEvents(); W.fSpawn = W.spawned;
@@ -107,7 +107,7 @@ PARTS.hadrons = async (page, check, say) => {
   }
   const P = r.pi0 / Math.max(1, r.g);
   check(r.star >= 0.8 * r.starN && r.piKa === 16 && r.kKa === 16 && r.lam === 16 && r.pi0 + r.g === 300 && Math.abs(P - 1.5) < 0.45 && r.worst < 1e-3,
-    `1.27 realistic particles: π⁻ in carbon cascades (99.1 keV 2p → 1s, ${r.piKa}/16) and makes a star (${r.star} of ${r.starN} in three or more pieces); π⁻p → π⁰n : γn = ${P.toFixed(2)} (Panofsky 1.5, 300 tries); K⁻ in carbon cascades (62.9 keV 3d → 2p) and makes a Λ or a hypernucleus (${r.lam}/16); books within ${r.worst.toExponential(1)} eV`, 'rp1 hadrons: ' + JSON.stringify(r));
+    `1.27 realistic particles: π⁻ in carbon cascades (99.1 keV 2p → 1s, ${r.piKa}/16) and makes a star (${r.star} of ${r.starN} in three or more pieces); π⁻p → π⁰n : γn = ${P.toFixed(2)} (Panofsky 1.5, 300 tries); K⁻ in carbon cascades (62.9 keV 3d → 2p) and makes a Λ, a Σ or a hypernucleus (${r.lam}/16); books within ${r.worst.toExponential(1)} eV`, 'rp1 hadrons: ' + JSON.stringify(r));
 };
 const XP_hyp = (X, sp) => !!(X.XP[sp] && X.XP[sp].hyp);
 
