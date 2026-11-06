@@ -268,7 +268,7 @@ engine stores and visits particles.
     electron transfers.
   - [looked at after 1.25: a model choice, for the owner] In the flat world AsCl₅'s five chlorines bond to each other with bond orders (Cl–Cl orders 0.39); PCl₅ and SbCl₅
     are fine.
-  - In 3-D a fast neutron among waters lets 50–85 eV slip from the energy books over 1,500 steps (48 eV after 1.23.2);
+  - [fixed after 1.25] In 3-D a fast neutron among waters lets 50–85 eV slip from the energy books over 1,500 steps (48 eV after 1.23.2);
     a 100 keV U atom among waters about 1 eV.
   - [fixed after 1.25] In the flat game the open-wall branch of walls() removes particles without booking their energy as escaped.
   - [fixed after 1.25] In the flat game an event that changes a charge in an applied electric field misses −q·E·Δr from the books.
@@ -1000,6 +1000,18 @@ books hashed apart).
   atoms in 3-D (bench-mode's cu3, seed 12, 40 steps): 77 ms a step before, 6.9 after (the many-body model: 76 → 6.7);
   the flat Cu patch 2.3 → 1.0 ms; final states identical. Where the metal does hold ions the walks still run (the flat
   copper of item 1). Fingerprints unchanged. Check: f_bug125 "metal3".
+- 4. A fast neutron among 3-D waters: the large part of the leak found and fixed; a remainder written down. Measured
+  now (2 MeV neutron, 64 waters in an 18 Å box, insulated, 1,500 steps, seeds 1–3): +7,061, +11,823, +9,768 eV before
+  (far more than 1.23.2's 48 eV: since 1.25 its recoils fly and ionize, the cascade makes a dense plasma). The jumps
+  were ±2,400–2,800 eV each, at the moments the count of net charges crossed 220: the long-range Coulomb sum (and the
+  shift inside the cutoff that meets it, 1.09) switches off above 220 (computeForces' _lrOn), changing the energy's
+  definition with nothing physical happening. Now lrFlip books that change (ledger.escaped) at the moment of the
+  switch, measured with the positions and charges then; a new world's first pass sets it without booking. After:
+  +354, −27, +118 eV (seeds 1–3). 110 Na⁺ + 110 Cl⁻ and one more ion: +297 eV across the switch before, 0 after. Left:
+  the remaining tens to hundreds of eV come from that dense plasma's chemistry (impact ionization and recombination
+  around multiply charged clusters, the known limit in CLAUDE.md), not chased. A 100 keV U atom among the waters: +1.5
+  to +15.6 eV over 1,500 steps (1.23.2: about 1 eV; its recoils now fly). Fingerprints unchanged (no setup crosses 220
+  charges in 300 steps); t_energy passes. Check: f_bug125 "lrFlip".
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

@@ -177,6 +177,21 @@ PARTS.metal3 = async (page, check, say) => {
   check(r.atoms > 700 && r.ms < 25, `bug fix 2: ${r.atoms} Cu atoms in 3-D, ${r.ms} ms a step`, 'bugfix metal3: ' + JSON.stringify(r));
 };
 
+/* 4. Crossing 220 net charges switches the long-range Coulomb sum off (or back on): the energy's definition changes
+   there, and the books jumped by the difference (±2,400–2,800 eV at each crossing in a 2 MeV neutron's cascade among
+   3-D waters). Now the change is booked when it happens. 110 Na⁺ and 110 Cl⁻ in a flat box, one more ion made: the
+   books across the force pass that turns the sum off moved by tens of eV before, 0 now. */
+PARTS.lrFlip = async (page, check, say) => {
+  const X = fresh(3), W = X.W; X.setMaxParts(12000);
+  X.baseWorld(160, 160, 300, 0); W.gamma = 0;
+  for (let i = 0; i < 110; i++) { const x = -75 + (i % 11) * 14, y = -70 + Math.floor(i / 11) * 14; const a = X.addAtom('Na', x, y); X.userIonize(a); const b = X.addAtom('Cl', x + 5, y + 3); X.userAddElectron(b); }
+  for (const p of W.parts.filter(q => q.k === X.ELEC)) X.kill(p);
+  const n = X.addAtom('Na', 76, 76); X.forcesNoEvents(); W.fSpawn = W.spawned;
+  const on0 = X._lrOn; X.userIonize(n); for (const p of W.parts.filter(q => q.k === X.ELEC && !q.dead)) X.kill(p);
+  const E0 = books(X); X.forcesNoEvents(); const r = { charges: X._charged.length, on0, on1: X._lrOn, books: +(books(X) - E0).toFixed(4) };
+  check(r.on0 && !r.on1 && Math.abs(r.books) < 1e-6, `bug fix 4: ${r.charges} net charges switch the long-range sum off; the books keep across it (${r.books} eV)`, 'bugfix lrFlip: ' + JSON.stringify(r));
+};
+
 // PARTS (added one per fix, below)
 
 module.exports = async function fbug125(page, check, say, openPage, only) {

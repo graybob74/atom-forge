@@ -4121,6 +4121,16 @@ function pairNonbondedV(a, b, r) { // LJ + Coulomb between two atoms (energy tha
 /* Coulomb energies inside the cutoff are shifted to zero at RC, except between net charges whose
    long-range part is summed exactly beyond it — so crossing the cutoff never creates energy. */
 let _lrOn = false;
+/* (bug fix 4 after 1.25) The long-range sum is on while there are at most 220 net charges: crossing that count changes
+   the energy's definition (the sum beyond the cutoff, and the shift inside it, 1.09) by up to keV in a dense plasma,
+   with nothing physical happening: a fast neutron's cascade among 3-D waters made 221 charges and the books jumped by
+   ±2,400–2,800 eV at each crossing. The change is booked (ledger.escaped), measured with the positions and charges of
+   the moment, so the books stay continuous; the forces switch as before. */
+function lrFlip(on) {
+  if (W.parts.length < 2 || typeof totalEnergy !== 'function') { _lrOn = on; return; }
+  const a = totalEnergy().pe; _lrOn = on; const b = totalEnergy().pe;
+  W.ledger.escaped -= b - a;
+}
 function isLR(p) { return p.k !== NUC || Math.abs(p.q) >= 1; }
 /* Charge of a as felt by b. Free electrons and positrons see net charges only: partial charges stand for
    bond dipoles, whose weak pull on a free electron is outweighed close up by Pauli repulsion from the
@@ -5315,8 +5325,8 @@ function computeForces1() {
     }
   }
   // exact long-range Coulomb between net charges beyond the cutoff (when few enough)
-  const nch = _charged.length;
-  _lrOn = nch <= 220 && W.wall !== 'wrap';
+  const nch = _charged.length, lrNow = nch <= 220 && W.wall !== 'wrap';
+  if (lrNow !== _lrOn && W.lrKnown) lrFlip(lrNow); else { _lrOn = lrNow; W.lrKnown = true; } // (a new world's first pass sets it: nothing to book)
   if (_lrOn && d3) longRange3();
   else if (_lrOn) {
     for (let i = 0; i < nch; i++) {
@@ -10798,7 +10808,7 @@ function clearWorld() {
   _Tb = 0; // (a new world: the bath it has followed is its own)
   W.d3 = false; W.box.d = 0; W.box.td = 0; W.box.ud = 0; W.Ez = 0; W.Bax3 = 'z'; // (a new world is flat; world3d makes it 3-D; Ez, Bax3: 3-D fields, 1.24)
   if (PI.cap) { PI.ox = PI.oy = PI.vx = PI.vy = PI.fx = PI.fy = PI.oz = PI.vz = PI.fz = PI.id = null; PI.cap = 0; PI.n = 0; PIM.valid = false; PIM.vStale = false; PIM.qx = null; PIM.qz = null; } // (quantum nuclei: a new world's rings are made afresh, flat or with depth, 1.24)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.muAtoms = []; W.at = W.at || 0;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.lrKnown = false; W.muAtoms = []; W.at = W.at || 0;
   _rxCache.clear();
 }
 /* Make the (empty) world 3-D, depth d Å (by default as deep as it is high): positions from −d/2 to +d/2 in z, walls on
