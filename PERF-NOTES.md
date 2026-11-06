@@ -488,6 +488,13 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
   running, 96 counted at the explicit save, 87 saved at the reload and 87 brought back by Continue. The check now pauses
   first (t_features' 1.23.1 block); Continue itself unchanged.
 
+Suite (branch v139 at e0025bc): t_lint, t_3d, t_settings, t_energy pass alone; t_page alone failed its slow-motion
+button check once (the known flake) and passed in the lanes; `tools/runtests.sh` (two lanes, load 5–10 from another
+session's tests): every suite passed but t_features' f_bug125 "exoElastic" timing check (3.5 ms under the load against its
+limit; 0.86 ms alone, passes), the known f_bug125 timing flake. t_features alone earlier: 1.25 labels3d's hover count 0
+once (passes alone and in the lanes run). Fingerprints (59 setups, seed 7, 300 steps): identical to v136 after every
+engine change (items 15; nothing else touched the engine).
+
 **Settings audit** (both modes; every choice of every row set through setSetting in Liquid water and in Molecules in
 space, the engine's or the drawing's own variable read back, a frame drawn; the Experimental rows also run 10 steps in
 water, Molecules in space and Salt in water, 3-D; then 64 settings set off their normal, the page reloaded: every
