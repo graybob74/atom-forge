@@ -2722,3 +2722,248 @@ function hfInto(hq, fx, fixed, mN) { // the heavy hadrons into hadronize's fixed
   }
   return m;
 }
+
+/* ---- Realistic particles 6: nuclear spin, γ lines and neutron cross sections (1.27, Experimental: Settings →
+   Experimental → Realistic particles → Nuclear spin, γ lines and neutron cross sections; approved by the owner,
+   2026-11-05). Off (RP.nuc false), nothing here runs and every setup is as before, bit for bit. Data are measured values
+   as I know them (no network here: NNDC/ENSDF, Stone's table of nuclear moments 2005, Mughabghab's Atlas of neutron
+   resonances; each worth a check, PERF-NOTES lists them). On:
+   - Spin (NUC_SPIN). Each nucleus has its ground-state spin I and magnetic moment μ (in nuclear magnetons μN); nuclei
+     with even Z and even N have none (I = 0, no exception); others not in the table say so. Its gyromagnetic ratio
+     γ/2π = μ/(I·h)·μN = 7.6226 MHz/T × μ/I (¹H 42.577, ¹³C 10.708, the neutron −29.16). In a magnetic field B it
+     precesses at the Larmor frequency f = |γ/2π|·B. NMR (nmrPulse, nmrTick): a 90° pulse tips the spins of every
+     nucleus of one kind in the box into the plane; each then turns at the Larmor frequency of the field where it is
+     (Bfield: the Lab's field and the magnets), step by step on the simulation's clock, and the free-induction signal is
+     their sum; its frequency is read from the signal's phase over the time since the pulse (nmrRead). At 1 T one turn of
+     a proton takes 23.5 ns, two million steps: the readout measures the phase it has turned so far. Not modelled: the
+     Zeeman energy (μB, 9×10⁻⁸ eV for a proton at 1 T, the pulse's radio wave pays it; not in the books), chemical shifts
+     and spin–spin couplings, relaxation (T₁, T₂).
+   - γ lines (GL_FEED, GL_LEV, GL_CAP, GL_ISO). A decay that feeds an excited level of its daughter (β⁻, β⁺, EC, α) gives
+     its particle the energy less the level's, and the level gives off its measured cascade of γ lines; a line converts
+     (its energy to an atomic electron, less that shell's binding, then the shell's X-rays) with its measured
+     coefficient α at α/(1 + α), only while the atom has electrons; an isomer keeps its energy (out of the books' nuclear
+     ledger until it decays) and decays on the decay clock with its half-life. A neutron capture gives off the measured
+     cascade of the compound nucleus: its low lines exactly, the primary γ what is left (the capture energy less the
+     recoils). ¹⁰B(n,α)⁷Li leaves ⁷Li at 478 keV 94% of the time. Elsewhere (no data) as before: one γ for a capture,
+     the decay's particles taking all. The γ rays carry their momentum (the nucleus recoils).
+   - Neutron cross sections (NXS). A neutron meeting a nucleus: capture, fission, (n,p), (n,α), (n,t) and elastic
+     scattering in the shares of their measured cross sections at its energy (thermal values, 1/v for the absorptions
+     below the resonances, the big resonances as single-level Breit–Wigner shapes; scattering constant), joining the
+     present table's fast shares from 1 keV to 100 keV. In the normal view nuclei are met as they are drawn, enlarged:
+     a neutron meets each about as often, and the cross sections decide what the meeting does (their shares). With
+     Ultra-realistic on (true sizes), a nucleus is met inside its measured cross section, √(σ_tot/π) in radius, so the
+     rates themselves are measured (¹⁰B takes thermal neutrons 11,600 times as readily as ¹H). */
+const NUC_SPIN = { // 'Z_N': [2I, μ (μN)]
+  '0_1': [1, -1.91304], '1_0': [1, 2.79285], '1_1': [2, 0.857438], '1_2': [1, 2.97896], '2_1': [1, -2.12762], '3_3': [2, 0.822047], '3_4': [3, 3.25644],
+  '4_5': [3, -1.1778], '5_5': [6, 1.80064], '5_6': [3, 2.68865], '6_7': [1, 0.702412], '7_7': [2, 0.403761], '7_8': [1, -0.283189], '8_9': [5, -1.89379],
+  '9_10': [1, 2.628868], '10_11': [3, -0.661797], '11_12': [3, 2.217522], '12_13': [5, -0.85545], '13_14': [5, 3.641507], '14_15': [1, -0.55529],
+  '15_16': [1, 1.13160], '16_17': [3, 0.643821], '17_18': [3, 0.821874], '17_20': [3, 0.684124], '19_20': [3, 0.391466], '19_21': [8, -1.298100],
+  '19_22': [3, 0.214870], '20_23': [7, -1.31727], '21_24': [7, 4.756487], '22_25': [5, -0.78848], '22_27': [7, -1.10417], '23_28': [7, 5.1487],
+  '24_29': [3, -0.47454], '25_30': [5, 3.4532], '26_31': [1, 0.09062], '27_32': [7, 4.627], '27_33': [10, 3.799], '28_33': [3, -0.75002],
+  '29_34': [3, 2.2273], '29_36': [3, 2.3817], '30_37': [5, 0.875479], '34_43': [1, 0.53506], '35_44': [3, 2.106400], '35_46': [3, 2.270562],
+  '37_48': [5, 1.35302], '37_50': [3, 2.75131], '38_49': [9, -1.0936], '39_50': [1, -0.1374154], '42_53': [5, -0.9142], '43_56': [9, 5.6847],
+  '45_58': [1, -0.8840], '47_60': [1, -0.11368], '47_62': [1, -0.130691], '48_63': [1, -0.594886], '48_65': [1, -0.622301], '50_69': [1, -1.04728],
+  '53_74': [5, 2.813273], '54_75': [1, -0.7779763], '54_77': [3, 0.6918619], '55_78': [7, 2.582025], '55_82': [7, 2.8413], '64_91': [3, -0.2591],
+  '64_93': [3, -0.3399], '78_117': [1, 0.60952], '79_118': [3, 0.145746], '80_119': [1, 0.5058855], '81_124': [1, 1.6382134], '82_125': [1, 0.592583],
+  '83_126': [9, 4.1103], '92_143': [7, -0.38], '94_145': [1, 0.203],
+};
+const MUN_MHZ = 7.6225932; // μN/h, MHz per tesla
+function nucSpin(Z, N) { // { I, mu, f: γ/2π (MHz/T) } or null (not in the table)
+  const d = NUC_SPIN[Z + '_' + N];
+  if (d) return { I: d[0] / 2, mu: d[1], f: MUN_MHZ * d[1] / (d[0] / 2) };
+  return Z % 2 === 0 && N % 2 === 0 ? { I: 0, mu: 0, f: 0 } : null;
+}
+const spinTxt = (I) => (I % 1 ? `${Math.round(2 * I)}/2` : String(I)).replace(/^1\/2$/, '½');
+function nmrPulse(Z, N) { // a 90° pulse on every nucleus of the kind (Z, N) in the box
+  const s = nucSpin(Z, N); if (!s || !s.mu) return null;
+  const ps = W.parts.filter(p => !p.dead && p.k === NUC && p.Z === Z && p.N === N && !p.anti && !p.mu);
+  for (const p of ps) p.nph = 0;
+  W.nmr = { Z, N, f: s.f, ps, t: 0, re: ps.length, im: 0, arg: 0, B: 0, n0: ps.length };
+  return W.nmr;
+}
+function nmrTick(dt) { // the spins turn (each at the Larmor frequency of its own field) and the signal is their sum
+  const G = W.nmr, h = dt * PHYS.TU_S, w = -2 * Math.PI * G.f * 1e6 * h; // (a positive moment turns clockwise about B)
+  let re = 0, im = 0, B = 0, n = 0;
+  for (const p of G.ps) { if (p.dead || p.Z !== G.Z || p.N !== G.N) continue; const b = Bfield(p.x, p.y, p); p.nph += w * b; re += Math.cos(p.nph); im += Math.sin(p.nph); B += b; n++; }
+  let d = Math.atan2(im, re) - Math.atan2(G.im, G.re); if (d > Math.PI) d -= 2 * Math.PI; else if (d < -Math.PI) d += 2 * Math.PI;
+  G.arg += d; G.re = re; G.im = im; G.t += h; G.B = n ? B / n : 0; G.n = n;
+}
+function nmrRead() { const G = W.nmr; if (!G || !(G.t > 0)) return null; return { f: Math.abs(G.arg) / (2 * Math.PI * G.t), B: G.B, amp: G.n ? Math.hypot(G.re, G.im) / G.n : 0, n: G.n, t: G.t, Z: G.Z, N: G.N }; }
+
+/* γ lines (keV), ENSDF as I know it. GL_FEED: a decaying parent 'Z_N' → [share, the daughter's level fed (keV), the
+   daughter's mode it applies to] (the rest to the ground state); GL_LEV: a nucleus 'Z_N' → { level: [[share, [lines in
+   order]], …] }; GL_ISO: an isomer 'Z_N' → [level (keV), half-life (s)]; GL_CONV: 'Z_N:line' → α (total conversion
+   coefficient); GL_SHELL: Z → [K, L] binding (keV); GL_CAP: the nucleus a capture makes 'Z_N' → [[share, lines]], 'P'
+   the primary γ (what is left), 'S' the same split in two. */
+const GL_FEED = {
+  '27_33': [[0.9988, 2505.692], [0.0012, 1332.508]], // ⁶⁰Co β⁻ → ⁶⁰Ni
+  '55_82': [[0.9436, 661.659]], // ¹³⁷Cs β⁻ → ¹³⁷ᵐBa
+  '11_11': [[0.9994, 1274.537]], // ²²Na β⁺/EC → ²²Ne
+  '19_21': [[0.9953, 1460.851, 'ec']], // ⁴⁰K EC → ⁴⁰Ar (its β⁻ to the ground state)
+  '53_78': [[0.896, 364.490], [0.072, 636.989], [0.021, 722.911]], // ¹³¹I β⁻ → ¹³¹Xe
+  '42_57': [[0.876, 142.683]], // ⁹⁹Mo β⁻ → ⁹⁹ᵐTc
+  '95_146': [[0.846, 59.541], [0.131, 102.959]], // ²⁴¹Am α → ²³⁷Np
+  '88_138': [[0.0595, 186.211]], // ²²⁶Ra α → ²²²Rn
+  '11_13': [[0.9994, 4122.889]], // ²⁴Na β⁻ → ²⁴Mg
+  '13_15': [[1, 1778.969]], // ²⁸Al β⁻ → ²⁸Si
+  '25_31': [[0.566, 846.770], [0.279, 2657.565], [0.146, 2959.92]], // ⁵⁶Mn β⁻ → ⁵⁶Fe
+  '27_30': [[0.998, 136.474]], // ⁵⁷Co EC → ⁵⁷Fe
+  '7_9': [[0.66, 6129.89], [0.048, 7116.85]], // ¹⁶N β⁻ → ¹⁶O
+};
+const GL_LEV = {
+  '28_32': { 2505.692: [[1, [1173.228, 1332.492]]], 1332.508: [[1, [1332.492]]] },
+  '56_81': { 661.659: [[1, [661.657]]] },
+  '10_12': { 1274.537: [[1, [1274.537]]] },
+  '18_22': { 1460.851: [[1, [1460.820]]] },
+  '54_77': { 364.490: [[1, [364.490]]], 636.989: [[1, [636.989]]], 722.911: [[1, [722.911]]] },
+  '43_56': { 142.683: [[1, [2.1726, 140.511]]] },
+  '93_144': { 59.541: [[1, [59.541]]], 102.959: [[1, [43.420, 59.541]]] },
+  '86_136': { 186.211: [[1, [186.211]]] },
+  '12_12': { 4122.889: [[1, [2754.007, 1368.626]]] },
+  '14_14': { 1778.969: [[1, [1778.969]]] },
+  '26_30': { 846.770: [[1, [846.770]]], 2657.565: [[1, [1810.726, 846.770]]], 2959.92: [[1, [2113.092, 846.770]]] },
+  '26_31': { 136.474: [[0.893, [122.061, 14.413]], [0.107, [136.474]]] },
+  '8_8': { 6129.89: [[1, [6128.63]]], 7116.85: [[1, [7115.15]]] },
+  '3_4': { 477.603: [[1, [477.603]]] },
+};
+const GL_ISO = { '56_81': [661.659, 153.12], '43_56': [142.683, 21624.1] }; // ¹³⁷ᵐBa 2.552 min, ⁹⁹ᵐTc 6.0067 h
+const GL_CONV = { '56_81:661.657': 0.1124, '43_56:140.511': 0.1218, '43_56:2.1726': 1e9, '93_144:59.541': 1.15, '93_144:43.42': 25, '86_136:186.211': 0.69, '26_31:14.413': 8.2, '26_31:122.061': 0.024, '64_94:79.51': 5.9, '64_94:181.94': 0.32, '48_66:558.46': 0.0055 };
+const GL_SHELL = { 26: [7.112, 0.845], 43: [21.044, 3.043], 48: [26.711, 4.018], 56: [37.441, 5.989], 64: [50.239, 8.376], 86: [98.404, 18.049], 93: [118.678, 21.757] };
+const GL_CAP = {
+  '1_1': [[1, ['P']]], // ¹H(n,γ): one 2,224.6 keV γ (less its recoil)
+  '6_7': [[0.68, ['P']], [0.32, ['P', 1261.8]]], // ¹²C(n,γ)¹³C: 4,945 keV, or 3,684 + 1,262 (a third)
+  '7_8': [[0.143, ['P']], [0.107, ['P', 5269.2]], [0.145, ['P', 3677.7, 5269.2]], [0.166, ['P', 6322.4]], [0.196, ['P', 5297.8]], [0.093, ['P', 7299.0]], [0.042, ['P', 8310.2]]], // ¹⁴N(n,γ)¹⁵N: 10.83 MeV straight to the ground state (14%), else through the levels at 5.27, 5.30, 6.32, 7.30, 8.31 MeV
+  '48_66': [[0.52, ['S', 558.46]], [0.14, ['S', 651.26, 558.46]], [0.08, ['S', 805.9, 558.46]], [0.26, ['S']]], // ¹¹³Cd(n,γ)¹¹⁴Cd: 558 keV in about 3 of 4
+  '64_94': [[0.6, ['S', 181.94, 79.51]], [0.3, ['S', 79.51]], [0.1, ['S']]], // ¹⁵⁷Gd(n,γ)¹⁵⁸Gd: 79.5 keV (mostly converted), 181.9 keV
+};
+function glCascade(Z, N, lev) { const L = GL_LEV[Z + '_' + N]; const c = L && L[lev]; return c ? pickBr(c) : null; }
+function glFeed(Z, N, mode) { // the level of the daughter a decay feeds: { lev (keV), lines, iso } or null (the ground state, or no data)
+  const F = GL_FEED[Z + '_' + N]; if (!F) return null;
+  const dZ = { 'b-': 1, 'b+': -1, ec: -1, a: -2 }[mode], dN = { 'b-': -1, 'b+': 1, ec: 1, a: -2 }[mode];
+  if (dZ === undefined) return null;
+  let u = rnd();
+  for (const [sh, lev, only] of F) {
+    if (only && only !== mode) continue;
+    u -= sh; if (u >= 0) continue;
+    const Zd = Z + dZ, Nd = N + dN, iso = GL_ISO[Zd + '_' + Nd];
+    if (iso && Math.abs(iso[0] - lev) < 1e-6) return { lev, iso: true, t12: iso[1], Z: Zd, N: Nd };
+    const lines = glCascade(Zd, Nd, lev); return lines ? { lev, lines, Z: Zd, N: Nd } : null;
+  }
+  return null;
+}
+function glDir() { if (W.d3) { const u = rndDir(); return [u[0], u[1], u[2]]; } const t = rnd() * 2 * Math.PI; return [Math.cos(t), Math.sin(t), 0]; }
+/* The lines of a cascade from nucleus p (now Z, N): each converts (its atom's electron, rnd against α) or is a γ ray
+   whose momentum recoils the nucleus. The electrons are made at once; the rays are returned to be sent off after the
+   books are read (what they meet is then outside the event, as every event's photons): [[E (eV), ux, uy, uz], …].
+   'P' / 'S' (a capture's primary γ: eP keV its estimate, for the recoil) are filled by glFire with what the books
+   leave; fill: the last line is left open too (an isomer's), as a ray ('P') or, converted, as its electron (rays.fillE). */
+function glPrep(p, lines, eP = 0, fill = false) {
+  const rays = [], k = PHYS.MEV_C_TO_SIM / 1e6, Z = p.Z, N = p.N;
+  const kick = (E, d) => { p.vx -= E * k / p.m * d[0]; p.vy -= E * k / p.m * d[1]; if (W.d3) p.vz -= E * k / p.m * d[2]; updateFast(p); }; // (its momentum E/c: the nucleus recoils)
+  for (let i = 0; i < lines.length; i++) {
+    const L = lines[i], last = fill && i === lines.length - 1;
+    if (L === 'P' || L === 'S') { const d = glDir(); kick(eP * 1e3, d); rays.push([L, ...d]); continue; }
+    const E = L * 1e3, a = GL_CONV[Z + '_' + N + ':' + L], sh = GL_SHELL[Z];
+    if (a && sh && p.ne > 0 && rnd() < a / (1 + a)) { // converted: an electron of the K shell if the line can free one, else the L shell, else an outer one
+      const B = (L > sh[0] ? sh[0] : L > sh[1] ? sh[1] : 0) * 1e3, d = glDir(); // (an outer shell's: its binding, a few eV, is in the atom's own books)
+      p.ne--; refresh(p);
+      if (W.parts.length < MAX_PARTS) { const e = addLepton(ELEC, p.x + d[0] * 0.2, p.y + d[1] * 0.2, 0, 0, (p.z || 0) + d[2] * 0.2); setMotion(e, Math.max(1, E - B), d[0], d[1], p.vx, p.vy, d[2], p.vz || 0); (rays.elecs || (rays.elecs = [])).push(e); if (last) rays.fillE = e; }
+      if (B > sh[1] * 1e3 + 1) rays.push([(sh[0] - sh[1]) * 1e3, ...glDir()], [sh[1] * 1e3, ...glDir()]); // (the K hole refilled: a Kα, then the L shell's line)
+      else if (B > 1e3) rays.push([B, ...glDir()]);
+      continue;
+    }
+    const d = glDir(); kick(E, d); rays.push([last ? 'P' : E, ...d]);
+  }
+  return rays;
+}
+const glSum = (rays) => rays.reduce((t, r) => t + (typeof r[0] === 'number' ? r[0] : 0), 0);
+function glFire(rays, x, y, z, p, rest) { // rest: what the books leave for the open rays ('P', 'S') or the open electron (eV). Returns the γ energies sent
+  const open = rays.filter(r => typeof r[0] !== 'number').length, out = [];
+  if (!open && rays.fillE && !rays.fillE.dead) { const e = rays.fillE, v = Math.hypot(e.vx, e.vy, e.vz || 0) || 1; setMotion(e, Math.max(1, keOf(e) + rest), e.vx / v, e.vy / v, 0, 0, (e.vz || 0) / v, 0); }
+  for (const r of rays) {
+    let E = r[0];
+    if (E === 'S') { const f = 0.3 + 0.4 * rnd(), d = glDir(); emitPhoton(x, y, rest / open * f, d[0], d[1], { src: p, z, uz: d[2] }); out.push(rest / open * f); E = rest / open * (1 - f); }
+    else if (E === 'P') E = rest / open;
+    emitPhoton(x, y, E, r[1], r[2], { src: p, z, uz: r[3] }); out.push(E);
+  }
+  return out;
+}
+function nxCapture(T, S, E0, x, y, z) { // a neutron captured (T now the compound nucleus, at the pair's velocity): its measured cascade (null: no data, as before)
+  const cap = GL_CAP[T.Z + '_' + T.N]; if (!cap) return null;
+  const lines = pickBr(cap), fixed = lines.reduce((t, l) => t + (typeof l === 'number' ? l : 0), 0), nOpen = lines.filter(l => typeof l !== 'number').length || 1, eP = (E0 / 1e3 - fixed) / nOpen;
+  if (!(eP > 1)) return null;
+  const rays = glPrep(T, lines, eP), k = PHYS.MEV_C_TO_SIM / 1e3;
+  if (0.5 * T.m * (eP * k / T.m) ** 2 > 20) for (const bd of T.bonds.slice()) removeBond(bd); // (the primary's recoil breaks its bonds, as before)
+  updateFast(T);
+  const Qm = nucMassLoss(S), out = glFire(rays, x, y, z, T, nucLeft(S, Qm) - glSum(rays));
+  W.ledger.nuc += Qm;
+  return out.sort((u, v) => v - u);
+}
+/* An isomer (p.iso: { lev (keV), t12 (s), Z, N }) decays on the decay clock (decayStep) by its transition to the ground state. */
+function isoStep(p, dtNuc) {
+  if (!(dtNuc > 0)) return;
+  const I = p.iso;
+  if (p.Z !== I.Z || p.N !== I.N || p.anti) { delete p.iso; return; } // (changed by some other event: its energy went with that one)
+  if (!(rnd() < 1 - Math.exp(-LN2 / I.t12 * dtNuc))) return;
+  const lines = glCascade(p.Z, p.N, I.lev) || [I.lev], x = p.x, y = p.y, z = p.z || 0, lbl = nucSym(p.Z, p.N), ml = isoLabel(p), ne0 = p.ne;
+  const S = nucBegin([p]); delete p.iso;
+  W.ledger.nuc += I.lev * 1e3; W.count.decay++;
+  const rays = glPrep(p, lines, 0, true);
+  glFire(rays, x, y, z, p, nucLeft(S, I.lev * 1e3) - glSum(rays));
+  const txt = `Isomeric transition: ${ml} → ${lbl} + ${p.ne < ne0 ? 'e⁻' : 'γ'}`;
+  log('nuc', `${txt} (${fmtE(I.lev * 1e3)}, ${lines.map(l => fmtE(l * 1e3)).join(' + ')})`); nucEvent('decay', x, y, txt, [ghostOf(p)], `${fmtE(I.lev * 1e3)}, half-life ${fmtTime(I.t12)}${boostTag()}`, undefined, z);
+}
+const isoLabel = (p) => `${sup(p.Z + p.N)}ᵐ${ELEMENTS[p.Z].sym}`;
+function glKeep(p, gl) { // a decay's fed level: its isomer keeps the energy, or its lines are made ready (the caller reads the books, then glFire)
+  if (gl.iso) { p.iso = { lev: gl.lev, t12: gl.t12, Z: p.Z, N: p.N }; W.ledger.nuc -= gl.lev * 1e3; return { rays: [], sum: 0, iso: gl.lev * 1e3, txt: ` (to ${isoLabel(p)}, ${fmtE(gl.lev * 1e3)})` }; }
+  const rays = glPrep(p, gl.lines);
+  return { rays, sum: glSum(rays), iso: 0, txt: gl.lines.map(l => ` + γ ${fmtE(l * 1e3)}`).join('') };
+}
+
+/* Neutron cross sections (barns at 0.0253 eV, Mughabghab's Atlas / ENDF as I know them): s scattering (free atom), c
+   (n,γ), f fission, p (n,p), a (n,α), t (n,t); r: a resonance [E₀ (eV), Γ (eV), share of the thermal capture it
+   carries (1: all of it, the rest 1/v), its peak (n,γ) σ (b) when the thermal value is mostly 1/v]. */
+const NXS = {
+  '1_0': { s: 20.49, c: 0.3326 }, '1_1': { s: 3.39, c: 0.000519 }, '2_1': { s: 3.1, p: 5333 }, '3_3': { s: 0.75, t: 940, c: 0.039 }, '3_4': { s: 0.97, c: 0.0454 },
+  '4_5': { s: 6.15, c: 0.0076 }, '5_5': { s: 2.23, a: 3837, c: 0.5 }, '5_6': { s: 5.0, c: 0.0055 }, '6_6': { s: 4.75, c: 0.00353 }, '6_7': { s: 4.84, c: 0.00137 },
+  '7_7': { s: 10.05, c: 0.075, p: 1.83 }, '7_8': { s: 5.2, c: 0.000024 }, '8_8': { s: 4.23, c: 0.00019 }, '8_9': { s: 3.6, a: 0.257, c: 0.00054 },
+  '9_10': { s: 4.02, c: 0.0096 }, '11_12': { s: 3.28, c: 0.53 }, '12_12': { s: 3.9, c: 0.053 }, '13_14': { s: 1.50, c: 0.231 }, '14_14': { s: 2.12, c: 0.177 },
+  '15_16': { s: 3.31, c: 0.172 }, '16_16': { s: 1.0, c: 0.53 }, '17_18': { s: 21.8, c: 43.6, p: 0.44 }, '20_20': { s: 3.0, c: 0.41 }, '26_30': { s: 12.4, c: 2.59 },
+  '27_32': { s: 5.6, c: 37.18 }, '28_30': { s: 26.1, c: 4.6 }, '29_34': { s: 5.2, c: 4.5 }, '48_65': { s: 12.4, c: 20600, r: [0.178, 0.113, 1] },
+  '49_66': { s: 2.6, c: 202, r: [1.457, 0.075, 0, 28000] }, '54_81': { s: 4, c: 2.65e6, r: [0.084, 0.112, 1] }, '62_87': { s: 200, c: 40140, r: [0.0973, 0.0637, 1] },
+  '64_91': { s: 60, c: 60900, r: [0.0268, 0.108, 1] }, '64_93': { s: 1044, c: 254000, r: [0.0314, 0.107, 1] }, '79_118': { s: 7.9, c: 98.65, r: [4.906, 0.1524, 0, 27200] },
+  '82_126': { s: 11.5, c: 0.00049 }, '90_142': { s: 13.0, c: 7.35 }, '92_141': { s: 12.7, f: 531, c: 45.5 }, '92_143': { s: 15.0, f: 585.1, c: 98.7 },
+  '92_146': { s: 9.3, c: 2.68, r: [6.674, 0.0245, 0, 22500] }, '94_145': { s: 7.9, f: 747.4, c: 270.7 }, '94_147': { s: 11, f: 1012, c: 361 },
+};
+const NXS_T = 0.0253, NXS_LO = 1e3, NXS_HI = 1e5; // (eV: thermal; the measured shares up to 1 keV, the fast table's from 100 keV)
+function nxsBW(r, E) { return Math.sqrt(r[0] / E) * (r[1] * r[1] / 4) / ((E - r[0]) ** 2 + r[1] * r[1] / 4); } // (single-level shape, 1 at its peak)
+function nxsAt(d, E) { // σ (b) by channel at E (eV)
+  const v = Math.sqrt(NXS_T / Math.max(1e-6, E)), o = { s: d.s, c: 0, f: (d.f || 0) * v, p: (d.p || 0) * v, a: (d.a || 0) * v, t: (d.t || 0) * v };
+  if (d.r) { const r = d.r, pk = r[2] ? d.c * r[2] / nxsBW(r, NXS_T) : r[3], res = pk * nxsBW(r, E), resT = pk * nxsBW(r, NXS_T); o.c = res + Math.max(0, d.c - resT) * v; }
+  else o.c = d.c * v;
+  return o;
+}
+function nxsShares(Z, N, E, X) { // the shares of a meeting (null: no data, the present table decides)
+  const d = NXS[Z + '_' + N]; if (!d) return null;
+  const sh = (o) => { const tot = o.s + o.c + o.f + o.p + o.a + o.t; return { pf: o.f / tot, pc: o.c / tot, pnp: o.p / tot, pna: o.a / tot, pnt: o.t / tot }; };
+  const lo = sh(nxsAt(d, Math.min(E, NXS_LO)));
+  if (E <= NXS_LO) return lo;
+  const fast = X ? { pf: X.fis ? (X.fisThr && E < X.fisThr ? 0 : X.fis[1]) : 0, pc: X.cap ? X.cap[1] : 0, pnp: X.np ? X.np[1] : 0, pna: X.na ? X.na[1] : 0, pnt: X.nt ? X.nt[1] : 0 } : { pf: 0, pc: Math.min(lo.pc, 0.004), pnp: 0, pna: 0, pnt: 0 };
+  const g = clamp(Math.log(E / NXS_LO) / Math.log(NXS_HI / NXS_LO), 0, 1), out = {};
+  for (const k in lo) out[k] = lo[k] + (fast[k] - lo[k]) * g;
+  return out;
+}
+function nxsSigma(Z, N, E) { const d = NXS[Z + '_' + N]; if (!d) return 0; const o = nxsAt(d, Math.min(E, NXS_LO)); return o.s + o.c + o.f + o.p + o.a + o.t; }
+function nxsReach(n, T) { // true size (Ultra-realistic): met inside the measured cross section, √(σ/π) (1 b = 10⁻⁸ Å²); else the present reach
+  const v = W.d3 ? [T.vx, T.vy, T.vz] : velOf(T), dx = n.vx - v[0], dy = n.vy - v[1], dz = W.d3 ? n.vz - v[2] : 0, E = 0.5 * PHYS.MN * (dx * dx + dy * dy + dz * dz), sg = E < NXS_HI ? nxsSigma(T.Z, T.N, E) : 0;
+  return sg > 0 ? Math.min(0.9, Math.sqrt(sg * 1e-8 / Math.PI)) : nucReach(n, T);
+}
+function capDone(T, lbl, gh, x, y, z, gs) { // (the capture's log and counts, its lines named)
+  const txt = `Neutron capture: ${lbl} + n → ${nucSym(T.Z, T.N)} + ${gs.length > 1 ? gs.length + ' γ' : 'γ'}`;
+  W.count.ncap++; flash(x, y, [200, 220, 255], 3, 0.4, z);
+  log('nuc', `${txt} (${gs.map(e => fmtE(e)).join(' + ')})`);
+  nucEvent('capture', x, y, txt, gh, `γ lines ${gs.map(e => fmtE(e)).join(', ')}`, undefined, z);
+  chainEdge(T.Z, T.N - 1, T.Z, T.N, 'ncap', T.anti);
+  noteMade([{ Z: T.Z, N: T.N, anti: !!T.anti }], [], txt);
+  return true;
+}

@@ -1819,6 +1819,7 @@ function renderInspect() {
       <div><div class="ins-title">Neutron</div><div class="ins-sub">Baryon · udd quarks · 939.6 MeV/c²</div></div></div>`;
     pills = `<span class="pill hot">t½ 10.2 min (β⁻ → p + e⁻ + ν̄)</span>`;
     kv.push(['Kinetic energy', fmtE(ke)], ['Speed', fmtSpeed(speed)], ['Kind', ke < 1 ? 'thermal (slow)' : ke < 1e5 ? 'epithermal' : 'fast']);
+    if (RP.nuc) kv.push(...nucSpinRows(p)); // (Realistic particles 6, 1.27)
     extra = `<p class="note">With no charge, neutrons pass through electron clouds and only interact when they meet a nucleus or another neutron: scattering, capture or fission (and above about 300 MeV, pions).</p>`;
   } else {
     const el = p.el, nuc = p.nuc || nuclideInfo(p.Z, p.N), A = p.Z + p.N;
@@ -1865,6 +1866,8 @@ function renderInspect() {
     if (p.mu) { kv.push(['Nucleus', 'μ⁺, a positive muon (207 electron masses, 1/9 of a proton)']); extra = `<p class="note">Muonium is a hydrogen atom with a positive muon for its nucleus: the same size and nearly the same binding (13.5 eV), a ninth of the mass, so it moves three times faster at a given temperature and reacts as hydrogen does, with strong isotope effects (Mu + Cl₂ → MuCl + Cl).</p>`; }
     else kv.push(['Nucleus', p.anti ? `${p.Z} p̄ + ${p.N} n̄` : `${p.Z} p + ${p.N} n`], ['Binding energy', A > 1 ? `${fmtE(bindingE(p.Z, p.N) * 1e6, 5)} (${fmtE(bindingE(p.Z, p.N) / A * 1e6, 4)} per nucleon)` : '—']);
     if (p.anti) extra = `<p class="note">Antimatter mirrors matter: the same masses, energy levels, spectra and bonds, with every charge reversed (CPT symmetry). Touching ordinary matter, its positrons annihilate with electrons (two 511 keV γ rays) and each antinucleon with a nucleon (pions and γ rays, about 1.9 GeV).</p>`;
+    if (RP.nuc && !p.mu) kv.push(...nucSpinRows(p)); // (its spin, moment and precession, Realistic particles 6, 1.27)
+    if (p.iso) { pills += `<span class="pill hot">${esc(isoLabel(p))}: an isomer ${fmtE(p.iso.lev * 1e3)} above its ground state, half-life ${fmtTime(p.iso.t12)}</span>`; kv.push(['Isomer', `${fmtE(p.iso.lev * 1e3)} kept in the nucleus; it decays to the ground state by its γ line${glCascade(p.Z, p.N, p.iso.lev) ? 's ' + glCascade(p.Z, p.N, p.iso.lev).map(l => fmtE(l * 1e3)).join(' + ') : ''}`]); }
     if (!nuc.stable && nuc.modes.length) kv.push(['Decay energy', nuc.modes.map(m => `${modeLabel(m.mode)}: Q ${fmtE(m.Q * 1e6)}`).join('; ')]);
     if (mol) {
       const bonds = [];
@@ -1880,6 +1883,7 @@ function renderInspect() {
       <button class="btn small" data-act="ion" ${p.ne > 0 ? '' : 'disabled'}>Remove ${lepW}</button>
       <button class="btn small" data-act="add" ${p.ne < p.Z + maxExtraElectrons(p.Z) ? '' : 'disabled'}>Add ${lepW}</button>
       ${sf ? `<button class="btn small savebtn" data-act="save" aria-pressed="${sf.on}" title="${esc(sf.title)}">${sf.text}</button>` : ''}
+      ${RP.nuc && !p.mu && (nucSpin(p.Z, p.N) || {}).mu ? `<button class="btn small" data-act="nmr" title="A 90° pulse on every ${esc(nucSym(p.Z, p.N))} in the box: their spins tip over and precess in the field, and their signal's frequency is measured">NMR pulse</button>` : ''}
       <button class="btn small" data-act="del">Delete</button></div>` : `<div class="row" style="justify-content:flex-start"><button class="btn small" data-act="del">Delete</button></div>`;
   const od = box.querySelector('#insOrbs'); if (od) UI.orbOpen = od.open;
   const sd = box.querySelector('#insSolver'); if (sd) UI.solverOpen = sd.open;
@@ -1902,6 +1906,7 @@ function renderInspect() {
     else if (a === 'save') myIsoToggle(pspec);
     else if (a === 'del') { kill(p); R.sel = null; }
     else if (a === 'solve') runSolver(p.Z, p.ne);
+    else if (a === 'nmr') { const G = nmrPulse(p.Z, p.N); if (G) log('tool', `NMR: a 90° pulse on ${G.n0} ${nucSym(p.Z, p.N)} nucle${G.n0 === 1 ? 'us' : 'i'}`); } // (1.27)
     renderInspect();
   };
   _insCv = $('insBohr');
@@ -1916,6 +1921,18 @@ function gyroRows(q, mU, gam, v, x, y, p) {
   const om = Math.abs(q * B * PHYS.LOR / ((gam || 1) * mU)), r = v / om, f = om / (2 * Math.PI) / PHYS.TU_S;
   const d = 2 * r, ds = d >= 1e4 ? fmtLen(d * 1e-10) : d >= 0.01 ? fmtA(d) : `${d.toExponential(1).replace('e', '×10^').replace(/\^(-?\d+)/, (m, e) => sup(e))} Å`;
   return [['Circle in the field', `${ds} across, ${fmtNum(f, 3)} turns per second (B = ${fmtTesla(Math.abs(B))})`]];
+}
+/* A nucleus's spin, moment and Larmor precession, and the NMR signal after a pulse (Realistic particles 6, 1.27: hep.js). */
+function nucSpinRows(p) {
+  const s = nucSpin(p.Z, p.N), rows = [];
+  if (!s) return [['Nuclear spin', 'not in the table of measured moments']];
+  if (!s.I) return [['Nuclear spin', 'I = 0 (even protons and neutrons): no magnetic moment']];
+  rows.push(['Nuclear spin', `I = ${spinTxt(s.I)}, magnetic moment ${s.mu > 0 ? '+' : '−'}${fmtNum(Math.abs(s.mu), 4)} μN (γ/2π = ${fmtNum(Math.abs(s.f), 4)} MHz/T)`]);
+  const B = Math.abs(Bfield(p.x, p.y, p));
+  if (B > 0) rows.push(['Larmor precession', `${fmtNum(Math.abs(s.f) * B, 4)} MHz in ${fmtTesla(B)}: one turn in ${fmtTime(1 / (Math.abs(s.f) * B * 1e6))}`]);
+  const r = nmrRead();
+  if (r && r.Z === p.Z && r.N === p.N && r.n) rows.push(['NMR signal', `${r.n} nucle${r.n === 1 ? 'us' : 'i'}, ${fmtTime(r.t)} after the pulse: turning at ${fmtNum(r.f / 1e6, 5)} MHz${r.B ? ` (${fmtNum(r.f / 1e6 / Math.abs(r.B), 5)} MHz per tesla of ${fmtTesla(Math.abs(r.B))})` : ' (no field: it does not turn)'}, ${Math.round(100 * r.amp)}% in phase`]);
+  return rows;
 }
 function fmtSpeed(v) { // v in Å/tu
   const ms = v * PHYS.V_MS, b = ms / 299792458;
@@ -2589,6 +2606,7 @@ const SAVE_KINDS = new Set([NUC, ELEC, POS]);
    radiation flight with its energy and direction: a tenth entry), the bonds among them and the magnets. Not kept:
    light, beams, a collider's rings, and chips' circuits (their atoms are saved as atoms). */
 const xmOf = (ps) => { const xm = []; ps.forEach((p, i) => { const B = p.muB; if (B && B.zx) xm.push([i, B.Eb, B.zx, B.n0 || 0, B.aug || 0, B.lines || [], B.from || '']); }); return xm.length ? { xm } : {}; }; // (exotic atoms of the realistic-particle switch, 1.27: older readers open them as 0.51's muonic atoms)
+const isoOf = (ps) => { const iso = []; ps.forEach((p, i) => { if (p.iso) iso.push([i, p.iso.lev, p.iso.t12]); }); return iso.length ? { iso } : {}; }; // (isomers of Realistic particles 6, 1.27: their level and half-life; older readers open the ground state)
 function worldToJSON() {
   const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.caught);
   const ix = new Map(ps.map((p, i) => [p, i])), r6 = (v) => Math.round(v * 1e6) / 1e6;
@@ -2600,7 +2618,7 @@ function worldToJSON() {
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
   const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, Ez: W.Ez || 0, Bax: W.Bax3 || 'z', z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, ...xmOf(ps), xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0]), /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, ...xmOf(ps), ...isoOf(ps), xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0]), /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -2636,6 +2654,7 @@ function worldFromJSON(d) {
     p.muB = { m: MU_M * MEV - q[1], Eb: q[1], sp: 'mu-', n: 1, zx: 1, n0: +q[3] || 0, aug: +q[4] || 0, lines: Array.isArray(q[5]) ? q[5].filter(l => Array.isArray(l) && l.length === 3 && l.every(Number.isFinite)) : null, from: typeof q[6] === 'string' ? q[6].slice(0, 8) : '' };
     p.m = atomMass(p); p.im = 1 / p.m; refresh(p);
   }
+  if (Array.isArray(d.iso)) for (const q of d.iso) { const p = Array.isArray(q) ? made[q[0]] : null; if (p && p.k === NUC && Number.isFinite(q[1]) && q[1] > 0 && Number.isFinite(q[2]) && q[2] > 0) p.iso = { lev: q[1], t12: q[2], Z: p.Z, N: p.N }; } // (1.27)
   let nb = 0;
   for (const b of d.bonds) { if (!Array.isArray(b)) continue; const [i, j, o] = b; const a = made[i], c = made[j]; if (a && c && a !== c && [1, 2, 3].includes(o)) { addBond(a, c, o); nb++; } }
   if (Array.isArray(d.xa)) for (const q of d.xa.slice(0, MAX_EXO)) { // (unstable particles: muonic hydrogen and (μα)⁺ since the 1.26 bug fixes, every one since the exotic-particle sweep)
