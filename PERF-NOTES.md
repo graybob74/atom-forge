@@ -2706,6 +2706,18 @@ checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png,
 
 ### 1.27: combined (branch v145; not released)
 
+**The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
+from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
+ones that need approval"): 1 3-D van der Waals and ion–water pull at their true strength; 2 water's (and molecules')
+ionization energy at the measured value; 3 nucleus–nucleus close passes turned by Rutherford's angle at real impact
+parameters; 4 fast positrons scatter and ionize, annihilating in flight at Heitler's rate; 5 p̄p at high energy mostly
+inelastic by the measured cross sections; 6 fast fired particles meet over the step; 7 Compton scattering of 10–100 keV
+X-rays; 8 electron recapture in ionized water the same in both modes, as in nature; 11 the giant dipole resonance on part
+3's footing; 13 alkali aurides inside mixed metal lumps; 14 AsCl₅'s chlorines not bonding to each other. Bug fixes (no
+approval needed): 9 the decay table's 43 estimated nuclides, 10 muonic atoms keep their muon when a neutron remakes the
+nucleus, 12 measured muon lifetimes for every element, 15 three bookkeeping leaks, 16 four display and text slips, 17
+the values written from memory checked against their sources.
+
 All seven realistic-particle parts (v141–v146), W and Z (v148) and the final 1.26 (v136 at 0b0e149: the sweeps, the
 spin-branch fix, Polarized normal, the fast-electron energy fixes, decay data) merged on v145 (2026-11-06). Switches off,
 every one of the 59 setups is bit for bit 1.26's (tools/fingerprint.js, seed 7, 300 steps, both trees: identical; the
