@@ -377,6 +377,77 @@ Test on record: t_features' 1.23.1 "Continue after a restart" check fails on 1.2
 1–3 particles more than were saved (72 → 73, 73 → 74); for a bug-fix session. t_page's slow-motion button check fails
 alone on both here too (the known flake).
 
+### 1.26: bug fixes (energy books with fast electrons, decay data)
+
+Found by the 1.27 "charged particles in matter" session (its "Found, not changed"). Branch v147 (from v136, e237efe).
+Checks: tests/f_bug126e.js (t_features runs it alone; `node tests/f_bug126e.js [--node] [part …]`): eject, plasma,
+wallTwice, cap, radPush, decay, each failing on e237efe and passing here.
+
+- **1. "3-D: −1.3×10⁸ eV over 40 steps in innerSteps".** Not an engine bug: the probe put its lattice down with
+  `addAtom(sym, x, y, z)`, but addAtom's fourth argument is its options (`{ z }`), so every z was 0 and each lattice site
+  held four atoms on top of each other. The pair forces skip pairs closer than 10⁻⁵ Å while the energy counts them, and
+  the first ionization's kick drove the stacked atoms apart through the screened-nuclear core (an atom at 10⁴–10⁷ eV a step
+  later). With z given, the same O/Pb lattice and four 1 GeV electrons: 0 eV over 40 steps (seeds 1, 3, 7; stacked:
+  −1.39×10⁸, −1.32×10⁸, −9.7×10⁷); a 1 GeV electron ionizes nothing there in 40 steps, nor in the flat game (3×10⁻⁴ eV).
+  The ionized case, built directly (half the atoms ionized three times, 248 electrons freed, 200 steps, 0.08 ps,
+  insulated): 3-D 1.05 eV before, 0.67 after; the flat game had a real error here (fix 2e): 13.3 and 15.3 eV (seeds 3,
+  7) before, −0.10 and 0.33 after. Two atoms at one point are outside what the integrator can do (not changed).
+- **2. The flat game's ejectElectron among ions and free electrons** (eight 1 GeV electrons' passes through a lead
+  block and through water, radiation flight only: lead 42 freed electrons, 9 off by more than 0.01 eV, worst 48.7 eV;
+  water 64, 16, 39.1 eV; now lead 35, water 75, worst 0.0004 eV; the same runs' books 84.0 and 33.0 eV off over 300
+  ticks, now 0.003 and 0.000). Five terms:
+  a. An ion in flight (ballistic or in radiation flight, a recoil from the passes before) carries no potential energy,
+     but the electron's launch energy still took the ion's pull (6.4, 12.9, 26.0 eV from Pb⁺, Pb²⁺, Pb³⁺) and nothing
+     paid it back. 3-D has skipped it since 1.25 (`fastIon`); the flat game now does the same.
+  b. An electron whose energy at infinity is under the radiation threshold (1 keV) but whose launch energy, with the
+     pull of the charges around it, is over it went into radiation flight, which carries no potential energy, with the
+     pull still in it (48.7 eV beside a Pb³⁺). Now it flies with its energy at infinity.
+  c. A moving ion that loses an electron loses ½mₑv² of its motion with the electron's mass; 3-D gave it to the electron
+     only for ions in flight. Now for every moving ion, both games (an H⁺ knocked to 233 eV: 0.13 eV).
+  d. An atom in radiation flight stopped in a closed wall (`wallOrEscape`) was listed with the newcomers (`_late`) although
+     the neighbour grid still held it, so localPE and phiE counted it twice until the next force pass (6.4 eV in an
+     ionization beside it; a Pb⁺'s pull 1.5 Å away 12.0 V for 6.0). Now listed only if the grid doesn't hold it (`lateBack`).
+  e. A particle back among the stepped ones since the last force pass (a free electron slowed out of flight, an atom
+     stopped in the wall) was missing from `_charged`, the net charges summed beyond the 6 Å cutoff, so phiE and localPE
+     left out its pull from farther away, which totalEnergy counts: each later mode switch or ionization 1–2 eV off.
+     `lateBack` lists it there too (with the long-range sum on). This was the flat ionized lattice's 13–15 eV.
+- **3. ejectElectron at the particle cap** put the energy in the bath and returned no electron; every caller, finding no
+  electron, released it again (Compton, photoionization: dumpHeat) or took it back (an electron's impact ionization and
+  a hot collision undone, a muon's robbing undone, forceShed's fee), so it was counted twice or made from nothing
+  (photoionization at the cap: the 50 eV twice). Now it returns no electron and leaves the energy with the caller, as
+  for any electron that can't be freed.
+- **4. Pushes on atoms in radiation flight** (the flat radiation flight's ionizing loop, `moveRad`, and the unstable
+  particles' `exoIonize`): the push square to the path went into the velocity of an atom itself in radiation flight,
+  which its next flight step overwrites from its stored energy, so the dE the passing particle lost left the books (the
+  lead block's passes: 6 such pushes, 18.8 eV, the largest 8.2 eV; 20 keV electrons 0.8–0.95 Å from a flying Pb: −1.04,
+  −0.86, −0.79 eV). Decided: book it (`pushSquare`: its stored energy takes the push, through setVel), not skip such
+  atoms as 3-D's fastStop3 does: the flat game keeps its model (every atom passed is pushed or ionized), and ionizing an
+  atom in flight is exact now (2a), so there is nothing to avoid. Atoms not in radiation flight: the same arithmetic as
+  before, bit for bit.
+- **5. Decay data.** ¹⁹⁸Au (made from gold by a neutron) was not in the table; the estimate for unlisted nuclides gave it
+  86% β⁻ and 14% electron capture with a 5.1 h half-life. It is β⁻ only, Q 1.3724 MeV, 2.6941 d: listed now. ²²Na was
+  β⁺ only; it is 90.3% β⁺ and 9.7% electron capture (Q_EC 2.842 MeV for both, as ⁴⁰K's entry): listed now. The estimate
+  (allowed β⁻ and β⁺/EC rates from the mass formula's Q-values, log ft 6.0 and 5.8) gives both β⁻ and EC to 43
+  unlisted nuclides, because the formula's pairing term opens both sides for odd–odd nuclei. Against measured data
+  (NUBASE2020, from memory: check before listing them): 13 really decay both ways (⁷⁴As, ⁸⁴Rb, ¹²⁶I, ¹³⁰Cs, ¹⁴⁶Pm,
+  ¹⁵²Eu, ¹⁵⁸Tb, ¹⁶⁴Ho, ¹⁸⁶Re, ¹⁹²Ir, ¹⁹⁶Au, ²⁰⁴Tl, ²²⁶Ac; branches off, often by a lot); 13 are β⁻ only or above 99.5%
+  (⁹⁴Nb, ¹⁰⁴Rh, ¹¹⁰Ag, ¹¹⁴In, ¹⁴²Pr, ¹⁹⁸Au (now listed), ²³²Pa, ²³⁸Np, ²⁴⁴Am, ²⁴⁶Am, ²⁵⁰Bk, ²⁵²Bk, ²⁵⁶Es); 12 are EC/β⁺
+  only (¹²⁰Sb, ¹²⁴I, ¹³⁶La, ¹⁴⁰Pr, ¹⁵⁶Tb, ¹⁶²Ho, ¹⁶⁸Tm, ¹⁷⁴Lu, ¹⁸⁴Re, ¹⁹⁰Ir, ²⁰²Tl, ²⁰⁸Bi); 3 are α emitters with
+  half-lives of ns–s (²¹⁴At, ²¹⁶At, ²²⁰Fr; the estimate says β/EC over hours); 2 are unknown (²⁵⁸Es, ²⁶⁴Md). The
+  estimates' half-lives also cluster at 1–25 h whatever the nuclide. That is the estimate's accuracy, not a bug in its
+  rule: not changed. For the owner: list the ones the game makes often (neutron capture on stable isotopes: ⁹⁴Nb,
+  ¹⁰⁴Rh, ¹¹⁰Ag, ¹¹⁴In, ¹⁴²Pr; ¹²⁴I, ¹⁹²Ir, ²⁰⁴Tl …) from the evaluated tables.
+- Fingerprints (tools/fingerprint.js, all setups, seed 7, 300 steps, e237efe and after): 9 of 58 change, all flat ones
+  that ionize in those steps: soup, neon, muonium, hyperfactory (books only), pionbeam, annihilation, nif, photonuc,
+  sns. In all nine a moving ion gave up an electron (2–1,344 times), whose share of its motion (2c; ~10⁻⁶ eV for a
+  thermal ion) now goes with the electron, which changes the last bits; in pionbeam, annihilation, nif, photonuc and
+  sns also free electrons slowed out of flight are now in the long-range list (2e; 8–452 times); in photonuc and sns
+  ions in flight were ionized (2a; 2 and 80 times), and sns also launched 4 electrons into radiation flight by the
+  pull around them (2b) and pushed 9 atoms in radiation flight (4). No setup reached the particle cap (3) or stopped an
+  atom in the wall (2d), and none has ²²Na or ¹⁹⁸Au. The six 3-D setups and the other 43 flat ones are bit for bit the
+  same.
+FINGERPRINTS_AND_SUITES
+
 ### 1.26: 3-D sweep and settings audit
 
 The owner: "there are MANY bugs so please do a general bug search in 3d mode … and make sure every change actually
