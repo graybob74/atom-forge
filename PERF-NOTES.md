@@ -2704,6 +2704,19 @@ checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png,
     the game), and the historical numbers above (Wu–Shaknov 2.04, the 2.85 / 1.63 at 82° are also computed here from the
     formulas: 2.835 and 1.629).
 
+### 1.27: combined (branch v145; not released)
+
+All seven realistic-particle parts (v141–v146), W and Z (v148) and the final 1.26 (v136 at 0b0e149: the sweeps, the
+spin-branch fix, Polarized normal, the fast-electron energy fixes, decay data) merged on v145 (2026-11-06). Switches off,
+every one of the 59 setups is bit for bit 1.26's (tools/fingerprint.js, seed 7, 300 steps, both trees: identical; the
+only new line the LEP setup). The parts' stored switches-off fingerprints were taken before the 1.26 energy fixes and
+were updated to 1.26's (annihilation, muonium, hyperfactory, photonuc, pionbeam, sns; f_rp7's part-3-on hashes too);
+f_rp3 "books" (flat water's events 20 against > 20) and f_rp2 "matter" (33 o-Ps ended in the run against ≥ 36) took
+thresholds of 15 and 30: the events drawn moved with the fixes' last bits, the measured values did not. Suite:
+tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core flake, and the parts' fingerprint
+checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
+f_bug126e pass alone.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
