@@ -341,7 +341,23 @@ Waiting for the owner:
   radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #1 (flat Cu ions),
   #3 (AsCl₅) and #16 (3-D water recapture, physics).
 
-For 1.27 (not built): photons as waves (the owner, 2026-11-05: "can you add photons as waves in experimental"; an
+For 1.27 (not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
+portrayed and how to implement an experimental setting that makes them as realistic as possible"; physics: the owner's
+OK per part; suggested order): (1) exotic atoms as real atoms: μ⁻, π⁻, K⁻ and p̄ caught into an orbit (now a μ⁻ atom
+is an overlay the tools can't touch, and π⁻/K⁻/p̄ are absorbed at once), a cascade giving off the exotic atom's X-ray
+lines (energies scaled by the reduced mass), then decay or nuclear capture at measured rates by element (muon
+lifetimes in each element, Suzuki 1987); to the outside an atom of charge Z−1 (μp acts like a neutron, muonic C like
+B); protonium; (2) positronium: a slow positron with an electron forms Ps, para (1 in 4) 125 ps → 2γ of 511 keV back to
+back, ortho (3 in 4) 142 ns → 3γ, pick-off in matter; (3) charged particles in matter: energy-loss straggling, δ-rays,
+Cherenkov light in water and glass, bremsstrahlung and pair production for e± and γ (showers); (4) muonium as the
+lightest hydrogen isotope (0.114 u, with quantum nuclei for its zero-point motion; its μ⁺ spin precessing in a field
+and the positron coming out along it, μSR); (5) resonances with their widths (a ρ's mass spread over ~150 MeV,
+Breit–Wigner), charm and bottom made in hadron collisions too; (6) nuclei with spin and magnetic moment (precession,
+NMR in a field) and excited states giving off their γ lines; neutrons' 1/v and resonance cross sections and spin;
+(7) photons' polarization and the Klein–Nishina Compton angles (with photons as waves, below). Things the box can't
+make real are said, not faked: true nuclear sizes and lifetimes leave almost nothing happening in a nanometre and a
+picosecond (Ultra-realistic does this already; it must work in 3-D), neutrinos almost never interact, oscillation
+needs kilometres. Photons as waves (the owner, 2026-11-05: "can you add photons as waves in experimental"; an
 Experimental option beside "electrons as waves": light as wave packets with its wavelength and phase, so it interferes
 and diffracts (double slit, gratings, thin films, a laser's coherence), with polarization; the placed objects (mirrors,
 lenses, prisms, screens, foils) then act on the wave; a screen shows the fringes built up photon by photon; absorption
