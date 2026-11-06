@@ -81,6 +81,33 @@ PARTS.qmMagnet = async (page, check, say) => {
 };
 PARTS.qmMagnet.page = true;
 
+/* 5. Data → Wall pressure in 3-D used the flat formula: the push on all six faces over the perimeter of one (N/m), against
+   an ideal gas over the area of one face, so its "vs ideal gas" Z meant nothing (helium at 300 K: Z 1.33, "0.037 N/m").
+   Now force per area of the six faces in pascals, against N·k·T over the volume: helium about 0.9 (the soft walls'
+   inset; the flat game's helium the same), 6 MPa. */
+PARTS.pressure = async (page, check, say) => {
+  const X = fresh(4), W = X.W; X.baseWorld(40, 40, 300, 0.05); X.world3d(40);
+  for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) for (let k = 0; k < 3; k++) X.addAtom('He', -15 + 6 * i, -15 + 6 * j, { z: -12 + 12 * k, T: 300 });
+  X.forcesNoEvents(); W.fSpawn = W.spawned;
+  let T = 0, n = 0; for (let s = 0; s < 20000; s++) { go(X, 1); if (s > 500 && s % 20 === 0) { const t = X.measure().T; T += t; n++; X.wallPressure(0, t); } }
+  const r = X.wallPressure(0, T / n), u = X.pUnit ? X.pUnit() : 'N/m';
+  check(r && r.Z > 0.6 && r.Z < 1.15 && u === 'Pa' && r.P > 3e6 && r.P < 1e7, `3-D sweep 5: Data's wall pressure in 3-D: helium at ${Math.round(T / n)} K pushes ${(r.P / 1e6).toFixed(2)} M${u}, Z = ${r.Z.toFixed(2)} ± ${r.zErr.toFixed(2)}`, '3-D sweep pressure: ' + JSON.stringify({ r, u }));
+};
+
+/* 6. The Physics tab in the 3-D lab began "atoms move in a two-dimensional chamber" and said nothing of what differs in
+   3-D. Now the sentence follows the mode, and a card "In the 3-D lab" says what is three-dimensional, which flat
+   corrections are still on and what is not in 3-D yet; the flat game's tab is as before. */
+PARTS.physText = async (page, check, say) => {
+  const r = await page.evaluate(async () => {
+    const vis = () => { showTab('physics', true); const t = $('tp-physics'); return [...t.querySelectorAll('p, h4')].filter(e => e.getClientRects().length).map(e => e.innerText).join(' | '); };
+    loadPreset('mol3d'); setRunning(false); await new Promise(r => setTimeout(r, 50)); const d3 = vis();
+    loadPreset('water'); setRunning(false); await new Promise(r => setTimeout(r, 50)); const d2 = vis(); showTab('lab', true);
+    return { d3: { flat: /two-dimensional chamber/.test(d3), box: /three-dimensional box/.test(d3), card: /In the 3-D lab/.test(d3) }, d2: { flat: /two-dimensional chamber/.test(d2), card: /In the 3-D lab \|/.test(d2) } };
+  });
+  check(!r.d3.flat && r.d3.box && r.d3.card && r.d2.flat && !r.d2.card, `3-D sweep 6: the Physics tab says "three-dimensional box" and has its "In the 3-D lab" card in 3-D, the flat text in the flat game`, '3-D sweep physText: ' + JSON.stringify(r));
+};
+PARTS.physText.page = true;
+
 module.exports = async function fsweep3d(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

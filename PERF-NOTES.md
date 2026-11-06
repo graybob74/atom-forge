@@ -423,6 +423,19 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
 - 4. The quick menu's "Magnet here" (right-click on empty space) stayed greyed "Not in 3-D yet" in the 3-D lab, though
   magnets work there since 1.24. Now it puts a magnet ball at the point in depth (the point the tools take, `ptr3`), as
   the Magnet tool does. Check: f_sweep3d "qmMagnet" (page; before: the button disabled, 0 magnets).
+- 5. Data → Wall pressure and "vs ideal gas" in 3-D used the flat formula (`wallPressure`): the soft walls' push summed
+  over all six faces (softWalls3) divided by the perimeter of one face, in N/m, against an ideal gas N·k·T over one
+  face's area, so Z meant nothing. Now in 3-D: force over the six faces' area in pascals, against N·k·T over the
+  volume (`pUnit()`: Pa in 3-D, N/m flat, in the tile, its title, the graph and the CSV's column). 108 helium atoms
+  in a 40 Å cube at 300 K, 20,000 steps (seed 4): before "0.037 N/m", Z 1.33 ± 0.07; after 5.9–6.2 MPa, Z 0.84–0.89
+  ± 0.05 (ideal 6.9 MPa; the soft walls' inset takes the rest, the flat game's helium 0.82–0.88 the same way). Found,
+  not changed: argon in the same box gives Z 0.48 ± 0.08 (flat 0.82): the flat world's doubled van der Waals wells
+  (LJ_SCALE 2) still on in 3-D make argon stickier than real (the open item from 1.23.0). Check: f_sweep3d "pressure"
+  (Node). Fingerprints unchanged (interface only).
+- 6. The Physics tab in the 3-D lab began "atoms move in a two-dimensional chamber" and said nothing about 3-D. Now that
+  sentence follows the mode ("three-dimensional box"), and a card "In the 3-D lab" (shown there only) says what is three-
+  dimensional, which two flat corrections are still on (liquids a little too dense) and what is not in 3-D yet; Help's
+  "What it does" mentions the cube. Check: f_sweep3d "physText" (page).
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 

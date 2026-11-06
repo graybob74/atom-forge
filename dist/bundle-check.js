@@ -34181,19 +34181,21 @@ function speciesCounts(ionic = true) { // (ionic: ionic compounds as their formu
    liquid), above 1 where they are squeezed against each other. Free electrons bounce off the walls on their own and are
    not counted. */
 const PRS = { sig: '', Ts: 0, Tn: 0 };
+const pUnit = () => (W.d3 ? 'Pa' : 'N/m'); // (3-D: pressure is force per area)
 function wallPressure(mols, T) {
   let free = 0; for (const p of W.parts) if (!p.dead && p.k === NUC && !p.bonds.length && !p.rad && !p.beam) free++;
-  const N = mols + free, L = 2 * (W.box.w + W.box.h), A = W.box.w * W.box.h, PB = W.pB;
+  const d3 = !!W.d3, bd = W.box.d || W.box.h, N = mols + free, PB = W.pB; // (3-D: the six faces' area and the volume, in pascals; it was the flat perimeter and area, N/m, 1.26 sweep)
+  const L = d3 ? 2 * (W.box.w * W.box.h + W.box.w * bd + W.box.h * bd) : 2 * (W.box.w + W.box.h), A = d3 ? W.box.w * W.box.h * bd : W.box.w * W.box.h;
   // averaged since the conditions last changed (box, walls, bath, what is free to move): a dilute gas hits the walls seldom
-  const sig = [W.box.w, W.box.h, W.wall, Math.round(Math.log(Math.max(1, W.T)) * 30), N].join();
+  const sig = [W.box.w, W.box.h, d3 ? bd : 0, W.wall, Math.round(Math.log(Math.max(1, W.T)) * 30), N].join();
   if (sig !== PRS.sig) { PRS.sig = sig; PRS.Ts = 0; PRS.Tn = 0; if (PB) { PB.blocks.length = 0; PB.s = 0; PB.t = 0; } }
   if (T > 0) { PRS.Ts += T; PRS.Tn++; }
   if (!N || !PB || PB.blocks.length < 4 || !PRS.Tn) return null;
   const b = PB.blocks, n = b.length; let s = 0, s2 = 0; for (const v of b) { s += v; s2 += v * v; }
   const F = s / n, se = Math.sqrt(Math.max(0, s2 / n - F * F) / n), Tm = PRS.Ts / PRS.Tn;
-  const P = F / L, ideal = N * PHYS.KB * Tm / A, Z = P / ideal, zErr = se / L / ideal; // (eV/Å²)
-  const ok = zErr < 0.15, ps = n * 0.5;
-  return { P: P * 16.0218, Z, ok, zErr, title: `The walls are pushed with ${fmtSI(P * 16.0218, 'N/m', 3)} on average over ${fmtNum(ps, 3)} ps (in 2-D, pressure is force per length of wall). An ideal gas of these ${N} free movers at ${fmtT(Tm)} would push ${fmtSI(ideal * 16.0218, 'N/m', 3)}: Z = ${Z.toFixed(2)} ± ${zErr.toFixed(2)}. ` +
+  const P = F / L, ideal = N * PHYS.KB * Tm / A, Z = P / ideal, zErr = se / L / ideal; // (eV/Å², 3-D eV/Å³)
+  const ok = zErr < 0.15, ps = n * 0.5, k = d3 ? 1.602177e11 : 16.0218, u = pUnit();
+  return { P: P * k, Z, ok, zErr, title: `The walls are pushed with ${fmtSI(P * k, u, 3)} on average over ${fmtNum(ps, 3)} ps (${d3 ? 'force per area of wall' : 'in 2-D, pressure is force per length of wall'}). An ideal gas of these ${N} free movers at ${fmtT(Tm)} would push ${fmtSI(ideal * k, u, 3)}: Z = ${Z.toFixed(2)} ± ${zErr.toFixed(2)}. ` +
     (!ok ? 'Still averaging: in a thin gas the particles hit the walls seldom.' : Z > 0.85 && Z < 1.15 ? 'It behaves like an ideal gas.' : Z <= 0.85 ? 'Below 1: the attractions between the particles pull them together, as in a dense gas or a liquid.' : 'Above 1: the particles are squeezed against each other.') };
 }
 function renderData() {
@@ -34207,7 +34209,7 @@ function renderData() {
     ['Free electrons', String(W.nE)], ['Ionized', (m.ionFrac * 100).toFixed(0) + '%'],
   ];
   const pr = W.wall === 'reflect' ? wallPressure(mols, m.T) : null;
-  if (pr) tiles.push(['Wall pressure', `${fmtSI(pr.P, 'N/m', 2)}`, pr.title], ['vs ideal gas', pr.ok ? `Z = ${pr.Z.toFixed(2)}` : 'averaging …', pr.title]);
+  if (pr) tiles.push(['Wall pressure', `${fmtSI(pr.P, pUnit(), 2)}`, pr.title], ['vs ideal gas', pr.ok ? `Z = ${pr.Z.toFixed(2)}` : 'averaging …', pr.title]);
   $('dTiles').innerHTML = tiles.map(([k, v, t]) => `<div class="tile"${t ? ` title="${esc(t)}"` : ''}><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('');
   const sp = speciesCounts();
   $('dSpecies').innerHTML = sp.length ? sp.slice(0, 40).map(([k, e]) => `<tr><td class="f"><span class="sw" style="background:${e.col}"></span>${esc(k)}</td><td class="nm">${esc(e.name)}</td><td class="n">${e.n}</td></tr>`).join('')
@@ -36845,7 +36847,7 @@ function rewInit() {
    how many there are of each species; the quantities chosen are drawn as strips, and all of it exports as CSV. */
 const GR = { t: [], rt: [], cols: {}, sp: new Map(), last: 0, max: 2400 };
 const GR_FIX = [['T', 'Temperature', (v) => fmtT(v)], ['Te', 'Electron temperature', (v) => fmtT(v)], ['n', 'Particles', (v) => Math.round(v).toLocaleString('en-US')],
-  ['freeE', 'Free electrons', (v) => Math.round(v).toLocaleString('en-US')], ['ion', 'Ionized atoms', (v) => (100 * v).toFixed(1) + '%'], ['P', 'Wall pressure', (v) => fmtSI(v, 'N/m', 2)],
+  ['freeE', 'Free electrons', (v) => Math.round(v).toLocaleString('en-US')], ['ion', 'Ionized atoms', (v) => (100 * v).toFixed(1) + '%'], ['P', 'Wall pressure', (v) => fmtSI(v, pUnit(), 2)],
   ['chem', 'Chemical heat released', (v) => fmtE(v)], ['nuc', 'Nuclear energy released', (v) => fmtE(v)], ['esc', 'Energy escaped', (v) => fmtE(v)],
   ['pv', 'Graphed particle: speed', (v) => fmtSpeed(v)], ['pk', 'Graphed particle: kinetic energy', (v) => fmtE(v)], ['pd', 'Graphed particle: distance from where it started', (v) => fmtA(v)]];
 /* One particle to follow on the graph (right-click it → Graph it): its speed, energy and how far it has gone. */
@@ -36905,7 +36907,7 @@ function grCsv() {
   const n = GR.t.length; if (!n) { log('tool', 'Nothing recorded yet for the graph'); return; }
   const fix = GR_FIX.filter(([c]) => GR.cols[c]), sp = [...GR.sp];
   const q = (x) => '"' + String(x).replace(/"/g, '""') + '"';
-  const head = ['simulated time (s)', 'watching time (s)', ...fix.map(([, l]) => l + ({ T: ' (K)', Te: ' (K)', P: ' (N/m)', chem: ' (eV)', nuc: ' (eV)', esc: ' (eV)', ion: ' (fraction)' }[fix.find(f => f[1] === l)[0]] || '')), ...sp.map(([k, o]) => k + (o.name ? ' ' + o.name : ''))].map(q).join(',');
+  const head = ['simulated time (s)', 'watching time (s)', ...fix.map(([, l]) => l + ({ T: ' (K)', Te: ' (K)', P: ` (${pUnit()})`, chem: ' (eV)', nuc: ' (eV)', esc: ' (eV)', ion: ' (fraction)' }[fix.find(f => f[1] === l)[0]] || '')), ...sp.map(([k, o]) => k + (o.name ? ' ' + o.name : ''))].map(q).join(',');
   const lines = [head];
   for (let i = 0; i < n; i++) lines.push([(GR.t[i] * PHYS.TU_S).toExponential(6), (GR.rt[i] - GR.rt[0]).toFixed(2), ...fix.map(([c]) => (Number.isFinite(GR.cols[c][i]) ? +GR.cols[c][i].toPrecision(7) : '')), ...sp.map(([, o]) => o.v[i])].join(','));
   fileSave(`atom-forge-${(UI.preset || 'world').replace(/[^a-z0-9-]/gi, '')}-graph.csv`, lines.join('\n') + '\n', 'text/csv').then((ok) => { if (ok) log('tool', `Graph exported: ${n} rows, ${lines[0].split(',').length} columns`); });
