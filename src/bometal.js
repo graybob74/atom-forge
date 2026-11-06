@@ -63,10 +63,45 @@ function mbData(Z) {
   const hZ = Object.keys(MB_DATA).find(k => MB_DATA[k] === d), he = ELEMENTS[+hZ];
   return [d[0], d[1] * (el && he ? el.rc / he.rc : 1), d[2], d[3]];
 }
-/* The fitted constants of one metal: { A, xi, p, q, r0, eps } (closed form, see above; ε = MB_K·ξ). */
+/* ---- directional bonding (1.26): the bcc metals. The d electrons of a transition metal bond through orbitals with
+   lobes, so the band's energy depends on how the neighbours are arranged around an atom, not only on how many there are
+   and how near: half-filled d bands (Cr, Mo, W, and V, Nb, Ta, Fe) favour the body-centred cube. MEAM's way (Baskes 1992):
+   angular partial densities ρ_l² = Σ_j Σ_k a_j a_k P_l(cos θ_jk) (l = 2, 4, 6; P_l Legendre polynomials; θ_jk the angle at
+   the atom between neighbours j and k, j = k counted; a_j = e^(−β(r/r₀ − 1)) at the pair's switch), normalized by their
+   radial sum (Σ a_j)², weigh the band's second moment:
+     Eᵢ = Σⱼ A·e^(−p(r/r₀ − 1)) − √(ρᵢ + ρᵢᴹ·Γᵢ),   Γᵢ = Σ_l t_l·ρ_l²/(Σ a_j)²
+   (ρᴹ the part of ρ from metal atoms: O and H on the metal keep 1.26's oxide terms). Γ does not change when a crystal is
+   scaled evenly and stays within ±Σ|t_l|, so the band term cannot run away at short range. The l = 6 term rewards the
+   cube of eight first neighbours (its ρ₆²/(Σa)² is 0.39 in bcc's first shell, 0.33 in fcc, 0.24 in hcp), l = 4 sets
+   fcc against hcp and keeps the simple cube up, l = 2 (zero in a cubic crystal) gives the shear stiffness an angular
+   part. Fitted per metal (tools/mbdfit.js, PERF-NOTES 1.26) on the bcc crystal:
+   cohesive energy and spacing exact, bulk modulus, C′ = (C₁₁ − C₁₂)/2, C₄₄, vacancy energy, the fcc and hcp energies
+   above bcc, the simple cube, simple hexagonal and diamond lattices kept above it. Neighbours count to 1.25·r₀ and fade
+   out by 1.45·r₀ (bcc's second shell, at 1.155·r₀, is in; fcc's at 1.41 nearly out). [A (one atom's share, as mbParam's), ξ, p, q, r₀, β, t₂, t₄, t₆] */
+const MBD_ON = 1.25, MBD_OFF = 1.45;
+const MBD_FIT = { // (node tools/mbdfit.js --table; the measured values it fits to are there and in PERF-NOTES 1.26, from memory)
+  74: [0.2492713, 3.174885, 12.295, 2.412, 2.741, 16.29, -0.5619, 0.4646, 0.1463], // W: bcc a 3.1650 Å; B 312, C11 429, C12 254, C44 162 GPa (measured 522, 204, 161); vacancy 3.59 eV (3.67); fcc +0.473, hcp +0.606 eV (0.48, 0.42)
+  42: [0.1602227, 2.249892, 13.84198, 2.31727, 2.725, 15.86723, -0.78626, 0.65948, 0.29366], // Mo: bcc a 3.1466 Å; B 261, C11 378, C12 203, C44 110 GPa (measured 464, 158, 109); vacancy 2.89 eV (3); fcc +0.436, hcp +0.595 eV (0.42, 0.43)
+  24: [0.06344874, 1.206819, 14.38009, 1.65794, 2.498, 21.29475, -0.8, 0.6024, 0.40844], // Cr: bcc a 2.8844 Å; B 153, C11 248, C12 105, C44 97 GPa (measured 340, 59, 99); vacancy 1.87 eV (2); fcc +0.341, hcp +0.444 eV (0.4, 0.37)
+  23: [0.148297, 1.891528, 10.36218, 2.07833, 2.622, 16.83132, -0.25916, 0.22191, 0.2277], // V: bcc a 3.0276 Å; B 156, C11 217, C12 126, C44 43 GPa (measured 228, 119, 43); vacancy 2.05 eV (2.1); fcc +0.245, hcp +0.327 eV (0.24, 0.25)
+  26: [0.1769997, 1.758622, 9.23, 2.538, 2.482, 0.92, 0, -0.8, 0.2924], // Fe: bcc a 2.8660 Å; B 163, C11 189, C12 150, C44 119 GPa (measured 231, 135, 116); vacancy 1.52 eV (1.6); fcc +0.093, hcp +0.110 eV (0.1, 0.08)
+  11: [0.03096697, 0.4101311, 7.61014, 1.597, 3.659, 0.34077, -0.8, 1.23522, 0.13797], // Na: bcc a 4.2250 Å; B 7, C11 8, C12 6, C44 4 GPa (measured 7.3, 6.2, 4.2); vacancy 0.39 eV (0.42); fcc +0.003, hcp +0.033 eV (0.003, 0.003)
+  41: [0.2682464, 2.916488, 9.36011, 2.29999, 2.858, 17.76515, -0.1938, 0.17705, 0.18753], // Nb: bcc a 3.3001 Å; B 173, C11 233, C12 143, C44 29 GPa (measured 246, 134, 29); vacancy 2.63 eV (2.65); fcc +0.313, hcp +0.417 eV (0.33, 0.3)
+  73: [0.3036215, 3.217154, 9.47029, 2.42206, 2.86, 15.61891, -0.1992, 0.14467, 0.14714], // Ta: bcc a 3.3024 Å; B 196, C11 247, C12 171, C44 88 GPa (measured 266, 158, 87); vacancy 2.78 eV (2.9); fcc +0.268, hcp +0.359 eV (0.24, 0.27)
+};
+const MBD_DIR = (Z) => !!MBD_FIT[Z];
+/* The fitted constants of one metal: { A, xi, p, q, r0, eps } (closed form, see above; ε = MB_K·ξ); a directional metal's
+   from MBD_FIT, with its switch (on, off in r₀) and its angular constants (be: β, t: [t₂, t₄, t₆]) (1.26). */
 function mbParam(Z) {
   let v = MBO.par.get(Z);
   if (v) return v;
+  const D = MBD_FIT[Z];
+  if (D) {
+    const [Ec, , Bg, Ev0] = mbData(Z);
+    v = { A: D[0], xi: D[1], p: D[2], q: D[3], r0: D[4], eps: MB_K * D[1], Ec, Ev: Ev0 || 0.33 * Ec, B: Bg, on: MBD_ON, off: MBD_OFF, be: D[5], t: [D[6], D[7], D[8]] };
+    MBO.par.set(Z, v);
+    return v;
+  }
   const [Ec, r0, Bg, Ev0] = mbData(Z), Ev = Ev0 || 0.33 * Ec, k2 = MB_K * MB_K;
   const S = Math.sqrt(12 + k2), S11 = Math.sqrt(11 + k2);
   // per unit ξ, with a = A/ξ = t/S at equilibrium (t = q/p): E₀ = 12t/S − (S − κ), Ev = 12(S − S11 − t/S)
@@ -79,7 +114,7 @@ function mbParam(Z) {
   // B = E_xx/(9Ω), Ω = r₀³/√2; E_xx/ξ = p²·[12t/S − t²(24/S − 144/S³)]
   const Om = r0 * r0 * r0 / Math.SQRT2, Bev = Bg / 160.2177, c = 12 * t / S - t * t * (24 / S - 144 / (S * S * S));
   const p = Math.sqrt(9 * Om * Bev / (xi * c)), q = t * p;
-  v = { A, xi, p, q, r0, eps: MB_K * xi, Ec, Ev, B: Bg };
+  v = { A, xi, p, q, r0, eps: MB_K * xi, Ec, Ev, B: Bg, on: MB_ON, off: MB_OFF };
   MBO.par.set(Z, v);
   return v;
 }
@@ -99,8 +134,8 @@ const MBX_FIT = {
   3720: [2.4214, 4.14104, 4.14104, 3, 1.2, 1.84879], // Cu–O: cuprite, ΔHf -168.6 kJ/mol, B 112 GPa, r₀ 1.849 Å, on (111) -4.8 eV
   6024: [1.41642, 2.75382, 2.75382, 5.99269, 2.39708, 2.04382], // Ag–O: cuprite, ΔHf -31.1 kJ/mol, B 70 GPa, r₀ 2.044 Å, on (111) -3.6 eV
   1672: [0.989435, 4.21957, 4.21957, 5.40186, 2.16074, 1.9132], // Al–O: corundum, ΔHf -1675.7 kJ/mol, B 252 GPa, r₀ 1.913 Å, on (111) -7.4 eV
-  3080: [1.31326, 4.02793, 4.02793, 7.00003, 2.80001, 1.9896], // Cr–O: corundum, ΔHf -1139.7 kJ/mol, B 238 GPa, r₀ 1.990 Å
-  3336: [1.29265, 3.50257, 3.50257, 5.03434, 2.01373, 2.1535], // Fe–O: rocksalt, ΔHf -272 kJ/mol, B 180 GPa, r₀ 2.153 Å
+  3080: [1.34343, 4.05278, 4.05278, 7.18502, 2.87401, 1.9896], // Cr–O: corundum, ΔHf -1139.7 kJ/mol, B 238 GPa, r₀ 1.990 Å
+  3336: [0.973956, 3.07612, 3.07612, 6.7989, 2.71956, 2.1535], // Fe–O: rocksalt, ΔHf -272 kJ/mol, B 180 GPa, r₀ 2.153 Å
   3464: [1.18305, 3.30958, 3.30958, 4.08516, 1.63406, 2.13], // Co–O: rocksalt, ΔHf -237.9 kJ/mol, B 180 GPa, r₀ 2.130 Å
   3592: [1.19049, 3.28764, 3.28764, 3.11818, 1.24727, 2.0885], // Ni–O: rocksalt, ΔHf -239.7 kJ/mol, B 200 GPa, r₀ 2.089 Å, on (111) -5.5 eV
   3208: [1.0359, 3.21417, 3.21417, 6.83732, 2.73493, 2.2225], // Mn–O: rocksalt, ΔHf -385.2 kJ/mol, B 150 GPa, r₀ 2.223 Å
@@ -109,7 +144,7 @@ const MBX_FIT = {
   4872: [0.543758, 3.15305, 3.15305, 5.9575, 2.383, 2.58], // Sr–O: rocksalt, ΔHf -592 kJ/mol, B 91 GPa, r₀ 2.580 Å
   7176: [0.759029, 3.20591, 3.20591, 6.09106, 2.43643, 2.76], // Ba–O: rocksalt, ΔHf -548 kJ/mol, B 69 GPa, r₀ 2.760 Å
   392: [0.571607, 2.68564, 2.68564, 4.91917, 1.96767, 1.99662], // Li–O: antifluorite, ΔHf -597.9 kJ/mol, B 82 GPa, r₀ 1.997 Å
-  1416: [0.491035, 2.10876, 2.10876, 6.91549, 2.7662, 2.40322], // Na–O: antifluorite, ΔHf -414.2 kJ/mol, B 60 GPa, r₀ 2.403 Å
+  1416: [0.354388, 2.01858, 2.01858, 5.96119, 2.38447, 2.40322], // Na–O: antifluorite, ΔHf -414.2 kJ/mol, B 60 GPa, r₀ 2.403 Å
   2440: [0.44284, 2.01597, 2.01597, 9, 3.6, 2.78687], // K–O: antifluorite, ΔHf -361.5 kJ/mol, B — GPa, r₀ 2.787 Å
   520: [1.22512, 4.3505, 4.3505, 3, 1.2, 1.64888], // Be–O: wurtzite, ΔHf -609.4 kJ/mol, B 212 GPa, r₀ 1.649 Å
   3848: [1.26139, 3.14407, 3.14407, 7.46137, 2.98455, 1.97809], // Zn–O: wurtzite, ΔHf -350.5 kJ/mol, B 143 GPa, r₀ 1.978 Å
@@ -119,7 +154,7 @@ const MBX_FIT = {
   7432: [1.4138, 4.77861, 4.77861, 7.74973, 3.09989, 2.34303], // Ce–O: fluorite, ΔHf -1088.7 kJ/mol, B 230 GPa, r₀ 2.343 Å
   11784: [1.70506, 5.26921, 5.26921, 7.06775, 2.8271, 2.36858], // U–O: fluorite, ΔHf -1085 kJ/mol, B 207 GPa, r₀ 2.369 Å
   385: [0.323447, 1.40763, 1.40763, 4.06999, 1.628, 2.0415], // Li–H: rocksalt, ΔHf -90.5 kJ/mol, B 33 GPa, r₀ 2.041 Å
-  1409: [0.286586, 1.18306, 1.18306, 4.4702, 1.78808, 2.44], // Na–H: rocksalt, ΔHf -56.3 kJ/mol, B 19 GPa, r₀ 2.440 Å
+  1409: [0.242643, 1.1412, 1.1412, 3.87348, 1.54939, 2.44], // Na–H: rocksalt, ΔHf -56.3 kJ/mol, B 19 GPa, r₀ 2.440 Å
   2433: [0.25895, 1.1364, 1.1364, 4.54365, 1.81746, 2.85], // K–H: rocksalt, ΔHf -57.7 kJ/mol, B 16 GPa, r₀ 2.850 Å
   1537: [0.658329, 1.81501, 1.81501, 4.47802, 1.79121, 1.95528], // Mg–H: rutile, ΔHf -75.3 kJ/mol, B 45 GPa, r₀ 1.955 Å
   2817: [0.630517, 2.2138, 2.2138, 9, 3.6, 1.92864], // Ti–H: fluorite, ΔHf -144.3 kJ/mol, B — GPa, r₀ 1.929 Å
@@ -134,7 +169,7 @@ const MBX_FIT = {
 const MBA_FIT = {
   1692: [0.320445, 1.92607, 9.4181, 2.47001, 2.50022], // Ni–Al: NiAl (B2), ΔHf -117.6 kJ/mol
   2844: [0.360358, 2.08898, 10.142, 2.29361, 2.61107], // Ti–Ni: TiNi (B2), ΔHf -68 kJ/mol
-  1690: [0.350112, 1.82481, 8.69396, 2.5321, 2.51927], // Fe–Al: FeAl (B2), ΔHf -56 kJ/mol
+  1690: [0.379115, 1.83427, 8.15177, 2.65472, 2.51927], // Fe–Al: FeAl (B2), ΔHf -56 kJ/mol
   3742: [0.15607, 0.990478, 11.9037, 2.46946, 2.55477], // Cu–Zn: CuZn (B2), ΔHf -24.6 kJ/mol
   3791: [0.342467, 1.68373, 10.7907, 3.17152, 2.65094], // Cu–Au: Cu3Au (L12), ΔHf -28.4 kJ/mol
   1686: [0.36729, 2.00202, 7.79748, 2.59504, 2.84938], // Ti–Al: TiAl (L10), ΔHf -75.2 kJ/mol
@@ -164,18 +199,20 @@ function mbPP(Za, Zb) {
     if (xa && xb) v = new Float64Array(8); // (two partners, O or H: no many-body pair; theirs is the classic chemistry's, 1.26)
     else if (xa || xb) { const c = mbXP(xa ? Zb : Za, xa ? Za : Zb), r0 = c[5], gm = c[1] * c[1], gx = c[2] * c[2]; v = new Float64Array([c[0], xa ? gx : gm, c[3] / r0, 2 * c[4] / r0, r0, MB_ON * r0, MB_OFF * r0, xa ? gm : gx]); } // (a metal and O or H: the fitted cross constants, 1.26)
     else if (Za !== Zb && MBA_FIT[Math.min(Za, Zb) * 128 + Math.max(Za, Zb)]) { // (an alloy with constants of its own, fitted to a compound, 1.26)
-      const [A, xi, p, q, r0] = MBA_FIT[Math.min(Za, Zb) * 128 + Math.max(Za, Zb)];
-      v = new Float64Array([A, xi * xi, p / r0, 2 * q / r0, r0, MB_ON * r0, MB_OFF * r0, xi * xi]);
+      const [A, xi, p, q, r0] = MBA_FIT[Math.min(Za, Zb) * 128 + Math.max(Za, Zb)], a = mbParam(Za), b = mbParam(Zb);
+      const on = a.on === b.on ? a.on : 0.5 * (a.on + b.on), off = a.off === b.off ? a.off : 0.5 * (a.off + b.off); // (1.26: as for mixed pairs)
+      v = new Float64Array([A, xi * xi, p / r0, 2 * q / r0, r0, on * r0, off * r0, xi * xi]);
     } else {
       const a = mbParam(Za), b = mbParam(Zb), r0 = 0.5 * (a.r0 + b.r0), p = 0.5 * (a.p + b.p), q = 0.5 * (a.q + b.q);
-      v = new Float64Array([2 * Math.sqrt(a.A * b.A), a.xi * b.xi, p / r0, 2 * q / r0, r0, MB_ON * r0, MB_OFF * r0, a.xi * b.xi]);
+      const on = a.on === b.on ? a.on : 0.5 * (a.on + b.on), off = a.off === b.off ? a.off : 0.5 * (a.off + b.off); // (a directional metal's wider switch, 1.26: the two's mean)
+      v = new Float64Array([2 * Math.sqrt(a.A * b.A), a.xi * b.xi, p / r0, 2 * q / r0, r0, on * r0, off * r0, a.xi * b.xi]);
     }
     MBO.pp.set(key, v);
   }
   return v;
 }
 let MB_RMAX = 0; // (the farthest any pair reaches: for the searches around a set)
-function mbRmax() { if (!MB_RMAX) for (const el of ELEMENTS) if (el && el.metal) { MB_RMAX = Math.max(MB_RMAX, MB_OFF * mbParam(el.Z).r0); for (const x of [1, 8]) MB_RMAX = Math.max(MB_RMAX, MB_OFF * mbXP(el.Z, x)[5]); } return MB_RMAX; }
+function mbRmax() { if (!MB_RMAX) for (const el of ELEMENTS) if (el && el.metal) { MB_RMAX = Math.max(MB_RMAX, mbParam(el.Z).off * mbParam(el.Z).r0); for (const x of [1, 8]) MB_RMAX = Math.max(MB_RMAX, MB_OFF * mbXP(el.Z, x)[5]); } return MB_RMAX; }
 /* the switch: 1 inside r_on, 0 past r_off, quintic between (value into _ms, slope into _msd) */
 let _ms = 1, _msd = 0;
 function mbSw(r, on, off) {
@@ -218,7 +255,11 @@ const MBF = { m: new Int32Array(64), ty: new Int32Array(64), rho: new Float64Arr
   pvr: new Float64Array(256), pdr: new Float64Array(256), pk: new Float64Array(256), prr: new Float64Array(256), pkp: new Float64Array(256),
   zt: new Int32Array(Z_MAX + 2), tz: [], pt: new Float64Array(64), eps: new Float64Array(8),
   sx: new Float64Array(64), sy: new Float64Array(64), sz: new Float64Array(64), ss: new Int32Array(64), st: new Int32Array(64), sa: new Int32Array(64), nb: new Int32Array(27),
-  w: new Float64Array(64), sw: new Float64Array(64) }; // (w, sw: the partners' weights, by member order and by cell order, 1.26)
+  w: new Float64Array(64), sw: new Float64Array(64), // (w, sw: the partners' weights, by member order and by cell order, 1.26)
+  tdp: new Float64Array(16), rm: new Float64Array(64), gm: new Float64Array(64), // (directional metals, 1.26: constants by type; ρᴹ and Γ by cell order)
+  da: new Int32Array(256), db: new Int32Array(256), dr: new Float64Array(256), dux: new Float64Array(256), duy: new Float64Array(256), duz: new Float64Array(256),
+  dsw: new Float64Array(256), dsd: new Float64Array(256), dr0: new Float64Array(256), // (their member pairs: ends, distance, direction, switch and its slope, r₀)
+  cst: new Int32Array(64), cl: new Int32Array(512), ca: new Float64Array(64), cad: new Float64Array(64), ch: new Float64Array(64) }; // (each centre's arms: pair and side, a, a′, h)
 function mbGrowM(n) {
   if (MBF.m.length >= n) return;
   const N = n * 2 + 64;
@@ -241,7 +282,13 @@ function mbTypes(nm) {
   if (MBF.pt.length < nt * nt * 9) MBF.pt = new Float64Array(nt * nt * 18);
   if (MBF.eps.length < nt) MBF.eps = new Float64Array(nt * 2);
   let cs = 0;
-  MBO.rx0 = 0;
+  MBO.rx0 = 0; MBO.ndt = 0; MBO.dirR = 0;
+  if (MBF.tdp.length < nt * 5) MBF.tdp = new Float64Array(nt * 10);
+  for (let u = 0; u < nt; u++) { // (directional metals' β, t₂, t₄, t₆ by type, 0 for the rest; 1.26)
+    const P = MB_X[tz[u]] ? null : mbParam(tz[u]), o = u * 5;
+    if (P && P.be !== undefined) { MBF.tdp[o] = 1; MBF.tdp[o + 1] = P.be; MBF.tdp[o + 2] = P.t[0]; MBF.tdp[o + 3] = P.t[1]; MBF.tdp[o + 4] = P.t[2]; MBO.ndt++; MBO.dirR = Math.max(MBO.dirR, P.off * P.r0); }
+    else MBF.tdp.fill(0, o, o + 5);
+  }
   for (let u = 0; u < nt; u++) {
     if (!u) MBO.r0max = 0;
     if (MB_X[tz[u]]) MBF.eps[u] = MB_XEPS; else { MBF.eps[u] = mbParam(tz[u]).eps; MBO.r0max = Math.max(MBO.r0max, mbParam(tz[u]).r0); }
@@ -296,6 +343,10 @@ function mbPass(forces) {
   for (let s = 0; s < nm; s++) { const a = ord[s], i = m[a]; SX[s] = X[i]; SY[s] = Y[i]; SZ[s] = d3 ? Zp[i] : 0; SS[s] = i; STY[s] = ty[a] * nt; SA[s] = AN[i]; SWt[s] = Wm[a]; }
   // pairs: each cell against itself (the later member only) and its neighbouring cells of higher number, each once
   const rho = MBF.rho; rho.fill(0, 0, nm);
+  const ND = MBO.ndt > 0, TD = MBF.tdp; // (directional metals present, 1.26: their member pairs listed, ρᴹ summed)
+  let nd = 0;
+  if (ND) { if (MBF.rm.length < nm) { MBF.rm = new Float64Array(nm * 2 + 64); MBF.gm = new Float64Array(nm * 2 + 64); } MBF.rm.fill(0, 0, nm); MBF.gm.fill(0, 0, nm); }
+  const RM = MBF.rm, GMv = MBF.gm;
   let np = 0, Erep = 0;
   if (forces) mbGrowP(nm * (d3 ? 24 : 10) + 64);
   let PA = MBF.pa, PB = MBF.pb, UX = MBF.pux, UY = MBF.puy, UZ = MBF.puz, VR = MBF.pvr, DR = MBF.pdr, PK = MBF.pk, RR = MBF.prr, KP = MBF.pkp, cap = PA.length;
@@ -335,6 +386,7 @@ function mbPass(forces) {
           const pr = PT[o + 2], qr = PT[o + 3], ws = SWt[s], wt = SWt[t], er = PT[o] * Math.exp(pr * (r0 - r)) * ws * wt, ed = PT[o + 1] * Math.exp(qr * (r0 - r)); // (ws, wt: a partner's weight, 1 for a member, 1.26)
           const kap = PT[o + 8]; // (1 between metals; a metal and its partner: the partner's ξ² over the metal's, or the inverse, 1.26)
           Erep += er * sw; rho[s] += ed * sw * wt; rho[t] += ed * kap * sw * ws; // (a member's density takes a partner's share at its weight; a partner's, every member's in full)
+          if (ND) { const ds = TD[tro / nt * 5], dt = TD[STY[t] / nt * 5]; if ((ds || dt) && !MB_X[MBF.tz[tro / nt]] && !MB_X[MBF.tz[STY[t] / nt]]) mbDirPair(s, t, r, dx, dy, dz, sw, swd, r0, ed, kap, nd++); }
           if (forces) {
             if (np >= cap) { mbGrowP(np + 1); PA = MBF.pa; PB = MBF.pb; UX = MBF.pux; UY = MBF.puy; UZ = MBF.puz; VR = MBF.pvr; DR = MBF.pdr; PK = MBF.pk; RR = MBF.prr; KP = MBF.pkp; cap = PA.length; }
             const ir = 1 / r;
@@ -351,6 +403,7 @@ function mbPass(forces) {
   }
   let Eemb = 0;
   const fd = MBF.fd, EPS = MBF.eps;
+  if (ND) { MBO.nd = nd; mbDirGamma(nm, nd); for (let s = 0; s < nm; s++) if (GMv[s] !== 0) rho[s] += RM[s] * GMv[s]; } // (a directional centre's band: ρ + ρᴹ·Γ, 1.26; rho holds X from here)
   for (let s = 0; s < nm; s++) { const eps = EPS[STY[s] / nt], sq = Math.sqrt(rho[s] + eps * eps), w = SWt[s]; if (w === 1) { Eemb -= sq - eps; fd[s] = -0.5 / sq; } else { Eemb -= w * (sq - eps); fd[s] = -0.5 / sq; } } // (a partner's embedding at its weight, 1.26)
   MBO.np = np; MBO.E = Erep + Eemb;
   MBO.E += mbImage(forces, nm - nxp); // (ions near the metal: their image's pull, 1.26)
@@ -358,7 +411,7 @@ function mbPass(forces) {
     const FX = S.fx, FY = S.fy, FZ = S.fz, IM = S.im;
     let st = 0;
     for (let k = 0; k < np; k++) {
-      const a = PA[k], b = PB[k], i = SS[a], j = SS[b], fsum = fd[a] + KP[k] * fd[b]; // (KP: 1 between metals, 1.26)
+      const a = PA[k], b = PB[k], i = SS[a], j = SS[b], fsum = ND && (GMv[a] !== 0 || GMv[b] !== 0) && RM[a] + RM[b] > 0 && !MB_X[S.Z[i]] && !MB_X[S.Z[j]] ? fd[a] * (1 + GMv[a]) + KP[k] * fd[b] * (1 + GMv[b]) : fd[a] + KP[k] * fd[b]; // (KP: 1 between metals, 1.26; a directional centre's metal density weighs 1 + Γ, 1.26)
       const g = -(VR[k] + fsum * DR[k]); // (−dE/dr)
       const fx = g * UX[k], fy = g * UY[k];
       FX[j] += fx; FY[j] += fy; FX[i] -= fx; FY[i] -= fy;
@@ -367,8 +420,81 @@ function mbPass(forces) {
       if (kk > 0) { const w = kk * (IM[i] + IM[j]); if (w > st) st = w; }
     }
     if (st > _stiff) _stiff = st;
+    if (ND) mbDirForces(nm, nd);
   }
   return MBO.E;
+}
+/* ---- directional metals in the pass (1.26): one member pair (cell-order slots s, t) with a directional end, listed;
+   its metal density into ρᴹ of each end */
+function mbDirPair(s, t, r, dx, dy, dz, sw, swd, r0, ed, kap, k) {
+  if (k >= MBF.da.length) { const N = k * 2 + 256, g = (a, T) => { const b = new T(N); b.set(a); return b; }; MBF.da = g(MBF.da, Int32Array); MBF.db = g(MBF.db, Int32Array); for (const n of ['dr', 'dux', 'duy', 'duz', 'dsw', 'dsd', 'dr0']) MBF[n] = g(MBF[n], Float64Array); }
+  const ir = 1 / r;
+  MBF.da[k] = s; MBF.db[k] = t; MBF.dr[k] = r; MBF.dux[k] = dx * ir; MBF.duy[k] = dy * ir; MBF.duz[k] = dz * ir; MBF.dsw[k] = sw; MBF.dsd[k] = swd; MBF.dr0[k] = r0;
+  MBF.rm[s] += ed * sw; MBF.rm[t] += ed * kap * sw;
+}
+/* the Legendre sum g(c) = Σ t_l P_l(c) and its slope (into _ms) */
+function mbDirG(t2, t4, t6, c) {
+  const c2 = c * c;
+  _ms = t2 * 3 * c + t4 * (35 * c2 - 15) * c / 2 + t6 * (1386 * c2 * c2 - 1260 * c2 + 210) * c / 16;
+  return t2 * (1.5 * c2 - 0.5) + t4 * ((35 * c2 - 30) * c2 + 3) / 8 + t6 * (((231 * c2 - 315) * c2 + 105) * c2 - 5) / 16;
+}
+/* each directional centre's arms (its listed pairs, by slot) and Γ = (T₀Σa² + 2Σ_{j<k} a_j a_k g(c_jk)) / (Σa)², with
+   h_j = Σ_k a_k g(c_jk) (k = j counted) kept for the forces */
+function mbDirGamma(nm, nd) {
+  if (MBF.cst.length < nm + 1) MBF.cst = new Int32Array(nm * 2 + 64);
+  if (MBF.cl.length < 2 * nd) MBF.cl = new Int32Array(nd * 4 + 64);
+  if (MBF.ca.length < 2 * nd) { MBF.ca = new Float64Array(nd * 4 + 64); MBF.cad = new Float64Array(nd * 4 + 64); MBF.ch = new Float64Array(nd * 4 + 64); }
+  const st = MBF.cst, cl = MBF.cl, DA = MBF.da, DB = MBF.db, TD = MBF.tdp, STY = MBF.st, nt = MBF.tz.length, GMv = MBF.gm, A = MBF.ca, AD = MBF.cad, H = MBF.ch;
+  st.fill(0, 0, nm + 1);
+  for (let k = 0; k < nd; k++) { if (TD[STY[DA[k]] / nt * 5]) st[DA[k] + 1]++; if (TD[STY[DB[k]] / nt * 5]) st[DB[k] + 1]++; }
+  for (let s = 0; s < nm; s++) st[s + 1] += st[s];
+  const fill = MBF.fill.length >= nm ? MBF.fill : (MBF.fill = new Int32Array(nm * 2 + 64));
+  fill.set(st.subarray(0, nm));
+  for (let k = 0; k < nd; k++) { if (TD[STY[DA[k]] / nt * 5]) cl[fill[DA[k]]++] = 2 * k; if (TD[STY[DB[k]] / nt * 5]) cl[fill[DB[k]]++] = 2 * k + 1; } // (2k: the centre is the pair's first end, 2k + 1 its second)
+  const UX = MBF.dux, UY = MBF.duy, UZ = MBF.duz, R = MBF.dr, SW = MBF.dsw, SD = MBF.dsd, R0 = MBF.dr0;
+  for (let s = 0; s < nm; s++) {
+    const e0 = st[s], e1 = st[s + 1];
+    if (e0 === e1) continue;
+    const o = STY[s] / nt * 5, be = TD[o + 1], t2 = TD[o + 2], t4 = TD[o + 3], t6 = TD[o + 4], T0 = t2 + t4 + t6;
+    let Ra = 0, N = 0;
+    for (let e = e0; e < e1; e++) { const k = cl[e] >> 1, x = Math.exp(-be * (R[k] / R0[k] - 1)); A[e] = x * SW[k]; AD[e] = x * (SD[k] - be / R0[k] * SW[k]); Ra += A[e]; H[e] = A[e] * T0; N += A[e] * A[e] * T0; }
+    for (let e = e0; e < e1; e++) {
+      const k = cl[e] >> 1, sg = cl[e] & 1 ? -1 : 1, ux = UX[k] * sg, uy = UY[k] * sg, uz = UZ[k] * sg;
+      for (let f = e + 1; f < e1; f++) {
+        const k2 = cl[f] >> 1, sf = cl[f] & 1 ? -1 : 1, c = (ux * UX[k2] + uy * UY[k2] + uz * UZ[k2]) * sf, g = mbDirG(t2, t4, t6, c);
+        N += 2 * A[e] * A[f] * g; H[e] += A[f] * g; H[f] += A[e] * g;
+      }
+    }
+    GMv[s] = Ra > 0 ? N / (Ra * Ra) : 0;
+  }
+}
+/* the forces of Γ: through each arm's weight a(r) and through the angles (E = −√(ρ + ρᴹΓ + ε²) + ε; ∂Γ/∂a_j = 2(h_j − ΓΣa)/(Σa)², ∂Γ/∂c_jk = 2a_j a_k g′(c_jk)/(Σa)²) */
+function mbDirForces(nm, nd) {
+  const st = MBF.cst, cl = MBF.cl, TD = MBF.tdp, STY = MBF.st, nt = MBF.tz.length, GMv = MBF.gm, RM = MBF.rm, fd = MBF.fd, SS = MBF.ss, A = MBF.ca, AD = MBF.cad, H = MBF.ch;
+  const UX = MBF.dux, UY = MBF.duy, UZ = MBF.duz, R = MBF.dr, DA = MBF.da, DB = MBF.db, FX = S.fx, FY = S.fy, FZ = S.fz, d3 = W.d3;
+  for (let s = 0; s < nm; s++) {
+    const e0 = st[s], e1 = st[s + 1];
+    if (e0 === e1) continue;
+    const o = STY[s] / nt * 5, t2 = TD[o + 2], t4 = TD[o + 3], t6 = TD[o + 4], i = SS[s];
+    let Ra = 0; for (let e = e0; e < e1; e++) Ra += A[e];
+    if (!(Ra > 0)) continue;
+    const C = fd[s] * RM[s] / (Ra * Ra), G = GMv[s];
+    for (let e = e0; e < e1; e++) {
+      const k = cl[e] >> 1, sg = cl[e] & 1 ? -1 : 1, j = SS[cl[e] & 1 ? DA[k] : DB[k]], ux = UX[k] * sg, uy = UY[k] * sg, uz = UZ[k] * sg;
+      const dEr = C * 2 * (H[e] - G * Ra) * AD[e]; // (dE/dr of the arm, through its weight)
+      FX[j] -= dEr * ux; FY[j] -= dEr * uy; FX[i] += dEr * ux; FY[i] += dEr * uy; if (d3) { FZ[j] -= dEr * uz; FZ[i] += dEr * uz; }
+      const re = R[k];
+      for (let f = e + 1; f < e1; f++) {
+        const k2 = cl[f] >> 1, sf = cl[f] & 1 ? -1 : 1, jf = SS[cl[f] & 1 ? DA[k2] : DB[k2]], vx = UX[k2] * sf, vy = UY[k2] * sf, vz = UZ[k2] * sf, c = ux * vx + uy * vy + uz * vz;
+        mbDirG(t2, t4, t6, c);
+        const dEc = C * 2 * A[e] * A[f] * _ms, rf = R[k2];
+        const gx = dEc * (vx - c * ux) / re, gy = dEc * (vy - c * uy) / re, gz = dEc * (vz - c * uz) / re; // (∂E/∂ of arm e's end)
+        const hx = dEc * (ux - c * vx) / rf, hy = dEc * (uy - c * vy) / rf, hz = dEc * (uz - c * vz) / rf; // (of arm f's end)
+        FX[j] -= gx; FY[j] -= gy; FX[jf] -= hx; FY[jf] -= hy; FX[i] += gx + hx; FY[i] += gy + hy;
+        if (d3) { FZ[j] -= gz; FZ[jf] -= hz; FZ[i] += gz + hz; }
+      }
+    }
+  }
 }
 /* ---- an ion near the metal (1.26): the metal's electrons draw back from its charge, and the ion feels the pull of that
    "image" (−k·q²/4z over a flat conductor). Here as a pair term between the ion and each member, φ = −c·q²/(r² + a²)²
@@ -464,15 +590,37 @@ function mbLocalMB(set) {
       if (!inT.has(o)) { E += P[0] * Math.exp(-P[2] * P[4] * x) * _ms * wp * wo; near.set(o, (near.get(o) || 0) + (P[7] === P[1] ? ed : P[7] * Math.exp(-P[3] * P[4] * x) * _ms) * wp); } // (into o: its own ξ², 1.26)
       else if (p.id < o.id) E += P[0] * Math.exp(-P[2] * P[4] * x) * _ms * wp * wo;
     });
-    E += wp * mbF(rho, MB_X[p.Z] ? MB_XEPS : mbParam(p.Z).eps);
+    E += wp * mbF(MB_X[p.Z] || !MBD_DIR(p.Z) ? rho : mbDirX(p, null), MB_X[p.Z] ? MB_XEPS : mbParam(p.Z).eps); // (a directional metal: its ρ + ρᴹΓ, 1.26)
   }
   for (const [o, dT] of near) {
     let rho = 0;
     around(o, (u, r) => { const P = mbPP(o.Z, u.Z); if (r >= P[6]) return; mbSw(r, P[5], P[6]); rho += P[1] * Math.exp(-P[3] * P[4] * (r / P[4] - 1)) * _ms * wOf(u); });
     const eps = MB_X[o.Z] ? MB_XEPS : mbParam(o.Z).eps;
+    if (!MB_X[o.Z] && MBD_DIR(o.Z)) { E += mbF(mbDirX(o, null), eps) - mbF(mbDirX(o, inT), eps); continue; } // (a directional neighbour: its band with and without T's atoms, whose angles count too, 1.26)
     E += wOf(o) * (mbF(rho, eps) - mbF(Math.max(0, rho - dT), eps));
   }
   return E;
+}
+/* a directional member's band argument X = ρ + ρᴹΓ from its surroundings (1.26; as mbPass has it), the atoms in skip left
+   out (mbLocal: what it is without a set) */
+function mbDirX(p, skip) {
+  const P0 = mbParam(p.Z), be = P0.be, [t2, t4, t6] = P0.t, T0 = t2 + t4 + t6, d3 = W.d3, R = mbRmax(), seen = new Set();
+  let rho = 0, rm = 0; const a = [], ux = [], uy = [], uz = [];
+  const v = (o, dx, dy, r2, dz) => {
+    if (o === p || seen.has(o) || o.dead || o.k !== NUC || o.anti !== p.anti || (skip && skip.has(o))) return; seen.add(o);
+    const mem = mbIs(o.i); if (!mem && !mbIsX(o.i)) return;
+    const P = mbPP(p.Z, o.Z), r = Math.sqrt(r2); if (r >= P[6] || r < 1e-6) return;
+    mbSw(r, P[5], P[6]);
+    const ed = P[1] * Math.exp(-P[3] * P[4] * (r / P[4] - 1)) * _ms;
+    rho += ed * (mem ? 1 : mbW(o.i));
+    if (!mem) return;
+    rm += ed; a.push(Math.exp(-be * (r / P[4] - 1)) * _ms); ux.push(dx / r); uy.push(dy / r); uz.push((dz || 0) / r);
+  };
+  nearby(p.x, p.y, R, v, p.z);
+  for (const o of _late) { if (o.dead) continue; const [dx, dy, dz] = minImg(o.x - p.x, o.y - p.y, d3 ? o.z - p.z : 0); v(o, dx, dy, dx * dx + dy * dy + dz * dz, dz); }
+  let Ra = 0, N = 0;
+  for (let e = 0; e < a.length; e++) { Ra += a[e]; N += a[e] * a[e] * T0; for (let f = e + 1; f < a.length; f++) N += 2 * a[e] * a[f] * mbDirG(t2, t4, t6, ux[e] * ux[f] + uy[e] * uy[f] + uz[e] * uz[f]); }
+  return Ra > 0 ? rho + rm * (N / (Ra * Ra)) : rho;
 }
 /* A lower bound on the many-body energy an electron's move from d to acc costs (for evTransfer's quick estimate, which
    otherwise sends nearly every pair of neighbours in a metal to the exact trial): the members it makes ions lose their
@@ -491,7 +639,7 @@ function mbXferLB(d, acc) {
   const L = [d, acc].filter(p => p.k === NUC && !p.dead && mbIs(p.i));
   if (!L.length) return Math.min(0, E);
   for (const p of L) {
-    const R = MB_OFF * Math.max(mbParam(p.Z).r0, MBO.r0max || 0, MBO.rx0 || 0); // (the members' widest reach at the last pass, and the partners' (1.26): an estimate needs no more)
+    const R = Math.max(MB_OFF * Math.max(mbParam(p.Z).r0, MBO.r0max || 0, MBO.rx0 || 0), MBO.dirR || 0); // (the members' widest reach at the last pass, and the partners' (1.26): an estimate needs no more; a directional metal's wider switch, 1.26)
     let rho = 0;
     nearby(p.x, p.y, R, (o, dx, dy, r2) => {
       if (o === p || o.dead || o.k !== NUC || o.anti !== p.anti) return;
@@ -501,7 +649,7 @@ function mbXferLB(d, acc) {
       rho += P[1] * Math.exp(P[3] * (P[4] - r)) * _ms * w;
       if (!(L.length === 2 && o === (p === d ? acc : d) && p === acc)) E -= P[0] * Math.exp(P[2] * (P[4] - r)) * _ms * w; // (the pair of the two counted once)
     }, p.z);
-    E -= mbF(rho, mbParam(p.Z).eps);
+    E -= mbF(MBD_DIR(p.Z) ? mbDirX(p, null) : rho, mbParam(p.Z).eps); // (a directional metal's own band with its angles, 1.26: neighbours' angles can go either way, so here the bound is an estimate; the trial decides)
   }
   return E;
 }

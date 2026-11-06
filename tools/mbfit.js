@@ -197,6 +197,12 @@ function fitOne(cmp, tq, kq = 1) {
   const r = EE(best.A, best.xi, p); setFit(key, v);
   return { key, v, cmp, rm, z: sh.z, dHf: (r.E - (a * -Ec + b * X2[Xs])) * KJ, B: r.d2 / (9 * r.V) * 160.2177, slope: r.d1 / rm };
 }
+/* --write with --only (1.26): the table's other lines kept, the refitted ones replaced in place */
+function mergeLines(table, lines, keys) {
+  if (!only) return lines;
+  const old = table.split('\n').slice(1, -1), byKey = new Map(keys.map((k, i) => [String(k), lines[i]]));
+  return old.map(l => { const m = l.match(/^\s*(\d+):/); return m && byKey.has(m[1]) ? byKey.get(m[1]) : l; });
+}
 if (require.main !== module) module.exports = { X, OX, CHECK, AL, ALCHECK, ADS, build, energy, nearestMX, meanMX, setFit, fitOne, fitAlloy, adsorb, X2 };
 const args = process.argv.slice(2), only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : null;
 const out = [];
@@ -238,13 +244,13 @@ if (args.includes('--write') && doAl) {
   const f = path.join(__dirname, '..', 'src', 'bometal.js');
   let s = fs.readFileSync(f, 'utf8');
   const lines = alOut.map(o => `  ${o.key}: [${o.v.map(x => +x.toPrecision(6)).join(', ')}], // ${o.cmp[0]}–${o.cmp[1]}: ${o.cmp[2] > 1 ? o.cmp[0] + o.cmp[2] + o.cmp[1] : o.cmp[0] + o.cmp[1]} (${o.cmp[6]}), ΔHf ${o.cmp[4]} kJ/mol`);
-  s = s.replace(/const MBA_FIT = \{[^]*?\n\};|const MBA_FIT = \{\};/, 'const MBA_FIT = {\n' + lines.join('\n') + '\n};');
+  s = s.replace(/const MBA_FIT = \{[^]*?\n\};|const MBA_FIT = \{\};/, (m) => 'const MBA_FIT = {\n' + mergeLines(m, lines, alOut.map(o => o.key)).join('\n') + '\n};');
   fs.writeFileSync(f, s); console.log('written', alOut.length);
 } else if (args.includes('--write')) {
   const f = path.join(__dirname, '..', 'src', 'bometal.js');
   let s = fs.readFileSync(f, 'utf8');
   const lines = out.map(o => `  ${o.key}: [${o.v.map(x => +x.toPrecision(6)).join(', ')}], // ${o.cmp[0]}–${o.cmp[1]}: ${o.cmp[6]}, ΔHf ${o.cmp[4]} kJ/mol, B ${o.cmp[5] || '—'} GPa, r₀ ${o.rm.toFixed(3)} Å${ADS[o.cmp[0] + '-' + o.cmp[1]] !== undefined ? ', on (111) ' + ADS[o.cmp[0] + '-' + o.cmp[1]] + ' eV' : ''}`);
-  s = s.replace(/const MBX_FIT = \{[^]*?\n\};|const MBX_FIT = \{\};/, 'const MBX_FIT = {\n' + lines.join('\n') + '\n};');
+  s = s.replace(/const MBX_FIT = \{[^]*?\n\};|const MBX_FIT = \{\};/, (m) => 'const MBX_FIT = {\n' + mergeLines(m, lines, out.map(o => o.key)).join('\n') + '\n};');
   fs.writeFileSync(f, s);
   console.log('written', out.length);
 }

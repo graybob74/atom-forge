@@ -254,7 +254,7 @@ engine stores and visits particles.
     measured against reference, for the owner's OK): lone pairs on O and N as off-atom charge sites (TIP4P/TIP5P-like)
     so liquid water's and ice's tetrahedral network comes out sharp (density, RDF, ice structure); directional bonding
     for transition metals (an angular term in the many-body metals, MEAM-like or bond-order potential) so Fe, W, Cr, Mo
-    and Na crystallize bcc (bcc–fcc energy differences); σ-holes for halogen bonds (an off-atom positive site on Cl, Br,
+    and Na crystallize bcc (bcc–fcc energy differences; built on v132 for the owner's OK: the 1.26 section, item 3); σ-holes for halogen bonds (an off-atom positive site on Cl, Br,
     I; halogen-bond energies and geometries); π-stacking between aromatic rings (benzene dimer energies and shapes);
     polarizability that differs by direction for induced charges.
   - Also left from 1.25: the collider in 3-D (the 1.25 section: ring zones, radiation flight in the z = 0 plane, 3-D
@@ -421,6 +421,121 @@ measured).
 - **Cost**: none (a table lookup when the pair table is made).
 - Tests: f_126m `alloy` (Ni₃Al and CuAu within 10%, Al in Ni below −1 eV, Cu₃Au ordered below random); fails on cc8a0fd
   (Al in Ni +0.15).
+
+**3. Directional bonding (the bcc metals).** The owner: "directional bonding for transition metals … so Fe, W, Cr, Mo and
+Na crystallize bcc". Reference values from memory again (the proxy refused the web): Kittel's cohesive energies and
+spacings, room-temperature elastic constants (Simmons and Wang), Ehrhart's vacancy energies; fcc − bcc and hcp − bcc from
+DFT and CALPHAD lattice stabilities as recalled (W about 0.48 / 0.42 eV an atom, Mo 0.42 / 0.43, Cr 0.40 / 0.37, V 0.24 /
+0.25, Nb 0.33 / 0.30, Ta 0.24 / 0.27, Fe 0.10 / 0.08 with its magnetism; Na nearly degenerate, taken as +0.003 so bcc is
+lowest): the structural differences are the least certain, ±0.05 eV and more for hcp.
+- **Before** (measured here; the 1.25 note said these metals "crystallize close-packed", which is not what the model
+  does): fitted on a close-packed crystal, the model cannot tell fcc from hcp (12 equal neighbours, the second shell past
+  the switch), and bcc's second shell (at 1.155 r₀) sits just inside the switch (1.15–1.35 r₀) and counts fully, so bcc
+  comes out lowest but 2.7–3.3% too small and overbound (relaxed, 3-D periodic, game energies):
+
+  | 1.25 / items 1–2 | W | Mo | Cr | V | Nb | Ta | Fe | Na |
+  |---|---|---|---|---|---|---|---|---|
+  | bcc a, against measured | −2.7% | −2.8% | −2.6% | −3.1% | −2.9% | −3.0% | −3.0% | −3.2% |
+  | bcc Ec (measured) | 9.02 (8.90) | 6.90 (6.82) | 4.17 (4.10) | 5.43 (5.31) | 7.73 (7.57) | 8.25 (8.10) | 4.36 (4.28) | 1.153 (1.113) |
+  | fcc − bcc = hcp − bcc | 0.122 | 0.082 | 0.066 | 0.123 | 0.158 | 0.152 | 0.080 | 0.040 |
+
+  The same holds for the close-packed metals, see "Found" below.
+- **The model** (`src/bometal.js`, MBD_FIT and mbDir…): MEAM's angular partial densities (Baskes 1992) weighing the band:
+  Eᵢ = Σⱼ A·e^(−p(r/r₀ − 1)) − √(ρᵢ + ρᵢᴹ·Γᵢ), Γᵢ = Σ_l t_l·Σⱼ Σₖ aⱼaₖ P_l(cos θⱼₖ) / (Σⱼ aⱼ)², l = 2, 4, 6, aⱼ =
+  e^(−β(r/r₀ − 1)) at the pair's switch (j = k counted, so each l's part lies in [0, 1]); ρᴹ is the metal part of the
+  density, so O and H on the metal keep item 1's terms. Γ is unchanged by an even scaling of a crystal and bounded (t's
+  negative part kept to −0.8, so ρ + ρᴹΓ ≥ 0.2ρ): the first try, an unnormalized three-body sum, collapsed every lattice
+  under compression (its angular term grew faster than the core repulsion). l = 6 rewards bcc's cube of first neighbours
+  (ρ₆²/(Σa)² 0.39 against fcc 0.33, hcp 0.24, the simple cube 0.13), l = 4 sets fcc against hcp and the simple cube, l = 2
+  (zero in any cubic crystal) gives shear an angular part. The members of a directional element switch from 1.25 to
+  1.45 r₀ (bcc's second shell in, fcc's at 1.41·1.03 r₀ out); a pair with one directional metal takes the two switches'
+  mean; every other metal keeps 1.25's 1.15–1.35 exactly. Arms are member metal atoms (an alloy partner's arms count with
+  the centre's β and the pair's r₀); O and H are not arms. Forces analytic (the arms' weights and the angles; mbDirForces);
+  localPE and regionE exact (a directional neighbour's band recomputed with and without the set, mbDirX). evTransfer's
+  lower bound uses the leaver's own band with its angles; its neighbours' angles can go either way, so for these metals
+  the bound is an estimate (a transfer it skips would have been refused by the exact trial in nearly every case; the
+  trial still decides the rest).
+- **The fit** (`node tools/mbdfit.js [El …]`, lattice sums of one atom's neighbours, the same formula; `--table` writes
+  the rows; the game's energies agree to 1e-4 eV an atom, its elastic constants to 0.1 GPa): A and ξ solved for the
+  cohesive energy at zero pressure at the measured spacing; p, q, t₂, t₄, t₆, β by Nelder–Mead on the bulk modulus, C′,
+  C₄₄, the unrelaxed vacancy energy, fcc − bcc and hcp − bcc, with the simple cube, simple hexagonal and diamond lattices
+  kept above bcc (without that, the first fits put the simple cube 0.4–0.6 eV below bcc). Eight metals: the owner's five
+  and V, Nb, Ta (the rest of groups 5 and 6). Relaxed, 3-D:
+
+  | | a Å | Ec eV | B | C₁₁ | C₁₂ | C₄₄ GPa | vacancy eV | fcc − bcc | hcp − bcc eV |
+  |---|---|---|---|---|---|---|---|---|---|
+  | W | 3.165 (3.165) | 8.90 (8.90) | 312 (310) | 429 (522) | 254 (204) | 162 (161) | 3.59 / relaxed 3.57 (3.67) | 0.473 (0.48) | 0.566 (0.42) |
+  | Mo | 3.147 (3.147) | 6.82 (6.82) | 261 (260) | 378 (464) | 203 (158) | 110 (109) | 2.89 (3.0) | 0.436 (0.42) | 0.535 (0.43) |
+  | Cr | 2.884 (2.885) | 4.10 (4.10) | 153 (153) | 248 (340) | 105 (59) | 97 (99) | 1.87 (2.0) | 0.341 (0.40) | 0.390 (0.37) |
+  | V | 3.028 (3.03) | 5.31 (5.31) | 156 (155) | 217 (228) | 126 (119) | 43 (43) | 2.05 (2.1) | 0.244 (0.24) | 0.283 (0.25) |
+  | Nb | 3.300 (3.30) | 7.57 (7.57) | 173 (171) | 233 (246) | 143 (134) | 29 (29) | 2.63 (2.65) | 0.312 (0.33) | 0.357 (0.30) |
+  | Ta | 3.302 (3.303) | 8.10 (8.10) | 196 (194) | 247 (266) | 171 (158) | 88 (87) | 2.78 (2.9) | 0.268 (0.24) | 0.325 (0.27) |
+  | Fe | 2.866 (2.866) | 4.28 (4.28) | 163 (167) | 189 (231) | 150 (135) | 119 (116) | 1.52 (1.6) | 0.093 (0.10) | 0.109 (0.08) |
+  | Na | 4.225 (4.225) | 1.113 (1.113) | 7.0 (6.6) | 7.9 (7.3) | 6.5 (6.2) | 4.0 (4.2) | 0.39 (0.42) | 0.003 (0.003) | 0.029 (≈0) |
+
+  (measured in brackets; vacancies unrelaxed unless said; hcp at its relaxed c/a, 1.62–1.80.) Cohesive energy, spacing,
+  bulk modulus, C₄₄ and the fcc energy come out; C₁₁ − C₁₂ is 20–60% low (W 175 against 318 GPa, Fe 39 against 96): the
+  Cauchy pressure C₁₂ − C₄₄ stays positive (Cr +8 GPa, measured −40), which a single √ band with these angles did not
+  reach; hcp lies 0.05–0.15 eV too high for W, Mo, Nb, Ta (above fcc, where the references put it a little below). The
+  open lattices stay up: simple cube +0.43 (Cr) to +0.87 eV (W, Ta) an atom, A15 +0.12 to +0.61, diamond +1.6 to +3.0
+  (Na +0.045, +0.014, +0.26). Along the Bain path (bcc to fcc at constant volume) bcc is the minimum and fcc a maximum
+  for all but Na (where fcc is a shallow local minimum, 0.003 above bcc).
+- **In motion** (3-D, free balls, bath 0.05): a tungsten ball of 141 atoms started fcc at 600 K turns body-centred
+  within a picosecond (inner atoms with fcc's 12 neighbours 43 → 2, with bcc's 14 0 → 14, the rest in between); one of 137
+  started bcc stays bcc at 300 K (27 of 27 inner atoms, 1 ps). Melting (3-D ball of 137 atoms, heated in steps of 0.1·Tm,
+  3 ps each; inner atoms with bcc's 14 neighbours, and how far atoms move in 2 ps): tungsten, 137 atoms, keeps its order to
+  about 2,600 K (23 of 28), loses half by 2,950 K and nearly all by 3,350 K (atoms' temperature; 4 of 28), and diffuses
+  (1.6–2.4 Å in 2 ps) from 3,350–4,100 K; iron, 169 atoms, keeps it to about 1,300 K (39 of 51), half by 1,360–1,640 K,
+  none by 1,960 K, diffusing from there (real 3,695 and 1,811 K). Balls this small melt well below the bulk (a third or
+  more of their atoms at the surface), so the bulk would melt at or somewhat above the real temperatures, as 1.25 found
+  for copper; not measured: a bulk coexistence run. Sodium: a ball of 59 atoms is too small to say (it is not bcc at
+  any temperature); a periodic bcc crystal of 128 atoms at 300 K stays bcc (83–99 atoms with 14 neighbours over 2 ps).
+- **The flat world**: the angles act in the plane. W, Mo and Cr sheets go centred rectangular (lattice sums: 0.12–0.24 eV
+  an atom below the triangular sheet, aspect 1.26–1.36, bcc's (110) face has 1.41): a flat W patch of 37 atoms at 300 K
+  turned so within 1 ps (the 5th and 6th neighbours 1.0 → 1.2 times as far as the first four). V, Nb, Ta, Fe stay
+  triangular or nearly (within 0.03 eV); flat sodium prefers square sheets by 0.08 eV an atom (t₄ 1.24 rewards the
+  square's fourfold arms; nothing fitted it to anything flat).
+- **Forces and energy**: forces are the energy's slopes to 5.9e-9 eV/Å flat and 1.2e-8 in 3-D (W with Fe and Cu and an O
+  atom, jittered), localPE exact to 3e-9 eV (an atom, a pair, an edge atom moved); insulated, a flat W patch at 1,500 K
+  over 3,000 steps of 0.4 fs 4e-5 eV, a 3-D W ball (137 atoms) 1,500 K over 2,000 steps 5.6e-4 eV (1.5e-4 at half the
+  step: the integrator), a 3-D Fe ball (169) 7.9e-4, a flat Na patch at 600 K 0.
+- **Cost** (one thread, CPU time, two cores shared with another agent): the pass, a periodic W crystal of 1,024 atoms 2.5
+  → 8.2 ms (×3.3; 7,168 listed pairs), a flat W patch of 967 atoms 0.95 → 2.3 ms (×2.4); whole steps ×1.04 (305 → 316
+  ms: dense 3-D metal steps go to electron-transfer estimates, the bug on record) and ×1.11 (9.1 → 10.0 ms); a 3-D ball of
+  181 W atoms 6.6 → 6.9 ms, flat 37 atoms 0.41 → 0.41. Pairs → many-body for the same ball ×1.15. Nothing changes without
+  these metals. The tags stay ×1–2 (a line each for the angles).
+- **What changed for items 1 and 2 and the fcc metals**: the fcc and other close-packed metals are untouched (their
+  constants, switch and arithmetic are 1.25's; f_125m's fit, forces, books and ions parts pass unchanged except that its
+  fit part now checks Au and Pt where it checked W and Na). Refitted with `tools/mbfit.js` (whose `--write` with `--only` now
+  keeps the table's other lines): Fe–O (FeO), Cr–O (Cr₂O₃), Na–O (Na₂O), Na–H (NaH) and the Fe–Al alloy (FeAl), since
+  their metal–metal pairs changed; each again has its measured heat of formation at its measured spacing (before the refit,
+  FeO came out −280.5 kJ/mol against −272, NaH −49.3 against −56.3). Hematite with FeO's constants (a check, not fitted):
+  −596 → −536 kJ/mol (measured −824). Ni₃Al, CuAu, Al in Ni, Cu₃Au, and every oxide and hydride of a close-packed metal:
+  unchanged. Pairs of a directional and a close-packed metal (Fe–Ni, W–Cu …) change with the directional metal's
+  constants and switch; none is fitted or measured against data. Oxides of Mo, W, V, Nb, Ta still borrow their group's
+  constants (Cr–O's, refitted, for Mo and W).
+- **Default game**: bit for bit (the 59 setups, flat and 3-D, 300 steps, seed 7, Many-body off: identical fingerprints).
+  With Many-body on, three differ from items 1–2, all with sodium or iron next to other atoms: flame, magnet, ch_salt.
+- **Found, not changed** (for the owner):
+  - 1.25's close-packed fit puts bcc below fcc for most metals in 3-D, for the reason above (bcc's 14 near neighbours
+    inside the 1.15 r₀ switch): relaxed, bcc − fcc Cu −0.053, Al −0.039, Ag −0.023, Ni −0.081 eV an atom (measured fcc
+    lower by about 0.04, 0.09, 0.03, 0.1); Au +0.013, Pt +0.008. A 3-D Cu ball (177 atoms) started fcc at 300 K turned
+    body-centred within 1 ps (inner atoms with 12 neighbours 43 → 6, with 14 0 → 12). Not changed here (the owner asked
+    that the fcc metals stay as they are); a fix is the same angular term with the close-packed metals' own constants
+    (fitted on fcc with bcc above it), which would move every close-packed metal's numbers and need items 1–2's tables
+    refitted: a physics change for the owner's OK.
+  - Bug-list question #1 (flat copper turning itself into ions): with Many-body on, none. A flat lump of 127 Cu atoms at
+    300 K (bath on) over 2 ps: 0 ions (seeds 7 and 3); with the pair model 118 of 127 by 0.5 ps (seed 7). In 3-D, a ball of
+    141 Cu atoms: Many-body 0 ions (seeds 7, 3), the pair model 136 of 141 (seed 7): the pair model's bug is in 3-D too.
+- **Left**: C₁₁ − C₁₂ low and the Cauchy pressure's sign (Cr), hcp too high for W, Mo, Nb, Ta (a fourth-moment or bond-order
+  form, or MEAM's screening and second-neighbour terms, would be the next step); iron's magnetism (its bcc preference is
+  magnetic in reality; here it is fitted, so fcc iron's γ phase at high temperature does not come out); the other bcc
+  metals (Li, K, Rb, Cs, Ba, Eu and the heavy ones) keep the close-packed fit; flat sodium squares.
+- Tests: f_126m `bcc` (W, Mo, Cr, Fe, Na: Ec and no force on scaling at the measured bcc spacing, fcc and hcp above bcc by
+  at least 0.6 of the reference, vacancies within 15%; on bbf3c16 W's fcc − bcc is 0.03 and the lattice is under a force),
+  `bccmd` (the W ball fcc → bcc at 600 K, bcc kept at 300 K; on bbf3c16 the fcc ball keeps 30 of 43 inner atoms
+  close-packed, none bcc), `dirforces` (forces and books, 2-D and 3-D), `page`
+  (Settings, notes, both cost tags, Help say body-centred). f_125m `fit` checks Au and Pt instead of W and Na.
 
 ## 1.25 (in progress)
 

@@ -28,7 +28,7 @@ function fcc(X, sym, a, n, skip = -1) {
 PARTS.fit = async (page, check) => {
   const X = harness(); X.mbSet(1);
   const out = {};
-  for (const [sym, Ec, r0, B, Ev] of [['Cu', 3.49, 2.56, 137.0, 1.28], ['Al', 3.39, 2.86, 72.2, 0.67], ['W', 8.90, 2.74, 323.2, 3.67], ['Na', 1.113, 3.66, 6.8, 0.42]]) {
+  for (const [sym, Ec, r0, B, Ev] of [['Cu', 3.49, 2.56, 137.0, 1.28], ['Al', 3.39, 2.86, 72.2, 0.67], ['Au', 3.81, 2.88, 173.2, 0.93], ['Pt', 5.84, 2.77, 278.3, 1.35]]) { // (W and Na here until 1.26: bcc metals since, with angles of their own, fitted on bcc: f_126m bcc)
     const n = 3, N = 4 * n * n * n, E = (a) => fcc(X, sym, a, n) / N, e0 = E(r0), h = 0.002 * r0, h1 = 1e-5 * r0;
     const Bm = (E(r0 + h) - 2 * e0 + E(r0 - h)) / (h * h) * r0 * r0 / (9 * r0 ** 3 / Math.SQRT2) * 160.2177, slope = (E(r0 + h1) - E(r0 - h1)) / (2 * h1);
     const ev = fcc(X, sym, r0, n, 5) - (N - 1) * e0; // (unrelaxed)
@@ -41,8 +41,8 @@ PARTS.fit = async (page, check) => {
   for (let r = 1.9; r < 2.6; r += 0.005) { b.x = r; X.gridTouch(); X.computeForces(); best = Math.min(best, X.totalEnergy().pe); }
   out.dimer = +(-best).toFixed(3); out.bondCrystal = +(3.49 / 6).toFixed(3);
   X.mbSet(0);
-  check(['Cu', 'Al', 'W', 'Na'].every(s => out[s].ok) && out.dimer > 2 * out.bondCrystal && p.p > 9 && p.p < 12 && p.q > 2 && p.q < 3,
-    `1.25 metals: a perfect fcc crystal has each metal's measured values (Cu Ec ${out.Cu.Ec} eV, B ${out.Cu.B} GPa, vacancy ${out.Cu.Ev} eV; Al ${out.Al.Ec}/${out.Al.B}/${out.Al.Ev}; W ${out.W.Ec}/${out.W.B}/${out.W.Ev}; Na ${out.Na.Ec}/${out.Na.B}/${out.Na.Ev}), no force at the measured spacing; Cu's p ${p.p.toFixed(2)}, q ${p.q.toFixed(2)} (Cleri and Rosato's published fit: 10.96, 2.28); a Cu dimer holds ${out.dimer} eV, against ${out.bondCrystal} a bond in the crystal`,
+  check(['Cu', 'Al', 'Au', 'Pt'].every(s => out[s].ok) && out.dimer > 2 * out.bondCrystal && p.p > 9 && p.p < 12 && p.q > 2 && p.q < 3,
+    `1.25 metals: a perfect fcc crystal has each metal's measured values (Cu Ec ${out.Cu.Ec} eV, B ${out.Cu.B} GPa, vacancy ${out.Cu.Ev} eV; Al ${out.Al.Ec}/${out.Al.B}/${out.Al.Ev}; Au ${out.Au.Ec}/${out.Au.B}/${out.Au.Ev}; Pt ${out.Pt.Ec}/${out.Pt.B}/${out.Pt.Ev}), no force at the measured spacing; Cu's p ${p.p.toFixed(2)}, q ${p.q.toFixed(2)} (Cleri and Rosato's published fit: 10.96, 2.28); a Cu dimer holds ${out.dimer} eV, against ${out.bondCrystal} a bond in the crystal`,
     '1.25 metals fit: ' + JSON.stringify(out) + ' p ' + p.p + ' q ' + p.q);
 };
 /* ---- 2. forces are the energy's slopes (2-D patch, 3-D ball, an alloy), and an insulated hot patch keeps its energy */

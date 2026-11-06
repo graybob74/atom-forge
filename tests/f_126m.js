@@ -1,7 +1,7 @@
 'use strict';
 /* The 1.26 checks for the many-body metals' oxides, hydrides, alloys and directional bonding (Settings → Experimental →
    Metals → Many-body; src/bometal.js), run by t_features (its "1.26 (metals)" block) or alone: node tests/f_126m.js
-   [part …] (parts: oxide, surface, forces, books, alloy, page). Each fails on 1.25 (cc8a0fd). The physics parts run in the Node
+   [part …] (parts: oxide, surface, forces, books, alloy, bcc, bccmd, dirforces, page). Each fails on 1.25 (cc8a0fd); bcc, bccmd, dirforces and page's body-centred words on bbf3c16 (before directional bonding). The physics parts run in the Node
    harness (deterministic); page in the t_features page. (check(ok, good, bad); say(...)) */
 const { load } = require('./load');
 const PARTS = {};
@@ -128,15 +128,90 @@ PARTS.alloy = async (page, check) => {
     `1.26 metals: alloys with constants of their own (fitted on NiAl, Cu₃Au, NiTi, FeAl, CuZn, TiAl): Ni₃Al ${out.Ni3Al.dHf} kJ/mol (measured −165.2), CuAu ${out.Cu1Au.dHf} (−18.2), an Al atom in Ni ${out.AlInNi} eV (unrelaxed; 1.25: +0.15), Cu₃Au ordered ${-out.ordering} eV an atom below random`,
     '1.26 metals alloy: ' + JSON.stringify(out));
 };
+/* ---- 7. directional bonding (bcc metals): periodic 3-D crystals built in the game; bcc has the measured cohesive energy
+   at the measured spacing with no force on scaling, fcc and hcp (each at its best spacing) lie above it, the vacancy costs
+   about what it does (1.25: W, Fe, Mo, Cr, Na fitted on a close-packed crystal, so fcc lay below bcc) */
+function lattice(X, sym, kind, a, n, opts = {}) { // (bcc, fcc: cubic cells n³; hcp: orthorhombic a × a√3 × c cells, n × n/2 × n/2)
+  const hcp = kind === 'hcp', c = a * (opts.ca || Math.sqrt(8 / 3));
+  const B = kind === 'bcc' ? [[0, 0, 0], [0.5, 0.5, 0.5]] : kind === 'fcc' ? [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]] : [[0, 0, 0], [0.5, 0.5, 0], [0.5, 1 / 6, 0.5], [0, 2 / 3, 0.5]];
+  const C = hcp ? [a, a * Math.sqrt(3), c] : [a, a, a], N = hcp ? [n, Math.max(2, n >> 1), Math.max(2, n >> 1)] : [n, n, n], Lb = C.map((l, k) => l * N[k]);
+  X.baseWorld(Lb[0], Lb[1], 1, 0); X.W.gamma = 0; X.world3d(Lb[2]); X.W.wall = 'wrap';
+  let k = 0;
+  for (let i = 0; i < N[0]; i++) for (let j = 0; j < N[1]; j++) for (let l = 0; l < N[2]; l++) for (const b of B) { if (k++ === opts.skip) continue; X.addAtom(opts.sub ? opts.sub(k - 1) || sym : sym, (i + b[0] + 0.25) * C[0] - Lb[0] / 2, (j + b[1] + 0.25) * C[1] - Lb[1] / 2, { z: (l + b[2] + 0.25) * C[2] - Lb[2] / 2 }); }
+  X.gridTouch(); X.vlInvalidate(); X.computeForces(); return { E: X.totalEnergy().pe, n: X.W.parts.filter(p => !p.dead).length };
+}
+const BCC_REF = { W: [8.90, 3.165, 3.67, 0.48], Mo: [6.82, 3.147, 3.0, 0.42], Cr: [4.10, 2.885, 2.0, 0.40], Fe: [4.28, 2.866, 1.6, 0.10], Na: [1.113, 4.225, 0.42, 0.003] }; // ([Ec eV, bcc a Å, vacancy eV, fcc − bcc eV], from memory: PERF-NOTES 1.26)
+PARTS.bcc = async (page, check) => {
+  const X = load('all', { seed: 3 }); X.mbSet(1);
+  const out = {};
+  for (const [sym, [Ec, a0, Ev, dF]] of Object.entries(BCC_REF)) {
+    const a = Math.abs(2 * X.mbParam(X.SYM2Z[sym]).r0 / Math.sqrt(3) / a0 - 1) < 0.002 ? 2 * X.mbParam(X.SYM2Z[sym]).r0 / Math.sqrt(3) : a0; // (the fitted spacing, when it is the measured one to 0.2%)
+    const per = (kind, s, n) => { const r = lattice(X, sym, kind, kind === 'bcc' ? a * s : kind === 'fcc' ? Math.cbrt(2) * a * s : a * Math.cbrt(Math.SQRT2 / 2) * s, n); return r.E / r.n; };
+    const eb = per('bcc', 1, 4), h = 1e-4, slope = (per('bcc', 1 + h, 4) - per('bcc', 1 - h, 4)) / (2 * h);
+    let ef = Infinity, eh = Infinity; for (let s = 0.97; s <= 1.035; s += 0.0125) { ef = Math.min(ef, per('fcc', s, 3)); eh = Math.min(eh, per('hcp', s, 4)); }
+    const ev = lattice(X, sym, 'bcc', a, 4, { skip: 37 }).E - 127 * eb;
+    out[sym] = { Ec: +(-eb).toFixed(3), slope: +slope.toExponential(0), fcc: +(ef - eb).toFixed(3), hcp: +(eh - eb).toFixed(3), Ev: +ev.toFixed(2) };
+    out[sym].ok = Math.abs(eb + Ec) < 0.003 && Math.abs(slope) < 2e-3 && ef - eb > 0.6 * dF && eh - eb > 0.6 * dF && Math.abs(ev / Ev - 1) < 0.15;
+  }
+  X.mbSet(0);
+  check(Object.values(out).every(o => o.ok),
+    `1.26 metals: directional bonding: W, Mo, Cr, Fe, Na are bcc at their measured spacing and cohesive energy, fcc and hcp above it (W +${out.W.fcc}/+${out.W.hcp} eV an atom, measured about 0.48; Mo +${out.Mo.fcc}/+${out.Mo.hcp}; Cr +${out.Cr.fcc}/+${out.Cr.hcp}; Fe +${out.Fe.fcc}/+${out.Fe.hcp}, about 0.1; Na +${out.Na.fcc}/+${out.Na.hcp}); vacancies W ${out.W.Ev}, Mo ${out.Mo.Ev}, Cr ${out.Cr.Ev}, Fe ${out.Fe.Ev}, Na ${out.Na.Ev} eV (unrelaxed)`,
+    '1.26 metals bcc: ' + JSON.stringify(out));
+};
+/* ---- 8. directional bonding in motion: a tungsten ball (3-D, free) started fcc turns bcc at 600 K within a picosecond, and
+   one started bcc stays bcc at 300 K (atoms inside with 14 neighbours within 1.3 r₀, bcc's 8 + 6, against fcc's 12) */
+PARTS.bccmd = async (page, check) => {
+  const X = load('all', { seed: 7 });
+  const out = {};
+  for (const [start, T] of [['fcc', 600], ['bcc', 300]]) {
+    X.mbSet(1); const r0 = X.mbParam(74).r0, R = 8, a = start === 'bcc' ? 2 * r0 / Math.sqrt(3) : r0 * 1.03 * Math.SQRT2, B = start === 'bcc' ? [[0, 0, 0], [0.5, 0.5, 0.5]] : [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]];
+    X.baseWorld(64, 64, T, 0.05); X.world3d(64);
+    const n = Math.ceil(R / a) + 1; for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) for (let k = -n; k <= n; k++) for (const b of B) { const x = (i + b[0]) * a, y = (j + b[1]) * a, z = (k + b[2]) * a; if (x * x + y * y + z * z <= R * R) X.addAtom('W', x, y, { z }); }
+    const P = X.W.parts.filter(p => !p.dead); for (const p of P) { const v = X.thermalV(p.m, T); p.vx = v[0]; p.vy = v[1]; p.vz = v[2] || 0; }
+    X.computeForces(); const t0 = X.W.t; while ((X.W.t - t0) * X.PHYS.TU_S * 1e12 < 1) { X.W.dt = X.chooseDt(); X.step(X.W.dt); }
+    let inner = 0, n14 = 0, n12 = 0; const cx = P.reduce((s, p) => s + p.x, 0) / P.length, cy = P.reduce((s, p) => s + p.y, 0) / P.length, cz = P.reduce((s, p) => s + p.z, 0) / P.length;
+    for (const p of P) { if (Math.hypot(p.x - cx, p.y - cy, p.z - cz) > R - 3) continue; inner++; let c = 0; for (const o of P) if (o !== p && Math.hypot(o.x - p.x, o.y - p.y, o.z - p.z) < 1.3 * r0) c++; if (c === 14) n14++; else if (c === 12) n12++; }
+    out[start] = { inner, bcc: n14, closePacked: n12 };
+    X.mbSet(0);
+  }
+  check(out.fcc.bcc > out.fcc.closePacked && out.fcc.closePacked <= 0.2 * out.fcc.inner && out.bcc.bcc >= 0.6 * out.bcc.inner,
+    `1.26 metals: a free tungsten ball started fcc turns bcc at 600 K (after 1 ps ${out.fcc.bcc} of its ${out.fcc.inner} inner atoms with bcc's 14 neighbours, ${out.fcc.closePacked} with fcc's 12); started bcc at 300 K it stays (${out.bcc.bcc} of ${out.bcc.inner})`,
+    '1.26 metals bccmd: ' + JSON.stringify(out));
+};
+/* ---- 9. directional bonding's forces are the energy's slopes (2-D, 3-D; W with Fe and Cu, an O atom on the metal) and
+   localPE stays exact (an atom, a pair, an edge atom moved) */
+PARTS.dirforces = async (page, check) => {
+  const X = load('all', { seed: 3 }); X.mbSet(1);
+  const out = {};
+  for (const d3 of [false, true]) {
+    X.baseWorld(60, 60, 300, 0); X.W.gamma = 0; if (d3) X.world3d(60);
+    const r0 = X.mbParam(74).r0, a = 2 * r0 / Math.sqrt(3);
+    if (d3) { for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) for (let k = -3; k <= 3; k++) for (const b of [[0, 0, 0], [0.5, 0.5, 0.5]]) { const x = (i + b[0]) * a, y = (j + b[1]) * a, z = (k + b[2]) * a; if (x * x + y * y + z * z < 49) X.addAtom((i + j + k) % 5 === 0 ? 'Fe' : (i - j) % 7 === 0 ? 'Cu' : 'W', x + 0.3 * (X.rnd() - 0.5), y + 0.3 * (X.rnd() - 0.5), { z: z + 0.3 * (X.rnd() - 0.5) }); } }
+    else for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) { const x = (i + 0.5 * (j & 1)) * r0, y = j * r0 * 0.75; if (x * x + y * y < 64) X.addAtom((i + j) % 4 === 0 ? 'Cu' : (i - j) % 5 === 0 ? 'Fe' : 'W', x + 0.3 * (X.rnd() - 0.5), y + 0.3 * (X.rnd() - 0.5)); }
+    X.addAtom('O', 8.6, 0.3, d3 ? { z: 0.2 } : {});
+    const P = X.W.parts.filter(p => !p.dead); for (const p of P) { p.vx = p.vy = p.vz = 0; }
+    X.computeForces();
+    const err = slopeErr(X, P.filter((p, k) => k % 3 === 0 || p.Z === 8), d3);
+    const tot = () => { X.gridTouch(); const e = X.totalEnergy(); return e.pe + e.internal; };
+    let books = 0;
+    for (const set of [[P[7]], [P[3], P[4]], [P[P.length - 2]]]) { const s = new Set(set); const l0 = X.localPE(s), e0 = tot(); for (const p of set) { p.x += 0.25; p.y -= 0.15; if (d3) p.z += 0.1; } X.gridTouch(); books = Math.max(books, Math.abs((X.localPE(s) - l0) - (tot() - e0))); }
+    out[d3 ? '3-D' : '2-D'] = { err: +err.toExponential(1), books: +books.toExponential(1), dirPairs: X.MBO.nd };
+  }
+  X.mbSet(0);
+  check(['2-D', '3-D'].every(k => out[k].err < 1e-6 && out[k].books < 1e-8 && out[k].dirPairs > 50),
+    `1.26 metals: directional bonding's forces are the energy's slopes (worst ${out['2-D'].err} eV/Å flat, ${out['3-D'].err} in 3-D; W with Fe, Cu and an O atom) and the event books stay exact (${Math.max(out['2-D'].books, out['3-D'].books).toExponential(0)} eV)`,
+    '1.26 metals dirforces: ' + JSON.stringify(out));
+};
 /* ---- 5. the page: the setting's words in both modes and Help say what it now covers */
 PARTS.page = async (page, check) => {
   const r = await page.evaluate(() => {
     const d2 = (SDESC.segMetal || [])[1] || '', d3 = (SDESC3.segMetal || [])[1] || '';
     const help = (document.body.innerHTML.match(/<li><b>Metallic bonding<\/b>[^]*?<\/li>/) || [''])[0];
     const note = (document.querySelector('#segMetal') && document.querySelector('#segMetal').closest('.srow').nextElementSibling || {}).textContent || '';
-    return { d2: /oxid/i.test(d2), d3: /oxid/i.test(d3), help: /oxid/i.test(help) && /alloy/i.test(help), note: /oxid/i.test(note) };
+    const bcc = (t) => /body-centred/i.test(t), tag2 = ((COSTS.segMetal || (() => ({ o: {} })))().o[1] || [])[1] || '', tag3 = ((COSTS3.segMetal || (() => ({ o: {} })))().o[1] || [])[1] || '';
+    return { d2: /oxid/i.test(d2) && bcc(d2), d3: /oxid/i.test(d3) && bcc(d3), help: /oxid/i.test(help) && /alloy/i.test(help) && bcc(help), note: /oxid/i.test(note) && bcc(note), tags: /1\.26/.test(tag2) && /1\.26/.test(tag3) };
   });
-  check(r.d2 && r.d3 && r.help && r.note, '1.26 metals: Settings (flat and 3-D words, the note) and Help describe oxides and hydrides with the many-body metals', '1.26 metals page: ' + JSON.stringify(r));
+  check(r.d2 && r.d3 && r.help && r.note && r.tags, '1.26 metals: Settings (flat and 3-D words, the note, both cost tags) and Help describe oxides and hydrides and the body-centred metals\u2019 directional bonding', '1.26 metals page: ' + JSON.stringify(r));
 };
 
 module.exports = async function f126m(page, check, say, openPage, only) {
