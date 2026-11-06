@@ -648,6 +648,25 @@ selected, copied, saved and let decay, flat and in 3-D. Checks: tests/f_swx.js (
      outside the nucleus (the muon's colour in flight). Screenshot: scratchpad mu-pv2.png. (The 3-D lab has no particle
      view.)
   - Fingerprints unchanged (no setup makes a muonic atom in 300 steps). Checks: f_swx "muonic", "muSelect" (page).
+- **Saves and undo with unstable particles.** Only muonic hydrogen and (μα)⁺ were saved (1.26 bug fix B): a placed
+  muon, pion, kaon, hyperon, resonance or hypernucleus was gone after a save was read back, and an undo of anything else
+  (undo is a save read back) took it away too; found by the page sweep below (every unstable particle of the menus,
+  flat and 3-D). Now `xa` holds every one in W.exo but a collider's beams, with a resonance's own mass (drawn from its
+  width) and the 3-D "at rest" mark; a hypernucleus's entry is made on reading. Saves from before read as before.
+  Fingerprints unchanged. Check: f_swx "saveExo" (page).
+- **Λ mean life.** 2.632×10⁻¹⁰ s, the older value; PDG 2024 gives 2.617×10⁻¹⁰ s (the header says PDG 2024): now that
+  (the Λ̄ follows). Fingerprints unchanged.
+- **Checked and fine** (no change): masses, mean lives and branching fractions of every unstable particle on the menus
+  against PDG 2024 (μ, τ, π, K, η, Λ, Σ, Ξ, Ω, ρ, ω, φ, K*, Δ and their antiparticles; resonances' ħ/Γ); muonium's and
+  muonic hydrogen's masses and bindings; decay at rest, 200 of each placed at rest, flat and 3-D: mean lives within
+  the counting error, branching as listed, products' charges and kinds right, books within 10⁻⁴ eV; at Ultra-realistic
+  rates (true clock, warp 1) the resonances, π⁰ and η decay at once with their branchings, the longer-lived wait, books
+  within 10⁻⁴ eV.
+- **The page sweep** (tests through the page's own tools, scratchpad pgsweep.js): every particle of the menus, flat (74)
+  and 3-D (73), placed with a click of Place, picked with a click of Inspect (its card: no "undefined", "NaN" or "null"),
+  the placing undone with Ctrl+Z, placed again and taken with a click of Erase, saved and read back, then fired with a
+  drag of Fire at 1 keV, 1 MeV, 1 GeV and 1 PeV through eight atoms and run: every step worked for every particle but the
+  saves above; no page errors, nothing faster than light after the fixes, no odd texts in the event log.
 - **Texts.** A μ⁺ taking an electron said "Recombination: p⁺ + e⁻ → H atom", and a bare μ⁺ bonding "Proton bonded:
   H⁺ + …": now "μ⁺ + e⁻ → muonium" and "Muon bonded: Mu⁺ + …".
 

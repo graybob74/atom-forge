@@ -25,7 +25,7 @@ const XP = {
   K0S: { lab: 'K⁰s', m: 497.611, q: 0, tau: 8.954e-11, col: [232, 222, 150], cc: 'K0S', dec: [[0.692, ['pi+', 'pi-']], [0.307, ['pi0', 'pi0']]] },
   K0L: { lab: 'K⁰ʟ', m: 497.611, q: 0, tau: 5.116e-8, col: [232, 222, 150], cc: 'K0L', dec: [[0.2028, ['pi+', 'e-', 'nub']], [0.2028, ['pi-', 'e+', 'nu']], [0.1352, ['pi+', 'mu-', 'nub']], [0.1352, ['pi-', 'mu+', 'nu']], [0.1952, ['pi0', 'pi0', 'pi0']], [0.1254, ['pi+', 'pi-', 'pi0']]] },
   eta: { lab: 'η', m: 547.862, q: 0, tau: 5.02e-19, col: [255, 185, 225], cc: 'eta', dec: [[0.3936, ['g', 'g']], [0.3257, ['pi0', 'pi0', 'pi0']], [0.2292, ['pi+', 'pi-', 'pi0']], [0.0422, ['pi+', 'pi-', 'g']]] },
-  Lam: { lab: 'Λ', m: 1115.683, q: 0, B: 1, tau: 2.632e-10, col: [195, 160, 255], cc: 'Lamb', dec: [[0.639, ['p', 'pi-']], [0.358, ['n', 'pi0']]] },
+  Lam: { lab: 'Λ', m: 1115.683, q: 0, B: 1, tau: 2.617e-10, col: [195, 160, 255], cc: 'Lamb', dec: [[0.639, ['p', 'pi-']], [0.358, ['n', 'pi0']]] }, // (PDG 2024's mean life; it had the older 2.632×10⁻¹⁰ s, 1.26)
   // the other light baryons with strange quarks (made when a quark is pulled out by hand, in the Inspect tab's quark view)
   'Sig+': { lab: 'Σ⁺', m: 1189.37, q: 1, B: 1, tau: 8.018e-11, col: [215, 150, 255], cc: 'Sigb-', dec: [[0.5157, ['p', 'pi0']], [0.4831, ['n', 'pi+']]] },
   'Sig-': { lab: 'Σ⁻', m: 1197.449, q: -1, B: 1, tau: 1.479e-10, col: [215, 150, 255], cc: 'Sigb+', dec: [[0.99848, ['n', 'pi-']]] },

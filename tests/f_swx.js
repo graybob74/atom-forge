@@ -207,6 +207,27 @@ PARTS.muSelect = async (page, check, say) => {
 };
 PARTS.muSelect.page = true;
 
+/* Saves and undo with unstable particles present: only muonic hydrogen and (μα)⁺ were saved (1.26 bug fix B), so a placed
+   muon, pion, kaon, hyperon, resonance or hypernucleus vanished on saving and loading, and undoing something else took
+   it away with it (an undo is a save read back). Through the page: a save read back, and an undo of a later placing. */
+PARTS.saveExo = async (page, check, say) => {
+  const out = {};
+  for (const d3 of [false, true]) {
+    out[d3 ? 'd3' : 'flat'] = await page.evaluate((d3) => {
+      document.querySelectorAll('.modal').forEach(m => { m.hidden = true; });
+      loadPreset(d3 ? 'd3empty' : 'empty'); setRunning(false); W.decayOn = false;
+      const sps = ['mu-', 'pi+', 'K-', 'Lam', 'Omg-', 'rho0', hypSpecies(6, 6), 'muP'];
+      sps.forEach((sp, i) => addExo(sp, -4 + i, 1, sp === 'pi+' ? 5e6 : 0.03, 1, 0, sp === 'rho0' ? 700 : undefined, 0.5, 0));
+      const sig = () => W.exo.filter(o => !o.dead).map(o => `${o.sp}:${o.KE.toPrecision(6)}:${o.m.toFixed(2)}`).sort().join(' ');
+      const a = sig(); worldFromJSON(JSON.parse(JSON.stringify(worldToJSON()))); const b = sig();
+      undoMark('Place'); addAtom('C', 3, -3); undoStep(-1); const c = sig();
+      return { saved: a === b, undo: a === c, n: W.exo.filter(o => !o.dead).length, a, b: a === b ? '' : b };
+    }, d3);
+  }
+  check(out.flat.saved && out.d3.saved && out.flat.undo && out.d3.undo && out.flat.n === 8 && out.d3.n === 8, `1.26 sweep: unstable particles (μ⁻, π⁺, K⁻, Λ, Ω⁻, ρ⁰ with its own mass, a hypernucleus, μp) come back from a save and stay through an undo of something else, flat and 3-D`, 'swx saveExo: ' + JSON.stringify(out));
+};
+PARTS.saveExo.page = true;
+
 module.exports = async function fswx(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

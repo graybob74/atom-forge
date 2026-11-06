@@ -2586,7 +2586,7 @@ function worldToJSON() {
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
   const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, Ez: W.Ez || 0, Bax: W.Bax3 || 'z', z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, xa: W.exo.filter(o => !o.dead && (XP[o.sp].atom || XP[o.sp].stuck)).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0]), magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0]), /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -2618,9 +2618,12 @@ function worldFromJSON(d) {
   }
   let nb = 0;
   for (const b of d.bonds) { if (!Array.isArray(b)) continue; const [i, j, o] = b; const a = made[i], c = made[j]; if (a && c && a !== c && [1, 2, 3].includes(o)) { addBond(a, c, o); nb++; } }
-  if (Array.isArray(d.xa)) for (const q of d.xa.slice(0, MAX_EXO)) { // (muonic hydrogen and (μα)⁺: unstable, in W.exo, they were left out of saves and undo, 1.26 bug fix)
-    if (!Array.isArray(q) || !XP[q[0]] || !(XP[q[0]].atom || XP[q[0]].stuck) || ![q[1], q[2], q[3], q[4], q[5], q[6], q[7]].every(Number.isFinite)) continue;
-    const o = addExo(q[0], clamp(q[1], -hw, hw), clamp(q[2], -hh, hh), Math.max(0, q[4]), q[5], q[6], undefined, W.d3 ? clamp(q[3], -hd, hd) : 0, W.d3 ? q[7] : 0); o.cyc = q[8] | 0;
+  if (Array.isArray(d.xa)) for (const q of d.xa.slice(0, MAX_EXO)) { // (unstable particles: muonic hydrogen and (μα)⁺ since the 1.26 bug fixes, every one since the exotic-particle sweep)
+    if (!Array.isArray(q) || typeof q[0] !== 'string' || ![q[1], q[2], q[3], q[4], q[5], q[6], q[7]].every(Number.isFinite)) continue;
+    const hy = /^hy(\d+)_(\d+)$/.exec(q[0]); if (hy && !XP[q[0]]) hypSpecies(+hy[1], +hy[2]); // (a hypernucleus's entry is made when first needed)
+    if (!XP[q[0]] || q[0] === 'Mu') continue;
+    const m = Number.isFinite(q[9]) && q[9] > 0 ? q[9] : undefined; // (a resonance's own mass, drawn from its width)
+    const o = addExo(q[0], clamp(q[1], -hw, hw), clamp(q[2], -hh, hh), Math.max(0, q[4]), q[5], q[6], m, W.d3 ? clamp(q[3], -hd, hd) : 0, W.d3 ? q[7] : 0); o.cyc = q[8] | 0; if (q[10] & 1) o.stop = true;
   }
   if (Array.isArray(d.magnets)) for (const m of d.magnets.slice(0, 50)) if (m && Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.B)) { const mm = { x: m.x, y: m.y, R: num(m.R, 1, 1000, 10), B: clamp(m.B, -1e9, 1e9) }; if (W.d3) mm.z = num(m.z, -1e4, 1e4, 0); W.magnets.push(mm); } // (3-D: balls with a depth, 1.24)
   if (W.d3) { W.Ez = num(d3.Ez, -50, 50, 0); W.Bax3 = ['x', 'y', 'z'].includes(d3.Bax) ? d3.Bax : 'z'; } // (3-D fields, 1.24)
