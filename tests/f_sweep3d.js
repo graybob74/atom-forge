@@ -122,6 +122,20 @@ PARTS.tour3d = async (page, check, say) => {
 };
 PARTS.tour3d.page = true;
 
+/* 8. The chamber's scale bar was drawn behind the main menu (the axis marker is not), and at 1280 × 720 it ran under the
+   3-D menu's note at the bottom left. Now neither is drawn while the menu is open. */
+PARTS.menuScale = async (page, check, say) => {
+  const r = await page.evaluate(() => {
+    loadPreset('mol3d'); setRunning(false); showMainMenu();
+    const texts = [], C = CanvasRenderingContext2D.prototype, keep = C.fillText;
+    C.fillText = function (t) { texts.push(String(t)); return keep.apply(this, arguments); };
+    try { render(1); } finally { C.fillText = keep; }
+    hideMainMenu(); return texts.filter(t => /^\d[\d.,]* (fm|pm|Å|nm|µm)$/.test(t));
+  });
+  check(r.length === 0, `3-D sweep 8: no scale bar drawn behind the main menu`, '3-D sweep menuScale: ' + JSON.stringify(r));
+};
+PARTS.menuScale.page = true;
+
 module.exports = async function fsweep3d(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

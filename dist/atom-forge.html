@@ -30113,6 +30113,7 @@ function chamberBottomInset() {
   return (BOT_IN.v = clamp(v, 0, Math.max(0, R.h - 80)));
 }
 function drawScaleBar() {
+  if (R.menu) return; // (not behind the main menu, as the 3-D axis marker: it ran under the 3-D menu's note at 1280 × 720, 1.26 sweep)
   const ctx = R.ctx;
   const targetPx = 110;
   const raw = targetPx / R.s;

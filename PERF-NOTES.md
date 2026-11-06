@@ -441,6 +441,9 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
   reaction, a collider" among the setups. Its cards now carry 3-D words where they differ (`TOUR`'s fourth entry, used
   in 3-D): turning, moving, flying and fitting the camera, the placing plane, the 3-D setups. Check: f_sweep3d
   "tour3d" (page).
+- 8. The chamber's scale bar was drawn behind the main menu (the 3-D axis marker was already left out there): at
+  1280 × 720 it ran under the 3-D menu's note at the bottom left. Now `drawScaleBar` draws nothing while the menu is open
+  (both modes). Check: f_sweep3d "menuScale" (page; before: "5 Å" drawn under the menu).
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 
