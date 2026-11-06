@@ -28405,10 +28405,11 @@ function fragmentInto(a, b, Pa, Pb, b3, anti, items, moms) {
     const fx = F[1] / F[0], fy = F[2] / F[0], fz = (F[3] || 0) / F[0], Ab = toRest(Pa, fx, fy, fz), Lb = Math.hypot(Ab[1], Ab[2]) || 1, bax = Ab[1] / Lb, bay = Ab[2] / Lb, ax3 = unit3(Ab); // (the beams' axis, in the fireball's frame; ax3: in 3-D, 1.25)
     let fb, vs;
     if (epsP >= QGP.eps && Bp >= QGP.minA) { // the overlap melts into a quark–gluon plasma, which freezes out into hadrons
-      const sNN = 2 * (epsP + 938.9), q = qgpHadrons(MF, Bp, Qp, sNN);
+      const ewOn = ew && MF > ew.m + Bp * 938.9 + 300; // (a W or Z with the plasma's hadrons: they share what it leaves, its charge taken from theirs, 1.27)
+      const sNN = 2 * (epsP + 938.9), q = qgpHadrons(MF - (ewOn ? ew.m : 0), Bp, Qp - (ewOn ? (anti ? -1 : 1) * ewQ(ew) : 0), sNN);
       if (!q) continue;
       fb = anti ? q.items.map(conjItem) : q.items;
-      if (ew && fb.reduce((t, it) => t + massOf(it), 0) + ew.m < MF - 1) fb.push(ew); // (with the plasma's hadrons, 1.27)
+      if (ewOn) fb.push(ew);
       { const ri = fb.length <= 4000 ? resonate(fb, MF) : fb, v2 = jetMomenta(ri, MF, bax, bay, { thermal: true, ax3 }); if (v2) { fb = ri; vs = v2; } else vs = jetMomenta(fb, MF, bax, bay, { thermal: true, ax3 }); }
       if (!vs) continue;
       for (let i = fb.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [fb[i], fb[j]] = [fb[j], fb[i]]; [vs[i], vs[j]] = [vs[j], vs[i]]; } // (shuffled: if not all fit in the chamber, those that do are a fair sample)

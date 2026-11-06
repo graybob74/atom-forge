@@ -2643,7 +2643,8 @@ ew/lep1.png, lep-data.png, ins-w.png.
     or Z is not seen, except in lead–lead at LHC energies now and then.
   - RP.ewX multiplies the hadron rates, for the tests only (×10⁵: p̄p 1.96 TeV, 1,500 collisions, W in 69 (expected
     62.5), Z in 22 (18.8); pp 7 TeV in 3-D, 400: W 59 (52.4), Z 15 (15.8); pp at 60 GeV none (no draw); central Pb + Pb
-    2.76 TeV ×10³: a W or Z in 2 of 6 plasmas, 3-D 5 of 6).
+    2.76 TeV ×10³: a W or Z in 2 of 6 plasmas, 3-D 2 of 6, the event's charge kept: the plasma's hadrons carry its
+    charge less the W's).
 - **Not built:** neutrinos meeting matter through W or Z exchange (σ ≈ 10⁻³⁸ cm² × E/GeV: a neutrino crosses the Earth;
   the game's neutrinos leave); the Higgs boson (on the planned list); e⁺e⁻ → Zγ and the beams' own radiation (radiative
   return; at LEP2 most e⁺e⁻ → qq̄ events); the W pair's angular distribution and the W and Z spins in pairs; W and Z in
@@ -2685,7 +2686,9 @@ ew/lep1.png, lep-data.png, ins-w.png.
 - **Found, not changed:** a positron of any energy hitting an atom annihilates into 2γ (annihilateBound), where above
   211 MeV in their frame real e⁺e⁻ makes μ pairs and hadrons too (√s reaches 32 GeV at the Fire tool's 1 PeV); fired
   particles above a few GeV cross the box in one step and never meet each other (beamCollisions after they have left);
-  the linear collider's √s spreads 6% at 45.6 GeV a beam (its acceleration and the quadrupoles' synchrotron light); p̄p
+  after a central Pb + Pb plasma at 2.76 TeV the count of charge (particles, unstable particles, charge gone out)
+  changes by 13–53 over the next moveExos while its 400–500 products fly among the fragments (v145 the same; the event
+  itself and every single decay keep it; not traced); the linear collider's √s spreads 6% at 45.6 GeV a beam (its acceleration and the quadrupoles' synchrotron light); p̄p
   in flight always annihilates into mesons (nnbarEvent), where at TeV energies real p̄p collisions are mostly inelastic
   with both baryons surviving; the photon channel's e⁺e⁻ lepton pairs are drawn in the plane in 3-D (PS3.flat).
 - **For the owner (written down, not decided):** an automatic energy scan for the LEP setup (σ against √s drawn as the
