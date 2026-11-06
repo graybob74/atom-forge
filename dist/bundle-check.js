@@ -2473,8 +2473,8 @@ const SOFT_EN = 0.28;
    neither recombine nor be integrated accurately, and slowly pumps energy into the gas. */
 function softFor(p) {
   const q = Math.abs(p.q);
-  if (q < 1 || p.ne + 1 > p.Z) return SOFT_EN;
-  const ie = ionE(p.Z, p.ne + 1);
+  if (q < 1 || p.ne + 1 > zChem(p)) return SOFT_EN;
+  const ie = ionE(zChem(p), p.ne + 1);
   if (!(ie > 0)) return SOFT_EN;
   return Math.min(9, Math.max(0.02, Math.pow(PHYS.KE * q / ie, 2)));
 }
@@ -2723,17 +2723,22 @@ function atomMass(p) {
   if (p.mu) return MU_M / PHYS.AMU_MEV + p.ne * PHYS.ME;
   return Math.max(0.5, Z * PHYS.MP + N * PHYS.MN + p.ne * PHYS.ME - bindingE(Z, N) / PHYS.AMU_MEV) + (p.muB ? p.muB.m / (PHYS.AMU_MEV * 1e6) : 0);
 }
+/* (1.27, the realistic-particle switch's exotic atoms) The charge an atom's electrons see: its nuclear charge, less one for
+   a muon bound inside them (p.muB.zx), so muonic carbon is to the outside an atom of charge 5 and takes boron's table
+   entries (valence, bonds, size, electronegativity, ionization energies). Without zx it is Z: every atom as before. */
+const zChem = (p) => (p.muB && p.muB.zx ? p.Z - p.muB.zx : p.Z);
+const elSym = (p) => (p.muB && p.muB.zx ? 'μ' + ELEMENTS[p.Z].sym : p.el.sym); // (its symbol: the nucleus's, marked, though p.el is the element its electrons see)
 function refresh(p) {
   if (p.k !== NUC) return;
   W.dirty++;
-  const Z = p.Z, N = p.N;
+  const Z = zChem(p), N = p.N; // (the nucleus's own Z for its nuclide below: p.Z)
   p.el = Z > 0 ? ELEMENTS[Math.min(Z, Z_MAX)] : null;
   S.elrc[p.i] = p.el ? p.el.rc : 0; S.metal[p.i] = p.el && p.el.metal ? 1 : 0; // (the covalent radius and whether it is a metal, for the pair kernel)
   p.m = atomMass(p);
   p.im = 1 / p.m;
   p.q = (p.anti ? -1 : 1) * (Z - p.ne);
   p.sEN = Z > 0 ? softFor(p) : SOFT_EN;
-  p.nuc = nuclideInfo(Z, N);
+  p.nuc = nuclideInfo(p.Z, N);
   if (p.ne > 0 && Z > 0) {
     const vi = valenceInfo(Z, p.ne);
     p.val = vi.v; p.nOut = vi.n; p.unp = vi.unpaired;
@@ -2744,7 +2749,7 @@ function refresh(p) {
   setSize(p);
   if (Math.abs(p.q) >= 1 && !_charged.includes(p)) _charged.push(p);
   p.xferD = !p.anti && p.ne > 0 && p.el && (p.el.ie1 < 9.6 || p.q < 0 || p.el.metal);
-  p.xferA = !p.anti && !!p.el && (p.q > 0 || (p.el.ea >= 0.7 && p.ne <= p.Z));
+  p.xferA = !p.anti && !!p.el && (p.q > 0 || (p.el.ea >= 0.7 && p.ne <= Z));
   if (p.bonds.length && !_deferDeloc) delocalize(molecule(p)); // a charge gained or lost inside a molecule spreads at once
 }
 let _deferDeloc = false; // (while a snapshot is put back: relink then spreads each molecule's charges once, not once per atom)
@@ -3194,7 +3199,7 @@ function separate(a, b) {
   for (const q of mb) { q.x += ex / r * sh; q.y += ey / r * sh; if (ez) q.z += ez / r * sh; }
 }
 /* Energy needed to remove one electron, including bonds that must then break. */
-function ionizationCost(p) { return ionE(p.Z, p.ne) + breakCostIfCharged(p, -1); }
+function ionizationCost(p) { return ionE(zChem(p), p.ne) + breakCostIfCharged(p, -1); }
 
 function molecule(p) {
   const seen = new Set([p]), out = [p];
@@ -3208,7 +3213,7 @@ function molecule(p) {
 function linked(p) { return p.bonds.length > 0 || (p.bom && boNbrs(p).length > 0); }
 function hill(atoms, plain) {
   const cnt = {}; let q = 0;
-  for (const a of atoms) { const s = a.mu ? 'Mu' : a.el ? (a.anti ? barSym(a.el.sym) : a.el.sym) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
+  for (const a of atoms) { const s = a.mu ? 'Mu' : a.el ? (a.anti ? barSym(a.el.sym) : elSym(a)) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
   const keys = Object.keys(cnt);
   let order;
   if (cnt.C) order = ['C'].concat(cnt.H ? ['H'] : [], keys.filter(k => k !== 'C' && k !== 'H').sort());
@@ -3222,8 +3227,8 @@ function hill(atoms, plain) {
 function isoFormula(atoms, plain) {
   if (atoms.some(a => a.anti || !a.el || a.mu) || !atoms.some(a => isoA(a))) return hill(atoms, plain);
   const cnt = new Map(); let q = 0;
-  for (const a of atoms) { const k = a.el.sym + ' ' + isoA(a); cnt.set(k, (cnt.get(k) || 0) + 1); q += a.q || 0; }
-  const els = [...new Set(atoms.map(a => a.el.sym))];
+  for (const a of atoms) { const k = elSym(a) + ' ' + isoA(a); cnt.set(k, (cnt.get(k) || 0) + 1); q += a.q || 0; }
+  const els = [...new Set(atoms.map(a => elSym(a)))];
   const order = els.includes('C') ? ['C'].concat(els.includes('H') ? ['H'] : [], els.filter(e => e !== 'C' && e !== 'H').sort()) : els.sort();
   let s = '';
   for (const e of order) {
@@ -3278,7 +3283,7 @@ function libMatch(atoms, plain) {
   if (!cands) return null;
   const ix = new Map(atoms.map((a, i) => [a, i]));
   const adj = atoms.map(a => a.bonds.map(bd => ix.get(other(bd, a))).concat(a.bom ? boNbrs(a).map(o => ix.get(o)) : []).filter(j => j !== undefined));
-  const h = f + ':' + graphHash(atoms.map(a => { const A = plain ? 0 : isoA(a); return A ? a.el.sym + A : a.el.sym; }), adj);
+  const h = f + ':' + graphHash(atoms.map(a => { const A = plain ? 0 : isoA(a); return A ? elSym(a) + A : elSym(a); }), adj);
   let alt = null;
   for (const c of cands) if (c.h === h) { if (molFits(c.m, W.d3)) return c.m; alt = alt || c.m; } // (the open mode's library first: the 3-D builds are named in 3-D, 1.23.2)
   return alt;
@@ -3287,12 +3292,12 @@ function libMatch(atoms, plain) {
    otherwise; an atom gives its mass number as A, a particle as Z + N), written as IUPAC writes an isotopically
    substituted compound: nuclides in alphabetical order of symbol, then by mass number, as in (¹³C,²H₄)methane. */
 function isoA(a) {
-  const Z = a.el ? a.el.Z : 0, A = a.A !== undefined ? a.A : a.Z ? a.Z + a.N : 0;
+  const Z = a.muB && a.muB.zx ? a.Z : a.el ? a.el.Z : 0, A = a.A !== undefined ? a.A : a.Z ? a.Z + a.N : 0; // (an exotic atom: its own nucleus's usual mass number, 1.27)
   return Z && A && A !== COMMON_A[Z] ? A : 0;
 }
 function isoDesc(atoms) {
   const c = new Map();
-  for (const a of atoms) { const A = isoA(a); if (A) { const k = a.el.sym + ' ' + A; c.set(k, (c.get(k) || 0) + 1); } }
+  for (const a of atoms) { const A = isoA(a); if (A) { const k = elSym(a) + ' ' + A; c.set(k, (c.get(k) || 0) + 1); } }
   return [...c.entries()].map(([k, n]) => { const [s, A] = k.split(' '); return { s, A: +A, n }; })
     .sort((x, y) => (x.s < y.s ? -1 : x.s > y.s ? 1 : x.A - y.A)).map(o => sup(o.A) + o.s + (o.n > 1 ? sub(o.n) : '')).join(',');
 }
@@ -3349,7 +3354,7 @@ function ionicName(atoms) {
     if (seen.has(a)) continue;
     const m = molecule(a); for (const x of m) seen.add(x);
     let q = 0; for (const x of m) q += x.anti ? -x.q : x.q;
-    const key = m.length === 1 ? (a.anti ? barSym(a.el.sym) : a.el.sym) : hill(m, true).replace(/\d*[+-]$/, '');
+    const key = m.length === 1 ? (a.anti ? barSym(a.el.sym) : elSym(a)) : hill(m, true).replace(/\d*[+-]$/, '');
     const u = units.get(key + '|' + q) || { key, q, n: 0, one: m.length === 1, el: a.el, anti: a.anti };
     u.n++; units.set(key + '|' + q, u);
   }
@@ -3393,7 +3398,7 @@ function speciesLabel(p) {
     return nucSym(p.Z, p.N) + sup((p.Z > 1 ? p.Z : '') + '+');
   }
   const qs = p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : '';
-  return (p.anti ? barSym(p.el.sym) : p.el.sym) + qs;
+  return (p.anti ? barSym(p.el.sym) : elSym(p)) + qs;
 }
 
 /* ------------------------------------------------------------------ logging & visuals */
@@ -3536,7 +3541,7 @@ function Efield(x, y, p) {
       const vx = p.rad ? p.ux : p.vx, vy = p.rad ? p.uy : p.vy;
       if (z.dir && (vx * c + vy * sn) * z.dir <= 0) continue; // crossing it the wrong way
       if (p.rad && (z.Emax || z.frac)) {
-        const q = p.k === NUC ? (p.anti ? -1 : 1) * Math.max(1, p.Z - p.ne) : p.q;
+        const q = p.k === NUC ? (p.anti ? -1 : 1) * Math.max(1, zChem(p) - p.ne) : p.q;
         if (q * Ez * (c * p.ux + sn * p.uy) > 0) { // pushing it forward: the ring's RF, its voltage programmed with the beam
           let g = Math.abs(Ez);
           const aq = Math.abs(q) || 1; // (energy per pass is charge × field × length)
@@ -4372,12 +4377,12 @@ function coulAA(a, b, r2) { const qa = a.q + a.qp, qb = b.q + b.qp; return qa &&
 function internalE(p) {
   if (p.k !== NUC || p.Z === 0 || p.ne === 0) return 0;
   let E = 0;
-  for (let k = 1; k <= p.ne; k++) E -= ionE(p.Z, k);
+  for (let k = 1; k <= p.ne; k++) E -= ionE(zChem(p), k);
   return E;
 }
 function neutralInternalE(p) { // the same atom with as many electrons as protons
   if (p.k !== NUC || p.Z === 0) return 0;
-  let E = 0; for (let k = 1; k <= p.Z; k++) E -= ionE(p.Z, k);
+  let E = 0; const zc = zChem(p); for (let k = 1; k <= zc; k++) E -= ionE(zc, k);
   return E;
 }
 function metalV(a, b, r) {
@@ -6597,8 +6602,8 @@ function shedElectron(p) {
 }
 /* Does p hold more electrons than any ion of its element can (here, alone or among counter-ions)? */
 function holdsTooMany(p) {
-  if (p.k !== NUC || p.Z === 0 || p.ne <= p.Z) return false;
-  if (p.ne > p.Z + maxExtraElectrons(p.Z) || !(p.el.ea > 0)) return true;
+  if (p.k !== NUC || p.Z === 0 || p.ne <= zChem(p)) return false;
+  if (p.ne > zChem(p) + maxExtraElectrons(zChem(p)) || !(p.el.ea > 0)) return true;
   if (p.ne === p.Z + 1 || p.bonds.length) return false;
   let stab = 0;
   nearby(p.x, p.y, 5, (o) => { if (o !== p && o.k === NUC && o.q * p.q < 0) stab += Math.abs(o.q); }, p.z);
@@ -6622,18 +6627,18 @@ function shakeOff(p) {
 function stabilize(p) {
   if (p.k !== NUC || p.Z === 0) return;
   let guard = 0;
-  while (p.ne > p.Z + maxExtraElectrons(p.Z) && guard++ < 200) if (!shedElectron(p)) break;
-  if (p.ne > p.Z + 1 && p.bonds.length === 0) {
+  while (p.ne > zChem(p) + maxExtraElectrons(zChem(p)) && guard++ < 200) if (!shedElectron(p)) break;
+  if (p.ne > zChem(p) + 1 && p.bonds.length === 0) {
     // isolated multiply-charged anions are unbound in vacuum unless counter-ions stabilise them
     let stab = 0;
     nearby(p.x, p.y, 5, (o) => { if (o !== p && o.k === NUC && o.q * p.q < 0) stab += Math.abs(o.q); }, p.z);
-    if (stab === 0) while (p.ne > p.Z + 1 && guard++ < 200) if (!shedElectron(p)) break;
+    if (stab === 0) while (p.ne > zChem(p) + 1 && guard++ < 200) if (!shedElectron(p)) break;
   }
   if (p.ne === p.Z + 1 && !(p.el.ea > 0)) shedElectron(p); // no stable anion at all (N⁻, the noble gases …)
   // still more than any ion of its element can hold (it could not shed one: inside a strongly charged molecule, or
   // among ions that hold on to it): the extra electron moves to the atom of its molecule best able to take it, or
   // else is set free, the surroundings paying for its release
-  for (let k = 0; k < 4 && p.ne > p.Z + maxExtraElectrons(p.Z); k++) if (!handOff(p) && !forceShed(p)) break;
+  for (let k = 0; k < 4 && p.ne > zChem(p) + maxExtraElectrons(zChem(p)); k++) if (!handOff(p) && !forceShed(p)) break;
 }
 function forceShed(p) {
   const avail = -ionizationCost(p);
@@ -6647,7 +6652,7 @@ function handOff(p) {
   let to = null;
   for (const a of molecule(p)) {
     if (a === p || a.dead || a.k !== NUC || a.Z === 0 || !a.anti !== !p.anti) continue;
-    const room = a.ne + 1 <= a.Z || (a.ne + 1 === a.Z + 1 ? a.el.ea >= 0.7 : a.ne + 1 <= a.Z + maxExtraElectrons(a.Z));
+    const za = zChem(a), room = a.ne + 1 <= za || (a.ne + 1 === za + 1 ? a.el.ea >= 0.7 : a.ne + 1 <= za + maxExtraElectrons(za));
     if (room && (!to || a.q > to.q)) to = a;
   }
   if (!to) return false;
@@ -6887,13 +6892,13 @@ function evLepton(L, A, r) {
     // two-body binding ignores the neighbours' fields (continuum lowering), so require a clearly bound orbit; a lepton
     // whose last try could not be paid for waits a while (undoJoin)
     const may = !(L.capT > W.t);
-    if (Etot < -0.15 * ionE(A.Z, A.ne + 1)) { if (may && rnd() < 0.5) (lzNeed(), capture(L, A, Etot)); return; }
+    if (Etot < -0.15 * ionE(zChem(A), A.ne + 1)) { if (may && rnd() < 0.5) (lzNeed(), capture(L, A, Etot)); return; }
     if (Etot < 0) { if (may && rnd() < 0.02) (lzNeed(), capture(L, A, Etot)); return; } // loosely bound (Rydberg-like) orbit
     if (may && r < rh && L.hit !== A.id && rnd() < 0.04 / (1 + Etot / 0.5)) { (lzNeed(), capture(L, A, Etot)); return; }
   }
   if (r >= rh || L.hit === A.id) return;
   L.hit = A.id;
-  if (A.ne > 0 && A.q === 0 && A.el.ea > 0 && A.ne < A.Z + maxExtraElectrons(A.Z) && !(L.capT > W.t) && rnd() < 0.04) {
+  if (A.ne > 0 && A.q === 0 && A.el.ea > 0 && A.ne < zChem(A) + maxExtraElectrons(zChem(A)) && !(L.capT > W.t) && rnd() < 0.04) {
     lzNeed(); if (attach(L, A, Erel)) return;
   }
   if (A.ne > 0) {
@@ -7027,7 +7032,7 @@ function capture(L, A, Etot) {
     Eph = 0;
   }
   L.wBooked = true; kill(L); // (wBooked: joinEnergy counted the packet's share with the ions)
-  const ie = ionE(A.Z, A.ne);
+  const ie = ionE(zChem(A), A.ne);
   W.count.recomb++;
   if (A.ne === 1 && A.Z <= 10) {
     // hydrogen-like: recombination populates excited levels (∝ 1/n), which cascade down emitting
@@ -7244,6 +7249,14 @@ function nuclearAnnihilation(a, b) {
   const before = `${speciesLabel(anti)} + ${speciesLabel(mat)}`;
   const parents = [anti, mat].map(ghostOf);
   const S = annihBegin([a, b]);
+  // (the realistic-particle switch, 1.27: a slow bare antiproton is caught into an orbit of the atom first, n₀ ≈ 30–43, and
+  // cascades down, its Auger electrons and X-ray lines given off, to the orbit where it annihilates (hep.js XA_NABS:
+  // protonium from 2p); the lines' energy comes out of the annihilation's)
+  let xa = null; const Zm = mat.Z, Nm = mat.N;
+  if (RP.exo && anti.Z === 1 && anti.N === 0 && anti.ne === 0 && Zm >= 1 && !mat.muB) {
+    const mr = anti.m * mat.m / (anti.m + mat.m), dvx = avx - bvx, dvy = avy - bvy;
+    if (0.5 * mr * (dvx * dvx + dvy * dvy) < MU_STOP) { const es = []; xa = xaCascade(mat, 'pbar', Zm, Nm, xaN0('pbar', Zm, Nm), XA_NABS.pbar(Zm), 0, es); xa.n0 = xaN0('pbar', Zm, Nm); xa.n1 = XA_NABS.pbar(Zm); }
+  }
   const partners = [];
   for (const n of [a, b]) for (const bd of n.bonds) partners.push(other(bd, n));
   const takeP = (n) => n.Z > 0 && (n.N === 0 || rnd() < n.Z / (n.Z + n.N));
@@ -7273,17 +7286,19 @@ function nuclearAnnihilation(a, b) {
     } else {
       refresh(n); enforceValence(n, null); relink([n]);
       // Auger electrons from the exotic atom's cascade, plus any the smaller nucleus can no longer hold
-      const k = Math.max(0, n.ne - n.Z) + (n.ne > 0 ? 1 + Math.floor(rnd() * 2) : 0);
+      const k = Math.max(0, n.ne - n.Z) + (n.ne > 0 && !xa ? 1 + Math.floor(rnd() * 2) : 0); // (with the cascade worked out, 1.27: only those the smaller nucleus can't hold)
       for (let i = 0; i < k && n.ne > 0; i++) if (!ejectElectron(n, 20 + 80 * rnd(), undefined, undefined, 0)) break;
       stabilize(n);
     }
   }
   relink(partners.filter(p => !p.dead));
-  const E = annihEnd(S);
+  let E = annihEnd(S);
+  if (xa) { for (const l of xa.lines) { if (!(l.E > 0) || !(l.E < E)) continue; E -= l.E; const u = rdir(); emitPhoton(x, y, l.E, u[0], u[1]); } } // (its X-ray lines, exact; the mesons take the rest, 1.27)
   const ms = mesonBurst(x, y, E, vx, vy, (pM ? 1 : 0) - (pA ? 1 : 0));
   W.count.annih++;
   const left = [anti, mat].filter(n => !n.dead).map(n => speciesLabel(n)), what = ms.length ? summarize(ms) : 'γ rays';
-  nucEvent('annih', x, y, `${before} → ${left.length ? left.join(' + ') + ' + ' : ''}${what}`, parents, fmtE(E));
+  if (xa) { const pp = Zm === 1 && Nm === 0; W.count.xatom = (W.count.xatom || 0) + 1; log('nuc', `${pp ? 'Protonium (p̄p)' : `Antiprotonic ${ELEMENTS[Zm].name.toLowerCase()}`}: p̄ caught into orbit n = ${xa.n0}, cascade to n = ${xa.n1}: X-rays ${xaLines(xa.lines) || 'none'}${xa.aug ? `, ${xa.aug} Auger electron${xa.aug > 1 ? 's' : ''}` : ''}; then it annihilates`); }
+  nucEvent('annih', x, y, `${xa && Zm === 1 && Nm === 0 ? 'Protonium: ' : ''}${before} → ${left.length ? left.join(' + ') + ' + ' : ''}${what}`, parents, xa ? `${fmtE(E)}; first the cascade n = ${xa.n0} → ${xa.n1}, X-rays ${xaLines(xa.lines, 2) || 'none'}` : fmtE(E));
   log('nuc', `Antimatter annihilation: ${before} → ${what} (${fmtE(E)})${evap ? `, ${evap} nucleon${evap > 1 ? 's' : ''} knocked out` : ''}`);
   tally(ms, [], `Annihilation: ${before} → ${what}`);
 }
@@ -7365,7 +7380,7 @@ function breakCostIfCharged(p, dne) {
   if (p.ne + dne === 0) return p.bonds.reduce((s, bd) => s + bd.D, 0);
   const vi = valenceInfo(p.Z, p.ne + dne);
   let cap;
-  if (p.el.dblock) cap = Math.max(0, p.el.ox - Math.max(0, p.Z - p.ne - dne));
+  if (p.el.dblock) cap = Math.max(0, p.el.ox - Math.max(0, zChem(p) - p.ne - dne));
   else if (vi.n === 1) cap = vi.v === 1 ? 1 : 0;
   else cap = vi.v >= 8 ? 0 : vi.v <= 4 ? vi.v : 8 - vi.v;
   const hyper = p.bonds.some(bd => other(bd, p).el && other(bd, p).el.en >= 3);
@@ -7406,11 +7421,11 @@ function transferDE(d, a, r) { // donor d gives one electron to acceptor a
   if (d.ne <= 0 || bondBetween(d, a)) return Infinity;
   if (a.k !== NUC || d.k !== NUC) return Infinity;
   if (d.q + 1 > maxCation(d)) return Infinity;
-  const ieD = ionE(d.Z, d.ne);
+  const ieD = ionE(zChem(d), d.ne);
   let R;
-  if (a.ne + 1 <= a.Z) R = ionE(a.Z, a.ne + 1);
+  if (a.ne + 1 <= zChem(a)) R = ionE(zChem(a), a.ne + 1);
   else if (a.ne + 1 === a.Z + 1) { if (!(a.el.ea >= 0.7)) return Infinity; R = a.el.ea; } // stable anions only
-  else if (a.ne + 1 <= a.Z + maxExtraElectrons(a.Z)) R = ionE(a.Z, a.ne + 1);
+  else if (a.ne + 1 <= zChem(a) + maxExtraElectrons(zChem(a))) R = ionE(zChem(a), a.ne + 1);
   else return Infinity;
   const phiD = localPhi(d.x, d.y, d, a, d.z), phiA = localPhi(a.x, a.y, d, a, a.z);
   // the pair's own Coulomb energy before and after, in the form the forces use: a bare nucleus sees an atom's
@@ -8610,7 +8625,7 @@ function radPath(p, dt, q, mrest) {
   _rp[0] = x1; _rp[1] = y1;
 }
 function moveRad(p, dt) {
-  const q = p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(p.Z - p.ne, 0) || p.Z) : p.q;
+  const q = p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(zChem(p) - p.ne, 0) || zChem(p)) : p.q;
   const mrest = p.k === NUC ? p.m : PHYS.ME;
   const x0 = p.x, y0 = p.y;
   radPath(p, dt, q, mrest);
@@ -8784,7 +8799,7 @@ function inDetector(C, x, y) {
 const R_BB = 6, BB_SIG = 1.0;
 const bbG = (d) => (1 - Math.exp(-d * d / (2 * BB_SIG * BB_SIG))) / d; // the smoothed 1/b
 function beamBeam(C, a, b, ex, ey, d) {
-  const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(p.Z - p.ne, 0) || p.Z) : p.q);
+  const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(zChem(p) - p.ne, 0) || zChem(p)) : p.q);
   const qa = chg(a), qb = chg(b);
   if (!qa || !qb || !(C.bbN > 0)) return;
   const va = bSpd(a), vb = bSpd(b), ba = va / PHYS.C, bb = vb / PHYS.C, vrel = Math.hypot(va * a.ux - vb * b.ux, va * a.uy - vb * b.uy);
@@ -8854,7 +8869,7 @@ function boost(E, px, py, bx, by, g0) { // (g0: the frame's Lorentz factor when 
    scattering spreads its angles (and as in nuclearEncounter, which decides first whether they touch). Exact
    relativistic kinematics: energy and momentum are kept. Returns the angle, or null if one has no charge. */
 function nuclearScatter(a, b, d, ex, ey, reach = R_NN, rmap = 0) { // rmap (fm): map the pass onto impact parameters out to this instead
-  const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(p.Z - p.ne, 0) || p.Z) : p.q);
+  const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(zChem(p) - p.ne, 0) || zChem(p)) : p.q);
   const qa = chg(a), qb = chg(b);
   if (!qa || !qb) return null;
   const Rc = Math.max(1, 1.2 * ((a.k === NUC ? Math.cbrt(a.Z + a.N) : 0) + (b.k === NUC ? Math.cbrt(b.Z + b.N) : 0))); // fm
@@ -10268,7 +10283,7 @@ function housekeeping() {
   if (E > 0.3) {
     for (const p of W.parts) {
       if (p.dead || p.k !== NUC || p.ne === 0) continue;
-      const ie = ionE(p.Z, p.ne), Ec = ie * ie / (4 * PHYS.KE * Math.max(1, p.q + 1));
+      const ie = ionE(zChem(p), p.ne), Ec = ie * ie / (4 * PHYS.KE * Math.max(1, p.q + 1));
       if (E > Ec && rnd() < 0.2) {
         W.count.ionize++;
         ejectElectron(p, 0.5, -W.Ex / E, -W.Ey / E);
@@ -11396,7 +11411,7 @@ function userIonize(p) {
   return true;
 }
 function userAddElectron(p) {
-  if (!p || p.dead || p.k !== NUC || p.Z === 0 || p.ne >= p.Z + maxExtraElectrons(p.Z)) return false;
+  if (!p || p.dead || p.k !== NUC || p.Z === 0 || p.ne >= zChem(p) + maxExtraElectrons(zChem(p))) return false;
   const before = speciesLabel(p);
   p.ne++; refresh(p); enforceValence(p, null); relink([p]);
   log('tool', `${p.anti ? 'Positron' : 'Electron'} added: ${before} + ${p.anti ? 'e⁺' : 'e⁻'} → ${speciesLabel(p)}`);
@@ -23714,8 +23729,8 @@ function hypCatch(Zr, Nr, mres, Pr, PL, bx, by, items, moms, bz = 0) { // (bz: 3
 }
 /* A K⁻ slowed to a few keV: caught by an atom, it cascades down and is absorbed by the nucleus, K⁻p → Λπ⁰ or
    K⁻n → Λπ⁻ on one of its nucleons (the rest of the nucleus a spectator); the Λ, at about 30 MeV, may stay (hypCatch). */
-function kStop(o) {
-  const tg = stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.mu);
+function kStop(o, tgIn) { // (tgIn: as hStop, 1.27)
+  const tg = tgIn || stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.mu);
   if (!tg) return false;
   // the struck nucleon moves inside the nucleus (Fermi motion, up to about 250 MeV/c; none in a lone proton), and the rest
   // recoils against it: that is what leaves some Λ slow enough to stay. (Bug fix 15 after 1.25: with the kaon's own
@@ -23924,8 +23939,8 @@ function photoNuclear(p, E, ux, uy, uz = 0) { // (uz: 3-D, 1.25)
 /* A stopped negative hadron, caught by an atom like a muon and absorbed by its nucleus: a π⁻ on a nucleon pair (on
    hydrogen π⁻p → π⁰n or γn, the Panofsky ratio 1.5; on a deuteron π⁻d → nn); Σ⁻p → Λn, Ξ⁻p → ΛΛ, Ω⁻p → Ξ⁰Λ, the Λ
    perhaps staying (hypCatch). Returns true if it was caught. */
-function hStop(o) {
-  const tg = stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu);
+function hStop(o, tgIn) { // (tgIn: the atom whose orbit it fell through, the realistic-particle switch, 1.27)
+  const tg = tgIn || stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu);
   if (!tg) return false;
   const el = hitLabel(tg), x = tg.x, y = tg.y, items = [], moms = [], Po = exoP4(o);
   let txt = '', sub = '';
@@ -24461,8 +24476,9 @@ function muBoundTick(dt) {
     const Z = p.Z, N = p.N, Ms = nucMeV(Z - 1, N + 1) + 8 + 12 * rnd(), Min = nucMeV(Z, N) + mm;
     const canCapture = !nuclideInfo(Z - 1, N + 1).unbound && Ms < Min;
     if (!canCapture || rnd() < ld / (lc + ld)) { // decay in orbit
-      const items = ['e-', 'nub', 'numu'].map(item), vs = phaseSpace(mm, items.map(massOf));
+      const items = ['e-', 'nub', 'numu'].map(item), vs = B.zx ? xaMichel(mm) : phaseSpace(mm, items.map(massOf)); // (an exotic atom of the realistic-particle switch: the electron with the Michel spectrum, 1.27)
       const S = nucBegin([p]); p.muB = null; p.m = atomMass(p); p.im = 1 / p.m; // (the atom, the muon gone from its mass: its motion's ½m_μv² goes to the neutrinos, 1.26)
+      if (B.zx) { refresh(p); enforceValence(p, null); relink([p]); } // (its electrons see the whole nuclear charge again, inside the event's books, 1.27)
       const made = spawnItems(items, vs, x, y, z);
       closeEvent(S, made, x, y, B.m, B.m); W.count.decay++;
       log('nuc', `Decay in orbit: the muon in ${el} → e⁻ + ν̄ + ν`); nucEvent('decay', x, y, `μ⁻ in ${el} decays → e⁻ ν̄ ν`, [], '2.2 µs mean life', undefined, z);
@@ -24481,6 +24497,211 @@ function muBoundTick(dt) {
     nucEvent('capture', x, y, `Muon capture: ${txt}`, gh, `μ⁻ + p → n + ν inside the nucleus`, undefined, z); log('nuc', `Muon capture by the nucleus: ${txt}`);
     tally(items, ['μ⁻', el], txt);
   }
+}
+
+/* ---- Realistic particles 1: exotic atoms as real atoms (1.27, Experimental: Settings → Experimental → Realistic
+   particles → Exotic atoms; approved by the owner, 2026-11-05). Off (RP.exo false), nothing here runs and every setup is
+   as before, bit for bit. On:
+   - Capture (xaStep, xaTarget). A μ⁻, π⁻ or K⁻ slowed in matter is no longer caught at 2 keV but goes on slowing by
+     ionizing (exoIonize) until its kinetic energy is about that of the atoms' outer electrons (XA_CAP, 30 eV), and is
+     then caught by an atom within 1.5 Å, each with a chance in proportion to its Z (Fermi and Teller's Z law, Phys. Rev.
+     72, 399, 1947). It takes the place of an electron, which leaves with the particle's energy and its binding in the
+     first orbit (n₀ = √(m* / mₑ), m* the reduced mass: 14 for a muon, 16 for a pion, 30 for a kaon or an antiproton).
+   - The cascade (xaCascade). It falls through the circular orbits n → n − 1, each giving off its energy as an Auger
+     electron while the atom has electrons to give and the radiative rate is below XA_AUG (the upper cascade), else as an
+     X-ray (the lower one): radiative rate of the hydrogen-like 2p → 1s, 6.27×10⁸ s⁻¹ × Z⁴ m* / mₑ, scaled as n⁻⁵ up the
+     circular orbits (Bethe and Salpeter). Levels from Bohr's formula with the reduced mass; a muon's 1s from the measured
+     2p → 1s line (XA_KA: the nucleus's size lowers it, muonic lead 5.90 MeV against a point nucleus's 14.2 MeV). The
+     cascade takes about 10⁻¹³ s: at once here. Its books are exact: the X-rays carry their line energies exactly, the
+     electrons set free take what is left (xaClose).
+   - Its end: a muon stays in its 1s orbit and decays (the Michel spectrum, xaMichel) or is captured by the nucleus, at
+     the measured rates (muBoundTick, MU_TAU); a pion or kaon is absorbed from its last orbit (XA_NABS) by the existing
+     absorption (hStop: the star, or π⁻p → π⁰n / γn; kStop: Λ or Σ and pions, now and then a hypernucleus); an
+     antiproton annihilates (engine.js nuclearAnnihilation, the flat game only: antimatter is not in 3-D).
+   - To the outside a muonic atom is an atom of charge Z − 1 (p.muB.zx: engine.js zChem): its electrons see the nucleus
+     and the muon together, so muonic carbon takes boron's table entries (valence, bond energies and lengths, size,
+     electronegativity, ionization energies). Muonic hydrogen (μp, μd, μt) stays an unstable particle in W.exo, neutral
+     and 200 times smaller than an atom, so it passes through atoms; next to a heavier atom its muon moves over to it
+     (xaTransfer, μp + Z → μZ + p), at the measured rate.
+   The atom is an ordinary atom of the store with p.muB (as since 0.51), so Select, Erase, Inspect, copy, saves and undo
+   take it; muB carries what it is (sp), its orbit (n), the lines given off and the Auger electrons. */
+const RP = { exo: false }; // (the realistic-particle switches, set from Settings: ui.js applySettings)
+const XA_SPS = new Set(['mu-', 'pi-', 'K-']), XA_CAP = 30, XA_R = 1.5, XA_AUG = 1e12, XA_QMAX = 2, XA_ME = 0.51099895;
+const xaMass = (sp) => (sp === 'pbar' ? PHYS.MP * PHYS.AMU_MEV : XP[sp].m);
+const XA_NAME = { 'mu-': 'Muonic', 'pi-': 'Pionic', 'K-': 'Kaonic', pbar: 'Antiprotonic' }, XA_LAB = { 'mu-': 'μ⁻', 'pi-': 'π⁻', 'K-': 'K⁻', pbar: 'p̄' };
+function xaMred(sp, Z, N) { const m = xaMass(sp), M = nucMeV(Z, N); return m * M / (m + M); }
+function xaBohr(sp, Z, N, n) { return PHYS.RY * (xaMred(sp, Z, N) / XA_ME) * Z * Z / (n * n); } // (eV)
+/* Muonic 2p → 1s lines measured (keV; the 2p fine-structure pair at its 2 : 1 mean, lead 5,962.8 and 5,778.1): C, O, Al,
+   Si, Ca, Fe, Pb, from the muonic X-ray compilations (Engfer et al., At. Data Nucl. Data Tables 14, 509, 1974; Fricke
+   et al., 60, 177, 1995), values as I know them (no network here: worth a check). Between them the ratio to Bohr's value
+   is interpolated in Z; hydrogen's line is Bohr's (1.898 keV for μp). */
+const XA_KA = [[6, 12, 75.25], [8, 16, 133.53], [13, 27, 346.8], [14, 28, 400.2], [20, 40, 783.9], [26, 56, 1255], [82, 208, 5901]];
+const _xaKr = [[1, 1]].concat(XA_KA.map(([Z, A, k]) => [Z, k * 1e3 / (0.75 * xaBohr('mu-', Z, A - Z, 1))]));
+function xaKaRatio(Z) {
+  const R = _xaKr; if (Z <= 1) return 1;
+  for (let i = 1; i < R.length; i++) if (Z <= R[i][0]) { const [z0, r0] = R[i - 1], [z1, r1] = R[i]; return r0 + (r1 - r0) * (Z - z0) / (z1 - z0); }
+  const [z0, r0] = R[R.length - 2], [z1, r1] = R[R.length - 1]; return Math.max(0.3, r1 + (r1 - r0) * (Z - z1) / (z1 - z0));
+}
+/* An orbit's binding (eV): Bohr's with the reduced mass; a muon's 1s from the measured 2p → 1s line above 2p's. */
+function xaLevel(sp, Z, N, n) { return sp === 'mu-' && n === 1 ? xaBohr(sp, Z, N, 2) + 0.75 * xaKaRatio(Z) * xaBohr(sp, Z, N, 1) : xaBohr(sp, Z, N, n); }
+const xaN0 = (sp, Z, N) => Math.max(2, Math.round(Math.sqrt(xaMred(sp, Z, N) / XA_ME)));
+/* The orbit a hadron is absorbed from: where the strong interaction overtakes the X-rays, rounded from the last lines
+   measured in pionic, kaonic and antiprotonic atoms (Batty, Friedman and Gal, Phys. Rep. 287, 385, 1997; protonium
+   annihilates from 2p 99 times in 100, its 2p width 38 meV against 0.4 meV for the 2p → 1s X-ray). */
+const XA_NABS = { 'mu-': () => 1, 'pi-': (Z) => (Z <= 11 ? 1 : Z <= 35 ? 2 : Z <= 83 ? 3 : 4), 'K-': (Z) => (Z === 1 ? 1 : Z <= 8 ? 2 : Z <= 20 ? 3 : Z <= 40 ? 4 : Z <= 60 ? 5 : Z <= 75 ? 6 : 7), pbar: (Z) => (Z === 1 ? 2 : Z <= 8 ? 3 : Z <= 20 ? 4 : Z <= 40 ? 6 : Z <= 60 ? 8 : 9) };
+/* The atom that catches a slow negative particle: one within XA_R, by Z (Fermi–Teller), in a fixed order. */
+function xaTarget(o) {
+  const c = []; let wsum = 0;
+  const skip = (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu || p.rad;
+  const take = (p, r2) => { if (skip(p) || !(r2 < XA_R * XA_R)) return; c.push(p); wsum += p.Z; };
+  if (W.d3) nearby(o.x, o.y, XA_R, (p, dx, dy, r2) => take(p, r2), o.z); else nearby(o.x, o.y, XA_R, (p) => take(p, (p.x - o.x) ** 2 + (p.y - o.y) ** 2));
+  if (!c.length) return null;
+  c.sort((a, b) => a.id - b.id);
+  let u = rnd() * wsum; for (const p of c) { u -= p.Z; if (u < 0) return p; }
+  return c[c.length - 1];
+}
+/* moveExos: a μ⁻, π⁻ or K⁻ with the switch on. Returns true if it was caught (or, a hadron whose atom formed, absorbed). */
+function xaStep(o) {
+  if (o.xaDone) return o.sp === 'K-' ? kStop(o) : o.sp === 'pi-' ? hStop(o) : false; // (its atom made, its absorption failed once: tried again as before)
+  if (!(o.KE < XA_CAP)) return false;
+  const tg = xaTarget(o);
+  return tg ? xaCatch(o, tg) : false;
+}
+/* The cascade from orbit n0 down to n1 in the atom tg (already in an event's books): the capture's own electron first (the
+   particle's energy K0 and its binding in n0), then each n → n − 1. Electrons set free go to eOut; returns the X-ray lines
+   ({ E eV, a: from n, b: to n; a = 0 the capture itself }) and the count of Auger electrons. The atom is left at most
+   XA_QMAX positive: in a liquid or solid its holes fill from its neighbours within femtoseconds, which the game does not
+   follow, so past that the upper cascade radiates. */
+function xaCascade(tg, sp, Z, N, n0, n1, K0, eOut, noCap, debt = 0) { // (debt: what the atom's electrons lost in binding when the muon came inside them, eV: paid from the upper cascade first)
+  const mr = xaMred(sp, Z, N), lines = [];
+  let aug = 0;
+  const pay = (e) => { const t = Math.min(debt, e); debt -= t; return e - t; };
+  const rad = (n) => 6.268e8 * Z ** 4 * (mr / XA_ME) * Math.pow(2 / n, 5);
+  const auger = (dE) => {
+    if (tg.dead || tg.ne <= 0 || tg.q + 1 > XA_QMAX) return false;
+    const c = ionizationCost(tg); if (!(dE > c + 0.05)) return false;
+    const e = ejectElectron(tg, dE - c); if (!e) return false;
+    eOut.push(e); aug++; return true;
+  };
+  if (!noCap) { const Ec = pay(K0 + xaLevel(sp, Z, N, n0)); if (Ec > 0 && !auger(Ec)) lines.push({ E: Ec, a: 0, b: n0 }); }
+  for (let n = n0; n > n1; n--) { const dE = pay(xaLevel(sp, Z, N, n - 1) - xaLevel(sp, Z, N, n)); if (!(dE > 0) || (rad(n) < XA_AUG && auger(dE))) continue; lines.push({ E: dE, a: n, b: n - 1 }); }
+  return { lines, aug };
+}
+/* Close an exotic atom's books as closeEvent does, with the X-ray lines at their own energies: what the books leave beyond
+   them goes to the recipients (the Auger electrons; after a muon transfer, the proton and the atom), or, with none, to
+   one more soft photon (lines.rest). Then the lines are sent off. */
+function xaClose(S, made, x, y, z, Ein, mIn, lines, recips) {
+  if (made.lost) W.ledger.escaped += made.lost;
+  let mX = 0, EX = 0; for (const o of made.xs) { mX += o.m * MEV; EX += o.m * MEV + o.KE; }
+  const Qm = nucMassLoss(S); W.ledger.nuc += Qm + mIn - mX;
+  const Qrel = Qm - EX + Ein;
+  let X = 0; for (const l of lines) X += l.E;
+  const tol = 1e-9 * Math.max(1, X), rs = (recips || []).filter(q => q && !q.dead);
+  let left = nucLeft(S, Qrel) - X;
+  for (let k = 0; k < 4 && Math.abs(left) > tol && rs.length; k++) {
+    if (rs.length > 1) shareKE(rs, left);
+    else { const q = rs[0], K = keOf(q); if (!(K > 0) || !(K + left > 0)) break; if (q.rad) { q.KE = K + left; radSpeed(q); q.vx = q.sp * q.ux; q.vy = q.sp * q.uy; } else { const f = Math.sqrt((K + left) / K); if (W.d3) { q.vx *= f; q.vy *= f; q.vz *= f; updateFast(q); } else setVel(q, q.vx * f, q.vy * f); } }
+    left = nucLeft(S, Qrel) - X;
+  }
+  if (left < -tol) { for (const l of lines.slice().sort((a, b) => a.E - b.E)) { const t = Math.min(l.E, -left); l.E -= t; left += t; if (left >= 0) break; } } // (more given than there was: the softest lines give it back)
+  if (left > tol) lines.push({ E: left, a: -1, b: -1, rest: true });
+  for (const l of lines) { if (!(l.E > 0)) continue; const u = rdir(); if (W.d3) emitPhoton(x, y, l.E, u[0], u[1], { z, uz: u[2] }); else emitPhoton(x, y, l.E, u[0], u[1]); }
+}
+const xaLines = (L, k = 3) => L.filter(l => l.a > 0 && !l.rest).sort((a, b) => b.E - a.E).slice(0, k).map(l => `${fmtE(l.E)} (${l.a}→${l.b})`).join(', ');
+/* A slow μ⁻, π⁻ or K⁻ caught by tg. */
+function xaCatch(o, tg) {
+  const sp = o.sp, Z = tg.Z, N = tg.N, x = tg.x, y = tg.y, z = tg.z, el = speciesLabel(tg);
+  if (sp === 'mu-' && Z === 1 && N <= 2) return xaCatchH(o, tg);
+  const n0 = xaN0(sp, Z, N), n1 = XA_NABS[sp](Z), B1 = xaLevel(sp, Z, N, n1), K0 = o.KE;
+  const S = nucBegin([tg]);
+  let R = 0;
+  if (sp === 'mu-') { // (the muon stays: the atom's mass holds it, its electrons see Z − 1)
+    o.dead = true; o.fate = `caught by ${el}: a muonic atom`;
+    const I0 = internalE(tg);
+    tg.muB = { m: MU_M * MEV - B1, Eb: B1, sp, n: 1, zx: 1, n0 }; tg.m = atomMass(tg); tg.im = 1 / tg.m;
+    refresh(tg); enforceValence(tg, null); relink([tg]);
+    R = Math.max(0, internalE(tg) - I0); // (its electrons less bound by the screened charge: paid by the upper cascade)
+    (W.muBound || (W.muBound = [])).push(tg);
+  }
+  const made = { ps: [], xs: [], rays: [], lost: 0 };
+  const cas = xaCascade(tg, sp, Z, N, n0, n1, K0, made.ps, false, R);
+  xaClose(S, made, x, y, z, K0 + B1, B1, cas.lines, made.ps);
+  W.count.xatom = (W.count.xatom || 0) + 1;
+  const name = XA_NAME[sp], sub = `cascade n = ${n0} → ${n1}: X-rays ${xaLines(cas.lines) || 'none'}${cas.aug ? `; ${cas.aug} Auger electron${cas.aug > 1 ? 's' : ''}` : ''}`;
+  nucEvent('capture', x, y, `${name} atom: ${XA_LAB[sp]} caught by ${el}`, [], sub, undefined, z);
+  log('nuc', `${name} atom: ${XA_LAB[sp]} caught by ${el} into orbit n = ${n0}; ${sub}`);
+  if (sp === 'mu-') { tg.muB.lines = cas.lines.filter(l => l.a > 0 && !l.rest).map(l => [+l.E.toPrecision(6), l.a, l.b]); tg.muB.aug = cas.aug; return true; }
+  // a pion or kaon: absorbed by the nucleus from orbit n1, its binding there already given off (its mass is less by it)
+  o.KE = 0; o.m -= B1 / MEV; exoSpeed(o); o.xaDone = tg.id; o.x = x; o.y = y; if (W.d3) o.z = z;
+  if (!(sp === 'K-' ? kStop(o, tg) : hStop(o, tg))) return true; // (no consistent outcome this time: it waits, at rest, and is tried again)
+  return true;
+}
+/* A μ⁻ caught by hydrogen: muonic hydrogen (μp, μd, μt; W.exo as before), its cascade's lines given off (the atom's one
+   electron leaves at the capture, so the rest is X-rays: 2p → 1s 1.898 keV for μp). */
+function xaCatchH(o, tg) {
+  const sp = ['muP', 'muD', 'muT'][tg.N], N = tg.N, x = tg.x, y = tg.y, z = tg.z, el = speciesLabel(tg), n0 = xaN0('mu-', 1, N), kT = PHYS.KB * Math.max(W.T, 20);
+  const S = nucBegin([tg]), es = [];
+  const cas = xaCascade(tg, 'mu-', 1, N, n0, 1, o.KE, es);
+  kill(tg); o.dead = true; o.fate = `caught by ${el}: ${XP[sp].lab}`;
+  const made = spawnItems([item(sp)], [randDir4(XP[sp].m, 1.5 * kT / MEV)], x, y, z);
+  for (const e of es) made.ps.push(e);
+  if (made.xs[0]) { made.xs[0].cyc = o.cyc || 0; made.xs[0].xaL = cas.lines.filter(l => l.a > 0).map(l => [+l.E.toPrecision(6), l.a, l.b]); }
+  xaClose(S, made, x, y, z, o.KE + o.m * MEV, o.m * MEV, cas.lines, es.length ? es : made.xs.length ? [] : made.ps);
+  W.count.xatom = (W.count.xatom || 0) + 1;
+  const sub = `cascade n = ${n0} → 1: X-rays ${xaLines(cas.lines)}`;
+  nucEvent('capture', x, y, `Muonic atom: μ⁻ caught by ${el} → ${XP[sp].lab}`, [], sub, undefined, z);
+  log('nuc', `Muonic atom: μ⁻ caught by ${el} → ${XP[sp].lab}; ${sub}`);
+  return true;
+}
+/* Muonic hydrogen next to a heavier atom (within 2.5 Å, as muAtomTick takes a neighbour in liquid hydrogen): its muon moves
+   over, μp + Z → μZ + p, into the orbit of μZ just bound more deeply than μp's 1s, and cascades down there; the proton
+   and the atom fly apart with the difference. Rates at liquid hydrogen's density (s⁻¹): nitrogen 3.4×10¹⁰ and oxygen
+   8.5×10¹⁰, measured with thermal μp in hydrogen gas mixtures at PSI (late 1990s; values as I know them); other elements
+   scaled from oxygen's as Z (Gershtein's estimate, up to 1.5×10¹¹), helium's very slow (about 10⁸). */
+const XA_TR = { 2: 1e8, 7: 3.4e10, 8: 8.5e10 };
+const xaTrRate = (Z) => XA_TR[Z] || Math.min(1.5e11, 8.5e10 * Z / 8);
+function xaTransfer(o, clock) {
+  const tg = stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 2 || p.anti || p.muB || p.mu, 2.5);
+  if (!tg || !(rnd() < 1 - Math.exp(-xaTrRate(tg.Z) * clock))) return false;
+  const Z = tg.Z, N = tg.N, Nh = XP[o.sp].N, Bh = XP[o.sp].Eb * MEV, x = tg.x, y = tg.y, z = tg.z, el = speciesLabel(tg), hl = XP[o.sp].lab;
+  const B1 = xaLevel('mu-', Z, N, 1), P = exoP4(o), mN = nucMeV(1, Nh), pp = pmag(P);
+  const S = nucBegin([tg]), I0 = internalE(tg);
+  o.dead = true; o.fate = `its muon moved to ${el}`;
+  tg.muB = { m: MU_M * MEV - B1, Eb: B1, sp: 'mu-', n: 1, zx: 1, n0: 1, from: hl }; tg.m = atomMass(tg); tg.im = 1 / tg.m;
+  refresh(tg); enforceValence(tg, null); relink([tg]);
+  const R = Math.max(0, internalE(tg) - I0); // (its electrons less bound once the muon is inside them)
+  let nt = 1; for (let n = 1; n < 80 && xaLevel('mu-', Z, N, n) > Bh + R; n++) nt = n; // (the highest orbit the transfer can reach and still pay for that)
+  tg.muB.n0 = nt;
+  (W.muBound || (W.muBound = [])).push(tg);
+  muClear(o); // (where the bare nucleus will be, clear of the atoms, as for muonium)
+  const made = spawnItems([{ t: 'A', Z: 1, N: Nh, anti: false }], [[Math.sqrt(mN * mN + pp * pp), ...P.slice(1)]], o.x, o.y, o.z || 0); // (the bare nucleus left, with the muonic hydrogen's momentum)
+  const es = [], cas = xaCascade(tg, 'mu-', Z, N, nt, 1, 0, es, true);
+  const Ein = o.KE + o.m * MEV - tg.muB.m, rec = made.ps.length ? [made.ps[0], tg] : es;
+  xaClose(S, { ps: made.ps.concat(es), xs: [], rays: [], lost: made.lost }, x, y, z, Ein, Ein - o.KE, cas.lines, rec);
+  tg.muB.lines = cas.lines.filter(l => l.a > 0 && !l.rest).map(l => [+l.E.toPrecision(6), l.a, l.b]); tg.muB.aug = cas.aug;
+  W.count.xatom = (W.count.xatom || 0) + 1; W.count.muXfer = (W.count.muXfer || 0) + 1;
+  const sub = `into n = ${nt}, cascade to 1s: X-rays ${xaLines(cas.lines)}`;
+  nucEvent('capture', x, y, `Muon transfer: ${hl} + ${el} → μ${ELEMENTS[Z].sym} + ${['p', 'd', 't'][Nh]}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.15, lbl: hl }], sub, undefined, z);
+  log('nuc', `Muon transfer: ${hl} + ${el} → muonic ${ELEMENTS[Z].name.toLowerCase()} + ${['p', 'd', 't'][Nh]}; ${sub}`);
+  return true;
+}
+/* A bound muon's decay in orbit with the electron's Michel spectrum (x²(3 − 2x), x = E/E_max) in the muon's frame, the
+   two neutrinos sharing the rest isotropically in their own frame: four-momenta [e, ν̄, ν] in the atom's frame (mm: the
+   bound muon's mass, MeV, so the end point is lowered by its binding, as for a bound muon). The spectrum's distortion
+   by the nucleus's field (heavy atoms) is left out. */
+function xaMichel(mm) {
+  const me = XA_ME, Wm = (mm * mm + me * me) / (2 * mm), x0 = me / Wm;
+  let x = 1; for (let k = 0; k < 200; k++) { const t = x0 + (1 - x0) * rnd(); if (rnd() < t * t * (3 - 2 * t)) { x = t; break; } }
+  const Ee = x * Wm, pe = Math.sqrt(Math.max(0, Ee * Ee - me * me)), u = rdir();
+  const e = W.d3 ? [Ee, pe * u[0], pe * u[1], pe * u[2]] : [Ee, pe * u[0], pe * u[1]], R = neg4(mm - Ee, e), M = mass4(R);
+  const vv = twoBody(M, 0, 0, ...rdir()), b = vel4(R);
+  return [e, toLab(vv[0], ...b), toLab(vv[1], ...b)];
+}
+/* Inspect's words for an exotic atom's state (ui.js). */
+function xaInfo(p) {
+  const B = p.muB; if (!B) return null;
+  const [lc, ld] = muRates(p.Z, p.N), tau = 1 / (lc + ld);
+  return { name: 'muonic', n: B.n || 1, Eb: B.Eb, tau, cap: lc / (lc + ld), lines: B.lines || null, aug: B.aug || 0, zx: !!B.zx, n0: B.n0 || 0, from: B.from || '' };
 }
 
 /* ---- making the products, and the books */
@@ -24619,14 +24840,19 @@ function moveExos(dt, id0) {
     }
     if (dec) { if (d.hyp) hypDecay(o); else decayExo(o); continue; }
     if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (a beam's: in the ring's vacuum; thrown out of the beam, the detector stops it)
+    const xa = RP.exo && XA_SPS.has(o.sp);
+    if (xa) { if (xaStep(o)) continue; } // (the realistic-particle switch: caught at tens of eV into an orbit, 1.27)
+    else {
     if (o.sp === 'mu-' && o.KE < MU_STOP && muStop(o)) continue;
     if (o.sp === 'K-' && o.KE < MU_STOP && kStop(o)) continue;
     if (H_STOP.has(o.sp) && o.KE < MU_STOP && hStop(o)) continue;
+    }
     if (o.sp === 'mu+' && o.KE < MU_STOP && !o.muTried && muoniumForm(o)) continue;
     if (d.strong === undefined) d.strong = strongExo(o.sp);
-    if (d.strong && exoHits(o, x0, y0)) continue;
+    if (d.strong && !(xa && o.KE < MU_STOP) && exoHits(o, x0, y0)) continue; // (slowing on below 2 keV to its capture, 1.27: no nuclear hits at the enlarged reach, 0.35 Å, which would end most pions and kaons on the way; at the nucleus's true size a slow one meets a nucleus in flight about once in 10⁹)
     if (d.atom) muAtomScatter(o, x0, y0);
     if (d.atom && clock > 0) muAtomTick(o, clock);
+    if (RP.exo && d.atom && !o.dead && clock > 0) xaTransfer(o, clock); // (its muon to a heavier atom beside it, 1.27)
   }
   if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
   return nXb;
@@ -24841,15 +25067,20 @@ function moveExos3(dt, id0) {
     if (dec) { if (d.hyp) hypDecay(o); else decayExo3(o); continue; }
     // captures at rest and nuclear hits, as in the flat game (1.25): a stopped μ⁻ makes a muonic atom, K⁻ and π⁻, Σ⁻, Ξ⁻, Ω⁻ are
     // absorbed by a nucleus, a μ⁺ may take an electron (muonium); strongly interacting ones meet the nuclei on their path
+    const xa = RP.exo && XA_SPS.has(o.sp);
+    if (xa) { if (xaStep(o)) continue; } // (the realistic-particle switch, 1.27)
+    else {
     if (o.sp === 'mu-' && o.KE < MU_STOP && muStop(o)) continue;
     if (o.sp === 'K-' && o.KE < MU_STOP && kStop(o)) continue;
     if (H_STOP.has(o.sp) && o.KE < MU_STOP && hStop(o)) continue;
+    }
     if (o.sp === 'mu+' && o.KE < MU_STOP && !o.muTried && muoniumForm(o)) continue;
     if (d.strong === undefined) d.strong = strongExo(o.sp);
-    if (d.strong && exoHits3(o, x0, y0, z0)) continue;
+    if (d.strong && !(xa && o.KE < MU_STOP) && exoHits3(o, x0, y0, z0)) continue; // (1.27: as in the flat game)
     if (d.atom) muAtomScatter3(o, x0, y0, z0);
     if (d.atom && clock > 0 && muAtomTick(o, clock)) continue;
-    if (!o.stop && o.KE < MU_STOP && o.q) { // (slowed in matter to a couple of keV and not caught: at rest here, its last keV given to the atoms about it as heat)
+    if (RP.exo && d.atom && !o.dead && clock > 0 && xaTransfer(o, clock)) continue; // (1.27)
+    if (!o.stop && o.KE < MU_STOP && o.q && !xa) { // (with the switch: it slows on to its capture, 1.27) // (slowed in matter to a couple of keV and not caught: at rest here, its last keV given to the atoms about it as heat)
       const near = segTargets3(o.x - 1, o.y, o.z, o.x + 1, o.y, o.z, 3, (t) => t.k === NUC && t.Z > 0 && !t.dead)[0];
       if (near) { dumpHeat(o.KE, near[1], near[1]); o.KE = 0; exoSpeed(o); o.stop = true; }
     }
@@ -27279,7 +27510,7 @@ function drawUltraParts(ctx, rt) {
     if (r <= 1500) {
       if (bohrMode === 'orb') drawOrbitalAtom(ctx, p, x, y, true);
       else if (bohrMode === 'on' || bohrMode === 'nuc' || (bohrMode === 'auto' && r >= 30)) drawBohr(ctx, p, x, y, r, rt, col, rn);
-      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
+      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : elSym(p), x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
     } else { // inside the atom's electron cloud: a faint wash of its colour
       const c = hexc(col); ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.10)`;
       const d = Math.hypot(x - Wd / 2, y - Ht / 2);
@@ -27489,7 +27720,7 @@ function drawParticles(rt) {
     if (bohr) drawBohr(ctx, p, x, y, r, rt, col);
     else {
       if (!glBalls) drawSprite(ballSprite(col, r), x, y);
-      if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
+      if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : elSym(p), x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
     }
     if (p.anti) { // antimatter: a dashed violet halo
       ctx.save(); ctx.strokeStyle = 'rgba(190,130,255,0.85)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
@@ -29402,7 +29633,7 @@ function cylStops3(col, dx, dy, dz, nx, ny, f, mid) {
   }
   return out;
 }
-const ELEM_SYM = (p) => (p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym);
+const ELEM_SYM = (p) => (p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : elSym(p)); // (elSym: an exotic atom's own symbol, 1.27)
 /* (1.26 sweep: the owner, "the particle view doesn't work in 3d", "ultra-realistic mode doesn't work in 3d") How atoms
    are drawn besides the lit balls: the particle view ('nuc': nucleons and electrons, V), shells ('on'), orbitals ('orb')
    and the ultra-realistic mode's true sizes ('ultra'); '' for the lit balls (Auto and Spheres). Each is the flat game's
@@ -33367,7 +33598,7 @@ function copySelection() {
   let cx = 0, cy = 0; for (const p of ps.concat(xs)) { cx += p.x; cy += p.y; } for (const ob of obs) { cx += (ob.x0 + ob.x1) / 2; cy += (ob.y0 + ob.y1) / 2; } cx /= ps.length + xs.length + obs.length; cy /= ps.length + xs.length + obs.length;
   let cz = 0; if (W.d3 && ps.length + xs.length) { for (const p of ps.concat(xs)) cz += p.z; cz /= ps.length + xs.length; } // (3-D: the depths too, about their middle)
   const idx = new Map(ps.map((p, i) => [p, i]));
-  const parts = ps.map(p => ({ k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, mu: !!p.mu, muB: !!p.muB, dx: p.x - cx, dy: p.y - cy, dz: W.d3 ? p.z - cz : 0, rd: p.k === NUC ? p.rd : 0.15, el: p.el })); // (mu, muB: muonium pasted as hydrogen and a muonic atom as a plain one, 1.26)
+  const parts = ps.map(p => ({ k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, mu: !!p.mu, muB: p.muB ? (p.muB.zx ? Object.assign({}, p.muB, { lines: p.muB.lines ? p.muB.lines.map(l => l.slice()) : null }) : true) : false, dx: p.x - cx, dy: p.y - cy, dz: W.d3 ? p.z - cz : 0, rd: p.k === NUC ? p.rd : 0.15, el: p.el })); // (mu, muB: muonium pasted as hydrogen and a muonic atom as a plain one, 1.26)
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { const i = idx.get(bd.a), j = idx.get(bd.b); if (i !== undefined && j !== undefined && bd.a === p) bonds.push([i, j, bd.order]); }
   // working parts (transistors, gates, memory cells) whose atoms are all in the selection go with it, wired and in the
@@ -33406,7 +33637,7 @@ function pasteClip(wx, wy, wz = 0) { // (wz: 3-D)
   if (W.parts.length + c.parts.length > MAX_PARTS) { log('tool', `Paste: no room for ${c.parts.length.toLocaleString('en-US')} more particles (the limit is ${MAX_PARTS.toLocaleString('en-US')}; Settings → Max particles)`); return; }
   const zOf = (q) => (W.d3 ? wz + (q.dz || 0) : 0); // (3-D: at the depth pasted at; a copy from a flat world goes in flat, at that depth)
   const made = c.parts.map(q => q.k === NUC ? (q.mu && q.Z === 1 && q.N === 0 ? addMuonium(wx + q.dx, wy + q.dy, 0, 1, 0, q.ne, zOf(q)) : addNuc(q.Z, q.N, q.ne, wx + q.dx, wy + q.dy, 0, 0, q.anti, zOf(q))) : addLepton(q.k, wx + q.dx, wy + q.dy, 0, 0, zOf(q)));
-  c.parts.forEach((q, i) => { const p = made[i]; if (q.muB && p && p.Z >= 2) { const Eb = MU_EB(p.Z) * MEV; p.muB = { m: MU_M * MEV - Eb, Eb }; p.m = atomMass(p); p.im = 1 / p.m; (W.muBound || (W.muBound = [])).push(p); } }); // (a muonic atom's copy keeps its muon, made again: 1.26)
+  c.parts.forEach((q, i) => { const p = made[i]; if (q.muB && p && p.Z >= 2) { const Eb = q.muB.zx ? q.muB.Eb : MU_EB(p.Z) * MEV; p.muB = q.muB.zx ? Object.assign({}, q.muB, { lines: q.muB.lines ? q.muB.lines.map(l => l.slice()) : null }) : { m: MU_M * MEV - Eb, Eb }; p.m = atomMass(p); p.im = 1 / p.m; if (q.muB.zx) refresh(p); (W.muBound || (W.muBound = [])).push(p); } }); // (an exotic atom of the realistic-particle switch keeps what it is, 1.27) // (a muonic atom's copy keeps its muon, made again: 1.26)
   for (const [i, j, o] of c.bonds) if (made[i] && made[j]) addBond(made[i], made[j], o);
   // a clear spot near the pointer (as the Place tool finds one); none within a few radii of the group: nothing is pasted,
   // rather than copies landing on top of what is there (which would fly apart hot)
@@ -33759,7 +33990,7 @@ function updateHover(px, py) {
 }
 function hideTip() { $('tip').hidden = true; R.hover = null; }
 /* Element name, with the anti- prefix for antimatter (antihydrogen, anti-carbon …). */
-function elemName(p) { return !p.anti ? p.el.name : p.Z === 1 ? 'Antihydrogen' : 'Anti-' + p.el.name.toLowerCase(); }
+function elemName(p) { if (p.muB && p.muB.zx) return 'Muonic ' + ELEMENTS[p.Z].name.toLowerCase(); return !p.anti ? p.el.name : p.Z === 1 ? 'Antihydrogen' : 'Anti-' + p.el.name.toLowerCase(); } // (an exotic atom's electrons see Z − 1, so p.el is the next element down: its name is the nucleus's, 1.27)
 /* A nucleus that decays only by capturing one of its own electrons, with too little energy to make a positron instead,
    cannot decay with none (doDecay): bare ⁷Be is stable, as measured in storage rings. */
 function bareStable(nuc, p) { return !!(p && p.ne === 0 && nuc && !nuc.stable && !nuc.unbound && nuc.modes && nuc.modes.length && nuc.modes.every(m => m.mode === 'ec' && !(m.Q > 1.022))); }
@@ -34089,9 +34320,9 @@ function renderInspect() {
       : iso + (aq ? (aq > 0 ? ' cation' : ' anion') : '');
     const muT = p.mu ? (p.ne === 0 ? 'Antimuon (μ⁺)' : 'Muonium' + (aq ? (aq > 0 ? ' cation' : ' anion (muonide)') : '')) : null; // (1.12: an H atom whose nucleus is a μ⁺)
     const icl = p.ne > 0 && (p.q || (mol && mol.some(a => a.q))) ? ionicCluster(p) : null, itx = icl && ionicText(icl, true);
-    const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : '') + (itx ? ` · held ionically in ${itx}` : ''))
+    const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (p.muB && p.muB.zx ? `Exotic atom, to the outside ${el.name.toLowerCase()}` : CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : '') + (itx ? ` · held ionically in ${itx}` : ''))
       + (p.Z > Z_TABLE ? ' · never made in any lab: its properties are predictions' : '');
-    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${p.mu ? '' : A}</span><span class="s">${p.mu ? 'Mu' : symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
+    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${p.mu ? '' : A}</span><span class="s">${p.mu ? 'Mu' : p.muB && p.muB.zx ? esc(elSym(p)) : symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
       <div><div class="ins-title">${esc(muT || title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
     pills = p.mu ? `<span class="pill hot">its muon decays: mean life 2.197 µs (e⁺ + νₑ + ν̄μ)</span>` : `<span class="pill ${nuc.stable || bareStable(nuc, p) ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
     if (!nuc.stable && nuc.modes.length) pills += `<span class="pill hot">${esc(nuc.modes.map(m => modeLabel(m.mode)).join(' / '))}</span>`;
@@ -34100,7 +34331,13 @@ function renderInspect() {
     if (p.ne > 0 && unpairedOf(p) > 0) pills += `<span class="pill em">paramagnetic</span>`;
     if (FERRO[p.Z] && (p.tLocal || 0) < FERRO[p.Z][0]) pills += `<span class="pill em">ferromagnetic (Curie ${FERRO[p.Z][0]} K)</span>`;
     if (p.anti) pills += `<span class="pill" style="color:${PBAR_COL};border-color:${PBAR_COL}">antimatter: annihilates on contact with matter</span>`;
-    if (p.muB) { const [lc, ld] = muRates(p.Z, p.N); pills += `<span class="pill hot">muonic atom: a μ⁻ in its innermost orbit, mean life ${fmtTime(1 / (lc + ld))}</span>`; kv.push(['Muon', `bound by ${fmtE(p.muB.Eb)}, 207 times closer in than a 1s electron; captured by the nucleus (μ⁻ + p → n + ν) ${Math.round(100 * lc / (lc + ld))}% of the time, else it decays in orbit`]); } // (a muonic atom showed as a plain atom, 1.26 bug fix)
+    if (p.muB && p.muB.zx) { // (an exotic atom of the realistic-particle switch: its state, the lines its cascade gave off, 1.27)
+      const I = xaInfo(p), ch = ELEMENTS[p.Z - 1], lines = (I.lines || []).slice().sort((u, v) => v[0] - u[0]).slice(0, 4); // (the strongest lines first)
+      pills += `<span class="pill hot">muonic atom: a μ⁻ in its 1s orbit (n = 1), mean life here ${fmtTime(I.tau)}</span>`;
+      kv.push(['Muon', `bound by ${fmtE(I.Eb)} in 1s, ${Math.round(207 * xaMred('mu-', p.Z, p.N) / MU_M)} times closer in than a 1s electron; ${I.from ? `came over from ${I.from} into n = ${I.n0}` : `caught into n = ${I.n0}`}; captured by the nucleus (μ⁻ + p → n + ν) ${Math.round(100 * I.cap)}% of the time, else it decays in orbit (μ⁻ → e⁻ ν̄ₑ νμ)`]);
+      kv.push(['Cascade', `${lines.length ? 'X-rays ' + lines.map(l => `${fmtE(l[0])} (${l[1]}→${l[2]})`).join(', ') : 'no X-rays'}${I.aug ? `; ${I.aug} Auger electron${I.aug > 1 ? 's' : ''}` : ''}`]);
+      kv.push(['Chemistry', `its electrons see Z − 1 = ${p.Z - 1}: to the outside an atom of ${ch.name.toLowerCase()} (its valence, bonds and size)`]);
+    } else if (p.muB) { const [lc, ld] = muRates(p.Z, p.N); pills += `<span class="pill hot">muonic atom: a μ⁻ in its innermost orbit, mean life ${fmtTime(1 / (lc + ld))}</span>`; kv.push(['Muon', `bound by ${fmtE(p.muB.Eb)}, 207 times closer in than a 1s electron; captured by the nucleus (μ⁻ + p → n + ν) ${Math.round(100 * lc / (lc + ld))}% of the time, else it decays in orbit`]); } // (a muonic atom showed as a plain atom, 1.26 bug fix)
     if (p.ne > 0) {
       kv.push([p.anti ? 'Positrons' : 'Electrons', `${p.ne} (${configString(p.Z, p.ne)})`]);
       kv.push([p.anti ? 'Valence positrons' : 'Valence electrons', String(p.val)]);
@@ -34120,7 +34357,7 @@ function renderInspect() {
     if (!nuc.stable && nuc.modes.length) kv.push(['Decay energy', nuc.modes.map(m => `${modeLabel(m.mode)}: Q ${fmtE(m.Q * 1e6)}`).join('; ')]);
     if (mol) {
       const bonds = [];
-      for (const bd of p.bonds) { const o = other(bd, p); bonds.push(`${el.sym}${['', '–', '=', '≡'][bd.order]}${o.el.sym} ${fmtE(bd.D)}, ${fmtA(dist(p, o))}`); }
+      for (const bd of p.bonds) { const o = other(bd, p); bonds.push(`${elSym(p)}${['', '–', '=', '≡'][bd.order]}${elSym(o)} ${fmtE(bd.D)}, ${fmtA(dist(p, o))}`); }
       const lm = libMatch(mol) || libMatch(mol, true); // (heavy water: water's entry)
       const about = lm ? `<section class="group"><h3>Molecule</h3><p class="note"><b>${esc(mname || lm.name)}</b> (${esc(isoFormula(mol))}, ${mol.length} atoms). ${esc(p.anti ? 'The antimatter twin of ' + lm.name.toLowerCase() + '.' : lm.note)}</p></section>` : '';
       extra = about + `<section class="group"><h3>Bonds</h3><p class="note">${bonds.map(esc).join('<br>')}</p></section>`;
@@ -34840,6 +35077,7 @@ const SAVE_KINDS = new Set([NUC, ELEC, POS]);
 /* The world as data: the box, bath, fields and pace, every nucleus, atom, ion and free lepton with its velocity (one in
    radiation flight with its energy and direction: a tenth entry), the bonds among them and the magnets. Not kept:
    light, beams, a collider's rings, and chips' circuits (their atoms are saved as atoms). */
+const xmOf = (ps) => { const xm = []; ps.forEach((p, i) => { const B = p.muB; if (B && B.zx) xm.push([i, B.Eb, B.zx, B.n0 || 0, B.aug || 0, B.lines || [], B.from || '']); }); return xm.length ? { xm } : {}; }; // (exotic atoms of the realistic-particle switch, 1.27: older readers open them as 0.51's muonic atoms)
 function worldToJSON() {
   const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.caught);
   const ix = new Map(ps.map((p, i) => [p, i])), r6 = (v) => Math.round(v * 1e6) / 1e6;
@@ -34851,7 +35089,7 @@ function worldToJSON() {
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
   const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, Ez: W.Ez || 0, Bax: W.Bax3 || 'z', z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0]), /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, ...xmOf(ps), xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0]), /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -34880,6 +35118,12 @@ function worldFromJSON(d) {
     const KE = q[9], v = Math.hypot(vx, vy);
     if (p && Number.isFinite(KE) && KE > 0 && v > 0) setMotion(p, KE, vx / v, vy / v); // (in radiation flight: its energy, as saved)
     made.push(p);
+  }
+  if (Array.isArray(d.xm)) for (const q of d.xm) { // (an exotic atom of the realistic-particle switch: its binding, its electrons seeing Z − 1, its cascade, 1.27)
+    if (!Array.isArray(q)) continue; const p = made[q[0]];
+    if (!p || !p.muB || !Number.isFinite(q[1]) || !(q[1] > 0) || q[2] !== 1) continue;
+    p.muB = { m: MU_M * MEV - q[1], Eb: q[1], sp: 'mu-', n: 1, zx: 1, n0: +q[3] || 0, aug: +q[4] || 0, lines: Array.isArray(q[5]) ? q[5].filter(l => Array.isArray(l) && l.length === 3 && l.every(Number.isFinite)) : null, from: typeof q[6] === 'string' ? q[6].slice(0, 8) : '' };
+    p.m = atomMass(p); p.im = 1 / p.m; refresh(p);
   }
   let nb = 0;
   for (const b of d.bonds) { if (!Array.isArray(b)) continue; const [i, j, o] = b; const a = made[i], c = made[j]; if (a && c && a !== c && [1, 2, 3].includes(o)) { addBond(a, c, o); nb++; } }
@@ -37874,6 +38118,7 @@ Object.assign(SET_DEF, { metal: 0 }); SET_OK.metal = [0, 1]; // (Experimental: b
 Object.assign(SET_DEF, { xq: 1 }); SET_OK.xq = [1, 2]; // (Experimental: the quantum bonds' method, GFN1-xTB or GFN2-xTB, 1.26)
 Object.assign(SET_DEF, { xqs: 0 }); SET_OK.xqs = [0, 1]; // (Experimental: the quantum bonds' spins, paired or polarized, 1.26)
 Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
+Object.assign(SET_DEF, { rpExo: false }); // (Experimental → Realistic particles: exotic atoms as real atoms, 1.27: hep.js RP)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
@@ -37885,6 +38130,7 @@ EXP_NAME.xq = 'GFN2-xTB'; // (1.26)
 EXP_NAME.xqs = 'polarized spins'; // (1.26)
 SET_EXP.push('lps', 'sigh', 'pis'); // (1.26)
 EXP_NAME.lps = 'lone pairs'; EXP_NAME.sigh = 'halogen σ-holes'; EXP_NAME.pis = 'π-stacking'; // (1.26)
+SET_EXP.push('rpExo'); EXP_NAME.rpExo = 'exotic atoms'; // (1.27)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -37966,6 +38212,7 @@ function applySettings() {
   mbSet(SET.metal); // (Experimental: bond orders for metals, 1.25)
   sitesSet('lp', SET.lps); sitesSet('sh', SET.sigh); sitesSet('pi', SET.pis); // (Experimental: directional forces, 1.26)
   waveSet(!!SET.wave); // (Experimental: electrons as waves, 1.15)
+  RP.exo = !!SET.rpExo; // (Experimental → Realistic particles: exotic atoms, 1.27)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
@@ -38085,6 +38332,7 @@ function syncSettings() {
   setSegValue('segXq', String(SET.xq)); // (1.26)
   setSegValue('segXqs', String(SET.xqs)); // (1.26)
   setSegValue('segLps', String(SET.lps)); setSegValue('segSigh', String(SET.sigh)); setSegValue('segPis', String(SET.pis)); // (1.26)
+  $('setRpExo').checked = SET.rpExo; // (1.27)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -38123,6 +38371,7 @@ const COSTS = {
   setResBig: () => ({ k: 'physics', on: ['×1 + pauses', 'Nothing while bonds stay put; a pause of 12 ms (200 ring atoms) to 0.2 s (1,000) when a large ring system reacts'] }),
   setInc: () => ({ k: 'physics', on: ['×1–1.05', 'About 3 ms a nuclear hit instead of 1: a few percent in the nuclear setups, nothing elsewhere'] }),
   setUltra: () => ({ k: 'physics', on: ['×1', 'True sizes and rates cost nothing'] }),
+  setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where no slow μ⁻, π⁻, K⁻ or antiproton stops (a pion beam into carbon ×1.0); a capture is one event of 1.2–2.3 ms (its cascade\u2019s electrons and X-rays), and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in makes a small plasma to follow: muon-catalysed fusion ×3, the hypernucleus factory ×4 while it lasts'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
@@ -38165,6 +38414,7 @@ const COSTS3 = {
   segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×2', 'Measured in 3-D (1.25): liquid water and salt water ×2.0–2.2 where steps are at their longest (a 3-D step costs about the same whatever its length); nothing where they are already short'], 0.01: ['×3.5', 'Measured in 3-D (1.25): liquid water ×3.4–3.5, salt water ×3.3–4.1 where steps are at their longest; nothing where they are already short'] } }),
   setInc: () => ({ k: 'physics', on: ['×1', 'Nothing in the 3-D lab: nucleons do not strike nuclei there yet (the flat game only)'] }),
   setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24); the true sizes are drawn without the WebGL layer (liquid water: 7 → 25 ms a frame, headless, 1.26)'] }),
+  setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing where no slow μ⁻, π⁻ or K⁻ stops; a capture is one event of 1.4–1.5 ms, and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in costs more while it lasts'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
@@ -38198,6 +38448,7 @@ const REAL = {
   setResBig: [true, 'Every ring system gets its resonance worked out exactly'],
   setInc: [true, 'A nucleon followed through the nucleus collision by collision, as in nature'],
   setUltra: [true, 'True sizes and rates, nothing made easier to see'],
+  setRpExo: [true, 'A slow negative particle is caught into an orbit and cascades down, giving off its X-ray lines, as in nature (1.27)'],
 };
 function syncReal() {
   for (const id in REAL) {
@@ -38214,6 +38465,7 @@ EXP_SET.segMetal = 'metal'; // (1.25)
 EXP_SET.segXq = 'xq'; // (1.26)
 EXP_SET.segXqs = 'xqs'; // (1.26)
 EXP_SET.segLps = 'lps'; EXP_SET.segSigh = 'sigh'; EXP_SET.segPis = 'pis'; // (1.26)
+EXP_SET.setRpExo = 'rpExo'; // (1.27)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -38241,6 +38493,7 @@ function expSummary() {
   if (SET.resBig) on.push('large ring resonance');
   if (SET.inc) on.push('detailed nuclear collisions');
   if (SET.ultra) on.push('ultra-realistic');
+  if (SET.rpExo) on.push('exotic atoms'); // (1.27)
   if (!on.length) return 'Experimental: all normal';
   const t = expTotal(), x = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
   return `Experimental: ${on.join(', ')} (${x} the normal work)`;
@@ -38253,6 +38506,7 @@ function syncExpTotal() {
   names.segXq = 'GFN2-xTB'; // (1.26)
   names.segXqs = 'polarized spins'; // (1.26)
   names.segLps = 'lone pairs'; names.segSigh = 'halogen σ-holes'; names.segPis = 'π-stacking'; // (1.26)
+  names.setRpExo = 'exotic atoms'; // (1.27)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -38381,6 +38635,7 @@ const SDESC = {
   segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
   segPis: ['π-stacking', 'The 3-D lab only. There an aromatic ring carries its π electrons as charge above and below it, and two rings meet with a dispersion fitted to the benzene dimer, so they stack offset or edge to face. A flat world has no above or below.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin, drawn as a faint cloud (the electron force field, eFF), instead of a point.'],
+  setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻, K⁻ or antiproton is caught by an atom into an orbit and cascades down, setting Auger electrons free and giving off the exotic atom\u2019s X-ray lines (muonic carbon 75 keV, muonic lead 5.9 MeV); then the muon decays or is captured at the rate measured for the element, a pion or kaon is absorbed by the nucleus (a star), an antiproton annihilates. A muonic atom is a real atom of the box, its electrons seeing one charge less (muonic carbon bonds as boron does); muonic hydrogen passes through atoms and hands its muon to a heavier one. Experimental: off again each time the game starts.'], // (1.27)
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
    on which mode you're in ... There should also be 3d pictures in 3d mode"). While the world is 3-D (W.d3) the pane takes
@@ -38418,6 +38673,7 @@ const SDESC3 = {
   segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond, C–X···N at 180°). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
   segPis: ['π-stacking', 'An aromatic ring carries its π electrons as charge on points above and below it, and ring atoms of two aromatic molecules meet with a dispersion fitted to the benzene dimer: rings stack offset or edge to face, as benzene does, rather than face to face.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
+  setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻ or K⁻ is caught by an atom into an orbit and cascades down, in all three directions, setting Auger electrons free and giving off its X-ray lines; then the muon decays or is captured at the measured rate, a pion or kaon is absorbed by the nucleus. A muonic atom is a real atom of the box, its electrons seeing one charge less; muonic hydrogen passes through atoms and hands its muon to a heavier one. Antiprotons and protonium are in the flat game only (antimatter is not in 3-D). Experimental: off again each time the game starts.'], // (1.27)
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
 const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
@@ -38643,6 +38899,7 @@ function settingsInit() {
   $('setTips').onchange = (e) => { setSetting('tips', e.target.checked); if (e.target.checked && $('hintText').innerHTML && !UI.menu) { $('hint').hidden = false; hintFit(); } }; // (turned back on: this setup's tip shows again now, not at the next setup, 1.26 settings audit)
   $('setFps').onchange = (e) => setSetting('fps', e.target.checked);
   $('setUltra').onchange = (e) => setSetting('ultra', e.target.checked);
+  $('setRpExo').onchange = (e) => setSetting('rpExo', e.target.checked); // (1.27)
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');
