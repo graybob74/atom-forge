@@ -591,7 +591,8 @@ body.mo .ddpop.out { animation: ddOut 0.1s ease-in both; pointer-events: none; }
 .mm-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; transform-style: preserve-3d; }
 .mm-row .btn { padding: 8px 12px; font-size: 13.5px; }
 .mm-row .btn[hidden] { display: none; }
-.mm-row .btn:hover, .mm-choose > .btn:hover, .mm-choose > .btn:focus-visible { transform: translateZ(50px); border-color: var(--accent); }
+.mm-row .btn:hover, .mm-row .btn:focus-visible, .mm-choose > .btn:hover, .mm-choose > .btn:focus-visible { border-color: var(--accent); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--accent), 0 0 22px rgba(90, 150, 255, 0.35); } /* (after 1.25: no lift on hover; lifted 14 px toward the viewer, the buttons left of centre slid 9–12 px aside under a pointer near their edge, which then fell off: Gallery, Settings and Help hard to press) */
+.mm-row .btn:active, .mm-choose > .btn:active { filter: brightness(0.88); transition-duration: 0.06s; }
 .mm-btns .btn.mm-back { justify-self: start; padding: 4px 10px; font-size: 12.5px; transform: translateZ(24px); box-shadow: none; }
 
 .mm-set3 { display: grid; gap: 8px; }

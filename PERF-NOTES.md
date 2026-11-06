@@ -1050,6 +1050,17 @@ From the bug-fix session (branch bugfix-125): items 8, 14 and 17 of the "Bugs on
   stored, ms a simulated fs: 8 beads ×15.4 → ×8.0, 16 ×17 (was ×29–31), 32 ×29 (was ×46–51). The 3-D tags and note
   now say ×8, ×17, ×29. Fingerprints unchanged (quantum nuclei are off by default). Check: f_bug125 "pi3".
 
+From the release (the owner: "the gallery, settings and help buttons on the 3d main menu are still hard to press"):
+- 20. The main menu's row buttons (the 3-D panel's Gallery, Settings, Help; the first screen's Continue) lifted 14 px
+  toward the viewer on hover (`translateZ(50px)` over 36, in the menu's 1,100 px perspective). Left of the screen's
+  centre that slid a hovered button 9–12 px aside (1920×1080: Gallery −11.6 px, Settings −9.9), so a pointer near its
+  right edge fell off it, the hover ended, it slid back: the button flickered under the pointer and a click could miss.
+  1.23.2 had stopped the same for the other menu buttons; this row came later with the first screen. Now a hovered
+  button keeps its place and lights (accent border and glow, as the others; darker while pressed): 0 px. Check:
+  f_bug125 "menuHover" (fails before: the pointer off Gallery and Settings). Two timing checks made steadier for the
+  release gate under load: "segGrid" takes the fastest of five passes (limit 60 µs; 126 before the fix), "metal3" 50 ms
+  (80 before the fix; 7.5 alone, 36 under the suite's load).
+
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 
 The "For 1.24" list (the rest of the 3-D lab), built in the owner's order on branch v127.
