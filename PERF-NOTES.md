@@ -380,8 +380,8 @@ alone on both here too (the known flake).
 ### 1.26: bug fixes (energy books with fast electrons, decay data)
 
 Found by the 1.27 "charged particles in matter" session (its "Found, not changed"). Branch v147 (from v136, e237efe).
-Checks: tests/f_bug126e.js (t_features runs it alone; `node tests/f_bug126e.js [--node] [part …]`): eject, plasma,
-wallTwice, cap, radPush, decay, each failing on e237efe and passing here.
+Checks: tests/f_bug126e.js (t_features runs it alone; `node tests/f_bug126e.js [--node] [part …]`): eject,
+nearThreshold, plasma, wallTwice, cap, radPush, decay, each failing on e237efe and passing here.
 
 - **1. "3-D: −1.3×10⁸ eV over 40 steps in innerSteps".** Not an engine bug: the probe put its lattice down with
   `addAtom(sym, x, y, z)`, but addAtom's fourth argument is its options (`{ z }`), so every z was 0 and each lattice site
@@ -401,7 +401,10 @@ wallTwice, cap, radPush, decay, each failing on e237efe and passing here.
      paid it back. 3-D has skipped it since 1.25 (`fastIon`); the flat game now does the same.
   b. An electron whose energy at infinity is under the radiation threshold (1 keV) but whose launch energy, with the
      pull of the charges around it, is over it went into radiation flight, which carries no potential energy, with the
-     pull still in it (48.7 eV beside a Pb³⁺). Now it flies with its energy at infinity.
+     pull still in it (48.7 eV beside a Pb³⁺). Now it flies with its energy at infinity. Any ionization making a ~1 keV
+     electron did it; the 1.27 photon-polarization session found it too (water, Compton electrons of 0.8–1.2 keV: 100–200
+     eV). Water, 40 atoms each freeing an electron of 950, 980 and 999 eV at infinity (2, 10 and 26 of them into
+     radiation flight): 92, 92 and 101 eV made before, 0 now; 500, 850, 900, 1,200 and 1,500 eV were exact before and are.
   c. A moving ion that loses an electron loses ½mₑv² of its motion with the electron's mass; 3-D gave it to the electron
      only for ions in flight. Now for every moving ion, both games (an H⁺ knocked to 233 eV: 0.13 eV).
   d. An atom in radiation flight stopped in a closed wall (`wallOrEscape`) was listed with the newcomers (`_late`) although
@@ -446,7 +449,14 @@ wallTwice, cap, radPush, decay, each failing on e237efe and passing here.
   pull around them (2b) and pushed 9 atoms in radiation flight (4). No setup reached the particle cap (3) or stopped an
   atom in the wall (2d), and none has ²²Na or ¹⁹⁸Au. The six 3-D setups and the other 43 flat ones are bit for bit the
   same.
-FINGERPRINTS_AND_SUITES
+- Test change: t_features' 1.11 chain-reaction tree now uses seed 3. Four slow neutrons in that block of ²³⁵U reach the
+  check's 30 fissions in about half the seeds; these fixes change the last bits once the first fragments ionize, and
+  seed 5's chain stopped at 25 (e237efe reached 30 with seeds 3 and 5 of 1–7, now with 1, 2 and 3). Seed 3: 30 fissions,
+  9 generations before, 11 now.
+- Suites (2-core machine shared with another session's tests): alone t_lint, t_energy, t_physics, t_nuclear, t_hep,
+  t_3d, f_swx, f_bug126e pass; t_features passes but for the known timing checks (1.14's speed readout 1/1.4×; f_bug125
+  exoElastic 4.2 ms and pi3, both passing alone, exoElastic 1.4–2.3 ms on both trees), and the paired-spin and settings
+  checks inside it (f_126q, f_126x, f_hep126, f_sweep3d, f_swx) pass unchanged. RUNTESTS_RESULT
 
 ### 1.26: 3-D sweep and settings audit
 

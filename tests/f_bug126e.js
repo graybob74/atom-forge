@@ -33,6 +33,21 @@ PARTS.eject = async (page, check, say) => {
   check(r.Pb.n > 20 && r.water.n > 20 && r.Pb.worst < 0.01 && r.water.worst < 0.01, `1.26 bug fixes: electrons set free by fast electrons beside ions and free electrons are booked exactly (flat; lead ${r.Pb.n} freed, worst ${r.Pb.worst} eV; water ${r.water.n}, worst ${r.water.worst} eV; before 48.7 and 39 eV)`, 'bug126e eject: ' + JSON.stringify(r));
 };
 
+/* Flat game, an electron freed with just under the radiation threshold (1 keV) at infinity: the ion's pull put its launch
+   energy over it, and radiation flight, which carries no potential energy, kept the pull (water, 40 atoms each at 950,
+   980 and 999 eV: 92–101 eV made before; found by the 1.27 photon-polarization session too, 100–200 eV). */
+PARTS.nearThreshold = async (page, check, say) => {
+  const r = {};
+  for (const KE of [950, 980, 999]) {
+    const X = load('all', { seed: 3 }), W = X.W; X.PRESETS.water.build(); W.T = 0; W.gamma = 0; W.decayOn = false; X.forcesNoEvents(); W.fSpawn = W.spawned;
+    const B = () => books(X) + W.ledger.bath;
+    let worst = 0, rad = 0;
+    for (const p of W.parts.filter(q => q.el && q.ne > 0).slice(0, 40)) { const ie = X.ionizationCost(p), E0 = B(), e = X.ejectElectron(p, KE); if (!e) continue; if (e.rad) rad++; worst = Math.max(worst, Math.abs(B() - E0 - KE - ie)); }
+    r[KE] = { rad, worst: +worst.toFixed(4) };
+  }
+  check(Object.values(r).every(q => q.worst < 1e-3) && Object.values(r).reduce((a, q) => a + q.rad, 0) > 20, `1.26 bug fixes: an electron freed just under 1 keV into radiation flight takes its energy at infinity (water: ${Object.entries(r).map(([k, q]) => k + ' eV, ' + q.rad + ' in flight, worst ' + q.worst + ' eV').join('; ')}; before 92–101 eV)`, 'bug126e nearThreshold: ' + JSON.stringify(r));
+};
+
 /* Flat game, a lattice of O and Pb, half its atoms ionized up to three times, insulated, 200 steps: a free electron that
    was in flight at the last force pass and was stepped again was missing from the list of net charges summed beyond the
    cutoff, so each later mode switch and ionization measured its energy 1–2 eV wrong (13–15 eV over the 200 steps,
