@@ -670,8 +670,10 @@ undone, saved and let decay through the page, and run in Node for its decay at r
      (pasted nearly at rest, as placed). A particle in flight's Inspect card had no Delete button; now it has (as the
      Erase tool takes one). The particle view drew a muonic atom without its muon; now a green point circles just
      outside the nucleus (the muon's colour in flight). Screenshot: scratchpad mu-pv2.png. (The 3-D lab has no particle
-     view.)
-  - Fingerprints unchanged (no setup makes a muonic atom in 300 steps). Checks: f_swx "muonic", "muSelect" (page).
+     view.) Copy and paste kept only the nucleus: muonium came back as hydrogen and a muonic atom as a plain one; now
+     both are made again as they were.
+  - Fingerprints unchanged (no setup makes a muonic atom in 300 steps). Checks: f_swx "muonic", "muSelect", "copyMu"
+    (page).
 - **Saves and undo with unstable particles.** Only muonic hydrogen and (μα)⁺ were saved (1.26 bug fix B): a placed
   muon, pion, kaon, hyperon, resonance or hypernucleus was gone after a save was read back, and an undo of anything else
   (undo is a save read back) took it away too; found by the page sweep below (every unstable particle of the menus,

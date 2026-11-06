@@ -240,6 +240,20 @@ PARTS.texts = async (page, check, say) => {
   check(/μ⁺ \+ e⁻ → muonium/.test(rec) && !r.tokens && r.nus && r.len === '150 nm', `1.26 sweep: texts: "${rec.slice(0, 50)}…", decays listed with their neutrinos' flavours (νμ, ντ), a mean distance "${r.len}"`, 'swx texts: ' + JSON.stringify(r));
 };
 
+/* Copy and paste of muonium and a muonic atom: the clipboard kept the nucleus only, so muonium came back as hydrogen and
+   muonic carbon as plain carbon. */
+PARTS.copyMu = async (page, check, say) => {
+  const r = await page.evaluate(() => {
+    document.querySelectorAll('.modal').forEach(m => { m.hidden = true; });
+    loadPreset('empty'); setRunning(false); W.decayOn = false;
+    addMuonium(-3, 0, 0.03, 1, 0, 1); const c = addAtom('C', 3, 0); c.vx = c.vy = 0; forcesNoEvents(); W.fSpawn = W.spawned; muStop(addExo('mu-', 3.5, 0, 1000, -1, 0));
+    selectAll(); copySelection(); pasteClip(0, -6, 0);
+    return { mu: W.parts.filter(p => !p.dead && p.mu).length, muB: W.parts.filter(p => !p.dead && p.muB).length, bound: (W.muBound || []).length };
+  });
+  check(r.mu === 2 && r.muB === 2 && r.bound === 2, `1.26 sweep: a copy of muonium is muonium, a copy of a muonic carbon keeps its muon`, 'swx copyMu: ' + JSON.stringify(r));
+};
+PARTS.copyMu.page = true;
+
 module.exports = async function fswx(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

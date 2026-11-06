@@ -35044,12 +35044,12 @@ function copySelection() {
   const xs = [...R.msel].filter(o => isX(o) && selectableX(o)); // (exotic atoms, 1.26: pasted again as made by hand)
   const ps = [...R.msel].filter(p => !p.dead && !isX(p) && selectable(p)), obs = [...R.oSel];
   if (!ps.length && !obs.length && !xs.length && R.selX && R.selX.kind === 'exo' && selectableX(R.selX.o)) xs.push(R.selX.o);
-  if (!ps.length && !obs.length && R.sel && !R.sel.dead && selectable(R.sel)) ps.push(R.sel);
+  if (!ps.length && !obs.length && !xs.length && R.sel && !R.sel.dead && selectable(R.sel)) ps.push(R.sel);
   if (!ps.length && !obs.length && !xs.length) return;
   let cx = 0, cy = 0; for (const p of ps.concat(xs)) { cx += p.x; cy += p.y; } for (const ob of obs) { cx += (ob.x0 + ob.x1) / 2; cy += (ob.y0 + ob.y1) / 2; } cx /= ps.length + xs.length + obs.length; cy /= ps.length + xs.length + obs.length;
   let cz = 0; if (W.d3 && ps.length + xs.length) { for (const p of ps.concat(xs)) cz += p.z; cz /= ps.length + xs.length; } // (3-D: the depths too, about their middle)
   const idx = new Map(ps.map((p, i) => [p, i]));
-  const parts = ps.map(p => ({ k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, dx: p.x - cx, dy: p.y - cy, dz: W.d3 ? p.z - cz : 0, rd: p.k === NUC ? p.rd : 0.15, el: p.el }));
+  const parts = ps.map(p => ({ k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, mu: !!p.mu, muB: !!p.muB, dx: p.x - cx, dy: p.y - cy, dz: W.d3 ? p.z - cz : 0, rd: p.k === NUC ? p.rd : 0.15, el: p.el })); // (mu, muB: muonium pasted as hydrogen and a muonic atom as a plain one, 1.26)
   const bonds = [];
   for (const p of ps) for (const bd of p.bonds) { const i = idx.get(bd.a), j = idx.get(bd.b); if (i !== undefined && j !== undefined && bd.a === p) bonds.push([i, j, bd.order]); }
   // working parts (transistors, gates, memory cells) whose atoms are all in the selection go with it, wired and in the
@@ -35087,7 +35087,8 @@ function pasteClip(wx, wy, wz = 0) { // (wz: 3-D)
   if (!c.parts.length) { const mx = pasteX(); if (mx.length) { R.msel.clear(); for (const o of mx) R.msel.add(o); if (UI.tool !== 'select') setTool('select'); } log('tool', mx.length ? `Pasted ${mx.length} particle${mx.length === 1 ? '' : 's'}` : `Pasted ${madeObj.length} object${madeObj.length === 1 ? '' : 's'}`); selChanged(); return; }
   if (W.parts.length + c.parts.length > MAX_PARTS) { log('tool', `Paste: no room for ${c.parts.length.toLocaleString('en-US')} more particles (the limit is ${MAX_PARTS.toLocaleString('en-US')}; Settings → Max particles)`); return; }
   const zOf = (q) => (W.d3 ? wz + (q.dz || 0) : 0); // (3-D: at the depth pasted at; a copy from a flat world goes in flat, at that depth)
-  const made = c.parts.map(q => q.k === NUC ? addNuc(q.Z, q.N, q.ne, wx + q.dx, wy + q.dy, 0, 0, q.anti, zOf(q)) : addLepton(q.k, wx + q.dx, wy + q.dy, 0, 0, zOf(q)));
+  const made = c.parts.map(q => q.k === NUC ? (q.mu && q.Z === 1 && q.N === 0 ? addMuonium(wx + q.dx, wy + q.dy, 0, 1, 0, q.ne, zOf(q)) : addNuc(q.Z, q.N, q.ne, wx + q.dx, wy + q.dy, 0, 0, q.anti, zOf(q))) : addLepton(q.k, wx + q.dx, wy + q.dy, 0, 0, zOf(q)));
+  c.parts.forEach((q, i) => { const p = made[i]; if (q.muB && p && p.Z >= 2) { const Eb = MU_EB(p.Z) * MEV; p.muB = { m: MU_M * MEV - Eb, Eb }; p.m = atomMass(p); p.im = 1 / p.m; (W.muBound || (W.muBound = [])).push(p); } }); // (a muonic atom's copy keeps its muon, made again: 1.26)
   for (const [i, j, o] of c.bonds) if (made[i] && made[j]) addBond(made[i], made[j], o);
   // a clear spot near the pointer (as the Place tool finds one); none within a few radii of the group: nothing is pasted,
   // rather than copies landing on top of what is there (which would fly apart hot)
