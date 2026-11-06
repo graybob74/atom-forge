@@ -2245,6 +2245,19 @@ sampling and Urban's angles (from memory of the code); refractive indices water 
   the triplet's measured recoil spectrum, Cherenkov dispersion and other media, muon radiative losses.
 - The brief's ~250 photons/cm is for a narrower band than its 300–600 nm (which gives 334).
 
+**Test change:** t_features' 1.10 Settings check counts seven "realistic when on" tags (part 1's four, parts 2 and 4's two,
+this one). f_rp3 "off", "straggle", "delta", "ckv", "brems", "pair", "books" (Node) and "layout" (page); on v142 they
+fail (no RP.cpm, no cpmGamma: checked in a worktree of 0fa22fa).
+
+**Suites** (2-core machine, another session's tests running beside): alone t_lint, t_energy, t_hep, t_physics, t_3d,
+t_settings, f_rp1, f_rp2, f_rp3, f_swx, f_hep126, f_sweep3d pass; tools/fingerprint.js all 59 the same as v142 with
+the switch off. t_features alone: f_rp1, f_rp2, f_rp3 pass; misses only timing checks while the other session ran
+its tests: 1.21 contraction speed (1.2× against > 1.6; alone 3.23×) and f_bug125's exoElastic (3.06 ms against < 3;
+alone 1.1 ms). tools/runtests.sh: 21 of 22 pass; t_features' four misses are timing ones under both lanes' load: the
+1.14 speed readout (1/1.3×, the known two-core flake), exoElastic (4.15 ms) with f_bug125 "alone" for it, and 0.51's
+strings/plasma "qgpLog" (the plasma formed, 1,037 hadrons, its log line not found within the frame-budgeted run; with
+the switch off, so none of this part's code runs there; alone in the page it passed 3 of 3).
+
 ## 1.25.0: the nuclear side in 3-D, continuous bond orders in 3-D with single bonds' twist, many-body metals, Settings by mode with 3-D pictures, 3-D labels off, 21 bug fixes
 
 Approved by the owner on 2026-11-05 (after the reports): bond orders for metals (Many-body, flat melting left as it
