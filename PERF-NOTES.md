@@ -443,6 +443,10 @@ each part fails on v136 and passes here.
   in y as in z, within 40%) now pools three events (seeds 31–33). With 3-D hits now centred (b = R·u) seed 31 alone
   came out at uz²/uy² = 1.40 and failed by a hair; one event's ratio scatters 0.72–1.40 over six seeds (v136: 1.04–1.33),
   as its hadrons come in correlated clusters. Pooled: 0.0253 and 0.0284 (v136: 0.0263 and 0.0294).
+- Suites (2-core machine shared with two other sessions): t_lint, t_energy, t_hep, t_collider, t_3d pass; tools/runtests.sh:
+  20 of 22 pass, t_page failed once ("placing Transistor on soup … inside: false") and passes alone; t_features' misses
+  were the known timing ones (1.14 speed readout 1/1.3×, f_bug125 pi3's 0.8 ratio; 1.24 light and f_bug125 segGrid in an
+  earlier lone run under load), each passing alone.
 
 ### 1.26: GFN2 refit (second attempt)
 
