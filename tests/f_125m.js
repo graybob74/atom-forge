@@ -33,7 +33,7 @@ PARTS.fit = async (page, check) => {
     const Bm = (E(r0 + h) - 2 * e0 + E(r0 - h)) / (h * h) * r0 * r0 / (9 * r0 ** 3 / Math.SQRT2) * 160.2177, slope = (E(r0 + h1) - E(r0 - h1)) / (2 * h1);
     const ev = fcc(X, sym, r0, n, 5) - (N - 1) * e0; // (unrelaxed)
     out[sym] = { Ec: +(-e0).toFixed(4), slope: +slope.toExponential(1), B: +Bm.toFixed(1), Ev: +ev.toFixed(3) };
-    out[sym].ok = Math.abs(-e0 - Ec) < 0.002 && Math.abs(slope) < 1e-6 && Math.abs(Bm / B - 1) < 0.01 && Math.abs(ev / Ev - 1) < 0.02; // (the vacancy exact to 0.01 eV until 1.26 item 4; since, with the close-packed metals' angular terms, fitted with the rest: within 1%)
+    out[sym].ok = Math.abs(-e0 - Ec) < 0.002 && Math.abs(slope) < 1e-6 && Math.abs(Bm / B - 1) < 0.01 && Math.abs(ev - Ev) < 0.01;
   }
   // the many-body signature: a lone pair (dimer) holds more per bond than a bond in the crystal; a pair model gives the same
   const p = X.mbParam(29); let best = 0;

@@ -1,7 +1,7 @@
 'use strict';
 /* The 1.26 checks for the many-body metals' oxides, hydrides, alloys and directional bonding (Settings → Experimental →
    Metals → Many-body; src/bometal.js), run by t_features (its "1.26 (metals)" block) or alone: node tests/f_126m.js
-   [part …] (parts: oxide, surface, forces, books, alloy, bcc, bccmd, dirforces, cp, cpmd, page). Each fails on 1.25 (cc8a0fd); bcc, bccmd, dirforces and page's body-centred words on bbf3c16 (before directional bonding); cp, cpmd and page's close-packed words on dc4d35d (before the close-packed metals' angles). The physics parts run in the Node
+   [part …] (parts: oxide, surface, forces, books, alloy, bcc, bccmd, dirforces, page). Each fails on 1.25 (cc8a0fd); bcc, bccmd, dirforces and page's body-centred words on bbf3c16 (before directional bonding). The physics parts run in the Node
    harness (deterministic); page in the t_features page. (check(ok, good, bad); say(...)) */
 const { load } = require('./load');
 const PARTS = {};
@@ -123,7 +123,7 @@ PARTS.alloy = async (page, check) => {
   const eo = fcc('Cu', 2.651, 3, (k, x, y, z) => (x % 1 === 0 && y % 1 === 0 && z % 1 === 0) ? 'Au' : 0), er = fcc('Cu', 2.651, 3, (k) => perm[k]);
   out.ordering = +((eo - er) / 108).toFixed(3);
   X.mbSet(0);
-  const ok = (o) => Math.abs(o.dHf / o.meas - 1) < 0.25; // (within 10% until 1.26 item 4: the close-packed metals' angular terms, each element's own, cost Ni and Al in NiAl's body-centred B2 order, so the pair fitted there comes out stronger: Ni₃Al 19% overbound, CuAu 15% under; PERF-NOTES)
+  const ok = (o) => Math.abs(o.dHf / o.meas - 1) < 0.1;
   check(ok(out.Ni3Al) && ok(out.Cu1Au) && out.AlInNi < -1 && out.ordering < -0.01,
     `1.26 metals: alloys with constants of their own (fitted on NiAl, Cu₃Au, NiTi, FeAl, CuZn, TiAl): Ni₃Al ${out.Ni3Al.dHf} kJ/mol (measured −165.2), CuAu ${out.Cu1Au.dHf} (−18.2), an Al atom in Ni ${out.AlInNi} eV (unrelaxed; 1.25: +0.15), Cu₃Au ordered ${-out.ordering} eV an atom below random`,
     '1.26 metals alloy: ' + JSON.stringify(out));
@@ -202,60 +202,6 @@ PARTS.dirforces = async (page, check) => {
     `1.26 metals: directional bonding's forces are the energy's slopes (worst ${out['2-D'].err} eV/Å flat, ${out['3-D'].err} in 3-D; W with Fe, Cu and an O atom) and the event books stay exact (${Math.max(out['2-D'].books, out['3-D'].books).toExponential(0)} eV)`,
     '1.26 metals dirforces: ' + JSON.stringify(out));
 };
-/* ---- 10. directional bonding for the close-packed metals (item 4): periodic 3-D crystals built in the game; each metal's
-   own crystal (fcc, or hcp at the ideal c/a) has its measured cohesive energy at its measured spacing with no force on
-   scaling and the vacancy about as measured, and bcc and the other close-packed crystal (each at its best spacing) lie
-   above it (on dc4d35d, 1.25's close-packed fit: bcc below fcc for Cu −0.053, Al −0.039, Ag −0.023, Ni −0.081 eV an atom) */
-const CP_REF = { Cu: ['fcc', 0.04, 1.28], Al: ['fcc', 0.09, 0.67], Ag: ['fcc', 0.03, 1.11], Ni: ['fcc', 0.08, 1.79], Au: ['fcc', 0.04, 0.93], Pt: ['fcc', 0.10, 1.35], Mg: ['hcp', 0.03, 0.79], Ti: ['hcp', 0.10, 1.55], Zn: ['hcp', 0.03, 0.54] }; // ([structure, bcc above it eV an atom, vacancy eV], from memory: PERF-NOTES 1.26 item 4)
-PARTS.cp = async (page, check) => {
-  const X = load('all', { seed: 3 }); X.mbSet(1);
-  const out = {};
-  for (const [sym, [st, dB, Ev]] of Object.entries(CP_REF)) {
-    const P = X.mbParam(X.SYM2Z[sym]), r0 = P.r0, V = r0 ** 3 / Math.SQRT2;
-    const per = (kind, s) => { const a = kind === 'bcc' ? Math.cbrt(2 * V) * s : kind === 'fcc' ? r0 * Math.SQRT2 * s : r0 * s, r = lattice(X, sym, kind, a, kind === 'fcc' ? 3 : 4); return r.E / r.n; };
-    const e0 = per(st, 1), h = 1e-4, slope = (per(st, 1 + h) - per(st, 1 - h)) / (2 * h), other = st === 'fcc' ? 'hcp' : 'fcc';
-    let eb = Infinity, eo = Infinity; for (let s = 0.96; s <= 1.0401; s += 0.01) eb = Math.min(eb, per('bcc', s)); for (let s = 0.985; s <= 1.0151; s += 0.005) eo = Math.min(eo, per(other, s));
-    const N = st === 'fcc' ? 108 : 64, ev = lattice(X, sym, st, st === 'fcc' ? r0 * Math.SQRT2 : r0, st === 'fcc' ? 3 : 4, { skip: 13 }).E - (N - 1) * e0;
-    out[sym] = { Ec: +(-e0).toFixed(3), slope: +slope.toExponential(0), bcc: +(eb - e0).toFixed(3), [other]: +(eo - e0).toFixed(4), Ev: +ev.toFixed(2) };
-    out[sym].ok = Math.abs(e0 + P.Ec) < 0.003 && Math.abs(slope) < 2e-3 && eb - e0 > 0.5 * dB && eo - e0 > 0 && Math.abs(ev / Ev - 1) < 0.1;
-  }
-  X.mbSet(0);
-  check(Object.values(out).every(o => o.ok),
-    `1.26 metals: directional bonding for the close-packed metals: each lowest in its own crystal at its measured spacing and cohesive energy, bcc above it (Cu +${out.Cu.bcc} eV an atom, measured about 0.04; Al +${out.Al.bcc}, 0.09; Ag +${out.Ag.bcc}; Ni +${out.Ni.bcc}; Au +${out.Au.bcc}; Pt +${out.Pt.bcc}), hcp just above fcc (Cu +${out.Cu.hcp}), fcc and bcc above hcp for Mg (+${out.Mg.fcc}/+${out.Mg.bcc}), Ti (+${out.Ti.fcc}/+${out.Ti.bcc}), Zn (+${out.Zn.fcc}/+${out.Zn.bcc}); vacancies Cu ${out.Cu.Ev}, Al ${out.Al.Ev}, Mg ${out.Mg.Ev} eV (unrelaxed)`,
-    '1.26 metals cp: ' + JSON.stringify(out));
-};
-/* ---- 11. in motion: a free copper ball (3-D) started fcc stays fcc at 300 K, and a magnesium ball started hcp stays hcp
-   (inner atoms with 12 neighbours within 1.25 r₀ and 6 pairs of them opposite: fcc; 3: hcp; on dc4d35d the copper ball
-   turns body-centred-like within a picosecond) */
-function ballStruct(X, sym, kind, T, ps, R) {
-  const r0 = X.mbParam(X.SYM2Z[sym]).r0, V = r0 ** 3 / Math.SQRT2;
-  X.baseWorld(R * 8, R * 8, T, 0.05); X.world3d(R * 8);
-  let cell, B;
-  if (kind === 'bcc') { const a = Math.cbrt(2 * V); cell = [a, a, a]; B = [[0, 0, 0], [0.5, 0.5, 0.5]]; }
-  else if (kind === 'fcc') { const a = r0 * Math.SQRT2; cell = [a, a, a]; B = [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]]; }
-  else { cell = [r0, r0 * Math.sqrt(3), r0 * Math.sqrt(8 / 3)]; B = [[0, 0, 0], [0.5, 0.5, 0], [0.5, 1 / 6, 0.5], [0, 2 / 3, 0.5]]; }
-  const n = Math.ceil(R / Math.min(...cell)) + 2;
-  for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) for (let k = -n; k <= n; k++) for (const b of B) { const x = (i + b[0]) * cell[0], y = (j + b[1]) * cell[1], z = (k + b[2]) * cell[2]; if (x * x + y * y + z * z <= R * R) X.addAtom(sym, x + 1e-3, y + 1e-3, { z: z + 1e-3 }); }
-  const P = X.W.parts.filter(p => !p.dead); for (const p of P) { const v = X.thermalV(p.m, T); p.vx = v[0]; p.vy = v[1]; p.vz = v[2] || 0; }
-  X.computeForces(); const t0 = X.W.t; while ((X.W.t - t0) * X.PHYS.TU_S * 1e12 < ps) { X.W.dt = X.chooseDt(); X.step(X.W.dt); }
-  const L = P.filter(p => !p.dead), c = { inner: 0, fcc: 0, hcp: 0, bcc: 0 }, cx = L.reduce((s, p) => s + p.x, 0) / L.length, cy = L.reduce((s, p) => s + p.y, 0) / L.length, cz = L.reduce((s, p) => s + p.z, 0) / L.length;
-  for (const p of L) {
-    if (Math.hypot(p.x - cx, p.y - cy, p.z - cz) > R - 3) continue; c.inner++;
-    const nb = []; for (const o of L) if (o !== p) { const d = [o.x - p.x, o.y - p.y, o.z - p.z], r = Math.hypot(...d); if (r < 1.25 * r0) nb.push(d.map(x => x / r)); }
-    let opp = 0; for (let j = 0; j < nb.length; j++) for (let k = j + 1; k < nb.length; k++) if (nb[j][0] * nb[k][0] + nb[j][1] * nb[k][1] + nb[j][2] * nb[k][2] < -0.9) opp++;
-    if (nb.length === 14) c.bcc++; else if (nb.length === 12 && opp >= 5) c.fcc++; else if (nb.length === 12) c.hcp++;
-  }
-  return c;
-}
-PARTS.cpmd = async (page, check) => {
-  const X = load('all', { seed: 7 }); X.mbSet(1);
-  const out = { Cu: ballStruct(X, 'Cu', 'fcc', 300, 1, 8) };
-  X.mbSet(0); X.mbSet(1); out.Mg = ballStruct(X, 'Mg', 'hcp', 300, 1, 9);
-  X.mbSet(0);
-  check(out.Cu.fcc >= 0.7 * out.Cu.inner && out.Mg.hcp >= 0.6 * out.Mg.inner,
-    `1.26 metals: a free copper ball started fcc stays fcc at 300 K (after 1 ps ${out.Cu.fcc} of its ${out.Cu.inner} inner atoms fcc, ${out.Cu.bcc} with bcc's 14 neighbours), a magnesium ball started hcp stays hcp (${out.Mg.hcp} of ${out.Mg.inner})`,
-    '1.26 metals cpmd: ' + JSON.stringify(out));
-};
 /* ---- 5. the page: the setting's words in both modes and Help say what it now covers */
 PARTS.page = async (page, check) => {
   const r = await page.evaluate(() => {
@@ -263,10 +209,9 @@ PARTS.page = async (page, check) => {
     const help = (document.body.innerHTML.match(/<li><b>Metallic bonding<\/b>[^]*?<\/li>/) || [''])[0];
     const note = (document.querySelector('#segMetal') && document.querySelector('#segMetal').closest('.srow').nextElementSibling || {}).textContent || '';
     const bcc = (t) => /body-centred/i.test(t), tag2 = ((COSTS.segMetal || (() => ({ o: {} })))().o[1] || [])[1] || '', tag3 = ((COSTS3.segMetal || (() => ({ o: {} })))().o[1] || [])[1] || '';
-    const cp = (t) => /fcc and hcp metals/i.test(t); // (the close-packed metals' angles, 1.26 item 4)
-    return { d2: /oxid/i.test(d2) && bcc(d2) && cp(d2), d3: /oxid/i.test(d3) && bcc(d3) && cp(d3), help: /oxid/i.test(help) && /alloy/i.test(help) && bcc(help) && cp(help), note: /oxid/i.test(note) && bcc(note) && cp(note), tags: /1\.26/.test(tag2) && /1\.26/.test(tag3) && /close-packed/.test(tag2) && /close-packed/.test(tag3) };
+    return { d2: /oxid/i.test(d2) && bcc(d2), d3: /oxid/i.test(d3) && bcc(d3), help: /oxid/i.test(help) && /alloy/i.test(help) && bcc(help), note: /oxid/i.test(note) && bcc(note), tags: /1\.26/.test(tag2) && /1\.26/.test(tag3) };
   });
-  check(r.d2 && r.d3 && r.help && r.note && r.tags, '1.26 metals: Settings (flat and 3-D words, the note, both cost tags) and Help describe oxides and hydrides, the body-centred metals\u2019 directional bonding and the close-packed metals\u2019', '1.26 metals page: ' + JSON.stringify(r));
+  check(r.d2 && r.d3 && r.help && r.note && r.tags, '1.26 metals: Settings (flat and 3-D words, the note, both cost tags) and Help describe oxides and hydrides and the body-centred metals\u2019 directional bonding', '1.26 metals page: ' + JSON.stringify(r));
 };
 
 module.exports = async function f126m(page, check, say, openPage, only) {

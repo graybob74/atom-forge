@@ -523,7 +523,7 @@ lowest): the structural differences are the least certain, ±0.05 eV and more fo
     body-centred within 1 ps (inner atoms with 12 neighbours 43 → 6, with 14 0 → 12). Not changed here (the owner asked
     that the fcc metals stay as they are); a fix is the same angular term with the close-packed metals' own constants
     (fitted on fcc with bcc above it), which would move every close-packed metal's numbers and need items 1–2's tables
-    refitted: a physics change for the owner's OK.
+    refitted: a physics change for the owner's OK. (Tried as item 4 below; not shipped: the metals then melt far too high.)
   - Bug-list question #1 (flat copper turning itself into ions): with Many-body on, none. A flat lump of 127 Cu atoms at
     300 K (bath on) over 2 ps: 0 ions (seeds 7 and 3); with the pair model 118 of 127 by 0.5 ps (seed 7). In 3-D, a ball of
     141 Cu atoms: Many-body 0 ions (seeds 7, 3), the pair model 136 of 141 (seed 7): the pair model's bug is in 3-D too.
@@ -536,6 +536,109 @@ lowest): the structural differences are the least certain, ±0.05 eV and more fo
   `bccmd` (the W ball fcc → bcc at 600 K, bcc kept at 300 K; on bbf3c16 the fcc ball keeps 30 of 43 inner atoms
   close-packed, none bcc), `dirforces` (forces and books, 2-D and 3-D), `page`
   (Settings, notes, both cost tags, Help say body-centred). f_125m `fit` checks Au and Pt instead of W and Na.
+
+**4. Directional bonding for the close-packed metals: tried, not shipped.** The owner approved fixing the finding under item 3
+(1.25's close-packed fit puts bcc below fcc for most fcc metals: relaxed bcc − fcc Cu −0.053, Al −0.039, Ag −0.023, Ni −0.081
+eV an atom; a Cu ball of 177 atoms started fcc at 300 K keeps 15 of 46 inner atoms fcc after 1 ps) with item 3's angular term
+and constants of their own, keeping Ec and spacing exact and B, C₄₄, vacancy, surface energy and melting at least as good as
+1.25. Built, measured, and taken back out: the structures come right but the liquid rises by about the latent heat, so the
+metals melt hundreds of kelvin too high, and held to 1.25's liquid the fit puts hcp below fcc. src/ (bometal.js, ui.js,
+body.html), tests and the page are dc4d35d's again (bit for bit, flat and 3-D, Many-body on or off); the tool and the
+numbers stay for the next try. Built in 766e38c, f28f7cf, 75c9948 (revert this commit's src/ to get them back).
+- **The model tried**: item 3's MBD_FIT rows for 25 metals with data (fcc: Cu, Ag, Au, Al, Ni, Pd, Pt, Pb, Rh, Ir, Ca, Sr; hcp:
+  Mg, Zn, Cd, Be, Ti, Zr, Hf, Co, Sc, Y, Ru, Os, Re), a last 1 in the row giving 1.25's switch (1.15–1.35 r₀) for their
+  pairs and arms. In their own crystal (fcc, or hcp at the ideal c/a, 1.25's reference) Γ is constant under even scaling,
+  so A and ξ (Ec at zero pressure) and p (B, by the secant) keep Ec, r₀, B exactly; q/p, t₂, t₄, t₆, β fitted by
+  `node tools/mbdfit.js --cp [El …]` (Nelder–Mead, 1–2 min a metal) to the vacancy, C₄₄, C′ (C₆₆ for hcp), bcc and the
+  other close-packed structure above it (each relaxed), the (111)/(0001) surface energy and the hcp c/a (weakly), with the
+  vacancy, C₄₄ and surface held no farther from the measured values than 1.25's, the simple cube, simple hexagonal,
+  diamond, flat square and honeycomb sheets and the relaxed Bain path (bct c/a 1–1.3) kept above. Reference values from
+  memory (SGTE lattice stabilities and DFT for the structures, Simmons and Wang's elastic constants, Tyson and Miller's
+  surface energies; the web was not tried this time): `D_CP` in the tool. The game agreed with the tool (Cu bcc − fcc
+  0.0421 on a 0.005 scan against 0.0399), forces were the energy's slopes (x, y, z worst 5.8e-9 eV/Å flat, 5.6e-9 in 3-D
+  for Cu, Al, Mg, Ti with Ni and an O atom), localPE exact to 3e-10 eV.
+- **Two other forms tried first**: exponential arm weights with a small β (the second shell weighted like the first) cannot
+  put bcc above fcc with hcp near it without the simple cube falling below fcc (Cu, β 3: t₄ 2.0, t₆ −0.56; the simple cube 1.4 eV below fcc);
+  arms with their own short switch (in by 1.03 r₀, out by 1.12, before bcc's second shell) gave Cu bcc +0.040, hcp +0.006,
+  C₄₄ 74, C′ 36 GPa at the crystal, but a body-centred tetragonal lattice at c/a 1.10–1.15, compressed 5%, then lay 0.02 eV
+  an atom below fcc (neighbours just past the arms' reach count in the band, not in the angles) and a Cu ball still drifted
+  body-centred (fcc 43 → 12 of 50 in 2 ps at 300 K). The form built: β 10–19 with the pairs' switch, as the bcc metals have it.
+- **Structures, relaxed, eV an atom (1.25 → tried; reference)**, and the properties:
+
+  | | bcc − own | other close-packed − own | C₄₄ GPa | C′ (fcc) / C₆₆ (hcp) GPa | vacancy eV | surface (111)/(0001) J/m² |
+  |---|---|---|---|---|---|---|
+  | Cu | −0.053 → +0.036 (0.04) | hcp 0 → +0.005 (0.006) | 72 → 76 (75.4) | 36 → 100 (23.5) | 1.28 → 1.29 (1.28) | 0.98 → 0.96 (1.79) |
+  | Ag | −0.023 → +0.027 (0.03) | 0 → +0.003 (0.003) | 54 → 46 (46.1) | 27 → 52 (15.3) | 1.11 → 1.11 | 0.67 → 0.65 (1.25) |
+  | Au | +0.013 → +0.038 (0.04) | 0 → +0.003 (0.003) | 58 → 42 (42.0) | 29 → 41 (14.6) | 0.93 → 0.93 | 0.60 → 0.59 (1.50) |
+  | Al | −0.039 → +0.074 (0.09) | 0 → +0.015 (0.03) | 19 → 28 (28.5) | 10 → 76 (23.5) | 0.67 → 0.68 | 0.46 → 0.43 (1.14) |
+  | Ni | −0.081 → +0.072 (0.08) | 0 → +0.018 (0.02) | 108 → 125 (124.7) | 54 → 178 (49.6) | 1.79 → 1.81 | 1.44 → 1.39 (2.38) |
+  | Pd | −0.007 → +0.083 (0.10) | 0 → +0.025 (0.03) | 100 → 72 (71.7) | 50 → 106 (25.5) | 1.50 → 1.51 | 0.99 → 0.96 (2.00) |
+  | Pt | +0.008 → +0.096 (0.10) | 0 → +0.040 (0.05) | 88 → 76 (76.5) | 44 → 101 (48.0) | 1.35 → 1.36 | 0.95 → 0.92 (2.49) |
+  | Pb | −0.004 → +0.017 (0.025) | 0 → +0.003 (0.004) | 17 → 15 (14.9) | 9 → 14 (3.6) | 0.58 → 0.58 | 0.25 → 0.24 (0.60) |
+  | Rh | −0.011 → +0.254 (0.3) | 0 → +0.047 (0.06) | 113 → 184 (184) | 57 → 273 (110) | 1.71 → 1.73 | 1.23 → 1.16 (2.66) |
+  | Ir | +0.011 → +0.337 (0.4) | 0 → +0.069 (0.1) | 141 → 256 (256) | 71 → 376 (169) | 1.97 → 1.99 | 1.40 → 1.33 (3.00) |
+  | Ca | −0.037 → +0.009 (0.015) | 0 → +0.004 (0.005) | 7 → 14 (14.0) | 4 → 12 (3.4) | 0.61 → 0.61 | 0.20 → 0.19 (0.50) |
+  | Sr | −0.033 → +0.003 (0.006) | 0 → +0.003 (0.003) | 5 → 10 (9.9) | 3 → 8 (2.4) | 0.57 → 0.57 | 0.16 → 0.15 (0.41) |
+  | Mg | −0.021 → +0.024 (0.03) | fcc 0 → +0.021 (0.015) | 15 → 18 (16.4) | 18 → 35 (16.8) | 0.65 → 0.73 (0.79) | 0.31 → 0.38 (0.76) |
+  | Zn | −0.011 → +0.030 (0.03) | 0 → +0.018 (0.02) | 23 → 39 (38.8) | 29 → 94 (63.6) | 0.54 → 0.54 | 0.38 → 0.42 (0.99) |
+  | Cd | +0.003 → +0.025 (0.025) | 0 → +0.014 (0.015) | 18 → 20 (19.9) | 22 → 40 (37.5) | 0.46 → 0.46 | 0.26 → 0.29 (0.76) |
+  | Be | −0.088 → +0.071 (0.07) | 0 → +0.041 (0.06) | 28 → 150 (162) | 36 → 388 (133) | 1.00 → 1.00 | 1.04 → 1.17 (1.63) |
+  | Ti | −0.092 → +0.091 (0.10) | 0 → +0.063 (0.06) | 32 → 49 (46.5) | 40 → 99 (35.0) | 1.55 → 1.54 | 0.95 → 1.04 (1.99) |
+  | Zr | −0.123 → +0.072 (0.08) | 0 → +0.044 (0.04) | 21 → 35 (32.0) | 26 → 77 (35.3) | 1.70 → 1.69 | 0.89 → 0.93 (2.00) |
+  | Hf | −0.128 → +0.144 (0.15) | 0 → +0.098 (0.10) | 34 → 56 (55.7) | 43 → 117 (52.0) | 2.12 → 2.12 | 1.11 → 1.23 (2.19) |
+  | Co | −0.049 → +0.092 (0.10) | 0 → +0.019 (0.02) | 55 → 80 (75.5) | 69 → 124 (71.0) | 1.34 → 1.34 | 1.11 → 1.12 (2.52) |
+  | Sc, Y | −0.104, −0.119 → +0.058, +0.092 (0.06, 0.10) | +0.042, +0.031 (0.04, 0.03) | 14, 11 → 29, 26 (27.7, 24.3) | 17, 14 → 58, 48 (29.8, 24.4) | as 1.25 | 0.62, 0.58 → 0.66, 0.60 |
+  | Ru, Os, Re | −0.024, +0.002, −0.008 → +0.483, +0.615, +0.294 (0.5, 0.6, 0.3) | +0.122, +0.132, +0.096 (0.13, 0.15, 0.10) | 100, 131, 116 → 182, 259, 162 | 125, 163, 145 → 355, 556, 292 | as 1.25 | 1.62, 1.92, 1.80 → 1.79, 2.13, 1.96 |
+
+  (unrelaxed vacancies and surfaces, unrelaxed hcp shear constants; Ec, r₀, B exactly 1.25's for all; (100) surfaces rose
+  3–7%: Cu 1.19 → 1.25 J/m²; relaxed hcp c/a 1.55–1.60 against measured 1.57–1.62 (Zn, Cd 1.86, 1.89: the reference is
+  ideal hcp, as 1.25's).) The structures and C₄₄ came out; C′ (C₆₆) came out 1.5–4 times the measured value (1.25: 0.6–2
+  times): along the Bain path the angular term has to climb from fcc to bcc's height within a few percent of strain.
+- **In motion** (3-D free balls, bath 0.05; inner atoms with 12 neighbours within 1.25 r₀ and 6 opposite pairs fcc, ≤ 4 hcp,
+  14 bcc): Cu started fcc at 300 K 44 of 44 inner atoms fcc after 1 ps (1.25: 15 of 46), at 600 K 40 of 46 after 2 ps;
+  started bcc it does not turn fcc: 300 K 59 → 29 bcc, 21 with 13 neighbours, 3 close-packed after 2 ps; 600 K 12 bcc,
+  32 with 13, 7 close-packed (the relaxed Bain path has a step of 0.012 eV an atom above bcc at c/a 1.2: bcc is metastable
+  here, unstable in real copper); hcp balls at 300 K, 1 ps: Ti 44 of 57 hcp (1.25: 9 of 55, 23 bcc), Zn 64 of 66 (47 of
+  65), Mg 36 of 42 (25 of 40). Copper ions: 0 (flat lump of 121 and 3-D ball of 141 atoms, seeds 7 and 3, 2 ps).
+- **Melting, why it was not shipped** (3-D balls, bath steps of 0.1·Tm, 2 ps each; share of the inner atoms' neighbours kept
+  over the last 1.3 ps, which a rotating ball does not blur):
+
+  | | 0.6 | 0.7 | 0.8 | 0.9 | 1.0 | 1.1 | 1.2 | 1.3 | 1.4 | 1.5 | 1.6 Tm |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | Cu 177 atoms, 1.25 | 95% | 94 | 89 | 89 | 87 | 80 | 71 | 72 | 59 | 56 | 55 |
+  | Cu, tried | 97 | 94 | 91 | 90 | 89 | 80 | 78 | 76 | 74 | 64 | 63 |
+  | Al 135 atoms, 1.25 | 90 | 79 | 79 | 72 | 71 | 47 | 53 | 46 | 46 | 36 | 40 |
+  | Al, tried | 93 | 89 | 91 | 89 | 89 | 84 | 71 | 67 | 70 | 61 | 52 |
+
+  Copper's ball holds its order about 250 K higher, aluminium's 300–400 K higher (to 1.1 Tm, where 1.25's lost it at 0.75).
+  The cause: a liquid's neighbours are arranged at random, so its Γ is far below the crystal's (aluminium at 2,000 K: mean Γ
+  0.0075 against the crystal's 0.054), and the angular term raises the liquid by about the latent heat. Measured on four
+  snapshots of 1.25's liquid copper (108 atoms, 1,600 K; tools/mbliquid.json) at each metal's spacing: the liquid above the
+  crystal, Cu 0.209 (1.25) → 0.259 eV an atom, Al 0.081 → 0.181 (latent heats 0.135 and 0.11). Held to 1.25's liquid within
+  4 meV (`cpLiquid`, LIQW), the fit can no longer keep fcc below hcp: Cu bcc +0.022 and hcp −0.015, Al bcc +0.041 and hcp
+  −0.044 (the l = 6 term that sets fcc against hcp is the one that sets the crystal against the liquid's icosahedral order);
+  at 15 meV it lets the liquid rise again (Cu +0.039, Al +0.055). With this form (one β, l = 2, 4, 6, the second moment)
+  the four conditions (bcc above fcc, hcp just above fcc, the liquid where it was, the simple cube up) do not meet.
+- **Items 1–2 refitted for it** (kept in f28f7cf, taken back with it): each fitted compound exact again; what moved before the
+  refit and after it: Cu₂O −169.6 kJ/mol with a force on scaling → exact; Al₂O₃ −1656.1 → exact; O on (111) Cu −5.26 eV
+  (unchanged), Ag −3.49 (−3.48), Ni −5.89 (−5.9), Al −11.44 (−11.4); H on Cu −2.20, Pd −2.26; CuO (as rocksalt) −202.7
+  kJ/mol (was −203); hematite −535.8 (unchanged: Fe and Fe–O untouched). Alloys: Ni₃Al −169.7 → −196.1 kJ/mol (measured
+  −165.2; overbound 19%: the angular terms are each element's, so Ni and Al pay bcc's penalty in NiAl's B2 order and the
+  pair fitted there comes out stronger), CuAu −17.6 → −15.5 (−18.2), Al in Ni (unrelaxed) −1.72 → −2.02 eV, Cu₃Au ordering (unrelaxed)
+  0.053 → 0.045 eV an atom below random; CuZn, NiTi, FeAl, TiAl exact again.
+- **Also measured for it**: insulated drift, Cu flat patch 37 atoms 1,500 K 3,000 steps 1.1e-4 eV (1.25: 4e-5), 3-D ball 135
+  atoms 2,000 steps 4.3e-4 (3.8e-4). Cost (one thread, CPU time, two cores shared): the pass ×2 flat (Cu 955 atoms, Al 769),
+  ×3.2–3.4 in 3-D (864 atoms); whole steps flat Cu ×1.25, flat Al ×1.3 (×3–4 against pairs), a 3-D Al crystal ×1.75 (×5
+  against pairs), a 3-D Cu crystal ×1.0 (electron-transfer estimates). Many-body off: the 59 setups bit for bit (they are
+  now dc4d35d's anyway); on, five differed (flame Cu, photonuc Pb, crt Zn, and magnet and sns through Fe–H and Hg–O, which
+  borrow refitted Cu–H and Zn–O). Flat sheets 3% more bound (Cu 2.73 → 2.83 eV an atom).
+- **For the owner** (the choices): (a) leave 1.25's fit (bcc below fcc in 3-D for most fcc/hcp metals; flat world unaffected
+  in kind: no bcc there); (b) ship the tried constants (structures right, fcc balls stay fcc, but 3-D melting 250–400 K
+  higher, C′ 1.5–4× too stiff, Ni₃Al 19% overbound); (c) a different form: a fourth-moment term (band shape: what really
+  sets fcc against bcc for filled d bands), or MEAM's screening plus second-neighbour reference structure, each a larger
+  piece of work; the tool (`--cp`, `cpLiquid`, the Bain and open-structure constraints) is ready for it.
+- Tests: none added to the suite (the parts written for it, f_126m `cp` and `cpmd`, failed on dc4d35d as they should and are in
+  766e38c); f_125m and f_126m are dc4d35d's again.
 
 ## 1.25 (in progress)
 

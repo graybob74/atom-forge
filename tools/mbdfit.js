@@ -225,7 +225,10 @@ function table() {
     console.log(`  ${SYM[el]}: [${row.map(x => +x.toPrecision(7)).join(', ')}], // ${el}: bcc a ${(2 * d[0] / Math.sqrt(3)).toFixed(4)} Å; B ${o.B.toFixed(0)}, C11 ${o.C11.toFixed(0)}, C12 ${o.C12.toFixed(0)}, C44 ${o.C44.toFixed(0)} GPa (measured ${d[2]}, ${d[3]}, ${d[4]}); vacancy ${o.Ev.toFixed(2)} eV (${d[5]}); fcc +${o.fcc.toFixed(3)}, hcp +${o.hcp.toFixed(3)} eV (${d[6]}, ${d[7]})`);
   }
 }
-/* ---- the close-packed metals (1.26, item 4): the same angular term with constants of their own, fitted on their own crystal
+/* ---- the close-packed metals (1.26, item 4: TRIED, NOT SHIPPED; src/bometal.js keeps 1.25's close-packed fit for them. The
+   fits below put fcc/hcp lowest but raise the liquid by 0.05–0.10 eV an atom, so balls melted 250–400 K higher; held to
+   1.25's liquid (cpLiquid, LIQW) they put hcp below fcc. PERF-NOTES 1.26 item 4 has the numbers. The constants as built are
+   CPFITS, the rows in commit f28f7cf.) The same angular term with constants of their own, fitted on their own crystal
    (fcc, or hcp at the ideal c/a for the hcp metals: 1.25's reference, 12 equal neighbours) with 1.25's switch (1.15–1.35 r₀),
    so that the close-packed structure is the lowest. In that crystal Γ does not change when it is scaled evenly, so the
    cohesive energy, spacing and bulk modulus stay 1.25's exactly (A, ξ solved for Ec at zero pressure, p for B); q/p, t₂,
@@ -327,6 +330,24 @@ function cpSurface(d, P, face) {
   const area = face === '100' ? d[2] * d[2] : SQ3 / 2 * d[2] * d[2]; // (an atom's share of the face)
   return sum / area * 16.02177;
 }
+/* the liquid (1.26): copper's liquid at 1,600 K from 1.25's model (tools/mbliquid.json: 4 snapshots of 108 atoms, positions over
+   r₀), scaled to the metal's r₀; its energy an atom above the crystal's, at the same positions for every set of constants.
+   The angular terms must not move it from 1.25's: a liquid's neighbours are arranged at random, so its Γ is lower than a
+   crystal's, and without this the first fits raised the liquid by about the latent heat (aluminium's balls melted 300–400 K
+   higher than with 1.25's model) */
+let LIQ = null; const LIQV = new Map();
+function cpLiquid(d, P) {
+  if (!LIQ) LIQ = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'mbliquid.json'), 'utf8'));
+  const r0 = d[2], rc = CP_OFF * r0 * 1.01, key = r0;
+  let V = LIQV.get(key);
+  if (!V) { // (each atom's neighbour vectors, minimum image)
+    V = []; const L = LIQ.L * r0;
+    for (const sn of LIQ.snaps) for (let i = 0; i < sn.length; i++) { const nb = []; for (let j = 0; j < sn.length; j++) { if (j === i) continue; const v = [0, 1, 2].map(c => { let x = (sn[j][c] - sn[i][c]) * r0; x -= L * Math.round(x / L); return x; }); if (Math.hypot(...v) < rc) nb.push(v); } V.push(nb); }
+    LIQV.set(key, V);
+  }
+  let e = 0; for (const nb of V) e += Es(nb, P);
+  return e / V.length;
+}
 function cpAll(d, v, full) {
   const o = cpProps(d, v), P = o.P, Vat = cpVol(d), ref = cpRef(d), Ec = d[3];
   const eref = d[1] === 'fcc' ? o.e0 : o.e0; // (the reference crystal is at zero pressure by construction)
@@ -334,6 +355,7 @@ function cpAll(d, v, full) {
   o.other = d[1] === 'fcc' ? cpRelax('hcp', Vat, P, CA0, full ? [1.45, 1.85] : null, full ? 50 : 30).E - eref : cpRelax('fcc', Vat, P, 0, null, full ? 50 : 30).E - eref;
   if (d[1] === 'hcp') { const h = 0.01, Va = Vat, E = (c) => Estr('hcp', Math.cbrt(2 * Va / (SQ3 / 2 * c)), c, P), em = E(CA0 - h), e0 = E(CA0), ep = E(CA0 + h); o.caPred = CA0 - ((ep - em) / (2 * h)) / ((ep - 2 * e0 + em) / (h * h)); o.caCurv = (ep - 2 * e0 + em) / (h * h); }
   o.surf = cpSurface(d, P);
+  o.liq = cpLiquid(d, P) - o.e0; // (the liquid above the crystal, eV an atom)
   if (d[1] === 'fcc') o.bain = [1, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3].map(ca => [ca, cpRelax('bct', Vat, P, ca, null, full ? 40 : 20).E - eref]); // (the Bain path, bcc to fcc, each at its best volume)
   o.open = {}; for (const [k, ca, lim] of [['sc', 0, 0.1], ['sh', 0.95, 0.07], ['dia', 0, 0.2]]) o.open[k] = [cpRelax(k, Vat, P, ca, null, full ? 50 : 22).E - eref, lim * Ec];
   const r0 = d[2];
@@ -349,6 +371,7 @@ function cpResid(d, v, o, o125) {
   if (o125) { // (at least as good as 1.25: the vacancy, C₄₄ and the surface no farther from the measured values than 1.25's, to a little)
     const worse = (x, x0, ref, tol) => Math.max(0, Math.abs(x - ref) - Math.abs(x0 - ref) - tol);
     r.push(worse(o.Ev, o125.Ev, Ev, 0.01 * Ev) / (0.005 * Ev), worse(o.C44, o125.C44, C44, 0.01 * C44) / (0.01 * C44), worse(o.surf, o125.surf, gs, 0.01 * gs) / (0.01 * gs));
+    r.push((o.liq - o125.liq) / (+process.env.LIQW || 0.004)); // (the liquid kept where 1.25 had it, to a few meV an atom: its melting)
   }
   if (kind === 'hcp') r.push((o.caPred - ca) / 0.03);
   if (o.bain) for (let k = 0; k < o.bain.length; k++) { // (the Bain path: kept above a rise from fcc to bcc (no body-centred tetragonal lattice on the way below it), and downhill all the way from bcc, so bcc is unstable as for these metals)
@@ -377,6 +400,7 @@ function cpReport(el, v) {
   const P = o.P;
   console.log(`${el} (${d[1]}): START=${v.map(x => +x.toFixed(5)).join(',')} p ${P.p.toFixed(3)} q ${P.q.toFixed(3)} A ${(P.A / 2).toFixed(5)} ξ ${P.xi.toFixed(5)} Γ ${o.G.toFixed(4)}`);
   console.log(`  B ${o.B.toFixed(1)}/${d[4]} C11 ${o.C11.toFixed(0)}/${d[6]} C12 ${o.C12.toFixed(0)}/${d[7]} C44 ${o.C44.toFixed(1)}/${d[8]} ${d[1] === 'hcp' ? 'C66' : 'C′'} ${o.Cp.toFixed(1)}/${((d[6] - d[7]) / 2).toFixed(1)} Ev ${o.Ev.toFixed(3)}/${Ev.toFixed(2)} | bcc−ref ${o.bcc.toFixed(4)}/${d[9]} ${d[1] === 'fcc' ? 'hcp' : 'fcc'}−ref ${o.other.toFixed(4)}/${d[10]} | surface ${o.surf.toFixed(2)}/${d[11]}${s100 ? ' (100) ' + s100.toFixed(2) : ''} J/m²${caR}`);
+  console.log(`  liquid ${o.liq.toFixed(4)} eV an atom above the crystal (1.25: ${cpAll(d, [cp125t(d), 0, 0, 0, 0]).liq.toFixed(4)})`);
   if (o.bain) console.log('  relaxed Bain ' + o.bain.map(([c, e]) => c.toFixed(2) + ':' + e.toFixed(4)).join(' '));
   console.log(`  open ${Object.entries(o.open).map(([k, [e]]) => k + ' ' + e.toFixed(3)).join(' ')} | flat tri ${o.tri.toFixed(3)} ${Object.entries(o.flat).map(([k, e]) => k + ' +' + e.toFixed(3)).join(' ')}${bain.length ? ' | Bain ' + bain.join(' ') : ''}`);
   return o;
