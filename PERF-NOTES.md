@@ -2280,7 +2280,8 @@ checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png,
     positrons). Two consequences, both built: (1) an in-plane-polarized photon scatters into the plane less often than
     one polarized across it (at low energy 2 : 4 against an unpolarized 3), so a polarized photon's rate is the game's
     times knPlaneW = (A − 2cos²ψ·B)/(A − B), A = ∫(r³ + r)dθ, B = ∫r² sin²θ dθ (Simpson, 64 intervals; ×2/3 to ×4/3,
-    unpolarized ×1, 3-D always ×1, the total cross section there not depending on ε); (2) for an unpolarized photon ψ is
+    unpolarized ×1, 3-D always ×1, the total cross section there not depending on ε; the game's chance at an atom,
+    1.2% an electron, is already 0.98 for lead, so there the ×4/3 is capped at 1); (2) for an unpolarized photon ψ is
     drawn afresh with every proposal, so θ comes from the unpolarized law (1 + cos²θ at low energy); drawing ψ first
     and θ after would give (1 + 2cos²θ)/2 (found by the χ² check: 666 against 19 dof before this).
   - *The rate (kept; for the owner).* A γ ray of 100 keV or more meets an atom's electrons at 1.2% each, whatever its
