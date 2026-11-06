@@ -4905,6 +4905,24 @@ function maxCation(p) {
   if (el.dblock) return el.ox || 2;
   return Math.max(1, valenceInfo(p.Z, p.Z).v);
 }
+/* (1.26) No ion pair made inside a metal: two metal atoms within their metallic reach, one of them with another metal
+   atom in its first shell (1.3·r_m; a close-packed crystal's second shell is at 1.41·r_m, the flat sheet's at 1.73),
+   share the conduction electrons, which screen a Cu⁺Cu⁻ pair (an atom touching a metal is part of it). Without it a
+   flat Cu or Ni lump turned nearly every atom into an ion (in 3-D Cu, Ag, Au and Ni). Charges already there still
+   move or cancel, a metal still gives electrons to O, Cl…, and lone metal atoms (a vapour) trade them as before. */
+function ionPairInMetal(d, a, r) {
+  return d.el.metal && a.el.metal && d.q >= 0 && a.q <= 0 && r < 1.05 * (d.mR + a.mR) && (inMetal(d, a) || inMetal(a, d)); // (el.metal: a surface atom bonded to an O is still a metal atom)
+}
+function inMetal(p, but) {
+  if (!MR_MAX) for (const el of ELEMENTS) if (el && el.metal) MR_MAX = Math.max(MR_MAX, 2 * el.rc * 1.12);
+  let hit = false;
+  nearby(p.x, p.y, 0.65 * (p.mR + MR_MAX), (q, dx, dy, r2) => {
+    if (q === p || q === but || !q.isMetal || q.k !== NUC || q.ne === 0 || q.fast || q.rad) return;
+    const c = 0.65 * (p.mR + q.mR);
+    if (r2 < c * c) { hit = true; return false; }
+  }, p.z);
+  return hit;
+}
 function transferDE(d, a, r) { // donor d gives one electron to acceptor a
   if (d.ne <= 0 || bondBetween(d, a)) return Infinity;
   if (a.k !== NUC || d.k !== NUC) return Infinity;
@@ -4937,6 +4955,12 @@ function evTransfer(a, b, r) {
   const Ek = 0.5 * mu * (dvx * dvx + dvy * dvy + dvz * dvz);
   if (MBO.on && dE <= Ek + 0.5) dE += mbXferLB(d, acc); // (many-body metals, 1.25: an atom made an ion leaves the metal; at least its own share of it is lost)
   if (dE > Ek + 0.5 || rnd() > 0.3) return; // the cheap estimate says it can't be afforded
+  if (ionPairInMetal(d, acc, r)) { // (1.26: not inside a metal; the other way round, when it is open, lowers or keeps the charges)
+    let e = d === a ? e2 : e1;
+    if (MBO.on && e <= Ek + 0.5) e += mbXferLB(acc, d);
+    if ((d.q === 0 && acc.q === 0) || !(e <= Ek + 0.5)) return;
+    const t = d; d = acc; acc = t; dE = e;
+  }
   const bd0 = speciesLabel(d), ba0 = speciesLabel(acc);
   // exact energy change with the model's own potentials (sizes, charges, electronic energies, any
   // bonds that must break), applied on trial and undone if the collision can't pay for it
