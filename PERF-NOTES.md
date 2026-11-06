@@ -341,6 +341,12 @@ Waiting for the owner:
 - Decided (the owner, 2026-11-05: "fix cu ions"): the bug session's model question #1 (flat Cu ions), fixed on branch
   v137 (the section "1.26: copper ions").
 - To decide: the bug session's model questions #3 (AsCl₅) and #16 (3-D water recapture, physics).
+- Suite on 393f018 (2026-11-06: 1.26 with the sweeps, the spin-branch fix, Polarized normal and the fast-electron
+  energy fixes; another session building 1.27's W/Z at the same time): tools/runtests.sh 20 of 22 suites; the misses all
+  timing checks under the load (t_features 1.14, 1.25 labels3d, exoElastic, bo3; t_page's collider-beam timeout), each
+  passing alone (t_page whole, f_bug125 exoElastic, f_126w bo3; t_features alone passed 1.14 and labels3d and missed
+  0.64's named save, 0.68's prism and pi3 instead, which passed in the runtests run). Every check passed at least once on
+  this commit.
 
 For 1.27 (not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
 portrayed and how to implement an experimental setting that makes them as realistic as possible"; APPROVED, all seven
