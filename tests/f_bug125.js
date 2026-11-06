@@ -269,6 +269,25 @@ PARTS.menuHover = async (page, check, say) => {
 };
 PARTS.menuHover.page = true;
 
+/* 21 (the owner, after 1.25, a screenshot: the 3-D Lab's "Box size 37 × 37 × 37 Å"; clicked to type, the height and
+   depth, one figure, became one box: "37 × [37.24] Å Å", the depth gone and the unit twice). Now each of the three is its
+   own figure to type, the row's Å hides while the unit dropdown shows. */
+PARTS.boxType = async (page, check, say) => {
+  const r = await page.evaluate(async () => {
+    loadPreset('mol3d'); setRunning(false); showTab('lab', true); await new Promise(r => setTimeout(r, 100));
+    const val = $('boxH').closest('.val'), vis = (e) => !!e && e.getClientRects().length > 0, out = { shown: val.textContent.replace(/\s+/g, ' ').trim() };
+    const typeIn = (id, v) => { $(id).click(); const inp = $(id).querySelector('input'); const o = { open: !!inp, depthShown: vis($('boxD')) && /\d/.test($('boxD').textContent) || id === 'boxD', units: [...val.querySelectorAll('.vu, select')].filter(vis).length }; if (inp) { inp.value = String(v); inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); } return o; };
+    const h0 = W.box.th, w0 = W.box.tw;
+    out.h = typeIn('boxH', 30); out.afterH = [W.box.tw, W.box.th, W.box.td].map(v => +v.toFixed(2));
+    out.d = typeIn('boxD', 45); out.afterD = [W.box.tw, W.box.th, W.box.td].map(v => +v.toFixed(2));
+    out.text = val.textContent.replace(/\s+/g, ' ').trim(); out.w0 = +w0.toFixed(2); out.h0 = +h0.toFixed(2);
+    return out;
+  });
+  check(r.h.open && r.h.depthShown && r.h.units === 1 && r.d.open && r.d.units === 1 && r.afterH[1] === 30 && r.afterH[0] === r.w0 && r.afterD[2] === 45 && r.afterD[1] === 30 && /× 30 × 45 Å$/.test(r.text),
+    `bug fix 21: the 3-D box size's three figures each typed alone (height 30 Å, then depth 45: ${r.text}); typing, the depth stays shown and the unit shows once`, 'bugfix boxType: ' + JSON.stringify(r));
+};
+PARTS.boxType.page = true;
+
 module.exports = async function fbug125(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

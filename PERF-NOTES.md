@@ -1060,6 +1060,12 @@ From the release (the owner: "the gallery, settings and help buttons on the 3d m
   f_bug125 "menuHover" (fails before: the pointer off Gallery and Settings). Two timing checks made steadier for the
   release gate under load: "segGrid" takes the fastest of five passes (limit 60 µs; 126 before the fix), "metal3" 50 ms
   (80 before the fix; 7.5 alone, 36 under the suite's load).
+- 21. The 3-D Lab's box size (the owner's screenshot: "37 × 37 × 37 Å", clicked to type: "37 × [37.24] Å Å"): in 3-D the
+  height and depth were one figure, "h × d" in the height's span, typed as one (setting both), so typing replaced both
+  with one box and the depth vanished; the typing box's unit dropdown sat beside the row's own Å. Now width, height and
+  depth are three figures, each typed alone (`TYPED.boxD`; the height no longer sets the depth; the slider keeps the
+  shares), and the row's Å hides while the dropdown shows. Check: f_bug125 "boxType" (height 30, then depth 45:
+  "… × 30 × 45 Å"); f_124 "box" reads the whole row.
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

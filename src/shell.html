@@ -156,6 +156,7 @@ body.panel-left .psplit { left: auto; right: -8px; }
 .note.no3d { color: #ffc45a; }
 body:not(.d3) .only3d { display: none !important; } /* (3-D only controls, 1.24) */
 body.d3 .only2d { display: none !important; }
+.val:has(.typedIn) .vu { display: none; } /* (typing a box size: the unit is the dropdown beside the box, not the row's own Å too, 1.25.0) */
 
 .stage { position: relative; min-width: 0; min-height: 0; border-radius: var(--r); overflow: hidden; overflow: clip; background: var(--ch-bg); /* (clip, 1.23.2: with hidden it could still be scrolled, by up to the WebGL canvas's 64 px margin, when something in it was scrolled into view; the chamber then sat 66 px off where the pointer is read, and a right-click on an atom opened the empty-space menu) */
   border: 1px solid var(--line); box-shadow: var(--shadow); }
