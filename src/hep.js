@@ -1436,6 +1436,7 @@ function psDecay(o, pick) {
   const b = o.v / PHYS.C, bx = b * o.ux, by = b * o.uy, bz = W.d3 ? b * o.uz : 0;
   const made = { ps: [], xs: [], rays: [], lost: 0 };
   for (const v of vs) { const L = toLab(v, bx, by, bz, o.gam), pm = pmag(L) || 1; made.rays.push(W.d3 ? [item('g'), L[0] * MEV, L[1] / pm, L[2] / pm, L[3] / pm] : [item('g'), L[0] * MEV, L[1] / pm, L[2] / pm]); }
+  if (n === 2 && RP.pol) { const P = polPair(made.rays[0].slice(2), made.rays[1].slice(2)); made.rays[0].pol = P[0]; made.rays[1].pol = P[1]; } // (the pair's polarizations at right angles: Realistic particles 7, 1.27)
   if (W.d3) made.z3 = o.z;
   const S = nucBegin([]);
   o.dead = true;
@@ -1593,10 +1594,10 @@ function closeEvent(S, made, x, y, Ein = 0, mIn = 0) {
     let Er = 0; for (const r of made.rays) Er += r[1];
     const f = Er > 0 ? Math.max(0, left) / Er : 0;
     if (made.z3 !== undefined) { // (3-D: along their directions in depth, 1.24)
-      for (const [it, E, ux, uy, uz] of made.rays) { if (it.t === 'g') emitPhoton(x, y, E * f, ux, uy, { z: made.z3, uz }); else emitNeutrino(x, y, E * f, ux, uy, !!it.anti, undefined, it.fl || 'e', made.z3, uz); }
+      for (const r of made.rays) { const [it, E, ux, uy, uz] = r; if (it.t === 'g') emitPhoton(x, y, E * f, ux, uy, r.pol ? { z: made.z3, uz, pol: r.pol } : { z: made.z3, uz }); else emitNeutrino(x, y, E * f, ux, uy, !!it.anti, undefined, it.fl || 'e', made.z3, uz); }
       if (!(Er > 0) && left > 0) emitPhoton(x, y, left, undefined, undefined, { z: made.z3 });
     } else {
-    for (const [it, E, ux, uy] of made.rays) { if (it.t === 'g') emitPhoton(x, y, E * f, ux, uy); else emitNeutrino(x, y, E * f, ux, uy, !!it.anti, undefined, it.fl || 'e'); }
+    for (const r of made.rays) { const [it, E, ux, uy] = r; if (it.t === 'g') emitPhoton(x, y, E * f, ux, uy, r.pol ? { pol: r.pol } : undefined); else emitNeutrino(x, y, E * f, ux, uy, !!it.anti, undefined, it.fl || 'e'); }
     if (!(Er > 0) && left > 0) emitPhoton(x, y, left);
     }
   } else if (Math.abs(left) > Math.min(1e-7 * Math.max(1, Math.abs(Qrel)), Math.max(0.01, 1e-15 * Math.abs(Qrel)))) settleRest(S, Qrel, made, left); // (past 100 keV the remainder is settled down to 0.01 eV (or the books' own rounding): 10⁻⁷ of a 100 TeV hit left 0.1–0.2 MeV unsettled, from boosts at γ in the hundreds; below, as before, 1.26)
@@ -3234,4 +3235,130 @@ function capDone(T, lbl, gh, x, y, z, gs) { // (the capture's log and counts, it
   chainEdge(T.Z, T.N - 1, T.Z, T.N, 'ncap', T.anti);
   noteMade([{ Z: T.Z, N: T.N, anti: !!T.anti }], [], txt);
   return true;
+}
+
+/* ---- Realistic particles 7: photon polarization and the Klein–Nishina Compton angles (1.27, Experimental: Settings →
+   Experimental → Realistic particles → Photon polarization; approved by the owner, 2026-11-05). Off (RP.pol false),
+   nothing here runs and every setup is as before, bit for bit. On:
+   - A photon carries its linear polarization as a unit vector across its direction (opts.pol, kept on its ray or flight
+     for Inspect): [px, py, pz]. In the flat game the photon's direction lies in the plane, so its polarization is an
+     angle ψ between the plane's own direction across the ray (p̂ = k̂ × ẑ, "in the plane") and ẑ ("across the plane",
+     out of the screen): pol = cos ψ·p̂ + sin ψ·ẑ. The game's plane is the plane of incidence of every mirror and prism
+     face and the scattering plane of every Compton event, so p and s are exactly "in the plane" and "across" it. A
+     photon from an unpolarized source (thermal and atomic light, γ lines, bremsstrahlung, everything not named below)
+     carries no vector: unpolarized; a direction is drawn at random (ψ uniform, or uniform round its direction in 3-D)
+     the moment something acts on its polarization, which is the same statistics as an unpolarized beam. Set: the Light
+     tool and its lasers (linear, in the plane or across it, or unpolarized; 3-D: vertical or horizontal), Compton
+     scattering, the polarizer, a mirror's or prism face's reflection, and the two γ of an e⁺e⁻ annihilation into two
+     photons (free pairs, at walls and atoms, para-positronium and pick-off): each unpolarized alone, the pair's
+     polarizations at right angles. That is the classical picture of the entangled pair (Wheeler 1946; Pryce and Ward
+     1947): a definite perpendicular pair per event gives the right single-photon statistics but a weaker correlation
+     between the two photons' Compton scatterings than the quantum state's (at 82°, 1.63 against 2.85 for the ratio of
+     perpendicular to parallel coincidences; Bohm and Aharonov 1957; measured 2.0 by Wu and Shaknov 1950, with their
+     wide detectors). Circular and elliptical polarization are not carried (a real vector holds linear only).
+   - Compton scattering (rpCompton) follows Klein–Nishina with the polarization: dσ/dΩ = ½r₀²(E′/E)²[E′/E + E/E′ −
+     2 sin²θ cos²φ] (summed over the outgoing polarizations; φ the angle between the scattering plane and the incoming
+     polarization), E′ = E/(1 + (E/mₑc²)(1 − cos θ)) exactly (mₑc² = 510,998.95 eV); at low energy Thomson's 1 − sin²θ cos²φ
+     (unpolarized: (1 + cos²θ)/2). The outgoing polarization: along the incoming one's part across the new direction
+     (ε₁) or at right angles to it (ε₂), weighted as dσ/dΩ ∝ E′/E + E/E′ − 2 + 4(ε·ε′)² (Heitler; the choice Geant4's
+     polarized Compton makes). Drawn by one proposal in proportion to E′/E (invertible: in cos θ in 3-D, in θ round the
+     circle in the flat game) and one acceptance of (r² + 1 − 2r(ε·n̂)²)/2, r = E′/E, at least ½ on average at every
+     energy. In the flat game the photon scatters within the plane: the angle θ round the circle has the Klein–Nishina
+     law at the plane's φ (cos φ = the polarization's in-plane part): what a ring of detectors in the plane sees, as the
+     μSR positrons (part 4). The electron leaves along the momentum the photon gave it (E·k̂ − E′·k̂′), with the energy as
+     before (what the photon lost less the binding). The rate is the game's (a γ ray of 100 keV or more meets an atom's
+     electrons at 1.2% each): kept, though Klein–Nishina's total cross section falls with energy (to 0.74 of Thomson's
+     at 100 keV, 0.43 at 511 keV, 0.12 at 5 MeV): written down for the owner.
+   - Optics (flat game; props.js): a mirror and a beam splitter's reflection mirror the vector (an ideal metal: s and p
+     both kept, linear stays linear), passing a splitter or a lens keeps it (the lens's in-plane part turns with the ray);
+     a prism's faces reflect part of the light by Fresnel's equations for its polarization (r_s, r_p; n of F2 flint), so
+     at Brewster's angle (tan θ_B = n: 58° for this glass at 589 nm) the reflected light is all s, across the plane, and
+     light polarized in the plane passes without reflection; a total reflection inside keeps the vector (its phase
+     shifts, which make it elliptical, are not carried). The polarizer (an object, with this switch on): a sheet with its
+     axis at an angle α from the plane; a photon passes with probability (ε·â)², â the axis's part across the ray (Malus's
+     law, cos²), and leaves polarized along â; else it is absorbed. */
+RP.pol = false; // (Experimental → Realistic particles → Photon polarization; ui.js applySettings)
+/* A random linear polarization across the direction (ux, uy, uz): flat, ψ uniform between p̂ = (uy, −ux, 0) and ẑ. */
+function polRand(ux, uy, uz) {
+  if (!W.d3) { const a = rnd() * Math.PI, c = Math.cos(a); return [uy * c, -ux * c, Math.sin(a)]; }
+  const t = Math.abs(ux) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+  let ax = uy * t[2] - uz * t[1], ay = uz * t[0] - ux * t[2], az = ux * t[1] - uy * t[0]; const L = Math.hypot(ax, ay, az); ax /= L; ay /= L; az /= L;
+  const bx = uy * az - uz * ay, by = uz * ax - ux * az, bz = ux * ay - uy * ax, a = rnd() * Math.PI, c = Math.cos(a), s = Math.sin(a);
+  return [c * ax + s * bx, c * ay + s * by, c * az + s * bz];
+}
+/* The part of e across u, made a unit vector (null when e is along u). */
+function polAcross(e, ux, uy, uz) {
+  const d = e[0] * ux + e[1] * uy + e[2] * uz, x = e[0] - d * ux, y = e[1] - d * uy, z = e[2] - d * uz, L = Math.hypot(x, y, z);
+  return L > 1e-9 ? [x / L, y / L, z / L] : null;
+}
+/* Mirrored across a surface of normal (nx, ny, 0): a reflection's polarization (an ideal mirror: ε − 2(ε·n)n). */
+function polMirror(e, nx, ny) { const d = e[0] * nx + e[1] * ny; return [e[0] - 2 * d * nx, e[1] - 2 * d * ny, e[2]]; }
+/* Flat game: the polarization's parts in the plane (along p̂ = k̂ × ẑ) and across it, and back. */
+function polPS(e, ux, uy) { return [e[0] * uy - e[1] * ux, e[2]]; }
+function polFromPS(c, s, ux, uy) { const L = Math.hypot(c, s) || 1; return [uy * c / L, -ux * c / L, s / L]; }
+/* Klein–Nishina: a photon of energy E along u with polarization e scattered by a free electron at rest. Returns
+   [r = E′/E, n̂ (3), ε′ (3)]. Proposal ∝ r (3-D: 1 + κ(1 − μ) = (1 + 2κ)^v, φ uniform; flat: θ = 2 atan(tan(πw − π/2)/√(1 + 2κ))),
+   accepted with (r² + 1 − 2r(ε·n̂)²)/2. e null: unpolarized. In the flat game its ψ is then drawn afresh with each
+   proposal, so (ψ, θ) come from the joint law and θ from the unpolarized one, (1 + cos²θ) at low energy: an in-plane
+   polarized photon scatters into the plane half as often as one polarized across it, so the ψ of those that do is not
+   uniform (drawing ψ first and θ after would give (1 + 2cos²θ)/2). In 3-D the total is the same for every ε. */
+function knScatter(E, ux, uy, uz, e) {
+  const k = E / ME_C2, d3 = W.d3, lg = Math.log1p(2 * k), sq = Math.sqrt(1 + 2 * k), un = !e;
+  if (un) e = polRand(ux, uy, uz);
+  const wx = uy * e[2] - uz * e[1], wy = uz * e[0] - ux * e[2], wz = ux * e[1] - uy * e[0]; // (u × ε: with ε, the frame across u)
+  let r = 1, nx = ux, ny = uy, nz = uz, en = 0;
+  for (let it = 0; it < 1000; it++) {
+    let ct, st, cx, cy, cz; // (cx…: the unit vector across u the scattered photon leans toward)
+    if (un && !d3 && it) e = polRand(ux, uy, uz);
+    if (d3) { ct = 1 - Math.expm1(rnd() * lg) / k; st = Math.sqrt(Math.max(0, 1 - ct * ct)); const ph = 2 * Math.PI * rnd(), cf = Math.cos(ph), sf = Math.sin(ph); cx = cf * e[0] + sf * wx; cy = cf * e[1] + sf * wy; cz = cf * e[2] + sf * wz; }
+    else { const th = 2 * Math.atan(Math.tan(Math.PI * (rnd() - 0.5)) / sq); ct = Math.cos(th); st = Math.sin(th); cx = -uy; cy = ux; cz = 0; }
+    r = 1 / (1 + k * (1 - ct));
+    nx = ct * ux + st * cx; ny = ct * uy + st * cy; nz = ct * uz + st * cz;
+    en = e[0] * nx + e[1] * ny + e[2] * nz;
+    if (rnd() * 2 < r * r + 1 - 2 * r * en * en) break;
+  }
+  const L = Math.hypot(nx, ny, nz) || 1; nx /= L; ny /= L; nz /= L; if (!d3) nz = 0;
+  let e1 = polAcross(e, nx, ny, nz) || polRand(nx, ny, nz); // (ε₁: the incoming polarization's part across the new direction)
+  const w2 = r + 1 / r - 2, w1 = w2 + 4 * (1 - en * en);
+  if (rnd() * (w1 + w2) >= w1) e1 = [ny * e1[2] - nz * e1[1], nz * e1[0] - nx * e1[2], nx * e1[1] - ny * e1[0]]; // (ε₂ = n̂ × ε₁)
+  return [r, nx, ny, nz, e1];
+}
+/* Compton scattering with the switch on (compton, compton3: engine.js): the angles and the new polarization from
+   Klein–Nishina; the energies and their books as before. */
+function rpCompton(p, E, ux, uy, uz, pol) {
+  if (p.dead || p.ne === 0) return;
+  if (!W.d3) uz = 0;
+  const [r, nx, ny, nz, e1] = knScatter(E, ux, uy, uz, pol ? polAcross(pol, ux, uy, uz) : null);
+  const Ep = E * r, Te = E - Ep;
+  let qx = E * ux - Ep * nx, qy = E * uy - Ep * ny, qz = E * uz - Ep * nz; const qL = Math.hypot(qx, qy, qz);
+  if (qL > 0) { qx /= qL; qy /= qL; qz /= qL; } else { qx = ux; qy = uy; qz = uz; }
+  const KEe = Te - ionizationCost(p);
+  if (KEe > 0.05 && ejectElectron(p, KEe, qx, qy, undefined, undefined, W.d3 ? qz : 0)) W.count.ionize++; else dumpHeat(Te, p, p);
+  emitPhoton(p.x, p.y, Ep, nx, ny, W.d3 ? { depth: 2, src: p, uz: nz, pol: e1 } : { depth: 2, src: p, pol: e1 });
+}
+/* The flat game's Compton rate for a polarized photon against an unpolarized one's (rayInteract): in the plane it
+   scatters at ∫f(θ, ψ)dθ = A − 2cos²ψ·B, A = ∫(r³ + r)dθ, B = ∫r² sin²θ dθ round the circle, unpolarized A − B; so
+   across the plane (ψ = 90°) ×4/3 and in it ×2/3 at low energy. Simpson's rule, 64 intervals. In 3-D it is 1. */
+function knPlaneW(E, pol, ux, uy) {
+  if (!pol) return 1;
+  const k = E / ME_C2, c = polPS(pol, ux, uy)[0], n = 64; let A = 0, B = 0;
+  for (let i = 0; i <= n; i++) { const th = Math.PI * i / n, r = 1 / (1 + k * (1 - Math.cos(th))), w = i === 0 || i === n ? 1 : i % 2 ? 4 : 2, s = Math.sin(th); A += w * (r * r * r + r); B += w * r * r * s * s; }
+  return (A - 2 * c * c * B) / (A - B);
+}
+/* The two γ of an e⁺e⁻ pair annihilating (twoGamma, para-positronium): each unpolarized, the two at right angles. */
+function polPair(u1, u2) {
+  const a = polRand(u1[0], u1[1], u1[2] || 0);
+  const c = [u1[1] * a[2] - (u1[2] || 0) * a[1], (u1[2] || 0) * a[0] - u1[0] * a[2], u1[0] * a[1] - u1[1] * a[0]]; // (u₁ × ε₁: across both when they fly back to back)
+  return [a, polAcross(c, u2[0], u2[1], u2[2] || 0) || polRand(u2[0], u2[1], u2[2] || 0)];
+}
+/* Inspect's line: the photon's polarization. */
+function polText(o) {
+  if (!o.pol) return 'unpolarized (each photon’s own direction is drawn at random when something acts on it)';
+  const e = o.pol;
+  if (!W.d3 || o.z0 === undefined) {
+    const L = Math.hypot(o.x1 - o.x0, o.y1 - o.y0) || 1, [c, s] = polPS(e, (o.x1 - o.x0) / L, (o.y1 - o.y0) / L), a = Math.round(Math.atan2(Math.abs(s), Math.abs(c)) * 180 / Math.PI);
+    return a <= 1 ? 'linear, in the plane (across its path)' : a >= 89 ? 'linear, across the plane (out of the screen)' : `linear, at ${a}° from the plane`;
+  }
+  const v = Math.round(Math.acos(Math.min(1, Math.abs(e[1]))) * 180 / Math.PI);
+  return `linear, along (${e.map(q => q.toFixed(2)).join(', ')}), ${v}° from vertical`;
 }

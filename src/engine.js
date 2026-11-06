@@ -3663,15 +3663,15 @@ function emitPhoton(x, y, E, ux, uy, opts) {
   const dly = (opts && opts.delay) || 0; // (light in flight from a mirror, lens or prism: it sets off once the light has come that far, so the hit it is heading for is reckoned from then, 0.91)
   if (opts && opts.travel && dly) opts = Object.assign({}, opts, { delay: 0 });
   let x0 = x, y0 = y, depth = (opts && opts.depth) || 0;
-  let hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract(x0, y0, ux, uy, E, opts && opts.src);
+  let hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract(x0, y0, ux, uy, E, opts && opts.src, opts && opts.pol); // (pol: its polarization, Realistic particles 7, 1.27)
   let x1, y1;
   if (hit) { x1 = hit.x; y1 = hit.y; }
   else { const t = rayExit(x0, y0, ux, uy); x1 = x0 + ux * t; y1 = y0 + uy * t; }
   if (W.objs.length) { const oh = opticFind(x0, y0, ux, uy, Math.hypot(x1 - x0, y1 - y0), E); if (oh) { hit = opticHit(oh, x0, y0, ux, uy, E, opts); x1 = hit.x; y1 = hit.y; } } // (a placed piece first on its way)
   const lab = photonLabel(E, opts && opts.src);
-  if (opts && opts.travel) { W.flights.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.t + dly, len: Math.hypot(x1 - x0, y1 - y0), hit, lab }); return; }
+  if (opts && opts.travel) { W.flights.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.t + dly, len: Math.hypot(x1 - x0, y1 - y0), hit, lab }); if (opts.pol) W.flights[W.flights.length - 1].pol = opts.pol; return; }
   if (!hit) W.ledger.escaped += E;
-  W.rays.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t + ((opts && opts.delay) || 0), len: Math.hypot(x1 - x0, y1 - y0), nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' }); // (ts, len: it goes at c on the simulation's clock, drawRays; hitP: for the Inspect tab)
+  W.rays.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t + ((opts && opts.delay) || 0), len: Math.hypot(x1 - x0, y1 - y0), nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' }); if (opts && opts.pol) W.rays[W.rays.length - 1].pol = opts.pol; // (ts, len: it goes at c on the simulation's clock, drawRays; hitP: for the Inspect tab)
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
   if (hit && hit.after) hit.after();
 }
@@ -3692,14 +3692,14 @@ function emitPhoton3(x, y, E, ux, uy, opts) {
   const dly = (opts && opts.delay) || 0;
   if (opts && opts.travel && dly) opts = Object.assign({}, opts, { delay: 0 });
   const depth = (opts && opts.depth) || 0;
-  const hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract3(x, y, z, ux, uy, uz, E, src);
+  const hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract3(x, y, z, ux, uy, uz, E, src, opts && opts.pol);
   let x1, y1, z1;
   if (hit) { x1 = hit.x; y1 = hit.y; z1 = hit.z; }
   else { const t = rayExit3(x, y, z, ux, uy, uz); x1 = x + ux * t; y1 = y + uy * t; z1 = z + uz * t; }
   const lab = photonLabel(E, src), len = Math.hypot(x1 - x, y1 - y, z1 - z);
-  if (opts && opts.travel) { W.flights.push({ x0: x, y0: y, z0: z, x1, y1, z1, E, c: photonColor(E), t0: W.t + dly, len, hit, lab }); return; }
+  if (opts && opts.travel) { W.flights.push({ x0: x, y0: y, z0: z, x1, y1, z1, E, c: photonColor(E), t0: W.t + dly, len, hit, lab }); if (opts.pol) W.flights[W.flights.length - 1].pol = opts.pol; return; }
   if (!hit) W.ledger.escaped += E;
-  W.rays.push({ x0: x, y0: y, z0: z, x1, y1, z1, E, c: photonColor(E), t0: W.rt, ts: W.t + dly, len, nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' });
+  W.rays.push({ x0: x, y0: y, z0: z, x1, y1, z1, E, c: photonColor(E), t0: W.rt, ts: W.t + dly, len, nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' }); if (opts && opts.pol) W.rays[W.rays.length - 1].pol = opts.pol;
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
   if (hit && hit.after) hit.after();
 }
@@ -3715,7 +3715,7 @@ function rayExit3(x, y, z, ux, uy, uz) {
    their consequences in 3-D (Compton scattering turned about a random axis; the pair leaving back to back in a random
    direction; ions, fluorescence and dissociation as in the flat world, which already work in 3-D). Nuclear reactions
    are flat-only (1.24, item 5): a photon that would knock a neutron out makes a pair there instead. */
-function rayInteract3(x, y, z, ux, uy, uz, E, src) {
+function rayInteract3(x, y, z, ux, uy, uz, E, src, pol) {
   const tmax = rayExit3(x, y, z, ux, uy, uz);
   _rayHits.length = 0;
   for (const p of W.parts) {
@@ -3732,7 +3732,7 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src) {
     if (E >= 1e5) {
       if (E > 6e6 && !p.anti && rnd() < 0.0015 * p.Z * Math.min(1, gdrSigma(p.Z, p.N, E / 1e6) / (5.2 * p.Z * p.Z))) return { x: hx, y: hy, z: hz, p, after: () => { if (!photoNuclear(p, E, ux, uy, uz)) pairProduce3(p, E); } }; // (the giant dipole resonance in 3-D, 1.25)
       if (E > 1.022e6 && rnd() < 0.0015 * p.Z) return { x: hx, y: hy, z: hz, p, after: () => pairProduce3(p, E) };
-      if (p.ne > 0 && rnd() < 0.012 * p.ne) return { x: hx, y: hy, z: hz, p, after: () => compton3(p, E, ux, uy, uz) };
+      if (p.ne > 0 && rnd() < 0.012 * p.ne) return { x: hx, y: hy, z: hz, p, after: () => compton3(p, E, ux, uy, uz, pol) };
       continue;
     }
     if (p.ne > 0) {
@@ -3751,8 +3751,9 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src) {
   }
   return null;
 }
-function compton3(p, E, ux, uy, uz) {
+function compton3(p, E, ux, uy, uz, pol) {
   if (p.dead || p.ne === 0) return;
+  if (typeof RP !== 'undefined' && RP.pol) { rpCompton(p, E, ux, uy, uz, pol); return; } // (Klein–Nishina with the polarization: Realistic particles 7, hep.js, 1.27)
   const k = E / 511e3, ct = 2 * rnd() - 1, Ep = E / (1 + k * (1 - ct)), Te = E - Ep;
   const u = turn3(ux, uy, uz, Math.acos(ct)), nx = u[0], ny = u[1], nz = u[2];
   const KEe = Te - ionizationCost(p);
@@ -3818,7 +3819,7 @@ function rayExit(x, y, ux, uy) {
   return Math.max(0, t);
 }
 const _rayHits = [];
-function rayInteract(x, y, ux, uy, E, src) {
+function rayInteract(x, y, ux, uy, E, src, pol) {
   if (W.d3) return null; // (3-D, stage 1a: light is not absorbed yet, its search is along a flat line: it leaves the box)
   const tmax = rayExit(x, y, ux, uy);
   _rayHits.length = 0;
@@ -3840,8 +3841,8 @@ function rayInteract(x, y, ux, uy, E, src) {
       if (E > 1.022e6 && rnd() < 0.0015 * p.Z) {
         return { x: hx, y: hy, p, after: () => pairProduce(p, E) };
       }
-      if (p.ne > 0 && rnd() < 0.012 * p.ne) {
-        return { x: hx, y: hy, p, after: () => compton(p, E, ux, uy) };
+      if (p.ne > 0 && rnd() < 0.012 * p.ne * (pol && RP.pol ? knPlaneW(E, pol, ux, uy) : 1)) { // (a polarized photon's rate in the plane, Realistic particles 7, 1.27)
+        return { x: hx, y: hy, p, after: () => compton(p, E, ux, uy, pol) };
       }
       continue;
     }
@@ -3890,8 +3891,9 @@ function photoDissociate(bd, E) {
   W.count.broken++;
   log('chem', `Photodissociation: light (${(PHYS.HC / E).toFixed(0)} nm) split ${a.mu ? 'Mu' : a.el.sym}–${b.mu ? 'Mu' : b.el.sym}`);
 }
-function compton(p, E, ux, uy) {
+function compton(p, E, ux, uy, pol) {
   if (p.dead || p.ne === 0) return;
+  if (typeof RP !== 'undefined' && RP.pol) { rpCompton(p, E, ux, uy, 0, pol); return; } // (Klein–Nishina with the polarization: Realistic particles 7, hep.js, 1.27)
   // sample scattering angle (Klein–Nishina approximated by an isotropic-forward mix)
   const k = E / 511e3, ct = 2 * rnd() - 1;
   const Ep = E / (1 + k * (1 - ct));
@@ -4862,9 +4864,10 @@ function evAnnihFree(a, b) {
 }
 /* Two back-to-back γ rays sharing E (two electron masses plus whatever kinetic and binding energy). */
 function twoGamma(x, y, E = 2 * ME_C2, z = 0) {
-  if (W.d3) { const u = rndDir(), ux = u[0], uy = u[1], uz = u[2]; emitPhoton(x, y, E / 2, ux, uy, { z, uz }); emitPhoton(x, y, E / 2, -ux, -uy, { z, uz: -uz }); flash(x, y, [255, 255, 255], 3, 0.4, z); return; } // (3-D: back to back in any direction, at its depth, 1.24)
+  const pp = typeof RP !== 'undefined' && RP.pol; // (Realistic particles 7, 1.27: the pair's polarizations at right angles, polPair)
+  if (W.d3) { const u = rndDir(), ux = u[0], uy = u[1], uz = u[2], P = pp ? polPair([ux, uy, uz], [-ux, -uy, -uz]) : null; emitPhoton(x, y, E / 2, ux, uy, P ? { z, uz, pol: P[0] } : { z, uz }); emitPhoton(x, y, E / 2, -ux, -uy, P ? { z, uz: -uz, pol: P[1] } : { z, uz: -uz }); flash(x, y, [255, 255, 255], 3, 0.4, z); return; } // (3-D: back to back in any direction, at its depth, 1.24)
   const th = rnd() * 2 * Math.PI, ux = Math.cos(th), uy = Math.sin(th);
-  emitPhoton(x, y, E / 2, ux, uy); emitPhoton(x, y, E / 2, -ux, -uy);
+  if (pp) { const P = polPair([ux, uy, 0], [-ux, -uy, 0]); emitPhoton(x, y, E / 2, ux, uy, { pol: P[0] }); emitPhoton(x, y, E / 2, -ux, -uy, { pol: P[1] }); } else { emitPhoton(x, y, E / 2, ux, uy); emitPhoton(x, y, E / 2, -ux, -uy); }
   flash(x, y, [255, 255, 255], 3, 0.4);
 }
 

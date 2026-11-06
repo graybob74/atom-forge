@@ -263,6 +263,13 @@ function drawObjects() {
       ctx.strokeStyle = 'rgba(255,190,80,0.7)'; ctx.lineWidth = 1.2; seg(ob.x0, ob.y0, ob.x1, ob.y1); ctx.lineCap = 'round';
     } else if (k === 'wall') {
       ctx.strokeStyle = 'rgba(165,172,186,0.9)'; ctx.lineWidth = lw(0.4, 4, 12); seg(ob.x0, ob.y0, ob.x1, ob.y1);
+    } else if (k === OBJ_POL) { // (a dark sheet; its axis drawn on it: strokes along it for the part in the plane, dots for the part across, 1.27)
+      ctx.strokeStyle = 'rgba(120,110,150,0.85)'; ctx.lineWidth = lw(0.3, 3, 8); seg(ob.x0, ob.y0, ob.x1, ob.y1);
+      const tx = (ob.x1 - ob.x0) / (L || 1), ty = (ob.y1 - ob.y0) / (L || 1), ca = Math.cos(ob.pa * Math.PI / 180), sa = Math.sin(ob.pa * Math.PI / 180), n = clamp(Math.round(L / 2), 2, 24);
+      ctx.strokeStyle = 'rgba(225,215,255,0.9)'; ctx.fillStyle = 'rgba(225,215,255,0.9)'; ctx.lineWidth = 1.2;
+      for (let i = 0; i < n; i++) { const t = (i + 0.5) / n, x = ob.x0 + (ob.x1 - ob.x0) * t, y = ob.y0 + (ob.y1 - ob.y0) * t, a = 0.35 * ca * L / n;
+        if (a * s > 1) seg(x - tx * a, y - ty * a, x + tx * a, y + ty * a);
+        if (sa > 0.05) { ctx.beginPath(); ctx.arc(w2sx(x), w2sy(y), 0.5 + 1.5 * sa, 0, 2 * Math.PI); ctx.fill(); } }
     } else if (k === 'foil') {
       ctx.strokeStyle = 'rgba(255,205,90,0.9)'; ctx.lineWidth = lw(0.12, 1.5, 4); seg(ob.x0, ob.y0, ob.x1, ob.y1);
     } else if (k === 'plates') {
@@ -1427,6 +1434,12 @@ function drawFlights() {
     ctx.strokeStyle = g; ctx.lineWidth = 2.2;
     ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke();
     drawSprite(glowSprite(f.c, 9), hx, hy, 1);
+    if (f.pol && RP.pol) { // (its polarization at its head: a bar across its path for the part in the plane, a ring for the part across it, 1.27)
+      const ux = (f.x1 - f.x0) / L, uy = (f.y1 - f.y0) / L, [pc, ps] = polPS(f.pol, ux, uy), b = 7 * Math.abs(pc);
+      ctx.strokeStyle = rgba(f.c, 0.85); ctx.lineWidth = 1.4;
+      if (b > 0.5) { ctx.beginPath(); ctx.moveTo(hx + uy * b, hy + ux * b); ctx.lineTo(hx - uy * b, hy - ux * b); ctx.stroke(); } // (screen y points down: across the path is (uy, ux) on screen)
+      if (Math.abs(ps) > 0.1) { ctx.beginPath(); ctx.arc(hx, hy, 2 + 4 * Math.abs(ps), 0, 2 * Math.PI); ctx.stroke(); }
+    }
   }
   ctx.restore();
 }

@@ -159,8 +159,8 @@ const OPT = {
   heat: { mode: 'heat', s: 348, R: 8 },
   spark: { s: 218, R: 8 },
   magnet: { s: 430, pol: 1, R: 9 },
-  objects: { kind: 'mirror', f: 20, Vs: 200, Z: 79, layers: 10 },
-  light: { s: 132.33, rate: 80, follow: true, mount: false }, // (s: 589 nm, sodium's line, exactly)
+  objects: { kind: 'mirror', f: 20, Vs: 200, Z: 79, layers: 10, pa: 0 }, // (pa: the polarizer's axis from the plane, degrees, 1.27)
+  light: { s: 132.33, rate: 80, follow: true, mount: false, pol: 'p' }, // (s: 589 nm, sodium's line, exactly; pol: with Photon polarization on, 'p' in the plane (3-D vertical), 's' across it (horizontal), 'u' unpolarized, 1.27)
   erase: { R: 3 },
 };
 const fireKE = () => Math.pow(10, OPT.fire.s / 100 - 2);
@@ -176,6 +176,16 @@ const radCtl = (t, R) => rangeCtl('oR', 'Radius', 0, 200, radS(t, R), fmtA(R));
 function pullWord(U) { const r = U / (PHYS.KB * Math.max(W.T, 1)); return r < 3 ? 'barely holds' : r < 15 ? 'gentle' : r < 60 ? 'firm' : r < 400 ? 'strong' : 'violent'; }
 const magB = () => OPT.magnet.pol * Math.pow(10, OPT.magnet.s / 100);
 const lightE = () => Math.pow(10, OPT.light.s / 100 - 1);
+/* The Light tool's and a laser's polarization (Realistic particles 7, 1.27): o (emitPhoton's options) with pol added when
+   the switch is on and the light polarized. Flat: 'p' in the plane (k̂ × ẑ), 's' across it (ẑ). 3-D: 'p' vertical (the
+   part of +y across the beam), 's' horizontal (k̂ × that). */
+function lightPol(o, mode, ux, uy, uz = 0) {
+  if (!RP.pol || !mode || mode === 'u') return o;
+  let e;
+  if (!W.d3) e = mode === 's' ? [0, 0, 1] : [uy, -ux, 0];
+  else { const v = polAcross([0, 1, 0], ux, uy, uz) || polAcross([1, 0, 0], ux, uy, uz); e = mode === 's' ? [uy * v[2] - uz * v[1], uz * v[0] - ux * v[2], ux * v[1] - uy * v[0]] : v; }
+  o.pol = e; return o;
+}
 const FIRE_PROJ = [
   { id: 'sel', label: 'Selected' }, { id: 'e', label: 'e⁻', spec: { kind: 'e' } }, { id: 'p', label: 'p⁺', spec: SPEC_P },
   { id: 'n', label: 'n', spec: { kind: 'n' } }, { id: 'a', label: 'α', spec: SPEC_ALPHA }, { id: 'pbar', label: 'p̄', spec: SPEC_PBAR }, { id: 'nbar', label: 'n̄', spec: SPEC_NBAR },
@@ -503,13 +513,16 @@ function buildToolOpts() {
         `<span data-g="lpre">${seg('Presets', [[9.34, 'IR 10 µm'], [132.33, 'Na 589 nm'], [200.86, 'Lyman-α'], [500, 'X-ray 10 keV'], [700, 'γ 1 MeV']], o.s)}</span>` +
         rangeCtl('oRate', 'Intensity', 5, 400, o.rate, o.rate + '/s') +
         `<span data-g="mount">${seg('Mode', [['false', 'While held'], ['true', 'Leave on (laser)']], String(!!o.mount))}</span>` +
+        (RP.pol ? `<span data-g="pol">${seg('Polarization', W.d3 ? [['p', 'Vertical'], ['s', 'Horizontal'], ['u', 'Unpolarized']] : [['p', 'In the plane'], ['s', 'Across ⊙'], ['u', 'Unpolarized']], o.pol)}</span>` : '') + // (Photon polarization, 1.27)
         (W.lasers.length ? `<button class="opt" id="oLaserClear">Turn off ${W.lasers.length > 1 ? `all ${W.lasers.length} lasers` : 'the laser'}</button>` : '') +
         `<span class="help">${W.d3 ? 'In 3-D: a click (held) shines from the camera toward the pointer, straight at an atom under it; a drag aims in the plane facing you. ' : ''}${o.mount ? 'Stays on after release (Erase removes it). ' : ''}Time slows while light is in flight, so you can see it move.</span>`;
       break;
     }
     case 'objects': {
+      if (o.kind === OBJ_POL && !RP.pol) o.kind = 'mirror'; // (the polarizer is offered with Photon polarization on, 1.27)
       const k = o.kind;
-      h = `<span data-g="kind">${seg('Object', OBJ_KINDS.map(q => [q, OBJ_NAME[q].replace('Detector screen', 'Screen').replace('Charged plates', 'Plates')]), k)}</span>` +
+      h = `<span data-g="kind">${seg('Object', OBJ_KINDS.concat(RP.pol ? [OBJ_POL] : []).map(q => [q, OBJ_NAME[q].replace('Detector screen', 'Screen').replace('Charged plates', 'Plates')]), k)}</span>` + // (the polarizer with Photon polarization on, 1.27)
+        (k === OBJ_POL ? rangeCtl('oOpa', 'Axis', 0, 90, o.pa, objPaText(o.pa)) : '') +
         (k === 'lens' ? rangeCtl('oOf', 'Focal length', -100, 100, o.f, objFText(o.f)) : '') +
         (k === 'plates' ? rangeCtl('oOV', 'Voltage', 0, 500, o.Vs, objVText(objV())) : '') +
         (k === 'foil' ? `<span data-g="Z">${seg('Metal', [[79, 'Gold'], [47, 'Silver'], [29, 'Copper'], [13, 'Aluminium'], [6, 'Carbon']], o.Z)}</span>` + rangeCtl('oOL', 'Layers', 1, 100, o.layers, `${o.layers}`) : '') +
@@ -568,6 +581,7 @@ function buildToolOpts() {
       case 'oPE': o.Es = v; out.textContent = fmtE(placeE()); break;
       case 'oPD': plane3Set(v / 100 * plane3Lim()); out.textContent = plane3Text(); break; // (3-D: the placing plane, 1.24)
       case 'oOf': o.f = v; out.textContent = objFText(v); break;
+      case 'oOpa': o.pa = v; out.textContent = objPaText(v); break; // (the polarizer's axis, 1.27)
       case 'oOV': o.Vs = v; out.textContent = objVText(objV()); break;
       case 'oOL': o.layers = v; out.textContent = String(v); break;
       case 'oKE': o.s = v; out.textContent = fmtE(W.d3 ? fireKE3() : fireKE()); { const n = $('oFireNote'); if (n && !W.d3) n.textContent = fireNote(fireSpecNow() || SPEC_P, fireKE()); } break;
@@ -1008,7 +1022,7 @@ function onDown(e) {
     case 'objects': {
       const ob = objAtPx(px, py);
       if (ob) { UI.drag = { kind: 'objmove', ob, lx: wx, ly: wy }; R.objSel = ob; break; }
-      const o = OPT.objects, nb = objAdd(o.kind, wx, wy, wx, wy, { f: o.f || 20, V: objV(), Z: o.Z, layers: o.layers });
+      const o = OPT.objects, nb = objAdd(o.kind, wx, wy, wx, wy, { f: o.f || 20, V: objV(), Z: o.Z, layers: o.layers, pa: o.pa }); // (pa: a polarizer's axis, 1.27)
       UI.drag = { kind: 'objnew', ob: nb, x0: wx, y0: wy }; R.objSel = nb;
       break;
     }
@@ -1326,12 +1340,12 @@ function endToolAction() {
   }
   if (d && d.kind === 'light' && OPT.light.mount && W.d3) { // (3-D: a laser along the aim, 1.24)
     const a = light3Aim(d);
-    if (a) { if (W.lasers.length >= 12) W.lasers.shift(); W.lasers.push({ x0: a.o[0], y0: a.o[1], z0: a.o[2], ux: a.u[0], uy: a.u[1], uz: a.u[2], E: lightE(), rate: OPT.light.rate, acc: 0 }); log('tool', `Laser on: ${wavelengthText(lightE()).lam}, ${OPT.light.rate} photons/s`); buildToolOpts(); }
+    if (a) { if (W.lasers.length >= 12) W.lasers.shift(); W.lasers.push({ x0: a.o[0], y0: a.o[1], z0: a.o[2], ux: a.u[0], uy: a.u[1], uz: a.u[2], E: lightE(), rate: OPT.light.rate, acc: 0, pol: OPT.light.pol }); log('tool', `Laser on: ${wavelengthText(lightE()).lam}, ${OPT.light.rate} photons/s`); buildToolOpts(); }
   } else if (d && d.kind === 'light' && OPT.light.mount) {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
     if (W.lasers.length >= 12) W.lasers.shift();
-    W.lasers.push({ x0: d.x0, y0: d.y0, ux, uy, E: lightE(), rate: OPT.light.rate, acc: 0 });
+    W.lasers.push({ x0: d.x0, y0: d.y0, ux, uy, E: lightE(), rate: OPT.light.rate, acc: 0, pol: OPT.light.pol }); // (pol: used with Photon polarization on, 1.27)
     log('tool', `Laser on: ${wavelengthText(lightE()).lam}, ${OPT.light.rate} photons/s`); buildToolOpts();
   }
   if (d && d.kind === 'fire' && W.d3) { // (3-D: a click fires from the camera toward the pointer, straight at an atom under it (1.24, the owner's choice); a drag, along the drag in the plane square to the view)
@@ -1440,8 +1454,8 @@ function toolTick(realDt) {
   for (const L of W.lasers) { // lasers left on: the same light, all the time
     L.acc += L.rate * realDt;
     while (L.acc >= 1) { L.acc -= 1; const off = (rnd() - 0.5) * 0.8;
-      if (L.z0 !== undefined) { const q = perp3(L.ux, L.uy, L.uz); emitPhoton(L.x0 + q[0] * off, L.y0 + q[1] * off, L.E, L.ux, L.uy, { travel: true, z: L.z0 + q[2] * off, uz: L.uz }); continue; } // (3-D, 1.24)
-      emitPhoton(L.x0 - L.uy * off, L.y0 + L.ux * off, L.E, L.ux, L.uy, { travel: true }); }
+      if (L.z0 !== undefined) { const q = perp3(L.ux, L.uy, L.uz); emitPhoton(L.x0 + q[0] * off, L.y0 + q[1] * off, L.E, L.ux, L.uy, lightPol({ travel: true, z: L.z0 + q[2] * off, uz: L.uz }, L.pol, L.ux, L.uy, L.uz)); continue; } // (3-D, 1.24)
+      emitPhoton(L.x0 - L.uy * off, L.y0 + L.ux * off, L.E, L.ux, L.uy, lightPol({ travel: true }, L.pol, L.ux, L.uy)); } // (lightPol: its polarization, 1.27)
   }
   if (!d) return;
   if (d.kind === 'light' && OPT.light.mount) return; // (aiming a laser: it shines once it is set down)
@@ -1449,7 +1463,7 @@ function toolTick(realDt) {
     const a = light3Aim(d); if (!a) return;
     d.acc += OPT.light.rate * realDt;
     const E = lightE(), q = perp3(a.u[0], a.u[1], a.u[2]);
-    while (d.acc >= 1) { d.acc -= 1; const off = (rnd() - 0.5) * 1.6; emitPhoton(a.o[0] + q[0] * off, a.o[1] + q[1] * off, E, a.u[0], a.u[1], { travel: true, z: a.o[2] + q[2] * off, uz: a.u[2] }); }
+    while (d.acc >= 1) { d.acc -= 1; const off = (rnd() - 0.5) * 1.6; emitPhoton(a.o[0] + q[0] * off, a.o[1] + q[1] * off, E, a.u[0], a.u[1], lightPol({ travel: true, z: a.o[2] + q[2] * off, uz: a.u[2] }, OPT.light.pol, a.u[0], a.u[1], a.u[2])); }
   } else if (d.kind === 'light') {
     let ux = d.x1 - d.x0, uy = d.y1 - d.y0; const L = Math.hypot(ux, uy);
     if (L < 0.3) { ux = 1; uy = 0; } else { ux /= L; uy /= L; }
@@ -1458,7 +1472,7 @@ function toolTick(realDt) {
     while (d.acc >= 1) {
       d.acc -= 1;
       const off = (rnd() - 0.5) * 1.6;
-      emitPhoton(d.x0 - uy * off, d.y0 + ux * off, E, ux, uy, { travel: true }); // (always watched at c: time slows while it flies)
+      emitPhoton(d.x0 - uy * off, d.y0 + ux * off, E, ux, uy, lightPol({ travel: true }, OPT.light.pol, ux, uy)); // (always watched at c: time slows while it flies)
     }
   }
 }
@@ -1800,6 +1814,7 @@ function selXHTML() {
       if (o.lab && !/^(γ|X-ray|UV|IR|\d)/.test(o.lab)) kv.push(['Given off by', o.lab.split(' ')[0] + ' (one of its own lines)']);
       const tgt = X.kind === 'flight' ? (o.hit && o.hit.p ? speciesLabel(o.hit.p) : '') : o.hitP;
       kv.push(['Heading for', tgt ? `${tgt}, which it will meet` : 'the wall: nothing is in its way']);
+      if (RP.pol) kv.push(['Polarization', polText(o)]); // (Realistic particles 7, 1.27)
       about = E >= 1.24e5 ? 'A γ ray comes from a nucleus or from matter and antimatter annihilating. It is the same thing as light, a photon, a million times more energetic: it can knock electrons out of atoms, scatter off them (Compton) or, above 1.022 MeV, turn into an electron and a positron near a nucleus.'
         : 'A photon is one packet of light: its energy is fixed by its colour (E = hc/λ), and it always moves at c. An atom can only absorb or give off photons whose energy matches a jump between its own levels, which is why each element has its own colours.';
     }
@@ -5673,6 +5688,7 @@ Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK
 Object.assign(SET_DEF, { rpExo: false }); // (Experimental → Realistic particles: exotic atoms as real atoms, 1.27: hep.js RP)
 Object.assign(SET_DEF, { rpPs: false, rpMu: false }); // (Experimental → Realistic particles: positronium; muonium as hydrogen and μSR, 1.27: hep.js RP)
 Object.assign(SET_DEF, { rpRes: false, rpNuc: false }); // (Realistic particles 5 and 6, 1.27: hep.js RP.res, RP.nuc)
+Object.assign(SET_DEF, { rpPol: false }); // (Realistic particles 7, 1.27: photon polarization and Klein–Nishina, hep.js RP.pol)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
@@ -5687,6 +5703,7 @@ EXP_NAME.lps = 'lone pairs'; EXP_NAME.sigh = 'halogen σ-holes'; EXP_NAME.pis = 
 SET_EXP.push('rpExo'); EXP_NAME.rpExo = 'exotic atoms'; // (1.27)
 SET_EXP.push('rpPs', 'rpMu'); EXP_NAME.rpPs = 'positronium'; EXP_NAME.rpMu = 'muonium as hydrogen'; // (1.27)
 SET_EXP.push('rpRes', 'rpNuc'); EXP_NAME.rpRes = 'resonance widths and heavy flavour'; EXP_NAME.rpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
+SET_EXP.push('rpPol'); EXP_NAME.rpPol = 'photon polarization'; // (1.27)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -5771,6 +5788,7 @@ function applySettings() {
   RP.exo = !!SET.rpExo; // (Experimental → Realistic particles: exotic atoms, 1.27)
   RP.ps = !!SET.rpPs; rpMuSet(!!SET.rpMu); // (positronium; muonium as hydrogen, its binding's change booked to the bath, 1.27)
   RP.res = !!SET.rpRes; RP.nuc = !!SET.rpNuc; // (Realistic particles 5 and 6, 1.27)
+  RP.pol = !!SET.rpPol; // (Realistic particles 7, 1.27)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
@@ -5893,6 +5911,7 @@ function syncSettings() {
   $('setRpExo').checked = SET.rpExo; // (1.27)
   $('setRpPs').checked = SET.rpPs; $('setRpMu').checked = SET.rpMu; // (1.27)
   $('setRpRes').checked = SET.rpRes; $('setRpNuc').checked = SET.rpNuc; // (1.27)
+  $('setRpPol').checked = SET.rpPol; // (1.27)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -5936,6 +5955,7 @@ const COSTS = {
   setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where no slow μ⁻, π⁻, K⁻ or antiproton stops (a pion beam into carbon ×1.0); a capture is one event of 1.2–2.3 ms (its cascade\u2019s electrons and X-rays), and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in makes a small plasma to follow: muon-catalysed fusion ×3, the hypernucleus factory ×4 while it lasts'] }),
   setRpRes: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A resonance\u2019s mass is one draw, and a charm or bottom pair a few more particles in the collisions that make one (the pion beam 9.4 against 10.0 ms a step, the RHIC collider 2.1 against 2.0: the noise of a shared machine)'] }),
   setRpNuc: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step (the chain reaction 0.70 against 0.68 ms a step). A decay or capture with measured lines sends a few photons instead of one; after an NMR pulse the spins turn each step, 0.04 ms for liquid water\u2019s 160 protons (×1.1 at most)'] }),
+  setRpPol: () => ({ k: 'physics', on: ['×1', 'COST_FLAT'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
@@ -5983,6 +6003,7 @@ const COSTS3 = {
   setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing where no slow μ⁻, π⁻ or K⁻ stops; a capture is one event of 1.4–1.5 ms, and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in costs more while it lasts'] }),
   setRpRes: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step; the same draws as the flat game'] }),
   setRpNuc: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step (40 thermal neutrons in liquid water 44.5 against 44.6 ms a step); after an NMR pulse 0.05 ms a step for 686 protons (×1.01)'] }),
+  setRpPol: () => ({ k: 'physics', on: ['×1', 'COST_3D'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
@@ -6021,6 +6042,7 @@ const REAL = {
   setRpMu: [true, 'Muonium is the lightest isotope of hydrogen, and its muon\u2019s spin precesses in a field (μSR), as in nature (1.27)'],
   setRpRes: [true, 'A resonance\u2019s mass spread over its measured width, and charm and bottom made in hadron collisions at their measured share (1.27)'],
   setRpNuc: [true, 'Nuclei with their spins and magnetic moments, measured γ lines, and neutrons caught at their measured cross sections (1.27)'],
+  setRpPol: [true, 'Photons carry their polarization, and Compton scattering follows Klein–Nishina, as in nature (1.27)'],
 };
 function syncReal() {
   for (const id in REAL) {
@@ -6040,6 +6062,7 @@ EXP_SET.segLps = 'lps'; EXP_SET.segSigh = 'sigh'; EXP_SET.segPis = 'pis'; // (1.
 EXP_SET.setRpExo = 'rpExo'; // (1.27)
 EXP_SET.setRpPs = 'rpPs'; EXP_SET.setRpMu = 'rpMu'; // (1.27)
 EXP_SET.setRpRes = 'rpRes'; EXP_SET.setRpNuc = 'rpNuc'; // (1.27)
+EXP_SET.setRpPol = 'rpPol'; // (1.27)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -6070,6 +6093,7 @@ function expSummary() {
   if (SET.rpExo) on.push('exotic atoms'); // (1.27)
   if (SET.rpPs) on.push('positronium'); if (SET.rpMu) on.push('muonium as hydrogen'); // (1.27)
   if (SET.rpRes) on.push('resonance widths'); if (SET.rpNuc) on.push('nuclear spin and γ lines'); // (1.27)
+  if (SET.rpPol) on.push('photon polarization'); // (1.27)
   if (!on.length) return 'Experimental: all normal';
   const t = expTotal(), x = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
   return `Experimental: ${on.join(', ')} (${x} the normal work)`;
@@ -6085,6 +6109,7 @@ function syncExpTotal() {
   names.setRpExo = 'exotic atoms'; // (1.27)
   names.setRpPs = 'positronium'; names.setRpMu = 'muonium as hydrogen'; // (1.27)
   names.setRpRes = 'resonance widths and heavy flavour'; names.setRpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
+  names.setRpPol = 'photon polarization'; // (1.27)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -6218,6 +6243,7 @@ const SDESC = {
   setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻, K⁻ or antiproton is caught by an atom into an orbit and cascades down, setting Auger electrons free and giving off the exotic atom\u2019s X-ray lines (muonic carbon 75 keV, muonic lead 5.9 MeV); then the muon decays or is captured at the rate measured for the element, a pion or kaon is absorbed by the nucleus (a star), an antiproton annihilates. A muonic atom is a real atom of the box, its electrons seeing one charge less (muonic carbon bonds as boron does); muonic hydrogen passes through atoms and hands its muon to a heavier one. Experimental: off again each time the game starts.'], // (1.27)
   setRpRes: ['Resonance widths and heavy flavour', 'A resonance (ρ, ω, φ, K*, Δ, J/ψ, Υ) gets its own mass, drawn from the relativistic Breit–Wigner of its measured width (a ρ⁰ anywhere from 280 MeV up, 775 MeV at the peak, about 150 MeV wide at half height), and decays from that mass. A hadron collision above the charm threshold makes charm (D⁰, D⁺, D⁺s, Λc⁺) and bottom (B, B⁰s, Λb⁰), now and then a J/ψ or an Υ, at the measured share of the collisions (about 1 in 70 at 200 GeV, 1 in 9 at 7 TeV for charm). They live 0.2–1.6 ps: at their speed they fly micrometres to millimetres, far out of the box, unless decay is sped up. Experimental: off again each time the game starts.'],
   setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'Each nucleus has its measured spin and magnetic moment (¹H ½ and 2.79 μN): Inspect shows them, and in a magnetic field the spin precesses at the Larmor frequency (42.58 MHz per tesla for ¹H; Inspect\u2019s NMR pulse measures it). Nuclei left excited after a decay, capture or reaction give off their measured γ lines (⁶⁰Co: 1,173 and 1,332 keV; ¹³⁷Cs: 662 keV from ¹³⁷ᵐBa; capture on hydrogen 2,224 keV), with conversion electrons where large and isomers that wait their half-lives (⁹⁹ᵐTc 6 h). Neutrons react at their measured cross sections (1/v below about 1 eV, the big resonances): at true size (Ultra-realistic) the rates themselves, in the normal view what a hit does. Experimental: off again each time the game starts.'],
+  setRpPol: ['Photon polarization', 'Every photon carries its polarization, the direction its electric field swings across its path. In the flat game that is in the plane, across it (out of the screen), or between. The Light tool and lasers give polarized light (choose in the plane, across it, or unpolarized); lamps, atoms, hot walls and nuclei give unpolarized light; the two 511 keV γ rays of an electron and positron annihilating are polarized at right angles to each other. Compton scattering follows the Klein–Nishina formula: at low energies forward and back as much as sideways (1 + cos²θ), at MeV energies mostly forward, the scattered photon with E′ = E/(1 + (E/511 keV)(1 − cos θ)), and least along its polarization (none at 90° for light polarized in the plane, at low energies). Mirrors keep the polarization; a prism\u2019s faces reflect a few percent of the light by Fresnel\u2019s laws, and at Brewster\u2019s angle (58° for its glass) only light polarized across the plane; the Objects tool gets a polarizer (Malus\u2019s law, cos²). Inspect shows a photon\u2019s polarization. Not carried: circular polarization; the pair\u2019s quantum entanglement (each pair is a definite perpendicular pair here, which gives a weaker correlation between them than nature\u2019s). Experimental: off again each time the game starts.'], // (1.27)
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
    on which mode you're in ... There should also be 3d pictures in 3d mode"). While the world is 3-D (W.d3) the pane takes
@@ -6260,6 +6286,7 @@ const SDESC3 = {
   setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻ or K⁻ is caught by an atom into an orbit and cascades down, in all three directions, setting Auger electrons free and giving off its X-ray lines; then the muon decays or is captured at the measured rate, a pion or kaon is absorbed by the nucleus. A muonic atom is a real atom of the box, its electrons seeing one charge less; muonic hydrogen passes through atoms and hands its muon to a heavier one. Antiprotons and protonium are in the flat game only (antimatter is not in 3-D). Experimental: off again each time the game starts.'], // (1.27)
   setRpRes: ['Resonance widths and heavy flavour', 'As in the flat game, in all three directions: a resonance gets its own mass from its measured width, and hadron collisions above the charm threshold make charm and bottom hadrons at their measured share. Experimental: off again each time the game starts.'],
   setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'As in the flat game, in all three directions: nuclear spins and moments (Inspect, the Larmor precession in a field along the Lab\u2019s axis), measured γ lines and isomers, neutrons at their measured cross sections. Experimental: off again each time the game starts.'],
+  setRpPol: ['Photon polarization', 'As in the flat game, in all three directions: photons carry a polarization at right angles to their path, the Light tool and lasers polarized (vertical, horizontal or unpolarized), the two γ rays of an e⁺e⁻ annihilation at right angles to each other, and Compton scattering by Klein–Nishina, the photon leaving least along its polarization. The placed optics (mirrors, prisms, the polarizer) are in the flat game only. Experimental: off again each time the game starts.'], // (1.27)
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
 const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
@@ -6488,6 +6515,7 @@ function settingsInit() {
   $('setRpExo').onchange = (e) => setSetting('rpExo', e.target.checked); // (1.27)
   $('setRpPs').onchange = (e) => setSetting('rpPs', e.target.checked); $('setRpMu').onchange = (e) => setSetting('rpMu', e.target.checked); // (1.27)
   $('setRpRes').onchange = (e) => setSetting('rpRes', e.target.checked); $('setRpNuc').onchange = (e) => setSetting('rpNuc', e.target.checked); // (1.27)
+  $('setRpPol').onchange = (e) => { setSetting('rpPol', e.target.checked); if (UI.tool === 'light' || UI.tool === 'objects') buildToolOpts(); }; // (1.27: the Light tool's polarization and the polarizer show with it)
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');
@@ -6628,6 +6656,7 @@ function qmObject(ob) {
       qmRange('Gap', 2, 100, Math.round(ob.gap), `${Math.round(ob.gap)} Å`, (v) => { und(); ob.gap = v; W.dirty++; title(); return `${v} Å`; }) +
       qmBtn('Swap + and −', () => { undoMark('Change an object'); ob.V = -ob.V; });
   }
+  if (ob.kind === OBJ_POL) h += qmRange('Axis', 0, 90, Math.round(ob.pa), objPaText(ob.pa), (v) => { und(); ob.pa = v; title(); return objPaText(v); }); // (from the plane: 0 in it, 90 across it, 1.27)
   if (ob.kind === 'foil') h += qmRange('Layers', 1, 100, ob.layers, String(ob.layers), (v) => { und(); ob.layers = v; title(); return String(v); });
   if (ob.kind === 'screen') h += qm2(qmBtn('Where hits land', () => { ob.view = 'where'; }, { pressed: ob.view === 'where', cls: 'tick', title: 'Its bars show how many hits landed on each part of it (1.02)' }),
     qmBtn('Their energies', () => { ob.view = 'energy'; }, { pressed: ob.view !== 'where', cls: 'tick', title: 'Its bars show the spectrum of the energies it caught, low at its first end' })) +
