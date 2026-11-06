@@ -5343,7 +5343,9 @@ function neutronHit(n, T, b, R) {
   const f = clamp((Math.log10(Math.max(En, 1e-3)) - Math.log10(0.5)) / (5 - Math.log10(0.5)), 0, 1);
   const lerp = (arr) => arr ? arr[0] + (arr[1] - arr[0]) * f : 0;
   let pf = 0, pc = 0, pnp = 0, pna = 0, pnt = 0;
-  if (X) {
+  const nxs = RP.nuc ? nxsShares(T.Z, T.N, En, X) : null; // (measured cross sections, Realistic particles 6, 1.27: hep.js)
+  if (nxs) ({ pf, pc, pnp, pna, pnt } = nxs);
+  else if (X) {
     pf = X.fis ? (X.fisThr && En < X.fisThr ? 0 : lerp(X.fis)) : 0;
     pc = lerp(X.cap); pnp = lerp(X.np); pna = lerp(X.na); pnt = lerp(X.nt);
   } else {
@@ -5362,6 +5364,8 @@ function neutronHit(n, T, b, R) {
     T.N++; refresh(T);
     if (T.rad) { T.rad = false; T.fast = false; }
     T.vx = Vx * M / T.m; T.vy = Vy * M / T.m; // the pair's momentum
+    const gs = RP.nuc ? nxCapture(T, S, Math.max(0, Sn) * 1e6 + En, x, y, 0) : null; // (its measured γ cascade, 1.27: hep.js)
+    if (gs) return capDone(T, lbl, gh, x, y, 0, gs);
     // the γ ray carries the binding energy and the collision energy, less what the nucleus takes as it recoils
     const E0 = Math.max(0, Sn) * 1e6 + En, pr = (E0 - E0 * E0 / (2 * T.m * PHYS.AMU_MEV * 1e6)) / 1e6 * PHYS.MEV_C_TO_SIM, th = rnd() * 2 * Math.PI;
     T.vx -= pr / T.m * Math.cos(th); T.vy -= pr / T.m * Math.sin(th);
@@ -5384,15 +5388,18 @@ function neutronHit(n, T, b, R) {
     const Q = dB(special, [[T.Z, T.N], [0, 1]]);
     if (Q * 1e6 + En <= 0) return false; // (below its threshold: nothing happens)
     const lbl = nucSym(T.Z, T.N), ne = T.ne, gh = [ghostOf(n), ghostOf(T)];
+    const li7 = RP.nuc && T.Z === 5 && T.N === 5 && special[1][0] === 2 && rnd() < 0.94, Ex7 = li7 ? 477603 : 0; // (¹⁰B(n,α): ⁷Li left at 478 keV 94% of the time, 1.27)
     const S = nucBegin([n, T]);
     n.kEnd = 'cap'; kill(n); kill(T);
     W.count.ncap++;
-    const ps = launchProducts(special, Math.max(0, Q * 1e6 + En), Vx, Vy, x, y, ne, M);
+    const ps = launchProducts(special, Math.max(0, Q * 1e6 + En - Ex7), Vx, Vy, x, y, ne, M);
     const Qm = nucMassLoss(S);
     W.ledger.nuc += Qm;
-    settleKE(S, Qm, ps);
+    const rays = li7 && ps[0] && !ps[0].dead ? glPrep(ps[0], [477.603]) : null;
+    settleKE(S, rays ? Qm - glSum(rays) : Qm, ps);
+    if (rays) glFire(rays, x, y, 0, ps[0], 0);
     flash(x, y, [255, 230, 180], 4, 0.5);
-    log('nuc', `Nuclear reaction: ${lbl} + n → ${special.map(([z, nn]) => nucSym(z, nn)).join(' + ')} (+${fmtE(Q * 1e6)})`);
+    log('nuc', `Nuclear reaction: ${lbl} + n → ${special.map(([z, nn]) => nucSym(z, nn)).join(' + ')}${rays ? ' + γ (478 keV, from ⁷Li*)' : ''} (+${fmtE(Q * 1e6)})`);
     nucEvent('reaction', x, y, `${lbl} + n → ${special.map(([z, nn]) => nucSym(z, nn)).join(' + ')}`, gh, `${fmtE(Q * 1e6)} released`);
     noteMade(special.map(([z, nn]) => ({ Z: z, N: nn, anti: !!T.anti })), [], `${lbl} + n → ${special.map(([z, nn]) => nucSym(z, nn)).join(' + ')}`);
     return true;
@@ -5423,7 +5430,9 @@ function neutronHit3(n, T, b, R) {
   const f = clamp((Math.log10(Math.max(En, 1e-3)) - Math.log10(0.5)) / (5 - Math.log10(0.5)), 0, 1);
   const lerp = (arr) => arr ? arr[0] + (arr[1] - arr[0]) * f : 0;
   let pf = 0, pc, pnp = 0, pna = 0, pnt = 0;
-  if (X) { pf = X.fis ? (X.fisThr && En < X.fisThr ? 0 : lerp(X.fis)) : 0; pc = lerp(X.cap); pnp = lerp(X.np); pna = lerp(X.na); pnt = lerp(X.nt); }
+  const nxs = RP.nuc ? nxsShares(T.Z, T.N, En, X) : null; // (1.27)
+  if (nxs) ({ pf, pc, pnp, pna, pnt } = nxs);
+  else if (X) { pf = X.fis ? (X.fisThr && En < X.fisThr ? 0 : lerp(X.fis)) : 0; pc = lerp(X.cap); pnp = lerp(X.np); pna = lerp(X.na); pnt = lerp(X.nt); }
   else { const prod = nuclideInfo(T.Z, T.N + 1); pc = prod.unbound ? 0 : 0.08 + (0.004 - 0.08) * f; }
   const u = rnd();
   const M = T.m + n.m, Vx = (T.m * T.vx + n.m * n.vx) / M, Vy = (T.m * T.vy + n.m * n.vy) / M, Vz = (T.m * T.vz + n.m * n.vz) / M;
@@ -5436,6 +5445,8 @@ function neutronHit3(n, T, b, R) {
     n.kEnd = 'cap'; kill(n);
     T.N++; refresh(T);
     T.vx = Vx * M / T.m; T.vy = Vy * M / T.m; T.vz = Vz * M / T.m;
+    const gs = RP.nuc ? nxCapture(T, S, Math.max(0, Sn) * 1e6 + En, x, y, z) : null; // (1.27)
+    if (gs) return capDone(T, lbl, gh, x, y, z, gs);
     const E0 = Math.max(0, Sn) * 1e6 + En, pr = (E0 - E0 * E0 / (2 * T.m * PHYS.AMU_MEV * 1e6)) / 1e6 * PHYS.MEV_C_TO_SIM, g = rndDir(), gx = g[0], gy = g[1], gz = g[2];
     T.vx -= pr / T.m * gx; T.vy -= pr / T.m * gy; T.vz -= pr / T.m * gz;
     if (0.5 * T.m * (pr / T.m) ** 2 > 20) for (const bd of T.bonds.slice()) removeBond(bd);
@@ -5457,15 +5468,18 @@ function neutronHit3(n, T, b, R) {
     const Q = dB(special, [[T.Z, T.N], [0, 1]]);
     if (Q * 1e6 + En <= 0) return false;
     const lbl = nucSym(T.Z, T.N), ne = T.ne, gh = [ghostOf(n), ghostOf(T)];
+    const li7 = RP.nuc && T.Z === 5 && T.N === 5 && special[1][0] === 2 && rnd() < 0.94, Ex7 = li7 ? 477603 : 0; // (1.27)
     const S = nucBegin([n, T]);
     n.kEnd = 'cap'; kill(n); kill(T);
     W.count.ncap++;
-    const ps = launchProducts(special, Math.max(0, Q * 1e6 + En), Vx, Vy, x, y, ne, M, z, Vz);
+    const ps = launchProducts(special, Math.max(0, Q * 1e6 + En - Ex7), Vx, Vy, x, y, ne, M, z, Vz);
     const Qm = nucMassLoss(S);
     W.ledger.nuc += Qm;
-    settleKE(S, Qm, ps);
+    const rays = li7 && ps[0] && !ps[0].dead ? glPrep(ps[0], [477.603]) : null;
+    settleKE(S, rays ? Qm - glSum(rays) : Qm, ps);
+    if (rays) glFire(rays, x, y, z, ps[0], 0);
     flash(x, y, [255, 230, 180], 4, 0.5, z);
-    log('nuc', `Nuclear reaction: ${lbl} + n → ${special.map(([zz, nn]) => nucSym(zz, nn)).join(' + ')} (+${fmtE(Q * 1e6)})`);
+    log('nuc', `Nuclear reaction: ${lbl} + n → ${special.map(([zz, nn]) => nucSym(zz, nn)).join(' + ')}${rays ? ' + γ (478 keV, from ⁷Li*)' : ''} (+${fmtE(Q * 1e6)})`);
     nucEvent('reaction', x, y, `${lbl} + n → ${special.map(([zz, nn]) => nucSym(zz, nn)).join(' + ')}`, gh, `${fmtE(Q * 1e6)} released`, undefined, z);
     noteMade(special.map(([zz, nn]) => ({ Z: zz, N: nn, anti: !!T.anti })), [], `${lbl} + n → ${special.map(([zz, nn]) => nucSym(zz, nn)).join(' + ')}`);
     return true;
@@ -5587,6 +5601,7 @@ function decayStep(dtNuc) {
   for (let i = 0; i < n0; i++) {
     const p = parts[i];
     if (p.dead || p.k !== NUC) continue;
+    if (p.iso) { isoStep(p, dtNuc); continue; } // (an isomer waits its own half-life first, Realistic particles 6, 1.27: hep.js)
     let inf = p.nuc;
     if (!inf || inf.stable) continue;
     let tl = dtNuc, guard = 0;
@@ -5640,7 +5655,8 @@ function doDecay(p) {
   const Qtxt = fmtE(Math.max(0, Q) * 1e6); // the decay's Q-value as tabulated (what a neutral atom's emissions share)
   switch (mode) {
     case 'b-': case 'b+': {
-      const T = betaSpectrum(Q), Enu = Q - T;
+      const gl = RP.nuc ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (the daughter's level it feeds, Realistic particles 6, 1.27: hep.js)
+      const T = betaSpectrum(Q - Elv), Enu = Q - Elv - T;
       p.Z += mode === 'b-' ? 1 : -1; p.N += mode === 'b-' ? -1 : 1;
       if (p.Z === 0) { // proton → neutron can't happen here; guard
         p.Z = 1; p.N = 0;
@@ -5660,30 +5676,36 @@ function doDecay(p) {
         setMotion(l, Math.max(1, T * 1e6), ux, uy, pvx, pvy);
       }
       // the (anti)neutrino carries the rest; an electron drawn right at the end point gives back what it overdrew
-      let left = nucLeft(S, Qn);
-      if (left < 0 && l) { setMotion(l, Math.max(1, keOf(l) + left), ux, uy, pvx, pvy); left = nucLeft(S, Qn); }
+      const gk = Elv ? glKeep(p, gl) : null, Qk = gk ? Qn - gk.iso : Qn; // (the level's γ lines, or its isomer keeping its energy, 1.27)
+      let left = nucLeft(S, Qk) - (gk ? gk.sum : 0);
+      if (left < 0 && l) { setMotion(l, Math.max(1, keOf(l) + left), ux, uy, pvx, pvy); left = nucLeft(S, Qk) - (gk ? gk.sum : 0); }
       emitNeutrino(x, y, Math.max(0, left), undefined, undefined, elec, `${elec ? 'β⁻' : 'β⁺'} decay of ${lbl}`);
-      const prod = elec ? 'e⁻ + ν̄' : 'e⁺ + ν', nm = elec ? 'β⁻' : 'β⁺';
+      if (gk) glFire(gk.rays, x, y, 0, p, 0);
+      const prod = (elec ? 'e⁻ + ν̄' : 'e⁺ + ν') + (gk ? gk.txt : ''), nm = elec ? 'β⁻' : 'β⁺';
       log('nuc', `${nm} decay: ${lbl} → ${sym(p.Z, p.N)} + ${prod} (${Qtxt})`);
       nucEvent(elec ? 'beta' : 'betap', x, y, `${nm} decay: ${lbl} → ${sym(p.Z, p.N)} + ${prod}`, gh, `${Qtxt} released${boostTag()}`,
         { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th });
       break;
     }
     case 'ec': {
+      const gl = RP.nuc ? glFeed(p.Z, p.N, mode) : null; // (1.27)
       p.Z--; p.N++; p.ne--; brk(); refresh(p);
       // the neutrino takes the energy less the binding of the captured inner electron, which the atom gives off
       // as it refills the hole (shown as one Kα X-ray)
-      const left = Math.max(0, nucLeft(S, Qn)), kx = Math.min(left, 0.75 * PHYS.RY * Math.pow(Math.max(1, p.Z - 1), 2));
+      const gk = gl && gl.lev / 1e3 < Q ? glKeep(p, gl) : null;
+      const left = Math.max(0, nucLeft(S, gk ? Qn - gk.iso : Qn) - (gk ? gk.sum : 0)), kx = Math.min(left, 0.75 * PHYS.RY * Math.pow(Math.max(1, p.Z - 1), 2));
       emitNeutrino(x, y, left - kx, undefined, undefined, !!p.anti, `${p.anti ? 'positron' : 'electron'} capture by ${lbl}`);
       emitPhoton(x, y, kx, undefined, undefined, { src: p });
-      log('nuc', `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν (${Qtxt})`);
-      nucEvent('ec', x, y, `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν`, gh, `${Qtxt} released${boostTag()}`,
+      if (gk) glFire(gk.rays, x, y, 0, p, 0);
+      log('nuc', `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν${gk ? gk.txt : ''} (${Qtxt})`);
+      nucEvent('ec', x, y, `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν${gk ? gk.txt : ''}`, gh, `${Qtxt} released${boostTag()}`,
         { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th });
       break;
     }
     case 'a': case 'p': case 'n': case '2p': case '2n': {
       const em = mode === 'a' ? [2, 2] : mode === 'p' ? [1, 0] : mode === 'n' ? [0, 1] : mode === '2p' ? [1, 0] : [0, 1];
       const cnt = (mode === '2p' || mode === '2n') ? 2 : 1;
+      const gl = RP.nuc && mode === 'a' ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (1.27)
       p.Z -= em[0] * cnt; p.N -= em[1] * cnt;
       if (p.Z + p.N <= 0) { kill(p); return false; }
       if (p.Z !== Zold) brk();
@@ -5691,7 +5713,7 @@ function doDecay(p) {
       if (p.rad) { p.rad = false; p.fast = false; } // (still recoiling from an earlier decay)
       shakeOff(p); // α decay leaves the daughter two electrons too many
       const Ad = p.Z + p.N, Ae = em[0] + em[1];
-      const Eem = Math.max(1e-3, Q * 1e6) * Ad / (Ad + Ae * cnt);
+      const Eem = Math.max(1e-3, (Q - Elv) * 1e6) * Ad / (Ad + Ae * cnt);
       const prod = [];
       for (let k = 0; k < cnt; k++) {
         if (W.parts.length >= MAX_PARTS) break;
@@ -5704,12 +5726,14 @@ function doDecay(p) {
       const prR = Math.sqrt(2 * Ae * PHYS.MP * Eem);
       setVel(p, pvx - prR / p.m * ux, pvy - prR / p.m * uy);
       if (radK) setMotion(p, radK * p.m / m0, rux, ruy);
-      settleKE(S, Qn, [p].concat(prod)); // the emitted particle and the recoiling daughter share what is left
+      const gk = Elv ? glKeep(p, gl) : null; // (the level's γ lines, 1.27)
+      settleKE(S, gk ? Qn - gk.iso - gk.sum : Qn, [p].concat(prod)); // the emitted particle and the recoiling daughter share what is left
+      if (gk) glFire(gk.rays, x, y, 0, p, 0);
       if (p.Z === 0 && p.N > 1) { /* neutron cluster: let the next sweep split it */ }
       const nm = mode === 'a' ? 'α decay' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
       const em2 = (mode === 'a' ? 'α' : mode === 'p' ? 'p' : mode === 'n' ? 'n' : mode === '2p' ? '2p' : '2n') + (p.anti ? '\u0304' : '');
-      log('nuc', `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2} (${Qtxt})`);
-      nucEvent(mode === 'a' ? 'alpha' : 'decay', x, y, `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}`, gh, `${Qtxt} released${boostTag()}`,
+      log('nuc', `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''} (${Qtxt})`);
+      nucEvent(mode === 'a' ? 'alpha' : 'decay', x, y, `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''}`, gh, `${Qtxt} released${boostTag()}`,
         { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th });
       break;
     }
@@ -5744,7 +5768,8 @@ function doDecay3(p) {
   const Qtxt = fmtE(Math.max(0, Q) * 1e6);
   switch (mode) {
     case 'b-': case 'b+': {
-      const T = betaSpectrum(Q), Enu = Q - T;
+      const gl = RP.nuc ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (1.27, as doDecay)
+      const T = betaSpectrum(Q - Elv), Enu = Q - Elv - T;
       p.Z += mode === 'b-' ? 1 : -1; p.N += mode === 'b-' ? -1 : 1;
       if (p.Z === 0) { p.Z = 1; p.N = 0; }
       brk(); refresh(p);
@@ -5755,33 +5780,39 @@ function doDecay3(p) {
       const elec = (mode === 'b-') !== !!p.anti;
       let l = null;
       if (W.parts.length < MAX_PARTS) { l = addLepton(elec ? ELEC : POS, x + ux * 0.2, y + uy * 0.2, 0, 0, z + uz * 0.2); setMotion(l, Math.max(1, T * 1e6), ux, uy, pvx, pvy, uz, pvz); }
-      let left = nucLeft(S, Qn);
-      if (left < 0 && l) { setMotion(l, Math.max(1, keOf(l) + left), ux, uy, pvx, pvy, uz, pvz); left = nucLeft(S, Qn); }
+      const gk = Elv ? glKeep(p, gl) : null, Qk = gk ? Qn - gk.iso : Qn; // (1.27)
+      let left = nucLeft(S, Qk) - (gk ? gk.sum : 0);
+      if (left < 0 && l) { setMotion(l, Math.max(1, keOf(l) + left), ux, uy, pvx, pvy, uz, pvz); left = nucLeft(S, Qk) - (gk ? gk.sum : 0); }
       emitNeutrino(x, y, Math.max(0, left), nx, ny, elec, `${elec ? 'β⁻' : 'β⁺'} decay of ${lbl}`, 'e', z, nz);
-      const prod = elec ? 'e⁻ + ν̄' : 'e⁺ + ν', nm = elec ? 'β⁻' : 'β⁺';
+      if (gk) glFire(gk.rays, x, y, z, p, 0);
+      const prod = (elec ? 'e⁻ + ν̄' : 'e⁺ + ν') + (gk ? gk.txt : ''), nm = elec ? 'β⁻' : 'β⁺';
       log('nuc', `${nm} decay: ${lbl} → ${sym(p.Z, p.N)} + ${prod} (${Qtxt})`);
       nucEvent(elec ? 'beta' : 'betap', x, y, `${nm} decay: ${lbl} → ${sym(p.Z, p.N)} + ${prod}`, gh, `${Qtxt} released${boostTag()}`, { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th }, z);
       break;
     }
     case 'ec': {
+      const gl = RP.nuc ? glFeed(p.Z, p.N, mode) : null; // (1.27)
       p.Z--; p.N++; p.ne--; brk(); refresh(p);
-      const left = Math.max(0, nucLeft(S, Qn)), kx = Math.min(left, 0.75 * PHYS.RY * Math.pow(Math.max(1, p.Z - 1), 2));
+      const gk = gl && gl.lev / 1e3 < Q ? glKeep(p, gl) : null;
+      const left = Math.max(0, nucLeft(S, gk ? Qn - gk.iso : Qn) - (gk ? gk.sum : 0)), kx = Math.min(left, 0.75 * PHYS.RY * Math.pow(Math.max(1, p.Z - 1), 2));
       emitNeutrino(x, y, left - kx, undefined, undefined, !!p.anti, `${p.anti ? 'positron' : 'electron'} capture by ${lbl}`, 'e', z);
       emitPhoton(x, y, kx, undefined, undefined, { src: p, z });
-      log('nuc', `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν (${Qtxt})`);
-      nucEvent('ec', x, y, `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν`, gh, `${Qtxt} released${boostTag()}`, { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th }, z);
+      if (gk) glFire(gk.rays, x, y, z, p, 0);
+      log('nuc', `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν${gk ? gk.txt : ''} (${Qtxt})`);
+      nucEvent('ec', x, y, `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν${gk ? gk.txt : ''}`, gh, `${Qtxt} released${boostTag()}`, { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th }, z);
       break;
     }
     case 'a': case 'p': case 'n': case '2p': case '2n': {
       const em = mode === 'a' ? [2, 2] : mode === 'p' ? [1, 0] : mode === 'n' ? [0, 1] : mode === '2p' ? [1, 0] : [0, 1];
       const cnt = (mode === '2p' || mode === '2n') ? 2 : 1;
+      const gl = RP.nuc && mode === 'a' ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (1.27)
       p.Z -= em[0] * cnt; p.N -= em[1] * cnt;
       if (p.Z + p.N <= 0) { kill(p); return false; }
       if (p.Z !== Zold) brk();
       refresh(p);
       shakeOff(p);
       const Ad = p.Z + p.N, Ae = em[0] + em[1];
-      const Eem = Math.max(1e-3, Q * 1e6) * Ad / (Ad + Ae * cnt);
+      const Eem = Math.max(1e-3, (Q - Elv) * 1e6) * Ad / (Ad + Ae * cnt);
       const prod = [];
       for (let k = 0; k < cnt; k++) {
         if (W.parts.length >= MAX_PARTS) break;
@@ -5793,11 +5824,13 @@ function doDecay3(p) {
       }
       const prR = Math.sqrt(2 * Ae * PHYS.MP * Eem);
       kick(p, pvx - prR / p.m * ux, pvy - prR / p.m * uy, pvz - prR / p.m * uz);
-      settleKE(S, Qn, [p].concat(prod));
+      const gk = Elv ? glKeep(p, gl) : null; // (1.27)
+      settleKE(S, gk ? Qn - gk.iso - gk.sum : Qn, [p].concat(prod));
+      if (gk) glFire(gk.rays, x, y, z, p, 0);
       const nm = mode === 'a' ? 'α decay' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
       const em2 = (mode === 'a' ? 'α' : mode === 'p' ? 'p' : mode === 'n' ? 'n' : mode === '2p' ? '2p' : '2n') + (p.anti ? '\u0304' : '');
-      log('nuc', `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2} (${Qtxt})`);
-      nucEvent(mode === 'a' ? 'alpha' : 'decay', x, y, `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}`, gh, `${Qtxt} released${boostTag()}`, { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th }, z);
+      log('nuc', `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''} (${Qtxt})`);
+      nucEvent(mode === 'a' ? 'alpha' : 'decay', x, y, `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''}`, gh, `${Qtxt} released${boostTag()}`, { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th }, z);
       break;
     }
   }
@@ -6595,7 +6628,7 @@ function moveNeutron(p, dt, c1, c2, kT) {
   const hits = W.d3 ? relTargets3(x0, y0, p.z, p.vx * s3, p.vy * s3, p.vz * s3, dt, 1.0, (t) => t.k === NUC && t.Z > 0, KE > 1e3) : relTargets(x0, y0, p.vx, p.vy, dt, 1.0, (t) => t.k === NUC && t.Z > 0, p.rad || KE > 1e3); // (3-D: the closest approach in three directions, 1.25)
   for (const [, tg, b0] of hits) {
     if (tg.dead || sameEv(p, tg)) continue;
-    const R = nucReach(p, tg); // (a nucleus is hit where it is drawn)
+    const R = RP.nuc && W.ultra ? nxsReach(p, tg) : nucReach(p, tg); // (a nucleus is hit where it is drawn; true size with measured cross sections: inside them, Realistic particles 6, 1.27)
     const b = b0;
     if (b < R && neutronHit(p, tg, b, R)) break;
   }
@@ -8362,6 +8395,7 @@ function stepPlain(dt) {
   }
   rpMark(3);
   const nXb = moveExos(dt, id0) || 0;
+  if (W.nmr) nmrTick(dt); // (nuclear spins after an NMR pulse turn in the field, Realistic particles 6, 1.27: hep.js)
   if (nRad + nXb >= 2) beamCollisions(id0);
   if (W.collider) { rampRing(); if (W.step % 16 === 0) colliderRefill(); }
   // the walls pass, unless the bath pass found every particle an atom inside the box at an atom's pace (or a neutron or light,
@@ -8615,7 +8649,7 @@ function clearWorld() {
   _Tb = 0; // (a new world: the bath it has followed is its own)
   W.d3 = false; W.box.d = 0; W.box.td = 0; W.box.ud = 0; W.Ez = 0; W.Bax3 = 'z'; // (a new world is flat; world3d makes it 3-D; Ez, Bax3: 3-D fields, 1.24)
   if (PI.cap) { PI.ox = PI.oy = PI.vx = PI.vy = PI.fx = PI.fy = PI.oz = PI.vz = PI.fz = PI.id = null; PI.cap = 0; PI.n = 0; PIM.valid = false; PIM.vStale = false; PIM.qx = null; PIM.qz = null; } // (quantum nuclei: a new world's rings are made afresh, flat or with depth, 1.24)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.lrKnown = false; W.muAtoms = []; W.at = W.at || 0;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.lrKnown = false; W.muAtoms = []; W.nmr = null; W.at = W.at || 0;
   _rxCache.clear();
 }
 /* Make the (empty) world 3-D, depth d Å (by default as deep as it is high): positions from −d/2 to +d/2 in z, walls on
@@ -8920,7 +8954,7 @@ function fireSpec(spec, x, y, ux, uy, KE, free, z = 0, uz = 0) { // (z, uz: 3-D)
   if (spec.kind === 'gamma') { if (W.d3) emitPhoton(x, y, KE, ux, uy, { z, uz }); else emitPhoton(x, y, KE, ux, uy); return null; } // (3-D: along its direction in depth, 1.24)
   if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e', z, uz); return null; }
   if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy, 1, z, uz); // (1.12: an atom, in MD; 3-D: in depth, 1.25)
-  if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy, undefined, z, uz) : null; // (a muon, pion …: from outside, as any fired particle; 3-D: in depth, 1.24)
+  if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy, resPlaceMass(spec.sp), z, uz) : null; // (a muon, pion …: from outside, as any fired particle; 3-D: in depth, 1.24)
   const ps = spawnClear(spec, x, y, 0, free, z);
   if (!ps.length) return null;
   if (ps.length === 1) { setMotion(ps[0], KE, ux, uy, 0, 0, uz); if (!ps[0].trk && KE > 50) startTrack(ps[0]); return ps[0]; }

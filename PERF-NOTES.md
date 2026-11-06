@@ -343,7 +343,7 @@ Waiting for the owner:
   radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #3 (AsCl₅) and #16
   (3-D water recapture, physics).
 
-For 1.27 (part 1, exotic atoms, and the Settings section built on branch v141: see "1.27: realistic particles 1"; the rest not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
+For 1.27 (part 1, exotic atoms, and the Settings section built on branch v141: see "1.27: realistic particles 1"; parts 5 and 6 on branch v143: "1.27: realistic particles 5 and 6"; the rest not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
 portrayed and how to implement an experimental setting that makes them as realistic as possible"; APPROVED, all seven
 parts, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything": each part its own Experimental
 switch, off at start; off, every setup bit for bit as before (fingerprints), energy books exact on; built after the
@@ -2084,6 +2084,158 @@ missed 0.64's named save once (its 400 ms wait under load); it passed in the nex
 **Merge note for part 1 (v141):** f_rp1's layout check compared the section's ids exactly; it now checks that the
 first three are Ultra-realistic, Electrons as waves, Exotic atoms (the two new lines follow). t_features 1.10 now counts six
 "realistic when on" tags (part 1's four and these two).
+### 1.27: realistic particles 5 and 6 (resonance widths, heavy flavour, nuclear spin, γ lines, neutron cross sections)
+
+Branch v143 (from v141 at 91e372a, part 1 and the Settings section). Parts 5 and 6 of the seven approved realistic-particle
+parts (the owner, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything"). Two more lines in
+Settings → Experimental → Realistic particles, after Exotic atoms: "Resonance widths and heavy flavour" (`setRpRes`,
+`SET.rpRes`, `RP.res`) and "Nuclear spin, γ lines and neutron cross sections" (`setRpNuc`, `SET.rpNuc`, `RP.nuc`), each a
+switch, off at every start (`SET_EXP`), a compact line with its cost tag (flat and 3-D) and its "realistic when on" tag,
+the description in the side pane (SDESC, SDESC3) and a note under the line; the 3-D note names both. The code is at the end
+of hep.js ("Realistic particles 5", "Realistic particles 6") with small hooks in hep.js (bwMass, hadronize and its
+callers, decayExo/decayExo3), engine.js (doDecay/doDecay3, decayStep, neutronHit/neutronHit3, moveNeutron, step) and
+ui.js (placing, firing, copying, saves, Inspect). Checks: tests/f_rp5.js (t_features runs it alone; `node tests/f_rp5.js
+[--node] [part …]`): off, widths, heavy, spin, lines, neutrons, books, page; every part fails on v141 (no switches there).
+Screenshots: scratchpad rp5/set-desk.png, set-phone.png, inspect-nmr.png.
+
+- **Part 5, resonance widths.** Before: a resonance made in a collision (resonate) got a mass from a Cauchy in m cut at
+  ±3Γ (bwMass), and one placed, fired or pasted got the table's mass (the exotic sweep's "own mass" was only that
+  collision draw, kept through saves and undo). With the switch every resonance made (ρ, ω, φ, K*, Δ, and the new J/ψ
+  and Υ; in a collision, placed, fired, pasted, or among a decay's products, e.g. the φ of D⁺s → φπ⁺) draws its mass
+  from one function, `bwMassRel`: the relativistic Breit–Wigner in s = m², dN/ds ∝ 1/((s − M²)² + M²Γ²) with the measured
+  width (the XP table's PDG values), cut below at its lightest decay threshold (+0.01 MeV) and above at M + 5Γ or what
+  the event leaves (`resItems`); one random draw each (the old draw could take up to 40). It decays into the channels
+  open at its own mass (`resOpen`), so the products' energies follow from it, and the event that made it paid for it
+  (closeEvent, exact). Its mean life stays ħ/Γ (on the clock in Ultra-realistic). Inspect: "Rest mass … its own, drawn
+  from its width". Constant width (not the mass-dependent width of a P-wave): said here, not hidden.
+- **Part 5, heavy flavour.** A hadron collision above the charm threshold (`nnInelastic`, the pion and antinucleon
+  branches of `hadronHit`, the collider's `xbInelastic` and `xbAnnihilate`) draws once (`hfDraw`) whether it makes a cc̄
+  pair, with the measured share σ(cc̄)/σ_inel at its √s, or a bb̄ pair (σ(bb̄)/σ_inel); a small share of the pairs is a
+  J/ψ (0.5%) or an Υ(1S) (0.2%) instead. Each quark becomes a hadron at the measured fragmentation fractions (c → D⁰
+  0.609, D⁺ 0.240, D⁺s 0.080, Λc⁺ 0.062; b → B⁻, B̄⁰ 0.407 each, B̄⁰s 0.101, Λb⁰ 0.085), put into hadronize's list as
+  fixed hadrons (a heavy baryon takes a nucleon's place; the light hadrons make up charge and energy), so the event's
+  books are exact as any. New particles (XP, flat and 3-D): Λc⁺ (2,286.46 MeV, 202.6 fs), B⁰s (5,366.93 MeV, 1.520 ps),
+  Λb⁰ (5,619.60 MeV, 1.471 ps), their antiparticles, J/ψ (3,096.900 MeV, Γ 92.6 keV) and Υ(1S) (9,460.40 MeV, Γ 54.0
+  keV), with their main decays (the rest of each total shared out over them in proportion, as the D's and B's of 1.15;
+  the J/ψ's and Υ's three-gluon decays as a few typical multi-pion states of their measured mean multiplicity). They fly
+  with their mean lives: D⁰ 0.41 ps, B 1.5 ps, i.e. cτ = 123 μm and 455 μm, times βγ: far out of a box of nanometres, so
+  most leave it before they decay unless decay is sped up (Lab → Decay speed). The collider's made-list shows them.
+  - Data (σ in µb against √s, measured, *from memory* of the compilations, no network here: worth a check): cc̄ 17.3 GeV
+    3.6, 27.4 GeV 15 (NA27), 41.6 GeV 49 (HERA-B), 200 GeV 600 (STAR 797, PHENIX 567), 2.76 TeV 4,800, 7 TeV 8,500
+    (ALICE); bb̄ 38.8 GeV 0.0057 (E789), 41.6 GeV 0.012 (HERA-B), 200 GeV 1.3 (STAR), 1.96 TeV 80 (CDF, extrapolated to all
+    rapidities), 7 TeV 280 and 13 TeV 495 (LHCb); σ_inel(pp) 30 mb at 5 GeV to 78.1 mb at 13 TeV (PDG, TOTEM); log–log
+    between the points, the last slope above. Below the lowest point (17.3 / 38.8 GeV) the cross section is brought to
+    zero at the threshold (N + Λc + D̄ at 5.09 GeV, N + Λb + B at 11.84 GeV) as (1 − √s_thr/√s)⁴: a shape, not a
+    measurement. The J/ψ and Υ shares (σ(J/ψ) ≈ 3 µb at 200 GeV, 45 µb at 7 TeV; Υ(1S) ≈ 0.2% of bb̄), the fragmentation
+    fractions (Lisovyi et al. 2016; PDG's LEP b fractions) and the new particles' masses, lives and branchings are also
+    from memory of PDG 2024.
+  - What the box can't make real: charm's and bottom's flight (μm–mm); several cc̄ pairs in one collision (one at most
+    here: at the LHC multi-parton collisions make more now and then); charm in nucleus–nucleus collisions (the fireball's
+    hadronize is left as it was: its rate grows with the binary collisions, not built); e⁺e⁻ → cc̄ keeps its own channel
+    from 1.15 (D mesons only, no Λc); the J/ψ's and Υ's masses use the table's value inside an event (93 and 54 keV wide).
+- **Part 6, nuclear spin and NMR.** `NUC_SPIN`: 71 nuclides' measured ground-state spin and magnetic moment (Stone's
+  table, 2005, *from memory*: ¹H ½ +2.79285 μN, ²H 1 +0.857438, ¹³C ½ +0.702412, ¹⁴N 1 +0.403761, ¹⁷O 5/2 −1.89379, ¹⁹F ½
+  +2.628868, ³¹P ½ +1.13160, ²⁷Al 5/2 +3.641507, ⁵⁹Co 7/2 +4.627, ⁶⁰Co 5 +3.799, ²⁰⁷Pb ½ +0.592583, the neutron ½ −1.91304,
+  …); even-Z even-N nuclei I = 0, μ = 0; others "not in the table". γ/2π = 7.6226 MHz/T × μ/I (¹H 42.577, ¹³C 10.708,
+  n −29.165). Inspect (switch on): "Nuclear spin", and in a field "Larmor precession" (42.58 MHz in 1 T: one turn in 23.5
+  ns) and a button "NMR pulse": a 90° pulse on every nucleus of that kind in the box (`nmrPulse`); each spin then turns
+  every step at the Larmor frequency of the field where it is (`nmrTick`: the Lab's field and the magnets, `Bfield`), and
+  "NMR signal" reads the summed signal's frequency from its phase over the time since the pulse (`nmrRead`), with the
+  share still in phase (field inhomogeneity dephases it). Not modelled: the Zeeman energy μB (8.8×10⁻⁸ eV for a proton at
+  1 T; the pulse's radio wave pays it; not in the books), chemical shifts, spin–spin coupling, T₁ and T₂. At 1 T a proton
+  turns once in 23.5 ns, two million steps: the readout measures the phase turned so far (at the Lab's 100,000 T, once in
+  0.23 ps).
+- **Part 6, γ lines.** Before: a decay gave its particles the whole Q (ground state to ground state), a neutron capture
+  one γ of all the energy. With the switch (`GL_FEED`, `GL_LEV`, `GL_CAP`, `GL_ISO`, `GL_CONV`; ENSDF *from memory*):
+  - Decays that feed excited levels: ⁶⁰Co β⁻ → ⁶⁰Ni 2,505.7 keV (99.88%) → 1,173.2 + 1,332.5 keV; ¹³⁷Cs → ¹³⁷ᵐBa (94.4%);
+    ²²Na → ²²Ne 1,274.5; ⁴⁰K EC → ⁴⁰Ar 1,460.8 (its β⁻ to the ground state); ¹³¹I → 364.5 / 637.0 / 722.9; ⁹⁹Mo → ⁹⁹ᵐTc
+    (87.6%); ²⁴¹Am α → 59.5 / 103.0 (43.4 + 59.5); ²²⁶Ra α → 186.2 (5.95%); ²⁴Na → 2,754.0 + 1,368.6; ²⁸Al → 1,779.0; ⁵⁶Mn →
+    846.8 / 1,810.7 + 846.8 / 2,113.1 + 846.8; ⁵⁷Co EC → 122.1 + 14.4 or 136.5; ¹⁶N → 6,128.6 / 7,115.2 keV: 13 parents. The
+    β (or α) takes Q less the level; the neutrino (or the α and recoil, settleKE) takes what the books leave after the
+    lines, which carry their measured energies exactly and recoil the nucleus.
+  - Isomers (`p.iso`): ¹³⁷ᵐBa (661.7 keV, 2.552 min) and ⁹⁹ᵐTc (142.7 keV, 6.0067 h) keep their energy out of the nuclear
+    ledger and decay on the decay clock (`isoStep` in decayStep, before the ground state's decay) by their lines
+    (⁹⁹ᵐTc: 2.17 keV, nearly always converted, then 140.5 keV). Inspect: a pill "¹³⁷ᵐBa: an isomer 661.7 keV above its
+    ground state, half-life 2.55 min". Saves and undo keep it (an optional `iso` list; older readers open the ground
+    state); copy and paste make the ground state.
+  - Conversion: a line with a measured coefficient α converts at α/(1 + α), only while the atom has electrons: an
+    electron of the K shell (if the line can free one, else L, else an outer one) with the line less that binding
+    (`GL_SHELL`), then the hole's X-rays (Kα = K − L, then L), the atom one charge up. ¹³⁷ᵐBa 0.1124 (the 624.2 keV K
+    electron), ⁹⁹ᵐTc 140.5 keV 0.1218, ²⁴¹Am's 59.5 keV 1.15 (L shell), ¹⁵⁸Gd 79.5 keV 5.9, ⁵⁷Fe 14.4 keV 8.2, ….
+  - Neutron captures (`nxCapture`): ¹H → one 2,223.2 keV γ (the 2,224.6 keV less the deuteron's recoil, as before);
+    ¹²C → 4,945 or 3,684 + 1,262 keV; ¹⁴N → 10.83 MeV (14%) or through ¹⁵N's levels at 5.27, 5.30, 6.32, 7.30, 8.31 MeV;
+    ¹¹³Cd → the 558.5 keV line (3 in 4; also 651.3, 805.9); ¹⁵⁷Gd → 79.5 (mostly converted) and 181.9 keV: the low lines
+    exactly, the primary γ (or two, split at random, where the cascade is statistical) what is left. ¹⁰B(n,α)⁷Li leaves
+    ⁷Li at 477.6 keV 94% of the time (its γ, the α and ⁷Li sharing 2.31 MeV). Elsewhere, as before: 5 capture cascades
+    and 13 decays have lines, everything else falls back. Reactions in hep.js (a compound nucleus cooling by γ,
+    gammaOut) are unchanged.
+- **Part 6, neutron cross sections.** `NXS`: 41 nuclides' thermal (0.0253 eV) cross sections, barns (Mughabghab's Atlas
+  and ENDF *from memory*): ¹H scattering 20.49, capture 0.3326; ²H 3.39 / 0.000519; ³He (n,p) 5,333; ⁶Li (n,t) 940; ¹⁰B
+  (n,α) 3,837, (n,γ) 0.5; ¹²C 4.75 / 0.00353; ¹⁴N 10.05 / 0.075, (n,p) 1.83; ¹⁶O 4.23 / 0.00019; ³⁵Cl 21.8 / 43.6; ⁵⁹Co
+  37.18; ¹¹³Cd 20,600; ¹³⁵Xe 2.65 Mb; ¹⁴⁹Sm 40,140; ¹⁵⁵Gd 60,900; ¹⁵⁷Gd 254,000; ¹⁹⁷Au 98.65; ²³²Th 7.35; ²³³U fission 531;
+  ²³⁵U fission 585.1, capture 98.7; ²³⁸U capture 2.68; ²³⁹Pu fission 747.4, capture 270.7; ²⁴¹Pu 1,012 / 361. The
+  absorptions go as 1/v; the big resonances are single-level Breit–Wigner shapes: those that make the thermal value
+  (¹¹³Cd 0.178 eV, ¹³⁵Xe 0.084, ¹⁴⁹Sm 0.0973, ¹⁵⁵Gd 0.0268, ¹⁵⁷Gd 0.0314) normalised to it, and those above it (²³⁸U
+  6.674 eV, Γ 24.5 meV, peak (n,γ) 22,500 b; ¹⁹⁷Au 4.906 eV; ¹¹⁵In 1.457 eV) on top of the 1/v part, the thermal value
+  kept. Scattering constant. From 1 keV to 100 keV the shares join the old table's fast ones (NEUTRON_X), above it they
+  are those. No Doppler broadening (²³⁸U's resonance at room temperature is lower and wider), no unresolved resonances.
+  - *The choice, written down:* the game's nuclei are drawn and met enlarged (0.35 Å and up), so in the normal view a
+    neutron meets every nucleus about as often; a factor of 10⁴–10⁶ between cross sections can't be a reach in a box of
+    nanometres. So in the normal view the measured cross sections decide what a meeting does (capture, fission, (n,p),
+    (n,α), (n,t) or scattering in their shares at the neutron's energy, `nxsShares`), and with Ultra-realistic on (true
+    sizes) a nucleus is met inside its measured cross section itself (`nxsReach`: in 3-D √(σ_tot/π); in the flat game a
+    width σ_tot / 1.2 Å, the game as a slab as thick as the strip light meets atoms in), so there the rates are measured:
+    ¹⁰B and cadmium take thermal neutrons thousands of times more readily than hydrogen. The neutron's spin ½ and moment
+    −1.913 μN show in its Inspect card (with its Larmor frequency, 29.16 MHz/T, in a field).
+- **Numbers** (Node; f_rp5 and scratchpad rp5/t*.js):
+  - ρ⁰: 40,000 draws 146 MeV wide at half height (Γ 149.1; 2 MeV bins), peak 777 MeV, none below 279.7 MeV; Δ⁺⁺ from
+    1,078 MeV; placed at rest (Ultra-realistic, 400 each) mean life 0.974 (flat) and 0.932 (3-D) of ħ/Γ (±0.15 at 3σ);
+    their masses spread over 1,185 MeV; books within 1.5×10⁻⁴ eV a step.
+  - Charm share in pp (nnInelastic): 200 GeV 0.0113 (1,500 events; σ(cc̄)/σ_inel 0.0143 ± 0.0031), 7 TeV 0.124 (500; 0.116 ±
+    0.014), 3-D 7 TeV 0.090 (300; ± 0.019); 4 GeV none; bottom in 1 of 500 at 7 TeV (0.0038 expected); the collider's list
+    D⁰, D̄⁰, D⁺, D⁻, D⁺s, D⁻s …; books within 2.2×10⁻¹⁵ of √s (flat and 3-D).
+  - NMR: 160 protons of flat liquid water in a placed 1.5 T magnet 42.5775 MHz/T; 686 in 3-D water in the Lab's 2 T
+    42.5775 (CODATA 42.577 478); 100% in phase in a uniform field.
+  - Lines (40–60 events each, flat; 3-D alike): ⁶⁰Co 1,173.2 + 1,332.5 in 40 of 40; ¹³⁷Cs to ¹³⁷ᵐBa 58 of 60, then 662 keV
+    γ 53, 624.2 keV electron 5 (α/(1 + α) = 0.101); ¹H capture one 2,223.2 keV γ 30 of 30; ¹⁰B(n,α) 478 keV 29 of 30;
+    ¹⁴N 10.83 MeV in 4 of 31 captures (14%); ¹¹³Cd 558.5 keV 31 of 40; ⁹⁹ᵐTc 140.5 keV 51 of 60, its electron 9; every
+    event's books within 3×10⁻⁵ eV.
+  - Neutrons at true size (thermal, through random impact parameters about one nucleus): absorbed per unit area (3-D)
+    or width (flat) ¹⁰B 11,765 and 11,200 times ¹H's, ¹¹³Cd 63,066 and 58,150 (measured 11,538 and 61,306 at 0.0244 eV;
+    hydrogen's counts 52–88 decide the error, ±15–20%). Shares: ²³⁵U fission 0.837 of thermal meetings (585.1 / 698.8);
+    ²³⁸U capture 1.000 at 6.67 eV, 0.051 at 1 eV.
+  - Running boxes (switches on, each event wrapped): liquid water with 40 neutrons and ¹⁰B, ¹¹³Cd, ¹⁴N, ⁶⁰Co, ¹³⁷Cs, decay
+    sped up 10⁹: flat 1,197 events, worst 5.5×10⁻⁴ eV; 3-D 24 events, 0.
+  - Switches off: the fingerprints of all 59 setups (seed 7, 300 steps) equal v141's; f_rp5 "off" keeps eleven of them
+    (pionbeam, rhic, linac, chain, photonuc, annihilation, isolde, sns, useries, water, water3d).
+  - Cost (one thread, on a machine shared with another session's tests, so ±30% noise): off nothing (one flag test per
+    event). On ×1: pion beam 9.4 → 10.0 ms a step, RHIC 2.1 → 2.0, the chain reaction 0.70 → 0.68, 40 thermal neutrons in
+    3-D water 44.5 → 44.6; after an NMR pulse the spins' turn is 0.04 ms a step for flat water's 160 protons (×1.1 at
+    most), 0.05 ms for 3-D water's 686 (×1.01).
+- **Test changes:** t_features' 1.10 Settings check counts six "realistic when on" checkbox tags (Exotic atoms,
+  Resonance widths and heavy flavour, Nuclear spin … beside resonance in large rings, detailed nuclear collisions and
+  Ultra-realistic), not four; f_rp1 "layout" checks that its three lines come first (the later parts' lines follow:
+  the v142 branch's positronium and muonium lines will too).
+- **Suites** (2-core machine shared with the part-2/4 session): alone t_lint, t_energy, t_hep, t_nuclear, t_collider, t_3d,
+  t_settings, f_rp5 and t_features (f_rp1 and f_rp5 inside it) pass; f_rp1 alone once missed its 3-D Select click in
+  "store" under load and passed rerun alone. tools/runtests.sh: 20 of 22 pass; t_features' one miss the 1.14 slow-motion
+  readout (1/1.3× on two cores, the known flake; t_features passed alone just before), t_page's the slow-motion button
+  check (it fails alone here too, as on record for 1.25 and 1.26: v141's state, nothing of these parts).
+- **Found, not changed:** ¹⁹⁸Au's decay is pure β⁻ (to ¹⁹⁸Hg's 411.8 keV level), but the game's systematics give it 14%
+  EC (it is not in DECAY); ²²Na decays only by β⁺ here (measured 90.3% β⁺, 9.6% EC). Its line is right either way.
+- **For the owner (physics questions, written down, not decided):**
+  - Charm and bottom in nucleus–nucleus collisions (the fireball): per binary nucleon collision, as measured at RHIC
+    and the LHC? Several cc̄ pairs per collision at LHC energies?
+  - The constant-width Breit–Wigner: a P-wave resonance's width grows with its momentum (ρ: Γ(m) ∝ q³/m), which skews
+    the line toward high masses (the e⁺e⁻ channel's ρ already has it). Use it for the draws too?
+  - In the normal view the cross sections set what a meeting does, not how often it happens (the enlarged nuclei);
+    alternatives: a reach that grows as √σ up to a cap (the ratio then saturates for Cd and Gd), or a mean-field rate.
+  - The reactions of hep.js (spallation, fusion's compound nuclei) still cool by generic γ; their known low lines
+    (¹²C 4.44 MeV, ¹⁶O 6.13 MeV, …) could be added the same way.
+  - Values from memory (no network): the cross-section and σ_inel points, J/ψ/Υ shares, fragmentation fractions, the
+    new particles' data, NUC_SPIN, NXS, the γ lines, branchings, conversion coefficients and half-lives above. Each
+    agrees with the others where they meet (e.g. the lines sum to their levels, 1/τ against Γ), but a check against the
+    tables is worth it.
 
 ## 1.25.0: the nuclear side in 3-D, continuous bond orders in 3-D with single bonds' twist, many-body metals, Settings by mode with 3-D pictures, 3-D labels off, 21 bug fixes
 
