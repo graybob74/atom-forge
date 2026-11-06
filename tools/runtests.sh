@@ -15,7 +15,7 @@ lane() { # lane name, suites...
   local name="$1"; shift
   for s in "$@"; do
     local t0=$(date +%s)
-    node "tests/$s.js" > "$OUT/$s.log" 2>&1; local rc=$?
+    node --max-old-space-size=3072 "tests/$s.js" > "$OUT/$s.log" 2>&1; local rc=$? # (t_features holds every version's checks in one process: past 2 GB since 1.25's bug fixes)
     printf "%-12s rc=%d  %5ds  %s\n" "$s" "$rc" "$(( $(date +%s) - t0 ))" "$(tail -n 1 "$OUT/$s.log" | cut -c1-110)" >> "$OUT/$name.summary"
   done
 }
