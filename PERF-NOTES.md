@@ -668,7 +668,10 @@ selected, copied, saved and let decay, flat and in 3-D. Checks: tests/f_swx.js (
   drag of Fire at 1 keV, 1 MeV, 1 GeV and 1 PeV through eight atoms and run: every step worked for every particle but the
   saves above; no page errors, nothing faster than light after the fixes, no odd texts in the event log.
 - **Texts.** A μ⁺ taking an electron said "Recombination: p⁺ + e⁻ → H atom", and a bare μ⁺ bonding "Proton bonded:
-  H⁺ + …": now "μ⁺ + e⁻ → muonium" and "Muon bonded: Mu⁺ + …".
+  H⁺ + …": now "μ⁺ + e⁻ → muonium" and "Muon bonded: Mu⁺ + …". Inspect's "Decays to" for a particle in flight showed the
+  internal names of the neutrinos (μp: "p e⁻ ν̄ numu"; τ: "nutau", "numub"): now through the products' own labels
+  (νμ, ν̄μ, ντ, d, t, α). Lengths read "1.5e+2 nm" (a hypernucleus's mean distance) and a resonance's "0.0000013 nm":
+  now "150 nm", and pm and fm below a nanometre. Check: f_swx "texts".
 
 ### 1.26: GFN2 refit (second attempt)
 

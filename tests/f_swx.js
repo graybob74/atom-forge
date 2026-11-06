@@ -228,6 +228,18 @@ PARTS.saveExo = async (page, check, say) => {
 };
 PARTS.saveExo.page = true;
 
+/* Texts: a μ⁺ taking an electron was logged "p⁺ + e⁻ → H atom", a bare μ⁺ bonding "Proton bonded: H⁺"; Inspect's "Decays to"
+   showed the tokens numu, nutau, numub; a mean distance of 150 nm read "1.5e+2 nm". */
+PARTS.texts = async (page, check, say) => {
+  const X = load('all', { seed: 1 }), W = X.W; X.PRESETS.empty.build(); W.T = 0; W.gamma = 0;
+  const mu = X.addMuonium(0, 0, 0, 1, 0, 0), e = X.addLepton(X.ELEC, 0.6, 0, 0, 0); X.forcesNoEvents(); W.fSpawn = W.spawned;
+  const n0 = W.log.length; X.capture(e, mu, 0); const rec = W.log.slice(n0).map(l => l.text).join(' / ');
+  const o = X.addExo('muP', 3, 0, 0.03, 1, 0), t = X.addExo('tau-', 5, 0, 0.03, 1, 0);
+  X.R.selX = { kind: 'exo', o, t0: 0 }; const a = X.selXHTML(); X.R.selX = { kind: 'exo', o: t, t0: 0 }; const b = X.selXHTML();
+  const r = { rec, tokens: /numu|nutau|numub/.test(a + b), nus: /νμ/.test(a) && /ντ/.test(b), len: X.fmtLen(1.5e-7) };
+  check(/μ⁺ \+ e⁻ → muonium/.test(rec) && !r.tokens && r.nus && r.len === '150 nm', `1.26 sweep: texts: "${rec.slice(0, 50)}…", decays listed with their neutrinos' flavours (νμ, ντ), a mean distance "${r.len}"`, 'swx texts: ' + JSON.stringify(r));
+};
+
 module.exports = async function fswx(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
