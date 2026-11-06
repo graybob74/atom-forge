@@ -444,6 +444,12 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
 - 8. The chamber's scale bar was drawn behind the main menu (the 3-D axis marker was already left out there): at
   1280 × 720 it ran under the 3-D menu's note at the bottom left. Now `drawScaleBar` draws nothing while the menu is open
   (both modes). Check: f_sweep3d "menuScale" (page; before: "5 Å" drawn under the menu).
+- 9. A laser left on in 3-D (Light → Mode → Leave on) was not drawn at all (the flat `drawSources` draws its housing and
+  a faint beam; render3d had nothing), and Erase over it left it on (`eraseHere3` took particles and magnets only),
+  though its note says "Erase removes it": the only way off was the options bar's button. Now `drawLasers3` draws the
+  beam to where it leaves the box and a small housing at its start, in its light's colour, and Erase's cone (its radius
+  + 1.5 Å, as the flat Erase) takes it. Measured in the page: a Lyman-α laser set on a benzene carbon, Erase at the same
+  point: 1 laser left before, 0 after. Check: f_sweep3d "laser3d" (page).
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 

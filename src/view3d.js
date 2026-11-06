@@ -470,7 +470,7 @@ function render3d(rt) {
   drawQGP3(ctx); // (a quark–gluon plasma at its depth, 1.25)
   drawEvents3(ctx, rt);
   drawMarks3(ctx);
-  if (!R.menu) { drawMagnets3(ctx); drawPlace3(ctx); } // (magnets; the placing plane, the ghost, Fire's aim from the camera, 1.24)
+  if (!R.menu) { drawMagnets3(ctx); drawLasers3(ctx); drawPlace3(ctx); } // (magnets; the placing plane, the ghost, Fire's aim from the camera, 1.24)
   drawOverlay3(ctx);
   if (V3.axes && !R.menu) drawAxes3(ctx); // (not behind the main menu)
   drawScaleBar();
@@ -731,6 +731,21 @@ function drawMagnet3(ctx, x, y, z, Rm, B, ghost) {
     else { ctx.beginPath(); ctx.arc(Bp[0], Bp[1], 3.5, 0, Math.PI * 2); ctx.stroke(); } // (end on: ⊙)
   }
   if (!ghost && proj3(x, y, z, A)) { ctx.font = '600 12px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(col, 0.9); ctx.textAlign = 'center'; ctx.fillText((B >= 0 ? 'N ' : 'S ') + fmtTesla(Math.abs(B)), A[0], A[1] - r - 8); }
+  ctx.restore();
+}
+/* Lasers left on in 3-D (as the flat drawSources): the beam faintly to where it leaves the box and a small housing at its
+   start, its colour the light's, so a laser can be seen and erased there (1.26 sweep: nothing was drawn). */
+function drawLasers3(ctx) {
+  if (!W.lasers.length) return;
+  const A = _p3a, B = _p3b;
+  ctx.save();
+  for (const L of W.lasers) {
+    const z0 = L.z0 || 0, uz = L.uz || 0, c = photonColor(L.E), t = rayExit3(L.x0, L.y0, z0, L.ux, L.uy, uz);
+    if (seg3(L.x0, L.y0, z0, L.x0 + L.ux * t, L.y0 + L.uy * t, z0 + uz * t, A, B)) { ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},0.22)`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); }
+    if (!proj3(L.x0, L.y0, z0, A)) continue;
+    ctx.fillStyle = 'rgba(70,80,95,0.9)'; ctx.strokeStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(A[0], A[1], 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
   ctx.restore();
 }
 function drawMagnets3(ctx) {

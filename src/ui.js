@@ -1208,6 +1208,8 @@ function eraseHere3(px, py) {
   const reach = { cone: toolCone3(px, py, OPT.erase.R) }; let n = 0;
   for (const p of W.parts) if (!p.dead && inTool3(reach, p.x, p.y, p.z)) { kill(p); n++; }
   for (let i = W.magnets.length - 1; i >= 0; i--) { const m = W.magnets[i]; if (inTool3(reach, m.x, m.y, m.z || 0)) W.magnets.splice(i, 1); } // (magnets too, 1.24)
+  const r1 = { cone: toolCone3(px, py, OPT.erase.R + 1.5) }; // (lasers left on, at their housing (drawLasers3), as the flat Erase takes them: it left them on in 3-D, 1.26 sweep)
+  for (let i = W.lasers.length - 1; i >= 0; i--) { const L = W.lasers[i]; if (inTool3(r1, L.x0, L.y0, L.z0 || 0)) W.lasers.splice(i, 1); }
   if (R.sel && R.sel.dead) R.sel = null;
   return n;
 }

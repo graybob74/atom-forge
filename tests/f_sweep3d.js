@@ -136,6 +136,20 @@ PARTS.menuScale = async (page, check, say) => {
 };
 PARTS.menuScale.page = true;
 
+/* 9. A laser left on in 3-D (Light → Leave on) was not drawn (no housing, no beam), and Erase over it left it on (the 3-D
+   Erase took particles and magnets only; its note says "Erase removes it"). Now its beam and housing are drawn
+   (drawLasers3) and Erase's cone takes it. */
+PARTS.laser3d = async (page, check, say) => {
+  const a = await page.evaluate(() => { loadPreset('mol3d'); setRunning(false); W.lasers.length = 0; setTool('light'); OPT.light.mount = true; buildToolOpts();
+    const p = W.parts.find(q => !q.dead && q.Z === 6), o = [0, 0, 0]; cam3Update(); proj3(p.x, p.y, p.z, o); const r = $('cv').getBoundingClientRect(); return { x: r.left + o[0], y: r.top + o[1] }; });
+  await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.waitForTimeout(120); await page.mouse.up(); await page.waitForTimeout(50);
+  const r = await page.evaluate(() => { const o = { lasers: W.lasers.length }; let n = 0; const keep = photonColor; photonColor = function () { n++; return keep.apply(this, arguments); }; try { render(1); } finally { photonColor = keep; } o.drawn = n; OPT.light.mount = false; setTool('erase'); return o; });
+  await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.waitForTimeout(80); await page.mouse.up();
+  r.afterErase = await page.evaluate(() => { const n = W.lasers.length; W.lasers.length = 0; setTool('inspect'); return n; });
+  check(r.lasers === 1 && r.drawn > 0 && r.afterErase === 0, `3-D sweep 9: a laser left on in 3-D is drawn and Erase over its housing turns it off`, '3-D sweep laser3d: ' + JSON.stringify(r));
+};
+PARTS.laser3d.page = true;
+
 module.exports = async function fsweep3d(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
