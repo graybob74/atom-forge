@@ -341,6 +341,9 @@ For 1.27 (not built): polarizability that differs by direction; a different form
 (fourth moment or MEAM screening) if the owner wants item 4; another Atom Forge xTB only with a new plan for
 radical barriers. Found and on record: 3-D water 14–18% too dense; the 6 Å cutoff's false peak; C–F charges about 2×;
 benzene's induced charges ×14 too large; O₂ near NH₃ never settles (quantum bonds).
+Test on record: t_features' 1.23.1 "Continue after a restart" check fails on 1.25 (v128) as on 1.26: the restored world has
+1–3 particles more than were saved (72 → 73, 73 → 74); for a bug-fix session. t_page's slow-motion button check fails
+alone on both here too (the known flake).
 
 ### 1.26: GFN2 refit (second attempt)
 
