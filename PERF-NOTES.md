@@ -341,7 +341,11 @@ Waiting for the owner:
   radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #1 (flat Cu ions),
   #3 (AsCl₅) and #16 (3-D water recapture, physics).
 
-For 1.27 (not built): polarizability that differs by direction; a different form for close-packed metals' directions
+For 1.27 (not built): photons as waves (the owner, 2026-11-05: "can you add photons as waves in experimental"; an
+Experimental option beside "electrons as waves": light as wave packets with its wavelength and phase, so it interferes
+and diffracts (double slit, gratings, thin films, a laser's coherence), with polarization; the placed objects (mirrors,
+lenses, prisms, screens, foils) then act on the wave; a screen shows the fringes built up photon by photon; absorption
+and emission by atoms unchanged; to scope against cost, flat first; physics: the owner's OK); polarizability that differs by direction; a different form for close-packed metals' directions
 (fourth moment or MEAM screening; the owner: "try bigger model later"), fitted with the liquid held to 1.25's and fcc/hcp/bcc in order; another Atom Forge xTB only with a new plan for
 radical barriers. Found and on record: 3-D water 14–18% too dense; the 6 Å cutoff's false peak; C–F charges about 2×;
 benzene's induced charges ×14 too large; O₂ near NH₃ never settles (quantum bonds).
