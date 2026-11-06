@@ -294,7 +294,7 @@ function cylStops3(col, dx, dy, dz, nx, ny, f, mid) {
   }
   return out;
 }
-const ELEM_SYM = (p) => (p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym);
+const ELEM_SYM = (p) => (p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : elSym(p)); // (elSym: an exotic atom's own symbol, 1.27)
 /* (1.26 sweep: the owner, "the particle view doesn't work in 3d", "ultra-realistic mode doesn't work in 3d") How atoms
    are drawn besides the lit balls: the particle view ('nuc': nucleons and electrons, V), shells ('on'), orbitals ('orb')
    and the ultra-realistic mode's true sizes ('ultra'); '' for the lit balls (Auto and Spheres). Each is the flat game's

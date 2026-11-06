@@ -778,6 +778,17 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .sbox > .stabs { position: sticky; top: 0; z-index: 3; background: var(--surface); padding-top: 8px; }
 .sbox .spane > .srow, .sbox .spane > label.check { margin-inline: -8px; padding: 3px 8px; border-radius: 8px; transition: background 0.12s; }
 .sbox .spane > .sprev-on { background: var(--accent-soft); }
+/* (1.27) Settings → Experimental → Realistic particles: one compact line a part, its name, an on/off switch and its tags */
+.sbox .spane > .rpl { padding-block: 1px; font-size: 13px; gap: 10px; justify-content: flex-start; }
+.rpl .rpn { flex: 0 0 150px; }
+.srow.rpl .seg { flex: 0 1 260px; }
+.srow.rpl .seg button { padding-block: 2px; }
+input.sw { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 30px; height: 17px; margin: 0; border-radius: 9px; background: var(--line); position: relative; cursor: pointer; transition: background 0.15s; }
+input.sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: left 0.15s; }
+input.sw:checked { background: var(--accent); }
+input.sw:checked::after { left: 15px; }
+input.sw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { input.sw, input.sw::after { transition: none; } }
 .sbox .spane > p.sdn, .sbox .spane > p.sintro { display: none; } /* (a setting's description is in the preview pane beside the list, not under it too, 1.25) */
 .sbox .spane > p[hidden] { display: none !important; } /* (a note for the other mode, 1.25) */
 .smode { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--line); font: 600 11px var(--font-data, ui-monospace, monospace); line-height: 16px; vertical-align: 3px; color: var(--muted); letter-spacing: 0.02em; text-transform: none; }

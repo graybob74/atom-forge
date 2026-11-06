@@ -17,8 +17,8 @@ const SOFT_EN = 0.28;
    neither recombine nor be integrated accurately, and slowly pumps energy into the gas. */
 function softFor(p) {
   const q = Math.abs(p.q);
-  if (q < 1 || p.ne + 1 > p.Z) return SOFT_EN;
-  const ie = ionE(p.Z, p.ne + 1);
+  if (q < 1 || p.ne + 1 > zChem(p)) return SOFT_EN;
+  const ie = ionE(zChem(p), p.ne + 1);
   if (!(ie > 0)) return SOFT_EN;
   return Math.min(9, Math.max(0.02, Math.pow(PHYS.KE * q / ie, 2)));
 }
@@ -267,17 +267,22 @@ function atomMass(p) {
   if (p.mu) return MU_M / PHYS.AMU_MEV + p.ne * PHYS.ME;
   return Math.max(0.5, Z * PHYS.MP + N * PHYS.MN + p.ne * PHYS.ME - bindingE(Z, N) / PHYS.AMU_MEV) + (p.muB ? p.muB.m / (PHYS.AMU_MEV * 1e6) : 0);
 }
+/* (1.27, the realistic-particle switch's exotic atoms) The charge an atom's electrons see: its nuclear charge, less one for
+   a muon bound inside them (p.muB.zx), so muonic carbon is to the outside an atom of charge 5 and takes boron's table
+   entries (valence, bonds, size, electronegativity, ionization energies). Without zx it is Z: every atom as before. */
+const zChem = (p) => (p.muB && p.muB.zx ? p.Z - p.muB.zx : p.Z);
+const elSym = (p) => (p.muB && p.muB.zx ? 'μ' + ELEMENTS[p.Z].sym : p.el.sym); // (its symbol: the nucleus's, marked, though p.el is the element its electrons see)
 function refresh(p) {
   if (p.k !== NUC) return;
   W.dirty++;
-  const Z = p.Z, N = p.N;
+  const Z = zChem(p), N = p.N; // (the nucleus's own Z for its nuclide below: p.Z)
   p.el = Z > 0 ? ELEMENTS[Math.min(Z, Z_MAX)] : null;
   S.elrc[p.i] = p.el ? p.el.rc : 0; S.metal[p.i] = p.el && p.el.metal ? 1 : 0; // (the covalent radius and whether it is a metal, for the pair kernel)
   p.m = atomMass(p);
   p.im = 1 / p.m;
   p.q = (p.anti ? -1 : 1) * (Z - p.ne);
   p.sEN = Z > 0 ? softFor(p) : SOFT_EN;
-  p.nuc = nuclideInfo(Z, N);
+  p.nuc = nuclideInfo(p.Z, N);
   if (p.ne > 0 && Z > 0) {
     const vi = valenceInfo(Z, p.ne);
     p.val = vi.v; p.nOut = vi.n; p.unp = vi.unpaired;
@@ -288,7 +293,7 @@ function refresh(p) {
   setSize(p);
   if (Math.abs(p.q) >= 1 && !_charged.includes(p)) _charged.push(p);
   p.xferD = !p.anti && p.ne > 0 && p.el && (p.el.ie1 < 9.6 || p.q < 0 || p.el.metal);
-  p.xferA = !p.anti && !!p.el && (p.q > 0 || (p.el.ea >= 0.7 && p.ne <= p.Z));
+  p.xferA = !p.anti && !!p.el && (p.q > 0 || (p.el.ea >= 0.7 && p.ne <= Z));
   if (p.bonds.length && !_deferDeloc) delocalize(molecule(p)); // a charge gained or lost inside a molecule spreads at once
 }
 let _deferDeloc = false; // (while a snapshot is put back: relink then spreads each molecule's charges once, not once per atom)
@@ -738,7 +743,7 @@ function separate(a, b) {
   for (const q of mb) { q.x += ex / r * sh; q.y += ey / r * sh; if (ez) q.z += ez / r * sh; }
 }
 /* Energy needed to remove one electron, including bonds that must then break. */
-function ionizationCost(p) { return ionE(p.Z, p.ne) + breakCostIfCharged(p, -1); }
+function ionizationCost(p) { return ionE(zChem(p), p.ne) + breakCostIfCharged(p, -1); }
 
 function molecule(p) {
   const seen = new Set([p]), out = [p];
@@ -752,7 +757,7 @@ function molecule(p) {
 function linked(p) { return p.bonds.length > 0 || (p.bom && boNbrs(p).length > 0); }
 function hill(atoms, plain) {
   const cnt = {}; let q = 0;
-  for (const a of atoms) { const s = a.mu ? 'Mu' : a.el ? (a.anti ? barSym(a.el.sym) : a.el.sym) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
+  for (const a of atoms) { const s = a.mu ? 'Mu' : a.el ? (a.anti ? barSym(a.el.sym) : elSym(a)) : 'n'; cnt[s] = (cnt[s] || 0) + 1; q += a.q; }
   const keys = Object.keys(cnt);
   let order;
   if (cnt.C) order = ['C'].concat(cnt.H ? ['H'] : [], keys.filter(k => k !== 'C' && k !== 'H').sort());
@@ -766,8 +771,8 @@ function hill(atoms, plain) {
 function isoFormula(atoms, plain) {
   if (atoms.some(a => a.anti || !a.el || a.mu) || !atoms.some(a => isoA(a))) return hill(atoms, plain);
   const cnt = new Map(); let q = 0;
-  for (const a of atoms) { const k = a.el.sym + ' ' + isoA(a); cnt.set(k, (cnt.get(k) || 0) + 1); q += a.q || 0; }
-  const els = [...new Set(atoms.map(a => a.el.sym))];
+  for (const a of atoms) { const k = elSym(a) + ' ' + isoA(a); cnt.set(k, (cnt.get(k) || 0) + 1); q += a.q || 0; }
+  const els = [...new Set(atoms.map(a => elSym(a)))];
   const order = els.includes('C') ? ['C'].concat(els.includes('H') ? ['H'] : [], els.filter(e => e !== 'C' && e !== 'H').sort()) : els.sort();
   let s = '';
   for (const e of order) {
@@ -822,7 +827,7 @@ function libMatch(atoms, plain) {
   if (!cands) return null;
   const ix = new Map(atoms.map((a, i) => [a, i]));
   const adj = atoms.map(a => a.bonds.map(bd => ix.get(other(bd, a))).concat(a.bom ? boNbrs(a).map(o => ix.get(o)) : []).filter(j => j !== undefined));
-  const h = f + ':' + graphHash(atoms.map(a => { const A = plain ? 0 : isoA(a); return A ? a.el.sym + A : a.el.sym; }), adj);
+  const h = f + ':' + graphHash(atoms.map(a => { const A = plain ? 0 : isoA(a); return A ? elSym(a) + A : elSym(a); }), adj);
   let alt = null;
   for (const c of cands) if (c.h === h) { if (molFits(c.m, W.d3)) return c.m; alt = alt || c.m; } // (the open mode's library first: the 3-D builds are named in 3-D, 1.23.2)
   return alt;
@@ -831,12 +836,12 @@ function libMatch(atoms, plain) {
    otherwise; an atom gives its mass number as A, a particle as Z + N), written as IUPAC writes an isotopically
    substituted compound: nuclides in alphabetical order of symbol, then by mass number, as in (¹³C,²H₄)methane. */
 function isoA(a) {
-  const Z = a.el ? a.el.Z : 0, A = a.A !== undefined ? a.A : a.Z ? a.Z + a.N : 0;
+  const Z = a.muB && a.muB.zx ? a.Z : a.el ? a.el.Z : 0, A = a.A !== undefined ? a.A : a.Z ? a.Z + a.N : 0; // (an exotic atom: its own nucleus's usual mass number, 1.27)
   return Z && A && A !== COMMON_A[Z] ? A : 0;
 }
 function isoDesc(atoms) {
   const c = new Map();
-  for (const a of atoms) { const A = isoA(a); if (A) { const k = a.el.sym + ' ' + A; c.set(k, (c.get(k) || 0) + 1); } }
+  for (const a of atoms) { const A = isoA(a); if (A) { const k = elSym(a) + ' ' + A; c.set(k, (c.get(k) || 0) + 1); } }
   return [...c.entries()].map(([k, n]) => { const [s, A] = k.split(' '); return { s, A: +A, n }; })
     .sort((x, y) => (x.s < y.s ? -1 : x.s > y.s ? 1 : x.A - y.A)).map(o => sup(o.A) + o.s + (o.n > 1 ? sub(o.n) : '')).join(',');
 }
@@ -893,7 +898,7 @@ function ionicName(atoms) {
     if (seen.has(a)) continue;
     const m = molecule(a); for (const x of m) seen.add(x);
     let q = 0; for (const x of m) q += x.anti ? -x.q : x.q;
-    const key = m.length === 1 ? (a.anti ? barSym(a.el.sym) : a.el.sym) : hill(m, true).replace(/\d*[+-]$/, '');
+    const key = m.length === 1 ? (a.anti ? barSym(a.el.sym) : elSym(a)) : hill(m, true).replace(/\d*[+-]$/, '');
     const u = units.get(key + '|' + q) || { key, q, n: 0, one: m.length === 1, el: a.el, anti: a.anti };
     u.n++; units.set(key + '|' + q, u);
   }
@@ -937,7 +942,7 @@ function speciesLabel(p) {
     return nucSym(p.Z, p.N) + sup((p.Z > 1 ? p.Z : '') + '+');
   }
   const qs = p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : '';
-  return (p.anti ? barSym(p.el.sym) : p.el.sym) + qs;
+  return (p.anti ? barSym(p.el.sym) : elSym(p)) + qs;
 }
 
 /* ------------------------------------------------------------------ logging & visuals */
@@ -1080,7 +1085,7 @@ function Efield(x, y, p) {
       const vx = p.rad ? p.ux : p.vx, vy = p.rad ? p.uy : p.vy;
       if (z.dir && (vx * c + vy * sn) * z.dir <= 0) continue; // crossing it the wrong way
       if (p.rad && (z.Emax || z.frac)) {
-        const q = p.k === NUC ? (p.anti ? -1 : 1) * Math.max(1, p.Z - p.ne) : p.q;
+        const q = p.k === NUC ? (p.anti ? -1 : 1) * Math.max(1, zChem(p) - p.ne) : p.q;
         if (q * Ez * (c * p.ux + sn * p.uy) > 0) { // pushing it forward: the ring's RF, its voltage programmed with the beam
           let g = Math.abs(Ez);
           const aq = Math.abs(q) || 1; // (energy per pass is charge × field × length)
@@ -1916,12 +1921,12 @@ function coulAA(a, b, r2) { const qa = a.q + a.qp, qb = b.q + b.qp; return qa &&
 function internalE(p) {
   if (p.k !== NUC || p.Z === 0 || p.ne === 0) return 0;
   let E = 0;
-  for (let k = 1; k <= p.ne; k++) E -= ionE(p.Z, k);
+  for (let k = 1; k <= p.ne; k++) E -= ionE(zChem(p), k);
   return E;
 }
 function neutralInternalE(p) { // the same atom with as many electrons as protons
   if (p.k !== NUC || p.Z === 0) return 0;
-  let E = 0; for (let k = 1; k <= p.Z; k++) E -= ionE(p.Z, k);
+  let E = 0; const zc = zChem(p); for (let k = 1; k <= zc; k++) E -= ionE(zc, k);
   return E;
 }
 function metalV(a, b, r) {
@@ -4141,8 +4146,8 @@ function shedElectron(p) {
 }
 /* Does p hold more electrons than any ion of its element can (here, alone or among counter-ions)? */
 function holdsTooMany(p) {
-  if (p.k !== NUC || p.Z === 0 || p.ne <= p.Z) return false;
-  if (p.ne > p.Z + maxExtraElectrons(p.Z) || !(p.el.ea > 0)) return true;
+  if (p.k !== NUC || p.Z === 0 || p.ne <= zChem(p)) return false;
+  if (p.ne > zChem(p) + maxExtraElectrons(zChem(p)) || !(p.el.ea > 0)) return true;
   if (p.ne === p.Z + 1 || p.bonds.length) return false;
   let stab = 0;
   nearby(p.x, p.y, 5, (o) => { if (o !== p && o.k === NUC && o.q * p.q < 0) stab += Math.abs(o.q); }, p.z);
@@ -4166,18 +4171,18 @@ function shakeOff(p) {
 function stabilize(p) {
   if (p.k !== NUC || p.Z === 0) return;
   let guard = 0;
-  while (p.ne > p.Z + maxExtraElectrons(p.Z) && guard++ < 200) if (!shedElectron(p)) break;
-  if (p.ne > p.Z + 1 && p.bonds.length === 0) {
+  while (p.ne > zChem(p) + maxExtraElectrons(zChem(p)) && guard++ < 200) if (!shedElectron(p)) break;
+  if (p.ne > zChem(p) + 1 && p.bonds.length === 0) {
     // isolated multiply-charged anions are unbound in vacuum unless counter-ions stabilise them
     let stab = 0;
     nearby(p.x, p.y, 5, (o) => { if (o !== p && o.k === NUC && o.q * p.q < 0) stab += Math.abs(o.q); }, p.z);
-    if (stab === 0) while (p.ne > p.Z + 1 && guard++ < 200) if (!shedElectron(p)) break;
+    if (stab === 0) while (p.ne > zChem(p) + 1 && guard++ < 200) if (!shedElectron(p)) break;
   }
   if (p.ne === p.Z + 1 && !(p.el.ea > 0)) shedElectron(p); // no stable anion at all (N⁻, the noble gases …)
   // still more than any ion of its element can hold (it could not shed one: inside a strongly charged molecule, or
   // among ions that hold on to it): the extra electron moves to the atom of its molecule best able to take it, or
   // else is set free, the surroundings paying for its release
-  for (let k = 0; k < 4 && p.ne > p.Z + maxExtraElectrons(p.Z); k++) if (!handOff(p) && !forceShed(p)) break;
+  for (let k = 0; k < 4 && p.ne > zChem(p) + maxExtraElectrons(zChem(p)); k++) if (!handOff(p) && !forceShed(p)) break;
 }
 function forceShed(p) {
   const avail = -ionizationCost(p);
@@ -4191,7 +4196,7 @@ function handOff(p) {
   let to = null;
   for (const a of molecule(p)) {
     if (a === p || a.dead || a.k !== NUC || a.Z === 0 || !a.anti !== !p.anti) continue;
-    const room = a.ne + 1 <= a.Z || (a.ne + 1 === a.Z + 1 ? a.el.ea >= 0.7 : a.ne + 1 <= a.Z + maxExtraElectrons(a.Z));
+    const za = zChem(a), room = a.ne + 1 <= za || (a.ne + 1 === za + 1 ? a.el.ea >= 0.7 : a.ne + 1 <= za + maxExtraElectrons(za));
     if (room && (!to || a.q > to.q)) to = a;
   }
   if (!to) return false;
@@ -4431,13 +4436,13 @@ function evLepton(L, A, r) {
     // two-body binding ignores the neighbours' fields (continuum lowering), so require a clearly bound orbit; a lepton
     // whose last try could not be paid for waits a while (undoJoin)
     const may = !(L.capT > W.t);
-    if (Etot < -0.15 * ionE(A.Z, A.ne + 1)) { if (may && rnd() < 0.5) (lzNeed(), capture(L, A, Etot)); return; }
+    if (Etot < -0.15 * ionE(zChem(A), A.ne + 1)) { if (may && rnd() < 0.5) (lzNeed(), capture(L, A, Etot)); return; }
     if (Etot < 0) { if (may && rnd() < 0.02) (lzNeed(), capture(L, A, Etot)); return; } // loosely bound (Rydberg-like) orbit
     if (may && r < rh && L.hit !== A.id && rnd() < 0.04 / (1 + Etot / 0.5)) { (lzNeed(), capture(L, A, Etot)); return; }
   }
   if (r >= rh || L.hit === A.id) return;
   L.hit = A.id;
-  if (A.ne > 0 && A.q === 0 && A.el.ea > 0 && A.ne < A.Z + maxExtraElectrons(A.Z) && !(L.capT > W.t) && rnd() < 0.04) {
+  if (A.ne > 0 && A.q === 0 && A.el.ea > 0 && A.ne < zChem(A) + maxExtraElectrons(zChem(A)) && !(L.capT > W.t) && rnd() < 0.04) {
     lzNeed(); if (attach(L, A, Erel)) return;
   }
   if (A.ne > 0) {
@@ -4571,7 +4576,7 @@ function capture(L, A, Etot) {
     Eph = 0;
   }
   L.wBooked = true; kill(L); // (wBooked: joinEnergy counted the packet's share with the ions)
-  const ie = ionE(A.Z, A.ne);
+  const ie = ionE(zChem(A), A.ne);
   W.count.recomb++;
   if (A.ne === 1 && A.Z <= 10) {
     // hydrogen-like: recombination populates excited levels (∝ 1/n), which cascade down emitting
@@ -4788,6 +4793,14 @@ function nuclearAnnihilation(a, b) {
   const before = `${speciesLabel(anti)} + ${speciesLabel(mat)}`;
   const parents = [anti, mat].map(ghostOf);
   const S = annihBegin([a, b]);
+  // (the realistic-particle switch, 1.27: a slow bare antiproton is caught into an orbit of the atom first, n₀ ≈ 30–43, and
+  // cascades down, its Auger electrons and X-ray lines given off, to the orbit where it annihilates (hep.js XA_NABS:
+  // protonium from 2p); the lines' energy comes out of the annihilation's)
+  let xa = null; const Zm = mat.Z, Nm = mat.N;
+  if (RP.exo && anti.Z === 1 && anti.N === 0 && anti.ne === 0 && Zm >= 1 && !mat.muB) {
+    const mr = anti.m * mat.m / (anti.m + mat.m), dvx = avx - bvx, dvy = avy - bvy;
+    if (0.5 * mr * (dvx * dvx + dvy * dvy) < MU_STOP) { const es = []; xa = xaCascade(mat, 'pbar', Zm, Nm, xaN0('pbar', Zm, Nm), XA_NABS.pbar(Zm), 0, es); xa.n0 = xaN0('pbar', Zm, Nm); xa.n1 = XA_NABS.pbar(Zm); }
+  }
   const partners = [];
   for (const n of [a, b]) for (const bd of n.bonds) partners.push(other(bd, n));
   const takeP = (n) => n.Z > 0 && (n.N === 0 || rnd() < n.Z / (n.Z + n.N));
@@ -4817,17 +4830,19 @@ function nuclearAnnihilation(a, b) {
     } else {
       refresh(n); enforceValence(n, null); relink([n]);
       // Auger electrons from the exotic atom's cascade, plus any the smaller nucleus can no longer hold
-      const k = Math.max(0, n.ne - n.Z) + (n.ne > 0 ? 1 + Math.floor(rnd() * 2) : 0);
+      const k = Math.max(0, n.ne - n.Z) + (n.ne > 0 && !xa ? 1 + Math.floor(rnd() * 2) : 0); // (with the cascade worked out, 1.27: only those the smaller nucleus can't hold)
       for (let i = 0; i < k && n.ne > 0; i++) if (!ejectElectron(n, 20 + 80 * rnd(), undefined, undefined, 0)) break;
       stabilize(n);
     }
   }
   relink(partners.filter(p => !p.dead));
-  const E = annihEnd(S);
+  let E = annihEnd(S);
+  if (xa) { for (const l of xa.lines) { if (!(l.E > 0) || !(l.E < E)) continue; E -= l.E; const u = rdir(); emitPhoton(x, y, l.E, u[0], u[1]); } } // (its X-ray lines, exact; the mesons take the rest, 1.27)
   const ms = mesonBurst(x, y, E, vx, vy, (pM ? 1 : 0) - (pA ? 1 : 0));
   W.count.annih++;
   const left = [anti, mat].filter(n => !n.dead).map(n => speciesLabel(n)), what = ms.length ? summarize(ms) : 'γ rays';
-  nucEvent('annih', x, y, `${before} → ${left.length ? left.join(' + ') + ' + ' : ''}${what}`, parents, fmtE(E));
+  if (xa) { const pp = Zm === 1 && Nm === 0; W.count.xatom = (W.count.xatom || 0) + 1; log('nuc', `${pp ? 'Protonium (p̄p)' : `Antiprotonic ${ELEMENTS[Zm].name.toLowerCase()}`}: p̄ caught into orbit n = ${xa.n0}, cascade to n = ${xa.n1}: X-rays ${xaLines(xa.lines) || 'none'}${xa.aug ? `, ${xa.aug} Auger electron${xa.aug > 1 ? 's' : ''}` : ''}; then it annihilates`); }
+  nucEvent('annih', x, y, `${xa && Zm === 1 && Nm === 0 ? 'Protonium: ' : ''}${before} → ${left.length ? left.join(' + ') + ' + ' : ''}${what}`, parents, xa ? `${fmtE(E)}; first the cascade n = ${xa.n0} → ${xa.n1}, X-rays ${xaLines(xa.lines, 2) || 'none'}` : fmtE(E));
   log('nuc', `Antimatter annihilation: ${before} → ${what} (${fmtE(E)})${evap ? `, ${evap} nucleon${evap > 1 ? 's' : ''} knocked out` : ''}`);
   tally(ms, [], `Annihilation: ${before} → ${what}`);
 }
@@ -4909,7 +4924,7 @@ function breakCostIfCharged(p, dne) {
   if (p.ne + dne === 0) return p.bonds.reduce((s, bd) => s + bd.D, 0);
   const vi = valenceInfo(p.Z, p.ne + dne);
   let cap;
-  if (p.el.dblock) cap = Math.max(0, p.el.ox - Math.max(0, p.Z - p.ne - dne));
+  if (p.el.dblock) cap = Math.max(0, p.el.ox - Math.max(0, zChem(p) - p.ne - dne));
   else if (vi.n === 1) cap = vi.v === 1 ? 1 : 0;
   else cap = vi.v >= 8 ? 0 : vi.v <= 4 ? vi.v : 8 - vi.v;
   const hyper = p.bonds.some(bd => other(bd, p).el && other(bd, p).el.en >= 3);
@@ -4950,11 +4965,11 @@ function transferDE(d, a, r) { // donor d gives one electron to acceptor a
   if (d.ne <= 0 || bondBetween(d, a)) return Infinity;
   if (a.k !== NUC || d.k !== NUC) return Infinity;
   if (d.q + 1 > maxCation(d)) return Infinity;
-  const ieD = ionE(d.Z, d.ne);
+  const ieD = ionE(zChem(d), d.ne);
   let R;
-  if (a.ne + 1 <= a.Z) R = ionE(a.Z, a.ne + 1);
+  if (a.ne + 1 <= zChem(a)) R = ionE(zChem(a), a.ne + 1);
   else if (a.ne + 1 === a.Z + 1) { if (!(a.el.ea >= 0.7)) return Infinity; R = a.el.ea; } // stable anions only
-  else if (a.ne + 1 <= a.Z + maxExtraElectrons(a.Z)) R = ionE(a.Z, a.ne + 1);
+  else if (a.ne + 1 <= zChem(a) + maxExtraElectrons(zChem(a))) R = ionE(zChem(a), a.ne + 1);
   else return Infinity;
   const phiD = localPhi(d.x, d.y, d, a, d.z), phiA = localPhi(a.x, a.y, d, a, a.z);
   // the pair's own Coulomb energy before and after, in the form the forces use: a bare nucleus sees an atom's
@@ -6154,7 +6169,7 @@ function radPath(p, dt, q, mrest) {
   _rp[0] = x1; _rp[1] = y1;
 }
 function moveRad(p, dt) {
-  const q = p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(p.Z - p.ne, 0) || p.Z) : p.q;
+  const q = p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(zChem(p) - p.ne, 0) || zChem(p)) : p.q;
   const mrest = p.k === NUC ? p.m : PHYS.ME;
   const x0 = p.x, y0 = p.y;
   radPath(p, dt, q, mrest);
@@ -6328,7 +6343,7 @@ function inDetector(C, x, y) {
 const R_BB = 6, BB_SIG = 1.0;
 const bbG = (d) => (1 - Math.exp(-d * d / (2 * BB_SIG * BB_SIG))) / d; // the smoothed 1/b
 function beamBeam(C, a, b, ex, ey, d) {
-  const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(p.Z - p.ne, 0) || p.Z) : p.q);
+  const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(zChem(p) - p.ne, 0) || zChem(p)) : p.q);
   const qa = chg(a), qb = chg(b);
   if (!qa || !qb || !(C.bbN > 0)) return;
   const va = bSpd(a), vb = bSpd(b), ba = va / PHYS.C, bb = vb / PHYS.C, vrel = Math.hypot(va * a.ux - vb * b.ux, va * a.uy - vb * b.uy);
@@ -6398,7 +6413,7 @@ function boost(E, px, py, bx, by, g0) { // (g0: the frame's Lorentz factor when 
    scattering spreads its angles (and as in nuclearEncounter, which decides first whether they touch). Exact
    relativistic kinematics: energy and momentum are kept. Returns the angle, or null if one has no charge. */
 function nuclearScatter(a, b, d, ex, ey, reach = R_NN, rmap = 0) { // rmap (fm): map the pass onto impact parameters out to this instead
-  const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(p.Z - p.ne, 0) || p.Z) : p.q);
+  const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(zChem(p) - p.ne, 0) || zChem(p)) : p.q);
   const qa = chg(a), qb = chg(b);
   if (!qa || !qb) return null;
   const Rc = Math.max(1, 1.2 * ((a.k === NUC ? Math.cbrt(a.Z + a.N) : 0) + (b.k === NUC ? Math.cbrt(b.Z + b.N) : 0))); // fm
@@ -7812,7 +7827,7 @@ function housekeeping() {
   if (E > 0.3) {
     for (const p of W.parts) {
       if (p.dead || p.k !== NUC || p.ne === 0) continue;
-      const ie = ionE(p.Z, p.ne), Ec = ie * ie / (4 * PHYS.KE * Math.max(1, p.q + 1));
+      const ie = ionE(zChem(p), p.ne), Ec = ie * ie / (4 * PHYS.KE * Math.max(1, p.q + 1));
       if (E > Ec && rnd() < 0.2) {
         W.count.ionize++;
         ejectElectron(p, 0.5, -W.Ex / E, -W.Ey / E);
@@ -8940,7 +8955,7 @@ function userIonize(p) {
   return true;
 }
 function userAddElectron(p) {
-  if (!p || p.dead || p.k !== NUC || p.Z === 0 || p.ne >= p.Z + maxExtraElectrons(p.Z)) return false;
+  if (!p || p.dead || p.k !== NUC || p.Z === 0 || p.ne >= zChem(p) + maxExtraElectrons(zChem(p))) return false;
   const before = speciesLabel(p);
   p.ne++; refresh(p); enforceValence(p, null); relink([p]);
   log('tool', `${p.anti ? 'Positron' : 'Electron'} added: ${before} + ${p.anti ? 'e⁺' : 'e⁻'} → ${speciesLabel(p)}`);

@@ -311,8 +311,8 @@ function hypCatch(Zr, Nr, mres, Pr, PL, bx, by, items, moms, bz = 0) { // (bz: 3
 }
 /* A K⁻ slowed to a few keV: caught by an atom, it cascades down and is absorbed by the nucleus, K⁻p → Λπ⁰ or
    K⁻n → Λπ⁻ on one of its nucleons (the rest of the nucleus a spectator); the Λ, at about 30 MeV, may stay (hypCatch). */
-function kStop(o) {
-  const tg = stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.mu);
+function kStop(o, tgIn) { // (tgIn: as hStop, 1.27)
+  const tg = tgIn || stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.mu);
   if (!tg) return false;
   // the struck nucleon moves inside the nucleus (Fermi motion, up to about 250 MeV/c; none in a lone proton), and the rest
   // recoils against it: that is what leaves some Λ slow enough to stay. (Bug fix 15 after 1.25: with the kaon's own
@@ -521,8 +521,8 @@ function photoNuclear(p, E, ux, uy, uz = 0) { // (uz: 3-D, 1.25)
 /* A stopped negative hadron, caught by an atom like a muon and absorbed by its nucleus: a π⁻ on a nucleon pair (on
    hydrogen π⁻p → π⁰n or γn, the Panofsky ratio 1.5; on a deuteron π⁻d → nn); Σ⁻p → Λn, Ξ⁻p → ΛΛ, Ω⁻p → Ξ⁰Λ, the Λ
    perhaps staying (hypCatch). Returns true if it was caught. */
-function hStop(o) {
-  const tg = stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu);
+function hStop(o, tgIn) { // (tgIn: the atom whose orbit it fell through, the realistic-particle switch, 1.27)
+  const tg = tgIn || stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu);
   if (!tg) return false;
   const el = hitLabel(tg), x = tg.x, y = tg.y, items = [], moms = [], Po = exoP4(o);
   let txt = '', sub = '';
@@ -1058,8 +1058,9 @@ function muBoundTick(dt) {
     const Z = p.Z, N = p.N, Ms = nucMeV(Z - 1, N + 1) + 8 + 12 * rnd(), Min = nucMeV(Z, N) + mm;
     const canCapture = !nuclideInfo(Z - 1, N + 1).unbound && Ms < Min;
     if (!canCapture || rnd() < ld / (lc + ld)) { // decay in orbit
-      const items = ['e-', 'nub', 'numu'].map(item), vs = phaseSpace(mm, items.map(massOf));
+      const items = ['e-', 'nub', 'numu'].map(item), vs = B.zx ? xaMichel(mm) : phaseSpace(mm, items.map(massOf)); // (an exotic atom of the realistic-particle switch: the electron with the Michel spectrum, 1.27)
       const S = nucBegin([p]); p.muB = null; p.m = atomMass(p); p.im = 1 / p.m; // (the atom, the muon gone from its mass: its motion's ½m_μv² goes to the neutrinos, 1.26)
+      if (B.zx) { refresh(p); enforceValence(p, null); relink([p]); } // (its electrons see the whole nuclear charge again, inside the event's books, 1.27)
       const made = spawnItems(items, vs, x, y, z);
       closeEvent(S, made, x, y, B.m, B.m); W.count.decay++;
       log('nuc', `Decay in orbit: the muon in ${el} → e⁻ + ν̄ + ν`); nucEvent('decay', x, y, `μ⁻ in ${el} decays → e⁻ ν̄ ν`, [], '2.2 µs mean life', undefined, z);
@@ -1078,6 +1079,211 @@ function muBoundTick(dt) {
     nucEvent('capture', x, y, `Muon capture: ${txt}`, gh, `μ⁻ + p → n + ν inside the nucleus`, undefined, z); log('nuc', `Muon capture by the nucleus: ${txt}`);
     tally(items, ['μ⁻', el], txt);
   }
+}
+
+/* ---- Realistic particles 1: exotic atoms as real atoms (1.27, Experimental: Settings → Experimental → Realistic
+   particles → Exotic atoms; approved by the owner, 2026-11-05). Off (RP.exo false), nothing here runs and every setup is
+   as before, bit for bit. On:
+   - Capture (xaStep, xaTarget). A μ⁻, π⁻ or K⁻ slowed in matter is no longer caught at 2 keV but goes on slowing by
+     ionizing (exoIonize) until its kinetic energy is about that of the atoms' outer electrons (XA_CAP, 30 eV), and is
+     then caught by an atom within 1.5 Å, each with a chance in proportion to its Z (Fermi and Teller's Z law, Phys. Rev.
+     72, 399, 1947). It takes the place of an electron, which leaves with the particle's energy and its binding in the
+     first orbit (n₀ = √(m* / mₑ), m* the reduced mass: 14 for a muon, 16 for a pion, 30 for a kaon or an antiproton).
+   - The cascade (xaCascade). It falls through the circular orbits n → n − 1, each giving off its energy as an Auger
+     electron while the atom has electrons to give and the radiative rate is below XA_AUG (the upper cascade), else as an
+     X-ray (the lower one): radiative rate of the hydrogen-like 2p → 1s, 6.27×10⁸ s⁻¹ × Z⁴ m* / mₑ, scaled as n⁻⁵ up the
+     circular orbits (Bethe and Salpeter). Levels from Bohr's formula with the reduced mass; a muon's 1s from the measured
+     2p → 1s line (XA_KA: the nucleus's size lowers it, muonic lead 5.90 MeV against a point nucleus's 14.2 MeV). The
+     cascade takes about 10⁻¹³ s: at once here. Its books are exact: the X-rays carry their line energies exactly, the
+     electrons set free take what is left (xaClose).
+   - Its end: a muon stays in its 1s orbit and decays (the Michel spectrum, xaMichel) or is captured by the nucleus, at
+     the measured rates (muBoundTick, MU_TAU); a pion or kaon is absorbed from its last orbit (XA_NABS) by the existing
+     absorption (hStop: the star, or π⁻p → π⁰n / γn; kStop: Λ or Σ and pions, now and then a hypernucleus); an
+     antiproton annihilates (engine.js nuclearAnnihilation, the flat game only: antimatter is not in 3-D).
+   - To the outside a muonic atom is an atom of charge Z − 1 (p.muB.zx: engine.js zChem): its electrons see the nucleus
+     and the muon together, so muonic carbon takes boron's table entries (valence, bond energies and lengths, size,
+     electronegativity, ionization energies). Muonic hydrogen (μp, μd, μt) stays an unstable particle in W.exo, neutral
+     and 200 times smaller than an atom, so it passes through atoms; next to a heavier atom its muon moves over to it
+     (xaTransfer, μp + Z → μZ + p), at the measured rate.
+   The atom is an ordinary atom of the store with p.muB (as since 0.51), so Select, Erase, Inspect, copy, saves and undo
+   take it; muB carries what it is (sp), its orbit (n), the lines given off and the Auger electrons. */
+const RP = { exo: false }; // (the realistic-particle switches, set from Settings: ui.js applySettings)
+const XA_SPS = new Set(['mu-', 'pi-', 'K-']), XA_CAP = 30, XA_R = 1.5, XA_AUG = 1e12, XA_QMAX = 2, XA_ME = 0.51099895;
+const xaMass = (sp) => (sp === 'pbar' ? PHYS.MP * PHYS.AMU_MEV : XP[sp].m);
+const XA_NAME = { 'mu-': 'Muonic', 'pi-': 'Pionic', 'K-': 'Kaonic', pbar: 'Antiprotonic' }, XA_LAB = { 'mu-': 'μ⁻', 'pi-': 'π⁻', 'K-': 'K⁻', pbar: 'p̄' };
+function xaMred(sp, Z, N) { const m = xaMass(sp), M = nucMeV(Z, N); return m * M / (m + M); }
+function xaBohr(sp, Z, N, n) { return PHYS.RY * (xaMred(sp, Z, N) / XA_ME) * Z * Z / (n * n); } // (eV)
+/* Muonic 2p → 1s lines measured (keV; the 2p fine-structure pair at its 2 : 1 mean, lead 5,962.8 and 5,778.1): C, O, Al,
+   Si, Ca, Fe, Pb, from the muonic X-ray compilations (Engfer et al., At. Data Nucl. Data Tables 14, 509, 1974; Fricke
+   et al., 60, 177, 1995), values as I know them (no network here: worth a check). Between them the ratio to Bohr's value
+   is interpolated in Z; hydrogen's line is Bohr's (1.898 keV for μp). */
+const XA_KA = [[6, 12, 75.25], [8, 16, 133.53], [13, 27, 346.8], [14, 28, 400.2], [20, 40, 783.9], [26, 56, 1255], [82, 208, 5901]];
+const _xaKr = [[1, 1]].concat(XA_KA.map(([Z, A, k]) => [Z, k * 1e3 / (0.75 * xaBohr('mu-', Z, A - Z, 1))]));
+function xaKaRatio(Z) {
+  const R = _xaKr; if (Z <= 1) return 1;
+  for (let i = 1; i < R.length; i++) if (Z <= R[i][0]) { const [z0, r0] = R[i - 1], [z1, r1] = R[i]; return r0 + (r1 - r0) * (Z - z0) / (z1 - z0); }
+  const [z0, r0] = R[R.length - 2], [z1, r1] = R[R.length - 1]; return Math.max(0.3, r1 + (r1 - r0) * (Z - z1) / (z1 - z0));
+}
+/* An orbit's binding (eV): Bohr's with the reduced mass; a muon's 1s from the measured 2p → 1s line above 2p's. */
+function xaLevel(sp, Z, N, n) { return sp === 'mu-' && n === 1 ? xaBohr(sp, Z, N, 2) + 0.75 * xaKaRatio(Z) * xaBohr(sp, Z, N, 1) : xaBohr(sp, Z, N, n); }
+const xaN0 = (sp, Z, N) => Math.max(2, Math.round(Math.sqrt(xaMred(sp, Z, N) / XA_ME)));
+/* The orbit a hadron is absorbed from: where the strong interaction overtakes the X-rays, rounded from the last lines
+   measured in pionic, kaonic and antiprotonic atoms (Batty, Friedman and Gal, Phys. Rep. 287, 385, 1997; protonium
+   annihilates from 2p 99 times in 100, its 2p width 38 meV against 0.4 meV for the 2p → 1s X-ray). */
+const XA_NABS = { 'mu-': () => 1, 'pi-': (Z) => (Z <= 11 ? 1 : Z <= 35 ? 2 : Z <= 83 ? 3 : 4), 'K-': (Z) => (Z === 1 ? 1 : Z <= 8 ? 2 : Z <= 20 ? 3 : Z <= 40 ? 4 : Z <= 60 ? 5 : Z <= 75 ? 6 : 7), pbar: (Z) => (Z === 1 ? 2 : Z <= 8 ? 3 : Z <= 20 ? 4 : Z <= 40 ? 6 : Z <= 60 ? 8 : 9) };
+/* The atom that catches a slow negative particle: one within XA_R, by Z (Fermi–Teller), in a fixed order. */
+function xaTarget(o) {
+  const c = []; let wsum = 0;
+  const skip = (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu || p.rad;
+  const take = (p, r2) => { if (skip(p) || !(r2 < XA_R * XA_R)) return; c.push(p); wsum += p.Z; };
+  if (W.d3) nearby(o.x, o.y, XA_R, (p, dx, dy, r2) => take(p, r2), o.z); else nearby(o.x, o.y, XA_R, (p) => take(p, (p.x - o.x) ** 2 + (p.y - o.y) ** 2));
+  if (!c.length) return null;
+  c.sort((a, b) => a.id - b.id);
+  let u = rnd() * wsum; for (const p of c) { u -= p.Z; if (u < 0) return p; }
+  return c[c.length - 1];
+}
+/* moveExos: a μ⁻, π⁻ or K⁻ with the switch on. Returns true if it was caught (or, a hadron whose atom formed, absorbed). */
+function xaStep(o) {
+  if (o.xaDone) return o.sp === 'K-' ? kStop(o) : o.sp === 'pi-' ? hStop(o) : false; // (its atom made, its absorption failed once: tried again as before)
+  if (!(o.KE < XA_CAP)) return false;
+  const tg = xaTarget(o);
+  return tg ? xaCatch(o, tg) : false;
+}
+/* The cascade from orbit n0 down to n1 in the atom tg (already in an event's books): the capture's own electron first (the
+   particle's energy K0 and its binding in n0), then each n → n − 1. Electrons set free go to eOut; returns the X-ray lines
+   ({ E eV, a: from n, b: to n; a = 0 the capture itself }) and the count of Auger electrons. The atom is left at most
+   XA_QMAX positive: in a liquid or solid its holes fill from its neighbours within femtoseconds, which the game does not
+   follow, so past that the upper cascade radiates. */
+function xaCascade(tg, sp, Z, N, n0, n1, K0, eOut, noCap, debt = 0) { // (debt: what the atom's electrons lost in binding when the muon came inside them, eV: paid from the upper cascade first)
+  const mr = xaMred(sp, Z, N), lines = [];
+  let aug = 0;
+  const pay = (e) => { const t = Math.min(debt, e); debt -= t; return e - t; };
+  const rad = (n) => 6.268e8 * Z ** 4 * (mr / XA_ME) * Math.pow(2 / n, 5);
+  const auger = (dE) => {
+    if (tg.dead || tg.ne <= 0 || tg.q + 1 > XA_QMAX) return false;
+    const c = ionizationCost(tg); if (!(dE > c + 0.05)) return false;
+    const e = ejectElectron(tg, dE - c); if (!e) return false;
+    eOut.push(e); aug++; return true;
+  };
+  if (!noCap) { const Ec = pay(K0 + xaLevel(sp, Z, N, n0)); if (Ec > 0 && !auger(Ec)) lines.push({ E: Ec, a: 0, b: n0 }); }
+  for (let n = n0; n > n1; n--) { const dE = pay(xaLevel(sp, Z, N, n - 1) - xaLevel(sp, Z, N, n)); if (!(dE > 0) || (rad(n) < XA_AUG && auger(dE))) continue; lines.push({ E: dE, a: n, b: n - 1 }); }
+  return { lines, aug };
+}
+/* Close an exotic atom's books as closeEvent does, with the X-ray lines at their own energies: what the books leave beyond
+   them goes to the recipients (the Auger electrons; after a muon transfer, the proton and the atom), or, with none, to
+   one more soft photon (lines.rest). Then the lines are sent off. */
+function xaClose(S, made, x, y, z, Ein, mIn, lines, recips) {
+  if (made.lost) W.ledger.escaped += made.lost;
+  let mX = 0, EX = 0; for (const o of made.xs) { mX += o.m * MEV; EX += o.m * MEV + o.KE; }
+  const Qm = nucMassLoss(S); W.ledger.nuc += Qm + mIn - mX;
+  const Qrel = Qm - EX + Ein;
+  let X = 0; for (const l of lines) X += l.E;
+  const tol = 1e-9 * Math.max(1, X), rs = (recips || []).filter(q => q && !q.dead);
+  let left = nucLeft(S, Qrel) - X;
+  for (let k = 0; k < 4 && Math.abs(left) > tol && rs.length; k++) {
+    if (rs.length > 1) shareKE(rs, left);
+    else { const q = rs[0], K = keOf(q); if (!(K > 0) || !(K + left > 0)) break; if (q.rad) { q.KE = K + left; radSpeed(q); q.vx = q.sp * q.ux; q.vy = q.sp * q.uy; } else { const f = Math.sqrt((K + left) / K); if (W.d3) { q.vx *= f; q.vy *= f; q.vz *= f; updateFast(q); } else setVel(q, q.vx * f, q.vy * f); } }
+    left = nucLeft(S, Qrel) - X;
+  }
+  if (left < -tol) { for (const l of lines.slice().sort((a, b) => a.E - b.E)) { const t = Math.min(l.E, -left); l.E -= t; left += t; if (left >= 0) break; } } // (more given than there was: the softest lines give it back)
+  if (left > tol) lines.push({ E: left, a: -1, b: -1, rest: true });
+  for (const l of lines) { if (!(l.E > 0)) continue; const u = rdir(); if (W.d3) emitPhoton(x, y, l.E, u[0], u[1], { z, uz: u[2] }); else emitPhoton(x, y, l.E, u[0], u[1]); }
+}
+const xaLines = (L, k = 3) => L.filter(l => l.a > 0 && !l.rest).sort((a, b) => b.E - a.E).slice(0, k).map(l => `${fmtE(l.E)} (${l.a}→${l.b})`).join(', ');
+/* A slow μ⁻, π⁻ or K⁻ caught by tg. */
+function xaCatch(o, tg) {
+  const sp = o.sp, Z = tg.Z, N = tg.N, x = tg.x, y = tg.y, z = tg.z, el = speciesLabel(tg);
+  if (sp === 'mu-' && Z === 1 && N <= 2) return xaCatchH(o, tg);
+  const n0 = xaN0(sp, Z, N), n1 = XA_NABS[sp](Z), B1 = xaLevel(sp, Z, N, n1), K0 = o.KE;
+  const S = nucBegin([tg]);
+  let R = 0;
+  if (sp === 'mu-') { // (the muon stays: the atom's mass holds it, its electrons see Z − 1)
+    o.dead = true; o.fate = `caught by ${el}: a muonic atom`;
+    const I0 = internalE(tg);
+    tg.muB = { m: MU_M * MEV - B1, Eb: B1, sp, n: 1, zx: 1, n0 }; tg.m = atomMass(tg); tg.im = 1 / tg.m;
+    refresh(tg); enforceValence(tg, null); relink([tg]);
+    R = Math.max(0, internalE(tg) - I0); // (its electrons less bound by the screened charge: paid by the upper cascade)
+    (W.muBound || (W.muBound = [])).push(tg);
+  }
+  const made = { ps: [], xs: [], rays: [], lost: 0 };
+  const cas = xaCascade(tg, sp, Z, N, n0, n1, K0, made.ps, false, R);
+  xaClose(S, made, x, y, z, K0 + B1, B1, cas.lines, made.ps);
+  W.count.xatom = (W.count.xatom || 0) + 1;
+  const name = XA_NAME[sp], sub = `cascade n = ${n0} → ${n1}: X-rays ${xaLines(cas.lines) || 'none'}${cas.aug ? `; ${cas.aug} Auger electron${cas.aug > 1 ? 's' : ''}` : ''}`;
+  nucEvent('capture', x, y, `${name} atom: ${XA_LAB[sp]} caught by ${el}`, [], sub, undefined, z);
+  log('nuc', `${name} atom: ${XA_LAB[sp]} caught by ${el} into orbit n = ${n0}; ${sub}`);
+  if (sp === 'mu-') { tg.muB.lines = cas.lines.filter(l => l.a > 0 && !l.rest).map(l => [+l.E.toPrecision(6), l.a, l.b]); tg.muB.aug = cas.aug; return true; }
+  // a pion or kaon: absorbed by the nucleus from orbit n1, its binding there already given off (its mass is less by it)
+  o.KE = 0; o.m -= B1 / MEV; exoSpeed(o); o.xaDone = tg.id; o.x = x; o.y = y; if (W.d3) o.z = z;
+  if (!(sp === 'K-' ? kStop(o, tg) : hStop(o, tg))) return true; // (no consistent outcome this time: it waits, at rest, and is tried again)
+  return true;
+}
+/* A μ⁻ caught by hydrogen: muonic hydrogen (μp, μd, μt; W.exo as before), its cascade's lines given off (the atom's one
+   electron leaves at the capture, so the rest is X-rays: 2p → 1s 1.898 keV for μp). */
+function xaCatchH(o, tg) {
+  const sp = ['muP', 'muD', 'muT'][tg.N], N = tg.N, x = tg.x, y = tg.y, z = tg.z, el = speciesLabel(tg), n0 = xaN0('mu-', 1, N), kT = PHYS.KB * Math.max(W.T, 20);
+  const S = nucBegin([tg]), es = [];
+  const cas = xaCascade(tg, 'mu-', 1, N, n0, 1, o.KE, es);
+  kill(tg); o.dead = true; o.fate = `caught by ${el}: ${XP[sp].lab}`;
+  const made = spawnItems([item(sp)], [randDir4(XP[sp].m, 1.5 * kT / MEV)], x, y, z);
+  for (const e of es) made.ps.push(e);
+  if (made.xs[0]) { made.xs[0].cyc = o.cyc || 0; made.xs[0].xaL = cas.lines.filter(l => l.a > 0).map(l => [+l.E.toPrecision(6), l.a, l.b]); }
+  xaClose(S, made, x, y, z, o.KE + o.m * MEV, o.m * MEV, cas.lines, es.length ? es : made.xs.length ? [] : made.ps);
+  W.count.xatom = (W.count.xatom || 0) + 1;
+  const sub = `cascade n = ${n0} → 1: X-rays ${xaLines(cas.lines)}`;
+  nucEvent('capture', x, y, `Muonic atom: μ⁻ caught by ${el} → ${XP[sp].lab}`, [], sub, undefined, z);
+  log('nuc', `Muonic atom: μ⁻ caught by ${el} → ${XP[sp].lab}; ${sub}`);
+  return true;
+}
+/* Muonic hydrogen next to a heavier atom (within 2.5 Å, as muAtomTick takes a neighbour in liquid hydrogen): its muon moves
+   over, μp + Z → μZ + p, into the orbit of μZ just bound more deeply than μp's 1s, and cascades down there; the proton
+   and the atom fly apart with the difference. Rates at liquid hydrogen's density (s⁻¹): nitrogen 3.4×10¹⁰ and oxygen
+   8.5×10¹⁰, measured with thermal μp in hydrogen gas mixtures at PSI (late 1990s; values as I know them); other elements
+   scaled from oxygen's as Z (Gershtein's estimate, up to 1.5×10¹¹), helium's very slow (about 10⁸). */
+const XA_TR = { 2: 1e8, 7: 3.4e10, 8: 8.5e10 };
+const xaTrRate = (Z) => XA_TR[Z] || Math.min(1.5e11, 8.5e10 * Z / 8);
+function xaTransfer(o, clock) {
+  const tg = stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 2 || p.anti || p.muB || p.mu, 2.5);
+  if (!tg || !(rnd() < 1 - Math.exp(-xaTrRate(tg.Z) * clock))) return false;
+  const Z = tg.Z, N = tg.N, Nh = XP[o.sp].N, Bh = XP[o.sp].Eb * MEV, x = tg.x, y = tg.y, z = tg.z, el = speciesLabel(tg), hl = XP[o.sp].lab;
+  const B1 = xaLevel('mu-', Z, N, 1), P = exoP4(o), mN = nucMeV(1, Nh), pp = pmag(P);
+  const S = nucBegin([tg]), I0 = internalE(tg);
+  o.dead = true; o.fate = `its muon moved to ${el}`;
+  tg.muB = { m: MU_M * MEV - B1, Eb: B1, sp: 'mu-', n: 1, zx: 1, n0: 1, from: hl }; tg.m = atomMass(tg); tg.im = 1 / tg.m;
+  refresh(tg); enforceValence(tg, null); relink([tg]);
+  const R = Math.max(0, internalE(tg) - I0); // (its electrons less bound once the muon is inside them)
+  let nt = 1; for (let n = 1; n < 80 && xaLevel('mu-', Z, N, n) > Bh + R; n++) nt = n; // (the highest orbit the transfer can reach and still pay for that)
+  tg.muB.n0 = nt;
+  (W.muBound || (W.muBound = [])).push(tg);
+  muClear(o); // (where the bare nucleus will be, clear of the atoms, as for muonium)
+  const made = spawnItems([{ t: 'A', Z: 1, N: Nh, anti: false }], [[Math.sqrt(mN * mN + pp * pp), ...P.slice(1)]], o.x, o.y, o.z || 0); // (the bare nucleus left, with the muonic hydrogen's momentum)
+  const es = [], cas = xaCascade(tg, 'mu-', Z, N, nt, 1, 0, es, true);
+  const Ein = o.KE + o.m * MEV - tg.muB.m, rec = made.ps.length ? [made.ps[0], tg] : es;
+  xaClose(S, { ps: made.ps.concat(es), xs: [], rays: [], lost: made.lost }, x, y, z, Ein, Ein - o.KE, cas.lines, rec);
+  tg.muB.lines = cas.lines.filter(l => l.a > 0 && !l.rest).map(l => [+l.E.toPrecision(6), l.a, l.b]); tg.muB.aug = cas.aug;
+  W.count.xatom = (W.count.xatom || 0) + 1; W.count.muXfer = (W.count.muXfer || 0) + 1;
+  const sub = `into n = ${nt}, cascade to 1s: X-rays ${xaLines(cas.lines)}`;
+  nucEvent('capture', x, y, `Muon transfer: ${hl} + ${el} → μ${ELEMENTS[Z].sym} + ${['p', 'd', 't'][Nh]}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.15, lbl: hl }], sub, undefined, z);
+  log('nuc', `Muon transfer: ${hl} + ${el} → muonic ${ELEMENTS[Z].name.toLowerCase()} + ${['p', 'd', 't'][Nh]}; ${sub}`);
+  return true;
+}
+/* A bound muon's decay in orbit with the electron's Michel spectrum (x²(3 − 2x), x = E/E_max) in the muon's frame, the
+   two neutrinos sharing the rest isotropically in their own frame: four-momenta [e, ν̄, ν] in the atom's frame (mm: the
+   bound muon's mass, MeV, so the end point is lowered by its binding, as for a bound muon). The spectrum's distortion
+   by the nucleus's field (heavy atoms) is left out. */
+function xaMichel(mm) {
+  const me = XA_ME, Wm = (mm * mm + me * me) / (2 * mm), x0 = me / Wm;
+  let x = 1; for (let k = 0; k < 200; k++) { const t = x0 + (1 - x0) * rnd(); if (rnd() < t * t * (3 - 2 * t)) { x = t; break; } }
+  const Ee = x * Wm, pe = Math.sqrt(Math.max(0, Ee * Ee - me * me)), u = rdir();
+  const e = W.d3 ? [Ee, pe * u[0], pe * u[1], pe * u[2]] : [Ee, pe * u[0], pe * u[1]], R = neg4(mm - Ee, e), M = mass4(R);
+  const vv = twoBody(M, 0, 0, ...rdir()), b = vel4(R);
+  return [e, toLab(vv[0], ...b), toLab(vv[1], ...b)];
+}
+/* Inspect's words for an exotic atom's state (ui.js). */
+function xaInfo(p) {
+  const B = p.muB; if (!B) return null;
+  const [lc, ld] = muRates(p.Z, p.N), tau = 1 / (lc + ld);
+  return { name: 'muonic', n: B.n || 1, Eb: B.Eb, tau, cap: lc / (lc + ld), lines: B.lines || null, aug: B.aug || 0, zx: !!B.zx, n0: B.n0 || 0, from: B.from || '' };
 }
 
 /* ---- making the products, and the books */
@@ -1216,14 +1422,18 @@ function moveExos(dt, id0) {
     }
     if (dec) { if (d.hyp) hypDecay(o); else decayExo(o); continue; }
     if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (a beam's: in the ring's vacuum; thrown out of the beam, the detector stops it)
+    if (RP.exo && XA_SPS.has(o.sp)) { if (xaStep(o)) continue; } // (the realistic-particle switch: caught at tens of eV into an orbit, 1.27)
+    else {
     if (o.sp === 'mu-' && o.KE < MU_STOP && muStop(o)) continue;
     if (o.sp === 'K-' && o.KE < MU_STOP && kStop(o)) continue;
     if (H_STOP.has(o.sp) && o.KE < MU_STOP && hStop(o)) continue;
+    }
     if (o.sp === 'mu+' && o.KE < MU_STOP && !o.muTried && muoniumForm(o)) continue;
     if (d.strong === undefined) d.strong = strongExo(o.sp);
     if (d.strong && exoHits(o, x0, y0)) continue;
     if (d.atom) muAtomScatter(o, x0, y0);
     if (d.atom && clock > 0) muAtomTick(o, clock);
+    if (RP.exo && d.atom && !o.dead && clock > 0) xaTransfer(o, clock); // (its muon to a heavier atom beside it, 1.27)
   }
   if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
   return nXb;
@@ -1438,15 +1648,20 @@ function moveExos3(dt, id0) {
     if (dec) { if (d.hyp) hypDecay(o); else decayExo3(o); continue; }
     // captures at rest and nuclear hits, as in the flat game (1.25): a stopped μ⁻ makes a muonic atom, K⁻ and π⁻, Σ⁻, Ξ⁻, Ω⁻ are
     // absorbed by a nucleus, a μ⁺ may take an electron (muonium); strongly interacting ones meet the nuclei on their path
+    const xa = RP.exo && XA_SPS.has(o.sp);
+    if (xa) { if (xaStep(o)) continue; } // (the realistic-particle switch, 1.27)
+    else {
     if (o.sp === 'mu-' && o.KE < MU_STOP && muStop(o)) continue;
     if (o.sp === 'K-' && o.KE < MU_STOP && kStop(o)) continue;
     if (H_STOP.has(o.sp) && o.KE < MU_STOP && hStop(o)) continue;
+    }
     if (o.sp === 'mu+' && o.KE < MU_STOP && !o.muTried && muoniumForm(o)) continue;
     if (d.strong === undefined) d.strong = strongExo(o.sp);
     if (d.strong && exoHits3(o, x0, y0, z0)) continue;
     if (d.atom) muAtomScatter3(o, x0, y0, z0);
     if (d.atom && clock > 0 && muAtomTick(o, clock)) continue;
-    if (!o.stop && o.KE < MU_STOP && o.q) { // (slowed in matter to a couple of keV and not caught: at rest here, its last keV given to the atoms about it as heat)
+    if (RP.exo && d.atom && !o.dead && clock > 0 && xaTransfer(o, clock)) continue; // (1.27)
+    if (!o.stop && o.KE < MU_STOP && o.q && !xa) { // (with the switch: it slows on to its capture, 1.27) // (slowed in matter to a couple of keV and not caught: at rest here, its last keV given to the atoms about it as heat)
       const near = segTargets3(o.x - 1, o.y, o.z, o.x + 1, o.y, o.z, 3, (t) => t.k === NUC && t.Z > 0 && !t.dead)[0];
       if (near) { dumpHeat(o.KE, near[1], near[1]); o.KE = 0; exoSpeed(o); o.stop = true; }
     }
