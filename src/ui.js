@@ -5568,6 +5568,7 @@ const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the fart
 Object.assign(SET_DEF, { metal: 0 }); SET_OK.metal = [0, 1]; // (Experimental: bond orders for metals, 1.25)
 Object.assign(SET_DEF, { xq: 1 }); SET_OK.xq = [1, 2]; // (Experimental: the quantum bonds' method, GFN1-xTB or GFN2-xTB, 1.26)
 Object.assign(SET_DEF, { xqs: 0 }); SET_OK.xqs = [0, 1]; // (Experimental: the quantum bonds' spins, paired or polarized, 1.26)
+Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
@@ -5577,7 +5578,6 @@ const EXP_NAME = { dtMax: 'shorter longest step', resBig: 'resonance in large ri
 EXP_NAME.metal = 'many-body metals'; // (1.25)
 EXP_NAME.xq = 'GFN2-xTB'; // (1.26)
 EXP_NAME.xqs = 'polarized spins'; // (1.26)
-Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
 SET_EXP.push('lps', 'sigh', 'pis'); // (1.26)
 EXP_NAME.lps = 'lone pairs'; EXP_NAME.sigh = 'halogen σ-holes'; EXP_NAME.pis = 'π-stacking'; // (1.26)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)

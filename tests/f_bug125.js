@@ -88,7 +88,7 @@ PARTS.segGrid = async (page, check, say) => {
   const us = (performance.now() - t0); let want = '';
   for (const [x, y, z] of segs) { const L = []; for (const p of W.parts) { if (p.dead || !filt(p)) continue; const dx = 0.8, dy = 0.3, dz = -0.2, L2 = dx * dx + dy * dy + dz * dz, px = p.x - x, py = p.y - y, pz = p.z - z, t = (px * dx + py * dy + pz * dz) / L2; if (t < 0 || t >= 1) continue; const ex = px - t * dx, ey = py - t * dy, ez = pz - t * dz; if (ex * ex + ey * ey + ez * ez < 1) L.push([t, p.id]); } want += L.sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(h => h[1]).join(',') + ';'; }
   const r = { atoms: W.parts.length, us: +(us / segs.length * 1000).toFixed(1), same: got === want, hits: (got.match(/\d+/g) || []).length };
-  check(r.us < 30 && r.same && r.hits > 30, `bug fix 9: a path search among ${r.atoms} atoms in 3-D takes ${r.us} µs (the grid's cells), the same ${r.hits} atoms found as over every atom`, 'bugfix segGrid: ' + JSON.stringify(r));
+  check(r.us < 60 /* (126 µs over every atom before the fix; 25–49 measured with it, by load) */ && r.same && r.hits > 30, `bug fix 9: a path search among ${r.atoms} atoms in 3-D takes ${r.us} µs (the grid's cells), the same ${r.hits} atoms found as over every atom`, 'bugfix segGrid: ' + JSON.stringify(r));
 };
 
 /* 15. A K⁻ absorbed at rest (kStop) keeps momentum exactly, flat and 3-D: the kaon's own momentum and the atom's motion
