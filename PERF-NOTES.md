@@ -2837,7 +2837,12 @@ No network here: every value marked "from memory" below is worth a check against
   "Positronium is placed with the Positronium switch on (Settings → Experimental → Realistic particles → Positronium): its
   decays, its pick-off in matter and its conversion by O₂ are that switch's." (Hidden entries would leave the owner
   wondering where it went.) With it on, placing makes them at rest as for any unstable particle.
-- **Suites:** see the end of this section.
+- **Status (stopped by the coordinator, the owner's credit nearly gone):** all eight items (23, 26–32) are built, with
+  their checks in tests/f_feat1.js (every part passes here, every part but fp fails on v145). Alone: t_lint, t_energy,
+  t_hep, f_rp1 (its hadrons part updated for Σ), f_rp2, f_rp3, f_rp5, f_rp7, f_ew, f_feat1 pass. tools/runtests.sh was
+  cut short: every suite passed but t_features (still running when stopped: its misses so far 1.14's speed readout, the
+  known two-core flake, and f_126w's bo3 timing ×1.03 against 1.5, a timing check under load; neither rerun alone) and
+  t_touch (not reached). The ISR lepton-mass fix (5a742f5) came after the suite's snapshot; f_feat1 isr/scan pass on it.
 - **Found, not changed:** an event whose products pass the 1,500 unstable particles the box holds (MAX_EXO) carries the
   rest off with their energy (escaped) but not their charge: the charge count is off by theirs (v145 the same; seen
   with heavy flavour on in central Pb + Pb at 2.76 TeV, where the plasma's hadrons reach 1,500 even in Cu + Cu at 2.76
