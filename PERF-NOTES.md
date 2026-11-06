@@ -2739,7 +2739,110 @@ tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core
 checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
 f_bug126e pass alone.
 
-### 1.27: W and Z bosons (electroweak)
+### 1.27: features 23 and 26–32
+
+Branch v149 (from v145 at d875110, the combined 1.27). The owner's list, approved 2026-11-06 ("I approve all of them"): the
+small ones, built in one session. Every one is off or unchanged at normal settings but the two menu entries (31's button,
+32's particles): switches off, all 60 setups' fingerprints (tools/fingerprint.js, seed 7, 300 steps) are bit for bit
+v145's, LEP's included (the scan is a button; the beams' radiation and the W pair's angles go with Resonance widths and
+heavy flavour, see 29). Checks: tests/f_feat1.js (t_features runs it alone; `node tests/f_feat1.js [--node] [part …]`):
+fp, kaon, pol, aa, isr, mucap, scan, page; every part but fp fails on v145 (checked on a copy of d875110: no Σ, no
+polarization, no heavy flavour, "eeISR is not defined", the Z law, "zscanStart is not defined", no Matter depth line).
+No network here: every value marked "from memory" below is worth a check against its source.
+
+- **23. Stopped kaons make Σ too** (Exotic atoms on; hep.js kStop, KSIG, kSigma). A K⁻ absorbed at rest on a nucleon makes
+  Σπ two times in three, Λπ one in three (KSIG.share 2/3: K⁻ absorption at rest in ⁴He and in emulsion's light nuclei,
+  Katz et al. 1970, Vander Velde-Wilquet et al. 1977, from memory). On a proton the Σ's charge as in kaonic hydrogen at
+  rest: Σ⁺π⁻ : Σ⁰π⁰ : Σ⁻π⁺ = 0.466 : 0.272 : 0.198 (from R_c 0.664, R_n 0.189, γ 2.36; Tovee et al. 1971, Nowak et al.
+  1978, from memory); on a neutron Σ⁰π⁻ and Σ⁻π⁰ alike (isospin 1). On its way out the Σ turns into a Λ on a second
+  nucleon (ΣN → ΛN: Σ⁺n → Λp, Σ⁻p → Λn, Σ⁰N → ΛN) with the chance 1 − exp(−ρσL) (ρ 0.16 fm⁻³, σ ≈ 20 mb, L ¾ of the
+  residual's radius: 0.35 in ⁴He's residual, 0.48 in carbon's; about half measured in light emulsion nuclei, from memory);
+  the struck nucleon at rest in the residual's frame, the rest a spectator on its mass shell, so momentum and energy add
+  up exactly. A Σ⁰ that does not convert leaves as Λγ (its 7×10⁻²⁰ s). The Λ, converted or not, may still stay as a
+  hypernucleus (hypCatch). Captions name the channel ("K⁻p → Σ⁺π⁻, the Σ⁺ turned into a Λ on a neutron (Σ⁺n → Λp)").
+  Off (or with the switch off: kStop's other callers), as before. Measured (400 kaons each): carbon Σπ 271 (2/3: 267),
+  converted 140 of 271 (0.52); helium converted 87 of 271 (0.32); 3-D carbon 267 and 125; books within 1.5×10⁻⁵ eV of
+  events of ~10⁹ eV, charge kept. Cost: one more draw per stopped kaon.
+- **26. Matter depth** (Settings → Experimental → Realistic particles, the line after Charged particles in matter;
+  SET.cpmX → RP.cpmX). ×1 (normal), ×10³, ×10⁶: the existing hidden multiplier of part 3's rare processes, bremsstrahlung
+  and Cherenkov light. Its descriptions (the line's note, the side pane flat and 3-D) say plainly that it speeds up only
+  those rare processes, the collisions, δ-rays and energy loss staying at nature's rates, so a scaled shower's details are
+  off by the same factor (its critical energy that much lower, its radiation length that much shorter). Back to ×1 at
+  every start (SET_EXP), saved, in the Speed test's summary ("matter depth ×1,000") and the Experimental total. Cost tags:
+  ×1 with Charged particles in matter off; on, ×1–1.1 (×10³) and ×1–1.2 (×10⁶), measured on one thread: the radiation
+  setups unchanged (linac 0.22 ms a step at every factor, pion beam 7.3/7.2/6.8, photonuclear 4.5/4.1/5.0), 1 GeV
+  electrons fired through flat water 0.62 → 0.71 ms a step, through 3-D water 4.3 → 4.5 at ×10⁶. ×1 carries "realistic":
+  t_features 1.10's realistic-tag list gains a "1" (15 tags, the switches' 10 unchanged).
+- **27. Photon polarization: π⁰, η and ⁶⁰Co** (Photon polarization on; hep.js polPS0, GL_ACORR, glCorrDir). π⁰ → γγ and
+  η → γγ give the two photons perpendicular polarizations (the pseudoscalar's amplitude k·(ε₁ × ε₂): Yang 1950; for π⁰
+  seen in its double Dalitz pairs' planes, Plano et al. 1959), as part 7 does for annihilation pairs (polPair). ⁶⁰Ni's
+  1,173 → 1,332 keV cascade (4⁺ → 2⁺ → 0⁺, E2 E2; with Nuclear spin, γ lines on, which makes the lines): the second γ
+  leaves at θ to the first with W(θ) = 1 + A₂P₂(cos θ) + A₄P₄(cos θ), A₂ = 0.1020, A₄ = 0.0091 (the theory's, measured
+  alike since Brady and Deutsch 1950; from memory). **The brief wrote this as 1 + 0.102 cos²θ + 0.0091 cos⁴θ**: 0.1020 and
+  0.0091 are the Legendre coefficients; in powers of cos θ the same correlation is 1 + 0.125 cos²θ + 0.0417 cos⁴θ (exactly
+  1/8 and 1/24 for 4(2)2(2)0), 1.167 times as likely back to back as at 90° (the brief's literal form would give 1.111):
+  built with the measured A₂, A₄. In 3-D over the sphere; flat, in the plane (what a ring of detectors in the plane sees).
+  Measured: 139 flat and 144 3-D two-photon decays (of 100 π⁰ and 100 η each; the others are π⁰ Dalitz and η's 3π),
+  at rest |ε₁·ε₂| ≤ 1.1×10⁻¹⁶; 40,000 cascades: 3-D ⟨P₂⟩ 0.0195 (A₂/5 = 0.0204), flat ⟨cos²θ⟩ 0.5188 (W's 0.5193; at random
+  0.5). Not built: the polarization–direction correlation of the ⁶⁰Co γ rays (the γ lines carry no polarization), other
+  cascades (GL_ACORR has the one entry). Cost: nothing measurable.
+- **28. Charm and bottom from nucleus–nucleus collisions** (Resonance widths and heavy flavour on; hep.js hfNucl,
+  fragmentInto). A fireball's ncoll binary collisions (a·b/min(a, b)^⅔, as the W/Z code's: central Au + Au 1,150, Glauber
+  1,050) each make a pair at part 5's measured share per collision at √s_NN (hfShare), so the pairs are Poisson with mean
+  ncoll × share (J/ψ and Υ at part 5's shares); their hadrons (part 5's fragmentation fractions) join the plasma's or the
+  string's hadrons, which make the rest from what they leave (mass, baryon number and charge taken from the bulk's), when
+  they leave the fireball at least half its energy above its baryons. Central Au + Au at 200 GeV: 30.5 heavy hadrons a
+  collision flat, 39.5 in 3-D (expected ~16 pairs: 1,150 × 600 µb/42 mb), none with the switch off, books within 2.6×10⁻¹⁵ of
+  √s, charge kept. Central Pb + Pb at 2.76 TeV makes ~130 pairs (126 heavy hadrons seen), but see "found" below. Left out:
+  nuclear shadowing, energy loss in the plasma, recombination (written down).
+- **29. The Z peak lowered by the beams' radiation, and the W pair's forward peak** (Resonance widths and heavy flavour on;
+  hep.js eeISR, isrDraw, wwAng, in eeEvent). Gated by that switch, as the owner's rule asks (normal settings unchanged):
+  the beams' radiation is the Z's line shape, the switch's subject; the W/Z code itself stays always on. Initial-state
+  radiation: the Kuraev–Fadin radiator with soft photons to all orders, G(x) = βx^(β−1)(1 + δ) − β(1 − x/2), β =
+  (2α/π)(ln(s/mₑ²) − 1) = 0.1077 at the Z, δ = ¾β + (α/π)(π²/3 − ½); the Z's σ = ∫G(x)σ_Born(s(1 − x))dx (Simpson, 600
+  intervals, x = t^(1/β) for the singular part); a collision that makes a Z draws its x from G·σ_Born by rejection, the Z
+  at √s' with one photon (x√s/2) along a beam (either), A_FB at √s'; x below 1 MeV of photon left unradiated. Hadrons:
+  peak 30.59 nb at 91.19 GeV (Born 41.51; measured at LEP 30.4–30.5, from memory), highest 30.72 at 91.28 (moved up 0.09
+  GeV); 88 GeV 4.01 (Born 5.39), 90 15.48 (21.94), 92 24.56 (28.86), 93 14.05 (13.35), 94 8.76 (6.93): the high side
+  raised by radiative return. The photon channels keep their Born values (2–3% of the collisions at the Z). In 200 e⁺e⁻
+  collisions on the peak: every one a Z, 111 with a photon above 1 MeV, mean Z mass 91.0 GeV; books within 4.3×10⁻¹⁴.
+  W pairs: the W⁻ along the e⁻ with the t-channel neutrino's odds 1/(−t) = 1/(√s(E_W − q cos θ) − (m₁² + m₂²)/2), its
+  leading term: at 200 GeV forward : backward 15 : 1 at the poles, 0.77 of W⁻ in the forward half in 3-D (measured: 0.81
+  and 0.77 in 253 and 270 pairs, two seeds; f_feat1 0.86 of 127), against 0.5 before (LEP2 measured dσ/dcos θ rising
+  steeply toward the e⁻, from memory). Not built: the photon channels' own radiation, ISR on the W pairs, the W spins.
+  Cost: eeISR 0.16 ms per e⁺e⁻ collision above 10 GeV (cached for the same √s), the draw 0.004 ms; a Z's hadronic decay
+  takes 0.29 ms (W and Z section): about ×1.5 on a collision, a few hundred collisions a minute at most.
+- **30. Hydrogen in molecules catches muons less often** (Exotic atoms on; hep.js xaW, XA_HSH, in xaTarget). A slow μ⁻,
+  π⁻ or K⁻ is caught by an atom within 1.5 Å with odds Z (Fermi–Teller), except hydrogen bound in water, methane or a
+  hydrocarbon, whose weight is set so its molecule's share of captures on hydrogen is the measured one: H₂O 0.4% (Z law
+  20%), CH₄ 1.7% (40%), other hydrocarbons 1.2% (from memory: π⁻ capture in hydrogenous molecules, Krumshtein et al. 1968,
+  Petrukhin and Prokoshkin, Horváth; the large mesomolecule model, Ponomarev 1973; μ⁻ taken alike, the pion data being the
+  measured ones). Other molecules with hydrogen, H₂ and free hydrogen keep the Z law. Measured (20,000 draws, the whole
+  molecule in reach): water 0.0033, methane 0.0174, a free H beside an O 0.110 (1/9); ethane with 6 of its 8 atoms in reach
+  0.0083. Cost: a molecule() walk per hydrogen candidate of a slow negative particle.
+- **31. The LEP energy scan** (ui.js ZSCAN, zscanStart, zscanTick, zscanPoints, drawZScan; eeEvent records). Lab →
+  Collider: with e⁺e⁻ on a linear collider at 30–60 GeV a beam, a "Scan the Z peak" button (Stop the scan while it runs)
+  steps the beams through 44.5, 45, …, 47.5 GeV (√s about 88–94: the linac's beams arrive 1–5% below their setting, so
+  each collision's own √s is binned), 30 collisions at each. Every e⁺e⁻ collision above 10 GeV is recorded (its √s, the
+  total cross section, whether it made a Z, and from the Z's decay whether hadrons). The Data tab's new card "The Z line
+  shape (energy scan)" draws σ(e⁺e⁻ → Z → hadrons) in 1 GeV bins (the share of collisions that made it times the total
+  cross section there: LEP's events over its luminosity) with statistical errors, and the model's line (Born, or with the
+  beams' radiation when Resonance widths is on). Node (seed 7): 226 collisions in 9,190 steps (0.7 s), 9 bins 86.6–94.5
+  GeV, highest 43.1 nb at 91.5 (Born line 39.1 there), none off the line by 3σ; with Resonance widths on the highest 28.3 nb
+  at 91.6 (line 29.6). The LEP setup itself is unchanged (fingerprint equal); its hint names the button. A different
+  collider or setup ends a running scan. Screenshot: scratchpad scan31.png.
+- **32. Positronium on the particle menu** (ui.js PCATS, placeFly, the Place tool's line). "Exotic atoms and nuclei" lists
+  p-Ps and o-Ps (two entries: the owner can place either; positronium made in matter is still 1 : 3). Decided: shown
+  always, and with the Positronium switch off placing is refused with the reason, in the Place tool's line and the log:
+  "Positronium is placed with the Positronium switch on (Settings → Experimental → Realistic particles → Positronium): its
+  decays, its pick-off in matter and its conversion by O₂ are that switch's." (Hidden entries would leave the owner
+  wondering where it went.) With it on, placing makes them at rest as for any unstable particle.
+- **Suites:** see the end of this section.
+- **Found, not changed:** an event whose products pass the 1,500 unstable particles the box holds (MAX_EXO) carries the
+  rest off with their energy (escaped) but not their charge: the charge count is off by theirs (v145 the same; seen
+  with heavy flavour on in central Pb + Pb at 2.76 TeV, where the plasma's hadrons reach 1,500 even in Cu + Cu at 2.76
+  TeV: 2–3 e off in one event); a bookkeeping fix (their charge to ledger.qOut), left for a bug-fix session. The scan's
+  "measured σ" counts Z → hadrons only (γ* → hadrons, under 1% at the peak, is not counted).
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
 (2026-11-06, "Just add it", after an explanation of electroweak unification); approved physics. Always on, no switch:
