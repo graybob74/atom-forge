@@ -314,130 +314,6 @@ engine stores and visits particles.
 
 ## 1.26 (in progress)
 
-### 1.27: realistic particles 2 and 4 (positronium, muonium as hydrogen, μSR)
-
-Branch v142 (from v141 at 8328e8a, part 1). Parts 2 and 4 of the approved plan (the owner, 2026-11-05: "I ok all of
-them, just please make sure it doesnt mess with anything"), each its own switch in Settings → Experimental → Realistic
-particles, after Exotic atoms: "Positronium" (SET.rpPs → RP.ps) and "Muonium as hydrogen" (SET.rpMu → rpMuSet → RP.mu).
-Both off at start and back to off on reload (SET_EXP), one compact line each with its cost tag (flat and 3-D tables),
-its description in the side pane. Code: hep.js after part 1's block (psFromAtom, psFromFree, psMatter, psDecay,
-muSpinInit, muRate, muSpinTurn, muSpinDecay, muExoDecay, rpMuSet), hooks in engine.js (evLepton, evAnnihFree,
-ionizationCost/internalE through muIonF), hep.js (addExo, addMuonium, muoniumForm, muoniumTick, decayExo/3,
-moveExos/3), ui.js (Inspect, saves, Select), render.js (particle view). Checks: tests/f_rp2.js (t_features runs it
-alone; `node tests/f_rp2.js [--node] [part …]`); every part fails on v141 (no switches there).
-
-**Positronium.**
-- Forming. A positron touching an atom or molecule (evLepton, where it annihilated on contact) forms Ps in the Ore
-  gap: its energy apart from the pull between them, E, between I − 6.80 eV and I, I the electron's binding there
-  (ionizationCost). Below the gap Ps can't form (hydrogen: under 6.8 eV); above it ionization competes; in both the
-  positron annihilates on contact as before. At a negative ion the gap reaches zero (Cl⁻, I = 3.6 eV: any slow
-  positron). A free positron and electron within 0.3 Å (evAnnihFree) form Ps with a photon when the pair has less
-  than 6.8 eV of its own energy to spare (radiative capture: the spur electrons the positron's own track set free);
-  faster pairs annihilate as before. The event is tried first (the electron taken, the positron's charge off,
-  measured, undone) and then made through nucBegin/closeEvent: Ps gets exactly what is left. Antimatter mirrors it
-  (an electron taking a positron from an anti-atom).
-- Ps is an unstable particle in W.exo, pPs or oPs: neutral, 2mₑ − 6.80 eV, bound by Ry/2 = 6.803 eV, orbit radius
-  1.058 Å (twice hydrogen's). One in four is para (rnd < 0.25). Para lives 125.14 ps (7990.9 µs⁻¹, Al-Ramadhan and
-  Gidley, PRL 72, 1632, 1994) → 2 γ back to back; ortho lives 142.05 ns in vacuum (7.0404 µs⁻¹, Vallery, Zitzewitz and
-  Gidley, PRL 90, 203402, 2003) → 3 γ in a plane, energies from the Ore–Powell matrix element (Phys. Rev. 75, 1696,
-  1949), drawn on the Dalitz triangle by rejection (its maximum is 2, on the edges), the angles from closing the
-  momentum triangle, the plane turned at random (3-D: a random normal); boosted by the Ps's motion; the books close
-  through closeEvent (the photons share exactly what the Ps carried). It bounces off reflecting walls as muonic
-  hydrogen does, leaves through open ones.
-- In matter (psMatter, each step on the decay clock). Pick-off at λ = (1/1.80 ns − 1/142.05 ns) × ρₑ/ρ_water, ρₑ the
-  electron density within 5 Å (bound electrons of atoms and free electrons), ρ_water the flat game's own liquid water
-  (0.85 e/Å², measured in the water setup's middle) or real water's 0.334 e/Å³ in 3-D; 1.80 ns is water's o-Ps life
-  from positron lifetime spectroscopy at room temperature. Pick-off gives 2 γ (Ps's energy, the medium unchanged:
-  the positron takes a neighbour's electron, Ps's electron takes its place). Spin conversion by O₂ (two O atoms bonded
-  to each other only, neutral) at n·σ·v, σ = 1.5×10⁻¹⁹ cm² (the thermal o-Ps–O₂ conversion cross section measured in
-  O₂ gas, as I know it: no network here, worth a check), n counted as the electrons are and scaled by water's
-  3.34×10²² molecules/cm³; para back to ortho three times as fast (the states' counts). The surroundings are looked at
-  again once a Ps has moved 1 Å or every 8 steps (o.psE).
-- Measured (f_rp2 "form", "decay", "matter"; seeds as in the file):
-  - Forming, flat and 3-D: e⁺ at 10 eV on H → Ps with 3.20 eV (10 + 6.80 − 13.60, nearly all to the light Ps); at
-    2 eV → annihilates; at Cl⁻ at 3 eV → Ps; with a free electron at 1 eV → Ps and a ~7 eV photon; at 30 eV →
-    annihilates. Books against the same run with the switch off (the same approach; only the event differs): equal
-    to 5.6×10⁻¹¹ eV. (6 seeds × 7 cases each way in the scratch run: the books' drift, 0.02–0.35 eV in the
-    lepton-pair cases, is the close pair's integration before the event, the same off and on.)
-  - Para share 83 of 400 (0.21; 0.25 ± 0.022). p-Ps mean life 138.7 ps from 198 decays (maximum-likelihood with
-    the survivors; ±9 ps): 125.14 within 1.5 σ; each pair back to back to 10⁻⁴ and 510,995.55 eV each (511 keV less
-    half the binding). o-Ps: 600 decays flat and 600 in 3-D, every one 3 γ, coplanar, summing to the Ps's energy
-    within 10⁻³ eV, none over 511 keV; the photon spectrum against Ore–Powell's χ² 6.2 and 4.7 (9 degrees of
-    freedom). (Ore–Powell's single-photon spectrum is close to plain phase space's: 19.4% against 19.0% above
-    460 keV.)
-  - Pick-off life averaged over 600 points of liquid water: 1.81 ns flat (the box's middle; over the whole flat box,
-    with its edges, 2.45 ns), 1.90 ns in 3-D (the game's 3-D water is 5% less dense than real here). 40 o-Ps flying
-    in flat water with decay sped up 10⁵×: mean life 1.77 ns, 34 of 36 ended by pick-off; in an empty box 0 of 40
-    in the same time. Among O₂ (a box of 36): 1.1×10¹¹ s⁻¹ conversion there, n·σ·v exactly; o → p seen.
-- What the box can't make real (said in the texts): Ps passes through atoms (in nature its electron's repulsion
-  keeps it in a bubble ~3 Å across; the pick-off rate stands for that), keeps the energy it was made with (no
-  thermalizing collisions), makes no compounds (PsH) and is not oxidized by O₂; radicals other than O₂ don't convert
-  it; one mass for both spin states (0.84 meV apart). The pick-off scales with electron density only: hydrocarbons
-  come out about water's 1.9 ns where measured lives are 2.5–3 ns (their larger free volume). 142 ns is forever at
-  this timescale: shown in Inspect (its expected life where it is), seen only with decay sped up.
-
-**Muonium as hydrogen.** Muonium has been an H atom in MD with the muon's mass since 1.12 (bonding by hydrogen's force
-field); the switch adds:
-- Its binding: hydrogen's levels with its own reduced mass, MU_IONF = (1 + mₑ/m_p)/(1 + mₑ/m_μ) = 0.995729, so
-  13.540 eV for H's 13.598 (in internalE, neutralInternalE, ionizationCost, Inspect). Switching with muonium in the
-  box books the difference to the heat bath (rpMuSet): 0.0581 eV a muonium, exactly. Off, the factor is not applied
-  (×1, bit for bit).
-- Its chemistry is hydrogen's force field with its own mass (no new parameters): Mu + Cl₂ → MuCl + Cl in 4 of 6 shots
-  at 1 eV; Mu–Cl vibrates 2.937× faster than H–Cl (8,455 against 2,879 cm⁻¹; √ of the reduced masses' ratio 2.936),
-  flat and 3-D. Quantum nuclei's rings take the atom's mass, so its zero-point energy follows (the stretch's 2.9×
-  hydrogen's in the harmonic picture; not measured here).
-- The muon's spin (o.spin on a μ⁺ in W.exo, p.spin on muonium; p.eSpin its electron's). Given when made: against
-  the flight for a μ⁺ fired or born in a decay (π⁺ → μ⁺ν: fully polarized backward, as a surface-muon beam; exact for
-  a pion at rest, the lab direction for one in flight), across the field for one placed at rest (+x; 3-D across the
-  field's axis). Kept when it takes an electron (muoniumForm); the electron's spin along or against the field 1 in 2.
-  It turns about the field's axis on the decay clock (its own time): a bare μ⁺, or one bonded (diamagnetic), at
-  −γ_μB/2π, γ_μ/2π = 135.5388 MHz/T; muonium with its electron along the field at +ν₁₂, against it at −ν₃₄, from
-  the Breit–Rabi levels (ν₀ = 4,463.302 MHz, γₑ/2π = 28,024.951 MHz/T; CODATA 2018). At low field ν₁₂ → 1.3945 MHz/G,
-  the triplet's precession; ν₃₄ → ν₀ averages that half out.
-- Its decay (μ⁺ in W.exo: muExoDecay; muonium: muoniumTick): the positron's x and direction from the Michel
-  distribution with the polarization, x²[(3 − 2x) + (2x − 1)cos θ]; the neutrinos share the rest. In the flat game the
-  in-plane angle has that law (what a detector ring in the plane sees). Off, as before (three-body phase space).
-- Saves keep the spins (`mus` for muonium, a twelfth entry of `xa` for a μ⁺; older readers ignore both). Inspect: the
-  spin's direction and the precession there (frequency, period, which state); the particle view draws a small yellow
-  arrow on a muon or muonium.
-- Measured (f_rp2 "mu", "musr"): mass 0.11398 u (the muon 0.113429 u and its electron; the brief's 0.1138 u is a slip);
-  a μ⁺ at rest in 0.01 T turns at 135.54 MHz/T to 3.5×10⁻¹⁸ rad over 0.1 ns; muonium's ν₁₂ at 1 G 1.394 MHz
-  (1.3945 MHz/G; the brief's 13.9 MHz/G is 10× off: 1.39 MHz/G is 13.9 GHz/T). Asymmetry from 12,000 decays sampled:
-  0.327 flat, 0.323 in 3-D (1/3; 40,000: 0.326, 0.336). A ring of detectors: 400 μ⁺ placed at rest in 100 G, decay
-  sped up so a mean life is 100 steps: from the 400 positrons' directions and times alone the precession comes out at
-  1.335 MHz (1.355; the scan's resolution with 400 counts over ~3 turns), amplitude 0.42 (1/3 ± 0.07). Books: each
-  muonium decay step exact to 5×10⁻⁷ eV (flat and 3-D, 30 muonium in 1 mT); the run's drift after them, −1.2 eV flat
-  and −0.5 eV in 3-D over 200 steps, is the fast electrons and positrons among the rest (off: −1.0 and +0.2 eV).
-- What it can't make real: muonated radicals (Mu added to benzene …) precess here as a bare muon, without their own
-  hyperfine frequencies; a muonium that bonds and frees itself keeps the electron spin it formed with; no spin
-  relaxation (nuclear dipoles, collisions), no chemical shift; the half against the field turns at ~ν₀ where in nature
-  it oscillates (either way it averages out in a fraction of a nanosecond).
-
-**Off: nothing changes.** Fingerprints (tools/fingerprint.js, seed 7, 300 steps): all 59 setups, flat and 3-D, the
-same as v141 (one lane, before and after). On (both switches), annihilation, antihydrogen, pet, pionbeam, rhic, sns and water3d
-fingerprint as off over 300 steps (nothing there is slow enough to form Ps or spins a muon in that time); the muonium
-setup changes (its muons' spins drawn).
-
-**Costs** (one thread): ×1 where there is no positronium or muon. A Ps looks round itself for electrons and O₂ (2–5 µs
-flat, ~25 µs in 3-D a look, once an ångström or 8 steps); a muon's spin turn is a few multiplications.
-
-**For the owner (physics questions, written down, not decided):**
-- The brief's "below the Ore gap: kinetic energy under about 6.8 eV" reads the gap the other way: from ground-state
-  hydrogen Ps can only form above 6.8 eV (the gap is 6.8–13.6 eV); below, energy forbids it. Built as physics has
-  it; slow positrons form Ps with free electrons and at negative ions.
-- Outside the gap a positron touching a molecule still annihilates at once (0.51's rule); in nature a slow positron
-  wanders ~0.1–0.5 ns first. The game's water gives an electron at 18.4 eV (its ionization cost: oxygen's 13.6 eV
-  and the bonds weakened by the charge), so water's gap here is 11.6–18.4 eV against nature's 5.8–12.6.
-- The free-pair rule (Ps when the pair has less than 6.8 eV to spare) is a choice; the flat game's close pair is
-  measured mid-step at 0.3 Å, so a 10 eV positron on a resting electron (5 eV between them) formed Ps in 3-D and
-  annihilated in the flat game.
-- The O₂ cross section (1.5×10⁻¹⁹ cm²) and water's 1.80 ns are from memory: worth checking against the papers.
-- Ps is not on the particle menus (it is made by positrons); placing it by hand would be a menu entry.
-- Not built (said): Ps thermalizing, Ps chemistry, muonated radicals' hyperfine lines, spin relaxation.
-
-**Merge note for part 1 (v141):** f_rp1's layout check compared the section's ids exactly; it now checks that the
-first three are Ultra-realistic, Electrons as waves, Exotic atoms (the two new lines follow).
-
 ### 1.26: combined (branch v136)
 
 1.25 with every fix after it (v128) and the five 1.26 branches merged: GFN2 and spins with both refits (v131, v135),
@@ -467,7 +343,7 @@ Waiting for the owner:
   radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #3 (AsCl₅) and #16
   (3-D water recapture, physics).
 
-For 1.27 (not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
+For 1.27 (part 1, exotic atoms, and the Settings section built on branch v141: see "1.27: realistic particles 1"; the rest not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
 portrayed and how to implement an experimental setting that makes them as realistic as possible"; APPROVED, all seven
 parts, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything": each part its own Experimental
 switch, off at start; off, every setup bit for bit as before (fingerprints), energy books exact on; built after the
@@ -1953,6 +1829,252 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 `cargo run --release --example vlcheck|bocheck|mbcheck|qeqcheck -- dump…` with tools/vldump.js, bodump.js (3-D setups
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
+
+## 1.27 (in progress)
+
+### 1.27: realistic particles 1 (exotic atoms) and the Settings section
+
+Branch v141 (from v136 at e237efe, the combined 1.26 with the 3-D and exotic-particle sweeps). The first of the seven
+approved realistic-particle parts (the owner, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with
+anything"), and the Settings section they live in. Checks: tests/f_rp1.js (t_features runs it alone; `node tests/f_rp1.js
+[--node] [part …]`); every part fails on v136 (no switch there) and passes here.
+
+- **The Settings section.** Settings → Experimental now ends with the heading "Realistic particles" (an h3, `rpHead`) and
+  one compact line a part: its name, an on/off switch (a checkbox drawn as a switch, `input.sw`, `role="switch"`), its
+  cost tag and "realistic when on" tag; the description is in the side pane on hover or focus, as every row's since
+  1.25 (on a phone, under the line). Ultra-realistic mode (`setUltra`, now a switch) and Electrons as waves (`segWave`,
+  its two buttons kept) moved in from their own headings, with their ids, descriptions, notes, cost tags, pictures and
+  saved values unchanged (both still start at normal: `SET_EXP`). Then the new line, Exotic atoms (`setRpExo`,
+  `SET.rpExo`, `RP.exo` in hep.js; off at every start like the rest of the tab). Photons as waves has its place marked
+  (a comment in body.html) beside Electrons as waves; no row yet. The 3-D lab's note (`set3dNote`) names exotic atoms
+  (muons, pions and kaons; antiprotons flat-only), and the 3-D side pane has its own description and cost (SDESC3,
+  COSTS3). No Settings picture changed, so setshots were not remade. Screenshots: scratchpad rp1/set-desk-2d.png,
+  set-desk-3d.png, set-phone-3d.png. Check: f_rp1 "layout" (lines 24 / 61 / 24 px high: the waves line keeps its
+  buttons; nothing wider than the screen at 390 px).
+- **Exotic atoms (Experimental → Realistic particles → Exotic atoms).** Before: a μ⁻ slowed to 2 keV was caught by the
+  nearest atom, its binding (0.51's MU_EB) leaving as two X-rays, and the atom's electrons kept seeing the whole nucleus;
+  π⁻, K⁻ and p̄ were absorbed at once. With the switch on (hep.js, "Realistic particles 1"):
+  1. *Capture* (`xaStep`, `xaTarget`). A μ⁻, π⁻ or K⁻ below 2 keV slows on by ionizing (exoIonize, as above 2 keV) until
+     its kinetic energy is under 30 eV (`XA_CAP`, about the outer electrons'), then is caught by an atom within 1.5 Å,
+     each with a chance ∝ Z (Fermi and Teller 1947). It takes an electron's place (that electron leaves with the
+     particle's energy and its binding in the first orbit, n₀ = √(m*/mₑ): 14 for a muon, 15–16 for a pion, 30–31 for a
+     kaon, 30–43 for an antiproton). Below 2 keV a slowing pion or kaon has no nuclear hits at the enlarged reach
+     (0.35 Å): they ended most kaons in the hypernucleus factory before they were caught (at true size a slow one meets a
+     nucleus in flight about once in 10⁹).
+  2. *Cascade* (`xaCascade`, `xaClose`). Down the circular orbits n → n − 1: an Auger electron while the atom has one to
+     give and the radiative rate (hydrogen-like 2p → 1s, 6.27×10⁸ s⁻¹·Z⁴·m*/mₑ, ×(2/n)⁵ up the circular orbits) is
+     under 10¹² s⁻¹, else an X-ray (photons the game already tracks: screens, detectors and the spectroscope see them).
+     So carbon's cascade turns radiative below n ≈ 5 and lead's is radiative throughout. Levels: Bohr's with the reduced
+     mass; a muon's 1s from the measured 2p → 1s line (`XA_KA`: C 75.25, O 133.53, Al 346.8, Si 400.2, Ca 783.9,
+     Fe 1,255, Pb 5,901 keV, the Pb fine-structure pair 5,962.8 / 5,778.1 given as one line at its 2 : 1 mean; Engfer et
+     al. 1974, Fricke et al. 1995; between them the ratio to Bohr's value interpolated in Z). The electrons' own binding
+     lost when the muon comes inside them (their Z − 1, below) is paid from the upper cascade first. The atom is left at
+     most +2: in a liquid or solid its holes fill from the neighbours within femtoseconds (not followed here), so past
+     that the upper cascade radiates. The X-rays carry their line energies exactly; what the books leave beyond them
+     goes to the Auger electrons (`xaClose`).
+  3. *End.* A muon stays in 1s: decay in orbit, its electron with the Michel spectrum x²(3 − 2x) up to the bound muon's
+     mass (`xaMichel`; the free muon's was flat phase space, and still is), or nuclear capture (Z − 1, neutrons boiled
+     off), at the measured mean lives (MU_TAU, 1.26). A pion is absorbed from its last orbit (`XA_NABS`: 1s up to Na,
+     2p to Br, 3d to Bi; kaons 1s in H, 2p to O, 3d to Ca …; antiprotons 2p in H, 3d to O …, rounded from Batty, Friedman
+     and Gal, Phys. Rep. 287, 385, 1997) by the existing absorption (hStop: a star; π⁻p → π⁰n or γn, 3 : 2; kStop: Λπ, a
+     hypernucleus sometimes), its binding there already given off (its mass less by it). An antiproton (flat game:
+     `nuclearAnnihilation`) cascades first, then annihilates; in hydrogen that is protonium (p̄p), annihilating from 2p
+     (99 in 100 there: its 2p width 38 meV against 0.4 meV for the X-ray), its L line 1.735 keV.
+  4. *To the outside an atom of charge Z − 1* (`zChem`, engine.js, on `p.muB.zx`). The electrons of a muonic atom see the
+     nucleus and the muon together: refresh takes the element below for p.el (so its table entries: valence, capacity,
+     bond energies and lengths, size, electronegativity), its charge Z − 1 − nₑ, and ionE(Z − 1, …) in internalE,
+     ionizationCost, softFor, electron capture and transfer, field ionization and the flying charges. Muonic carbon is to
+     the outside boron: valence 3, first ionization 8.30 eV, named μC (`elSym`; formulas, labels, the 2-D and 3-D atom
+     labels and Inspect's tile, "Exotic atom, to the outside boron"). What does not carry over: rules written for one
+     element by its nuclear charge (`p.Z === 1` …: a muonic helium is hydrogen-like but makes no hydrogen bonds), the
+     continuous bond orders and quantum bonds (they read the nucleus's Z), the orbitals view (the nucleus's Z). After a
+     decay in orbit it is carbon again (inside the decay's books); after a capture the nucleus is boron and its
+     chemistry carries on.
+  5. *Muonic hydrogen* stays an unstable particle in W.exo (since 0.51; Select, Erase, copy, saves and undo take it
+     since the 1.26 sweep): neutral and 200 times smaller than an atom, it passes through atoms. Beside a heavier atom
+     (2.5 Å, as muAtomTick takes a neighbour in liquid hydrogen) its muon moves over (`xaTransfer`, μp + Z → μZ + p) at
+     the rate at liquid-hydrogen density: N 3.4×10¹⁰, O 8.5×10¹⁰ s⁻¹ (PSI, thermal μp in H₂ mixtures, late 1990s, values
+     as I know them), He about 10⁸, others scaled from O's as Z up to 1.5×10¹¹ (Gershtein's estimate), on the nuclear
+     clock (Lab → Decay speed) as muAtomTick's rates. It lands in the highest orbit bound more deeply than μp's 1s
+     plus the electrons' lost binding (oxygen: n = 7), cascades there, and the proton and the atom fly apart with the
+     difference (521 eV and 31 eV).
+  6. *Inspect*: a pill "muonic atom: a μ⁻ in its 1s orbit (n = 1), mean life here …", and lines Muon (binding, the orbit
+     it was caught into or came over from, the capture share), Cascade (the four strongest X-ray lines with their
+     orbits, the Auger electrons) and Chemistry ("its electrons see Z − 1 = 5: to the outside an atom of boron").
+  - *Representation, and why.* A heavier muonic atom was already an atom of the store with `p.muB` (0.51), which Select,
+    Erase, Inspect, copy, saves and undo take (1.26); the switch adds to that object what it is (`sp`, `n`, `n0`, the
+    lines, the Auger count, `zx` for Z − 1, `from` after a transfer), and saves carry it as an optional `xm` list (older
+    readers open it as a 0.51 muonic atom). Pionic, kaonic and antiprotonic atoms live 10⁻¹⁸–10⁻¹² s, at once at the
+    game's steps: they are made, cascade and end in one event, in the log and the event captions. μp stays in W.exo. So
+    no new kind of particle and nothing new in the kernels.
+  - *What the box can't make real, said not faked:* the strong-interaction shift and width of the last pionic and
+    kaonic lines (pionic carbon's 1s is Bohr's 99.1 keV here); Stark mixing and Coulomb de-excitation in hydrogen (μp's
+    and protonium's cascades are radiative after the capture's electron); the holes' refilling (the atom is kept at most
+    +2); the Lyman series' np → 1s side branches (circular orbits only); the 2p fine-structure pair as one line; muonic
+    lines other than 2p → 1s are Bohr's (lead's 3d → 2p 2.63 MeV against 2.64 / 2.50 measured). K⁻ absorption stays
+    Λπ only (kStop): its Σπ channels (about two thirds at rest on light nuclei) are not built.
+- **Numbers** (Node, f_rp1 and scratchpad rp1/t*.js):
+  - Lines: muonic C 2p → 1s 75.25 keV (75.25 measured), O 133.53, Pb 5,901 keV (5,963 / 5,778; a point nucleus 14.2 MeV),
+    μp 1.896 keV (1.898; QED's 0.2% left out), pionic C 99.1 keV, kaonic C 3d → 2p 62.9 keV, protonium 3d → 2p 1.735 keV
+    (1.74); muonic C's cascade: 3 Auger electrons, X-rays 75.3, 13.9, 4.88, 2.26 keV … (n ≤ 12). Flat and 3-D the same.
+  - Its end, 120 lone atoms each (mean life in units of the measured; capture share against measured): C 0.98 (0.09 /
+    0.08), Al 1.01 (0.58 / 0.61), Pb 1.07 (0.98 / 0.97), ±0.27 at 3σ; 3-D alike (scratchpad t6: C 1.11, Al 1.12, Pb 1.01,
+    ±0.30). Michel mean 36.6 MeV (36.9 for the bound muon's mass, 2,000 decays).
+  - π⁻ in carbon: 16 of 16 in three or more pieces (Be + n n p, Li + n p t, He + n n n p α …); π⁻p → π⁰n : γn 177 : 123 =
+    1.44 (Panofsky 1.5). K⁻ in carbon: Λ or a hypernucleus 16 of 16.
+  - Books: each capture, cascade, transfer and end within 10⁻⁵ eV (flat and 3-D; a muonic carbon's decay 4×10⁻⁷). A
+    1.5 keV muon fired into insulated liquid water slows to its capture (below 30 eV; by O or by H, as the Z law draws):
+    3-D 0.1–0.24 eV over the run; the flat game −2.7 to +6.5 eV over 70–120 steps, the known limit of ionized water (the
+    muon's last keV ionizes a few molecules).
+  - Switch off: the fingerprints of all 59 setups (seed 7, 300 steps) unchanged against v136; f_rp1 "off" keeps seven
+    of them (mucf, pionbeam, muonium, hyperfactory, annihilation, water, water3d) against v136's hashes.
+  - Cost: off, nothing (one flag test per slow μ⁻, π⁻, K⁻). On, ×1 where nothing is caught (pionbeam 2.63 → 2.70 ms a
+    step, noise); a capture is one event of 1.2–2.3 ms flat, 1.4–1.5 ms in 3-D (the cascade's electrons and X-rays; 40 atoms of C, O, Pb); where slow ones stop, the last
+    keV they now spend ionizing the matter (a small plasma the step chooser follows) costs more: muon-catalysed fusion
+    0.30 → 0.92 ms a step, the hypernucleus factory 0.40 → 1.72 (600 steps, seed 7, one thread).
+- **Found, not changed:** a neutron that hits a muonic atom's nucleus (an inelastic scattering or capture remakes the
+  nucleus) takes the muon away with it (muBoundTick: "its atom gone in some other event"), as before the switch: in a
+  box of muonic lead the capture neutrons ended 37 of 64 muonic atoms early (the lifetime checks use lone atoms).
+- **For the owner (physics questions, written down, not decided):**
+  - K⁻ at rest makes Σπ about twice as often as Λπ on light nuclei (and the Σ often converts to Λ in the nucleus): add
+    the Σπ channels with measured shares?
+  - The capture at 30 eV, chance ∝ Z: hydrogen in molecules is measured to catch fewer muons than the Z law gives (the
+    "large mesomolecular" models); per-molecule ratios could replace it where measured (water, methane).
+  - The atom kept at most +2 after its cascade (refilling not followed): in a thin gas a light muonic atom really ends
+    nearly bare.
+  - The transfer rates for elements other than N and O are scaled, not measured; MU_TAU's and XA_KA's values are from
+    memory of the compilations (no network here) and are worth a check against the papers.
+- **Test change:** t_features' 1.10 Settings check counts four "realistic when on" checkbox tags (Exotic atoms beside
+  resonance in large rings, detailed nuclear collisions and Ultra-realistic), not three.
+- **Suites** (2-core machine): alone t_lint, t_energy, t_hep, t_3d, t_settings, f_swx, f_hep126, f_sweep3d, f_rp1 pass;
+  t_features alone: f_rp1 passes, two misses (the 1.10 count above, fixed; the 1.14 slow-motion readout 1/1.3×, the known
+  two-core flake); tools/runtests.sh: 21 of 22 pass, t_features' one miss the f_bug125 "exoElastic" timing check (6.5 ms
+  under both lanes' load), which passes alone (f_bug125 alone: all pass).
+
+### 1.27: realistic particles 2 and 4 (positronium, muonium as hydrogen, μSR)
+
+Branch v142 (from v141 at 8328e8a, part 1). Parts 2 and 4 of the approved plan (the owner, 2026-11-05: "I ok all of
+them, just please make sure it doesnt mess with anything"), each its own switch in Settings → Experimental → Realistic
+particles, after Exotic atoms: "Positronium" (SET.rpPs → RP.ps) and "Muonium as hydrogen" (SET.rpMu → rpMuSet → RP.mu).
+Both off at start and back to off on reload (SET_EXP), one compact line each with its cost tag (flat and 3-D tables),
+its description in the side pane. Code: hep.js after part 1's block (psFromAtom, psFromFree, psMatter, psDecay,
+muSpinInit, muRate, muSpinTurn, muSpinDecay, muExoDecay, rpMuSet), hooks in engine.js (evLepton, evAnnihFree,
+ionizationCost/internalE through muIonF), hep.js (addExo, addMuonium, muoniumForm, muoniumTick, decayExo/3,
+moveExos/3), ui.js (Inspect, saves, Select), render.js (particle view). Checks: tests/f_rp2.js (t_features runs it
+alone; `node tests/f_rp2.js [--node] [part …]`); every part fails on v141 (no switches there).
+
+**Positronium.**
+- Forming. A positron touching an atom or molecule (evLepton, where it annihilated on contact) forms Ps in the Ore
+  gap: its energy apart from the pull between them, E, between I − 6.80 eV and I, I the electron's binding there
+  (ionizationCost). Below the gap Ps can't form (hydrogen: under 6.8 eV); above it ionization competes; in both the
+  positron annihilates on contact as before. At a negative ion the gap reaches zero (Cl⁻, I = 3.6 eV: any slow
+  positron). A free positron and electron within 0.3 Å (evAnnihFree) form Ps with a photon when the pair has less
+  than 6.8 eV of its own energy to spare (radiative capture: the spur electrons the positron's own track set free);
+  faster pairs annihilate as before. The event is tried first (the electron taken, the positron's charge off,
+  measured, undone) and then made through nucBegin/closeEvent: Ps gets exactly what is left. Antimatter mirrors it
+  (an electron taking a positron from an anti-atom).
+- Ps is an unstable particle in W.exo, pPs or oPs: neutral, 2mₑ − 6.80 eV, bound by Ry/2 = 6.803 eV, orbit radius
+  1.058 Å (twice hydrogen's). One in four is para (rnd < 0.25). Para lives 125.14 ps (7990.9 µs⁻¹, Al-Ramadhan and
+  Gidley, PRL 72, 1632, 1994) → 2 γ back to back; ortho lives 142.05 ns in vacuum (7.0404 µs⁻¹, Vallery, Zitzewitz and
+  Gidley, PRL 90, 203402, 2003) → 3 γ in a plane, energies from the Ore–Powell matrix element (Phys. Rev. 75, 1696,
+  1949), drawn on the Dalitz triangle by rejection (its maximum is 2, on the edges), the angles from closing the
+  momentum triangle, the plane turned at random (3-D: a random normal); boosted by the Ps's motion; the books close
+  through closeEvent (the photons share exactly what the Ps carried). It bounces off reflecting walls as muonic
+  hydrogen does, leaves through open ones.
+- In matter (psMatter, each step on the decay clock). Pick-off at λ = (1/1.80 ns − 1/142.05 ns) × ρₑ/ρ_water, ρₑ the
+  electron density within 5 Å (bound electrons of atoms and free electrons), ρ_water the flat game's own liquid water
+  (0.85 e/Å², measured in the water setup's middle) or real water's 0.334 e/Å³ in 3-D; 1.80 ns is water's o-Ps life
+  from positron lifetime spectroscopy at room temperature. Pick-off gives 2 γ (Ps's energy, the medium unchanged:
+  the positron takes a neighbour's electron, Ps's electron takes its place). Spin conversion by O₂ (two O atoms bonded
+  to each other only, neutral) at n·σ·v, σ = 1.5×10⁻¹⁹ cm² (the thermal o-Ps–O₂ conversion cross section measured in
+  O₂ gas, as I know it: no network here, worth a check), n counted as the electrons are and scaled by water's
+  3.34×10²² molecules/cm³; para back to ortho three times as fast (the states' counts). The surroundings are looked at
+  again once a Ps has moved 1 Å or every 8 steps (o.psE).
+- Measured (f_rp2 "form", "decay", "matter"; seeds as in the file):
+  - Forming, flat and 3-D: e⁺ at 10 eV on H → Ps with 3.20 eV (10 + 6.80 − 13.60, nearly all to the light Ps); at
+    2 eV → annihilates; at Cl⁻ at 3 eV → Ps; with a free electron at 1 eV → Ps and a ~7 eV photon; at 30 eV →
+    annihilates. Books against the same run with the switch off (the same approach; only the event differs): equal
+    to 5.6×10⁻¹¹ eV. (6 seeds × 7 cases each way in the scratch run: the books' drift, 0.02–0.35 eV in the
+    lepton-pair cases, is the close pair's integration before the event, the same off and on.)
+  - Para share 83 of 400 (0.21; 0.25 ± 0.022). p-Ps mean life 138.7 ps from 198 decays (maximum-likelihood with
+    the survivors; ±9 ps): 125.14 within 1.5 σ; each pair back to back to 10⁻⁴ and 510,995.55 eV each (511 keV less
+    half the binding). o-Ps: 600 decays flat and 600 in 3-D, every one 3 γ, coplanar, summing to the Ps's energy
+    within 10⁻³ eV, none over 511 keV; the photon spectrum against Ore–Powell's χ² 6.2 and 4.7 (9 degrees of
+    freedom). (Ore–Powell's single-photon spectrum is close to plain phase space's: 19.4% against 19.0% above
+    460 keV.)
+  - Pick-off life averaged over 600 points of liquid water: 1.81 ns flat (the box's middle; over the whole flat box,
+    with its edges, 2.45 ns), 1.90 ns in 3-D (the game's 3-D water is 5% less dense than real here). 40 o-Ps flying
+    in flat water with decay sped up 10⁵×: mean life 1.77 ns, 34 of 36 ended by pick-off; in an empty box 0 of 40
+    in the same time. Among O₂ (a box of 36): 1.1×10¹¹ s⁻¹ conversion there, n·σ·v exactly; o → p seen.
+- What the box can't make real (said in the texts): Ps passes through atoms (in nature its electron's repulsion
+  keeps it in a bubble ~3 Å across; the pick-off rate stands for that), keeps the energy it was made with (no
+  thermalizing collisions), makes no compounds (PsH) and is not oxidized by O₂; radicals other than O₂ don't convert
+  it; one mass for both spin states (0.84 meV apart). The pick-off scales with electron density only: hydrocarbons
+  come out about water's 1.9 ns where measured lives are 2.5–3 ns (their larger free volume). 142 ns is forever at
+  this timescale: shown in Inspect (its expected life where it is), seen only with decay sped up.
+
+**Muonium as hydrogen.** Muonium has been an H atom in MD with the muon's mass since 1.12 (bonding by hydrogen's force
+field); the switch adds:
+- Its binding: hydrogen's levels with its own reduced mass, MU_IONF = (1 + mₑ/m_p)/(1 + mₑ/m_μ) = 0.995729, so
+  13.540 eV for H's 13.598 (in internalE, neutralInternalE, ionizationCost, Inspect). Switching with muonium in the
+  box books the difference to the heat bath (rpMuSet): 0.0581 eV a muonium, exactly. Off, the factor is not applied
+  (×1, bit for bit).
+- Its chemistry is hydrogen's force field with its own mass (no new parameters): Mu + Cl₂ → MuCl + Cl in 4 of 6 shots
+  at 1 eV; Mu–Cl vibrates 2.937× faster than H–Cl (8,455 against 2,879 cm⁻¹; √ of the reduced masses' ratio 2.936),
+  flat and 3-D. Quantum nuclei's rings take the atom's mass, so its zero-point energy follows (the stretch's 2.9×
+  hydrogen's in the harmonic picture; not measured here).
+- The muon's spin (o.spin on a μ⁺ in W.exo, p.spin on muonium; p.eSpin its electron's). Given when made: against
+  the flight for a μ⁺ fired or born in a decay (π⁺ → μ⁺ν: fully polarized backward, as a surface-muon beam; exact for
+  a pion at rest, the lab direction for one in flight), across the field for one placed at rest (+x; 3-D across the
+  field's axis). Kept when it takes an electron (muoniumForm); the electron's spin along or against the field 1 in 2.
+  It turns about the field's axis on the decay clock (its own time): a bare μ⁺, or one bonded (diamagnetic), at
+  −γ_μB/2π, γ_μ/2π = 135.5388 MHz/T; muonium with its electron along the field at +ν₁₂, against it at −ν₃₄, from
+  the Breit–Rabi levels (ν₀ = 4,463.302 MHz, γₑ/2π = 28,024.951 MHz/T; CODATA 2018). At low field ν₁₂ → 1.3945 MHz/G,
+  the triplet's precession; ν₃₄ → ν₀ averages that half out.
+- Its decay (μ⁺ in W.exo: muExoDecay; muonium: muoniumTick): the positron's x and direction from the Michel
+  distribution with the polarization, x²[(3 − 2x) + (2x − 1)cos θ]; the neutrinos share the rest. In the flat game the
+  in-plane angle has that law (what a detector ring in the plane sees). Off, as before (three-body phase space).
+- Saves keep the spins (`mus` for muonium, a twelfth entry of `xa` for a μ⁺; older readers ignore both). Inspect: the
+  spin's direction and the precession there (frequency, period, which state); the particle view draws a small yellow
+  arrow on a muon or muonium.
+- Measured (f_rp2 "mu", "musr"): mass 0.11398 u (the muon 0.113429 u and its electron; the brief's 0.1138 u is a slip);
+  a μ⁺ at rest in 0.01 T turns at 135.54 MHz/T to 3.5×10⁻¹⁸ rad over 0.1 ns; muonium's ν₁₂ at 1 G 1.394 MHz
+  (1.3945 MHz/G; the brief's 13.9 MHz/G is 10× off: 1.39 MHz/G is 13.9 GHz/T). Asymmetry from 12,000 decays sampled:
+  0.327 flat, 0.323 in 3-D (1/3; 40,000: 0.326, 0.336). A ring of detectors: 400 μ⁺ placed at rest in 100 G, decay
+  sped up so a mean life is 100 steps: from the 400 positrons' directions and times alone the precession comes out at
+  1.335 MHz (1.355; the scan's resolution with 400 counts over ~3 turns), amplitude 0.42 (1/3 ± 0.07). Books: each
+  muonium decay step exact to 5×10⁻⁷ eV (flat and 3-D, 30 muonium in 1 mT); the run's drift after them, −1.2 eV flat
+  and −0.5 eV in 3-D over 200 steps, is the fast electrons and positrons among the rest (off: −1.0 and +0.2 eV).
+- What it can't make real: muonated radicals (Mu added to benzene …) precess here as a bare muon, without their own
+  hyperfine frequencies; a muonium that bonds and frees itself keeps the electron spin it formed with; no spin
+  relaxation (nuclear dipoles, collisions), no chemical shift; the half against the field turns at ~ν₀ where in nature
+  it oscillates (either way it averages out in a fraction of a nanosecond).
+
+**Off: nothing changes.** Fingerprints (tools/fingerprint.js, seed 7, 300 steps): all 59 setups, flat and 3-D, the
+same as v141 (one lane, before and after). On (both switches), annihilation, antihydrogen, pet, pionbeam, rhic, sns and water3d
+fingerprint as off over 300 steps (nothing there is slow enough to form Ps or spins a muon in that time); the muonium
+setup changes (its muons' spins drawn).
+
+**Costs** (one thread): ×1 where there is no positronium or muon. A Ps looks round itself for electrons and O₂ (2–5 µs
+flat, ~25 µs in 3-D a look, once an ångström or 8 steps); a muon's spin turn is a few multiplications.
+
+**For the owner (physics questions, written down, not decided):**
+- The brief's "below the Ore gap: kinetic energy under about 6.8 eV" reads the gap the other way: from ground-state
+  hydrogen Ps can only form above 6.8 eV (the gap is 6.8–13.6 eV); below, energy forbids it. Built as physics has
+  it; slow positrons form Ps with free electrons and at negative ions.
+- Outside the gap a positron touching a molecule still annihilates at once (0.51's rule); in nature a slow positron
+  wanders ~0.1–0.5 ns first. The game's water gives an electron at 18.4 eV (its ionization cost: oxygen's 13.6 eV
+  and the bonds weakened by the charge), so water's gap here is 11.6–18.4 eV against nature's 5.8–12.6.
+- The free-pair rule (Ps when the pair has less than 6.8 eV to spare) is a choice; the flat game's close pair is
+  measured mid-step at 0.3 Å, so a 10 eV positron on a resting electron (5 eV between them) formed Ps in 3-D and
+  annihilated in the flat game.
+- The O₂ cross section (1.5×10⁻¹⁹ cm²) and water's 1.80 ns are from memory: worth checking against the papers.
+- Ps is not on the particle menus (it is made by positrons); placing it by hand would be a menu entry.
+- Not built (said): Ps thermalizing, Ps chemistry, muonated radicals' hyperfine lines, spin relaxation.
+
+**Merge note for part 1 (v141):** f_rp1's layout check compared the section's ids exactly; it now checks that the
+first three are Ultra-realistic, Electrons as waves, Exotic atoms (the two new lines follow). t_features 1.10 now counts six
+"realistic when on" tags (part 1's four and these two).
 
 ## 1.25.0: the nuclear side in 3-D, continuous bond orders in 3-D with single bonds' twist, many-body metals, Settings by mode with 3-D pictures, 3-D labels off, 21 bug fixes
 
