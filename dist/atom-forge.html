@@ -39416,9 +39416,9 @@ function makeNote(C, A, B) {
   if (A.exo || B.exo) return out(exoNote(A, B, EA, EB, rs, at, R, list));
   if (A.lep && B.lep) {
     if (A.anti === B.anti) return out(`${at}: like charges only scatter.`);
-    const T = [[211.3, 'muon pairs'], [279.1, 'pion pairs (the ρ at 775 MeV)', 387.1e6], [987.4, 'kaon pairs (the φ at 1.02 GeV)', 509.22e6], [1876.5, 'proton–antiproton pairs'], [3553.7, 'τ pairs']];
+    const T = [[211.3, 'muon pairs'], [279.1, 'pion pairs (the ρ at 775 MeV)', 387.1e6], [987.4, 'kaon pairs (the φ at 1.02 GeV)', 509.22e6], [1876.5, 'proton–antiproton pairs'], [3553.7, 'τ pairs'], [66200, 'Z bosons (the Z peak at 91.19 GeV, 2.5 GeV wide)', 45.6e9], [160740, 'W⁺W⁻ pairs'], [182380, 'Z pairs']]; // (W and Z, 1.27)
     const can = ['two γ rays'].concat(T.filter(t => rs > t[0]).map(t => t[1])), nx = T.find(t => rs <= t[0]);
-    const atPhi = Math.abs(rs - 1019.46) < 4 ? ' At the φ resonance, kaon pairs outnumber everything else.' : '';
+    const atPhi = Math.abs(rs - 1019.46) < 4 ? ' At the φ resonance, kaon pairs outnumber everything else.' : Math.abs(rs - 91187.6) < 5000 ? ' Near the Z peak nearly every collision makes a Z⁰, which decays at once: two jets (70%), a lepton pair (10%) or two unseen neutrinos (20%).' : ''; // (the Z, 1.27)
     const belowPhi = sym && rs > 987.4 && rs < 1015.4; // (past the kaon threshold but short of the φ itself)
     if (belowPhi) go = 509.22e6;
     return out(`${at}: an electron and a positron can annihilate into ${list(can)}, in proportion to their cross sections.${rs > 2500 ? ' Hadrons come out as two jets, back to back: a quark and an antiquark fly apart and the colour string between them breaks into pions and kaons.' : ''}${atPhi}${belowPhi ? ' The φ resonance, where kaon pairs lead, is just above.' : nx ? next(nx[0], nx[1], nx[2]) : ''}`);

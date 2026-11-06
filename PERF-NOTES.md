@@ -2673,6 +2673,17 @@ ew/lep1.png, lep-data.png, ins-w.png.
   80.44 GeV (Γ 2,085); books (energy and momentum exact through closeEvent, rest mass in the nuclear ledger): e⁺e⁻ at the
   peak and at 200 GeV and placed W⁺, W⁻, Z⁰ (180 events each) flat within 2.8×10⁻¹⁴ of their energy, 3-D 2.4×10⁻¹⁴;
   hadron collisions within 4×10⁻¹⁵ of √s; Pb + Pb plasmas within 4.4×10⁻¹⁵.
+- **The collider panel** (makeNote): for e⁺e⁻ beams the list of what they can make goes on past τ pairs to "Z bosons (the
+  Z peak at 91.19 GeV, 2.5 GeV wide)" (from √s 66.2 GeV, the window; the go-to button offers 45.6 GeV a beam), "W⁺W⁻
+  pairs" (160.74 GeV) and "Z pairs" (182.38 GeV), and near the peak says that nearly every collision makes a Z⁰.
+- **Suites** (2-core machine, another session's tools/runtests.sh running for the first half): alone t_lint, t_energy,
+  t_hep, t_collider, t_3d, f_ew (all 11 parts, 93 s), f_rp1, f_rp2, f_rp3, f_rp5, f_rp7 pass. t_features alone (29 min, with
+  the other session's run): f_ew and every f_ file pass; misses: 1.14's slow-motion readout and 0.64's named save (both on
+  record as two-core flakes), f_bug125's two timing checks (exoElastic 4.26 ms against 3; pi3; rerun alone pi3 passes,
+  exoElastic swings 1.7–4.9 ms run to run on v145 as here), and "muons" (the catalysing muon stuck to an α after two
+  fusions: the page's random numbers are not seeded; the block alone passed 4 of 4). tools/runtests.sh (alone): 21 of 22
+  pass, t_features among them; t_page's 4 misses (the slow-motion button, the go-to-threshold button on the linac, the
+  nucleus card's Close twice) under the two lanes' load, and t_page alone passes (5 min).
 - **Fingerprints** (tools/fingerprint.js, seed 7, 300 steps): all 59 setups, flat and 3-D, equal v145's (76274f3), RHIC
   (gold at 200 GeV a nucleon pair, which draws for a W or Z in its plasma) included: no plasma forms within 300 steps.
   f_ew "fp" keeps 14 of them (rhic, ring, linac, dafne, annihilation, pionbeam, photonuc, hyperfactory, antihydrogen,
