@@ -332,15 +332,19 @@ function kStop(o, tgIn) { // (tgIn: as hStop, 1.27)
   // recoils against it: that is what leaves some Λ slow enough to stay. (Bug fix 15 after 1.25: with the kaon's own
   // momentum and the atom's motion, struckNucleon's spectator model in the atom's frame; the kaon was taken at rest and
   // the nucleus's motion left out, momentum kept only to 0.9 MeV/c. The same random draws, in the same order.)
-  const { onP, Zr, Nr, mres, PN, Pres } = struckNucleon(tg);
-  const Pe = add4(exoP4(o), PN), me = mass4(Pe), pi = onP ? 'pi0' : 'pi-', ex = Pe[1] / Pe[0], ey = Pe[2] / Pe[0], ez = (Pe[3] || 0) / Pe[0];
-  if (!(me > LAM_M + XP[pi].m)) return false;
-  const u = rdir(), [vL0, vp0] = twoBody(me, LAM_M, XP[pi].m, ...u), vL = toLab(vL0, ex, ey, ez), vp = toLab(vp0, ex, ey, ez);
+  let { onP, Zr, Nr, mres, PN, Pres } = struckNucleon(tg);
+  const Pe = add4(exoP4(o), PN), me = mass4(Pe), ex = Pe[1] / Pe[0], ey = Pe[2] / Pe[0], ez = (Pe[3] || 0) / Pe[0];
+  let pi = onP ? 'pi0' : 'pi-', hy = 'Lam', hm = LAM_M;
+  if (RP.exo && rnd() < KSIG.share) { const c = pickBr(KSIG[onP ? 'p' : 'n']); if (me > KSIG.m[c[0]] + XP[c[1]].m) { hy = c[0]; pi = c[1]; hm = KSIG.m[hy]; } } // (Exotic atoms on: Σπ twice as often as Λπ, 1.27 item 23)
+  if (!(me > hm + XP[pi].m)) return false;
+  const u = rdir(), [vL0, vp0] = twoBody(me, hm, XP[pi].m, ...u), vp = toLab(vp0, ex, ey, ez);
+  let vL = toLab(vL0, ex, ey, ez), how = '';
   const items = [], moms = [], x = tg.x, y = tg.y, el = hitLabel(tg);
   items.push(item(pi)); moms.push(vp);
+  if (hy !== 'Lam') { const k = kSigma(hy, vL, Zr, Nr, mres, Pres, items, moms); how = k.how; if (k.conv) ({ Zr, Nr, mres, Pres } = k); vL = k.vL; } // (the Σ turned into a Λ on a second nucleon, or leaving: vL null)
   let hyp = false;
-  if (Zr + Nr >= 2) hyp = hypCatch(Zr, Nr, mres, Pres, vL, 0, 0, items, moms);
-  if (!hyp) { items.push(item('Lam')); moms.push(vL); if (Zr + Nr) residualInto(Zr, Nr, mres, Pres, false, items, moms); }
+  if (vL && Zr + Nr >= 2) hyp = hypCatch(Zr, Nr, mres, Pres, vL, 0, 0, items, moms);
+  if (!hyp) { if (vL) { items.push(item('Lam')); moms.push(vL); } if (Zr + Nr) residualInto(Zr, Nr, mres, Pres, false, items, moms); }
   const e0 = moms.length;
   for (let i = 0; i < tg.ne; i++) { items.push(item('e-')); moms.push(randDir4(PHYS.MEC2, 5 / MEV)); }
   if (tg.ne) { // (the freed electrons carry, between them, the momentum they had riding on the atom: the nucleus's share is in PN, Pres)
@@ -349,8 +353,37 @@ function kStop(o, tgIn) { // (tgIn: as hStop, 1.27)
     for (let i = e0; i < moms.length; i++) { let p2 = 0; for (let c = 1; c < d; c++) p2 += moms[i][c] * moms[i][c]; moms[i][0] = Math.sqrt(PHYS.MEC2 * PHYS.MEC2 + p2); }
   }
   const txt = `K⁻ + ${el} → ${summarize(items.filter(it => it.t !== 'e'))}`;
-  exoEvent(o, [tg], items, moms, x, y, 'capture', txt, hyp ? 'kaon absorbed: the Λ stayed, a hypernucleus' : `kaon absorbed: K⁻${onP ? 'p → Λπ⁰' : 'n → Λπ⁻'}`, tg.z);
+  const prim = `K⁻${onP ? 'p' : 'n'} → ${(hy === 'Lam' ? 'Λ' : KSIG.lab[hy]) + XP[pi].lab}`;
+  exoEvent(o, [tg], items, moms, x, y, 'capture', txt, `kaon absorbed: ${prim}${how}${hyp ? '; the Λ stayed, a hypernucleus' : ''}`, tg.z);
   return true;
+}
+/* (1.27, item 23: Exotic atoms on) A K⁻ absorbed at rest on a nucleon makes Σπ about twice as often as Λπ on light nuclei
+   (KSIG.share 2/3: K⁻ absorption in ⁴He and in emulsion's C, N, O nuclei, Katz et al. 1970, Vander Velde-Wilquet et
+   al. 1977, values from memory). On a proton the Σ's charge as in kaonic hydrogen at rest (Σ⁺π⁻ : Σ⁰π⁰ : Σ⁻π⁺ =
+   0.466 : 0.272 : 0.198, from R_c 0.664, R_n 0.189, γ 2.36, Tovee et al. 1971 / Nowak et al. 1978, from memory); on a
+   neutron Σ⁰π⁻ and Σ⁻π⁰ alike (isospin 1 only). On its way out the Σ meets a second nucleon and turns into a Λ (ΣN →
+   ΛN, 77 MeV freed) with the chance 1 − exp(−ρσL), ρ 0.16 fm⁻³, σ about 20 mb, L ¾ of the residual's radius 1.2·A^⅓
+   fm: 0.35 in ⁴He's residual, 0.48 in carbon's (about the half measured in light emulsion nuclei, from memory); a
+   Σ⁺ needs a neutron for it (Σ⁺n → Λp), a Σ⁻ a proton (Σ⁻p → Λn). The Σ⁰ (7×10⁻²⁰ s) leaves as Λγ. */
+const KSIG = { share: 2 / 3, p: [[0.466, ['Sig+', 'pi-']], [0.272, ['Sig0', 'pi0']], [0.198, ['Sig-', 'pi+']]], n: [[0.5, ['Sig0', 'pi-']], [0.5, ['Sig-', 'pi0']]],
+  m: { 'Sig+': 1189.37, Sig0: 1192.642, 'Sig-': 1197.449 }, lab: { 'Sig+': 'Σ⁺', Sig0: 'Σ⁰', 'Sig-': 'Σ⁻' }, conv: (A) => 1 - Math.exp(-0.29 * Math.cbrt(A)) };
+const labOfP = (v, P, M) => toLab(v, P[1] / P[0], P[2] / P[0], (P[3] || 0) / P[0], P[0] / M); // (from the rest frame of four-momentum P, of mass M, to the lab)
+function kSigma(hy, PS, Zr, Nr, mres, Pres, items, moms) {
+  const Ar = Zr + Nr, onP = hy === 'Sig-' ? true : hy === 'Sig+' ? false : null;
+  const can = Ar >= 1 && (onP === true ? Zr >= 1 : onP === false ? Nr >= 1 : true);
+  if (can && rnd() < KSIG.conv(Ar)) { // ΣN → ΛN on a nucleon of the residual, at rest in its frame (the rest a spectator, on its mass shell)
+    const p2 = onP === null ? rnd() < Zr / Ar : onP, Z2 = Zr - (p2 ? 1 : 0), N2 = Nr - (p2 ? 0 : 1), m2 = Z2 + N2 ? nucMeV(Z2, N2) : 0;
+    const zero = (m) => (Pres.length > 3 ? [m, 0, 0, 0] : [m, 0, 0]), P2 = m2 ? labOfP(zero(m2), Pres, mres) : null, PN2 = m2 ? labOfP(zero(mres - m2), Pres, mres) : Pres;
+    const out = hy === 'Sig+' ? 'p' : hy === 'Sig-' ? 'n' : p2 ? 'p' : 'n', mo = massOf(item(out)), Pc = add4(PS, PN2), Mc = mass4(Pc);
+    if (Mc > LAM_M + mo) {
+      const [a, c] = twoBody(Mc, LAM_M, mo, ...rdir());
+      items.push(item(out)); moms.push(labOfP(c, Pc, Mc));
+      return { conv: true, vL: labOfP(a, Pc, Mc), Zr: Z2, Nr: N2, mres: m2, Pres: P2 || zero(0), how: `, the ${KSIG.lab[hy]} turned into a Λ on a ${p2 ? 'proton' : 'neutron'} (${KSIG.lab[hy]}${p2 ? 'p' : 'n'} → Λ${out})` };
+    }
+  }
+  if (hy === 'Sig0') { const [a, c] = twoBody(KSIG.m.Sig0, LAM_M, 0, ...rdir()); items.push(item('g')); moms.push(labOfP(c, PS, KSIG.m.Sig0)); return { conv: false, vL: labOfP(a, PS, KSIG.m.Sig0), how: ', Σ⁰ → Λγ' }; }
+  items.push(item(hy)); moms.push(PS);
+  return { conv: false, vL: null, how: '' };
 }
 
 /* ---- Unstable hadrons and nuclei (0.62). A hadron in flight that passes within a nucleus's reach (where the nucleus
@@ -1158,12 +1191,28 @@ const XA_NABS = { 'mu-': () => 1, 'pi-': (Z) => (Z <= 11 ? 1 : Z <= 35 ? 2 : Z <
 function xaTarget(o) {
   const c = []; let wsum = 0;
   const skip = (p) => p.dead || p.k !== NUC || p.Z < 1 || p.anti || p.muB || p.mu || p.rad;
-  const take = (p, r2) => { if (skip(p) || !(r2 < XA_R * XA_R)) return; c.push(p); wsum += p.Z; };
+  const take = (p, r2) => { if (skip(p) || !(r2 < XA_R * XA_R)) return; c.push(p); wsum += xaW(p); };
   if (W.d3) nearby(o.x, o.y, XA_R, (p, dx, dy, r2) => take(p, r2), o.z); else nearby(o.x, o.y, XA_R, (p) => take(p, (p.x - o.x) ** 2 + (p.y - o.y) ** 2));
   if (!c.length) return null;
   c.sort((a, b) => a.id - b.id);
-  let u = rnd() * wsum; for (const p of c) { u -= p.Z; if (u < 0) return p; }
+  let u = rnd() * wsum; for (const p of c) { u -= xaW(p); if (u < 0) return p; }
   return c[c.length - 1];
+}
+/* (1.27, item 30) An atom's odds of catching the particle: its Z (Fermi–Teller), except hydrogen bound in a molecule,
+   which catches far fewer than its Z gives: the particle is caught by the molecule as a whole, mostly by the heavier
+   atoms' electrons, and only now and then on a hydrogen (the "large mesomolecule" model, Ponomarev 1973). Measured
+   shares of a molecule's captures that end on its hydrogens (π⁻ capture, the best measured; μ⁻ is caught alike), from
+   memory, worth a check: H₂O 0.4% (Z law 20%), CH₄ 1.7% (40%), other hydrocarbons 1.2% (C₂H₆ to C₆H₁₄ about 1–1.4%;
+   Krumshtein et al. 1968, Petrukhin and Prokoshkin, Horváth). Each hydrogen's weight is set so its molecule's share is
+   that; other molecules with hydrogen, H₂ and free hydrogen keep Fermi–Teller's Z. */
+const XA_HSH = { water: 0.004, methane: 0.017, hc: 0.012 };
+function xaW(p) {
+  if (p.Z !== 1 || !linked(p)) return p.Z;
+  const m = molecule(p); let nH = 0, nC = 0, nO = 0, zH = 0;
+  for (const a of m) { if (a.Z === 1) nH++; else { zH += a.Z; if (a.Z === 6) nC++; else if (a.Z === 8) nO++; } }
+  const k = nO === 1 && nC === 0 && nH === 2 && m.length === 3 ? 'water' : nC > 0 && nC + nH === m.length ? (nC === 1 && nH === 4 ? 'methane' : 'hc') : null;
+  if (!k) return p.Z;
+  const W1 = XA_HSH[k]; return W1 * zH / (nH * (1 - W1));
 }
 /* moveExos: a μ⁻, π⁻ or K⁻ with the switch on. Returns true if it was caught (or, a hadron whose atom formed, absorbed). */
 function xaStep(o) {
@@ -2065,6 +2114,7 @@ function decayExo3(o) {
   const keepTag = _evTag; _evTag = o.ev;
   const made = spawnItems3(items, vs.map(v => boost3(v[0], v[1], v[2], v[3], -bx, -by, -bz, o.gam)), o.x, o.y, o.z); // (its γ itself: from 1 − β² it kept ~10⁻⁶ of itself at γ ≈ 10⁵, the products of a PeV event's debris 0.1–0.9 MeV off over their decays, 1.26)
   _evTag = keepTag;
+  polPS0(o, items, made); // (Photon polarization: π⁰, η → 2γ at right angles, 1.27 item 27)
   closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
   W.count.decay++;
   const txt = `${o.lab} → ${summarize(items)}`, life = d.tau * o.gam;
@@ -2398,6 +2448,7 @@ function decayExo(o) {
   const keepTag = _evTag; _evTag = o.ev; // (its products belong to the collision that made it: the pair masses pair them with the rest)
   const made = spawnItems(items, vs.map(v => toLab(v, bx, by, 0, o.gam)), o.x, o.y); // (its γ itself, as decayExo3, 1.26)
   _evTag = keepTag;
+  polPS0(o, items, made); // (Photon polarization: π⁰, η → 2γ at right angles, 1.27 item 27)
   closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
   W.count.decay++;
   const txt = `${o.lab} → ${summarize(items)}`, life = d.tau * o.gam;
@@ -2438,17 +2489,22 @@ function eeEvent(a, b, x, y) {
   const H = hadronParts(s), xb = a.xb || b.xb, ml = restE(a) / MEV / 1000; // (a muon and an antimuon, or a τ pair, in a collider's beams: 1.15)
   const neg = (p) => (p.xb ? p.q < 0 : p.k === ELEC), Pneg = neg(a) ? Pa : Pb;
   const ew = M > EW.EEMIN ? ewEE(s) : null; // (the Z, W pairs and Z pairs, above 10 GeV: below it nothing changes, 1.27)
-  const ch = pickBr([[sigGG(s, xb ? ml : 0), 'gg'], [xb ? sigLL(s, PHYS.MEC2 / 1000) : 0, 'ee'], [sigLL(s, XP['mu-'].m / 1000), 'mm'], [sigLL(s, XP['tau-'].m / 1000), 'tt'], [H.rho, 'rho'], [H.omega, 'omega'], [H.phi, 'phi'], [H.cont, 'cont'], [H.cc, 'cc'], [H.bb, 'bb']].concat(ew ? [[ew.Z, 'Z'], [ew.WW, 'WW'], [ew.ZZ, 'ZZ']] : []));
-  let toks = null, ang = null, zf = null;
+  const isr = ew && RP.res ? eeISR(s) : null; // (Resonance widths on: the Z's line shape with the beams' own radiation, 1.27 item 29)
+  if (ew && W.zscan && W.zscan.run) W.zscan.tot = 0; // (the energy scan, item 31: this collision's total cross section, summed below)
+  const ch = pickBr([[sigGG(s, xb ? ml : 0), 'gg'], [xb ? sigLL(s, PHYS.MEC2 / 1000) : 0, 'ee'], [sigLL(s, XP['mu-'].m / 1000), 'mm'], [sigLL(s, XP['tau-'].m / 1000), 'tt'], [H.rho, 'rho'], [H.omega, 'omega'], [H.phi, 'phi'], [H.cont, 'cont'], [H.cc, 'cc'], [H.bb, 'bb']].concat(ew ? [[ew.Z, 'Z'], [ew.WW, 'WW'], [ew.ZZ, 'ZZ']] : []).map(c => { if (c[1] === 'Z' && isr) c[0] = isr.Z; if (ew && W.zscan && W.zscan.run) W.zscan.tot += Math.max(0, c[0]); return c; })); // (isr: the Z's σ with the beams' radiation, 1.27 item 29)
+  let toks = null, ang = null, zf = null, isrV = null, isrS = 0, isrE = 0;
   const lep = ew ? ewAng(ewAfb(s, -1, -0.5)) : (c) => (1 + c * c) / 2; // (above 10 GeV the lepton pairs' forward–backward asymmetry from the γ–Z interference, 1.27)
   if (ch === 'mm') { toks = ['mu-', 'mu+']; ang = lep; }
   else if (ch === 'ee') { toks = ['e-', 'e+']; ang = (c) => (1 + c * c) / 2; }
   else if (ch === 'tt') { toks = ['tau-', 'tau+']; ang = lep; }
+  else if (ch === 'Z' && isr) { const r = isrDraw(s, isr), e = ewAxis(toRest(Pneg, P[1] / P[0], P[2] / P[0], (P[3] || 0) / P[0])), Mz = M * Math.sqrt(1 - r); isrS = s * (1 - r); // (a beam radiated x of √s first: the Z at √s' = √s·√(1 − x), the photon along its beam, 1.27 item 29)
+    if (r > 0) { const sg = rnd() < 0.5 ? 1 : -1; toks = [{ t: 'x', sp: 'Z0', m: Mz }, 'g']; isrV = twoBody(M, Mz, 0, ...e.map(c => -sg * c)); isrE = (M - Mz * Mz / M) / 2; } else toks = [{ t: 'x', sp: 'Z0', m: M }]; }
   else if (ch === 'Z' && Math.abs(M / 1000 - EW.MZ) <= 10 * EW.GZ) toks = [{ t: 'x', sp: 'Z0', m: M }]; // (the Z peak: one Z, its mass the collision's √s, at rest in their frame; it decays at once, ewDecay, 1.27)
   else if (ch === 'Z') { zf = ewFinal('Z0', M, ewAxis(toRest(Pneg, P[1] / P[0], P[2] / P[0], (P[3] || 0) / P[0])), s); if (zf) toks = zf.items; } // (off the peak, past M ± 10Γ: what a Z would decay into, made directly, 1.27)
   else if (ch === 'WW' || ch === 'ZZ') { // (a pair, each its own mass from its width, flying apart at random; 1.27)
     const [s1, s2] = ch === 'WW' ? ['W+', 'W-'] : ['Z0', 'Z0'], m1 = bwMassRel(s1, M - (XP[s2].m - 10 * XP[s2].w) - 0.01), m2 = m1 ? bwMassRel(s2, M - m1 - 0.01) : null;
     if (m2) toks = [{ t: 'x', sp: s1, m: m1 }, { t: 'x', sp: s2, m: m2 }];
+    if (m2 && ch === 'WW' && RP.res) { const e = ewAxis(toRest(Pneg, P[1] / P[0], P[2] / P[0], (P[3] || 0) / P[0])), u = ewDir(e, wwAng(s, m1, m2)); isrV = twoBody(M, m1, m2, ...u.map(c => -c)); } // (the W⁻ forward along the e⁻, 1.27 item 29)
   }
   else if (ch === 'rho') { toks = ['pi+', 'pi-']; ang = (c) => 1 - c * c; }
   else if (ch === 'omega') toks = pickBr([[0.893, ['pi+', 'pi-', 'pi0']], [0.084, ['pi0', 'g']], [0.015, ['pi+', 'pi-']]]);
@@ -2459,6 +2515,7 @@ function eeEvent(a, b, x, y) {
     const mp = XP[pair[0]].m + XP[pair[1]].m, rest = M - mp;
     toks = rest > 400 ? pair.concat(hadronize(rest - 100, 0, 0, {}) || []) : pair;
   }
+  if (ew && W.zscan && W.zscan.run) { W.zscan.last = { rs: M / 1000, tot: W.zscan.tot, z: ch === 'Z', had: zf ? !!zf.qq : false }; W.zscan.rec.push(W.zscan.last); } // (the energy scan's record of this collision, 1.27 item 31)
   let items = toks ? toks.map(item) : null;
   if (!items || (ch !== 'Z' && items.reduce((t, it) => t + massOf(it), 0) >= M - 0.01)) { // two γ rays
     if (!xb) { annihilateInFlight(a, b, x, y); return; }
@@ -2472,7 +2529,8 @@ function eeEvent(a, b, x, y) {
     let th = 0; for (let k = 0; k < 60; k++) { th = rnd() * 2 * Math.PI; if (rnd() < (1 + Math.cos(th) ** 2) / 2) break; }
     jet = turn2(e[1] / en, e[2] / en, th);
   }
-  if (zf) { vs = zf.vs; if (zf.jet) addString(x, y, zf.jet[0], zf.jet[1], items.length); } // (1.27)
+  if (isrV && items.length === 2) vs = isrV; // (1.27 item 29)
+  else if (zf) { vs = zf.vs; if (zf.jet) addString(x, y, zf.jet[0], zf.jet[1], items.length); } // (1.27)
   else {
   if (jet) { const ri = resonate(items, M), v2 = jetMomenta(ri, M, jet[0], jet[1], { ptScale: 0.7 }); if (v2) { items = ri; vs = v2; } else vs = jetMomenta(items, M, jet[0], jet[1]); } // (born partly as resonances)
   if (jet && vs) addString(x, y, jet[0], jet[1], items.length);
@@ -2487,9 +2545,9 @@ function eeEvent(a, b, x, y) {
   const txt = `${ins[0]} + ${ins[1]} → ${summarize(items)}`, sub = `√s = ${fmtE(M * MEV)}`;
   const gh = [xbGhost(a), xbGhost(b)];
   const made = xbClose(a, b, items, vs.map(v => toLab(v, bx, by, bz)), x, y, txt);
-  if (ch === 'Z') { const e = toRest(Pneg, bx, by, bz), ax = ewAxis(e); for (const o of made.xs) if (o.sp === 'Z0') { o.ewAx = ax; o.ewS = s; } } // (its decay's angles: to the electron's direction, A_FB at its √s, 1.27)
+  if (ch === 'Z') { const e = toRest(Pneg, bx, by, bz), ax = ewAxis(e); for (const o of made.xs) if (o.sp === 'Z0') { o.ewAx = ax; o.ewS = isrS || s; if (W.zscan && W.zscan.run) o.zsc = W.zscan.last; } } // (isrS: A_FB at the Z's own √s'; zsc: the scan's record, its decay says if hadrons, 1.27 items 29, 31) // (its decay's angles: to the electron's direction, A_FB at its √s, 1.27)
   W.count.annih++;
-  nucEvent('prod', x, y, txt, gh, ch === 'Z' ? `${sub}: ${zf ? 'through a Z, off its peak' : 'the Z peak (91.19 GeV, 2.50 GeV wide)'}` : sub);
+  nucEvent('prod', x, y, txt, gh, ch === 'Z' ? `${sub}: ${zf ? 'through a Z, off its peak' : 'the Z peak (91.19 GeV, 2.50 GeV wide)'}${isrE ? `; a beam radiated ${fmtE(isrE * MEV)} first (the Z at ${fmtE(M * Math.sqrt(isrS / s) * MEV)})` : ''}` : sub);
   log('nuc', `Annihilation in flight: ${txt} (${sub})`);
   flash(x, y, [255, 230, 180], 6, 0.6);
   tally(items, [xbIn(a), xbIn(b)], txt);
@@ -3062,6 +3120,8 @@ function fragmentInto(a, b, Pa, Pb, b3, anti, items, moms) {
   const sNN0 = mass4(add4(Pa.map(c => c / sd[0].A), Pb.map(c => c / sd[1].A)));
   const ew = sNN0 > EW.HMIN ? ewDraw(sNN0, Infinity, 0, 'pp', Pa, Pb, sd[0].ap * sd[1].ap / Math.pow(Math.max(1, Math.min(sd[0].ap, sd[1].ap)), 2 / 3)) : null;
   if (ew && anti) ew.sp = XP[ew.sp].cc;
+  const hv = RP.res && sNN0 > HF_THR.cc * 1000 ? hfNucl(sNN0, sd[0].ap * sd[1].ap / Math.pow(Math.max(1, Math.min(sd[0].ap, sd[1].ap)), 2 / 3)) : []; // (charm and bottom by the binary collisions, 1.27 item 28)
+  let hB = 0, hQ = 0, hM = 0; for (const t of hv) { hB += XP[t].B || 0; hQ += XP[t].q; hM += XP[t].m; }
   for (let att = 0; att < 4; att++) {
     let F = add4(Pa, Pb);
     for (const s of sd) {
@@ -3078,21 +3138,24 @@ function fragmentInto(a, b, Pa, Pb, b3, anti, items, moms) {
     if (!(epsP > 0)) continue;
     const fx = F[1] / F[0], fy = F[2] / F[0], fz = (F[3] || 0) / F[0], Ab = toRest(Pa, fx, fy, fz), Lb = Math.hypot(Ab[1], Ab[2]) || 1, bax = Ab[1] / Lb, bay = Ab[2] / Lb, ax3 = unit3(Ab); // (the beams' axis, in the fireball's frame; ax3: in 3-D, 1.25)
     let fb, vs;
+    const hvOn = hv.length && Bp - hB >= 0 && hM < 0.5 * (MF - Bp * 938.9 - 300 - (ew ? ew.m : 0)), mh = hvOn ? hM : 0, bh = hvOn ? hB : 0, qh = hvOn ? hQ : 0; // (the heavy hadrons, when the fireball can make them and keep half its energy, 1.27 item 28)
     if (epsP >= QGP.eps && Bp >= QGP.minA) { // the overlap melts into a quark–gluon plasma, which freezes out into hadrons
       const ewOn = ew && MF > ew.m + Bp * 938.9 + 300; // (a W or Z with the plasma's hadrons: they share what it leaves, its charge taken from theirs, 1.27)
-      const sNN = 2 * (epsP + 938.9), q = qgpHadrons(MF - (ewOn ? ew.m : 0), Bp, Qp - (ewOn ? (anti ? -1 : 1) * ewQ(ew) : 0), sNN);
+      const sNN = 2 * (epsP + 938.9), q = qgpHadrons(MF - (ewOn ? ew.m : 0) - mh, Bp - bh, Qp - (ewOn ? (anti ? -1 : 1) * ewQ(ew) : 0) - qh, sNN);
       if (!q) continue;
       fb = anti ? q.items.map(conjItem) : q.items;
       if (ewOn) fb.push(ew);
+      if (hvOn) for (const t of hv) fb.push(item(anti ? conjTok(t) : t));
       { const ri = fb.length <= 4000 ? resonate(fb, MF) : fb, v2 = jetMomenta(ri, MF, bax, bay, { thermal: true, ax3 }); if (v2) { fb = ri; vs = v2; } else vs = jetMomenta(fb, MF, bax, bay, { thermal: true, ax3 }); }
       if (!vs) continue;
       for (let i = fb.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [fb[i], fb[j]] = [fb[j], fb[i]]; [vs[i], vs[j]] = [vs[j], vs[i]]; } // (shuffled: if not all fit in the chamber, those that do are a fair sample)
       _qgpLast = { n: q.items.length, sNN, muB: q.muB, Bp }; // (the hadrons it froze into: resonances counted as what they become)
     } else {
       const ewOn = ew && MF > ew.m + Bp * 938.9 + 300; // (a W or Z made: the rest from what it leaves, 1.27)
-      fb = hadronize(MF - (ewOn ? ew.m : 0), anti ? -Bp : Bp, (anti ? -Qp : Qp) - (ewOn ? ewQ(ew) : 0), { pFrac: Qp / Bp, clusters: epsP });
+      fb = hadronize(MF - (ewOn ? ew.m : 0) - mh, anti ? -(Bp - bh) : Bp - bh, (anti ? -(Qp - qh) : Qp - qh) - (ewOn ? ewQ(ew) : 0), { pFrac: Qp / Bp, clusters: epsP });
       if (!fb) continue;
       if (ewOn) fb.push(ew);
+      if (hvOn) for (const t of hv) fb.push(item(anti ? conjTok(t) : t)); // (1.27 item 28)
       vs = null;
       if (epsP > 2000 && fb.length >= 3) { const ri = resonate(fb, MF), v2 = jetMomenta(ri, MF, bax, bay, { lead: isBaryonItem, ptScale: 0.7, ax3 }); if (v2) { fb = ri; vs = v2; } } // (high energy: along the beams, as strings stretch)
       if (!vs) vs = phaseSpace(MF, fb.map(massOf));
@@ -3291,8 +3354,21 @@ function hfDraw(rs, avail, B) { // rs: the collision's √s (MeV); avail: the en
   const k = u < f.bb ? (rnd() < HF_ONIA.bb ? 'ups' : 'bb') : u < f.bb + f.cc ? (rnd() < HF_ONIA.cc ? 'jpsi' : 'cc') : null;
   return k && avail > HF_MIN[k] + Math.max(0, B) * 938.9 + 300 ? k : null;
 }
+function hfToks(hq) { return hq === 'jpsi' ? ['Jpsi'] : hq === 'ups' ? ['Ups'] : hq === 'cs' ? [pickBr(HF_FRAG.c)] : [pickBr(HF_FRAG[hq[0]]), conjTok(pickBr(HF_FRAG[hq[0]]))]; } // (cs: a W⁺'s c s̄, a charmed hadron and a kaon, 1.27)
+/* (1.27, item 28: Resonance widths and heavy flavour on) Charm and bottom from a nucleus–nucleus (or nucleon–nucleus)
+   fireball: each of its ncoll binary nucleon collisions makes a pair at the share measured per collision at √s_NN
+   (hfShare), so the pairs are Poisson with mean ncoll × share (central Pb + Pb at 2.76 TeV: ~1,700 collisions × 0.077,
+   about 130 cc̄ pairs over all angles, as the measured σ_cc̄ × N_coll). Shadowing, energy loss in the plasma and
+   recombination are left out (written down). The hadrons' tokens, matter's (the caller conjugates for antimatter). */
+function hfNucl(sNN, ncoll) {
+  const g = sNN / 1000; if (!(g > HF_THR.cc)) return [];
+  const f = hfShare(g), ncc = poisson(ncoll * f.cc), nbb = poisson(ncoll * f.bb), out = [];
+  for (let i = 0; i < ncc; i++) out.push(...hfToks(rnd() < HF_ONIA.cc ? 'jpsi' : 'cc'));
+  for (let i = 0; i < nbb; i++) out.push(...hfToks(rnd() < HF_ONIA.bb ? 'ups' : 'bb'));
+  return out;
+}
 function hfInto(hq, fx, fixed, mN) { // the heavy hadrons into hadronize's fixed list; a heavy baryon takes a nucleon's place (or brings an antinucleon)
-  const hs = hq === 'jpsi' ? ['Jpsi'] : hq === 'ups' ? ['Ups'] : hq === 'cs' ? [pickBr(HF_FRAG.c)] : [pickBr(HF_FRAG[hq[0]]), conjTok(pickBr(HF_FRAG[hq[0]]))]; // (cs: a W⁺'s c s̄, a charmed hadron and a kaon, 1.27)
+  const hs = hfToks(hq);
   let m = 0;
   for (const t of hs) {
     const d = XP[t]; fixed.push(t); m += d.m;
@@ -3361,6 +3437,45 @@ function ewEE(s) {
   const M2 = EW.MZ * EW.MZ, G = EW.GZ, D = (s - M2) * (s - M2) + s * s * G * G / M2, rs = Math.sqrt(s);
   return { Z: 12 * Math.PI * EW.BEE / M2 * GEV2NB * s * G * G / D, WW: ewTab(EW_WW, rs, 2 * EW.MW) / 1000, ZZ: ewTab(EW_ZZ, rs, 2 * EW.MZ) / 1000 };
 }
+/* (1.27, item 29: Resonance widths and heavy flavour on) The beams' own radiation (initial-state radiation): before they
+   annihilate, the electron or positron gives off photons along its path, so the collision happens at √s' = √s·√(1 − x),
+   x the share radiated, drawn from the Kuraev–Fadin radiator with soft photons summed to all orders: G(x) = βx^(β−1)(1 +
+   δ) − β(1 − x/2), β = (2α/π)(ln(s/mₑ²) − 1) (0.108 at the Z), δ = ¾β + (α/π)(π²/3 − ½) (Kuraev and Fadin 1985). The Z's
+   cross section is the Born one smeared over it: σ(s) = ∫G(x)σ_Born(s(1 − x))dx, which takes the peak from 41.5 nb
+   (hadrons) to about 30.5 (measured at LEP: 30.4–30.5 nb at 91.2 GeV, from memory), moves it about 0.1 GeV up and
+   raises the high side, where collisions radiate back down onto the peak (radiative return). The photon channels (γγ,
+   μμ and the rest through a photon, 2–3% of the collisions at the Z) keep their Born values; x < 1 MeV/(√s/2) is left
+   unradiated (the shift is under 1 MeV). */
+const ISR = { n: 600 };
+function isrPar(s) { const b = 2 * ALPHA / Math.PI * (Math.log(s / (PHYS.MEC2 * PHYS.MEC2 / 1e6)) - 1); return { b, d: 0.75 * b + ALPHA / Math.PI * (Math.PI * Math.PI / 3 - 0.5) }; }
+function eeISR(s) {
+  if (ISR.s === s) return ISR.r;
+  const { b, d } = isrPar(s), n = ISR.n, sZ = (q) => ewEE(q).Z;
+  let A = 0, B = 0;
+  for (let i = 0; i <= n; i++) { // Simpson: (1 + δ)∫σ(s(1 − t^(1/β)))dt (the singular part, x = t^(1/β)) − β∫(1 − x/2)σ(s(1 − x))dx
+    const w = i === 0 || i === n ? 1 : i % 2 ? 4 : 2, t = i / n, x = Math.pow(t, 1 / b);
+    A += w * (x < 1 ? sZ(s * (1 - x)) : 0); B += w * (t < 1 ? (1 - t / 2) * sZ(s * (1 - t)) : 0);
+  }
+  const r = { Z: ((1 + d) * A - b * B) / (3 * n), b, d, pk: 1.001 * sZ(EW.MZ * EW.MZ) };
+  ISR.s = s; ISR.r = r; return r;
+}
+/* x for one collision that made a Z: from G(x)σ_Born(s(1 − x)), by rejection; 0 below 1 MeV of photon energy. */
+function isrDraw(s, r) {
+  let x = 0;
+  for (let k = 0; k < 5000; k++) {
+    x = Math.pow(rnd(), 1 / r.b);
+    if (rnd() * r.pk < (1 - Math.pow(x, 1 - r.b) * (1 - x / 2) / (1 + r.d)) * ewEE(s * (1 - x)).Z) break;
+  }
+  return x * Math.sqrt(s) / 2 < 0.001 ? 0 : x;
+}
+/* (1.27, item 29: Resonance widths on) e⁺e⁻ → W⁺W⁻: the W⁻ goes forward along the e⁻, as the t-channel neutrino exchange
+   makes it, with the odds 1/(−t) = 1/(s/2·(1 − β cos θ) − (m₁² + m₂²)/2) (θ the W⁻'s angle to the e⁻, β its speed in the
+   pair's frame: its leading term). At 200 GeV forward : backward ≈ 15 : 1 at the poles; LEP2 measured dσ/dcos θ rising
+   steeply toward the e⁻'s direction (about 10–20 times at the ends; ALEPH, DELPHI, L3, OPAL 2004, from memory). */
+function wwAng(s, m1, m2) {
+  const S = s * 1e6, q = breakupQ(Math.sqrt(S), m1, m2), E2 = Math.sqrt(m2 * m2 + q * q), bt = q / E2, c0 = (m1 * m1 + m2 * m2) / 2, mt = (c) => S / 2 * (1 - bt * c) * (2 * E2 / Math.sqrt(S)) - c0;
+  const lo = mt(1); return (c) => lo / mt(c);
+}
 /* The forward–backward asymmetry of e⁺e⁻ → f f̄ at s (GeV²), photon and Z (Born): f's charge q and weak isospin t3. */
 function ewAfb(s, q, t3) {
   const sw = EW.SW2, k = 1 / (4 * sw * (1 - sw)), M2 = EW.MZ * EW.MZ, G = EW.GZ, D = (s - M2) * (s - M2) + s * s * G * G / M2;
@@ -3407,6 +3522,7 @@ function ewFinal(sp, M, ax, s) {
 function ewDecay(o) {
   const d = XP[o.sp], f = ewFinal(o.sp, o.m, o.ewAx || null, o.ewS || 0);
   if (!f) { exoLeaves(o); return; }
+  if (o.zsc) o.zsc.had = !!f.qq; // (the energy scan: this Z went to hadrons, 1.27 item 31)
   const b = o.v / PHYS.C, bx = b * o.ux, by = b * o.uy, bz = W.d3 ? b * o.uz : 0, z = W.d3 ? o.z : 0;
   const S = nucBegin([]);
   o.dead = true;
@@ -3580,8 +3696,9 @@ function glDir() { if (W.d3) { const u = rndDir(); return [u[0], u[1], u[2]]; } 
 function glPrep(p, lines, eP = 0, fill = false) {
   const rays = [], k = PHYS.MEV_C_TO_SIM / 1e6, Z = p.Z, N = p.N;
   const kick = (E, d) => { p.vx -= E * k / p.m * d[0]; p.vy -= E * k / p.m * d[1]; if (W.d3) p.vz -= E * k / p.m * d[2]; updateFast(p); }; // (its momentum E/c: the nucleus recoils)
+  let prev = null; // (the γ before, for a cascade's angular correlation: Photon polarization on, 1.27 item 27)
   for (let i = 0; i < lines.length; i++) {
-    const L = lines[i], last = fill && i === lines.length - 1;
+    const L = lines[i], last = fill && i === lines.length - 1, ac = RP.pol && prev ? GL_ACORR[Z + '_' + N + ':' + prev[0]] : null, prev0 = prev && prev[1]; prev = null;
     if (L === 'P' || L === 'S') { const d = glDir(); kick(eP * 1e3, d); rays.push([L, ...d]); continue; }
     const E = L * 1e3, a = GL_CONV[Z + '_' + N + ':' + L], sh = GL_SHELL[Z];
     if (a && sh && p.ne > 0 && rnd() < a / (1 + a)) { // converted: an electron of the K shell if the line can free one, else the L shell, else an outer one
@@ -3592,9 +3709,23 @@ function glPrep(p, lines, eP = 0, fill = false) {
       else if (B > 1e3) rays.push([B, ...glDir()]);
       continue;
     }
-    const d = glDir(); kick(E, d); rays.push([last ? 'P' : E, ...d]);
+    const d = ac ? glCorrDir(prev0, ac) : glDir(); kick(E, d); rays.push([last ? 'P' : E, ...d]); prev = [L, d];
   }
   return rays;
+}
+/* (1.27, item 27: Photon polarization on) γ–γ angular correlations: after the line named, the next γ of the cascade
+   leaves at θ to the first with the odds W(θ) = 1 + A₂P₂(cos θ) + A₄P₄(cos θ). ⁶⁰Ni's 1,173 → 1,332 keV (4⁺ → 2⁺ → 0⁺,
+   both E2): A₂ = 0.1020, A₄ = 0.0091 (the theory's 0.1020 and 0.0091, measured alike since Brady and Deutsch 1950;
+   from memory), the same as 1 + 0.125 cos²θ + 0.0417 cos⁴θ: 1.167 times as likely back to back (or along) as at 90°.
+   In 3-D over the sphere; in the flat game in the plane, the angle a ring of detectors in the plane would see. */
+const GL_ACORR = { '28_32:1173.228': [0.1020, 0.0091] };
+function glCorrDir(d0, [A2, A4]) {
+  const Wc = (c) => { const c2 = c * c; return 1 + A2 * (1.5 * c2 - 0.5) + A4 * (35 * c2 * c2 - 30 * c2 + 3) / 8; }, Wm = 1 + Math.abs(A2) + Math.abs(A4);
+  for (let k = 0; k < 200; k++) {
+    if (W.d3) { const c = 2 * rnd() - 1; if (rnd() * Wm < Wc(c)) { const t = turnU([d0[0], d0[1], d0[2]], Math.acos(c)); return [t[0], t[1], t[2]]; } }
+    else { const th = 2 * Math.PI * rnd(); if (rnd() * Wm < Wc(Math.cos(th))) { const t = turn2(d0[0], d0[1], th); return [t[0], t[1], 0]; } }
+  }
+  return glDir();
 }
 const glSum = (rays) => rays.reduce((t, r) => t + (typeof r[0] === 'number' ? r[0] : 0), 0);
 function glFire(rays, x, y, z, p, rest) { // rest: what the books leave for the open rays ('P', 'S') or the open electron (eV). Returns the γ energies sent
@@ -3804,6 +3935,13 @@ function polPair(u1, u2) {
   const a = polRand(u1[0], u1[1], u1[2] || 0);
   const c = [u1[1] * a[2] - (u1[2] || 0) * a[1], (u1[2] || 0) * a[0] - u1[0] * a[2], u1[0] * a[1] - u1[1] * a[0]]; // (u₁ × ε₁: across both when they fly back to back)
   return [a, polAcross(c, u2[0], u2[1], u2[2] || 0) || polRand(u2[0], u2[1], u2[2] || 0)];
+}
+/* (1.27, item 27) A pseudoscalar meson's two photons (π⁰ → γγ, η → γγ): their polarizations at right angles, as an
+   annihilation pair's (the amplitude goes as k·(ε₁ × ε₂): Yang 1950; for π⁰ shown by the planes of its double Dalitz
+   pairs, Plano et al. 1959). Only with the switch on; nothing drawn otherwise. */
+function polPS0(o, items, made) {
+  if (!RP.pol || (o.sp !== 'pi0' && o.sp !== 'eta') || items.length !== 2 || made.rays.length !== 2 || made.rays[0][0].t !== 'g' || made.rays[1][0].t !== 'g') return;
+  const P = polPair(made.rays[0].slice(2), made.rays[1].slice(2)); made.rays[0].pol = P[0]; made.rays[1].pol = P[1];
 }
 /* Inspect's line: the photon's polarization. */
 function polText(o) {

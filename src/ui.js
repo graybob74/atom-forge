@@ -230,7 +230,7 @@ const PCATS = [
   ['W and Z bosons', ['W+', 'W-', 'Z0'].map(sp => ({ kind: 'exo', sp }))], // (1.27)
   ['Light', [{ kind: 'gamma' }]],
   ['Antimatter', [{ kind: 'pos' }, SPEC_PBAR, SPEC_NBAR, SPEC_HBAR, { kind: 'atom', Z: 1, A: 2, bare: true, anti: true }, { kind: 'atom', Z: 2, A: 4, bare: true, anti: true }, 'pt']],
-  ['Exotic atoms and nuclei', ['muP', 'muD', 'muT', 'Mu'].concat([[1, 1], [1, 2], [2, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 6], [8, 7], [14, 13], [20, 19], [39, 49], [82, 125]].map(([z, n]) => hypSpecies(z, n)).filter(Boolean)).map(sp => ({ kind: 'exo', sp }))],
+  ['Exotic atoms and nuclei', ['muP', 'muD', 'muT', 'Mu', 'pPs', 'oPs'].concat([[1, 1], [1, 2], [2, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 6], [8, 7], [14, 13], [20, 19], [39, 49], [82, 125]].map(([z, n]) => hypSpecies(z, n)).filter(Boolean)).map(sp => ({ kind: 'exo', sp }))],
 ];
 /* Type-to-find: every particle of the menus, matched on its symbol, its name, its id and the spelled-out Greek. */
 const PF_GREEK = [['lambda', 'Λ'], ['sigma', 'Σ'], ['xi', 'Ξ'], ['omega', 'Ω'], ['delta', 'Δ'], ['pion', 'π'], ['pi', 'π'], ['rho', 'ρ'], ['phi', 'φ'], ['eta', 'η'], ['kaon', 'K'], ['muon', 'μ'], ['mu', 'μ'], ['tau', 'τ'], ['nu', 'ν'], ['neutrino', 'ν'], ['gamma', 'γ'], ['photon', 'γ'], ['alpha', 'α'], ['anti', '̄'], ['bar', '̄']];
@@ -463,7 +463,7 @@ function buildToolOpts() {
       if (FLY_KINDS.has(sp.kind)) { // (not an atom: an energy for light and neutrinos, a lifetime for the rest)
         const d = sp.kind === 'exo' ? XP[sp.sp] : null;
         h = `<span class="lbl">Placing</span><span><span class="swatch" style="background:${specColor(sp)}"></span> <b>${esc(specLabel(sp))}</b> <span class="help">${esc(specName(sp))}</span></span>` +
-          (d ? `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']], o.count)}</span><span class="help">${d.res ? `made at rest; decays at once (${fmtTime(d.tau)}) into ${d.ew ? ewDecList(sp.sp).sort((x, y) => y[0] - x[0]).slice(0, 3).map(e => e[1]).join(', or ') : d.dec.map(([, ps]) => ps.map(t => labelOf(item(t))).join(' ')).slice(0, 3).join(', or ')}` : `made at rest; decays in place (mean life ${fmtTime(d.tau)}${d.tau > 1e-12 ? '; speed decay up in Lab' : ''})`}</span>`
+          (d ? `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']], o.count)}</span><span class="help">${d.ps && !RP.ps ? esc(PS_NEED) : d.res ? `made at rest; decays at once (${fmtTime(d.tau)}) into ${d.ew ? ewDecList(sp.sp).sort((x, y) => y[0] - x[0]).slice(0, 3).map(e => e[1]).join(', or ') : d.dec.map(([, ps]) => ps.map(t => labelOf(item(t))).join(' ')).slice(0, 3).join(', or ')}` : `made at rest; decays in place (mean life ${fmtTime(d.tau)}${d.tau > 1e-12 ? '; speed decay up in Lab' : ''})`}</span>`
             : rangeCtl('oPE', 'Energy', 0, 900, o.Es, fmtE(placeE())) + `<span class="help">${sp.kind === 'gamma' ? 'leaves in a random direction at c' : 'leaves at c and passes through everything'}</span>`);
         break;
       }
@@ -905,8 +905,10 @@ function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
    life: Lab → Decay speed to see the slow ones go); light and neutrinos cannot be still, so they leave the click in a
    random direction with the energy set (Place → Energy). */
 const placeE = () => Math.pow(10, OPT.place.Es / 100); // eV, 1 eV … 1 GeV
+const PS_NEED = 'Positronium is placed with the Positronium switch on (Settings → Experimental → Realistic particles → Positronium): its decays, its pick-off in matter and its conversion by O₂ are that switch\u2019s.'; // (1.27 item 32)
 function placeFly(spec, x, y, count, z = 0) {
   _evTag = 0;
+  if (spec.kind === 'exo' && XP[spec.sp] && XP[spec.sp].ps && !RP.ps) { log('tool', PS_NEED); return []; } // (positronium needs its switch: what it does in matter is that switch's, 1.27 item 32)
   if (W.d3 && spec.kind === 'gamma') { for (let i = 0; i < count; i++) emitPhoton(x, y, placeE(), undefined, undefined, { travel: true, z }); return []; } // (3-D: a random direction on the sphere, from its depth, 1.24)
   if (W.d3 && spec.kind === 'nu') { for (let i = 0; i < count; i++) emitNeutrino(x, y, placeE(), undefined, undefined, !!spec.anti, 'placed by hand', spec.fl || 'e', z); return []; }
   if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (spec.sp === 'Mu') addMuonium(x + k * u[0], y + k * u[1], 1.5 * PHYS.KB * W.T, u[0], u[1], 1, z + k * u[2], u[2]); else if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], resPlaceMass(spec.sp), z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
@@ -2216,7 +2218,7 @@ function renderData() {
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
   drawSpec(); explainSync(); drawChain(); drawChainMap();
-  drawTChart(); drawEChart(m.T); drawGraph(); drawPairs(); drawDet();
+  drawTChart(); drawEChart(m.T); drawGraph(); drawPairs(); drawDet(); drawZScan();
   restoreScroll('tp-data');
 }
 /* What collisions, fusions, fissions, captures and decays have made so far (W.made), heaviest first: each nuclide with
@@ -3730,6 +3732,7 @@ function syncCollider() {
   const mk = makeNote(C, A, B);
   note += ' ' + mk.text;
   $('cNote').innerHTML = esc(note) + (mk.go ? ` <button class="btn small" id="cGo" title="Set both beams to this energy">Go to ${esc(fmtE(mk.go))} each</button>` : '');
+  if (zscanCan(C, A, B)) { const b = document.createElement('button'); b.className = 'btn small'; b.id = 'cScan'; b.textContent = W.zscan && W.zscan.run ? 'Stop the scan' : 'Scan the Z peak'; b.title = 'Step the beams from 44.5 to 47.5 GeV each (√s about 88 to 94 GeV), 30 collisions at each, and draw the measured cross section against √s in the Data tab'; $('cNote').append(' ', b); b.onclick = () => { if (W.zscan && W.zscan.run) { W.zscan.run = false; log('tool', 'Z scan stopped'); } else zscanStart(); syncCollider(); }; } // (1.27 item 31)
   if (mk.go) $('cGo').onclick = () => { const each = C.E2 !== null && C.E2 !== undefined; setColliderEnergy(mk.go, each ? mk.go : null); syncCollider(); log('tool', `Collider beams: ${fmtE(mk.go)} each`); };
   $('cScale').textContent = scaleNote(C);
   updateCollider();
@@ -4584,6 +4587,7 @@ function frame(now) {
         }
         UI.stepOnce = false;
         toolTick(realDt);
+        zscanTick(); // (the LEP energy scan, 1.27 item 31)
         histTick(now);
         if (now - (UI.lastAuto || 0) > 20000) { UI.lastAuto = now; autosave(); }
         rewTick(now); grTick(now); prioAutoTick(now); calmTick();
@@ -4966,6 +4970,53 @@ function drawDet() {
   if (where) { ctx.fillText('0', x0, h - 2); ctx.textAlign = 'center'; ctx.fillText(`${Math.round(L / 2)} Å`, x0 + pw / 2, h - 2); ctx.textAlign = 'right'; ctx.fillText(`${Math.round(L)} Å along it`, x0 + pw, h - 2); }
   else { ctx.fillText('0.01 eV', x0, h - 2); ctx.textAlign = 'center'; ctx.fillText('1 keV', x0 + pw * 10 / 24, h - 2); ctx.fillText('1 MeV', x0 + pw * 16 / 24, h - 2); ctx.textAlign = 'right'; ctx.fillText('10 GeV', x0 + pw, h - 2); }
   ctx.textAlign = 'left';
+}
+/* (1.27, item 31) The Z line-shape scan, as LEP did it in 1990–95: the beams stepped from 44.5 to 47.5 GeV each (√s about
+   88–94 GeV: the linac's beams arrive 1–5% below their setting, so each collision's own √s is what is binned), ZSCAN.per
+   collisions at each; every e⁺e⁻ collision above 10 GeV is recorded (eeEvent: its √s, its total cross section, whether
+   it made a Z, and from the Z's decay whether hadrons). The measured cross section in a 1 GeV bin is the share of its
+   collisions that made Z → hadrons times the total cross section there: what LEP's event count over its luminosity is
+   (the luminosity measured from the total). The line is the model's: Born, or with the beams' own radiation when
+   Resonance widths and heavy flavour is on (item 29). */
+const ZSCAN = { pts: [44.5, 45, 45.5, 46, 46.5, 47, 47.5], per: 30, lo: 86, hi: 96 };
+function zscanCan(C, A, B) { return !!C && C.kind !== 'ring' && A.lep && B.lep && A.anti !== B.anti && !A.exo && !B.exo && C.E > 3e10 && C.E < 6e10; }
+function zscanStart() {
+  const C = W.collider; if (!C) return;
+  W.zscan = { run: true, i: 0, at: 0, rec: [], tot: 0, last: null, a: C.a, b: C.b };
+  setColliderEnergy(ZSCAN.pts[0] * 1e9, null); W.zscan.a = W.collider.a; W.zscan.b = W.collider.b;
+  log('tool', `Z scan: ${ZSCAN.pts.length} beam energies from ${ZSCAN.pts[0]} to ${ZSCAN.pts[ZSCAN.pts.length - 1]} GeV each, ${ZSCAN.per} collisions at each; the Data tab draws it`);
+}
+function zscanTick() {
+  const Z = W.zscan; if (!Z || !Z.run) return;
+  const C = W.collider; if (!C || C.a !== Z.a || C.b !== Z.b) { Z.run = false; return; } // (the collider changed: the scan ends)
+  if (Z.rec.length - Z.at < ZSCAN.per) return;
+  Z.i++; Z.at = Z.rec.length;
+  if (Z.i >= ZSCAN.pts.length) { Z.run = false; log('tool', `Z scan done: ${Z.rec.length} collisions`); if (UI.tab === 'lab' && $('gCollider')) syncCollider(); return; }
+  setColliderEnergy(ZSCAN.pts[Z.i] * 1e9, null); if (UI.tab === 'lab' && $('gCollider')) syncCollider();
+}
+/* The scan's points: [√s (GeV, the bin's mean), σ (nb), its error, collisions] in 1 GeV bins. */
+function zscanPoints(Z) {
+  const B = [];
+  for (const r of Z.rec) { if (r.rs < ZSCAN.lo || r.rs >= ZSCAN.hi) continue; const i = Math.floor(r.rs - ZSCAN.lo), b = B[i] || (B[i] = { n: 0, h: 0, x: 0, t: 0 }); b.n++; b.x += r.rs; b.t += r.tot; if (r.had) b.h++; }
+  return B.map(b => b && b.n >= 3 ? [b.x / b.n, b.h / b.n * b.t / b.n, b.h ? b.h / b.n * b.t / b.n / Math.sqrt(b.h) : b.t / b.n / b.n, b.n] : null).filter(Boolean);
+}
+const zscanModel = (g) => 0.69911 * (RP.res ? eeISR(g * g).Z : ewEE(g * g).Z); // (σ(e⁺e⁻ → Z → hadrons), nb)
+function drawZScan() {
+  const sec = $('dZsSec'), Z = W.zscan; sec.hidden = !Z || !Z.rec.length; if (sec.hidden) return;
+  const r = chartCtx($('chZs')); if (!r) return; const [ctx, w, h] = r, pts = zscanPoints(Z);
+  const x0 = 34, x1 = w - 8, y0 = h - 18, y1 = 10, top = 45, X = (g) => x0 + (g - ZSCAN.lo) / (ZSCAN.hi - ZSCAN.lo) * (x1 - x0), Y = (v) => y0 - Math.min(top, v) / top * (y0 - y1);
+  ctx.strokeStyle = cssVar('--muted'); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, y1); ctx.lineTo(x0, y0); ctx.lineTo(x1, y0); ctx.stroke();
+  ctx.font = '10.5px ' + cssVar('--font-data'); ctx.fillStyle = cssVar('--muted');
+  for (let g = ZSCAN.lo; g <= ZSCAN.hi; g += 2) { ctx.textAlign = 'center'; ctx.fillText(String(g), X(g), h - 4); }
+  ctx.textAlign = 'right'; for (const v of [0, 10, 20, 30, 40]) ctx.fillText(String(v), x0 - 4, Y(v) + 3);
+  ctx.strokeStyle = cssVar('--accent'); ctx.lineWidth = 1.5; ctx.beginPath();
+  for (let g = ZSCAN.lo; g <= ZSCAN.hi + 1e-9; g += 0.05) { const v = zscanModel(g); if (g === ZSCAN.lo) ctx.moveTo(X(g), Y(v)); else ctx.lineTo(X(g), Y(v)); }
+  ctx.stroke();
+  ctx.fillStyle = cssVar('--hot'); ctx.strokeStyle = cssVar('--hot'); ctx.lineWidth = 1;
+  for (const [g, s, e] of pts) { ctx.beginPath(); ctx.moveTo(X(g), Y(s - e)); ctx.lineTo(X(g), Y(s + e)); ctx.stroke(); ctx.beginPath(); ctx.arc(X(g), Y(s), 3, 0, 2 * Math.PI); ctx.fill(); }
+  ctx.textAlign = 'left'; ctx.fillStyle = cssVar('--muted'); ctx.fillText('σ (nb)', x0 + 4, y1 + 2); ctx.textAlign = 'right'; ctx.fillText('√s (GeV)', x1, y0 - 4); ctx.textAlign = 'left';
+  const pk = pts.reduce((m, p) => (p[1] > m[1] ? p : m), [0, 0, 0]);
+  $('dZsNote').textContent = `${Z.rec.length.toLocaleString('en-US')} collisions${Z.run ? `, scanning: beams at ${ZSCAN.pts[Z.i]} GeV each (${Z.i + 1} of ${ZSCAN.pts.length})` : ''}. Dots: σ(e⁺e⁻ → Z → hadrons) measured in each 1 GeV bin of the collisions' own √s, the share of collisions that made it times the total cross section there (LEP's events over its luminosity), with its statistical error; ${pk[1] ? `highest ${fmtNum(pk[1], 3)} nb at ${fmtNum(pk[0], 3)} GeV. ` : ''}Line: the model, ${RP.res ? 'with the beams\u2019 own radiation (Resonance widths and heavy flavour on): the peak 30.6 nb at 91.2 GeV, measured at LEP 30.5' : 'Born: the peak 41.5 nb at 91.19 GeV (with the beams\u2019 own radiation, which Resonance widths and heavy flavour turns on, 30.6; measured at LEP 30.5)'}. The Z's width, 2.50 GeV, is what three kinds of light neutrino give.`;
 }
 /* Pair masses (hep.js PAIRS): the histogram, with the known resonances marked. */
 const PAIR_MARK = { pipi: [['ρ', 775], ['K⁰s', 498]], Kpi: [['K*', 893]], KK: [['φ', 1019]] };
@@ -5698,6 +5749,7 @@ Object.assign(SET_DEF, { rpExo: false }); // (Experimental → Realistic particl
 Object.assign(SET_DEF, { rpPs: false, rpMu: false }); // (Experimental → Realistic particles: positronium; muonium as hydrogen and μSR, 1.27: hep.js RP)
 Object.assign(SET_DEF, { rpRes: false, rpNuc: false }); // (Realistic particles 5 and 6, 1.27: hep.js RP.res, RP.nuc)
 SET_DEF.rpCpm = false; // (Experimental → Realistic particles: charged particles in matter, 1.27: hep.js RP.cpm)
+SET_DEF.cpmX = 1; SET_OK.cpmX = [1, 1000, 1000000]; // (Realistic particles → Matter depth: its rare processes sped up, hep.js RP.cpmX, 1.27 item 26)
 Object.assign(SET_DEF, { rpPol: false }); // (Realistic particles 7, 1.27: photon polarization and Klein–Nishina, hep.js RP.pol)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
@@ -5714,6 +5766,7 @@ SET_EXP.push('rpExo'); EXP_NAME.rpExo = 'exotic atoms'; // (1.27)
 SET_EXP.push('rpPs', 'rpMu'); EXP_NAME.rpPs = 'positronium'; EXP_NAME.rpMu = 'muonium as hydrogen'; // (1.27)
 SET_EXP.push('rpRes', 'rpNuc'); EXP_NAME.rpRes = 'resonance widths and heavy flavour'; EXP_NAME.rpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
 SET_EXP.push('rpCpm'); EXP_NAME.rpCpm = 'charged particles in matter'; // (1.27)
+SET_EXP.push('cpmX'); EXP_NAME.cpmX = 'matter depth'; // (1.27 item 26)
 SET_EXP.push('rpPol'); EXP_NAME.rpPol = 'photon polarization'; // (1.27)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
@@ -5800,6 +5853,7 @@ function applySettings() {
   RP.ps = !!SET.rpPs; rpMuSet(!!SET.rpMu); // (positronium; muonium as hydrogen, its binding's change booked to the bath, 1.27)
   RP.res = !!SET.rpRes; RP.nuc = !!SET.rpNuc; // (Realistic particles 5 and 6, 1.27)
   RP.cpm = !!SET.rpCpm; // (charged particles in matter, 1.27)
+  RP.cpmX = SET.cpmX; // (its rare processes sped up: Matter depth, 1.27 item 26)
   RP.pol = !!SET.rpPol; // (Realistic particles 7, 1.27)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
@@ -5921,7 +5975,7 @@ function syncSettings() {
   setSegValue('segXqs', String(SET.xqs)); // (1.26)
   setSegValue('segLps', String(SET.lps)); setSegValue('segSigh', String(SET.sigh)); setSegValue('segPis', String(SET.pis)); // (1.26)
   $('setRpExo').checked = SET.rpExo; // (1.27)
-  $('setRpPs').checked = SET.rpPs; $('setRpMu').checked = SET.rpMu; $('setRpCpm').checked = SET.rpCpm; // (1.27)
+  $('setRpPs').checked = SET.rpPs; $('setRpMu').checked = SET.rpMu; $('setRpCpm').checked = SET.rpCpm; setSegValue('segCpmX', String(SET.cpmX)); // (1.27; Matter depth, item 26)
   $('setRpRes').checked = SET.rpRes; $('setRpNuc').checked = SET.rpNuc; // (1.27)
   $('setRpPol').checked = SET.rpPol; // (1.27)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
@@ -5964,6 +6018,7 @@ const COSTS = {
   setUltra: () => ({ k: 'physics', on: ['×1', 'True sizes and rates cost nothing'] }),
   setRpPs: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where there is no positronium; each one about 10 µs a step (it flies as an unstable particle and looks round itself for electrons and O\u2082 once an ångström): 20 in liquid water (240 atoms) 0.35 → 0.58 ms a step'] }),
   setRpMu: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): a muon\u2019s spin turned each step costs nothing measurable (20 muons in liquid water, 0.66 against 0.67 ms a step); muonium costs what a hydrogen atom does'] }),
+  segCpmX: () => !SET.rpCpm ? { k: 'physics', o: { 1: ['×1', 'Only with Charged particles in matter on'], 1000: ['×1', 'Only with Charged particles in matter on'], 1000000: ['×1', 'Only with Charged particles in matter on'] } } : { k: 'physics', o: { 1: ['×1', 'Nature\u2019s rates'], 1000: ['×1–1.1', CPMX_COST], 1000000: ['×1–1.2', CPMX_COST] } }, // (1.27 item 26)
   setRpCpm: () => ({ k: 'physics', on: ['×1–1.3', 'Measured on one thread (1.27): nothing where no fast charged particle crosses matter and no γ ray meets an atom; a fast particle\u2019s pass through liquid water costs ×0.8–1.4 (a 5 MeV α 50 → 69 µs an ångström, its δ-rays set free), the radiation setups ×1.0–1.3 a step (pion beam 7.2 → 8.7 ms, linac 0.40 → 0.51, photonuclear 7.3 → 8.4)'] }),
   setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where no slow μ⁻, π⁻, K⁻ or antiproton stops (a pion beam into carbon ×1.0); a capture is one event of 1.2–2.3 ms (its cascade\u2019s electrons and X-rays), and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in makes a small plasma to follow: muon-catalysed fusion ×3, the hypernucleus factory ×4 while it lasts'] }),
   setRpRes: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A resonance\u2019s mass is one draw, and a charm or bottom pair a few more particles in the collisions that make one (the pion beam 9.4 against 10.0 ms a step, the RHIC collider 2.1 against 2.0: the noise of a shared machine)'] }),
@@ -6013,6 +6068,7 @@ const COSTS3 = {
   setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24); the true sizes are drawn without the WebGL layer (liquid water: 7 → 25 ms a frame, headless, 1.26)'] }),
   setRpPs: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing where there is no positronium; each one about 35 µs a step (its look round itself, 25 µs, once an ångström): 20 in liquid water (1,029 atoms) 2.3 → 3.0–4.1 ms a step'] }),
   setRpMu: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): a muon\u2019s spin turned each step costs nothing measurable (20 muons in liquid water, within the timing noise of 4–5 ms a step); muonium costs what a hydrogen atom does'] }),
+  segCpmX: () => !SET.rpCpm ? { k: 'physics', o: { 1: ['×1', 'Only with Charged particles in matter on'], 1000: ['×1', 'Only with Charged particles in matter on'], 1000000: ['×1', 'Only with Charged particles in matter on'] } } : { k: 'physics', o: { 1: ['×1', 'Nature\u2019s rates'], 1000: ['×1–1.1', CPMX_COST3], 1000000: ['×1–1.2', CPMX_COST3] } }, // (1.27 item 26)
   setRpCpm: () => ({ k: 'physics', on: ['×1–1.5', 'Measured in 3-D on one thread (1.27): nothing where no fast charged particle crosses matter; a fast particle\u2019s pass through liquid water costs ×1.3–1.5 (a 1 MeV electron 75 → 96 µs an ångström, a 5 MeV α 76 → 112: the electrons it sets free), water3d and the single-event-upset setup ×1.0'] }),
   setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing where no slow μ⁻, π⁻ or K⁻ stops; a capture is one event of 1.4–1.5 ms, and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in costs more while it lasts'] }),
   setRpRes: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step; the same draws as the flat game'] }),
@@ -6026,6 +6082,7 @@ COSTS.segXq = XQ_COST(false); COSTS3.segXq = XQ_COST(true);
 /* the spins (1.26): two sets of orbitals, measured on one thread with quantum bonds on (Node, flat; 3-D alike) */
 COSTS.segXqs = COSTS3.segXqs = () => SET.bo !== 2 ? { k: 'physics', o: { 0: ['×1', 'Only with quantum bonds on'], 1: ['×1', 'Only with quantum bonds on'] } }
   : { k: 'physics', o: { 0: ['×1', 'Paired, as GFN-xTB was made'], 1: ['×1.2–2.3', 'Measured (1.26): a hydronium and five waters, every electron paired, GFN1 ×1.6, GFN2 ×1.2 (each spin\u2019s orbitals worked out); O\u2083, NO, O\u2082, H\u2082O\u2082 and H\u2082 at 1,500 K GFN1 ×2.3, GFN2 ×1.6'] } };
+const CPMX_COST = 'Measured on one thread (1.27): the radiation setups unchanged (linac, pion beam, photonuclear); 1 GeV electrons fired through liquid water 0.62 → 0.71 ms a step (the photons they now give off)', CPMX_COST3 = 'Measured in 3-D on one thread (1.27): 1 GeV electrons fired through liquid water 4.3 → 4.5 ms a step at ×10⁶; water3d unchanged'; // (Matter depth, 1.27 item 26)
 function costOf(id) { return (W.d3 && COSTS3[id] ? COSTS3[id] : COSTS[id])(); } // (this mode's costs, 1.25)
 function costTag(el, cls, text, tip) {
   let t = el.querySelector(':scope > .' + cls.split(' ')[0]);
@@ -6056,6 +6113,7 @@ const REAL = {
   setRpMu: [true, 'Muonium is the lightest isotope of hydrogen, and its muon\u2019s spin precesses in a field (μSR), as in nature (1.27)'],
   setRpRes: [true, 'A resonance\u2019s mass spread over its measured width, and charm and bottom made in hadron collisions at their measured share (1.27)'],
   setRpNuc: [true, 'Nuclei with their spins and magnetic moments, measured γ lines, and neutrons caught at their measured cross sections (1.27)'],
+  segCpmX: ['1', 'Nature\u2019s rates: bremsstrahlung and Cherenkov light as rare as a nanometre of matter makes them (1.27)'],
   setRpCpm: [true, 'Fast charged particles lose their energy collision by collision, knock out δ-rays, give off bremsstrahlung and Cherenkov light, and γ rays make pairs, at the measured rates (1.27)'],
   setRpPol: [true, 'Photons carry their polarization, and Compton scattering follows Klein–Nishina, as in nature (1.27)'],
 };
@@ -6075,7 +6133,7 @@ EXP_SET.segXq = 'xq'; // (1.26)
 EXP_SET.segXqs = 'xqs'; // (1.26)
 EXP_SET.segLps = 'lps'; EXP_SET.segSigh = 'sigh'; EXP_SET.segPis = 'pis'; // (1.26)
 EXP_SET.setRpExo = 'rpExo'; // (1.27)
-EXP_SET.setRpPs = 'rpPs'; EXP_SET.setRpMu = 'rpMu'; EXP_SET.setRpCpm = 'rpCpm'; // (1.27)
+EXP_SET.setRpPs = 'rpPs'; EXP_SET.setRpMu = 'rpMu'; EXP_SET.setRpCpm = 'rpCpm'; EXP_SET.segCpmX = 'cpmX'; // (1.27; Matter depth, item 26)
 EXP_SET.setRpRes = 'rpRes'; EXP_SET.setRpNuc = 'rpNuc'; // (1.27)
 EXP_SET.setRpPol = 'rpPol'; // (1.27)
 function expTotal() {
@@ -6109,6 +6167,7 @@ function expSummary() {
   if (SET.rpPs) on.push('positronium'); if (SET.rpMu) on.push('muonium as hydrogen'); // (1.27)
   if (SET.rpRes) on.push('resonance widths'); if (SET.rpNuc) on.push('nuclear spin and γ lines'); // (1.27)
   if (SET.rpCpm) on.push('charged particles in matter'); // (1.27)
+  if (SET.cpmX !== 1) on.push(`matter depth ×${SET.cpmX.toLocaleString('en-US')}`); // (1.27 item 26)
   if (SET.rpPol) on.push('photon polarization'); // (1.27)
   if (!on.length) return 'Experimental: all normal';
   const t = expTotal(), x = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
@@ -6123,7 +6182,7 @@ function syncExpTotal() {
   names.segXqs = 'polarized spins'; // (1.26)
   names.segLps = 'lone pairs'; names.segSigh = 'halogen σ-holes'; names.segPis = 'π-stacking'; // (1.26)
   names.setRpExo = 'exotic atoms'; // (1.27)
-  names.setRpPs = 'positronium'; names.setRpMu = 'muonium as hydrogen'; names.setRpCpm = 'charged particles in matter'; // (1.27)
+  names.setRpPs = 'positronium'; names.setRpMu = 'muonium as hydrogen'; names.setRpCpm = 'charged particles in matter'; names.segCpmX = 'matter depth'; // (1.27; item 26)
   names.setRpRes = 'resonance widths and heavy flavour'; names.setRpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
   names.setRpPol = 'photon polarization'; // (1.27)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
@@ -6257,6 +6316,7 @@ const SDESC = {
   setRpPs: ['Positronium', 'A slow positron takes an electron and becomes positronium (Ps: an electron and a positron round each other, bound by 6.8 eV, twice hydrogen\u2019s size): from an atom when its energy is in the Ore gap (between the electron\u2019s binding less 6.8 eV and the binding), from a free electron when the two are slow. One in four is para-Ps, which lives 125 ps and gives two 511 keV γ rays back to back; three in four ortho-Ps, which would live 142 ns in vacuum and gives three γ rays sharing 1,022 keV, but in matter its positron meets a neighbour\u2019s electron within nanoseconds (pick-off: 1.8 ns in water), and O\u2082 turns its spin. Inspect shows its state and its expected life there. Experimental: off again each time the game starts.'], // (1.27)
   setRpMu: ['Muonium as hydrogen', 'Muonium (a muon with an electron) is the lightest isotope of hydrogen: a ninth of its mass, bound by 13.54 eV (hydrogen 13.60), bonding by hydrogen\u2019s rules, so its isotope effects are large (Mu–Cl vibrates 2.9 times faster than H–Cl). The muon\u2019s spin precesses in a magnetic field, 135.5 MHz a tesla for a bare or bonded muon, 1.39 MHz a gauss for muonium; the positron of its decay comes out along the spin (1 + cos θ / 3 on average), so detectors round a sample see the precession (μSR). Inspect shows the spin; the particle view draws it. Experimental: off again each time the game starts.'], // (1.27)
   setRpCpm: ['Charged particles in matter', 'A fast charged particle crossing matter loses its energy collision by collision, as in nature: mostly in small knocks, now and then in a hard one that sends an electron flying with up to the most a collision can give (a δ-ray, which ionizes in turn; 2.7 keV from a 5 MeV α, half its energy from an electron), so the loss over a thin layer has Landau\u2019s long tail instead of a fixed amount. On average it is Bethe\u2019s formula with each element\u2019s measured excitation energy: fast particles lose more than they did before (the relativistic rise the game\u2019s form lacked: in the flat game\u2019s water a 5 MeV α 1.6 times, its measured 89 keV a micrometre; slow ions as before). Electrons and positrons give off bremsstrahlung (photons with a 1/k spectrum) at the rate set by each material\u2019s radiation length (lead 5.6 mm, water 36 cm), so it overtakes the collisions above the critical energy (water 79 MeV, lead 8 MeV). γ rays above 1.022 MeV make an electron and a positron near a nucleus (or two electrons and a positron in an electron\u2019s field) at the measured cross sections, against Compton scattering at the Klein–Nishina rate: the pair flies forward and shares the energy unequally. In water or glass a particle faster than light there (c/n) gives off Cherenkov light on a cone: 41° in water, 47° in silica glass, 334 photons a centimetre in 300–600 nm, which screens see. What a nanometre box can\u2019t make real: a radiation length is centimetres, so at nature\u2019s rates a fast electron almost never radiates in the box, Cherenkov light is one photon in thousands of crossings, a shower (centimetres long) can\u2019t develop, and a minimum-ionizing particle mostly loses far less than its average (the rare hard collisions carry most of it); what is made leaves the box. γ rays meet atoms as often as the game\u2019s light always has (about 10⁷ times nature\u2019s). Off: as before (a smooth loss, bremsstrahlung by a rule of thumb, pairs back to back sharing evenly). Experimental: off again each time the game starts.'], // (1.27)
+  segCpmX: ['Matter depth', 'With Charged particles in matter on: its rare processes, bremsstrahlung and Cherenkov light, sped up by the factor chosen, as if the box were that much deeper, so that fast electrons radiate, their γ rays make pairs and a shower can start, and Cherenkov cones show in a box nanometres across. It speeds up only those rare processes: collisions, δ-rays and the energy loss stay at nature\u2019s rates, so a scaled shower is not nature\u2019s in its details: its critical energy (where radiating overtakes the collisions, water 79 MeV, lead 8 MeV) comes out lower by about the same factor, and its radiation length shorter. ×1 is nature. Experimental: back to ×1 each time the game starts.'], // (1.27 item 26)
   setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻, K⁻ or antiproton is caught by an atom into an orbit and cascades down, setting Auger electrons free and giving off the exotic atom\u2019s X-ray lines (muonic carbon 75 keV, muonic lead 5.9 MeV); then the muon decays or is captured at the rate measured for the element, a pion or kaon is absorbed by the nucleus (a star), an antiproton annihilates. A muonic atom is a real atom of the box, its electrons seeing one charge less (muonic carbon bonds as boron does); muonic hydrogen passes through atoms and hands its muon to a heavier one. Experimental: off again each time the game starts.'], // (1.27)
   setRpRes: ['Resonance widths and heavy flavour', 'A resonance (ρ, ω, φ, K*, Δ, J/ψ, Υ) gets its own mass, drawn from the relativistic Breit–Wigner of its measured width (a ρ⁰ anywhere from 280 MeV up, 775 MeV at the peak, about 150 MeV wide at half height), and decays from that mass. A hadron collision above the charm threshold makes charm (D⁰, D⁺, D⁺s, Λc⁺) and bottom (B, B⁰s, Λb⁰), now and then a J/ψ or an Υ, at the measured share of the collisions (about 1 in 70 at 200 GeV, 1 in 9 at 7 TeV for charm). They live 0.2–1.6 ps: at their speed they fly micrometres to millimetres, far out of the box, unless decay is sped up. Experimental: off again each time the game starts.'],
   setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'Each nucleus has its measured spin and magnetic moment (¹H ½ and 2.79 μN): Inspect shows them, and in a magnetic field the spin precesses at the Larmor frequency (42.58 MHz per tesla for ¹H; Inspect\u2019s NMR pulse measures it). Nuclei left excited after a decay, capture or reaction give off their measured γ lines (⁶⁰Co: 1,173 and 1,332 keV; ¹³⁷Cs: 662 keV from ¹³⁷ᵐBa; capture on hydrogen 2,224 keV), with conversion electrons where large and isomers that wait their half-lives (⁹⁹ᵐTc 6 h). Neutrons react at their measured cross sections (1/v below about 1 eV, the big resonances): at true size (Ultra-realistic) the rates themselves, in the normal view what a hit does. Experimental: off again each time the game starts.'],
@@ -6301,6 +6361,7 @@ const SDESC3 = {
   setRpPs: ['Positronium', 'A slow positron takes an electron and becomes positronium (Ps: an electron and a positron round each other, bound by 6.8 eV, twice hydrogen\u2019s size): from an atom when its energy is in the Ore gap (between the electron\u2019s binding less 6.8 eV and the binding), from a free electron when the two are slow. One in four is para-Ps, which lives 125 ps and gives two 511 keV γ rays back to back; three in four ortho-Ps, which would live 142 ns in vacuum and gives three γ rays sharing 1,022 keV, but in matter its positron meets a neighbour\u2019s electron within nanoseconds (pick-off: 1.8 ns in water), and O\u2082 turns its spin. Inspect shows its state and its expected life there. In all three directions (the three γ rays of ortho-Ps in a plane at any angle). Experimental: off again each time the game starts.'], // (1.27)
   setRpMu: ['Muonium as hydrogen', 'Muonium (a muon with an electron) is the lightest isotope of hydrogen: a ninth of its mass, bound by 13.54 eV (hydrogen 13.60), bonding by hydrogen\u2019s rules, so its isotope effects are large (Mu–Cl vibrates 2.9 times faster than H–Cl). The muon\u2019s spin precesses in a magnetic field, 135.5 MHz a tesla for a bare or bonded muon, 1.39 MHz a gauss for muonium; the positron of its decay comes out along the spin (1 + cos θ / 3 on average), so detectors round a sample see the precession (μSR). Inspect shows the spin; the particle view draws it. In 3-D the spin turns about the field\u2019s axis. Experimental: off again each time the game starts.'], // (1.27)
   setRpCpm: ['Charged particles in matter', 'A fast charged particle crossing matter loses its energy collision by collision, as in nature: mostly in small knocks, now and then in a hard one that sends an electron flying with up to the most a collision can give (a δ-ray, which ionizes in turn; 2.7 keV from a 5 MeV α, half its energy from an electron), so the loss over a thin layer has Landau\u2019s long tail instead of a fixed amount. On average it is Bethe\u2019s formula with each element\u2019s measured excitation energy: fast particles lose more than they did before (the relativistic rise the game\u2019s form lacked: in 3-D water a 5 MeV α 3.3 times, a 1 MeV electron 8 times: the 3-D game\u2019s loss was 2–12 times low; slow ions as before). Electrons and positrons give off bremsstrahlung (photons with a 1/k spectrum) at the rate set by each material\u2019s radiation length (lead 5.6 mm, water 36 cm), so it overtakes the collisions above the critical energy (water 79 MeV, lead 8 MeV). γ rays above 1.022 MeV make an electron and a positron near a nucleus (or two electrons and a positron in an electron\u2019s field) at the measured cross sections, against Compton scattering at the Klein–Nishina rate: the pair flies forward and shares the energy unequally. In water or glass a particle faster than light there (c/n) gives off Cherenkov light on a cone: 41° in water, 47° in silica glass, 334 photons a centimetre in 300–600 nm, which detectors see. What a nanometre box can\u2019t make real: a radiation length is centimetres, so at nature\u2019s rates a fast electron almost never radiates in the box, Cherenkov light is one photon in thousands of crossings, a shower (centimetres long) can\u2019t develop, and a minimum-ionizing particle mostly loses far less than its average (the rare hard collisions carry most of it); what is made leaves the box. γ rays meet atoms as often as the game\u2019s light always has (about 10⁷ times nature\u2019s). In 3-D the same in all three directions (the cone around the particle\u2019s way). Off: as before (a smooth loss, no bremsstrahlung for fast electrons in 3-D, pairs back to back sharing evenly). Experimental: off again each time the game starts.'], // (1.27)
+  segCpmX: ['Matter depth', 'As in the flat game, in all three directions: with Charged particles in matter on, bremsstrahlung and Cherenkov light sped up by the factor chosen, as if the box were that much deeper, so showers can start and Cherenkov cones show. Only those rare processes: collisions, δ-rays and the energy loss stay at nature\u2019s rates, so a scaled shower\u2019s details are off by the same factor (its critical energy that much lower, its radiation length that much shorter). ×1 is nature. Experimental: back to ×1 each time the game starts.'], // (1.27 item 26)
   setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻ or K⁻ is caught by an atom into an orbit and cascades down, in all three directions, setting Auger electrons free and giving off its X-ray lines; then the muon decays or is captured at the measured rate, a pion or kaon is absorbed by the nucleus. A muonic atom is a real atom of the box, its electrons seeing one charge less; muonic hydrogen passes through atoms and hands its muon to a heavier one. Antiprotons and protonium are in the flat game only (antimatter is not in 3-D). Experimental: off again each time the game starts.'], // (1.27)
   setRpRes: ['Resonance widths and heavy flavour', 'As in the flat game, in all three directions: a resonance gets its own mass from its measured width, and hadron collisions above the charm threshold make charm and bottom hadrons at their measured share. Experimental: off again each time the game starts.'],
   setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'As in the flat game, in all three directions: nuclear spins and moments (Inspect, the Larmor precession in a field along the Lab\u2019s axis), measured γ lines and isomers, neutrons at their measured cross sections. Experimental: off again each time the game starts.'],
@@ -6532,6 +6593,7 @@ function settingsInit() {
   $('setUltra').onchange = (e) => setSetting('ultra', e.target.checked);
   $('setRpExo').onchange = (e) => setSetting('rpExo', e.target.checked); // (1.27)
   $('setRpPs').onchange = (e) => setSetting('rpPs', e.target.checked); $('setRpMu').onchange = (e) => setSetting('rpMu', e.target.checked); $('setRpCpm').onchange = (e) => setSetting('rpCpm', e.target.checked); // (1.27)
+  bindSeg('segCpmX', (v) => setSetting('cpmX', +v)); // (Matter depth, 1.27 item 26)
   $('setRpRes').onchange = (e) => setSetting('rpRes', e.target.checked); $('setRpNuc').onchange = (e) => setSetting('rpNuc', e.target.checked); // (1.27)
   $('setRpPol').onchange = (e) => { setSetting('rpPol', e.target.checked); if (UI.tool === 'light' || UI.tool === 'objects') buildToolOpts(); }; // (1.27: the Light tool's polarization and the polarizer show with it)
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
