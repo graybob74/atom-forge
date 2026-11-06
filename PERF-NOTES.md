@@ -2713,6 +2713,11 @@ unstable particles interacting with each other; 25 the Higgs boson; 26 a "matter
 light; 27 the polarization correlation of π⁰ → 2γ and of γ–γ cascades (⁶⁰Co); 28 charm and bottom from nucleus–nucleus
 collisions; 29 the Z peak lowered by the beams' own radiation, and the W pair's forward peak; 30 hydrogen in molecules
 catching muons at the measured rate; 31 an automatic energy scan in the LEP setup; 32 positronium on the particle menu.
+33 (asked 2026-11-06, a speed-up, not physics): the longer force reach (9 and 12 Å) in WebAssembly: the Rust kernel
+has the 6 Å cutoff compiled in (kernel/src/lib.rs `RC2 = 36.0`, used 12 times; setCutoff turns the module off for any
+other reach), so 9 and 12 Å run the JavaScript kernels; making the cutoff a value the kernel is given (lib.rs, d3.rs,
+the neighbour lists' reach) and built by wasm.yml, with 6 Å bit for bit as now and 9/12 Å equal to the JavaScript to
+the bit, would give them the module's speed (the pair loop about 1.7–2.5× the JavaScript's). Medium job.
 Order, to spend the owner's limited usage well: the small ones first in one session (23, 26–32), then the medium ones
 (21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
 
