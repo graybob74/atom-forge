@@ -587,6 +587,32 @@ selected, copied, saved and let decay, flat and in 3-D. Checks: tests/f_swx.js (
 - Fingerprints (seed 7, 300 steps) for these three: annihilation and pionbeam change (point 3: a single product now
   takes its remainder: −4.5 eV in annihilation, 7×10⁻⁶ eV in pionbeam); none else, no 3-D setup. Checks: f_swx
   "pevBooks", "elasticCM", "neutron3".
+- **Atoms knocked into flight (flat game).** Found firing every particle at 1 keV–1 PeV through a row of three waters, a
+  carbon, a lead and a hydrogen atom (insulated, 80 steps, 3 seeds): the flat game's books moved more than 10 eV in 185
+  of 1,332 runs (more than 50 eV in 71), 3-D in 18 of 1,242. Besides the points above, two slips:
+  1. `setVel` sent a stepped atom past its flight threshold straight into radiation flight with its bonds kept (a bond
+     to an atom in flight stretches with no force on it) and its potential energy out of the books, as `nuclearScatter`
+     did: a neutron's elastic hit sent a lead atom bonded to carbon off at 83 keV, +108 eV. Now it breaks them and pays
+     the potential energy it leaves from its motion (as `switchMode` does below the threshold); its 3-D twin keeps
+     everything stepped already.
+  2. `nuclearCollision` (a nucleus in flight passing an atom, ZBL) pushed the target by √(2T/m) whatever its own motion
+     (the target gained more or less than the T taken from the projectile) and broke every bond weaker than T for free
+     (a bond broken at its compressed geometry costs up to 23 eV). Now the target gains exactly T; its bonds break only
+     if T pays what breaking them costs, measured, and that is taken from T. A 1 MeV α through the row: +46, +46, +61 eV
+     before (seeds 1–3), +0.2, +1.1, −0.1 after.
+  - After all the fixes of this section, the same sweep: flat more than 10 eV in 84 of 1,332 runs (more than 50 eV in 33,
+    all but 8 of them electrons, positrons and γ rays at 1 PeV, 10⁻¹⁰ of their energy: the showers' own rounding), the
+    rest 5–59 eV in the debris's chemistry and hot light atoms (the known limit of bug fix 13 after 1.25); 3-D more than
+    10 eV in 1 run (a 1 TeV Λ: 1.3 eV is the worst of the others).
+  - Insulated, 300 steps (seed 7): annihilation −153 → +3.3 eV; nif +1.1 → −0.5; fusion 0 → 0. Fingerprints: fusion, nif
+    and sns change from point 1 (an atom sent into flight while bonded), annihilation, pionbeam and sns from point 2.
+    Check: f_swx "flatRecoil".
+- **Faster than light.** Muonic hydrogen fired at 1 PeV scattered off a proton (`muAtomScatter`, flat) set the proton's
+  velocity by hand, non-relativistically and with no flight: 933c. A remainder handed to one product (point 3 of the PeV
+  fix, as first written) scaled an electron's velocity the same way: 52c. Both now go through `setVel` in the flat game
+  (into radiation flight at the true speed); in 3-D the flight's own speed rule holds. The fire sweep's other speed
+  readings: nothing stepped or flying past c in either game (the products' stored speed checked each step). Check:
+  f_swx "muFast".
 - **Texts.** A μ⁺ taking an electron said "Recombination: p⁺ + e⁻ → H atom", and a bare μ⁺ bonding "Proton bonded:
   H⁺ + …": now "μ⁺ + e⁻ → muonium" and "Muon bonded: Mu⁺ + …".
 

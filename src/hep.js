@@ -995,7 +995,7 @@ function muAtomScatter(o, x0, y0, z0) {
     const avx = v * o.ux, avy = v * o.uy, Vx = (mo * avx + mt * tg.vx) / M, Vy = (mo * avy + mt * tg.vy) / M;
     const rx = avx - tg.vx, ry = avy - tg.vy, w = Math.hypot(rx, ry), [cx, cy] = rdir();
     const ox = Vx + cx * w * mt / M, oy = Vy + cy * w * mt / M; // (the relative speed kept, its direction new)
-    tg.vx = Vx - cx * w * mo / M; tg.vy = Vy - cy * w * mo / M; updateFast(tg);
+    setVel(tg, Vx - cx * w * mo / M, Vy - cy * w * mo / M); // (setVel: past its threshold into radiation flight at its true speed; a muonic hydrogen fired at 1 PeV threw a proton at 933c, 1.26)
     const vo = Math.hypot(ox, oy);
     o.KE = 0.5 * mo * vo * vo; if (vo > 0) { o.ux = ox / vo; o.uy = oy / vo; } exoSpeed(o);
     W.count.muScat = (W.count.muScat || 0) + 1;
@@ -1116,7 +1116,7 @@ function settleRest(S, Qrel, made, left) {
   for (let k = 0; k < 3 && Math.abs(left) > 1e-6 && made.ps.length; k++) { // (shareKE moves energy only between the products, about their centre of mass: one product alone (a hit whose other products are unstable, or a nucleon from a nucleon–nucleon pass) kept the remainder, up to 0.25 MeV a hit in a 1 PeV event's debris; the fastest product takes it itself, 1.26)
     let q = null; for (const p of made.ps) if (!p.dead && (!q || keOf(p) > keOf(q))) q = p;
     const K = q ? keOf(q) : 0; if (!(K > 0) || !(K + left > 0)) break;
-    if (q.rad) { q.KE = K + left; radSpeed(q); q.vx = q.sp * q.ux; q.vy = q.sp * q.uy; } else { const f = Math.sqrt((K + left) / K); q.vx *= f; q.vy *= f; q.vz *= f; updateFast(q); }
+    if (q.rad) { q.KE = K + left; radSpeed(q); q.vx = q.sp * q.ux; q.vy = q.sp * q.uy; } else { const f = Math.sqrt((K + left) / K); if (W.d3) { q.vx *= f; q.vy *= f; q.vz *= f; updateFast(q); } else setVel(q, q.vx * f, q.vy * f); } // (flat: setVel, into radiation flight past its threshold)
     left = nucLeft(S, Qrel);
   }
   if (Math.abs(left) > 1e-6 && !made.ps.length && !made.xs.length && made.lost > 0) { W.ledger.escaped += left; return 0; } // (every product carried off (antinucleons in 3-D, no room): they take the remainder with them, 1.26)

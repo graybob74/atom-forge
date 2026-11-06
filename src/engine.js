@@ -5163,7 +5163,12 @@ function setVel(p, vx, vy) {
   const KE = 0.5 * p.m * v * v;
   const neutron = p.k === NUC && p.Z === 0;
   if (KE > (neutron ? NEUTRON_RAD : radThreshold(p.k !== NUC))) {
+    // (a stepped atom sent into flight leaves the stepped set: its bonds break and its potential energy with what stays
+    // is paid from its motion, as switchMode does for flight below this; kept, a bond to an atom in flight stretched
+    // with no force on it: a neutron's elastic hit sent a Pb bonded to C off at 83 keV, the books +108 eV, 1.26)
+    const md = _nmd > 0 && p.k === NUC && p.Z > 0 && inMD(p), set = md ? closeSet(setOf([p])) : null, U0 = md ? localPE(set) : 0;
     p.rad = true; p.fast = true; p.KE = KE; p.ux = vx / v; p.uy = vy / v; radSpeed(p);
+    if (md) { for (const bd of p.bonds.slice()) removeBond(bd); p.KE = Math.max(1e-6, KE - (localPE(closeSet(set)) - U0)); radSpeed(p); }
     p.vx = p.sp * p.ux; p.vy = p.sp * p.uy; if (!p.trk) startTrack(p);
   } else {
     p.rad = false; p.vx = vx; p.vy = vy; updateFast(p);
@@ -6048,10 +6053,12 @@ function nuclearCollision(p, t, b) {
   const rec = (Math.PI - th) / 2 * -sgn;
   const rx = p.ux * Math.cos(rec) - p.uy * Math.sin(rec), ry = p.ux * Math.sin(rec) + p.uy * Math.cos(rec);
   if (t.rad) { t.KE += T; radSpeed(t); }
-  else {
-    for (const bd of t.bonds.slice()) if (T > bd.D) removeBond(bd);
-    const [tvx, tvy] = velOf(t);
-    setVel(t, tvx + Math.sqrt(2 * T / mt) * rx, tvy + Math.sqrt(2 * T / mt) * ry);
+  else { // (the target gains exactly T, bonds it breaks paid from it: the push √(2T/m) on an atom already moving gave it more or less than T (its cross term), and the broken bonds were free; a 1 MeV α through a few molecules +56–76 eV, 1.26)
+    const brk = t.bonds.filter(bd => T > bd.D);
+    let Tk = T;
+    if (brk.length) { const set = closeSet(setOf([t])), sn = snapshot(set), U0 = localPE(set); for (const bd of brk) removeBond(bd); Tk = T - (localPE(closeSet(set)) - U0); if (Tk < 0) { restoreSnap(sn); Tk = T; } } // (they break only if T pays what breaking them costs, measured)
+    const [tvx, tvy] = velOf(t), vr = tvx * rx + tvy * ry, a = Tk > 0 ? -vr + Math.sqrt(vr * vr + 2 * Tk / mt) : 0;
+    setVel(t, tvx + a * rx, tvy + a * ry);
   }
   return T;
 }

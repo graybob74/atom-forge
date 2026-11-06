@@ -97,6 +97,50 @@ PARTS.neutron3 = async (page, check, say) => {
   check(Object.entries(r).every(([KE, v]) => Math.abs(v.c - want(+KE)) < 1e-4 && Math.abs(v.books) < 1e-3 * (+KE) * 1e-9 + 1e-6), `1.26 sweep: a 3-D neutron flies at its true speed (1 MeV ${r[1e6].c}c, 1 GeV ${r[1e9].c}c, 1 PeV ${r[1e15].c}c)`, 'swx neutron3: ' + JSON.stringify(r));
 };
 
+/* Flat game, an atom knocked into radiation flight by a nucleus passing (nuclearCollision) or an elastic hit (setVel):
+   the push √(2T/m) on an atom already moving gave it more or less than the T taken from the projectile, bonds broke
+   for free, and an atom sent into flight kept its bonds and potential energy out of the books. A 1 MeV α through a
+   row of molecules and atoms: +46 to +66 eV before; an H of a water molecule sent off at 50 keV: +4.8 eV over what it
+   was given. */
+PARTS.flatRecoil = async (page, check, say) => {
+  const r = { alpha: [], setVel: 0 };
+  for (const seed of [1, 2, 3]) {
+    const X = load('all', { seed }), W = X.W;
+    X.PRESETS.empty.build(); W.T = 0; W.gamma = 0; W.wall = 'reflect'; W.decayOn = true;
+    X.addMolecule('H2O', -2, 0, 0, 0); X.addMolecule('H2O', 2, 0.3, 0, 0); X.addAtom('C', 5, -0.2); X.addAtom('Pb', 8, 0.1); X.addAtom('H', 11, 0); X.addMolecule('H2O', 14, -0.2, 0, 0);
+    for (const p of W.parts) { p.vx = p.vy = 0; }
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    X.fireSpec(X.SPEC_ALPHA, -12, 0.02, 1, 0, 1e6);
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    const E0 = books(X); go(X, 80); r.alpha.push(+(books(X) - E0).toFixed(2));
+  }
+  { const X = load('all', { seed: 2 }), W = X.W; X.PRESETS.empty.build(); W.T = 0; W.gamma = 0;
+    const h = X.addMolecule('H2O', 0, 0, 0, 0).find(p => p.Z === 1); for (const p of W.parts) { p.vx = p.vy = 0; }
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    const E0 = books(X), v = Math.sqrt(2 * 5e4 / h.m); X.setVel(h, v, 0); r.setVel = +(books(X) - E0 - 5e4).toFixed(4); r.flew = !!h.rad && !h.bonds.length; }
+  check(r.alpha.every(v => Math.abs(v) < 3) && Math.abs(r.setVel) < 1e-3 && r.flew, `1.26 sweep: atoms knocked into flight in the flat game keep the books (a 1 MeV α through molecules ${r.alpha.join(', ')} eV; an H sent off at 50 keV ${r.setVel} eV over what it was given)`, 'swx flatRecoil: ' + JSON.stringify(r));
+};
+
+/* Faster than light: muonic hydrogen fired at 1 PeV threw the proton it scattered off at 933c (muAtomScatter set the
+   velocity by hand, non-relativistically, with no flight); a remainder settled on one light product (an electron) by
+   scaling its velocity did the same (1.26's settleRest, before this fix). Now through setVel (flat) or flight at the
+   true speed (3-D). */
+PARTS.muFast = async (page, check, say) => {
+  const r = {};
+  for (const d3 of [false, true]) {
+    const X = load('all', { seed: 5 }), W = X.W;
+    X.PRESETS[d3 ? 'd3empty' : 'empty'].build(); W.T = 0; W.gamma = 0; W.wall = 'reflect'; W.decayOn = true;
+    X.addMolecule('H2O', -2, 0, 0, 0); X.addMolecule('H2O', 2, 0.3, 0, 0); X.addAtom('C', 5, -0.2); X.addAtom('Pb', 8, 0.1); X.addAtom('H', 11, 0); X.addMolecule('H2O', 14, -0.2, 0, 0);
+    for (const p of W.parts) { p.vx = p.vy = 0; if (d3) p.vz = 0; }
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    X.fireSpec({ kind: 'exo', sp: 'muP' }, -12, 0.02, 1, 0, 1e15, false, d3 ? 0.01 : 0, 0);
+    let worst = 0;
+    for (let i = 0; i < 80; i++) { go(X, 1); for (const q of W.parts) if (!q.dead) worst = Math.max(worst, X.speedNow(q) / X.PHYS.C); }
+    r[d3 ? 'd3' : 'flat'] = +worst.toFixed(4);
+  }
+  check(r.flat <= 1 && r.d3 <= 1, `1.26 sweep: muonic hydrogen fired at 1 PeV: nothing it hits moves faster than light (fastest ${r.flat}c flat, ${r.d3}c 3-D)`, 'swx muFast: ' + JSON.stringify(r));
+};
+
 module.exports = async function fswx(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
