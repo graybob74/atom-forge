@@ -343,7 +343,7 @@ Waiting for the owner:
   radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #3 (AsCl₅) and #16
   (3-D water recapture, physics).
 
-For 1.27 (not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
+For 1.27 (part 1, exotic atoms, and the Settings section built on branch v141: see "1.27: realistic particles 1"; the rest not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
 portrayed and how to implement an experimental setting that makes them as realistic as possible"; APPROVED, all seven
 parts, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything": each part its own Experimental
 switch, off at start; off, every setup bit for bit as before (fingerprints), energy books exact on; built after the
@@ -1829,6 +1829,121 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 `cargo run --release --example vlcheck|bocheck|mbcheck|qeqcheck -- dump…` with tools/vldump.js, bodump.js (3-D setups
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
+
+## 1.27 (in progress)
+
+### 1.27: realistic particles 1 (exotic atoms) and the Settings section
+
+Branch v141 (from v136 at e237efe, the combined 1.26 with the 3-D and exotic-particle sweeps). The first of the seven
+approved realistic-particle parts (the owner, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with
+anything"), and the Settings section they live in. Checks: tests/f_rp1.js (t_features runs it alone; `node tests/f_rp1.js
+[--node] [part …]`); every part fails on v136 (no switch there) and passes here.
+
+- **The Settings section.** Settings → Experimental now ends with the heading "Realistic particles" (an h3, `rpHead`) and
+  one compact line a part: its name, an on/off switch (a checkbox drawn as a switch, `input.sw`, `role="switch"`), its
+  cost tag and "realistic when on" tag; the description is in the side pane on hover or focus, as every row's since
+  1.25 (on a phone, under the line). Ultra-realistic mode (`setUltra`, now a switch) and Electrons as waves (`segWave`,
+  its two buttons kept) moved in from their own headings, with their ids, descriptions, notes, cost tags, pictures and
+  saved values unchanged (both still start at normal: `SET_EXP`). Then the new line, Exotic atoms (`setRpExo`,
+  `SET.rpExo`, `RP.exo` in hep.js; off at every start like the rest of the tab). Photons as waves has its place marked
+  (a comment in body.html) beside Electrons as waves; no row yet. The 3-D lab's note (`set3dNote`) names exotic atoms
+  (muons, pions and kaons; antiprotons flat-only), and the 3-D side pane has its own description and cost (SDESC3,
+  COSTS3). No Settings picture changed, so setshots were not remade. Screenshots: scratchpad rp1/set-desk-2d.png,
+  set-desk-3d.png, set-phone-3d.png. Check: f_rp1 "layout" (lines 24 / 61 / 24 px high: the waves line keeps its
+  buttons; nothing wider than the screen at 390 px).
+- **Exotic atoms (Experimental → Realistic particles → Exotic atoms).** Before: a μ⁻ slowed to 2 keV was caught by the
+  nearest atom, its binding (0.51's MU_EB) leaving as two X-rays, and the atom's electrons kept seeing the whole nucleus;
+  π⁻, K⁻ and p̄ were absorbed at once. With the switch on (hep.js, "Realistic particles 1"):
+  1. *Capture* (`xaStep`, `xaTarget`). A μ⁻, π⁻ or K⁻ below 2 keV slows on by ionizing (exoIonize, as above 2 keV) until
+     its kinetic energy is under 30 eV (`XA_CAP`, about the outer electrons'), then is caught by an atom within 1.5 Å,
+     each with a chance ∝ Z (Fermi and Teller 1947). It takes an electron's place (that electron leaves with the
+     particle's energy and its binding in the first orbit, n₀ = √(m*/mₑ): 14 for a muon, 15–16 for a pion, 30–31 for a
+     kaon, 30–43 for an antiproton). Below 2 keV a slowing pion or kaon has no nuclear hits at the enlarged reach
+     (0.35 Å): they ended most kaons in the hypernucleus factory before they were caught (at true size a slow one meets a
+     nucleus in flight about once in 10⁹).
+  2. *Cascade* (`xaCascade`, `xaClose`). Down the circular orbits n → n − 1: an Auger electron while the atom has one to
+     give and the radiative rate (hydrogen-like 2p → 1s, 6.27×10⁸ s⁻¹·Z⁴·m*/mₑ, ×(2/n)⁵ up the circular orbits) is
+     under 10¹² s⁻¹, else an X-ray (photons the game already tracks: screens, detectors and the spectroscope see them).
+     So carbon's cascade turns radiative below n ≈ 5 and lead's is radiative throughout. Levels: Bohr's with the reduced
+     mass; a muon's 1s from the measured 2p → 1s line (`XA_KA`: C 75.25, O 133.53, Al 346.8, Si 400.2, Ca 783.9,
+     Fe 1,255, Pb 5,901 keV, the Pb fine-structure pair 5,962.8 / 5,778.1 given as one line at its 2 : 1 mean; Engfer et
+     al. 1974, Fricke et al. 1995; between them the ratio to Bohr's value interpolated in Z). The electrons' own binding
+     lost when the muon comes inside them (their Z − 1, below) is paid from the upper cascade first. The atom is left at
+     most +2: in a liquid or solid its holes fill from the neighbours within femtoseconds (not followed here), so past
+     that the upper cascade radiates. The X-rays carry their line energies exactly; what the books leave beyond them
+     goes to the Auger electrons (`xaClose`).
+  3. *End.* A muon stays in 1s: decay in orbit, its electron with the Michel spectrum x²(3 − 2x) up to the bound muon's
+     mass (`xaMichel`; the free muon's was flat phase space, and still is), or nuclear capture (Z − 1, neutrons boiled
+     off), at the measured mean lives (MU_TAU, 1.26). A pion is absorbed from its last orbit (`XA_NABS`: 1s up to Na,
+     2p to Br, 3d to Bi; kaons 1s in H, 2p to O, 3d to Ca …; antiprotons 2p in H, 3d to O …, rounded from Batty, Friedman
+     and Gal, Phys. Rep. 287, 385, 1997) by the existing absorption (hStop: a star; π⁻p → π⁰n or γn, 3 : 2; kStop: Λπ, a
+     hypernucleus sometimes), its binding there already given off (its mass less by it). An antiproton (flat game:
+     `nuclearAnnihilation`) cascades first, then annihilates; in hydrogen that is protonium (p̄p), annihilating from 2p
+     (99 in 100 there: its 2p width 38 meV against 0.4 meV for the X-ray), its L line 1.735 keV.
+  4. *To the outside an atom of charge Z − 1* (`zChem`, engine.js, on `p.muB.zx`). The electrons of a muonic atom see the
+     nucleus and the muon together: refresh takes the element below for p.el (so its table entries: valence, capacity,
+     bond energies and lengths, size, electronegativity), its charge Z − 1 − nₑ, and ionE(Z − 1, …) in internalE,
+     ionizationCost, softFor, electron capture and transfer, field ionization and the flying charges. Muonic carbon is to
+     the outside boron: valence 3, first ionization 8.30 eV, named μC (`elSym`; formulas, labels, the 2-D and 3-D atom
+     labels and Inspect's tile, "Exotic atom, to the outside boron"). What does not carry over: rules written for one
+     element by its nuclear charge (`p.Z === 1` …: a muonic helium is hydrogen-like but makes no hydrogen bonds), the
+     continuous bond orders and quantum bonds (they read the nucleus's Z), the orbitals view (the nucleus's Z). After a
+     decay in orbit it is carbon again (inside the decay's books); after a capture the nucleus is boron and its
+     chemistry carries on.
+  5. *Muonic hydrogen* stays an unstable particle in W.exo (since 0.51; Select, Erase, copy, saves and undo take it
+     since the 1.26 sweep): neutral and 200 times smaller than an atom, it passes through atoms. Beside a heavier atom
+     (2.5 Å, as muAtomTick takes a neighbour in liquid hydrogen) its muon moves over (`xaTransfer`, μp + Z → μZ + p) at
+     the rate at liquid-hydrogen density: N 3.4×10¹⁰, O 8.5×10¹⁰ s⁻¹ (PSI, thermal μp in H₂ mixtures, late 1990s, values
+     as I know them), He about 10⁸, others scaled from O's as Z up to 1.5×10¹¹ (Gershtein's estimate), on the nuclear
+     clock (Lab → Decay speed) as muAtomTick's rates. It lands in the highest orbit bound more deeply than μp's 1s
+     plus the electrons' lost binding (oxygen: n = 7), cascades there, and the proton and the atom fly apart with the
+     difference (521 eV and 31 eV).
+  6. *Inspect*: a pill "muonic atom: a μ⁻ in its 1s orbit (n = 1), mean life here …", and lines Muon (binding, the orbit
+     it was caught into or came over from, the capture share), Cascade (the four strongest X-ray lines with their
+     orbits, the Auger electrons) and Chemistry ("its electrons see Z − 1 = 5: to the outside an atom of boron").
+  - *Representation, and why.* A heavier muonic atom was already an atom of the store with `p.muB` (0.51), which Select,
+    Erase, Inspect, copy, saves and undo take (1.26); the switch adds to that object what it is (`sp`, `n`, `n0`, the
+    lines, the Auger count, `zx` for Z − 1, `from` after a transfer), and saves carry it as an optional `xm` list (older
+    readers open it as a 0.51 muonic atom). Pionic, kaonic and antiprotonic atoms live 10⁻¹⁸–10⁻¹² s, at once at the
+    game's steps: they are made, cascade and end in one event, in the log and the event captions. μp stays in W.exo. So
+    no new kind of particle and nothing new in the kernels.
+  - *What the box can't make real, said not faked:* the strong-interaction shift and width of the last pionic and
+    kaonic lines (pionic carbon's 1s is Bohr's 99.1 keV here); Stark mixing and Coulomb de-excitation in hydrogen (μp's
+    and protonium's cascades are radiative after the capture's electron); the holes' refilling (the atom is kept at most
+    +2); the Lyman series' np → 1s side branches (circular orbits only); the 2p fine-structure pair as one line; muonic
+    lines other than 2p → 1s are Bohr's (lead's 3d → 2p 2.63 MeV against 2.64 / 2.50 measured). K⁻ absorption stays
+    Λπ only (kStop): its Σπ channels (about two thirds at rest on light nuclei) are not built.
+- **Numbers** (Node, f_rp1 and scratchpad rp1/t*.js):
+  - Lines: muonic C 2p → 1s 75.25 keV (75.25 measured), O 133.53, Pb 5,901 keV (5,963 / 5,778; a point nucleus 14.2 MeV),
+    μp 1.896 keV (1.898; QED's 0.2% left out), pionic C 99.1 keV, kaonic C 3d → 2p 62.9 keV, protonium 3d → 2p 1.735 keV
+    (1.74); muonic C's cascade: 3 Auger electrons, X-rays 75.3, 13.9, 4.88, 2.26 keV … (n ≤ 12). Flat and 3-D the same.
+  - Its end, 120 lone atoms each (mean life in units of the measured; capture share against measured): C 0.98 (0.09 /
+    0.08), Al 1.01 (0.58 / 0.61), Pb 1.07 (0.98 / 0.97), ±0.27 at 3σ; 3-D alike (scratchpad t6: C 1.11, Al 1.12, Pb 1.01,
+    ±0.30). Michel mean 36.6 MeV (36.9 for the bound muon's mass, 2,000 decays).
+  - π⁻ in carbon: 16 of 16 in three or more pieces (Be + n n p, Li + n p t, He + n n n p α …); π⁻p → π⁰n : γn 177 : 123 =
+    1.44 (Panofsky 1.5). K⁻ in carbon: Λ or a hypernucleus 16 of 16.
+  - Books: each capture, cascade, transfer and end within 10⁻⁵ eV (flat and 3-D; a muonic carbon's decay 4×10⁻⁷). A
+    1.5 keV muon fired into insulated liquid water slows to its capture (below 30 eV; by O or by H, as the Z law draws):
+    3-D 0.1–0.24 eV over the run; the flat game −2.7 to +6.5 eV over 70–120 steps, the known limit of ionized water (the
+    muon's last keV ionizes a few molecules).
+  - Switch off: the fingerprints of all 59 setups (seed 7, 300 steps) unchanged against v136; f_rp1 "off" keeps seven
+    of them (mucf, pionbeam, muonium, hyperfactory, annihilation, water, water3d) against v136's hashes.
+  - Cost: off, nothing (one flag test per slow μ⁻, π⁻, K⁻). On, ×1 where nothing is caught (pionbeam 2.63 → 2.70 ms a
+    step, noise); a capture is one event of 1.2–2.3 ms flat, 1.4–1.5 ms in 3-D (the cascade's electrons and X-rays; 40 atoms of C, O, Pb); where slow ones stop, the last
+    keV they now spend ionizing the matter (a small plasma the step chooser follows) costs more: muon-catalysed fusion
+    0.30 → 0.92 ms a step, the hypernucleus factory 0.40 → 1.72 (600 steps, seed 7, one thread).
+- **Found, not changed:** a neutron that hits a muonic atom's nucleus (an inelastic scattering or capture remakes the
+  nucleus) takes the muon away with it (muBoundTick: "its atom gone in some other event"), as before the switch: in a
+  box of muonic lead the capture neutrons ended 37 of 64 muonic atoms early (the lifetime checks use lone atoms).
+- **For the owner (physics questions, written down, not decided):**
+  - K⁻ at rest makes Σπ about twice as often as Λπ on light nuclei (and the Σ often converts to Λ in the nucleus): add
+    the Σπ channels with measured shares?
+  - The capture at 30 eV, chance ∝ Z: hydrogen in molecules is measured to catch fewer muons than the Z law gives (the
+    "large mesomolecular" models); per-molecule ratios could replace it where measured (water, methane).
+  - The atom kept at most +2 after its cascade (refilling not followed): in a thin gas a light muonic atom really ends
+    nearly bare.
+  - The transfer rates for elements other than N and O are scaled, not measured; MU_TAU's and XA_KA's values are from
+    memory of the compilations (no network here) and are worth a check against the papers.
 
 ## 1.25.0: the nuclear side in 3-D, continuous bond orders in 3-D with single bonds' twist, many-body metals, Settings by mode with 3-D pictures, 3-D labels off, 21 bug fixes
 

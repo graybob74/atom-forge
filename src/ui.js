@@ -5881,7 +5881,7 @@ const COSTS = {
   setResBig: () => ({ k: 'physics', on: ['×1 + pauses', 'Nothing while bonds stay put; a pause of 12 ms (200 ring atoms) to 0.2 s (1,000) when a large ring system reacts'] }),
   setInc: () => ({ k: 'physics', on: ['×1–1.05', 'About 3 ms a nuclear hit instead of 1: a few percent in the nuclear setups, nothing elsewhere'] }),
   setUltra: () => ({ k: 'physics', on: ['×1', 'True sizes and rates cost nothing'] }),
-  setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where no slow μ⁻, π⁻, K⁻ or antiproton is caught; a capture is one event of about 0.1–0.5 ms (its cascade\u2019s electrons and X-rays), and a muonic atom costs what an atom does'] }),
+  setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where no slow μ⁻, π⁻, K⁻ or antiproton stops (a pion beam into carbon ×1.0); a capture is one event of 1.2–2.3 ms (its cascade\u2019s electrons and X-rays), and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in makes a small plasma to follow: muon-catalysed fusion ×3, the hypernucleus factory ×4 while it lasts'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
@@ -5924,7 +5924,7 @@ const COSTS3 = {
   segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×2', 'Measured in 3-D (1.25): liquid water and salt water ×2.0–2.2 where steps are at their longest (a 3-D step costs about the same whatever its length); nothing where they are already short'], 0.01: ['×3.5', 'Measured in 3-D (1.25): liquid water ×3.4–3.5, salt water ×3.3–4.1 where steps are at their longest; nothing where they are already short'] } }),
   setInc: () => ({ k: 'physics', on: ['×1', 'Nothing in the 3-D lab: nucleons do not strike nuclei there yet (the flat game only)'] }),
   setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24); the true sizes are drawn without the WebGL layer (liquid water: 7 → 25 ms a frame, headless, 1.26)'] }),
-  setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing where no slow μ⁻, π⁻ or K⁻ is caught; a capture is one event of about 0.1–0.5 ms, and a muonic atom costs what an atom does'] }),
+  setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing where no slow μ⁻, π⁻ or K⁻ stops; a capture is one event of 1.4–1.5 ms, and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in costs more while it lasts'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
