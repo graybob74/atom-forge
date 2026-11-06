@@ -105,4 +105,17 @@ function atomUnpaired(z) {
   const v = [0, 1, 0, 1, 0, 1, 2, 3, 2, 1, 0, 1, 0, 1, 2, 3, 2, 1, 0];
   return z < v.length ? v[z] : 0;
 }
-module.exports = { spinTable, spinPot, fermiShared, solveChannel, channelDensity, addWDensity, mayerSpin, atomUnpaired, wll };
+// the stability probe (Atom Forge, 1.26): an unpolarized state answers a tiny magnetization eps v (in the potential
+// only) with m_out; lam = v.m_out / (eps v.v) above 1 means the state is unstable to spin polarization (the
+// Stoner criterion), and m_out (scaled to a largest entry of 1) is the next probe direction (a power iteration over
+// the steps of a run finds the most unstable pattern)
+const PROBE_EPS = 1e-6;
+function probeResult(v, mOut) {
+  let vv = 0, vm = 0, mx = 0;
+  for (let s = 0; s < v.length; s++) { vv += v[s] * v[s]; vm += v[s] * mOut[s]; mx = Math.max(mx, Math.abs(mOut[s])); }
+  return { lam: vv > 0 ? vm / (PROBE_EPS * vv) : 0, v: mx > 1e-300 ? Array.from(mOut, x => x / mx) : Array.from(v) };
+}
+// the first probe direction: every shell, the sign alternating from atom to atom, the sizes a little uneven (no
+// randomness: the runs stay reproducible)
+function defaultProbe(shAt, nsh) { const v = new Array(nsh); for (let s = 0; s < nsh; s++) v[s] = (shAt[s] % 2 ? -1 : 1) * (0.6 + 0.4 * Math.cos(1.3 * s)); return v; }
+module.exports = { PROBE_EPS, probeResult, defaultProbe, spinTable, spinPot, fermiShared, solveChannel, channelDensity, addWDensity, mayerSpin, atomUnpaired, wll };

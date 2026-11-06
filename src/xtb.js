@@ -4085,7 +4085,20 @@ function atomUnpaired(z) {
   const v = [0, 1, 0, 1, 0, 1, 2, 3, 2, 1, 0, 1, 0, 1, 2, 3, 2, 1, 0];
   return z < v.length ? v[z] : 0;
 }
-module.exports = { spinTable, spinPot, fermiShared, solveChannel, channelDensity, addWDensity, mayerSpin, atomUnpaired, wll };
+// the stability probe (Atom Forge, 1.26): an unpolarized state answers a tiny magnetization eps v (in the potential
+// only) with m_out; lam = v.m_out / (eps v.v) above 1 means the state is unstable to spin polarization (the
+// Stoner criterion), and m_out (scaled to a largest entry of 1) is the next probe direction (a power iteration over
+// the steps of a run finds the most unstable pattern)
+const PROBE_EPS = 1e-6;
+function probeResult(v, mOut) {
+  let vv = 0, vm = 0, mx = 0;
+  for (let s = 0; s < v.length; s++) { vv += v[s] * v[s]; vm += v[s] * mOut[s]; mx = Math.max(mx, Math.abs(mOut[s])); }
+  return { lam: vv > 0 ? vm / (PROBE_EPS * vv) : 0, v: mx > 1e-300 ? Array.from(mOut, x => x / mx) : Array.from(v) };
+}
+// the first probe direction: every shell, the sign alternating from atom to atom, the sizes a little uneven (no
+// randomness: the runs stay reproducible)
+function defaultProbe(shAt, nsh) { const v = new Array(nsh); for (let s = 0; s < nsh; s++) v[s] = (shAt[s] % 2 ? -1 : 1) * (0.6 + 0.4 * Math.cos(1.3 * s)); return v; }
+module.exports = { PROBE_EPS, probeResult, defaultProbe, spinTable, spinPot, fermiShared, solveChannel, channelDensity, addWDensity, mayerSpin, atomUnpaired, wll };
 
   return module.exports; })();
   M["./gfn1.js"] = (() => { const module = { exports: {} };
@@ -4611,6 +4624,29 @@ function element(z) {
   return e;
 }
 
+// A parameter set over the base (opts.par, 1.26: Atom Forge xTB's refit, and the fit itself): per element z, dlev (each
+// shell's level shifted, eV), kcn (each shell's CN shift scaled by 1 + x), shp (each shell's distance polynomial plus
+// x, in the table's 0.01 units), hub (the hardness scaled by 1 + x), g3 (third order), ra / rz (repulsion exponent and
+// charge); per pair "zi-zj" (zi <= zj) the H0 scaling of the two atoms' valence shells times 1 + x. Unlisted elements
+// keep the base. par.id names the set (its elements and pair tables are cached under it).
+const parElem = new Map();
+function elementP(z, par) {
+  if (!par) return element(z);
+  const key = par.id + ':' + z;
+  let e = parElem.get(key);
+  if (e) return e;
+  if (parElem.size > 256) { parElem.clear(); for (const k of pairCache.keys()) if (k >= 16384) pairCache.delete(k); }
+  const b = element(z), o = (par.el && par.el[z]) || {};
+  e = Object.assign({}, b, { par, pk: (par.id % 1e6) + 1 });
+  e.shells = b.shells.map((sh, k) => Object.assign({}, sh, {
+    level: sh.level + (o.dlev ? (o.dlev[k] || 0) * EVTOAU : 0), kcn: sh.kcn * (1 + (o.kcn ? o.kcn[k] || 0 : 0)),
+    shpoly: sh.shpoly + (o.shp ? (o.shp[k] || 0) * 0.01 : 0), hubbard: sh.hubbard * (1 + (o.hub || 0)) }));
+  e.gam3 = b.gam3 * (1 + (o.g3 || 0)); e.repAlpha = b.repAlpha * (1 + (o.ra || 0)); e.repZeff = b.repZeff * (1 + (o.rz || 0));
+  parElem.set(key, e);
+  return e;
+}
+const pairScale = (ei, ej) => { const P = ei.par && ei.par.pair; if (!P) return 1; const a = Math.min(ei.z, ej.z), b = Math.max(ei.z, ej.z); return 1 + (P[a + '-' + b] || 0); };
+
 // Pair scaling factor for H0 (get_pair_param in gfn1.f90)
 function dblockRow(z) { return z > 20 && z < 30 ? 1 : z > 38 && z < 48 ? 2 : z > 56 && z < 80 ? 3 : 0; }
 function kpair(zi, zj) {
@@ -4631,7 +4667,7 @@ function hscale(ei, si, ej, sj) {
   const a = ei.shells[si], b = ej.shells[sj];
   if (a.valence && b.valence) {
     const den = (ei.en - ej.en) ** 2;
-    return kpair(ej.z, ei.z) * kshell(b.l, a.l) * (1.0 + ENSCALE * den);
+    return kpair(ej.z, ei.z) * kshell(b.l, a.l) * (1.0 + ENSCALE * den) * (ei.par ? pairScale(ei, ej) : 1);
   }
   if (a.valence) return 0.5 * (kshell(a.l, a.l) + KDIFF);
   if (b.valence) return 0.5 * (kshell(b.l, b.l) + KDIFF);
@@ -4756,7 +4792,7 @@ const CX = CART.map(l => Int32Array.from(l, c => c[0])), CY = CART.map(l => Int3
   CZ = CART.map(l => Int32Array.from(l, c => c[2]));
 const pairCache = new Map();
 function pairTable(ei, ej) {
-  const key = ei.z * 128 + ej.z;
+  const key = ei.z * 128 + ej.z + (ei.pk ? ei.pk * 16384 : 0);
   let t = pairCache.get(key);
   if (t) return t;
   const nI = ei.ua.length, nJ = ej.ua.length, n = nI * nJ;
@@ -5069,8 +5105,9 @@ function solveTransposed(A, b, n) {
 
 // ---- modified Broyden mixer (scf/mixer/broyden.f90) ----
 class Broyden {
-  constructor(ndim, memory, damp) {
+  constructor(ndim, memory, damp, o = null) {
     this.n = ndim; this.memory = memory; this.damp = damp; this.iter = 0;
+    this.o = o; this.best = Infinity;                      // (o: Atom Forge's safeguards, 1.26 (GFN2 and spin only; null: tblite's mixer as it is))
     this.df = []; this.u = []; this.a = [];                // rows of a are made when first used (next())
     this.omega = new Float64Array(memory);
     this.q = new Float64Array(ndim); this.qlast = new Float64Array(ndim);
@@ -5082,6 +5119,11 @@ class Broyden {
   error() { let s = 0; for (let i = 0; i < this.n; i++) s += this.dq[i] ** 2 / this.n; return Math.sqrt(s); }
   next() {
     const n = this.n, q = this.q, dq = this.dq, alpha = this.damp;
+    if (this.o) {                                          // (a residual far above the best so far: the history leads astray; start it again)
+      const e = this.error();
+      if (e < this.best) this.best = e;
+      else if (this.o.restart && e > this.o.restart * this.best && this.iter > 1) { this.iter = 0; this.df = []; this.u = []; this.a = []; this.best = e; this.restarts = (this.restarts || 0) + 1; }
+    }
     this.iter++;
     const iter = this.iter, itn = iter - 1, memory = this.memory;
     const it1 = (itn - 1) % memory;               // 0-based slot
@@ -5173,7 +5215,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const intcut = integralCutoff(acc);
   const X = new Float64Array(3 * nat);                               // positions in Bohr, x y z per atom
   for (let i = 0; i < nat; i++) { const p = xyzA[i]; X[3 * i] = p[0] * AATOAU; X[3 * i + 1] = p[1] * AATOAU; X[3 * i + 2] = p[2] * AATOAU; }
-  const el = Z.map(element);
+  const el = opts.par ? Z.map(z => elementP(z, opts.par)) : Z.map(element);
 
   // basis layout: shells and atomic orbitals
   const shAt = [], shOf = [], shAo = [], shN = [], atSh = [];
@@ -5299,12 +5341,12 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   // iterations, and the mixer's cost grows with the cube of its history: 3.7 s for 10 atoms, every step)
   const maxIter = opts.maxIter > 0 ? Math.min(MAX_ITER, opts.maxIter) : MAX_ITER;
   const sp = !!opts.spin;                                              // (spin polarization, 1.26: two channels, below)
-  const mixer = new Broyden(sp ? 2 * nsh : nsh, maxIter, MIX_DAMP);
+  const mixer = new Broyden(sp ? 2 * nsh : nsh, opts.mix && opts.mix.memory || maxIter, opts.mix && opts.mix.damp || MIX_DAMP, opts.mix || null);
   let iscf = 0, converged = false, eelec = 0, eext = 0, emo = null, focc = null;
   const vsh = new Float64Array(nsh), vao = new Float64Array(nao);
-  let SPN = null;                                                      // the spin channels' state, for the output and the gradient
+  let SPN = null, out_probe = null;                                     // the spin channels' state, for the output and the gradient
   if (sp) SPN = spinSCC();
-  while (!sp && !converged && iscf < maxIter) {
+  if (!sp) while (!converged && iscf < maxIter) {
     const elast = eelec;
     if (iscf > 0) { mixer.next(); qsh = mixer.get(); qat = qatFromQsh(qsh); }
     iscf++;
@@ -5382,13 +5424,18 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     const vm = new Float64Array(nsh), vaoM = new Float64Array(nao), Ha = new Float64Array(nao * nao), Hb = new Float64Array(nao * nao);
     const Wa = new Float64Array(nao * nao), Wb = new Float64Array(nao * nao), Aa = new Float64Array(nao * nao), Ab = new Float64Array(nao * nao);
     const Pa = new Float64Array(nao * nao), Pb = new Float64Array(nao * nao), mv = new Float64Array(2 * nsh);
-    let ea = null, eb = null, fa = null, fb = null, espin = 0;
+    let ea = null, eb = null, fa = null, fb = null, espin = 0, probing = false;
+    const PR = opts.probe && opts.spinFree ? { v: opts.probe.length === nsh ? opts.probe : SPIN.defaultProbe(shAt, nsh) } : null;
     while (!converged && iscf < maxIter) {
       const elast = eelec;
       if (iscf > 0) { mixer.next(); const v = mixer.q; for (let s = 0; s < nsh; s++) { qsh[s] = v[s]; msh[s] = v[nsh + s]; } qat = qatFromQsh(qsh); }
       iscf++;
       for (let a = 0; a < nsh; a++) { let v = 0; for (let b = 0; b < nsh; b++) v += J[a * nsh + b] * qsh[b]; vsh[a] = v + qat[shAt[a]] ** 2 * gam3[shAt[a]] + (vext ? vext[shAt[a]] : 0); }
-      SPIN.spinPot(w, atSh, shAt, nsh, msh, vm);
+      // (the stability probe, 1.26: with no magnetization at all, the potential of a tiny one along PR.v, and how much
+      // the electrons answer along it; the state itself stays unpolarized)
+      probing = !!PR && msh.every(v => v === 0);
+      if (probing) { const mp = new Float64Array(nsh); for (let s = 0; s < nsh; s++) mp[s] = SPIN.PROBE_EPS * PR.v[s]; SPIN.spinPot(w, atSh, shAt, nsh, mp, vm); }
+      else SPIN.spinPot(w, atSh, shAt, nsh, msh, vm);
       for (let m = 0; m < nao; m++) { vao[m] = vsh[aoSh[m]]; vaoM[m] = vm[aoSh[m]]; }
       for (let m = 0; m < nao; m++) for (let n = 0; n < nao; n++) {
         const k = m * nao + n, hc = H0[k] - 0.5 * S[k] * (vao[m] + vao[n]), hm = -0.5 * S[k] * (vaoM[m] + vaoM[n]);
@@ -5407,6 +5454,8 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
         qn[aoSh[m]] -= pa + pb; mn[aoSh[m]] += pa - pb;
       }
       for (let s = 0; s < nsh; s++) { qn[s] += n0sh[s]; mn[s] = -mn[s]; }
+      if (probing) { out_probe = SPIN.probeResult(PR.v, Float64Array.from(mn)); PR.v = out_probe.v; // (a power iteration: each iteration turns the pattern toward the most unstable one)
+        mn.fill(0); }
       qsh = qn; msh = mn; qat = qatFromQsh(qsh);
       const md = new Float64Array(2 * nsh); md.set(qsh, 0); md.set(msh, nsh); mixer.diff(md);
       let e2 = 0;
@@ -5421,6 +5470,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       if (opts.verbose) console.log(iscf, (eelec + erep).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
     }
     emo = ea; focc = fa;
+    if (!probing) out_probe = null;
     return { msh, vaoM, Pa, Pb, Wa, Wb, ea, eb, fa, fb, espin };
   }
   const Eh = erep + eelec;
@@ -5432,7 +5482,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   if (SPN) {                                                   // (spin polarization, 1.26)
     const m = SPN.msh, mat = new Float64Array(nat);
     for (let s = 0; s < nsh; s++) mat[shAt[s]] -= m[s];
-    Object.assign(out, { msh: Array.from(m), spin: Array.from(mat), guess: [...qsh, ...m], Espin: SPN.espin * AUTOEV,   // (spin: N_alpha - N_beta per atom)
+    Object.assign(out, { probe: out_probe, msh: Array.from(m), spin: Array.from(mat), guess: [...qsh, ...m], Espin: SPN.espin * AUTOEV,   // (spin: N_alpha - N_beta per atom)
       emoB: Array.from(SPN.eb, x => x * AUTOEV), foccB: Array.from(SPN.fb), nAlpha: SPN.fa.reduce((a, b) => a + b, 0), nBeta: SPN.fb.reduce((a, b) => a + b, 0) });
     for (let k = 0; k < nao * nao; k++) P[k] = SPN.Pa[k] + SPN.Pb[k];        // (the total density, for the gradient)
   }
@@ -5580,7 +5630,9 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
 
 /* the number of atomic orbitals of an element (its shells' 2l + 1 summed): what a calculation's cost grows with */
 function nAO(z) { return element(z).shells.reduce((t, s) => t + 2 * s.l + 1, 0); }
-module.exports = { gfn1Energy, nAO, BOHR, AUTOEV, _internal: { element, overlapBlock, overlapGradBlock, symEig, choleskyInverse },
+/* its shells (the length of an atom's share of the charge state; 1.26: the game carries it over by atom) */
+function nShell(z) { return element(z).shells.length; }
+module.exports = { gfn1Energy, nAO, nShell, BOHR, AUTOEV, _internal: { element, overlapBlock, overlapGradBlock, symEig, choleskyInverse },
   // (shared with gfn2.js, 1.26: the STO-nG tables, mctc-lib's radii and electronegativities, the linear algebra, the
   // mixer and the Fermi filling; nothing here changes for GFN1)
   _shared: { T, DTRAFO, CART, symEig, choleskyInverse, Broyden, fermiFilling, entropyTerm, integralCutoff, KT_DEFAULT, EVTOAU, AATOAU, MAX_ITER, MIX_DAMP, ECONV, PCONV, MAX_CUTOFF, DFACT, TOP } };
@@ -7945,9 +7997,28 @@ function element(z) {
   elemCache.set(z, e);
   return e;
 }
+// a parameter set over the base (opts.par, 1.26; as gfn1.js elementP: dlev, kcn, shp, hub, g3 (each shell's third
+// order), ra, rz per element, the pair H0 scaling per "zi-zj")
+const parElem = new Map();
+function elementP(z, par) {
+  if (!par) return element(z);
+  const key = par.id + ':' + z;
+  let e = parElem.get(key);
+  if (e) return e;
+  if (parElem.size > 256) { parElem.clear(); for (const k of hscaleCache.keys()) if (k >= 16384) hscaleCache.delete(k); }
+  const b = element(z), o = (par.el && par.el[z]) || {};
+  e = Object.assign({}, b, { par, pk: (par.id % 1e6) + 1 });
+  e.shells = b.shells.map((sh, k) => Object.assign({}, sh, {
+    level: sh.level + (o.dlev ? (o.dlev[k] || 0) * EVTOAU : 0), kcn: sh.kcn * (1 + (o.kcn ? o.kcn[k] || 0 : 0)),
+    shpoly: sh.shpoly + (o.shp ? (o.shp[k] || 0) * 0.01 : 0), hubbard: sh.hubbard * (1 + (o.hub || 0)), gam3: sh.gam3 * (1 + (o.g3 || 0)) }));
+  e.repAlpha = b.repAlpha * (1 + (o.ra || 0)); e.repZeff = b.repZeff * (1 + (o.rz || 0));
+  parElem.set(key, e);
+  return e;
+}
+const pairScale = (ei, ej) => { const P = ei.par && ei.par.pair; if (!P) return 1; const a = Math.min(ei.z, ej.z), b = Math.max(ei.z, ej.z); return 1 + (P[a + '-' + b] || 0); };
 const hscaleCache = new Map();
 function hscaleTable(ei, ej) {                        // get_hscale: zij (Slater exponents) x kshell x (1 + enscale dEN^2)
-  const key = ei.z * 128 + ej.z;
+  const key = ei.z * 128 + ej.z + (ei.pk ? ei.pk * 16384 : 0);
   let t = hscaleCache.get(key);
   if (t) return t;
   t = new Float64Array(ei.shells.length * ej.shells.length);
@@ -7955,7 +8026,7 @@ function hscaleTable(ei, ej) {                        // get_hscale: zij (Slater
   for (let a = 0; a < ei.shells.length; a++) for (let b = 0; b < ej.shells.length; b++) {
     const zi = ei.shells[a].zeta, zj = ej.shells[b].zeta;
     const zij = Math.pow(2 * Math.sqrt(zi * zj) / (zi + zj), GP.wexp);
-    t[a * ej.shells.length + b] = zij * kshell(ej.shells[b].l, ei.shells[a].l) * (1.0 + GP.enscale * den);
+    t[a * ej.shells.length + b] = zij * kshell(ej.shells[b].l, ei.shells[a].l) * (1.0 + GP.enscale * den) * (ei.par ? pairScale(ei, ej) : 1);
   }
   hscaleCache.set(key, t);
   return t;
@@ -7969,7 +8040,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const intcut = integralCutoff(acc), grad = !!opts.grad;
   const X = new Float64Array(3 * nat);
   for (let i = 0; i < nat; i++) { const p = xyzA[i]; X[3 * i] = p[0] * AATOAU; X[3 * i + 1] = p[1] * AATOAU; X[3 * i + 2] = p[2] * AATOAU; }
-  const el = Z.map(element);
+  const el = opts.par ? Z.map(z => elementP(z, opts.par)) : Z.map(element);
 
   // basis layout
   const shAt = [], shOf = [], shAo = [], shN = [], atSh = [], atAo = [];
@@ -8119,7 +8190,11 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   let qat = qatOf(qsh);
   const maxIter = opts.maxIter > 0 ? Math.min(MAX_ITER, opts.maxIter) : MAX_ITER;
   const sp = !!opts.spin;                              // (spin polarization, 1.26: two channels, spinSCC below)
-  const mixer = new Broyden(sp ? 2 * ndim : ndim, maxIter, MIX_DAMP), mv = new Float64Array(ndim);
+  // (opts.anneal {kt0, hold, cycles}: the electrons start hotter and cool to kt, as tblite's newer annealing: kt0 for the
+  // first `hold` iterations, then down in a straight line over `cycles`; settled only at kt. Atom Forge xTB's SCC aid, 1.26)
+  const AN = opts.anneal || null;
+  const ktAt = (it) => !AN ? kt : it < AN.hold ? AN.kt0 : it < AN.hold + AN.cycles ? AN.kt0 + (it - AN.hold + 1) / AN.cycles * (kt - AN.kt0) : kt;
+  const mixer = new Broyden(sp ? 2 * ndim : ndim, opts.mix && opts.mix.memory || maxIter, opts.mix && opts.mix.damp || MIX_DAMP, opts.mix || null), mv = new Float64Array(ndim);
   const vsh = new Float64Array(nsh), vat = new Float64Array(nat), vao = new Float64Array(nao), vdp = new Float64Array(3 * nat), vqp = new Float64Array(6 * nat);
   const wq = new Float64Array(nao * nao);
   let iscf = 0, converged = false, eelec = 0, eext = 0, emo = null, focc = null, parts = null;
@@ -8199,7 +8274,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   // charge channel (shell charges, atomic dipoles and quadrupoles) and the magnetization channel (the same moments of
   // N_beta - N_alpha), mixed as one vector in tblite's order [q, m, dp, dp_m, qp, qp_m]; only the shell
   // magnetizations act (the on-site spin term), H_alpha = H_c + H_m and H_beta = H_c - H_m, H_m = -1/2 S (v_m + v_m)
-  let SPN = null;
+  let SPN = null, out_probe = null;
   function spinSCC() {
     const w = SPIN.spinTable(Z, i => el[i].shells, atSh, shAt, nsh, opts.spin === true ? 1 : +opts.spin);
     let msh = new Float64Array(nsh), dm = new Float64Array(3 * nat), tm = new Float64Array(6 * nat);
@@ -8226,13 +8301,18 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     const vm = new Float64Array(nsh), vaoM = new Float64Array(nao), Ha = new Float64Array(nao * nao), Hb = new Float64Array(nao * nao);
     const Wa = new Float64Array(nao * nao), Wb = new Float64Array(nao * nao), Aa = new Float64Array(nao * nao), Ab = new Float64Array(nao * nao);
     const Pa = new Float64Array(nao * nao), Pb = new Float64Array(nao * nao), Pm = new Float64Array(nao * nao);
-    let ea = null, eb = null, fa = null, fb = null, espin = 0;
+    let ea = null, eb = null, fa = null, fb = null, espin = 0, probing = false;
+    const PR = opts.probe && opts.spinFree ? { v: opts.probe.length === nsh ? opts.probe : SPIN.defaultProbe(shAt, nsh) } : null;
     while (!converged && iscf < maxIter) {
       const elast = eelec;
       if (iscf > 0) { mixer.next(); unpackS(mixer.q); qat = qatOf(qsh); }
       iscf++;
       chargePotentials();
-      SPIN.spinPot(w, atSh, shAt, nsh, msh, vm);
+      // (the stability probe, 1.26: with no magnetization at all, the potential of a tiny one along PR.v, and how much
+      // the electrons answer along it; the state itself stays unpolarized)
+      probing = !!PR && msh.every(v => v === 0);
+      if (probing) { const mp = new Float64Array(nsh); for (let s = 0; s < nsh; s++) mp[s] = SPIN.PROBE_EPS * PR.v[s]; SPIN.spinPot(w, atSh, shAt, nsh, mp, vm); }
+      else SPIN.spinPot(w, atSh, shAt, nsh, msh, vm);
       for (let m = 0; m < nao; m++) vaoM[m] = vm[aoSh[m]];
       for (let m = 0; m < nao; m++) for (let n = 0; n < nao; n++) {
         const k = m * nao + n, hc = H0[k] - 0.5 * S[k] * (vao[m] + vao[n]) - 0.5 * (wq[n * nao + m] + wq[k]), hm = -0.5 * S[k] * (vaoM[m] + vaoM[n]);
@@ -8240,8 +8320,9 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       }
       mixer.set(packS(qsh, msh, dp, dm, qp, tm, vec));
       ea = SPIN.solveChannel(symEig, Ha, Li, nao, Wa, Aa); eb = SPIN.solveChannel(symEig, Hb, Li, nao, Wb, Ab);
-      if (opts.spinFree) [fa, fb] = SPIN.fermiShared(fermiFilling, nocc, kt, ea, eb);
-      else { fa = fermiFilling(nel[0], kt, ea); fb = fermiFilling(nel[1], kt, eb); }
+      const ktn = ktAt(iscf - 1);
+      if (opts.spinFree) [fa, fb] = SPIN.fermiShared(fermiFilling, nocc, ktn, ea, eb);
+      else { fa = fermiFilling(nel[0], ktn, ea); fb = fermiFilling(nel[1], ktn, eb); }
       SPIN.channelDensity(Wa, Aa, LiT, fa, nao, Ct, Pa); SPIN.channelDensity(Wb, Ab, LiT, fb, nao, Ct, Pb);
       for (let k = 0; k < nao * nao; k++) { P[k] = Pa[k] + Pb[k]; Pm[k] = Pa[k] - Pb[k]; }
       const qn = new Float64Array(nsh), dn = new Float64Array(3 * nat), tn = new Float64Array(6 * nat);
@@ -8249,6 +8330,8 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       const eband = populations(P, qn, dn, tn);
       populations(Pm, mn, dmn, tmn);                  // (-(alpha - beta): N_beta - N_alpha, tblite's sign)
       for (let s = 0; s < nsh; s++) qn[s] += n0sh[s];
+      if (probing) { out_probe = SPIN.probeResult(PR.v, Float64Array.from(mn)); PR.v = out_probe.v; // (a power iteration: each iteration turns the pattern toward the most unstable one)
+        mn.fill(0); dmn.fill(0); tmn.fill(0); }
       qsh = qn; dp = dn; qp = tn; qat = qatOf(qsh); msh = mn; dm = dmn; tm = tmn;
       mixer.diff(packS(qsh, msh, dp, dm, qp, tm, new Float64Array(N2)));
       let e2 = 0;
@@ -8257,17 +8340,18 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       const eaes = aesEnergy(qat, dp, qp), ed2 = D4.d4Energy2(disp, qat);
       let ex = 0; if (vext) for (let i = 0; i < nat; i++) ex += qat[i] * vext[i];
       espin = SPIN.spinPot(w, atSh, shAt, nsh, msh, new Float64Array(nsh));
-      const ts = entropyTerm(fa, kt) + entropyTerm(fb, kt);
+      const ts = entropyTerm(fa, ktn) + entropyTerm(fb, ktn);
       eelec = eband + e2 + e3 + eaes + ed2 + espin + ts + ex; eext = ex;
       parts = { eband, e2, e3, eaes, ed2, espin, ts };
-      converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc;
+      converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc && ktn <= kt;
       if (opts.verbose) console.log(iscf, (eelec + erep + edisp3).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
     }
     emo = ea; focc = fa;
+    if (!probing) out_probe = null;
     return { msh, dm, tm, vaoM, Pa, Pb, Pm, Wa, Wb, ea, eb, fa, fb, espin };
   }
   if (sp) SPN = spinSCC();
-  while (!sp && !converged && iscf < maxIter) {
+  if (!sp) while (!converged && iscf < maxIter) {
     const elast = eelec;
     if (iscf > 0) { mixer.next(); unpack(mixer.q); qat = qatOf(qsh); }
     iscf++;
@@ -8318,7 +8402,8 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       A[m * nao + n] = v; A[n * nao + m] = v;
     }
     emo = symEig(A, nao, true);
-    const fa = fermiFilling(nel[0], kt, emo), fb = fermiFilling(nel[1], kt, emo);
+    const ktn = AN ? ktAt(iscf - 1) : kt;
+    const fa = fermiFilling(nel[0], ktn, emo), fb = fermiFilling(nel[1], ktn, emo);
     focc = new Float64Array(nao);
     for (let k = 0; k < nao; k++) focc[k] = fa[k] + fb[k];
     const C = W;
@@ -8328,7 +8413,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       for (let n = 0; n < ncol; n++) { const yn = n * nao; let v = 0; for (let k = m; k < nao; k++) v += LiT[cm + k] * A[yn + k]; C[cm + n] = v; }
       for (let n = ncol; n < nao; n++) C[cm + n] = 0;
     }
-    const ts = entropyTerm(fa, kt) + entropyTerm(fb, kt);
+    const ts = entropyTerm(fa, ktn) + entropyTerm(fb, ktn);
     {
       let nk = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nk = k + 1;
       const Cf = Ct;
@@ -8365,7 +8450,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     let ex = 0; if (vext) for (let i = 0; i < nat; i++) ex += qat[i] * vext[i];
     eelec = eband + e2 + e3 + eaes + ed2 + ts + ex; eext = ex;
     parts = { eband, e2, e3, eaes, ed2, ts };
-    converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc;
+    converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc && ktn <= kt;
     if (opts.verbose) console.log(iscf, (eelec + erep + edisp3).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
   }
   const Eh = erep + eelec + edisp3;
@@ -8379,7 +8464,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   if (SPN) {                                          // (spin polarization, 1.26; spin: N_alpha - N_beta per atom)
     const m = SPN.msh, mat = new Float64Array(nat);
     for (let s = 0; s < nsh; s++) mat[shAt[s]] -= m[s];
-    Object.assign(out, { msh: Array.from(m), spin: Array.from(mat), guess: [...qsh, ...m, ...dp, ...SPN.dm, ...qp, ...SPN.tm], Espin: SPN.espin * AUTOEV,
+    Object.assign(out, { probe: out_probe, msh: Array.from(m), spin: Array.from(mat), guess: [...qsh, ...m, ...dp, ...SPN.dm, ...qp, ...SPN.tm], Espin: SPN.espin * AUTOEV,
       emoB: Array.from(SPN.eb, x => x * AUTOEV), foccB: Array.from(SPN.fb), nAlpha: SPN.fa.reduce((a, b) => a + b, 0), nBeta: SPN.fb.reduce((a, b) => a + b, 0) });
   }
   if (opts.bonds && SPN) out.bonds = SPIN.mayerSpin(SPN.Pa, SPN.Pb, S, aoAt, nat, nao);
@@ -8542,9 +8627,10 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
 }
 
 function nAO(z) { return element(z).nao; }
-module.exports = { gfn2Energy, nAO, BOHR, AUTOEV, _internal: { element, shellBlocks, BLK, DBLK, hscaleTable } };
+function nShell(z) { return element(z).shells.length; }
+module.exports = { gfn2Energy, nAO, nShell, BOHR, AUTOEV, _internal: { element, shellBlocks, BLK, DBLK, hscaleTable } };
 
   return module.exports; })();
   return { gfn1Energy: M['./gfn1.js'].gfn1Energy, nAO: M['./gfn1.js'].nAO, d3Disp: M['./d3.js'].d3Disp, AUTOEV: M['./gfn1.js'].AUTOEV, BOHR: M['./gfn1.js'].BOHR,
-    gfn2Energy: M['./gfn2.js'].gfn2Energy, nAO2: M['./gfn2.js'].nAO };
+    gfn2Energy: M['./gfn2.js'].gfn2Energy, nAO2: M['./gfn2.js'].nAO, nSh: M['./gfn1.js'].nShell, nSh2: M['./gfn2.js'].nShell, SPIN: M['./spin.js'] };
 })();

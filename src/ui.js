@@ -5566,13 +5566,16 @@ const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 
 const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the farthest atoms fade toward the background)
 Object.assign(SET_DEF, { metal: 0 }); SET_OK.metal = [0, 1]; // (Experimental: bond orders for metals, 1.25)
 Object.assign(SET_DEF, { xq: 1 }); SET_OK.xq = [1, 2]; // (Experimental: the quantum bonds' method, GFN1-xTB or GFN2-xTB, 1.26)
+Object.assign(SET_DEF, { xqs: 0 }); SET_OK.xqs = [0, 1]; // (Experimental: the quantum bonds' spins, paired or polarized, 1.26)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
 SET_EXP.push('xq'); // (1.26)
+SET_EXP.push('xqs'); // (1.26)
 const EXP_NAME = { dtMax: 'shorter longest step', resBig: 'resonance in large rings', inc: 'detailed nuclear collisions', rc: 'longer force reach', qeq: 'induced charges', pi: 'quantum nuclei', piRpc: 'exact bead forces', bo: 'bond orders', wave: 'electrons as waves', ultra: 'the ultra-realistic mode' }; // (ultra: in the Experimental tab since 1.23.2)
 EXP_NAME.metal = 'many-body metals'; // (1.25)
 EXP_NAME.xq = 'GFN2-xTB'; // (1.26)
+EXP_NAME.xqs = 'polarized spins'; // (1.26)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -5649,6 +5652,7 @@ function applySettings() {
   threadsSet(SET.threads === 'auto' ? threadsDefault() : +SET.threads - 1); // (workers besides the main thread)
   PI.rpc = SET.piRpc !== 0; piSet(SET.pi); // (Experimental: quantum nuclei; contracted bead forces, 1.21)
   boQmMethod(SET.xq); // (Experimental: the quantum bonds' method, 1.26; before boSet, so members join under it)
+  boQmSpin(SET.xqs); // (and their spins, 1.26)
   boSet(SET.bo); // (Experimental: continuous bond orders, 1.13; 2: quantum bonds, 1.22)
   mbSet(SET.metal); // (Experimental: bond orders for metals, 1.25)
   waveSet(!!SET.wave); // (Experimental: electrons as waves, 1.15)
@@ -5769,6 +5773,7 @@ function syncSettings() {
   setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segPiRpc', String(SET.piRpc)); setSegValue('segBo', String(SET.bo)); setSegValue('segWave', String(SET.wave)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   setSegValue('segMetal', String(SET.metal)); // (1.25)
   setSegValue('segXq', String(SET.xq)); // (1.26)
+  setSegValue('segXqs', String(SET.xqs)); // (1.26)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -5848,6 +5853,9 @@ const COSTS3 = {
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
   : { k: 'physics', o: { 1: ['×1', 'GFN1-xTB, the normal method'], 2: ['×0.8–1.4', d3 ? 'Measured in 3-D on one thread against GFN1 (1.26): a hydronium and five waters (19 atoms) ×0.9–1.7, with eleven (37 atoms) ×0.5–1.4: hydrogen has one orbital instead of two, but the dipoles, quadrupoles and D4 dispersion add work; same steps' : 'Measured on one thread against GFN1 (1.26): a hydronium and five waters (19 atoms) ×1.1–1.4, with eleven (37 atoms) ×0.8–1.2: hydrogen has one orbital instead of two, but the dipoles, quadrupoles and D4 dispersion add work; same steps'] } };
 COSTS.segXq = XQ_COST(false); COSTS3.segXq = XQ_COST(true);
+/* the spins (1.26): two sets of orbitals, measured on one thread with quantum bonds on (Node, flat; 3-D alike) */
+COSTS.segXqs = COSTS3.segXqs = () => SET.bo !== 2 ? { k: 'physics', o: { 0: ['×1', 'Only with quantum bonds on'], 1: ['×1', 'Only with quantum bonds on'] } }
+  : { k: 'physics', o: { 0: ['×1', 'Paired, as GFN-xTB was made'], 1: ['×1.2–2.3', 'Measured (1.26): a hydronium and five waters, every electron paired, GFN1 ×1.6, GFN2 ×1.2 (each spin\u2019s orbitals worked out); O\u2083, NO, O\u2082, H\u2082O\u2082 and H\u2082 at 1,500 K GFN1 ×2.3, GFN2 ×1.6'] } };
 function costOf(id) { return (W.d3 && COSTS3[id] ? COSTS3[id] : COSTS[id])(); } // (this mode's costs, 1.25)
 function costTag(el, cls, text, tip) {
   let t = el.querySelector(':scope > .' + cls.split(' ')[0]);
@@ -5867,6 +5875,7 @@ const REAL = {
   segWave: ['1', 'An electron is a wave with a size and a spin, not a point'],
   segMetal: ['1', 'In a real metal an atom\u2019s bonding depends on how many neighbours it has, not on a sum of pairs'], // (1.25)
   segXq: ['1', 'Closer to measured barriers (H + H\u2082, HCN to HNC, a shared proton) and to hexazine falling apart; GFN2 binds H\u2083 and holds hexazine below three N\u2082 (1.26)'],
+  segXqs: ['1', 'Unpaired electrons line up as in nature: free atoms and radicals get their spin energy (breaking molecules into atoms 2.7 eV off on average with GFN1, paired 6.6), O\u2082 is a triplet (1.26)'],
   segAtom: ['1', 'Atoms as big as they are'],
   setResBig: [true, 'Every ring system gets its resonance worked out exactly'],
   setInc: [true, 'A nucleon followed through the nucleus collision by collision, as in nature'],
@@ -5885,6 +5894,7 @@ function syncReal() {
 const EXP_SET = { segWave: 'wave', segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
 EXP_SET.segMetal = 'metal'; // (1.25)
 EXP_SET.segXq = 'xq'; // (1.26)
+EXP_SET.segXqs = 'xqs'; // (1.26)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -5905,7 +5915,7 @@ function expSummary() {
   if (SET.rc !== 6) on.push(`force reach ${SET.rc} Å`);
   if (SET.qeq) on.push(`induced charges ${SET.qeq === 1 ? 'every step' : 'every ' + SET.qeq + 'th step'}`);
   if (SET.pi) on.push(`quantum nuclei ${SET.pi} beads`);
-  if (SET.bo) on.push(SET.bo === 2 ? `quantum bonds (GFN${SET.xq === 2 ? 2 : 1}-xTB)` : 'continuous bond orders'); // (the method chosen, 1.26)
+  if (SET.bo) on.push(SET.bo === 2 ? `quantum bonds (GFN${SET.xq === 2 ? 2 : 1}-xTB${SET.xqs ? ', polarized spins' : ''})` : 'continuous bond orders'); // (the method chosen, 1.26; its spins, 1.26)
   if (SET.wave) on.push('electrons as waves');
   if (SET.metal) on.push('many-body metals'); // (1.25)
   if (SET.resBig) on.push('large ring resonance');
@@ -5921,6 +5931,7 @@ function syncExpTotal() {
   const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', segBo: 'continuous bond orders', segWave: 'electrons as waves', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
   names.segMetal = 'many-body metals'; // (1.25)
   names.segXq = 'GFN2-xTB'; // (1.26)
+  names.segXqs = 'polarized spins'; // (1.26)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -6044,6 +6055,7 @@ const SDESC = {
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, drawn as thinner or thicker bonds that stretch and break smoothly. Quantum works out the electrons themselves (GFN1-xTB, or GFN2-xTB below): a proton shared between two waters shows half-bonds to both.'],
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours (a tight-binding model fitted to each metal), so a lone pair is short and strong, an atom at a surface holds harder to each neighbour, and a vacancy costs less than the bonds it breaks.'], // (1.25)
   segXq: ['Quantum method', 'Which tight-binding quantum chemistry works out the electrons when Bond orders is Quantum. GFN1-xTB (normal) is closer to measured reaction barriers and lets hexazine fall apart; GFN2-xTB adds atomic dipoles and quadrupoles and the D4 dispersion, and is closer for breaking molecules into atoms. Both match the reference program to 10⁻¹¹ eV.'], // (1.26)
+  segXqs: ['Spins', 'Paired (normal) puts two electrons, one of each spin, in every orbital, as GFN-xTB was made. Polarized gives each spin its own orbitals (spin-polarized GFN-xTB): free atoms and radicals get the energy of their unpaired electrons, O₂ is a triplet, and a bond pulled apart ends as two radicals. Breaking molecules into atoms comes out 2.7 eV off on average with GFN1 (paired 6.6), 1.6 with GFN2 (4.6).'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin, drawn as a faint cloud (the electron force field, eFF), instead of a point.'],
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
@@ -6077,6 +6089,7 @@ const SDESC3 = {
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, with the 3-D angles and the twist of double, aromatic and single bonds, drawn as thinner or thicker bonds. Quantum works out the electrons themselves (GFN1-xTB, or GFN2-xTB below) with the atoms free in all three directions.'],
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours, fitted on a close-packed crystal: in the 3-D lab a crystal has its measured cohesive energy, spacing, stiffness and vacancy energy exactly (copper 3.49 eV, 2.56 Å, 137 GPa, 1.28 eV).'],
   segXq: ['Quantum method', 'Which tight-binding quantum chemistry works out the electrons when Bond orders is Quantum, with the atoms free in all three directions. GFN1-xTB (normal) is closer to measured reaction barriers and lets hexazine fall apart; GFN2-xTB adds atomic dipoles and quadrupoles and the D4 dispersion, and puts puckered hexazine 1.7 eV below three N₂.'], // (1.26)
+  segXqs: ['Spins', 'Paired (normal) puts two electrons, one of each spin, in every orbital, as GFN-xTB was made. Polarized gives each spin its own orbitals (spin-polarized GFN-xTB), with the atoms free in all three directions: free atoms and radicals get the energy of their unpaired electrons, O₂ is a triplet, and a bond pulled apart ends as two radicals.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size. The 3-D camera comes no nearer than half an ångström, so it does not zoom in to a nucleus: the picture is the flat game’s. Experimental: off again each time the game starts.'],
 };
@@ -6264,6 +6277,7 @@ function settingsInit() {
   bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); bindSeg('segPiRpc', (v) => setSetting('piRpc', +v)); bindSeg('segBo', (v) => setSetting('bo', +v)); bindSeg('segWave', (v) => setSetting('wave', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
   bindSeg('segMetal', (v) => setSetting('metal', +v)); // (1.25)
   bindSeg('segXq', (v) => setSetting('xq', +v)); // (1.26)
+  bindSeg('segXqs', (v) => setSetting('xqs', +v)); // (1.26)
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));

@@ -15,7 +15,7 @@ const out = `/* ----------------------------------------------------------------
 const XTB = (() => {
   const M = {}, require = (n) => M[n];
 ${mod('d3-data.js')}${mod('d3.js')}${mod('spin-data.js')}${mod('spin.js')}${mod('gfn1.js')}${mod('gfn2-data.js')}${mod('d4-data.js')}${mod('d4.js')}${mod('gfn2.js')}  return { gfn1Energy: M['./gfn1.js'].gfn1Energy, nAO: M['./gfn1.js'].nAO, d3Disp: M['./d3.js'].d3Disp, AUTOEV: M['./gfn1.js'].AUTOEV, BOHR: M['./gfn1.js'].BOHR,
-    gfn2Energy: M['./gfn2.js'].gfn2Energy, nAO2: M['./gfn2.js'].nAO };
+    gfn2Energy: M['./gfn2.js'].gfn2Energy, nAO2: M['./gfn2.js'].nAO, nSh: M['./gfn1.js'].nShell, nSh2: M['./gfn2.js'].nShell, SPIN: M['./spin.js'] };
 })();
 `;
 fs.writeFileSync(path.join(__dirname, '..', '..', 'src', 'xtb.js'), out);

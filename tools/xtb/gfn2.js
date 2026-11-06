@@ -173,9 +173,28 @@ function element(z) {
   elemCache.set(z, e);
   return e;
 }
+// a parameter set over the base (opts.par, 1.26; as gfn1.js elementP: dlev, kcn, shp, hub, g3 (each shell's third
+// order), ra, rz per element, the pair H0 scaling per "zi-zj")
+const parElem = new Map();
+function elementP(z, par) {
+  if (!par) return element(z);
+  const key = par.id + ':' + z;
+  let e = parElem.get(key);
+  if (e) return e;
+  if (parElem.size > 256) { parElem.clear(); for (const k of hscaleCache.keys()) if (k >= 16384) hscaleCache.delete(k); }
+  const b = element(z), o = (par.el && par.el[z]) || {};
+  e = Object.assign({}, b, { par, pk: (par.id % 1e6) + 1 });
+  e.shells = b.shells.map((sh, k) => Object.assign({}, sh, {
+    level: sh.level + (o.dlev ? (o.dlev[k] || 0) * EVTOAU : 0), kcn: sh.kcn * (1 + (o.kcn ? o.kcn[k] || 0 : 0)),
+    shpoly: sh.shpoly + (o.shp ? (o.shp[k] || 0) * 0.01 : 0), hubbard: sh.hubbard * (1 + (o.hub || 0)), gam3: sh.gam3 * (1 + (o.g3 || 0)) }));
+  e.repAlpha = b.repAlpha * (1 + (o.ra || 0)); e.repZeff = b.repZeff * (1 + (o.rz || 0));
+  parElem.set(key, e);
+  return e;
+}
+const pairScale = (ei, ej) => { const P = ei.par && ei.par.pair; if (!P) return 1; const a = Math.min(ei.z, ej.z), b = Math.max(ei.z, ej.z); return 1 + (P[a + '-' + b] || 0); };
 const hscaleCache = new Map();
 function hscaleTable(ei, ej) {                        // get_hscale: zij (Slater exponents) x kshell x (1 + enscale dEN^2)
-  const key = ei.z * 128 + ej.z;
+  const key = ei.z * 128 + ej.z + (ei.pk ? ei.pk * 16384 : 0);
   let t = hscaleCache.get(key);
   if (t) return t;
   t = new Float64Array(ei.shells.length * ej.shells.length);
@@ -183,7 +202,7 @@ function hscaleTable(ei, ej) {                        // get_hscale: zij (Slater
   for (let a = 0; a < ei.shells.length; a++) for (let b = 0; b < ej.shells.length; b++) {
     const zi = ei.shells[a].zeta, zj = ej.shells[b].zeta;
     const zij = Math.pow(2 * Math.sqrt(zi * zj) / (zi + zj), GP.wexp);
-    t[a * ej.shells.length + b] = zij * kshell(ej.shells[b].l, ei.shells[a].l) * (1.0 + GP.enscale * den);
+    t[a * ej.shells.length + b] = zij * kshell(ej.shells[b].l, ei.shells[a].l) * (1.0 + GP.enscale * den) * (ei.par ? pairScale(ei, ej) : 1);
   }
   hscaleCache.set(key, t);
   return t;
@@ -197,7 +216,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const intcut = integralCutoff(acc), grad = !!opts.grad;
   const X = new Float64Array(3 * nat);
   for (let i = 0; i < nat; i++) { const p = xyzA[i]; X[3 * i] = p[0] * AATOAU; X[3 * i + 1] = p[1] * AATOAU; X[3 * i + 2] = p[2] * AATOAU; }
-  const el = Z.map(element);
+  const el = opts.par ? Z.map(z => elementP(z, opts.par)) : Z.map(element);
 
   // basis layout
   const shAt = [], shOf = [], shAo = [], shN = [], atSh = [], atAo = [];
@@ -431,7 +450,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   // charge channel (shell charges, atomic dipoles and quadrupoles) and the magnetization channel (the same moments of
   // N_beta - N_alpha), mixed as one vector in tblite's order [q, m, dp, dp_m, qp, qp_m]; only the shell
   // magnetizations act (the on-site spin term), H_alpha = H_c + H_m and H_beta = H_c - H_m, H_m = -1/2 S (v_m + v_m)
-  let SPN = null;
+  let SPN = null, out_probe = null;
   function spinSCC() {
     const w = SPIN.spinTable(Z, i => el[i].shells, atSh, shAt, nsh, opts.spin === true ? 1 : +opts.spin);
     let msh = new Float64Array(nsh), dm = new Float64Array(3 * nat), tm = new Float64Array(6 * nat);
@@ -458,13 +477,18 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     const vm = new Float64Array(nsh), vaoM = new Float64Array(nao), Ha = new Float64Array(nao * nao), Hb = new Float64Array(nao * nao);
     const Wa = new Float64Array(nao * nao), Wb = new Float64Array(nao * nao), Aa = new Float64Array(nao * nao), Ab = new Float64Array(nao * nao);
     const Pa = new Float64Array(nao * nao), Pb = new Float64Array(nao * nao), Pm = new Float64Array(nao * nao);
-    let ea = null, eb = null, fa = null, fb = null, espin = 0;
+    let ea = null, eb = null, fa = null, fb = null, espin = 0, probing = false;
+    const PR = opts.probe && opts.spinFree ? { v: opts.probe.length === nsh ? opts.probe : SPIN.defaultProbe(shAt, nsh) } : null;
     while (!converged && iscf < maxIter) {
       const elast = eelec;
       if (iscf > 0) { mixer.next(); unpackS(mixer.q); qat = qatOf(qsh); }
       iscf++;
       chargePotentials();
-      SPIN.spinPot(w, atSh, shAt, nsh, msh, vm);
+      // (the stability probe, 1.26: with no magnetization at all, the potential of a tiny one along PR.v, and how much
+      // the electrons answer along it; the state itself stays unpolarized)
+      probing = !!PR && msh.every(v => v === 0);
+      if (probing) { const mp = new Float64Array(nsh); for (let s = 0; s < nsh; s++) mp[s] = SPIN.PROBE_EPS * PR.v[s]; SPIN.spinPot(w, atSh, shAt, nsh, mp, vm); }
+      else SPIN.spinPot(w, atSh, shAt, nsh, msh, vm);
       for (let m = 0; m < nao; m++) vaoM[m] = vm[aoSh[m]];
       for (let m = 0; m < nao; m++) for (let n = 0; n < nao; n++) {
         const k = m * nao + n, hc = H0[k] - 0.5 * S[k] * (vao[m] + vao[n]) - 0.5 * (wq[n * nao + m] + wq[k]), hm = -0.5 * S[k] * (vaoM[m] + vaoM[n]);
@@ -482,6 +506,8 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       const eband = populations(P, qn, dn, tn);
       populations(Pm, mn, dmn, tmn);                  // (-(alpha - beta): N_beta - N_alpha, tblite's sign)
       for (let s = 0; s < nsh; s++) qn[s] += n0sh[s];
+      if (probing) { out_probe = SPIN.probeResult(PR.v, Float64Array.from(mn)); PR.v = out_probe.v; // (a power iteration: each iteration turns the pattern toward the most unstable one)
+        mn.fill(0); dmn.fill(0); tmn.fill(0); }
       qsh = qn; dp = dn; qp = tn; qat = qatOf(qsh); msh = mn; dm = dmn; tm = tmn;
       mixer.diff(packS(qsh, msh, dp, dm, qp, tm, new Float64Array(N2)));
       let e2 = 0;
@@ -497,10 +523,11 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       if (opts.verbose) console.log(iscf, (eelec + erep + edisp3).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
     }
     emo = ea; focc = fa;
+    if (!probing) out_probe = null;
     return { msh, dm, tm, vaoM, Pa, Pb, Pm, Wa, Wb, ea, eb, fa, fb, espin };
   }
   if (sp) SPN = spinSCC();
-  while (!sp && !converged && iscf < maxIter) {
+  if (!sp) while (!converged && iscf < maxIter) {
     const elast = eelec;
     if (iscf > 0) { mixer.next(); unpack(mixer.q); qat = qatOf(qsh); }
     iscf++;
@@ -613,7 +640,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   if (SPN) {                                          // (spin polarization, 1.26; spin: N_alpha - N_beta per atom)
     const m = SPN.msh, mat = new Float64Array(nat);
     for (let s = 0; s < nsh; s++) mat[shAt[s]] -= m[s];
-    Object.assign(out, { msh: Array.from(m), spin: Array.from(mat), guess: [...qsh, ...m, ...dp, ...SPN.dm, ...qp, ...SPN.tm], Espin: SPN.espin * AUTOEV,
+    Object.assign(out, { probe: out_probe, msh: Array.from(m), spin: Array.from(mat), guess: [...qsh, ...m, ...dp, ...SPN.dm, ...qp, ...SPN.tm], Espin: SPN.espin * AUTOEV,
       emoB: Array.from(SPN.eb, x => x * AUTOEV), foccB: Array.from(SPN.fb), nAlpha: SPN.fa.reduce((a, b) => a + b, 0), nBeta: SPN.fb.reduce((a, b) => a + b, 0) });
   }
   if (opts.bonds && SPN) out.bonds = SPIN.mayerSpin(SPN.Pa, SPN.Pb, S, aoAt, nat, nao);
@@ -776,4 +803,5 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
 }
 
 function nAO(z) { return element(z).nao; }
-module.exports = { gfn2Energy, nAO, BOHR, AUTOEV, _internal: { element, shellBlocks, BLK, DBLK, hscaleTable } };
+function nShell(z) { return element(z).shells.length; }
+module.exports = { gfn2Energy, nAO, nShell, BOHR, AUTOEV, _internal: { element, shellBlocks, BLK, DBLK, hscaleTable } };

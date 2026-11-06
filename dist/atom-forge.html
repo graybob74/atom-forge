@@ -1375,7 +1375,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
           <ul>
             <li><b>Two dimensions.</b> Densities, neighbour counts and the Maxwell–Boltzmann law are 2D, and van der Waals well depths are doubled to make up for the missing neighbours. Melting and boiling points are therefore only roughly right. Molecules are flat too: a tetrahedral carbon becomes a cross with 90° angles, and 3-D shapes such as the cyclohexane chair are pressed flat. The 3-D lab (main menu → 3-D, a preview) puts atoms and molecules in a cube instead, with their real 3-D angles, for chemistry, liquids and gases, with fields, magnets, light and unstable particles (pions, kaons, muons) too, and what they do to nuclei: hits on nuclei, captures when they stop (muonic atoms, nuclear stars, hypernuclei) and muonium; and nuclear physics between atoms: radioactive decay, neutrons (capture, fission), fusion and reactions of fast nuclei (a heavy nucleus fired at hundreds of GeV a nucleon makes a quark–gluon plasma), γ rays knocking out neutrons; the collider, antimatter, placed objects and chips are in the flat game only for now.</li>
             <li><b>Ions in water pull twice as hard.</b> In a flat world an ion has about half the solvent around it that it has in space (3–4 water molecules against 6), and the solvent screens charge far less, so with the plain Coulomb force salt would never dissolve and an Na⁺ and a Cl⁻ in water would never part. The pull between a free ion and a polar molecule's partial charges is doubled to make up for it: an ion's shell then holds it about as strongly as real water does, a lone ion pair parts, and a crystal dissolves from its corners. Energy is conserved as before. A side effect: salts that barely dissolve in real water because their bonding is partly covalent (silver chloride) dissolve here like table salt.</li>
-            <li><b>Electrons are not solved for as waves while atoms move.</b> Bound electrons are book-kept (shells, configurations, energies). The orbitals the Orbitals view draws come from that bookkeeping, with Slater's rules, which overestimate the size of heavy atoms' outer s orbitals, until the quantum solver has been run for a species; either way they are pictures and steer nothing. The solver includes relativity as an average over each orbital's two spin–orbit partners (gold's 6s comes out 8.3 eV deep against the measured 9.2 eV ionization energy, and 16% smaller than without it; without relativity it was 6.5 eV), but not the spin–orbit splitting itself nor the electrons' spins, and treats one atom at a time: real orbitals also mix into molecular orbitals when atoms bond, which nothing here computes, except Settings → Experimental → Bond orders → Quantum (GFN1-xTB, or GFN2-xTB since 1.26), which works out the molecular orbitals of up to 40 atoms at every step. Free electrons are classical point charges, unless Settings → Experimental → Electrons as waves makes them wave packets (eFF: a size, a spin, the Pauli principle between them); even then a packet meets ions and atoms as a smeared charge, not as a solved wave.</li>
+            <li><b>Electrons are not solved for as waves while atoms move.</b> Bound electrons are book-kept (shells, configurations, energies). The orbitals the Orbitals view draws come from that bookkeeping, with Slater's rules, which overestimate the size of heavy atoms' outer s orbitals, until the quantum solver has been run for a species; either way they are pictures and steer nothing. The solver includes relativity as an average over each orbital's two spin–orbit partners (gold's 6s comes out 8.3 eV deep against the measured 9.2 eV ionization energy, and 16% smaller than without it; without relativity it was 6.5 eV), but not the spin–orbit splitting itself nor the electrons' spins, and treats one atom at a time: real orbitals also mix into molecular orbitals when atoms bond, which nothing here computes, except Settings → Experimental → Bond orders → Quantum (GFN1-xTB, or GFN2-xTB since 1.26; with each spin's own orbitals since 1.26 under Spins → Polarized), which works out the molecular orbitals of up to 40 atoms at every step. Free electrons are classical point charges, unless Settings → Experimental → Electrons as waves makes them wave packets (eFF: a size, a spin, the Pauli principle between them); even then a packet meets ions and atoms as a smeared charge, not as a solved wave.</li>
             <li><b>Rule-based chemistry.</b> A bond's energy depends on the element pair and bond order, not the rest of the molecule (every O–H bond is the same), so some reaction heats are off by tens of kJ/mol.</li>
             <li><b>Enlarged nuclei.</b> A nucleus is hit where it is drawn: its size in the Nucleus view, 0.045 Å per nucleon across (uranium's is 0.8 Å), and never less than 0.25–0.35 Å, instead of a few femtometres, so fusion, capture and fission happen in a nanometre box. A pass inside it is mapped onto real impact parameters, so relative rates keep their Gamow and cross-section scaling. A fast electron crossing a nucleus is turned by its full charge (at a few MeV it bounces back).</li>
             <li><b>Collisions shown simply.</b> Above a few GeV, products come out along the collision axis, from strings breaking into hadrons (electron–positron pairs as two jets back to back); below that, they share their momenta over phase space; all of it in two dimensions; charm and bottom quarks become D and B mesons only in electron–positron collisions (in hadron and nuclear collisions, which make them far more rarely, they are left out); electrons don't excite nuclei (it takes a pass far closer than any here); unstable particles lose energy to the atoms they pass and are turned a little by each nucleus they pass (multiple scattering; in the flat chamber a path meets close nuclei more often than in 3-D, so it spreads several times wider than through a real foil).</li>
@@ -1619,6 +1619,8 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <p class="note" data-m="3d" hidden>In the 3-D lab the atoms move in all three directions, as GFN1-xTB has them (hexazine's flat ring puckers there); a hydronium and five waters take 5.7 ms a step (the flat game 7.7).</p>
       <div class="srow"><span>Quantum method</span><div class="seg" id="segXq" role="group" aria-label="Quantum bonds: method"><button data-v="1" title="GFN1-xTB (2017) with D3 dispersion: closer to the measured barriers (H + H₂, HCN to HNC, a proton shared between two waters), and hexazine lies above three N₂">GFN1-xTB (normal)</button><button data-v="2" title="GFN2-xTB (2019): atomic dipoles and quadrupoles, D4 dispersion; closer atomization energies, but H₃ is bound and hexazine lies below three N₂">GFN2-xTB</button></div></div>
       <p class="note">Quantum method (since 1.26): GFN1-xTB, as since 1.22, or GFN2-xTB (Bannwarth, Ehlert and Grimme, 2019), its successor: the same kind of calculation with one orbital on hydrogen, the electrons' pull worked out to atomic dipoles and quadrupoles, and the D4 dispersion, whose strength follows each atom's charge. It matches the reference program (tblite) to 10⁻¹¹ eV and its forces to 10⁻¹⁰ eV/Å; in the game the forces are the energy's slopes to 10⁻⁶ eV/Å and an insulated hydronium with five waters keeps its energy to 10⁻⁴ eV over 200 steps, at about the same cost as GFN1. Measured against reference values (1.26): bond lengths alike (0.011 and 0.012 Å from the measured on 24 bonds); water's dimer alike (0.21 and 0.22 eV, measured 0.22); GFN2 closer for breaking molecules into atoms (both far too strong: 4.6 eV off on average, GFN1 6.6), but further off for barriers: H + H₂ (measured 0.42 eV) GFN1 0.15, while GFN2 binds H₃ by 0.40 eV; HCN to HNC (2.09 eV) GFN1 2.52, GFN2 3.18; a proton between two waters 2.7 Å apart (0.10 eV by g-xTB) GFN1 0.08, GFN2 0.04; and hexazine, which really falls apart into three N₂ releasing several eV: GFN1 holds it with a 0.54 eV barrier and releases 1.7 eV, GFN2 puts the ring 0.8 eV (flat) to 1.7 eV (puckered) below three N₂. So GFN1 stays the normal choice.</p>
+      <div class="srow"><span>Spins</span><div class="seg" id="segXqs" role="group" aria-label="Quantum bonds: spin polarization"><button data-v="0" title="Every orbital holds a pair, or half a pair each way: radicals and free atoms without their spin energy, as GFN1-xTB and GFN2-xTB were made">Paired (normal)</button><button data-v="1" title="Spin-polarized GFN-xTB: unpaired electrons line up, so free atoms and radicals get their spin energy and a bond pulled apart ends as two radicals">Polarized</button></div></div>
+      <p class="note">Spins (since 1.26): with Polarized, the electrons of each spin get orbitals of their own, as in the published spin-polarized GFN-xTB (Neugebauer, Bädorf, Ehlert, Hansen and Grimme, 2023), ported from the reference program (matched to 10⁻¹¹ eV and its forces to 10⁻⁶ eV/Å on 56 radicals, atoms and stretched bonds). Unpaired electrons line up, so a free atom or a radical gets the energy of its spin (nitrogen 3.1 eV, oxygen 1.5, hydrogen 1.0), oxygen's O₂ is the triplet it really is, and a bond pulled apart ends as two radicals instead of an unsettled half-and-half (H₂ given 8 eV: every step settles, against unsettled steps with eV jumps when paired). Each cluster finds its own spins (one Fermi level for both): the electrons are checked at every step for a lower spin arrangement, and when one appears the switch's energy goes to the heat bath. Measured against reference values (1.26): breaking 23 molecules into atoms 2.7 eV off on average with GFN1-xTB (paired 6.6), 1.6 with GFN2-xTB (paired 4.6); H + H₂ (measured 0.42 eV) GFN1 0.58 (paired 0.15), GFN2 0.03 (paired −0.40: H₃ bound); ozone losing an O (1.15 eV) GFN1 5.5 (7.6), GFN2 4.7 (6.9). Molecules without unpaired electrons (water, its dimer, the shared proton, HCN, hexazine) are unchanged. It costs ×1.2–1.6 where every electron is paired, ×1.6–2.3 among radicals.</p>
       <h3>Bond orders for metals</h3>
       <div class="srow"><span>Metals</span><div class="seg" id="segMetal" role="group" aria-label="Bond orders for metals"><button data-v="0">Pairs (normal)</button><button data-v="1">Many-body</button></div></div>
       <p class="note">Normally metal atoms hold each other by pairs: a Morse bond between each two neighbours, its depth set so that a metal melts near its real melting point in the flat world. With Many-body, a metal atom's bonding comes from how many neighbours it has (the second-moment tight-binding model of Finnis and Sinclair and of Cleri and Rosato, the square-root case of the embedded-atom method): each atom holds the square root of the sum of its neighbours' hoppings, less a repulsion between the ion cores. One bond is then worth more than its share of six or twelve: a lone pair of atoms is short and strong, an atom at an edge or surface holds harder to each neighbour it keeps, and pulling an atom out of a crystal (a vacancy) costs about a third of the cohesive energy rather than all of it. Each metal is fitted to its measured cohesive energy, nearest-neighbour distance, bulk modulus and vacancy energy on a close-packed crystal, and the 3-D lab gives those values exactly (copper: 3.49 eV an atom, 2.56 Å, 137 GPa, 1.28 eV). Alloys mix the two metals' constants: silver dissolves in copper at a cost of 0.30 eV (measured about 0.39). Costs ×1–2 where there are metal atoms (one more pass over them each step), nothing elsewhere. Ions are not part of it: an atom that loses or gains an electron leaves the metal. Changing it books the energy difference to the heat bath. Small clusters are bound too tightly, as in every model of this kind: a copper pair holds 2.9 eV (measured 2.0).</p>
@@ -12953,9 +12955,9 @@ wasmLoadModule(); // (the kernel module, now that its constants exist to be chec
 /* ------------------------------------------------------------------ GFN1-xTB and D3(BJ) (Experimental: quantum bonds, 1.22), GFN2-xTB and D4 (1.26)
    Generated by tools/xtb/mksrc.js from tools/xtb/gfn1.js, d3.js, d3-data.js, gfn2.js, gfn2-data.js, d4.js and d4-data.js:
    do not edit here. XTB.gfn1Energy(Z, xyz Å, charge, uhf, opts), XTB.d3Disp(Z, xyz Å, opts) and XTB.gfn2Energy(Z, xyz Å,
-   charge, uhf, opts) (its D4 dispersion included): energies in eV, gradients in eV/Å (tools/xtb/check.js, check-d3.js
-   and check-gfn2.js compare them with tblite and simple-dftd3). Ported from tblite, simple-dftd3, dftd4 and mctc-lib
-   (LGPL-3.0-or-later). */
+   charge, uhf, opts) (its D4 dispersion included): energies in eV, gradients in eV/Å (tools/xtb/check.js, check-d3.js,
+   check-gfn2.js and check-spin.js compare them with tblite and simple-dftd3); opts.spin: spin-polarized (1.26). Ported
+   from tblite, simple-dftd3, dftd4 and mctc-lib (LGPL-3.0-or-later). */
 const XTB = (() => {
   const M = {}, require = (n) => M[n];
   M["./d3-data.js"] = (() => { const module = { exports: {} };
@@ -16837,6 +16839,222 @@ function d3Disp(Z, xyz, opts) {
 module.exports = { d3Disp, GFN1_D3: GFN1 };
 
   return module.exports; })();
+  M["./spin-data.js"] = (() => { const module = { exports: {} };
+// Spin constants of spin-polarized GFN-xTB (Hartree; per element ss, sp, pp, sd, pd, dd), H to Rn. Generated by
+// tools/xtb/spin-gen.js from tblite c6f66b9 src/tblite/data/spin.f90 (LGPL-3.0-or-later): do not edit.
+module.exports = { W: [
+  "-0.0716250", "0.0000000", "0.0000000", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0865500", "-0.0386630", "-0.0674250", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0178000", "-0.0139500", "-0.0180500", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0229750", "-0.0186250", "-0.0175750", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0272500", "-0.0219370", "-0.0195750", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0305000", "-0.0250250", "-0.0226750", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0330750", "-0.0275000", "-0.0254500", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0350750", "-0.0295380", "-0.0278500", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0369000", "-0.0311870", "-0.0299250", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0383000", "-0.0326250", "-0.0317250", "-0.0141250", "-0.0152500", "-0.0413500",
+  "-0.0150750", "-0.0133370", "-0.0229250", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0165000", "-0.0130750", "-0.0175000", "-0.0093750", "-0.0179630", "-0.0223500",
+  "-0.0182500", "-0.0138380", "-0.0139750", "-0.0082250", "-0.0117000", "-0.0129000",
+  "-0.0195250", "-0.0150000", "-0.0143750", "-0.0084500", "-0.0116120", "-0.0140000",
+  "-0.0205750", "-0.0161250", "-0.0149000", "-0.0093000", "-0.0119870", "-0.0148250",
+  "-0.0213250", "-0.0170130", "-0.0155000", "-0.0100370", "-0.0121750", "-0.0149500",
+  "-0.0217500", "-0.0177130", "-0.0160500", "-0.0109750", "-0.0126620", "-0.0150750",
+  "-0.0221500", "-0.0183630", "-0.0165500", "-0.0118870", "-0.0131130", "-0.0153000",
+  "-0.0106500", "-0.0109000", "-0.0164750", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0118000", "-0.0104500", "-0.0134500", "-0.0055000", "-0.0035130", "-0.0101750",
+  "-0.0127250", "-0.0108620", "-0.0138500", "-0.0047880", "-0.0024130", "-0.0125250",
+  "-0.0134250", "-0.0112380", "-0.0146500", "-0.0043380", "-0.0019750", "-0.0138750",
+  "-0.0140750", "-0.0114630", "-0.0152750", "-0.0040500", "-0.0017250", "-0.0149250",
+  "-0.0144750", "-0.0116120", "-0.0160000", "-0.0037250", "-0.0014630", "-0.0157750",
+  "-0.0149000", "-0.0118000", "-0.0167250", "-0.0034870", "-0.0013120", "-0.0165000",
+  "-0.0154000", "-0.0120250", "-0.0177500", "-0.0032880", "-0.0011630", "-0.0171250",
+  "-0.0157000", "-0.0120250", "-0.0187000", "-0.0031500", "-0.0010250", "-0.0177500",
+  "-0.0161500", "-0.0122000", "-0.0197000", "-0.0030370", "-0.0009130", "-0.0183000",
+  "-0.0166500", "-0.0123500", "-0.0203000", "-0.0028250", "-0.0008620", "-0.0188250",
+  "-0.0168500", "-0.0123250", "-0.0214500", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0172250", "-0.0128120", "-0.0134000", "-0.0085250", "-0.0130000", "-0.0157750",
+  "-0.0174500", "-0.0133500", "-0.0135500", "-0.0081120", "-0.0128130", "-0.0175250",
+  "-0.0178750", "-0.0137630", "-0.0135750", "-0.0080500", "-0.0123250", "-0.0176500",
+  "-0.0180000", "-0.0141250", "-0.0136250", "-0.0081500", "-0.0120130", "-0.0172000",
+  "-0.0181000", "-0.0143750", "-0.0136750", "-0.0082750", "-0.0117500", "-0.0167750",
+  "-0.0181250", "-0.0145500", "-0.0137000", "-0.0086880", "-0.0118000", "-0.0164250",
+  "-0.0095500", "-0.0096000", "-0.0167250", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0105750", "-0.0092870", "-0.0125500", "-0.0074000", "-0.0059000", "-0.0079500",
+  "-0.0115000", "-0.0098250", "-0.0136000", "-0.0072880", "-0.0046250", "-0.0090000",
+  "-0.0121500", "-0.0099880", "-0.0162250", "-0.0066250", "-0.0036250", "-0.0098750",
+  "-0.0125750", "-0.0102620", "-0.0191750", "-0.0060630", "-0.0029250", "-0.0104750",
+  "-0.0129000", "-0.0105000", "-0.0222250", "-0.0055750", "-0.0024250", "-0.0109000",
+  "-0.0131250", "-0.0106250", "-0.0247250", "-0.0051250", "-0.0020120", "-0.0113000",
+  "-0.0133500", "-0.0107620", "-0.0276000", "-0.0047370", "-0.0016750", "-0.0116000",
+  "-0.0135500", "-0.0108380", "-0.0320500", "-0.0043750", "-0.0014250", "-0.0118750",
+  "-0.0136500", "-0.0109440", "-0.0287000", "-0.0041250", "-0.0012880", "-0.0121250",
+  "-0.0139250", "-0.0110500", "-0.0241750", "-0.0038870", "-0.0009630", "-0.0124000",
+  "-0.0138500", "-0.0105000", "-0.0196500", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0142250", "-0.0105500", "-0.0115750", "-0.0050370", "-0.0093750", "-0.0100000",
+  "-0.0143000", "-0.0108750", "-0.0116750", "-0.0046880", "-0.0090750", "-0.0118750",
+  "-0.0145250", "-0.0111250", "-0.0116250", "-0.0043750", "-0.0087130", "-0.0124250",
+  "-0.0145250", "-0.0112500", "-0.0115750", "-0.0041870", "-0.0081750", "-0.0121750",
+  "-0.0146500", "-0.0113870", "-0.0114750", "-0.0044620", "-0.0083620", "-0.0128250",
+  "-0.0146500", "-0.0114250", "-0.0114500", "-0.0048750", "-0.0085750", "-0.0132000",
+  "-0.0082000", "-0.0085880", "-0.0153000", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0092500", "-0.0083000", "-0.0113750", "-0.0063870", "-0.0042250", "-0.0079250",
+  "-0.0099000", "-0.0084250", "-0.0114000", "-0.0059370", "-0.0033750", "-0.0090250",
+  "-0.0881750", "-0.0066380", "-0.0019250", "-0.0017000", "-0.0017000", "-0.0234250",
+  "-0.0890750", "-0.0065000", "-0.0009500", "-0.0015370", "-0.0017370", "-0.0237000",
+  "-0.0901000", "-0.0063750", "-0.0000750", "-0.0014630", "-0.0016250", "-0.0230250",
+  "-0.0908000", "-0.0064880", "0.0004500", "-0.0013000", "-0.0016500", "-0.0226250",
+  "-0.0918250", "-0.0065380", "0.0014000", "-0.0012750", "-0.0017250", "-0.0222250",
+  "-0.0922250", "-0.0065380", "0.0017250", "-0.0012000", "-0.0018000", "-0.0218250",
+  "-0.0928812", "-0.0065798", "0.0024101", "-0.0011021", "-0.0016846", "-0.0209135",
+  "-0.0936096", "-0.0066189", "0.0030779", "-0.0010125", "-0.0016808", "-0.0201625",
+  "-0.0943380", "-0.0066581", "0.0037457", "-0.0009229", "-0.0016769", "-0.0194115",
+  "-0.0951750", "-0.0067500", "0.0042250", "-0.0008380", "-0.0016250", "-0.0190000",
+  "-0.0956500", "-0.0067250", "0.0040000", "-0.0007370", "-0.0007630", "-0.0176000",
+  "-0.0963500", "-0.0067370", "0.0044000", "-0.0006750", "-0.0007065", "-0.0160000",
+  "-0.0958500", "-0.0066500", "0.0024000", "-0.0007500", "-0.0008000", "-0.0175500",
+  "-0.1086250", "-0.0079000", "0.0063250", "-0.0047000", "-0.0007120", "-0.0269000",
+  "-0.0121750", "-0.0096750", "-0.0126250", "-0.0076250", "-0.0041130", "-0.0104250",
+  "-0.0123000", "-0.0095750", "-0.0134000", "-0.0071380", "-0.0034630", "-0.0109250",
+  "-0.0125000", "-0.0094620", "-0.0144500", "-0.0066880", "-0.0029130", "-0.0112500",
+  "-0.0126000", "-0.0093310", "-0.0148000", "-0.0063000", "-0.0026130", "-0.0114500",
+  "-0.0127000", "-0.0092000", "-0.0205750", "-0.0059380", "-0.0021120", "-0.0115500",
+  "-0.0127500", "-0.0092750", "-0.0209250", "-0.0056880", "-0.0019120", "-0.0116000",
+  "-0.0127500", "-0.0092250", "-0.0222500", "-0.0054370", "-0.0017870", "-0.0117000",
+  "-0.0129000", "-0.0089380", "-0.0257625", "-0.0052500", "-0.0015000", "-0.0117750",
+  "-0.0129250", "-0.0091870", "-0.0292750", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0133500", "-0.0091120", "-0.0107250", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0135750", "-0.0094250", "-0.0110000", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0136750", "-0.0095380", "-0.0109500", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0137500", "-0.0096380", "-0.0108500", "0.0000000", "0.0000000", "0.0000000",
+  "-0.0137750", "-0.0096750", "-0.0107250", "-0.0026000", "-0.0073630", "-0.0119000",
+  "-0.0139000", "-0.0097380", "-0.0106500", "-0.0028750", "-0.0078120", "-0.0130000",
+] };
+
+  return module.exports; })();
+  M["./spin.js"] = (() => { const module = { exports: {} };
+// Spin polarization for GFN1-xTB and GFN2-xTB (1.26): the published spin-polarized GFN-xTB (Neugebauer, Bädorf,
+// Ehlert, Hansen and Grimme, J. Comput. Chem. 44, 2120 (2023)), ported from tblite (LGPL-3.0-or-later:
+// src/tblite/spin.f90, data/spin.f90, wavefunction/spin.f90, scf/diag.f90, scf/potential.f90 and the spin channels
+// of the singlepoint and its gradient). Used by gfn1.js and gfn2.js when opts.spin is set.
+//
+// As tblite: the electrons are two channels (alpha and beta), each with its own Hamiltonian and orbitals; the state is
+// the shell charges q and the shell magnetizations m (tblite's sign: m = N_beta - N_alpha), mixed together; the energy
+// gains E_spin = 1/2 sum over atoms, sum over that atom's shells s, s' of W_ss' m_s m_s' (W from the table: ss, sp, pp,
+// sd, pd, dd per element, times opts.spin as tblite's scaling factor), whose potential v_s = sum W_ss' m_s' enters the
+// alpha Hamiltonian as -1/2 S (v_mu + v_nu) and the beta one with the opposite sign. A fixed number of unpaired
+// electrons (uhf) fills each channel to its own count, each with its own Fermi level (tblite). With opts.spinFree the
+// two channels share one Fermi level and the count of each settles itself (Atom Forge's choice for the game, where a
+// cluster can hold several radicals: each takes its own spin); the energy is then the same functional at whatever
+// counts it settles to.
+const SD = require('./spin-data.js');
+const LIDX = [[0, 1, 3], [1, 2, 4], [3, 4, 5]];            // ss sp sd / sp pp pd / sd pd dd
+const wll = (z, li, lj) => +SD.W[(z - 1) * 6 + LIDX[li][lj]];
+
+// the spin constants of a calculation: for each shell a, its atom's shells b (first shell atSh, count) and W_ab
+function spinTable(Z, shellsOf, atSh, shAt, nsh, scale) {
+  const w = new Float64Array(nsh * nsh);
+  for (let a = 0; a < nsh; a++) {
+    const i = shAt[a], sh = shellsOf(i), la = sh[a - atSh[i]].l;
+    for (let b = atSh[i]; b < atSh[i + 1]; b++) w[a * nsh + b] = scale * wll(Z[i], sh[b - atSh[i]].l, la);
+  }
+  return w;
+}
+// v_a = sum_b W_ab m_b (same atom only), and E = 1/2 sum m_a v_a
+function spinPot(w, atSh, shAt, nsh, m, v) {
+  let e = 0;
+  for (let a = 0; a < nsh; a++) {
+    const i = shAt[a]; let s = 0;
+    for (let b = atSh[i]; b < atSh[i + 1]; b++) s += w[a * nsh + b] * m[b];
+    v[a] = s; e += 0.5 * m[a] * s;
+  }
+  return e;
+}
+
+// one Fermi level for both channels: the 2 nao spin orbitals filled with nel electrons (fermiFilling on the merged,
+// sorted list), handed back as alpha and beta occupations
+function fermiShared(fermiFilling, nel, kt, ea, eb) {
+  const n = ea.length, idx = new Int32Array(2 * n), e = new Float64Array(2 * n);
+  for (let k = 0; k < 2 * n; k++) idx[k] = k;
+  const val = k => k < n ? ea[k] : eb[k - n];
+  idx.sort((x, y) => val(x) - val(y) || x - y);
+  for (let k = 0; k < 2 * n; k++) e[k] = val(idx[k]);
+  const f = fermiFilling(nel, kt, e), fa = new Float64Array(n), fb = new Float64Array(n);
+  for (let k = 0; k < 2 * n; k++) { const j = idx[k]; if (j < n) fa[j] = f[k]; else fb[j - n] = f[k]; }
+  return [fa, fb];
+}
+
+// the generalized eigenproblem of one channel, as gfn1.js does it: A = Li H Li^T (W = Li H on the way), A's
+// eigenvectors as rows; returns the eigenvalues
+function solveChannel(symEig, H1, Li, nao, W, A) {
+  for (let m = 0; m < nao; m++) {
+    const wm = m * nao;
+    for (let n = 0; n <= m; n++) { const hn = n * nao; let v = 0; for (let k = 0; k <= m; k++) v += Li[wm + k] * H1[hn + k]; W[wm + n] = v; }
+  }
+  for (let m = 0; m < nao; m++) for (let n = 0; n <= m; n++) {
+    let v = 0; for (let k = 0; k <= n; k++) v += W[m * nao + k] * Li[n * nao + k];
+    A[m * nao + n] = v; A[n * nao + m] = v;
+  }
+  return symEig(A, nao, true);
+}
+// C = Li^T Y into W (columns of orbitals holding anything), then P = sum_k f_k C_k C_k^T (Cf scratch)
+function channelDensity(W, A, LiT, f, nao, Cf, P) {
+  let ncol = 0; for (let k = 0; k < nao; k++) if (f[k] !== 0) ncol = k + 1;
+  for (let m = 0; m < nao; m++) {
+    const cm = m * nao;
+    for (let n = 0; n < ncol; n++) { const yn = n * nao; let v = 0; for (let k = m; k < nao; k++) v += LiT[cm + k] * A[yn + k]; W[cm + n] = v; }
+    for (let n = ncol; n < nao; n++) W[cm + n] = 0;
+  }
+  let nk = 0; for (let k = 0; k < nao; k++) if (f[k] > 1e-15) nk = k + 1;
+  for (let m = 0; m < nao; m++) for (let k = 0; k < nk; k++) Cf[m * nao + k] = f[k] > 1e-15 ? W[m * nao + k] * f[k] : 0;
+  for (let m = 0; m < nao; m++) {
+    const pm = m * nao;
+    for (let n = m; n < nao; n++) { const cn = n * nao; let v = 0; for (let k = 0; k < nk; k++) v += Cf[pm + k] * W[cn + k]; P[pm + n] = v; P[cn + m] = v; }
+  }
+}
+// the energy-weighted density of one channel, lower triangle (mu > nu), added into Wd
+function addWDensity(C, f, e, nao, Wd) {
+  const ck = new Float64Array(nao);
+  for (let k = 0; k < nao; k++) {
+    const fe = f[k] * e[k];
+    if (fe === 0) continue;
+    for (let m = 0; m < nao; m++) ck[m] = C[m * nao + k];
+    for (let m = 1; m < nao; m++) { const cm = ck[m] * fe; if (cm === 0) continue; const wm = m * nao; for (let n = 0; n < m; n++) Wd[wm + n] += cm * ck[n]; }
+  }
+}
+// Mayer bond orders of an open shell: 2 sum over the channels of (P_s S)_mn (P_s S)_nm (a closed shell's (PS)(PS))
+function mayerSpin(Pa, Pb, S, aoAt, nat, nao) {
+  const B = new Float64Array(nat * nat);
+  for (const P of [Pa, Pb]) for (let m = 0; m < nao; m++) for (let n = 0; n < m; n++) {
+    const a = aoAt[m], b = aoAt[n]; if (a === b) continue;
+    const rm = m * nao, rn = n * nao;
+    let pmn = 0, pnm = 0;
+    for (let k = 0; k < nao; k++) { pmn += P[rm + k] * S[rn + k]; pnm += P[rn + k] * S[rm + k]; }
+    const v = 2 * pmn * pnm; B[a * nat + b] += v; B[b * nat + a] += v;
+  }
+  return B;
+}
+// a free atom's unpaired electrons in its ground state (Hund), for a magnetization seed: from its valence count
+function atomUnpaired(z) {
+  const v = [0, 1, 0, 1, 0, 1, 2, 3, 2, 1, 0, 1, 0, 1, 2, 3, 2, 1, 0];
+  return z < v.length ? v[z] : 0;
+}
+// the stability probe (Atom Forge, 1.26): an unpolarized state answers a tiny magnetization eps v (in the potential
+// only) with m_out; lam = v.m_out / (eps v.v) above 1 means the state is unstable to spin polarization (the
+// Stoner criterion), and m_out (scaled to a largest entry of 1) is the next probe direction (a power iteration over
+// the steps of a run finds the most unstable pattern)
+const PROBE_EPS = 1e-6;
+function probeResult(v, mOut) {
+  let vv = 0, vm = 0, mx = 0;
+  for (let s = 0; s < v.length; s++) { vv += v[s] * v[s]; vm += v[s] * mOut[s]; mx = Math.max(mx, Math.abs(mOut[s])); }
+  return { lam: vv > 0 ? vm / (PROBE_EPS * vv) : 0, v: mx > 1e-300 ? Array.from(mOut, x => x / mx) : Array.from(v) };
+}
+// the first probe direction: every shell, the sign alternating from atom to atom, the sizes a little uneven (no
+// randomness: the runs stay reproducible)
+function defaultProbe(shAt, nsh) { const v = new Array(nsh); for (let s = 0; s < nsh; s++) v[s] = (shAt[s] % 2 ? -1 : 1) * (0.6 + 0.4 * Math.cos(1.3 * s)); return v; }
+module.exports = { PROBE_EPS, probeResult, defaultProbe, spinTable, spinPot, fermiShared, solveChannel, channelDensity, addWDensity, mayerSpin, atomUnpaired, wll };
+
+  return module.exports; })();
   M["./gfn1.js"] = (() => { const module = { exports: {} };
 // GFN1-xTB (Grimme, Bannwarth, Shushkov, JCTC 13, 1989 (2017)): energy and Mulliken charges, in plain JavaScript.
 //
@@ -17267,6 +17485,7 @@ const lt3 = (arr, l, z) => arr[(z - 1) * 3 + l];          // arrays indexed (0:2
 const num = x => +x;
 
 // ---- STO-nG expansion (basis/slater.f90, expansion set "gfn1") ----
+const SPIN = require('./spin.js');                     // (spin polarization, 1.26)
 const DFACT = [1, 1, 3, 15, 105, 945, 10395, 135135];  // DFACT[l] = (2l-1)!!
 const TOP = 2 / Math.PI;
 function slaterToGauss(ng, n, l, zeta) {
@@ -17359,6 +17578,29 @@ function element(z) {
   return e;
 }
 
+// A parameter set over the base (opts.par, 1.26: Atom Forge xTB's refit, and the fit itself): per element z, dlev (each
+// shell's level shifted, eV), kcn (each shell's CN shift scaled by 1 + x), shp (each shell's distance polynomial plus
+// x, in the table's 0.01 units), hub (the hardness scaled by 1 + x), g3 (third order), ra / rz (repulsion exponent and
+// charge); per pair "zi-zj" (zi <= zj) the H0 scaling of the two atoms' valence shells times 1 + x. Unlisted elements
+// keep the base. par.id names the set (its elements and pair tables are cached under it).
+const parElem = new Map();
+function elementP(z, par) {
+  if (!par) return element(z);
+  const key = par.id + ':' + z;
+  let e = parElem.get(key);
+  if (e) return e;
+  if (parElem.size > 256) { parElem.clear(); for (const k of pairCache.keys()) if (k >= 16384) pairCache.delete(k); }
+  const b = element(z), o = (par.el && par.el[z]) || {};
+  e = Object.assign({}, b, { par, pk: (par.id % 1e6) + 1 });
+  e.shells = b.shells.map((sh, k) => Object.assign({}, sh, {
+    level: sh.level + (o.dlev ? (o.dlev[k] || 0) * EVTOAU : 0), kcn: sh.kcn * (1 + (o.kcn ? o.kcn[k] || 0 : 0)),
+    shpoly: sh.shpoly + (o.shp ? (o.shp[k] || 0) * 0.01 : 0), hubbard: sh.hubbard * (1 + (o.hub || 0)) }));
+  e.gam3 = b.gam3 * (1 + (o.g3 || 0)); e.repAlpha = b.repAlpha * (1 + (o.ra || 0)); e.repZeff = b.repZeff * (1 + (o.rz || 0));
+  parElem.set(key, e);
+  return e;
+}
+const pairScale = (ei, ej) => { const P = ei.par && ei.par.pair; if (!P) return 1; const a = Math.min(ei.z, ej.z), b = Math.max(ei.z, ej.z); return 1 + (P[a + '-' + b] || 0); };
+
 // Pair scaling factor for H0 (get_pair_param in gfn1.f90)
 function dblockRow(z) { return z > 20 && z < 30 ? 1 : z > 38 && z < 48 ? 2 : z > 56 && z < 80 ? 3 : 0; }
 function kpair(zi, zj) {
@@ -17379,7 +17621,7 @@ function hscale(ei, si, ej, sj) {
   const a = ei.shells[si], b = ej.shells[sj];
   if (a.valence && b.valence) {
     const den = (ei.en - ej.en) ** 2;
-    return kpair(ej.z, ei.z) * kshell(b.l, a.l) * (1.0 + ENSCALE * den);
+    return kpair(ej.z, ei.z) * kshell(b.l, a.l) * (1.0 + ENSCALE * den) * (ei.par ? pairScale(ei, ej) : 1);
   }
   if (a.valence) return 0.5 * (kshell(a.l, a.l) + KDIFF);
   if (b.valence) return 0.5 * (kshell(b.l, b.l) + KDIFF);
@@ -17504,7 +17746,7 @@ const CX = CART.map(l => Int32Array.from(l, c => c[0])), CY = CART.map(l => Int3
   CZ = CART.map(l => Int32Array.from(l, c => c[2]));
 const pairCache = new Map();
 function pairTable(ei, ej) {
-  const key = ei.z * 128 + ej.z;
+  const key = ei.z * 128 + ej.z + (ei.pk ? ei.pk * 16384 : 0);
   let t = pairCache.get(key);
   if (t) return t;
   const nI = ei.ua.length, nJ = ej.ua.length, n = nI * nJ;
@@ -17817,8 +18059,9 @@ function solveTransposed(A, b, n) {
 
 // ---- modified Broyden mixer (scf/mixer/broyden.f90) ----
 class Broyden {
-  constructor(ndim, memory, damp) {
+  constructor(ndim, memory, damp, o = null) {
     this.n = ndim; this.memory = memory; this.damp = damp; this.iter = 0;
+    this.o = o; this.best = Infinity;                      // (o: Atom Forge's safeguards, 1.26 (GFN2 and spin only; null: tblite's mixer as it is))
     this.df = []; this.u = []; this.a = [];                // rows of a are made when first used (next())
     this.omega = new Float64Array(memory);
     this.q = new Float64Array(ndim); this.qlast = new Float64Array(ndim);
@@ -17830,6 +18073,11 @@ class Broyden {
   error() { let s = 0; for (let i = 0; i < this.n; i++) s += this.dq[i] ** 2 / this.n; return Math.sqrt(s); }
   next() {
     const n = this.n, q = this.q, dq = this.dq, alpha = this.damp;
+    if (this.o) {                                          // (a residual far above the best so far: the history leads astray; start it again)
+      const e = this.error();
+      if (e < this.best) this.best = e;
+      else if (this.o.restart && e > this.o.restart * this.best && this.iter > 1) { this.iter = 0; this.df = []; this.u = []; this.a = []; this.best = e; this.restarts = (this.restarts || 0) + 1; }
+    }
     this.iter++;
     const iter = this.iter, itn = iter - 1, memory = this.memory;
     const it1 = (itn - 1) % memory;               // 0-based slot
@@ -17921,7 +18169,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const intcut = integralCutoff(acc);
   const X = new Float64Array(3 * nat);                               // positions in Bohr, x y z per atom
   for (let i = 0; i < nat; i++) { const p = xyzA[i]; X[3 * i] = p[0] * AATOAU; X[3 * i + 1] = p[1] * AATOAU; X[3 * i + 2] = p[2] * AATOAU; }
-  const el = Z.map(element);
+  const el = opts.par ? Z.map(z => elementP(z, opts.par)) : Z.map(element);
 
   // basis layout: shells and atomic orbitals
   const shAt = [], shOf = [], shAo = [], shN = [], atSh = [];
@@ -18046,10 +18294,13 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   // (opts.maxIter: a lower cap for the game, 1.23.1: charges that do not settle, as among loose radicals, ran all 250
   // iterations, and the mixer's cost grows with the cube of its history: 3.7 s for 10 atoms, every step)
   const maxIter = opts.maxIter > 0 ? Math.min(MAX_ITER, opts.maxIter) : MAX_ITER;
-  const mixer = new Broyden(nsh, maxIter, MIX_DAMP);
+  const sp = !!opts.spin;                                              // (spin polarization, 1.26: two channels, below)
+  const mixer = new Broyden(sp ? 2 * nsh : nsh, opts.mix && opts.mix.memory || maxIter, opts.mix && opts.mix.damp || MIX_DAMP, opts.mix || null);
   let iscf = 0, converged = false, eelec = 0, eext = 0, emo = null, focc = null;
   const vsh = new Float64Array(nsh), vao = new Float64Array(nao);
-  while (!converged && iscf < maxIter) {
+  let SPN = null, out_probe = null;                                     // the spin channels' state, for the output and the gradient
+  if (sp) SPN = spinSCC();
+  if (!sp) while (!converged && iscf < maxIter) {
     const elast = eelec;
     if (iscf > 0) { mixer.next(); qsh = mixer.get(); qat = qatFromQsh(qsh); }
     iscf++;
@@ -18115,14 +18366,85 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     converged = econv && pconv;
     if (opts.verbose) console.log(iscf, (eelec + erep).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
   }
+  // the SCC with spin polarization (1.26, as tblite with a spin-polarization container: nspin = 2). State: shell
+  // charges q and magnetizations m (N_beta - N_alpha), mixed as one vector [q, m]; H_alpha = H_c + H_m, H_beta =
+  // H_c - H_m with H_m = -1/2 S (v_m(mu) + v_m(nu)); each channel diagonalized and filled.
+  function spinSCC() {
+    const w = SPIN.spinTable(Z, i => el[i].shells, atSh, shAt, nsh, opts.spin === true ? 1 : +opts.spin);
+    let msh = new Float64Array(nsh);
+    if (opts.qsh0 && opts.qsh0.length === 2 * nsh) for (let s = 0; s < nsh; s++) { qsh[s] = opts.qsh0[s]; msh[s] = opts.qsh0[nsh + s]; }
+    else if (opts.m0 && opts.m0.length === nsh) msh = Float64Array.from(opts.m0);
+    qat = qatFromQsh(qsh);
+    const vm = new Float64Array(nsh), vaoM = new Float64Array(nao), Ha = new Float64Array(nao * nao), Hb = new Float64Array(nao * nao);
+    const Wa = new Float64Array(nao * nao), Wb = new Float64Array(nao * nao), Aa = new Float64Array(nao * nao), Ab = new Float64Array(nao * nao);
+    const Pa = new Float64Array(nao * nao), Pb = new Float64Array(nao * nao), mv = new Float64Array(2 * nsh);
+    let ea = null, eb = null, fa = null, fb = null, espin = 0, probing = false;
+    const PR = opts.probe && opts.spinFree ? { v: opts.probe.length === nsh ? opts.probe : SPIN.defaultProbe(shAt, nsh) } : null;
+    while (!converged && iscf < maxIter) {
+      const elast = eelec;
+      if (iscf > 0) { mixer.next(); const v = mixer.q; for (let s = 0; s < nsh; s++) { qsh[s] = v[s]; msh[s] = v[nsh + s]; } qat = qatFromQsh(qsh); }
+      iscf++;
+      for (let a = 0; a < nsh; a++) { let v = 0; for (let b = 0; b < nsh; b++) v += J[a * nsh + b] * qsh[b]; vsh[a] = v + qat[shAt[a]] ** 2 * gam3[shAt[a]] + (vext ? vext[shAt[a]] : 0); }
+      // (the stability probe, 1.26: with no magnetization at all, the potential of a tiny one along PR.v, and how much
+      // the electrons answer along it; the state itself stays unpolarized)
+      probing = !!PR && msh.every(v => v === 0);
+      if (probing) { const mp = new Float64Array(nsh); for (let s = 0; s < nsh; s++) mp[s] = SPIN.PROBE_EPS * PR.v[s]; SPIN.spinPot(w, atSh, shAt, nsh, mp, vm); }
+      else SPIN.spinPot(w, atSh, shAt, nsh, msh, vm);
+      for (let m = 0; m < nao; m++) { vao[m] = vsh[aoSh[m]]; vaoM[m] = vm[aoSh[m]]; }
+      for (let m = 0; m < nao; m++) for (let n = 0; n < nao; n++) {
+        const k = m * nao + n, hc = H0[k] - 0.5 * S[k] * (vao[m] + vao[n]), hm = -0.5 * S[k] * (vaoM[m] + vaoM[n]);
+        Ha[k] = hc + hm; Hb[k] = hc - hm;
+      }
+      mv.set(qsh, 0); mv.set(msh, nsh); mixer.set(mv);
+      ea = SPIN.solveChannel(symEig, Ha, Li, nao, Wa, Aa); eb = SPIN.solveChannel(symEig, Hb, Li, nao, Wb, Ab);
+      if (opts.spinFree) [fa, fb] = SPIN.fermiShared(fermiFilling, nocc, kt, ea, eb);
+      else { fa = fermiFilling(nel[0], kt, ea); fb = fermiFilling(nel[1], kt, eb); }
+      SPIN.channelDensity(Wa, Aa, LiT, fa, nao, Ct, Pa); SPIN.channelDensity(Wb, Ab, LiT, fb, nao, Ct, Pb);
+      const qn = new Float64Array(nsh), mn = new Float64Array(nsh);
+      let eband = 0;
+      for (let m = 0; m < nao; m++) {
+        let pa = 0, pb = 0; const r = m * nao;
+        for (let n = 0; n < nao; n++) { pa += Pa[r + n] * S[r + n]; pb += Pb[r + n] * S[r + n]; eband += H0[r + n] * (Pa[r + n] + Pb[r + n]); }
+        qn[aoSh[m]] -= pa + pb; mn[aoSh[m]] += pa - pb;
+      }
+      for (let s = 0; s < nsh; s++) { qn[s] += n0sh[s]; mn[s] = -mn[s]; }
+      if (probing) { out_probe = SPIN.probeResult(PR.v, Float64Array.from(mn)); PR.v = out_probe.v; // (a power iteration: each iteration turns the pattern toward the most unstable one)
+        mn.fill(0); }
+      qsh = qn; msh = mn; qat = qatFromQsh(qsh);
+      const md = new Float64Array(2 * nsh); md.set(qsh, 0); md.set(msh, nsh); mixer.diff(md);
+      let e2 = 0;
+      for (let a = 0; a < nsh; a++) { let v = 0; for (let b = 0; b < nsh; b++) v += J[a * nsh + b] * qsh[b]; e2 += 0.5 * v * qsh[a]; }
+      let e3 = 0;
+      for (let i = 0; i < nat; i++) e3 += qat[i] ** 3 * gam3[i] / 3;
+      let ex = 0; if (vext) for (let i = 0; i < nat; i++) ex += qat[i] * vext[i];
+      espin = SPIN.spinPot(w, atSh, shAt, nsh, msh, new Float64Array(nsh));
+      const ts = entropyTerm(fa, kt) + entropyTerm(fb, kt);
+      eelec = e2 + e3 + espin + ts + eband + ex; eext = ex;
+      converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc;
+      if (opts.verbose) console.log(iscf, (eelec + erep).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
+    }
+    emo = ea; focc = fa;
+    if (!probing) out_probe = null;
+    return { msh, vaoM, Pa, Pb, Wa, Wb, ea, eb, fa, fb, espin };
+  }
   const Eh = erep + eelec;
   const out = {
     E: Eh * AUTOEV, q: Array.from(qat), iterations: iscf, converged,
     qsh: Array.from(qsh), cn: Array.from(cn), Erep: erep * AUTOEV, Eelec: eelec * AUTOEV,
     emo: Array.from(emo, x => x * AUTOEV), focc: Array.from(focc), Eext: eext * AUTOEV,
   };
+  if (SPN) {                                                   // (spin polarization, 1.26)
+    const m = SPN.msh, mat = new Float64Array(nat);
+    for (let s = 0; s < nsh; s++) mat[shAt[s]] -= m[s];
+    Object.assign(out, { probe: out_probe, msh: Array.from(m), spin: Array.from(mat), guess: [...qsh, ...m], Espin: SPN.espin * AUTOEV,   // (spin: N_alpha - N_beta per atom)
+      emoB: Array.from(SPN.eb, x => x * AUTOEV), foccB: Array.from(SPN.fb), nAlpha: SPN.fa.reduce((a, b) => a + b, 0), nBeta: SPN.fb.reduce((a, b) => a + b, 0) });
+    for (let k = 0; k < nao * nao; k++) P[k] = SPN.Pa[k] + SPN.Pb[k];        // (the total density, for the gradient)
+  }
   // Mayer bond orders (opts.bonds): B_AB = sum over mu on A, nu on B of (PS)_mu,nu (PS)_nu,mu; a flat nat x nat array
-  if (opts.bonds) {
+  if (opts.bonds && SPN) {
+    const aoAt = new Int32Array(nao); for (let s = 0; s < nsh; s++) for (let k = 0; k < shN[s]; k++) aoAt[shAo[s] + k] = shAt[s];
+    out.bonds = SPIN.mayerSpin(SPN.Pa, SPN.Pb, S, aoAt, nat, nao);
+  } else if (opts.bonds) {
     // (PS)_mn = sum_k P_mk S_kn = P row m . S row n (S symmetric), only for m, n on different atoms
     const aoAt = new Int32Array(nao); for (let s = 0; s < nsh; s++) for (let k = 0; k < shN[s]; k++) aoAt[shAo[s] + k] = shAt[s];
     const B = new Float64Array(nat * nat);
@@ -18147,7 +18469,8 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     // energy-weighted density matrix: Wd = sum_k focc_k emo_k C_k C_k^T (with Fermi smearing this is still exact).
     // Only the lower triangle (mu > nu) is used below: mu on atom i, nu on atom j < i.
     const Wd = new Float64Array(nao * nao), ck = new Float64Array(nao);
-    for (let k = 0; k < nao; k++) {
+    if (SPN) { SPIN.addWDensity(SPN.Wa, SPN.fa, SPN.ea, nao, Wd); SPIN.addWDensity(SPN.Wb, SPN.fb, SPN.eb, nao, Wd); } // (both channels, 1.26)
+    for (let k = 0; k < (SPN ? 0 : nao); k++) {
       const fe = focc[k] * emo[k];
       if (fe === 0) continue;
       for (let m = 0; m < nao; m++) ck[m] = C[m * nao + k];
@@ -18213,7 +18536,8 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
               for (let y = 0; y < nb; y++) {
                 const idx = row + y;
                 const p = P[idx], sv = S[idx];
-                const sval = 2 * p * hij - 2 * Wd[idx] - p * (vm + vao[shAo[b] + y]);
+                let sval = 2 * p * hij - 2 * Wd[idx] - p * (vm + vao[shAo[b] + y]);
+                if (SPN) sval -= (SPN.Pa[idx] - SPN.Pb[idx]) * (SPN.vaoM[mu] + SPN.vaoM[shAo[b] + y]); // (the magnetization's potential, 1.26)
                 const t = 2 * p * sv * dpolyH;
                 dG0 += sval * dSx[idx] + t * v0;
                 dG1 += sval * dSy[idx] + t * v1;
@@ -18260,7 +18584,9 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
 
 /* the number of atomic orbitals of an element (its shells' 2l + 1 summed): what a calculation's cost grows with */
 function nAO(z) { return element(z).shells.reduce((t, s) => t + 2 * s.l + 1, 0); }
-module.exports = { gfn1Energy, nAO, BOHR, AUTOEV, _internal: { element, overlapBlock, overlapGradBlock, symEig, choleskyInverse },
+/* its shells (the length of an atom's share of the charge state; 1.26: the game carries it over by atom) */
+function nShell(z) { return element(z).shells.length; }
+module.exports = { gfn1Energy, nAO, nShell, BOHR, AUTOEV, _internal: { element, overlapBlock, overlapGradBlock, symEig, choleskyInverse },
   // (shared with gfn2.js, 1.26: the STO-nG tables, mctc-lib's radii and electronegativities, the linear algebra, the
   // mixer and the Fermi filling; nothing here changes for GFN1)
   _shared: { T, DTRAFO, CART, symEig, choleskyInverse, Broyden, fermiFilling, entropyTerm, integralCutoff, KT_DEFAULT, EVTOAU, AATOAU, MAX_ITER, MIX_DAMP, ECONV, PCONV, MAX_CUTOFF, DFACT, TOP } };
@@ -20473,6 +20799,7 @@ module.exports = { d4Setup, d4Energy2, d4Potential, d4Gradient2, d4Three, d4CnGr
 const G1 = require('./gfn1.js')._shared;
 const D2 = require('./gfn2-data.js');
 const D4 = require('./d4.js');
+const SPIN = require('./spin.js');                    // (spin polarization, 1.26)
 const { T, DTRAFO, CART, symEig, choleskyInverse, Broyden, fermiFilling, entropyTerm, integralCutoff, KT_DEFAULT, EVTOAU, AATOAU, MAX_ITER, MIX_DAMP, ECONV, PCONV, MAX_CUTOFF, DFACT, TOP } = G1;
 const AUTOEV = 27.211386245988, BOHR = 0.529177210903;
 const num = x => +x;
@@ -20624,9 +20951,28 @@ function element(z) {
   elemCache.set(z, e);
   return e;
 }
+// a parameter set over the base (opts.par, 1.26; as gfn1.js elementP: dlev, kcn, shp, hub, g3 (each shell's third
+// order), ra, rz per element, the pair H0 scaling per "zi-zj")
+const parElem = new Map();
+function elementP(z, par) {
+  if (!par) return element(z);
+  const key = par.id + ':' + z;
+  let e = parElem.get(key);
+  if (e) return e;
+  if (parElem.size > 256) { parElem.clear(); for (const k of hscaleCache.keys()) if (k >= 16384) hscaleCache.delete(k); }
+  const b = element(z), o = (par.el && par.el[z]) || {};
+  e = Object.assign({}, b, { par, pk: (par.id % 1e6) + 1 });
+  e.shells = b.shells.map((sh, k) => Object.assign({}, sh, {
+    level: sh.level + (o.dlev ? (o.dlev[k] || 0) * EVTOAU : 0), kcn: sh.kcn * (1 + (o.kcn ? o.kcn[k] || 0 : 0)),
+    shpoly: sh.shpoly + (o.shp ? (o.shp[k] || 0) * 0.01 : 0), hubbard: sh.hubbard * (1 + (o.hub || 0)), gam3: sh.gam3 * (1 + (o.g3 || 0)) }));
+  e.repAlpha = b.repAlpha * (1 + (o.ra || 0)); e.repZeff = b.repZeff * (1 + (o.rz || 0));
+  parElem.set(key, e);
+  return e;
+}
+const pairScale = (ei, ej) => { const P = ei.par && ei.par.pair; if (!P) return 1; const a = Math.min(ei.z, ej.z), b = Math.max(ei.z, ej.z); return 1 + (P[a + '-' + b] || 0); };
 const hscaleCache = new Map();
 function hscaleTable(ei, ej) {                        // get_hscale: zij (Slater exponents) x kshell x (1 + enscale dEN^2)
-  const key = ei.z * 128 + ej.z;
+  const key = ei.z * 128 + ej.z + (ei.pk ? ei.pk * 16384 : 0);
   let t = hscaleCache.get(key);
   if (t) return t;
   t = new Float64Array(ei.shells.length * ej.shells.length);
@@ -20634,7 +20980,7 @@ function hscaleTable(ei, ej) {                        // get_hscale: zij (Slater
   for (let a = 0; a < ei.shells.length; a++) for (let b = 0; b < ej.shells.length; b++) {
     const zi = ei.shells[a].zeta, zj = ej.shells[b].zeta;
     const zij = Math.pow(2 * Math.sqrt(zi * zj) / (zi + zj), GP.wexp);
-    t[a * ej.shells.length + b] = zij * kshell(ej.shells[b].l, ei.shells[a].l) * (1.0 + GP.enscale * den);
+    t[a * ej.shells.length + b] = zij * kshell(ej.shells[b].l, ei.shells[a].l) * (1.0 + GP.enscale * den) * (ei.par ? pairScale(ei, ej) : 1);
   }
   hscaleCache.set(key, t);
   return t;
@@ -20648,7 +20994,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const intcut = integralCutoff(acc), grad = !!opts.grad;
   const X = new Float64Array(3 * nat);
   for (let i = 0; i < nat; i++) { const p = xyzA[i]; X[3 * i] = p[0] * AATOAU; X[3 * i + 1] = p[1] * AATOAU; X[3 * i + 2] = p[2] * AATOAU; }
-  const el = Z.map(element);
+  const el = opts.par ? Z.map(z => elementP(z, opts.par)) : Z.map(element);
 
   // basis layout
   const shAt = [], shOf = [], shAo = [], shN = [], atSh = [], atAo = [];
@@ -20797,7 +21143,12 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
   const qatOf = q => { const r = new Float64Array(nat); for (let s = 0; s < nsh; s++) r[shAt[s]] += q[s]; return r; };
   let qat = qatOf(qsh);
   const maxIter = opts.maxIter > 0 ? Math.min(MAX_ITER, opts.maxIter) : MAX_ITER;
-  const mixer = new Broyden(ndim, maxIter, MIX_DAMP), mv = new Float64Array(ndim);
+  const sp = !!opts.spin;                              // (spin polarization, 1.26: two channels, spinSCC below)
+  // (opts.anneal {kt0, hold, cycles}: the electrons start hotter and cool to kt, as tblite's newer annealing: kt0 for the
+  // first `hold` iterations, then down in a straight line over `cycles`; settled only at kt. Atom Forge xTB's SCC aid, 1.26)
+  const AN = opts.anneal || null;
+  const ktAt = (it) => !AN ? kt : it < AN.hold ? AN.kt0 : it < AN.hold + AN.cycles ? AN.kt0 + (it - AN.hold + 1) / AN.cycles * (kt - AN.kt0) : kt;
+  const mixer = new Broyden(sp ? 2 * ndim : ndim, opts.mix && opts.mix.memory || maxIter, opts.mix && opts.mix.damp || MIX_DAMP, opts.mix || null), mv = new Float64Array(ndim);
   const vsh = new Float64Array(nsh), vat = new Float64Array(nat), vao = new Float64Array(nao), vdp = new Float64Array(3 * nat), vqp = new Float64Array(6 * nat);
   const wq = new Float64Array(nao * nao);
   let iscf = 0, converged = false, eelec = 0, eext = 0, emo = null, focc = null, parts = null;
@@ -20820,7 +21171,141 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     }
     return e;
   };
-  while (!converged && iscf < maxIter) {
+  // the potentials from the input charges and moments (the charge channel): vsh, vat, vdp, vqp, then vao, and wq,
+  // the multipole part of H1 (as the loop below)
+  const chargePotentials = () => {
+    for (let a = 0; a < nsh; a++) { let v = 0; for (let b = 0; b < nsh; b++) v += J[a * nsh + b] * qsh[b]; vsh[a] = v + qsh[a] * qsh[a] * gam3[a]; }
+    vat.fill(0); vdp.fill(0); vqp.fill(0);
+    for (let a = 0; a < nat; a++) {
+      const ax = X[3 * a], ay = X[3 * a + 1], az = X[3 * a + 2], da = 3 * a, ta = 6 * a;
+      for (let b = 0; b < nat; b++) {
+        if (a === b) continue;
+        const x = X[3 * b] - ax, y = X[3 * b + 1] - ay, z = X[3 * b + 2] - az, h3 = H3[a * nat + b], h5 = H5[a * nat + b], db = 3 * b, tb = 6 * b;
+        vat[a] += -h3 * (dp[db] * x + dp[db + 1] * y + dp[db + 2] * z)
+          + h5 * (qp[tb] * x * x + 2 * qp[tb + 1] * x * y + qp[tb + 2] * y * y + 2 * qp[tb + 3] * x * z + 2 * qp[tb + 4] * y * z + qp[tb + 5] * z * z);
+        const r2 = x * x + y * y + z * z, mw = dp[db] * x + dp[db + 1] * y + dp[db + 2] * z;
+        vdp[da] += qat[b] * h3 * x + h5 * (dp[db] * r2 - 3 * x * mw);
+        vdp[da + 1] += qat[b] * h3 * y + h5 * (dp[db + 1] * r2 - 3 * y * mw);
+        vdp[da + 2] += qat[b] * h3 * z + h5 * (dp[db + 2] * r2 - 3 * z * mw);
+        const qb = qat[b] * h5;
+        vqp[ta] += qb * x * x; vqp[ta + 1] += qb * 2 * x * y; vqp[ta + 2] += qb * y * y;
+        vqp[ta + 3] += qb * 2 * x * z; vqp[ta + 4] += qb * 2 * y * z; vqp[ta + 5] += qb * z * z;
+      }
+      const e = el[a];
+      for (let c = 0; c < 3; c++) vdp[da + c] += 2 * e.dk * dp[da + c];
+      for (let c = 0; c < 6; c++) vqp[ta + c] += 2 * e.qk * qp[ta + c] * MPSCALE[c];
+      if (vext) vat[a] += vext[a];
+    }
+    D4.d4Potential(disp, qat, vat);
+    for (let m = 0; m < nao; m++) vao[m] = vsh[aoSh[m]] + vat[aoAt[m]];
+    for (let n = 0; n < nao; n++) {
+      const B = aoAt[n], o = n * nao, d0 = vdp[3 * B], d1 = vdp[3 * B + 1], d2 = vdp[3 * B + 2];
+      const t0 = vqp[6 * B], t1 = vqp[6 * B + 1], t2 = vqp[6 * B + 2], t3 = vqp[6 * B + 3], t4 = vqp[6 * B + 4], t5 = vqp[6 * B + 5];
+      for (let m = 0; m < nao; m++) wq[o + m] = DC[0][o + m] * d0 + DC[1][o + m] * d1 + DC[2][o + m] * d2
+        + QC[0][o + m] * t0 + QC[1][o + m] * t1 + QC[2][o + m] * t2 + QC[3][o + m] * t3 + QC[4][o + m] * t4 + QC[5][o + m] * t5;
+    }
+  };
+  // Mulliken populations of a density: per shell (P S), dipoles and quadrupoles per atom (P D, P Q), into qn/dn/tn
+  // (negative: electrons), and the band energy sum H0 P
+  const populations = (P, qn, dn, tn) => {
+    let eband = 0;
+    for (let n = 0; n < nao; n++) {
+      const o = n * nao, B = aoAt[n];
+      let ps = 0, s0 = 0, s1 = 0, s2 = 0, u0 = 0, u1 = 0, u2 = 0, u3 = 0, u4 = 0, u5 = 0;
+      for (let m = 0; m < nao; m++) {
+        const p = P[o + m];
+        ps += p * S[o + m]; eband += H0[o + m] * p;
+        s0 += p * DC[0][o + m]; s1 += p * DC[1][o + m]; s2 += p * DC[2][o + m];
+        u0 += p * QC[0][o + m]; u1 += p * QC[1][o + m]; u2 += p * QC[2][o + m]; u3 += p * QC[3][o + m]; u4 += p * QC[4][o + m]; u5 += p * QC[5][o + m];
+      }
+      qn[aoSh[n]] -= ps;
+      dn[3 * B] -= s0; dn[3 * B + 1] -= s1; dn[3 * B + 2] -= s2;
+      tn[6 * B] -= u0; tn[6 * B + 1] -= u1; tn[6 * B + 2] -= u2; tn[6 * B + 3] -= u3; tn[6 * B + 4] -= u4; tn[6 * B + 5] -= u5;
+    }
+    return eband;
+  };
+  // the SCC with spin polarization (1.26; tblite with a spin-polarization container, nspin = 2): the state is the
+  // charge channel (shell charges, atomic dipoles and quadrupoles) and the magnetization channel (the same moments of
+  // N_beta - N_alpha), mixed as one vector in tblite's order [q, m, dp, dp_m, qp, qp_m]; only the shell
+  // magnetizations act (the on-site spin term), H_alpha = H_c + H_m and H_beta = H_c - H_m, H_m = -1/2 S (v_m + v_m)
+  let SPN = null, out_probe = null;
+  function spinSCC() {
+    const w = SPIN.spinTable(Z, i => el[i].shells, atSh, shAt, nsh, opts.spin === true ? 1 : +opts.spin);
+    let msh = new Float64Array(nsh), dm = new Float64Array(3 * nat), tm = new Float64Array(6 * nat);
+    const g0 = opts.qsh0;
+    if (g0 && g0.length === 2 * ndim) {
+      for (let s = 0; s < nsh; s++) { qsh[s] = g0[s]; msh[s] = g0[nsh + s]; }
+      for (let k = 0; k < 3 * nat; k++) { dp[k] = g0[2 * nsh + k]; dm[k] = g0[2 * nsh + 3 * nat + k]; }
+      for (let k = 0; k < 6 * nat; k++) { qp[k] = g0[2 * nsh + 6 * nat + k]; tm[k] = g0[2 * nsh + 12 * nat + k]; }
+    } else if (opts.m0 && opts.m0.length === nsh) msh = Float64Array.from(opts.m0);
+    qat = qatOf(qsh);
+    const N2 = 2 * ndim, vec = new Float64Array(N2);
+    const packS = (q, m, d, dM, t, tM, out) => {
+      out.set(q, 0); out.set(m, nsh); out.set(d, 2 * nsh); out.set(dM, 2 * nsh + 3 * nat);
+      const o1 = 2 * nsh + 6 * nat, o2 = o1 + 6 * nat;
+      for (let k = 0; k < 6 * nat; k++) { const f = MPSCALE[k % 6] === 2 ? R2 : 1; out[o1 + k] = t[k] * f; out[o2 + k] = tM[k] * f; }
+      return out;
+    };
+    const unpackS = (v) => {
+      for (let s = 0; s < nsh; s++) { qsh[s] = v[s]; msh[s] = v[nsh + s]; }
+      for (let k = 0; k < 3 * nat; k++) { dp[k] = v[2 * nsh + k]; dm[k] = v[2 * nsh + 3 * nat + k]; }
+      const o1 = 2 * nsh + 6 * nat, o2 = o1 + 6 * nat;
+      for (let k = 0; k < 6 * nat; k++) { const f = MPSCALE[k % 6] === 2 ? R2 : 1; qp[k] = v[o1 + k] / f; tm[k] = v[o2 + k] / f; }
+    };
+    const vm = new Float64Array(nsh), vaoM = new Float64Array(nao), Ha = new Float64Array(nao * nao), Hb = new Float64Array(nao * nao);
+    const Wa = new Float64Array(nao * nao), Wb = new Float64Array(nao * nao), Aa = new Float64Array(nao * nao), Ab = new Float64Array(nao * nao);
+    const Pa = new Float64Array(nao * nao), Pb = new Float64Array(nao * nao), Pm = new Float64Array(nao * nao);
+    let ea = null, eb = null, fa = null, fb = null, espin = 0, probing = false;
+    const PR = opts.probe && opts.spinFree ? { v: opts.probe.length === nsh ? opts.probe : SPIN.defaultProbe(shAt, nsh) } : null;
+    while (!converged && iscf < maxIter) {
+      const elast = eelec;
+      if (iscf > 0) { mixer.next(); unpackS(mixer.q); qat = qatOf(qsh); }
+      iscf++;
+      chargePotentials();
+      // (the stability probe, 1.26: with no magnetization at all, the potential of a tiny one along PR.v, and how much
+      // the electrons answer along it; the state itself stays unpolarized)
+      probing = !!PR && msh.every(v => v === 0);
+      if (probing) { const mp = new Float64Array(nsh); for (let s = 0; s < nsh; s++) mp[s] = SPIN.PROBE_EPS * PR.v[s]; SPIN.spinPot(w, atSh, shAt, nsh, mp, vm); }
+      else SPIN.spinPot(w, atSh, shAt, nsh, msh, vm);
+      for (let m = 0; m < nao; m++) vaoM[m] = vm[aoSh[m]];
+      for (let m = 0; m < nao; m++) for (let n = 0; n < nao; n++) {
+        const k = m * nao + n, hc = H0[k] - 0.5 * S[k] * (vao[m] + vao[n]) - 0.5 * (wq[n * nao + m] + wq[k]), hm = -0.5 * S[k] * (vaoM[m] + vaoM[n]);
+        Ha[k] = hc + hm; Hb[k] = hc - hm;
+      }
+      mixer.set(packS(qsh, msh, dp, dm, qp, tm, vec));
+      ea = SPIN.solveChannel(symEig, Ha, Li, nao, Wa, Aa); eb = SPIN.solveChannel(symEig, Hb, Li, nao, Wb, Ab);
+      const ktn = ktAt(iscf - 1);
+      if (opts.spinFree) [fa, fb] = SPIN.fermiShared(fermiFilling, nocc, ktn, ea, eb);
+      else { fa = fermiFilling(nel[0], ktn, ea); fb = fermiFilling(nel[1], ktn, eb); }
+      SPIN.channelDensity(Wa, Aa, LiT, fa, nao, Ct, Pa); SPIN.channelDensity(Wb, Ab, LiT, fb, nao, Ct, Pb);
+      for (let k = 0; k < nao * nao; k++) { P[k] = Pa[k] + Pb[k]; Pm[k] = Pa[k] - Pb[k]; }
+      const qn = new Float64Array(nsh), dn = new Float64Array(3 * nat), tn = new Float64Array(6 * nat);
+      const mn = new Float64Array(nsh), dmn = new Float64Array(3 * nat), tmn = new Float64Array(6 * nat);
+      const eband = populations(P, qn, dn, tn);
+      populations(Pm, mn, dmn, tmn);                  // (-(alpha - beta): N_beta - N_alpha, tblite's sign)
+      for (let s = 0; s < nsh; s++) qn[s] += n0sh[s];
+      if (probing) { out_probe = SPIN.probeResult(PR.v, Float64Array.from(mn)); PR.v = out_probe.v; // (a power iteration: each iteration turns the pattern toward the most unstable one)
+        mn.fill(0); dmn.fill(0); tmn.fill(0); }
+      qsh = qn; dp = dn; qp = tn; qat = qatOf(qsh); msh = mn; dm = dmn; tm = tmn;
+      mixer.diff(packS(qsh, msh, dp, dm, qp, tm, new Float64Array(N2)));
+      let e2 = 0;
+      for (let a = 0; a < nsh; a++) { let v = 0; for (let b = 0; b < nsh; b++) v += J[a * nsh + b] * qsh[b]; e2 += 0.5 * v * qsh[a]; }
+      let e3 = 0; for (let a = 0; a < nsh; a++) e3 += qsh[a] ** 3 * gam3[a] / 3;
+      const eaes = aesEnergy(qat, dp, qp), ed2 = D4.d4Energy2(disp, qat);
+      let ex = 0; if (vext) for (let i = 0; i < nat; i++) ex += qat[i] * vext[i];
+      espin = SPIN.spinPot(w, atSh, shAt, nsh, msh, new Float64Array(nsh));
+      const ts = entropyTerm(fa, ktn) + entropyTerm(fb, ktn);
+      eelec = eband + e2 + e3 + eaes + ed2 + espin + ts + ex; eext = ex;
+      parts = { eband, e2, e3, eaes, ed2, espin, ts };
+      converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc && ktn <= kt;
+      if (opts.verbose) console.log(iscf, (eelec + erep + edisp3).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
+    }
+    emo = ea; focc = fa;
+    if (!probing) out_probe = null;
+    return { msh, dm, tm, vaoM, Pa, Pb, Pm, Wa, Wb, ea, eb, fa, fb, espin };
+  }
+  if (sp) SPN = spinSCC();
+  if (!sp) while (!converged && iscf < maxIter) {
     const elast = eelec;
     if (iscf > 0) { mixer.next(); unpack(mixer.q); qat = qatOf(qsh); }
     iscf++;
@@ -20871,7 +21356,8 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       A[m * nao + n] = v; A[n * nao + m] = v;
     }
     emo = symEig(A, nao, true);
-    const fa = fermiFilling(nel[0], kt, emo), fb = fermiFilling(nel[1], kt, emo);
+    const ktn = AN ? ktAt(iscf - 1) : kt;
+    const fa = fermiFilling(nel[0], ktn, emo), fb = fermiFilling(nel[1], ktn, emo);
     focc = new Float64Array(nao);
     for (let k = 0; k < nao; k++) focc[k] = fa[k] + fb[k];
     const C = W;
@@ -20881,7 +21367,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       for (let n = 0; n < ncol; n++) { const yn = n * nao; let v = 0; for (let k = m; k < nao; k++) v += LiT[cm + k] * A[yn + k]; C[cm + n] = v; }
       for (let n = ncol; n < nao; n++) C[cm + n] = 0;
     }
-    const ts = entropyTerm(fa, kt) + entropyTerm(fb, kt);
+    const ts = entropyTerm(fa, ktn) + entropyTerm(fb, ktn);
     {
       let nk = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nk = k + 1;
       const Cf = Ct;
@@ -20918,7 +21404,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     let ex = 0; if (vext) for (let i = 0; i < nat; i++) ex += qat[i] * vext[i];
     eelec = eband + e2 + e3 + eaes + ed2 + ts + ex; eext = ex;
     parts = { eband, e2, e3, eaes, ed2, ts };
-    converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc;
+    converged = Math.abs(eelec - elast) < ECONV * acc && mixer.error() < PCONV * acc && ktn <= kt;
     if (opts.verbose) console.log(iscf, (eelec + erep + edisp3).toFixed(10), (eelec - elast).toExponential(3), mixer.error().toExponential(3));
   }
   const Eh = erep + eelec + edisp3;
@@ -20929,7 +21415,14 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     emo: Array.from(emo, x => x * AUTOEV), focc: Array.from(focc),
     parts: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, v * AUTOEV])),
   };
-  if (opts.bonds) {                                   // Mayer bond orders, as gfn1.js
+  if (SPN) {                                          // (spin polarization, 1.26; spin: N_alpha - N_beta per atom)
+    const m = SPN.msh, mat = new Float64Array(nat);
+    for (let s = 0; s < nsh; s++) mat[shAt[s]] -= m[s];
+    Object.assign(out, { probe: out_probe, msh: Array.from(m), spin: Array.from(mat), guess: [...qsh, ...m, ...dp, ...SPN.dm, ...qp, ...SPN.tm], Espin: SPN.espin * AUTOEV,
+      emoB: Array.from(SPN.eb, x => x * AUTOEV), foccB: Array.from(SPN.fb), nAlpha: SPN.fa.reduce((a, b) => a + b, 0), nBeta: SPN.fb.reduce((a, b) => a + b, 0) });
+  }
+  if (opts.bonds && SPN) out.bonds = SPIN.mayerSpin(SPN.Pa, SPN.Pb, S, aoAt, nat, nao);
+  else if (opts.bonds) {                                   // Mayer bond orders, as gfn1.js
     const B = new Float64Array(nat * nat);
     for (let m = 0; m < nao; m++) for (let n = 0; n < m; n++) {
       const a = aoAt[m], b = aoAt[n]; if (a === b) continue;
@@ -20948,7 +21441,8 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     const dEdcn = new Float64Array(nat);              // through the GFN coordination numbers (levels, multipole radii)
     const C = W;
     const Wd = new Float64Array(nao * nao), ck = new Float64Array(nao);
-    for (let k = 0; k < nao; k++) {
+    if (SPN) { SPIN.addWDensity(SPN.Wa, SPN.fa, SPN.ea, nao, Wd); SPIN.addWDensity(SPN.Wb, SPN.fb, SPN.eb, nao, Wd); } // (both channels, 1.26)
+    for (let k = 0; k < (SPN ? 0 : nao); k++) {
       const fe = focc[k] * emo[k];
       if (fe === 0) continue;
       for (let m = 0; m < nao; m++) ck[m] = C[m * nao + k];
@@ -21030,7 +21524,8 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
               const mu = shAo[a] + x;
               for (let y = 0; y < nb; y++) {
                 const nu = shAo[b] + y, k = x * nb + y, idx = mu * nao + nu, p = P[idx], sv = BLK[0][k];
-                const sval = 2 * p * hij - 2 * Wd[idx] - p * (vao[mu] + vao[nu]);
+                let sval = 2 * p * hij - 2 * Wd[idx] - p * (vao[mu] + vao[nu]);
+                if (SPN) sval -= SPN.Pm[idx] * (SPN.vaoM[mu] + SPN.vaoM[nu]); // (the magnetization's potential, 1.26)
                 const t = 2 * p * sv * dpolyH;
                 ps += p * sv;
                 const di = [BLK[1][k], BLK[2][k], BLK[3][k]];
@@ -21086,11 +21581,12 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
 }
 
 function nAO(z) { return element(z).nao; }
-module.exports = { gfn2Energy, nAO, BOHR, AUTOEV, _internal: { element, shellBlocks, BLK, DBLK, hscaleTable } };
+function nShell(z) { return element(z).shells.length; }
+module.exports = { gfn2Energy, nAO, nShell, BOHR, AUTOEV, _internal: { element, shellBlocks, BLK, DBLK, hscaleTable } };
 
   return module.exports; })();
   return { gfn1Energy: M['./gfn1.js'].gfn1Energy, nAO: M['./gfn1.js'].nAO, d3Disp: M['./d3.js'].d3Disp, AUTOEV: M['./gfn1.js'].AUTOEV, BOHR: M['./gfn1.js'].BOHR,
-    gfn2Energy: M['./gfn2.js'].gfn2Energy, nAO2: M['./gfn2.js'].nAO };
+    gfn2Energy: M['./gfn2.js'].gfn2Energy, nAO2: M['./gfn2.js'].nAO, nSh: M['./gfn1.js'].nShell, nSh2: M['./gfn2.js'].nShell, SPIN: M['./spin.js'] };
 })();
 
 /* ---- bo.js ---- */
@@ -22064,7 +22560,7 @@ function boSync() {
   for (const p of join) p.bom = true;
   for (const p of join) for (const bd of p.bonds.slice()) removeBond(bd);
   W.dirty++; W.topo++; vlInvalidate();
-  if (join.length) { BO.any = true; boRelax(join); }
+  if (join.length) { BO.any = true; XQ.hold = true; try { boRelax(join); } finally { XQ.hold = false; } }
   const Ea = boPass(false) + localPE(set) + intE();
   W.ledger.bath += Eb - Ea; BO.bath += Eb - Ea;
   BO.any = BO.on && parts.some(p => p.bom && !p.dead);
@@ -22115,7 +22611,7 @@ function boSet(v) {
   const on = !!v, qm = v === 2;
   if (on === BO.on && qm === BO.qm) return;
   if (BO.on && qm !== BO.qm && W.parts.length) { BO.on = false; boSync(); } // (the other model: every member leaves first, then joins again)
-  BO.on = on; BO.qm = qm; XQ.qsh = null; XQ.qsh1 = null; XQ.sig = ''; XQ.pq.length = 0;
+  BO.on = on; BO.qm = qm; XQ.qsh = null; XQ.qsh1 = null; XQ.sig = ''; XQ.pq.length = 0; XQ.ids = null; XQ.pv = null;
   for (const p of W.parts) { p._dq = 0; p._dqv = 0; }
   if (W.parts.length) { boSync(); if (on) BO.any = true; }
 }
@@ -22126,7 +22622,7 @@ function boQmMethod(m) {
   if (m === XQ.method) return;
   const was = BO.on && BO.qm && W.parts.length;
   if (was) { BO.on = false; boSync(); }
-  XQ.method = m; XQ.qsh = null; XQ.qsh1 = null; XQ.sig = ''; XQ.pq.length = 0;
+  XQ.method = m; XQ.qsh = null; XQ.qsh1 = null; XQ.sig = ''; XQ.pq.length = 0; XQ.ids = null; XQ.pv = null;
   if (was) { BO.on = true; boSync(); BO.any = true; }
 }
 
@@ -22144,12 +22640,60 @@ function boQmMethod(m) {
    self-consistent charges (outside potential), so the forces are the energy's exact slopes. The energy counted is
    the binding energy: GFN1's less each member's free atom. Bond orders (Mayer's, from the density) are drawn and
    decide the molecules. */
-const XQ = { method: 1, max: 40, maxAO: 160, maxCost: 160 * 160 * 160, maxIt: 40, acc: 0.01, extra: true, qsh: null, qsh1: null, sig: '', pq: [], eAtom: new Map(), over: 0, calls: 0, it: 0, ms: 0, fails: 0 };
+const XQ = { method: 1, max: 40, maxAO: 160, maxCost: 160 * 160 * 160, maxIt: 40, acc: 0.01, extra: true, qsh: null, qsh1: null, sig: '', pq: [], eAtom: new Map(), over: 0, calls: 0, it: 0, ms: 0, fails: 0,
+  spin: 0, pv: null, pvSig: '', lamMax: 1.02, flips: 0, flipE: 0, ids: null, maxItCold: 120 }; // (spin polarization, 1.26: XQ.spin; the stability probe's direction pv; branch switches flips, their energy to the bath flipE)
 function qmAtomE(Z) {
-  const key = XQ.method === 2 ? 1000 + Z : Z; // (each method's own free atoms, 1.26)
+  const key = (XQ.method === 2 ? 1000 : 0) + (XQ.spin ? 2000 : 0) + Z; // (each method's own free atoms, 1.26; spin-polarized in their lowest spin state)
   let e = XQ.eAtom.get(key);
-  if (e === undefined) { e = (XQ.method === 2 ? XTB.gfn2Energy : XTB.gfn1Energy)([Z], [[0, 0, 0]], 0, 0, { accuracy: XQ.acc }).E; XQ.eAtom.set(key, e); }
+  if (e === undefined) {
+    const f = XQ.method === 2 ? XTB.gfn2Energy : XTB.gfn1Energy;
+    if (!XQ.spin) e = f([Z], [[0, 0, 0]], 0, 0, { accuracy: XQ.acc }).E;
+    else { // (the lowest of the spin counts its electrons allow, each found as the game's own calculation finds it: one Fermi level, seeded there)
+      const r0 = f([Z], [[0, 0, 0]], 0, 0, { accuracy: XQ.acc, spin: 1, spinFree: true }), nsh = r0.msh.length, nel = Math.round(r0.nAlpha + r0.nBeta), nao = r0.emo.length;
+      e = r0.E;
+      for (let u = nel % 2 || 2; u <= Math.min(nel, 2 * nao - nel); u += 2) { const m0 = new Array(nsh).fill(0); m0[nsh - 1] = -u; const r = f([Z], [[0, 0, 0]], 0, 0, { accuracy: XQ.acc, spin: 1, spinFree: true, m0 }); if (r.converged && r.E < e) e = r.E; }
+    }
+    XQ.eAtom.set(key, e);
+  }
   return e;
+}
+/* Spin polarization on or off (1.26): as the method, the members leave under the one and join under the other */
+function boQmSpin(v) {
+  v = v ? 1 : 0;
+  if (v === XQ.spin) return;
+  const was = BO.on && BO.qm && W.parts.length;
+  if (was) { BO.on = false; boSync(); }
+  XQ.spin = v; XQ.qsh = null; XQ.qsh1 = null; XQ.sig = ''; XQ.pq.length = 0; XQ.pv = null; XQ.ids = null;
+  if (was) { BO.on = true; boSync(); BO.any = true; }
+}
+/* The charge state's layout per member (1.26): each atom's shells, then (GFN2) its dipole and quadrupole; with spin,
+   each part twice (charges, then magnetizations), as the ports pack them */
+function xqLayout(Z) {
+  const sh = Z.map(z => XQ.method === 2 ? XTB.nSh2(z) : XTB.nSh(z)), off = []; let nsh = 0;
+  for (const k of sh) { off.push(nsh); nsh += k; }
+  return { sh, off, nsh, nat: Z.length };
+}
+/* A start after the members changed (1.26, GFN2 and spin only; GFN1 without spin starts cold as before): each atom that
+   was a member brings its charges (and moments, magnetization) from the last step, new ones start neutral */
+function xqGuessById(mem, Z) {
+  const o = XQ.ids, q = XQ.qsh; if (!o || !q) return null;
+  const L0 = o.lay, L = xqLayout(Z), sp = !!XQ.spin, g2 = XQ.method === 2, at = new Map(o.id.map((id, k) => [id, k]));
+  const len = (sp ? 2 : 1) * (L.nsh + (g2 ? 9 * L.nat : 0)), L0len = (sp ? 2 : 1) * (L0.nsh + (g2 ? 9 * L0.nat : 0));
+  if (q.length !== L0len) return null;
+  const g = new Array(len).fill(0); let any = false;
+  // blocks: [charges by shell, (magnetization by shell), (dipoles 3/atom, (magn.), quadrupoles 6/atom, (magn.))]
+  const blocks = (lay) => { const b = [['sh', lay.nsh]]; if (sp) b.push(['sh', lay.nsh]); if (g2) { b.push(['d', 3 * lay.nat]); if (sp) b.push(['d', 3 * lay.nat]); b.push(['t', 6 * lay.nat]); if (sp) b.push(['t', 6 * lay.nat]); } return b; };
+  const B0 = blocks(L0), B = blocks(L); let o0 = 0, o1 = 0;
+  for (let k = 0; k < B.length; k++) {
+    const kind = B[k][0];
+    for (let m = 0; m < mem.length; m++) {
+      const j = at.get(mem[m].id); if (j === undefined) continue; any = true;
+      if (kind === 'sh') { for (let s = 0; s < L.sh[m]; s++) g[o1 + L.off[m] + s] = q[o0 + L0.off[j] + s]; }
+      else { const w = kind === 'd' ? 3 : 6; for (let c = 0; c < w; c++) g[o1 + w * m + c] = q[o0 + w * j + c]; }
+    }
+    o0 += B0[k][1]; o1 += B[k][1];
+  }
+  return any ? g : null;
 }
 /* a member's orbitals under the method chosen (GFN2 gives hydrogen one, GFN1 two): what a calculation's cost grows with */
 const xqNAO = (Z) => XQ.method === 2 ? XTB.nAO2(Z) : XTB.nAO(Z);
@@ -22184,11 +22728,21 @@ function qmPass(forces) {
   const t0 = performance.now();
   let r;
   const qmE = XQ.method === 2 ? XTB.gfn2Energy : XTB.gfn1Energy; // (GFN2-xTB, 1.26: its D4 dispersion is inside, self-consistent)
-  try { r = qmE(Z, xyz, charge, 0, { grad: forces, vext: anyV ? vext : null, qsh0: XQ.sig === sig ? xqGuess() : null, bonds: true, accuracy: XQ.acc, maxIter: PI.on ? Math.max(8, Math.floor(XQ.maxIt / Math.sqrt(PI.P))) : XQ.maxIt }); } // (with beads, each a calculation, fewer: 14 at 8 beads; settled ones take 2–5, 1.23.1)
+  const sp = !!XQ.spin, same = XQ.sig === sig, newer = XQ.method === 2 || sp; // (1.26: GFN2 and spin polarization start a changed cluster from its members' last state, and a cold one with more iterations)
+  const g0 = same ? (newer && !forces ? XQ.qsh : xqGuess()) : newer ? xqGuessById(mem, Z) : null; // (1.26: a measurement starts from the last step's own state, which is where it measures between steps)
+  const maxIt = PI.on ? Math.max(8, Math.floor(XQ.maxIt / Math.sqrt(PI.P))) : newer && (!g0 || XQ.unsettled) ? XQ.maxItCold : XQ.maxIt; // (with beads, each a calculation, fewer: 14 at 8 beads; settled ones take 2–5, 1.23.1; 1.26: a cold start or one after an unsettled step more)
+  const o = { grad: forces, vext: anyV ? vext : null, qsh0: g0, bonds: true, accuracy: XQ.acc, maxIter: maxIt };
+  if (sp) { o.spin = 1; o.spinFree = true; if (!PI.on) o.probe = XQ.pvSig === sig && XQ.pv ? XQ.pv : true; } // (spin polarization, 1.26: one Fermi level for both spins, and the stability probe while unpolarized)
+  if (newer) o.mix = { restart: 10 }; // (1.26: a mixer whose residual runs away starts its history again)
+  try { r = qmE(Z, xyz, charge, 0, o); }
   catch (e) { r = null; }
+  if (newer && r && !r.converged && o.maxIter < XQ.maxItCold) { try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: r.guess || r.qsh, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; r = r2; } catch (e) { /* keep r */ } } // (1.26: unsettled, it goes on from where it got to)
+  if (sp && r && !r.converged && g0) { try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: null, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; if (r2.converged) { r = r2; r.flipped = true; } } catch (e) { /* keep r */ } } // (still unsettled with spins: a fresh, unpolarized start, the probe then finds the spins again)
+  if (sp && forces && r && r.converged && r.probe) r = xqProbe(r, qmE, Z, xyz, charge, o, sig);
   if (!r || !r.converged) { XQ.fails++; if (!r) { BO.E = 0; return 0; } }
   const d = XQ.method === 2 ? null : XTB.d3Disp(Z, xyz, { grad: forces });
-  if (forces) { XQ.qsh1 = XQ.sig === sig ? XQ.qsh : null; XQ.qsh = r.guess || r.qsh; XQ.sig = sig; XQ.calls++; XQ.it += r.iterations; XQ.ms += performance.now() - t0; } // (a measurement leaves the next step's start alone: runs stay the same however often the energy is read)
+  if (forces) { XQ.qsh1 = XQ.sig === sig && !r.flipped && !(newer && (XQ.unsettled || !r.converged)) ? XQ.qsh : null; if (newer) XQ.unsettled = !r.converged; XQ.qsh = r.guess || r.qsh; // (1.26: no straight line through an unsettled step: it sent the next start further off, and unsettled steps followed one another)
+     XQ.sig = sig; XQ.calls++; XQ.it += r.iterations; XQ.ms += performance.now() - t0; if (newer) XQ.ids = { id: mem.map(p => p.id), lay: xqLayout(Z) }; } // (a measurement leaves the next step's start alone: runs stay the same however often the energy is read)
   let E = r.E - r.Eext + (d ? d.E : 0); // (the outside potential's energy is the kernel's pairs')
   for (let m = 0; m < n; m++) E -= qmAtomE(Z[m]);
   for (let m = 0; m < n; m++) { const p = mem[m], q = r.q[m]; QP[p.i] = q - p.q; p.qpol = q - p.q; p.qf = 0; p.qi = 0; }
@@ -22214,6 +22768,23 @@ function qmPass(forces) {
   return E;
 }
 const XQ_K = 50;
+/* The stability probe's verdict (spin polarization, 1.26). An unpolarized solution whose electrons answer a tiny
+   magnetization by more than they were given (lam > 1, the Stoner criterion: a bond stretched past the point where its
+   electrons would rather sit one on each atom, or a radical just made) is not the lowest: the calculation runs again
+   from a magnetization along the probe's pattern, and if that settles lower and polarized it is taken, the drop at the
+   same positions to the heat bath (as switching models), so the books stay closed. The probe's pattern is carried from
+   step to step (a power iteration: it turns to the most unstable one). */
+function xqProbe(r, qmE, Z, xyz, charge, o, sig) {
+  XQ.pv = r.probe.v; XQ.pvSig = sig;
+  if (!(r.probe.lam > XQ.lamMax) || XQ.hold) return r; // (not inside a change being measured: boSync books it whole)
+  const v = r.probe.v, mx = Math.max(...v.map(Math.abs)) || 1, nsh = v.length, g = r.guess.slice();
+  for (let s = 0; s < nsh; s++) g[nsh + s] = 0.5 * v[s] / mx; // (the magnetization part of the state: right after the shell charges)
+  let r2;
+  try { r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: g, probe: null, maxIter: XQ.maxItCold }); } catch (e) { r2 = null; }
+  if (!r2 || !r2.converged || !(r2.E < r.E - 1e-9) || !(Math.max(...r2.spin.map(Math.abs)) > 1e-3)) return r;
+  const d = r.E - r2.E; W.ledger.bath += d; BO.bath += d; XQ.flips++; XQ.flipE += d;
+  r2.iterations += r.iterations; r2.flipped = true; return r2; // (flipped: no straight line through the old branch for the next start)
+}
 
 /* Leaving quantum bonds, the atoms get whole charges where the electrons put them (a proton that hopped took the +1
    along: the charge is the oxygen's that now holds three hydrogens). Molecules from the last bond orders (heavy atoms
@@ -37371,13 +37942,16 @@ const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 
 const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the farthest atoms fade toward the background)
 Object.assign(SET_DEF, { metal: 0 }); SET_OK.metal = [0, 1]; // (Experimental: bond orders for metals, 1.25)
 Object.assign(SET_DEF, { xq: 1 }); SET_OK.xq = [1, 2]; // (Experimental: the quantum bonds' method, GFN1-xTB or GFN2-xTB, 1.26)
+Object.assign(SET_DEF, { xqs: 0 }); SET_OK.xqs = [0, 1]; // (Experimental: the quantum bonds' spins, paired or polarized, 1.26)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
 SET_EXP.push('xq'); // (1.26)
+SET_EXP.push('xqs'); // (1.26)
 const EXP_NAME = { dtMax: 'shorter longest step', resBig: 'resonance in large rings', inc: 'detailed nuclear collisions', rc: 'longer force reach', qeq: 'induced charges', pi: 'quantum nuclei', piRpc: 'exact bead forces', bo: 'bond orders', wave: 'electrons as waves', ultra: 'the ultra-realistic mode' }; // (ultra: in the Experimental tab since 1.23.2)
 EXP_NAME.metal = 'many-body metals'; // (1.25)
 EXP_NAME.xq = 'GFN2-xTB'; // (1.26)
+EXP_NAME.xqs = 'polarized spins'; // (1.26)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -37454,6 +38028,7 @@ function applySettings() {
   threadsSet(SET.threads === 'auto' ? threadsDefault() : +SET.threads - 1); // (workers besides the main thread)
   PI.rpc = SET.piRpc !== 0; piSet(SET.pi); // (Experimental: quantum nuclei; contracted bead forces, 1.21)
   boQmMethod(SET.xq); // (Experimental: the quantum bonds' method, 1.26; before boSet, so members join under it)
+  boQmSpin(SET.xqs); // (and their spins, 1.26)
   boSet(SET.bo); // (Experimental: continuous bond orders, 1.13; 2: quantum bonds, 1.22)
   mbSet(SET.metal); // (Experimental: bond orders for metals, 1.25)
   waveSet(!!SET.wave); // (Experimental: electrons as waves, 1.15)
@@ -37574,6 +38149,7 @@ function syncSettings() {
   setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segPiRpc', String(SET.piRpc)); setSegValue('segBo', String(SET.bo)); setSegValue('segWave', String(SET.wave)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
   setSegValue('segMetal', String(SET.metal)); // (1.25)
   setSegValue('segXq', String(SET.xq)); // (1.26)
+  setSegValue('segXqs', String(SET.xqs)); // (1.26)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -37653,6 +38229,9 @@ const COSTS3 = {
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
   : { k: 'physics', o: { 1: ['×1', 'GFN1-xTB, the normal method'], 2: ['×0.8–1.4', d3 ? 'Measured in 3-D on one thread against GFN1 (1.26): a hydronium and five waters (19 atoms) ×0.9–1.7, with eleven (37 atoms) ×0.5–1.4: hydrogen has one orbital instead of two, but the dipoles, quadrupoles and D4 dispersion add work; same steps' : 'Measured on one thread against GFN1 (1.26): a hydronium and five waters (19 atoms) ×1.1–1.4, with eleven (37 atoms) ×0.8–1.2: hydrogen has one orbital instead of two, but the dipoles, quadrupoles and D4 dispersion add work; same steps'] } };
 COSTS.segXq = XQ_COST(false); COSTS3.segXq = XQ_COST(true);
+/* the spins (1.26): two sets of orbitals, measured on one thread with quantum bonds on (Node, flat; 3-D alike) */
+COSTS.segXqs = COSTS3.segXqs = () => SET.bo !== 2 ? { k: 'physics', o: { 0: ['×1', 'Only with quantum bonds on'], 1: ['×1', 'Only with quantum bonds on'] } }
+  : { k: 'physics', o: { 0: ['×1', 'Paired, as GFN-xTB was made'], 1: ['×1.2–2.3', 'Measured (1.26): a hydronium and five waters, every electron paired, GFN1 ×1.6, GFN2 ×1.2 (each spin\u2019s orbitals worked out); O\u2083, NO, O\u2082, H\u2082O\u2082 and H\u2082 at 1,500 K GFN1 ×2.3, GFN2 ×1.6'] } };
 function costOf(id) { return (W.d3 && COSTS3[id] ? COSTS3[id] : COSTS[id])(); } // (this mode's costs, 1.25)
 function costTag(el, cls, text, tip) {
   let t = el.querySelector(':scope > .' + cls.split(' ')[0]);
@@ -37672,6 +38251,7 @@ const REAL = {
   segWave: ['1', 'An electron is a wave with a size and a spin, not a point'],
   segMetal: ['1', 'In a real metal an atom\u2019s bonding depends on how many neighbours it has, not on a sum of pairs'], // (1.25)
   segXq: ['1', 'Closer to measured barriers (H + H\u2082, HCN to HNC, a shared proton) and to hexazine falling apart; GFN2 binds H\u2083 and holds hexazine below three N\u2082 (1.26)'],
+  segXqs: ['1', 'Unpaired electrons line up as in nature: free atoms and radicals get their spin energy (breaking molecules into atoms 2.7 eV off on average with GFN1, paired 6.6), O\u2082 is a triplet (1.26)'],
   segAtom: ['1', 'Atoms as big as they are'],
   setResBig: [true, 'Every ring system gets its resonance worked out exactly'],
   setInc: [true, 'A nucleon followed through the nucleus collision by collision, as in nature'],
@@ -37690,6 +38270,7 @@ function syncReal() {
 const EXP_SET = { segWave: 'wave', segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
 EXP_SET.segMetal = 'metal'; // (1.25)
 EXP_SET.segXq = 'xq'; // (1.26)
+EXP_SET.segXqs = 'xqs'; // (1.26)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -37710,7 +38291,7 @@ function expSummary() {
   if (SET.rc !== 6) on.push(`force reach ${SET.rc} Å`);
   if (SET.qeq) on.push(`induced charges ${SET.qeq === 1 ? 'every step' : 'every ' + SET.qeq + 'th step'}`);
   if (SET.pi) on.push(`quantum nuclei ${SET.pi} beads`);
-  if (SET.bo) on.push(SET.bo === 2 ? `quantum bonds (GFN${SET.xq === 2 ? 2 : 1}-xTB)` : 'continuous bond orders'); // (the method chosen, 1.26)
+  if (SET.bo) on.push(SET.bo === 2 ? `quantum bonds (GFN${SET.xq === 2 ? 2 : 1}-xTB${SET.xqs ? ', polarized spins' : ''})` : 'continuous bond orders'); // (the method chosen, 1.26; its spins, 1.26)
   if (SET.wave) on.push('electrons as waves');
   if (SET.metal) on.push('many-body metals'); // (1.25)
   if (SET.resBig) on.push('large ring resonance');
@@ -37726,6 +38307,7 @@ function syncExpTotal() {
   const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', segBo: 'continuous bond orders', segWave: 'electrons as waves', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
   names.segMetal = 'many-body metals'; // (1.25)
   names.segXq = 'GFN2-xTB'; // (1.26)
+  names.segXqs = 'polarized spins'; // (1.26)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -37849,6 +38431,7 @@ const SDESC = {
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, drawn as thinner or thicker bonds that stretch and break smoothly. Quantum works out the electrons themselves (GFN1-xTB, or GFN2-xTB below): a proton shared between two waters shows half-bonds to both.'],
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours (a tight-binding model fitted to each metal), so a lone pair is short and strong, an atom at a surface holds harder to each neighbour, and a vacancy costs less than the bonds it breaks.'], // (1.25)
   segXq: ['Quantum method', 'Which tight-binding quantum chemistry works out the electrons when Bond orders is Quantum. GFN1-xTB (normal) is closer to measured reaction barriers and lets hexazine fall apart; GFN2-xTB adds atomic dipoles and quadrupoles and the D4 dispersion, and is closer for breaking molecules into atoms. Both match the reference program to 10⁻¹¹ eV.'], // (1.26)
+  segXqs: ['Spins', 'Paired (normal) puts two electrons, one of each spin, in every orbital, as GFN-xTB was made. Polarized gives each spin its own orbitals (spin-polarized GFN-xTB): free atoms and radicals get the energy of their unpaired electrons, O₂ is a triplet, and a bond pulled apart ends as two radicals. Breaking molecules into atoms comes out 2.7 eV off on average with GFN1 (paired 6.6), 1.6 with GFN2 (4.6).'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin, drawn as a faint cloud (the electron force field, eFF), instead of a point.'],
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
@@ -37882,6 +38465,7 @@ const SDESC3 = {
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, with the 3-D angles and the twist of double, aromatic and single bonds, drawn as thinner or thicker bonds. Quantum works out the electrons themselves (GFN1-xTB, or GFN2-xTB below) with the atoms free in all three directions.'],
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours, fitted on a close-packed crystal: in the 3-D lab a crystal has its measured cohesive energy, spacing, stiffness and vacancy energy exactly (copper 3.49 eV, 2.56 Å, 137 GPa, 1.28 eV).'],
   segXq: ['Quantum method', 'Which tight-binding quantum chemistry works out the electrons when Bond orders is Quantum, with the atoms free in all three directions. GFN1-xTB (normal) is closer to measured reaction barriers and lets hexazine fall apart; GFN2-xTB adds atomic dipoles and quadrupoles and the D4 dispersion, and puts puckered hexazine 1.7 eV below three N₂.'], // (1.26)
+  segXqs: ['Spins', 'Paired (normal) puts two electrons, one of each spin, in every orbital, as GFN-xTB was made. Polarized gives each spin its own orbitals (spin-polarized GFN-xTB), with the atoms free in all three directions: free atoms and radicals get the energy of their unpaired electrons, O₂ is a triplet, and a bond pulled apart ends as two radicals.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size. The 3-D camera comes no nearer than half an ångström, so it does not zoom in to a nucleus: the picture is the flat game’s. Experimental: off again each time the game starts.'],
 };
@@ -38069,6 +38653,7 @@ function settingsInit() {
   bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); bindSeg('segPiRpc', (v) => setSetting('piRpc', +v)); bindSeg('segBo', (v) => setSetting('bo', +v)); bindSeg('segWave', (v) => setSetting('wave', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
   bindSeg('segMetal', (v) => setSetting('metal', +v)); // (1.25)
   bindSeg('segXq', (v) => setSetting('xq', +v)); // (1.26)
+  bindSeg('segXqs', (v) => setSetting('xqs', +v)); // (1.26)
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
