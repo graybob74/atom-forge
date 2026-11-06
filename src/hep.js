@@ -838,7 +838,7 @@ function exoIonize(o, x0, y0) {
     if (W.nucWin) for (const m of molecule(tg)) m.nucProd = true; // (knocked loose by a nuclear event's products: slow motion for nuclear events, when off, does not follow the pieces)
     const ie = ionizationCost(tg), nx = -o.uy * (rnd() < 0.5 ? 1 : -1), ny = o.ux * (nx === -o.uy ? 1 : -1);
     if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) { if (ejectElectron(tg, dE - ie, nx, ny)) W.count.ionize++; else dumpHeat(dE, tg, tg); }
-    else { const dv = Math.sqrt(2 * dE * tg.im); tg.vx += nx * dv * 0.7; tg.vy += ny * dv * 0.7; updateFast(tg); }
+    else { const vn = tg.vx * nx + tg.vy * ny, a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); tg.vx += nx * a; tg.vy += ny * a; updateFast(tg); } // (exactly dE, as fastStop3: 0.7·√(2dE/m) gave about half, 1.26)
     if (o.KE <= 1) break;
   }
   if (lost > 0) { o.KE = Math.max(0.5, o.KE); exoSpeed(o); }
@@ -1335,7 +1335,7 @@ function exoIonize3(o, x0, y0, z0) {
     if (W.nucWin) for (const m of molecule(tg)) m.nucProd = true;
     const ie = ionizationCost(tg), n = turn3(o.ux, o.uy, o.uz, Math.PI / 2), nx = n[0], ny = n[1], nz = n[2]; // (square to the path, at a random azimuth)
     if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) { if (ejectElectron(tg, dE - ie, nx, ny, undefined, undefined, nz)) W.count.ionize++; else dumpHeat(dE, tg, tg); }
-    else { const dv = Math.sqrt(2 * dE * tg.im); tg.vx += nx * dv * 0.7; tg.vy += ny * dv * 0.7; tg.vz += nz * dv * 0.7; updateFast(tg); }
+    else { const vn = tg.vx * nx + tg.vy * ny + tg.vz * nz, a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); tg.vx += nx * a; tg.vy += ny * a; tg.vz += nz * a; updateFast(tg); } // (exactly dE, as fastStop3: 0.7·√(2dE/m) gave about half, 1.26)
     if (o.KE <= 1) break;
   }
   if (lost > 0) { o.KE = Math.max(0.5, o.KE); exoSpeed(o); }

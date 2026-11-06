@@ -529,6 +529,41 @@ each part fails on v136 and passes here.
   were the known timing ones (1.14 speed readout 1/1.3×, f_bug125 pi3's 0.8 ratio; 1.24 light and f_bug125 segGrid in an
   earlier lone run under load), each passing alone.
 
+### 1.26: exotic-particle sweep
+
+Branch v140 (from v136 with v137 and v138). Every particle of the particle menus (Leptons, Neutrinos, Nucleons, Light
+nuclei, Mesons, Baryons, Resonances, Light, Antimatter, Exotic atoms and nuclei) placed, fired, inspected, erased,
+selected, copied, saved and let decay, flat and in 3-D. Checks: tests/f_swx.js (t_features runs it alone;
+`node tests/f_swx.js [--node] [part …]`); each part fails on v136 and passes here.
+
+- **Books when a fast charged particle crosses a nucleus (flat game).** Found with muonium: 200 muonium atoms decaying
+  in an insulated box moved the books +214 eV. Two slips, both general (any MeV electron or positron through matter):
+  1. Mott scattering (`nuclearScatter`, a lepton crossing a nucleus where it is drawn) gave the struck atom its recoil
+     with `setMotion`, which puts it straight into radiation flight; its bonds and its potential energy with what stays
+     were left out of the books. A 20 MeV electron through the H nucleus of a water molecule: +4.8 eV (the O–H bond);
+     a muon decay's positron off a bare μ⁺ beside another −17.6 eV (their repulsion). Now a stepped atom sent into
+     flight there has its bonds broken and the potential energy it leaves paid from its motion, as `switchMode` does.
+  2. An ionizing pass that could not free an electron (dE under the ionization cost) pushed the atom by
+     0.7·√(2dE/m) square to the path: about half of dE, the rest gone (in `moveRad`, and in `exoIonize`/`exoIonize3`
+     for unstable particles; 3-D atoms in flight, `fastStop3`, were already exact): the H recoil of the pass above
+     −6.5 eV. Now the push gives exactly dE, whatever the atom's own motion.
+  - After: 20 passes, 2 and 20 MeV, H of water and bare μ⁺: within 0.04 eV a pass (before up to +7.1, −6.5, −17.6).
+    The 200 muonium atoms still drift (+173 eV over 400 steps, 3-D +9 eV): a hot, dense, light Mu/Mu₂/e⁻ plasma whose
+    steps are the known limit (bug fix 13 after 1.25: a light atom flying fast in the flat game jumps the books by
+    ±1–12 eV as it passes molecules; the integrator in a crowd of 0.11 u atoms), not an event's booking.
+  - Fingerprints (all 59 setups, seed 7, 300 steps): annihilation, hyperfactory, isolde, nif, photonuc, pionbeam and sns
+    change (their radiation-flight ions and leptons ionize at low dE, now pushing exactly; sns also from the Mott
+    change); the rest, and every 3-D setup, unchanged. Check: f_swx "flatKicks".
+- **Heat with no partner (both games).** `dumpHeat(E, a, a)` (one atom: a stopped unstable particle's last keV in 3-D,
+  an ionization that could not free its electron) with no third atom within 6 Å in an insulated box called
+  `kickPair(a, a)`, which takes nothing: E left the books (ledger.chem counted it). Every 3-D hypernucleus placed at
+  rest moved the books −5.6 eV over 200 (0.03 eV each, its placing energy, given to a lone product nucleus); Σ⁺ in 3-D
+  −5.0. Now the bath takes it, or in an insulated box the one atom (an exact push in a random direction). A 1 keV
+  ¹³ΛC stopping beside a lone carbon in 3-D: −1,000 eV before, 0 after. Fingerprints unchanged (no setup met that
+  case). Check: f_swx "loneHeat".
+- **Texts.** A μ⁺ taking an electron said "Recombination: p⁺ + e⁻ → H atom", and a bare μ⁺ bonding "Proton bonded:
+  H⁺ + …": now "μ⁺ + e⁻ → muonium" and "Muon bonded: Mu⁺ + …".
+
 ### 1.26: GFN2 refit (second attempt)
 
 Asked by the owner: improve GFN2, keeping what it is best at (water clusters, non-covalent binding, geometries) and

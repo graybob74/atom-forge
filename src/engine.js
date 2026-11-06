@@ -3545,9 +3545,18 @@ function dumpHeat(E, a, b) {
   if (!(E > 0)) return;
   W.ledger.chem += E;
   const third = nearestThird(a, b, 6);
-  if (third) { kickPair(rnd() < 0.5 ? a : b, third, E); return; }
+  if (third) { if (kickPair(rnd() < 0.5 ? a : b, third, E)) return; }
+  else if (W.gamma > 0) { W.ledger.bath += E; return; }
+  else if (kickPair(a, b, E)) return;
+  // (no pair could take it: one atom alone (dumpHeat(E, tg, tg): a stopped particle's last keV, an ionization that
+  // could not free its electron) or one in flight; kickPair took nothing and E left the books (a 3-D hypernucleus
+  // stopping beside a lone nucleus −0.03 eV each, 1.26): the bath takes it, or in an insulated box the atom itself)
   if (W.gamma > 0) { W.ledger.bath += E; return; }
-  kickPair(a, b, E);
+  const p = [a, b, third].find(q => q && !q.dead && !q.rad) || [a, b, third].find(q => q && !q.dead);
+  if (!p) { W.ledger.escaped += E; return; }
+  if (p.rad) { p.KE += E; radSpeed(p); p.vx = p.sp * p.ux; p.vy = p.sp * p.uy; return; }
+  const u = rndDir(), vn = p.vx * u[0] + p.vy * u[1] + p.vz * u[2], s = -vn + Math.sqrt(vn * vn + 2 * E * p.im);
+  p.vx += u[0] * s; p.vy += u[1] * s; if (W.d3) p.vz += u[2] * s; updateFast(p);
 }
 
 /* ------------------------------------------------------------------ photons
@@ -4582,7 +4591,7 @@ function capture(L, A, Etot) {
   } else if (Eph > 0) dumpHeat(Eph, A, A);
   const after = speciesLabel(A);
   if (A.ne === 1 && A.Z === 1) log('em', A.anti ? `Antihydrogen formed: p̄ + e⁺ → H̄ (${fmtE(ie)} binding, the same light as hydrogen)`
-    : `Recombination: p⁺ + e⁻ → H atom (${fmtE(ie)} binding, light emitted)`);
+    : A.mu ? `Recombination: μ⁺ + e⁻ → muonium (${fmtE(ie)} binding, light emitted)` : `Recombination: p⁺ + e⁻ → H atom (${fmtE(ie)} binding, light emitted)`); // (muonium's nucleus is a μ⁺, 1.26)
   else log('em', `${A.anti ? 'Positron' : 'Electron'} captured: ${before} + ${A.anti ? 'e⁺' : 'e⁻'} → ${after}`);
 }
 function attach(L, A, Erel) {
@@ -4863,7 +4872,7 @@ function evDative(H, D, r) {
   } else dumpHeat(heat, H, D);
   W.count.react++;
   const mol = molecule(D), nm = moleculeName(mol);
-  log('chem', `Proton bonded: H⁺ + ${before} → ${hill(mol)}${nm ? ' (' + nm + ')' : ''}`);
+  log('chem', `${H.mu ? 'Muon bonded: Mu⁺' : 'Proton bonded: H⁺'} + ${before} → ${hill(mol)}${nm ? ' (' + nm + ')' : ''}`); // (a bare μ⁺ (muonium's nucleus) is not a proton, 1.26)
 }
 
 /* Electron transfer between a donor and an acceptor when it lowers the total energy (Born–Haber). */
@@ -6183,8 +6192,8 @@ function moveRad(p, dt) {
     if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) {
       if (ejectElectron(tg, dE - ie, nx, ny)) W.count.ionize++; else dumpHeat(dE, tg, tg);
     } else {
-      const dv = Math.sqrt(2 * dE * tg.im);
-      tg.vx += nx * dv * 0.7; tg.vy += ny * dv * 0.7; updateFast(tg);
+      const vn = tg.vx * nx + tg.vy * ny, a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); // (a push square to the path giving it exactly dE, as fastStop3 in 3-D: 0.7·√(2dE/m) gave about half, the rest lost from the books (a 20 MeV electron's H recoil through a water molecule −6.5 eV), 1.26)
+      tg.vx += nx * a; tg.vy += ny * a; updateFast(tg);
     }
     if (p.KE <= 0) break;
   }
@@ -6395,8 +6404,20 @@ function nuclearScatter(a, b, d, ex, ey, reach = R_NN, rmap = 0) { // rmap (fm):
   const c = Math.cos(th), s = Math.sin(th), qx = A[1] * c - A[2] * s, qy = A[1] * s + A[2] * c;
   const A2 = boost(A[0], qx, qy, -bx, -by), B2 = boost(Bst, -qx, -qy, -bx, -by);
   const na = Math.hypot(A2[1], A2[2]) || 1, nb = Math.hypot(B2[1], B2[2]) || 1;
+  // (a stepped particle this turn sends into flight leaves the stepped set: its bonds break and its potential energy
+  // with what stays is paid from its motion, as switchMode does; it was left out of the books: a 2–20 MeV electron
+  // through the H of a water molecule +4.8 eV, a muon decay's positron off a bare μ⁺ in a muonium cluster −17.6 eV, 1.26)
+  const md = [a, b].filter(p => !p.xb && inMD(p)), set = md.length ? closeSet(setOf(md)) : null, U0 = set ? localPE(set) : 0;
   setMotionB(a, Math.max(1e-6, A2[0] - ma), A2[1] / na, A2[2] / na);
   setMotionB(b, Math.max(1e-6, B2[0] - mb), B2[1] / nb, B2[2] / nb);
+  if (set) {
+    const fl = md.filter(p => p.rad);
+    if (fl.length) {
+      for (const p of fl) for (const bd of p.bonds.slice()) removeBond(bd);
+      const owed = localPE(closeSet(set)) - U0, p = fl[0];
+      p.KE = Math.max(1e-6, p.KE - owed); radSpeed(p); p.vx = p.sp * p.ux; p.vy = p.sp * p.uy;
+    }
+  }
   return th0;
 }
 function setMotionB(p, KE, ux, uy) { if (!p.xb) { setMotion(p, KE, ux, uy); return; } p.KE = KE; p.ux = ux; p.uy = uy; exoSpeed(p); } // (an unstable particle in a beam: W.exo, 1.15)
