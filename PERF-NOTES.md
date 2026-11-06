@@ -456,7 +456,8 @@ nearThreshold, plasma, wallTwice, cap, radPush, decay, each failing on e237efe a
 - Suites (2-core machine shared with another session's tests): alone t_lint, t_energy, t_physics, t_nuclear, t_hep,
   t_3d, f_swx, f_bug126e pass; t_features passes but for the known timing checks (1.14's speed readout 1/1.4×; f_bug125
   exoElastic 4.2 ms and pi3, both passing alone, exoElastic 1.4–2.3 ms on both trees), and the paired-spin and settings
-  checks inside it (f_126q, f_126x, f_hep126, f_sweep3d, f_swx) pass unchanged. RUNTESTS_RESULT
+  checks inside it (f_126q, f_126x, f_hep126, f_sweep3d, f_swx) pass unchanged. tools/runtests.sh (run alone, from the commit before the nearThreshold part, which passes alone):
+  all 22 suites pass, t_features among them (no timing misses this time).
 
 ### 1.26: 3-D sweep and settings audit
 
