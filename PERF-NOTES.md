@@ -2718,6 +2718,14 @@ has the 6 Å cutoff compiled in (kernel/src/lib.rs `RC2 = 36.0`, used 12 times; 
 other reach), so 9 and 12 Å run the JavaScript kernels; making the cutoff a value the kernel is given (lib.rs, d3.rs,
 the neighbour lists' reach) and built by wasm.yml, with 6 Å bit for bit as now and 9/12 Å equal to the JavaScript to
 the bit, would give them the module's speed (the pair loop about 1.7–2.5× the JavaScript's). Medium job.
+34–38 (asked 2026-11-06, "anything else that can be written in wasm?"; speed-ups, not physics; measure first: a profile
+of each with its setting on, then port only where the JavaScript part is most of the step): 34 quantum bonds (xtb.js:
+the GFN-xTB self-consistent field, its Hamiltonian, the eigen-solver and the gradients, all JavaScript; large);
+35 directional forces (sites.js sitesForces: σ-holes ×1.7–2.0 flat, lone pairs ×2.1–2.6 in 3-D, π clouds; a JavaScript
+pass after the kernel; medium); 36 electrons as waves (waveForces/waveForces3, eFF; medium); 37 free electrons' inner
+steps among ions (innerSteps/innerSteps3, the RESPA loop that dominates ionized matter; medium, branchy); 38 many-body
+metals in mixtures (bometal.js's JavaScript path when non-metals or other kinds are in the lump: mbWasm takes only plain
+metals; small–medium). Not worth it: events, reactions, nuclear and particle physics (rare and branchy), drawing (WebGL).
 Order, to spend the owner's limited usage well: the small ones first in one session (23, 26–32), then the medium ones
 (21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
 
