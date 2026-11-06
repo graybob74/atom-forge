@@ -168,6 +168,19 @@ PARTS.events3d = async (page, check, say) => {
 };
 PARTS.events3d.page = true;
 
+/* 11. Settings audit: General → Setup tips turned off hid the setup's tip, but turned back on left it hidden until the
+   next setup was loaded. Now the current setup's tip shows again at once. */
+PARTS.tipsBack = async (page, check, say) => {
+  const r = await page.evaluate(() => {
+    loadPreset('mol3d'); setRunning(false); openSettings('gen'); const c = $('setTips');
+    c.checked = false; c.dispatchEvent(new Event('change')); const off = $('hint').hidden;
+    c.checked = true; c.dispatchEvent(new Event('change')); const on = $('hint').hidden; hideModal('setModal');
+    return { hiddenWhenOff: off, hiddenWhenOn: on };
+  });
+  check(r.hiddenWhenOff && !r.hiddenWhenOn, `3-D sweep 11 (settings): Setup tips off hides the tip, on shows it again at once`, '3-D sweep tipsBack: ' + JSON.stringify(r));
+};
+PARTS.tipsBack.page = true;
+
 module.exports = async function fsweep3d(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

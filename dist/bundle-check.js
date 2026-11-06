@@ -38472,7 +38472,7 @@ function settingsInit() {
   $('setChamber').onchange = (e) => setChamberOnly(e.target.checked);
   bindSeg('segTUnit', (v) => setSetting('tunit', v));
   $('setFx').onchange = (e) => setSetting('effects', e.target.checked);
-  $('setTips').onchange = (e) => setSetting('tips', e.target.checked);
+  $('setTips').onchange = (e) => { setSetting('tips', e.target.checked); if (e.target.checked && $('hintText').innerHTML && !UI.menu) { $('hint').hidden = false; hintFit(); } }; // (turned back on: this setup's tip shows again now, not at the next setup, 1.26 settings audit)
   $('setFps').onchange = (e) => setSetting('fps', e.target.checked);
   $('setUltra').onchange = (e) => setSetting('ultra', e.target.checked);
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);

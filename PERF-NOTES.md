@@ -455,6 +455,9 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
   close-up of a decaying nucleus, so Lab → View → Decay close-ups did nothing in 3-D. Now as the flat view: the second
   line, the close-up (`drawDecayInset`) and captions kept clear of each other. ²¹²Po α decays in the empty 3-D box:
   sub-line and close-up drawn (before: neither). Check: f_sweep3d "events3d" (page).
+- 11. Settings audit: General → Setup tips turned off hid the setup's tip; turned back on, it stayed hidden until another
+  setup was loaded (applySettings only hides it). Now the current setup's tip shows again at once. Check: f_sweep3d
+  "tipsBack" (page).
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 
