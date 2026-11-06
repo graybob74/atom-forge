@@ -2055,8 +2055,11 @@ same as v141 (one lane, before and after). On (both switches), annihilation, ant
 fingerprint as off over 300 steps (nothing there is slow enough to form Ps or spins a muon in that time); the muonium
 setup changes (its muons' spins drawn).
 
-**Costs** (one thread): ×1 where there is no positronium or muon. A Ps looks round itself for electrons and O₂ (2–5 µs
-flat, ~25 µs in 3-D a look, once an ångström or 8 steps); a muon's spin turn is a few multiplications.
+**Costs** (one thread, the machine shared with another session's tests): ×1 where there is no positronium. A Ps costs
+about 10 µs a step flat (20 in the water setup's 240 atoms: 0.35 → 0.58 ms a step) and ~35 µs in 3-D (20 in water3d:
+2.3 → 3.0–4.1 ms; 100: 5.6), most of it its look round itself (2–5 µs flat, ~25 µs in 3-D, done again once it has
+moved an ångström or every 8 steps). The muons' spins: nothing measurable (20 μ⁺ in water, on 0.66 against off 0.67 ms
+a step; in 3-D within the 4–5 ms noise).
 
 **For the owner (physics questions, written down, not decided):**
 - The brief's "below the Ore gap: kinetic energy under about 6.8 eV" reads the gap the other way: from ground-state
@@ -2071,6 +2074,12 @@ flat, ~25 µs in 3-D a look, once an ångström or 8 steps); a muon's spin turn 
 - The O₂ cross section (1.5×10⁻¹⁹ cm²) and water's 1.80 ns are from memory: worth checking against the papers.
 - Ps is not on the particle menus (it is made by positrons); placing it by hand would be a menu entry.
 - Not built (said): Ps thermalizing, Ps chemistry, muonated radicals' hyperfine lines, spin relaxation.
+
+**Suites** (2-core machine, after merging v141 at 91e372a): alone t_lint, t_energy, t_hep, t_3d, t_settings, f_rp1,
+f_rp2 pass; t_features alone: 1 miss, f_bug125's "pi3" timing check (138 ms under load), which passes alone;
+tools/runtests.sh: 21 of 22 pass, t_page's miss the known collider-beam timeout (15 s); t_page alone then passed it and
+missed only the slow-motion button check (the known flake, on record since 1.25). An earlier t_features run also
+missed 0.64's named save once (its 400 ms wait under load); it passed in the next two runs.
 
 **Merge note for part 1 (v141):** f_rp1's layout check compared the section's ids exactly; it now checks that the
 first three are Ultra-realistic, Electrons as waves, Exotic atoms (the two new lines follow). t_features 1.10 now counts six
