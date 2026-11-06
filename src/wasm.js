@@ -185,7 +185,7 @@ function mbWasm(nm, nt, nx, ny, nz, cut2, forces, d3, wrap, bw, bh, bd) {
   if (!WK.on) return false; // (a full plain memory gave the module up)
   MBW.sx.set(MBF.sx.subarray(0, nm)); MBW.sy.set(MBF.sy.subarray(0, nm)); MBW.sz.set(MBF.sz.subarray(0, nm));
   MBW.ss.set(MBF.ss.subarray(0, nm)); MBW.sty.set(MBF.st.subarray(0, nm)); MBW.sa.set(MBF.sa.subarray(0, nm));
-  MBW.start.set(MBF.start.subarray(0, nc + 1)); for (let k = 0; k < nt * nt; k++) { if (MBF.pt[k * 9 + 8] !== 1) return false; for (let q = 0; q < 8; q++) MBW.pt[k * 8 + q] = MBF.pt[k * 9 + q]; } // (1.26's table has a ninth entry, the partner's density share: the module takes the first eight, only when that share is 1) MBW.eps.set(MBF.eps.subarray(0, nt));
+  MBW.start.set(MBF.start.subarray(0, nc + 1)); for (let k = 0; k < nt * nt; k++) { if (MBF.pt[k * 9 + 8] !== 1) return false; for (let q = 0; q < 8; q++) MBW.pt[k * 8 + q] = MBF.pt[k * 9 + q]; } /* (1.26's table has a ninth entry, the partner's density share: the module takes the first eight, only when that share is 1) */ MBW.eps.set(MBF.eps.subarray(0, nt));
   const P = MBW.p, T = MBW.t;
   P[0] = nm; P[1] = nt; P[2] = nx; P[3] = ny; P[4] = nz; P[5] = d3 ? 1 : 0; P[6] = wrap ? 1 : 0; P[7] = bw; P[8] = bh; P[9] = bd; P[10] = bw / 2; P[11] = bh / 2; P[12] = bd / 2; P[13] = cut2; P[14] = forces ? 1 : 0;
   for (let tries = 0; tries < 3; tries++) {
