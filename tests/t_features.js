@@ -1747,6 +1747,17 @@ const { openPage } = require('./browser');
     `1.23.1: the Experimental settings start at normal (other settings kept: ${pb.set.slice(3).join(', ')}); a world saved with them opens with normal physics and says so; Continue after a restart brings back the last session (${pb.cont[1]} particles)`, '1.23.1 Experimental reset, Continue: ' + JSON.stringify(pb));
   }
   // 1.23.2: the checks are in f_1232.js (also runnable alone: node tests/f_1232.js)
+  // (1.26: the newest check files run alone in their own process, each with its own page: one process holding every
+  // version's checks ran past 3 GB)
+  const alone = (file) => new Promise((res) => {
+    const cp = require('child_process').spawn(process.execPath, ['--max-old-space-size=3072', require('path').join(__dirname, file)], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = ''; cp.stdout.on('data', d => { out += d; }); cp.stderr.on('data', d => { out += d; });
+    cp.on('close', (rc) => {
+      const lines = out.split('\n').filter(l => l.trim()), last = lines.length ? lines[lines.length - 1] : '';
+      for (const l of lines.slice(0, -1)) { if (l.startsWith('FAIL ')) check(false, '', l.slice(5)); else say(l.startsWith('  ') ? l : '  ' + l); }
+      check(rc === 0 && /passed/.test(last), last, `${file} alone: rc ${rc}, ${last.slice(0, 300)}`); res();
+    });
+  });
   await require('./f_1232.js')(page, check, say, openPage);
   // 1.24: the checks are in f_124.js (also runnable alone: node tests/f_124.js [part …])
   await require('./f_124.js')(page, check, say, openPage);
@@ -1755,16 +1766,16 @@ const { openPage } = require('./browser');
   // 1.25 (metals): the checks are in f_125m.js (also runnable alone: node tests/f_125m.js [part …])
   await require('./f_125m.js')(page, check, say, openPage);
   // 1.26 (metals): oxides, hydrides, alloys and directional bonding for the many-body metals: f_126m.js (node tests/f_126m.js [part …])
-  await require('./f_126m.js')(page, check, say, openPage);
+  await alone('f_126m.js');
   await require('./f_125s.js')(page, check, say, openPage); // 1.25 (Settings by mode, 3-D pictures): f_125s.js, also alone
   // 1.25 (nuclear 3-D): the checks are in f_125n.js (also runnable alone: node tests/f_125n.js [--node] [part …])
   await require('./f_125n.js')(page, check, say, openPage);
-  await require('./f_bug125.js')(page, check, say, openPage); // (the bug fixes after 1.25: f_bug125.js, also alone)
-  await require('./f_126q.js')(page, check, say, openPage); // 1.26 (GFN2): f_126q.js, also alone (node tests/f_126q.js [part …])
-  await require('./f_126x.js')(page, check, say, openPage); // 1.26 (xTB): spin-polarized quantum bonds, GFN2's SCC with radicals; f_126x.js, also alone (node tests/f_126x.js [part …])
-  await require('./f_126d.js')(page, check, say, openPage); // 1.26 (directional): f_126d.js (lone pairs, σ-holes, π-stacking), also alone: node tests/f_126d.js [part …]
+  await alone('f_bug125.js'); // (the bug fixes after 1.25: f_bug125.js, also alone)
+  await alone('f_126q.js'); // 1.26 (GFN2): f_126q.js, also alone (node tests/f_126q.js [part …])
+  await alone('f_126x.js'); // 1.26 (xTB): spin-polarized quantum bonds, GFN2's SCC with radicals; f_126x.js, also alone (node tests/f_126x.js [part …])
+  await alone('f_126d.js'); // 1.26 (directional): f_126d.js (lone pairs, σ-holes, π-stacking), also alone: node tests/f_126d.js [part …]
   // 1.26 (speed): the WebAssembly speed-ups' checks are in f_126w.js (also runnable alone: node tests/f_126w.js [part …])
-  await require('./f_126w.js')(page, check, say, openPage);
+  await alone('f_126w.js');
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
