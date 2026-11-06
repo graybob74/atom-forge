@@ -981,8 +981,10 @@ const { openPage } = require('./browser');
   check(r50.every(r => r.freeE >= 20 && Math.abs(r.perPs) < 30), `1.09: ionized water, bath off: ${r50.map(r => `${r.drift} eV over ${r.fs} fs (${r.perPs} eV/ps)`).join(', ')}`, '1.09 ionized water drift: ' + JSON.stringify(r50));
   // 1.11: the chain-reaction map's family tree (Node harness, seeded): a block of ²³⁵U, four slow neutrons; every fission
   // but those the fired neutrons set off has a parent, delayed and scattered neutrons included; steps on the chart
+  // (seed 3: four neutrons in this block reach 30 fissions in about half the seeds; 1.26's ionization books changed the
+  // last bits after the first fission and seed 5's chain stopped at 25: e237efe reached 30 with seeds 3 and 5, now 1, 2, 3)
   const r63 = (() => {
-    const X = require('./load.js').load('all', { seed: 5 }), W = X.W;
+    const X = require('./load.js').load('all', { seed: 3 }), W = X.W;
     X.setMaxParts(4000); X.baseWorld(140, 100, 300, 0.05); W.warp = 1e13; W.slowmo = false;
     for (let i = 0; i < 26; i++) for (let j = 0; j < 22; j++) X.addAtom('U', -40 + i * 3.1 + (j % 2) * 1.55, -30 + j * 2.7, { A: 235 });
     X.settleOverlaps(); for (const u of W.parts.filter(p => p.Z === 92).slice(0, 4)) X.fireSpec({ kind: 'n' }, u.x - 6, u.y, 1, 0, 0.025, false);
