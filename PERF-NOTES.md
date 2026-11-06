@@ -458,6 +458,10 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
 - 11. Settings audit: General → Setup tips turned off hid the setup's tip; turned back on, it stayed hidden until another
   setup was loaded (applySettings only hides it). Now the current setup's tip shows again at once. Check: f_sweep3d
   "tipsBack" (page).
+- 12. Moving a selection (Select tool, a drag on it) and deleting it (Delete, the options bar's Delete) were not marked for
+  undo, in both modes: Ctrl+Z took back whatever came before (after Select all → Delete, Molecules in space stayed empty:
+  0 of 72 back). Help says Ctrl+Z undoes; the tools that change the world (Place, Erase, Grab …) are marked. Now both are:
+  72 of 72 back, the moved molecules back where they were (flat water likewise). Check: f_sweep3d "selUndo" (page).
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 

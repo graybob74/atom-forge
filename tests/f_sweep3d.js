@@ -181,6 +181,29 @@ PARTS.tipsBack = async (page, check, say) => {
 };
 PARTS.tipsBack.page = true;
 
+/* 12. Moving a selection (Select tool, drag on it) and deleting it (Delete, the options bar) could not be undone (Ctrl+Z
+   took back the step before), in both modes; Help says Ctrl+Z undoes. Now each is marked for undo as the tools are. */
+PARTS.selUndo = async (page, check, say) => {
+  const out = {};
+  for (const k of ['mol3d', 'water']) {
+    const a = await page.evaluate((k) => { loadPreset(k); setRunning(false); setTool('select'); UNDO.back.length = 0; UNDO.fwd.length = 0;
+      const p = W.parts.find(q => !q.dead && q.Z === 8 && Math.abs(q.x) < 8 && Math.abs(q.y) < 8) || W.parts.find(q => !q.dead && q.Z === 8), o = [0, 0, 0];
+      if (W.d3) { cam3Update(); proj3(p.x, p.y, p.z, o); } else { o[0] = w2sx(p.x); o[1] = w2sy(p.y); } const r = $('cv').getBoundingClientRect();
+      return { x: r.left + o[0], y: r.top + o[1] }; }, k);
+    const sum = () => page.evaluate(() => +W.parts.filter(p => !p.dead).reduce((s, p) => s + p.x + 2 * p.y + 3 * (p.z || 0), 0).toFixed(3));
+    const s0 = await sum();
+    await page.mouse.move(a.x - 25, a.y - 25); await page.mouse.down(); await page.mouse.move(a.x + 25, a.y + 25, { steps: 4 }); await page.mouse.up();
+    await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(a.x + 80, a.y, { steps: 5 }); await page.mouse.up();
+    const s1 = await sum(); await page.keyboard.press('Control+z'); await page.waitForTimeout(150); const s2 = await sum();
+    const n0 = await page.evaluate(() => { selectAll(); const n = W.parts.filter(p => !p.dead).length; deleteSelection(); return n; });
+    await page.keyboard.press('Control+z'); await page.waitForTimeout(150);
+    out[k] = { moved: Math.abs(s1 - s0) > 0.5, back: Math.abs(s2 - s0) < 0.01, n0, nBack: await page.evaluate(() => { setTool('inspect'); return W.parts.filter(p => !p.dead).length; }) };
+  }
+  const ok = Object.values(out).every(o => o.moved && o.back && o.nBack === o.n0);
+  check(ok, `3-D sweep 12: Ctrl+Z takes back moving and deleting a selection (3-D and flat)`, '3-D sweep selUndo: ' + JSON.stringify(out));
+};
+PARTS.selUndo.page = true;
+
 module.exports = async function fsweep3d(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

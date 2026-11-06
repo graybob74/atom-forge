@@ -34960,7 +34960,7 @@ function onDown(e) {
     }
     case 'select': {
       const p = pickAt(px, py, 8);
-      if (((p && R.msel.has(p)) || (!p && R.oSel.size && R.oSel.has(objAtPx(px, py)))) && !e.shiftKey) UI.drag = { kind: 'selmove', lx: wx, ly: wy, lz: wz, moved: false, plane }; // on the selection (a particle or an object in it): drag moves it
+      if (((p && R.msel.has(p)) || (!p && R.oSel.size && R.oSel.has(objAtPx(px, py)))) && !e.shiftKey) { undoMark('Move the selection'); UI.drag = { kind: 'selmove', lx: wx, ly: wy, lz: wz, moved: false, plane }; } // on the selection (a particle or an object in it): drag moves it (Ctrl+Z takes it back: 1.26 sweep, it could not be undone)
       else UI.drag = { kind: 'selbox', x0: wx, y0: wy, x1: wx, y1: wy, px, py, px1: px, py1: py, add: e.shiftKey, hit: p };
       break;
     }
@@ -35009,6 +35009,7 @@ function moveSelection(ddx, ddy, ddz = 0) { // (ddz: 3-D)
   }
 }
 function deleteSelection() {
+  if (selCount()) undoMark('Delete the selection'); // (Ctrl+Z puts it back, as a deleted atom: 1.26 sweep)
   let n = 0; for (const p of R.msel) if (!p.dead) { kill(p); n++; }
   for (const ob of R.oSel) { objRemove(ob); n++; } R.oSel.clear();
   R.msel.clear(); if (R.sel && R.sel.dead) { R.sel = null; renderInspect(); }
