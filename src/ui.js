@@ -1830,9 +1830,9 @@ function renderInspect() {
       : iso + (aq ? (aq > 0 ? ' cation' : ' anion') : '');
     const muT = p.mu ? (p.ne === 0 ? 'Antimuon (μ⁺)' : 'Muonium' + (aq ? (aq > 0 ? ' cation' : ' anion (muonide)') : '')) : null; // (1.12: an H atom whose nucleus is a μ⁺)
     const icl = p.ne > 0 && (p.q || (mol && mol.some(a => a.q))) ? ionicCluster(p) : null, itx = icl && ionicText(icl, true);
-    const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : '') + (itx ? ` · held ionically in ${itx}` : ''))
+    const sub = (p.ne === 0 ? `Bare ${p.anti ? 'antinucleus' : 'nucleus'}: no ${lep}s` : (p.anti ? 'Antimatter · ' : '') + (p.muB && p.muB.zx ? `Exotic atom, to the outside ${el.name.toLowerCase()}` : CAT_NAMES[el.cat] || '') + (mol ? ` · in ${hill(mol)}${mname ? ' (' + mname + ')' : ''}` : '') + (itx ? ` · held ionically in ${itx}` : ''))
       + (p.Z > Z_TABLE ? ' · never made in any lab: its properties are predictions' : '');
-    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${p.mu ? '' : A}</span><span class="s">${p.mu ? 'Mu' : symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
+    head = `<div class="ins-head"><div class="tilebox" style="border-color:${atomColor(p)}"><span class="z">${p.anti ? '−' : ''}${p.Z}</span><span class="a">${p.mu ? '' : A}</span><span class="s">${p.mu ? 'Mu' : p.muB && p.muB.zx ? esc(elSym(p)) : symHTML(el.sym, p.anti)}</span><span class="q">${qs || 'neutral'}</span></div>
       <div><div class="ins-title">${esc(muT || title)}</div><div class="ins-sub">${esc(sub)}</div></div></div>`;
     pills = p.mu ? `<span class="pill hot">its muon decays: mean life 2.197 µs (e⁺ + νₑ + ν̄μ)</span>` : `<span class="pill ${nuc.stable || bareStable(nuc, p) ? 'good' : 'hot'}">${esc(nuc.stable ? 'stable nucleus' : lifeText(nuc, p))}</span>`;
     if (!nuc.stable && nuc.modes.length) pills += `<span class="pill hot">${esc(nuc.modes.map(m => modeLabel(m.mode)).join(' / '))}</span>`;
@@ -1842,7 +1842,7 @@ function renderInspect() {
     if (FERRO[p.Z] && (p.tLocal || 0) < FERRO[p.Z][0]) pills += `<span class="pill em">ferromagnetic (Curie ${FERRO[p.Z][0]} K)</span>`;
     if (p.anti) pills += `<span class="pill" style="color:${PBAR_COL};border-color:${PBAR_COL}">antimatter: annihilates on contact with matter</span>`;
     if (p.muB && p.muB.zx) { // (an exotic atom of the realistic-particle switch: its state, the lines its cascade gave off, 1.27)
-      const I = xaInfo(p), ch = ELEMENTS[p.Z - 1], lines = (I.lines || []).filter(l => l[0] >= 1).slice(0, 4);
+      const I = xaInfo(p), ch = ELEMENTS[p.Z - 1], lines = (I.lines || []).slice().sort((u, v) => v[0] - u[0]).slice(0, 4); // (the strongest lines first)
       pills += `<span class="pill hot">muonic atom: a μ⁻ in its 1s orbit (n = 1), mean life here ${fmtTime(I.tau)}</span>`;
       kv.push(['Muon', `bound by ${fmtE(I.Eb)} in 1s, ${Math.round(207 * xaMred('mu-', p.Z, p.N) / MU_M)} times closer in than a 1s electron; ${I.from ? `came over from ${I.from} into n = ${I.n0}` : `caught into n = ${I.n0}`}; captured by the nucleus (μ⁻ + p → n + ν) ${Math.round(100 * I.cap)}% of the time, else it decays in orbit (μ⁻ → e⁻ ν̄ₑ νμ)`]);
       kv.push(['Cascade', `${lines.length ? 'X-rays ' + lines.map(l => `${fmtE(l[0])} (${l[1]}→${l[2]})`).join(', ') : 'no X-rays'}${I.aug ? `; ${I.aug} Auger electron${I.aug > 1 ? 's' : ''}` : ''}`]);

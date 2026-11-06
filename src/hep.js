@@ -1422,7 +1422,8 @@ function moveExos(dt, id0) {
     }
     if (dec) { if (d.hyp) hypDecay(o); else decayExo(o); continue; }
     if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (a beam's: in the ring's vacuum; thrown out of the beam, the detector stops it)
-    if (RP.exo && XA_SPS.has(o.sp)) { if (xaStep(o)) continue; } // (the realistic-particle switch: caught at tens of eV into an orbit, 1.27)
+    const xa = RP.exo && XA_SPS.has(o.sp);
+    if (xa) { if (xaStep(o)) continue; } // (the realistic-particle switch: caught at tens of eV into an orbit, 1.27)
     else {
     if (o.sp === 'mu-' && o.KE < MU_STOP && muStop(o)) continue;
     if (o.sp === 'K-' && o.KE < MU_STOP && kStop(o)) continue;
@@ -1430,7 +1431,7 @@ function moveExos(dt, id0) {
     }
     if (o.sp === 'mu+' && o.KE < MU_STOP && !o.muTried && muoniumForm(o)) continue;
     if (d.strong === undefined) d.strong = strongExo(o.sp);
-    if (d.strong && exoHits(o, x0, y0)) continue;
+    if (d.strong && !(xa && o.KE < MU_STOP) && exoHits(o, x0, y0)) continue; // (slowing on below 2 keV to its capture, 1.27: no nuclear hits at the enlarged reach, 0.35 Å, which would end most pions and kaons on the way; at the nucleus's true size a slow one meets a nucleus in flight about once in 10⁹)
     if (d.atom) muAtomScatter(o, x0, y0);
     if (d.atom && clock > 0) muAtomTick(o, clock);
     if (RP.exo && d.atom && !o.dead && clock > 0) xaTransfer(o, clock); // (its muon to a heavier atom beside it, 1.27)
@@ -1657,7 +1658,7 @@ function moveExos3(dt, id0) {
     }
     if (o.sp === 'mu+' && o.KE < MU_STOP && !o.muTried && muoniumForm(o)) continue;
     if (d.strong === undefined) d.strong = strongExo(o.sp);
-    if (d.strong && exoHits3(o, x0, y0, z0)) continue;
+    if (d.strong && !(xa && o.KE < MU_STOP) && exoHits3(o, x0, y0, z0)) continue; // (1.27: as in the flat game)
     if (d.atom) muAtomScatter3(o, x0, y0, z0);
     if (d.atom && clock > 0 && muAtomTick(o, clock)) continue;
     if (RP.exo && d.atom && !o.dead && clock > 0 && xaTransfer(o, clock)) continue; // (1.27)

@@ -780,7 +780,7 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .sbox .spane > .sprev-on { background: var(--accent-soft); }
 /* (1.27) Settings → Experimental → Realistic particles: one compact line a part, its name, an on/off switch and its tags */
 .sbox .spane > .rpl { padding-block: 1px; font-size: 13px; gap: 10px; justify-content: flex-start; }
-.rpl .rpn { flex: 0 0 150px; }
+.rpl .rpn { flex: 0 0 auto; min-width: 150px; white-space: nowrap; }
 .srow.rpl .seg { flex: 0 1 260px; }
 .srow.rpl .seg button { padding-block: 2px; }
 input.sw { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 30px; height: 17px; margin: 0; border-radius: 9px; background: var(--line); position: relative; cursor: pointer; transition: background 0.15s; }
