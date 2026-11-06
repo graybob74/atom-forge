@@ -2083,6 +2083,11 @@ Screenshots: scratchpad rp5/set-desk.png, set-phone.png, inspect-nmr.png.
   Resonance widths and heavy flavour, Nuclear spin … beside resonance in large rings, detailed nuclear collisions and
   Ultra-realistic), not four; f_rp1 "layout" checks that its three lines come first (the later parts' lines follow:
   the v142 branch's positronium and muonium lines will too).
+- **Suites** (2-core machine shared with the part-2/4 session): alone t_lint, t_energy, t_hep, t_nuclear, t_collider, t_3d,
+  t_settings, f_rp5 and t_features (f_rp1 and f_rp5 inside it) pass; f_rp1 alone once missed its 3-D Select click in
+  "store" under load and passed rerun alone. tools/runtests.sh: 20 of 22 pass; t_features' one miss the 1.14 slow-motion
+  readout (1/1.3× on two cores, the known flake; t_features passed alone just before), t_page's the slow-motion button
+  check (it fails alone here too, as on record for 1.25 and 1.26: v141's state, nothing of these parts).
 - **Found, not changed:** ¹⁹⁸Au's decay is pure β⁻ (to ¹⁹⁸Hg's 411.8 keV level), but the game's systematics give it 14%
   EC (it is not in DECAY); ²²Na decays only by β⁺ here (measured 90.3% β⁺, 9.6% EC). Its line is right either way.
 - **For the owner (physics questions, written down, not decided):**
