@@ -18,5 +18,8 @@ GFN2's binding (inv.json by mkclus.js: water clusters to 20 molecules, H3O+/OH- 
 made in two runs, the second for the dispersion pairs), vertical IPs/EAs held at GFN2's (ipea.json by mkipea.js), H3's
 symmetric stretch (a hinge), S22 held out entirely. Same held-out split as fit.js.
   node refit2.js sens.json --sens                                   # the sensitivity table (each parameter, each group)
-  node refit2.js out.json --freeze hub:*,g3:1,g3:8,ra:8,rz:8,shp:8:0,dlev:1 [--from f.json --iters N --invsig s ...]
+  node refit2.js out.json --freeze hub:*,g3:1,g3:8,ra:8,rz:8,shp:8:0,dlev:1,pair:8-8,wspin [--from f.json --iters N ...]
+  node refit2.js x --eval --variant gfn1|gfn1s|gfn2|gfn2s|fit.json   # another method on the same targets (held-out table)
+The data shipped (afxtb2-data.js, not offered in Settings) is round J: rounds A-I each --from the last, J from G with
+  --invsig 0.01 --geoa 0.05 --geooo 0.01 --reg 2 --bhsig 0.035 --iters 20 (stopped after 7, the cost flat).
   node mkaf.js out.json --out afxtb2-data.js --id 900002            # XQ.method 4, then node tools/xtb/mksrc.js

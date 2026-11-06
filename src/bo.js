@@ -936,7 +936,7 @@ function boSync() {
       for (const bd of a.bonds) { const o = other(bd, a); if (!seen.has(o)) { seen.add(o); cl.push(o); } }
       const l = adj.get(a); if (l) for (const o of l) if (!seen.has(o) && !o.dead) { seen.add(o); cl.push(o); }
     }
-    const ok = BO.on && cl.every(boOK) && (cl.length > 1 || cl[0].q === 0) && (BO.qm || !cl.every(boMetal)) && !(BO.qm && XQ.method === 3 && !cl.every(p => p.Z === 1 || p.Z === 6 || p.Z === 7 || p.Z === 8)); // (Atom Forge xTB, 1.26: fitted for H, C, N and O only; a molecule with anything else keeps stored bonds) // (a lone ion, Cl⁻ in brine, stays with the kernel's ion–water terms; and metal alone, tin, with its metallic cohesion: only its molecules (SnCl₄, SnH₄) take part, 1.25)
+    const ok = BO.on && cl.every(boOK) && (cl.length > 1 || cl[0].q === 0) && (BO.qm || !cl.every(boMetal)) && !(BO.qm && XQ.method >= 3 && !cl.every(p => p.Z === 1 || p.Z === 6 || p.Z === 7 || p.Z === 8)); // (Atom Forge xTB and GFN2 (Atom Forge fit), 1.26: fitted for H, C, N and O only; a molecule with anything else keeps stored bonds) // (a lone ion, Cl⁻ in brine, stays with the kernel's ion–water terms; and metal alone, tin, with its metallic cohesion: only its molecules (SnCl₄, SnH₄) take part, 1.25)
     for (const a of cl) want.set(a, ok);
   }
   if (BO.qm) { // (quantum bonds: one calculation for every member together, so only a small system takes part: all or none)
@@ -1023,10 +1023,10 @@ function boSet(v) {
   for (const p of W.parts) { p._dq = 0; p._dqv = 0; }
   if (W.parts.length) { boSync(); if (on) BO.any = true; }
 }
-/* The quantum method (1.26): 1 GFN1-xTB, 2 GFN2-xTB. With quantum bonds on, the members leave under the one and join
+/* The quantum method (1.26): 1 GFN1-xTB, 2 GFN2-xTB (3 Atom Forge xTB, not offered; 4 GFN2 (Atom Forge fit)). With quantum bonds on, the members leave under the one and join
    under the other (boSync books each change's energy to the bath, as switching models does). */
 function boQmMethod(m) {
-  m = m === 2 || m === 3 ? m : 1; // (3: Atom Forge xTB, 1.26)
+  m = m === 2 || m === 3 || m === 4 ? m : 1; // (3: Atom Forge xTB, 4: GFN2 (Atom Forge fit), 1.26)
   if (m === XQ.method) return;
   const was = BO.on && BO.qm && W.parts.length;
   if (was) { BO.on = false; boSync(); }
@@ -1052,11 +1052,11 @@ const XQ = { method: 1, max: 40, maxAO: 160, maxCost: 160 * 160 * 160, maxIt: 40
   spin: 0, pv: null, pvSig: '', lamMax: 1.02, flips: 0, flipE: 0, ids: null, maxItCold: 120 }; // (spin polarization, 1.26: XQ.spin; the stability probe's direction pv; branch switches flips, their energy to the bath flipE)
 /* the method's form, spins and parameters (Atom Forge xTB, 1.26: its own parameters on GFN1's or GFN2's form, always
    with polarized spins, as it was fitted) */
-const xqB = () => XQ.method === 3 ? XTB.AF.base : XQ.method;
-const xqSp = () => XQ.method === 3 ? XTB.AF.ws : XQ.spin;
-const xqPar = () => XQ.method === 3 ? XTB.AF.par : null;
+const xqB = () => XQ.method === 3 ? XTB.AF.base : XQ.method === 4 ? 2 : XQ.method;
+const xqSp = () => XQ.method === 3 ? XTB.AF.ws : XQ.method === 4 ? XTB.AF2.ws : XQ.spin; // (4: GFN2 (Atom Forge fit), the second refit, 1.26: GFN2's form, always polarized, as fitted)
+const xqPar = () => XQ.method === 3 ? XTB.AF.par : XQ.method === 4 ? XTB.AF2.par : null;
 function qmAtomE(Z) {
-  const key = (XQ.method === 3 ? 5000 : (XQ.method === 2 ? 1000 : 0) + (XQ.spin ? 2000 : 0)) + Z; // (each method's own free atoms, 1.26; spin-polarized in their lowest spin state)
+  const key = (XQ.method === 4 ? 6000 : XQ.method === 3 ? 5000 : (XQ.method === 2 ? 1000 : 0) + (XQ.spin ? 2000 : 0)) + Z; // (each method's own free atoms, 1.26; spin-polarized in their lowest spin state)
   let e = XQ.eAtom.get(key);
   if (e === undefined) {
     const f = xqB() === 2 ? XTB.gfn2Energy : XTB.gfn1Energy, sw = xqSp(), par = xqPar();

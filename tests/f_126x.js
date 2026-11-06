@@ -1,7 +1,7 @@
 'use strict';
 /* The 1.26 checks for spin-polarized quantum bonds and the SCC's handling of radicals (Settings → Experimental → Bond
    orders → Quantum, Spins: Paired normal, Polarized a choice; tools/xtb/spin.js), run by t_features (its "1.26 (xTB)"
-   line) or alone: node tests/f_126x.js [part …] (parts: port, base, game, pull, conv, chem, af, page). Each fails on v131
+   line) or alone: node tests/f_126x.js [part …] (parts: port, base, game, pull, conv, chem, af, af2, page). Each fails on v131
    (no spin polarization, GFN2's unsettled radicals). The physics parts run in the Node harness (deterministic); page
    in the t_features page. (check(ok, good, bad); say(...)) */
 const { load } = require('./load');
@@ -171,6 +171,53 @@ PARTS.af = async (page, check) => {
   check(sp.af === 1 && Math.abs(sp.n2 - 9.91) < 1 && Math.abs(sp.o3 - 1.15) < 1 && out.sStored && out.members3 === 16 && Math.max(...out.dF3) < 1e-5 && Math.abs(out.drift3) < 0.001 && !out.fails3,
     `1.26 Atom Forge xTB (built, not offered: see the notes): N₂ into atoms ${sp.n2} eV (measured 9.91), O₂ ${sp.o2} (5.24), O₃ → O₂ + O ${sp.o3} (1.15); in 3-D the forces are the energy's slopes x/y/z ${out.dF3.join('/')} eV/Å, insulated ${out.drift3} eV over 150 steps, none unsettled; H₂S keeps stored bonds`,
     '1.26 Atom Forge xTB: ' + JSON.stringify(out));
+};
+
+/* ---- 7b. GFN2 (Atom Forge fit), the second GFN2 refit (XQ.method 4, built and measured but not offered in Settings:
+   see PERF-NOTES "### 1.26: GFN2 refit (second attempt)"): GFN2's electrostatics, its water-setting parameters and the
+   published spin constants kept (the data says which); single points against GFN2 polarized: H + H2's symmetric stretch
+   (GFN2 binds H3), hexazine against three N2 (GFN2 holds it below), the water dimer kept; in the game the world that
+   sank the first refit (O2, two waters, methane) settles and keeps its books, 3-D slopes x/y/z and books, switching from
+   GFN2 with members in paid to the bath, and a molecule with another element (H2S) keeps stored bonds */
+PARTS.af2 = async (page, check) => {
+  const X0 = load('all', { seed: 1 }), XTB = X0.XTB, A = XTB.AF2;
+  if (!A) { check(false, '', '1.26 GFN2 (Atom Forge fit): no XTB.AF2'); return; }
+  const fz = A.frozen || [], e = (Z, x, u, fit) => XTB.gfn2Energy(Z, x, 0, u, { accuracy: 0.01, ...(fit ? { spin: A.ws, par: A.par } : { spin: 1 }) }).E;
+  const sp = {};
+  for (const fit of [0, 1]) {
+    const k = fit ? 'fit' : 'gfn2s', h = e([1], [[0, 0, 0]], 1, fit), h2 = e([1, 1], [[0, 0, 0], [0.741, 0, 0]], 0, fit);
+    let h3 = Infinity; for (let d = 0.85; d <= 1.25; d += 0.01) h3 = Math.min(h3, e([1, 1, 1], [[-d, 0, 0], [0, 0, 0], [d, 0, 0]], 1, fit) - h2 - h);
+    const ring = []; for (let i = 0; i < 6; i++) { const t = i * Math.PI / 3; ring.push([1.30 * Math.cos(t), 1.30 * Math.sin(t), 0]); }
+    const n6 = 3 * e([7, 7], [[0, 0, 0], [1.098, 0, 0]], 0, fit) - e([7, 7, 7, 7, 7, 7], ring, 0, fit);
+    const w = [[-0.016407, -0.004232, -0.026564], [0.932609, -0.015512, -0.021573], [-0.219148, 0.9304, 0.013764], [2.906574, -0.013315, -0.021413], [3.250023, 0.46496, 0.781445], [3.224885, 0.467848, -0.779684]];
+    const w2 = e([8, 1, 1], w.slice(0, 3), 0, fit) + e([8, 1, 1], w.slice(3), 0, fit) - e([8, 1, 1, 8, 1, 1], w, 0, fit);
+    sp[k] = { h3: +h3.toFixed(3), n6: +n6.toFixed(2), w2: +w2.toFixed(3) }; // (n6: three N2 less the ring, negative when the ring lies above)
+  }
+  const out = { sp, frozen: fz.length };
+  { const X = load('all', { seed: 5 }), W = X.W; X.addMolecule('H2O', 0, 0, 0, 0); X.addMolecule('H2S', 3, 0.5, 1, 0); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p); // (another element: stored bonds)
+    X.boQmMethod(4); X.boSet(2); X.forcesNoEvents(); for (let i = 0; i < 5; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+    out.sStored = W.parts.some(p => p.Z === 16 && !p.dead && !p.bom && p.bonds.length === 2) && W.parts.filter(p => p.bom && !p.dead).length === 3; }
+  { const X = load('all', { seed: 5 }), W = X.W, tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc; // (the first refit's failure: its calculations did not settle here and the books ended 220 eV off)
+    X.addMolecule('O2', 0, 0, 0, 0); X.addMolecule('H2O', 2.9, 0.3, 2.8, 0); X.addMolecule('H2O', -1.5, 2.7, 1, 0); X.addMolecule('CH4', -3.5, -2.5, 0, 0);
+    for (const p of W.parts) if (p.k !== X.NUC) X.kill(p);
+    X.boQmSpin(1); X.boQmMethod(2); X.boSet(2); X.forcesNoEvents(); W.T = 300; for (let i = 0; i < 10; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+    W.gamma = 0; const E0 = tot(), b0 = W.ledger.bath; X.boQmMethod(4); X.forcesNoEvents(); out.swap = [W.parts.filter(p => p.bom && !p.dead).length, +Math.abs(tot() - E0).toExponential(0), +(W.ledger.bath - b0).toFixed(2)];
+    W.gamma = 0.05; for (let i = 0; i < 20; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+    W.gamma = 0; const f0 = X.XQ.fails, E1 = tot(); for (let i = 0; i < 200; i++) { W.dt = X.chooseDt(); X.step(W.dt); } out.drift2 = +(tot() - E1).toExponential(1); out.fails2 = X.XQ.fails; }
+  { const X = load('all', { seed: 3 }), W = X.W; X.PRESETS.empty.build(); X.setBox(24, 24); X.world3d(24); W.gamma = 0.05;
+    ['O2', 'H2O', 'H2O', 'CH4', 'H2O'].forEach((m, k) => X.addMolecule(m, -6 + (k % 3) * 6, -3 + (k / 3 | 0) * 6, k, 300, k % 2 ? 2 : -2));
+    X.forcesNoEvents(); X.boQmMethod(4); X.boSet(2); for (let i = 0; i < 30; i++) { W.dt = X.chooseDt(); X.step(W.dt); }
+    const all = W.parts.filter(p => !p.dead && p.k === X.NUC); out.members3 = W.parts.filter(p => p.bom && !p.dead).length;
+    X.forcesNoEvents(); const F = all.map(p => [X.S.fx[p.i], X.S.fy[p.i], X.S.fz[p.i]]); const worst = [0, 0, 0]; const E = () => X.totalEnergy().pe;
+    all.forEach((p, u) => { for (const c of [0, 1, 2]) { const Ax = 'xyz'[c], x0 = p[Ax]; p[Ax] = x0 + 1e-4; X.gridTouch(); const e1 = E(); p[Ax] = x0 - 1e-4; X.gridTouch(); const e2 = E(); p[Ax] = x0; X.gridTouch(); worst[c] = Math.max(worst[c], Math.abs(-(e1 - e2) / 2e-4 - F[u][c])); } });
+    out.dF3 = worst.map(v => +v.toExponential(1));
+    W.gamma = 0; const tot = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, E0 = tot(); out.fails3 = X.XQ.fails;
+    for (let i = 0; i < 150; i++) { W.dt = X.chooseDt(); X.step(W.dt); } out.drift3 = +(tot() - E0).toExponential(1); out.fails3 = X.XQ.fails; }
+  const s = sp.fit, g = sp.gfn2s;
+  check(A.base === 2 && A.ws === 1 && ['hub:*', 'pair:8-8', 'wspin'].every(k => fz.includes(k)) && s.h3 > 0.15 && g.h3 < 0.05 && s.n6 < -5 && g.n6 > 0 && Math.abs(s.w2 - g.w2) < 0.02 && out.sStored &&
+    out.swap[0] === 13 && out.swap[1] < 1e-6 && !out.fails2 && Math.abs(out.drift2) < 0.001 && out.members3 === 16 && Math.max(...out.dF3) < 2e-5 && Math.abs(out.drift3) < 0.001 && !out.fails3,
+    `1.26 GFN2 (Atom Forge fit) (built, not offered: see the notes): GFN2's electrostatics, water-setting parameters and spin constants kept (${fz.length} frozen); H + H₂'s symmetric stretch ${s.h3} eV above H₂ + H (GFN2 polarized ${g.h3}, measured 0.42); flat hexazine ${-s.n6} eV above three N₂ (GFN2 ${-g.n6}); the water dimer ${s.w2} eV (GFN2 ${g.w2}); O₂, two waters and methane settle (none unsettled, insulated ${out.drift2} eV over 200 steps; switching from GFN2 with ${out.swap[0]} members paid to the bath, books closed to ${out.swap[1]} eV); 3-D slopes x/y/z ${out.dF3.join('/')} eV/Å, insulated ${out.drift3} eV over 150 steps; H₂S keeps stored bonds`,
+    '1.26 GFN2 (Atom Forge fit): ' + JSON.stringify(out));
 };
 
 /* ---- 8. the page: Experimental → Spins (Paired at start, Polarized a choice with its cost and the realistic tag), the

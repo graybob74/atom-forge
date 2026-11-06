@@ -12,7 +12,7 @@ const opt = (Z, xyz, charge) => X.opt(x => X.E(V, Z, x, charge, 0, true), xyz, {
 const mono = {};
 function monoOf(name, charge = 0) {
   if (mono[name]) return mono[name];
-  const s = name === 'h3o+' ? { Z: [8, 1, 1, 1], xyz: [[0, 0, 0.1], [0.95, 0, -0.2], [-0.47, 0.82, -0.2], [-0.47, -0.82, -0.2]] } : name === 'oh-' ? { Z: [8, 1], xyz: [[0, 0, 0], [0.97, 0, 0]] } : D.species['W4-11/' + name];
+  const s = name === 'h3o+' ? { Z: [8, 1, 1, 1], xyz: [[0, 0, 0.1], [0.95, 0, -0.2], [-0.47, 0.82, -0.2], [-0.47, -0.82, -0.2]] } : name === 'oh-' ? { Z: [8, 1], xyz: [[0, 0, 0], [0.97, 0, 0]] } : name === 'formamide' ? { Z: [6, 8, 7, 1, 1, 1], xyz: [[0, 0.418, 0], [1.206, 0.531, 0], [-0.693, -0.749, 0], [-0.588, 1.355, 0], [-0.2, -1.63, 0], [-1.7, -0.75, 0]] } : D.species['W4-11/' + name];
   const o = opt(s.Z, s.xyz, charge); return (mono[name] = { Z: s.Z, xyz: o.xyz, E: o.E, charge });
 }
 function rot(xyz) {
@@ -35,6 +35,8 @@ const jobs = [
   ['nh3-w', ['nh3', 'h2o']], ['h2co-w', ['h2co', 'h2o']], ['ch4-w', ['ch4', 'h2o']], ['hcn-w', ['hcn', 'h2o']], ['meoh-w', ['methanol', 'h2o']],
   ['formic-w2', ['formic', 'h2o', 'h2o']], ['nh3-w4', ['nh3', 'h2o', 'h2o', 'h2o', 'h2o']], ['meoh3', ['methanol', 'methanol', 'methanol']],
   // (added in a second run, node mkclus.js c2h6-c2h6,propene2,c2h2-ch4,acet-c2h4,nccn-c2h6,ketene-nh3: dispersion-bound pairs)
+  // (and a third: N-H...O=C and imine/amine hydrogen bonds, after the refit lost amide pairs: node mkclus.js fmd-w,fmd-h2co,fmd-acet,ch2nh-w,ch3nh2-w,hnco-w,fmd-nh3)
+  ['fmd-w', ['formamide', 'h2o']], ['fmd-h2co', ['formamide', 'h2co']], ['fmd-acet', ['formamide', 'acetaldehyde']], ['ch2nh-w', ['ch2nh', 'h2o']], ['ch3nh2-w', ['ch3nh2', 'h2o']], ['hnco-w', ['hnco', 'h2o']], ['fmd-nh3', ['formamide', 'nh3']],
   ['c2h6-c2h6', ['c2h6', 'c2h6']], ['propene2', ['propene', 'propene']], ['c2h2-ch4', ['c2h2', 'ch4']], ['acet-c2h4', ['acetaldehyde', 'c2h4']], ['nccn-c2h6', ['nccn', 'c2h6']], ['ketene-nh3', ['ketene', 'nh3']],
 ];
 const prev = ONLY && fs.existsSync(require('path').join(__dirname, 'inv.json')) ? JSON.parse(fs.readFileSync(require('path').join(__dirname, 'inv.json'), 'utf8')) : null; if (prev) { Object.assign(out.species, prev.species); out.rx.push(...prev.rx); }

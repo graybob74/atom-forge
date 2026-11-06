@@ -8,7 +8,10 @@
 // node refit2.js out.json [--freeze hub:*,g3:*] [--iters N] [--from f.json] [--eval] [--sens] [--wsig s] [--invsig s] ...
 const fs = require('fs'), path = require('path');
 const X = require('./xm.js');
-const args = process.argv.slice(2), OUT = args[0], base = 2, spin = true;
+const args = process.argv.slice(2), OUT = args[0];
+// (--variant gfn1|gfn1s|gfn2|gfn2s|<fit.json>: evaluate another method on the same targets, --eval only)
+const VAR = (() => { const i = args.indexOf('--variant'); if (i < 0) return null; const n = args[i + 1]; const o = { gfn1: { base: 1, spin: false }, gfn1s: { base: 1, spin: true }, gfn2: { base: 2, spin: false }, gfn2s: { base: 2, spin: true } }[n]; if (o) return o; const f = JSON.parse(require('fs').readFileSync(n, 'utf8')); return { base: f.base, spin: !!f.spin, ws: f.ws, par: f.par }; })();
+const base = VAR ? VAR.base : 2, spin = VAR ? VAR.spin : true;
 const flag = (k, d) => { const i = args.indexOf(k); return i < 0 ? d : args[i + 1]; };
 const ITERS = +flag('--iters', 12), EVAL = args.includes('--eval'), SENS = args.includes('--sens'), STEP = +flag('--step', 1), FDH = +flag('--fdh', 1e-3);
 const HERE = __dirname, GM = (process.env.AF_REF || HERE + '/.ref') + '/GMTKN55';
@@ -16,7 +19,7 @@ const D = JSON.parse(fs.readFileSync(path.join(HERE, 'fitdata.json'), 'utf8')), 
 const INV = fs.existsSync(path.join(HERE, 'inv.json')) ? JSON.parse(fs.readFileSync(path.join(HERE, 'inv.json'), 'utf8')) : { species: {}, rx: [] };
 const IPEA = fs.existsSync(path.join(HERE, 'ipea.json')) ? JSON.parse(fs.readFileSync(path.join(HERE, 'ipea.json'), 'utf8')) : { species: {}, rx: [] };
 const ELS = [1, 6, 7, 8], PAIRS = ['1-1', '1-6', '1-7', '1-8', '6-6', '6-7', '6-8', '7-7', '7-8', '8-8'];
-const nShOf = z => X.G2.nShell(z);
+const nShOf = z => (base === 1 ? X.G1 : X.G2).nShell(z);
 const SC = { dlev: 1.0, kcn: 0.3, shp: 2.0, hub: 0.1, g3: 0.5, ra: 0.1, rz: 0.1, pair: 0.05, wspin: 0.3 };
 
 // ---- the parameter vector: [name, element or pair, index, scale]; --freeze "hub:*,dlev:8,pair:1-8"
@@ -34,6 +37,7 @@ ALLP.push(['wspin', 0, 0, SC.wspin]);
 const P = ALLP.filter(([n, z, k]) => !frozen(n, z, k));
 let parId = 7000 + base * 100000;
 function toPar(x) {
+  if (VAR) return { par: VAR.par || null, ws: VAR.ws || 1 };
   const par = { id: ++parId, el: {}, pair: {} };
   let ws = 1;
   P.forEach(([n, z, k, sc], i) => {
@@ -93,14 +97,20 @@ const SP = { ...D.species, ...SPX, ...INV.species, ...IPEA.species, ...S22SP };
 const GEOM = { h2: [[0, 1, 0.741]], n2: [[0, 1, 1.098]], o2: [[0, 1, 1.208]], co: [[0, 1, 1.128]], h2o: [[0, 1, 0.958], [1, 0, 2, 104.5]], nh3: [[0, 1, 1.012]], ch4: [[0, 1, 1.087]],
   c2h2: [[1, 2, 1.203], [0, 1, 1.063]], c2h4: [[0, 1, 1.339], [1, 2, 1.087]], c2h6: [[0, 1, 1.536]], hcn: [[1, 2, 1.153], [0, 1, 1.065]], co2: [[0, 1, 1.160]], h2co: [[0, 1, 1.205]],
   o3: [[0, 1, 1.272], [1, 0, 2, 116.8]], oh: [[0, 1, 0.970]], n2h4: [[0, 1, 1.446]], 'WATER27/H2O2': [[0, 3, 2.912, 'oo']] };
-const GEO_HELD = new Set(['c2h6', 'n2h4', 'nh3']), GEO_R = +flag('--geor', 0.003), GEO_A = +flag('--geoa', 0.5), GEO_OO = +flag('--geooo', 0.02);
+// (and every bonded pair of more W4-11 molecules, against W4-11's own reference geometries: single, double and
+// triple bonds of C, N and O the measured list lacks; the held-out ones are held-out W4-11 molecules)
+const GEO_REF = ['methanol', 'ch3nh2', 'hooh', 'ketene', 't-n2h2', 'hno', 'acetaldehyde', 'glyoxal', 'propene', 'oxirane'], GEO_REF_HELD = ['n2o', 'ch2nh', 'formic', 'hnco', 'ethanol'];
+if (!args.includes('--norefgeo')) for (const nm of [...GEO_REF, ...GEO_REF_HELD]) { const s = D.species['W4-11/' + nm], b = []; for (let a = 0; a < s.Z.length; a++) for (let c = 0; c < a; c++) { const d = X.dist(s.xyz[a], s.xyz[c]); if (d < (s.Z[a] > 1 && s.Z[c] > 1 ? 1.65 : 1.15)) b.push([c, a, +d.toFixed(4)]); } GEOM['ref:' + nm] = b; }
+const GEO_HELD = new Set(['c2h6', 'n2h4', 'nh3', ...GEO_REF_HELD.map(n => 'ref:' + n)]), GEO_R = +flag('--geor', 0.003), GEO_A = +flag('--geoa', 0.5), GEO_OO = +flag('--geooo', 0.02);
+// angles: free within GFN2's own error (water 107.23°, ozone 120.36° against 104.5°, 116.8°), steep beyond (--angtol 0: plain)
+const ANG_TOL = +flag('--angtol', 1) ? { h2o: 2.73, o3: 3.56 } : {};
 const optCache = new Map(), GTOL = +flag('--gtol', 1e-6);
 function geometries(par, ws, held, startFrom) {
   const v = { base, spin: spin ? ws : false, par }, out = [];
   for (const [nm, list] of Object.entries(GEOM)) {
     if (GEO_HELD.has(nm) !== held) continue;
-    const s = SP[nm.includes('/') ? nm : 'W4-11/' + nm], x0 = (startFrom || optCache).get(nm) || s.xyz;
-    let o; try { o = X.opt(x => X.E(v, s.Z, x, s.charge || 0, s.uhf, true, { accuracy: 1e-4 }), x0, { maxSteps: 300, gtol: GTOL }); } catch (e) { o = null; } // (tight: a 1e-3 parameter step moves the gradient by less than 5e-5, and the Jacobian then saw no change of angle or length)
+    const s = SP[nm.includes('/') ? nm : 'W4-11/' + nm.replace(/^ref:/, '')], x0 = (startFrom || optCache).get(nm) || s.xyz;
+    let o; try { o = X.opt(x => X.E(v, s.Z, x, s.charge || 0, s.uhf, true, { accuracy: 1e-4 }), x0, { maxSteps: nm.includes('/') ? 600 : 300, gtol: GTOL }); } catch (e) { o = null; } // (tight: a 1e-3 parameter step moves the gradient by less than 5e-5, and the Jacobian then saw no change of angle or length)
     if (!startFrom && o) optCache.set(nm, o.xyz);
     for (const t of list) {
       if (!o) { out.push([nm, t, NaN]); continue; }
@@ -132,14 +142,14 @@ function residuals(x, keys, held, startFrom, meta) {
   const r = [], push = (v, g, s) => { r.push(v); if (meta) meta.push([g, s]); };
   for (const t of T) { if (t.held !== held) continue; let v = 0; for (const [k, c] of t.sp) v += c * E[k]; if (t.kind === 'hinge') { push(Number.isFinite(v) ? Math.min(0, v - t.ref) / t.sigma : 1e3, 'h3', t.sigma); continue; } const g = t.set === 'BH76' && t.sigma === HHSIG && /RKT06/.test(t.sp[t.sp.length - 1][0]) ? 'HH' : t.set === 'BH76' && /hcnts/.test(t.sp[t.sp.length - 1][0]) ? 'HCN' : t.set; push(Number.isFinite(v) ? (v - t.ref) / t.sigma : 1e3, g, t.sigma); }
   for (const k of geoKeys) { if (geoHeld.has(k) !== held) continue; const g = G[k]; if (!g) continue; for (const gi of g) for (const c of gi) push(c / 4 / GEO_SIG, 'force', 4 * GEO_SIG); }
-  for (const [nm, t, v] of geometries(par, ws, held, startFrom ? optStart : null)) { const s = t[3] === 'oo' ? GEO_OO : t.length === 3 ? GEO_R : GEO_A; push(Number.isFinite(v) ? (v - (t[3] === 'oo' ? t[2] : t[t.length - 1])) / s : 1e3, t[3] === 'oo' ? 'w2OO' : t.length === 3 ? 'bond' : 'angle', s); }
+  for (const [nm, t, v] of geometries(par, ws, held, startFrom ? optStart : null)) { const s = t[3] === 'oo' ? GEO_OO : t.length === 3 ? GEO_R : GEO_A, ref = t[3] === 'oo' ? t[2] : t[t.length - 1], tol = t.length === 4 && t[3] !== 'oo' ? (ANG_TOL[nm] || 0) : 0, d = v - ref, dd = Math.sign(d) * Math.max(0, Math.abs(d) - tol); push(Number.isFinite(v) ? dd / s : 1e3, t[3] === 'oo' ? 'w2OO' : t.length === 3 ? 'bond' : 'angle', s); }
   if (!held) for (let i = 0; i < x.length; i++) push(LAMREG * x[i], 'reg', 1);
   return r;
 }
 function report(x, tag) {
   const { par, ws } = toPar(x), { E, G } = energies(par, ws, allKeys, true, null);
   const by = {}, sig = {}, o = {};
-  for (const t of T) { let v = 0; for (const [k, c] of t.sp) v += c * E[k]; if (t.kind === 'hinge') { o.h3 = Math.min(o.h3 === undefined ? Infinity : o.h3, +v.toFixed(3)); continue; } const key = t.set + (t.held ? ' held-out' : ' fit'); (by[key] = by[key] || []).push(Math.abs(v - t.ref)); (sig[key] = sig[key] || []).push(v - t.ref); }
+  for (const t of T) { let v = 0; for (const [k, c] of t.sp) v += c * E[k]; if (t.kind === 'hinge') { o.h3 = Math.min(o.h3 === undefined ? Infinity : o.h3, +v.toFixed(3)); continue; } const key = t.set + (t.held ? ' held-out' : ' fit');  (by[key] = by[key] || []).push(Math.abs(v - t.ref)); (sig[key] = sig[key] || []).push(v - t.ref); }
   const geo = { fit: [], held: [] }; for (const k of geoKeys) { const g = G[k]; if (!g) continue; for (const gi of g) for (const c of gi) geo[geoHeld.has(k) ? 'held' : 'fit'].push(Math.abs(c)); }
   for (const [k, a] of Object.entries(by)) o[k] = { n: a.length, MAD: +(a.reduce((p, q) => p + q, 0) / a.length).toFixed(3), MSD: +(sig[k].reduce((p, q) => p + q, 0) / a.length).toFixed(3), max: +Math.max(...a).toFixed(2) };
   const hh = T.find(t => /RKT06/.test(t.sp[t.sp.length - 1][0]) && t.sp.length === 3), hc = T.find(t => /hcnts/.test(t.sp[t.sp.length - 1][0]) && /hcn /.test(t.name));
@@ -157,6 +167,7 @@ let x = new Array(P.length).fill(0);
 if (flag('--from')) { const f = JSON.parse(fs.readFileSync(flag('--from'), 'utf8')); const byName = new Map(f.P.map((p, i) => [p.slice(0, 3).join(':'), f.x[i]])); x = P.map(p => byName.get(p.slice(0, 3).join(':')) || 0); }
 const t0 = Date.now();
 const save = (extra = {}) => fs.writeFileSync(OUT, JSON.stringify({ base, spin, x, P, freeze: FREEZE.map(a => a.join(':')), par: toPar(x).par, ws: toPar(x).ws, args, ...extra }));
+if (args.includes('--groups')) { const meta = [], r0 = residuals(x, trainKeys, false, null, meta), by = {}; r0.forEach((v, i) => { const g = meta[i][0]; by[g] = (by[g] || 0) + v * v; }); console.log(Object.entries(by).sort((a, b) => b[1] - a[1]).map(([g, v]) => g + ' ' + v.toFixed(0)).join(' | ')); process.exit(0); }
 if (SENS) { // d(value)/d(parameter) per unit of its scale, RMS over each group (eV, Å, °)
   const meta = [], r0 = residuals(x, trainKeys, false, null, meta), base0 = new Map(guess); optStart = new Map(optCache);
   const groups = [...new Set(meta.map(m => m[0]))].filter(g => g !== 'reg');

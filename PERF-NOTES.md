@@ -314,6 +314,99 @@ engine stores and visits particles.
 
 ## 1.26 (in progress)
 
+### 1.26: GFN2 refit (second attempt)
+
+Asked by the owner: improve GFN2, keeping what it is best at (water clusters, non-covalent binding, geometries) and
+fixing its reaction problems (H + H₂ binds H₃, HCN → HNC barrier 3.18 against 2.09, hexazine below three N₂, a shared
+proton too flat, atomization); offer it as "GFN2 (Atom Forge fit)" if it beats GFN2 on held-out reaction energies and
+barriers with WATER27 ≤ ~0.2 eV, bonds ≤ 0.013 Å and settling in the game. **Result: built and measured, not offered.**
+It keeps water, non-covalent binding and geometries and settles where the first refit did not, and it is 4 times closer
+on held-out atomization, but held-out barriers stay at GFN2's level (0.74 eV against 0.68 polarized), the shared proton
+comes out flatter than GFN2's, and in a hot radical mixture its books jump (an unbooked spin-branch change) more often
+than GFN2's. The engine takes it as `XQ.method` 4 (`tools/xtb/afxtb2-data.js`, `XTB.AF2`; H/C/N/O molecules only, as
+method 3); Settings still offers GFN1 and GFN2 only.
+
+- **Sensitivity** (`tools/xtb-fit/refit2.js --sens`: each of the first fit's 48 GFN2-form parameters stepped, the change of
+  each group of targets; eV per step, water = WATER27's fitted clusters and the invariance clusters below, reactions =
+  W4-11/3, BH76, H + H₂, HCN, the must-haves, hexazine, the proton). Water-dominated (water ÷ reactions): H's hardness 17
+  (0.49 against 0.03 eV), O's third order 11, H's third order 7.7, O's repulsion (charge 3.6, exponent 2.9), O's s-shell
+  distance polynomial 2.9, O's hardness 2.6, H's level 2.0. Reaction-only: every C and N parameter (ratio ≤ 0.2, most
+  < 0.02), the pair scalings but O–H and O–O (≤ 0.05), the spin constants' scale (0 on water). In between: O's levels, CN
+  shifts and p polynomial, H's polynomial, CN shift and repulsion, the O–H and O–O pairs (0.3–1.2).
+- **Frozen at GFN2's** (besides the multipole electrostatics and D4, never fitted): the hardness of H, C, N and O (the
+  charges' response; the first refit lowered H's by 28 % and, found now, its GFN1-form set never settles on
+  N-heterocycles: 2-pyridone, indole and the pyridone dimer run 250 iterations with atomic charges of −5…+6 e); the
+  water-dominated ones above; the **O–O pair scaling** (it alone sets the water dimer's O–O: +0.02 → +0.019 Å; fitted, it
+  went −0.1 for O₂/O₃/H₂O₂ and pulled the dimer to 2.78 Å); the **spin constants' scale** (fitted it rose to 1.36, and a
+  hot radical mixture then jumped 0.6 eV in 3 seeds of 4; at the published 1.0, 1 of 4). 36 parameters fitted.
+- **Fit** (`refit2.js`, Levenberg–Marquardt as fit.js, the same held-out split, spin-polarized): the first fit's targets
+  plus 26 **invariance clusters** held at plain GFN2's binding to 1 % (`inv.json` by `mkclus.js`, seeded random packings
+  optimized with GFN2: water clusters of 10, 16 and 20 (twice), H₃O⁺ and OH⁻ in 8 waters, 19 pairs with ammonia,
+  formaldehyde, methanol, formic acid, amides (added after the fit lost N–H···O=C pairs: S22's formamide dimer 0.72 →
+  0.23 eV), imines and dispersion-bound pairs; not WATER27 or S22); vertical IPs and EAs of 11 molecules held at GFN2's
+  (0.3 eV; how far charge can slosh between O₂ and its neighbours); H₃'s symmetric stretch (no point past 0.93 Å below the
+  saddle); bonded lengths of 10 more W4-11 molecules optimized (0.003 Å, 5 more held out); angles free within GFN2's own
+  error, steep beyond; the water dimer's O–O (0.01 Å); a pull toward GFN2. Tight optimizations (gtol 1e-6: at 5e-5 a
+  1e-3 parameter step did not move them, the fit saw no angle change and opened water to 115.7°). Ten rounds (A–J);
+  shipped data: J.
+- **Held-out errors** (MAD, eV; never fitted; S22 never fitted by any of them):
+
+  | held out | GFN1 | GFN1 polarized | GFN2 | GFN2 polarized | first refit, GFN1 form | first refit, GFN2 form | this refit |
+  |---|---|---|---|---|---|---|---|
+  | W4-11 atomization (16) | 10.78 | 4.35 | 8.16 | 2.15 | 0.35 | 0.37 | 0.49 |
+  | BH76 barriers (10) | 0.98 | 0.73 | 0.93 | 0.68 | 0.48 | 0.45 | 0.74 |
+  | WATER27 clusters (12) | 0.38 | 0.38 | 0.125 | 0.125 | 0.32 | 0.91 | 0.19 |
+  | S22 non-covalent (22) | 0.058 | 0.058 | 0.033 | 0.033 | runs away | 0.137 | 0.045 |
+  | bonds of 8 held-out molecules (Å) | 0.0095 | 0.0095 | 0.0111 | 0.0111 | 0.0048 | 0.0055 | 0.0076 |
+
+  The held-out barriers are all radical hydrogen abstractions (OH, NH₂, NH + CH₄, C₂H₆, CH₃; H + CO): every xTB here puts
+  those saddles 0.5–1.2 eV too low, and the fitted ones (OH + H₂, CH₃ + H₂, O + CH₄, …) improve only part way while the
+  HCN saddle (also a bridging H, but too high) pulls the other way. Round G, with the spin scale free, reached 0.67 and the
+  proton 0.055 / 0.148 eV, but its books jumped in the hot mixture (above).
+- **Compared** (`cmp.js`, as the tables above; geometries optimized by each variant):
+
+  | | GFN1 | GFN2 | GFN2 polarized | first refit, GFN1 form | first refit, GFN2 form | this refit | g-xTB | reference |
+  |---|---|---|---|---|---|---|---|---|
+  | bond lengths, 24 bonds (MAD, Å) | 0.0107 | 0.0122 | 0.0122 | 0.0127 | 0.0191 | 0.0102 | 0.011 | measured |
+  | of them the 19 H/C/N/O bonds | 0.0088 | 0.0120 | 0.0120 | 0.0049 | 0.0066 | 0.0094 | | |
+  | angles H₂O / O₃ (°) | 107.1 / 119.1 | 107.2 / 120.4 | the same | 107.5 / 117.1 | 107.7 / 118.5 | 108.5 / 119.2 | 106.5 / 117.7 | 104.5 / 116.8 |
+  | atomization, 23 molecules (MAD, eV) | 6.63 | 4.62 | 1.61 | 0.63 | 0.79 | 0.55 | 0.15 | W4-11 |
+  | H + H₂ barrier (eV) | 0.15 | −0.40 | 0.03 | 0.57 | 0.54 | 0.20 | 0.21 | 0.42 |
+  | HCN → HNC energy / barrier (eV) | 0.92 / 2.52 | 0.87 / 3.18 | the same | 0.91 / 2.59 | 0.81 / 2.54 | 1.02 / 2.79 | 0.31 / 2.24 | 0.66 / 2.09 |
+  | water dimer (eV, O–O Å) | 0.208, 2.91 | 0.215, 2.84 | the same | 0.268, 2.79 | 0.220, 2.80 | 0.206, 2.82 | 0.212, 2.91 | 0.217, 2.91 |
+  | O₃ → O₂ + O (eV) | 7.60 | 6.85 | 4.70 | 1.81 | 1.87 | 2.57 | 1.12 | 1.15 |
+  | proton between waters 2.7 / 2.8 Å (eV) | 0.084 / 0.214 | 0.041 / 0.123 | the same | 0.082 / 0.189 | 0.195 / 0.333 | 0.022 / 0.092 | 0.103 / 0.222 | |
+  | hexazine flat: barrier, release (eV) | 0.53, +1.67 | 0.80 (uphill), −0.84 | the same | 0.30, +6.77 | none, +6.65 | none, +6.65 | none, +6.95 | |
+
+  With the refitted hydrogen and plain GFN2 for F, Cl and S, HF/HCl/H₂S bonds stay within 0.008 Å of GFN2's (the first
+  refits: 0.04–0.10 Å off) but their atomization is 0.3–0.8 eV further off than GFN2's: hence H/C/N/O molecules only.
+- **In the game** (Node, `XQ.method` 4; `scratchpad/126x2/game.js`): O₂, two waters and methane (the first refit: 10
+  unsettled, books 220 eV off): none unsettled, −1.7e-6 eV over 200 insulated steps; O₂ with two waters and a Na⁺
+  outside: the triplet (|m| 2.09), slopes 1.8e-6 eV/Å, −1.2e-4 eV over 200 steps; 3-D (O₂, three waters, methane):
+  slopes x/y/z 8.7e-7/7.3e-7/5.7e-7 eV/Å, −1.2e-5 eV over 150 steps, none unsettled (round A: 7 unsettled while the
+  molecules joined; GFN2 polarized 0); H₂ pulled apart: one switch to two spins, every step settled (largest change
+  0.0047 eV); a hydronium and five waters: −5.4e-5 eV over 200 steps, 5.3 iterations a step; the hot mixture (O₃, NO, O₂,
+  H₂O₂, two H₂, 1,500 K, 400 insulated steps) in 3-D −1.4e-5 eV; flat, 4 seeds: the books jump in 2 (0.43 eV twice, with 2 unsettled calculations; 0.52 eV once), −2.9e-5 and −1.7e-5 eV
+  in the others (GFN2 polarized: 1 seed of 4, 0.32 eV; see below).
+- **Why not offered**: the held-out barriers are not better than GFN2 polarized (0.74 against 0.68; GFN1 polarized 0.73),
+  H + H₂ is half the real barrier (0.20; not bound any more), and the proton the quantum bonds were made for is flatter
+  than GFN2's (0.022 at 2.7 Å; g-xTB 0.103, GFN1 0.084). What it does well: atomization (0.55 eV, GFN2 polarized 1.61),
+  ozone, hexazine falling apart, bonds (0.0094 Å on H/C/N/O), water and S22 near GFN2's. Its parameters, the engine's
+  support and the pipeline stay for a later round. **Default: GFN1** (and the recommendation above stands: Polarized
+  spins as GFN1's default once the owner approves).
+- Found, not changed: **the books of a spin-polarized calculation that does not settle**. When a step's warm start
+  (polarized, from the last step) does not settle, qmPass starts afresh unpolarized; the probe then switches back to
+  polarized and pays the difference to the bath, though the system was polarized all along: the books jump by about
+  that difference. GFN2 polarized in the hot mixture: 1 seed of 4 (0.32 eV); this refit 2 of 4 (0.43, 0.52). Not paying
+  the probe's switch in a step whose unpolarized state came from such a fresh start would close them; it changes GFN1's
+  and GFN2's polarized books, so it is for the owner.
+- Test: tests/f_126x.js part `af2` (t_features' "1.26 (xTB)" line; alone `node tests/f_126x.js af2`): the data (GFN2's
+  form, the published spin scale, what was frozen); single points against GFN2 polarized (H₃'s stretch 0.195 against
+  0.008 eV, flat hexazine 6.76 eV above three N₂ against 0.84 below, the water dimer kept); the world that sank the
+  first refit settles and keeps its books; switching from GFN2 with 13 members paid to the bath (books to 0 eV); 3-D
+  slopes and books; H₂S keeps stored bonds. Fails on 75eea89 (no method 4). GFN1 and GFN2 run bit for bit as before
+  (`f_126x base`, `f_126q gfn1`).
+
 ### 1.26: spin-polarized xTB
 
 Asked by the owner (the xTB plan, item 1): spin polarization for GFN1 and GFN2, "free atoms and radicals get their
