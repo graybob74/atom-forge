@@ -275,6 +275,27 @@ PARTS.books = async (page, check) => {
   check(ok, `1.27 charged particles in matter: the books exact with δ-rays, bremsstrahlung, pairs and Cherenkov light (worst ${Math.max(...Object.values(r).map(v => v.worst)).toExponential(0)} eV; flat lead ${r.Pb.brems} photons, ${r.Pb.pairs} pairs; 3-D lead ${r['3Pb'].brems}, ${r['3Pb'].pairs}; water flat and 3-D ${r.water.delta} and ${r['3water'].delta} δ-rays, ${r.water.ckv} and ${r['3water'].ckv} Cherenkov photons; the flat ejectElectron's own residue beside ions, as off, up to ${Math.max(r.Pb.ejW, r.water.ejW)} eV)`, 'rp3 books: ' + JSON.stringify(r));
 };
 
+/* The Settings section (page): the line follows Muonium as hydrogen, with its switch, cost tag and "realistic when on";
+   pointing at it shows its description (flat and 3-D); it sets RP.cpm, is saved, and is off again at start. */
+PARTS.layout = async (page, check) => {
+  const r = await page.evaluate(() => {
+    document.querySelectorAll('.modal').forEach(m => { m.hidden = true; });
+    loadPreset('empty'); openSettings('exp');
+    const pane = document.querySelector('section[data-stab="exp"]'), lines = [...pane.querySelectorAll('.rpl')], ids = lines.map(l => (l.querySelector('[id]') || {}).id);
+    const i = ids.indexOf('setRpCpm'), L = lines[i];
+    const o = { ids, i, tag: L ? !!L.querySelector('.cost-k') : false, real: L ? !!L.querySelector('.rlb') : false, h: L ? Math.round(L.getBoundingClientRect().height) : 0 };
+    setPrevShow('setRpCpm', null); o.pane = $('setPrevT').textContent + ' | ' + $('setPrevD').textContent.slice(0, 50);
+    $('setRpCpm').click(); o.on = [SET.rpCpm, RP.cpm, JSON.parse(store('settings')).rpCpm]; $('setRpCpm').click(); o.on.push(SET.rpCpm, RP.cpm);
+    o.exp = SET_EXP.includes('rpCpm') && EXP_SET.setRpCpm === 'rpCpm';
+    hideModal('setModal'); loadPreset('d3empty'); openSettings('exp'); setPrevShow('setRpCpm', null); o.pane3 = $('setPrevD').textContent; o.cost3 = (COSTS3.setRpCpm() || {}).on[0]; hideModal('setModal'); loadPreset('empty');
+    return o;
+  });
+  const ok = r.i > r.ids.indexOf('setRpMu') && r.ids.indexOf('setRpMu') >= 0 && r.tag && r.real && r.h < 34 && /^Charged particles in matter \| A fast charged particle crossing matter/.test(r.pane)
+    && /In 3-D the same in all three directions/.test(r.pane3) && r.cost3 === '×1–1.5' && r.on.join() === 'true,true,true,false,false' && r.exp;
+  check(ok, `1.27 Settings: Realistic particles has Charged particles in matter after Muonium as hydrogen (${r.h} px high), with its cost tag, "realistic when on" and side-pane texts flat and 3-D; it sets RP.cpm, is saved and is off at start`, 'rp3 layout: ' + JSON.stringify(Object.assign({}, r, { pane3: r.pane3.slice(0, 60) })));
+};
+PARTS.layout.page = true;
+
 module.exports = async function frp3(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
