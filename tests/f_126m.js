@@ -263,9 +263,10 @@ PARTS.page = async (page, check) => {
     const help = (document.body.innerHTML.match(/<li><b>Metallic bonding<\/b>[^]*?<\/li>/) || [''])[0];
     const note = (document.querySelector('#segMetal') && document.querySelector('#segMetal').closest('.srow').nextElementSibling || {}).textContent || '';
     const bcc = (t) => /body-centred/i.test(t), tag2 = ((COSTS.segMetal || (() => ({ o: {} })))().o[1] || [])[1] || '', tag3 = ((COSTS3.segMetal || (() => ({ o: {} })))().o[1] || [])[1] || '';
-    return { d2: /oxid/i.test(d2) && bcc(d2), d3: /oxid/i.test(d3) && bcc(d3), help: /oxid/i.test(help) && /alloy/i.test(help) && bcc(help), note: /oxid/i.test(note) && bcc(note), tags: /1\.26/.test(tag2) && /1\.26/.test(tag3) };
+    const cp = (t) => /fcc and hcp metals/i.test(t); // (the close-packed metals' angles, 1.26 item 4)
+    return { d2: /oxid/i.test(d2) && bcc(d2) && cp(d2), d3: /oxid/i.test(d3) && bcc(d3) && cp(d3), help: /oxid/i.test(help) && /alloy/i.test(help) && bcc(help) && cp(help), note: /oxid/i.test(note) && bcc(note) && cp(note), tags: /1\.26/.test(tag2) && /1\.26/.test(tag3) && /close-packed/.test(tag2) && /close-packed/.test(tag3) };
   });
-  check(r.d2 && r.d3 && r.help && r.note && r.tags, '1.26 metals: Settings (flat and 3-D words, the note, both cost tags) and Help describe oxides and hydrides and the body-centred metals\u2019 directional bonding', '1.26 metals page: ' + JSON.stringify(r));
+  check(r.d2 && r.d3 && r.help && r.note && r.tags, '1.26 metals: Settings (flat and 3-D words, the note, both cost tags) and Help describe oxides and hydrides, the body-centred metals\u2019 directional bonding and the close-packed metals\u2019', '1.26 metals page: ' + JSON.stringify(r));
 };
 
 module.exports = async function f126m(page, check, say, openPage, only) {
