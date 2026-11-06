@@ -29911,21 +29911,34 @@ function drawQGP3(ctx) {
   }
   ctx.restore();
 }
-/* Events with a caption (as drawEvents, more simply): two rings where it happened, and the newest few captions. */
+/* Events with a caption (as drawEvents): two rings where it happened, and the newest few captions with their second line
+   and, for a decay, the close-up of its nucleus (Lab → View → Decay close-ups), kept clear of each other (1.26 sweep:
+   the 3-D captions had the first line only, so the close-ups setting did nothing in 3-D). */
 function drawEvents3(ctx, rt) {
   const evs = W.events; if (!evs.length) return;
   for (let i = evs.length - 1; i >= 0; i--) if (rt - evs[i].t0 > EV_LIFE || rt < evs[i].t0 - 0.5) evs.splice(i, 1);
-  const o = _p3c;
+  const o = _p3c, placed = [];
   ctx.save();
-  for (const e of evs.slice(-4)) {
+  const shown = evs.slice(-4);
+  for (let i = shown.length - 1; i >= 0; i--) {
+    const e = shown[i];
     if (!proj3(e.x, e.y, e.z || 0, o)) continue;
-    const age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
-    for (const d of [0, 0.3]) { const k = clamp((age - d) / 1.0, 0, 1); if (k <= 0 || k >= 1) continue; ctx.strokeStyle = rgba(c, (1 - k) * 0.85); ctx.lineWidth = 2.2 * (1 - k) + 0.6; ctx.beginPath(); ctx.arc(o[0], o[1], 5 + k * 46, 0, Math.PI * 2); ctx.stroke(); }
+    const x = o[0], y = o[1], age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
+    for (const d of [0, 0.3]) { const k = clamp((age - d) / 1.0, 0, 1); if (k <= 0 || k >= 1) continue; ctx.strokeStyle = rgba(c, (1 - k) * 0.85); ctx.lineWidth = 2.2 * (1 - k) + 0.6; ctx.beginPath(); ctx.arc(x, y, 5 + k * 46, 0, Math.PI * 2); ctx.stroke(); }
     const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1); if (a <= 0.01) continue;
-    ctx.globalAlpha = a; ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    const w = ctx.measureText(e.text).width + 16, bx = clamp(o[0] + 18, 8, R.w - w - 8), by = clamp(o[1] - 40, 8, R.h - 34);
-    ctx.fillStyle = 'rgba(7,11,17,0.88)'; ctx.fillRect(bx, by, w, 26); ctx.fillStyle = rgba(c, 1); ctx.fillRect(bx, by + 5, 3, 16);
-    ctx.fillStyle = '#eef3f8'; ctx.fillText(e.text, bx + 9, by + 13); ctx.globalAlpha = 1;
+    ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; const w1 = ctx.measureText(e.text).width;
+    ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; const w2 = e.sub ? ctx.measureText(e.sub).width : 0;
+    const ins = e.nuc && R.view.decayCards && R.w > 360 ? 58 : 0, bw = Math.min(R.w - 16, Math.max(w1, w2) + 22 + ins), bh = ins ? 58 : e.sub ? 40 : 26;
+    let bx = clamp(x + 18, 8, R.w - bw - 8), by = clamp(y - 40, 8, R.h - bh - 8);
+    for (let k = 0; k < 6; k++) { const hit = placed.find(q => bx < q[2] + 6 && bx + bw + 6 > q[0] && by < q[3] + 6 && by + bh + 6 > q[1]); if (!hit) break; by = hit[3] + 6; }
+    by = clamp(by, 8, R.h - bh - 8); placed.push([bx, by, bx + bw, by + bh]);
+    ctx.globalAlpha = a; ctx.fillStyle = 'rgba(7,11,17,0.88)'; ctx.fillRect(bx, by, bw, bh); ctx.fillStyle = rgba(c, 1); ctx.fillRect(bx, by + 5, 3, bh - 10);
+    if (ins) drawDecayInset(ctx, e, bx + 6 + ins / 2, by + bh / 2, ins / 2 - 3, age, c);
+    const tx = bx + 9 + ins, ty = ins ? by + bh / 2 - 7 : by + (e.sub ? 14 : bh / 2);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; ctx.fillStyle = '#eef3f8'; ctx.fillText(e.text, tx, ty, bw - 18 - ins);
+    if (e.sub) { ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(c, 1); ctx.fillText(e.sub, tx, ty + 15, bw - 18 - ins); }
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }

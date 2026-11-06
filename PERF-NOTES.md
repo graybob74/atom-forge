@@ -450,6 +450,11 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
   beam to where it leaves the box and a small housing at its start, in its light's colour, and Erase's cone (its radius
   + 1.5 Å, as the flat Erase) takes it. Measured in the page: a Lyman-α laser set on a benzene carbon, Erase at the same
   point: 1 laser left before, 0 after. Check: f_sweep3d "laser3d" (page).
+- 10. The 3-D event captions (`drawEvents3`, "as drawEvents, more simply") drew the first line only: no second line (a
+  decay's energy and speed-up, a capture's "μ⁻ + p → n + ν inside the nucleus", a decay in orbit's mean life) and no
+  close-up of a decaying nucleus, so Lab → View → Decay close-ups did nothing in 3-D. Now as the flat view: the second
+  line, the close-up (`drawDecayInset`) and captions kept clear of each other. ²¹²Po α decays in the empty 3-D box:
+  sub-line and close-up drawn (before: neither). Check: f_sweep3d "events3d" (page).
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 

@@ -150,6 +150,24 @@ PARTS.laser3d = async (page, check, say) => {
 };
 PARTS.laser3d.page = true;
 
+/* 10. The 3-D event captions had their first line only: no second line (a decay's "2.2 µs mean life", a capture's
+   "μ⁻ + p → n + ν inside the nucleus") and no decay close-up, so Lab → View → Decay close-ups did nothing in 3-D. Now
+   drawn as in the flat view: an α decay of ²¹²Po in the 3-D box shows its sub-line and its nucleus's close-up. */
+PARTS.events3d = async (page, check, say) => {
+  const r = await page.evaluate(() => {
+    loadPreset('d3empty'); setRunning(false); R.view.decayCards = true; W.warp = 1e8;
+    const p = addAtom('Po', 0, 0, { A: 212, z: 0 }); forcesNoEvents(); W.fSpawn = W.spawned;
+    for (let i = 0; i < 200 && !W.events.some(e => e.nuc); i++) simFrame(1 / 60, 50);
+    const e = W.events.find(e => e.nuc); if (!e) return { none: true };
+    e.t0 = 1; let ins = 0, sub = 0; const keep = drawDecayInset, C = CanvasRenderingContext2D.prototype, ft = C.fillText;
+    drawDecayInset = function () { ins++; return keep.apply(this, arguments); }; C.fillText = function (t) { if (t === e.sub) sub++; return ft.apply(this, arguments); };
+    try { render(2); } finally { drawDecayInset = keep; C.fillText = ft; }
+    W.warp = 1; return { text: e.text, sub: e.sub, subDrawn: sub, insets: ins };
+  });
+  check(r.insets > 0 && (!r.sub || r.subDrawn > 0), `3-D sweep 10: a decay's caption in 3-D has its close-up and second line ("${r.text}", "${r.sub}")`, '3-D sweep events3d: ' + JSON.stringify(r));
+};
+PARTS.events3d.page = true;
+
 module.exports = async function fsweep3d(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
