@@ -1383,13 +1383,15 @@ function psEnv(o) {
   return { e: ne / V / ref, o2: nO2 / V / (ref / 10) }; // (electron density over water's; O₂ number density over water's molecules)
 }
 /* Its rates here (s⁻¹, in its own time): pick-off, and spin conversion away from its state. */
-function psRates(o) {
-  const env = psEnv(o), v = o.v * 1e-8 / PHYS.TU_S, conv = env.o2 * PS_NW * PS_SIGC * v;
+function psRates(o, cached) {
+  let env = cached && o.psE && Math.abs(o.x - o.psE.x) + Math.abs(o.y - o.psE.y) + Math.abs((o.z || 0) - o.psE.z) < 1 && W.step - o.psE.s < 8 ? o.psE : null; // (its surroundings looked at again once it has moved an ångström, or every 8 steps: the look costs ~25 µs in 3-D)
+  if (!env) { env = psEnv(o); if (cached) { env.x = o.x; env.y = o.y; env.z = o.z || 0; env.s = W.step; o.psE = env; } }
+  const v = o.v * 1e-8 / PHYS.TU_S, conv = env.o2 * PS_NW * PS_SIGC * v;
   return { po: PS_LPO * env.e, conv: o.sp === 'oPs' ? conv : 3 * conv, env };
 }
 /* Each step of a Ps (clock: lab seconds of the decay clock): pick-off or conversion. True if it is gone. */
 function psMatter(o, clock) {
-  const r = psRates(o), lt = r.po + r.conv, dt = clock / o.gam;
+  const r = psRates(o, true), lt = r.po + r.conv, dt = clock / o.gam;
   if (!(lt > 0) || !(rnd() < 1 - Math.exp(-lt * dt))) return false;
   if (rnd() * lt < r.conv) { // (spin exchange with O₂: the other state; same mass, nothing to book)
     const was = o.lab; o.sp = o.sp === 'oPs' ? 'pPs' : 'oPs'; o.lab = XP[o.sp].lab; o.trk.c = XP[o.sp].col;

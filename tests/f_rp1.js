@@ -202,7 +202,7 @@ PARTS.layout = async (page, check, say, openPage) => {
   const { browser, page: ph } = await openPage({ viewport: { width: 390, height: 844 }, settle: 600 });
   const narrow = await ph.evaluate(() => { document.querySelectorAll('.modal').forEach(m => { m.hidden = true; }); openSettings('exp'); return [...document.querySelectorAll('#setModal .rpl')].map(l => l.scrollWidth <= l.clientWidth + 1 && l.getBoundingClientRect().right <= innerWidth); });
   await browser.close();
-  const ok = r.head === 'Realistic particles' && r.ids.join() === 'setUltra,segWave,setRpExo' && r.inSection && r.tags.every(Boolean) && r.sw.every(Boolean) && /^Exotic atoms \| A slow μ⁻/.test(r.pane)
+  const ok = r.head === 'Realistic particles' && r.ids.slice(0, 3).join() === 'setUltra,segWave,setRpExo' && r.inSection && r.tags.every(Boolean) && r.sw.every(Boolean) && /^Exotic atoms \| A slow μ⁻/.test(r.pane)
     && r.ultra.join() === 'true,true,false,false' && r.wave.join() === '1,0' && r.rp.join() === 'true,true,false,false' && r.saved === true && r.exp && r.note3 && narrow.every(Boolean) && r.h[0] < 34 && r.h[2] < 34;
   check(ok, `1.27 Settings: Experimental → "${r.head}" with one compact line a part (${r.ids.join(', ')}; ${r.h.join('/')} px high), cost tags, switches, the side pane on hover; Ultra-realistic and Electrons as waves still work; fits at phone width`, 'rp1 layout: ' + JSON.stringify({ r, narrow }));
 };

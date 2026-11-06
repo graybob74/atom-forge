@@ -1049,7 +1049,7 @@ function selectAll() { R.msel.clear(); for (const p of W.parts) if (!p.dead && s
 const selectable = (p) => (p.k === NUC || p.k === ELEC || p.k === POS) && !p.beam; // (photons, flying exotics and a collider's beams are not picked up)
 /* (1.26) The exotic atoms and nuclei that live in W.exo (muonic hydrogen, (μα)⁺, hypernuclei: placed from the Exotic atoms
    menu and slow), picked by the Select tool as atoms are: moved, deleted, copied and pasted. Select passed them by. */
-const selectableX = (o) => !!o && !o.dead && !o.xb && !!XP[o.sp] && !!(XP[o.sp].atom || XP[o.sp].stuck || XP[o.sp].hyp);
+const selectableX = (o) => !!o && !o.dead && !o.xb && !!XP[o.sp] && !!(XP[o.sp].atom || XP[o.sp].stuck || XP[o.sp].hyp || XP[o.sp].ps); // (positronium too, 1.27)
 const isX = (p) => p.sp !== undefined && p.lab !== undefined && p.k === undefined; // (a W.exo member in R.msel)
 /* The box, done: everything inside it (and, if asked, the rest of each molecule touched). */
 function finishSelBox(d) {
@@ -1717,7 +1717,7 @@ function qSnap(q) {
   renderInspect();
 }
 /* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
-const XP_NAME = { Mu: 'Muonium (an electron orbiting a μ⁺: a light hydrogen)', muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
+const XP_NAME = { pPs: 'Para-positronium (an electron and a positron, spins opposite)', oPs: 'Ortho-positronium (an electron and a positron, spins parallel)', Mu: 'Muonium (an electron orbiting a μ⁺: a light hydrogen)', muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
   K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau',
   'Sig+': 'Positive sigma baryon', 'Sig-': 'Negative sigma baryon', Xi0: 'Neutral xi baryon', 'Xi-': 'Negative xi baryon', 'Omg-': 'Omega baryon',
   'Sigb-': 'Antisigma, negative', 'Sigb+': 'Antisigma, positive', Xib0: 'Neutral antixi', 'Xib+': 'Positive antixi', 'Omgb+': 'Antiomega',
@@ -1771,7 +1771,7 @@ function selXHTML() {
       : XP_ABOUT[d.hyp ? 'hy' : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg'].find(k => o.sp.startsWith(k)) || 'eta'] || '';
     if (d.ps) { // (positronium, 1.27: its state, binding and life here)
       const I = psInfo(o);
-      kv.push(['State', I.para ? 'para-positronium: the two spins opposite (a singlet), 1 in 4' : 'ortho-positronium: the two spins parallel (a triplet), 3 in 4'], ['Binding', `${fmtE(I.Eb)} (half hydrogen\u2019s)`], ['Size', `${fmtLen(I.size * 1e-10)}, the radius of its orbit (twice hydrogen\u2019s)`],
+      kv.push(['State', I.para ? 'para-positronium: the two spins opposite (a singlet), 1 in 4' : 'ortho-positronium: the two spins parallel (a triplet), 3 in 4'], ['Binding', `${fmtE(I.Eb)} (half hydrogen\u2019s)`], ['Size', `${fmtNum(I.size, 3)} Å, the radius of its orbit (twice hydrogen\u2019s)`],
         ['Annihilates into', I.para ? '2γ, 511 keV each, back to back' : '3γ sharing 1,022 keV in a plane (in matter mostly 2γ by pick-off)'],
         ['Expected life here', `${fmtTime(I.life)}${I.po > 0 ? ` (pick-off ${fmtTime(1 / I.po)} at ${fmtNum(I.rho, 2)}× water\u2019s electron density${I.conv > 0 ? `, spin turned by O\u2082 in ${fmtTime(1 / I.conv)}` : ''})` : ' (in vacuum)'}`]);
       about = `Positronium is an electron and a positron going round each other, an atom with no nucleus. ${I.para ? 'Para-positronium annihilates in 125 ps.' : 'Ortho-positronium would live 142 ns in vacuum (at this timescale that is forever: speed decay up in Lab to see it), but in matter its positron meets an electron of the molecules round it within nanoseconds (pick-off).'}`;
@@ -1871,7 +1871,7 @@ function renderInspect() {
       if (!el.dblock || p.bonds.length) kv.push(['Bonds used / capacity', `${p.used} / ${p.cap}`]);
       if (p.lp) kv.push(['Lone pairs', String(p.lp)]);
       kv.push(['Charge', (p.q > 0 ? '+' : '') + p.q + (Math.abs(p.qp) > 0.005 ? ` (partial ${p.qp > 0 ? '+' : ''}${p.qp.toFixed(2)})` : '')]);
-      kv.push(['Next ionization energy', fmtE(ionE(p.Z, p.ne))]);
+      kv.push(['Next ionization energy', fmtE(ionE(p.Z, p.ne) * muIonF(p))]); // (muonium as hydrogen: its own reduced mass, 1.27)
       if (el.en) kv.push(['Electronegativity', el.en.toFixed(2)]);
       if (el.ea) kv.push([p.anti ? 'Positron affinity' : 'Electron affinity', fmtE(el.ea)]);
     } else kv.push(['Charge', (p.anti ? '−' : '+') + p.Z]);

@@ -1781,6 +1781,7 @@ const { openPage } = require('./browser');
   await alone('f_sweep3d.js'); // 1.26 3-D sweep and settings audit
   await alone('f_swx.js'); // 1.26 exotic-particle sweep (node tests/f_swx.js [--node] [part …])
   await alone('f_rp1.js'); // 1.27 realistic particles 1: exotic atoms and the Settings section (node tests/f_rp1.js [--node] [part …])
+  await alone('f_rp2.js'); // 1.27 realistic particles 2 and 4: positronium, muonium as hydrogen and μSR (node tests/f_rp2.js [--node] [part …])
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
