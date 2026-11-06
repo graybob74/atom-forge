@@ -5577,6 +5577,9 @@ const EXP_NAME = { dtMax: 'shorter longest step', resBig: 'resonance in large ri
 EXP_NAME.metal = 'many-body metals'; // (1.25)
 EXP_NAME.xq = 'GFN2-xTB'; // (1.26)
 EXP_NAME.xqs = 'polarized spins'; // (1.26)
+Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
+SET_EXP.push('lps', 'sigh', 'pis'); // (1.26)
+EXP_NAME.lps = 'lone pairs'; EXP_NAME.sigh = 'halogen σ-holes'; EXP_NAME.pis = 'π-stacking'; // (1.26)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -5656,6 +5659,7 @@ function applySettings() {
   boQmSpin(SET.xqs); // (and their spins, 1.26)
   boSet(SET.bo); // (Experimental: continuous bond orders, 1.13; 2: quantum bonds, 1.22)
   mbSet(SET.metal); // (Experimental: bond orders for metals, 1.25)
+  sitesSet('lp', SET.lps); sitesSet('sh', SET.sigh); sitesSet('pi', SET.pis); // (Experimental: directional forces, 1.26)
   waveSet(!!SET.wave); // (Experimental: electrons as waves, 1.15)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
@@ -5775,6 +5779,7 @@ function syncSettings() {
   setSegValue('segMetal', String(SET.metal)); // (1.25)
   setSegValue('segXq', String(SET.xq)); // (1.26)
   setSegValue('segXqs', String(SET.xqs)); // (1.26)
+  setSegValue('segLps', String(SET.lps)); setSegValue('segSigh', String(SET.sigh)); setSegValue('segPis', String(SET.pis)); // (1.26)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -5800,6 +5805,9 @@ function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toF
 const COSTS = {
   segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×6–15', 'Measured on one thread on a quiet machine (after 1.25): liquid water ×7.5–9.2, salt water ×5.9–7.4; 1.20: hydrogen + oxygen ×9, the molecule gallery ×15 (every pair worked out every step, steps 2.6 times shorter)'], 2: ['×1000+', 'Measured on one thread (1.22): a hydronium and five waters (19 atoms) 6.6 ms a step, 40 atoms 50 ms, against 0.006–0.02 with stored bonds, the steps half as long: a small world runs in slow motion, about 1/30 of normal speed at 19 atoms, 1/200 at 40'] } }),
   segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured on one thread (1.25): nothing without metal atoms; a flat aluminium patch of 769 atoms ×1.9 (its own pass 0.22 ms a step); a flat copper patch ×0.6 and a 3-D copper ball ×0.9 (most of the electron-transfer trials between metal atoms are skipped). The body-centred metals\u2019 angles (1.26): a flat tungsten patch of 967 atoms ×1.1 over 1.25\u2019s many-body (its pass 0.95 → 2.3 ms)'] } }), // (1.25; 1.26)
+  segLps: () => ({ k: 'physics', o: { 0: ['×1', 'Charges at the nuclei'], 1: ['×1', 'The 3-D lab only: nothing changes in the flat game'] } }), // (1.26)
+  segSigh: () => ({ k: 'physics', o: { 0: ['×1', 'Halogens charged at their nuclei'], 1: ['×1–2', 'Measured on one thread (1.26): nothing without bonded chlorine, bromine or iodine; a flat box of 48 halomethanes and Br₂ (204 atoms) ×1.7–2.0 (a JavaScript pass after the WebAssembly kernel)'] } }), // (1.26)
+  segPis: () => ({ k: 'physics', o: { 0: ['×1', 'Rings charged at their nuclei'], 1: ['×1', 'The 3-D lab only: nothing changes in the flat game'] } }), // (1.26)
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–7', 'Measured on one thread: nothing without free electrons; liquid water with 40 free electrons ×6.5 (their inner steps 13 times shorter, for the packets\' breathing)'] } }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.4', 'Measured on liquid water (1.21): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×3', 'Measured on liquid water: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water: 32 beads, the rest once'] } }
     : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×3.3', 'Measured on liquid water (1.21): the force field worked out 8 times a step'], 16: ['×7', 'Measured on liquid water: 16 times a step'], 32: ['×16', 'Measured on liquid water: 32 times a step'] } },
@@ -5840,6 +5848,9 @@ const COSTS = {
 const COSTS3 = {
   segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry (in 3-D with single bonds’ twist barriers since 1.25: +30% a step in a box of organic molecules, nothing in water)'], 1: ['×18–23', 'Measured in 3-D on one thread (1.25): liquid water ×18–22, the molecules in space ×18–23, hydrogen + oxygen ×18 (every pair worked out every step on the JavaScript pass, the 3-D angles and twists with them, steps 2.6 times shorter; the flat game’s WebAssembly pass is not in 3-D yet)'], 2: ['×1000+', 'Measured in 3-D on one thread (1.25): a hydronium and five waters (19 atoms) 5.7 ms a step (the flat game 7.7), steps half as long: a small world runs in slow motion'] } }),
   segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured in 3-D on one thread (1.25): nothing without metal atoms; an aluminium ball of 959 atoms ×1.8 (its own pass about 0.7 µs an atom a step); a copper ball ×0.8–1.0 (its steps go to electron-transfer estimates either way). The body-centred metals\u2019 angles (1.26): a tungsten crystal of 1,024 atoms ×1.04 over 1.25\u2019s many-body (its pass 2.5 → 8.2 ms; the step\u2019s electron-transfer estimates take the rest)'] } }),
+  segLps: () => ({ k: 'physics', o: { 0: ['×1', 'Charges at the nuclei'], 1: ['×2–2.6', 'Measured in 3-D on one thread (1.26): liquid water (1,029 atoms) ×2.1–2.6, every oxygen with two lone pairs (a JavaScript pass over the pairs with an O or N in them); nothing without such atoms'] } }), // (1.26)
+  segSigh: () => ({ k: 'physics', o: { 0: ['×1', 'Halogens charged at their nuclei'], 1: ['×1–2.7', 'Measured in 3-D on one thread (1.26): nothing without bonded chlorine, bromine or iodine; a box of 125 chloromethanes and Br₂ (515 atoms) ×2.0–2.7'] } }), // (1.26)
+  segPis: () => ({ k: 'physics', o: { 0: ['×1', 'Rings charged at their nuclei'], 1: ['×1–10', 'Measured in 3-D on one thread (1.26): nothing without aromatic rings; a box of 125 benzenes (1,500 atoms, every atom a ring atom) ×5.5–9.5 (the rings\' own dispersion and π points in JavaScript)'] } }), // (1.26)
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–3', 'Measured in 3-D on one thread (1.25): nothing without free electrons; 40 free electrons among neon atoms ×2.2 (the flat game ×2.4), six Na⁺ among twelve ×3.2 (1.24); in ionized liquid water ×1.5–2.2, its electrons caught again within a few dozen steps in 3-D'] } }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.6', 'Measured on liquid water in 3-D (1.25): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×2.7', 'Measured on liquid water in 3-D: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water in 3-D: 32 beads, the rest once'] } }
     : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×8', 'Measured on liquid water in 3-D (after 1.25): the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water in 3-D: 16 times a step'], 32: ['×29', 'Measured on liquid water in 3-D: 32 times a step'] } },
@@ -5877,6 +5888,7 @@ const REAL = {
   segMetal: ['1', 'In a real metal an atom\u2019s bonding depends on how many neighbours it has, not on a sum of pairs'], // (1.25)
   segXq: ['1', 'Closer to measured barriers (H + H\u2082, HCN to HNC, a shared proton) and to hexazine falling apart; GFN2 binds H\u2083 and holds hexazine below three N\u2082 (1.26)'],
   segXqs: ['1', 'Unpaired electrons line up as in nature: free atoms and radicals get their spin energy (breaking molecules into atoms 2.7 eV off on average with GFN1, paired 6.6), O\u2082 is a triplet (1.26)'],
+  segLps: ['1', 'An oxygen\u2019s or nitrogen\u2019s lone pairs point in set directions, so hydrogen bonds do too'], segSigh: ['1', 'A bonded halogen is positive on the tip of its bond'], segPis: ['1', 'A ring\u2019s π electrons sit above and below it'], // (1.26)
   segAtom: ['1', 'Atoms as big as they are'],
   setResBig: [true, 'Every ring system gets its resonance worked out exactly'],
   setInc: [true, 'A nucleon followed through the nucleus collision by collision, as in nature'],
@@ -5896,6 +5908,7 @@ const EXP_SET = { segWave: 'wave', segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', 
 EXP_SET.segMetal = 'metal'; // (1.25)
 EXP_SET.segXq = 'xq'; // (1.26)
 EXP_SET.segXqs = 'xqs'; // (1.26)
+EXP_SET.segLps = 'lps'; EXP_SET.segSigh = 'sigh'; EXP_SET.segPis = 'pis'; // (1.26)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -5919,6 +5932,7 @@ function expSummary() {
   if (SET.bo) on.push(SET.bo === 2 ? `quantum bonds (GFN${SET.xq === 2 ? 2 : 1}-xTB${SET.xqs ? ', polarized spins' : ''})` : 'continuous bond orders'); // (the method chosen, 1.26; its spins, 1.26)
   if (SET.wave) on.push('electrons as waves');
   if (SET.metal) on.push('many-body metals'); // (1.25)
+  if (SET.lps) on.push('lone pairs'); if (SET.sigh) on.push('halogen σ-holes'); if (SET.pis) on.push('π-stacking'); // (1.26)
   if (SET.resBig) on.push('large ring resonance');
   if (SET.inc) on.push('detailed nuclear collisions');
   if (SET.ultra) on.push('ultra-realistic');
@@ -5933,6 +5947,7 @@ function syncExpTotal() {
   names.segMetal = 'many-body metals'; // (1.25)
   names.segXq = 'GFN2-xTB'; // (1.26)
   names.segXqs = 'polarized spins'; // (1.26)
+  names.segLps = 'lone pairs'; names.segSigh = 'halogen σ-holes'; names.segPis = 'π-stacking'; // (1.26)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -6057,6 +6072,9 @@ const SDESC = {
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours (a tight-binding model fitted to each metal), so a lone pair is short and strong, an atom at a surface holds harder to each neighbour, and a vacancy costs less than the bonds it breaks. Oxygen and hydrogen atoms bond to it in the same model (1.26), fitted to measured oxides and hydrides, so a surface oxidizes in O₂; an ion near it feels its image; strongly bound alloys (Ni–Al, Cu–Au …) have constants fitted to their compounds. The body-centred metals (W, Mo, Cr, V, Nb, Ta, Fe, Na) bond with direction (1.26): how the neighbours are arranged around an atom counts too, so tungsten, molybdenum and chromium sheets take the rectangular pattern of a body-centred crystal\u2019s densest face.'], // (1.25; oxides, hydrides, ions and alloys 1.26; directional bonding 1.26)
   segXq: ['Quantum method', 'Which tight-binding quantum chemistry works out the electrons when Bond orders is Quantum. GFN1-xTB (normal) is closer to measured reaction barriers and lets hexazine fall apart; GFN2-xTB adds atomic dipoles and quadrupoles and the D4 dispersion, and is closer for breaking molecules into atoms. Both match the reference program to 10⁻¹¹ eV.'], // (1.26)
   segXqs: ['Spins', 'Paired (normal) puts two electrons, one of each spin, in every orbital, as GFN-xTB was made. Polarized gives each spin its own orbitals (spin-polarized GFN-xTB): free atoms and radicals get the energy of their unpaired electrons, O₂ is a triplet, and a bond pulled apart ends as two radicals. Breaking molecules into atoms comes out 2.7 eV off on average with GFN1 (paired 6.6), 1.6 with GFN2 (4.6).'], // (1.26)
+  segLps: ['Lone pairs', 'The 3-D lab only. There an oxygen with two single bonds or a nitrogen with three carries its partial charge on lone pairs pointing out at the tetrahedral directions, so hydrogen bonds form where they point and water makes a tetrahedral network. A flat world has no room for the directions out of its plane.'], // (1.26)
+  segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
+  segPis: ['π-stacking', 'The 3-D lab only. There an aromatic ring carries its π electrons as charge above and below it, and two rings meet with a dispersion fitted to the benzene dimer, so they stack offset or edge to face. A flat world has no above or below.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin, drawn as a faint cloud (the electron force field, eFF), instead of a point.'],
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
@@ -6091,10 +6109,13 @@ const SDESC3 = {
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours, fitted on a close-packed crystal: in the 3-D lab a crystal has its measured cohesive energy, spacing, stiffness and vacancy energy exactly (copper 3.49 eV, 2.56 Å, 137 GPa, 1.28 eV). O and H atoms bond to it in the same model (1.26): a fitted oxide or hydride crystal (Cu₂O, Al₂O₃, FeO, NaH …) has its measured heat of formation at its measured spacing; an ion near it feels its image; strongly bound alloys have constants fitted to a compound (NiAl, Cu₃Au …: Ni₃Al and CuAu then within 3%). The body-centred metals (W, Mo, Cr, V, Nb, Ta, Fe, Na) bond with direction (1.26), fitted on their body-centred cubic crystal: measured spacing and cohesive energy exactly, fcc and hcp above it (tungsten +0.47 and +0.57 eV an atom, iron +0.09 and +0.11), so they crystallize body-centred.'],
   segXq: ['Quantum method', 'Which tight-binding quantum chemistry works out the electrons when Bond orders is Quantum, with the atoms free in all three directions. GFN1-xTB (normal) is closer to measured reaction barriers and lets hexazine fall apart; GFN2-xTB adds atomic dipoles and quadrupoles and the D4 dispersion, and puts puckered hexazine 1.7 eV below three N₂.'], // (1.26)
   segXqs: ['Spins', 'Paired (normal) puts two electrons, one of each spin, in every orbital, as GFN-xTB was made. Polarized gives each spin its own orbitals (spin-polarized GFN-xTB), with the atoms free in all three directions: free atoms and radicals get the energy of their unpaired electrons, O₂ is a triplet, and a bond pulled apart ends as two radicals.'], // (1.26)
+  segLps: ['Lone pairs', 'An oxygen with two single bonds (water, alcohols, ethers) or a nitrogen with three (ammonia, amines) carries its partial charge on lone pairs at the tetrahedral directions, as the TIP5P water model does: hydrogen bonds form where the lone pairs point, and water\u2019s neighbours sit at the corners of a tetrahedron.'], // (1.26)
+  segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond, C–X···N at 180°). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
+  segPis: ['π-stacking', 'An aromatic ring carries its π electrons as charge on points above and below it, and ring atoms of two aromatic molecules meet with a dispersion fitted to the benzene dimer: rings stack offset or edge to face, as benzene does, rather than face to face.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size. The 3-D camera comes no nearer than half an ångström, so it does not zoom in to a nucleus: the picture is the flat game’s. Experimental: off again each time the game starts.'],
 };
-const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d' }; // (and every row of the 3-D tab: '3d')
+const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
 function setRowOnly(r) { const k = setRowKey(r), p = r.closest('.spane'); return SMODE_ONLY[k] || (p && p.dataset.stab === 'd3' ? '3d' : ''); }
 /* The picture for a key (and a choice) in this mode: in 3-D its 3-D version first; in the flat game never a 3-D one. */
 function setShotFor(key, opt) {
@@ -6279,6 +6300,7 @@ function settingsInit() {
   bindSeg('segMetal', (v) => setSetting('metal', +v)); // (1.25)
   bindSeg('segXq', (v) => setSetting('xq', +v)); // (1.26)
   bindSeg('segXqs', (v) => setSetting('xqs', +v)); // (1.26)
+  bindSeg('segLps', (v) => setSetting('lps', +v)); bindSeg('segSigh', (v) => setSetting('sigh', +v)); bindSeg('segPis', (v) => setSetting('pis', +v)); // (1.26)
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));

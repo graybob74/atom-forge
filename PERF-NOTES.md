@@ -982,6 +982,131 @@ numbers stay for the next try. Built in 766e38c, f28f7cf, 75c9948 (revert this c
 - Tests: none added to the suite (the parts written for it, f_126m `cp` and `cpmd`, failed on dc4d35d as they should and are in
   766e38c); f_125m and f_126m are dc4d35d's again.
 
+### 1.26: directional forces
+
+The planned entry "Directional forces" (the owner, after 1.25's nuclear work: "Add them to 1.26"), the four items of the
+task in order: lone pairs, σ-holes, π-stacking, polarizability by direction (branch v133). Physics-model changes behind
+three new Experimental switches (Settings → Experimental → Directional forces: Lone pairs, Halogen σ-holes, π-stacking),
+off by default and at every start like the rest of the tab, **for the owner's OK**. The fourth item (polarizability by
+direction) was investigated and not built: below, with numbers. Reference values are from memory (the web was refused
+from here, as in 1.25): worth checking before quoting them to the owner.
+
+- **How (src/sites.js, new)**: an off-atom charge site is a point carrying part of an atom's charge, placed from the atom
+  and its bonded neighbours. Between atoms of different molecules within the cutoff, each pair's Coulomb energy is worked
+  out between the two charge sets (the atom with what it keeps, and its sites) and replaces the pair kernel's
+  atom-to-atom one, faded back to it between RC − 1 Å and RC by a smooth step on the atoms' distance (the sums of charge
+  are kept, so the kernel's shift at the cutoff cancels and nothing jumps). Same soft Coulomb (1/√(r² + 0.09)) and
+  ion–molecule weight (K_IW) as the kernel. A molecule's own atoms keep their point charges. The site positions depend on
+  the bond vectors only, so their forces are carried back to the atom and its neighbours analytically (unit vectors,
+  cross products). Hooks in engine.js, each guarded by `SITES.any`: after the kernels in computeForces1 (`sitesForces`,
+  over the neighbour list's intermolecular pairs, main thread), localPE (`sitesLocal`, so every event books the sites),
+  totalEnergy (`sitesTotal`), pairPE (`sitesPairE`), and the induced charges' update (`sitesQeq`: the sites' share of φ
+  and the exact energy change). Switching with molecules in the box books the energy difference to the heat bath (as the
+  other Experimental models). The WebAssembly kernel and the workers are untouched (a JavaScript pass; a Rust port would
+  be the speed-up if the owner keeps it). Off: nothing runs; the 53 flat setups' and 6 3-D setups' fingerprints (300
+  steps, seed 7) are identical to cc8a0fd.
+- **Lone pairs** (3-D only: a flat world has no out-of-plane directions; dimmed "3-D only" in the flat game). An O with
+  two single bonds (water, alcohols, ethers, peroxides) puts half its partial charge (`LP_O.f` 0.5) on two lone pairs
+  0.7 Å out at the tetrahedral directions (TIP5P's geometry); an N with three single bonds (ammonia, amines) 0.4 of it
+  on one site 0.3 Å along its pyramid's axis (`LP_N`; at TIP5P-like 0.7 Å and the whole charge a hydrogen sat on the
+  site: the ammonia dimer bound 10 eV). Chosen from scans of the water dimer (d 0.3–0.7 Å, f 0.2–1, softening, a
+  dipole-keeping M site as TIP4P's) and of liquid water and ice (below). Measured:
+  | | point charges (1.25) | lone pairs | reference |
+  |---|---|---|---|
+  | water dimer: binding | 0.206 eV | 0.416 eV | 0.217 (CCSD(T)); TIP4P 0.27, TIP5P 0.29 |
+  | O–O; O–H···O; acceptor tilt | 2.89 Å; 165°; 17° | 2.77 Å; 170°; 42° | 2.91 Å; ~174°; ~57° (TIP5P 51°) |
+  | ammonia dimer | 0.081 eV, 3.17 Å | 0.133 eV, 3.09 Å | ~0.137 eV, 3.2–3.3 Å |
+  | water → ammonia (N acceptor) | 0.21 eV, 2.96 Å | 0.30 eV, 2.89 Å | ~0.27 eV, ~2.98 Å |
+  The dimer comes out about twice the real binding: a pair model made for the liquid (no polarization) binds an isolated
+  pair harder; with f 0.3 it is 0.32 eV (tilt 38°), with f 1 0.73 eV. Liquid water (343 waters, 300 K, a crude
+  Berendsen-like barostat on the molecules' centres from the energy's slope under scaling, scripts in the session's
+  scratchpad; ~2.2 ps sampled after 3 ps):
+  | | first peak | first minimum | 2nd peak | neighbours to the minimum | tetrahedral order q | density g/cm³ |
+  |---|---|---|---|---|---|---|
+  | measured | 2.80 Å (2.5–2.6) | 3.4 Å (0.8) | 4.5 Å (1.1) | 4.3–4.7 | ~0.6 | 0.997 |
+  | point charges, 6 Å | 2.98 (2.5) | 3.98 (0.77) | none | 10.1 | 0.39 | 1.09, still contracting |
+  | lone pairs f 0.3, 6 Å | 2.83 (2.7) | 3.98 (0.85) | none | 10.8 | 0.49 | 1.18, still contracting |
+  | point charges, 9 Å reach | 2.88 (3.4) | 3.48 (0.35) | 4.13 (1.7) | 6.0 | 0.64 | 1.14 |
+  | lone pairs f 0.5, 9 Å | 2.78 (3.9) | 3.18 (0.51) | 4.13 (1.7) | 4.5 | 0.69 | 1.18 |
+  | lone pairs f 0.6, 9 Å | 2.73 (4.1) | 3.18 (0.46) | 4.08 (1.7) | 4.4 | 0.70 | 1.18 |
+  Ice Ih (128 waters, protons by a directed Euler circuit so every O gives two and takes two, 0.917 g/cm³, 250 K,
+  1.6 ps, 9 Å reach): with lone pairs it keeps its crystal: O–O 2.78 Å (ice 2.76), second neighbours 4.48 (4.51), four
+  neighbours exactly, q 0.965; with point charges the second shell is crushed to 4.13 Å, q 0.79. Under the barostat the
+  lone-pair ice heated to ~400 K (the crude barostat feeds the heat) and kept four neighbours at 1.08 g/cm³.
+  What is left, and why (base-model limits the lone pairs do not change, for the owner):
+  - With the usual 6 Å reach the network is blurred by the cutoff itself: every setup's g(r) has a false peak at 6.0 Å
+    (2.5–2.8) and the structure stays close-packed with or without lone pairs: partial charges cut atom by atom at 6 Å
+    split molecules' dipoles at the cutoff sphere. The 9 Å reach (Experimental) or a cutoff by molecule (or a damped
+    shifted-force Coulomb) would fix it; the lone pairs' fade follows the kernel's atom-by-atom cutoff on purpose.
+  - Water is 14–18% too dense in 3-D with or without lone pairs (1.14–1.18 g/cm³ at 9 Å); the second peak sits at 4.1
+    Å, not 4.5. Its O–O Lennard-Jones (UFF, 3.5 Å, doubled for the flat world: LJ_SCALE 2, still on in 3-D) is in the
+    range of TIP models', so the density is the charges' and cutoff's; taking LJ_SCALE off in 3-D made it denser and
+    hotter in a first try. A density fit is a change of the water model itself, not of the lone pairs.
+  - Cost: liquid water ×2.1–2.6 a step (a JavaScript pass over the ~23,000 pairs with an O in them).
+- **Halogen σ-holes** (both modes). A Cl, Br or I with one single bond to C (or to another halogen, or F) carries a
+  positive point on its bond's axis beyond it, as force fields' "extra point" models do (OPLS-AA's X-sites, CGenFF's
+  lone pairs: distances 1.6/1.9/2.2 Å from memory), the same charge taken off the atom: Cl 0.10 e at 1.6 Å, Br 0.085 at
+  1.9, I 0.08 at 2.2, fitted on CH₃X···NH₃ (scans of q 0–0.2 e and d 1.0–2.0 Å; a softer site Coulomb, 0.5–1 Å², tried:
+  no better). Measured (kcal/mol; X···N Å, C–X···N°), point charges → σ-holes, reference (MP2/CCSD(T) values from
+  memory, ±30%):
+  | | point charges | σ-holes | reference |
+  |---|---|---|---|
+  | CH₃Cl···NH₃ | 1.17 (3.51, 163°) | 1.13 (3.28, 159°) | ~0.8–1.2, axial ~3.2 |
+  | CH₃Br···NH₃ | 1.37 (4.03, off the axis) | 1.91 (3.24, 179°) | ~1.6–2.0, ~3.1–3.2 |
+  | CH₃I···NH₃ | 1.27 (3.86) | 2.86 (3.41, 177°) | ~2.6–3.2, ~3.2–3.3 |
+  | CF₃Cl / CF₃Br / CF₃I···NH₃ | 3.6 / 3.4 / 3.7 | 6.0 / 7.1 / 8.6 (179–180°) | ~1.7–2.2 / 3.0–3.5 / 4.5–5.5 |
+  | CF₃I···OH₂ | 0.5 | 10.7 (3.22 Å) | ~2–3 |
+  | Br₂···NH₃, ICl···NH₃ | 0.4, 1.4 | 2.9 (3.39), 5.0 (3.41), 180° | ~6–7 and ~10 (strong charge transfer) |
+  The geometry is what the item asked for: with σ-holes the acceptor sits on the C–X axis (176–180°) at 3.2–3.4 Å;
+  without, off the axis or 4 Å away. CH₃X energies match; CF₃X are 2–3 times too strong already with point charges
+  (the game's C–F partial charge, 0.43 e from PARTIAL_K, about twice the real one, leaves CF₃X's carbon at +1.47);
+  Br₂ and ICl's charge-transfer complexes are a half to a third of the real binding (no charge transfer in the model).
+  Cost: a flat box of 48 halomethanes ×1.7–2.0; a 3-D box of 125 (515 atoms) ×2.0–2.7; nothing without such halogens.
+- **π-stacking** (3-D only). Every aromatic carbon puts −0.07 e on two points 0.7 Å above and below the ring (the
+  carbon +0.14), benzene's quadrupole with its C–H charges (in-plane charges alone give Θ ≈ −1.3 e·Å², measured −1.8);
+  and, needed first: ring atoms of two aromatic molecules meet with OPLS-AA's aromatic Lennard-Jones (Jorgensen &
+  Severance 1990, from memory: C σ 3.55 Å, H 2.42 Å, H ε 0.030 kcal/mol; the carbons' ε 0.070 × 1.4, fitted) instead of
+  the kernel's (UFF doubled for the flat world), faded out with the sites' step, the kernel's inner wall and core kept.
+  Benzene dimer (rigid monomers relaxed alone, scans in 0.05–0.2 Å steps; kcal/mol):
+  | | sandwich | T-shaped | parallel-displaced |
+  |---|---|---|---|
+  | point charges (1.25) | −8.59 at 3.55 Å | −4.48 at 5.25 | −8.49 at 3.5 / 0.8 |
+  | OPLS ring dispersion alone | −1.81 at 3.75 | −2.13 at 5.0 | −2.24 at 3.5 / 2.4 |
+  | π-stacking (on) | −1.95 at 3.8 | −2.84 at 5.0 | −2.77 at 3.5 / 2.6 |
+  | CCSD(T)/CBS (Sinnokrot & Sherrill, Podeszwa et al.) | −1.7 to −1.8 at 3.9 | −2.6 to −2.8 at 4.9–5.0 | −2.6 to −2.8 at 3.5–3.6 / 1.6–1.8 |
+  Left: the offset of the displaced dimer comes out 2.6 Å (CCSD(T) 1.6–1.8; that surface is flat along the offset);
+  the sandwich 0.15–0.25 kcal/mol too deep. Graphite's interlayer spacing was not measured (no 3-D graphite setup; the
+  graphene object's carbons are ring atoms, so it would follow the same OPLS carbon). Cost: a box of 125 benzenes
+  (1,500 ring atoms) ×5.5–9.5 (the ring pairs' dispersion in JavaScript over every ring–ring pair); nothing without rings.
+- **Polarizability by direction: investigated, not built** (much harder than planned). The induced charges (1.12) are a
+  charge-flow model: charge moves along bonds, so a molecule polarizes only along its bonds. Measured with the game's
+  QEq in 3-D (a 0.02 V/Å field along each principal axis, the charges iterated to self-consistency; Å³):
+  | | along | across (in plane) | out of plane | measured (from memory) |
+  |---|---|---|---|---|
+  | N₂ | 1.11 | 0 | 0 | 2.38 / 1.45 |
+  | CO₂ | 6.42 | 0 | 0 | ~4.1–4.3 / ~1.9–2.2 |
+  | benzene (in plane / out) | 166.9 | 166.9 | 0 | 12.3 / 6.4 |
+  | water | 2.39 (along the H···H line) | 0.50 | 0 | 1.53 / 1.47 / 1.42 |
+  | methane | 3.29 | 3.29 | 3.29 | 2.59 |
+  So across-bond polarizability is zero for every linear and flat molecule, and conjugated charge flow is 14 times too
+  large in benzene (the long-range charge-flow problem of QEq models). Directional tensors need induced point dipoles at
+  the atoms (or bonds), a new electrostatic term: dipole–charge and dipole–dipole energies and forces, a self-consistent
+  update between steps paid from the molecules' motion as the induced charges are, its self-energy ½μ·α⁻¹·μ in the books;
+  and the charge flow in conjugated molecules must be damped or the two would double-count. A design that fits the
+  framework: each dipole as ±1 e sites at ±μ/2 from its atom (fixed during a step: the site machinery gives its energy,
+  forces and, from the sites' offset gradients, the field −∂U/∂μ for the update), bond tensors α∥ ûû + α⊥(1 − ûû) split
+  to the two atoms, fitted additively (from memory: C–H 0.79/0.58, aromatic C–C ~2.24/0.49 so benzene comes out 12.3/6.4,
+  N≡N 2.38/1.45, C=O 2.15/1.1 from CO₂, O–H 0.79/0.71 from water). A session of its own; not started here.
+- Tests: tests/f_126d.js (t_features' "1.26 (directional)" line, or `node tests/f_126d.js [slope water sigma stack
+  books settings]`): forces the slope of the sites' energy in x, y, z (2e-9 eV/Å in 3-D with every kind of site, 3e-11
+  flat); the water and ammonia dimers above; CH₃Br···NH₃ on the axis; the benzene dimer's three shapes; the books
+  (switching books 0.0193 eV to the bath exactly; insulated, 12 molecules, 0.61 ps: −0.033 eV with every site against
+  −0.026 without, the cutoff's own small jumps, the same at half the step); the Settings rows. Fails on cc8a0fd
+  (`sitesSet` is not defined). t_settings passes; t_lint clean (no new warnings). tools/runtests.sh not run here (the
+  main session runs it after merging).
+- Text: Settings → Experimental → Directional forces (three rows, their notes with the numbers above, cost tags for both
+  modes, `SDESC`/`SDESC3`, realism tags, the Experimental total), Help → Forces, CLAUDE.md's layout (one line).
+
 ## 1.25 (in progress)
 
 Approved by the owner on 2026-11-05 (after the reports): bond orders for metals (Many-body, flat melting left as it

@@ -1841,6 +1841,7 @@ function localPE(set, skip) {
   }
   if (WAVE.n) V += waveLocal(set, skip); // (electrons as waves: the packets' share with these ions, 1.15)
   if (MBO.on) V += mbLocal(set); // (metals' many-body energy, 1.25)
+  if (SITES.any) V += sitesLocal(set, skip); // (off-atom charge sites, 1.26)
   if (_lrOn) { // exact long-range Coulomb between net charges beyond the cutoff (as in computeForces)
     for (const p of set) {
       if (p.k !== NUC || p.dead || p.fast || p.rad || !isLR(p)) continue;
@@ -2907,6 +2908,7 @@ function computeForces1() {
   const d3 = W.d3;
   if (d3) { nucleusPairs3(wrap, bw, bh, hw, hh); if (AC3.ns) tors1Forces3(S.fx, S.fy, S.fz); } // (3-D: the kernels; then the single bonds' twist, 1.25)
   else nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
+  if (SITES.any) sitesForces(S.fx, S.fy, S.fz); // (Experimental: off-atom charge sites, 1.26: sites.js)
   if (_profOn) tp = performance.now();
   if (nmdL && d3) leptonPairs3(); // (3-D)
   else if (nmdL) { // pairs with a free lepton in them, from the inner steps' list
@@ -4594,7 +4596,7 @@ function pairPE(a, b) {
   const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z), r2 = dx * dx + dy * dy + dz * dz;
   let V = 0;
   if (r2 < RC2) {
-    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom) && !(MBO.on && mbEx(a, b))) V += nucPairV(a, b, r2); } // (mbEx: many-body metals' partners, 1.26)
+    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom) && !(MBO.on && mbEx(a, b))) V += nucPairV(a, b, r2); if (SITES.any) V += sitesPairE(a, b); } // (mbEx: many-body metals' partners; off-atom charge sites, 1.26)
     else if (a.k === NUC || b.k === NUC) {
       const A = a.k === NUC ? a : b, L = A === a ? b : a, qa = A.q;
       if (qa) V += PHYS.KE * L.q * qa * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN));
@@ -8082,6 +8084,7 @@ function qeqUpdate() {
   let S0 = 0; for (const m of list) for (const p of m) S0 += qeqSelf(p);
   // φ = ∂U/∂q at each atom, from the charges as they are, plus the applied field's −E·r; then each molecule's charges
   for (let k = 0; k < np; k++) { const a = PA[k], b = PB[k], c = PC[k]; if (mark[a]) phi[a] += c * (Q[b] + QP[b]); if (mark[b]) phi[b] += c * (Q[a] + QP[a]); }
+  const sE0 = SITES.any ? sitesQeq(mark, phi) : 0; // (off-atom charge sites, 1.26: their share of φ, and of the energy before)
   const old = new Float64Array(nIn); let o = 0;
   for (const m of list) {
     let sw = 0, sp = 0; for (const p of m) { old[o++] = p.qp; const w = 1 / (QEQ.kappa * qeqHard(p)); sw += w; sp += w * phi[p.i]; }
@@ -8093,6 +8096,7 @@ function qeqUpdate() {
   // the exact change of the potential energy: the pairs' Coulomb parts and the polarization energy
   let dU = -S0; for (const m of list) for (const p of m) dU += qeqSelf(p);
   for (let k = 0; k < np; k++) { const a = PA[k], b = PB[k]; dU += PC[k] * ((Q[a] + QP[a]) * (Q[b] + QP[b]) - Q0[k]); }
+  if (SITES.any) dU += sitesQeqE() - sE0;
   // the molecules' own motion pays for it, about their centre of mass
   const VX = S.vx, VY = S.vy, VZ = S.vz, M = S.m;
   let M0 = 0, Px = 0, Py = 0, Pz = 0; for (const m of list) for (const p of m) { const i = p.i; M0 += M[i]; Px += M[i] * VX[i]; Py += M[i] * VY[i]; if (d3) Pz += M[i] * VZ[i]; }
@@ -8866,6 +8870,7 @@ function totalEnergy0() {
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
   pe += boE;
   if (MBO.on) pe += mbPass(false); // (metals' many-body energy, 1.25)
+  if (SITES.any) pe += sitesTotal(); // (off-atom charge sites, 1.26)
   if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls
