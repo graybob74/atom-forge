@@ -949,6 +949,12 @@ undone, saved and let decay through the page, and run in Node for its decay at r
   bonds off: bit for bit as before (the 59 setups' fingerprints, seed 7, 300 steps, identical; f_126x and f_126q pass).
   Check: tests/f_bug126.js (t_features' last line; alone `node tests/f_bug126.js`): `seed6` (fails on v136: one jump,
   0.32 eV), `mixture` (the 16 runs, no jump over 1 meV).
+- **Polarized is the normal Spins setting** (approved by the owner, 2026-11-05: "ok sounds good", once the spin-branch
+  books were fixed, merged 2026-11-06). Settings → Experimental → Bond orders → Quantum → Spins: "Polarized (normal)",
+  "Paired" a choice (SET_DEF.xqs 1; still back to normal at every start; a world saved with Paired says so on opening:
+  EXP_NAME.xqs "paired spins"). Quantum bonds stay off by default, so the game with default settings is bit for bit as
+  before; the Node harness's engine default (XQ.spin 0) is unchanged, so f_126x/f_126q's paired runs are as before. The
+  Speed test's line names the spins either way. Check: f_126x `page` (Polarized at start, Paired chosen and back).
 
 ### 1.26: GFN2 refit (second attempt)
 
