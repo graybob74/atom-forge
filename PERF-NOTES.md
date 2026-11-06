@@ -342,8 +342,10 @@ Waiting for the owner:
   #3 (AsCl₅) and #16 (3-D water recapture, physics).
 
 For 1.27 (not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
-portrayed and how to implement an experimental setting that makes them as realistic as possible"; physics: the owner's
-OK per part; suggested order): (1) exotic atoms as real atoms: μ⁻, π⁻, K⁻ and p̄ caught into an orbit (now a μ⁻ atom
+portrayed and how to implement an experimental setting that makes them as realistic as possible"; APPROVED, all seven
+parts, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything": each part its own Experimental
+switch, off at start; off, every setup bit for bit as before (fingerprints), energy books exact on; built after the
+3-D, exotic-particle and settings sweeps; in this order): (1) exotic atoms as real atoms: μ⁻, π⁻, K⁻ and p̄ caught into an orbit (now a μ⁻ atom
 is an overlay the tools can't touch, and π⁻/K⁻/p̄ are absorbed at once), a cascade giving off the exotic atom's X-ray
 lines (energies scaled by the reduced mass), then decay or nuclear capture at measured rates by element (muon
 lifetimes in each element, Suzuki 1987); to the outside an atom of charge Z−1 (μp acts like a neutron, muonic C like
