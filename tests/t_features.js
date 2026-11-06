@@ -959,7 +959,7 @@ const { openPage } = require('./browser');
     return out;
   });
   check(r62.r9.rc === 9 && !r62.r9.wasm && r62.r9.far > 0 && Math.abs(r62.r9.dE) < 1 && r62.r6.rc === 6 && r62.r6.wasm && r62.r6.far === 0 &&
-    /^×1 oc c0/.test(r62.tags[0]) && /c4/.test(r62.tags[1]) && /^×1\.7 oc c2/.test(r62.tags[2]) && r62.inc === 'on ×1–1.05 dim' && r62.kind === 'physics' && r62.real === "1 0.01 12 1 32 0 2 1 1 1 1 1 1 1" /* (1.26: GFN1, paired spins, lone pairs, σ-holes and π-stacking marked real too) */ && r62.find === 'Search… true' && r62.realOn === 8 /* (1.27 parts 5 and 6: resonance widths and heavy flavour, nuclear spin and γ lines; 1.27: exotic atoms' switch, realistic when on, beside resonance in large rings, detailed collisions and ultra-realistic; positronium and muonium as hydrogen, rp2) */,
+    /^×1 oc c0/.test(r62.tags[0]) && /c4/.test(r62.tags[1]) && /^×1\.7 oc c2/.test(r62.tags[2]) && r62.inc === 'on ×1–1.05 dim' && r62.kind === 'physics' && r62.real === "1 0.01 12 1 32 0 2 1 1 1 1 1 1 1" /* (1.26: GFN1, paired spins, lone pairs, σ-holes and π-stacking marked real too) */ && r62.find === 'Search… true' && r62.realOn === 9 /* (1.27 part 3: charged particles in matter; 1.27 parts 5 and 6: resonance widths and heavy flavour, nuclear spin and γ lines; 1.27: exotic atoms' switch, realistic when on, beside resonance in large rings, detailed collisions and ultra-realistic; positronium and muonium as hydrogen, rp2) */,
     `1.10: force reach 9 Å: ${r62.r9.far} pairs past 8.5 Å, energy over 300 insulated steps ${r62.r9.dE} eV (6 Å: ${r62.r6.dE}); tags ${r62.tags.map(t => t.split(' ')[0]).join(', ')}, ${r62.inc}`, '1.10 reach: ' + JSON.stringify(r62));
   // 1.09: ionized water (liquid water, 40 molecules ionized, bath off) keeps its energy: the soft-cored Coulomb energy
   // between net charges inside the cutoff now meets the exact 1/r outside it (a step of 0.037 eV for e⁻ + O⁺ at each
@@ -1783,6 +1783,7 @@ const { openPage } = require('./browser');
   await alone('f_rp1.js'); // 1.27 realistic particles 1: exotic atoms and the Settings section (node tests/f_rp1.js [--node] [part …])
   await alone('f_rp2.js'); // 1.27 realistic particles 2 and 4: positronium, muonium as hydrogen and μSR (node tests/f_rp2.js [--node] [part …])
   await alone('f_rp5.js'); // 1.27 realistic particles 5 and 6: resonance widths, heavy flavour, nuclear spin, γ lines, neutron cross sections (node tests/f_rp5.js [--node] [part …])
+  await alone('f_rp3.js'); // 1.27 realistic particles 3: charged particles in matter (node tests/f_rp3.js [--node] [part …])
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
