@@ -6194,12 +6194,19 @@ function moveRad(p, dt) {
   const beta2 = (p.sp / PHYS.C) ** 2 || 1e-6;
   const zeff = p.k === NUC ? z * (1 - Math.exp(-125 * Math.sqrt(beta2) / Math.pow(z, 2 / 3))) : 1;
   const hits = segTargets(x0, y0, x1, y1, Math.max(1.0, nucDrawR(p) + 0.9), (t) => t.k === NUC && t.Z > 0 && t !== p);
-  if (RP.cpm) cpmSeg(p, p.KE, p.k === NUC ? p.m * AMU_EV : ME_C2, p.k === NUC ? zeff : 1, p.k === ELEC ? -1 : p.k === POS ? 1 : 0, p.ux, p.uy, 0, Math.hypot(x1 - x0, y1 - y0), hits, Math.max(1.0, nucDrawR(p) + 0.9), false); // (charged particles in matter, 1.27: hep.js)
+  if (RP.cpm) cpmSeg(p, p.KE, p.k === NUC ? p.m * AMU_EV : ME_C2, p.k === NUC ? zeff : 1, p.k === ELEC ? -1 : p.k === POS ? 1 : 0, p.ux, p.uy, 0, Math.hypot(x1 - x0, y1 - y0), (x0 + x1) / 2, (y0 + y1) / 2, 0, Math.max(1.0, nucDrawR(p) + 0.9), false); // (charged particles in matter, 1.27: hep.js)
   let stopped = false, stillNear = false;
   for (const [t, tg, b] of hits) {
     if (tg.dead || sameEv(p, tg)) continue;
     const again = p.hit === tg.id; // (just met it: one pass, one encounter)
     if (again && b < nucDrawR(tg) + nucDrawR(p) + 0.4) { stillNear = true; continue; }
+    if (RP.cpm && p.k !== NUC) { // (charged particles in matter, 1.27: an e± meets the atom's electrons and its nucleus's field (bremsstrahlung) before it may cross the drawn nucleus below, hep.js cpmAtom)
+      CPM.K = p.KE;
+      const d = cpmAtom(tg, b, 0.0047 * Math.max(0, tg.ne) / beta2 / (1 + (b / 0.4) * (b / 0.4)), x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 0);
+      p.KE = CPM.K;
+      if (d > 0 && W.nucWin && (p.nucProd || p.born >= W.nucWin.t0)) for (const m of molecule(tg)) m.nucProd = true;
+      if (p.KE <= 0) break;
+    }
     // A nucleus is hit where it is drawn: inside the reach, nuclei meet (reactions above the Coulomb barrier, tunnelling
     // below it); a lepton crossing a nucleus is turned by its full charge (Mott scattering), the pass mapped onto
     // nuclear distances as in a collider. (An antinucleus in flight almost never annihilates: σ ≈ 0.1 b at MeV
@@ -6225,7 +6232,8 @@ function moveRad(p, dt) {
       if (T > 0 && W.nucWin && (p.nucProd || p.born >= W.nucWin.t0)) for (const m of molecule(tg)) m.nucProd = true; // (knocked on by what a nuclear event sent flying: a bare nucleus too, which the ionizing below passes over, 0.93)
       if (T > 0) { p.KE -= T; if (p.KE <= 1) break; }
     }
-    if (RP.cpm) { // (charged particles in matter, 1.27: Bethe's mean, straggling, δ-rays and bremsstrahlung, hep.js cpmAtom)
+    if (RP.cpm) { // (charged particles in matter, 1.27: Bethe's mean, straggling and δ-rays, hep.js cpmAtom; an e± met the atom above)
+      if (p.k !== NUC) continue;
       CPM.K = p.KE;
       const d = cpmAtom(tg, b, 0.0047 * zeff * zeff * Math.max(0, tg.ne) / beta2 / (1 + (b / 0.4) * (b / 0.4)), x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 0);
       p.KE = CPM.K;
@@ -6690,7 +6698,7 @@ function fastStop3(p, hits) {
   let K = 0.5 * p.m * v * v; const K0 = K, ux = p.vx / v, uy = p.vy / v, uz = p.vz / v;
   const beta2 = Math.max(1e-8, (v / PHYS.C) ** 2), zeff = p.Z * (1 - Math.exp(-125 * Math.sqrt(beta2) / Math.pow(p.Z, 2 / 3)));
   const cpm = RP.cpm, sl = cpm ? Math.hypot(p.x - p.ox, p.y - p.oy, p.z - p.oz) : 0; // (charged particles in matter, 1.27: hep.js)
-  if (cpm) cpmSeg(p, K, p.m * AMU_EV, zeff, 0, ux, uy, uz, sl, hits, Math.max(1.6, nucDrawR(p) + 0.9), true);
+  if (cpm) cpmSeg(p, K, p.m * AMU_EV, zeff, 0, ux, uy, uz, sl, (p.ox + p.x) / 2, (p.oy + p.y) / 2, (p.oz + p.z) / 2, Math.max(1.6, nucDrawR(p) + 0.9), true);
   for (const [t, tg, b] of hits) {
     if (tg.dead || tg.ne <= 0 || tg.fast || sameEv(p, tg)) continue; // (another atom in flight: not ionized here; its electrons' energy is measured against the stepped world, 1.25)
     if (cpm) {
@@ -7818,7 +7826,7 @@ function moveFastLeptons3(Dt, id0) {
       const ux = p.vx / v, uy = p.vy / v, uz = p.vz / v, beta2 = Math.max(1e-8, (vr / PHYS.C) ** 2);
       let Ke = K0;
       const cpm = RP.cpm, hs = segTargets3(x0, y0, z0, p.x, p.y, p.z, 1.0, (t) => t.k === NUC && t.Z > 0 && (t.ne > 0 || cpm) && !t.fast).slice(), sl = cpm ? Math.hypot(p.x - x0, p.y - y0, p.z - z0) : 0; // (charged particles in matter, 1.27: bare nuclei too, for bremsstrahlung; hep.js)
-      if (cpm) cpmSeg(p, Ke, ME_C2, 1, p.k === POS ? 1 : -1, ux, uy, uz, sl, hs, 1.0, true);
+      if (cpm) cpmSeg(p, Ke, ME_C2, 1, p.k === POS ? 1 : -1, ux, uy, uz, sl, (x0 + p.x) / 2, (y0 + p.y) / 2, (z0 + p.z) / 2, 1.0, true);
       for (const [t, tg, b] of hs) {
         if (cpm) { if (tg.dead) continue; CPM.K = Ke; cpmAtom(tg, b, 0.0047 * Math.max(0, tg.ne) / beta2 / (1 + (b / 0.4) * (b / 0.4)), x0 + (p.x - x0) * t, y0 + (p.y - y0) * t, z0 + (p.z - z0) * t); Ke = CPM.K; if (Ke <= 1) break; continue; }
         if (tg.dead || tg.ne <= 0) continue;

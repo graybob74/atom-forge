@@ -91,7 +91,7 @@ PARTS.delta = async (page, check) => {
     const A = X.addAtom('O', 0, 0); A.vx = A.vy = 0; globalThis.__dl = []; globalThis.__da = [];
     let Tmax = 0, eKE = 0, eN = 0;
     for (let i = 0; i < 3000; i++) {
-      X.cpmSeg({}, K, mc2, z, e, 1, 0, 0, 10, [[0.5, A, 0.3]], 1.0, false); Tmax = X.CPM.Tmax;
+      X.cpmSeg({}, K, mc2, z, e, 1, 0, 0, 10, 0, 0, 0, 1.0, false); Tmax = X.CPM.Tmax;
       const n0 = W.parts.length; X.cpmAtom(A, 0.3, 2000, 0, 0, 0);
       for (let j = n0; j < W.parts.length; j++) { const q = W.parts[j]; if (q.k === X.ELEC) { eKE = Math.max(eKE, q.rad ? q.KE : 0.5 * q.m * (q.vx * q.vx + q.vy * q.vy)); eN++; } X.kill(q); }
       W.parts = W.parts.filter(q => !q.dead); A.ne = 8; X.refresh(A); A.vx = A.vy = 0;
@@ -113,6 +113,166 @@ PARTS.delta = async (page, check) => {
   const okp = (v, frac) => v.n > 20000 && v.max <= v.Tmax && v.max > frac * v.Tmax && Math.abs(v.top / v.topLaw - 1) < 0.2 && Math.abs(v.mean / v.meanLaw - 1) < 0.15 && v.eKE < v.Tmax && v.ang < 2e-3;
   const ok = okp(r.p, 0.5) && okp(r.e, 0.3) && r.water.maxE < 2740 && r.water.over500 > 0;
   check(ok, `1.27 δ-rays: 100 MeV protons' close collisions up to ${r.p.max} eV (T_max ${r.p.Tmax}), 1 MeV electrons' up to ${r.e.max} (T/2), with the 1/T² spectrum (share above T_max/100 ${r.p.top} against ${r.p.topLaw}; mean ${r.p.mean} against ${r.p.meanLaw} eV) and the δ-ray's angle; 5 MeV α in water set ${r.water.over500} electrons over 500 eV free, the fastest ${r.water.maxE} eV (T_max 2,740)`, 'rp3 delta: ' + JSON.stringify(r));
+};
+
+/* Cherenkov light: with the rare processes sped up 10⁴× (RP.cpmX, as decay speed-up), a 1 GeV electron in the flat game's
+   water gives photons on the cone cos θ = 1/βn (41.4°), at the Frank–Tamm number 369.8 (1 − 1/β²n²) per eV per cm over
+   300–600 nm; a 300 keV electron (β 0.78) at 14.8°; a 3 GeV proton (β 0.97) at 39.4°; in silica glass at 46.7°; none
+   below threshold (β < 1/n: electrons of 150 keV, protons of 300 MeV), none in lead or in a sparse vapour. In 3-D the
+   same cone in water. */
+const PATCH_CK = (s) => s.replace("    C.K -= k; W.count.cpmCkv = (W.count.cpmCkv || 0) + 1;", "    if (globalThis.__ck) globalThis.__ck.push([u[0] * C.ux + u[1] * C.uy + u[2] * C.uz, k]);\n    C.K -= k; W.count.cpmCkv = (W.count.cpmCkv || 0) + 1;");
+const ckRun = (setup, kind, KE, n, d3) => {
+  const X = load('all', { seed: 5, patch: PATCH_CK }), W = X.W; X.RP.cpm = true; X.RP.cpmX = 1e4;
+  if (typeof setup === 'string') X.PRESETS[setup].build(); else { fresh(X, d3); setup(X); }
+  W.T = 0; W.gamma = 0; X.forcesNoEvents(); W.fSpawn = W.spawned;
+  const hw = W.box.w / 2, hh = W.box.h / 2, hd = d3 ? W.box.d / 2 : 0; globalThis.__ck = []; let L = 0;
+  const x1 = setup === 'water' || setup === 'water3d' ? hw * 0.85 : 14, x0 = -x1, ys = setup === 'water' || setup === 'water3d' ? hh * 0.8 : 8;
+  for (let k = 0; k < n; k++) {
+    const y = (X.rnd() - 0.5) * ys, z = d3 ? (X.rnd() - 0.5) * hd : 0;
+    const p = kind === 'p' ? X.addNuc(1, 0, 0, x0, y, 0, 0, false, z) : X.addLepton(X.ELEC, x0, y, 0, 0, z, 0); X.setMotion(p, KE, 1, 0, 0, 0, 0);
+    const xs = p.x; fly(X, p, x1); L += p.x - xs; if (!p.dead) X.kill(p);
+  }
+  const c = globalThis.__ck; globalThis.__ck = null;
+  return { n: c.length, cos: c.length ? +(c.reduce((a, v) => a + v[0], 0) / c.length).toFixed(4) : null, spread: c.length ? +(Math.max(...c.map(v => v[0])) - Math.min(...c.map(v => v[0]))).toFixed(6) : 0, perA: c.length / L, eMin: c.length ? Math.min(...c.map(v => v[1])) : 0, eMax: c.length ? Math.max(...c.map(v => v[1])) : 0 };
+};
+const glass = (X) => { for (let x = -16; x <= 16; x += 5) for (let y = -10; y <= 10; y += 3.5) { const S = X.addAtom('Si', x, y), O1 = X.addAtom('O', x - 1.55, y), O2 = X.addAtom('O', x + 1.55, y); X.addBond(S, O1, 2); X.addBond(S, O2, 2); for (const q of [S, O1, O2]) { q.vx = q.vy = 0; } } };
+const vapour = (X) => { for (let x = -16; x <= 16; x += 8) for (let y = -10; y <= 10; y += 8) X.addMolecule('H2O', x, y); }; // (a dense vapour: 8 Å apart, a fifth of the liquid's density)
+PARTS.ckv = async (page, check) => {
+  const r = {}, ft = (b, n) => 1e4 * 369.81 * (1 - 1 / (b * b * n * n)) * (1239.84 / 300 - 1239.84 / 600) * 1e-8, beta = (K, m) => Math.sqrt(1 - 1 / (1 + K / m) ** 2);
+  r.w = ckRun('water', 'e', 1e9, 100); r.w.ft = ft(1, 1.333);
+  r.e300 = ckRun('water', 'e', 3e5, 100); r.p3 = ckRun('water', 'p', 3e9, 60);
+  r.e150 = ckRun('water', 'e', 1.5e5, 60).n; r.p300 = ckRun('water', 'p', 3e8, 60).n;
+  r.g = ckRun(glass, 'e', 1e9, 100);
+  r.pb = ckRun((X) => lattice(X, 'Pb', 3.45, 16, 10), 'e', 1e9, 60).n; r.vap = ckRun(vapour, 'e', 1e9, 60).n;
+  r.w3 = ckRun('water3d', 'e', 1e9, 60, true);
+  const th = (c) => +(Math.acos(c) * 180 / Math.PI).toFixed(2), want = (b, n) => +(Math.acos(1 / (b * n)) * 180 / Math.PI).toFixed(2);
+  r.ang = { w: [th(r.w.cos), want(1, 1.333)], e300: [th(r.e300.cos), want(beta(3e5, ME), 1.333)], p3: [th(r.p3.cos), want(beta(3e9, 938.272e6), 1.333)], g: [th(r.g.cos), want(1, 1.458)], w3: [th(r.w3.cos), want(1, 1.333)] };
+  const close = (a) => Math.abs(a[0] - a[1]) < 0.3; // (a 300 keV electron slows as it goes, its cone narrowing)
+  const ok = Object.values(r.ang).every(close) && r.w.n > 60 && Math.abs(r.w.perA / r.w.ft - 1) < 0.3 && r.w.spread < 1e-3 && r.e300.n > 3 && r.p3.n > 10 && r.g.n > 20 && r.w3.n > 30 && r.w3.spread < 1e-6
+    && r.e150 === 0 && r.p300 === 0 && r.pb === 0 && r.vap === 0 && r.w.eMin >= 1239.84 / 600 && r.w.eMax <= 1239.84 / 300;
+  check(ok, `1.27 Cherenkov light: in water a 1 GeV electron's photons at ${r.ang.w[0]}° (cos θ = 1/βn: ${r.ang.w[1]}°), ${(r.w.perA / 1e4 * 1e8).toFixed(0)} a cm (Frank–Tamm ${(r.w.ft / 1e4 * 1e8).toFixed(0)}, 300–600 nm), 300 keV electrons ${r.ang.e300[0]}° (${r.ang.e300[1]}), 3 GeV protons ${r.ang.p3[0]}° (${r.ang.p3[1]}); silica glass ${r.ang.g[0]}° (${r.ang.g[1]}); 3-D water ${r.ang.w3[0]}°; none below threshold (150 keV e⁻, 300 MeV p), in lead or in vapour`, 'rp3 ckv: ' + JSON.stringify(r));
+};
+
+/* Bremsstrahlung: 1 GeV electrons through a flat lattice of lead (3.45 Å apart: 0.084 atoms/Å², real lead's density in
+   the flat game's measure) and through the flat game's water, with the rare processes sped up (RP.cpmX): the number
+   of photons per length (their spectrum's integral over 1/X₀) gives the radiation length, in g/cm² at the density the lattice stands for: lead 6.37, water
+   36.08 (PDG); the photons' spectrum is (4/3 − 4/3 y + y²)/k (y = k/E: 36.5%, 35.3% and 28.2% of them in the three
+   decades from 10⁻³ to 1); the critical energy (Rossi: the collision loss over a radiation length equals E) from the
+   same functions: water 78.3 MeV, lead 7.43 MeV (PDG) within 10%. */
+const PATCH_BR = (s) => s.replace("  C.K -= k; W.count.cpmBrems = (W.count.cpmBrems || 0) + 1;", "  if (globalThis.__br) globalThis.__br.push(k / E);\n  C.K -= k; W.count.cpmBrems = (W.count.cpmBrems || 0) + 1;");
+PARTS.brems = async (page, check) => {
+  const r = {};
+  for (const [lab, X0pdg, cx] of [['Pb', 6.37, 3e5], ['water', 36.08, 1e7]]) {
+    const X = load('all', { seed: 8, patch: PATCH_BR }), W = X.W; X.RP.cpm = true; X.RP.cpmX = cx;
+    let hx = 14, hy = 10;
+    if (lab === 'Pb') { fresh(X, false); lattice(X, 'Pb', 3.45, hx, hy); } else { X.PRESETS.water.build(); W.T = 0; W.gamma = 0; hx = W.box.w / 2 * 0.85; hy = W.box.h / 2 * 0.85; }
+    X.forcesNoEvents(); globalThis.__br = []; let L = 0;
+    const A = [...W.parts].filter(p => p.k === X.NUC);
+    const rho = (lab === 'Pb' ? 207.2 / (3.45 * 3.45) : 18.015 / (3.4 * 3.4)) / 2.545 * 1e24 / 6.02214076e23; // (g/cm³: the lattice's (the water setup's molecules are 3.4 Å apart) flat measure over CPM_LAM)
+    for (let k = 0; k < 600; k++) {
+      const y = (X.rnd() - 0.5) * 1.4 * hy, p = X.addLepton(X.ELEC, -hx, y, 0, 0, 0, 0); X.setMotion(p, 1e9, 1, 0, 0, 0, 0);
+      fly(X, p, hx); L += Math.min(p.x, hx) + hx; if (!p.dead) X.kill(p);
+      for (const q of W.parts) if (q.k !== X.NUC) X.kill(q); W.parts = W.parts.filter(q => !q.dead);
+      for (const q of A) if (q.ne !== q.Z) { q.ne = q.Z; X.refresh(q); }
+    }
+    const ys = globalThis.__br, y1 = 1e9 / (1e9 + ME), y0 = 1e-3 * y1, F = 4 / 3 * Math.log(y1 / y0) - 4 / 3 * (y1 - y0) + (y1 * y1 - y0 * y0) / 2, X0 = cx * L * F / ys.length * 1e-8 * rho, dec = [0, 0, 0]; // (from the number of photons: the spectrum's integral F over the count, ±1/√N)
+    for (const v of ys) { const i = Math.floor(Math.log10(v) + 3); if (i >= 0 && i < 3) dec[i]++; }
+    r[lab] = { n: ys.length, X0: +X0.toFixed(2), X0pdg, rho: +rho.toFixed(2), dec: dec.map(v => +(v / ys.length).toFixed(3)) };
+    globalThis.__br = null;
+  }
+  { // the critical energy from the functions the game uses (Bethe for electrons with the density effect; 1/X₀ with the low-energy factor)
+    const X = load('all', { seed: 1 }), C = X.CPM;
+    const ec = (ne3, atoms, I) => { for (let E = 1e6; E < 1e9; E *= 1.002) { C.K = E; C.mc2 = ME; C.e = -1; const g = 1 + E / ME; C.g = g; C.b2 = 1 - 1 / g / g; C.bg = Math.sqrt(C.b2) * g; C.Tmax = E / 2; C.rho = ne3; let inv = 0; for (const [Z, n] of atoms) inv += n * X.cpmSigX(Z, Z); if (X.CPM_K * ne3 * X.cpmL(I) / C.b2 / inv < E) return E / 1e6; } };
+    const nPb = 11.35 / 207.2 * 0.602214;
+    r.ec = { water: +ec(0.3343, [[8, 0.03343], [1, 0.06686]], 75).toFixed(1), lead: +ec(82 * nPb, [[82, nPb]], 823).toFixed(2) };
+  }
+  const law = [3.058, 2.955, 2.365].map(v => v / 8.378), okd = (d) => d.every((v, i) => Math.abs(v - law[i]) < 0.07);
+  const ok = r.Pb.n > 200 && r.water.n > 200 && Math.abs(r.Pb.X0 / 6.37 - 1) < 0.15 && Math.abs(r.water.X0 / 36.08 - 1) < 0.15 && okd(r.Pb.dec) && okd(r.water.dec) && Math.abs(r.ec.water / 78.33 - 1) < 0.1 && Math.abs(r.ec.lead / 7.43 - 1) < 0.1;
+  check(ok, `1.27 bremsstrahlung: 1 GeV electrons radiate as a radiation length of ${r.Pb.X0} g/cm² in lead (PDG 6.37) and ${r.water.X0} in water (36.08), ${r.Pb.n} and ${r.water.n} photons with the 1/k spectrum (by decade of k/E ${r.Pb.dec.join(' ')}; Tsai ${law.map(v => v.toFixed(3)).join(' ')}); the critical energy ${r.ec.water} MeV in water (78.33), ${r.ec.lead} MeV in lead (7.43)`, 'rp3 brems: ' + JSON.stringify(r));
+};
+
+/* Pair production: none below 1.022 MeV (2,000 γ rays of 1.0 MeV at a lead atom), some at 2 MeV; at 10 MeV a lead atom
+   makes pairs 89 times as often as a water molecule (the cross sections: Bethe–Heitler with screening and the Coulomb
+   correction, plus the triplet; XCOM as I remember it about 90, Z² alone 102), with Compton scattering beside it at
+   the Klein–Nishina rate; the pair flies forward and shares the energy unequally (Bethe–Heitler), and gets exactly
+   E − 2mₑc² (flat and 3-D, with the triplet's electron and its binding). */
+PARTS.pair = async (page, check) => {
+  const r = {};
+  { const X = load('all', { seed: 3 }), W = X.W; fresh(X, false); X.RP.cpm = true; const A = X.addAtom('Pb', 0, 0); X.forcesNoEvents();
+    const cnt = (E, n) => { let c = 0; for (let i = 0; i < n; i++) { const n0 = W.parts.length; X.emitPhoton(-5, 0, E, 1, 0); if (W.parts.slice(n0).some(p => p.k === X.POS)) c++; for (const p of W.parts.slice(n0)) X.kill(p); W.parts = W.parts.filter(p => !p.dead); A.ne = 82; X.refresh(A); A.vx = A.vy = 0; } return c; };
+    r.below = cnt(1.0e6, 2000) + cnt(1.02e6, 2000); r.at2 = cnt(2e6, 2000); }
+  { const X = load('all', { seed: 4 }), W = X.W; fresh(X, false); X.RP.cpm = true; const at = { Pb: X.addAtom('Pb', 0, 0), O: X.addAtom('O', 10, 0), H: X.addAtom('H', -10, 0) };
+    const f = {}, fc = {}; for (const [k, a] of Object.entries(at)) { const n = k === 'Pb' ? 20000 : 300000; let c = 0, cc = 0; for (let i = 0; i < n; i++) { const v = X.cpmGamma(a, 1e7); if (v === 1 || v === 2) c++; else if (v === 3) cc++; } f[k] = c / n; fc[k] = cc / n; }
+    const sPb = X.cpmPairSig(82, 82, 1e7), sO = X.cpmPairSig(8, 8, 1e7), sH = X.cpmPairSig(1, 1, 1e7);
+    r.ratio = +(f.Pb / (f.O + 2 * f.H)).toFixed(1); r.sigRatio = +((sPb[0] + sPb[1]) / (sO[0] + sO[1] + 2 * (sH[0] + sH[1]))).toFixed(1);
+    r.barn = { Pb: +((sPb[0] + sPb[1]) * 1e8).toFixed(2), water: +((sO[0] + sO[1] + 2 * (sH[0] + sH[1])) * 1e8).toFixed(3) };
+    r.compton = +(fc.O / (1 - f.O) / (0.012 * 8 * X.cpmKN(1e7) / X.cpmKN(1e6))).toFixed(3); }
+  for (const d3 of [false, true]) {
+    const X = load('all', { seed: 2 }), W = X.W; fresh(X, d3); X.RP.cpm = true;
+    const A = X.addAtom('Pb', 0, 0, 0); A.vx = A.vy = 0; if (d3) A.vz = 0; X.forcesNoEvents();
+    let n = 0, worst = 0, fw = 0, uneq = 0, trip = 0; const E = 1e7, th = [];
+    for (let i = 0; i < 400; i++) {
+      const b0 = books(X), n0 = W.parts.length;
+      X.emitPhoton(-5, (X.rnd() - 0.5) * 0.4, E, 1, 0, d3 ? { z: 0, uz: 0 } : undefined);
+      const made = W.parts.slice(n0), ps = made.find(p => p.k === X.POS);
+      if (ps) {
+        n++; worst = Math.max(worst, Math.abs(books(X) - b0 - E)); if (made.filter(p => p.k === X.ELEC).length > 1) trip++;
+        const e = made.find(p => p.k === X.ELEC), K = (p) => p.rad ? p.KE : 0.5 * p.m * (p.vx ** 2 + p.vy ** 2 + (p.vz || 0) ** 2), ux = (p) => p.rad ? p.ux : p.vx / Math.hypot(p.vx, p.vy, p.vz || 0);
+        th.push(Math.acos(Math.min(1, ux(ps)))); if (Math.abs(K(e) - K(ps)) > 0.2 * (E - 2 * ME)) uneq++;
+      }
+      for (const p of made) X.kill(p); W.parts = W.parts.filter(p => !p.dead); A.ne = 82; X.refresh(A); A.vx = A.vy = 0; if (d3) A.vz = 0; X.forcesNoEvents();
+    }
+    for (let i = 0; i < 20; i++) { // (the triplet, made directly: 0.2% of lead's pairs at 10 MeV)
+      const b0 = books(X), n0 = W.parts.length; X.cpmPair(A, 5e7, 1, 0, 0, true);
+      if (W.parts.slice(n0).filter(p => p.k === X.ELEC).length === 2) trip++;
+      worst = Math.max(worst, Math.abs(books(X) - b0 - 5e7));
+      for (const p of W.parts.slice(n0)) X.kill(p); W.parts = W.parts.filter(p => !p.dead); A.ne = 82; X.refresh(A); A.vx = A.vy = 0; if (d3) A.vz = 0; X.forcesNoEvents();
+    }
+    th.sort((a, b) => a - b);
+    r[d3 ? 'd3' : 'flat'] = { n, books: +worst.toExponential(1), thMed: +th[th.length >> 1].toFixed(3), uneq: +(uneq / n).toFixed(2), trip };
+  }
+  const okk = (v) => v.n > 150 && v.trip >= 15 && v.books < 1e-5 && v.thMed < 0.25 && v.uneq > 0.3;
+  const ok = r.below === 0 && r.at2 > 0 && Math.abs(r.ratio / r.sigRatio - 1) < 0.1 && r.sigRatio > 80 && r.sigRatio < 100 && Math.abs(r.compton - 1) < 0.1 && okk(r.flat) && okk(r.d3);
+  check(ok, `1.27 pair production: none of 4,000 γ rays under 1.022 MeV at lead, ${r.at2} of 2,000 at 2 MeV; at 10 MeV lead (${r.barn.Pb} b) against water (${r.barn.water} b) ${r.ratio}× (cross sections ${r.sigRatio}×), Compton at Klein–Nishina's rate (${r.compton}); the pair forward (median ${r.flat.thMed} rad flat, ${r.d3.thMed} in 3-D), shared unequally (${r.flat.uneq} of pairs more than 20% apart), books to ${Math.max(r.flat.books, r.d3.books)} eV (triplets ${r.flat.trip}, ${r.d3.trip})`, 'rp3 pair: ' + JSON.stringify(r));
+};
+
+/* The books: the fast particles moved through matter one 0.2 Å tick at a time, the rest of the world held between whole
+   steps (so that the energy is measured where it is exact), with δ-rays, bremsstrahlung, pairs (the showers' further
+   pairs too) and Cherenkov light: 1 GeV electrons into lead (the rare processes sped up 10⁶×), 1 GeV electrons, 5 MeV α
+   and 500 MeV muons into water (10⁴×). In 3-D every tick (moveFastLeptons3, fastEncounters3 for the α, exoIonize3)
+   keeps the total energy exactly. In the flat game each event of this part keeps it exactly (the energy an atom takes,
+   with its δ-rays and photons, against what the particle lost; each pair; each Cherenkov photon), less what the flat
+   game's ejectElectron itself misses beside ions and electrons in a crowded, ionized lattice, which it misses the same
+   way with the switch off (PERF-NOTES: found, not changed; its worst here is reported). */
+const PATCH_BK = (s) => s.replace('function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {', 'function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) { const G = globalThis.__bk; if (!G || budget !== undefined) return ejectElectron0(p, KE, ux, uy, budget, tunnel, uz); const ie = ionizationCost(p), b0 = totalEnergy().total - W.ledger.nuc; const r = ejectElectron0(p, KE, ux, uy, budget, tunnel, uz); if (r) { const d = totalEnergy().total - W.ledger.nuc - b0 - KE - ie; G.ej += d; G.ejW = Math.max(G.ejW, Math.abs(d)); } return r; }\nfunction ejectElectron0(p, KE, ux, uy, budget, tunnel, uz = 0) {').replace('function cpmAtom(tg, b, dEg, x, y, z) {', 'function cpmAtom(tg, b, dEg, x, y, z) { const G = globalThis.__bk; if (!G) return cpmAtom0(tg, b, dEg, x, y, z); const b0 = totalEnergy().total - W.ledger.nuc, K0 = CPM.K, e0 = G.ej; const r = cpmAtom0(tg, b, dEg, x, y, z); if (r > 0) { G.n++; G.worst = Math.max(G.worst, Math.abs(totalEnergy().total - W.ledger.nuc - b0 - (K0 - CPM.K) - (G.ej - e0))); } return r; }\nfunction cpmAtom0(tg, b, dEg, x, y, z) {')
+  .replace('function cpmCkv(x0, y0, z0, len) {', 'function cpmCkv(x0, y0, z0, len) { const G = globalThis.__bk; if (!G) return cpmCkv0(x0, y0, z0, len); const b0 = totalEnergy().total - W.ledger.nuc, K0 = CPM.K, e0 = G.ej; const r = cpmCkv0(x0, y0, z0, len); if (r > 0) { G.n++; G.worst = Math.max(G.worst, Math.abs(totalEnergy().total - W.ledger.nuc - b0 - (K0 - CPM.K) - (G.ej - e0))); } return r; }\nfunction cpmCkv0(x0, y0, z0, len) {')
+  .replace('function cpmPair(p, E, ux, uy, uz, trip) {', 'function cpmPair(p, E, ux, uy, uz, trip) { const G = globalThis.__bk; if (!G) return cpmPair0(p, E, ux, uy, uz, trip); const b0 = totalEnergy().total - W.ledger.nuc, e0 = G.ej; const r = cpmPair0(p, E, ux, uy, uz, trip); G.n++; G.worst = Math.max(G.worst, Math.abs(totalEnergy().total - W.ledger.nuc - b0 - E - (G.ej - e0))); return r; }\nfunction cpmPair0(p, E, ux, uy, uz, trip) {');
+PARTS.books = async (page, check) => {
+  const r = {};
+  for (const d3 of [false, true]) for (const mat of ['Pb', 'water']) {
+    const X = load('all', { seed: 3, patch: d3 ? undefined : PATCH_BK }), W = X.W; X.RP.cpm = true; X.RP.cpmX = mat === 'Pb' ? 1e6 : 1e4;
+    if (mat === 'Pb') { fresh(X, d3); lattice(X, 'Pb', 3.45, 12, 9, d3 ? 6 : 0); } else { X.PRESETS[d3 ? 'water3d' : 'water'].build(); W.T = 0; W.gamma = 0; W.decayOn = false; }
+    X.forcesNoEvents(); W.fSpawn = W.spawned;
+    const hw = W.box.w / 2, hh = W.box.h / 2, hd = d3 ? W.box.d / 2 : 0;
+    for (let k = 0; k < 8; k++) { const e = X.addLepton(X.ELEC, -hw + 1, (X.rnd() - 0.5) * hh, 0, 0, d3 ? (X.rnd() - 0.5) * hd : 0, 0); const u = d3 ? [0.98, 0.15, 0.13] : [0.98, 0.15, 0], ul = Math.hypot(...u); X.setMotion(e, 1e9, u[0] / ul, u[1] / ul, 0, 0, u[2] / ul); } // (slanted: not along the lattice's rows)
+    if (mat === 'water') for (let k = 0; k < 4; k++) { const a = X.addNuc(2, 2, 0, -hw + 1, (X.rnd() - 0.5) * hh, 0, 0, false, d3 ? (X.rnd() - 0.5) * hd : 0); X.setMotion(a, 5e6, 0.995, 0.0999, 0, 0, 0); X.addExo('mu-', -hw + 1, (X.rnd() - 0.5) * hh, 5e8, 0.995, 0.0999, undefined, d3 ? (X.rnd() - 0.5) * hd : 0, 0); }
+    const C = () => (W.count.cpmBrems || 0) + (W.count.cpmPair || 0) + (W.count.cpmDelta || 0) + (W.count.cpmCkv || 0);
+    let ev = 0, worst = 0, ejW = 0; globalThis.__bk = d3 ? null : { n: 0, worst: 0, ej: 0, ejW: 0 };
+    for (let tick = 0; tick < 300; tick++) {
+      const b0 = books(X), c0 = C();
+      if (d3) {
+        X.moveFastLeptons3(0.2 / X.PHYS.C, Infinity);
+        for (const p of W.parts.slice()) if (!p.dead && p.k === X.NUC && p.Z === 2 && p.N === 2 && p.fast) { const v = Math.hypot(p.vx, p.vy, p.vz); if (!(v > 0)) continue; p.ox = p.x; p.oy = p.y; p.oz = p.z; p.x += 0.2 * p.vx / v; p.y += 0.2 * p.vy / v; p.z += 0.2 * p.vz / v; X.fastEncounters3(p); }
+      } else for (const p of W.parts.slice()) if (!p.dead && p.rad) X.moveRad(p, 0.2 / p.sp);
+      for (const o of W.exo.slice()) if (!o.dead && o.q && o.v > 0) { const x0 = o.x, y0 = o.y, z0 = o.z || 0, h = 0.2; o.x += o.ux * h; o.y += o.uy * h; if (d3) { o.z += o.uz * h; X.exoIonize3(o, x0, y0, z0); } else X.exoIonize(o, x0, y0); }
+      const c1 = C(); if (c1 > c0) { ev += c1 - c0; if (d3) worst = Math.max(worst, Math.abs(books(X) - b0)); }
+    }
+    if (!d3) { ev = Math.min(ev, globalThis.__bk.n); worst = globalThis.__bk.worst; ejW = globalThis.__bk.ejW; }
+    globalThis.__bk = null;
+    r[(d3 ? '3' : '') + mat] = { ev, worst: +worst.toExponential(1), ejW: +ejW.toFixed(2), brems: W.count.cpmBrems || 0, pairs: W.count.cpmPair || 0, delta: W.count.cpmDelta || 0, ckv: W.count.cpmCkv || 0 };
+  }
+  const ok = Object.values(r).every(v => v.ev > 20 && v.worst < 1e-3) && r.Pb.brems > 5 && r.Pb.pairs > 0 && r['3Pb'].brems > 5 && r['3Pb'].pairs > 0 && r.water.ckv > 0 && r['3water'].ckv > 0 && r.water.delta > 0 && r['3water'].delta > 0;
+  check(ok, `1.27 charged particles in matter: the books exact with δ-rays, bremsstrahlung, pairs and Cherenkov light (worst ${Math.max(...Object.values(r).map(v => v.worst)).toExponential(0)} eV; flat lead ${r.Pb.brems} photons, ${r.Pb.pairs} pairs; 3-D lead ${r['3Pb'].brems}, ${r['3Pb'].pairs}; water flat and 3-D ${r.water.delta} and ${r['3water'].delta} δ-rays, ${r.water.ckv} and ${r['3water'].ckv} Cherenkov photons; the flat ejectElectron's own residue beside ions, as off, up to ${Math.max(r.Pb.ejW, r.water.ejW)} eV)`, 'rp3 books: ' + JSON.stringify(r));
 };
 
 module.exports = async function frp3(page, check, say, openPage, only) {

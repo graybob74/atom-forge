@@ -868,7 +868,7 @@ function exoIonize(o, x0, y0) {
   const hits = segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && t.Z > 0 && t.ne > 0);
   let lost = 0;
   const cpm = RP.cpm, sl = cpm ? Math.hypot(o.x - x0, o.y - y0) : 0; // (charged particles in matter, 1.27)
-  if (cpm) cpmSeg(o, o.KE, o.m * MEV, Math.abs(o.q), 0, o.ux, o.uy, 0, sl, hits, 1.0, false);
+  if (cpm) cpmSeg(o, o.KE, o.m * MEV, Math.abs(o.q), 0, o.ux, o.uy, 0, sl, (x0 + o.x) / 2, (y0 + o.y) / 2, 0, 1.0, false);
   for (const [t, tg, b] of hits) {
     if (tg.dead || tg.ne <= 0) continue;
     if (cpm) { CPM.K = o.KE; lost += cpmAtom(tg, b, 0.0047 * z2 * tg.ne / beta2 / (1 + (b / 0.4) * (b / 0.4)), x0 + (o.x - x0) * t, y0 + (o.y - y0) * t, 0); o.KE = CPM.K; if (W.nucWin) for (const m of molecule(tg)) m.nucProd = true; if (o.KE <= 1) break; continue; }
@@ -1631,29 +1631,37 @@ function cpmPairSig(Z, ne, E) {
 }
 /* The projectile of the path being worked (set by cpmSeg, read by cpmAtom). */
 const CPM = { K: 0, mc2: 0, z: 1, e: 0, b2: 0, bg: 0, g: 1, Tmax: 0, Lg: 1, A: 1, rho: 0, ux: 1, uy: 0, uz: 0, d3: false, n: 0 };
-/* The path (x0 → x1) of a particle of kinetic energy K, rest energy mc2 (eV), charge z, e = −1 an electron, +1 a positron,
-   0 heavy, along (ux, uy, uz), through the atoms `hits` within R of it ([t, atom, b]). It keeps (on `o`) the electron
-   density along its last ~20 Å (the density effect's, and the Cherenkov medium's). */
-function cpmSeg(o, K, mc2, z, e, ux, uy, uz, len, hits, R, d3) {
+/* The path of a particle of kinetic energy K, rest energy mc2 (eV), charge z, e = −1 an electron, +1 a positron, 0 heavy,
+   along (ux, uy, uz), its length len and its middle (xm, ym, zm); R the reach within which it meets atoms. */
+function cpmSeg(o, K, mc2, z, e, ux, uy, uz, len, xm, ym, zm, R, d3) {
   const C = CPM, g = 1 + K / mc2, b2 = Math.max(1e-10, 1 - 1 / (g * g));
-  C.K = K; C.mc2 = mc2; C.z = z; C.e = e; C.g = g; C.b2 = b2; C.bg = Math.sqrt(b2) * g; C.ux = ux; C.uy = uy; C.uz = uz; C.d3 = d3;
+  const ul = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1; // (its way as a unit vector: the pushes and the photons' cones are measured from it)
+  C.K = K; C.mc2 = mc2; C.z = z; C.e = e; C.g = g; C.b2 = b2; C.bg = Math.sqrt(b2) * g; C.ux = ux / ul; C.uy = uy / ul; C.uz = uz / ul; C.d3 = d3;
   C.Tmax = e < 0 ? K / 2 : e > 0 ? K : 2 * ME_C2 * b2 * g * g / (1 + 2 * g * ME_C2 / mc2 + (ME_C2 / mc2) ** 2);
   C.A = d3 ? Math.PI * R * R : 2 * R * CPM_LAM; // (the cross-section of the tube of atoms counted as passed, Å²; flat: its width times CPM_LAM)
   C.Lg = 0.0047 * (d3 ? Math.PI * 0.16 * Math.log(1 + R * R / 0.16) : 0.8 * Math.atan(R / 0.4) * CPM_LAM) / CPM_K; // (the game's form as a Bethe logarithm: 4.5 flat, 1.8 in 3-D for R = 1 Å)
-  let ne = 0, na = 0, wa = 0, si = 0;
-  for (const h of hits) { const a = h[1]; if (a.dead || a.k !== NUC || a.Z === 0) continue; na++; ne += a.ne; const m = cpmMat(a); if (m === 1) wa++; else if (m === 2) si++; }
-  const M = o.cpmM || (o.cpmM = [0, 0, 0, 0, 0]), f = Math.exp(-len / 20);
-  M[0] = M[0] * f + len; M[1] = M[1] * f + ne; M[2] = M[2] * f + na; M[3] = M[3] * f + wa; M[4] = M[4] * f + si;
-  C.rho = M[0] > 0 ? M[1] / (M[0] * C.A) : 0; C.n = 0;
-  if (M[2] / (M[0] * C.A) > 0.04 && M[3] > 0.6 * M[2]) C.n = 1.333; else if (M[2] / (M[0] * C.A) > 0.04 && M[4] > 0.6 * M[2]) C.n = 1.458; // (a dense transparent medium: liquid water or silica glass, n at 589 nm; dispersion left out)
+  const E = cpmEnv(o, xm, ym, zm, d3); C.rho = E.rho; C.n = E.n;
 }
-/* What an atom is part of, for Cherenkov light: 1 water (H₂O), 2 silica (Si–O), 0 anything else. */
-function cpmMat(a) {
-  const B = a.bonds;
-  if (a.Z === 8) { if (B.length === 2 && other(B[0], a).Z === 1 && other(B[1], a).Z === 1) return 1; for (const bd of B) if (other(bd, a).Z === 14) return 2; return 0; }
-  if (a.Z === 1) { if (B.length !== 1) return 0; const O = other(B[0], a); return O.Z === 8 && O.bonds.length === 2 && other(O.bonds[0], O).Z === 1 && other(O.bonds[1], O).Z === 1 ? 1 : 0; }
-  if (a.Z === 14) { for (const bd of B) if (other(bd, a).Z === 8) return 2; }
-  return 0;
+/* What surrounds the path's middle, within 4 Å (looked at again once the particle has moved 2 Å): the electron density
+   (e/Å³; the flat game's over CPM_LAM), and the refractive index if it is a dense transparent medium by what it is made
+   of (molecules the track ionized are still water): liquid water 1.333, silica glass 1.458 (at 589 nm; dispersion left
+   out), at least 40% of liquid water's atom density (0.1 atoms/Å³); else 0 (no Cherenkov light: metals, organic
+   liquids, gases). */
+const CPM_ENV_R = 4;
+function cpmEnv(o, x, y, z, d3) {
+  const e = o.cpmE;
+  if (e && Math.abs(x - e.x) + Math.abs(y - e.y) + Math.abs(z - e.z) < 2 && e.s === W.step) return e;
+  let na = 0, ne = 0, nh = 0, no = 0, ns = 0;
+  nearby(x, y, CPM_ENV_R, (a) => { if (a.dead || a.k !== NUC || a.Z === 0) return; na++; ne += Math.max(0, a.ne); if (a.Z === 1) nh++; else if (a.Z === 8) no++; else if (a.Z === 14) ns++; }, z);
+  const V = d3 ? 4 / 3 * Math.PI * CPM_ENV_R ** 3 : Math.PI * CPM_ENV_R * CPM_ENV_R * CPM_LAM;
+  let n = 0;
+  if (na / V > 0.04) {
+    if (nh + no > 0.9 * na && nh > no && ns < 0.05 * na) n = 1.333;
+    else if (ns + no > 0.9 * na && ns > 0.2 * (ns + no)) n = 1.458;
+  }
+  const r = { x, y, z, s: W.step, rho: ne / V, n };
+  if (o) o.cpmE = r;
+  return r;
 }
 /* Bethe's logarithm for an atom of mean excitation I (with the density effect), the bracket of dE/dx = K z² nₑ/β² · L. */
 function cpmL(I) {
@@ -1683,7 +1691,7 @@ function cpmPoisson(nu) { if (!(nu > 0)) return 0; if (nu > 30) return Math.max(
 function cpmAtom(tg, b, dEg, x, y, z) {
   const C = CPM, K0 = C.K;
   if (C.e !== 0 && C.K > 2e3) cpmBrems(tg, x, y, z);
-  if (tg.ne <= 0 || tg.dead || C.K <= 1) return K0 - C.K;
+  if (tg.ne <= 0 || tg.dead || tg.rad || tg.fast || C.K <= 1) return K0 - C.K; // (an atom itself in flight is not ionized here, as 3-D's fastStop3 leaves it: in radiation flight its energy is its stored KE, which a push on its velocity would miss, and a ballistic one carries no potential energy for the new ion's pull)
   const L = cpmL(cpmI(tg.Z)), dEm = dEg * Math.max(1, L / C.Lg);
   const ie0 = ionizationCost(tg), Tc = Math.max(10, ie0 + 1), Tm = Math.min(C.Tmax, C.K - 1);
   let f = 0, mT = 0;
@@ -1790,17 +1798,11 @@ function cpmPair(p, E, ux, uy, uz, trip) {
   const ph = rnd() * 2 * Math.PI, a = cpmTurn(ux, uy, uz || 0, cpmPairTh(Tm + ME_C2), ph), ex = a[0], ey = a[1], ez = a[2];
   const b = cpmTurn(ux, uy, uz || 0, cpmPairTh(Tp + ME_C2), (ph + Math.PI) % (2 * Math.PI)), px = b[0], py = b[1], pz = b[2];
   const o = cpmTurn(ux, uy, uz || 0, Math.PI / 2, ph), ox = o[0], oy = o[1], oz = o[2]; // (the two start 0.4 Å apart across the photon's way)
-  if (W.d3) {
-    const S = nucBegin([]);
-    const e = addLepton(ELEC, p.x + 0.2 * ox, p.y + 0.2 * oy, 0, 0, p.z + 0.2 * oz); setMotion(e, Tm, ex, ey, 0, 0, ez);
-    const ps = addLepton(POS, p.x - 0.2 * ox, p.y - 0.2 * oy, 0, 0, p.z - 0.2 * oz); setMotion(ps, Tp, px, py, 0, 0, pz);
-    W.ledger.nuc -= 2 * ME_C2;
-    settleKE(S, avail, [e, ps]);
-  } else {
-    const e = addLepton(ELEC, p.x + 0.2 * ox, p.y + 0.2 * oy); setMotion(e, Tm, ex, ey);
-    const ps = addLepton(POS, p.x - 0.2 * ox, p.y - 0.2 * oy); setMotion(ps, Tp, px, py);
-    W.ledger.nuc -= 2 * ME_C2;
-  }
+  const S = nucBegin([]); // (the books as pairProduce3's, flat too: a slow member (Bethe–Heitler gives one most of the energy now and then) is stepped with its potential energy beside the nucleus, which settleKE pays exactly)
+  const e = addLepton(ELEC, p.x + 0.2 * ox, p.y + 0.2 * oy, 0, 0, (p.z || 0) + 0.2 * oz); setMotion(e, Tm, ex, ey, 0, 0, ez);
+  const ps = addLepton(POS, p.x - 0.2 * ox, p.y - 0.2 * oy, 0, 0, (p.z || 0) - 0.2 * oz); setMotion(ps, Tp, px, py, 0, 0, pz);
+  W.ledger.nuc -= 2 * ME_C2;
+  settleKE(S, avail, [e, ps]);
   if (Te > 0) {
     const ct = Math.min(1, Te / Math.sqrt(Te * (Te + 2 * ME_C2)) * (E + ME_C2) / E), u = cpmTurn(ux, uy, uz || 0, Math.acos(ct), rnd() * 2 * Math.PI);
     if (ejectElectron(p, Te - ionizationCost(p), u[0], u[1], undefined, undefined, u[2])) W.count.ionize++; else dumpHeat(Te, p, p);
@@ -2111,7 +2113,7 @@ function exoIonize3(o, x0, y0, z0) {
   const hits = segFor3(o, x0, y0, z0, (t) => t.ne > 0);
   let lost = 0;
   const cpm = RP.cpm, sl = cpm ? Math.hypot(o.x - x0, o.y - y0, o.z - z0) : 0; // (charged particles in matter, 1.27)
-  if (cpm) cpmSeg(o, o.KE, o.m * MEV, Math.abs(o.q), 0, o.ux, o.uy, o.uz, sl, hits, 1.0, true);
+  if (cpm) cpmSeg(o, o.KE, o.m * MEV, Math.abs(o.q), 0, o.ux, o.uy, o.uz, sl, (x0 + o.x) / 2, (y0 + o.y) / 2, (z0 + o.z) / 2, 1.0, true);
   for (const [t, tg, b] of hits) {
     if (tg.dead || tg.ne <= 0) continue;
     if (cpm) { CPM.K = o.KE; lost += cpmAtom(tg, b, 0.0047 * z2 * tg.ne / beta2 / (1 + (b / 0.4) * (b / 0.4)), x0 + (o.x - x0) * t, y0 + (o.y - y0) * t, z0 + (o.z - z0) * t); o.KE = CPM.K; if (W.nucWin) for (const m of molecule(tg)) m.nucProd = true; if (o.KE <= 1) break; continue; }
