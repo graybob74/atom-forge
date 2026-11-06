@@ -141,6 +141,72 @@ PARTS.muFast = async (page, check, say) => {
   check(r.flat <= 1 && r.d3 <= 1, `1.26 sweep: muonic hydrogen fired at 1 PeV: nothing it hits moves faster than light (fastest ${r.flat}c flat, ${r.d3}c 3-D)`, 'swx muFast: ' + JSON.stringify(r));
 };
 
+/* Muon mean lives in muonic atoms against the measured ones (Suzuki, Measday & Roalsvig 1987): the capture rate
+   32·Z_eff⁴ had no neutron excess, so aluminium lived 1,077 ns (864 measured), calcium 392 (332.7), lead 23 (75.4).
+   And the atom's mass now holds its muon (0.113 u: it was left out), its books exact as the muon is caught, decays or
+   is captured while the atom moves. */
+PARTS.muonic = async (page, check, say) => {
+  const X = load('all', { seed: 3 }), W = X.W, life = {};
+  for (const [Z, A] of [[13, 27], [20, 40], [82, 207], [6, 12]]) { const [lc, ld] = X.muRates(Z, A - Z); life[Z] = +(1e9 / (lc + ld)).toFixed(1); }
+  const want = { 13: 864, 20: 332.7, 82: 75.4, 6: 2026.3 }, okLife = Object.keys(want).every(Z => Math.abs(life[Z] / want[Z] - 1) < 0.01);
+  const r = { dm: 0, books: 0, run: 0, events: 0 };
+  for (const d3 of [false, true]) for (const el of ['C', 'Pb']) {
+    X.PRESETS[d3 ? 'd3empty' : 'empty'].build(); W.T = 0; W.gamma = 0; W.decayOn = true; W.wall = 'reflect';
+    for (let k = 0; k < 4; k++) {
+      const c = X.addAtom(el, -3 + 1.5 * k, 0); c.vx = 5.0; c.vy = 2; c.vz = d3 ? -1.5 : 0; // (½m_μv² ≈ 1.7 eV)
+      X.forcesNoEvents(); W.fSpawn = W.spawned;
+      const m0 = c.m, o = X.addExo('mu-', c.x + 0.5, c.y, 1000, -1, 0, undefined, c.z, 0), E0 = books(X);
+      X.muStop(o); r.dm = Math.max(r.dm, c.m - m0); r.books = Math.max(r.books, Math.abs(books(X) - E0));
+      W.warp = 1e9; const E1 = books(X);
+      for (let i = 0; i < 400 && c.muB; i++) { const Ea = books(X); W.dt = 0.01; X.step(W.dt); if (!c.muB) r.books = Math.max(r.books, Math.abs(books(X) - Ea)); }
+      if (!c.muB) r.events++;
+      r.run = Math.max(r.run, Math.abs(books(X) - E1));
+      for (const p of W.parts) X.kill(p); W.parts = []; W.exo = []; W.muBound = []; X.forcesNoEvents();
+    }
+  }
+  r.dm = +r.dm.toFixed(4); r.books = +r.books.toExponential(1); r.run = +r.run.toExponential(1);
+  check(okLife && r.dm > 0.1 && r.books < 0.5 && r.run < 1 && r.events === 16, // (the muon carries ½m_μv² ≈ 1.7 eV here: a mass change left out of the books would show; what is left is the first step of the electrons a capture frees beside a +81 ion)
+    `1.26 sweep: muon mean lives as measured (Al ${life[13]} ns, Ca ${life[20]}, Pb ${life[82]}, C ${life[6]}); a muonic atom weighs its muon (+${r.dm} u), books through capture and decay within ${r.books} eV (the muon carried ½m_μv² ≈ 1.7 eV)`, 'swx muonic: ' + JSON.stringify({ life, ...r }));
+};
+
+/* The Select tool and Inspect on muonic hydrogen (W.exo): a click with Select picked nothing, copy, paste, move and Delete
+   could not take it, and its Inspect card had no Delete button; the particle view drew a muonic carbon without its muon.
+   Through the page's tools, flat and 3-D. */
+PARTS.muSelect = async (page, check, say) => {
+  const out = {};
+  for (const d3 of [false, true]) {
+    const r = await page.evaluate((d3) => {
+      document.querySelectorAll('.modal').forEach(m => { m.hidden = true; });
+      loadPreset(d3 ? 'd3empty' : 'empty'); setRunning(false); W.decayOn = false;
+      placeFly({ kind: 'exo', sp: 'muP' }, 2, 1, 1, 0);
+      const o = W.exo.find(q => !q.dead && q.sp === 'muP');
+      if (!d3) fitView();
+      const cv = $('cv').getBoundingClientRect(), v = [0, 0, 0];
+      if (d3) { cam3Update(); proj3(o.x, o.y, o.z, v); } else { v[0] = w2sx(o.x); v[1] = w2sy(o.y); }
+      setTool('select'); clearSelection();
+      return { x: cv.left + v[0], y: cv.top + v[1] };
+    }, d3);
+    await page.mouse.click(r.x, r.y); await page.waitForTimeout(80);
+    const a = await page.evaluate(() => [...R.msel].filter(q => q.sp === 'muP').length);
+    await page.keyboard.press('Control+c'); await page.waitForTimeout(50);
+    const b = await page.evaluate(() => { pasteClip(-3, -2, 0); const o = [...R.msel][0], x0 = o ? o.x : 0; if (o) moveSelection(1.5, 0, 0); return { n: W.exo.filter(q => !q.dead && q.sp === 'muP').length, moved: o ? +(o.x - x0).toFixed(2) : 0 }; });
+    await page.keyboard.press('Delete'); await page.waitForTimeout(50);
+    const c = await page.evaluate(() => { const n = W.exo.filter(q => !q.dead && q.sp === 'muP').length; setTool('inspect'); const o = W.exo.find(q => !q.dead && q.sp === 'muP'); R.sel = null; R.selX = o ? { kind: 'exo', o, t0: W.rt } : null; showTab('inspect', true); renderInspect(); return { n, btn: !!$('tp-inspect').querySelector('[data-act="delx"]') }; });
+    if (c.btn) { await page.click('#tp-inspect [data-act="delx"]'); await page.waitForTimeout(50); }
+    const left = await page.evaluate(() => W.exo.filter(q => !q.dead && q.sp === 'muP').length);
+    out[d3 ? 'd3' : 'flat'] = { clicked: a, pasted: b.n, moved: b.moved, afterDeleteKey: c.n, inspectDelete: c.btn, left };
+  }
+  const drawn = await page.evaluate(async () => {
+    loadPreset('empty'); setRunning(false); const c = addAtom('C', 0, 0); c.vx = c.vy = 0; forcesNoEvents(); W.fSpawn = W.spawned; muStop(addExo('mu-', 0.5, 0, 1000, -1, 0));
+    const keep = R.view.bohr; R.view.bohr = 'nuc'; R.cx = 0; R.cy = 0; R.s = 300;
+    let n = 0; const f = window.muOrbit; if (f) window.muOrbit = function (...a) { n++; return f.apply(this, a); };
+    await new Promise(res => setTimeout(res, 300)); if (f) window.muOrbit = f; R.view.bohr = keep; return n;
+  });
+  const ok = (s) => s.clicked === 1 && s.pasted === 2 && s.moved === 1.5 && s.afterDeleteKey === 1 && s.inspectDelete && s.left === 0;
+  check(ok(out.flat) && ok(out.d3) && drawn > 0, `1.26 sweep: muonic hydrogen is picked, copied, pasted, moved and deleted by the Select tool and deleted from its Inspect card (flat and 3-D); the particle view draws a muonic atom's muon`, 'swx muSelect: ' + JSON.stringify({ ...out, drawn }));
+};
+PARTS.muSelect.page = true;
+
 module.exports = async function fswx(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

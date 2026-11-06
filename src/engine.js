@@ -258,15 +258,22 @@ function addLepton(kind, x, y, vx = 0, vy = 0, z = 0, vz = 0) {
 }
 
 /* Recompute everything derived from Z, N, ne and bonding. */
+/* An atom's mass (u): a neutron's, muonium's (1.12: its nucleus a μ⁺, a hydrogen atom 1/9 the mass, hep.js addMuonium),
+   or the nucleus's and its electrons', with the muon of a muonic atom (bound: its mass less the binding; 1.26, it was
+   left out, 0.9% of carbon's, 2.8% of helium's; restE leaves it out, as its rest mass is booked apart, hep.js muStop). */
+function atomMass(p) {
+  const Z = p.Z, N = p.N;
+  if (Z === 0) return N * PHYS.MN;
+  if (p.mu) return MU_M / PHYS.AMU_MEV + p.ne * PHYS.ME;
+  return Math.max(0.5, Z * PHYS.MP + N * PHYS.MN + p.ne * PHYS.ME - bindingE(Z, N) / PHYS.AMU_MEV) + (p.muB ? p.muB.m / (PHYS.AMU_MEV * 1e6) : 0);
+}
 function refresh(p) {
   if (p.k !== NUC) return;
   W.dirty++;
   const Z = p.Z, N = p.N;
   p.el = Z > 0 ? ELEMENTS[Math.min(Z, Z_MAX)] : null;
   S.elrc[p.i] = p.el ? p.el.rc : 0; S.metal[p.i] = p.el && p.el.metal ? 1 : 0; // (the covalent radius and whether it is a metal, for the pair kernel)
-  if (Z === 0) p.m = N * PHYS.MN;
-  else if (p.mu) p.m = MU_M / PHYS.AMU_MEV + p.ne * PHYS.ME; // (1.12: muonium, its nucleus a μ⁺: a hydrogen atom 1/9 the mass, hep.js addMuonium)
-  else p.m = Math.max(0.5, Z * PHYS.MP + N * PHYS.MN + p.ne * PHYS.ME - bindingE(Z, N) / PHYS.AMU_MEV);
+  p.m = atomMass(p);
   p.im = 1 / p.m;
   p.q = (p.anti ? -1 : 1) * (Z - p.ne);
   p.sEN = Z > 0 ? softFor(p) : SOFT_EN;
@@ -4630,7 +4637,7 @@ function restE(p) { return bMu(p) * AMU_EV; }
 /* A flying particle's speed (Å/tu) and rest mass (u): radiation-mode particles, and unstable ones in a collider's beam
    (W.exo, mass in MeV; 1.15). */
 const bSpd = (p) => (p.xb ? p.v : p.sp);
-const bMu = (p) => (p.xb ? p.m / PHYS.AMU_MEV : p.k === NUC ? p.m : PHYS.ME);
+const bMu = (p) => (p.xb ? p.m / PHYS.AMU_MEV : p.k === NUC ? (p.muB ? p.m - p.muB.m / AMU_EV : p.m) : PHYS.ME); // (a muonic atom's bound muon is in its mass (atomMass) but not in its rest energy here: that is booked apart, 1.26)
 function keOf(p) { return p.rad ? p.KE : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz); }
 function inMD(p) { return !p.dead && !p.rad && !p.fast && !(p.k === NUC && p.Z === 0); }
 /* Pair potential exactly as totalEnergy() counts it. */

@@ -825,6 +825,7 @@ function drawParticles(rt) {
       if (!R.lite) drawSprite(glowSprite(p.anti ? [190, 120, 255] : [255, 110, 90], Math.max(7, nsp.rn * 3.2)), x, y, 0.4);
       ctx.globalCompositeOperation = 'source-over';
       drawSprite(nsp, x, y);
+      if (p.muB) muOrbit(ctx, p, x, y, nsp.rn);
       continue;
     }
     if (p.ne === 0) { // bare nucleus
@@ -1235,6 +1236,14 @@ function drawNucView(p, x, y, r, rt) {
     }
   }
   if (p.mu) muNucleus(R.ctx, x, y); else drawSprite(nsp, x, y);
+  if (p.muB) muOrbit(R.ctx, p, x, y, rn);
+}
+/* (1.26) The muon of a muonic atom in the particle view: a point circling just outside the nucleus (its orbit is 207
+   times closer in than a 1s electron's, inside the innermost shell), in the colour the muon has in flight. It was not
+   drawn: the atom looked plain. */
+function muOrbit(ctx, p, x, y, rn) {
+  const er = electronR(), R0 = rn + Math.max(1.5, 0.8 * er), th = W.at * 6 + p.id;
+  drawSprite(ballSprite('#6ef5c8', Math.max(1.5, er * 1.2)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
 }
 function drawFlashes(rt) {
   if (R.lite) { W.flashes.length = 0; return; }

@@ -613,6 +613,41 @@ selected, copied, saved and let decay, flat and in 3-D. Checks: tests/f_swx.js (
   (into radiation flight at the true speed); in 3-D the flight's own speed rule holds. The fire sweep's other speed
   readings: nothing stepped or flying past c in either game (the products' stored speed checked each step). Check:
   f_swx "muFast".
+- **Muonic atoms (v138's findings).**
+  1. Mean lives (`muRates`, hep.js). The capture rate 32·Z_eff⁴ s⁻¹ had no neutron excess. Now the mean lives measured
+     for natural elements (Suzuki, Measday & Roalsvig, Phys. Rev. C 35, 2212, 1987) hold where measured (`MU_TAU`), and
+     the Goulard–Primakoff form (Z_eff⁴·261 s⁻¹·[1 − 0.040·A/2Z + 0.26·(A − 2Z)/2Z − 3.24·((A − Z)/2A + (A − 2Z)/8AZ)],
+     that paper's fit) carries them to the other elements and isotopes, scaled to the measured elements on either side;
+     decay in orbit is the free muon's slowed by the Huff factor (≈ 1 − 2.2×10⁻⁵ Z²: 0.85 for lead). Game before → now
+     (measured), ns: C 2,045 → 2,026 (2,026.3), N 1,952 → 1,907 (1,906.8), O 1,831 → 1,795 (1,795.4), F 1,687 → 1,464
+     (1,463.5), Na 1,374 → 1,204 (1,204.0), Mg 1,222 → 1,067 (1,067.2), Al 1,077 → 864 (864.0), Si 941 → 756 (756.0),
+     P 817 → 611 (611.2), S 707 → 555 (554.6), K 454 → 435 (435.2), Ca 392 → 333 (332.7), Ti 307 → 329 (329.3), V 273 →
+     285 (284.5), Fe 193 → 206 (206.0), Ni 168 → 157 (156.6), Cu 156 → 164 (163.5), Zn 146 → 159 (159.4), Zr 77 → 110
+     (110.4), Pb 23 → 75.4 (75.4). Between them (the form): Ne 1,525 → 1,196, Cl 610 → 542, Ar 526 → 643, Cr 243 → 239,
+     Mn 216 → 240, Co 180 → 201, Br 105 → 152, Ag 57 → 87, Sn 50 → 96, I 46 → 93, Ba 43 → 101, W 28 → 78, Au 25 → 72,
+     Bi 23 → 73, Th 21 → 84, U 20 → 85; He–B within 3% of the free muon's 2,197 before and after. Capture share now: C 8%,
+     O 18%, Al 61%, Ca 85%, Fe 91%, Pb 97% (Pb was 99%). Caveat: there is no network here, so the measured values are
+     the published table as I know it, each checked for consistency (1/τ = Λc + Q·λ against the capture rates Λc of the
+     same table); worth a look against the paper. Where the form stands alone, values I am less sure of differ by up to
+     ~10–20% (Ar-40: 643 against about 540 measured; Th and U 84–85 against about 77): adding more measured elements
+     to MU_TAU sharpens it. Inspect's muonic-atom pill and capture share use the same rates.
+  2. Mass. The atom's mass left out its muon (`atomMass`, engine.js: +0.113 u, less the binding; 0.9% of carbon, 2.8% of
+     helium); its rest energy (`restE`) still leaves it out, as the muon's is booked apart. When it is caught, decays or
+     is captured, the atom keeps its speed and its kinetic energy changes by ½m_μv²: those events now begin with the atom
+     in their books (`nucBegin([atom])`), so their X-rays or neutrinos pay it exactly. 3-D and flat, a carbon and a lead
+     atom at 5 Å/tu (½m_μv² ≈ 1.7 eV): catching books to 3×10⁻⁶ eV; decay and capture steps within 0.18 eV (the electrons
+     a capture frees beside a +81 ion, in their first step); 16 of 16 events. Saves and undo put the muon's mass back.
+  3. The momentum of the muon caught at 2 keV (0.65 MeV/c): not a bug; nothing changed. Handed to the atom it would
+     kick carbon by 19 eV and lead by 1.1 eV in one go; a real muon is slowed to eV energies through the medium first,
+     spread over the many atoms of its last micrometres (the game stops it at 2 keV for speed), then caught; the X-ray
+     cascade's recoil is under an eV. The books are exact either way.
+  4. Select and Inspect. The Select tool passed over muonic hydrogen (μp, μd, μt), (μα)⁺ and hypernuclei, which live
+     with the unstable particles (W.exo); now a click or a box picks them, and copy, paste, move and Delete take them
+     (pasted nearly at rest, as placed). A particle in flight's Inspect card had no Delete button; now it has (as the
+     Erase tool takes one). The particle view drew a muonic atom without its muon; now a green point circles just
+     outside the nucleus (the muon's colour in flight). Screenshot: scratchpad mu-pv2.png. (The 3-D lab has no particle
+     view.)
+  - Fingerprints unchanged (no setup makes a muonic atom in 300 steps). Checks: f_swx "muonic", "muSelect" (page).
 - **Texts.** A μ⁺ taking an electron said "Recombination: p⁺ + e⁻ → H atom", and a bare μ⁺ bonding "Proton bonded:
   H⁺ + …": now "μ⁺ + e⁻ → muonium" and "Muon bonded: Mu⁺ + …".
 
