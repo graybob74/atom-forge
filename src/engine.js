@@ -1350,7 +1350,7 @@ function setCutoff(rc) {
   return true;
 }
 const VL = { gen: -1, bx: new Float64Array(16), by: new Float64Array(16), inI: new Int32Array(16), nIn: 0, np: 0, pi: shArray(Int32Array, 4096), pj: shArray(Int32Array, 4096),
-  ex: shArray(Uint8Array, 4096), exTopo: -1, exDirty: -1, w: 0, h: 0, wall: '', valid: false, builds: 0, checks: 0, bz: new Float64Array(16), d: 0 };
+  ex: shArray(Uint8Array, 4096), exTopo: -1, exDirty: -1, w: 0, h: 0, wall: '', valid: false, builds: 0, checks: 0, bz: new Float64Array(16), d: 0, useWasm: true }; // (useWasm: the module builds the list when it can, 1.26; tests turn it off)
 function vlValid(pre) { // pre ≥ 0: the threaded integrator's largest squared move of the list's atoms, just now (no wrapping)
   if (W.d3) return vlValid3();
   VL.checks++;
@@ -1490,6 +1490,27 @@ function vlPairs(o0, o1, pi, pj, base, cap, g, idx, K, wrap, bw, bh, hw, hh) {
   }
   return np - base;
 }
+/* The same two walks in the WebAssembly module (af_vl, af_vl3, kernel/src/vl.rs, 1.26): the same pairs in the same order
+   (whole numbers and comparisons; the distances the same subtractions), several times faster; the 3-D list's walk was a
+   fifth of a step in 3-D water and most of quantum nuclei's every-bead passes, which make a list for each bead. ok: the
+   module is there and every array is in its memory (on a worker: bound on it); else the JavaScript above. */
+function vlPairsW(ok, ex, o0, o1, pi, pj, base, cap, g, idx, K, wrap, bw, bh, hw, hh) {
+  if (!ok) return vlPairs(o0, o1, pi, pj, base, cap, g, idx, K, wrap, bw, bh, hw, hh);
+  return ex.af_vl(g.keys.byteOffset, g.head.byteOffset, g.next.byteOffset, g.px.byteOffset, g.py.byteOffset, g.px.byteOffset, g.occ.byteOffset, idx.byteOffset, K.byteOffset, pi.byteOffset, pj.byteOffset,
+    g.cols, g.rows, 1, g.wrap ? 1 : 0, g.mask, g.shift, g.nocc, g.RL2, wrap ? 1 : 0, bw, bh, 0, hw, hh, 0, o0, o1, base, cap);
+}
+function vlPairs3W(ok, ex, p0, p1, pi, pj, base, cap, g, idx, K, wrap, bw, bh, bd, hw, hh, hd) {
+  if (!ok) return vlPairs3(p0, p1, pi, pj, base, cap, g, idx, K, wrap, bw, bh, bd, hw, hh, hd);
+  return ex.af_vl3(g.keys.byteOffset, g.head.byteOffset, g.next.byteOffset, g.px.byteOffset, g.py.byteOffset, g.pz.byteOffset, g.occ.byteOffset, idx.byteOffset, K.byteOffset, pi.byteOffset, pj.byteOffset,
+    g.cols, g.rows, g.lay, g.wrap ? 1 : 0, g.mask, g.shift, g.nocc, g.RL2, wrap ? 1 : 0, bw, bh, bd, hw, hh, hd, p0, p1, base, cap);
+}
+/* May the main thread build the list in the module? (the arrays it reads and writes in its memory) */
+function vlWasmOk() {
+  if (!wasmReady() || typeof WK.ex.af_vl3 !== 'function' || !VL.useWasm) return false;
+  const ok = wasmIn(G.keys, G.head, G.next, G.px, G.py, G.occ, _mdI, S.k, VL.pi, VL.pj) && (!W.d3 || wasmIn(G.pz));
+  if (ok) WK.vlCalls++;
+  return ok;
+}
 let vlBuildAll = function () { return -1; }; // eslint-disable-line no-unused-vars
 let vlBuildAll3 = function () { return -1; }; // eslint-disable-line no-unused-vars
 function vlRoom(cap) { VL.pi = shArray(Int32Array, cap); VL.pj = shArray(Int32Array, cap); _sharedGen++; } // (room for the pairs: the workers are rebound to the new arrays)
@@ -1512,13 +1533,13 @@ function vlBuild() { // from the grid just built over _md (G.px/py are their pos
     VL.d = W.box.d; if (VL.bz.length < nN) VL.bz = new Float64Array(nN * 2 + 16);
     const Zp = S.z; for (let q = 0; q < nN; q++) VL.bz[q] = Zp[nI[q]];
     let n3 = vlBuildAll3(); // (the threads, when the pool is up: -1 when they did not)
-    while (n3 < 0) { n3 = vlPairs3(0, Infinity, VL.pi, VL.pj, 0, VL.pi.length, G, _mdI, S.k, wrap, bw, bh, W.box.d, hw, hh, W.box.d / 2); if (n3 < 0) vlRoom(VL.pi.length * 2 + _nmd); }
+    while (n3 < 0) { n3 = vlPairs3W(vlWasmOk(), WK.ex, 0, Infinity, VL.pi, VL.pj, 0, VL.pi.length, G, _mdI, S.k, wrap, bw, bh, W.box.d, hw, hh, W.box.d / 2); if (n3 < 0) vlRoom(VL.pi.length * 2 + _nmd); } // (in the module when it can, 1.26)
     VL.np = n3; VL.valid = true; VL.exTopo = -1;
     return;
   }
   let np = vlBuildAll(); // (the threads, when the pool is up: -1 when they did not)
   while (np < 0) {
-    np = vlPairs(0, G.nocc, VL.pi, VL.pj, 0, VL.pi.length, G, _mdI, S.k, wrap, bw, bh, hw, hh);
+    np = vlPairsW(vlWasmOk(), WK.ex, 0, G.nocc, VL.pi, VL.pj, 0, VL.pi.length, G, _mdI, S.k, wrap, bw, bh, hw, hh); // (in the module when it can, 1.26)
     if (np < 0) vlRoom(VL.pi.length * 2 + _nmd);
   }
   VL.np = np; VL.valid = true; VL.exTopo = -1;
@@ -2577,10 +2598,15 @@ function tors1K(x, a, b, y, k0, k1, k2, k3, FX, FY, FZ) {
 /* The single-bond dihedrals' forces (AC3.sq, made with the dihedral list): after the kernels, on the main thread. */
 function tors1Forces3(FX, FY, FZ) {
   kb3FromW(); const sq = AC3.sq, sk = AC3.sk;
+  if (wasm3Ready() && typeof WK.ex.af_tors1 === 'function' && AC3.useWasm && wasmIn(sq, sk, FX, FY, FZ, S.x, S.y, S.z)) { // (the module's tors1, the same arithmetic: equal to the bit, 3–4 times faster, 1.26)
+    wasmDesc(); wasmDesc3(); WK.t1Calls++;
+    WK.ex.af_tors1(WK.desc.byteOffset, sq.byteOffset, sk.byteOffset, 0, AC3.ns, FX.byteOffset, FY.byteOffset, FZ.byteOffset, KB3.wrap ? 1 : 0, KB3.bw, KB3.bh, KB3.bd, TOR1_F0);
+    return;
+  }
   for (let t = 0; t < AC3.ns; t++) tors1K(sq[4 * t], sq[4 * t + 1], sq[4 * t + 2], sq[4 * t + 3], sk[4 * t], sk[4 * t + 1], sk[4 * t + 2], sk[4 * t + 3], FX, FY, FZ);
 }
 /* The centres' 3-D targets (per AC centre) and the dihedral list, made again when bonding or species change. */
-const AC3 = { mode: shArray(Uint8Array, 64), t0: shArray(Float64Array, 64), flat: shArray(Uint8Array, 64), topo: -1, dirty: -1, parts: null, len: -1, nt: 0, tq: shArray(Int32Array, 256), ns: 0, sq: new Int32Array(256), sk: new Float64Array(256) }; // (sq, sk: the single bonds' dihedrals and their k's, 1.25: main thread only) // (shared: the WebAssembly kernel and the workers read them)
+const AC3 = { useWasm: true, mode: shArray(Uint8Array, 64), t0: shArray(Float64Array, 64), flat: shArray(Uint8Array, 64), topo: -1, dirty: -1, parts: null, len: -1, nt: 0, tq: shArray(Int32Array, 256), ns: 0, sq: shArray(Int32Array, 256), sk: shArray(Float64Array, 256) }; // (sq, sk: the single bonds' dihedrals and their k's, 1.25: main thread only; in the module's memory since 1.26, af_tors1) // (shared: the WebAssembly kernel and the workers read them)
 function angleCentres3() {
   angleCentres();
   if (AC3.topo === W.topo && AC3.dirty === W.dirty && AC3.parts === W.parts && AC3.len === W.parts.length) return;
@@ -2600,7 +2626,7 @@ function angleCentres3() {
   for (const bd of W.bonds) {
     if (bd.a.dead || bd.b.dead) continue;
     tors1Of3(bd, (X, A, B, Y, k) => {
-      if (4 * ns + 4 > AC3.sq.length) { const q = new Int32Array(AC3.sq.length * 2); q.set(AC3.sq); AC3.sq = q; const r = new Float64Array(AC3.sk.length * 2); r.set(AC3.sk); AC3.sk = r; }
+      if (4 * ns + 4 > AC3.sq.length) { const q = shArray(Int32Array, AC3.sq.length * 2); q.set(AC3.sq); AC3.sq = q; const r = shArray(Float64Array, AC3.sk.length * 2); r.set(AC3.sk); AC3.sk = r; }
       AC3.sq[4 * ns] = X.i; AC3.sq[4 * ns + 1] = A.i; AC3.sq[4 * ns + 2] = B.i; AC3.sq[4 * ns + 3] = Y.i; for (let m = 0; m < 4; m++) AC3.sk[4 * ns + m] = k[m]; ns++;
     });
   }
@@ -8043,7 +8069,28 @@ function qeqC(p, o, r2) {
   if (p.ne === 0 && o.ne === 0) return K * (1 / Math.sqrt(r2 + 0.0016) - csh(p, o, 0.0016));
   return K * (smearV(Math.sqrt(r2)) - cshPt(p, o));
 }
-const QB = { mark: new Uint8Array(0), phi: new Float64Array(0), pa: new Int32Array(1024), pb: new Int32Array(1024), pc: new Float64Array(1024), q0: new Float64Array(1024) };
+const QB = { mark: shArray(Uint8Array, 16), phi: new Float64Array(0), pa: shArray(Int32Array, 1024), pb: shArray(Int32Array, 1024), pc: shArray(Float64Array, 1024), q0: shArray(Float64Array, 1024), useWasm: true, t: null, p: null, calls: 0 }; // (in the module's memory: af_qeq finds the list's pairs, 1.26)
+/* qeqUpdate's pairs from the neighbour list in the module (af_qeq, kernel/src/qeq.rs, 1.26): the same tests, the same
+   coefficients (qeqC: square roots and divisions, equal to the bit) in the same order, into QB.pa … QB.q0. The number of
+   pairs, or -1 when it cannot (no module; an array not in its memory; an atom with more exclusions than the lists hold),
+   and the JavaScript loop runs. The exclusions are the atoms' own (excl), from exclLists' arrays. */
+function qeqPairsWasm() {
+  if (!wasmReady() || typeof WK.ex.af_qeq !== 'function') return -1;
+  if (_exlTopo !== W.topo || _exlDirty !== W.dirty) exclLists();
+  if (!_exlOk) return -1;
+  const need = VL.np + 16;
+  if (QB.pa.length < need) { QB.pa = shArray(Int32Array, need * 2); QB.pb = shArray(Int32Array, need * 2); QB.pc = shArray(Float64Array, need * 2); QB.q0 = shArray(Float64Array, need * 2); }
+  if (!QB.t) { QB.t = wasmArray(Int32Array, 24); QB.p = wasmArray(Float64Array, 16); }
+  if (!WK.on) return -1;
+  const A = [VL.pi, VL.pj, QB.mark, S.k, S.Z, S.dead, S.fast, S.rad, S.mol, S.id, S.x, S.y, S.z, S.q, S.qp, S.ne, S.anti, S.ionic, _exl, _exlN, QB.pa, QB.pb, QB.pc, QB.q0];
+  if (!wasmIn(...A)) return -1;
+  const T = QB.t, P = QB.p; for (let k = 0; k < 24; k++) T[k] = A[k].byteOffset;
+  P[0] = VL.np; P[1] = W.wall === 'wrap' ? 1 : 0; P[2] = W.box.w; P[3] = W.box.h; P[4] = W.box.d; P[5] = W.d3 ? 1 : 0; P[6] = _lrOn ? 1 : 0; P[7] = RC; P[8] = RC2; P[9] = PHYS.KE; P[10] = K_IW; P[11] = BARE_SMEAR; P[12] = EXW; P[13] = QB.pa.length;
+  WK.ex.af_qeq(T.byteOffset, P.byteOffset);
+  if (P[14] > QB.pa.length) return -1; // (cannot happen: at most one a pair of the list)
+  QB.calls++;
+  return P[14];
+}
 function qeqUpdate() {
   const mols = new Map(); // molecule id → its atoms (every atom bonded, an ordinary atom in MD)
   for (const p of W.parts) {
@@ -8052,7 +8099,7 @@ function qeqUpdate() {
   }
   const list = []; for (const m of mols.values()) if (m.length >= 2 && m.length <= QEQ.maxMol) list.push(m);
   if (!list.length) return;
-  if (QB.mark.length < S.size) { QB.mark = new Uint8Array(S.size * 2); QB.phi = new Float64Array(S.size * 2); }
+  if (QB.mark.length < S.size) { QB.mark = shArray(Uint8Array, S.size * 2); QB.phi = new Float64Array(S.size * 2); }
   const mark = QB.mark, phi = QB.phi, Ex = W.Ex || 0, Ey = W.Ey || 0, X = S.x, Y = S.y, Q = S.q, QP = S.qp, OBJ = S.obj, d3 = W.d3, Zp = S.z, Ez = d3 ? W.Ez || 0 : 0; // (3-D: in depth too, 1.24)
   let nIn = 0;
   for (const m of list) for (const p of m) { const i = p.i; mark[i] = 1; phi[i] = d3 ? -(Ex * X[i] + Ey * Y[i] + Ez * Zp[i]) : -(Ex * X[i] + Ey * Y[i]); nIn++; }
@@ -8061,11 +8108,12 @@ function qeqUpdate() {
   // beyond the cutoff
   let np = 0;
   const push = (a, b, c) => {
-    if (np >= QB.pa.length) { const g = (T, o) => { const n = new T(o.length * 2); n.set(o); return n; }; QB.pa = g(Int32Array, QB.pa); QB.pb = g(Int32Array, QB.pb); QB.pc = g(Float64Array, QB.pc); QB.q0 = g(Float64Array, QB.q0); }
+    if (np >= QB.pa.length) { const g = (T, o) => { const n = shArray(T, o.length * 2); n.set(o); return n; }; QB.pa = g(Int32Array, QB.pa); QB.pb = g(Int32Array, QB.pb); QB.pc = g(Float64Array, QB.pc); QB.q0 = g(Float64Array, QB.q0); }
     QB.pa[np] = a; QB.pb[np] = b; QB.pc[np] = c; QB.q0[np] = (Q[a] + QP[a]) * (Q[b] + QP[b]); np++;
   };
   const pi = VL.pi, pj = VL.pj, K = S.k, Zs = S.Z, DEAD = S.dead, FAST = S.fast, RAD = S.rad, MOL = S.mol, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, hw = bw / 2, hh = bh / 2;
-  for (let k = 0, n = VL.np; k < n; k++) {
+  if (QB.useWasm && (np = qeqPairsWasm()) >= 0) { /* (the list's pairs in the module: the same pairs, coefficients and order, 1.26) */ } else
+  for (let k = (np = 0), n = VL.np; k < n; k++) {
     const i = pi[k], j = pj[k]; if (!mark[i] && !mark[j]) continue;
     if (K[i] !== NUC || K[j] !== NUC || Zs[i] === 0 || Zs[j] === 0 || DEAD[i] || DEAD[j] || FAST[i] || FAST[j] || RAD[i] || RAD[j]) continue;
     let dx = X[j] - X[i], dy = Y[j] - Y[i], dz = d3 ? Zp[j] - Zp[i] : 0;

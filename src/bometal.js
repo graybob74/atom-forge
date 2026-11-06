@@ -341,6 +341,7 @@ function mbPass(forces) {
   if (MBF.sw.length < nm) MBF.sw = new Float64Array(nm * 2 + 64);
   const SWt = MBF.sw, Wm = MBF.w;
   for (let s = 0; s < nm; s++) { const a = ord[s], i = m[a]; SX[s] = X[i]; SY[s] = Y[i]; SZ[s] = d3 ? Zp[i] : 0; SS[s] = i; STY[s] = ty[a] * nt; SA[s] = AN[i]; SWt[s] = Wm[a]; }
+  if (MBO.useWasm !== false && nxp === 0 && !(MBO.ndt > 0) && mbWasm(nm, nt, nx, ny, nz, cut2, forces, d3, wrap, bw, bh, bd)) { MBO.E += mbImage(forces, nm); return MBO.E; } // (the rest in the module when it can, 1.26: wasm.js; only plain metals: the module has 1.25's model, not 1.26's O/H partners or directional metals; MBO.useWasm false: the JavaScript below)
   // pairs: each cell against itself (the later member only) and its neighbouring cells of higher number, each once
   const rho = MBF.rho; rho.fill(0, 0, nm);
   const ND = MBO.ndt > 0, TD = MBF.tdp; // (directional metals present, 1.26: their member pairs listed, ρᴹ summed)

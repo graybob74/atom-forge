@@ -230,7 +230,7 @@ function bfCommon(a, b, inc, f0, fc, test, f) {
 let BF_CS = new Float64Array(16), BF_FS = new Float64Array(16);
 function boPass(forces) {
   if (BO.qm) return qmPass(forces); // (quantum bonds, 1.22: GFN1-xTB below)
-  const E = BF.useWasm && !W.d3 && bfWasmOK() ? bfPassWasm(forces) : boPassJS(forces); // (3-D: the JavaScript pass, 1.25)
+  const E = BF.useWasm && bfWasmOK() && (!W.d3 || BFW.has3) ? bfPassWasm(forces) : boPassJS(forces); // (3-D: the module's pass when it has one, 1.26; the JavaScript's in 1.25)
   if (forces && BF.kq > 0 && BO.dqOn) { const w = BF.kq / BO_DQM; if (w > _stiff) _stiff = w; } // (the electron counts' stiffest corner, for the step)
   return E;
 }
@@ -728,43 +728,51 @@ function bfPhiOthers() {
    and the pair types, the module finds the pairs from the neighbour list (a force pass; the grid's pairs otherwise are
    found here) and does the rest; between its two halves the non-members' potential is added here (bfPhiOthers). The
    arrays live in the module's memory (bfArr); a descriptor gives their offsets (B_* in bo.rs), a block the scalars. */
-const BFW = { desc: null, par: null, tgt: null, zs: new Int32Array(128), zrep: [], cap: 0 };
+const BFW = { desc: null, par: null, tgt: null, zs: new Int32Array(128), zrep: [], cap: 0, has3: false, tgt3: null, t1k: null }; // (has3, tgt3, t1k: the 3-D pass, 1.26)
 const BF_DESC = ['pr', 'pux', 'puy', 'pgr', 'pgn', 'pgca', 'pgcb', 'pn', 'pne', 'pne0', 'pdne', 'pdne0', 'pca', 'pcb', 'pdca', 'pdcb', 'psA', 'ptA', 'psB', 'ptB', 'pqc', 'pqdh', 'pK', 'pcsh',
   'pa', 'pb', 'pt', 'pss', 'psn', 'men', 'mcap', 'mcapH', 'mval', 'mls', 'mlv', 'mgl', 'mkeep', 'mq', 'mphi', 'mqn', 'mim', 'mslot', 'mper', 'mdb', 'mZ', 'mf0', 'mfc', 'mfl', 'inc'];
 function bfWasmOK() { return wasmReady() && typeof WK.ex.af_bo_pass1 === 'function' && bfWasmInit(); }
 function bfWasmInit() { // (the descriptor, the scalars and the angle targets, once; the tables moved into the module's memory)
   if (!WK.on) return false;
   if (!BFW.desc) {
-    BFW.desc = wasmArray(Int32Array, 112); BFW.par = wasmArray(Float64Array, 16);
+    BFW.desc = wasmArray(Int32Array, 112); BFW.par = wasmArray(Float64Array, 24); // (24: the 3-D scalars from 16 on, 1.26)
     const T = BFW.tgt = wasmArray(Float64Array, 1024 * 6); // (the angle targets for every key bfAngle can ask: ((nl·8 + lp)·8 + period)·2 + allH)
     if (!WK.on) return false;
     for (let nl = 2; nl <= 6; nl++) for (let lp = 0; lp < 8; lp++) for (let per = 0; per < 8; per++) for (let h = 0; h < 2; h++) {
       const key = ((nl * 8 + lp) * 8 + per) * 2 + h, tg = angleTargetsRaw(nl, lp, per, !!h).slice().sort((u, v) => u - v);
       for (let k = 0; k < nl; k++) T[key * 6 + k] = tg[k];
     }
-    if (BF.PT.buffer !== WK.mem.buffer) { const t = wasmArray(Float64Array, BF.PT.length); t.set(BF.PT); BF.PT = t; }
-    if (BF_TZ.buffer !== WK.mem.buffer) { const t = wasmArray(Int32Array, BF_TZ.length); t.set(BF_TZ); BF_TZ = t; }
+    BFW.has3 = WK.ex.af_const(18) === 100; // (a module with the 3-D pass (bo.rs, 1.26): its targets [mode, θ₀, flat] by key as vsepr3 gives them, and the single bonds' k's)
+    {
+      const T3 = BFW.tgt3 = wasmArray(Float64Array, 1024 * 3), K1 = BFW.t1k = wasmArray(Float64Array, 32);
+      if (!WK.on) return false;
+      for (let nl = 2; nl <= 6; nl++) for (let lp = 0; lp < 8; lp++) for (let per = 0; per < 8; per++) for (let h = 0; h < 2; h++) {
+        const key = ((nl * 8 + lp) * 8 + per) * 2 + h, t = vsepr3(nl, lp, per, !!h); T3[3 * key] = t[0]; T3[3 * key + 1] = t[1]; T3[3 * key + 2] = t[2];
+      }
+      [TOR1B.CC0, TOR1B.CC1, TOR1B.CC2, TOR1.CO, TOR1.CN, TOR1.OO, TOR1['CC=C'], TOR1['CC=O']].forEach((k, q) => { for (let m = 0; m < 4; m++) K1[4 * q + m] = k[m]; });
+    }
+    if (!wasmIn(BF.PT)) { const t = wasmArray(Float64Array, BF.PT.length); t.set(BF.PT); BF.PT = t; }
+    if (!wasmIn(BF_TZ)) { const t = wasmArray(Int32Array, BF_TZ.length); t.set(BF_TZ); BF_TZ = t; }
     if (!WK.on) return false;
   }
   return true;
 }
 /* room in the scratch arrays for nm members (Rust allocates nothing) */
 function bfScratch(nm) {
-  const buf = WK.mem.buffer;
-  if (BFW.cap >= nm + 16 && BF_MK.buffer === buf && BF_ST.buffer === buf && BF_CS.buffer === buf && BF_FS.buffer === buf && BFA.list.buffer === buf && BFA.strong.buffer === buf && BF_T1.buffer === buf) return;
+  if (BFW.cap >= nm + 16 && wasmIn(BF_MK, BF_ST, BF_CS, BF_FS, BFA.list, BFA.strong, BF_T1)) return; // (wasmIn: still the module's after it grew, 1.26)
   const c = 2 * nm + 32; BFW.cap = c;
   BF_MK = wasmArray(Int32Array, c); BF_ST = wasmArray(Int32Array, c); BF_CS = wasmArray(Float64Array, c); BF_FS = wasmArray(Float64Array, c);
   BFA.strong = wasmArray(Int32Array, c); BFA.zone = wasmArray(Int32Array, c); BFA.zw = wasmArray(Float64Array, c); BFA.zd = wasmArray(Float64Array, c); BFA.list = wasmArray(Int32Array, c);
   BF_T1 = wasmArray(Int32Array, c); BF_T2 = wasmArray(Int32Array, c); BF_TW = wasmArray(Float64Array, c);
 }
 function bfSupRoom(n) {
-  if (BF_SUP1.length >= n && BF_SUP1.buffer === WK.mem.buffer) return;
+  if (BF_SUP1.length >= n && wasmIn(BF_SUP1)) return;
   const c = Math.max(256, 2 * n); BF_SUP1 = wasmArray(Int32Array, c); BF_SUP2 = wasmArray(Int32Array, c); BF_SUPS = wasmArray(Float64Array, c);
 }
 /* the descriptor; false when an array is not in the module's memory (a full plain memory gave the module up) */
 function bfDescFill() {
-  const d = BFW.desc, buf = WK.mem.buffer;
-  const put = (k, a) => { d[k] = a.byteOffset; return a.buffer === buf; };
+  const d = BFW.desc;
+  const put = (k, a) => { d[k] = a.byteOffset; return wasmIn(a); }; // (wasmIn: an array made before the memory grew is still in it, 1.26)
   let ok = true;
   for (let k = 0; k < BF_DESC.length; k++) ok = put(k, BF[BF_DESC[k]]) && ok;
   ok = put(49, BF.PT) && put(50, BFW.tgt) && put(51, BF_SM) && put(52, BF_TZ) && put(53, BF_SUP1) && put(54, BF_SUP2) && put(55, BF_SUPS) && put(56, BF_MK) && put(57, BF_ST) && ok;
@@ -772,6 +780,7 @@ function bfDescFill() {
   ok = put(68, S.x) && put(69, S.y) && put(70, S.Z) && put(71, S.q) && put(72, S.ionic) && put(73, S.fx) && put(74, S.fy) && put(75, VL.pi) && put(76, VL.pj) && ok;
   ok = put(77, BF.pfa) && put(78, BF.pfb) && put(79, BF.mljR) && put(80, BF.mljS) && put(81, BF.mpol) && put(82, BF.mgw) && put(83, BF.msn) && put(84, BF.mgf) && put(85, BF.mcl) && ok; // (1.19)
   ok = put(86, BF.mdcap) && put(87, BF.mdcapH) && put(88, BF.mdval) && put(89, BF.mdeI) && put(90, BF.mgq) && put(91, BF.mGc) && put(92, BF.mGh) && put(93, BF.mGv) && put(94, BF.mGd) && ok; // (1.20)
+  if (W.d3) ok = put(95, S.z) && put(96, BF.puz) && put(97, S.fz) && put(98, BFW.tgt3) && put(99, BFW.t1k) && ok; // (3-D, 1.26)
   return ok;
 }
 /* every pair of the members' elements has its type (the module reads BF_TZ) */
@@ -788,14 +797,16 @@ function bfPassWasm(forces) {
   const ex = WK.ex, P = BFW.par, nm = bfMembers();
   if (!nm) return boPassJS(forces); // (nothing to do; the member arrays may not exist yet)
   bfScratch(nm); bfSupRoom(0);
+  const d3 = W.d3, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = d3 ? W.box.d : 0;
+  P[3] = wrap ? 1 : 0; P[4] = bw; P[5] = bh; P[6] = bw / 2; P[7] = bh / 2; P[16] = d3 ? 1 : 0; P[17] = bd; P[18] = bd / 2; P[19] = TOR1_F0; // (3-D: the depth, 1.26; the box for every call, as the 3-D angles take their vectors from it)
+  if (d3 && (BF.puz.length < BF.pcapN || !wasmIn(BF.puz))) BF.puz = bfArr(Float64Array, BF.pcapN); // (the pairs' z directions, written by the module)
   let n;
   if (forces) {
     bfTypesAll();
-    const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h;
-    P[3] = wrap ? 1 : 0; P[4] = bw; P[5] = bh; P[6] = bw / 2; P[7] = bh / 2; P[13] = VL.np; P[11] = BF.pcapN;
+    P[13] = VL.np; P[11] = BF.pcapN;
     if (!bfDescFill()) return boPassJS(forces);
     n = ex.af_bo_collect(BFW.desc.byteOffset, P.byteOffset);
-    if (n > BF.pcapN) { BF.pcapN = 0; bfGrow(n, 0); bfDescFill(); P[11] = BF.pcapN; n = ex.af_bo_collect(BFW.desc.byteOffset, P.byteOffset); }
+    if (n > BF.pcapN) { BF.pcapN = 0; bfGrow(n, 0); if (d3) BF.puz = bfArr(Float64Array, BF.pcapN); bfDescFill(); P[11] = BF.pcapN; n = ex.af_bo_collect(BFW.desc.byteOffset, P.byteOffset); }
   } else n = bfPairsJS(false);
   BF.np = n;
   bfGrow(n, nm); bfSupRoom(4 * n);

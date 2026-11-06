@@ -231,7 +231,7 @@ engine stores and visits particles.
     twofold shape. The flat game unchanged (2-D has no twist). Physics in 3-D: barriers against the measured ones,
     butane's anti/gauche populations at 300 K, insulated drift, forces against the slope, cost, the 3-D tiny objects
     (polyethylene) still whole; for the owner's OK.
-  - Continuous bond orders in 3-D in WebAssembly (left from 1.25): the 3-D angle term, its targets and roles, the
+  - Done in 1.26 (branch v134, the section "1.26: WebAssembly speed-ups"). Continuous bond orders in 3-D in WebAssembly (left from 1.25): the 3-D angle term, its targets and roles, the
     torsions and the z arrays in kernel/src/bo.rs (wasm.yml builds it on a working branch), checked natively with a 3-D
     dump; liquid water in 3-D with bond orders costs ×22 a simulated ps on the JavaScript pass.
   For 1.26 (the owner, after 1.24.0; not built yet):
@@ -259,7 +259,7 @@ engine stores and visits particles.
     polarizability that differs by direction for induced charges.
   - Also left from 1.25: the collider in 3-D (the 1.25 section: ring zones, radiation flight in the z = 0 plane, 3-D
     jet axes, 3-D collider setups; several sessions), the Experimental intranuclear cascade in 3-D, and continuous bond
-    orders in 3-D in WebAssembly (above).
+    orders in 3-D in WebAssembly (above; done in 1.26).
   Bugs on record (found while building 1.23.2–1.25; not fixed yet, for a bug-fix session; the owner: "keep these bugs
   on record"):
   - [looked at after 1.25: a model choice, for the owner] Flat copper with the normal pair model turns itself into ions: 120 of 127 atoms of a flat Cu lump within 2 ps at
@@ -1106,6 +1106,133 @@ from here, as in 1.25): worth checking before quoting them to the owner.
   main session runs it after merging).
 - Text: Settings → Experimental → Directional forces (three rows, their notes with the numbers above, cost tags for both
   modes, `SDESC`/`SDESC3`, realism tags, the Experimental total), Help → Forces, CLAUDE.md's layout (one line).
+
+### 1.26: WebAssembly speed-ups
+
+The owner: "see if there's anything you can write in wasm to make it faster" (branch v134, from the combined 1.25 at
+cc8a0fd). No physics change: every new path keeps the JavaScript as the reference (a switch turns each off), agrees with
+it to the bit or to rounding, and the flat game's fingerprints are unchanged. The module was built by wasm.yml on v134
+(commits cf2fc67, 18a9311, 970cc32, 35a434e, 46199aa: "kernel.wasm: built from …"); no wasm32 target here, so every port
+was first checked natively against a dump of the JavaScript's own state (cargo examples, below).
+
+**Profile first** (1.25, before any port; Node, one thread, the bath off after settling, a sampling profile of the timed
+steps only: scratchpad tools prof.js / scen.js of the session; CPU ms a step; [w] = already WebAssembly). The machine is two
+cores shared by four agents, so ms are ±30% between runs; the shares held better.
+
+| setup (atoms) | ms a step | where the time goes |
+|---|---|---|
+| flat liquid water (240) | 0.41 | pair kernel [w] 31%; integration and inner steps ~25%; chooseDt 7%; list walk (vlPairs) 6% |
+| + bond orders | 1.2 | the pass [w] 41% (pass1 32, collect 5, pass2 4.5); its JavaScript gathering 10%; garbage collection 17% |
+| + quantum nuclei, 8 beads, every bead | 2.2 | pair kernel [w] 46%; list walk 12% (a list for most beads); ring modes (JS) 11% |
+| + induced charges every step | 1.0 | qeqUpdate 27% + qeqC 13% (JS); pair kernel [w] 27% |
+| flat salt water (726) | 4.7 | pair kernel [w] 28%; electron-transfer estimates 31% (gridWalk 17%) |
+| flat organic box (536) | 0.37 | integration 34%; pair 16%, angles 11% [w] |
+| flat Al patch, many-body (223) | 1.4 | mbPass 21% (JS); garbage collection 15%; pair 5% |
+| flat Cu patch, many-body (283) | 3.4 | electron-transfer estimates 69% (on record) |
+| flat water, 4 × 1 MeV protons | 6.1 | molecule naming (graphHash, fnv, libIndex) 18%; inner steps 26%; pair 6% |
+| flat water, 4 × 10 keV electrons | 6.5 | molecule naming 17%; inner steps 20%; garbage collection 15% |
+| 3-D liquid water (1,029) | 3.6 | pair kernel [w] 68%; list walk (vlPairs3, JS) 19% |
+| + bond orders from the positions | 29 | the JavaScript pass 94%: Coulomb 35%, its own loops 22%, pair collection 23%, LJ 4%, angles and twists ~3% |
+| + quantum nuclei 8, contracted | 8.2 | pair [w] 36%; list walk and build 19%; ring transforms (piTo, piFrom) 12%; angles [w] 6% |
+| + quantum nuclei 8, every bead | 67 | list walk 62% (made again for every bead); pair [w] 29% |
+| + induced charges every step | 13 | pair [w] 44%; qeqUpdate 26% + qeqC 12%; list walk 5.5% |
+| 3-D salt water (997) | 14 | electron-transfer estimates 38% (on record); pair [w] 32%; list walk 6% |
+| molecules in space (72) | 0.23 | the step's loops ~40%; angles 6%, pair 4%, bonds 3% [w] |
+| 3-D organic box (536, 584 single-bond dihedrals) | 1.2 | single bonds' twist (tors1K, JS) 17–22%; angles [w] 10%; pair [w] 5%; integration 25% |
+| + bond orders | 4.9 | the JavaScript pass 89% (its loops 22%, Coulomb 11%, 3-D angles 9%, twists 12%) |
+| 3-D Al ball, many-body (959) | 2.3 | mbPass 35% (JS, exp 15%); pair [w] 19% |
+| 3-D Cu ball, many-body (603) | 113 | electron-transfer estimates 95% (on record) |
+| 3-D water, 4 × 1 MeV protons | 9.6 | pair [w] 39%; list walk 7%; the protons' flight and events ~20% |
+| 3-D water, 4 × 10 keV electrons | 258 | anonymous callbacks 30% (the path search, on record); list walk 23% (the MD set changes as electrons fly); free-electron forces 9.5%; event evaluation 21% |
+
+Threaded: not measurable here. Two threads on the two shared cores gave the same 3-D water run 15–90 ms a step (the
+busy-waiting workers against four agents); t_threads checks the threaded paths' results (below), not their speed.
+
+**The ports**, in order of expected gain. Speed: two worlds in one process (the 1.25 paths and the new ones, the same
+seed), stepped in alternating chunks, CPU time (scratchpad ab.js), 4–5 rounds; "min" is the best chunk against the best
+chunk, the range is chunk against chunk (the other agents' load moves single chunks ×2–5).
+
+1. **The neighbour list's walk** (engine.js vlPairs / vlPairs3 → kernel/src/vl.rs `af_vl`, `af_vl3`; vlPairsW /
+   vlPairs3W on the main thread, in vlBuildAll's own share and on the workers, `VL.useWasm`). The same walk over the grid's
+   hash of occupied cells in the same order, whole numbers and the same subtractions: the list is the JavaScript's pair
+   for pair. Native check (vlcheck on tools/vldump.js dumps of flat water, brine, 3-D water, brine, the molecules in
+   space, an organic box): the same lists, whole and in three stretches as the workers build them. Fingerprints, 300
+   steps, seed 7: the 46 flat setups, the six 3-D setups and three quantum-nuclei runs identical to cc8a0fd. The walk is
+   2–2.5 times faster natively (3-D water: JS 6.4 ms, Rust 2.5–3.0 ms: in a 22 Å periodic box the cells are two a side,
+   so every pair is checked, 530,000 for 1,029 atoms). Steps: 3-D water ×1.13–1.14 (min; range 1.07–1.42), 3-D salt water
+   ×1.24 (1.2–2.1), quantum nuclei every bead 8 beads ×1.28–1.31, 16 beads ×1.1–1.2, flat water ×1.0, flat
+   every-bead ×1.03–1.08.
+2. **Continuous bond orders in 3-D** (bo.js's 3-D pass → kernel/src/bo.rs: collect with z and BF.puz, the 3-D angle term
+   (`centre3`: angle3CentreK's pairs, the roles of modes 2–4, the out-of-plane term, with vsepr3's [mode, θ₀, flat] for
+   every key in a table made by the JavaScript), the double bonds' twist (`trip`, triple3K's), the single bonds' twist
+   weighted by the orders (bfTors1's, with tors1 below and TOR1B / TOR1's k's in a table), the z forces; bo.js runs it
+   when the module says so, af_const(18) = 100, `BF.useWasm`). Native check (bocheck on tools/bodump.js's 3-D dumps:
+   water3d 1,029 members, mol3d, an organic box, mix3 with every angle mode): energy to the bit, forces to 5e-14 eV/Å
+   (largest 39), orders, charges and ∂E/∂ν to rounding; the flat dumps as before. In Node: one pass's energy the same to
+   the bit, forces 4e-16 (water) to 3e-15 eV/Å (organic, largest 15); 20–100-step runs 0–6e-16 Å apart, the same
+   events. Steps: 3-D water ×2.8–3.0 (range 1.7–6.6; 1.25's 21.7 → 7.3 CPU ms a step at best), the organic box ×2.2–2.6,
+   the molecules in space ×2.4 (f_126w's own interleaved run ×3.2–4.7). Cost against stored bonds a simulated fs: water
+   ×15 → ×7.8, the molecules in space ×19 → ×8, the organic box ×21 → ×14 (cross-process runs). What is left of it: pass1
+   60% (Coulomb and the 1-3 search), collect 14%, pass2 9%.
+3. **The single bonds' twist** (engine.js tors1Forces3 → d3.rs `af_tors1`, AC3.sq/sk in the module's memory,
+   `AC3.useWasm`): square roots and products only, so the forces are the JavaScript's to the bit (native check on the
+   organic dump: 584 dihedrals, 0 components differ; Node: forces and a 100-step run identical). 584 dihedrals 0.05–0.12 ms
+   against 0.07–0.18 (×1.3–1.6); the organic box's step ×1.07–1.11.
+4. **Bond orders for metals** (bometal.js mbPass's pair loop, embedding and forces → kernel/src/mb.rs `af_mb`; one line in
+   bometal.js, the wrapper mbWasm in wasm.js copies the sorted members in; `MBO.useWasm`). Native check (mbcheck on
+   tools/mbdump.js: a flat Al patch, 3-D Al and Cu balls, a Cu–Ag–Au alloy, periodic Cu): the same pairs, energy to the
+   bit, forces 1e-15, the same stiffness; in Node every case so far bit for bit (the module's exp gave V8's here).
+   Little faster: the pass is two exp calls a pair, and the module's exp (compiler_builtins' libm, the same fdlibm
+   algorithm) runs no faster than V8's built-in; 3-D Al ball ×1.1–1.2, flat Al ×1.2 (min). A faster exp (a table and a
+   short polynomial, 1 ulp) would take about a third off the pass but changes the last bit: not done.
+5. **Induced charges' pairs** (qeqUpdate's loop over the neighbour list with qeqC → kernel/src/qeq.rs `af_qeq`, QB's arrays
+   in the module, the exclusions from exclLists' arrays, `QB.useWasm`): native check (qeqcheck on tools/qeqdump.js: flat
+   water and brine, 3-D water, brine and H₂ + O₂): the same list, coefficients and charge products to the bit; every-step
+   runs identical (f_126w). Steps every step: 3-D water ×1.3–1.37, flat water ×1.1–1.4; every 10th ×1.0–1.2. What is left:
+   qeqUpdate's own JavaScript (the molecules gathered as objects, φ and the books) 14% of a 3-D step.
+6. Found on the way, fixed (the module's memory growing): a shared WebAssembly.Memory hands out a new buffer object after
+   it grows, and the views made before keep the old one. wasmFastReady and bfDescFill compared views with WK.mem.buffer,
+   so after the first growth every pass went to the JavaScript for good, and bfScratch / bfSupRoom made their scratch
+   arrays again at every bond-order pass (the arena leaking). Measured on 1.25: 3,600 flat waters with bond orders, 242
+   growths before the first step and 0 module passes (277 ms a step); 3,600 waters with 30 free electrons, 0 af_fast calls
+   after the memory grew. Now `wasmIn` (wasm.js: the memory's buffers kept in a set) is used for every such check: 78
+   growths, every pass in the module (147 ms a step); the electrons' run identical to the bit (the kernel's forces are the
+   JavaScript's), 425 module calls, 209 → 133 ms a step.
+
+**Settings' costs** (3-D, COSTS3, and the 3-D notes in Experimental): bond orders from the positions ×18–23 → ×7–14;
+quantum nuclei every bead ×17 / ×30 / ×48 → ×13 / ×25 / ×40 (the 32-bead one scaled, not measured); every bead against
+contracted ×7–10 → ×6–8; induced charges every step ×3.2–4.2 → ×2.5–3.2, every 10th ×1.6–2.4 → ×1.4–2.4. The flat tags
+did not change by more than the noise (the flat list walk and the flat many-body pass ×1.0–1.2); the flat bond-order tag
+(×8–15 against a measured ×5–7) is on the bug list and left. f_125s's check of the 3-D bond-order tag accepts ×7–14.
+
+**After** (the same profile, 1.26): 3-D water: pair kernel 75%, list walk 11%; 3-D water with bond orders 9–10 ms a step,
+the module's pass 83%; every bead at 8 beads: list walk 48%, pair 39%; contracted 8 beads: pair 45%, ring transforms (JS)
+20%, list 8%; the organic box: twist [w] 18%, pair 17%, angles 14%; 3-D water with induced charges: pair 48%, af_qeq 21%,
+qeqUpdate 14%; Al ball: af_mb 30% of which exp 22%.
+
+**Left, and why:**
+- Quantum nuclei with every bead in 3-D: the list is made again for every bead (above, and the bug list). A list per bead,
+  each kept while its bead's atoms stay within the half skin (as a centroid's is), would remove most of the 48%, about ×1.7
+  a step; but the pairs then come in another order (rounding) and bead 0's events in another order: the owner's call.
+- The ring transforms of contracted quantum nuclei (piTo, piFrom, piOpen: ~20% of a 3-D step at 8 beads) port to the
+  module to the bit (sums in the same order), but PI's and PIM's arrays would move into its memory and the thermostat's
+  gauss() stays in JavaScript: perhaps a tenth of a step; not done.
+- The single bonds' twist runs on the main thread after the threaded kernels; giving its dihedrals to the workers (as AC3.tq)
+  matters with many threads (+30% of a one-thread step in organic boxes).
+- The many-body metals' exp (above); the 3-D bond orders' pass on one thread (the rest of the step is threaded).
+- Measured, on the bug list, not touched: electron-transfer estimates (brine 31–38%, Cu 69–95%), the charged-particle path
+  search (3-D water with 10 keV electrons, 258 ms a step, 30% in its callbacks), molecule naming in flat radiolysis
+  (graphHash, fnv: ~18% with fast protons or electrons).
+
+**Tests**: tests/f_126w.js (t_features' "1.26 (speed)" block, or `node tests/f_126w.js [vl tors1 bo3 mb qeq grow page]`):
+vl (lists pair for pair, whole and in stretches, flat and 3-D; 60-step runs to the bit with and without), tors1 (forces and
+a 100-step run to the bit), bo3 (energy 1e-9, forces 1e-10, runs together, ×1.5 at least on the molecules in space), mb
+(1e-12, flat and 3-D), qeq (every-step runs to the bit), grow (after the memory grows the bond orders and electrons stay in
+the module, nothing reallocated, the run to the bit), page (the headless page's module runs the 3-D bond orders and the
+list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38 MB reallocated in 30 steps). Native:
+`cargo run --release --example vlcheck|bocheck|mbcheck|qeqcheck -- dump…` with tools/vldump.js, bodump.js (3-D setups
+added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
+thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
 ## 1.25 (in progress)
 

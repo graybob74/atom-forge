@@ -139,14 +139,27 @@ unsafe fn vec3(s: &St, s3: &St3, b: &Box3, i: usize, j: usize) -> (f64, f64, f64
     (dx, dy, dz)
 }
 
+/// vec3 on bare position arrays (1.26: the single bonds' twist and the bond orders' 3-D pass): the same arithmetic.
+#[inline(always)]
+pub(crate) unsafe fn vec3p(px: *const f64, py: *const f64, pz: *const f64, b: &Box3, i: usize, j: usize) -> (f64, f64, f64) {
+    let mut dx = rd(px, j) - rd(px, i); let mut dy = rd(py, j) - rd(py, i); let mut dz = rd(pz, j) - rd(pz, i);
+    if b.wrap {
+        let bw = b.bw; let bh = b.bh; let bd = b.bd;
+        if dx > bw / 2.0 { dx -= bw; } else if dx < -bw / 2.0 { dx += bw; }
+        if dy > bh / 2.0 { dy -= bh; } else if dy < -bh / 2.0 { dy += bh; }
+        if dz > bd / 2.0 { dz -= bd; } else if dz < -bd / 2.0 { dz += bd; }
+    }
+    (dx, dy, dz)
+}
+
 /// sin and cos of a target angle, worked out once per call (the JavaScript takes them per pair: the same values).
 #[derive(Clone, Copy)]
-struct Tg { t: f64, st: f64, ct: f64 }
-impl Tg { fn new(t: f64) -> Tg { Tg { t, st: t.sin(), ct: t.cos() } } }
+pub(crate) struct Tg { t: f64, st: f64, ct: f64 }
+impl Tg { pub(crate) fn new(t: f64) -> Tg { Tg { t, st: t.sin(), ct: t.cos() } } }
 
 /// One pair's term at angle th (cos th = c) for the target (engine.js pairAngE): (energy, g), g the factor of the forces.
 #[inline(always)]
-fn pair_ang(k: f64, th: f64, c: f64, tg: &Tg) -> (f64, f64) {
+pub(crate) fn pair_ang(k: f64, th: f64, c: f64, tg: &Tg) -> (f64, f64) {
     if tg.t > 3.14159 {
         let d = th - PI; let s = th.sin();
         let g = if s > 1e-9 { 2.0 * k * d / s } else { -2.0 * k };
@@ -155,11 +168,11 @@ fn pair_ang(k: f64, th: f64, c: f64, tg: &Tg) -> (f64, f64) {
     let kc = k / (tg.st * tg.st); let dc = c - tg.ct;
     (kc * dc * dc, -2.0 * kc * dc)
 }
-const PI: f64 = core::f64::consts::PI;
+pub(crate) const PI: f64 = core::f64::consts::PI;
 
 /// engine.js transPair: bonds 0 and m trans, the other two trans.
 #[inline(always)]
-fn trans_pair(k: usize, l: usize, m: usize) -> bool { (k == 0 && l == m) || (k != 0 && l != m && k != m) }
+pub(crate) fn trans_pair(k: usize, l: usize, m: usize) -> bool { (k == 0 && l == m) || (k != 0 && l != m && k != m) }
 
 /// E = Kt·(û₁·û₂×û₃)² over b_m = x[e[2m+1]] − x[e[2m]]: the forces (engine.js triple3K).
 #[inline(always)]
@@ -256,6 +269,53 @@ pub unsafe fn angle_kernel3(s: &St, s3: &St3, c0: usize, c1: usize, t0: usize, t
         let xx = rd(s3.tq, 4 * t) as usize; let a = rd(s3.tq, 4 * t + 1) as usize; let bb = rd(s3.tq, 4 * t + 2) as usize; let y = rd(s3.tq, 4 * t + 3) as usize;
         triple3(s, s3, bx, [xx, a, a, bb, bb, y], K_TOR, fx, fy, fz);
     }
+}
+
+/// One single-bond dihedral's twist (engine.js tors1K, 1.25; here 1.26): E = F·Σkₙ cos nφ as a polynomial in u·v and
+/// |u|²|v|² (u = b̂₁×b̂₂, v = b̂₂×b̂₃), over f0 = sin⁶(109.47°) (the JavaScript's Math.pow(8/9, 3), passed in). Returns E;
+/// adds the forces when fx is not null. The same arithmetic in the same order: no transcendental functions, so the
+/// two agree to the bit.
+pub unsafe fn tors1(px: *const f64, py: *const f64, pz: *const f64, bx: &Box3, x: usize, a: usize, b: usize, y: usize, k: [f64; 4], f0: f64, fx: *mut f64, fy: *mut f64, fz: *mut f64) -> f64 {
+    let ends = [x, a, a, b, b, y]; let mut e = [0.0f64; 9]; let mut l3 = [0.0f64; 3];
+    for m in 0..3 {
+        let (vx, vy, vz) = vec3p(px, py, pz, bx, ends[2 * m], ends[2 * m + 1]);
+        let mut l = (vx * vx + vy * vy + vz * vz).sqrt(); if l == 0.0 || l.is_nan() { l = 1e-9; } // (JS: || 1e-9)
+        e[3 * m] = vx / l; e[3 * m + 1] = vy / l; e[3 * m + 2] = vz / l; l3[m] = l;
+    }
+    let (k0, k1, k2, k3) = (k[0], k[1], k[2], k[3]);
+    let ux = e[1] * e[5] - e[2] * e[4]; let uy = e[2] * e[3] - e[0] * e[5]; let uz = e[0] * e[4] - e[1] * e[3];
+    let vx = e[4] * e[8] - e[5] * e[7]; let vy = e[5] * e[6] - e[3] * e[8]; let vz = e[3] * e[7] - e[4] * e[6];
+    let uu = ux * ux + uy * uy + uz * uz; let vv = vx * vx + vy * vy + vz * vz; let p = uu * vv; let rr = p.sqrt(); let c = ux * vx + uy * vy + uz * vz;
+    let en = (k0 * p * rr + k1 * c * p + k2 * (2.0 * c * c - p) * rr + k3 * (4.0 * c * c * c - 3.0 * c * p)) / f0;
+    if fx.is_null() { return en; }
+    let dc = (k1 * p + 4.0 * k2 * c * rr + k3 * (12.0 * c * c - 3.0 * p)) / f0;
+    let dp = if rr > 1e-12 { (1.5 * k0 * rr + k1 * c + k2 * (-rr + (2.0 * c * c - p) / (2.0 * rr)) - 3.0 * k3 * c) / f0 } else { 0.0 };
+    let gux = dc * vx + dp * 2.0 * ux * vv; let guy = dc * vy + dp * 2.0 * uy * vv; let guz = dc * vz + dp * 2.0 * uz * vv;
+    let gvx = dc * ux + dp * 2.0 * vx * uu; let gvy = dc * uy + dp * 2.0 * vy * uu; let gvz = dc * uz + dp * 2.0 * vz * uu;
+    let g = [e[4] * guz - e[5] * guy, e[5] * gux - e[3] * guz, e[3] * guy - e[4] * gux,
+        guy * e[2] - guz * e[1] + e[7] * gvz - e[8] * gvy, guz * e[0] - gux * e[2] + e[8] * gvx - e[6] * gvz, gux * e[1] - guy * e[0] + e[6] * gvy - e[7] * gvx,
+        gvy * e[5] - gvz * e[4], gvz * e[3] - gvx * e[5], gvx * e[4] - gvy * e[3]];
+    for m in 0..3 {
+        let gx = g[3 * m]; let gy = g[3 * m + 1]; let gz = g[3 * m + 2]; let d = gx * e[3 * m] + gy * e[3 * m + 1] + gz * e[3 * m + 2]; let il = 1.0 / l3[m];
+        let ggx = (gx - d * e[3 * m]) * il; let ggy = (gy - d * e[3 * m + 1]) * il; let ggz = (gz - d * e[3 * m + 2]) * il;
+        let n0 = ends[2 * m]; let n1 = ends[2 * m + 1];
+        add(fx, n1, -ggx); add(fy, n1, -ggy); add(fz, n1, -ggz); add(fx, n0, ggx); add(fy, n0, ggy); add(fz, n0, ggz);
+    }
+    en
+}
+/// The single-bond dihedrals t0 ≤ t < t1 of AC3.sq (four slots each) with their k's in AC3.sk (engine.js tors1Forces3).
+pub unsafe fn tors1_range(s: &St, s3: &St3, bx: &Box3, sq: *const i32, sk: *const f64, t0: usize, t1: usize, f0: f64, fx: *mut f64, fy: *mut f64, fz: *mut f64) {
+    for t in t0..t1 {
+        let o = 4 * t;
+        tors1(s.x, s.y, s3.pz, bx, rd(sq, o) as usize, rd(sq, o + 1) as usize, rd(sq, o + 2) as usize, rd(sq, o + 3) as usize,
+            [rd(sk, o), rd(sk, o + 1), rd(sk, o + 2), rd(sk, o + 3)], f0, fx, fy, fz);
+    }
+}
+#[no_mangle]
+pub unsafe extern "C" fn af_tors1(desc: u32, sq: u32, sk: u32, t0: u32, t1: u32, fx: u32, fy: u32, fz: u32, wrap: u32, bw: f64, bh: f64, bd: f64, f0: f64) {
+    let s = store(0, desc as usize as *const i32); let s3 = store3(0, desc as usize as *const i32);
+    let bx = Box3 { wrap: wrap != 0, bw, bh, bd, hw: bw / 2.0, hh: bh / 2.0, hd: bd / 2.0 };
+    tors1_range(&s, &s3, &bx, sq as usize as *const i32, sk as usize as *const f64, t0 as usize, t1 as usize, f0, fx as usize as *mut f64, fy as usize as *mut f64, fz as usize as *mut f64);
 }
 
 /// One 3-D force pass over the given ranges: pairs, bonds, angle centres and dihedrals (in that order, as the JavaScript).
