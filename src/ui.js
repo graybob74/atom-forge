@@ -1803,7 +1803,7 @@ function renderInspect() {
     _insCv = null; restoreScroll('tp-inspect'); return;
   }
   const ke = p.rad ? p.KE : W.d3 ? 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy);
-  const speed = p.rad ? p.sp : W.d3 ? Math.hypot(p.vx, p.vy, p.vz) : Math.hypot(p.vx, p.vy);
+  const speed = shownSpeed(p); // (relativistic from its energy: a fast 3-D particle's stored v can pass c, 1.26 bug fix)
   const kv = [];
   let head = '', pills = '', extra = '', bareNote = '';
   if (p.k === ELEC || p.k === POS) {

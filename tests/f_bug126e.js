@@ -132,6 +132,22 @@ PARTS.decay = async (page, check, say) => {
     `1.26 bug fixes: ¹⁹⁸Au decays by β⁻ only (${r.Au198.t12d} d), ²²Na by β⁺ ${r.Na22.modes['b+']} and electron capture ${r.Na22.modes.ec}`, 'bug126e decay: ' + JSON.stringify(r));
 };
 
+/* The speed shown (the owner, 2026-11-06: "a hydrogen atom travelling 328% of c" after a 1 PeV α in 3-D). A fast
+   particle in 3-D keeps its energy as ½mv² and is moved at the relativistic speed of it, so the stored v passes c;
+   Inspect showed that v. Now shownSpeed: from the energy, relativistically. A 5 GeV proton and a 50 MeV electron made
+   fast in 3-D, a thermal atom, and a flat radiation-flight proton: each under c and at the speed of its energy. */
+PARTS.speed = async (page, check, say) => {
+  const X = load('all', { seed: 2 }), W = X.W; X.PRESETS.d3empty.build();
+  const C = X.PHYS.C, rel = (KE, m) => { const g = 1 + KE / (m * X.AMU_EV); return C * Math.sqrt(1 - 1 / (g * g)); };
+  const p = X.addNuc(1, 0, 0, 0, 0, 0, 0, false, 0); X.setMotion(p, 5e9, 1, 0, 0, 0, 0);
+  const e = X.addLepton(X.ELEC, 2, 2, 0, 0, 0, 0); X.setMotion(e, 5e7, 0, 1, 0, 0, 0);
+  const h = X.addAtom('H', -5, 3, { z: 1 }); h.vx = 0.01; h.vy = -0.02; h.vz = 0.005;
+  const stored = Math.hypot(p.vx, p.vy, p.vz) / C, sp = X.shownSpeed(p) / C, se = X.shownSpeed(e) / C, want = rel(5e9, p.m) / C;
+  const sh = X.shownSpeed(h), nh = Math.hypot(h.vx, h.vy, h.vz);
+  const ok = p.fast && !p.rad && stored > 1 && Math.abs(sp - want) < 1e-12 && sp < 1 && se < 1 && se > 0.99 && Math.abs(sh / nh - 1) < 1e-6; /* (c² and the u-to-eV constant agree to 4×10⁻⁸ in these units) */
+  check(ok, `1.26 bug fix (the speed shown): a 5 GeV proton in 3-D shows ${(sp * 100).toFixed(2)}% of c (its stored ½mv² speed ${(stored * 100).toFixed(0)}%), a 50 MeV electron ${(se * 100).toFixed(4)}%, a thermal hydrogen its own speed`, 'bug126e speed: ' + JSON.stringify({ fast: p.fast, rad: p.rad, stored, sp, want, se, sh, nh }));
+};
+
 module.exports = async function fbug126e(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
