@@ -430,6 +430,105 @@ v136). Check: tests/f_cu126.js (t_features, alone).
   "still" (lone K and Cu still allowed, two Cu in a lump refused, Cu⁺ in a lump still takes an electron, a Na lump among
   Cl atoms still makes salt: 7 Na⁺ in 1 ps). Fails on v136 (both parts), passes now.
 
+### 1.26: bug fixes (collisions at extreme energy, muonic atoms)
+
+Branch v138 (from v136). Checks: tests/f_hep126.js (t_features runs it alone; `node tests/f_hep126.js [--node] [part …]`);
+each part fails on v136 and passes here.
+
+- **A. "2 alpha particles, 1 PeV, one staying still didn't collide" (slow motion).** The 0.93 fix (a pair still closing
+  in meets at its true closest approach in a later step) holds: in the flat game the head-on pass is found at every
+  step size. It still went through, for three reasons, measured through the page's Fire tool (an α fired at 1 PeV at
+  an α at rest, 6 runs a speed) and in fixed-step Node loops (α on α, p on α, α on ¹⁹⁷Au; 1 MeV–10 PeV; b = 0, 0.03,
+  0.1 Å; steps of the step chooser, 10⁻³ Å and 2×10⁻⁵ Å of the projectile's path; 3 seeds each; flat and 3-D):
+  1. Both games: of the nucleus–nucleus passes able to react above 25 MeV a nucleon, 35% diffracted, by a draw at any
+     distance (`nuclearEncounter`). At 1 PeV a diffraction turns the pair by about 10⁻⁹ rad: the α went straight on and
+     the target barely moved, one time in three, head on as much as grazing. The two-nucleon passes already worked by
+     distance (inelastic core, diffractive rim). Now the outer 35% of the passes diffract and the inner 65% react: the
+     same share of elastic passes overall, none head on. (The flat game's passes, spread along a line, are spread over
+     the nucleus's disc by b = R·√u; a 3-D pass's distance is spread over the disc already, and taking the root of it
+     put 3-D hits off centre, b³ uniform instead of b²: 3-D now takes b = R·u, so the 35% holds there too.)
+  2. 3-D: an atom in flight moved at the speed of ½mv² (no radiation flight in 3-D), 730c at 1 PeV: 447 Å in a shortest
+     step, through the 30 Å box in one step, and `fastEncounters3` skips a path longer than half the box (a wrap), or
+     never runs (an open wall took the atom first). At 1× down to 1/10¹⁸ s a second it met nothing. Now a nucleus in
+     flight in 3-D moves at the relativistic speed for its ½m|v|² (`flyScale3`; the books unchanged, as bug fix 14 did
+     for leptons; under 1% of c the stored speed as before, bit for bit), the step chooser and slow motion take that
+     speed (slow motion also with the depth: `speedNow`; it looked at the speed in the plane), neutron pairs too
+     (`nnMeet3`), and one leaving the box this step meets what lay on its way out before the wall takes it.
+  3. Both games, α on heavy nuclei at 15–40 MeV a nucleon: when the participant fireball had no consistent outcome
+     (`fragmentInto`: the spectators' excitation more than the energy), the encounter was nothing. Now the compound
+     nucleus (or exchange) branch takes it. α on gold at 100 MeV head on: 5 of 6 flat and 2 of 6 in 3-D reacted before,
+     6 of 6 both now.
+  - Numbers. Page, 1 PeV α at an α at rest: flat 6/6 at 1×, 3/6 at 1/32× and 1/512×, 6/6 at 10⁻¹⁸ s a second before;
+    6/6 at every speed now. 3-D 0/6 at 1×, 1/32×, 1/512× and 10⁻¹⁸ s/s, 2/6 at 10⁻²¹ before; 6/6 at each now (at 10⁻²¹
+    and 10⁻²³ s/s the α, now at c, takes over a minute to cross the gap: not counted). Node matrix, head on and b =
+    0.03 Å, 100 MeV–10 PeV: before 9–18 of 18 a cell; now 18/18 everywhere except α on gold at 100 MeV, b = 0.1 Å
+    (outside the barrier radius, as it should be). Below the Coulomb barrier (α + α under ~8 MeV, α + Au under 100 MeV)
+    nothing reacts, as in nature; see the questions below for what a pass does there. Momentum of the hit kept to
+    2×10⁻¹⁵, its books to 3×10⁻⁶ eV (1 GeV α + α, flat and 3-D).
+- **B. Muonic atoms ("still behave very weirdly"; "you also can't erase muonic atoms").** The earlier work: 0.51 (muonic
+  atoms made), 1.12 (μp scattering), 1.25 stage 1 (in 3-D). Muonic hydrogen (μp, μd, μt) is an unstable particle in
+  W.exo, not an atom in W.parts; a heavier muonic atom is an ordinary atom with `muB`. Found and fixed:
+  1. The Erase tool's brush (flat `eraseAt`, 3-D `eraseHere3`) went over W.parts only: muonic hydrogen (and any unstable
+     particle) could not be erased. Now it takes them too, booked as an erased atom is (what it carried leaves with it).
+     Page: a click with Erase on a μp, flat and 3-D: 1 left before, 0 after. (Empty the chamber already cleared them.)
+  2. In a periodic box (the liquid-water setups) muonic hydrogen, and the slow muons, kaons and hyperons kept in by a
+     closed box, left the chamber at the first edge, their energy escaped: a μp in 3-D water was gone within 1.2 ps.
+     Now they go across, as atoms do. 3,000 steps in a periodic box: gone before, still there after (flat and 3-D).
+  3. A muonic heavier atom showed in Inspect as a plain atom; it now says so (a pill with its mean life, a Muon line
+     with the binding and the capture share).
+  4. Saves, and undo (which is a save), dropped both: a muonic carbon came back plain, muonic hydrogen not at all. Now
+     part field 5 bit 4 marks a muonic atom and `xa` lists muonic hydrogen and (μα)⁺ (older readers ignore both).
+  - Found, not changed (for the owner, model and data questions):
+    - Muonic hydrogen meets only hydrogen nuclei (scattering, transfer to d/t, μCF) and passes through every other atom.
+      Real μp is a small neutral atom that hands its muon to any heavier nucleus it meets (μp + O → μO, about
+      8.5×10¹⁰ s⁻¹ at liquid-hydrogen density): in water that happens within picoseconds; here never. It feels no bath
+      and no other atom. Making it an atom in MD with transfer to heavier nuclei, as muonium became in 1.12, is a model
+      change.
+    - In a muonic heavier atom the electrons still see the whole nuclear charge (0.51's stated simplification); in nature
+      they see Z − 1 (muonic carbon is chemically boron-like, muonic oxygen nitrogen-like).
+    - Lifetimes against measured (Suzuki, Measday, Roalsvig 1987): C 2,045 ns (2,026), O 1,831 (1,795), Al 1,077 (864),
+      Ca 392 (333), Fe 193 (206), Pb 23 (75.4). The capture rate 32·Z_eff⁴ s⁻¹ has no neutron-excess factor (Primakoff:
+      170·Z_eff⁴·(1 − 3.125·(A − Z)/2A) s⁻¹), so lead captures 3.3 times too fast.
+    - A muon is caught at 2 keV (MU_STOP); its momentum then (0.56 MeV/c) is not handed on (the X-rays take its energy,
+      in random directions; the atom's momentum after: 0.04–0.11 MeV/c, from its ionizing on the way): giving it to the
+      atom would kick carbon by 14 eV, which a real muon, slowed to eV first, does not. μp is made with a thermal
+      momentum for the same reason. The books are exact (10⁻¹⁰ eV). The atom's mass leaves out the muon (0.113 u; 0.9%
+      for carbon).
+    - The Select tool does not take muonic hydrogen (nor Delete in its Inspect card); the particle view draws a heavier
+      muonic atom without its muon.
+- **Muonium's nucleus ("it still says 'inside its nucleus, a proton'").** 1.12 made muonium an atom (p.mu) and named
+  it in Inspect, guarding the physics (tryFusion, nuclearEncounter …) but not the views that read Z = 1, N = 0 as
+  hydrogen: the "Inside" section (qSubject, 0.50) showed a proton's uud quarks, the shell diagram and the particle view
+  drew a proton bead labelled ¹H, and Inspect offered to keep it as the isotope hydrogen-1. Now the Inside section
+  says its nucleus is a μ⁺, a lepton with nothing inside; both views draw a light-blue muon point labelled Mu; the tile
+  shows no mass number and there is no "keep isotope" button. Screenshots: scratchpad hep126/mu-before-*.png,
+  mu-after-*.png.
+- Also found at extreme energy, not changed:
+  - Below the nuclear threshold a pass inside the drawn reach is turned by Rutherford's law at its true distance in Å,
+    floored at 0.005 Å (flat, `nuclearCollision`) or 0.01 Å (3-D, `coulombScatter3`): a head-on 1 MeV α on α gives the
+    target 133 eV (flat) or 33 eV (3-D) instead of the whole 1 MeV of a real backscatter; a 10 MeV α passing 0.03 Å
+    from an α (a tenth of the reach) is mapped to 5.6 fm, outside the 4.8 fm barrier radius, and nothing at all
+    happens. Mapping such passes onto nuclear distances for the Coulomb turn too, as the collider's `nuclearScatter`
+    does, is a model change for the owner.
+  - The books of a PeV event's products: decays in flight and the products' own collisions lose about 10⁻⁹ of the
+    beam's energy (1 PeV α + α: 0.1–11 MeV over the event's first steps; 10 PeV: up to 1 GeV, 10⁻⁷), before and after
+    these fixes. Why: the boosts take γ from 1 − β², which at γ ≈ 10⁵ keeps only ~10⁻⁶ of it, and closeEvent leaves a
+    remainder under 10⁻⁷ of the event's energy unsettled. The hit itself is exact. A fix passes γ to the boosts.
+  - 3-D neutrons still move at ½mv²'s speed (1 PeV: 1,460c); their hits are found along the whole step before they
+    move, so they do meet.
+- Fingerprints (tools/fingerprint.js, all 59 setups, seed 7, 300 steps, before on v136 and after): two change, pionbeam and
+  sns (state and books): both have nucleus–nucleus passes above 25 MeV a nucleon in those steps (3 and 14), which now
+  diffract by distance and no longer draw a random number for it. No fireball fell back to the compound nucleus there,
+  and no 3-D setup has a nucleus in flight past 1% of c: the six 3-D setups and the other 51 flat ones are unchanged.
+- Test change: f_125n's plasma check (one ²⁰⁸Pb at 200 GeV a nucleon on lead in 3-D, its spray as wide across the beam
+  in y as in z, within 40%) now pools three events (seeds 31–33). With 3-D hits now centred (b = R·u) seed 31 alone
+  came out at uz²/uy² = 1.40 and failed by a hair; one event's ratio scatters 0.72–1.40 over six seeds (v136: 1.04–1.33),
+  as its hadrons come in correlated clusters. Pooled: 0.0253 and 0.0284 (v136: 0.0263 and 0.0294).
+- Suites (2-core machine shared with two other sessions): t_lint, t_energy, t_hep, t_collider, t_3d pass; tools/runtests.sh:
+  20 of 22 pass, t_page failed once ("placing Transistor on soup … inside: false") and passes alone; t_features' misses
+  were the known timing ones (1.14 speed readout 1/1.3×, f_bug125 pi3's 0.8 ratio; 1.24 light and f_bug125 segGrid in an
+  earlier lone run under load), each passing alone.
+
 ### 1.26: GFN2 refit (second attempt)
 
 Asked by the owner: improve GFN2, keeping what it is best at (water clusters, non-covalent binding, geometries) and

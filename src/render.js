@@ -818,6 +818,7 @@ function drawParticles(rt) {
       if (r > 9 && bohrMode !== 'nuc') label(ctx, 'n', x, y, r, '#1b2430');
       continue;
     }
+    if (p.ne === 0 && p.mu) { muNucleus(ctx, x, y); continue; } // (a bare μ⁺ (muonium stripped): a lepton, not a proton, 1.26 bug fix)
     if (p.ne === 0 && bohrMode === 'nuc') { // bare nucleus, every nucleon shown
       const nsp = nucleusSprite(p.Z, p.N, nucleonR(), p.anti);
       ctx.globalCompositeOperation = 'lighter'; // true size, so a halo marks it out
@@ -1115,10 +1116,10 @@ function drawBohr(ctx, p, x, y, r, rt, col, rnTrue) { // rnTrue: the ultra-reali
       drawSprite(ballSprite(p.anti ? POS_COL : E_COL, er), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
     }
   }
-  if (rnTrue === undefined) nucleusBeads(ctx, x, y, rn, p.Z, p.N, 1, p.anti);
+  if (rnTrue === undefined) { if (p.mu) muNucleus(ctx, x, y, rn * 0.5); else nucleusBeads(ctx, x, y, rn, p.Z, p.N, 1, p.anti); } // (muonium: its μ⁺)
   if (R.view.labels) {
     ctx.font = '600 12px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = CHAMBER.text; ctx.textAlign = 'center';
-    ctx.fillText(nucSymA(p.Z, p.N, p.anti) + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''), x, y + r * 1.25 + 12);
+    ctx.fillText((p.mu ? 'Mu' : nucSymA(p.Z, p.N, p.anti)) + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''), x, y + r * 1.25 + 12);
   }
 }
 
@@ -1165,6 +1166,15 @@ function rnUnit(A) { // outer radius of the packed cluster, for a nucleon radius
 }
 function nucleonR() { return clamp(0.045 * R.s, 0.75, 8); } // one size for every nucleon, bound or free
 function electronR() { return clamp(0.035 * R.s, 1.0, 3.0); }
+/* Muonium's nucleus is a μ⁺: a lepton, a point with no nucleons (it was drawn as hydrogen's proton, 1.26 bug fix). */
+function muNucleus(ctx, x, y, rmin) {
+  const rl = Math.max(rmin || 1.6, electronR() * 1.3);
+  ctx.globalCompositeOperation = 'lighter';
+  if (!R.lite) drawSprite(glowSprite([150, 225, 255], Math.max(6, rl * 4)), x, y, 0.45);
+  ctx.globalCompositeOperation = 'source-over';
+  drawSprite(ballSprite('#96e1ff', rl), x, y);
+  return rl;
+}
 function nucleusSprite(Z, N, b, anti) {
   const A = Z + N, bq = b < 2 ? Math.round(b * 10) / 10 : Math.round(b * 4) / 4;
   const key = `nuc|${Z}|${N}|${bq}|${anti ? 1 : 0}`;
@@ -1208,7 +1218,7 @@ function nucleusSprite(Z, N, b, anti) {
    (the innermost shell just outside the nucleus); electrons shared in bonds are drawn on the bonds. No colours,
    rings or labels. */
 function drawNucView(p, x, y, r, rt) {
-  const nsp = nucleusSprite(p.Z, p.N, nucleonR(), p.anti), rn = nsp.rn;
+  const nsp = p.mu ? null : nucleusSprite(p.Z, p.N, nucleonR(), p.anti), rn = p.mu ? Math.max(1.6, electronR() * 1.3) : nsp.rn; // (muonium: a μ⁺ for a nucleus, 1.26 bug fix)
   const own = Math.max(0, p.ne - p.used);
   if (own > 0) {
     const sh = shellCounts(p.Z, own), er = electronR();
@@ -1224,7 +1234,7 @@ function drawNucView(p, x, y, r, rt) {
       }
     }
   }
-  drawSprite(nsp, x, y);
+  if (p.mu) muNucleus(R.ctx, x, y); else drawSprite(nsp, x, y);
 }
 function drawFlashes(rt) {
   if (R.lite) { W.flashes.length = 0; return; }
