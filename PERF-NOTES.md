@@ -341,15 +341,20 @@ Waiting for the owner:
   and continuous bond orders in 3-D.
 - Decided (the owner, 2026-11-05: "try bigger model later for metals"): close-packed metals keep 1.25's fit in 1.26;
   a bigger form (fourth moment or MEAM screening) is on the 1.27 list.
-- The spin-branch booking bug goes to a bug-fix session (prompt written 2026-11-05, branch bugfix-126 from v136).
+- The spin-branch booking bug: fixed in the bug-fix session (branch bugfix-126 from v136, merged 2026-11-06; below,
+  "Bug fixes after the 1.26 merge": a step whose answer comes from a fresh start books its jump from the last settled
+  step; the energies and forces are as before).
 - Approved (the owner, 2026-11-05: "ok sounds good"): Polarized becomes the normal Spins setting once the spin-branch
-  booking bug is fixed (not before).
+  booking bug is fixed: done after the merge (below).
 - Decided (the owner, 2026-11-05: "fix cu ions"): the bug session's model question #1 (flat Cu ions), fixed on branch
   v137 (the section "1.26: copper ions").
-- To decide: the spin-branch booking change (a polarized step that fails to settle
-  restarts paired and the switch back is paid to the bath although nothing changed: books jump ~0.3 eV in 1 of 4 hot
-  radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #3 (AsCl₅) and #16
-  (3-D water recapture, physics).
+- To decide: the bug session's model questions #3 (AsCl₅) and #16 (3-D water recapture, physics).
+- Suite on 393f018 (2026-11-06: 1.26 with the sweeps, the spin-branch fix, Polarized normal and the fast-electron
+  energy fixes; another session building 1.27's W/Z at the same time): tools/runtests.sh 20 of 22 suites; the misses all
+  timing checks under the load (t_features 1.14, 1.25 labels3d, exoElastic, bo3; t_page's collider-beam timeout), each
+  passing alone (t_page whole, f_bug125 exoElastic, f_126w bo3; t_features alone passed 1.14 and labels3d and missed
+  0.64's named save, 0.68's prism and pi3 instead, which passed in the runtests run). Every check passed at least once on
+  this commit.
 
 For 1.27 (part 1, exotic atoms, and the Settings section built on branch v141: see "1.27: realistic particles 1"; parts 5 and 6 on branch v143: "1.27: realistic particles 5 and 6"; part 7 on branch v146: "1.27: realistic particles 7"; the rest not built; and, asked separately on 2026-11-06, W and Z bosons on branch v148: "1.27: W and Z bosons (electroweak)"): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
 portrayed and how to implement an experimental setting that makes them as realistic as possible"; APPROVED, all seven
@@ -384,6 +389,88 @@ benzene's induced charges ×14 too large; O₂ near NH₃ never settles (quantum
 Test on record: t_features' 1.23.1 "Continue after a restart" check fails on 1.25 (v128) as on 1.26: the restored world has
 1–3 particles more than were saved (72 → 73, 73 → 74); for a bug-fix session. t_page's slow-motion button check fails
 alone on both here too (the known flake).
+
+### 1.26: bug fixes (energy books with fast electrons, decay data)
+
+Found by the 1.27 "charged particles in matter" session (its "Found, not changed"). Branch v147 (from v136, e237efe).
+Checks: tests/f_bug126e.js (t_features runs it alone; `node tests/f_bug126e.js [--node] [part …]`): eject,
+nearThreshold, plasma, wallTwice, cap, radPush, decay, each failing on e237efe and passing here.
+
+- **1. "3-D: −1.3×10⁸ eV over 40 steps in innerSteps".** Not an engine bug: the probe put its lattice down with
+  `addAtom(sym, x, y, z)`, but addAtom's fourth argument is its options (`{ z }`), so every z was 0 and each lattice site
+  held four atoms on top of each other. The pair forces skip pairs closer than 10⁻⁵ Å while the energy counts them, and
+  the first ionization's kick drove the stacked atoms apart through the screened-nuclear core (an atom at 10⁴–10⁷ eV a step
+  later). With z given, the same O/Pb lattice and four 1 GeV electrons: 0 eV over 40 steps (seeds 1, 3, 7; stacked:
+  −1.39×10⁸, −1.32×10⁸, −9.7×10⁷); a 1 GeV electron ionizes nothing there in 40 steps, nor in the flat game (3×10⁻⁴ eV).
+  The ionized case, built directly (half the atoms ionized three times, 248 electrons freed, 200 steps, 0.08 ps,
+  insulated): 3-D 1.05 eV before, 0.67 after; the flat game had a real error here (fix 2e): 13.3 and 15.3 eV (seeds 3,
+  7) before, −0.10 and 0.33 after. Two atoms at one point are outside what the integrator can do (not changed).
+- **2. The flat game's ejectElectron among ions and free electrons** (eight 1 GeV electrons' passes through a lead
+  block and through water, radiation flight only: lead 42 freed electrons, 9 off by more than 0.01 eV, worst 48.7 eV;
+  water 64, 16, 39.1 eV; now lead 35, water 75, worst 0.0004 eV; the same runs' books 84.0 and 33.0 eV off over 300
+  ticks, now 0.003 and 0.000). Five terms:
+  a. An ion in flight (ballistic or in radiation flight, a recoil from the passes before) carries no potential energy,
+     but the electron's launch energy still took the ion's pull (6.4, 12.9, 26.0 eV from Pb⁺, Pb²⁺, Pb³⁺) and nothing
+     paid it back. 3-D has skipped it since 1.25 (`fastIon`); the flat game now does the same.
+  b. An electron whose energy at infinity is under the radiation threshold (1 keV) but whose launch energy, with the
+     pull of the charges around it, is over it went into radiation flight, which carries no potential energy, with the
+     pull still in it (48.7 eV beside a Pb³⁺). Now it flies with its energy at infinity. Any ionization making a ~1 keV
+     electron did it; the 1.27 photon-polarization session found it too (water, Compton electrons of 0.8–1.2 keV: 100–200
+     eV). Water, 40 atoms each freeing an electron of 950, 980 and 999 eV at infinity (2, 10 and 26 of them into
+     radiation flight): 92, 92 and 101 eV made before, 0 now; 500, 850, 900, 1,200 and 1,500 eV were exact before and are.
+  c. A moving ion that loses an electron loses ½mₑv² of its motion with the electron's mass; 3-D gave it to the electron
+     only for ions in flight. Now for every moving ion, both games (an H⁺ knocked to 233 eV: 0.13 eV).
+  d. An atom in radiation flight stopped in a closed wall (`wallOrEscape`) was listed with the newcomers (`_late`) although
+     the neighbour grid still held it, so localPE and phiE counted it twice until the next force pass (6.4 eV in an
+     ionization beside it; a Pb⁺'s pull 1.5 Å away 12.0 V for 6.0). Now listed only if the grid doesn't hold it (`lateBack`).
+  e. A particle back among the stepped ones since the last force pass (a free electron slowed out of flight, an atom
+     stopped in the wall) was missing from `_charged`, the net charges summed beyond the 6 Å cutoff, so phiE and localPE
+     left out its pull from farther away, which totalEnergy counts: each later mode switch or ionization 1–2 eV off.
+     `lateBack` lists it there too (with the long-range sum on). This was the flat ionized lattice's 13–15 eV.
+- **3. ejectElectron at the particle cap** put the energy in the bath and returned no electron; every caller, finding no
+  electron, released it again (Compton, photoionization: dumpHeat) or took it back (an electron's impact ionization and
+  a hot collision undone, a muon's robbing undone, forceShed's fee), so it was counted twice or made from nothing
+  (photoionization at the cap: the 50 eV twice). Now it returns no electron and leaves the energy with the caller, as
+  for any electron that can't be freed.
+- **4. Pushes on atoms in radiation flight** (the flat radiation flight's ionizing loop, `moveRad`, and the unstable
+  particles' `exoIonize`): the push square to the path went into the velocity of an atom itself in radiation flight,
+  which its next flight step overwrites from its stored energy, so the dE the passing particle lost left the books (the
+  lead block's passes: 6 such pushes, 18.8 eV, the largest 8.2 eV; 20 keV electrons 0.8–0.95 Å from a flying Pb: −1.04,
+  −0.86, −0.79 eV). Decided: book it (`pushSquare`: its stored energy takes the push, through setVel), not skip such
+  atoms as 3-D's fastStop3 does: the flat game keeps its model (every atom passed is pushed or ionized), and ionizing an
+  atom in flight is exact now (2a), so there is nothing to avoid. Atoms not in radiation flight: the same arithmetic as
+  before, bit for bit.
+- **5. Decay data.** ¹⁹⁸Au (made from gold by a neutron) was not in the table; the estimate for unlisted nuclides gave it
+  86% β⁻ and 14% electron capture with a 5.1 h half-life. It is β⁻ only, Q 1.3724 MeV, 2.6941 d: listed now. ²²Na was
+  β⁺ only; it is 90.3% β⁺ and 9.7% electron capture (Q_EC 2.842 MeV for both, as ⁴⁰K's entry): listed now. The estimate
+  (allowed β⁻ and β⁺/EC rates from the mass formula's Q-values, log ft 6.0 and 5.8) gives both β⁻ and EC to 43
+  unlisted nuclides, because the formula's pairing term opens both sides for odd–odd nuclei. Against measured data
+  (NUBASE2020, from memory: check before listing them): 13 really decay both ways (⁷⁴As, ⁸⁴Rb, ¹²⁶I, ¹³⁰Cs, ¹⁴⁶Pm,
+  ¹⁵²Eu, ¹⁵⁸Tb, ¹⁶⁴Ho, ¹⁸⁶Re, ¹⁹²Ir, ¹⁹⁶Au, ²⁰⁴Tl, ²²⁶Ac; branches off, often by a lot); 13 are β⁻ only or above 99.5%
+  (⁹⁴Nb, ¹⁰⁴Rh, ¹¹⁰Ag, ¹¹⁴In, ¹⁴²Pr, ¹⁹⁸Au (now listed), ²³²Pa, ²³⁸Np, ²⁴⁴Am, ²⁴⁶Am, ²⁵⁰Bk, ²⁵²Bk, ²⁵⁶Es); 12 are EC/β⁺
+  only (¹²⁰Sb, ¹²⁴I, ¹³⁶La, ¹⁴⁰Pr, ¹⁵⁶Tb, ¹⁶²Ho, ¹⁶⁸Tm, ¹⁷⁴Lu, ¹⁸⁴Re, ¹⁹⁰Ir, ²⁰²Tl, ²⁰⁸Bi); 3 are α emitters with
+  half-lives of ns–s (²¹⁴At, ²¹⁶At, ²²⁰Fr; the estimate says β/EC over hours); 2 are unknown (²⁵⁸Es, ²⁶⁴Md). The
+  estimates' half-lives also cluster at 1–25 h whatever the nuclide. That is the estimate's accuracy, not a bug in its
+  rule: not changed. For the owner: list the ones the game makes often (neutron capture on stable isotopes: ⁹⁴Nb,
+  ¹⁰⁴Rh, ¹¹⁰Ag, ¹¹⁴In, ¹⁴²Pr; ¹²⁴I, ¹⁹²Ir, ²⁰⁴Tl …) from the evaluated tables.
+- Fingerprints (tools/fingerprint.js, all setups, seed 7, 300 steps, e237efe and after): 9 of 58 change, all flat ones
+  that ionize in those steps: soup, neon, muonium, hyperfactory (books only), pionbeam, annihilation, nif, photonuc,
+  sns. In all nine a moving ion gave up an electron (2–1,344 times), whose share of its motion (2c; ~10⁻⁶ eV for a
+  thermal ion) now goes with the electron, which changes the last bits; in pionbeam, annihilation, nif, photonuc and
+  sns also free electrons slowed out of flight are now in the long-range list (2e; 8–452 times); in photonuc and sns
+  ions in flight were ionized (2a; 2 and 80 times), and sns also launched 4 electrons into radiation flight by the
+  pull around them (2b) and pushed 9 atoms in radiation flight (4). No setup reached the particle cap (3) or stopped an
+  atom in the wall (2d), and none has ²²Na or ¹⁹⁸Au. The six 3-D setups and the other 43 flat ones are bit for bit the
+  same.
+- Test change: t_features' 1.11 chain-reaction tree now uses seed 3. Four slow neutrons in that block of ²³⁵U reach the
+  check's 30 fissions in about half the seeds; these fixes change the last bits once the first fragments ionize, and
+  seed 5's chain stopped at 25 (e237efe reached 30 with seeds 3 and 5 of 1–7, now with 1, 2 and 3). Seed 3: 30 fissions,
+  9 generations before, 11 now.
+- Suites (2-core machine shared with another session's tests): alone t_lint, t_energy, t_physics, t_nuclear, t_hep,
+  t_3d, f_swx, f_bug126e pass; t_features passes but for the known timing checks (1.14's speed readout 1/1.4×; f_bug125
+  exoElastic 4.2 ms and pi3, both passing alone, exoElastic 1.4–2.3 ms on both trees), and the paired-spin and settings
+  checks inside it (f_126q, f_126x, f_hep126, f_sweep3d, f_swx) pass unchanged. tools/runtests.sh (run alone, from the commit before the nearThreshold part, which passes alone):
+  all 22 suites pass, t_features among them (no timing misses this time).
 
 ### 1.26: 3-D sweep and settings audit
 
@@ -917,6 +1004,53 @@ undone, saved and let decay through the page, and run in Node for its decay at r
 - **Found in the other session's areas (not changed):** the Lab tab's Particles readout counts atoms, nuclei and leptons
   only: twelve unstable particles placed beside five atoms read "5". The 3-D lab has no particle view (so a muonic
   atom's muon is drawn only in the flat game's).
+### Bug fixes after the 1.26 merge
+
+- **Spin-polarized quantum bonds: the books jumped when a step failed to settle** (Settings → Experimental → Bond
+  orders Quantum, Spins Polarized; GFN1 or GFN2). What was wrong: when a step's warm start did not settle, qmPass
+  started afresh (`qsh0: null`, then each atom's spins), and that start can settle on another branch than the one the
+  cluster was on. Traced in the hot radical mixture (O₃, NO, O₂, H₂O₂, 2 H₂ at 1,500 K, 100 steps with the bath, 400
+  insulated), GFN2 flat seed 6, insulated step 9: the warm start (120 iterations) left the polarized state oscillating
+  without settling (its energy within a few meV of the settled one), the fresh start settled paired 0.32 eV higher, and that step's energy simply rose; later the probe found the spins again and paid the drop to the bath as a
+  real switch. GFN1 flat seed 7 the same through the spin seeds (step 332, +0.32 eV, after an unsettled step), seed 5
+  through the fresh start (+0.27). Why: nothing booked the branch change of a fresh start; the probe's booking assumes
+  the paired state was where the cluster had been. Tried first: (a) a fresh start from each atom's spins did not
+  settle at that step; the last step's polarized state with a gentler mixer (damping 0.2, 30 steps of memory) settles
+  (45 iterations), but on other steps it then settled on a different polarized state (−97 meV, also unbooked), and it
+  changes the answers polarized clusters get; the unsettled warm iterate as the reference was off by up to 0.1 eV
+  (GFN1 seed 5). What changed (b, bookkeeping only; the solver's path and every energy and force as before): each
+  forces pass with spins keeps the last settled step's energy, slope and positions (XQ.ref, the same members); a step
+  whose answer came from a fresh start or the atoms' spins books its jump from there: E found − (E_ref + g·Δx), less
+  what the probe has just paid, to the bath (`XQ.detours`, `XQ.detourE`), within five steps of a settled one (an
+  unsettled step's energy is no reference: in the first hot steps the books swing tens of eV on unsettled calculations
+  and come back, as before). The second-order error of the slope is under 1 meV. A real switch found by the probe in
+  an ordinary step is paid exactly as before; one inside a fresh-start step is paid by this booking.
+  Numbers (400 insulated steps after 100 with the bath; jumps over 1 meV, worst jump):
+
+  | method, world | seed 3 | seed 5 | seed 6 | seed 7 |
+  |---|---|---|---|---|
+  | GFN1 flat, before | 0 | 1, +0.27 eV | 0 | 2, +0.32 eV (drift 0.59) |
+  | GFN1 flat, after | 0 | 0, −6.0e-4 | 0 | 0, +5.4e-4 |
+  | GFN1 3-D, before / after | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+  | GFN2 flat, before | 0 | 0 | 1, +0.32 eV | 0 |
+  | GFN2 flat, after | 0 | 0 | 0, −1.7e-4 | 0 |
+  | GFN2 3-D, before | 0 | 0 | 0 | 1, +0.093 eV |
+  | GFN2 3-D, after | 0 | 0 | 0 | 0, −1.4e-4 |
+  | Atom Forge refit (method 4) flat, before | 2, +0.43 eV | 0 | 1, +0.52 eV | 1, +0.42 eV |
+  | Atom Forge refit (method 4) flat, after | 0, −9.3e-4 | 0 | 0, −9.0e-5 | 0, −3.5e-4 |
+
+  How often: in those 400-step runs a step's answer came from a fresh start or the spins 0–2 times (5 in the 16 GFN1 and
+  GFN2 runs, with 4 switches by the probe); unchanged from before (the same path, now booked). Cost: none measurable
+  (an array of 3n numbers kept a step; 7.4–13 s a run before and after). Paired spins (the normal setting) and quantum
+  bonds off: bit for bit as before (the 59 setups' fingerprints, seed 7, 300 steps, identical; f_126x and f_126q pass).
+  Check: tests/f_bug126.js (t_features' last line; alone `node tests/f_bug126.js`): `seed6` (fails on v136: one jump,
+  0.32 eV), `mixture` (the 16 runs, no jump over 1 meV).
+- **Polarized is the normal Spins setting** (approved by the owner, 2026-11-05: "ok sounds good", once the spin-branch
+  books were fixed, merged 2026-11-06). Settings → Experimental → Bond orders → Quantum → Spins: "Polarized (normal)",
+  "Paired" a choice (SET_DEF.xqs 1; still back to normal at every start; a world saved with Paired says so on opening:
+  EXP_NAME.xqs "paired spins"). Quantum bonds stay off by default, so the game with default settings is bit for bit as
+  before; the Node harness's engine default (XQ.spin 0) is unchanged, so f_126x/f_126q's paired runs are as before. The
+  Speed test's line names the spins either way. Check: f_126x `page` (Polarized at start, Paired chosen and back).
 
 ### 1.26: GFN2 refit (second attempt)
 
@@ -998,7 +1132,7 @@ method 3); Settings still offers GFN1 and GFN2 only.
   ozone, hexazine falling apart, bonds (0.0094 Å on H/C/N/O), water and S22 near GFN2's. Its parameters, the engine's
   support and the pipeline stay for a later round. **Default: GFN1** (and the recommendation above stands: Polarized
   spins as GFN1's default once the owner approves).
-- Found, not changed: **the books of a spin-polarized calculation that does not settle**. When a step's warm start
+- Found, not changed (fixed after the merge: "Bug fixes after the 1.26 merge"): **the books of a spin-polarized calculation that does not settle**. When a step's warm start
   (polarized, from the last step) does not settle, qmPass starts afresh unpolarized; the probe then switches back to
   polarized and pays the difference to the bath, though the system was polarized all along: the books jump by about
   that difference. GFN2 polarized in the hot mixture: 1 seed of 4 (0.32 eV); this refit 2 of 4 (0.43, 0.52). Not paying

@@ -895,7 +895,7 @@ function exoIonize(o, x0, y0) {
     if (W.nucWin) for (const m of molecule(tg)) m.nucProd = true; // (knocked loose by a nuclear event's products: slow motion for nuclear events, when off, does not follow the pieces)
     const ie = ionizationCost(tg), nx = -o.uy * (rnd() < 0.5 ? 1 : -1), ny = o.ux * (nx === -o.uy ? 1 : -1);
     if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) { if (ejectElectron(tg, dE - ie, nx, ny)) W.count.ionize++; else dumpHeat(dE, tg, tg); }
-    else { const vn = tg.vx * nx + tg.vy * ny, a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); tg.vx += nx * a; tg.vy += ny * a; updateFast(tg); } // (exactly dE, as fastStop3: 0.7·√(2dE/m) gave about half, 1.26)
+    else pushSquare(tg, nx, ny, dE); // (exactly dE, as fastStop3: 0.7·√(2dE/m) gave about half, 1.26; an atom in radiation flight takes it in its stored energy, engine.js)
     if (o.KE <= 1) break;
   }
   if (cpm && o.KE > 1) { CPM.K = o.KE; lost += cpmCkv(x0, y0, 0, sl); o.KE = CPM.K; } // (Cherenkov light, 1.27)

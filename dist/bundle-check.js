@@ -1148,7 +1148,7 @@ const DECAY = {
   '8_12':[13.51,'b-',3.814],
   '9_8':[64.49,'b+',2.761], '9_9':[6586,'b+',1.656], '9_11':[11.07,'b-',7.025], '9_12':[4.158,'b-',5.684],
   '10_8':[1.672,'b+',4.446], '10_9':[17.22,'b+',3.239], '10_13':[37.24,'b-',4.376], '10_14':[202.8,'b-',2.466],
-  '11_9':[0.4479,'b+',13.89], '11_10':[22.49,'b+',3.547], '11_11':[2.6018*Y_,'b+',2.842], '11_13':[14.997*H_,'b-',5.516],
+  '11_9':[0.4479,'b+',13.89], '11_10':[22.49,'b+',3.547], '11_11':[2.6018*Y_,[['b+',0.903,2.842],['ec',0.097,2.842]]], '11_13':[14.997*H_,'b-',5.516],
   '11_14':[59.1,'b-',3.835],
   '12_10':[3.876,'b+',4.78], '12_11':[11.317,'b+',4.057], '12_15':[567.5,'b-',2.610], '12_16':[20.915*H_,'b-',1.832],
   '13_12':[7.183,'b+',4.277], '13_13':[7.17e5*Y_,'b+',4.004], '13_15':[134.5,'b-',4.642], '13_16':[393.6,'b-',3.687],
@@ -1170,6 +1170,7 @@ const DECAY = {
   '42_57':[65.94*H_,'b-',1.357], '43_56':[2.111e5*Y_,'b-',0.2935],
   '53_76':[1.57e7*Y_,'b-',0.194], '53_78':[8.0252*D_,'b-',0.9708], '54_79':[5.247*D_,'b-',0.4274], '54_81':[9.14*H_,'b-',1.165],
   '55_79':[2.0652*Y_,'b-',2.0587], '55_82':[30.08*Y_,'b-',1.1756], '56_84':[12.752*D_,'b-',1.047], '61_86':[2.6234*Y_,'b-',0.2241],
+  '79_119':[2.6941*D_,'b-',1.3724], // (1.26: ¹⁹⁸Au, made from gold by a neutron, is β⁻ only; the estimate for nuclides not listed gave it 14% electron capture)
   '81_126':[4.77*M_,'b-',1.418], '81_127':[3.053*M_,'b-',4.999],
   '82_128':[22.2*Y_,'b-',0.0635], '82_129':[36.1*M_,'b-',1.367], '82_130':[10.64*H_,'b-',0.570], '82_132':[26.8*M_,'b-',1.019],
   '83_127':[5.012*D_,'b-',1.1626], '83_128':[2.14*M_,'a',6.750],
@@ -6473,7 +6474,16 @@ function switchMode(p, toFast) {
   p.vx *= f; p.vy *= f; p.vz *= f; p.fast = toFast;
   // back among the stepped particles before the neighbour grid is rebuilt: list it with the newcomers, so the
   // potential energy of anything else that changes mode before then counts it (or energy would vanish)
-  if (!toFast && S.inMD[p.i] === 0 && !_late.includes(p)) _late.push(p); // (inMD: listed when the grid was built)
+  if (!toFast) lateBack(p); // (inMD: listed when the grid was built)
+}
+/* A particle back among the stepped ones before the next force pass: listed with the newcomers unless the grid holds it
+   already, and with the net charges summed beyond the cutoff (1.26: one that was in flight at the last pass was missing
+   from _charged, so phiE and localPE left out its pull beyond 6 Å, which totalEnergy counts: 1–2 eV at each mode switch
+   of a free electron among the ions a fast electron leaves in a lead block). */
+function lateBack(p) {
+  if (S.inMD[p.i] !== 0 || _late.includes(p)) return;
+  _late.push(p);
+  if (_lrOn && isLR(p) && !_charged.includes(p)) _charged.push(p);
 }
 function cationNear(p) {
   if (!_nmd) return false;
@@ -6556,15 +6566,17 @@ function phiE(x, y, skip, skip2, z = 0) { // (3-D: at (x, y, z))
 }
 function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {
   if (p.ne <= 0) return null;
-  // at the particle cap we skip the ionization entirely (never leave an ion without its electron)
-  if (freeElectronCount() >= MAX_FREE_E || W.parts.length >= MAX_PARTS) { W.ledger.bath += KE; return null; }
+  // at the particle cap we skip the ionization entirely (never leave an ion without its electron); the energy stays with
+  // the caller, as for any electron that could not be freed (1.26: it went to the bath here too, and the callers, finding
+  // no electron, also released it as heat or took it back: counted twice)
+  if (freeElectronCount() >= MAX_FREE_E || W.parts.length >= MAX_PARTS) return null;
   const bc = budget === undefined ? breakCostIfCharged(p, -1) : budget;
   const grid = _nmd > 0, set = setOf(molecule(p)), sn = snapshot(set);
   if (ux === undefined) { const u = rndDir(); ux = u[0]; uy = u[1]; uz = u[2]; }
   const d3 = W.d3, hd = W.box.d / 2 - 0.2;
   // the change of potential energy: the ion's new charge and size against its surroundings, plus any bonds that had to
   // break (localDelta: over the ion's neighbourhood in a big molecule, exactly)
-  const fastIon = d3 && p.fast, kIon0 = fastIon ? keOf(p) : 0; // (3-D, 1.25: an atom in flight carries no potential energy, so neither its new charge nor the electron's pull toward it is in the books; and the electron's share of its motion, ½mₑv², leaves with the electron)
+  const fastIon = !!p.fast, kIon0 = keOf(p); // (3-D, 1.25: an atom in flight carries no potential energy, so neither its new charge nor the electron's pull toward it is in the books; and the electron's share of its motion, ½mₑv², leaves with the electron. The flat game too, 1.26: there the ion's pull, 6–26 eV, was paid to the electron and never came back, beside a lead block crossed by fast electrons; and the share is the electron's from any moving ion, flying or not: an H⁺ knocked to 233 eV lost 0.13 eV)
   const dU = grid && !fastIon ? localDelta(p, set, sn, () => { p.ne--; refresh(p); enforceValence(p, null); }) : (p.ne--, refresh(p), enforceValence(p, null), 0);
   // The electron is born inside the ion's Coulomb well and near other charges. Its launch energy is
   // set so that the total energy is conserved: KE_launch = KE_far + budget + φ(electron) − ΔU.
@@ -6605,7 +6617,14 @@ function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {
   }
   if (!(KEl >= 0.02)) { restoreSnap(sn); return null; } // not enough energy to free it here
   const e = addLepton(p.anti ? POS : ELEC, ex, ey, 0, 0, ez);
-  if (d3) setMotion(e, KEl + (fastIon ? kIon0 - keOf(p) : 0), ux, uy, p.vx, p.vy, uz, p.vz); else setMotion(e, KEl, ux, uy, p.vx, p.vy);
+  if (d3) setMotion(e, KEl + (kIon0 - keOf(p)), ux, uy, p.vx, p.vy, uz, p.vz);
+  else {
+    setMotion(e, KEl + (kIon0 - keOf(p)), ux, uy, p.vx, p.vy);
+    // (flat, 1.26: launched past the radiation threshold only by the pull of the charges around it, it flies in radiation
+    // flight, which carries no potential energy: its energy is the one at infinity, Kfar. Before, it kept the pull too,
+    // up to 49 eV each among the ions a fast electron leaves in a lead block)
+    if (e.rad && KEl !== Kfar) { e.KE = Math.max(0.02, Kfar + (kIon0 - keOf(p))); radSpeed(e); e.vx = e.sp * e.ux; e.vy = e.sp * e.uy; }
+  }
   e.hit = p.id;
   return e;
 }
@@ -8537,7 +8556,7 @@ function wallOrEscape(p, escape, x0, y0) {
     if (d3) { const vz = thermalV(p.m, W.T)[2]; p.vz = p.z >= hd - 0.61 ? -Math.abs(vz) : p.z <= -hd + 0.61 ? Math.abs(vz) : vz; }
     const U = _nmd ? localPE(new Set([p])) : 0;
     W.ledger.escaped += K0 - 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + (d3 ? p.vz * p.vz : 0)) - U;
-    W.spawned++; _late.push(p); // forces must be recomputed for it
+    W.spawned++; lateBack(p); // forces must be recomputed for it (listed with the newcomers only if the grid doesn't hold it already, 1.26: an atom stopped in the wall that was in the grid was counted twice by localPE and phiE until the next force pass, 6 eV wrong in an ionization beside it)
     if (p.trk) { extendTrack(p); p.trk = null; }
     updateFast(p);
     return false;
@@ -8745,8 +8764,7 @@ function moveRad(p, dt) {
     if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) {
       if (ejectElectron(tg, dE - ie, nx, ny)) W.count.ionize++; else dumpHeat(dE, tg, tg);
     } else {
-      const vn = tg.vx * nx + tg.vy * ny, a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); // (a push square to the path giving it exactly dE, as fastStop3 in 3-D: 0.7·√(2dE/m) gave about half, the rest lost from the books (a 20 MeV electron's H recoil through a water molecule −6.5 eV), 1.26)
-      tg.vx += nx * a; tg.vy += ny * a; updateFast(tg);
+      pushSquare(tg, nx, ny, dE); // (a push square to the path giving it exactly dE, as fastStop3 in 3-D: 0.7·√(2dE/m) gave about half, the rest lost from the books (a 20 MeV electron's H recoil through a water molecule −6.5 eV), 1.26)
     }
     if (p.KE <= 0) break;
   }
@@ -8770,6 +8788,14 @@ function moveRad(p, dt) {
   }
 }
 
+/* A push square to a path (nx, ny) giving tg exactly dE more kinetic energy. An atom itself in radiation flight takes it
+   in its stored energy (setVel): its velocity alone is overwritten by its next flight step, and the dE the passing
+   particle lost was lost from the books (1.26). */
+function pushSquare(tg, nx, ny, dE) {
+  const v = vNR(tg), vn = v[0] * nx + v[1] * ny, a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im);
+  if (tg.rad) setVel(tg, v[0] + nx * a, v[1] + ny * a);
+  else { tg.vx += nx * a; tg.vy += ny * a; updateFast(tg); }
+}
 /* A fast nucleus crosses a hot plasma's ballistic ions (they move too, so the closest approach of the two paths over
    the step): it may react or tunnel with them, or scatter off their charge. Returns true if it is gone. */
 function radVsFast(p, x0, y0, x1, y1) {
@@ -10249,7 +10275,7 @@ function wallStop3(p, where) {
   const set = nuc ? setOf(molecule(p)) : null, U0 = nuc ? localPE(set) : p.fast ? 0 : p.q * phiE(p.x, p.y, p, undefined, p.z); // (a lepton in flight carries no potential energy in the books: bug fix 14 after 1.25)
   if (!where && nuc && p.ne > 0 && p.Z >= 3 && p.fast) { // (1.25: one in flight, as atoms fly in 3-D now: back into the stepped set at the wall's temperature, the books measured over its molecule as totalEnergy counts it, flight or not: regionE)
     const T = new Set(set), E0 = regionE(T), hw = W.box.w / 2 - 0.6, hh = W.box.h / 2 - 0.6, hd = W.box.d / 2 - 0.6;
-    p.fast = false; if (S.inMD[p.i] === 0 && !_late.includes(p)) _late.push(p);
+    p.fast = false; lateBack(p);
     p.x = clamp(p.x, -hw, hw); p.y = clamp(p.y, -hh, hh); p.z = clamp(p.z, -hd, hd);
     _crowd = null; placeClear([p], 8, p.bonds.map(bd => other(bd, p))); _crowd = null;
     const v = thermalV(p.m, W.T), into = (c, h, u) => (c >= h - 0.01 ? -Math.abs(u) : c <= -h + 0.01 ? Math.abs(u) : u);
@@ -21716,11 +21742,12 @@ function qmPass(forces) {
   try { r = qmE(Z, xyz, charge, 0, o); }
   catch (e) { r = null; }
   if (newer && r && !r.converged && o.maxIter < XQ.maxItCold) { try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: r.guess || r.qsh, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; r = r2; } catch (e) { /* keep r */ } } // (1.26: unsettled, it goes on from where it got to)
-  if (sp && r && !r.converged && g0) { try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: null, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; if (r2.converged) { r = r2; r.flipped = true; } } catch (e) { /* keep r */ } } // (still unsettled with spins: a fresh, unpolarized start, the probe then finds the spins again)
+  if (sp && r && !r.converged && g0) { try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: null, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; if (r2.converged) { r = r2; r.flipped = true; r.fallback = true; } } catch (e) { /* keep r */ } } // (still unsettled with spins: a fresh, unpolarized start, the probe then finds the spins again)
   if (sp && r && !r.converged) for (const alt of [true, false]) { // (and still: each atom started with its free spins, alternating from atom to atom, then all alike; an unpolarized O2 among other molecules lets charge slosh between them)
     const L = xqLayout(Z), m0 = new Array(L.nsh).fill(0); for (let m = 0; m < n; m++) m0[L.off[m] + L.sh[m] - 1] = -(alt && m % 2 ? -1 : 1) * XTB.SPIN.atomUnpaired(Z[m]);
-    try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: null, m0, probe: null, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; if (r2.converged) { r = r2; r.flipped = true; break; } } catch (e) { /* keep r */ }
+    try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: null, m0, probe: null, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; if (r2.converged) { r = r2; r.flipped = true; r.fallback = true; break; } } catch (e) { /* keep r */ }
   }
+  const fb = !!(r && r.fallback); XQ.flipD = 0;
   if (sp && forces && r && r.converged && r.probe) r = xqProbe(r, qmE, Z, xyz, charge, o, sig);
   if (!r || !r.converged) { XQ.fails++; if (!r) { BO.E = 0; return 0; } }
   const d = xqB() === 2 ? null : XTB.d3Disp(Z, xyz, { grad: forces });
@@ -21728,6 +21755,16 @@ function qmPass(forces) {
      XQ.sig = sig; XQ.calls++; XQ.it += r.iterations; XQ.ms += performance.now() - t0; if (newer) XQ.ids = { id: mem.map(p => p.id), lay: xqLayout(Z) }; } // (a measurement leaves the next step's start alone: runs stay the same however often the energy is read)
   let E = r.E - r.Eext + (d ? d.E : 0); // (the outside potential's energy is the kernel's pairs')
   for (let m = 0; m < n; m++) E -= qmAtomE(Z[m]);
+  // (bug fix after the 1.26 merge) A step whose warm start did not settle and whose answer came from a fresh start (or from each atom's spins) may land
+  // on another branch than the one the cluster was on: polarized molecules restarted fresh settle paired, and the probe's switch back is paid to the
+  // bath as a real switch, so the books jumped by the paired branch's excess (GFN2, the hot radical mixture, seed 6: 0.32 eV). Such a step books its
+  // jump from where the cluster was: the last settled step's energy (at most five steps back) carried along its own slope to the positions now
+  // (E + g·Δx, second order in the move: well under a meV), against the energy found, less what the probe has already paid; a real switch paid this way is paid exactly as before.
+  if (forces && sp && fb && r.converged && XQ.ref && XQ.ref.sig === sig && W.step - XQ.ref.step <= 5 && !XQ.hold) {
+    const ref = XQ.ref; let Er = ref.E;
+    for (let m = 0; m < n; m++) for (let c = 0; c < 3; c++) Er += ref.g[3 * m + c] * (xyz[m][c] - ref.x[3 * m + c]);
+    const dd = (E - Er) + XQ.flipD; W.ledger.bath -= dd; BO.bath -= dd; XQ.detours = (XQ.detours || 0) + 1; XQ.detourE = (XQ.detourE || 0) + dd;
+  }
   for (let m = 0; m < n; m++) { const p = mem[m], q = r.q[m]; QP[p.i] = q - p.q; p.qpol = q - p.q; p.qf = 0; p.qi = 0; }
   // bond orders (Mayer's): drawn, and the molecules
   const B = r.bonds;
@@ -21746,6 +21783,7 @@ function qmPass(forces) {
       for (let m = 0; m < n; m++) { const i = mem[m].i; FX[i] -= gq[m][0]; FY[i] -= gq[m][1]; }
       if (d3) { const FZ = S.fz; for (let m = 0; m < n; m++) FZ[mem[m].i] -= gq[m][2]; }
     }
+    if (sp) { const g = new Float64Array(3 * n), x = new Float64Array(3 * n); for (let m = 0; m < n; m++) for (let c = 0; c < 3; c++) { g[3 * m + c] = (gq[m][c] || 0) + (gd ? gd[m][c] || 0 : 0); x[3 * m + c] = xyz[m][c]; } if (r.converged) XQ.ref = { sig, E, g, x, step: W.step }; } // (where this step's cluster was, if it settled: a fallback within the next five steps books from it; an unsettled step's energy is no place to measure from)
     for (const q of XQ.pq) { if (q.n < 0.2) continue; const w = XQ_K * Math.min(q.n, 3) * (q.a.im + q.b.im); if (w > _stiff) _stiff = w; } // (a bond's stiffness, for the step: about 50 eV/Å² an order, O–H 49, C=O 75, C≡C 100)
   }
   return E;
@@ -21765,7 +21803,7 @@ function xqProbe(r, qmE, Z, xyz, charge, o, sig) {
   let r2; XQ.reruns = (XQ.reruns || 0) + 1;
   try { r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: g, probe: null, maxIter: XQ.maxItCold }); } catch (e) { r2 = null; }
   if (!r2 || !r2.converged || !(r2.E < r.E - 1e-9) || !(Math.max(...r2.spin.map(Math.abs)) > 1e-3)) return r;
-  const d = r.E - r2.E; W.ledger.bath += d; BO.bath += d; XQ.flips++; XQ.flipE += d;
+  const d = r.E - r2.E; W.ledger.bath += d; BO.bath += d; XQ.flips++; XQ.flipE += d; XQ.flipD = d;
   r2.iterations += r.iterations; r2.flipped = true; return r2; // (flipped: no straight line through the old branch for the next start)
 }
 
@@ -24396,7 +24434,7 @@ function exoIonize(o, x0, y0) {
     if (W.nucWin) for (const m of molecule(tg)) m.nucProd = true; // (knocked loose by a nuclear event's products: slow motion for nuclear events, when off, does not follow the pieces)
     const ie = ionizationCost(tg), nx = -o.uy * (rnd() < 0.5 ? 1 : -1), ny = o.ux * (nx === -o.uy ? 1 : -1);
     if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) { if (ejectElectron(tg, dE - ie, nx, ny)) W.count.ionize++; else dumpHeat(dE, tg, tg); }
-    else { const vn = tg.vx * nx + tg.vy * ny, a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); tg.vx += nx * a; tg.vy += ny * a; updateFast(tg); } // (exactly dE, as fastStop3: 0.7·√(2dE/m) gave about half, 1.26)
+    else pushSquare(tg, nx, ny, dE); // (exactly dE, as fastStop3: 0.7·√(2dE/m) gave about half, 1.26; an atom in radiation flight takes it in its stored energy, engine.js)
     if (o.KE <= 1) break;
   }
   if (cpm && o.KE > 1) { CPM.K = o.KE; lost += cpmCkv(x0, y0, 0, sl); o.KE = CPM.K; } // (Cherenkov light, 1.27)
@@ -39533,7 +39571,7 @@ const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 
 const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the farthest atoms fade toward the background)
 Object.assign(SET_DEF, { metal: 0 }); SET_OK.metal = [0, 1]; // (Experimental: bond orders for metals, 1.25)
 Object.assign(SET_DEF, { xq: 1 }); SET_OK.xq = [1, 2]; // (Experimental: the quantum bonds' method, GFN1-xTB or GFN2-xTB, 1.26)
-Object.assign(SET_DEF, { xqs: 0 }); SET_OK.xqs = [0, 1]; // (Experimental: the quantum bonds' spins, paired or polarized, 1.26)
+Object.assign(SET_DEF, { xqs: 1 }); SET_OK.xqs = [0, 1]; // (Experimental: the quantum bonds' spins, paired or polarized, 1.26; Polarized normal since the spin-branch books were fixed: the owner, 2026-11-05)
 Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
 Object.assign(SET_DEF, { rpExo: false }); // (Experimental → Realistic particles: exotic atoms as real atoms, 1.27: hep.js RP)
 Object.assign(SET_DEF, { rpPs: false, rpMu: false }); // (Experimental → Realistic particles: positronium; muonium as hydrogen and μSR, 1.27: hep.js RP)
@@ -39548,7 +39586,7 @@ SET_EXP.push('xqs'); // (1.26)
 const EXP_NAME = { dtMax: 'shorter longest step', resBig: 'resonance in large rings', inc: 'detailed nuclear collisions', rc: 'longer force reach', qeq: 'induced charges', pi: 'quantum nuclei', piRpc: 'exact bead forces', bo: 'bond orders', wave: 'electrons as waves', ultra: 'the ultra-realistic mode' }; // (ultra: in the Experimental tab since 1.23.2)
 EXP_NAME.metal = 'many-body metals'; // (1.25)
 EXP_NAME.xq = 'GFN2-xTB'; // (1.26)
-EXP_NAME.xqs = 'polarized spins'; // (1.26)
+EXP_NAME.xqs = 'paired spins'; // (1.26: only Paired is away from normal, Polarized being normal)
 SET_EXP.push('lps', 'sigh', 'pis'); // (1.26)
 EXP_NAME.lps = 'lone pairs'; EXP_NAME.sigh = 'halogen σ-holes'; EXP_NAME.pis = 'π-stacking'; // (1.26)
 SET_EXP.push('rpExo'); EXP_NAME.rpExo = 'exotic atoms'; // (1.27)
@@ -39939,7 +39977,7 @@ function expSummary() {
   if (SET.rc !== 6) on.push(`force reach ${SET.rc} Å`);
   if (SET.qeq) on.push(`induced charges ${SET.qeq === 1 ? 'every step' : 'every ' + SET.qeq + 'th step'}`);
   if (SET.pi) on.push(`quantum nuclei ${SET.pi} beads`);
-  if (SET.bo) on.push(SET.bo === 2 ? `quantum bonds (GFN${SET.xq === 2 ? 2 : 1}-xTB${SET.xqs ? ', polarized spins' : ''})` : 'continuous bond orders'); // (the method chosen, 1.26; its spins, 1.26)
+  if (SET.bo) on.push(SET.bo === 2 ? `quantum bonds (GFN${SET.xq === 2 ? 2 : 1}-xTB${SET.xqs ? ', polarized spins' : ', paired spins'})` : 'continuous bond orders'); // (the method chosen, 1.26; its spins, 1.26)
   if (SET.wave) on.push('electrons as waves');
   if (SET.metal) on.push('many-body metals'); // (1.25)
   if (SET.lps) on.push('lone pairs'); if (SET.sigh) on.push('halogen σ-holes'); if (SET.pis) on.push('π-stacking'); // (1.26)
@@ -40090,7 +40128,7 @@ const SDESC = {
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, drawn as thinner or thicker bonds that stretch and break smoothly. Quantum works out the electrons themselves (GFN1-xTB, or GFN2-xTB below): a proton shared between two waters shows half-bonds to both.'],
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours (a tight-binding model fitted to each metal), so a lone pair is short and strong, an atom at a surface holds harder to each neighbour, and a vacancy costs less than the bonds it breaks. Oxygen and hydrogen atoms bond to it in the same model (1.26), fitted to measured oxides and hydrides, so a surface oxidizes in O₂; an ion near it feels its image; strongly bound alloys (Ni–Al, Cu–Au …) have constants fitted to their compounds. The body-centred metals (W, Mo, Cr, V, Nb, Ta, Fe, Na) bond with direction (1.26): how the neighbours are arranged around an atom counts too, so tungsten, molybdenum and chromium sheets take the rectangular pattern of a body-centred crystal\u2019s densest face.'], // (1.25; oxides, hydrides, ions and alloys 1.26; directional bonding 1.26)
   segXq: ['Quantum method', 'Which tight-binding quantum chemistry works out the electrons when Bond orders is Quantum. GFN1-xTB (normal) is closer to measured reaction barriers and lets hexazine fall apart; GFN2-xTB adds atomic dipoles and quadrupoles and the D4 dispersion, and is closer for breaking molecules into atoms. Both match the reference program to 10⁻¹¹ eV.'], // (1.26)
-  segXqs: ['Spins', 'Paired (normal) puts two electrons, one of each spin, in every orbital, as GFN-xTB was made. Polarized gives each spin its own orbitals (spin-polarized GFN-xTB): free atoms and radicals get the energy of their unpaired electrons, O₂ is a triplet, and a bond pulled apart ends as two radicals. Breaking molecules into atoms comes out 2.7 eV off on average with GFN1 (paired 6.6), 1.6 with GFN2 (4.6).'], // (1.26)
+  segXqs: ['Spins', 'Paired puts two electrons, one of each spin, in every orbital, as GFN-xTB was made. Polarized (normal since 1.26, once its books were exact) gives each spin its own orbitals (spin-polarized GFN-xTB): free atoms and radicals get the energy of their unpaired electrons, O₂ is a triplet, and a bond pulled apart ends as two radicals. Breaking molecules into atoms comes out 2.7 eV off on average with GFN1 (paired 6.6), 1.6 with GFN2 (4.6).'], // (1.26)
   segLps: ['Lone pairs', 'The 3-D lab only. There an oxygen with two single bonds or a nitrogen with three carries its partial charge on lone pairs pointing out at the tetrahedral directions, so hydrogen bonds form where they point and water makes a tetrahedral network. A flat world has no room for the directions out of its plane.'], // (1.26)
   segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
   segPis: ['π-stacking', 'The 3-D lab only. There an aromatic ring carries its π electrons as charge above and below it, and two rings meet with a dispersion fitted to the benzene dimer, so they stack offset or edge to face. A flat world has no above or below.'], // (1.26)
@@ -40134,7 +40172,7 @@ const SDESC3 = {
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, with the 3-D angles and the twist of double, aromatic and single bonds, drawn as thinner or thicker bonds. Quantum works out the electrons themselves (GFN1-xTB, or GFN2-xTB below) with the atoms free in all three directions.'],
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours, fitted on a close-packed crystal: in the 3-D lab a crystal has its measured cohesive energy, spacing, stiffness and vacancy energy exactly (copper 3.49 eV, 2.56 Å, 137 GPa, 1.28 eV). O and H atoms bond to it in the same model (1.26): a fitted oxide or hydride crystal (Cu₂O, Al₂O₃, FeO, NaH …) has its measured heat of formation at its measured spacing; an ion near it feels its image; strongly bound alloys have constants fitted to a compound (NiAl, Cu₃Au …: Ni₃Al and CuAu then within 3%). The body-centred metals (W, Mo, Cr, V, Nb, Ta, Fe, Na) bond with direction (1.26), fitted on their body-centred cubic crystal: measured spacing and cohesive energy exactly, fcc and hcp above it (tungsten +0.47 and +0.57 eV an atom, iron +0.09 and +0.11), so they crystallize body-centred.'],
   segXq: ['Quantum method', 'Which tight-binding quantum chemistry works out the electrons when Bond orders is Quantum, with the atoms free in all three directions. GFN1-xTB (normal) is closer to measured reaction barriers and lets hexazine fall apart; GFN2-xTB adds atomic dipoles and quadrupoles and the D4 dispersion, and puts puckered hexazine 1.7 eV below three N₂.'], // (1.26)
-  segXqs: ['Spins', 'Paired (normal) puts two electrons, one of each spin, in every orbital, as GFN-xTB was made. Polarized gives each spin its own orbitals (spin-polarized GFN-xTB), with the atoms free in all three directions: free atoms and radicals get the energy of their unpaired electrons, O₂ is a triplet, and a bond pulled apart ends as two radicals.'], // (1.26)
+  segXqs: ['Spins', 'Paired puts two electrons, one of each spin, in every orbital, as GFN-xTB was made. Polarized (normal since 1.26, once its books were exact) gives each spin its own orbitals (spin-polarized GFN-xTB), with the atoms free in all three directions: free atoms and radicals get the energy of their unpaired electrons, O₂ is a triplet, and a bond pulled apart ends as two radicals.'], // (1.26)
   segLps: ['Lone pairs', 'An oxygen with two single bonds (water, alcohols, ethers) or a nitrogen with three (ammonia, amines) carries its partial charge on lone pairs at the tetrahedral directions, as the TIP5P water model does: hydrogen bonds form where the lone pairs point, and water\u2019s neighbours sit at the corners of a tetrahedron.'], // (1.26)
   segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond, C–X···N at 180°). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
   segPis: ['π-stacking', 'An aromatic ring carries its π electrons as charge on points above and below it, and ring atoms of two aromatic molecules meet with a dispersion fitted to the benzene dimer: rings stack offset or edge to face, as benzene does, rather than face to face.'], // (1.26)

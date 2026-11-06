@@ -220,7 +220,7 @@ PARTS.af2 = async (page, check) => {
     '1.26 GFN2 (Atom Forge fit): ' + JSON.stringify(out));
 };
 
-/* ---- 8. the page: Experimental → Spins (Paired at start, Polarized a choice with its cost and the realistic tag), the
+/* ---- 8. the page: Experimental → Spins (Polarized at start since the 1.26 spin-branch fix, Paired a choice with its cost and the realistic tag), the
    choice reaching the engine (O2 and a water: the triplet found), the Speed test's line, the side pane, Help */
 PARTS.page = async (page, check) => {
   const r = await page.evaluate(async () => {
@@ -233,11 +233,11 @@ PARTS.page = async (page, check) => {
     openSettings('exp'); setPrevShow('segXqs', null); out.pane = $('setPrevD').textContent; hideModal('setModal');
     out.help = /Spins → Polarized/.test(document.body.innerHTML);
     loadPreset('d3empty'); setRunning(false); addMolecule('O2', 0, 0, 0, 0); addMolecule('H2O', 2.8, 0.3, 2.8, 0); for (let f = 0; f < 3; f++) { W.dt = chooseDt(); step(W.dt); } out.n3 = W.parts.filter(p => p.bom && !p.dead).length; out.sp3 = XQ.spin;
-    setSetting('xqs', 0); setSetting('bo', 0); out.back = [XQ.spin, BO.on]; loadPreset('empty');
+    setSetting('xqs', 0); out.p0 = XQ.spin; setSetting('xqs', 1); setSetting('bo', 0); out.back = [XQ.spin, BO.on]; loadPreset('empty'); // (Polarized normal since the 1.26 spin-branch fix: Paired chosen and back)
     return out;
   });
-  check(r.def === 0 && r.set === 0 && r.sp0 === 0 && r.row && r.exp && /×1\.2/.test(r.cost) && /realistic/.test(r.real) && r.sp1 === 1 && r.n === 5 && r.flips >= 1 && /polarized spins/.test(r.sum) && /triplet/.test(r.pane) && r.help && r.n3 === 5 && r.sp3 === 1 && r.back[0] === 0 && !r.back[1],
-    `1.26 spins: Settings → Experimental → Spins (Paired at start; Polarized realistic, tagged ${r.cost}); chosen, O₂ and a water run polarized (the triplet found), in 3-D too; the Speed test's line, the side pane and Help say so`, '1.26 spins page: ' + JSON.stringify(r));
+  check(r.def === 1 && r.set === 1 && r.sp0 === 1 && r.p0 === 0 && r.row && r.exp && /×1\.2/.test(r.cost) && /realistic/.test(r.real) && r.sp1 === 1 && r.n === 5 && r.flips >= 1 && /polarized spins/.test(r.sum) && /triplet/.test(r.pane) && r.help && r.n3 === 5 && r.sp3 === 1 && r.back[0] === 1 && !r.back[1],
+    `1.26 spins: Settings → Experimental → Spins (Polarized normal at start, Paired a choice; Polarized realistic, tagged ${r.cost}); chosen, O₂ and a water run polarized (the triplet found), in 3-D too; the Speed test's line, the side pane and Help say so`, '1.26 spins page: ' + JSON.stringify(r));
 };
 
 module.exports = async function f126x(page, check, say, openPage, only) {
