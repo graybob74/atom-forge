@@ -203,7 +203,8 @@ PARTS.page = async (page, check) => {
     W.Bz = 0; return o;
   });
   const sp = /Nuclear spinI = ½, magnetic moment \+2\.793 μN \(γ\/2π = 42\.58 MHz\/T\)/.test(r.ins), lar = /Larmor precession42\.58 MHz in 1(\.0+)? T: one turn in 23\.5 ns/.test(r.ins), nmr = /NMR signal\d+ nuclei.*turning at 42\.57\d* MHz \(42\.57\d* MHz per tesla/.test(r.ins2);
-  const ok = r.ids === 'setUltra,segWave,setRpExo,setRpRes,setRpNuc' && r.tags && r.sw && r.h[3] < 34 && r.h[4] < 34 && r.pane === 'Nuclear spin, γ lines and neutron cross sections' && r.on === 'true,true,true,true' && r.saved === 'true,true' && r.exp && sp && lar && r.btn && nmr && !/Nuclear spin/.test(r.off) && !r.btnOff;
+  const ids = r.ids.split(','), iR = ids.indexOf('setRpRes'), iN = ids.indexOf('setRpNuc'); // (the other parts' lines sit beside these, 1.27)
+  const ok = ids.slice(0, 3).join() === 'setUltra,segWave,setRpExo' && iR > 2 && iN === iR + 1 && r.tags && r.sw && r.h[iR] < 34 && r.h[iN] < 34 && r.pane === 'Nuclear spin, γ lines and neutron cross sections' && r.on === 'true,true,true,true' && r.saved === 'true,true' && r.exp && sp && lar && r.btn && nmr && !/Nuclear spin/.test(r.off) && !r.btnOff;
   check(ok, `1.27 Settings: Realistic particles has the lines ${r.ids} (${r.h.join('/')} px), cost tags and switches; on, Inspect shows a proton's spin, its Larmor frequency in 1 T, and the NMR pulse reads 42.58 MHz/T; off, none of it`, 'rp5 page: ' + JSON.stringify(Object.assign({}, r, { ins: r.ins.slice(0, 600), ins2: (r.ins2.match(/NMR signal[^]{0,160}/) || [''])[0], off: r.off.slice(0, 100), sp, lar, nmr })));
 };
 PARTS.page.page = true;
