@@ -224,6 +224,23 @@ PARTS.recAlign = async (page, check, say) => {
 };
 PARTS.recAlign.page = true;
 
+/* 14. The gallery's picture of a world (galThumb) took the layers the same way, after the frame was shown, when the
+   WebGL layer's frame is gone: the atoms were missing or misplaced in the picture. Now it draws a frame and takes each
+   layer's part over the chamber. */
+PARTS.galThumb = async (page, check, say) => {
+  const r = await page.evaluate(async () => {
+    loadPreset('d3empty'); setRunning(false); setSetting('gl', 'gl'); cam3Fit();
+    const P = s2w3(150, R.h / 2), p = addAtom('C', P[0], P[1], { z: P[2] }); await new Promise(r => setTimeout(r, 120));
+    const o = [0, 0, 0]; cam3Update(); proj3(p.x, p.y, p.z, o);
+    const url = galThumb(), img = new Image(); await new Promise(r => { img.onload = r; img.src = url; });
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    const k = img.width / R.w, d = g.getImageData(Math.round(o[0] * k), Math.round(o[1] * k), 1, 1).data;
+    return { gl: R.gl, rgb: [d[0], d[1], d[2]] };
+  });
+  check(!r.gl || r.rgb[0] + r.rgb[1] + r.rgb[2] > 150, `3-D sweep 14: the gallery's picture has the atom where it is drawn (rgb ${r.rgb})`, '3-D sweep galThumb: ' + JSON.stringify(r));
+};
+PARTS.galThumb.page = true;
+
 module.exports = async function fsweep3d(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

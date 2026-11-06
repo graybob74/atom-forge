@@ -34826,6 +34826,14 @@ function recMime() {
   for (const m of ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4']) if (MediaRecorder.isTypeSupported(m)) return m;
   return '';
 }
+/* The chamber's canvas layers (under the WebGL layer, the WebGL layer, the overlay) drawn into a w × h picture: each
+   layer's part over the chamber, as it is seen (1.26 sweep: the WebGL layer reaches 64 px past the chamber on each side,
+   and drawn whole it was shrunk toward the middle, its atoms off their labels and bonds by up to 40 px at the edges, in
+   recorded videos and gallery pictures). Call it right after render(): the WebGL layer keeps no copy of its frame. */
+function layersInto(ctx, w, h) {
+  const base = $('cv').getBoundingClientRect();
+  for (const id of ['cvbg', 'cvgl', 'cv']) { const c = $(id); if (c && c.width && !c.hidden && c.style.display !== 'none') try { const r = c.getBoundingClientRect(), kx = c.width / Math.max(1, r.width), ky = c.height / Math.max(1, r.height); ctx.drawImage(c, (base.left - r.left) * kx, (base.top - r.top) * ky, base.width * kx, base.height * ky, 0, 0, w, h); } catch (e) { /* (a canvas that cannot be read) */ } }
+}
 function recSize() { const c = $('cv'), k = Math.min(1, 1280 / Math.max(1, c.width)); return [Math.max(2, Math.round(c.width * k / 2) * 2), Math.max(2, Math.round(c.height * k / 2) * 2)]; }
 function recCapture() {
   if (!UI.running) return;
@@ -34836,8 +34844,7 @@ function recCapture() {
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   const ctx = cv.getContext('2d');
   ctx.fillStyle = getComputedStyle($('cv').parentNode).backgroundColor || '#000'; ctx.fillRect(0, 0, w, h);
-  const base = $('cv').getBoundingClientRect();
-  for (const id of ['cvbg', 'cvgl', 'cv']) { const c = $(id); if (c && c.width && !c.hidden && c.style.display !== 'none') try { const r = c.getBoundingClientRect(), kx = c.width / Math.max(1, r.width), ky = c.height / Math.max(1, r.height); ctx.drawImage(c, (base.left - r.left) * kx, (base.top - r.top) * ky, base.width * kx, base.height * ky, 0, 0, w, h); } catch (e) { /* (a canvas that cannot be read) */ } } // (each layer's part over the chamber: the WebGL layer reaches 64 px past it on each side, and drawn whole it was shrunk toward the middle, its atoms off their labels and bonds by up to 40 px at the edges, 1.26 sweep)
+  layersInto(ctx, w, h);
   const i = REC.frames.length; REC.frames.push(null); REC.pend++;
   cv.toBlob((b) => { REC.pend--; REC.frames[i] = b; }, 'image/jpeg', 0.85);
   recShow();
@@ -34900,7 +34907,7 @@ function galDel(k) { try { localStorage.removeItem('atomforge.' + k); } catch (e
 function galThumb() {
   const c = $('cv'), w = 240, h = Math.max(1, Math.round(240 * c.height / Math.max(1, c.width))), t = document.createElement('canvas'); t.width = w; t.height = h;
   const ctx = t.getContext('2d'); ctx.fillStyle = '#05080c'; ctx.fillRect(0, 0, w, h);
-  for (const id of ['cvbg', 'cvgl', 'cv']) { const e = $(id); if (e && e.width) try { ctx.drawImage(e, 0, 0, w, h); } catch (err) { /* (unreadable) */ } }
+  try { render(W.rt || 0); } catch (e) { /* (a picture of what was last drawn) */ } layersInto(ctx, w, h); // (drawn now: the WebGL layer's frame is gone once the browser has shown it, so the picture had no atoms where it drew them, 1.26 sweep)
   try { return t.toDataURL('image/jpeg', 0.75); } catch (e) { return ''; }
 }
 function galRender() {

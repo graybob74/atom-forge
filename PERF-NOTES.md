@@ -468,6 +468,10 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
   about 40 px near the edges (0.873 of the distance from the centre at 878 px wide). Now each layer's part over the
   chamber is drawn. A carbon atom 150 px from the left edge of the empty 3-D box: the frame's pixel there rgb 98, 99, 101
   (the atom) after, 9, 15, 22 (background) before. Both modes. Check: f_sweep3d "recAlign" (page).
+- 14. The gallery's picture of a world (`galThumb`, Keep in the gallery) took the layers the same way, and outside the
+  frame, when the WebGL layer's frame is already gone (no preserveDrawingBuffer): the atoms were missing or misplaced in
+  the picture. Now it draws a frame first and uses the same composition (`layersInto`, shared with the recorder). The
+  carbon atom of item 13: rgb 89, 93, 102 at its place after, 9, 13, 24 before. Check: f_sweep3d "galThumb" (page).
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 
