@@ -436,6 +436,11 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
   sentence follows the mode ("three-dimensional box"), and a card "In the 3-D lab" (shown there only) says what is three-
   dimensional, which two flat corrections are still on (liquids a little too dense) and what is not in 3-D yet; Help's
   "What it does" mentions the cube. Check: f_sweep3d "physText" (page).
+- 7. The tour (Esc → Tour) in the 3-D lab gave the flat game's controls: "drag with the right button to move around"
+  (in 3-D that turns the view), the Objects tool, S and E (they fly the camera in 3-D: Spark is Z, Erase X), "a chain
+  reaction, a collider" among the setups. Its cards now carry 3-D words where they differ (`TOUR`'s fourth entry, used
+  in 3-D): turning, moving, flying and fitting the camera, the placing plane, the 3-D setups. Check: f_sweep3d
+  "tour3d" (page).
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 

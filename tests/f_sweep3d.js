@@ -108,6 +108,20 @@ PARTS.physText = async (page, check, say) => {
 };
 PARTS.physText.page = true;
 
+/* 7. The tour (Esc menu → Tour) in the 3-D lab told the flat game's controls: "drag with the right button to move
+   around" (in 3-D it turns the view), the Objects tool, S and E for Spark and Erase (they fly the camera there), "a
+   chain reaction, a collider" among the setups. Now its first, second and fifth cards have 3-D words in 3-D. */
+PARTS.tour3d = async (page, check, say) => {
+  const r = await page.evaluate(() => {
+    const texts = () => { tourStart(); const out = []; for (let i = 0; i < TOUR.length; i++) { TS.i = i; tourShow(); out.push($('tourText').textContent); } tourEnd(); return out; };
+    loadPreset('mol3d'); setRunning(false); const d3 = texts(); loadPreset('water'); setRunning(false); const d2 = texts();
+    return { d3first: d3[0], d3tools: d3[1], flatFirst: d2[0] };
+  });
+  check(/turn the view/.test(r.d3first) && /Spark is Z/.test(r.d3tools) && /move around/.test(r.flatFirst) && !/turn the view/.test(r.flatFirst),
+    `3-D sweep 7: the tour in 3-D says how to turn, move and fly the camera and that Spark and Erase are Z and X there; the flat game's tour unchanged`, '3-D sweep tour3d: ' + JSON.stringify(r));
+};
+PARTS.tour3d.page = true;
+
 module.exports = async function fsweep3d(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

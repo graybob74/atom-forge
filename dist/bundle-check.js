@@ -36970,11 +36970,13 @@ function drawPairs() {
 }
 /* ------------------------------------------------------------------ the tour */
 const TOUR = [
-  ['#stage', 'The chamber', 'Everything here follows real physics: atoms, electrons, nuclei and light. Scroll to zoom, drag with the right button to move around.'],
-  ['.tools-wrap', 'Tools', 'Place, grab, select, push and pull, fire, heat, spark, magnets, objects (mirrors, lenses, screens, walls…), light, erase, measure, inspect. The letter under each is its key. Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.'],
+  ['#stage', 'The chamber', 'Everything here follows real physics: atoms, electrons, nuclei and light. Scroll to zoom, drag with the right button to move around.',
+    'Everything here follows real physics: atoms, electrons, nuclei and light, in a cube. Scroll to zoom; drag with the right button (or Alt, or the arrow keys) to turn the view, Shift and the right button to move it; W A S D fly the camera; 0 fits the box.'],
+  ['.tools-wrap', 'Tools', 'Place, grab, select, push and pull, fire, heat, spark, magnets, objects (mirrors, lenses, screens, walls…), light, erase, measure, inspect. The letter under each is its key. Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.',
+    'Place, grab, select, push and pull, fire, heat, spark, magnets, light, erase, measure, inspect (objects are for the flat game). The letter under each is its key (here Spark is Z and Erase X: S and E fly). Things go on the placing plane facing you (Shift + wheel moves it). Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.'],
   ['#paletteBar', 'What to place', 'Pick a particle, an element or a molecule here; Elements… and Molecules… have the rest, every isotope included.'],
   ['.transport', 'Time', 'Play and pause (Space): a setup waits at its first moment until you start it. One frame at a time (.), reload, slower and faster down to 1/512×, and slow motion. ⟲ rewinds (,): drag back through the last minute.'],
-  ['#preset', 'Experiments', 'Ready-made setups, from water and salt to a chain reaction, a collider and challenges.'],
+  ['#preset', 'Experiments', 'Ready-made setups, from water and salt to a chain reaction, a collider and challenges.', 'Ready-made setups for the 3-D lab: molecules in space, liquid water, salt water, hydrogen and oxygen. The main menu (Esc) leads back to the flat game and its setups.'],
   ['.panel .tabs', 'The lab panel', 'Lab sets the conditions (temperature, fields, walls); Inspect shows anything you click; Data has graphs and counts; Log tells what happened; Physics explains how it works.'],
   ['#bSettings', 'Settings and help', 'Settings has graphics, display, controls and a benchmark. Esc opens the menu, with Help (what the simulation does and does not do), the keys (? lists them) and this tour; Ctrl+Z undoes.'],
 ];
@@ -36982,7 +36984,7 @@ const TS = { i: 0 };
 function tourStart() { if (UI.menu) return; TS.i = 0; $('tour').hidden = false; tourShow(); }
 function tourEnd() { $('tour').hidden = true; store('toured', '1'); }
 function tourShow() {
-  const [sel, title, text] = TOUR[TS.i], el = document.querySelector(sel);
+  const [sel, title, t2, t3] = TOUR[TS.i], text = W.d3 && t3 ? t3 : t2, el = document.querySelector(sel); // (the 3-D lab's own words where they differ, 1.26 sweep)
   if (!el || !el.getBoundingClientRect().width) { if (TS.i < TOUR.length - 1) { TS.i++; tourShow(); } else tourEnd(); return; }
   const r = el.getBoundingClientRect(), pad = 6, hole = $('tourHole').style;
   hole.left = (r.left - pad) + 'px'; hole.top = (r.top - pad) + 'px'; hole.width = (r.width + 2 * pad) + 'px'; hole.height = (r.height + 2 * pad) + 'px';
