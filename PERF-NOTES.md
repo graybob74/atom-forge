@@ -462,6 +462,12 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
   undo, in both modes: Ctrl+Z took back whatever came before (after Select all → Delete, Molecules in space stayed empty:
   0 of 72 back). Help says Ctrl+Z undoes; the tools that change the world (Place, Erase, Grab …) are marked. Now both are:
   72 of 72 back, the moved molecules back where they were (flat water likewise). Check: f_sweep3d "selUndo" (page).
+- 13. Lab → Record video drew each canvas layer whole into the frame (`recCapture`); the WebGL layer, which holds the
+  atoms and bonds (3-D, and the flat game's balls), reaches 64 px past the chamber on each side (1.23.2), so in the
+  video it was shrunk toward the middle: atoms off their labels, rings, measure marks and the box's front edges by up to
+  about 40 px near the edges (0.873 of the distance from the centre at 878 px wide). Now each layer's part over the
+  chamber is drawn. A carbon atom 150 px from the left edge of the empty 3-D box: the frame's pixel there rgb 98, 99, 101
+  (the atom) after, 9, 15, 22 (background) before. Both modes. Check: f_sweep3d "recAlign" (page).
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 
