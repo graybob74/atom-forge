@@ -3730,7 +3730,13 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src) {
   for (const [t, p] of _rayHits) {
     const hx = x + ux * t, hy = y + uy * t, hz = z + uz * t;
     if (E >= 1e5) {
-      if (E > 6e6 && !p.anti && rnd() < 0.0015 * p.Z * Math.min(1, gdrSigma(p.Z, p.N, E / 1e6) / (5.2 * p.Z * p.Z))) return { x: hx, y: hy, z: hz, p, after: () => { if (!photoNuclear(p, E, ux, uy, uz)) pairProduce3(p, E); } }; // (the giant dipole resonance in 3-D, 1.25)
+      if (E > 6e6 && !p.anti && rnd() < 0.0015 * p.Z * Math.min(1, gdrSigma(p.Z, p.N, E / 1e6) / (5.2 * p.Z * p.Z))) return { x: hx, y: hy, z: hz, p, after: () => { if (!photoNuclear(p, E, ux, uy, uz)) { if (RP.cpm) cpmPair(p, E, ux, uy, uz, false); else pairProduce3(p, E); } } }; // (the giant dipole resonance in 3-D, 1.25)
+      if (RP.cpm) { // (charged particles in matter, 1.27: hep.js cpmGamma)
+        const r = cpmGamma(p, E);
+        if (r === 1 || r === 2) return { x: hx, y: hy, z: hz, p, after: () => cpmPair(p, E, ux, uy, uz, r === 2) };
+        if (r === 3) return { x: hx, y: hy, z: hz, p, after: () => compton3(p, E, ux, uy, uz) };
+        continue;
+      }
       if (E > 1.022e6 && rnd() < 0.0015 * p.Z) return { x: hx, y: hy, z: hz, p, after: () => pairProduce3(p, E) };
       if (p.ne > 0 && rnd() < 0.012 * p.ne) return { x: hx, y: hy, z: hz, p, after: () => compton3(p, E, ux, uy, uz) };
       continue;
@@ -3835,7 +3841,13 @@ function rayInteract(x, y, ux, uy, E, src) {
     const hx = x + ux * t, hy = y + uy * t;
     if (E >= 1e5) { // gamma: Compton scattering, pair production, and (above ~8 MeV) the nucleus itself
       if (E > 6e6 && !p.anti && rnd() < 0.0015 * p.Z * Math.min(1, gdrSigma(p.Z, p.N, E / 1e6) / (5.2 * p.Z * p.Z))) { // (in proportion to pair production, σ ≈ 5.2 Z² mb at these energies)
-        return { x: hx, y: hy, p, after: () => { if (!photoNuclear(p, E, ux, uy)) pairProduce(p, E); } };
+        return { x: hx, y: hy, p, after: () => { if (!photoNuclear(p, E, ux, uy)) { if (RP.cpm) cpmPair(p, E, ux, uy, 0, false); else pairProduce(p, E); } } };
+      }
+      if (RP.cpm) { // (charged particles in matter, 1.27: pair production and Compton scattering by their measured cross sections, hep.js cpmGamma)
+        const r = cpmGamma(p, E);
+        if (r === 1 || r === 2) return { x: hx, y: hy, p, after: () => cpmPair(p, E, ux, uy, 0, r === 2) };
+        if (r === 3) return { x: hx, y: hy, p, after: () => compton(p, E, ux, uy) };
+        continue;
       }
       if (E > 1.022e6 && rnd() < 0.0015 * p.Z) {
         return { x: hx, y: hy, p, after: () => pairProduce(p, E) };
@@ -6182,6 +6194,7 @@ function moveRad(p, dt) {
   const beta2 = (p.sp / PHYS.C) ** 2 || 1e-6;
   const zeff = p.k === NUC ? z * (1 - Math.exp(-125 * Math.sqrt(beta2) / Math.pow(z, 2 / 3))) : 1;
   const hits = segTargets(x0, y0, x1, y1, Math.max(1.0, nucDrawR(p) + 0.9), (t) => t.k === NUC && t.Z > 0 && t !== p);
+  if (RP.cpm) cpmSeg(p, p.KE, p.k === NUC ? p.m * AMU_EV : ME_C2, p.k === NUC ? zeff : 1, p.k === ELEC ? -1 : p.k === POS ? 1 : 0, p.ux, p.uy, 0, Math.hypot(x1 - x0, y1 - y0), hits, Math.max(1.0, nucDrawR(p) + 0.9), false); // (charged particles in matter, 1.27: hep.js)
   let stopped = false, stillNear = false;
   for (const [t, tg, b] of hits) {
     if (tg.dead || sameEv(p, tg)) continue;
@@ -6212,6 +6225,14 @@ function moveRad(p, dt) {
       if (T > 0 && W.nucWin && (p.nucProd || p.born >= W.nucWin.t0)) for (const m of molecule(tg)) m.nucProd = true; // (knocked on by what a nuclear event sent flying: a bare nucleus too, which the ionizing below passes over, 0.93)
       if (T > 0) { p.KE -= T; if (p.KE <= 1) break; }
     }
+    if (RP.cpm) { // (charged particles in matter, 1.27: Bethe's mean, straggling, δ-rays and bremsstrahlung, hep.js cpmAtom)
+      CPM.K = p.KE;
+      const d = cpmAtom(tg, b, 0.0047 * zeff * zeff * Math.max(0, tg.ne) / beta2 / (1 + (b / 0.4) * (b / 0.4)), x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 0);
+      p.KE = CPM.K;
+      if (d > 0 && W.nucWin && (p.nucProd || p.born >= W.nucWin.t0)) for (const m of molecule(tg)) m.nucProd = true;
+      if (p.KE <= 0) break;
+      continue;
+    }
     if (tg.ne <= 0) continue;
     const w = 1 / (1 + (b / 0.4) * (b / 0.4));
     let dE = Math.min(0.3 * p.KE, 0.0047 * zeff * zeff * tg.ne / beta2 * w);
@@ -6229,6 +6250,7 @@ function moveRad(p, dt) {
     }
     if (p.KE <= 0) break;
   }
+  if (RP.cpm && !p.dead && !stopped && p.KE > 1) { CPM.K = p.KE; cpmCkv(x0, y0, 0, Math.hypot(x1 - x0, y1 - y0)); p.KE = CPM.K; } // (Cherenkov light, 1.27)
   if (!stillNear && p.hit) p.hit = 0;
   if (!p.dead && !stopped && p.k === NUC && _fastNuc.length) stopped = radVsFast(p, x0, y0, x1, y1);
   if (p.dead || stopped) return;
@@ -6667,8 +6689,16 @@ function fastStop3(p, hits) {
   let v = Math.sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz); if (!(v > 0)) return;
   let K = 0.5 * p.m * v * v; const K0 = K, ux = p.vx / v, uy = p.vy / v, uz = p.vz / v;
   const beta2 = Math.max(1e-8, (v / PHYS.C) ** 2), zeff = p.Z * (1 - Math.exp(-125 * Math.sqrt(beta2) / Math.pow(p.Z, 2 / 3)));
-  for (const [, tg, b] of hits) {
+  const cpm = RP.cpm, sl = cpm ? Math.hypot(p.x - p.ox, p.y - p.oy, p.z - p.oz) : 0; // (charged particles in matter, 1.27: hep.js)
+  if (cpm) cpmSeg(p, K, p.m * AMU_EV, zeff, 0, ux, uy, uz, sl, hits, Math.max(1.6, nucDrawR(p) + 0.9), true);
+  for (const [t, tg, b] of hits) {
     if (tg.dead || tg.ne <= 0 || tg.fast || sameEv(p, tg)) continue; // (another atom in flight: not ionized here; its electrons' energy is measured against the stepped world, 1.25)
+    if (cpm) {
+      CPM.K = K; const d = cpmAtom(tg, b, 0.0047 * zeff * zeff * tg.ne / beta2 / (1 + (b / 0.4) * (b / 0.4)), p.ox + (p.x - p.ox) * t, p.oy + (p.y - p.oy) * t, p.oz + (p.z - p.oz) * t); K = CPM.K;
+      if (d > 0 && W.nucWin && (p.nucProd || p.born >= W.nucWin.t0)) for (const m of molecule(tg)) m.nucProd = true;
+      if (K <= 1) break;
+      continue;
+    }
     const w = 1 / (1 + (b / 0.4) * (b / 0.4)), dE = Math.min(0.3 * K, 0.0047 * zeff * zeff * tg.ne / beta2 * w);
     if (dE < 0.01) continue;
     K -= dE;
@@ -6678,6 +6708,7 @@ function fastStop3(p, hits) {
     else { const vn = tg.vx * n[0] + tg.vy * n[1] + tg.vz * n[2], a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); tg.vx += n[0] * a; tg.vy += n[1] * a; tg.vz += n[2] * a; updateFast(tg); } // (a push square to the path giving it exactly dE, whatever its own motion: the flat game's 0.7·√(2dE/m) is not exact, and on an atom itself in flight its cross term is keV)
     if (K <= 1) break;
   }
+  if (cpm && K > 1) { CPM.K = K; cpmCkv(p.ox, p.oy, p.oz, sl); K = CPM.K; } // (Cherenkov light, 1.27)
   if (K < K0) { const f = Math.sqrt(Math.max(0.5, K) / K0); p.vx *= f; p.vy *= f; p.vz *= f; }
 }
 /* (3-D) The pair's relative velocity u turned: kept in the plane of u and the offset (cx, cy, cz) from the target to the
@@ -7786,7 +7817,10 @@ function moveFastLeptons3(Dt, id0) {
       v = Math.sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz);
       const ux = p.vx / v, uy = p.vy / v, uz = p.vz / v, beta2 = Math.max(1e-8, (vr / PHYS.C) ** 2);
       let Ke = K0;
-      for (const [, tg, b] of segTargets3(x0, y0, z0, p.x, p.y, p.z, 1.0, (t) => t.k === NUC && t.Z > 0 && t.ne > 0 && !t.fast).slice()) {
+      const cpm = RP.cpm, hs = segTargets3(x0, y0, z0, p.x, p.y, p.z, 1.0, (t) => t.k === NUC && t.Z > 0 && (t.ne > 0 || cpm) && !t.fast).slice(), sl = cpm ? Math.hypot(p.x - x0, p.y - y0, p.z - z0) : 0; // (charged particles in matter, 1.27: bare nuclei too, for bremsstrahlung; hep.js)
+      if (cpm) cpmSeg(p, Ke, ME_C2, 1, p.k === POS ? 1 : -1, ux, uy, uz, sl, hs, 1.0, true);
+      for (const [t, tg, b] of hs) {
+        if (cpm) { if (tg.dead) continue; CPM.K = Ke; cpmAtom(tg, b, 0.0047 * Math.max(0, tg.ne) / beta2 / (1 + (b / 0.4) * (b / 0.4)), x0 + (p.x - x0) * t, y0 + (p.y - y0) * t, z0 + (p.z - z0) * t); Ke = CPM.K; if (Ke <= 1) break; continue; }
         if (tg.dead || tg.ne <= 0) continue;
         const w = 1 / (1 + (b / 0.4) * (b / 0.4)), dE = Math.min(0.3 * Ke, 0.0047 * tg.ne / beta2 * w);
         if (dE < 0.01) continue;
@@ -7796,6 +7830,7 @@ function moveFastLeptons3(Dt, id0) {
         else { const vn = tg.vx * n[0] + tg.vy * n[1] + tg.vz * n[2], a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); tg.vx += n[0] * a; tg.vy += n[1] * a; tg.vz += n[2] * a; updateFast(tg); }
         if (Ke <= 1) break;
       }
+      if (cpm && Ke > 1) { CPM.K = Ke; cpmCkv(x0, y0, z0, sl); Ke = CPM.K; } // (Cherenkov light, 1.27)
       if (Ke < K0) { const f = Math.sqrt(Math.max(0, Ke) / K0); p.vx *= f; p.vy *= f; p.vz *= f; }
       if (p.trk) extendTrack(p); else if (Ke > 2e3) startTrack(p);
       if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh || p.z < -hd || p.z > hd) { if (W.wall === 'wrap') walls(p); else leptonWall(p); }

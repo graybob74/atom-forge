@@ -5650,6 +5650,7 @@ Object.assign(SET_DEF, { xqs: 0 }); SET_OK.xqs = [0, 1]; // (Experimental: the q
 Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
 Object.assign(SET_DEF, { rpExo: false }); // (Experimental → Realistic particles: exotic atoms as real atoms, 1.27: hep.js RP)
 Object.assign(SET_DEF, { rpPs: false, rpMu: false }); // (Experimental → Realistic particles: positronium; muonium as hydrogen and μSR, 1.27: hep.js RP)
+SET_DEF.rpCpm = false; // (Experimental → Realistic particles: charged particles in matter, 1.27: hep.js RP.cpm)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
@@ -5663,6 +5664,7 @@ SET_EXP.push('lps', 'sigh', 'pis'); // (1.26)
 EXP_NAME.lps = 'lone pairs'; EXP_NAME.sigh = 'halogen σ-holes'; EXP_NAME.pis = 'π-stacking'; // (1.26)
 SET_EXP.push('rpExo'); EXP_NAME.rpExo = 'exotic atoms'; // (1.27)
 SET_EXP.push('rpPs', 'rpMu'); EXP_NAME.rpPs = 'positronium'; EXP_NAME.rpMu = 'muonium as hydrogen'; // (1.27)
+SET_EXP.push('rpCpm'); EXP_NAME.rpCpm = 'charged particles in matter'; // (1.27)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -5746,6 +5748,7 @@ function applySettings() {
   waveSet(!!SET.wave); // (Experimental: electrons as waves, 1.15)
   RP.exo = !!SET.rpExo; // (Experimental → Realistic particles: exotic atoms, 1.27)
   RP.ps = !!SET.rpPs; rpMuSet(!!SET.rpMu); // (positronium; muonium as hydrogen, its binding's change booked to the bath, 1.27)
+  RP.cpm = !!SET.rpCpm; // (charged particles in matter, 1.27)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
@@ -5866,7 +5869,7 @@ function syncSettings() {
   setSegValue('segXqs', String(SET.xqs)); // (1.26)
   setSegValue('segLps', String(SET.lps)); setSegValue('segSigh', String(SET.sigh)); setSegValue('segPis', String(SET.pis)); // (1.26)
   $('setRpExo').checked = SET.rpExo; // (1.27)
-  $('setRpPs').checked = SET.rpPs; $('setRpMu').checked = SET.rpMu; // (1.27)
+  $('setRpPs').checked = SET.rpPs; $('setRpMu').checked = SET.rpMu; $('setRpCpm').checked = SET.rpCpm; // (1.27)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -5907,6 +5910,7 @@ const COSTS = {
   setUltra: () => ({ k: 'physics', on: ['×1', 'True sizes and rates cost nothing'] }),
   setRpPs: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where there is no positronium; each one about 10 µs a step (it flies as an unstable particle and looks round itself for electrons and O\u2082 once an ångström): 20 in liquid water (240 atoms) 0.35 → 0.58 ms a step'] }),
   setRpMu: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): a muon\u2019s spin turned each step costs nothing measurable (20 muons in liquid water, 0.66 against 0.67 ms a step); muonium costs what a hydrogen atom does'] }),
+  setRpCpm: () => ({ k: 'physics', on: ['×1', 'COST2'] }),
   setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where no slow μ⁻, π⁻, K⁻ or antiproton stops (a pion beam into carbon ×1.0); a capture is one event of 1.2–2.3 ms (its cascade\u2019s electrons and X-rays), and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in makes a small plasma to follow: muon-catalysed fusion ×3, the hypernucleus factory ×4 while it lasts'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
@@ -5952,6 +5956,7 @@ const COSTS3 = {
   setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24); the true sizes are drawn without the WebGL layer (liquid water: 7 → 25 ms a frame, headless, 1.26)'] }),
   setRpPs: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing where there is no positronium; each one about 35 µs a step (its look round itself, 25 µs, once an ångström): 20 in liquid water (1,029 atoms) 2.3 → 3.0–4.1 ms a step'] }),
   setRpMu: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): a muon\u2019s spin turned each step costs nothing measurable (20 muons in liquid water, within the timing noise of 4–5 ms a step); muonium costs what a hydrogen atom does'] }),
+  setRpCpm: () => ({ k: 'physics', on: ['×1', 'COST3'] }),
   setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing where no slow μ⁻, π⁻ or K⁻ stops; a capture is one event of 1.4–1.5 ms, and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in costs more while it lasts'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
@@ -5989,6 +5994,7 @@ const REAL = {
   setRpExo: [true, 'A slow negative particle is caught into an orbit and cascades down, giving off its X-ray lines, as in nature (1.27)'],
   setRpPs: [true, 'A slow positron and an electron bind into positronium, which lives and annihilates as measured (1.27)'],
   setRpMu: [true, 'Muonium is the lightest isotope of hydrogen, and its muon\u2019s spin precesses in a field (μSR), as in nature (1.27)'],
+  setRpCpm: [true, 'Fast charged particles lose their energy collision by collision, knock out δ-rays, give off bremsstrahlung and Cherenkov light, and γ rays make pairs, at the measured rates (1.27)'],
 };
 function syncReal() {
   for (const id in REAL) {
@@ -6006,7 +6012,7 @@ EXP_SET.segXq = 'xq'; // (1.26)
 EXP_SET.segXqs = 'xqs'; // (1.26)
 EXP_SET.segLps = 'lps'; EXP_SET.segSigh = 'sigh'; EXP_SET.segPis = 'pis'; // (1.26)
 EXP_SET.setRpExo = 'rpExo'; // (1.27)
-EXP_SET.setRpPs = 'rpPs'; EXP_SET.setRpMu = 'rpMu'; // (1.27)
+EXP_SET.setRpPs = 'rpPs'; EXP_SET.setRpMu = 'rpMu'; EXP_SET.setRpCpm = 'rpCpm'; // (1.27)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -6036,6 +6042,7 @@ function expSummary() {
   if (SET.ultra) on.push('ultra-realistic');
   if (SET.rpExo) on.push('exotic atoms'); // (1.27)
   if (SET.rpPs) on.push('positronium'); if (SET.rpMu) on.push('muonium as hydrogen'); // (1.27)
+  if (SET.rpCpm) on.push('charged particles in matter'); // (1.27)
   if (!on.length) return 'Experimental: all normal';
   const t = expTotal(), x = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
   return `Experimental: ${on.join(', ')} (${x} the normal work)`;
@@ -6049,7 +6056,7 @@ function syncExpTotal() {
   names.segXqs = 'polarized spins'; // (1.26)
   names.segLps = 'lone pairs'; names.segSigh = 'halogen σ-holes'; names.segPis = 'π-stacking'; // (1.26)
   names.setRpExo = 'exotic atoms'; // (1.27)
-  names.setRpPs = 'positronium'; names.setRpMu = 'muonium as hydrogen'; // (1.27)
+  names.setRpPs = 'positronium'; names.setRpMu = 'muonium as hydrogen'; names.setRpCpm = 'charged particles in matter'; // (1.27)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -6180,6 +6187,7 @@ const SDESC = {
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin, drawn as a faint cloud (the electron force field, eFF), instead of a point.'],
   setRpPs: ['Positronium', 'A slow positron takes an electron and becomes positronium (Ps: an electron and a positron round each other, bound by 6.8 eV, twice hydrogen\u2019s size): from an atom when its energy is in the Ore gap (between the electron\u2019s binding less 6.8 eV and the binding), from a free electron when the two are slow. One in four is para-Ps, which lives 125 ps and gives two 511 keV γ rays back to back; three in four ortho-Ps, which would live 142 ns in vacuum and gives three γ rays sharing 1,022 keV, but in matter its positron meets a neighbour\u2019s electron within nanoseconds (pick-off: 1.8 ns in water), and O\u2082 turns its spin. Inspect shows its state and its expected life there. Experimental: off again each time the game starts.'], // (1.27)
   setRpMu: ['Muonium as hydrogen', 'Muonium (a muon with an electron) is the lightest isotope of hydrogen: a ninth of its mass, bound by 13.54 eV (hydrogen 13.60), bonding by hydrogen\u2019s rules, so its isotope effects are large (Mu–Cl vibrates 2.9 times faster than H–Cl). The muon\u2019s spin precesses in a magnetic field, 135.5 MHz a tesla for a bare or bonded muon, 1.39 MHz a gauss for muonium; the positron of its decay comes out along the spin (1 + cos θ / 3 on average), so detectors round a sample see the precession (μSR). Inspect shows the spin; the particle view draws it. Experimental: off again each time the game starts.'], // (1.27)
+  setRpCpm: ['Charged particles in matter', 'DESC2'], // (1.27)
   setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻, K⁻ or antiproton is caught by an atom into an orbit and cascades down, setting Auger electrons free and giving off the exotic atom\u2019s X-ray lines (muonic carbon 75 keV, muonic lead 5.9 MeV); then the muon decays or is captured at the rate measured for the element, a pion or kaon is absorbed by the nucleus (a star), an antiproton annihilates. A muonic atom is a real atom of the box, its electrons seeing one charge less (muonic carbon bonds as boron does); muonic hydrogen passes through atoms and hands its muon to a heavier one. Experimental: off again each time the game starts.'], // (1.27)
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
@@ -6220,6 +6228,7 @@ const SDESC3 = {
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
   setRpPs: ['Positronium', 'A slow positron takes an electron and becomes positronium (Ps: an electron and a positron round each other, bound by 6.8 eV, twice hydrogen\u2019s size): from an atom when its energy is in the Ore gap (between the electron\u2019s binding less 6.8 eV and the binding), from a free electron when the two are slow. One in four is para-Ps, which lives 125 ps and gives two 511 keV γ rays back to back; three in four ortho-Ps, which would live 142 ns in vacuum and gives three γ rays sharing 1,022 keV, but in matter its positron meets a neighbour\u2019s electron within nanoseconds (pick-off: 1.8 ns in water), and O\u2082 turns its spin. Inspect shows its state and its expected life there. In all three directions (the three γ rays of ortho-Ps in a plane at any angle). Experimental: off again each time the game starts.'], // (1.27)
   setRpMu: ['Muonium as hydrogen', 'Muonium (a muon with an electron) is the lightest isotope of hydrogen: a ninth of its mass, bound by 13.54 eV (hydrogen 13.60), bonding by hydrogen\u2019s rules, so its isotope effects are large (Mu–Cl vibrates 2.9 times faster than H–Cl). The muon\u2019s spin precesses in a magnetic field, 135.5 MHz a tesla for a bare or bonded muon, 1.39 MHz a gauss for muonium; the positron of its decay comes out along the spin (1 + cos θ / 3 on average), so detectors round a sample see the precession (μSR). Inspect shows the spin; the particle view draws it. In 3-D the spin turns about the field\u2019s axis. Experimental: off again each time the game starts.'], // (1.27)
+  setRpCpm: ['Charged particles in matter', 'DESC3'], // (1.27)
   setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻ or K⁻ is caught by an atom into an orbit and cascades down, in all three directions, setting Auger electrons free and giving off its X-ray lines; then the muon decays or is captured at the measured rate, a pion or kaon is absorbed by the nucleus. A muonic atom is a real atom of the box, its electrons seeing one charge less; muonic hydrogen passes through atoms and hands its muon to a heavier one. Antiprotons and protonium are in the flat game only (antimatter is not in 3-D). Experimental: off again each time the game starts.'], // (1.27)
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
@@ -6447,7 +6456,7 @@ function settingsInit() {
   $('setFps').onchange = (e) => setSetting('fps', e.target.checked);
   $('setUltra').onchange = (e) => setSetting('ultra', e.target.checked);
   $('setRpExo').onchange = (e) => setSetting('rpExo', e.target.checked); // (1.27)
-  $('setRpPs').onchange = (e) => setSetting('rpPs', e.target.checked); $('setRpMu').onchange = (e) => setSetting('rpMu', e.target.checked); // (1.27)
+  $('setRpPs').onchange = (e) => setSetting('rpPs', e.target.checked); $('setRpMu').onchange = (e) => setSetting('rpMu', e.target.checked); $('setRpCpm').onchange = (e) => setSetting('rpCpm', e.target.checked); // (1.27)
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');
