@@ -411,7 +411,7 @@ const CPFITS = { // [q/p, t₂, t₄, t₆, β] (the fitted vectors behind the c
 function cpTable() {
   for (const [el, v] of Object.entries(CPFITS)) {
     const d = D_CP[el], o = cpAll(d, v, true), row = [o.P.A / 2, o.P.xi, o.P.p, o.P.q, d[2], v[4], v[1], v[2], v[3]];
-    console.log(`  ${d[0]}: [${row.map(x => +x.toPrecision(7)).join(', ')}, 1], // ${el}: ${d[1]} r₀ ${d[2]} Å; B ${o.B.toFixed(0)}, ${d[1] === 'fcc' ? `C11 ${o.C11.toFixed(0)}, C12 ${o.C12.toFixed(0)}, C44 ${o.C44.toFixed(0)} GPa (measured ${d[6]}, ${d[7]}, ${d[8]})` : `C44 ${o.C44.toFixed(0)}, C66 ${o.Cp.toFixed(0)} GPa (measured ${d[8]}, ${((d[6] - d[7]) / 2).toFixed(0)})`}; vacancy ${o.Ev.toFixed(2)} eV (${d[5] || '—'}); bcc +${o.bcc.toFixed(3)}, ${d[1] === 'fcc' ? 'hcp' : 'fcc'} +${o.other.toFixed(3)} eV (${d[9]}, ${d[10]}); surface ${o.surf.toFixed(2)} J/m² (${d[11]})`);
+    console.log(`  ${d[0]}: [${row.map((x, k) => +x.toPrecision(k < 4 ? 10 : 7)).join(', ')}, 1], // ${el}: ${d[1]} r₀ ${d[2]} Å; B ${o.B.toFixed(0)}, ${d[1] === 'fcc' ? `C11 ${o.C11.toFixed(0)}, C12 ${o.C12.toFixed(0)}, C44 ${o.C44.toFixed(0)} GPa (measured ${d[6]}, ${d[7]}, ${d[8]})` : `C44 ${o.C44.toFixed(0)}, C66 ${o.Cp.toFixed(0)} GPa (measured ${d[8]}, ${((d[6] - d[7]) / 2).toFixed(0)})`}; vacancy ${o.Ev.toFixed(2)} eV (${d[5] || '—'}); bcc +${o.bcc.toFixed(3)}, ${d[1] === 'fcc' ? 'hcp' : 'fcc'} +${o.other.toFixed(3)} eV (${d[9]}, ${d[10]}); surface ${o.surf.toFixed(2)} J/m² (${d[11]})`);
   }
 }
 if (require.main === module) {
