@@ -410,6 +410,19 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
   (headless). The 3-D descriptions (the row's pane, the Experimental note, the cost tag) say so. Measured: zoomed on a
   carbon atom of Molecules in space the camera reaches 2·10⁻⁵ Å (499 px a fm; a nucleon with its u, d, d), before 0.5 Å.
   Check: f_sweep3d "ultra3d" (page). Fingerprints unchanged.
+- 3. Fire in 3-D held electrons and positrons below 950 eV (`fireKE3`: 0.95 × the flat radiation flight's 1 keV, from
+  1.24, when 3-D had no flight for leptons and MeV electrons were stepped faster than light); bug fix 14 after 1.25 gave
+  them flight past 25 keV, the cap stayed. The slider read 950 eV past that point, and the note under it still said
+  atoms stop at 1.9 keV and neutrons cannot be fired (both work since 1.25). Now every projectile goes at the energy set,
+  the note says "single shots, at any energy; antimatter and beam sources: not in 3-D yet". Measured (Node, water3d,
+  insulated after 50 steps, one electron fired across the box, 400 steps after): 500 eV books −0.18 eV, 10 keV +0.10,
+  100 keV −4.3 (44 ionizations), 1 MeV −0.14; positrons the same (they fly alike). A click at an oxygen with 1 MeV set:
+  950 eV before, 1,000,000 eV after. Also "Not in 3-D yet" inside a sentence was lowercased whole ("not in 3-d yet"): the
+  Fire note and the log lines for tools and particles refused in 3-D (`not3d()`). Check: f_sweep3d "fireLep" (page).
+  Fingerprints unchanged (interface only).
+- 4. The quick menu's "Magnet here" (right-click on empty space) stayed greyed "Not in 3-D yet" in the 3-D lab, though
+  magnets work there since 1.24. Now it puts a magnet ball at the point in depth (the point the tools take, `ptr3`), as
+  the Magnet tool does. Check: f_sweep3d "qmMagnet" (page; before: the button disabled, 0 magnets).
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 

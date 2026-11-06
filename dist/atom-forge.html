@@ -34090,7 +34090,7 @@ function buildTools() {
   nav.addEventListener('click', (e) => { const b = e.target.closest('.tool'); if (b) setTool(b.dataset.tool); });
 }
 function setTool(id) {
-  if (W.d3 && TOOLS_NO3D.has(id)) { const t = TOOLS.find(x => x.id === id); log('tool', `${t ? t.name : id}: ${NOT_3D.toLowerCase()}`); return; }
+  if (W.d3 && TOOLS_NO3D.has(id)) { const t = TOOLS.find(x => x.id === id); log('tool', `${t ? t.name : id}: ${not3d()}`); return; }
   UI.tool = id; UI.pasting = false; R.ghost = null; if (id !== 'objects') R.objSel = null;
   for (const b of document.querySelectorAll('.tool')) b.setAttribute('aria-pressed', b.dataset.tool === id ? 'true' : 'false');
   if (W.tool) W.tool.active = false;
@@ -34182,7 +34182,7 @@ function placeHint() {
   h.style.top = (pal.offsetTop + pal.offsetHeight + 8) + 'px';
 }
 function selectSpec(s) {
-  if (W.d3 && !spec3dOK(s)) { log('tool', `${specLabel(s)}: ${NOT_3D.toLowerCase()}`); return; }
+  if (W.d3 && !spec3dOK(s)) { log('tool', `${specLabel(s)}: ${not3d()}`); return; }
   if (!W.d3 && s && s.kind === 'mol' && MOLECULES[s.mol] && !molFits(MOLECULES[s.mol], false)) { log('tool', `${MOLECULES[s.mol].name}: made for the 3-D lab (main menu → 3-D)`); return; } // (the 3-D library's own, 1.23.2)
   UI.spec = s;
   if (!QUICK.some(q => q !== 'sep' && sameSpec(q.spec, s))) UI.customSpec = s;
@@ -34364,9 +34364,9 @@ function buildToolOpts() {
       break;
     case 'fire': {
       const fs = fireSpecNow() || SPEC_P;
-      if (W.d3) { // (3-D: the projectiles that work there, single shots; atoms and leptons below radiation mode's energies, as they are stepped there)
+      if (W.d3) { // (3-D: the projectiles that work there, single shots, at any energy)
         h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
-          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots; electrons and positrons up to ${fmtE(0.95 * radThreshold(true))}, atoms up to ${fmtE(0.95 * radThreshold(false))}; light, neutrinos and unstable particles at any energy; neutrons, antimatter and beam sources: ${NOT_3D.toLowerCase()}.</span>`;
+          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots, at any energy; antimatter and beam sources: ${not3d()}.</span>`;
         break;
       }
       h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
@@ -34762,7 +34762,7 @@ function placeObject3(spec, x, y, z) {
 }
 const FLY_KINDS = new Set(['exo', 'nu', 'gamma']); // (unstable particles, neutrinos, light: not atoms; placed by placeFly)
 function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
-  if (W.d3 && !spec3dOK(spec)) { log('tool', `${specLabel(spec)}: ${NOT_3D.toLowerCase()}`); return []; }
+  if (W.d3 && !spec3dOK(spec)) { log('tool', `${specLabel(spec)}: ${not3d()}`); return []; }
   if (FLY_KINDS.has(spec.kind)) return placeFly(spec, x, y, count, z);
   if (isObject(spec)) return W.d3 ? placeObject3(spec, x, y, z) : placeObject(spec, x, y);
   const out = [];
@@ -35243,8 +35243,8 @@ function fireDir3(d) {
   if (L < 0.3) { cam3Update(); return [C3.rx, C3.ry, C3.rz]; }
   return [ux / L, uy / L, uz / L];
 }
-function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return lep ? Math.min(fireKE(), 0.95 * radThreshold(lep)) : fireKE(); } // (light, neutrinos and unstable particles: any energy, 1.24; atoms, nuclei and neutrons too since 1.25, as atoms fly in 3-D and meet nuclei there)
-function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(sp)}: ${NOT_3D.toLowerCase()} (Fire)`); return false; }
+function fireKE3() { return fireKE(); } // (every projectile at any energy: light, neutrinos and unstable particles since 1.24; atoms, nuclei and neutrons since 1.25, as atoms fly in 3-D and meet nuclei there; electrons and positrons since the 1.26 sweep: they were held below 950 eV, flat radiation flight's threshold, but since bug fix 14 after 1.25 a lepton past 25 keV flies in 3-D)
+function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(sp)}: ${not3d()} (Fire)`); return false; }
 /* Grab, Strong and Very strong: it keeps up with the mouse in real time, whatever the speed setting or slow motion.
    The spring may draw the atoms along faster (vcap: the gap closed in about 0.12 s of watching, up to the strength's
    limit), and where simulated time crawls (slow motion, a heavy world) the hand itself carries what it holds toward
@@ -37988,6 +37988,7 @@ function buildPresetSelect() {
    the menus, fission, fusion, fast nuclei, the giant dipole resonance). The mode follows the world (W.d3): a setup or a
    saved world sets it. Continuous bond orders work in 3-D since 1.25. */
 const NOT_3D = 'Not in 3-D yet';
+const not3d = () => 'not in 3-D yet'; // (in a sentence: NOT_3D.toLowerCase() gave "not in 3-d yet", 1.26 sweep)
 const TOOLS_NO3D = new Set(['objects']); // (the Magnet and Light tools work in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };
 function is3dPreset(k) { return !!(PRESETS[k] && PRESETS[k].d3); }
@@ -40393,7 +40394,7 @@ function qmHere(wx, wy, wz = 0) {
   return `<div class="qlbl">Place one here</div><div class="qchips">` + list.slice(0, 16).map(s => qmBtn(specLabel(s), () => placeSpec(s, wx, wy, 1, wz),
     { cls: 'qchip' + (sameSpec(s, sp) ? ' on' : ''), title: specName(s), html: `<span class="sw" style="background:${specColor(s)}"></span>${esc(specLabel(s))}` })).join('') + '</div>' +
     qm2(qmBtn('Spark here', () => spark(wx, wy, OPT.spark.R, sparkE(), wz), { title: `Dump ${fmtE(sparkE())} into the atoms here` }),
-      qmBtn('Magnet here', W.d3 ? () => {} : () => { const nm = { x: wx, y: wy, R: OPT.magnet.R, B: magB() }; W.magnets.push(nm); log('tool', `Magnet placed: ${nm.B >= 0 ? 'N' : 'S'} pole, ${fmtTesla(Math.abs(nm.B))}`); }, W.d3 ? { off: true, title: NOT_3D } : {}));
+      qmBtn('Magnet here', () => { const nm = { x: wx, y: wy, R: OPT.magnet.R, B: magB() }; if (W.d3) nm.z = wz; W.magnets.push(nm); log('tool', `Magnet placed: ${nm.B >= 0 ? 'N' : 'S'} pole, ${fmtTesla(Math.abs(nm.B))}`); })); // (3-D: a ball at the point, as the Magnet tool's since 1.24; it was left greyed "Not in 3-D yet", 1.26 sweep)
 }
 function qmGlobal(px, py, wx, wy, wz = 0) {
   return '<div class="qsep"></div><div class="qtools" role="group" aria-label="Tools">' +

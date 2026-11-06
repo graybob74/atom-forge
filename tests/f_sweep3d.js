@@ -51,6 +51,36 @@ PARTS.ultra3d = async (page, check, say) => {
 };
 PARTS.ultra3d.page = true;
 
+/* 3. Fire in 3-D held electrons and positrons below 950 eV (0.95 × the flat game's radiation-flight threshold: 3-D had no
+   flight for them then), though since bug fix 14 after 1.25 a lepton past 25 keV flies in 3-D; its note also still
+   said atoms stop at 1.9 keV and neutrons can't be fired (both work since 1.25). A click fired at an atom with the
+   energy set to 1 MeV: an electron of 950 eV before, 1 MeV now. And "Not in 3-D yet" inside a sentence read "not in 3-d
+   yet" (toLowerCase on the whole phrase): the note, and the log lines for tools and particles refused in 3-D. */
+PARTS.fireLep = async (page, check, say) => {
+  const r = await page.evaluate(async () => {
+    loadPreset('mol3d'); setRunning(false); setTool('fire'); OPT.fire.proj = 'e'; OPT.fire.s = 800; buildToolOpts();
+    await new Promise(r => setTimeout(r, 50));
+    const p = W.parts.find(q => !q.dead && q.Z === 8), o = [0, 0, 0]; cam3Update(); proj3(p.x, p.y, p.z, o);
+    const b = $('cv').getBoundingClientRect(); return { x: b.left + o[0], y: b.top + o[1], note: ($('oFireNote') || {}).textContent || '' };
+  });
+  await page.mouse.click(r.x, r.y); await page.waitForTimeout(100);
+  const e = await page.evaluate(() => { const l = W.parts.filter(q => !q.dead && q.k === ELEC).pop(); setTool('inspect'); return l ? Math.round(keOf(l)) : null; });
+  check(e > 9e5 && !/950 eV|up to/.test(r.note) && /not in 3-D yet/.test(r.note),
+    `3-D sweep 3: Fire in 3-D sends an electron at the energy set (${e} eV for 1 MeV); its note: "${r.note.replace(/^.*In 3-D: /, 'In 3-D: ')}"`, '3-D sweep fireLep: ' + JSON.stringify({ e, note: r.note }));
+};
+PARTS.fireLep.page = true;
+
+/* 4. The quick menu's "Magnet here" (right-click on empty space) stayed greyed "Not in 3-D yet" in the 3-D lab, though
+   magnets work there since 1.24 (the Magnet tool puts a ball at the placing point). Now it puts one at the point. */
+PARTS.qmMagnet = async (page, check, say) => {
+  await page.evaluate(() => { loadPreset('mol3d'); setRunning(false); setTool('inspect'); W.magnets.length = 0; });
+  const b = await page.evaluate(() => { const r = $('cv').getBoundingClientRect(); return { x: r.left + r.width * 0.7, y: r.top + r.height * 0.75 }; });
+  await page.mouse.click(b.x, b.y, { button: 'right' }); await page.waitForTimeout(200);
+  const r = await page.evaluate(() => { const bt = [...document.querySelectorAll('#qmenu .qmi')].find(e => /Magnet here/.test(e.textContent)); const o = { found: !!bt, off: bt ? bt.disabled : null }; if (bt && !bt.disabled) bt.click(); o.magnets = W.magnets.length; o.z = W.magnets[0] ? Number.isFinite(W.magnets[0].z) : false; closeQuickMenu(); W.magnets.length = 0; return o; });
+  check(r.found && !r.off && r.magnets === 1 && r.z, `3-D sweep 4: the quick menu's "Magnet here" puts a magnet ball in the 3-D lab`, '3-D sweep qmMagnet: ' + JSON.stringify(r));
+};
+PARTS.qmMagnet.page = true;
+
 module.exports = async function fsweep3d(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
