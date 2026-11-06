@@ -968,7 +968,7 @@ function nucEvent(kind, x, y, text, ghosts, sub, nuc, z = 0) { // (z: where in d
   // what the event sent flying (new this frame, or fast) is marked, and for a few seconds so is anything new (what
   // its products knock loose): with slow motion for nuclear events off, slow motion on demand does not slow down
   // further to follow them
-  for (const p of W.parts) if (!p.dead && !p.beam && (p.born === W.rt || p.rad || p.fast || keOf(p) > 10) && Math.abs(p.x - x) < 4 && Math.abs(p.y - y) < 4) p.nucProd = true; // (keOf: a struck nucleus that stays itself, as the proton of π⁰p → p + π⁰, sent off below the fast threshold, 0.93)
+  for (const p of W.parts) if (!p.dead && !p.beam && (p.born === W.rt || p.rad || p.fast || keOf(p) > 10) && Math.abs(p.x - x) < 4 && Math.abs(p.y - y) < 4 && (!W.d3 || Math.abs(p.z - z) < 4)) p.nucProd = true; // (3-D: near it in depth too, 1.26 sweep) (keOf: a struck nucleus that stays itself, as the proton of π⁰p → p + π⁰, sent off below the fast threshold, 0.93)
   W.nucWin = { t0: W.nucWin && W.nucWin.t1 >= W.rt ? W.nucWin.t0 : W.rt, t1: W.rt + 3 };
 }
 /* What nuclear events have made, for the Data tab: W.made holds each nuclide (and each unstable particle) made by a
@@ -3738,7 +3738,7 @@ function pairProduce3(p, E) {
   W.ledger.nuc -= 2 * ME_C2;
   settleKE(S, E - 2 * ME_C2, [e, ps]);
   log('nuc', `Pair production: γ (${fmtE(E)}) → e⁻ + e⁺ near ${speciesLabel(p)}`);
-  nucEvent('pair', p.x, p.y, `Pair production: γ → e⁻ + e⁺`, [], `${fmtE(E)} γ ray`);
+  nucEvent('pair', p.x, p.y, `Pair production: γ → e⁻ + e⁺`, [], `${fmtE(E)} γ ray`, undefined, p.z); // (its caption at its depth: it was at z = 0, 1.26 sweep)
 }
 /* Photons in flight that have come as far as they were going: what they were to hit happens now (unless it is gone,
    when the light flies on out), and their trace fades as any ray's does. */
@@ -4734,7 +4734,7 @@ function annihilateBound(Pp, A) {
   kill(Pp); A.ne--; refresh(A); enforceValence(A, null); relink([A]);
   twoGamma(x, y, annihEnd(S), z); // (z: 3-D, 1.24)
   W.count.annih++;
-  nucEvent('annih', x, y, `${Pp.k === POS ? 'e⁺' : 'e⁻'} + ${who} → ${speciesLabel(A)} + 2γ`, [ghostOf(Pp)], '511 keV each');
+  nucEvent('annih', x, y, `${Pp.k === POS ? 'e⁺' : 'e⁻'} + ${who} → ${speciesLabel(A)} + 2γ`, [ghostOf(Pp)], '511 keV each', undefined, z || 0); // (z: its caption at its depth, 1.26 sweep)
   log('nuc', `Annihilation: ${Pp.k === POS ? 'e⁺ meets an electron' : 'e⁻ meets a positron'} of ${who} → 2γ (511 keV each)`);
 }
 /* Matter touches antimatter. Electron clouds meet first: a bound e⁻ and a bound e⁺ annihilate. Once a
@@ -4747,7 +4747,7 @@ function evAnti(a, b, r) {
     const S = annihBegin([a, b]);
     a.ne--; b.ne--; refresh(a); refresh(b); enforceValence(a, null); enforceValence(b, null); relink([a, b]);
     twoGamma(x, y, annihEnd(S), 0.5 * (a.z + b.z)); W.count.annih++; // (z: 3-D, 1.24)
-    nucEvent('annih', x, y, `${la} touches ${lb}: e⁻ + e⁺ → 2γ`, [], '511 keV each');
+    nucEvent('annih', x, y, `${la} touches ${lb}: e⁻ + e⁺ → 2γ`, [], '511 keV each', undefined, 0.5 * ((a.z || 0) + (b.z || 0))); // (at its depth, 1.26 sweep)
     log('nuc', `Annihilation: ${la} touches ${lb}; an electron and a positron → 2γ (511 keV each)`);
     return;
   }
@@ -4816,7 +4816,7 @@ function evAnnihFree(a, b) {
   kill(a); kill(b);
   twoGamma(x, y, annihEnd(S), 0.5 * (a.z + b.z));
   W.count.annih++;
-  nucEvent('annih', x, y, 'e⁺ + e⁻ → 2γ', gh, '511 keV each');
+  nucEvent('annih', x, y, 'e⁺ + e⁻ → 2γ', gh, '511 keV each', undefined, 0.5 * ((a.z || 0) + (b.z || 0))); // (at its depth, 1.26 sweep)
   log('nuc', 'Annihilation: e⁺ + e⁻ → 2γ (511 keV each)');
 }
 /* Two back-to-back γ rays sharing E (two electron masses plus whatever kinetic and binding energy). */
@@ -5922,11 +5922,11 @@ function annihilateAtWall(p, where) {
     for (let i = 0; i < nLep; i++) twoGamma(x, y, 2 * ME_C2, z);
     const Ep = (E - nLep * 2 * ME_C2) / nNuc, nP = p.k === NUC ? p.Z : 0; // (each antinucleon meets a proton or a neutron of the wall)
     for (let i = 0; i < nNuc; i++) { const Q = (rnd() < 0.5 ? 1 : 0) - (i < nP ? 1 : 0); chargeTo(-Q, where || 'qWall'); mesonBurst(x, y, Ep, 0, 0, Q); }
-    nucEvent('annih', x, y, `${lbl} hits the wall → mesons + γ`, gh, fmtE(E));
+    nucEvent('annih', x, y, `${lbl} hits the wall → mesons + γ`, gh, fmtE(E), undefined, z);
     log('nuc', `Annihilation at the wall: ${lbl} meets ordinary matter → mesons + γ rays (${fmtE(E)})`);
   } else {
     twoGamma(x, y, E, z);
-    nucEvent('annih', x, y, 'e⁺ hits the wall → 2γ', gh, '511 keV each');
+    nucEvent('annih', x, y, 'e⁺ hits the wall → 2γ', gh, '511 keV each', undefined, z); // (where on the wall in 3-D: it was put at z = 0, 1.26 sweep)
     log('nuc', 'Annihilation at the wall: e⁺ + e⁻ (wall) → 2γ (511 keV each)');
   }
 }

@@ -241,6 +241,23 @@ PARTS.galThumb = async (page, check, say) => {
 };
 PARTS.galThumb.page = true;
 
+/* 15. Event captions at the wrong depth in 3-D: pair production (pairProduce3), a positron meeting an atom's electron or
+   a free electron, matter touching antimatter, annihilation at the wall, a hypernucleus's decay, and a quark pulled
+   out by hand (quarkRip; its flash too) put their caption and rings at z = 0, wherever in depth it happened. Now at
+   the event's depth. Measured: a positron annihilating on an atom at z = 7 and a quark pulled out of a carbon at z = 7:
+   captions at z 0 before, 7 after. */
+PARTS.eventsZ = async (page, check, say) => {
+  const X = fresh(3), W = X.W; X.baseWorld(30, 30, 300, 0); X.world3d(30);
+  const a = X.addAtom('O', 2, 3, { z: 7, T: 0 }), e = X.addLepton(X.POS, 2.3, 3, 0, 0, 7.05, 0);
+  X.annihilateBound(e, a); const z1 = W.events.length ? W.events[W.events.length - 1].z : null;
+  const c = X.addAtom('C', -4, -2, { z: 7, T: 0 }); X.quarkRip({ p: c, which: 'p' }, 'udu', 'uD');
+  const ev = W.events[W.events.length - 1], fl = W.flashes[W.flashes.length - 1];
+  const g = X.addAtom('Pb', 5, -5, { z: -6, T: 0 }); X.pairProduce3(g, 5e6); const z3 = W.events[W.events.length - 1].z;
+  const r = { annih: z1, rip: ev && ev.z, ripFlash: fl && fl.z, pair: z3 };
+  check(Math.abs(r.annih - 7.05) < 0.1 && Math.abs(r.rip - 7) < 0.1 && Math.abs(r.ripFlash - 7) < 0.1 && Math.abs(r.pair + 6) < 0.1,
+    `3-D sweep 15: event captions at their depth in 3-D (an annihilation at z ${r.annih.toFixed(2)}, a quark pulled out at ${r.rip}, pair production at ${r.pair})`, '3-D sweep eventsZ: ' + JSON.stringify(r));
+};
+
 module.exports = async function fsweep3d(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

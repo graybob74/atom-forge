@@ -472,6 +472,15 @@ Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
   frame, when the WebGL layer's frame is already gone (no preserveDrawingBuffer): the atoms were missing or misplaced in
   the picture. Now it draws a frame first and uses the same composition (`layersInto`, shared with the recorder). The
   carbon atom of item 13: rgb 89, 93, 102 at its place after, 9, 13, 24 before. Check: f_sweep3d "galThumb" (page).
+- 15. Event captions and rings at the wrong depth in 3-D: pair production in 3-D (`pairProduce3`), a positron meeting an
+  atom's electron (`annihilateBound`) or a free electron (`evAnnihFree`), matter touching antimatter (`evAnti`),
+  annihilation at the wall (`annihilateAtWall`), a hypernucleus's decay (hep.js `hypDecay`) and a quark pulled out by
+  hand (`quarkRip`, its flash too) gave nucEvent no depth, so the caption and its rings were drawn at z = 0 wherever
+  the event was; and nucEvent marked what an event sent flying by x and y alone (any depth) for slow motion's "nuclear
+  products". Now each passes its depth, and the marking is within 4 Å in depth too in 3-D. A positron annihilating on
+  an oxygen at z = 7.05, a quark pulled out of a carbon at z = 7, a 5 MeV pair at a lead atom at z = −6: captions at
+  z 0, 0, 0 before; 7.05, 7, −6 after. Fingerprints: every setup identical (59, seed 7, 300 steps). Check: f_sweep3d
+  "eventsZ" (Node). (A muon's decay in a muonic atom, hep.js line ~606, has the same gap: the other session's area, left.)
 
 ### 1.26: copper ions (the owner: "fix cu ions")
 
