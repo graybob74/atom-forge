@@ -894,11 +894,11 @@ function placeFly(spec, x, y, count, z = 0) {
   _evTag = 0;
   if (W.d3 && spec.kind === 'gamma') { for (let i = 0; i < count; i++) emitPhoton(x, y, placeE(), undefined, undefined, { travel: true, z }); return []; } // (3-D: a random direction on the sphere, from its depth, 1.24)
   if (W.d3 && spec.kind === 'nu') { for (let i = 0; i < count; i++) emitNeutrino(x, y, placeE(), undefined, undefined, !!spec.anti, 'placed by hand', spec.fl || 'e', z); return []; }
-  if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (spec.sp === 'Mu') addMuonium(x + k * u[0], y + k * u[1], 1.5 * PHYS.KB * W.T, u[0], u[1], 1, z + k * u[2], u[2]); else if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], undefined, z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
+  if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (spec.sp === 'Mu') addMuonium(x + k * u[0], y + k * u[1], 1.5 * PHYS.KB * W.T, u[0], u[1], 1, z + k * u[2], u[2]); else if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], resPlaceMass(spec.sp), z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
   for (let i = 0; i < count; i++) {
     const [ux, uy] = rdir();
     if (spec.kind === 'exo' && spec.sp === 'Mu') addMuonium(x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), PHYS.KB * W.T, ux, uy); // (1.12: an atom, in MD)
-    else if (spec.kind === 'exo') { if (W.exo.length < MAX_EXO) addExo(spec.sp, x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), 0.03, ux, uy); }
+    else if (spec.kind === 'exo') { if (W.exo.length < MAX_EXO) addExo(spec.sp, x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), 0.03, ux, uy, resPlaceMass(spec.sp)); } // (a resonance's own mass from its width, Realistic particles 5, 1.27; off: the table's)
     else if (spec.kind === 'gamma') emitPhoton(x, y, placeE(), ux, uy, { travel: true });
     else emitNeutrino(x, y, placeE(), ux, uy, !!spec.anti, 'placed by hand', spec.fl || 'e');
   }
@@ -1118,7 +1118,7 @@ function copySelection() {
     label: ch.label, broken: ch.broken, nb0: ch.nb0, q0: ch.q0 ? ch.q0.slice() : null, inFrom: ch.inFrom ? whole.indexOf(ch.inFrom) : -1 }));
   const partial = W.chips.filter(ch => !whole.includes(ch) && ch.ps.some(p => idx.has(p))).length;
   const objs = obs.map(ob => { const o = objToJSON(ob); o.x0 -= cx; o.x1 -= cx; o.y0 -= cy; o.y1 -= cy; return o; }); // (placed objects, relative to the centre: 0.70)
-  const exo = xs.map(o => ({ sp: o.sp, dx: o.x - cx, dy: o.y - cy, dz: W.d3 ? o.z - cz : 0 }));
+  const exo = xs.map(o => ({ sp: o.sp, dx: o.x - cx, dy: o.y - cy, dz: W.d3 ? o.z - cz : 0, m: RP.res && XP[o.sp].res ? o.m : undefined })); // (m: a resonance keeps its own mass, Realistic particles 5, 1.27)
   UI.clip = { parts, bonds, chips, objs, exo, at: W.rt };
   log('tool', `Copied ${(parts.length + exo.length).toLocaleString('en-US')} particle${parts.length + exo.length === 1 ? '' : 's'}${bonds.length ? ` and ${bonds.length.toLocaleString('en-US')} bond${bonds.length === 1 ? '' : 's'}` : ''}${chips.length ? `, with ${chips.length} working part${chips.length === 1 ? '' : 's'}` : ''}${partial ? ` (${partial} part${partial === 1 ? ' is' : 's are'} only partly selected: those atoms paste as plain atoms)` : ''}`);
   selChanged();
@@ -1142,7 +1142,7 @@ function pasteClip(wx, wy, wz = 0) { // (wz: 3-D)
   if (W.d3 && c.objs && c.objs.length) { log('tool', 'Paste: placed objects are not in 3-D yet'); if (!c.parts.length) return; }
   const madeObj = (W.d3 ? [] : c.objs || []).map(o => objFromJSON(Object.assign({}, o, { x0: o.x0 + wx, x1: o.x1 + wx, y0: o.y0 + wy, y1: o.y1 + wy }))).filter(Boolean);
   for (const ob of madeObj) W.objs.push(ob); if (madeObj.length) { W.dirty++; R.oSel.clear(); for (const ob of madeObj) R.oSel.add(ob); }
-  const pasteX = () => (c.exo || []).filter(q => XP[q.sp] && W.exo.length < MAX_EXO).map(q => { const u = rdir(); return addExo(q.sp, clamp(wx + q.dx, -W.box.w / 2, W.box.w / 2), clamp(wy + q.dy, -W.box.h / 2, W.box.h / 2), 0.03, u[0], u[1], undefined, W.d3 ? clamp(wz + (q.dz || 0), -W.box.d / 2, W.box.d / 2) : 0, u[2] || 0); }); // (exotic atoms, made again as by hand: nearly at rest, 1.26)
+  const pasteX = () => (c.exo || []).filter(q => XP[q.sp] && W.exo.length < MAX_EXO).map(q => { const u = rdir(); return addExo(q.sp, clamp(wx + q.dx, -W.box.w / 2, W.box.w / 2), clamp(wy + q.dy, -W.box.h / 2, W.box.h / 2), 0.03, u[0], u[1], q.m || resPlaceMass(q.sp), W.d3 ? clamp(wz + (q.dz || 0), -W.box.d / 2, W.box.d / 2) : 0, u[2] || 0); }); // (exotic atoms, made again as by hand: nearly at rest, 1.26)
   if (!c.parts.length) { const mx = pasteX(); if (mx.length) { R.msel.clear(); for (const o of mx) R.msel.add(o); if (UI.tool !== 'select') setTool('select'); } log('tool', mx.length ? `Pasted ${mx.length} particle${mx.length === 1 ? '' : 's'}` : `Pasted ${madeObj.length} object${madeObj.length === 1 ? '' : 's'}`); selChanged(); return; }
   if (W.parts.length + c.parts.length > MAX_PARTS) { log('tool', `Paste: no room for ${c.parts.length.toLocaleString('en-US')} more particles (the limit is ${MAX_PARTS.toLocaleString('en-US')}; Settings → Max particles)`); return; }
   const zOf = (q) => (W.d3 ? wz + (q.dz || 0) : 0); // (3-D: at the depth pasted at; a copy from a flat world goes in flat, at that depth)
@@ -1553,7 +1553,8 @@ const Q_CHG = { u: 2 / 3, d: -1 / 3, s: -1 / 3, c: 2 / 3, b: -1 / 3 };
 const Q_SYM = { u: 'u', d: 'd', s: 's', c: 'c', b: 'b' }, Q_BAR = { u: 'ū', d: 'd̄', s: 's̄', c: 'c̄', b: 'b̄' };
 const Q_CONTENT = { p: 'uud', n: 'udd', pbar: 'UUD', nbar: 'UDD', 'pi+': 'uD', 'pi-': 'dU', pi0: 'uU', 'K+': 'uS', 'K-': 'sU', K0S: 'dS', K0L: 'dS', eta: 'sS', Lam: 'uds', Lamb: 'UDS', 'Sig+': 'uus', 'Sig-': 'dds', Xi0: 'uss', 'Xi-': 'dss', 'Omg-': 'sss', 'Sigb-': 'UUS', 'Sigb+': 'DDS', Xib0: 'USS', 'Xib+': 'DSS', 'Omgb+': 'SSS',
   rho0: 'uU', 'rho+': 'uD', 'rho-': 'dU', omega: 'uU', phi: 'sS', 'Ks+': 'uS', 'Ks-': 'sU', Ks0: 'dS', Ksb0: 'sD', Dpp: 'uuu', Dp: 'uud', D0: 'udd', Dm: 'ddd', Dbmm: 'UUU', Dbm: 'UUD', Db0: 'UDD', Dbp: 'DDD',
-  Dc0: 'cU', Dcb0: 'uC', 'Dc+': 'cD', 'Dc-': 'dC', 'Ds+': 'cS', 'Ds-': 'sC', 'B+': 'uB', 'B-': 'bU', B0: 'dB', Bb0: 'bD' }; // (capitals: antiquarks; the resonances (ρ, ω, φ, K*, Δ) as their ground-state partners, excited)
+  Dc0: 'cU', Dcb0: 'uC', 'Dc+': 'cD', 'Dc-': 'dC', 'Ds+': 'cS', 'Ds-': 'sC', 'B+': 'uB', 'B-': 'bU', B0: 'dB', Bb0: 'bD',
+  'Lc+': 'udc', 'Lcb-': 'UDC', Bs0: 'sB', Bsb0: 'bS', Lb0: 'udb', Lbb0: 'UDB', Jpsi: 'cC', Ups: 'bB' }; // (the heavy hadrons of Realistic particles 5, 1.27) (capitals: antiquarks; the resonances (ρ, ω, φ, K*, Δ) as their ground-state partners, excited)
 const QV = { subj: null, key: '', qs: [], g: null, sea: [], drag: null, out: null, t: 0, msg: '', orig: '', pick: 'p', last: 0 };
 function qSubject(p, X) { // what to look inside: { key, content, name, note }
   if (X && X.kind === 'exo' && (XP[X.o.sp].atom || XP[X.o.sp].stuck || XP[X.o.sp].hyp)) return null; // (a muonic atom: its nucleus is inside, too small to show here)
@@ -5629,6 +5630,7 @@ Object.assign(SET_DEF, { xq: 1 }); SET_OK.xq = [1, 2]; // (Experimental: the qua
 Object.assign(SET_DEF, { xqs: 0 }); SET_OK.xqs = [0, 1]; // (Experimental: the quantum bonds' spins, paired or polarized, 1.26)
 Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
 Object.assign(SET_DEF, { rpExo: false }); // (Experimental → Realistic particles: exotic atoms as real atoms, 1.27: hep.js RP)
+Object.assign(SET_DEF, { rpRes: false, rpNuc: false }); // (Realistic particles 5 and 6, 1.27: hep.js RP.res, RP.nuc)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
@@ -5641,6 +5643,7 @@ EXP_NAME.xqs = 'polarized spins'; // (1.26)
 SET_EXP.push('lps', 'sigh', 'pis'); // (1.26)
 EXP_NAME.lps = 'lone pairs'; EXP_NAME.sigh = 'halogen σ-holes'; EXP_NAME.pis = 'π-stacking'; // (1.26)
 SET_EXP.push('rpExo'); EXP_NAME.rpExo = 'exotic atoms'; // (1.27)
+SET_EXP.push('rpRes', 'rpNuc'); EXP_NAME.rpRes = 'resonance widths and heavy flavour'; EXP_NAME.rpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -5723,6 +5726,7 @@ function applySettings() {
   sitesSet('lp', SET.lps); sitesSet('sh', SET.sigh); sitesSet('pi', SET.pis); // (Experimental: directional forces, 1.26)
   waveSet(!!SET.wave); // (Experimental: electrons as waves, 1.15)
   RP.exo = !!SET.rpExo; // (Experimental → Realistic particles: exotic atoms, 1.27)
+  RP.res = !!SET.rpRes; RP.nuc = !!SET.rpNuc; // (Realistic particles 5 and 6, 1.27)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
@@ -5843,6 +5847,7 @@ function syncSettings() {
   setSegValue('segXqs', String(SET.xqs)); // (1.26)
   setSegValue('segLps', String(SET.lps)); setSegValue('segSigh', String(SET.sigh)); setSegValue('segPis', String(SET.pis)); // (1.26)
   $('setRpExo').checked = SET.rpExo; // (1.27)
+  $('setRpRes').checked = SET.rpRes; $('setRpNuc').checked = SET.rpNuc; // (1.27)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -5882,6 +5887,8 @@ const COSTS = {
   setInc: () => ({ k: 'physics', on: ['×1–1.05', 'About 3 ms a nuclear hit instead of 1: a few percent in the nuclear setups, nothing elsewhere'] }),
   setUltra: () => ({ k: 'physics', on: ['×1', 'True sizes and rates cost nothing'] }),
   setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where no slow μ⁻, π⁻, K⁻ or antiproton stops (a pion beam into carbon ×1.0); a capture is one event of 1.2–2.3 ms (its cascade\u2019s electrons and X-rays), and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in makes a small plasma to follow: muon-catalysed fusion ×3, the hypernucleus factory ×4 while it lasts'] }),
+  setRpRes: () => ({ k: 'physics', on: ['×1', 'COST_RES_FLAT'] }),
+  setRpNuc: () => ({ k: 'physics', on: ['×1', 'COST_NUC_FLAT'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
@@ -5925,6 +5932,8 @@ const COSTS3 = {
   setInc: () => ({ k: 'physics', on: ['×1', 'Nothing in the 3-D lab: nucleons do not strike nuclei there yet (the flat game only)'] }),
   setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24); the true sizes are drawn without the WebGL layer (liquid water: 7 → 25 ms a frame, headless, 1.26)'] }),
   setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing where no slow μ⁻, π⁻ or K⁻ stops; a capture is one event of 1.4–1.5 ms, and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in costs more while it lasts'] }),
+  setRpRes: () => ({ k: 'physics', on: ['×1', 'COST_RES_3D'] }),
+  setRpNuc: () => ({ k: 'physics', on: ['×1', 'COST_NUC_3D'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
@@ -5959,6 +5968,8 @@ const REAL = {
   setInc: [true, 'A nucleon followed through the nucleus collision by collision, as in nature'],
   setUltra: [true, 'True sizes and rates, nothing made easier to see'],
   setRpExo: [true, 'A slow negative particle is caught into an orbit and cascades down, giving off its X-ray lines, as in nature (1.27)'],
+  setRpRes: [true, 'A resonance\u2019s mass spread over its measured width, and charm and bottom made in hadron collisions at their measured share (1.27)'],
+  setRpNuc: [true, 'Nuclei with their spins and magnetic moments, measured γ lines, and neutrons caught at their measured cross sections (1.27)'],
 };
 function syncReal() {
   for (const id in REAL) {
@@ -5976,6 +5987,7 @@ EXP_SET.segXq = 'xq'; // (1.26)
 EXP_SET.segXqs = 'xqs'; // (1.26)
 EXP_SET.segLps = 'lps'; EXP_SET.segSigh = 'sigh'; EXP_SET.segPis = 'pis'; // (1.26)
 EXP_SET.setRpExo = 'rpExo'; // (1.27)
+EXP_SET.setRpRes = 'rpRes'; EXP_SET.setRpNuc = 'rpNuc'; // (1.27)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -6004,6 +6016,7 @@ function expSummary() {
   if (SET.inc) on.push('detailed nuclear collisions');
   if (SET.ultra) on.push('ultra-realistic');
   if (SET.rpExo) on.push('exotic atoms'); // (1.27)
+  if (SET.rpRes) on.push('resonance widths'); if (SET.rpNuc) on.push('nuclear spin and γ lines'); // (1.27)
   if (!on.length) return 'Experimental: all normal';
   const t = expTotal(), x = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
   return `Experimental: ${on.join(', ')} (${x} the normal work)`;
@@ -6017,6 +6030,7 @@ function syncExpTotal() {
   names.segXqs = 'polarized spins'; // (1.26)
   names.segLps = 'lone pairs'; names.segSigh = 'halogen σ-holes'; names.segPis = 'π-stacking'; // (1.26)
   names.setRpExo = 'exotic atoms'; // (1.27)
+  names.setRpRes = 'resonance widths and heavy flavour'; names.setRpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -6146,6 +6160,8 @@ const SDESC = {
   segPis: ['π-stacking', 'The 3-D lab only. There an aromatic ring carries its π electrons as charge above and below it, and two rings meet with a dispersion fitted to the benzene dimer, so they stack offset or edge to face. A flat world has no above or below.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin, drawn as a faint cloud (the electron force field, eFF), instead of a point.'],
   setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻, K⁻ or antiproton is caught by an atom into an orbit and cascades down, setting Auger electrons free and giving off the exotic atom\u2019s X-ray lines (muonic carbon 75 keV, muonic lead 5.9 MeV); then the muon decays or is captured at the rate measured for the element, a pion or kaon is absorbed by the nucleus (a star), an antiproton annihilates. A muonic atom is a real atom of the box, its electrons seeing one charge less (muonic carbon bonds as boron does); muonic hydrogen passes through atoms and hands its muon to a heavier one. Experimental: off again each time the game starts.'], // (1.27)
+  setRpRes: ['Resonance widths and heavy flavour', 'A resonance (ρ, ω, φ, K*, Δ, J/ψ, Υ) gets its own mass, drawn from the relativistic Breit–Wigner of its measured width (a ρ⁰ anywhere from 280 MeV up, 775 MeV at the peak, about 150 MeV wide at half height), and decays from that mass. A hadron collision above the charm threshold makes charm (D⁰, D⁺, D⁺s, Λc⁺) and bottom (B, B⁰s, Λb⁰), now and then a J/ψ or an Υ, at the measured share of the collisions (about 1 in 70 at 200 GeV, 1 in 9 at 7 TeV for charm). They live 0.2–1.6 ps: at their speed they fly micrometres to millimetres, far out of the box, unless decay is sped up. Experimental: off again each time the game starts.'],
+  setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'Each nucleus has its measured spin and magnetic moment (¹H ½ and 2.79 μN): Inspect shows them, and in a magnetic field the spin precesses at the Larmor frequency (42.58 MHz per tesla for ¹H; Inspect\u2019s NMR pulse measures it). Nuclei left excited after a decay, capture or reaction give off their measured γ lines (⁶⁰Co: 1,173 and 1,332 keV; ¹³⁷Cs: 662 keV from ¹³⁷ᵐBa; capture on hydrogen 2,224 keV), with conversion electrons where large and isomers that wait their half-lives (⁹⁹ᵐTc 6 h). Neutrons react at their measured cross sections (1/v below about 1 eV, the big resonances): at true size (Ultra-realistic) the rates themselves, in the normal view what a hit does. Experimental: off again each time the game starts.'],
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
    on which mode you're in ... There should also be 3d pictures in 3d mode"). While the world is 3-D (W.d3) the pane takes
@@ -6184,6 +6200,8 @@ const SDESC3 = {
   segPis: ['π-stacking', 'An aromatic ring carries its π electrons as charge on points above and below it, and ring atoms of two aromatic molecules meet with a dispersion fitted to the benzene dimer: rings stack offset or edge to face, as benzene does, rather than face to face.'], // (1.26)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
   setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻ or K⁻ is caught by an atom into an orbit and cascades down, in all three directions, setting Auger electrons free and giving off its X-ray lines; then the muon decays or is captured at the measured rate, a pion or kaon is absorbed by the nucleus. A muonic atom is a real atom of the box, its electrons seeing one charge less; muonic hydrogen passes through atoms and hands its muon to a heavier one. Antiprotons and protonium are in the flat game only (antimatter is not in 3-D). Experimental: off again each time the game starts.'], // (1.27)
+  setRpRes: ['Resonance widths and heavy flavour', 'As in the flat game, in all three directions: a resonance gets its own mass from its measured width, and hadron collisions above the charm threshold make charm and bottom hadrons at their measured share. Experimental: off again each time the game starts.'],
+  setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'As in the flat game, in all three directions: nuclear spins and moments (Inspect, the Larmor precession in a field along the Lab\u2019s axis), measured γ lines and isomers, neutrons at their measured cross sections. Experimental: off again each time the game starts.'],
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
 const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
@@ -6410,6 +6428,7 @@ function settingsInit() {
   $('setFps').onchange = (e) => setSetting('fps', e.target.checked);
   $('setUltra').onchange = (e) => setSetting('ultra', e.target.checked);
   $('setRpExo').onchange = (e) => setSetting('rpExo', e.target.checked); // (1.27)
+  $('setRpRes').onchange = (e) => setSetting('rpRes', e.target.checked); $('setRpNuc').onchange = (e) => setSetting('rpNuc', e.target.checked); // (1.27)
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');
