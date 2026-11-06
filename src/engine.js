@@ -373,9 +373,9 @@ function setSize(p) {
   }
   if (p.polarH) { p.ljR = 1.2; p.ljE = 0.002; }
   p.ljS = Math.sqrt(p.ljE);
-  p.isMetal = el.metal && p.bonds.length === 0 && Math.abs(p.q) <= 1;
+  p.isMetal = el.metal && p.bonds.length === 0 && Math.abs(p.q) <= 1 && !(p.bom && !BO.qm); // (a member of continuous bond orders holds no stored bonds but is bonded: tin in SnCl₄ meets other atoms as with stored bonds, not as a metal, 1.25)
   if (el.metal) {
-    p.mD = PHYS.KB * Math.max(el.tm, 150) / 0.45;
+    p.mD = MBO.on && p.isMetal && p.q === 0 ? 0 : PHYS.KB * Math.max(el.tm, 150) / 0.45; // (no depth for a many-body member, a neutral metal atom: its cohesion is bometal.js's, 1.25)
     p.mR = 2 * el.rc * ((el.cat === 'am' || el.cat === 'ae' || el.cat === 'pt') ? 1.12 : 1.0);
     if (p.isMetal && 2.1 * p.mR > RC) _farMetalSeen = true;
   }
@@ -952,10 +952,10 @@ function ghostOf(p) {
     p.ne === 0 ? speciesLabel(p) : nucSymA(p.Z, p.N, p.anti);
   return { x: p.x, y: p.y, k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, rd: p.k === NUC ? p.rd : 0.15, lbl };
 }
-function nucEvent(kind, x, y, text, ghosts, sub, nuc) {
+function nucEvent(kind, x, y, text, ghosts, sub, nuc, z = 0) { // (z: where in depth, 3-D, 1.25)
   if (nuc && nuc.Z0 !== undefined && nuc.Z1 !== undefined) chainEdge(nuc.Z0, nuc.N0, nuc.Z1, nuc.N1, nuc.mode, nuc.anti); // (a decay: a step on the chart of nuclides)
   if (nuc && nuc.Z1 !== undefined && nuc.Z1 + nuc.N1 > 0) noteMade([{ Z: nuc.Z1, N: nuc.N1, anti: nuc.anti }], [], text);
-  W.events.push({ kind, x, y, text, sub: sub || '', ghosts: ghosts || [], t0: W.rt, nuc: nuc || null });
+  W.events.push({ kind, x, y, z, text, sub: sub || '', ghosts: ghosts || [], t0: W.rt, nuc: nuc || null });
   if (W.events.length > 30) W.events.splice(0, W.events.length - 30);
   const rec = W.evRecent;
   rec.push(W.rt);
@@ -1370,6 +1370,19 @@ function vlValid(pre) { // pre ≥ 0: the threaded integrator's largest squared 
   }
   return worst <= HSKIN2;
 }
+/* (bug fix 17 after 1.25) Quantum nuclei in 3-D with every bead's full force pass: a 3-D ring reaches 0.5 Å from its
+   centre (the flat game's far less), past half the list's skin, so each bead's pass found the list out of date and
+   rebuilt the grid and the list (six times a step of eight passes in liquid water: three quarters of the step). While
+   that mode runs in 3-D the list reaches PI_SKIN3 farther (and the cells with it) and stays valid for moves up to half
+   its wider skin: every bead's pass uses the same list. The forces are the same (a pair is worked out where it is, the
+   list only says which to look at). */
+const PI_SKIN3 = 1.4;
+let _vlE = 0, _hskin3 = HSKIN2;
+function vlReachSet(E) {
+  if (E === _vlE) return;
+  _vlE = E; RL = RC + SKIN + E; RL2 = RL * RL; CELL_MIN = RC + Math.max(SKIN + E, SKIN_F); _hskin3 = 0.25 * (SKIN + E) * (SKIN + E);
+  _mdGen++; VL.valid = false; gridTouch(); _gridStale = true;
+}
 function vlValid3() { // (3-D: the moves in z count, and the box's depth)
   VL.checks++;
   if (!VL.valid || VL.gen !== _mdGen || VL.w !== W.box.w || VL.h !== W.box.h || VL.d !== W.box.d || VL.wall !== W.wall) return false;
@@ -1382,7 +1395,7 @@ function vlValid3() { // (3-D: the moves in z count, and the box's depth)
     if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; }
     const d2 = dx * dx + dy * dy + dz * dz; if (d2 > worst) worst = d2;
   }
-  return worst <= HSKIN2;
+  return worst <= _hskin3;
 }
 /* 3-D: vlPairs over the box cells (the 26 around each, those with a greater key). The pairs of the grid's particles
    p0 ≤ k < p1, counted in the order the cells and their particles are walked (a box of a few cells, as the 3-D setups
@@ -1651,7 +1664,7 @@ const K_IW = 2;
 const iwK = (a, b) => (a.ionic !== b.ionic && (a.ionic ? b.q === 0 : a.q === 0) ? K_IW : 1);
 /* Stiffest close contact this step, as curvature over reduced mass (1/tu²): chooseDt keeps ω·dt small there,
    so hard collisions are integrated as accurately as gentle ones. */
-let _stiff = 0, _stiffL = 0, _lepEvOff = false;
+let _stiff = 0, _stiffL = 0, _passL = 0, _lepEvOff = false;
 function noteStiff(k, a, b) {
   const w = k * (a.im + b.im);
   if (a.k !== NUC || b.k !== NUC) { if (w > _stiffL) _stiffL = w; } else if (w > _stiff) _stiff = w;
@@ -1707,6 +1720,16 @@ function pairNonbondedV(a, b, r) { // LJ + Coulomb between two atoms (energy tha
 /* Coulomb energies inside the cutoff are shifted to zero at RC, except between net charges whose
    long-range part is summed exactly beyond it — so crossing the cutoff never creates energy. */
 let _lrOn = false;
+/* (bug fix 4 after 1.25) The long-range sum is on while there are at most 220 net charges: crossing that count changes
+   the energy's definition (the sum beyond the cutoff, and the shift inside it, 1.09) by up to keV in a dense plasma,
+   with nothing physical happening: a fast neutron's cascade among 3-D waters made 221 charges and the books jumped by
+   ±2,400–2,800 eV at each crossing. The change is booked (ledger.escaped), measured with the positions and charges of
+   the moment, so the books stay continuous; the forces switch as before. */
+function lrFlip(on) {
+  if (W.parts.length < 2 || typeof totalEnergy !== 'function') { _lrOn = on; return; }
+  const a = totalEnergy().pe; _lrOn = on; const b = totalEnergy().pe;
+  W.ledger.escaped -= b - a;
+}
 function isLR(p) { return p.k !== NUC || Math.abs(p.q) >= 1; }
 /* Charge of a as felt by b. Free electrons and positrons see net charges only: partial charges stand for
    bond dipoles, whose weak pull on a free electron is outweighed close up by Pauli repulsion from the
@@ -1785,6 +1808,7 @@ function localPE(set, skip) {
   }
   V += centresAngleE(centres);
   if (W.magnets.length) { const kT = PHYS.KB * Math.max(W.T, 1); for (const p of set) if (!p.dead) V += magU(p, kT); }
+  if (W.Ex || W.Ey || (W.d3 && W.Ez)) for (const p of set) if (!p.dead) V += fieldU(p); // (the applied field, bug fix 6 after 1.25)
   for (const p of set) if (p.qi) V += qeqSelf(p); // (the polarization energy of induced charges, 1.12)
   farMetalPairs((a, b, dx, dy, r) => { V += metalV(a, b, r); }, set);
   if (W.wall === 'reflect' || W.objs.length) { // soft walls (and placed objects')
@@ -1814,6 +1838,7 @@ function localPE(set, skip) {
     }
   }
   if (WAVE.n) V += waveLocal(set, skip); // (electrons as waves: the packets' share with these ions, 1.15)
+  if (MBO.on) V += mbLocal(set); // (metals' many-body energy, 1.25)
   if (_lrOn) { // exact long-range Coulomb between net charges beyond the cutoff (as in computeForces)
     for (const p of set) {
       if (p.k !== NUC || p.dead || p.fast || p.rad || !isLR(p)) continue;
@@ -2474,10 +2499,84 @@ function angleEnergy3(p) {
   const t = angleTargets3(p, n);
   let E = angle3Centre(p.i, nb, n, t[0], t[1], t[2], null, null, null);
   for (const bd of p.bonds) if (p.id < other(bd, p).id) torsionsOf3(bd, (X, A, B, Y) => { E += triple3(X.i, A.i, A.i, B.i, B.i, Y.i, K_TOR, null, null, null); });
+  for (const bd of p.bonds) if (p.id < other(bd, p).id) tors1Of3(bd, (X, A, B, Y, k) => { E += tors1K(X.i, A.i, B.i, Y.i, k[0], k[1], k[2], k[3], null, null, null); }); // (the single bonds' twist, 1.25; KB3 set by triple3 or below)
   return E;
 }
+/* ---- Single bonds' twist (3-D, 1.25; the owner: single bonds should have their real twist barrier). Before, only double
+   and aromatic bonds resisted twisting, and ethane's methyls turned against nothing but their hydrogens' contact (0.025 eV
+   against a measured 0.126). Each dihedral X–A–B–Y about a single bond has
+     E = F·(k₀ + k₁ cos φ + k₂ cos 2φ + k₃ cos 3φ),  F = sin³θ₁·sin³θ₂ / sin⁶(109.47°)
+   (φ the dihedral, 0 when X and Y eclipse; θ₁, θ₂ the bond angles X–A–B and A–B–Y). Written through u = b̂₁×b̂₂ and
+   v = b̂₂×b̂₃ (|u|·|v|·cos φ = u·v), F·cos nφ is a polynomial in u·v and |u|²|v|², smooth at every geometry and
+   vanishing where an end goes straight (as the double bonds' term does); F is 1 at tetrahedral angles. The k's, per
+   dihedral, by the central bond and its ends (TOR1), fitted in this game to the measured barriers on top of what its
+   1-4 contacts already give (PERF-NOTES 1.25): sp³–sp³ C–C (by how many of X, Y are heavy atoms), C–O, C–N, O–O
+   (hydrogen peroxide's twofold shape); sp³–sp² C–C=C and C–C=O, counted only on the dihedrals to the double bond's
+   partner (the other partner's would cancel them), the double bond eclipsed at the minimum (propene, acetaldehyde).
+   Not given one: other central pairs (Si, S, P …), bonds between two sp² ends (butadiene's middle), aromatic ends. */
+const TOR1 = { // [k0, k1, k2, k3] eV
+  CC0: [0.00583, 0, 0, 0.00583], CC1: [0.0058, 0, 0, 0.0058], CC2: [0.0056, -0.068, -0.0447, -0.0134],
+  CO: [0.0070, 0, 0, 0.0070], CN: [0.00717, 0, 0, 0.00717], OO: [0, 0.0015, 0.0585, 0.0028],
+  'CC=C': [0.0240, 0, 0, -0.0240], 'CC=O': [0.0118, 0, 0, -0.0118],
+};
+const TOR1_F0 = Math.pow(8 / 9, 3); // (sin⁶ of the tetrahedral angle)
+/* the end's double bond other than the central one (an sp² end), or null; aromatic or triple: 'x' (no term) */
+function tor1End(p, bd) {
+  let d = null;
+  for (const b of p.bonds) { if (b === bd) continue; if (b.arom || b.order >= 3) return 'x'; if (b.order === 2) { if (d) return 'x'; d = b; } }
+  return d;
+}
+function tor1Key(X, A, B, Y, dA, dB) {
+  const a = A.el.sym, b = B.el.sym, pair = a < b ? a + b : b + a;
+  if (dA === 'x' || dB === 'x' || (dA && dB)) return null;
+  if (dA || dB) { // (sp³–sp²: only the dihedral to the double bond's partner)
+    if (pair !== 'CC') return null;
+    const [d, e, f] = dB ? [dB, B, Y] : [dA, A, X]; if ((d.a === e ? d.b : d.a) !== f) return null;
+    const z = f.el.sym; return z === 'C' ? 'CC=C' : z === 'O' ? 'CC=O' : null;
+  }
+  if (pair === 'CC') return 'CC' + ((X.Z > 1 ? 1 : 0) + (Y.Z > 1 ? 1 : 0));
+  return pair === 'CO' ? 'CO' : pair === 'CN' ? 'CN' : pair === 'OO' ? 'OO' : null;
+}
+/* The single-bond dihedrals of bond bd: cb(X, A, B, Y, k) with k the TOR1 entry. */
+function tors1Of3(bd, cb) {
+  if (bd.order !== 1 || bd.arom) return;
+  const A = bd.a, B = bd.b; if (!A.el || !B.el || A.el.dblock || B.el.dblock || A.bonds.length < 2 || B.bonds.length < 2) return;
+  const dA = tor1End(A, bd), dB = tor1End(B, bd);
+  for (const ba of A.bonds) { if (ba === bd) continue; const X = other(ba, A);
+    for (const bb of B.bonds) { if (bb === bd) continue; const Y = other(bb, B); if (X === Y) continue; const key = tor1Key(X, A, B, Y, dA, dB), k = key && TOR1[key]; if (k) cb(X, A, B, Y, k); } }
+}
+/* One dihedral's term (slots x, a, b, y): returns E, adds the forces when FX is given (vectors by kvec3: set KB3 first). */
+const _t1 = new Float64Array(9), _t1l = new Float64Array(3);
+function tors1K(x, a, b, y, k0, k1, k2, k3, FX, FY, FZ) {
+  const e = _t1, L = _t1l, ends = [x, a, a, b, b, y];
+  for (let m = 0; m < 3; m++) { const v = kvec3(ends[2 * m], ends[2 * m + 1]), l = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) || 1e-9; e[3 * m] = v[0] / l; e[3 * m + 1] = v[1] / l; e[3 * m + 2] = v[2] / l; L[m] = l; }
+  const ux = e[1] * e[5] - e[2] * e[4], uy = e[2] * e[3] - e[0] * e[5], uz = e[0] * e[4] - e[1] * e[3]; // u = b̂₁×b̂₂
+  const vx = e[4] * e[8] - e[5] * e[7], vy = e[5] * e[6] - e[3] * e[8], vz = e[3] * e[7] - e[4] * e[6]; // v = b̂₂×b̂₃
+  const uu = ux * ux + uy * uy + uz * uz, vv = vx * vx + vy * vy + vz * vz, P = uu * vv, R = Math.sqrt(P), C = ux * vx + uy * vy + uz * vz;
+  const E = (k0 * P * R + k1 * C * P + k2 * (2 * C * C - P) * R + k3 * (4 * C * C * C - 3 * C * P)) / TOR1_F0;
+  if (!FX) return E;
+  const dC = (k1 * P + 4 * k2 * C * R + k3 * (12 * C * C - 3 * P)) / TOR1_F0;
+  const dP = R > 1e-12 ? (1.5 * k0 * R + k1 * C + k2 * (-R + (2 * C * C - P) / (2 * R)) - 3 * k3 * C) / TOR1_F0 : 0;
+  const gux = dC * vx + dP * 2 * ux * vv, guy = dC * vy + dP * 2 * uy * vv, guz = dC * vz + dP * 2 * uz * vv; // ∂E/∂u
+  const gvx = dC * ux + dP * 2 * vx * uu, gvy = dC * uy + dP * 2 * vy * uu, gvz = dC * uz + dP * 2 * vz * uu; // ∂E/∂v
+  // ∂E/∂b̂₁ = b̂₂×gu; ∂E/∂b̂₂ = gu×b̂₁ + b̂₃×gv; ∂E/∂b̂₃ = gv×b̂₂
+  const G = [e[4] * guz - e[5] * guy, e[5] * gux - e[3] * guz, e[3] * guy - e[4] * gux,
+    guy * e[2] - guz * e[1] + e[7] * gvz - e[8] * gvy, guz * e[0] - gux * e[2] + e[8] * gvx - e[6] * gvz, gux * e[1] - guy * e[0] + e[6] * gvy - e[7] * gvx,
+    gvy * e[5] - gvz * e[4], gvz * e[3] - gvx * e[5], gvx * e[4] - gvy * e[3]];
+  for (let m = 0; m < 3; m++) { // (to the raw bond vectors: the part across each, over its length; −∂E/∂b on the far end, + on the near end)
+    const gx = G[3 * m], gy = G[3 * m + 1], gz = G[3 * m + 2], d = gx * e[3 * m] + gy * e[3 * m + 1] + gz * e[3 * m + 2], il = 1 / L[m];
+    const Gx = (gx - d * e[3 * m]) * il, Gy = (gy - d * e[3 * m + 1]) * il, Gz = (gz - d * e[3 * m + 2]) * il, n0 = ends[2 * m], n1 = ends[2 * m + 1];
+    FX[n1] -= Gx; FY[n1] -= Gy; FZ[n1] -= Gz; FX[n0] += Gx; FY[n0] += Gy; FZ[n0] += Gz;
+  }
+  return E;
+}
+/* The single-bond dihedrals' forces (AC3.sq, made with the dihedral list): after the kernels, on the main thread. */
+function tors1Forces3(FX, FY, FZ) {
+  kb3FromW(); const sq = AC3.sq, sk = AC3.sk;
+  for (let t = 0; t < AC3.ns; t++) tors1K(sq[4 * t], sq[4 * t + 1], sq[4 * t + 2], sq[4 * t + 3], sk[4 * t], sk[4 * t + 1], sk[4 * t + 2], sk[4 * t + 3], FX, FY, FZ);
+}
 /* The centres' 3-D targets (per AC centre) and the dihedral list, made again when bonding or species change. */
-const AC3 = { mode: shArray(Uint8Array, 64), t0: shArray(Float64Array, 64), flat: shArray(Uint8Array, 64), topo: -1, dirty: -1, parts: null, len: -1, nt: 0, tq: shArray(Int32Array, 256) }; // (shared: the WebAssembly kernel and the workers read them)
+const AC3 = { mode: shArray(Uint8Array, 64), t0: shArray(Float64Array, 64), flat: shArray(Uint8Array, 64), topo: -1, dirty: -1, parts: null, len: -1, nt: 0, tq: shArray(Int32Array, 256), ns: 0, sq: new Int32Array(256), sk: new Float64Array(256) }; // (sq, sk: the single bonds' dihedrals and their k's, 1.25: main thread only) // (shared: the WebAssembly kernel and the workers read them)
 function angleCentres3() {
   angleCentres();
   if (AC3.topo === W.topo && AC3.dirty === W.dirty && AC3.parts === W.parts && AC3.len === W.parts.length) return;
@@ -2493,6 +2592,15 @@ function angleCentres3() {
     });
   }
   AC3.nt = nt;
+  let ns = 0;
+  for (const bd of W.bonds) {
+    if (bd.a.dead || bd.b.dead) continue;
+    tors1Of3(bd, (X, A, B, Y, k) => {
+      if (4 * ns + 4 > AC3.sq.length) { const q = new Int32Array(AC3.sq.length * 2); q.set(AC3.sq); AC3.sq = q; const r = new Float64Array(AC3.sk.length * 2); r.set(AC3.sk); AC3.sk = r; }
+      AC3.sq[4 * ns] = X.i; AC3.sq[4 * ns + 1] = A.i; AC3.sq[4 * ns + 2] = B.i; AC3.sq[4 * ns + 3] = Y.i; for (let m = 0; m < 4; m++) AC3.sk[4 * ns + m] = k[m]; ns++;
+    });
+  }
+  AC3.ns = ns;
 }
 /* The nucleus pairs, bonds and angles of a 3-D world (computeForces1's nucleusPairs): the WebAssembly kernel (af_forces3)
    when the module has it, else the JavaScript; one thread here, threads.js replaces this when workers are available. */
@@ -2724,11 +2832,12 @@ function angleForces() { angleCentres(); angleKernel(0, AC.n, S.fx, S.fy, W.wall
 
 /* ------------------------------------------------------------------ force computation */
 const _bg = [0, 0];
-let _fastNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
+let _fastNuc = [], _radNuc = [], _charged = [], _late = [], _mdL = [], _nNucMD = 0;
 let _mdI = shArray(Int32Array, 4096), _nmd = 0, _mdLI = shArray(Int32Array, 256), _nmdL = 0, _chI = shArray(Int32Array, 256), _nch = 0, _mdNI = new Int32Array(4096), _nmdN = 0; // the slots of _md, _mdL, _charged and the MD nuclei
 let _mdGen = 0, _mdPrev = new Int32Array(4096), _nmdPrev = -1, _nFastLep = 0; // _mdGen counts the changes of the MD set (_md as a set of slots)
 function computeForces() {
   if (PI.on && PI.n) return piForces();
+  if (_vlE) vlReachSet(0); // (quantum nuclei off: the list's usual reach again)
   if (_profOn) { const t0 = performance.now(), k0 = _tKernels; computeForces1(); _tForces += performance.now() - t0; _nPasses++; if (TH_LAST.used) { _tKernels = k0 + TH_LAST.ms; _tWait += TH_LAST.wait; } return; }
   computeForces1();
 }
@@ -2755,7 +2864,7 @@ function computeForces1() {
     if (W.d3) { S.fz.fill(0, 0, hi); S.gz.fill(0, 0, hi); }
     _late.length = 0; _flagGenForces = _flagGen; _clsHits++;
   } else {
-  _fastNuc.length = 0; _charged.length = 0; _mdL.length = 0; _nNucMD = 0;
+  _fastNuc.length = 0; _radNuc.length = 0; _charged.length = 0; _mdL.length = 0; _nNucMD = 0;
   let nmd = 0, nmdL = 0, nch0 = 0, nmdN = 0, nFastLep = 0;
   for (let j = 0; j < n; j++) {
     const i = PI[j];
@@ -2763,7 +2872,7 @@ function computeForces1() {
     FX[i] = 0; FY[i] = 0; GX[i] = 0; GY[i] = 0; NEAR[i] = 0; INMD[i] = 0;
     const k = K[i];
     if (k === NUC && Z[i] === 0) continue;       // neutrons fly straight
-    if (RAD[i] === 1) continue;
+    if (RAD[i] === 1) { if (k === NUC) _radNuc.push(OBJ[i]); continue; } // (_radNuc: nuclei in radiation flight, for segTargets3)
     if (FAST[i] === 1) { // ballistic between collisions, but an applied electric field still pushes on them
       if (fieldE && Q[i]) { const E = Efield(X[i], Y[i], OBJ[i]); FX[i] = Q[i] * E[0]; FY[i] = Q[i] * E[1]; }
       if (k === NUC) _fastNuc.push(OBJ[i]); else nFastLep++;
@@ -2793,7 +2902,7 @@ function computeForces1() {
   if (_profOn) { const t = performance.now(); _tLists += t - tp; tp = t; }
   if (BO.any && !(_qmHold && BO.qm)) boPass(true); // (continuous bond orders, 1.13: bo.js; before the kernel, which needs the members' partial charges, 1.16)
   const d3 = W.d3;
-  if (d3) nucleusPairs3(wrap, bw, bh, hw, hh); // (3-D: the JavaScript kernels, one thread)
+  if (d3) { nucleusPairs3(wrap, bw, bh, hw, hh); if (AC3.ns) tors1Forces3(S.fx, S.fy, S.fz); } // (3-D: the kernels; then the single bonds' twist, 1.25)
   else nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
   if (_profOn) tp = performance.now();
   if (nmdL && d3) leptonPairs3(); // (3-D)
@@ -2816,8 +2925,8 @@ function computeForces1() {
     }
   }
   // exact long-range Coulomb between net charges beyond the cutoff (when few enough)
-  const nch = _charged.length;
-  _lrOn = nch <= 220 && W.wall !== 'wrap';
+  const nch = _charged.length, lrNow = nch <= 220 && W.wall !== 'wrap';
+  if (lrNow !== _lrOn && W.lrKnown) lrFlip(lrNow); else { _lrOn = lrNow; W.lrKnown = true; } // (a new world's first pass sets it: nothing to book)
   if (_lrOn && d3) longRange3();
   else if (_lrOn) {
     for (let i = 0; i < nch; i++) {
@@ -2840,6 +2949,7 @@ function computeForces1() {
     b.fx += fx; b.fy += fy; a.fx -= fx; a.fy -= fy;
     if (dz) { const fz = f * dz / r; b.fz += fz; a.fz -= fz; }
   });
+  if (MBO.on) mbPass(true); // (Experimental: bond orders for metals, 1.25: bometal.js)
   // (bonds and angles: with the nucleus pairs, above)
   // external fields
   const hasE = hasEfield(), hasB = hasBfield() && W.magnets.length > 0;
@@ -3559,7 +3669,7 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src) {
   for (const [t, p] of _rayHits) {
     const hx = x + ux * t, hy = y + uy * t, hz = z + uz * t;
     if (E >= 1e5) {
-      if (E > 6e6 && !p.anti && rnd() < 0.0015 * p.Z * Math.min(1, gdrSigma(p.Z, p.N, E / 1e6) / (5.2 * p.Z * p.Z))) return { x: hx, y: hy, z: hz, p, after: () => pairProduce3(p, E) };
+      if (E > 6e6 && !p.anti && rnd() < 0.0015 * p.Z * Math.min(1, gdrSigma(p.Z, p.N, E / 1e6) / (5.2 * p.Z * p.Z))) return { x: hx, y: hy, z: hz, p, after: () => { if (!photoNuclear(p, E, ux, uy, uz)) pairProduce3(p, E); } }; // (the giant dipole resonance in 3-D, 1.25)
       if (E > 1.022e6 && rnd() < 0.0015 * p.Z) return { x: hx, y: hy, z: hz, p, after: () => pairProduce3(p, E) };
       if (p.ne > 0 && rnd() < 0.012 * p.ne) return { x: hx, y: hy, z: hz, p, after: () => compton3(p, E, ux, uy, uz) };
       continue;
@@ -3591,9 +3701,11 @@ function compton3(p, E, ux, uy, uz) {
 function pairProduce3(p, E) {
   if (W.parts.length > MAX_PARTS) return;
   const T = (E - 2 * ME_C2) / 2, u = rndDir(), ux = u[0], uy = u[1], uz = u[2];
+  const S = nucBegin([]); // (1.25: the books. A 3-D electron and positron are stepped with their potential energy (beside the nucleus and each other, 0.4 Å apart: tens to thousands of eV), which the flat game's pair, in radiation flight, does not have; their motion now pays it exactly)
   const e = addLepton(ELEC, p.x + 0.2 * ux, p.y + 0.2 * uy, 0, 0, p.z + 0.2 * uz); setMotion(e, Math.max(1, T), ux, uy, 0, 0, uz);
   const ps = addLepton(POS, p.x - 0.2 * ux, p.y - 0.2 * uy, 0, 0, p.z - 0.2 * uz); setMotion(ps, Math.max(1, T), -ux, -uy, 0, 0, -uz);
   W.ledger.nuc -= 2 * ME_C2;
+  settleKE(S, E - 2 * ME_C2, [e, ps]);
   log('nuc', `Pair production: γ (${fmtE(E)}) → e⁻ + e⁺ near ${speciesLabel(p)}`);
   nucEvent('pair', p.x, p.y, `Pair production: γ → e⁻ + e⁺`, [], `${fmtE(E)} γ ray`);
 }
@@ -3777,7 +3889,18 @@ function setMotion(p, KE, ux, uy, bvx = 0, bvy = 0, uz = 0, bvz = 0) { // (uz, b
 function updateFast(p) {
   if (p.rad) return;
   if (p.k === NUC && p.Z === 0) { p.fast = true; return; }
-  if (W.d3) { if (p.fast) p.fast = false; return; } // (3-D, stage 1a: no ballistic flight, whose collision search is flat; fast atoms and electrons stay in the stepped set, the step size following them)
+  if (W.d3) { // (3-D: electrons stay in the stepped set, the step size following them (1.23); atoms fly ballistically past V_FAST_ON as in the flat game, their collisions found along their paths in depth, fastEncounters3 (1.25))
+    if (p.k !== NUC) { // (bug fix 14 after 1.25: past LEP3_ON a lepton flies, at its true speed, moveFastLeptons3; below it, stepped as before)
+      const ke = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz);
+      if (!p.fast && ke > LEP3_ON) switchMode(p, true);
+      else if (p.fast && ke < LEP3_OFF) switchMode(p, false);
+      return;
+    }
+    const v2 = p.vx * p.vx + p.vy * p.vy + p.vz * p.vz;
+    if (!p.fast && v2 > V_FAST_ON * V_FAST_ON) switchMode(p, true);
+    else if (p.fast && v2 < V_FAST_OFF * V_FAST_OFF) switchMode(p, false);
+    return;
+  }
   const v2 = p.vx * p.vx + p.vy * p.vy;
   if (p.k !== NUC) {
     // leptons switch by kinetic energy (20 eV on, 13 eV off), but never inside an ion's Coulomb well:
@@ -3811,8 +3934,8 @@ function switchMode(p, toFast) {
   }
   const one = new Set([p]);
   let U;
-  if (toFast) U = p.k === NUC ? localPE(one) : p.q * phiE(p.x, p.y, p, undefined, p.z);
-  else { p.fast = false; U = p.k === NUC ? localPE(one) : p.q * phiE(p.x, p.y, p, undefined, p.z); p.fast = true; }
+  if (toFast) U = p.k === NUC ? localPE(one) - fieldU(p) : p.q * phiE(p.x, p.y, p, undefined, p.z); // (the applied field pushes it in flight too: its energy there does not change with the mode)
+  else { p.fast = false; U = p.k === NUC ? localPE(one) - fieldU(p) : p.q * phiE(p.x, p.y, p, undefined, p.z); p.fast = true; }
   const ke = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz), k2 = toFast ? ke + U : ke - U;
   if (!(k2 > 0.05 * ke)) return; // stay in the current mode
   const f = Math.sqrt(k2 / ke);
@@ -3874,6 +3997,16 @@ function extendTrack(p) {
   t.upd = W.rt;
 }
 /* Electrostatic potential (V) felt by an electron at (x, y) from nearby charges (soft-cored as in the forces). */
+/* The applied uniform field's potential at (x, y, z) (V: φ = −E·r) and a particle's energy in it (q·φ, with an atom's
+   partial charge, as the force has it). totalEnergy leaves it out (the field does work on the books, which tests
+   count as total + Σ q·φ); an event that changes a charge or moves one must count it, or it misses −q E·Δr (bug fix 6
+   after 1.25): localPE and regionE include it for their atoms, ejectElectron and joinEnergy for the lepton. */
+function fieldPhi(x, y, z) { return -(W.Ex * x + W.Ey * y + (W.d3 ? (W.Ez || 0) * (z || 0) : 0)); }
+function fieldU(p) {
+  if (!W.Ex && !W.Ey && !(W.d3 && W.Ez)) return 0;
+  const q = p.k === NUC ? p.q + (p.qp || 0) : p.q;
+  return q ? q * fieldPhi(p.x, p.y, p.z) : 0;
+}
 function phiE(x, y, skip, skip2, z = 0) { // (3-D: at (x, y, z))
   let phi = 0;
   const visit = (o, dx, dy, r2) => {
@@ -3900,7 +4033,8 @@ function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {
   const d3 = W.d3, hd = W.box.d / 2 - 0.2;
   // the change of potential energy: the ion's new charge and size against its surroundings, plus any bonds that had to
   // break (localDelta: over the ion's neighbourhood in a big molecule, exactly)
-  const dU = grid ? localDelta(p, set, sn, () => { p.ne--; refresh(p); enforceValence(p, null); }) : (p.ne--, refresh(p), enforceValence(p, null), 0);
+  const fastIon = d3 && p.fast, kIon0 = fastIon ? keOf(p) : 0; // (3-D, 1.25: an atom in flight carries no potential energy, so neither its new charge nor the electron's pull toward it is in the books; and the electron's share of its motion, ½mₑv², leaves with the electron)
+  const dU = grid && !fastIon ? localDelta(p, set, sn, () => { p.ne--; refresh(p); enforceValence(p, null); }) : (p.ne--, refresh(p), enforceValence(p, null), 0);
   // The electron is born inside the ion's Coulomb well and near other charges. Its launch energy is
   // set so that the total energy is conserved: KE_launch = KE_far + budget + φ(electron) − ΔU.
   const qa = p.q, lq = p.anti ? 1 : -1; // the ion's charge now, and that of the lepton set free
@@ -3912,8 +4046,8 @@ function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {
     if (closed && (Math.abs(ex) > hw || Math.abs(ey) > hh || (d3 && Math.abs(ez) > hd))) return -Infinity; // beyond the chamber wall
     // a ballistic (radiation-mode) lepton carries no potential energy: then only the energy at infinity counts
     if (Kfar > radThreshold(true) && !d3) return Kfar; // (3-D: no radiation flight, a fast electron is stepped with its potential energy like any other, 1.24: a Compton electron lost the ion's 10–16 eV pull)
-    const phiSelf = qa ? PHYS.KE * qa * (1 / Math.sqrt(o * o + p.sEN) - (1 / Math.sqrt(RC2 + p.sEN) - (_lrOn && isLR(p) ? 1 / RC : 0))) : 0;
-    return Kfar - lq * (phiSelf + (grid ? phiE(ex, ey, p, undefined, ez) : 0));
+    const phiSelf = qa && !fastIon ? PHYS.KE * qa * (1 / Math.sqrt(o * o + p.sEN) - (1 / Math.sqrt(RC2 + p.sEN) - (_lrOn && isLR(p) ? 1 / RC : 0))) : 0;
+    return Kfar - lq * (phiSelf + (grid ? phiE(ex, ey, p, undefined, ez) : 0) + fieldPhi(ex, ey, ez)); // (the applied field too: bug fix 6 after 1.25)
   };
   if (closed) { if (Math.abs(p.x + ux * off0) > hw) ux = -ux; if (Math.abs(p.y + uy * off0) > hh) uy = -uy; if (d3 && Math.abs(p.z + uz * off0) > hd) uz = -uz; } // away from a wall
   let off = off0, KEl = launch(off, ux, uy, uz);
@@ -3940,7 +4074,7 @@ function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {
   }
   if (!(KEl >= 0.02)) { restoreSnap(sn); return null; } // not enough energy to free it here
   const e = addLepton(p.anti ? POS : ELEC, ex, ey, 0, 0, ez);
-  if (d3) setMotion(e, KEl, ux, uy, p.vx, p.vy, uz, p.vz); else setMotion(e, KEl, ux, uy, p.vx, p.vy);
+  if (d3) setMotion(e, KEl + (fastIon ? kIon0 - keOf(p) : 0), ux, uy, p.vx, p.vy, uz, p.vz); else setMotion(e, KEl, ux, uy, p.vx, p.vy);
   e.hit = p.id;
   return e;
 }
@@ -4339,7 +4473,7 @@ function joinEnergy(L, A) {
   const grid = _nmd > 0, set = setOf(molecule(A)), sn = snapshot(set);
   const [dx, dy, dz] = minImg(L.x - A.x, L.y - A.y, L.z - A.z), r2 = dx * dx + dy * dy + dz * dz;
   const qa0 = A.q, lpe = !(L.fast || L.rad); // (a lepton in flight carries no potential energy in the books)
-  const V0 = (lpe ? PHYS.KE * L.q * qa0 * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN)) : 0) + (grid ? localPE(set, L) + (lpe ? L.q * phiE(L.x, L.y, A, L, L.z) : 0) : 0);
+  const V0 = (lpe ? PHYS.KE * L.q * qa0 * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN)) : 0) + (grid ? localPE(set, L) + (lpe ? L.q * phiE(L.x, L.y, A, L, L.z) : 0) : 0) + fieldU(L) + (grid ? 0 : fieldU(A)); // (the lepton's energy in the applied field goes with it: bug fix 6 after 1.25)
   const Vw = L.wm && !L.dead ? waveIonShare(L) : 0; // (electrons as waves: the packet's share with every ion and packet, which goes with it)
   let K0 = keOf(L);
   for (const p of set) K0 += 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz);
@@ -4347,7 +4481,7 @@ function joinEnergy(L, A) {
   const px = L.m * L.vx + A.m * A.vx, py = L.m * L.vy + A.m * A.vy, pz = L.m * L.vz + A.m * A.vz;
   A.ne++; refresh(A); A.vx = px / A.m; A.vy = py / A.m; if (W.d3) A.vz = pz / A.m;
   enforceValence(A, null); closeSet(set);
-  const V1 = grid ? localPE(set, L) : 0, I1 = internalE(A);
+  const V1 = grid ? localPE(set, L) : fieldU(A), I1 = internalE(A);
   let K1 = 0; for (const p of set) K1 += 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz);
   return { E: (K0 + V0 + Vw + I0) - (K1 + V1 + I1), sn };
 }
@@ -4484,7 +4618,7 @@ function regionE(T) {
   const seenB = new Set();
   for (const p of T) {
     if (p.dead) continue;
-    E += restE(p) + keOf(p) + internalE(p);
+    E += restE(p) + keOf(p) + internalE(p) + fieldU(p); // (fieldU: the applied field, bug fix 6 after 1.25)
     for (const bd of p.bonds) if (!seenB.has(bd)) { seenB.add(bd); E += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b)); }
     if (!inMD(p)) continue;
     for (const o of md) if (o !== p && !(T.has(o) && o.id < p.id)) E += pairPE(p, o);
@@ -4492,6 +4626,7 @@ function regionE(T) {
     if (W.wall === 'reflect') E += wallPE(p);
     E += objPE(p);
   }
+  if (MBO.on) E += mbLocal(T); // (metals' many-body energy, 1.25)
   return E;
 }
 function restSum(T) { let m = 0; for (const p of T) if (!p.dead) m += restE(p); return m; }
@@ -4530,6 +4665,7 @@ function vNR(q) { if (!q.rad) return [q.vx, q.vy]; const v = Math.sqrt(2 * q.KE 
 function shareKE(ps, dE) {
   ps = ps.filter(q => q && !q.dead);
   if (!ps.length || !dE) return;
+  if (W.d3) { shareKE3(ps, dE); return; } // (3-D: the depth too, 1.25)
   const vs = ps.map(vNR);
   let M = 0, Px = 0, Py = 0;
   ps.forEach((q, i) => { M += q.m; Px += q.m * vs[i][0]; Py += q.m * vs[i][1]; });
@@ -4539,6 +4675,17 @@ function shareKE(ps, dE) {
   if (!(K > 0)) return;
   const sc = Math.sqrt(Math.max(0, K + dE) / K);
   ps.forEach((q, i) => setVel(q, Vx + sc * (vs[i][0] - Vx), Vy + sc * (vs[i][1] - Vy)));
+}
+/* (3-D, 1.25) shareKE with the depth: every velocity about the centre of mass scaled (no radiation flight in 3-D). */
+function shareKE3(ps, dE) {
+  let M = 0, Px = 0, Py = 0, Pz = 0;
+  for (const q of ps) { M += q.m; Px += q.m * q.vx; Py += q.m * q.vy; Pz += q.m * q.vz; }
+  const Vx = Px / M, Vy = Py / M, Vz = Pz / M;
+  let K = 0;
+  for (const q of ps) { const dx = q.vx - Vx, dy = q.vy - Vy, dz = q.vz - Vz; K += 0.5 * q.m * (dx * dx + dy * dy + dz * dz); }
+  if (!(K > 0)) return;
+  const sc = Math.sqrt(Math.max(0, K + dE) / K);
+  for (const q of ps) { q.vx = Vx + sc * (q.vx - Vx); q.vy = Vy + sc * (q.vy - Vy); q.vz = Vz + sc * (q.vz - Vz); updateFast(q); }
 }
 /* Settle a nuclear event's books by adjusting the products' relative motion (twice: a mode switch moves energy
    between potential and kinetic). Returns the remainder (eV), normally zero. */
@@ -4681,7 +4828,18 @@ function evDative(H, D, r) {
 }
 
 /* Electron transfer between a donor and an acceptor when it lowers the total energy (Born–Haber). */
+/* (bug fix 2 after 1.25) How many particles carry a charge (net or partial), counted once per change of the world: in
+   a neutral metal none does, and localPhi's walk over every atom within 6 Å (hundreds in a dense 3-D metal, four walks
+   for each pair of atoms tried for an electron transfer) adds nothing. */
+const _chg = { key: '', n: 0 };
+function chargedCount() {
+  const key = W.step + ':' + W.dirty + ':' + W.topo + ':' + W.spawned + ':' + W.deaths + ':' + W.parts.length;
+  if (_chg.key !== key) { let n = 0; for (const p of W.parts) if (!p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0) n++; _chg.key = key; _chg.n = n; }
+  return _chg.n;
+}
 function localPhi(x, y, skipA, skipB, z = 0) {
+  const chg = (p) => (p && !p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0 ? 1 : 0);
+  if (chargedCount() - chg(skipA) - chg(skipB) <= 0) return 0; // (nothing charged but the pair itself: the walk would add nothing)
   let phi = 0;
   nearby(x, y, RC, (p, dx, dy, r2) => {
     if (p === skipA || p === skipB) return;
@@ -4745,6 +4903,7 @@ function evTransfer(a, b, r) {
   // with both, hop rates obey detailed balance (uphill ∝ e^(−ΔE/kT), as in surface hopping).
   const mu = d.m * acc.m / (d.m + acc.m), dvx = d.vx - acc.vx, dvy = d.vy - acc.vy, dvz = d.vz - acc.vz;
   const Ek = 0.5 * mu * (dvx * dvx + dvy * dvy + dvz * dvz);
+  if (MBO.on && dE <= Ek + 0.5) dE += mbXferLB(d, acc); // (many-body metals, 1.25: an atom made an ion leaves the metal; at least its own share of it is lost)
   if (dE > Ek + 0.5 || rnd() > 0.3) return; // the cheap estimate says it can't be afforded
   const bd0 = speciesLabel(d), ba0 = speciesLabel(acc);
   // exact energy change with the model's own potentials (sizes, charges, electronic energies, any
@@ -4871,7 +5030,8 @@ function placeProduct(Z, N, ne, x, y) {
 }
 /* Two-body (or three-body) breakup with total kinetic energy Eav in the CM frame moving at (Vx, Vy); Min, the
    reactants' mass, keeps the total momentum as the products' mass differs. */
-function launchProducts(prods, Eav, Vx, Vy, x, y, neTotal, Min) {
+function launchProducts(prods, Eav, Vx, Vy, x, y, neTotal, Min, z, Vz) {
+  if (W.d3) return launchProducts3(prods, Eav, Vx, Vy, Vz || 0, x, y, z || 0, neTotal, Min); // (3-D, 1.25)
   const ps = [];
   let neLeft = neTotal;
   const order = prods.map((p, i) => i).sort((i, j) => prods[j][0] - prods[i][0]);
@@ -4899,6 +5059,32 @@ function launchProducts(prods, Eav, Vx, Vy, x, y, neTotal, Min) {
   for (let i = 0; i < neLeft; i++) { const e = addLepton(ELEC, x, y); setMotion(e, 1, Math.cos(i), Math.sin(i), Vx, Vy); }
   return ps;
 }
+/* (3-D, 1.25) launchProducts in depth: placed round (x, y, z) on the sphere, two bodies back to back in a random
+   direction, three with random momenta on the sphere summing to zero. */
+function launchProducts3(prods, Eav, Vx, Vy, Vz, x, y, z, neTotal, Min) {
+  const ps = [];
+  let neLeft = neTotal;
+  const order = prods.map((p, i) => i).sort((i, j) => prods[j][0] - prods[i][0]);
+  const ne = new Array(prods.length).fill(0);
+  for (const i of order) { const take = Math.min(neLeft, prods[i][0]); ne[i] = take; neLeft -= take; }
+  for (let i = 0; i < prods.length; i++) { const d = rndDir(), [Z, N] = prods[i]; ps.push(addNuc(Z, N, Z === 0 ? 0 : ne[i], x + 0.15 * d[0], y + 0.15 * d[1], 0, 0, false, z + 0.15 * d[2])); }
+  if (Min) { const Mp = ps.reduce((m, q) => m + q.m, 0); Vx *= Min / Mp; Vy *= Min / Mp; Vz *= Min / Mp; }
+  const set = (q, vx, vy, vz) => { q.vx = vx; q.vy = vy; q.vz = vz; updateFast(q); };
+  if (ps.length === 2) {
+    const [p1, p2] = ps, mu = p1.m * p2.m / (p1.m + p2.m), pr = Math.sqrt(2 * mu * Eav), d = rndDir(), ux = d[0], uy = d[1], uz = d[2];
+    const v1 = pr / p1.m, v2 = pr / p2.m;
+    set(p1, Vx + v1 * ux, Vy + v1 * uy, Vz + v1 * uz); set(p2, Vx - v2 * ux, Vy - v2 * uy, Vz - v2 * uz);
+  } else {
+    const px = [], py = [], pz = []; let sx = 0, sy = 0, sz = 0;
+    for (let i = 0; i < ps.length; i++) { const d = rndDir(); px[i] = d[0]; py[i] = d[1]; pz[i] = d[2]; sx += px[i]; sy += py[i]; sz += pz[i]; }
+    for (let i = 0; i < ps.length; i++) { px[i] -= sx / ps.length; py[i] -= sy / ps.length; pz[i] -= sz / ps.length; }
+    let K = 0; for (let i = 0; i < ps.length; i++) K += 0.5 * (px[i] * px[i] + py[i] * py[i] + pz[i] * pz[i]) / ps[i].m;
+    const s = Math.sqrt(Eav / Math.max(K, 1e-12));
+    for (let i = 0; i < ps.length; i++) set(ps[i], Vx + s * px[i] / ps[i].m, Vy + s * py[i] / ps[i].m, Vz + s * pz[i] / ps[i].m);
+  }
+  for (let i = 0; i < neLeft; i++) { const [dx, dy, dz] = rndDir(), e = addLepton(ELEC, x, y, 0, 0, z); setMotion(e, 1, dx, dy, Vx, Vy, dz, Vz); }
+  return ps;
+}
 /* Set lab velocity; switches to radiation (ballistic) mode when energetic. */
 function setVel(p, vx, vy) {
   const v = Math.hypot(vx, vy);
@@ -4920,6 +5106,7 @@ function velOf(p) { return p.rad ? [p.sp * p.ux, p.sp * p.uy] : [p.vx, p.vy]; }
 const fusGate = () => W.ultra ? 2e-3 : R_FUS;
 function tryFusion(a, b, bd) {
   if (a.dead || b.dead) return false;
+  if (W.d3) return tryFusion3(a, b, bd); // (3-D, 1.25)
   if (opp(a, b)) { nuclearAnnihilation(a, b); return true; }
   if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX || a.mu || b.mu) return false; // (a muon is no nucleon: nothing to fuse, 1.12)
   const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
@@ -4980,11 +5167,67 @@ function tryFusion(a, b, bd) {
   noteMade(prods.map(([z, n]) => ({ Z: z, N: n, anti: !!a.anti })), [], `Fusion: ${lbl} → ${out}`);
   return true;
 }
+/* (3-D, 1.25) tryFusion in depth: the pair's energy from their velocities in three directions, the products at the
+   midpoint's depth (launchProducts3; a single product with the pair's momentum, its γ ray or e⁺ on the sphere).
+   Antimatter is not in 3-D. */
+function tryFusion3(a, b, bd) {
+  if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX || a.mu || b.mu) return false;
+  const mu = a.m * b.m / (a.m + b.m), dvx = a.vx - b.vx, dvy = a.vy - b.vy, dvz = a.vz - b.vz;
+  const Ecm = 0.5 * mu * (dvx * dvx + dvy * dvy + dvz * dvz);
+  if (Ecm < 50) return false;
+  const g = gamowP(a, b, Ecm);
+  if (W.ultra ? !(bd < 1e-4 * Math.sqrt(g.sig / Math.PI)) : !(rnd() < g.P)) return false;
+  const M = a.m + b.m, Vx = (a.m * a.vx + b.m * b.vx) / M, Vy = (a.m * a.vy + b.m * b.vy) / M, Vz = (a.m * a.vz + b.m * b.vz) / M;
+  const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y), z = 0.5 * (a.z + b.z), ne = a.ne + b.ne;
+  const lbl = `${nucSym(a.Z, a.N)} + ${nucSym(b.Z, b.N)}`, key = fusionKey(a, b);
+  let prods, Q, gammaE = 0, weak = false;
+  if (key === '1_0+1_0') { prods = [[1, 1]]; Q = 0.420; weak = true; }
+  else if (g.ch.length) {
+    const ws = g.ch.map(c => Math.sqrt(c.Q)); const tot = ws.reduce((s, w) => s + w, 0);
+    let u = rnd() * tot, c = g.ch[0];
+    for (let i = 0; i < ws.length; i++) { u -= ws[i]; if (u <= 0) { c = g.ch[i]; break; } }
+    prods = c.prods; Q = c.Q;
+  } else {
+    const Zc = a.Z + b.Z, Nc = a.N + b.N, comp = nuclideInfo(Zc, Nc);
+    Q = dB([[Zc, Nc]], [[a.Z, a.N], [b.Z, b.N]]);
+    if (Q * 1e6 + Ecm <= 0 || (comp.unbound && comp.t12 < 1e-19)) return false;
+    prods = [[Zc, Nc]]; gammaE = Q * 1e6 + Ecm;
+  }
+  const gh = [ghostOf(a), ghostOf(b)];
+  const S = nucBegin([a, b]);
+  kill(a); kill(b);
+  W.count.fusion++;
+  if (prods.length === 1) {
+    const Z1 = prods[0][0], N1 = prods[0][1], q = addNuc(Z1, N1, Z1 === 0 ? 0 : Math.min(ne, Z1), x, y, 0, 0, false, z);
+    q.vx = Vx * M / q.m; q.vy = Vy * M / q.m; q.vz = Vz * M / q.m; updateFast(q); // (momentum kept)
+    for (let i = q.ne; i < ne; i++) { const [dx, dy, dz] = rndDir(), e = addLepton(ELEC, x, y, 0, 0, z); setMotion(e, 1, dx, dy, Vx, Vy, dz, Vz); }
+    let pos = null, d = null;
+    if (weak) { const r = rndDir(); d = [r[0], r[1], r[2]]; pos = addLepton(POS, x, y, 0, 0, z); setMotion(pos, (Q * 1e6 + Ecm) * 0.6, d[0], d[1], Vx, Vy, d[2], Vz); }
+    const Qm = nucMassLoss(S);
+    W.ledger.nuc += Qm;
+    let left = nucLeft(S, Qm);
+    if (left < 0 && pos) { setMotion(pos, Math.max(1, keOf(pos) + left), d[0], d[1], Vx, Vy, d[2], Vz); left = nucLeft(S, Qm); }
+    if (weak) emitNeutrino(x, y, Math.max(0, left), undefined, undefined, false, `fusion, ${lbl}`, 'e', z);
+    else if (gammaE > 0) emitPhoton(x, y, Math.max(0, left), undefined, undefined, { z });
+  } else {
+    const ps = launchProducts3(prods, Q * 1e6 + Ecm, Vx, Vy, Vz, x, y, z, ne, M);
+    const Qm = nucMassLoss(S);
+    W.ledger.nuc += Qm;
+    settleKE(S, Qm, ps);
+  }
+  flash(x, y, [255, 240, 200], 5, 0.6, z);
+  const out = prods.map(([zz, n]) => nucSym(zz, n)).join(' + ') + (weak ? ' + e⁺ + ν' : gammaE ? ' + γ' : '');
+  log('nuc', `Fusion: ${lbl} → ${out}  (+${fmtE(Q * 1e6)})`);
+  nucEvent('fusion', x, y, `Fusion: ${lbl} → ${out}`, gh, `${fmtE(Q * 1e6)} released`, undefined, z);
+  noteMade(prods.map(([zz, n]) => ({ Z: zz, N: n, anti: false })), [], `Fusion: ${lbl} → ${out}`);
+  return true;
+}
 
 /* Neutron meets a nucleus: capture, fission, (n,p)/(n,α)/(n,t) or elastic scattering. */
 function neutronHit(n, T, b, R) {
   if (n.dead || T.dead || T.mu || (T.Z < 1 && !(T.N === 1 && T.k === NUC))) return false; // (a nucleus, or another free neutron: n–n is elastic below ~20 MeV, the dineutron being unbound)
   if (opp(T, n)) { nuclearAnnihilation(T, n); return true; }
+  if (W.d3) return neutronHit3(n, T, b, R); // (3-D, 1.25)
   if (n.rad || T.rad) { // fast (either of them): relativistic kinematics. Spallation, fission, … or diffraction; two nucleons below ~20 MeV scatter isotropically (s-wave)
     if (nuclearEncounter(n, T, R > 0 ? clamp((b || 0) / R, 0, 1) : rnd(), T.x, T.y)) return true;
     if (!n.dead && !T.dead && T.Z + T.N === 1 && mass4(add4(p4of(n, true), p4of(T, true))) - nucMeV(n.Z, n.N) - nucMeV(T.Z, T.N) < 20) { elasticTurn(n, T, (2 * rnd() - 1) * Math.PI); return true; } // (below ~20 MeV, where the tables have no nucleon–nucleon elastic)
@@ -5062,6 +5305,77 @@ function neutronHit(n, T, b, R) {
   return true;
 }
 
+/* (3-D, 1.25) neutronHit in depth. Nothing flies in radiation mode in 3-D, so a pass with more than NEUTRON_RAD (20 MeV)
+   between them takes the fast branch's relativistic reactions (nuclearEncounter, hep.js, with four-momenta in three
+   directions); below it the flat game's table of captures, (n,p), (n,α), (n,t), fission and elastic scattering, with
+   the recoil, the γ ray and the products in three directions. */
+function neutronHit3(n, T, b, R) {
+  const dvx = n.vx - T.vx, dvy = n.vy - T.vy, dvz = n.vz - T.vz;
+  const En = 0.5 * PHYS.MN * (dvx * dvx + dvy * dvy + dvz * dvz);
+  if (En > NEUTRON_RAD) {
+    if (nuclearEncounter(n, T, R > 0 ? clamp((b || 0) / R, 0, 1) : rnd(), T.x, T.y, T.z)) return true;
+    if (!n.dead && !T.dead && T.Z + T.N === 1 && mass4(add4(p4of(n, true), p4of(T, true))) - nucMeV(n.Z, n.N) - nucMeV(T.Z, T.N) < 20) { elasticTurn(n, T, (2 * rnd() - 1) * Math.PI); return true; }
+    return false;
+  }
+  const X = NEUTRON_X[T.Z + '_' + T.N];
+  const f = clamp((Math.log10(Math.max(En, 1e-3)) - Math.log10(0.5)) / (5 - Math.log10(0.5)), 0, 1);
+  const lerp = (arr) => arr ? arr[0] + (arr[1] - arr[0]) * f : 0;
+  let pf = 0, pc, pnp = 0, pna = 0, pnt = 0;
+  if (X) { pf = X.fis ? (X.fisThr && En < X.fisThr ? 0 : lerp(X.fis)) : 0; pc = lerp(X.cap); pnp = lerp(X.np); pna = lerp(X.na); pnt = lerp(X.nt); }
+  else { const prod = nuclideInfo(T.Z, T.N + 1); pc = prod.unbound ? 0 : 0.08 + (0.004 - 0.08) * f; }
+  const u = rnd();
+  const M = T.m + n.m, Vx = (T.m * T.vx + n.m * n.vx) / M, Vy = (T.m * T.vy + n.m * n.vy) / M, Vz = (T.m * T.vz + n.m * n.vz) / M;
+  const x = T.x, y = T.y, z = T.z;
+  if (u < pf) { fission(T, n, En); return true; }
+  if (u < pf + pc) {
+    const Sn = dB([[T.Z, T.N + 1]], [[T.Z, T.N]]);
+    const lbl = nucSym(T.Z, T.N), gh = [ghostOf(n), ghostOf(T)];
+    const S = nucBegin([n, T]);
+    n.kEnd = 'cap'; kill(n);
+    T.N++; refresh(T);
+    T.vx = Vx * M / T.m; T.vy = Vy * M / T.m; T.vz = Vz * M / T.m;
+    const E0 = Math.max(0, Sn) * 1e6 + En, pr = (E0 - E0 * E0 / (2 * T.m * PHYS.AMU_MEV * 1e6)) / 1e6 * PHYS.MEV_C_TO_SIM, g = rndDir(), gx = g[0], gy = g[1], gz = g[2];
+    T.vx -= pr / T.m * gx; T.vy -= pr / T.m * gy; T.vz -= pr / T.m * gz;
+    if (0.5 * T.m * (pr / T.m) ** 2 > 20) for (const bd of T.bonds.slice()) removeBond(bd);
+    updateFast(T);
+    const Qm = nucMassLoss(S);
+    const Eg = Math.max(0, nucLeft(S, Qm));
+    emitPhoton(x, y, Eg, gx, gy, { src: T, z, uz: gz });
+    W.count.ncap++; W.ledger.nuc += Qm;
+    flash(x, y, [200, 220, 255], 3, 0.4, z);
+    log('nuc', `Neutron capture: ${lbl} + n → ${nucSym(T.Z, T.N)} + γ (${fmtE(Eg)})`);
+    nucEvent('capture', x, y, `Neutron capture: ${lbl} + n → ${nucSym(T.Z, T.N)} + γ`, gh, `${fmtE(Eg)} γ ray`, undefined, z);
+    chainEdge(T.Z, T.N - 1, T.Z, T.N, 'ncap', T.anti);
+    noteMade([{ Z: T.Z, N: T.N, anti: !!T.anti }], [], `Neutron capture: ${lbl} + n → ${nucSym(T.Z, T.N)} + γ`);
+    return true;
+  }
+  const special = u < pf + pc + pnp ? [[T.Z - 1, T.N + 1], [1, 0]] : u < pf + pc + pnp + pna ? [[T.Z - 2, T.N - 1], [2, 2]] :
+    u < pf + pc + pnp + pna + pnt ? [[T.Z - 1, T.N - 1], [1, 2]] : null;
+  if (special) {
+    const Q = dB(special, [[T.Z, T.N], [0, 1]]);
+    if (Q * 1e6 + En <= 0) return false;
+    const lbl = nucSym(T.Z, T.N), ne = T.ne, gh = [ghostOf(n), ghostOf(T)];
+    const S = nucBegin([n, T]);
+    n.kEnd = 'cap'; kill(n); kill(T);
+    W.count.ncap++;
+    const ps = launchProducts(special, Math.max(0, Q * 1e6 + En), Vx, Vy, x, y, ne, M, z, Vz);
+    const Qm = nucMassLoss(S);
+    W.ledger.nuc += Qm;
+    settleKE(S, Qm, ps);
+    flash(x, y, [255, 230, 180], 4, 0.5, z);
+    log('nuc', `Nuclear reaction: ${lbl} + n → ${special.map(([zz, nn]) => nucSym(zz, nn)).join(' + ')} (+${fmtE(Q * 1e6)})`);
+    nucEvent('reaction', x, y, `${lbl} + n → ${special.map(([zz, nn]) => nucSym(zz, nn)).join(' + ')}`, gh, `${fmtE(Q * 1e6)} released`, undefined, z);
+    noteMade(special.map(([zz, nn]) => ({ Z: zz, N: nn, anti: !!T.anti })), [], `${lbl} + n → ${special.map(([zz, nn]) => nucSym(zz, nn)).join(' + ')}`);
+    return true;
+  }
+  // elastic scattering, isotropic in the centre-of-mass frame (on the sphere)
+  const vr = Math.sqrt(dvx * dvx + dvy * dvy + dvz * dvz), d = rndDir(), nx = vr * d[0], ny = vr * d[1], nz = vr * d[2];
+  n.vx = Vx + nx * T.m / M; n.vy = Vy + ny * T.m / M; n.vz = Vz + nz * T.m / M; updateFast(n);
+  T.vx = Vx - nx * n.m / M; T.vy = Vy - ny * n.m / M; T.vz = Vz - nz * n.m / M; updateFast(T);
+  if (keOf(T) > 10) T.nucProd = true;
+  if (keOf(n) < 1 && n.trk) n.trk = null;
+  return true;
+}
 /* The chain-reaction readout (Data tab): each free neutron's end — absorbed in a fission (giving ν new ones), captured
    without one, escaped through open walls, or anything else (decay, other reactions) — and its generation. k, the
    neutrons born per neutron ended over the last KC_N ends, is the effective multiplication factor. Bookkeeping only. */
@@ -5090,8 +5404,8 @@ function kEnd(p) {
 function fission(T, n, En) {
   const Zc = T.Z, Nc = T.N + (n ? 1 : 0), Ac = Zc + Nc;
   const lbl = nucSym(T.Z, T.N) + (n ? ' + n' : '');
-  const [tvx, tvy] = velOf(T);
-  const x = T.x, y = T.y, ne = T.ne, gh = [ghostOf(T)];
+  const [tvx, tvy] = velOf(T), d3 = W.d3, tvz = d3 ? T.vz : 0; // (3-D: the depth, 1.25)
+  const x = T.x, y = T.y, z = d3 ? T.z : 0, ne = T.ne, gh = [ghostOf(T)];
   const S = nucBegin(n ? [T, n] : [T]);
   const u = rnd(); const nu = u < 0.08 ? 1 : u < 0.42 ? 2 : u < 0.82 ? 3 : 4;
   const T0 = { Z: T.Z, N: T.N }, par = n && n.kFis !== undefined && W.chain && W.chain.fis[n.kFis] ? n.kFis : -1; // (for the chain-reaction map)
@@ -5110,12 +5424,19 @@ function fission(T, n, En) {
   W.count.fission++;
   const neL = Math.round(ne * ZL / Zc);
   const anti = T.anti;
-  const fL = addNuc(ZL, NL, neL, x, y, 0, 0, anti), fH = addNuc(ZH, NH, ne - neL, x, y, 0, 0, anti);
+  const fL = addNuc(ZL, NL, neL, x, y, 0, 0, anti, z), fH = addNuc(ZH, NH, ne - neL, x, y, 0, 0, anti, z);
   const mu = fL.m * fH.m / (fL.m + fH.m), pr = Math.sqrt(2 * mu * TKE * 1e6);
+  if (d3) { // (3-D: apart along a direction on the sphere, 1.25)
+    const d = rndDir(), ux = d[0], uy = d[1], uz = d[2];
+    fL.x += 0.3 * ux; fL.y += 0.3 * uy; fL.z += 0.3 * uz; fH.x -= 0.3 * ux; fH.y -= 0.3 * uy; fH.z -= 0.3 * uz;
+    fL.vx = tvx + pr / fL.m * ux; fL.vy = tvy + pr / fL.m * uy; fL.vz = tvz + pr / fL.m * uz; updateFast(fL);
+    fH.vx = tvx - pr / fH.m * ux; fH.vy = tvy - pr / fH.m * uy; fH.vz = tvz - pr / fH.m * uz; updateFast(fH);
+  } else {
   const th = rnd() * 2 * Math.PI, ux = Math.cos(th), uy = Math.sin(th);
   fL.x += 0.3 * ux; fL.y += 0.3 * uy; fH.x -= 0.3 * ux; fH.y -= 0.3 * uy;
   setVel(fL, tvx + pr / fL.m * ux, tvy + pr / fL.m * uy);
   setVel(fH, tvx - pr / fH.m * ux, tvy - pr / fH.m * uy);
+  }
   const prods = [fL, fH];
   let fid = -1;
   if (!anti) { // (the chain-reaction map: this fission, the one its neutron came from, and the steps to its fragments)
@@ -5125,13 +5446,15 @@ function fission(T, n, En) {
   }
   for (let i = 0; i < nu; i++) {
     if (W.parts.length >= MAX_PARTS) break;
-    const nn = addNuc(0, 1, 0, x, y, 0, 0, anti);
+    const nn = addNuc(0, 1, 0, x, y, 0, 0, anti, z);
     if (fid >= 0) W.chain.fis[fid].nu++;
     nn.kGen = n ? (n.kGen || 0) + 1 : 0; if (W.kc) { W.kc.gen = Math.max(W.kc.gen, nn.kGen); W.kc.born++; }
     if (fid >= 0) nn.kFis = fid;
     const E = -1.33e6 * Math.log(Math.max(1e-6, rnd() * rnd())) / 2 + 0.2e6;
+    if (d3) { const d = rndDir(); setMotion(nn, E, d[0], d[1], tvx, tvy, d[2], tvz); } else { // (3-D: on the sphere, 1.25)
     const a = rnd() * 2 * Math.PI;
     setMotion(nn, E, Math.cos(a), Math.sin(a), tvx, tvy);
+    }
     prods.push(nn);
   }
   // the books: the energy released is the mass lost; what the fragments and neutrons did not take leaves as
@@ -5140,10 +5463,10 @@ function fission(T, n, En) {
   W.ledger.nuc += Qm;
   let left = nucLeft(S, Qm);
   if (left < 1e6) left = settleKE(S, Qm - 1e6, prods) + 1e6; // keep at least 1 MeV for the γ rays
-  for (let i = 0; i < 3; i++) emitPhoton(x, y, left / 3);
-  flash(x, y, [255, 210, 150], 8, 0.8);
+  for (let i = 0; i < 3; i++) { if (d3) emitPhoton(x, y, left / 3, undefined, undefined, { z }); else emitPhoton(x, y, left / 3); } // (3-D: from its depth, 1.25)
+  flash(x, y, [255, 210, 150], 8, 0.8, z);
   log('nuc', `Fission: ${lbl} → ${nucSym(ZL, NL)} + ${nucSym(ZH, NH)} + ${nu}n  (+${fmtE(Q * 1e6)})`);
-  nucEvent('fission', x, y, `${n ? 'Fission' : 'Spontaneous fission'}: ${lbl} → ${nucSym(ZL, NL)} + ${nucSym(ZH, NH)} + ${nu}n`, gh, `${fmtE(Q * 1e6)} released${n ? '' : boostTag()}`);
+  nucEvent('fission', x, y, `${n ? 'Fission' : 'Spontaneous fission'}: ${lbl} → ${nucSym(ZL, NL)} + ${nucSym(ZH, NH)} + ${nu}n`, gh, `${fmtE(Q * 1e6)} released${n ? '' : boostTag()}`, undefined, z);
   noteMade([{ Z: ZL, N: NL, anti }, { Z: ZH, N: NH, anti }].concat(Array.from({ length: nu }, () => ({ Z: 0, N: 1, anti }))), [], `${n ? 'Fission' : 'Spontaneous fission'}: ${lbl} → ${nucSym(ZL, NL)} + ${nucSym(ZH, NH)} + ${nu}n`);
 }
 
@@ -5183,6 +5506,7 @@ function pickMode(inf) {
   return inf.modes[inf.modes.length - 1];
 }
 function doDecay(p) {
+  if (W.d3) return doDecay3(p); // (3-D, 1.25)
   const inf = p.nuc;
   let md = pickMode(inf);
   // antinuclei decay as the mirror image: n̄ → p̄ + e⁺ + ν, antiparticles emitted, positrons captured
@@ -5291,6 +5615,93 @@ function doDecay(p) {
   flash(x, y, [255, 220, 160], 2.5, 0.35);
   return true;
 }
+/* (3-D, 1.25) doDecay in depth: the emitted particle, the neutrino and the recoil along directions on the sphere, from
+   the nucleus's depth (before, a decay in a 3-D world put its α, electron or neutron down at z = 0 and turned the
+   daughter in the plane). The neutrino leaves along the direction its momentum gave the recoil (the flat game draws it
+   afresh). Books as doDecay's. */
+function doDecay3(p) {
+  const inf = p.nuc;
+  let md = pickMode(inf);
+  const sym = (z, n) => z > 0 ? nucSymA(z, n, p.anti) : nucSym(z, n);
+  const lbl = sym(p.Z, p.N);
+  const x = p.x, y = p.y, z = p.z;
+  let mode = md.mode, Q = md.Q;
+  if (mode === 'ec' && p.ne === 0) { if (Q > 1.022) { mode = 'b+'; Q -= 1.022; } else return false; }
+  W.count.decay++;
+  if (mode === 'sf') { fission(p, null, 0); flash(x, y, [255, 220, 160], 2.5, 0.35, z); return true; }
+  const dZ = { 'b-': 1, 'b+': -1, ec: -1, a: -2, p: -1, '2p': -2, n: 0, '2n': 0 }[mode];
+  const Zem = mode === 'a' ? 2 : mode === 'p' || mode === '2p' ? 1 : 0, nem = mode[0] === '2' ? 2 : 1;
+  const Qn = Math.max(0, Q) * 1e6 + electronBindingE(p.Z, p.Z) - electronBindingE(p.Z + dZ, p.Z + dZ) - nem * electronBindingE(Zem, Zem);
+  W.ledger.nuc += Qn;
+  const S = nucBegin([p]);
+  const Zold = p.Z, Nold = p.N, gh = [ghostOf(p)];
+  const u0 = rndDir(), ux = u0[0], uy = u0[1], uz = u0[2], th = Math.atan2(uy, ux); // (rndDir's array is shared: copied at once)
+  const pvx = p.vx, pvy = p.vy, pvz = p.vz;
+  const brk = () => { for (const bd of p.bonds.slice()) removeBond(bd); };
+  const kick = (q, vx, vy, vz) => { q.vx = vx; q.vy = vy; q.vz = vz; updateFast(q); if (0.5 * q.m * (vx * vx + vy * vy + vz * vz) > 2000 && !q.trk) startTrack(q); };
+  const Qtxt = fmtE(Math.max(0, Q) * 1e6);
+  switch (mode) {
+    case 'b-': case 'b+': {
+      const T = betaSpectrum(Q), Enu = Q - T;
+      p.Z += mode === 'b-' ? 1 : -1; p.N += mode === 'b-' ? -1 : 1;
+      if (p.Z === 0) { p.Z = 1; p.N = 0; }
+      brk(); refresh(p);
+      if (mode === 'b+') shakeOff(p);
+      const pe = Math.sqrt(T * T + 2 * T * PHYS.MEC2), n0 = rndDir(), nx = n0[0], ny = n0[1], nz = n0[2];
+      const k = PHYS.MEV_C_TO_SIM, prx = -(pe * ux + Enu * nx) * k, pry = -(pe * uy + Enu * ny) * k, prz = -(pe * uz + Enu * nz) * k;
+      kick(p, pvx + prx / p.m, pvy + pry / p.m, pvz + prz / p.m);
+      const elec = (mode === 'b-') !== !!p.anti;
+      let l = null;
+      if (W.parts.length < MAX_PARTS) { l = addLepton(elec ? ELEC : POS, x + ux * 0.2, y + uy * 0.2, 0, 0, z + uz * 0.2); setMotion(l, Math.max(1, T * 1e6), ux, uy, pvx, pvy, uz, pvz); }
+      let left = nucLeft(S, Qn);
+      if (left < 0 && l) { setMotion(l, Math.max(1, keOf(l) + left), ux, uy, pvx, pvy, uz, pvz); left = nucLeft(S, Qn); }
+      emitNeutrino(x, y, Math.max(0, left), nx, ny, elec, `${elec ? 'β⁻' : 'β⁺'} decay of ${lbl}`, 'e', z, nz);
+      const prod = elec ? 'e⁻ + ν̄' : 'e⁺ + ν', nm = elec ? 'β⁻' : 'β⁺';
+      log('nuc', `${nm} decay: ${lbl} → ${sym(p.Z, p.N)} + ${prod} (${Qtxt})`);
+      nucEvent(elec ? 'beta' : 'betap', x, y, `${nm} decay: ${lbl} → ${sym(p.Z, p.N)} + ${prod}`, gh, `${Qtxt} released${boostTag()}`, { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th }, z);
+      break;
+    }
+    case 'ec': {
+      p.Z--; p.N++; p.ne--; brk(); refresh(p);
+      const left = Math.max(0, nucLeft(S, Qn)), kx = Math.min(left, 0.75 * PHYS.RY * Math.pow(Math.max(1, p.Z - 1), 2));
+      emitNeutrino(x, y, left - kx, undefined, undefined, !!p.anti, `${p.anti ? 'positron' : 'electron'} capture by ${lbl}`, 'e', z);
+      emitPhoton(x, y, kx, undefined, undefined, { src: p, z });
+      log('nuc', `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν (${Qtxt})`);
+      nucEvent('ec', x, y, `${p.anti ? 'Positron' : 'Electron'} capture: ${lbl} + ${p.anti ? 'e⁺' : 'e⁻'} → ${sym(p.Z, p.N)} + ν`, gh, `${Qtxt} released${boostTag()}`, { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th }, z);
+      break;
+    }
+    case 'a': case 'p': case 'n': case '2p': case '2n': {
+      const em = mode === 'a' ? [2, 2] : mode === 'p' ? [1, 0] : mode === 'n' ? [0, 1] : mode === '2p' ? [1, 0] : [0, 1];
+      const cnt = (mode === '2p' || mode === '2n') ? 2 : 1;
+      p.Z -= em[0] * cnt; p.N -= em[1] * cnt;
+      if (p.Z + p.N <= 0) { kill(p); return false; }
+      if (p.Z !== Zold) brk();
+      refresh(p);
+      shakeOff(p);
+      const Ad = p.Z + p.N, Ae = em[0] + em[1];
+      const Eem = Math.max(1e-3, Q * 1e6) * Ad / (Ad + Ae * cnt);
+      const prod = [];
+      for (let k = 0; k < cnt; k++) {
+        if (W.parts.length >= MAX_PARTS) break;
+        const a = addNuc(em[0], em[1], 0, x + ux * 0.2, y + uy * 0.2, 0, 0, p.anti, z + uz * 0.2);
+        if (p.kFis !== undefined && em[0] === 0) a.kFis = p.kFis;
+        const d = k ? turn3(ux, uy, uz, 2.2) : [ux, uy, uz], dx = d[0], dy = d[1], dz = d[2];
+        setMotion(a, Eem / cnt, dx, dy, pvx, pvy, dz, pvz);
+        prod.push(a);
+      }
+      const prR = Math.sqrt(2 * Ae * PHYS.MP * Eem);
+      kick(p, pvx - prR / p.m * ux, pvy - prR / p.m * uy, pvz - prR / p.m * uz);
+      settleKE(S, Qn, [p].concat(prod));
+      const nm = mode === 'a' ? 'α decay' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
+      const em2 = (mode === 'a' ? 'α' : mode === 'p' ? 'p' : mode === 'n' ? 'n' : mode === '2p' ? '2p' : '2n') + (p.anti ? '\u0304' : '');
+      log('nuc', `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2} (${Qtxt})`);
+      nucEvent(mode === 'a' ? 'alpha' : 'decay', x, y, `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}`, gh, `${Qtxt} released${boostTag()}`, { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th }, z);
+      break;
+    }
+  }
+  flash(x, y, [255, 220, 160], 2.5, 0.35, z);
+  return true;
+}
 
 /* ------------------------------------------------------------------ ballistic motion */
 const _hits = [];
@@ -5350,6 +5761,27 @@ function relTargets(x, y, vx, vy, dt, R, filter, defer) {
   if (_hits.length > 1) _hits.sort((a, b) => a[0] - b[0]);
   return _hits;
 }
+/* (3-D, 1.25) relTargets with the depth: the closest approach of the two paths in three directions. */
+function relTargets3(x, y, z, vx, vy, vz, dt, R, filter, defer) {
+  _hits.length = 0;
+  gridEnsure();
+  const ex = vx * dt, ey = vy * dt, ez = vz * dt, pad = R + 0.3;
+  const test = (p) => {
+    if (p.dead || !filter(p)) return;
+    const rx = p.x - x, ry = p.y - y, rz = p.z - z, dx = (p.vx - vx) * dt, dy = (p.vy - vy) * dt, dz = (p.vz - vz) * dt, L2 = dx * dx + dy * dy + dz * dz;
+    const t0 = L2 > 0 ? -(rx * dx + ry * dy + rz * dz) / L2 : 0;
+    if (defer && t0 > 1) return;
+    const t = clamp(t0, 0, 1), bx = rx + t * dx, by = ry + t * dy, bz = rz + t * dz, b2 = bx * bx + by * by + bz * bz;
+    if (b2 < R * R) _hits.push([t, p, Math.sqrt(b2)]);
+  };
+  if (G.n <= 32) { for (const p of G.list) test(p); }
+  else {
+    const L = G.list, cx = (v) => Math.floor((v + G.hx) / G.cw), cy = (v) => Math.floor((v + G.hy) / G.ch), cz = (v) => Math.floor((v + G.hz) / G.cd);
+    gridWalk3(cx(Math.min(x, x + ex) - pad), cy(Math.min(y, y + ey) - pad), cx(Math.max(x, x + ex) + pad), cy(Math.max(y, y + ey) + pad), cz(Math.min(z, z + ez) - pad), cz(Math.max(z, z + ez) + pad), (i) => test(L[i]));
+  }
+  if (_hits.length > 1) _hits.sort((a, b) => a[0] - b[0]);
+  return _hits;
+}
 /* Free neutrons among themselves and with fast nuclei (neither is in the grid): every pair with a neutron in it that
    comes within reach in this step, by the closest approach of the two paths, so two neutrons, or a fast proton and a
    neutron at rest, meet whichever of them moves. Each pair meets once per pass (p.nHit: the last one met, while they
@@ -5360,11 +5792,21 @@ let _nnPrev = 1, _nnSp = -1; // (free neutrons moved last step, and the spawn co
 function nnMeet(i, j, dt) { // the closest approach of the two paths this step; if within reach, they meet (once per pass)
   const a = _nnL[i], b = _nnL[j];
   if (a.dead || b.dead) return;
+  if (W.d3) { nnMeet3(a, b, dt); return; } // (3-D, 1.25)
   const rx = b.x - a.x, ry = b.y - a.y, dx = (_nnVx[j] - _nnVx[i]) * dt, dy = (_nnVy[j] - _nnVy[i]) * dt;
   if (Math.abs(ry) > 1 + Math.abs(dy)) return; // (nowhere near this step: no reach is an ångström)
   const R = nucReach(a, b), L2 = dx * dx + dy * dy, t0 = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0, t = clamp(t0, 0, 1), bb = Math.hypot(rx + t * dx, ry + t * dy);
   if (t0 > 1 || bb >= R || sameEv(a, b)) return; // (t0 > 1: still closing in, they meet in a later step at the true miss distance, 0.92)
   if ((a.nHit === b.id || b.nHit === a.id) && Math.hypot(rx, ry) < R) return; // (just met: one pass, one encounter)
+  a.nHit = b.id; b.nHit = a.id;
+  if (a.Z === 0) neutronHit(a, b, bb, R); else neutronHit(b, a, bb, R);
+}
+function nnMeet3(a, b, dt) {
+  const rx = b.x - a.x, ry = b.y - a.y, rz = b.z - a.z, dx = (b.vx - a.vx) * dt, dy = (b.vy - a.vy) * dt, dz = (b.vz - a.vz) * dt;
+  if (Math.abs(ry) > 1 + Math.abs(dy) || Math.abs(rz) > 1 + Math.abs(dz)) return;
+  const R = nucReach(a, b), L2 = dx * dx + dy * dy + dz * dz, t0 = L2 > 0 ? -(rx * dx + ry * dy + rz * dz) / L2 : 0, t = clamp(t0, 0, 1), ex = rx + t * dx, ey = ry + t * dy, ez = rz + t * dz, bb = Math.sqrt(ex * ex + ey * ey + ez * ez);
+  if (t0 > 1 || bb >= R || sameEv(a, b)) return;
+  if ((a.nHit === b.id || b.nHit === a.id) && Math.sqrt(rx * rx + ry * ry + rz * rz) < R) return;
   a.nHit = b.id; b.nHit = a.id;
   if (a.Z === 0) neutronHit(a, b, bb, R); else neutronHit(b, a, bb, R);
 }
@@ -5496,7 +5938,7 @@ function wallOrEscape(p, escape, x0, y0) {
   if (W.wall === 'open' || (W.wall === 'reflect' && wallStops(p)) || neutronLeaves(p)) {
     if (W.wall === 'reflect') { if (!(p.k === NUC && p.Z === 0 && (W.nWall === 'pass' || W.nWall === 'fast'))) W.count.wallStop++; if (x0 !== undefined) { p.x = _wc[0]; p.y = _wc[1]; } }
     if (p.k === NUC && p.Z === 0) W.ledger.escaped += keOf(p);
-    else if (p.rad) W.ledger.escaped += p.KE;
+    else W.ledger.escaped += keOf(p) + internalE(p); // (bug fix after 1.25: a fast one not in radiation flight, an electron or an atom, left unbooked; in flight it has no potential energy in the books)
     chargeTo(p.q); kill(p); return true;
   }
   if (W.wall === 'wrap') {
@@ -6032,11 +6474,11 @@ function moveNeutron(p, dt, c1, c2, kT) {
   const x0 = p.x, y0 = p.y;
   // nuclei in the MD set, by the two paths' closest approach (a slow nucleus drifting into a neutron at rest meets it
   // too); fast nuclei and other neutrons: neutronPairs, before this pass
-  const hits = relTargets(x0, y0, p.vx, p.vy, dt, 1.0, (t) => t.k === NUC && t.Z > 0, p.rad || KE > 1e3);
+  const hits = W.d3 ? relTargets3(x0, y0, p.z, p.vx, p.vy, p.vz, dt, 1.0, (t) => t.k === NUC && t.Z > 0, KE > 1e3) : relTargets(x0, y0, p.vx, p.vy, dt, 1.0, (t) => t.k === NUC && t.Z > 0, p.rad || KE > 1e3); // (3-D: the closest approach in three directions, 1.25)
   for (const [, tg, b0] of hits) {
     if (tg.dead || sameEv(p, tg)) continue;
     const R = nucReach(p, tg); // (a nucleus is hit where it is drawn)
-    const b = W.d3 ? Math.hypot(b0, tg.z - p.z) : b0; // (3-D: its depth counts too, 1.23.2; the search is still in the plane)
+    const b = b0;
     if (b < R && neutronHit(p, tg, b, R)) break;
   }
   if (p.dead) return;
@@ -6051,6 +6493,7 @@ function moveNeutron(p, dt, c1, c2, kT) {
 
 /* Fast (but not radiation-mode) particles: CCD encounters along the step, hard-sphere or Coulomb scattering. */
 function fastEncounters(p) {
+  if (W.d3) { fastEncounters3(p); return; } // (3-D, 1.25)
   const x0 = p.ox, y0 = p.oy, x1 = p.x, y1 = p.y;
   if (Math.abs(x1 - x0) > W.box.w / 2 || Math.abs(y1 - y0) > W.box.h / 2) return;
   if (p.k !== NUC) {
@@ -6076,6 +6519,72 @@ function fastEncounters(p) {
     if (p.ne === 0 && b < 0.6) { coulombScatter(p, A, b); return; }
   }
 }
+/* (3-D, 1.25) A ballistic nucleus's path this step (from where it was to where it is, in depth) against the atoms it
+   passes: hard spheres between atoms with electrons, Rutherford scattering for a bare one, as fastEncounters; the
+   turn is in the plane of its path and the target, toward or away from it. As in the flat game: within the fusion
+   gate it may fuse (tryFusion3); past radThreshold (2 keV), as a nucleus in radiation flight, it meets nuclei within
+   reach (nuclearEncounter: reactions above the Coulomb barrier, at the target's depth) and loses energy to the
+   electrons of the atoms it passes (fastStop3, moveRad's stopping). (1.25) */
+function fastEncounters3(p) {
+  const x0 = p.ox, y0 = p.oy, z0 = p.oz, x1 = p.x, y1 = p.y, z1 = p.z;
+  if (p.k !== NUC || Math.abs(x1 - x0) > W.box.w / 2 || Math.abs(y1 - y0) > W.box.h / 2 || Math.abs(z1 - z0) > W.box.d / 2) return;
+  const hot = p.Z > 0 && 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) > radThreshold(false);
+  const hits = segTargets3(x0, y0, z0, x1, y1, z1, Math.max(1.6, nucDrawR(p) + 0.9), (t) => t.k === NUC && t.Z > 0 && t !== p).slice();
+  if (hot) fastStop3(p, hits);
+  for (const [t, A, b] of hits) {
+    if (A.dead || p.dead || sameEv(p, A) || opp(p, A)) continue;
+    if (p.Z > 0 && b < fusGate() && tryFusion3(p, A, b)) return;
+    if (hot) { const R = nucReach(p, A); if (b < R && p.hit !== A.id) { p.hit = A.id; if (nuclearEncounter(p, A, b / R, A.x, A.y, A.z) || p.dead) return; } }
+    const contact = (p.ne > 0 && A.ne > 0) ? 0.35 * (p.ljR + A.ljR) : 0;
+    const cx = x0 + t * (x1 - x0) - A.x, cy = y0 + t * (y1 - y0) - A.y, cz = z0 + t * (z1 - z0) - A.z; // (from the target to the path's closest point)
+    if (contact > 0 && b < contact) { hardSphere3(p, A, b, contact, cx, cy, cz); return; }
+    if (p.ne === 0 && b < 0.6) { coulombScatter3(p, A, b, cx, cy, cz); return; }
+  }
+  if (p.hit && !hits.some(h => h[1].id === p.hit)) p.hit = 0; // (past it: a later pass may meet it again)
+}
+/* (3-D, 1.25) A charged nucleus past 2 keV loses energy to the electrons of the atoms it passes, as in the flat game's
+   radiation flight (moveRad: about z_eff²·n_e/β² for each, closest passes most; electrons set free square to the path at
+   a random azimuth): taken from its motion, given to the atom exactly. */
+function fastStop3(p, hits) {
+  let v = Math.sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz); if (!(v > 0)) return;
+  let K = 0.5 * p.m * v * v; const K0 = K, ux = p.vx / v, uy = p.vy / v, uz = p.vz / v;
+  const beta2 = Math.max(1e-8, (v / PHYS.C) ** 2), zeff = p.Z * (1 - Math.exp(-125 * Math.sqrt(beta2) / Math.pow(p.Z, 2 / 3)));
+  for (const [, tg, b] of hits) {
+    if (tg.dead || tg.ne <= 0 || tg.fast || sameEv(p, tg)) continue; // (another atom in flight: not ionized here; its electrons' energy is measured against the stepped world, 1.25)
+    const w = 1 / (1 + (b / 0.4) * (b / 0.4)), dE = Math.min(0.3 * K, 0.0047 * zeff * zeff * tg.ne / beta2 * w);
+    if (dE < 0.01) continue;
+    K -= dE;
+    if (W.nucWin && (p.nucProd || p.born >= W.nucWin.t0)) for (const m of molecule(tg)) m.nucProd = true;
+    const ie = ionizationCost(tg), n = turn3(ux, uy, uz, Math.PI / 2);
+    if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) { if (ejectElectron(tg, dE - ie, n[0], n[1], undefined, undefined, n[2])) W.count.ionize++; else dumpHeat(dE, tg, tg); }
+    else { const vn = tg.vx * n[0] + tg.vy * n[1] + tg.vz * n[2], a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); tg.vx += n[0] * a; tg.vy += n[1] * a; tg.vz += n[2] * a; updateFast(tg); } // (a push square to the path giving it exactly dE, whatever its own motion: the flat game's 0.7·√(2dE/m) is not exact, and on an atom itself in flight its cross term is keV)
+    if (K <= 1) break;
+  }
+  if (K < K0) { const f = Math.sqrt(Math.max(0.5, K) / K0); p.vx *= f; p.vy *= f; p.vz *= f; }
+}
+/* (3-D) The pair's relative velocity u turned: kept in the plane of u and the offset (cx, cy, cz) from the target to the
+   path, by the angle th away from the target (th < 0: toward it); the centre of mass's motion kept. */
+function turnPair3(a, b, th, cx, cy, cz) {
+  const M = a.m + b.m, Vx = (a.m * a.vx + b.m * b.vx) / M, Vy = (a.m * a.vy + b.m * b.vy) / M, Vz = (a.m * a.vz + b.m * b.vz) / M;
+  const ux = a.vx - b.vx, uy = a.vy - b.vy, uz = a.vz - b.vz, w = Math.sqrt(ux * ux + uy * uy + uz * uz);
+  if (!(w > 0)) return;
+  const hx = ux / w, hy = uy / w, hz = uz / w, pr = cx * hx + cy * hy + cz * hz;
+  let ex = cx - pr * hx, ey = cy - pr * hy, ez = cz - pr * hz; let el = Math.sqrt(ex * ex + ey * ey + ez * ez);
+  if (!(el > 1e-12)) { const r = turn3(hx, hy, hz, Math.PI / 2); ex = r[0]; ey = r[1]; ez = r[2]; el = 1; }
+  ex /= el; ey /= el; ez /= el;
+  const c = Math.cos(th), s_ = Math.sin(th), nx = w * (c * hx + s_ * ex), ny = w * (c * hy + s_ * ey), nz = w * (c * hz + s_ * ez);
+  a.vx = Vx + nx * b.m / M; a.vy = Vy + ny * b.m / M; a.vz = Vz + nz * b.m / M;
+  b.vx = Vx - nx * a.m / M; b.vy = Vy - ny * a.m / M; b.vz = Vz - nz * a.m / M;
+  updateFast(a); updateFast(b);
+}
+function hardSphere3(a, b, bimp, R, cx, cy, cz) { turnPair3(a, b, Math.PI - 2 * Math.asin(clamp(bimp / R, 0, 1)), cx, cy, cz); } // (a hard sphere turns the relative velocity by π − 2·asin(b/R), away from the target)
+function coulombScatter3(a, b, bimp, cx, cy, cz) {
+  if (W.nucWin) { const prod = (p) => p.nucProd || p.born >= W.nucWin.t0; if (prod(a) && !prod(b)) b.nucProd = true; else if (prod(b) && !prod(a)) a.nucProd = true; }
+  const mu = a.m * b.m / (a.m + b.m), ux = a.vx - b.vx, uy = a.vy - b.vy, uz = a.vz - b.vz, Ecm = 0.5 * mu * (ux * ux + uy * uy + uz * uz);
+  if (Ecm <= 0) return;
+  const qb = b.ne > 0 ? Math.max(1, b.Z - b.ne + 1) : b.Z, d = PHYS.KE * Math.max(1, a.Z) * qb / Ecm;
+  turnPair3(a, b, 2 * Math.atan(d / (2 * Math.max(bimp, 0.01))), cx, cy, cz); // (like charges: away from it)
+}
 /* Elastic binary collisions of a flying nucleus (exact in energy: velocities whose ½mv² is each one's kinetic
    energy, and setVel, which keeps a radiation-mode particle's stored energy and direction in step). */
 function hardSphere(a, b, bimp, R) {
@@ -6083,7 +6592,7 @@ function hardSphere(a, b, bimp, R) {
   const M = a.m + b.m, Vx = (a.m * avx + b.m * bvx) / M, Vy = (a.m * avy + b.m * bvy) / M;
   const rvx = avx - bvx, rvy = avy - bvy;
   const th = 2 * Math.acos(clamp(bimp / R, 0, 1)) * (rnd() < 0.5 ? 1 : -1);
-  const c = Math.cos(Math.PI - Math.abs(th)), s = Math.sin(Math.PI - Math.abs(th)) * Math.sign(th);
+  const c = Math.cos(th), s = Math.sin(th); // (bug fix after 1.25: the relative velocity turns by 2·acos(b/R) = π − 2·asin(b/R), back for a head-on hit and not at all for a grazing one; it turned by π − 2·acos(b/R), the other way round)
   const nx = rvx * c - rvy * s, ny = rvx * s + rvy * c;
   setVel(a, Vx + nx * b.m / M, Vy + ny * b.m / M);
   setVel(b, Vx - nx * a.m / M, Vy - ny * a.m / M);
@@ -6109,6 +6618,7 @@ let _ffOrd = new Int32Array(0), _ffKey = new Float64Array(0);
 function fastFastNuclear() {
   const n = _fastNuc.length;
   if (n < 2) return;
+  if (W.d3) { fastFastNuclear3(); return; } // (3-D, 1.25)
   // in order of x, so each nucleus is checked only against those within 12 Å to its right (a hot world has thousands
   // of fast nuclei: all pairs would be millions)
   if (_ffOrd.length < n) { _ffOrd = new Int32Array(n * 2); _ffKey = new Float64Array(n * 2); }
@@ -6135,6 +6645,32 @@ function fastFastNuclear() {
   }
 }
 
+/* (3-D, 1.25) Fast nucleus pairs in depth: the closest approach of the two paths; fusion within the gate, Rutherford
+   scattering. */
+function fastFastNuclear3() {
+  const n = _fastNuc.length;
+  if (_ffOrd.length < n) { _ffOrd = new Int32Array(n * 2); _ffKey = new Float64Array(n * 2); }
+  const ord = _ffOrd, key = _ffKey;
+  for (let i = 0; i < n; i++) { ord[i] = i; key[i] = _fastNuc[i].ox; }
+  const sub = ord.subarray(0, n); sub.sort((p, q) => key[p] - key[q] || p - q);
+  for (let ii = 0; ii < n; ii++) {
+    const a = _fastNuc[ord[ii]];
+    if (a.dead || a.Z < 1) continue;
+    for (let jj = ii + 1; jj < n; jj++) {
+      if (key[ord[jj]] - a.ox > 12) break;
+      const b = _fastNuc[ord[jj]];
+      if (b.dead || b.Z < 1 || sameEv(a, b)) continue;
+      const rx = b.ox - a.ox, ry = b.oy - a.oy, rz = b.oz - a.oz;
+      if (Math.abs(rx) > 12 || Math.abs(ry) > 12 || Math.abs(rz) > 12) continue;
+      const dx = (b.x - b.ox) - (a.x - a.ox), dy = (b.y - b.oy) - (a.y - a.oy), dz = (b.z - b.oz) - (a.z - a.oz), L2 = dx * dx + dy * dy + dz * dz;
+      const t0 = L2 > 0 ? -(rx * dx + ry * dy + rz * dz) / L2 : 0;
+      if (t0 > 1) continue;
+      const t = clamp(t0, 0, 1), ex = rx + t * dx, ey = ry + t * dy, ez = rz + t * dz, b2 = ex * ex + ey * ey + ez * ez;
+      if (b2 < fusGate() ** 2) { if (tryFusion3(a, b, Math.sqrt(b2))) break; }
+      if (b2 < 0.36 && !a.dead && !b.dead) coulombScatter3(a, b, Math.sqrt(b2), -ex, -ey, -ez); // (from b to a's path)
+    }
+  }
+}
 /* ------------------------------------------------------------------ integration */
 let dtAll = function (out) { return false; }; // eslint-disable-line no-unused-vars
 const _dtOut = new Float64Array(3);
@@ -6233,6 +6769,10 @@ function innerDt3() { // (3-D: speeds and accelerations in three directions; a m
     if (a > 0) dt = Math.min(dt, Math.sqrt(0.04 / a));
   }
   if (_stiffL > 0) dt = Math.min(dt, 0.15 / Math.sqrt(_stiffL));
+  // (bug fix 7 after 1.25: two free leptons sweeping past each other at hundreds of Å/tu cross their soft core, 0.2 Å, in
+  // less than an inner step's LEP_STEP; the step must resolve the pass (3% of the core's crossing time: 10% left 29 eV, 3% 2 eV, 1% 0.3 eV), or each
+  // close pass gains or loses eV: eight electrons put down in a 1 Å cluster drifted by 30–120 eV in 3-D)
+  if (_passL > 0) dt = Math.min(dt, 0.03 / Math.sqrt(_passL));
   return Math.max(DT_MIN, dt);
 }
 /* A pair with at least one free lepton, fast part only (the same physics as pairForce). dx, dy: j − i. */
@@ -6407,7 +6947,7 @@ function flBuild3() {
 }
 /* 3-D: the fast part for the inner steps (computeFast in JavaScript, with z). */
 function computeFast3() {
-  _stiffL = 0;
+  _stiffL = 0; _passL = 0;
   const GX = S.gx, GY = S.gy, GZ = S.gz, mdI = _mdI, nmd = _nmd;
   for (let q = 0; q < nmd; q++) { const i = mdI[q]; GX[i] = 0; GY[i] = 0; GZ[i] = 0; }
   if (!_mdL.length) return;
@@ -6431,6 +6971,7 @@ function computeFast3() {
         const s2 = r2 + 0.04, Q = S.q;
         f = PHYS.KE * Q[L] * Q[A] * r / (s2 * Math.sqrt(s2));
         { const w = PHYS.KE * (Math.abs(0.04 - 2 * r2) + s2) / (s2 * s2 * Math.sqrt(s2)) * (S.im[L] + S.im[A]); if (w > _stiffL) _stiffL = w; }
+        { const ux = S.vx[A] - S.vx[L], uy = S.vy[A] - S.vy[L], uz = S.vz[A] - S.vz[L], w = (ux * ux + uy * uy + uz * uz) / s2; if (w > _passL) _passL = w; } // (how fast the pair sweeps past its own core: bug fix 7 after 1.25)
         if (S.k[L] !== S.k[A] && r < 0.3 && !_lepEvOff) queue(EV.ANNIH, S.obj[L], S.obj[A], null, r);
       }
       if (f > FCAP) f = FCAP; else if (f < -FCAP) f = -FCAP;
@@ -6783,7 +7324,7 @@ function innerSteps3(Dt) {
    resized), and is lost through an open one. A positron meets the wall's own electrons. */
 function leptonWall(p) {
   if (W.d3 && W.wall === 'open') { wallStop3(p, 'qOut'); return; } // (3-D: its energy counted as escaped, 1.23.2)
-  if (W.wall === 'open') { chargeTo(p.q, 'qOut'); kill(p); return; }
+  if (W.wall === 'open') { wallOut2(p); return; } // (its energy counted as escaped: bug fix after 1.25)
   if (p.k === POS) { annihilateAtWall(p); return; }
   if (W.d3 && 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) > radThreshold(true)) { wallStop3(p); return; } // (3-D: a fast electron is stopped in a closed wall, as radiation flight is in the flat box, 1.23.2)
   const hw = W.box.w / 2, hh = W.box.h / 2, uw = W.box.uw, uh = W.box.uh;
@@ -6797,6 +7338,7 @@ function leptonWall(p) {
    one. A segment ends just past the next wall (reflected or wrapped there), and is at most 45% of the box across
    or a quarter turn in a magnetic field. An applied electric field is exact on a segment (uniform acceleration). */
 function moveFastLeptons(Dt, id0) {
+  if (W.d3) { moveFastLeptons3(Dt, id0); return; }
   const hasB = hasBfield(), hasE = hasEfield();
   const hw = W.box.w / 2, hh = W.box.h / 2, Lmax = 0.45 * Math.min(W.box.w, W.box.h), look = _nNucMD > 0;
   const DEAD = S.dead, RAD = S.rad, K = S.k, FAST = S.fast, BALL = S.ballistic, ID = S.id, OBJ = S.obj;
@@ -6990,7 +7532,7 @@ function walls(p) {
   }
   if (W.d3) { walls3(p); return; }
   if ((p.k === POS || p.anti) && W.wall === 'reflect' && (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh)) { annihilateAtWall(p); return; }
-  if (W.wall === 'open') { if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh) { chargeTo(p.q, 'qOut'); kill(p); } return; }
+  if (W.wall === 'open') { if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh) wallOut2(p); return; }
   const uw = W.box.uw, uh = W.box.uh;
   if (!p.fast) { // soft walls handle slow particles; only rescue deep escapees, handing back their potential energy
     const m = 1.5, rin = p.k === NUC ? wallIn(p) : 0, hw = hw0 - rin, hh = hh0 - rin; // (the wall where its edge meets it)
@@ -7054,7 +7596,18 @@ function walls3(p) {
    box for ever, in steps a thousandth as long. */
 function wallStop3(p, where) {
   const ke = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz), nuc = p.k === NUC;
-  const set = nuc ? setOf(molecule(p)) : null, U0 = nuc ? localPE(set) : p.q * phiE(p.x, p.y, p, undefined, p.z);
+  const set = nuc ? setOf(molecule(p)) : null, U0 = nuc ? localPE(set) : p.fast ? 0 : p.q * phiE(p.x, p.y, p, undefined, p.z); // (a lepton in flight carries no potential energy in the books: bug fix 14 after 1.25)
+  if (!where && nuc && p.ne > 0 && p.Z >= 3 && p.fast) { // (1.25: one in flight, as atoms fly in 3-D now: back into the stepped set at the wall's temperature, the books measured over its molecule as totalEnergy counts it, flight or not: regionE)
+    const T = new Set(set), E0 = regionE(T), hw = W.box.w / 2 - 0.6, hh = W.box.h / 2 - 0.6, hd = W.box.d / 2 - 0.6;
+    p.fast = false; if (S.inMD[p.i] === 0 && !_late.includes(p)) _late.push(p);
+    p.x = clamp(p.x, -hw, hw); p.y = clamp(p.y, -hh, hh); p.z = clamp(p.z, -hd, hd);
+    _crowd = null; placeClear([p], 8, p.bonds.map(bd => other(bd, p))); _crowd = null;
+    const v = thermalV(p.m, W.T), into = (c, h, u) => (c >= h - 0.01 ? -Math.abs(u) : c <= -h + 0.01 ? Math.abs(u) : u);
+    p.vx = into(p.x, hw, v[0]); p.vy = into(p.y, hh, v[1]); p.vz = into(p.z, hd, v[2]);
+    W.ledger.escaped += E0 - regionE(T);
+    _wallMoved = true;
+    return;
+  }
   if (!where && nuc && p.ne > 0 && p.Z >= 3) { // a recoiling atom: stopped within nanometres, back off the wall at its temperature
     const hw = W.box.w / 2 - 0.6, hh = W.box.h / 2 - 0.6, hd = W.box.d / 2 - 0.6;
     p.x = clamp(p.x, -hw, hw); p.y = clamp(p.y, -hh, hh); p.z = clamp(p.z, -hd, hd);
@@ -7071,6 +7624,65 @@ function wallStop3(p, where) {
   kill(p); if (partners.length) relink(partners.filter(q => !q.dead));
   let U1 = 0; if (nuc) { const rest = new Set(); for (const q of set) if (!q.dead) rest.add(q); U1 = rest.size ? localPE(rest) : 0; }
   W.ledger.escaped += ke + I0 + U0 - U1;
+}
+/* A particle leaving through an open wall in the flat game: its energy (motion, potential energy with what stays,
+   electrons' binding) goes to ledger.escaped, as wallStop3 books it in 3-D (bug fix after 1.25: it was removed
+   unbooked, a water molecule taking about 2 keV of the books with it). */
+function wallOut2(p) {
+  const nuc = p.k === NUC, ke = 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy), set = nuc ? setOf(molecule(p)) : null;
+  const U0 = nuc ? localPE(set) : p.fast ? 0 : p.q * phiE(p.x, p.y, p), I0 = internalE(p), partners = p.bonds.map(bd => other(bd, p));
+  chargeTo(p.q, 'qOut');
+  kill(p); if (partners.length) relink(partners.filter(q => !q.dead));
+  let U1 = 0; if (nuc) { const rest = new Set(); for (const q of set) if (!q.dead) rest.add(q); U1 = rest.size ? localPE(rest) : 0; }
+  W.ledger.escaped += ke + I0 + U0 - U1;
+  _wallMoved = true; // (the forces it put on what stays are gone: the next step starts from forces without it)
+}
+/* (bug fix 14 after 1.25) Fast electrons and positrons in 3-D. They were all stepped, with ½mv² for their energy and v
+   for their speed, so an MeV one moved at several times c (a 10 MeV electron 6c), in inner steps held at DT_MIN that
+   carried it 4 Å past every nucleus, and the books slipped (−367 eV over 150 γ rays of 20 MeV into lead). Past LEP3_ON
+   (25 keV, where ½mv² puts it at 0.3c) a lepton now leaves the stepped set (switchMode pays its potential energy, as for
+   atoms in flight) and flies straight at its relativistic speed, its kinetic energy still ½m|v|² of the stored v (so the
+   books are as before); a magnetic field turns it at qB/γm; along its path it loses energy to the atoms' electrons as in
+   the flat game's radiation flight (≈ n_e/β² for each, closest passes most; the electrons set free square to its path,
+   exact: what it loses, they get). Below LEP3_OFF (20 keV) it is stepped again. Walls: leptonWall (a closed wall stops
+   it, its energy escaped). */
+const LEP3_ON = 25e3, LEP3_OFF = 20e3;
+function moveFastLeptons3(Dt, id0) {
+  const hasB = hasBfield(), DEAD = S.dead, RAD = S.rad, K = S.k, FAST = S.fast, ID = S.id, OBJ = S.obj;
+  const hw = W.box.w / 2, hh = W.box.h / 2, hd = W.box.d / 2, Lmax = 0.45 * Math.min(W.box.w, W.box.h, W.box.d);
+  for (let j = 0; j < W.parts.length; j++) {
+    const si = partsSync()[j];
+    if (DEAD[si] === 1 || RAD[si] === 1 || K[si] === NUC || FAST[si] === 0 || ID[si] >= id0) continue;
+    const p = OBJ[si];
+    let rem = Dt;
+    for (let seg = 0; seg < 200 && rem > 1e-15 && !p.dead && p.fast; seg++) { // (segments of at most 45% of the box: walls and wrapping met one at a time)
+      let v = Math.sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz); if (!(v > 0)) break;
+      const K0 = 0.5 * p.m * v * v, g = 1 + K0 / (PHYS.MEC2 * 1e6), vr = PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g))), sc = vr / v;
+      const h = Math.min(rem, Lmax / vr); rem -= h;
+      const x0 = p.x, y0 = p.y, z0 = p.z, B = hasB ? Bfield3(p.x, p.y, p.z) : 0;
+      if (B) { gyrate3(p, B, h / g); p.x = x0 + (p.x - x0) * sc * g; p.y = y0 + (p.y - y0) * sc * g; p.z = z0 + (p.z - z0) * sc * g; } // (the arc of angle qB·t/γm, its length vr·t)
+      else { p.x += p.vx * sc * h; p.y += p.vy * sc * h; p.z += p.vz * sc * h; }
+      p.ox = x0; p.oy = y0; p.oz = z0;
+      // energy given to the electrons of the atoms it passes
+      v = Math.sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz);
+      const ux = p.vx / v, uy = p.vy / v, uz = p.vz / v, beta2 = Math.max(1e-8, (vr / PHYS.C) ** 2);
+      let Ke = K0;
+      for (const [, tg, b] of segTargets3(x0, y0, z0, p.x, p.y, p.z, 1.0, (t) => t.k === NUC && t.Z > 0 && t.ne > 0 && !t.fast).slice()) {
+        if (tg.dead || tg.ne <= 0) continue;
+        const w = 1 / (1 + (b / 0.4) * (b / 0.4)), dE = Math.min(0.3 * Ke, 0.0047 * tg.ne / beta2 * w);
+        if (dE < 0.01) continue;
+        Ke -= dE;
+        const ie = ionizationCost(tg), n = turn3(ux, uy, uz, Math.PI / 2);
+        if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) { if (ejectElectron(tg, dE - ie, n[0], n[1], undefined, undefined, n[2])) W.count.ionize++; else dumpHeat(dE, tg, tg); }
+        else { const vn = tg.vx * n[0] + tg.vy * n[1] + tg.vz * n[2], a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); tg.vx += n[0] * a; tg.vy += n[1] * a; tg.vz += n[2] * a; updateFast(tg); }
+        if (Ke <= 1) break;
+      }
+      if (Ke < K0) { const f = Math.sqrt(Math.max(0, Ke) / K0); p.vx *= f; p.vy *= f; p.vz *= f; }
+      if (p.trk) extendTrack(p); else if (Ke > 2e3) startTrack(p);
+      if (p.x < -hw || p.x > hw || p.y < -hh || p.y > hh || p.z < -hd || p.z > hd) { if (W.wall === 'wrap') walls(p); else leptonWall(p); }
+      if (!p.dead) updateFast(p);
+    }
+  }
 }
 /* Periodic housekeeping: π-bond formation between adjacent radicals, field ionization, electron shedding. */
 /* Counters that let the step skip whole-store loops with nothing to do, exactly:
@@ -7218,6 +7830,7 @@ function piFast() { // the bonds' and angles' forces alone, into S.fx/S.fy (clea
     _kStiff = 0;
     if (wasm3Ready()) { wasmDesc(); wasmDesc3(); wasmForces3(0, 0, 0, BD.n, 0, AC.n, 0, AC3.nt, S.fx, S.fy, S.fz, CQ, wrap, bw, bh, bd, hw, hh, hd, W.step); }
     else { bondKernel3(0, BD.n, S.fx, S.fy, S.fz, CQ, 0, wrap, bw, bh, bd, hw, hh, hd); angleKernel3(0, AC.n, 0, AC3.nt, S.fx, S.fy, S.fz, wrap, bw, bh, bd); }
+    if (AC3.ns) tors1Forces3(S.fx, S.fy, S.fz); // (the single bonds' twist, 1.25)
     if (_kStiff > _stiff) _stiff = _kStiff; _kStiff = 0;
     return;
   }
@@ -7258,7 +7871,8 @@ function piForcesC() {
   PI.fGen++;
 }
 function piForces() {
-  if (piContract()) return piForcesC();
+  if (piContract()) { vlReachSet(0); return piForcesC(); }
+  vlReachSet(PI.oz ? PI_SKIN3 : 0); // (3-D: a list every bead's pass can use, bug fix 17 after 1.25)
   const P = PI.P, cap = PI.cap, L = PI.list, n = PI.n, FX = S.fx, FY = S.fy, GX = S.gx, GY = S.gy, hi = S.hi;
   const ax = new Float64Array(hi), ay = new Float64Array(hi), gx = new Float64Array(hi), gy = new Float64Array(hi), ev = _noEv;
   const d3 = !!PI.oz, FZ = S.fz, GZ = S.gz, az = d3 ? new Float64Array(hi) : null, gz = d3 ? new Float64Array(hi) : null; // (3-D, 1.24)
@@ -7622,7 +8236,7 @@ function stepPlain(dt) {
       if (FAST[i] === 1) { if (BALL[i] === 1 && k !== NUC) continue; } // flew and collided in moveFastLeptons
       else if (k === NUC && !wrap) { // an atom inside the box, going at an atom's pace: walls and updateFast would do nothing
         const x = X[i], y = Y[i];
-        if (x > -hw && x < hw && y > -hh && y < hh && VX[i] * VX[i] + VY[i] * VY[i] <= V_FAST_ON * V_FAST_ON && (!d3 || (Zp[i] > -hd && Zp[i] < hd))) {
+        if (x > -hw && x < hw && y > -hh && y < hh && (d3 ? VX[i] * VX[i] + VY[i] * VY[i] + S.vz[i] * S.vz[i] : VX[i] * VX[i] + VY[i] * VY[i]) <= V_FAST_ON * V_FAST_ON && (!d3 || (Zp[i] > -hd && Zp[i] < hd))) { // (3-D: the depth's speed too, 1.25)
           if (_trkN === 0 && _skipOk) continue; // (no particle has a track)
           const p = OBJ[i];
           if (p.trk) { extendTrack(p); if (!p.trkKeep && 0.5 * M[i] * (VX[i] * VX[i] + VY[i] * VY[i]) < 200) p.trk = null; }
@@ -7836,7 +8450,7 @@ function measure() {
 
 /* ------------------------------------------------------------------ world construction helpers */
 /* continuous bond orders (bo.js), asked of by the engine's force and energy passes */
-const BO = { on: false, qm: false, any: false, pairs: [], np: 0, E: 0, cache: new Map(), Ztab: new Set([1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53]), bath: 0, changes: 0 };
+const BO = { on: false, qm: false, any: false, pairs: [], np: 0, E: 0, cache: new Map(), Ztab: new Set([1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53, 32, 33, 34, 50, 51, 52]), /* (Ge, As, Se, Sn, Sb, Te since 1.25) */ bath: 0, changes: 0 };
 function clearWorld() {
   BO.np = 0; BO.any = false; BO.E = 0;
   dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
@@ -7848,15 +8462,14 @@ function clearWorld() {
   _Tb = 0; // (a new world: the bath it has followed is its own)
   W.d3 = false; W.box.d = 0; W.box.td = 0; W.box.ud = 0; W.Ez = 0; W.Bax3 = 'z'; // (a new world is flat; world3d makes it 3-D; Ez, Bax3: 3-D fields, 1.24)
   if (PI.cap) { PI.ox = PI.oy = PI.vx = PI.vy = PI.fx = PI.fy = PI.oz = PI.vz = PI.fz = PI.id = null; PI.cap = 0; PI.n = 0; PIM.valid = false; PIM.vStale = false; PIM.qx = null; PIM.qz = null; } // (quantum nuclei: a new world's rings are made afresh, flat or with depth, 1.24)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.muAtoms = []; W.at = W.at || 0;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.lrKnown = false; W.muAtoms = []; W.at = W.at || 0;
   _rxCache.clear();
 }
 /* Make the (empty) world 3-D, depth d Å (by default as deep as it is high): positions from −d/2 to +d/2 in z, walls on
    the z faces too (periodic walls wrap z). Stage 1a: the engine only (Node; nothing draws it). The modes that are flat
-   only are switched off and refuse to come on: continuous bond orders and quantum bonds, quantum nuclei, electrons as
-   waves, charges that respond to their surroundings. */
+   only were switched off here once; since 1.24 (quantum bonds, nuclei, waves, induced charges) and 1.25 (continuous
+   bond orders) they all work in 3-D. */
 function world3d(d) {
-  if (typeof boSet === 'function' && (BO.on || BO.any) && !BO.qm) boSet(0); // (continuous bond orders: flat only; quantum bonds work in 3-D since 1.24)
   W.d3 = true; W.box.d = W.box.td = d > 0 ? d : W.box.h; W.box.ud = 0; // (td: the depth the box-size slider wants, 1.24)
   VL.valid = false; FL.gen = -1; _mdGen++; _clsN = -1; gridTouch(); W.dirty++; W.fSpawn = -1;
 }
@@ -7950,6 +8563,7 @@ function relax3(atoms, passes) {
       for (let k = 0; k < nb; k++) _nb3[k] = other(p.bonds[k], p).i;
       const t = angleTargets3(p, nb); angle3Centre(p.i, _nb3, nb, t[0], t[1], t[2], FX, FY, FZ);
       for (const bd of p.bonds) if (p.id < other(bd, p).id) torsionsOf3(bd, (X, A, B, Y) => { triple3(X.i, A.i, A.i, B.i, B.i, Y.i, K_TOR, FX, FY, FZ); });
+      for (const bd of p.bonds) if (p.id < other(bd, p).id) tors1Of3(bd, (X, A, B, Y, k) => { kb3FromW(); tors1K(X.i, A.i, B.i, Y.i, k[0], k[1], k[2], k[3], FX, FY, FZ); }); // (1.25)
     }
   };
   let E = energy(), h = 0.02;
@@ -8152,7 +8766,7 @@ function settleOverlaps() {
 function fireSpec(spec, x, y, ux, uy, KE, free, z = 0, uz = 0) { // (z, uz: 3-D)
   if (spec.kind === 'gamma') { if (W.d3) emitPhoton(x, y, KE, ux, uy, { z, uz }); else emitPhoton(x, y, KE, ux, uy); return null; } // (3-D: along its direction in depth, 1.24)
   if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e', z, uz); return null; }
-  if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy); // (1.12: an atom, in MD)
+  if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy, 1, z, uz); // (1.12: an atom, in MD; 3-D: in depth, 1.25)
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy, undefined, z, uz) : null; // (a muon, pion …: from outside, as any fired particle; 3-D: in depth, 1.24)
   const ps = spawnClear(spec, x, y, 0, free, z);
   if (!ps.length) return null;
@@ -8246,6 +8860,7 @@ function totalEnergy0() {
   for (const bd of W.bonds) pe += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
   pe += boE;
+  if (MBO.on) pe += mbPass(false); // (metals' many-body energy, 1.25)
   if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls

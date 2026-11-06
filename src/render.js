@@ -1820,8 +1820,22 @@ function lightHead(o, kind) {
   const m = rayFrac(o); return [o.x0 + (o.x1 - o.x0) * m, o.y0 + (o.y1 - o.y0) * m];
 }
 /* The nearest photon, neutrino or unstable particle to a point on the screen, within extra pixels (for the Inspect tool). */
+function lightHead3(o, kind) { // (3-D: where it is drawn, with its depth; lines without one lie at z = 0, as drawLight3 has them)
+  if (kind === 'exo') return o.dead ? null : [o.x, o.y, o.z || 0];
+  const z0 = o.z0 || 0, z1 = o.z1 === undefined ? z0 : o.z1;
+  let m;
+  if (kind === 'flight') { if (W.t < o.t0) return null; m = clamp((W.t - o.t0) * PHYS.C, 0, o.len) / (o.len || 1); } else m = rayFrac(o);
+  return [o.x0 + (o.x1 - o.x0) * m, o.y0 + (o.y1 - o.y0) * m, z0 + (z1 - z0) * m];
+}
 function pickLight(px, py, extra = 10) {
-  if (W.d3) return null; // (3-D, stage 2: light in flight is not drawn)
+  if (W.d3) { // (bug fix 8 after 1.25: in 3-D its head projected through the camera; it was not looked for at all)
+    cam3Update(); const P = [0, 0, 0]; let best3 = null, b3 = extra * extra;
+    const near = (o, kind) => { const h = lightHead3(o, kind); if (!h || !proj3(h[0], h[1], h[2], P)) return; const d2 = (P[0] - px) ** 2 + (P[1] - py) ** 2; if (d2 < b3) { b3 = d2; best3 = { kind, o }; } };
+    for (const o of W.exo) if (!o.dead) near(o, 'exo');
+    for (const f of W.flights) near(f, 'flight');
+    for (const r of W.rays) if (!r.landed) near(r, 'ray');
+    return best3;
+  }
   const [wx, wy] = s2w(px, py); let best = null, bd = extra * extra;
   const consider = (o, kind) => { const h = lightHead(o, kind); if (!h) return; const dx = (h[0] - wx) * R.s, dy = (h[1] - wy) * R.s, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; best = { kind, o }; } };
   for (const o of W.exo) if (!o.dead) consider(o, 'exo');

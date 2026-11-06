@@ -4,9 +4,14 @@ const fs = require('fs');
 const X = require(require('path').join(__dirname, '..', 'tests', 'load.js')).load('all', { seed: 3 }), W = X.W;
 const setup = process.argv[3] || 'gallery';
 if (setup === 'gallery') { X.PRESETS.gallery.build(); X.addMolecule('H3Op', 0, 0, 0, 300); X.addMolecule('SF6', 8, 0, 0, 300); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p); X.settleOverlaps(); }
+else if (setup === 'heavy') { // (1.25: SbCl₃ with a Cl–Sb–Cl angle of 150°, its two ends 4.5 Å apart, past the old fixed 1-3 reach of 4.4 Å; GeCl₄, SnH₄, H₂Te)
+  X.PRESETS.empty.build(); X.setBox(40, 30);
+  for (const [c, l, n, x0] of [['Sb', 'Cl', 3, -12], ['Ge', 'Cl', 4, -3], ['Sn', 'H', 4, 6], ['Te', 'H', 2, 13]]) { const C = X.addAtom(c, x0, 0, { T: 300 }), L = X.bondLength(C.el, X.ELEMENTS[X.SYM2Z[l]], 1); for (let i = 0; i < n; i++) { const t = 2 * Math.PI * i / n; X.addBond(C, X.addAtom(l, x0 + L * Math.cos(t), L * Math.sin(t), { T: 300 }), 1); } }
+}
 else { X.PRESETS[setup].build(); for (const p of W.parts) if (p.k !== X.NUC) X.kill(p); }
 X.boSet(true); X.forcesNoEvents(); W.fSpawn = W.spawned;
 for (let i = 0; i < 40; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+if (setup === 'heavy') { const sb = W.parts.find(p => p.Z === 51), cl = W.parts.filter(p => p.Z === 17).slice(0, 3); [0, 150, 255].forEach((d, i) => { cl[i].x = sb.x + 2.33 * Math.cos(d * Math.PI / 180); cl[i].y = sb.y + 2.33 * Math.sin(d * Math.PI / 180); }); X.gridTouch(); }
 X.forcesNoEvents();
 const BF = X.BF, BFW = X.BFW, S = X.S, VL = X.VL, WK = X.WK;
 if (process.env.FRAC) W.parts.filter(p => p.bom && p.Z > 1).forEach((p, i) => { p._dq = ((i * 0.37) % 0.6) - 0.3; }); // (moving charge: counts off the whole)
@@ -16,7 +21,7 @@ const P = BFW.par; P.fill(0);
 P[3] = W.wall === 'wrap' ? 1 : 0; P[4] = W.box.w; P[5] = W.box.h; P[6] = W.box.w / 2; P[7] = W.box.h / 2; P[13] = VL.np; P[11] = BF.pcapN; P[1] = nm; P[2] = 1; P[12] = X.BF_SUP1 ? 0 : 0;
 if (!X.bfDescFill()) throw new Error('desc');
 S.fx.fill(0); S.fy.fill(0);
-P[12] = 4 * VL.np + 16;
+P[12] = 4 * VL.np + 16; P[15] = BF.r13; // (the 1-3 reach, 1.25)
 const image = Buffer.from(new Uint8Array(WK.mem.buffer, 0, WK.top));  // (a copy)
 // the JavaScript pass on the same state
 const E = X.boPassJS(true), n = BF.np, hi = S.hi;

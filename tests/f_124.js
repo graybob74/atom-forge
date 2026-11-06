@@ -52,7 +52,7 @@ PARTS.box = async (page, check, say) => {
     loadPreset('mol3d'); setRunning(false); showTab('lab', true);
     const el = $('boxSlider'), dis = el.disabled; el.value = sFromBox(20); el.dispatchEvent(new Event('input'));
     const td = W.box.td; for (let i = 0; i < 400; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
-    return { dis, td: +td.toFixed(2), box: [W.box.w, W.box.h, W.box.d].map(v => +v.toFixed(2)), txt: $('boxH').textContent, note: !$('box3dNote').hidden && !/Not in 3-D/.test($('box3dNote').textContent) };
+    return { dis, td: +td.toFixed(2), box: [W.box.w, W.box.h, W.box.d].map(v => +v.toFixed(2)), txt: $('boxH').closest('.val').textContent, /* (1.25.0: the depth its own figure) */ note: !$('box3dNote').hidden && !/Not in 3-D/.test($('box3dNote').textContent) };
   });
   const run = (to) => { // 64 argon atoms in a 30 Å cube, insulated; the walls' work measured as the soft walls' energy jumps when they move
     const X = load('all', { seed: 1, patch: (s) => s.replace(/function moveWalls3\(dt\) \{/, 'function moveWalls3(dt) { const a = _wpe(); moveWalls3_(dt); WORK += _wpe() - a; }\nfunction moveWalls3_(dt) {') + '\nlet WORK = 0; function _wpe() { let u = 0; for (const p of W.parts) if (!p.dead && p.k === NUC && !p.fast && !p.rad && p.Z > 0) u += wallPE(p); return u; }' });
@@ -173,18 +173,20 @@ PARTS.hep = async (page, check, say) => {
     for (let k = 0; k < 5; k++) { const p = X.addLepton(X.POS, -10, -5 + 2 * k, 0, 0, -4 + 2 * k, 0); X.setMotion(p, 200, 1, 0.05, 0, 0, 0.02); X.forcesNoEvents(); W.fSpawn = W.spawned; const b = books(X), r0 = W.rays.length; let s = 0; while (!p.dead && s < 3000) { go(1); s++; } if (p.dead) { n++; worst = Math.max(worst, Math.abs(books(X) - b)); for (const r of W.rays.slice(r0)) if (r.z0 !== undefined && Math.abs(r.z0) > 0.5) zs++; } }
     return { n, worst: +worst.toFixed(3), zs }; })();
   say('  3-D particles: ' + JSON.stringify({ pg, rest, fly, water, pos }));
-  check(pg.ok.every(Boolean) && pg.nu && pg.pos && !pg.mu && pg.menu && pg.z === 5 && pg.mz === 0.447 && rest.p === 29.792 && rest.p1 === 29.792 && rest.mean < 0.1 && rest.sq.every(v => Math.abs(v - 1 / 3) < 0.05) && rest.books < 1e-4 && fly.n === 40 && fly.worst < 1e-9 && water.every(w => Math.abs(w.books) < 3) && pos.n >= 4 && pos.worst < 0.5 && pos.zs > 0,
+  // (1.25: muonic atoms are placeable in 3-D (pg.mu), and the pions now meet the nuclei they pass: a few reactions, whose MeV
+  // nucleons and keV recoils fly and slow in 3-D; the books over the 200 steps then within 30 eV of 500 MeV of pions (+10 measured))
+  check(pg.ok.every(Boolean) && pg.nu && pg.pos && pg.mu && pg.menu && pg.z === 5 && pg.mz === 0.447 && rest.p === 29.792 && rest.p1 === 29.792 && rest.mean < 0.1 && rest.sq.every(v => Math.abs(v - 1 / 3) < 0.05) && rest.books < 1e-4 && fly.n === 40 && fly.worst < 1e-9 && water.every(w => Math.abs(w.books) < (w.sp === 'pi+' ? 30 : 3)) && pos.n >= 4 && pos.worst < 0.5 && pos.zs > 0,
     `1.24: unstable particles in 3-D: pions, kaons, muons, hyperons, neutrinos and positrons in the 3-D menus, placed and fired in depth; π⁺ at rest → μ⁺ at ${rest.p} MeV/c every time, isotropic (⟨u²⟩ ${rest.sq.join(', ')}), books ${rest.books.toExponential(1)} eV; K⁺ at 500 MeV decaying in flight keeps its momentum to ${fly.worst.toExponential(1)} in x, y and z; muons and pions through water: books ${water.map(w => w.sp + ' ' + w.books).join(', ')} eV; positrons annihilating in water: worst ${pos.worst} eV, their γ rays at their depth`, '1.24 particles: ' + JSON.stringify({ pg, rest, fly, water, pos }));
 };
 
 /* ---- 6. the Experimental settings in 3-D: induced charges, quantum nuclei, quantum bonds, electrons as waves and the
-   ultra-realistic mode on in a 3-D world (their controls enabled; continuous bond orders still flat-only), each with
+   ultra-realistic mode on in a 3-D world (their controls enabled; continuous bond orders too since 1.25), each with
    its insulated books */
 PARTS.exp = async (page, check, say) => {
   const ui = await page.evaluate(() => {
     loadPreset('water3d'); setRunning(false);
     const en = (sel) => [...document.querySelectorAll(sel)].map(b => !b.disabled);
-    const r = { qeq: en('#segQeq button'), pi: en('#segPi button'), rpc: en('#segPiRpc button'), wave: en('#segWave button'), bo: en('#segBo button'), ultra: !$('setUltra').disabled, note: /From the positions/.test($('set3dNote').textContent) && !/induced charges, quantum nuclei, continuous/.test($('set3dNote').textContent) };
+    const r = { qeq: en('#segQeq button'), pi: en('#segPi button'), rpc: en('#segPiRpc button'), wave: en('#segWave button'), bo: en('#segBo button'), ultra: !$('setUltra').disabled, note: /from the positions/i.test($('set3dNote').textContent) && !/induced charges, quantum nuclei, continuous/.test($('set3dNote').textContent) };
     loadPreset('empty'); r.flat = en('#segBo button'); return r;
   });
   const go = (X, n) => { const W = X.W; for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); } };
@@ -202,8 +204,8 @@ PARTS.exp = async (page, check, say) => {
     return { packets: X.WAVE.mem.filter(p => p.wm && !p.dead).length, books: +(X.totalEnergy().total - e0 + (W.ledger.bath - b0)).toFixed(4) }; })();
   say('  3-D Experimental: ' + JSON.stringify({ ui, qeq, pi, qm, wave }));
   const all = (a) => a.every(Boolean);
-  check(all(ui.qeq) && all(ui.pi) && all(ui.rpc) && all(ui.wave) && ui.bo[0] && !ui.bo[1] && ui.bo[2] && ui.ultra && ui.note && all(ui.flat) && qeq.n >= 200 && qeq.qi > 0.03 && Math.abs(qeq.books) < 0.5 && pi.beads === 8 && pi.rz > 0.03 && Math.abs(pi.books) < 0.1 && qm.mem >= 10 && qm.slope < 1e-5 && qm.fz && Math.abs(qm.books) < 0.05 && qm.fails === 0 && wave.packets >= 4 && Math.abs(wave.books) < 0.3,
-    `1.24: Experimental settings in 3-D (bond orders "From the positions" still flat-only): induced charges in liquid water, ${qeq.n} updates, ⟨|qi|⟩ ${qeq.qi} e, books ${qeq.books} eV over 200 steps; quantum nuclei, 8 beads, hydrogen rings ${pi.rz} Å deep in z, books ${pi.books} eV; quantum bonds, ${qm.mem} members, force = slope to ${qm.slope} eV/Å in x, y and z, books ${qm.books} eV; electrons as waves, ${wave.packets} packets, books ${wave.books} eV`, '1.24 Experimental: ' + JSON.stringify({ ui, qeq, pi, qm, wave }));
+  check(all(ui.qeq) && all(ui.pi) && all(ui.rpc) && all(ui.wave) && ui.bo[0] && ui.bo[1] && ui.bo[2] && ui.ultra && ui.note && all(ui.flat) && qeq.n >= 200 && qeq.qi > 0.03 && Math.abs(qeq.books) < 0.5 && pi.beads === 8 && pi.rz > 0.03 && Math.abs(pi.books) < 0.1 && qm.mem >= 10 && qm.slope < 1e-5 && qm.fz && Math.abs(qm.books) < 0.05 && qm.fails === 0 && wave.packets >= 4 && Math.abs(wave.books) < 0.3,
+    `1.24: Experimental settings in 3-D (bond orders "From the positions" too since 1.25): induced charges in liquid water, ${qeq.n} updates, ⟨|qi|⟩ ${qeq.qi} e, books ${qeq.books} eV over 200 steps; quantum nuclei, 8 beads, hydrogen rings ${pi.rz} Å deep in z, books ${pi.books} eV; quantum bonds, ${qm.mem} members, force = slope to ${qm.slope} eV/Å in x, y and z, books ${qm.books} eV; electrons as waves, ${wave.packets} packets, books ${wave.books} eV`, '1.24 Experimental: ' + JSON.stringify({ ui, qeq, pi, qm, wave }));
 };
 
 module.exports = async function f124(page, check, say, openPage, only) {

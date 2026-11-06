@@ -397,8 +397,10 @@ function render3d(rt) {
   }
   drawMeasure3(ctx);
   if (R.view.rays) drawLight3(ctx, rt); // (light, 1.24)
+  if (PI.on && PI.n) drawRings3(ctx); // (quantum nuclei's beads in depth: bug fix 8 after 1.25)
   drawExos3(ctx); // (unstable particles, 1.24)
   drawFlashes3(ctx, rt);
+  drawQGP3(ctx); // (a quark–gluon plasma at its depth, 1.25)
   drawEvents3(ctx, rt);
   drawMarks3(ctx);
   if (!R.menu) { drawMagnets3(ctx); drawPlace3(ctx); } // (magnets; the placing plane, the ghost, Fire's aim from the camera, 1.24)
@@ -568,6 +570,26 @@ function drawPlace3(ctx) {
     ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x - 3, y); ctx.moveTo(x + 3, y); ctx.lineTo(x + 9, y); ctx.moveTo(x, y - 9); ctx.lineTo(x, y - 3); ctx.moveTo(x, y + 3); ctx.lineTo(x, y + 9); ctx.stroke();
     if (fa.at && !fa.at.dead && proj3(fa.at.x, fa.at.y, fa.at.z, A)) { const r = Math.max(7, rd3(fa.at) * (R.as || 1) * F / A[2]) + 4; ctx.beginPath(); ctx.arc(A[0], A[1], r, 0, Math.PI * 2); ctx.stroke(); }
     if (fa.text) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText(fa.text, x + 12, y - 10); }
+  }
+  ctx.restore();
+}
+/* Quantum nuclei in 3-D: each atom's ring of beads (offsets PI.ox, oy, oz from its centre) through the camera, as the
+   flat drawRings draws them (once an Å is 30 px or more where the atom is); they were not drawn in 3-D. */
+function drawRings3(ctx) {
+  cam3Update();
+  const P = PI.P, cap = PI.cap, L = PI.list, c = [0, 0, 0], b = [0, 0, 0], pts = [];
+  ctx.save();
+  for (let a = 0; a < PI.n; a++) {
+    const i = L[a], p = S.obj[i]; if (!p || p.dead || !proj3(p.x, p.y, p.z, c)) continue;
+    const sc = C3.F / c[2]; if (sc < 30 || c[0] < -20 || c[1] < -20 || c[0] > R.w + 20 || c[1] > R.h + 20) continue;
+    pts.length = 0;
+    for (let k = 0; k < P; k++) { const o = k * cap + i; if (!proj3(p.x + PI.ox[o], p.y + PI.oy[o], p.z + (PI.oz ? PI.oz[o] : 0), b)) { pts.length = 0; break; } pts.push(b[0], b[1]); }
+    if (!pts.length) continue;
+    const rb = clamp(0.035 * sc, 1, 4);
+    ctx.globalAlpha = 1 - 0.8 * fog3(c[2]); // (the farther, the fainter, as the fog dims the atoms) ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let k = 0; k <= P; k++) { const j = (k % P) * 2; k ? ctx.lineTo(pts[j], pts[j + 1]) : ctx.moveTo(pts[j], pts[j + 1]); }
+    ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let k = 0; k < P; k++) { ctx.beginPath(); ctx.arc(pts[2 * k], pts[2 * k + 1], rb, 0, Math.PI * 2); ctx.fill(); }
   }
   ctx.restore();
 }
@@ -798,6 +820,29 @@ function drawFlashes3(ctx, rt) {
     if (!proj3(f.x, f.y, f.z || 0, o)) continue;
     const k = age / f.life, r = Math.min(Math.max(10, f.s * (C3.F / o[2]) * (0.6 + 1.6 * k)), 70 + 14 * f.s);
     drawSprite(glowSprite(f.c, r * (R.flashK < 1 ? 0.6 : 1)), o[0], o[1], (1 - k) * 0.9 * R.flashK);
+  }
+  ctx.restore();
+}
+/* (1.25) A quark–gluon plasma (W.qgp, made by a heavy-ion collision in depth): the flat view's drop (drawQGP), a glow
+   that swells and cools from white to red, at its place in depth, sized for its distance, with its caption. */
+function drawQGP3(ctx) {
+  if (!W.qgp || !W.qgp.length) return;
+  const o = _p3c;
+  ctx.save();
+  for (let i = W.qgp.length - 1; i >= 0; i--) {
+    const g = W.qgp[i], age = g.age || 0;
+    if (age > 2.2) { W.qgp.splice(i, 1); continue; }
+    if (!proj3(g.x, g.y, g.z || 0, o)) continue;
+    const heat = Math.max(0, 1 - age / 1.4), a = age < 1.4 ? 1 : 1 - (age - 1.4) / 0.8, r = clamp((1.5 + 3.5 * Math.min(1, age / 1.4)) * C3.F / o[2], 30, 160);
+    const gr = ctx.createRadialGradient(o[0], o[1], 0, o[0], o[1], r);
+    gr.addColorStop(0, `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.88 * a).toFixed(3)})`); gr.addColorStop(0.6, `rgba(255,${Math.round(110 + 60 * heat)},40,${(0.6 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,80,20,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(o[0], o[1], r, 0, 2 * Math.PI); ctx.fill();
+    if (R.view.labels !== false) {
+      ctx.font = '600 12px ' + (cssVar('--font-data') || 'monospace'); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = o[1] - r - 8;
+      ctx.fillStyle = `rgba(20,10,6,${(0.75 * a).toFixed(3)})`; ctx.fillRect(o[0] - w / 2, ty - 13, w, 18);
+      ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.fillText(t, o[0], ty); ctx.textAlign = 'left';
+    }
   }
   ctx.restore();
 }

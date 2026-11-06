@@ -1,4 +1,4 @@
-<title>Atom Forge 1.24.0</title>
+<title>Atom Forge 1.25.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -156,6 +156,7 @@ body.panel-left .psplit { left: auto; right: -8px; }
 .note.no3d { color: #ffc45a; }
 body:not(.d3) .only3d { display: none !important; } /* (3-D only controls, 1.24) */
 body.d3 .only2d { display: none !important; }
+.val:has(.typedIn) .vu { display: none; } /* (typing a box size: the unit is the dropdown beside the box, not the row's own Å too, 1.25.0) */
 
 .stage { position: relative; min-width: 0; min-height: 0; border-radius: var(--r); overflow: hidden; overflow: clip; background: var(--ch-bg); /* (clip, 1.23.2: with hidden it could still be scrolled, by up to the WebGL canvas's 64 px margin, when something in it was scrolled into view; the chamber then sat 66 px off where the pointer is read, and a right-click on an atom opened the empty-space menu) */
   border: 1px solid var(--line); box-shadow: var(--shadow); }
@@ -591,7 +592,8 @@ body.mo .ddpop.out { animation: ddOut 0.1s ease-in both; pointer-events: none; }
 .mm-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; transform-style: preserve-3d; }
 .mm-row .btn { padding: 8px 12px; font-size: 13.5px; }
 .mm-row .btn[hidden] { display: none; }
-.mm-row .btn:hover, .mm-choose > .btn:hover, .mm-choose > .btn:focus-visible { transform: translateZ(50px); border-color: var(--accent); }
+.mm-row .btn:hover, .mm-row .btn:focus-visible, .mm-choose > .btn:hover, .mm-choose > .btn:focus-visible { border-color: var(--accent); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--accent), 0 0 22px rgba(90, 150, 255, 0.35); } /* (after 1.25: no lift on hover; lifted 14 px toward the viewer, the buttons left of centre slid 9–12 px aside under a pointer near their edge, which then fell off: Gallery, Settings and Help hard to press) */
+.mm-row .btn:active, .mm-choose > .btn:active { filter: brightness(0.88); transition-duration: 0.06s; }
 .mm-btns .btn.mm-back { justify-self: start; padding: 4px 10px; font-size: 12.5px; transform: translateZ(24px); box-shadow: none; }
 
 .mm-set3 { display: grid; gap: 8px; }
@@ -776,6 +778,16 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .sbox > .stabs { position: sticky; top: 0; z-index: 3; background: var(--surface); padding-top: 8px; }
 .sbox .spane > .srow, .sbox .spane > label.check { margin-inline: -8px; padding: 3px 8px; border-radius: 8px; transition: background 0.12s; }
 .sbox .spane > .sprev-on { background: var(--accent-soft); }
+.sbox .spane > p.sdn, .sbox .spane > p.sintro { display: none; } /* (a setting's description is in the preview pane beside the list, not under it too, 1.25) */
+.sbox .spane > p[hidden] { display: none !important; } /* (a note for the other mode, 1.25) */
+.smode { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--line); font: 600 11px var(--font-data, ui-monospace, monospace); line-height: 16px; vertical-align: 3px; color: var(--muted); letter-spacing: 0.02em; text-transform: none; }
+#setModal.m3d .smode { border-color: #6f9cff; color: #6f9cff; }
+.sbox .spane > .smode-off { opacity: 0.55; } .sbox .spane > .smode-off:hover, .sbox .spane > .smode-off.sprev-on { opacity: 0.8; } /* (a setting for the other mode: it works, and applies there, 1.25) */
+.smo { display: inline-block; margin-left: 7px; padding: 0 6px; border-radius: 9px; border: 1px solid #c9a227; color: #c9a227; font: 600 10px var(--font-data, ui-monospace, monospace); line-height: 15px; vertical-align: 1px; white-space: nowrap; }
+.sprev-cap { position: absolute; right: 6px; top: 6px; padding: 1px 7px; border-radius: 6px; background: rgba(8, 13, 20, 0.82); color: #c9d4e0; font-size: 11px; pointer-events: none; }
+.sprev-cap[hidden] { display: none; }
+.sprev-cap .cap-s { display: none; }
+@media (max-width: 760px), (max-height: 560px) { .sprev-cap { right: 3px; top: 3px; padding: 0 4px; font-size: 10px; } .sprev-cap .cap-l { display: none; } .sprev-cap .cap-s { display: inline; } } /* (the strip's thumbnail is small: a short mark) */
 @media (max-width: 760px), (max-height: 560px) {
   #setModal > .sdialog { height: 100%; }
   .sbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
@@ -783,7 +795,8 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
   .sprev-txt { height: 100%; }
   .sprev h3 { font-size: 14px; margin-bottom: 2px; }
   .sprev-d p, .sprev-d p.note, .sprev-d ul { font-size: 12px; margin-bottom: 4px; }
-  .sbox { padding-inline: 12px; }
+  .sbox, .sbox > .sgroup { grid-template-columns: minmax(0, 1fr); } .sbox { padding-inline: 12px; } .sbox .spane > label.check { flex-wrap: wrap; } /* (one column as wide as the box: at 390 px the tabs' row widened it to 412 px and every description ran off the right edge, 1.25) */
+  .sbox .spane > p.sdn, .sbox .spane > p.sintro { display: block; } .sprev-notes { display: none; } /* (stacked, the pane is a short strip: the long descriptions stay in the list, 1.25) */
 }
 @media (max-width: 420px) { .sprev { grid-template-columns: 96px minmax(0, 1fr); height: 84px; } }
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }

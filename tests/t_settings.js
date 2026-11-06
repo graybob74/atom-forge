@@ -90,7 +90,7 @@ async function pane() {
     for (const b of document.querySelectorAll('.stabs [data-stab]')) if (!STAB_DESC[b.dataset.stab]) out.tabs.push(b.dataset.stab);
     const rowKeys = new Set(rows.map(setRowKey));
     for (const k of out.keys) {
-      const [id, v] = k.split(':');
+      const [id, v] = k.replace(/@3d$/, '').split(':'); // ("…@3d": the 3-D lab's version, 1.25)
       if (!(rowKeys.has(id) && (v === undefined || $(id).querySelector(`[data-v="${v}"]`))) && !/^menu[23]d$/.test(k)) out.bad.push(k + ' (no such row)');
       const im = new Image(); im.src = SETSHOTS[k];
       try { await im.decode(); if (im.naturalWidth !== 1280 || im.naturalHeight !== 720) // (1280 × 720 since 1.23.2)

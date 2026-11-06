@@ -491,10 +491,10 @@ function buildToolOpts() {
       break;
     case 'spark':
       h = rangeCtl('oE', 'Energy', 0, 900, o.s, fmtE(sparkE())) + radCtl(t, o.R) +
-        (W.d3 ? '<span class="help">Shared by the atoms within the radius of the atom under the pointer (or of the middle of the box), in pairs. In 3-D nuclear reactions are not in yet.</span>' : '<span class="help">Shared by the atoms in the radius. keV: they fly apart; MeV: nuclear reactions.</span>');
+        (W.d3 ? '<span class="help">Shared by the atoms within the radius of the atom under the pointer (or of the middle of the box), in pairs. keV: they fly apart; MeV: nuclear reactions.</span>' : '<span class="help">Shared by the atoms in the radius. keV: they fly apart; MeV: nuclear reactions.</span>');
       break;
     case 'magnet':
-      h = `<span data-g="pol">${seg('Pole', [[1, 'N ⊙'], [-1, 'S ⊗']], o.pol)}</span>` + rangeCtl('oB', 'Field', 100, 900, o.s, fmtTesla(Math.abs(magB()))) +
+      h = `<span data-g="pol">${seg('Pole', W.d3 ? [[1, `N +${W.Bax3 || 'z'}`], [-1, `S −${W.Bax3 || 'z'}`]] : [[1, 'N ⊙'], [-1, 'S ⊗']], o.pol)}</span>` + rangeCtl('oB', 'Field', 100, 900, o.s, fmtTesla(Math.abs(magB()))) +
         radCtl(t, o.R) + `<button class="opt" id="oMagClear">Remove all</button>`;
       break;
     case 'light': {
@@ -894,7 +894,7 @@ function placeFly(spec, x, y, count, z = 0) {
   _evTag = 0;
   if (W.d3 && spec.kind === 'gamma') { for (let i = 0; i < count; i++) emitPhoton(x, y, placeE(), undefined, undefined, { travel: true, z }); return []; } // (3-D: a random direction on the sphere, from its depth, 1.24)
   if (W.d3 && spec.kind === 'nu') { for (let i = 0; i < count; i++) emitNeutrino(x, y, placeE(), undefined, undefined, !!spec.anti, 'placed by hand', spec.fl || 'e', z); return []; }
-  if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], undefined, z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
+  if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (spec.sp === 'Mu') addMuonium(x + k * u[0], y + k * u[1], 1.5 * PHYS.KB * W.T, u[0], u[1], 1, z + k * u[2], u[2]); else if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], undefined, z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
   for (let i = 0; i < count; i++) {
     const [ux, uy] = rdir();
     if (spec.kind === 'exo' && spec.sp === 'Mu') addMuonium(x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), PHYS.KB * W.T, ux, uy); // (1.12: an atom, in MD)
@@ -938,6 +938,7 @@ function onDown(e) {
   if (!rc) lpStart(e, px, py);
   if (QM.open) { closeQuickMenu(); if (!rc) { UI.drag = { kind: 'none' }; return; } } // a click outside the menu only closes it
   if (W.d3 && (e.button === 1 || rc || (e.button === 0 && e.altKey && !UI.spaceDown))) { UI.drag = { kind: e.shiftKey ? 'pan' : 'orbit', x: px, y: py, lx: px, ly: py, cx: R.cx, cy: R.cy, rc }; return; } // (3-D: right, middle or Alt+left drag turns the view; with Shift, pans)
+  if (UI.spaceDown && !rc && e.button !== 1 && !UI.spacePan) { UI.spacePan = true; setRunning(!UI.running); } // (Space held to pan: its press did not mean play / pause)
   if (e.button === 1 || rc || UI.spaceDown) { UI.drag = { kind: 'pan', x: px, y: py, cx: R.cx, cy: R.cy, rc }; return; }
   const t = UI.tool;
   let [wx, wy] = s2w(px, py), wz = 0;
@@ -1343,14 +1344,14 @@ function endToolAction() {
   if (R.overlay && R.overlay.aim) R.overlay = null;
 }
 /* (3-D) Fire: the direction of the drag (it stays in the plane square to the view), or with none, the screen's right;
-   the energy, below where flight in radiation mode starts (that flight is flat for now); the projectiles that work in
-   3-D (atoms, molecules, electrons and protons; not light, neutrinos, unstable particles, neutrons or antimatter yet). */
+   the energy (electrons and positrons below where flight in radiation mode starts: that flight is flat); every
+   projectile but antimatter works in 3-D (1.25: neutrons, and atoms and nuclei at any energy). */
 function fireDir3(d) {
   let ux = d.x1 - d.x0, uy = d.y1 - d.y0, uz = d.z1 - d.z0; const L = Math.sqrt(ux * ux + uy * uy + uz * uz);
   if (L < 0.3) { cam3Update(); return [C3.rx, C3.ry, C3.rz]; }
   return [ux / L, uy / L, uz / L];
 }
-function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return sp.kind === 'gamma' || sp.kind === 'nu' || sp.kind === 'exo' ? fireKE() : Math.min(fireKE(), 0.95 * radThreshold(lep)); } // (light, neutrinos and unstable particles: any energy, 1.24)
+function fireKE3() { const sp = fireSpecNow() || SPEC_P, lep = sp.kind === 'e' || sp.kind === 'pos'; return lep ? Math.min(fireKE(), 0.95 * radThreshold(lep)) : fireKE(); } // (light, neutrinos and unstable particles: any energy, 1.24; atoms, nuclei and neutrons too since 1.25, as atoms fly in 3-D and meet nuclei there)
 function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(sp)}: ${NOT_3D.toLowerCase()} (Fire)`); return false; }
 /* Grab, Strong and Very strong: it keeps up with the mouse in real time, whatever the speed setting or slow motion.
    The spring may draw the atoms along faster (vcap: the gap closed in about 0.12 s of watching, up to the strength's
@@ -2970,7 +2971,8 @@ const TYPED = {
   bVal: { units: U_B, get: () => W.Bz, apply: (B) => { W.Bz = Math.abs(B) < 1e-9 ? 0 : clamp(B, -1e5, 1e5); syncLab(); }, why: 'fields up to 100,000 T (a magnetar’s)' },
   eVal: { units: U_E, get: () => UI.E, apply: (E) => { UI.E = clamp(Math.abs(E), 0, 50); applyE(); syncLab(); }, why: 'fields up to 50 V/Å: past that every atom is torn apart at once' },
   boxW: { units: U_LEN, get: () => W.box.tw, apply: (w) => { if (W.d3) { const k = clamp(w, 20, 20000) / W.box.tw; W.box.tw *= k; W.box.th = clamp(W.box.th * k, 20, 20000); W.box.td = clamp((W.box.td || W.box.d) * k, 20, 20000); } else { W.box.tw = clamp(w, 20, 20000); UI.aspect = W.box.th / W.box.tw; } syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the whole box scaled, 1.24)
-  boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, 20, 20000); if (W.d3) W.box.td = W.box.th; UI.aspect = W.box.th / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: height and depth, shown as h × d, 1.24)
+  boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the height alone since 1.25.0; it set the depth too, shown as one figure "h × d" that typing replaced)
+  boxD: { units: U_LEN, get: () => W.box.td || W.box.d, apply: (d) => { W.box.td = clamp(d, 20, 20000); UI.aspectD = W.box.td / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the depth, its own figure, 1.25.0)
   spdVal: { units: U_TIME, get: () => W.simPerFrame, apply: (tu) => { W.simPerFrame = clamp(tu, DT_MIN, 1000); syncLab(); syncSpeed(); }, why: `from one shortest time step (${fmtTime(DT_MIN * PHYS.TU_S)}) to ${fmtTime(1000 * PHYS.TU_S)} per 1/60 s` },
   cEVal: { units: U_ENERGY, get: () => (W.collider ? W.collider.E : cEFromS(+$('cESlider').value)), apply: (E) => { if (!W.collider) return; setColliderEnergy(clamp(E, cEFromS(0), cEFromS(1000))); syncCollider(); } },
   cE2Val: { units: U_ENERGY, get: () => (W.collider && W.collider.E2 !== null && W.collider.E2 !== undefined ? W.collider.E2 : cEFromS(+$('cE2Slider').value)), apply: (E) => { const C = W.collider; if (!C) return; setColliderEnergy(C.E, clamp(E, cEFromS(0), cEFromS(1000))); syncCollider(); } },
@@ -3143,7 +3145,7 @@ function syncLabText() {
   setTxt('bVal', W.Bz ? (W.Bz > 0 ? '+' : '−') + fmtTesla(Math.abs(W.Bz)) : '0 T');
   setTxt('eVal', UI.E ? `${UI.E.toFixed(2)} V/Å` : '0 V/Å');
   $('magCount').textContent = W.magnets.length ? `${W.magnets.length} magnet${W.magnets.length > 1 ? 's' : ''} placed` : 'No magnets placed';
-  setTxt('boxW', W.box.tw.toFixed(0)); setTxt('boxH', W.d3 ? `${W.box.th.toFixed(0)} × ${(W.box.td || W.box.d).toFixed(0)}` : W.box.th.toFixed(0)); // (3-D: the depth too)
+  setTxt('boxW', W.box.tw.toFixed(0)); setTxt('boxH', W.box.th.toFixed(0)); if (W.d3) setTxt('boxD', (W.box.td || W.box.d).toFixed(0)); // (3-D: the depth its own figure, 1.25.0)
   setTxt('spdVal', motionText());
   $('warpVal').textContent = !W.decayOn ? 'paused' : warpWords() === 'real' ? 'real rate' : warpWords();
   $('warpNote').textContent = !W.decayOn ? 'Paused: no nucleus decays until it is switched back on.'
@@ -4088,10 +4090,11 @@ function buildPresetSelect() {
    A mode of its own, chosen in the main menu (3-D lab): its setups are those marked d3 (the group G3D), and while a
    3-D world is open the setup list shows only them, with a 3-D Preview label beside it; the main menu (2-D) goes back
    to the flat game (the Leave button went in 1.23.2, asked for by the owner). What does not work in 3-D yet is hidden or disabled with a note: the Objects tool,
-   neutrons and antimatter in the particle menus, Ask Claude for a setup, and continuous bond orders ("From the
-   positions"). Since 1.24 the Magnet and Light tools, fields, the box's size, light, neutrinos, positrons, unstable
-   particles and the rest of the Experimental tab work in 3-D. The mode follows the world (W.d3): a setup or a saved
-   world sets it. */
+   antimatter in the particle menus, Ask Claude for a setup. Since 1.24 the Magnet and Light tools, fields, the box's size, light, neutrinos, positrons, unstable
+   particles and the rest of the Experimental tab work in 3-D; since 1.25 the unstable particles' captures and hits on
+   nuclei too (muonic atoms, muonium and hypernuclei in the particle menus), and nuclear reactions (decay, neutrons in
+   the menus, fission, fusion, fast nuclei, the giant dipole resonance). The mode follows the world (W.d3): a setup or a
+   saved world sets it. Continuous bond orders work in 3-D since 1.25. */
 const NOT_3D = 'Not in 3-D yet';
 const TOOLS_NO3D = new Set(['objects']); // (the Magnet and Light tools work in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };
@@ -4102,11 +4105,11 @@ function spec3dOK(s) {
   if (!s) return false;
   if (s.kind === 'mol') return molFits(MOLECULES[s.mol], true);
   if (s.kind === 'atom') return !s.anti;
-  if (s.kind === 'exo') { const d = XP[s.sp]; return !!d && !d.atom && !d.hyp && !d.stuck && s.sp !== 'Mu'; } // (unstable particles since 1.24: not the muonic atoms, muonium or hypernuclei)
-  return s.kind === 'e' || s.kind === 'pos' || s.kind === 'gamma' || s.kind === 'nu'; // (light since 1.24; positrons and neutrinos since 1.24)
+  if (s.kind === 'exo') return !!XP[s.sp]; // (unstable particles since 1.24; muonic atoms, muonium and hypernuclei since 1.25)
+  return s.kind === 'e' || s.kind === 'pos' || s.kind === 'gamma' || s.kind === 'nu' || s.kind === 'n'; // (light since 1.24; positrons and neutrinos since 1.24; neutrons since 1.25)
 }
 const NO3D_CTL = ['bAskSetup']; // (single controls; the box-size slider, fields, magnets and the ultra-realistic mode work in 3-D since 1.24)
-const NO3D_BTN = ['#segBo button[data-v="1"]']; // (single choices: continuous bond orders from the positions; the rest of the Experimental tab works in 3-D since 1.24)
+const NO3D_BTN = []; // (single choices off in 3-D: none since 1.25, when continuous bond orders from the positions came to 3-D; the rest of the Experimental tab works in 3-D since 1.24)
 function mode3dSync() {
   const on = !!W.d3, changed = on !== MODE3.on;
   MODE3.on = on;
@@ -4121,8 +4124,9 @@ function mode3dSync() {
   }
   for (const id of NO3D_CTL) { const el = $(id); if (!el) continue; if (el.dataset.t0 === undefined) el.dataset.t0 = el.title || ''; el.disabled = on; el.title = on ? NOT_3D : el.dataset.t0; }
   for (const sel of NO3D_BTN) for (const b of document.querySelectorAll(sel)) { if (b.dataset.t0 === undefined) b.dataset.t0 = b.title || ''; b.disabled = on; b.title = on ? NOT_3D : b.dataset.t0; }
-  if (changed && typeof SET !== 'undefined' && UI.started) boSet(SET.bo); // (continuous bond orders: off in 3-D, back on in the flat game when set, 1.24)
+  if (changed && typeof SET !== 'undefined' && UI.started) boSet(SET.bo); // (the bond orders' setting applied to the new world, 1.24; in 3-D too since 1.25)
   for (const id of ['fields3dNote', 'box3dNote', 'set3dNote']) { const el = $(id); if (el) el.hidden = !on; }
+  if (changed && typeof setModeSync === 'function') setModeSync(); // (Settings follows the mode: its costs, words and pictures, 1.25)
   const lv = $('tag3d'); if (lv) lv.hidden = !on; // (the Preview label; the Leave button went in 1.23.2: the main menu leads out)
   if (on && TOOLS_NO3D.has(UI.tool)) setTool('inspect');
   if (changed && $('palette')) buildPalette();
@@ -5421,7 +5425,7 @@ function mmTick(dt) {
 function mmSetups(d3 = false) { // (d3: the 3-D lab's setups; otherwise the flat game's)
   const groups = new Map();
   for (const [k, p] of Object.entries(PRESETS)) { if (!p.name || k === 'ai' || !!p.d3 !== d3) continue; const g = p.group || 'Other'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push([k, p.name]); }
-  let i = 0; $('mmList').innerHTML = (d3 ? `<p class="mm-note3d">The 3-D mode is a preview: atoms, molecules, liquids and gases in a cube you can turn (right-drag or Alt+drag, the wheel to zoom, W A S D to fly, E and Q up and down, 0 to fit). Fields, magnets, light, nuclear physics and chips stay in the flat game for now.</p>` : '') +
+  let i = 0; $('mmList').innerHTML = (d3 ? `<p class="mm-note3d">The 3-D mode is a preview: atoms, molecules, liquids and gases in a cube you can turn (right-drag or Alt+drag, the wheel to zoom, W A S D to fly, E and Q up and down, 0 to fit). Fields, magnets, light and unstable particles work in 3-D too, with their captures and hits on nuclei (muonic atoms, nuclear stars, muonium), and nuclear reactions: decay, neutrons, fission, fusion; the collider, antimatter, placed objects and chips stay in the flat game for now.</p>` : '') +
     [...groups].map(([g, list]) => `<h4>${esc(g)}</h4>` + list.map(([k, n]) => `<button data-mmp="${esc(k)}" style="--i:${Math.min(i++, 14)}">${esc(n)}</button>`).join('')).join('');
   $('mmChoose').hidden = true; $('mmBtns').hidden = true; $('mmBtns3').hidden = true; $('mmSetups').hidden = false; $('mmList').scrollTop = 0;
 }
@@ -5526,7 +5530,7 @@ function onKey(e) {
     openQuickMenu(inside ? m[0] : R.w / 2, inside ? m[1] : R.h / 2); return;
   }
   if (W.d3 && fly3Down(e)) { e.preventDefault(); return; } // (3-D: W A S D, Q E, and Space / Shift while flying move the camera, 1.23.2)
-  if (k === ' ') { if (tag === 'BUTTON') return; e.preventDefault(); if (REW.open) { rewCommit(); return; } setRunning(!UI.running); return; }
+  if (k === ' ') { if (tag === 'BUTTON') return; e.preventDefault(); if (e.repeat) return; UI.spaceDown = true; UI.spacePan = false; if (REW.open) { rewCommit(); return; } setRunning(!UI.running); return; } // (held, a drag pans: Help's "Space held"; bug fix after 1.25: nothing set spaceDown, and a held Space toggled play over and over)
   if (k === '.') { UI.stepOnce = true; return; }
   if (k === '[') { stepSpeed(-1); return; }
   if (k === ']') { stepSpeed(1); return; }
@@ -5562,9 +5566,12 @@ const SET_DEF = { wave: 0, bo: 0, pi: 0, piRpc: 1, qeq: 0, rc: 6, motion: true, 
 const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16', '32'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000],
   fov3: [30, 40, 55, 70], proj3: ['persp', 'ortho'], fog3: ['off', 'low', 'normal', 'high'], box3: ['grid', 'edges', 'off'], lbl3: ['front', 'all'], orbit3: [0.5, 1, 2], spin3: [0, 6, 18] };
 const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the farthest atoms fade toward the background)
+Object.assign(SET_DEF, { metal: 0 }); SET_OK.metal = [0, 1]; // (Experimental: bond orders for metals, 1.25)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
+SET_EXP.push('metal'); // (1.25)
 const EXP_NAME = { dtMax: 'shorter longest step', resBig: 'resonance in large rings', inc: 'detailed nuclear collisions', rc: 'longer force reach', qeq: 'induced charges', pi: 'quantum nuclei', piRpc: 'exact bead forces', bo: 'bond orders', wave: 'electrons as waves', ultra: 'the ultra-realistic mode' }; // (ultra: in the Experimental tab since 1.23.2)
+EXP_NAME.metal = 'many-body metals'; // (1.25)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -5641,6 +5648,7 @@ function applySettings() {
   threadsSet(SET.threads === 'auto' ? threadsDefault() : +SET.threads - 1); // (workers besides the main thread)
   PI.rpc = SET.piRpc !== 0; piSet(SET.pi); // (Experimental: quantum nuclei; contracted bead forces, 1.21)
   boSet(SET.bo); // (Experimental: continuous bond orders, 1.13; 2: quantum bonds, 1.22)
+  mbSet(SET.metal); // (Experimental: bond orders for metals, 1.25)
   waveSet(!!SET.wave); // (Experimental: electrons as waves, 1.15)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
@@ -5757,7 +5765,8 @@ function syncSettings() {
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
   setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segPiRpc', String(SET.piRpc)); setSegValue('segBo', String(SET.bo)); setSegValue('segWave', String(SET.wave)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
-  setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3);
+  setSegValue('segMetal', String(SET.metal)); // (1.25)
+  setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
@@ -5780,7 +5789,8 @@ function costLevel(a) {
 const COST_K = { physics: 'Time to work out the physics', drawing: 'Time to draw each frame', memory: 'Memory it takes' };
 function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toFixed(1) : +v.toFixed(2)); }
 const COSTS = {
-  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×8–15', 'Measured on one thread (1.20): liquid water ×8, hydrogen + oxygen ×9, the molecule gallery ×15 (every pair worked out every step, steps 2.6 times shorter)'], 2: ['×1000+', 'Measured on one thread (1.22): a hydronium and five waters (19 atoms) 6.6 ms a step, 40 atoms 50 ms, against 0.006–0.02 with stored bonds, the steps half as long: a small world runs in slow motion, about 1/30 of normal speed at 19 atoms, 1/200 at 40'] } }),
+  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×6–15', 'Measured on one thread on a quiet machine (after 1.25): liquid water ×7.5–9.2, salt water ×5.9–7.4; 1.20: hydrogen + oxygen ×9, the molecule gallery ×15 (every pair worked out every step, steps 2.6 times shorter)'], 2: ['×1000+', 'Measured on one thread (1.22): a hydronium and five waters (19 atoms) 6.6 ms a step, 40 atoms 50 ms, against 0.006–0.02 with stored bonds, the steps half as long: a small world runs in slow motion, about 1/30 of normal speed at 19 atoms, 1/200 at 40'] } }),
+  segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured on one thread (1.25): nothing without metal atoms; a flat aluminium patch of 769 atoms ×1.9 (its own pass 0.22 ms a step); a flat copper patch ×0.6 and a 3-D copper ball ×0.9 (most of the electron-transfer trials between metal atoms are skipped)'] } }), // (1.25)
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–7', 'Measured on one thread: nothing without free electrons; liquid water with 40 free electrons ×6.5 (their inner steps 13 times shorter, for the packets\' breathing)'] } }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.4', 'Measured on liquid water (1.21): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×3', 'Measured on liquid water: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water: 32 beads, the rest once'] } }
     : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×3.3', 'Measured on liquid water (1.21): the force field worked out 8 times a step'], 16: ['×7', 'Measured on liquid water: 16 times a step'], 32: ['×16', 'Measured on liquid water: 32 times a step'] } },
@@ -5814,6 +5824,24 @@ const COSTS = {
   segTrail: () => ({ k: 'drawing', o: { 0.5: ['×1', 'The shortest trails'], 1.5: ['slight', 'Three times as much trail: more drawing with many fast particles'], 4: ['some', 'Eight times as much trail: the most drawing with many fast particles'] } }),
   setRew: () => ({ k: 'memory', on: ['up to ' + SET.rewMem + ' MB', 'A snapshot of the box every ' + SET.rewEvery + ' s, kept for ' + SET.rewSpan + ' s, at most ' + SET.rewMem + ' MB; copying it takes a little time'] }),
 };
+/* The 3-D lab's own costs (1.25, Settings by mode; the owner: "since the numbers for 3d are very different, the settings
+   menu should change based on which mode you're in"): measured in the 3-D lab the same way as the flat ones (one thread,
+   tools/accbench/bench-mode.js: liquid water, 1,029 atoms, unless it says otherwise), shown while the world is 3-D
+   (costOf). A setting missing here costs the same in both. */
+const COSTS3 = {
+  segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry (in 3-D with single bonds’ twist barriers since 1.25: +30% a step in a box of organic molecules, nothing in water)'], 1: ['×18–23', 'Measured in 3-D on one thread (1.25): liquid water ×18–22, the molecules in space ×18–23, hydrogen + oxygen ×18 (every pair worked out every step on the JavaScript pass, the 3-D angles and twists with them, steps 2.6 times shorter; the flat game’s WebAssembly pass is not in 3-D yet)'], 2: ['×1000+', 'Measured in 3-D on one thread (1.25): a hydronium and five waters (19 atoms) 5.7 ms a step (the flat game 7.7), steps half as long: a small world runs in slow motion'] } }),
+  segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured in 3-D on one thread (1.25): nothing without metal atoms; an aluminium ball of 959 atoms ×1.8 (its own pass about 0.7 µs an atom a step); a copper ball ×0.8–1.0 (its steps go to electron-transfer estimates either way)'] } }),
+  segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–3', 'Measured in 3-D on one thread (1.25): nothing without free electrons; 40 free electrons among neon atoms ×2.2 (the flat game ×2.4), six Na⁺ among twelve ×3.2 (1.24); in ionized liquid water ×1.5–2.2, its electrons caught again within a few dozen steps in 3-D'] } }),
+  segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.6', 'Measured on liquid water in 3-D (1.25): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×2.7', 'Measured on liquid water in 3-D: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water in 3-D: 32 beads, the rest once'] } }
+    : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×8', 'Measured on liquid water in 3-D (after 1.25): the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water in 3-D: 16 times a step'], 32: ['×29', 'Measured on liquid water in 3-D: 32 times a step'] } },
+  segPiRpc: () => ({ k: 'physics', o: { 1: ['×1', 'Bonds and bends on every bead (where the spread matters), the pairs between atoms at the rings’ centres: ring-polymer contraction'], 0: ['×7–10', 'The whole force field on every bead: exact; in 3-D (liquid water, 1.25) 10 times the work at 8 beads, 7.5 at 32'] } }),
+  segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.6–2.4', 'Measured in 3-D (1.25): liquid water ×1.6–1.9, salt water ×2.4'], 1: ['×3.2–4.2', 'Measured in 3-D (1.25): salt water ×3.2, liquid water ×3.7–4.2'] } }),
+  segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×3.5–5', 'Measured in 3-D (1.25): salt water ×3.5, liquid water ×4.9 (JavaScript kernels; in space the partners within reach grow as the cube of the reach)'], 12: ['×7–17', 'Measured in 3-D (1.25): salt water ×6.6–6.9, liquid water ×12–17 (JavaScript kernels)'] } }),
+  segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×2', 'Measured in 3-D (1.25): liquid water and salt water ×2.0–2.2 where steps are at their longest (a 3-D step costs about the same whatever its length); nothing where they are already short'], 0.01: ['×3.5', 'Measured in 3-D (1.25): liquid water ×3.4–3.5, salt water ×3.3–4.1 where steps are at their longest; nothing where they are already short'] } }),
+  setInc: () => ({ k: 'physics', on: ['×1', 'Nothing in the 3-D lab: nucleons do not strike nuclei there yet (the flat game only)'] }),
+  setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24)'] }),
+};
+function costOf(id) { return (W.d3 && COSTS3[id] ? COSTS3[id] : COSTS[id])(); } // (this mode's costs, 1.25)
 function costTag(el, cls, text, tip) {
   let t = el.querySelector(':scope > .' + cls.split(' ')[0]);
   if (!text) { if (t) t.remove(); return; }
@@ -5830,6 +5858,7 @@ const REAL = {
   segPiRpc: ['0', 'Every force worked out on every bead, as the path integral has it'],
   segBo: ['2', 'Bonds from the electrons themselves (quantum chemistry), not from a stored table'],
   segWave: ['1', 'An electron is a wave with a size and a spin, not a point'],
+  segMetal: ['1', 'In a real metal an atom\u2019s bonding depends on how many neighbours it has, not on a sum of pairs'], // (1.25)
   segAtom: ['1', 'Atoms as big as they are'],
   setResBig: [true, 'Every ring system gets its resonance worked out exactly'],
   setInc: [true, 'A nucleon followed through the nucleus collision by collision, as in nature'],
@@ -5846,11 +5875,12 @@ function syncReal() {
    against everything at normal. A product is a fair guide (each one multiplies the work of a step) but not a
    measurement of that combination: the ranges are the setups the costs were measured on. */
 const EXP_SET = { segWave: 'wave', segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
+EXP_SET.segMetal = 'metal'; // (1.25)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
   for (const id in EXP_SET) {
-    const c = COSTS[id](), v = SET[EXP_SET[id]], a = c.o ? c.o[String(v)] : v ? c.on : null;
+    const c = costOf(id), v = SET[EXP_SET[id]], a = c.o ? c.o[String(v)] : v ? c.on : null;
     if (!a) continue;
     const m = String(a[0]).match(/×\s*([0-9.]+)(?:\s*–\s*([0-9.]+))?/); if (!m) continue;
     const l = +m[1], h = +(m[2] || m[1]); lo *= l; hi *= h;
@@ -5868,6 +5898,7 @@ function expSummary() {
   if (SET.pi) on.push(`quantum nuclei ${SET.pi} beads`);
   if (SET.bo) on.push(SET.bo === 2 ? 'quantum bonds (GFN1-xTB)' : 'continuous bond orders');
   if (SET.wave) on.push('electrons as waves');
+  if (SET.metal) on.push('many-body metals'); // (1.25)
   if (SET.resBig) on.push('large ring resonance');
   if (SET.inc) on.push('detailed nuclear collisions');
   if (SET.ultra) on.push('ultra-realistic');
@@ -5879,6 +5910,7 @@ function syncExpTotal() {
   const el = $('expTotal'); if (!el) return;
   const t = expTotal(), txt = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
   const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', segBo: 'continuous bond orders', segWave: 'electrons as waves', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
+  names.segMetal = 'many-body metals'; // (1.25)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -5886,7 +5918,7 @@ function syncCosts() {
     const el = $(id); if (!el) continue;
     const row = el.closest('.srow') ? el.closest('.srow').firstElementChild : el.closest('label');
     if (!row) continue;
-    const c = COSTS[id]();
+    const c = costOf(id);
     costTag(row, 'cost-k', c.k, (COST_K[c.k] || '') + (c.t ? ': ' + c.t : ''));
     if (c.o) for (const b of el.querySelectorAll('button')) { const a = c.o[b.dataset.v]; costTag(b, 'oc c' + (a ? costLevel(a[0]) : 0), a ? a[0] : '', a ? a[1] : ''); }
     else { costTag(row, 'cost c' + costLevel(c.on[0]), 'on ' + c.on[0], 'Turned on: ' + c.on[1]); row.querySelector(':scope > .cost').classList.toggle('dim', !el.checked); }
@@ -5920,11 +5952,11 @@ const STAB_DESC = {
   gen: ['General', 'What opens at start, the units the readouts use, rewind, the tour, and what this browser keeps.'],
   d3: ['3-D', 'How the 3-D lab looks and turns: the camera’s lens and projection, fog with depth, the box, the axis marker, labels and a slow turntable; and the keys that fly the camera (W A S D, E and Q). They apply in the 3-D mode only.'],
   ai: ['Claude', 'Access to Claude for Ask Claude and Identify molecules, where this page has none of its own.'],
-  exp: ['Experimental', 'More accurate physics, at a price in speed, and the ultra-realistic mode; all back to normal each time the game starts. Every cost was measured in this game: ×2 means the same moment takes twice as long to work out. The box at the top multiplies the chosen costs together.'],
+  exp: ['Experimental', 'More accurate physics, at a price in speed, and the ultra-realistic mode; all back to normal each time the game starts. Every cost was measured in this game (one thread, liquid water unless it says otherwise; tools/accbench in the source): ×2 means the same moment takes twice as long to work out. The coloured tags beside settings in every tab show what each choice costs, green for little or nothing to red for a lot; the box at the top multiplies the chosen costs together.'],
 };
 const SDESC = {
   // Performance
-  segMax: ['Particle limit', 'The most particles the chamber holds. The limit itself costs nothing; a box filled to it takes longer to work out each step.'],
+  segMax: ['Particle limit', 'The most particles the chamber holds. The limit itself costs nothing; a box filled to it takes longer to work out each step. The Place tool offers 100 at a click once the limit is 8,000 or more.'],
   segRes: ['Drawing resolution', 'How many pixels the chamber is drawn with. Sharp uses the screen’s full resolution; Standard and Fast draw fewer pixels, quicker on big or high-density screens.'],
   setPrio: ['Priority', 'Smooth keeps the frame rate up; Fast lets the physics take more of each frame, so the simulation runs faster but the picture may stutter. Auto picks the position from how this setup runs.'],
   segBudget: ['Physics per frame', 'The time each frame may spend on physics. More runs the simulation faster when the box is busy, at the cost of fewer frames a second.'],
@@ -5932,7 +5964,7 @@ const SDESC = {
   segGl: ['Drawing engine', 'WebGL draws the atoms and bonds on the graphics card. Canvas 2D draws everything on the processor, slower with thousands of atoms; use it only if WebGL misbehaves.'],
   setBench: ['Speed test', 'Builds four reference worlds, times a step of each and a second of real frames under the settings as they are, and says where the time goes. It replaces the current setup while it runs.'],
   // Graphics
-  segFpsCap: ['Frame-rate cap', 'At most this many frames a second. Fewer frames leave more time for physics and run the graphics card cooler.'],
+  segFpsCap: ['Frame-rate cap', 'At most this many frames a second. Fewer frames leave more of each second for the physics in a crowded box, and run the graphics card cooler. A browser cannot draw faster than the monitor refreshes.'],
   segAtom: ['Atom size', 'True size draws atoms as big as they are, touching in a liquid or solid. Smaller and Small shrink the balls so you can see past them into a crowded box.'],
   segLabels: ['Labels', 'The element symbol on each atom: on every atom, only on the one under the mouse and the one inspected, or never.'],
   segBadges: ['Charge badges', 'The small + or − badge on each ion: always, only on hover, or never.'],
@@ -5984,7 +6016,7 @@ const SDESC = {
   segFog3: ['Depth fog', 'How much far atoms and bonds fade toward the background, a cue for which is in front. Off draws every atom in full colour.'],
   segBox3: ['Box', 'How the walls are drawn: the twelve edges with a faint grid on the far faces (when the grid is on in Lab → View), the edges alone, or nothing. The walls work the same either way.'],
   setAxes3: ['Axis marker', 'The small x, y and z arrows in the corner that show which way the world’s axes point from where you look.'],
-  segLbl3: ['Labels in 3-D', 'Front atoms only puts symbols on atoms no nearer atom covers, which keeps a liquid readable. All atoms labels every atom big enough to carry one, hidden ones too.'],
+  segLbl3: ['Labels in 3-D', 'Off draws no element symbols; On hover only on the atom under the mouse and the one inspected. Front atoms only puts symbols on atoms no nearer atom covers, which keeps a liquid readable; All atoms labels every atom big enough to carry one, hidden ones too. The same switch as Graphics → Labels and Lab → View → Labels (Off is Never there). Charge badges, the + or − on ions, follow Graphics → Charge badges.'],
   segOrbit3: ['Orbit speed', 'How far the view turns for a drag (right-drag, Alt+drag or two fingers).'],
   setOrbitInv: ['Invert orbit', 'Turns the view the other way for the same drag: as if you moved the camera rather than the box.'],
   segSpin3: ['Turntable', 'The view turns slowly about the vertical by itself, running or paused: one turn a minute, or one in 20 seconds. It holds still while you turn the view by hand.'],
@@ -6000,8 +6032,65 @@ const SDESC = {
   segPi: ['Quantum nuclei', 'Every atom becomes a ring of beads (path-integral molecular dynamics) that shows its zero-point spread, small dots over each atom when zoomed in. Light atoms spread most, and can tunnel.'],
   segPiRpc: ['Bead forces', 'Contracted works out the bonds and bends on every bead and the rest once at each ring’s centre (fast); Every bead works out the whole force field on every bead (exact).'],
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, drawn as thinner or thicker bonds that stretch and break smoothly. Quantum works out the electrons themselves (GFN1-xTB): a proton shared between two waters shows half-bonds to both.'],
+  segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours (a tight-binding model fitted to each metal), so a lone pair is short and strong, an atom at a surface holds harder to each neighbour, and a vacancy costs less than the bonds it breaks.'], // (1.25)
   segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin, drawn as a faint cloud (the electron force field, eFF), instead of a point.'],
 };
+/* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
+   on which mode you're in ... There should also be 3d pictures in 3d mode"). While the world is 3-D (W.d3) the pane takes
+   the 3-D lab's descriptions (SDESC3, STAB_DESC3) and costs (COSTS3), and its pictures ("key@3d", "key:value@3d" in
+   SETSHOTS; where there is none, the flat picture marked "Picture from the flat game"); in the flat game only the flat ones (and the
+   3-D tab's own pictures, as before). Notes under a row marked data-m="2d" or "3d" show in that mode only. A row that
+   works in one mode only (SMODE_ONLY, and the 3-D tab's rows) is dimmed in the other with a "2-D only" / "3-D only" tag
+   and still works: what it sets applies there. setModeSync switches it all when the mode changes (mode3dSync) and when
+   Settings opens. */
+const STAB_DESC3 = {
+  gfx: ['Graphics', 'How atoms, labels, glows and trails look, in the 3-D lab as in the flat game; the 3-D tab has what is the 3-D view’s own (fog, the box, labels on the front atoms only). Point at a setting to see what it changes.'],
+  ctl: ['Controls', 'In the 3-D lab the wheel moves the camera nearer or farther (Shift + wheel moves the placing plane), right-drag or Alt+drag turns the view, and W A S D, E and Q fly the camera: the 3-D tab sets how it turns. Zoom toward is for the flat game.'],
+  exp: ['Experimental', 'More accurate physics, at a price in speed, and the ultra-realistic mode; all back to normal each time the game starts. The costs shown here are the 3-D lab’s, measured in it (one thread, liquid water of 1,029 atoms unless it says otherwise; tools/accbench/bench-mode.js in the source): in space each atom has more neighbours, so some settings cost much more than in the flat game. Detailed nuclear collisions are for the flat game only. Always on in 3-D (no setting): single bonds resist twisting with their measured barriers (ethane 0.126 eV), +30% a step in a box of organic molecules.'],
+};
+const STAB_DESC2 = {
+  d3: ['3-D', 'How the 3-D lab looks and turns: the camera’s lens and projection, fog with depth, the box, the axis marker, labels and a slow turntable; and the keys that fly the camera (W A S D, E and Q). They apply in the 3-D lab only (main menu → 3-D): set here, they are ready for it.'],
+};
+const SDESC3 = {
+  segAtom: ['Atom size', 'True size draws atoms as big as they are, touching in a liquid. Smaller and Small shrink the balls so you can see into the box, past the near atoms to the far ones.'],
+  segLabels: ['Labels', 'The element symbol on each atom: on every atom, only on the one under the mouse and the one inspected, or never. Which atoms carry one in depth (the front ones only, or all) is in the 3-D tab.'],
+  segTrail: ['Particle trails', 'How long the paths of fast particles stay on screen: the last half second, 1.5 s or 4 s. In 3-D a trail keeps each point’s depth and fades with distance.'],
+  segGl: ['Drawing engine', 'WebGL draws the atoms and bonds on the graphics card, lit as balls and rods, with a depth buffer. Canvas 2D draws everything on the processor, sorted far to near: much slower with thousands of atoms; use it only if WebGL misbehaves.'],
+  segWheel: ['Wheel zoom', 'How far each notch of the mouse wheel moves the camera nearer or farther. Shift + wheel moves the plane things are placed on.'],
+  segZoomTo: ['Zoom toward', 'The flat game only: there the wheel zooms toward the point under the mouse or the middle of the view. In the 3-D lab it moves the camera toward what it looks at.'],
+  setInc: ['Detailed nuclear collisions', 'The flat game only: in the 3-D lab nucleons do not strike nuclei yet, so this changes nothing there. In the flat game a nucleon that strikes a nucleus is followed through it collision by collision (an intranuclear cascade).'],
+  segDtMax: ['Longest time step', 'Calm matter moves on in steps of 0.4 fs. Shorter steps keep the energy books a little more exact; in the 3-D lab a step costs about the same whatever its length, so the cost follows the number of steps.'],
+  segRc: ['Force reach', 'How far van der Waals and partial-charge forces reach. Longer keeps more of the pull between molecules; in space the partners within reach grow as the cube of the reach, so it costs much more than in the flat game.'],
+  segQeq: ['Induced charges', 'Each molecule’s charges shift with the electric field around it, in all three directions, so water turns its dipole toward an ion or a field (charge equilibration).'],
+  segPi: ['Quantum nuclei', 'Every atom becomes a ring of beads (path-integral molecular dynamics) spread in all three directions by its zero-point motion; in the 3-D lab the rings are drawn in depth round each atom when you are close enough (an ångström 30 pixels or more).'],
+  segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, with the 3-D angles and the twist of double, aromatic and single bonds, drawn as thinner or thicker bonds. Quantum works out the electrons themselves (GFN1-xTB) with the atoms free in all three directions.'],
+  segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours, fitted on a close-packed crystal: in the 3-D lab a crystal has its measured cohesive energy, spacing, stiffness and vacancy energy exactly (copper 3.49 eV, 2.56 Å, 137 GPa, 1.28 eV).'],
+  segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
+  setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size. The 3-D camera comes no nearer than half an ångström, so it does not zoom in to a nucleus: the picture is the flat game’s. Experimental: off again each time the game starts.'],
+};
+const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d' }; // (and every row of the 3-D tab: '3d')
+function setRowOnly(r) { const k = setRowKey(r), p = r.closest('.spane'); return SMODE_ONLY[k] || (p && p.dataset.stab === 'd3' ? '3d' : ''); }
+/* The picture for a key (and a choice) in this mode: in 3-D its 3-D version first; in the flat game never a 3-D one. */
+function setShotFor(key, opt) {
+  const s = SETSHOTS, ks = (opt !== null && opt !== undefined ? [key + ':' + opt] : []).concat(key);
+  const k = (W.d3 && ks.map(x => x + '@3d').find(x => s[x])) || ks.find(x => s[x]) || '';
+  const row = document.querySelector(`#setModal [data-sk="${key}"]`), own3 = !!row && setRowOnly(row) === '3d';
+  return { key: k, src: k ? s[k] : '', flat: !!k && !!W.d3 && !k.endsWith('@3d') && !own3 && !STAB_DESC[key] }; // (flat: a flat picture shown in the 3-D lab, marked)
+}
+function setModeSync() {
+  const modal = $('setModal'); if (!modal) return;
+  const d3 = !!W.d3, m = d3 ? '3d' : '2d';
+  modal.classList.toggle('m3d', d3);
+  const t = $('setMode'); if (t) { t.textContent = d3 ? '3-D lab' : '2-D game'; t.title = d3 ? 'Costs, descriptions and pictures for the 3-D lab' : 'Costs, descriptions and pictures for the flat game'; }
+  for (const n of modal.querySelectorAll('[data-m]')) n.hidden = n.dataset.m !== m;
+  for (const r of setRows()) {
+    const only = setRowOnly(r), off = !!only && only !== m, host = r.matches('.srow') ? r.firstElementChild : r;
+    r.classList.toggle('smode-off', off);
+    costTag(host, 'smo', off ? (only === '3d' ? '3-D only' : '2-D only') : '', off ? (only === '3d' ? 'For the 3-D lab (main menu → 3-D): set here, it applies there' : 'For the flat game: set here, it applies there') : '');
+  }
+  syncCosts();
+  const k = SPREV.key, o = SPREV.opt; SPREV.key = null; if (k) setPrevShow(k, o); // (the pane shown again in this mode)
+}
 const SPREV = { key: null, opt: null };
 /* A row's key: its control's id (the first control with one), or "row" and its words for a row with no control. */
 function setRowKey(row) {
@@ -6017,10 +6106,12 @@ function setPrevShow(key, opt) {
   SPREV.key = key; SPREV.opt = opt;
   for (const r of document.querySelectorAll('#setModal .sprev-on')) r.classList.remove('sprev-on');
   { const r = document.querySelector(`#setModal [data-sk="${key}"]`); if (r) r.classList.add('sprev-on'); }
-  const img = $('setPrevImg'), ph = $('setPrevPh'), tab = STAB_DESC[key], D = SDESC[key] || null;
-  const shots = SETSHOTS, src = (opt !== null && shots[key + ':' + opt]) || shots[key] || '';
+  const img = $('setPrevImg'), ph = $('setPrevPh'), tab = (W.d3 ? STAB_DESC3[key] : STAB_DESC2[key]) || STAB_DESC[key], D = (W.d3 && SDESC3[key]) || SDESC[key] || null; // (this mode's words, 1.25)
+  const shot = setShotFor(key, opt), src = shot.src;
   img.hidden = !src; ph.toggleAttribute('hidden', !!src); // (an SVG element has no hidden property: the attribute)
-  if (src) { img.src = src; img.alt = 'What it looks like: ' + (D ? D[0] : key); } else img.removeAttribute('src');
+  if (src) { img.src = src; img.alt = 'What it looks like' + (shot.flat ? ' in the flat game: ' : ': ') + (D ? D[0] : key); } else img.removeAttribute('src');
+  img.dataset.key = shot.key; // (which picture, for the checks)
+  $('setPrevCap').hidden = !shot.flat;
   $('setPrev').classList.toggle('noimg', !src);
   if (tab) { $('setPrevT').textContent = tab[0]; $('setPrevD').innerHTML = `<p>${esc(tab[1])}</p>`; return; }
   const el = $(key), row = el ? el.closest('.srow, label.check') : document.querySelector(`#setModal [data-sk="${key}"]`);
@@ -6030,15 +6121,14 @@ function setPrevShow(key, opt) {
     if (tips.length) h += `<ul>${tips.join('')}</ul>`;
   }
   if (COSTS[key]) { // the cost tags, as the row shows them, with what each means
-    const c = COSTS[key](), lab = (v) => { const b = el && el.querySelector(`[data-v="${v}"]`); return b ? segLabel(b) : String(v); };
+    const c = costOf(key), lab = (v) => { const b = el && el.querySelector(`[data-v="${v}"]`); return b ? segLabel(b) : String(v); };
     const items = c.o ? Object.entries(c.o).filter(([, a]) => a[0]).map(([v, a]) => `<li><span class="oc c${costLevel(a[0])}">${esc(a[0])}</span> <b>${esc(lab(v))}</b>${a[1] ? ': ' + esc(a[1]) : ''}</li>`)
       : [`<li><span class="oc c${costLevel(c.on[0])}">${esc('on ' + c.on[0])}</span> ${esc(c.on[1])}</li>`];
     h += `<h4>Cost: ${esc((COST_K[c.k] || c.k).toLowerCase())}${c.t ? ' (' + esc(c.t.toLowerCase()) + ')' : ''}</h4><ul class="sprev-cost">${items.join('')}</ul>`;
   }
-  for (let n = row && row.nextElementSibling; n && n.classList.contains('note'); n = n.nextElementSibling) { // the notes printed under it
-    if (n.hidden || n.id === 'setBenchOut' || n.id === 'setStats' || !n.textContent.trim()) continue;
-    h += `<p class="note">${esc(n.textContent.trim())}</p>`;
-  }
+  let nt = ''; // the row's description notes (.sdn): shown here only, beside the list; on a narrow screen they stay in the list and not here (1.25)
+  for (let n = row && row.nextElementSibling; n && n.classList.contains('note'); n = n.nextElementSibling) if (n.classList.contains('sdn') && !n.hidden && n.textContent.trim()) nt += `<p class="note">${esc(n.textContent.trim())}</p>`;
+  if (nt) h += `<div class="sprev-notes">${nt}</div>`;
   $('setPrevT').textContent = D ? D[0] : (row ? row.textContent.trim().slice(0, 40) : key);
   $('setPrevD').innerHTML = h; $('setPrevD').scrollTop = 0;
 }
@@ -6048,13 +6138,16 @@ function setPrevFrom(t) {
   setPrevShow(setRowKey(row), b ? b.dataset.v : null);
 }
 function setPrevInit() {
-  for (const r of setRows()) setRowKey(r);
+  for (const r of setRows()) { // (a row's notes are descriptions (.sdn), shown in the preview pane only, but its live readouts (aria-live: priority, threads, the speed test, rewind's use) stay under it; the owner: "it repeats the description in the settings menu, but it's supposed to be in the sidebar only", 1.25)
+    setRowKey(r);
+    for (let n = r.nextElementSibling; n && n.classList.contains('note'); n = n.nextElementSibling) if (!n.hasAttribute('aria-live')) n.classList.add('sdn');
+  }
   const box = document.querySelector('#setModal .sbox');
   box.addEventListener('pointerover', (e) => { if (e.pointerType !== 'touch') setPrevFrom(e.target); });
   box.addEventListener('pointerdown', (e) => setPrevFrom(e.target)); // (a tap on touch)
   box.addEventListener('focusin', (e) => setPrevFrom(e.target));
 }
-function openSettings(tab) { $('setModal').hidden = false; if (tab) setTabS(tab); else setPrevShow(UI.stab || 'perf', null); syncSettings(); showModal('setModal'); }
+function openSettings(tab) { $('setModal').hidden = false; setModeSync(); if (tab) setTabS(tab); else setPrevShow(UI.stab || 'perf', null); syncSettings(); showModal('setModal'); }
 /* A Settings picture enlarged (asked for by the owner, 1.23.2): a click, a tap, Enter or Space on the preview opens it
    over the page, fitted to the window (aspect kept, 16 px clear), over a dark backdrop. It grows out of the preview:
    the picture is laid out at its large place and size and starts transformed back onto the thumbnail, then the
@@ -6157,6 +6250,7 @@ function settingsInit() {
   $('chMap').addEventListener('mousemove', mapHover); $('chMap').addEventListener('mouseleave', () => { UI.mapHov = null; UI.mapVer = -1; drawChainMap(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
   bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); bindSeg('segPiRpc', (v) => setSetting('piRpc', +v)); bindSeg('segBo', (v) => setSetting('bo', +v)); bindSeg('segWave', (v) => setSetting('wave', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
+  bindSeg('segMetal', (v) => setSetting('metal', +v)); // (1.25)
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
@@ -6203,7 +6297,9 @@ function settingsInit() {
   $('setExport').onclick = () => exportLibrary(); $('setImport').onclick = () => importLibrary();
   $('setDelMols').onclick = (e) => twoPress(e.currentTarget, () => { for (const k of Object.keys(MOLECULES)) if (MOLECULES[k].mine) myMolRemove(k); log('tool', 'My molecules deleted'); syncSettings(); });
   $('setDelIsos').onclick = (e) => twoPress(e.currentTarget, () => { MYISO.length = 0; myIsoStore(); buildToolOpts(); log('tool', 'Saved isotopes deleted'); syncSettings(); });
-  bindSeg('segFov3', (v) => setSetting('fov3', +v)); bindSeg('segProj3', (v) => setSetting('proj3', v)); bindSeg('segFog3', (v) => setSetting('fog3', v)); bindSeg('segBox3', (v) => setSetting('box3', v)); bindSeg('segLbl3', (v) => setSetting('lbl3', v));
+  bindSeg('segFov3', (v) => setSetting('fov3', +v)); bindSeg('segProj3', (v) => setSetting('proj3', v)); bindSeg('segFog3', (v) => setSetting('fog3', v)); bindSeg('segBox3', (v) => setSetting('box3', v)); bindSeg('segLbl3', (v) => { // (Off and On hover too, kept with Graphics → Labels and the view menu's Labels; the owner: "add a setting to remove labels in 3d because ... 10 bajillion letters is overstimulating", 1.25)
+    R.view.labels = v !== 'off'; viewFlagsSave(); if (v === 'front' || v === 'all') { SET.lbl3 = v; SET.labels = 'always'; } else if (v === 'hover') SET.labels = 'hover';
+    setSetting('labels', SET.labels); const c = document.querySelector('[data-view="labels"]'); if (c) c.checked = R.view.labels; });
   bindSeg('segOrbit3', (v) => setSetting('orbit3', +v)); bindSeg('segSpin3', (v) => setSetting('spin3', +v)); $('setAxes3').onchange = (e) => setSetting('axes3', e.target.checked); $('setOrbitInv').onchange = (e) => setSetting('orbitInv', e.target.checked);
   setPrevInit();
   $('setReset').onclick = () => { Object.assign(SET, SET_DEF); store('settings', JSON.stringify(SET)); applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts(); };
@@ -6526,7 +6622,8 @@ function init() {
   { const v = /\d+\.\d+\.\d+|V\d+/.exec(document.title || ''); const tag = $('verTag'); if (tag) tag.textContent = v ? v[0] : ''; } // (the version, from the page's title: 0.40.0)
   qmInit(); settingsInit(); optLoad(); menusInit(); rewInit(); grInit(); tourInit(); aiInit(); chipsInit();
   window.addEventListener('keydown', onKey);
-  window.addEventListener('keyup', fly3Up); window.addEventListener('blur', () => FLY3.keys.clear()); // (3-D flying: keys let go)
+  window.addEventListener('keyup', fly3Up); window.addEventListener('blur', () => { FLY3.keys.clear(); UI.spaceDown = false; });
+  window.addEventListener('keyup', (e) => { if (e.key === ' ') UI.spaceDown = false; }); // (Space let go: no more panning) // (3-D flying: keys let go)
   $('zIn').onclick = () => zoomAt(R.w / 2, R.h / 2, 1.25);
   $('zOut').onclick = () => zoomAt(R.w / 2, R.h / 2, 0.8);
   $('zFit').onclick = () => fitView();

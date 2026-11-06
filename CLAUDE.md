@@ -42,6 +42,7 @@ The owner tests it on Windows (Ryzen 7950X3D, 16 threads, RTX 3090) and reports 
     for free leptons), events (bonds, reactions, captures, ionization), energy books, walls, neutrons, radiation.
   - `bo.js` — Experimental continuous bond orders (1.13): member atoms' bond orders from their positions, energy and
     analytic forces, membership and its energy booking (`boSync`); `BO` itself is made in engine.js.
+  - `bometal.js` (built right after bo.js) — Experimental bond orders for metals (1.25): a many-body metal model, `MBO`.
   - `hep.js` — high-energy and nuclear physics: collisions, hadron production, decays, the collider, plasma.
   - `props.js` — placed objects (mirrors, lenses, prisms, screens, foils, plates). `chips.js` — transistor circuits.
   - `render.js` / `gl.js` — 2-D canvas and WebGL drawing. `ui.js` — tools, panels, setups (`PRESETS`), settings,
