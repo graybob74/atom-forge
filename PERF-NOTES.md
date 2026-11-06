@@ -235,7 +235,7 @@ engine stores and visits particles.
     torsions and the z arrays in kernel/src/bo.rs (wasm.yml builds it on a working branch), checked natively with a 3-D
     dump; liquid water in 3-D with bond orders costs ×22 a simulated ps on the JavaScript pass.
   For 1.26 (the owner, after 1.24.0; not built yet):
-  - GFN2-xTB for quantum bonds (the owner: "try implementing gfn2 xtb. Run tests and compare numbers, and maybe leave
+  - Done in 1.26 (for the owner's OK; the 1.26 section: GFN2-xTB a choice, GFN1 stays normal). GFN2-xTB for quantum bonds (the owner: "try implementing gfn2 xtb. Run tests and compare numbers, and maybe leave
     gfn1 in if gfn2 is very different"). Compare GFN1, GFN2, published values and g-xTB (the owner's build: xtb 6.7.1
     with --gxtb, 2026-05-14, Windows x86_64; a copy in the main session's scratchpad, gxtb/; the Linux build is on
     grimme-lab/g-xtb's releases): hexazine's barrier and its release to 3 N₂ (GFN1: 0.53 eV and 1.67 eV; high-level
@@ -311,6 +311,350 @@ engine stores and visits particles.
   (40 sweeps here) and forces through that, several times the cost of today's per-bond Morse terms. A form that keeps
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
+
+## 1.26 (in progress)
+
+### 1.26: GFN2 refit (second attempt)
+
+Asked by the owner: improve GFN2, keeping what it is best at (water clusters, non-covalent binding, geometries) and
+fixing its reaction problems (H + H₂ binds H₃, HCN → HNC barrier 3.18 against 2.09, hexazine below three N₂, a shared
+proton too flat, atomization); offer it as "GFN2 (Atom Forge fit)" if it beats GFN2 on held-out reaction energies and
+barriers with WATER27 ≤ ~0.2 eV, bonds ≤ 0.013 Å and settling in the game. **Result: built and measured, not offered.**
+It keeps water, non-covalent binding and geometries and settles where the first refit did not, and it is 4 times closer
+on held-out atomization, but held-out barriers stay at GFN2's level (0.74 eV against 0.68 polarized), the shared proton
+comes out flatter than GFN2's, and in a hot radical mixture its books jump (an unbooked spin-branch change) more often
+than GFN2's. The engine takes it as `XQ.method` 4 (`tools/xtb/afxtb2-data.js`, `XTB.AF2`; H/C/N/O molecules only, as
+method 3); Settings still offers GFN1 and GFN2 only.
+
+- **Sensitivity** (`tools/xtb-fit/refit2.js --sens`: each of the first fit's 48 GFN2-form parameters stepped, the change of
+  each group of targets; eV per step, water = WATER27's fitted clusters and the invariance clusters below, reactions =
+  W4-11/3, BH76, H + H₂, HCN, the must-haves, hexazine, the proton). Water-dominated (water ÷ reactions): H's hardness 17
+  (0.49 against 0.03 eV), O's third order 11, H's third order 7.7, O's repulsion (charge 3.6, exponent 2.9), O's s-shell
+  distance polynomial 2.9, O's hardness 2.6, H's level 2.0. Reaction-only: every C and N parameter (ratio ≤ 0.2, most
+  < 0.02), the pair scalings but O–H and O–O (≤ 0.05), the spin constants' scale (0 on water). In between: O's levels, CN
+  shifts and p polynomial, H's polynomial, CN shift and repulsion, the O–H and O–O pairs (0.3–1.2).
+- **Frozen at GFN2's** (besides the multipole electrostatics and D4, never fitted): the hardness of H, C, N and O (the
+  charges' response; the first refit lowered H's by 28 % and, found now, its GFN1-form set never settles on
+  N-heterocycles: 2-pyridone, indole and the pyridone dimer run 250 iterations with atomic charges of −5…+6 e); the
+  water-dominated ones above; the **O–O pair scaling** (it alone sets the water dimer's O–O: +0.02 → +0.019 Å; fitted, it
+  went −0.1 for O₂/O₃/H₂O₂ and pulled the dimer to 2.78 Å); the **spin constants' scale** (fitted it rose to 1.36, and a
+  hot radical mixture then jumped 0.6 eV in 3 seeds of 4; at the published 1.0, 1 of 4). 36 parameters fitted.
+- **Fit** (`refit2.js`, Levenberg–Marquardt as fit.js, the same held-out split, spin-polarized): the first fit's targets
+  plus 26 **invariance clusters** held at plain GFN2's binding to 1 % (`inv.json` by `mkclus.js`, seeded random packings
+  optimized with GFN2: water clusters of 10, 16 and 20 (twice), H₃O⁺ and OH⁻ in 8 waters, 19 pairs with ammonia,
+  formaldehyde, methanol, formic acid, amides (added after the fit lost N–H···O=C pairs: S22's formamide dimer 0.72 →
+  0.23 eV), imines and dispersion-bound pairs; not WATER27 or S22); vertical IPs and EAs of 11 molecules held at GFN2's
+  (0.3 eV; how far charge can slosh between O₂ and its neighbours); H₃'s symmetric stretch (no point past 0.93 Å below the
+  saddle); bonded lengths of 10 more W4-11 molecules optimized (0.003 Å, 5 more held out); angles free within GFN2's own
+  error, steep beyond; the water dimer's O–O (0.01 Å); a pull toward GFN2. Tight optimizations (gtol 1e-6: at 5e-5 a
+  1e-3 parameter step did not move them, the fit saw no angle change and opened water to 115.7°). Ten rounds (A–J);
+  shipped data: J.
+- **Held-out errors** (MAD, eV; never fitted; S22 never fitted by any of them):
+
+  | held out | GFN1 | GFN1 polarized | GFN2 | GFN2 polarized | first refit, GFN1 form | first refit, GFN2 form | this refit |
+  |---|---|---|---|---|---|---|---|
+  | W4-11 atomization (16) | 10.78 | 4.35 | 8.16 | 2.15 | 0.35 | 0.37 | 0.49 |
+  | BH76 barriers (10) | 0.98 | 0.73 | 0.93 | 0.68 | 0.48 | 0.45 | 0.74 |
+  | WATER27 clusters (12) | 0.38 | 0.38 | 0.125 | 0.125 | 0.32 | 0.91 | 0.19 |
+  | S22 non-covalent (22) | 0.058 | 0.058 | 0.033 | 0.033 | runs away | 0.137 | 0.045 |
+  | bonds of 8 held-out molecules (Å) | 0.0095 | 0.0095 | 0.0111 | 0.0111 | 0.0048 | 0.0055 | 0.0076 |
+
+  The held-out barriers are all radical hydrogen abstractions (OH, NH₂, NH + CH₄, C₂H₆, CH₃; H + CO): every xTB here puts
+  those saddles 0.5–1.2 eV too low, and the fitted ones (OH + H₂, CH₃ + H₂, O + CH₄, …) improve only part way while the
+  HCN saddle (also a bridging H, but too high) pulls the other way. Round G, with the spin scale free, reached 0.67 and the
+  proton 0.055 / 0.148 eV, but its books jumped in the hot mixture (above).
+- **Compared** (`cmp.js`, as the tables above; geometries optimized by each variant):
+
+  | | GFN1 | GFN2 | GFN2 polarized | first refit, GFN1 form | first refit, GFN2 form | this refit | g-xTB | reference |
+  |---|---|---|---|---|---|---|---|---|
+  | bond lengths, 24 bonds (MAD, Å) | 0.0107 | 0.0122 | 0.0122 | 0.0127 | 0.0191 | 0.0102 | 0.011 | measured |
+  | of them the 19 H/C/N/O bonds | 0.0088 | 0.0120 | 0.0120 | 0.0049 | 0.0066 | 0.0094 | | |
+  | angles H₂O / O₃ (°) | 107.1 / 119.1 | 107.2 / 120.4 | the same | 107.5 / 117.1 | 107.7 / 118.5 | 108.5 / 119.2 | 106.5 / 117.7 | 104.5 / 116.8 |
+  | atomization, 23 molecules (MAD, eV) | 6.63 | 4.62 | 1.61 | 0.63 | 0.79 | 0.55 | 0.15 | W4-11 |
+  | H + H₂ barrier (eV) | 0.15 | −0.40 | 0.03 | 0.57 | 0.54 | 0.20 | 0.21 | 0.42 |
+  | HCN → HNC energy / barrier (eV) | 0.92 / 2.52 | 0.87 / 3.18 | the same | 0.91 / 2.59 | 0.81 / 2.54 | 1.02 / 2.79 | 0.31 / 2.24 | 0.66 / 2.09 |
+  | water dimer (eV, O–O Å) | 0.208, 2.91 | 0.215, 2.84 | the same | 0.268, 2.79 | 0.220, 2.80 | 0.206, 2.82 | 0.212, 2.91 | 0.217, 2.91 |
+  | O₃ → O₂ + O (eV) | 7.60 | 6.85 | 4.70 | 1.81 | 1.87 | 2.57 | 1.12 | 1.15 |
+  | proton between waters 2.7 / 2.8 Å (eV) | 0.084 / 0.214 | 0.041 / 0.123 | the same | 0.082 / 0.189 | 0.195 / 0.333 | 0.022 / 0.092 | 0.103 / 0.222 | |
+  | hexazine flat: barrier, release (eV) | 0.53, +1.67 | 0.80 (uphill), −0.84 | the same | 0.30, +6.77 | none, +6.65 | none, +6.65 | none, +6.95 | |
+
+  With the refitted hydrogen and plain GFN2 for F, Cl and S, HF/HCl/H₂S bonds stay within 0.008 Å of GFN2's (the first
+  refits: 0.04–0.10 Å off) but their atomization is 0.3–0.8 eV further off than GFN2's: hence H/C/N/O molecules only.
+- **In the game** (Node, `XQ.method` 4; `scratchpad/126x2/game.js`): O₂, two waters and methane (the first refit: 10
+  unsettled, books 220 eV off): none unsettled, −1.7e-6 eV over 200 insulated steps; O₂ with two waters and a Na⁺
+  outside: the triplet (|m| 2.09), slopes 1.8e-6 eV/Å, −1.2e-4 eV over 200 steps; 3-D (O₂, three waters, methane):
+  slopes x/y/z 8.7e-7/7.3e-7/5.7e-7 eV/Å, −1.2e-5 eV over 150 steps, none unsettled (round A: 7 unsettled while the
+  molecules joined; GFN2 polarized 0); H₂ pulled apart: one switch to two spins, every step settled (largest change
+  0.0047 eV); a hydronium and five waters: −5.4e-5 eV over 200 steps, 5.3 iterations a step; the hot mixture (O₃, NO, O₂,
+  H₂O₂, two H₂, 1,500 K, 400 insulated steps) in 3-D −1.4e-5 eV; flat, 4 seeds: the books jump in 2 (0.43 eV twice, with 2 unsettled calculations; 0.52 eV once), −2.9e-5 and −1.7e-5 eV
+  in the others (GFN2 polarized: 1 seed of 4, 0.32 eV; see below).
+- **Why not offered**: the held-out barriers are not better than GFN2 polarized (0.74 against 0.68; GFN1 polarized 0.73),
+  H + H₂ is half the real barrier (0.20; not bound any more), and the proton the quantum bonds were made for is flatter
+  than GFN2's (0.022 at 2.7 Å; g-xTB 0.103, GFN1 0.084). What it does well: atomization (0.55 eV, GFN2 polarized 1.61),
+  ozone, hexazine falling apart, bonds (0.0094 Å on H/C/N/O), water and S22 near GFN2's. Its parameters, the engine's
+  support and the pipeline stay for a later round. **Default: GFN1** (and the recommendation above stands: Polarized
+  spins as GFN1's default once the owner approves).
+- Found, not changed: **the books of a spin-polarized calculation that does not settle**. When a step's warm start
+  (polarized, from the last step) does not settle, qmPass starts afresh unpolarized; the probe then switches back to
+  polarized and pays the difference to the bath, though the system was polarized all along: the books jump by about
+  that difference. GFN2 polarized in the hot mixture: 1 seed of 4 (0.32 eV); this refit 2 of 4 (0.43, 0.52). Not paying
+  the probe's switch in a step whose unpolarized state came from such a fresh start would close them; it changes GFN1's
+  and GFN2's polarized books, so it is for the owner.
+- Test: tests/f_126x.js part `af2` (t_features' "1.26 (xTB)" line; alone `node tests/f_126x.js af2`): the data (GFN2's
+  form, the published spin scale, what was frozen); single points against GFN2 polarized (H₃'s stretch 0.195 against
+  0.008 eV, flat hexazine 6.76 eV above three N₂ against 0.84 below, the water dimer kept); the world that sank the
+  first refit settles and keeps its books; switching from GFN2 with 13 members paid to the bath (books to 0 eV); 3-D
+  slopes and books; H₂S keeps stored bonds. Fails on 75eea89 (no method 4). GFN1 and GFN2 run bit for bit as before
+  (`f_126x base`, `f_126q gfn1`).
+
+### 1.26: spin-polarized xTB
+
+Asked by the owner (the xTB plan, item 1): spin polarization for GFN1 and GFN2, "free atoms and radicals get their
+unpaired-electron energy, so bond breaking into atoms or radicals comes out closer to real"; item 2: GFN2's SCC with
+radicals. Built on branch v135 (from v131). Physics for the owner's OK: a new choice; Paired stays normal.
+
+- **What**: Settings → Experimental → Bond orders → Quantum, under Quantum method: **Spins**, Paired (normal, as GFN-xTB
+  was made) or Polarized. `SET.xqs` (0/1, Experimental: back to Paired at every start), `boQmSpin(v)` (bo.js: with
+  quantum bonds on, the members leave and join again, each change's energy to the bath, as `boQmMethod`), `XQ.spin`.
+- **The method**: the published spin-polarized GFN-xTB (Neugebauer, Bädorf, Ehlert, Hansen and Grimme, J. Comput. Chem.
+  44, 2120 (2023)), ported from tblite (LGPL-3.0-or-later: spin.f90, data/spin.f90 (the W constants, `tools/xtb/spin-data.js`
+  by `spin-gen.js`, numbers copied as text), wavefunction/spin.f90, the two-channel parts of scf/diag.f90, potential.f90,
+  the singlepoint and its gradient) into `tools/xtb/spin.js`, used by gfn1.js and gfn2.js with `opts.spin`: each spin
+  its own Hamiltonian H_c ± H_m (H_m = −½ S (v_m(μ) + v_m(ν)), v_m = W m on each atom's shells), its own orbitals,
+  E_spin = ½ Σ m W m; the mixer over [q, m] (GFN2: [q, m, dipoles, their magnetization, quadrupoles, theirs], tblite's
+  order); the gradient with both channels' energy-weighted densities and the magnetization's potential. Paired, the
+  ports are bit for bit v131's (182 calculations, E, q, g, bond orders; the game's runs below).
+- **Open shells in the game**: tblite fixes the count of each spin (`uhf`); the game cannot know it for a cluster that
+  can hold several radicals, so both spins share one Fermi level (`opts.spinFree`) and each cluster's count settles
+  itself (a far-apart N and H both get their own spins; with a fixed count one would not). An unpolarized solution is
+  a fixed point the SCC never leaves, so every step that has no magnetization at all is **probed**: the potential of a
+  tiny magnetization (10⁻⁶) along a pattern, and how much the electrons answer along it (power iteration inside the
+  SCC: the pattern turns to the most unstable one). Above 1.02 (the Stoner criterion: a bond stretched past where its
+  electrons would rather sit one on each atom, O₂, a radical made) the calculation runs again from that pattern, and a
+  lower, polarized result is taken, the drop at the same positions to the heat bath (`xqProbe`; not inside a boSync
+  change, which books it whole; not with quantum nuclei). The free atoms (`qmAtomE`) are the lowest of the spin counts
+  their electrons allow, found the same way. Dissociation scans (0.02 Å steps, GFN1/GFN2): H₂ switches at 1.66/1.42 Å
+  (drop 5.2/1.1 meV), N₂ 1.46/1.42 (6/7 meV), HF, water's O–H, methane's C–H 0.6–1.2 meV; afterwards every point the
+  lowest state found by several seeds. Left: O₂ pulled apart follows its triplet branch, 0.25 eV above two Hund oxygens
+  far apart (the probe only looks at unpolarized solutions).
+- **Checked against tblite** (its spin-polarization container, scale 1, on the GitHub Actions runner:
+  `tools/xtb-ref/geoms3.json` (28: H, C, N, O, S, Cl atoms in their high spins, O₂ triplet and singlet, OH, NH₂, CH₂, CH₃, NO,
+  HO₂, H₃, CN, HCO, CH₃O, SH, SO, H₂O⁺, C₂H₅, H₂ and N₂ stretched, ozone triplet, hexazine triplet, water), `ref3.py`,
+  `ref3.json`; `node tools/xtb/check-spin.js`): 56 calculations (both methods), energies to 8e-12 eV, charges 2e-8 e,
+  forces 7e-7 eV/Å (NH₂ with GFN2, where tblite stops its SCC at accuracy 0.01; every other 1e-10); forces against the
+  port's own slopes (Richardson) 1e-9–2e-8 eV/Å, fixed counts and the shared Fermi level alike. Locally also against
+  xtb 6.7.1 `--tblite --spinpol` (scratchpad): molecules to 1e-11 eV.
+- **In the game** (Node; `tests/f_126x.js`): O₂ with two waters and a Na⁺ outside (O₂ a triplet: GFN2's probe switches to
+  it, 0.7 eV to the bath; GFN1's unpolarized start does not settle there and the start with each atom's spins lands on
+  it): forces the energy's slopes flat GFN1 1.2e-6, GFN2 9e-6 eV/Å; 3-D (O₂, three waters, methane) x/y/z 1.5e-6–1e-5
+  and 3e-7–1.2e-6; insulated 7.5e-4 / −1e-3 eV over 200 steps flat, 2e-6 / −9e-6 over 150 in 3-D, nothing unsettled; switching the spins with 8 members in paid to the bath, books closed to 1e-11 eV. A hydronium and five
+  waters (every electron paired): the same drift as paired (−4.2e-5 eV over 200 steps). O₃, NO, O₂, H₂O₂ and two H₂ at
+  1,500 K (bath off, 400 steps): GFN1 1.4e-4 eV, GFN2 −2.8e-5, nothing unsettled; at 3,000 K flat the same; 3-D at
+  3,000 K GFN2 2e-5, GFN1 3 unsettled steps (1.1e-2 eV), at a geometry where GFN1 paired does not settle in 250
+  iterations either. **H₂ pulled apart** (its atoms 4 eV each, beside a water, insulated): polarized, the probe turns the
+  stretched bond into two spins once (GFN1 at 1.67 Å, 8.5 meV to the bath) and every step settles (the largest change of
+  the books 0.011 / 0.004 eV, the fast atoms' own step error, the same paired before the bond breaks); paired, 27 steps
+  unsettled with jumps up to 6.5 eV, both methods.
+- **Cost** (Node, one thread; two cores shared: noisy): a hydronium and five waters (all paired: two sets of orbitals and
+  the probe) GFN1 5.6 → 8.7 ms a calculation (×1.6), GFN2 6.2 → 7.4 (×1.2); the radical mixture at 1,500 K GFN1 9.2 →
+  21.5 (×2.3), GFN2 10.0 → 16.3 (×1.6). Tag ×1.2–2.3 (only with quantum bonds on).
+- **Compared** (single points and geometries by the game's ports, `scratchpad/126x/cmp.js`; geometries optimized by its
+  own BFGS for each variant: the paired numbers reproduce the GFN2 comparison above; spin-polarized with the right spins
+  (O₂ triplet, OH doublet, atoms in their Hund states)):
+
+  | | GFN1 | GFN2 | GFN1 spins | GFN2 spins | g-xTB | reference |
+  |---|---|---|---|---|---|---|
+  | bond lengths, 24 bonds (MAD, Å) | 0.0107 | 0.0122 | 0.0108 | 0.0122 | 0.011 | measured |
+  | atomization, 23 molecules (MAD, eV) | 6.63 | 4.62 | 2.66 | 1.61 | 0.15 | W4-11 |
+  | H + H₂ barrier (eV) | 0.15 | −0.40 | 0.58 | 0.03 | 0.21 | 0.42 |
+  | HCN → HNC energy / barrier (eV) | 0.92 / 2.52 | 0.87 / 3.18 | the same | the same | 0.31 / 2.24 | 0.66 / 2.09 |
+  | water dimer (eV) | 0.208 | 0.215 | the same | the same | 0.212 | 0.217 |
+  | O₃ → O₂ + O (eV) | 7.60 | 6.85 | 5.45 | 4.70 | 1.12 | 1.15 |
+  | proton between waters 2.7 / 2.8 Å (eV) | 0.084 / 0.214 | 0.041 / 0.123 | the same | the same | 0.103 / 0.222 | |
+  | hexazine flat: barrier on the D3h path, release (eV) | 0.53, +1.67 | 0.80 (all uphill), −0.84 | the same | the same | none, +6.95 | |
+
+  Spins help where molecules break into atoms or radicals (atomization 2.5–2.9 times closer; GFN2's bound H₃ gone);
+  molecules whose electrons are all paired along the way are unchanged. Ozone stays 4–5 times too costly to break and
+  GFN1's H + H₂ barrier now overshoots (0.58 against 0.42).
+- **GFN2's SCC with radicals (item 2)**. tblite's mixer is the modified Broyden the ports already had, so the change is
+  in how the game starts and limits the calculation (GFN2 and spins only; GFN1 paired keeps v131's, bit for bit): a
+  changed cluster starts from its members' last state (`xqGuessById`: each atom brings its charges, moments and
+  magnetization; new ones start neutral) instead of cold; a cold start, or one after an unsettled step, gets 120
+  iterations (`XQ.maxItCold`), and an unsettled calculation goes on once from where it got to; no straight-line start
+  through an unsettled step (it sent the next start further off: unsettled steps followed one another); a measurement
+  between steps starts from the step's own state; a Broyden history whose residual grows ten times past its best starts
+  again (`opts.mix.restart`); with spins, still unsettled, a fresh unpolarized start (the probe finds the spins again),
+  then starts with each atom's free spins (alternating, then all alike).
+  Cold starts of the 20 radical soups (10 loose C/N/O/H 1.6–4 Å apart): GFN2 unsettled 20/20 in 40 iterations before,
+  5/20 in 120 after (mean 74 iterations when settled), GFN1 paired 15/20 (unchanged, v131's); polarized they are harder
+  (GFN1 15/20, GFN2 12/20 after 120 + the seeded rerun: every atom a radical, many spin arrangements). Tried and not
+  kept, as they did not help the soups: Broyden memory 5–20, damping 0.2, tblite's newer temperature annealing
+  (`opts.anneal`, left in the port, unused). In the game: O₃, NO, O₂, H₂O₂ and two H₂ at 1,500 K, 300 steps: v131 29
+  unsettled calculations, now none; GFN2 runs where every step settles are bit for bit v131's (a hydronium and three
+  waters, flat and 3-D); that hot mixture's positions differ by up to 0.3 Å after 300 steps (other starts, then chaos).
+- Found, not changed: a cluster holding O₂ and ammonia 6 Å apart never settles (GFN1 and GFN2, paired or not): GFN-xTB
+  puts ammonia's lone pair above O₂'s empty level, so half an electron crosses 6 Å and the charges slosh. Calculating
+  far-apart fragments separately (whole charges each) would cure it and save time; that changes the physics and is
+  for the owner. GFN1 with O₂, two waters and methane: 7 unsettled calculations while it starts, polarized or not, and a
+  switch of method onto such a cluster (GFN2 → GFN1) measures an unsettled energy, the books 50 eV off; GFN2 settles there.
+- Settings text (the row, its tooltips, the note, SDESC/SDESC3), cost tags (COSTS/COSTS3 ×1.2–2.3), the realistic tag on
+  Polarized, the Speed test's line ("quantum bonds (GFN1-xTB, polarized spins)"), Help (the honest-approximations line).
+- Test: tests/f_126x.js (t_features' "1.26 (xTB)" line; alone `node tests/f_126x.js [port base game pull conv chem
+  page]`): the port against ref3.json and its slopes; paired runs v131's bit for bit (GFN1 and GFN2); the game (slopes
+  flat and 3-D, books, switching); H₂ pulled apart; GFN2's hot radical mixture settles; the single points behind the
+  table; the page. Fails on v131 (no spins, no ref3.json; its hot mixture leaves 29 unsettled).
+
+### 1.26: Atom Forge xTB
+
+Asked by the owner (the xTB plan, item 3): re-fit both GFN1's and GFN2's parameters with one pipeline, targets and
+held-out split, for H, C, N, O, with spin polarization; ship the better one as "Atom Forge xTB" if it beats the
+originals on held-out data without breaking geometries. **Result: built and measured, not offered in Settings.** The
+GFN1-form fit beats both originals on held-out energies and keeps H/C/N/O bond lengths, but it overbinds the water dimer
+and, in the game, its calculations do not settle around O₂ among other molecules (below). The GFN2-form fit breaks
+geometries. The parameters, the engine's support (`XQ.method` 3, `tools/xtb/afxtb-data.js`; only H/C/N/O molecules take
+part) and the pipeline (`tools/xtb-fit/`) are in the branch for a later attempt; Settings offers GFN1 and GFN2 only.
+
+- **The fit** (`tools/xtb-fit/fit.js`; data outside the repository: GMTKN55 from GitHub, the owner's g-xTB build for
+  reference points only, never shipped): per element (H, C, N, O) each shell's level, its CN shift, its distance
+  polynomial, the hardness, third order, repulsion exponent and charge; per element pair the H0 scaling; the spin
+  constants' scale: 51 parameters on GFN1's form, 48 on GFN2's (multipoles and D4 kept). Spin-polarized, with each
+  species' own spin count (tblite style). Targets: W4-11 atomization (70 H/C/N/O molecules, σ 0.15 eV), BH76 barriers
+  (38 rows, 0.05 eV), WATER27 (27 clusters, 1.5 %), HCN → HNC and O₃ → O₂ + O (0.05 eV), g-xTB on hexazine's D3h path
+  and its release to 3 N₂ (0.15 / 0.3 eV) and on a shared proton (0.03 eV), the forces at W4-11's reference geometries,
+  and bond lengths and angles of 16 molecules optimized with the parameters being fitted (measured re, 0.002 Å, 0.25°;
+  the water dimer's O–O 0.02 Å). Held out (never fitted): every 4th W4-11 molecule (16), every 3rd BH76 saddle (10 rows),
+  every 3rd water cluster and the 20-mers (12), the proton at 2.8 Å, three molecules' geometries. Levenberg–Marquardt with
+  a forward-difference Jacobian, a pull toward the original parameters; six rounds of settings (the first fits made the
+  water angle 113–124° and bonds 0.014–0.023 Å off, hence the optimized-geometry targets).
+- **Held-out errors** (eV; the originals with polarized spins and the same spin counts; MAD):
+
+  | held out | GFN1 spins | GFN2 spins | Atom Forge xTB on GFN1 | on GFN2 |
+  |---|---|---|---|---|
+  | W4-11 atomization (16) | 4.35 | 2.15 | 0.35 | 0.37 |
+  | BH76 barriers (10) | 0.73 | 0.68 | 0.48 | 0.45 |
+  | WATER27 clusters (12) | 0.38 | 0.13 | 0.32 | 0.91 |
+  | bond lengths of the held-out molecules (Å) | | | 0.001 | 0.008 |
+
+- **Compared** (as the spin table above, `tools/xtb-fit/cmp.js`):
+
+  | | GFN1 | GFN2 | GFN1 spins | GFN2 spins | AF xTB (GFN1 form) | AF xTB (GFN2 form) | g-xTB | reference |
+  |---|---|---|---|---|---|---|---|---|
+  | bond lengths, 24 bonds (MAD, Å) | 0.0107 | 0.0122 | 0.0108 | 0.0122 | 0.0127 | 0.0191 | 0.011 | measured |
+  | of them the 19 H/C/N/O bonds | 0.0088 | 0.0120 | 0.0089 | 0.0120 | 0.0049 | 0.0066 | | |
+  | angles H₂O / O₃ (°) | 107.1 / 119.1 | 107.2 / 120.4 | the same | the same | 107.5 / 117.1 | 107.7 / 118.5 | 106.5 / 117.7 | 104.5 / 116.8 |
+  | atomization, 23 molecules (MAD, eV) | 6.63 | 4.62 | 2.66 | 1.61 | 0.63 | 0.79 | 0.15 | W4-11 |
+  | H + H₂ barrier (eV) | 0.15 | −0.40 | 0.58 | 0.03 | 0.57 | 0.54 | 0.21 | 0.42 |
+  | HCN → HNC energy / barrier (eV) | 0.92 / 2.52 | 0.87 / 3.18 | the same | the same | 0.91 / 2.59 | 0.81 / 2.54 | 0.31 / 2.24 | 0.66 / 2.09 |
+  | water dimer (eV, O–O Å) | 0.208, 2.91 | 0.215, 2.84 | the same | the same | 0.268, 2.79 | 0.220, 2.80 | 0.212, 2.91 | 0.217, 2.91 |
+  | O₃ → O₂ + O (eV) | 7.60 | 6.85 | 5.45 | 4.70 | 1.81 | 1.87 | 1.12 | 1.15 |
+  | proton between waters 2.7 / 2.8 Å (eV) | 0.084 / 0.214 | 0.041 / 0.123 | the same | the same | 0.082 / 0.189 | 0.195 / 0.333 | 0.103 / 0.222 | |
+  | hexazine flat: barrier, release (eV) | 0.53, +1.67 | 0.80 (uphill), −0.84 | the same | the same | 0.30, +6.77 | none, +6.65 | none, +6.95 | |
+
+  The F, Cl and S molecules' bonds (HF, HCl, H₂S) go wrong with the refitted hydrogen (0.04–0.06 Å): hence H/C/N/O only.
+- **Why not shipped**: the GFN2-form fit misses the geometries (0.019 Å, held-out water clusters 0.91 eV, the proton
+  profile twice g-xTB's). The GFN1-form fit wins on held-out energies and the must-haves of breaking bonds (N₂ 9.2 eV
+  into atoms, measured 9.9; ozone 1.8, measured 1.15; hexazine falls apart, as g-xTB has it), HCN ⇌ HNC and the proton
+  as GFN1, but: H + H₂ stays 0.57 (as GFN1 with spins); the water dimer binds 0.27 eV (0.22) with its oxygens 0.12 Å too
+  close; and in the game (O₂, two waters and methane, flat, 30 steps then 200 insulated) its calculations did not settle
+  5 times in the first 30 steps and 5 more after, with the books 220 eV off (GFN1 with spins, the same world: 0 after its
+  start, 4e-5 eV). Closed shells in 3-D are fine (O₂, three waters and methane apart: slopes 5e-7–3e-6 eV/Å, 2e-5 eV over
+  150 steps). That robustness has to be solved before it is offered.
+- **Recommendation (item 4)**: keep GFN1-xTB as the default method, and make **Polarized spins** its default once the
+  owner approves: it is never worse than paired on the comparisons (molecules into atoms 2.5 times closer, the hydrogen
+  exchange 0.16 eV off instead of 0.27, ozone 2 eV closer, bond breaking settles instead of eV jumps; molecules with
+  every electron paired unchanged) for ×1.2–2.3 the cost. Do not remove GFN1: it is the only one that is right on the
+  game's barriers and on hexazine's direction for every element; old saves and settings name it. GFN2 could be retired
+  from the menu (it loses to GFN1 on H + H₂ (paired), HCN ⇌ HNC, the shared proton and hexazine, and its one strength,
+  atomization, is better covered by GFN1 + spins + a working Atom Forge xTB); keep its code so old settings (`xq` 2)
+  load. Atom Forge xTB is the way to real bond energies, after its SCC robustness around O₂ is fixed.
+
+### 1.26: GFN2-xTB
+
+Asked by the owner (the "For 1.26" list): "try implementing gfn2 xtb. Run tests and compare numbers, and maybe leave gfn1 in
+if gfn2 is very different". Built on branch v131. Physics for the owner's OK: a second method to choose; the normal one
+is unchanged.
+
+- **What**: Settings → Experimental → Bond orders → Quantum, then **Quantum method**: GFN1-xTB (normal, as since 1.22) or
+  GFN2-xTB (Bannwarth, Ehlert and Grimme, J. Chem. Theory Comput. 15, 1652 (2019)). `SET.xq` (1 or 2, an Experimental
+  setting: back to GFN1 at every start), `boQmMethod(m)` (bo.js: with quantum bonds on, the members leave under one
+  method and join under the other, each change's energy to the bath as switching models does), `XQ.method`; the free
+  atoms each method's own (`qmAtomE`); a member's orbitals by the method (`xqNAO`: GFN2 gives hydrogen one, GFN1 two),
+  for the 40-atom / 160-orbital caps and the joiners' relaxation. The warm start carries GFN2's whole state (shell
+  charges, atomic dipoles and quadrupoles; `r.guess`), extrapolated as GFN1's charges are.
+- **The port** (`tools/xtb/gfn2.js`, `d4.js`; tables `gfn2-data.js` from tblite's gfn2.f90 by `gfn2-gen.js`, `d4-data.js`
+  from dftd4's reference.inc and data/ by `d4-gen.js`, numbers copied as text; the page's copy in `src/xtb.js` by
+  `mksrc.js`, `XTB.gfn2Energy`, `XTB.nAO2`): ported from tblite (LGPL-3.0-or-later: xtb/gfn2.f90, h0.f90, the overlap,
+  dipole and quadrupole integrals, coulomb/ effective second order with the arithmetic mean of the hardnesses,
+  shell-resolved third order, the damped multipole electrostatics with their exchange-correlation kernels, the
+  repulsion with exponent 1 between H/He pairs, the SCF potentials and the mixer over charges, dipoles and
+  quadrupoles, the singlepoint's gradient), dftd4 (LGPL-3.0-or-later: the self-consistent D4, its reference
+  polarizabilities with GFN2's charges, zeta charge scaling, rational damping, the three-body ATM term with neutral
+  C6) and mctc-lib (Apache-2.0: the double-exponential and the D4 erf coordination numbers). Sources cloned from
+  GitHub (tblite c6f66b9, dftd4 1107ea7, mctc-lib 73fc4ca) into the session's scratchpad; nothing of them committed but
+  the generated tables. Not ported: periodic cells, solvation, spin polarization (restricted open shell as tblite does).
+  Two slips found by the checks and fixed before anything else: tblite stores the multipole radius's slope dR/dCN with
+  the opposite sign and compensates in its dE/dR (copied alone it made H₂'s force 0.13 eV/Å off), and the warm start
+  read the quadrupoles back without undoing the mixer's √2 on the off-diagonal ones (8 iterations a step instead of 5).
+- **Checked against tblite** (its GFN2-xTB on the GitHub Actions runner: `tools/xtb-ref/ref2.py`, `geoms2.json` (21 more
+  geometries in 3-D: S, P, Si, Cl, Br with d shells, LiF, NaCl, nitrate, OH and CH₃ radicals, ozone, HCN/HNC, puckered
+  hexazine, water dimer, H₃O⁺·H₂O, benzene), `ref2.json`; `node tools/xtb/check-gfn2.js`): 91 geometries, energies to
+  1.0e-11 eV, charges 5e-12 e, forces 6.0e-11 eV/Å; forces against the port's own slope (h = 1e-4 Å, x y z) 3–5e-7
+  eV/Å. Also, in the scratchpad only, against xtb 6.7.1's GFN2 (the owner's g-xTB build, which also runs GFN1 and GFN2):
+  91 geometries to 3.5e-7 eV and 9e-6 eV/Å (its D4 and convergence differ a little).
+- **In the game** (Node, `tests/f_126q.js`): forces = the energy's slopes, flat with a Na⁺ outside 6e-7 eV/Å, 3-D 6e-7 in
+  x, y and z; insulated: a hydronium and five waters (19 atoms) −1e-5 eV over 200 steps, 18 atoms in 3-D 0.0000 eV over
+  150; no unsettled calculation in these; 5.2 SCC iterations a step (GFN1 4.9); switching the method with 14 members in
+  paid to the bath (0.9 eV), the books closed to 4e-12 eV. Loose atoms and radicals close together (10 C/N/O/H 1.6–4 Å
+  apart, cold starts, 20 cases): unsettled in the game's 40 iterations GFN1 15, GFN2 20; in 250 GFN1 1, GFN2 2 (GFN2
+  needs about 1.4 times the iterations there).
+- **Cost** (Node, one thread, two cores shared by four agents: noisy; same steps, 0.22 fs): a hydronium and five waters
+  (19 atoms; GFN1 50 orbitals, GFN2 37) flat 14–17 ms a step GFN1, 13–22 GFN2 (×1.1–1.4); 3-D 10–20 against 15–18
+  (×0.9–1.7); with eleven waters (37 atoms, 98 and 73 orbitals) flat 84–97 against 76–100 ms (×0.8–1.2), 3-D 62–105
+  against 47–84 (×0.5–1.4). Fewer orbitals on hydrogen, more work in the dipole and quadrupole integrals and D4: about
+  the same. Tags: GFN1 ×1, GFN2 ×0.8–1.4 (only with quantum bonds on).
+- **Compared** (GFN1 and GFN2 by the game's ports, geometries optimized by xtb 6.7.1 for each method; g-xTB from the
+  owner's build, Linux binary from github.com/grimme-lab/g-xtb, run in the scratchpad only; references from GMTKN55 on
+  GitHub: W4-11 atomization energies, BH76 barriers, WATER27, and measured bond lengths from memory (NIST/Huber–
+  Herzberg). Atoms and molecules as the game takes them for GFN1/2 (uhf 0, Fermi smearing); with high-spin atoms GFN1/2
+  change by 0.1 eV at most; g-xTB with the right spins):
+
+  | | GFN1 | GFN2 | g-xTB | reference |
+  |---|---|---|---|---|
+  | bond lengths, 24 bonds (MAD, Å) | 0.011 | 0.012 | 0.011 | measured |
+  | angles H₂O / O₃ / H₂S (°) | 107.1 / 119.1 / 93.2 | 107.2 / 120.4 / 92.3 | 106.5 / 117.7 / 92.9 | 104.5 / 116.8 / 92.1 |
+  | atomization, 23 molecules (MAD, eV) | 6.6 | 4.6 | 0.15 | W4-11 |
+  | H₂ / N₂ / H₂O atomization (eV) | 6.36 / 14.58 / 16.69 | 5.33 / 14.83 / 13.99 | 4.64 / 9.42 / 10.03 | 4.75 / 9.91 / 10.10 |
+  | H + H₂ barrier (eV) | 0.15 | −0.40 (H₃ bound) | 0.21 | 0.42 (BH76) |
+  | HCN → HNC energy / barrier (eV) | 0.92 / 2.52 | 0.87 / 3.18 | 0.31 / 2.24 | 0.66 / 2.09 |
+  | water dimer (eV, O–O Å) | 0.208, 2.91 | 0.215, 2.84 | 0.212, 2.91 | 0.217 (WATER27) |
+  | O₃ → O₂ + O (eV) | 7.60 | 6.85 | 1.12 | 1.15 (W4-11) |
+  | proton between waters, O–O 2.7 / 2.8 Å (eV) | 0.084 / 0.214 | 0.041 / 0.123 | 0.103 / 0.222 | (g-xTB) |
+  | hexazine flat: N–N, barrier, release (eV) | 1.296 Å, 0.54, +1.67 | 1.295 Å, none, −0.84 | 1.308 Å, none, +6.95 | falls apart, several eV |
+  | hexazine 3-D: vs flat, barrier, release (eV) | −0.16 (pucker 0.23 Å), 0.65, +1.51 | −0.88 (0.24 Å), 1.67, −1.72 | stays flat, none, +6.95 | |
+
+  Hexazine: GFN2 makes it worse than GFN1, not better: the ring lies 0.84 eV (flat) to 1.72 eV (puckered, bonds
+  alternating 1.25/1.37 Å) **below** three N₂ (checked against xtb's own GFN2: −0.842), so in the game it would never
+  fall apart. g-xTB has no barrier at all and releases 6.95 eV (published high-level work, from memory: at best a
+  shallow minimum). H + H₂: GFN2 itself binds linear H₃ by 0.40 eV at 1.05 Å (tblite and xtb alike), where the real
+  saddle is 0.42 eV up. GFN2 is closer for breaking molecules into atoms, but both are far too strong there (the xTB
+  methods' free atoms), and ozone losing an O is 6–7 times too costly in both.
+- **Default: GFN1** (by the rule from the main session: whichever matches the references better overall, unless GFN2 is
+  more than ~3× slower; it is not slower). GFN1 is closer on the barriers that make reactions happen in the game (H +
+  H₂, HCN ⇌ HNC, the shared proton the quantum bonds were made for, hexazine's direction), equal on geometries and the
+  water dimer; GFN2 is closer only on atomization energies, where both are poor. GFN2 kept as a choice (realistic tag
+  on GFN1, with why).
+- The flat game with default settings is bit for bit the same: the 59 setups (50 flat, 9 3-D), seed 7, 300 steps, every
+  position and velocity identical to 1.25; quantum bonds with GFN1 too (a hydronium and three waters, 150 steps, flat
+  and 3-D, identical: `f_126q.js gfn1`).
+- Settings text (the row and its tooltips, the note under Quantum with the numbers above, SDESC and SDESC3), cost tags
+  (COSTS and COSTS3), the Speed test's line ("quantum bonds (GFN2-xTB)"), Help (the honest-approximations line).
+  No Settings picture for the new row (as Bead forces).
+- Test: tests/f_126q.js (t_features' "1.26 (GFN2)" line; alone `node tests/f_126q.js [port gfn1 game chem page]`):
+  the port against tblite's ref2.json and its slopes; GFN1 runs bit for bit 1.25's; GFN2 in the game (slopes flat and
+  3-D, books, method switch); the measurements behind the default (H₃, hexazine, the shared proton); the page. Fails
+  on 1.25 (no GFN2). `node tools/xtb/check-gfn2.js` for the full port check.
+- Left: GFN2's SCC on loose radicals (above); a Settings picture; g-xTB itself in the game only when its source and
+  parameters are public (tblite).
 
 ## 1.25 (in progress)
 

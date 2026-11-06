@@ -936,11 +936,11 @@ function boSync() {
       for (const bd of a.bonds) { const o = other(bd, a); if (!seen.has(o)) { seen.add(o); cl.push(o); } }
       const l = adj.get(a); if (l) for (const o of l) if (!seen.has(o) && !o.dead) { seen.add(o); cl.push(o); }
     }
-    const ok = BO.on && cl.every(boOK) && (cl.length > 1 || cl[0].q === 0) && (BO.qm || !cl.every(boMetal)); // (a lone ion, Cl⁻ in brine, stays with the kernel's ion–water terms; and metal alone, tin, with its metallic cohesion: only its molecules (SnCl₄, SnH₄) take part, 1.25)
+    const ok = BO.on && cl.every(boOK) && (cl.length > 1 || cl[0].q === 0) && (BO.qm || !cl.every(boMetal)) && !(BO.qm && XQ.method >= 3 && !cl.every(p => p.Z === 1 || p.Z === 6 || p.Z === 7 || p.Z === 8)); // (Atom Forge xTB and GFN2 (Atom Forge fit), 1.26: fitted for H, C, N and O only; a molecule with anything else keeps stored bonds) // (a lone ion, Cl⁻ in brine, stays with the kernel's ion–water terms; and metal alone, tin, with its metallic cohesion: only its molecules (SnCl₄, SnH₄) take part, 1.25)
     for (const a of cl) want.set(a, ok);
   }
   if (BO.qm) { // (quantum bonds: one calculation for every member together, so only a small system takes part: all or none)
-    let nw = 0, nao = 0; for (const [a, v] of want) if (v) { nw++; nao += XTB.nAO(a.Z); }
+    let nw = 0, nao = 0; for (const [a, v] of want) if (v) { nw++; nao += xqNAO(a.Z); }
     // (and only while one calculation stays affordable, 1.23.1: its cost grows with the cube of the orbitals, and with quantum
     // nuclei every bead has its own; 40 heavy atoms, 360 orbitals, took 18 s a step and froze the page)
     XQ.over = nw > XQ.max || nao > XQ.maxAO || nao * nao * nao * (PI.on ? PI.P : 1) > XQ.maxCost ? nw : 0;
@@ -968,7 +968,7 @@ function boSync() {
   for (const p of join) p.bom = true;
   for (const p of join) for (const bd of p.bonds.slice()) removeBond(bd);
   W.dirty++; W.topo++; vlInvalidate();
-  if (join.length) { BO.any = true; boRelax(join); }
+  if (join.length) { BO.any = true; XQ.hold = true; try { boRelax(join); } finally { XQ.hold = false; } }
   const Ea = boPass(false) + localPE(set) + intE();
   W.ledger.bath += Eb - Ea; BO.bath += Eb - Ea;
   BO.any = BO.on && parts.some(p => p.bom && !p.dead);
@@ -997,7 +997,7 @@ function boRelax(join) {
    anything joined). Counted from the world, not timed, so runs stay the same from a seed. */
 function boRelaxPasses() {
   const P = PI.on ? PI.P : 1;
-  if (BO.qm) { let nao = 0; for (const p of W.parts) if (p.bom && !p.dead) nao += XTB.nAO(p.Z); return Math.max(2, Math.min(60, Math.floor(2 * 160 * 160 * 160 / (P * Math.max(1, nao * nao * nao))))); }
+  if (BO.qm) { let nao = 0; for (const p of W.parts) if (p.bom && !p.dead) nao += xqNAO(p.Z); return Math.max(2, Math.min(60, Math.floor(2 * 160 * 160 * 160 / (P * Math.max(1, nao * nao * nao))))); }
   let n = 0; for (const p of W.parts) if (!p.dead) n++;
   return Math.max(6, Math.min(60, Math.floor(36000 / (P * Math.max(1, n))))); // (60 up to 600 particles: those worlds join as before)
 }
@@ -1019,9 +1019,19 @@ function boSet(v) {
   const on = !!v, qm = v === 2;
   if (on === BO.on && qm === BO.qm) return;
   if (BO.on && qm !== BO.qm && W.parts.length) { BO.on = false; boSync(); } // (the other model: every member leaves first, then joins again)
-  BO.on = on; BO.qm = qm; XQ.qsh = null; XQ.qsh1 = null; XQ.sig = ''; XQ.pq.length = 0;
+  BO.on = on; BO.qm = qm; XQ.qsh = null; XQ.qsh1 = null; XQ.sig = ''; XQ.pq.length = 0; XQ.ids = null; XQ.pv = null;
   for (const p of W.parts) { p._dq = 0; p._dqv = 0; }
   if (W.parts.length) { boSync(); if (on) BO.any = true; }
+}
+/* The quantum method (1.26): 1 GFN1-xTB, 2 GFN2-xTB (3 Atom Forge xTB, not offered; 4 GFN2 (Atom Forge fit)). With quantum bonds on, the members leave under the one and join
+   under the other (boSync books each change's energy to the bath, as switching models does). */
+function boQmMethod(m) {
+  m = m === 2 || m === 3 || m === 4 ? m : 1; // (3: Atom Forge xTB, 4: GFN2 (Atom Forge fit), 1.26)
+  if (m === XQ.method) return;
+  const was = BO.on && BO.qm && W.parts.length;
+  if (was) { BO.on = false; boSync(); }
+  XQ.method = m; XQ.qsh = null; XQ.qsh1 = null; XQ.sig = ''; XQ.pq.length = 0; XQ.ids = null; XQ.pv = null;
+  if (was) { BO.on = true; boSync(); BO.any = true; }
 }
 
 /* ------------------------------------------------------------------ quantum bonds (Experimental, 1.22)
@@ -1038,12 +1048,69 @@ function boSet(v) {
    self-consistent charges (outside potential), so the forces are the energy's exact slopes. The energy counted is
    the binding energy: GFN1's less each member's free atom. Bond orders (Mayer's, from the density) are drawn and
    decide the molecules. */
-const XQ = { max: 40, maxAO: 160, maxCost: 160 * 160 * 160, maxIt: 40, acc: 0.01, extra: true, qsh: null, qsh1: null, sig: '', pq: [], eAtom: new Map(), over: 0, calls: 0, it: 0, ms: 0, fails: 0 };
+const XQ = { method: 1, max: 40, maxAO: 160, maxCost: 160 * 160 * 160, maxIt: 40, acc: 0.01, extra: true, qsh: null, qsh1: null, sig: '', pq: [], eAtom: new Map(), over: 0, calls: 0, it: 0, ms: 0, fails: 0,
+  spin: 0, pv: null, pvSig: '', lamMax: 1.02, flips: 0, flipE: 0, ids: null, maxItCold: 120 }; // (spin polarization, 1.26: XQ.spin; the stability probe's direction pv; branch switches flips, their energy to the bath flipE)
+/* the method's form, spins and parameters (Atom Forge xTB, 1.26: its own parameters on GFN1's or GFN2's form, always
+   with polarized spins, as it was fitted) */
+const xqB = () => XQ.method === 3 ? XTB.AF.base : XQ.method === 4 ? 2 : XQ.method;
+const xqSp = () => XQ.method === 3 ? XTB.AF.ws : XQ.method === 4 ? XTB.AF2.ws : XQ.spin; // (4: GFN2 (Atom Forge fit), the second refit, 1.26: GFN2's form, always polarized, as fitted)
+const xqPar = () => XQ.method === 3 ? XTB.AF.par : XQ.method === 4 ? XTB.AF2.par : null;
 function qmAtomE(Z) {
-  let e = XQ.eAtom.get(Z);
-  if (e === undefined) { e = XTB.gfn1Energy([Z], [[0, 0, 0]], 0, 0, { accuracy: XQ.acc }).E; XQ.eAtom.set(Z, e); }
+  const key = (XQ.method === 4 ? 6000 : XQ.method === 3 ? 5000 : (XQ.method === 2 ? 1000 : 0) + (XQ.spin ? 2000 : 0)) + Z; // (each method's own free atoms, 1.26; spin-polarized in their lowest spin state)
+  let e = XQ.eAtom.get(key);
+  if (e === undefined) {
+    const f = xqB() === 2 ? XTB.gfn2Energy : XTB.gfn1Energy, sw = xqSp(), par = xqPar();
+    if (!sw) e = f([Z], [[0, 0, 0]], 0, 0, { accuracy: XQ.acc }).E;
+    else { // (the lowest of the spin counts its electrons allow, each found as the game's own calculation finds it: one Fermi level, seeded there)
+      const o = { accuracy: XQ.acc, spin: sw, spinFree: true }; if (par) o.par = par;
+      const r0 = f([Z], [[0, 0, 0]], 0, 0, o), nsh = r0.msh.length, nel = Math.round(r0.nAlpha + r0.nBeta), nao = r0.emo.length;
+      e = r0.E;
+      for (let u = nel % 2 || 2; u <= Math.min(nel, 2 * nao - nel); u += 2) { const m0 = new Array(nsh).fill(0); m0[nsh - 1] = -u; const r = f([Z], [[0, 0, 0]], 0, 0, { ...o, m0 }); if (r.converged && r.E < e) e = r.E; }
+    }
+    XQ.eAtom.set(key, e);
+  }
   return e;
 }
+/* Spin polarization on or off (1.26): as the method, the members leave under the one and join under the other */
+function boQmSpin(v) {
+  v = v ? 1 : 0;
+  if (v === XQ.spin) return;
+  const was = BO.on && BO.qm && W.parts.length;
+  if (was) { BO.on = false; boSync(); }
+  XQ.spin = v; XQ.qsh = null; XQ.qsh1 = null; XQ.sig = ''; XQ.pq.length = 0; XQ.pv = null; XQ.ids = null;
+  if (was) { BO.on = true; boSync(); BO.any = true; }
+}
+/* The charge state's layout per member (1.26): each atom's shells, then (GFN2) its dipole and quadrupole; with spin,
+   each part twice (charges, then magnetizations), as the ports pack them */
+function xqLayout(Z) {
+  const sh = Z.map(z => xqB() === 2 ? XTB.nSh2(z) : XTB.nSh(z)), off = []; let nsh = 0;
+  for (const k of sh) { off.push(nsh); nsh += k; }
+  return { sh, off, nsh, nat: Z.length };
+}
+/* A start after the members changed (1.26, GFN2 and spin only; GFN1 without spin starts cold as before): each atom that
+   was a member brings its charges (and moments, magnetization) from the last step, new ones start neutral */
+function xqGuessById(mem, Z) {
+  const o = XQ.ids, q = XQ.qsh; if (!o || !q) return null;
+  const L0 = o.lay, L = xqLayout(Z), sp = !!xqSp(), g2 = xqB() === 2, at = new Map(o.id.map((id, k) => [id, k]));
+  const len = (sp ? 2 : 1) * (L.nsh + (g2 ? 9 * L.nat : 0)), L0len = (sp ? 2 : 1) * (L0.nsh + (g2 ? 9 * L0.nat : 0));
+  if (q.length !== L0len) return null;
+  const g = new Array(len).fill(0); let any = false;
+  // blocks: [charges by shell, (magnetization by shell), (dipoles 3/atom, (magn.), quadrupoles 6/atom, (magn.))]
+  const blocks = (lay) => { const b = [['sh', lay.nsh]]; if (sp) b.push(['sh', lay.nsh]); if (g2) { b.push(['d', 3 * lay.nat]); if (sp) b.push(['d', 3 * lay.nat]); b.push(['t', 6 * lay.nat]); if (sp) b.push(['t', 6 * lay.nat]); } return b; };
+  const B0 = blocks(L0), B = blocks(L); let o0 = 0, o1 = 0;
+  for (let k = 0; k < B.length; k++) {
+    const kind = B[k][0];
+    for (let m = 0; m < mem.length; m++) {
+      const j = at.get(mem[m].id); if (j === undefined) continue; any = true;
+      if (kind === 'sh') { for (let s = 0; s < L.sh[m]; s++) g[o1 + L.off[m] + s] = q[o0 + L0.off[j] + s]; }
+      else { const w = kind === 'd' ? 3 : 6; for (let c = 0; c < w; c++) g[o1 + w * m + c] = q[o0 + w * j + c]; }
+    }
+    o0 += B0[k][1]; o1 += B[k][1];
+  }
+  return any ? g : null;
+}
+/* a member's orbitals under the method chosen (GFN2 gives hydrogen one, GFN1 two): what a calculation's cost grows with */
+const xqNAO = (Z) => xqB() === 2 ? XTB.nAO2(Z) : XTB.nAO(Z);
 /* the potential (eV per unit charge) at each member from the non-members: the kernel's pair coefficients (qeqC), as bfPhiOthers */
 function qmPhi(mem, phi) {
   const QP = S.qp, Q = S.q;
@@ -1074,12 +1141,28 @@ function qmPass(forces) {
   for (let m = 0; m < n; m++) { vext[m] = phi[m] / XTB.AUTOEV; if (phi[m]) anyV = true; }
   const t0 = performance.now();
   let r;
-  try { r = XTB.gfn1Energy(Z, xyz, charge, 0, { grad: forces, vext: anyV ? vext : null, qsh0: XQ.sig === sig ? xqGuess() : null, bonds: true, accuracy: XQ.acc, maxIter: PI.on ? Math.max(8, Math.floor(XQ.maxIt / Math.sqrt(PI.P))) : XQ.maxIt }); } // (with beads, each a calculation, fewer: 14 at 8 beads; settled ones take 2–5, 1.23.1)
+  const qmE = xqB() === 2 ? XTB.gfn2Energy : XTB.gfn1Energy; // (GFN2-xTB, 1.26: its D4 dispersion is inside, self-consistent)
+  const sp = !!xqSp(), same = XQ.sig === sig, newer = XQ.method !== 1 || sp; // (1.26: GFN2 and spin polarization start a changed cluster from its members' last state, and a cold one with more iterations)
+  const g0 = same ? (newer && !forces ? XQ.qsh : xqGuess()) : newer ? xqGuessById(mem, Z) : null; // (1.26: a measurement starts from the last step's own state, which is where it measures between steps)
+  const maxIt = PI.on ? Math.max(8, Math.floor(XQ.maxIt / Math.sqrt(PI.P))) : newer && (!g0 || XQ.unsettled) ? XQ.maxItCold : XQ.maxIt; // (with beads, each a calculation, fewer: 14 at 8 beads; settled ones take 2–5, 1.23.1; 1.26: a cold start or one after an unsettled step more)
+  const o = { grad: forces, vext: anyV ? vext : null, qsh0: g0, bonds: true, accuracy: XQ.acc, maxIter: maxIt };
+  if (sp) { o.spin = xqSp(); o.spinFree = true; if (!PI.on) o.probe = XQ.pvSig === sig && XQ.pv ? XQ.pv : true; }
+  if (xqPar()) o.par = xqPar(); // (Atom Forge xTB's parameters, 1.26) // (spin polarization, 1.26: one Fermi level for both spins, and the stability probe while unpolarized)
+  if (newer) o.mix = { restart: 10 }; // (1.26: a mixer whose residual runs away starts its history again)
+  try { r = qmE(Z, xyz, charge, 0, o); }
   catch (e) { r = null; }
+  if (newer && r && !r.converged && o.maxIter < XQ.maxItCold) { try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: r.guess || r.qsh, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; r = r2; } catch (e) { /* keep r */ } } // (1.26: unsettled, it goes on from where it got to)
+  if (sp && r && !r.converged && g0) { try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: null, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; if (r2.converged) { r = r2; r.flipped = true; } } catch (e) { /* keep r */ } } // (still unsettled with spins: a fresh, unpolarized start, the probe then finds the spins again)
+  if (sp && r && !r.converged) for (const alt of [true, false]) { // (and still: each atom started with its free spins, alternating from atom to atom, then all alike; an unpolarized O2 among other molecules lets charge slosh between them)
+    const L = xqLayout(Z), m0 = new Array(L.nsh).fill(0); for (let m = 0; m < n; m++) m0[L.off[m] + L.sh[m] - 1] = -(alt && m % 2 ? -1 : 1) * XTB.SPIN.atomUnpaired(Z[m]);
+    try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: null, m0, probe: null, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; if (r2.converged) { r = r2; r.flipped = true; break; } } catch (e) { /* keep r */ }
+  }
+  if (sp && forces && r && r.converged && r.probe) r = xqProbe(r, qmE, Z, xyz, charge, o, sig);
   if (!r || !r.converged) { XQ.fails++; if (!r) { BO.E = 0; return 0; } }
-  const d = XTB.d3Disp(Z, xyz, { grad: forces });
-  if (forces) { XQ.qsh1 = XQ.sig === sig ? XQ.qsh : null; XQ.qsh = r.qsh; XQ.sig = sig; XQ.calls++; XQ.it += r.iterations; XQ.ms += performance.now() - t0; } // (a measurement leaves the next step's start alone: runs stay the same however often the energy is read)
-  let E = r.E - r.Eext + d.E; // (the outside potential's energy is the kernel's pairs')
+  const d = xqB() === 2 ? null : XTB.d3Disp(Z, xyz, { grad: forces });
+  if (forces) { XQ.qsh1 = XQ.sig === sig && !r.flipped && !(newer && (XQ.unsettled || !r.converged)) ? XQ.qsh : null; if (newer) XQ.unsettled = !r.converged; XQ.qsh = r.guess || r.qsh; // (1.26: no straight line through an unsettled step: it sent the next start further off, and unsettled steps followed one another)
+     XQ.sig = sig; XQ.calls++; XQ.it += r.iterations; XQ.ms += performance.now() - t0; if (newer) XQ.ids = { id: mem.map(p => p.id), lay: xqLayout(Z) }; } // (a measurement leaves the next step's start alone: runs stay the same however often the energy is read)
+  let E = r.E - r.Eext + (d ? d.E : 0); // (the outside potential's energy is the kernel's pairs')
   for (let m = 0; m < n; m++) E -= qmAtomE(Z[m]);
   for (let m = 0; m < n; m++) { const p = mem[m], q = r.q[m]; QP[p.i] = q - p.q; p.qpol = q - p.q; p.qf = 0; p.qi = 0; }
   // bond orders (Mayer's): drawn, and the molecules
@@ -1091,14 +1174,36 @@ function qmPass(forces) {
   }
   BO.np = XQ.pq.length; BO.E = E;
   if (forces) {
-    const FX = S.fx, FY = S.fy, gq = r.g, gd = d.g;
-    for (let m = 0; m < n; m++) { const i = mem[m].i; FX[i] -= gq[m][0] + gd[m][0]; FY[i] -= gq[m][1] + gd[m][1]; }
-    if (d3) { const FZ = S.fz; for (let m = 0; m < n; m++) FZ[mem[m].i] -= gq[m][2] + gd[m][2]; } // (3-D: the slope in depth, 1.24)
+    const FX = S.fx, FY = S.fy, gq = r.g, gd = d ? d.g : null;
+    if (gd) {
+      for (let m = 0; m < n; m++) { const i = mem[m].i; FX[i] -= gq[m][0] + gd[m][0]; FY[i] -= gq[m][1] + gd[m][1]; }
+      if (d3) { const FZ = S.fz; for (let m = 0; m < n; m++) FZ[mem[m].i] -= gq[m][2] + gd[m][2]; } // (3-D: the slope in depth, 1.24)
+    } else { // (GFN2: the dispersion's slope is in r.g, 1.26)
+      for (let m = 0; m < n; m++) { const i = mem[m].i; FX[i] -= gq[m][0]; FY[i] -= gq[m][1]; }
+      if (d3) { const FZ = S.fz; for (let m = 0; m < n; m++) FZ[mem[m].i] -= gq[m][2]; }
+    }
     for (const q of XQ.pq) { if (q.n < 0.2) continue; const w = XQ_K * Math.min(q.n, 3) * (q.a.im + q.b.im); if (w > _stiff) _stiff = w; } // (a bond's stiffness, for the step: about 50 eV/Å² an order, O–H 49, C=O 75, C≡C 100)
   }
   return E;
 }
 const XQ_K = 50;
+/* The stability probe's verdict (spin polarization, 1.26). An unpolarized solution whose electrons answer a tiny
+   magnetization by more than they were given (lam > 1, the Stoner criterion: a bond stretched past the point where its
+   electrons would rather sit one on each atom, or a radical just made) is not the lowest: the calculation runs again
+   from a magnetization along the probe's pattern, and if that settles lower and polarized it is taken, the drop at the
+   same positions to the heat bath (as switching models), so the books stay closed. The probe's pattern is carried from
+   step to step (a power iteration: it turns to the most unstable one). */
+function xqProbe(r, qmE, Z, xyz, charge, o, sig) {
+  XQ.pv = r.probe.v; XQ.pvSig = sig;
+  if (!(r.probe.lam > XQ.lamMax) || XQ.hold) return r; // (not inside a change being measured: boSync books it whole)
+  const v = r.probe.v, mx = Math.max(...v.map(Math.abs)) || 1, nsh = v.length, g = r.guess.slice();
+  for (let s = 0; s < nsh; s++) g[nsh + s] = 0.5 * v[s] / mx; // (the magnetization part of the state: right after the shell charges)
+  let r2; XQ.reruns = (XQ.reruns || 0) + 1;
+  try { r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: g, probe: null, maxIter: XQ.maxItCold }); } catch (e) { r2 = null; }
+  if (!r2 || !r2.converged || !(r2.E < r.E - 1e-9) || !(Math.max(...r2.spin.map(Math.abs)) > 1e-3)) return r;
+  const d = r.E - r2.E; W.ledger.bath += d; BO.bath += d; XQ.flips++; XQ.flipE += d;
+  r2.iterations += r.iterations; r2.flipped = true; return r2; // (flipped: no straight line through the old branch for the next start)
+}
 
 /* Leaving quantum bonds, the atoms get whole charges where the electrons put them (a proton that hopped took the +1
    along: the charge is the oxygen's that now holds three hydrogens). Molecules from the last bond orders (heavy atoms
