@@ -331,14 +331,16 @@ ran out of the 2 GB heap).
 Waiting for the owner:
 - Approvals already given: GFN2 as a choice; metals items 1–3 ("ship and fix!"); directional forces; the nuclear side
   and continuous bond orders in 3-D.
-- To decide: close-packed metals' angular terms (item 4 below: keep 1.25's, ship the tried constants, or a bigger
-  form); Polarized as the normal Spins setting; the spin-branch booking change (a polarized step that fails to settle
+- Decided (the owner, 2026-11-05: "try bigger model later for metals"): close-packed metals keep 1.25's fit in 1.26;
+  a bigger form (fourth moment or MEAM screening) is on the 1.27 list.
+- The spin-branch booking bug goes to a bug-fix session (prompt written 2026-11-05, branch bugfix-126 from v136).
+- To decide: Polarized as the normal Spins setting; the spin-branch booking change (a polarized step that fails to settle
   restarts paired and the switch back is paid to the bath although nothing changed: books jump ~0.3 eV in 1 of 4 hot
   radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #1 (flat Cu ions),
   #3 (AsCl₅) and #16 (3-D water recapture, physics).
 
 For 1.27 (not built): polarizability that differs by direction; a different form for close-packed metals' directions
-(fourth moment or MEAM screening) if the owner wants item 4; another Atom Forge xTB only with a new plan for
+(fourth moment or MEAM screening; the owner: "try bigger model later"), fitted with the liquid held to 1.25's and fcc/hcp/bcc in order; another Atom Forge xTB only with a new plan for
 radical barriers. Found and on record: 3-D water 14–18% too dense; the 6 Å cutoff's false peak; C–F charges about 2×;
 benzene's induced charges ×14 too large; O₂ near NH₃ never settles (quantum bonds).
 Test on record: t_features' 1.23.1 "Continue after a restart" check fails on 1.25 (v128) as on 1.26: the restored world has
