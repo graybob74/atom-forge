@@ -334,7 +334,9 @@ Waiting for the owner:
 - Decided (the owner, 2026-11-05: "try bigger model later for metals"): close-packed metals keep 1.25's fit in 1.26;
   a bigger form (fourth moment or MEAM screening) is on the 1.27 list.
 - The spin-branch booking bug goes to a bug-fix session (prompt written 2026-11-05, branch bugfix-126 from v136).
-- To decide: Polarized as the normal Spins setting; the spin-branch booking change (a polarized step that fails to settle
+- Approved (the owner, 2026-11-05: "ok sounds good"): Polarized becomes the normal Spins setting once the spin-branch
+  booking bug is fixed (not before).
+- To decide: the spin-branch booking change (a polarized step that fails to settle
   restarts paired and the switch back is paid to the bath although nothing changed: books jump ~0.3 eV in 1 of 4 hot
   radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #1 (flat Cu ions),
   #3 (AsCl₅) and #16 (3-D water recapture, physics).
