@@ -3265,7 +3265,9 @@ function capDone(T, lbl, gh, x, y, z, gs) { // (the capture's log and counts, it
      circle in the flat game) and one acceptance of (r² + 1 − 2r(ε·n̂)²)/2, r = E′/E, at least ½ on average at every
      energy. In the flat game the photon scatters within the plane: the angle θ round the circle has the Klein–Nishina
      law at the plane's φ (cos φ = the polarization's in-plane part): what a ring of detectors in the plane sees, as the
-     μSR positrons (part 4). The electron leaves along the momentum the photon gave it (E·k̂ − E′·k̂′), with the energy as
+     μSR positrons (part 4); and since an in-plane polarized photon scatters into the plane less often than one
+     polarized across it, the flat game's rate for a polarized photon is the game's times knPlaneW (2/3 to 4/3 at low
+     energy; unpolarized ×1). The electron leaves along the momentum the photon gave it (E·k̂ − E′·k̂′), with the energy as
      before (what the photon lost less the binding). The rate is the game's (a γ ray of 100 keV or more meets an atom's
      electrons at 1.2% each): kept, though Klein–Nishina's total cross section falls with energy (to 0.74 of Thomson's
      at 100 keV, 0.43 at 511 keV, 0.12 at 5 MeV): written down for the owner.

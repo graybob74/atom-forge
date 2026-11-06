@@ -343,7 +343,7 @@ Waiting for the owner:
   radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #3 (AsCl₅) and #16
   (3-D water recapture, physics).
 
-For 1.27 (part 1, exotic atoms, and the Settings section built on branch v141: see "1.27: realistic particles 1"; parts 5 and 6 on branch v143: "1.27: realistic particles 5 and 6"; the rest not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
+For 1.27 (part 1, exotic atoms, and the Settings section built on branch v141: see "1.27: realistic particles 1"; parts 5 and 6 on branch v143: "1.27: realistic particles 5 and 6"; part 7 on branch v146: "1.27: realistic particles 7"; the rest not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
 portrayed and how to implement an experimental setting that makes them as realistic as possible"; APPROVED, all seven
 parts, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything": each part its own Experimental
 switch, off at start; off, every setup bit for bit as before (fingerprints), energy books exact on; built after the
@@ -2236,6 +2236,139 @@ Screenshots: scratchpad rp5/set-desk.png, set-phone.png, inspect-nmr.png.
     new particles' data, NUC_SPIN, NXS, the γ lines, branchings, conversion coefficients and half-lives above. Each
     agrees with the others where they meet (e.g. the lines sum to their levels, 1/τ against Γ), but a check against the
     tables is worth it.
+
+### 1.27: realistic particles 7 (photon polarization, Klein–Nishina)
+
+Branch v146 (from v145 at 178816e, the combined 1.27 with parts 1, 2, 4, 5 and 6). Part 7 of the seven approved
+realistic-particle parts (the owner, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything").
+One more line in Settings → Experimental → Realistic particles, after "Nuclear spin, γ lines and neutron cross sections":
+"Photon polarization" (`setRpPol`, `SET.rpPol`, `RP.pol`), a switch, off at every start and after a reload (`SET_EXP`),
+its cost tag (flat and 3-D tables), "realistic when on", the description in the side pane (SDESC, SDESC3) and a note
+under the line; the 3-D note names it. Code: hep.js at the end ("Realistic particles 7": polRand, polAcross, polMirror,
+polPS/polFromPS, knScatter, rpCompton, knPlaneW, polPair, polText), hooks in engine.js (emitPhoton/emitPhoton3 pass
+`opts.pol` to rayInteract/rayInteract3 and keep it on the ray or flight; compton/compton3 hand over to rpCompton;
+twoGamma), hep.js (psDecay's two γ, closeEvent passes a ray's pol), props.js (mirror, splitter, lens, prismTrace7, the
+polarizer), ui.js (Light tool and lasers, Objects tool, quick menu, Inspect, Settings), render.js (the polarizer, the
+mark on a photon in flight). Checks: tests/f_rp7.js (t_features runs it alone; `node tests/f_rp7.js [--node] [part …]`):
+off, angles, asym, sources, pairs, optics, books, page; every part but books fails on v145 (no switch there; books
+checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png, optics.png, inspect.png.
+
+- **What a photon carries, and the choice for the flat game.** A linear polarization, a unit vector across its direction
+  (`opts.pol`, kept on its ray or flight as `pol`). In the flat game every photon flies in the plane, so its polarization
+  is an angle ψ between "in the plane" (p̂ = k̂ × ẑ, across its path) and "across the plane" (ẑ, out of the screen), stored
+  as the vector cos ψ·p̂ + sin ψ·ẑ. That is all a photon in the plane can have, and the game's plane is the plane of
+  incidence of every mirror and prism face and the scattering plane of every Compton event, so in-plane is exactly p and
+  across is exactly s. Unpolarized sources (thermal and atomic light, γ lines, X-rays, bremsstrahlung: everything not
+  named below) leave it empty, "unpolarized": a direction is drawn at random the moment something acts on it (ψ uniform,
+  or uniform round the path in 3-D), which is the same statistics. Polarized: the Light tool and its lasers (a new
+  "Polarization" choice with the switch on: in the plane, across ⊙, unpolarized; 3-D vertical, horizontal, unpolarized;
+  default in the plane / vertical), Compton-scattered photons, reflections, the polarizer, and the two γ of every e⁺e⁻
+  annihilation into two (free pairs, at atoms and walls: twoGamma; para-positronium and pick-off: psDecay), each
+  unpolarized alone and the two at right angles (polPair). Circular and elliptical polarization are not carried.
+- **Compton scattering (rpCompton, knScatter).** Klein–Nishina with the polarization, summed over the outgoing
+  polarizations: dσ/dΩ = ½r₀²(E′/E)²[E′/E + E/E′ − 2 sin²θ cos²φ], φ between the scattering plane and the polarization
+  (Klein and Nishina 1929; Heitler, *The Quantum Theory of Radiation*); E′ = E/(1 + (E/mₑc²)(1 − cos θ)), mₑc² =
+  510,998.95 eV (the old code used 511 keV); at low energy Thomson's 1 − sin²θ cos²φ, unpolarized (1 + cos²θ)/2. The new
+  polarization: ε₁ (the old one's part across the new path) or ε₂ = n̂ × ε₁, weighted E′/E + E/E′ − 2 + 4(ε·ε′)² (Heitler;
+  the choice Geant4's polarized Compton makes, Depaola 2003). Drawn with one proposal ∝ E′/E, inverted exactly (3-D: in
+  cos θ, 1 + κ(1 − μ) = (1 + 2κ)^v, φ uniform; flat: θ = 2 atan(tan(π(w − ½))/√(1 + 2κ)) round the circle) and one
+  acceptance (r² + 1 − 2r(ε·n̂)²)/2 ≥ about ⅓: about 1 µs a scattering at any energy (formulas from memory; they are
+  standard and checked here against each other). The electron leaves along the momentum the photon gave it, E·k̂ − E′·k̂′
+  (before: along the photon), with the energy as before. Off, the old draw (cos θ even) is kept as it was.
+  - *The flat game.* The photon scatters within the plane: its angle θ round the circle has the Klein–Nishina law at the
+    plane's φ (cos φ = the polarization's in-plane part), what a ring of detectors in the plane sees (as part 4's μSR
+    positrons). Two consequences, both built: (1) an in-plane-polarized photon scatters into the plane less often than
+    one polarized across it (at low energy 2 : 4 against an unpolarized 3), so a polarized photon's rate is the game's
+    times knPlaneW = (A − 2cos²ψ·B)/(A − B), A = ∫(r³ + r)dθ, B = ∫r² sin²θ dθ (Simpson, 64 intervals; ×2/3 to ×4/3,
+    unpolarized ×1, 3-D always ×1, the total cross section there not depending on ε); (2) for an unpolarized photon ψ is
+    drawn afresh with every proposal, so θ comes from the unpolarized law (1 + cos²θ at low energy); drawing ψ first
+    and θ after would give (1 + 2cos²θ)/2 (found by the χ² check: 666 against 19 dof before this).
+  - *The rate (kept; for the owner).* A γ ray of 100 keV or more meets an atom's electrons at 1.2% each, whatever its
+    energy; Klein–Nishina's total cross section falls with energy: σ/σ_T = 0.96 at 10 keV, 0.74 at 100 keV, 0.43 at 511 keV,
+    0.32 at 1 MeV, 0.12 at 5 MeV, 0.077 at 10 MeV, 0.012 at 100 MeV (computed from the formula). So the box's MeV γ rays
+    Compton-scatter 2–8 times too often against its 100 keV ones. And below 100 keV the box does no Compton scattering
+    (X-rays ionize or pass), so the 10 keV check is of the scattering itself (knScatter), not of the box.
+- **Optics (flat game, props.js).** Mirror and beam splitter: the reflection mirrors the vector (ε − 2(ε·n)n: an ideal
+  metal, r_s = −1, r_p = +1, linear stays linear, unpolarized stays unpolarized); passing a splitter keeps it (as the
+  brief asked; a real dielectric splitter changes it a little). Lens: kept, its in-plane part turning with the ray (an
+  ideal lens, no Fresnel losses). Prism (prismTrace7, the switch on): each face reflects by Fresnel's equations for the
+  photon's polarization (the plane of incidence is the game's plane; p̂ = k̂ × ẑ for every wave): r_s = (n₁c − n₂c′)/
+  (n₁c + n₂c′), r_p = (n₂c − n₁c′)/(n₂c + n₁c′), t_s = 2n₁c/(n₁c + n₂c′), t_p = 2n₁c/(n₂c + n₁c′); R = r_s²·s² + r_p²·p²
+  (Hecht's *Optics*, from memory), the photon reflected with that chance and leaving with the amplitudes it keeps. At
+  Brewster's angle (tan θ_B = n: 58.3° for the prism's F2 flint at 589 nm, n = 1.6166; ~56° for crown glass) r_p = 0: the
+  reflected light is all s, across the plane. A total reflection inside keeps the vector as at the critical angle
+  (r_s = r_p = 1; its phase shifts, which make light elliptical, are not carried). Before (and off): the prism reflected
+  nothing at its faces. The polarizer: a new object (Objects tool, offered with the switch on; `OBJ_POL`, kept out of
+  OBJ_KINDS so t_fuzz's draws are unchanged; saves carry its axis `pa`): a sheet with its axis at α from the plane
+  (0 along the sheet in the plane, 90 across the plane; Axis in the tool and the quick menu); a photon passes with
+  probability (ε·â)², â the axis's part across the ray (Malus's law, cos²), unpolarized one in two, and leaves along â;
+  else absorbed (escaped). Off, a placed polarizer lets light through untouched and says so in its title. X-rays and
+  γ rays pass it, as the other optics. Placed objects stay out of 3-D (as before).
+- **Rayleigh/Thomson scattering: none to act on.** The box has no elastic scattering of light by atoms or free electrons
+  (rayInteract only absorbs, ionizes, dissociates, fluoresces or Compton-scatters above 100 keV). Adding it would be a
+  new process (rates ∝ λ⁻⁴): for later, if the owner wants it (with photons as waves it would come naturally).
+- **Inspect and the view.** Inspect's photon card has "Polarization" with the switch on: "linear, in the plane (across its
+  path)", "linear, across the plane (out of the screen)", "linear, at N° from the plane", in 3-D the vector and its angle
+  from vertical, or "unpolarized (…)". A photon in flight (flat) carries a mark at its head: a bar across its path for the
+  part in the plane, a ring for the part across it. The polarizer is drawn as a dark sheet with strokes along it and dots
+  for its axis. 
+- **What the box can't make real, said:** circular and elliptical polarization (and so a total reflection's phase
+  shifts, quarter-wave plates, the circular polarization of synchrotron and Zeeman light); the annihilation pair's
+  entanglement: each pair here is a definite perpendicular pair (Wheeler 1946's picture), which gives each photon the
+  right statistics but a weaker correlation between the two than nature's (Pryce and Ward 1947, Snyder, Pasternack and
+  Hornbostel 1948: perpendicular over parallel Compton coincidences at 82° 2.85 in quantum mechanics, a definite pair at
+  most 1.63, Bohm and Aharonov 1957; Wu and Shaknov 1950 measured 2.04 with their wide detectors); polarized γ lines
+  from oriented nuclei and the angular correlations of cascade γ rays (⁶⁰Co's 1,173–1,332 keV pair); π⁰ → 2γ's
+  perpendicular polarizations (built for e⁺e⁻ only); polarization in 3-D optics (no 3-D optics); Compton scattering
+  off bound electrons' momenta (Doppler broadening) and their binding's suppression at small angles (Waller–Hartree).
+- **Numbers** (Node; f_rp7 and scratchpad rp7/*.js):
+  - Klein–Nishina angles, 60,000 unpolarized scatterings each, χ² over 20 bins (19 dof): 3-D in cos θ 22.9, 16.1, 18.9
+    at 10 keV, 511 keV and 5 MeV; flat in θ round the circle 9.9, 17.4, 31.6. E′ from the scattered photon's own
+    angle against the formula to 3×10⁻¹¹; the electron along E·k̂ − E′·k̂′ to 4×10⁻¹⁶.
+  - Polarized, 3-D at 511 keV, scattered at 80–100°: 4.50 times as many at 90° to the polarization as along it (±15°
+    wedges; the formula 4.37), φ against the formula χ² 14.9 (11 dof); unpolarized φ even, χ² 8.7. Flat at 100 keV, of
+    40,000 photons meeting a carbon atom: across the plane 3,830 scatter, in the plane 1,948 (knPlaneW's 3,793 and 1,967);
+    near 90° 411 and 9 (408 and 10). At 100 eV the new polarization is ε₁ in every case.
+  - Sources: 3,000 annihilation pairs flat and 3-D and 200 para-positronium decays each: polarizations at right angles
+    to each other and to their paths to 2×10⁻¹⁶, each photon's alone even round its path (χ² 9.2 and 3.9, 11 dof); an
+    atom's line photons unpolarized; a laser across the plane along ẑ.
+  - The pair's correlation (3-D, both photons of 300,000 pairs scattered, 72–92°, ±15°): perpendicular over parallel
+    coincidences 1.53 ± 0.08 (a definite pair gives 1.565 averaged over these windows; quantum mechanics 2.58).
+  - Optics: a prism face at Brewster's angle reflects 396 of 4,000 unpolarized photons (Fresnel 399), every one across
+    the plane, and none of 4,000 polarized in the plane; straight on 226 (((n − 1)/(n + 1))² gives 222). Two polarizers,
+    the second at 0°, 30°, 60°, 90° to the first: 1.016, 0.748, 0.257, 0 of the first's light (cos²). A 45° mirror keeps
+    across and in-plane polarization to 10⁻⁶.
+  - Books: 200 Compton events on a water molecule's O and H, flat and 3-D, exact to 3×10⁻⁸ eV (the photon's energy is in
+    the books once it leaves or is taken). In a running box of liquid water with γ rays fired in (60 steps, 61 Compton
+    events) the worst event is 2.15 eV on, 2.45 eV off: the ionized water's own known limit, the same either way. Light
+    through two polarizers: escaped grows by exactly what left the beam (3×10⁻¹⁰ eV over 500 photons).
+  - Switch off: the fingerprints of all 59 setups (seed 7, 300 steps) equal v145's (one lane, before and after); f_rp7
+    "off" keeps six of them (annihilation, pet, prism, photonuc, water, water3d). On, three change in 300 steps
+    (photonuc, hyperfactory, sns: their γ rays Compton-scatter); annihilation and pet do not (their γ rays leave).
+- **Cost** (one thread, on a machine shared with another session's tests: ±30% noise). Off nothing (a flag test per
+  Compton event, per optic and per pair). On: a Compton event 0.22–0.30 ms against 0.31–0.34 ms (most of it the electron
+  set free; Klein–Nishina's draw ~1 µs); a laser photon through the Balmer prism 23–25 µs against 16–46 µs; the PET and
+  annihilation setups ×1 (0.38–0.40 ms, 5.0–5.5 against 4.7–7.1 ms a step). Where γ rays scatter in matter the electrons
+  come out slower (forward scattering, as in nature) and ionize more of the box: flat liquid water with five γ rays a step
+  44–52 against 42–49 ms a step (noise); 3-D liquid water 138–206 against 81–97 ms a step (66 ionizations against 27 in
+  100 steps): the 3-D tag says ×1–2.
+- **Found, not changed (for a bug-fix session; it is the same with the switch off):** in the flat game `ejectElectron`
+  books 100–200 eV wrong when the electron's energy at infinity is just under radThreshold (1 keV) and its launch
+  energy, with the ion's pull added, is over it: setMotion then puts it in radiation flight, which carries no potential
+  energy, so the pull its launch counted on is created (water, 40 tries each: 0.8 keV 121 eV, 1.0 keV 149 eV, 1.2 keV
+  200 eV; 0.5 and 1.5 keV exact). Any ionization making a ~1 keV electron does it; Klein–Nishina's forward scattering makes
+  such Compton electrons a little more often (seed 18's water box: two events, 50 and 124 eV). Fixing it changes the flat
+  game off too, so it is left for main.
+- **For the owner (physics questions, written down, not decided):**
+  - The Compton rate: make it follow Klein–Nishina's total cross section (σ/σ_T above), so MeV γ rays go 2–8 times
+    farther in matter than now, and give X-rays of 10–100 keV their Compton share (in light elements it passes the
+    photoelectric effect near 25–30 keV)?
+  - Rayleigh and Thomson scattering of light (elastic, λ⁻⁴, polarizing at 90°: the blue, polarized sky) are not in the
+    box: add them (with photons as waves, or before)?
+  - π⁰ → 2γ with perpendicular polarizations, and cascade γ–γ angular correlations (⁶⁰Co): add them?
+  - Values from memory (no network): mₑc², the textbook formulas (Klein–Nishina, Fresnel), F2's dispersion (already in
+    the game), and the historical numbers above (Wu–Shaknov 2.04, the 2.85 / 1.63 at 82° are also computed here from the
+    formulas: 2.835 and 1.629).
 
 ## 1.25.0: the nuclear side in 3-D, continuous bond orders in 3-D with single bonds' twist, many-body metals, Settings by mode with 3-D pictures, 3-D labels off, 21 bug fixes
 

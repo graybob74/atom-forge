@@ -28545,7 +28545,9 @@ function capDone(T, lbl, gh, x, y, z, gs) { // (the capture's log and counts, it
      circle in the flat game) and one acceptance of (r² + 1 − 2r(ε·n̂)²)/2, r = E′/E, at least ½ on average at every
      energy. In the flat game the photon scatters within the plane: the angle θ round the circle has the Klein–Nishina
      law at the plane's φ (cos φ = the polarization's in-plane part): what a ring of detectors in the plane sees, as the
-     μSR positrons (part 4). The electron leaves along the momentum the photon gave it (E·k̂ − E′·k̂′), with the energy as
+     μSR positrons (part 4); and since an in-plane polarized photon scatters into the plane less often than one
+     polarized across it, the flat game's rate for a polarized photon is the game's times knPlaneW (2/3 to 4/3 at low
+     energy; unpolarized ×1). The electron leaves along the momentum the photon gave it (E·k̂ − E′·k̂′), with the energy as
      before (what the photon lost less the binding). The rate is the game's (a γ ray of 100 keV or more meets an atom's
      electrons at 1.2% each): kept, though Klein–Nishina's total cross section falls with energy (to 0.74 of Thomson's
      at 100 keV, 0.43 at 511 keV, 0.12 at 5 MeV): written down for the owner.
@@ -41121,7 +41123,7 @@ const COSTS = {
   setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where no slow μ⁻, π⁻, K⁻ or antiproton stops (a pion beam into carbon ×1.0); a capture is one event of 1.2–2.3 ms (its cascade\u2019s electrons and X-rays), and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in makes a small plasma to follow: muon-catalysed fusion ×3, the hypernucleus factory ×4 while it lasts'] }),
   setRpRes: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A resonance\u2019s mass is one draw, and a charm or bottom pair a few more particles in the collisions that make one (the pion beam 9.4 against 10.0 ms a step, the RHIC collider 2.1 against 2.0: the noise of a shared machine)'] }),
   setRpNuc: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step (the chain reaction 0.70 against 0.68 ms a step). A decay or capture with measured lines sends a few photons instead of one; after an NMR pulse the spins turn each step, 0.04 ms for liquid water\u2019s 160 protons (×1.1 at most)'] }),
-  setRpPol: () => ({ k: 'physics', on: ['×1', 'COST_FLAT'] }),
+  setRpPol: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A Compton event takes 0.2–0.3 ms either way (its Klein–Nishina angles about 1 µs of it), a photon through a prism 15–45 µs either way. Where γ rays scatter in matter their electrons come out slower, as in nature, and ionize a little more: liquid water with five γ rays a step 42–49 against 44–52 ms a step (the noise of a shared machine)'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
@@ -41169,7 +41171,7 @@ const COSTS3 = {
   setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing where no slow μ⁻, π⁻ or K⁻ stops; a capture is one event of 1.4–1.5 ms, and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in costs more while it lasts'] }),
   setRpRes: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step; the same draws as the flat game'] }),
   setRpNuc: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step (40 thermal neutrons in liquid water 44.5 against 44.6 ms a step); after an NMR pulse 0.05 ms a step for 686 protons (×1.01)'] }),
-  setRpPol: () => ({ k: 'physics', on: ['×1', 'COST_3D'] }),
+  setRpPol: () => ({ k: 'physics', on: ['×1–2', 'Measured in 3-D on one thread (1.27): nothing where no γ ray scatters. Where γ rays scatter in matter, Klein–Nishina sends them forward and their electrons come out slower, as in nature, so these stop in the box and set more electrons free (liquid water with five γ rays a step: 66 ionizations against 27 in 100 steps, 81–97 against 138–206 ms a step)'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }

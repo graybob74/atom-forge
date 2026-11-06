@@ -148,6 +148,22 @@ PARTS.sources = async (page, check) => {
   const ok = ['flat', 'd3'].every(k => r[k].perp === 3000 && r[k].worst < 1e-9 && r[k].chi < 35 && r[k].ps === 200 && r[k].psW < 1e-9 && !r[k].atomPol) && r.flat.laser === '0,0,1' && r.d3.laser === '0,0,1';
   check(ok, `1.27 realistic particles 7: annihilation pairs polarized at right angles (3,000 pairs and 200 para-Ps flat and 3-D, worst dot ${Math.max(r.flat.worst, r.d3.worst, r.flat.psW, r.d3.psW)}), each alone unpolarized (χ² of its angle ${r.flat.chi}, ${r.d3.chi}, 11 dof); an atom's light unpolarized; a laser across the plane (flat) or horizontal (3-D) along ${r.flat.laser} and ${r.d3.laser}`, 'rp7 sources: ' + JSON.stringify(r));
 };
+/* The pair's correlation (3-D, the Wu–Shaknov arrangement): both 511 keV photons of 300,000 annihilations Compton
+   scattered (knScatter), each at 72–92°; coincidences with their scattering planes within 15° of perpendicular over
+   those within 15° of parallel. A definite perpendicular pair a time (the classical picture) gives 1.565 with these
+   windows (the formula averaged over them); the quantum state would give 2.577 (said in the notes, not made). */
+PARTS.pairs = async (page, check) => {
+  const X = load('all', { seed: 21 }), W = X.W; X.RP.pol = true; fresh(X, true);
+  let perp = 0, par = 0; const N = 300000, lo = Math.cos(92 * Math.PI / 180), hi = Math.cos(72 * Math.PI / 180);
+  for (let i = 0; i < N; i++) {
+    const P = X.polPair([1, 0, 0], [-1, 0, 0]), a = X.knScatter(ME, 1, 0, 0, P[0]), b = X.knScatter(ME, -1, 0, 0, P[1]);
+    if (a[1] < lo || a[1] > hi || -b[1] < lo || -b[1] > hi) continue;
+    let d = Math.abs(Math.atan2(a[3], a[2]) - Math.atan2(b[3], b[2])) % Math.PI; if (d > Math.PI / 2) d = Math.PI - d;
+    if (d > 75 * Math.PI / 180) perp++; else if (d < 15 * Math.PI / 180) par++;
+  }
+  const ratio = perp / par, sig = ratio * Math.sqrt(1 / perp + 1 / par);
+  check(Math.abs(ratio - 1.565) < 3 * sig, `1.27 realistic particles 7: annihilation pairs Compton scattered at 72–92°: perpendicular over parallel coincidences ${ratio.toFixed(3)} ± ${sig.toFixed(3)} (${perp}/${par}; a definite perpendicular pair gives 1.565, the quantum state 2.577)`, 'rp7 pairs: ' + JSON.stringify({ perp, par, ratio }));
+};
 /* The optics (flat): an unpolarized beam on a prism face at Brewster's angle (tan θ_B = n) reflects only light polarized
    across the plane, at R = r_s²/2 (Fresnel); light polarized in the plane passes without reflecting there; at normal
    incidence 5.3% of each reflect ((n − 1)/(n + 1))². Two polarizers: an unpolarized beam passes the first one in two
