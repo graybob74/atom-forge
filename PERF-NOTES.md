@@ -312,6 +312,14 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
+- The Higgs boson (not built; written down with 1.27's W and Z bosons, the owner's electroweak request of 2026-11-06):
+  125.1 GeV, Γ ≈ 4 MeV; at the LHC made mostly by two gluons fusing (about 50 pb at 13 TeV, one collision in 10⁹; also
+  vector-boson fusion about 4 pb, with a W or Z 1.4 and 0.9 pb), decaying to b b̄ 58%, W W* 21%, gluon pairs 8%, τ τ 6%,
+  c c̄ 3%, Z Z* 2.6%, γ γ 0.23% (values from memory). LEP could not make it (e⁺e⁻ → ZH needs √s > 216 GeV; LEP reached
+  209); a Higgs factory at 250 GeV makes it at about 0.2 pb. Would need: the Higgs in XP with these decays, gg → H in
+  hadron collisions at its σ/σ_inel (as ewDraw), e⁺e⁻ → ZH above 216 GeV (as the W pairs); about a session. Waits for
+  the owner's "build it".
+
 ## 1.26 (in progress)
 
 ### 1.26: combined (branch v136)
@@ -343,7 +351,7 @@ Waiting for the owner:
   radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #3 (AsCl₅) and #16
   (3-D water recapture, physics).
 
-For 1.27 (part 1, exotic atoms, and the Settings section built on branch v141: see "1.27: realistic particles 1"; parts 5 and 6 on branch v143: "1.27: realistic particles 5 and 6"; part 7 on branch v146: "1.27: realistic particles 7"; the rest not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
+For 1.27 (part 1, exotic atoms, and the Settings section built on branch v141: see "1.27: realistic particles 1"; parts 5 and 6 on branch v143: "1.27: realistic particles 5 and 6"; part 7 on branch v146: "1.27: realistic particles 7"; the rest not built; and, asked separately on 2026-11-06, W and Z bosons on branch v148: "1.27: W and Z bosons (electroweak)"): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
 portrayed and how to implement an experimental setting that makes them as realistic as possible"; APPROVED, all seven
 parts, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything": each part its own Experimental
 switch, off at start; off, every setup bit for bit as before (fingerprints), energy books exact on; built after the
@@ -2561,6 +2569,129 @@ checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png,
   - Values from memory (no network): mₑc², the textbook formulas (Klein–Nishina, Fresnel), F2's dispersion (already in
     the game), and the historical numbers above (Wu–Shaknov 2.04, the 2.85 / 1.63 at 82° are also computed here from the
     formulas: 2.835 and 1.629).
+
+### 1.27: W and Z bosons (electroweak)
+
+Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
+(2026-11-06, "Just add it", after an explanation of electroweak unification); approved physics. Always on, no switch:
+W and Z can only be made above √s ≈ 80–90 GeV, and below that nothing new runs or draws a random number. Code: hep.js,
+"W and Z bosons" (after part 5's heavy flavour: EW, EW_HAD, EW_WW, EW_ZZ, EW_PP, ewEE, ewAfb, ewDir, ewFinal, ewDecay,
+ewDraw, ewDecList), the particles in XP, hooks in eeEvent, nnInelastic, nnbarEvent, hadronHit, xbAnnihilate,
+xbInelastic, fragmentInto, decayExo/decayExo3, spawnItems/spawnItems3 (a W's spin axis, `ewAx`), bwMassRel (their mass
+window), resPlaceMass, hfInto (a W's c s̄); ui.js (the setup, the palette's "W and Z bosons", XP_NAME, XP_ABOUT,
+EXO_FOUND, PART_NAMES, Inspect's decays and "Inside", the Data tab's card); body.html (Physics: Forces → Electroweak,
+Accelerators → New particles). Checks: tests/f_ew.js (t_features runs it alone; `node tests/f_ew.js [--node] [part …]`):
+fp, peak, branch, vma, ww, widths, hadron, fireball, books, setup, page; every part but fp fails on v145 (no W or Z
+there: "ewEE is not defined" …); fp shows the setups below the thresholds unchanged. Screenshots: scratchpad
+ew/lep1.png, lep-data.png, ins-w.png.
+
+- **The particles.** W⁺, W⁻ 80,369.2 MeV, Γ 2,085 MeV, mean life ħ/Γ = 3.157×10⁻²⁵ s; Z⁰ 91,187.6 MeV, Γ 2,495.2 MeV,
+  2.638×10⁻²⁵ s. They are `res` (decay at once where they are made, as the ρ; Ultra-realistic: on the clock) and `ew`.
+  Their own masses: part 5's relativistic Breit–Wigner (`bwMassRel`) with or without that switch (a W or Z only exists
+  with its width), cut at M ± 10Γ, the window the measured cross sections count (66–116 GeV for the Z: 66.26–116.01
+  drawn), not at the lightest decay threshold as for hadron resonances (a constant-width W reached down to 1 GeV, 2.7% of
+  draws below M − 5Γ). A Z made on the peak in e⁺e⁻ has the collision's √s as its mass. Placed, fired or pasted they
+  draw their mass too.
+- **Decays** (`ewDecay`, `ewFinal`): W → eν 10.71%, μν 10.63%, τν 11.38%, hadrons 67.41% (a u d̄ pair 34.07%, c s̄
+  33.34%); Z → e⁺e⁻ 3.3632%, μ⁺μ⁻ 3.3662%, τ⁺τ⁻ 3.3696%, νν̄ 20.00% (three kinds, a third each), hadrons 69.911% (b b̄
+  15.12% = R_b 0.21629, c c̄ 12.03% = R_c 0.1721, u, d or s 42.76%). A quark pair becomes hadrons through the game's own
+  string: hadronize (charm and bottom by part 5's hfInto at their fragmentation fractions, whatever part 5's switch; a
+  W's c s̄ as a charmed hadron and a kaon), resonate, then jetMomenta along the pair's axis (two jets back to back, as
+  e⁺e⁻ → hadrons). Captions: "Decay: Z⁰ → μ⁻ + μ⁺", "Decay: Z⁰ → b b̄: two jets, 21 hadrons", "Decay: Z⁰ → ντ + ν̄τ …
+  nothing seen (invisible: the 20% that counted three neutrino kinds)". Angles (in the flat game in the plane, as the
+  game's other e⁺e⁻ pairs; in 3-D over the sphere):
+  - A W made in a hadron collision has its spin along the beam its antiquark came from (p̄p, a meson or antinucleon on a
+    nucleon: that beam; pp and nuclei: either beam at random), and V − A decides its charged lepton: ℓ⁺ (right-handed) as
+    (1 + cos θ)² to the spin, ℓ⁻ as (1 − cos θ)². Measured in 3-D (F − B)/(F + B) = +0.763 and −0.750 (exact ±0.75); flat
+    +0.849/−0.861 (in the plane ±8/3π = ±0.849).
+  - A Z from e⁺e⁻: its fermion pair as 1 + cos²θ + (8/3)·A_FB·cos θ to the electron's direction, A_FB from the γ–Z
+    interference at its √s (`ewAfb`, Born, sin²θ_eff 0.23153): μμ −0.282 at 88 GeV, −0.152 at 89.4, −0.076 at 90.2,
+    +0.016 on the peak (LEP: 0.0171), +0.107 at 92.2, +0.256 at 94, +0.55 at 200; drawn at 94 GeV in 3-D 0.250. The same
+    A_FB is given to the photon's μμ and ττ channels above 10 GeV. Measured values with the beams' radiation are smaller
+    above the peak (it brings collisions back to the peak): Born here, said in the code. A Z from hadrons: 1 + cos²θ to
+    the beams. Jets: 1 + cos²θ (Z from e⁺e⁻) or at random. A W or Z pair from e⁺e⁻ decays at random (their spins are not
+    followed).
+- **e⁺e⁻** (eeEvent, above √s = 10 GeV): three more channels. The Z as an s-channel resonance, σ = σ⁰·sΓ²/((s − M²)² +
+  s²Γ²/M²), σ⁰ = 12π·B(ee)/M² = 59.37 nb: hadrons 41.51 nb, μμ 1.999 nb on the peak (Born; the measured peak with the
+  beams' radiation is 30.5 nb); 0.130 of the peak at 88 GeV, 0.167 at 94. Within M ± 10Γ the collision makes one Z (its
+  mass √s, at rest in their frame), which decays at once; further off (e.g. 200 GeV) the Z channel makes the decay products
+  directly ("through a Z, off its peak"). W⁺W⁻ above 2M_W = 160.74 GeV and ZZ above 2M_Z = 182.38 GeV (EW_WW, EW_ZZ: LEP2's
+  combined measurements 161.3–206.6 GeV, from the threshold to the first point as the pair's velocity, above 207 GeV the
+  theory curves: WW 15.4 pb at 250 GeV, 7.6 at 500, 2.9 at 1 TeV; ZZ 1.1, 0.6, 0.25), each boson its own mass from its
+  width, flying apart at random (the real W⁻ goes forward along the e⁻; not built). The photon's channels (γγ, μμ, ττ,
+  ρ, ω, φ, hadrons, cc̄, bb̄) are as they were; the γ–Z interference is left out of the totals: −0.34% of the Z's at 88
+  GeV, +0.28% at 94 (under 0.4% from 88 to 94 GeV), 3–4% of the Z channel's 15–18 pb at LEP2. Below 10 GeV the Z's share is
+  under 10⁻³ (at 10 GeV 0.54 pb against 870 pb of μμ) and nothing is drawn: the channel list and the lepton pairs' angles
+  are exactly as before.
+- **Hadron collisions** (`ewDraw`): W and Z by quark–antiquark annihilation (Drell–Yan) at σ(√s)/σ_inel(√s), σ_inel from
+  part 5's HF_INEL, σ = σ·B / B (B(W → ℓν) 0.1086, B(Z → ℓℓ) 0.033658), one draw per collision above √s = 82.3 GeV (M_W
+  and two nucleons). Where: nucleon–nucleon (nnInelastic: pp, and nucleon pairs inside nuclear encounters), p̄p in flight
+  (nnbarEvent), an antinucleon or a meson on a nucleon in matter (hadronHit), the collider's hadron beams (xbAnnihilate:
+  'pbar' table, xbInelastic: 'pp'), and a nuclear fireball (fragmentInto: the plasma and the light-system hadronize path)
+  times its binary collisions, a·b/min(a, b)^⅔ for a and b participants (p + A: b; central Au + Au 1,150, Glauber's
+  1,050 at 42 mb). The W or Z is one item among the event's hadrons (the hadrons get what it leaves; books as any event).
+  W⁺ against W⁻: p̄p, mesons 1:1; pp 0.78 at 0.5 TeV, 0.59 at 7, 0.574 at 13 TeV (W⁺/W⁻ 3.5, 1.45, 1.35).
+  - Data (σ·B in nb, W for one lepton kind, W⁺ + W⁻; Z → ℓℓ in 66–116 GeV): p̄p 0.63 TeV 0.68 / 0.066 (UA2), 1.8 TeV 2.49 /
+    0.231 (CDF Run I), 1.96 TeV 2.75 / 0.256 (CDF, D0 Run II); pp 0.5 TeV 0.150 / 0.0080 (STAR, PHENIX), 7 TeV 10.4 / 0.97
+    (ATLAS, CMS), 13 TeV 20.6 / 1.98 (ATLAS); p̄p above 1.96 TeV as pp (the sea's antiquarks lead there). Below the first
+    point (0.63 / 0.5 TeV) brought to zero at the threshold (82.3 / 93.1 GeV) as (1 − √s_thr/√s)ⁿ, n = 8 (p̄p, a valence
+    antiquark) or 16 (pp, the sea's): a shape, not a measurement (pp at 200 GeV: σ_W·B = 0.6 pb).
+  - Real rates (one collision in): p̄p 0.63 TeV W 7.9 million, Z 25 million; p̄p 1.96 TeV W 2.4 million, Z 8.0 million;
+    pp 7 TeV W 760,000, Z 2.5 million; pp 13 TeV W 410,000; pp 200 GeV W 8×10⁹; a 1 PeV proton fired at carbon (√s 1.37
+    TeV, 3 binary collisions) one hit in 2.3 million; central Au + Au at 200 GeV one in 6.8 million, Pb + Pb at 2.76 TeV
+    one in 2,100, at 5.02 TeV (1,700 binary collisions) one in 570. So in a collider run of thousands of collisions a W
+    or Z is not seen, except in lead–lead at LHC energies now and then.
+  - RP.ewX multiplies the hadron rates, for the tests only (×10⁵: p̄p 1.96 TeV, 1,500 collisions, W in 69 (expected
+    62.5), Z in 22 (18.8); pp 7 TeV in 3-D, 400: W 59 (52.4), Z 15 (15.8); pp at 60 GeV none (no draw); central Pb + Pb
+    2.76 TeV ×10³: a W or Z in 2 of 6 plasmas, 3-D 5 of 6).
+- **Not built:** neutrinos meeting matter through W or Z exchange (σ ≈ 10⁻³⁸ cm² × E/GeV: a neutrino crosses the Earth;
+  the game's neutrinos leave); the Higgs boson (on the planned list); e⁺e⁻ → Zγ and the beams' own radiation (radiative
+  return; at LEP2 most e⁺e⁻ → qq̄ events); the W pair's angular distribution and the W and Z spins in pairs; W and Z in
+  the 3-D world's e⁺e⁻ lepton pairs of the photon channel (those are drawn in the plane, as before: PS3.flat; the Z's own
+  decays are 3-D); several W or Z in one collision.
+- **Where to see them.** The Fire tool shoots up to 1 PeV, so the Z peak is not reachable with electrons there: a
+  positron on an electron at rest has √s = √(2mₑE), 32 GeV at 1 PeV (the Z needs 8.1 PeV, not 8.1 TeV), and a fast
+  positron hitting an atom annihilates with one of its electrons into 2γ whatever its energy (annihilateBound; not
+  changed). Two particles fired head-on at 45.6 GeV cross the box in one step (1,200 Å at 0.04 tu) and leave before the
+  collision check, so they never meet. Through hadrons it works: a 1 PeV proton or pion fired into matter meets nucleons
+  at √s ≈ 1.4 TeV (measured with ×10⁵: 2 W or Z in 101 hits above the threshold). The linear collider reaches it: at
+  45.6 GeV a beam its collisions land at √s 85.7–91.2 GeV (median 90.2; 167 collisions in 6,000 steps), the beams
+  leaving the linac at 43.5–45.6 GeV and losing about 0.4 GeV more in the focusing magnets' synchrotron light (real LEP:
+  0.1% spread); the Z is 2.5 GeV wide, so nearly every collision still makes one. New setup, Real labs → "CERN LEP: the Z
+  factory" (`lep`: the linear collider, e⁺e⁻ at 45.6 GeV a beam, after DAΦNE's pattern; its hint names the decays, the
+  invisible fifth and three neutrino kinds, the 1% loss, and the scan: 44 to 47 GeV a beam in the Lab tab; above 80.4 GeV
+  a beam W pairs). Node: 62 Zs in 63 collisions over 3,000 steps, 1,086 charged pions among their products. The energy
+  scan is by hand (Lab → Beam energy): an automatic scan would be a feature with its own panel; written down, not built.
+  t_energy skips `lep` as it does DAΦNE (injectors and cavities add energy).
+- **Numbers** (Node, f_ew): the peak 41.51 nb hadrons, 1.999 nb μμ; Zs made in eeEvent 233 of 250 at 88 GeV (expected
+  236), 248 of 250 on the peak (248), 242 of 250 at 94 (240); branchings from 100,000 decays: Z hadrons:μμ 20.74 (20.77),
+  invisible 0.1998, e⁺e⁻ 0.0336, τ⁺τ⁻ 0.0335; W⁺ eν 0.1071, μν 0.1054, τν 0.1124, hadrons 0.6751; Z → hadrons 11–27
+  hadrons (resonances counted once) in two jets, bottom in 56 and charm in 31 of ~210, momenta exact to 10⁻⁶ MeV; e⁺e⁻ →
+  W⁺W⁻ none of 300 at 150 GeV, none of 300 ZZ at 175 GeV, 68 of 500 at 200 GeV (expected 67.3; σ 17.0 pb against 80.6 pb
+  γγ); masses 40,000 draws each: Z 2,550 MeV at half height about 91.21 GeV (Γ 2,495; 50 MeV bins), W 2,200 MeV about
+  80.44 GeV (Γ 2,085); books (energy and momentum exact through closeEvent, rest mass in the nuclear ledger): e⁺e⁻ at the
+  peak and at 200 GeV and placed W⁺, W⁻, Z⁰ (180 events each) flat within 2.8×10⁻¹⁴ of their energy, 3-D 2.4×10⁻¹⁴;
+  hadron collisions within 4×10⁻¹⁵ of √s; Pb + Pb plasmas within 4.4×10⁻¹⁵.
+- **Fingerprints** (tools/fingerprint.js, seed 7, 300 steps): all 59 setups, flat and 3-D, equal v145's (76274f3), RHIC
+  (gold at 200 GeV a nucleon pair, which draws for a W or Z in its plasma) included: no plasma forms within 300 steps.
+  f_ew "fp" keeps 14 of them (rhic, ring, linac, dafne, annihilation, pionbeam, photonuc, hyperfactory, antihydrogen,
+  chain, isolde, sns, water, water3d). The new `lep` is the 60th.
+- **Cost:** below the thresholds nothing (a comparison per e⁺e⁻ or hadron event). A Z's hadronic decay 0.29 ms (hadronize,
+  resonate, jets); the LEP setup 0.28 ms a step (DAΦNE 0.18), one thread, on a machine shared with another session's tests.
+- **Values from memory** (no network here; worth a check against PDG 2024): M_W 80.3692 GeV (PDG 2024's average; the brief
+  said 80.37), Γ_W 2.085; M_Z 91.1876, Γ_Z 2.4952 (LEP's; PDG 2024 lists 91.1880 and 2.4955); the branching fractions
+  above; R_b, R_c; sin²θ_eff 0.23153; σ⁰_had 41.54 nb (computed here 41.51 from Γ_ee/Γ and the mass); the LEP2 WW and ZZ
+  points and the theory curves above them; the hadron-collider σ·B values and the W⁺/W⁻ ratios; Glauber's N_coll.
+- **Found, not changed:** a positron of any energy hitting an atom annihilates into 2γ (annihilateBound), where above
+  211 MeV in their frame real e⁺e⁻ makes μ pairs and hadrons too (√s reaches 32 GeV at the Fire tool's 1 PeV); fired
+  particles above a few GeV cross the box in one step and never meet each other (beamCollisions after they have left);
+  the linear collider's √s spreads 6% at 45.6 GeV a beam (its acceleration and the quadrupoles' synchrotron light); p̄p
+  in flight always annihilates into mesons (nnbarEvent), where at TeV energies real p̄p collisions are mostly inelastic
+  with both baryons surviving; the photon channel's e⁺e⁻ lepton pairs are drawn in the plane in 3-D (PS3.flat).
+- **For the owner (written down, not decided):** an automatic energy scan for the LEP setup (σ against √s drawn as the
+  collider steps through 88–94 GeV); the beams' own radiation (radiative return, which takes the Z peak from 41.5 to 30.5
+  nb and makes most of LEP2's qq̄ events); the W pair's forward peak; a fast positron on matter by eeEvent (μ pairs,
+  hadrons) rather than always 2γ; the Higgs boson (planned list).
 
 ## 1.25.0: the nuclear side in 3-D, continuous bond orders in 3-D with single bonds' twist, many-body metals, Settings by mode with 3-D pictures, 3-D labels off, 21 bug fixes
 

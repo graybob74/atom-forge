@@ -164,6 +164,27 @@ PARTS.hadron = async (page, check) => {
   }
   check(ok, `1.27 W and Z: p̄p at 1.96 TeV (×10⁵) W in ${r.pbar1960.W} of ${r.pbar1960.ev} (expected ${r.pbar1960.eW}), Z in ${r.pbar1960.Z} (${r.pbar1960.eZ}), at real rates ${r.pbar1960.real}; pp 7 TeV (3-D) W ${r.pp7000.W} (${r.pp7000.eW}), Z ${r.pp7000.Z} (${r.pp7000.eZ}); none at 60 GeV; books within ${Math.max(r.pbar1960.books, r.pp7000.books)} of √s`, 'ew hadron: ' + JSON.stringify(r));
 };
+/* A nuclear fireball (central Pb + Pb at 2.76 TeV a nucleon pair, the plasma) makes a W or Z by its binary collisions
+   (about 1,100 here: at real rates one central collision in about 2,000; RP.ewX = 10³ for the test), books exact. */
+PARTS.fireball = async (page, check) => {
+  const r = {};
+  for (const d3 of [false, true]) {
+    const X = load('all', { seed: 4 }), W = X.W; fresh(X, d3); X.RP.ewX = 1e3;
+    let ev = 0, ws = 0, worst = 0;
+    for (let k = 0; k < 6; k++) {
+      clear(X);
+      const a = X.addNuc(82, 126, 0, -0.01, 0, 0, 0, false), b = X.addNuc(82, 126, 0, 0.01, 0, 0, 0, false), K = 208 * 2.76e12 / 2;
+      X.setMotion(a, K, 1, 0); X.setMotion(b, K, -1, 0); X.forcesNoEvents();
+      const E0 = books(X);
+      if (!X.nuclearEncounter(a, b, 0.05, 0, 0, 0)) continue;
+      ev++; if (W.exo.some(o => !o.dead && X.XP[o.sp].ew)) ws++;
+      X.moveExos(1e-9);
+      worst = Math.max(worst, Math.abs(books(X) - E0) / (208 * 2.76e12));
+    }
+    r[d3 ? 'd3' : 'flat'] = { ev, ws, books: +worst.toExponential(1) };
+  }
+  check(r.flat.ws >= 1 && r.d3.ws >= 1 && r.flat.ev >= 5 && r.d3.ev >= 5 && r.flat.books < 1e-12 && r.d3.books < 1e-12, `1.27 W and Z: central Pb + Pb at 2.76 TeV (×10³) makes a W or Z in ${r.flat.ws} of ${r.flat.ev} plasmas (3-D ${r.d3.ws} of ${r.d3.ev}), books within ${Math.max(r.flat.books, r.d3.books)}`, 'ew fireball: ' + JSON.stringify(r));
+};
 /* The books, flat and 3-D: e⁺e⁻ at the Z peak and at 200 GeV (Z, W pairs, their decays), placed W and Z at rest. */
 PARTS.books = async (page, check) => {
   const r = {};
