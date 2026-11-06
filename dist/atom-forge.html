@@ -10957,6 +10957,15 @@ function holdVoltage(g, Etot, bet, eta) { // per cavity
   return perTurn / g.nCav;
 }
 function speedOfE(g) { const gam = 1 + g.Es / (g.m * AMU_EV); return PHYS.C * Math.sqrt(1 - 1 / (gam * gam)); }
+/* (1.26 bug fix) The speed to show for a particle. One in radiation flight carries its true speed (p.sp); any other keeps
+   its kinetic energy as ½·m·v² in (vx, vy, vz), and a fast one in 3-D is moved at the relativistic speed of that energy
+   (moveFastLeptons3, the fast nuclei since v138), so its stored v can pass c (a 5 GeV proton's reads 3.3 c). Shown from the
+   energy, relativistically: β² = x(2 + x)/(1 + x)², x = KE/mc² (exact for slow ones too: x ≈ 0 gives β² = 2x). */
+function shownSpeed(p) {
+  if (p.rad) return p.sp;
+  const v2 = p.vx * p.vx + p.vy * p.vy + (W.d3 ? (p.vz || 0) * (p.vz || 0) : 0), x = 0.5 * p.m * v2 / (p.m * AMU_EV);
+  return x > 0 ? PHYS.C * Math.sqrt(x * (2 + x)) / (1 + x) : 0;
+}
 
 function moveNeutron(p, dt, c1, c2, kT) {
   const KE = keOf(p);
@@ -37548,7 +37557,7 @@ function renderInspect() {
     _insCv = null; restoreScroll('tp-inspect'); return;
   }
   const ke = p.rad ? p.KE : W.d3 ? 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy);
-  const speed = p.rad ? p.sp : W.d3 ? Math.hypot(p.vx, p.vy, p.vz) : Math.hypot(p.vx, p.vy);
+  const speed = shownSpeed(p); // (relativistic from its energy: a fast 3-D particle's stored v can pass c, 1.26 bug fix)
   const kv = [];
   let head = '', pills = '', extra = '', bareNote = '';
   if (p.k === ELEC || p.k === POS) {

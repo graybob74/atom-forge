@@ -1006,6 +1006,13 @@ undone, saved and let decay through the page, and run in Node for its decay at r
   atom's muon is drawn only in the flat game's).
 ### Bug fixes after the 1.26 merge
 
+- **Inspect showed fast 3-D particles faster than light** (the owner, 2026-11-06, on 1.25: "a hydrogen atom travelling
+  328% of c" after a 1 PeV α in 3-D). A fast particle in 3-D that is not in radiation flight keeps its energy as ½mv² in
+  (vx, vy, vz) and is moved at the relativistic speed of that energy (moveFastLeptons3; the fast nuclei since v138), so
+  the stored v passes c; Inspect showed it as the speed. The motion was right; only the number shown was wrong. Now
+  `shownSpeed(p)` (engine.js): p.sp in radiation flight, else from the energy, β² = x(2 + x)/(1 + x)², x = KE/mc². A 5 GeV
+  proton: shown 326% of c before, 98.74% after; a 50 MeV electron 99.9949%; slow particles as before (to 4×10⁻⁸, the
+  constants' own rounding). Display only: no fingerprint changes. Check: f_bug126e `speed`.
 - **Spin-polarized quantum bonds: the books jumped when a step failed to settle** (Settings → Experimental → Bond
   orders Quantum, Spins Polarized; GFN1 or GFN2). What was wrong: when a step's warm start did not settle, qmPass
   started afresh (`qsh0: null`, then each atom's spins), and that start can settle on another branch than the one the
