@@ -345,7 +345,11 @@ For 1.27 (not built): realistic particles (the owner, 2026-11-05: "think of ever
 portrayed and how to implement an experimental setting that makes them as realistic as possible"; APPROVED, all seven
 parts, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything": each part its own Experimental
 switch, off at start; off, every setup bit for bit as before (fingerprints), energy books exact on; built after the
-3-D, exotic-particle and settings sweeps; in this order): (1) exotic atoms as real atoms: μ⁻, π⁻, K⁻ and p̄ caught into an orbit (now a μ⁻ atom
+3-D, exotic-particle and settings sweeps; in Settings → Experimental their own section (the owner: "a specific section
+for those types of portrayal settings … the section title is the heading and then each setting and its switch" small,
+like a paragraph line): a heading "Realistic particles", then one compact line per part (its name, an on/off switch,
+its cost tag; the description in the side pane on hover or focus, as the other rows since 1.25), with Ultra-realistic
+mode, Electrons as waves and Photons as waves (1.27) moved in beside them; in this order): (1) exotic atoms as real atoms: μ⁻, π⁻, K⁻ and p̄ caught into an orbit (now a μ⁻ atom
 is an overlay the tools can't touch, and π⁻/K⁻/p̄ are absorbed at once), a cascade giving off the exotic atom's X-ray
 lines (energies scaled by the reduced mass), then decay or nuclear capture at measured rates by element (muon
 lifetimes in each element, Suzuki 1987); to the outside an atom of charge Z−1 (μp acts like a neutron, muonic C like
