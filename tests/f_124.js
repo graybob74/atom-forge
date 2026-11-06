@@ -52,7 +52,7 @@ PARTS.box = async (page, check, say) => {
     loadPreset('mol3d'); setRunning(false); showTab('lab', true);
     const el = $('boxSlider'), dis = el.disabled; el.value = sFromBox(20); el.dispatchEvent(new Event('input'));
     const td = W.box.td; for (let i = 0; i < 400; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = chooseDt(); step(W.dt); }
-    return { dis, td: +td.toFixed(2), box: [W.box.w, W.box.h, W.box.d].map(v => +v.toFixed(2)), txt: $('boxH').textContent, note: !$('box3dNote').hidden && !/Not in 3-D/.test($('box3dNote').textContent) };
+    return { dis, td: +td.toFixed(2), box: [W.box.w, W.box.h, W.box.d].map(v => +v.toFixed(2)), txt: $('boxH').closest('.val').textContent, /* (1.25.0: the depth its own figure) */ note: !$('box3dNote').hidden && !/Not in 3-D/.test($('box3dNote').textContent) };
   });
   const run = (to) => { // 64 argon atoms in a 30 Å cube, insulated; the walls' work measured as the soft walls' energy jumps when they move
     const X = load('all', { seed: 1, patch: (s) => s.replace(/function moveWalls3\(dt\) \{/, 'function moveWalls3(dt) { const a = _wpe(); moveWalls3_(dt); WORK += _wpe() - a; }\nfunction moveWalls3_(dt) {') + '\nlet WORK = 0; function _wpe() { let u = 0; for (const p of W.parts) if (!p.dead && p.k === NUC && !p.fast && !p.rad && p.Z > 0) u += wallPE(p); return u; }' });

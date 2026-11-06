@@ -1295,7 +1295,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.25 (in progress)
+## 1.25.0: the nuclear side in 3-D, continuous bond orders in 3-D with single bonds' twist, many-body metals, Settings by mode with 3-D pictures, 3-D labels off, 21 bug fixes
 
 Approved by the owner on 2026-11-05 (after the reports): bond orders for metals (Many-body, flat melting left as it
 is), continuous bond orders for Ge, As, Se, Sn, Sb, Te, continuous bond orders in 3-D (the JavaScript pass, ×18–23),
@@ -2032,6 +2032,23 @@ From the bug-fix session (branch bugfix-125): items 8, 14 and 17 of the "Bugs on
   to 6·10⁻¹⁵ Å and the same drift. water3d (1,029 atoms), 8 beads: 52 → 19 ms a step; bench-mode's costs against
   stored, ms a simulated fs: 8 beads ×15.4 → ×8.0, 16 ×17 (was ×29–31), 32 ×29 (was ×46–51). The 3-D tags and note
   now say ×8, ×17, ×29. Fingerprints unchanged (quantum nuclei are off by default). Check: f_bug125 "pi3".
+
+From the release (the owner: "the gallery, settings and help buttons on the 3d main menu are still hard to press"):
+- 20. The main menu's row buttons (the 3-D panel's Gallery, Settings, Help; the first screen's Continue) lifted 14 px
+  toward the viewer on hover (`translateZ(50px)` over 36, in the menu's 1,100 px perspective). Left of the screen's
+  centre that slid a hovered button 9–12 px aside (1920×1080: Gallery −11.6 px, Settings −9.9), so a pointer near its
+  right edge fell off it, the hover ended, it slid back: the button flickered under the pointer and a click could miss.
+  1.23.2 had stopped the same for the other menu buttons; this row came later with the first screen. Now a hovered
+  button keeps its place and lights (accent border and glow, as the others; darker while pressed): 0 px. Check:
+  f_bug125 "menuHover" (fails before: the pointer off Gallery and Settings). Two timing checks made steadier for the
+  release gate under load: "segGrid" takes the fastest of five passes (limit 60 µs; 126 before the fix), "metal3" 50 ms
+  (80 before the fix; 7.5 alone, 36 under the suite's load).
+- 21. The 3-D Lab's box size (the owner's screenshot: "37 × 37 × 37 Å", clicked to type: "37 × [37.24] Å Å"): in 3-D the
+  height and depth were one figure, "h × d" in the height's span, typed as one (setting both), so typing replaced both
+  with one box and the depth vanished; the typing box's unit dropdown sat beside the row's own Å. Now width, height and
+  depth are three figures, each typed alone (`TYPED.boxD`; the height no longer sets the depth; the slider keeps the
+  shares), and the row's Å hides while the dropdown shows. Check: f_bug125 "boxType" (height 30, then depth 45:
+  "… × 30 × 45 Å"); f_124 "box" reads the whole row.
 
 ## 1.24.0: placing and firing in 3-D, box size, magnets and fields, light, unstable particles and Experimental settings in 3-D
 

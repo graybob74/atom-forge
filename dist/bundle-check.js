@@ -34967,7 +34967,8 @@ const TYPED = {
   bVal: { units: U_B, get: () => W.Bz, apply: (B) => { W.Bz = Math.abs(B) < 1e-9 ? 0 : clamp(B, -1e5, 1e5); syncLab(); }, why: 'fields up to 100,000 T (a magnetar’s)' },
   eVal: { units: U_E, get: () => UI.E, apply: (E) => { UI.E = clamp(Math.abs(E), 0, 50); applyE(); syncLab(); }, why: 'fields up to 50 V/Å: past that every atom is torn apart at once' },
   boxW: { units: U_LEN, get: () => W.box.tw, apply: (w) => { if (W.d3) { const k = clamp(w, 20, 20000) / W.box.tw; W.box.tw *= k; W.box.th = clamp(W.box.th * k, 20, 20000); W.box.td = clamp((W.box.td || W.box.d) * k, 20, 20000); } else { W.box.tw = clamp(w, 20, 20000); UI.aspect = W.box.th / W.box.tw; } syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the whole box scaled, 1.24)
-  boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, 20, 20000); if (W.d3) W.box.td = W.box.th; UI.aspect = W.box.th / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: height and depth, shown as h × d, 1.24)
+  boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the height alone since 1.25.0; it set the depth too, shown as one figure "h × d" that typing replaced)
+  boxD: { units: U_LEN, get: () => W.box.td || W.box.d, apply: (d) => { W.box.td = clamp(d, 20, 20000); UI.aspectD = W.box.td / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the depth, its own figure, 1.25.0)
   spdVal: { units: U_TIME, get: () => W.simPerFrame, apply: (tu) => { W.simPerFrame = clamp(tu, DT_MIN, 1000); syncLab(); syncSpeed(); }, why: `from one shortest time step (${fmtTime(DT_MIN * PHYS.TU_S)}) to ${fmtTime(1000 * PHYS.TU_S)} per 1/60 s` },
   cEVal: { units: U_ENERGY, get: () => (W.collider ? W.collider.E : cEFromS(+$('cESlider').value)), apply: (E) => { if (!W.collider) return; setColliderEnergy(clamp(E, cEFromS(0), cEFromS(1000))); syncCollider(); } },
   cE2Val: { units: U_ENERGY, get: () => (W.collider && W.collider.E2 !== null && W.collider.E2 !== undefined ? W.collider.E2 : cEFromS(+$('cE2Slider').value)), apply: (E) => { const C = W.collider; if (!C) return; setColliderEnergy(C.E, clamp(E, cEFromS(0), cEFromS(1000))); syncCollider(); } },
@@ -35140,7 +35141,7 @@ function syncLabText() {
   setTxt('bVal', W.Bz ? (W.Bz > 0 ? '+' : '−') + fmtTesla(Math.abs(W.Bz)) : '0 T');
   setTxt('eVal', UI.E ? `${UI.E.toFixed(2)} V/Å` : '0 V/Å');
   $('magCount').textContent = W.magnets.length ? `${W.magnets.length} magnet${W.magnets.length > 1 ? 's' : ''} placed` : 'No magnets placed';
-  setTxt('boxW', W.box.tw.toFixed(0)); setTxt('boxH', W.d3 ? `${W.box.th.toFixed(0)} × ${(W.box.td || W.box.d).toFixed(0)}` : W.box.th.toFixed(0)); // (3-D: the depth too)
+  setTxt('boxW', W.box.tw.toFixed(0)); setTxt('boxH', W.box.th.toFixed(0)); if (W.d3) setTxt('boxD', (W.box.td || W.box.d).toFixed(0)); // (3-D: the depth its own figure, 1.25.0)
   setTxt('spdVal', motionText());
   $('warpVal').textContent = !W.decayOn ? 'paused' : warpWords() === 'real' ? 'real rate' : warpWords();
   $('warpNote').textContent = !W.decayOn ? 'Paused: no nucleus decays until it is switched back on.'
