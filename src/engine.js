@@ -3996,7 +3996,16 @@ function switchMode(p, toFast) {
   p.vx *= f; p.vy *= f; p.vz *= f; p.fast = toFast;
   // back among the stepped particles before the neighbour grid is rebuilt: list it with the newcomers, so the
   // potential energy of anything else that changes mode before then counts it (or energy would vanish)
-  if (!toFast && S.inMD[p.i] === 0 && !_late.includes(p)) _late.push(p); // (inMD: listed when the grid was built)
+  if (!toFast) lateBack(p); // (inMD: listed when the grid was built)
+}
+/* A particle back among the stepped ones before the next force pass: listed with the newcomers unless the grid holds it
+   already, and with the net charges summed beyond the cutoff (1.26: one that was in flight at the last pass was missing
+   from _charged, so phiE and localPE left out its pull beyond 6 Å, which totalEnergy counts: 1–2 eV at each mode switch
+   of a free electron among the ions a fast electron leaves in a lead block). */
+function lateBack(p) {
+  if (S.inMD[p.i] !== 0 || _late.includes(p)) return;
+  _late.push(p);
+  if (_lrOn && isLR(p) && !_charged.includes(p)) _charged.push(p);
 }
 function cationNear(p) {
   if (!_nmd) return false;
@@ -4079,15 +4088,17 @@ function phiE(x, y, skip, skip2, z = 0) { // (3-D: at (x, y, z))
 }
 function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {
   if (p.ne <= 0) return null;
-  // at the particle cap we skip the ionization entirely (never leave an ion without its electron)
-  if (freeElectronCount() >= MAX_FREE_E || W.parts.length >= MAX_PARTS) { W.ledger.bath += KE; return null; }
+  // at the particle cap we skip the ionization entirely (never leave an ion without its electron); the energy stays with
+  // the caller, as for any electron that could not be freed (1.26: it went to the bath here too, and the callers, finding
+  // no electron, also released it as heat or took it back: counted twice)
+  if (freeElectronCount() >= MAX_FREE_E || W.parts.length >= MAX_PARTS) return null;
   const bc = budget === undefined ? breakCostIfCharged(p, -1) : budget;
   const grid = _nmd > 0, set = setOf(molecule(p)), sn = snapshot(set);
   if (ux === undefined) { const u = rndDir(); ux = u[0]; uy = u[1]; uz = u[2]; }
   const d3 = W.d3, hd = W.box.d / 2 - 0.2;
   // the change of potential energy: the ion's new charge and size against its surroundings, plus any bonds that had to
   // break (localDelta: over the ion's neighbourhood in a big molecule, exactly)
-  const fastIon = d3 && p.fast, kIon0 = fastIon ? keOf(p) : 0; // (3-D, 1.25: an atom in flight carries no potential energy, so neither its new charge nor the electron's pull toward it is in the books; and the electron's share of its motion, ½mₑv², leaves with the electron)
+  const fastIon = !!p.fast, kIon0 = keOf(p); // (3-D, 1.25: an atom in flight carries no potential energy, so neither its new charge nor the electron's pull toward it is in the books; and the electron's share of its motion, ½mₑv², leaves with the electron. The flat game too, 1.26: there the ion's pull, 6–26 eV, was paid to the electron and never came back, beside a lead block crossed by fast electrons; and the share is the electron's from any moving ion, flying or not: an H⁺ knocked to 233 eV lost 0.13 eV)
   const dU = grid && !fastIon ? localDelta(p, set, sn, () => { p.ne--; refresh(p); enforceValence(p, null); }) : (p.ne--, refresh(p), enforceValence(p, null), 0);
   // The electron is born inside the ion's Coulomb well and near other charges. Its launch energy is
   // set so that the total energy is conserved: KE_launch = KE_far + budget + φ(electron) − ΔU.
@@ -4128,7 +4139,14 @@ function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {
   }
   if (!(KEl >= 0.02)) { restoreSnap(sn); return null; } // not enough energy to free it here
   const e = addLepton(p.anti ? POS : ELEC, ex, ey, 0, 0, ez);
-  if (d3) setMotion(e, KEl + (fastIon ? kIon0 - keOf(p) : 0), ux, uy, p.vx, p.vy, uz, p.vz); else setMotion(e, KEl, ux, uy, p.vx, p.vy);
+  if (d3) setMotion(e, KEl + (kIon0 - keOf(p)), ux, uy, p.vx, p.vy, uz, p.vz);
+  else {
+    setMotion(e, KEl + (kIon0 - keOf(p)), ux, uy, p.vx, p.vy);
+    // (flat, 1.26: launched past the radiation threshold only by the pull of the charges around it, it flies in radiation
+    // flight, which carries no potential energy: its energy is the one at infinity, Kfar. Before, it kept the pull too,
+    // up to 49 eV each among the ions a fast electron leaves in a lead block)
+    if (e.rad && KEl !== Kfar) { e.KE = Math.max(0.02, Kfar + (kIon0 - keOf(p))); radSpeed(e); e.vx = e.sp * e.ux; e.vy = e.sp * e.uy; }
+  }
   e.hit = p.id;
   return e;
 }
@@ -6015,7 +6033,7 @@ function wallOrEscape(p, escape, x0, y0) {
     if (d3) { const vz = thermalV(p.m, W.T)[2]; p.vz = p.z >= hd - 0.61 ? -Math.abs(vz) : p.z <= -hd + 0.61 ? Math.abs(vz) : vz; }
     const U = _nmd ? localPE(new Set([p])) : 0;
     W.ledger.escaped += K0 - 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + (d3 ? p.vz * p.vz : 0)) - U;
-    W.spawned++; _late.push(p); // forces must be recomputed for it
+    W.spawned++; lateBack(p); // forces must be recomputed for it (listed with the newcomers only if the grid doesn't hold it already, 1.26: an atom stopped in the wall that was in the grid was counted twice by localPE and phiE until the next force pass, 6 eV wrong in an ionization beside it)
     if (p.trk) { extendTrack(p); p.trk = null; }
     updateFast(p);
     return false;
@@ -6206,8 +6224,7 @@ function moveRad(p, dt) {
     if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) {
       if (ejectElectron(tg, dE - ie, nx, ny)) W.count.ionize++; else dumpHeat(dE, tg, tg);
     } else {
-      const vn = tg.vx * nx + tg.vy * ny, a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); // (a push square to the path giving it exactly dE, as fastStop3 in 3-D: 0.7·√(2dE/m) gave about half, the rest lost from the books (a 20 MeV electron's H recoil through a water molecule −6.5 eV), 1.26)
-      tg.vx += nx * a; tg.vy += ny * a; updateFast(tg);
+      pushSquare(tg, nx, ny, dE); // (a push square to the path giving it exactly dE, as fastStop3 in 3-D: 0.7·√(2dE/m) gave about half, the rest lost from the books (a 20 MeV electron's H recoil through a water molecule −6.5 eV), 1.26)
     }
     if (p.KE <= 0) break;
   }
@@ -6230,6 +6247,14 @@ function moveRad(p, dt) {
   }
 }
 
+/* A push square to a path (nx, ny) giving tg exactly dE more kinetic energy. An atom itself in radiation flight takes it
+   in its stored energy (setVel): its velocity alone is overwritten by its next flight step, and the dE the passing
+   particle lost was lost from the books (1.26). */
+function pushSquare(tg, nx, ny, dE) {
+  const v = vNR(tg), vn = v[0] * nx + v[1] * ny, a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im);
+  if (tg.rad) setVel(tg, v[0] + nx * a, v[1] + ny * a);
+  else { tg.vx += nx * a; tg.vy += ny * a; updateFast(tg); }
+}
 /* A fast nucleus crosses a hot plasma's ballistic ions (they move too, so the closest approach of the two paths over
    the step): it may react or tunnel with them, or scatter off their charge. Returns true if it is gone. */
 function radVsFast(p, x0, y0, x1, y1) {
@@ -7700,7 +7725,7 @@ function wallStop3(p, where) {
   const set = nuc ? setOf(molecule(p)) : null, U0 = nuc ? localPE(set) : p.fast ? 0 : p.q * phiE(p.x, p.y, p, undefined, p.z); // (a lepton in flight carries no potential energy in the books: bug fix 14 after 1.25)
   if (!where && nuc && p.ne > 0 && p.Z >= 3 && p.fast) { // (1.25: one in flight, as atoms fly in 3-D now: back into the stepped set at the wall's temperature, the books measured over its molecule as totalEnergy counts it, flight or not: regionE)
     const T = new Set(set), E0 = regionE(T), hw = W.box.w / 2 - 0.6, hh = W.box.h / 2 - 0.6, hd = W.box.d / 2 - 0.6;
-    p.fast = false; if (S.inMD[p.i] === 0 && !_late.includes(p)) _late.push(p);
+    p.fast = false; lateBack(p);
     p.x = clamp(p.x, -hw, hw); p.y = clamp(p.y, -hh, hh); p.z = clamp(p.z, -hd, hd);
     _crowd = null; placeClear([p], 8, p.bonds.map(bd => other(bd, p))); _crowd = null;
     const v = thermalV(p.m, W.T), into = (c, h, u) => (c >= h - 0.01 ? -Math.abs(u) : c <= -h + 0.01 ? Math.abs(u) : u);
