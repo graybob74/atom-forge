@@ -21618,11 +21618,12 @@ function qmPass(forces) {
   try { r = qmE(Z, xyz, charge, 0, o); }
   catch (e) { r = null; }
   if (newer && r && !r.converged && o.maxIter < XQ.maxItCold) { try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: r.guess || r.qsh, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; r = r2; } catch (e) { /* keep r */ } } // (1.26: unsettled, it goes on from where it got to)
-  if (sp && r && !r.converged && g0) { try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: null, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; if (r2.converged) { r = r2; r.flipped = true; } } catch (e) { /* keep r */ } } // (still unsettled with spins: a fresh, unpolarized start, the probe then finds the spins again)
+  if (sp && r && !r.converged && g0) { try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: null, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; if (r2.converged) { r = r2; r.flipped = true; r.fallback = true; } } catch (e) { /* keep r */ } } // (still unsettled with spins: a fresh, unpolarized start, the probe then finds the spins again)
   if (sp && r && !r.converged) for (const alt of [true, false]) { // (and still: each atom started with its free spins, alternating from atom to atom, then all alike; an unpolarized O2 among other molecules lets charge slosh between them)
     const L = xqLayout(Z), m0 = new Array(L.nsh).fill(0); for (let m = 0; m < n; m++) m0[L.off[m] + L.sh[m] - 1] = -(alt && m % 2 ? -1 : 1) * XTB.SPIN.atomUnpaired(Z[m]);
-    try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: null, m0, probe: null, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; if (r2.converged) { r = r2; r.flipped = true; break; } } catch (e) { /* keep r */ }
+    try { const r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: null, m0, probe: null, maxIter: XQ.maxItCold }); r2.iterations += r.iterations; if (r2.converged) { r = r2; r.flipped = true; r.fallback = true; break; } } catch (e) { /* keep r */ }
   }
+  const fb = !!(r && r.fallback); XQ.flipD = 0;
   if (sp && forces && r && r.converged && r.probe) r = xqProbe(r, qmE, Z, xyz, charge, o, sig);
   if (!r || !r.converged) { XQ.fails++; if (!r) { BO.E = 0; return 0; } }
   const d = xqB() === 2 ? null : XTB.d3Disp(Z, xyz, { grad: forces });
@@ -21630,6 +21631,16 @@ function qmPass(forces) {
      XQ.sig = sig; XQ.calls++; XQ.it += r.iterations; XQ.ms += performance.now() - t0; if (newer) XQ.ids = { id: mem.map(p => p.id), lay: xqLayout(Z) }; } // (a measurement leaves the next step's start alone: runs stay the same however often the energy is read)
   let E = r.E - r.Eext + (d ? d.E : 0); // (the outside potential's energy is the kernel's pairs')
   for (let m = 0; m < n; m++) E -= qmAtomE(Z[m]);
+  // (bug fix after the 1.26 merge) A step whose warm start did not settle and whose answer came from a fresh start (or from each atom's spins) may land
+  // on another branch than the one the cluster was on: polarized molecules restarted fresh settle paired, and the probe's switch back is paid to the
+  // bath as a real switch, so the books jumped by the paired branch's excess (GFN2, the hot radical mixture, seed 6: 0.32 eV). Such a step books its
+  // jump from where the cluster was: the last settled step's energy (at most five steps back) carried along its own slope to the positions now
+  // (E + g·Δx, second order in the move: well under a meV), against the energy found, less what the probe has already paid; a real switch paid this way is paid exactly as before.
+  if (forces && sp && fb && r.converged && XQ.ref && XQ.ref.sig === sig && W.step - XQ.ref.step <= 5 && !XQ.hold) {
+    const ref = XQ.ref; let Er = ref.E;
+    for (let m = 0; m < n; m++) for (let c = 0; c < 3; c++) Er += ref.g[3 * m + c] * (xyz[m][c] - ref.x[3 * m + c]);
+    const dd = (E - Er) + XQ.flipD; W.ledger.bath -= dd; BO.bath -= dd; XQ.detours = (XQ.detours || 0) + 1; XQ.detourE = (XQ.detourE || 0) + dd;
+  }
   for (let m = 0; m < n; m++) { const p = mem[m], q = r.q[m]; QP[p.i] = q - p.q; p.qpol = q - p.q; p.qf = 0; p.qi = 0; }
   // bond orders (Mayer's): drawn, and the molecules
   const B = r.bonds;
@@ -21648,6 +21659,7 @@ function qmPass(forces) {
       for (let m = 0; m < n; m++) { const i = mem[m].i; FX[i] -= gq[m][0]; FY[i] -= gq[m][1]; }
       if (d3) { const FZ = S.fz; for (let m = 0; m < n; m++) FZ[mem[m].i] -= gq[m][2]; }
     }
+    if (sp) { const g = new Float64Array(3 * n), x = new Float64Array(3 * n); for (let m = 0; m < n; m++) for (let c = 0; c < 3; c++) { g[3 * m + c] = (gq[m][c] || 0) + (gd ? gd[m][c] || 0 : 0); x[3 * m + c] = xyz[m][c]; } if (r.converged) XQ.ref = { sig, E, g, x, step: W.step }; } // (where this step's cluster was, if it settled: a fallback within the next five steps books from it; an unsettled step's energy is no place to measure from)
     for (const q of XQ.pq) { if (q.n < 0.2) continue; const w = XQ_K * Math.min(q.n, 3) * (q.a.im + q.b.im); if (w > _stiff) _stiff = w; } // (a bond's stiffness, for the step: about 50 eV/Å² an order, O–H 49, C=O 75, C≡C 100)
   }
   return E;
@@ -21667,7 +21679,7 @@ function xqProbe(r, qmE, Z, xyz, charge, o, sig) {
   let r2; XQ.reruns = (XQ.reruns || 0) + 1;
   try { r2 = qmE(Z, xyz, charge, 0, { ...o, qsh0: g, probe: null, maxIter: XQ.maxItCold }); } catch (e) { r2 = null; }
   if (!r2 || !r2.converged || !(r2.E < r.E - 1e-9) || !(Math.max(...r2.spin.map(Math.abs)) > 1e-3)) return r;
-  const d = r.E - r2.E; W.ledger.bath += d; BO.bath += d; XQ.flips++; XQ.flipE += d;
+  const d = r.E - r2.E; W.ledger.bath += d; BO.bath += d; XQ.flips++; XQ.flipE += d; XQ.flipD = d;
   r2.iterations += r.iterations; r2.flipped = true; return r2; // (flipped: no straight line through the old branch for the next start)
 }
 

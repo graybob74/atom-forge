@@ -1780,6 +1780,7 @@ const { openPage } = require('./browser');
   await alone('f_hep126.js'); // 1.26 bug fixes: collisions at extreme energy, muonic atoms, muonium's nucleus (node tests/f_hep126.js [--node] [part …])
   await alone('f_sweep3d.js'); // 1.26 3-D sweep and settings audit
   await alone('f_swx.js'); // 1.26 exotic-particle sweep (node tests/f_swx.js [--node] [part …])
+  await alone('f_bug126.js'); // (the bug fix after the 1.26 merge: the spin branch's books; f_bug126.js, also alone)
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

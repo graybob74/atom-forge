@@ -333,15 +333,14 @@ Waiting for the owner:
   and continuous bond orders in 3-D.
 - Decided (the owner, 2026-11-05: "try bigger model later for metals"): close-packed metals keep 1.25's fit in 1.26;
   a bigger form (fourth moment or MEAM screening) is on the 1.27 list.
-- The spin-branch booking bug goes to a bug-fix session (prompt written 2026-11-05, branch bugfix-126 from v136).
+- The spin-branch booking bug: fixed in the bug-fix session (branch bugfix-126 from v136, merged 2026-11-06; below,
+  "Bug fixes after the 1.26 merge": a step whose answer comes from a fresh start books its jump from the last settled
+  step; the energies and forces are as before).
 - Approved (the owner, 2026-11-05: "ok sounds good"): Polarized becomes the normal Spins setting once the spin-branch
-  booking bug is fixed (not before).
+  booking bug is fixed: done after the merge (below).
 - Decided (the owner, 2026-11-05: "fix cu ions"): the bug session's model question #1 (flat Cu ions), fixed on branch
   v137 (the section "1.26: copper ions").
-- To decide: the spin-branch booking change (a polarized step that fails to settle
-  restarts paired and the switch back is paid to the bath although nothing changed: books jump ~0.3 eV in 1 of 4 hot
-  radical runs; fixed as a bug unless the owner says otherwise); the bug session's model questions #3 (AsCl₅) and #16
-  (3-D water recapture, physics).
+- To decide: the bug session's model questions #3 (AsCl₅) and #16 (3-D water recapture, physics).
 
 For 1.27 (not built): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
 portrayed and how to implement an experimental setting that makes them as realistic as possible"; APPROVED, all seven
@@ -909,6 +908,47 @@ undone, saved and let decay through the page, and run in Node for its decay at r
 - **Found in the other session's areas (not changed):** the Lab tab's Particles readout counts atoms, nuclei and leptons
   only: twelve unstable particles placed beside five atoms read "5". The 3-D lab has no particle view (so a muonic
   atom's muon is drawn only in the flat game's).
+### Bug fixes after the 1.26 merge
+
+- **Spin-polarized quantum bonds: the books jumped when a step failed to settle** (Settings → Experimental → Bond
+  orders Quantum, Spins Polarized; GFN1 or GFN2). What was wrong: when a step's warm start did not settle, qmPass
+  started afresh (`qsh0: null`, then each atom's spins), and that start can settle on another branch than the one the
+  cluster was on. Traced in the hot radical mixture (O₃, NO, O₂, H₂O₂, 2 H₂ at 1,500 K, 100 steps with the bath, 400
+  insulated), GFN2 flat seed 6, insulated step 9: the warm start (120 iterations) left the polarized state oscillating
+  without settling (its energy within a few meV of the settled one), the fresh start settled paired 0.32 eV higher, and that step's energy simply rose; later the probe found the spins again and paid the drop to the bath as a
+  real switch. GFN1 flat seed 7 the same through the spin seeds (step 332, +0.32 eV, after an unsettled step), seed 5
+  through the fresh start (+0.27). Why: nothing booked the branch change of a fresh start; the probe's booking assumes
+  the paired state was where the cluster had been. Tried first: (a) a fresh start from each atom's spins did not
+  settle at that step; the last step's polarized state with a gentler mixer (damping 0.2, 30 steps of memory) settles
+  (45 iterations), but on other steps it then settled on a different polarized state (−97 meV, also unbooked), and it
+  changes the answers polarized clusters get; the unsettled warm iterate as the reference was off by up to 0.1 eV
+  (GFN1 seed 5). What changed (b, bookkeeping only; the solver's path and every energy and force as before): each
+  forces pass with spins keeps the last settled step's energy, slope and positions (XQ.ref, the same members); a step
+  whose answer came from a fresh start or the atoms' spins books its jump from there: E found − (E_ref + g·Δx), less
+  what the probe has just paid, to the bath (`XQ.detours`, `XQ.detourE`), within five steps of a settled one (an
+  unsettled step's energy is no reference: in the first hot steps the books swing tens of eV on unsettled calculations
+  and come back, as before). The second-order error of the slope is under 1 meV. A real switch found by the probe in
+  an ordinary step is paid exactly as before; one inside a fresh-start step is paid by this booking.
+  Numbers (400 insulated steps after 100 with the bath; jumps over 1 meV, worst jump):
+
+  | method, world | seed 3 | seed 5 | seed 6 | seed 7 |
+  |---|---|---|---|---|
+  | GFN1 flat, before | 0 | 1, +0.27 eV | 0 | 2, +0.32 eV (drift 0.59) |
+  | GFN1 flat, after | 0 | 0, −6.0e-4 | 0 | 0, +5.4e-4 |
+  | GFN1 3-D, before / after | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+  | GFN2 flat, before | 0 | 0 | 1, +0.32 eV | 0 |
+  | GFN2 flat, after | 0 | 0 | 0, −1.7e-4 | 0 |
+  | GFN2 3-D, before | 0 | 0 | 0 | 1, +0.093 eV |
+  | GFN2 3-D, after | 0 | 0 | 0 | 0, −1.4e-4 |
+  | Atom Forge refit (method 4) flat, before | 2, +0.43 eV | 0 | 1, +0.52 eV | 1, +0.42 eV |
+  | Atom Forge refit (method 4) flat, after | 0, −9.3e-4 | 0 | 0, −9.0e-5 | 0, −3.5e-4 |
+
+  How often: in those 400-step runs a step's answer came from a fresh start or the spins 0–2 times (5 in the 16 GFN1 and
+  GFN2 runs, with 4 switches by the probe); unchanged from before (the same path, now booked). Cost: none measurable
+  (an array of 3n numbers kept a step; 7.4–13 s a run before and after). Paired spins (the normal setting) and quantum
+  bonds off: bit for bit as before (the 59 setups' fingerprints, seed 7, 300 steps, identical; f_126x and f_126q pass).
+  Check: tests/f_bug126.js (t_features' last line; alone `node tests/f_bug126.js`): `seed6` (fails on v136: one jump,
+  0.32 eV), `mixture` (the 16 runs, no jump over 1 meV).
 
 ### 1.26: GFN2 refit (second attempt)
 
@@ -990,7 +1030,7 @@ method 3); Settings still offers GFN1 and GFN2 only.
   ozone, hexazine falling apart, bonds (0.0094 Å on H/C/N/O), water and S22 near GFN2's. Its parameters, the engine's
   support and the pipeline stay for a later round. **Default: GFN1** (and the recommendation above stands: Polarized
   spins as GFN1's default once the owner approves).
-- Found, not changed: **the books of a spin-polarized calculation that does not settle**. When a step's warm start
+- Found, not changed (fixed after the merge: "Bug fixes after the 1.26 merge"): **the books of a spin-polarized calculation that does not settle**. When a step's warm start
   (polarized, from the last step) does not settle, qmPass starts afresh unpolarized; the probe then switches back to
   polarized and pays the difference to the bath, though the system was polarized all along: the books jump by about
   that difference. GFN2 polarized in the hot mixture: 1 seed of 4 (0.32 eV); this refit 2 of 4 (0.43, 0.52). Not paying
