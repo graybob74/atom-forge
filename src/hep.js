@@ -2603,12 +2603,32 @@ function mesonBurst(x, y, E, vx, vy, Q) {
 }
 /* A nucleon meets an antinucleon (bare, in flight): they annihilate into mesons, or, above its threshold, now and
    then exchange charge instead (p p̄ → n n̄), or make a Λ Λ̄ pair. Exact relativistic kinematics. */
+/* (1.27 bug 5) Antinucleon–nucleon cross sections (mb) against the antinucleon's momentum on a nucleon at rest (GeV/c):
+   [p_lab, σ_tot, σ_el, σ_ann], p̄p as the PDG's compilations show them (read from memory of the PDG plots, to be checked;
+   the Tevatron's √s = 1.96 TeV is p_lab 2.05×10⁶: σ_tot 78, σ_el 18, so σ_inel 60, CDF/D0), the same for p̄n and n̄p
+   (isospin and the Pomeranchuk limit: within 10% above 0.5 GeV/c). Annihilation leads at low momentum, falls as about
+   1/p above 10 GeV/c; the rest of σ_tot − σ_el is production with both baryons surviving (as pp). */
+const NBAR_X = [[0.1, 480, 180, 280], [0.3, 230, 85, 105], [0.5, 160, 60, 78], [1, 115, 40, 55], [2, 90, 28, 33], [5, 68, 16, 13], [10, 56, 12, 6.5],
+  [20, 50, 10, 3.5], [100, 43, 7.5, 0.9], [1e3, 41.5, 7, 0.1], [1.6e5, 62, 13, 0], [1.7e6, 75, 17, 0], [2.05e6, 78, 18, 0], [1e8, 100, 25, 0]];
+function nbarX(pl) {
+  const T = NBAR_X; if (pl <= T[0][0]) return T[0].slice(1);
+  for (let i = 1; i < T.length; i++) if (pl <= T[i][0]) { const a = T[i - 1], b = T[i], f = Math.log(pl / a[0]) / Math.log(b[0] / a[0]); return [1, 2, 3].map(k => a[k] + f * (b[k] - a[k])); }
+  return T[T.length - 1].slice(1);
+}
 function nnbarEvent(a, b, x, y) {
   const P = add4(p4of(a, true), p4of(b, true)), M = mass4(P);
   const Q = (a.anti ? -a.Z : a.Z) + (b.anti ? -b.Z : b.Z);
   let toks = null;
   const ew = ewDraw(M, M, 0, 'pbar', p4of(a.anti ? a : b, true)); // (W and Z above 82 GeV, the antinucleon's antiquark, 1.27)
   if (ew) { const h = hadronize(M - ew.m, 0, Q - ewQ(ew), {}); if (h) toks = h.concat([ew]); }
+  if (!toks) { // (1.27 bug 5) annihilation, production with both baryons surviving, or elastic scattering, by the measured cross sections
+    const mN = 0.9389, Eb = (M * M / 1e6 - 2 * mN * mN) / (2 * mN), pl = Math.sqrt(Math.max(0, Eb * Eb - mN * mN)), [st, se, sa] = nbarX(pl);
+    const prod = M > 2 * M_N + XP.pi0.m + 1, u = rnd() * (prod ? st : sa + se); // (below the pion threshold: annihilation or elastic, charge exchange left with annihilation's n̄n below)
+    if (u >= sa) {
+      if (u >= sa + (prod ? st - se - sa : 0)) { const As = toRest(p4of(a, true), P[1] / P[0], P[2] / P[0], (P[3] || 0) / P[0]); return diffract(a, b, pmag(As), 1.6); }
+      const t = nbarSurvive(a, b, x, y, P, M, Q); if (t) return t;
+    }
+  }
   if (toks) { /* (a W or Z) */ } else if (Q === 0 && a.Z + b.Z === 2 && M > 2 * M_N + 0.5 && rnd() < 0.1 * Math.exp(-(M - 1877) / 1500)) toks = ['n', 'nbar'];
   else if (Q === 0 && M > 2 * XP.Lam.m + 30 && rnd() < 0.015) toks = ['Lam', 'Lamb'];
   if (!toks) toks = mesonState(M, Q);
@@ -2617,6 +2637,21 @@ function nnbarEvent(a, b, x, y) {
   return doReaction(a, b, toks.map(item), P, M, x, y, 'annih', `${fmtE(M * MEV)} in their own frame`);
 }
 
+/* (1.27 bug 5) An antinucleon and a nucleon that collide inelastically without annihilating: both baryons go on, as in
+   pp (the game's nucleon–nucleon production: mesons from the fireball, strings along the beams with the baryons leading
+   above 5 GeV). */
+function nbarSurvive(a, b, x, y, P, M, Q) {
+  const bt = (p) => (p.anti ? (p.Z ? 'pbar' : 'nbar') : (p.Z ? 'p' : 'n')), base = [item(bt(a)), item(bt(b))];
+  const Qb = (a.anti ? -a.Z : a.Z) + (b.anti ? -b.Z : b.Z), mesons = hadronize(M - massOf(base[0]) - massOf(base[1]), 0, Q - Qb, { minMeson: 1 });
+  if (!mesons) return null;
+  let items = base.concat(mesons.map(item));
+  if (M > 5000 && items.length >= 3) {
+    const bx = P[1] / P[0], by = P[2] / P[0], bz = (P[3] || 0) / P[0], A = toRest(p4of(a, true), bx, by, bz), L = Math.hypot(A[1], A[2]) || 1;
+    const ri = resonate(items, M), vs = jetMomenta(ri, M, A[1] / L, A[2] / L, { lead: isBaryonItem, ptScale: 0.7, ax3: unit3(A) }); if (vs) items = ri;
+    if (vs) { addString(x, y, A[1] / L, A[2] / L, items.length); return finishReaction(a, b, items, vs.map(v => toLab(v, bx, by, bz)), x, y, 'prod', `√s = ${fmtE(M * MEV)}: strings along the beams, no annihilation`); }
+  }
+  return doReaction(a, b, items, P, M, x, y, 'prod', `√s = ${fmtE(M * MEV)}, no annihilation`);
+}
 /* ---- nucleon + nucleon above the pion threshold. Inelastic cross section (mb) against the beam energy a fixed-target
    machine would need (T_lab, GeV): measured proton–proton values. */
 const NN_INEL = [[0.29, 0], [0.35, 0.6], [0.4, 1.5], [0.5, 3.5], [0.6, 7], [0.8, 16], [1, 21], [1.5, 24.5], [2, 26], [3, 28], [5, 29.5], [10, 30.5], [30, 31], [100, 32]];
