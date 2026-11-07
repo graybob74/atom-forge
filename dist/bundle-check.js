@@ -7467,9 +7467,9 @@ function shareKE3(ps, dE) {
 }
 /* Settle a nuclear event's books by adjusting the products' relative motion (twice: a mode switch moves energy
    between potential and kinetic). Returns the remainder (eV), normally zero. */
-function settleKE(S, Qrel, ps) {
+function settleKE(S, Qrel, ps, tol = 1e-9, tries = 3) { // (tol, tries: cpmPair asks for more, 1.27 merge)
   let left = nucLeft(S, Qrel);
-  for (let k = 0; k < 3 && Math.abs(left) > 1e-9 * Math.max(1, Math.abs(Qrel)); k++) { shareKE(ps, left); left = nucLeft(S, Qrel); }
+  for (let k = 0; k < tries && Math.abs(left) > tol * Math.max(1, Math.abs(Qrel)); k++) { shareKE(ps, left); left = nucLeft(S, Qrel); }
   return left;
 }
 
@@ -26396,7 +26396,7 @@ function cpmPair(p, E, ux, uy, uz, trip) {
   const e = addLepton(ELEC, p.x + 0.2 * ox, p.y + 0.2 * oy, 0, 0, (p.z || 0) + 0.2 * oz); setMotion(e, Tm, ex, ey, 0, 0, ez);
   const ps = addLepton(POS, p.x - 0.2 * ox, p.y - 0.2 * oy, 0, 0, (p.z || 0) - 0.2 * oz); setMotion(ps, Tp, px, py, 0, 0, pz);
   W.ledger.nuc -= 2 * ME_C2;
-  settleKE(S, avail, [e, ps]);
+  settleKE(S, avail, [e, ps], 1e-14, 8); // (1.27: to 1e-14 of the pair's energy: 1e-9 of a 220 MeV pair left 0.15 eV unpaid, found merging the 1.27 bug fixes)
   if (Te > 0) {
     const ct = Math.min(1, Te / Math.sqrt(Te * (Te + 2 * ME_C2)) * (E + ME_C2) / E), u = cpmTurn(ux, uy, uz || 0, Math.acos(ct), rnd() * 2 * Math.PI);
     if (ejectElectron(p, Te - ionizationCost(p), u[0], u[1], undefined, undefined, u[2])) W.count.ionize++; else dumpHeat(Te, p, p);
