@@ -2937,6 +2937,27 @@ function doReaction(a, b, items, P, M, x, y, kind, sub) {
   const bx = P[1] / P[0], by = P[2] / P[0], bz = (P[3] || 0) / P[0];
   return finishReaction(a, b, items, vs.map(v => toLab(v, bx, by, bz)), x, y, kind, sub);
 }
+/* (1.27 bug 10) An event that remakes a muonic atom's nucleus (a reaction, a neutron's (n,p) or (n,α), fission) leaves the
+   muon bound to the new nucleus with the most charge, as in nature (it took the old atom's record away with it before:
+   muBoundTick's "atom gone", 37 of 64 muonic lead atoms ended early by the neutrons of their neighbours' captures). Its
+   binding is the new nucleus's (MU_EB, or the exotic atoms' xaLevel of 1s), its lifetime follows from the new Z and N
+   (muRates in muBoundTick), and the change of the bound muon's mass, δ = m_old − m_new, enters the event's books as the
+   muon's mass does when it decays (closeEvent's Ein and mIn, or Qm and the nuclear ledger for settleKE's events): the
+   products' motion takes it. Returns δ (eV); no product with Z ≥ 2: 0, the muon left to muBoundTick as before. */
+function muCarry(olds, ps) {
+  let d = 0;
+  for (const o of olds) {
+    const B = o && o.muB; if (!B) continue;
+    let q = null; for (const p of ps) if (p && p.k === NUC && !p.dead && !p.anti && p.Z >= 2 && !p.muB && (!q || p.Z > q.Z || (p.Z === q.Z && p.N > q.N))) q = p;
+    if (!q) continue;
+    const Eb = B.zx ? xaLevel(B.sp || 'mu-', q.Z, q.N, 1) : MU_EB(q.Z) * MEV;
+    q.muB = Object.assign({}, B, { m: MU_M * MEV - Eb, Eb }); if (B.zx) q.muB.n = 1;
+    q.m = atomMass(q); q.im = 1 / q.m; if (B.zx) { refresh(q); enforceValence(q, null); }
+    d += B.m - q.muB.m; o.muB = null;
+    const i = W.muBound.indexOf(o); if (i >= 0) W.muBound[i] = q; else W.muBound.push(q);
+  }
+  return d;
+}
 function finishReaction(a, b, items, moms, x, y, kind, sub) {
   const gh = [ghostOf(a), ghostOf(b)], ins = [partLabel(a), partLabel(b)], ne = a.ne + b.ne, anti = !!a.anti;
   const partners = [];
@@ -2955,8 +2976,9 @@ function finishReaction(a, b, items, moms, x, y, kind, sub) {
     for (const q of made.ps.filter(q => q.k === NUC && q.Z > 0).sort((p, q) => q.Z - p.Z)) { if (left <= 0) break; const k = Math.min(left, q.Z); q.ne = k; left -= k; refresh(q); }
     for (let i = 0; i < left && W.parts.length < MAX_PARTS; i++) { const [ux, uy, uz = 0] = rdir(); const e = addLepton(anti ? POS : ELEC, x + 0.3 * ux, y + 0.3 * uy, 0, 0, z + 0.3 * uz); setMotion(e, 2 + 8 * rnd(), ux, uy, 0, 0, uz); made.ps.push(e); } // (uz: 3-D, 1.25)
   }
+  const dmu = (a.muB || b.muB) ? muCarry([a, b], made.ps) : 0; // (a muonic atom's muon stays with the new nucleus, 1.27 bug 10)
   relink(partners.filter(q => !q.dead));
-  closeEvent(S, made, x, y);
+  closeEvent(S, made, x, y, dmu, dmu);
   const outs = items.filter(it => it.t !== 'g' && it.t !== 'v').map(labelOf).sort();
   const same = outs.length === 2 && outs.join() === ins.slice().sort().join(); // the same two nuclei came out
   if (same) { kind = 'reaction'; sub = items.some(it => it.t === 'g') ? 'nuclear inelastic scattering: one was left excited and gave off γ rays' : 'nuclear elastic scattering'; }

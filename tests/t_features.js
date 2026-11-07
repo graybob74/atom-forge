@@ -1806,6 +1806,7 @@ const { openPage } = require('./browser');
   await alone('f_fix06.js'); // 1.27 bug 6: fast fired particles meet over the step (node tests/f_fix06.js [--node] [part …])
   await alone('f_fix07.js'); // 1.27 bug 7: Compton scattering of 10–100 keV X-rays (node tests/f_fix07.js [--node] [part …])
   await alone('f_fix09.js'); // 1.27 bug 9: decay data from ENSDF for the estimated nuclides (node tests/f_fix09.js [--node] [part …])
+  await alone('f_fix10.js'); // 1.27 bug 10: a muonic atom keeps its muon when its nucleus is remade (node tests/f_fix10.js [--node] [part …])
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

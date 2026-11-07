@@ -5573,7 +5573,7 @@ function neutronHit(n, T, b, R) {
     n.kEnd = 'cap'; kill(n); kill(T);
     W.count.ncap++;
     const ps = launchProducts(special, Math.max(0, Q * 1e6 + En - Ex7), Vx, Vy, x, y, ne, M);
-    const Qm = nucMassLoss(S);
+    const dmu = T.muB ? muCarry([T], ps) : 0, Qm = nucMassLoss(S) + dmu; // (a muonic atom's muon stays with the new nucleus, its binding's change in the books, 1.27 bug 10)
     W.ledger.nuc += Qm;
     const rays = li7 && ps[0] && !ps[0].dead ? glPrep(ps[0], [477.603]) : null;
     settleKE(S, rays ? Qm - glSum(rays) : Qm, ps);
@@ -5653,7 +5653,7 @@ function neutronHit3(n, T, b, R) {
     n.kEnd = 'cap'; kill(n); kill(T);
     W.count.ncap++;
     const ps = launchProducts(special, Math.max(0, Q * 1e6 + En - Ex7), Vx, Vy, x, y, ne, M, z, Vz);
-    const Qm = nucMassLoss(S);
+    const dmu = T.muB ? muCarry([T], ps) : 0, Qm = nucMassLoss(S) + dmu; // (a muonic atom's muon stays with the new nucleus, its binding's change in the books, 1.27 bug 10)
     W.ledger.nuc += Qm;
     const rays = li7 && ps[0] && !ps[0].dead ? glPrep(ps[0], [477.603]) : null;
     settleKE(S, rays ? Qm - glSum(rays) : Qm, ps);
@@ -5755,7 +5755,7 @@ function fission(T, n, En) {
   }
   // the books: the energy released is the mass lost; what the fragments and neutrons did not take leaves as
   // prompt γ rays (about 7 MeV in all, from the fragments' excitation)
-  const Qm = nucMassLoss(S);
+  const dmu = T.muB ? muCarry([T], prods) : 0, Qm = nucMassLoss(S) + dmu; // (a muonic atom's muon stays with the heavier fragment, 1.27 bug 10)
   W.ledger.nuc += Qm;
   let left = nucLeft(S, Qm);
   if (left < 1e6) left = settleKE(S, Qm - 1e6, prods) + 1e6; // keep at least 1 MeV for the γ rays
