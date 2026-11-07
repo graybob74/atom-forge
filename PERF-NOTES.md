@@ -2729,6 +2729,38 @@ tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core
 checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
 f_bug126e pass alone.
 
+### 1.27: bug 12 (muon lifetimes)
+
+Branch fix127-12-muon-lifetime-formula (from v145). A bug fix (data). Check: tests/f_fix12.js (t_features, one line;
+`node tests/f_fix12.js [--node] [part …]`): tau; fails on v145 (Ar 643.3, Cr 238.7, Te 116.2, Dy 86.8, Th 84.1, U 85.3),
+confirmed by running the file on a v145 tree.
+
+- **What was wrong.** MU_TAU held 20 measured mean lives (written from memory in 1.26) and the Goulard–Primakoff form
+  scaled to them filled the rest: off by up to 21% in between (v145 against the values below: Ne −21.3%, Ar +16.3%,
+  Cr −6.4%, Ge +9.0%, Se +8.7%, Te +12.7%, Dy +10.3%, Er +6.9%, Th +8.7%, U +10.3%; Cd, W, Hg within 1.5%).
+- **Source.** The 1987 paper (Suzuki, Measday & Roalsvig, Phys. Rev. C 35, 2212) could not be reached from this session
+  (APS paywall; the one free copy found, at a UC Davis course page, refused the connection). Its values were taken from
+  Zinner, Langanke & Vogel, Phys. Rev. C 74, 024326 (2006), arXiv nucl-th/0606002, Table I: experimental total capture
+  rates Λ_c "from Ref. [4]" (the 1987 paper; a few from other papers: ⁴⁸Ca, the uranium isotopes and plutonium from
+  Hänscheid 1990 and David 1988, as their footnotes say; the superscripts are lost in the text extraction, so which is
+  which was read from the decimals, to be checked). Converted to mean lives as the game counts them: 1/τ = Λ_c +
+  muHuff(Z)/τ_μ. Done to the 13 of the old 20 that the table has, this gives them back within 0.1% (zirconium 0.5%):
+  the memory values stand. Lead is the exception: Λ_c 13.45×10⁶ s⁻¹ gives 72.3 ns against MU_TAU's 75.4; kept (75.4 is
+  the 1987 value as remembered, and gold's 74 ns quoted by Measday 2001 sits beside it), for checking against the paper.
+- **What changed** (hep.js MU_TAU): 23 elements added (ns): Ne 1519.4, Ar 553.4, Cr 255.0, Ge 166.3, Se 163.3, Sr 134.0,
+  Mo 99.5, Pd 95.8, Cd 90.6, Sn 92.0, Te 103.1, Ba 96.5, Ce 83.2, Nd 77.4, Sm 79.1, Gd 81.7, Dy 78.7, Er 74.4, Hf 74.4,
+  W 78.4, Hg 76.2, Th 77.3, U 77.3 (²³⁸U). The table now has 43 elements; isotopes (⁴⁴Ca, ⁴⁸Ca, ⁵⁰⁻⁵⁴Cr, ⁵⁸⁻⁶²Ni, ⁸⁸Sr,
+  ²³⁴⁻²³⁶U, ²⁴²⁻²⁴⁴Pu are in the same table) are still carried by the form's neutron-excess term.
+- **Still on the form**: the elements the table has no measurement for, among them the paper's odd ones (Cl, Sc, Mn, Co,
+  Ga, As, Br, Rb, Y, Nb, Ag, In, Sb, I, Cs, La, Pr, Eu, Tb, Ho, Tm, Lu, Ta, Re, Ir, Au, Tl, Bi …). How far off there,
+  measured by leaving each measured element out in turn and predicting it from the rest: median 4.0%, the light ones
+  worst (Ne −21%, F +20%, P +17%, Ar +16%, Na +16%: the measured values alternate between odd and even Z), from Ca up
+  within 6% except V 11%, Cu 12%, Zn −11%, Te 8%.
+- **Fingerprints** (switches off, seed 7, 300 steps): all 59 setups as v145.
+- Suites: t_lint, t_hep, t_nuclear, f_swx, f_rp1 pass.
+- **Left for the owner.** The 1987 paper's own table (with its odd elements and isotopes) when it can be read; lead's
+  72.3 against 75.4.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
