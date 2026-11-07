@@ -4985,8 +4985,15 @@ function maxCation(p) {
    flat Cu or Ni lump turned nearly every atom into an ion (in 3-D Cu, Ag, Au and Ni). Charges already there still
    move or cancel, a metal still gives electrons to O, Cl…, and lone metal atoms (a vapour) trade them as before. */
 function ionPairInMetal(d, a, r) {
-  return d.el.metal && a.el.metal && d.q >= 0 && a.q <= 0 && r < 1.05 * (d.mR + a.mR) && (inMetal(d, a) || inMetal(a, d)); // (el.metal: a surface atom bonded to an O is still a metal atom)
+  return d.el.metal && a.el.metal && d.q >= 0 && a.q <= 0 && r < 1.05 * (d.mR + a.mR) && (inMetal(d, a) || inMetal(a, d)) && !metalSalt(d, a); // (el.metal: a surface atom bonded to an O is still a metal atom)
 }
+/* (1.27 bug 13) Two metals that make a salt with each other: an electron moved from d (its ionization energy) to a as an
+   anion (its electron affinity) costs under METAL_SALT eV, so the lattice's Madelung energy outweighs the metal's
+   cohesion, as for caesium and rubidium with gold or platinum: CsAu (3.89 − 2.31 = 1.58 eV) and RbAu (1.87) are ionic
+   (Cs⁺Au⁻, a transparent semiconductor), Cs₂Pt too (1.76); KAu (2.03), NaAu₂ (2.83), BaAu₂ (2.90) and every same-metal
+   or transition-metal lump (Cu 6.5, Ni 6.5, Au 6.9, Cs–Cu 2.65) are metals. Only a neutral pair making its first ions. */
+const METAL_SALT = 2.0;
+function metalSalt(d, a) { return d.q === 0 && a.q === 0 && a.ne === zChem(a) && a.el.ea > 0 && ionE(zChem(d), d.ne) - a.el.ea < METAL_SALT; }
 function inMetal(p, but) {
   if (!MR_MAX) for (const el of ELEMENTS) if (el && el.metal) MR_MAX = Math.max(MR_MAX, 2 * el.rc * 1.12);
   let hit = false;
