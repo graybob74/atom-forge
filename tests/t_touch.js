@@ -5,7 +5,7 @@
 const { chromium } = require('./deps').dep('playwright'); // (the repository's node_modules on a PC, the preinstalled tools here)
 const { pageFile } = require('./browser');
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(require('./deps').launchOpts({ headless: true }));
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await ctx.addInitScript(() => { window.AF_NO_MENU = true; window.AF_NO_PAUSE = true; });

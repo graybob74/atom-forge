@@ -12,7 +12,7 @@ function pageFile() {
   return out;
 }
 async function openPage(opts = {}) {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(require('./deps').launchOpts({ headless: true }));
   const ctx = await browser.newContext({ viewport: opts.viewport || { width: 1360, height: 860 }, deviceScaleFactor: opts.dpr || 1, colorScheme: opts.scheme || 'light' });
   // the page asks Google for fonts; there is no network here, so answer at once
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));

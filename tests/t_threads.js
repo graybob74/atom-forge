@@ -22,7 +22,7 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}/atom-forge.html`;
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(require('./deps').launchOpts({ headless: true }));
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 } });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', headers: { 'Access-Control-Allow-Origin': '*' }, body: '' }));
   const page = await ctx.newPage();

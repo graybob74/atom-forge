@@ -337,7 +337,7 @@ async function menu3d() {
   // two fingers: pinch zooms, a two-finger drag turns (each gesture on a fresh page: headless Chromium now and then
   // delivers no events at all for a second touch gesture soon after a first)
   {
-    const tb = await chromium.launch({ headless: true });
+    const tb = await chromium.launch(require('./deps').launchOpts({ headless: true }));
     const tctx = await tb.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
     await tctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
     await tctx.addInitScript(() => { window.AF_NO_MENU = true; window.AF_NO_PAUSE = true; });
