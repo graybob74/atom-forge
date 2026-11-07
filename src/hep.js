@@ -2260,7 +2260,7 @@ function xbClose(a, b, items, moms, x, y, txt) {
   for (const p of parts) kill(p);
   let Ein = 0, mIn = 0;
   for (const o of xs) { Ein += o.KE + o.m * MEV; mIn += o.m * MEV; o.dead = true; o.fate = `collided: ${txt}`; }
-  const made = spawnItems(items, moms, x, y);
+  const made = spawnItems(items, moms, x, y, W.d3 ? _evZ3 : 0); // (3-D: at the depth fastMeet set, 1.27 bug 6)
   closeEvent(S, made, x, y, Ein, mIn);
   return made;
 }

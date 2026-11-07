@@ -6419,6 +6419,65 @@ function beamCollisions(id0) {
     }
   }
 }
+/* (1.27 bug 6) Fast fired particles meeting each other over a step. Flat: a particle in radiation flight above a few GeV
+   crosses the box in one step (1,200 Å at 0.04 tu) and leaves it before beamCollisions looks at the paths, so two fired at
+   each other never met; 3-D: fast leptons had no meeting with each other at all, and fast nuclei only fusion and
+   Coulomb scattering (fastFastNuclear3). Before the move, each one's straight path over the step (its true speed) is
+   laid against the others' (sorted by x, a sweep: not every pair), and pairs whose closest approach falls within the step
+   and within the meeting distance meet there, in the order they meet, as beamCollisions would have them meet: e⁺e⁻
+   (eeEvent, within R_NN), a nucleus and an antinucleus (nnbarEvent or nuclearAnnihilation), two nuclei within reach
+   (nuclearEncounter, the pass mapped onto real impact parameters). Flat, only pairs one of which leaves the box this
+   step (the rest beamCollisions meets after the move, as before); fusion and Coulomb scattering stay with the paths'
+   own checks. Collider beams are left to the collider. */
+const _fmE = []; let _nRadLast = 0, _fmNext = -1; // (how many were in radiation flight last step, and the next id then: fastMeet looks when two or more were, or anything was made since)
+function fastMeet(dt, id0) {
+  const d3 = W.d3, L = _fmE; L.length = 0;
+  const hw = W.box.w / 2, hh = W.box.h / 2, hd = d3 ? W.box.d / 2 : 0;
+  for (const p of W.parts) {
+    if (p.dead || p.id >= id0 || p.beam || p.caught || (p.k === NUC && p.Z === 0)) continue;
+    let vx, vy, vz = 0;
+    if (!d3) { if (!p.rad) continue; vx = p.ux * p.sp; vy = p.uy * p.sp; }
+    else {
+      if (!p.fast) continue;
+      const v2 = p.vx * p.vx + p.vy * p.vy + p.vz * p.vz; if (!(v2 > 0)) continue;
+      let sc; if (p.k === NUC) sc = flyScale3(v2); else { const g = 1 + 0.5 * p.m * v2 / (PHYS.MEC2 * 1e6), vr = PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g))); sc = vr / Math.sqrt(v2); }
+      vx = p.vx * sc; vy = p.vy * sc; vz = p.vz * sc;
+    }
+    const dx = vx * dt, dy = vy * dt, dz = vz * dt;
+    if (!(dx * dx + dy * dy + dz * dz > 1)) continue; // (slower ones meet on their own paths)
+    const out = !d3 && (Math.abs(p.x + dx) > hw || Math.abs(p.y + dy) > hh);
+    L.push({ p, x: p.x, y: p.y, z: d3 ? p.z : 0, dx, dy, dz, lo: Math.min(p.x, p.x + dx) - 1, hi: Math.max(p.x, p.x + dx) + 1, out });
+  }
+  if (L.length < 2) return;
+  L.sort((a, b) => a.lo - b.lo);
+  const meet = [];
+  for (let i = 0; i < L.length; i++) {
+    const A = L[i];
+    for (let j = i + 1; j < L.length && L[j].lo <= A.hi; j++) {
+      const B = L[j], a = A.p, b = B.p;
+      if (!d3 && !A.out && !B.out) continue;
+      const lep = a.k !== NUC && b.k !== NUC, both = a.k === NUC && b.k === NUC;
+      if (lep ? a.k === b.k : !both) continue;
+      if (sameEv(a, b)) continue;
+      const rx = B.x - A.x, ry = B.y - A.y, rz = B.z - A.z, ux = B.dx - A.dx, uy = B.dy - A.dy, uz = B.dz - A.dz, U2 = ux * ux + uy * uy + uz * uz;
+      if (!(U2 > 0)) continue;
+      const t = -(rx * ux + ry * uy + rz * uz) / U2; if (!(t > 0 && t <= 1)) continue;
+      const ex = rx + t * ux, ey = ry + t * uy, ez = rz + t * uz, d = Math.sqrt(ex * ex + ey * ey + ez * ez);
+      const R = lep ? (W.ultra ? R_LEP_U : R_NN) : opp(a, b) ? (W.ultra ? nucReach(a, b) : R_NN) : nucReach(a, b);
+      if (d < R) meet.push([t, A, B, d, ex, ey, ez]);
+    }
+  }
+  meet.sort((m, n) => m[0] - n[0]);
+  for (const [t, A, B, d, ex, ey, ez] of meet) {
+    const a = A.p, b = B.p;
+    if (a.dead || b.dead) continue;
+    const x = A.x + A.dx * t + ex / 2, y = A.y + A.dy * t + ey / 2, z = A.z + A.dz * t + ez / 2;
+    if (d3) _evZ3 = z;
+    if (a.k !== NUC) { eeEvent(a, b, x, y); continue; }
+    if (opp(a, b)) { if (a.Z + a.N === 1 && b.Z + b.N === 1 && !a.ne && !b.ne && nnbarEvent(a, b, x, y)) continue; nuclearAnnihilation(a, b); continue; }
+    nuclearEncounter(a, b, d / nucReach(a, b), x, y, d3 ? z : undefined);
+  }
+}
 function inDetector(C, x, y) {
   if (!C.dets || !C.dets.length) return true;
   for (const d of C.dets) if (d.box ? x >= d.box[0] && x <= d.box[1] && y >= d.box[2] && y <= d.box[3] : Math.hypot(x - d.x, y - d.y) < d.r) return true;
@@ -8451,11 +8510,13 @@ function stepPlain(dt) {
   // events that moved atoms, changed bonds or species, or created particles: forces must be current (for the next opening kick)
   if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; }
   W.fSpawn = W.spawned;
+  if (W.d3 && (_nFastLep > 0 || _fastNuc.length) && W.parts.length) fastMeet(dt, id0); // (3-D: fast leptons and nuclei meet each other, 1.27 bug 6)
   if (_nFastLep > 0 || _flagGen !== _flagGenForces) { moveFastLeptons(dt, id0); _wallNeed = -1; } // (none were ballistic when the lists were made, and no flag has changed since)
   const kT = PHYS.KB * W.T, c1 = Math.exp(-W.gamma * dt), c2 = Math.sqrt(Math.max(0, 1 - c1 * c1));
   let nRad = 0;
   if (!_skipOk || _nrN > 0 || _nrId !== W.nextId || _nrFlag !== _flagGen || _nrZ !== _zGen) { // (no neutron and no light: nothing to move here)
     neutronPairs(dt, id0);
+    if (!W.d3 && (_nRadLast >= 2 || W.nextId !== _fmNext)) fastMeet(dt, id0); // (fast fired particles that would leave the box this step meet first, 1.27 bug 6)
     const PI = partsSync(), n = W.parts.length, DEAD = S.dead, ID = S.id, K = S.k, Z = S.Z, RAD = S.rad, OBJ = S.obj, X = S.x, Y = S.y, OX = S.ox, OY = S.oy;
     for (let j = 0; j < n; j++) {
       const i = PI[j];
@@ -8464,6 +8525,7 @@ function stepPlain(dt) {
       else if (RAD[i] === 1) { OX[i] = X[i]; OY[i] = Y[i]; moveRad(OBJ[i], dt); nRad++; }
     }
   }
+  _nRadLast = nRad; _fmNext = W.nextId;
   rpMark(3);
   const nXb = moveExos(dt, id0) || 0;
   if (W.nmr) nmrTick(dt); // (nuclear spins after an NMR pulse turn in the field, Realistic particles 6, 1.27: hep.js)

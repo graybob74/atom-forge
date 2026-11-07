@@ -2729,6 +2729,44 @@ tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core
 checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
 f_bug126e pass alone.
 
+### 1.27: bug 6 (fast fired particles meeting)
+
+Branch fix127-06-fast-fired-meet (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix06.js
+(t_features, one line; `node tests/f_fix06.js [--node] [part …]`): ee, pp; both fail on v145 ({"flat":0,"d3":0}; 0 of 6),
+confirmed by running the file on a v145 tree.
+
+- **What was wrong, measured.** Flat: a particle in radiation flight above a few GeV crosses the box in one step (1,200 Å
+  at 0.04 tu); moveRad moved each one and the walls took it (a positron annihilating there, a proton turned back) before
+  beamCollisions compared the paths, so two fired at each other never met. 3-D: no radiation flight; fast nuclei are
+  stepped short (3.5 Å a step) and met through fastEncounters3, but fast leptons had no meeting with each other at all.
+  Ten tries each (fired head-on from 20 Å apart, the second up to 0.1 Å off line): 45.6 GeV e⁺ and e⁻ flat 0 met (10
+  annihilations at the walls), 3-D 0 met (the same); 1 TeV protons flat 0 met, 3-D 10 of 10 (already).
+- **What changed** (engine.js `fastMeet`; hep.js xbClose spawns at the meeting depth in 3-D). Before the move, each fast
+  particle's straight path over the step at its true speed (flat: radiation flight; 3-D: the fast flag, leptons at
+  their relativistic speed, nuclei by flyScale3) is laid against the others': sorted by x and swept (only paths whose x
+  ranges overlap are compared), the closest approach of each pair within the step, and pairs within the meeting distance
+  meet there in the order they meet, as beamCollisions has them meet: e⁺e⁻ within R_NN (eeEvent), a nucleus and an
+  antinucleus (nnbarEvent, else nuclearAnnihilation), two nuclei within reach (nuclearEncounter, the pass mapped onto
+  real impact parameters as the collider maps it). Flat, only pairs one of which leaves the box (or wraps) in this step:
+  the others beamCollisions meets after the move, as before, so nothing meets twice; fusion and Coulomb scattering stay
+  with the paths' own checks; the collider's beams stay with the collider. It runs when two were in flight last step or
+  anything was made since (a counter: no extra loop otherwise).
+- **Measured** (after): 45.6 GeV e⁺e⁻ head-on flat 10 of 10 met, all a Z (√s 91.2 GeV, the peak: eeEvent's Z channel at
+  59 nb against the photon's few nb); 3-D 10 of 10, all a Z. 1 TeV protons flat 4 of 10 (√s 2 TeV, inelastic only
+  inside √(σ_inel/π) of the mapped impact parameter: the others pass, as the collider's do; dead on, f_fix06 "pp", 6 of
+  6); 3-D 10 of 10 as before. A 1 TeV proton through a proton at rest reacted 10 of 10 flat and 3-D, before and after
+  (moveRad and fastEncounters3 already met slow targets). Books exact to 10⁻¹⁵ of the energy.
+- **Cost** (100 α at 1 GeV in flight, wrapped box, one thread): fastMeet 0.20 ms a step flat (with the reactions it starts),
+  0.11 ms in 3-D; step 1.2–2.2 ms flat (more meetings: the wrapped pairs never met before) against 0.6–0.9, 3-D
+  0.31–0.36 against 0.23–0.34.
+- **Fingerprints** (switches off, seed 7, 300 steps): all 59 setups as v145.
+- Suites: t_lint, t_energy, t_hep, t_collider, f_ew pass.
+- **Left for the owner.** Particles meeting in fastMeet are not turned by the walls first (a positron bound for the wall
+  meets the electron before the wall, as it should). A fast lepton meeting a fast nucleus (e p at TeV) has no channel
+  here (as beamCollisions); a fast muon or pion fired (W.exo) meets nothing fired (moveExos). Found, not changed: a
+  decay that gives off a photon books its energy into ledger.escaped while the photon is in flight (emitPhoton: the
+  light counted twice in total + escaped; the checks use total − nuc, which is exact).
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
