@@ -26,7 +26,8 @@ const fly = (X, p, x1) => {
 /* With the switch off every setup is as before, bit for bit: the fingerprints (tools/fingerprint.js: seed 7, 300 steps,
    every particle's state and the books) of the setups with fast charged particles and γ rays, flat and in 3-D, equal
    v142's (all 59 setups were compared when this was built); the switch starts off. */
-const FP_V142 = { cloud: 'ca71f6d9 39571114', photonuc: '9bdf9dd1 49d4aec0', pet: 'a5248bff a9f2ee3a', pionbeam: 'f6ef9b3d 8c3545fe', crt: 'd45bbde7 a1d454f5', linac: '7c6eb010 2b70ae2c', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a', seu: '1bf27d95 a9f2ee3a' };
+// (1.27 bug 2: pionbeam, hyperfactory and annihilation re-fingerprinted, switches off: molecules give electrons at their measured ionization energies, from their hole atom)
+const FP_V142 = { cloud: 'ca71f6d9 39571114', photonuc: '9bdf9dd1 49d4aec0', pet: 'a5248bff a9f2ee3a', pionbeam: 'a57d419b a3728514', crt: 'd45bbde7 a1d454f5', linac: '7c6eb010 2b70ae2c', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a', seu: '1bf27d95 a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const h = (s) => { let a = 0x811c9dc5; for (let i = 0; i < s.length; i++) { a ^= s.charCodeAt(i); a = Math.imul(a, 0x01000193); } return (a >>> 0).toString(16).padStart(8, '0'); };
   const bad = [];

@@ -13,7 +13,8 @@ const isPs = (X, o) => !o.dead && !!X.XP[o.sp].ps;
 /* With the switches off every setup is as before, bit for bit (tools/fingerprint.js: seed 7, 300 steps; all 59 setups
    were compared when this was built; here the ones with positrons and muons, and water flat and 3-D, against v141), both
    switches start off, a 10 eV positron at hydrogen still annihilates and muonium is still bound by hydrogen's 13.598 eV. */
-const FP_V141 = { annihilation: '63bcd7e3 80f2a127', muonium: '3492138b 4aad8d19', pet: 'a5248bff a9f2ee3a', pionbeam: 'f6ef9b3d 8c3545fe', antihydrogen: 'fcbb2bdd ea7b2fcc', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
+// (1.27 bug 2: pionbeam, hyperfactory and annihilation re-fingerprinted, switches off: molecules give electrons at their measured ionization energies, from their hole atom)
+const FP_V141 = { annihilation: '792e52ec 54cc0e75', muonium: '3492138b 4aad8d19', pet: 'a5248bff a9f2ee3a', pionbeam: 'a57d419b a3728514', antihydrogen: 'fcbb2bdd ea7b2fcc', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const h = (s) => { let a = 0x811c9dc5; for (let i = 0; i < s.length; i++) { a ^= s.charCodeAt(i); a = Math.imul(a, 0x01000193); } return (a >>> 0).toString(16).padStart(8, '0'); };
   const bad = [];

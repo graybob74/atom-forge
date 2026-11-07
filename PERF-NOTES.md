@@ -2975,6 +2975,97 @@ the kernel (0.789 against 0.390 eV/Å).
   changed. (3) Cl⁻ keeps too many waters (8.9 against 6–7) and every ion sits 0.1–0.2 Å too close: the ions' own size
   (ljR = 2 × ionic radius), as 1.23.2 found.
 
+### 1.27: bug 2 (water's ionization energy)
+
+Branch fix127-02-water-ie (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix02.js
+(t_features, one line; `node tests/f_fix02.js [--node] [part …]`): cost, books, ps; all three fail on v145 (water 13.62/18.4;
+the books part's cost 13.62 and 18.40; Ps at 13.0 eV formed, at 6.2 eV not), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** ionizationCost(p) is the hit atom's own ionization energy plus every bond its new charge cannot keep
+  (breakCostIfCharged). In water a hit oxygen gave 13.62 eV (O's own), a hit hydrogen 18.40 (13.60 and its O–H bond:
+  an H⁺ keeps no bond) and the electron came from the atom hit; the 18.4 of the realistic-particles notes is the
+  hydrogen's. So most molecules were dear and some cheap: CH₄ 15.5–17.9 (12.61), NH₃ 14.5–17.7 (10.07), benzene
+  15.5–17.9 (9.24), CO 35.1 at the O (and at the C, a C⁻ in the game's C⁻≡O⁺, 1.26: the electron's affinity), measured
+  12.62 for water (NIST Chemistry WebBook).
+- **What changed** (engine.js, hep.js psFromAtom).
+  - The hole: an electron taken from a small neutral molecule (up to 64 atoms; not continuous bond orders' members, not
+    in flight) comes from its atom with the lowest cost (`holeAtom`), whichever atom was hit, as a molecule's electron
+    comes from its highest orbital. An ion's next electron is still taken where it is hit (its charge's pull, a second
+    ionization, is not in atomIonCost: allowing the move there tripled the ionizations of an ionized-water plasma).
+  - Measured values: `MOL_IE`, first ionization energies by formula (adiabatic, gas). After the hole atom loses its
+    electron, the difference between the measured value and what the molecule's own energy rose by (`molOwnE`: its
+    bonds, bends, inner pairs and electrons, no neighbours, so a molecule in a liquid keeps its surroundings' shift on
+    top) is held as a constant in the hole atom's bonds (`bd.Eq`, `holeEq`), part of their energy while that atom keeps
+    that charge (`bondEq`: in localPE, regionE, totalEnergy, the bond sums, the builder's strain). Forces are unchanged
+    (a constant: no kernel changes). The hole's Coulomb well is as deep as the measured value (`p.ieH`, softFor):
+    with the atom's own (13.62 for O⁺) an electron at the bottom of an H₂O⁺ well could not be caught back (it releases
+    only 12.62) and stayed there. snapshot/restoreSnap keep both (a capture tried and undone lost the bonds' Eq: 1.14 eV
+    each time, found by wrapping capture).
+  - The cost callers pay is still ionizationCost(p) (now the measured value), and ejectElectron books exactly what they
+    paid: Kfar = KE + ionizationCost − ionE − dU for a molecule of MOL_IE, as before otherwise. psFromAtom takes the
+    electron from the same hole at the same energy, so positronium's Ore gap at water is 5.8–12.6 eV (was 6.8–13.6
+    at the oxygen, 11.6–18.4 at a hydrogen).
+- **Table** (game's cost at each kind of atom, eV; flat, isolated molecule; measured: the owner's list for the first ten
+  (NIST), the rest from memory: check). Every ionization here books to 10⁻⁶ eV (tests in /tmp of the session, `ie3.js`:
+  the projectile pays the cost and 5 eV, the books' change is that to 10⁻⁶; 3-D the same).
+
+| molecule | v145 | after | measured |
+|---|---|---|---|
+| H2O | O 13.62, H 18.40 | O 12.62, H 12.62 | 12.62 |
+| NH3 | N 14.53, H 17.65 | N 10.07, H 10.07 | 10.07 |
+| CH4 | C 15.54, H 17.88 | C 12.61, H 12.61 | 12.61 |
+| CO2 | O 13.62, C 19.54 | O 13.78, C 13.78 | 13.78 |
+| O2 | O 13.62 | O 12.07 | 12.07 |
+| N2 | N 14.53 | N 15.58 | 15.58 |
+| H2 | H 18.12 | H 18.12 | 15.43 |
+| CO | O 35.12 | C 14.01, O 14.01 | 14.01 |
+| C2H6 | C 14.87, H 17.88 | C 11.52, H 11.52 | 11.52 |
+| benzene | C 15.54, H 17.88 | C 9.24, H 9.24 | 9.24 |
+| HCl | Cl 12.97, H 18.07 | Cl 12.74, H 12.74 | 12.74 |
+| H2S | S 10.36, H 17.36 | S 10.46, H 10.46 | 10.46 |
+| CH3OH | C 14.97, O 13.62, H 17.88 | C 10.84, O 10.84, H 10.84 | 10.84 |
+| C2H4 | C 15.54, H 17.88 | C 10.51, H 10.51 | 10.51 |
+| C2H2 | C 15.54, H 17.88 | C 11.40, H 11.40 | 11.4 |
+| HCN | C 15.54, N 14.53, H 17.88 | C 13.60, N 13.60, H 13.60 | 13.6 |
+| N2O | N 14.53 | N 12.89, O 12.89 | 12.89 |
+| Cl2 | Cl 12.97 | Cl 11.48 | 11.48 |
+| F2 | F 17.42 | F 15.70 | 15.7 |
+| HF | F 17.42, H 19.47 | F 16.03, H 16.03 | 16.03 |
+| O3 | O 13.62 | O 12.53 | 12.53 |
+| NO | N 14.53, O 13.62 | N 9.26, O 9.26 | 9.26 |
+| H2O2 | O 13.62, H 18.40 | O 10.58, H 10.58 | 10.58 |
+| propane | C 14.87, H 17.88 | C 10.94, H 10.94 | 10.94 |
+| CH2O | C 15.54, O 13.62, H 17.88 | C 10.88, O 10.88, H 10.88 | 10.88 |
+| NO2 | O 13.62, N 14.53 | O 9.59, N 9.59 | 9.59 |
+| SO2 | O 13.62, S 10.36 | O 12.35, S 12.35 | 12.35 |
+| CS2 | S 10.36, C 17.24 | S 10.07, C 10.07 | 10.07 |
+| ethanol | C 14.87, O 13.62, H 17.88 | C 13.62, O 13.62, H 13.62 | 10.48 |
+
+  Not in MOL_IE: ethanol and other isomers sharing a formula (C₂H₆O is ethanol 10.48 and dimethyl ether 10.03: the table
+  goes by formula), so they get the hole atom's cost only (ethanol 13.62). H₂ stays 18.12 (15.43): its H₂⁺ is a
+  one-electron bond the game does not have, and the hole keeps no bond to hold the difference.
+- **Electron impact on one water** (an electron fired at it, 100 tries an energy, flat; 3-D 60): the share ionized,
+  v145 → after: 12.8 eV 0.03 → 0.06, 13.4 0.01 → 0.27, 14 0.07 → 0.36, 16 0.32 → 0.68, 20 0.62 → 0.84, 50 0.93 → 0.88;
+  3-D 14 eV 0 → 0.17, 16 0.12 → 0.32, 20 0.28 → 0.42. The onset moves from 14–16 eV to the measured 12.6 (Itikawa and
+  Mason's cross section starts at 12.6 eV and rises to its peak near 100 eV, from memory); the game's share is a contact
+  probability, not a cross section, so only the threshold compares.
+- **Ionized water** (flat water, 40 waters ionized with 2 eV each, insulated, 400 steps, seeds 1–5): v145 278–683
+  ionizations after, 131–141 free electrons, books −26 to +6 eV; after 521–1,107, 128–146, −5 to +17 (the known
+  ionized-water plasma limit both: electrons falling into ions' wells ionize neighbours; cheaper water, more events).
+  Ten 200 eV electrons in flat water (seeds 1–3): ionizations 685–1,114 → 872–1,594, free electrons 138–156 → 142–162.
+- **Fingerprints** (switches off, seed 7, 300 steps): every setup as v145 except pionbeam (a57d419b), hyperfactory
+  (39713093) and annihilation (792e52ec): the three that ionize molecules within 300 steps. The stored switches-off
+  fingerprints of these in f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew and f_rp7's part-3-on annihilation were updated, with a
+  comment each (f_rp2's "off" check: the new hashes for annihilation and pionbeam; its Ps checks at H, Cl⁻ and free
+  electrons were unchanged and pass: an atom's window is as before).
+- Cost: holeAtom walks the molecule (up to 64 atoms) at each ionizationCost; no change measurable in the setups.
+- Suites: t_lint, t_energy, t_physics, t_molecules, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass; tools/runtests.sh 21 of
+  22 (t_features with f_fix02 passes), t_page's slow-motion button the known flake: alone it passes.
+- **Left for the owner.** A hole's measured-energy difference stays with the bonds after the charge goes (inert, exact
+  books); if the same atom later gets the same charge by another road (a charge transfer), it counts again, exactly booked.
+  Doubly charged molecules and fragments use atom costs. Liquid water's own first ionization (about 11 eV, from memory)
+  comes out as the gas value shifted by the game's own neighbours, not checked.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
