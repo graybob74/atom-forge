@@ -3124,6 +3124,10 @@ nothing changes.
   keep fcc and hcp level, fcc metals the same); separating them needs the second neighbours' shell (MEAM's screening) or
   moments past the sixth. The reference ΔE values are from memory. Tests: tests/f_127m.js (fit, liquid, forces, flat, md;
   each fails on v154), in t_features.
+- Suite on v156 (v155 with the two controls, ui127, merged; 2026-11-06): tools/runtests.sh 20 of 22. The misses are the
+  known two: t_features' 1.14 speed readout ("1/1.3×" on two cores; every 1.27 check passed, f_127m and f_ui127 among
+  them) and t_page's slow-motion button (fails alone too, as on record for 1.25 and 1.26). Setups bit for bit v154's
+  (tools/fingerprint.js, 60 setups).
 
 ### 1.27: feature 19 (photons as waves)
 
