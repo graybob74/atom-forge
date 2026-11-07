@@ -2737,6 +2737,10 @@ Order, to spend the owner's limited usage well: the small ones first in one sess
 (21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
 Done since: 21 (branch v150 from v145, 2026-11-06: "1.27: feature 21 (polarizability by direction)"); 22 (branch v151
 from v150: "1.27: feature 22 (Rayleigh scattering)").
+The owner (2026-11-06): the WebAssembly speed-ups go to the next version (1.28), as one pass over everything that could use
+one: 33–38 above, and polarizability by direction's update and force pass (pold.js pdUpdate, pdForces: ×1.2–4.2 on top
+of the induced charges, the most in 3-D at every step). Time each first (a profile with its setting on), port where the
+JavaScript is most of the step. Left for 1.27: 25 (medium), then 19, 20, 24 (large, the owner's go-ahead on cost first).
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
