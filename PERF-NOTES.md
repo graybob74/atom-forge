@@ -3041,6 +3041,9 @@ exoMark, exoMeet, exmHit, exmFree; the step calls them around moveExos). Off at 
 - **Not covered:** an unstable particle meeting a free electron or positron (μ⁺e⁻ makes muonium elsewhere, by its own
   rules); a heavy-ion collision's hadrons rescattering among themselves after it (one event's products never meet: the
   fireball's statistical hadronization stands for that stage); the charges' turn in 3-D.
+- Suite on v153 (2026-11-06): tools/runtests.sh 20 of 22: t_features' 1.10 line counted 11 realistic switch tags where
+  this line makes 12 (the count updated), and the two known load-timed checks (t_features 1.14's speed readout, t_page's
+  slow-motion button); every feature-24 check passed in the run.
 
 ### 1.27: feature 25 (the Higgs boson)
 
