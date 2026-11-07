@@ -2779,6 +2779,25 @@ API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; th
   stored hashes replaced (bug 6's branch also replaces sns's: take this one, or rerun, when merging).
 - Fingerprints (switches off, 300 steps, seed 7): none changed (no setup uses these values with the switches off; the
   neutron and heavy-quark tables are read only with Realistic particles 5/6 on).
+- Sources used (all read from here, 2026-11-07):
+  - PDG 2024 summary tables (baryons, gauge and Higgs bosons; pdg.lbl.gov/2024) and AtomicNuclearProperties pages
+    (pdg.lbl.gov/2024/AtomicNuclearProperties/HTML/<material>.html): Λ, W/Z, mean excitation energies, X₀.
+  - IAEA LiveChart of Nuclides API (www-nds.iaea.org/relnsd/v1/data, ground states; ENSDF, NUBASE2020/AME2020):
+    spins and moments, ²²Na and ¹⁹⁸Au decay data, the ²²Na γ line.
+  - NIST XCOM (physics.nist.gov/cgi-bin/Xcom/xcom3_1): Pb, O, H, 1 MeV–100 GeV.
+  - NIST ESTAR/ASTAR/PSTAR (physics.nist.gov/PhysRefData/Star/Text/ESTAR.html, ASTAR.html; liquid water).
+  - NIST NCNR neutron scattering lengths and cross sections (www.ncnr.nist.gov/resources/n-lengths/list.html; Sears,
+    Neutron News 3, 29, 1992).
+  - d'Enterria, Hekhorn, Helenius, Lê, Paukkunen, arXiv:2605.16019 (cc̄, bb̄ cross sections, Tables I–II).
+  - Lisovyi, Verbytskyi, Zenaiev, Eur. Phys. J. C 76, 397 (2016), arXiv:1509.01061 (charm fragmentation, Table 12).
+  - Mocchiutti et al. (FAMU), Phys. Lett. A 557, 130867 (2025), PDF from the owner (μp → C, Table 2).
+  - Werthmüller et al., Hyperfine Interact. 116, 1 (1998), abstract (μp → O); Jacot-Guillarmod et al., abstract (μp → Ar).
+  - Aramaki et al., arXiv:1303.3871 (antiprotonic X-rays, Tables 5, 12); Okumura et al., Phys. Rev. Lett. 130, 173001
+    (2023), NIST abstract (muonic Ne 5g→4f); Engfer et al., At. Data Nucl. Data Tables 14, 509 (1974), as tabulated
+    in MuDirac 1.3.0, arXiv:2605.00554, Table 2 (muonic Pb).
+  - Shinohara et al., Phys. Rev. A 64, 042702 (2001), arXiv:physics/0011054, abstract (o-Ps–O₂); Eldrup, Risø-R-254
+    (1971), abstract (o-Ps in water).
+  - Zinner, Langanke, Vogel, Phys. Rev. C 74, 024326 (2006) (muon lifetimes; bug 12's check).
 - Sources the owner sent (2026-11-07): Aramaki et al. (exotic-atom X-rays), Okumura et al. (muonic neon), the FAMU carbon
   paper (uploaded as a PDF), NIST STAR intro, NIST NCNR neutron table, d'Enterria et al. (charm/bottom σ).
 - Test change: f_bug126e "decay" now expects ²²Na 0.9/0.1 (rounded to 3 places) and ¹⁹⁸Au Q 1.3735, because its data changed.
