@@ -3176,6 +3176,41 @@ confirmed by running the file on a v145 tree.
   escaped). Positrons slowing in matter don't form positronium on the way (only slow ones in the Ore gap, the switch).
   twoGammaFlight's γ in 3-D carry their depth direction; eeEvent's own two-γ path (annihilateInFlight) stays flat.
 
+### 1.27: bug 5 (high-energy p̄p)
+
+Branch fix127-05-pbar-p-high-energy (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix05.js
+(t_features, one line; `node tests/f_fix05.js [--node] [part …]`): share; fails on v145 (annihilation share 1 at every
+momentum, flat and 3-D), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** nnbarEvent (an antinucleon meeting a nucleon in flight: in matter, the collider's beams, the fast
+  products' pairs) always annihilated into mesons (or, rarely, n n̄ or Λ Λ̄), whatever the energy. Measured (p̄ on p at
+  rest, nnbarEvent called 100 times at each momentum): annihilation share 1.00 at 0.5, 2, 10, 100 GeV/c and at the
+  Tevatron's √s = 1.96 TeV. The collider's p + p̄ ring at 10 GeV a beam: 10 of 10 meetings annihilations.
+- **What changed** (hep.js). nnbarEvent, after the W/Z draw (ewDraw, unchanged and first, so W and Z keep their measured
+  rate a collision), draws the channel by cross sections against the antinucleon's momentum on a nucleon at rest
+  (`NBAR_X`, `nbarX`, log interpolation): annihilation (as before), production with both baryons surviving
+  (`nbarSurvive`: the baryons as they came, mesons from the fireball's statistical model (hadronize), above √s = 5 GeV
+  strings along the beams with the baryons leading, as nnInelastic does for pp), or elastic scattering (diffract, as
+  two nucleons' diffraction). Below the pion threshold only annihilation and elastic (the ratio of the two). p̄p, p̄n and
+  n̄p alike (within 10% above 0.5 GeV/c). The points used, [p_lab GeV/c: σ_tot, σ_el, σ_ann mb]: 0.1: 480, 180, 280;
+  0.3: 230, 85, 105; 0.5: 160, 60, 78; 1: 115, 40, 55; 2: 90, 28, 33; 5: 68, 16, 13; 10: 56, 12, 6.5; 20: 50, 10, 3.5;
+  100: 43, 7.5, 0.9; 1,000: 41.5, 7, 0.1; 1.6×10⁵ (√s 546 GeV): 62, 13, 0; 1.7×10⁶ (1.8 TeV): 75, 17, 0;
+  2.05×10⁶ (1.96 TeV): 78, 18, 0 (σ_inel 60: CDF/D0); 10⁸: 100, 25, 0. **From memory of the PDG's compilation plots:
+  to be checked against the PDG data files** (no table could be read from the web in this session).
+- **Measured** (nnbarEvent on p̄ + p at rest, 300 each, flat; 3-D 200 alike): annihilation share 0.53 at 0.5 GeV/c (table
+  78/138 = 0.57), 0.38 at 2 (0.37), 0.14 at 10 (0.12), 0.017 at 100 (0.021), 0 at √s 1.96 TeV with elastic 0.22 (0.23);
+  books to 10⁻¹⁴ of the beam energy. The collider ring, p + p̄ at 10 GeV a beam (2,500 frames): 8 meetings, the beam
+  pairs' outcomes production with both baryons on ("p + p̄ → p + p̄ + 4π⁰ + ρ⁰ + 2ω"), elastic ("nuclear elastic
+  scattering, 10°"); annihilations now come from the slow secondary antinucleons (n̄ + p → 2π⁺ + π⁻). W and Z: f_ew
+  passes unchanged (its rate per collision is drawn before the channel).
+- **Fingerprints** (switches off, seed 7, 300 steps): all 59 setups as v145 (none makes a p̄p meeting in 300 steps).
+- t_hep's "p + p̄ at 5 MeV each" expected 150 of 200 meetings to make pions (all annihilations then); at 0.2 GeV/c
+  σ_ann/(σ_ann + σ_el) is about 0.6, so it now asks for 100, with the reason in the line.
+- Cost: none.
+- Suites: t_lint, t_energy, t_hep, t_collider, f_ew, f_rp5 pass.
+- **Left for the owner.** The cross sections are from memory (above). Antinucleons on nuclei (nuclearAnnihilation for
+  p̄ on a nucleus with more than one nucleon) still always annihilate; only the single-nucleon meetings were in scope.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
