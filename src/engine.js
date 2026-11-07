@@ -3730,7 +3730,7 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src, pol) {
   for (const [t, p] of _rayHits) {
     const hx = x + ux * t, hy = y + uy * t, hz = z + uz * t;
     if (E >= 1e5) {
-      if (E > 6e6 && !p.anti && rnd() < 0.0015 * p.Z * Math.min(1, gdrSigma(p.Z, p.N, E / 1e6) / (5.2 * p.Z * p.Z))) return { x: hx, y: hy, z: hz, p, after: () => { if (!photoNuclear(p, E, ux, uy, uz)) { if (RP.cpm) cpmPair(p, E, ux, uy, uz, false); else pairProduce3(p, E); } } }; // (the giant dipole resonance in 3-D, 1.25)
+      if (E > 6e6 && !p.anti && rnd() < gdrP(p, E)) return { x: hx, y: hy, z: hz, p, after: () => { if (!photoNuclear(p, E, ux, uy, uz)) { if (RP.cpm) cpmPair(p, E, ux, uy, uz, false); else pairProduce3(p, E); } } }; // (the giant dipole resonance in 3-D, 1.25)
       if (RP.cpm) { // (charged particles in matter, 1.27: hep.js cpmGamma)
         const r = cpmGamma(p, E);
         if (r === 1 || r === 2) return { x: hx, y: hy, z: hz, p, after: () => cpmPair(p, E, ux, uy, uz, r === 2) };
@@ -3825,6 +3825,14 @@ function rayExit(x, y, ux, uy) {
   return Math.max(0, t);
 }
 const _rayHits = [];
+/* (1.27 bug 11) The chance a γ ray of E (eV) passing nucleus p excites its giant dipole resonance (gdrSigma, mb). Switches
+   off: as before, in proportion to the old pair rate (0.0015·Z a pass for σ_pair ≈ 5.2 Z² mb). Charged particles in matter
+   on: on the same footing as its pairs and Compton (0.012 a pass for each 0.2112 b, cpmGamma), where the old scale left it
+   16 times too rare beside the measured pair cross section (lead at 13.5 MeV: 0.0013 of a pass against the pair's 0.89). */
+function gdrP(p, E) {
+  const s = gdrSigma(p.Z, p.N, E / 1e6);
+  return RP.cpm ? 0.012 * s * 1e-11 / CPM_KN1 : 0.0015 * p.Z * Math.min(1, s / (5.2 * p.Z * p.Z));
+}
 function rayInteract(x, y, ux, uy, E, src, pol) {
   if (W.d3) return null; // (3-D, stage 1a: light is not absorbed yet, its search is along a flat line: it leaves the box)
   const tmax = rayExit(x, y, ux, uy);
@@ -3841,7 +3849,7 @@ function rayInteract(x, y, ux, uy, E, src, pol) {
   for (const [t, p] of _rayHits) {
     const hx = x + ux * t, hy = y + uy * t;
     if (E >= 1e5) { // gamma: Compton scattering, pair production, and (above ~8 MeV) the nucleus itself
-      if (E > 6e6 && !p.anti && rnd() < 0.0015 * p.Z * Math.min(1, gdrSigma(p.Z, p.N, E / 1e6) / (5.2 * p.Z * p.Z))) { // (in proportion to pair production, σ ≈ 5.2 Z² mb at these energies)
+      if (E > 6e6 && !p.anti && rnd() < gdrP(p, E)) { // (in proportion to pair production, σ ≈ 5.2 Z² mb at these energies; with Charged particles in matter on, on part 3's footing: gdrP, 1.27 bug 11)
         return { x: hx, y: hy, p, after: () => { if (!photoNuclear(p, E, ux, uy)) { if (RP.cpm) cpmPair(p, E, ux, uy, 0, false); else pairProduce(p, E); } } };
       }
       if (RP.cpm) { // (charged particles in matter, 1.27: pair production and Compton scattering by their measured cross sections, hep.js cpmGamma)

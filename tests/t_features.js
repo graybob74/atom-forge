@@ -1790,6 +1790,7 @@ const { openPage } = require('./browser');
   await alone('f_rp3.js'); // 1.27 realistic particles 3: charged particles in matter (node tests/f_rp3.js [--node] [part …])
   await alone('f_rp7.js'); // 1.27 realistic particles 7: photon polarization, Klein–Nishina Compton angles, Brewster, the polarizer (node tests/f_rp7.js [--node] [part …])
   await alone('f_ew.js'); // 1.27 W and Z bosons: the Z peak, W and Z pairs, Drell–Yan, decays, the LEP setup (node tests/f_ew.js [--node] [part …])
+  await alone('f_fix11.js'); // 1.27 bug 11: the giant dipole resonance on part 3's footing (node tests/f_fix11.js [--node] [part …])
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
