@@ -5,7 +5,7 @@
    they say; all of them kept across a reload; the narrow layout; and the size the pictures add to the page.
    node tests/t_settings.js */
 const fs = require('fs'), path = require('path');
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('./deps').dep('playwright'); // (the repository's node_modules on a PC, the preinstalled tools here)
 const { openPage, pageFile } = require('./browser');
 let fails = 0;
 const check = (ok, msg, info) => { if (ok) console.log('  ok   ' + msg); else { fails++; console.log('  FAIL ' + msg + (info !== undefined ? '\n       ' + JSON.stringify(info).slice(0, 900) : '')); } };

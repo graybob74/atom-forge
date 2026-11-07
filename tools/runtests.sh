@@ -5,6 +5,7 @@
 #   t_chips (the radiation upset check) and t_collider (³⁵⁶Og + ²⁴⁹Cf "nothing listed as made").
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"; TAG="${1:-run}"
+[ -d "$REPO/node_modules" ] && export AF_NODE_MODULES="$REPO/node_modules" # (a PC: the test tools installed in the repository; the snapshot has no node_modules)
 SNAP="${TMPDIR:-/tmp}/atomforge-snap-$TAG-$$"
 rm -rf "$SNAP"; mkdir -p "$SNAP"
 cp -r "$REPO/src" "$REPO/tests" "$REPO/tools" "$REPO/build.js" "$SNAP/" # (tools: the 1.26 metals checks read tools/mbfit.js)

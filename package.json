@@ -1,0 +1,9 @@
+{
+  "name": "atom-forge-tests",
+  "private": true,
+  "description": "Tools for running Atom Forge's test suites on a PC (npm install, then npx playwright install chromium).",
+  "devDependencies": {
+    "eslint": "10.1.0",
+    "playwright": "1.63.0"
+  }
+}

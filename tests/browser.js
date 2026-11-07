@@ -1,7 +1,7 @@
 'use strict';
 /* Headless Chromium (the one preinstalled for Playwright) with the page wrapped exactly as publishing wraps it. */
 const fs = require('fs'), path = require('path');
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('./deps').dep('playwright'); // (the repository's node_modules on a PC, the preinstalled tools here)
 const ROOT = path.join(__dirname, '..');
 function pageFile() {
   const head = fs.readFileSync(path.join(__dirname, 'skeleton-head.html'), 'utf8').replace(/\n$/, '');

@@ -5,7 +5,7 @@
    (not isolated) must fall back to one thread. Also times the force pass on one and two threads.
    node tests/t_threads.js */
 const http = require('http'), fs = require('fs'), path = require('path');
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('./deps').dep('playwright'); // (the repository's node_modules on a PC, the preinstalled tools here)
 const { pageFile } = require('./browser');
 let fails = 0;
 const say = (...a) => console.log(...a);

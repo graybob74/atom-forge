@@ -3,9 +3,8 @@
    duplicate keys, unreachable code, self-assignment, constant conditions, … Each problem is reported at its source
    file and line. Node only. */
 const fs = require('fs'), path = require('path');
-const NM = '/opt/node-tools/node_modules';
-const { Linter } = require(NM + '/eslint/lib/api.js');
-const { builtinRules } = require(NM + '/eslint/lib/unsupported-api.js');
+const { Linter } = require('./deps').dep('eslint/lib/api.js');
+const { builtinRules } = require('./deps').dep('eslint/lib/unsupported-api.js');
 const ROOT = path.join(__dirname, '..');
 const code = fs.readFileSync(path.join(ROOT, 'dist', 'bundle-check.js'), 'utf8');
 const globals = {};

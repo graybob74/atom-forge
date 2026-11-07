@@ -9,7 +9,7 @@
    a 3-D world saves and loads (z to 1e-9), shares, undoes and carries on; an old flat save opens; Leave 3-D goes back.
    node tests/t_3d.js */
 const path = require('path'), fs = require('fs');
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('./deps').dep('playwright'); // (the repository's node_modules on a PC, the preinstalled tools here)
 const { openPage, pageFile } = require(path.join(__dirname, 'browser.js'));
 let fails = 0;
 const check = (ok, what, detail) => { if (ok) console.log('  ' + what); else { fails++; console.log('FAIL ' + what + (detail !== undefined ? ': ' + JSON.stringify(detail) : '')); } };
