@@ -7482,6 +7482,7 @@ function innerSteps(Dt) {
     // velocity still missing h·a, threw that half kick's work away (free electrons among ions lost energy on every pass)
     if (_mdL.length) {
       const st0 = W.spawned + W.topo + W.dirty - _undone; // (changes put back exactly, as by undoJoin, need no recount)
+      if (W.evq.length) gridTouch(); // (the electrons have moved since the grid was built: its search found them where they were, 1.27 bug 15)
       processEvents(); // (events that may look at other atoms bring the far ones up to date first: lzNeed)
       const wch = (WAVE.on || WAVE.n) && waveSync(false); // (electrons as waves: packets gone or made by the events)
       // (quantum bonds held, 1.23.1: this pass is for the fast forces; the atoms' own are worked out again at the step's end,
@@ -7533,6 +7534,7 @@ function innerSteps3(Dt) {
       if (wv && K[i] !== NUC) { const p = OBJ[i]; if (p.wm) p.wv += h * p.wg * W_IMS; }
     }
     const st0 = W.spawned + W.topo + W.dirty - _undone;
+    if (W.evq.length) gridTouch(); // (1.27 bug 15: the electrons have moved since the grid was built, an outer step's worth by now: a 136 eV electron 0.65 Å from the ion it ionized was missed by localPE's search, +10 eV)
     processEvents();
     const wch = (WAVE.on || WAVE.n) && waveSync(false); // (electrons as waves: packets gone or made by the events, as innerSteps, 1.24)
     if (wch || W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; _qmHold = true; try { computeForces(); } finally { _qmHold = false; } _noEv = false; }
