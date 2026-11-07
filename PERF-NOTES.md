@@ -3453,6 +3453,34 @@ Branch fix127-12-muon-lifetime-formula (from v145). A bug fix (data). Check: tes
 - **Left for the owner.** The 1987 paper's own table (with its odd elements and isotopes) when it can be read; lead's
   72.3 against 75.4.
 
+### 1.27: bug 13 (alkali aurides)
+
+Branch fix127-13-alkali-aurides (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix13.js
+(t_features, one line; `node tests/f_fix13.js [--node] [part …]`): aurides; fails on v145 (no ion in any mix), confirmed
+by running the file on a v145 tree.
+
+- **What was wrong, measured.** ionPairInMetal (1.26, the copper fix) refuses an electron transfer that would make an ion
+  pair between two metal atoms inside a metal. A Cs–Au alternating lattice at the metal spacing (flat 11×11, 1,500 steps;
+  3-D CsCl type, 559 atoms, 600 steps; 300 K): 0 ions, Rb–Au the same.
+- **What changed** (engine.js `metalSalt`, one more condition in ionPairInMetal). A neutral pair whose electron costs
+  under METAL_SALT = 2.0 eV to move from the donor to the acceptor as an anion (ionization energy less electron affinity)
+  may become ions inside a metal: there the lattice's Madelung energy outweighs the metal's cohesion. Measured examples
+  (ionization energy and electron affinity from the game's own tables): Cs–Au 1.58 eV, Rb–Au 1.87, Cs–Pt 1.76 (ionic in
+  nature: CsAu, RbAu, Cs₂Pt); K–Au 2.03, Na–Au 2.83, Ba–Au 2.90, Cs–Cu 2.65, Cu–Cu 6.5, Ni–Ni 6.5, Au–Au 6.9 (metals).
+  No element list. The transfer itself and its books are the existing evTransfer's (exact).
+- **Measured** (after): flat Cs–Au 58 Cs⁺ and 58 Au⁻ of 60 Au; 3-D 216 of 216; Rb–Au 58 flat, 212 of 216 in 3-D. Cs–Cu
+  and K–Au mixes 0 ions; f_cu126 (copper and nickel lumps 0 ions of 127 and 141; a Na lump among Cl still makes salt)
+  passes unchanged. Fingerprints (switches off, seed 7, 300 steps): all 59 setups as v145.
+- **The arrangement** (the brief asks whether it settles CsCl-like): it does not. Around each Au⁻ after 1,500 steps:
+  3-D 2.9 Cs⁺ within 1.2× the median nearest Cs–Au distance, which is 3.12 Å (CsCl: 8 Cs⁺ at 3.69 Å in real CsAu, a =
+  4.26 Å); flat 1.6 at 2.85 Å (square lattice: 4). The cause: an ion with |q| ≤ 1 keeps its metal pair potential
+  (setSize's isMetal, kept for Cu⁺ inside copper in 1.26), so Cs⁺ and Au⁻ still attract each other as metal atoms on top of
+  their Coulomb pull and fall into close pairs (the ions' own sizes, 1.67 + 2.11 Å, would give the right distance).
+  Switching the metal pair potential off between a cation and an anion (q_a·q_b < 0) in the kernels (JavaScript, worker,
+  and the Rust kernel) and the energies would be the next step: a physics change of its own, written down here for the
+  owner, not made.
+- Suites: t_lint, t_molecules, t_physics, f_cu126 pass.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
