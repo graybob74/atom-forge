@@ -2729,6 +2729,41 @@ tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core
 checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
 f_bug126e pass alone.
 
+### 1.27: bug 9 (decay table)
+
+Branch fix127-09-decay-table (from v145). A bug fix (data). Check: tests/f_fix09.js (t_features, one line; `node
+tests/f_fix09.js [--node] [part …]`): listed, made; both fail on v145 (⁹⁴Nb 78.5% β⁻ and 21.5% EC estimated; 41 nuclides
+both ways; 13 of the 20 sampled neutron products estimated), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** Nuclides missing from DECAY (data.js) are estimated (the mass formula's Q-values, allowed rates);
+  its pairing term opens both β⁻ and EC to odd–odd nuclei. Scanning every nuclide Z 1–100: 4,571 estimated, 41 of them
+  both ways (⁷⁴As, ⁸⁴Rb, ⁹⁴Nb, ¹⁰⁴Rh, ¹¹⁰Ag, ¹¹⁴In, ¹²⁰Sb, ¹²⁴I, ¹²⁶I, ¹³⁰Cs, ¹³⁶La, ¹⁴⁰Pr, ¹⁴²Pr, ¹⁴⁶Pm, ¹⁵²Eu, ¹⁵⁶Tb, ¹⁵⁸Tb,
+  ¹⁶²Ho, ¹⁶⁴Ho, ¹⁶⁸Tm, ¹⁷⁴Lu, ¹⁸⁴Re, ¹⁸⁶Re, ¹⁹⁰Ir, ¹⁹²Ir, ¹⁹⁶Au, ²⁰²Tl, ²⁰⁴Tl, ²⁰⁸Bi, ²¹⁴At, ²¹⁶At, ²²⁰Fr, ²²⁶Ac, ²³²Pa, ²³⁸Np,
+  ²⁴⁴Am, ²⁴⁶Am, ²⁵⁰Bk, ²⁵²Bk, ²⁵⁶Es, ²⁵⁸Es; the 1.26 list's ¹⁹⁸Au was listed then, ²⁶⁴Md is past this scan).
+- **Source.** ENSDF through the IAEA's LiveChart of Nuclides data API (https://nds.iaea.org/relnsd/v1/data, ground_states,
+  decay_rads and independent_fy, extracted 2026-11-07; NuDat 3 shows the same ENSDF evaluations): half-life, the three
+  most probable modes and their branches, Q-values (2020 mass evaluation); EC+β⁺ split into β⁺ and EC by the decay
+  radiations' β⁺ and EC intensities. Measured, not from memory. Format as ⁴⁰K's (branches with their own Q; β⁺ with
+  Q_EC, as ²²Na).
+- **What changed** (data.js). 40 of the 43 listed (²⁵²Bk, ²⁵⁸Es and ²⁶⁴Md have no evaluated decay and keep the estimate).
+  The memory-based judgement of 1.26 was close but not exact: e.g. ⁷⁴As is EC 37%, β⁺ 29%, β⁻ 34% (17.77 d); ¹⁴⁶Pm EC
+  65.7%, β⁻ 34.3%; ¹⁸⁶Re β⁻ 92.5%, EC 7.5%; ¹⁹⁰Ir EC (β⁺ 0.03%); ¹⁰⁴Rh, ¹¹⁰Ag, ¹¹⁴In, ¹⁴²Pr keep a small EC branch
+  (0.45%, 0.3%, 0.5%, 0.016%); ²¹⁴At α in 558 ns, ²¹⁶At α in 0.30 ms, ²²⁰Fr α 99.65% in 27.4 s.
+- **Then the commonly made ones** (the brief's second step): the estimated nuclides the game makes often were every (n,γ)
+  product of a stable isotope (99 estimated: ⁴⁹Ca, ⁵¹Ti, ⁵²V … ¹⁰⁸Ag, ¹¹⁶In, ¹²⁸I, ¹⁵⁴Eu, ¹⁹⁴Ir, ²⁰⁹Pb, ²³³Th) and nearly every
+  fission product (²³⁵U thermal fission: 99.7% of the radioactive independent yield estimated; 133 products above 0.1%:
+  ¹³⁴Te, ¹³⁸Xe, ¹⁰⁰Zr, ⁹⁴Sr …). Added from the same source with their decay chains to the first listed or stable
+  nuclide: 271 nuclides. After: no (n,γ) product of a stable isotope estimated, 2.2% of ²³⁵U's radioactive fission yield
+  (the short-lived tail below 0.1%). β⁻-delayed neutron branches are counted as β⁻ (the game has no β⁻n): 43 of them,
+  mostly under 5%, the large ones 85As B-N 62.9%, 89Br B-N 13.7%, 90Br B-N 25.3%, 91Br B-N 19.5%, 94Rb B-N 10.5%, 135Sb B-N 22%, 139I B-N 10%.
+- Estimated nuclides 4,571 → 4,261; both ways 41 → 2 (²⁵²Bk, ²⁵⁸Es).
+- **Fingerprints** (switches off, seed 7, 300 steps): all 59 setups as v145 (nothing decays from these within 300 steps).
+  Over longer times the chain and fission setups now decay their products at the evaluated rates (the estimate put most
+  at 1–25 h).
+- Suites: t_lint, t_nuclear, t_data, t_energy, f_bug126e, f_rp1, f_rp5 pass.
+- **Left for the owner.** β⁻n (delayed neutrons, which steer real reactors) as a decay mode; the fission products of other
+  parents (²³⁹Pu, ²³⁸U) beyond those shared with ²³⁵U; isomers.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
