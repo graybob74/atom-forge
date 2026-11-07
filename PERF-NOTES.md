@@ -2958,6 +2958,11 @@ worst 4e-6 eV again.
   gained it in the velocity half-kick (outerB3 +39 eV, innerSteps3 +3): a close collision too fast for the step, not the
   positron's own books. Bug 4 alone does it on other seeds (seed 4: 0.52 eV, over the 0.5 limit; seeds 1–6 0.14–0.52;
   v156 0.01–0.08), and forces equal the energy's slopes in 3-D brine (3e-8). Repro: f_124's "pos" block with seed 8.
+- t_features alone after those fixes (471161d): 5 failures, of them 2 lines of each check's "alone" summary. "muons" passed
+  this time. Two speed ratios missed while it ran: 1.26 bo3 (the 3-D bond orders' module ×1.33, wants ×1.5) and bug fix 17
+  pi3 (44.3 against 39.7 ms); each passes alone right after (bo3 "speed checks passed"; pi3 18.1 against 31.8 ms). Left:
+  "1.24 particles" (the 3-D positron books above). So v157 is ready but for that one, which needs the owner's call (a
+  bug-fix session first, or release with it written down).
  (3-D van der Waals)
 
 Branch fix127-01-3d-vdw (from v145). Approved physics (the owner's list, 2026-11-06); after the measurements below the
