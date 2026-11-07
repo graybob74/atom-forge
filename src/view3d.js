@@ -941,6 +941,17 @@ function drawEvents3(ctx, rt) {
   for (let i = evs.length - 1; i >= 0; i--) if (rt - evs[i].t0 > EV_LIFE || rt < evs[i].t0 - 0.5) evs.splice(i, 1);
   const o = _p3c, placed = [];
   ctx.save();
+  for (const e of evs) { // (1.27 bug 16) ghosts of what vanished or changed identity, dashed rings at their depth, as the flat view draws them
+    const age = Math.max(0, rt - e.t0), kg = clamp(age / 2.2, 0, 1), c = EV_STYLE[e.kind] || EV_STYLE.decay; if (kg >= 1) continue;
+    for (const g of e.ghosts) {
+      if (!proj3(g.x, g.y, g.z === undefined ? e.z || 0 : g.z, o)) continue;
+      const sc = C3.F / o[2], r0 = Math.max(5, (g.k === NUC ? Math.max(g.rd, 0.25) : 0.15) * sc), rr = r0 * (1 + 0.7 * kg); // (sc: pixels an ångström at its depth)
+      ctx.globalAlpha = (1 - kg) * 0.95; ctx.setLineDash([3, 3]); ctx.strokeStyle = rgba(c, 1); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(o[0], o[1], rr, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillStyle = rgba(c, 1); ctx.fillText(g.lbl, o[0], o[1] - rr - 3); ctx.globalAlpha = 1;
+    }
+  }
   const shown = evs.slice(-4);
   for (let i = shown.length - 1; i >= 0; i--) {
     const e = shown[i];

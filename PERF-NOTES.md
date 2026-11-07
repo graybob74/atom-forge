@@ -2729,6 +2729,32 @@ tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core
 checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
 f_bug126e pass alone.
 
+### 1.27: bug 16 (display and text)
+
+Branch fix127-16-display-text (from v145). A bug fix (display and text). Check: tests/f_fix16.js (t_features, one line;
+`node tests/f_fix16.js [--node] [part …]`): pairs3d (Node), readout, narrator, ghosts (page); all four fail on v145
+(below), confirmed by running the file on a v145 tree. Screenshots before and after in the session's outputs
+(bug16-screens/before, after: a-readout, b-narrator, d-ghosts3d).
+
+- **(a) The Particles readout** (updateReadouts) counted W.parts only. Five atoms and twelve muons and pions read "5"; now
+  "17": the unstable particles (W.exo: muons, pions, kaons, positronium …) count too. Light and neutrinos in flight are
+  not counted (they are rays, not particles that stay): the readout's tooltip says so (body.html).
+- **(b) The narrator** (NARR_RULES 'react') chose exothermic or endothermic by the sign of the logged ΔH, rounded to whole
+  kJ/mol: H + H₂ → H₂ + H "(ΔH +0 kJ/mol)" read "the new bonds are weaker, so heat is taken in (endothermic)". Under
+  5 kJ/mol (0.05 eV) either way it now says the bonds hold about as tightly: thermoneutral.
+- **(c) 3-D lepton pairs of the photon channel** (eeEvent): their angle to the beams (1 + cos²θ, or the γ–Z weight above
+  10 GeV) was drawn in the plane and the four-momenta were flat (PS3.flat counted them). In 3-D now cos θ to the
+  electron's direction by the same weight and a random azimuth (turn3), with three-component momenta. e⁺e⁻ → μ⁺μ⁻ at
+  10 GeV a beam in 3-D: v145 11 of 11 pairs in the plane (|u_z| 0, PS3.flat 44 after 400 collisions), after 0 of 10
+  (mean |u_z| 0.55; 0.5 over a sphere), PS3.flat 0. The flat game's draws are unchanged.
+- **(d) 3-D ghost rings and muonium's caption.** drawEvents3 drew the rings and caption only: now it draws the dashed
+  ghost of what vanished or changed identity, with its label, at its depth (ghostOf and xbGhost keep z), sized for that
+  depth, fading as the flat view's. muoniumTick's caption took z = 0: now its own depth. A ²¹²Po α decay at z = 6 Å:
+  v145 no ring, after one ring at depth 6; muonium decaying at z = −7 Å: caption at 0 before, −7 after.
+- **Fingerprints** (switches off, seed 7, 300 steps): all 59 setups as v145 (only 3-D e⁺e⁻ lepton pairs draw differently,
+  and no setup makes one in 300 steps).
+- Suites: t_lint, t_hep, t_3d, f_ew, f_sweep3d pass.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly

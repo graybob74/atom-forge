@@ -971,7 +971,7 @@ function flash(x, y, rgb, size, life, z = 0) { // (z: where in depth, 3-D)
 function ghostOf(p) {
   const lbl = p.k === ELEC ? 'e⁻' : p.k === POS ? 'e⁺' : p.Z === 0 ? (p.anti ? 'n̄' : 'n') :
     p.ne === 0 ? speciesLabel(p) : nucSymA(p.Z, p.N, p.anti);
-  return { x: p.x, y: p.y, k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, rd: p.k === NUC ? p.rd : 0.15, lbl };
+  return { x: p.x, y: p.y, z: p.z || 0, k: p.k, Z: p.Z, N: p.N, ne: p.ne, anti: !!p.anti, rd: p.k === NUC ? p.rd : 0.15, lbl }; // (z: where 3-D draws its ring, 1.27 bug 16)
 }
 function nucEvent(kind, x, y, text, ghosts, sub, nuc, z = 0) { // (z: where in depth, 3-D, 1.25)
   if (nuc && nuc.Z0 !== undefined && nuc.Z1 !== undefined) chainEdge(nuc.Z0, nuc.N0, nuc.Z1, nuc.N1, nuc.mode, nuc.anti); // (a decay: a step on the chart of nuclides)

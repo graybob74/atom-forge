@@ -3011,7 +3011,7 @@ const NARR_RULES = [
   [/(Electron|Positron) captured:/, 'recomb', 3, () => '<b>Recombination.</b> A free electron was caught by an ion and fell into an orbital, giving off the energy as light, at wavelengths that fingerprint the element.'],
   [/^Ionic bond/, 'ionic', 5, () => '<b>Ionic bond.</b> One atom handed an electron to another: now a positive and a negative ion hold together by electric attraction. That is how salt (Na⁺Cl⁻) is held together.'],
   [/^Charge transfer/, 'xfer', 3, () => '<b>Charge transfer.</b> An electron moved from one atom or molecule to another, the one that holds it more tightly.'],
-  [/^Reaction: (.+?) → (.+?)\s+\(ΔH ([+-]?[\d.]+)/, 'react', 4, (m) => `<b>Chemical reaction.</b> ${m[1]} → ${m[2]}: bonds broke and new ones formed. ${+m[3] < 0 ? 'The new bonds hold more tightly, so energy is released as heat (exothermic).' : 'The new bonds are weaker, so heat is taken in (endothermic).'}`],
+  [/^Reaction: (.+?) → (.+?)\s+\(ΔH ([+-]?[\d.]+)/, 'react', 4, (m) => `<b>Chemical reaction.</b> ${m[1]} → ${m[2]}: bonds broke and new ones formed. ${Math.abs(+m[3]) < 5 ? 'The new bonds hold about as tightly as the old ones (the heat is under 5 kJ/mol, 0.05 eV, either way): it is thermoneutral.' : +m[3] < 0 ? 'The new bonds hold more tightly, so energy is released as heat (exothermic).' : 'The new bonds are weaker, so heat is taken in (endothermic).'}`], // (1.27 bug 16: a near-zero heat is neither)
   [/^Bond formed: .*→ (\S+)(?: \((.+)\))?/, 'bond', 2, (m) => `<b>A bond formed</b>${m[2] ? `: ${m[2]}` : ''}. Two atoms now share electrons, lowering their energy; the energy released heats their surroundings.`],
   [/^Bond broke/, 'break', 2, () => '<b>A bond broke.</b> A collision delivered more energy than the bond holds (its dissociation energy), and the atoms flew apart.'],
   [/^Photodissociation/, 'photodis', 5, () => '<b>Photodissociation.</b> A photon carried enough energy to break a bond on its own: light doing chemistry, as in the ozone layer.'],
@@ -4469,7 +4469,7 @@ function chipsInit() {
 }
 function updateReadouts() {
   const m = measure();
-  const n = W.parts.reduce((s, p) => s + (p.dead ? 0 : 1), 0);
+  const n = W.parts.reduce((s, p) => s + (p.dead ? 0 : 1), 0) + W.exo.reduce((s, o) => s + (o.dead ? 0 : 1), 0); // (1.27 bug 16: the unstable particles too, muons, pions, positronium …; light and neutrinos in flight are not counted, as the tooltip says)
   $('roT').innerHTML = `${esc(m.atoms || m.n ? fmtT(m.T) : '—')} <span class="set">${W.gamma ? '→ ' + esc(fmtT(W.T)) : 'insulated'}</span>`;
   $('roTime').textContent = fmtTime(W.t * PHYS.TU_S);
   $('roN').textContent = String(n);

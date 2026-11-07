@@ -640,7 +640,7 @@ function muoniumTick(dt) {
     closeEvent(S, made, x, y, 0, 0);
     W.count.decay++;
     const txt = `μ⁺ → ${summarize(items.slice(0, 3))}${ne ? ', its electron set free' : ''}`;
-    nucEvent('decay', x, y, `${lbl}: ${txt}`, gh, '2.2 µs mean life');
+    nucEvent('decay', x, y, `${lbl}: ${txt}`, gh, '2.2 µs mean life', undefined, W.d3 ? z : 0); // (3-D: at its own depth, 1.27 bug 16)
     log('nuc', `Decay: the muon in ${lbl} → e⁺ + νₑ + ν̄μ${ne ? '; its electron goes free' : ''}`);
     tally(items, [lbl], `Decay: ${lbl} → ${summarize(items)}`);
   }
@@ -2244,7 +2244,7 @@ function moveExoBeam(o, h) {
 }
 const xbLab = (p) => (p.xb ? p.lab : speciesLabel(p));
 const xbIn = (p) => { const t = xbTok(p); return t ? labelOf(item(t)) : xbLab(p); }; // (as the tally names it)
-const xbGhost = (p) => (p.xb ? { x: p.x, y: p.y, k: 'x', rd: 0.12, lbl: p.lab } : ghostOf(p));
+const xbGhost = (p) => (p.xb ? { x: p.x, y: p.y, z: p.z || 0, k: 'x', rd: 0.12, lbl: p.lab } : ghostOf(p)); // (z: 3-D's ghost rings, 1.27 bug 16)
 const xbLepton = (p) => (p.xb ? !Q_CONTENT[p.sp] : p.k !== NUC);
 function xbTok(p) { // a beam particle as a product token (null: a nucleus heavier than a nucleon, or an ion)
   if (p.xb) return p.sp;
@@ -2476,7 +2476,12 @@ function eeEvent(a, b, x, y) {
   else {
   if (jet) { const ri = resonate(items, M), v2 = jetMomenta(ri, M, jet[0], jet[1], { ptScale: 0.7 }); if (v2) { items = ri; vs = v2; } else vs = jetMomenta(items, M, jet[0], jet[1]); } // (born partly as resonances)
   if (jet && vs) addString(x, y, jet[0], jet[1], items.length);
-  else if (ang && items.length === 2) { // a pair: the angle to the beams as for a photon (1 + cos²θ) or a ρ (sin²θ)
+  else if (ang && items.length === 2 && W.d3) { // (1.27 bug 16) in 3-D over the sphere: cos θ to the electron's direction by the same weight, a random azimuth (they were drawn in the plane, flat four-momenta, PS3.flat)
+    const e = toRest(Pneg, bx, by, bz), a = unit3(e);
+    let c = 0; for (let k = 0; k < 60; k++) { c = 2 * rnd() - 1; if (rnd() < ang(c)) break; }
+    const d = turn3(a[0], a[1], a[2], Math.acos(c));
+    vs = twoBody(M, massOf(items[0]), massOf(items[1]), d[0], d[1], d[2]);
+  } else if (ang && items.length === 2) { // a pair: the angle to the beams as for a photon (1 + cos²θ) or a ρ (sin²θ)
     const e = toRest(Pneg, bx, by, bz), en = Math.hypot(e[1], e[2]) || 1;
     let th = 0; for (let k = 0; k < 60; k++) { th = rnd() * 2 * Math.PI; if (rnd() < ang(Math.cos(th))) break; }
     const [ux, uy] = turn2(e[1] / en, e[2] / en, th);
