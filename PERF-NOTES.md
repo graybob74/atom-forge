@@ -2729,6 +2729,36 @@ tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core
 checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
 f_bug126e pass alone.
 
+### 1.27: bug 17 (data written from memory)
+
+Branch fix127-17-data-check (from v145). The values earlier sessions wrote from memory (no network then), checked
+against their sources from here (PDG 2024 summary tables and AtomicNuclearProperties pages, IAEA LiveChart of Nuclides
+API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; the rest are fine or could not be reached.
+
+| value | where | game had | source | |
+|---|---|---|---|---|
+| ¹⁰³Rh magnetic moment | hep.js NUC_SPIN '45_58' | −0.8840 μN | −0.08840 (IAEA) | **fixed** (a ×10 typo) |
+| other 61 NUC_SPIN spins/moments | hep.js NUC_SPIN | — | IAEA LiveChart | fine: 59 equal; ⁵⁵Mn, ⁵⁹Co, ⁶⁵Cu, ⁹⁹Tc, ¹²⁷I, ¹³³Cs, ¹³⁷Cs, ¹⁹⁵Pt, ²⁰⁵Tl, ²⁰⁹Bi within 0.5% (evaluation differences, kept); ¹⁰⁹Ag −0.1307 kept (LiveChart lists +0.1305, the standard tables and NMR give −) |
+| ²²Na β⁺ / EC, Q | data.js '11_11' | 0.903 / 0.097, 2.842 MeV | 0.8996 / 0.1004, 2.8433 | **fixed** |
+| ¹⁹⁸Au Q (β⁻), half-life | data.js '79_119' | 1.3724 MeV, 2.6941 d | 1.3735 MeV, 2.6941 d | Q **fixed**, life fine |
+| ²²Na 1274.537 keV γ, 99.94% | hep.js GL_* | | ENSDF | fine |
+| M_Z, Γ_Z | hep.js EW, XP.Z0 | 91.1876, 2.4952 GeV | 91.1880, 2.4955 (PDG 2024) | **fixed** |
+| M_W, Γ_W, W/Z branchings, R_b, R_c, A_FB⁰ˡ 1.71% | hep.js EW, XP | 80.3692, 2.085, … | PDG 2024 | fine |
+| Λ mean life, mass | hep.js XP.Lam | 2.617×10⁻¹⁰ s, 1115.683 MeV | PDG 2024 | fine |
+| Λ → pπ⁻ / nπ⁰ | hep.js XP.Lam | 0.639 / 0.358 | 0.641 / 0.359 (PDG 2024) | **fixed** |
+| mean excitation energies H, He, C, N, O, Ne, Na, Al, Si, Ca, Fe, Cu, Ag, W, Au, Pb, U | hep.js CPM_I | 19.2 … 890 eV | PDG pages (ICRU 37/49) | fine (all 17 equal) |
+| radiation lengths | hep.js cpmX0 (Tsai's formula) | computed | PDG | fine (formula; e.g. Pb 6.37 g/cm²) |
+| muon lifetimes MU_TAU | hep.js | | | checked in bug 12 (Zinner/Langanke/Vogel 2006), not touched here |
+| p-Ps 125.14 ps, o-Ps 142.05 ns | hep.js | | papers named in the code | fine (as published) |
+| water o-Ps 1.80 ns, o-Ps–O₂ σ 1.5×10⁻¹⁹ cm², exotic-atom X-ray lines, muon transfer rates, ESTAR/ASTAR/XCOM spot values, neutron σ, charm/bottom fractions, hadron-collider σ | | | | not reached (papers paywalled, NIST forms not scriptable here): left for a check |
+
+- Water's I: PDG 2024 gives 79.7 eV (ICRU 90); the game builds water from H and O (Bragg additivity, ≈ 75 eV, the older
+  ICRU 49 value). Changing that is a model change: written down, not done.
+- Fingerprints (switches off, 300 steps, seed 7): none changed (no setup uses these values with the switches off).
+- Test change: f_bug126e "decay" now expects ²²Na 0.9/0.1 (rounded to 3 places) and ¹⁹⁸Au Q 1.3735, because its data changed.
+- Check: tests/f_fix17.js (fails on v145: −0.884, 0.903, Q 2.842 …; passes now). t_energy, t_lint, f_ew, f_rp5,
+  f_bug126e, t_hep, t_nuclear pass.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
