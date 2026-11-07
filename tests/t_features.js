@@ -1791,6 +1791,7 @@ const { openPage } = require('./browser');
   await alone('f_rp7.js'); // 1.27 realistic particles 7: photon polarization, Klein–Nishina Compton angles, Brewster, the polarizer (node tests/f_rp7.js [--node] [part …])
   await alone('f_ew.js'); // 1.27 W and Z bosons: the Z peak, W and Z pairs, Drell–Yan, decays, the LEP setup (node tests/f_ew.js [--node] [part …])
   await alone('f_feat1.js'); // (1.27 features 23, 26–32)
+  await alone('f_ui127.js'); // (after 1.26: right-click stops measuring a particle; Shift + wheel sets a tool's radius)
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

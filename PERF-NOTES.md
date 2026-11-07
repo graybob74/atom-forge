@@ -2759,6 +2759,22 @@ tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core
 checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
 f_bug126e pass alone.
 
+### 1.27: two controls (the owner, after 1.26)
+
+Branch ui127 from v145 (2026-11-06, the owner: "a way to stop measuring 2 atoms (right click one with the tool) and a
+modifier key for tool sizes (shift + scroll)"). Controls only, nothing in the physics; no setup changes.
+- **Measure: right-click a measured particle to stop measuring it** (measureDrop, from onUp). A right-click that does not
+  drag (under 6 px) used to open the quick menu everywhere; with the measure tool, on a particle being measured, it now
+  drops that particle from the measurement (the third of an angle leaves a distance; one of two leaves "now click a
+  second particle") and no menu opens. Anywhere else, or with another tool, the quick menu as before; a right drag still
+  pans (flat) or turns the view (3-D). The same pick as a left click (particles, unstable particles, light in flight).
+- **Shift + wheel: the tool's radius** (toolRadiusWheel, from onWheel) for the tools that have one: Push/Pull, Heat,
+  Spark, Magnet, Erase. One notch moves the radius slider 8 of its 200 steps (about ×1.1–1.2 a notch, between the tool's
+  smallest radius and 1,000 Å), up to enlarge; the slider and its number follow. In 3-D, Shift + wheel keeps moving the
+  placing plane for the Place tool (the only one that shows Depth). Chromium on Windows sends Shift + wheel sideways
+  (deltaX): taken too. The tools' help lines say so.
+- Tests: tests/f_ui127.js (t_features runs it alone): real mouse input in the page, flat and 3-D.
+
 ### 1.27: features 23 and 26–32
 
 Branch v149 (from v145 at d875110, the combined 1.27). The owner's list, approved 2026-11-06 ("I approve all of them"): the

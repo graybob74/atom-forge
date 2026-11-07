@@ -139,15 +139,15 @@ const TOOLS = [
   { id: 'place', name: 'Place', key: 'P', help: 'Click to place the selected particle, drag to spray.' },
   { id: 'grab', name: 'Grab', key: 'G', help: 'Drag a particle on a spring (directly while paused).' },
   { id: 'select', name: 'Select', key: 'T', help: 'Drag a box to select (Shift adds), drag the selection to move it. Ctrl+C / Ctrl+V copy and paste, Delete removes, Ctrl+A selects all.' },
-  { id: 'pull', name: 'Push/Pull', key: 'U', help: 'Hold to pull in or push away everything nearby.' },
+  { id: 'pull', name: 'Push/Pull', key: 'U', help: 'Hold to pull in or push away everything nearby. Shift + wheel: its radius.' },
   { id: 'fire', name: 'Fire', key: 'F', help: 'Drag to aim, release to fire.' },
-  { id: 'heat', name: 'Heat', key: 'H', help: 'Hold to heat or cool a region.' },
-  { id: 'spark', name: 'Spark', key: 'S', key3: 'Z', help: 'Click to dump energy into the atoms under the cursor.' },
-  { id: 'magnet', name: 'Magnet', key: 'M', help: 'Click to place a magnet pole; drag one to move it.' },
+  { id: 'heat', name: 'Heat', key: 'H', help: 'Hold to heat or cool a region. Shift + wheel: its radius.' },
+  { id: 'spark', name: 'Spark', key: 'S', key3: 'Z', help: 'Click to dump energy into the atoms under the cursor. Shift + wheel: its radius.' },
+  { id: 'magnet', name: 'Magnet', key: 'M', help: 'Click to place a magnet pole; drag one to move it. Shift + wheel: its radius.' },
   { id: 'objects', name: 'Objects', key: 'D', help: 'Drag to draw a mirror, lens, prism, screen, wall, foil or plates; drag one to move it, right-click to change it.' },
   { id: 'light', name: 'Light', key: 'L', help: 'Drag to aim a beam of light.' },
-  { id: 'erase', name: 'Erase', key: 'E', key3: 'X', help: 'Drag to remove particles, magnets and beams.' },
-  { id: 'measure', name: 'Measure', key: 'K', help: 'Click two particles for their distance, a third for the angle.' },
+  { id: 'erase', name: 'Erase', key: 'E', key3: 'X', help: 'Drag to remove particles, magnets and beams. Shift + wheel: its radius.' },
+  { id: 'measure', name: 'Measure', key: 'K', help: 'Click two particles for their distance, a third for the angle; right-click one to stop measuring it.' },
   { id: 'inspect', name: 'Inspect', key: 'I', help: 'Click a particle for its physics. Right-click anything for a quick menu.' },
 ];
 const OPT = {
@@ -1426,12 +1426,13 @@ function onUp(e) {
   const d = UI.drag;
   if (d && d.kind === 'grab') grabRelease(W.grab);
   endToolAction();
-  if (d && d.rc && e.type === 'pointerup') { const [px, py] = evPos(e); if (Math.hypot(px - d.x, py - d.y) < 6) openQuickMenu(px, py); } // a right-click that did not pan
+  if (d && d.rc && e.type === 'pointerup') { const [px, py] = evPos(e); if (Math.hypot(px - d.x, py - d.y) < 6 && !(UI.tool === 'measure' && measureDrop(px, py))) openQuickMenu(px, py); } // (the measure tool: a right-click on a measured particle stops measuring it, the owner's request after 1.26) // a right-click that did not pan
 }
 function onWheel(e) {
   e.preventDefault();
   closeQuickMenu();
   const [px, py] = evPos(e);
+  if (e.shiftKey && !e.ctrlKey && RAD_MIN[UI.tool] && OPT[UI.tool] && OPT[UI.tool].R !== undefined) { toolRadiusWheel(e); return; } // (Shift + wheel: the tool's radius, the owner's request after 1.26; in 3-D the placing plane stays on Shift + wheel for the other tools)
   if (W.d3 && e.shiftKey && !e.ctrlKey) { // (3-D: Shift + wheel moves the placing plane farther (wheel up) or nearer, 1.24; Chromium on Windows turns Shift + wheel sideways)
     const dv = (e.deltaY || e.deltaX) * (e.deltaMode === 1 ? 33 : 1);
     plane3Set(P3.off - dv / 100 * Math.max(0.25, 0.04 * plane3Lim()));
@@ -1441,6 +1442,24 @@ function onWheel(e) {
   }
   const f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015) * (SET.wheel || 1)); // (Settings → Controls: speed, and toward the mouse or the centre)
   if (SET.zoomTo === 'centre') zoomAt(R.w / 2, R.h / 2, f); else zoomAt(px, py, f);
+}
+/* Shift + wheel over the chamber with a tool that has a radius (Push/Pull, Heat, Spark, Magnet, Erase): one notch moves its
+   radius slider by 8 of its 200 steps (about 9–11% a notch, its smallest radius to 1,000 Å), up to enlarge; the slider in
+   the tool's options follows. (Chromium on Windows turns Shift + wheel sideways: deltaX then.) */
+function toolRadiusWheel(e) {
+  const t = UI.tool, o = OPT[t], d = e.deltaY || e.deltaX; if (!d) return;
+  const n = e.deltaMode === 1 ? Math.max(1, Math.round(Math.abs(d) / 3)) : Math.max(1, Math.round(Math.abs(d) / 100));
+  o.R = radR(t, clamp(radS(t, o.R) + (d < 0 ? 8 : -8) * n, 0, 200));
+  const el = $('oR'); if (el) { el.value = radS(t, o.R); const out = $('oRV'); if (out) out.textContent = fmtA(o.R); }
+}
+/* A right-click with the measure tool: the measured particle under it is dropped (true), else nothing (false). */
+function measureDrop(px, py) {
+  const m = R.measure; if (!m || !m.length) return false;
+  const lt = pickAt(px, py, 10) ? null : pickLight(px, py, 14);
+  const p = lt ? (lt.kind === 'exo' ? lt.o : measurePt(lt.kind, lt.o)) : pickNear(px, py, 24);
+  if (!p) return false;
+  const k = m.findIndex(q => q === p || (q._o && p._o && q._o === p._o)); if (k < 0) return false;
+  m.splice(k, 1); buildToolOpts(); return true;
 }
 function zoomAt(px, py, f) {
   if (W.d3) { cam3Zoom(f); return; } // (3-D: nearer or farther, toward the target)
