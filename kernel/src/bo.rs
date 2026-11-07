@@ -353,8 +353,9 @@ pub unsafe fn pass1(b: &Bo, p: *mut f64) -> f64 {
         let mut pp = 1.0f64; let s0 = ns;
         let dk = g(tab, g(b.pt, k) as usize * PS + 5);
         common(b, &mut stamp, g(b.pa, k) as usize, g(b.pb, k) as usize, |j| g(b.ne0, j) > 0.3, |k1, k2| {
-            let dd = g(tab, g(b.pt, k1) as usize * PS + 5).min(g(tab, g(b.pt, k2) as usize * PS + 5)) - dk; if dd <= 0.4 { return; }
-            let u = ((dd - 0.4) / 0.4).min(1.0); let sg = u * u * (3.0 - 2.0 * u); let w = bb(g(b.ne0, k1)) * bb(g(b.ne0, k2)) * sg; if w <= 0.0 { return; }
+            // (1.27 bug 14: the gap as a share of the pair's own bond, 5% to 15%, as bo.js boCrowd; it was 0.4–0.8 eV)
+            let dd = g(tab, g(b.pt, k1) as usize * PS + 5).min(g(tab, g(b.pt, k2) as usize * PS + 5)) - dk; if !(dd > 0.05 * dk) { return; }
+            let u = ((dd / dk - 0.05) / 0.10).min(1.0); let sg = u * u * (3.0 - 2.0 * u); let w = bb(g(b.ne0, k1)) * bb(g(b.ne0, k2)) * sg; if w <= 0.0 { return; }
             pp *= 1.0 - w;
             if ns < supcap { s(b.sup1, ns, k1 as i32); s(b.sup2, ns, k2 as i32); s(b.sups, ns, sg); }
             ns += 1;
