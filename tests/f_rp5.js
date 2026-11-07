@@ -14,6 +14,7 @@ const h = (s) => { let a = 0x811c9dc5; for (let i = 0; i < s.length; i++) { a ^=
    steps) of the setups with resonances, collisions, neutrons and decays, and of water flat and in 3-D, equal v141's; a
    placed ρ⁰ has the table's mass, and ⁶⁰Co's decay gives no γ line. */
 // (1.27 bug 2: pionbeam, hyperfactory and annihilation re-fingerprinted, switches off: molecules give electrons at their measured ionization energies, from their hole atom)
+// (1.27 bug 3: fusion, nif, pionbeam, annihilation and sns re-fingerprinted, switches off: close passes between nuclei turned at nuclear distances)
 const FP_V141 = { pionbeam: 'a57d419b a3728514', rhic: 'fb7e8382 a9f2ee3a', linac: '7c6eb010 2b70ae2c', chain: '4b24bd95 a9f2ee3a', photonuc: '9bdf9dd1 49d4aec0', annihilation: '792e52ec 54cc0e75', isolde: '510ea801 d3061743', sns: '93ccd94e 72c69cea', useries: '0f6ae8fd a9f2ee3a', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const bad = [];

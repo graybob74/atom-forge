@@ -6189,32 +6189,27 @@ function wallOrEscape(p, escape, x0, y0) {
 
 /* Elastic nuclear collision of a radiation-mode nucleus p with target t at impact parameter b (Å).
    Universal screening length a = 0.8854·a₀/(Z1^0.23 + Z2^0.23). Returns the energy given to the target. */
+/* (1.27 bug 3) The impact parameter a close pass between nuclei stands for, Å. In 3-D the pass's own distance (passes
+   already fall uniformly over the area round a nucleus, as real ones do); in the flat game passes fall uniformly along a
+   line, so the distance, as a fraction of the reach R, is mapped onto an area, b = R·√(b/R), as nuclearEncounter does.
+   Down to nuclear distances (10⁻⁹ Å): the floor of 0.005–0.01 Å (500–1,000 fm) these passes had held every Rutherford
+   turn to a few degrees, so a 1 MeV α dead on an α at rest handed it 133 eV (3-D 33 eV), not the 1 MeV of nature's 180°. */
+function bReal(b, R) { return Math.max(1e-9, W.d3 ? b : R * Math.sqrt(clamp(b / R, 0, 1))); }
 function nuclearCollision(p, t, b) {
   const mt = t.m, mp = p.m;
   const Ecm = p.KE * mt / (mp + mt);
   if (Ecm <= 0) return 0;
-  const a = 0.4685 / (Math.pow(p.Z, 0.23) + Math.pow(Math.max(1, t.Z), 0.23));
-  const d = PHYS.KE * p.Z * Math.max(1, t.Z) / Ecm * Math.exp(-b / a);
-  const th = 2 * Math.atan(d / (2 * Math.max(b, 0.005)));
+  const a = 0.4685 / (Math.pow(p.Z, 0.23) + Math.pow(Math.max(1, t.Z), 0.23)), br = bReal(b, 0.5);
+  const d = PHYS.KE * p.Z * Math.max(1, t.Z) / Ecm * Math.exp(-br / a);
+  const th = 2 * Math.atan(d / (2 * br));
   const Tmax = 4 * mp * mt / ((mp + mt) * (mp + mt)) * p.KE;
   const T = Tmax * Math.pow(Math.sin(th / 2), 2);
   if (T < 0.5) return 0;
-  // deflect the projectile (approximate lab angle) and launch the recoil
-  const sgn = rnd() < 0.5 ? 1 : -1;
-  const lab = Math.atan2(Math.sin(th), Math.cos(th) + mp / mt) * sgn;
-  const c = Math.cos(lab), s = Math.sin(lab);
-  const ux = p.ux * c - p.uy * s, uy = p.ux * s + p.uy * c; p.ux = ux; p.uy = uy;
-  const rec = (Math.PI - th) / 2 * -sgn;
-  const rx = p.ux * Math.cos(rec) - p.uy * Math.sin(rec), ry = p.ux * Math.sin(rec) + p.uy * Math.cos(rec);
-  if (t.rad) { t.KE += T; radSpeed(t); }
-  else { // (the target gains exactly T, bonds it breaks paid from it: the push √(2T/m) on an atom already moving gave it more or less than T (its cross term), and the broken bonds were free; a 1 MeV α through a few molecules +56–76 eV, 1.26)
-    const brk = t.bonds.filter(bd => T > bd.D);
-    let Tk = T;
-    if (brk.length) { const set = closeSet(setOf([t])), sn = snapshot(set), U0 = localPE(set); for (const bd of brk) removeBond(bd); Tk = T - (localPE(closeSet(set)) - U0); if (Tk < 0) { restoreSnap(sn); Tk = T; } } // (they break only if T pays what breaking them costs, measured)
-    const [tvx, tvy] = velOf(t), vr = tvx * rx + tvy * ry, a = Tk > 0 ? -vr + Math.sqrt(vr * vr + 2 * Tk / mt) : 0;
-    setVel(t, tvx + a * rx, tvy + a * ry);
-  }
-  return T;
+  // (1.27 bug 3) an exact elastic turn by θ in the pair's own frame, energy and momentum kept (nuclearScatter, which also
+  // books a target it sends into flight); it was an approximate lab angle, the recoil pushed off to one side of it
+  const K0 = p.KE, sx = rnd() < 0.5 ? 1 : -1;
+  nuclearScatter(p, t, 0, -p.uy * sx, p.ux * sx, 1, 0, th);
+  return K0 - keOf(p); // (already taken from p: what the target and its bonds got)
 }
 
 /* Radiation-mode particles: straight/curved flight with continuous energy loss (Bethe-like stopping). */
@@ -6345,9 +6340,11 @@ function moveRad(p, dt) {
       break;
     }
     if (p.k === NUC && b < 0.5) { // nuclear stopping: screened-Coulomb (ZBL-like) elastic collision
-      const T = nuclearCollision(p, tg, b);
+      const ux0 = p.ux, uy0 = p.uy, T = nuclearCollision(p, tg, b);
       if (T > 0 && W.nucWin && (p.nucProd || p.born >= W.nucWin.t0)) for (const m of molecule(tg)) m.nucProd = true; // (knocked on by what a nuclear event sent flying: a bare nucleus too, which the ionizing below passes over, 0.93)
-      if (T > 0) { p.KE -= T; if (p.KE <= 1) break; }
+      if (T > 0 && !p.rad) { stopped = true; break; } // (nuclearCollision took T from p itself, and a turn that left it slow handed it back to the stepped particles, 1.27 bug 3)
+      if (T > 0 && p.KE <= 1) break;
+      if (T > 0 && p.ux * ux0 + p.uy * uy0 < 0.99995) { p.hit = tg.id; stillNear = true; x1 = x0 + (x1 - x0) * t; y1 = y0 + (y1 - y0) * t; break; } // (turned by more than half a degree: on from the meeting point in its new direction, next step, 1.27 bug 3)
     }
     if (RP.cpm) { // (charged particles in matter, 1.27: Bethe's mean, straggling and δ-rays, hep.js cpmAtom; an e± met the atom above)
       if (p.k !== NUC) continue;
@@ -6416,7 +6413,7 @@ function radVsFast(p, x0, y0, x1, y1) {
       if (p.dead || (d < fusGate() && !tg.dead && tryFusion(p, tg, d))) return true;
       if (tg.dead) continue;
     }
-    if (d < 0.6) coulombScatter(p, tg, Math.max(d, 0.01));
+    if (d < 0.6) coulombScatter(p, tg, d); // (coulombScatter maps it to nuclear distances, 1.27 bug 3)
   }
   return false;
 }
@@ -6459,7 +6456,7 @@ function beamCollisions(id0) {
       const rx = b.ox - a.ox, ry = b.oy - a.oy;
       if (Math.abs(rx) > 60 || Math.abs(ry) > 60) continue;
       const dx = (b.x - b.ox) - (a.x - a.ox), dy = (b.y - b.oy) - (a.y - a.oy), L2 = dx * dx + dy * dy;
-      let t = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0; const closing = t > 1; t = clamp(t, 0, 1); // (closing: still closing in, they meet in a later step at the true miss distance, 0.92)
+      let t = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0; const closing = t > 1, t0 = t; t = clamp(t, 0, 1); // (closing: still closing in, they meet in a later step at the true miss distance, 0.92)
       const ex = rx + t * dx, ey = ry + t * dy, d = Math.hypot(ex, ey);
       const x = a.ox + (a.x - a.ox) * t + ex / 2, y = a.oy + (a.y - a.oy) * t + ey / 2;
       const live = beams && (C.kind !== 'ring' || C.colliding) && inDetector(C, x, y); // (beams meet only in a detector, as in a real machine)
@@ -6477,7 +6474,7 @@ function beamCollisions(id0) {
       if (both) {
         if (d < Rn) { nuclearEncounter(a, b, d / Rn, x, y); if (a.dead) break; if (b.dead) continue; }
         if (d < fusGate() && tryFusion(a, b, d)) break;
-        if (!a.dead && !b.dead && a.Z > 0 && b.Z > 0) coulombScatter(a, b, Math.max(d, 0.01));
+        if (!a.dead && !b.dead && a.Z > 0 && b.Z > 0 && t0 > 0) coulombScatter(a, b, d); // (1.27 bug 3: to nuclear distances; t0 ≤ 0: closest before this step, already met)
       }
     }
   }
@@ -6569,7 +6566,7 @@ function boost(E, px, py, bx, by, g0) { // (g0: the frame's Lorentz factor when 
    if larger): a pass dead on turns them right round, one at the edge deflects them about 4°, as real Coulomb
    scattering spreads its angles (and as in nuclearEncounter, which decides first whether they touch). Exact
    relativistic kinematics: energy and momentum are kept. Returns the angle, or null if one has no charge. */
-function nuclearScatter(a, b, d, ex, ey, reach = R_NN, rmap = 0) { // rmap (fm): map the pass onto impact parameters out to this instead
+function nuclearScatter(a, b, d, ex, ey, reach = R_NN, rmap = 0, thIn) { // rmap (fm): map the pass onto impact parameters out to this instead (thIn: the angle in their own frame, given: nuclearCollision's screened turn, 1.27 bug 3)
   const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(zChem(p) - p.ne, 0) || zChem(p)) : p.q);
   const qa = chg(a), qb = chg(b);
   if (!qa || !qb) return null;
@@ -6584,7 +6581,7 @@ function nuclearScatter(a, b, d, ex, ey, reach = R_NN, rmap = 0) { // rmap (fm):
   if (!(ps > 0)) return null;
   const vrel = ps / A[0] + ps / Bst; // their speeds add in their own frame (units of c)
   const K = 1.44e6 * Math.abs(qa * qb) / (ps * vrel), bfm = W.ultra ? Math.max(0.02, d / FM) : Math.max(0.02, Math.sqrt(Math.min(1, d / reach))) * (rmap || Math.max(Rc, HIT_COUL * K)); // (k = 1.44 MeV·fm; d₀ = 2K) (ultra: the pass's own distance)
-  const th0 = 2 * Math.atan(K / bfm);
+  const th0 = thIn !== undefined ? thIn : 2 * Math.atan(K / bfm);
   const side = Math.sign(A[1] * ey - A[2] * ex) || 1; // partner to the left (+) or right (−) of a's path
   const th = (qa * qb > 0 ? -1 : 1) * side * th0;
   const c = Math.cos(th), s = Math.sin(th), qx = A[1] * c - A[2] * s, qy = A[1] * s + A[2] * c;
@@ -6819,9 +6816,13 @@ function fastEncounters3(p) {
     const contact = (p.ne > 0 && A.ne > 0) ? 0.35 * (p.ljR + A.ljR) : 0;
     const cx = x0 + t * (x1 - x0) - A.x, cy = y0 + t * (y1 - y0) - A.y, cz = z0 + t * (z1 - z0) - A.z; // (from the target to the path's closest point)
     if (contact > 0 && b < contact) { hardSphere3(p, A, b, contact, cx, cy, cz); return; }
-    if (p.ne === 0 && b < 0.6) { coulombScatter3(p, A, b, cx, cy, cz); return; }
+    if (p.ne === 0 && b < 0.6 && p.hitC !== A && A.hitC !== p) { // (1.27 bug 3: from the meeting point, and once a pass: a turned nucleus left past its target was met again by it)
+      coulombScatter3(p, A, b, cx, cy, cz); p.hitC = A; A.hitC = p;
+      p.x = x0 + t * (x1 - x0); p.y = y0 + t * (y1 - y0); p.z = z0 + t * (z1 - z0); return;
+    }
   }
   if (p.hit && !hits.some(h => h[1].id === p.hit)) p.hit = 0; // (past it: a later pass may meet it again)
+  if (p.hitC && (p.hitC.dead || Math.hypot(p.hitC.x - p.x, p.hitC.y - p.y, p.hitC.z - p.z) > 2)) p.hitC = null; // (apart: they may meet again)
 }
 /* (3-D, 1.25) A charged nucleus past 2 keV loses energy to the electrons of the atoms it passes, as in the flat game's
    radiation flight (moveRad: about z_eff²·n_e/β² for each, closest passes most; electrons set free square to the path at
@@ -6873,7 +6874,7 @@ function coulombScatter3(a, b, bimp, cx, cy, cz) {
   const mu = a.m * b.m / (a.m + b.m), ux = a.vx - b.vx, uy = a.vy - b.vy, uz = a.vz - b.vz, Ecm = 0.5 * mu * (ux * ux + uy * uy + uz * uz);
   if (Ecm <= 0) return;
   const qb = b.ne > 0 ? Math.max(1, b.Z - b.ne + 1) : b.Z, d = PHYS.KE * Math.max(1, a.Z) * qb / Ecm;
-  turnPair3(a, b, 2 * Math.atan(d / (2 * Math.max(bimp, 0.01))), cx, cy, cz); // (like charges: away from it)
+  turnPair3(a, b, 2 * Math.atan(d / (2 * bReal(bimp, 0.6))), cx, cy, cz); // (like charges: away from it)
 }
 /* Elastic binary collisions of a flying nucleus (exact in energy: velocities whose ½mv² is each one's kinetic
    energy, and setVel, which keeps a radiation-mode particle's stored energy and direction in step). */
@@ -6896,7 +6897,7 @@ function coulombScatter(a, b, bimp) {
   if (Ecm <= 0) return;
   const qb = b.ne > 0 ? Math.max(1, b.Z - b.ne + 1) : b.Z;
   const d = PHYS.KE * Math.max(1, a.Z) * qb / Ecm;
-  const th = 2 * Math.atan(d / (2 * Math.max(bimp, 0.01))) * (rnd() < 0.5 ? 1 : -1);
+  const th = 2 * Math.atan(d / (2 * bReal(bimp, 0.6))) * (rnd() < 0.5 ? 1 : -1); // (down to nuclear distances, the pass mapped as an area: bReal, 1.27 bug 3)
   const M = a.m + b.m, Vx = (a.m * avx + b.m * bvx) / M, Vy = (a.m * avy + b.m * bvy) / M;
   const c = Math.cos(th), s = Math.sin(th);
   const nx = rvx * c - rvy * s, ny = rvx * s + rvy * c;
@@ -6926,11 +6927,11 @@ function fastFastNuclear() {
       const rx = b.ox - a.ox, ry = b.oy - a.oy;
       if (Math.abs(rx) > 12 || Math.abs(ry) > 12) continue;
       const dx = (b.x - b.ox) - (a.x - a.ox), dy = (b.y - b.oy) - (a.y - a.oy), L2 = dx * dx + dy * dy;
-      let t = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0; const closing = t > 1; t = clamp(t, 0, 1); // (closing: still closing in, they meet in a later step at the true miss distance, 0.92)
+      let t = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0; const closing = t > 1, t0 = t; t = clamp(t, 0, 1); // (closing: still closing in, they meet in a later step at the true miss distance, 0.92)
       if (closing) continue;
       const ex = rx + t * dx, ey = ry + t * dy, b2 = ex * ex + ey * ey;
       if (b2 < fusGate() ** 2) { if (tryFusion(a, b, Math.sqrt(b2))) break; }
-      if (b2 < 0.36 && !a.dead && !b.dead) coulombScatter(a, b, Math.sqrt(b2));
+      if (b2 < 0.36 && !a.dead && !b.dead && t0 > 0) coulombScatter(a, b, Math.sqrt(b2)); // (t0 ≤ 0: closest before this step, already met, 1.27 bug 3)
     }
   }
 }
@@ -6957,7 +6958,7 @@ function fastFastNuclear3() {
       if (t0 > 1) continue;
       const t = clamp(t0, 0, 1), ex = rx + t * dx, ey = ry + t * dy, ez = rz + t * dz, b2 = ex * ex + ey * ey + ez * ez;
       if (b2 < fusGate() ** 2) { if (tryFusion3(a, b, Math.sqrt(b2))) break; }
-      if (b2 < 0.36 && !a.dead && !b.dead) coulombScatter3(a, b, Math.sqrt(b2), -ex, -ey, -ez); // (from b to a's path)
+      if (b2 < 0.36 && !a.dead && !b.dead && t0 > 0) coulombScatter3(a, b, Math.sqrt(b2), -ex, -ey, -ez); // (from b to a's path) (t0 ≤ 0: closest before this step, already met: down to nuclear distances a dead-on pair turned round met again, 1.27 bug 3)
     }
   }
 }

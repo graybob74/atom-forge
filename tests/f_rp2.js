@@ -14,6 +14,7 @@ const isPs = (X, o) => !o.dead && !!X.XP[o.sp].ps;
    were compared when this was built; here the ones with positrons and muons, and water flat and 3-D, against v141), both
    switches start off, a 10 eV positron at hydrogen still annihilates and muonium is still bound by hydrogen's 13.598 eV. */
 // (1.27 bug 2: pionbeam, hyperfactory and annihilation re-fingerprinted, switches off: molecules give electrons at their measured ionization energies, from their hole atom)
+// (1.27 bug 3: fusion, nif, pionbeam, annihilation and sns re-fingerprinted, switches off: close passes between nuclei turned at nuclear distances)
 const FP_V141 = { annihilation: '792e52ec 54cc0e75', muonium: '3492138b 4aad8d19', pet: 'a5248bff a9f2ee3a', pionbeam: 'a57d419b a3728514', antihydrogen: 'fcbb2bdd ea7b2fcc', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const h = (s) => { let a = 0x811c9dc5; for (let i = 0; i < s.length; i++) { a ^= s.charCodeAt(i); a = Math.imul(a, 0x01000193); } return (a >>> 0).toString(16).padStart(8, '0'); };

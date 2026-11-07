@@ -3066,6 +3066,61 @@ the books part's cost 13.62 and 18.40; Ps at 13.0 eV formed, at 6.2 eV not), con
   Doubly charged molecules and fragments use atom costs. Liquid water's own first ionization (about 11 eV, from memory)
   comes out as the gas value shifted by the game's own neighbours, not checked.
 
+### 1.27: bug 3 (close passes between nuclei)
+
+Branch fix127-03-nuclear-close-pass (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix03.js
+(t_features, one line; `node tests/f_fix03.js [--node] [part …]`): headon, rutherford; both fail on v145 (headon: 133,
+840, 33 and 210 eV; rutherford: nothing past 5°), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** Below the reaction threshold a nucleus passing another is turned by Rutherford's law at the pass's
+  impact parameter, but every path held that parameter to at least 0.005 Å (nuclearCollision, radiation flight) or
+  0.01 Å (coulombScatter and coulombScatter3, a fast stepped nucleus; radVsFast and the flights' pair loop passed
+  max(d, 0.01)): 500–1,000 fm, where a 1 MeV α on an α turns by at most 1.3°. Measured (an α fired dead on at a bare
+  nucleus at rest, 60 steps): 1 MeV α on α, the target got 132.7 eV flat, 33.2 eV in 3-D (nature: the whole 1 MeV,
+  180° in their frame); 5 MeV α on gold 840 and 210 eV (most possible 390.6 keV). Nothing was ever turned past a few
+  degrees, so no α came back off a foil of atoms (only the Foil object did that).
+- **What changed** (engine.js).
+  - `bReal(b, R)`: the impact parameter a pass stands for, down to 10⁻⁹ Å. In 3-D the pass's own distance (passes in
+    depth already fall uniformly over the area round a nucleus, as real ones do, so the share of hard turns is nature's
+    per atom); in the flat game, where passes fall uniformly along a line, the distance as a fraction of the reach R is
+    mapped onto an area, R·√(b/R), as nuclearEncounter maps its passes. Used by nuclearCollision (R 0.5 Å, with its
+    screening exp(−b/a) as before), coulombScatter and coulombScatter3 (R 0.6 Å); the callers' 0.01 Å floors removed.
+  - nuclearCollision turns the pair exactly in its own frame (nuclearScatter with the angle given: energy and momentum
+    kept, a target sent into flight booked as before); it used an approximate lab angle and pushed the recoil off to
+    one side. It takes the energy from the projectile itself; a projectile left slow is handed back to the stepped
+    particles (it went on in radiation flight with its old energy: +1 MeV made from nothing in a first try).
+  - After a turn of more than half a degree a nucleus in radiation flight goes on from the meeting point in its new
+    direction (as after a nuclear encounter), and a fast stepped 3-D nucleus is put back at the meeting point; a pair
+    met in a step is not met again (fastEncounters3: `hitC`; the fast pairs' loops: closest approach before the step,
+    t ≤ 0, skipped): with the floor gone, a dead-on pair turned round and left past each other met again and turned back.
+  - The pair potential of stepped nuclei (wide, slow passes) is untouched; nothing is counted twice: these paths are for
+    nuclei in flight, which carry no pair potential.
+- **Measured** (5 MeV α on gold; passes drawn as the game draws them, flat uniform in distance within 0.5 Å through
+  moveRad's nuclearCollision, 3-D uniform over the area within 0.6 Å through coulombScatter3; 40,000 passes importance-
+  sampled to those turning it 5° or more, a share 1.13×10⁻⁴ flat and 7.85×10⁻⁵ 3-D of all passes):
+  - Lab angles against Rutherford's 1/sin⁴(θ/2) (flat with the screening): χ² 3.6 flat, 9.4 3-D for 9 bins (5–180°);
+    v145 16,467 and 38,422 (everything under 10°, or nothing over 5°).
+  - Turned past 90°: 2.35×10⁻⁷ a pass within 0.5 Å flat (Rutherford 2.06×10⁻⁷), 1.55×10⁻⁷ within 0.6 Å 3-D (1.44×10⁻⁷);
+    v145 none. Energy kept to 5×10⁻⁵ eV flat, 4×10⁻⁹ 3-D.
+  - So a foil of the game's atoms now sends back Rutherford's share, n·t·π·b₉₀² (b₉₀ = 2.3×10⁻⁴ Å = 23 fm for 5 MeV α
+    on gold): for Geiger and Marsden's thinnest gold foils (about 0.4 µm, from memory) about 1 in 25,000 (computed;
+    their 1 in 8,000 was off platinum of their own thickness). Brute force in the game is out of reach (a 20 Å gold slab
+    turns 2×10⁻⁷ of the α past 90°). The Foil object is unchanged: it draws b uniformly along a line within half its
+    2.9 Å spacing (the flat statistics, on purpose), b₉₀/1.45 Å = 1.6×10⁻⁴ a layer, about 1 in 600 back from its default
+    10 layers (computed from its formula).
+  - Head-on (f_fix03 headon): 1 MeV α on α 1,000,000 eV to the target flat and 3-D; 5 MeV α on gold 390,628 eV flat,
+    390,386 3-D; books to 10⁻⁴ eV.
+- **Fingerprints** (switches off, seed 7, 300 steps): every setup as v145 except fusion (38a64d68), nif (089d98a6),
+  pionbeam (bd26ce49), annihilation (93a54d56) and sns (2298f520): the setups with fast nuclei passing others. Their
+  stored switches-off fingerprints in f_rp1, f_rp2, f_rp3, f_rp5, f_rp7 and f_ew updated with a comment each. The nif
+  plasma (300 steps, seeds 1–6): 0–4 fusions after, 0–2 before; books with no fusion within a few keV both (11, 3, 4.9,
+  0.07 keV before; 44, 0, 6.7, 3 after: the hot plasma's own limit).
+- Cost: none measurable (a square root a pass).
+- Suites: t_lint, t_energy, t_nuclear, t_hep, t_collider, f_hep126 pass.
+- **Left for the owner.** The Foil object keeps its flat statistics (by design; its share differs from atoms' now).
+  coulombScatter (flat fast nuclei, the plasma) is unscreened as before: a bare nucleus on an atom with electrons uses
+  the atom's charge seen at its ion (Z − ne + 1), not screened Rutherford.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
