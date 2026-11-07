@@ -18,7 +18,8 @@ const SOFT_EN = 0.28;
 function softFor(p) {
   const q = Math.abs(p.q);
   if (q < 1 || p.ne + 1 > zChem(p)) return SOFT_EN;
-  const ie = ionE(zChem(p), p.ne + 1);
+  let ie = ionE(zChem(p), p.ne + 1);
+  if (p.ieH && p.ieHq === p.q) ie = p.ieH; // (a molecule's hole: its well as deep as the molecule's measured ionization energy, holeEq, 1.27 bug 2)
   if (!(ie > 0)) return SOFT_EN;
   return Math.min(9, Math.max(0.02, Math.pow(PHYS.KE * q / ie, 2)));
 }
@@ -161,7 +162,7 @@ class Part {
     this.KE = 0; this.ux = 1; this.uy = 0; this.sp = 0; this.gam = 1;
     this.glow = 0; this.glowC = ''; this.born = W.rt;
     this.val = 0; this.nOut = 0; this.unp = 0;
-    this.ljE = 0; this.polarH = false; this.rd = 0.3;
+    this.ljE = 0; this.ieH = 0; this.ieHq = 0; this.polarH = false; this.rd = 0.3;
     this.trk = null; this.mark = 0; this.sel = false;
     this.omB = 0; this.Bl = 0; this.evId = 0; this.capT = 0; this.capN = 0;
     this.beam = undefined; this.trkKeep = undefined; this.injKick = undefined; this.kickIn = undefined; this.nucProd = undefined; this.caught = false;
@@ -575,7 +576,7 @@ function aromatize(atoms, keep) {
   }
 }
 function addBond(a, b, order) {
-  const bd = { a, b, order, D: 0, r0: 1, al: 2, rb: 1.5, Ef: 0 };
+  const bd = { a, b, order, D: 0, r0: 1, al: 2, rb: 1.5, Ef: 0, Eq: 0, eqA: null, eqQ: 0 };
   setBondParams(bd);
   a.bonds.push(bd); b.bonds.push(bd); W.bonds.push(bd);
   W.topo++;
@@ -655,8 +656,8 @@ function relink(seeds) {
    Events apply all their consequences on trial, measure the exact energy change, and undo if impossible. */
 function snapshot(set) {
   const bonds = [];
-  for (const bd of W.bonds) if (set.has(bd.a) || set.has(bd.b)) bonds.push([bd.a, bd.b, bd.order]);
-  return { set, parts: [...set].map(p => [p, p.x, p.y, p.vx, p.vy, p.ne, p.qi, p.z, p.vz]), bonds, broken: W.count.broken };
+  for (const bd of W.bonds) if (set.has(bd.a) || set.has(bd.b)) bonds.push([bd.a, bd.b, bd.order, bd.Eq || 0, bd.eqA, bd.eqQ]); // (Eq: a hole's measured-energy difference, holeEq, 1.27 bug 2)
+  return { set, parts: [...set].map(p => [p, p.x, p.y, p.vx, p.vy, p.ne, p.qi, p.z, p.vz, p.ieH || 0, p.ieHq]), bonds, broken: W.count.broken };
 }
 function restoreSnap(sn) {
   for (const bd of W.bonds.slice()) {
@@ -665,8 +666,8 @@ function restoreSnap(sn) {
   }
   _deferDeloc = true;
   try {
-    for (const [p, x, y, vx, vy, ne, , z, vz] of sn.parts) { p.x = x; p.y = y; p.vx = vx; p.vy = vy; p.z = z; p.vz = vz; if (p.ne !== ne) { p.ne = ne; refresh(p); } }
-    for (const [a, b, o] of sn.bonds) { const bd = bondBetween(a, b); if (!bd) addBond(a, b, o); else if (bd.order !== o) setOrder(bd, o); }
+    for (const [p, x, y, vx, vy, ne, , z, vz, ieH, ieHq] of sn.parts) { p.x = x; p.y = y; p.vx = vx; p.vy = vy; p.z = z; p.vz = vz; p.ieH = ieH; p.ieHq = ieHq; if (p.ne !== ne) { p.ne = ne; refresh(p); } }
+    for (const [a, b, o, eq, eqA, eqQ] of sn.bonds) { let bd = bondBetween(a, b); if (!bd) bd = addBond(a, b, o); else if (bd.order !== o) setOrder(bd, o); if (bd) { bd.Eq = eq; bd.eqA = eqA; bd.eqQ = eqQ; } }
     for (const [p] of sn.parts) refresh(p);
   } finally { _deferDeloc = false; }
   relink([...sn.set]); // (which spreads the charges over each molecule)
@@ -742,8 +743,57 @@ function separate(a, b) {
   const sh = target - r;
   for (const q of mb) { q.x += ex / r * sh; q.y += ey / r * sh; if (ez) q.z += ez / r * sh; }
 }
-/* Energy needed to remove one electron, including bonds that must then break. */
-function ionizationCost(p) { return ionE(zChem(p), p.ne) * muIonF(p) + breakCostIfCharged(p, -1); }
+/* Energy needed to remove one electron, including bonds that must then break. (1.27 bug 2) From a molecule, the electron
+   comes from the molecule's highest orbital, not from whichever atom was hit: the cost is that of its hole atom (holeAtom),
+   and for the molecules of MOL_IE their measured first ionization energy, made exact by holeEq. Before, water gave an
+   electron at 18.4 eV when a hydrogen was hit (13.6 eV and its O–H bond, which an H⁺ cannot keep), 13.6 at the oxygen;
+   measured 12.62. */
+function ionizationCost(p) { const h = holeAtom(p); return (h !== p || p.bonds.length) && molIE(h) || atomIonCost(h); }
+function atomIonCost(p) { return ionE(zChem(p), p.ne) * muIonF(p) + breakCostIfCharged(p, -1); }
+/* Measured first ionization energies of neutral molecules (eV; adiabatic, gas; NIST Chemistry WebBook, "Gas phase ion
+   energetics"). The first ten as the owner's list gave them (2026-11-06); the rest from memory, to be checked (1.27 bug 2). */
+const MOL_IE = { H2O: 12.62, H3N: 10.07, CH4: 12.61, CO2: 13.78, O2: 12.07, N2: 15.58, H2: 15.43, CO: 14.01, C2H6: 11.52, C6H6: 9.24,
+  ClH: 12.74, H2S: 10.46, CH4O: 10.84, C2H4: 10.51, C2H2: 11.40, CHN: 13.60, N2O: 12.89, Cl2: 11.48, F2: 15.70, FH: 16.03, O3: 12.53, NO: 9.26, H2O2: 10.58, C3H8: 10.94, CH2O: 10.88, NO2: 9.59, O2S: 12.35, CS2: 10.07 };
+const HOLE_MAX = 64; // (atoms: bigger molecules give the electron where they are hit, as before)
+/* The atom of p's molecule that gives up an electron: the one with the lowest cost (atomIonCost), p itself on a tie. Only
+   ordinary bonded atoms of small neutral molecules (not continuous bond orders' members, not in flight). */
+function holeAtom(p) {
+  if (!p.bonds.length || p.bom || p.fast || p.rad || p.k !== NUC || p.anti) return p;
+  const m = molecule(p); if (m.length > HOLE_MAX) return p;
+  let q = 0; for (const a of m) q += a.q; if (q !== 0) return p; // (a neutral molecule's: an ion's next electron, a second ionization, costs its charge's pull too, which atomIonCost does not see)
+  let best = p, c = atomIonCost(p);
+  for (const a of m) { if (a === p || a.ne <= 0 || a.bom || a.anti || a.k !== NUC) continue; const ca = atomIonCost(a); if (ca < c - 1e-9) { c = ca; best = a; } }
+  return best;
+}
+/* The measured ionization energy of h's molecule if it is in MOL_IE (neutral, every atom ordinary) and h keeps a bond to
+   hold the difference (an H⁺ keeps none: H₂ stays at 18.1 eV, its H₂⁺ is not a bond the game has); else 0. */
+function molIE(h) {
+  if (!h.bonds.length || h.ne <= 1 || h.mu) return 0;
+  const m = molecule(h); if (m.length > HOLE_MAX) return 0;
+  let q = 0; for (const a of m) { if (a.bom || a.anti || a.k !== NUC || a.mu) return 0; q += a.q; }
+  if (q !== 0) return 0;
+  return MOL_IE[hill(m, true)] || 0;
+}
+/* The molecule's own energy (bonds, bends, pairs inside it, its atoms' electrons): what holeEq compares, with no
+   neighbours, so a molecule in a liquid keeps its surroundings' shift on top of the measured value. */
+function molOwnE(m) {
+  let E = 0; const seenB = new Set(), centres = new Set();
+  for (const p of m) { E += internalE(p); centres.add(p); for (const bd of p.bonds) { centres.add(other(bd, p)); if (!seenB.has(bd)) { seenB.add(bd); E += -bd.D - bd.Ef - bondEq(bd) + morseV(bd, dist(bd.a, bd.b)); } } }
+  E += centresAngleE(centres);
+  for (let i = 0; i < m.length; i++) for (let j = i + 1; j < m.length; j++) E += pairPE(m[i], m[j]);
+  return E;
+}
+/* After h lost its electron (the molecule's energy E0 before, molOwnE): the difference to the measured value, held as a
+   constant in h's bonds (bd.Eq, part of their energy while h keeps that charge: bondEq) so the molecule's energy rose
+   by exactly tgt. Forces are unchanged (a constant); the books take it as any bond energy (localPE, totalEnergy). */
+function holeEq(h, tgt, m, E0) {
+  if (!tgt || !h.bonds.length) return;
+  for (const bd of h.bonds) { bd.Eq = 0; bd.eqA = h; bd.eqQ = h.q; }
+  h.ieH = tgt; h.ieHq = h.q; refresh(h); // (the well an electron meets there, softFor)
+  const d = (molOwnE(m.filter(a => !a.dead)) - E0 - tgt) / h.bonds.length;
+  for (const bd of h.bonds) bd.Eq = d;
+}
+function bondEq(bd) { return bd.Eq && bd.eqA.q === bd.eqQ ? bd.Eq : 0; }
 /* (Muonium as hydrogen, 1.27: muonium's levels are hydrogen's with its own reduced mass, 13.540 eV for 13.598; hep.js MU_IONF) */
 function muIonF(p) { return p.mu && typeof RP !== 'undefined' && RP.mu ? MU_IONF : 1; }
 
@@ -1829,7 +1879,7 @@ function centresAngleE(centres) {
 }
 function localFastE(set) { // (localPE's bonds and bends alone)
   let V = 0; const seenB = new Set(), centres = new Set();
-  for (const p of set) { centres.add(p); for (const bd of p.bonds) { const o = other(bd, p); centres.add(o); if (!seenB.has(bd)) { seenB.add(bd); V += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b)); } } }
+  for (const p of set) { centres.add(p); for (const bd of p.bonds) { const o = other(bd, p); centres.add(o); if (!seenB.has(bd)) { seenB.add(bd); V += -bd.D - bd.Ef - bondEq(bd) + morseV(bd, dist(bd.a, bd.b)); } } }
   V += centresAngleE(centres);
   return V;
 }
@@ -1846,7 +1896,7 @@ function localPE(set, skip) {
     centres.add(p);
     for (const bd of p.bonds) {
       const o = other(bd, p); centres.add(o);
-      if (!seenB.has(bd)) { seenB.add(bd); V += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b)); }
+      if (!seenB.has(bd)) { seenB.add(bd); V += -bd.D - bd.Ef - bondEq(bd) + morseV(bd, dist(bd.a, bd.b)); }
     }
   }
   V += centresAngleE(centres);
@@ -4108,6 +4158,9 @@ function phiE(x, y, skip, skip2, z = 0) { // (3-D: at (x, y, z))
   return phi;
 }
 function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {
+  // (1.27 bug 2) The cost callers paid is ionizationCost(p): from a molecule its hole atom gives the electron, and for a
+  // molecule of MOL_IE holeEq makes the molecule's own energy rise by the measured value (budget given: as before)
+  const ic = budget === undefined ? ionizationCost(p) : 0, tgt = budget === undefined && _nmd > 0 && !p.fast ? (p = holeAtom(p), (p.bonds.length && molIE(p)) || 0) : 0;
   if (p.ne <= 0) return null;
   // at the particle cap we skip the ionization entirely (never leave an ion without its electron); the energy stays with
   // the caller, as for any electron that could not be freed (1.26: it went to the bath here too, and the callers, finding
@@ -4120,11 +4173,12 @@ function ejectElectron(p, KE, ux, uy, budget, tunnel, uz = 0) {
   // the change of potential energy: the ion's new charge and size against its surroundings, plus any bonds that had to
   // break (localDelta: over the ion's neighbourhood in a big molecule, exactly)
   const fastIon = !!p.fast, kIon0 = keOf(p); // (3-D, 1.25: an atom in flight carries no potential energy, so neither its new charge nor the electron's pull toward it is in the books; and the electron's share of its motion, ½mₑv², leaves with the electron. The flat game too, 1.26: there the ion's pull, 6–26 eV, was paid to the electron and never came back, beside a lead block crossed by fast electrons; and the share is the electron's from any moving ion, flying or not: an H⁺ knocked to 233 eV lost 0.13 eV)
-  const dU = grid && !fastIon ? localDelta(p, set, sn, () => { p.ne--; refresh(p); enforceValence(p, null); }) : (p.ne--, refresh(p), enforceValence(p, null), 0);
+  const mol = tgt ? [...set] : null, Em0 = tgt ? molOwnE(mol) : 0, i0 = tgt ? ionE(zChem(p), p.ne) * muIonF(p) : 0;
+  const dU = grid && !fastIon ? localDelta(p, set, sn, () => { p.ne--; refresh(p); enforceValence(p, null); holeEq(p, tgt, mol, Em0); }) : (p.ne--, refresh(p), enforceValence(p, null), 0);
   // The electron is born inside the ion's Coulomb well and near other charges. Its launch energy is
   // set so that the total energy is conserved: KE_launch = KE_far + budget + φ(electron) − ΔU.
   const qa = p.q, lq = p.anti ? 1 : -1; // the ion's charge now, and that of the lepton set free
-  const Kfar = KE + bc - dU, off0 = (p.rd || 0.4) + 0.5;
+  const Kfar = KE + (tgt ? ic - i0 : bc) - dU, off0 = (p.rd || 0.4) + 0.5;
   const closed = W.wall !== 'wrap' && W.wall !== 'open', hw = W.box.w / 2 - 0.2, hh = W.box.h / 2 - 0.2;
   let ex = 0, ey = 0, ez = 0;
   const launch = (o, dx, dy, dz = 0) => { // kinetic energy it must start with at distance o for the total to be conserved
@@ -4713,7 +4767,7 @@ function regionE(T) {
   for (const p of T) {
     if (p.dead) continue;
     E += restE(p) + keOf(p) + internalE(p) + fieldU(p); // (fieldU: the applied field, bug fix 6 after 1.25)
-    for (const bd of p.bonds) if (!seenB.has(bd)) { seenB.add(bd); E += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b)); }
+    for (const bd of p.bonds) if (!seenB.has(bd)) { seenB.add(bd); E += -bd.D - bd.Ef - bondEq(bd) + morseV(bd, dist(bd.a, bd.b)); }
     if (!inMD(p)) continue;
     for (const o of md) if (o !== p && !(T.has(o) && o.id < p.id)) E += pairPE(p, o);
     if (p.bonds.length >= 2) E += angleEnergy(p);
@@ -8066,7 +8120,7 @@ function piFast() { // the bonds' and angles' forces alone, into S.fx/S.fy (clea
 }
 function piFastE() { // their energy (as totalEnergy0 counts it)
   let e = 0;
-  for (const bd of W.bonds) e += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
+  for (const bd of W.bonds) e += -bd.D - bd.Ef - bondEq(bd) + morseV(bd, dist(bd.a, bd.b));
   for (const p of W.parts) if (!p.dead && !p.rad && !p.fast && !(p.k === NUC && p.Z === 0) && p.bonds.length >= 2) e += angleEnergy(p);
   return e;
 }
@@ -9121,7 +9175,7 @@ function totalEnergy0() {
       pe += PHYS.KE * qx(a, b) * qx(b, a) / r;
     }
   }
-  for (const bd of W.bonds) pe += -bd.D - bd.Ef + morseV(bd, dist(bd.a, bd.b));
+  for (const bd of W.bonds) pe += -bd.D - bd.Ef - bondEq(bd) + morseV(bd, dist(bd.a, bd.b));
   for (const p of md) if (p.bonds.length >= 2) pe += angleEnergy(p);
   pe += boE;
   if (MBO.on) pe += mbPass(false); // (metals' many-body energy, 1.25)

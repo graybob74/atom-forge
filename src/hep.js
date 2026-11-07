@@ -1356,14 +1356,15 @@ function psFromAtom(L, A, Erel) {
   if (!(Eas > I - PS_B) || !(Eas < I)) return false;
   // (on trial: the electron taken, the positron's charge off, measured; the remainder is what Ps would carry)
   const set = setOf(molecule(A)), T = new Set(set); T.add(L);
+  const h = holeAtom(A), tgt = h.bonds.length ? molIE(h) : 0, mol = [...set], Em0 = tgt ? molOwnE(mol) : 0; // (the molecule's hole atom gives the electron, at the measured energy: as ejectElectron, 1.27 bug 2)
   const E0 = regionE(T), sn = snapshot(set), q0 = L.q;
-  A.ne--; refresh(A); enforceValence(A, null); relink([A]); L.q = 0;
+  h.ne--; refresh(h); enforceValence(h, null); holeEq(h, tgt, mol, Em0); relink([h]); L.q = 0;
   const avail = E0 - regionE(set) - PS_M * MEV; // (what Ps would carry: all before, less what stays and its rest energy)
   L.q = q0; restoreSnap(sn);
   if (!(avail > 0.01)) return false;
   const x = L.x, y = L.y, z = L.z || 0, who = speciesLabel(A), u = psDir(L.m * L.vx + PHYS.ME * A.vx, L.m * L.vy + PHYS.ME * A.vy, L.m * (L.vz || 0) + PHYS.ME * (A.vz || 0));
   const S = nucBegin([L, A]);
-  kill(L); A.ne--; refresh(A); enforceValence(A, null); relink([A]);
+  kill(L); h.ne--; refresh(h); enforceValence(h, null); holeEq(h, tgt, mol, Em0); relink([h]);
   const o = psMake(x, y, z, u[0], u[1], u[2]);
   closeEvent(S, { ps: [], xs: [o], rays: [], lost: 0 }, x, y, 0, 0);
   psNote(o, `${L.k === POS ? 'e⁺' : 'e⁻'} + ${who} → ${o.lab} + ${speciesLabel(A)}`, `in the Ore gap (${fmtE(I - PS_B)}–${fmtE(I)}): it took an electron bound by ${fmtE(I)}`, z);
