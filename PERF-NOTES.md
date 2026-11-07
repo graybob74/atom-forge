@@ -3393,6 +3393,36 @@ mode; 39 lead atoms ended early), confirmed by running the file on a v145 tree.
 - **Left for the owner.** No cascade X-ray is drawn for the new levels (the binding change goes into the products'
   motion, exactly booked); a muon whose new nucleus is unbound is not followed further than the next event.
 
+### 1.27: bug 11 (giant dipole resonance)
+
+Branch fix127-11-gdr (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix11.js (t_features,
+one line; `node tests/f_fix11.js [--node] [part …]`): share; fails on v145 (gdrP missing; there the share is 0.0012),
+
+- **What was wrong.** rayInteract (flat) and its 3-D twin decide the giant dipole resonance first, at 0.0015·Z·min(1,
+  σ_GDR/5.2Z² mb) a pass: in proportion to the old pair rule (0.0015·Z a pass). With Charged particles in matter on, pairs
+  and Compton go by their measured cross sections on part 3's scale (0.012 a pass for each 0.2112 b, cpmGamma), so the
+  resonance fell behind. Per pass at 13.5 MeV in lead (switch on): GDR 1.32×10⁻³, pair 0.885, Compton 0.190, the
+  resonance's share 0.0012 against its cross section's 0.0195 (gdrSigma 376 mb : pair 15.6 b : Compton 3.35 b): 16 times
+  too rare. Carbon was near (0.0008 against 0.0010 at 13.5 MeV): the old rule scaled with Z.
+- **What changed** (engine.js `gdrP`, used at both places). Switch on: P = 0.012·σ_GDR/0.2112 b, the same footing.
+  Switch off: the old odds, bit for bit. The cross section itself is unchanged (gdrSigma: a Lorentzian at the systematics'
+  peak energy, 5 MeV wide, holding the Thomas–Reiche–Kuhn sum 60NZ/A mb·MeV).
+- **Measured** (per pass, switch on; share of the three, then the cross sections' share): lead 10 MeV 0.0054 (0.0054;
+  v145 0.0003), 13.5 MeV 0.0195 (0.0195; 0.0012), 20 MeV 0.0031 (0.0031; 0.0002), 23 MeV 0.0017; carbon 10 MeV 0.0004,
+  13.5 MeV 0.0010 (v145 0.0008), 20 MeV 0.0058 (0.0049), 23 MeV 0.0170 (0.0144). Counted through rayInteract (20,000
+  passes of 13.5 MeV γ at lead): 0.0226 (the three are drawn one after another, the resonance first, and pairs and
+  Compton together come near 1 a pass, so the first draw gains a little). The photonuc setup with the switch on, 1,500
+  steps, seed 7: 3 resonance events and 56 pairs (v145 0 and 69).
+  - Against measurement (from memory, to check: Berman and Fultz's review): lead's resonance peaks at about 13.4 MeV,
+    about 640 mb, 4 MeV wide; gdrSigma gives 376 mb at 13.7 MeV, 5 MeV wide (the sum rule's strength; lead's measured
+    exhausts about 1.3 times it). Carbon's peaks near 23 MeV, about 8–10 mb (photoabsorption); gdrSigma 5.2 mb at 23 MeV.
+    Measured per-nucleus parameters would be a separate data change (the brief's first option): not done here.
+- f_rp3 "pair" fired 400 γ of 10 MeV at one lead atom and assumed it survived: the resonance now takes it about once in
+  200 shots, so the check makes a new lead atom when that happens (a line and a comment in the test).
+- Suites: t_lint, t_nuclear, t_hep, f_rp3, f_rp7 pass.
+- **Left for the owner.** Measured GDR parameters per nucleus (lead's peak ×1.7); the three γ processes drawn one after
+  another rather than by their shares at once (the same for pairs and Compton in part 3).
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly

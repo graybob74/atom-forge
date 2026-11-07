@@ -212,7 +212,8 @@ PARTS.pair = async (page, check) => {
     r.compton = +(fc.O / (1 - f.O) / (0.012 * 8 * X.cpmKN(1e7) / X.cpmKN(1e6))).toFixed(3); }
   for (const d3 of [false, true]) {
     const X = load('all', { seed: 2 }), W = X.W; fresh(X, d3); X.RP.cpm = true;
-    const A = X.addAtom('Pb', 0, 0, 0); A.vx = A.vy = 0; if (d3) A.vz = 0; X.forcesNoEvents();
+    let A = X.addAtom('Pb', 0, 0, 0); A.vx = A.vy = 0; if (d3) A.vz = 0; X.forcesNoEvents();
+    const fresh82 = () => { if (A.dead) { for (const p of W.parts) if (!p.dead) X.kill(p); W.parts = W.parts.filter(p => !p.dead); A = X.addAtom('Pb', 0, 0, 0); } }; // (1.27 bug 11: the giant dipole resonance, on part 3's footing, now takes the lead nucleus in about 1 shot in 200 at 10 MeV: a new one)
     let n = 0, worst = 0, fw = 0, uneq = 0, trip = 0; const E = 1e7, th = [];
     for (let i = 0; i < 400; i++) {
       const b0 = books(X), n0 = W.parts.length;
@@ -223,7 +224,7 @@ PARTS.pair = async (page, check) => {
         const e = made.find(p => p.k === X.ELEC), K = (p) => p.rad ? p.KE : 0.5 * p.m * (p.vx ** 2 + p.vy ** 2 + (p.vz || 0) ** 2), ux = (p) => p.rad ? p.ux : p.vx / Math.hypot(p.vx, p.vy, p.vz || 0);
         th.push(Math.acos(Math.min(1, ux(ps)))); if (Math.abs(K(e) - K(ps)) > 0.2 * (E - 2 * ME)) uneq++;
       }
-      for (const p of made) X.kill(p); W.parts = W.parts.filter(p => !p.dead); A.ne = 82; X.refresh(A); A.vx = A.vy = 0; if (d3) A.vz = 0; X.forcesNoEvents();
+      for (const p of made) X.kill(p); W.parts = W.parts.filter(p => !p.dead); fresh82(); A.ne = 82; X.refresh(A); A.vx = A.vy = 0; if (d3) A.vz = 0; X.forcesNoEvents();
     }
     for (let i = 0; i < 20; i++) { // (the triplet, made directly: 0.2% of lead's pairs at 10 MeV)
       const b0 = books(X), n0 = W.parts.length; X.cpmPair(A, 5e7, 1, 0, 0, true);
