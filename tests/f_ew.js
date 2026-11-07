@@ -30,6 +30,7 @@ function eePair(X, rs, d3) {
    within 300 steps). */
 // (1.27 bug 2: pionbeam, hyperfactory and annihilation re-fingerprinted, switches off: molecules give electrons at their measured ionization energies, from their hole atom)
 // (1.27 bug 3: fusion, nif, pionbeam, annihilation and sns re-fingerprinted, switches off: close passes between nuclei turned at nuclear distances)
+// (1.27 bug 4: sns re-fingerprinted, switches off: fast positrons ionize and scatter as electrons do, annihilating in flight at Heitler's rate)
 const FP_V145 = { rhic: 'fb7e8382 a9f2ee3a', ring: 'bdaf576a a9f2ee3a', linac: '7c6eb010 2b70ae2c', dafne: '793dfacd 43026f16', annihilation: '792e52ec 54cc0e75', pionbeam: 'a57d419b a3728514', photonuc: '9bdf9dd1 49d4aec0', hyperfactory: '39713093 15b24835', antihydrogen: 'fcbb2bdd ea7b2fcc', chain: '4b24bd95 a9f2ee3a', isolde: '510ea801 d3061743', sns: '93ccd94e 72c69cea', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.fp = async (page, check) => {
   const bad = [];

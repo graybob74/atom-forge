@@ -3121,6 +3121,61 @@ Branch fix127-03-nuclear-close-pass (from v145). Approved physics (the owner's l
   coulombScatter (flat fast nuclei, the plasma) is unscreened as before: a bare nucleus on an atom with electrons uses
   the atom's charge seen at its ion (Z − ne + 1), not screened Rutherford.
 
+### 1.27: bug 4 (fast positrons)
+
+Branch fix127-04-fast-positron (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix04.js
+(t_features, one line; `node tests/f_fix04.js [--node] [part …]`): contact, flight, rate; all three fail on v145 (a 5 keV
+positron in 3-D water: 1 and 0 ionizations, annihilated at its first touch; annFlight and heitlerPdE not there),
+confirmed by running the file on a v145 tree.
+
+- **What was wrong, measured.** Two things. (1) A positron stepped with the atoms (flat below the 1 keV radiation
+  threshold, 3-D below 25 keV) that touched an atom annihilated into 2γ at once (evLepton → annihilateBound) whatever its
+  energy: a 5 keV positron fired into 3-D water annihilated at its first atom (0–1 ionizations). (2) In flight (flat
+  radiation flight; 3-D moveFastLeptons3) a positron passed atoms ionizing them as an electron and never annihilated
+  with them: 1 MeV, 100 MeV and 1 PeV positrons fired across flat water all reached the wall and annihilated there into
+  two 511 keV γ (annihilateAtWall), in 3-D water they flew on. So the "any energy" of the report is the stepped
+  positrons'; the flying ones had the opposite fault.
+- **What changed** (engine.js; hep.js eeEvent).
+  - evLepton: a positron at matter (an electron at antimatter) with more energy apart from the atom's pull than its
+    ionization cost meets the atom as an electron does (impact ionization, excitation, elastic scattering; no capture or
+    attachment), and at each touch annihilates with one of its electrons at Heitler's rate over the touch's area
+    (`heitlerP`); slower, it annihilates on contact as before, and the Positronium switch's Ore gap (below the same cost)
+    is as before.
+  - In flight (flat moveRad, both with Charged particles in matter off and on; 3-D moveFastLeptons3, both): after each
+    atom passed, it annihilates with one of that atom's electrons with chance dE·σ_H·β²/(2πr_e²mc²·L) (`heitlerPdE`): dE
+    the energy the pass took, σ_H Heitler's cross section per electron (`heitlerSig`), L Rohrlich and Carlson's positron
+    stopping number with the atom's mean excitation energy (cpmI). Tied to the energy lost, not to the passes' area,
+    so over its range a positron annihilates in flight as often as in nature whatever the game's own sampling of passes
+    and stopping (the game's 3-D water takes 835 eV from five 1 MeV positrons in 300 steps, 0.2 eV/Å real: a separate,
+    older limit).
+  - `annFlight`: at √s above 2m_μ (211 MeV) one of the atom's electrons is set free (the positron pays its cost) and
+    eeEvent decides the channel (μ pairs, τ pairs, hadrons, the Z far above); eeEvent's two γ (new argument `noGG`), and
+    every annihilation below 211 MeV, are two γ back to back in the pair's own frame boosted to the lab
+    (`twoGammaFlight`), the books as annihilateBound's (annBegin/annihEnd). W.count.annFlight counts them.
+  - The impact-ionization log line says "e⁺ + e⁻" for a positron's (it said 2e⁺).
+- **Measured.**
+  - In-flight share (Heitler's σ over ESTAR's stopping power for water, from memory: 1.862 MeV cm²/g at 1 MeV, 2.03 at
+    0.5, 4.12 at 0.1, 22.6 at 10 keV; integrated to 1 keV, computed here): 1 MeV 3.6%, 2 MeV 5.9%, 5 MeV 10%, 10 MeV
+    13%. The game's rate per eV lost (f_fix04 "rate", 3-D water, 1 MeV): 3.21×10⁻⁸ against n_e·σ/S 3.09×10⁻⁸; its
+    integral from 1 MeV 3.5%. The report's 10–20% holds from 5–10 MeV; from 1 MeV it is about 3.5% (worth a check
+    against a measurement).
+  - Range: CSDA 0.44 cm at 1 MeV (ESTAR) is 4.4×10⁷ Å, ten million boxes; in the game a 1 MeV positron crosses any box.
+  - annFlight on a water molecule (200 each, flat and 3-D): 1 MeV, 100 MeV, 1 GeV: two γ (a third or fourth γ in
+    10–15% of events: the ionized water's own light); 1 PeV (√s 32 GeV): flat 177 γγ (with the extra light), 19
+    hadronic, 4 μ⁺μ⁻; 3-D 183, 13, 4 (eeEvent's QED: μμ/γγ ≈ 0.03 at s = 1,000 GeV², hadrons about 4 times μμ). μ pairs
+    need √s > 211 MeV, a positron above 43.6 GeV on an electron at rest: none at 100 MeV. The books to 10⁻¹² of the
+    positron's energy.
+  - 5 keV positron in 3-D water (f_fix04 contact): 33 and 155 ionizations before it annihilates (v145 1 and 0).
+- **Fingerprints** (switches off, seed 7, 300 steps): every setup as v145 except sns (40ff6b8f): its fast positrons.
+  Stored fingerprints updated with a comment (f_ew, f_rp5; f_rp7's part-3-on photonuc and sns). The annihilation, pet
+  and antihydrogen setups are unchanged: their positrons are slow.
+- Cost: one random number and a few logarithms an atom a fast positron passes; nothing measurable.
+- Suites: t_lint, t_energy, t_hep, t_physics, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass.
+- **Left for the owner.** A positron reaching a wall annihilates there into two 511 keV γ at any energy
+  (annihilateAtWall: the wall is matter it does not cross; a 1 PeV one gives 2γ of 511 keV and the rest booked as
+  escaped). Positrons slowing in matter don't form positronium on the way (only slow ones in the Ore gap, the switch).
+  twoGammaFlight's γ in 3-D carry their depth direction; eeEvent's own two-γ path (annihilateInFlight) stays flat.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
