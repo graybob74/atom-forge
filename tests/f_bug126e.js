@@ -127,8 +127,8 @@ PARTS.decay = async (page, check, say) => {
   const au = X.nuclideInfo(79, 119), na = X.nuclideInfo(11, 11);
   const m = (inf) => Object.fromEntries(inf.modes.map(q => [q.mode, +q.br.toFixed(3)]));
   const r = { Au198: { t12d: +(au.t12 / 86400).toFixed(3), modes: m(au), est: au.estimated }, Na22: { t12y: +(na.t12 / X.PHYS.YEAR).toFixed(4), modes: m(na) } };
-  check(!au.estimated && au.modes.length === 1 && au.modes[0].mode === 'b-' && Math.abs(au.modes[0].Q - 1.3724) < 1e-4 && Math.abs(r.Au198.t12d - 2.694) < 0.01
-    && r.Na22.modes['b+'] === 0.903 && r.Na22.modes.ec === 0.097 && Math.abs(r.Na22.t12y - 2.6018) < 1e-4,
+  check(!au.estimated && au.modes.length === 1 && au.modes[0].mode === 'b-' && Math.abs(au.modes[0].Q - 1.3735) < 1e-4 && Math.abs(r.Au198.t12d - 2.694) < 0.01
+    && r.Na22.modes['b+'] === 0.9 && r.Na22.modes.ec === 0.1 /* (1.27 bug 17: ENSDF 89.96/10.04%, rounded) */ && Math.abs(r.Na22.t12y - 2.6018) < 1e-4,
     `1.26 bug fixes: ¹⁹⁸Au decays by β⁻ only (${r.Au198.t12d} d), ²²Na by β⁺ ${r.Na22.modes['b+']} and electron capture ${r.Na22.modes.ec}`, 'bug126e decay: ' + JSON.stringify(r));
 };
 

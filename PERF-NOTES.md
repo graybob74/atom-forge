@@ -3589,6 +3589,83 @@ Branch fix127-16-display-text (from v145). A bug fix (display and text). Check: 
   and no setup makes one in 300 steps).
 - Suites: t_lint, t_hep, t_3d, f_ew, f_sweep3d pass.
 
+### 1.27: bug 17 (data written from memory)
+
+Branch fix127-17-data-check (from v145). The values earlier sessions wrote from memory (no network then), checked
+against their sources from here (PDG 2024 summary tables and AtomicNuclearProperties pages, IAEA LiveChart of Nuclides
+API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; the rest are fine or could not be reached.
+
+| value | where | game had | source | |
+| ¹⁰³Rh magnetic moment | hep.js NUC_SPIN '45_58' | −0.8840 μN | −0.08840 (IAEA) | **fixed** (a ×10 typo) |
+| other 61 NUC_SPIN spins/moments | hep.js NUC_SPIN | — | IAEA LiveChart | fine: 59 equal; ⁵⁵Mn, ⁵⁹Co, ⁶⁵Cu, ⁹⁹Tc, ¹²⁷I, ¹³³Cs, ¹³⁷Cs, ¹⁹⁵Pt, ²⁰⁵Tl, ²⁰⁹Bi within 0.5% (evaluation differences, kept); ¹⁰⁹Ag −0.1307 kept (LiveChart lists +0.1305, the standard tables and NMR give −) |
+| ²²Na β⁺ / EC, Q | data.js '11_11' | 0.903 / 0.097, 2.842 MeV | 0.8996 / 0.1004, 2.8433 | **fixed** |
+| ¹⁹⁸Au Q (β⁻), half-life | data.js '79_119' | 1.3724 MeV, 2.6941 d | 1.3735 MeV, 2.6941 d | Q **fixed**, life fine |
+| ²²Na 1274.537 keV γ, 99.94% | hep.js GL_* | | ENSDF | fine |
+| M_Z, Γ_Z | hep.js EW, XP.Z0 | 91.1876, 2.4952 GeV | 91.1880, 2.4955 (PDG 2024) | **fixed** |
+| M_W, Γ_W, W/Z branchings, R_b, R_c, A_FB⁰ˡ 1.71% | hep.js EW, XP | 80.3692, 2.085, … | PDG 2024 | fine |
+| Λ mean life, mass | hep.js XP.Lam | 2.617×10⁻¹⁰ s, 1115.683 MeV | PDG 2024 | fine |
+| Λ → pπ⁻ / nπ⁰ | hep.js XP.Lam | 0.639 / 0.358 | 0.641 / 0.359 (PDG 2024) | **fixed** |
+| mean excitation energies H, He, C, N, O, Ne, Na, Al, Si, Ca, Fe, Cu, Ag, W, Au, Pb, U | hep.js CPM_I | 19.2 … 890 eV | PDG pages (ICRU 37/49) | fine (all 17 equal) |
+| radiation lengths | hep.js cpmX0 (Tsai's formula) | computed | PDG | fine (formula; e.g. Pb 6.37 g/cm²) |
+| muon lifetimes MU_TAU | hep.js | | | checked in bug 12 (Zinner/Langanke/Vogel 2006), not touched here |
+| p-Ps 125.14 ps, o-Ps 142.05 ns | hep.js | | papers named in the code | agree with the published values as known; the papers themselves not fetched |
+| neutron absorption (capture, (n,p), (n,α), (n,t), fission), 41 nuclides | hep.js NXS | | NIST NCNR table (Sears 1992) | fine: equal or within 5%, except ¹⁶O 0.19 mb (NIST 0.10: Mughabghab 2006's newer value kept), ¹⁷O 0.257 b (0.236), ¹⁴⁹Sm 40,140 b (42,080: the newer evaluation kept) |
+| neutron scattering, free atom | hep.js NXS s | 19 nuclides held the *bound* σ or were >5% off (e.g. ¹⁶O 4.23, ³⁵Cl 21.8, ²³⁸U 9.3, ¹⁰B 2.23, ⁷Li 0.97) | bound × (A/(A+1))²: 3.75, 20.6, 8.80, 2.56, 1.07 … | **fixed** (only with Realistic particles 6 on) |
+| σ(cc̄), σ(bb̄) against √s | hep.js HF_SIG | cc̄ 27.4 GeV 15 µb; bb̄ 41.6 GeV 12 nb, 200 GeV 1.3 µb | NA27 18 µb; HERA-B 15.8 nb; PHENIX 3.75 µb (STAR 4.0) (d'Enterria et al., arXiv:2605.16019, Tables I–II) | **fixed** (only with Realistic particles 5 on); the other 9 points agree (HERA-B 49, E789 5.7 nb, CDF 76 vs 80, LHCb 295/495, ALICE 4,800/8,500) |
+| bottom fragmentation fractions | hep.js HF_FRAG b | 0.407/0.407/0.101/0.085 | PDG 2020 (HFLAV), Z decays: 0.408 ± 0.007, 0.408, 0.100 ± 0.008, 0.084 ± 0.011 | within errors; set to PDG 2020's values (only with Realistic particles 5 on) |
+| antiprotonic X-rays (Bohr levels) | hep.js xaBohr | Al 5→4 91.6, 6→5 49.7, 7→6 30.0 keV; S 139.5/75.8; Si 106.3/57.8 | Aramaki et al., arXiv:1303.3871, Tables 5, 12: 92/50/30, 139/76, 106/58 | fine |
+| muonic Ne 5g→4f | hep.js xaBohr | 6294.0 eV | 6297.27 eV (Okumura et al., PRL 130, 173001, 2023) | fine (0.05%: the Bohr level without fine structure) |
+| muonic 2p→1s lines XA_KA (C … Pb) | hep.js XA_KA | 75.25 … 5901 keV | not in the pages reached | not checked |
+| muon transfer μp → Ar | hep.js xaTrRate (scaled from O) | 1.5×10¹¹ s⁻¹ | 1.46×10¹¹ (Jacot-Guillarmod et al., abstract) | fine |
+| muon transfer μp → C | hep.js XA_TR | 6.4×10¹⁰ s⁻¹ (scaled from O as Z) | 8.9 ± 0.8 ×10¹⁰ at 300 K, CH₄ (FAMU, Phys. Lett. A 557, 130867, 2025, Table 2; 10.7 at 197 K) | **fixed** (only with Exotic atoms on) |
+| muon transfer μp → N, O | hep.js XA_TR | 3.4, 8.5×10¹⁰ | the FAMU paper gives O's only as a figure (rising with temperature) | not checked |
+| XCOM: lead and water at 10 MeV | (checks only) | 0.0497, 0.0222 cm²/g | XCOM 0.04972, 0.02219 | fine |
+| γ pair production in the nuclear field | hep.js cpmPairSig (+ cpmPairScr) | no partial screening: Pb 30/100/1000 MeV 0.0693/0.107/0.120 cm²/g, O 0.0095/0.0147/0.0195 | XCOM: Pb 0.0641/0.0899/0.1127, O 0.00945/0.0138/0.0184 | **fixed** (the owner's OK, 2026-11-07): Bethe–Heitler with Butcher–Messel screening integrated over ε: Pb 0.0650/0.0900/0.1163, O 0.00935/0.0137/0.0185, all within 3% from 5 MeV to 100 GeV; only with Realistic particles 3 on |
+| triplet (electron-field) pairs | hep.js cpmPairSig | O/H at 100 MeV 0.00127/0.00252 cm²/g; Pb 0.00177 at 1 GeV | XCOM 0.00164/0.00334; 0.00162 | 13–25% low at 30–300 MeV, 9% high for Pb above 1 GeV: written down, not changed |
+| ESTAR/ASTAR/PSTAR, liquid water | (checks only) | 1 MeV e⁻ 0.0187, 1 GeV e⁻ 0.024, 5 MeV α 8.9, 100 MeV p 0.073 eV/Å | 0.01849, 0.02400, 8.848, 0.07286 | fine |
+| o-Ps–O₂ spin-conversion σ | hep.js PS_SIGC | 1.5×10⁻¹⁹ cm² | (1.16 ± 0.01)×10⁻¹⁹ (Shinohara et al., PRA 64, 042702, 2001; silica gels 1.2×10⁻¹⁹) | **fixed** (only with Positronium on); f_rp2 "matter" now takes σ from the table |
+| o-Ps life in water | hep.js PS_TAU_W | 1.80 ns | 1.86 ns at melting (Eldrup, Risø-R-254, 1971), ~1.85 ns at room temperature, shorter when warmer | fine (within the spread) |
+| μp → O transfer | hep.js XA_TR | 8.5×10¹⁰ s⁻¹ | 0.85(2)×10¹¹ (Werthmüller et al., Hyperfine Interact. 116, 1, 1998) | fine |
+| μp → N transfer | hep.js XA_TR | 3.4×10¹⁰ s⁻¹ | (3.4 ± 0.7)×10¹⁰ (Jacot-Guillarmod et al., PRA 55, 3447, 1997; Thalmann et al., PRA 57, 1713, 1998; quoted in MuCap, arXiv:1502.00913) | fine |
+| charm fragmentation fractions | hep.js HF_FRAG c | 0.6086/0.2404/0.0802/0.0623 | Lisovyi et al., EPJC 76, 397 (2016), Table 12: identical | fine |
+| muonic 2p→1s lines | hep.js XA_KA | Al 346.8, Si 400.2, Ca 783.9, Fe 1255, Pb 5901 keV | ENSDF muon-capture datasets (Measday et al., PRC 73, 2006; PRC 76, 2007): 346.828, 400.177, 783.659, Fe 1253.06/1257.19 (2:1 mean 1255.8); Pb 5963.8/5778.9 (Engfer 1974 via MuDirac arXiv:2605.00554): mean 5902.2 | Ca, Fe **fixed** (783.66, 1255.8; only with Exotic atoms on); Al, Si, Pb fine; C 75.25, O 133.53 not checked (Dubler et al., Nucl. Phys. A219, 29, 1974 not reachable) |
+| refractive indices | hep.js cpmEnv | water 1.333, fused silica 1.458 (at 589 nm) | water 1.333 at 589.29 nm (Hale & Querry, Appl. Opt. 12, 555, 1973); silica 1.45840 at 589.29 nm (Malitson, JOSA 55, 1205, 1965, Sellmeier) | fine |
+
+- Water's I: PDG 2024 gives 79.7 eV (ICRU 90); the game builds water from H and O (Bragg additivity, ≈ 75 eV, the older
+  ICRU 49 value). Changing that is a model change: written down, not done.
+- Cost: the screened integral is 1.7 µs a γ ray's look at an atom (Realistic particles 3 on only); off, nothing.
+- Fingerprints with Realistic particles 3 on (f_rp7 FP_CPM): photonuc and sns changed (the pair cross section), their
+  stored hashes replaced (bug 6's branch also replaces sns's: take this one, or rerun, when merging).
+- Fingerprints (switches off, 300 steps, seed 7): none changed (no setup uses these values with the switches off; the
+  neutron and heavy-quark tables are read only with Realistic particles 5/6 on).
+- Sources used (all read from here, 2026-11-07):
+  - PDG 2024 summary tables (baryons, gauge and Higgs bosons; pdg.lbl.gov/2024) and AtomicNuclearProperties pages
+    (pdg.lbl.gov/2024/AtomicNuclearProperties/HTML/<material>.html): Λ, W/Z, mean excitation energies, X₀.
+  - IAEA LiveChart of Nuclides API (www-nds.iaea.org/relnsd/v1/data, ground states; ENSDF, NUBASE2020/AME2020):
+    spins and moments, ²²Na and ¹⁹⁸Au decay data, the ²²Na γ line.
+  - NIST XCOM (physics.nist.gov/cgi-bin/Xcom/xcom3_1): Pb, O, H, 1 MeV–100 GeV.
+  - NIST ESTAR/ASTAR/PSTAR (physics.nist.gov/PhysRefData/Star/Text/ESTAR.html, ASTAR.html; liquid water).
+  - NIST NCNR neutron scattering lengths and cross sections (www.ncnr.nist.gov/resources/n-lengths/list.html; Sears,
+    Neutron News 3, 29, 1992).
+  - d'Enterria, Hekhorn, Helenius, Lê, Paukkunen, arXiv:2605.16019 (cc̄, bb̄ cross sections, Tables I–II).
+  - Lisovyi, Verbytskyi, Zenaiev, Eur. Phys. J. C 76, 397 (2016), arXiv:1509.01061 (charm fragmentation, Table 12).
+  - Mocchiutti et al. (FAMU), Phys. Lett. A 557, 130867 (2025), PDF from the owner (μp → C, Table 2).
+  - Werthmüller et al., Hyperfine Interact. 116, 1 (1998), abstract (μp → O); Jacot-Guillarmod et al., abstract (μp → Ar).
+  - Aramaki et al., arXiv:1303.3871 (antiprotonic X-rays, Tables 5, 12); Okumura et al., Phys. Rev. Lett. 130, 173001
+    (2023), NIST abstract (muonic Ne 5g→4f); Engfer et al., At. Data Nucl. Data Tables 14, 509 (1974), as tabulated
+    in MuDirac 1.3.0, arXiv:2605.00554, Table 2 (muonic Pb).
+  - Shinohara et al., Phys. Rev. A 64, 042702 (2001), arXiv:physics/0011054, abstract (o-Ps–O₂); Eldrup, Risø-R-254
+    (1971), abstract (o-Ps in water).
+  - The owner's source sheet (atom-forge-sources-2026-11-07.pdf): μp → N (Jacot-Guillarmod 1997, Thalmann 1998), ENSDF
+    muonic Lyman lines (www.nndc.bnl.gov/ensnds/…/27al_mu-_nu2ng.pdf, 28si_…, 40ca_…, 56fe_…), PDG 2020 b fractions,
+    Hale–Querry water and Malitson silica indices.
+  - Zinner, Langanke, Vogel, Phys. Rev. C 74, 024326 (2006) (muon lifetimes; bug 12's check).
+- Sources the owner sent (2026-11-07): Aramaki et al. (exotic-atom X-rays), Okumura et al. (muonic neon), the FAMU carbon
+  paper (uploaded as a PDF), NIST STAR intro, NIST NCNR neutron table, d'Enterria et al. (charm/bottom σ).
+- Test change: f_bug126e "decay" now expects ²²Na 0.9/0.1 (rounded to 3 places) and ¹⁹⁸Au Q 1.3735, because its data changed.
+- Check: tests/f_fix17.js (fails on v145: −0.884, 0.903, Q 2.842 …; passes now). t_energy, t_lint, f_ew, f_rp5,
+  f_bug126e, t_hep, t_nuclear pass.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly

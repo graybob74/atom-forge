@@ -25,7 +25,7 @@ const XP = {
   K0S: { lab: 'K⁰s', m: 497.611, q: 0, tau: 8.954e-11, col: [232, 222, 150], cc: 'K0S', dec: [[0.692, ['pi+', 'pi-']], [0.307, ['pi0', 'pi0']]] },
   K0L: { lab: 'K⁰ʟ', m: 497.611, q: 0, tau: 5.116e-8, col: [232, 222, 150], cc: 'K0L', dec: [[0.2028, ['pi+', 'e-', 'nub']], [0.2028, ['pi-', 'e+', 'nu']], [0.1352, ['pi+', 'mu-', 'nub']], [0.1352, ['pi-', 'mu+', 'nu']], [0.1952, ['pi0', 'pi0', 'pi0']], [0.1254, ['pi+', 'pi-', 'pi0']]] },
   eta: { lab: 'η', m: 547.862, q: 0, tau: 5.02e-19, col: [255, 185, 225], cc: 'eta', dec: [[0.3936, ['g', 'g']], [0.3257, ['pi0', 'pi0', 'pi0']], [0.2292, ['pi+', 'pi-', 'pi0']], [0.0422, ['pi+', 'pi-', 'g']]] },
-  Lam: { lab: 'Λ', m: 1115.683, q: 0, B: 1, tau: 2.617e-10, col: [195, 160, 255], cc: 'Lamb', dec: [[0.639, ['p', 'pi-']], [0.358, ['n', 'pi0']]] }, // (PDG 2024's mean life; it had the older 2.632×10⁻¹⁰ s, 1.26)
+  Lam: { lab: 'Λ', m: 1115.683, q: 0, B: 1, tau: 2.617e-10, col: [195, 160, 255], cc: 'Lamb', dec: [[0.641, ['p', 'pi-']], [0.359, ['n', 'pi0']]] }, // (PDG 2024's mean life; it had the older 2.632×10⁻¹⁰ s, 1.26; PDG 2024's branchings 64.1/35.9%, it had 63.9/35.8, 1.27 bug 17)
   // the other light baryons with strange quarks (made when a quark is pulled out by hand, in the Inspect tab's quark view)
   'Sig+': { lab: 'Σ⁺', m: 1189.37, q: 1, B: 1, tau: 8.018e-11, col: [215, 150, 255], cc: 'Sigb-', dec: [[0.5157, ['p', 'pi0']], [0.4831, ['n', 'pi+']]] },
   'Sig-': { lab: 'Σ⁻', m: 1197.449, q: -1, B: 1, tau: 1.479e-10, col: [215, 150, 255], cc: 'Sigb+', dec: [[0.99848, ['n', 'pi-']]] },
@@ -65,7 +65,7 @@ const XP = {
   // they decay where they are made, as the resonances do (res); ew: their decays and their making are hep.js's "W and Z
   // bosons" (their hadronic decays, 67–70%, are quark pairs: EW_HAD; dec here: the lepton pairs, measured, PDG 2024)
   'W+': { lab: 'W⁺', m: 80369.2, w: 2085, q: 1, tau: 3.157e-25, col: [255, 125, 215], cc: 'W-', res: true, ew: true, dec: [[0.1071, ['e+', 'nu']], [0.1063, ['mu+', 'numu']], [0.1138, ['tau+', 'nutau']]] },
-  Z0: { lab: 'Z⁰', m: 91187.6, w: 2495.2, q: 0, tau: 2.638e-25, col: [185, 150, 255], cc: 'Z0', res: true, ew: true, dec: [[0.033632, ['e-', 'e+']], [0.033662, ['mu-', 'mu+']], [0.033696, ['tau-', 'tau+']], [0.2 / 3, ['nu', 'nub']], [0.2 / 3, ['numu', 'numub']], [0.2 / 3, ['nutau', 'nutaub']]] },
+  Z0: { lab: 'Z⁰', m: 91188.0, w: 2495.5, q: 0, tau: 2.638e-25, col: [185, 150, 255], cc: 'Z0', res: true, ew: true, dec: [[0.033632, ['e-', 'e+']], [0.033662, ['mu-', 'mu+']], [0.033696, ['tau-', 'tau+']], [0.2 / 3, ['nu', 'nub']], [0.2 / 3, ['numu', 'numub']], [0.2 / 3, ['nutau', 'nutaub']]] }, // (1.27 bug 17: PDG 2024's M_Z and Γ_Z; it had 91187.6, 2495.2)
   H0: { lab: 'H⁰', m: 125200, w: 4.07, q: 0, tau: 1.617e-22, col: [255, 214, 120], cc: 'H0', res: true, ew: true, dec: [[0.063, ['tau-', 'tau+']], [0.00022, ['mu-', 'mu+']], [0.0023, ['g', 'g']]] }, // (the Higgs boson, 1.27 feature 25: hep.js "The Higgs boson"; dec here: its lepton and photon pairs; H_HAD the rest)
   'tau-': { lab: 'τ⁻', m: 1776.86, q: -1, tau: 2.903e-13, col: [255, 115, 150], cc: 'tau+', dec: [[0.1782, ['e-', 'nub', 'nu']], [0.1739, ['mu-', 'nub', 'nu']], [0.1082, ['pi-', 'nu']], [0.2549, ['pi-', 'pi0', 'nu']], [0.0926, ['pi-', 'pi0', 'pi0', 'nu']], [0.0899, ['pi-', 'pi-', 'pi+', 'nu']], [0.0455, ['pi-', 'pi-', 'pi+', 'pi0', 'nu']], [0.0104, ['pi-', 'pi0', 'pi0', 'pi0', 'nu']], [0.0070, ['K-', 'nu']]] },
 };
@@ -1182,7 +1182,7 @@ function xaBohr(sp, Z, N, n) { return PHYS.RY * (xaMred(sp, Z, N) / XA_ME) * Z *
    Si, Ca, Fe, Pb, from the muonic X-ray compilations (Engfer et al., At. Data Nucl. Data Tables 14, 509, 1974; Fricke
    et al., 60, 177, 1995), values as I know them (no network here: worth a check). Between them the ratio to Bohr's value
    is interpolated in Z; hydrogen's line is Bohr's (1.898 keV for μp). */
-const XA_KA = [[6, 12, 75.25], [8, 16, 133.53], [13, 27, 346.8], [14, 28, 400.2], [20, 40, 783.9], [26, 56, 1255], [82, 208, 5901]];
+const XA_KA = [[6, 12, 75.25], [8, 16, 133.53], [13, 27, 346.8], [14, 28, 400.2], [20, 40, 783.66], [26, 56, 1255.8], [82, 208, 5901]]; // (1.27 bug 17: Al, Si, Ca, Fe from ENSDF's muon-capture datasets (Measday et al., Phys. Rev. C 73, 2006; 76, 2007): 346.828, 400.177, 783.659, Fe 2p½ 1253.06 / 2p3/2 1257.19 → 1255.8; Ca and Fe were 783.9 and 1255; ²⁰⁸Pb 5963.8 / 5778.9 (Engfer 1974) → 5902.2; C and O not checked)
 const _xaKr = [[1, 1]].concat(XA_KA.map(([Z, A, k]) => [Z, k * 1e3 / (0.75 * xaBohr('mu-', Z, A - Z, 1))]));
 function xaKaRatio(Z) {
   const R = _xaKr; if (Z <= 1) return 1;
@@ -1321,7 +1321,7 @@ function xaCatchH(o, tg) {
    and the atom fly apart with the difference. Rates at liquid hydrogen's density (s⁻¹): nitrogen 3.4×10¹⁰ and oxygen
    8.5×10¹⁰, measured with thermal μp in hydrogen gas mixtures at PSI (late 1990s; values as I know them); other elements
    scaled from oxygen's as Z (Gershtein's estimate, up to 1.5×10¹¹), helium's very slow (about 10⁸). */
-const XA_TR = { 2: 1e8, 7: 3.4e10, 8: 8.5e10 };
+const XA_TR = { 2: 1e8, 6: 8.9e10, 7: 3.4e10, 8: 8.5e10 }; // (1.27 bug 17: carbon measured, 8.9 ± 0.5 ± 0.6 ×10¹⁰ s⁻¹ at 300 K in H₂/CH₄, liquid-hydrogen density (FAMU, Mocchiutti et al., Phys. Lett. A 557, 130867, 2025, Table 2); it was scaled from oxygen's, 6.4×10¹⁰)
 const xaTrRate = (Z) => XA_TR[Z] || Math.min(1.5e11, 8.5e10 * Z / 8);
 function xaTransfer(o, clock) {
   const tg = stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 2 || p.anti || p.muB || p.mu, 2.5);
@@ -1396,7 +1396,7 @@ function xaInfo(p) {
      run unless decay is sped up (Lab → Decay speed); 125 ps is about 12,300 tu.
    Ps is an unstable particle in W.exo (pPs, oPs), so Select, Erase, Inspect, saves and undo take it as they take a muon. */
 const PS_B = PHYS.RY / 2, PS_M = 2 * PHYS.ME * PHYS.AMU_MEV - PS_B / MEV; // (binding eV: μ = mₑ/2; mass MeV)
-const PS_TAU_W = 1.80e-9, PS_R = 5, PS_RHO = { 2: 0.85, 3: 0.334 }, PS_SIGC = 1.5e-19, PS_NW = 3.34e22; // (o-Ps in water s; sampling radius Å; water's electron density; σ cm²; water molecules cm⁻³)
+const PS_TAU_W = 1.80e-9, PS_R = 5, PS_RHO = { 2: 0.85, 3: 0.334 }, PS_SIGC = 1.16e-19, PS_NW = 3.34e22; // (1.27 bug 17: σ from Shinohara et al., Phys. Rev. A 64, 042702, 2001 (arXiv:physics/0011054), elastic spin conversion (1.16 ± 0.01)×10⁻¹⁹ cm²; it had 1.5×10⁻¹⁹; water's 1.80 ns agrees with Eldrup's 1.86 ns (Risø-R-254, 1971) and ~1.85 ns since) (o-Ps in water s; sampling radius Å; water's electron density; σ cm²; water molecules cm⁻³)
 const PS_LPO = 1 / PS_TAU_W - 1 / 1.4205e-7; // (the pick-off rate in water, s⁻¹)
 RP.ps = false; RP.mu = false; // (Experimental → Realistic particles: positronium, muonium as hydrogen; ui.js applySettings)
 XP.pPs = { lab: 'p-Ps', m: PS_M, q: 0, tau: 1.2514e-10, col: [255, 170, 235], cc: 'pPs', ps: true, dec: [[1, ['g', 'g']]] };
@@ -1701,9 +1701,24 @@ function cpmPairBorn(k) {
 function cpmPairSig(Z, ne, E) {
   const k = E / ME_C2; if (k <= 2) return [0, 0];
   const c = cpmZ(Z), b = cpmPairBorn(k), ramp = clamp(Math.log(k / 4) / Math.log(50), 0, 1);
-  const nuc = Math.max(0, Math.min(b - 28 / 9 * c[2] * ramp, 28 / 9 * (c[0] - c[2]) - 2 / 27)) * Z * Z * CPM_AR2;
+  const nuc = Math.max(0, Math.min(b - 28 / 9 * c[2] * ramp, 28 / 9 * (c[0] - c[2]) - 2 / 27, cpmPairScr(Z, k, c[2] * ramp))) * Z * Z * CPM_AR2;
   const tri = k > 4 ? Math.max(0, Math.min(b - 3.23, 28 / 9 * c[1] - 2 / 27)) * ne * CPM_AR2 : 0;
   return [nuc, tri];
+}
+/* (1.27 bug 17, the owner's OK 2026-11-07) Bethe–Heitler with partial screening, integrated over the electron's share ε
+   (Tsai's dσ/dε with Butcher and Messel's screening functions, as cpmShare samples it), in units of α r_e² Z²; f the
+   Coulomb correction as brought in above. It was missing: between the unscreened and the completely screened values
+   the game took the smaller, so from ~20 MeV to ~1 GeV the pair cross section ran high (lead at 100 MeV 0.107 cm²/g
+   against XCOM's 0.0899; now 0.0900). */
+function cpmPairScr(Z, k, f) {
+  const e0 = 1 / k, FZ = 8 * (Math.log(Z) / 3 + f), sf = 136 * e0 / Math.cbrt(Z), n = 64, h = (0.5 - e0) / n;
+  let s = 0;
+  for (let i = 0; i < n; i++) {
+    const e = e0 + h * (i + 0.5), d = sf / (e * (1 - e)), lg = d > 1 ? 42.24 - 8.368 * Math.log(d + 0.952) : 0;
+    const S1 = d > 1 ? lg : 42.392 - d * (7.796 - 1.961 * d), S2 = d > 1 ? lg : 41.405 - d * (5.828 - 0.8945 * d);
+    s += (e * e + (1 - e) * (1 - e)) * Math.max(0, S1 - FZ) + 2 / 3 * e * (1 - e) * Math.max(0, S2 - FZ);
+  }
+  return s * h; // (8 ∫₀^½ … dε /8: both halves of ε, the screening functions' 8 taken out)
 }
 /* The projectile of the path being worked (set by cpmSeg, read by cpmAtom). */
 const CPM = { K: 0, mc2: 0, z: 1, e: 0, b2: 0, bg: 0, g: 1, Tmax: 0, Lg: 1, A: 1, rho: 0, ux: 1, uy: 0, uz: 0, d3: false, n: 0 };
@@ -3475,11 +3490,11 @@ function resItems(items, M) {
    TOTEM). The share of the pairs that are a J/ψ (about 0.5%: σ(J/ψ) ≈ 3 µb at 200 GeV, about 45 µb at 7 TeV) or an Υ(1S)
    (about 0.2%) from the same experiments. Fragmentation fractions (e⁺e⁻ and ep, Lisovyi et al. 2016; PDG's LEP b
    fractions): c → D⁰ 0.609, D⁺ 0.240, D⁺s 0.080, Λc⁺ 0.062; b → B⁻ 0.407, B̄⁰ 0.407, B̄⁰s 0.101, Λb⁰ 0.085. */
-const HF_SIG = { cc: [[17.3, 3.6], [27.4, 15], [41.6, 49], [200, 600], [2760, 4800], [7000, 8500]], bb: [[38.8, 0.0057], [41.6, 0.012], [200, 1.3], [1960, 80], [7000, 280], [13000, 495]] };
+const HF_SIG = { cc: [[17.3, 3.6], [27.4, 18], [41.6, 49], [200, 600], [2760, 4800], [7000, 8500]], bb: [[38.8, 0.0057], [41.6, 0.0158], [200, 3.75], [1960, 80], [7000, 280], [13000, 495]] }; // (1.27 bug 17: checked against d'Enterria et al.'s compilation, arXiv:2605.16019, Tables I–II: NA27 cc̄ 18 µb (it had 15), HERA-B bb̄ 15.8 nb (it had 12), PHENIX bb̄ 3.75 µb at 200 GeV, STAR 4.0 (it had 1.3); the others agree)
 const HF_THR = { cc: 5.09, bb: 11.84 }; // (GeV: N + Λc + D̄, N + Λb + B, the lowest ways a nucleon pair can make the pair)
 const HF_INEL = [[5, 30], [10, 31], [20, 32.5], [41.6, 34], [200, 42], [546, 48], [1800, 60], [7000, 73.1], [13000, 78.1]];
 const HF_ONIA = { cc: 0.005, bb: 0.002 };
-const HF_FRAG = { c: [[0.6086, 'Dc0'], [0.2404, 'Dc+'], [0.0802, 'Ds+'], [0.0623, 'Lc+']], b: [[0.407, 'B-'], [0.407, 'Bb0'], [0.101, 'Bsb0'], [0.085, 'Lb0']] };
+const HF_FRAG = { c: [[0.6086, 'Dc0'], [0.2404, 'Dc+'], [0.0802, 'Ds+'], [0.0623, 'Lc+']], b: [[0.408, 'B-'], [0.408, 'Bb0'], [0.100, 'Bsb0'], [0.084, 'Lb0']] }; // (1.27 bug 17: b fractions in Z decays, PDG 2020 (HFLAV): 40.8, 40.8, 10.0, 8.4%; it had 40.7, 40.7, 10.1, 8.5)
 const HF_MIN = { cc: 2 * 1864.84, bb: 2 * 5279.3, jpsi: 3096.9, ups: 9460.4 };
 function hfLog(tab, x) {
   let i = 1; while (i < tab.length - 1 && x > tab[i][0]) i++;
@@ -3560,7 +3575,7 @@ function hfInto(hq, fx, fixed, mN) { // the heavy hadrons into hadronize's fixed
    boson (125 GeV; at the LHC mostly by gluon fusion, about 50 pb at 13 TeV, one collision in 10⁹); e⁺e⁻ → Zγ (radiative
    return) and the beams' radiation. Values from memory (no network here): see PERF-NOTES. */
 RP.ewX = 1;
-const EW = { MZ: 91.1876, GZ: 2.4952, MW: 80.3692, SW2: 0.23153, BEE: 0.033632, BLNU: 0.1086, BLL: 0.033658, EEMIN: 10000, HMIN: 82300 }; // (GeV; sin²θ_W effective; B(W → ℓν) and B(Z → ℓℓ) for one lepton kind; the gates in MeV)
+const EW = { MZ: 91.1880, GZ: 2.4955, MW: 80.3692, SW2: 0.23153, BEE: 0.033632, BLNU: 0.1086, BLL: 0.033658, EEMIN: 10000, HMIN: 82300 }; // (1.27 bug 17: M_Z, Γ_Z from PDG 2024, it had 91.1876, 2.4952) (GeV; sin²θ_W effective; B(W → ℓν) and B(Z → ℓℓ) for one lepton kind; the gates in MeV)
 const EW_HAD = { 'W+': [[0.3407, 'ud'], [0.3334, 'cs']], Z0: [[0.15121, 'bb'], [0.12032, 'cc'], [0.42758, 'uds']] };
 const EW_QQ = { ud: 'u d̄', cs: 'c s̄', bb: 'b b̄', cc: 'c c̄', uds: 'u ū, d d̄ or s s̄' }, EW_QQB = { ud: 'd ū', cs: 's c̄' };
 const EW_WW = [[161.3, 3.7], [172.1, 12.0], [182.7, 15.9], [188.6, 16.3], [195.5, 16.9], [206.6, 17.1], [250, 15.4], [350, 11.3], [500, 7.6], [1000, 2.9]]; // pb against √s (GeV)
@@ -3809,7 +3824,7 @@ const NUC_SPIN = { // 'Z_N': [2I, μ (μN)]
   '24_29': [3, -0.47454], '25_30': [5, 3.4532], '26_31': [1, 0.09062], '27_32': [7, 4.627], '27_33': [10, 3.799], '28_33': [3, -0.75002],
   '29_34': [3, 2.2273], '29_36': [3, 2.3817], '30_37': [5, 0.875479], '34_43': [1, 0.53506], '35_44': [3, 2.106400], '35_46': [3, 2.270562],
   '37_48': [5, 1.35302], '37_50': [3, 2.75131], '38_49': [9, -1.0936], '39_50': [1, -0.1374154], '42_53': [5, -0.9142], '43_56': [9, 5.6847],
-  '45_58': [1, -0.8840], '47_60': [1, -0.11368], '47_62': [1, -0.130691], '48_63': [1, -0.594886], '48_65': [1, -0.622301], '50_69': [1, -1.04728],
+  '45_58': [1, -0.08840], '47_60': [1, -0.11368], '47_62': [1, -0.130691], '48_63': [1, -0.594886], '48_65': [1, -0.622301], '50_69': [1, -1.04728],
   '53_74': [5, 2.813273], '54_75': [1, -0.7779763], '54_77': [3, 0.6918619], '55_78': [7, 2.582025], '55_82': [7, 2.8413], '64_91': [3, -0.2591],
   '64_93': [3, -0.3399], '78_117': [1, 0.60952], '79_118': [3, 0.145746], '80_119': [1, 0.5058855], '81_124': [1, 1.6382134], '82_125': [1, 0.592583],
   '83_126': [9, 4.1103], '92_143': [7, -0.38], '94_145': [1, 0.203],
@@ -3982,20 +3997,22 @@ function glKeep(p, gl) { // a decay's fed level: its isomer keeps the energy, or
   return { rays, sum: glSum(rays), iso: 0, txt: gl.lines.map(l => ` + γ ${fmtE(l * 1e3)}`).join('') };
 }
 
-/* Neutron cross sections (barns at 0.0253 eV, Mughabghab's Atlas / ENDF as I know them): s scattering (free atom), c
-   (n,γ), f fission, p (n,p), a (n,α), t (n,t); r: a resonance [E₀ (eV), Γ (eV), share of the thermal capture it
+/* Neutron cross sections (barns at 0.0253 eV, Mughabghab's Atlas / ENDF as I know them): s scattering (free atom; 1.27
+   bug 17: checked against NIST's table (Sears, Neutron News 3, 29, 1992; ncnr.nist.gov/resources/n-lengths), the bound
+   σ times (A/(A+1))²: 19 of them had the bound value or were off by more than 5%, now the free one; the absorption
+   values agree), c (n,γ), f fission, p (n,p), a (n,α), t (n,t); r: a resonance [E₀ (eV), Γ (eV), share of the thermal capture it
    carries (1: all of it, the rest 1/v), its peak (n,γ) σ (b) when the thermal value is mostly 1/v]. */
 const NXS = {
-  '1_0': { s: 20.49, c: 0.3326 }, '1_1': { s: 3.39, c: 0.000519 }, '2_1': { s: 3.1, p: 5333 }, '3_3': { s: 0.75, t: 940, c: 0.039 }, '3_4': { s: 0.97, c: 0.0454 },
-  '4_5': { s: 6.15, c: 0.0076 }, '5_5': { s: 2.23, a: 3837, c: 0.5 }, '5_6': { s: 5.0, c: 0.0055 }, '6_6': { s: 4.75, c: 0.00353 }, '6_7': { s: 4.84, c: 0.00137 },
-  '7_7': { s: 10.05, c: 0.075, p: 1.83 }, '7_8': { s: 5.2, c: 0.000024 }, '8_8': { s: 4.23, c: 0.00019 }, '8_9': { s: 3.6, a: 0.257, c: 0.00054 },
-  '9_10': { s: 4.02, c: 0.0096 }, '11_12': { s: 3.28, c: 0.53 }, '12_12': { s: 3.9, c: 0.053 }, '13_14': { s: 1.50, c: 0.231 }, '14_14': { s: 2.12, c: 0.177 },
-  '15_16': { s: 3.31, c: 0.172 }, '16_16': { s: 1.0, c: 0.53 }, '17_18': { s: 21.8, c: 43.6, p: 0.44 }, '20_20': { s: 3.0, c: 0.41 }, '26_30': { s: 12.4, c: 2.59 },
+  '1_0': { s: 20.49, c: 0.3326 }, '1_1': { s: 3.39, c: 0.000519 }, '2_1': { s: 3.36, p: 5333 }, '3_3': { s: 0.71, t: 940, c: 0.039 }, '3_4': { s: 1.07, c: 0.0454 },
+  '4_5': { s: 6.15, c: 0.0076 }, '5_5': { s: 2.56, a: 3837, c: 0.5 }, '5_6': { s: 5.0, c: 0.0055 }, '6_6': { s: 4.75, c: 0.00353 }, '6_7': { s: 4.17, c: 0.00137 },
+  '7_7': { s: 10.05, c: 0.075, p: 1.83 }, '7_8': { s: 4.57, c: 0.000024 }, '8_8': { s: 3.75, c: 0.00019 }, '8_9': { s: 3.6, a: 0.257, c: 0.00054 },
+  '9_10': { s: 3.62, c: 0.0096 }, '11_12': { s: 3.01, c: 0.53 }, '12_12': { s: 3.71, c: 0.053 }, '13_14': { s: 1.4, c: 0.231 }, '14_14': { s: 1.98, c: 0.177 },
+  '15_16': { s: 3.11, c: 0.172 }, '16_16': { s: 0.93, c: 0.53 }, '17_18': { s: 20.6, c: 43.6, p: 0.44 }, '20_20': { s: 2.76, c: 0.41 }, '26_30': { s: 12.4, c: 2.59 },
   '27_32': { s: 5.6, c: 37.18 }, '28_30': { s: 26.1, c: 4.6 }, '29_34': { s: 5.2, c: 4.5 }, '48_65': { s: 12.4, c: 20600, r: [0.178, 0.113, 1] },
   '49_66': { s: 2.6, c: 202, r: [1.457, 0.075, 0, 28000] }, '54_81': { s: 4, c: 2.65e6, r: [0.084, 0.112, 1] }, '62_87': { s: 200, c: 40140, r: [0.0973, 0.0637, 1] },
-  '64_91': { s: 60, c: 60900, r: [0.0268, 0.108, 1] }, '64_93': { s: 1044, c: 254000, r: [0.0314, 0.107, 1] }, '79_118': { s: 7.9, c: 98.65, r: [4.906, 0.1524, 0, 27200] },
-  '82_126': { s: 11.5, c: 0.00049 }, '90_142': { s: 13.0, c: 7.35 }, '92_141': { s: 12.7, f: 531, c: 45.5 }, '92_143': { s: 15.0, f: 585.1, c: 98.7 },
-  '92_146': { s: 9.3, c: 2.68, r: [6.674, 0.0245, 0, 22500] }, '94_145': { s: 7.9, f: 747.4, c: 270.7 }, '94_147': { s: 11, f: 1012, c: 361 },
+  '64_91': { s: 65.1, c: 60900, r: [0.0268, 0.108, 1] }, '64_93': { s: 1044, c: 254000, r: [0.0314, 0.107, 1] }, '79_118': { s: 7.9, c: 98.65, r: [4.906, 0.1524, 0, 27200] },
+  '82_126': { s: 11.5, c: 0.00049 }, '90_142': { s: 13.0, c: 7.35 }, '92_141': { s: 12.7, f: 531, c: 45.5 }, '92_143': { s: 13.9, f: 585.1, c: 98.7 },
+  '92_146': { s: 8.8, c: 2.68, r: [6.674, 0.0245, 0, 22500] }, '94_145': { s: 7.9, f: 747.4, c: 270.7 }, '94_147': { s: 11, f: 1012, c: 361 },
 };
 const NXS_T = 0.0253, NXS_LO = 1e3, NXS_HI = 1e5; // (eV: thermal; the measured shares up to 1 keV, the fast table's from 100 keV)
 function nxsBW(r, E) { return Math.sqrt(r[0] / E) * (r[1] * r[1] / 4) / ((E - r[0]) ** 2 + r[1] * r[1] / 4); } // (single-level shape, 1 at its peak)
