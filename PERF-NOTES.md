@@ -2729,6 +2729,48 @@ tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core
 checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
 f_bug126e pass alone.
 
+### 1.27: bug 7 (X-ray Compton)
+
+Branch fix127-07-xray-compton (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix07.js
+(t_features, one line; `node tests/f_fix07.js [--node] [part …]`): water, lead; both fail on v145 (no interaction at all
+at 20–60 keV in 300 tries), confirmed by running the file on a v145 tree.
+
+- **What was wrong, measured.** rayInteract (flat: 3-D light is not absorbed at all, as before) handled photons of
+  100 keV and more as γ rays (Compton at 0.012 an electron a pass, pairs, the nucleus) and everything below by the outer
+  electrons' photoelectric rule of thumb, 0.6·min(1, 2(I/E)^1.5) an atom a pass: 6×10⁻⁵ for an oxygen at 10 keV, 2×10⁻⁶
+  at 100 keV, against 0.1 just above 100 keV, and never Compton. X-rays fired across the flat water box (300 each, v145):
+  20, 30 and 60 keV none met anything; 100 keV 86 Compton, 0 photoelectric.
+- **What changed** (engine.js). From 10 keV to 100 keV an atom is met by its incoherent and photoelectric cross sections
+  (`xraySig`, barns: σ_inc = n_e·σ_KN(E)·S, S = 1 − exp(−E/(2.17 keV·Z^0.72)) for the binding; σ_pe = 1.59×10⁻⁵ b·Z^4.2·
+  (E/100 keV)^−3.2, a fifth below the K edge 13.6 eV·(Z − 1)²; `klein`, Klein–Nishina's total) on the game's γ-ray
+  scale (0.012 a pass for each 0.2112 b, part 3's cpmGamma), and the interaction is Compton or photoelectric by their
+  ratio. Compton is the existing code (compton; with Photon polarization rpCompton, Klein–Nishina's polarized angles,
+  and its in-plane rate weight knPlaneW on σ_inc); the Compton electron is freed only if it gets more than the atom's
+  ionization cost (the binding cut: otherwise its energy is heat, as before). With Charged particles in matter on the
+  same (part 3's rates start at 100 keV and are unchanged). Below 10 keV the old rule stays. compton and compton3 use
+  mₑc² itself (511e3 put the scattered photon 3×10⁻⁷ off the formula).
+  - **The fit is mine, from XCOM values as remembered** (water: photoelectric 0.551, 0.155, 0.017, 0.0033 cm²/g and
+    incoherent 0.177, 0.181, 0.178, 0.165 at 20, 30, 60, 100 keV; lead at 100 keV 5.2 and 0.1): XCOM itself could not
+    be read in this session (a form). Its water: ratio incoherent/photoelectric 0.33 at 20 keV (XCOM 0.32), 1.24 at 30
+    (1.17), 10.8 at 60 (10.5), 49.9 at 100 (50.0); crossing at 27 keV (XCOM about 26). Lead 100 keV σ_pe 1,735 b
+    (XCOM 1,790), σ_inc 34.5 b (34.6).
+- **Measured** (X-rays fired across flat water, 300 each, every interaction counted, the scattered photons' too): Compton
+  share 0.265 at 20 keV (XCOM's incoherent/(incoherent + photoelectric) 0.24), 0.576 at 30 (0.54), 0.922 at 60 (0.91),
+  0.992 at 100 (0.98). Lead lattice (200 each): 20 and 30 keV all photoelectric (75 of 75), 60 keV 71 photoelectric to 1
+  Compton; at 100 keV and above lead is treated as before (Compton only: no photoelectric absorption above 100 keV, the
+  "not built" of part 3), so lead's photoelectric dominance to ~500 keV is not there. Scattered energy exact to 2×10⁻¹¹.
+- **The rate.** 10–100 keV X-rays now meet atoms on the same scale as the γ rays above (oxygen at 20 keV about 1 a pass:
+  absorbed at the first oxygen), where they were nearly transparent; below 10 keV the old rule still applies, so the
+  step in the rate moved from 100 keV to 10 keV (9.9 keV passes, 10 keV is absorbed). For the owner: extend the cross
+  sections below 10 keV (edges L, M) or keep.
+- **Fingerprints** (switches off, seed 7, 300 steps): every setup as v145 except photonuc (ae5e7827), sns (1ca63a0f) and
+  hyperfactory (36eb3ee9, books unchanged: Compton's exact mₑc²). Stored fingerprints updated with a comment (f_rp1,
+  f_rp3, f_rp5, f_rp7 and its part-3-on photonuc and sns, f_ew).
+- Cost: none measurable.
+- Suites: t_lint, t_physics, t_hep, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass.
+- **Left for the owner.** 3-D light meets no atoms (rayInteract returns at once in 3-D, as before). Photoelectric
+  absorption above 100 keV (lead to ~500 keV) not built. Coherent (Rayleigh) scattering not built. The step at 10 keV.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly

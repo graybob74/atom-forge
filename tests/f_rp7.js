@@ -16,7 +16,8 @@ const chi2 = (H, ex) => { const N = H.reduce((a, b) => a + b, 0), T = ex.reduce(
 /* Switch off, every setup as before, bit for bit: the fingerprints (tools/fingerprint.js: seed 7, 300 steps) of the
    setups with γ rays, annihilation, light and optics, and of water flat and in 3-D, equal v145's; with it off a γ ray's
    Compton angles are as before (cos θ even: as many back as forward at 5 MeV) and its photons carry no polarization. */
-const FP_V145 = { annihilation: '63bcd7e3 80f2a127', pet: 'a5248bff a9f2ee3a', prism: '4ffe98af a9f2ee3a', photonuc: '9bdf9dd1 49d4aec0', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
+// (1.27 bug 7: photonuc, sns and hyperfactory re-fingerprinted, switches off: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
+const FP_V145 = { annihilation: '63bcd7e3 80f2a127', pet: 'a5248bff a9f2ee3a', prism: '4ffe98af a9f2ee3a', photonuc: 'ae5e7827 0fe96548', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const bad = [], keys = Object.keys(FP_V145).filter(k => FP_V145[k]);
   for (const k of keys) {
@@ -250,7 +251,8 @@ PARTS.books = async (page, check) => {
    polarized weight (knPlaneW): of 40,000 photons of 511 keV meeting a carbon atom, polarized across the plane, in it, and
    unpolarized, against those odds; the scattered photon carries its new polarization; Cherenkov photons are polarized
    in the plane of the track and the photon, across the photon (flat and 3-D); a Compton event's books exact. */
-const FP_CPM = { annihilation: '800e1dd4 6dfb74f0', photonuc: '0633606a eea3fc4e', sns: '400d8bc3 476e17ed', linac: '7c6eb010 2b70ae2c' };
+// (1.27 bug 7: photonuc and sns with part 3 on re-fingerprinted: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
+const FP_CPM = { annihilation: '800e1dd4 6dfb74f0', photonuc: 'bfb69e60 c73d5c32', sns: '3e619a97 e0eec365', linac: '7c6eb010 2b70ae2c' };
 PARTS.both = async (page, check) => {
   const bad = [], r = {};
   for (const k of Object.keys(FP_CPM)) {

@@ -14,7 +14,8 @@ const clear = (X) => { const W = X.W; for (const p of W.parts) X.kill(p); W.part
    every particle's state and the books) of the setups with muons, pions, kaons and antiprotons, and of water flat and
    in 3-D, equal v136's; and a slow muon is still caught at 2 keV as 0.51 has it (no orbit, no Michel, electrons
    seeing the whole nucleus). */
-const FP_V136 = { mucf: '26a0e3c4 f1b8b3c8', pionbeam: 'f6ef9b3d 8c3545fe', muonium: '3492138b 4aad8d19', hyperfactory: '5696d14c aab7307e', annihilation: '63bcd7e3 80f2a127', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
+// (1.27 bug 7: photonuc, sns and hyperfactory re-fingerprinted, switches off: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
+const FP_V136 = { mucf: '26a0e3c4 f1b8b3c8', pionbeam: 'f6ef9b3d 8c3545fe', muonium: '3492138b 4aad8d19', hyperfactory: '36eb3ee9 aab7307e', annihilation: '63bcd7e3 80f2a127', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check, say) => {
   const h = (s) => { let a = 0x811c9dc5; for (let i = 0; i < s.length; i++) { a ^= s.charCodeAt(i); a = Math.imul(a, 0x01000193); } return (a >>> 0).toString(16).padStart(8, '0'); };
   const bad = [];
