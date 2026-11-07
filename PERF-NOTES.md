@@ -2736,7 +2736,7 @@ metals; small–medium). Not worth it: events, reactions, nuclear and particle p
 Order, to spend the owner's limited usage well: the small ones first in one session (23, 26–32), then the medium ones
 (21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
 Done since: 21 (branch v150 from v145, 2026-11-06: "1.27: feature 21 (polarizability by direction)"); 22 (branch v151
-from v150: "1.27: feature 22 (Rayleigh scattering)").
+from v150: "1.27: feature 22 (Rayleigh scattering)"); 25 (branch v152 from v151: "1.27: feature 25 (the Higgs boson)").
 The owner (2026-11-06): the WebAssembly speed-ups go to the next version (1.28), as one pass over everything that could use
 one: 33–38 above, and polarizability by direction's update and force pass (pold.js pdUpdate, pdForces: ×1.2–4.2 on top
 of the induced charges, the most in 3-D at every step). Time each first (a profile with its setting on), port where the
@@ -3009,6 +3009,48 @@ ew/lep1.png, lep-data.png, ins-w.png.
   collider steps through 88–94 GeV); the beams' own radiation (radiative return, which takes the Z peak from 41.5 to 30.5
   nb and makes most of LEP2's qq̄ events); the W pair's forward peak; a fast positron on matter by eeEvent (μ pairs,
   hadrons) rather than always 2γ; the Higgs boson (planned list).
+
+### 1.27: feature 25 (the Higgs boson)
+
+Branch v152 from v151 (2026-11-06; approved with the list). Always on, no switch, as the W and Z: it is made only above
+√s ≈ 125 GeV in hadron collisions and above 216.4 GeV in e⁺e⁻, so below them nothing new runs or draws a random number.
+Code: hep.js "The Higgs boson" (after the W and Z: HG, H_HAD, H_LAB, H_PP, sigZH, zhAng, hVirt, hFinal, hDecList), XP.H0,
+hooks in ewDecay (its own decays), ewDraw (beside the W and Z in hadron collisions), ewEE and eeEvent (the ZH channel),
+ewDecList; ui.js (the palette's "W, Z and Higgs bosons", XP_NAME, PART_NAMES, EXO_FOUND, XP_ABOUT.H, Inspect's "Inside",
+the collider's next threshold); body.html (Physics: Forces → Electroweak, Accelerators → New particles).
+- **The owner's question (2026-11-06): how is the Higgs field simulated?** It is not: the game takes every mass as a
+  measured number. The field has the same value everywhere and in every collision, so a box has nothing of it to follow
+  (a lattice field theory would only give back those masses). The boson, the field's particle, is what is built here,
+  and the text (Physics tab, Inspect) explains the field.
+- **The particle:** 125.2 GeV, Γ 4.07 MeV (the Standard Model's), mean life 1.6×10⁻²² s; `res` and `ew` (decays where it
+  is made; its mass from its width within ±10Γ, as a W's or Z's); spin 0, so its decays go every way alike.
+- **Decays** (LHC Higgs Cross Section Working Group, 125 GeV; CMS HIG-15-002's table and the working group's numbers in
+  talks agree to their errors): b b̄ 58.2%, W W* 21.4%, gluons 8.2%, τ τ 6.3%, c c̄ 2.9%, Z Z* 2.6%, γ γ 0.23%,
+  Z γ 0.15%, μ μ 0.022%. Quark and gluon pairs: two jets by the game's string (hadronize, b and c by hfInto), as a Z's.
+  W W* and Z Z*: one real (its mass from its width), the other virtual with m drawn from dΓ/dm² ∝ √λ(λ + 12x₁x₂)/((m² −
+  M_V²)² + M_V²Γ_V²) (hVirt, rejection on a 200-point maximum ×1.2), then each decays as a W or Z of its mass (ewDecay):
+  H → Z Z* → four leptons, H → W W* → ℓνℓν. Measured: decays to jets 69.0% (69.3), W W* 21.7%, τ τ 6.33%, Z Z* 2.62%,
+  γ γ 0.221%, Z γ 0.143%, μ μ 0.017% (100,000 draws); b hadrons in 98 of 120 jet pairs; the virtual W 31.4 GeV, the
+  virtual Z 22.9 GeV (medians; the real W 80.38).
+- **Made in hadron collisions** (ewDraw: the same draw as the W and Z, so below 82.3 GeV nothing changes, and above it
+  the one random number decides among W, Z, Higgs or none) at σ(pp → H)/σ_inel. H_PP, all modes together (nb): 1.96 TeV
+  0.0012 (the Tevatron, from memory), 7 TeV 0.0175, 8 TeV 0.0223 (17 and 21 pb in a lecture's table), 13 TeV 0.0556
+  (gluon fusion 48.6–49 pb, WH 1.4, ZH 0.9, tt̄H 0.5), 14 TeV 0.0616 (from memory); below 1.96 TeV brought to zero at
+  125.2 GeV as (1 − M_H/√s)¹⁶ (a shape). Real rate at 13 TeV: one pp collision in 1.4 billion, so never seen in a run.
+  The modes other than gluon fusion are counted in the rate but made as a lone Higgs (no W, Z or tt̄ beside it).
+  Checked with RP.ewX ×10⁸ and the W and Z taken out: 20 Higgs in 300 collisions at 13 TeV (21.4 expected), 3-D 12 of
+  200 (14.2), none at 100 GeV; books within 3×10⁻¹⁵ of √s, charge kept.
+- **e⁺e⁻ → Z H** (Higgs-strahlung; eeEvent's channel 'ZH' above M_Z + M_H = 216.4 GeV): Born σ = G_F²M_Z⁴/(96πs)·(v_e² +
+  a_e²)·√λ(λ + 12M_Z²/s)/(1 − M_Z²/s)², v_e = −1 + 4 sin²θ_W, a_e = −1 (sigZH): 0.2375 pb at 240 GeV, 0.2377 at 250
+  (about 0.20 measured-like with the beams' radiation, not applied here), 0.18 at 300, 0.057 at 500; 1.4% of the W, Z
+  and Higgs pairs at 250 GeV. The Z leaves at λ sin²θ + 8M_Z²/s to the beams (zhAng; ⟨cos²θ⟩ 0.315 drawn, 0.316 the law).
+  LEP's 209 GeV was short of it; the collider's text names the next threshold.
+- **Checks** (tests/f_127h.js: branch, virt, zh, hadron, books, fp, page): placed Higgs bosons decay at once, books
+  within 2×10⁻¹⁴ of their energy, charge kept; switch-free, so the fingerprints: all 60 setups bit for bit v151's;
+  f_ew's palette check now takes the renamed group "W, Z and Higgs bosons".
+- **Not built:** the Higgs's production modes as such (vector-boson fusion's two forward jets, a W, Z or tt̄ beside it);
+  H → μμ's and Zγ's angles beyond isotropy (spin 0 makes them isotropic anyway); the beams' radiation on ZH; a Higgs
+  factory setup (the collider's e⁺e⁻ beams reach it; a setup could be added).
 
 ### 1.27: feature 22 (Rayleigh scattering)
 
