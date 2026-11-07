@@ -2729,6 +2729,50 @@ tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core
 checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
 f_bug126e pass alone.
 
+### 1.27: bug 14 (AsCl₅)
+
+Branch fix127-14-ascl5 (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix14.js (t_features,
+one line; `node tests/f_fix14.js [--node] [part …]`): crowd; fails on v145 (AsCl₅ ligand–ligand order 0.413, −0.757 eV a
+bond), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** With bond orders from the positions, a ligand pair with a common neighbour is held back
+  (boCrowd, 1.16) by how much stronger the two bonds to the common atom are than the pair's own: from 0.4 eV (nothing) to
+  0.8 eV (fully). AsCl₅'s As–Cl (2.97 eV) beats Cl–Cl (2.51) by 0.46 eV, so the hold was 15% and the chlorines, 2.44 Å
+  apart in the plane, took orders 0.41 (their electronegativity, 3.16, lets them expand past one bond, as the
+  hypervalence rule does for partners of 3.0 and up). PCl₅ (0.9 eV) and SbCl₅ (0.6 eV) were held.
+- **What changed** (bo.js boCrowd and the Rust kernel's crowding, kernel/src/bo.rs, rebuilt by the workflow: 00a099b).
+  The gap counts as a share of the pair's own bond: the hold starts at 5% and is full at 15% (AsCl₅ 18%, SbCl₅ 24%,
+  PCl₅ 36%, SF₆ 112%); a triangle of equal bonds (cyclopropane, 0%) is untouched, as before. No molecule is named.
+- **Before / after** (flat, relaxed, bond orders against stored bonds; largest ligand–ligand order / closest ligands Å /
+  energy with orders − stored, eV a bond):
+
+| molecule | v145 | after |
+|---|---|---|
+| AsCl5 | 0.41 / 2.44 / -0.757 | 0.00 / 2.50 / 0.022 |
+| PCl5 | 0.00 / 2.40 / 0.025 | 0.00 / 2.40 / 0.025 |
+| SbCl5 | 0.00 / 2.72 / 0.023 | 0.00 / 2.72 / 0.023 |
+| SF6 | 0.00 / 1.56 / 0.026 | 0.00 / 1.56 / 0.026 |
+| PF5 | 0.00 / 1.84 / 0.038 | 0.00 / 1.84 / 0.038 |
+| ClF3 | 0.00 / 2.83 / 0.014 | 0.00 / 2.83 / 0.014 |
+| XeF4 | 0.00 / 2.80 / 0.000 | 0.00 / 2.80 / 0.000 |
+| SiF4 | 0.00 / 2.22 / 0.044 | 0.00 / 2.22 / 0.044 |
+| SF4 | 0.00 / 2.21 / 0.018 | 0.00 / 2.21 / 0.018 |
+| IF5 | 0.00 / 2.25 / 0.015 | 0.00 / 2.25 / 0.015 |
+| BrF5 | 0.00 / 2.07 / 0.013 | 0.00 / 2.07 / 0.013 |
+| TeF6 | 0.00 / 1.78 / 0.037 | 0.00 / 1.78 / 0.037 |
+| SeF4 | 0.00 / 2.32 / 0.020 | 0.00 / 2.32 / 0.020 |
+| SnCl4 | 0.00 / 3.23 / 0.025 | 0.00 / 3.23 / 0.025 |
+
+  (XeF₄: xenon is not a bond-order member.) Only AsCl₅ changes among these.
+- **Does AsCl₅ fall apart?** No, at 300 K with the bath for 4,000 steps (0.89 ps, four seeds) it stays AsCl₅ (as it did in
+  v145, whose Cl–Cl orders stayed under the 0.5 that joins atoms into one molecule). The force field's answer is that it
+  is bound: AsCl₅ → AsCl₃ + Cl₂ costs 3.36 eV with bond orders (3.43 with stored bonds; v145's orders 7.25: the
+  chlorines' extra bonds), against a measured ΔH of about +0.3 eV (from memory): the game's As–Cl in AsCl₅ is as strong
+  as in AsCl₃ (2.97 eV each), where the real fourth and fifth bonds are much weaker. A bond-table matter (the 1.25 notes
+  list the As and Sb chlorides 4–17% weak already): left for the owner.
+- **Bond orders off:** all 59 setups fingerprint as v145 (seed 7, 300 steps).
+- Suites: t_lint, t_molecules, t_wasm, f_125, f_125n, f_125m, f_bug125 pass.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
