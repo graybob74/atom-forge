@@ -3525,6 +3525,44 @@ bond), confirmed by running the file on a v145 tree.
 - **Bond orders off:** all 59 setups fingerprint as v145 (seed 7, 300 steps).
 - Suites: t_lint, t_molecules, t_wasm, f_125, f_125n, f_125m, f_bug125 pass.
 
+### 1.27: bug 15 (three bookkeeping leaks)
+
+Branch fix127-15-books (from v145). A bug fix. Check: tests/f_fix15.js (t_features, one line; `node tests/f_fix15.js
+[--node] [part …]`): plasma, delta, c100; plasma and delta fail on v145 (charge 242 flat and 113 in 3-D for 164; books
++11.37 eV), c100 passes on both (no leak there, see c), confirmed by running the file on a v145 tree.
+
+- **(a) The charge count after a Pb + Pb plasma.** Measured: a central ²⁰⁸Pb + ²⁰⁸Pb collision at 2.76 TeV a nucleon pair
+  (nuclearEncounter dead on, then 60 steps): the count (nuclei Z − ne, leptons, unstable particles, the walls', objects'
+  and gone-out ledgers) 164 after the event, 242 and 227 after 60 steps flat (seeds 1, 2), 113 in 3-D. Wrapping the
+  event functions: every reaction among the fragments that followed (n + p → 2p + π⁻, n + n → d + π⁻, nucleon–antinucleon
+  annihilations) gained or lost a charge. The cause: the unstable particles' list was full (1,500 slots, the dead ones
+  cleared only every 8 steps by moveExos; 149 alive), so spawnItems carried the new pions off as "lost" with their
+  energy booked as escaped but not their charge. Fix (hep.js `itemQ`): an item carried off for want of room (or past the
+  last element) books its charge as gone out (chargeTo(…, 'qOut')), in spawnItems and spawnItems3. After: 164 flat and
+  3-D after 60 steps. (Clearing dead slots there instead would move the particles under moveExos's own loop.)
+- **(b) A Δ⁻ placed in Molecules in space.** Measured (the place tool's way, insulated, 300 steps, seeds 1–10): −0.13 to
+  +0.51 eV, except seed 3: +11.37 eV, from one impact ionization of C⁺ by a 137 eV electron (+10.1 eV; Δ⁰ and π⁻ alone:
+  0). The electron was 0.65 Å from the ion, but the grid that localPE searches had been built before the electrons'
+  short steps moved it (an outer step's worth: 11 Å at that speed), so ejectElectron's measured change missed its pull
+  (−11.4 eV). Fix (engine.js innerSteps and innerSteps3): the grid is marked stale before the events of each short step
+  when there are events (rebuilt only if they ask). After: seed 3 −1.83 eV, the others as before; the −1.83 is the
+  stepped plasma's own integration (no event in it leaks: every event function wrapped, processEvents 0.003 eV in all).
+  The 1.26 measurement's −2.9 eV could not be reproduced exactly (the game has changed since); these are the numbers now.
+- **(c) A 100 keV electron through 3-D water** (insulated after 50 steps, 400 steps, seeds 1, 2, 3, 7): +1.29 to +1.63 eV
+  now (v145 the same; the 1.26 note's −4.3 eV with 44 ionizations is not what v145 does: 0 ionizations, the electron
+  pushing atoms, 212 eV given to the water). No event leaks (processEvents and moveFastLeptons wrapped: 2×10⁻¹⁰ eV). The
+  drift goes with the step: DT_MAX 0.04 tu 1.41 eV, 0.02 tu 0.40, 0.01 tu 0.05: the integration of the water's
+  vibrations after the pushes. Not changed (a step-size matter, not a leak).
+- **Fingerprints** (switches off, seed 7, 300 steps): every setup as v145 except pionbeam (8542d91e) and photonuc
+  (09ec2d3b): the setups whose free electrons meet atoms in their short steps. Stored fingerprints updated with a comment
+  (f_rp1, f_rp2, f_rp3, f_rp5, f_ew; f_rp7's part-3-on annihilation, photonuc and sns).
+- Cost: ionized water (40 waters ionized, 200 steps): flat 13.4 against 15.3 ms a step, 3-D 13.9 against 16.2 (noise;
+  grid builds 6,553 against 6,301 flat).
+- Suites: t_lint, t_energy, t_physics, t_hep, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass.
+- **Left for the owner.** After a big collision the unstable particles beyond the 1,500 slots are carried off (now with
+  their charge) instead of flying; a 100 keV electron in 3-D water ionizes nothing (its passes give 0.1 eV each, under the
+  ionization cost: pushes instead).
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly

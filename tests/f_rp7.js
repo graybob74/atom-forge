@@ -19,6 +19,7 @@ const chi2 = (H, ex) => { const N = H.reduce((a, b) => a + b, 0), T = ex.reduce(
 // (1.27 bug 2: pionbeam, hyperfactory and annihilation re-fingerprinted, switches off: molecules give electrons at their measured ionization energies, from their hole atom)
 // (1.27 bug 3: fusion, nif, pionbeam, annihilation and sns re-fingerprinted, switches off: close passes between nuclei turned at nuclear distances)
 // (1.27 bug 7: photonuc, sns and hyperfactory re-fingerprinted, switches off: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
+// (1.27 bug 15: pionbeam and photonuc re-fingerprinted, switches off: events in the electrons' short steps search a grid rebuilt after they moved)
 const FP_V145 = { annihilation: '792e52ec 54cc0e75', pet: 'a5248bff a9f2ee3a', prism: '4ffe98af a9f2ee3a', photonuc: '9bdf9dd1 49d4aec0', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const bad = [], keys = Object.keys(FP_V145).filter(k => FP_V145[k]);
@@ -258,6 +259,7 @@ PARTS.books = async (page, check) => {
 // (1.27 bug 4: photonuc and sns with part 3 on re-fingerprinted: fast positrons meet atoms as electrons do, annihilating in flight at Heitler's rate)
 // (1.27 bug 6: sns with part 3 on re-fingerprinted: fast fired particles meet over the step)
 // (1.27 bug 7: photonuc and sns with part 3 on re-fingerprinted: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
+// (1.27 bug 15: annihilation, photonuc and sns with part 3 on re-fingerprinted: events in the electrons' short steps search a grid rebuilt after they moved)
 const FP_CPM = { annihilation: 'b521799d 6c096b74', photonuc: '0633606a eea3fc4e', sns: '400d8bc3 476e17ed', linac: '7c6eb010 2b70ae2c' };
 PARTS.both = async (page, check) => {
   const bad = [], r = {};

@@ -1894,6 +1894,12 @@ function cpmPair(p, E, ux, uy, uz, trip) {
 const MAX_EXO = 1500;
 /* Products at (x, y): items with their lab four-momenta. Nuclei, nucleons and leptons join W.parts, unstable particles
    W.exo; photons and neutrinos wait in made.rays to be sent off last with what the books leave them. */
+/* (1.27 bug 15) An item that finds no room is carried off with its charge (charge gone out: W.ledger.qOut): after a central
+   Pb + Pb collision the 1,500 unstable particles' slots fill (dead ones are cleared every 8 steps), and the pions of the
+   reactions among the fragments that followed were dropped with their energy booked but not their charge (the count of
+   charge rose by 63–78 in 60 steps). (The list keeps its dead slots until moveExos clears them: clearing them here, in the
+   middle of its loop, would move the particles under it.) */
+function itemQ(it) { return it.t === 'x' ? (XP[it.sp] ? XP[it.sp].q : 0) : it.t === 'e' ? it.q : it.t === 'A' ? (it.anti ? -1 : 1) * (it.Z - (it.ne || 0)) : 0; }
 function spawnItems(items, moms, x, y, z = 0) {
   if (W.d3) return spawnItems3(items, moms, x, y, z); // (3-D: four-momenta with pz, at the depth z, 1.25)
   const made = { ps: [], xs: [], rays: [], lost: 0 };
@@ -1903,8 +1909,8 @@ function spawnItems(items, moms, x, y, z = 0) {
     if (pm > 1e-12) { ux = P[1] / pm; uy = P[2] / pm; } else [ux, uy] = rdir();
     const K = Math.max(0, P[0] - m) * MEV, ox = x + ux * 0.08, oy = y + uy * 0.08;
     if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy]); continue; }
-    if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; continue; } // (no room: carried off, as if it had left)
-    if (it.Z > Z_MAX) { made.lost += P[0] * MEV; continue; } // (a last guard: nothing past the last element is made)
+    if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; } // (no room: carried off, as if it had left, and its charge with it, 1.27 bug 15)
+    if (it.Z > Z_MAX) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; } // (a last guard: nothing past the last element is made)
     if (it.t === 'x' && it.sp === 'Mu') { const q = addMuonium(ox, oy, K, ux, uy); made.ps.push(q); continue; } // (1.12: muonium is an atom, in MD)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m); if (it.ewAx) o.ewAx = it.ewAx; made.xs.push(o); pairNote(o); continue; } // (ewAx: a W's spin axis, a Z's beam axis, for its decay's angles, 1.27)
     const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti); // (ne: electrons it keeps, keepElectrons)
@@ -2097,8 +2103,8 @@ function spawnItems3(items, moms, x, y, z) {
     if (pm > 1e-12) { ux = P[1] / pm; uy = P[2] / pm; uz = P[3] / pm; } else { const u = rndDir(); ux = u[0]; uy = u[1]; uz = u[2]; }
     const K = Math.max(0, P[0] - m) * MEV, ox = x + ux * 0.08, oy = y + uy * 0.08, oz = z + uz * 0.08;
     if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy, uz]); continue; }
-    if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; continue; }
-    if (it.Z > Z_MAX) { made.lost += P[0] * MEV; continue; }
+    if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; } // (and its charge, 1.27 bug 15)
+    if (it.Z > Z_MAX) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; }
     if (it.t === 'A' && it.anti) { made.lost += P[0] * MEV; chargeTo(-it.Z); continue; } // (antinucleons and antinuclei: antimatter is not in 3-D yet, its annihilation flat-only; made in a collision there, they leave the books as escaped energy, as particles leaving the box do, 1.25)
     if (it.t === 'x' && it.sp === 'Mu') { const q = addMuonium(ox, oy, K, ux, uy, 1, oz, uz); made.ps.push(q); continue; } // (muonium: an atom in MD, in depth, 1.25)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m, oz, uz); if (it.ewAx) o.ewAx = it.ewAx; made.xs.push(o); pairNote(o); continue; }

@@ -1811,6 +1811,7 @@ const { openPage } = require('./browser');
   await alone('f_fix12.js'); // 1.27 bug 12: measured muon lifetimes for 23 more elements (node tests/f_fix12.js [--node] [part …])
   await alone('f_fix13.js'); // 1.27 bug 13: alkali aurides in a mixed metal lump (node tests/f_fix13.js [--node] [part …])
   await alone('f_fix14.js'); // 1.27 bug 14: the crowding rule keeps AsCl₅'s chlorines apart (node tests/f_fix14.js [--node] [part …])
+  await alone('f_fix15.js'); // 1.27 bug 15: three bookkeeping leaks (node tests/f_fix15.js [--node] [part …])
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
