@@ -2943,8 +2943,22 @@ from a 440 MeV positron that annihilated at the wall; bug 17's screened pair cro
 gives) left 0.15 eV unpaid. cpmPair now settles to 1e-14 of the pair's energy in up to 8 rounds (settleKE takes the
 tolerance and the rounds; every other caller as before, so no setup with Charged particles in matter off changes):
 worst 4e-6 eV again.
-
-### 1.27: bug 1 (3-D van der Waals)
+- Feature 21 (pold.js) doubled the ion–water pull in 3-D too (its K_IW weight); with bug 1 the kernels do not, so its
+  3-D forces left the energy's slope by 0.088 eV/Å (f_127p "slope"): it takes bug 1's rule now (no doubling in 3-D), 8e-11.
+- My features' fingerprint tables (f_feat1, f_127h, f_127x, f_127w) take the merged values (annihilation, photonuc,
+  pionbeam, hyperfactory: the fixes'), and t_features 1.11's chain-reaction tree moves to seed 2 (seed 3's chain now stops
+  at 21 fissions; chains are luck: seeds 1, 2, 4, 6 reach 30, 5 stops at 8; on v156 seed 4 stopped at 15).
+- Suite on v157 (before the two items above): 20 of 22. t_page: the known slow-motion flake. t_features: the fingerprint
+  tables and the seed (fixed above; f_127p, f_127h, f_127x, f_127w, f_feat1, f_rp2 rerun alone, all pass); "muons" (the
+  last of six muon-catalysed fusions was "this muon's fusion no. 2": a sticking to an α (0.85% a fusion) restarted the
+  count; it depends on what ran before in the page: the same check alone in a fresh page, three runs, "no. 6" each time);
+  and **"1.24 particles", left for a bug-fix session**: five 200 eV positrons in 3-D water (seed 8), the books over each
+  one's life within 0.5 eV, came out 42 eV on one. Since bug 4 positrons live and ionize longer (8–29 steps against
+  ~5); the 42 eV is one step in which a hot H atom (an H + H₂O exchange after the radiolysis, 2.5 → 39 eV, moved 1.4 Å)
+  gained it in the velocity half-kick (outerB3 +39 eV, innerSteps3 +3): a close collision too fast for the step, not the
+  positron's own books. Bug 4 alone does it on other seeds (seed 4: 0.52 eV, over the 0.5 limit; seeds 1–6 0.14–0.52;
+  v156 0.01–0.08), and forces equal the energy's slopes in 3-D brine (3e-8). Repro: f_124's "pos" block with seed 8.
+ (3-D van der Waals)
 
 Branch fix127-01-3d-vdw (from v145). Approved physics (the owner's list, 2026-11-06); after the measurements below the
 owner chose to change the ion–water pull only ("pick b"). Check: tests/f_fix01.js (t_features, one line; `node

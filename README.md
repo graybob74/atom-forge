@@ -35,8 +35,8 @@ There are many other things, see for yourself.
 
 ## How to run it
 
-- **In a browser:** the whole game is one self-contained HTML page (`dist/atom-forge.html` after a build). Open it in
-  a modern browser.
+- **In a browser:** play it at https://claude.ai/code/artifact/af4824ad-f59c-470a-8c2f-91fbd6fa5895 . The whole game is
+  one self-contained HTML page (`dist/atom-forge.html` after a build), so you can also open your own build in a modern browser.
 - **On Windows:** a desktop app (Tauri). Every push to `main` builds the Windows installer (`.msi` and `.exe`) with
   GitHub Actions; download it from the run's artifacts.
 

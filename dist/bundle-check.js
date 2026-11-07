@@ -23623,7 +23623,7 @@ function pdForces(FX, FY, FZ) {
     const a = ki >= 0 ? act[ki] : null, b = kj >= 0 ? act[kj] : null;
     pdRad(u, PD_S + PD_TH * CR[i] * CR[j]); pdSw(u);
     const g1 = _pdf[1], g2 = _pdf[2], g3 = _pdf[3], sw = _pdw[0], dsw = _pdw[1];
-    const qa = Q[i] + QP[i], qb = Q[j] + QP[j], w = (IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? Q[j] === 0 : Q[i] === 0)) ? K_IW : 1;
+    const qa = Q[i] + QP[i], qb = Q[j] + QP[j], w = (IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? Q[j] === 0 : Q[i] === 0) && !W.d3) ? K_IW : 1; // (3-D: no doubling, as 1.27 bug 1)
     const ax = a ? a.dmx : 0, ay = a ? a.dmy : 0, az = a ? a.dmz : 0, bx = b ? b.dmx : 0, by = b ? b.dmy : 0, bz = b ? b.dmz : 0;
     const A = ax * dx + ay * dy + az * dz, B = bx * dx + by * dy + bz * dz, C = ax * bx + ay * by + az * bz;
     // U/K = S·P, P = 2g′w(qa·B − qb·A) − (2g′C + 4g″AB) (g: the pair's damped soft Coulomb); ∂U/∂d = K(S·∂P/∂d + P·S′·d/r): on b −, on a +
@@ -23704,7 +23704,7 @@ function pdUpdate() {
     let dx = X[j] - X[i], dy = Y[j] - Y[i], dz = d3 ? Zp[j] - Zp[i] : 0;
     if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (d3) { if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; } }
     const u = dx * dx + dy * dy + dz * dz; if (u >= RC2) continue;
-    pdSw(u); const sw = _pdw[0], w = (IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? Q[j] === 0 : Q[i] === 0)) ? K_IW : 1;
+    pdSw(u); const sw = _pdw[0], w = (IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? Q[j] === 0 : Q[i] === 0) && !W.d3) ? K_IW : 1; // (3-D: no doubling, as 1.27 bug 1)
     if (OM[i] || OM[j]) { pdRad(u, PD_S + PD_TH * RO[i] * RO[j]); U0 += sw * pdPU(Q[i] + QP[i], Q[j] + QP[j], w, dx, dy, dz, XO[i], YO[i], ZO[i], XO[j], YO[j], ZO[j], _pdf[1], _pdf[2]); }
     pdRad(u, PD_S + PD_TH * RN[i] * RN[j]);
     const g = 8 * np; PA[np] = i; PB[np] = j; PG[g] = dx; PG[g + 1] = dy; PG[g + 2] = dz; PG[g + 3] = sw; PG[g + 4] = w; PG[g + 5] = sw * _pdf[1]; PG[g + 6] = sw * _pdf[2]; np++;

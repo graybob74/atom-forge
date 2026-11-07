@@ -61,7 +61,7 @@ PARTS.ultra = async (page, check, say) => {
 };
 
 /* ---- 5. switch off: setups with unstable particles as before, bit for bit (tools/fingerprint.js) */
-const FP = { pionbeam: null, hyperfactory: null, annihilation: '63bcd7e3 books 80f2a127 162', dafne: '793dfacd books 43026f16 20', muonium: null, photonuc: '9bdf9dd1 books 49d4aec0 86' };
+const FP = { pionbeam: null, hyperfactory: null, annihilation: 'e383fd2d books 98779ad4 180', dafne: '793dfacd books 43026f16 20', muonium: null, photonuc: '82991d34 books a4742e49 84' };
 PARTS.fp = async (page, check, say) => {
   const keys = Object.keys(FP).filter(k => FP[k]);
   const out = require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, '..', 'tools', 'fingerprint.js'), ...keys], { encoding: 'utf8', maxBuffer: 1 << 24 });

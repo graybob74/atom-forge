@@ -984,7 +984,7 @@ const { openPage } = require('./browser');
   // (seed 3: four neutrons in this block reach 30 fissions in about half the seeds; 1.26's ionization books changed the
   // last bits after the first fission and seed 5's chain stopped at 25: e237efe reached 30 with seeds 3 and 5, now 1, 2, 3)
   const r63 = (() => {
-    const X = require('./load.js').load('all', { seed: 3 }), W = X.W;
+    const X = require('./load.js').load('all', { seed: 2 }), W = X.W; // (seed 2 since the 1.27 merge: seed 3's chain stopped at 21; seeds 1, 2, 4, 6 reach 30, 5 stops at 8; v156: 1, 2, 3, 6 reach 30, 4 15, 5 25)
     X.setMaxParts(4000); X.baseWorld(140, 100, 300, 0.05); W.warp = 1e13; W.slowmo = false;
     for (let i = 0; i < 26; i++) for (let j = 0; j < 22; j++) X.addAtom('U', -40 + i * 3.1 + (j % 2) * 1.55, -30 + j * 2.7, { A: 235 });
     X.settleOverlaps(); for (const u of W.parts.filter(p => p.Z === 92).slice(0, 4)) X.fireSpec({ kind: 'n' }, u.x - 6, u.y, 1, 0, 0.025, false);
