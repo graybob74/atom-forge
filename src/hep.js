@@ -3997,7 +3997,8 @@ function capDone(T, lbl, gh, x, y, z, gs) { // (the capture's log and counts, it
      law, cos²), and leaves polarized along â; else it is absorbed. */
 RP.pol = false; // (Experimental → Realistic particles → Photon polarization; ui.js applySettings)
 RP.ray = false;
-RP.exm = false; // (Experimental → Realistic particles → Unstable particles meet each other, 1.27 feature 24: exoMeet) // (Experimental → Realistic particles → Rayleigh scattering, 1.27: pold.js ryTry)
+RP.exm = false;
+RP.pwave = false; // (Experimental → Realistic particles → Photons as waves, 1.27 feature 19: props.js waveSlit, pold.js waveBragg; the flat game) // (Experimental → Realistic particles → Unstable particles meet each other, 1.27 feature 24: exoMeet) // (Experimental → Realistic particles → Rayleigh scattering, 1.27: pold.js ryTry)
 /* A random linear polarization across the direction (ux, uy, uz): flat, ψ uniform between p̂ = (uy, −ux, 0) and ẑ. */
 function polRand(ux, uy, uz) {
   if (!W.d3) { const a = rnd() * Math.PI, c = Math.cos(a); return [uy * c, -ux * c, Math.sin(a)]; }

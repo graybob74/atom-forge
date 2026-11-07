@@ -159,7 +159,7 @@ const OPT = {
   heat: { mode: 'heat', s: 348, R: 8 },
   spark: { s: 218, R: 8 },
   magnet: { s: 430, pol: 1, R: 9 },
-  objects: { kind: 'mirror', f: 20, Vs: 200, Z: 79, layers: 10, pa: 0 }, // (pa: the polarizer's axis from the plane, degrees, 1.27)
+  objects: { kind: 'mirror', f: 20, Vs: 200, Z: 79, layers: 10, pa: 0, ns: 2, sd: 10, sa2: 4 }, // (ns, sd, sa2: slits' number, spacing Å, width in half-ångströms, 1.27 feature 19) // (pa: the polarizer's axis from the plane, degrees, 1.27)
   light: { s: 132.33, rate: 80, follow: true, mount: false, pol: 'p' }, // (s: 589 nm, sodium's line, exactly; pol: with Photon polarization on, 'p' in the plane (3-D vertical), 's' across it (horizontal), 'u' unpolarized, 1.27)
   erase: { R: 3 },
 };
@@ -521,9 +521,11 @@ function buildToolOpts() {
     }
     case 'objects': {
       if (o.kind === OBJ_POL && !RP.pol) o.kind = 'mirror'; // (the polarizer is offered with Photon polarization on, 1.27)
+      if (o.kind === OBJ_SLIT && !RP.pwave) o.kind = 'mirror'; // (the slits with Photons as waves on, 1.27 feature 19)
       const k = o.kind;
-      h = `<span data-g="kind">${seg('Object', OBJ_KINDS.concat(RP.pol ? [OBJ_POL] : []).map(q => [q, OBJ_NAME[q].replace('Detector screen', 'Screen').replace('Charged plates', 'Plates')]), k)}</span>` + // (the polarizer with Photon polarization on, 1.27)
+      h = `<span data-g="kind">${seg('Object', OBJ_KINDS.concat(RP.pol ? [OBJ_POL] : []).concat(RP.pwave ? [OBJ_SLIT] : []).map(q => [q, OBJ_NAME[q].replace('Detector screen', 'Screen').replace('Charged plates', 'Plates')]), k)}</span>` + // (the polarizer with Photon polarization on, 1.27)
         (k === OBJ_POL ? rangeCtl('oOpa', 'Axis', 0, 90, o.pa, objPaText(o.pa)) : '') +
+        (k === OBJ_SLIT ? `<span data-g="ns">${seg('Slits', [[1, '1'], [2, '2'], [5, '5 (grating)']], o.ns)}</span>` + rangeCtl('oOsa', 'Width', 1, 40, o.sa2, `${o.sa2 / 2} Å`) + (o.ns > 1 ? rangeCtl('oOsd', 'Apart', 1, 60, o.sd, `${o.sd} Å`) : '') : '') + // (1.27 feature 19)
         (k === 'lens' ? rangeCtl('oOf', 'Focal length', -100, 100, o.f, objFText(o.f)) : '') +
         (k === 'plates' ? rangeCtl('oOV', 'Voltage', 0, 500, o.Vs, objVText(objV())) : '') +
         (k === 'foil' ? `<span data-g="Z">${seg('Metal', [[79, 'Gold'], [47, 'Silver'], [29, 'Copper'], [13, 'Aluminium'], [6, 'Carbon']], o.Z)}</span>` + rangeCtl('oOL', 'Layers', 1, 100, o.layers, `${o.layers}`) : '') +
@@ -583,6 +585,7 @@ function buildToolOpts() {
       case 'oPD': plane3Set(v / 100 * plane3Lim()); out.textContent = plane3Text(); break; // (3-D: the placing plane, 1.24)
       case 'oOf': o.f = v; out.textContent = objFText(v); break;
       case 'oOpa': o.pa = v; out.textContent = objPaText(v); break; // (the polarizer's axis, 1.27)
+      case 'oOsa': o.sa2 = v; out.textContent = `${v / 2} Å`; break; case 'oOsd': o.sd = v; out.textContent = `${v} Å`; break; // (the slits, 1.27 feature 19)
       case 'oOV': o.Vs = v; out.textContent = objVText(objV()); break;
       case 'oOL': o.layers = v; out.textContent = String(v); break;
       case 'oKE': o.s = v; out.textContent = fmtE(W.d3 ? fireKE3() : fireKE()); { const n = $('oFireNote'); if (n && !W.d3) n.textContent = fireNote(fireSpecNow() || SPEC_P, fireKE()); } break;
@@ -1025,7 +1028,7 @@ function onDown(e) {
     case 'objects': {
       const ob = objAtPx(px, py);
       if (ob) { UI.drag = { kind: 'objmove', ob, lx: wx, ly: wy }; R.objSel = ob; break; }
-      const o = OPT.objects, nb = objAdd(o.kind, wx, wy, wx, wy, { f: o.f || 20, V: objV(), Z: o.Z, layers: o.layers, pa: o.pa }); // (pa: a polarizer's axis, 1.27)
+      const o = OPT.objects, nb = objAdd(o.kind, wx, wy, wx, wy, { f: o.f || 20, V: objV(), Z: o.Z, layers: o.layers, pa: o.pa, ns: o.ns, sd: o.sd, sa: o.sa2 / 2 }); // (pa: a polarizer's axis, 1.27)
       UI.drag = { kind: 'objnew', ob: nb, x0: wx, y0: wy }; R.objSel = nb;
       break;
     }
@@ -5755,6 +5758,7 @@ SET_DEF.cpmX = 1; SET_OK.cpmX = [1, 1000, 1000000]; // (Realistic particles → 
 Object.assign(SET_DEF, { rpPol: false }); // (Realistic particles 7, 1.27: photon polarization and Klein–Nishina, hep.js RP.pol)
 Object.assign(SET_DEF, { rpRay: false }); // (Realistic particles, 1.27 feature 22: Rayleigh scattering, pold.js RP.ray)
 Object.assign(SET_DEF, { rpExm: false }); // (Realistic particles, 1.27 feature 24: unstable particles meet each other, hep.js RP.exm)
+Object.assign(SET_DEF, { rpPwave: false }); // (Realistic particles, 1.27 feature 19: photons as waves, RP.pwave)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
@@ -5775,6 +5779,7 @@ SET_EXP.push('cpmX'); EXP_NAME.cpmX = 'matter depth'; // (1.27 item 26)
 SET_EXP.push('rpPol'); EXP_NAME.rpPol = 'photon polarization'; // (1.27)
 SET_EXP.push('rpRay'); EXP_NAME.rpRay = 'Rayleigh scattering'; // (1.27)
 SET_EXP.push('rpExm'); EXP_NAME.rpExm = 'unstable particles meeting'; // (1.27)
+SET_EXP.push('rpPwave'); EXP_NAME.rpPwave = 'photons as waves'; // (1.27)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -5864,6 +5869,7 @@ function applySettings() {
   RP.pol = !!SET.rpPol; // (Realistic particles 7, 1.27)
   RP.ray = !!SET.rpRay; // (Rayleigh scattering, 1.27)
   RP.exm = !!SET.rpExm; // (unstable particles meet each other, 1.27)
+  RP.pwave = !!SET.rpPwave; // (photons as waves, 1.27)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   pdOn(SET.qeq && SET.pold ? 1 : 0); // (polarizability by direction: induced dipoles in place of the charge flow, with induced charges on, 1.27)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
@@ -5991,6 +5997,7 @@ function syncSettings() {
   $('setRpPol').checked = SET.rpPol; // (1.27)
   $('setRpRay').checked = SET.rpRay; // (1.27)
   $('setRpExm').checked = SET.rpExm; // (1.27)
+  $('setRpPwave').checked = SET.rpPwave; // (1.27)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -6040,6 +6047,7 @@ const COSTS = {
   setRpPol: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A Compton event takes 0.2–0.3 ms either way (its Klein–Nishina angles about 1 µs of it), a photon through a prism 15–45 µs either way. Where γ rays scatter in matter their electrons come out slower, as in nature, and ionize a little more: liquid water with five γ rays a step 42–49 against 44–52 ms a step (the noise of a shared machine)'] }),
   setRpRay: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A visible photon crossing liquid water takes 31–36 µs against 15–24 (each molecule it passes asked once)'] }),
   setRpExm: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing without unstable particles in flight; their paths checked in pairs each step (500 pions from a lead–lead collision: see the notes)'] }),
+  setRpPwave: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A photon through slits takes about 0.1 ms more; an X-ray that tries to scatter in a crystal 2–5 ms (the structure factor over 1,024 directions)'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
@@ -6093,6 +6101,7 @@ const COSTS3 = {
   setRpPol: () => ({ k: 'physics', on: ['×1–2', 'Measured in 3-D on one thread (1.27): nothing where no γ ray scatters. Where γ rays scatter in matter, Klein–Nishina sends them forward and their electrons come out slower, as in nature, so these stop in the box and set more electrons free (liquid water with five γ rays a step: 66 ionizations against 27 in 100 steps, 81–97 against 138–206 ms a step)'] }),
   setRpRay: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step. A visible photon crossing liquid water takes 34–41 µs against 21–22'] }),
   setRpExm: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing without unstable particles in flight; their paths checked in pairs each step'] }),
+  setRpPwave: () => ({ k: 'physics', on: ['×1', 'The flat game only so far: in the 3-D lab it changes nothing'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
@@ -6138,6 +6147,7 @@ const REAL = {
   setRpPol: [true, 'Photons carry their polarization, and Compton scattering follows Klein–Nishina, as in nature (1.27)'],
   setRpRay: [true, 'Light is scattered by molecules, blue most, as in nature (1.27)'],
   setRpExm: [true, 'Unstable particles collide with each other as with anything else, as in nature (1.27)'],
+  setRpPwave: [true, 'Light is a wave: it diffracts and interferes, as in nature (1.27)'],
 };
 function syncReal() {
   for (const id in REAL) {
@@ -6161,6 +6171,7 @@ EXP_SET.setRpRes = 'rpRes'; EXP_SET.setRpNuc = 'rpNuc'; // (1.27)
 EXP_SET.setRpPol = 'rpPol'; // (1.27)
 EXP_SET.setRpRay = 'rpRay'; // (1.27)
 EXP_SET.setRpExm = 'rpExm'; // (1.27)
+EXP_SET.setRpPwave = 'rpPwave'; // (1.27)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -6197,6 +6208,7 @@ function expSummary() {
   if (SET.rpPol) on.push('photon polarization'); // (1.27)
   if (SET.rpRay) on.push('Rayleigh scattering'); // (1.27)
   if (SET.rpExm) on.push('unstable particles meeting'); // (1.27)
+  if (SET.rpPwave) on.push('photons as waves'); // (1.27)
   if (!on.length) return 'Experimental: all normal';
   const t = expTotal(), x = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
   return `Experimental: ${on.join(', ')} (${x} the normal work)`;
@@ -6216,6 +6228,7 @@ function syncExpTotal() {
   names.setRpPol = 'photon polarization'; // (1.27)
   names.setRpRay = 'Rayleigh scattering'; // (1.27)
   names.setRpExm = 'unstable particles meeting'; // (1.27)
+  names.setRpPwave = 'photons as waves'; // (1.27)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -6355,6 +6368,7 @@ const SDESC = {
   setRpPol: ['Photon polarization', 'Every photon carries its polarization, the direction its electric field swings across its path. In the flat game that is in the plane, across it (out of the screen), or between. The Light tool and lasers give polarized light (choose in the plane, across it, or unpolarized); lamps, atoms, hot walls and nuclei give unpolarized light; the two 511 keV γ rays of an electron and positron annihilating are polarized at right angles to each other. Compton scattering follows the Klein–Nishina formula: at low energies forward and back as much as sideways (1 + cos²θ), at MeV energies mostly forward, the scattered photon with E′ = E/(1 + (E/511 keV)(1 − cos θ)), and least along its polarization (none at 90° for light polarized in the plane, at low energies). Mirrors keep the polarization; a prism\u2019s faces reflect a few percent of the light by Fresnel\u2019s laws, and at Brewster\u2019s angle (58° for its glass) only light polarized across the plane; the Objects tool gets a polarizer (Malus\u2019s law, cos²). Inspect shows a photon\u2019s polarization. Not carried: circular polarization; the pair\u2019s quantum entanglement (each pair is a definite perpendicular pair here, which gives a weaker correlation between them than nature\u2019s). Experimental: off again each time the game starts. Since 1.27 the two photons of π⁰ → γγ and η → γγ are polarized at right angles too, and ⁶⁰Co\u2019s two γ rays (1,173 and 1,332 keV, with Nuclear spin, γ lines on) leave with their measured angular correlation, 1.17 times as likely back to back as at right angles.'], // (1.27)
   setRpRay: ['Rayleigh scattering', 'Light that cannot ionize is scattered by molecules and atoms, as their electrons swing with its field: blue light (400 nm) 9.4 times as often as red (700 nm), the reason the sky is blue. A molecule scatters as much as the square of its polarizability (benzene about 35 times nitrogen), forward and back twice as much as sideways, and light scattered at right angles comes out polarized. Shown made visible, about 1 photon in 100 a nitrogen molecule passed at 450 nm; with ultra-realistic mode the true rate, which in a box this small is almost never (a photon crosses about 80 km of air before it scatters).'], // (1.27)
   setRpExm: ['Unstable particles meet each other', 'Pions, kaons, muons, τ leptons, hyperons and the other unstable particles collide with each other in flight, not only with atoms and nuclei: a particle and its antiparticle annihilate (μ⁺μ⁻ as e⁺e⁻ does, π⁺π⁻ into mesons), two other hadrons above the threshold make new hadrons between them, and two charges turn each other. Within 0.35 Å of each other, as the game’s fast nuclei meet (true sizes with ultra-realistic mode: almost never). Two products of one collision never meet: they fly apart.'], // (1.27)
+  setRpPwave: ['Photons as waves', 'Light is a wave as well as a stream of photons: each photon goes where the wave says, so the pattern builds up photon by photon. Through slits (a new object, offered with this on) it spreads in fringes, bright where the paths from the openings differ by whole wavelengths; an X-ray meeting a crystal is scattered where the waves from its atoms add up (Bragg’s law), a liquid into rings. At these sizes X-rays of a few keV show it; visible light’s wavelength (4,000–7,000 Å) is far larger than anything in the box, so it spreads from small openings without fringes, as it really would. The flat game only so far.'], // (1.27)
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
    on which mode you're in ... There should also be 3d pictures in 3d mode"). While the world is 3-D (W.d3) the pane takes
@@ -6403,6 +6417,7 @@ const SDESC3 = {
   setRpPol: ['Photon polarization', 'As in the flat game, in all three directions: photons carry a polarization at right angles to their path, the Light tool and lasers polarized (vertical, horizontal or unpolarized), the two γ rays of an e⁺e⁻ annihilation at right angles to each other, and Compton scattering by Klein–Nishina, the photon leaving least along its polarization. The placed optics (mirrors, prisms, the polarizer) are in the flat game only. Experimental: off again each time the game starts. Since 1.27 the two photons of π⁰ → γγ and η → γγ are polarized at right angles too, and ⁶⁰Co\u2019s two γ rays (1,173 and 1,332 keV, with Nuclear spin, γ lines on) leave with their measured angular correlation, 1.17 times as likely back to back as at right angles.'], // (1.27)
   setRpRay: ['Rayleigh scattering', 'As in the flat game, in all three directions: light that cannot ionize is scattered by molecules and atoms, blue 9.4 times as often as red, forward and back twice as much as sideways (1 + cos²θ), fully polarized at right angles. Each molecule scatters by its own polarizability tensor (polarizability by direction): a long or flat one (CO₂, benzene) depolarizes a little. Made visible; true with ultra-realistic mode (almost never).'], // (1.27)
   setRpExm: ['Unstable particles meet each other', 'As in the flat game, in all three directions: unstable particles in flight annihilate with their antiparticles and collide with other hadrons when their paths pass within 0.35 Å. Their charges do not turn each other in the 3-D lab yet (in the flat game they do).'], // (1.27)
+  setRpPwave: ['Photons as waves', 'Built for the flat game so far: in the 3-D lab light stays a stream of photons (the slits are a flat-game object, and X-rays are not diffracted here yet).'], // (1.27)
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
 const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
@@ -6636,6 +6651,7 @@ function settingsInit() {
   $('setRpPol').onchange = (e) => { setSetting('rpPol', e.target.checked); if (UI.tool === 'light' || UI.tool === 'objects') buildToolOpts(); }; // (1.27: the Light tool's polarization and the polarizer show with it)
   $('setRpRay').onchange = (e) => setSetting('rpRay', e.target.checked); // (1.27)
   $('setRpExm').onchange = (e) => setSetting('rpExm', e.target.checked); // (1.27)
+  $('setRpPwave').onchange = (e) => { setSetting('rpPwave', e.target.checked); if (UI.tool === 'objects') buildToolOpts(); }; // (1.27: the slits show with it)
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');

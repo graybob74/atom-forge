@@ -3863,6 +3863,7 @@ function rayInteract(x, y, ux, uy, E, src, pol, depth = 0) { // (depth: the phot
       }
       continue;
     }
+    if (RP.pwave && E >= 1000 && p.ne > 0 && rnd() < Math.min(0.9, WVB.P0 * WVB.GMAX * (p.ne / 10) * (p.ne / 10))) { const r = waveBraggTry(p, E, ux, uy, pol); if (r) return { x: hx, y: hy, p, after: () => waveBraggEmit(p, E, r, depth) }; } // (photons as waves: an X-ray scattered by the atoms about it, as their structure factor says, 1.27 feature 19: pold.js)
     if (p.ne > 0) {
       const ie = ionizationCost(p);
       if (E >= ie && rnd() < 0.6 * Math.min(1, Math.pow(ie / E, 1.5) * 2)) {

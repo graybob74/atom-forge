@@ -362,3 +362,48 @@ function ryScatter(p, E, dx, dy, dz, depth) {
   const dn = dx * nx + dy * ny + dz * nz; let px = dx - dn * nx, py = dy - dn * ny, pz = dz - dn * nz; const L = Math.hypot(px, py, pz) || 1; px /= L; py /= L; pz /= L;
   emitPhoton(p.x, p.y, E, nx, ny, { depth: depth + 1, src: p, cont: true, uz: nz, pol: RP.pol ? [px, py, pz] : undefined });
 }
+
+/* ---- Realistic particles: photons as waves, X-ray diffraction (1.27, feature 19; RP.pwave; the flat game). An X-ray
+   (1–100 keV) passing an atom may be scattered coherently by the atoms about it: every electron there scatters the same
+   wave, and the waves add with their phases, so the photon leaves in a direction n̂ drawn from
+     |F(q)|² = |Σⱼ fⱼ(q) e^(i q·rⱼ)|² · (1 − (ε·n̂)²),  q = k(n̂ − û),  k = 2π/λ
+   over the atoms about the one it passed (weighted e^(−r²/2σ²), σ = WVB.sig, out to WVB.R: a beam's coherent patch; fⱼ(0) = the atom's electrons, falling as e^(−0.05 q²) with q; the
+   last factor the dipole's, ε the photon's polarization, or a random one). A crystal sends it into Bragg's directions
+   (2d sin θ = mλ for its rows: spots on a screen), a liquid into rings, a gas nearly anywhere. The straight-on peak
+   (q < 3/σ: the wave passing through, not a scattering) is left out. Elastic (the crystal's recoil left out): the books
+   are untouched. As the box's other light rates, made visible: WVB.P0·(electrons/10)² an atom passed for random phases
+   (a gas), times what the phases add (waveBraggTry). Drawn on a grid of 1,024 directions round the circle, then anywhere
+   within its cell. */
+const WVB = { P0: 0.002, GMAX: 25, R: 20, sig: 8, maxN: 400, M: 1024, n: 0, tries: 0 }; // (the coherent region: a Gaussian weight of width sig about the atom passed, out to R; a sharp edge would scatter as a particle's edge does. P0: the rate per atom passed of scattering with random phases (a gas); GMAX: the most the phases can add to it)
+/* Tried at P0·GMAX·(electrons/10)² an atom passed (rayInteract): the coherent sum's whole strength over the directions
+   against the same atoms with random phases, g = Σ|F|² / Σ(Σf²) (1 for a gas, up to tens on a Bragg reflection, under 1
+   for a crystal turned off every reflection), is kept with odds g/GMAX, so the rate follows the structure factor as the
+   direction does; [nx, ny, ε'] or null (the photon goes on). */
+function waveBraggTry(p, E, ux, uy, pol) {
+  if (p.dead) return null;
+  WVB.tries++;
+  const lam = 10 * PHYS.HC / E, k = 2 * Math.PI / lam, R = WVB.R, sg = WVB.sig, qmin = 3 / sg;
+  const near = [];
+  nearby(p.x, p.y, R, (o) => { if (o.k === NUC && !o.dead && !o.fast && !o.rad && o.ne > 0) { const [dx, dy] = minImg(o.x - p.x, o.y - p.y); const r2 = dx * dx + dy * dy; if (r2 < R * R) near.push([r2, dx, dy, o.ne * Math.exp(-r2 / (2 * sg * sg))]); } });
+  if (!near.some(e => e[0] === 0)) near.push([0, 0, 0, p.ne]);
+  near.sort((a, b) => a[0] - b[0]); if (near.length > WVB.maxN) near.length = WVB.maxN;
+  let f2 = 0; for (const e of near) f2 += e[3] * e[3];
+  const ep = pol && RP.pol ? pol : polRand(ux, uy, 0), M = WVB.M, I = new Float64Array(M);
+  let tot = 0, inc = 0;
+  for (let m = 0; m < M; m++) {
+    const ph = (m + 0.5) * 2 * Math.PI / M, nx = Math.cos(ph), ny = Math.sin(ph), qx = k * (nx - ux), qy = k * (ny - uy), q2 = qx * qx + qy * qy;
+    if (q2 < qmin * qmin) continue;
+    let re = 0, im = 0; for (const [, dx, dy, f] of near) { const a = qx * dx + qy * dy; re += f * Math.cos(a); im += f * Math.sin(a); }
+    const en = ep[0] * nx + ep[1] * ny, w = Math.exp(-0.1 * q2) * (1 - en * en);
+    tot += I[m] = (re * re + im * im) * w; inc += f2 * w;
+  }
+  if (!(tot > 0) || !(inc > 0) || !(rnd() * WVB.GMAX < tot / inc)) return null;
+  let u = rnd() * tot, m = 0; for (; m < M - 1 && u > I[m]; m++) u -= I[m];
+  const ph = (m + rnd()) * 2 * Math.PI / M, nx = Math.cos(ph), ny = Math.sin(ph);
+  return [nx, ny, RP.pol ? polAcross(ep, nx, ny, 0) || undefined : undefined];
+}
+function waveBraggEmit(p, E, r, depth) {
+  if (p.dead) return;
+  WVB.n++;
+  emitPhoton(p.x, p.y, E, r[0], r[1], { depth: depth + 1, src: p, cont: true, pol: r[2] });
+}

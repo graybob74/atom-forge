@@ -2737,7 +2737,7 @@ Order, to spend the owner's limited usage well: the small ones first in one sess
 (21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
 Done since: 21 (branch v150 from v145, 2026-11-06: "1.27: feature 21 (polarizability by direction)"); 22 (branch v151
 from v150: "1.27: feature 22 (Rayleigh scattering)"); 25 (branch v152 from v151: "1.27: feature 25 (the Higgs boson)"); 24 (branch v153 from v152: "1.27: feature 24 (unstable
-particles meet each other)").
+particles meet each other)"); 19 (branch v154 from v153: "1.27: feature 19 (photons as waves)").
 The owner (2026-11-06): the WebAssembly speed-ups go to the next version (1.28), as one pass over everything that could use
 one: 33–38 above, and polarizability by direction's update and force pass (pold.js pdUpdate, pdForces: ×1.2–4.2 on top
 of the induced charges, the most in 3-D at every step). Time each first (a profile with its setting on), port where the
@@ -3010,6 +3010,49 @@ ew/lep1.png, lep-data.png, ins-w.png.
   collider steps through 88–94 GeV); the beams' own radiation (radiative return, which takes the Z peak from 41.5 to 30.5
   nb and makes most of LEP2's qq̄ events); the W pair's forward peak; a fast positron on matter by eeEvent (μ pairs,
   hadrons) rather than always 2γ; the Higgs boson (planned list).
+
+### 1.27: feature 19 (photons as waves)
+
+Branch v154 from v153 (2026-11-06; approved with the list, "the owner's OK" on the physics given; built while the owner
+slept). Settings → Experimental → Realistic particles → Photons as waves (`RP.pwave`, `SET.rpPwave`; the line where 1.27's
+Settings section kept its place). The flat game only, as the plan said ("to scope against cost, flat first"); in the
+3-D lab it changes nothing (said in its pane). Off at every start; off, nothing runs.
+- **The scale problem, and what was built for it.** The box is tens to hundreds of ångströms across; visible light's
+  wavelength is 4,000–7,000 Å. So visible light cannot show fringes or thin-film colours at these sizes (a slit a few Å
+  wide sends it everywhere, as it really would). Waves of the box's own size are X-rays of a few keV (λ = 12.4 Å/E[keV]:
+  1–5 Å). Two things were built, each photon by photon (each photon goes where the wave's intensity says, so a pattern
+  builds up as in the single-photon experiments):
+  1. **Slits** (props.js `OBJ_SLIT`, a new object offered by the Objects tool with the switch on, kept out of
+     OBJ_KINDS as the polarizer, so t_fuzz is unchanged): an opaque sheet with 1, 2 or 5 openings (width 0.5–20 Å,
+     spacing 1–60 Å), centred on the piece. Light and fast particles (atoms, unstable particles) pass only through the
+     openings; elsewhere it is absorbed, they are stopped. With the switch off, light goes straight through an opening
+     (a shadow); on, `waveSlit` draws its new direction from the Fraunhofer pattern of the whole sheet lit by a plane wave
+     along the photon: I(θ) = sinc²(πaΔ/λ)·[sin(NπdΔ/λ)/(N sin(πdΔ/λ))]²·((cos θᵢ + cos θ)/2)², Δ = sin θ − sin θᵢ, on
+     2,048 angles. Its polarization keeps its part across the new path. Saved and loaded with its openings.
+  2. **X-ray diffraction** (pold.js `waveBraggTry`, `waveBraggEmit`; rayInteract in the flat game): an X-ray of 1–100
+     keV passing an atom may be scattered by the atoms about it together: |F(q)|² = |Σ fⱼ e^(iq·rⱼ)|²·e^(−0.1q²)·(1 −
+     (ε·n̂)²), q = k(n̂ − û), fⱼ the atom's electrons times a Gaussian weight e^(−r²/2σ²) (σ = 8 Å, out to 20 Å: a coherent
+     patch; a sharp edge at 12 Å first gave a false small-angle excess, the patch's own outline), on 1,024 directions;
+     the straight-on peak (q < 3/σ) left out. Tried at P0·GMAX·(electrons/10)² an atom passed (P0 0.002, GMAX 25) and
+     kept with odds g/GMAX, g = Σ|F|²/Σ(Σf²)·w (what the phases add over random ones: 1 for a gas), so the rate follows
+     the Bragg condition as the direction does. (A first version made the rate the same at any angle and only steered
+     the direction: a crystal turned 4° off a reflection still sent its photons to 2θ.)
+- **Measured** (tests/f_127w.js):
+  - Double slit 10 Å apart, 2 Å wide, λ 2 Å: brightest at sin θ = 0, ±0.19–0.21, ±0.39, ±0.59–0.61, ±0.77–0.81 (mλ/d,
+    40,000 draws, bins of 0.02); a grating of five the same; one slit 4 Å wide dark at sin θ = ±0.5 (λ/a: 1 photon there
+    against 1,729 in the middle).
+  - The experiment: 6,000 X-rays through a double slit (1.5 Å openings) onto a detector screen 40 Å behind: 9 fringes
+    about 9 Å apart on its strips (40·λ/d = 8 Å near the axis, wider off it), light on all 40 strips; off, on 2 strips.
+  - Visible light (500 nm) through the same slits: no fringes, the obliquity factor's shape alone (within 10.4%).
+  - A square lattice 3 Å apart, λ 1.2 Å, at the Bragg angle (11.5°): scattered photons leave at 23.1° (2θ = 23.07°),
+    10.3% of tries kept; 4° off 3.6%, 10° off 0.7%; the same atoms as a gas 2.4% (random phases: 1 in 25 intended).
+  - The books: 2,000 X-rays into a salt crystal (300 through slits first): 9 scattered by the crystal, the rest of the
+    books move 9×10⁻¹⁰ eV, all the light's energy leaves or lands. Switch off: all 60 setups bit for bit.
+  - Cost: nothing a step; a photon through slits about 0.1 ms; a crystal's try 2–5 ms (400 atoms × 1,024 directions).
+- **Not built (the rest of the plan's list):** thin films and a laser's coherence (both need sizes the box does not have:
+  hundreds of nanometres for visible light); lenses, mirrors and prisms acting on the wave (they keep acting on rays);
+  wave packets drawn with their wavelength and phase; the 3-D lab (slits are flat-game objects; Bragg there needs the
+  sum over a sphere of directions, about 30 ms a try). For the owner: P0 and GMAX are choices of how visible to make it.
 
 ### 1.27: feature 24 (unstable particles meet each other)
 

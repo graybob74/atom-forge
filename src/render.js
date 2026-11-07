@@ -263,6 +263,12 @@ function drawObjects() {
       ctx.strokeStyle = 'rgba(255,190,80,0.7)'; ctx.lineWidth = 1.2; seg(ob.x0, ob.y0, ob.x1, ob.y1); ctx.lineCap = 'round';
     } else if (k === 'wall') {
       ctx.strokeStyle = 'rgba(165,172,186,0.9)'; ctx.lineWidth = lw(0.4, 4, 12); seg(ob.x0, ob.y0, ob.x1, ob.y1);
+    } else if (k === OBJ_SLIT) { // (a dark sheet with its openings left out, 1.27 feature 19)
+      const tx = (ob.x1 - ob.x0) / (L || 1), ty = (ob.y1 - ob.y0) / (L || 1), cut = [];
+      for (let i = 0; i < ob.ns; i++) { const c = (i - (ob.ns - 1) / 2) * ob.sd; cut.push([c - ob.sa / 2, c + ob.sa / 2]); }
+      ctx.strokeStyle = 'rgba(70,72,84,0.95)'; ctx.lineWidth = lw(0.5, 4, 12); ctx.lineCap = 'butt';
+      let s0 = -L / 2; for (const [a0, a1] of cut.concat([[L / 2, L / 2]])) { const e0 = Math.min(a0, L / 2); if (e0 > s0) seg(mx + tx * s0, my + ty * s0, mx + tx * e0, my + ty * e0); s0 = Math.max(s0, a1); }
+      ctx.lineCap = 'round';
     } else if (k === OBJ_POL) { // (a dark sheet; its axis drawn on it: strokes along it for the part in the plane, dots for the part across, 1.27)
       ctx.strokeStyle = 'rgba(120,110,150,0.85)'; ctx.lineWidth = lw(0.3, 3, 8); seg(ob.x0, ob.y0, ob.x1, ob.y1);
       const tx = (ob.x1 - ob.x0) / (L || 1), ty = (ob.y1 - ob.y0) / (L || 1), ca = Math.cos(ob.pa * Math.PI / 180), sa = Math.sin(ob.pa * Math.PI / 180), n = clamp(Math.round(L / 2), 2, 24);
