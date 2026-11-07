@@ -1140,7 +1140,7 @@ function xaBohr(sp, Z, N, n) { return PHYS.RY * (xaMred(sp, Z, N) / XA_ME) * Z *
    Si, Ca, Fe, Pb, from the muonic X-ray compilations (Engfer et al., At. Data Nucl. Data Tables 14, 509, 1974; Fricke
    et al., 60, 177, 1995), values as I know them (no network here: worth a check). Between them the ratio to Bohr's value
    is interpolated in Z; hydrogen's line is Bohr's (1.898 keV for μp). */
-const XA_KA = [[6, 12, 75.25], [8, 16, 133.53], [13, 27, 346.8], [14, 28, 400.2], [20, 40, 783.9], [26, 56, 1255], [82, 208, 5901]];
+const XA_KA = [[6, 12, 75.25], [8, 16, 133.53], [13, 27, 346.8], [14, 28, 400.2], [20, 40, 783.66], [26, 56, 1255.8], [82, 208, 5901]]; // (1.27 bug 17: Al, Si, Ca, Fe from ENSDF's muon-capture datasets (Measday et al., Phys. Rev. C 73, 2006; 76, 2007): 346.828, 400.177, 783.659, Fe 2p½ 1253.06 / 2p3/2 1257.19 → 1255.8; Ca and Fe were 783.9 and 1255; ²⁰⁸Pb 5963.8 / 5778.9 (Engfer 1974) → 5902.2; C and O not checked)
 const _xaKr = [[1, 1]].concat(XA_KA.map(([Z, A, k]) => [Z, k * 1e3 / (0.75 * xaBohr('mu-', Z, A - Z, 1))]));
 function xaKaRatio(Z) {
   const R = _xaKr; if (Z <= 1) return 1;
@@ -3287,7 +3287,7 @@ const HF_SIG = { cc: [[17.3, 3.6], [27.4, 18], [41.6, 49], [200, 600], [2760, 48
 const HF_THR = { cc: 5.09, bb: 11.84 }; // (GeV: N + Λc + D̄, N + Λb + B, the lowest ways a nucleon pair can make the pair)
 const HF_INEL = [[5, 30], [10, 31], [20, 32.5], [41.6, 34], [200, 42], [546, 48], [1800, 60], [7000, 73.1], [13000, 78.1]];
 const HF_ONIA = { cc: 0.005, bb: 0.002 };
-const HF_FRAG = { c: [[0.6086, 'Dc0'], [0.2404, 'Dc+'], [0.0802, 'Ds+'], [0.0623, 'Lc+']], b: [[0.407, 'B-'], [0.407, 'Bb0'], [0.101, 'Bsb0'], [0.085, 'Lb0']] };
+const HF_FRAG = { c: [[0.6086, 'Dc0'], [0.2404, 'Dc+'], [0.0802, 'Ds+'], [0.0623, 'Lc+']], b: [[0.408, 'B-'], [0.408, 'Bb0'], [0.100, 'Bsb0'], [0.084, 'Lb0']] }; // (1.27 bug 17: b fractions in Z decays, PDG 2020 (HFLAV): 40.8, 40.8, 10.0, 8.4%; it had 40.7, 40.7, 10.1, 8.5)
 const HF_MIN = { cc: 2 * 1864.84, bb: 2 * 5279.3, jpsi: 3096.9, ups: 9460.4 };
 function hfLog(tab, x) {
   let i = 1; while (i < tab.length - 1 && x > tab[i][0]) i++;

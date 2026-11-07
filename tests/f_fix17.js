@@ -17,14 +17,14 @@ PARTS.data = async (page, check, say) => {
   const br = (inf, m) => inf.modes.find(q => q.mode === m);
   const r = {
     rh103: X.NUC_SPIN['45_58'][1], naB: br(na, 'b+').br, naEC: br(na, 'ec').br, naQ: br(na, 'ec').Q, auQ: br(au, 'b-').Q,
-    o16: X.NXS['8_8'].s, cl35: X.NXS['17_18'].s, u238: X.NXS['92_146'].s, cc27: X.HF_SIG.cc[1][1], trC: X.xaTrRate(6), psO2: X.PS_SIGC, pb100: +(X.cpmPairSig(82, 82, 1e8)[0] * 6.02214076e23 * 1e-16 / 207.2).toFixed(4), bb200: X.HF_SIG.bb[2][1],
+    o16: X.NXS['8_8'].s, cl35: X.NXS['17_18'].s, u238: X.NXS['92_146'].s, cc27: X.HF_SIG.cc[1][1], trC: X.xaTrRate(6), psO2: X.PS_SIGC, ca: X.XA_KA[4][2], fe: X.XA_KA[5][2], bs: X.HF_FRAG.b[2][0], pb100: +(X.cpmPairSig(82, 82, 1e8)[0] * 6.02214076e23 * 1e-16 / 207.2).toFixed(4), bb200: X.HF_SIG.bb[2][1],
     MZ: X.EW.MZ, GZ: X.EW.GZ, Zm: X.XP.Z0.m, Zw: X.XP.Z0.w, lam: X.XP.Lam.dec.map(d => d[0]),
   };
   const near = (a, b, e) => Math.abs(a - b) <= e;
   check(near(r.rh103, -0.0884, 1e-4) && near(r.naB, 0.8996, 1e-4) && near(r.naEC, 0.1004, 1e-4) && near(r.naQ, 2.8433, 1e-4)
     && near(r.auQ, 1.3735, 1e-4) && r.MZ === 91.188 && r.GZ === 2.4955 && r.Zm === 91188 && r.Zw === 2495.5
-    && r.lam[0] === 0.641 && r.lam[1] === 0.359 && r.o16 === 3.75 && r.cl35 === 20.6 && r.u238 === 8.8 && r.cc27 === 18 && r.trC === 8.9e10 && r.psO2 === 1.16e-19 && Math.abs(r.pb100 - 0.0899) < 0.0009 && r.bb200 === 3.75,
-  `1.27 bug 17: ¹⁰³Rh μ ${r.rh103} μN, ²²Na β⁺ ${r.naB} EC ${r.naEC} Q ${r.naQ} MeV, ¹⁹⁸Au Q ${r.auQ} MeV, Z ${r.MZ} GeV Γ ${r.GZ}, Λ → pπ⁻ ${r.lam[0]} nπ⁰ ${r.lam[1]}; free-atom neutron scattering ¹⁶O ${r.o16} b, ³⁵Cl ${r.cl35}, ²³⁸U ${r.u238}; σ(cc̄) 27.4 GeV ${r.cc27} µb, σ(bb̄) 200 GeV ${r.bb200} µb; μp → C ${r.trC} s⁻¹; o-Ps–O₂ conversion ${r.psO2} cm²; lead's pair cross section at 100 MeV ${r.pb100} cm²/g (XCOM 0.0899)`,
+    && r.lam[0] === 0.641 && r.lam[1] === 0.359 && r.o16 === 3.75 && r.cl35 === 20.6 && r.u238 === 8.8 && r.cc27 === 18 && r.trC === 8.9e10 && r.psO2 === 1.16e-19 && r.ca === 783.66 && r.fe === 1255.8 && r.bs === 0.1 && Math.abs(r.pb100 - 0.0899) < 0.0009 && r.bb200 === 3.75,
+  `1.27 bug 17: ¹⁰³Rh μ ${r.rh103} μN, ²²Na β⁺ ${r.naB} EC ${r.naEC} Q ${r.naQ} MeV, ¹⁹⁸Au Q ${r.auQ} MeV, Z ${r.MZ} GeV Γ ${r.GZ}, Λ → pπ⁻ ${r.lam[0]} nπ⁰ ${r.lam[1]}; free-atom neutron scattering ¹⁶O ${r.o16} b, ³⁵Cl ${r.cl35}, ²³⁸U ${r.u238}; σ(cc̄) 27.4 GeV ${r.cc27} µb, σ(bb̄) 200 GeV ${r.bb200} µb; μp → C ${r.trC} s⁻¹; o-Ps–O₂ conversion ${r.psO2} cm²; muonic Ca/Fe 2p→1s ${r.ca}/${r.fe} keV; f(b → B⁰s) ${r.bs}; lead's pair cross section at 100 MeV ${r.pb100} cm²/g (XCOM 0.0899)`,
   'fix17 data: ' + JSON.stringify(r));
 };
 

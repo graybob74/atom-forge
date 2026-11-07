@@ -2753,7 +2753,7 @@ API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; th
 | neutron absorption (capture, (n,p), (n,α), (n,t), fission), 41 nuclides | hep.js NXS | | NIST NCNR table (Sears 1992) | fine: equal or within 5%, except ¹⁶O 0.19 mb (NIST 0.10: Mughabghab 2006's newer value kept), ¹⁷O 0.257 b (0.236), ¹⁴⁹Sm 40,140 b (42,080: the newer evaluation kept) |
 | neutron scattering, free atom | hep.js NXS s | 19 nuclides held the *bound* σ or were >5% off (e.g. ¹⁶O 4.23, ³⁵Cl 21.8, ²³⁸U 9.3, ¹⁰B 2.23, ⁷Li 0.97) | bound × (A/(A+1))²: 3.75, 20.6, 8.80, 2.56, 1.07 … | **fixed** (only with Realistic particles 6 on) |
 | σ(cc̄), σ(bb̄) against √s | hep.js HF_SIG | cc̄ 27.4 GeV 15 µb; bb̄ 41.6 GeV 12 nb, 200 GeV 1.3 µb | NA27 18 µb; HERA-B 15.8 nb; PHENIX 3.75 µb (STAR 4.0) (d'Enterria et al., arXiv:2605.16019, Tables I–II) | **fixed** (only with Realistic particles 5 on); the other 9 points agree (HERA-B 49, E789 5.7 nb, CDF 76 vs 80, LHCb 295/495, ALICE 4,800/8,500) |
-| bottom fragmentation fractions | hep.js HF_FRAG b | 0.407/0.407/0.101/0.085 | PDG's LEP fractions, not fetched | not checked |
+| bottom fragmentation fractions | hep.js HF_FRAG b | 0.407/0.407/0.101/0.085 | PDG 2020 (HFLAV), Z decays: 0.408 ± 0.007, 0.408, 0.100 ± 0.008, 0.084 ± 0.011 | within errors; set to PDG 2020's values (only with Realistic particles 5 on) |
 | antiprotonic X-rays (Bohr levels) | hep.js xaBohr | Al 5→4 91.6, 6→5 49.7, 7→6 30.0 keV; S 139.5/75.8; Si 106.3/57.8 | Aramaki et al., arXiv:1303.3871, Tables 5, 12: 92/50/30, 139/76, 106/58 | fine |
 | muonic Ne 5g→4f | hep.js xaBohr | 6294.0 eV | 6297.27 eV (Okumura et al., PRL 130, 173001, 2023) | fine (0.05%: the Bohr level without fine structure) |
 | muonic 2p→1s lines XA_KA (C … Pb) | hep.js XA_KA | 75.25 … 5901 keV | not in the pages reached | not checked |
@@ -2767,10 +2767,10 @@ API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; th
 | o-Ps–O₂ spin-conversion σ | hep.js PS_SIGC | 1.5×10⁻¹⁹ cm² | (1.16 ± 0.01)×10⁻¹⁹ (Shinohara et al., PRA 64, 042702, 2001; silica gels 1.2×10⁻¹⁹) | **fixed** (only with Positronium on); f_rp2 "matter" now takes σ from the table |
 | o-Ps life in water | hep.js PS_TAU_W | 1.80 ns | 1.86 ns at melting (Eldrup, Risø-R-254, 1971), ~1.85 ns at room temperature, shorter when warmer | fine (within the spread) |
 | μp → O transfer | hep.js XA_TR | 8.5×10¹⁰ s⁻¹ | 0.85(2)×10¹¹ (Werthmüller et al., Hyperfine Interact. 116, 1, 1998) | fine |
-| μp → N transfer | hep.js XA_TR | 3.4×10¹⁰ s⁻¹ | no number found | not checked |
+| μp → N transfer | hep.js XA_TR | 3.4×10¹⁰ s⁻¹ | (3.4 ± 0.7)×10¹⁰ (Jacot-Guillarmod et al., PRA 55, 3447, 1997; Thalmann et al., PRA 57, 1713, 1998; quoted in MuCap, arXiv:1502.00913) | fine |
 | charm fragmentation fractions | hep.js HF_FRAG c | 0.6086/0.2404/0.0802/0.0623 | Lisovyi et al., EPJC 76, 397 (2016), Table 12: identical | fine |
-| muonic ²⁰⁸Pb 2p→1s | hep.js XA_KA | 5901 keV (2:1 mean) | 5963.8 / 5778.9 keV (Engfer 1974, in MuDirac arXiv:2605.00554 Table 2): mean 5902.2 | fine; C … Fe not in that table: not checked |
-| refractive indices (water 1.333, silica 1.4585) | | | | not checked |
+| muonic 2p→1s lines | hep.js XA_KA | Al 346.8, Si 400.2, Ca 783.9, Fe 1255, Pb 5901 keV | ENSDF muon-capture datasets (Measday et al., PRC 73, 2006; PRC 76, 2007): 346.828, 400.177, 783.659, Fe 1253.06/1257.19 (2:1 mean 1255.8); Pb 5963.8/5778.9 (Engfer 1974 via MuDirac arXiv:2605.00554): mean 5902.2 | Ca, Fe **fixed** (783.66, 1255.8; only with Exotic atoms on); Al, Si, Pb fine; C 75.25, O 133.53 not checked (Dubler et al., Nucl. Phys. A219, 29, 1974 not reachable) |
+| refractive indices | hep.js cpmEnv | water 1.333, fused silica 1.458 (at 589 nm) | water 1.333 at 589.29 nm (Hale & Querry, Appl. Opt. 12, 555, 1973); silica 1.45840 at 589.29 nm (Malitson, JOSA 55, 1205, 1965, Sellmeier) | fine |
 
 - Water's I: PDG 2024 gives 79.7 eV (ICRU 90); the game builds water from H and O (Bragg additivity, ≈ 75 eV, the older
   ICRU 49 value). Changing that is a model change: written down, not done.
@@ -2797,6 +2797,9 @@ API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; th
     in MuDirac 1.3.0, arXiv:2605.00554, Table 2 (muonic Pb).
   - Shinohara et al., Phys. Rev. A 64, 042702 (2001), arXiv:physics/0011054, abstract (o-Ps–O₂); Eldrup, Risø-R-254
     (1971), abstract (o-Ps in water).
+  - The owner's source sheet (atom-forge-sources-2026-11-07.pdf): μp → N (Jacot-Guillarmod 1997, Thalmann 1998), ENSDF
+    muonic Lyman lines (www.nndc.bnl.gov/ensnds/…/27al_mu-_nu2ng.pdf, 28si_…, 40ca_…, 56fe_…), PDG 2020 b fractions,
+    Hale–Querry water and Malitson silica indices.
   - Zinner, Langanke, Vogel, Phys. Rev. C 74, 024326 (2006) (muon lifetimes; bug 12's check).
 - Sources the owner sent (2026-11-07): Aramaki et al. (exotic-atom X-rays), Okumura et al. (muonic neon), the FAMU carbon
   paper (uploaded as a PDF), NIST STAR intro, NIST NCNR neutron table, d'Enterria et al. (charm/bottom σ).
