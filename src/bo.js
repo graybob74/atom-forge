@@ -268,8 +268,11 @@ function boPassJS(forces) {
     if (!bt(k) || !(ne0_[k] > 0)) continue;
     let P = 1; const s0 = BF.ns;
     bfCommon(pa[k], pb[k], inc, f0, fc, (j) => ne0_[j] > 0.3, (k1, k2) => {
-      const dd = Math.min(PT[pt[k1] * BF_PS + 5], PT[pt[k2] * BF_PS + 5]) - PT[pt[k] * BF_PS + 5]; if (dd <= 0.4) return;
-      const u = Math.min(1, (dd - 0.4) / 0.4), sg = u * u * (3 - 2 * u), w = boB(ne0_[k1]) * boB(ne0_[k2]) * sg; if (w <= 0) return;
+      // (1.27 bug 14) how much stronger the two bonds to the common atom are than the pair's own, as a share of the pair's
+      // bond: from 5% to 15%. It was 0.4–0.8 eV, so a weak pair beside bonds only a little stronger escaped: AsCl₅'s Cl–Cl
+      // (2.51 eV beside As–Cl 2.97: 0.46 eV, 18%) took orders 0.41; SbCl₅ (0.6 eV, 24%) half held
+      const Dk = PT[pt[k] * BF_PS + 5], dd = Math.min(PT[pt[k1] * BF_PS + 5], PT[pt[k2] * BF_PS + 5]) - Dk; if (!(dd > 0.05 * Dk)) return;
+      const u = Math.min(1, (dd / Dk - 0.05) / 0.10), sg = u * u * (3 - 2 * u), w = boB(ne0_[k1]) * boB(ne0_[k2]) * sg; if (w <= 0) return;
       P *= 1 - w; bfSupPush(k1, k2, sg);
     });
     if (BF.ns > s0) { pss[k] = s0; psn[k] = BF.ns - s0; ne_[k] = ne0_[k] * P; dne_[k] = dne0_[k] * P; }
