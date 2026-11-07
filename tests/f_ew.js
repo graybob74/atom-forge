@@ -28,7 +28,8 @@ function eePair(X, rs, d3) {
    collisions, beams, decays and annihilation, and of water flat and in 3-D, equal v145's (all 59 were compared when this
    was built: none changed; RHIC's gold at 200 GeV per nucleon pair draws for a W or Z in its plasma, but no fireball forms
    within 300 steps). */
-const FP_V145 = { rhic: 'fb7e8382 a9f2ee3a', ring: 'bdaf576a a9f2ee3a', linac: '7c6eb010 2b70ae2c', dafne: '793dfacd 43026f16', annihilation: '63bcd7e3 80f2a127', pionbeam: 'f6ef9b3d 8c3545fe', photonuc: '9bdf9dd1 49d4aec0', hyperfactory: '5696d14c aab7307e', antihydrogen: 'fcbb2bdd ea7b2fcc', chain: '4b24bd95 a9f2ee3a', isolde: '510ea801 d3061743', sns: '93ccd94e 72c69cea', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
+// (1.27 bug 4: sns re-fingerprinted, switches off: fast positrons ionize and scatter as electrons do, annihilating in flight at Heitler's rate)
+const FP_V145 = { rhic: 'fb7e8382 a9f2ee3a', ring: 'bdaf576a a9f2ee3a', linac: '7c6eb010 2b70ae2c', dafne: '793dfacd 43026f16', annihilation: '63bcd7e3 80f2a127', pionbeam: 'f6ef9b3d 8c3545fe', photonuc: '9bdf9dd1 49d4aec0', hyperfactory: '5696d14c aab7307e', antihydrogen: 'fcbb2bdd ea7b2fcc', chain: '4b24bd95 a9f2ee3a', isolde: '510ea801 d3061743', sns: '40ff6b8f c5bfba1e', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.fp = async (page, check) => {
   const bad = [];
   for (const k of Object.keys(FP_V145)) {

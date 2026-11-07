@@ -13,7 +13,8 @@ const h = (s) => { let a = 0x811c9dc5; for (let i = 0; i < s.length; i++) { a ^=
 /* With both switches off every setup is as before, bit for bit: the fingerprints (tools/fingerprint.js: seed 7, 300
    steps) of the setups with resonances, collisions, neutrons and decays, and of water flat and in 3-D, equal v141's; a
    placed ρ⁰ has the table's mass, and ⁶⁰Co's decay gives no γ line. */
-const FP_V141 = { pionbeam: 'f6ef9b3d 8c3545fe', rhic: 'fb7e8382 a9f2ee3a', linac: '7c6eb010 2b70ae2c', chain: '4b24bd95 a9f2ee3a', photonuc: '9bdf9dd1 49d4aec0', annihilation: '63bcd7e3 80f2a127', isolde: '510ea801 d3061743', sns: '93ccd94e 72c69cea', useries: '0f6ae8fd a9f2ee3a', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
+// (1.27 bug 4: sns re-fingerprinted, switches off: fast positrons ionize and scatter as electrons do, annihilating in flight at Heitler's rate)
+const FP_V141 = { pionbeam: 'f6ef9b3d 8c3545fe', rhic: 'fb7e8382 a9f2ee3a', linac: '7c6eb010 2b70ae2c', chain: '4b24bd95 a9f2ee3a', photonuc: '9bdf9dd1 49d4aec0', annihilation: '63bcd7e3 80f2a127', isolde: '510ea801 d3061743', sns: '40ff6b8f c5bfba1e', useries: '0f6ae8fd a9f2ee3a', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const bad = [];
   for (const k of Object.keys(FP_V141)) {

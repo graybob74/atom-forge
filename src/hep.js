@@ -2433,7 +2433,7 @@ function hadronParts(s) {
   out.cc = W2 > 3.75 ? sigPt(s) * 1.4 : 0; out.bb = W2 > 10.6 ? sigPt(s) * 0.35 : 0; // (charm and bottom pairs: their own channels since 1.15)
   return out;
 }
-function eeEvent(a, b, x, y) {
+function eeEvent(a, b, x, y, noGG) { // (noGG: a positron in matter's partner, 1.27 bug 4: returns 'gg' and does nothing when it would be two γ rays; annFlight makes those)
   const Pa = p4of(a), Pb = p4of(b), P = add4(Pa, Pb), M = mass4(P), s = M * M / 1e6;
   const H = hadronParts(s), xb = a.xb || b.xb, ml = restE(a) / MEV / 1000; // (a muon and an antimuon, or a τ pair, in a collider's beams: 1.15)
   const neg = (p) => (p.xb ? p.q < 0 : p.k === ELEC), Pneg = neg(a) ? Pa : Pb;
@@ -2461,6 +2461,7 @@ function eeEvent(a, b, x, y) {
   }
   let items = toks ? toks.map(item) : null;
   if (!items || (ch !== 'Z' && items.reduce((t, it) => t + massOf(it), 0) >= M - 0.01)) { // two γ rays
+    if (noGG) return 'gg';
     if (!xb) { annihilateInFlight(a, b, x, y); return; }
     items = [item('g'), item('g')]; ang = null;
   }

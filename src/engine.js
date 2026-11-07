@@ -4455,16 +4455,22 @@ function evLepton(L, A, r) {
   const mu = L.m * A.m / (L.m + A.m);
   const dvx = L.vx - A.vx, dvy = L.vy - A.vy, dvz = L.vz - A.vz;
   const Erel = 0.5 * mu * (dvx * dvx + dvy * dvy + dvz * dvz);
-  if (clash(L, A)) { // a positron at ordinary matter, or an electron at antimatter
+  const cl = clash(L, A);
+  if (cl) { // a positron at ordinary matter, or an electron at antimatter
     if (r > rh || L.hit === A.id) return;
-    L.hit = A.id;
-    if (A.ne > 0) { lzNeed(); if (!(typeof RP !== 'undefined' && RP.ps && psFromAtom(L, A, Erel))) annihilateBound(L, A); } else elasticScatter(L, A, 0); // (the Positronium switch: in the Ore gap it takes an electron instead, hep.js, 1.27)
-    return;
+    // (1.27 bug 4) one with the energy to ionize the atom meets it as an electron does (ionizes, excites, scatters below),
+    // annihilating in flight at Heitler's rate over the atom's electrons; slower, it annihilates on contact as before
+    if (!(A.ne > 0 && Erel + pairPE(L, A) > ionizationCost(A))) { // (its energy apart from the atom's pull, as psFromAtom's window takes it)
+      L.hit = A.id;
+      if (A.ne > 0) { lzNeed(); if (!(typeof RP !== 'undefined' && RP.ps && psFromAtom(L, A, Erel))) annihilateBound(L, A); } else elasticScatter(L, A, 0); // (the Positronium switch: in the Ore gap it takes an electron instead, hep.js, 1.27)
+      return;
+    }
+    if (rnd() < heitlerP(Erel, A, rh)) { L.hit = A.id; lzNeed(); annFlight(L, A); return; }
   }
   // recombination into an ion (positive for matter, negative for antimatter): bound leptons are captured,
   // free ones only sometimes (radiative)
   const sg = A.anti ? -1 : 1;
-  if (sg * A.q >= 1) {
+  if (sg * A.q >= 1 && !cl) {
     const qt = sg * A.q;
     const Etot = Erel - PHYS.KE * qt / Math.sqrt(r * r + A.sEN);
     // two-body binding ignores the neighbours' fields (continuum lowering), so require a clearly bound orbit; a lepton
@@ -4476,7 +4482,7 @@ function evLepton(L, A, r) {
   }
   if (r >= rh || L.hit === A.id) return;
   L.hit = A.id;
-  if (A.ne > 0 && A.q === 0 && A.el.ea > 0 && A.ne < zChem(A) + maxExtraElectrons(zChem(A)) && !(L.capT > W.t) && rnd() < 0.04) {
+  if (!cl && A.ne > 0 && A.q === 0 && A.el.ea > 0 && A.ne < zChem(A) + maxExtraElectrons(zChem(A)) && !(L.capT > W.t) && rnd() < 0.04) {
     lzNeed(); if (attach(L, A, Erel)) return;
   }
   if (A.ne > 0) {
@@ -4665,7 +4671,7 @@ function impactIonize(L, A, ie, Erel) {
   updateFast(L);
   W.count.ionize++;
   const lk = L.k === POS ? 'e⁺' : 'e⁻';
-  log('em', `Impact ionization: ${lk} + ${before} → ${speciesLabel(A)} + 2${lk} (${fmtE(ie)})`);
+  log('em', `Impact ionization: ${lk} + ${before} → ${speciesLabel(A)} + ${L.k === POS ? 'e⁺ + e⁻' : '2' + lk} (${fmtE(ie)})`); // (a positron's: it and the electron it freed, 1.27 bug 4)
 }
 /* ---- annihilation energetics ----
    Every annihilation is energy-exact: the γ rays (or pions) carry off precisely what the particles involved
@@ -4789,6 +4795,66 @@ function settleKE(S, Qrel, ps) {
   return left;
 }
 
+/* (1.27 bug 4) A positron in flight through matter (or an electron through antimatter) annihilates with one of the
+   electrons it passes at Heitler's rate: his cross section per electron at rest for a positron of kinetic energy KE (eV),
+   in Å² (π r_e² = 0.24946 b; W. Heitler, The Quantum Theory of Radiation, 1954), about 0.1 b at 1 MeV, rising as 1/β
+   below and falling as ln(2γ)/γ above. A pass within R of an atom samples its ne electrons over πR². */
+function heitlerSig(KE) {
+  const g = 1 + Math.max(KE, 1) / ME_C2, g2 = g * g, s = Math.sqrt(g2 - 1);
+  return 2.4946e-9 / (g + 1) * ((g2 + 4 * g + 1) / (g2 - 1) * Math.log(g + s) - (g + 3) / s);
+}
+function heitlerP(KE, A, R) { return Math.min(1, Math.max(0, A.ne) * heitlerSig(KE) / (Math.PI * R * R)); }
+/* In flight the chance goes with the energy the pass took from it, dE: n_e·σ over n_e times the stopping per electron,
+   2πr_e²mc²·L/β² (Rohrlich and Carlson's positron stopping number L, I the atom's mean excitation energy, cpmI), so that
+   over its whole range a positron annihilates in flight as often as in nature whatever the game's sampling of passes:
+   3.6% from 1 MeV in water, 13% from 10 MeV (Heitler's σ over ESTAR's stopping power, computed for 1.27 bug 4). */
+function heitlerPdE(KE, dE, Z) {
+  const t = Math.max(KE, 1) / ME_C2, t2 = t + 2, b2 = t * t2 / ((t + 1) * (t + 1)), I = cpmI(Z) / ME_C2;
+  const L = Math.max(1, Math.log(t * t * t2 / (2 * I * I)) + 2 * Math.LN2 - b2 / 12 * (23 + 14 / t2 + 10 / (t2 * t2) + 4 / (t2 * t2 * t2)));
+  return Math.min(1, Math.max(0, dE) * heitlerSig(KE) * b2 / (2.5495e-3 * L));
+}
+/* (1.27 bug 4) The positron L annihilates in flight with an electron of atom A (at A's motion). Above √s = 2m_μ (211 MeV)
+   e⁺e⁻'s other channels open: an electron is taken from A (L pays its cost) and eeEvent decides (μ pairs, hadrons, …);
+   otherwise, or when eeEvent draws its two γ, two γ rays back to back in their own frame, boosted to the lab (the books
+   as annihilateBound's: annihBegin/annihEnd). */
+function annFlight(L, A) {
+  if (L.dead || A.dead || A.ne <= 0) return;
+  const x = L.x, y = L.y, z = L.z || 0, me = PHYS.MEC2, d3 = W.d3;
+  const Pl = p4of(L), va = A.rad ? [A.ux * A.sp, A.uy * A.sp, 0] : [A.vx, A.vy, d3 ? A.vz : 0], ge = 1 / Math.sqrt(Math.max(1e-12, 1 - (va[0] * va[0] + va[1] * va[1] + va[2] * va[2]) / (PHYS.C * PHYS.C)));
+  const P = [Pl[0] + ge * me, Pl[1] + ge * me * va[0] / PHYS.C, Pl[2] + ge * me * va[1] / PHYS.C, (Pl[3] || 0) + ge * me * va[2] / PHYS.C], M = mass4(P);
+  if (M > 2 * XP['mu-'].m + 0.5 && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS - 50) {
+    const cost = ionizationCost(A) + 0.05, K0 = keOf(L);
+    if (K0 > cost + 1) {
+      const take = (K) => { if (L.rad) { L.KE = K; radSpeed(L); L.vx = L.sp * L.ux; L.vy = L.sp * L.uy; } else { const f = Math.sqrt(K / keOf(L)); L.vx *= f; L.vy *= f; L.vz *= f; } };
+      take(K0 - cost);
+      const e = ejectElectron(A, 0.05);
+      if (e) { if (eeEvent(L, e, x, y, true) !== 'gg') return; twoGammaFlight(L, e, null, x, y, z); return; }
+      take(K0);
+    }
+  }
+  twoGammaFlight(L, null, A, x, y, z);
+}
+/* Two γ from L and a partner electron (e, free, or one of atom A's), back to back in the pair's own frame at a random
+   direction (3-D over the sphere, flat in the plane), boosted to the lab, their energies scaled to what the books release. */
+/* (3-D) moveFastLeptons3's positron annihilating at the t of its segment: its energy so far (Ke of K0) set, at the meeting point. */
+function annFly3(p, tg, Ke, K0, x0, y0, z0, t) {
+  if (Ke < K0) { const f = Math.sqrt(Math.max(0, Ke) / K0); p.vx *= f; p.vy *= f; p.vz *= f; }
+  p.x = x0 + (p.x - x0) * t; p.y = y0 + (p.y - y0) * t; p.z = z0 + (p.z - z0) * t; annFlight(p, tg);
+}
+function twoGammaFlight(L, e, A, x, y, z) {
+  const S = annihBegin(e ? [L, e] : [L, A]);
+  const me = PHYS.MEC2, Pl = p4of(L), Pe = e ? p4of(e) : (() => { const v = A.rad ? [A.ux * A.sp, A.uy * A.sp, 0] : [A.vx, A.vy, W.d3 ? A.vz : 0], g = 1 / Math.sqrt(Math.max(1e-12, 1 - (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) / (PHYS.C * PHYS.C))); return [g * me, g * me * v[0] / PHYS.C, g * me * v[1] / PHYS.C, g * me * v[2] / PHYS.C]; })();
+  const P = [Pl[0] + Pe[0], Pl[1] + Pe[1], Pl[2] + Pe[2], (Pl[3] || 0) + (Pe[3] || 0)], M = mass4(P), bx = P[1] / P[0], by = P[2] / P[0], bz = W.d3 ? P[3] / P[0] : 0;
+  const u = rndDir(), k1 = toLab([M / 2, M / 2 * u[0], M / 2 * u[1], M / 2 * u[2]], bx, by, bz), k2 = toLab([M / 2, -M / 2 * u[0], -M / 2 * u[1], -M / 2 * u[2]], bx, by, bz);
+  const who = A ? speciesLabel(A) : 'e⁻';
+  kill(L); if (e) kill(e); else { A.ne--; refresh(A); enforceValence(A, null); relink([A]); }
+  const Er = annihEnd(S), sum = k1[0] + k2[0];
+  for (const k of [k1, k2]) { const n = Math.hypot(k[1], k[2], W.d3 ? k[3] : 0) || 1; emitPhoton(x, y, k[0] * Er / sum, k[1] / n, k[2] / n, W.d3 ? { z, uz: k[3] / n } : undefined); }
+  flash(x, y, [255, 255, 255], 3, 0.4);
+  W.count.annih++; W.count.annFlight = (W.count.annFlight || 0) + 1;
+  nucEvent('annih', x, y, `${L.k === POS ? 'e⁺' : 'e⁻'} + ${who} → ${A ? speciesLabel(A) + ' + ' : ''}2γ in flight`, [ghostOf(L)], `${fmtE(Er)} in two γ rays`, undefined, z);
+  log('nuc', `Annihilation in flight: ${L.k === POS ? 'e⁺' : 'e⁻'} + an electron of ${who} → 2γ (${fmtE(Er)}: their mass and the positron's motion)`);
+}
 function annihilateBound(Pp, A) {
   if (A.ne <= 0 || A.dead || Pp.dead) return;
   const x = Pp.x, y = Pp.y, z = Pp.z, who = speciesLabel(A);
@@ -6260,6 +6326,7 @@ function moveRad(p, dt) {
       p.KE = CPM.K;
       if (d > 0 && W.nucWin && (p.nucProd || p.born >= W.nucWin.t0)) for (const m of molecule(tg)) m.nucProd = true;
       if (p.KE <= 0) break;
+      if (clash(p, tg) && !tg.dead && tg.ne > 0 && rnd() < heitlerPdE(p.KE, d, tg.Z)) { annFlight(p, tg); stopped = true; break; } // (in flight, 1.27 bug 4)
     }
     // A nucleus is hit where it is drawn: inside the reach, nuclei meet (reactions above the Coulomb barrier, tunnelling
     // below it); a lepton crossing a nucleus is turned by its full charge (Mott scattering), the pass mapped onto
@@ -6309,6 +6376,7 @@ function moveRad(p, dt) {
     } else {
       pushSquare(tg, nx, ny, dE); // (a push square to the path giving it exactly dE, as fastStop3 in 3-D: 0.7·√(2dE/m) gave about half, the rest lost from the books (a 20 MeV electron's H recoil through a water molecule −6.5 eV), 1.26)
     }
+    if (p.k !== NUC && clash(p, tg) && !tg.dead && tg.ne > 0 && rnd() < heitlerPdE(p.KE, dE, tg.Z)) { annFlight(p, tg); stopped = true; break; } // (a positron annihilating in flight with one of the atom's electrons, Heitler's rate, 1.27 bug 4)
     if (p.KE <= 0) break;
   }
   if (RP.cpm && !p.dead && !stopped && p.KE > 1) { CPM.K = p.KE; cpmCkv(x0, y0, 0, Math.hypot(x1 - x0, y1 - y0)); p.KE = CPM.K; } // (Cherenkov light, 1.27)
@@ -7889,7 +7957,7 @@ function moveFastLeptons3(Dt, id0) {
       const cpm = RP.cpm, hs = segTargets3(x0, y0, z0, p.x, p.y, p.z, 1.0, (t) => t.k === NUC && t.Z > 0 && (t.ne > 0 || cpm) && !t.fast).slice(), sl = cpm ? Math.hypot(p.x - x0, p.y - y0, p.z - z0) : 0; // (charged particles in matter, 1.27: bare nuclei too, for bremsstrahlung; hep.js)
       if (cpm) cpmSeg(p, Ke, ME_C2, 1, p.k === POS ? 1 : -1, ux, uy, uz, sl, (x0 + p.x) / 2, (y0 + p.y) / 2, (z0 + p.z) / 2, 1.0, true);
       for (const [t, tg, b] of hs) {
-        if (cpm) { if (tg.dead) continue; CPM.K = Ke; cpmAtom(tg, b, 0.0047 * Math.max(0, tg.ne) / beta2 / (1 + (b / 0.4) * (b / 0.4)), x0 + (p.x - x0) * t, y0 + (p.y - y0) * t, z0 + (p.z - z0) * t); Ke = CPM.K; if (Ke <= 1) break; continue; }
+        if (cpm) { if (tg.dead) continue; CPM.K = Ke; const d = cpmAtom(tg, b, 0.0047 * Math.max(0, tg.ne) / beta2 / (1 + (b / 0.4) * (b / 0.4)), x0 + (p.x - x0) * t, y0 + (p.y - y0) * t, z0 + (p.z - z0) * t); Ke = CPM.K; if (Ke <= 1) break; if (clash(p, tg) && !tg.dead && tg.ne > 0 && rnd() < heitlerPdE(Ke, d, tg.Z)) { annFly3(p, tg, Ke, K0, x0, y0, z0, t); break; } continue; }
         if (tg.dead || tg.ne <= 0) continue;
         const w = 1 / (1 + (b / 0.4) * (b / 0.4)), dE = Math.min(0.3 * Ke, 0.0047 * tg.ne / beta2 * w);
         if (dE < 0.01) continue;
@@ -7898,7 +7966,9 @@ function moveFastLeptons3(Dt, id0) {
         if (dE > ie && freeElectronCount() < MAX_FREE_E && W.parts.length < MAX_PARTS) { if (ejectElectron(tg, dE - ie, n[0], n[1], undefined, undefined, n[2])) W.count.ionize++; else dumpHeat(dE, tg, tg); }
         else { const vn = tg.vx * n[0] + tg.vy * n[1] + tg.vz * n[2], a = -vn + Math.sqrt(vn * vn + 2 * dE * tg.im); tg.vx += n[0] * a; tg.vy += n[1] * a; tg.vz += n[2] * a; updateFast(tg); }
         if (Ke <= 1) break;
+        if (clash(p, tg) && !tg.dead && tg.ne > 0 && rnd() < heitlerPdE(Ke, dE, tg.Z)) { annFly3(p, tg, Ke, K0, x0, y0, z0, t); break; } // (in flight, Heitler's rate, 1.27 bug 4)
       }
+      if (p.dead) break; // (annihilated in flight, 1.27 bug 4)
       if (cpm && Ke > 1) { CPM.K = Ke; cpmCkv(x0, y0, z0, sl); Ke = CPM.K; } // (Cherenkov light, 1.27)
       if (Ke < K0) { const f = Math.sqrt(Math.max(0, Ke) / K0); p.vx *= f; p.vy *= f; p.vz *= f; }
       if (p.trk) extendTrack(p); else if (Ke > 2e3) startTrack(p);
