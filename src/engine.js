@@ -3816,7 +3816,7 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src, pol, depth = 0) { // (depth: 
 function compton3(p, E, ux, uy, uz, pol) {
   if (p.dead || p.ne === 0) return;
   if (typeof RP !== 'undefined' && RP.pol) { rpCompton(p, E, ux, uy, uz, pol); return; } // (Klein–Nishina with the polarization: Realistic particles 7, hep.js, 1.27)
-  const k = E / 511e3, ct = 2 * rnd() - 1, Ep = E / (1 + k * (1 - ct)), Te = E - Ep;
+  const k = E / ME_C2, ct = 2 * rnd() - 1, Ep = E / (1 + k * (1 - ct)), Te = E - Ep;
   const u = turn3(ux, uy, uz, Math.acos(ct)), nx = u[0], ny = u[1], nz = u[2];
   const KEe = Te - ionizationCost(p);
   if (KEe > 0.05 && ejectElectron(p, KEe, ux, uy, undefined, undefined, uz)) W.count.ionize++; else dumpHeat(Te, p, p);
@@ -3918,6 +3918,11 @@ function rayInteract(x, y, ux, uy, E, src, pol, depth = 0) { // (depth: the phot
     if (RP.pwave && E >= 1000 && p.ne > 0 && rnd() < Math.min(0.9, WVB.P0 * WVB.GMAX * (p.ne / 10) * (p.ne / 10))) { const r = waveBraggTry(p, E, ux, uy, pol); if (r) return { x: hx, y: hy, p, after: () => waveBraggEmit(p, E, r, depth) }; } // (photons as waves: an X-ray scattered by the atoms about it, as their structure factor says, 1.27 feature 19: pold.js)
     if (p.ne > 0) {
       const ie = ionizationCost(p);
+      if (E >= 1e4) { // (X-rays of 10–100 keV: Compton scattering and the photoelectric effect by their cross sections, on the scale of the γ rays above, 1.27 bug 7)
+        const xs = xraySig(p, E), inc = xs[0] * (pol && RP.pol ? knPlaneW(E, pol, ux, uy) : 1), P = 0.012 * (inc + xs[1]) / (CPM_KN1 * 1e8); // (CPM_KN1 in Å², the cross sections in barns)
+        if (rnd() < P) return rnd() * (inc + xs[1]) < inc ? { x: hx, y: hy, p, after: () => compton(p, E, ux, uy, pol) } : { x: hx, y: hy, p, after: () => photoIonize(p, E - ie, ie) };
+        continue;
+      }
       if (E >= ie && rnd() < 0.6 * Math.min(1, Math.pow(ie / E, 1.5) * 2)) {
         return { x: hx, y: hy, p, after: () => photoIonize(p, E - ie, ie) };
       }
@@ -3936,6 +3941,19 @@ function rayInteract(x, y, ux, uy, E, src, pol, depth = 0) { // (depth: the phot
     }
   }
   return null;
+}
+/* (1.27 bug 7) X-rays of 10–100 keV meet an atom by its incoherent (Compton) and photoelectric cross sections, barns,
+   [σ_inc, σ_pe]: σ_inc = n_e·σ_KN(E)·S, S = 1 − exp(−E / (2.17 keV·Z^0.72)) for the electrons' binding; σ_pe = 1.59×10⁻⁵ b
+   ·Z^4.2·(E/100 keV)^−3.2, a fifth of that below the K edge (13.6 eV·(Z − 1)²). The game meets atoms at 0.012 a pass for
+   each 0.2112 b (Klein–Nishina's at 1 MeV, part 3's scale: hep.js cpmGamma), so 10–100 keV joins the γ rays above
+   (it was the outer electrons' rule of thumb, 6×10⁻⁵ an oxygen at 10 keV, 2×10⁻⁶ at 100 keV, against 0.1 just above
+   100 keV). A shape fitted to NIST XCOM's values as remembered (water: photoelectric 0.551, 0.155, 0.017, 0.0033 cm²/g
+   and incoherent 0.177, 0.181, 0.178, 0.165 at 20, 30, 60, 100 keV; lead at 100 keV 5.2 and about 0.1): to be checked
+   against XCOM. Water's crossing comes at 27 keV (XCOM about 26). */
+function klein(E) { const k = E / 510998.95, l = Math.log(1 + 2 * k); return 0.4989 * ((1 + k) / (k * k) * (2 * (1 + k) / (1 + 2 * k) - l / k) + l / (2 * k) - (1 + 3 * k) / ((1 + 2 * k) * (1 + 2 * k))); } // (Klein–Nishina's total per electron, barns: 2πr_e² = 0.4989 b; 0.665 b at low energy)
+function xraySig(p, E) {
+  const Z = zChem(p), S = 1 - Math.exp(-E / (2170 * Math.pow(Z, 0.72)));
+  return [Math.max(0, p.ne) * klein(E) * S, 1.59e-5 * Math.pow(Z, 4.2) * Math.pow(E / 1e5, -3.2) * (E < 13.6 * (Z - 1) * (Z - 1) ? 0.2 : 1)];
 }
 function irActive(p) { // molecule has a vibration that changes its dipole (not a homonuclear diatomic)
   const mol = molecule(p);
@@ -3966,7 +3984,7 @@ function compton(p, E, ux, uy, pol) {
   if (p.dead || p.ne === 0) return;
   if (typeof RP !== 'undefined' && RP.pol) { rpCompton(p, E, ux, uy, 0, pol); return; } // (Klein–Nishina with the polarization: Realistic particles 7, hep.js, 1.27)
   // sample scattering angle (Klein–Nishina approximated by an isotropic-forward mix)
-  const k = E / 511e3, ct = 2 * rnd() - 1;
+  const k = E / ME_C2, ct = 2 * rnd() - 1; // (mₑc² itself: 511e3 put the scattered energy 3×10⁻⁷ off the formula, 1.27 bug 7)
   const Ep = E / (1 + k * (1 - ct));
   const Te = E - Ep;
   const th = Math.acos(ct) * (rnd() < 0.5 ? 1 : -1);

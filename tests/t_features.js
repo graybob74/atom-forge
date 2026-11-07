@@ -1804,6 +1804,7 @@ const { openPage } = require('./browser');
   await alone('f_fix04.js'); // 1.27 bug 4: fast positrons ionize, scatter and annihilate in flight (node tests/f_fix04.js [--node] [part …])
   await alone('f_fix05.js'); // 1.27 bug 5: p̄p by the measured cross sections (node tests/f_fix05.js [--node] [part …])
   await alone('f_fix06.js'); // 1.27 bug 6: fast fired particles meet over the step (node tests/f_fix06.js [--node] [part …])
+  await alone('f_fix07.js'); // 1.27 bug 7: Compton scattering of 10–100 keV X-rays (node tests/f_fix07.js [--node] [part …])
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();
