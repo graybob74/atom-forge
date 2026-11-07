@@ -326,6 +326,12 @@ engine stores and visits particles.
   cm³/mol). Per-element measured wells (and radii) for 3-D, re-checking water, the 3-D objects and pictures. A physics
   change; waits for the owner.
 
+- Solvated electrons, e⁻(aq) (not built; found by 1.27 bug 8): electrons slowed below about 1 eV in liquid water become a
+  hydrated electron (radius ~2.5 Å, D 4.9×10⁻⁵ cm²/s, 720 nm absorption, hydration ~1.7 eV; rate constants with H₃O⁺
+  2.3×10¹⁰ and OH 3×10¹⁰ M⁻¹s⁻¹, from memory), recombining the Onsager way with ε = 80: the measured 60% of radiolysis
+  electrons still free at 1 µs, the same in both modes (today 3-D recaptures 34 of 40 in 2 fs, flat runs away to 140).
+  A physics change; waits for the owner.
+
 ## 1.26 (in progress)
 
 ### 1.26: combined (branch v136)
@@ -3289,6 +3295,42 @@ at 20–60 keV in 300 tries), confirmed by running the file on a v145 tree.
 - Suites: t_lint, t_physics, t_hep, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass.
 - **Left for the owner.** 3-D light meets no atoms (rayInteract returns at once in 3-D, as before). Photoelectric
   absorption above 100 keV (lead to ~500 keV) not built. Coherent (Rayleigh) scattering not built. The step at 10 keV.
+
+### 1.27: bug 8 (3-D water recapture) — measured, written up, not changed
+
+Branch fix127-08-3d-water-recapture (from v145): this entry only, no code change and so no check file (nothing that is
+clearly a bug was found; the physics the owner asked for needs a state the game doesn't have: below, for him).
+
+- **Measured** (40 waters of the water / water3d setup ionized with 2 eV each at 300 K after 10 steps, the cost from the
+  bath, then 400 steps; free electrons counted every 10 steps; `/tmp/b8/rec.js` of the session):
+  - flat, insulated, seed 1: 40 → 53 at step 10, 69 at 30, 107 at 100, 135 at 200, 141 at 400 (22 fs): 683 impact
+    ionizations, 559 recombinations; seed 7 alike (40 → 131); with the bath (γ 0.05) 40 → 79 at 100, 109 at 200.
+  - 3-D, insulated, seed 1: 40 → 7 at step 10 (2 fs), 3 at 100, 1 at 400 (93 fs): 34 captures in the first 10 steps,
+    2 ionizations; seed 7 and the bath alike (40 → 7–8 at step 10, 1–2 at 400).
+  So the report's "flat keeps all 40" is a runaway here (the known ionized-water plasma limit of CLAUDE.md); 3-D
+  recaptures as reported. Books within the known limit both (flat −8 eV, 3-D −0.8 eV over 400 steps).
+- **Why they differ** (counted by wrapping capture, impactIonize, elasticScatter): a flat electron above 20 eV that is
+  not near an ion switches to ballistic flight (updateFast, "20 eV on, 13 eV off, never inside an ion's Coulomb well"),
+  which carries no force: after 3 steps 22 of the 40 were ballistic, flying straight through the water, scattering
+  (659 elastic events in 30 steps), ionizing (44) and caught only on touching an ion (4% a touch when free). A 3-D
+  electron stays in the stepped set with every force until 25 keV (LEP3_ON): all 40 started inside their ion's well
+  (nearIon), none went ballistic, and the pull brought 31 of them back to an ion within 2 steps (half a femtosecond).
+- **Against nature** (as the owner's brief gives it: hydrated within about 1 ps; about 60% still free at 1 µs, G 4.8 →
+  2.7 per 100 eV, from memory of the radiolysis literature, e.g. Buxton's reviews): neither mode is right, and in
+  opposite ways. 3-D is what an unscreened Coulomb world does: water's dielectric screening (ε ≈ 80 when the dipoles have
+  turned, ≈ 1.8 at optical times) and solvation are what keep real electrons apart from their cations; the game's water
+  turns its partial charges too slowly to screen a 2 eV electron in femtoseconds, and has no hydrated-electron state. The
+  flat game's survival comes from switching the Coulomb force off for fast electrons, a speed measure, not physics, and
+  it ends in the runaway. Neither the doubled ion–water pull (bug 1: free ions and molecules only, not electrons) nor the
+  step size (both about 0.015 tu a step here) nor the density decides it.
+- **What a fix would take (for the owner, after 1.00: written into "Planned features")**: a solvated electron, e⁻(aq): a
+  free electron in liquid water that has slowed below about 1 eV becomes a slow particle with water's measured
+  properties (radius about 2.5 Å, diffusion 4.9×10⁻⁵ cm²/s, absorption peak 720 nm, hydration energy about 1.7 eV,
+  values from memory), moving by diffusion and meeting H₃O⁺, OH and its cation by measured rate constants (2.3×10¹⁰,
+  3×10¹⁰ M⁻¹s⁻¹; geminate recombination the Onsager way with ε = 80); in both modes the same. That would give the 60% at
+  1 µs and the same answer flat and 3-D. A smaller step, not physics either: make the flat electrons keep the Coulomb force
+  of the nearest ions while ballistic (they would then recapture as 3-D does).
+- Fingerprints: no code changed. Suites: not run (no code changed).
 
 ### 1.27: W and Z bosons (electroweak)
 
