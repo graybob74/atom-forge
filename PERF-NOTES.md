@@ -3051,6 +3051,8 @@ the collider's next threshold); body.html (Physics: Forces → Electroweak, Acce
 - **Not built:** the Higgs's production modes as such (vector-boson fusion's two forward jets, a W, Z or tt̄ beside it);
   H → μμ's and Zγ's angles beyond isotropy (spin 0 makes them isotropic anyway); the beams' radiation on ZH; a Higgs
   factory setup (the collider's e⁺e⁻ beams reach it; a setup could be added).
+- Suite on v152 (2026-11-06): tools/runtests.sh 20 of 22; the misses the two known load-timed checks, t_page's slow-motion
+  button and t_features' 1.14 speed readout (every feature-25 check passed in the run).
 
 ### 1.27: feature 22 (Rayleigh scattering)
 
