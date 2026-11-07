@@ -4878,9 +4878,9 @@ function shareKE3(ps, dE) {
 }
 /* Settle a nuclear event's books by adjusting the products' relative motion (twice: a mode switch moves energy
    between potential and kinetic). Returns the remainder (eV), normally zero. */
-function settleKE(S, Qrel, ps) {
+function settleKE(S, Qrel, ps, tol = 1e-9, tries = 3) { // (tol, tries: cpmPair asks for more, 1.27 merge)
   let left = nucLeft(S, Qrel);
-  for (let k = 0; k < 3 && Math.abs(left) > 1e-9 * Math.max(1, Math.abs(Qrel)); k++) { shareKE(ps, left); left = nucLeft(S, Qrel); }
+  for (let k = 0; k < tries && Math.abs(left) > tol * Math.max(1, Math.abs(Qrel)); k++) { shareKE(ps, left); left = nucLeft(S, Qrel); }
   return left;
 }
 

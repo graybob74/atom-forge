@@ -2924,6 +2924,26 @@ No network here: every value marked "from memory" below is worth a check against
   TeV: 2–3 e off in one event); a bookkeeping fix (their charge to ledger.qOut), left for a bug-fix session. The scan's
   "measured σ" counts Z → hadrons only (γ* → hadrons, under 1% at the peak, is not counted).
 
+### 1.27: the 17 bug fixes merged with the features (branch v157)
+
+v157 = v156 (features 18–32, the two controls) + fix127-01 … fix127-17 (the fixer's branches, each from 0c947e1), merged
+in order on 2026-11-07. Conflicts:
+- PERF-NOTES and t_features: each branch's section and check line kept (all appended).
+- The tests' switches-off fingerprint tables (f_ew, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7): each fix re-fingerprinted the
+  setups it changes on its own; with all of them in, annihilation, pionbeam, hyperfactory, photonuc and sns (and, part 3
+  on, annihilation, photonuc and sns) take new values, measured on the merged code.
+- hep.js xbClose: bug 6 put a 3-D meeting's products at fastMeet's depth (_evZ3), feature 24 at exmHit's (_xbZ); exmHit
+  now sets _evZ3 too and xbClose uses it.
+- engine.js before rayInteract: bug 11's gdrP and feature 22's _rySeen and depth argument, both kept.
+- hep.js XP: bug 17's M_Z and Γ_Z (PDG 2024) with feature 25's Higgs line.
+- The kernel (bugs 1 and 14 each changed the Rust: d3.rs, bo.rs): rebuilt from the merged sources by wasm.yml (fb2bca6).
+Found by the suite on the merge, not by either side alone: f_rp3 "books" (3-D lead, part 3 on) lost 0.15 eV at one
+pair production. settleKE stops when the energy left is under 1e-9 of the event's, and a 220 MeV pair (made by a γ ray
+from a 440 MeV positron that annihilated at the wall; bug 17's screened pair cross section changed which events the seed
+gives) left 0.15 eV unpaid. cpmPair now settles to 1e-14 of the pair's energy in up to 8 rounds (settleKE takes the
+tolerance and the rounds; every other caller as before, so no setup with Charged particles in matter off changes):
+worst 4e-6 eV again.
+
 ### 1.27: bug 1 (3-D van der Waals)
 
 Branch fix127-01-3d-vdw (from v145). Approved physics (the owner's list, 2026-11-06); after the measurements below the

@@ -18,7 +18,7 @@ const h = (s) => { let a = 0x811c9dc5; for (let i = 0; i < s.length; i++) { a ^=
 // (1.27 bug 4: sns re-fingerprinted, switches off: fast positrons ionize and scatter as electrons do, annihilating in flight at Heitler's rate)
 // (1.27 bug 7: photonuc, sns and hyperfactory re-fingerprinted, switches off: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
 // (1.27 bug 15: pionbeam and photonuc re-fingerprinted, switches off: events in the electrons' short steps search a grid rebuilt after they moved)
-const FP_V141 = { pionbeam: 'a57d419b a3728514', rhic: 'fb7e8382 a9f2ee3a', linac: '7c6eb010 2b70ae2c', chain: '4b24bd95 a9f2ee3a', photonuc: '9bdf9dd1 49d4aec0', annihilation: '792e52ec 54cc0e75', isolde: '510ea801 d3061743', sns: '93ccd94e 72c69cea', useries: '0f6ae8fd a9f2ee3a', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
+const FP_V141 = { pionbeam: '16cbfefd 9ced7a3d', rhic: 'fb7e8382 a9f2ee3a', linac: '7c6eb010 2b70ae2c', chain: '4b24bd95 a9f2ee3a', photonuc: '82991d34 a4742e49', annihilation: 'e383fd2d 98779ad4', isolde: '510ea801 d3061743', sns: '76c9a833 8be31071', useries: '0f6ae8fd a9f2ee3a', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const bad = [];
   for (const k of Object.keys(FP_V141)) {

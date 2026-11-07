@@ -1894,7 +1894,7 @@ function cpmPair(p, E, ux, uy, uz, trip) {
   const e = addLepton(ELEC, p.x + 0.2 * ox, p.y + 0.2 * oy, 0, 0, (p.z || 0) + 0.2 * oz); setMotion(e, Tm, ex, ey, 0, 0, ez);
   const ps = addLepton(POS, p.x - 0.2 * ox, p.y - 0.2 * oy, 0, 0, (p.z || 0) - 0.2 * oz); setMotion(ps, Tp, px, py, 0, 0, pz);
   W.ledger.nuc -= 2 * ME_C2;
-  settleKE(S, avail, [e, ps]);
+  settleKE(S, avail, [e, ps], 1e-14, 8); // (1.27: to 1e-14 of the pair's energy: 1e-9 of a 220 MeV pair left 0.15 eV unpaid, found merging the 1.27 bug fixes)
   if (Te > 0) {
     const ct = Math.min(1, Te / Math.sqrt(Te * (Te + 2 * ME_C2)) * (E + ME_C2) / E), u = cpmTurn(ux, uy, uz || 0, Math.acos(ct), rnd() * 2 * Math.PI);
     if (ejectElectron(p, Te - ionizationCost(p), u[0], u[1], undefined, undefined, u[2])) W.count.ionize++; else dumpHeat(Te, p, p);
