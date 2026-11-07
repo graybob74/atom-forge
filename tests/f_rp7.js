@@ -20,7 +20,7 @@ const chi2 = (H, ex) => { const N = H.reduce((a, b) => a + b, 0), T = ex.reduce(
 // (1.27 bug 3: fusion, nif, pionbeam, annihilation and sns re-fingerprinted, switches off: close passes between nuclei turned at nuclear distances)
 // (1.27 bug 7: photonuc, sns and hyperfactory re-fingerprinted, switches off: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
 // (1.27 bug 15: pionbeam and photonuc re-fingerprinted, switches off: events in the electrons' short steps search a grid rebuilt after they moved)
-const FP_V145 = { annihilation: 'e383fd2d 98779ad4', pet: 'a5248bff a9f2ee3a', prism: '4ffe98af a9f2ee3a', photonuc: '82991d34 a4742e49', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
+const FP_V145 = { annihilation: '85c27678 40644a64', pet: 'a5248bff a9f2ee3a', prism: '4ffe98af a9f2ee3a', photonuc: '82991d34 a4742e49', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const bad = [], keys = Object.keys(FP_V145).filter(k => FP_V145[k]);
   for (const k of keys) {
@@ -260,7 +260,7 @@ PARTS.books = async (page, check) => {
 // (1.27 bug 6: sns with part 3 on re-fingerprinted: fast fired particles meet over the step)
 // (1.27 bug 7: photonuc and sns with part 3 on re-fingerprinted: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
 // (1.27 bug 15: annihilation, photonuc and sns with part 3 on re-fingerprinted: events in the electrons' short steps search a grid rebuilt after they moved)
-const FP_CPM = { annihilation: '63ec2af2 dc4966d8', photonuc: '6e24205d 8acccf3e', sns: 'a97b3938 fe2f08dd', linac: '7c6eb010 2b70ae2c' };
+const FP_CPM = { annihilation: '645ba970 b8baf8ae', photonuc: '6e24205d 8acccf3e', sns: 'a97b3938 fe2f08dd', linac: '7c6eb010 2b70ae2c' };
 PARTS.both = async (page, check) => {
   const bad = [], r = {};
   for (const k of Object.keys(FP_CPM)) {

@@ -583,6 +583,15 @@ function addBond(a, b, order) {
   relink([a, b]);
   return bd;
 }
+/* (1.27 bug 18) A bond taken out on trial goes back as itself, where it was in the lists: a new one from addBond lost what
+   the old one carried (a hole's Eq from holeEq, its Ef), so an H₃O⁺ bond judged too strong to break came back 0.58 eV
+   lower and a positron's run in water gained it. */
+function putBackBond(bd, ia, ib, iw) {
+  bd.a.bonds.splice(Math.min(ia, bd.a.bonds.length), 0, bd); bd.b.bonds.splice(Math.min(ib, bd.b.bonds.length), 0, bd);
+  W.bonds.splice(Math.min(iw, W.bonds.length), 0, bd);
+  W.topo++;
+  relink([bd.a, bd.b]);
+}
 function removeBond(bd) {
   const i = W.bonds.indexOf(bd);
   if (i >= 0) W.bonds.splice(i, 1);
@@ -738,9 +747,28 @@ function separate(a, b) {
   const mb = molecule(b);
   if (mb.includes(a)) return;
   const [ex, ey, ez] = minImg(b.x - a.x, b.y - a.y, b.z - a.z);
-  const r = hyp3(ex, ey, ez) || 1e-6, target = 0.85 * 0.5 * ((a.ljR || 2) + (b.ljR || 2));
+  // (1.27 bug 18) the core is the force field's own, 0.85 of the pair's rm (as the hop's push in evTransfer): a bare
+  // nucleus has none (ljR 0); it was taken as 2 Å, so an H⁺ left by an annihilation pushed its O–H 1.4 Å away
+  const r = hyp3(ex, ey, ez) || 1e-6, target = 0.85 * 0.5 * (a.ljR + b.ljR);
   if (r >= target) return;
-  const sh = target - r;
+  // and never into a third atom's core (below the 0.62 rm where ljFI's wall starts): the push is halved until every
+  // moved atom is clear of the atoms around it, or not made. A water's O–H shoved into the next water (0.27 Å from its
+  // O, 870 eV/Å) cost the books 42 eV in the closing kick.
+  const mbs = new Set(mb), others = W.parts.filter(o => !o.dead && o.k === NUC && o !== a && !mbs.has(o) && o.ljR > 0);
+  const clear = (sh) => {
+    for (const q of mb) {
+      if (!(q.ljR > 0)) continue;
+      const qx = q.x + ex / r * sh, qy = q.y + ey / r * sh, qz = q.z + (ez ? ez / r * sh : 0);
+      for (const o of others) {
+        const [dx, dy, dz] = minImg(o.x - qx, o.y - qy, o.z - qz), lim = 0.31 * (q.ljR + o.ljR);
+        if (dx * dx + dy * dy + dz * dz < lim * lim) return false;
+      }
+    }
+    return true;
+  };
+  let sh = target - r;
+  for (let k = 0; k < 3 && !clear(sh); k++) sh *= 0.5;
+  if (!clear(sh)) return;
   for (const q of mb) { q.x += ex / r * sh; q.y += ey / r * sh; if (ez) q.z += ez / r * sh; }
 }
 /* Energy needed to remove one electron, including bonds that must then break. (1.27 bug 2) From a molecule, the electron
@@ -4453,6 +4481,7 @@ function evReact(X, A, rx, r) {
   const saved = [...set].map(p => [p, p.x, p.y, p.vx, p.vy, p.z, p.vz]);
   const oldOrder = bd.order;
   const PE0 = localPE(set);
+  const bdIdx = [bd.a.bonds.indexOf(bd), bd.b.bonds.indexOf(bd), W.bonds.indexOf(bd)];
   if (rx.type === 'abs') removeBond(bd); else setOrder(bd, bd.order - 1);
   const Kr = snapTogether(X, A, rx.r0);
   const nb = addBond(X, A, 1);
@@ -4469,7 +4498,7 @@ function evReact(X, A, rx, r) {
     const avail = 0.5 * X.m * A.m / (X.m + A.m) * ((A.vx - X.vx) ** 2 + (A.vy - X.vy) ** 2 + (A.vz - X.vz) ** 2);
     if (-heat > 0.9 * avail) {
       removeBond(nb);
-      if (rx.type === 'abs') addBond(A, B, oldOrder); else setOrder(bd, oldOrder);
+      if (rx.type === 'abs') putBackBond(bd, ...bdIdx); else setOrder(bd, oldOrder); // (as itself: a new bond lost its Eq, 1.27 bug 18)
       for (const [p, x, y, vx, vy, z, vz] of saved) { p.x = x; p.y = y; p.vx = vx; p.vy = vy; p.z = z; p.vz = vz; }
       return;
     }
@@ -4489,9 +4518,9 @@ function evReact(X, A, rx, r) {
    lies within two bonds of its atoms can change — removing a bond moves nothing, and charges spread by resonance only so
    far — so the difference is taken over that neighbourhood (localDelta's method): the rest of the molecule is checked by a
    fingerprint afterwards and, should anything there have changed, the bond is put back and the whole molecule summed. */
-let _bcBond = null;
+let _bcBond = null, _bcIdx = [0, 0, 0]; // (_bcIdx: where the bond sat in its lists, for putBackBond, 1.27 bug 18)
 function breakCost(bd, set) {
-  const a = bd.a, b = bd.b;
+  const a = bd.a, b = bd.b, ia = a.bonds.indexOf(bd), ib = b.bonds.indexOf(bd), iw = W.bonds.indexOf(bd); _bcIdx = [ia, ib, iw];
   let cost;
   if (set.size > LOCAL_MOL) { // a big molecule (a chip): only what lies within two bonds of a and b can change (localDelta's method)
     const Sn = new Set([a, b]);
@@ -4505,7 +4534,7 @@ function breakCost(bd, set) {
     let local = true, mol = null;
     for (const [q, v] of before) { if (mol === null) mol = q.mol; if (q.dead || print(q) !== v || q.mol !== mol) { local = false; break; } }
     if (local) cost = localPE(Sn) - U0;
-    else { _localMiss++; bd = addBond(a, b, bd.order); const PE0 = localPE(set); removeBond(bd); cost = localPE(set) - PE0; } // (beyond the neighbourhood: put back, and over the whole molecule)
+    else { _localMiss++; putBackBond(bd, ia, ib, iw); const PE0 = localPE(set); removeBond(bd); cost = localPE(set) - PE0; } // (beyond the neighbourhood: put back, and over the whole molecule)
   } else {
     const PE0 = localPE(set);
     removeBond(bd);
@@ -4529,7 +4558,7 @@ function evBreak(bd, r) {
   const cost = breakCost(bd, set); bd = _bcBond; // (the bond removed: what it cost in potential energy)
   const mu = a.m * b.m / (a.m + b.m), have = vn > 0 ? 0.5 * mu * vn * vn : 0;
   if (have < cost) {
-    if (!over) { addBond(a, b, bd.order); return; } // not enough energy: stays bound
+    if (!over) { putBackBond(bd, ..._bcIdx); return; } // not enough energy: stays bound (as itself, 1.27 bug 18)
     if (have > 0) kickPair(b, a, -have, dx / rr, dy / rr, dz / rr);
     W.ledger.bath -= cost - have; // (drawn from the bath)
   } else kickPair(b, a, -cost, dx / rr, dy / rr, dz / rr);
