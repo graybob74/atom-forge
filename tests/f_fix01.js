@@ -3,7 +3,8 @@
    node tests/f_fix01.js [--node] [part …]. The flat game doubles the Coulomb pull between a free ion and a polar
    molecule's partial charges (K_IW 2: an ion has half its neighbours in a plane); it was on in 3-D too, where an ion has
    its real shell. Now factor 1 in 3-D (the owner chose the ion–water pull alone; the van der Waals wells, LJ_SCALE 2,
-   stay doubled: UFF's own noble-gas wells are shallower than measured). Every part fails on v145. No part needs the page.
+   stay doubled: UFF's own noble-gas wells are shallower than measured). "pull" and "shell" fail on v145; "forces" guards the
+   kernels' agreement (it failed on this branch until the WebAssembly kernel was rebuilt). No part needs the page.
    (check(ok, good, bad); say(...)) */
 const { load } = require('./load');
 const PARTS = {};
