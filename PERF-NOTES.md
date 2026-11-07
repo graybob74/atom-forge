@@ -2729,6 +2729,33 @@ tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core
 checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
 f_bug126e pass alone.
 
+### 1.27: bug 10 (neutron on a muonic atom)
+
+Branch fix127-10-muonic-neutron (from v145). A bug fix. Check: tests/f_fix10.js (t_features, one line; `node
+tests/f_fix10.js [--node] [part …]`): carbon, lead; both fail on v145 (the muon bound after 0 of 40 reactions in each
+mode; 39 lead atoms ended early), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** An event that remakes a nucleus kills the old atom and makes new ones; a muonic atom's muon record
+  (p.muB) stayed on the dead atom, and muBoundTick then booked its mass as escaped ("its atom gone in some other event").
+  Measured: 64 muonic lead atoms in a flat box, decay sped up 10⁶× so their muons decay and are captured (each capture
+  makes neutrons), 3,000 steps: 39 ended early, every one by finishReaction from nuclearEncounter (the capture neutrons'
+  reactions on their neighbours). One muonic ¹²C hit dead on by a 14 MeV neutron, 60 times: every reaction (⁹Be + α 44,
+  3α + n 10, inelastic 6) took the muon away.
+- **What changed** (hep.js `muCarry`, called from finishReaction; engine.js: the (n,p)/(n,α)/(n,t) captures and fission).
+  The muon goes to the product with the most charge (the same atom if it survives as such, an α if ¹²C breaks into three);
+  its binding is the new nucleus's 1s binding (MU_EB, or with Exotic atoms on xaLevel at n = 1, the electrons refreshed to
+  see Z − 1), its lifetime follows (muBoundTick reads the new Z and N), and the change of the bound muon's mass,
+  δ = m_old − m_new (the binding difference), enters the event's books as a decaying bound muon's mass does
+  (closeEvent's Ein and mIn; for the settleKE events, Qm and the nuclear ledger): the products' motion takes it. With no
+  product of Z ≥ 2 it is left to muBoundTick as before. W.muBound follows the new atom.
+- **Measured** (after): lead box 0 ended early (the muons hop to the reactions' products and end by decay or capture);
+  muonic ¹²C, 40 tries each, flat and 3-D, Exotic atoms off and on: the muon bound after 40 of 40 reactions, with the new
+  nucleus's binding; books to 2×10⁻⁶ eV (v145 the same order, 2×10⁻⁶).
+- **Fingerprints** (switches off, seed 7, 300 steps): all 59 setups as v145.
+- Suites: t_lint, t_hep, t_nuclear, f_rp1, f_swx pass.
+- **Left for the owner.** No cascade X-ray is drawn for the new levels (the binding change goes into the products'
+  motion, exactly booked); a muon whose new nucleus is unbound is not followed further than the next event.
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
