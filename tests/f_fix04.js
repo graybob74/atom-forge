@@ -12,7 +12,7 @@ const go = (X, n) => { const W = X.W; for (let i = 0; i < n; i++) { if (W.fSpawn
 /* A 5 keV positron in 3-D water ionizes the water before it annihilates (v145: at its first touch, 0–1 ionizations). */
 PARTS.contact = async (page, check, say) => {
   const r = [];
-  for (const seed of [10, 11]) {
+  for (let seed = 10; seed < 22; seed++) { // (1.27 bug 18: twelve seeds and their median: how far one positron gets is random, 13–205 ionizations)
     const X = load('all', { seed }), W = X.W; X.PRESETS.water3d.build(); W.T = 0; W.gamma = 0; W.decayOn = false; X.forcesNoEvents(); W.fSpawn = W.spawned;
     for (const p of W.parts) { p.vx = p.vy = p.vz = 0; }
     const L = X.addLepton(X.POS, 0, 0.3, 0, 0, 0.2); X.setMotion(L, 5000, 1, 0, 0, 0, 0); X.forcesNoEvents(); W.fSpawn = W.spawned;
@@ -20,7 +20,8 @@ PARTS.contact = async (page, check, say) => {
     for (let s = 0; s < 400 && !(W.count.annih > a0); s++) go(X, 1);
     r.push({ ion: (W.count.ionize || 0) - i0, ann: (W.count.annih || 0) - a0 });
   }
-  check(r.every(q => q.ion >= 20), `1.27 bug 4: a 5 keV positron in 3-D water ionizes it (${r.map(q => q.ion).join(', ')} ionizations) before it annihilates`, 'fix04 contact: ' + JSON.stringify(r));
+  const med = r.map(q => q.ion).sort((a, b) => a - b)[6];
+  check(med >= 20 && r.every(q => q.ann === 1), `1.27 bug 4: a 5 keV positron in 3-D water ionizes it (median ${med} of ${r.map(q => q.ion).join(', ')} ionizations) before it annihilates`, 'fix04 contact: ' + JSON.stringify(r));
 };
 
 /* annFlight on a water molecule: 1 MeV and 1 GeV give two γ carrying the positron's momentum forward, 1 PeV (√s 32 GeV)

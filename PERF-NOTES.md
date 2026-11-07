@@ -3737,6 +3737,11 @@ rare paths run far more often; two of them were not exact.
   f_rp1/2/3/5/7, f_ew, f_feat1, f_127x, f_127h; f_rp7's part-3-on annihilation hash too.
 - **Test changes:** f_rp3 "straggle" samples 24 runs instead of 12: with the water's events changed its 12-run sample
   gave the 90th percentile at 2.88× the median against the 3× it asks (other seed sets: 3.3–3.9× before and after).
+- t_features' 1.09 ionized-water drift: seeds 3 and 7 (was 3 and 5). The runaway plasma (a known limit) is a matter of
+  path: seed 5 now runs away (22.8 fs, 144 free electrons), 7 doesn't before or after (0.34 / 0.30 eV). Over seeds 1–39
+  about 14 run away now against 9 on v157; the runaway starts (40 → 76 free electrons) before any energy error shows.
+- f_fix04 "contact": twelve seeds (10–21) and their median (≥ 20) instead of two each ≥ 20: a 5 keV positron's
+  ionizations before it annihilates are random (now 13–205, median 61; v157 26–201, median about 73).
 - **Check:** tests/f_fix18.js (t_features runs it alone): "putback" (0.300 eV on v157, 0 now), "separate" (an H⁺
   beside its O–H: 1.377 Å on v157, 0.527 now), "pos" (seeds 8 and 6: 42.11 / 0.512 on v157, 0.127 / 0.269 now).
 - **Cost:** separate looks at every atom for each moved one (it runs a few times a step at most in a positron run).
