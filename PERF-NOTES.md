@@ -325,6 +325,7 @@ engine stores and visits particles.
   2.3×10¹⁰ and OH 3×10¹⁰ M⁻¹s⁻¹, from memory), recombining the Onsager way with ε = 80: the measured 60% of radiolysis
   electrons still free at 1 µs, the same in both modes (today 3-D recaptures 34 of 40 in 2 fs, flat runs away to 140).
   A physics change; waits for the owner.
+
 ## 1.26 (in progress)
 
 ### 1.26: combined (branch v136)
