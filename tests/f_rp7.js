@@ -250,7 +250,7 @@ PARTS.books = async (page, check) => {
    polarized weight (knPlaneW): of 40,000 photons of 511 keV meeting a carbon atom, polarized across the plane, in it, and
    unpolarized, against those odds; the scattered photon carries its new polarization; Cherenkov photons are polarized
    in the plane of the track and the photon, across the photon (flat and 3-D); a Compton event's books exact. */
-const FP_CPM = { annihilation: '800e1dd4 6dfb74f0', photonuc: '0633606a eea3fc4e', sns: '400d8bc3 476e17ed', linac: '7c6eb010 2b70ae2c' };
+const FP_CPM = { annihilation: '800e1dd4 6dfb74f0', photonuc: '907373f8 e7973f6e', sns: '27a48d96 c2f876e2', linac: '7c6eb010 2b70ae2c' }; // (photonuc, sns: 1.27 bug 17's screened pair cross section, cpmPairScr)
 PARTS.both = async (page, check) => {
   const bad = [], r = {};
   for (const k of Object.keys(FP_CPM)) {

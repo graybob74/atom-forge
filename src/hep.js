@@ -1263,7 +1263,7 @@ function xaCatchH(o, tg) {
    and the atom fly apart with the difference. Rates at liquid hydrogen's density (s⁻¹): nitrogen 3.4×10¹⁰ and oxygen
    8.5×10¹⁰, measured with thermal μp in hydrogen gas mixtures at PSI (late 1990s; values as I know them); other elements
    scaled from oxygen's as Z (Gershtein's estimate, up to 1.5×10¹¹), helium's very slow (about 10⁸). */
-const XA_TR = { 2: 1e8, 7: 3.4e10, 8: 8.5e10 };
+const XA_TR = { 2: 1e8, 6: 8.9e10, 7: 3.4e10, 8: 8.5e10 }; // (1.27 bug 17: carbon measured, 8.9 ± 0.5 ± 0.6 ×10¹⁰ s⁻¹ at 300 K in H₂/CH₄, liquid-hydrogen density (FAMU, Mocchiutti et al., Phys. Lett. A 557, 130867, 2025, Table 2); it was scaled from oxygen's, 6.4×10¹⁰)
 const xaTrRate = (Z) => XA_TR[Z] || Math.min(1.5e11, 8.5e10 * Z / 8);
 function xaTransfer(o, clock) {
   const tg = stopTarget(o, (p) => p.dead || p.k !== NUC || p.Z < 2 || p.anti || p.muB || p.mu, 2.5);
@@ -1642,9 +1642,24 @@ function cpmPairBorn(k) {
 function cpmPairSig(Z, ne, E) {
   const k = E / ME_C2; if (k <= 2) return [0, 0];
   const c = cpmZ(Z), b = cpmPairBorn(k), ramp = clamp(Math.log(k / 4) / Math.log(50), 0, 1);
-  const nuc = Math.max(0, Math.min(b - 28 / 9 * c[2] * ramp, 28 / 9 * (c[0] - c[2]) - 2 / 27)) * Z * Z * CPM_AR2;
+  const nuc = Math.max(0, Math.min(b - 28 / 9 * c[2] * ramp, 28 / 9 * (c[0] - c[2]) - 2 / 27, cpmPairScr(Z, k, c[2] * ramp))) * Z * Z * CPM_AR2;
   const tri = k > 4 ? Math.max(0, Math.min(b - 3.23, 28 / 9 * c[1] - 2 / 27)) * ne * CPM_AR2 : 0;
   return [nuc, tri];
+}
+/* (1.27 bug 17, the owner's OK 2026-11-07) Bethe–Heitler with partial screening, integrated over the electron's share ε
+   (Tsai's dσ/dε with Butcher and Messel's screening functions, as cpmShare samples it), in units of α r_e² Z²; f the
+   Coulomb correction as brought in above. It was missing: between the unscreened and the completely screened values
+   the game took the smaller, so from ~20 MeV to ~1 GeV the pair cross section ran high (lead at 100 MeV 0.107 cm²/g
+   against XCOM's 0.0899; now 0.0900). */
+function cpmPairScr(Z, k, f) {
+  const e0 = 1 / k, FZ = 8 * (Math.log(Z) / 3 + f), sf = 136 * e0 / Math.cbrt(Z), n = 64, h = (0.5 - e0) / n;
+  let s = 0;
+  for (let i = 0; i < n; i++) {
+    const e = e0 + h * (i + 0.5), d = sf / (e * (1 - e)), lg = d > 1 ? 42.24 - 8.368 * Math.log(d + 0.952) : 0;
+    const S1 = d > 1 ? lg : 42.392 - d * (7.796 - 1.961 * d), S2 = d > 1 ? lg : 41.405 - d * (5.828 - 0.8945 * d);
+    s += (e * e + (1 - e) * (1 - e)) * Math.max(0, S1 - FZ) + 2 / 3 * e * (1 - e) * Math.max(0, S2 - FZ);
+  }
+  return s * h; // (8 ∫₀^½ … dε /8: both halves of ε, the screening functions' 8 taken out)
 }
 /* The projectile of the path being worked (set by cpmSeg, read by cpmAtom). */
 const CPM = { K: 0, mc2: 0, z: 1, e: 0, b2: 0, bg: 0, g: 1, Tmax: 0, Lg: 1, A: 1, rho: 0, ux: 1, uy: 0, uz: 0, d3: false, n: 0 };

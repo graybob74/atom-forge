@@ -2758,17 +2758,23 @@ API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; th
 | muonic Ne 5g→4f | hep.js xaBohr | 6294.0 eV | 6297.27 eV (Okumura et al., PRL 130, 173001, 2023) | fine (0.05%: the Bohr level without fine structure) |
 | muonic 2p→1s lines XA_KA (C … Pb) | hep.js XA_KA | 75.25 … 5901 keV | not in the pages reached | not checked |
 | muon transfer μp → Ar | hep.js xaTrRate (scaled from O) | 1.5×10¹¹ s⁻¹ | 1.46×10¹¹ (Jacot-Guillarmod et al., abstract) | fine |
-| muon transfer μp → N, O, C | hep.js XA_TR | 3.4, 8.5×10¹⁰ | FAMU carbon paper (Phys. Lett. A 2025) refused (403) | not checked |
+| muon transfer μp → C | hep.js XA_TR | 6.4×10¹⁰ s⁻¹ (scaled from O as Z) | 8.9 ± 0.8 ×10¹⁰ at 300 K, CH₄ (FAMU, Phys. Lett. A 557, 130867, 2025, Table 2; 10.7 at 197 K) | **fixed** (only with Exotic atoms on) |
+| muon transfer μp → N, O | hep.js XA_TR | 3.4, 8.5×10¹⁰ | the FAMU paper gives O's only as a figure (rising with temperature) | not checked |
 | XCOM: lead and water at 10 MeV | (checks only) | 0.0497, 0.0222 cm²/g | XCOM 0.04972, 0.02219 | fine |
-| lead's pair σ at 100 MeV | hep.js cpmPair (no gradual screening) | ≈ 0.108 cm²/g | XCOM 0.0911 | 19% high, known (model, not data): written down |
-| water o-Ps 1.80 ns, o-Ps–O₂ σ 1.5×10⁻¹⁹ cm², ESTAR/ASTAR spot values, refractive indices | | | | not reached (the papers paywalled; the STAR forms refused the scripted request): left for a check |
+| γ pair production in the nuclear field | hep.js cpmPairSig (+ cpmPairScr) | no partial screening: Pb 30/100/1000 MeV 0.0693/0.107/0.120 cm²/g, O 0.0095/0.0147/0.0195 | XCOM: Pb 0.0641/0.0899/0.1127, O 0.00945/0.0138/0.0184 | **fixed** (the owner's OK, 2026-11-07): Bethe–Heitler with Butcher–Messel screening integrated over ε: Pb 0.0650/0.0900/0.1163, O 0.00935/0.0137/0.0185, all within 3% from 5 MeV to 100 GeV; only with Realistic particles 3 on |
+| triplet (electron-field) pairs | hep.js cpmPairSig | O/H at 100 MeV 0.00127/0.00252 cm²/g; Pb 0.00177 at 1 GeV | XCOM 0.00164/0.00334; 0.00162 | 13–25% low at 30–300 MeV, 9% high for Pb above 1 GeV: written down, not changed |
+| ESTAR/ASTAR/PSTAR, liquid water | (checks only) | 1 MeV e⁻ 0.0187, 1 GeV e⁻ 0.024, 5 MeV α 8.9, 100 MeV p 0.073 eV/Å | 0.01849, 0.02400, 8.848, 0.07286 | fine |
+| water o-Ps 1.80 ns, o-Ps–O₂ σ 1.5×10⁻¹⁹ cm², refractive indices | | | | not reached (the papers paywalled): left for a check |
 
 - Water's I: PDG 2024 gives 79.7 eV (ICRU 90); the game builds water from H and O (Bragg additivity, ≈ 75 eV, the older
   ICRU 49 value). Changing that is a model change: written down, not done.
+- Cost: the screened integral is 1.7 µs a γ ray's look at an atom (Realistic particles 3 on only); off, nothing.
+- Fingerprints with Realistic particles 3 on (f_rp7 FP_CPM): photonuc and sns changed (the pair cross section), their
+  stored hashes replaced (bug 6's branch also replaces sns's: take this one, or rerun, when merging).
 - Fingerprints (switches off, 300 steps, seed 7): none changed (no setup uses these values with the switches off; the
   neutron and heavy-quark tables are read only with Realistic particles 5/6 on).
 - Sources the owner sent (2026-11-07): Aramaki et al. (exotic-atom X-rays), Okumura et al. (muonic neon), the FAMU carbon
-  paper (not readable from here), NIST STAR intro, NIST NCNR neutron table, d'Enterria et al. (charm/bottom σ).
+  paper (uploaded as a PDF), NIST STAR intro, NIST NCNR neutron table, d'Enterria et al. (charm/bottom σ).
 - Test change: f_bug126e "decay" now expects ²²Na 0.9/0.1 (rounded to 3 places) and ¹⁹⁸Au Q 1.3735, because its data changed.
 - Check: tests/f_fix17.js (fails on v145: −0.884, 0.903, Q 2.842 …; passes now). t_energy, t_lint, f_ew, f_rp5,
   f_bug126e, t_hep, t_nuclear pass.
