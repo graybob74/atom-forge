@@ -2742,7 +2742,26 @@ The owner (2026-11-06): the WebAssembly speed-ups go to the next version (1.28),
 one: 33–38 above, and polarizability by direction's update and force pass (pold.js pdUpdate, pdForces: ×1.2–4.2 on top
 of the induced charges, the most in 3-D at every step), and the close-packed metals' band shape (bometal.js mb4Pass:
 ×1.7 a step in a 3-D copper crystal, its own pass ×5.9 over the module's). Time each first (a profile with its setting on), port where the
-JavaScript is most of the step. All of 18–32 are built (the owner, 2026-11-06: "just finish all the features"); 33–38 go to 1.28.
+JavaScript is most of the step.
+39–44 (the owner, 2026-11-07: "Add everything including the garbage collector fix"; speed-ups, not physics). Found by a
+profile of every setup's step loop at normal settings (seed 7, 300 steps each, the inspector's sampling profiler, its own
+time left out; one thread): WebAssembly is 16% of the step on average (3-D water 86%, flat chip setups 56–66%), the rest
+JavaScript. GitHub's "90% JavaScript" counts files: the built page in dist/ is 59% of the bytes, generated libraries 8%,
+the interface and drawing 8%, tests 6.5%, tools 6%, the simulation about 11%, the Rust kernel 1%. Measured shares:
+39 neighbour searches outside the kernel (engine.js gridWalk, gridWalk3, nearby, buildGrid: the grid lookups for events,
+ions' pulls and electron transfers): 3-D brine 35% of its 8.5 ms step (the slowest setup), brine 29%, chain 28%; small–medium.
+40 the step's main loop (stepPlain, chooseDt, housekeeping, integrateA): about 10% on average, 13–25% in magnet, chain,
+mucf, fusion; medium, it touches nearly everything.
+41 molecule recognition (graphHash, fnv, libIndex): 25–35% in soup, hydrogen3d, muonium; small.
+42 light and radiation in matter (radPath, zoneLocal, zoneKey, moveRad): 40–50% in rhic and ring (both under 1 ms a step);
+medium, branchy.
+43 fast nuclei and leptons in flight (fastFastNuclear, moveFastLeptons, segTargets): about 25% in nif and fusion; medium.
+44 the garbage collector (a JavaScript fix, not WebAssembly): 7% of the step on average, 11–14% in muonium, magnet, isolde;
+find the per-step allocations (arrays and objects made in hot loops: minImg's returned arrays, closures, event
+records) and reuse buffers instead; measure with --trace-gc and the profile before and after.
+Same rule for all: profile with the setting or setup on first, port only where JavaScript is most of the step, results
+bit for bit (fingerprints) where the order of arithmetic allows, equal to rounding where it does not (the 1.25 metals
+port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish all the features"); 33–38 go to 1.28.
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
