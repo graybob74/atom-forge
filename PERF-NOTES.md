@@ -2737,11 +2737,12 @@ Order, to spend the owner's limited usage well: the small ones first in one sess
 (21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
 Done since: 21 (branch v150 from v145, 2026-11-06: "1.27: feature 21 (polarizability by direction)"); 22 (branch v151
 from v150: "1.27: feature 22 (Rayleigh scattering)"); 25 (branch v152 from v151: "1.27: feature 25 (the Higgs boson)"); 24 (branch v153 from v152: "1.27: feature 24 (unstable
-particles meet each other)"); 19 (branch v154 from v153: "1.27: feature 19 (photons as waves)").
+particles meet each other)"); 19 (branch v154 from v153: "1.27: feature 19 (photons as waves)"); 20 (branch v155 from v154: "1.27: feature 20 (close-packed metals)").
 The owner (2026-11-06): the WebAssembly speed-ups go to the next version (1.28), as one pass over everything that could use
 one: 33–38 above, and polarizability by direction's update and force pass (pold.js pdUpdate, pdForces: ×1.2–4.2 on top
-of the induced charges, the most in 3-D at every step). Time each first (a profile with its setting on), port where the
-JavaScript is most of the step. Left for 1.27: 25 (medium), then 19, 20, 24 (large, the owner's go-ahead on cost first).
+of the induced charges, the most in 3-D at every step), and the close-packed metals' band shape (bometal.js mb4Pass:
+×1.7 a step in a 3-D copper crystal, its own pass ×5.9 over the module's). Time each first (a profile with its setting on), port where the
+JavaScript is most of the step. All of 18–32 are built (the owner, 2026-11-06: "just finish all the features"); 33–38 go to 1.28.
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
@@ -3010,6 +3011,103 @@ ew/lep1.png, lep-data.png, ins-w.png.
   collider steps through 88–94 GeV); the beams' own radiation (radiative return, which takes the Z peak from 41.5 to 30.5
   nb and makes most of LEP2's qq̄ events); the W pair's forward peak; a fast positron on matter by eeEvent (μ pairs,
   hadrons) rather than always 2γ; the Higgs boson (planned list).
+
+### 1.27: feature 20 (a bigger model for close-packed metals)
+
+Branch v155 from v154 (2026-11-06; approved with the list; built while the owner slept). Settings → Experimental → Metals →
+Many-body, nothing new to switch: the close-packed metals' many-body energy gains a term. Many-body off (the normal game),
+nothing changes.
+- **What was wrong** (1.26, items 3–4): 1.25's second-moment band (−√ρ) counts bcc's 14 near neighbours (its second shell
+  at 1.155 r_nn sits inside the 1.15–1.35 r₀ switch), so in 3-D bcc came out lowest for most fcc and hcp metals (relaxed
+  bcc − own: Cu −0.053, Al −0.039, Ni −0.081, Ti −0.092, Zr −0.123 eV an atom) and balls turned body-centred. 1.26 tried
+  MEAM's angles (item 4, not shipped): the structures came right but the liquid rose by about the latent heat (Cu +50 meV
+  an atom), so the metals melted 250–400 K too high; held to the liquid, the fit put hcp below fcc.
+- **Two forms measured first** (on 1.25's model, lattice clusters and the 1.25 copper liquid, tools/mbliquid.json):
+  - a radial bump in the band (extra weight for neighbours near bcc's second shell, x_b = 0.13): the best it does is raise
+    the liquid by 0.35 of what it raises bcc (Cu: liquid +0.032 eV for bcc's +0.09, against a latent heat of 0.135). Dropped.
+  - the band's shape, s = μ₄/μ₂² (μ₄ = (H⁴)ᵢᵢ, closed walks of four hops; one s-like hopping h = e^(−q(r/r₀ − 1)) at the
+    pair's switch): q = 2: fcc 3.750, hcp 3.750, bcc (equal volume) 4.385, the liquid 3.743 ± 0.154 (q = 3: liquid 3.612,
+    q = 4: 3.465). bcc stands apart, fcc and the liquid sit together. (fcc and hcp also share μ₃, μ₅ and μ₆ for one
+    shell; nothing this cheap tells them apart.) Built.
+- **The model** (`src/bometal.js`, mb4F, mb4Pass, mb4Local; constants MB4_C): E₄ᵢ = Cᵢ·φ(μ₂ᵢ)·g(sᵢ − 3.75), g(Δ) =
+  W²Δ²/(W² + Δ²) for Δ > 0 and 0 below (W = 1.5: bounded), φ a quintic from 0 at μ₂ = 7 to 1 at 10 (12 in the crystal).
+  Hoppings between member atoms of the same metal only. Why each piece:
+  - one-sided, quadratic in Δ: s changes only to second order under any strain of one close-packed shell (all neighbours
+    equivalent, Σ of first-order changes = tr ε = 0 for a shear; a uniform scaling leaves s alone), so E₄ is fourth order
+    there: Ec, r₀, B, C₄₄, C′ and the vacancy are exactly 1.25's (f_125m `fit` unchanged); and the liquid's atoms below 3.75
+    pay nothing, those above a little.
+  - φ: an atom with few neighbours has a large s (an adatom on (111) 6.0, on (100) 4.75; an atom arriving at a surface
+    grows without bound as its one weak hopping fades: 3,217 at the switch's edge), which would have put a barrier of an
+    eV in front of every atom landing on a metal. Below μ₂ = 7 nothing is paid: adatoms, steps, (111) faces (μ₂ 9, s
+    3.70) and the flat world (six neighbours; a flat Cu patch at 900 K: E₄ exactly 0 at every step) keep their energies;
+    a (100) face's atoms (μ₂ 8, s 3.94) pay a little, (110) (μ₂ 7, s 4.08) nearly nothing.
+  - same metal only: with unlike pairs counted, B2 NiAl, NiTi, CuZn and FeAl (bcc-ordered) paid each element's bcc price,
+    the alloy refit (tools/mbfit.js --alloys) then made the Ni–Al pair stronger and L1₂ Ni₃Al came out −223 kJ/mol
+    (measured −165.2), CuAu −13.8 (−18.2). Like-only, every alloy and its fit is exactly 1.26's (Ni₃Al −169.7, CuAu −17.6;
+    MBA_FIT unchanged); oxides and hydrides too (O, H are not arms): f_126m all parts unchanged.
+- **The fit** (`node tools/mb4fit.js [El …] [--write]`, ~1.5 min for all; periodic 3-D crystals in the game, E₄ linear
+  in C): C so that relaxed bcc lies the reference ΔE above the metal's own crystal (D_CP in tools/mbdfit.js: SGTE lattice
+  stabilities and DFT as recalled, ±0.05 eV and more, unchecked against the books). 25 metals; the rest keep 1.25's model
+  exactly. All hit their targets (relaxed bcc − own, 1.25 → now; the Bain path's lowest point between, relaxed in volume;
+  the 1.25 copper liquid's rise at the metal's spacing):
+
+  | | C eV | bcc 1.25 → now (ref) | Bain path lowest | liquid rise meV |
+  |---|---|---|---|---|
+  | Cu | 0.273 | −0.053 → +0.040 (0.04) | +0.004 | 3.2 |
+  | Ag | 0.155 | −0.023 → +0.030 (0.03) | +0.004 | 1.8 |
+  | Au | 0.079 | +0.013 → +0.040 (0.04) | +0.004 | 0.9 |
+  | Al | 0.379 | −0.039 → +0.090 (0.09) | +0.001 | 4.5 |
+  | Ni | 0.472 | −0.081 → +0.080 (0.08) | +0.005 | 5.6 |
+  | Pd, Pt | 0.313, 0.270 | −0.007, +0.008 → +0.10, +0.10 | +0.006, +0.005 | 3.7, 3.2 |
+  | Pb | 0.085 | −0.004 → +0.025 | +0.002 | 1.0 |
+  | Rh, Ir | 0.912, 1.139 | −0.011, +0.012 → +0.30, +0.40 | +0.006, +0.008 | 10.7, 13.4 |
+  | Ca, Sr | 0.153, 0.113 | −0.037, −0.033 → +0.015, +0.006 | +0.001, +0.001 | 1.8, 1.3 |
+  | Mg, Zn, Cd | 0.149, 0.122, 0.066 | −0.021, −0.012, +0.002 → +0.030, +0.030, +0.025 | +0.002 | 1.8, 1.4, 0.8 |
+  | Be | 0.461 | −0.088 → +0.070 | +0.001 | 5.4 |
+  | Ti, Zr, Hf | 0.561, 0.595, 0.812 | −0.092, −0.123, −0.128 → +0.10, +0.08, +0.15 | +0.003, +0.003, +0.005 | 6.6, 7.0, 9.6 |
+  | Co, Sc, Y | 0.436, 0.480, 0.639 | −0.049, −0.104, −0.119 → +0.10, +0.06, +0.10 | +0.004, +0.002, +0.002 | 5.1, 5.7, 7.5 |
+  | Ru, Os, Re | 1.537, 1.753, 0.902 | −0.024, +0.002, −0.008 → +0.50, +0.60, +0.30 | +0.008, +0.011, +0.010 | 18.1, 20.6, 10.6 |
+
+  (hcp metals against ideal hcp, 1.25's reference; the simple cube stays 0.25–1.8 eV up. E₄ ≥ 0 everywhere, so no
+  structure can fall below where 1.25 had it; the Bain path climbs from the close-packed end to bcc, which sits at or
+  near its top, as in real copper.) The liquid rises 1–4% of each metal's latent heat (1.26's angles: 37–90%).
+- **In motion** (3-D free balls, bath 0.05; inner atoms, after a quench to the inherent structure, with 12 neighbours
+  within 1.25 r₀ or bcc's 14):
+  - Cu 201 atoms started fcc, 600 K, 2 ps: 1.25 11 of 48 close-packed, 13 bcc; now 26–27 of 49, 1–2 bcc (the rest 13
+    neighbours: a hot ball quenched in 600 steps keeps defects; its energy 17 meV an atom above the perfect ball's).
+    At 300 K, 1 ps: 1.25 27 of 49 fcc, 2 bcc; now 29 of 50, 0.
+  - hcp balls 195 atoms, 300 K, 1 ps: Ti 1.25 2 hcp, 39 bcc of 62 → now 27 hcp, 8 bcc; Mg 41 hcp, 5 bcc of 65 → 55, 0;
+    Zn 49 of 57 either way (its bcc was only 0.012 low).
+  - A Cu ball started bcc at 300 K stays bcc for 1 ps either way (57–59 of 59): bcc is a flat saddle on the Bain path
+    here (0.039 eV at c/a 1 and 1.05), so it does not fall apart quickly.
+- **Melting** (3-D balls of 201 atoms, bath steps of 0.1·Tm, 2 ps each; share of the inner atoms' neighbours at 0.7 ps
+  still neighbours at 2 ps, 1.26 item 4's measure):
+
+  | | 0.6 | 0.7 | 0.8 | 0.9 | 1.0 | 1.1 | 1.2 | 1.3 | 1.4 | 1.5 Tm |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | Cu, 1.25 | 96% | 96 | 95 | 93 | 80 | 74 | 77 | 67 | 69 | 64 |
+  | Cu, now | 95 | 96 | 91 | 91 | 87 | 78 | 71 | 69 | 54 | 56 |
+  | Al, 1.25 | 91 | 89 | 85 | 71 | 63 | 54 | 52 | 48 | 44 | 37 |
+  | Al, now | 93 | 83 | 74 | 66 | 63 | 50 | 43 | 44 | 39 | (not run) |
+
+  The same within the runs' noise (one seed each; atoms' temperatures lag the bath by 100–300 K): no shift like 1.26's
+  (+250 K for Cu, +300–400 for Al).
+- **Forces and books**: forces are the energy's slopes to 1.4e-8 eV/Å (a jittered Cu ball with Ni and an O atom), localPE
+  exact to 3e-13 eV (an atom, a pair moved), the module path (plain metals: the term runs after mbWasm) and the JavaScript
+  path give the same forces to 1e-14. Insulated, a 3-D Cu ball of 135 atoms at 1,500 K over 2,000 steps of 0.4 fs:
+  7.55e-4 eV against 1.25's 7.53e-4 (the integrator's). Found on the way, not from this change: on a ball jittered by
+  0.9 Å, one atom's force differs from the energy's slope by 5.8e-4 eV/Å (of 30 eV/Å) with the term on or off; for a
+  bug-fix session.
+- **Cost** (one thread, two cores shared with the suite running): the pass for a 3-D copper crystal of 864 atoms at 600 K
+  1.0 → 5.9 ms (the term in JavaScript after the module's pass; neighbour lists each pair once, rows (H²)ᵢ· by sparse
+  scatter), the step 13.3 → 22.9 ms (×1.7); a flat Cu patch of 955 atoms, pass 0.41 → 1.11, step ×1.08 (lists built,
+  nothing paid). 36–56% of a hot crystal's atoms pay, so skipping idle ones would save little. For 1.28's WebAssembly
+  pass. evTransfer's lower bound (mbXferLB) leaves the term out (it can go either way; the trial decides), as for the
+  directional metals.
+- **Left**: fcc against hcp is still 1.25's (equal: the plan's "fcc/hcp/bcc in order" is met for bcc only; hcp metals
+  keep fcc and hcp level, fcc metals the same); separating them needs the second neighbours' shell (MEAM's screening) or
+  moments past the sixth. The reference ΔE values are from memory. Tests: tests/f_127m.js (fit, liquid, forces, flat, md;
+  each fails on v154), in t_features.
 
 ### 1.27: feature 19 (photons as waves)
 

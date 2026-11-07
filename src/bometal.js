@@ -341,7 +341,7 @@ function mbPass(forces) {
   if (MBF.sw.length < nm) MBF.sw = new Float64Array(nm * 2 + 64);
   const SWt = MBF.sw, Wm = MBF.w;
   for (let s = 0; s < nm; s++) { const a = ord[s], i = m[a]; SX[s] = X[i]; SY[s] = Y[i]; SZ[s] = d3 ? Zp[i] : 0; SS[s] = i; STY[s] = ty[a] * nt; SA[s] = AN[i]; SWt[s] = Wm[a]; }
-  if (MBO.useWasm !== false && nxp === 0 && !(MBO.ndt > 0) && mbWasm(nm, nt, nx, ny, nz, cut2, forces, d3, wrap, bw, bh, bd)) { MBO.E += mbImage(forces, nm); return MBO.E; } // (the rest in the module when it can, 1.26: wasm.js; only plain metals: the module has 1.25's model, not 1.26's O/H partners or directional metals; MBO.useWasm false: the JavaScript below)
+  if (MBO.useWasm !== false && nxp === 0 && !(MBO.ndt > 0) && mbWasm(nm, nt, nx, ny, nz, cut2, forces, d3, wrap, bw, bh, bd)) { MBO.E += mbImage(forces, nm) + mb4Pass(forces, nm, nx, ny, nz, wrap, d3); return MBO.E; } // (the rest in the module when it can, 1.26: wasm.js; only plain metals: the module has 1.25's model, not 1.26's O/H partners or directional metals; MBO.useWasm false: the JavaScript below)
   // pairs: each cell against itself (the later member only) and its neighbouring cells of higher number, each once
   const rho = MBF.rho; rho.fill(0, 0, nm);
   const ND = MBO.ndt > 0, TD = MBF.tdp; // (directional metals present, 1.26: their member pairs listed, ρᴹ summed)
@@ -408,6 +408,7 @@ function mbPass(forces) {
   for (let s = 0; s < nm; s++) { const eps = EPS[STY[s] / nt], sq = Math.sqrt(rho[s] + eps * eps), w = SWt[s]; if (w === 1) { Eemb -= sq - eps; fd[s] = -0.5 / sq; } else { Eemb -= w * (sq - eps); fd[s] = -0.5 / sq; } } // (a partner's embedding at its weight, 1.26)
   MBO.np = np; MBO.E = Erep + Eemb;
   MBO.E += mbImage(forces, nm - nxp); // (ions near the metal: their image's pull, 1.26)
+  MBO.E += mb4Pass(forces, nm, nx, ny, nz, wrap, d3); // (the band's shape, close-packed metals, 1.27)
   if (forces) {
     const FX = S.fx, FY = S.fy, FZ = S.fz, IM = S.im;
     let st = 0;
@@ -497,6 +498,178 @@ function mbDirForces(nm, nd) {
     }
   }
 }
+/* ---- the band's shape for the close-packed metals (1.27, feature 20). The second-moment band (−√ρ) cannot tell the
+   close-packed crystals from the body-centred one: bcc's 14 neighbours (its second shell at 1.155 r_nn, inside the 1.15–
+   1.35 r₀ switch) give it more band than fcc's 12, so in 3-D most fcc and hcp metals came out lowest as bcc (Cu −0.053 eV
+   an atom, Ni −0.081; a Cu ball turned body-centred within a picosecond). 1.26 tried MEAM's angles (item 4): the
+   structures came right but the liquid rose by about the latent heat (its random angles), and the metals melted 250–400
+   K too high. Here the band's shape instead: with one hopping hᵢⱼ = e^(−2(r/r₀ − 1)) between member atoms of the same
+   metal (its r₀ and switch; an alloy's unlike pairs keep the constants fitted to its compounds: counted, they made B2
+   NiAl pay bcc's price and its refitted pair overbound L1₂ Ni₃Al by 35%), the moments μ₂ = Σⱼ hᵢⱼ² and μ₄ = (H⁴)ᵢᵢ = Σₖ (Σⱼ hᵢⱼhⱼₖ)² (closed walks of four hops), and
+   s = μ₄/μ₂² (the band's kurtosis): fcc and hcp 3.750 (any single close-packed shell), bcc 4.385, the 1.25 copper liquid
+   3.743 ± 0.154 (atoms' spread). So a term that grows with s above 3.75 raises bcc and leaves the close-packed crystals
+   exactly as they were (s is unchanged by a uniform scaling of one shell, and changes only to second order under any
+   strain, so the term is fourth order: Ec, r₀, B, C₄₄, C′ and the vacancy stay 1.25's) and the liquid nearly so (its atoms
+   above 3.75 pay a little: copper +3 meV an atom against 1.26's angles' +50).
+     E₄ᵢ = Cᵢ·φ(μ₂ᵢ)·g(sᵢ − 3.75),   g(Δ) = W²Δ²/(W² + Δ²) for Δ > 0, else 0 (W = 1.5: bounded),
+   φ rising from 0 at μ₂ = 7 to 1 at 10 (a fcc crystal has 12): an under-coordinated atom (an adatom, s 4.8–6; an atom
+   arriving at a surface, whose s grows without bound as its one weak hopping fades) pays nothing, so the flat world
+   (6 neighbours) and every surface process keep 1.25's energies; a (100) face's atoms (μ₂ 8, s 3.94) pay a little.
+   Cᵢ is fitted per metal to its bcc − fcc (or bcc − hcp) energy, relaxed (tools/mb4fit.js); metals without a value keep
+   1.25's model exactly. fcc against hcp is left as in 1.25 (equal: their μ₂ … μ₆ are the same for one shell). Forces
+   analytic: with wᵢ = ∂E₄ᵢ/∂μ₄ᵢ and vᵢ = ∂E₄ᵢ/∂μ₂ᵢ, ∂E/∂hₐᵦ = 2(wₐ + wᵦ)(H³)ₐᵦ + 2Xₐᵦ + 2Xᵦₐ + 2hₐᵦ(vₐ + vᵦ), Xₐᵦ =
+   Σₖ (H²)ₐₖwₖhₖᵦ. localPE exact (mb4Local: the centres within two hops of the set, with and without it). */
+const MB4_Q = 2, MB4_S0 = 3.75, MB4_W2 = 2.25, MB4_NLO = 7, MB4_NHI = 10;
+const MB4_C = { 4: 0.4612, 12: 0.1492, 13: 0.3789, 20: 0.1531, 21: 0.48, 22: 0.5607, 27: 0.4357, 28: 0.4719, 29: 0.2731, 30: 0.1217, 38: 0.1131, 39: 0.6392, 40: 0.5946, 44: 1.5369, 45: 0.9115, 46: 0.3129, 47: 0.1553, 48: 0.0661, 72: 0.8122, 75: 0.902, 76: 1.753, 77: 1.1389, 78: 0.2696, 79: 0.0792, 82: 0.0852 }; // (C by Z, eV: node tools/mb4fit.js --write; each metal's bcc its measured ΔE above its close-packed crystal, relaxed)
+let _m4a = 0, _m4b = 0;
+/* one centre's E₄ from its moments (∂E/∂μ₂ into _m4a, ∂E/∂μ₄ into _m4b) */
+function mb4F(m2, m4, C) {
+  _m4a = 0; _m4b = 0;
+  if (!(C > 0) || m2 <= MB4_NLO) return 0;
+  const m22 = m2 * m2, D = m4 / m22 - MB4_S0;
+  if (D <= 0) return 0;
+  let ph = 1, phd = 0;
+  if (m2 < MB4_NHI) { const w = MB4_NHI - MB4_NLO, t = (m2 - MB4_NLO) / w; ph = t * t * t * (10 - t * (15 - 6 * t)); phd = 30 * t * t * (1 - t) * (1 - t) / w; }
+  const D2 = D * D, den = MB4_W2 + D2, g = MB4_W2 * D2 / den, gd = 2 * MB4_W2 * MB4_W2 * D / (den * den);
+  _m4b = C * ph * gd / m22; _m4a = C * (phd * g - ph * gd * 2 * m4 / (m22 * m2));
+  return C * ph * g;
+}
+const MB4F = { pa: new Int32Array(0), off: new Int32Array(64), nb: new Int32Array(256), h: new Float64Array(256), hd: new Float64Array(256), ux: new Float64Array(256), uy: new Float64Array(256), uz: new Float64Array(256),
+  row: new Float64Array(64), tl: new Int32Array(64), w: new Float64Array(64), v: new Float64Array(64), c: new Float64Array(16) };
+/* the pass over the members in cell order (mbPass's slots and cells): E₄ and, with forces, its forces */
+function mb4Pass(forces, nm, nx, ny, nz, wrap, d3) {
+  const tz = MBF.tz, nt = tz.length, C4 = MB4F.c.length >= nt ? MB4F.c : (MB4F.c = new Float64Array(nt * 2));
+  let any = false;
+  for (let u = 0; u < nt; u++) { C4[u] = MB_X[tz[u]] ? 0 : (MB4_C[tz[u]] || 0); if (C4[u] > 0) any = true; }
+  MBO.e4 = 0;
+  if (!any) return 0;
+  const F = MB4F, start = MBF.start, SX = MBF.sx, SY = MBF.sy, SZ = MBF.sz, STY = MBF.st, SA = MBF.sa, PT = MBF.pt, bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2;
+  if (F.off.length < nm + 1) { F.off = new Int32Array(nm * 2 + 64); F.row = new Float64Array(nm * 2 + 64); F.tl = new Int32Array(nm * 2 + 64); F.w = new Float64Array(nm * 2 + 64); F.v = new Float64Array(nm * 2 + 64); }
+  // every member metal's member-metal neighbours: each pair once (a cell against itself, later slots only, and its
+  // neighbouring cells of higher number, as mbPass), then both directions by slot (CSR): h, its slope, the direction
+  let np = 0;
+  const nc = nx * ny * nz, seen = MBF.nb, deg = F.off;
+  deg.fill(0, 0, nm + 1);
+  if (F.pa.length < 64) { F.pa = new Int32Array(256); F.pb = new Int32Array(256); F.ph = new Float64Array(256); F.phd = new Float64Array(256); F.pux = new Float64Array(256); F.puy = new Float64Array(256); F.puz = new Float64Array(256); }
+  for (let c = 0; c < nc; c++) {
+    const s0 = start[c], s1 = start[c + 1];
+    if (s0 === s1) continue;
+    const cx = c % nx, cy = Math.floor(c / nx) % ny, cz = Math.floor(c / (nx * ny));
+    let nn = 0;
+    for (let dzc = d3 ? -1 : 0; dzc <= (d3 ? 1 : 0); dzc++) {
+      let kz = cz + dzc; if (kz < 0 || kz >= nz) { if (!wrap) continue; kz = (kz + nz) % nz; }
+      for (let dyc = -1; dyc <= 1; dyc++) {
+        let ky = cy + dyc; if (ky < 0 || ky >= ny) { if (!wrap) continue; ky = (ky + ny) % ny; }
+        for (let dxc = -1; dxc <= 1; dxc++) {
+          let kx = cx + dxc; if (kx < 0 || kx >= nx) { if (!wrap) continue; kx = (kx + nx) % nx; }
+          const k = (kz * ny + ky) * nx + kx;
+          if (k < c) continue;
+          let dup = false; for (let u = 0; u < nn; u++) if (seen[u] === k) { dup = true; break; }
+          if (!dup) seen[nn++] = k;
+        }
+      }
+    }
+    for (let s = s0; s < s1; s++) {
+      const ts = STY[s] / nt;
+      if (MB_X[tz[ts]]) continue;
+      const xi = SX[s], yi = SY[s], zi = SZ[s], ai = SA[s];
+      for (let u = 0; u < nn; u++) {
+        const k = seen[u];
+        for (let t = k === c ? s + 1 : start[k], e = start[k + 1]; t < e; t++) {
+          if (STY[t] !== STY[s] || SA[t] !== ai) continue; // (the element's own neighbours only: an alloy's unlike pairs keep their fitted constants)
+          let dx = SX[t] - xi, dy = SY[t] - yi, dz = SZ[t] - zi;
+          if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (d3) { if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; } }
+          const r2 = dx * dx + dy * dy + dz * dz, o = (ts * nt + ts) * 9;
+          if (r2 >= PT[o + 7] || r2 < 1e-12) continue;
+          if (np >= F.pa.length) { const N = np * 2 + 256, g = (a, T) => { const b = new T(N); b.set(a); return b; }; F.pa = g(F.pa, Int32Array); F.pb = g(F.pb, Int32Array); for (const n of ['ph', 'phd', 'pux', 'puy', 'puz']) F[n] = g(F[n], Float64Array); }
+          const r = Math.sqrt(r2), r0 = PT[o + 4], on = PT[o + 5], x = Math.exp(MB4_Q * (1 - r / r0));
+          let sw = 1, swd = 0;
+          if (r > on) { const w = PT[o + 6] - on, q = (r - on) / w; sw = 1 - q * q * q * (10 - q * (15 - 6 * q)); swd = -30 * q * q * (1 - q) * (1 - q) / w; }
+          F.pa[np] = s; F.pb[np] = t; F.ph[np] = x * sw; F.phd[np] = x * (swd - MB4_Q / r0 * sw); F.pux[np] = dx / r; F.puy[np] = dy / r; F.puz[np] = dz / r; np++;
+          deg[s + 1]++; deg[t + 1]++;
+        }
+      }
+    }
+  }
+  for (let s = 0; s < nm; s++) deg[s + 1] += deg[s];
+  const ne = deg[nm];
+  if (ne > F.nb.length) { const N = ne * 2 + 256; F.nb = new Int32Array(N); for (const n of ['h', 'hd', 'ux', 'uy', 'uz']) F[n] = new Float64Array(N); }
+  { const fill = F.tl; fill.set(deg.subarray(0, nm)); const PA = F.pa, PB = F.pb, PH = F.ph, PD = F.phd, PX = F.pux, PY = F.puy, PZ = F.puz, NB = F.nb, H = F.h, HD = F.hd, UX = F.ux, UY = F.uy, UZ = F.uz;
+    for (let q = 0; q < np; q++) { const a = PA[q], b = PB[q], h = PH[q], hd = PD[q];
+      let e = fill[a]++; NB[e] = b; H[e] = h; HD[e] = hd; UX[e] = PX[q]; UY[e] = PY[q]; UZ[e] = PZ[q];
+      e = fill[b]++; NB[e] = a; H[e] = h; HD[e] = hd; UX[e] = -PX[q]; UY[e] = -PY[q]; UZ[e] = -PZ[q]; } }
+  const off = F.off, NB = F.nb, H = F.h, row = F.row, tl = F.tl, Wv = F.w, Vv = F.v;
+  row.fill(0, 0, nm);
+  const rowOf = (a) => { // ((H²)ₐ· into row; the touched slots in tl; returns their count)
+    let nt2 = 0;
+    for (let e = off[a]; e < off[a + 1]; e++) { const j = NB[e], hj = H[e]; for (let f = off[j]; f < off[j + 1]; f++) { const k = NB[f]; if (row[k] === 0) tl[nt2++] = k; row[k] += hj * H[f]; } }
+    return nt2;
+  };
+  let E = 0;
+  for (let s = 0; s < nm; s++) {
+    Wv[s] = 0; Vv[s] = 0;
+    const C = C4[STY[s] / nt];
+    if (!(C > 0) || off[s + 1] === off[s]) continue;
+    let m2 = 0; for (let e = off[s]; e < off[s + 1]; e++) m2 += H[e] * H[e];
+    if (m2 <= MB4_NLO) continue;
+    const n2 = rowOf(s); let m4 = 0;
+    for (let u = 0; u < n2; u++) { const k = tl[u]; m4 += row[k] * row[k]; row[k] = 0; }
+    E += mb4F(m2, m4, C); Wv[s] = _m4b; Vv[s] = _m4a;
+  }
+  MBO.e4 = E;
+  if (!forces || E === 0) return E;
+  const FX = S.fx, FY = S.fy, FZ = S.fz, SS = MBF.ss, HD = F.hd, UX = F.ux, UY = F.uy, UZ = F.uz;
+  for (let a = 0; a < nm; a++) {
+    if (off[a + 1] === off[a]) continue;
+    const n2 = rowOf(a), wa = Wv[a], va = Vv[a], i = SS[a];
+    for (let e = off[a]; e < off[a + 1]; e++) {
+      const b = NB[e], wb = Wv[b];
+      let h3 = 0, xx = 0;
+      for (let f = off[b]; f < off[b + 1]; f++) { const k = NB[f], rk = row[k]; if (rk === 0) continue; const t = rk * H[f]; h3 += t; xx += t * Wv[k]; }
+      const dEdh = (wa + wb) * h3 + 2 * xx + 2 * H[e] * va;
+      if (dEdh === 0) continue;
+      const g = -dEdh * HD[e], j = SS[b]; // (−dE/dr from this ordered pair's share)
+      FX[j] += g * UX[e]; FY[j] += g * UY[e]; FX[i] -= g * UX[e]; FY[i] -= g * UY[e];
+      if (d3) { FZ[j] += g * UZ[e]; FZ[i] -= g * UZ[e]; }
+    }
+    for (let u = 0; u < n2; u++) row[tl[u]] = 0;
+  }
+  return E;
+}
+/* E₄ that a change to the atoms in set T can alter (for mbLocal): T's centres' E₄, and every other centre within two
+   hops of T its E₄ less its E₄ without T (which no position of T's atoms changes): exact as a before/after difference. */
+function mb4Local(set) {
+  let any = false; for (const z in MB4_C) if (MB4_C[z] > 0) { any = true; break; }
+  if (!any) return 0;
+  const T = []; for (const p of set) if (!p.dead && p.k === NUC && mbIs(p.i) && !MB_X[p.Z]) T.push(p);
+  if (!T.length) return 0;
+  const R = mbRmax(), d3 = W.d3, lists = new Map(); // (member metal → [[o, h], …])
+  const nbOf = (p) => {
+    let L = lists.get(p); if (L) return L;
+    L = []; const seen = new Set();
+    const v = (o, dx, dy, r2) => {
+      if (o === p || seen.has(o) || o.dead || o.k !== NUC || o.anti !== p.anti || o.Z !== p.Z || !mbIs(o.i)) return; seen.add(o);
+      const P = mbPP(p.Z, o.Z), r = Math.sqrt(r2); if (r >= P[6] || r < 1e-6) return;
+      mbSw(r, P[5], P[6]); L.push([o, Math.exp(MB4_Q * (1 - r / P[4])) * _ms]);
+    };
+    nearby(p.x, p.y, R, v, p.z);
+    for (const o of _late) { if (o.dead) continue; const [dx, dy, dz] = minImg(o.x - p.x, o.y - p.y, d3 ? o.z - p.z : 0), r2 = dx * dx + dy * dy + dz * dz; if (r2 <= R * R) v(o, dx, dy, r2); }
+    lists.set(p, L); return L;
+  };
+  const inT = new Set(T), cen = new Set(T);
+  for (const p of T) for (const [j] of nbOf(p)) { cen.add(j); for (const [k] of nbOf(j)) cen.add(k); }
+  const e4 = (i, skip) => { // (centre i's E₄, the atoms of skip left out)
+    const C = MB4_C[i.Z] || 0; if (!(C > 0)) return 0;
+    let m2 = 0; const row = new Map();
+    for (const [j, hj] of nbOf(i)) { if (skip && skip.has(j)) continue; m2 += hj * hj; for (const [k, hk] of nbOf(j)) { if (skip && skip.has(k)) continue; row.set(k, (row.get(k) || 0) + hj * hk); } }
+    if (m2 <= MB4_NLO) return 0;
+    let m4 = 0; for (const x of row.values()) m4 += x * x;
+    return mb4F(m2, m4, C);
+  };
+  let E = 0;
+  for (const i of cen) E += inT.has(i) ? e4(i, null) : e4(i, null) - e4(i, inT);
+  return E;
+}
 /* ---- an ion near the metal (1.26): the metal's electrons draw back from its charge, and the ion feels the pull of that
    "image" (−k·q²/4z over a flat conductor). Here as a pair term between the ion and each member, φ = −c·q²/(r² + a²)²
    (each metal atom polarized by the ion's field), with c = k/(4π·n) for the metal's atom density n, so that summed over a
@@ -565,7 +738,7 @@ function mbImgLocal(set) {
 function mbLocal(set) {
   if (!MBO.on) return 0;
   const Ei = mbImgLocal(set); // (ions and the metal's image, 1.26)
-  return Ei + mbLocalMB(set);
+  return Ei + mbLocalMB(set) + mb4Local(set); // (the band's shape, 1.27)
 }
 function mbLocalMB(set) {
   const T = [], wt = new Map(); // (wt: a partner's weight, 1.26)
