@@ -2753,7 +2753,7 @@ API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; th
 | neutron absorption (capture, (n,p), (n,α), (n,t), fission), 41 nuclides | hep.js NXS | | NIST NCNR table (Sears 1992) | fine: equal or within 5%, except ¹⁶O 0.19 mb (NIST 0.10: Mughabghab 2006's newer value kept), ¹⁷O 0.257 b (0.236), ¹⁴⁹Sm 40,140 b (42,080: the newer evaluation kept) |
 | neutron scattering, free atom | hep.js NXS s | 19 nuclides held the *bound* σ or were >5% off (e.g. ¹⁶O 4.23, ³⁵Cl 21.8, ²³⁸U 9.3, ¹⁰B 2.23, ⁷Li 0.97) | bound × (A/(A+1))²: 3.75, 20.6, 8.80, 2.56, 1.07 … | **fixed** (only with Realistic particles 6 on) |
 | σ(cc̄), σ(bb̄) against √s | hep.js HF_SIG | cc̄ 27.4 GeV 15 µb; bb̄ 41.6 GeV 12 nb, 200 GeV 1.3 µb | NA27 18 µb; HERA-B 15.8 nb; PHENIX 3.75 µb (STAR 4.0) (d'Enterria et al., arXiv:2605.16019, Tables I–II) | **fixed** (only with Realistic particles 5 on); the other 9 points agree (HERA-B 49, E789 5.7 nb, CDF 76 vs 80, LHCb 295/495, ALICE 4,800/8,500) |
-| charm/bottom fragmentation fractions | hep.js HF_FRAG | 0.6086/0.2404/0.0802/0.0623; 0.407/0.407/0.101/0.085 | the same paper shows them only as figures | not checked |
+| bottom fragmentation fractions | hep.js HF_FRAG b | 0.407/0.407/0.101/0.085 | PDG's LEP fractions, not fetched | not checked |
 | antiprotonic X-rays (Bohr levels) | hep.js xaBohr | Al 5→4 91.6, 6→5 49.7, 7→6 30.0 keV; S 139.5/75.8; Si 106.3/57.8 | Aramaki et al., arXiv:1303.3871, Tables 5, 12: 92/50/30, 139/76, 106/58 | fine |
 | muonic Ne 5g→4f | hep.js xaBohr | 6294.0 eV | 6297.27 eV (Okumura et al., PRL 130, 173001, 2023) | fine (0.05%: the Bohr level without fine structure) |
 | muonic 2p→1s lines XA_KA (C … Pb) | hep.js XA_KA | 75.25 … 5901 keV | not in the pages reached | not checked |
@@ -2764,7 +2764,13 @@ API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; th
 | γ pair production in the nuclear field | hep.js cpmPairSig (+ cpmPairScr) | no partial screening: Pb 30/100/1000 MeV 0.0693/0.107/0.120 cm²/g, O 0.0095/0.0147/0.0195 | XCOM: Pb 0.0641/0.0899/0.1127, O 0.00945/0.0138/0.0184 | **fixed** (the owner's OK, 2026-11-07): Bethe–Heitler with Butcher–Messel screening integrated over ε: Pb 0.0650/0.0900/0.1163, O 0.00935/0.0137/0.0185, all within 3% from 5 MeV to 100 GeV; only with Realistic particles 3 on |
 | triplet (electron-field) pairs | hep.js cpmPairSig | O/H at 100 MeV 0.00127/0.00252 cm²/g; Pb 0.00177 at 1 GeV | XCOM 0.00164/0.00334; 0.00162 | 13–25% low at 30–300 MeV, 9% high for Pb above 1 GeV: written down, not changed |
 | ESTAR/ASTAR/PSTAR, liquid water | (checks only) | 1 MeV e⁻ 0.0187, 1 GeV e⁻ 0.024, 5 MeV α 8.9, 100 MeV p 0.073 eV/Å | 0.01849, 0.02400, 8.848, 0.07286 | fine |
-| water o-Ps 1.80 ns, o-Ps–O₂ σ 1.5×10⁻¹⁹ cm², refractive indices | | | | not reached (the papers paywalled): left for a check |
+| o-Ps–O₂ spin-conversion σ | hep.js PS_SIGC | 1.5×10⁻¹⁹ cm² | (1.16 ± 0.01)×10⁻¹⁹ (Shinohara et al., PRA 64, 042702, 2001; silica gels 1.2×10⁻¹⁹) | **fixed** (only with Positronium on); f_rp2 "matter" now takes σ from the table |
+| o-Ps life in water | hep.js PS_TAU_W | 1.80 ns | 1.86 ns at melting (Eldrup, Risø-R-254, 1971), ~1.85 ns at room temperature, shorter when warmer | fine (within the spread) |
+| μp → O transfer | hep.js XA_TR | 8.5×10¹⁰ s⁻¹ | 0.85(2)×10¹¹ (Werthmüller et al., Hyperfine Interact. 116, 1, 1998) | fine |
+| μp → N transfer | hep.js XA_TR | 3.4×10¹⁰ s⁻¹ | no number found | not checked |
+| charm fragmentation fractions | hep.js HF_FRAG c | 0.6086/0.2404/0.0802/0.0623 | Lisovyi et al., EPJC 76, 397 (2016), Table 12: identical | fine |
+| muonic ²⁰⁸Pb 2p→1s | hep.js XA_KA | 5901 keV (2:1 mean) | 5963.8 / 5778.9 keV (Engfer 1974, in MuDirac arXiv:2605.00554 Table 2): mean 5902.2 | fine; C … Fe not in that table: not checked |
+| refractive indices (water 1.333, silica 1.4585) | | | | not checked |
 
 - Water's I: PDG 2024 gives 79.7 eV (ICRU 90); the game builds water from H and O (Bragg additivity, ≈ 75 eV, the older
   ICRU 49 value). Changing that is a model change: written down, not done.

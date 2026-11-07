@@ -126,7 +126,7 @@ PARTS.matter = async (page, check) => {
     for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) X.addMolecule('O2', -12 + 4.5 * i, -12 + 4.5 * j, 0, 0);
     for (const p of W.parts) { p.vx = p.vy = 0; } X.forcesNoEvents(); W.fSpawn = W.spawned;
     const o = X.addExo('oPs', 0.5, 0.3, 1, 1, 0), R1 = X.psRates(o), v = o.v * 1e-8 / X.PHYS.TU_S;
-    r.conv = +R1.conv.toExponential(2); r.want = +(R1.env.o2 * 3.34e22 * 1.5e-19 * v).toExponential(2);
+    r.conv = +R1.conv.toExponential(2); r.want = +(R1.env.o2 * 3.34e22 * X.PS_SIGC * v).toExponential(2); // (σ from the table: 1.27 bug 17 corrected it, 1.5 → 1.16 ×10⁻¹⁹ cm²)
     W.decayOn = true; W.warp = 1e6; let turned = false; for (let s = 0; s < 300 && !o.dead && !turned; s++) { go(X, 1, 0.02); turned = o.sp === 'pPs'; } r.turned = turned; }
   const ok = Math.abs(r.water - 1.8) < 0.18 && Math.abs(r.water3d - 1.9) < 0.15 && r.live > 1 && r.live < 3.5 && r.n >= 30 /* (33 of 40 within the run after the 1.26 energy fixes changed the water's last bits, 36 before) */ && r.pick >= 0.8 * r.n && r.vac <= 4 && r.conv > 0 && Math.abs(r.conv / r.want - 1) < 1e-9 && r.turned;
   check(ok, `1.27 positronium: in water o-Ps's pick-off life is ${r.water} ns flat, ${r.water3d} ns 3-D (1.8 measured); flying in flat water ${r.live} ns (${r.pick} of ${r.n} by pick-off), in vacuum ${r.vac} of 40 gone in the same time; O₂ turns o-Ps to p-Ps (${r.conv} s⁻¹ there)`, 'rp2 matter: ' + JSON.stringify(r));

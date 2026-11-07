@@ -1338,7 +1338,7 @@ function xaInfo(p) {
      run unless decay is sped up (Lab → Decay speed); 125 ps is about 12,300 tu.
    Ps is an unstable particle in W.exo (pPs, oPs), so Select, Erase, Inspect, saves and undo take it as they take a muon. */
 const PS_B = PHYS.RY / 2, PS_M = 2 * PHYS.ME * PHYS.AMU_MEV - PS_B / MEV; // (binding eV: μ = mₑ/2; mass MeV)
-const PS_TAU_W = 1.80e-9, PS_R = 5, PS_RHO = { 2: 0.85, 3: 0.334 }, PS_SIGC = 1.5e-19, PS_NW = 3.34e22; // (o-Ps in water s; sampling radius Å; water's electron density; σ cm²; water molecules cm⁻³)
+const PS_TAU_W = 1.80e-9, PS_R = 5, PS_RHO = { 2: 0.85, 3: 0.334 }, PS_SIGC = 1.16e-19, PS_NW = 3.34e22; // (1.27 bug 17: σ from Shinohara et al., Phys. Rev. A 64, 042702, 2001 (arXiv:physics/0011054), elastic spin conversion (1.16 ± 0.01)×10⁻¹⁹ cm²; it had 1.5×10⁻¹⁹; water's 1.80 ns agrees with Eldrup's 1.86 ns (Risø-R-254, 1971) and ~1.85 ns since) (o-Ps in water s; sampling radius Å; water's electron density; σ cm²; water molecules cm⁻³)
 const PS_LPO = 1 / PS_TAU_W - 1 / 1.4205e-7; // (the pick-off rate in water, s⁻¹)
 RP.ps = false; RP.mu = false; // (Experimental → Realistic particles: positronium, muonium as hydrogen; ui.js applySettings)
 XP.pPs = { lab: 'p-Ps', m: PS_M, q: 0, tau: 1.2514e-10, col: [255, 170, 235], cc: 'pPs', ps: true, dec: [[1, ['g', 'g']]] };
