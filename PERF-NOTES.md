@@ -2813,7 +2813,8 @@ the books part's cost 13.62 and 18.40; Ps at 13.0 eV formed, at 6.2 eV not), con
   comment each (f_rp2's "off" check: the new hashes for annihilation and pionbeam; its Ps checks at H, Cl⁻ and free
   electrons were unchanged and pass: an atom's window is as before).
 - Cost: holeAtom walks the molecule (up to 64 atoms) at each ionizationCost; no change measurable in the setups.
-- Suites: t_lint, t_energy, t_physics, t_molecules, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass.
+- Suites: t_lint, t_energy, t_physics, t_molecules, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass; tools/runtests.sh 21 of
+  22 (t_features with f_fix02 passes), t_page's slow-motion button the known flake: alone it passes.
 - **Left for the owner.** A hole's measured-energy difference stays with the bonds after the charge goes (inert, exact
   books); if the same atom later gets the same charge by another road (a charge transfer), it counts again, exactly booked.
   Doubly charged molecules and fragments use atom costs. Liquid water's own first ionization (about 11 eV, from memory)
