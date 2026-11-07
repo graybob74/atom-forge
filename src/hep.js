@@ -898,7 +898,15 @@ function muZeff(Z) { for (let i = 1; i < MU_ZEFF.length; i++) if (Z <= MU_ZEFF[i
    neutron excess, the fit of that paper: 261 s⁻¹, −0.040, −0.26, 3.24) carries them to the other elements and isotopes,
    scaled to the measured ones beside them. The decay in orbit is the free muon's slowed by the Huff factor (about
    1 − 2.2×10⁻⁵ Z²: 0.85 in lead). */
-const MU_TAU = { 6: 2026.3, 7: 1906.8, 8: 1795.4, 9: 1463.5, 11: 1204.0, 12: 1067.2, 13: 864.0, 14: 756.0, 15: 611.2, 16: 554.6, 19: 435.2, 20: 332.7, 22: 329.3, 23: 284.5, 26: 206.0, 28: 156.6, 29: 163.5, 30: 159.4, 40: 110.4, 82: 75.4 };
+const MU_TAU = { 6: 2026.3, 7: 1906.8, 8: 1795.4, 9: 1463.5, 10: 1519.4, 11: 1204.0, 12: 1067.2, 13: 864.0, 14: 756.0, 15: 611.2, 16: 554.6, 18: 553.4, 19: 435.2, 20: 332.7, 22: 329.3, 23: 284.5, 24: 255.0, 26: 206.0, 28: 156.6, 29: 163.5, 30: 159.4,
+  32: 166.3, 34: 163.3, 38: 134.0, 40: 110.4, 42: 99.5, 46: 95.8, 48: 90.6, 50: 92.0, 52: 103.1, 56: 96.5, 58: 83.2, 60: 77.4, 62: 79.1, 64: 81.7, 66: 78.7, 68: 74.4, 72: 74.4, 74: 78.4, 80: 76.2, 82: 75.4, 90: 77.3, 92: 77.3 };
+/* (1.27 bug 12) The 23 added (Ne, Ar, Cr, Ge, Se, Sr, Mo, Pd, Cd, Sn, Te, Ba, Ce, Nd, Sm, Gd, Dy, Er, Hf, W, Hg, Th, U) are Suzuki, Measday
+   & Roalsvig's total capture rates as Zinner, Langanke & Vogel tabulate them (Phys. Rev. C 74, 024326, 2006, Table I: "Experimental data
+   are from Ref. [4]", the 1987 paper; uranium's from David et al. 1988), made mean lives with this file's Huff factor and the free muon's
+   rate: 1/τ = Λ_c + muHuff(Z)/τ_μ. Done to the 13 of the first 20 that table has, it gives them back to 0.1% (zirconium 0.5%), so those
+   written from memory stand; lead's 13.45×10⁶ s⁻¹ would be 72.3 ns against 75.4 kept (the paper itself, as remembered, and gold's 74 ns
+   beside it). The paper's odd elements could not be read here (the 1987 tables themselves were out of reach): Cl, Sc, Mn, Co, As, Y, Nb,
+   Ag, In, Sb, I, Cs, La, Pr, Ho, Ta, Au, Tl, Bi … still use the form scaled to their measured neighbours. */
 const muHuff = (Z) => 1 - 2.2e-5 * Z * Z;
 function muGP(Z, A) { return Math.max(0, muZeff(Z) ** 4 * 261 * (1 - 0.040 * A / (2 * Z) + 0.26 * (A - 2 * Z) / (2 * Z) - 3.24 * ((A - Z) / (2 * A) + (A - 2 * Z) / (8 * A * Z)))); }
 const _muRatio = Object.keys(MU_TAU).map(Number).map(Z => [Z, (1e9 / MU_TAU[Z] - muHuff(Z) / XP['mu-'].tau) / muGP(Z, Math.round(ELEMENTS[Z].mass))]); // (measured over the form, at each measured element)
