@@ -2312,7 +2312,7 @@ function xbClose(a, b, items, moms, x, y, txt) {
   for (const p of parts) kill(p);
   let Ein = 0, mIn = 0;
   for (const o of xs) { Ein += o.KE + o.m * MEV; mIn += o.m * MEV; o.dead = true; o.fate = `collided: ${txt}`; }
-  const made = spawnItems(items, moms, x, y, _xbZ); // (_xbZ: unstable particles meeting in 3-D, 1.27 feature 24)
+  const made = spawnItems(items, moms, x, y, W.d3 ? _evZ3 : 0); // (3-D: at the depth fastMeet or exmHit set, 1.27 bug 6 and feature 24)
   closeEvent(S, made, x, y, Ein, mIn);
   return made;
 }
@@ -2395,7 +2395,7 @@ function exoMeet() {
 function exmHit(a, b, d, x, y, z, ex, ey, Rn) {
   const keep = [[a, a.rad], [b, b.rad]];
   for (const [o] of keep) { o.xb = true; o.rad = true; }
-  _xbZ = z; const n0 = W.count.annih + W.count.decay;
+  _xbZ = z; if (W.d3) _evZ3 = z; const n0 = W.count.annih + W.count.decay; // (_evZ3: where xbClose puts the products, as fastMeet does)
   try {
     const ta = xbTok(a), tb = xbTok(b), lepA = xbLepton(a), lepB = xbLepton(b);
     if (ta && tb && conjTok(ta) === tb) {

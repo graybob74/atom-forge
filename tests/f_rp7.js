@@ -255,6 +255,7 @@ PARTS.books = async (page, check) => {
 // (1.27 bug 2: annihilation with part 3 on re-fingerprinted: molecules give electrons at their measured ionization energies)
 // (1.27 bug 3: annihilation and sns with part 3 on re-fingerprinted: close passes between nuclei turned at nuclear distances)
 // (1.27 bug 4: photonuc and sns with part 3 on re-fingerprinted: fast positrons meet atoms as electrons do, annihilating in flight at Heitler's rate)
+// (1.27 bug 6: sns with part 3 on re-fingerprinted: fast fired particles meet over the step)
 const FP_CPM = { annihilation: 'b521799d 6c096b74', photonuc: '0633606a eea3fc4e', sns: '400d8bc3 476e17ed', linac: '7c6eb010 2b70ae2c' };
 PARTS.both = async (page, check) => {
   const bad = [], r = {};
