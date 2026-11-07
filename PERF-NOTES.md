@@ -2736,7 +2736,8 @@ metals; small–medium). Not worth it: events, reactions, nuclear and particle p
 Order, to spend the owner's limited usage well: the small ones first in one session (23, 26–32), then the medium ones
 (21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
 Done since: 21 (branch v150 from v145, 2026-11-06: "1.27: feature 21 (polarizability by direction)"); 22 (branch v151
-from v150: "1.27: feature 22 (Rayleigh scattering)"); 25 (branch v152 from v151: "1.27: feature 25 (the Higgs boson)").
+from v150: "1.27: feature 22 (Rayleigh scattering)"); 25 (branch v152 from v151: "1.27: feature 25 (the Higgs boson)"); 24 (branch v153 from v152: "1.27: feature 24 (unstable
+particles meet each other)").
 The owner (2026-11-06): the WebAssembly speed-ups go to the next version (1.28), as one pass over everything that could use
 one: 33–38 above, and polarizability by direction's update and force pass (pold.js pdUpdate, pdForces: ×1.2–4.2 on top
 of the induced charges, the most in 3-D at every step). Time each first (a profile with its setting on), port where the
@@ -3009,6 +3010,37 @@ ew/lep1.png, lep-data.png, ins-w.png.
   collider steps through 88–94 GeV); the beams' own radiation (radiative return, which takes the Z peak from 41.5 to 30.5
   nb and makes most of LEP2's qq̄ events); the W pair's forward peak; a fast positron on matter by eeEvent (μ pairs,
   hadrons) rather than always 2γ; the Higgs boson (planned list).
+
+### 1.27: feature 24 (unstable particles meet each other)
+
+Branch v153 from v152 (2026-11-06; approved with the list; built while the owner slept: "just finish all the features").
+Settings → Experimental → Realistic particles → Unstable particles meet each other (`RP.exm`, `SET.rpExm`; hep.js
+exoMark, exoMeet, exmHit, exmFree; the step calls them around moveExos). Off at every start; off, nothing runs.
+- **Before:** an unstable particle met atoms and nuclei only, and other unstable particles only as a collider's beams
+  (beamCollisions; noted under 1.26's "Left for the owner": "a pion through muonic hydrogen or a Λ passes it").
+- **With it on:** before the exotic particles move each step, each one's start is kept (exoMark); after they move, every
+  pair of free ones (not a resonance, exotic atom, muonium, positronium, hypernucleus, W/Z/Higgs, a collider's beam or a
+  caught one; moving) whose paths came closest during the step (the same closest-approach test as beamCollisions: still
+  closing in waits for a later step) within reach meets by xbHit's rules without a collider (exmHit): a lepton and its
+  antilepton annihilate as e⁺e⁻ (eeEvent), a hadron and its antihadron into mesons (xbAnnihilate), two other hadrons
+  inside √0.6 of the reach collide inelastically (xbInelastic: as proton–proton at the same energy above their masses),
+  and in the flat game two charges within 0.6 Å turn each other (nuclearScatter, as a collider's; not in 3-D, where
+  nuclearScatter is flat). The reach is R_NN (0.35 Å), the game's for fast particles outside a collider; ultra-realistic
+  mode 10⁻⁵ Å (a femtometre: never in practice). The two are marked as beam particles (xb, rad) for the call, so the
+  beams' code treats them as unstable particles, and unmarked after if they survive; products in 3-D are made at the
+  meeting's depth (xbClose's spawnItems takes _xbZ, 0 for the beams as before).
+- **Found on the way:** sameEv (engine.js) reads evId, which unstable particles do not have (theirs is ev), so every pair
+  of them counted as one event's; exoMeet compares ev.
+- **Measured** (tests/f_127x.js): head-on at 2–5 GeV, flat and 3-D, π⁺π⁻ → p p̄ 2π⁺ 2π⁻ (one draw), K⁺K⁻ → p p̄ 3π⁰
+  π⁺π⁻, μ⁺μ⁻ → μ⁺μ⁻ (eeEvent's channels), π⁺K⁻ → new hadrons; off, each pair passes; books within 2×10⁻¹⁶ of the energy.
+  Two π⁺ at 5 MeV 0.1 Å apart turn 9.3° (flat). 30 ρ⁰ and φ decaying a few ångström apart: 215 close passes between
+  products of different decays met, none between two of one decay. Ultra-realistic: a π⁺π⁻ pair 0.05 Å apart passes.
+  Setups with the switch on, 400 steps (pionbeam, hyperfactory, annihilation, rhic, muonium, dafne): at most 20 unstable
+  particles at once, mostly one collision's products; no meetings within 400 steps, the steps 0.22 → 0.25 ms (dafne), the
+  books as with it off. Switch off: all 60 setups bit for bit (tools/fingerprint.js).
+- **Not covered:** an unstable particle meeting a free electron or positron (μ⁺e⁻ makes muonium elsewhere, by its own
+  rules); a heavy-ion collision's hadrons rescattering among themselves after it (one event's products never meet: the
+  fireball's statistical hadronization stands for that stage); the charges' turn in 3-D.
 
 ### 1.27: feature 25 (the Higgs boson)
 

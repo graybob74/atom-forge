@@ -2311,7 +2311,7 @@ function xbClose(a, b, items, moms, x, y, txt) {
   for (const p of parts) kill(p);
   let Ein = 0, mIn = 0;
   for (const o of xs) { Ein += o.KE + o.m * MEV; mIn += o.m * MEV; o.dead = true; o.fate = `collided: ${txt}`; }
-  const made = spawnItems(items, moms, x, y);
+  const made = spawnItems(items, moms, x, y, _xbZ); // (_xbZ: unstable particles meeting in 3-D, 1.27 feature 24)
   closeEvent(S, made, x, y, Ein, mIn);
   return made;
 }
@@ -2346,6 +2346,67 @@ function xbHit(C, a, b, d, x, y, ex, ey) {
     hit(`${la} + ${lb} scattered: ${(th * 180 / Math.PI).toFixed(0)}° in their own frame`);
     if (C.kind === 'ring') { a.caught = b.caught = true; a.beam = b.beam = null; }
   }
+}
+/* ---- Realistic particles: unstable particles meet each other (1.27, feature 24; Settings → Experimental → Realistic
+   particles, RP.exm; approved with the owner's list). Before, an unstable particle (pion, kaon, muon, τ, hyperon, charmed
+   or bottom hadron …) met atoms and nuclei only, and other unstable particles only as a collider's beams (beamCollisions):
+   a π⁺ crossing a π⁻ passed through it. With this on, two of them in flight whose paths pass within reach during a step
+   meet as two beam particles do (xbHit's rules, without a collider):
+   - a lepton and its antilepton (μ⁺μ⁻, τ⁺τ⁻) annihilate as e⁺e⁻ does (eeEvent: two γ rays, lepton pairs, hadrons, by
+     their cross sections at that √s);
+   - a hadron and its antihadron (π⁺π⁻, K⁺K⁻, Λ Λ̄ …) annihilate into mesons (xbAnnihilate);
+   - two other hadrons, above the threshold, come through with new hadrons made between them, as often as proton–proton
+     collisions are inelastic at the same energy above their masses (xbInelastic; their inelastic share of the reach);
+   - otherwise two charged ones turn each other by their charges (nuclearScatter; in the flat game only, as the beams').
+   The reach is the game's for fast particles outside a collider: R_NN (0.35 Å, the enlarged nuclear radius) for the
+   annihilations and strong collisions, 0.6 Å for the charges' turn; ultra-realistic mode keeps true sizes (two leptons
+   inside 2.8 fm, hadrons inside 1 fm: almost never). Two products of one event never meet (their ev tag: they leave together),
+   nor do resonances (they decay where they are made), exotic atoms, muonium, positronium, hypernuclei, a collider's
+   beams (beamCollisions has them) or anything at rest. The books close as any collision's (xbClose). Off: nothing here
+   runs, every setup as before, bit for bit. */
+let _xbZ = 0;
+const EXM = { n: 0, tried: 0, R_SC: 0.6 };
+function exmFree(o) { const d = XP[o.sp]; return !o.dead && !o.xb && o.v > 0 && !d.res && !d.atom && !d.hyp && !d.muonium && !d.ps && !d.ew && !o.caught; }
+/* Before the exotic particles move: where each starts its step. */
+function exoMark() { for (const o of W.exo) { o._mx = o.x; o._my = o.y; o._mz = W.d3 ? o.z : 0; } }
+/* After they move: every pair whose paths came within reach this step. */
+function exoMeet() {
+  const L = []; for (const o of W.exo) if (exmFree(o) && o._mx !== undefined) L.push(o);
+  if (L.length < 2) return;
+  const d3 = W.d3, Rs = W.ultra ? 1e-5 : EXM.R_SC, Rn = W.ultra ? 1e-5 : R_NN;
+  for (let i = 0; i < L.length; i++) {
+    const a = L[i]; if (a.dead) continue;
+    for (let j = i + 1; j < L.length; j++) {
+      const b = L[j]; if (b.dead || a.dead || (a.ev && a.ev === b.ev)) continue; // (one event's products: they leave together; an unstable particle's event is its ev tag, not evId)
+      const rx = b._mx - a._mx, ry = b._my - a._my, rz = b._mz - a._mz;
+      if (Math.abs(rx) > 60 || Math.abs(ry) > 60 || Math.abs(rz) > 60) continue;
+      const dx = (b.x - b._mx) - (a.x - a._mx), dy = (b.y - b._my) - (a.y - a._my), dz = d3 ? (b.z - b._mz) - (a.z - a._mz) : 0, L2 = dx * dx + dy * dy + dz * dz;
+      let t = L2 > 0 ? -(rx * dx + ry * dy + rz * dz) / L2 : 0; const closing = t > 1; t = clamp(t, 0, 1);
+      if (closing || t <= 0) continue; // (still closing in: a later step; t = 0: they were closest before this step)
+      const ex = rx + t * dx, ey = ry + t * dy, ez = rz + t * dz, d = Math.sqrt(ex * ex + ey * ey + ez * ez);
+      if (d >= Math.max(Rs, Rn)) continue;
+      const x = a._mx + (a.x - a._mx) * t + ex / 2, y = a._my + (a.y - a._my) * t + ey / 2, z = d3 ? a._mz + (a.z - a._mz) * t + ez / 2 : 0;
+      EXM.tried++; exmHit(a, b, d, x, y, z, ex, ey, Rn);
+    }
+  }
+}
+/* Two unstable particles at closest approach d: as beam particles meet (xbHit), without a collider. */
+function exmHit(a, b, d, x, y, z, ex, ey, Rn) {
+  const keep = [[a, a.rad], [b, b.rad]];
+  for (const [o] of keep) { o.xb = true; o.rad = true; }
+  _xbZ = z; const n0 = W.count.annih + W.count.decay;
+  try {
+    const ta = xbTok(a), tb = xbTok(b), lepA = xbLepton(a), lepB = xbLepton(b);
+    if (ta && tb && conjTok(ta) === tb) {
+      if (d < Rn) { if (lepA) eeEvent(a, b, x, y); else xbAnnihilate(a, b, x, y); }
+    } else if (!lepA && !lepB && ta && tb && d < Rn * Math.sqrt(HIT_INEL)) xbInelastic(a, b, x, y);
+    if (!a.dead && !b.dead && !W.d3 && d < EXM.R_SC) nuclearScatter(a, b, Math.max(d, 0.01), ex, ey, EXM.R_SC);
+  } finally {
+    _xbZ = 0;
+    for (const [o, r] of keep) if (!o.dead) { o.xb = false; o.rad = r; }
+  }
+  if (a.dead || b.dead) EXM.n++;
+  void n0;
 }
 /* A hadron and its antihadron (π⁺π⁻, K⁺K⁻, Σ⁺Σ̄⁻, D⁺D⁻, B⁺B⁻ …): every quark meets its antiquark, so what comes out
    carries no charge, strangeness, charm or baryon number: mesons, as from a proton and an antiproton (and above a few
@@ -3935,7 +3996,8 @@ function capDone(T, lbl, gh, x, y, z, gs) { // (the capture's log and counts, it
      axis at an angle α from the plane; a photon passes with probability (ε·â)², â the axis's part across the ray (Malus's
      law, cos²), and leaves polarized along â; else it is absorbed. */
 RP.pol = false; // (Experimental → Realistic particles → Photon polarization; ui.js applySettings)
-RP.ray = false; // (Experimental → Realistic particles → Rayleigh scattering, 1.27: pold.js ryTry)
+RP.ray = false;
+RP.exm = false; // (Experimental → Realistic particles → Unstable particles meet each other, 1.27 feature 24: exoMeet) // (Experimental → Realistic particles → Rayleigh scattering, 1.27: pold.js ryTry)
 /* A random linear polarization across the direction (ux, uy, uz): flat, ψ uniform between p̂ = (uy, −ux, 0) and ẑ. */
 function polRand(ux, uy, uz) {
   if (!W.d3) { const a = rnd() * Math.PI, c = Math.cos(a); return [uy * c, -ux * c, Math.sin(a)]; }

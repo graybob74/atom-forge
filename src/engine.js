@@ -8482,7 +8482,9 @@ function stepPlain(dt) {
     }
   }
   rpMark(3);
+  if (RP.exm) exoMark(); // (unstable particles meet each other, 1.27 feature 24: hep.js exoMeet)
   const nXb = moveExos(dt, id0) || 0;
+  if (RP.exm) exoMeet();
   if (W.nmr) nmrTick(dt); // (nuclear spins after an NMR pulse turn in the field, Realistic particles 6, 1.27: hep.js)
   if (nRad + nXb >= 2) beamCollisions(id0);
   if (W.collider) { rampRing(); if (W.step % 16 === 0) colliderRefill(); }

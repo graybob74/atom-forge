@@ -10939,7 +10939,9 @@ function stepPlain(dt) {
     }
   }
   rpMark(3);
+  if (RP.exm) exoMark(); // (unstable particles meet each other, 1.27 feature 24: hep.js exoMeet)
   const nXb = moveExos(dt, id0) || 0;
+  if (RP.exm) exoMeet();
   if (W.nmr) nmrTick(dt); // (nuclear spins after an NMR pulse turn in the field, Realistic particles 6, 1.27: hep.js)
   if (nRad + nXb >= 2) beamCollisions(id0);
   if (W.collider) { rampRing(); if (W.step % 16 === 0) colliderRefill(); }
@@ -26233,7 +26235,7 @@ function xbClose(a, b, items, moms, x, y, txt) {
   for (const p of parts) kill(p);
   let Ein = 0, mIn = 0;
   for (const o of xs) { Ein += o.KE + o.m * MEV; mIn += o.m * MEV; o.dead = true; o.fate = `collided: ${txt}`; }
-  const made = spawnItems(items, moms, x, y);
+  const made = spawnItems(items, moms, x, y, _xbZ); // (_xbZ: unstable particles meeting in 3-D, 1.27 feature 24)
   closeEvent(S, made, x, y, Ein, mIn);
   return made;
 }
@@ -26268,6 +26270,67 @@ function xbHit(C, a, b, d, x, y, ex, ey) {
     hit(`${la} + ${lb} scattered: ${(th * 180 / Math.PI).toFixed(0)}° in their own frame`);
     if (C.kind === 'ring') { a.caught = b.caught = true; a.beam = b.beam = null; }
   }
+}
+/* ---- Realistic particles: unstable particles meet each other (1.27, feature 24; Settings → Experimental → Realistic
+   particles, RP.exm; approved with the owner's list). Before, an unstable particle (pion, kaon, muon, τ, hyperon, charmed
+   or bottom hadron …) met atoms and nuclei only, and other unstable particles only as a collider's beams (beamCollisions):
+   a π⁺ crossing a π⁻ passed through it. With this on, two of them in flight whose paths pass within reach during a step
+   meet as two beam particles do (xbHit's rules, without a collider):
+   - a lepton and its antilepton (μ⁺μ⁻, τ⁺τ⁻) annihilate as e⁺e⁻ does (eeEvent: two γ rays, lepton pairs, hadrons, by
+     their cross sections at that √s);
+   - a hadron and its antihadron (π⁺π⁻, K⁺K⁻, Λ Λ̄ …) annihilate into mesons (xbAnnihilate);
+   - two other hadrons, above the threshold, come through with new hadrons made between them, as often as proton–proton
+     collisions are inelastic at the same energy above their masses (xbInelastic; their inelastic share of the reach);
+   - otherwise two charged ones turn each other by their charges (nuclearScatter; in the flat game only, as the beams').
+   The reach is the game's for fast particles outside a collider: R_NN (0.35 Å, the enlarged nuclear radius) for the
+   annihilations and strong collisions, 0.6 Å for the charges' turn; ultra-realistic mode keeps true sizes (two leptons
+   inside 2.8 fm, hadrons inside 1 fm: almost never). Two products of one event never meet (their ev tag: they leave together),
+   nor do resonances (they decay where they are made), exotic atoms, muonium, positronium, hypernuclei, a collider's
+   beams (beamCollisions has them) or anything at rest. The books close as any collision's (xbClose). Off: nothing here
+   runs, every setup as before, bit for bit. */
+let _xbZ = 0;
+const EXM = { n: 0, tried: 0, R_SC: 0.6 };
+function exmFree(o) { const d = XP[o.sp]; return !o.dead && !o.xb && o.v > 0 && !d.res && !d.atom && !d.hyp && !d.muonium && !d.ps && !d.ew && !o.caught; }
+/* Before the exotic particles move: where each starts its step. */
+function exoMark() { for (const o of W.exo) { o._mx = o.x; o._my = o.y; o._mz = W.d3 ? o.z : 0; } }
+/* After they move: every pair whose paths came within reach this step. */
+function exoMeet() {
+  const L = []; for (const o of W.exo) if (exmFree(o) && o._mx !== undefined) L.push(o);
+  if (L.length < 2) return;
+  const d3 = W.d3, Rs = W.ultra ? 1e-5 : EXM.R_SC, Rn = W.ultra ? 1e-5 : R_NN;
+  for (let i = 0; i < L.length; i++) {
+    const a = L[i]; if (a.dead) continue;
+    for (let j = i + 1; j < L.length; j++) {
+      const b = L[j]; if (b.dead || a.dead || (a.ev && a.ev === b.ev)) continue; // (one event's products: they leave together; an unstable particle's event is its ev tag, not evId)
+      const rx = b._mx - a._mx, ry = b._my - a._my, rz = b._mz - a._mz;
+      if (Math.abs(rx) > 60 || Math.abs(ry) > 60 || Math.abs(rz) > 60) continue;
+      const dx = (b.x - b._mx) - (a.x - a._mx), dy = (b.y - b._my) - (a.y - a._my), dz = d3 ? (b.z - b._mz) - (a.z - a._mz) : 0, L2 = dx * dx + dy * dy + dz * dz;
+      let t = L2 > 0 ? -(rx * dx + ry * dy + rz * dz) / L2 : 0; const closing = t > 1; t = clamp(t, 0, 1);
+      if (closing || t <= 0) continue; // (still closing in: a later step; t = 0: they were closest before this step)
+      const ex = rx + t * dx, ey = ry + t * dy, ez = rz + t * dz, d = Math.sqrt(ex * ex + ey * ey + ez * ez);
+      if (d >= Math.max(Rs, Rn)) continue;
+      const x = a._mx + (a.x - a._mx) * t + ex / 2, y = a._my + (a.y - a._my) * t + ey / 2, z = d3 ? a._mz + (a.z - a._mz) * t + ez / 2 : 0;
+      EXM.tried++; exmHit(a, b, d, x, y, z, ex, ey, Rn);
+    }
+  }
+}
+/* Two unstable particles at closest approach d: as beam particles meet (xbHit), without a collider. */
+function exmHit(a, b, d, x, y, z, ex, ey, Rn) {
+  const keep = [[a, a.rad], [b, b.rad]];
+  for (const [o] of keep) { o.xb = true; o.rad = true; }
+  _xbZ = z; const n0 = W.count.annih + W.count.decay;
+  try {
+    const ta = xbTok(a), tb = xbTok(b), lepA = xbLepton(a), lepB = xbLepton(b);
+    if (ta && tb && conjTok(ta) === tb) {
+      if (d < Rn) { if (lepA) eeEvent(a, b, x, y); else xbAnnihilate(a, b, x, y); }
+    } else if (!lepA && !lepB && ta && tb && d < Rn * Math.sqrt(HIT_INEL)) xbInelastic(a, b, x, y);
+    if (!a.dead && !b.dead && !W.d3 && d < EXM.R_SC) nuclearScatter(a, b, Math.max(d, 0.01), ex, ey, EXM.R_SC);
+  } finally {
+    _xbZ = 0;
+    for (const [o, r] of keep) if (!o.dead) { o.xb = false; o.rad = r; }
+  }
+  if (a.dead || b.dead) EXM.n++;
+  void n0;
 }
 /* A hadron and its antihadron (π⁺π⁻, K⁺K⁻, Σ⁺Σ̄⁻, D⁺D⁻, B⁺B⁻ …): every quark meets its antiquark, so what comes out
    carries no charge, strangeness, charm or baryon number: mesons, as from a proton and an antiproton (and above a few
@@ -27857,7 +27920,8 @@ function capDone(T, lbl, gh, x, y, z, gs) { // (the capture's log and counts, it
      axis at an angle α from the plane; a photon passes with probability (ε·â)², â the axis's part across the ray (Malus's
      law, cos²), and leaves polarized along â; else it is absorbed. */
 RP.pol = false; // (Experimental → Realistic particles → Photon polarization; ui.js applySettings)
-RP.ray = false; // (Experimental → Realistic particles → Rayleigh scattering, 1.27: pold.js ryTry)
+RP.ray = false;
+RP.exm = false; // (Experimental → Realistic particles → Unstable particles meet each other, 1.27 feature 24: exoMeet) // (Experimental → Realistic particles → Rayleigh scattering, 1.27: pold.js ryTry)
 /* A random linear polarization across the direction (ux, uy, uz): flat, ψ uniform between p̂ = (uy, −ux, 0) and ẑ. */
 function polRand(ux, uy, uz) {
   if (!W.d3) { const a = rnd() * Math.PI, c = Math.cos(a); return [uy * c, -ux * c, Math.sin(a)]; }
@@ -40227,6 +40291,7 @@ SET_DEF.rpCpm = false; // (Experimental → Realistic particles: charged particl
 SET_DEF.cpmX = 1; SET_OK.cpmX = [1, 1000, 1000000]; // (Realistic particles → Matter depth: its rare processes sped up, hep.js RP.cpmX, 1.27 item 26)
 Object.assign(SET_DEF, { rpPol: false }); // (Realistic particles 7, 1.27: photon polarization and Klein–Nishina, hep.js RP.pol)
 Object.assign(SET_DEF, { rpRay: false }); // (Realistic particles, 1.27 feature 22: Rayleigh scattering, pold.js RP.ray)
+Object.assign(SET_DEF, { rpExm: false }); // (Realistic particles, 1.27 feature 24: unstable particles meet each other, hep.js RP.exm)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
@@ -40246,6 +40311,7 @@ SET_EXP.push('rpCpm'); EXP_NAME.rpCpm = 'charged particles in matter'; // (1.27)
 SET_EXP.push('cpmX'); EXP_NAME.cpmX = 'matter depth'; // (1.27 item 26)
 SET_EXP.push('rpPol'); EXP_NAME.rpPol = 'photon polarization'; // (1.27)
 SET_EXP.push('rpRay'); EXP_NAME.rpRay = 'Rayleigh scattering'; // (1.27)
+SET_EXP.push('rpExm'); EXP_NAME.rpExm = 'unstable particles meeting'; // (1.27)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -40334,6 +40400,7 @@ function applySettings() {
   RP.cpmX = SET.cpmX; // (its rare processes sped up: Matter depth, 1.27 item 26)
   RP.pol = !!SET.rpPol; // (Realistic particles 7, 1.27)
   RP.ray = !!SET.rpRay; // (Rayleigh scattering, 1.27)
+  RP.exm = !!SET.rpExm; // (unstable particles meet each other, 1.27)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   pdOn(SET.qeq && SET.pold ? 1 : 0); // (polarizability by direction: induced dipoles in place of the charge flow, with induced charges on, 1.27)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
@@ -40460,6 +40527,7 @@ function syncSettings() {
   $('setRpRes').checked = SET.rpRes; $('setRpNuc').checked = SET.rpNuc; // (1.27)
   $('setRpPol').checked = SET.rpPol; // (1.27)
   $('setRpRay').checked = SET.rpRay; // (1.27)
+  $('setRpExm').checked = SET.rpExm; // (1.27)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -40508,6 +40576,7 @@ const COSTS = {
   setRpNuc: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step (the chain reaction 0.70 against 0.68 ms a step). A decay or capture with measured lines sends a few photons instead of one; after an NMR pulse the spins turn each step, 0.04 ms for liquid water\u2019s 160 protons (×1.1 at most)'] }),
   setRpPol: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A Compton event takes 0.2–0.3 ms either way (its Klein–Nishina angles about 1 µs of it), a photon through a prism 15–45 µs either way. Where γ rays scatter in matter their electrons come out slower, as in nature, and ionize a little more: liquid water with five γ rays a step 42–49 against 44–52 ms a step (the noise of a shared machine)'] }),
   setRpRay: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A visible photon crossing liquid water takes 31–36 µs against 15–24 (each molecule it passes asked once)'] }),
+  setRpExm: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing without unstable particles in flight; their paths checked in pairs each step (500 pions from a lead–lead collision: see the notes)'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
@@ -40560,6 +40629,7 @@ const COSTS3 = {
   setRpNuc: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step (40 thermal neutrons in liquid water 44.5 against 44.6 ms a step); after an NMR pulse 0.05 ms a step for 686 protons (×1.01)'] }),
   setRpPol: () => ({ k: 'physics', on: ['×1–2', 'Measured in 3-D on one thread (1.27): nothing where no γ ray scatters. Where γ rays scatter in matter, Klein–Nishina sends them forward and their electrons come out slower, as in nature, so these stop in the box and set more electrons free (liquid water with five γ rays a step: 66 ionizations against 27 in 100 steps, 81–97 against 138–206 ms a step)'] }),
   setRpRay: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step. A visible photon crossing liquid water takes 34–41 µs against 21–22'] }),
+  setRpExm: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing without unstable particles in flight; their paths checked in pairs each step'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
@@ -40604,6 +40674,7 @@ const REAL = {
   setRpCpm: [true, 'Fast charged particles lose their energy collision by collision, knock out δ-rays, give off bremsstrahlung and Cherenkov light, and γ rays make pairs, at the measured rates (1.27)'],
   setRpPol: [true, 'Photons carry their polarization, and Compton scattering follows Klein–Nishina, as in nature (1.27)'],
   setRpRay: [true, 'Light is scattered by molecules, blue most, as in nature (1.27)'],
+  setRpExm: [true, 'Unstable particles collide with each other as with anything else, as in nature (1.27)'],
 };
 function syncReal() {
   for (const id in REAL) {
@@ -40626,6 +40697,7 @@ EXP_SET.setRpPs = 'rpPs'; EXP_SET.setRpMu = 'rpMu'; EXP_SET.setRpCpm = 'rpCpm'; 
 EXP_SET.setRpRes = 'rpRes'; EXP_SET.setRpNuc = 'rpNuc'; // (1.27)
 EXP_SET.setRpPol = 'rpPol'; // (1.27)
 EXP_SET.setRpRay = 'rpRay'; // (1.27)
+EXP_SET.setRpExm = 'rpExm'; // (1.27)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -40661,6 +40733,7 @@ function expSummary() {
   if (SET.cpmX !== 1) on.push(`matter depth ×${SET.cpmX.toLocaleString('en-US')}`); // (1.27 item 26)
   if (SET.rpPol) on.push('photon polarization'); // (1.27)
   if (SET.rpRay) on.push('Rayleigh scattering'); // (1.27)
+  if (SET.rpExm) on.push('unstable particles meeting'); // (1.27)
   if (!on.length) return 'Experimental: all normal';
   const t = expTotal(), x = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
   return `Experimental: ${on.join(', ')} (${x} the normal work)`;
@@ -40679,6 +40752,7 @@ function syncExpTotal() {
   names.setRpRes = 'resonance widths and heavy flavour'; names.setRpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
   names.setRpPol = 'photon polarization'; // (1.27)
   names.setRpRay = 'Rayleigh scattering'; // (1.27)
+  names.setRpExm = 'unstable particles meeting'; // (1.27)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -40817,6 +40891,7 @@ const SDESC = {
   setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'Each nucleus has its measured spin and magnetic moment (¹H ½ and 2.79 μN): Inspect shows them, and in a magnetic field the spin precesses at the Larmor frequency (42.58 MHz per tesla for ¹H; Inspect\u2019s NMR pulse measures it). Nuclei left excited after a decay, capture or reaction give off their measured γ lines (⁶⁰Co: 1,173 and 1,332 keV; ¹³⁷Cs: 662 keV from ¹³⁷ᵐBa; capture on hydrogen 2,224 keV), with conversion electrons where large and isomers that wait their half-lives (⁹⁹ᵐTc 6 h). Neutrons react at their measured cross sections (1/v below about 1 eV, the big resonances): at true size (Ultra-realistic) the rates themselves, in the normal view what a hit does. Experimental: off again each time the game starts.'],
   setRpPol: ['Photon polarization', 'Every photon carries its polarization, the direction its electric field swings across its path. In the flat game that is in the plane, across it (out of the screen), or between. The Light tool and lasers give polarized light (choose in the plane, across it, or unpolarized); lamps, atoms, hot walls and nuclei give unpolarized light; the two 511 keV γ rays of an electron and positron annihilating are polarized at right angles to each other. Compton scattering follows the Klein–Nishina formula: at low energies forward and back as much as sideways (1 + cos²θ), at MeV energies mostly forward, the scattered photon with E′ = E/(1 + (E/511 keV)(1 − cos θ)), and least along its polarization (none at 90° for light polarized in the plane, at low energies). Mirrors keep the polarization; a prism\u2019s faces reflect a few percent of the light by Fresnel\u2019s laws, and at Brewster\u2019s angle (58° for its glass) only light polarized across the plane; the Objects tool gets a polarizer (Malus\u2019s law, cos²). Inspect shows a photon\u2019s polarization. Not carried: circular polarization; the pair\u2019s quantum entanglement (each pair is a definite perpendicular pair here, which gives a weaker correlation between them than nature\u2019s). Experimental: off again each time the game starts. Since 1.27 the two photons of π⁰ → γγ and η → γγ are polarized at right angles too, and ⁶⁰Co\u2019s two γ rays (1,173 and 1,332 keV, with Nuclear spin, γ lines on) leave with their measured angular correlation, 1.17 times as likely back to back as at right angles.'], // (1.27)
   setRpRay: ['Rayleigh scattering', 'Light that cannot ionize is scattered by molecules and atoms, as their electrons swing with its field: blue light (400 nm) 9.4 times as often as red (700 nm), the reason the sky is blue. A molecule scatters as much as the square of its polarizability (benzene about 35 times nitrogen), forward and back twice as much as sideways, and light scattered at right angles comes out polarized. Shown made visible, about 1 photon in 100 a nitrogen molecule passed at 450 nm; with ultra-realistic mode the true rate, which in a box this small is almost never (a photon crosses about 80 km of air before it scatters).'], // (1.27)
+  setRpExm: ['Unstable particles meet each other', 'Pions, kaons, muons, τ leptons, hyperons and the other unstable particles collide with each other in flight, not only with atoms and nuclei: a particle and its antiparticle annihilate (μ⁺μ⁻ as e⁺e⁻ does, π⁺π⁻ into mesons), two other hadrons above the threshold make new hadrons between them, and two charges turn each other. Within 0.35 Å of each other, as the game’s fast nuclei meet (true sizes with ultra-realistic mode: almost never). Two products of one collision never meet: they fly apart.'], // (1.27)
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
    on which mode you're in ... There should also be 3d pictures in 3d mode"). While the world is 3-D (W.d3) the pane takes
@@ -40864,6 +40939,7 @@ const SDESC3 = {
   setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'As in the flat game, in all three directions: nuclear spins and moments (Inspect, the Larmor precession in a field along the Lab\u2019s axis), measured γ lines and isomers, neutrons at their measured cross sections. Experimental: off again each time the game starts.'],
   setRpPol: ['Photon polarization', 'As in the flat game, in all three directions: photons carry a polarization at right angles to their path, the Light tool and lasers polarized (vertical, horizontal or unpolarized), the two γ rays of an e⁺e⁻ annihilation at right angles to each other, and Compton scattering by Klein–Nishina, the photon leaving least along its polarization. The placed optics (mirrors, prisms, the polarizer) are in the flat game only. Experimental: off again each time the game starts. Since 1.27 the two photons of π⁰ → γγ and η → γγ are polarized at right angles too, and ⁶⁰Co\u2019s two γ rays (1,173 and 1,332 keV, with Nuclear spin, γ lines on) leave with their measured angular correlation, 1.17 times as likely back to back as at right angles.'], // (1.27)
   setRpRay: ['Rayleigh scattering', 'As in the flat game, in all three directions: light that cannot ionize is scattered by molecules and atoms, blue 9.4 times as often as red, forward and back twice as much as sideways (1 + cos²θ), fully polarized at right angles. Each molecule scatters by its own polarizability tensor (polarizability by direction): a long or flat one (CO₂, benzene) depolarizes a little. Made visible; true with ultra-realistic mode (almost never).'], // (1.27)
+  setRpExm: ['Unstable particles meet each other', 'As in the flat game, in all three directions: unstable particles in flight annihilate with their antiparticles and collide with other hadrons when their paths pass within 0.35 Å. Their charges do not turn each other in the 3-D lab yet (in the flat game they do).'], // (1.27)
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
 const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
@@ -41096,6 +41172,7 @@ function settingsInit() {
   $('setRpRes').onchange = (e) => setSetting('rpRes', e.target.checked); $('setRpNuc').onchange = (e) => setSetting('rpNuc', e.target.checked); // (1.27)
   $('setRpPol').onchange = (e) => { setSetting('rpPol', e.target.checked); if (UI.tool === 'light' || UI.tool === 'objects') buildToolOpts(); }; // (1.27: the Light tool's polarization and the polarizer show with it)
   $('setRpRay').onchange = (e) => setSetting('rpRay', e.target.checked); // (1.27)
+  $('setRpExm').onchange = (e) => setSetting('rpExm', e.target.checked); // (1.27)
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');
