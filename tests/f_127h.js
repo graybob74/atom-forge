@@ -124,7 +124,7 @@ PARTS.books = async (page, check, say) => {
 };
 
 /* ---- 6. below its thresholds nothing changes: setups with collisions, beams, decays, LEP (tools/fingerprint.js) */
-const FP = { lep: '0ba36a5e books 8ac2be3b 5', rhic: 'fb7e8382 books a9f2ee3a 20', linac: '7c6eb010 books 2b70ae2c 20', dafne: '793dfacd books 43026f16 20', annihilation: 'e383fd2d books 98779ad4 180', water: 'cac1ac32 books a9f2ee3a 240', water3d: '7a2e7f5c books a9f2ee3a 1029' }; // (v151, tools/fingerprint.js)
+const FP = { lep: '0ba36a5e books 8ac2be3b 5', rhic: 'fb7e8382 books a9f2ee3a 20', linac: '7c6eb010 books 2b70ae2c 20', dafne: '793dfacd books 43026f16 20', annihilation: '85c27678 books 40644a64 158', water: 'cac1ac32 books a9f2ee3a 240', water3d: '7a2e7f5c books a9f2ee3a 1029' }; // (v151, tools/fingerprint.js)
 PARTS.fp = async (page, check, say) => {
   const want = FP;
   const out = require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, '..', 'tools', 'fingerprint.js'), ...Object.keys(want)], { encoding: 'utf8', maxBuffer: 1 << 24 });

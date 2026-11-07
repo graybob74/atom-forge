@@ -3705,6 +3705,42 @@ API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; th
 - Check: tests/f_fix17.js (fails on v145: −0.884, 0.903, Q 2.842 …; passes now). t_energy, t_lint, f_ew, f_rp5,
   f_bug126e, t_hep, t_nuclear pass.
 
+### 1.27: bug 18 (3-D positron runs broke the energy books)
+
+Branch fix127-18-positron-books (from v157). Found merging the fixes: t_features' "1.24 particles" (f_124, `pos`: five
+200 eV positrons into water3d, seed 8, W.gamma = 0, the books over each positron's life within 0.5 eV) came out 42.11 eV.
+Since fix 4 the positrons live 8–29 steps and ionize, attach, capture and annihilate along the way, so the chemistry's
+rare paths run far more often; two of them were not exact.
+
+- **What was wrong (1): separate placed a molecule in another's core.** Positron 4, step 8: it annihilates on a water's H
+  (annihilateBound → the electron taken; enforceValence: an H⁺ cannot keep its O–H bond) and separate(H⁺, O) moves the
+  OH out of the "core" `0.85 · ½ (a.ljR || 2) + (b.ljR || 2))`. A bare nucleus has ljR 0 on purpose (no core), but `|| 2`
+  made it 2 Å: the OH was pushed 1.38 Å, its H landing 0.27 Å from the next water's O (870 eV/Å). The event's
+  localPE books were exact; the integrator was not: the closing kick (outerB3) gave that H 37 eV, the O 2.5 eV.
+  - Change (engine.js separate): the force field's own core, `0.85 · ½ (a.ljR + b.ljR)` (as evReact's push already
+    used); and the push is halved (up to three times) until no moved atom lands inside 0.62 rm of an atom around it
+    (where ljFI's wall starts), else not made. The same H⁺: 0.53 Å instead of 1.38.
+- **What was wrong (2): a bond put back on trial lost its hole energy.** evBreak judges a stretched bond by breakCost
+  (removes it, measures), and when the pair hasn't the energy it put back `addBond(a, b, order)`: a new bond, without
+  the old one's Eq (holeEq: the measured ionization energy of a hole in water, H₃O⁺, …; 1.27 bug 2) and Ef. In the run
+  an H₃O⁺ O–H came back 0.58 eV lower (seed 3), and evReact's undo did the same (0.61 eV, seed 6). Measured with a
+  water whose O–H carries Eq 0.3 eV and is pulled apart too slowly to break: the books moved by 0.300 eV.
+  - Change: putBackBond(bd, …) puts the same bond back where it sat in the three lists (breakCost's whole-molecule
+    retry, evBreak's "stays bound", evReact's undo).
+- **Measured** (the `pos` block, worst positron per seed, eV): v157 seeds 1–8: 0.14, 0.11, 0.13, 0.16, 0.29, 0.51,
+  0.16, **42.11**; now seeds 1–12: 0.15, 0.13, 0.22, 0.18, 0.09, 0.27, 0.15, 0.13, 0.16, 0.34, 0.22, 0.16. (v156: 0.01–0.08;
+  what is left is the closing kicks after the events of a positron's ionizing run, each exact in itself.)
+- Forces were not the cause (the slopes match in 3-D brine to 3×10⁻⁸ eV/Å); nor the step size: the hot H was made by
+  the placement, not met too fast.
+- **Fingerprints** (switches off, 300 steps, seed 7): pionbeam, hyperfactory and annihilation changed (flat; their
+  annihilations and ionizations take the corrected paths); every other setup the same. Their stored hashes replaced in
+  f_rp1/2/3/5/7, f_ew, f_feat1, f_127x, f_127h; f_rp7's part-3-on annihilation hash too.
+- **Test changes:** f_rp3 "straggle" samples 24 runs instead of 12: with the water's events changed its 12-run sample
+  gave the 90th percentile at 2.88× the median against the 3× it asks (other seed sets: 3.3–3.9× before and after).
+- **Check:** tests/f_fix18.js (t_features runs it alone): "putback" (0.300 eV on v157, 0 now), "separate" (an H⁺
+  beside its O–H: 1.377 Å on v157, 0.527 now), "pos" (seeds 8 and 6: 42.11 / 0.512 on v157, 0.127 / 0.269 now).
+- **Cost:** separate looks at every atom for each moved one (it runs a few times a step at most in a positron run).
+
 ### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly

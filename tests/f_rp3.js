@@ -30,7 +30,7 @@ const fly = (X, p, x1) => {
 // (1.27 bug 3: fusion, nif, pionbeam, annihilation and sns re-fingerprinted, switches off: close passes between nuclei turned at nuclear distances)
 // (1.27 bug 7: photonuc, sns and hyperfactory re-fingerprinted, switches off: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
 // (1.27 bug 15: pionbeam and photonuc re-fingerprinted, switches off: events in the electrons' short steps search a grid rebuilt after they moved)
-const FP_V142 = { cloud: 'ca71f6d9 39571114', photonuc: '82991d34 a4742e49', pet: 'a5248bff a9f2ee3a', pionbeam: '16cbfefd 9ced7a3d', crt: 'd45bbde7 a1d454f5', linac: '7c6eb010 2b70ae2c', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a', seu: '1bf27d95 a9f2ee3a' };
+const FP_V142 = { cloud: 'ca71f6d9 39571114', photonuc: '82991d34 a4742e49', pet: 'a5248bff a9f2ee3a', pionbeam: '80f4cdae 369e9f52', crt: 'd45bbde7 a1d454f5', linac: '7c6eb010 2b70ae2c', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a', seu: '1bf27d95 a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const h = (s) => { let a = 0x811c9dc5; for (let i = 0; i < s.length; i++) { a ^= s.charCodeAt(i); a = Math.imul(a, 0x01000193); } return (a >>> 0).toString(16).padStart(8, '0'); };
   const bad = [];
@@ -56,7 +56,7 @@ const PATCH_ST = (s) => s.replace('function cpmAtom(tg, b, dEg, x, y, z) {', 'fu
   .replace('    let dE = Math.min(0.3 * p.KE, 0.0047 * zeff * zeff * tg.ne / beta2 * w);', '    let dE = Math.min(0.3 * p.KE, 0.0047 * zeff * zeff * tg.ne / beta2 * w); if (globalThis.__st && Math.abs(x0 + (x1 - x0) * t) < globalThis.__st.h && dE >= 0.01) globalThis.__st.d += dE;');
 const straggle = (on) => {
   const res = [], xis = [];
-  for (let b = 0; b < 12; b++) {
+  for (let b = 0; b < 24; b++) { // (24 runs, 864 passes: 12 left the 90th percentile's ratio to the median a sampling noise of ±0.4 about its threshold, 1.27 bug 18)
     const X = load('all', { seed: 10 + b, patch: PATCH_ST }), W = X.W; X.PRESETS.water.build(); X.RP.cpm = on; W.T = 0; W.gamma = 0;
     X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned;
     const hw = W.box.w / 2, hh = W.box.h / 2;
