@@ -2749,7 +2749,7 @@ API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; th
 | mean excitation energies H, He, C, N, O, Ne, Na, Al, Si, Ca, Fe, Cu, Ag, W, Au, Pb, U | hep.js CPM_I | 19.2 … 890 eV | PDG pages (ICRU 37/49) | fine (all 17 equal) |
 | radiation lengths | hep.js cpmX0 (Tsai's formula) | computed | PDG | fine (formula; e.g. Pb 6.37 g/cm²) |
 | muon lifetimes MU_TAU | hep.js | | | checked in bug 12 (Zinner/Langanke/Vogel 2006), not touched here |
-| p-Ps 125.14 ps, o-Ps 142.05 ns | hep.js | | papers named in the code | fine (as published) |
+| p-Ps 125.14 ps, o-Ps 142.05 ns | hep.js | | papers named in the code | agree with the published values as known; the papers themselves not fetched |
 | water o-Ps 1.80 ns, o-Ps–O₂ σ 1.5×10⁻¹⁹ cm², exotic-atom X-ray lines, muon transfer rates, ESTAR/ASTAR/XCOM spot values, neutron σ, charm/bottom fractions, hadron-collider σ | | | | not reached (papers paywalled, NIST forms not scriptable here): left for a check |
 
 - Water's I: PDG 2024 gives 79.7 eV (ICRU 90); the game builds water from H and O (Bragg additivity, ≈ 75 eV, the older
