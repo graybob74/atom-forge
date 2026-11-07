@@ -1751,7 +1751,7 @@ const { openPage } = require('./browser');
   // 1.23.2: the checks are in f_1232.js (also runnable alone: node tests/f_1232.js)
   // (1.26: the newest check files run alone in their own process, each with its own page: one process holding every
   // version's checks ran past 3 GB)
-  const alone = (file) => new Promise((res) => {
+  const alone = (file) => process.env.AF_ALONE_SKIP ? Promise.resolve() : new Promise((res) => { // (AF_ALONE_SKIP: tools/runtests.js runs these files as jobs of their own)
     const cp = require('child_process').spawn(process.execPath, ['--max-old-space-size=3072', require('path').join(__dirname, file)], { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = ''; cp.stdout.on('data', d => { out += d; }); cp.stderr.on('data', d => { out += d; });
     cp.on('close', (rc) => {
