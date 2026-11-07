@@ -3167,6 +3167,8 @@ Settings section kept its place). The flat game only, as the plan said ("to scop
   hundreds of nanometres for visible light); lenses, mirrors and prisms acting on the wave (they keep acting on rays);
   wave packets drawn with their wavelength and phase; the 3-D lab (slits are flat-game objects; Bragg there needs the
   sum over a sphere of directions, about 30 ms a try). For the owner: P0 and GMAX are choices of how visible to make it.
+- Suite on v154 (2026-11-06): tools/runtests.sh 22 of 22 passed (t_features 2,031 s on two cores shared with other
+  work). It covers v153 too (v154 is v153 and this feature): v153's own run was cut short when its snapshot was removed.
 
 ### 1.27: feature 24 (unstable particles meet each other)
 
