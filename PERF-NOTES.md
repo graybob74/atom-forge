@@ -2735,6 +2735,7 @@ metals in mixtures (bometal.js's JavaScript path when non-metals or other kinds 
 metals; small–medium). Not worth it: events, reactions, nuclear and particle physics (rare and branchy), drawing (WebGL).
 Order, to spend the owner's limited usage well: the small ones first in one session (23, 26–32), then the medium ones
 (21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
+Done since: 21 (branch v150 from v145, 2026-11-06: "1.27: feature 21 (polarizability by direction)").
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
@@ -3003,6 +3004,74 @@ ew/lep1.png, lep-data.png, ins-w.png.
   collider steps through 88–94 GeV); the beams' own radiation (radiative return, which takes the Z peak from 41.5 to 30.5
   nb and makes most of LEP2's qq̄ events); the W pair's forward peak; a fast positron on matter by eeEvent (μ pairs,
   hadrons) rather than always 2γ; the Higgs boson (planned list).
+
+### 1.27: feature 21 (polarizability by direction)
+
+Branch v150 from v145 (2026-11-06; approved with the list: "I approve all of them"). Settings → Experimental →
+Polarizability: Along bonds (normal) / By direction, with Induced charges on (src/pold.js, `PD`, `pdOn`; built right
+after sites.js).
+- **What was wrong with the old way** (the 1.26 investigation, "Polarizability by direction: investigated, not built"):
+  the induced charges are charge flow, so a molecule polarizes only along its bonds: across a linear or flat molecule's
+  bonds nothing (N₂, CO₂ across 0; benzene out of plane 0) and benzene's ring 166.9 Å³ in plane (measured 12.2).
+- **The model:** with By direction on, the charge flow is off and each atom of a molecule (2–64 atoms, as the induced
+  charges) carries an induced point dipole μ = α·E. α is a tensor, half the sum of the atom's bonds' tensors
+  α∥ ûû + α⊥(1 − ûû) (bond additivity: the molecule's tensor is the sum over its bonds, no coupling inside a molecule).
+  E is the field from the charges and dipoles of other molecules within the force reach, plus the applied field. The
+  dipoles are solved together (iterated, mixed 0.7, to 10⁻⁵ e·Å) between steps on the induced charges' schedule (every
+  10th step or every step). The exact change of the energy is paid from the molecules' motion about their centre of mass
+  (pdPay; the update is skipped if that cannot pay), as the induced charges' is. Between updates the dipoles are fixed, so
+  the forces are the energy's own slopes. Energy: ½K μᵀα⁻¹μ per atom (p.dmc, fixed between updates), −μ·E_applied (live,
+  so a field changed between updates is booked as the charges' is), and between atoms of different molecules the
+  charge–dipole and dipole–dipole terms of a soft Coulomb 1/√(r² + s). The ion–molecule weight iwK is on the
+  charge–dipole terms, as the induced charges have it. Each pair's energy is faded over the last ångström of the reach
+  (a smooth step on r, as the charge sites'). In the books: pdForces after the kernels, pdLocal in localPE (events),
+  pdTotal in totalEnergy, pdPairE in pairPE.
+- **Two things found while building it.**
+  1. Fading the potential instead of the pair's energy made the dipole–dipole coupling, the potential's second
+     derivative, about 1.0 at 5.2 Å, where the real one is 0.014. The solve ran away (coupling eigenvalues ±1.2–1.7). The
+     fade is on the energy now, so a field is never larger than the unfaded one.
+  2. Undamped, a water hydrogen was pulled to 0.37 Å from a Na⁺ in brine (dipole 2.5 e·Å): the induction energy −½αE²
+     at sub-ångström range outweighed the core. Every pair now has one damped softening,
+     s = 0.09 + PD_TH·(ᾱa·ᾱb)^⅓ Å², as Thole's model damps. A partner without a dipole uses its ion's or atom's own
+     polarizability (PD_ION, PD_ATOM). PD_TH = 1.0 was chosen by liquid water's molecular dipole: Thole's linear 1.66²
+     = 2.7 gave 2.49 D in the 3-D lab, 1.0 gives 2.6–2.7 (measured in the liquid about 2.6–3.0 D). Brine keeps every
+     dipole under 0.4 e·Å with it.
+- **The bond table (PD_BOND)**, fitted by tools/polfit.js on the game's own 3-D geometries to static electronic
+  polarizabilities (Å³). Means: CH₄ 2.60, C₂H₆ 4.47, C₂H₄ 4.25, C₂H₂ 3.33, benzene 10.33, CH₃Cl 4.53 (the MOPAC manual's
+  table of experimental values); HCl 2.63, HF 0.80; H₂ 0.79, N₂ 1.74, O₂ 1.58, CO 1.95. Anisotropies Δα: H₂ 0.288,
+  N₂ 0.691, O₂ 1.080, CO 0.525 (Raman, OSTI 5555353). Benzene out of plane 6.62 (CCSD 44.66 a.u., arXiv 2103.05063).
+  From memory (for the check of values from memory, bug 17): CO₂ electronic mean 2.63 with Δα 2.0, water 1.47 nearly
+  isotropic, NH₃ 2.2, CH₃OH 3.29, and the C–H ratio α∥/α⊥ 1.36 (Denbigh). Bonds with only a mean to fit keep α∥ = 2α⊥.
+  The game's molecules come out as measured: N₂ 2.20 / 1.51 along / across, CO₂ 3.96 / 1.96, benzene 12.18 / 12.18 /
+  6.62 (flat game: 12.19 / 12.17 in the plane), water 1.47 isotropic, methane 2.60, ethane's mean 4.47. A bond not in
+  the table: mean 0.7·(α_A/n_A + α_B/n_B) from the atoms' polarizabilities (CRC; 0.7 fits the table's single bonds,
+  which run 0.59 for C–H to 0.98 for C–Cl), split 1.5 : 0.75. Ionic atoms take their ion's polarizability
+  (isotropic), metal atoms none.
+- **Measured.**
+  - Forces against the energy's slope: 2×10⁻¹¹ eV/Å in 3-D, 8×10⁻¹¹ flat (molecules, a Na⁺, an applied field).
+  - Events (localPE) and books (totalEnergy) agree on the dipoles' energy to 2×10⁻¹⁴ eV.
+  - Insulated books (eV): water −0.02 over 300 steps (every step; charge flow +0.03); brine −0.04 (every step), +0.01
+    (every 10th), −0.12 over 600 steps; 3-D water +0.03, 3-D brine −0.13 (60 steps every step); the 3-D hydrogen flame
+    −0.02 over 300 steps with 9 bond events and reactions; lone pairs on as well, −0.006.
+  - Switched off with 240 dipoles: none left, the energy kept to 0, the charge flow back.
+  - Liquid water's molecular dipole: flat 2.17 (charges) / 2.41–2.43 (induced charges) / 2.52–2.56 (dipoles); 3-D 2.19 /
+    2.43–2.52 / 2.59–2.66 D.
+  - Cost (tools/accbench/bench-mode.js, variants pd10 and pd1, ms a simulated fs, one thread), on top of the induced
+    charges at the same schedule: flat water ×2.9 / ×2.1 (every 10th step / every step), brine ×1.8 / ×2.1; 3-D water
+    ×2.0 / ×4.2, brine ×1.2 / ×1.7. Against nothing on: flat water ×3.9 / ×5.8, 3-D water ×3.4 / ×9.4. Most of it is
+    the update's pass over the neighbour list and the force pass, in JavaScript (first version 69 ms a step in 3-D water
+    at every step; 19 ms now, on typed arrays and the neighbour list). A WebAssembly port would be one of 33–38's kind.
+  - Brine keeps longer steps with dipoles: 0.027–0.029 fs, where the charge flow's stiffer contacts give 0.016–0.023.
+  - Switch off: all 60 setups bit for bit v145's (tools/fingerprint.js, seed 7, 300 steps, both trees).
+- **Not covered:** a lone atom or ion is not polarized (a Cl⁻ in water, a noble gas); dipoles feel charges at the atoms,
+  not at the directional forces' sites; continuous bond orders' charges move with the positions, which the dipoles'
+  forces do not follow (as the sites' do not).
+- Tests: tests/f_127p.js (t_features' feature-21 line, or `node tests/f_127p.js [--node] [tensor field slope local books
+  events clear water fp settings]`).
+- Suite on v150 (2026-11-06; v145's first full run since its last two merges, as well): tools/runtests.sh 21 of 22.
+  t_features missed only the known load-timed checks (1.14's speed readout, f_bug125 exoElastic, f_126w bo3) and
+  1.10's realistic-tag list (the new row's tag: the list updated). t_features alone then passed whole (1,420 s), and
+  f_bug125 and f_126w passed alone. t_page passed in the run.
 
 ## 1.25.0: the nuclear side in 3-D, continuous bond orders in 3-D with single bonds' twist, many-body metals, Settings by mode with 3-D pictures, 3-D labels off, 21 bug fixes
 

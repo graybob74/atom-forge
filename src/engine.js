@@ -1884,6 +1884,7 @@ function localPE(set, skip) {
   if (WAVE.n) V += waveLocal(set, skip); // (electrons as waves: the packets' share with these ions, 1.15)
   if (MBO.on) V += mbLocal(set); // (metals' many-body energy, 1.25)
   if (SITES.any) V += sitesLocal(set, skip); // (off-atom charge sites, 1.26)
+  if (PD.n) V += pdLocal(set, skip); // (induced dipoles, 1.27)
   if (_lrOn) { // exact long-range Coulomb between net charges beyond the cutoff (as in computeForces)
     for (const p of set) {
       if (p.k !== NUC || p.dead || p.fast || p.rad || !isLR(p)) continue;
@@ -2956,6 +2957,7 @@ function computeForces1() {
   if (d3) { nucleusPairs3(wrap, bw, bh, hw, hh); if (AC3.ns) tors1Forces3(S.fx, S.fy, S.fz); } // (3-D: the kernels; then the single bonds' twist, 1.25)
   else nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
   if (SITES.any) sitesForces(S.fx, S.fy, S.fz); // (Experimental: off-atom charge sites, 1.26: sites.js)
+  if (PD.n) pdForces(S.fx, S.fy, S.fz); // (Experimental: induced dipoles, polarizability by direction, 1.27: pold.js)
   if (_profOn) tp = performance.now();
   if (nmdL && d3) leptonPairs3(); // (3-D)
   else if (nmdL) { // pairs with a free lepton in them, from the inner steps' list
@@ -4684,7 +4686,7 @@ function pairPE(a, b) {
   const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z), r2 = dx * dx + dy * dy + dz * dz;
   let V = 0;
   if (r2 < RC2) {
-    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom) && !(MBO.on && mbEx(a, b))) V += nucPairV(a, b, r2); if (SITES.any) V += sitesPairE(a, b); } // (mbEx: many-body metals' partners; off-atom charge sites, 1.26)
+    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom) && !(MBO.on && mbEx(a, b))) V += nucPairV(a, b, r2); if (SITES.any) V += sitesPairE(a, b); if (PD.n) V += pdPairE(a, b); } // (mbEx: many-body metals' partners; off-atom charge sites, 1.26)
     else if (a.k === NUC || b.k === NUC) {
       const A = a.k === NUC ? a : b, L = A === a ? b : a, qa = A.q;
       if (qa) V += PHYS.KE * L.q * qa * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN));
@@ -8245,6 +8247,7 @@ function piEnergy() {
    (velocities scaled about their centre of mass; the update is skipped if that cannot pay), and the forces are
    worked out again for the new charges. */
 const QEQ = { every: 0, kappa: 0.54, maxMol: 64, maxQ: 0.6, n: 0, skipped: 0, dU: 0 };
+const PD = { on: 0, n: 0, at: [], gen: 1, parts: null, upd: 0, skipped: 0, iters: 0, dU: 0 }; // (Experimental: polarizability by direction, 1.27: pold.js; n atoms carry an induced dipole now)
 /* Off again: every molecule back to its bonds' own charges, the change of the potential energy paid as an update's is. */
 function qeqClear() {
   const atoms = W.parts.filter(p => !p.dead && p.qi);
@@ -8292,6 +8295,7 @@ function qeqPairsWasm() {
   return P[14];
 }
 function qeqUpdate() {
+  if (PD.on) { pdUpdate(); return; } // (polarizability by direction: induced dipoles instead of charge flow, 1.27: pold.js)
   const mols = new Map(); // molecule id → its atoms (every atom bonded, an ordinary atom in MD)
   for (const p of W.parts) {
     if (p.dead || p.k !== NUC || p.Z === 0 || p.ne === 0 || p.fast || p.rad || !p.bonds.length || p.anti) continue;
@@ -8720,7 +8724,7 @@ function measure() {
 const BO = { on: false, qm: false, any: false, pairs: [], np: 0, E: 0, cache: new Map(), Ztab: new Set([1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53, 32, 33, 34, 50, 51, 52]), /* (Ge, As, Se, Sn, Sb, Te since 1.25) */ bath: 0, changes: 0 };
 function clearWorld() {
   BO.np = 0; BO.any = false; BO.E = 0;
-  dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
+  dropParts(W.parts); W.parts.length = 0; PD.n = 0; PD.at = []; PD.gen++; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.slowSet = 0; WAVE.mem = []; WAVE.n = 0; W.nucWin = null; W.made = null; W.chain = null; W.zscan = null; // (the LEP energy scan, ui.js, 1.27)
   W.grab = null; W.topo++;
@@ -9135,6 +9139,7 @@ function totalEnergy0() {
   pe += boE;
   if (MBO.on) pe += mbPass(false); // (metals' many-body energy, 1.25)
   if (SITES.any) pe += sitesTotal(); // (off-atom charge sites, 1.26)
+  if (PD.n) pe += pdTotal(); // (induced dipoles, 1.27)
   if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls

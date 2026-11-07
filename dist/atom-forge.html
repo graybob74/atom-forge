@@ -1627,6 +1627,10 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <p class="note">Each molecule's partial charges are its bonds' own, plus induced charges that follow the electric field around it from other molecules, ions and an applied field (charge equilibration). No charge moves between molecules, so a water molecule stays neutral but turns its dipole toward an ion or a field. The polarization energy is part of the energy books, and the energy stays exact. The charges lag between updates, which warms an insulated box a little. Molecules over 64 atoms keep their own charges.</p>
       <p class="note" data-m="2d">Fitted to water's measured polarizability (1.45 Å³, averaged in the plane); in liquid water the molecules' dipole rises from 2.19 to 2.46 D, and next to a sodium ion much more. Every 10th step costs ×1.4–1.8 and every step ×2.7–4.6 (brine, liquid water, 4,000 waters).</p>
       <p class="note" data-m="3d" hidden>In the 3-D lab the charges follow the field in all three directions, with the flat game's constants (fitted to water's measured 1.45 Å³ in the plane); in liquid water the induced charges average 0.09 e (the flat water's 0.06). Every 10th step costs ×1.4–2.4 and every step ×2.5–3.2 (liquid water, salt water; measured in 3-D, 1.26: the pairs are found in WebAssembly).</p>
+      <div class="srow"><span>Polarizability</span><div class="seg" id="segPold" role="group" aria-label="Polarizability by direction"><button data-v="0">Along bonds (normal)</button><button data-v="1">By direction</button></div></div>
+      <p class="note">With Induced charges on (since 1.27). Normally the induced charges flow along the bonds, so a molecule polarizes only along its bonds: N₂, CO₂ and benzene not at all across them (out of benzene's plane nothing), and benzene's ring about 14 times too much. By direction gives each atom an induced dipole instead, which follows the field from other molecules, ions and an applied field with the polarizability its bonds have along and across them (bond polarizabilities fitted to 16 measured molecules), so every molecule polarizes in each direction as much as the real one: N₂ 2.20 / 1.51 Å³ along / across, CO₂ 3.96 / 1.96, benzene 12.2 in its plane and 6.6 out of it, water 1.47, methane 2.60. The dipoles are worked out together (each one feels the others'), softened at close range as Thole's model does so they cannot run away, and the energy books stay exact. Molecules of 2–64 atoms; a lone atom or ion is not polarized.</p>
+      <p class="note" data-m="2d">In the flat game, in the plane. In liquid water the molecules' dipole comes out 2.5–2.6 D (charges alone 2.17, induced charges 2.4). Costs ×1.8–2.9 on top of the induced charges (liquid water, brine; measured 1.27).</p>
+      <p class="note" data-m="3d" hidden>In liquid water the molecules' dipole comes out 2.6–2.7 D (charges alone 2.2, induced charges 2.4–2.5; measured in the liquid about 2.6–3.0 D). Costs ×1.2–4.2 on top of the induced charges (liquid water, brine; measured in 3-D, 1.27).</p>
       <h3>Quantum nuclei</h3>
       <div class="srow"><span>Quantum nuclei</span><div class="seg" id="segPi" role="group" aria-label="Quantum nuclei"><button data-v="0">Off (normal)</button><button data-v="8">8 beads</button><button data-v="16">16 beads</button><button data-v="32">32 beads</button></div></div>
       <div class="srow"><span>Bead forces</span><div class="seg" id="segPiRpc" role="group" aria-label="Quantum nuclei: bead forces"><button data-v="1">Contracted (fast)</button><button data-v="0">Every bead (exact)</button></div></div>
@@ -6173,6 +6177,7 @@ function localPE(set, skip) {
   if (WAVE.n) V += waveLocal(set, skip); // (electrons as waves: the packets' share with these ions, 1.15)
   if (MBO.on) V += mbLocal(set); // (metals' many-body energy, 1.25)
   if (SITES.any) V += sitesLocal(set, skip); // (off-atom charge sites, 1.26)
+  if (PD.n) V += pdLocal(set, skip); // (induced dipoles, 1.27)
   if (_lrOn) { // exact long-range Coulomb between net charges beyond the cutoff (as in computeForces)
     for (const p of set) {
       if (p.k !== NUC || p.dead || p.fast || p.rad || !isLR(p)) continue;
@@ -7245,6 +7250,7 @@ function computeForces1() {
   if (d3) { nucleusPairs3(wrap, bw, bh, hw, hh); if (AC3.ns) tors1Forces3(S.fx, S.fy, S.fz); } // (3-D: the kernels; then the single bonds' twist, 1.25)
   else nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
   if (SITES.any) sitesForces(S.fx, S.fy, S.fz); // (Experimental: off-atom charge sites, 1.26: sites.js)
+  if (PD.n) pdForces(S.fx, S.fy, S.fz); // (Experimental: induced dipoles, polarizability by direction, 1.27: pold.js)
   if (_profOn) tp = performance.now();
   if (nmdL && d3) leptonPairs3(); // (3-D)
   else if (nmdL) { // pairs with a free lepton in them, from the inner steps' list
@@ -8973,7 +8979,7 @@ function pairPE(a, b) {
   const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z), r2 = dx * dx + dy * dy + dz * dz;
   let V = 0;
   if (r2 < RC2) {
-    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom) && !(MBO.on && mbEx(a, b))) V += nucPairV(a, b, r2); if (SITES.any) V += sitesPairE(a, b); } // (mbEx: many-body metals' partners; off-atom charge sites, 1.26)
+    if (a.k === NUC && b.k === NUC) { if (!(a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) && !(a.bom && b.bom) && !(MBO.on && mbEx(a, b))) V += nucPairV(a, b, r2); if (SITES.any) V += sitesPairE(a, b); if (PD.n) V += pdPairE(a, b); } // (mbEx: many-body metals' partners; off-atom charge sites, 1.26)
     else if (a.k === NUC || b.k === NUC) {
       const A = a.k === NUC ? a : b, L = A === a ? b : a, qa = A.q;
       if (qa) V += PHYS.KE * L.q * qa * (1 / Math.sqrt(r2 + A.sEN) - csh(A, L, A.sEN));
@@ -12534,6 +12540,7 @@ function piEnergy() {
    (velocities scaled about their centre of mass; the update is skipped if that cannot pay), and the forces are
    worked out again for the new charges. */
 const QEQ = { every: 0, kappa: 0.54, maxMol: 64, maxQ: 0.6, n: 0, skipped: 0, dU: 0 };
+const PD = { on: 0, n: 0, at: [], gen: 1, parts: null, upd: 0, skipped: 0, iters: 0, dU: 0 }; // (Experimental: polarizability by direction, 1.27: pold.js; n atoms carry an induced dipole now)
 /* Off again: every molecule back to its bonds' own charges, the change of the potential energy paid as an update's is. */
 function qeqClear() {
   const atoms = W.parts.filter(p => !p.dead && p.qi);
@@ -12581,6 +12588,7 @@ function qeqPairsWasm() {
   return P[14];
 }
 function qeqUpdate() {
+  if (PD.on) { pdUpdate(); return; } // (polarizability by direction: induced dipoles instead of charge flow, 1.27: pold.js)
   const mols = new Map(); // molecule id → its atoms (every atom bonded, an ordinary atom in MD)
   for (const p of W.parts) {
     if (p.dead || p.k !== NUC || p.Z === 0 || p.ne === 0 || p.fast || p.rad || !p.bonds.length || p.anti) continue;
@@ -13009,7 +13017,7 @@ function measure() {
 const BO = { on: false, qm: false, any: false, pairs: [], np: 0, E: 0, cache: new Map(), Ztab: new Set([1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53, 32, 33, 34, 50, 51, 52]), /* (Ge, As, Se, Sn, Sb, Te since 1.25) */ bath: 0, changes: 0 };
 function clearWorld() {
   BO.np = 0; BO.any = false; BO.E = 0;
-  dropParts(W.parts); W.parts.length = 0; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
+  dropParts(W.parts); W.parts.length = 0; PD.n = 0; PD.at = []; PD.gen++; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.slowSet = 0; WAVE.mem = []; WAVE.n = 0; W.nucWin = null; W.made = null; W.chain = null; W.zscan = null; // (the LEP energy scan, ui.js, 1.27)
   W.grab = null; W.topo++;
@@ -13424,6 +13432,7 @@ function totalEnergy0() {
   pe += boE;
   if (MBO.on) pe += mbPass(false); // (metals' many-body energy, 1.25)
   if (SITES.any) pe += sitesTotal(); // (off-atom charge sites, 1.26)
+  if (PD.n) pe += pdTotal(); // (induced dipoles, 1.27)
   if (W.wall === 'reflect' || W.objs.length) {
     for (const p of md) {
       if (p.k !== NUC) continue; // free electrons: hard walls
@@ -24762,6 +24771,296 @@ function sitesQeq(mark, phi) {
   return V;
 }
 function sitesQeqE() { SD.key = ''; return sitesQeq(null, null); } // (after the charges changed: the sites' charges again)
+
+/* ---- pold.js ---- */
+/* ---- Experimental: polarizability by direction (1.27; Settings → Experimental, with Induced charges on). The induced
+   charges (1.12) are charge flow: charge moves along bonds, so a molecule polarizes only along its bonds (N₂, CO₂ and
+   benzene not at all across them, benzene 14 times too much along its ring). With this on, a molecule's atoms carry
+   induced point dipoles instead: μ = α·E, each atom's α a tensor, half the sum of its bonds' tensors
+   α∥ ûû + α⊥(1 − ûû) (bond polarizabilities, fitted to measured molecules: PD_BOND), so the molecule's polarizability is
+   the sum over its bonds, along and across each (Silberstein, Denbigh; additivity, no coupling inside a molecule).
+   E is the field at the atom from the charges and the dipoles of other molecules within the force reach, and the
+   applied field. The charge flow is off meanwhile (the two would count the same response twice).
+   - Energy: U = Σ ½K μᵀα⁻¹μ (a constant per atom between updates: p.dmc) − μ·E_applied + between atoms of different
+     molecules the charge–dipole and dipole–dipole terms of the soft Coulomb F(r²) = 1/√(r² + 0.09) (the kernel's own
+     softening), smoothly cut over the last ångström of the reach (a step in r², so the field and the forces go to zero
+     at the cutoff). Charge–dipole pairs take the kernel's ion–molecule weight (iwK), as the induced charges' do.
+   - Between steps on the induced charges' schedule (pdUpdate from qeqUpdate): the tensors from the bonds now, the
+     dipoles solved to self-consistency (μ = α(E_charges + E_applied + E_dipoles), iterated), the exact change of the
+     energy paid by the molecules' own motion about their centre of mass (or the update is skipped), the forces again.
+     Between updates the dipoles are fixed (lab frame), so the forces are the energy's own slopes and the books exact.
+   - In the flat game, dipoles and tensors in the plane. Molecules of 2–64 atoms (as the induced charges); ionic atoms in
+     them take their ion's polarizability (isotropic), metal atoms none; lone atoms and ions none.
+   Off: PD.n is 0, nothing here runs, the game bit for bit as before. */
+const PD_S = 0.09; // (the soft Coulomb's softening, Å², as the kernel's)
+/* Bond polarizabilities [α∥, α⊥] (Å³) by 'Zlow-Zhigh:order' ('a' aromatic), fitted (tools/polfit.js) to the measured
+   (static, electronic) polarizabilities of the molecules in PD_REF with the game's own geometries. */
+const PD_BOND = { '1-1:1': [0.983, 0.693], '7-7:3': [2.200, 1.510], '8-8:2': [2.300, 1.220], '6-8:3': [2.303, 1.773], '6-8:2': [1.982, 0.982], '1-8:1': [0.735, 0.735], '1-6:1': [0.789, 0.580], '6-6:1': [0.855, 0.427], '6-6:2': [2.475, 1.237], '6-6:3': [3.045, 1.522], '6-6:a': [2.169, 0.523], '6-17:1': [3.870, 1.935], '1-17:1': [3.945, 1.972], '1-9:1': [1.200, 0.600], '1-7:1': [1.100, 0.550], '6-8:1': [0.907, 0.454] };
+/* Atomic polarizabilities (Å³; CRC) for bonds not in PD_BOND: the bond gets PD_F·(α_A/n_A + α_B/n_B) as its mean
+   (n: the atom's bond count; PD_F fitted with the table), split 1.5 : 0.75 along and across. Ions: their own. */
+const PD_ATOM = { 1: 0.667, 5: 3.03, 6: 1.76, 7: 1.10, 8: 0.802, 9: 0.557, 14: 5.38, 15: 3.63, 16: 2.90, 17: 2.18, 33: 4.31, 34: 3.77, 35: 3.05, 53: 5.35 };
+const PD_ION = { '3,1': 0.03, '11,1': 0.18, '19,1': 0.84, '37,1': 1.4, '55,1': 2.4, '12,2': 0.09, '20,2': 0.47, '9,-1': 0.9, '17,-1': 3.0, '35,-1': 4.2, '53,-1': 6.3, '8,-2': 2.0, '16,-2': 5.5 }; // ('Z,charge': Å³, in crystals; others 0)
+let PD_F = 0.7; // (fitted to the table's single bonds: 0.59 C–H … 0.98 C–Cl)
+const PD_TOL = 1e-5, PD_MAXIT = 60, PD_MAXMU = 2.5; // (convergence of the dipoles, e·Å; the largest dipole an update may give)
+function pdOn(on) { // (the switch: on, the charge flow is cleared; off, the dipoles are)
+  const was = PD.on; PD.on = on ? 1 : 0;
+  if (was === PD.on) return;
+  if (PD.on) { if (typeof qeqClear === 'function' && W.parts) qeqClear(); } else pdClear();
+}
+function pdAct(p) { return p.dm === PD.gen && !p.dead && p.k === NUC && p.Z > 0 && !p.fast && !p.rad; }
+function pdFieldU(p) { return -(p.dmx * (W.Ex || 0) + p.dmy * (W.Ey || 0) + (W.d3 ? p.dmz * (W.Ez || 0) : 0)); } // (the applied field's energy, live: the field may change between updates)
+function pdPart(o) { return o.k === NUC && o.Z > 0 && !o.dead && !o.fast && !o.rad; }
+function pdLive() { if (PD.parts !== W.parts) { PD.n = 0; PD.at = []; PD.gen++; return false; } return true; }
+/* The soft Coulomb's derivatives in u = r² (into out: g, g′, g″, g‴ of g = 1/√(u + s)), and the fade over the last
+   ångström of the reach (pdSw: _pdw = [S, (dS/dr)/r], a smooth step on r as the charge sites', 1.26): each pair's energy
+   is faded, not the potential, so a field is never larger than the unfaded one. */
+const _pdf = [0, 0, 0, 0], _pdw = [1, 0];
+let PD_TH = 1.0; function PD_TH_SET(v) { PD_TH = v; } // (tests)
+ // (a pair's softening s = PD_S + PD_TH·(ᾱa·ᾱb)^⅓ Å², for its charge–dipole and dipole–dipole terms alike: a damping as Thole's (whose linear a = 1.66 squared, 2.7, gave liquid water 2.49 D; 1.0 gives 2.66 D in the 3-D lab, measured 2.6–3.0), so two dipoles close together cannot feed each other without limit (the polarization catastrophe) and a bare charge's field cannot pull an atom into it)
+function pdSdd(a, b) { return PD_S + PD_TH * Math.cbrt(a * b); }
+/* The polarizability a partner's damping uses: its dipole's, or (no dipole) its ion's or atom's own. */
+function pdDampA(p) { return pdAct(p) ? p.dma : pdStaticA(p); }
+function pdRad(u, s = PD_S, out = _pdf) {
+  const t = u + s, g = 1 / Math.sqrt(t), it = 1 / t, g1 = -0.5 * g * it, g2 = -1.5 * g1 * it, g3 = -2.5 * g2 * it;
+  out[0] = g; out[1] = g1; out[2] = g2; out[3] = g3;
+}
+function pdSw(u) {
+  const r1 = RC - 1;
+  if (u <= r1 * r1) { _pdw[0] = 1; _pdw[1] = 0; return; }
+  const r = Math.sqrt(u);
+  const x = r - r1; _pdw[0] = 1 - x * x * x * (10 - 15 * x + 6 * x * x); _pdw[1] = -30 * x * x * (1 - x) * (1 - x) / r;
+}
+function pdBondKey(a, b, bd) { const lo = Math.min(a.Z, b.Z), hi = Math.max(a.Z, b.Z); return lo + '-' + hi + ':' + (bd.arom ? 'a' : bd.order); }
+function pdBondAlpha(a, b, bd) { // [α∥, α⊥] of a bond
+  const t = PD_BOND[pdBondKey(a, b, bd)]; if (t) return t;
+  const aa = PD_ATOM[a.Z], ab = PD_ATOM[b.Z]; if (aa === undefined || ab === undefined) return null;
+  const m = PD_F * (aa / Math.max(1, a.bonds.length) + ab / Math.max(1, b.bonds.length)); return [1.5 * m, 0.75 * m];
+}
+/* An atom's tensor (xx, xy, xz, yy, yz, zz) into out, from its bonds now; false if it has none. */
+function pdAlpha(p, out) {
+  out.fill(0);
+  if (p.ionic) { const a = PD_ION[p.Z + ',' + p.q] || 0; if (!a) return false; out[0] = out[3] = a; if (W.d3) out[5] = a; return true; }
+  if (p.isMetal) return false;
+  let any = false;
+  for (const bd of p.bonds) {
+    const o = other(bd, p); if (o.isMetal && !o.ionic) continue;
+    const t = o.ionic ? null : pdBondAlpha(p, o, bd); if (!t) continue;
+    const [dx, dy, dz] = minImg(o.x - p.x, o.y - p.y, o.z - p.z), z = W.d3 ? dz : 0, r = Math.sqrt(dx * dx + dy * dy + z * z) || 1e-9, ux = dx / r, uy = dy / r, uz = z / r;
+    const pe = 0.5 * t[1], d = 0.5 * (t[0] - t[1]);
+    out[0] += pe + d * ux * ux; out[1] += d * ux * uy; out[2] += d * ux * uz; out[3] += pe + d * uy * uy; out[4] += d * uy * uz; out[5] += pe + d * uz * uz;
+    any = true;
+  }
+  if (!W.d3) { out[2] = out[4] = out[5] = 0; }
+  return any;
+}
+/* ½ μᵀα⁻¹μ (in the plane in the flat game); NaN if α cannot be inverted. */
+function pdSelf(A, mx, my, mz) {
+  if (!W.d3) { const det = A[0] * A[3] - A[1] * A[1]; if (!(det > 1e-12)) return NaN; return 0.5 * (A[3] * mx * mx - 2 * A[1] * mx * my + A[0] * my * my) / det; }
+  const a = A[0], b = A[1], c = A[2], d = A[3], e = A[4], f = A[5];
+  const c00 = d * f - e * e, c01 = c * e - b * f, c02 = b * e - c * d, c11 = a * f - c * c, c12 = b * c - a * e, c22 = a * d - b * b, det = a * c00 + b * c01 + c * c02;
+  if (!(det > 1e-12)) return NaN;
+  return 0.5 * (c00 * mx * mx + c11 * my * my + c22 * mz * mz + 2 * (c01 * mx * my + c02 * mx * mz + c12 * my * mz)) / det;
+}
+/* One pair's energy (eV), d = r(b) − r(a): a's charge and dipole against b's. */
+function pdPairCore(a, b, dx, dy, dz, w) {
+  const u = dx * dx + dy * dy + dz * dz; if (u >= RC2) return 0;
+  pdRad(u, pdSdd(pdDampA(a), pdDampA(b))); pdSw(u);
+  const qa = a.q + a.qp, qb = b.q + b.qp, ia = pdAct(a), ib = pdAct(b);
+  const ax = ia ? a.dmx : 0, ay = ia ? a.dmy : 0, az = ia ? a.dmz : 0, bx = ib ? b.dmx : 0, by = ib ? b.dmy : 0, bz = ib ? b.dmz : 0;
+  const A = ax * dx + ay * dy + az * dz, B = bx * dx + by * dy + bz * dz, C = ax * bx + ay * by + az * bz;
+  let U = 2 * _pdf[1] * w * (qa * B - qb * A);
+  if (ia && ib) U -= 2 * _pdf[1] * C + 4 * _pdf[2] * A * B;
+  return PHYS.KE * _pdw[0] * U;
+}
+function pdPairOK(a, b) { return a !== b && pdPart(a) && pdPart(b) && !(a.mol !== 0 && a.mol === b.mol) && (pdAct(a) || pdAct(b)); }
+function pdPairE(a, b) {
+  if (!PD.n || !pdLive() || !pdPairOK(a, b)) return 0;
+  const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z);
+  return pdPairCore(a, b, dx, dy, W.d3 ? dz : 0, iwK(a, b));
+}
+function pdLocal(set, skip) {
+  if (!pdLive()) return 0;
+  let V = 0;
+  for (const p of set) {
+    if (pdAct(p)) V += p.dmc + pdFieldU(p);
+    if (!pdPart(p)) continue;
+    const visit = (o) => { if (o === p || o === skip || (set.has(o) && o.id < p.id)) return; V += pdPairE(p, o); };
+    nearby(p.x, p.y, RC, visit, p.z);
+    for (const o of _late) if (!o.dead) { const [dx, dy, dz] = minImg(o.x - p.x, o.y - p.y, o.z - p.z); if (dx * dx + dy * dy + (W.d3 ? dz * dz : 0) < RC2) visit(o); }
+  }
+  return V;
+}
+function pdTotal() {
+  if (!pdLive()) return 0;
+  let V = 0;
+  const md = W.parts.filter(pdPart);
+  for (const p of md) if (pdAct(p)) V += p.dmc + pdFieldU(p);
+  for (let i = 0; i < md.length; i++) { const a = md[i]; for (let j = i + 1; j < md.length; j++) { const b = md[j]; if (pdAct(a) || pdAct(b)) V += pdPairE(a, b); } }
+  return V;
+}
+/* The force pass: every pair of the neighbour list between different molecules with a dipole in it. */
+const PDF = { idx: new Int32Array(0), cr: new Float64Array(0) };
+function pdForces(FX, FY, FZ) {
+  if (!pdLive()) return;
+  if (PDF.idx.length < S.size) { PDF.idx = new Int32Array(S.size * 2).fill(-1); PDF.cr = new Float64Array(S.size * 2); }
+  const idx = PDF.idx, act = [], CR = PDF.cr;
+  for (const p of W.parts) if (pdPart(p)) CR[p.i] = Math.cbrt(pdAct(p) ? p.dma : pdStaticA(p)); // (the damping's cube roots)
+  for (const p of PD.at) if (pdAct(p)) { idx[p.i] = act.length; act.push(p); }
+  if (!act.length) return;
+  const pi = VL.pi, pj = VL.pj, np = VL.np, X = S.x, Y = S.y, Zp = S.z, K = S.k, Zs = S.Z, DEAD = S.dead, FAST = S.fast, RAD = S.rad, MOL = S.mol, Q = S.q, QP = S.qp, IONIC = S.ionic;
+  const d3 = W.d3, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2, KE = PHYS.KE;
+  for (let q = 0; q < np; q++) {
+    const i = pi[q], j = pj[q], ki = idx[i], kj = idx[j];
+    if (ki < 0 && kj < 0) continue;
+    if (K[i] !== NUC || K[j] !== NUC || Zs[i] === 0 || Zs[j] === 0 || DEAD[i] || DEAD[j] || FAST[i] || FAST[j] || RAD[i] || RAD[j]) continue;
+    if (MOL[i] !== 0 && MOL[i] === MOL[j]) continue;
+    let dx = X[j] - X[i], dy = Y[j] - Y[i], dz = d3 ? Zp[j] - Zp[i] : 0;
+    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (d3) { if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; } }
+    const u = dx * dx + dy * dy + dz * dz; if (u >= RC2) continue;
+    const a = ki >= 0 ? act[ki] : null, b = kj >= 0 ? act[kj] : null;
+    pdRad(u, PD_S + PD_TH * CR[i] * CR[j]); pdSw(u);
+    const g1 = _pdf[1], g2 = _pdf[2], g3 = _pdf[3], sw = _pdw[0], dsw = _pdw[1];
+    const qa = Q[i] + QP[i], qb = Q[j] + QP[j], w = (IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? Q[j] === 0 : Q[i] === 0)) ? K_IW : 1;
+    const ax = a ? a.dmx : 0, ay = a ? a.dmy : 0, az = a ? a.dmz : 0, bx = b ? b.dmx : 0, by = b ? b.dmy : 0, bz = b ? b.dmz : 0;
+    const A = ax * dx + ay * dy + az * dz, B = bx * dx + by * dy + bz * dz, C = ax * bx + ay * by + az * bz;
+    // U/K = S·P, P = 2g′w(qa·B − qb·A) − (2g′C + 4g″AB) (g: the pair's damped soft Coulomb); ∂U/∂d = K(S·∂P/∂d + P·S′·d/r): on b −, on a +
+    let P = 2 * g1 * w * (qa * B - qb * A), s1 = 4 * g2 * w * (qa * B - qb * A), c2 = 0; const c1 = 2 * g1 * w;
+    if (a && b) { P -= 2 * g1 * C + 4 * g2 * A * B; s1 -= 4 * g2 * C + 8 * g3 * A * B; c2 = 4 * g2; }
+    s1 = sw * s1 + P * dsw;
+    const Gx = s1 * dx + sw * (c1 * (qa * bx - qb * ax) - c2 * (B * ax + A * bx)), Gy = s1 * dy + sw * (c1 * (qa * by - qb * ay) - c2 * (B * ay + A * by)), Gz = s1 * dz + sw * (c1 * (qa * bz - qb * az) - c2 * (B * az + A * bz));
+    FX[i] += KE * Gx; FY[i] += KE * Gy; FX[j] -= KE * Gx; FY[j] -= KE * Gy;
+    if (d3) { FZ[i] += KE * Gz; FZ[j] -= KE * Gz; }
+  }
+  for (const p of act) idx[p.i] = -1;
+}
+/* Off: every dipole gone, the change of the energy paid as an update's is (or booked to the bath). */
+function pdClear() {
+  if (!W.parts || !pdLive() || !PD.n) { PD.n = 0; PD.at = []; return; }
+  const atoms = PD.at.filter(pdAct); if (!atoms.length) { PD.n = 0; PD.at = []; return; }
+  const U0 = pdTotal(); PD.gen++; PD.n = 0; PD.at = []; for (const p of atoms) { p.dmx = p.dmy = p.dmz = p.dmc = 0; }
+  pdPay(atoms, -U0, true);
+  _noEv = true; computeForces(); _noEv = false;
+}
+/* The change dU paid by the atoms' motion about their centre of mass; false if it cannot (or, with toBath, booked). */
+function pdPay(atoms, dU, toBath) {
+  let M0 = 0, Px = 0, Py = 0, Pz = 0; for (const p of atoms) { M0 += p.m; Px += p.m * p.vx; Py += p.m * p.vy; if (W.d3) Pz += p.m * p.vz; }
+  const Vx = Px / M0, Vy = Py / M0, Vz = Pz / M0; let Kr = 0;
+  for (const p of atoms) Kr += 0.5 * p.m * ((p.vx - Vx) ** 2 + (p.vy - Vy) ** 2 + (W.d3 ? (p.vz - Vz) ** 2 : 0));
+  if (!(Kr > 0) || dU > 0.5 * Kr) { if (toBath) W.ledger.bath -= dU; return false; }
+  const f = Math.sqrt((Kr - dU) / Kr);
+  for (const p of atoms) { p.vx = Vx + f * (p.vx - Vx); p.vy = Vy + f * (p.vy - Vy); if (W.d3) p.vz = Vz + f * (p.vz - Vz); }
+  return true;
+}
+/* The update between steps (from qeqUpdate, on its schedule). Per-atom values in arrays by store index: the dipoles
+   before (o) and after (n), the cube roots of the damping's polarizabilities before and after; the pairs from the
+   neighbour list (every pair within the reach is on it). */
+const PDU = { A: new Float64Array(0), E: new Float64Array(0), M: new Float64Array(0), Et: new Float64Array(0), cap: 0, sl: new Int32Array(0), om: new Uint8Array(0), xo: null, yo: null, zo: null, ro: null, rn: null, pa: new Int32Array(0), pb: new Int32Array(0), pg: new Float64Array(0) };
+function pdStaticA(p) { return p.ionic ? PD_ION[p.Z + ',' + p.q] || 0.1 : PD_ATOM[p.Z] || 1; }
+/* A pair's energy / K with dipoles (ax…, bx…) and its kernel g′, g″ (faded): 2g′w(qa·B − qb·A) − (2g′C + 4g″AB). */
+function pdPU(qa, qb, w, dx, dy, dz, ax, ay, az, bx, by, bz, g1, g2) {
+  const A = ax * dx + ay * dy + az * dz, B = bx * dx + by * dy + bz * dz, C = ax * bx + ay * by + az * bz;
+  return 2 * g1 * w * (qa * B - qb * A) - 2 * g1 * C - 4 * g2 * A * B;
+}
+function pdUpdate() {
+  pdLive();
+  const mols = new Map();
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || p.Z === 0 || p.ne === 0 || p.fast || p.rad || !p.bonds.length || p.anti) continue;
+    let m = mols.get(p.mol); if (!m) mols.set(p.mol, m = []); m.push(p);
+  }
+  const set = [], A6 = new Float64Array(6);
+  let n = 0; for (const m of mols.values()) if (m.length >= 2 && m.length <= QEQ.maxMol) n += m.length;
+  if (PDU.A.length < 6 * n) { PDU.A = new Float64Array(12 * n + 12); PDU.E = new Float64Array(6 * n + 6); PDU.M = new Float64Array(6 * n + 6); PDU.Et = new Float64Array(6 * n + 6); }
+  if (PDU.cap < S.size) { const c = S.size * 2; PDU.cap = c; PDU.sl = new Int32Array(c).fill(-1); PDU.om = new Uint8Array(c); PDU.xo = new Float64Array(c); PDU.yo = new Float64Array(c); PDU.zo = new Float64Array(c); PDU.ro = new Float64Array(c); PDU.rn = new Float64Array(c); }
+  const AL = PDU.A, E = PDU.E, M = PDU.M, Et = PDU.Et, SL = PDU.sl, OM = PDU.om, XO = PDU.xo, YO = PDU.yo, ZO = PDU.zo, RO = PDU.ro, RN = PDU.rn;
+  for (const m of mols.values()) if (m.length >= 2 && m.length <= QEQ.maxMol) for (const p of m) {
+    if (!pdAlpha(p, A6)) continue;
+    AL.set(A6, 6 * set.length); set.push(p);
+  }
+  const old = PD.at.filter(pdAct);
+  if (!set.length && !old.length) return;
+  const ns = set.length, ma = new Float64Array(ns);
+  for (let k = 0; k < ns; k++) { const a = 6 * k; ma[k] = W.d3 ? (AL[a] + AL[a + 3] + AL[a + 5]) / 3 : (AL[a] + AL[a + 3]) / 2; } // (mean polarizabilities: the damping's)
+  // per atom: the damping's cube roots before and after, the old dipoles, the new slots
+  const live = [];
+  for (const p of W.parts) if (pdPart(p)) { const i = p.i, act = pdAct(p); live.push(p); RO[i] = RN[i] = Math.cbrt(act ? p.dma : pdStaticA(p)); OM[i] = act ? 1 : 0; XO[i] = act ? p.dmx : 0; YO[i] = act ? p.dmy : 0; ZO[i] = act ? p.dmz : 0; }
+  for (const p of old) RN[p.i] = Math.cbrt(pdStaticA(p)); // (no dipole after, unless in the new set)
+  for (let k = 0; k < ns; k++) { const i = set[k].i; SL[i] = k; RN[i] = Math.cbrt(ma[k]); }
+  const K = PHYS.KE, d3 = W.d3, Ex = (W.Ex || 0) / K, Ey = (W.Ey || 0) / K, Ez = d3 ? (W.Ez || 0) / K : 0;
+  // the pairs: within the reach, different molecules, an atom of the new set or an old dipole in it
+  const pi = VL.pi, pj = VL.pj, nl = VL.np, X = S.x, Y = S.y, Zp = S.z, KK = S.k, Zs = S.Z, DEAD = S.dead, FAST = S.fast, RAD = S.rad, MOL = S.mol, Q = S.q, QP = S.qp, IONIC = S.ionic;
+  const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2;
+  if (PDU.pa.length < nl) { PDU.pa = new Int32Array(nl * 2 + 16); PDU.pb = new Int32Array(nl * 2 + 16); PDU.pg = new Float64Array(8 * (nl * 2 + 16)); }
+  const PA = PDU.pa, PB = PDU.pb, PG = PDU.pg; // (PG per pair: dx, dy, dz, fade, w, g′ and g″ with the new damping, faded)
+  let np = 0, U0 = 0;
+  for (let q = 0; q < nl; q++) {
+    const i = pi[q], j = pj[q];
+    if (SL[i] < 0 && SL[j] < 0 && !OM[i] && !OM[j]) continue;
+    if (KK[i] !== NUC || KK[j] !== NUC || Zs[i] === 0 || Zs[j] === 0 || DEAD[i] || DEAD[j] || FAST[i] || FAST[j] || RAD[i] || RAD[j]) continue;
+    if (MOL[i] !== 0 && MOL[i] === MOL[j]) continue;
+    let dx = X[j] - X[i], dy = Y[j] - Y[i], dz = d3 ? Zp[j] - Zp[i] : 0;
+    if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (d3) { if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; } }
+    const u = dx * dx + dy * dy + dz * dz; if (u >= RC2) continue;
+    pdSw(u); const sw = _pdw[0], w = (IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? Q[j] === 0 : Q[i] === 0)) ? K_IW : 1;
+    if (OM[i] || OM[j]) { pdRad(u, PD_S + PD_TH * RO[i] * RO[j]); U0 += sw * pdPU(Q[i] + QP[i], Q[j] + QP[j], w, dx, dy, dz, XO[i], YO[i], ZO[i], XO[j], YO[j], ZO[j], _pdf[1], _pdf[2]); }
+    pdRad(u, PD_S + PD_TH * RN[i] * RN[j]);
+    const g = 8 * np; PA[np] = i; PB[np] = j; PG[g] = dx; PG[g + 1] = dy; PG[g + 2] = dz; PG[g + 3] = sw; PG[g + 4] = w; PG[g + 5] = sw * _pdf[1]; PG[g + 6] = sw * _pdf[2]; np++;
+  }
+  U0 *= K; for (const p of old) U0 += p.dmc + pdFieldU(p);
+  // the field of the charges and the applied field, at each atom of the set (e/Å²)
+  for (let k = 0; k < ns; k++) { E[3 * k] = Ex; E[3 * k + 1] = Ey; E[3 * k + 2] = Ez; }
+  for (let k = 0; k < np; k++) {
+    const i = PA[k], j = PB[k], g = 8 * k, sa = SL[i], sb = SL[j], F1 = PG[g + 5], w = PG[g + 4], dx = PG[g], dy = PG[g + 1], dz = PG[g + 2];
+    if (sa >= 0) { const c = 2 * F1 * w * (Q[j] + QP[j]); E[3 * sa] += c * dx; E[3 * sa + 1] += c * dy; E[3 * sa + 2] += c * dz; }
+    if (sb >= 0) { const c = -2 * F1 * w * (Q[i] + QP[i]); E[3 * sb] += c * dx; E[3 * sb + 1] += c * dy; E[3 * sb + 2] += c * dz; }
+  }
+  // the dipoles: μ = α(E + E_dipoles), iterated from the old ones
+  for (let k = 0; k < ns; k++) { const i = set[k].i; M[3 * k] = XO[i]; M[3 * k + 1] = YO[i]; M[3 * k + 2] = ZO[i]; }
+  let it = 0, err = Infinity;
+  for (; it < PD_MAXIT && err > PD_TOL; it++) {
+    for (let k = 0; k < 3 * ns; k++) Et[k] = E[k];
+    for (let k = 0; k < np; k++) {
+      const sa = SL[PA[k]], sb = SL[PB[k]]; if (sa < 0 || sb < 0) continue;
+      const g = 8 * k, dx = PG[g], dy = PG[g + 1], dz = PG[g + 2], F1 = PG[g + 5], F2 = PG[g + 6];
+      const Bd = M[3 * sb] * dx + M[3 * sb + 1] * dy + M[3 * sb + 2] * dz, Ad = M[3 * sa] * dx + M[3 * sa + 1] * dy + M[3 * sa + 2] * dz;
+      Et[3 * sa] += 2 * F1 * M[3 * sb] + 4 * F2 * Bd * dx; Et[3 * sa + 1] += 2 * F1 * M[3 * sb + 1] + 4 * F2 * Bd * dy; Et[3 * sa + 2] += 2 * F1 * M[3 * sb + 2] + 4 * F2 * Bd * dz;
+      Et[3 * sb] += 2 * F1 * M[3 * sa] + 4 * F2 * Ad * dx; Et[3 * sb + 1] += 2 * F1 * M[3 * sa + 1] + 4 * F2 * Ad * dy; Et[3 * sb + 2] += 2 * F1 * M[3 * sa + 2] + 4 * F2 * Ad * dz;
+    }
+    err = 0;
+    for (let k = 0; k < ns; k++) {
+      const a = 6 * k, x = Et[3 * k], y = Et[3 * k + 1], z = d3 ? Et[3 * k + 2] : 0;
+      const mx = AL[a] * x + AL[a + 1] * y + AL[a + 2] * z, my = AL[a + 1] * x + AL[a + 3] * y + AL[a + 4] * z, mz = d3 ? AL[a + 2] * x + AL[a + 4] * y + AL[a + 5] * z : 0;
+      const nx = 0.3 * M[3 * k] + 0.7 * mx, ny = 0.3 * M[3 * k + 1] + 0.7 * my, nz = 0.3 * M[3 * k + 2] + 0.7 * mz; // (mixed: steady where dipoles crowd)
+      const e = Math.max(Math.abs(nx - M[3 * k]), Math.abs(ny - M[3 * k + 1]), Math.abs(nz - M[3 * k + 2])); if (e > err) err = e;
+      M[3 * k] = nx; M[3 * k + 1] = ny; M[3 * k + 2] = nz;
+    }
+  }
+  PD.iters += it;
+  const clean = () => { for (let k = 0; k < ns; k++) SL[set[k].i] = -1; };
+  let big = false; for (let k = 0; k < 3 * ns; k++) if (!(Math.abs(M[k]) < PD_MAXMU)) big = true;
+  if (err > 100 * PD_TOL || big) { clean(); PD.skipped++; return; } // (not settled, or a runaway: the dipoles stay as they were)
+  // the energy after: the pairs with the new dipoles and damping, the atoms' own terms
+  let U1 = 0;
+  for (let k = 0; k < np; k++) {
+    const i = PA[k], j = PB[k], g = 8 * k, sa = SL[i], sb = SL[j];
+    U1 += pdPU(Q[i] + QP[i], Q[j] + QP[j], PG[g + 4], PG[g], PG[g + 1], PG[g + 2], sa >= 0 ? M[3 * sa] : 0, sa >= 0 ? M[3 * sa + 1] : 0, sa >= 0 ? M[3 * sa + 2] : 0, sb >= 0 ? M[3 * sb] : 0, sb >= 0 ? M[3 * sb + 1] : 0, sb >= 0 ? M[3 * sb + 2] : 0, PG[g + 5], PG[g + 6]);
+  }
+  U1 *= K;
+  const self = new Float64Array(ns);
+  for (let k = 0; k < ns; k++) { const mx = M[3 * k], my = M[3 * k + 1], mz = M[3 * k + 2], sv = pdSelf(AL.subarray(6 * k, 6 * k + 6), mx, my, mz); self[k] = isFinite(sv) ? K * sv : 0; U1 += self[k] - (mx * (W.Ex || 0) + my * (W.Ey || 0) + (d3 ? mz * (W.Ez || 0) : 0)); }
+  const dU = U1 - U0, payers = [];
+  for (const m of mols.values()) if (m.length >= 2 && m.length <= QEQ.maxMol) for (const p of m) if (SL[p.i] >= 0 || OM[p.i]) { for (const o of m) payers.push(o); break; }
+  for (const p of old) if (!(p.mol !== 0 && mols.has(p.mol))) payers.push(p);
+  if (!payers.length || !pdPay(payers, dU, false)) { clean(); PD.skipped++; return; } // (cannot pay: as it was)
+  const gen = PD.gen;
+  for (const p of old) { p.dm = 0; p.dmx = p.dmy = p.dmz = p.dmc = 0; }
+  for (let k = 0; k < ns; k++) { const p = set[k]; p.dm = gen; p.dmx = M[3 * k]; p.dmy = M[3 * k + 1]; p.dmz = M[3 * k + 2]; p.dma = ma[k]; p.dmc = self[k]; }
+  clean();
+  PD.at = set; PD.n = ns; PD.parts = W.parts; PD.upd++; PD.dU += dU;
+  _noEv = true; computeForces(); _noEv = false;
+}
+/* A molecule's polarizability tensor as the game has it (tests, tools/polfit.js): the sum of its atoms' (xx, xy, xz, yy, yz, zz). */
+function pdMolAlpha(atoms) { const T = new Float64Array(6), A6 = new Float64Array(6); for (const p of atoms) if (pdAlpha(p, A6)) for (let k = 0; k < 6; k++) T[k] += A6[k]; return T; }
 
 /* ---- threads.js ---- */
 /* ============================================================================
@@ -41602,7 +41901,7 @@ const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the fart
 Object.assign(SET_DEF, { metal: 0 }); SET_OK.metal = [0, 1]; // (Experimental: bond orders for metals, 1.25)
 Object.assign(SET_DEF, { xq: 1 }); SET_OK.xq = [1, 2]; // (Experimental: the quantum bonds' method, GFN1-xTB or GFN2-xTB, 1.26)
 Object.assign(SET_DEF, { xqs: 1 }); SET_OK.xqs = [0, 1]; // (Experimental: the quantum bonds' spins, paired or polarized, 1.26; Polarized normal since the spin-branch books were fixed: the owner, 2026-11-05)
-Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
+Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; SET_DEF.pold = 0; SET_OK.pold = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
 Object.assign(SET_DEF, { rpExo: false }); // (Experimental → Realistic particles: exotic atoms as real atoms, 1.27: hep.js RP)
 Object.assign(SET_DEF, { rpPs: false, rpMu: false }); // (Experimental → Realistic particles: positronium; muonium as hydrogen and μSR, 1.27: hep.js RP)
 Object.assign(SET_DEF, { rpRes: false, rpNuc: false }); // (Realistic particles 5 and 6, 1.27: hep.js RP.res, RP.nuc)
@@ -41619,6 +41918,7 @@ EXP_NAME.metal = 'many-body metals'; // (1.25)
 EXP_NAME.xq = 'GFN2-xTB'; // (1.26)
 EXP_NAME.xqs = 'paired spins'; // (1.26: only Paired is away from normal, Polarized being normal)
 SET_EXP.push('lps', 'sigh', 'pis'); // (1.26)
+SET_EXP.push('pold'); EXP_NAME.pold = 'polarizability by direction'; // (Experimental: induced dipoles, 1.27: pold.js; its default with the others' before SET)
 EXP_NAME.lps = 'lone pairs'; EXP_NAME.sigh = 'halogen σ-holes'; EXP_NAME.pis = 'π-stacking'; // (1.26)
 SET_EXP.push('rpExo'); EXP_NAME.rpExo = 'exotic atoms'; // (1.27)
 SET_EXP.push('rpPs', 'rpMu'); EXP_NAME.rpPs = 'positronium'; EXP_NAME.rpMu = 'muonium as hydrogen'; // (1.27)
@@ -41714,6 +42014,7 @@ function applySettings() {
   RP.cpmX = SET.cpmX; // (its rare processes sped up: Matter depth, 1.27 item 26)
   RP.pol = !!SET.rpPol; // (Realistic particles 7, 1.27)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
+  pdOn(SET.qeq && SET.pold ? 1 : 0); // (polarizability by direction: induced dipoles in place of the charge flow, with induced charges on, 1.27)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
   if (R.cvd !== SET.cvd) { R.cvd = SET.cvd; elColorsReset(); }
@@ -41832,6 +42133,7 @@ function syncSettings() {
   setSegValue('segXq', String(SET.xq)); // (1.26)
   setSegValue('segXqs', String(SET.xqs)); // (1.26)
   setSegValue('segLps', String(SET.lps)); setSegValue('segSigh', String(SET.sigh)); setSegValue('segPis', String(SET.pis)); // (1.26)
+  setSegValue('segPold', String(SET.pold)); // (1.27)
   $('setRpExo').checked = SET.rpExo; // (1.27)
   $('setRpPs').checked = SET.rpPs; $('setRpMu').checked = SET.rpMu; $('setRpCpm').checked = SET.rpCpm; setSegValue('segCpmX', String(SET.cpmX)); // (1.27; Matter depth, item 26)
   $('setRpRes').checked = SET.rpRes; $('setRpNuc').checked = SET.rpNuc; // (1.27)
@@ -41863,6 +42165,7 @@ const COSTS = {
   segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured on one thread (1.25): nothing without metal atoms; a flat aluminium patch of 769 atoms ×1.9 (its own pass 0.22 ms a step); a flat copper patch ×0.6 and a 3-D copper ball ×0.9 (most of the electron-transfer trials between metal atoms are skipped). The body-centred metals\u2019 angles (1.26): a flat tungsten patch of 967 atoms ×1.1 over 1.25\u2019s many-body (its pass 0.95 → 2.3 ms)'] } }), // (1.25; 1.26)
   segLps: () => ({ k: 'physics', o: { 0: ['×1', 'Charges at the nuclei'], 1: ['×1', 'The 3-D lab only: nothing changes in the flat game'] } }), // (1.26)
   segSigh: () => ({ k: 'physics', o: { 0: ['×1', 'Halogens charged at their nuclei'], 1: ['×1–2', 'Measured on one thread (1.26): nothing without bonded chlorine, bromine or iodine; a flat box of 48 halomethanes and Br₂ (204 atoms) ×1.7–2.0 (a JavaScript pass after the WebAssembly kernel)'] } }), // (1.26)
+  segPold: () => ({ k: 'physics', o: { 0: ['×1', 'Induced charges flow along the bonds'], 1: [SET.qeq ? '×1.8–2.9' : '×1', SET.qeq ? 'On top of the induced charges\' own, measured on one thread (1.27): liquid water ×2.9 at every 10th step, ×2.1 at every step; brine ×1.8, ×2.1' : 'Nothing while Induced charges is off'] } }), // (1.27)
   segPis: () => ({ k: 'physics', o: { 0: ['×1', 'Rings charged at their nuclei'], 1: ['×1', 'The 3-D lab only: nothing changes in the flat game'] } }), // (1.26)
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–7', 'Measured on one thread: nothing without free electrons; liquid water with 40 free electrons ×6.5 (their inner steps 13 times shorter, for the packets\' breathing)'] } }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.4', 'Measured on liquid water (1.21): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×3', 'Measured on liquid water: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water: 32 beads, the rest once'] } }
@@ -41914,6 +42217,7 @@ const COSTS3 = {
   segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured in 3-D on one thread (1.25): nothing without metal atoms; an aluminium ball of 959 atoms ×1.8 (its own pass about 0.7 µs an atom a step); a copper ball ×0.8–1.0 (its steps go to electron-transfer estimates either way). The body-centred metals\u2019 angles (1.26): a tungsten crystal of 1,024 atoms ×1.04 over 1.25\u2019s many-body (its pass 2.5 → 8.2 ms; the step\u2019s electron-transfer estimates take the rest)'] } }),
   segLps: () => ({ k: 'physics', o: { 0: ['×1', 'Charges at the nuclei'], 1: ['×2–2.6', 'Measured in 3-D on one thread (1.26): liquid water (1,029 atoms) ×2.1–2.6, every oxygen with two lone pairs (a JavaScript pass over the pairs with an O or N in them); nothing without such atoms'] } }), // (1.26)
   segSigh: () => ({ k: 'physics', o: { 0: ['×1', 'Halogens charged at their nuclei'], 1: ['×1–2.7', 'Measured in 3-D on one thread (1.26): nothing without bonded chlorine, bromine or iodine; a box of 125 chloromethanes and Br₂ (515 atoms) ×2.0–2.7'] } }), // (1.26)
+  segPold: () => ({ k: 'physics', o: { 0: ['×1', 'Induced charges flow along the bonds'], 1: [SET.qeq ? '×1.2–4.2' : '×1', SET.qeq ? 'On top of the induced charges\' own, measured in 3-D on one thread (1.27): liquid water ×2.0 at every 10th step, ×4.2 at every step; brine ×1.2, ×1.7' : 'Nothing while Induced charges is off'] } }), // (1.27)
   segPis: () => ({ k: 'physics', o: { 0: ['×1', 'Rings charged at their nuclei'], 1: ['×1–10', 'Measured in 3-D on one thread (1.26): nothing without aromatic rings; a box of 125 benzenes (1,500 atoms, every atom a ring atom) ×5.5–9.5 (the rings\' own dispersion and π points in JavaScript)'] } }), // (1.26)
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–3', 'Measured in 3-D on one thread (1.25): nothing without free electrons; 40 free electrons among neon atoms ×2.2 (the flat game ×2.4), six Na⁺ among twelve ×3.2 (1.24); in ionized liquid water ×1.5–2.2, its electrons caught again within a few dozen steps in 3-D'] } }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.6', 'Measured on liquid water in 3-D (1.25): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×2.7', 'Measured on liquid water in 3-D: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water in 3-D: 32 beads, the rest once'] } }
@@ -41954,6 +42258,7 @@ const REAL = {
   segRc: ['12', 'Real forces reach on without a cutoff: the longest reach is the closest'],
   segDtMax: ['0.01', 'The shortest step follows the motion most exactly'],
   segQeq: ['1', 'Real molecules polarize all the time: every step is the closest'],
+  segPold: ['1', 'A real molecule polarizes across its bonds as well as along them'], // (1.27)
   segPi: ['32', 'The more beads, the closer to the quantum particle'],
   segPiRpc: ['0', 'Every force worked out on every bead, as the path integral has it'],
   segBo: ['2', 'Bonds from the electrons themselves (quantum chemistry), not from a stored table'],
@@ -41990,6 +42295,7 @@ EXP_SET.segMetal = 'metal'; // (1.25)
 EXP_SET.segXq = 'xq'; // (1.26)
 EXP_SET.segXqs = 'xqs'; // (1.26)
 EXP_SET.segLps = 'lps'; EXP_SET.segSigh = 'sigh'; EXP_SET.segPis = 'pis'; // (1.26)
+EXP_SET.segPold = 'pold'; // (1.27)
 EXP_SET.setRpExo = 'rpExo'; // (1.27)
 EXP_SET.setRpPs = 'rpPs'; EXP_SET.setRpMu = 'rpMu'; EXP_SET.setRpCpm = 'rpCpm'; EXP_SET.segCpmX = 'cpmX'; // (1.27; Matter depth, item 26)
 EXP_SET.setRpRes = 'rpRes'; EXP_SET.setRpNuc = 'rpNuc'; // (1.27)
@@ -42018,6 +42324,7 @@ function expSummary() {
   if (SET.wave) on.push('electrons as waves');
   if (SET.metal) on.push('many-body metals'); // (1.25)
   if (SET.lps) on.push('lone pairs'); if (SET.sigh) on.push('halogen σ-holes'); if (SET.pis) on.push('π-stacking'); // (1.26)
+  if (SET.pold && SET.qeq) on.push('polarizability by direction'); // (1.27)
   if (SET.resBig) on.push('large ring resonance');
   if (SET.inc) on.push('detailed nuclear collisions');
   if (SET.ultra) on.push('ultra-realistic');
@@ -42039,6 +42346,7 @@ function syncExpTotal() {
   names.segXq = 'GFN2-xTB'; // (1.26)
   names.segXqs = 'polarized spins'; // (1.26)
   names.segLps = 'lone pairs'; names.segSigh = 'halogen σ-holes'; names.segPis = 'π-stacking'; // (1.26)
+  names.segPold = 'polarizability by direction'; // (1.27)
   names.setRpExo = 'exotic atoms'; // (1.27)
   names.setRpPs = 'positronium'; names.setRpMu = 'muonium as hydrogen'; names.setRpCpm = 'charged particles in matter'; names.segCpmX = 'matter depth'; // (1.27; item 26)
   names.setRpRes = 'resonance widths and heavy flavour'; names.setRpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
@@ -42161,6 +42469,7 @@ const SDESC = {
   setInc: ['Detailed nuclear collisions', 'A nucleon that strikes a nucleus is followed through it collision by collision (an intranuclear cascade), instead of the statistical model.'],
   segRc: ['Force reach', 'How far van der Waals and partial-charge forces reach. Longer keeps more of the pull between molecules, at a price.'],
   segQeq: ['Induced charges', 'Each molecule’s charges shift with the electric field around it, so water turns its dipole toward an ion or a field (charge equilibration).'],
+  segPold: ['Polarizability by direction', 'With Induced charges on: each atom carries an induced dipole that follows the field with the polarizability its bonds have along and across them, instead of charge flowing along the bonds, so a molecule polarizes across its bonds too, as much as real ones do (benzene in its plane and out of it, N₂, CO₂).'], // (1.27)
   segPi: ['Quantum nuclei', 'Every atom becomes a ring of beads (path-integral molecular dynamics) that shows its zero-point spread, small dots over each atom when zoomed in. Light atoms spread most, and can tunnel.'],
   segPiRpc: ['Bead forces', 'Contracted works out the bonds and bends on every bead and the rest once at each ring’s centre (fast); Every bead works out the whole force field on every bead (exact).'],
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, drawn as thinner or thicker bonds that stretch and break smoothly. Quantum works out the electrons themselves (GFN1-xTB, or GFN2-xTB below): a proton shared between two waters shows half-bonds to both.'],
@@ -42207,6 +42516,7 @@ const SDESC3 = {
   segDtMax: ['Longest time step', 'Calm matter moves on in steps of 0.4 fs. Shorter steps keep the energy books a little more exact; in the 3-D lab a step costs about the same whatever its length, so the cost follows the number of steps.'],
   segRc: ['Force reach', 'How far van der Waals and partial-charge forces reach. Longer keeps more of the pull between molecules; in space the partners within reach grow as the cube of the reach, so it costs much more than in the flat game.'],
   segQeq: ['Induced charges', 'Each molecule’s charges shift with the electric field around it, in all three directions, so water turns its dipole toward an ion or a field (charge equilibration).'],
+  segPold: ['Polarizability by direction', 'With Induced charges on: each atom carries an induced dipole that follows the field with the polarizability its bonds have along and across them, instead of charge flowing along the bonds, so a molecule polarizes across its bonds too, as much as real ones do (benzene in its plane and out of it, N₂, CO₂).'], // (1.27)
   segPi: ['Quantum nuclei', 'Every atom becomes a ring of beads (path-integral molecular dynamics) spread in all three directions by its zero-point motion; in the 3-D lab the rings are drawn in depth round each atom when you are close enough (an ångström 30 pixels or more).'],
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, with the 3-D angles and the twist of double, aromatic and single bonds, drawn as thinner or thicker bonds. Quantum works out the electrons themselves (GFN1-xTB, or GFN2-xTB below) with the atoms free in all three directions.'],
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours, fitted on a close-packed crystal: in the 3-D lab a crystal has its measured cohesive energy, spacing, stiffness and vacancy energy exactly (copper 3.49 eV, 2.56 Å, 137 GPa, 1.28 eV). O and H atoms bond to it in the same model (1.26): a fitted oxide or hydride crystal (Cu₂O, Al₂O₃, FeO, NaH …) has its measured heat of formation at its measured spacing; an ion near it feels its image; strongly bound alloys have constants fitted to a compound (NiAl, Cu₃Au …: Ni₃Al and CuAu then within 3%). The body-centred metals (W, Mo, Cr, V, Nb, Ta, Fe, Na) bond with direction (1.26), fitted on their body-centred cubic crystal: measured spacing and cohesive energy exactly, fcc and hcp above it (tungsten +0.47 and +0.57 eV an atom, iron +0.09 and +0.11), so they crystallize body-centred.'],
@@ -42412,6 +42722,7 @@ function settingsInit() {
   bindSeg('segXq', (v) => setSetting('xq', +v)); // (1.26)
   bindSeg('segXqs', (v) => setSetting('xqs', +v)); // (1.26)
   bindSeg('segLps', (v) => setSetting('lps', +v)); bindSeg('segSigh', (v) => setSetting('sigh', +v)); bindSeg('segPis', (v) => setSetting('pis', +v)); // (1.26)
+  bindSeg('segPold', (v) => setSetting('pold', +v)); // (1.27)
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));

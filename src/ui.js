@@ -5744,7 +5744,7 @@ const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the fart
 Object.assign(SET_DEF, { metal: 0 }); SET_OK.metal = [0, 1]; // (Experimental: bond orders for metals, 1.25)
 Object.assign(SET_DEF, { xq: 1 }); SET_OK.xq = [1, 2]; // (Experimental: the quantum bonds' method, GFN1-xTB or GFN2-xTB, 1.26)
 Object.assign(SET_DEF, { xqs: 1 }); SET_OK.xqs = [0, 1]; // (Experimental: the quantum bonds' spins, paired or polarized, 1.26; Polarized normal since the spin-branch books were fixed: the owner, 2026-11-05)
-Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
+Object.assign(SET_DEF, { lps: 0, sigh: 0, pis: 0 }); SET_OK.lps = [0, 1]; SET_OK.sigh = [0, 1]; SET_OK.pis = [0, 1]; SET_DEF.pold = 0; SET_OK.pold = [0, 1]; // (Experimental: directional forces, 1.26: sites.js)
 Object.assign(SET_DEF, { rpExo: false }); // (Experimental → Realistic particles: exotic atoms as real atoms, 1.27: hep.js RP)
 Object.assign(SET_DEF, { rpPs: false, rpMu: false }); // (Experimental → Realistic particles: positronium; muonium as hydrogen and μSR, 1.27: hep.js RP)
 Object.assign(SET_DEF, { rpRes: false, rpNuc: false }); // (Realistic particles 5 and 6, 1.27: hep.js RP.res, RP.nuc)
@@ -5761,6 +5761,7 @@ EXP_NAME.metal = 'many-body metals'; // (1.25)
 EXP_NAME.xq = 'GFN2-xTB'; // (1.26)
 EXP_NAME.xqs = 'paired spins'; // (1.26: only Paired is away from normal, Polarized being normal)
 SET_EXP.push('lps', 'sigh', 'pis'); // (1.26)
+SET_EXP.push('pold'); EXP_NAME.pold = 'polarizability by direction'; // (Experimental: induced dipoles, 1.27: pold.js; its default with the others' before SET)
 EXP_NAME.lps = 'lone pairs'; EXP_NAME.sigh = 'halogen σ-holes'; EXP_NAME.pis = 'π-stacking'; // (1.26)
 SET_EXP.push('rpExo'); EXP_NAME.rpExo = 'exotic atoms'; // (1.27)
 SET_EXP.push('rpPs', 'rpMu'); EXP_NAME.rpPs = 'positronium'; EXP_NAME.rpMu = 'muonium as hydrogen'; // (1.27)
@@ -5856,6 +5857,7 @@ function applySettings() {
   RP.cpmX = SET.cpmX; // (its rare processes sped up: Matter depth, 1.27 item 26)
   RP.pol = !!SET.rpPol; // (Realistic particles 7, 1.27)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
+  pdOn(SET.qeq && SET.pold ? 1 : 0); // (polarizability by direction: induced dipoles in place of the charge flow, with induced charges on, 1.27)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
   R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
   if (R.cvd !== SET.cvd) { R.cvd = SET.cvd; elColorsReset(); }
@@ -5974,6 +5976,7 @@ function syncSettings() {
   setSegValue('segXq', String(SET.xq)); // (1.26)
   setSegValue('segXqs', String(SET.xqs)); // (1.26)
   setSegValue('segLps', String(SET.lps)); setSegValue('segSigh', String(SET.sigh)); setSegValue('segPis', String(SET.pis)); // (1.26)
+  setSegValue('segPold', String(SET.pold)); // (1.27)
   $('setRpExo').checked = SET.rpExo; // (1.27)
   $('setRpPs').checked = SET.rpPs; $('setRpMu').checked = SET.rpMu; $('setRpCpm').checked = SET.rpCpm; setSegValue('segCpmX', String(SET.cpmX)); // (1.27; Matter depth, item 26)
   $('setRpRes').checked = SET.rpRes; $('setRpNuc').checked = SET.rpNuc; // (1.27)
@@ -6005,6 +6008,7 @@ const COSTS = {
   segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured on one thread (1.25): nothing without metal atoms; a flat aluminium patch of 769 atoms ×1.9 (its own pass 0.22 ms a step); a flat copper patch ×0.6 and a 3-D copper ball ×0.9 (most of the electron-transfer trials between metal atoms are skipped). The body-centred metals\u2019 angles (1.26): a flat tungsten patch of 967 atoms ×1.1 over 1.25\u2019s many-body (its pass 0.95 → 2.3 ms)'] } }), // (1.25; 1.26)
   segLps: () => ({ k: 'physics', o: { 0: ['×1', 'Charges at the nuclei'], 1: ['×1', 'The 3-D lab only: nothing changes in the flat game'] } }), // (1.26)
   segSigh: () => ({ k: 'physics', o: { 0: ['×1', 'Halogens charged at their nuclei'], 1: ['×1–2', 'Measured on one thread (1.26): nothing without bonded chlorine, bromine or iodine; a flat box of 48 halomethanes and Br₂ (204 atoms) ×1.7–2.0 (a JavaScript pass after the WebAssembly kernel)'] } }), // (1.26)
+  segPold: () => ({ k: 'physics', o: { 0: ['×1', 'Induced charges flow along the bonds'], 1: [SET.qeq ? '×1.8–2.9' : '×1', SET.qeq ? 'On top of the induced charges\' own, measured on one thread (1.27): liquid water ×2.9 at every 10th step, ×2.1 at every step; brine ×1.8, ×2.1' : 'Nothing while Induced charges is off'] } }), // (1.27)
   segPis: () => ({ k: 'physics', o: { 0: ['×1', 'Rings charged at their nuclei'], 1: ['×1', 'The 3-D lab only: nothing changes in the flat game'] } }), // (1.26)
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–7', 'Measured on one thread: nothing without free electrons; liquid water with 40 free electrons ×6.5 (their inner steps 13 times shorter, for the packets\' breathing)'] } }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.4', 'Measured on liquid water (1.21): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×3', 'Measured on liquid water: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water: 32 beads, the rest once'] } }
@@ -6056,6 +6060,7 @@ const COSTS3 = {
   segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured in 3-D on one thread (1.25): nothing without metal atoms; an aluminium ball of 959 atoms ×1.8 (its own pass about 0.7 µs an atom a step); a copper ball ×0.8–1.0 (its steps go to electron-transfer estimates either way). The body-centred metals\u2019 angles (1.26): a tungsten crystal of 1,024 atoms ×1.04 over 1.25\u2019s many-body (its pass 2.5 → 8.2 ms; the step\u2019s electron-transfer estimates take the rest)'] } }),
   segLps: () => ({ k: 'physics', o: { 0: ['×1', 'Charges at the nuclei'], 1: ['×2–2.6', 'Measured in 3-D on one thread (1.26): liquid water (1,029 atoms) ×2.1–2.6, every oxygen with two lone pairs (a JavaScript pass over the pairs with an O or N in them); nothing without such atoms'] } }), // (1.26)
   segSigh: () => ({ k: 'physics', o: { 0: ['×1', 'Halogens charged at their nuclei'], 1: ['×1–2.7', 'Measured in 3-D on one thread (1.26): nothing without bonded chlorine, bromine or iodine; a box of 125 chloromethanes and Br₂ (515 atoms) ×2.0–2.7'] } }), // (1.26)
+  segPold: () => ({ k: 'physics', o: { 0: ['×1', 'Induced charges flow along the bonds'], 1: [SET.qeq ? '×1.2–4.2' : '×1', SET.qeq ? 'On top of the induced charges\' own, measured in 3-D on one thread (1.27): liquid water ×2.0 at every 10th step, ×4.2 at every step; brine ×1.2, ×1.7' : 'Nothing while Induced charges is off'] } }), // (1.27)
   segPis: () => ({ k: 'physics', o: { 0: ['×1', 'Rings charged at their nuclei'], 1: ['×1–10', 'Measured in 3-D on one thread (1.26): nothing without aromatic rings; a box of 125 benzenes (1,500 atoms, every atom a ring atom) ×5.5–9.5 (the rings\' own dispersion and π points in JavaScript)'] } }), // (1.26)
   segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–3', 'Measured in 3-D on one thread (1.25): nothing without free electrons; 40 free electrons among neon atoms ×2.2 (the flat game ×2.4), six Na⁺ among twelve ×3.2 (1.24); in ionized liquid water ×1.5–2.2, its electrons caught again within a few dozen steps in 3-D'] } }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.6', 'Measured on liquid water in 3-D (1.25): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×2.7', 'Measured on liquid water in 3-D: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water in 3-D: 32 beads, the rest once'] } }
@@ -6096,6 +6101,7 @@ const REAL = {
   segRc: ['12', 'Real forces reach on without a cutoff: the longest reach is the closest'],
   segDtMax: ['0.01', 'The shortest step follows the motion most exactly'],
   segQeq: ['1', 'Real molecules polarize all the time: every step is the closest'],
+  segPold: ['1', 'A real molecule polarizes across its bonds as well as along them'], // (1.27)
   segPi: ['32', 'The more beads, the closer to the quantum particle'],
   segPiRpc: ['0', 'Every force worked out on every bead, as the path integral has it'],
   segBo: ['2', 'Bonds from the electrons themselves (quantum chemistry), not from a stored table'],
@@ -6132,6 +6138,7 @@ EXP_SET.segMetal = 'metal'; // (1.25)
 EXP_SET.segXq = 'xq'; // (1.26)
 EXP_SET.segXqs = 'xqs'; // (1.26)
 EXP_SET.segLps = 'lps'; EXP_SET.segSigh = 'sigh'; EXP_SET.segPis = 'pis'; // (1.26)
+EXP_SET.segPold = 'pold'; // (1.27)
 EXP_SET.setRpExo = 'rpExo'; // (1.27)
 EXP_SET.setRpPs = 'rpPs'; EXP_SET.setRpMu = 'rpMu'; EXP_SET.setRpCpm = 'rpCpm'; EXP_SET.segCpmX = 'cpmX'; // (1.27; Matter depth, item 26)
 EXP_SET.setRpRes = 'rpRes'; EXP_SET.setRpNuc = 'rpNuc'; // (1.27)
@@ -6160,6 +6167,7 @@ function expSummary() {
   if (SET.wave) on.push('electrons as waves');
   if (SET.metal) on.push('many-body metals'); // (1.25)
   if (SET.lps) on.push('lone pairs'); if (SET.sigh) on.push('halogen σ-holes'); if (SET.pis) on.push('π-stacking'); // (1.26)
+  if (SET.pold && SET.qeq) on.push('polarizability by direction'); // (1.27)
   if (SET.resBig) on.push('large ring resonance');
   if (SET.inc) on.push('detailed nuclear collisions');
   if (SET.ultra) on.push('ultra-realistic');
@@ -6181,6 +6189,7 @@ function syncExpTotal() {
   names.segXq = 'GFN2-xTB'; // (1.26)
   names.segXqs = 'polarized spins'; // (1.26)
   names.segLps = 'lone pairs'; names.segSigh = 'halogen σ-holes'; names.segPis = 'π-stacking'; // (1.26)
+  names.segPold = 'polarizability by direction'; // (1.27)
   names.setRpExo = 'exotic atoms'; // (1.27)
   names.setRpPs = 'positronium'; names.setRpMu = 'muonium as hydrogen'; names.setRpCpm = 'charged particles in matter'; names.segCpmX = 'matter depth'; // (1.27; item 26)
   names.setRpRes = 'resonance widths and heavy flavour'; names.setRpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
@@ -6303,6 +6312,7 @@ const SDESC = {
   setInc: ['Detailed nuclear collisions', 'A nucleon that strikes a nucleus is followed through it collision by collision (an intranuclear cascade), instead of the statistical model.'],
   segRc: ['Force reach', 'How far van der Waals and partial-charge forces reach. Longer keeps more of the pull between molecules, at a price.'],
   segQeq: ['Induced charges', 'Each molecule’s charges shift with the electric field around it, so water turns its dipole toward an ion or a field (charge equilibration).'],
+  segPold: ['Polarizability by direction', 'With Induced charges on: each atom carries an induced dipole that follows the field with the polarizability its bonds have along and across them, instead of charge flowing along the bonds, so a molecule polarizes across its bonds too, as much as real ones do (benzene in its plane and out of it, N₂, CO₂).'], // (1.27)
   segPi: ['Quantum nuclei', 'Every atom becomes a ring of beads (path-integral molecular dynamics) that shows its zero-point spread, small dots over each atom when zoomed in. Light atoms spread most, and can tunnel.'],
   segPiRpc: ['Bead forces', 'Contracted works out the bonds and bends on every bead and the rest once at each ring’s centre (fast); Every bead works out the whole force field on every bead (exact).'],
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, drawn as thinner or thicker bonds that stretch and break smoothly. Quantum works out the electrons themselves (GFN1-xTB, or GFN2-xTB below): a proton shared between two waters shows half-bonds to both.'],
@@ -6349,6 +6359,7 @@ const SDESC3 = {
   segDtMax: ['Longest time step', 'Calm matter moves on in steps of 0.4 fs. Shorter steps keep the energy books a little more exact; in the 3-D lab a step costs about the same whatever its length, so the cost follows the number of steps.'],
   segRc: ['Force reach', 'How far van der Waals and partial-charge forces reach. Longer keeps more of the pull between molecules; in space the partners within reach grow as the cube of the reach, so it costs much more than in the flat game.'],
   segQeq: ['Induced charges', 'Each molecule’s charges shift with the electric field around it, in all three directions, so water turns its dipole toward an ion or a field (charge equilibration).'],
+  segPold: ['Polarizability by direction', 'With Induced charges on: each atom carries an induced dipole that follows the field with the polarizability its bonds have along and across them, instead of charge flowing along the bonds, so a molecule polarizes across its bonds too, as much as real ones do (benzene in its plane and out of it, N₂, CO₂).'], // (1.27)
   segPi: ['Quantum nuclei', 'Every atom becomes a ring of beads (path-integral molecular dynamics) spread in all three directions by its zero-point motion; in the 3-D lab the rings are drawn in depth round each atom when you are close enough (an ångström 30 pixels or more).'],
   segBo: ['Bond orders', 'Stored keeps whole-number bonds that form and break as events. From the positions works out every bond’s order each step, with the 3-D angles and the twist of double, aromatic and single bonds, drawn as thinner or thicker bonds. Quantum works out the electrons themselves (GFN1-xTB, or GFN2-xTB below) with the atoms free in all three directions.'],
   segMetal: ['Metals', 'Pairs holds metal atoms together by a sum of pair bonds. Many-body gives each atom a bonding that grows as the square root of its neighbours, fitted on a close-packed crystal: in the 3-D lab a crystal has its measured cohesive energy, spacing, stiffness and vacancy energy exactly (copper 3.49 eV, 2.56 Å, 137 GPa, 1.28 eV). O and H atoms bond to it in the same model (1.26): a fitted oxide or hydride crystal (Cu₂O, Al₂O₃, FeO, NaH …) has its measured heat of formation at its measured spacing; an ion near it feels its image; strongly bound alloys have constants fitted to a compound (NiAl, Cu₃Au …: Ni₃Al and CuAu then within 3%). The body-centred metals (W, Mo, Cr, V, Nb, Ta, Fe, Na) bond with direction (1.26), fitted on their body-centred cubic crystal: measured spacing and cohesive energy exactly, fcc and hcp above it (tungsten +0.47 and +0.57 eV an atom, iron +0.09 and +0.11), so they crystallize body-centred.'],
@@ -6554,6 +6565,7 @@ function settingsInit() {
   bindSeg('segXq', (v) => setSetting('xq', +v)); // (1.26)
   bindSeg('segXqs', (v) => setSetting('xqs', +v)); // (1.26)
   bindSeg('segLps', (v) => setSetting('lps', +v)); bindSeg('segSigh', (v) => setSetting('sigh', +v)); bindSeg('segPis', (v) => setSetting('pis', +v)); // (1.26)
+  bindSeg('segPold', (v) => setSetting('pold', +v)); // (1.27)
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
   bindSeg('segTheme', (v) => setSetting('theme', v));
