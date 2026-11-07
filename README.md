@@ -6,8 +6,8 @@ What it has:
 
 Limitations:
 Requires a beefy CPU (tested on an AMD Ryzen 9 7950X3D). 16 threads runs best, for me.
-Not 100% accurate, as that would require a supercomputer
-Only so many atoms can be simulated, limit is 20,000
-Other inaccuracies are discribed in the Physics section on the top right of the menu.
+Not 100% accurate, as that would require a supercomputer.
+Only so many atoms can be simulated, limit is 20,000.
+Other inaccuracies are described in the Physics section on the top right of the menu.
 
-There is much more
+There is much more.
