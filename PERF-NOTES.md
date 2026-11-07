@@ -2750,11 +2750,25 @@ API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; th
 | radiation lengths | hep.js cpmX0 (Tsai's formula) | computed | PDG | fine (formula; e.g. Pb 6.37 g/cm²) |
 | muon lifetimes MU_TAU | hep.js | | | checked in bug 12 (Zinner/Langanke/Vogel 2006), not touched here |
 | p-Ps 125.14 ps, o-Ps 142.05 ns | hep.js | | papers named in the code | agree with the published values as known; the papers themselves not fetched |
-| water o-Ps 1.80 ns, o-Ps–O₂ σ 1.5×10⁻¹⁹ cm², exotic-atom X-ray lines, muon transfer rates, ESTAR/ASTAR/XCOM spot values, neutron σ, charm/bottom fractions, hadron-collider σ | | | | not reached (papers paywalled, NIST forms not scriptable here): left for a check |
+| neutron absorption (capture, (n,p), (n,α), (n,t), fission), 41 nuclides | hep.js NXS | | NIST NCNR table (Sears 1992) | fine: equal or within 5%, except ¹⁶O 0.19 mb (NIST 0.10: Mughabghab 2006's newer value kept), ¹⁷O 0.257 b (0.236), ¹⁴⁹Sm 40,140 b (42,080: the newer evaluation kept) |
+| neutron scattering, free atom | hep.js NXS s | 19 nuclides held the *bound* σ or were >5% off (e.g. ¹⁶O 4.23, ³⁵Cl 21.8, ²³⁸U 9.3, ¹⁰B 2.23, ⁷Li 0.97) | bound × (A/(A+1))²: 3.75, 20.6, 8.80, 2.56, 1.07 … | **fixed** (only with Realistic particles 6 on) |
+| σ(cc̄), σ(bb̄) against √s | hep.js HF_SIG | cc̄ 27.4 GeV 15 µb; bb̄ 41.6 GeV 12 nb, 200 GeV 1.3 µb | NA27 18 µb; HERA-B 15.8 nb; PHENIX 3.75 µb (STAR 4.0) (d'Enterria et al., arXiv:2605.16019, Tables I–II) | **fixed** (only with Realistic particles 5 on); the other 9 points agree (HERA-B 49, E789 5.7 nb, CDF 76 vs 80, LHCb 295/495, ALICE 4,800/8,500) |
+| charm/bottom fragmentation fractions | hep.js HF_FRAG | 0.6086/0.2404/0.0802/0.0623; 0.407/0.407/0.101/0.085 | the same paper shows them only as figures | not checked |
+| antiprotonic X-rays (Bohr levels) | hep.js xaBohr | Al 5→4 91.6, 6→5 49.7, 7→6 30.0 keV; S 139.5/75.8; Si 106.3/57.8 | Aramaki et al., arXiv:1303.3871, Tables 5, 12: 92/50/30, 139/76, 106/58 | fine |
+| muonic Ne 5g→4f | hep.js xaBohr | 6294.0 eV | 6297.27 eV (Okumura et al., PRL 130, 173001, 2023) | fine (0.05%: the Bohr level without fine structure) |
+| muonic 2p→1s lines XA_KA (C … Pb) | hep.js XA_KA | 75.25 … 5901 keV | not in the pages reached | not checked |
+| muon transfer μp → Ar | hep.js xaTrRate (scaled from O) | 1.5×10¹¹ s⁻¹ | 1.46×10¹¹ (Jacot-Guillarmod et al., abstract) | fine |
+| muon transfer μp → N, O, C | hep.js XA_TR | 3.4, 8.5×10¹⁰ | FAMU carbon paper (Phys. Lett. A 2025) refused (403) | not checked |
+| XCOM: lead and water at 10 MeV | (checks only) | 0.0497, 0.0222 cm²/g | XCOM 0.04972, 0.02219 | fine |
+| lead's pair σ at 100 MeV | hep.js cpmPair (no gradual screening) | ≈ 0.108 cm²/g | XCOM 0.0911 | 19% high, known (model, not data): written down |
+| water o-Ps 1.80 ns, o-Ps–O₂ σ 1.5×10⁻¹⁹ cm², ESTAR/ASTAR spot values, refractive indices | | | | not reached (the papers paywalled; the STAR forms refused the scripted request): left for a check |
 
 - Water's I: PDG 2024 gives 79.7 eV (ICRU 90); the game builds water from H and O (Bragg additivity, ≈ 75 eV, the older
   ICRU 49 value). Changing that is a model change: written down, not done.
-- Fingerprints (switches off, 300 steps, seed 7): none changed (no setup uses these values with the switches off).
+- Fingerprints (switches off, 300 steps, seed 7): none changed (no setup uses these values with the switches off; the
+  neutron and heavy-quark tables are read only with Realistic particles 5/6 on).
+- Sources the owner sent (2026-11-07): Aramaki et al. (exotic-atom X-rays), Okumura et al. (muonic neon), the FAMU carbon
+  paper (not readable from here), NIST STAR intro, NIST NCNR neutron table, d'Enterria et al. (charm/bottom σ).
 - Test change: f_bug126e "decay" now expects ²²Na 0.9/0.1 (rounded to 3 places) and ¹⁹⁸Au Q 1.3735, because its data changed.
 - Check: tests/f_fix17.js (fails on v145: −0.884, 0.903, Q 2.842 …; passes now). t_energy, t_lint, f_ew, f_rp5,
   f_bug126e, t_hep, t_nuclear pass.
