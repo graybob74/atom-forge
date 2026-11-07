@@ -3665,7 +3665,7 @@ function emitPhoton(x, y, E, ux, uy, opts) {
   const dly = (opts && opts.delay) || 0; // (light in flight from a mirror, lens or prism: it sets off once the light has come that far, so the hit it is heading for is reckoned from then, 0.91)
   if (opts && opts.travel && dly) opts = Object.assign({}, opts, { delay: 0 });
   let x0 = x, y0 = y, depth = (opts && opts.depth) || 0;
-  let hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract(x0, y0, ux, uy, E, opts && opts.src, opts && opts.pol); // (pol: its polarization, Realistic particles 7, 1.27)
+  let hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract(x0, y0, ux, uy, E, opts && opts.src, opts && opts.pol, depth); // (pol: its polarization, Realistic particles 7, 1.27; depth: Rayleigh scattering's chain)
   let x1, y1;
   if (hit) { x1 = hit.x; y1 = hit.y; }
   else { const t = rayExit(x0, y0, ux, uy); x1 = x0 + ux * t; y1 = y0 + uy * t; }
@@ -3694,7 +3694,7 @@ function emitPhoton3(x, y, E, ux, uy, opts) {
   const dly = (opts && opts.delay) || 0;
   if (opts && opts.travel && dly) opts = Object.assign({}, opts, { delay: 0 });
   const depth = (opts && opts.depth) || 0;
-  const hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract3(x, y, z, ux, uy, uz, E, src, opts && opts.pol);
+  const hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract3(x, y, z, ux, uy, uz, E, src, opts && opts.pol, depth);
   let x1, y1, z1;
   if (hit) { x1 = hit.x; y1 = hit.y; z1 = hit.z; }
   else { const t = rayExit3(x, y, z, ux, uy, uz); x1 = x + ux * t; y1 = y + uy * t; z1 = z + uz * t; }
@@ -3717,7 +3717,7 @@ function rayExit3(x, y, z, ux, uy, uz) {
    their consequences in 3-D (Compton scattering turned about a random axis; the pair leaving back to back in a random
    direction; ions, fluorescence and dissociation as in the flat world, which already work in 3-D). Nuclear reactions
    are flat-only (1.24, item 5): a photon that would knock a neutron out makes a pair there instead. */
-function rayInteract3(x, y, z, ux, uy, uz, E, src, pol) {
+function rayInteract3(x, y, z, ux, uy, uz, E, src, pol, depth = 0) { // (depth: the photon's chain, for Rayleigh scattering, 1.27)
   const tmax = rayExit3(x, y, z, ux, uy, uz);
   _rayHits.length = 0;
   for (const p of W.parts) {
@@ -3729,6 +3729,7 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src, pol) {
   }
   if (!_rayHits.length) return null;
   _rayHits.sort((a, b) => a[0] - b[0]);
+  if (RP.ray) _rySeen.clear();
   for (const [t, p] of _rayHits) {
     const hx = x + ux * t, hy = y + uy * t, hz = z + uz * t;
     if (E >= 1e5) {
@@ -3755,6 +3756,7 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src, pol) {
         if (rnd() < 0.6) return { x: hx, y: hy, z: hz, p, after: () => { glow(p, wavelengthRGB(nm)); W.count.photons++; emitPhoton(p.x, p.y, E, undefined, undefined, { depth: 9, src: p }); } };
       }
       if (E < 1.6 && p.bonds.length && rnd() < 0.3 && irActive(p)) return { x: hx, y: hy, z: hz, p, after: () => { const o = other(p.bonds[0], p); kickPair(p, o, E); } };
+      if (RP.ray && E < ie) { const h = ryTry(p, E, ux, uy, uz, pol, depth, _rySeen, { x: hx, y: hy, z: hz }); if (h) return h; } // (Rayleigh scattering, Realistic particles, 1.27: pold.js)
     }
   }
   return null;
@@ -3826,8 +3828,8 @@ function rayExit(x, y, ux, uy) {
   if (uy > 1e-9) t = Math.min(t, (hh - y) / uy); else if (uy < -1e-9) t = Math.min(t, (-hh - y) / uy);
   return Math.max(0, t);
 }
-const _rayHits = [];
-function rayInteract(x, y, ux, uy, E, src, pol) {
+const _rayHits = [], _rySeen = new Set(); // (_rySeen: the molecules a photon has been tried by for Rayleigh scattering, 1.27)
+function rayInteract(x, y, ux, uy, E, src, pol, depth = 0) { // (depth: the photon's chain, for Rayleigh scattering, 1.27)
   if (W.d3) return null; // (3-D, stage 1a: light is not absorbed yet, its search is along a flat line: it leaves the box)
   const tmax = rayExit(x, y, ux, uy);
   _rayHits.length = 0;
@@ -3840,6 +3842,7 @@ function rayInteract(x, y, ux, uy, E, src, pol) {
   }
   if (!_rayHits.length) return null;
   _rayHits.sort((a, b) => a[0] - b[0]);
+  if (RP.ray) _rySeen.clear();
   for (const [t, p] of _rayHits) {
     const hx = x + ux * t, hy = y + uy * t;
     if (E >= 1e5) { // gamma: Compton scattering, pair production, and (above ~8 MeV) the nucleus itself
@@ -3876,6 +3879,7 @@ function rayInteract(x, y, ux, uy, E, src, pol) {
       if (E < 1.6 && p.bonds.length && rnd() < 0.3 && irActive(p)) {
         return { x: hx, y: hy, p, after: () => { const o = other(p.bonds[0], p); kickPair(p, o, E); W.ledger.chem += 0; } };
       }
+      if (RP.ray && E < ie) { const h = ryTry(p, E, ux, uy, 0, pol, depth, _rySeen, { x: hx, y: hy }); if (h) return h; } // (Rayleigh scattering, Realistic particles, 1.27: pold.js)
     }
   }
   return null;

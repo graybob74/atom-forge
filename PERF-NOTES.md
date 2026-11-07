@@ -2735,7 +2735,8 @@ metals in mixtures (bometal.js's JavaScript path when non-metals or other kinds 
 metals; small–medium). Not worth it: events, reactions, nuclear and particle physics (rare and branchy), drawing (WebGL).
 Order, to spend the owner's limited usage well: the small ones first in one session (23, 26–32), then the medium ones
 (21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
-Done since: 21 (branch v150 from v145, 2026-11-06: "1.27: feature 21 (polarizability by direction)").
+Done since: 21 (branch v150 from v145, 2026-11-06: "1.27: feature 21 (polarizability by direction)"); 22 (branch v151
+from v150: "1.27: feature 22 (Rayleigh scattering)").
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
@@ -3004,6 +3005,53 @@ ew/lep1.png, lep-data.png, ins-w.png.
   collider steps through 88–94 GeV); the beams' own radiation (radiative return, which takes the Z peak from 41.5 to 30.5
   nb and makes most of LEP2's qq̄ events); the W pair's forward peak; a fast positron on matter by eeEvent (μ pairs,
   hadrons) rather than always 2γ; the Higgs boson (planned list).
+
+### 1.27: feature 22 (Rayleigh scattering)
+
+Branch v151 from v150 (2026-11-06; approved with the list). Settings → Experimental → Realistic particles → Rayleigh
+scattering (`RP.ray`, `SET.rpRay`; src/pold.js ryTry, ryChance, ryScatter, after polarizability by direction, whose
+tensors it uses). Before, the box had no elastic scattering of light at all (the 1.27 part 7 notes: rayInteract only
+absorbed, ionized, dissociated, fluoresced or Compton-scattered).
+- **The model.** A photon that cannot ionize the atom it passes (infrared, visible, near ultraviolet: E below
+  ionizationCost) may be scattered by that atom's molecule. Each molecule is tried once per photon, after the photon's
+  chances of being absorbed there. The photon's field ε drives the molecule's induced dipole d = α·ε. α is the
+  molecule's tensor: the bonds' tensors (PD_BOND) summed over it, or for a lone atom or ion RY_ATOM / PD_ION. In the
+  flat game α is the in-plane tensor, with the mean of its two in-plane values across the plane.
+  - The rate goes as k⁴|d|²: blue (400 nm) 9.4 times red (700 nm).
+  - The new direction is drawn with weight |d|² − (d·n̂)², round the circle in the flat game. The polarization is d's
+    part across the new direction (carried with Photon polarization on). An unpolarized photon is given a random
+    polarization for the draw.
+  - Elastic: the photon keeps its energy (the molecule's recoil, about 10⁻¹¹ eV, left out), so the books do not move.
+  - A scattered photon counts one level of the photon's chain: rayInteract and rayInteract3 now take the depth that
+    emitPhoton has; past 3 the photon does not interact again, as for every re-emitted photon.
+- **The rate, made visible.** The true cross section σ = (8π/3)k⁴|d|² is 5×10⁻²⁷ cm² for N₂ at 532 nm, so a photon
+  crosses about 80 km of air before it scatters once, and in a box a few nanometres across, effectively never. As the
+  box's other light–matter rates (photoionization 0.6, line absorption 0.6, Compton 1.2% an electron, a pass), it is
+  shown made visible: RY.P0 = 0.01 a molecule passed for N₂ at 450 nm, unpolarized (the mean of |d⊥|² over the
+  directions against N₂'s), with the ratios between colours and molecules the true ones, capped at 0.5. Ultra-realistic
+  mode keeps the true rate: σ over the 0.6 Å strip's area, 4.5×10⁻¹¹ a molecule passed (N₂, 532 nm). For the owner: P0
+  is a choice of how visible to make it (at 0.01, 7% of blue photons crossing the flat water box scatter, 0.5–0.7% of red).
+- **Measured** (tests/f_127r.js):
+  - Rate: blue/red 9.49 in 3-D, 9.36 flat (true (700/400)⁴ = 9.38). Argon against water exactly (1.64/1.47)²
+    (isotropic both). N₂ 0.0103 a pass at 450 nm. Ultra-realistic σ(N₂, 532 nm) 5.12×10⁻²⁷ cm² (measured 5.1×10⁻²⁷,
+    from memory).
+  - Angles (unpolarized light on water, weighted by each draw's chance): ⟨cos²θ⟩ 0.399 in 3-D (the 1 + cos²θ law's
+    0.400), light at 90° 99.7% polarized; flat 0.582 (the plane's 0.583), 99.6%. CO₂'s dipole 3.96 along its axis and
+    1.96 across, so it scatters light polarized along it four times as much and depolarizes what it scatters.
+  - Light shone through liquid water, 600 photons: flat 46 blue (400 nm) against 4 red scattered, 3-D 13 against 2.
+    Every photon's energy leaves the box, and the rest of the books do not move (0).
+  - Cost: nothing a step. A visible photon crossing liquid water takes 31–36 µs against 15–24 (flat), 34–41 against
+    21–22 (3-D).
+  - Switch off: all 60 setups bit for bit as before (tools/fingerprint.js; no random number is drawn with it off).
+- **Not covered:** the polarizability is the static one (real α rises toward an absorption line, so violet and UV
+  scatter a little more than λ⁻⁴ says); X-rays' coherent (Rayleigh) scattering with atomic form factors is not in it
+  (only light below the ionization energy); a molecule in a liquid scatters as a lone one (the liquid's real
+  scattering is much weaker, from its density fluctuations, which a per-molecule rate cannot know); lone atoms' values
+  in RY_ATOM are from memory (CRC: He 0.205, Ne 0.396, Ar 1.64, Kr 2.48, Xe 4.04 Å³).
+- Tests: tests/f_127r.js (t_features' feature-22 line, or `node tests/f_127r.js [--node] [rate angle light ultra fp
+  settings]`). t_features' 1.10 line counts one more realistic switch tag (11).
+- Suite on v151 (2026-11-06): tools/runtests.sh 21 of 22; t_features missed only 1.14's speed readout (the known
+  two-core timing check under both lanes' load; it passed alone on v150, and nothing here runs with the switch off).
 
 ### 1.27: feature 21 (polarizability by direction)
 

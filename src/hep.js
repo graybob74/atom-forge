@@ -3863,6 +3863,7 @@ function capDone(T, lbl, gh, x, y, z, gs) { // (the capture's log and counts, it
      axis at an angle α from the plane; a photon passes with probability (ε·â)², â the axis's part across the ray (Malus's
      law, cos²), and leaves polarized along â; else it is absorbed. */
 RP.pol = false; // (Experimental → Realistic particles → Photon polarization; ui.js applySettings)
+RP.ray = false; // (Experimental → Realistic particles → Rayleigh scattering, 1.27: pold.js ryTry)
 /* A random linear polarization across the direction (ux, uy, uz): flat, ψ uniform between p̂ = (uy, −ux, 0) and ẑ. */
 function polRand(ux, uy, uz) {
   if (!W.d3) { const a = rnd() * Math.PI, c = Math.cos(a); return [uy * c, -ux * c, Math.sin(a)]; }

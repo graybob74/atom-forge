@@ -287,3 +287,78 @@ function pdUpdate() {
 }
 /* A molecule's polarizability tensor as the game has it (tests, tools/polfit.js): the sum of its atoms' (xx, xy, xz, yy, yz, zz). */
 function pdMolAlpha(atoms) { const T = new Float64Array(6), A6 = new Float64Array(6); for (const p of atoms) if (pdAlpha(p, A6)) for (let k = 0; k < 6; k++) T[k] += A6[k]; return T; }
+
+/* ---- Realistic particles: Rayleigh scattering (1.27, feature 22; Settings → Experimental → Realistic particles,
+   RP.ray). Light that cannot ionize (infrared, visible, near ultraviolet) is scattered elastically by molecules and
+   atoms: the field ε drives the molecule's induced dipole d = α·ε (α its polarizability tensor: the bonds' tensors of
+   polarizability by direction, PD_BOND, summed over the molecule; a lone atom or ion its own, RY_ATOM / PD_ION; in the
+   flat game the molecule's in-plane tensor, and across the plane the mean of the two in it), which radiates as a dipole:
+   - the rate goes as k⁴|d|², so blue light (400 nm) scatters (700/400)⁴ = 9.4 times as often as red (the blue sky);
+   - the new direction n̂ with weight |d|² − (d·n̂)² (unpolarized light on an isotropic molecule: (1 + cos²θ), none at
+     90° in the plane of the polarization), and its polarization along d's part across n̂ (light scattered at 90° from
+     an isotropic molecule is fully polarized; an anisotropic one, CO₂, N₂, depolarizes it a little);
+   - the photon keeps its energy (the molecule's recoil, about 10⁻¹¹ eV, is left out), so the books are untouched.
+   In a nanometre box the true rate is tiny: σ = (8π/3)k⁴|d|² is 5×10⁻²⁷ cm² for N₂ at 532 nm (a photon crosses
+   about 80 km of air before it scatters once). As the box's other light–matter rates, it is shown made visible:
+   RY.P0 per molecule passed for N₂ at 450 nm, the ratios between colours and molecules the true ones (capped at RY.cap);
+   ultra-realistic mode keeps the true rate (σ over the 0.6 Å strip's area: about 10⁻¹⁰ a molecule passed). Each
+   molecule is tried once a photon, after its absorption; a scattered photon counts one level of the photon's chain
+   (rayInteract's depth: past 3 it does not interact again). */
+const RY = { P0: 0.01, Eref: 2.7552, aref: 1.74, cap: 0.5, n: 0, tried: 0 }; // (Eref: hc/450 nm, eV; aref: N₂'s mean polarizability, Å³)
+const RY_ATOM = { 1: 0.667, 2: 0.205, 10: 0.396, 18: 1.64, 36: 2.48, 54: 4.04, 86: 5.3, 6: 1.76, 7: 1.10, 8: 0.802, 9: 0.557, 17: 2.18, 35: 3.05, 53: 5.35 }; // (lone atoms, Å³; CRC, from memory)
+const RY_HBARC = 1973.27; // (ħc, eV·Å)
+const _ryT = new Float64Array(6), _ryA = new Float64Array(6);
+/* The molecule's (or the lone atom's) tensor, as the 3-D one (xx, xy, xz, yy, yz, zz), into _ryT; false if none. */
+function ryTensor(p) {
+  _ryT.fill(0);
+  if (p.bonds.length) {
+    const atoms = molecule(p);
+    if (atoms.length <= 200) { for (const a of atoms) if (pdAlpha(a, _ryA)) for (let k = 0; k < 6; k++) _ryT[k] += _ryA[k]; }
+    else { let s = 0; for (const a of atoms) s += (PD_ATOM[a.Z] || 0) * PD_F; _ryT[0] = _ryT[3] = _ryT[5] = s; } // (a large lump: its atoms' share, isotropic)
+    if (!W.d3) _ryT[5] = (_ryT[0] + _ryT[3]) / 2;
+  } else {
+    const a = p.ionic || p.q ? PD_ION[p.Z + ',' + p.q] || 0 : RY_ATOM[p.Z] || PD_ATOM[p.Z] || 0;
+    _ryT[0] = _ryT[3] = _ryT[5] = a;
+  }
+  return _ryT[0] + _ryT[3] + _ryT[5] > 0;
+}
+/* The chance that a photon of energy E, polarized ε, passing p's molecule scatters there; with the dipole d into out[3..5]. */
+function ryChance(p, E, ex, ey, ez, out) {
+  if (!ryTensor(p)) return 0;
+  const T = _ryT, dx = T[0] * ex + T[1] * ey + T[2] * ez, dy = T[1] * ex + T[3] * ey + T[4] * ez, dz = T[2] * ex + T[4] * ey + T[5] * ez;
+  out[3] = dx; out[4] = dy; out[5] = dz;
+  const d2 = dx * dx + dy * dy + dz * dz;
+  if (W.ultra) { const k = E / RY_HBARC; return Math.min(1, (8 * Math.PI / 3) * k * k * k * k * d2 / (Math.PI * 0.36)); } // (the true cross section over the strip's area)
+  const f = W.d3 ? d2 / (RY.aref * RY.aref) : (d2 - 0.5 * (dx * dx + dy * dy)) / (0.75 * RY.aref * RY.aref); // (the mean of |d⊥|² over the directions it can go, against N₂'s for unpolarized light: in the flat game round the plane)
+  const r = E / RY.Eref;
+  return Math.min(RY.cap, RY.P0 * r * r * r * r * f);
+}
+const _ryD = [0, 0, 0, 0, 0, 0];
+/* rayInteract's question for p: a hit object (the photon's line ends at h, the scattered photon goes on from p) or null.
+   seen: the molecules already tried for this photon. */
+function ryTry(p, E, ux, uy, uz, pol, depth, seen, h) {
+  const key = p.mol || -p.id - 1; if (seen.has(key)) return null; seen.add(key);
+  let ex, ey, ez;
+  if (pol) { ex = pol[0]; ey = pol[1]; ez = pol[2] || 0; } else { const e = polRand(ux, uy, uz); ex = e[0]; ey = e[1]; ez = e[2]; }
+  RY.tried++;
+  const P = ryChance(p, E, ex, ey, ez, _ryD);
+  if (!(P > 0) || !(rnd() < P)) return null;
+  const dx = _ryD[3], dy = _ryD[4], dz = _ryD[5];
+  h.p = p; h.after = () => ryScatter(p, E, dx, dy, dz, depth);
+  return h;
+}
+/* The scattered photon: a direction drawn with weight |d|² − (d·n̂)² (in the plane, round the circle, in the flat game),
+   its polarization d's part across it. */
+function ryScatter(p, E, dx, dy, dz, depth) {
+  if (p.dead) return;
+  const d2 = dx * dx + dy * dy + dz * dz;
+  let nx = 1, ny = 0, nz = 0;
+  for (let k = 0; k < 64; k++) {
+    if (W.d3) { const u = rndDir(); nx = u[0]; ny = u[1]; nz = u[2]; } else { const a = rnd() * 2 * Math.PI; nx = Math.cos(a); ny = Math.sin(a); nz = 0; }
+    const dn = dx * nx + dy * ny + dz * nz;
+    if (rnd() * d2 <= d2 - dn * dn) break;
+  }
+  RY.n++;
+  const dn = dx * nx + dy * ny + dz * nz; let px = dx - dn * nx, py = dy - dn * ny, pz = dz - dn * nz; const L = Math.hypot(px, py, pz) || 1; px /= L; py /= L; pz /= L;
+  emitPhoton(p.x, p.y, E, nx, ny, { depth: depth + 1, src: p, cont: true, uz: nz, pol: RP.pol ? [px, py, pz] : undefined });
+}

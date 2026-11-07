@@ -6122,7 +6122,7 @@ function emitPhoton(x, y, E, ux, uy, opts) {
   const dly = (opts && opts.delay) || 0; // (light in flight from a mirror, lens or prism: it sets off once the light has come that far, so the hit it is heading for is reckoned from then, 0.91)
   if (opts && opts.travel && dly) opts = Object.assign({}, opts, { delay: 0 });
   let x0 = x, y0 = y, depth = (opts && opts.depth) || 0;
-  let hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract(x0, y0, ux, uy, E, opts && opts.src, opts && opts.pol); // (pol: its polarization, Realistic particles 7, 1.27)
+  let hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract(x0, y0, ux, uy, E, opts && opts.src, opts && opts.pol, depth); // (pol: its polarization, Realistic particles 7, 1.27; depth: Rayleigh scattering's chain)
   let x1, y1;
   if (hit) { x1 = hit.x; y1 = hit.y; }
   else { const t = rayExit(x0, y0, ux, uy); x1 = x0 + ux * t; y1 = y0 + uy * t; }
@@ -6151,7 +6151,7 @@ function emitPhoton3(x, y, E, ux, uy, opts) {
   const dly = (opts && opts.delay) || 0;
   if (opts && opts.travel && dly) opts = Object.assign({}, opts, { delay: 0 });
   const depth = (opts && opts.depth) || 0;
-  const hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract3(x, y, z, ux, uy, uz, E, src, opts && opts.pol);
+  const hit = (opts && opts.noInteract) || depth > 3 ? null : rayInteract3(x, y, z, ux, uy, uz, E, src, opts && opts.pol, depth);
   let x1, y1, z1;
   if (hit) { x1 = hit.x; y1 = hit.y; z1 = hit.z; }
   else { const t = rayExit3(x, y, z, ux, uy, uz); x1 = x + ux * t; y1 = y + uy * t; z1 = z + uz * t; }
@@ -6174,7 +6174,7 @@ function rayExit3(x, y, z, ux, uy, uz) {
    their consequences in 3-D (Compton scattering turned about a random axis; the pair leaving back to back in a random
    direction; ions, fluorescence and dissociation as in the flat world, which already work in 3-D). Nuclear reactions
    are flat-only (1.24, item 5): a photon that would knock a neutron out makes a pair there instead. */
-function rayInteract3(x, y, z, ux, uy, uz, E, src, pol) {
+function rayInteract3(x, y, z, ux, uy, uz, E, src, pol, depth = 0) { // (depth: the photon's chain, for Rayleigh scattering, 1.27)
   const tmax = rayExit3(x, y, z, ux, uy, uz);
   _rayHits.length = 0;
   for (const p of W.parts) {
@@ -6186,6 +6186,7 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src, pol) {
   }
   if (!_rayHits.length) return null;
   _rayHits.sort((a, b) => a[0] - b[0]);
+  if (RP.ray) _rySeen.clear();
   for (const [t, p] of _rayHits) {
     const hx = x + ux * t, hy = y + uy * t, hz = z + uz * t;
     if (E >= 1e5) {
@@ -6212,6 +6213,7 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src, pol) {
         if (rnd() < 0.6) return { x: hx, y: hy, z: hz, p, after: () => { glow(p, wavelengthRGB(nm)); W.count.photons++; emitPhoton(p.x, p.y, E, undefined, undefined, { depth: 9, src: p }); } };
       }
       if (E < 1.6 && p.bonds.length && rnd() < 0.3 && irActive(p)) return { x: hx, y: hy, z: hz, p, after: () => { const o = other(p.bonds[0], p); kickPair(p, o, E); } };
+      if (RP.ray && E < ie) { const h = ryTry(p, E, ux, uy, uz, pol, depth, _rySeen, { x: hx, y: hy, z: hz }); if (h) return h; } // (Rayleigh scattering, Realistic particles, 1.27: pold.js)
     }
   }
   return null;
@@ -6283,8 +6285,8 @@ function rayExit(x, y, ux, uy) {
   if (uy > 1e-9) t = Math.min(t, (hh - y) / uy); else if (uy < -1e-9) t = Math.min(t, (-hh - y) / uy);
   return Math.max(0, t);
 }
-const _rayHits = [];
-function rayInteract(x, y, ux, uy, E, src, pol) {
+const _rayHits = [], _rySeen = new Set(); // (_rySeen: the molecules a photon has been tried by for Rayleigh scattering, 1.27)
+function rayInteract(x, y, ux, uy, E, src, pol, depth = 0) { // (depth: the photon's chain, for Rayleigh scattering, 1.27)
   if (W.d3) return null; // (3-D, stage 1a: light is not absorbed yet, its search is along a flat line: it leaves the box)
   const tmax = rayExit(x, y, ux, uy);
   _rayHits.length = 0;
@@ -6297,6 +6299,7 @@ function rayInteract(x, y, ux, uy, E, src, pol) {
   }
   if (!_rayHits.length) return null;
   _rayHits.sort((a, b) => a[0] - b[0]);
+  if (RP.ray) _rySeen.clear();
   for (const [t, p] of _rayHits) {
     const hx = x + ux * t, hy = y + uy * t;
     if (E >= 1e5) { // gamma: Compton scattering, pair production, and (above ~8 MeV) the nucleus itself
@@ -6333,6 +6336,7 @@ function rayInteract(x, y, ux, uy, E, src, pol) {
       if (E < 1.6 && p.bonds.length && rnd() < 0.3 && irActive(p)) {
         return { x: hx, y: hy, p, after: () => { const o = other(p.bonds[0], p); kickPair(p, o, E); W.ledger.chem += 0; } };
       }
+      if (RP.ray && E < ie) { const h = ryTry(p, E, ux, uy, 0, pol, depth, _rySeen, { x: hx, y: hy }); if (h) return h; } // (Rayleigh scattering, Realistic particles, 1.27: pold.js)
     }
   }
   return null;
@@ -23226,6 +23230,81 @@ function pdUpdate() {
 /* A molecule's polarizability tensor as the game has it (tests, tools/polfit.js): the sum of its atoms' (xx, xy, xz, yy, yz, zz). */
 function pdMolAlpha(atoms) { const T = new Float64Array(6), A6 = new Float64Array(6); for (const p of atoms) if (pdAlpha(p, A6)) for (let k = 0; k < 6; k++) T[k] += A6[k]; return T; }
 
+/* ---- Realistic particles: Rayleigh scattering (1.27, feature 22; Settings → Experimental → Realistic particles,
+   RP.ray). Light that cannot ionize (infrared, visible, near ultraviolet) is scattered elastically by molecules and
+   atoms: the field ε drives the molecule's induced dipole d = α·ε (α its polarizability tensor: the bonds' tensors of
+   polarizability by direction, PD_BOND, summed over the molecule; a lone atom or ion its own, RY_ATOM / PD_ION; in the
+   flat game the molecule's in-plane tensor, and across the plane the mean of the two in it), which radiates as a dipole:
+   - the rate goes as k⁴|d|², so blue light (400 nm) scatters (700/400)⁴ = 9.4 times as often as red (the blue sky);
+   - the new direction n̂ with weight |d|² − (d·n̂)² (unpolarized light on an isotropic molecule: (1 + cos²θ), none at
+     90° in the plane of the polarization), and its polarization along d's part across n̂ (light scattered at 90° from
+     an isotropic molecule is fully polarized; an anisotropic one, CO₂, N₂, depolarizes it a little);
+   - the photon keeps its energy (the molecule's recoil, about 10⁻¹¹ eV, is left out), so the books are untouched.
+   In a nanometre box the true rate is tiny: σ = (8π/3)k⁴|d|² is 5×10⁻²⁷ cm² for N₂ at 532 nm (a photon crosses
+   about 80 km of air before it scatters once). As the box's other light–matter rates, it is shown made visible:
+   RY.P0 per molecule passed for N₂ at 450 nm, the ratios between colours and molecules the true ones (capped at RY.cap);
+   ultra-realistic mode keeps the true rate (σ over the 0.6 Å strip's area: about 10⁻¹⁰ a molecule passed). Each
+   molecule is tried once a photon, after its absorption; a scattered photon counts one level of the photon's chain
+   (rayInteract's depth: past 3 it does not interact again). */
+const RY = { P0: 0.01, Eref: 2.7552, aref: 1.74, cap: 0.5, n: 0, tried: 0 }; // (Eref: hc/450 nm, eV; aref: N₂'s mean polarizability, Å³)
+const RY_ATOM = { 1: 0.667, 2: 0.205, 10: 0.396, 18: 1.64, 36: 2.48, 54: 4.04, 86: 5.3, 6: 1.76, 7: 1.10, 8: 0.802, 9: 0.557, 17: 2.18, 35: 3.05, 53: 5.35 }; // (lone atoms, Å³; CRC, from memory)
+const RY_HBARC = 1973.27; // (ħc, eV·Å)
+const _ryT = new Float64Array(6), _ryA = new Float64Array(6);
+/* The molecule's (or the lone atom's) tensor, as the 3-D one (xx, xy, xz, yy, yz, zz), into _ryT; false if none. */
+function ryTensor(p) {
+  _ryT.fill(0);
+  if (p.bonds.length) {
+    const atoms = molecule(p);
+    if (atoms.length <= 200) { for (const a of atoms) if (pdAlpha(a, _ryA)) for (let k = 0; k < 6; k++) _ryT[k] += _ryA[k]; }
+    else { let s = 0; for (const a of atoms) s += (PD_ATOM[a.Z] || 0) * PD_F; _ryT[0] = _ryT[3] = _ryT[5] = s; } // (a large lump: its atoms' share, isotropic)
+    if (!W.d3) _ryT[5] = (_ryT[0] + _ryT[3]) / 2;
+  } else {
+    const a = p.ionic || p.q ? PD_ION[p.Z + ',' + p.q] || 0 : RY_ATOM[p.Z] || PD_ATOM[p.Z] || 0;
+    _ryT[0] = _ryT[3] = _ryT[5] = a;
+  }
+  return _ryT[0] + _ryT[3] + _ryT[5] > 0;
+}
+/* The chance that a photon of energy E, polarized ε, passing p's molecule scatters there; with the dipole d into out[3..5]. */
+function ryChance(p, E, ex, ey, ez, out) {
+  if (!ryTensor(p)) return 0;
+  const T = _ryT, dx = T[0] * ex + T[1] * ey + T[2] * ez, dy = T[1] * ex + T[3] * ey + T[4] * ez, dz = T[2] * ex + T[4] * ey + T[5] * ez;
+  out[3] = dx; out[4] = dy; out[5] = dz;
+  const d2 = dx * dx + dy * dy + dz * dz;
+  if (W.ultra) { const k = E / RY_HBARC; return Math.min(1, (8 * Math.PI / 3) * k * k * k * k * d2 / (Math.PI * 0.36)); } // (the true cross section over the strip's area)
+  const f = W.d3 ? d2 / (RY.aref * RY.aref) : (d2 - 0.5 * (dx * dx + dy * dy)) / (0.75 * RY.aref * RY.aref); // (the mean of |d⊥|² over the directions it can go, against N₂'s for unpolarized light: in the flat game round the plane)
+  const r = E / RY.Eref;
+  return Math.min(RY.cap, RY.P0 * r * r * r * r * f);
+}
+const _ryD = [0, 0, 0, 0, 0, 0];
+/* rayInteract's question for p: a hit object (the photon's line ends at h, the scattered photon goes on from p) or null.
+   seen: the molecules already tried for this photon. */
+function ryTry(p, E, ux, uy, uz, pol, depth, seen, h) {
+  const key = p.mol || -p.id - 1; if (seen.has(key)) return null; seen.add(key);
+  let ex, ey, ez;
+  if (pol) { ex = pol[0]; ey = pol[1]; ez = pol[2] || 0; } else { const e = polRand(ux, uy, uz); ex = e[0]; ey = e[1]; ez = e[2]; }
+  RY.tried++;
+  const P = ryChance(p, E, ex, ey, ez, _ryD);
+  if (!(P > 0) || !(rnd() < P)) return null;
+  const dx = _ryD[3], dy = _ryD[4], dz = _ryD[5];
+  h.p = p; h.after = () => ryScatter(p, E, dx, dy, dz, depth);
+  return h;
+}
+/* The scattered photon: a direction drawn with weight |d|² − (d·n̂)² (in the plane, round the circle, in the flat game),
+   its polarization d's part across it. */
+function ryScatter(p, E, dx, dy, dz, depth) {
+  if (p.dead) return;
+  const d2 = dx * dx + dy * dy + dz * dz;
+  let nx = 1, ny = 0, nz = 0;
+  for (let k = 0; k < 64; k++) {
+    if (W.d3) { const u = rndDir(); nx = u[0]; ny = u[1]; nz = u[2]; } else { const a = rnd() * 2 * Math.PI; nx = Math.cos(a); ny = Math.sin(a); nz = 0; }
+    const dn = dx * nx + dy * ny + dz * nz;
+    if (rnd() * d2 <= d2 - dn * dn) break;
+  }
+  RY.n++;
+  const dn = dx * nx + dy * ny + dz * nz; let px = dx - dn * nx, py = dy - dn * ny, pz = dz - dn * nz; const L = Math.hypot(px, py, pz) || 1; px /= L; py /= L; pz /= L;
+  emitPhoton(p.x, p.y, E, nx, ny, { depth: depth + 1, src: p, cont: true, uz: nz, pol: RP.pol ? [px, py, pz] : undefined });
+}
+
 /* ---- threads.js ---- */
 /* ============================================================================
    Atom Forge — worker threads for the nucleus pair forces
@@ -27706,6 +27785,7 @@ function capDone(T, lbl, gh, x, y, z, gs) { // (the capture's log and counts, it
      axis at an angle α from the plane; a photon passes with probability (ε·â)², â the axis's part across the ray (Malus's
      law, cos²), and leaves polarized along â; else it is absorbed. */
 RP.pol = false; // (Experimental → Realistic particles → Photon polarization; ui.js applySettings)
+RP.ray = false; // (Experimental → Realistic particles → Rayleigh scattering, 1.27: pold.js ryTry)
 /* A random linear polarization across the direction (ux, uy, uz): flat, ψ uniform between p̂ = (uy, −ux, 0) and ẑ. */
 function polRand(ux, uy, uz) {
   if (!W.d3) { const a = rnd() * Math.PI, c = Math.cos(a); return [uy * c, -ux * c, Math.sin(a)]; }
@@ -40072,6 +40152,7 @@ Object.assign(SET_DEF, { rpRes: false, rpNuc: false }); // (Realistic particles 
 SET_DEF.rpCpm = false; // (Experimental → Realistic particles: charged particles in matter, 1.27: hep.js RP.cpm)
 SET_DEF.cpmX = 1; SET_OK.cpmX = [1, 1000, 1000000]; // (Realistic particles → Matter depth: its rare processes sped up, hep.js RP.cpmX, 1.27 item 26)
 Object.assign(SET_DEF, { rpPol: false }); // (Realistic particles 7, 1.27: photon polarization and Klein–Nishina, hep.js RP.pol)
+Object.assign(SET_DEF, { rpRay: false }); // (Realistic particles, 1.27 feature 22: Rayleigh scattering, pold.js RP.ray)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
@@ -40090,6 +40171,7 @@ SET_EXP.push('rpRes', 'rpNuc'); EXP_NAME.rpRes = 'resonance widths and heavy fla
 SET_EXP.push('rpCpm'); EXP_NAME.rpCpm = 'charged particles in matter'; // (1.27)
 SET_EXP.push('cpmX'); EXP_NAME.cpmX = 'matter depth'; // (1.27 item 26)
 SET_EXP.push('rpPol'); EXP_NAME.rpPol = 'photon polarization'; // (1.27)
+SET_EXP.push('rpRay'); EXP_NAME.rpRay = 'Rayleigh scattering'; // (1.27)
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -40177,6 +40259,7 @@ function applySettings() {
   RP.cpm = !!SET.rpCpm; // (charged particles in matter, 1.27)
   RP.cpmX = SET.cpmX; // (its rare processes sped up: Matter depth, 1.27 item 26)
   RP.pol = !!SET.rpPol; // (Realistic particles 7, 1.27)
+  RP.ray = !!SET.rpRay; // (Rayleigh scattering, 1.27)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   pdOn(SET.qeq && SET.pold ? 1 : 0); // (polarizability by direction: induced dipoles in place of the charge flow, with induced charges on, 1.27)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
@@ -40302,6 +40385,7 @@ function syncSettings() {
   $('setRpPs').checked = SET.rpPs; $('setRpMu').checked = SET.rpMu; $('setRpCpm').checked = SET.rpCpm; setSegValue('segCpmX', String(SET.cpmX)); // (1.27; Matter depth, item 26)
   $('setRpRes').checked = SET.rpRes; $('setRpNuc').checked = SET.rpNuc; // (1.27)
   $('setRpPol').checked = SET.rpPol; // (1.27)
+  $('setRpRay').checked = SET.rpRay; // (1.27)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -40349,6 +40433,7 @@ const COSTS = {
   setRpRes: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A resonance\u2019s mass is one draw, and a charm or bottom pair a few more particles in the collisions that make one (the pion beam 9.4 against 10.0 ms a step, the RHIC collider 2.1 against 2.0: the noise of a shared machine)'] }),
   setRpNuc: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step (the chain reaction 0.70 against 0.68 ms a step). A decay or capture with measured lines sends a few photons instead of one; after an NMR pulse the spins turn each step, 0.04 ms for liquid water\u2019s 160 protons (×1.1 at most)'] }),
   setRpPol: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A Compton event takes 0.2–0.3 ms either way (its Klein–Nishina angles about 1 µs of it), a photon through a prism 15–45 µs either way. Where γ rays scatter in matter their electrons come out slower, as in nature, and ionize a little more: liquid water with five γ rays a step 42–49 against 44–52 ms a step (the noise of a shared machine)'] }),
+  setRpRay: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A visible photon crossing liquid water takes 31–36 µs against 15–24 (each molecule it passes asked once)'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
@@ -40400,6 +40485,7 @@ const COSTS3 = {
   setRpRes: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step; the same draws as the flat game'] }),
   setRpNuc: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step (40 thermal neutrons in liquid water 44.5 against 44.6 ms a step); after an NMR pulse 0.05 ms a step for 686 protons (×1.01)'] }),
   setRpPol: () => ({ k: 'physics', on: ['×1–2', 'Measured in 3-D on one thread (1.27): nothing where no γ ray scatters. Where γ rays scatter in matter, Klein–Nishina sends them forward and their electrons come out slower, as in nature, so these stop in the box and set more electrons free (liquid water with five γ rays a step: 66 ionizations against 27 in 100 steps, 81–97 against 138–206 ms a step)'] }),
+  setRpRay: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step. A visible photon crossing liquid water takes 34–41 µs against 21–22'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
@@ -40443,6 +40529,7 @@ const REAL = {
   segCpmX: ['1', 'Nature\u2019s rates: bremsstrahlung and Cherenkov light as rare as a nanometre of matter makes them (1.27)'],
   setRpCpm: [true, 'Fast charged particles lose their energy collision by collision, knock out δ-rays, give off bremsstrahlung and Cherenkov light, and γ rays make pairs, at the measured rates (1.27)'],
   setRpPol: [true, 'Photons carry their polarization, and Compton scattering follows Klein–Nishina, as in nature (1.27)'],
+  setRpRay: [true, 'Light is scattered by molecules, blue most, as in nature (1.27)'],
 };
 function syncReal() {
   for (const id in REAL) {
@@ -40464,6 +40551,7 @@ EXP_SET.setRpExo = 'rpExo'; // (1.27)
 EXP_SET.setRpPs = 'rpPs'; EXP_SET.setRpMu = 'rpMu'; EXP_SET.setRpCpm = 'rpCpm'; EXP_SET.segCpmX = 'cpmX'; // (1.27; Matter depth, item 26)
 EXP_SET.setRpRes = 'rpRes'; EXP_SET.setRpNuc = 'rpNuc'; // (1.27)
 EXP_SET.setRpPol = 'rpPol'; // (1.27)
+EXP_SET.setRpRay = 'rpRay'; // (1.27)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -40498,6 +40586,7 @@ function expSummary() {
   if (SET.rpCpm) on.push('charged particles in matter'); // (1.27)
   if (SET.cpmX !== 1) on.push(`matter depth ×${SET.cpmX.toLocaleString('en-US')}`); // (1.27 item 26)
   if (SET.rpPol) on.push('photon polarization'); // (1.27)
+  if (SET.rpRay) on.push('Rayleigh scattering'); // (1.27)
   if (!on.length) return 'Experimental: all normal';
   const t = expTotal(), x = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
   return `Experimental: ${on.join(', ')} (${x} the normal work)`;
@@ -40515,6 +40604,7 @@ function syncExpTotal() {
   names.setRpPs = 'positronium'; names.setRpMu = 'muonium as hydrogen'; names.setRpCpm = 'charged particles in matter'; names.segCpmX = 'matter depth'; // (1.27; item 26)
   names.setRpRes = 'resonance widths and heavy flavour'; names.setRpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
   names.setRpPol = 'photon polarization'; // (1.27)
+  names.setRpRay = 'Rayleigh scattering'; // (1.27)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -40652,6 +40742,7 @@ const SDESC = {
   setRpRes: ['Resonance widths and heavy flavour', 'A resonance (ρ, ω, φ, K*, Δ, J/ψ, Υ) gets its own mass, drawn from the relativistic Breit–Wigner of its measured width (a ρ⁰ anywhere from 280 MeV up, 775 MeV at the peak, about 150 MeV wide at half height), and decays from that mass. A hadron collision above the charm threshold makes charm (D⁰, D⁺, D⁺s, Λc⁺) and bottom (B, B⁰s, Λb⁰), now and then a J/ψ or an Υ, at the measured share of the collisions (about 1 in 70 at 200 GeV, 1 in 9 at 7 TeV for charm). They live 0.2–1.6 ps: at their speed they fly micrometres to millimetres, far out of the box, unless decay is sped up. Experimental: off again each time the game starts. Since 1.27 nucleus–nucleus collisions make charm and bottom by their nucleon–nucleon collisions, and e⁺e⁻ near the Z feels the beams\u2019 own radiation (the Z peak 30.5 nb, as measured, not 41.5) and makes W pairs with the W⁻ forward along the electron.'],
   setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'Each nucleus has its measured spin and magnetic moment (¹H ½ and 2.79 μN): Inspect shows them, and in a magnetic field the spin precesses at the Larmor frequency (42.58 MHz per tesla for ¹H; Inspect\u2019s NMR pulse measures it). Nuclei left excited after a decay, capture or reaction give off their measured γ lines (⁶⁰Co: 1,173 and 1,332 keV; ¹³⁷Cs: 662 keV from ¹³⁷ᵐBa; capture on hydrogen 2,224 keV), with conversion electrons where large and isomers that wait their half-lives (⁹⁹ᵐTc 6 h). Neutrons react at their measured cross sections (1/v below about 1 eV, the big resonances): at true size (Ultra-realistic) the rates themselves, in the normal view what a hit does. Experimental: off again each time the game starts.'],
   setRpPol: ['Photon polarization', 'Every photon carries its polarization, the direction its electric field swings across its path. In the flat game that is in the plane, across it (out of the screen), or between. The Light tool and lasers give polarized light (choose in the plane, across it, or unpolarized); lamps, atoms, hot walls and nuclei give unpolarized light; the two 511 keV γ rays of an electron and positron annihilating are polarized at right angles to each other. Compton scattering follows the Klein–Nishina formula: at low energies forward and back as much as sideways (1 + cos²θ), at MeV energies mostly forward, the scattered photon with E′ = E/(1 + (E/511 keV)(1 − cos θ)), and least along its polarization (none at 90° for light polarized in the plane, at low energies). Mirrors keep the polarization; a prism\u2019s faces reflect a few percent of the light by Fresnel\u2019s laws, and at Brewster\u2019s angle (58° for its glass) only light polarized across the plane; the Objects tool gets a polarizer (Malus\u2019s law, cos²). Inspect shows a photon\u2019s polarization. Not carried: circular polarization; the pair\u2019s quantum entanglement (each pair is a definite perpendicular pair here, which gives a weaker correlation between them than nature\u2019s). Experimental: off again each time the game starts. Since 1.27 the two photons of π⁰ → γγ and η → γγ are polarized at right angles too, and ⁶⁰Co\u2019s two γ rays (1,173 and 1,332 keV, with Nuclear spin, γ lines on) leave with their measured angular correlation, 1.17 times as likely back to back as at right angles.'], // (1.27)
+  setRpRay: ['Rayleigh scattering', 'Light that cannot ionize is scattered by molecules and atoms, as their electrons swing with its field: blue light (400 nm) 9.4 times as often as red (700 nm), the reason the sky is blue. A molecule scatters as much as the square of its polarizability (benzene about 35 times nitrogen), forward and back twice as much as sideways, and light scattered at right angles comes out polarized. Shown made visible, about 1 photon in 100 a nitrogen molecule passed at 450 nm; with ultra-realistic mode the true rate, which in a box this small is almost never (a photon crosses about 80 km of air before it scatters).'], // (1.27)
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
    on which mode you're in ... There should also be 3d pictures in 3d mode"). While the world is 3-D (W.d3) the pane takes
@@ -40698,6 +40789,7 @@ const SDESC3 = {
   setRpRes: ['Resonance widths and heavy flavour', 'As in the flat game, in all three directions: a resonance gets its own mass from its measured width, and hadron collisions above the charm threshold make charm and bottom hadrons at their measured share. Experimental: off again each time the game starts. Since 1.27 nucleus–nucleus collisions make charm and bottom by their nucleon–nucleon collisions, and e⁺e⁻ near the Z feels the beams\u2019 own radiation (the Z peak 30.5 nb, as measured, not 41.5) and makes W pairs with the W⁻ forward along the electron.'],
   setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'As in the flat game, in all three directions: nuclear spins and moments (Inspect, the Larmor precession in a field along the Lab\u2019s axis), measured γ lines and isomers, neutrons at their measured cross sections. Experimental: off again each time the game starts.'],
   setRpPol: ['Photon polarization', 'As in the flat game, in all three directions: photons carry a polarization at right angles to their path, the Light tool and lasers polarized (vertical, horizontal or unpolarized), the two γ rays of an e⁺e⁻ annihilation at right angles to each other, and Compton scattering by Klein–Nishina, the photon leaving least along its polarization. The placed optics (mirrors, prisms, the polarizer) are in the flat game only. Experimental: off again each time the game starts. Since 1.27 the two photons of π⁰ → γγ and η → γγ are polarized at right angles too, and ⁶⁰Co\u2019s two γ rays (1,173 and 1,332 keV, with Nuclear spin, γ lines on) leave with their measured angular correlation, 1.17 times as likely back to back as at right angles.'], // (1.27)
+  setRpRay: ['Rayleigh scattering', 'As in the flat game, in all three directions: light that cannot ionize is scattered by molecules and atoms, blue 9.4 times as often as red, forward and back twice as much as sideways (1 + cos²θ), fully polarized at right angles. Each molecule scatters by its own polarizability tensor (polarizability by direction): a long or flat one (CO₂, benzene) depolarizes a little. Made visible; true with ultra-realistic mode (almost never).'], // (1.27)
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
 const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
@@ -40929,6 +41021,7 @@ function settingsInit() {
   bindSeg('segCpmX', (v) => setSetting('cpmX', +v)); // (Matter depth, 1.27 item 26)
   $('setRpRes').onchange = (e) => setSetting('rpRes', e.target.checked); $('setRpNuc').onchange = (e) => setSetting('rpNuc', e.target.checked); // (1.27)
   $('setRpPol').onchange = (e) => { setSetting('rpPol', e.target.checked); if (UI.tool === 'light' || UI.tool === 'objects') buildToolOpts(); }; // (1.27: the Light tool's polarization and the polarizer show with it)
+  $('setRpRay').onchange = (e) => setSetting('rpRay', e.target.checked); // (1.27)
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');
