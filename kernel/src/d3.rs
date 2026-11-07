@@ -58,7 +58,7 @@ pub unsafe fn pair_kernel3(c: &mut Ctx, s: &St, s3: &St3, q0: usize, q1: usize, 
         if rd(s.anti, i) != rd(s.anti, j) { f = anti_pair_i(c, s, i, j, r, cq, &mut nc); }
         else if ni > 0 && nj > 0 { // two atoms or ions (atomAtom)
             let qi = rd(s.q, i); let qj = rd(s.q, j); let qa = qi + rd(s.qp, i); let qb = qj + rd(s.qp, j);
-            if qa != 0.0 && qb != 0.0 { let s2 = r * r + 0.09; let ii = rd(s.ionic, i); let iw = if ii != rd(s.ionic, j) && (if ii == 1 { qj == 0.0 } else { qi == 0.0 }) { K_IW } else { 1.0 }; f += iw * K_COUL * qa * qb * r / (s2 * s2.sqrt()); }
+            if qa != 0.0 && qb != 0.0 { let s2 = r * r + 0.09; f += K_COUL * qa * qb * r / (s2 * s2.sqrt()); } // (no K_IW in 3-D: an ion has its real shell of six waters there, engine.js iwK, 1.27 bug 1)
             if rd(s.ismetal, i) == 1 && rd(s.ismetal, j) == 1 { f += metal_fi(c, s, i, j, r); }
             else {
                 f += lj_fi(c, s, i, j, r, qa, qb);

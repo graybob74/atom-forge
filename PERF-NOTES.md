@@ -320,6 +320,12 @@ engine stores and visits particles.
   hadron collisions at its σ/σ_inel (as ewDraw), e⁺e⁻ → ZH above 216 GeV (as the W pairs); about a session. Waits for
   the owner's "build it".
 
+- Measured noble-gas wells (not built; found by 1.27 bug 1): UFF's van der Waals wells for He–Xe differ from the
+  measured ones (Ar 8.0 meV against 10.3, Xe 14.3 against 19.0; He 2.4 against 0.95, from memory), so neither the flat
+  game's doubling nor factor 1 gives real gases in 3-D (argon's B₂ at 300 K −28 doubled, +10 at 1, measured −15.6
+  cm³/mol). Per-element measured wells (and radii) for 3-D, re-checking water, the 3-D objects and pictures. A physics
+  change; waits for the owner.
+
 ## 1.26 (in progress)
 
 ### 1.26: combined (branch v136)
@@ -2911,6 +2917,65 @@ No network here: every value marked "from memory" below is worth a check against
   with heavy flavour on in central Pb + Pb at 2.76 TeV, where the plasma's hadrons reach 1,500 even in Cu + Cu at 2.76
   TeV: 2–3 e off in one event); a bookkeeping fix (their charge to ledger.qOut), left for a bug-fix session. The scan's
   "measured σ" counts Z → hadrons only (γ* → hadrons, under 1% at the peak, is not counted).
+
+### 1.27: bug 1 (3-D van der Waals)
+
+Branch fix127-01-3d-vdw (from v145). Approved physics (the owner's list, 2026-11-06); after the measurements below the
+owner chose to change the ion–water pull only ("pick b"). Check: tests/f_fix01.js (t_features, one line; `node
+tests/f_fix01.js [--node] [part …]`): pull, forces, shell; "pull" and "shell" fail on v145 ({"flat":2,"d3":2}; 6.74
+waters), "forces" (WebAssembly against JavaScript against the energy's slope) failed on this branch until GitHub rebuilt
+the kernel (0.789 against 0.390 eV/Å).
+
+- **What was wrong.** Two flat-world boosts were on in 3-D: the Coulomb pull between a free ion and a polar molecule's
+  partial charges doubled (K_IW 2), and the van der Waals wells doubled (LJ_SCALE 2). Both make up for a plane's fewer
+  neighbours; in 3-D an ion has its real shell.
+- **What the measurements showed first** (Node, JavaScript kernels, before = v145):
+  - Argon's wall-pressure Z of 0.48 (and helium's 0.84–0.89) was mostly the measurement, not the wells. f_sweep3d's run
+    is 8 ps from a grid 5 Å inside the walls, and wallPressure averages every block since the start: heavy atoms have not
+    reached the walls yet. Same 20,000 steps, seed 4: He 0.84, Ne 0.55, Ar 0.29, Xe 0.03; argon with its wells switched
+    off entirely 0.27. Run 300,000 steps with the first 50,000 left out: v145 He 1.048 ± 0.016, Ar 0.991 ± 0.029, Xe
+    0.921 ± 0.04; wells at factor 1: He 1.061, Ar 1.039 ± 0.032, Xe 1.021.
+  - Exact second virial coefficients from the game's own pair energy (pairPE, 3-D, 300 K, cm³/mol), doubled → factor 1,
+    against measured (from memory, Dymond and Smith's tables: check): He 3.8 → 5.7 (11.8), Ne 13.6 → 16.3 (11.3), Ar −28.1
+    → +9.9 (−15.6), Kr −47.6 → +8.2 (−51), Xe −132.6 → −13.8 (−130). UFF's noble-gas wells are shallower than measured
+    (Ar 8.0 meV against 10.3, Kr 9.5 against 14.1, Xe 14.3 against 19.0, from memory), so the doubled wells are nearer the
+    real gases than UFF's own.
+  - Water (343 waters as a droplet in a 60 Å box, bath 300 K, 3,000 + 4,000 steps, the middle 6 Å): v145 1.005 g/cm³,
+    −0.425 eV a molecule between molecules; wells at factor 1: 1.033 and −0.437 (real 0.997; about −0.43, from memory).
+    water3d's O–O first peak 3.05 Å → 2.85 (real 2.8). The "14–18% too dense" of 1.26 was with the 9 Å reach and lone
+    pairs; with the usual settings 3-D water was 0.8% dense.
+  - Salt water (brine3d, 3,000 + 2,000 steps, seed 4): see the table.
+- **What changed** (the owner's choice: the ion–water pull only). In 3-D the pull is plain Coulomb: engine.js `iwK` (the
+  energies pairNonbondedV, coulAA, the pair energies of events), pairKernel3 (the worker runs the same function),
+  sites.js (sitePairE and the sites' force loop), af_qeq's P[10] (the induced charges), and kernel/src/d3.rs af_forces3
+  (rebuilt by the wasm.yml workflow, b811a4b). The flat kernels, lib.rs and K_IW itself are unchanged; LJ_SCALE stays 2
+  in both modes (comment at setSize).
+  Texts (body.html): the Physics tab's "In the 3-D lab" card now names one flat correction still on (the wells), and
+  Honest approximations' "Ions in water pull twice as hard" says it is the flat game only.
+
+| brine3d, 3-D | v145 | after (K_IW 1) | wells and pull at 1 (not chosen) | real |
+|---|---|---|---|---|
+| Na⁺–O first peak | 2.15 Å | 2.25 Å | 2.15 Å | 2.36–2.43 Å |
+| waters within 3.1 Å of Na⁺ | 7.17 | 5.50 | 5.48 | 5.5–6 |
+| Cl⁻–O first peak | 2.85 Å | 2.95 Å | 2.95 Å | 3.1–3.2 Å |
+| waters within 3.8 Å of Cl⁻ | 10.08 | 8.93 | 8.41 | about 6–7 |
+| Cl⁻–H first peak | 1.95 Å | 2.05 Å | 2.05 Å | 2.2–2.3 Å |
+
+  Real values as in 1.23.2's notes (from memory). Water without ions is unchanged (the pull acts only between an ion and
+  a molecule). With the WebAssembly kernel the after column is the same to the digit.
+- **Fingerprints** (tools/fingerprint.js, every setup, seed 7, 300 steps, switches off): every flat setup bit for bit
+  v145's; of the 3-D setups only brine3d changes (eafbc634 → 2367f60e, books unchanged: the only 3-D setup with free
+  ions beside water). Cost: none (a factor removed).
+- Suites: t_lint, t_energy, t_3d, t_physics, t_molecules, t_wasm, f_sweep3d pass; tools/runtests.sh 22 of 22 (t_features
+  with f_fix01 included); after the text change f_sweep3d physText and t_lint again.
+- **Left for the owner.** (1) The noble-gas wells: neither factor is right (doubled −28 against −15.6 cm³/mol for argon,
+  factor 1 +10); measured wells per element would be a physics change (written down under "Planned features (1.x)"). (2) f_sweep3d
+  "pressure" and Data's "vs ideal gas" average from the moment the conditions change, so a heavy gas started on a grid
+  reads far below 1 for its first tens of picoseconds (argon 0.29 at 8 ps, 0.99 settled); the check passes on helium, not
+  changed. (3) Cl⁻ keeps too many waters (8.9 against 6–7) and every ion sits 0.1–0.2 Å too close: the ions' own size
+  (ljR = 2 × ionic radius), as 1.23.2 found.
+
+### 1.27: W and Z bosons (electroweak)
 
 Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
 (2026-11-06, "Just add it", after an explanation of electroweak unification); approved physics. Always on, no switch:

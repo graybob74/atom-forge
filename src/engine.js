@@ -387,7 +387,7 @@ function setSize(p) {
     p.ljR = 2 * p.ionR; p.ljE = 0.02;
     p.rd = Math.max(0.28, 0.6 * p.ionR);
   } else {
-    p.ljR = el.uffR; p.ljE = el.uffD * LJ_SCALE;
+    p.ljR = el.uffR; p.ljE = el.uffD * LJ_SCALE; // (kept doubled in 3-D too: UFF's own noble-gas wells are shallower than measured, argon's B₂(300 K) +10 cm³/mol against −16 real, doubled −28; the owner chose to keep it, 1.27 bug 1)
     p.rd = 0.3 + 0.28 * el.rc;
   }
   if (p.polarH) { p.ljR = 1.2; p.ljE = 0.002; }
@@ -1702,9 +1702,11 @@ const K_COUL = PHYS.KE; // (the pair kernel's Coulomb constant as a plain name, 
    a Na⁺ and a Cl⁻ in water never parted and salt never dissolved (measured: a 36-ion crystal kept every ion for
    100 ps, an ion pair stayed touching). Doubled, the energy an ion gets from its shell is about what it gets in real
    water, a lone pair parts and stays parted by a layer of water, and a crystal loses its corner and edge ions within
-   tens of picoseconds and goes on dissolving. Energy is conserved as before (the potential is doubled with the force). */
+   tens of picoseconds and goes on dissolving. Energy is conserved as before (the potential is doubled with the force).
+   The flat game only (1.27 bug 1): in 3-D an ion has its real shell, and with the doubling brine3d's Na⁺ held 7.2 waters
+   within 3.1 Å (real 5.5–6), Cl⁻ 10.1 within 3.8 (real 6–7); without it 5.5 and 8.9. */
 const K_IW = 2;
-const iwK = (a, b) => (a.ionic !== b.ionic && (a.ionic ? b.q === 0 : a.q === 0) ? K_IW : 1);
+const iwK = (a, b) => (a.ionic !== b.ionic && (a.ionic ? b.q === 0 : a.q === 0) && !W.d3 ? K_IW : 1); // (3-D: an ion has its six waters, no doubling: pairKernel3, sites.js, af_qeq's P[10] and af_forces3 likewise, 1.27 bug 1)
 /* Stiffest close contact this step, as curvature over reduced mass (1/tu²): chooseDt keeps ω·dt small there,
    so hard collisions are integrated as accurately as gentle ones. */
 let _stiff = 0, _stiffL = 0, _passL = 0, _lepEvOff = false;
@@ -2273,7 +2275,7 @@ function pairKernel3(pi, pj, ex, q0, q1, FXo, FYo, FZo, CQ, nc0, wrap, bw, bh, b
     if (ANTI[i] !== ANTI[j]) { _kN = nc; f = antiPairI(i, j, r, CQ, nc); nc = _kN; }
     else if (ni > 0 && nj > 0) { // two atoms or ions (atomAtom)
       const qi = Q[i], qj = Q[j], qa = qi + QP[i], qb = qj + QP[j];
-      if (qa !== 0 && qb !== 0) { const s2 = r * r + 0.09; f += (IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? qj === 0 : qi === 0) ? K_IW : 1) * K_COUL * qa * qb * r / (s2 * Math.sqrt(s2)); } // (K_IW: an ion and a polar molecule)
+      if (qa !== 0 && qb !== 0) { const s2 = r * r + 0.09; f += K_COUL * qa * qb * r / (s2 * Math.sqrt(s2)); } // (no K_IW in 3-D: an ion has its real shell there, 1.27 bug 1)
       if (ISM[i] === 1 && ISM[j] === 1) f += metalFI(i, j, r);
       else {
         f += ljFI(i, j, r, qa, qb);
@@ -8293,7 +8295,7 @@ function qeqPairsWasm() {
   const A = [VL.pi, VL.pj, QB.mark, S.k, S.Z, S.dead, S.fast, S.rad, S.mol, S.id, S.x, S.y, S.z, S.q, S.qp, S.ne, S.anti, S.ionic, _exl, _exlN, QB.pa, QB.pb, QB.pc, QB.q0];
   if (!wasmIn(...A)) return -1;
   const T = QB.t, P = QB.p; for (let k = 0; k < 24; k++) T[k] = A[k].byteOffset;
-  P[0] = VL.np; P[1] = W.wall === 'wrap' ? 1 : 0; P[2] = W.box.w; P[3] = W.box.h; P[4] = W.box.d; P[5] = W.d3 ? 1 : 0; P[6] = _lrOn ? 1 : 0; P[7] = RC; P[8] = RC2; P[9] = PHYS.KE; P[10] = K_IW; P[11] = BARE_SMEAR; P[12] = EXW; P[13] = QB.pa.length;
+  P[0] = VL.np; P[1] = W.wall === 'wrap' ? 1 : 0; P[2] = W.box.w; P[3] = W.box.h; P[4] = W.box.d; P[5] = W.d3 ? 1 : 0; P[6] = _lrOn ? 1 : 0; P[7] = RC; P[8] = RC2; P[9] = PHYS.KE; P[10] = W.d3 ? 1 : K_IW; P[11] = BARE_SMEAR; P[12] = EXW; P[13] = QB.pa.length;
   WK.ex.af_qeq(T.byteOffset, P.byteOffset);
   if (P[14] > QB.pa.length) return -1; // (cannot happen: at most one a pair of the list)
   QB.calls++;

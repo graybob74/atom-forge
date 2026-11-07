@@ -1798,6 +1798,7 @@ const { openPage } = require('./browser');
   await alone('f_127w.js'); // 1.27 feature 19: photons as waves (node tests/f_127w.js [--node] [part …])
   await alone('f_127m.js'); // 1.27 feature 20: the band's shape for the close-packed metals (node tests/f_127m.js [part …])
   await alone('f_ui127.js'); // (after 1.26: right-click stops measuring a particle; Shift + wheel sets a tool's radius)
+  await alone('f_fix01.js'); // 1.27 bug 1: no ion–water doubling in 3-D (node tests/f_fix01.js [--node] [part …])
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

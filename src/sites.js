@@ -159,7 +159,7 @@ function sitePairE(a, b, sa, sb, dx, dy, dz, grad, ga, gb, goa, gob, dq) {
   const r2 = dx * dx + dy * dy + dz * dz;
   if (r2 >= RC2) return 0;
   const r = Math.sqrt(r2), qa = a.q + a.qp, qb = b.q + b.qp;
-  const k = PHYS.KE * ((a.ionic !== b.ionic && (a.ionic ? b.q === 0 : a.q === 0)) ? K_IW : 1);
+  const k = PHYS.KE * iwK(a, b); // (as the kernels: no doubling in 3-D, 1.27 bug 1)
   const r1 = RC - SW_W; let sw = 1, dsw = 0;
   if (r > r1) { const x = (r - r1) / SW_W; sw = 1 - x * x * x * (10 - 15 * x + 6 * x * x); dsw = -30 * x * x * (1 - x) * (1 - x) / SW_W; }
   const na = sa.ns, nb = sb.ns;
@@ -230,7 +230,7 @@ function sitesForces(FX, FY, FZ) {
     if (r2 >= RC2) continue;
     npairs++;
     if (ring) { const r = Math.sqrt(r2); piLJ(OBJ[i], OBJ[j], r); const f = _pl[1] / r; FX[i] += f * dx; FY[i] += f * dy; FX[j] -= f * dx; FY[j] -= f * dy; if (d3) { FZ[i] += f * dz; FZ[j] -= f * dz; } if (ki < 0 && kj < 0) continue; }
-    const qa = Q[i] + QP[i], qb = Q[j] + QP[j], k = K_COUL * ((IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? Q[j] === 0 : Q[i] === 0)) ? K_IW : 1);
+    const qa = Q[i] + QP[i], qb = Q[j] + QP[j], k = K_COUL * ((IONIC[i] !== IONIC[j] && (IONIC[i] === 1 ? Q[j] === 0 : Q[i] === 0) && !d3) ? K_IW : 1); // (3-D: no doubling, 1.27 bug 1)
     const r = Math.sqrt(r2); let sw = 1, dsw = 0;
     if (r > r1) { const x = (r - r1) / SW_W; sw = 1 - x * x * x * (10 - 15 * x + 6 * x * x); dsw = -30 * x * x * (1 - x) * (1 - x) / SW_W; }
     const ks = k * sw, s0 = r2 + SOFT_S, g0 = 1 / Math.sqrt(s0);
