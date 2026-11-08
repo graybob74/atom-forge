@@ -332,7 +332,7 @@ engine stores and visits particles.
   electrons still free at 1 µs, the same in both modes (today 3-D recaptures 34 of 40 in 2 fs, flat runs away to 140).
   A physics change; waits for the owner.
 
-## 1.26 (in progress)
+## 1.26 (released inside 1.27.0)
 
 ### 1.26: combined (branch v136)
 
@@ -1991,7 +1991,9 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.27 (in progress)
+## 1.27.0: all of 1.26 (directional forces, GFN2 quantum bonds, metals' compounds and directional metals) and 1.27 (realistic particles, W, Z and Higgs bosons, polarizability by direction, Rayleigh scattering, unstable particles meeting, photons as waves, close-packed metals, two controls), 18 bug fixes
+
+Released 2026-11-07 from v157 (the owner: "release"); 1.26 was never released on its own and ships inside it.
 
 ### 1.27: realistic particles 1 (exotic atoms) and the Settings section
 
