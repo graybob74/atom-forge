@@ -145,6 +145,8 @@ PARTS.pbar = async (page, check, say) => {
     X.forcesNoEvents(); W.fSpawn = W.spawned;
     const E0 = books(X), r0 = W.rays.length, l0 = W.log.length; let s = 0;
     for (; s < 2000 && !pb.dead; s++) go(X, 1, 0.005);
+    // 1.28.3: beside hydrogen the p̄ is caught as protonium, which goes round for 1 ps (PN_T) before it cascades and annihilates
+    for (let k = 0; k < 4000 && W.exo.some(o => o.sp === 'Pn' && !o.dead); k++) go(X, 1, 0.05);
     const t = W.log.slice(l0).map(l => l.text).join(' ');
     r[el] = { gone: pb.dead, L: W.rays.slice(r0).some(q => Math.abs(q.E - 1735) < 2), text: el === 'H' ? /Protonium \(p̄p\)/.test(t) : /Antiprotonic carbon/.test(t), mesons: /π/.test(t), books: +(books(X) - E0).toExponential(1) };
   }
