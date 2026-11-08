@@ -2871,6 +2871,9 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 47 muonic atoms "don't do much": they don't collide, can't be grabbed, look very tiny (grabbing is a bug; how big they
    are drawn and what they collide with touch the physics, the owner's OK);
 48 positronium: the electron and positron don't visibly go round each other (they sit still) or meet.
+49 every exotic particle (muonic atoms, muonium, positronium, hypernuclei, hadrons, antimatter atoms, …) checked: it
+   interacts with the other particles where nature has it do so, it can be grabbed, and it has an info panel (an audit
+   of each kind; any new interaction is a physics change, the owner's OK).
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
