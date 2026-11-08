@@ -17212,6 +17212,9 @@ function choleskyInverse(S, n) {
 // rows then run along memory); the operations and their order are exactly tred2/tql2's on V. Only the lower triangle
 // of A is read. With rows = true the eigenvectors are left as rows instead (V[k*n+i] = component i of vector k).
 function symEig(V, n, rows = false) {
+  // (Atom Forge, 1.28.2: in the page, the module's copy of this solver, af_sym_eig, the same to the bit; XQ_EIG is
+  // the page's (bo.js) and returns null when the module is not there, as in these tools)
+  if (typeof XQ_EIG === 'function') { const r = XQ_EIG(V, n, rows); if (r) return r; }
   const d = new Float64Array(n), e = new Float64Array(n);
   const T = V;
   for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) { const t = T[i * n + j]; T[i * n + j] = T[j * n + i]; T[j * n + i] = t; }
@@ -17604,6 +17607,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     // solve H1 C = S C e: A = Li H1 Li^T, A Y = Y e, C = Li^T Y
     // (the products below are sums over k in increasing k, as dot products of rows: H1, S and P are exactly symmetric,
     // and the zero terms that a loop could skip add nothing)
+    if (!(typeof XQ_TRANS === 'function' && XQ_TRANS(Li, H1, W, A, nao))) { // (Atom Forge, 1.28.2: in the page, the module's copy of these two products, to the bit)
     for (let m = 0; m < nao; m++) {                                  // W = Li H1, its lower triangle (all that A needs)
       const wm = m * nao;
       for (let n = 0; n <= m; n++) { const hn = n * nao; let v = 0; for (let k = 0; k <= m; k++) v += Li[wm + k] * H1[hn + k]; W[wm + n] = v; }
@@ -17612,6 +17616,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       let v = 0; for (let k = 0; k <= n; k++) v += W[m * nao + k] * Li[n * nao + k];
       A[m * nao + n] = v; A[n * nao + m] = v;
     }
+    }
     emo = symEig(A, nao, true);                                      // A: the eigenvectors Y as rows
     // occupations: one set of orbitals, alpha and beta filled separately
     const fa = fermiFilling(nel[0], kt, emo), fb = fermiFilling(nel[1], kt, emo);
@@ -17619,13 +17624,15 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     for (let k = 0; k < nao; k++) focc[k] = fa[k] + fb[k];
     const C = W;                                                     // C = Li^T Y, only the columns of orbitals holding anything
     let ncol = 0; for (let k = 0; k < nao; k++) if (focc[k] !== 0) ncol = k + 1;
-    for (let m = 0; m < nao; m++) {
+    let nkW = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nkW = k + 1;
+    const viaW = typeof XQ_DENS === 'function' && XQ_DENS(LiT, A, C, Ct, P, focc, nao, ncol, nkW); // (Atom Forge, 1.28.2: C, Cf and P in the module, to the bit)
+    if (!viaW) for (let m = 0; m < nao; m++) {
       const cm = m * nao;
       for (let n = 0; n < ncol; n++) { const yn = n * nao; let v = 0; for (let k = m; k < nao; k++) v += LiT[cm + k] * A[yn + k]; C[cm + n] = v; }
       for (let n = ncol; n < nao; n++) C[cm + n] = 0;
     }
     const ts = entropyTerm(fa, kt) + entropyTerm(fb, kt);
-    {                                                                // P = sum_k f_k C_k C_k^T, over orbitals holding anything
+    if (!viaW) {                                                     // P = sum_k f_k C_k C_k^T, over orbitals holding anything
       let nk = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nk = k + 1;
       const Cf = Ct;                                                 // Cf_mk = C_mk f_k (0 for the orbitals left out)
       for (let m = 0; m < nao; m++) for (let k = 0; k < nk; k++) Cf[m * nao + k] = focc[k] > 1e-15 ? C[m * nao + k] * focc[k] : 0;
@@ -20638,6 +20645,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       H1[m * nao + n] = H0[m * nao + n] - 0.5 * S[m * nao + n] * (vao[m] + vao[n]) - 0.5 * (wq[n * nao + m] + wq[m * nao + n]);
     mixer.set(pack(qsh, dp, qp, mv));
     // solve H1 C = S C e (as gfn1.js)
+    if (!(typeof XQ_TRANS === 'function' && XQ_TRANS(Li, H1, W, A, nao))) { // (Atom Forge, 1.28.2: in the page, the module's copy, to the bit)
     for (let m = 0; m < nao; m++) {
       const wm = m * nao;
       for (let n = 0; n <= m; n++) { const hn = n * nao; let v = 0; for (let k = 0; k <= m; k++) v += Li[wm + k] * H1[hn + k]; W[wm + n] = v; }
@@ -20646,6 +20654,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       let v = 0; for (let k = 0; k <= n; k++) v += W[m * nao + k] * Li[n * nao + k];
       A[m * nao + n] = v; A[n * nao + m] = v;
     }
+    }
     emo = symEig(A, nao, true);
     const ktn = AN ? ktAt(iscf - 1) : kt;
     const fa = fermiFilling(nel[0], ktn, emo), fb = fermiFilling(nel[1], ktn, emo);
@@ -20653,13 +20662,15 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     for (let k = 0; k < nao; k++) focc[k] = fa[k] + fb[k];
     const C = W;
     let ncol = 0; for (let k = 0; k < nao; k++) if (focc[k] !== 0) ncol = k + 1;
-    for (let m = 0; m < nao; m++) {
+    let nkW = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nkW = k + 1;
+    const viaW = typeof XQ_DENS === 'function' && XQ_DENS(LiT, A, C, Ct, P, focc, nao, ncol, nkW); // (Atom Forge, 1.28.2: in the module, to the bit)
+    if (!viaW) for (let m = 0; m < nao; m++) {
       const cm = m * nao;
       for (let n = 0; n < ncol; n++) { const yn = n * nao; let v = 0; for (let k = m; k < nao; k++) v += LiT[cm + k] * A[yn + k]; C[cm + n] = v; }
       for (let n = ncol; n < nao; n++) C[cm + n] = 0;
     }
     const ts = entropyTerm(fa, ktn) + entropyTerm(fb, ktn);
-    {
+    if (!viaW) {
       let nk = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nk = k + 1;
       const Cf = Ct;
       for (let m = 0; m < nao; m++) for (let k = 0; k < nk; k++) Cf[m * nao + k] = focc[k] > 1e-15 ? C[m * nao + k] * focc[k] : 0;
@@ -22365,6 +22376,44 @@ function qmPhi(mem, phi) {
       else if (lr && isLR(p)) phi[m] += PHYS.KE * qx(o, p) / Math.sqrt(r2);
     }
   }
+}
+/* Quantum bonds' eigen-solver in the module (1.28.2, item 54): gfn1.js's symEig asks here first (GFN1, GFN2 and the
+   spin channels all use it). The matrix is copied into the module's memory, solved there by af_sym_eig (the same
+   algorithm, line for line: the same eigenvalues and eigenvectors to the bit), and copied back. null (the JavaScript
+   solves it) with no module. XQW.on: off for the tests' comparisons. */
+const XQW = { on: true, n: 0, V: null, d: null, e: null, calls: 0 };
+function XQ_EIG(V, n, rows) {
+  if (!XQW.on || !wasmReady() || typeof WK.ex.af_sym_eig !== 'function') return null;
+  if (XQW.n < n) { XQW.V = wasmArray(Float64Array, n * n); XQW.d = wasmArray(Float64Array, n); XQW.e = wasmArray(Float64Array, n); XQW.n = n; }
+  if (!WK.on || !wasmIn(XQW.V, XQW.d, XQW.e)) { XQW.n = 0; return null; }
+  const M = XQW.V; M.set(V.subarray(0, n * n));
+  const r = WK.ex.af_sym_eig(M.byteOffset, n, rows ? 1 : 0, XQW.d.byteOffset, XQW.e.byteOffset);
+  if (r !== 0) throw new Error('eigensolver did not converge');
+  V.set(M.subarray(0, n * n)); XQW.calls++;
+  return XQW.d.slice(0, n);
+}
+/* And the SCC's products before and after it (af_xq_trans: W = Li·H1, A = W·Liᵀ; af_xq_dens: C, Cf and the density P),
+   the same sums in the same order: copied in, done there, copied out (an n² copy against n³ work). */
+function xqMats(n, k) {
+  if (!XQW.M || XQW.mn < n) { XQW.M = []; for (let i = 0; i < 5; i++) XQW.M.push(wasmArray(Float64Array, n * n)); XQW.f = wasmArray(Float64Array, n); XQW.mn = n; }
+  if (!WK.on || !wasmIn(...XQW.M, XQW.f)) { XQW.mn = 0; XQW.M = null; return null; }
+  return XQW.M;
+}
+function XQ_TRANS(Li, H1, W, A, n) {
+  if (!XQW.on || !wasmReady() || typeof WK.ex.af_xq_trans !== 'function') return false;
+  const M = xqMats(n); if (!M) return false; const nn = n * n;
+  M[0].set(Li.subarray(0, nn)); M[1].set(H1.subarray(0, nn)); M[2].set(W.subarray(0, nn)); M[3].set(A.subarray(0, nn));
+  WK.ex.af_xq_trans(M[0].byteOffset, M[1].byteOffset, M[2].byteOffset, M[3].byteOffset, n);
+  W.set(M[2].subarray(0, nn)); A.set(M[3].subarray(0, nn)); XQW.calls++;
+  return true;
+}
+function XQ_DENS(LiT, A, C, Ct, P, focc, n, ncol, nk) {
+  if (!XQW.on || !wasmReady() || typeof WK.ex.af_xq_dens !== 'function') return false;
+  const M = xqMats(n); if (!M) return false; const nn = n * n;
+  M[0].set(LiT.subarray(0, nn)); M[1].set(A.subarray(0, nn)); M[2].set(C.subarray(0, nn)); M[3].set(Ct.subarray(0, nn)); M[4].set(P.subarray(0, nn)); XQW.f.set(focc.subarray(0, n));
+  WK.ex.af_xq_dens(M[0].byteOffset, M[1].byteOffset, M[2].byteOffset, M[3].byteOffset, M[4].byteOffset, XQW.f.byteOffset, n, ncol, nk);
+  C.set(M[2].subarray(0, nn)); Ct.set(M[3].subarray(0, nn)); P.set(M[4].subarray(0, nn)); XQW.calls++;
+  return true;
 }
 function qmPass(forces) {
   const mem = [];
