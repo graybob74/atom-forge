@@ -1991,6 +1991,64 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.28.3 (not released): the owner's items 52–54 ("build it, and make sure everything is done correctly")
+
+### 54 Quantum bonds faster, the same results to the bit
+
+Profile (a hydronium and five waters, 19 atoms, GFN1): the eigen-solver (symEig: Householder, then QL) 43%, the SCC's
+matrix products (W = Li·H1, A = W·Liᵀ, C = Liᵀ·Y, P = Cf·Cᵀ) about 30%, the integrals 15%. The solver and the four
+products are now in the module (kernel/src/xq.rs: af_sym_eig, af_xq_trans, af_xq_dens), line for line as the
+JavaScript (the same sums in the same order, hypot2 as written, no fused multiply-adds), called from gfn1.js and
+gfn2.js through hooks (XQ_EIG, XQ_TRANS, XQ_DENS in bo.js; tools/xtb's own checks run without them and still match
+tblite). Results the same to the bit: tools/xqbench.js (positions after 20–100 steps and the quantum energy, module
+against JavaScript) and t_wasm 1d (GFN1, GFN2 and spin-polarized GFN1, 12 steps each, every position equal).
+ms a step, JavaScript → module: GFN1 19 atoms 7.63 → 4.19 (flat), 6.49 → 4.52 (3-D); GFN1 40 atoms 283.6 → 131.4;
+GFN2 19 atoms 29.1 → 20.5; GFN2 40 atoms 212.5 → 130.6: 1.4–2.2×. What was not done, and why:
+- (1) "Do less work": each step already starts from the last step's charges (qsh0, since 1.22), and the density
+  already uses only the orbitals holding anything. Solving for only those orbitals (bisection and inverse iteration)
+  would save about half of the solver's time but gives eigenvectors equal only to rounding, not to the bit; the
+  owner asked for the same results, so it was left out.
+- (3) Threads: the quantum region is one calculation (every quantum atom in one SCC, charge flowing between
+  molecules), so it cannot be split by molecule without changing the physics; the matrices (50–110 orbitals) are too
+  small for the threads' hand-over to pay within one solve.
+- Where GFN2's time goes now: D4's three-body term and the gradient's P·S products (about a third), the integrals,
+  the garbage collector; each another port with exp or pow inside, which the module cannot match to the bit.
+
+### 53 Protonium seen
+
+A slow p̄ (under 2 keV relative) meeting a hydrogen atom, with Realistic particles → Exotic atoms on, was caught,
+cascaded and annihilated in one event. Now (flat; antimatter is flat-only) it is caught as protonium, Pn, an
+unstable particle in W.exo: its mass the pair's less its binding at n = 30 (13.9 eV, which frees the atom's electron;
+the rest leaves as a photon, closeEvent), so the books close exactly. It goes round for 1 ps of simulated time (the
+cascade's time in a liquid; in a gas it is longer), drawn as the p̄ and the p on a dashed orbit that shrinks level by
+level from n = 30 (0.52 Å, n²·0.000577 Å) to n = 2; then pnAnnih: the cascade's X-ray lines (n = 30 → 2, xaLevel) and
+the annihilation's mesons (mesonBurst), its rest mass back from the nuclear ledger. Grab, Inspect (its orbit now,
+the time to its annihilation, the info box) and saves work; a protonium from a save or an undo starts its 1 ps again.
+Energy through capture, flight and annihilation within 10⁻⁴ eV. Deterministic: it runs on simulated time. On the
+way: a protonium (0.5 eV, 0.7 Å/tu) flew out of the box, so it bounces off the walls as the other exotic atoms do.
+
+### 52 Pentaquarks and the hexaquark candidate
+
+New unstable particles at their measured masses and widths (mean life ħ/Γ), as resonances: Pc(4312)⁺ (4311.9 MeV,
+Γ 9.8), Pc(4440)⁺ (4440.3, 20.6), Pc(4457)⁺ (4457.3, 6.4), u u d c c̄, decaying to J/ψ p; Pcs(4338)⁰ (4338.2, 7.0),
+u d s c c̄, to J/ψ Λ; their antiparticles; and d*(2380)⁺ (2380 MeV, Γ 70, baryon number 2), u u u d d d, to d π π,
+n p π π, n p π and n p (the measured channels' shares, rounded). Made where LHCb saw them: Λb⁰ → Pc⁺ K⁻ (about 10⁻⁶
+each) and B⁻ → Pcs⁰ p̄ (about 10⁻⁷): so rare that a run will almost never show one; the palette has a "Pentaquarks
+and hexaquarks" group to place them (Lab → Time → "Let the shortest-lived show" holds them long enough to see). The
+particle view draws a pentaquark as its charmed baryon and charmed meson side by side (the "molecule" reading), the
+d* as one bag of six; cards with "Made of", a short symbol and the info box. Not made: the d* in neutron–proton
+collisions (placed from the palette only), and its antiparticle.
+Every setup at normal settings is 1.28.2's to the bit (fingerprints, 59 setups). Tests: f_1283 (protonium, penta;
+both fail on 1.28.2), t_wasm 1d.
+
+## 1.28.2: hotfix for 1.28.1's desktop app
+
+1.28.1's release commit left out build.js's new line for src/info.js (the commits named src, tests, desktop and
+dist, not the files at the top), so the desktop app, built on main from build.js, had no info.js: the periodic
+table's element card and every Inspect card stopped on EL_INFO / infoKeyP not being defined. The page sent with the
+release had been built here with the line and was right. Now build.js has it, the version is 1.28.2, and the release
+steps commit with `git add -A` from the top of the tree (git status shown empty before the release commit).
+
 ## 1.28.1: the owner's items 45–51 (info with Read more, Grab for every particle and throwing, exotic atoms and positronium drawn, muonic hydrogen off any nucleus, the muon in the particle view) and two bug fixes (a save's speed, saving with electrons as waves)
 
 ### 1.28.1: the owner's items 45–51 ("build 45-51, test and release when done as 1.28.1")
@@ -2890,7 +2948,8 @@ Order, to spend the owner's limited usage well: the small ones first in one sess
 (21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
 Done since: 21 (branch v150 from v145, 2026-11-06: "1.27: feature 21 (polarizability by direction)"); 22 (branch v151
 from v150: "1.27: feature 22 (Rayleigh scattering)"); 25 (branch v152 from v151: "1.27: feature 25 (the Higgs boson)"); 24 (branch v153 from v152: "1.27: feature 24 (unstable
-particles meet each other)"); 19 (branch v154 from v153: "1.27: feature 19 (photons as waves)"); 20 (branch v155 from v154: "1.27: feature 20 (close-packed metals)").
+particles meet each other)"); 19 (branch v154 from v153: "1.27: feature 19 (photons as waves)"); 20 (branch v155 from v154: "1.27: feature 20 (close-packed metals)"); 52–54 (branch v161, 1.28.3: pentaquarks and the d*, protonium seen, quantum bonds faster; 53 runs on
+simulated time, 1 ps, not a picture, and 54 did (2) only: see the 1.28.3 section).
 The owner (2026-11-06): the WebAssembly speed-ups go to the next version (1.28), as one pass over everything that could use
 one: 33–38 above, and polarizability by direction's update and force pass (pold.js pdUpdate, pdForces: ×1.2–4.2 on top
 of the induced charges, the most in 3-D at every step), and the close-packed metals' band shape (bometal.js mb4Pass:
