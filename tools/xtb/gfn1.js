@@ -864,6 +864,9 @@ function choleskyInverse(S, n) {
 // rows then run along memory); the operations and their order are exactly tred2/tql2's on V. Only the lower triangle
 // of A is read. With rows = true the eigenvectors are left as rows instead (V[k*n+i] = component i of vector k).
 function symEig(V, n, rows = false) {
+  // (Atom Forge, 1.28.2: in the page, the module's copy of this solver, af_sym_eig, the same to the bit; XQ_EIG is
+  // the page's (bo.js) and returns null when the module is not there, as in these tools)
+  if (typeof XQ_EIG === 'function') { const r = XQ_EIG(V, n, rows); if (r) return r; }
   const d = new Float64Array(n), e = new Float64Array(n);
   const T = V;
   for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) { const t = T[i * n + j]; T[i * n + j] = T[j * n + i]; T[j * n + i] = t; }
