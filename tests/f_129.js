@@ -94,6 +94,28 @@ PARTS.eaq = async (page, check) => {
   check(ok(out.flat) && ok(out.d3), `1.29 (59) hydrated electrons, flat and 3-D: formed, handed back beside H₂O⁺ and captured, a 720 nm photon absorbed, each with exact books; diffusion ${out.flat.D}× and ${out.d3.D}× the measured 4.9×10⁻⁵ cm²/s`, '1.29 hydrated electrons: ' + JSON.stringify(out));
 };
 
+/* 61. The d*(2380) in neutron–proton collisions: a bump at √s 2350–2410 MeV (about 6% of the inelastic events near its
+   peak), none 5 widths away; the books exact. 1.28.3 never made one. */
+PARTS.dstar = async (page, check) => {
+  const out = {};
+  for (const d3 of [false, true]) for (const far of [false, true]) {
+    const X = load('all', { seed: 7 }), W = X.W; X.PRESETS[d3 ? 'd3empty' : 'empty'].build(); W.gamma = 0;
+    const B = () => X.totalEnergy().total - W.ledger.nuc, mN = X.nucMeV(0, 1), mP = X.nucMeV(1, 0);
+    let n = 0, made = 0, worst = 0;
+    for (let k = 0; k < 300; k++) {
+      for (const p of W.parts) X.kill(p); W.parts = []; W.exo = []; X.forcesNoEvents();
+      const p = X.addNuc(1, 0, 0, 0, 0, 0, 0, false, 0), nn = X.addNuc(0, 1, 0, -0.01, 0, 0, 0, false, 0), rs = (far ? 2800 : 2380) + (k % 7 - 3) * 10;
+      X.setMotion(nn, (rs * rs - mN * mN - mP * mP - 2 * mN * mP) / (2 * mP) * 1e6, 1, 0, 0, 0, 0); X.forcesNoEvents();
+      const P = X.add4(X.p4of(nn, true), X.p4of(p, true)), M = X.mass4(P), b = B(), c0 = W.count.dstar || 0;
+      if (X.nnInelastic(nn, p, 0, 0, P, M)) { n++; X.forcesNoEvents(); worst = Math.max(worst, Math.abs(B() - b)); }
+      if ((W.count.dstar || 0) > c0) made++;
+    }
+    out[(d3 ? '3d' : 'flat') + (far ? 'Far' : '')] = { n, made, worst: +worst.toExponential(1) };
+  }
+  const ok = out.flat.made >= 9 && out.flat.made <= 30 && out['3d'].made >= 9 && out['3d'].made <= 30 && !out.flatFar.made && !out['3dFar'].made && Object.values(out).every(r => r.worst < 1e-4);
+  check(ok, `1.29 (61) the d*(2380) made in np collisions near √s 2380 MeV (${out.flat.made} and ${out['3d'].made} of 300, flat and 3-D), none at 2800 MeV; books within ${Math.max(...Object.values(out).map(r => r.worst)).toExponential(0)} eV`, '1.29 d* in np: ' + JSON.stringify(out));
+};
+
 module.exports = async function f129(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

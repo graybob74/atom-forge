@@ -2050,6 +2050,17 @@ below 1 eV outside a cation's 3 Å, as 1.27 bug 8 found: the unscreened pull. Le
 is not in the forces), its reactions with OH, H, O₂ and another e⁻(aq) (measured rates; they need radical chemistry), its
 slow reaction with water itself (about 1 ms), and making the switch on by default (the owner's call). Test: f_129 eaq.
 
+### 61 The d*(2380) in neutron–proton collisions
+
+nnInelastic: for a free neutron on a free proton (isoscalar, charge 1) within 5 widths of 2380 MeV, a Breit–Wigner draw
+(Γ 70 MeV) with its share at the peak DSTAR_F = 1.7 mb of the 23 mb inelastic (σ(np → d π⁰π⁰) 0.27 mb at the peak and
+its partner channels; WASA-at-COSY 2011–2014, from memory, to be checked against the papers) makes the d*(2380)⁺ at the
+pair's mass, which then decays by its channels (1.28.3). Measured: 19 of 300 np reactions between √s 2350 and 2410 MeV
+flat, 12 in 3-D; none at 2800; books within 8×10⁻⁶ eV. No random number is drawn outside the bump, so no setup changes.
+The other half of the item, cascade X-rays for a muonic atom's new nucleus (1.27 bug 10's note), is not built: in
+nature the muon stays in its 1s orbit when its nucleus changes under it (the sudden change leaves it mostly in the
+lowest orbit, with no photon), which is what the game does; there is no cascade to show. Test: f_129 dstar.
+
 ### 55 Video recording removed
 
 The owner (2026-11-08): "can you remove the recording feature?". Lab → Record video, its time-lapse buttons, the REC

@@ -27871,12 +27871,21 @@ function nnTable(tab, M) {
 /* Just above the threshold one pion is made: p p → d π⁺ (most likely at first), p p π⁰, p n π⁺ (through the Δ
    resonance); higher up, the fireball's statistical decay (hadronize): more pions, kaons with a Λ or in pairs,
    η, and above 3.75 GeV antiprotons. */
+const DSTAR_F = 1.7 / 23; // (the d*'s share of np's inelastic cross section at its peak, 1.29 item 61)
 function nnInelastic(a, b, x, y, P, M) {
   const anti = !!a.anti, Q = a.Z + b.Z, Ex = M - nucMeV(a.Z, a.N) - nucMeV(b.Z, b.N);
   if (Ex < 140) return null;
   let toks = null;
   const hq = RP.res ? hfDraw(M, M, 2) : null; // (charm or bottom at their measured share of the inelastic cross section, Realistic particles 5, 1.27)
   const ew = ewDraw(M, M, 2, 'pp', p4of(a, true), p4of(b, true)); // (a W or Z above 82 GeV, 1.27)
+  // (1.29 item 61) The hexaquark candidate d*(2380) in neutron–proton collisions, as WASA-at-COSY saw it: a Breit–Wigner
+  // bump in the isoscalar np channels at √s = 2380 MeV (Γ 70), its share of the inelastic cross section at the peak about
+  // 1.7 mb of 23 (σ(np → d π⁰π⁰) 0.27 mb and its isospin partners and pn ππ channels; from memory of the WASA papers,
+  // 2011–2014, to be checked). Away from the bump (more than 5 widths) no number is drawn, so nothing else changes.
+  if (!hq && !ew && !anti && Q === 1 && a.Z + a.N === 1 && b.Z + b.N === 1 && !a.ne && !b.ne && XP.dstar && Math.abs(M - XP.dstar.m) < 5 * XP.dstar.w) {
+    const g = XP.dstar.w / 2, u = M - XP.dstar.m;
+    if (rnd() < DSTAR_F * g * g / (u * u + g * g)) { W.count.dstar = (W.count.dstar || 0) + 1; return doReaction(a, b, [{ t: 'x', sp: 'dstar', m: M - 1e-6 }], P, M, x, y, 'prod', `√s = ${fmtE(M * MEV)}: the d*(2380) dibaryon`); }
+  }
   if (!hq && !ew && (Ex < 290 || rnd() > clamp((Ex - 290) / 500, 0, 0.85))) {
     const D = 0.15 + 3.5 * clamp((Ex - 200) / 350, 0, 1), dw = 2.0 * Math.exp(-Ex / 250); // (measured: d π⁺ leads below ~400 MeV, the Δ (p n π⁺) above)
     const C = Q === 2 ? [[dw, ['d', 'pi+']], [0.5, ['p', 'p', 'pi0']], [D, ['p', 'n', 'pi+']]]
