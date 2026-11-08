@@ -1991,6 +1991,15 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.29.0 (not released): the owner's items 55–63
+
+### 55 Video recording removed
+
+The owner (2026-11-08): "can you remove the recording feature?". Lab → Record video, its time-lapse buttons, the REC
+badge and the code behind them (REC, recMime, recCapture, recStart, recStop, recInit; the frame loop's call) are gone.
+The gallery's picture keeps layersInto (its layers over the chamber, 1.26 sweep 14). Tests: t_features' video check now
+checks it is gone; f_sweep3d's part 13 (a recorded frame's alignment) removed.
+
 ## 1.28.3 (not released): the owner's items 52–54 ("build it, and make sure everything is done correctly")
 
 ### 54 Quantum bonds faster, the same results to the bit
@@ -3014,6 +3023,18 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    Hamiltonian build and the integrals in the module (kernel, SIMD where it helps), checked against the JavaScript;
    (3) separate quantum molecules on separate worker threads. Expected 2–4× together. Not (4), fewer full
    evaluations with extrapolation in between (changes results).
+
+55 remove video recording (the owner, 2026-11-08). Done in 1.29.0.
+56 3-D light meets atoms: rayInteract returns at once in 3-D; photoelectric absorption, Compton and Rayleigh
+   scattering and line absorption in 3-D, as in the flat game (the owner's OK: "do all of those items", 2026-11-08).
+57 antimatter in 3-D: antiatoms, positronium and protonium, and annihilation, in the 3-D lab.
+58 delayed neutrons: β⁻n from fission products (measured emission probabilities), so a reactor's k has its delayed part.
+59 the solvated electron e⁻(aq): a slow free electron in water settles into a cavity, bound ~1.7 eV (its 720 nm band).
+60 ionized water over thousands of steps (the known limit): find what lets the plasma run away and fix it.
+61 the d*(2380) made in neutron–proton collisions at its energy; cascade X-rays for the newer exotic levels.
+62 quantum bonds, a "faster, not identical" switch (occupied orbitals only: results equal to rounding, not to the bit).
+63 challenges / guided experiments: goals checked by the game (reach criticality, make protonium, build caffeine, …).
+(The owner also named sharing and CSV export: both exist already, share codes and the gallery, the graph's Export CSV.)
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the

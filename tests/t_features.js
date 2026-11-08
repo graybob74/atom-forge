@@ -211,15 +211,9 @@ const { openPage } = require('./browser');
   });
   check(/muonic atom/.test(r13.ar.fate || '') && r13.ar.bound === 1 && r13.cat.fusions >= 3 && r13.cat.worst < 1e-3 && /fusion no\. [3-9]/.test(r13.cat.last) && r13.proj,
     `muons: a 6 keV μ⁻ slows in argon and is caught (${r13.ar.fate}); in D–T it catalysed ${r13.cat.fusions} fusions in a row, each event exact to ${r13.cat.worst.toExponential(0)} eV; the Fire tool fires μ⁻`, 'muons: ' + JSON.stringify(r13));
-  // a video: four seconds of the running chamber recorded at 4×, made into a file
-  const r3 = await page.evaluate(async () => {
-    loadPreset('water'); setRunning(true); let saved = null; const keep = fileSave;
-    fileSave = async (name, b, type) => { saved = { name, size: b.size, type }; return true; }; // eslint-disable-line no-func-assign
-    REC.speed = 4; recStart(); await new Promise((r) => { setTimeout(r, 4000); }); const n = REC.frames.length;
-    await recStop(); fileSave = keep; setRunning(false); REC.speed = 1; // eslint-disable-line no-func-assign
-    return { mime: recMime(), n, saved };
-  });
-  check(!r3.mime || (r3.n >= 5 && r3.saved && r3.saved.size > 10000 && /\.(webm|mp4)$/.test(r3.saved.name)), `video: ${r3.n} frames at 4× → ${r3.saved ? r3.saved.name + ', ' + Math.round(r3.saved.size / 1024) + ' KB' : 'no recorder here'}`, 'video: ' + JSON.stringify(r3));
+  // 1.29 item 55: video recording removed at the owner's request (no button, no badge, no code)
+  const r3 = await page.evaluate(() => ({ btn: !!document.getElementById('bRec') || !!document.getElementById('segRec') || !!document.getElementById('recBadge'), code: typeof recStart !== 'undefined' || typeof REC !== 'undefined' }));
+  check(!r3.btn && !r3.code, 'video recording removed (1.29, the owner)', 'video recording still there: ' + JSON.stringify(r3));
   check(r2.share.err === null && r2.share.same && r2.share.junk && r2.share.dialog, `share code: water in ${r2.share.len} characters (JSON ${r2.share.json}), back exactly; junk refused; the dialog makes one`, 'share code: ' + JSON.stringify(r2.share));
   check(r2.local && r2.ai, 'explain: the setup\'s notes without Claude; with Claude the question carries what the panels show', 'explain: ' + JSON.stringify(r2));
   const s = r.spec;

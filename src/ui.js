@@ -2893,85 +2893,13 @@ function shareInit() {
   let h = ''; try { h = decodeURIComponent(location.hash || ''); } catch (e) { h = ''; }
   if (h.startsWith('#' + SHARE_PREFIX)) setTimeout(() => shareOpen(h).then((e) => { if (e) log('tool', `The link's world could not be opened: ${e}`); }), 0);
 }
-/* Video: the chamber as the viewer sees it (background, GL and overlay canvases), a frame every 1/30 s of watching ×
-   the speed-up while the simulation runs, kept as JPEGs (at most REC.MAX: two minutes of video); on Stop they are
-   played into a MediaRecorder at 30 frames a second (WebM, or MP4 where that is what the browser makes) and saved. */
-const REC = { on: false, speed: 1, frames: [], last: 0, pend: 0, cv: null, t0: 0, MAX: 3600, busy: false };
-function recMime() {
-  if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) return '';
-  for (const m of ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4']) if (MediaRecorder.isTypeSupported(m)) return m;
-  return '';
-}
 /* The chamber's canvas layers (under the WebGL layer, the WebGL layer, the overlay) drawn into a w × h picture: each
    layer's part over the chamber, as it is seen (1.26 sweep: the WebGL layer reaches 64 px past the chamber on each side,
    and drawn whole it was shrunk toward the middle, its atoms off their labels and bonds by up to 40 px at the edges, in
-   recorded videos and gallery pictures). Call it right after render(): the WebGL layer keeps no copy of its frame. */
+   gallery pictures). Call it right after render(): the WebGL layer keeps no copy of its frame. */
 function layersInto(ctx, w, h) {
   const base = $('cv').getBoundingClientRect();
   for (const id of ['cvbg', 'cvgl', 'cv']) { const c = $(id); if (c && c.width && !c.hidden && c.style.display !== 'none') try { const r = c.getBoundingClientRect(), kx = c.width / Math.max(1, r.width), ky = c.height / Math.max(1, r.height); ctx.drawImage(c, (base.left - r.left) * kx, (base.top - r.top) * ky, base.width * kx, base.height * ky, 0, 0, w, h); } catch (e) { /* (a canvas that cannot be read) */ } }
-}
-function recSize() { const c = $('cv'), k = Math.min(1, 1280 / Math.max(1, c.width)); return [Math.max(2, Math.round(c.width * k / 2) * 2), Math.max(2, Math.round(c.height * k / 2) * 2)]; }
-function recCapture() {
-  if (!UI.running) return;
-  if (UI.vis - REC.last < REC.speed / 30 - 1e-4) return;
-  REC.last = UI.vis;
-  if (REC.pend > 6) return; // (the JPEG encoder is behind: skip a frame rather than pile up)
-  const [w, h] = recSize(), cv = REC.cv || (REC.cv = document.createElement('canvas'));
-  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-  const ctx = cv.getContext('2d');
-  ctx.fillStyle = getComputedStyle($('cv').parentNode).backgroundColor || '#000'; ctx.fillRect(0, 0, w, h);
-  layersInto(ctx, w, h);
-  const i = REC.frames.length; REC.frames.push(null); REC.pend++;
-  cv.toBlob((b) => { REC.pend--; REC.frames[i] = b; }, 'image/jpeg', 0.85);
-  recShow();
-  if (REC.frames.length >= REC.MAX) recStop();
-}
-function recShow() {
-  const n = REC.frames.length, s = n / 30, t = `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-  $('recBadge').hidden = !REC.on && !REC.busy;
-  $('recBadge').textContent = REC.busy ? 'SAVING VIDEO' : `● REC ${t}${REC.speed > 1 ? ` (${REC.speed}×)` : ''}`;
-  $('bRec').textContent = REC.on ? `Stop and save (${t})` : 'Record video';
-  $('bRec').classList.toggle('go', REC.on);
-}
-function recStart() {
-  const mime = recMime();
-  if (!mime) { recNote('This browser cannot make videos (no MediaRecorder for canvases).'); return; }
-  REC.on = true; REC.frames = []; REC.last = -1; REC.pend = 0; REC.mime = mime; REC.preset = UI.preset;
-  recNote(`Recording${REC.speed > 1 ? ` a ${REC.speed}× time-lapse` : ''}: press Stop and save when done (at most ${REC.MAX / 30 / 60} minutes of video).${UI.running ? '' : ' It records once the simulation runs.'}`);
-  recShow();
-}
-function recNote(t) { const n = $('recNote'); n.hidden = !t; n.textContent = t || ''; }
-async function recStop() {
-  if (!REC.on) return; REC.on = false; REC.busy = true; recShow(); $('bRec').disabled = true;
-  try {
-    for (let i = 0; i < 100 && REC.pend > 0; i++) await new Promise((r) => { setTimeout(r, 30); });
-    const frames = REC.frames.filter(Boolean); REC.frames = [];
-    if (frames.length < 2) { recNote('Nothing was recorded: the simulation was paused.'); return; }
-    const first = await createImageBitmap(frames[0]), cv = document.createElement('canvas'); cv.width = first.width; cv.height = first.height; first.close();
-    const ctx = cv.getContext('2d'), stream = cv.captureStream(30), mr = new MediaRecorder(stream, { mimeType: REC.mime, videoBitsPerSecond: 6e6 }), chunks = [];
-    mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-    const done = new Promise(r => { mr.onstop = r; });
-    mr.start(1000);
-    const t0 = performance.now();
-    for (let i = 0; i < frames.length; i++) {
-      const bm = await createImageBitmap(frames[i]); ctx.drawImage(bm, 0, 0); bm.close();
-      const tr = stream.getVideoTracks()[0]; if (tr && tr.requestFrame) tr.requestFrame();
-      if (i % 15 === 0) recNote(`Making the video … ${Math.round(100 * i / frames.length)} % (it plays the frames through once: ${Math.ceil((frames.length - i) / 30)} s left)`);
-      const wait = t0 + (i + 1) * 1000 / 30 - performance.now(); if (wait > 0) await new Promise((r) => { setTimeout(r, wait); });
-    }
-    mr.stop(); await done; stream.getTracks().forEach(t => t.stop());
-    const type = REC.mime.split(';')[0], ext = type === 'video/mp4' ? 'mp4' : 'webm', blob = new Blob(chunks, { type });
-    const name = `atom-forge-${(REC.preset || 'world').replace(/[^a-z0-9-]/gi, '')}${REC.speed > 1 ? '-' + REC.speed + 'x' : ''}.${ext}`;
-    const ok = await fileSave(name, blob, type);
-    recNote(ok ? `Saved ${name}: ${(frames.length / 30).toFixed(1)} s of video, ${(blob.size / 1048576).toFixed(1)} MB.` : 'The video was not saved.');
-    if (ok) log('tool', `Video saved: ${name}`);
-  } catch (e) { recNote(`The video could not be made (${e && e.message || e}).`); }
-  finally { REC.busy = false; $('bRec').disabled = false; recShow(); }
-}
-function recInit() {
-  $('bRec').onclick = () => { if (REC.busy) return; if (REC.on) recStop(); else recStart(); };
-  bindSeg('segRec', (v) => { REC.speed = +v; if (REC.on) recShow(); });
-  if (!recMime()) { $('bRec').disabled = true; $('bRec').title = 'This browser cannot record the canvas as a video'; }
 }
 /* Gallery: worlds kept in this browser (localStorage: an index, and each world as its share code with a 240 px picture).
    A convenience for one viewer, so storage that may be missing or full is said so plainly. */
@@ -3318,7 +3246,7 @@ function bindLab() {
   for (const c of document.querySelectorAll('[data-view]')) c.onchange = () => { R.view[c.dataset.view] = c.checked; store('viewflags', JSON.stringify(R.view)); };
   $('bIdentify').onclick = () => { identifyMolecules(); };
   $('bSaveWorld').onclick = () => saveWorld(); $('bLoadWorld').onclick = () => loadWorld();
-  shareInit(); explainInit(); recInit(); askInit(); galInit();
+  shareInit(); explainInit(); askInit(); galInit();
   { const ib = $('tp-inspect'); // the quark view: drag a quark, pick a nucleon, put it back
     ib.addEventListener('pointerdown', (e) => { if (e.target.id === 'insQuarks') { qPointer(e, 'down'); if (QV.drag) e.target.setPointerCapture(e.pointerId); } });
     ib.addEventListener('pointermove', (e) => { if (QV.drag) qPointer(e, 'move'); });
@@ -4694,7 +4622,6 @@ function frame(now) {
       tf1 = performance.now();
       if (R.follow) { if (R.follow.dead) R.follow = null; else if (W.d3) cam3Follow(R.follow); else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
       render(W.rt);
-      if (REC.on) recCapture();
       tf2 = performance.now();
     } catch (err) { console.error(err); crashError(err, 'frame'); }
     if (UI.started) crashTick(now, performance.now() - tf0);

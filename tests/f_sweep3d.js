@@ -204,26 +204,6 @@ PARTS.selUndo = async (page, check, say) => {
 };
 PARTS.selUndo.page = true;
 
-/* 13. Lab → Record video drew each canvas layer whole into the frame; the WebGL layer (the atoms and bonds, in 3-D and in
-   the flat game) reaches 64 px past the chamber on each side, so in the video the atoms were shrunk toward the middle,
-   off their labels, rings and the box's front edges by up to ~40 px near the edges. Now each layer's part over the
-   chamber is drawn. A carbon atom put 150 px from the left edge: its colour where it is in the frame, before the
-   background there. */
-PARTS.recAlign = async (page, check, say) => {
-  const r = await page.evaluate(() => {
-    loadPreset('d3empty'); setRunning(false); setSetting('gl', 'gl');
-    cam3Fit(); const P = s2w3(150, R.h / 2), p = addAtom('C', P[0], P[1], { z: P[2] }); cam3Update();
-    const o = [0, 0, 0]; proj3(p.x, p.y, p.z, o);
-    const keep = { run: UI.running }; UI.running = true; REC.last = -1e9; REC.pend = 0; REC.frames = REC.frames || []; const n0 = REC.frames.length;
-    render(1); recCapture(); UI.running = keep.run; REC.frames.length = n0; REC.pend = 0; recShow && recShow();
-    const cv = REC.cv, k = cv.width / $('cv').width * R.dpr, d = cv.getContext('2d').getImageData(Math.round(o[0] * k), Math.round(o[1] * k), 1, 1).data;
-    return { gl: R.gl, at: [Math.round(o[0]), Math.round(o[1])], rgb: [d[0], d[1], d[2]] };
-  });
-  const lum = r.rgb[0] + r.rgb[1] + r.rgb[2];
-  check(!r.gl || lum > 150, `3-D sweep 13: a recorded frame has the atom where it is drawn (pixel at ${r.at}: rgb ${r.rgb})`, '3-D sweep recAlign: ' + JSON.stringify(r));
-};
-PARTS.recAlign.page = true;
-
 /* 14. The gallery's picture of a world (galThumb) took the layers the same way, after the frame was shown, when the
    WebGL layer's frame is gone: the atoms were missing or misplaced in the picture. Now it draws a frame and takes each
    layer's part over the chamber. */
