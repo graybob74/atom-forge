@@ -9109,11 +9109,25 @@ function hardMeet(a, b) {
   const dvx = bx / Mb - ax / Ma, dvy = by / Mb - ay / Ma, dvz = bz / Mb - az / Ma;
   return 0.5 * Ma * Mb / (Ma + Mb) * (dvx * dvx + dvy * dvy + dvz * dvz) > HARD_MEET;
 }
+/* (1.29 item 60) Two molecules (or atoms) whose net charges have the same sign do not join by a new covalent bond. The
+   force field leaves out the Coulomb energy of bonded and next-bonded atoms (it is in their bond parameters, for neutral
+   molecules), so a bond between two cations took away their repulsion, about 14 eV at a bond's length, and released it
+   as heat: H₂O⁺ + H₂O⁺ → H₄O₂²⁺ and so on, clusters up to H₁₈O₁₈²⁹⁺ that nothing pushed apart, whose wells pulled free
+   electrons in to tens and hundreds of eV, which ionized their neighbours: the ionized-water runaway (1.09's known limit).
+   In nature such dications break apart (Coulomb explosion); here they are not made. */
+function sameSignIons(a, b) {
+  let qa = 0, qb = 0;
+  for (const p of molecule(a)) qa += p.anti ? -p.q : p.q;
+  if (qa === 0) return false;
+  for (const p of molecule(b)) qb += p.anti ? -p.q : p.q;
+  return qa * qb > 0;
+}
 function evBond(a, b, r) {
   if (a.dead || b.dead || bondBetween(a, b) || a.bom || b.bom) return; // (continuous bond orders: no stored bond to a member)
   if (!(a.cap - a.used > 0 && b.cap - b.used > 0) || !covalentOK(a, b)) return;
   if (a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) return;
   if (hardMeet(a, b)) return;
+  if (IW.bond && sameSignIons(a, b)) return; // (1.29 item 60: two cations, or two anions, do not bond: see sameSignIons)
   const third = nearestThird(a, b, 6);
   if (!third && W.gamma === 0 && rnd() > 0.002) return; // nothing to carry the bond energy away
   const fa = speciesLabel(a), fb = speciesLabel(b);
@@ -9149,6 +9163,7 @@ const _rxTried = new Map();
 function evReact(X, A, rx, r) {
   if (X.dead || A.dead || rx.topo !== W.topo || X.bom || A.bom) return;
   if (!(X.cap - X.used > 0) || W.bonds.indexOf(rx.bd) < 0 || bondBetween(X, A)) return;
+  if (IW.bond && X.mol !== A.mol && sameSignIons(X, A)) return; // (1.29 item 60: two ions of one sign are not joined here either)
   const key = X.id * 131072 + A.id, last = _rxTried.get(key);
   if (last !== undefined && W.step - last < 30) return; // one test per encounter
   if (hardMeet(X, A)) return;
@@ -9277,7 +9292,7 @@ function evLepton(L, A, r) {
   const sg = A.anti ? -1 : 1;
   if (sg * A.q >= 1 && !cl) {
     const qt = sg * A.q;
-    const Etot = Erel - PHYS.KE * qt / Math.sqrt(r * r + A.sEN);
+    const Etot = Erel - PHYS.KE * qt / Math.sqrt(r * r + A.sEN) + (IW.local ? lepLocalPhi(L, A) : 0); // (1.29 item 60: bound in the wells of the charges round it too)
     // two-body binding ignores the neighbours' fields (continuum lowering), so require a clearly bound orbit; a lepton
     // whose last try could not be paid for waits a while (undoJoin)
     const may = !(L.capT > W.t);
@@ -9294,7 +9309,7 @@ function evLepton(L, A, r) {
     // Only the electron's energy relative to the atom counts: near an ion it has extra kinetic energy
     // borrowed from the ion's own Coulomb well, which cannot be spent on ionizing or exciting it.
     const qa = A.q;
-    const Eeff = Math.min(Erel, Erel + (qa ? PHYS.KE * L.q * qa / Math.sqrt(r * r + A.sEN) : 0));
+    const Eeff = Math.min(Erel, Erel + (qa ? PHYS.KE * L.q * qa / Math.sqrt(r * r + A.sEN) : 0) + (IW.local ? lepLocalPhi(L, A) : 0)); // (1.29 item 60: and the wells of the charges round it)
     const ie = ionizationCost(A);
     if (Eeff > ie) {
       const x = Eeff / ie, P = Math.min(0.8, 1.6 * Math.log(x) / x);
@@ -9303,7 +9318,20 @@ function evLepton(L, A, r) {
     const line = lineInfo(A);
     if (line && Eeff > line.thr && rnd() < 0.15) { lzNeed(); exciteByElectron(L, A, line, Eeff); return; }
   }
+  if (IW.vib && A.bonds.length && !L.rad && !L.wm) vibLoss(L, A); // (1.29 item 60)
   elasticScatter(L, A, Erel);
+}
+/* (1.29 item 60) A slow lepton striking an atom of a molecule sets its bonds vibrating now and then (H₂O: the bend
+   0.198 eV, the stretches 0.45; their excitation cross sections, a few 10⁻¹⁶ cm² from 1 to 10 eV, about a third of the
+   elastic, Itikawa and Mason 2005, from memory), losing that quantum to the molecule's motion: how electrons below the
+   ionization energy slow down in a liquid, in about a picosecond. Before, nothing slowed them but elastic recoil (a
+   ten-thousandth a collision), so they kept the energy the ions' wells gave them, and in ionized water they ran away. */
+function vibLoss(L, A) {
+  const ke = keOf(L), dq = rnd() < 0.6 ? 0.198 : 0.453;
+  if (!(ke > dq + 0.05) || !(rnd() < 0.3)) return;
+  const f = Math.sqrt((ke - dq) / ke); L.vx *= f; L.vy *= f; if (W.d3) L.vz *= f;
+  dumpHeat(dq, A, other(A.bonds[0], A));
+  W.count.vib = (W.count.vib || 0) + 1;
 }
 function lineInfo(A) {
   if (A.ne === 1 && A.Z <= 10) return { thr: 12.09 * A.Z * A.Z, hydrogenic: true };
@@ -9459,6 +9487,23 @@ function attach(L, A, Erel) {
   if (Eph > 0.05) emitPhoton(A.x, A.y, Eph, undefined, undefined, { src: A, depth: 2 });
   log('em', `${L.k === POS ? 'Positron' : 'Electron'} attachment: ${L.k === POS ? 'e⁺' : 'e⁻'} + ${A.anti ? barSym(A.el.sym) : A.el.sym} → ${speciesLabel(A)} (affinity ${fmtE(A.el.ea)})`);
   return true;
+}
+/* (1.29 item 60) The Coulomb energy a lepton L has with the net charges round it (within 8 Å), the target A left out
+   (its own well is counted above), when that is negative: kinetic energy borrowed from the wells of a cluster of ions
+   (or a dense plasma) is no more free to spend on ionizing an atom than that borrowed from the atom's own well. Without
+   it the ionized-water plasma ran away: an electron between three or four ions had tens of eV of their wells' energy,
+   ionized a neighbour, and the electrons it freed fell in deeper. Positive (among other free electrons) counts as 0. */
+const IW = { local: true, bond: true, vib: true }; // (1.29 item 60's three changes, each its own switch for the measurements) // (1.29 item 60's three changes, each its own switch for the measurements)
+function lepLocalPhi(L, A) {
+  let u = 0; const d3 = W.d3;
+  for (const p of W.parts) {
+    if (p.dead || p === L || p === A || p.rad) continue;
+    const q = p.k === NUC ? (p.anti ? -p.q : p.q) : p.q; if (!q) continue;
+    const m = minImg(p.x - L.x, p.y - L.y, d3 ? p.z - L.z : 0), dx = m[0], dy = m[1], dz = d3 ? m[2] : 0, r2 = dx * dx + dy * dy + dz * dz;
+    if (r2 > 64) continue;
+    u += PHYS.KE * L.q * q / Math.sqrt(r2 + (p.k === NUC ? p.sEN || 0 : 0.0016));
+  }
+  return Math.min(0, u);
 }
 function impactIonize(L, A, ie, Erel) {
   if (freeElectronCount() >= MAX_FREE_E) return;
@@ -9789,6 +9834,7 @@ function evDative(H, D, r) {
     return vi.v >= 8 ? 0 : vi.v <= 4 ? vi.v : 8 - vi.v;
   })();
   if (capAfter < D.used + 1) return;
+  if (IW.bond && sameSignIons(H, D)) return; // (1.29 item 60: no proton onto a cation: H₃O⁺ + H⁺ → H₄O²⁺ and on, to H₄O₆⁷⁺)
   const before = hill(molecule(D));
   const PA = PROTON_AFFINITY[D.el.sym + ':' + D.q] ?? 6.0;
   const set = setOf(molecule(D), [H]);

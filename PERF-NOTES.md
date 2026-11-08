@@ -2084,6 +2084,36 @@ on the Realistic-particles switch it needs and saying so: Make protonium (fire a
 electron (fire electrons of a few tens of eV into water until one is hydrated) and Make a hexaquark (neutrons at
 1.14 GeV through rows of 80 protons: about one collision in fifteen makes the d*). Test: f_129 challenges (plays each).
 
+### 60 Ionized water over thousands of steps (the known limit): three causes found and fixed, one left
+
+Flat water, 40 waters ionized with 2 eV each, insulated (t_features' 1.09 scene). 1.28.3: within 400 steps seeds 1, 5 and
+6 of 8 ran away (642–1,078 impact ionizations, 140–150 free electrons, −22 to −3 eV); over 3,000 steps four of six
+(5,300–11,400 ionizations, drift up to +485 eV). Traced event by event:
+1. Bonds between two ions of one sign. The force field leaves out the Coulomb energy of bonded and next-bonded atoms
+   (it is in the bond parameters, for neutral molecules), so H₂O⁺ + H₂O⁺ bonding released their ~14 eV repulsion as heat
+   and made clusters that nothing pushed apart (H₃O₂²⁺ … H₄O₆⁷⁺), deep wells for the electrons. Now evBond, evReact and
+   the proton's dative bond refuse to join two molecules whose net charges have the same sign (sameSignIons); in
+   nature such dications come apart (Coulomb explosion).
+2. Energy borrowed from the wells of the ions round an electron. Impact ionization and capture counted only the
+   target's own well (since 0.x); an electron among three or four ions had tens of eV of their wells' energy, ionized
+   a neighbour, and was never counted as bound. Now both add the lepton's Coulomb energy with the net charges within 8 Å
+   when negative (lepLocalPhi).
+3. Nothing slowed electrons below the ionization energy but elastic recoil. Now a slow lepton striking an atom of a
+   molecule loses a vibrational quantum (0.198 eV, the bend, 3 in 5; else 0.453, a stretch) 3 times in 10, as heat to the
+   molecule (vibLoss; Itikawa and Mason's cross sections, about a third of the elastic, from memory).
+Each switchable (engine.js IW) for the measurement: vibrational loss alone, 1 of 5 seeds ran away in 400 steps; the
+other two alone, 3 of 5; all three, 0 of 12 in 400 steps (books within 1.5 eV) and 2 of 6 over 3,000 steps (seeds 2
+and 3: 958 and 4,434 ionizations, −19 and −43 eV, against four of six and up to 11,400 ionizations and +485 before).
+- **Left (found, not fixed).** In the two that still run away a few atoms heat up to 10–21 eV over a hundred steps
+  while bonds form and break every step (HO⁺ + H ⇄ H₂O⁺, HO + H₂O⁺ ⇄ H₂O + HO⁺); each forming gives its 4.8 eV to a third
+  atom in a random direction and each breaking takes it back from the pair, so the third's energy takes a random walk
+  upward until its collisions ionize (thermal ionization). Stopping a broken pair re-forming for 30 steps did not
+  change it (the partners change). And in the runs that stay calm the 40 electrons stay free for 3,000 steps (0.4 ps):
+  in nature they would be hydrated or recombined by then (Hydrated electrons, item 59, takes some).
+- These change 11 setups' fingerprints (annihilation, antihydrogen, hyperfactory, mucf, muonium, neon, nif, photonuc,
+  pionbeam, sns, soup: wherever free electrons meet molecules or ions bond); physics, for the owner's OK before release.
+Test: f_129 iwater (seeds 1, 5, 6: fails on 1.28.3).
+
 ### 55 Video recording removed
 
 The owner (2026-11-08): "can you remove the recording feature?". Lab → Record video, its time-lapse buttons, the REC
