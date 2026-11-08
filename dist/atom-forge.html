@@ -41931,7 +41931,16 @@ const CHALLENGES = [
     build() { PRESETS.flashbyte.build(); }, done: () => { const M = flashMemory(); if (M.cells.length < 8 || memBusy()) return false; const d = memDecode(M.cells.map(c => (c.broken ? null : flashStored(c)))); return !!d[0] && d[0].ch === 'A'; } },
   { id: 'melt', name: 'Melt a chip', tool: 'heat', tab: 'lab', goal: 'Heat a NOT gate until it stops working because it melted.', how: 'Silicon melts at 1,687 K. Watch the gate leak first, then fail. Hold the Heat tool on it.',
     build() { PRESETS.hotchip.build(); }, done: () => W.chips.some(c => c.broken && /melted/.test(c.msg)) },
+  // (1.29 item 63: three on the new physics; each turns on the Realistic-particles switch it needs, and says so)
+  { id: 'pn', name: 'Make protonium', tool: 'fire', goal: 'Catch an antiproton in hydrogen, so that the antiproton and a proton go round each other.', how: 'This challenge turns on Settings → Experimental → Realistic particles → Exotic atoms. An antiproton is caught only once it has slowed below about 2 keV: fire one (Fire tool, p̄) slowly into the hydrogen, a few hundred eV.',
+    build() { chSwitch('rpExo', 'exo'); baseWorld(50, 34, 300, 0.05); scatter(14, 50, 34, (x, y) => addMolecule('H2', x, y, rnd() * 6), 4); OPT.fire.proj = 'pbar'; OPT.fire.s = Math.round(100 * (Math.log10(300) + 2)); }, done: () => (W.count.pn || 0) >= 1 },
+  { id: 'eaq', name: 'Dissolve an electron', tool: 'fire', goal: 'Make a hydrated electron: a free electron held by the water round it, e⁻(aq).', how: 'This challenge turns on Settings → Experimental → Realistic particles → Hydrated electrons. Fire electrons (Fire tool, e⁻) into the water at a few tens of eV: one that slows down among water molecules, away from the ions it made, settles in.',
+    build() { chSwitch('rpAq', 'aq'); PRESETS.water.build(); OPT.fire.proj = 'e'; OPT.fire.s = Math.round(100 * (Math.log10(30) + 2)); }, done: () => W.exo.some(o => !o.dead && o.sp === 'eaq') },
+  { id: 'dstar', name: 'Make a hexaquark', tool: 'fire', goal: 'Make the d*(2380): six quarks in one particle, for a moment.', how: 'It shows up when a neutron hits a proton with about 2,380 MeV between them in their own frame: fire neutrons (Fire tool, n) at about 1.14 GeV along a row of the protons. About one collision in fifteen makes one: keep firing (and load the challenge again if the protons run out).',
+    build() { baseWorld(60, 40, 300, 0.05); W.decayOn = true; for (let i = 0; i < 80; i++) addNuc(1, 0, 0, -27 + (i % 10) * 6, -21 + Math.floor(i / 10) * 6); OPT.fire.proj = 'n'; OPT.fire.s = Math.round(100 * (Math.log10(1.14e9) + 2)); }, done: () => (W.count.dstar || 0) >= 1 },
 ];
+/* A challenge's switch turned on: through Settings in the page (kept, shown), straight on RP where there is no page. */
+function chSwitch(k, rp) { try { setSetting(k, true); } catch (e) { SET[k] = true; RP[rp] = true; } }
 const CH = { done: new Set(String(store('challenges') || '').split(',').filter(Boolean)), cur: null, won: false };
 for (const c of CHALLENGES) {
   PRESETS['ch_' + c.id] = { group: 'Challenges', get name() { return (CH.done.has(c.id) ? '✓ ' : '') + c.name; }, tool: c.tool, tab: c.tab, spec: c.spec || (c.id === 'antiH' ? SPEC_PBAR : SPEC_P),

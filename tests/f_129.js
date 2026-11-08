@@ -116,6 +116,27 @@ PARTS.dstar = async (page, check) => {
   check(ok, `1.29 (61) the d*(2380) made in np collisions near √s 2380 MeV (${out.flat.made} and ${out['3d'].made} of 300, flat and 3-D), none at 2800 MeV; books within ${Math.max(...Object.values(out).map(r => r.worst)).toExponential(0)} eV`, '1.29 d* in np: ' + JSON.stringify(out));
 };
 
+/* 63. Three new challenges on the new physics: Make protonium, Dissolve an electron, Make a hexaquark; each turns on the
+   switch it needs and is won by doing what it says (the hexaquark by chance: up to 80 shots). Needs the page. */
+PARTS.challenges = async (page, check) => {
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => {
+    setRunning(false); const out = {}; const keep = new Set(CH.done); CH.done.clear();
+    out.list = document.querySelectorAll('#preset optgroup[label="Challenges"] option').length;
+    const run = (n) => { for (let f = 0; f < n && !CH.won; f++) { simFrame(1 / 60, 25); if (f % 10 === 0) challengeTick(); } challengeTick(); };
+    loadPreset('ch_pn'); out.exoOn = RP.exo;
+    for (let k = 0; k < 12 && !CH.won; k++) { const m = W.parts.find(p => !p.dead && p.Z === 1); fireSpec(SPEC_PBAR, m.x - 3, m.y, 1, 0, fireKE(), false); run(200); } out.pn = CH.won;
+    loadPreset('ch_eaq'); out.aqOn = RP.aq;
+    for (let k = 0; k < 12 && !CH.won; k++) { fireSpec({ kind: 'e' }, -W.box.w / 2 + 1, -10 + 2 * k, 1, 0.05, fireKE(), false); run(200); } out.eaq = CH.won;
+    for (let round = 0; round < 2 && !CH.won; round++) { loadPreset('ch_dstar'); for (let k = 0; k < 40 && !CH.won; k++) { fireSpec({ kind: 'n' }, -29.5, -21 + (k % 8) * 6, 1, 0, fireKE(), false); run(60); } }
+    out.dstar = CH.won;
+    setSetting('rpExo', false); setSetting('rpAq', false); CH.done.clear(); for (const k of keep) CH.done.add(k); store('challenges', [...CH.done].join(','));
+    return out;
+  });
+  if (own) await own.browser.close();
+  check(r.list === 14 && r.exoOn && r.pn && r.aqOn && r.eaq && r.dstar, '1.29 (63) three new challenges (14 in all): Make protonium, Dissolve an electron, Make a hexaquark, each won by doing it', '1.29 challenges: ' + JSON.stringify(r));
+};
+
 module.exports = async function f129(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

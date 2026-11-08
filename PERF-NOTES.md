@@ -2076,6 +2076,14 @@ reverted (the tree is item 61's again):
 So there is no faster-at-the-same-physics switch here to offer; what would help is the integrals and D4 (item 54's
 note), or fewer SCC iterations (a better start than the last step's charges), each its own piece of work.
 
+### 63 Challenges: three more
+
+The game has had challenges since 0.x (the setup list's Challenges group: eleven, from Make water to Melt a chip, won
+when done and remembered), which I had forgotten when I suggested the item. Three more on the new physics, each turning
+on the Realistic-particles switch it needs and saying so: Make protonium (fire a slow p̄ into hydrogen), Dissolve an
+electron (fire electrons of a few tens of eV into water until one is hydrated) and Make a hexaquark (neutrons at
+1.14 GeV through rows of 80 protons: about one collision in fifteen makes the d*). Test: f_129 challenges (plays each).
+
 ### 55 Video recording removed
 
 The owner (2026-11-08): "can you remove the recording feature?". Lab → Record video, its time-lapse buttons, the REC
