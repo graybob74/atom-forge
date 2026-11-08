@@ -495,7 +495,9 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
         Ha[k] = hc + hm; Hb[k] = hc - hm;
       }
       mixer.set(packS(qsh, msh, dp, dm, qp, tm, vec));
-      ea = SPIN.solveChannel(symEig, Ha, Li, nao, Wa, Aa); eb = SPIN.solveChannel(symEig, Hb, Li, nao, Wb, Ab);
+      const xqH = Math.ceil((opts.spinFree ? nocc : Math.max(nel[0], nel[1])) - 1e-9), xqK = ktAt(iscf - 1); // (Atom Forge 1.29: for Faster quantum bonds' partial solver, each channel's solve)
+      if (typeof XQ_HINT === 'function') XQ_HINT(xqH, xqK); ea = SPIN.solveChannel(symEig, Ha, Li, nao, Wa, Aa);
+      if (typeof XQ_HINT === 'function') XQ_HINT(xqH, xqK); eb = SPIN.solveChannel(symEig, Hb, Li, nao, Wb, Ab);
       const ktn = ktAt(iscf - 1);
       if (opts.spinFree) [fa, fb] = SPIN.fermiShared(fermiFilling, nocc, ktn, ea, eb);
       else { fa = fermiFilling(nel[0], ktn, ea); fb = fermiFilling(nel[1], ktn, eb); }
