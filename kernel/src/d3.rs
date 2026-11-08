@@ -50,7 +50,7 @@ pub unsafe fn pair_kernel3(c: &mut Ctx, s: &St, s3: &St3, q0: usize, q1: usize, 
         let mut dx = rd(s.x, j) - rd(s.x, i); let mut dy = rd(s.y, j) - rd(s.y, i); let mut dz = rd(s3.pz, j) - rd(s3.pz, i);
         min_image3(&mut dx, &mut dy, &mut dz, b);
         let r2 = dx * dx + dy * dy + dz * dz;
-        if !(r2 < RC2 && r2 > 1e-10) { continue; }
+        if !(r2 < rc2() && r2 > 1e-10) { continue; }
         let zi = rd(s.z, i); let zj = rd(s.z, j);
         if zi == 0 || zj == 0 { continue; } // neutrons fly straight
         let r = r2.sqrt(); let ni = rd(s.ne, i); let nj = rd(s.ne, j);

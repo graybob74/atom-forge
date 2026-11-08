@@ -343,7 +343,7 @@ function threadsBind() {
   const Gd = {}; for (const k of ['keys', 'head', 'next', 'px', 'py', 'occ', 'pz']) Gd[k] = d(G[k]);
   // the kernel module for the workers: each gets a stack of its own in the shared memory (allocated once)
   let wasm = null;
-  if (WK.on && WK.ready && RC === 6) { // (the kernel has 6 Å built in: a longer reach runs the workers' JavaScript)
+  if (WK.on && WK.ready && (RC === 6 || wasmRcOk())) { // (a module before 1.28 has 6 Å built in: a longer reach ran the workers' JavaScript)
     if (!TH.wks) TH.wks = wasmArray(Float64Array, TH_MAXW + 1); // (a stiffness cell per worker)
     while (TH.stacks.length < n) TH.stacks.push(wasmAlloc(WK.STACK) + WK.STACK); // (the stack grows downwards from its top)
     for (let w = 0; w < n; w++) { WK.sumTab[2 * w] = TH.fx[w].byteOffset; WK.sumTab[2 * w + 1] = TH.fy[w].byteOffset; } // (af_sum's table; here, as the module may be ready only after the buffers were made)

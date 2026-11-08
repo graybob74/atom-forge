@@ -93,7 +93,7 @@ function wasmInstantiate() {
     if (typeof ex.af_forces !== 'function' || typeof ex.af_const !== 'function' || typeof ex.af_zero !== 'function' || typeof ex.af_sum !== 'function') throw new Error('exports missing');
     if (ex.__heap_base && ex.__heap_base.value > WK.ARENA0) throw new Error('the module\'s static data reaches ' + ex.__heap_base.value + ', above the arena');
     const want = [PHYS.KE, 36, FCAP, CORE_RMIN, BARE_SMEAR, R_ANN, ANGLE_K, 40];
-    // (36: the kernel's 6 Å cutoff, squared; a longer reach chosen in Experimental runs the JavaScript instead, setCutoff)
+    // (36: the kernel's 6 Å cutoff at start, squared; a longer reach is given to it by setCutoff, af_set_rc2, since 1.28)
     for (let k = 0; k < want.length; k++) if (ex.af_const(k) !== want[k]) throw new Error('constant ' + k + ' differs: ' + ex.af_const(k) + ' vs ' + want[k]);
     WK.desc = wasmArray(Int32Array, 64); WK.ks = wasmArray(Float64Array, 8); WK.sumTab = wasmArray(Uint32Array, 64);
     // the 3-D kernels (af_forces3, kernel 0.26 on): a module without them, or with other 3-D constants, leaves 3-D to the
@@ -106,6 +106,7 @@ function wasmInstantiate() {
       if (bad >= 0) WK.note3 = '3-D constant ' + (8 + bad) + ' differs: ' + ex.af_const(8 + bad) + ' vs ' + want3[bad];
       else { WK.has3 = true; WK.note3 = 'ready'; }
     }
+    if (typeof ex.af_set_rc2 === 'function') ex.af_set_rc2(RC2); else if (RC !== 6) WK.use = false; // (the reach now: a module before 1.28 has 6 Å built in)
     WK.ready = true; WK.note = 'ready';
     if (typeof _sharedGen === 'number') _sharedGen++; // (worker threads started before the module was ready are bound again, now with it)
   } catch (e) { WK.note = 'instantiate: ' + (e.message || e); WK.ready = false; WK.inst = null; WK.ex = null; }
@@ -125,6 +126,8 @@ function wasmDesc() {
   d[36] = AC.c.byteOffset; d[37] = AC.nb.byteOffset; d[38] = AC.cnt.byteOffset; d[39] = AC.tg.byteOffset;
 }
 function wasmReady() { return WK.ready && WK.use; }
+/* A module that is given the cutoff (af_set_rc2, 1.28 item 33): 9 and 12 Å run in it too; one before has 6 Å built in. */
+function wasmRcOk() { return !!(WK.ex && typeof WK.ex.af_set_rc2 === 'function'); }
 /* The 3-D kernels (af_forces3): descriptor entries 40–45 hold the z positions and velocities, and AC3's per-centre
    targets and dihedral list (engine.js angleCentres3), all in the module's memory. */
 function wasm3Ready() { return WK.ready && WK.use && WK.has3; }

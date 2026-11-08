@@ -1441,9 +1441,9 @@ let CELL_MIN = RC + Math.max(SKIN, SKIN_F); // (cells at least as wide as either
    started again (their source carries RC2). The potential energy changes with the reach: set it between steps. */
 function setCutoff(rc) {
   rc = rc === 9 || rc === 12 ? rc : 6;
-  if (typeof WK !== 'undefined') WK.use = rc === 6; // (wasmReady() also needs WK.ready: a kernel that failed stays off)
+  if (typeof WK !== 'undefined') WK.use = rc === 6 || wasmRcOk(); // (wasmReady() also needs WK.ready: a kernel that failed stays off; a module with af_set_rc2 takes any reach, 1.28 item 33)
   if (rc === RC) return false;
-  RC = rc; RC2 = rc * rc; RL = RC + SKIN; RL2 = RL * RL; RLF2 = (RC + SKIN_F) * (RC + SKIN_F); CELL_MIN = RC + Math.max(SKIN, SKIN_F);
+  RC = rc; RC2 = rc * rc; if (typeof WK !== 'undefined' && WK.ex && WK.ex.af_set_rc2) WK.ex.af_set_rc2(RC2); RL = RC + SKIN; RL2 = RL * RL; RLF2 = (RC + SKIN_F) * (RC + SKIN_F); CELL_MIN = RC + Math.max(SKIN, SKIN_F);
   _mdGen++; VL.valid = false; FL.gen = -1; // (the neighbour lists are rebuilt at the new reach)
   if (typeof TH !== 'undefined' && TH.n) { const n = TH.n; threadsSet(0); threadsSet(n); }
   return true;
