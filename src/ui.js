@@ -2686,7 +2686,7 @@ const SAVE_KINDS = new Set([NUC, ELEC, POS]);
    radiation flight with its energy and direction: a tenth entry), the bonds among them and the magnets. Not kept:
    light, beams, a collider's rings, and chips' circuits (their atoms are saved as atoms). */
 const xmOf = (ps) => { const xm = []; ps.forEach((p, i) => { const B = p.muB; if (B && B.zx) xm.push([i, B.Eb, B.zx, B.n0 || 0, B.aug || 0, B.lines || [], B.from || '']); }); return xm.length ? { xm } : {}; }; // (exotic atoms of the realistic-particle switch, 1.27: older readers open them as 0.51's muonic atoms)
-const musOf = (ps) => { const m = []; ps.forEach((p, i) => { if (p.spin) m.push([i, ...p.spin, p.eSpin || 0]); }); return m.length ? { mus: m } : {}; }; // (muons' spins of the Muonium-as-hydrogen switch, 1.27: older readers ignore them)
+const musOf = (ps) => { const m = []; ps.forEach((p, i) => { if (p.mu && Array.isArray(p.spin)) m.push([i, ...p.spin, p.eSpin || 0]); }); return m.length ? { mus: m } : {}; }; // (muons' spins of the Muonium-as-hydrogen switch, 1.27: older readers ignore them; only a muonium atom's: a free electron as a wave packet has a spin too, ±1, 1.28.1 bug)
 const isoOf = (ps) => { const iso = []; ps.forEach((p, i) => { if (p.iso) iso.push([i, p.iso.lev, p.iso.t12]); }); return iso.length ? { iso } : {}; }; // (isomers of Realistic particles 6, 1.27: their level and half-life; older readers open the ground state)
 function worldToJSON() {
   const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.caught);

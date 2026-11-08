@@ -1,8 +1,20 @@
 'use strict';
-/* 1.28.1 bug: loading a save made the speed it was saved at the new 1× (src/ui.js worldToJSON / worldFromJSON /
+/* 1.28.1 bugs: saving a world with electrons as waves crashed (musOf); loading a save made the speed it was saved at the new 1× (src/ui.js worldToJSON / worldFromJSON /
    speedNormal). A world opened by the player starts at the setup's normal speed; undo keeps the speed and its 1×.
    Run by t_features, or alone: node tests/f_fix1281.js. Fails on 1.28.0: the base became 4× the setup's. */
 module.exports = async function ffix1281(page, check, say) {
+  // 2. the owner's crash report (1.28.0): "p.spin is not iterable" in musOf, saving (the rewind's snapshot) a world
+  //    with free electrons as wave packets (their eFF spin is ±1; musOf took any spin for a muon's spin vector)
+  const c = await page.evaluate(async () => {
+    hideMainMenu(); loadPreset('empty'); setRunning(false); const w0 = SET.wave; setSetting('wave', 1);
+    for (let k = 0; k < 6; k++) addLepton(ELEC, -10 + 4 * k, 3 * (k % 2), 0.4, 0.1);
+    for (let i = 0; i < 400 && !W.parts.some(p => p.wm); i++) step(chooseDt());
+    const waves = W.parts.filter(p => p.wm && typeof p.spin === 'number').length; let err = null, mus = null;
+    try { const d = worldToJSON(); mus = d.mus ? d.mus.length : 0; rewPack && rewPack(); } catch (e) { err = e.message; }
+    setSetting('wave', w0); loadPreset('water'); setRunning(false); return { waves, err, mus };
+  });
+  check(c.waves > 0 && !c.err && c.mus === 0, `1.28.1 a world with ${c.waves} electrons as wave packets saves (and the rewind keeps it) without the crash`, '1.28.1 save with waves: ' + JSON.stringify(c));
+
   const r = await page.evaluate(async () => {
     const w = (ms) => new Promise(res => setTimeout(res, ms));
     hideMainMenu(); loadPreset('water'); setRunning(false); await w(50);

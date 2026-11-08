@@ -1993,6 +1993,15 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
 
 ## 1.28.1 (not released)
 
+### 1.28.1 bug: saving with electrons as waves crashed (the owner's crash report, 2026-11-08)
+
+"p.spin is not iterable" in musOf, from the rewind's snapshot (worldToJSON), after a fast O + Fe collision in an
+empty chamber with Electrons as waves on: the collision freed electrons, the wave packets give each a spin of ±1
+(eFF's, engine.js), and musOf, which saves a muonium atom's muon spin (a vector, 1.27), took any `spin` for one.
+Every save, share and rewind snapshot of such a world crashed. Now only a muonium atom's spin vector is saved; the
+other readers of a muon's spin already asked for a muonium atom or a muon. Test: tests/f_fix1281.js part 2 (on 1.28.0
+the same error, "p.spin is not iterable").
+
 ### 1.28.1 bug: a loaded save's speed became its 1× (the owner, 2026-11-08)
 
 A save kept only the speed it was made at (`spf`), and loading it set the setup's 1× (`W.baseSpf`) to that: a world
