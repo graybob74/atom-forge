@@ -1993,6 +1993,43 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
 
 ## 1.28.1 (not released)
 
+### 1.28.1: the owner's items 45–51 ("build 45-51, test and release when done as 1.28.1")
+
+- **45–46 Info and Read more.** src/info.js (built after data.js): a sentence or two for every element (EL_INFO, all
+  118) and every kind of particle (P_INFO: the electron, positron, proton, neutron and their antiparticles, the light
+  nuclei, photons and γ rays, neutrinos, and every family of W.exo's 83 species: muons, taus, pions, kaons, η, ρ, ω,
+  φ, K*, Δ, D and B mesons, Λ, Λc, Λb, Σ, Ξ, Ω, J/ψ, ϒ, W, Z, Higgs, muonic hydrogen, (μα)⁺, positronium, muonium,
+  hypernuclei; antimatter), written for the game in my own words from standard encyclopedia facts, each with a Read
+  more link to its English Wikipedia article. The periodic table's element card has an ⓘ About button at the bottom
+  (it stays open from one element to the next); the Inspect card of a particle, an atom (its element's) or an unstable
+  particle ends with the box. The desktop app opens Read more in the player's browser through a new shell command,
+  open_wiki (lib.rs; only https://en.wikipedia.org/wiki/ addresses of letters, digits and a few marks, opened with
+  ShellExecuteW; the branch's Windows build compiled it); the page opens a new tab. On the way: the Inspect card of a
+  charm or bottom hadron (B⁺, Λc, D mesons …) said "A neutral meson; it decays almost at once to photons or pions",
+  the η's words, by a fall-back; those now have no family sentence and the info box says what they are.
+- **47 and 49 Exotic particles.** Grab now holds an unstable particle or exotic atom (anything in W.exo but a
+  collider beam's): pickLight under the pointer, unless an atom is right there; while held it sits at the pointer, at
+  rest, and it can be thrown (50). The audit of the 83 species: every one has an Inspect card (now with info), every
+  one but a beam's can be grabbed, and each meets matter as before (charged ones ionize and are scattered, hadrons hit
+  nuclei, stopped μ⁻, K⁻ and hyperons are captured, positronium's pick-off, muonic hydrogen's transfers and fusion),
+  with one change, approved with 47: muonic hydrogen (μp, μd, μt) bounces off any nucleus it passes in normal play
+  (it was off hydrogen's only; ultra-realistic keeps hydrogen's measured cross section, hydrogen only): 12 μp at 2 eV
+  through oxygen atoms, 21 bounces in 400 steps (none before; 39 through hydrogen). Muonic hydrogen, (μα)⁺ and
+  hypernuclei are drawn as a nucleus 3–9 px across with the muon's ring and the muon going round (they were a 2.6 px
+  ring), flat and in 3-D (exoAtomPic).
+- **48 Positronium.** Drawn in the usual view too: its electron and positron going round their middle on a dashed
+  ring the size of its orbit, on the watching clock (W.rt: round while running at any speed, still when paused; on the
+  pictures' clock, W.at, they sat still in slow motion); its annihilation flash is bigger (7, 0.7 s).
+- **50 Throwing.** The pointer's path while grabbing is kept (grabNote: simulated and real time, position); let go
+  while moving and what was held leaves at the pointer's speed in the world over its last 0.12 s (grabThrow), up to
+  the strength's top speed (3, 30 or 100 km/s); a pointer still for 80 ms throws nothing (as before: let go where it
+  is). Atoms and molecules keep their own jiggle about the thrown centre of mass; an unstable particle gets the kinetic
+  energy of that speed (exoSetVel, relativistic). An argon atom flung with the mouse: 0.7 km/s on (it stopped before).
+- **51 The muon in the particle view.** A bare muonic nucleus in 3-D now shows its muon (it did flat only); the
+  muon's orbit has a faint ring, a little further out, on the watching clock.
+Every setup at normal settings is still 1.28.0's to the bit (fingerprints, 59 setups). Test: tests/f_1281.js (info,
+grab, exodraw, muscat, muview; each fails on 1.28.0).
+
 ### 1.28.1 bug: saving with electrons as waves crashed (the owner's crash report, 2026-11-08)
 
 "p.spin is not iterable" in musOf, from the rewind's snapshot (worldToJSON), after a fast O + Fe collision in an
