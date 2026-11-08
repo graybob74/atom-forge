@@ -1269,6 +1269,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       A[m * nao + n] = v; A[n * nao + m] = v;
     }
     }
+    if (typeof XQ_HINT === 'function') XQ_HINT(Math.ceil(Math.max(nel[0], nel[1]) - 1e-9), kt); // (Atom Forge 1.29: the occupied count and kT, for Faster quantum bonds' partial solver; used once)
     emo = symEig(A, nao, true);                                      // A: the eigenvectors Y as rows
     // occupations: one set of orbitals, alpha and beta filled separately
     const fa = fermiFilling(nel[0], kt, emo), fb = fermiFilling(nel[1], kt, emo);
