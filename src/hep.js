@@ -1067,7 +1067,7 @@ function muScatReach(sp) { return W.ultra ? Math.sqrt(MU_SCAT[sp] * 1e16 / Math.
 function muAtomScatter(o, x0, y0, z0) {
   if (W.d3) return muAtomScatter3(o, x0, y0, z0);
   if (o.dead || (o.x === x0 && o.y === y0) || !MU_SCAT[o.sp]) return false;
-  const R = muScatReach(o.sp), hits = segTargets(x0, y0, o.x, o.y, Math.max(R, 0.4), (t) => t.k === NUC && t.Z === 1 && !t.anti && !t.mu && !t.rad);
+  const R = muScatReach(o.sp), hits = segTargets(x0, y0, o.x, o.y, Math.max(R, 0.4), (t) => t.k === NUC && (W.ultra ? t.Z === 1 : t.Z >= 1) && !t.anti && !t.mu && !t.rad); // (normal play: off any nucleus it passes, 1.28.1; ultra-realistic: hydrogen's, whose cross section is measured)
   for (const [, tg, b] of hits) {
     if (tg.dead || b >= R) continue;
     if (o.hitId === tg.id) continue; // (one pass, one encounter)
@@ -1088,7 +1088,7 @@ function muAtomScatter(o, x0, y0, z0) {
 /* (3-D, 1.25) The same along a path in depth, isotropic on the sphere. */
 function muAtomScatter3(o, x0, y0, z0) {
   if (o.dead || (o.x === x0 && o.y === y0 && o.z === z0) || !MU_SCAT[o.sp]) return false;
-  const R = muScatReach(o.sp), hits = segTargets3(x0, y0, z0, o.x, o.y, o.z, Math.max(R, 0.4), (t) => t.k === NUC && t.Z === 1 && !t.anti && !t.mu && !t.rad);
+  const R = muScatReach(o.sp), hits = segTargets3(x0, y0, z0, o.x, o.y, o.z, Math.max(R, 0.4), (t) => t.k === NUC && (W.ultra ? t.Z === 1 : t.Z >= 1) && !t.anti && !t.mu && !t.rad); // (normal play: off any nucleus it passes, 1.28.1; ultra-realistic: hydrogen's, whose cross section is measured)
   for (const [, tg, b] of hits) {
     if (tg.dead || b >= R) continue;
     if (o.hitId === tg.id) continue;
@@ -1513,7 +1513,7 @@ function psDecay(o, pick) {
   W.count.annih++;
   const txt = pick ? `${o.lab} pick-off: its positron meets an electron of the molecules around it → 2γ` : o.sp === 'pPs' ? 'p-Ps → 2γ (511 keV each, back to back)' : `o-Ps → 3γ (${made.rays.map(r => fmtE(r[1])).join(', ')})`;
   o.fate = txt;
-  flash(o.x, o.y, [255, 255, 255], 3, 0.4, W.d3 ? o.z : undefined);
+  flash(o.x, o.y, [255, 255, 255], 7, 0.7, W.d3 ? o.z : undefined); // (positronium's annihilation: the pair meeting, a bright flash, 1.28.1)
   nucEvent('annih', o.x, o.y, `Positronium: ${txt}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.12, lbl: o.lab }], pick ? 'in matter o-Ps lives nanoseconds, not 142 ns' : o.sp === 'pPs' ? 'mean life 125 ps' : 'mean life 142 ns in vacuum', undefined, W.d3 ? o.z : 0);
   log('nuc', `Positronium: ${txt}`);
 }
@@ -2005,6 +2005,14 @@ function addExo(sp, x, y, KE, ux, uy, m, z = 0, uz = 0) { // (z, uz: 3-D, 1.24)
   W.exo.push(o);
   if (sp === 'mu+' && RP.mu) muSpinInit(o, KE >= 1 ? [o.ux, o.uy, o.uz || 0] : null); // (Muonium as hydrogen: its spin, for μSR, 1.27)
   return o;
+}
+/* An unstable particle given a velocity (Å/tu) by hand, the Grab tool's throw (1.28.1): its kinetic energy from the
+   speed, relativistically, and its direction. */
+function exoSetVel(o, u, v) {
+  const b = Math.min(0.999999, v / PHYS.C), g = 1 / Math.sqrt(1 - b * b);
+  o.KE = v > 0 ? (g - 1) * o.m * MEV : 0;
+  if (v > 0) { o.ux = u[0] / v; o.uy = u[1] / v; if (W.d3) o.uz = u[2] / v; }
+  exoSpeed(o);
 }
 function exoSpeed(o) { const g = 1 + o.KE / (o.m * MEV); o.gam = g; o.v = PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g))); }
 /* Lab › Time › "Let the shortest-lived show" (W.minShow 1 or 2): a particle that would decay before it is seen (a

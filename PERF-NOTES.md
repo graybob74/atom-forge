@@ -1991,6 +1991,70 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.28.1: the owner's items 45–51 (info with Read more, Grab for every particle and throwing, exotic atoms and positronium drawn, muonic hydrogen off any nucleus, the muon in the particle view) and two bug fixes (a save's speed, saving with electrons as waves)
+
+### 1.28.1: the owner's items 45–51 ("build 45-51, test and release when done as 1.28.1")
+
+- **45–46 Info and Read more.** src/info.js (built after data.js): a sentence or two for every element (EL_INFO, all
+  118) and every kind of particle (P_INFO: the electron, positron, proton, neutron and their antiparticles, the light
+  nuclei, photons and γ rays, neutrinos, and every family of W.exo's 83 species: muons, taus, pions, kaons, η, ρ, ω,
+  φ, K*, Δ, D and B mesons, Λ, Λc, Λb, Σ, Ξ, Ω, J/ψ, ϒ, W, Z, Higgs, muonic hydrogen, (μα)⁺, positronium, muonium,
+  hypernuclei; antimatter), written for the game in my own words from standard encyclopedia facts, each with a Read
+  more link to its English Wikipedia article. The periodic table's element card has an ⓘ About button at the bottom
+  (it stays open from one element to the next); the Inspect card of a particle, an atom (its element's) or an unstable
+  particle ends with the box. The desktop app opens Read more in the player's browser through a new shell command,
+  open_wiki (lib.rs; only https://en.wikipedia.org/wiki/ addresses of letters, digits and a few marks, opened with
+  ShellExecuteW; the branch's Windows build compiled it); the page opens a new tab. On the way: the Inspect card of a
+  charm or bottom hadron (B⁺, Λc, D mesons …) said "A neutral meson; it decays almost at once to photons or pions",
+  the η's words, by a fall-back; those now have no family sentence and the info box says what they are.
+- **47 and 49 Exotic particles.** Grab now holds an unstable particle or exotic atom (anything in W.exo but a
+  collider beam's): pickLight under the pointer, unless an atom is right there; while held it sits at the pointer, at
+  rest, and it can be thrown (50). The audit of the 83 species: every one has an Inspect card (now with info), every
+  one but a beam's can be grabbed, and each meets matter as before (charged ones ionize and are scattered, hadrons hit
+  nuclei, stopped μ⁻, K⁻ and hyperons are captured, positronium's pick-off, muonic hydrogen's transfers and fusion),
+  with one change, approved with 47: muonic hydrogen (μp, μd, μt) bounces off any nucleus it passes in normal play
+  (it was off hydrogen's only; ultra-realistic keeps hydrogen's measured cross section, hydrogen only): 12 μp at 2 eV
+  through oxygen atoms, 21 bounces in 400 steps (none before; 39 through hydrogen). Muonic hydrogen, (μα)⁺ and
+  hypernuclei are drawn as a nucleus 3–9 px across with the muon's ring and the muon going round (they were a 2.6 px
+  ring), flat and in 3-D (exoAtomPic).
+- **48 Positronium.** Drawn in the usual view too: its electron and positron going round their middle on a dashed
+  ring the size of its orbit, on the watching clock (W.rt: round while running at any speed, still when paused; on the
+  pictures' clock, W.at, they sat still in slow motion); its annihilation flash is bigger (7, 0.7 s).
+- **50 Throwing.** The pointer's path while grabbing is kept (grabNote: simulated and real time, position); let go
+  while moving and what was held leaves at the pointer's speed in the world over its last 0.12 s (grabThrow), up to
+  the strength's top speed (3, 30 or 100 km/s); a pointer still for 80 ms throws nothing (as before: let go where it
+  is). Atoms and molecules keep their own jiggle about the thrown centre of mass; an unstable particle gets the kinetic
+  energy of that speed (exoSetVel, relativistic). An argon atom flung with the mouse: 0.7 km/s on (it stopped before).
+- **51 The muon in the particle view.** A bare muonic nucleus in 3-D now shows its muon (it did flat only); the
+  muon's orbit has a faint ring, a little further out, on the watching clock.
+Every setup at normal settings is still 1.28.0's to the bit (fingerprints, 59 setups). Test: tests/f_1281.js (info,
+grab, exodraw, muscat, muview; each fails on 1.28.0).
+The throw reads the pointer by its events' own times (e.timeStamp), and in slow frames, where its moves come a frame
+apart, it waits one and a half of their spacing before calling the pointer stopped: under the suite's load the first
+version, by the clock when the release was handled, saw a moving pointer as at rest. Suite (v160, 2 cores, 43 min):
+64 of 68 at once; t_features (0.64's named save, the 1.14 speed readout, 1.24 light), f_126w (a speed ratio), f_1281
+(the throw, fixed as above) and f_bug125 (pi3, a time) failed under load only and passed alone.
+
+### 1.28.1 bug: saving with electrons as waves crashed (the owner's crash report, 2026-11-08)
+
+"p.spin is not iterable" in musOf, from the rewind's snapshot (worldToJSON), after a fast O + Fe collision in an
+empty chamber with Electrons as waves on: the collision freed electrons, the wave packets give each a spin of ±1
+(eFF's, engine.js), and musOf, which saves a muonium atom's muon spin (a vector, 1.27), took any `spin` for one.
+Every save, share and rewind snapshot of such a world crashed. Now only a muonium atom's spin vector is saved; the
+other readers of a muon's spin already asked for a muonium atom or a muon. Test: tests/f_fix1281.js part 2 (on 1.28.0
+the same error, "p.spin is not iterable").
+
+### 1.28.1 bug: a loaded save's speed became its 1× (the owner, 2026-11-08)
+
+A save kept only the speed it was made at (`spf`), and loading it set the setup's 1× (`W.baseSpf`) to that: a world
+saved at 4× opened at "1×" running 4× fast, and slow motion, the hourglass and the speed buttons all worked from the
+wrong base. Undo had it too (undo after a speed change showed 1/8× at 1×). Now a save keeps the setup's 1× too
+(`bspf`), loading restores it, and a world the player opens (a file, a share code, an experiment, the autosave)
+starts at the setup's normal speed, as a setup does (`speedNormal`); undo and rewind keep the speed it had. A save
+from before 1.28.1 has no `bspf` and opens as before. Test `tests/f_fix1281.js` (on 1.28.0 the base came out 4× the
+setup's). On the way: a comment of mine left mid-line in the loader cut off the rest of it (warp, decays, slow
+motion, glowing walls not restored), caught by t_features' glowing-walls check before commit.
+
 ## 1.28.0: the Settings layout (sub-options with their option, switches at the right, 3-D settings by mode, Experimental reset) and speed-ups (force reach, dipoles and charge sites in WebAssembly, molecule naming, charged count)
 
 ### 1.28: speed-ups (items 33–44; the owner, 2026-11-07: "you may do the speedup run"; branch v159)
@@ -2851,6 +2915,26 @@ records) and reuse buffers instead; measure with --trace-gc and the profile befo
 Same rule for all: profile with the setting or setup on first, port only where JavaScript is most of the step, results
 bit for bit (fingerprints) where the order of arithmetic allows, equal to rounding where it does not (the 1.25 metals
 port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish all the features"); 33–38 go to 1.28.
+
+**The owner's requests of 2026-11-08 (after 1.28.0), collected, waiting for "build it":**
+45 an info button at the bottom of an element's card (clicking an element), with information about it from the web;
+46 the same for most particles: a little information from the web on their page;
+   (the owner: written into the game, pretty short, each written from web sources in my own words, with a "Read more"
+   button linking to its Wikipedia page)
+47 muonic atoms "don't do much": they don't collide, can't be grabbed, look very tiny (grabbing is a bug; how big they
+   are drawn and what they collide with touch the physics, the owner's OK);
+48 positronium: the electron and positron don't visibly go round each other (they sit still) or meet.
+49 every exotic particle (muonic atoms, muonium, positronium, hypernuclei, hadrons, antimatter atoms, …) checked: it
+   interacts with the other particles where nature has it do so, it can be grabbed, and it has an info panel (an audit
+   of each kind; any new interaction is a physics change, the owner's OK).
+50 throwing with Grab: let go of a particle while moving the pointer and it flies on, as thrown (today grabRelease
+   takes away, on purpose, the speed the spring drew it at when over GRAB_V, so it stops where it is let go: written
+   in 0.x so a hard drag could not fling atoms at tens of km/s). Plan: the throw from the pointer's recent motion in
+   the world (its speed on screen against the simulated time shown), capped, the energy given booked as work done by
+   the hand, as the spring's is.
+51 the particle view draws the muon in every muonic atom: today only muonic hydrogen and deuterium (the exotic species
+   μp, μd: exoInside's tight orbit round the nucleus) show it; a heavier nucleus that took a muon (p.muB, muonic
+   carbon and the rest) is drawn as a plain atom.
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the

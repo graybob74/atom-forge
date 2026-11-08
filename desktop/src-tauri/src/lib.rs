@@ -35,6 +35,31 @@ fn heartbeat(beat: tauri::State<'_, Beat>) {
     }
 }
 
+/// "Read more" in an element's or particle's info (1.28.1): its Wikipedia article in the player's browser. Only an
+/// English Wikipedia article address is opened (letters, digits and a few marks after /wiki/), nothing else.
+#[tauri::command]
+fn open_wiki(url: String) -> bool {
+    const BASE: &str = "https://en.wikipedia.org/wiki/";
+    let ok = url.len() < 200 && url.starts_with(BASE) && url[BASE.len()..].chars().all(|c| c.is_ascii_alphanumeric() || "_()-.,%'".contains(c));
+    if !ok { return false; }
+    open_in_browser(&url)
+}
+#[cfg(windows)]
+fn open_in_browser(url: &str) -> bool {
+    #[link(name = "shell32")]
+    extern "system" {
+        fn ShellExecuteW(hwnd: *mut core::ffi::c_void, op: *const u16, file: *const u16, params: *const u16, dir: *const u16, show: i32) -> isize;
+    }
+    let wide = |s: &str| s.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>();
+    let (op, file) = (wide("open"), wide(url));
+    // SW_SHOWNORMAL 1; a result above 32 is success
+    unsafe { ShellExecuteW(core::ptr::null_mut(), op.as_ptr(), file.as_ptr(), core::ptr::null(), core::ptr::null(), 1) > 32 }
+}
+#[cfg(not(windows))]
+fn open_in_browser(url: &str) -> bool {
+    std::process::Command::new(if cfg!(target_os = "macos") { "open" } else { "xdg-open" }).arg(url).spawn().is_ok()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let beat = Beat(Arc::new(Mutex::new(Watch { last: Instant::now(), armed: false, reloaded: None })));
@@ -43,7 +68,7 @@ pub fn run() {
         // the window comes back where it was left: size, position, monitor, maximized or full screen (Settings → Display)
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(beat)
-        .invoke_handler(tauri::generate_handler![heartbeat])
+        .invoke_handler(tauri::generate_handler![heartbeat, open_wiki])
         .setup(move |app| {
             let handle = app.handle().clone();
             std::thread::spawn(move || watchdog(handle, for_thread));

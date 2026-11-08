@@ -692,7 +692,8 @@ function renderPTDetail() {
       <button class="btn" id="ptUse" style="background:var(--accent);color:var(--accent-fg);border-color:var(--accent)">Use ${esc(specLabel(spec))}</button>
     </div>
     <div class="isorow"><span class="lbl">Isotope</span><div class="isochips" role="group" aria-label="Isotope">${isos.map(A => { const [cls, short] = isoLife(s.Z, A); return `<button class="isochip" data-a2="${A}" aria-pressed="${A === s.A}"><i class="life ${cls}" aria-hidden="true"></i><b>${sup(A)}${symHTML(el.sym, anti)}</b><span>${esc(short)}</span></button>`; }).join('')}</div></div>
-    ${MYISO.length ? `<div class="isorow"><span class="lbl">Saved</span><div class="isochips" role="group" aria-label="Saved isotopes">${MYISO.map((m, i) => { const [cls, short] = isoLife(m.Z, m.A); return `<span class="isosaved"><button class="isochip" data-my="${i}" aria-pressed="${sameSpec(m, spec)}" title="${esc(specName(m))}"><i class="life ${cls}" aria-hidden="true"></i><b>${esc(specLabel(m))}</b><span>${esc(short)}</span></button><button class="isox" data-myx="${i}" aria-label="Take ${esc(specName(m))} off your saved isotopes" title="Take it off your saved isotopes">×</button></span>`; }).join('')}</div></div>` : ''}`;
+    ${MYISO.length ? `<div class="isorow"><span class="lbl">Saved</span><div class="isochips" role="group" aria-label="Saved isotopes">${MYISO.map((m, i) => { const [cls, short] = isoLife(m.Z, m.A); return `<span class="isosaved"><button class="isochip" data-my="${i}" aria-pressed="${sameSpec(m, spec)}" title="${esc(specName(m))}"><i class="life ${cls}" aria-hidden="true"></i><b>${esc(specLabel(m))}</b><span>${esc(short)}</span></button><button class="isox" data-myx="${i}" aria-label="Take ${esc(specName(m))} off your saved isotopes" title="Take it off your saved isotopes">×</button></span>`; }).join('')}</div></div>` : ''}
+    ${EL_INFO[s.Z] ? `<div class="elinfo"><button class="btn small infobtn" id="ptInfo" aria-expanded="${UI.ptInfo ? 'true' : 'false'}" title="A few words about ${esc(el.name.toLowerCase())}, and a link to read more">ⓘ About ${esc(anti ? antiName(s.Z) : el.name)}</button>${UI.ptInfo ? infoElHTML(s.Z, anti) : ''}</div>` : ''}`; // (info, 1.28.1)
   $('pdetail').onclick = (e) => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.my !== undefined) { // a saved one: show it here
@@ -706,6 +707,7 @@ function renderPTDetail() {
       const m = MYISO[+b.dataset.myx]; if (m) myIsoToggle(m);
       renderPTDetail(); return;
     }
+    if (b.id === 'ptInfo') { UI.ptInfo = !UI.ptInfo; renderPTDetail(); return; } // (the element's info, kept open from one element to the next, 1.28.1)
     if (b.id === 'ptSave') { myIsoToggle(spec); renderPTDetail(); return; }
     if (b.dataset.a2) { s.A = +b.dataset.a2; renderPTDetail(); }
     else if (b.dataset.q) { s.q = clamp(s.q + +b.dataset.q, minQ, maxQ); renderPTDetail(); }
@@ -984,11 +986,20 @@ function onDown(e) {
       break;
     }
     case 'grab': {
+      const lx = pickAt(px, py, 10) ? null : pickLight(px, py, 16), xo = lx && lx.kind === 'exo' && !lx.o.xb && !lx.o.dead ? lx.o : null; // (an unstable particle or exotic atom under the pointer: held too, 1.28.1)
+      if (xo) {
+        undoMark('Grab');
+        W.grab = { exo: xo, x: wx, y: wy, s: OPT.grab.s, hist: [] };
+        UI.drag = { kind: 'grab' };
+        if (W.d3) { const at = [xo.x, xo.y, xo.z || 0], q = s2wPlane(px, py, at); W.grab.x = q[0]; W.grab.y = q[1]; W.grab.z = q[2]; UI.drag.plane = at; }
+        grabHold(W.grab);
+        break;
+      }
       const p = pickNear(px, py, 40);
       if (p) {
         undoMark('Grab');
         const grp = OPT.grab.mol && p.k === NUC ? grabGroup(p) : null;
-        W.grab = { p, x: wx, y: wy, s: OPT.grab.s, mol: grp && grp.length > 1 ? grp : null };
+        W.grab = { p, x: wx, y: wy, s: OPT.grab.s, mol: grp && grp.length > 1 ? grp : null, hist: [] };
         if (p.rad || p.fast) { p.rad = false; p.fast = false; p.KE = 0; p.vx = 0; p.vy = 0; if (W.d3) p.vz = 0; }
         UI.drag = { kind: 'grab' };
         if (W.d3) { const at = [p.x, p.y, p.z], q = s2wPlane(px, py, at); W.grab.x = q[0]; W.grab.y = q[1]; W.grab.z = q[2]; UI.drag.plane = at; } // (3-D: dragged on the plane square to the view through the atom)
@@ -1291,6 +1302,8 @@ function onMove(e) {
             }
           }
           W.grab.x = wx; W.grab.y = wy; if (W.d3) W.grab.z = wz;
+          grabNote(W.grab, e.timeStamp);
+          if (W.grab.exo) grabHold(W.grab);
         }
         break;
       case 'tool': if (W.tool) { W.tool.x = wx; W.tool.y = wy; if (W.d3) { W.tool.z = wz; if (W.tool.type === 'heat') W.tool.cone = toolCone3(px, py, W.tool.R); } } break;
@@ -1397,7 +1410,8 @@ function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(s
    into another atom. A single atom carried off its molecule tears its bonds, as a hand would. Gentle is the spring
    alone, as before. */
 function grabTick(realDt) {
-  const g = W.grab; if (!g || !g.p || g.p.dead) return;
+  const g = W.grab; if (g && g.exo) { grabHold(g); return; }
+  if (!g || !g.p || g.p.dead) return;
   const gz = W.d3 && g.z !== undefined ? g.z - g.p.z : 0;
   const rate = Math.max(1e-12, UI.adv || W.simPerFrame) * 60, gx = g.x - g.p.x, gy = g.y - g.p.y, dist = W.d3 ? Math.hypot(gx, gy, gz) : Math.hypot(gx, gy); // (rate: simulated time per second of watching)
   g.vcap = clamp(dist / (0.12 * rate), GRAB_V, GRAB_VMAX[g.s] || GRAB_V);
@@ -1413,21 +1427,56 @@ function grabTick(realDt) {
 }
 /* Let go: with Strong or Very strong, what was held keeps its own jiggle but not the speed it was being drawn at (no
    flinging it across the box at tens of km/s). */
-function grabRelease(g) {
-  if (!g || !g.p || g.s === 'gentle' || !UI.running) return;
+function grabRelease(g, tUp) {
+  if (!g) return;
+  const th = UI.running ? grabThrow(g, tUp) : null; // (1.28.1, the owner: "if you try to throw a particle it doesn't travel any further than where you let go")
+  if (g.exo) { const o = g.exo; if (o.dead) return; const v = th ? Math.hypot(th[0], th[1], th[2]) : 0; exoSetVel(o, th || [0, 0, 0], v); return; }
+  if (!g.p) return;
   const as = (g.mol || [g.p]).filter(a => !a.dead && !a.rad); let m = 0, px = 0, py = 0, pz = 0;
   for (const a of as) { m += a.m; px += a.m * a.vx; py += a.m * a.vy; if (W.d3) pz += a.m * a.vz; }
   if (!(m > 0)) return;
   const vx = px / m, vy = py / m, vz = pz / m;
+  if (th) { for (const a of as) { a.vx += th[0] - vx; a.vy += th[1] - vy; if (W.d3) a.vz += th[2] - vz; updateFast(a); } return; } // (thrown: its centre of mass at the pointer's speed, each atom's own jiggle kept)
+  if (g.s === 'gentle' || !UI.running) return;
   if ((W.d3 ? Math.hypot(vx, vy, vz) : Math.hypot(vx, vy)) <= GRAB_V) return;
   for (const a of as) { a.vx -= vx; a.vy -= vy; if (W.d3) a.vz -= vz; updateFast(a); }
+}
+/* Throwing (1.28.1): the pointer's path while held, as [simulated time, real time, x, y, z]; let go while it moves and
+   what was held leaves at the pointer's speed in the world (its last 0.15 s of pointer-event time against the
+   simulated time that went by), up to the Grab strength's top speed (GRAB_VMAX: 3, 30, 100 km/s). A pointer that had
+   stopped (nothing in its last 80 ms, or one and a half of its notes' spacing in slow frames) throws nothing. The energy given is the hand's work, as the spring's is. */
+function grabNote(g, te) { // (te: the pointer event's own time, so a slow frame does not read as a pointer at rest)
+  const h = g.hist || (g.hist = []), now = te || performance.now();
+  h.push([W.t, now, g.x, g.y, g.z || 0]);
+  while (h.length > 3 && now - h[1][1] > 250) h.shift(); // (a few notes back, however slow the frames)
+}
+function grabThrow(g, tUp) {
+  const h = g.hist; if (!h || h.length < 2) return null;
+  const now = tUp || performance.now(), last = h[h.length - 1];
+  const gap = (last[1] - h[0][1]) / (h.length - 1); // (the pointer's notes come a frame apart: in a slow frame they are far apart, and so may the last be from the release)
+  if (now - last[1] > Math.max(80, 1.5 * gap)) return null;
+  let a = null; for (const e of h) if (now - e[1] <= Math.max(150, 2.5 * gap) && e[0] < W.t) { a = e; break; } // (the oldest within the window that is behind in simulated time: moves read in one frame share a time)
+  if (!a) return null;
+  const dt = W.t - a[0]; if (!(dt > 0)) return null;
+  let vx = (g.x - a[2]) / dt, vy = (g.y - a[3]) / dt, vz = W.d3 ? ((g.z || 0) - a[4]) / dt : 0;
+  const v = Math.hypot(vx, vy, vz), cap = GRAB_VMAX[g.s] || GRAB_V;
+  if (!(v > 0.02)) return null; // (under 0.2 km/s: let go, not thrown)
+  if (v > cap) { vx *= cap / v; vy *= cap / v; vz *= cap / v; }
+  return [vx, vy, vz];
+}
+/* An unstable particle or exotic atom held by the Grab tool (1.28.1): where the pointer is, at rest. */
+function grabHold(g) {
+  const o = g.exo; if (!o || o.dead) { W.grab = null; return; }
+  const hw = W.box.w / 2, hh = W.box.h / 2;
+  o.x = clamp(g.x, -hw, hw); o.y = clamp(g.y, -hh, hh); if (W.d3 && g.z !== undefined) o.z = clamp(g.z, -W.box.d / 2, W.box.d / 2);
+  if (o.KE !== 0) { o.KE = 0; exoSpeed(o); }
 }
 function onUp(e) {
   lpEnd();
   UI.pointers.delete(e.pointerId);
   if (UI.drag && UI.drag.kind === 'pinch') { if (UI.pointers.size < 2) UI.drag = null; return; }
   const d = UI.drag;
-  if (d && d.kind === 'grab') grabRelease(W.grab);
+  if (d && d.kind === 'grab') grabRelease(W.grab, e.timeStamp);
   endToolAction();
   if (d && d.rc && e.type === 'pointerup') { const [px, py] = evPos(e); if (Math.hypot(px - d.x, py - d.y) < 6 && !(UI.tool === 'measure' && measureDrop(px, py))) openQuickMenu(px, py); } // (the measure tool: a right-click on a measured particle stops measuring it, the owner's request after 1.26) // a right-click that did not pan
 }
@@ -1815,9 +1864,9 @@ function selXHTML() {
     kv.push(['Kinetic energy', fmtE(o.KE)], ['Total energy', fmtE(o.KE + m * 1e6)], ['Speed', fmtSpeed(o.v)], ['Lorentz factor γ', fmtNum(o.gam, 4)],
       ['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)],
       d.hyp ? ['Decays by', `Λ → p π⁻ or n π⁰ inside (mesonic, ${Math.round(100 * hypMesonic(d.Z + d.N + 1))}%), or Λp → np and Λn → nn (non-mesonic: 176 MeV to the two nucleons, which usually break the nucleus)`] : ['Decays to', (d.ew ? ewDecList(o.sp) : d.dec.map(([b, ps]) => [b, ps.map(t => labelOf(item(t))).join(' ')])).map(([b, dt]) => `${dt} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
-    about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the hydrogen nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, except in the ultra-realistic mode. Bound by ${fmtE(d.Eb * 1e6)}.`
+    about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, and it bounces off any nucleus (1.28.1), except in the ultra-realistic mode, where it is hydrogen's measured size off hydrogen only. Bound by ${fmtE(d.Eb * 1e6)}.`
       : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
-      : XP_ABOUT[d.hyp ? 'hy' : d.ew ? o.sp[0] : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg'].find(k => o.sp.startsWith(k)) || 'eta'] || ''; // (d.ew: W and Z, 1.27)
+      : XP_ABOUT[d.hyp ? 'hy' : d.ew ? o.sp[0] : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg', 'eta'].find(k => o.sp.startsWith(k))] || ''; // (none for the others: they had the η's words, "a neutral meson", for a B⁺ or a Λc, until 1.28.1; the info box below says what each is) // (d.ew: W and Z, 1.27)
     if (d.ps) { // (positronium, 1.27: its state, binding and life here)
       const I = psInfo(o);
       kv.push(['State', I.para ? 'para-positronium: the two spins opposite (a singlet), 1 in 4' : 'ortho-positronium: the two spins parallel (a triplet), 3 in 4'], ['Binding', `${fmtE(I.Eb)} (half hydrogen\u2019s)`], ['Size', `${fmtNum(I.size, 3)} Å, the radius of its orbit (twice hydrogen\u2019s)`],
@@ -1853,7 +1902,7 @@ function selXHTML() {
     status = live ? 'In flight' : X.kind === 'flight' || o.hitP || o.landed ? 'Arrived' : nu ? 'Gone: it left the chamber' : 'Gone: it left the chamber, or was absorbed';
   }
   return `<div class="ins-head"><div class="tilebox" style="border-color:${col}"><span class="s">${esc(sym)}</span></div><div><b>${esc(title)}</b><div class="note">${esc(status)}</div></div></div>
-    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${about ? `<p class="note">${esc(about)}</p>` : ''}${X.kind === 'exo' ? quarkSecHTML(qSubject(null, X)) : ''}${X.kind === 'exo' && live && !o.xb ? '<div class="row" style="justify-content:flex-start"><button class="btn small" data-act="delx">Delete</button></div>' : ''}`; // (Delete, as an atom's card has: muonic hydrogen and the other particles in flight had none, 1.26)
+    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${about ? `<p class="note">${esc(about)}</p>` : ''}${infoPHTML(X.kind === 'exo' ? infoKeyX(o.sp) : X.kind === 'ray' && o.nu ? 'nu' : X.o && X.o.E >= 1.24e5 ? 'gamma' : 'photon')}${X.kind === 'exo' ? quarkSecHTML(qSubject(null, X)) : ''}${X.kind === 'exo' && live && !o.xb ? '<div class="row" style="justify-content:flex-start"><button class="btn small" data-act="delx">Delete</button></div>' : ''}`; // (Delete, as an atom's card has: muonic hydrogen and the other particles in flight had none, 1.26)
 }
 function renderInspect() {
   const box = $('tp-inspect');
@@ -1959,7 +2008,7 @@ function renderInspect() {
     (p.k === NUC && p.Z + p.N > 0 && p.nuc && !p.nuc.stable && !p.nuc.unbound ? chainSectionHTML(p.Z, p.N, p.anti) : '');
   box.innerHTML = `${head}<div>${pills}</div>
     ${p.k === NUC && p.Z > 0 ? `<canvas class="bohr" id="insBohr" aria-label="${R.view.bohr === 'orb' && p.ne > 0 ? 'Electron density' : 'Shell diagram'}"></canvas>` : ''}
-    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${orbs}${bareNote}${extra}${quarkSecHTML(qSubject(p))}${actions}`;
+    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${orbs}${bareNote}${extra}${(() => { const k = infoKeyP(p); return k ? infoPHTML(k) : p.k === NUC && p.Z > 0 && !p.mu ? infoElHTML(p.Z, p.anti) : ''; })()}${quarkSecHTML(qSubject(p))}${actions}`; // (info: the particle's, or the element's for an atom, 1.28.1)
   for (const cv of box.querySelectorAll('canvas.orbcv')) drawOrbThumb(cv, p, +cv.dataset.i);
   const nd = box.querySelector('#insOrbs'); if (nd) nd.addEventListener('toggle', () => { UI.orbOpen = nd.open; });
   const cd = box.querySelector('#insChain'); if (cd) cd.addEventListener('toggle', () => { UI.chainOpen = cd.open; });
@@ -2686,7 +2735,7 @@ const SAVE_KINDS = new Set([NUC, ELEC, POS]);
    radiation flight with its energy and direction: a tenth entry), the bonds among them and the magnets. Not kept:
    light, beams, a collider's rings, and chips' circuits (their atoms are saved as atoms). */
 const xmOf = (ps) => { const xm = []; ps.forEach((p, i) => { const B = p.muB; if (B && B.zx) xm.push([i, B.Eb, B.zx, B.n0 || 0, B.aug || 0, B.lines || [], B.from || '']); }); return xm.length ? { xm } : {}; }; // (exotic atoms of the realistic-particle switch, 1.27: older readers open them as 0.51's muonic atoms)
-const musOf = (ps) => { const m = []; ps.forEach((p, i) => { if (p.spin) m.push([i, ...p.spin, p.eSpin || 0]); }); return m.length ? { mus: m } : {}; }; // (muons' spins of the Muonium-as-hydrogen switch, 1.27: older readers ignore them)
+const musOf = (ps) => { const m = []; ps.forEach((p, i) => { if (p.mu && Array.isArray(p.spin)) m.push([i, ...p.spin, p.eSpin || 0]); }); return m.length ? { mus: m } : {}; }; // (muons' spins of the Muonium-as-hydrogen switch, 1.27: older readers ignore them; only a muonium atom's: a free electron as a wave packet has a spin too, ±1, 1.28.1 bug)
 const isoOf = (ps) => { const iso = []; ps.forEach((p, i) => { if (p.iso) iso.push([i, p.iso.lev, p.iso.t12]); }); return iso.length ? { iso } : {}; }; // (isomers of Realistic particles 6, 1.27: their level and half-life; older readers open the ground state)
 function worldToJSON() {
   const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.caught);
@@ -2699,7 +2748,7 @@ function worldToJSON() {
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
   const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, Ez: W.Ez || 0, Bax: W.Bax3 || 'z', z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, ...xmOf(ps), ...musOf(ps), ...isoOf(ps), xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0, ...(o.spin ? [o.spin.slice()] : [])]), /* (a μ⁺'s spin, 1.27) */ /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, bspf: W.baseSpf || UI.baseSpf || W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, ...xmOf(ps), ...musOf(ps), ...isoOf(ps), xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0, ...(o.spin ? [o.spin.slice()] : [])]), /* (a μ⁺'s spin, 1.27) */ /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -2713,7 +2762,7 @@ function worldFromJSON(d) {
   const hd = W.d3 ? W.box.d / 2 : 0;
   W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.nWall = ['reflect', 'absorb', 'pass', 'fast'].includes(d.nWall) ? d.nWall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -50, 50, 0); W.Ey = num(d.Ey, -50, 50, 0);
   UI.E = Math.hypot(W.Ex, W.Ey); UI.Eang = UI.E ? Math.round(Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) : (UI.Eang || 0); // (the Lab's field figure and direction, from the field)
-  W.simPerFrame = num(d.spf, 1e-15, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1e-6, 1e30, 1); W.minShow = [0, 1, 2].includes(d.minShow) ? d.minShow : 0; W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true;
+  W.simPerFrame = num(d.spf, 1e-15, 1000, W.simPerFrame); W.baseSpf = UI.baseSpf = num(d.bspf, 1e-15, 1000, W.simPerFrame); W.warp = num(d.warp, 1e-6, 1e30, 1); W.minShow = [0, 1, 2].includes(d.minShow) ? d.minShow : 0; W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true; // (the setup's own 1×, saved since 1.28.1: before, the speed it was saved at became 1×; a save from before still does)
   ultraHold(); // (the ultra-realistic mode: real decay rates, nothing held, whatever the save had)
   const made = [], hw = W.box.w / 2, hh = W.box.h / 2;
   for (const q of d.parts) {
@@ -2763,11 +2812,15 @@ function saveWorld() {
   const d = worldToJSON(), name = `atom-forge-world-${(UI.preset || 'world').replace(/[^a-z0-9-]/gi, '')}.json`;
   fileSave(name, JSON.stringify(d)).then((ok) => { if (ok) log('tool', `World saved: ${d.parts.length.toLocaleString('en-US')} particles, ${d.bonds.length.toLocaleString('en-US')} bonds${d.chips ? `; ${d.chips} chip${d.chips === 1 ? '' : 's'} saved as plain atoms` : ''}${d.left ? `; ${d.left} particle${d.left === 1 ? '' : 's'} in flight left out` : ''}`); });
 }
+/* A world opened by the player (a file, a share code, an experiment, the autosave): at the setup's normal speed, as a
+   setup starts (1.28.1: it kept the speed it was saved at, and called that 1×). Undo and rewind keep the speed. */
+function speedNormal() { if (W.simPerFrame !== W.baseSpf || W.slowSet || W.slowHold) setSpeed(W.baseSpf); }
 function loadWorld() {
   filePick('.json,application/json', (text, name) => {
     let d; try { d = JSON.parse(text); } catch (e) { log('tool', `${name}: not a JSON file`); return; }
     const r = worldFromJSON(d);
     if (typeof r === 'string') { log('tool', `${name}: ${r}`); return; }
+    speedNormal();
     log('tool', `World loaded from ${name}: ${r.n.toLocaleString('en-US')} particles, ${r.nb.toLocaleString('en-US')} bonds${r.skipped ? ` (${r.skipped} entries could not be read)` : ''}`);
   });
 }
@@ -2801,6 +2854,7 @@ async function shareOpen(code) {
   if (typeof d === 'string') return d;
   const r = worldFromJSON(d);
   if (typeof r === 'string') return r;
+  speedNormal();
   log('tool', `World opened from a share code: ${r.n.toLocaleString('en-US')} particles, ${r.nb.toLocaleString('en-US')} bonds${r.skipped ? ` (${r.skipped} entries could not be read)` : ''}`);
   return null;
 }
@@ -5168,6 +5222,7 @@ function restoreAutosave() {
   const d = autosaved(); if (!d) return false;
   if (d.fresh) { if (PRESETS[d.preset]) loadPreset(d.preset); return true; }
   const r = worldFromJSON(d); if (typeof r === 'string') return false;
+  speedNormal();
   if (Number.isFinite(d.t)) W.t = d.t;
   if (Array.isArray(d.cam) && d.cam.every(Number.isFinite)) [R.s, R.cx, R.cy] = d.cam;
   cam3Put(d.cam3);
@@ -5483,7 +5538,7 @@ function openMine() {
         if (!d) return;
         undoMark('Load an experiment');
         if (d.fresh) { if (PRESETS[d.preset]) loadPreset(d.preset); }
-        else { if (!REW.restoring) { rewClear(); grClear(); } const r = worldFromJSON(d); if (typeof r === 'string') { mineSay('Could not load it: ' + r); return; } if (Number.isFinite(d.t)) W.t = d.t; if (Array.isArray(d.cam) && d.cam.every(Number.isFinite)) [R.s, R.cx, R.cy] = d.cam; cam3Put(d.cam3); UI.preset = typeof d.preset === 'string' ? d.preset : UI.preset; syncPresetSelect(); }
+        else { if (!REW.restoring) { rewClear(); grClear(); } const r = worldFromJSON(d); if (typeof r === 'string') { mineSay('Could not load it: ' + r); return; } speedNormal(); if (Number.isFinite(d.t)) W.t = d.t; if (Array.isArray(d.cam) && d.cam.every(Number.isFinite)) [R.s, R.cx, R.cy] = d.cam; cam3Put(d.cam3); UI.preset = typeof d.preset === 'string' ? d.preset : UI.preset; syncPresetSelect(); }
         hideModal('mineModal'); log('tool', `Loaded “${d.name}”`);
       });
       if (dl) { if (!dl.classList.contains('armed')) { dl.classList.add('armed'); dl.textContent = 'Sure?'; return; } mineTx('readwrite', st => st.delete(dl.dataset.del)).then(mineRender); }
