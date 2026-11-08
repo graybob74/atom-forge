@@ -1458,8 +1458,8 @@ const SKIN = 1.0, HSKIN2 = 0.25 * SKIN * SKIN, SKIN_F = 2.0, HSKINF2 = 0.25 * SK
 let RL = RC + SKIN, RL2 = RL * RL, RLF2 = (RC + SKIN_F) * (RC + SKIN_F);
 let CELL_MIN = RC + Math.max(SKIN, SKIN_F); // (cells at least as wide as either list reaches: a 3 × 3 block of cells holds every partner)
 /* The cutoff (1.10, Settings → Experimental → Longer force reach): 6 Å, or 9 or 12. Everything that reaches RC follows
-   it; the WebAssembly kernel has 6 Å built in, so a longer reach runs the JavaScript kernels, and the workers are
-   started again (their source carries RC2). The potential energy changes with the reach: set it between steps. */
+   it; the WebAssembly kernel is given it (af_set_rc2, 1.28 item 33: before, it had 6 Å built in and a longer reach ran
+   the JavaScript kernels), and the workers are started again (their source carries RC2). The potential energy changes with the reach: set it between steps. */
 function setCutoff(rc) {
   rc = rc === 9 || rc === 12 ? rc : 6;
   if (typeof WK !== 'undefined') WK.use = rc === 6 || wasmRcOk(); // (wasmReady() also needs WK.ready: a kernel that failed stays off; a module with af_set_rc2 takes any reach, 1.28 item 33)
@@ -5151,50 +5151,12 @@ function chargedCount() {
 function localPhi(x, y, skipA, skipB, z = 0) {
   const chg = (p) => (p && !p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0 ? 1 : 0);
   if (chargedCount() - chg(skipA) - chg(skipB) <= 0) return 0; // (nothing charged but the pair itself: the walk would add nothing)
-  return phiWalk(x, y, z, skipA, skipB);
-}
-/* localPhi's walk (1.28 item 39: 3-D brine spent a third of its step here): nearby()'s walk over the grid, the same cells
-   in the same order (gridWalk, gridWalk3, with their fall-back to the occupied cells), the same tests and the same sum,
-   so the same result to the bit, on the store's arrays with no callback and no particle getters. */
-function phiWalk(x, y, z, skipA, skipB) {
-  gridEnsure();
-  const L = G.list, head = G.head, next = G.next, cols = G.cols, rows = G.rows, wrap = W.wall === 'wrap', gw = G.wrap, d3 = W.d3;
-  const X = S.x, Y = S.y, Zs = S.z, K = S.k, Q = S.q, QP = S.qp, DEAD = S.dead, KE = PHYS.KE;
-  const bw = W.box.w, bh = W.box.h, bd = d3 ? W.box.d : 0, R2 = RC * RC;
-  const sx = Math.ceil(RC / G.cw), sy = Math.ceil(RC / G.ch), sz = d3 ? Math.ceil(RC / G.cd) : 0;
-  const ccx = Math.floor((x + G.hx) / G.cw), ccy = Math.floor((y + G.hy) / G.ch), ccz = d3 ? Math.floor((z + G.hz) / G.cd) : 0;
   let phi = 0;
-  const one = (i) => { // (a particle of the walk: as nearby's visit and localPhi's callback)
-    const p = L[i], si = p.i;
-    if (DEAD[si] === 1) return;
-    let dx = X[si] - x, dy = Y[si] - y, dz = d3 ? Zs[si] - z : 0;
-    if (wrap) { if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw; if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh; if (d3) { if (dz > bd / 2) dz -= bd; else if (dz < -bd / 2) dz += bd; } }
-    const r2 = d3 ? dx * dx + dy * dy + dz * dz : dx * dx + dy * dy;
-    if (!(r2 <= R2) || p === skipA || p === skipB) return;
-    const q = K[si] === NUC ? Q[si] + QP[si] : Q[si];
-    if (q !== 0) phi += KE * q / Math.sqrt(r2 + 0.09);
-  };
-  let x0 = ccx - sx, y0 = ccy - sy, x1 = ccx + sx, y1 = ccy + sy, z0 = ccz - sz, z1 = ccz + sz;
-  if (!d3 || G.lay <= 1) { z0 = 0; z1 = 0; } // (gridWalk: one layer; gridWalk3 otherwise)
-  const lay = G.lay > 1 ? G.lay : 1, three = G.lay > 1;
-  if (!gw) { x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(cols - 1, x1); y1 = Math.min(rows - 1, y1); if (three) { z0 = Math.max(0, z0); z1 = Math.min(lay - 1, z1); } }
-  else { if (x1 - x0 + 1 >= cols) { x0 = 0; x1 = cols - 1; } if (y1 - y0 + 1 >= rows) { y0 = 0; y1 = rows - 1; } if (three && z1 - z0 + 1 >= lay) { z0 = 0; z1 = lay - 1; } }
-  if ((x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1) > G.nocc) {
-    const occ = G.occ, nocc = G.nocc;
-    for (let q = 0; q < nocc; q++) for (let i = head[occ[q]]; i !== -1; i = next[i]) one(i);
-    return phi;
-  }
-  for (let cz = z0; cz <= z1; cz++) {
-    const rz = gw ? ((cz % lay) + lay) % lay : cz;
-    for (let cy = y0; cy <= y1; cy++) {
-      const ry = gw ? ((cy % rows) + rows) % rows : cy;
-      for (let cx = x0; cx <= x1; cx++) {
-        const rx = gw ? ((cx % cols) + cols) % cols : cx;
-        const sl = gridFind(three ? (rz * rows + ry) * cols + rx : ry * cols + rx);
-        if (sl !== -1) for (let i = head[sl]; i !== -1; i = next[i]) one(i);
-      }
-    }
-  }
+  nearby(x, y, RC, (p, dx, dy, r2) => {
+    if (p === skipA || p === skipB) return;
+    const q = p.k === NUC ? p.q + p.qp : p.q;
+    if (q !== 0) phi += PHYS.KE * q / Math.sqrt(r2 + 0.09);
+  }, z);
   return phi;
 }
 function breakCostIfCharged(p, dne) {

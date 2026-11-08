@@ -17,6 +17,7 @@ pub mod d3;
 pub mod vl;
 pub mod mb;
 pub mod qeq;
+pub mod jsp;
 
 pub const RC2_DEF: f64 = 36.0; // RC = 6 Å, the reach at start (af_const(1))
 /// The cutoff squared (Å²): 36 (6 Å), or 81 / 144 when Settings → Experimental → Longer force reach is 9 or 12 Å

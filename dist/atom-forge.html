@@ -1622,7 +1622,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <p class="note" data-m="3d" hidden>The flat game only: in the 3-D lab nucleons do not strike nuclei yet (nuclear reactions between atoms are in the flat game only), so it changes nothing there. It stays set for the flat game.</p>
       <h3>Longer force reach</h3>
       <div class="srow"><span>Force reach</span><div class="seg" id="segRc" role="group" aria-label="Force reach"><button data-v="6">6 Å (normal)</button><button data-v="9">9 Å</button><button data-v="12">12 Å</button></div></div>
-      <p class="note">Van der Waals and partial-charge forces stop at 6 Å (net charges reach farther while there are few of them). A longer reach keeps more of the pull between molecules. It runs the JavaScript force kernels (the WebAssembly ones have 6 Å built in). The potential energy changes when the reach does: the energy books step once.</p>
+      <p class="note">Van der Waals and partial-charge forces stop at 6 Å (net charges reach farther while there are few of them). A longer reach keeps more of the pull between molecules. It runs on the WebAssembly force kernels, as 6 Å does (since 1.28). The potential energy changes when the reach does: the energy books step once.</p>
       <p class="note" data-m="2d">Measured in the flat game on the same arrangement, liquid water binds 0.9 kJ/mol a molecule more at 9 Å and 1.6 at 12 Å (of about 41 kJ/mol to boil it off), brine 8.5 and 11. Costs ×1.3–2.6 at 9 Å and ×1.6–5.6 at 12 Å (brine, liquid water, 4,000 waters), more in big boxes.</p>
       <p class="note" data-m="3d" hidden>In space the partners within reach grow as the cube of the reach (in the flat game as its square), so it costs far more in the 3-D lab: ×3.5–5 at 9 Å and ×7–17 at 12 Å (salt water, liquid water; measured in 3-D, 1.25).</p>
       <h3>Charges that respond to their surroundings</h3>
@@ -5894,8 +5894,8 @@ const SKIN = 1.0, HSKIN2 = 0.25 * SKIN * SKIN, SKIN_F = 2.0, HSKINF2 = 0.25 * SK
 let RL = RC + SKIN, RL2 = RL * RL, RLF2 = (RC + SKIN_F) * (RC + SKIN_F);
 let CELL_MIN = RC + Math.max(SKIN, SKIN_F); // (cells at least as wide as either list reaches: a 3 × 3 block of cells holds every partner)
 /* The cutoff (1.10, Settings → Experimental → Longer force reach): 6 Å, or 9 or 12. Everything that reaches RC follows
-   it; the WebAssembly kernel has 6 Å built in, so a longer reach runs the JavaScript kernels, and the workers are
-   started again (their source carries RC2). The potential energy changes with the reach: set it between steps. */
+   it; the WebAssembly kernel is given it (af_set_rc2, 1.28 item 33: before, it had 6 Å built in and a longer reach ran
+   the JavaScript kernels), and the workers are started again (their source carries RC2). The potential energy changes with the reach: set it between steps. */
 function setCutoff(rc) {
   rc = rc === 9 || rc === 12 ? rc : 6;
   if (typeof WK !== 'undefined') WK.use = rc === 6 || wasmRcOk(); // (wasmReady() also needs WK.ready: a kernel that failed stays off; a module with af_set_rc2 takes any reach, 1.28 item 33)
@@ -9587,50 +9587,12 @@ function chargedCount() {
 function localPhi(x, y, skipA, skipB, z = 0) {
   const chg = (p) => (p && !p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0 ? 1 : 0);
   if (chargedCount() - chg(skipA) - chg(skipB) <= 0) return 0; // (nothing charged but the pair itself: the walk would add nothing)
-  return phiWalk(x, y, z, skipA, skipB);
-}
-/* localPhi's walk (1.28 item 39: 3-D brine spent a third of its step here): nearby()'s walk over the grid, the same cells
-   in the same order (gridWalk, gridWalk3, with their fall-back to the occupied cells), the same tests and the same sum,
-   so the same result to the bit, on the store's arrays with no callback and no particle getters. */
-function phiWalk(x, y, z, skipA, skipB) {
-  gridEnsure();
-  const L = G.list, head = G.head, next = G.next, cols = G.cols, rows = G.rows, wrap = W.wall === 'wrap', gw = G.wrap, d3 = W.d3;
-  const X = S.x, Y = S.y, Zs = S.z, K = S.k, Q = S.q, QP = S.qp, DEAD = S.dead, KE = PHYS.KE;
-  const bw = W.box.w, bh = W.box.h, bd = d3 ? W.box.d : 0, R2 = RC * RC;
-  const sx = Math.ceil(RC / G.cw), sy = Math.ceil(RC / G.ch), sz = d3 ? Math.ceil(RC / G.cd) : 0;
-  const ccx = Math.floor((x + G.hx) / G.cw), ccy = Math.floor((y + G.hy) / G.ch), ccz = d3 ? Math.floor((z + G.hz) / G.cd) : 0;
   let phi = 0;
-  const one = (i) => { // (a particle of the walk: as nearby's visit and localPhi's callback)
-    const p = L[i], si = p.i;
-    if (DEAD[si] === 1) return;
-    let dx = X[si] - x, dy = Y[si] - y, dz = d3 ? Zs[si] - z : 0;
-    if (wrap) { if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw; if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh; if (d3) { if (dz > bd / 2) dz -= bd; else if (dz < -bd / 2) dz += bd; } }
-    const r2 = d3 ? dx * dx + dy * dy + dz * dz : dx * dx + dy * dy;
-    if (!(r2 <= R2) || p === skipA || p === skipB) return;
-    const q = K[si] === NUC ? Q[si] + QP[si] : Q[si];
-    if (q !== 0) phi += KE * q / Math.sqrt(r2 + 0.09);
-  };
-  let x0 = ccx - sx, y0 = ccy - sy, x1 = ccx + sx, y1 = ccy + sy, z0 = ccz - sz, z1 = ccz + sz;
-  if (!d3 || G.lay <= 1) { z0 = 0; z1 = 0; } // (gridWalk: one layer; gridWalk3 otherwise)
-  const lay = G.lay > 1 ? G.lay : 1, three = G.lay > 1;
-  if (!gw) { x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(cols - 1, x1); y1 = Math.min(rows - 1, y1); if (three) { z0 = Math.max(0, z0); z1 = Math.min(lay - 1, z1); } }
-  else { if (x1 - x0 + 1 >= cols) { x0 = 0; x1 = cols - 1; } if (y1 - y0 + 1 >= rows) { y0 = 0; y1 = rows - 1; } if (three && z1 - z0 + 1 >= lay) { z0 = 0; z1 = lay - 1; } }
-  if ((x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1) > G.nocc) {
-    const occ = G.occ, nocc = G.nocc;
-    for (let q = 0; q < nocc; q++) for (let i = head[occ[q]]; i !== -1; i = next[i]) one(i);
-    return phi;
-  }
-  for (let cz = z0; cz <= z1; cz++) {
-    const rz = gw ? ((cz % lay) + lay) % lay : cz;
-    for (let cy = y0; cy <= y1; cy++) {
-      const ry = gw ? ((cy % rows) + rows) % rows : cy;
-      for (let cx = x0; cx <= x1; cx++) {
-        const rx = gw ? ((cx % cols) + cols) % cols : cx;
-        const sl = gridFind(three ? (rz * rows + ry) * cols + rx : ry * cols + rx);
-        if (sl !== -1) for (let i = head[sl]; i !== -1; i = next[i]) one(i);
-      }
-    }
-  }
+  nearby(x, y, RC, (p, dx, dy, r2) => {
+    if (p === skipA || p === skipB) return;
+    const q = p.k === NUC ? p.q + p.qp : p.q;
+    if (q !== 0) phi += PHYS.KE * q / Math.sqrt(r2 + 0.09);
+  }, z);
   return phi;
 }
 function breakCostIfCharged(p, dne) {
@@ -25259,14 +25221,14 @@ const SD = { idx: new Int32Array(0), rg: new Uint8Array(0), at: [], dat: [], key
 const _nos = { ns: 0 };
 function sitesPrep() {
   const key = W.topo + ':' + W.dirty + ':' + W.parts.length + ':' + W.spawned + ':' + W.deaths + ':' + _flagGen + ':' + SITES.lp + SITES.sh + SITES.pi + ':' + (W.d3 ? 1 : 0) + ':' + BO.any;
-  if (SD.idx.length < S.size) { SD.idx = new Int32Array(S.size * 2).fill(-1); SD.key = ''; }
+  if (SD.idx.length < S.size) { SD.idx = shArray(Int32Array, S.size * 2).fill(-1); SD.key = ''; } // (shArray: in the module's memory, for af_sites_forces, 1.28)
   if (key !== SD.key) {
     for (const p of SD.at) if (p.i >= 0 && p.i < SD.idx.length) SD.idx[p.i] = -1;
     SD.at = []; for (const p of W.parts) if (siteKind(p)) { SD.idx[p.i] = SD.at.length; SD.at.push(p); }
     if (SD.rg.length < S.size) SD.rg = new Uint8Array(S.size * 2); else SD.rg.fill(0); SITES.rings = 0;
     if (SITES.pi) for (const p of W.parts) if (!p.dead && ringType(p)) { SD.rg[p.i] = 1; SITES.rings++; }
     while (SD.dat.length < SD.at.length) SD.dat.push({ ns: 0, o: new Float64Array(9), sq: new Float64Array(3), w: new Float64Array(3), b: new Float64Array(3), aq: 0, aw: 1, ab: 0, kind: 0 });
-    const m = SD.at.length; if (SD.n.length < m) { SD.n = new Int32Array(m * 2 + 16); SD.q = new Float64Array(4 * (m * 2 + 16)); SD.o = new Float64Array(12 * (m * 2 + 16)); SD.go = new Float64Array(12 * (m * 2 + 16)); }
+    const m = SD.at.length; if (SD.n.length < m) { SD.n = shArray(Int32Array, m * 2 + 16); SD.q = shArray(Float64Array, 4 * (m * 2 + 16)); SD.o = shArray(Float64Array, 12 * (m * 2 + 16)); SD.go = shArray(Float64Array, 12 * (m * 2 + 16)); }
     SD.key = key; SITES.n = SD.at.length;
   }
   // flat copies for the force loop: per site atom 1 + ns charges (the atom's own first, at offset 0) and their offsets
@@ -25281,6 +25243,7 @@ const _gq = new Float64Array(9);
 function sitesForces(FX, FY, FZ) {
   sitesPrep();
   const nat = SD.at.length; if (!nat && !SITES.rings) return;
+  if (!SITES.rings && sitesWasm(FX, FY, FZ)) { sitesBackAll(FX, FY, FZ); return; } // (no ring pairs: the loop in the module, 1.28)
   const pi = VL.pi, pj = VL.pj, ex = VL.ex, np = VL.np, X = S.x, Y = S.y, Zp = S.z, NE = S.ne, Z = S.Z, K = S.k, ANTI = S.anti, idx = SD.idx, Q = S.q, QP = S.qp, IONIC = S.ionic, RG = SD.rg, OBJ = S.obj;
   const N = SD.n, Qs = SD.q, Os = SD.o, GO = SD.go, soft = SITES.soft, r1 = RC - SW_W;
   const d3 = W.d3, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2;
@@ -25320,11 +25283,32 @@ function sitesForces(FX, FY, FZ) {
     FX[i] += fax; FY[i] += fay; FX[j] -= fax; FY[j] -= fay;
     if (d3) { FZ[i] += faz; FZ[j] -= faz; }
   }
+  SITES.pairs = npairs;
+  sitesBackAll(FX, FY, FZ);
+}
+/* The offsets' gradients carried back to the site atoms and their neighbours (siteBack), after the pair loop. */
+function sitesBackAll(FX, FY, FZ) {
+  const GO = SD.go, nat = SD.at.length, d3 = W.d3;
   for (let k = 0; k < nat; k++) {
     const b = 12 * k; let any = false; for (let m = 0; m < 9; m++) { _gq[m] = GO[b + 3 + m]; if (_gq[m]) any = true; }
     if (any) siteBack(SD.at[k], SD.dat[k].kind, _gq, FX, FY, d3 ? FZ : null);
   }
-  SITES.pairs = npairs;
+}
+/* sitesForces' pair loop in the module (af_sites_forces, kernel/src/jsp.rs, 1.28; not with π-stacking's ring pairs,
+   whose dispersion stays here): the same tests and arithmetic in the same order, the forces and the offsets' gradients
+   the JavaScript's to the bit. False (and the JavaScript runs) with no module or an array outside its memory. */
+const SDW = { t: null, p: null, calls: 0, useWasm: true };
+function sitesWasm(FX, FY, FZ) {
+  if (!SDW.useWasm || !wasmReady() || typeof WK.ex.af_sites_forces !== 'function') return false;
+  if (!SDW.t) { SDW.t = wasmArray(Int32Array, 24); SDW.p = wasmArray(Float64Array, 16); }
+  if (!WK.on) return false;
+  const A = [VL.pi, VL.pj, VL.ex, S.x, S.y, S.z, S.ne, S.Z, S.k, S.anti, SD.idx, S.q, S.qp, S.ionic, SD.n, SD.q, SD.o, SD.go, FX, FY, FZ];
+  if (!wasmIn(...A, SDW.t, SDW.p)) return false;
+  const T = SDW.t, P = SDW.p; for (let k = 0; k < A.length; k++) T[k] = A[k].byteOffset;
+  P[0] = VL.np; P[1] = W.d3 ? 1 : 0; P[2] = W.wall === 'wrap' ? 1 : 0; P[3] = W.box.w; P[4] = W.box.h; P[5] = W.box.d; P[6] = RC2; P[7] = RC - SW_W; P[8] = SW_W; P[9] = SOFT_S; P[10] = SITES.soft; P[11] = K_COUL; P[12] = K_IW;
+  WK.ex.af_sites_forces(T.byteOffset, P.byteOffset);
+  SITES.pairs = P[13]; SDW.calls++;
+  return true;
 }
 /* The correction between two atoms as the energy books see it (pairPE, sitesLocal, sitesTotal): live sites. */
 const _sga = { ns: 0, o: new Float64Array(9), sq: new Float64Array(3), w: new Float64Array(3), b: new Float64Array(3), aq: 0, aw: 1, ab: 0, kind: 0 };
@@ -25537,14 +25521,15 @@ function pdTotal() {
   return V;
 }
 /* The force pass: every pair of the neighbour list between different molecules with a dipole in it. */
-const PDF = { idx: new Int32Array(0), cr: new Float64Array(0) };
+const PDF = { idx: new Int32Array(0), cr: new Float64Array(0), act: new Uint8Array(0), mx: null, my: null, mz: null, t: null, p: null, calls: 0, useWasm: true };
 function pdForces(FX, FY, FZ) {
   if (!pdLive()) return;
-  if (PDF.idx.length < S.size) { PDF.idx = new Int32Array(S.size * 2).fill(-1); PDF.cr = new Float64Array(S.size * 2); }
+  if (PDF.idx.length < S.size) { const n = S.size * 2; PDF.idx = new Int32Array(n).fill(-1); PDF.cr = shArray(Float64Array, n); PDF.act = shArray(Uint8Array, n); PDF.mx = shArray(Float64Array, n); PDF.my = shArray(Float64Array, n); PDF.mz = shArray(Float64Array, n); }
   const idx = PDF.idx, act = [], CR = PDF.cr;
   for (const p of W.parts) if (pdPart(p)) CR[p.i] = Math.cbrt(pdAct(p) ? p.dma : pdStaticA(p)); // (the damping's cube roots)
   for (const p of PD.at) if (pdAct(p)) { idx[p.i] = act.length; act.push(p); }
   if (!act.length) return;
+  if (pdForcesWasm(act, FX, FY, FZ)) { for (const p of act) idx[p.i] = -1; return; }
   const pi = VL.pi, pj = VL.pj, np = VL.np, X = S.x, Y = S.y, Zp = S.z, K = S.k, Zs = S.Z, DEAD = S.dead, FAST = S.fast, RAD = S.rad, MOL = S.mol, Q = S.q, QP = S.qp, IONIC = S.ionic;
   const d3 = W.d3, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2, KE = PHYS.KE;
   for (let q = 0; q < np; q++) {
@@ -25570,6 +25555,24 @@ function pdForces(FX, FY, FZ) {
     if (d3) { FZ[i] += KE * Gz; FZ[j] -= KE * Gz; }
   }
   for (const p of act) idx[p.i] = -1;
+}
+/* The same pass in the module (af_pd_forces, kernel/src/jsp.rs, 1.28): the same tests and arithmetic in the same order,
+   so the forces are the JavaScript's to the bit; false (and the JavaScript runs) with no module or an array outside
+   its memory. The live dipoles by slot in PDF.act/mx/my/mz for the pass, cleared after it. */
+function pdForcesWasm(act, FX, FY, FZ) {
+  if (!PDF.useWasm || !wasmReady() || typeof WK.ex.af_pd_forces !== 'function') return false;
+  if (!PDF.t) { PDF.t = wasmArray(Int32Array, 24); PDF.p = wasmArray(Float64Array, 16); }
+  if (!WK.on) return false;
+  const A = [VL.pi, VL.pj, S.x, S.y, S.z, S.k, S.Z, S.dead, S.fast, S.rad, S.mol, S.q, S.qp, S.ionic, PDF.cr, PDF.act, PDF.mx, PDF.my, PDF.mz, FX, FY, FZ];
+  if (!wasmIn(...A, PDF.t, PDF.p)) return false;
+  const T = PDF.t, P = PDF.p, AC = PDF.act, MX = PDF.mx, MY = PDF.my, MZ = PDF.mz;
+  for (const p of act) { const i = p.i; AC[i] = 1; MX[i] = p.dmx; MY[i] = p.dmy; MZ[i] = p.dmz; }
+  for (let k = 0; k < A.length; k++) T[k] = A[k].byteOffset;
+  P[0] = VL.np; P[1] = W.d3 ? 1 : 0; P[2] = W.wall === 'wrap' ? 1 : 0; P[3] = W.box.w; P[4] = W.box.h; P[5] = W.box.d; P[6] = RC2; P[7] = RC - 1; P[8] = PD_S; P[9] = PD_TH; P[10] = K_IW; P[11] = PHYS.KE;
+  WK.ex.af_pd_forces(T.byteOffset, P.byteOffset);
+  for (const p of act) AC[p.i] = 0;
+  PDF.calls++;
+  return true;
 }
 /* Off: every dipole gone, the change of the energy paid as an update's is (or booked to the bath). */
 function pdClear() {
@@ -43281,7 +43284,7 @@ const COSTS = {
     : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×3.3', 'Measured on liquid water (1.21): the force field worked out 8 times a step'], 16: ['×7', 'Measured on liquid water: 16 times a step'], 32: ['×16', 'Measured on liquid water: 32 times a step'] } },
   segPiRpc: () => ({ k: 'physics', o: { 1: ['×1', 'Bonds and bends on every bead (where the spread matters), the pairs between atoms at the rings\u2019 centres: ring-polymer contraction'], 0: ['×2.3–2.7', 'The whole force field on every bead: exact, 2.3 times the work at 8 beads, 2.7 at 32'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–1.8', 'Measured: water 4,000 ×1.4, brine ×1.6, liquid water ×1.8'], 1: ['×2.7–4.6', 'Measured: brine ×2.7, liquid water ×2.8, 4,000 waters ×4.6'] } }),
-  segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×1.3–2.6', 'Measured: brine ×1.3, liquid water ×2.2, 4,000 waters ×2.6 (JavaScript kernels)'], 12: ['×1.6–5.6', 'Measured: brine ×1.6, liquid water ×3.2, 4,000 waters ×5.6 (JavaScript kernels)'] } }),
+  segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×1–1.3', 'Measured (1.28, on the WebAssembly kernel, as 6 Å): liquid water ×1.3, salt water about ×1 (its time goes to the ions’ events)'], 12: ['×1–1.7', 'Measured (1.28, on the WebAssembly kernel): liquid water ×1.7, salt water about ×1'] } }),
   segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×1.7', 'Measured ×1.6–1.8 where steps are at their longest; nothing where they are already short'], 0.01: ['×2.8', 'Measured ×2.6–2.9 where steps are at their longest; nothing where they are already short'] } }),
   setResBig: () => ({ k: 'physics', on: ['×1 + pauses', 'Nothing while bonds stay put; a pause of 12 ms (200 ring atoms) to 0.2 s (1,000) when a large ring system reacts'] }),
   setInc: () => ({ k: 'physics', on: ['×1–1.05', 'About 3 ms a nuclear hit instead of 1: a few percent in the nuclear setups, nothing elsewhere'] }),
@@ -43336,7 +43339,7 @@ const COSTS3 = {
     : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×8', 'Measured on liquid water in 3-D (after 1.25): the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water in 3-D: 16 times a step'], 32: ['×29', 'Measured on liquid water in 3-D: 32 times a step'] } },
   segPiRpc: () => ({ k: 'physics', o: { 1: ['×1', 'Bonds and bends on every bead (where the spread matters), the pairs between atoms at the rings’ centres: ring-polymer contraction'], 0: ['×5–6', 'The whole force field on every bead: exact; in 3-D (liquid water, after 1.25) 5 times the work at 8 and 32 beads, 6 at 16 (1.25: 10 and 7.5)'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–2.4', 'Measured in 3-D (1.25–1.26): liquid water ×1.4–1.9, salt water ×2.4'], 1: ['×2.5–3.2', 'Measured in 3-D (1.26, the pairs found in WebAssembly): liquid water ×2.6, salt water about ×2.5 (1.25: ×3.2–4.2)'] } }),
-  segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×3.5–5', 'Measured in 3-D (1.25): salt water ×3.5, liquid water ×4.9 (JavaScript kernels; in space the partners within reach grow as the cube of the reach)'], 12: ['×7–17', 'Measured in 3-D (1.25): salt water ×6.6–6.9, liquid water ×12–17 (JavaScript kernels)'] } }),
+  segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×2.2–2.5', 'Measured in 3-D (1.28, on the WebAssembly kernel, as 6 Å): salt water ×2.2, liquid water ×2.5 (in space the partners within reach grow as the cube of the reach)'], 12: ['×3.7–4.5', 'Measured in 3-D (1.28, on the WebAssembly kernel): salt water ×3.7, liquid water ×4.5'] } }),
   segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×2', 'Measured in 3-D (1.25): liquid water and salt water ×2.0–2.2 where steps are at their longest (a 3-D step costs about the same whatever its length); nothing where they are already short'], 0.01: ['×3.5', 'Measured in 3-D (1.25): liquid water ×3.4–3.5, salt water ×3.3–4.1 where steps are at their longest; nothing where they are already short'] } }),
   setInc: () => ({ k: 'physics', on: ['×1', 'Nothing in the 3-D lab: nucleons do not strike nuclei there yet (the flat game only)'] }),
   setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24); the true sizes are drawn without the WebGL layer (liquid water: 7 → 25 ms a frame, headless, 1.26)'] }),

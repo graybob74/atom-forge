@@ -125,14 +125,15 @@ function pdTotal() {
   return V;
 }
 /* The force pass: every pair of the neighbour list between different molecules with a dipole in it. */
-const PDF = { idx: new Int32Array(0), cr: new Float64Array(0) };
+const PDF = { idx: new Int32Array(0), cr: new Float64Array(0), act: new Uint8Array(0), mx: null, my: null, mz: null, t: null, p: null, calls: 0, useWasm: true };
 function pdForces(FX, FY, FZ) {
   if (!pdLive()) return;
-  if (PDF.idx.length < S.size) { PDF.idx = new Int32Array(S.size * 2).fill(-1); PDF.cr = new Float64Array(S.size * 2); }
+  if (PDF.idx.length < S.size) { const n = S.size * 2; PDF.idx = new Int32Array(n).fill(-1); PDF.cr = shArray(Float64Array, n); PDF.act = shArray(Uint8Array, n); PDF.mx = shArray(Float64Array, n); PDF.my = shArray(Float64Array, n); PDF.mz = shArray(Float64Array, n); }
   const idx = PDF.idx, act = [], CR = PDF.cr;
   for (const p of W.parts) if (pdPart(p)) CR[p.i] = Math.cbrt(pdAct(p) ? p.dma : pdStaticA(p)); // (the damping's cube roots)
   for (const p of PD.at) if (pdAct(p)) { idx[p.i] = act.length; act.push(p); }
   if (!act.length) return;
+  if (pdForcesWasm(act, FX, FY, FZ)) { for (const p of act) idx[p.i] = -1; return; }
   const pi = VL.pi, pj = VL.pj, np = VL.np, X = S.x, Y = S.y, Zp = S.z, K = S.k, Zs = S.Z, DEAD = S.dead, FAST = S.fast, RAD = S.rad, MOL = S.mol, Q = S.q, QP = S.qp, IONIC = S.ionic;
   const d3 = W.d3, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2, KE = PHYS.KE;
   for (let q = 0; q < np; q++) {
@@ -158,6 +159,24 @@ function pdForces(FX, FY, FZ) {
     if (d3) { FZ[i] += KE * Gz; FZ[j] -= KE * Gz; }
   }
   for (const p of act) idx[p.i] = -1;
+}
+/* The same pass in the module (af_pd_forces, kernel/src/jsp.rs, 1.28): the same tests and arithmetic in the same order,
+   so the forces are the JavaScript's to the bit; false (and the JavaScript runs) with no module or an array outside
+   its memory. The live dipoles by slot in PDF.act/mx/my/mz for the pass, cleared after it. */
+function pdForcesWasm(act, FX, FY, FZ) {
+  if (!PDF.useWasm || !wasmReady() || typeof WK.ex.af_pd_forces !== 'function') return false;
+  if (!PDF.t) { PDF.t = wasmArray(Int32Array, 24); PDF.p = wasmArray(Float64Array, 16); }
+  if (!WK.on) return false;
+  const A = [VL.pi, VL.pj, S.x, S.y, S.z, S.k, S.Z, S.dead, S.fast, S.rad, S.mol, S.q, S.qp, S.ionic, PDF.cr, PDF.act, PDF.mx, PDF.my, PDF.mz, FX, FY, FZ];
+  if (!wasmIn(...A, PDF.t, PDF.p)) return false;
+  const T = PDF.t, P = PDF.p, AC = PDF.act, MX = PDF.mx, MY = PDF.my, MZ = PDF.mz;
+  for (const p of act) { const i = p.i; AC[i] = 1; MX[i] = p.dmx; MY[i] = p.dmy; MZ[i] = p.dmz; }
+  for (let k = 0; k < A.length; k++) T[k] = A[k].byteOffset;
+  P[0] = VL.np; P[1] = W.d3 ? 1 : 0; P[2] = W.wall === 'wrap' ? 1 : 0; P[3] = W.box.w; P[4] = W.box.h; P[5] = W.box.d; P[6] = RC2; P[7] = RC - 1; P[8] = PD_S; P[9] = PD_TH; P[10] = K_IW; P[11] = PHYS.KE;
+  WK.ex.af_pd_forces(T.byteOffset, P.byteOffset);
+  for (const p of act) AC[p.i] = 0;
+  PDF.calls++;
+  return true;
 }
 /* Off: every dipole gone, the change of the energy paid as an update's is (or booked to the bath). */
 function pdClear() {

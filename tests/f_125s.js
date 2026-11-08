@@ -55,7 +55,7 @@ PARTS.settings3d = async (page, check, say, openPage) => {
   check(d2.mode === '2-D game' && d3.mode === '3-D lab',
     `1.25 Settings by mode: the title says which (${d2.mode} / ${d3.mode})`, '1.25 settings3d mode tag: ' + JSON.stringify([d2.mode, d3.mode]));
   const tagDiff = ['segBo', 'segRc', 'segPi', 'segQeq', 'segDtMax'].filter(id => d2.tags[id] !== d3.tags[id]);
-  check(tagDiff.length === 5 && /×(18|7–14)/.test(d3.tags.segBo) && /×6–15/.test(d2.tags.segBo) && /×7–17/.test(d3.tags.segRc),
+  check(tagDiff.length === 5 && /×(18|7–14)/.test(d3.tags.segBo) && /×6–15/.test(d2.tags.segBo) && /×3\.7–4\.5/.test(d3.tags.segRc) /* (1.28: in the module) */,
     `1.25 Settings by mode: the cost tags are this mode's: bond orders ${d2.tags.segBo} / ${d3.tags.segBo}, force reach ${d2.tags.segRc} / ${d3.tags.segRc}, quantum nuclei ${d2.tags.segPi} / ${d3.tags.segPi}`,
     '1.25 settings3d tags: ' + JSON.stringify({ d2: d2.tags, d3: d3.tags }));
   check(/twist/.test(d3.desc.segBo) && !/twist/.test(d2.desc.segBo) && /drawn in depth/.test(d3.desc.segPi) && /camera/.test(d3.desc.segWheel) && /3-D lab/.test(d3.desc.exp) && d2.desc.exp !== d3.desc.exp
