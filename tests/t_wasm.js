@@ -56,6 +56,48 @@ function build(X, scen) {
   }
   console.log(`arena: ${WK.allocs} allocations, ${WK.grows} growths, ${(WK.top / 1048576).toFixed(1)} MB used, ${WK.calls} kernel calls`);
 }
+// 1b. the longer force reach (Settings → Experimental, 9 and 12 Å) in the module (1.28 item 33: the cutoff a value it is
+//     given, af_set_rc2): the same frozen-state comparison at each reach, and the module is used there
+{
+  const X = load('all', { seed: 12 }), { WK } = X;
+  if (typeof WK.ex.af_set_rc2 !== 'function') console.log('reach: skipped (this kernel.wasm has 6 Å built in)');
+  else for (const rc of [9, 12]) for (const scen of ['waterion', 'soup']) {
+    X.clearWorld(); X.setCutoff(rc); build(X, scen); steps(X, 15);
+    X.forcesNoEvents(); X.bondArrays(); X.angleCentres();
+    const { W, S, VL, BD, AC } = X, n = S.hi, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h;
+    const fx1 = X.shArray(Float64Array, n), fy1 = X.shArray(Float64Array, n), cq1 = X.shArray(Int32Array, 9 * (VL.np + BD.n) + 64);
+    const fx2 = X.shArray(Float64Array, n), fy2 = X.shArray(Float64Array, n), cq2 = X.shArray(Int32Array, cq1.length);
+    X._kStiff = 0;
+    let nc1 = X.pairKernel(VL.pi, VL.pj, VL.ex, 0, VL.np, fx1, fy1, cq1, 0, wrap, bw, bh, bw / 2, bh / 2, W.step);
+    nc1 = X.bondKernel(0, BD.n, fx1, fy1, cq1, nc1, wrap, bw, bh, bw / 2, bh / 2);
+    X.angleKernel(0, AC.n, fx1, fy1, wrap, bw, bh, bw / 2, bh / 2);
+    X._kStiff = 0; X.wasmDesc();
+    const nc2 = X.wasmForces(0, VL.np, 0, BD.n, 0, AC.n, fx2, fy2, cq2, wrap, bw, bh, bw / 2, bh / 2, W.step);
+    let maxrel = 0, far = 0;
+    for (let k = 0; k < VL.np; k++) { const i = VL.pi[k], j = VL.pj[k], dx = S.x[j] - S.x[i], dy = S.y[j] - S.y[i]; if (dx * dx + dy * dy > 6.5 * 6.5 && dx * dx + dy * dy < rc * rc) far++; }
+    for (let i = 0; i < n; i++) { const sc = Math.max(Math.abs(fx1[i]), Math.abs(fy1[i]), 1e-6); maxrel = Math.max(maxrel, Math.abs(fx1[i] - fx2[i]) / sc, Math.abs(fy1[i] - fy2[i]) / sc); }
+    let same = nc1 === nc2; for (let k = 0; same && k < nc1; k++) same = cq1[k] === cq2[k];
+    console.log(`reach ${rc} Å, ${scen}: ${far} pairs between 6.5 Å and the reach, module in use ${X.wasmReady()}, rc² in the module ${WK.ex.af_rc2()}: max rel force difference ${maxrel.toExponential(2)}, candidates ${same ? 'same' : 'DIFFERENT'}`);
+    if (!X.wasmReady()) fail(`reach ${rc}: the module is not used`);
+    if (WK.ex.af_rc2() !== rc * rc) fail(`reach ${rc}: the module has rc² ${WK.ex.af_rc2()}`);
+    if (far === 0) fail(`reach ${rc}, ${scen}: no pairs past 6.5 Å`);
+    if (maxrel > 1e-10) fail(`reach ${rc}, ${scen}: forces differ by ${maxrel}`);
+    if (!same) fail(`reach ${rc}, ${scen}: candidates differ`);
+  }
+  X.setCutoff(6); if (WK.ex.af_rc2 && WK.ex.af_rc2() !== 36) fail('back at 6 Å the module has rc² ' + WK.ex.af_rc2());
+}
+// (and in 3-D: the module's forces at 9 and 12 Å against the JavaScript's, on 3-D water after 10 steps)
+if (typeof load('all', { seed: 7 }).WK.ex.af_set_rc2 === 'function') for (const rc of [9, 12]) {
+  const X = load('all', { seed: 7 }), { W, S, WK } = X;
+  X.setCutoff(rc); X.PRESETS.water3d.build(); X.settleOverlaps(); X.forcesNoEvents(); W.fSpawn = W.spawned; steps(X, 10);
+  const n = S.hi, grab = () => [S.fx, S.fy, S.fz].map(a => Float64Array.from(a.subarray(0, n)));
+  WK.use = true; const c0 = WK.calls3; X.forcesNoEvents(); const A = grab(), used = WK.calls3 > c0;
+  WK.use = false; X.forcesNoEvents(); const B = grab(); WK.use = true;
+  let mr = 0; for (let c = 0; c < 3; c++) for (let i = 0; i < n; i++) { const sc = Math.max(Math.abs(B[0][i]), Math.abs(B[1][i]), Math.abs(B[2][i]), 1e-6); mr = Math.max(mr, Math.abs(A[c][i] - B[c][i]) / sc); }
+  console.log(`reach ${rc} Å, 3-D water: module used ${used}, max rel force difference against the JavaScript ${mr.toExponential(2)}`);
+  if (!used) fail(`reach ${rc} 3-D: the module is not used`);
+  if (mr > 1e-10) fail(`reach ${rc} 3-D: forces differ by ${mr}`);
+}
 // 1a. the free leptons' kernel (af_fast) against the JavaScript loops of computeFast, on the same frozen states: the fast
 //     forces to the bit, the same near-ion flags and hit marks, the same events queued in the same order
 {

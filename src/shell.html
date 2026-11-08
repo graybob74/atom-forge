@@ -780,11 +780,11 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .sbox .spane > .srow, .sbox .spane > label.check { margin-inline: -8px; padding: 3px 8px; border-radius: 8px; transition: background 0.12s; }
 .sbox .spane > .sprev-on { background: var(--accent-soft); }
 /* (1.27) Settings → Experimental → Realistic particles: one compact line a part, its name, an on/off switch and its tags */
-.sbox .spane > .rpl { padding-block: 1px; font-size: 13px; gap: 10px; justify-content: flex-start; }
-.rpl .rpn { flex: 0 0 auto; min-width: 150px; white-space: nowrap; }
+.sbox .spane > .rpl, .sbox .spane > .swl { padding-block: 1px; font-size: 13px; gap: 10px; justify-content: flex-start; }
+.rpl .rpn, .swl .rpn { flex: 0 0 auto; min-width: 150px; white-space: nowrap; }
 .srow.rpl .seg { flex: 0 1 260px; }
 .srow.rpl .seg button { padding-block: 2px; }
-label.check.rpl .rpn { flex: 1 1 auto; white-space: normal; min-width: 150px; } label.check.rpl > input.sw { order: 9; margin-left: 4px; } /* (switches lined up at the right, their tags just before them: the owner, 1.27.1; a long name wraps rather than widening the list) */
+label.check.rpl .rpn, label.check.swl .rpn { flex: 1 1 auto; white-space: normal; min-width: 150px; } label.check.rpl > input.sw, label.check.swl > input.sw { order: 9; margin-left: 4px; } /* (switches lined up at the right, their tags just before them: the owner, 1.27.1; .swl: a switch row outside Realistic particles; a long name wraps rather than widening the list) */
 input.sw { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 30px; height: 17px; margin: 0; border-radius: 9px; background: var(--line); position: relative; cursor: pointer; transition: background 0.15s; }
 input.sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: left 0.15s; }
 input.sw:checked { background: var(--accent); }

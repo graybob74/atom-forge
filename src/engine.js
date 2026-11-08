@@ -870,15 +870,36 @@ function isoFormula(atoms, plain) {
    radical version of the same skeleton still matches). Formulas that no library molecule has fall back to the
    formula table (radicals and fragments). */
 function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36); }
+/* (1.28 item 41: the same refinement on 32-bit colours, not strings: soup, muonium and 3-D hydrogen spent 15–25% of
+   their step building and hashing the strings. Its hashes differ from the string version's, but every name it gives is
+   the same: library and world molecules are hashed alike, and the two versions split the library's formulas into the
+   same structures, checked over every entry and every molecule the setups make, tools/ghcheck.js.) */
+function ghMix(h, w) { // (one 32-bit word into the hash: murmur3's mixing step)
+  w = Math.imul(w, 0xcc9e2d51); w = (w << 15) | (w >>> 17); w = Math.imul(w, 0x1b873593);
+  h ^= w; h = (h << 13) | (h >>> 19); return (Math.imul(h, 5) + 0xe6546b64) | 0;
+}
+function ghFin(h) { h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); return h ^ (h >>> 16); }
+let _ghA = new Int32Array(64), _ghB = new Int32Array(64), _ghN = new Int32Array(16);
 function graphHash(labels, adj) {
-  let col = labels.slice();
   const n = labels.length, iters = Math.min(n, 12);
+  if (_ghA.length < n) { _ghA = new Int32Array(2 * n); _ghB = new Int32Array(2 * n); }
+  let col = _ghA, nc = _ghB;
+  for (let i = 0; i < n; i++) { const s = labels[i]; let h = 0x811c9dc5; for (let c = 0; c < s.length; c++) { h ^= s.charCodeAt(c); h = Math.imul(h, 0x01000193); } col[i] = h; }
   for (let it = 0; it < iters; it++) {
-    const nc = new Array(n);
-    for (let i = 0; i < n; i++) nc[i] = fnv(col[i] + '(' + adj[i].map(j => col[j]).sort().join(',') + ')');
-    col = nc;
+    for (let i = 0; i < n; i++) {
+      const a = adj[i], m = a.length;
+      if (_ghN.length < m) _ghN = new Int32Array(2 * m);
+      const nb = _ghN;
+      for (let k = 0; k < m; k++) { const v = col[a[k]]; let q = k; while (q > 0 && nb[q - 1] > v) { nb[q] = nb[q - 1]; q--; } nb[q] = v; } // (the neighbours' colours, sorted)
+      let h = ghMix(ghMix(0x9747b28c, col[i]), m);
+      for (let k = 0; k < m; k++) h = ghMix(h, nb[k]);
+      nc[i] = ghFin(h ^ m);
+    }
+    const t = col; col = nc; nc = t;
   }
-  return fnv(col.slice().sort().join('.'));
+  const all = Array.prototype.slice.call(col, 0, n).sort((x, y) => x - y);
+  let h = ghMix(0x2545f491, n); for (let i = 0; i < n; i++) h = ghMix(h, all[i]);
+  return (ghFin(h ^ n) >>> 0).toString(36);
 }
 let _libIdx = null;
 function libIndex() {
@@ -5130,12 +5151,50 @@ function chargedCount() {
 function localPhi(x, y, skipA, skipB, z = 0) {
   const chg = (p) => (p && !p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0 ? 1 : 0);
   if (chargedCount() - chg(skipA) - chg(skipB) <= 0) return 0; // (nothing charged but the pair itself: the walk would add nothing)
+  return phiWalk(x, y, z, skipA, skipB);
+}
+/* localPhi's walk (1.28 item 39: 3-D brine spent a third of its step here): nearby()'s walk over the grid, the same cells
+   in the same order (gridWalk, gridWalk3, with their fall-back to the occupied cells), the same tests and the same sum,
+   so the same result to the bit, on the store's arrays with no callback and no particle getters. */
+function phiWalk(x, y, z, skipA, skipB) {
+  gridEnsure();
+  const L = G.list, head = G.head, next = G.next, cols = G.cols, rows = G.rows, wrap = W.wall === 'wrap', gw = G.wrap, d3 = W.d3;
+  const X = S.x, Y = S.y, Zs = S.z, K = S.k, Q = S.q, QP = S.qp, DEAD = S.dead, KE = PHYS.KE;
+  const bw = W.box.w, bh = W.box.h, bd = d3 ? W.box.d : 0, R2 = RC * RC;
+  const sx = Math.ceil(RC / G.cw), sy = Math.ceil(RC / G.ch), sz = d3 ? Math.ceil(RC / G.cd) : 0;
+  const ccx = Math.floor((x + G.hx) / G.cw), ccy = Math.floor((y + G.hy) / G.ch), ccz = d3 ? Math.floor((z + G.hz) / G.cd) : 0;
   let phi = 0;
-  nearby(x, y, RC, (p, dx, dy, r2) => {
-    if (p === skipA || p === skipB) return;
-    const q = p.k === NUC ? p.q + p.qp : p.q;
-    if (q !== 0) phi += PHYS.KE * q / Math.sqrt(r2 + 0.09);
-  }, z);
+  const one = (i) => { // (a particle of the walk: as nearby's visit and localPhi's callback)
+    const p = L[i], si = p.i;
+    if (DEAD[si] === 1) return;
+    let dx = X[si] - x, dy = Y[si] - y, dz = d3 ? Zs[si] - z : 0;
+    if (wrap) { if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw; if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh; if (d3) { if (dz > bd / 2) dz -= bd; else if (dz < -bd / 2) dz += bd; } }
+    const r2 = d3 ? dx * dx + dy * dy + dz * dz : dx * dx + dy * dy;
+    if (!(r2 <= R2) || p === skipA || p === skipB) return;
+    const q = K[si] === NUC ? Q[si] + QP[si] : Q[si];
+    if (q !== 0) phi += KE * q / Math.sqrt(r2 + 0.09);
+  };
+  let x0 = ccx - sx, y0 = ccy - sy, x1 = ccx + sx, y1 = ccy + sy, z0 = ccz - sz, z1 = ccz + sz;
+  if (!d3 || G.lay <= 1) { z0 = 0; z1 = 0; } // (gridWalk: one layer; gridWalk3 otherwise)
+  const lay = G.lay > 1 ? G.lay : 1, three = G.lay > 1;
+  if (!gw) { x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(cols - 1, x1); y1 = Math.min(rows - 1, y1); if (three) { z0 = Math.max(0, z0); z1 = Math.min(lay - 1, z1); } }
+  else { if (x1 - x0 + 1 >= cols) { x0 = 0; x1 = cols - 1; } if (y1 - y0 + 1 >= rows) { y0 = 0; y1 = rows - 1; } if (three && z1 - z0 + 1 >= lay) { z0 = 0; z1 = lay - 1; } }
+  if ((x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1) > G.nocc) {
+    const occ = G.occ, nocc = G.nocc;
+    for (let q = 0; q < nocc; q++) for (let i = head[occ[q]]; i !== -1; i = next[i]) one(i);
+    return phi;
+  }
+  for (let cz = z0; cz <= z1; cz++) {
+    const rz = gw ? ((cz % lay) + lay) % lay : cz;
+    for (let cy = y0; cy <= y1; cy++) {
+      const ry = gw ? ((cy % rows) + rows) % rows : cy;
+      for (let cx = x0; cx <= x1; cx++) {
+        const rx = gw ? ((cx % cols) + cols) % cols : cx;
+        const sl = gridFind(three ? (rz * rows + ry) * cols + rx : ry * cols + rx);
+        if (sl !== -1) for (let i = head[sl]; i !== -1; i = next[i]) one(i);
+      }
+    }
+  }
   return phi;
 }
 function breakCostIfCharged(p, dne) {

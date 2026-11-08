@@ -940,7 +940,7 @@ const { openPage } = require('./browser');
     setSetting('motion', true); hideModal('setModal'); return out;
   });
   check(r61.mo && r61.pills >= 3 && r61.off, `1.10: interface motion: ${r61.pills} sliding pills in Settings; off removes them`, '1.10 motion: ' + JSON.stringify(r61));
-  // 1.10: Experimental → Longer force reach: 9 Å on the JavaScript kernels, pairs out to 9 Å, energy kept insulated; back to
+  // 1.10: Experimental → Longer force reach: 9 Å (on the JavaScript kernels until 1.28, in the module since), pairs out to 9 Å, energy kept insulated; back to
   // 6 Å on WebAssembly. Cost tags predict each choice's cost
   const r62 = await page.evaluate(() => {
     const out = {};
@@ -950,6 +950,7 @@ const { openPage } = require('./browser');
       let far = 0; for (let k = 0; k < VL.np; k++) { const i = VL.pi[k], j = VL.pj[k], dx = S.x[j] - S.x[i], dy = S.y[j] - S.y[i]; if (dx * dx + dy * dy > 72.25) far++; }
       return { rc: RC, wasm: wasmReady(), dE: +(totalEnergy().total - E0).toFixed(3), far };
     };
+    out.rcMod = wasmRcOk(); // (1.28 item 33: a module given the cutoff runs 9 Å too; before, the JavaScript did)
     out.r9 = run(9); out.r6 = run(6);
     openSettings('exp'); const oc = (id, v) => { const e = $(id).querySelector(`[data-v="${v}"] .oc`); return e ? e.textContent + ' ' + e.className : ''; };
     out.tags = [oc('segRc', 6), oc('segRc', 12), oc('segDtMax', 0.02)];
@@ -958,7 +959,7 @@ const { openPage } = require('./browser');
     out.kind = $('segRc').closest('.srow').querySelector('.cost-k').textContent; out.real = [...document.querySelectorAll('#setModal .rl')].map(e => e.parentElement.dataset.v).join(' '); out.realOn = document.querySelectorAll('#setModal .rlb').length; hideModal('setModal');
     return out;
   });
-  check(r62.r9.rc === 9 && !r62.r9.wasm && r62.r9.far > 0 && Math.abs(r62.r9.dE) < 1 && r62.r6.rc === 6 && r62.r6.wasm && r62.r6.far === 0 &&
+  check(r62.r9.rc === 9 && r62.r9.wasm === r62.rcMod && r62.r9.far > 0 && Math.abs(r62.r9.dE) < 1 && r62.r6.rc === 6 && r62.r6.wasm && r62.r6.far === 0 &&
     /^×1 oc c0/.test(r62.tags[0]) && /c4/.test(r62.tags[1]) && /^×1\.7 oc c2/.test(r62.tags[2]) && r62.inc === 'on ×1–1.05 dim' && r62.kind === 'physics' && r62.real === "1 0.01 12 1 1 32 0 2 1 1 1 1 1 1 1" /* (1.28: electrons as waves a switch now, its realistic tag on the row, not a choice) */ /* (1.26: GFN1, paired spins, lone pairs, σ-holes and π-stacking marked real too; 1.27 item 26: Matter depth ×1; 1.27 feature 21: polarizability by direction, after induced charges) */ && r62.find === 'Search… true' && r62.realOn === 13 /* (1.27 feature 19: photons as waves; 1.27 feature 24: unstable particles meeting; 1.27 feature 22: Rayleigh scattering; 1.27 part 7: photon polarization; 1.27 part 3: charged particles in matter; 1.27 parts 5 and 6: resonance widths and heavy flavour, nuclear spin and γ lines; 1.27: exotic atoms' switch, realistic when on, beside resonance in large rings, detailed collisions and ultra-realistic; positronium and muonium as hydrogen, rp2) */,
     `1.10: force reach 9 Å: ${r62.r9.far} pairs past 8.5 Å, energy over 300 insulated steps ${r62.r9.dE} eV (6 Å: ${r62.r6.dE}); tags ${r62.tags.map(t => t.split(' ')[0]).join(', ')}, ${r62.inc}`, '1.10 reach: ' + JSON.stringify(r62));
   // 1.09: ionized water (liquid water, 40 molecules ionized, bath off) keeps its energy: the soft-cored Coulomb energy
