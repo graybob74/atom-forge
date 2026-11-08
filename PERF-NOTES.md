@@ -2061,6 +2061,21 @@ The other half of the item, cascade X-rays for a muonic atom's new nucleus (1.27
 nature the muon stays in its 1s orbit when its nucleus changes under it (the sudden change leaves it mostly in the
 lowest orbit, with no photon), which is what the game does; there is no cascade to show. Test: f_129 dstar.
 
+### 62 A "faster, not identical" switch for quantum bonds: tried, not kept
+
+Built (af_sym_eig_k in the module: the same tridiagonal form and eigenvalues, eigenvectors by inverse iteration for the
+occupied orbitals only, LAPACK dstein's way, then carried back), measured against the exact module solver, and
+reverted (the tree is item 61's again):
+- ms a step, exact → fast: GFN1 19 atoms 5.68 → 5.86 (flat), 5.18 → 6.22 (3-D); GFN2 19 atoms 21.6 → 19.1; GFN1 40 atoms
+  139 → 146; GFN2 40 atoms 181 → 252. At these sizes (50–108 orbitals, half of them occupied) the inverse iterations,
+  their Gram–Schmidt within the many close orbitals of a box of waters and the carrying back cost as much as the QL
+  rotations they replace.
+- Equal to rounding on the hydronium and waters (energies to 4×10⁻¹² eV, positions to 2×10⁻¹⁵ Å after 30 steps), but
+  not on the 40-atom box with its lone O atom (0.05 eV at the first step, tens of eV later: its partly filled,
+  nearly degenerate orbitals).
+So there is no faster-at-the-same-physics switch here to offer; what would help is the integrals and D4 (item 54's
+note), or fewer SCC iterations (a better start than the last step's charges), each its own piece of work.
+
 ### 55 Video recording removed
 
 The owner (2026-11-08): "can you remove the recording feature?". Lab → Record video, its time-lapse buttons, the REC
