@@ -18,7 +18,16 @@
    γ rays (124 eV and up) go straight through mirrors, lenses and prisms; glass absorbs ultraviolet below 300 nm.
    Neutrinos go through everything. Thermal light from glowing walls meets them too (0.67). */
 const OBJ_KINDS = ['mirror', 'splitter', 'lens', 'prism', 'screen', 'stop', 'wall', 'foil', 'plates'];
-const OBJ_NAME = { mirror: 'Mirror', splitter: 'Beam splitter', lens: 'Lens', prism: 'Prism', screen: 'Detector screen', stop: 'Beam stop', wall: 'Wall', foil: 'Foil', plates: 'Charged plates' };
+const OBJ_NAME = { mirror: 'Mirror', splitter: 'Beam splitter', lens: 'Lens', prism: 'Prism', screen: 'Detector screen', stop: 'Beam stop', wall: 'Wall', foil: 'Foil', plates: 'Charged plates', polarizer: 'Polarizer', slits: 'Slits' };
+/* The polarizer (Realistic particles 7, 1.27): a sheet passing light polarized along its axis, at ob.pa degrees from
+   the plane (0: along the sheet in the plane, 90: across the plane); offered by the Objects tool with Photon
+   polarization on (OBJ_KINDS is left as it was: t_fuzz draws from it). Off, it lets light through untouched. */
+const OBJ_POL = 'polarizer';
+/* Slits (photons as waves, 1.27 feature 19): an opaque sheet with ob.ns openings ob.sa Å wide, ob.sd Å apart (centre to
+   centre), centred on the piece; offered by the Objects tool with Photons as waves on (kept out of OBJ_KINDS, as the
+   polarizer). Light and fast particles pass only through the openings; with Photons as waves on, light passing an
+   opening is diffracted (waveSlit: the N-slit pattern). Off, light goes straight through the openings (a shadow). */
+const OBJ_SLIT = 'slits';
 const OBJ_HALF = 0.15; // Å: half the thickness of a piece, as atoms meet it
 const OBJ_BINS = 24, OBJ_LO = -2; // the screen's spectrum: 24 bins of half a decade from 0.01 eV (to 10 GeV)
 const PRISM_N = (nm) => 1.5895 + 9400 / (nm * nm); // (F2 flint glass: 1.648 at 400 nm, 1.609 at 700 nm)
@@ -27,6 +36,8 @@ function objMake(kind, x0, y0, x1, y1, o = {}) {
   if (kind === 'mirror') ob.R = 1;
   if (kind === 'splitter') ob.R = 0.5;
   if (kind === 'lens') ob.f = Number.isFinite(o.f) ? o.f : 20;
+  if (kind === 'polarizer') ob.pa = Number.isFinite(o.pa) ? clamp(o.pa, 0, 90) : 0;
+  if (kind === OBJ_SLIT) { ob.ns = [1, 2, 5].includes(o.ns) ? o.ns : 2; ob.sd = Number.isFinite(o.sd) ? clamp(o.sd, 1, 200) : 10; ob.sa = Number.isFinite(o.sa) ? clamp(o.sa, 0.2, 50) : 2; } // (1.27 feature 19)
   if (kind === 'foil') { ob.Z = Number.isInteger(o.Z) ? o.Z : 79; ob.layers = Number.isFinite(o.layers) ? o.layers : 10; }
   if (kind === 'plates') { ob.V = Number.isFinite(o.V) ? o.V : 100; ob.gap = Number.isFinite(o.gap) ? o.gap : 10; }
   if (kind === 'screen') objClearHits(ob);
@@ -66,10 +77,13 @@ function pointInPrism(ob, x, y) {
   return true;
 }
 
+/* A slits piece: is the point at distance s along it from its middle (Å) in an opening? */
+function slitOpen(ob, s) { for (let k = 0; k < ob.ns; k++) { const c = (k - (ob.ns - 1) / 2) * ob.sd; if (Math.abs(s - c) <= ob.sa / 2) return true; } return false; }
+function slitS(ob, x, y) { const L = objLen(ob) || 1; return (x - (ob.x0 + ob.x1) / 2) * (ob.x1 - ob.x0) / L + (y - (ob.y0 + ob.y1) / 2) * (ob.y1 - ob.y0) / L; }
 /* ---- light */
 function objLightOK(ob, E) { // does this piece do anything to light of this energy?
   if (ob.kind === 'plates') return false;
-  if (E >= 124 && (ob.kind === 'mirror' || ob.kind === 'splitter' || ob.kind === 'lens' || ob.kind === 'prism')) return false; // (X-rays and γ: straight through)
+  if (E >= 124 && (ob.kind === 'mirror' || ob.kind === 'splitter' || ob.kind === 'lens' || ob.kind === 'prism' || ob.kind === 'polarizer')) return false; // (X-rays and γ: straight through)
   return true;
 }
 /* The nearest piece a ray meets before tmax: { t, ob, e } or null. */
@@ -92,7 +106,21 @@ function opticHit(h, x0, y0, ux, uy, E, opts) {
     const [ax, ay, bx, by] = objEdges(ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, tx = (bx - ax) / L, ty = (by - ay) / L, nx = -ty, ny = tx;
     const k = ob.kind;
     if (k === 'mirror' || k === 'splitter') {
-      if (rnd() < ob.R) { const d = ux * nx + uy * ny; go(ux - 2 * d * nx, uy - 2 * d * ny, x, y); } else go(ux, uy, x, y);
+      if (rnd() < ob.R) { const d = ux * nx + uy * ny; if (o2.pol && RP.pol) o2.pol = polMirror(o2.pol, nx, ny); go(ux - 2 * d * nx, uy - 2 * d * ny, x, y); } else go(ux, uy, x, y); // (its polarization mirrored, an ideal metal's: Realistic particles 7, 1.27; passing a splitter keeps it)
+      return;
+    }
+    if (k === OBJ_SLIT) { // (through an opening; elsewhere absorbed. Photons as waves: diffracted, the N-slit pattern, 1.27 feature 19)
+      if (!slitOpen(ob, slitS(ob, x, y))) { absorb(); return; }
+      if (!RP.pwave) { go(ux, uy, x, y); return; }
+      const v = waveSlit(ob, ux, uy, E, tx, ty, nx, ny);
+      if (o2.pol && RP.pol) { const A = polAcross(o2.pol, v[0], v[1], 0); if (A) o2.pol = A; }
+      go(v[0], v[1], x, y); return;
+    }
+    if (k === OBJ_POL) { // (Malus's law: passes with (ε·â)², â its axis across the ray, and leaves along â; unpolarized, one in two; off, untouched: Realistic particles 7, 1.27)
+      if (!RP.pol) { go(ux, uy, x, y); return; }
+      const ca = Math.cos(ob.pa * Math.PI / 180), sa = Math.sin(ob.pa * Math.PI / 180), A = polAcross([ca * tx, ca * ty, sa], ux, uy, 0);
+      const pr = !A ? 0 : o2.pol ? (o2.pol[0] * A[0] + o2.pol[1] * A[1] + o2.pol[2] * A[2]) ** 2 : 0.5;
+      if (rnd() < pr) { o2.pol = A; go(ux, uy, x, y); } else absorb();
       return;
     }
     const nm = PHYS.HC / E;
@@ -101,10 +129,11 @@ function opticHit(h, x0, y0, ux, uy, E, opts) {
       const cx = (ob.x0 + ob.x1) / 2, cy = (ob.y0 + ob.y1) / 2, hh = (x - cx) * tx + (y - cy) * ty;
       let un = ux * nx + uy * ny, sx = nx, sy = ny; if (un < 0) { un = -un; sx = -nx; sy = -ny; }
       const s1 = (ux * tx + uy * ty) / un - hh / (Math.abs(ob.f) < 1 ? Math.sign(ob.f || 1) : ob.f); // (paraxial: the slope after = the slope before − h/f)
+      if (o2.pol && RP.pol) { const L = Math.hypot(sx + s1 * tx, sy + s1 * ty), [pc, ps] = polPS(o2.pol, ux, uy); o2.pol = polFromPS(pc, ps, (sx + s1 * tx) / L, (sy + s1 * ty) / L); } // (its in-plane part turns with the ray: an ideal lens, no Fresnel losses, Realistic particles 7, 1.27)
       go(sx + s1 * tx, sy + s1 * ty, x, y);
       return;
     }
-    if (k === 'prism') { prismTrace(ob, x, y, ux, uy, h.e, E, o2); return; }
+    if (k === 'prism') { if (RP.pol) prismTrace7(ob, x, y, ux, uy, h.e, E, o2); else prismTrace(ob, x, y, ux, uy, h.e, E, o2); return; } // (with Photon polarization, Fresnel's reflections at its faces: Realistic particles 7, 1.27)
     absorb(); // (screen, stop, wall, foil)
   } };
 }
@@ -136,6 +165,43 @@ function prismTrace(ob, x, y, ux, uy, e, E, opts) {
     const out = refr(vx, vy, nx, ny, n, 1);
     if (out) { const L = Math.hypot(out[0], out[1]); photonOn(qx + out[0] / L * 1e-6, qy + out[1] / L * 1e-6, E, out[0] / L, out[1] / L, opts); return; }
     const c = vx * nx + vy * ny; vx -= 2 * c * nx; vy -= 2 * c * ny; px = qx; py = qy; from = bi; // (totally reflected inside)
+  }
+  if (!opts.glow) W.ledger.escaped += E; // (trapped: lost in the glass)
+}
+/* Through the prism with Photon polarization on (Realistic particles 7, 1.27): as prismTrace, but each face reflects
+   part of the light by Fresnel's equations for its polarization (the plane of incidence is the game's plane: s is
+   across it, p in it; p̂ = k̂ × ẑ for each wave): r_s = (n₁c − n₂c′)/(n₁c + n₂c′), r_p = (n₂c − n₁c′)/(n₂c + n₁c′),
+   t_s = 2n₁c/(n₁c + n₂c′), t_p = 2n₁c/(n₂c + n₁c′), c and c′ the cosines of the angles of incidence and refraction. It
+   reflects with R = r_s²·s² + r_p²·p² (s, p the polarization's parts), and leaves polarized as the amplitudes it keeps
+   say. At Brewster's angle r_p = 0: the reflected light is all s. A total reflection inside keeps the vector as at the
+   critical angle (r_s = r_p = 1; the phases that make it elliptical are not carried). An unpolarized photon takes a
+   random polarization at its first face. */
+function prismTrace7(ob, x, y, ux, uy, e, E, opts) {
+  const n = PRISM_N(PHYS.HC / E), ed = objEdges(ob);
+  const nrm = (i) => { const [ax, ay, bx, by] = ed[i], L = Math.hypot(bx - ax, by - ay) || 1; return [-(by - ay) / L, (bx - ax) / L]; };
+  const face = (vx, vy, nx, ny, n1, n2, pol) => { // the way on from a face: [vx, vy, pol, reflected]
+    let c = -(vx * nx + vy * ny); if (c < 0) { nx = -nx; ny = -ny; c = -c; }
+    const r = n1 / n2, k = 1 - r * r * (1 - c * c), [pc, ps] = polPS(pol, vx, vy), rx = vx + 2 * c * nx, ry = vy + 2 * c * ny;
+    if (k < 0) return [rx, ry, polFromPS(pc, ps, rx, ry), true];
+    const ct = Math.sqrt(k), rs = (n1 * c - n2 * ct) / (n1 * c + n2 * ct), rp = (n2 * c - n1 * ct) / (n2 * c + n1 * ct);
+    if (rnd() < rs * rs * ps * ps + rp * rp * pc * pc) return [rx, ry, polFromPS(rp * pc, rs * ps, rx, ry), true];
+    const ts = 2 * n1 * c / (n1 * c + n2 * ct), tp = 2 * n1 * c / (n2 * c + n1 * ct), f = r * c - ct, tx = r * vx + f * nx, ty = r * vy + f * ny, L = Math.hypot(tx, ty);
+    return [tx / L, ty / L, polFromPS(tp * pc, ts * ps, tx / L, ty / L), false];
+  };
+  let d = face(ux, uy, ...nrm(e), 1, n, opts.pol || polRand(ux, uy, 0));
+  opts.pol = d[2];
+  if (d[3]) { photonOn(x, y, E, d[0], d[1], opts); return; } // (reflected off the first face)
+  let px = x, py = y, vx = d[0], vy = d[1], from = e;
+  for (let k = 0; k < 12; k++) {
+    let bt = Infinity, bi = -1;
+    for (let i = 0; i < 3; i++) { if (i === from) continue; const t = raySeg(px, py, vx, vy, ...ed[i]); if (t < bt) { bt = t; bi = i; } }
+    if (bi < 0) break;
+    const qx = px + vx * bt, qy = py + vy * bt;
+    W.rays.push({ x0: px, y0: py, x1: qx, y1: qy, E, c: photonColor(E), t0: W.rt, ts: W.t + (opts.delay || 0), len: bt, nu: false, pol: opts.pol });
+    opts.delay = (opts.delay || 0) + bt / PHYS.C;
+    d = face(vx, vy, ...nrm(bi), n, 1, opts.pol); opts.pol = d[2];
+    if (!d[3]) { photonOn(qx + d[0] * 1e-6, qy + d[1] * 1e-6, E, d[0], d[1], opts); return; }
+    vx = d[0]; vy = d[1]; px = qx; py = qy; from = bi; // (reflected inside: totally, or Fresnel's share)
   }
   if (!opts.glow) W.ledger.escaped += E; // (trapped: lost in the glass)
 }
@@ -210,6 +276,7 @@ function objPath(p, x0, y0) {
   if (k === 'wall') { objBounce(p, h, x0, y0); return false; }
   if (neutron && k !== 'stop' && k !== 'screen') return false; // (neutrons go through glass, metal foil and plates)
   if (k === 'foil') return foilCross(p, ob, cx, cy, x0, y0);
+  if (k === OBJ_SLIT && slitOpen(ob, slitS(ob, cx, cy))) return false; // (through an opening, 1.27 feature 19)
   return objStop(p, ob, cx, cy);
 }
 /* Stopped in a piece: its kinetic energy goes into it (out of the books, as at an absorbing wall); antimatter
@@ -246,6 +313,7 @@ function objExo(o, x0, y0) {
   const h = objCross(x0, y0, o.x, o.y); if (!h) return false;
   const k = h.ob.kind;
   if (k === 'foil') return false;
+  if (k === OBJ_SLIT && slitOpen(h.ob, slitS(h.ob, x0 + (o.x - x0) * h.f, y0 + (o.y - y0) * h.f))) return false; // (through an opening, 1.27 feature 19)
   if (k === 'wall') { const [ax, ay, bx, by] = objEdges(h.ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L, ny = (bx - ax) / L; const c = o.ux * nx + o.uy * ny; o.ux -= 2 * c * nx; o.uy -= 2 * c * ny; o.x = x0 + (o.x - x0) * h.f; o.y = y0 + (o.y - y0) * h.f; return false; }
   o.x = x0 + (o.x - x0) * h.f; o.y = y0 + (o.y - y0) * h.f;
   if (k === 'screen') objRecord(h.ob, o.KE || 0, false, o.x, o.y);
@@ -268,13 +336,13 @@ function hasPlates() { for (const ob of W.objs) if (ob.kind === 'plates' && ob.V
 /* ---- saving */
 function objToJSON(ob) {
   const o = { k: ob.kind, x0: ob.x0, y0: ob.y0, x1: ob.x1, y1: ob.y1 };
-  for (const q of ['f', 'Z', 'layers', 'V', 'gap', 'view']) if (ob[q] !== undefined) o[q] = ob[q];
+  for (const q of ['f', 'Z', 'layers', 'V', 'gap', 'view', 'pa', 'ns', 'sd', 'sa']) if (ob[q] !== undefined) o[q] = ob[q]; // (ns, sd, sa: slits, 1.27)
   return o;
 }
 function objFromJSON(o) {
-  if (!o || !OBJ_KINDS.includes(o.k) || ![o.x0, o.y0, o.x1, o.y1].every(Number.isFinite)) return null;
+  if (!o || !(OBJ_KINDS.includes(o.k) || o.k === OBJ_POL || o.k === OBJ_SLIT) || ![o.x0, o.y0, o.x1, o.y1].every(Number.isFinite)) return null;
   const n = (v, lo, hi, d) => (Number.isFinite(v) ? clamp(v, lo, hi) : d);
-  const ob = objMake(o.k, o.x0, o.y0, o.x1, o.y1, { f: n(o.f, -1e4, 1e4, 20), Z: Number.isInteger(o.Z) && o.Z >= 1 && o.Z <= 100 ? o.Z : 79, layers: n(o.layers, 1, 1000, 10), V: n(o.V, -1e6, 1e6, 100), gap: n(o.gap, 1, 1000, 10) });
+  const ob = objMake(o.k, o.x0, o.y0, o.x1, o.y1, { f: n(o.f, -1e4, 1e4, 20), Z: Number.isInteger(o.Z) && o.Z >= 1 && o.Z <= 100 ? o.Z : 79, layers: n(o.layers, 1, 1000, 10), V: n(o.V, -1e6, 1e6, 100), gap: n(o.gap, 1, 1000, 10), pa: n(o.pa, 0, 90, 0), ns: o.ns, sd: n(o.sd, 1, 200, 10), sa: n(o.sa, 0.2, 50, 2) });
   if (o.k === 'screen' && o.view === 'where') ob.view = 'where'; // (what its bars show, 1.02)
   return ob;
 }
@@ -285,6 +353,8 @@ function objText(ob) {
   if (k === 'lens') return `${ob.f >= 0 ? 'Converging' : 'Diverging'} lens, f = ${+Math.abs(ob.f).toFixed(1)} Å`;
   if (k === 'foil') return `${ELEMENTS[ob.Z].name} foil, ${ob.layers} atomic layer${ob.layers > 1 ? 's' : ''}`;
   if (k === 'plates') return `Charged plates, ${Math.abs(ob.V).toLocaleString('en-US')} V across ${+ob.gap.toFixed(1)} Å`;
+  if (k === OBJ_POL) return `Polarizer, axis ${ob.pa >= 89.5 ? 'across the plane' : ob.pa < 0.5 ? 'in the plane' : Math.round(ob.pa) + '° from the plane'}${RP.pol ? '' : ' (works with Photon polarization on)'}`;
+  if (k === OBJ_SLIT) return `${ob.ns === 1 ? 'A single slit' : ob.ns === 2 ? 'Double slit' : `Grating of ${ob.ns} slits`}, ${+ob.sa.toFixed(1)} Å wide${ob.ns > 1 ? `, ${+ob.sd.toFixed(1)} Å apart` : ''}${RP.pwave ? '' : ' (diffracts light with Photons as waves on)'}`; // (1.27 feature 19)
   if (k === 'screen') { const H = ob.hits; return `Detector screen: ${H ? H.n.toLocaleString('en-US') : 0} hits (${H ? H.light : 0} light, ${H ? H.parts : 0} particles)`; }
   return OBJ_NAME[k];
 }
@@ -300,9 +370,12 @@ const OBJ_HELP = {
   wall: 'Atoms, electrons and fast particles bounce off; light is absorbed.',
   foil: 'Fast charges pass, a few deflected sharply by nuclei (Rutherford); slow ones stop.',
   plates: 'A uniform field between them steers charges. The second plate is left of your drag.',
+  slits: 'An opaque sheet with one, two or five openings: light and fast particles pass only through them. With Photons as waves on, light spreads from them in fringes (X-rays of a few keV, whose wavelength fits these sizes, show them best).',
+  polarizer: 'Passes light polarized along its axis (cos² of the angle between: Malus\'s law) and absorbs the rest; unpolarized light, half.',
 };
 function objV() { return Math.pow(10, (OPT.objects.Vs || 0) / 100); }
 function objVText(V) { const a = Math.abs(V); return a >= 1000 ? `${+(a / 1000).toPrecision(3)} kV` : `${+a.toPrecision(3)} V`; }
+function objPaText(a) { return a >= 89.5 ? '90° (across the plane)' : a < 0.5 ? '0° (in the plane)' : `${Math.round(a)}° from the plane`; } // (the polarizer's axis, 1.27)
 function objFText(f) { return f === 0 ? '—' : `${f > 0 ? '+' : '−'}${Math.abs(f)} Å (${f > 0 ? 'converging' : 'diverging'})`; }
 function objDist(ob, x, y) { // from (x, y) to the nearest of its edges, Å
   let best = Infinity;
@@ -317,4 +390,30 @@ function objAtPx(px, py) { // the object under a screen point (within 8 px), the
   const [x, y] = s2w(px, py);
   for (let i = W.objs.length - 1; i >= 0; i--) if (objDist(W.objs[i], x, y) * R.s < 8) return W.objs[i];
   return null;
+}
+
+/* ---- Photons as waves at the slits (Realistic particles, 1.27 feature 19; RP.pwave). A photon through an opening of a
+   slits piece leaves at an angle θ from the piece's normal (on its far side) drawn from the Fraunhofer pattern of the
+   whole sheet, lit by a plane wave along the photon's path (its direction sets the incidence θᵢ):
+     I(θ) = sinc²(π·a·Δ/λ) · [sin(N·π·d·Δ/λ) / (N·sin(π·d·Δ/λ))]² · ((cos θᵢ + cos θ)/2)²,  Δ = sin θ − sin θᵢ
+   (a the openings' width, d their spacing, N their number; the last factor Kirchhoff's obliquity). Photon by photon, a
+   screen behind collects the fringes: bright where d·Δ = mλ, dark at the single slit's a·Δ = mλ. The far-field pattern
+   (a screen nearer than d²/λ sees it a little blurred). Light whose wavelength is far larger than the openings (visible
+   light, 4,000–7,000 Å, on slits a few Å wide) spreads over the whole half-plane, as it really would; X-rays of a few
+   keV (λ about 1–5 Å) show fringes at these sizes. Drawn on a grid of 2,048 angles, then anywhere within its cell. */
+const WVS = { M: 2048, n: 0 };
+function waveSlit(ob, ux, uy, E, tx, ty, nx, ny) {
+  const lam = 10 * PHYS.HC / E, un = ux * nx + uy * ny, fx = un >= 0 ? nx : -nx, fy = un >= 0 ? ny : -ny, si = ux * tx + uy * ty, ci = Math.abs(un);
+  const M = WVS.M, N = ob.ns, a = ob.sa, d = ob.sd, I = new Float64Array(M);
+  let tot = 0;
+  for (let m = 0; m < M; m++) {
+    const th = -Math.PI / 2 + (m + 0.5) * Math.PI / M, st = Math.sin(th), D = st - si;
+    const b = Math.PI * a * D / lam, sc = Math.abs(b) < 1e-9 ? 1 : Math.sin(b) / b, g = Math.PI * d * D / lam, sg = Math.sin(g);
+    const ar = N === 1 ? 1 : Math.abs(sg) < 1e-9 ? 1 : Math.sin(N * g) / (N * sg), ob2 = (ci + Math.cos(th)) / 2;
+    tot += I[m] = sc * sc * ar * ar * ob2 * ob2;
+  }
+  let u = rnd() * tot, m = 0; for (; m < M - 1 && u > I[m]; m++) u -= I[m];
+  const th = -Math.PI / 2 + (m + rnd()) * Math.PI / M, c = Math.cos(th), s = Math.sin(th);
+  WVS.n++;
+  return [c * fx + s * tx, c * fy + s * ty];
 }

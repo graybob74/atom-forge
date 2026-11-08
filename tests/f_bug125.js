@@ -246,7 +246,7 @@ PARTS.pi3 = async (page, check, say) => {
     return { ms, builds: (X.VL.builds - b0) / 10, pos: W.parts.map(p => [p.x, p.y, p.z]) }; };
   const a = run(), b = run(0); let mx = 0; a.pos.forEach((p, i) => { mx = Math.max(mx, Math.hypot(p[0] - b.pos[i][0], p[1] - b.pos[i][1], p[2] - b.pos[i][2])); });
   const r = { ms: +a.ms.toFixed(1), msOldLists: +b.ms.toFixed(1), builds: a.builds, buildsOld: b.builds, diff: +mx.toExponential(1) };
-  check(r.builds === 0 && r.buildsOld > 2 && r.ms < 0.6 * r.msOldLists && r.diff < 1e-9, `bug fix 17: 3-D quantum nuclei, 8 beads, every bead's full pass: ${r.ms} ms a step (${r.msOldLists} with the list rebuilt per bead, ${r.buildsOld} times a step), the same run to ${r.diff} Å`, 'bugfix pi3: ' + JSON.stringify(r));
+  check(r.builds === 0 && r.buildsOld > 2 && r.ms < 0.8 * r.msOldLists /* (1.26: the rebuilt lists cheaper with the walk in WebAssembly, 37 against 57 ms) */ && r.diff < 1e-9, `bug fix 17: 3-D quantum nuclei, 8 beads, every bead's full pass: ${r.ms} ms a step (${r.msOldLists} with the list rebuilt per bead, ${r.buildsOld} times a step), the same run to ${r.diff} Å`, 'bugfix pi3: ' + JSON.stringify(r));
 };
 
 // PARTS (added one per fix, below)

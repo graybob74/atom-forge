@@ -105,7 +105,12 @@ pub const B_MGC: usize = 91;
 pub const B_MGH: usize = 92;
 pub const B_MGV: usize = 93;
 pub const B_MGD: usize = 94;
-pub const B_LEN: usize = 95;
+pub const B_PZ: usize = 95; // (1.26, 3-D: S.z, the pairs' z directions BF.puz, S.fz, the 3-D angle targets, the single bonds' k's)
+pub const B_PUZ: usize = 96;
+pub const B_FZ: usize = 97;
+pub const B_TGT3: usize = 98; // (vsepr3's [mode, θ₀, flat] for every key the 3-D angle term can ask, 3 per key)
+pub const B_T1K: usize = 99; // (the single bonds' k's, 4 each: TOR1B's CC0 CC1 CC2, TOR1's CO CN OO, CC=C, CC=O)
+pub const B_LEN: usize = 100;
 
 // the scalars (a f64 block)
 pub const P_N: usize = 0; // pairs (out of collect, in to the passes)
@@ -124,7 +129,11 @@ pub const P_SUPCAP: usize = 12;
 pub const P_VLNP: usize = 13;
 pub const P_NS: usize = 14;
 pub const P_R13: usize = 15; // (how far apart an angle's two ends can be: the 1-3 exclusions are looked for inside it; was 4.4 Å fixed, 1.25)
-pub const P_LEN: usize = 16;
+pub const P_D3: usize = 16; // (1.26: a 3-D world; its depth and half depth; sin⁶(109.47°) as the JavaScript has it)
+pub const P_BD: usize = 17;
+pub const P_HD: usize = 18;
+pub const P_F0: usize = 19;
+pub const P_LEN: usize = 24;
 
 pub const BO_EPS: f64 = 0.03;
 pub const BO_PLOW: f64 = 1.15;
@@ -149,6 +158,7 @@ pub struct Bo {
     x: *mut f64, y: *mut f64, z: *mut i16, q: *mut f64, ionic: *mut u8, fx: *mut f64, fy: *mut f64, vpi: *mut i32, vpj: *mut i32,
     pfa: *mut f64, pfb: *mut f64, mljr: *mut f64, mljs: *mut f64, mpol: *mut f64, mgw: *mut f64, msn: *mut f64, mgf: *mut f64, mcl: *mut i32,
     mdcap: *mut f64, mdcaph: *mut f64, mdval: *mut f64, mdei: *mut f64, mgq: *mut f64, mgc: *mut f64, mgh: *mut f64, mgv: *mut f64, mgd: *mut f64,
+    pz: *mut f64, puz: *mut f64, fz: *mut f64, tgt3: *mut f64, t1k: *mut f64,
 }
 #[inline(always)]
 unsafe fn ptr<T>(base: usize, d: *const i32, k: usize) -> *mut T { (base + *d.add(k) as u32 as usize) as *mut T }
@@ -172,6 +182,7 @@ pub unsafe fn bo_desc(base: usize, d: *const i32) -> Bo {
         msn: ptr(base, d, B_MSN), mgf: ptr(base, d, B_MGF), mcl: ptr(base, d, B_MCL),
         mdcap: ptr(base, d, B_MDCAP), mdcaph: ptr(base, d, B_MDCAPH), mdval: ptr(base, d, B_MDVAL), mdei: ptr(base, d, B_MDEI), mgq: ptr(base, d, B_MGQ),
         mgc: ptr(base, d, B_MGC), mgh: ptr(base, d, B_MGH), mgv: ptr(base, d, B_MGV), mgd: ptr(base, d, B_MGD),
+        pz: ptr(base, d, B_PZ), puz: ptr(base, d, B_PUZ), fz: ptr(base, d, B_FZ), tgt3: ptr(base, d, B_TGT3), t1k: ptr(base, d, B_T1K),
     }
 }
 #[inline(always)]
@@ -264,18 +275,20 @@ fn qh(n: f64) -> (f64, f64) {
 pub unsafe fn collect(b: &Bo, p: *mut f64) -> usize {
     let vlnp = g(p, P_VLNP) as usize; let pcap = g(p, P_PCAP) as usize;
     let wrap = g(p, P_WRAP) != 0.0; let bw = g(p, P_BW); let bh = g(p, P_BH); let hw = g(p, P_HW); let hh_ = g(p, P_HH);
+    let d3 = g(p, P_D3) != 0.0; let bd = g(p, P_BD); let hd = g(p, P_HD); // (3-D, 1.26: the depth too, its direction in BF.puz)
     let c0 = 1.0 / (crate::RC2 + 0.09).sqrt(); let ke = crate::K_COUL;
     let mut n = 0usize;
     for k in 0..vlnp {
         let i = g(b.vpi, k) as usize; let j = g(b.vpj, k) as usize;
         let ma = g(b.sm, i) - 1; let mb = g(b.sm, j) - 1;
         if ma < 0 || mb < 0 { continue; }
-        let mut dx = g(b.x, j) - g(b.x, i); let mut dy = g(b.y, j) - g(b.y, i);
-        if wrap { if dx > hw { dx -= bw; } else if dx < -hw { dx += bw; } if dy > hh_ { dy -= bh; } else if dy < -hh_ { dy += bh; } }
-        let r2 = dx * dx + dy * dy;
+        let mut dx = g(b.x, j) - g(b.x, i); let mut dy = g(b.y, j) - g(b.y, i); let mut dz = if d3 { g(b.pz, j) - g(b.pz, i) } else { 0.0 };
+        if wrap { if dx > hw { dx -= bw; } else if dx < -hw { dx += bw; } if dy > hh_ { dy -= bh; } else if dy < -hh_ { dy += bh; } if d3 { if dz > hd { dz -= bd; } else if dz < -hd { dz += bd; } } }
+        let r2 = if d3 { dx * dx + dy * dy + dz * dz } else { dx * dx + dy * dy };
         if !(r2 < crate::RC2 && r2 >= 1e-12) { continue; }
         if n < pcap {
             let r = r2.sqrt(); let za = g(b.z, i) as i32; let zb = g(b.z, j) as i32;
+            if d3 { s(b.puz, n, dz / r); }
             let key = if za < zb { za * 128 + zb } else { zb * 128 + za };
             s(b.pa, n, ma); s(b.pb, n, mb); s(b.pr, n, r); s(b.pux, n, dx / r); s(b.puy, n, dy / r); s(b.pt, n, g(b.tz, key as usize));
             let ia = g(b.ionic, i); let ib = g(b.ionic, j); let qa = g(b.q, i); let qb = g(b.q, j);
@@ -340,8 +353,9 @@ pub unsafe fn pass1(b: &Bo, p: *mut f64) -> f64 {
         let mut pp = 1.0f64; let s0 = ns;
         let dk = g(tab, g(b.pt, k) as usize * PS + 5);
         common(b, &mut stamp, g(b.pa, k) as usize, g(b.pb, k) as usize, |j| g(b.ne0, j) > 0.3, |k1, k2| {
-            let dd = g(tab, g(b.pt, k1) as usize * PS + 5).min(g(tab, g(b.pt, k2) as usize * PS + 5)) - dk; if dd <= 0.4 { return; }
-            let u = ((dd - 0.4) / 0.4).min(1.0); let sg = u * u * (3.0 - 2.0 * u); let w = bb(g(b.ne0, k1)) * bb(g(b.ne0, k2)) * sg; if w <= 0.0 { return; }
+            // (1.27 bug 14: the gap as a share of the pair's own bond, 5% to 15%, as bo.js boCrowd; it was 0.4–0.8 eV)
+            let dd = g(tab, g(b.pt, k1) as usize * PS + 5).min(g(tab, g(b.pt, k2) as usize * PS + 5)) - dk; if !(dd > 0.05 * dk) { return; }
+            let u = ((dd / dk - 0.05) / 0.10).min(1.0); let sg = u * u * (3.0 - 2.0 * u); let w = bb(g(b.ne0, k1)) * bb(g(b.ne0, k2)) * sg; if w <= 0.0 { return; }
             pp *= 1.0 - w;
             if ns < supcap { s(b.sup1, ns, k1 as i32); s(b.sup2, ns, k2 as i32); s(b.sups, ns, sg); }
             ns += 1;
@@ -402,7 +416,10 @@ pub unsafe fn pass1(b: &Bo, p: *mut f64) -> f64 {
             ad(b.gn, k, fcut * ((e1 * e1 - 1.0) * d_d - dmdr * dr0 + dpt * 2.0 * e1 * ex * x * dal));
         }
     }
-    e += angles_all(b, forces, nm);
+    let d3 = g(p, P_D3) != 0.0;
+    let bx = crate::d3::Box3 { wrap: g(p, P_WRAP) != 0.0, bw: g(p, P_BW), bh: g(p, P_BH), bd: g(p, P_BD), hw: g(p, P_HW), hh: g(p, P_HH), hd: g(p, P_HD) };
+    e += angles_all(b, forces, nm, d3, &bx);
+    if d3 { e += torsions3(b, forces, n, &bx, g(p, P_F0)); } // (3-D: double, aromatic and single bonds don't twist freely, 1.25; here 1.26)
     let r13 = { let v = g(p, P_R13); if v > 0.0 { v } else { 4.4 } }; // (0 from a page before 1.25: the old fixed reach)
     e += coulomb(b, &mut stamp, forces, n, nm, &mut stiff, r13);
     e += share(b, forces, nm);
@@ -456,7 +473,7 @@ unsafe fn angle(b: &Bo, c: usize, nl: usize, wgt: f64, forces: bool) -> (f64, f6
     }
     (e, ds)
 }
-unsafe fn angles_all(b: &Bo, forces: bool, nm: usize) -> f64 {
+unsafe fn angles_all(b: &Bo, forces: bool, nm: usize, d3: bool, bx: &crate::d3::Box3) -> f64 {
     let mut e = 0.0;
     for m in 0..nm { s(b.mgv, m, 0.0); }
     for c in 0..nm {
@@ -482,7 +499,7 @@ unsafe fn angles_all(b: &Bo, forces: bool, nm: usize) -> f64 {
             for u in 0..ns { s(b.list, nl, g(b.strong, u)); nl += 1; }
             for u in 0..z { if mask & (1 << u) != 0 { wt *= g(b.zw, u); s(b.list, nl, g(b.zone, u)); nl += 1; } else { wt *= 1.0 - g(b.zw, u); } }
             if wt <= 0.0 || nl < 2 { continue; }
-            let (ea, ds) = angle(b, c, nl, wt, forces);
+            let (ea, ds) = if d3 { angle3(b, bx, c, nl, wt, forces) } else { angle(b, c, nl, wt, forces) };
             e += wt * ea;
             if ds != 0.0 { for u in 0..nl { ad(b.gn, g(b.list, u) as usize, wt * ds); } ad(b.mgv, c, -(wt * ds)); }
             for u in 0..z {
@@ -663,11 +680,218 @@ pub unsafe fn pass2(b: &Bo, p: *mut f64) {
     for m in 0..nm { // (∂E/∂ν: bfDqGrad)
         s(b.mgq, m, g(b.mgd, m) + g(b.mdei, m) + g(b.mdcap, m) * g(b.mgc, m) + g(b.mdcaph, m) * g(b.mgh, m) + g(b.mdval, m) * g(b.mgv, m) - g(b.mphi, m));
     }
+    let d3 = g(p, P_D3) != 0.0;
     for k in 0..n {
         let gg = g(b.gr, k); if gg == 0.0 { continue; }
         let fx = gg * g(b.pux, k); let fy = gg * g(b.puy, k); let i = g(b.mslot, g(b.pa, k) as usize) as usize; let j = g(b.mslot, g(b.pb, k) as usize) as usize;
         ad(b.fx, j, -fx); ad(b.fy, j, -fy); ad(b.fx, i, fx); ad(b.fy, i, fy);
+        if d3 { let fz = gg * g(b.puz, k); ad(b.fz, j, -fz); ad(b.fz, i, fz); } // (3-D: the depth, 1.26)
     }
+}
+
+// ---- 3-D (bo.js bfAngle3, bfTorsions3, bfTors1; 1.26) ----
+/// engine.js angle3CentreK for one centre (slot pc, neighbour slots nb[0..n]) with its energy; the forces, when lf is
+/// given, into lf (index 0 the centre, 1 + u neighbour u; three components each), as the JavaScript's scratch arrays.
+unsafe fn centre3(b: &Bo, bx: &crate::d3::Box3, pc: usize, nb: &[usize; 6], n: usize, mode: i32, t0: f64, flat: bool, mut lf: Option<&mut [f64; 21]>) -> f64 {
+    use crate::d3::{pair_ang, trans_pair, vec3p, Tg, K3_DIV, K_OOP, PI};
+    let a90 = Tg::new(PI / 2.0); let a120 = Tg::new(2.0 * PI / 3.0); let a180 = Tg::new(PI); let tz = Tg::new(t0);
+    let k = crate::ANGLE_K / K3_DIV[n];
+    let mut ux = [0.0f64; 6]; let mut uy = [0.0f64; 6]; let mut uz = [0.0f64; 6]; let mut rr = [0.0f64; 6];
+    for kk in 0..n {
+        let (vx, vy, vz) = vec3p(b.x, b.y, b.pz, bx, pc, nb[kk]);
+        let mut r = (vx * vx + vy * vy + vz * vz).sqrt(); if r == 0.0 || r.is_nan() { r = 1e-9; }
+        ux[kk] = vx / r; uy[kk] = vy / r; uz[kk] = vz / r; rr[kk] = r;
+    }
+    let mut pcs = [0.0f64; 15]; let mut pt = [0.0f64; 15]; let mut pe = [0.0f64; 45]; let mut tg = [0u8; 15];
+    let mut np = 0usize;
+    for kk in 0..n { for l in kk + 1..n {
+        let cc = ux[kk] * ux[l] + uy[kk] * uy[l] + uz[kk] * uz[l];
+        let cx = uy[kk] * uz[l] - uz[kk] * uy[l]; let cy = uz[kk] * ux[l] - ux[kk] * uz[l]; let cz = ux[kk] * uy[l] - uy[kk] * ux[l];
+        pcs[np] = cc; pt[np] = fastmath::atan2((cx * cx + cy * cy + cz * cz).sqrt(), cc); np += 1;
+    } }
+    if mode == 0 { for q in 0..np { tg[q] = 0; } }
+    else if mode == 2 { for q in 0..np { tg[q] = if pair_ang(k, pt[q], pcs[q], &a180).0 <= pair_ang(k, pt[q], pcs[q], &a90).0 { 3 } else { 1 }; } }
+    else {
+        for q in 0..np { pe[3 * q] = pair_ang(k, pt[q], pcs[q], &a90).0; pe[3 * q + 1] = pair_ang(k, pt[q], pcs[q], &a120).0; pe[3 * q + 2] = pair_ang(k, pt[q], pcs[q], &a180).0; }
+        let mut best = f64::INFINITY; let mut bk = 0usize; let mut bl = 0usize;
+        if mode == 3 {
+            for a in 0..n { for b2 in a + 1..n {
+                let mut e = 0.0; let mut q = 0usize;
+                for kk in 0..n { for l in kk + 1..n {
+                    let ax = (if kk == a || kk == b2 { 1 } else { 0 }) + (if l == a || l == b2 { 1 } else { 0 });
+                    e += pe[3 * q + (if ax == 2 { 2 } else if ax == 1 { 0 } else { 1 })]; q += 1;
+                } }
+                if e < best { best = e; bk = a; bl = b2; }
+            } }
+            let mut q = 0usize;
+            for kk in 0..n { for l in kk + 1..n {
+                let ax = (if kk == bk || kk == bl { 1 } else { 0 }) + (if l == bk || l == bl { 1 } else { 0 });
+                tg[q] = if ax == 2 { 3 } else if ax == 1 { 1 } else { 2 }; q += 1;
+            } }
+        } else {
+            for m in 1..4 {
+                let mut e = 0.0; let mut q = 0usize;
+                for kk in 0..4 { for l in kk + 1..4 { e += pe[3 * q + (if trans_pair(kk, l, m) { 2 } else { 0 })]; q += 1; } }
+                if e < best { best = e; bk = m; }
+            }
+            let mut q = 0usize;
+            for kk in 0..4 { for l in kk + 1..4 { tg[q] = if trans_pair(kk, l, bk) { 3 } else { 1 }; q += 1; } }
+        }
+    }
+    let mut e = 0.0f64; let mut cfx = 0.0; let mut cfy = 0.0; let mut cfz = 0.0; let mut q = 0usize;
+    for kk in 0..n { for l in kk + 1..n {
+        let cc = pcs[q]; let t = tg[q];
+        let (ev, gv) = pair_ang(k, pt[q], cc, if t == 0 { &tz } else if t == 1 { &a90 } else if t == 2 { &a120 } else { &a180 });
+        e += ev;
+        if let Some(f) = lf.as_deref_mut() { if gv != 0.0 {
+            let ak = gv / rr[kk]; let al = gv / rr[l];
+            let fkx = ak * (ux[l] - cc * ux[kk]); let fky = ak * (uy[l] - cc * uy[kk]); let fkz = ak * (uz[l] - cc * uz[kk]);
+            let flx = al * (ux[kk] - cc * ux[l]); let fly = al * (uy[kk] - cc * uy[l]); let flz = al * (uz[kk] - cc * uz[l]);
+            let ok = 3 * (kk + 1); let ol = 3 * (l + 1);
+            f[ok] += fkx; f[ok + 1] += fky; f[ok + 2] += fkz; f[ol] += flx; f[ol + 1] += fly; f[ol + 2] += flz;
+            cfx += fkx + flx; cfy += fky + fly; cfz += fkz + flz;
+        } }
+        q += 1;
+    } }
+    if let Some(f) = lf.as_deref_mut() { f[0] -= cfx; f[1] -= cfy; f[2] -= cfz; }
+    if flat && n == 3 {
+        let (t, gm) = trip(b, bx, [pc, nb[0], pc, nb[1], pc, nb[2]], K_OOP, lf.is_some());
+        if let Some(f) = lf.as_deref_mut() { for m in 0..3 { let n1 = 3 * (m + 1); f[n1] -= gm[3 * m]; f[n1 + 1] -= gm[3 * m + 1]; f[n1 + 2] -= gm[3 * m + 2]; f[0] += gm[3 * m]; f[1] += gm[3 * m + 1]; f[2] += gm[3 * m + 2]; } }
+        e += K_OOP * t * t;
+    }
+    e
+}
+/// engine.js triple3K's product T = û₁·û₂×û₃ over b_m = x[e[2m+1]] − x[e[2m]], and (want) its forces' parts G_m: the
+/// caller takes G_m from the far end and adds it to the near one, m = 0, 1, 2 in turn. The energy is Kt·T·T.
+unsafe fn trip(b: &Bo, bx: &crate::d3::Box3, ends: [usize; 6], kt: f64, want: bool) -> (f64, [f64; 9]) {
+    let mut u = [0.0f64; 9]; let mut l3 = [0.0f64; 3];
+    for m in 0..3 {
+        let (vx, vy, vz) = crate::d3::vec3p(b.x, b.y, b.pz, bx, ends[2 * m], ends[2 * m + 1]);
+        let mut l = (vx * vx + vy * vy + vz * vz).sqrt(); if l == 0.0 || l.is_nan() { l = 1e-9; }
+        u[3 * m] = vx / l; u[3 * m + 1] = vy / l; u[3 * m + 2] = vz / l; l3[m] = l;
+    }
+    let g1x = u[4] * u[8] - u[5] * u[7]; let g1y = u[5] * u[6] - u[3] * u[8]; let g1z = u[3] * u[7] - u[4] * u[6];
+    let t = u[0] * g1x + u[1] * g1y + u[2] * g1z;
+    let mut gm = [0.0f64; 9];
+    if want {
+        let g2x = u[7] * u[2] - u[8] * u[1]; let g2y = u[8] * u[0] - u[6] * u[2]; let g2z = u[6] * u[1] - u[7] * u[0];
+        let g3x = u[1] * u[5] - u[2] * u[4]; let g3y = u[2] * u[3] - u[0] * u[5]; let g3z = u[0] * u[4] - u[1] * u[3];
+        let gx = [g1x, g2x, g3x]; let gy = [g1y, g2y, g3y]; let gz = [g1z, g2z, g3z]; let w = 2.0 * kt * t;
+        for m in 0..3 {
+            let a = w / l3[m];
+            gm[3 * m] = a * (gx[m] - t * u[3 * m]); gm[3 * m + 1] = a * (gy[m] - t * u[3 * m + 1]); gm[3 * m + 2] = a * (gz[m] - t * u[3 * m + 2]);
+        }
+    }
+    (t, gm)
+}
+/// bo.js bfAngle3: one centre's 3-D angle term over the partners in b.list[0..nl], weighted (its forces scaled by the
+/// subset's weight); returns (E, dE/d(Σ orders)).
+unsafe fn angle3(b: &Bo, bx: &crate::d3::Box3, c: usize, nl: usize, wgt: f64, forces: bool) -> (f64, f64) {
+    if !(2..=6).contains(&nl) { return (0.0, 0.0); }
+    let mut sum = 0.0; for u in 0..nl { sum += g(b.pn, g(b.list, u) as usize); }
+    let lpr0 = (g(b.mval, c) - sum) / 2.0; let lpr = lpr0.max(0.0); let l0 = lpr.floor(); let f = lpr - l0; let dfds = if lpr0 > 0.0 { -0.5 } else { 0.0 };
+    let per = g(b.mper, c); let pc = g(b.mslot, c) as usize; let mut all_h = true; let mut nb = [0usize; 6];
+    for u in 0..nl { let k = g(b.list, u) as usize; let o = if g(b.pa, k) as usize == c { g(b.pb, k) } else { g(b.pa, k) } as usize; if g(b.mz, o) != 1 { all_h = false; } nb[u] = g(b.mslot, o) as usize; }
+    let ev = |lp: f64, w: f64| -> f64 {
+        let key = (((nl as i32 * 8 + lp as i32) * 8 + per) * 2 + if all_h { 1 } else { 0 }) as usize;
+        let mode = g(b.tgt3, 3 * key) as i32; let t0 = g(b.tgt3, 3 * key + 1); let flat = g(b.tgt3, 3 * key + 2) != 0.0;
+        if w == 0.0 || w.is_nan() { return centre3(b, bx, pc, &nb, nl, mode, t0, flat, None); } // (JS: !w)
+        let mut lf = [0.0f64; 21];
+        let e = centre3(b, bx, pc, &nb, nl, mode, t0, flat, Some(&mut lf));
+        ad(b.fx, pc, w * lf[0]); ad(b.fy, pc, w * lf[1]); ad(b.fz, pc, w * lf[2]);
+        for u in 0..nl { let j = nb[u]; let o = 3 * (u + 1); ad(b.fx, j, w * lf[o]); ad(b.fy, j, w * lf[o + 1]); ad(b.fz, j, w * lf[o + 2]); }
+        e
+    };
+    if f > 1e-9 {
+        let e0 = ev(l0, if forces { wgt * (1.0 - f) } else { 0.0 }); let e1 = ev(l0 + 1.0, if forces { wgt * f } else { 0.0 });
+        return ((1.0 - f) * e0 + f * e1, (e1 - e0) * dfds);
+    }
+    (ev(l0, if forces { wgt } else { 0.0 }), 0.0)
+}
+const BO_TOR0: f64 = 1.1;
+const BO_TORW: f64 = 0.4;
+#[inline(always)]
+fn tau(n: f64) -> f64 { let x = (n - BO_TOR0) / BO_TORW; if x <= 0.0 { 0.0 } else if x >= 1.0 { 1.0 } else { x * x * (3.0 - 2.0 * x) } }
+#[inline(always)]
+fn tau_d(n: f64) -> f64 { let x = (n - BO_TOR0) / BO_TORW; if x <= 0.0 || x >= 1.0 { 0.0 } else { 6.0 * x * (1.0 - x) / BO_TORW } }
+/// bo.js bfTorsions3 (double and aromatic bonds) and bfTors1 (single bonds): E as the JavaScript adds them (the double
+/// bonds' sum plus the single bonds' sum), their slopes into gn, their forces into fx, fy, fz.
+unsafe fn torsions3(b: &Bo, forces: bool, n: usize, bx: &crate::d3::Box3, f0t: f64) -> f64 {
+    use crate::d3::K_TOR;
+    let mut e = 0.0f64;
+    for k in 0..n {
+        let nn = g(b.pn, k); if !(nn > BO_TOR0) { continue; }
+        let x = ((nn - BO_TOR0) / BO_TORW).min(1.0); let ta = x * x * (3.0 - 2.0 * x); let dta = if x < 1.0 { 6.0 * x * (1.0 - x) / BO_TORW } else { 0.0 };
+        let aa = g(b.pa, k) as usize; let bb_ = g(b.pb, k) as usize;
+        let (ua0, ua1) = (g(b.f0, aa) as usize, (g(b.f0, aa) + g(b.fc, aa)) as usize); let (vb0, vb1) = (g(b.f0, bb_) as usize, (g(b.f0, bb_) + g(b.fc, bb_)) as usize);
+        for u in ua0..ua1 {
+            let k1 = g(b.inc, u) as usize; if k1 == k { continue; } let n1 = g(b.pn, k1); if !(n1 > 0.3) { continue; }
+            let xx = if g(b.pa, k1) as usize == aa { g(b.pb, k1) } else { g(b.pa, k1) } as usize; let b1 = bb(n1);
+            for v in vb0..vb1 {
+                let k2 = g(b.inc, v) as usize; if k2 == k { continue; } let n2 = g(b.pn, k2); if !(n2 > 0.3) { continue; }
+                let yy = if g(b.pa, k2) as usize == bb_ { g(b.pb, k2) } else { g(b.pa, k2) } as usize; if yy == xx { continue; }
+                let b2 = bb(n2); let w = ta * b1 * b2; if !(w > 0.0) && !(dta > 0.0 && b1 * b2 > 0.0) { continue; }
+                let (sx, sa, sb, sy) = (g(b.mslot, xx) as usize, g(b.mslot, aa) as usize, g(b.mslot, bb_) as usize, g(b.mslot, yy) as usize);
+                let (t, _) = trip(b, bx, [sx, sa, sa, sb, sb, sy], K_TOR, false);
+                let t2 = K_TOR * t * t / K_TOR; // (the JavaScript's triple3K(…, K_TOR, null) / K_TOR)
+                if forces && w > 0.0 {
+                    let (_, gm) = trip(b, bx, [sx, sa, sa, sb, sb, sy], w * K_TOR, true); let ends = [sx, sa, sa, sb, sb, sy];
+                    for m in 0..3 { let n0 = ends[2 * m]; let n1i = ends[2 * m + 1]; ad(b.fx, n1i, -gm[3 * m]); ad(b.fy, n1i, -gm[3 * m + 1]); ad(b.fz, n1i, -gm[3 * m + 2]); ad(b.fx, n0, gm[3 * m]); ad(b.fy, n0, gm[3 * m + 1]); ad(b.fz, n0, gm[3 * m + 2]); }
+                }
+                let ee = K_TOR * t2; e += w * ee;
+                ad(b.gn, k, dta * b1 * b2 * ee); ad(b.gn, k1, ta * bb_d(n1) * b2 * ee); ad(b.gn, k2, ta * b1 * bb_d(n2) * ee);
+            }
+        }
+    }
+    e + tors1_bo(b, forces, n, bx, f0t)
+}
+/// bo.js bfTors1: the single bonds' twist weighted as the orders say.
+unsafe fn tors1_bo(b: &Bo, forces: bool, n: usize, bx: &crate::d3::Box3, f0t: f64) -> f64 {
+    let mut e = 0.0f64;
+    let side = |m: usize, k: usize| -> f64 { let mut sv = 0.0; let u0 = g(b.f0, m) as usize; let u1 = u0 + g(b.fc, m) as usize; for u in u0..u1 { let j = g(b.inc, u) as usize; if j != k { sv += tau(g(b.pn, j)); } } sv };
+    let kt = |q: usize| -> [f64; 4] { [g(b.t1k, 4 * q), g(b.t1k, 4 * q + 1), g(b.t1k, 4 * q + 2), g(b.t1k, 4 * q + 3)] };
+    let key = |zx: i32, za: i32, zb: i32, zy: i32| -> i32 { // (bfT1Key: TOR1B's CC0 CC1 CC2 = 0 1 2, TOR1's CO CN OO = 3 4 5, none −1)
+        let lo = za.min(zb); let hi = za.max(zb);
+        if lo == 6 && hi == 6 { return (if zx > 1 { 1 } else { 0 }) + (if zy > 1 { 1 } else { 0 }); }
+        if lo == 6 && hi == 8 { 3 } else if lo == 6 && hi == 7 { 4 } else if lo == 8 && hi == 8 { 5 } else { -1 }
+    };
+    let (fxp, fyp, fzp) = if forces { (b.fx, b.fy, b.fz) } else { (core::ptr::null_mut(), core::ptr::null_mut(), core::ptr::null_mut()) };
+    for k in 0..n {
+        let nn = g(b.pn, k); if !(nn > 0.3) || !(nn < BO_TOR0 + BO_TORW) { continue; }
+        let aa = g(b.pa, k) as usize; let bb_ = g(b.pb, k) as usize; if g(b.mdb, aa) != 0 || g(b.mdb, bb_) != 0 || g(b.fc, aa) < 2 || g(b.fc, bb_) < 2 { continue; }
+        let sig = bb(nn) * (1.0 - tau(nn)); let dsig = bb_d(nn) * (1.0 - tau(nn)) - bb(nn) * tau_d(nn); if !(sig > 0.0) && dsig == 0.0 { continue; }
+        let sa_ = side(aa, k); let sb_ = side(bb_, k); let da = sa_.min(1.0); let db = sb_.min(1.0); let cc = g(b.mz, aa) == 6 && g(b.mz, bb_) == 6;
+        let (mut gs, mut gda, mut gdb) = (0.0f64, 0.0f64, 0.0f64);
+        let (ua0, ua1) = (g(b.f0, aa) as usize, (g(b.f0, aa) + g(b.fc, aa)) as usize); let (vb0, vb1) = (g(b.f0, bb_) as usize, (g(b.f0, bb_) + g(b.fc, bb_)) as usize);
+        for u in ua0..ua1 {
+            let k1 = g(b.inc, u) as usize; if k1 == k { continue; } let n1 = g(b.pn, k1); if !(n1 > 0.3) { continue; }
+            let xx = if g(b.pa, k1) as usize == aa { g(b.pb, k1) } else { g(b.pa, k1) } as usize;
+            let bxv = bb(n1); let dbx = bb_d(n1); let tx = tau(n1); let dtx = tau_d(n1); let zx = g(b.mz, xx);
+            for v in vb0..vb1 {
+                let k2 = g(b.inc, v) as usize; if k2 == k { continue; } let n2 = g(b.pn, k2); if !(n2 > 0.3) { continue; }
+                let yy = if g(b.pa, k2) as usize == bb_ { g(b.pb, k2) } else { g(b.pa, k2) } as usize; if yy == xx { continue; }
+                let byv = bb(n2); let dby = bb_d(n2); let ty = tau(n2); let dty = tau_d(n2); let zy = g(b.mz, yy);
+                let mut terms: [(usize, f64, f64, f64, f64, f64); 3] = [(0, 0.0, 0.0, 0.0, 0.0, 0.0); 3]; let mut nt = 0usize;
+                let q = key(zx, g(b.mz, aa), g(b.mz, bb_), zy);
+                if q >= 0 { terms[nt] = (q as usize, (1.0 - da) * (1.0 - db) * bxv * byv, -(1.0 - db) * bxv * byv, -(1.0 - da) * bxv * byv, (1.0 - da) * (1.0 - db) * dbx * byv, (1.0 - da) * (1.0 - db) * bxv * dby); nt += 1; }
+                if cc && (zy == 6 || zy == 8) && ty > 0.0 { terms[nt] = (if zy == 6 { 6 } else { 7 }, (1.0 - da) * ty * bxv, -ty * bxv, 0.0, (1.0 - da) * ty * dbx, (1.0 - da) * dty * bxv); nt += 1; }
+                if cc && (zx == 6 || zx == 8) && tx > 0.0 { terms[nt] = (if zx == 6 { 6 } else { 7 }, (1.0 - db) * tx * byv, 0.0, -tx * byv, (1.0 - db) * dtx * byv, (1.0 - db) * tx * dby); nt += 1; }
+                for &(qk, w, wa, wb, w1, w2) in terms.iter().take(nt) {
+                    if !(w > 0.0) && w1 == 0.0 && w2 == 0.0 && wa == 0.0 && wb == 0.0 { continue; }
+                    let kk = kt(qk);
+                    let (sx, sa, sb, sy) = (g(b.mslot, xx) as usize, g(b.mslot, aa) as usize, g(b.mslot, bb_) as usize, g(b.mslot, yy) as usize);
+                    let ee = crate::d3::tors1(b.x, b.y, b.pz, bx, sx, sa, sb, sy, kk, f0t, core::ptr::null_mut(), core::ptr::null_mut(), core::ptr::null_mut());
+                    if forces && sig * w > 0.0 { let c = sig * w; crate::d3::tors1(b.x, b.y, b.pz, bx, sx, sa, sb, sy, [c * kk[0], c * kk[1], c * kk[2], c * kk[3]], f0t, fxp, fyp, fzp); }
+                    e += sig * w * ee; gs += w * ee; gda += sig * wa * ee; gdb += sig * wb * ee;
+                    ad(b.gn, k1, sig * w1 * ee); ad(b.gn, k2, sig * w2 * ee);
+                }
+            }
+        }
+        ad(b.gn, k, dsig * gs);
+        if gda != 0.0 && sa_ < 1.0 { for u in ua0..ua1 { let j = g(b.inc, u) as usize; if j != k { ad(b.gn, j, gda * tau_d(g(b.pn, j))); } } }
+        if gdb != 0.0 && sb_ < 1.0 { for v in vb0..vb1 { let j = g(b.inc, v) as usize; if j != k { ad(b.gn, j, gdb * tau_d(g(b.pn, j))); } } }
+    }
+    e
 }
 
 // ---- WebAssembly exports ----

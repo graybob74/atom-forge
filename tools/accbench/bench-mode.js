@@ -5,7 +5,7 @@
    molecules ionized: free electrons), eNe / eNe3 (40 neon atoms and 40 free electrons), al / al3 (a flat Al patch of 769 atoms / an Al ball of 767), cu / cu3 (Cu, 955 / 767),
    zundel / zundel3 (H3O+ and five waters, 19 atoms), mol3 (the molecules in space). freeE: free electrons at the start
    and the end of the timed steps.
-   variants: base, dt2, dt4 (longest step 0.2, 0.1 fs), rc9, rc12, qeq10, qeq1, pi8, pi16, pi32 (contracted), pi8f, pi16f,
+   variants: base, dt2, dt4 (longest step 0.2, 0.1 fs), rc9, rc12, qeq10, qeq1, pd10, pd1 (induced charges with polarizability by direction, 1.27), pi8, pi16, pi32 (contracted), pi8f, pi16f,
    pi32f (every bead), bo1 (from the positions), bo2 (quantum), wave, metal (many-body).
    Prints one JSON line: ms a step, the mean step, ms a simulated fs (the cost tags compare this one). As bench-acc.js:
    one thread, the bath off after settling, events on. */
@@ -38,7 +38,7 @@ if (!SC[scen]) throw new Error('scenario? ' + Object.keys(SC).join(' '));
 SC[scen]();
 X.settleOverlaps();
 const v = variant || 'base';
-const set = { dt2: () => { X.DT_MAX = 0.02; }, dt4: () => { X.DT_MAX = 0.01; }, rc9: () => X.setCutoff(9), rc12: () => X.setCutoff(12), qeq10: () => { X.QEQ.every = 10; }, qeq1: () => { X.QEQ.every = 1; },
+const set = { dt2: () => { X.DT_MAX = 0.02; }, dt4: () => { X.DT_MAX = 0.01; }, rc9: () => X.setCutoff(9), rc12: () => X.setCutoff(12), qeq10: () => { X.QEQ.every = 10; }, qeq1: () => { X.QEQ.every = 1; }, pd10: () => { X.QEQ.every = 10; X.pdOn(1); }, pd1: () => { X.QEQ.every = 1; X.pdOn(1); },
   bo1: () => X.boSet(1), bo2: () => X.boSet(2), wave: () => X.waveSet(true), metal: () => X.mbSet(1) };
 const m = v.match(/^pi(\d+)(f?)$/);
 if (m) { X.PI.rpc = !m[2]; X.piSet(+m[1]); } else if (set[v]) set[v](); else if (v !== 'base') throw new Error('variant? ' + v);

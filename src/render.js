@@ -263,6 +263,19 @@ function drawObjects() {
       ctx.strokeStyle = 'rgba(255,190,80,0.7)'; ctx.lineWidth = 1.2; seg(ob.x0, ob.y0, ob.x1, ob.y1); ctx.lineCap = 'round';
     } else if (k === 'wall') {
       ctx.strokeStyle = 'rgba(165,172,186,0.9)'; ctx.lineWidth = lw(0.4, 4, 12); seg(ob.x0, ob.y0, ob.x1, ob.y1);
+    } else if (k === OBJ_SLIT) { // (a dark sheet with its openings left out, 1.27 feature 19)
+      const tx = (ob.x1 - ob.x0) / (L || 1), ty = (ob.y1 - ob.y0) / (L || 1), cut = [];
+      for (let i = 0; i < ob.ns; i++) { const c = (i - (ob.ns - 1) / 2) * ob.sd; cut.push([c - ob.sa / 2, c + ob.sa / 2]); }
+      ctx.strokeStyle = 'rgba(70,72,84,0.95)'; ctx.lineWidth = lw(0.5, 4, 12); ctx.lineCap = 'butt';
+      let s0 = -L / 2; for (const [a0, a1] of cut.concat([[L / 2, L / 2]])) { const e0 = Math.min(a0, L / 2); if (e0 > s0) seg(mx + tx * s0, my + ty * s0, mx + tx * e0, my + ty * e0); s0 = Math.max(s0, a1); }
+      ctx.lineCap = 'round';
+    } else if (k === OBJ_POL) { // (a dark sheet; its axis drawn on it: strokes along it for the part in the plane, dots for the part across, 1.27)
+      ctx.strokeStyle = 'rgba(120,110,150,0.85)'; ctx.lineWidth = lw(0.3, 3, 8); seg(ob.x0, ob.y0, ob.x1, ob.y1);
+      const tx = (ob.x1 - ob.x0) / (L || 1), ty = (ob.y1 - ob.y0) / (L || 1), ca = Math.cos(ob.pa * Math.PI / 180), sa = Math.sin(ob.pa * Math.PI / 180), n = clamp(Math.round(L / 2), 2, 24);
+      ctx.strokeStyle = 'rgba(225,215,255,0.9)'; ctx.fillStyle = 'rgba(225,215,255,0.9)'; ctx.lineWidth = 1.2;
+      for (let i = 0; i < n; i++) { const t = (i + 0.5) / n, x = ob.x0 + (ob.x1 - ob.x0) * t, y = ob.y0 + (ob.y1 - ob.y0) * t, a = 0.35 * ca * L / n;
+        if (a * s > 1) seg(x - tx * a, y - ty * a, x + tx * a, y + ty * a);
+        if (sa > 0.05) { ctx.beginPath(); ctx.arc(w2sx(x), w2sy(y), 0.5 + 1.5 * sa, 0, 2 * Math.PI); ctx.fill(); } }
     } else if (k === 'foil') {
       ctx.strokeStyle = 'rgba(255,205,90,0.9)'; ctx.lineWidth = lw(0.12, 1.5, 4); seg(ob.x0, ob.y0, ob.x1, ob.y1);
     } else if (k === 'plates') {
@@ -490,13 +503,22 @@ function glSlotsPrepare() {
 /* Particle view: a bond is its shared electrons, one pair per bond order, swirling between the two nuclei and
    sitting nearer the more electronegative atom. */
 function drawBondPairs(rt) {
-  const ctx = R.ctx, s = R.s, er = electronR(), sep = Math.max(1.6, 0.1 * s), off = Math.max(3, 0.24 * s);
+  const ctx = R.ctx;
   ctx.save();
   for (const bd of W.bonds) {
     const a = bd.a, b = bd.b;
     if (W.wall === 'wrap' && (Math.abs(b.x - a.x) > W.box.w / 2 || Math.abs(b.y - a.y) > W.box.h / 2)) continue;
     const x0 = w2sx(a.x), y0 = w2sy(a.y), x1 = w2sx(b.x), y1 = w2sy(b.y);
     if ((x0 < -40 && x1 < -40) || (x0 > R.w + 40 && x1 > R.w + 40) || (y0 < -40 && y1 < -40) || (y0 > R.h + 40 && y1 > R.h + 40)) continue;
+    bondPair(ctx, bd, x0, y0, x1, y1);
+  }
+  ctx.restore();
+}
+/* One bond's shared electrons between its two nuclei drawn at (x0, y0) and (x1, y1), sized by R.s (the 3-D view sets it
+   to the scale at the bond's depth: the particle view in 3-D, 1.26 sweep). */
+function bondPair(ctx, bd, x0, y0, x1, y1) {
+  const a = bd.a, b = bd.b, s = R.s, er = electronR(), sep = Math.max(1.6, 0.1 * s), off = Math.max(3, 0.24 * s);
+  {
     const L = Math.hypot(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / L, uy = (y1 - y0) / L, nx = -uy, ny = ux;
     // between the edges of the two (enlarged) nuclei, nearer the more electronegative atom
     const ra = nucleonR() * rnUnit(a.Z + a.N), rb = nucleonR() * rnUnit(b.Z + b.N);
@@ -512,7 +534,6 @@ function drawBondPairs(rt) {
       drawSprite(sp, cx + dx, cy + dy); drawSprite(sp, cx - dx, cy - dy);
     }
   }
-  ctx.restore();
 }
 function drawHBonds() {
   if (R.s < 6) return;
@@ -647,7 +668,7 @@ function drawUltraParts(ctx, rt) {
     if (r <= 1500) {
       if (bohrMode === 'orb') drawOrbitalAtom(ctx, p, x, y, true);
       else if (bohrMode === 'on' || bohrMode === 'nuc' || (bohrMode === 'auto' && r >= 30)) drawBohr(ctx, p, x, y, r, rt, col, rn);
-      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
+      else { drawSprite(ballSprite(col, r), x, y); if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : elSym(p), x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9'); }
     } else { // inside the atom's electron cloud: a faint wash of its colour
       const c = hexc(col); ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.10)`;
       const d = Math.hypot(x - Wd / 2, y - Ht / 2);
@@ -818,12 +839,14 @@ function drawParticles(rt) {
       if (r > 9 && bohrMode !== 'nuc') label(ctx, 'n', x, y, r, '#1b2430');
       continue;
     }
+    if (p.ne === 0 && p.mu) { muNucleus(ctx, x, y); continue; } // (a bare μ⁺ (muonium stripped): a lepton, not a proton, 1.26 bug fix)
     if (p.ne === 0 && bohrMode === 'nuc') { // bare nucleus, every nucleon shown
       const nsp = nucleusSprite(p.Z, p.N, nucleonR(), p.anti);
       ctx.globalCompositeOperation = 'lighter'; // true size, so a halo marks it out
       if (!R.lite) drawSprite(glowSprite(p.anti ? [190, 120, 255] : [255, 110, 90], Math.max(7, nsp.rn * 3.2)), x, y, 0.4);
       ctx.globalCompositeOperation = 'source-over';
       drawSprite(nsp, x, y);
+      if (p.muB) muOrbit(ctx, p, x, y, nsp.rn);
       continue;
     }
     if (p.ne === 0) { // bare nucleus
@@ -855,7 +878,7 @@ function drawParticles(rt) {
     if (bohr) drawBohr(ctx, p, x, y, r, rt, col);
     else {
       if (!glBalls) drawSprite(ballSprite(col, r), x, y);
-      if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : p.el.sym, x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
+      if (lblOn(p) && r >= 8.5) labelAtom(ctx, p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : elSym(p), x, y, r, luminance(col) > 150 ? '#16202b' : '#f1f5f9');
     }
     if (p.anti) { // antimatter: a dashed violet halo
       ctx.save(); ctx.strokeStyle = 'rgba(190,130,255,0.85)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
@@ -986,7 +1009,7 @@ function drawExos() {
     const x = w2sx(o.x), y = w2sy(o.y);
     if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
     const c = XP[o.sp].col, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''));
-    if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
+    if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (o.spin && RP.mu) spinArrow(ctx, x, y, o.spin); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
     ctx.globalCompositeOperation = 'lighter';
     drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55);
     ctx.globalCompositeOperation = 'source-over';
@@ -1019,6 +1042,12 @@ function exoInside(ctx, o, x, y, c, hx) {
     const R0 = nsp.rn + Math.max(3, b * 1.5), th = W.at * 5 + o.id; // the muon, a few hundred times closer in than an electron
     ctx.strokeStyle = rgba(c, 0.45); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke();
     drawSprite(ballSprite(hx, Math.max(1.2, electronR() * 0.9)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
+    return R0 + 2;
+  }
+  if (d.ps) { // positronium (1.27): an electron and a positron going round their middle, its orbit twice hydrogen's
+    const R0 = Math.max(6, 0.53 * R.s), th = W.at * 2.5 + o.id, er = electronR(), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th);
+    ctx.strokeStyle = rgba(c, 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
     return R0 + 2;
   }
   if (d.muonium) { // muonium: a μ⁺ for a nucleus, its electron on hydrogen's orbit (the reduced mass is 0.5% off hydrogen's)
@@ -1115,10 +1144,10 @@ function drawBohr(ctx, p, x, y, r, rt, col, rnTrue) { // rnTrue: the ultra-reali
       drawSprite(ballSprite(p.anti ? POS_COL : E_COL, er), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
     }
   }
-  if (rnTrue === undefined) nucleusBeads(ctx, x, y, rn, p.Z, p.N, 1, p.anti);
+  if (rnTrue === undefined) { if (p.mu) muNucleus(ctx, x, y, rn * 0.5); else nucleusBeads(ctx, x, y, rn, p.Z, p.N, 1, p.anti); } // (muonium: its μ⁺)
   if (R.view.labels) {
     ctx.font = '600 12px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = CHAMBER.text; ctx.textAlign = 'center';
-    ctx.fillText(nucSymA(p.Z, p.N, p.anti) + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''), x, y + r * 1.25 + 12);
+    ctx.fillText((p.mu ? 'Mu' : nucSymA(p.Z, p.N, p.anti)) + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''), x, y + r * 1.25 + 12);
   }
 }
 
@@ -1165,6 +1194,15 @@ function rnUnit(A) { // outer radius of the packed cluster, for a nucleon radius
 }
 function nucleonR() { return clamp(0.045 * R.s, 0.75, 8); } // one size for every nucleon, bound or free
 function electronR() { return clamp(0.035 * R.s, 1.0, 3.0); }
+/* Muonium's nucleus is a μ⁺: a lepton, a point with no nucleons (it was drawn as hydrogen's proton, 1.26 bug fix). */
+function muNucleus(ctx, x, y, rmin) {
+  const rl = Math.max(rmin || 1.6, electronR() * 1.3);
+  ctx.globalCompositeOperation = 'lighter';
+  if (!R.lite) drawSprite(glowSprite([150, 225, 255], Math.max(6, rl * 4)), x, y, 0.45);
+  ctx.globalCompositeOperation = 'source-over';
+  drawSprite(ballSprite('#96e1ff', rl), x, y);
+  return rl;
+}
 function nucleusSprite(Z, N, b, anti) {
   const A = Z + N, bq = b < 2 ? Math.round(b * 10) / 10 : Math.round(b * 4) / 4;
   const key = `nuc|${Z}|${N}|${bq}|${anti ? 1 : 0}`;
@@ -1208,7 +1246,7 @@ function nucleusSprite(Z, N, b, anti) {
    (the innermost shell just outside the nucleus); electrons shared in bonds are drawn on the bonds. No colours,
    rings or labels. */
 function drawNucView(p, x, y, r, rt) {
-  const nsp = nucleusSprite(p.Z, p.N, nucleonR(), p.anti), rn = nsp.rn;
+  const nsp = p.mu ? null : nucleusSprite(p.Z, p.N, nucleonR(), p.anti), rn = p.mu ? Math.max(1.6, electronR() * 1.3) : nsp.rn; // (muonium: a μ⁺ for a nucleus, 1.26 bug fix)
   const own = Math.max(0, p.ne - p.used);
   if (own > 0) {
     const sh = shellCounts(p.Z, own), er = electronR();
@@ -1224,7 +1262,23 @@ function drawNucView(p, x, y, r, rt) {
       }
     }
   }
-  drawSprite(nsp, x, y);
+  if (p.mu) muNucleus(R.ctx, x, y); else drawSprite(nsp, x, y);
+  if (p.muB) muOrbit(R.ctx, p, x, y, rn);
+  if (p.mu && p.spin && RP.mu) spinArrow(R.ctx, x, y, p.spin); // (its muon's spin, 1.27)
+}
+/* (1.26) The muon of a muonic atom in the particle view: a point circling just outside the nucleus (its orbit is 207
+   times closer in than a 1s electron's, inside the innermost shell), in the colour the muon has in flight. It was not
+   drawn: the atom looked plain. */
+/* (1.27) A muon's spin in the particle view: a small arrow from it, in the plane (screen y is down). */
+function spinArrow(ctx, x, y, s) {
+  const L = Math.hypot(s[0], s[1]); if (!(L > 0.05)) return;
+  const len = 14 * Math.min(1, L), ux = s[0] / L, uy = -s[1] / L, ex = x + len * ux, ey = y + len * uy;
+  ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey);
+  ctx.moveTo(ex, ey); ctx.lineTo(ex - 4 * ux + 2.5 * uy, ey - 4 * uy - 2.5 * ux); ctx.moveTo(ex, ey); ctx.lineTo(ex - 4 * ux - 2.5 * uy, ey - 4 * uy + 2.5 * ux); ctx.stroke();
+}
+function muOrbit(ctx, p, x, y, rn) {
+  const er = electronR(), R0 = rn + Math.max(1.5, 0.8 * er), th = W.at * 6 + p.id;
+  drawSprite(ballSprite('#6ef5c8', Math.max(1.5, er * 1.2)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
 }
 function drawFlashes(rt) {
   if (R.lite) { W.flashes.length = 0; return; }
@@ -1386,6 +1440,12 @@ function drawFlights() {
     ctx.strokeStyle = g; ctx.lineWidth = 2.2;
     ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke();
     drawSprite(glowSprite(f.c, 9), hx, hy, 1);
+    if (f.pol && RP.pol) { // (its polarization at its head: a bar across its path for the part in the plane, a ring for the part across it, 1.27)
+      const ux = (f.x1 - f.x0) / L, uy = (f.y1 - f.y0) / L, [pc, ps] = polPS(f.pol, ux, uy), b = 7 * Math.abs(pc);
+      ctx.strokeStyle = rgba(f.c, 0.85); ctx.lineWidth = 1.4;
+      if (b > 0.5) { ctx.beginPath(); ctx.moveTo(hx + uy * b, hy + ux * b); ctx.lineTo(hx - uy * b, hy - ux * b); ctx.stroke(); } // (screen y points down: across the path is (uy, ux) on screen)
+      if (Math.abs(ps) > 0.1) { ctx.beginPath(); ctx.arc(hx, hy, 2 + 4 * Math.abs(ps), 0, 2 * Math.PI); ctx.stroke(); }
+    }
   }
   ctx.restore();
 }
@@ -1796,6 +1856,7 @@ function chamberBottomInset() {
   return (BOT_IN.v = clamp(v, 0, Math.max(0, R.h - 80)));
 }
 function drawScaleBar() {
+  if (R.menu) return; // (not behind the main menu, as the 3-D axis marker: it ran under the 3-D menu's note at 1280 × 720, 1.26 sweep)
   const ctx = R.ctx;
   const targetPx = 110;
   const raw = targetPx / R.s;

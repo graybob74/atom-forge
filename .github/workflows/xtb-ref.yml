@@ -1,11 +1,11 @@
-# Reference numbers from GFN1-xTB (tblite, LGPL) for checking Atom Forge's own port of the method: the runner installs
-# tblite, evaluates tools/xtb-ref/geoms.json and commits tools/xtb-ref/ref.json to the branch. Installed on the runner
+# Reference numbers from GFN1-xTB and GFN2-xTB (tblite, LGPL) for checking Atom Forge's own port of the method: the runner installs
+# tblite, evaluates tools/xtb-ref/geoms.json (and geoms2.json for GFN2, geoms3.json spin-polarized, 1.26) and commits ref.json, ref2.json and ref3.json to the branch. Installed on the runner
 # only; nothing of tblite goes into the game.
 name: xTB references
 on:
   push:
     branches-ignore: [main]
-    paths: ['tools/xtb-ref/geoms.json', 'tools/xtb-ref/ref.py', '.github/workflows/xtb-ref.yml']
+    paths: ['tools/xtb-ref/geoms.json', 'tools/xtb-ref/geoms2.json', 'tools/xtb-ref/geoms3.json', 'tools/xtb-ref/ref.py', 'tools/xtb-ref/ref2.py', 'tools/xtb-ref/ref3.py', '.github/workflows/xtb-ref.yml']
   workflow_dispatch:
 jobs:
   ref:
@@ -19,10 +19,13 @@ jobs:
       - name: Install tblite
         run: pip install tblite dftd3 numpy
       - name: Evaluate
-        run: python tools/xtb-ref/ref.py tools/xtb-ref/geoms.json tools/xtb-ref/ref.json
+        run: |
+          python tools/xtb-ref/ref.py tools/xtb-ref/geoms.json tools/xtb-ref/ref.json
+          python tools/xtb-ref/ref2.py tools/xtb-ref/ref2.json tools/xtb-ref/geoms.json tools/xtb-ref/geoms2.json
+          python tools/xtb-ref/ref3.py tools/xtb-ref/ref3.json tools/xtb-ref/geoms3.json
       - name: Commit the numbers to this branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tools/xtb-ref/ref.json
+          git add tools/xtb-ref/ref.json tools/xtb-ref/ref2.json tools/xtb-ref/ref3.json
           git diff --cached --quiet && echo "unchanged" || (git commit -m "xtb ref.json from ${GITHUB_SHA::7}" && git push origin HEAD:${GITHUB_REF_NAME})

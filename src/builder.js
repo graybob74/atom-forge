@@ -339,7 +339,7 @@ function mbGeomIssues(ps, mol) { // crossing bonds, atoms on top of each other, 
   }
   return out;
 }
-function mbStrain() { let D = 0; for (const bd of W.bonds) D += bd.D + (bd.Ef || 0); return totalEnergy().pe + D; }
+function mbStrain() { let D = 0; for (const bd of W.bonds) D += bd.D + (bd.Ef || 0) + bondEq(bd); return totalEnergy().pe + D; }
 function mbOrient(ps) { // centred on the centroid, long axis horizontal
   let cx = 0, cy = 0; for (const p of ps) { cx += p.x; cy += p.y; } cx /= ps.length; cy /= ps.length;
   let sxx = 0, syy = 0, sxy = 0;

@@ -5,7 +5,7 @@
    they say; all of them kept across a reload; the narrow layout; and the size the pictures add to the page.
    node tests/t_settings.js */
 const fs = require('fs'), path = require('path');
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('./deps').dep('playwright'); // (the repository's node_modules on a PC, the preinstalled tools here)
 const { openPage, pageFile } = require('./browser');
 let fails = 0;
 const check = (ok, msg, info) => { if (ok) console.log('  ok   ' + msg); else { fails++; console.log('  FAIL ' + msg + (info !== undefined ? '\n       ' + JSON.stringify(info).slice(0, 900) : '')); } };
@@ -48,7 +48,7 @@ async function menus() {
 
 /* The fast path: Settings → General → Start with "Where I left off" skips the menu and puts the kept chamber back. */
 async function fastPath() {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(require('./deps').launchOpts({ headless: true }));
   const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await ctx.addInitScript(() => { window.AF_NO_PAUSE = true; });
@@ -163,7 +163,7 @@ async function view3d() {
 
 /* Kept across a reload, as every setting is. */
 async function persist() {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(require('./deps').launchOpts({ headless: true }));
   const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await ctx.addInitScript(() => { window.AF_NO_MENU = true; window.AF_NO_PAUSE = true; });
@@ -180,7 +180,7 @@ async function persist() {
 
 /* Narrow windows and touch: the preview stacked above the settings; a tap on a row shows it. */
 async function narrow() {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(require('./deps').launchOpts({ headless: true }));
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await ctx.addInitScript(() => { window.AF_NO_MENU = true; window.AF_NO_PAUSE = true; });

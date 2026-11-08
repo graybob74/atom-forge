@@ -231,11 +231,11 @@ engine stores and visits particles.
     twofold shape. The flat game unchanged (2-D has no twist). Physics in 3-D: barriers against the measured ones,
     butane's anti/gauche populations at 300 K, insulated drift, forces against the slope, cost, the 3-D tiny objects
     (polyethylene) still whole; for the owner's OK.
-  - Continuous bond orders in 3-D in WebAssembly (left from 1.25): the 3-D angle term, its targets and roles, the
+  - Done in 1.26 (branch v134, the section "1.26: WebAssembly speed-ups"). Continuous bond orders in 3-D in WebAssembly (left from 1.25): the 3-D angle term, its targets and roles, the
     torsions and the z arrays in kernel/src/bo.rs (wasm.yml builds it on a working branch), checked natively with a 3-D
     dump; liquid water in 3-D with bond orders costs ×22 a simulated ps on the JavaScript pass.
   For 1.26 (the owner, after 1.24.0; not built yet):
-  - GFN2-xTB for quantum bonds (the owner: "try implementing gfn2 xtb. Run tests and compare numbers, and maybe leave
+  - Done in 1.26 (for the owner's OK; the 1.26 section: GFN2-xTB a choice, GFN1 stays normal). GFN2-xTB for quantum bonds (the owner: "try implementing gfn2 xtb. Run tests and compare numbers, and maybe leave
     gfn1 in if gfn2 is very different"). Compare GFN1, GFN2, published values and g-xTB (the owner's build: xtb 6.7.1
     with --gxtb, 2026-05-14, Windows x86_64; a copy in the main session's scratchpad, gxtb/; the Linux build is on
     grimme-lab/g-xtb's releases): hexazine's barrier and its release to 3 N₂ (GFN1: 0.53 eV and 1.67 eV; high-level
@@ -254,15 +254,15 @@ engine stores and visits particles.
     measured against reference, for the owner's OK): lone pairs on O and N as off-atom charge sites (TIP4P/TIP5P-like)
     so liquid water's and ice's tetrahedral network comes out sharp (density, RDF, ice structure); directional bonding
     for transition metals (an angular term in the many-body metals, MEAM-like or bond-order potential) so Fe, W, Cr, Mo
-    and Na crystallize bcc (bcc–fcc energy differences); σ-holes for halogen bonds (an off-atom positive site on Cl, Br,
+    and Na crystallize bcc (bcc–fcc energy differences; built on v132 for the owner's OK: the 1.26 section, item 3); σ-holes for halogen bonds (an off-atom positive site on Cl, Br,
     I; halogen-bond energies and geometries); π-stacking between aromatic rings (benzene dimer energies and shapes);
     polarizability that differs by direction for induced charges.
   - Also left from 1.25: the collider in 3-D (the 1.25 section: ring zones, radiation flight in the z = 0 plane, 3-D
     jet axes, 3-D collider setups; several sessions), the Experimental intranuclear cascade in 3-D, and continuous bond
-    orders in 3-D in WebAssembly (above).
+    orders in 3-D in WebAssembly (above; done in 1.26).
   Bugs on record (found while building 1.23.2–1.25; not fixed yet, for a bug-fix session; the owner: "keep these bugs
   on record"):
-  - [looked at after 1.25: a model choice, for the owner] Flat copper with the normal pair model turns itself into ions: 120 of 127 atoms of a flat Cu lump within 2 ps at
+  - [fixed in 1.26: the section "1.26: copper ions"] Flat copper with the normal pair model turns itself into ions: 120 of 127 atoms of a flat Cu lump within 2 ps at
     300 K (Ag, Au, Fe, Na don't). Screenshot 125m-flat-pairs.png.
   - [fixed after 1.25] Dense metals in 3-D are slow with either metal model: 767 Cu atoms about 80 ms a step, nearly all estimating
     electron transfers.
@@ -312,7 +312,3941 @@ engine stores and visits particles.
   A's stability and gets B's barriers is a ReaxFF-like functional with analytic derivatives: several more sessions.
   The user chose to use the good part (1.05: resonance, below); the full bond-order chemistry is parked.
 
-## 1.25.0: the nuclear side in 3-D, continuous bond orders in 3-D with single bonds' twist, many-body metals, Settings by mode with 3-D pictures, 3-D labels off, 19 bug fixes
+- The Higgs boson (not built; written down with 1.27's W and Z bosons, the owner's electroweak request of 2026-11-06):
+  125.1 GeV, Γ ≈ 4 MeV; at the LHC made mostly by two gluons fusing (about 50 pb at 13 TeV, one collision in 10⁹; also
+  vector-boson fusion about 4 pb, with a W or Z 1.4 and 0.9 pb), decaying to b b̄ 58%, W W* 21%, gluon pairs 8%, τ τ 6%,
+  c c̄ 3%, Z Z* 2.6%, γ γ 0.23% (values from memory). LEP could not make it (e⁺e⁻ → ZH needs √s > 216 GeV; LEP reached
+  209); a Higgs factory at 250 GeV makes it at about 0.2 pb. Would need: the Higgs in XP with these decays, gg → H in
+  hadron collisions at its σ/σ_inel (as ewDraw), e⁺e⁻ → ZH above 216 GeV (as the W pairs); about a session. Waits for
+  the owner's "build it".
+
+- Measured noble-gas wells (not built; found by 1.27 bug 1): UFF's van der Waals wells for He–Xe differ from the
+  measured ones (Ar 8.0 meV against 10.3, Xe 14.3 against 19.0; He 2.4 against 0.95, from memory), so neither the flat
+  game's doubling nor factor 1 gives real gases in 3-D (argon's B₂ at 300 K −28 doubled, +10 at 1, measured −15.6
+  cm³/mol). Per-element measured wells (and radii) for 3-D, re-checking water, the 3-D objects and pictures. A physics
+  change; waits for the owner.
+
+- Solvated electrons, e⁻(aq) (not built; found by 1.27 bug 8): electrons slowed below about 1 eV in liquid water become a
+  hydrated electron (radius ~2.5 Å, D 4.9×10⁻⁵ cm²/s, 720 nm absorption, hydration ~1.7 eV; rate constants with H₃O⁺
+  2.3×10¹⁰ and OH 3×10¹⁰ M⁻¹s⁻¹, from memory), recombining the Onsager way with ε = 80: the measured 60% of radiolysis
+  electrons still free at 1 µs, the same in both modes (today 3-D recaptures 34 of 40 in 2 fs, flat runs away to 140).
+  A physics change; waits for the owner.
+
+## 1.26 (released inside 1.27.0)
+
+### 1.26: combined (branch v136)
+
+1.25 with every fix after it (v128) and the five 1.26 branches merged: GFN2 and spins with both refits (v131, v135),
+metals (v132), directional forces (v133), WebAssembly speed-ups (v134). Conflicts were Settings texts and cost tags
+(each row kept with its newest measured number: the 3-D bond-order tag ×7–14 from the WebAssembly pass, the quantum
+nuclei tags from the bug fix (×8/×17/×29; exact bead forces then ×5–6 over the contracted rings), the induced charges'
+from v134) and one engine line (the many-body partners' exclusion and the charge sites' pair energy, both kept).
+The metals pass's WebAssembly port (v134) knew 1.25's model only: it now takes the first eight entries of 1.26's
+nine-entry pair table and runs only for plain metals (no O/H partners, no directional metals; the image term after it),
+the JavaScript pass otherwise; f_126w mb is exact again (ΔE 0, forces 0, 30 steps 0 Å apart) and f_126m passes.
+Test fixes: t_features' 1.10 Settings list now has the five 1.26 rows marked real; runtests.sh copies tools/ (the
+metals checks read tools/mbfit.js) and gives each suite 3 GB (t_features, every version's checks in one process,
+ran out of the 2 GB heap).
+
+Waiting for the owner:
+- Approvals already given: GFN2 as a choice; metals items 1–3 ("ship and fix!"); directional forces; the nuclear side
+  and continuous bond orders in 3-D.
+- Decided (the owner, 2026-11-05: "try bigger model later for metals"): close-packed metals keep 1.25's fit in 1.26;
+  a bigger form (fourth moment or MEAM screening) is on the 1.27 list.
+- The spin-branch booking bug: fixed in the bug-fix session (branch bugfix-126 from v136, merged 2026-11-06; below,
+  "Bug fixes after the 1.26 merge": a step whose answer comes from a fresh start books its jump from the last settled
+  step; the energies and forces are as before).
+- Approved (the owner, 2026-11-05: "ok sounds good"): Polarized becomes the normal Spins setting once the spin-branch
+  booking bug is fixed: done after the merge (below).
+- Decided (the owner, 2026-11-05: "fix cu ions"): the bug session's model question #1 (flat Cu ions), fixed on branch
+  v137 (the section "1.26: copper ions").
+- To decide: the bug session's model questions #3 (AsCl₅) and #16 (3-D water recapture, physics).
+- Suite on 393f018 (2026-11-06: 1.26 with the sweeps, the spin-branch fix, Polarized normal and the fast-electron
+  energy fixes; another session building 1.27's W/Z at the same time): tools/runtests.sh 20 of 22 suites; the misses all
+  timing checks under the load (t_features 1.14, 1.25 labels3d, exoElastic, bo3; t_page's collider-beam timeout), each
+  passing alone (t_page whole, f_bug125 exoElastic, f_126w bo3; t_features alone passed 1.14 and labels3d and missed
+  0.64's named save, 0.68's prism and pi3 instead, which passed in the runtests run). Every check passed at least once on
+  this commit.
+
+For 1.27 (part 1, exotic atoms, and the Settings section built on branch v141: see "1.27: realistic particles 1"; parts 5 and 6 on branch v143: "1.27: realistic particles 5 and 6"; part 7 on branch v146: "1.27: realistic particles 7"; the rest not built; and, asked separately on 2026-11-06, W and Z bosons on branch v148: "1.27: W and Z bosons (electroweak)"): realistic particles (the owner, 2026-11-05: "think of every particle that is partially/unrealistically
+portrayed and how to implement an experimental setting that makes them as realistic as possible"; APPROVED, all seven
+parts, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything": each part its own Experimental
+switch, off at start; off, every setup bit for bit as before (fingerprints), energy books exact on; built after the
+3-D, exotic-particle and settings sweeps; in Settings → Experimental their own section (the owner: "a specific section
+for those types of portrayal settings … the section title is the heading and then each setting and its switch" small,
+like a paragraph line): a heading "Realistic particles", then one compact line per part (its name, an on/off switch,
+its cost tag; the description in the side pane on hover or focus, as the other rows since 1.25), with Ultra-realistic
+mode, Electrons as waves and Photons as waves (1.27) moved in beside them; in this order): (1) exotic atoms as real atoms: μ⁻, π⁻, K⁻ and p̄ caught into an orbit (now a μ⁻ atom
+is an overlay the tools can't touch, and π⁻/K⁻/p̄ are absorbed at once), a cascade giving off the exotic atom's X-ray
+lines (energies scaled by the reduced mass), then decay or nuclear capture at measured rates by element (muon
+lifetimes in each element, Suzuki 1987); to the outside an atom of charge Z−1 (μp acts like a neutron, muonic C like
+B); protonium; (2) positronium: a slow positron with an electron forms Ps, para (1 in 4) 125 ps → 2γ of 511 keV back to
+back, ortho (3 in 4) 142 ns → 3γ, pick-off in matter; (3) charged particles in matter: energy-loss straggling, δ-rays,
+Cherenkov light in water and glass, bremsstrahlung and pair production for e± and γ (showers); (4) muonium as the
+lightest hydrogen isotope (0.114 u, with quantum nuclei for its zero-point motion; its μ⁺ spin precessing in a field
+and the positron coming out along it, μSR); (5) resonances with their widths (a ρ's mass spread over ~150 MeV,
+Breit–Wigner), charm and bottom made in hadron collisions too; (6) nuclei with spin and magnetic moment (precession,
+NMR in a field) and excited states giving off their γ lines; neutrons' 1/v and resonance cross sections and spin;
+(7) photons' polarization and the Klein–Nishina Compton angles (with photons as waves, below). Things the box can't
+make real are said, not faked: true nuclear sizes and lifetimes leave almost nothing happening in a nanometre and a
+picosecond (Ultra-realistic does this already; it must work in 3-D), neutrinos almost never interact, oscillation
+needs kilometres. Photons as waves (the owner, 2026-11-05: "can you add photons as waves in experimental"; an
+Experimental option beside "electrons as waves": light as wave packets with its wavelength and phase, so it interferes
+and diffracts (double slit, gratings, thin films, a laser's coherence), with polarization; the placed objects (mirrors,
+lenses, prisms, screens, foils) then act on the wave; a screen shows the fringes built up photon by photon; absorption
+and emission by atoms unchanged; to scope against cost, flat first; physics: the owner's OK); polarizability that differs by direction; a different form for close-packed metals' directions
+(fourth moment or MEAM screening; the owner: "try bigger model later"), fitted with the liquid held to 1.25's and fcc/hcp/bcc in order; another Atom Forge xTB only with a new plan for
+radical barriers. Found and on record: 3-D water 14–18% too dense; the 6 Å cutoff's false peak; C–F charges about 2×;
+benzene's induced charges ×14 too large; O₂ near NH₃ never settles (quantum bonds).
+Test on record: t_features' 1.23.1 "Continue after a restart" check fails on 1.25 (v128) as on 1.26: the restored world has
+1–3 particles more than were saved (72 → 73, 73 → 74); for a bug-fix session. t_page's slow-motion button check fails
+alone on both here too (the known flake).
+
+### 1.26: bug fixes (energy books with fast electrons, decay data)
+
+Found by the 1.27 "charged particles in matter" session (its "Found, not changed"). Branch v147 (from v136, e237efe).
+Checks: tests/f_bug126e.js (t_features runs it alone; `node tests/f_bug126e.js [--node] [part …]`): eject,
+nearThreshold, plasma, wallTwice, cap, radPush, decay, each failing on e237efe and passing here.
+
+- **1. "3-D: −1.3×10⁸ eV over 40 steps in innerSteps".** Not an engine bug: the probe put its lattice down with
+  `addAtom(sym, x, y, z)`, but addAtom's fourth argument is its options (`{ z }`), so every z was 0 and each lattice site
+  held four atoms on top of each other. The pair forces skip pairs closer than 10⁻⁵ Å while the energy counts them, and
+  the first ionization's kick drove the stacked atoms apart through the screened-nuclear core (an atom at 10⁴–10⁷ eV a step
+  later). With z given, the same O/Pb lattice and four 1 GeV electrons: 0 eV over 40 steps (seeds 1, 3, 7; stacked:
+  −1.39×10⁸, −1.32×10⁸, −9.7×10⁷); a 1 GeV electron ionizes nothing there in 40 steps, nor in the flat game (3×10⁻⁴ eV).
+  The ionized case, built directly (half the atoms ionized three times, 248 electrons freed, 200 steps, 0.08 ps,
+  insulated): 3-D 1.05 eV before, 0.67 after; the flat game had a real error here (fix 2e): 13.3 and 15.3 eV (seeds 3,
+  7) before, −0.10 and 0.33 after. Two atoms at one point are outside what the integrator can do (not changed).
+- **2. The flat game's ejectElectron among ions and free electrons** (eight 1 GeV electrons' passes through a lead
+  block and through water, radiation flight only: lead 42 freed electrons, 9 off by more than 0.01 eV, worst 48.7 eV;
+  water 64, 16, 39.1 eV; now lead 35, water 75, worst 0.0004 eV; the same runs' books 84.0 and 33.0 eV off over 300
+  ticks, now 0.003 and 0.000). Five terms:
+  a. An ion in flight (ballistic or in radiation flight, a recoil from the passes before) carries no potential energy,
+     but the electron's launch energy still took the ion's pull (6.4, 12.9, 26.0 eV from Pb⁺, Pb²⁺, Pb³⁺) and nothing
+     paid it back. 3-D has skipped it since 1.25 (`fastIon`); the flat game now does the same.
+  b. An electron whose energy at infinity is under the radiation threshold (1 keV) but whose launch energy, with the
+     pull of the charges around it, is over it went into radiation flight, which carries no potential energy, with the
+     pull still in it (48.7 eV beside a Pb³⁺). Now it flies with its energy at infinity. Any ionization making a ~1 keV
+     electron did it; the 1.27 photon-polarization session found it too (water, Compton electrons of 0.8–1.2 keV: 100–200
+     eV). Water, 40 atoms each freeing an electron of 950, 980 and 999 eV at infinity (2, 10 and 26 of them into
+     radiation flight): 92, 92 and 101 eV made before, 0 now; 500, 850, 900, 1,200 and 1,500 eV were exact before and are.
+  c. A moving ion that loses an electron loses ½mₑv² of its motion with the electron's mass; 3-D gave it to the electron
+     only for ions in flight. Now for every moving ion, both games (an H⁺ knocked to 233 eV: 0.13 eV).
+  d. An atom in radiation flight stopped in a closed wall (`wallOrEscape`) was listed with the newcomers (`_late`) although
+     the neighbour grid still held it, so localPE and phiE counted it twice until the next force pass (6.4 eV in an
+     ionization beside it; a Pb⁺'s pull 1.5 Å away 12.0 V for 6.0). Now listed only if the grid doesn't hold it (`lateBack`).
+  e. A particle back among the stepped ones since the last force pass (a free electron slowed out of flight, an atom
+     stopped in the wall) was missing from `_charged`, the net charges summed beyond the 6 Å cutoff, so phiE and localPE
+     left out its pull from farther away, which totalEnergy counts: each later mode switch or ionization 1–2 eV off.
+     `lateBack` lists it there too (with the long-range sum on). This was the flat ionized lattice's 13–15 eV.
+- **3. ejectElectron at the particle cap** put the energy in the bath and returned no electron; every caller, finding no
+  electron, released it again (Compton, photoionization: dumpHeat) or took it back (an electron's impact ionization and
+  a hot collision undone, a muon's robbing undone, forceShed's fee), so it was counted twice or made from nothing
+  (photoionization at the cap: the 50 eV twice). Now it returns no electron and leaves the energy with the caller, as
+  for any electron that can't be freed.
+- **4. Pushes on atoms in radiation flight** (the flat radiation flight's ionizing loop, `moveRad`, and the unstable
+  particles' `exoIonize`): the push square to the path went into the velocity of an atom itself in radiation flight,
+  which its next flight step overwrites from its stored energy, so the dE the passing particle lost left the books (the
+  lead block's passes: 6 such pushes, 18.8 eV, the largest 8.2 eV; 20 keV electrons 0.8–0.95 Å from a flying Pb: −1.04,
+  −0.86, −0.79 eV). Decided: book it (`pushSquare`: its stored energy takes the push, through setVel), not skip such
+  atoms as 3-D's fastStop3 does: the flat game keeps its model (every atom passed is pushed or ionized), and ionizing an
+  atom in flight is exact now (2a), so there is nothing to avoid. Atoms not in radiation flight: the same arithmetic as
+  before, bit for bit.
+- **5. Decay data.** ¹⁹⁸Au (made from gold by a neutron) was not in the table; the estimate for unlisted nuclides gave it
+  86% β⁻ and 14% electron capture with a 5.1 h half-life. It is β⁻ only, Q 1.3724 MeV, 2.6941 d: listed now. ²²Na was
+  β⁺ only; it is 90.3% β⁺ and 9.7% electron capture (Q_EC 2.842 MeV for both, as ⁴⁰K's entry): listed now. The estimate
+  (allowed β⁻ and β⁺/EC rates from the mass formula's Q-values, log ft 6.0 and 5.8) gives both β⁻ and EC to 43
+  unlisted nuclides, because the formula's pairing term opens both sides for odd–odd nuclei. Against measured data
+  (NUBASE2020, from memory: check before listing them): 13 really decay both ways (⁷⁴As, ⁸⁴Rb, ¹²⁶I, ¹³⁰Cs, ¹⁴⁶Pm,
+  ¹⁵²Eu, ¹⁵⁸Tb, ¹⁶⁴Ho, ¹⁸⁶Re, ¹⁹²Ir, ¹⁹⁶Au, ²⁰⁴Tl, ²²⁶Ac; branches off, often by a lot); 13 are β⁻ only or above 99.5%
+  (⁹⁴Nb, ¹⁰⁴Rh, ¹¹⁰Ag, ¹¹⁴In, ¹⁴²Pr, ¹⁹⁸Au (now listed), ²³²Pa, ²³⁸Np, ²⁴⁴Am, ²⁴⁶Am, ²⁵⁰Bk, ²⁵²Bk, ²⁵⁶Es); 12 are EC/β⁺
+  only (¹²⁰Sb, ¹²⁴I, ¹³⁶La, ¹⁴⁰Pr, ¹⁵⁶Tb, ¹⁶²Ho, ¹⁶⁸Tm, ¹⁷⁴Lu, ¹⁸⁴Re, ¹⁹⁰Ir, ²⁰²Tl, ²⁰⁸Bi); 3 are α emitters with
+  half-lives of ns–s (²¹⁴At, ²¹⁶At, ²²⁰Fr; the estimate says β/EC over hours); 2 are unknown (²⁵⁸Es, ²⁶⁴Md). The
+  estimates' half-lives also cluster at 1–25 h whatever the nuclide. That is the estimate's accuracy, not a bug in its
+  rule: not changed. For the owner: list the ones the game makes often (neutron capture on stable isotopes: ⁹⁴Nb,
+  ¹⁰⁴Rh, ¹¹⁰Ag, ¹¹⁴In, ¹⁴²Pr; ¹²⁴I, ¹⁹²Ir, ²⁰⁴Tl …) from the evaluated tables.
+- Fingerprints (tools/fingerprint.js, all setups, seed 7, 300 steps, e237efe and after): 9 of 58 change, all flat ones
+  that ionize in those steps: soup, neon, muonium, hyperfactory (books only), pionbeam, annihilation, nif, photonuc,
+  sns. In all nine a moving ion gave up an electron (2–1,344 times), whose share of its motion (2c; ~10⁻⁶ eV for a
+  thermal ion) now goes with the electron, which changes the last bits; in pionbeam, annihilation, nif, photonuc and
+  sns also free electrons slowed out of flight are now in the long-range list (2e; 8–452 times); in photonuc and sns
+  ions in flight were ionized (2a; 2 and 80 times), and sns also launched 4 electrons into radiation flight by the
+  pull around them (2b) and pushed 9 atoms in radiation flight (4). No setup reached the particle cap (3) or stopped an
+  atom in the wall (2d), and none has ²²Na or ¹⁹⁸Au. The six 3-D setups and the other 43 flat ones are bit for bit the
+  same.
+- Test change: t_features' 1.11 chain-reaction tree now uses seed 3. Four slow neutrons in that block of ²³⁵U reach the
+  check's 30 fissions in about half the seeds; these fixes change the last bits once the first fragments ionize, and
+  seed 5's chain stopped at 25 (e237efe reached 30 with seeds 3 and 5 of 1–7, now with 1, 2 and 3). Seed 3: 30 fissions,
+  9 generations before, 11 now.
+- Suites (2-core machine shared with another session's tests): alone t_lint, t_energy, t_physics, t_nuclear, t_hep,
+  t_3d, f_swx, f_bug126e pass; t_features passes but for the known timing checks (1.14's speed readout 1/1.4×; f_bug125
+  exoElastic 4.2 ms and pi3, both passing alone, exoElastic 1.4–2.3 ms on both trees), and the paired-spin and settings
+  checks inside it (f_126q, f_126x, f_hep126, f_sweep3d, f_swx) pass unchanged. tools/runtests.sh (run alone, from the commit before the nearThreshold part, which passes alone):
+  all 22 suites pass, t_features among them (no timing misses this time).
+
+### 1.26: 3-D sweep and settings audit
+
+The owner: "there are MANY bugs so please do a general bug search in 3d mode … and make sure every change actually
+applies correctly" ("just fix as much as you can … i trust your judgement"). Branch v139 (from v136). Checks:
+tests/f_sweep3d.js (t_features, one line; or `node tests/f_sweep3d.js [--node] [part …]`), each failing on v136.
+Fingerprints: tools/fingerprint.js, every setup, seed 7, 300 steps.
+
+- 1. The particle view did nothing in 3-D (the owner's report). V, the view menu's Particle view, Lab → View → Atom
+  detail and the chamber's two buttons set `R.view.bohr`, which only the flat drawing read: render3d drew its lit balls
+  whatever was chosen (Shells and Orbitals likewise). Now each is the flat game's own picture at the particle's place,
+  facing the camera and sized for its distance (`det3`, `drawDet3`: R.s set to the scale at that depth for the flat code,
+  Canvas 2D, far to near): every nucleus's nucleons with its own electrons in their shells (`drawNucView`), a bond's shared
+  electrons between its nuclei (`bondPairs3`, `bondPair` split out of the flat `drawBondPairs`, the flat picture
+  unchanged), free nucleons and bare nuclei, free electrons, and the unstable particles' insides (`exoInside`: quarks,
+  a hypernucleus's Λ, a muonic atom's orbit). Shells skip atoms drawn under 12 px (unreadable there; a box of 1,029
+  waters drew its shells in 180 ms a frame, headless, now 39). Frame (headless, software GL, water3d, 1,029 atoms):
+  balls 4–7 ms, particle view 31–66, orbitals 37–39; Molecules in space under 1.5 ms in every mode. Measured: Molecules in
+  space, particle view: 72 of 72 atoms drawn as nucleons and electrons, 59 of 59 bonds as electron pairs (before: 0).
+  Check: f_sweep3d "pview" (page). Fingerprints unchanged (drawing only).
+- 2. The ultra-realistic mode in 3-D (the owner's report: "doesn't work in 3d"). What it does, measured in 3-D: decays
+  at real rates and resonances at their own lifetimes (shared with the flat game: `W.warp` 1, `minShow` 0, moveExos3's
+  `!W.ultra`), and nuclei hit at their true size (nucReach → ultraReach in moveNeutron, exoHits3, fastEncounters3,
+  tryFusion3's gate): 60 slow neutrons (0.18 eV) through a 5×5×5 lattice of ²³⁵U atoms, 1,500 steps, seed 3: enlarged
+  nuclei 114 fissions and 47 captures (a chain), true size none (the flat game's row of 25: 8 fissions and 13 captures →
+  4 and 4). So the physics applied; the picture did not: the 3-D camera stopped at 0.5 Å and every particle was drawn
+  enlarged, so turning it on changed nothing to see. Now, as the flat game's mode: free electrons are points, neutrons and
+  bare nuclei at 1.2·A^⅓ fm, an atom its ball until larger than the view and then a faint wash, with its nucleus at true
+  size at the centre (`ultraOne3`, the flat `ultraNucleus`: nucleons, the skin, quarks from 26 px); bond lanes capped
+  thin; the camera comes in to 2·10⁻⁵ Å (2 fm, `cam3Min`; the near plane to 10⁻⁸ Å; flying from 3·10⁻⁵ Å/s) and back to
+  0.5 Å when the mode goes off. Drawn on Canvas 2D (the WebGL layer is single precision): water3d's frame 4–7 → 20–25 ms
+  (headless). The 3-D descriptions (the row's pane, the Experimental note, the cost tag) say so. Measured: zoomed on a
+  carbon atom of Molecules in space the camera reaches 2·10⁻⁵ Å (499 px a fm; a nucleon with its u, d, d), before 0.5 Å.
+  Check: f_sweep3d "ultra3d" (page). Fingerprints unchanged.
+- 3. Fire in 3-D held electrons and positrons below 950 eV (`fireKE3`: 0.95 × the flat radiation flight's 1 keV, from
+  1.24, when 3-D had no flight for leptons and MeV electrons were stepped faster than light); bug fix 14 after 1.25 gave
+  them flight past 25 keV, the cap stayed. The slider read 950 eV past that point, and the note under it still said
+  atoms stop at 1.9 keV and neutrons cannot be fired (both work since 1.25). Now every projectile goes at the energy set,
+  the note says "single shots, at any energy; antimatter and beam sources: not in 3-D yet". Measured (Node, water3d,
+  insulated after 50 steps, one electron fired across the box, 400 steps after): 500 eV books −0.18 eV, 10 keV +0.10,
+  100 keV −4.3 (44 ionizations), 1 MeV −0.14; positrons the same (they fly alike). A click at an oxygen with 1 MeV set:
+  950 eV before, 1,000,000 eV after. Also "Not in 3-D yet" inside a sentence was lowercased whole ("not in 3-d yet"): the
+  Fire note and the log lines for tools and particles refused in 3-D (`not3d()`). Check: f_sweep3d "fireLep" (page).
+  Fingerprints unchanged (interface only).
+- 4. The quick menu's "Magnet here" (right-click on empty space) stayed greyed "Not in 3-D yet" in the 3-D lab, though
+  magnets work there since 1.24. Now it puts a magnet ball at the point in depth (the point the tools take, `ptr3`), as
+  the Magnet tool does. Check: f_sweep3d "qmMagnet" (page; before: the button disabled, 0 magnets).
+- 5. Data → Wall pressure and "vs ideal gas" in 3-D used the flat formula (`wallPressure`): the soft walls' push summed
+  over all six faces (softWalls3) divided by the perimeter of one face, in N/m, against an ideal gas N·k·T over one
+  face's area, so Z meant nothing. Now in 3-D: force over the six faces' area in pascals, against N·k·T over the
+  volume (`pUnit()`: Pa in 3-D, N/m flat, in the tile, its title, the graph and the CSV's column). 108 helium atoms
+  in a 40 Å cube at 300 K, 20,000 steps (seed 4): before "0.037 N/m", Z 1.33 ± 0.07; after 5.9–6.2 MPa, Z 0.84–0.89
+  ± 0.05 (ideal 6.9 MPa; the soft walls' inset takes the rest, the flat game's helium 0.82–0.88 the same way). Found,
+  not changed: argon in the same box gives Z 0.48 ± 0.08 (flat 0.82): the flat world's doubled van der Waals wells
+  (LJ_SCALE 2) still on in 3-D make argon stickier than real (the open item from 1.23.0). Check: f_sweep3d "pressure"
+  (Node). Fingerprints unchanged (interface only).
+- 6. The Physics tab in the 3-D lab began "atoms move in a two-dimensional chamber" and said nothing about 3-D. Now that
+  sentence follows the mode ("three-dimensional box"), and a card "In the 3-D lab" (shown there only) says what is three-
+  dimensional, which two flat corrections are still on (liquids a little too dense) and what is not in 3-D yet; Help's
+  "What it does" mentions the cube. Check: f_sweep3d "physText" (page).
+- 7. The tour (Esc → Tour) in the 3-D lab gave the flat game's controls: "drag with the right button to move around"
+  (in 3-D that turns the view), the Objects tool, S and E (they fly the camera in 3-D: Spark is Z, Erase X), "a chain
+  reaction, a collider" among the setups. Its cards now carry 3-D words where they differ (`TOUR`'s fourth entry, used
+  in 3-D): turning, moving, flying and fitting the camera, the placing plane, the 3-D setups. Check: f_sweep3d
+  "tour3d" (page).
+- 8. The chamber's scale bar was drawn behind the main menu (the 3-D axis marker was already left out there): at
+  1280 × 720 it ran under the 3-D menu's note at the bottom left. Now `drawScaleBar` draws nothing while the menu is open
+  (both modes). Check: f_sweep3d "menuScale" (page; before: "5 Å" drawn under the menu).
+- 9. A laser left on in 3-D (Light → Mode → Leave on) was not drawn at all (the flat `drawSources` draws its housing and
+  a faint beam; render3d had nothing), and Erase over it left it on (`eraseHere3` took particles and magnets only),
+  though its note says "Erase removes it": the only way off was the options bar's button. Now `drawLasers3` draws the
+  beam to where it leaves the box and a small housing at its start, in its light's colour, and Erase's cone (its radius
+  + 1.5 Å, as the flat Erase) takes it. Measured in the page: a Lyman-α laser set on a benzene carbon, Erase at the same
+  point: 1 laser left before, 0 after. Check: f_sweep3d "laser3d" (page).
+- 10. The 3-D event captions (`drawEvents3`, "as drawEvents, more simply") drew the first line only: no second line (a
+  decay's energy and speed-up, a capture's "μ⁻ + p → n + ν inside the nucleus", a decay in orbit's mean life) and no
+  close-up of a decaying nucleus, so Lab → View → Decay close-ups did nothing in 3-D. Now as the flat view: the second
+  line, the close-up (`drawDecayInset`) and captions kept clear of each other. ²¹²Po α decays in the empty 3-D box:
+  sub-line and close-up drawn (before: neither). Check: f_sweep3d "events3d" (page).
+- 11. Settings audit: General → Setup tips turned off hid the setup's tip; turned back on, it stayed hidden until another
+  setup was loaded (applySettings only hides it). Now the current setup's tip shows again at once. Check: f_sweep3d
+  "tipsBack" (page).
+- 12. Moving a selection (Select tool, a drag on it) and deleting it (Delete, the options bar's Delete) were not marked for
+  undo, in both modes: Ctrl+Z took back whatever came before (after Select all → Delete, Molecules in space stayed empty:
+  0 of 72 back). Help says Ctrl+Z undoes; the tools that change the world (Place, Erase, Grab …) are marked. Now both are:
+  72 of 72 back, the moved molecules back where they were (flat water likewise). Check: f_sweep3d "selUndo" (page).
+- 13. Lab → Record video drew each canvas layer whole into the frame (`recCapture`); the WebGL layer, which holds the
+  atoms and bonds (3-D, and the flat game's balls), reaches 64 px past the chamber on each side (1.23.2), so in the
+  video it was shrunk toward the middle: atoms off their labels, rings, measure marks and the box's front edges by up to
+  about 40 px near the edges (0.873 of the distance from the centre at 878 px wide). Now each layer's part over the
+  chamber is drawn. A carbon atom 150 px from the left edge of the empty 3-D box: the frame's pixel there rgb 98, 99, 101
+  (the atom) after, 9, 15, 22 (background) before. Both modes. Check: f_sweep3d "recAlign" (page).
+- 14. The gallery's picture of a world (`galThumb`, Keep in the gallery) took the layers the same way, and outside the
+  frame, when the WebGL layer's frame is already gone (no preserveDrawingBuffer): the atoms were missing or misplaced in
+  the picture. Now it draws a frame first and uses the same composition (`layersInto`, shared with the recorder). The
+  carbon atom of item 13: rgb 89, 93, 102 at its place after, 9, 13, 24 before. Check: f_sweep3d "galThumb" (page).
+- 15. Event captions and rings at the wrong depth in 3-D: pair production in 3-D (`pairProduce3`), a positron meeting an
+  atom's electron (`annihilateBound`) or a free electron (`evAnnihFree`), matter touching antimatter (`evAnti`),
+  annihilation at the wall (`annihilateAtWall`), a hypernucleus's decay (hep.js `hypDecay`) and a quark pulled out by
+  hand (`quarkRip`, its flash too) gave nucEvent no depth, so the caption and its rings were drawn at z = 0 wherever
+  the event was; and nucEvent marked what an event sent flying by x and y alone (any depth) for slow motion's "nuclear
+  products". Now each passes its depth, and the marking is within 4 Å in depth too in 3-D. A positron annihilating on
+  an oxygen at z = 7.05, a quark pulled out of a carbon at z = 7, a 5 MeV pair at a lead atom at z = −6: captions at
+  z 0, 0, 0 before; 7.05, 7, −6 after. Fingerprints: every setup identical (59, seed 7, 300 steps). Check: f_sweep3d
+  "eventsZ" (Node). (Muonium's decay, hep.js muoniumTick, has the same gap: the other session's area, left.)
+- 16. Test (the record's "Continue after a restart" failure: the restored world 1–3 particles more than saved, 72 → 73,
+  73 → 74): not a bug in Continue. The check counted the world right after an explicit autosave and compared it with
+  what Continue brought back after a reload, but the page saves again as it closes (pagehide, visibilitychange) and its
+  world was still running, so the last save held the world a moment later (a free electron more). Reproduced: the soup
+  running, 96 counted at the explicit save, 87 saved at the reload and 87 brought back by Continue. The check now pauses
+  first (t_features' 1.23.1 block); Continue itself unchanged.
+
+Suite (branch v139 at e0025bc): t_lint, t_3d, t_settings, t_energy pass alone; t_page alone failed its slow-motion
+button check once (the known flake) and passed in the lanes; `tools/runtests.sh` (two lanes, load 5–10 from another
+session's tests): every suite passed but t_features' f_bug125 "exoElastic" timing check (3.5 ms under the load against its
+limit; 0.86 ms alone, passes), the known f_bug125 timing flake. t_features alone earlier: 1.25 labels3d's hover count 0
+once (passes alone and in the lanes run). Fingerprints (59 setups, seed 7, 300 steps): identical to v136 after every
+engine change (items 15; nothing else touched the engine).
+
+**Settings audit** (both modes; every choice of every row set through setSetting in Liquid water and in Molecules in
+space, the engine's or the drawing's own variable read back, a frame drawn; the Experimental rows also run 10 steps in
+water, Molecules in space and Salt in water, 3-D; then 64 settings set off their normal, the page reloaded: every
+non-Experimental one kept, every Experimental one back to normal; no page errors). "Applies" = the value reaches what it
+sets, in that mode.
+
+| tab | setting | flat | 3-D | measured / note |
+|---|---|---|---|---|
+| Performance | Max particles | applies | applies | MAX_PARTS 2,000 … 20,000 |
+| | Resolution | applies | applies | R.dprMax 2 / 1 / 0.75 |
+| | Physics budget | applies | applies | UI.budget 6 … 24 ms |
+| | Priority, Auto | applies | applies | prioNow 0 … 4 |
+| | Threads | applies | applies | not measurable headless (no shared memory here); t_threads |
+| | Drawing engine | applies | applies | WebGL / Canvas 2D (3-D's Canvas path sorted far to near) |
+| Graphics | Frame-rate cap | applies | applies | read by the frame loop |
+| | Atom size | applies | applies | 3-D oxygen drawn 6.75 / 4.72 / 3.04 px |
+| | Labels (with View → Labels) | applies | applies | flat 80 labels / hover 0 / off 0; 3-D: f_125s labels3d |
+| | Charge badges | applies | applies | R.badges, labelOne3 |
+| | Effects (glows) | applies | applies | R.lite |
+| | Fewer flashes | applies | applies | R.flashK 0.3 (drawFlashes3 too) |
+| | Colour-blind colours | applies | applies | oxygen #FF0D0D → #d55e00 |
+| | Trails, trail clock | applies | applies | trailWindow 0.5 / 1.5 / 4 s; drawTracks3 |
+| | FPS readout | applies | applies | the badge hidden / shown |
+| Display | Window | n/a | n/a | the desktop app only |
+| | Cursor | applies | applies | cursorHides |
+| | Interface size, panel side, width | applies | applies | --ui, panel-left, --pw |
+| | Motion, theme | applies | applies | |
+| Controls | Wheel speed | applies | applies | one notch: ×1.078 / ×1.162 / ×1.350 in both (3-D: the camera's distance) |
+| | Zoom toward | applies | 2-D only (marked) | the 3-D wheel zooms toward the target |
+| | Keep tool options, pause when hidden, start paused, keep awake | applies | applies | (start paused: t_features; the test page sets AF_NO_PAUSE) |
+| General | Start with, autosave | applies | applies | autosave keeps a 3-D world (d3, z) |
+| | Units (temperature, energy, length) | applies | applies | 300 K / 26.9 °C / 80.3 °F; 1.50 Å / 0.150 nm / 150 pm (3-D Measure too) |
+| | Setup tips | **fixed** (item 11) | **fixed** | turned back on, the tip shows again at once |
+| | Rewind (on, span, every, memory) | applies | applies | 3-D: 7 snapshots in 3 s, rewound to the start of the run |
+| 3-D | field of view, projection, fog, box, axes, labels, orbit speed, invert, spin | 3-D only (marked) | applies | V3 values; spin 6°/s: 0.052 rad in 0.5 s |
+| Claude | API key, model | applies | applies | t_page (mocked) |
+| Experimental | Longest step | applies | applies | step 0.04 → 0.01 tu |
+| | Resonance in large rings | applies | applies | RES_BIG |
+| | Detailed nuclear collisions | applies | 2-D only (marked) | INC_ON |
+| | Force reach | applies | applies | RC 6 / 9 / 12 |
+| | Induced charges | applies | applies | QEQ.every 10 / 1; the charges move |
+| | Quantum nuclei, bead forces | applies | applies | rings on 240 (water), 72, 997 (salt water) atoms |
+| | Bond orders (positions / quantum) | applies | applies | from the positions: 240, 72, 981 members; quantum joins worlds of up to 40 atoms only (0 of 240 / 72; 6 of 6 in two waters), as designed |
+| | Quantum method, spins | applies | applies | XQ.method 1 / 2, XQ.spin |
+| | Metals | applies | applies | 6 Cu members in Molecules in space |
+| | Lone pairs | 3-D only (marked) | applies | 7 sites (Molecules in space), 327 (salt water) |
+| | Halogen σ-holes | applies | applies | one site a C–Cl |
+| | π-stacking | 3-D only (marked) | applies | 12 sites, 24 rings (two benzenes) |
+| | Electrons as waves | applies | applies | free electrons as packets (3-D: 1 of 1) |
+| | Ultra-realistic | applies | **fixed** (item 2) | the picture and the camera at true sizes in 3-D |
+
+**Found, left as they are** (why, numbers):
+- Argon in 3-D: the wall pressure's Z 0.48 ± 0.08 against helium's 0.84–0.89 (item 5): the flat world's doubled van der
+  Waals wells (LJ_SCALE 2) are still on in 3-D (the open item from 1.23.0); physics, for the owner.
+- Placing a Δ⁻ in Molecules in space (it decays at once to n π⁻; the π⁻ is caught): books −2.9 eV over 300 steps (Δ⁰
+  +0.6; the other 66 particles of the 3-D menus placed and fired at 10 MeV: under 0.5 eV each). A 100 keV electron
+  fired through 3-D water: −4.3 eV over 400 steps (500 eV −0.18, 10 keV +0.10, 1 MeV −0.14). Not chased.
+- Moving a selection keeps its atoms clear of others (moveSelection's crowd check): in liquid water an 80 px drag moved
+  a molecule 0.97 Å; as designed.
+- Saves keep no unstable particles in flight (both modes; worldToJSON keeps nuclei, atoms, ions and free leptons).
+- The narrator calls H + H₂ → H₂ + H "endothermic, the new bonds are weaker" when the measured ΔE is a few meV either way
+  (both modes): its wording follows the sign of a near-zero heat.
+- 3-D event captions draw no ghost rings for what vanished (the flat view's dashed rings); the caption and rings are there.
+- In the other session's area (not touched): muonium's decay (hep.js `muoniumTick`, the μ⁺ → e⁺ ν ν̄ caption) is put at
+  z = 0 in 3-D, as the captions of item 15 were (its products are at their depth).
+
+### 1.26: copper ions (the owner: "fix cu ions")
+
+Item 1 of the "Bugs on record" (the bug session's model question #1), approved as a physics change; branch v137 (from
+v136). Check: tests/f_cu126.js (t_features, alone).
+- **What was wrong.** With the normal pair metals a lump of copper turned itself into ions: 118 of a flat 127-atom lump
+  Cu⁺/Cu⁻ within 2 ps at 300 K (seed 7, bath on). It was not only copper and not only flat: every metal that can hold an
+  extra electron (electron affinity 0.7 eV or more: Cu, Ag, Au, Ni, Pt …) did it in 3-D at 300 K, and flat at 1,000 K.
+- **Why.** The books were exact; the pair model predicted it. evTransfer let a neutral metal atom give its electron
+  to a neighbour in the same metal when the pull of the Cu⁺Cu⁻ pair (with the other pairs lined up beside it, stronger in
+  the flat world) paid IE − EA (6.49 eV for Cu). In a real metal the conduction electrons belong to the whole piece and
+  screen such a pair: two atoms of one metal do not become a cation and an anion.
+- **What changed** (engine.js: ionPairInMetal, inMetal, one test in evTransfer). A transfer is refused when it would
+  make a cation and an anion of two metal atoms (donor's charge ≥ 0, acceptor's ≤ 0) within their metallic reach
+  (2.1·r_m) and one of the two sits in a metal: another metal atom in its first shell, 1.3·r_m (a close-packed crystal's
+  second shell is at 1.41·r_m, the flat sheet's at 1.73). The other way round (it lowers or keeps the charges) is
+  taken instead when it is open. Same in 2-D and 3-D, pairs and many-body. Not touched: a metal giving electrons to O,
+  Cl …; charges already in a metal moving on or cancelling (Cu⁺ + Cu → Cu + Cu⁺, Cu⁺ + Cu⁻ → 2 Cu); lone metal atoms (a
+  vapour: the flame's K + Cu → K⁺ + Cu⁻); ions with no metal neighbours. The test runs after the cheap estimate and its
+  random draw, so a run differs from 1.26 only from the first transfer it refuses. A "screened Coulomb inside a metal"
+  was the other option; it would change the forces in every kernel (JavaScript, the WebAssembly kernel, workers, 2-D
+  and 3-D) and the pull of every ion near a metal, so not taken.
+- **Before → after**, ions in a lump after 2 ps (seed 7, bath at T; flat lump 127 atoms, 3-D fcc ball 141; pair model):
+
+  | | flat 300 K | flat 1,000 K | 3-D 300 K | 3-D 1,000 K |
+  |---|---|---|---|---|
+  | Cu | 118 → 0 | 122 → 0 | 138 → 0 | 136 → 0 |
+  | Ni | 120 → 0 | 121 → 0 | 136 → 0 | 140 → 0 |
+  | Ag | 0 → 0 | 116 → 0 | 136 → 0 | 136 → 0 |
+  | Au | 0 → 0 | 116 → 0 | 134 → 0 | 134 → 0 |
+  | Fe, Na, Al | 0 → 0 (runs identical) | 0 → 0 (identical) | 0 → 0 (identical) | 0 → 0 (identical) |
+
+  Many-body (Experimental): 0 ions before and after for all seven, runs identical. The ionizing lumps had heated
+  (insulated flat Cu: 6,400 K after 2 ps, 3-D 5,700 K); now they stay put. Insulated, 2 ps: flat Cu −0.016 → −0.0001 eV,
+  3-D −0.017 → −0.0015 eV. Cost: a dense 3-D ball of 959 Cu atoms 8.6–16 ms a step before, 7.1–12 after (noise; the
+  walk runs only for a transfer the estimate already allows); a lump that ionized before is 3–6× faster now (the ions'
+  localPhi walks gone).
+- **Oxidation and salts** (a flat lump of 61 atoms ringed by 16 atoms or molecules, 600 K, seed 7): Na + Cl₂ 13 Na⁺ /
+  13 Cl⁻ in 2 ps before and after (3-D 7/7, identical runs); Na + Cl atoms 3/3, Al + O atoms (6 Al⁺, 2 Al²⁺, 1 Al³⁺; 5 O⁻,
+  4 O²⁻), Fe + O atoms (2 Fe–O bonds): identical runs. Copper: + Cl atoms 29 Cu⁺ / 29 Cu⁻ and no Cl⁻ before, 1 Cu⁺ + 1 Cl⁻
+  after; + O atoms 30 ion pairs and no Cu–O bond before, 2 Cu–O bonds and no ions after; Ag + Cl atoms 27 Ag⁺, 25 Ag⁻, 2
+  Cl⁻ before, 1 Ag⁺ + 1 Cl⁻ after. With O₂ or Cl₂ molecules a neutral Cu, Ni, Al or Fe lump does not react in 2 ps at
+  600 K, before (where the lump had not ionized) or after. No setup is an electrochemical cell.
+- **Fingerprints** (tools/fingerprint.js, all 59 setups, flat and 3-D, seed 7, 300 steps): none changes, state or
+  books. The setups with metal atoms hold Na (salt, brine, brine3d, ch_salt, oven), Fe (magnet), Pb (photonuc), Hg (sns),
+  Zn (crt), U (chain, isolde, useries, ch_split): none of these metals holds a stable anion, so no ion pair could be made
+  between them anyway; the flame's Li, Na, K and Cu are a vapour (its 17 transfers in 300 steps, K/Li → Cu, as before).
+- **Left, for the owner**: alkali aurides (CsAu, RbAu: real ionic compounds of two metals) can no longer form inside a
+  Cs–Au mix; surface ionization (K⁺ off hot tungsten) was never modelled. A lone pair of metal atoms (a dimer) still
+  trades electrons as before.
+- Check: f_cu126 "lump" (flat Cu, 3-D Cu, flat Ni at 300 K keep 0 ions; before 116, 138, 118 in 0.5/0.24 ps) and
+  "still" (lone K and Cu still allowed, two Cu in a lump refused, Cu⁺ in a lump still takes an electron, a Na lump among
+  Cl atoms still makes salt: 7 Na⁺ in 1 ps). Fails on v136 (both parts), passes now.
+
+### 1.26: bug fixes (collisions at extreme energy, muonic atoms)
+
+Branch v138 (from v136). Checks: tests/f_hep126.js (t_features runs it alone; `node tests/f_hep126.js [--node] [part …]`);
+each part fails on v136 and passes here.
+
+- **A. "2 alpha particles, 1 PeV, one staying still didn't collide" (slow motion).** The 0.93 fix (a pair still closing
+  in meets at its true closest approach in a later step) holds: in the flat game the head-on pass is found at every
+  step size. It still went through, for three reasons, measured through the page's Fire tool (an α fired at 1 PeV at
+  an α at rest, 6 runs a speed) and in fixed-step Node loops (α on α, p on α, α on ¹⁹⁷Au; 1 MeV–10 PeV; b = 0, 0.03,
+  0.1 Å; steps of the step chooser, 10⁻³ Å and 2×10⁻⁵ Å of the projectile's path; 3 seeds each; flat and 3-D):
+  1. Both games: of the nucleus–nucleus passes able to react above 25 MeV a nucleon, 35% diffracted, by a draw at any
+     distance (`nuclearEncounter`). At 1 PeV a diffraction turns the pair by about 10⁻⁹ rad: the α went straight on and
+     the target barely moved, one time in three, head on as much as grazing. The two-nucleon passes already worked by
+     distance (inelastic core, diffractive rim). Now the outer 35% of the passes diffract and the inner 65% react: the
+     same share of elastic passes overall, none head on. (The flat game's passes, spread along a line, are spread over
+     the nucleus's disc by b = R·√u; a 3-D pass's distance is spread over the disc already, and taking the root of it
+     put 3-D hits off centre, b³ uniform instead of b²: 3-D now takes b = R·u, so the 35% holds there too.)
+  2. 3-D: an atom in flight moved at the speed of ½mv² (no radiation flight in 3-D), 730c at 1 PeV: 447 Å in a shortest
+     step, through the 30 Å box in one step, and `fastEncounters3` skips a path longer than half the box (a wrap), or
+     never runs (an open wall took the atom first). At 1× down to 1/10¹⁸ s a second it met nothing. Now a nucleus in
+     flight in 3-D moves at the relativistic speed for its ½m|v|² (`flyScale3`; the books unchanged, as bug fix 14 did
+     for leptons; under 1% of c the stored speed as before, bit for bit), the step chooser and slow motion take that
+     speed (slow motion also with the depth: `speedNow`; it looked at the speed in the plane), neutron pairs too
+     (`nnMeet3`), and one leaving the box this step meets what lay on its way out before the wall takes it.
+  3. Both games, α on heavy nuclei at 15–40 MeV a nucleon: when the participant fireball had no consistent outcome
+     (`fragmentInto`: the spectators' excitation more than the energy), the encounter was nothing. Now the compound
+     nucleus (or exchange) branch takes it. α on gold at 100 MeV head on: 5 of 6 flat and 2 of 6 in 3-D reacted before,
+     6 of 6 both now.
+  - Numbers. Page, 1 PeV α at an α at rest: flat 6/6 at 1×, 3/6 at 1/32× and 1/512×, 6/6 at 10⁻¹⁸ s a second before;
+    6/6 at every speed now. 3-D 0/6 at 1×, 1/32×, 1/512× and 10⁻¹⁸ s/s, 2/6 at 10⁻²¹ before; 6/6 at each now (at 10⁻²¹
+    and 10⁻²³ s/s the α, now at c, takes over a minute to cross the gap: not counted). Node matrix, head on and b =
+    0.03 Å, 100 MeV–10 PeV: before 9–18 of 18 a cell; now 18/18 everywhere except α on gold at 100 MeV, b = 0.1 Å
+    (outside the barrier radius, as it should be). Below the Coulomb barrier (α + α under ~8 MeV, α + Au under 100 MeV)
+    nothing reacts, as in nature; see the questions below for what a pass does there. Momentum of the hit kept to
+    2×10⁻¹⁵, its books to 3×10⁻⁶ eV (1 GeV α + α, flat and 3-D).
+- **B. Muonic atoms ("still behave very weirdly"; "you also can't erase muonic atoms").** The earlier work: 0.51 (muonic
+  atoms made), 1.12 (μp scattering), 1.25 stage 1 (in 3-D). Muonic hydrogen (μp, μd, μt) is an unstable particle in
+  W.exo, not an atom in W.parts; a heavier muonic atom is an ordinary atom with `muB`. Found and fixed:
+  1. The Erase tool's brush (flat `eraseAt`, 3-D `eraseHere3`) went over W.parts only: muonic hydrogen (and any unstable
+     particle) could not be erased. Now it takes them too, booked as an erased atom is (what it carried leaves with it).
+     Page: a click with Erase on a μp, flat and 3-D: 1 left before, 0 after. (Empty the chamber already cleared them.)
+  2. In a periodic box (the liquid-water setups) muonic hydrogen, and the slow muons, kaons and hyperons kept in by a
+     closed box, left the chamber at the first edge, their energy escaped: a μp in 3-D water was gone within 1.2 ps.
+     Now they go across, as atoms do. 3,000 steps in a periodic box: gone before, still there after (flat and 3-D).
+  3. A muonic heavier atom showed in Inspect as a plain atom; it now says so (a pill with its mean life, a Muon line
+     with the binding and the capture share).
+  4. Saves, and undo (which is a save), dropped both: a muonic carbon came back plain, muonic hydrogen not at all. Now
+     part field 5 bit 4 marks a muonic atom and `xa` lists muonic hydrogen and (μα)⁺ (older readers ignore both).
+  - Found, not changed (for the owner, model and data questions):
+    - Muonic hydrogen meets only hydrogen nuclei (scattering, transfer to d/t, μCF) and passes through every other atom.
+      Real μp is a small neutral atom that hands its muon to any heavier nucleus it meets (μp + O → μO, about
+      8.5×10¹⁰ s⁻¹ at liquid-hydrogen density): in water that happens within picoseconds; here never. It feels no bath
+      and no other atom. Making it an atom in MD with transfer to heavier nuclei, as muonium became in 1.12, is a model
+      change.
+    - In a muonic heavier atom the electrons still see the whole nuclear charge (0.51's stated simplification); in nature
+      they see Z − 1 (muonic carbon is chemically boron-like, muonic oxygen nitrogen-like).
+    - Lifetimes against measured (Suzuki, Measday, Roalsvig 1987): C 2,045 ns (2,026), O 1,831 (1,795), Al 1,077 (864),
+      Ca 392 (333), Fe 193 (206), Pb 23 (75.4). The capture rate 32·Z_eff⁴ s⁻¹ has no neutron-excess factor (Primakoff:
+      170·Z_eff⁴·(1 − 3.125·(A − Z)/2A) s⁻¹), so lead captures 3.3 times too fast.
+    - A muon is caught at 2 keV (MU_STOP); its momentum then (0.56 MeV/c) is not handed on (the X-rays take its energy,
+      in random directions; the atom's momentum after: 0.04–0.11 MeV/c, from its ionizing on the way): giving it to the
+      atom would kick carbon by 14 eV, which a real muon, slowed to eV first, does not. μp is made with a thermal
+      momentum for the same reason. The books are exact (10⁻¹⁰ eV). The atom's mass leaves out the muon (0.113 u; 0.9%
+      for carbon).
+    - The Select tool does not take muonic hydrogen (nor Delete in its Inspect card); the particle view draws a heavier
+      muonic atom without its muon.
+- **Muonium's nucleus ("it still says 'inside its nucleus, a proton'").** 1.12 made muonium an atom (p.mu) and named
+  it in Inspect, guarding the physics (tryFusion, nuclearEncounter …) but not the views that read Z = 1, N = 0 as
+  hydrogen: the "Inside" section (qSubject, 0.50) showed a proton's uud quarks, the shell diagram and the particle view
+  drew a proton bead labelled ¹H, and Inspect offered to keep it as the isotope hydrogen-1. Now the Inside section
+  says its nucleus is a μ⁺, a lepton with nothing inside; both views draw a light-blue muon point labelled Mu; the tile
+  shows no mass number and there is no "keep isotope" button. Screenshots: scratchpad hep126/mu-before-*.png,
+  mu-after-*.png.
+- Also found at extreme energy, not changed:
+  - Below the nuclear threshold a pass inside the drawn reach is turned by Rutherford's law at its true distance in Å,
+    floored at 0.005 Å (flat, `nuclearCollision`) or 0.01 Å (3-D, `coulombScatter3`): a head-on 1 MeV α on α gives the
+    target 133 eV (flat) or 33 eV (3-D) instead of the whole 1 MeV of a real backscatter; a 10 MeV α passing 0.03 Å
+    from an α (a tenth of the reach) is mapped to 5.6 fm, outside the 4.8 fm barrier radius, and nothing at all
+    happens. Mapping such passes onto nuclear distances for the Coulomb turn too, as the collider's `nuclearScatter`
+    does, is a model change for the owner.
+  - The books of a PeV event's products: decays in flight and the products' own collisions lose about 10⁻⁹ of the
+    beam's energy (1 PeV α + α: 0.1–11 MeV over the event's first steps; 10 PeV: up to 1 GeV, 10⁻⁷), before and after
+    these fixes. Why: the boosts take γ from 1 − β², which at γ ≈ 10⁵ keeps only ~10⁻⁶ of it, and closeEvent leaves a
+    remainder under 10⁻⁷ of the event's energy unsettled. The hit itself is exact. A fix passes γ to the boosts.
+  - 3-D neutrons still move at ½mv²'s speed (1 PeV: 1,460c); their hits are found along the whole step before they
+    move, so they do meet.
+- Fingerprints (tools/fingerprint.js, all 59 setups, seed 7, 300 steps, before on v136 and after): two change, pionbeam and
+  sns (state and books): both have nucleus–nucleus passes above 25 MeV a nucleon in those steps (3 and 14), which now
+  diffract by distance and no longer draw a random number for it. No fireball fell back to the compound nucleus there,
+  and no 3-D setup has a nucleus in flight past 1% of c: the six 3-D setups and the other 51 flat ones are unchanged.
+- Test change: f_125n's plasma check (one ²⁰⁸Pb at 200 GeV a nucleon on lead in 3-D, its spray as wide across the beam
+  in y as in z, within 40%) now pools three events (seeds 31–33). With 3-D hits now centred (b = R·u) seed 31 alone
+  came out at uz²/uy² = 1.40 and failed by a hair; one event's ratio scatters 0.72–1.40 over six seeds (v136: 1.04–1.33),
+  as its hadrons come in correlated clusters. Pooled: 0.0253 and 0.0284 (v136: 0.0263 and 0.0294).
+- Suites (2-core machine shared with two other sessions): t_lint, t_energy, t_hep, t_collider, t_3d pass; tools/runtests.sh:
+  20 of 22 pass, t_page failed once ("placing Transistor on soup … inside: false") and passes alone; t_features' misses
+  were the known timing ones (1.14 speed readout 1/1.3×, f_bug125 pi3's 0.8 ratio; 1.24 light and f_bug125 segGrid in an
+  earlier lone run under load), each passing alone.
+
+### 1.26: exotic-particle sweep
+
+Branch v140 (from v136 with v137 and v138). Every particle of the particle menus (Leptons, Neutrinos, Nucleons, Light
+nuclei, Mesons, Baryons, Resonances, Light, Antimatter, Exotic atoms and nuclei) placed, fired, inspected, erased,
+selected, copied, saved and let decay, flat and in 3-D. Checks: tests/f_swx.js (t_features runs it alone;
+`node tests/f_swx.js [--node] [part …]`); each part fails on v136 and passes here.
+
+Per particle and mode ("fixed": what changed for it; every row was placed, fired at 1 keV–1 PeV, inspected, erased,
+undone, saved and let decay through the page, and run in Node for its decay at rest, its books and speed):
+
+| Menu | Particle | Flat | 3-D |
+|---|---|---|---|
+| Leptons | e⁻, e⁺ | fixed: Mott recoils and sub-ionization pushes booked; a remainder settled on one e⁻ no longer past c | fine (25 keV+ flight since bug fix 14; 1 PeV within 0.13 eV) |
+| Leptons | μ⁻ | fixed: muonic atoms' mean lives (Al, Ca, Pb …), the muon in the atom's mass, saves/undo kept it; decays in flight with exact γ | fixed: the same |
+| Leptons | μ⁺ | fixed: saves/undo kept it; muonium texts; decays in flight with exact γ | fixed: saves/undo kept it |
+| Leptons | τ⁻, τ⁺ | fixed: saves/undo kept it; Inspect's decay list (ντ, not "nutau"); exact γ | fixed: the same |
+| Neutrinos | νₑ ν̄ₑ νμ ν̄μ ντ ν̄τ | fine (placed and fired at 1 keV–1 PeV; pass through, books 0) | fine |
+| Nucleons | p⁺ | fixed: atoms it knocks into flight keep the books (setVel, nuclearCollision) | fine |
+| Nucleons | n | fixed: an elastic hit sending a bonded atom into flight booked | fixed: faster than light (1 GeV 1.46c, 1 PeV 1,460c) → its true speed |
+| Nucleons / Antimatter | p̄, n̄ | fine (annihilation books within 0.01 eV on p, H, p̄) | not in 3-D (antimatter is flat-only, by design) |
+| Light nuclei | ²H⁺ ³H⁺ ³He²⁺ α | fixed: knock-on recoils booked (a 1 MeV α +46–66 eV before, ±1 now) | fixed: the elastic turn of a slow hadron off them when fast (+147 MeV a 1 TeV α's cascade); PeV debris |
+| Mesons | π⁺ π⁻ π⁰ K⁺ K⁻ K⁰s K⁰ʟ η | fixed: saves/undo kept it; elastic turns off fast nuclei (energy from nothing); exact γ in flight | fixed: the same |
+| Baryons | Λ Λ̄ | fixed: mean life to PDG 2024; saves/undo kept it; elastic turns; exact γ | fixed: the same |
+| Baryons | Σ⁺ Σ⁻ Ξ⁰ Ξ⁻ Ω⁻ and antis | fixed: saves/undo kept it; elastic turns; exact γ | fixed: the same; Σ⁺'s 3-D stop heat (−5 eV per 200) booked |
+| Resonances | ρ⁰ ρ± ω φ K*⁺ K*⁻ K*⁰ K̄*⁰ Δ⁺⁺ Δ⁺ Δ⁰ Δ⁻ | fixed: saves/undo kept it (with each one's own mass); fine at Ultra-realistic rates | fixed: the same |
+| Light | γ | fine (1 keV–1 PeV; showers at 1 PeV within 10⁻¹⁰) | fine |
+| Antimatter | H̄, ²H̄⁻, ⁴H̄ē²⁻ | fine (books ≤ 2.4 eV on p, H, p̄) | not in 3-D (by design) |
+| Exotic atoms | μp μd μt | fixed: Select, copy, paste, move, Delete; Inspect's Delete; a proton it scatters at 1 PeV no longer 933c | fixed: Select … Delete, Inspect's Delete |
+| Exotic atoms | Mu | fixed: decay books (Mott, recoils); texts (μ⁺ + e⁻ → muonium, Mu⁺) | fine (books of 200 decaying: +9 eV, the dense Mu/Mu₂ plasma's integration) |
+| Exotic atoms | ³ΛH … ²⁰⁸ΛPb (13) | fixed: saves/undo kept it; Select; elastic turns (+3 keV–13 MeV per shot at 1 keV–1 MeV before); lengths in Inspect | fixed: the same; stopping beside a lone nucleus (−0.03 eV each) booked |
+
+- **Books when a fast charged particle crosses a nucleus (flat game).** Found with muonium: 200 muonium atoms decaying
+  in an insulated box moved the books +214 eV. Two slips, both general (any MeV electron or positron through matter):
+  1. Mott scattering (`nuclearScatter`, a lepton crossing a nucleus where it is drawn) gave the struck atom its recoil
+     with `setMotion`, which puts it straight into radiation flight; its bonds and its potential energy with what stays
+     were left out of the books. A 20 MeV electron through the H nucleus of a water molecule: +4.8 eV (the O–H bond);
+     a muon decay's positron off a bare μ⁺ beside another −17.6 eV (their repulsion). Now a stepped atom sent into
+     flight there has its bonds broken and the potential energy it leaves paid from its motion, as `switchMode` does.
+  2. An ionizing pass that could not free an electron (dE under the ionization cost) pushed the atom by
+     0.7·√(2dE/m) square to the path: about half of dE, the rest gone (in `moveRad`, and in `exoIonize`/`exoIonize3`
+     for unstable particles; 3-D atoms in flight, `fastStop3`, were already exact): the H recoil of the pass above
+     −6.5 eV. Now the push gives exactly dE, whatever the atom's own motion.
+  - After: 20 passes, 2 and 20 MeV, H of water and bare μ⁺: within 0.04 eV a pass (before up to +7.1, −6.5, −17.6).
+    The 200 muonium atoms still drift (+173 eV over 400 steps, 3-D +9 eV): a hot, dense, light Mu/Mu₂/e⁻ plasma whose
+    steps are the known limit (bug fix 13 after 1.25: a light atom flying fast in the flat game jumps the books by
+    ±1–12 eV as it passes molecules; the integrator in a crowd of 0.11 u atoms), not an event's booking.
+  - Fingerprints (all 59 setups, seed 7, 300 steps): annihilation, hyperfactory, isolde, nif, photonuc, pionbeam and sns
+    change (their radiation-flight ions and leptons ionize at low dE, now pushing exactly; sns also from the Mott
+    change); the rest, and every 3-D setup, unchanged. Check: f_swx "flatKicks".
+- **Heat with no partner (both games).** `dumpHeat(E, a, a)` (one atom: a stopped unstable particle's last keV in 3-D,
+  an ionization that could not free its electron) with no third atom within 6 Å in an insulated box called
+  `kickPair(a, a)`, which takes nothing: E left the books (ledger.chem counted it). Every 3-D hypernucleus placed at
+  rest moved the books −5.6 eV over 200 (0.03 eV each, its placing energy, given to a lone product nucleus); Σ⁺ in 3-D
+  −5.0. Now the bath takes it, or in an insulated box the one atom (an exact push in a random direction). A 1 keV
+  ¹³ΛC stopping beside a lone carbon in 3-D: −1,000 eV before, 0 after. Fingerprints unchanged (no setup met that
+  case). Check: f_swx "loneHeat".
+- **A PeV event's debris (both games; v138's finding).** The books of a 1 PeV α on α moved 0.1–0.9 MeV over the
+  debris's next 300 steps (10 PeV: 27–94 MeV; 4 seeds flat and 3-D), for three reasons:
+  1. Decays in flight (`decayExo`, `decayExo3`, `hypDecay`) boosted their products with γ from 1 − β², which at
+     γ ≈ 10⁵ keeps ~10⁻⁶ of itself. Now the particle's own γ (`o.gam`, 1 + K/m) is passed to the boost (`boost`,
+     `boost3`, `toLab`: an optional exact γ, taken past γ = 100 only, so everything slower is bit for bit as before); a
+     hit's products (`exoOut`) are boosted with γ = E/M of the same four-momentum, so they add up to it exactly.
+  2. `closeEvent` settled a remainder only past 10⁻⁷ of the event's energy: 0.1–0.2 MeV of a 100 TeV hit stayed open.
+     Past 100 keV it now settles down to 0.01 eV (or 10⁻¹⁵ of the event, the books' own rounding); below, as before.
+  3. `settleRest` moved the remainder between the products about their centre of mass (`shareKE`), which does nothing
+     for one product alone (a hit whose other products are unstable particles, a nucleon out of a nucleon–nucleon
+     pass): up to 0.25 MeV a hit stayed open, and −4.5 eV once in the annihilation setup. Now the fastest product takes
+     it itself; with nothing made but what was carried off (antinucleons in 3-D, no room), what left takes it.
+  - After: 1 PeV within ±2 eV over 300 steps (8 runs), 10 PeV within ±24 eV (4 runs), flat and 3-D.
+- **A slow hadron turned off a fast nucleus (both games).** `exoElastic` gives the nucleus the momentum the turn takes
+  from the hadron and has the hadron pay the recoil energy, floored at 1 eV. With the nucleus itself fast (a cascade's
+  nucleons) that recoil can exceed the hadron's energy, and the rest was made from nothing: +47 MeV for a 4 MeV π⁻ and
+  a 650 MeV proton; a 1 TeV α through a few molecules in 3-D +147 MeV over 80 steps (+31–55 MeV a hit). Now when the
+  hadron can't pay, the turn is made in the pair's own frame, exactly (`exoElasticCM`; flat: the nucleus's
+  surroundings measured as before, their potential energy paid by the hadron). The 1 TeV α: −3.8 keV over the run.
+- **Neutrons faster than light in 3-D (v138's finding).** `moveNeutron` moved a 3-D neutron at the speed of ½m|v|²
+  (1 PeV: 1,460c; 1 GeV: 1.46c), as v138 found for atoms in flight. Now at the relativistic speed for that energy
+  (`flyScale3`; the books keep ½m|v|²; under 1% of c the stored speed, bit for bit), its path search with it, and
+  neutron pairs (`nnMeet3`) too. 1 GeV 0.8748c, 1 PeV 1c.
+- Fingerprints (seed 7, 300 steps) for these three: annihilation and pionbeam change (point 3: a single product now
+  takes its remainder: −4.5 eV in annihilation, 7×10⁻⁶ eV in pionbeam); none else, no 3-D setup. Checks: f_swx
+  "pevBooks", "elasticCM", "neutron3".
+- **Atoms knocked into flight (flat game).** Found firing every particle at 1 keV–1 PeV through a row of three waters, a
+  carbon, a lead and a hydrogen atom (insulated, 80 steps, 3 seeds): the flat game's books moved more than 10 eV in 185
+  of 1,332 runs (more than 50 eV in 71), 3-D in 18 of 1,242. Besides the points above, two slips:
+  1. `setVel` sent a stepped atom past its flight threshold straight into radiation flight with its bonds kept (a bond
+     to an atom in flight stretches with no force on it) and its potential energy out of the books, as `nuclearScatter`
+     did: a neutron's elastic hit sent a lead atom bonded to carbon off at 83 keV, +108 eV. Now it breaks them and pays
+     the potential energy it leaves from its motion (as `switchMode` does below the threshold); its 3-D twin keeps
+     everything stepped already.
+  2. `nuclearCollision` (a nucleus in flight passing an atom, ZBL) pushed the target by √(2T/m) whatever its own motion
+     (the target gained more or less than the T taken from the projectile) and broke every bond weaker than T for free
+     (a bond broken at its compressed geometry costs up to 23 eV). Now the target gains exactly T; its bonds break only
+     if T pays what breaking them costs, measured, and that is taken from T. A 1 MeV α through the row: +46, +46, +61 eV
+     before (seeds 1–3), +0.2, +1.1, −0.1 after.
+  - After all the fixes of this section, the same sweep: flat more than 10 eV in 84 of 1,332 runs (more than 50 eV in 33,
+    all but 8 of them electrons, positrons and γ rays at 1 PeV, 10⁻¹⁰ of their energy: the showers' own rounding), the
+    rest 5–59 eV in the debris's chemistry and hot light atoms (the known limit of bug fix 13 after 1.25); 3-D more than
+    10 eV in 1 run (a 1 TeV Λ: 1.3 eV is the worst of the others).
+  - Insulated, 300 steps (seed 7): annihilation −153 → +3.3 eV; nif +1.1 → −0.5; fusion 0 → 0. Fingerprints: fusion, nif
+    and sns change from point 1 (an atom sent into flight while bonded), annihilation, pionbeam and sns from point 2.
+    Check: f_swx "flatRecoil".
+- **Faster than light.** Muonic hydrogen fired at 1 PeV scattered off a proton (`muAtomScatter`, flat) set the proton's
+  velocity by hand, non-relativistically and with no flight: 933c. A remainder handed to one product (point 3 of the PeV
+  fix, as first written) scaled an electron's velocity the same way: 52c. Both now go through `setVel` in the flat game
+  (into radiation flight at the true speed); in 3-D the flight's own speed rule holds. The fire sweep's other speed
+  readings: nothing stepped or flying past c in either game (the products' stored speed checked each step). Check:
+  f_swx "muFast".
+- **Muonic atoms (v138's findings).**
+  1. Mean lives (`muRates`, hep.js). The capture rate 32·Z_eff⁴ s⁻¹ had no neutron excess. Now the mean lives measured
+     for natural elements (Suzuki, Measday & Roalsvig, Phys. Rev. C 35, 2212, 1987) hold where measured (`MU_TAU`), and
+     the Goulard–Primakoff form (Z_eff⁴·261 s⁻¹·[1 − 0.040·A/2Z + 0.26·(A − 2Z)/2Z − 3.24·((A − Z)/2A + (A − 2Z)/8AZ)],
+     that paper's fit) carries them to the other elements and isotopes, scaled to the measured elements on either side;
+     decay in orbit is the free muon's slowed by the Huff factor (≈ 1 − 2.2×10⁻⁵ Z²: 0.85 for lead). Game before → now
+     (measured), ns: C 2,045 → 2,026 (2,026.3), N 1,952 → 1,907 (1,906.8), O 1,831 → 1,795 (1,795.4), F 1,687 → 1,464
+     (1,463.5), Na 1,374 → 1,204 (1,204.0), Mg 1,222 → 1,067 (1,067.2), Al 1,077 → 864 (864.0), Si 941 → 756 (756.0),
+     P 817 → 611 (611.2), S 707 → 555 (554.6), K 454 → 435 (435.2), Ca 392 → 333 (332.7), Ti 307 → 329 (329.3), V 273 →
+     285 (284.5), Fe 193 → 206 (206.0), Ni 168 → 157 (156.6), Cu 156 → 164 (163.5), Zn 146 → 159 (159.4), Zr 77 → 110
+     (110.4), Pb 23 → 75.4 (75.4). Between them (the form): Ne 1,525 → 1,196, Cl 610 → 542, Ar 526 → 643, Cr 243 → 239,
+     Mn 216 → 240, Co 180 → 201, Br 105 → 152, Ag 57 → 87, Sn 50 → 96, I 46 → 93, Ba 43 → 101, W 28 → 78, Au 25 → 72,
+     Bi 23 → 73, Th 21 → 84, U 20 → 85; He–B within 3% of the free muon's 2,197 before and after. Capture share now: C 8%,
+     O 18%, Al 61%, Ca 85%, Fe 91%, Pb 97% (Pb was 99%). Caveat: there is no network here, so the measured values are
+     the published table as I know it, each checked for consistency (1/τ = Λc + Q·λ against the capture rates Λc of the
+     same table); worth a look against the paper. Where the form stands alone, values I am less sure of differ by up to
+     ~10–20% (Ar-40: 643 against about 540 measured; Th and U 84–85 against about 77): adding more measured elements
+     to MU_TAU sharpens it. Inspect's muonic-atom pill and capture share use the same rates.
+  2. Mass. The atom's mass left out its muon (`atomMass`, engine.js: +0.113 u, less the binding; 0.9% of carbon, 2.8% of
+     helium); its rest energy (`restE`) still leaves it out, as the muon's is booked apart. When it is caught, decays or
+     is captured, the atom keeps its speed and its kinetic energy changes by ½m_μv²: those events now begin with the atom
+     in their books (`nucBegin([atom])`), so their X-rays or neutrinos pay it exactly. 3-D and flat, a carbon and a lead
+     atom at 5 Å/tu (½m_μv² ≈ 1.7 eV): catching books to 3×10⁻⁶ eV; decay and capture steps within 0.18 eV (the electrons
+     a capture frees beside a +81 ion, in their first step); 16 of 16 events. Saves and undo put the muon's mass back.
+  3. The momentum of the muon caught at 2 keV (0.65 MeV/c): not a bug; nothing changed. Handed to the atom it would
+     kick carbon by 19 eV and lead by 1.1 eV in one go; a real muon is slowed to eV energies through the medium first,
+     spread over the many atoms of its last micrometres (the game stops it at 2 keV for speed), then caught; the X-ray
+     cascade's recoil is under an eV. The books are exact either way.
+  4. Select and Inspect. The Select tool passed over muonic hydrogen (μp, μd, μt), (μα)⁺ and hypernuclei, which live
+     with the unstable particles (W.exo); now a click or a box picks them, and copy, paste, move and Delete take them
+     (pasted nearly at rest, as placed). A particle in flight's Inspect card had no Delete button; now it has (as the
+     Erase tool takes one). The particle view drew a muonic atom without its muon; now a green point circles just
+     outside the nucleus (the muon's colour in flight). Screenshot: scratchpad mu-pv2.png. (The 3-D lab has no particle
+     view.) Copy and paste kept only the nucleus: muonium came back as hydrogen and a muonic atom as a plain one; now
+     both are made again as they were.
+  - Fingerprints unchanged (no setup makes a muonic atom in 300 steps). Checks: f_swx "muonic", "muSelect", "copyMu"
+    (page).
+- **Saves and undo with unstable particles.** Only muonic hydrogen and (μα)⁺ were saved (1.26 bug fix B): a placed
+  muon, pion, kaon, hyperon, resonance or hypernucleus was gone after a save was read back, and an undo of anything else
+  (undo is a save read back) took it away too; found by the page sweep below (every unstable particle of the menus,
+  flat and 3-D). Now `xa` holds every one in W.exo but a collider's beams, with a resonance's own mass (drawn from its
+  width) and the 3-D "at rest" mark; a hypernucleus's entry is made on reading. Saves from before read as before.
+  Fingerprints unchanged. Check: f_swx "saveExo" (page).
+- **Λ mean life.** 2.632×10⁻¹⁰ s, the older value; PDG 2024 gives 2.617×10⁻¹⁰ s (the header says PDG 2024): now that
+  (the Λ̄ follows). Fingerprints unchanged.
+- **Checked and fine** (no change): masses, mean lives and branching fractions of every unstable particle on the menus
+  against PDG 2024 (μ, τ, π, K, η, Λ, Σ, Ξ, Ω, ρ, ω, φ, K*, Δ and their antiparticles; resonances' ħ/Γ); muonium's and
+  muonic hydrogen's masses and bindings; decay at rest, 200 of each placed at rest, flat and 3-D: mean lives within
+  the counting error, branching as listed, products' charges and kinds right, books within 10⁻⁴ eV; at Ultra-realistic
+  rates (true clock, warp 1) the resonances, π⁰ and η decay at once with their branchings, the longer-lived wait, books
+  within 10⁻⁴ eV.
+- **The page sweep** (tests through the page's own tools, scratchpad pgsweep.js): every particle of the menus, flat (74)
+  and 3-D (73), placed with a click of Place, picked with a click of Inspect (its card: no "undefined", "NaN" or "null"),
+  the placing undone with Ctrl+Z, placed again and taken with a click of Erase, saved and read back, then fired with a
+  drag of Fire at 1 keV, 1 MeV, 1 GeV and 1 PeV through eight atoms and run: every step worked for every particle but the
+  saves above; no page errors, nothing faster than light after the fixes, no odd texts in the event log.
+- **Texts.** A μ⁺ taking an electron said "Recombination: p⁺ + e⁻ → H atom", and a bare μ⁺ bonding "Proton bonded:
+  H⁺ + …": now "μ⁺ + e⁻ → muonium" and "Muon bonded: Mu⁺ + …". Inspect's "Decays to" for a particle in flight showed the
+  internal names of the neutrinos (μp: "p e⁻ ν̄ numu"; τ: "nutau", "numub"): now through the products' own labels
+  (νμ, ν̄μ, ντ, d, t, α). Lengths read "1.5e+2 nm" (a hypernucleus's mean distance) and a resonance's "0.0000013 nm":
+  now "150 nm", and pm and fm below a nanometre. Check: f_swx "texts".
+
+- **Left for the owner (model questions, not changed):**
+  - Below the reaction threshold a close pass deflects at its distance in Å, not mapped onto nuclear distances (v138:
+    a head-on 1 MeV α on α gives the target 133 eV flat, 33 eV in 3-D, not the whole 1 MeV of a real backscatter);
+    mapping it as the collider's `nuclearScatter` does is a model change.
+  - Unstable particles do not meet each other (a pion through muonic hydrogen or a Λ passes it): they meet only atoms
+    and nuclei (W.parts), and each other only as a collider's beams.
+  - The muon caught at 2 keV keeps its momentum out of the atom (above, point 3 of muonic atoms).
+  - Muon mean lives between the measured elements come from the Goulard–Primakoff form; Ar-40 643 ns (about 540
+    measured), Th and U 84–85 (about 77): more measured elements in MU_TAU would pin them. The table's values are from
+    memory of the paper (no network here), each consistent with its capture rate: worth a check against the paper.
+  - The approved realistic-particle switches (μp handing its muon to heavier nuclei, electrons seeing Z − 1, the
+    muonic cascade's X-rays, positronium …) are not built; nothing here is in their way (the rates by element and the
+    muon's mass are what they need).
+  - Remaining books noise: the flat game's hot debris (5–59 eV in 1 in 25 shots, the known limit of light fast atoms);
+    200 muonium atoms decaying in a crowd (+173 eV flat, +9 eV 3-D, the integration of a dense hot Mu/Mu₂/e⁻ plasma);
+    a 3-D hypertriton decaying at 1 PeV keeps momentum only to 2.5×10⁻⁵ (its residual nucleus's own boosts at
+    γ ≈ 3×10⁵; the books are settled exactly).
+- **Suites** (2-core machine shared with another session): t_lint, t_energy, t_hep, t_collider, t_3d pass alone;
+  t_features alone: 2 misses, both known ones (the chain reaction's k readout: 5 fissions and 16 neutron ends in the
+  frames allowed, its page random stream, before and after this branch alike in Node over three seeds; the 1.23.1
+  Continue check, 73 → 74, on record since 1.25); tools/runtests.sh: 21 of 22 pass, t_features' one miss the f_bug125
+  "pi3" timing check (54 ms against its limit under both lanes' load), which passes alone (18 ms); the chain and Continue
+  checks passed there.
+- **Found in the other session's areas (not changed):** the Lab tab's Particles readout counts atoms, nuclei and leptons
+  only: twelve unstable particles placed beside five atoms read "5". The 3-D lab has no particle view (so a muonic
+  atom's muon is drawn only in the flat game's).
+### Bug fixes after the 1.26 merge
+
+- **Inspect showed fast 3-D particles faster than light** (the owner, 2026-11-06, on 1.25: "a hydrogen atom travelling
+  328% of c" after a 1 PeV α in 3-D). A fast particle in 3-D that is not in radiation flight keeps its energy as ½mv² in
+  (vx, vy, vz) and is moved at the relativistic speed of that energy (moveFastLeptons3; the fast nuclei since v138), so
+  the stored v passes c; Inspect showed it as the speed. The motion was right; only the number shown was wrong. Now
+  `shownSpeed(p)` (engine.js): p.sp in radiation flight, else from the energy, β² = x(2 + x)/(1 + x)², x = KE/mc². A 5 GeV
+  proton: shown 326% of c before, 98.74% after; a 50 MeV electron 99.9949%; slow particles as before (to 4×10⁻⁸, the
+  constants' own rounding). Display only: no fingerprint changes. Check: f_bug126e `speed`.
+- **Spin-polarized quantum bonds: the books jumped when a step failed to settle** (Settings → Experimental → Bond
+  orders Quantum, Spins Polarized; GFN1 or GFN2). What was wrong: when a step's warm start did not settle, qmPass
+  started afresh (`qsh0: null`, then each atom's spins), and that start can settle on another branch than the one the
+  cluster was on. Traced in the hot radical mixture (O₃, NO, O₂, H₂O₂, 2 H₂ at 1,500 K, 100 steps with the bath, 400
+  insulated), GFN2 flat seed 6, insulated step 9: the warm start (120 iterations) left the polarized state oscillating
+  without settling (its energy within a few meV of the settled one), the fresh start settled paired 0.32 eV higher, and that step's energy simply rose; later the probe found the spins again and paid the drop to the bath as a
+  real switch. GFN1 flat seed 7 the same through the spin seeds (step 332, +0.32 eV, after an unsettled step), seed 5
+  through the fresh start (+0.27). Why: nothing booked the branch change of a fresh start; the probe's booking assumes
+  the paired state was where the cluster had been. Tried first: (a) a fresh start from each atom's spins did not
+  settle at that step; the last step's polarized state with a gentler mixer (damping 0.2, 30 steps of memory) settles
+  (45 iterations), but on other steps it then settled on a different polarized state (−97 meV, also unbooked), and it
+  changes the answers polarized clusters get; the unsettled warm iterate as the reference was off by up to 0.1 eV
+  (GFN1 seed 5). What changed (b, bookkeeping only; the solver's path and every energy and force as before): each
+  forces pass with spins keeps the last settled step's energy, slope and positions (XQ.ref, the same members); a step
+  whose answer came from a fresh start or the atoms' spins books its jump from there: E found − (E_ref + g·Δx), less
+  what the probe has just paid, to the bath (`XQ.detours`, `XQ.detourE`), within five steps of a settled one (an
+  unsettled step's energy is no reference: in the first hot steps the books swing tens of eV on unsettled calculations
+  and come back, as before). The second-order error of the slope is under 1 meV. A real switch found by the probe in
+  an ordinary step is paid exactly as before; one inside a fresh-start step is paid by this booking.
+  Numbers (400 insulated steps after 100 with the bath; jumps over 1 meV, worst jump):
+
+  | method, world | seed 3 | seed 5 | seed 6 | seed 7 |
+  |---|---|---|---|---|
+  | GFN1 flat, before | 0 | 1, +0.27 eV | 0 | 2, +0.32 eV (drift 0.59) |
+  | GFN1 flat, after | 0 | 0, −6.0e-4 | 0 | 0, +5.4e-4 |
+  | GFN1 3-D, before / after | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+  | GFN2 flat, before | 0 | 0 | 1, +0.32 eV | 0 |
+  | GFN2 flat, after | 0 | 0 | 0, −1.7e-4 | 0 |
+  | GFN2 3-D, before | 0 | 0 | 0 | 1, +0.093 eV |
+  | GFN2 3-D, after | 0 | 0 | 0 | 0, −1.4e-4 |
+  | Atom Forge refit (method 4) flat, before | 2, +0.43 eV | 0 | 1, +0.52 eV | 1, +0.42 eV |
+  | Atom Forge refit (method 4) flat, after | 0, −9.3e-4 | 0 | 0, −9.0e-5 | 0, −3.5e-4 |
+
+  How often: in those 400-step runs a step's answer came from a fresh start or the spins 0–2 times (5 in the 16 GFN1 and
+  GFN2 runs, with 4 switches by the probe); unchanged from before (the same path, now booked). Cost: none measurable
+  (an array of 3n numbers kept a step; 7.4–13 s a run before and after). Paired spins (the normal setting) and quantum
+  bonds off: bit for bit as before (the 59 setups' fingerprints, seed 7, 300 steps, identical; f_126x and f_126q pass).
+  Check: tests/f_bug126.js (t_features' last line; alone `node tests/f_bug126.js`): `seed6` (fails on v136: one jump,
+  0.32 eV), `mixture` (the 16 runs, no jump over 1 meV).
+- **Polarized is the normal Spins setting** (approved by the owner, 2026-11-05: "ok sounds good", once the spin-branch
+  books were fixed, merged 2026-11-06). Settings → Experimental → Bond orders → Quantum → Spins: "Polarized (normal)",
+  "Paired" a choice (SET_DEF.xqs 1; still back to normal at every start; a world saved with Paired says so on opening:
+  EXP_NAME.xqs "paired spins"). Quantum bonds stay off by default, so the game with default settings is bit for bit as
+  before; the Node harness's engine default (XQ.spin 0) is unchanged, so f_126x/f_126q's paired runs are as before. The
+  Speed test's line names the spins either way. Check: f_126x `page` (Polarized at start, Paired chosen and back).
+
+### 1.26: GFN2 refit (second attempt)
+
+Asked by the owner: improve GFN2, keeping what it is best at (water clusters, non-covalent binding, geometries) and
+fixing its reaction problems (H + H₂ binds H₃, HCN → HNC barrier 3.18 against 2.09, hexazine below three N₂, a shared
+proton too flat, atomization); offer it as "GFN2 (Atom Forge fit)" if it beats GFN2 on held-out reaction energies and
+barriers with WATER27 ≤ ~0.2 eV, bonds ≤ 0.013 Å and settling in the game. **Result: built and measured, not offered.**
+It keeps water, non-covalent binding and geometries and settles where the first refit did not, and it is 4 times closer
+on held-out atomization, but held-out barriers stay at GFN2's level (0.74 eV against 0.68 polarized), the shared proton
+comes out flatter than GFN2's, and in a hot radical mixture its books jump (an unbooked spin-branch change) more often
+than GFN2's. The engine takes it as `XQ.method` 4 (`tools/xtb/afxtb2-data.js`, `XTB.AF2`; H/C/N/O molecules only, as
+method 3); Settings still offers GFN1 and GFN2 only.
+
+- **Sensitivity** (`tools/xtb-fit/refit2.js --sens`: each of the first fit's 48 GFN2-form parameters stepped, the change of
+  each group of targets; eV per step, water = WATER27's fitted clusters and the invariance clusters below, reactions =
+  W4-11/3, BH76, H + H₂, HCN, the must-haves, hexazine, the proton). Water-dominated (water ÷ reactions): H's hardness 17
+  (0.49 against 0.03 eV), O's third order 11, H's third order 7.7, O's repulsion (charge 3.6, exponent 2.9), O's s-shell
+  distance polynomial 2.9, O's hardness 2.6, H's level 2.0. Reaction-only: every C and N parameter (ratio ≤ 0.2, most
+  < 0.02), the pair scalings but O–H and O–O (≤ 0.05), the spin constants' scale (0 on water). In between: O's levels, CN
+  shifts and p polynomial, H's polynomial, CN shift and repulsion, the O–H and O–O pairs (0.3–1.2).
+- **Frozen at GFN2's** (besides the multipole electrostatics and D4, never fitted): the hardness of H, C, N and O (the
+  charges' response; the first refit lowered H's by 28 % and, found now, its GFN1-form set never settles on
+  N-heterocycles: 2-pyridone, indole and the pyridone dimer run 250 iterations with atomic charges of −5…+6 e); the
+  water-dominated ones above; the **O–O pair scaling** (it alone sets the water dimer's O–O: +0.02 → +0.019 Å; fitted, it
+  went −0.1 for O₂/O₃/H₂O₂ and pulled the dimer to 2.78 Å); the **spin constants' scale** (fitted it rose to 1.36, and a
+  hot radical mixture then jumped 0.6 eV in 3 seeds of 4; at the published 1.0, 1 of 4). 36 parameters fitted.
+- **Fit** (`refit2.js`, Levenberg–Marquardt as fit.js, the same held-out split, spin-polarized): the first fit's targets
+  plus 26 **invariance clusters** held at plain GFN2's binding to 1 % (`inv.json` by `mkclus.js`, seeded random packings
+  optimized with GFN2: water clusters of 10, 16 and 20 (twice), H₃O⁺ and OH⁻ in 8 waters, 19 pairs with ammonia,
+  formaldehyde, methanol, formic acid, amides (added after the fit lost N–H···O=C pairs: S22's formamide dimer 0.72 →
+  0.23 eV), imines and dispersion-bound pairs; not WATER27 or S22); vertical IPs and EAs of 11 molecules held at GFN2's
+  (0.3 eV; how far charge can slosh between O₂ and its neighbours); H₃'s symmetric stretch (no point past 0.93 Å below the
+  saddle); bonded lengths of 10 more W4-11 molecules optimized (0.003 Å, 5 more held out); angles free within GFN2's own
+  error, steep beyond; the water dimer's O–O (0.01 Å); a pull toward GFN2. Tight optimizations (gtol 1e-6: at 5e-5 a
+  1e-3 parameter step did not move them, the fit saw no angle change and opened water to 115.7°). Ten rounds (A–J);
+  shipped data: J.
+- **Held-out errors** (MAD, eV; never fitted; S22 never fitted by any of them):
+
+  | held out | GFN1 | GFN1 polarized | GFN2 | GFN2 polarized | first refit, GFN1 form | first refit, GFN2 form | this refit |
+  |---|---|---|---|---|---|---|---|
+  | W4-11 atomization (16) | 10.78 | 4.35 | 8.16 | 2.15 | 0.35 | 0.37 | 0.49 |
+  | BH76 barriers (10) | 0.98 | 0.73 | 0.93 | 0.68 | 0.48 | 0.45 | 0.74 |
+  | WATER27 clusters (12) | 0.38 | 0.38 | 0.125 | 0.125 | 0.32 | 0.91 | 0.19 |
+  | S22 non-covalent (22) | 0.058 | 0.058 | 0.033 | 0.033 | runs away | 0.137 | 0.045 |
+  | bonds of 8 held-out molecules (Å) | 0.0095 | 0.0095 | 0.0111 | 0.0111 | 0.0048 | 0.0055 | 0.0076 |
+
+  The held-out barriers are all radical hydrogen abstractions (OH, NH₂, NH + CH₄, C₂H₆, CH₃; H + CO): every xTB here puts
+  those saddles 0.5–1.2 eV too low, and the fitted ones (OH + H₂, CH₃ + H₂, O + CH₄, …) improve only part way while the
+  HCN saddle (also a bridging H, but too high) pulls the other way. Round G, with the spin scale free, reached 0.67 and the
+  proton 0.055 / 0.148 eV, but its books jumped in the hot mixture (above).
+- **Compared** (`cmp.js`, as the tables above; geometries optimized by each variant):
+
+  | | GFN1 | GFN2 | GFN2 polarized | first refit, GFN1 form | first refit, GFN2 form | this refit | g-xTB | reference |
+  |---|---|---|---|---|---|---|---|---|
+  | bond lengths, 24 bonds (MAD, Å) | 0.0107 | 0.0122 | 0.0122 | 0.0127 | 0.0191 | 0.0102 | 0.011 | measured |
+  | of them the 19 H/C/N/O bonds | 0.0088 | 0.0120 | 0.0120 | 0.0049 | 0.0066 | 0.0094 | | |
+  | angles H₂O / O₃ (°) | 107.1 / 119.1 | 107.2 / 120.4 | the same | 107.5 / 117.1 | 107.7 / 118.5 | 108.5 / 119.2 | 106.5 / 117.7 | 104.5 / 116.8 |
+  | atomization, 23 molecules (MAD, eV) | 6.63 | 4.62 | 1.61 | 0.63 | 0.79 | 0.55 | 0.15 | W4-11 |
+  | H + H₂ barrier (eV) | 0.15 | −0.40 | 0.03 | 0.57 | 0.54 | 0.20 | 0.21 | 0.42 |
+  | HCN → HNC energy / barrier (eV) | 0.92 / 2.52 | 0.87 / 3.18 | the same | 0.91 / 2.59 | 0.81 / 2.54 | 1.02 / 2.79 | 0.31 / 2.24 | 0.66 / 2.09 |
+  | water dimer (eV, O–O Å) | 0.208, 2.91 | 0.215, 2.84 | the same | 0.268, 2.79 | 0.220, 2.80 | 0.206, 2.82 | 0.212, 2.91 | 0.217, 2.91 |
+  | O₃ → O₂ + O (eV) | 7.60 | 6.85 | 4.70 | 1.81 | 1.87 | 2.57 | 1.12 | 1.15 |
+  | proton between waters 2.7 / 2.8 Å (eV) | 0.084 / 0.214 | 0.041 / 0.123 | the same | 0.082 / 0.189 | 0.195 / 0.333 | 0.022 / 0.092 | 0.103 / 0.222 | |
+  | hexazine flat: barrier, release (eV) | 0.53, +1.67 | 0.80 (uphill), −0.84 | the same | 0.30, +6.77 | none, +6.65 | none, +6.65 | none, +6.95 | |
+
+  With the refitted hydrogen and plain GFN2 for F, Cl and S, HF/HCl/H₂S bonds stay within 0.008 Å of GFN2's (the first
+  refits: 0.04–0.10 Å off) but their atomization is 0.3–0.8 eV further off than GFN2's: hence H/C/N/O molecules only.
+- **In the game** (Node, `XQ.method` 4; `scratchpad/126x2/game.js`): O₂, two waters and methane (the first refit: 10
+  unsettled, books 220 eV off): none unsettled, −1.7e-6 eV over 200 insulated steps; O₂ with two waters and a Na⁺
+  outside: the triplet (|m| 2.09), slopes 1.8e-6 eV/Å, −1.2e-4 eV over 200 steps; 3-D (O₂, three waters, methane):
+  slopes x/y/z 8.7e-7/7.3e-7/5.7e-7 eV/Å, −1.2e-5 eV over 150 steps, none unsettled (round A: 7 unsettled while the
+  molecules joined; GFN2 polarized 0); H₂ pulled apart: one switch to two spins, every step settled (largest change
+  0.0047 eV); a hydronium and five waters: −5.4e-5 eV over 200 steps, 5.3 iterations a step; the hot mixture (O₃, NO, O₂,
+  H₂O₂, two H₂, 1,500 K, 400 insulated steps) in 3-D −1.4e-5 eV; flat, 4 seeds: the books jump in 2 (0.43 eV twice, with 2 unsettled calculations; 0.52 eV once), −2.9e-5 and −1.7e-5 eV
+  in the others (GFN2 polarized: 1 seed of 4, 0.32 eV; see below).
+- **Why not offered**: the held-out barriers are not better than GFN2 polarized (0.74 against 0.68; GFN1 polarized 0.73),
+  H + H₂ is half the real barrier (0.20; not bound any more), and the proton the quantum bonds were made for is flatter
+  than GFN2's (0.022 at 2.7 Å; g-xTB 0.103, GFN1 0.084). What it does well: atomization (0.55 eV, GFN2 polarized 1.61),
+  ozone, hexazine falling apart, bonds (0.0094 Å on H/C/N/O), water and S22 near GFN2's. Its parameters, the engine's
+  support and the pipeline stay for a later round. **Default: GFN1** (and the recommendation above stands: Polarized
+  spins as GFN1's default once the owner approves).
+- Found, not changed (fixed after the merge: "Bug fixes after the 1.26 merge"): **the books of a spin-polarized calculation that does not settle**. When a step's warm start
+  (polarized, from the last step) does not settle, qmPass starts afresh unpolarized; the probe then switches back to
+  polarized and pays the difference to the bath, though the system was polarized all along: the books jump by about
+  that difference. GFN2 polarized in the hot mixture: 1 seed of 4 (0.32 eV); this refit 2 of 4 (0.43, 0.52). Not paying
+  the probe's switch in a step whose unpolarized state came from such a fresh start would close them; it changes GFN1's
+  and GFN2's polarized books, so it is for the owner.
+- Test: tests/f_126x.js part `af2` (t_features' "1.26 (xTB)" line; alone `node tests/f_126x.js af2`): the data (GFN2's
+  form, the published spin scale, what was frozen); single points against GFN2 polarized (H₃'s stretch 0.195 against
+  0.008 eV, flat hexazine 6.76 eV above three N₂ against 0.84 below, the water dimer kept); the world that sank the
+  first refit settles and keeps its books; switching from GFN2 with 13 members paid to the bath (books to 0 eV); 3-D
+  slopes and books; H₂S keeps stored bonds. Fails on 75eea89 (no method 4). GFN1 and GFN2 run bit for bit as before
+  (`f_126x base`, `f_126q gfn1`).
+
+### 1.26: spin-polarized xTB
+
+Asked by the owner (the xTB plan, item 1): spin polarization for GFN1 and GFN2, "free atoms and radicals get their
+unpaired-electron energy, so bond breaking into atoms or radicals comes out closer to real"; item 2: GFN2's SCC with
+radicals. Built on branch v135 (from v131). Physics for the owner's OK: a new choice; Paired stays normal.
+
+- **What**: Settings → Experimental → Bond orders → Quantum, under Quantum method: **Spins**, Paired (normal, as GFN-xTB
+  was made) or Polarized. `SET.xqs` (0/1, Experimental: back to Paired at every start), `boQmSpin(v)` (bo.js: with
+  quantum bonds on, the members leave and join again, each change's energy to the bath, as `boQmMethod`), `XQ.spin`.
+- **The method**: the published spin-polarized GFN-xTB (Neugebauer, Bädorf, Ehlert, Hansen and Grimme, J. Comput. Chem.
+  44, 2120 (2023)), ported from tblite (LGPL-3.0-or-later: spin.f90, data/spin.f90 (the W constants, `tools/xtb/spin-data.js`
+  by `spin-gen.js`, numbers copied as text), wavefunction/spin.f90, the two-channel parts of scf/diag.f90, potential.f90,
+  the singlepoint and its gradient) into `tools/xtb/spin.js`, used by gfn1.js and gfn2.js with `opts.spin`: each spin
+  its own Hamiltonian H_c ± H_m (H_m = −½ S (v_m(μ) + v_m(ν)), v_m = W m on each atom's shells), its own orbitals,
+  E_spin = ½ Σ m W m; the mixer over [q, m] (GFN2: [q, m, dipoles, their magnetization, quadrupoles, theirs], tblite's
+  order); the gradient with both channels' energy-weighted densities and the magnetization's potential. Paired, the
+  ports are bit for bit v131's (182 calculations, E, q, g, bond orders; the game's runs below).
+- **Open shells in the game**: tblite fixes the count of each spin (`uhf`); the game cannot know it for a cluster that
+  can hold several radicals, so both spins share one Fermi level (`opts.spinFree`) and each cluster's count settles
+  itself (a far-apart N and H both get their own spins; with a fixed count one would not). An unpolarized solution is
+  a fixed point the SCC never leaves, so every step that has no magnetization at all is **probed**: the potential of a
+  tiny magnetization (10⁻⁶) along a pattern, and how much the electrons answer along it (power iteration inside the
+  SCC: the pattern turns to the most unstable one). Above 1.02 (the Stoner criterion: a bond stretched past where its
+  electrons would rather sit one on each atom, O₂, a radical made) the calculation runs again from that pattern, and a
+  lower, polarized result is taken, the drop at the same positions to the heat bath (`xqProbe`; not inside a boSync
+  change, which books it whole; not with quantum nuclei). The free atoms (`qmAtomE`) are the lowest of the spin counts
+  their electrons allow, found the same way. Dissociation scans (0.02 Å steps, GFN1/GFN2): H₂ switches at 1.66/1.42 Å
+  (drop 5.2/1.1 meV), N₂ 1.46/1.42 (6/7 meV), HF, water's O–H, methane's C–H 0.6–1.2 meV; afterwards every point the
+  lowest state found by several seeds. Left: O₂ pulled apart follows its triplet branch, 0.25 eV above two Hund oxygens
+  far apart (the probe only looks at unpolarized solutions).
+- **Checked against tblite** (its spin-polarization container, scale 1, on the GitHub Actions runner:
+  `tools/xtb-ref/geoms3.json` (28: H, C, N, O, S, Cl atoms in their high spins, O₂ triplet and singlet, OH, NH₂, CH₂, CH₃, NO,
+  HO₂, H₃, CN, HCO, CH₃O, SH, SO, H₂O⁺, C₂H₅, H₂ and N₂ stretched, ozone triplet, hexazine triplet, water), `ref3.py`,
+  `ref3.json`; `node tools/xtb/check-spin.js`): 56 calculations (both methods), energies to 8e-12 eV, charges 2e-8 e,
+  forces 7e-7 eV/Å (NH₂ with GFN2, where tblite stops its SCC at accuracy 0.01; every other 1e-10); forces against the
+  port's own slopes (Richardson) 1e-9–2e-8 eV/Å, fixed counts and the shared Fermi level alike. Locally also against
+  xtb 6.7.1 `--tblite --spinpol` (scratchpad): molecules to 1e-11 eV.
+- **In the game** (Node; `tests/f_126x.js`): O₂ with two waters and a Na⁺ outside (O₂ a triplet: GFN2's probe switches to
+  it, 0.7 eV to the bath; GFN1's unpolarized start does not settle there and the start with each atom's spins lands on
+  it): forces the energy's slopes flat GFN1 1.2e-6, GFN2 9e-6 eV/Å; 3-D (O₂, three waters, methane) x/y/z 1.5e-6–1e-5
+  and 3e-7–1.2e-6; insulated 7.5e-4 / −1e-3 eV over 200 steps flat, 2e-6 / −9e-6 over 150 in 3-D, nothing unsettled; switching the spins with 8 members in paid to the bath, books closed to 1e-11 eV. A hydronium and five
+  waters (every electron paired): the same drift as paired (−4.2e-5 eV over 200 steps). O₃, NO, O₂, H₂O₂ and two H₂ at
+  1,500 K (bath off, 400 steps): GFN1 1.4e-4 eV, GFN2 −2.8e-5, nothing unsettled; at 3,000 K flat the same; 3-D at
+  3,000 K GFN2 2e-5, GFN1 3 unsettled steps (1.1e-2 eV), at a geometry where GFN1 paired does not settle in 250
+  iterations either. **H₂ pulled apart** (its atoms 4 eV each, beside a water, insulated): polarized, the probe turns the
+  stretched bond into two spins once (GFN1 at 1.67 Å, 8.5 meV to the bath) and every step settles (the largest change of
+  the books 0.011 / 0.004 eV, the fast atoms' own step error, the same paired before the bond breaks); paired, 27 steps
+  unsettled with jumps up to 6.5 eV, both methods.
+- **Cost** (Node, one thread; two cores shared: noisy): a hydronium and five waters (all paired: two sets of orbitals and
+  the probe) GFN1 5.6 → 8.7 ms a calculation (×1.6), GFN2 6.2 → 7.4 (×1.2); the radical mixture at 1,500 K GFN1 9.2 →
+  21.5 (×2.3), GFN2 10.0 → 16.3 (×1.6). Tag ×1.2–2.3 (only with quantum bonds on).
+- **Compared** (single points and geometries by the game's ports, `scratchpad/126x/cmp.js`; geometries optimized by its
+  own BFGS for each variant: the paired numbers reproduce the GFN2 comparison above; spin-polarized with the right spins
+  (O₂ triplet, OH doublet, atoms in their Hund states)):
+
+  | | GFN1 | GFN2 | GFN1 spins | GFN2 spins | g-xTB | reference |
+  |---|---|---|---|---|---|---|
+  | bond lengths, 24 bonds (MAD, Å) | 0.0107 | 0.0122 | 0.0108 | 0.0122 | 0.011 | measured |
+  | atomization, 23 molecules (MAD, eV) | 6.63 | 4.62 | 2.66 | 1.61 | 0.15 | W4-11 |
+  | H + H₂ barrier (eV) | 0.15 | −0.40 | 0.58 | 0.03 | 0.21 | 0.42 |
+  | HCN → HNC energy / barrier (eV) | 0.92 / 2.52 | 0.87 / 3.18 | the same | the same | 0.31 / 2.24 | 0.66 / 2.09 |
+  | water dimer (eV) | 0.208 | 0.215 | the same | the same | 0.212 | 0.217 |
+  | O₃ → O₂ + O (eV) | 7.60 | 6.85 | 5.45 | 4.70 | 1.12 | 1.15 |
+  | proton between waters 2.7 / 2.8 Å (eV) | 0.084 / 0.214 | 0.041 / 0.123 | the same | the same | 0.103 / 0.222 | |
+  | hexazine flat: barrier on the D3h path, release (eV) | 0.53, +1.67 | 0.80 (all uphill), −0.84 | the same | the same | none, +6.95 | |
+
+  Spins help where molecules break into atoms or radicals (atomization 2.5–2.9 times closer; GFN2's bound H₃ gone);
+  molecules whose electrons are all paired along the way are unchanged. Ozone stays 4–5 times too costly to break and
+  GFN1's H + H₂ barrier now overshoots (0.58 against 0.42).
+- **GFN2's SCC with radicals (item 2)**. tblite's mixer is the modified Broyden the ports already had, so the change is
+  in how the game starts and limits the calculation (GFN2 and spins only; GFN1 paired keeps v131's, bit for bit): a
+  changed cluster starts from its members' last state (`xqGuessById`: each atom brings its charges, moments and
+  magnetization; new ones start neutral) instead of cold; a cold start, or one after an unsettled step, gets 120
+  iterations (`XQ.maxItCold`), and an unsettled calculation goes on once from where it got to; no straight-line start
+  through an unsettled step (it sent the next start further off: unsettled steps followed one another); a measurement
+  between steps starts from the step's own state; a Broyden history whose residual grows ten times past its best starts
+  again (`opts.mix.restart`); with spins, still unsettled, a fresh unpolarized start (the probe finds the spins again),
+  then starts with each atom's free spins (alternating, then all alike).
+  Cold starts of the 20 radical soups (10 loose C/N/O/H 1.6–4 Å apart): GFN2 unsettled 20/20 in 40 iterations before,
+  5/20 in 120 after (mean 74 iterations when settled), GFN1 paired 15/20 (unchanged, v131's); polarized they are harder
+  (GFN1 15/20, GFN2 12/20 after 120 + the seeded rerun: every atom a radical, many spin arrangements). Tried and not
+  kept, as they did not help the soups: Broyden memory 5–20, damping 0.2, tblite's newer temperature annealing
+  (`opts.anneal`, left in the port, unused). In the game: O₃, NO, O₂, H₂O₂ and two H₂ at 1,500 K, 300 steps: v131 29
+  unsettled calculations, now none; GFN2 runs where every step settles are bit for bit v131's (a hydronium and three
+  waters, flat and 3-D); that hot mixture's positions differ by up to 0.3 Å after 300 steps (other starts, then chaos).
+- Found, not changed: a cluster holding O₂ and ammonia 6 Å apart never settles (GFN1 and GFN2, paired or not): GFN-xTB
+  puts ammonia's lone pair above O₂'s empty level, so half an electron crosses 6 Å and the charges slosh. Calculating
+  far-apart fragments separately (whole charges each) would cure it and save time; that changes the physics and is
+  for the owner. GFN1 with O₂, two waters and methane: 7 unsettled calculations while it starts, polarized or not, and a
+  switch of method onto such a cluster (GFN2 → GFN1) measures an unsettled energy, the books 50 eV off; GFN2 settles there.
+- Settings text (the row, its tooltips, the note, SDESC/SDESC3), cost tags (COSTS/COSTS3 ×1.2–2.3), the realistic tag on
+  Polarized, the Speed test's line ("quantum bonds (GFN1-xTB, polarized spins)"), Help (the honest-approximations line).
+- Test: tests/f_126x.js (t_features' "1.26 (xTB)" line; alone `node tests/f_126x.js [port base game pull conv chem
+  page]`): the port against ref3.json and its slopes; paired runs v131's bit for bit (GFN1 and GFN2); the game (slopes
+  flat and 3-D, books, switching); H₂ pulled apart; GFN2's hot radical mixture settles; the single points behind the
+  table; the page. Fails on v131 (no spins, no ref3.json; its hot mixture leaves 29 unsettled).
+
+### 1.26: Atom Forge xTB
+
+Asked by the owner (the xTB plan, item 3): re-fit both GFN1's and GFN2's parameters with one pipeline, targets and
+held-out split, for H, C, N, O, with spin polarization; ship the better one as "Atom Forge xTB" if it beats the
+originals on held-out data without breaking geometries. **Result: built and measured, not offered in Settings.** The
+GFN1-form fit beats both originals on held-out energies and keeps H/C/N/O bond lengths, but it overbinds the water dimer
+and, in the game, its calculations do not settle around O₂ among other molecules (below). The GFN2-form fit breaks
+geometries. The parameters, the engine's support (`XQ.method` 3, `tools/xtb/afxtb-data.js`; only H/C/N/O molecules take
+part) and the pipeline (`tools/xtb-fit/`) are in the branch for a later attempt; Settings offers GFN1 and GFN2 only.
+
+- **The fit** (`tools/xtb-fit/fit.js`; data outside the repository: GMTKN55 from GitHub, the owner's g-xTB build for
+  reference points only, never shipped): per element (H, C, N, O) each shell's level, its CN shift, its distance
+  polynomial, the hardness, third order, repulsion exponent and charge; per element pair the H0 scaling; the spin
+  constants' scale: 51 parameters on GFN1's form, 48 on GFN2's (multipoles and D4 kept). Spin-polarized, with each
+  species' own spin count (tblite style). Targets: W4-11 atomization (70 H/C/N/O molecules, σ 0.15 eV), BH76 barriers
+  (38 rows, 0.05 eV), WATER27 (27 clusters, 1.5 %), HCN → HNC and O₃ → O₂ + O (0.05 eV), g-xTB on hexazine's D3h path
+  and its release to 3 N₂ (0.15 / 0.3 eV) and on a shared proton (0.03 eV), the forces at W4-11's reference geometries,
+  and bond lengths and angles of 16 molecules optimized with the parameters being fitted (measured re, 0.002 Å, 0.25°;
+  the water dimer's O–O 0.02 Å). Held out (never fitted): every 4th W4-11 molecule (16), every 3rd BH76 saddle (10 rows),
+  every 3rd water cluster and the 20-mers (12), the proton at 2.8 Å, three molecules' geometries. Levenberg–Marquardt with
+  a forward-difference Jacobian, a pull toward the original parameters; six rounds of settings (the first fits made the
+  water angle 113–124° and bonds 0.014–0.023 Å off, hence the optimized-geometry targets).
+- **Held-out errors** (eV; the originals with polarized spins and the same spin counts; MAD):
+
+  | held out | GFN1 spins | GFN2 spins | Atom Forge xTB on GFN1 | on GFN2 |
+  |---|---|---|---|---|
+  | W4-11 atomization (16) | 4.35 | 2.15 | 0.35 | 0.37 |
+  | BH76 barriers (10) | 0.73 | 0.68 | 0.48 | 0.45 |
+  | WATER27 clusters (12) | 0.38 | 0.13 | 0.32 | 0.91 |
+  | bond lengths of the held-out molecules (Å) | | | 0.001 | 0.008 |
+
+- **Compared** (as the spin table above, `tools/xtb-fit/cmp.js`):
+
+  | | GFN1 | GFN2 | GFN1 spins | GFN2 spins | AF xTB (GFN1 form) | AF xTB (GFN2 form) | g-xTB | reference |
+  |---|---|---|---|---|---|---|---|---|
+  | bond lengths, 24 bonds (MAD, Å) | 0.0107 | 0.0122 | 0.0108 | 0.0122 | 0.0127 | 0.0191 | 0.011 | measured |
+  | of them the 19 H/C/N/O bonds | 0.0088 | 0.0120 | 0.0089 | 0.0120 | 0.0049 | 0.0066 | | |
+  | angles H₂O / O₃ (°) | 107.1 / 119.1 | 107.2 / 120.4 | the same | the same | 107.5 / 117.1 | 107.7 / 118.5 | 106.5 / 117.7 | 104.5 / 116.8 |
+  | atomization, 23 molecules (MAD, eV) | 6.63 | 4.62 | 2.66 | 1.61 | 0.63 | 0.79 | 0.15 | W4-11 |
+  | H + H₂ barrier (eV) | 0.15 | −0.40 | 0.58 | 0.03 | 0.57 | 0.54 | 0.21 | 0.42 |
+  | HCN → HNC energy / barrier (eV) | 0.92 / 2.52 | 0.87 / 3.18 | the same | the same | 0.91 / 2.59 | 0.81 / 2.54 | 0.31 / 2.24 | 0.66 / 2.09 |
+  | water dimer (eV, O–O Å) | 0.208, 2.91 | 0.215, 2.84 | the same | the same | 0.268, 2.79 | 0.220, 2.80 | 0.212, 2.91 | 0.217, 2.91 |
+  | O₃ → O₂ + O (eV) | 7.60 | 6.85 | 5.45 | 4.70 | 1.81 | 1.87 | 1.12 | 1.15 |
+  | proton between waters 2.7 / 2.8 Å (eV) | 0.084 / 0.214 | 0.041 / 0.123 | the same | the same | 0.082 / 0.189 | 0.195 / 0.333 | 0.103 / 0.222 | |
+  | hexazine flat: barrier, release (eV) | 0.53, +1.67 | 0.80 (uphill), −0.84 | the same | the same | 0.30, +6.77 | none, +6.65 | none, +6.95 | |
+
+  The F, Cl and S molecules' bonds (HF, HCl, H₂S) go wrong with the refitted hydrogen (0.04–0.06 Å): hence H/C/N/O only.
+- **Why not shipped**: the GFN2-form fit misses the geometries (0.019 Å, held-out water clusters 0.91 eV, the proton
+  profile twice g-xTB's). The GFN1-form fit wins on held-out energies and the must-haves of breaking bonds (N₂ 9.2 eV
+  into atoms, measured 9.9; ozone 1.8, measured 1.15; hexazine falls apart, as g-xTB has it), HCN ⇌ HNC and the proton
+  as GFN1, but: H + H₂ stays 0.57 (as GFN1 with spins); the water dimer binds 0.27 eV (0.22) with its oxygens 0.12 Å too
+  close; and in the game (O₂, two waters and methane, flat, 30 steps then 200 insulated) its calculations did not settle
+  5 times in the first 30 steps and 5 more after, with the books 220 eV off (GFN1 with spins, the same world: 0 after its
+  start, 4e-5 eV). Closed shells in 3-D are fine (O₂, three waters and methane apart: slopes 5e-7–3e-6 eV/Å, 2e-5 eV over
+  150 steps). That robustness has to be solved before it is offered.
+- **Recommendation (item 4)**: keep GFN1-xTB as the default method, and make **Polarized spins** its default once the
+  owner approves: it is never worse than paired on the comparisons (molecules into atoms 2.5 times closer, the hydrogen
+  exchange 0.16 eV off instead of 0.27, ozone 2 eV closer, bond breaking settles instead of eV jumps; molecules with
+  every electron paired unchanged) for ×1.2–2.3 the cost. Do not remove GFN1: it is the only one that is right on the
+  game's barriers and on hexazine's direction for every element; old saves and settings name it. GFN2 could be retired
+  from the menu (it loses to GFN1 on H + H₂ (paired), HCN ⇌ HNC, the shared proton and hexazine, and its one strength,
+  atomization, is better covered by GFN1 + spins + a working Atom Forge xTB); keep its code so old settings (`xq` 2)
+  load. Atom Forge xTB is the way to real bond energies, after its SCC robustness around O₂ is fixed.
+
+### 1.26: GFN2-xTB
+
+Asked by the owner (the "For 1.26" list): "try implementing gfn2 xtb. Run tests and compare numbers, and maybe leave gfn1 in
+if gfn2 is very different". Built on branch v131. Physics for the owner's OK: a second method to choose; the normal one
+is unchanged.
+
+- **What**: Settings → Experimental → Bond orders → Quantum, then **Quantum method**: GFN1-xTB (normal, as since 1.22) or
+  GFN2-xTB (Bannwarth, Ehlert and Grimme, J. Chem. Theory Comput. 15, 1652 (2019)). `SET.xq` (1 or 2, an Experimental
+  setting: back to GFN1 at every start), `boQmMethod(m)` (bo.js: with quantum bonds on, the members leave under one
+  method and join under the other, each change's energy to the bath as switching models does), `XQ.method`; the free
+  atoms each method's own (`qmAtomE`); a member's orbitals by the method (`xqNAO`: GFN2 gives hydrogen one, GFN1 two),
+  for the 40-atom / 160-orbital caps and the joiners' relaxation. The warm start carries GFN2's whole state (shell
+  charges, atomic dipoles and quadrupoles; `r.guess`), extrapolated as GFN1's charges are.
+- **The port** (`tools/xtb/gfn2.js`, `d4.js`; tables `gfn2-data.js` from tblite's gfn2.f90 by `gfn2-gen.js`, `d4-data.js`
+  from dftd4's reference.inc and data/ by `d4-gen.js`, numbers copied as text; the page's copy in `src/xtb.js` by
+  `mksrc.js`, `XTB.gfn2Energy`, `XTB.nAO2`): ported from tblite (LGPL-3.0-or-later: xtb/gfn2.f90, h0.f90, the overlap,
+  dipole and quadrupole integrals, coulomb/ effective second order with the arithmetic mean of the hardnesses,
+  shell-resolved third order, the damped multipole electrostatics with their exchange-correlation kernels, the
+  repulsion with exponent 1 between H/He pairs, the SCF potentials and the mixer over charges, dipoles and
+  quadrupoles, the singlepoint's gradient), dftd4 (LGPL-3.0-or-later: the self-consistent D4, its reference
+  polarizabilities with GFN2's charges, zeta charge scaling, rational damping, the three-body ATM term with neutral
+  C6) and mctc-lib (Apache-2.0: the double-exponential and the D4 erf coordination numbers). Sources cloned from
+  GitHub (tblite c6f66b9, dftd4 1107ea7, mctc-lib 73fc4ca) into the session's scratchpad; nothing of them committed but
+  the generated tables. Not ported: periodic cells, solvation, spin polarization (restricted open shell as tblite does).
+  Two slips found by the checks and fixed before anything else: tblite stores the multipole radius's slope dR/dCN with
+  the opposite sign and compensates in its dE/dR (copied alone it made H₂'s force 0.13 eV/Å off), and the warm start
+  read the quadrupoles back without undoing the mixer's √2 on the off-diagonal ones (8 iterations a step instead of 5).
+- **Checked against tblite** (its GFN2-xTB on the GitHub Actions runner: `tools/xtb-ref/ref2.py`, `geoms2.json` (21 more
+  geometries in 3-D: S, P, Si, Cl, Br with d shells, LiF, NaCl, nitrate, OH and CH₃ radicals, ozone, HCN/HNC, puckered
+  hexazine, water dimer, H₃O⁺·H₂O, benzene), `ref2.json`; `node tools/xtb/check-gfn2.js`): 91 geometries, energies to
+  1.0e-11 eV, charges 5e-12 e, forces 6.0e-11 eV/Å; forces against the port's own slope (h = 1e-4 Å, x y z) 3–5e-7
+  eV/Å. Also, in the scratchpad only, against xtb 6.7.1's GFN2 (the owner's g-xTB build, which also runs GFN1 and GFN2):
+  91 geometries to 3.5e-7 eV and 9e-6 eV/Å (its D4 and convergence differ a little).
+- **In the game** (Node, `tests/f_126q.js`): forces = the energy's slopes, flat with a Na⁺ outside 6e-7 eV/Å, 3-D 6e-7 in
+  x, y and z; insulated: a hydronium and five waters (19 atoms) −1e-5 eV over 200 steps, 18 atoms in 3-D 0.0000 eV over
+  150; no unsettled calculation in these; 5.2 SCC iterations a step (GFN1 4.9); switching the method with 14 members in
+  paid to the bath (0.9 eV), the books closed to 4e-12 eV. Loose atoms and radicals close together (10 C/N/O/H 1.6–4 Å
+  apart, cold starts, 20 cases): unsettled in the game's 40 iterations GFN1 15, GFN2 20; in 250 GFN1 1, GFN2 2 (GFN2
+  needs about 1.4 times the iterations there).
+- **Cost** (Node, one thread, two cores shared by four agents: noisy; same steps, 0.22 fs): a hydronium and five waters
+  (19 atoms; GFN1 50 orbitals, GFN2 37) flat 14–17 ms a step GFN1, 13–22 GFN2 (×1.1–1.4); 3-D 10–20 against 15–18
+  (×0.9–1.7); with eleven waters (37 atoms, 98 and 73 orbitals) flat 84–97 against 76–100 ms (×0.8–1.2), 3-D 62–105
+  against 47–84 (×0.5–1.4). Fewer orbitals on hydrogen, more work in the dipole and quadrupole integrals and D4: about
+  the same. Tags: GFN1 ×1, GFN2 ×0.8–1.4 (only with quantum bonds on).
+- **Compared** (GFN1 and GFN2 by the game's ports, geometries optimized by xtb 6.7.1 for each method; g-xTB from the
+  owner's build, Linux binary from github.com/grimme-lab/g-xtb, run in the scratchpad only; references from GMTKN55 on
+  GitHub: W4-11 atomization energies, BH76 barriers, WATER27, and measured bond lengths from memory (NIST/Huber–
+  Herzberg). Atoms and molecules as the game takes them for GFN1/2 (uhf 0, Fermi smearing); with high-spin atoms GFN1/2
+  change by 0.1 eV at most; g-xTB with the right spins):
+
+  | | GFN1 | GFN2 | g-xTB | reference |
+  |---|---|---|---|---|
+  | bond lengths, 24 bonds (MAD, Å) | 0.011 | 0.012 | 0.011 | measured |
+  | angles H₂O / O₃ / H₂S (°) | 107.1 / 119.1 / 93.2 | 107.2 / 120.4 / 92.3 | 106.5 / 117.7 / 92.9 | 104.5 / 116.8 / 92.1 |
+  | atomization, 23 molecules (MAD, eV) | 6.6 | 4.6 | 0.15 | W4-11 |
+  | H₂ / N₂ / H₂O atomization (eV) | 6.36 / 14.58 / 16.69 | 5.33 / 14.83 / 13.99 | 4.64 / 9.42 / 10.03 | 4.75 / 9.91 / 10.10 |
+  | H + H₂ barrier (eV) | 0.15 | −0.40 (H₃ bound) | 0.21 | 0.42 (BH76) |
+  | HCN → HNC energy / barrier (eV) | 0.92 / 2.52 | 0.87 / 3.18 | 0.31 / 2.24 | 0.66 / 2.09 |
+  | water dimer (eV, O–O Å) | 0.208, 2.91 | 0.215, 2.84 | 0.212, 2.91 | 0.217 (WATER27) |
+  | O₃ → O₂ + O (eV) | 7.60 | 6.85 | 1.12 | 1.15 (W4-11) |
+  | proton between waters, O–O 2.7 / 2.8 Å (eV) | 0.084 / 0.214 | 0.041 / 0.123 | 0.103 / 0.222 | (g-xTB) |
+  | hexazine flat: N–N, barrier, release (eV) | 1.296 Å, 0.54, +1.67 | 1.295 Å, none, −0.84 | 1.308 Å, none, +6.95 | falls apart, several eV |
+  | hexazine 3-D: vs flat, barrier, release (eV) | −0.16 (pucker 0.23 Å), 0.65, +1.51 | −0.88 (0.24 Å), 1.67, −1.72 | stays flat, none, +6.95 | |
+
+  Hexazine: GFN2 makes it worse than GFN1, not better: the ring lies 0.84 eV (flat) to 1.72 eV (puckered, bonds
+  alternating 1.25/1.37 Å) **below** three N₂ (checked against xtb's own GFN2: −0.842), so in the game it would never
+  fall apart. g-xTB has no barrier at all and releases 6.95 eV (published high-level work, from memory: at best a
+  shallow minimum). H + H₂: GFN2 itself binds linear H₃ by 0.40 eV at 1.05 Å (tblite and xtb alike), where the real
+  saddle is 0.42 eV up. GFN2 is closer for breaking molecules into atoms, but both are far too strong there (the xTB
+  methods' free atoms), and ozone losing an O is 6–7 times too costly in both.
+- **Default: GFN1** (by the rule from the main session: whichever matches the references better overall, unless GFN2 is
+  more than ~3× slower; it is not slower). GFN1 is closer on the barriers that make reactions happen in the game (H +
+  H₂, HCN ⇌ HNC, the shared proton the quantum bonds were made for, hexazine's direction), equal on geometries and the
+  water dimer; GFN2 is closer only on atomization energies, where both are poor. GFN2 kept as a choice (realistic tag
+  on GFN1, with why).
+- The flat game with default settings is bit for bit the same: the 59 setups (50 flat, 9 3-D), seed 7, 300 steps, every
+  position and velocity identical to 1.25; quantum bonds with GFN1 too (a hydronium and three waters, 150 steps, flat
+  and 3-D, identical: `f_126q.js gfn1`).
+- Settings text (the row and its tooltips, the note under Quantum with the numbers above, SDESC and SDESC3), cost tags
+  (COSTS and COSTS3), the Speed test's line ("quantum bonds (GFN2-xTB)"), Help (the honest-approximations line).
+  No Settings picture for the new row (as Bead forces).
+- Test: tests/f_126q.js (t_features' "1.26 (GFN2)" line; alone `node tests/f_126q.js [port gfn1 game chem page]`):
+  the port against tblite's ref2.json and its slopes; GFN1 runs bit for bit 1.25's; GFN2 in the game (slopes flat and
+  3-D, books, method switch); the measurements behind the default (H₃, hexazine, the shared proton); the page. Fails
+  on 1.25 (no GFN2). `node tools/xtb/check-gfn2.js` for the full port check.
+- Left: GFN2's SCC on loose radicals (above); a Settings picture; g-xTB itself in the game only when its source and
+  parameters are public (tblite).
+
+### 1.26: metal oxides, alloys, directional metals
+
+The owner's "For 1.26" entries (branch v132, from the combined 1.25 at cc8a0fd): extensions of Settings → Experimental →
+Metals → Many-body (src/bometal.js); physics-model changes for the owner's OK. Default settings unchanged: with Many-body
+off every setup is bit for bit 1.25's (the 53 flat setups and the six 3-D ones, 300 steps, seed 7: identical
+fingerprints of positions, velocities, charges). With Many-body on, the setups whose metals meet no O or H atom and no
+non-metal ion are also identical (oven, salt, brine, chain, photonuc, isolde, sns, useries, crt, ch_split); the four that differ have O/H on the metal
+(magnet, brine3d) or a Cl⁻ next to sodium (ch_salt, flame: the image term), as they should. Reference values: the web
+was refused by the proxy from this session again, so the data below are standard values from memory (CRC/NBS heats of
+formation, Wyckoff structures, bulk moduli from the literature), flagged here: worth a check against the books.
+
+**1. Oxides and hydrides.** Before: a metal atom that bonded to O or H left the many-body model for a stored Morse bond
+(losing its 3 eV of metal bonding at once), O₂ meeting the metal did nothing (1.25, O₂ over a 3-D Cu(100) slab at 600 K,
+1.2 ps: 0 O atoms bound), and an ion near a metal felt only the contact core.
+- **The model**: O and H atoms with a free valence ("partners": an O atom, an O with one single bond such as OH or
+  peroxo at half weight, an H atom; neutral) join the second-moment model as an alloy component, in Cleri and Rosato's
+  way: per metal–partner pair a repulsion A·e^(−p(r/r₀−1)) at the partner's weight w, the hopping squared
+  ξ²·e^(−2q(r/r₀−1)) in both atoms' densities (the metal's at the partner's weight), the partner's own embedding
+  −w·√ρ. A metal atom's density then holds its O and H neighbours, so its bonds to other metal atoms weaken as it
+  oxidizes (the many-body coupling a stored bond lacked). O and H with their valence used up (O₂, water, OH's H) meet
+  the metal as before. Two partners have no many-body pair (theirs is the classic chemistry's: LJ, bonds, reactions).
+  A member metal and a partner: the kernels skip the pair (vlExclusions marks it, as bond orders' pairs are; localPE,
+  regionE and totalEnergy skip it too; no kernel or WebAssembly change), and covalentOK refuses a stored bond between a
+  member metal and O or H (the first runs made CuO₂ by the classic radical reaction).
+- **The fit** (`node tools/mbfit.js [--write]`, a few seconds a compound): each reference compound's crystal is built in
+  a periodic 3-D box in the game itself (unrelaxed; everything the game has there counts: metal–metal pairs, the
+  partners' Lennard-Jones), r₀ = its measured metal–partner distance (corundum's mean of 1.86 and 1.97 Å), q/p = 0.4,
+  and A, ξ, p solved for: the measured heat of formation from the bulk metal and the game's O₂ / H₂, no force on
+  uniform scaling, the measured bulk modulus (p kept to 3–20; 9 where none is known). 31 compounds: Cu₂O, Ag₂O
+  (cuprite), Al₂O₃, Cr₂O₃ (corundum), FeO, CoO, NiO, MnO, MgO, CaO, SrO, BaO (rocksalt), Li₂O, Na₂O, K₂O
+  (antifluorite), BeO, ZnO (wurtzite), TiO₂, SnO₂ (rutile), ZrO₂, CeO₂, UO₂ (fluorite); LiH, NaH, KH (rocksalt),
+  MgH₂ (rutile), TiH₂, ZrH₂ (fluorite), PdH (rocksalt, −0.2 eV an H), CuH (wurtzite, +27.5 kJ/mol), AlH₃ (as ReO₃-type
+  cubic). Other metals take their group's (or the nearest fitted) constants, r₀ scaled by the game's radii (Au, Pt, Pd
+  oxides from Ag and Ni; Ni and Pt hydrides from Pd).
+
+  | | model | measured |
+  |---|---|---|
+  | each fitted compound: ΔHf, metal–O/H distance | exact (e.g. Cu₂O −168.6 kJ/mol at 1.849 Å, Al₂O₃ −1675.7 at 1.913, FeO −272.0 at 2.154, NaH −56.3 at 2.440) | the same |
+  | bulk moduli | exact for 21; Cu₂O 119, BeO 238, SnO₂ 232 GPa (p at its floor of 3) | 112, 212, 205 |
+  | hematite Fe₂O₃ with FeO's constants (not fitted) | −596 kJ/mol, lattice +7% | −824 (the model has no oxidation states: Fe³⁺ and Fe²⁺ bond alike) |
+  | CuO with Cu₂O's (as rocksalt) | −203 kJ/mol, lattice +6% | −157 (tenorite) |
+  | O on a close-packed (111) face, fcc hollow, unrelaxed, against the O atom: Cu, Ag, Ni, Pt, Al | −5.26 eV at 1.34 Å, −3.48, −5.9 (in the surface plane), −4.02, −11.4 (in the surface plane) | about −4.8, −3.6, −5.5, −4.3, −7.4 (DFT values from memory, ±0.3) |
+  | H on (111): Cu, Pd, Pt | −2.19, −2.26, −1.77 eV | about −2.4, −2.9, −2.7 |
+
+  O on Cu, Ag, Pt is within 10%; on open or very oxophilic metals (Al, Mg, Ca, the alkalis, Ni) the O atom sinks into
+  the top layer and is overbound (Al by half): the second-moment form gives a site with few metal neighbours nearly the
+  bulk oxide's binding. Tried: a ratio κ between the metal's ξ and the partner's (fitted to the surface binding): it ran
+  to its ends (Cu 4, Al 0.25) and moved Cu's binding by 0.02 eV; not used (`--kappa` keeps it in the tool).
+- **Molecules splitting on the metal** (`mbEvents`, every fourth step): a bond between two partners' elements (O=O, H–H,
+  O–H, O–O) whose atom comes within 0.6 Å past its pair's reach of a member and is moving toward it is tried broken,
+  the pieces moved apart out of each other's core and toward their nearest members (up to 1.2 Å, as evBond's
+  snapTogether moves molecules), the energy measured exactly (localPE over the molecule with the many-body part), kept
+  when the meeting's energy along the line of centres reaches an Evans–Polanyi activation energy from that heat (as
+  reaction(): max(0.05, 0.5 + 0.25·ΔH) downhill, 0.5 + 0.75·ΔH uphill), the heat released or taken from the meeting;
+  undone otherwise. The reverse (two partners bonding, O₂ or H₂ leaving) is the classic evBond, measured the same way.
+  O₂ over the 3-D Cu(100) slab at 600 K, 1.2 ps: 2 O₂ split, their 4 O atoms bound (1.25: none); a flat Cu patch in O₂,
+  O, H and H₂ at 1,500 K: O₂ split 3 times, 7 O atoms bound, no ions made. H₂ on Cu stays whole (uphill: H on Cu is
+  endothermic against H₂, as measured).
+- **An ion near the metal** feels its image: a pair term −c·q²/(r² + a²)² between the ion and each member (each metal atom
+  polarized by its field), c = k/(4π·n) for the metal's atom density so that summed over a half-space it is the
+  conductor's −k·q²/4z far out, a = r₀/2, to 6 Å. Non-metal ions only: with metal ions too a Cu lump paid its own atoms
+  for becoming Cu⁺ and Cu⁻ (the transfer trials ×5 in a 3-D test). F⁻ at contact with a Cu ball: −0.97 eV; Cl⁻ 2.5 Å
+  over a flat Cu edge −1.6 eV, at 4 Å −0.35. evTransfer's lower bound counts the image's change for the two atoms.
+- **Forces and energy**: forces are the energy's slopes to 5.6e-9 eV/Å flat and 1.6e-8 in 3-D (Cu with O, H, an OH at
+  half weight and a Cl⁻); localPE's many-body part exact for a partner, a member, an ion moved and for O₂ split on the
+  metal (1e-10 to 7e-10 eV); insulated, the flat patch in O₂/O/H/H₂ at 1,500 K over 6,000 steps of 0.4 fs with three
+  splittings: 0.066 eV (0.0085 at half the step: the integrator on hot H₂ and OH, not the events; another seed 0.017),
+  the 3-D ball with the same gases at 1,200 K over 1,500 steps 0.008 eV.
+- **Cost** (one thread, CPU time; two cores shared with three other agents, ±30%): a flat Cu patch with 24 O atoms on
+  it ×1.22 against pairs (bare ×1.6), a flat Cu patch in 160 waters ×1.12, a 3-D Cu ball with 18 O atoms ×0.95 (bare
+  ×1.5). The setting's tag stays ×1–2 in both modes.
+- **Found, not changed**: with the normal pairs, an O atom or an ion right next to a metal atom has forces off the
+  energy's slope by 1–5e-4 eV/Å (Cl⁻ or O at 1.2–2.4 Å from Cu, Many-body off; with Many-body on the O is the model's
+  and exact). Metal ions are not image-pulled; the metal giving an electron to an ion still makes a localized Cu⁺ (no
+  Fermi sea), as in 1.25. Bonds to O and H on the metal are drawn as no lines.
+- Tests: tests/f_126m.js (t_features "1.26 (metals)"): oxide (Cu₂O, Al₂O₃, FeO, NaH, MgH₂ at their measured values;
+  hematite), surface (the flat patch in O₂/O/H/H₂: splitting, bound O, energy, no ions), forces (2-D and 3-D with
+  partners and a Cl⁻), books (moves, O₂ split, an F⁻'s image), page (Settings words in both modes, the note, Help).
+  Each fails on cc8a0fd.
+
+**2. Alloys.** Before: unlike metals mixed their constants (r₀, p, q averaged, A and ξ geometric means), so strongly
+bound pairs came out barely bound (an Al atom in Ni +0.15 eV, Ni in Al −0.09; Cu₃Au −0.022 eV an atom against −0.074
+measured).
+- **The model**: a pair of metals may have constants of its own (`MBA_FIT`: the pair's whole repulsion A and its ξ, with
+  p and q the two metals' means and r₀ the compound's a–b distance); the rest still mix. Fitted by
+  `node tools/mbfit.js --alloys [--write]` on one compound each, its crystal built in the game as for the oxides
+  (unrelaxed): the measured heat of formation at the measured lattice, no force on scaling. NiAl (B2, −58.8 kJ/mol of
+  atoms), NiTi (B2, −34), FeAl (B2, −28), CuZn (β-brass, B2, −12.3), Cu₃Au (L1₂, −7.1), TiAl (L1₀, −37.6) (from memory).
+- **Measured** (3-D, periodic, 108 sites; relaxed by quenching unless said):
+
+  | | 1.25 (mixed) | 1.26 | measured |
+  |---|---|---|---|
+  | Ni₃Al (L1₂, not fitted), at its best lattice | — | −169.7 kJ/mol, lattice −0.6% | −165.2 |
+  | CuAu (L1₀, not fitted) | — | −17.6 kJ/mol, lattice 0.0% | −18.2 |
+  | an Al atom dissolved in Ni / Ni in Al | +0.15 / −0.09 eV | −1.72 / −0.93 | about −1.5 / strongly bound |
+  | Au in Cu / Cu in Au | 0.00 / +0.03 | −0.20 / −0.13 | about −0.13 / −0.19 |
+  | Cu₃Au ordered, random (both relaxed), eV an atom | −0.022, −0.003 | −0.074, −0.040 | −0.074, about −0.05 |
+  | Cu₃Au ordering (ordered − random) | −0.019 | −0.033 | about −0.02 to −0.03 (disordering enthalpy) |
+  | disordered CuAu, heat of mixing | −0.001 | −0.042 | about −0.05 |
+  | Ag in Cu, Cu in Ni (no constants of their own) | +0.30, +0.05 | unchanged | +0.39, +0.03 |
+
+  Not measured: the order–disorder temperature itself (a Monte Carlo of swaps, hours here); the ordering energy says
+  Cu₃Au orders, by about the right amount.
+- **Forces and energy**: the same pair code with other constants (the forces part of f_125m's Cu–Ag–Au and f_126m's).
+- **Cost**: none (a table lookup when the pair table is made).
+- Tests: f_126m `alloy` (Ni₃Al and CuAu within 10%, Al in Ni below −1 eV, Cu₃Au ordered below random); fails on cc8a0fd
+  (Al in Ni +0.15).
+
+**3. Directional bonding (the bcc metals).** The owner: "directional bonding for transition metals … so Fe, W, Cr, Mo and
+Na crystallize bcc". Reference values from memory again (the proxy refused the web): Kittel's cohesive energies and
+spacings, room-temperature elastic constants (Simmons and Wang), Ehrhart's vacancy energies; fcc − bcc and hcp − bcc from
+DFT and CALPHAD lattice stabilities as recalled (W about 0.48 / 0.42 eV an atom, Mo 0.42 / 0.43, Cr 0.40 / 0.37, V 0.24 /
+0.25, Nb 0.33 / 0.30, Ta 0.24 / 0.27, Fe 0.10 / 0.08 with its magnetism; Na nearly degenerate, taken as +0.003 so bcc is
+lowest): the structural differences are the least certain, ±0.05 eV and more for hcp.
+- **Before** (measured here; the 1.25 note said these metals "crystallize close-packed", which is not what the model
+  does): fitted on a close-packed crystal, the model cannot tell fcc from hcp (12 equal neighbours, the second shell past
+  the switch), and bcc's second shell (at 1.155 r₀) sits just inside the switch (1.15–1.35 r₀) and counts fully, so bcc
+  comes out lowest but 2.7–3.3% too small and overbound (relaxed, 3-D periodic, game energies):
+
+  | 1.25 / items 1–2 | W | Mo | Cr | V | Nb | Ta | Fe | Na |
+  |---|---|---|---|---|---|---|---|---|
+  | bcc a, against measured | −2.7% | −2.8% | −2.6% | −3.1% | −2.9% | −3.0% | −3.0% | −3.2% |
+  | bcc Ec (measured) | 9.02 (8.90) | 6.90 (6.82) | 4.17 (4.10) | 5.43 (5.31) | 7.73 (7.57) | 8.25 (8.10) | 4.36 (4.28) | 1.153 (1.113) |
+  | fcc − bcc = hcp − bcc | 0.122 | 0.082 | 0.066 | 0.123 | 0.158 | 0.152 | 0.080 | 0.040 |
+
+  The same holds for the close-packed metals, see "Found" below.
+- **The model** (`src/bometal.js`, MBD_FIT and mbDir…): MEAM's angular partial densities (Baskes 1992) weighing the band:
+  Eᵢ = Σⱼ A·e^(−p(r/r₀ − 1)) − √(ρᵢ + ρᵢᴹ·Γᵢ), Γᵢ = Σ_l t_l·Σⱼ Σₖ aⱼaₖ P_l(cos θⱼₖ) / (Σⱼ aⱼ)², l = 2, 4, 6, aⱼ =
+  e^(−β(r/r₀ − 1)) at the pair's switch (j = k counted, so each l's part lies in [0, 1]); ρᴹ is the metal part of the
+  density, so O and H on the metal keep item 1's terms. Γ is unchanged by an even scaling of a crystal and bounded (t's
+  negative part kept to −0.8, so ρ + ρᴹΓ ≥ 0.2ρ): the first try, an unnormalized three-body sum, collapsed every lattice
+  under compression (its angular term grew faster than the core repulsion). l = 6 rewards bcc's cube of first neighbours
+  (ρ₆²/(Σa)² 0.39 against fcc 0.33, hcp 0.24, the simple cube 0.13), l = 4 sets fcc against hcp and the simple cube, l = 2
+  (zero in any cubic crystal) gives shear an angular part. The members of a directional element switch from 1.25 to
+  1.45 r₀ (bcc's second shell in, fcc's at 1.41·1.03 r₀ out); a pair with one directional metal takes the two switches'
+  mean; every other metal keeps 1.25's 1.15–1.35 exactly. Arms are member metal atoms (an alloy partner's arms count with
+  the centre's β and the pair's r₀); O and H are not arms. Forces analytic (the arms' weights and the angles; mbDirForces);
+  localPE and regionE exact (a directional neighbour's band recomputed with and without the set, mbDirX). evTransfer's
+  lower bound uses the leaver's own band with its angles; its neighbours' angles can go either way, so for these metals
+  the bound is an estimate (a transfer it skips would have been refused by the exact trial in nearly every case; the
+  trial still decides the rest).
+- **The fit** (`node tools/mbdfit.js [El …]`, lattice sums of one atom's neighbours, the same formula; `--table` writes
+  the rows; the game's energies agree to 1e-4 eV an atom, its elastic constants to 0.1 GPa): A and ξ solved for the
+  cohesive energy at zero pressure at the measured spacing; p, q, t₂, t₄, t₆, β by Nelder–Mead on the bulk modulus, C′,
+  C₄₄, the unrelaxed vacancy energy, fcc − bcc and hcp − bcc, with the simple cube, simple hexagonal and diamond lattices
+  kept above bcc (without that, the first fits put the simple cube 0.4–0.6 eV below bcc). Eight metals: the owner's five
+  and V, Nb, Ta (the rest of groups 5 and 6). Relaxed, 3-D:
+
+  | | a Å | Ec eV | B | C₁₁ | C₁₂ | C₄₄ GPa | vacancy eV | fcc − bcc | hcp − bcc eV |
+  |---|---|---|---|---|---|---|---|---|---|
+  | W | 3.165 (3.165) | 8.90 (8.90) | 312 (310) | 429 (522) | 254 (204) | 162 (161) | 3.59 / relaxed 3.57 (3.67) | 0.473 (0.48) | 0.566 (0.42) |
+  | Mo | 3.147 (3.147) | 6.82 (6.82) | 261 (260) | 378 (464) | 203 (158) | 110 (109) | 2.89 (3.0) | 0.436 (0.42) | 0.535 (0.43) |
+  | Cr | 2.884 (2.885) | 4.10 (4.10) | 153 (153) | 248 (340) | 105 (59) | 97 (99) | 1.87 (2.0) | 0.341 (0.40) | 0.390 (0.37) |
+  | V | 3.028 (3.03) | 5.31 (5.31) | 156 (155) | 217 (228) | 126 (119) | 43 (43) | 2.05 (2.1) | 0.244 (0.24) | 0.283 (0.25) |
+  | Nb | 3.300 (3.30) | 7.57 (7.57) | 173 (171) | 233 (246) | 143 (134) | 29 (29) | 2.63 (2.65) | 0.312 (0.33) | 0.357 (0.30) |
+  | Ta | 3.302 (3.303) | 8.10 (8.10) | 196 (194) | 247 (266) | 171 (158) | 88 (87) | 2.78 (2.9) | 0.268 (0.24) | 0.325 (0.27) |
+  | Fe | 2.866 (2.866) | 4.28 (4.28) | 163 (167) | 189 (231) | 150 (135) | 119 (116) | 1.52 (1.6) | 0.093 (0.10) | 0.109 (0.08) |
+  | Na | 4.225 (4.225) | 1.113 (1.113) | 7.0 (6.6) | 7.9 (7.3) | 6.5 (6.2) | 4.0 (4.2) | 0.39 (0.42) | 0.003 (0.003) | 0.029 (≈0) |
+
+  (measured in brackets; vacancies unrelaxed unless said; hcp at its relaxed c/a, 1.62–1.80.) Cohesive energy, spacing,
+  bulk modulus, C₄₄ and the fcc energy come out; C₁₁ − C₁₂ is 20–60% low (W 175 against 318 GPa, Fe 39 against 96): the
+  Cauchy pressure C₁₂ − C₄₄ stays positive (Cr +8 GPa, measured −40), which a single √ band with these angles did not
+  reach; hcp lies 0.05–0.15 eV too high for W, Mo, Nb, Ta (above fcc, where the references put it a little below). The
+  open lattices stay up: simple cube +0.43 (Cr) to +0.87 eV (W, Ta) an atom, A15 +0.12 to +0.61, diamond +1.6 to +3.0
+  (Na +0.045, +0.014, +0.26). Along the Bain path (bcc to fcc at constant volume) bcc is the minimum and fcc a maximum
+  for all but Na (where fcc is a shallow local minimum, 0.003 above bcc).
+- **In motion** (3-D, free balls, bath 0.05): a tungsten ball of 141 atoms started fcc at 600 K turns body-centred
+  within a picosecond (inner atoms with fcc's 12 neighbours 43 → 2, with bcc's 14 0 → 14, the rest in between); one of 137
+  started bcc stays bcc at 300 K (27 of 27 inner atoms, 1 ps). Melting (3-D ball of 137 atoms, heated in steps of 0.1·Tm,
+  3 ps each; inner atoms with bcc's 14 neighbours, and how far atoms move in 2 ps): tungsten, 137 atoms, keeps its order to
+  about 2,600 K (23 of 28), loses half by 2,950 K and nearly all by 3,350 K (atoms' temperature; 4 of 28), and diffuses
+  (1.6–2.4 Å in 2 ps) from 3,350–4,100 K; iron, 169 atoms, keeps it to about 1,300 K (39 of 51), half by 1,360–1,640 K,
+  none by 1,960 K, diffusing from there (real 3,695 and 1,811 K). Balls this small melt well below the bulk (a third or
+  more of their atoms at the surface), so the bulk would melt at or somewhat above the real temperatures, as 1.25 found
+  for copper; not measured: a bulk coexistence run. Sodium: a ball of 59 atoms is too small to say (it is not bcc at
+  any temperature); a periodic bcc crystal of 128 atoms at 300 K stays bcc (83–99 atoms with 14 neighbours over 2 ps).
+- **The flat world**: the angles act in the plane. W, Mo and Cr sheets go centred rectangular (lattice sums: 0.12–0.24 eV
+  an atom below the triangular sheet, aspect 1.26–1.36, bcc's (110) face has 1.41): a flat W patch of 37 atoms at 300 K
+  turned so within 1 ps (the 5th and 6th neighbours 1.0 → 1.2 times as far as the first four). V, Nb, Ta, Fe stay
+  triangular or nearly (within 0.03 eV); flat sodium prefers square sheets by 0.08 eV an atom (t₄ 1.24 rewards the
+  square's fourfold arms; nothing fitted it to anything flat).
+- **Forces and energy**: forces are the energy's slopes to 5.9e-9 eV/Å flat and 1.2e-8 in 3-D (W with Fe and Cu and an O
+  atom, jittered), localPE exact to 3e-9 eV (an atom, a pair, an edge atom moved); insulated, a flat W patch at 1,500 K
+  over 3,000 steps of 0.4 fs 4e-5 eV, a 3-D W ball (137 atoms) 1,500 K over 2,000 steps 5.6e-4 eV (1.5e-4 at half the
+  step: the integrator), a 3-D Fe ball (169) 7.9e-4, a flat Na patch at 600 K 0.
+- **Cost** (one thread, CPU time, two cores shared with another agent): the pass, a periodic W crystal of 1,024 atoms 2.5
+  → 8.2 ms (×3.3; 7,168 listed pairs), a flat W patch of 967 atoms 0.95 → 2.3 ms (×2.4); whole steps ×1.04 (305 → 316
+  ms: dense 3-D metal steps go to electron-transfer estimates, the bug on record) and ×1.11 (9.1 → 10.0 ms); a 3-D ball of
+  181 W atoms 6.6 → 6.9 ms, flat 37 atoms 0.41 → 0.41. Pairs → many-body for the same ball ×1.15. Nothing changes without
+  these metals. The tags stay ×1–2 (a line each for the angles).
+- **What changed for items 1 and 2 and the fcc metals**: the fcc and other close-packed metals are untouched (their
+  constants, switch and arithmetic are 1.25's; f_125m's fit, forces, books and ions parts pass unchanged except that its
+  fit part now checks Au and Pt where it checked W and Na). Refitted with `tools/mbfit.js` (whose `--write` with `--only` now
+  keeps the table's other lines): Fe–O (FeO), Cr–O (Cr₂O₃), Na–O (Na₂O), Na–H (NaH) and the Fe–Al alloy (FeAl), since
+  their metal–metal pairs changed; each again has its measured heat of formation at its measured spacing (before the refit,
+  FeO came out −280.5 kJ/mol against −272, NaH −49.3 against −56.3). Hematite with FeO's constants (a check, not fitted):
+  −596 → −536 kJ/mol (measured −824). Ni₃Al, CuAu, Al in Ni, Cu₃Au, and every oxide and hydride of a close-packed metal:
+  unchanged. Pairs of a directional and a close-packed metal (Fe–Ni, W–Cu …) change with the directional metal's
+  constants and switch; none is fitted or measured against data. Oxides of Mo, W, V, Nb, Ta still borrow their group's
+  constants (Cr–O's, refitted, for Mo and W).
+- **Default game**: bit for bit (the 59 setups, flat and 3-D, 300 steps, seed 7, Many-body off: identical fingerprints).
+  With Many-body on, three differ from items 1–2, all with sodium or iron next to other atoms: flame, magnet, ch_salt.
+- **Found, not changed** (for the owner):
+  - 1.25's close-packed fit puts bcc below fcc for most metals in 3-D, for the reason above (bcc's 14 near neighbours
+    inside the 1.15 r₀ switch): relaxed, bcc − fcc Cu −0.053, Al −0.039, Ag −0.023, Ni −0.081 eV an atom (measured fcc
+    lower by about 0.04, 0.09, 0.03, 0.1); Au +0.013, Pt +0.008. A 3-D Cu ball (177 atoms) started fcc at 300 K turned
+    body-centred within 1 ps (inner atoms with 12 neighbours 43 → 6, with 14 0 → 12). Not changed here (the owner asked
+    that the fcc metals stay as they are); a fix is the same angular term with the close-packed metals' own constants
+    (fitted on fcc with bcc above it), which would move every close-packed metal's numbers and need items 1–2's tables
+    refitted: a physics change for the owner's OK. (Tried as item 4 below; not shipped: the metals then melt far too high.)
+  - Bug-list question #1 (flat copper turning itself into ions): with Many-body on, none. A flat lump of 127 Cu atoms at
+    300 K (bath on) over 2 ps: 0 ions (seeds 7 and 3); with the pair model 118 of 127 by 0.5 ps (seed 7). In 3-D, a ball of
+    141 Cu atoms: Many-body 0 ions (seeds 7, 3), the pair model 136 of 141 (seed 7): the pair model's bug is in 3-D too.
+- **Left**: C₁₁ − C₁₂ low and the Cauchy pressure's sign (Cr), hcp too high for W, Mo, Nb, Ta (a fourth-moment or bond-order
+  form, or MEAM's screening and second-neighbour terms, would be the next step); iron's magnetism (its bcc preference is
+  magnetic in reality; here it is fitted, so fcc iron's γ phase at high temperature does not come out); the other bcc
+  metals (Li, K, Rb, Cs, Ba, Eu and the heavy ones) keep the close-packed fit; flat sodium squares.
+- Tests: f_126m `bcc` (W, Mo, Cr, Fe, Na: Ec and no force on scaling at the measured bcc spacing, fcc and hcp above bcc by
+  at least 0.6 of the reference, vacancies within 15%; on bbf3c16 W's fcc − bcc is 0.03 and the lattice is under a force),
+  `bccmd` (the W ball fcc → bcc at 600 K, bcc kept at 300 K; on bbf3c16 the fcc ball keeps 30 of 43 inner atoms
+  close-packed, none bcc), `dirforces` (forces and books, 2-D and 3-D), `page`
+  (Settings, notes, both cost tags, Help say body-centred). f_125m `fit` checks Au and Pt instead of W and Na.
+
+**4. Directional bonding for the close-packed metals: tried, not shipped.** The owner approved fixing the finding under item 3
+(1.25's close-packed fit puts bcc below fcc for most fcc metals: relaxed bcc − fcc Cu −0.053, Al −0.039, Ag −0.023, Ni −0.081
+eV an atom; a Cu ball of 177 atoms started fcc at 300 K keeps 15 of 46 inner atoms fcc after 1 ps) with item 3's angular term
+and constants of their own, keeping Ec and spacing exact and B, C₄₄, vacancy, surface energy and melting at least as good as
+1.25. Built, measured, and taken back out: the structures come right but the liquid rises by about the latent heat, so the
+metals melt hundreds of kelvin too high, and held to 1.25's liquid the fit puts hcp below fcc. src/ (bometal.js, ui.js,
+body.html), tests and the page are dc4d35d's again (bit for bit, flat and 3-D, Many-body on or off); the tool and the
+numbers stay for the next try. Built in 766e38c, f28f7cf, 75c9948 (revert this commit's src/ to get them back).
+- **The model tried**: item 3's MBD_FIT rows for 25 metals with data (fcc: Cu, Ag, Au, Al, Ni, Pd, Pt, Pb, Rh, Ir, Ca, Sr; hcp:
+  Mg, Zn, Cd, Be, Ti, Zr, Hf, Co, Sc, Y, Ru, Os, Re), a last 1 in the row giving 1.25's switch (1.15–1.35 r₀) for their
+  pairs and arms. In their own crystal (fcc, or hcp at the ideal c/a, 1.25's reference) Γ is constant under even scaling,
+  so A and ξ (Ec at zero pressure) and p (B, by the secant) keep Ec, r₀, B exactly; q/p, t₂, t₄, t₆, β fitted by
+  `node tools/mbdfit.js --cp [El …]` (Nelder–Mead, 1–2 min a metal) to the vacancy, C₄₄, C′ (C₆₆ for hcp), bcc and the
+  other close-packed structure above it (each relaxed), the (111)/(0001) surface energy and the hcp c/a (weakly), with the
+  vacancy, C₄₄ and surface held no farther from the measured values than 1.25's, the simple cube, simple hexagonal,
+  diamond, flat square and honeycomb sheets and the relaxed Bain path (bct c/a 1–1.3) kept above. Reference values from
+  memory (SGTE lattice stabilities and DFT for the structures, Simmons and Wang's elastic constants, Tyson and Miller's
+  surface energies; the web was not tried this time): `D_CP` in the tool. The game agreed with the tool (Cu bcc − fcc
+  0.0421 on a 0.005 scan against 0.0399), forces were the energy's slopes (x, y, z worst 5.8e-9 eV/Å flat, 5.6e-9 in 3-D
+  for Cu, Al, Mg, Ti with Ni and an O atom), localPE exact to 3e-10 eV.
+- **Two other forms tried first**: exponential arm weights with a small β (the second shell weighted like the first) cannot
+  put bcc above fcc with hcp near it without the simple cube falling below fcc (Cu, β 3: t₄ 2.0, t₆ −0.56; the simple cube 1.4 eV below fcc);
+  arms with their own short switch (in by 1.03 r₀, out by 1.12, before bcc's second shell) gave Cu bcc +0.040, hcp +0.006,
+  C₄₄ 74, C′ 36 GPa at the crystal, but a body-centred tetragonal lattice at c/a 1.10–1.15, compressed 5%, then lay 0.02 eV
+  an atom below fcc (neighbours just past the arms' reach count in the band, not in the angles) and a Cu ball still drifted
+  body-centred (fcc 43 → 12 of 50 in 2 ps at 300 K). The form built: β 10–19 with the pairs' switch, as the bcc metals have it.
+- **Structures, relaxed, eV an atom (1.25 → tried; reference)**, and the properties:
+
+  | | bcc − own | other close-packed − own | C₄₄ GPa | C′ (fcc) / C₆₆ (hcp) GPa | vacancy eV | surface (111)/(0001) J/m² |
+  |---|---|---|---|---|---|---|
+  | Cu | −0.053 → +0.036 (0.04) | hcp 0 → +0.005 (0.006) | 72 → 76 (75.4) | 36 → 100 (23.5) | 1.28 → 1.29 (1.28) | 0.98 → 0.96 (1.79) |
+  | Ag | −0.023 → +0.027 (0.03) | 0 → +0.003 (0.003) | 54 → 46 (46.1) | 27 → 52 (15.3) | 1.11 → 1.11 | 0.67 → 0.65 (1.25) |
+  | Au | +0.013 → +0.038 (0.04) | 0 → +0.003 (0.003) | 58 → 42 (42.0) | 29 → 41 (14.6) | 0.93 → 0.93 | 0.60 → 0.59 (1.50) |
+  | Al | −0.039 → +0.074 (0.09) | 0 → +0.015 (0.03) | 19 → 28 (28.5) | 10 → 76 (23.5) | 0.67 → 0.68 | 0.46 → 0.43 (1.14) |
+  | Ni | −0.081 → +0.072 (0.08) | 0 → +0.018 (0.02) | 108 → 125 (124.7) | 54 → 178 (49.6) | 1.79 → 1.81 | 1.44 → 1.39 (2.38) |
+  | Pd | −0.007 → +0.083 (0.10) | 0 → +0.025 (0.03) | 100 → 72 (71.7) | 50 → 106 (25.5) | 1.50 → 1.51 | 0.99 → 0.96 (2.00) |
+  | Pt | +0.008 → +0.096 (0.10) | 0 → +0.040 (0.05) | 88 → 76 (76.5) | 44 → 101 (48.0) | 1.35 → 1.36 | 0.95 → 0.92 (2.49) |
+  | Pb | −0.004 → +0.017 (0.025) | 0 → +0.003 (0.004) | 17 → 15 (14.9) | 9 → 14 (3.6) | 0.58 → 0.58 | 0.25 → 0.24 (0.60) |
+  | Rh | −0.011 → +0.254 (0.3) | 0 → +0.047 (0.06) | 113 → 184 (184) | 57 → 273 (110) | 1.71 → 1.73 | 1.23 → 1.16 (2.66) |
+  | Ir | +0.011 → +0.337 (0.4) | 0 → +0.069 (0.1) | 141 → 256 (256) | 71 → 376 (169) | 1.97 → 1.99 | 1.40 → 1.33 (3.00) |
+  | Ca | −0.037 → +0.009 (0.015) | 0 → +0.004 (0.005) | 7 → 14 (14.0) | 4 → 12 (3.4) | 0.61 → 0.61 | 0.20 → 0.19 (0.50) |
+  | Sr | −0.033 → +0.003 (0.006) | 0 → +0.003 (0.003) | 5 → 10 (9.9) | 3 → 8 (2.4) | 0.57 → 0.57 | 0.16 → 0.15 (0.41) |
+  | Mg | −0.021 → +0.024 (0.03) | fcc 0 → +0.021 (0.015) | 15 → 18 (16.4) | 18 → 35 (16.8) | 0.65 → 0.73 (0.79) | 0.31 → 0.38 (0.76) |
+  | Zn | −0.011 → +0.030 (0.03) | 0 → +0.018 (0.02) | 23 → 39 (38.8) | 29 → 94 (63.6) | 0.54 → 0.54 | 0.38 → 0.42 (0.99) |
+  | Cd | +0.003 → +0.025 (0.025) | 0 → +0.014 (0.015) | 18 → 20 (19.9) | 22 → 40 (37.5) | 0.46 → 0.46 | 0.26 → 0.29 (0.76) |
+  | Be | −0.088 → +0.071 (0.07) | 0 → +0.041 (0.06) | 28 → 150 (162) | 36 → 388 (133) | 1.00 → 1.00 | 1.04 → 1.17 (1.63) |
+  | Ti | −0.092 → +0.091 (0.10) | 0 → +0.063 (0.06) | 32 → 49 (46.5) | 40 → 99 (35.0) | 1.55 → 1.54 | 0.95 → 1.04 (1.99) |
+  | Zr | −0.123 → +0.072 (0.08) | 0 → +0.044 (0.04) | 21 → 35 (32.0) | 26 → 77 (35.3) | 1.70 → 1.69 | 0.89 → 0.93 (2.00) |
+  | Hf | −0.128 → +0.144 (0.15) | 0 → +0.098 (0.10) | 34 → 56 (55.7) | 43 → 117 (52.0) | 2.12 → 2.12 | 1.11 → 1.23 (2.19) |
+  | Co | −0.049 → +0.092 (0.10) | 0 → +0.019 (0.02) | 55 → 80 (75.5) | 69 → 124 (71.0) | 1.34 → 1.34 | 1.11 → 1.12 (2.52) |
+  | Sc, Y | −0.104, −0.119 → +0.058, +0.092 (0.06, 0.10) | +0.042, +0.031 (0.04, 0.03) | 14, 11 → 29, 26 (27.7, 24.3) | 17, 14 → 58, 48 (29.8, 24.4) | as 1.25 | 0.62, 0.58 → 0.66, 0.60 |
+  | Ru, Os, Re | −0.024, +0.002, −0.008 → +0.483, +0.615, +0.294 (0.5, 0.6, 0.3) | +0.122, +0.132, +0.096 (0.13, 0.15, 0.10) | 100, 131, 116 → 182, 259, 162 | 125, 163, 145 → 355, 556, 292 | as 1.25 | 1.62, 1.92, 1.80 → 1.79, 2.13, 1.96 |
+
+  (unrelaxed vacancies and surfaces, unrelaxed hcp shear constants; Ec, r₀, B exactly 1.25's for all; (100) surfaces rose
+  3–7%: Cu 1.19 → 1.25 J/m²; relaxed hcp c/a 1.55–1.60 against measured 1.57–1.62 (Zn, Cd 1.86, 1.89: the reference is
+  ideal hcp, as 1.25's).) The structures and C₄₄ came out; C′ (C₆₆) came out 1.5–4 times the measured value (1.25: 0.6–2
+  times): along the Bain path the angular term has to climb from fcc to bcc's height within a few percent of strain.
+- **In motion** (3-D free balls, bath 0.05; inner atoms with 12 neighbours within 1.25 r₀ and 6 opposite pairs fcc, ≤ 4 hcp,
+  14 bcc): Cu started fcc at 300 K 44 of 44 inner atoms fcc after 1 ps (1.25: 15 of 46), at 600 K 40 of 46 after 2 ps;
+  started bcc it does not turn fcc: 300 K 59 → 29 bcc, 21 with 13 neighbours, 3 close-packed after 2 ps; 600 K 12 bcc,
+  32 with 13, 7 close-packed (the relaxed Bain path has a step of 0.012 eV an atom above bcc at c/a 1.2: bcc is metastable
+  here, unstable in real copper); hcp balls at 300 K, 1 ps: Ti 44 of 57 hcp (1.25: 9 of 55, 23 bcc), Zn 64 of 66 (47 of
+  65), Mg 36 of 42 (25 of 40). Copper ions: 0 (flat lump of 121 and 3-D ball of 141 atoms, seeds 7 and 3, 2 ps).
+- **Melting, why it was not shipped** (3-D balls, bath steps of 0.1·Tm, 2 ps each; share of the inner atoms' neighbours kept
+  over the last 1.3 ps, which a rotating ball does not blur):
+
+  | | 0.6 | 0.7 | 0.8 | 0.9 | 1.0 | 1.1 | 1.2 | 1.3 | 1.4 | 1.5 | 1.6 Tm |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | Cu 177 atoms, 1.25 | 95% | 94 | 89 | 89 | 87 | 80 | 71 | 72 | 59 | 56 | 55 |
+  | Cu, tried | 97 | 94 | 91 | 90 | 89 | 80 | 78 | 76 | 74 | 64 | 63 |
+  | Al 135 atoms, 1.25 | 90 | 79 | 79 | 72 | 71 | 47 | 53 | 46 | 46 | 36 | 40 |
+  | Al, tried | 93 | 89 | 91 | 89 | 89 | 84 | 71 | 67 | 70 | 61 | 52 |
+
+  Copper's ball holds its order about 250 K higher, aluminium's 300–400 K higher (to 1.1 Tm, where 1.25's lost it at 0.75).
+  The cause: a liquid's neighbours are arranged at random, so its Γ is far below the crystal's (aluminium at 2,000 K: mean Γ
+  0.0075 against the crystal's 0.054), and the angular term raises the liquid by about the latent heat. Measured on four
+  snapshots of 1.25's liquid copper (108 atoms, 1,600 K; tools/mbliquid.json) at each metal's spacing: the liquid above the
+  crystal, Cu 0.209 (1.25) → 0.259 eV an atom, Al 0.081 → 0.181 (latent heats 0.135 and 0.11). Held to 1.25's liquid within
+  4 meV (`cpLiquid`, LIQW), the fit can no longer keep fcc below hcp: Cu bcc +0.022 and hcp −0.015, Al bcc +0.041 and hcp
+  −0.044 (the l = 6 term that sets fcc against hcp is the one that sets the crystal against the liquid's icosahedral order);
+  at 15 meV it lets the liquid rise again (Cu +0.039, Al +0.055). With this form (one β, l = 2, 4, 6, the second moment)
+  the four conditions (bcc above fcc, hcp just above fcc, the liquid where it was, the simple cube up) do not meet.
+- **Items 1–2 refitted for it** (kept in f28f7cf, taken back with it): each fitted compound exact again; what moved before the
+  refit and after it: Cu₂O −169.6 kJ/mol with a force on scaling → exact; Al₂O₃ −1656.1 → exact; O on (111) Cu −5.26 eV
+  (unchanged), Ag −3.49 (−3.48), Ni −5.89 (−5.9), Al −11.44 (−11.4); H on Cu −2.20, Pd −2.26; CuO (as rocksalt) −202.7
+  kJ/mol (was −203); hematite −535.8 (unchanged: Fe and Fe–O untouched). Alloys: Ni₃Al −169.7 → −196.1 kJ/mol (measured
+  −165.2; overbound 19%: the angular terms are each element's, so Ni and Al pay bcc's penalty in NiAl's B2 order and the
+  pair fitted there comes out stronger), CuAu −17.6 → −15.5 (−18.2), Al in Ni (unrelaxed) −1.72 → −2.02 eV, Cu₃Au ordering (unrelaxed)
+  0.053 → 0.045 eV an atom below random; CuZn, NiTi, FeAl, TiAl exact again.
+- **Also measured for it**: insulated drift, Cu flat patch 37 atoms 1,500 K 3,000 steps 1.1e-4 eV (1.25: 4e-5), 3-D ball 135
+  atoms 2,000 steps 4.3e-4 (3.8e-4). Cost (one thread, CPU time, two cores shared): the pass ×2 flat (Cu 955 atoms, Al 769),
+  ×3.2–3.4 in 3-D (864 atoms); whole steps flat Cu ×1.25, flat Al ×1.3 (×3–4 against pairs), a 3-D Al crystal ×1.75 (×5
+  against pairs), a 3-D Cu crystal ×1.0 (electron-transfer estimates). Many-body off: the 59 setups bit for bit (they are
+  now dc4d35d's anyway); on, five differed (flame Cu, photonuc Pb, crt Zn, and magnet and sns through Fe–H and Hg–O, which
+  borrow refitted Cu–H and Zn–O). Flat sheets 3% more bound (Cu 2.73 → 2.83 eV an atom).
+- **For the owner** (the choices): (a) leave 1.25's fit (bcc below fcc in 3-D for most fcc/hcp metals; flat world unaffected
+  in kind: no bcc there); (b) ship the tried constants (structures right, fcc balls stay fcc, but 3-D melting 250–400 K
+  higher, C′ 1.5–4× too stiff, Ni₃Al 19% overbound); (c) a different form: a fourth-moment term (band shape: what really
+  sets fcc against bcc for filled d bands), or MEAM's screening plus second-neighbour reference structure, each a larger
+  piece of work; the tool (`--cp`, `cpLiquid`, the Bain and open-structure constraints) is ready for it.
+- Tests: none added to the suite (the parts written for it, f_126m `cp` and `cpmd`, failed on dc4d35d as they should and are in
+  766e38c); f_125m and f_126m are dc4d35d's again.
+
+### 1.26: directional forces
+
+The planned entry "Directional forces" (the owner, after 1.25's nuclear work: "Add them to 1.26"), the four items of the
+task in order: lone pairs, σ-holes, π-stacking, polarizability by direction (branch v133). Physics-model changes behind
+three new Experimental switches (Settings → Experimental → Directional forces: Lone pairs, Halogen σ-holes, π-stacking),
+off by default and at every start like the rest of the tab, **for the owner's OK**. The fourth item (polarizability by
+direction) was investigated and not built: below, with numbers. Reference values are from memory (the web was refused
+from here, as in 1.25): worth checking before quoting them to the owner.
+
+- **How (src/sites.js, new)**: an off-atom charge site is a point carrying part of an atom's charge, placed from the atom
+  and its bonded neighbours. Between atoms of different molecules within the cutoff, each pair's Coulomb energy is worked
+  out between the two charge sets (the atom with what it keeps, and its sites) and replaces the pair kernel's
+  atom-to-atom one, faded back to it between RC − 1 Å and RC by a smooth step on the atoms' distance (the sums of charge
+  are kept, so the kernel's shift at the cutoff cancels and nothing jumps). Same soft Coulomb (1/√(r² + 0.09)) and
+  ion–molecule weight (K_IW) as the kernel. A molecule's own atoms keep their point charges. The site positions depend on
+  the bond vectors only, so their forces are carried back to the atom and its neighbours analytically (unit vectors,
+  cross products). Hooks in engine.js, each guarded by `SITES.any`: after the kernels in computeForces1 (`sitesForces`,
+  over the neighbour list's intermolecular pairs, main thread), localPE (`sitesLocal`, so every event books the sites),
+  totalEnergy (`sitesTotal`), pairPE (`sitesPairE`), and the induced charges' update (`sitesQeq`: the sites' share of φ
+  and the exact energy change). Switching with molecules in the box books the energy difference to the heat bath (as the
+  other Experimental models). The WebAssembly kernel and the workers are untouched (a JavaScript pass; a Rust port would
+  be the speed-up if the owner keeps it). Off: nothing runs; the 53 flat setups' and 6 3-D setups' fingerprints (300
+  steps, seed 7) are identical to cc8a0fd.
+- **Lone pairs** (3-D only: a flat world has no out-of-plane directions; dimmed "3-D only" in the flat game). An O with
+  two single bonds (water, alcohols, ethers, peroxides) puts half its partial charge (`LP_O.f` 0.5) on two lone pairs
+  0.7 Å out at the tetrahedral directions (TIP5P's geometry); an N with three single bonds (ammonia, amines) 0.4 of it
+  on one site 0.3 Å along its pyramid's axis (`LP_N`; at TIP5P-like 0.7 Å and the whole charge a hydrogen sat on the
+  site: the ammonia dimer bound 10 eV). Chosen from scans of the water dimer (d 0.3–0.7 Å, f 0.2–1, softening, a
+  dipole-keeping M site as TIP4P's) and of liquid water and ice (below). Measured:
+  | | point charges (1.25) | lone pairs | reference |
+  |---|---|---|---|
+  | water dimer: binding | 0.206 eV | 0.416 eV | 0.217 (CCSD(T)); TIP4P 0.27, TIP5P 0.29 |
+  | O–O; O–H···O; acceptor tilt | 2.89 Å; 165°; 17° | 2.77 Å; 170°; 42° | 2.91 Å; ~174°; ~57° (TIP5P 51°) |
+  | ammonia dimer | 0.081 eV, 3.17 Å | 0.133 eV, 3.09 Å | ~0.137 eV, 3.2–3.3 Å |
+  | water → ammonia (N acceptor) | 0.21 eV, 2.96 Å | 0.30 eV, 2.89 Å | ~0.27 eV, ~2.98 Å |
+  The dimer comes out about twice the real binding: a pair model made for the liquid (no polarization) binds an isolated
+  pair harder; with f 0.3 it is 0.32 eV (tilt 38°), with f 1 0.73 eV. Liquid water (343 waters, 300 K, a crude
+  Berendsen-like barostat on the molecules' centres from the energy's slope under scaling, scripts in the session's
+  scratchpad; ~2.2 ps sampled after 3 ps):
+  | | first peak | first minimum | 2nd peak | neighbours to the minimum | tetrahedral order q | density g/cm³ |
+  |---|---|---|---|---|---|---|
+  | measured | 2.80 Å (2.5–2.6) | 3.4 Å (0.8) | 4.5 Å (1.1) | 4.3–4.7 | ~0.6 | 0.997 |
+  | point charges, 6 Å | 2.98 (2.5) | 3.98 (0.77) | none | 10.1 | 0.39 | 1.09, still contracting |
+  | lone pairs f 0.3, 6 Å | 2.83 (2.7) | 3.98 (0.85) | none | 10.8 | 0.49 | 1.18, still contracting |
+  | point charges, 9 Å reach | 2.88 (3.4) | 3.48 (0.35) | 4.13 (1.7) | 6.0 | 0.64 | 1.14 |
+  | lone pairs f 0.5, 9 Å | 2.78 (3.9) | 3.18 (0.51) | 4.13 (1.7) | 4.5 | 0.69 | 1.18 |
+  | lone pairs f 0.6, 9 Å | 2.73 (4.1) | 3.18 (0.46) | 4.08 (1.7) | 4.4 | 0.70 | 1.18 |
+  Ice Ih (128 waters, protons by a directed Euler circuit so every O gives two and takes two, 0.917 g/cm³, 250 K,
+  1.6 ps, 9 Å reach): with lone pairs it keeps its crystal: O–O 2.78 Å (ice 2.76), second neighbours 4.48 (4.51), four
+  neighbours exactly, q 0.965; with point charges the second shell is crushed to 4.13 Å, q 0.79. Under the barostat the
+  lone-pair ice heated to ~400 K (the crude barostat feeds the heat) and kept four neighbours at 1.08 g/cm³.
+  What is left, and why (base-model limits the lone pairs do not change, for the owner):
+  - With the usual 6 Å reach the network is blurred by the cutoff itself: every setup's g(r) has a false peak at 6.0 Å
+    (2.5–2.8) and the structure stays close-packed with or without lone pairs: partial charges cut atom by atom at 6 Å
+    split molecules' dipoles at the cutoff sphere. The 9 Å reach (Experimental) or a cutoff by molecule (or a damped
+    shifted-force Coulomb) would fix it; the lone pairs' fade follows the kernel's atom-by-atom cutoff on purpose.
+  - Water is 14–18% too dense in 3-D with or without lone pairs (1.14–1.18 g/cm³ at 9 Å); the second peak sits at 4.1
+    Å, not 4.5. Its O–O Lennard-Jones (UFF, 3.5 Å, doubled for the flat world: LJ_SCALE 2, still on in 3-D) is in the
+    range of TIP models', so the density is the charges' and cutoff's; taking LJ_SCALE off in 3-D made it denser and
+    hotter in a first try. A density fit is a change of the water model itself, not of the lone pairs.
+  - Cost: liquid water ×2.1–2.6 a step (a JavaScript pass over the ~23,000 pairs with an O in them).
+- **Halogen σ-holes** (both modes). A Cl, Br or I with one single bond to C (or to another halogen, or F) carries a
+  positive point on its bond's axis beyond it, as force fields' "extra point" models do (OPLS-AA's X-sites, CGenFF's
+  lone pairs: distances 1.6/1.9/2.2 Å from memory), the same charge taken off the atom: Cl 0.10 e at 1.6 Å, Br 0.085 at
+  1.9, I 0.08 at 2.2, fitted on CH₃X···NH₃ (scans of q 0–0.2 e and d 1.0–2.0 Å; a softer site Coulomb, 0.5–1 Å², tried:
+  no better). Measured (kcal/mol; X···N Å, C–X···N°), point charges → σ-holes, reference (MP2/CCSD(T) values from
+  memory, ±30%):
+  | | point charges | σ-holes | reference |
+  |---|---|---|---|
+  | CH₃Cl···NH₃ | 1.17 (3.51, 163°) | 1.13 (3.28, 159°) | ~0.8–1.2, axial ~3.2 |
+  | CH₃Br···NH₃ | 1.37 (4.03, off the axis) | 1.91 (3.24, 179°) | ~1.6–2.0, ~3.1–3.2 |
+  | CH₃I···NH₃ | 1.27 (3.86) | 2.86 (3.41, 177°) | ~2.6–3.2, ~3.2–3.3 |
+  | CF₃Cl / CF₃Br / CF₃I···NH₃ | 3.6 / 3.4 / 3.7 | 6.0 / 7.1 / 8.6 (179–180°) | ~1.7–2.2 / 3.0–3.5 / 4.5–5.5 |
+  | CF₃I···OH₂ | 0.5 | 10.7 (3.22 Å) | ~2–3 |
+  | Br₂···NH₃, ICl···NH₃ | 0.4, 1.4 | 2.9 (3.39), 5.0 (3.41), 180° | ~6–7 and ~10 (strong charge transfer) |
+  The geometry is what the item asked for: with σ-holes the acceptor sits on the C–X axis (176–180°) at 3.2–3.4 Å;
+  without, off the axis or 4 Å away. CH₃X energies match; CF₃X are 2–3 times too strong already with point charges
+  (the game's C–F partial charge, 0.43 e from PARTIAL_K, about twice the real one, leaves CF₃X's carbon at +1.47);
+  Br₂ and ICl's charge-transfer complexes are a half to a third of the real binding (no charge transfer in the model).
+  Cost: a flat box of 48 halomethanes ×1.7–2.0; a 3-D box of 125 (515 atoms) ×2.0–2.7; nothing without such halogens.
+- **π-stacking** (3-D only). Every aromatic carbon puts −0.07 e on two points 0.7 Å above and below the ring (the
+  carbon +0.14), benzene's quadrupole with its C–H charges (in-plane charges alone give Θ ≈ −1.3 e·Å², measured −1.8);
+  and, needed first: ring atoms of two aromatic molecules meet with OPLS-AA's aromatic Lennard-Jones (Jorgensen &
+  Severance 1990, from memory: C σ 3.55 Å, H 2.42 Å, H ε 0.030 kcal/mol; the carbons' ε 0.070 × 1.4, fitted) instead of
+  the kernel's (UFF doubled for the flat world), faded out with the sites' step, the kernel's inner wall and core kept.
+  Benzene dimer (rigid monomers relaxed alone, scans in 0.05–0.2 Å steps; kcal/mol):
+  | | sandwich | T-shaped | parallel-displaced |
+  |---|---|---|---|
+  | point charges (1.25) | −8.59 at 3.55 Å | −4.48 at 5.25 | −8.49 at 3.5 / 0.8 |
+  | OPLS ring dispersion alone | −1.81 at 3.75 | −2.13 at 5.0 | −2.24 at 3.5 / 2.4 |
+  | π-stacking (on) | −1.95 at 3.8 | −2.84 at 5.0 | −2.77 at 3.5 / 2.6 |
+  | CCSD(T)/CBS (Sinnokrot & Sherrill, Podeszwa et al.) | −1.7 to −1.8 at 3.9 | −2.6 to −2.8 at 4.9–5.0 | −2.6 to −2.8 at 3.5–3.6 / 1.6–1.8 |
+  Left: the offset of the displaced dimer comes out 2.6 Å (CCSD(T) 1.6–1.8; that surface is flat along the offset);
+  the sandwich 0.15–0.25 kcal/mol too deep. Graphite's interlayer spacing was not measured (no 3-D graphite setup; the
+  graphene object's carbons are ring atoms, so it would follow the same OPLS carbon). Cost: a box of 125 benzenes
+  (1,500 ring atoms) ×5.5–9.5 (the ring pairs' dispersion in JavaScript over every ring–ring pair); nothing without rings.
+- **Polarizability by direction: investigated, not built** (much harder than planned). The induced charges (1.12) are a
+  charge-flow model: charge moves along bonds, so a molecule polarizes only along its bonds. Measured with the game's
+  QEq in 3-D (a 0.02 V/Å field along each principal axis, the charges iterated to self-consistency; Å³):
+  | | along | across (in plane) | out of plane | measured (from memory) |
+  |---|---|---|---|---|
+  | N₂ | 1.11 | 0 | 0 | 2.38 / 1.45 |
+  | CO₂ | 6.42 | 0 | 0 | ~4.1–4.3 / ~1.9–2.2 |
+  | benzene (in plane / out) | 166.9 | 166.9 | 0 | 12.3 / 6.4 |
+  | water | 2.39 (along the H···H line) | 0.50 | 0 | 1.53 / 1.47 / 1.42 |
+  | methane | 3.29 | 3.29 | 3.29 | 2.59 |
+  So across-bond polarizability is zero for every linear and flat molecule, and conjugated charge flow is 14 times too
+  large in benzene (the long-range charge-flow problem of QEq models). Directional tensors need induced point dipoles at
+  the atoms (or bonds), a new electrostatic term: dipole–charge and dipole–dipole energies and forces, a self-consistent
+  update between steps paid from the molecules' motion as the induced charges are, its self-energy ½μ·α⁻¹·μ in the books;
+  and the charge flow in conjugated molecules must be damped or the two would double-count. A design that fits the
+  framework: each dipole as ±1 e sites at ±μ/2 from its atom (fixed during a step: the site machinery gives its energy,
+  forces and, from the sites' offset gradients, the field −∂U/∂μ for the update), bond tensors α∥ ûû + α⊥(1 − ûû) split
+  to the two atoms, fitted additively (from memory: C–H 0.79/0.58, aromatic C–C ~2.24/0.49 so benzene comes out 12.3/6.4,
+  N≡N 2.38/1.45, C=O 2.15/1.1 from CO₂, O–H 0.79/0.71 from water). A session of its own; not started here.
+- Tests: tests/f_126d.js (t_features' "1.26 (directional)" line, or `node tests/f_126d.js [slope water sigma stack
+  books settings]`): forces the slope of the sites' energy in x, y, z (2e-9 eV/Å in 3-D with every kind of site, 3e-11
+  flat); the water and ammonia dimers above; CH₃Br···NH₃ on the axis; the benzene dimer's three shapes; the books
+  (switching books 0.0193 eV to the bath exactly; insulated, 12 molecules, 0.61 ps: −0.033 eV with every site against
+  −0.026 without, the cutoff's own small jumps, the same at half the step); the Settings rows. Fails on cc8a0fd
+  (`sitesSet` is not defined). t_settings passes; t_lint clean (no new warnings). tools/runtests.sh not run here (the
+  main session runs it after merging).
+- Text: Settings → Experimental → Directional forces (three rows, their notes with the numbers above, cost tags for both
+  modes, `SDESC`/`SDESC3`, realism tags, the Experimental total), Help → Forces, CLAUDE.md's layout (one line).
+
+### 1.26: WebAssembly speed-ups
+
+The owner: "see if there's anything you can write in wasm to make it faster" (branch v134, from the combined 1.25 at
+cc8a0fd). No physics change: every new path keeps the JavaScript as the reference (a switch turns each off), agrees with
+it to the bit or to rounding, and the flat game's fingerprints are unchanged. The module was built by wasm.yml on v134
+(commits cf2fc67, 18a9311, 970cc32, 35a434e, 46199aa: "kernel.wasm: built from …"); no wasm32 target here, so every port
+was first checked natively against a dump of the JavaScript's own state (cargo examples, below).
+
+**Profile first** (1.25, before any port; Node, one thread, the bath off after settling, a sampling profile of the timed
+steps only: scratchpad tools prof.js / scen.js of the session; CPU ms a step; [w] = already WebAssembly). The machine is two
+cores shared by four agents, so ms are ±30% between runs; the shares held better.
+
+| setup (atoms) | ms a step | where the time goes |
+|---|---|---|
+| flat liquid water (240) | 0.41 | pair kernel [w] 31%; integration and inner steps ~25%; chooseDt 7%; list walk (vlPairs) 6% |
+| + bond orders | 1.2 | the pass [w] 41% (pass1 32, collect 5, pass2 4.5); its JavaScript gathering 10%; garbage collection 17% |
+| + quantum nuclei, 8 beads, every bead | 2.2 | pair kernel [w] 46%; list walk 12% (a list for most beads); ring modes (JS) 11% |
+| + induced charges every step | 1.0 | qeqUpdate 27% + qeqC 13% (JS); pair kernel [w] 27% |
+| flat salt water (726) | 4.7 | pair kernel [w] 28%; electron-transfer estimates 31% (gridWalk 17%) |
+| flat organic box (536) | 0.37 | integration 34%; pair 16%, angles 11% [w] |
+| flat Al patch, many-body (223) | 1.4 | mbPass 21% (JS); garbage collection 15%; pair 5% |
+| flat Cu patch, many-body (283) | 3.4 | electron-transfer estimates 69% (on record) |
+| flat water, 4 × 1 MeV protons | 6.1 | molecule naming (graphHash, fnv, libIndex) 18%; inner steps 26%; pair 6% |
+| flat water, 4 × 10 keV electrons | 6.5 | molecule naming 17%; inner steps 20%; garbage collection 15% |
+| 3-D liquid water (1,029) | 3.6 | pair kernel [w] 68%; list walk (vlPairs3, JS) 19% |
+| + bond orders from the positions | 29 | the JavaScript pass 94%: Coulomb 35%, its own loops 22%, pair collection 23%, LJ 4%, angles and twists ~3% |
+| + quantum nuclei 8, contracted | 8.2 | pair [w] 36%; list walk and build 19%; ring transforms (piTo, piFrom) 12%; angles [w] 6% |
+| + quantum nuclei 8, every bead | 67 | list walk 62% (made again for every bead); pair [w] 29% |
+| + induced charges every step | 13 | pair [w] 44%; qeqUpdate 26% + qeqC 12%; list walk 5.5% |
+| 3-D salt water (997) | 14 | electron-transfer estimates 38% (on record); pair [w] 32%; list walk 6% |
+| molecules in space (72) | 0.23 | the step's loops ~40%; angles 6%, pair 4%, bonds 3% [w] |
+| 3-D organic box (536, 584 single-bond dihedrals) | 1.2 | single bonds' twist (tors1K, JS) 17–22%; angles [w] 10%; pair [w] 5%; integration 25% |
+| + bond orders | 4.9 | the JavaScript pass 89% (its loops 22%, Coulomb 11%, 3-D angles 9%, twists 12%) |
+| 3-D Al ball, many-body (959) | 2.3 | mbPass 35% (JS, exp 15%); pair [w] 19% |
+| 3-D Cu ball, many-body (603) | 113 | electron-transfer estimates 95% (on record) |
+| 3-D water, 4 × 1 MeV protons | 9.6 | pair [w] 39%; list walk 7%; the protons' flight and events ~20% |
+| 3-D water, 4 × 10 keV electrons | 258 | anonymous callbacks 30% (the path search, on record); list walk 23% (the MD set changes as electrons fly); free-electron forces 9.5%; event evaluation 21% |
+
+Threaded: not measurable here. Two threads on the two shared cores gave the same 3-D water run 15–90 ms a step (the
+busy-waiting workers against four agents); t_threads checks the threaded paths' results (below), not their speed.
+
+**The ports**, in order of expected gain. Speed: two worlds in one process (the 1.25 paths and the new ones, the same
+seed), stepped in alternating chunks, CPU time (scratchpad ab.js), 4–5 rounds; "min" is the best chunk against the best
+chunk, the range is chunk against chunk (the other agents' load moves single chunks ×2–5).
+
+1. **The neighbour list's walk** (engine.js vlPairs / vlPairs3 → kernel/src/vl.rs `af_vl`, `af_vl3`; vlPairsW /
+   vlPairs3W on the main thread, in vlBuildAll's own share and on the workers, `VL.useWasm`). The same walk over the grid's
+   hash of occupied cells in the same order, whole numbers and the same subtractions: the list is the JavaScript's pair
+   for pair. Native check (vlcheck on tools/vldump.js dumps of flat water, brine, 3-D water, brine, the molecules in
+   space, an organic box): the same lists, whole and in three stretches as the workers build them. Fingerprints, 300
+   steps, seed 7: the 46 flat setups, the six 3-D setups and three quantum-nuclei runs identical to cc8a0fd. The walk is
+   2–2.5 times faster natively (3-D water: JS 6.4 ms, Rust 2.5–3.0 ms: in a 22 Å periodic box the cells are two a side,
+   so every pair is checked, 530,000 for 1,029 atoms). Steps: 3-D water ×1.13–1.14 (min; range 1.07–1.42), 3-D salt water
+   ×1.24 (1.2–2.1), quantum nuclei every bead 8 beads ×1.28–1.31, 16 beads ×1.1–1.2, flat water ×1.0, flat
+   every-bead ×1.03–1.08.
+2. **Continuous bond orders in 3-D** (bo.js's 3-D pass → kernel/src/bo.rs: collect with z and BF.puz, the 3-D angle term
+   (`centre3`: angle3CentreK's pairs, the roles of modes 2–4, the out-of-plane term, with vsepr3's [mode, θ₀, flat] for
+   every key in a table made by the JavaScript), the double bonds' twist (`trip`, triple3K's), the single bonds' twist
+   weighted by the orders (bfTors1's, with tors1 below and TOR1B / TOR1's k's in a table), the z forces; bo.js runs it
+   when the module says so, af_const(18) = 100, `BF.useWasm`). Native check (bocheck on tools/bodump.js's 3-D dumps:
+   water3d 1,029 members, mol3d, an organic box, mix3 with every angle mode): energy to the bit, forces to 5e-14 eV/Å
+   (largest 39), orders, charges and ∂E/∂ν to rounding; the flat dumps as before. In Node: one pass's energy the same to
+   the bit, forces 4e-16 (water) to 3e-15 eV/Å (organic, largest 15); 20–100-step runs 0–6e-16 Å apart, the same
+   events. Steps: 3-D water ×2.8–3.0 (range 1.7–6.6; 1.25's 21.7 → 7.3 CPU ms a step at best), the organic box ×2.2–2.6,
+   the molecules in space ×2.4 (f_126w's own interleaved run ×3.2–4.7). Cost against stored bonds a simulated fs: water
+   ×15 → ×7.8, the molecules in space ×19 → ×8, the organic box ×21 → ×14 (cross-process runs). What is left of it: pass1
+   60% (Coulomb and the 1-3 search), collect 14%, pass2 9%.
+3. **The single bonds' twist** (engine.js tors1Forces3 → d3.rs `af_tors1`, AC3.sq/sk in the module's memory,
+   `AC3.useWasm`): square roots and products only, so the forces are the JavaScript's to the bit (native check on the
+   organic dump: 584 dihedrals, 0 components differ; Node: forces and a 100-step run identical). 584 dihedrals 0.05–0.12 ms
+   against 0.07–0.18 (×1.3–1.6); the organic box's step ×1.07–1.11.
+4. **Bond orders for metals** (bometal.js mbPass's pair loop, embedding and forces → kernel/src/mb.rs `af_mb`; one line in
+   bometal.js, the wrapper mbWasm in wasm.js copies the sorted members in; `MBO.useWasm`). Native check (mbcheck on
+   tools/mbdump.js: a flat Al patch, 3-D Al and Cu balls, a Cu–Ag–Au alloy, periodic Cu): the same pairs, energy to the
+   bit, forces 1e-15, the same stiffness; in Node every case so far bit for bit (the module's exp gave V8's here).
+   Little faster: the pass is two exp calls a pair, and the module's exp (compiler_builtins' libm, the same fdlibm
+   algorithm) runs no faster than V8's built-in; 3-D Al ball ×1.1–1.2, flat Al ×1.2 (min). A faster exp (a table and a
+   short polynomial, 1 ulp) would take about a third off the pass but changes the last bit: not done.
+5. **Induced charges' pairs** (qeqUpdate's loop over the neighbour list with qeqC → kernel/src/qeq.rs `af_qeq`, QB's arrays
+   in the module, the exclusions from exclLists' arrays, `QB.useWasm`): native check (qeqcheck on tools/qeqdump.js: flat
+   water and brine, 3-D water, brine and H₂ + O₂): the same list, coefficients and charge products to the bit; every-step
+   runs identical (f_126w). Steps every step: 3-D water ×1.3–1.37, flat water ×1.1–1.4; every 10th ×1.0–1.2. What is left:
+   qeqUpdate's own JavaScript (the molecules gathered as objects, φ and the books) 14% of a 3-D step.
+6. Found on the way, fixed (the module's memory growing): a shared WebAssembly.Memory hands out a new buffer object after
+   it grows, and the views made before keep the old one. wasmFastReady and bfDescFill compared views with WK.mem.buffer,
+   so after the first growth every pass went to the JavaScript for good, and bfScratch / bfSupRoom made their scratch
+   arrays again at every bond-order pass (the arena leaking). Measured on 1.25: 3,600 flat waters with bond orders, 242
+   growths before the first step and 0 module passes (277 ms a step); 3,600 waters with 30 free electrons, 0 af_fast calls
+   after the memory grew. Now `wasmIn` (wasm.js: the memory's buffers kept in a set) is used for every such check: 78
+   growths, every pass in the module (147 ms a step); the electrons' run identical to the bit (the kernel's forces are the
+   JavaScript's), 425 module calls, 209 → 133 ms a step.
+
+**Settings' costs** (3-D, COSTS3, and the 3-D notes in Experimental): bond orders from the positions ×18–23 → ×7–14;
+quantum nuclei every bead ×17 / ×30 / ×48 → ×13 / ×25 / ×40 (the 32-bead one scaled, not measured); every bead against
+contracted ×7–10 → ×6–8; induced charges every step ×3.2–4.2 → ×2.5–3.2, every 10th ×1.6–2.4 → ×1.4–2.4. The flat tags
+did not change by more than the noise (the flat list walk and the flat many-body pass ×1.0–1.2); the flat bond-order tag
+(×8–15 against a measured ×5–7) is on the bug list and left. f_125s's check of the 3-D bond-order tag accepts ×7–14.
+
+**After** (the same profile, 1.26): 3-D water: pair kernel 75%, list walk 11%; 3-D water with bond orders 9–10 ms a step,
+the module's pass 83%; every bead at 8 beads: list walk 48%, pair 39%; contracted 8 beads: pair 45%, ring transforms (JS)
+20%, list 8%; the organic box: twist [w] 18%, pair 17%, angles 14%; 3-D water with induced charges: pair 48%, af_qeq 21%,
+qeqUpdate 14%; Al ball: af_mb 30% of which exp 22%.
+
+**Left, and why:**
+- Quantum nuclei with every bead in 3-D: the list is made again for every bead (above, and the bug list). A list per bead,
+  each kept while its bead's atoms stay within the half skin (as a centroid's is), would remove most of the 48%, about ×1.7
+  a step; but the pairs then come in another order (rounding) and bead 0's events in another order: the owner's call.
+- The ring transforms of contracted quantum nuclei (piTo, piFrom, piOpen: ~20% of a 3-D step at 8 beads) port to the
+  module to the bit (sums in the same order), but PI's and PIM's arrays would move into its memory and the thermostat's
+  gauss() stays in JavaScript: perhaps a tenth of a step; not done.
+- The single bonds' twist runs on the main thread after the threaded kernels; giving its dihedrals to the workers (as AC3.tq)
+  matters with many threads (+30% of a one-thread step in organic boxes).
+- The many-body metals' exp (above); the 3-D bond orders' pass on one thread (the rest of the step is threaded).
+- Measured, on the bug list, not touched: electron-transfer estimates (brine 31–38%, Cu 69–95%), the charged-particle path
+  search (3-D water with 10 keV electrons, 258 ms a step, 30% in its callbacks), molecule naming in flat radiolysis
+  (graphHash, fnv: ~18% with fast protons or electrons).
+
+**Tests**: tests/f_126w.js (t_features' "1.26 (speed)" block, or `node tests/f_126w.js [vl tors1 bo3 mb qeq grow page]`):
+vl (lists pair for pair, whole and in stretches, flat and 3-D; 60-step runs to the bit with and without), tors1 (forces and
+a 100-step run to the bit), bo3 (energy 1e-9, forces 1e-10, runs together, ×1.5 at least on the molecules in space), mb
+(1e-12, flat and 3-D), qeq (every-step runs to the bit), grow (after the memory grows the bond orders and electrons stay in
+the module, nothing reallocated, the run to the bit), page (the headless page's module runs the 3-D bond orders and the
+list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38 MB reallocated in 30 steps). Native:
+`cargo run --release --example vlcheck|bocheck|mbcheck|qeqcheck -- dump…` with tools/vldump.js, bodump.js (3-D setups
+added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
+thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
+
+## 1.27.0: all of 1.26 (directional forces, GFN2 quantum bonds, metals' compounds and directional metals) and 1.27 (realistic particles, W, Z and Higgs bosons, polarizability by direction, Rayleigh scattering, unstable particles meeting, photons as waves, close-packed metals, two controls), 18 bug fixes
+
+Released 2026-11-07 from v157 (the owner: "release"); 1.26 was never released on its own and ships inside it.
+
+### 1.27: realistic particles 1 (exotic atoms) and the Settings section
+
+Branch v141 (from v136 at e237efe, the combined 1.26 with the 3-D and exotic-particle sweeps). The first of the seven
+approved realistic-particle parts (the owner, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with
+anything"), and the Settings section they live in. Checks: tests/f_rp1.js (t_features runs it alone; `node tests/f_rp1.js
+[--node] [part …]`); every part fails on v136 (no switch there) and passes here.
+
+- **The Settings section.** Settings → Experimental now ends with the heading "Realistic particles" (an h3, `rpHead`) and
+  one compact line a part: its name, an on/off switch (a checkbox drawn as a switch, `input.sw`, `role="switch"`), its
+  cost tag and "realistic when on" tag; the description is in the side pane on hover or focus, as every row's since
+  1.25 (on a phone, under the line). Ultra-realistic mode (`setUltra`, now a switch) and Electrons as waves (`segWave`,
+  its two buttons kept) moved in from their own headings, with their ids, descriptions, notes, cost tags, pictures and
+  saved values unchanged (both still start at normal: `SET_EXP`). Then the new line, Exotic atoms (`setRpExo`,
+  `SET.rpExo`, `RP.exo` in hep.js; off at every start like the rest of the tab). Photons as waves has its place marked
+  (a comment in body.html) beside Electrons as waves; no row yet. The 3-D lab's note (`set3dNote`) names exotic atoms
+  (muons, pions and kaons; antiprotons flat-only), and the 3-D side pane has its own description and cost (SDESC3,
+  COSTS3). No Settings picture changed, so setshots were not remade. Screenshots: scratchpad rp1/set-desk-2d.png,
+  set-desk-3d.png, set-phone-3d.png. Check: f_rp1 "layout" (lines 24 / 61 / 24 px high: the waves line keeps its
+  buttons; nothing wider than the screen at 390 px).
+- **Exotic atoms (Experimental → Realistic particles → Exotic atoms).** Before: a μ⁻ slowed to 2 keV was caught by the
+  nearest atom, its binding (0.51's MU_EB) leaving as two X-rays, and the atom's electrons kept seeing the whole nucleus;
+  π⁻, K⁻ and p̄ were absorbed at once. With the switch on (hep.js, "Realistic particles 1"):
+  1. *Capture* (`xaStep`, `xaTarget`). A μ⁻, π⁻ or K⁻ below 2 keV slows on by ionizing (exoIonize, as above 2 keV) until
+     its kinetic energy is under 30 eV (`XA_CAP`, about the outer electrons'), then is caught by an atom within 1.5 Å,
+     each with a chance ∝ Z (Fermi and Teller 1947). It takes an electron's place (that electron leaves with the
+     particle's energy and its binding in the first orbit, n₀ = √(m*/mₑ): 14 for a muon, 15–16 for a pion, 30–31 for a
+     kaon, 30–43 for an antiproton). Below 2 keV a slowing pion or kaon has no nuclear hits at the enlarged reach
+     (0.35 Å): they ended most kaons in the hypernucleus factory before they were caught (at true size a slow one meets a
+     nucleus in flight about once in 10⁹).
+  2. *Cascade* (`xaCascade`, `xaClose`). Down the circular orbits n → n − 1: an Auger electron while the atom has one to
+     give and the radiative rate (hydrogen-like 2p → 1s, 6.27×10⁸ s⁻¹·Z⁴·m*/mₑ, ×(2/n)⁵ up the circular orbits) is
+     under 10¹² s⁻¹, else an X-ray (photons the game already tracks: screens, detectors and the spectroscope see them).
+     So carbon's cascade turns radiative below n ≈ 5 and lead's is radiative throughout. Levels: Bohr's with the reduced
+     mass; a muon's 1s from the measured 2p → 1s line (`XA_KA`: C 75.25, O 133.53, Al 346.8, Si 400.2, Ca 783.9,
+     Fe 1,255, Pb 5,901 keV, the Pb fine-structure pair 5,962.8 / 5,778.1 given as one line at its 2 : 1 mean; Engfer et
+     al. 1974, Fricke et al. 1995; between them the ratio to Bohr's value interpolated in Z). The electrons' own binding
+     lost when the muon comes inside them (their Z − 1, below) is paid from the upper cascade first. The atom is left at
+     most +2: in a liquid or solid its holes fill from the neighbours within femtoseconds (not followed here), so past
+     that the upper cascade radiates. The X-rays carry their line energies exactly; what the books leave beyond them
+     goes to the Auger electrons (`xaClose`).
+  3. *End.* A muon stays in 1s: decay in orbit, its electron with the Michel spectrum x²(3 − 2x) up to the bound muon's
+     mass (`xaMichel`; the free muon's was flat phase space, and still is), or nuclear capture (Z − 1, neutrons boiled
+     off), at the measured mean lives (MU_TAU, 1.26). A pion is absorbed from its last orbit (`XA_NABS`: 1s up to Na,
+     2p to Br, 3d to Bi; kaons 1s in H, 2p to O, 3d to Ca …; antiprotons 2p in H, 3d to O …, rounded from Batty, Friedman
+     and Gal, Phys. Rep. 287, 385, 1997) by the existing absorption (hStop: a star; π⁻p → π⁰n or γn, 3 : 2; kStop: Λπ, a
+     hypernucleus sometimes), its binding there already given off (its mass less by it). An antiproton (flat game:
+     `nuclearAnnihilation`) cascades first, then annihilates; in hydrogen that is protonium (p̄p), annihilating from 2p
+     (99 in 100 there: its 2p width 38 meV against 0.4 meV for the X-ray), its L line 1.735 keV.
+  4. *To the outside an atom of charge Z − 1* (`zChem`, engine.js, on `p.muB.zx`). The electrons of a muonic atom see the
+     nucleus and the muon together: refresh takes the element below for p.el (so its table entries: valence, capacity,
+     bond energies and lengths, size, electronegativity), its charge Z − 1 − nₑ, and ionE(Z − 1, …) in internalE,
+     ionizationCost, softFor, electron capture and transfer, field ionization and the flying charges. Muonic carbon is to
+     the outside boron: valence 3, first ionization 8.30 eV, named μC (`elSym`; formulas, labels, the 2-D and 3-D atom
+     labels and Inspect's tile, "Exotic atom, to the outside boron"). What does not carry over: rules written for one
+     element by its nuclear charge (`p.Z === 1` …: a muonic helium is hydrogen-like but makes no hydrogen bonds), the
+     continuous bond orders and quantum bonds (they read the nucleus's Z), the orbitals view (the nucleus's Z). After a
+     decay in orbit it is carbon again (inside the decay's books); after a capture the nucleus is boron and its
+     chemistry carries on.
+  5. *Muonic hydrogen* stays an unstable particle in W.exo (since 0.51; Select, Erase, copy, saves and undo take it
+     since the 1.26 sweep): neutral and 200 times smaller than an atom, it passes through atoms. Beside a heavier atom
+     (2.5 Å, as muAtomTick takes a neighbour in liquid hydrogen) its muon moves over (`xaTransfer`, μp + Z → μZ + p) at
+     the rate at liquid-hydrogen density: N 3.4×10¹⁰, O 8.5×10¹⁰ s⁻¹ (PSI, thermal μp in H₂ mixtures, late 1990s, values
+     as I know them), He about 10⁸, others scaled from O's as Z up to 1.5×10¹¹ (Gershtein's estimate), on the nuclear
+     clock (Lab → Decay speed) as muAtomTick's rates. It lands in the highest orbit bound more deeply than μp's 1s
+     plus the electrons' lost binding (oxygen: n = 7), cascades there, and the proton and the atom fly apart with the
+     difference (521 eV and 31 eV).
+  6. *Inspect*: a pill "muonic atom: a μ⁻ in its 1s orbit (n = 1), mean life here …", and lines Muon (binding, the orbit
+     it was caught into or came over from, the capture share), Cascade (the four strongest X-ray lines with their
+     orbits, the Auger electrons) and Chemistry ("its electrons see Z − 1 = 5: to the outside an atom of boron").
+  - *Representation, and why.* A heavier muonic atom was already an atom of the store with `p.muB` (0.51), which Select,
+    Erase, Inspect, copy, saves and undo take (1.26); the switch adds to that object what it is (`sp`, `n`, `n0`, the
+    lines, the Auger count, `zx` for Z − 1, `from` after a transfer), and saves carry it as an optional `xm` list (older
+    readers open it as a 0.51 muonic atom). Pionic, kaonic and antiprotonic atoms live 10⁻¹⁸–10⁻¹² s, at once at the
+    game's steps: they are made, cascade and end in one event, in the log and the event captions. μp stays in W.exo. So
+    no new kind of particle and nothing new in the kernels.
+  - *What the box can't make real, said not faked:* the strong-interaction shift and width of the last pionic and
+    kaonic lines (pionic carbon's 1s is Bohr's 99.1 keV here); Stark mixing and Coulomb de-excitation in hydrogen (μp's
+    and protonium's cascades are radiative after the capture's electron); the holes' refilling (the atom is kept at most
+    +2); the Lyman series' np → 1s side branches (circular orbits only); the 2p fine-structure pair as one line; muonic
+    lines other than 2p → 1s are Bohr's (lead's 3d → 2p 2.63 MeV against 2.64 / 2.50 measured). K⁻ absorption stays
+    Λπ only (kStop): its Σπ channels (about two thirds at rest on light nuclei) are not built.
+- **Numbers** (Node, f_rp1 and scratchpad rp1/t*.js):
+  - Lines: muonic C 2p → 1s 75.25 keV (75.25 measured), O 133.53, Pb 5,901 keV (5,963 / 5,778; a point nucleus 14.2 MeV),
+    μp 1.896 keV (1.898; QED's 0.2% left out), pionic C 99.1 keV, kaonic C 3d → 2p 62.9 keV, protonium 3d → 2p 1.735 keV
+    (1.74); muonic C's cascade: 3 Auger electrons, X-rays 75.3, 13.9, 4.88, 2.26 keV … (n ≤ 12). Flat and 3-D the same.
+  - Its end, 120 lone atoms each (mean life in units of the measured; capture share against measured): C 0.98 (0.09 /
+    0.08), Al 1.01 (0.58 / 0.61), Pb 1.07 (0.98 / 0.97), ±0.27 at 3σ; 3-D alike (scratchpad t6: C 1.11, Al 1.12, Pb 1.01,
+    ±0.30). Michel mean 36.6 MeV (36.9 for the bound muon's mass, 2,000 decays).
+  - π⁻ in carbon: 16 of 16 in three or more pieces (Be + n n p, Li + n p t, He + n n n p α …); π⁻p → π⁰n : γn 177 : 123 =
+    1.44 (Panofsky 1.5). K⁻ in carbon: Λ or a hypernucleus 16 of 16.
+  - Books: each capture, cascade, transfer and end within 10⁻⁵ eV (flat and 3-D; a muonic carbon's decay 4×10⁻⁷). A
+    1.5 keV muon fired into insulated liquid water slows to its capture (below 30 eV; by O or by H, as the Z law draws):
+    3-D 0.1–0.24 eV over the run; the flat game −2.7 to +6.5 eV over 70–120 steps, the known limit of ionized water (the
+    muon's last keV ionizes a few molecules).
+  - With part 3: cpm alone, the fingerprints of annihilation, photonuc, sns, linac and water3d equal part 3's own (v145 at
+    2e5a21c, cpm on); both on, of 40,000 photons of 511 keV meeting a carbon atom 4,812 scatter polarized across the
+    plane, 3,004 in it, 3,924 unpolarized (part 3's odds × knPlaneW: 4,757, 3,057, 3,907).
+  - Switch off: the fingerprints of all 59 setups (seed 7, 300 steps) unchanged against v136; f_rp1 "off" keeps seven
+    of them (mucf, pionbeam, muonium, hyperfactory, annihilation, water, water3d) against v136's hashes.
+  - Cost: off, nothing (one flag test per slow μ⁻, π⁻, K⁻). On, ×1 where nothing is caught (pionbeam 2.63 → 2.70 ms a
+    step, noise); a capture is one event of 1.2–2.3 ms flat, 1.4–1.5 ms in 3-D (the cascade's electrons and X-rays; 40 atoms of C, O, Pb); where slow ones stop, the last
+    keV they now spend ionizing the matter (a small plasma the step chooser follows) costs more: muon-catalysed fusion
+    0.30 → 0.92 ms a step, the hypernucleus factory 0.40 → 1.72 (600 steps, seed 7, one thread).
+- **Found, not changed:** a neutron that hits a muonic atom's nucleus (an inelastic scattering or capture remakes the
+  nucleus) takes the muon away with it (muBoundTick: "its atom gone in some other event"), as before the switch: in a
+  box of muonic lead the capture neutrons ended 37 of 64 muonic atoms early (the lifetime checks use lone atoms).
+- **For the owner (physics questions, written down, not decided):**
+  - K⁻ at rest makes Σπ about twice as often as Λπ on light nuclei (and the Σ often converts to Λ in the nucleus): add
+    the Σπ channels with measured shares?
+  - The capture at 30 eV, chance ∝ Z: hydrogen in molecules is measured to catch fewer muons than the Z law gives (the
+    "large mesomolecular" models); per-molecule ratios could replace it where measured (water, methane).
+  - The atom kept at most +2 after its cascade (refilling not followed): in a thin gas a light muonic atom really ends
+    nearly bare.
+  - The transfer rates for elements other than N and O are scaled, not measured; MU_TAU's and XA_KA's values are from
+    memory of the compilations (no network here) and are worth a check against the papers.
+- **Test change:** t_features' 1.10 Settings check counts four "realistic when on" checkbox tags (Exotic atoms beside
+  resonance in large rings, detailed nuclear collisions and Ultra-realistic), not three.
+- **Suites** (2-core machine): alone t_lint, t_energy, t_hep, t_3d, t_settings, f_swx, f_hep126, f_sweep3d, f_rp1 pass;
+  t_features alone: f_rp1 passes, two misses (the 1.10 count above, fixed; the 1.14 slow-motion readout 1/1.3×, the known
+  two-core flake); tools/runtests.sh: 21 of 22 pass, t_features' one miss the f_bug125 "exoElastic" timing check (6.5 ms
+  under both lanes' load), which passes alone (f_bug125 alone: all pass).
+
+### 1.27: realistic particles 2 and 4 (positronium, muonium as hydrogen, μSR)
+
+Branch v142 (from v141 at 8328e8a, part 1). Parts 2 and 4 of the approved plan (the owner, 2026-11-05: "I ok all of
+them, just please make sure it doesnt mess with anything"), each its own switch in Settings → Experimental → Realistic
+particles, after Exotic atoms: "Positronium" (SET.rpPs → RP.ps) and "Muonium as hydrogen" (SET.rpMu → rpMuSet → RP.mu).
+Both off at start and back to off on reload (SET_EXP), one compact line each with its cost tag (flat and 3-D tables),
+its description in the side pane. Code: hep.js after part 1's block (psFromAtom, psFromFree, psMatter, psDecay,
+muSpinInit, muRate, muSpinTurn, muSpinDecay, muExoDecay, rpMuSet), hooks in engine.js (evLepton, evAnnihFree,
+ionizationCost/internalE through muIonF), hep.js (addExo, addMuonium, muoniumForm, muoniumTick, decayExo/3,
+moveExos/3), ui.js (Inspect, saves, Select), render.js (particle view). Checks: tests/f_rp2.js (t_features runs it
+alone; `node tests/f_rp2.js [--node] [part …]`); every part fails on v141 (no switches there).
+
+**Positronium.**
+- Forming. A positron touching an atom or molecule (evLepton, where it annihilated on contact) forms Ps in the Ore
+  gap: its energy apart from the pull between them, E, between I − 6.80 eV and I, I the electron's binding there
+  (ionizationCost). Below the gap Ps can't form (hydrogen: under 6.8 eV); above it ionization competes; in both the
+  positron annihilates on contact as before. At a negative ion the gap reaches zero (Cl⁻, I = 3.6 eV: any slow
+  positron). A free positron and electron within 0.3 Å (evAnnihFree) form Ps with a photon when the pair has less
+  than 6.8 eV of its own energy to spare (radiative capture: the spur electrons the positron's own track set free);
+  faster pairs annihilate as before. The event is tried first (the electron taken, the positron's charge off,
+  measured, undone) and then made through nucBegin/closeEvent: Ps gets exactly what is left. Antimatter mirrors it
+  (an electron taking a positron from an anti-atom).
+- Ps is an unstable particle in W.exo, pPs or oPs: neutral, 2mₑ − 6.80 eV, bound by Ry/2 = 6.803 eV, orbit radius
+  1.058 Å (twice hydrogen's). One in four is para (rnd < 0.25). Para lives 125.14 ps (7990.9 µs⁻¹, Al-Ramadhan and
+  Gidley, PRL 72, 1632, 1994) → 2 γ back to back; ortho lives 142.05 ns in vacuum (7.0404 µs⁻¹, Vallery, Zitzewitz and
+  Gidley, PRL 90, 203402, 2003) → 3 γ in a plane, energies from the Ore–Powell matrix element (Phys. Rev. 75, 1696,
+  1949), drawn on the Dalitz triangle by rejection (its maximum is 2, on the edges), the angles from closing the
+  momentum triangle, the plane turned at random (3-D: a random normal); boosted by the Ps's motion; the books close
+  through closeEvent (the photons share exactly what the Ps carried). It bounces off reflecting walls as muonic
+  hydrogen does, leaves through open ones.
+- In matter (psMatter, each step on the decay clock). Pick-off at λ = (1/1.80 ns − 1/142.05 ns) × ρₑ/ρ_water, ρₑ the
+  electron density within 5 Å (bound electrons of atoms and free electrons), ρ_water the flat game's own liquid water
+  (0.85 e/Å², measured in the water setup's middle) or real water's 0.334 e/Å³ in 3-D; 1.80 ns is water's o-Ps life
+  from positron lifetime spectroscopy at room temperature. Pick-off gives 2 γ (Ps's energy, the medium unchanged:
+  the positron takes a neighbour's electron, Ps's electron takes its place). Spin conversion by O₂ (two O atoms bonded
+  to each other only, neutral) at n·σ·v, σ = 1.5×10⁻¹⁹ cm² (the thermal o-Ps–O₂ conversion cross section measured in
+  O₂ gas, as I know it: no network here, worth a check), n counted as the electrons are and scaled by water's
+  3.34×10²² molecules/cm³; para back to ortho three times as fast (the states' counts). The surroundings are looked at
+  again once a Ps has moved 1 Å or every 8 steps (o.psE).
+- Measured (f_rp2 "form", "decay", "matter"; seeds as in the file):
+  - Forming, flat and 3-D: e⁺ at 10 eV on H → Ps with 3.20 eV (10 + 6.80 − 13.60, nearly all to the light Ps); at
+    2 eV → annihilates; at Cl⁻ at 3 eV → Ps; with a free electron at 1 eV → Ps and a ~7 eV photon; at 30 eV →
+    annihilates. Books against the same run with the switch off (the same approach; only the event differs): equal
+    to 5.6×10⁻¹¹ eV. (6 seeds × 7 cases each way in the scratch run: the books' drift, 0.02–0.35 eV in the
+    lepton-pair cases, is the close pair's integration before the event, the same off and on.)
+  - Para share 83 of 400 (0.21; 0.25 ± 0.022). p-Ps mean life 138.7 ps from 198 decays (maximum-likelihood with
+    the survivors; ±9 ps): 125.14 within 1.5 σ; each pair back to back to 10⁻⁴ and 510,995.55 eV each (511 keV less
+    half the binding). o-Ps: 600 decays flat and 600 in 3-D, every one 3 γ, coplanar, summing to the Ps's energy
+    within 10⁻³ eV, none over 511 keV; the photon spectrum against Ore–Powell's χ² 6.2 and 4.7 (9 degrees of
+    freedom). (Ore–Powell's single-photon spectrum is close to plain phase space's: 19.4% against 19.0% above
+    460 keV.)
+  - Pick-off life averaged over 600 points of liquid water: 1.81 ns flat (the box's middle; over the whole flat box,
+    with its edges, 2.45 ns), 1.90 ns in 3-D (the game's 3-D water is 5% less dense than real here). 40 o-Ps flying
+    in flat water with decay sped up 10⁵×: mean life 1.77 ns, 34 of 36 ended by pick-off; in an empty box 0 of 40
+    in the same time. Among O₂ (a box of 36): 1.1×10¹¹ s⁻¹ conversion there, n·σ·v exactly; o → p seen.
+- What the box can't make real (said in the texts): Ps passes through atoms (in nature its electron's repulsion
+  keeps it in a bubble ~3 Å across; the pick-off rate stands for that), keeps the energy it was made with (no
+  thermalizing collisions), makes no compounds (PsH) and is not oxidized by O₂; radicals other than O₂ don't convert
+  it; one mass for both spin states (0.84 meV apart). The pick-off scales with electron density only: hydrocarbons
+  come out about water's 1.9 ns where measured lives are 2.5–3 ns (their larger free volume). 142 ns is forever at
+  this timescale: shown in Inspect (its expected life where it is), seen only with decay sped up.
+
+**Muonium as hydrogen.** Muonium has been an H atom in MD with the muon's mass since 1.12 (bonding by hydrogen's force
+field); the switch adds:
+- Its binding: hydrogen's levels with its own reduced mass, MU_IONF = (1 + mₑ/m_p)/(1 + mₑ/m_μ) = 0.995729, so
+  13.540 eV for H's 13.598 (in internalE, neutralInternalE, ionizationCost, Inspect). Switching with muonium in the
+  box books the difference to the heat bath (rpMuSet): 0.0581 eV a muonium, exactly. Off, the factor is not applied
+  (×1, bit for bit).
+- Its chemistry is hydrogen's force field with its own mass (no new parameters): Mu + Cl₂ → MuCl + Cl in 4 of 6 shots
+  at 1 eV; Mu–Cl vibrates 2.937× faster than H–Cl (8,455 against 2,879 cm⁻¹; √ of the reduced masses' ratio 2.936),
+  flat and 3-D. Quantum nuclei's rings take the atom's mass, so its zero-point energy follows (the stretch's 2.9×
+  hydrogen's in the harmonic picture; not measured here).
+- The muon's spin (o.spin on a μ⁺ in W.exo, p.spin on muonium; p.eSpin its electron's). Given when made: against
+  the flight for a μ⁺ fired or born in a decay (π⁺ → μ⁺ν: fully polarized backward, as a surface-muon beam; exact for
+  a pion at rest, the lab direction for one in flight), across the field for one placed at rest (+x; 3-D across the
+  field's axis). Kept when it takes an electron (muoniumForm); the electron's spin along or against the field 1 in 2.
+  It turns about the field's axis on the decay clock (its own time): a bare μ⁺, or one bonded (diamagnetic), at
+  −γ_μB/2π, γ_μ/2π = 135.5388 MHz/T; muonium with its electron along the field at +ν₁₂, against it at −ν₃₄, from
+  the Breit–Rabi levels (ν₀ = 4,463.302 MHz, γₑ/2π = 28,024.951 MHz/T; CODATA 2018). At low field ν₁₂ → 1.3945 MHz/G,
+  the triplet's precession; ν₃₄ → ν₀ averages that half out.
+- Its decay (μ⁺ in W.exo: muExoDecay; muonium: muoniumTick): the positron's x and direction from the Michel
+  distribution with the polarization, x²[(3 − 2x) + (2x − 1)cos θ]; the neutrinos share the rest. In the flat game the
+  in-plane angle has that law (what a detector ring in the plane sees). Off, as before (three-body phase space).
+- Saves keep the spins (`mus` for muonium, a twelfth entry of `xa` for a μ⁺; older readers ignore both). Inspect: the
+  spin's direction and the precession there (frequency, period, which state); the particle view draws a small yellow
+  arrow on a muon or muonium.
+- Measured (f_rp2 "mu", "musr"): mass 0.11398 u (the muon 0.113429 u and its electron; the brief's 0.1138 u is a slip);
+  a μ⁺ at rest in 0.01 T turns at 135.54 MHz/T to 3.5×10⁻¹⁸ rad over 0.1 ns; muonium's ν₁₂ at 1 G 1.394 MHz
+  (1.3945 MHz/G; the brief's 13.9 MHz/G is 10× off: 1.39 MHz/G is 13.9 GHz/T). Asymmetry from 12,000 decays sampled:
+  0.327 flat, 0.323 in 3-D (1/3; 40,000: 0.326, 0.336). A ring of detectors: 400 μ⁺ placed at rest in 100 G, decay
+  sped up so a mean life is 100 steps: from the 400 positrons' directions and times alone the precession comes out at
+  1.335 MHz (1.355; the scan's resolution with 400 counts over ~3 turns), amplitude 0.42 (1/3 ± 0.07). Books: each
+  muonium decay step exact to 5×10⁻⁷ eV (flat and 3-D, 30 muonium in 1 mT); the run's drift after them, −1.2 eV flat
+  and −0.5 eV in 3-D over 200 steps, is the fast electrons and positrons among the rest (off: −1.0 and +0.2 eV).
+- What it can't make real: muonated radicals (Mu added to benzene …) precess here as a bare muon, without their own
+  hyperfine frequencies; a muonium that bonds and frees itself keeps the electron spin it formed with; no spin
+  relaxation (nuclear dipoles, collisions), no chemical shift; the half against the field turns at ~ν₀ where in nature
+  it oscillates (either way it averages out in a fraction of a nanosecond).
+
+**Off: nothing changes.** Fingerprints (tools/fingerprint.js, seed 7, 300 steps): all 59 setups, flat and 3-D, the
+same as v141 (one lane, before and after). On (both switches), annihilation, antihydrogen, pet, pionbeam, rhic, sns and water3d
+fingerprint as off over 300 steps (nothing there is slow enough to form Ps or spins a muon in that time); the muonium
+setup changes (its muons' spins drawn).
+
+**Costs** (one thread, the machine shared with another session's tests): ×1 where there is no positronium. A Ps costs
+about 10 µs a step flat (20 in the water setup's 240 atoms: 0.35 → 0.58 ms a step) and ~35 µs in 3-D (20 in water3d:
+2.3 → 3.0–4.1 ms; 100: 5.6), most of it its look round itself (2–5 µs flat, ~25 µs in 3-D, done again once it has
+moved an ångström or every 8 steps). The muons' spins: nothing measurable (20 μ⁺ in water, on 0.66 against off 0.67 ms
+a step; in 3-D within the 4–5 ms noise).
+
+**For the owner (physics questions, written down, not decided):**
+- The brief's "below the Ore gap: kinetic energy under about 6.8 eV" reads the gap the other way: from ground-state
+  hydrogen Ps can only form above 6.8 eV (the gap is 6.8–13.6 eV); below, energy forbids it. Built as physics has
+  it; slow positrons form Ps with free electrons and at negative ions.
+- Outside the gap a positron touching a molecule still annihilates at once (0.51's rule); in nature a slow positron
+  wanders ~0.1–0.5 ns first. The game's water gives an electron at 18.4 eV (its ionization cost: oxygen's 13.6 eV
+  and the bonds weakened by the charge), so water's gap here is 11.6–18.4 eV against nature's 5.8–12.6.
+- The free-pair rule (Ps when the pair has less than 6.8 eV to spare) is a choice; the flat game's close pair is
+  measured mid-step at 0.3 Å, so a 10 eV positron on a resting electron (5 eV between them) formed Ps in 3-D and
+  annihilated in the flat game.
+- The O₂ cross section (1.5×10⁻¹⁹ cm²) and water's 1.80 ns are from memory: worth checking against the papers.
+- Ps is not on the particle menus (it is made by positrons); placing it by hand would be a menu entry.
+- Not built (said): Ps thermalizing, Ps chemistry, muonated radicals' hyperfine lines, spin relaxation.
+
+**Suites** (2-core machine, after merging v141 at 91e372a): alone t_lint, t_energy, t_hep, t_3d, t_settings, f_rp1,
+f_rp2 pass; t_features alone: 1 miss, f_bug125's "pi3" timing check (138 ms under load), which passes alone;
+tools/runtests.sh: 21 of 22 pass, t_page's miss the known collider-beam timeout (15 s); t_page alone then passed it and
+missed only the slow-motion button check (the known flake, on record since 1.25). An earlier t_features run also
+missed 0.64's named save once (its 400 ms wait under load); it passed in the next two runs.
+
+**Merge note for part 1 (v141):** f_rp1's layout check compared the section's ids exactly; it now checks that the
+first three are Ultra-realistic, Electrons as waves, Exotic atoms (the two new lines follow). t_features 1.10 now counts six
+"realistic when on" tags (part 1's four and these two).
+### 1.27: realistic particles 5 and 6 (resonance widths, heavy flavour, nuclear spin, γ lines, neutron cross sections)
+
+Branch v143 (from v141 at 91e372a, part 1 and the Settings section). Parts 5 and 6 of the seven approved realistic-particle
+parts (the owner, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything"). Two more lines in
+Settings → Experimental → Realistic particles, after Exotic atoms: "Resonance widths and heavy flavour" (`setRpRes`,
+`SET.rpRes`, `RP.res`) and "Nuclear spin, γ lines and neutron cross sections" (`setRpNuc`, `SET.rpNuc`, `RP.nuc`), each a
+switch, off at every start (`SET_EXP`), a compact line with its cost tag (flat and 3-D) and its "realistic when on" tag,
+the description in the side pane (SDESC, SDESC3) and a note under the line; the 3-D note names both. The code is at the end
+of hep.js ("Realistic particles 5", "Realistic particles 6") with small hooks in hep.js (bwMass, hadronize and its
+callers, decayExo/decayExo3), engine.js (doDecay/doDecay3, decayStep, neutronHit/neutronHit3, moveNeutron, step) and
+ui.js (placing, firing, copying, saves, Inspect). Checks: tests/f_rp5.js (t_features runs it alone; `node tests/f_rp5.js
+[--node] [part …]`): off, widths, heavy, spin, lines, neutrons, books, page; every part fails on v141 (no switches there).
+Screenshots: scratchpad rp5/set-desk.png, set-phone.png, inspect-nmr.png.
+
+- **Part 5, resonance widths.** Before: a resonance made in a collision (resonate) got a mass from a Cauchy in m cut at
+  ±3Γ (bwMass), and one placed, fired or pasted got the table's mass (the exotic sweep's "own mass" was only that
+  collision draw, kept through saves and undo). With the switch every resonance made (ρ, ω, φ, K*, Δ, and the new J/ψ
+  and Υ; in a collision, placed, fired, pasted, or among a decay's products, e.g. the φ of D⁺s → φπ⁺) draws its mass
+  from one function, `bwMassRel`: the relativistic Breit–Wigner in s = m², dN/ds ∝ 1/((s − M²)² + M²Γ²) with the measured
+  width (the XP table's PDG values), cut below at its lightest decay threshold (+0.01 MeV) and above at M + 5Γ or what
+  the event leaves (`resItems`); one random draw each (the old draw could take up to 40). It decays into the channels
+  open at its own mass (`resOpen`), so the products' energies follow from it, and the event that made it paid for it
+  (closeEvent, exact). Its mean life stays ħ/Γ (on the clock in Ultra-realistic). Inspect: "Rest mass … its own, drawn
+  from its width". Constant width (not the mass-dependent width of a P-wave): said here, not hidden.
+- **Part 5, heavy flavour.** A hadron collision above the charm threshold (`nnInelastic`, the pion and antinucleon
+  branches of `hadronHit`, the collider's `xbInelastic` and `xbAnnihilate`) draws once (`hfDraw`) whether it makes a cc̄
+  pair, with the measured share σ(cc̄)/σ_inel at its √s, or a bb̄ pair (σ(bb̄)/σ_inel); a small share of the pairs is a
+  J/ψ (0.5%) or an Υ(1S) (0.2%) instead. Each quark becomes a hadron at the measured fragmentation fractions (c → D⁰
+  0.609, D⁺ 0.240, D⁺s 0.080, Λc⁺ 0.062; b → B⁻, B̄⁰ 0.407 each, B̄⁰s 0.101, Λb⁰ 0.085), put into hadronize's list as
+  fixed hadrons (a heavy baryon takes a nucleon's place; the light hadrons make up charge and energy), so the event's
+  books are exact as any. New particles (XP, flat and 3-D): Λc⁺ (2,286.46 MeV, 202.6 fs), B⁰s (5,366.93 MeV, 1.520 ps),
+  Λb⁰ (5,619.60 MeV, 1.471 ps), their antiparticles, J/ψ (3,096.900 MeV, Γ 92.6 keV) and Υ(1S) (9,460.40 MeV, Γ 54.0
+  keV), with their main decays (the rest of each total shared out over them in proportion, as the D's and B's of 1.15;
+  the J/ψ's and Υ's three-gluon decays as a few typical multi-pion states of their measured mean multiplicity). They fly
+  with their mean lives: D⁰ 0.41 ps, B 1.5 ps, i.e. cτ = 123 μm and 455 μm, times βγ: far out of a box of nanometres, so
+  most leave it before they decay unless decay is sped up (Lab → Decay speed). The collider's made-list shows them.
+  - Data (σ in µb against √s, measured, *from memory* of the compilations, no network here: worth a check): cc̄ 17.3 GeV
+    3.6, 27.4 GeV 15 (NA27), 41.6 GeV 49 (HERA-B), 200 GeV 600 (STAR 797, PHENIX 567), 2.76 TeV 4,800, 7 TeV 8,500
+    (ALICE); bb̄ 38.8 GeV 0.0057 (E789), 41.6 GeV 0.012 (HERA-B), 200 GeV 1.3 (STAR), 1.96 TeV 80 (CDF, extrapolated to all
+    rapidities), 7 TeV 280 and 13 TeV 495 (LHCb); σ_inel(pp) 30 mb at 5 GeV to 78.1 mb at 13 TeV (PDG, TOTEM); log–log
+    between the points, the last slope above. Below the lowest point (17.3 / 38.8 GeV) the cross section is brought to
+    zero at the threshold (N + Λc + D̄ at 5.09 GeV, N + Λb + B at 11.84 GeV) as (1 − √s_thr/√s)⁴: a shape, not a
+    measurement. The J/ψ and Υ shares (σ(J/ψ) ≈ 3 µb at 200 GeV, 45 µb at 7 TeV; Υ(1S) ≈ 0.2% of bb̄), the fragmentation
+    fractions (Lisovyi et al. 2016; PDG's LEP b fractions) and the new particles' masses, lives and branchings are also
+    from memory of PDG 2024.
+  - What the box can't make real: charm's and bottom's flight (μm–mm); several cc̄ pairs in one collision (one at most
+    here: at the LHC multi-parton collisions make more now and then); charm in nucleus–nucleus collisions (the fireball's
+    hadronize is left as it was: its rate grows with the binary collisions, not built); e⁺e⁻ → cc̄ keeps its own channel
+    from 1.15 (D mesons only, no Λc); the J/ψ's and Υ's masses use the table's value inside an event (93 and 54 keV wide).
+- **Part 6, nuclear spin and NMR.** `NUC_SPIN`: 71 nuclides' measured ground-state spin and magnetic moment (Stone's
+  table, 2005, *from memory*: ¹H ½ +2.79285 μN, ²H 1 +0.857438, ¹³C ½ +0.702412, ¹⁴N 1 +0.403761, ¹⁷O 5/2 −1.89379, ¹⁹F ½
+  +2.628868, ³¹P ½ +1.13160, ²⁷Al 5/2 +3.641507, ⁵⁹Co 7/2 +4.627, ⁶⁰Co 5 +3.799, ²⁰⁷Pb ½ +0.592583, the neutron ½ −1.91304,
+  …); even-Z even-N nuclei I = 0, μ = 0; others "not in the table". γ/2π = 7.6226 MHz/T × μ/I (¹H 42.577, ¹³C 10.708,
+  n −29.165). Inspect (switch on): "Nuclear spin", and in a field "Larmor precession" (42.58 MHz in 1 T: one turn in 23.5
+  ns) and a button "NMR pulse": a 90° pulse on every nucleus of that kind in the box (`nmrPulse`); each spin then turns
+  every step at the Larmor frequency of the field where it is (`nmrTick`: the Lab's field and the magnets, `Bfield`), and
+  "NMR signal" reads the summed signal's frequency from its phase over the time since the pulse (`nmrRead`), with the
+  share still in phase (field inhomogeneity dephases it). Not modelled: the Zeeman energy μB (8.8×10⁻⁸ eV for a proton at
+  1 T; the pulse's radio wave pays it; not in the books), chemical shifts, spin–spin coupling, T₁ and T₂. At 1 T a proton
+  turns once in 23.5 ns, two million steps: the readout measures the phase turned so far (at the Lab's 100,000 T, once in
+  0.23 ps).
+- **Part 6, γ lines.** Before: a decay gave its particles the whole Q (ground state to ground state), a neutron capture
+  one γ of all the energy. With the switch (`GL_FEED`, `GL_LEV`, `GL_CAP`, `GL_ISO`, `GL_CONV`; ENSDF *from memory*):
+  - Decays that feed excited levels: ⁶⁰Co β⁻ → ⁶⁰Ni 2,505.7 keV (99.88%) → 1,173.2 + 1,332.5 keV; ¹³⁷Cs → ¹³⁷ᵐBa (94.4%);
+    ²²Na → ²²Ne 1,274.5; ⁴⁰K EC → ⁴⁰Ar 1,460.8 (its β⁻ to the ground state); ¹³¹I → 364.5 / 637.0 / 722.9; ⁹⁹Mo → ⁹⁹ᵐTc
+    (87.6%); ²⁴¹Am α → 59.5 / 103.0 (43.4 + 59.5); ²²⁶Ra α → 186.2 (5.95%); ²⁴Na → 2,754.0 + 1,368.6; ²⁸Al → 1,779.0; ⁵⁶Mn →
+    846.8 / 1,810.7 + 846.8 / 2,113.1 + 846.8; ⁵⁷Co EC → 122.1 + 14.4 or 136.5; ¹⁶N → 6,128.6 / 7,115.2 keV: 13 parents. The
+    β (or α) takes Q less the level; the neutrino (or the α and recoil, settleKE) takes what the books leave after the
+    lines, which carry their measured energies exactly and recoil the nucleus.
+  - Isomers (`p.iso`): ¹³⁷ᵐBa (661.7 keV, 2.552 min) and ⁹⁹ᵐTc (142.7 keV, 6.0067 h) keep their energy out of the nuclear
+    ledger and decay on the decay clock (`isoStep` in decayStep, before the ground state's decay) by their lines
+    (⁹⁹ᵐTc: 2.17 keV, nearly always converted, then 140.5 keV). Inspect: a pill "¹³⁷ᵐBa: an isomer 661.7 keV above its
+    ground state, half-life 2.55 min". Saves and undo keep it (an optional `iso` list; older readers open the ground
+    state); copy and paste make the ground state.
+  - Conversion: a line with a measured coefficient α converts at α/(1 + α), only while the atom has electrons: an
+    electron of the K shell (if the line can free one, else L, else an outer one) with the line less that binding
+    (`GL_SHELL`), then the hole's X-rays (Kα = K − L, then L), the atom one charge up. ¹³⁷ᵐBa 0.1124 (the 624.2 keV K
+    electron), ⁹⁹ᵐTc 140.5 keV 0.1218, ²⁴¹Am's 59.5 keV 1.15 (L shell), ¹⁵⁸Gd 79.5 keV 5.9, ⁵⁷Fe 14.4 keV 8.2, ….
+  - Neutron captures (`nxCapture`): ¹H → one 2,223.2 keV γ (the 2,224.6 keV less the deuteron's recoil, as before);
+    ¹²C → 4,945 or 3,684 + 1,262 keV; ¹⁴N → 10.83 MeV (14%) or through ¹⁵N's levels at 5.27, 5.30, 6.32, 7.30, 8.31 MeV;
+    ¹¹³Cd → the 558.5 keV line (3 in 4; also 651.3, 805.9); ¹⁵⁷Gd → 79.5 (mostly converted) and 181.9 keV: the low lines
+    exactly, the primary γ (or two, split at random, where the cascade is statistical) what is left. ¹⁰B(n,α)⁷Li leaves
+    ⁷Li at 477.6 keV 94% of the time (its γ, the α and ⁷Li sharing 2.31 MeV). Elsewhere, as before: 5 capture cascades
+    and 13 decays have lines, everything else falls back. Reactions in hep.js (a compound nucleus cooling by γ,
+    gammaOut) are unchanged.
+- **Part 6, neutron cross sections.** `NXS`: 41 nuclides' thermal (0.0253 eV) cross sections, barns (Mughabghab's Atlas
+  and ENDF *from memory*): ¹H scattering 20.49, capture 0.3326; ²H 3.39 / 0.000519; ³He (n,p) 5,333; ⁶Li (n,t) 940; ¹⁰B
+  (n,α) 3,837, (n,γ) 0.5; ¹²C 4.75 / 0.00353; ¹⁴N 10.05 / 0.075, (n,p) 1.83; ¹⁶O 4.23 / 0.00019; ³⁵Cl 21.8 / 43.6; ⁵⁹Co
+  37.18; ¹¹³Cd 20,600; ¹³⁵Xe 2.65 Mb; ¹⁴⁹Sm 40,140; ¹⁵⁵Gd 60,900; ¹⁵⁷Gd 254,000; ¹⁹⁷Au 98.65; ²³²Th 7.35; ²³³U fission 531;
+  ²³⁵U fission 585.1, capture 98.7; ²³⁸U capture 2.68; ²³⁹Pu fission 747.4, capture 270.7; ²⁴¹Pu 1,012 / 361. The
+  absorptions go as 1/v; the big resonances are single-level Breit–Wigner shapes: those that make the thermal value
+  (¹¹³Cd 0.178 eV, ¹³⁵Xe 0.084, ¹⁴⁹Sm 0.0973, ¹⁵⁵Gd 0.0268, ¹⁵⁷Gd 0.0314) normalised to it, and those above it (²³⁸U
+  6.674 eV, Γ 24.5 meV, peak (n,γ) 22,500 b; ¹⁹⁷Au 4.906 eV; ¹¹⁵In 1.457 eV) on top of the 1/v part, the thermal value
+  kept. Scattering constant. From 1 keV to 100 keV the shares join the old table's fast ones (NEUTRON_X), above it they
+  are those. No Doppler broadening (²³⁸U's resonance at room temperature is lower and wider), no unresolved resonances.
+  - *The choice, written down:* the game's nuclei are drawn and met enlarged (0.35 Å and up), so in the normal view a
+    neutron meets every nucleus about as often; a factor of 10⁴–10⁶ between cross sections can't be a reach in a box of
+    nanometres. So in the normal view the measured cross sections decide what a meeting does (capture, fission, (n,p),
+    (n,α), (n,t) or scattering in their shares at the neutron's energy, `nxsShares`), and with Ultra-realistic on (true
+    sizes) a nucleus is met inside its measured cross section itself (`nxsReach`: in 3-D √(σ_tot/π); in the flat game a
+    width σ_tot / 1.2 Å, the game as a slab as thick as the strip light meets atoms in), so there the rates are measured:
+    ¹⁰B and cadmium take thermal neutrons thousands of times more readily than hydrogen. The neutron's spin ½ and moment
+    −1.913 μN show in its Inspect card (with its Larmor frequency, 29.16 MHz/T, in a field).
+- **Numbers** (Node; f_rp5 and scratchpad rp5/t*.js):
+  - ρ⁰: 40,000 draws 146 MeV wide at half height (Γ 149.1; 2 MeV bins), peak 777 MeV, none below 279.7 MeV; Δ⁺⁺ from
+    1,078 MeV; placed at rest (Ultra-realistic, 400 each) mean life 0.974 (flat) and 0.932 (3-D) of ħ/Γ (±0.15 at 3σ);
+    their masses spread over 1,185 MeV; books within 1.5×10⁻⁴ eV a step.
+  - Charm share in pp (nnInelastic): 200 GeV 0.0113 (1,500 events; σ(cc̄)/σ_inel 0.0143 ± 0.0031), 7 TeV 0.124 (500; 0.116 ±
+    0.014), 3-D 7 TeV 0.090 (300; ± 0.019); 4 GeV none; bottom in 1 of 500 at 7 TeV (0.0038 expected); the collider's list
+    D⁰, D̄⁰, D⁺, D⁻, D⁺s, D⁻s …; books within 2.2×10⁻¹⁵ of √s (flat and 3-D).
+  - NMR: 160 protons of flat liquid water in a placed 1.5 T magnet 42.5775 MHz/T; 686 in 3-D water in the Lab's 2 T
+    42.5775 (CODATA 42.577 478); 100% in phase in a uniform field.
+  - Lines (40–60 events each, flat; 3-D alike): ⁶⁰Co 1,173.2 + 1,332.5 in 40 of 40; ¹³⁷Cs to ¹³⁷ᵐBa 58 of 60, then 662 keV
+    γ 53, 624.2 keV electron 5 (α/(1 + α) = 0.101); ¹H capture one 2,223.2 keV γ 30 of 30; ¹⁰B(n,α) 478 keV 29 of 30;
+    ¹⁴N 10.83 MeV in 4 of 31 captures (14%); ¹¹³Cd 558.5 keV 31 of 40; ⁹⁹ᵐTc 140.5 keV 51 of 60, its electron 9; every
+    event's books within 3×10⁻⁵ eV.
+  - Neutrons at true size (thermal, through random impact parameters about one nucleus): absorbed per unit area (3-D)
+    or width (flat) ¹⁰B 11,765 and 11,200 times ¹H's, ¹¹³Cd 63,066 and 58,150 (measured 11,538 and 61,306 at 0.0244 eV;
+    hydrogen's counts 52–88 decide the error, ±15–20%). Shares: ²³⁵U fission 0.837 of thermal meetings (585.1 / 698.8);
+    ²³⁸U capture 1.000 at 6.67 eV, 0.051 at 1 eV.
+  - Running boxes (switches on, each event wrapped): liquid water with 40 neutrons and ¹⁰B, ¹¹³Cd, ¹⁴N, ⁶⁰Co, ¹³⁷Cs, decay
+    sped up 10⁹: flat 1,197 events, worst 5.5×10⁻⁴ eV; 3-D 24 events, 0.
+  - Switches off: the fingerprints of all 59 setups (seed 7, 300 steps) equal v141's; f_rp5 "off" keeps eleven of them
+    (pionbeam, rhic, linac, chain, photonuc, annihilation, isolde, sns, useries, water, water3d).
+  - Cost (one thread, on a machine shared with another session's tests, so ±30% noise): off nothing (one flag test per
+    event). On ×1: pion beam 9.4 → 10.0 ms a step, RHIC 2.1 → 2.0, the chain reaction 0.70 → 0.68, 40 thermal neutrons in
+    3-D water 44.5 → 44.6; after an NMR pulse the spins' turn is 0.04 ms a step for flat water's 160 protons (×1.1 at
+    most), 0.05 ms for 3-D water's 686 (×1.01).
+- **Test changes:** t_features' 1.10 Settings check counts six "realistic when on" checkbox tags (Exotic atoms,
+  Resonance widths and heavy flavour, Nuclear spin … beside resonance in large rings, detailed nuclear collisions and
+  Ultra-realistic), not four; f_rp1 "layout" checks that its three lines come first (the later parts' lines follow:
+  the v142 branch's positronium and muonium lines will too).
+- **Suites** (2-core machine shared with the part-2/4 session): alone t_lint, t_energy, t_hep, t_nuclear, t_collider, t_3d,
+  t_settings, f_rp5 and t_features (f_rp1 and f_rp5 inside it) pass; f_rp1 alone once missed its 3-D Select click in
+  "store" under load and passed rerun alone. tools/runtests.sh: 20 of 22 pass; t_features' one miss the 1.14 slow-motion
+  readout (1/1.3× on two cores, the known flake; t_features passed alone just before), t_page's the slow-motion button
+  check (it fails alone here too, as on record for 1.25 and 1.26: v141's state, nothing of these parts).
+- **Found, not changed:** ¹⁹⁸Au's decay is pure β⁻ (to ¹⁹⁸Hg's 411.8 keV level), but the game's systematics give it 14%
+  EC (it is not in DECAY); ²²Na decays only by β⁺ here (measured 90.3% β⁺, 9.6% EC). Its line is right either way.
+- **For the owner (physics questions, written down, not decided):**
+  - Charm and bottom in nucleus–nucleus collisions (the fireball): per binary nucleon collision, as measured at RHIC
+    and the LHC? Several cc̄ pairs per collision at LHC energies?
+  - The constant-width Breit–Wigner: a P-wave resonance's width grows with its momentum (ρ: Γ(m) ∝ q³/m), which skews
+    the line toward high masses (the e⁺e⁻ channel's ρ already has it). Use it for the draws too?
+  - In the normal view the cross sections set what a meeting does, not how often it happens (the enlarged nuclei);
+    alternatives: a reach that grows as √σ up to a cap (the ratio then saturates for Cd and Gd), or a mean-field rate.
+  - The reactions of hep.js (spallation, fusion's compound nuclei) still cool by generic γ; their known low lines
+    (¹²C 4.44 MeV, ¹⁶O 6.13 MeV, …) could be added the same way.
+  - Values from memory (no network): the cross-section and σ_inel points, J/ψ/Υ shares, fragmentation fractions, the
+    new particles' data, NUC_SPIN, NXS, the γ lines, branchings, conversion coefficients and half-lives above. Each
+    agrees with the others where they meet (e.g. the lines sum to their levels, 1/τ against Γ), but a check against the
+    tables is worth it.
+
+### 1.27: realistic particles 3 (charged particles in matter)
+
+Branch v144 (from v142 at 0fa22fa, parts 1, 2 and 4). Part 3 of the approved plan (the owner, 2026-11-05: "I ok all of
+them, just please make sure it doesnt mess with anything"): its own switch in Settings → Experimental → Realistic
+particles, after Muonium as hydrogen, "Charged particles in matter" (SET.rpCpm → RP.cpm), off at start and back to off
+on reload (SET_EXP), one compact line with its cost tag (flat and 3-D tables), its description in the side pane (flat
+and 3-D texts); the 3-D lab's note names it (and positronium and muonium, which work in 3-D too). Code: hep.js after
+part 4's block ("Realistic particles 3": cpmSeg, cpmEnv, cpmL, cpmAtom, cpmBrems, cpmCkv, cpmGamma, cpmPairSig,
+cpmShare, cpmPair), hooks behind `RP.cpm` in the five places a fast charged particle loses energy to the atoms it passes
+(engine.js moveRad, fastStop3, moveFastLeptons3; hep.js exoIonize, exoIonize3) and the two places a γ ray meets an atom
+(rayInteract, rayInteract3). Checks: tests/f_rp3.js (t_features runs it alone; `node tests/f_rp3.js [--node] [part …]`),
+every part fails on v142 (no switch there) and passes here.
+
+**What was there.** Every fast charged particle lost, at each atom it passed within ~1 Å, a fixed share
+0.0047·z²·nₑ/β² weighted by how close it passed (Bethe without his logarithm; calibrated for slow ions): the same
+amount every time, so no straggling, and an electron set free with what that atom took, never more than a few hundred eV
+(no δ-rays near T_max). That form is low for fast particles: in the flat game's water a minimum-ionizing electron lost
+about a quarter of the real 2 MeV/cm, in 3-D (whose reach normalizes it differently) a twelfth. Bremsstrahlung (flat
+radiation flight only) by a rule of thumb, T·Z/800 MeV of the collision loss; none in 3-D. γ rays of 100 keV and more met
+each atom within 0.6 Å at fixed odds (Compton 0.012 an electron, pairs 0.0015·Z, at any energy), about 10⁷ times
+nature's so that light does something in a nanometre; a pair left back to back in a random direction, sharing the
+energy evenly. No Cherenkov light.
+
+**With the switch on** (all of it flat and 3-D):
+- *Mean loss.* Bethe's formula (PDG eq. 34.5) for each atom passed, with its element's mean excitation energy I (NIST /
+  ICRU 37 and 49: H 19.2, C 78, N 82, O 95, Al 166, Si 173, Fe 286, Cu 322, Pb 823 eV …, others 12Z + 7 or
+  9.76Z + 58.8Z^−0.19) and the density effect's high-energy form δ = 2 ln βγ + 2 ln(ħω_p/I) − 1, ħω_p = 28.816 √(ρ⟨Z/A⟩) eV
+  from the electron density within 4 Å of the path (water 21.5 eV); e± by Rohrlich and Carlson's formula (ICRU 37:
+  T_max = T/2 for e⁻, T for e⁺). The game's own per-atom form stands where it is larger (slow ions, below where Bethe
+  holds); above, it is scaled up to Bethe's by the ratio of the logarithms (`CPM.Lg`: the game's form read as a Bethe
+  logarithm for its reach, 4.5 flat and 1.8 in 3-D for 1 Å). The flat game's liquid water (0.85 e/Å²) stands for real
+  water (0.334 e/Å³): CPM_LAM = 2.545 Å converts its areal densities, as positronium's pick-off does.
+- *Straggling and δ-rays.* Of that mean, the share in close collisions (energy transfer T from T_c = max(10 eV, the
+  atom's ionization energy + 1) to T_max) is drawn collision by collision: a Poisson number at each atom passed, T from
+  the free-electron spectrum 1/T² (× (1 − β²T/T_max) for heavy particles), each setting an electron free with T less its
+  binding at cos θ = (T/p_δ)(E + mₑc²)/p; it flies and ionizes in turn. The distant collisions (the rest) are given as
+  before. Møller's and Bhabha's own spectra (their terms near T/2 and T) are left at 1/T².
+- *Bremsstrahlung (e±).* At each atom passed (including bare nuclei), a photon with the chance σ_X·s·F / A: σ_X the
+  atom's share of 1/X₀ (Tsai: 4αr_e²[Z²(L_rad − f(Z)) + nₑL'_rad], PDG eq. 34.26–27), F the spectrum
+  (4/3 − 4/3 y + y²)/k integrated from k_min = max(100 eV, 10⁻³T) to T, A the tube's cross-section (πR² in 3-D, 2R·CPM_LAM
+  flat), s = min(1, φ_rad/φ_cs) the unscreened (Heitler: 16/3 slow, 4 ln 2γ − 4/3 relativistic) over the complete-screening
+  value, which brings the rate down below a few tens of MeV (water at 1 MeV: radiative loss 0.0132 MeV cm²/g, ESTAR 0.0129;
+  at 10 MeV 0.74 of E/X₀ against ESTAR's 0.63). The photon within ~1/γ of the way, its energy taken from the electron
+  exactly. An e± crossing a drawn (enlarged) nucleus meets that atom (radiates, ionizes) before it is turned by it.
+- *Cherenkov light.* Where the 4 Å round the path's middle are liquid water (H and O ≥ 90%, more H than O, no Si) or
+  silica glass (Si and O ≥ 90%, Si ≥ 20%) at ≥ 40% of water's atom density (0.04 atoms/Å³; the flat game's over
+  CPM_LAM), n = 1.333 or 1.458 (589 nm; dispersion left out; molecules the track ionized still count as water), and
+  β > 1/n: a Poisson number of photons, 369.81 z²(1 − 1/β²n²) per eV per cm over 300–600 nm (2.066–4.133 eV, flat in
+  energy), on the cone cos θ = 1/βn (flat: on either side in the plane), from points along the step, as real photons
+  (emitPhoton: screens, detectors and the spectroscope see them; 2–4 eV passes through water).
+- *γ rays (≥ 100 keV).* At each atom within 0.6 Å, in this order: the giant dipole resonance as before; a pair with the
+  chance 0.012·(σ_nuc + σ_trip)/σ_KN(1 MeV), Compton scattering with 0.012·nₑ·σ_KN(E)/σ_KN(1 MeV): the measured cross
+  sections against each other, scaled as the game's light (its Compton odds at 1 MeV unchanged). σ_KN is Klein–Nishina's
+  total; σ_nuc Maximon's Born forms (near threshold, k < 4, and the high-energy series), less the Coulomb correction
+  (28/9)f(Z) brought in over 2–100 MeV in ln k, at most Tsai's complete-screening (28/9)(L_rad − f) − 2/27, all × αr_e²Z²;
+  σ_trip (the atom's electrons, from 4mₑc²) the same Born value for Z = 1 less 3.23 (the high-energy gap between
+  (28/9) ln 2k − 218/27 and Borsellino's − 11.3), at most (28/9)L'_rad − 2/27, × nₑ. The pair (cpmPair, which also
+  replaces pairProduce/pairProduce3 after a failed photonuclear try): the electron's share ε from Bethe–Heitler with
+  screening (sampled as Geant4's G4BetheHeitlerModel does with Butcher and Messel's screening functions; uniform below
+  2 MeV), each member forward within u·mₑc²/E (Urban's form of Tsai's angles), the two 0.4 Å apart across the photon's way;
+  the triplet's electron (1/T² from 1 keV to a third of what is left: an approximation) set free with its binding. Books
+  as pairProduce3's (nucBegin, settleKE) flat too: a slow member is stepped with its pull. Compton's angles stay as they
+  are (part 7).
+- *Showers* come from these together; what the box can't hold is said below.
+
+**What the box can't make real, and how the game handles it.** Radiation lengths are centimetres (water 36 cm, lead
+0.56 cm): a 10 nm box is 3×10⁻⁸ of one in water, 2×10⁻⁶ in lead. At nature's rates a 1 GeV electron crossing 25 Å of
+lead (flat, real lead's density) radiates a photon above 1 MeV about once in 3×10⁵ crossings; Cherenkov light in water is 3.3×10⁻⁶ photons an ångström
+(one in about 3,000 crossings of a 100 Å box: shown at nature's rate, not scaled, because each photon's 2–4 eV is taken
+from the particle and a scaled count would be a made-up energy loss); a shower can't develop, and what is made leaves the
+box (its energy counted as escaped). γ rays do convert (the game's light is ~10⁷ times nature's), so a γ ray above
+1.022 MeV in matter makes forward pairs and their δ-rays. RP.cpmX scales bremsstrahlung and Cherenkov light (×1 = nature)
+the way decay speed-up scales decays; only the checks set it. With it at 10⁶, eight 1 GeV electrons into a 25 × 18 Å
+lead block make 141 photons and 27 pairs (the books check). Also not real here: a minimum-ionizing particle's loss in a
+nanometre is mostly far below its mean (the mean is carried by rare hard collisions: in 60 tracks across the flat
+water, about 0.1 δ-ray above T_c expected for a 1 GeV electron), so the mean is seen only for slow, densely ionizing
+particles; e± multiple scattering beyond the existing nucleus crossings, photoelectric absorption of γ rays above
+100 keV (dominant in lead below ~500 keV), muon bremsstrahlung and pair production (∝ 1/m², negligible below ~100 GeV),
+Cherenkov light in other transparent media (ice, plastics, organic liquids) and in gases (their n − 1 ~ 10⁻⁴).
+
+**Data and sources** (no network here; values from memory are marked, worth checking): PDG Review "Passage of particles
+through matter" (Bethe eq. 34.5, Tsai's X₀ eq. 34.26–27, the critical energies; from memory); NIST/ICRU mean excitation
+energies (from memory); ESTAR/ASTAR spot values quoted below (from memory); XCOM attenuation (from memory: lead at
+10 MeV 0.0497 cm²/g, water 0.0222); Maximon 1968 pair formulas as used by Hubbell, Gimm and Øverbø (1980) for XCOM's
+pair term; Borsellino's triplet asymptote; Klein–Nishina (theory); Frank–Tamm (theory); Geant4's G4BetheHeitlerModel
+sampling and Urban's angles (from memory of the code); refractive indices water 1.333, fused silica 1.4585 at 589 nm.
+
+**Numbers** (Node; f_rp3 and scratchpad rp3/p*.js):
+- X₀ from the formula, g/cm²: C 42.70, Al 24.01, Fe 13.84, Cu 12.86, Pb 6.37, water 36.08 (PDG's to the digit). Measured
+  in the game (photons counted over 1 GeV tracks, rare processes ×3×10⁵ in lead, ×10⁷ in water, at the density the
+  lattice stands for): lead 6.56–6.95, water 33.9–34.2 (±4% statistical); the photons' spectrum by decade of k/E
+  0.376 / 0.349 / 0.275 (Tsai 0.365 / 0.353 / 0.282). Critical energy (Rossi: collision loss over X₀ equals E) from the
+  same functions: water 78.9 MeV (PDG 78.33), lead 8.0 MeV (7.43).
+- Mean ionization loss in the game's water, eV/Å, off → on (real: ESTAR/PSTAR/ASTAR collision stopping): flat 5 MeV α
+  5.38 → 8.52 (8.9); 3-D 3.23 → 10.55 (the 3-D water 14–18% too dense, on record). For fast particles the tracks
+  across the box show the soft part only (rare δ-rays carry the mean): flat 1 MeV e⁻ 0.0025 → 0.0116 (mean 0.0187),
+  1 GeV e⁻ 0.0011 → 0.0058 (0.024), 100 MeV p 0.0098 → 0.0148 (0.073); 3-D 0.0006 → 0.0049, 0.0004 → 0.0063,
+  0.0063 → 0.0170. Each atom's mean (cpmAtom alone, 2,000 passes): 5 MeV α at O 50.6 ± 2.8 against 54.1 eV,
+  1 MeV p 18.4 ± 2.0 against 15.8.
+- Straggling: 5 MeV α across 16 Å of flat water (432 tracks): most probable 41.6 eV (Landau 40.6), FWHM 4.78 ξ (Landau
+  4.02 ξ; ξ = 17.4 eV, κ = ξ/T_max = 0.006, T_c ~ ξ so Landau's soft side is narrow here), mean 125 eV, 90th percentile
+  3.5× the median, largest 3.9 keV; off the spread came only from where tracks passed atoms (90th percentile 1.9× the
+  median, largest 240 eV in the first run).
+- δ-rays (the sampler at an oxygen, ~92,000 each): 100 MeV p up to 190.8 of T_max 229.2 keV, share above T_max/100
+  0.00655 (law 0.00626), mean 142.5 (138.6) eV; 1 MeV e⁻ up to 357.8 keV (T/2 = 500); the direction to 10⁻⁵ of the
+  kinematics. In flat water 5 MeV α free electrons up to 1.67 keV (T_max 2.74).
+- Cherenkov: water 41.39° (1/βn: 41.39°), 316 photons/cm counted (Frank–Tamm 334 for 300–600 nm; the brief's ~250/cm
+  is a narrower band: 350–550 nm gives 208), 300 keV e⁻ 14.94° (14.97, slowing as it goes), 3 GeV p 39.43°, silica
+  46.69° (46.70), 3-D water 41.39°; none from 150 keV e⁻ or 300 MeV p (below threshold), in lead, or in a vapour at a
+  fifth of the liquid's density.
+- Pairs: none of 4,000 γ rays of 1.00–1.02 MeV at lead; 133 of 2,000 at 2 MeV. At 10 MeV: lead 12.6 b (pair, XCOM
+  ≈ 12.7 b from its 0.0497 cm²/g less Compton, from memory), water 0.142 b a molecule; the game's ratio 89.3 (the
+  cross sections' 88.9; Z² alone 102); Compton at Klein–Nishina's rate to 0.3%. Lead's total at 10 MeV 0.0488 cm²/g
+  (pair 0.0366 + Compton 0.0122, no photoelectric) against XCOM's 0.0497; water 0.0218 against 0.0222. At 100 MeV lead's
+  pair 0.108 cm²/g is probably ~15% high (no gradual screening: the smaller of the unscreened and completely screened
+  values); at 1 GeV 0.121 (7/9X₀ = 0.122). Pairs forward (median 0.13 rad at 10 MeV), unequal (80% more than 20% apart).
+- Books: 3-D, each 0.2 Å tick of the fast particles (moveFastLeptons3, fastEncounters3, exoIonize3) with the rest of
+  the world between steps: within 4×10⁻⁶ eV (lead, 66 photons, 7 pairs) and 5×10⁻⁴ eV (water: δ-rays, 26 Cherenkov
+  photons); each pair (flat and 3-D, with the triplet) within 2.4×10⁻⁷ eV. Flat: each event of this part (an atom's
+  loss with its δ-rays and photons, each pair, each Cherenkov emission) within 5×10⁻⁴ eV, less ejectElectron's own residue
+  (below).
+- Off: tools/fingerprint.js (seed 7, 300 steps), all 59 setups flat and 3-D the same as v142 at 0fa22fa, bit for bit
+  (one lane, before and after); f_rp3 "off" keeps nine of them (cloud, photonuc, pet, pionbeam, crt, linac, water,
+  water3d, seu). On, over 300 steps: photonuc (12 pairs) and pionbeam (20 δ-rays) change; cloud, pet, linac, crt,
+  rutherford, emtube, water3d and seu stay as off.
+- Cost (one thread, the machine shared): nothing where no fast charged particle crosses matter; a fast particle's pass
+  through water flat ×0.8 (1 MeV e⁻, fewer small ionizations) to ×1.4 (5 MeV α, 50 → 69 µs an ångström), in 3-D ×1.3
+  (1 MeV e⁻ 75 → 96) to ×1.5 (5 MeV α 76 → 112); setups ×1.0–1.3 a step (pion beam 7.2 → 8.7 ms, linac 0.40 → 0.51,
+  photonuc 7.3 → 8.4, cloud 0.48 → 0.53, water3d 2.64 → 2.69).
+
+**Found, not changed:**
+- The flat game's ejectElectron is not exact beside ions and free electrons in a crowded, ionized lattice: in eight
+  1 GeV electrons' passes through a lead block the electrons it set free missed the books by up to 48.7 eV with the switch
+  off (102 eV on, with more ionization), in water up to 39 eV off (0.12 on); on fresh water it is exact (10⁻⁶ eV). The
+  same 300 ticks: 17 of 85 ejections over 0.01 eV on, 9 of 42 off.
+- The flat radiation flight's old loop pushes atoms that are themselves in radiation flight through their velocity,
+  which their stored energy doesn't see (a leak of what the push gives); with the switch on such atoms (and ballistic
+  ones, as 3-D's fastStop3 already does) are not ionized.
+- 3-D: a lattice of unbonded O and Pb atoms at 0 K crossed by four 1 GeV electrons drifts by −1.3×10⁸ eV over 40 steps
+  with the switch off (−8.5×10⁷ on), all in innerSteps (the free electrons' inner steps among the ions): the known
+  ionized-plasma limit at its worst, worth a bug-fix session.
+- ejectElectron at the particle cap puts the electron's energy in the bath and returns null, after which every caller
+  in the radiation code also calls dumpHeat with it (counted twice).
+
+**For the owner (physics questions, written down, not decided):**
+- Showers and Cherenkov light are at nature's rates, so in a nanometre box they are almost never seen. A "matter depth"
+  setting (RP.cpmX, ×10⁶ say) would show them, with the caveat that it scales the rare processes only (the collisions
+  can't be scaled without cooking the atoms), so a scaled shower's critical energy would be 10⁶ times too low. Expose it?
+- The mean loss is now Bethe's for fast particles when the switch is on (needed for the critical energy and the
+  radiation length to agree with each other); slow ions keep the game's calibration. In 3-D the change is large
+  (×3 for a 5 MeV α, ×8 for a 1 MeV electron).
+- Compton scattering's odds now follow Klein–Nishina with energy (unchanged at 1 MeV: ×1.36 at 511 keV, ×0.24 at
+  10 MeV); its angles stay for part 7. The giant dipole resonance keeps its old scale (0.0015·Z·σ_GDR/5.2Z² mb), so
+  against the new pair odds it is now 16 times rarer than its own cross section says (lead at 13.5 MeV: the game's
+  σ_GDR 376 mb against σ_pair 15.6 b, ratio 0.024; its odds a pass 0.0013 against the pair's 0.885, ratio 0.0015;
+  before, against the old pair odds 0.123, 0.011); unify it too?
+- Not built: photoelectric absorption of γ rays above 100 keV, e± multiple scattering, Møller/Bhabha's exact spectra,
+  the triplet's measured recoil spectrum, Cherenkov dispersion and other media, muon radiative losses.
+- The brief's ~250 photons/cm is for a narrower band than its 300–600 nm (which gives 334).
+
+**Test change:** t_features' 1.10 Settings check counts seven "realistic when on" tags (part 1's four, parts 2 and 4's two,
+this one). f_rp3 "off", "straggle", "delta", "ckv", "brems", "pair", "books" (Node) and "layout" (page); on v142 they
+fail (no RP.cpm, no cpmGamma: checked in a worktree of 0fa22fa).
+
+**Suites** (2-core machine, another session's tests running beside): alone t_lint, t_energy, t_hep, t_physics, t_3d,
+t_settings, f_rp1, f_rp2, f_rp3, f_swx, f_hep126, f_sweep3d pass; tools/fingerprint.js all 59 the same as v142 with
+the switch off. t_features alone: f_rp1, f_rp2, f_rp3 pass; misses only timing checks while the other session ran
+its tests: 1.21 contraction speed (1.2× against > 1.6; alone 3.23×) and f_bug125's exoElastic (3.06 ms against < 3;
+alone 1.1 ms). tools/runtests.sh: 21 of 22 pass; t_features' four misses are timing ones under both lanes' load: the
+1.14 speed readout (1/1.3×, the known two-core flake), exoElastic (4.15 ms) with f_bug125 "alone" for it, and 0.51's
+strings/plasma "qgpLog" (the plasma formed, 1,037 hadrons, its log line not found within the frame-budgeted run; with
+the switch off, so none of this part's code runs there; alone in the page it passed 3 of 3).
+### 1.27: realistic particles 7 (photon polarization, Klein–Nishina)
+
+Branch v146 (from v145 at 178816e, the combined 1.27 with parts 1, 2, 4, 5 and 6). Part 7 of the seven approved
+realistic-particle parts (the owner, 2026-11-05: "I ok all of them, just please make sure it doesnt mess with anything").
+One more line in Settings → Experimental → Realistic particles, after "Nuclear spin, γ lines and neutron cross sections":
+"Photon polarization" (`setRpPol`, `SET.rpPol`, `RP.pol`), a switch, off at every start and after a reload (`SET_EXP`),
+its cost tag (flat and 3-D tables), "realistic when on", the description in the side pane (SDESC, SDESC3) and a note
+under the line; the 3-D note names it. Code: hep.js at the end ("Realistic particles 7": polRand, polAcross, polMirror,
+polPS/polFromPS, knScatter, rpCompton, knPlaneW, polPair, polText), hooks in engine.js (emitPhoton/emitPhoton3 pass
+`opts.pol` to rayInteract/rayInteract3 and keep it on the ray or flight; compton/compton3 hand over to rpCompton;
+twoGamma), hep.js (psDecay's two γ, closeEvent passes a ray's pol), props.js (mirror, splitter, lens, prismTrace7, the
+polarizer), ui.js (Light tool and lasers, Objects tool, quick menu, Inspect, Settings), render.js (the polarizer, the
+mark on a photon in flight). Checks: tests/f_rp7.js (t_features runs it alone; `node tests/f_rp7.js [--node] [part …]`):
+off, angles, asym, sources, pairs, optics, books, both, page; every part but books fails on v145 (no switch there; books
+checks exactness, which v145 had too). Screenshots: scratchpad rp7/set-desk.png, optics.png, inspect.png.
+
+- **What a photon carries, and the choice for the flat game.** A linear polarization, a unit vector across its direction
+  (`opts.pol`, kept on its ray or flight as `pol`). In the flat game every photon flies in the plane, so its polarization
+  is an angle ψ between "in the plane" (p̂ = k̂ × ẑ, across its path) and "across the plane" (ẑ, out of the screen), stored
+  as the vector cos ψ·p̂ + sin ψ·ẑ. That is all a photon in the plane can have, and the game's plane is the plane of
+  incidence of every mirror and prism face and the scattering plane of every Compton event, so in-plane is exactly p and
+  across is exactly s. Unpolarized sources (thermal and atomic light, γ lines, X-rays, bremsstrahlung: everything not
+  named below) leave it empty, "unpolarized": a direction is drawn at random the moment something acts on it (ψ uniform,
+  or uniform round the path in 3-D), which is the same statistics. Polarized: the Light tool and its lasers (a new
+  "Polarization" choice with the switch on: in the plane, across ⊙, unpolarized; 3-D vertical, horizontal, unpolarized;
+  default in the plane / vertical), Compton-scattered photons, reflections, the polarizer, and the two γ of every e⁺e⁻
+  annihilation into two (free pairs, at atoms and walls: twoGamma; para-positronium and pick-off: psDecay), each
+  unpolarized alone and the two at right angles (polPair). Circular and elliptical polarization are not carried.
+- **Compton scattering (rpCompton, knScatter).** Klein–Nishina with the polarization, summed over the outgoing
+  polarizations: dσ/dΩ = ½r₀²(E′/E)²[E′/E + E/E′ − 2 sin²θ cos²φ], φ between the scattering plane and the polarization
+  (Klein and Nishina 1929; Heitler, *The Quantum Theory of Radiation*); E′ = E/(1 + (E/mₑc²)(1 − cos θ)), mₑc² =
+  510,998.95 eV (the old code used 511 keV); at low energy Thomson's 1 − sin²θ cos²φ, unpolarized (1 + cos²θ)/2. The new
+  polarization: ε₁ (the old one's part across the new path) or ε₂ = n̂ × ε₁, weighted E′/E + E/E′ − 2 + 4(ε·ε′)² (Heitler;
+  the choice Geant4's polarized Compton makes, Depaola 2003). Drawn with one proposal ∝ E′/E, inverted exactly (3-D: in
+  cos θ, 1 + κ(1 − μ) = (1 + 2κ)^v, φ uniform; flat: θ = 2 atan(tan(π(w − ½))/√(1 + 2κ)) round the circle) and one
+  acceptance (r² + 1 − 2r(ε·n̂)²)/2 ≥ about ⅓: about 1 µs a scattering at any energy (formulas from memory; they are
+  standard and checked here against each other). The electron leaves along the momentum the photon gave it, E·k̂ − E′·k̂′
+  (before: along the photon), with the energy as before. Off, the old draw (cos θ even) is kept as it was.
+  - *The flat game.* The photon scatters within the plane: its angle θ round the circle has the Klein–Nishina law at the
+    plane's φ (cos φ = the polarization's in-plane part), what a ring of detectors in the plane sees (as part 4's μSR
+    positrons). Two consequences, both built: (1) an in-plane-polarized photon scatters into the plane less often than
+    one polarized across it (at low energy 2 : 4 against an unpolarized 3), so a polarized photon's rate is the game's
+    times knPlaneW = (A − 2cos²ψ·B)/(A − B), A = ∫(r³ + r)dθ, B = ∫r² sin²θ dθ (Simpson, 64 intervals; ×2/3 to ×4/3,
+    unpolarized ×1, 3-D always ×1, the total cross section there not depending on ε; the game's chance at an atom,
+    1.2% an electron, is already 0.98 for lead, so there the ×4/3 is capped at 1); (2) for an unpolarized photon ψ is
+    drawn afresh with every proposal, so θ comes from the unpolarized law (1 + cos²θ at low energy); drawing ψ first
+    and θ after would give (1 + 2cos²θ)/2 (found by the χ² check: 666 against 19 dof before this).
+  - *The rate: part 3's.* With this switch alone, a γ ray of 100 keV or more meets an atom's electrons at 1.2% each,
+    whatever its energy, as before; Klein–Nishina's total cross section falls with energy: σ/σ_T = 0.96 at 10 keV, 0.74 at
+    100 keV, 0.43 at 511 keV, 0.32 at 1 MeV, 0.12 at 5 MeV, 0.077 at 10 MeV, 0.012 at 100 MeV (computed from the formula).
+    Part 3 (Charged particles in matter, RP.cpm, merged from v145 at 2e5a21c) makes Compton's odds follow that total
+    cross section (cpmGamma: cpmKN(E)/cpmKN(1 MeV), ×1.36 at 511 keV), with pair production by its measured cross
+    sections; this part reuses it and adds only the flat game's polarized weight (cpmGamma's w = knPlaneW) and the
+    angles. The switches work alone and together (f_rp7 "both": cpm alone fingerprints as part 3 made it; both on, the
+    odds are part 3's × knPlaneW). Below 100 keV the box does no Compton scattering
+    (X-rays ionize or pass), so the 10 keV check is of the scattering itself (knScatter), not of the box.
+- **Optics (flat game, props.js).** Mirror and beam splitter: the reflection mirrors the vector (ε − 2(ε·n)n: an ideal
+  metal, r_s = −1, r_p = +1, linear stays linear, unpolarized stays unpolarized); passing a splitter keeps it (as the
+  brief asked; a real dielectric splitter changes it a little). Lens: kept, its in-plane part turning with the ray (an
+  ideal lens, no Fresnel losses). Prism (prismTrace7, the switch on): each face reflects by Fresnel's equations for the
+  photon's polarization (the plane of incidence is the game's plane; p̂ = k̂ × ẑ for every wave): r_s = (n₁c − n₂c′)/
+  (n₁c + n₂c′), r_p = (n₂c − n₁c′)/(n₂c + n₁c′), t_s = 2n₁c/(n₁c + n₂c′), t_p = 2n₁c/(n₂c + n₁c′); R = r_s²·s² + r_p²·p²
+  (Hecht's *Optics*, from memory), the photon reflected with that chance and leaving with the amplitudes it keeps. At
+  Brewster's angle (tan θ_B = n: 58.3° for the prism's F2 flint at 589 nm, n = 1.6166; ~56° for crown glass) r_p = 0: the
+  reflected light is all s, across the plane. A total reflection inside keeps the vector as at the critical angle
+  (r_s = r_p = 1; its phase shifts, which make light elliptical, are not carried). Before (and off): the prism reflected
+  nothing at its faces. The polarizer: a new object (Objects tool, offered with the switch on; `OBJ_POL`, kept out of
+  OBJ_KINDS so t_fuzz's draws are unchanged; saves carry its axis `pa`): a sheet with its axis at α from the plane
+  (0 along the sheet in the plane, 90 across the plane; Axis in the tool and the quick menu); a photon passes with
+  probability (ε·â)², â the axis's part across the ray (Malus's law, cos²), unpolarized one in two, and leaves along â;
+  else absorbed (escaped). Off, a placed polarizer lets light through untouched and says so in its title. X-rays and
+  γ rays pass it, as the other optics. Placed objects stay out of 3-D (as before).
+- **Rayleigh/Thomson scattering: none to act on.** The box has no elastic scattering of light by atoms or free electrons
+  (rayInteract only absorbs, ionizes, dissociates, fluoresces or Compton-scatters above 100 keV). Adding it would be a
+  new process (rates ∝ λ⁻⁴): for later, if the owner wants it (with photons as waves it would come naturally).
+- **Cherenkov light (with part 3 on).** Its photons are polarized in the plane of the track and the photon, across the
+  photon (cpmCkv: polAcross of the track's direction; Jelley, *Čerenkov Radiation*, from memory): in the flat game in
+  the plane. Checked: 63 photons flat and 63 in 3-D, each across its path and in that plane to 2×10⁻¹⁶.
+- **Inspect and the view.** Inspect's photon card has "Polarization" with the switch on: "linear, in the plane (across its
+  path)", "linear, across the plane (out of the screen)", "linear, at N° from the plane", in 3-D the vector and its angle
+  from vertical, or "unpolarized (…)". A photon in flight (flat) carries a mark at its head: a bar across its path for the
+  part in the plane, a ring for the part across it. The polarizer is drawn as a dark sheet with strokes along it and dots
+  for its axis. 
+- **What the box can't make real, said:** circular and elliptical polarization (and so a total reflection's phase
+  shifts, quarter-wave plates, the circular polarization of synchrotron and Zeeman light); the annihilation pair's
+  entanglement: each pair here is a definite perpendicular pair (Wheeler 1946's picture), which gives each photon the
+  right statistics but a weaker correlation between the two than nature's (Pryce and Ward 1947, Snyder, Pasternack and
+  Hornbostel 1948: perpendicular over parallel Compton coincidences at 82° 2.85 in quantum mechanics, a definite pair at
+  most 1.63, Bohm and Aharonov 1957; Wu and Shaknov 1950 measured 2.04 with their wide detectors); polarized γ lines
+  from oriented nuclei and the angular correlations of cascade γ rays (⁶⁰Co's 1,173–1,332 keV pair); π⁰ → 2γ's
+  perpendicular polarizations (built for e⁺e⁻ only); bremsstrahlung's partial polarization (unpolarized here; Cherenkov light
+  is polarized, below); polarization in 3-D optics (no 3-D optics); Compton scattering
+  off bound electrons' momenta (Doppler broadening) and their binding's suppression at small angles (Waller–Hartree).
+- **Numbers** (Node; f_rp7 and scratchpad rp7/*.js):
+  - Klein–Nishina angles, 60,000 unpolarized scatterings each, χ² over 20 bins (19 dof): 3-D in cos θ 22.9, 16.1, 18.9
+    at 10 keV, 511 keV and 5 MeV; flat in θ round the circle 9.9, 17.4, 31.6. E′ from the scattered photon's own
+    angle against the formula to 3×10⁻¹¹; the electron along E·k̂ − E′·k̂′ to 4×10⁻¹⁶.
+  - Polarized, 3-D at 511 keV, scattered at 80–100°: 4.50 times as many at 90° to the polarization as along it (±15°
+    wedges; the formula 4.37), φ against the formula χ² 14.9 (11 dof); unpolarized φ even, χ² 8.7. Flat at 100 keV, of
+    40,000 photons meeting a carbon atom: across the plane 3,830 scatter, in the plane 1,948 (knPlaneW's 3,793 and 1,967);
+    near 90° 411 and 9 (408 and 10). At 100 eV the new polarization is ε₁ in every case.
+  - Sources: 3,000 annihilation pairs flat and 3-D and 200 para-positronium decays each: polarizations at right angles
+    to each other and to their paths to 2×10⁻¹⁶, each photon's alone even round its path (χ² 9.2 and 3.9, 11 dof); an
+    atom's line photons unpolarized; a laser across the plane along ẑ.
+  - The pair's correlation (3-D, both photons of 300,000 pairs scattered, 72–92°, ±15°): perpendicular over parallel
+    coincidences 1.53 ± 0.08 (a definite pair gives 1.565 averaged over these windows; quantum mechanics 2.58).
+  - Optics: a prism face at Brewster's angle reflects 396 of 4,000 unpolarized photons (Fresnel 399), every one across
+    the plane, and none of 4,000 polarized in the plane; straight on 226 (((n − 1)/(n + 1))² gives 222). Two polarizers,
+    the second at 0°, 30°, 60°, 90° to the first: 1.016, 0.748, 0.257, 0 of the first's light (cos²). A 45° mirror keeps
+    across and in-plane polarization to 10⁻⁶.
+  - Books: 200 Compton events on a water molecule's O and H, flat and 3-D, exact to 3×10⁻⁸ eV (the photon's energy is in
+    the books once it leaves or is taken). In a running box of liquid water with γ rays fired in (60 steps, 61 Compton
+    events) the worst event is 2.15 eV on, 2.45 eV off: the ionized water's own known limit, the same either way. Light
+    through two polarizers: escaped grows by exactly what left the beam (3×10⁻¹⁰ eV over 500 photons).
+  - Switch off: the fingerprints of all 59 setups (seed 7, 300 steps) equal v145's (one lane, before and after); f_rp7
+    "off" keeps six of them (annihilation, pet, prism, photonuc, water, water3d). On, three change in 300 steps
+    (photonuc, hyperfactory, sns: their γ rays Compton-scatter); annihilation and pet do not (their γ rays leave).
+- **Cost** (one thread, on a machine shared with another session's tests: ±30% noise). Off nothing (a flag test per
+  Compton event, per optic and per pair). On: a Compton event 0.22–0.30 ms against 0.31–0.34 ms (most of it the electron
+  set free; Klein–Nishina's draw ~1 µs); a laser photon through the Balmer prism 23–25 µs against 16–46 µs; the PET and
+  annihilation setups ×1 (0.38–0.40 ms, 5.0–5.5 against 4.7–7.1 ms a step). Where γ rays scatter in matter the electrons
+  come out slower (forward scattering, as in nature) and ionize more of the box: flat liquid water with five γ rays a step
+  44–52 against 42–49 ms a step (noise); 3-D liquid water 138–206 against 81–97 ms a step (66 ionizations against 27 in
+  100 steps): the 3-D tag says ×1–2.
+- **Found, not changed (for a bug-fix session; it is the same with the switch off):** in the flat game `ejectElectron`
+  books 100–200 eV wrong when the electron's energy at infinity is just under radThreshold (1 keV) and its launch
+  energy, with the ion's pull added, is over it: setMotion then puts it in radiation flight, which carries no potential
+  energy, so the pull its launch counted on is created (water, 40 tries each: 0.8 keV 121 eV, 1.0 keV 149 eV, 1.2 keV
+  200 eV; 0.5 and 1.5 keV exact). Any ionization making a ~1 keV electron does it; Klein–Nishina's forward scattering makes
+  such Compton electrons a little more often (seed 18's water box: two events, 50 and 124 eV). Fixing it changes the flat
+  game off too, so it is left for main.
+- **Suites** (2-core machine shared with the part-3 session; after merging v145 at 2e5a21c, part 3): alone t_lint, t_energy,
+  t_hep, t_physics, t_3d, t_settings, t_fuzz, t_touch, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_swx, f_hep126, f_sweep3d pass; the
+  fingerprints of all 59 setups equal v145's (2e5a21c). t_features alone: f_rp7 and every f_ file pass; 3 misses, all
+  timing: the chain reaction's k readout and 1.21's contraction time (both on record as two-core flakes), and the glowing
+  walls' oven (mean photon 2.81 kT, a photon after the walls were set to wrap): its frames run on a 25 ms budget, and
+  alone in the page it passes on this branch (2.745, 2.713 kT, none) as on v145 (2.718, 2.634, none). tools/runtests.sh:
+  stopped at its 30-minute limit with t_features (lane A) still running; the other 20 suites ran: 19 pass, t_fuzz missed
+  once (seed 17, "S²⁻ kept electrons it cannot hold", under both lanes' load) and passed alone (24 worlds, 326 s);
+  t_touch, not reached, passed alone.
+- **For the owner (physics questions, written down, not decided):**
+  - Give X-rays of 10–100 keV their Compton share (in light elements it passes the photoelectric effect near 25–30 keV);
+    the box does none below 100 keV, with either switch.
+  - Rayleigh and Thomson scattering of light (elastic, λ⁻⁴, polarizing at 90°: the blue, polarized sky) are not in the
+    box: add them (with photons as waves, or before)?
+  - π⁰ → 2γ with perpendicular polarizations, and cascade γ–γ angular correlations (⁶⁰Co): add them?
+  - Values from memory (no network): mₑc², the textbook formulas (Klein–Nishina, Fresnel), F2's dispersion (already in
+    the game), and the historical numbers above (Wu–Shaknov 2.04, the 2.85 / 1.63 at 82° are also computed here from the
+    formulas: 2.835 and 1.629).
+
+### 1.27: combined (branch v145; not released)
+
+**The owner's feature list (2026-11-06): ALL APPROVED** ("I approve all of them"; the bug fixes wait for his credits).
+18 keep part 3's Bethe energy loss with its switch on (decided: kept, nothing to build); 19 photons as waves; 20 a bigger
+model for close-packed metals; 21 polarizability by direction; 22 Rayleigh scattering; 23 stopped kaons make Σ too; 24
+unstable particles interacting with each other; 25 the Higgs boson; 26 a "matter depth" option for showers and Cherenkov
+light; 27 the polarization correlation of π⁰ → 2γ and of γ–γ cascades (⁶⁰Co); 28 charm and bottom from nucleus–nucleus
+collisions; 29 the Z peak lowered by the beams' own radiation, and the W pair's forward peak; 30 hydrogen in molecules
+catching muons at the measured rate; 31 an automatic energy scan in the LEP setup; 32 positronium on the particle menu.
+33 (asked 2026-11-06, a speed-up, not physics): the longer force reach (9 and 12 Å) in WebAssembly: the Rust kernel
+has the 6 Å cutoff compiled in (kernel/src/lib.rs `RC2 = 36.0`, used 12 times; setCutoff turns the module off for any
+other reach), so 9 and 12 Å run the JavaScript kernels; making the cutoff a value the kernel is given (lib.rs, d3.rs,
+the neighbour lists' reach) and built by wasm.yml, with 6 Å bit for bit as now and 9/12 Å equal to the JavaScript to
+the bit, would give them the module's speed (the pair loop about 1.7–2.5× the JavaScript's). Medium job.
+34–38 (asked 2026-11-06, "anything else that can be written in wasm?"; speed-ups, not physics; measure first: a profile
+of each with its setting on, then port only where the JavaScript part is most of the step): 34 quantum bonds (xtb.js:
+the GFN-xTB self-consistent field, its Hamiltonian, the eigen-solver and the gradients, all JavaScript; large);
+35 directional forces (sites.js sitesForces: σ-holes ×1.7–2.0 flat, lone pairs ×2.1–2.6 in 3-D, π clouds; a JavaScript
+pass after the kernel; medium); 36 electrons as waves (waveForces/waveForces3, eFF; medium); 37 free electrons' inner
+steps among ions (innerSteps/innerSteps3, the RESPA loop that dominates ionized matter; medium, branchy); 38 many-body
+metals in mixtures (bometal.js's JavaScript path when non-metals or other kinds are in the lump: mbWasm takes only plain
+metals; small–medium). Not worth it: events, reactions, nuclear and particle physics (rare and branchy), drawing (WebGL).
+Order, to spend the owner's limited usage well: the small ones first in one session (23, 26–32), then the medium ones
+(21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
+Done since: 21 (branch v150 from v145, 2026-11-06: "1.27: feature 21 (polarizability by direction)"); 22 (branch v151
+from v150: "1.27: feature 22 (Rayleigh scattering)"); 25 (branch v152 from v151: "1.27: feature 25 (the Higgs boson)"); 24 (branch v153 from v152: "1.27: feature 24 (unstable
+particles meet each other)"); 19 (branch v154 from v153: "1.27: feature 19 (photons as waves)"); 20 (branch v155 from v154: "1.27: feature 20 (close-packed metals)").
+The owner (2026-11-06): the WebAssembly speed-ups go to the next version (1.28), as one pass over everything that could use
+one: 33–38 above, and polarizability by direction's update and force pass (pold.js pdUpdate, pdForces: ×1.2–4.2 on top
+of the induced charges, the most in 3-D at every step), and the close-packed metals' band shape (bometal.js mb4Pass:
+×1.7 a step in a 3-D copper crystal, its own pass ×5.9 over the module's). Time each first (a profile with its setting on), port where the
+JavaScript is most of the step.
+39–44 (the owner, 2026-11-07: "Add everything including the garbage collector fix"; speed-ups, not physics). Found by a
+profile of every setup's step loop at normal settings (seed 7, 300 steps each, the inspector's sampling profiler, its own
+time left out; one thread): WebAssembly is 16% of the step on average (3-D water 86%, flat chip setups 56–66%), the rest
+JavaScript. GitHub's "90% JavaScript" counts files: the built page in dist/ is 59% of the bytes, generated libraries 8%,
+the interface and drawing 8%, tests 6.5%, tools 6%, the simulation about 11%, the Rust kernel 1%. Measured shares:
+39 neighbour searches outside the kernel (engine.js gridWalk, gridWalk3, nearby, buildGrid: the grid lookups for events,
+ions' pulls and electron transfers): 3-D brine 35% of its 8.5 ms step (the slowest setup), brine 29%, chain 28%; small–medium.
+40 the step's main loop (stepPlain, chooseDt, housekeeping, integrateA): about 10% on average, 13–25% in magnet, chain,
+mucf, fusion; medium, it touches nearly everything.
+41 molecule recognition (graphHash, fnv, libIndex): 25–35% in soup, hydrogen3d, muonium; small.
+42 light and radiation in matter (radPath, zoneLocal, zoneKey, moveRad): 40–50% in rhic and ring (both under 1 ms a step);
+medium, branchy.
+43 fast nuclei and leptons in flight (fastFastNuclear, moveFastLeptons, segTargets): about 25% in nif and fusion; medium.
+44 the garbage collector (a JavaScript fix, not WebAssembly): 7% of the step on average, 11–14% in muonium, magnet, isolde;
+find the per-step allocations (arrays and objects made in hot loops: minImg's returned arrays, closures, event
+records) and reuse buffers instead; measure with --trace-gc and the profile before and after.
+Same rule for all: profile with the setting or setup on first, port only where JavaScript is most of the step, results
+bit for bit (fingerprints) where the order of arithmetic allows, equal to rounding where it does not (the 1.25 metals
+port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish all the features"); 33–38 go to 1.28.
+
+**The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
+from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
+ones that need approval"): 1 3-D van der Waals and ion–water pull at their true strength; 2 water's (and molecules')
+ionization energy at the measured value; 3 nucleus–nucleus close passes turned by Rutherford's angle at real impact
+parameters; 4 fast positrons scatter and ionize, annihilating in flight at Heitler's rate; 5 p̄p at high energy mostly
+inelastic by the measured cross sections; 6 fast fired particles meet over the step; 7 Compton scattering of 10–100 keV
+X-rays; 8 electron recapture in ionized water the same in both modes, as in nature; 11 the giant dipole resonance on part
+3's footing; 13 alkali aurides inside mixed metal lumps; 14 AsCl₅'s chlorines not bonding to each other. Bug fixes (no
+approval needed): 9 the decay table's 43 estimated nuclides, 10 muonic atoms keep their muon when a neutron remakes the
+nucleus, 12 measured muon lifetimes for every element, 15 three bookkeeping leaks, 16 four display and text slips, 17
+the values written from memory checked against their sources.
+
+All seven realistic-particle parts (v141–v146), W and Z (v148) and the final 1.26 (v136 at 0b0e149: the sweeps, the
+spin-branch fix, Polarized normal, the fast-electron energy fixes, decay data) merged on v145 (2026-11-06). Switches off,
+every one of the 59 setups is bit for bit 1.26's (tools/fingerprint.js, seed 7, 300 steps, both trees: identical; the
+only new line the LEP setup). The parts' stored switches-off fingerprints were taken before the 1.26 energy fixes and
+were updated to 1.26's (annihilation, muonium, hyperfactory, photonuc, pionbeam, sns; f_rp7's part-3-on hashes too);
+f_rp3 "books" (flat water's events 20 against > 20) and f_rp2 "matter" (33 o-Ps ended in the run against ≥ 36) took
+thresholds of 15 and 30: the events drawn moved with the fixes' last bits, the measured values did not. Suite:
+tools/runtests.sh 20 of 22 (t_features: 1.14's speed readout, the known two-core flake, and the parts' fingerprint
+checks before the update; t_page: the slow-motion button, the known flake); after the update every f_rp file, f_ew and
+f_bug126e pass alone.
+
+### 1.27: two controls (the owner, after 1.26)
+
+Branch ui127 from v145 (2026-11-06, the owner: "a way to stop measuring 2 atoms (right click one with the tool) and a
+modifier key for tool sizes (shift + scroll)"). Controls only, nothing in the physics; no setup changes.
+- **Measure: right-click a measured particle to stop measuring it** (measureDrop, from onUp). A right-click that does not
+  drag (under 6 px) used to open the quick menu everywhere; with the measure tool, on a particle being measured, it now
+  drops that particle from the measurement (the third of an angle leaves a distance; one of two leaves "now click a
+  second particle") and no menu opens. Anywhere else, or with another tool, the quick menu as before; a right drag still
+  pans (flat) or turns the view (3-D). The same pick as a left click (particles, unstable particles, light in flight).
+- **Shift + wheel: the tool's radius** (toolRadiusWheel, from onWheel) for the tools that have one: Push/Pull, Heat,
+  Spark, Magnet, Erase. One notch moves the radius slider 8 of its 200 steps (about ×1.1–1.2 a notch, between the tool's
+  smallest radius and 1,000 Å), up to enlarge; the slider and its number follow. In 3-D, Shift + wheel keeps moving the
+  placing plane for the Place tool (the only one that shows Depth). Chromium on Windows sends Shift + wheel sideways
+  (deltaX): taken too. The tools' help lines say so.
+- Tests: tests/f_ui127.js (t_features runs it alone): real mouse input in the page, flat and 3-D.
+
+### 1.27: features 23 and 26–32
+
+Branch v149 (from v145 at d875110, the combined 1.27). The owner's list, approved 2026-11-06 ("I approve all of them"): the
+small ones, built in one session. Every one is off or unchanged at normal settings but the two menu entries (31's button,
+32's particles): switches off, all 60 setups' fingerprints (tools/fingerprint.js, seed 7, 300 steps) are bit for bit
+v145's, LEP's included (the scan is a button; the beams' radiation and the W pair's angles go with Resonance widths and
+heavy flavour, see 29). Checks: tests/f_feat1.js (t_features runs it alone; `node tests/f_feat1.js [--node] [part …]`):
+fp, kaon, pol, aa, isr, mucap, scan, page; every part but fp fails on v145 (checked on a copy of d875110: no Σ, no
+polarization, no heavy flavour, "eeISR is not defined", the Z law, "zscanStart is not defined", no Matter depth line).
+No network here: every value marked "from memory" below is worth a check against its source.
+
+- **23. Stopped kaons make Σ too** (Exotic atoms on; hep.js kStop, KSIG, kSigma). A K⁻ absorbed at rest on a nucleon makes
+  Σπ two times in three, Λπ one in three (KSIG.share 2/3: K⁻ absorption at rest in ⁴He and in emulsion's light nuclei,
+  Katz et al. 1970, Vander Velde-Wilquet et al. 1977, from memory). On a proton the Σ's charge as in kaonic hydrogen at
+  rest: Σ⁺π⁻ : Σ⁰π⁰ : Σ⁻π⁺ = 0.466 : 0.272 : 0.198 (from R_c 0.664, R_n 0.189, γ 2.36; Tovee et al. 1971, Nowak et al.
+  1978, from memory); on a neutron Σ⁰π⁻ and Σ⁻π⁰ alike (isospin 1). On its way out the Σ turns into a Λ on a second
+  nucleon (ΣN → ΛN: Σ⁺n → Λp, Σ⁻p → Λn, Σ⁰N → ΛN) with the chance 1 − exp(−ρσL) (ρ 0.16 fm⁻³, σ ≈ 20 mb, L ¾ of the
+  residual's radius: 0.35 in ⁴He's residual, 0.48 in carbon's; about half measured in light emulsion nuclei, from memory);
+  the struck nucleon at rest in the residual's frame, the rest a spectator on its mass shell, so momentum and energy add
+  up exactly. A Σ⁰ that does not convert leaves as Λγ (its 7×10⁻²⁰ s). The Λ, converted or not, may still stay as a
+  hypernucleus (hypCatch). Captions name the channel ("K⁻p → Σ⁺π⁻, the Σ⁺ turned into a Λ on a neutron (Σ⁺n → Λp)").
+  Off (or with the switch off: kStop's other callers), as before. Measured (400 kaons each): carbon Σπ 271 (2/3: 267),
+  converted 140 of 271 (0.52); helium converted 87 of 271 (0.32); 3-D carbon 267 and 125; books within 1.5×10⁻⁵ eV of
+  events of ~10⁹ eV, charge kept. Cost: one more draw per stopped kaon.
+- **26. Matter depth** (Settings → Experimental → Realistic particles, the line after Charged particles in matter;
+  SET.cpmX → RP.cpmX). ×1 (normal), ×10³, ×10⁶: the existing hidden multiplier of part 3's rare processes, bremsstrahlung
+  and Cherenkov light. Its descriptions (the line's note, the side pane flat and 3-D) say plainly that it speeds up only
+  those rare processes, the collisions, δ-rays and energy loss staying at nature's rates, so a scaled shower's details are
+  off by the same factor (its critical energy that much lower, its radiation length that much shorter). Back to ×1 at
+  every start (SET_EXP), saved, in the Speed test's summary ("matter depth ×1,000") and the Experimental total. Cost tags:
+  ×1 with Charged particles in matter off; on, ×1–1.1 (×10³) and ×1–1.2 (×10⁶), measured on one thread: the radiation
+  setups unchanged (linac 0.22 ms a step at every factor, pion beam 7.3/7.2/6.8, photonuclear 4.5/4.1/5.0), 1 GeV
+  electrons fired through flat water 0.62 → 0.71 ms a step, through 3-D water 4.3 → 4.5 at ×10⁶. ×1 carries "realistic":
+  t_features 1.10's realistic-tag list gains a "1" (15 tags, the switches' 10 unchanged).
+- **27. Photon polarization: π⁰, η and ⁶⁰Co** (Photon polarization on; hep.js polPS0, GL_ACORR, glCorrDir). π⁰ → γγ and
+  η → γγ give the two photons perpendicular polarizations (the pseudoscalar's amplitude k·(ε₁ × ε₂): Yang 1950; for π⁰
+  seen in its double Dalitz pairs' planes, Plano et al. 1959), as part 7 does for annihilation pairs (polPair). ⁶⁰Ni's
+  1,173 → 1,332 keV cascade (4⁺ → 2⁺ → 0⁺, E2 E2; with Nuclear spin, γ lines on, which makes the lines): the second γ
+  leaves at θ to the first with W(θ) = 1 + A₂P₂(cos θ) + A₄P₄(cos θ), A₂ = 0.1020, A₄ = 0.0091 (the theory's, measured
+  alike since Brady and Deutsch 1950; from memory). **The brief wrote this as 1 + 0.102 cos²θ + 0.0091 cos⁴θ**: 0.1020 and
+  0.0091 are the Legendre coefficients; in powers of cos θ the same correlation is 1 + 0.125 cos²θ + 0.0417 cos⁴θ (exactly
+  1/8 and 1/24 for 4(2)2(2)0), 1.167 times as likely back to back as at 90° (the brief's literal form would give 1.111):
+  built with the measured A₂, A₄. In 3-D over the sphere; flat, in the plane (what a ring of detectors in the plane sees).
+  Measured: 139 flat and 144 3-D two-photon decays (of 100 π⁰ and 100 η each; the others are π⁰ Dalitz and η's 3π),
+  at rest |ε₁·ε₂| ≤ 1.1×10⁻¹⁶; 40,000 cascades: 3-D ⟨P₂⟩ 0.0195 (A₂/5 = 0.0204), flat ⟨cos²θ⟩ 0.5188 (W's 0.5193; at random
+  0.5). Not built: the polarization–direction correlation of the ⁶⁰Co γ rays (the γ lines carry no polarization), other
+  cascades (GL_ACORR has the one entry). Cost: nothing measurable.
+- **28. Charm and bottom from nucleus–nucleus collisions** (Resonance widths and heavy flavour on; hep.js hfNucl,
+  fragmentInto). A fireball's ncoll binary collisions (a·b/min(a, b)^⅔, as the W/Z code's: central Au + Au 1,150, Glauber
+  1,050) each make a pair at part 5's measured share per collision at √s_NN (hfShare), so the pairs are Poisson with mean
+  ncoll × share (J/ψ and Υ at part 5's shares); their hadrons (part 5's fragmentation fractions) join the plasma's or the
+  string's hadrons, which make the rest from what they leave (mass, baryon number and charge taken from the bulk's), when
+  they leave the fireball at least half its energy above its baryons. Central Au + Au at 200 GeV: 30.5 heavy hadrons a
+  collision flat, 39.5 in 3-D (expected ~16 pairs: 1,150 × 600 µb/42 mb), none with the switch off, books within 2.6×10⁻¹⁵ of
+  √s, charge kept. Central Pb + Pb at 2.76 TeV makes ~130 pairs (126 heavy hadrons seen), but see "found" below. Left out:
+  nuclear shadowing, energy loss in the plasma, recombination (written down).
+- **29. The Z peak lowered by the beams' radiation, and the W pair's forward peak** (Resonance widths and heavy flavour on;
+  hep.js eeISR, isrDraw, wwAng, in eeEvent). Gated by that switch, as the owner's rule asks (normal settings unchanged):
+  the beams' radiation is the Z's line shape, the switch's subject; the W/Z code itself stays always on. Initial-state
+  radiation: the Kuraev–Fadin radiator with soft photons to all orders, G(x) = βx^(β−1)(1 + δ) − β(1 − x/2), β =
+  (2α/π)(ln(s/m²) − 1) = 0.1077 at the Z (m the beams' lepton: a muon collider's beams 0.061), δ = ¾β + (α/π)(π²/3 − ½); the Z's σ = ∫G(x)σ_Born(s(1 − x))dx (Simpson, 600
+  intervals, x = t^(1/β) for the singular part); a collision that makes a Z draws its x from G·σ_Born by rejection, the Z
+  at √s' with one photon (x√s/2) along a beam (either), A_FB at √s'; x below 1 MeV of photon left unradiated. Hadrons:
+  peak 30.59 nb at 91.19 GeV (Born 41.51; measured at LEP 30.4–30.5, from memory), highest 30.72 at 91.28 (moved up 0.09
+  GeV); 88 GeV 4.01 (Born 5.39), 90 15.48 (21.94), 92 24.56 (28.86), 93 14.05 (13.35), 94 8.76 (6.93): the high side
+  raised by radiative return. The photon channels keep their Born values (2–3% of the collisions at the Z). In 200 e⁺e⁻
+  collisions on the peak: every one a Z, 111 with a photon above 1 MeV, mean Z mass 91.0 GeV; books within 4.3×10⁻¹⁴.
+  W pairs: the W⁻ along the e⁻ with the t-channel neutrino's odds 1/(−t) = 1/(√s(E_W − q cos θ) − (m₁² + m₂²)/2), its
+  leading term: at 200 GeV forward : backward 15 : 1 at the poles, 0.77 of W⁻ in the forward half in 3-D (measured: 0.81
+  and 0.77 in 253 and 270 pairs, two seeds; f_feat1 0.86 of 127), against 0.5 before (LEP2 measured dσ/dcos θ rising
+  steeply toward the e⁻, from memory). Not built: the photon channels' own radiation, ISR on the W pairs, the W spins.
+  Cost: eeISR 0.16 ms per e⁺e⁻ collision above 10 GeV (cached for the same √s), the draw 0.004 ms; a Z's hadronic decay
+  takes 0.29 ms (W and Z section): about ×1.5 on a collision, a few hundred collisions a minute at most.
+- **30. Hydrogen in molecules catches muons less often** (Exotic atoms on; hep.js xaW, XA_HSH, in xaTarget). A slow μ⁻,
+  π⁻ or K⁻ is caught by an atom within 1.5 Å with odds Z (Fermi–Teller), except hydrogen bound in water, methane or a
+  hydrocarbon, whose weight is set so its molecule's share of captures on hydrogen is the measured one: H₂O 0.4% (Z law
+  20%), CH₄ 1.7% (40%), other hydrocarbons 1.2% (from memory: π⁻ capture in hydrogenous molecules, Krumshtein et al. 1968,
+  Petrukhin and Prokoshkin, Horváth; the large mesomolecule model, Ponomarev 1973; μ⁻ taken alike, the pion data being the
+  measured ones). Other molecules with hydrogen, H₂ and free hydrogen keep the Z law. Measured (20,000 draws, the whole
+  molecule in reach): water 0.0033, methane 0.0174, a free H beside an O 0.110 (1/9); ethane with 6 of its 8 atoms in reach
+  0.0083. Cost: a molecule() walk per hydrogen candidate of a slow negative particle.
+- **31. The LEP energy scan** (ui.js ZSCAN, zscanStart, zscanTick, zscanPoints, drawZScan; eeEvent records). Lab →
+  Collider: with e⁺e⁻ on a linear collider at 30–60 GeV a beam, a "Scan the Z peak" button (Stop the scan while it runs)
+  steps the beams through 44.5, 45, …, 47.5 GeV (√s about 88–94: the linac's beams arrive 1–5% below their setting, so
+  each collision's own √s is binned), 30 collisions at each. Every e⁺e⁻ collision above 10 GeV is recorded (its √s, the
+  total cross section, whether it made a Z, and from the Z's decay whether hadrons). The Data tab's new card "The Z line
+  shape (energy scan)" draws σ(e⁺e⁻ → Z → hadrons) in 1 GeV bins (the share of collisions that made it times the total
+  cross section there: LEP's events over its luminosity) with statistical errors, and the model's line (Born, or with the
+  beams' radiation when Resonance widths is on). Node (seed 7): 226 collisions in 9,190 steps (0.7 s), 9 bins 86.6–94.5
+  GeV, highest 43.1 nb at 91.5 (Born line 39.1 there), none off the line by 3σ; with Resonance widths on the highest 28.3 nb
+  at 91.6 (line 29.6). The LEP setup itself is unchanged (fingerprint equal); its hint names the button. A different
+  collider or setup ends a running scan. Screenshot: scratchpad scan31.png.
+- **32. Positronium on the particle menu** (ui.js PCATS, placeFly, the Place tool's line). "Exotic atoms and nuclei" lists
+  p-Ps and o-Ps (two entries: the owner can place either; positronium made in matter is still 1 : 3). Decided: shown
+  always, and with the Positronium switch off placing is refused with the reason, in the Place tool's line and the log:
+  "Positronium is placed with the Positronium switch on (Settings → Experimental → Realistic particles → Positronium): its
+  decays, its pick-off in matter and its conversion by O₂ are that switch's." (Hidden entries would leave the owner
+  wondering where it went.) With it on, placing makes them at rest as for any unstable particle.
+- **Status (stopped by the coordinator, the owner's credit nearly gone):** all eight items (23, 26–32) are built, with
+  their checks in tests/f_feat1.js (every part passes here, every part but fp fails on v145). Alone: t_lint, t_energy,
+  t_hep, f_rp1 (its hadrons part updated for Σ), f_rp2, f_rp3, f_rp5, f_rp7, f_ew, f_feat1 pass. tools/runtests.sh was
+  cut short: every suite passed but t_features (still running when stopped: its misses so far 1.14's speed readout, the
+  known two-core flake, and f_126w's bo3 timing ×1.03 against 1.5, a timing check under load; neither rerun alone) and
+  t_touch (not reached). The ISR lepton-mass fix (5a742f5) came after the suite's snapshot; f_feat1 isr/scan pass on it.
+- **Found, not changed:** an event whose products pass the 1,500 unstable particles the box holds (MAX_EXO) carries the
+  rest off with their energy (escaped) but not their charge: the charge count is off by theirs (v145 the same; seen
+  with heavy flavour on in central Pb + Pb at 2.76 TeV, where the plasma's hadrons reach 1,500 even in Cu + Cu at 2.76
+  TeV: 2–3 e off in one event); a bookkeeping fix (their charge to ledger.qOut), left for a bug-fix session. The scan's
+  "measured σ" counts Z → hadrons only (γ* → hadrons, under 1% at the peak, is not counted).
+
+### 1.27: the release gate on v157 (2026-11-07)
+
+v157 with bug 18 and its two test changes (3c6fbc0): tools/runtests.js, 2 lanes: 62 of 65 jobs at once, the other three
+alone (t_features: 1.14's speed readout and 1.21's contraction ratio; t_page: the slow-motion button; f_bug125:
+exoElastic's time): **ALL SUITES PASSED**, 50 min. Ready to release as 1.27.0.
+
+### 1.27: the test runner (tools/runtests.js)
+
+The owner (2026-11-07): "is there any way to speed up the tests?" … "Yes, build it". tools/runtests.sh now calls
+tools/runtests.js [tag] [lanes]: a snapshot as before; jobs = the 22 t_*.js suites and t_features' 43 separate files
+(its `alone('f_….js')` lines, which t_features skips under AF_ALONE_SKIP=1) as jobs of their own; lanes = the cores, at
+most 12 and one per 3.5 GB; the longest jobs first (tests/.tmp/durations.json from the last run); a line as each job
+ends; then every failed job again alone, one at a time: passing alone is reported as "missed under load only" and the
+run passes. Measured here (2 cores, 2 lanes, the first run with no durations yet): all jobs in 31 min (the old two lanes:
+41, lane A held t_features' 33 min), 42 min with the reruns of three failures (t_page's known collider-beam timeout
+passed alone; t_features "chain" (the k readout, time-budgeted) and "1.09 ionized water drift", and f_fix04 "contact",
+failed again: the last two wait on the fixer's test changes for bug 18). On a PC with more cores the lanes fill them.
+Also for a PC (2026-11-07): tests/deps.js finds Playwright and ESLint in the repository's node_modules (package.json;
+`npm install`, `npx playwright install --with-deps chromium`), else /opt/node-tools as here; AF_SOFTWARE_GL=1 puts the
+test browsers' WebGL on SwiftShader. Under WSL on the owner's PC the fonts matter: the cloud's fontconfig prefers Inter
+for system-ui and sans-serif (/etc/fonts/conf.d/56-prefer-inter.conf); without it the Settings layout checks fail.
+
+### 1.27: the 17 bug fixes merged with the features (branch v157)
+
+v157 = v156 (features 18–32, the two controls) + fix127-01 … fix127-17 (the fixer's branches, each from 0c947e1), merged
+in order on 2026-11-07. Conflicts:
+- PERF-NOTES and t_features: each branch's section and check line kept (all appended).
+- The tests' switches-off fingerprint tables (f_ew, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7): each fix re-fingerprinted the
+  setups it changes on its own; with all of them in, annihilation, pionbeam, hyperfactory, photonuc and sns (and, part 3
+  on, annihilation, photonuc and sns) take new values, measured on the merged code.
+- hep.js xbClose: bug 6 put a 3-D meeting's products at fastMeet's depth (_evZ3), feature 24 at exmHit's (_xbZ); exmHit
+  now sets _evZ3 too and xbClose uses it.
+- engine.js before rayInteract: bug 11's gdrP and feature 22's _rySeen and depth argument, both kept.
+- hep.js XP: bug 17's M_Z and Γ_Z (PDG 2024) with feature 25's Higgs line.
+- The kernel (bugs 1 and 14 each changed the Rust: d3.rs, bo.rs): rebuilt from the merged sources by wasm.yml (fb2bca6).
+Found by the suite on the merge, not by either side alone: f_rp3 "books" (3-D lead, part 3 on) lost 0.15 eV at one
+pair production. settleKE stops when the energy left is under 1e-9 of the event's, and a 220 MeV pair (made by a γ ray
+from a 440 MeV positron that annihilated at the wall; bug 17's screened pair cross section changed which events the seed
+gives) left 0.15 eV unpaid. cpmPair now settles to 1e-14 of the pair's energy in up to 8 rounds (settleKE takes the
+tolerance and the rounds; every other caller as before, so no setup with Charged particles in matter off changes):
+worst 4e-6 eV again.
+- Feature 21 (pold.js) doubled the ion–water pull in 3-D too (its K_IW weight); with bug 1 the kernels do not, so its
+  3-D forces left the energy's slope by 0.088 eV/Å (f_127p "slope"): it takes bug 1's rule now (no doubling in 3-D), 8e-11.
+- My features' fingerprint tables (f_feat1, f_127h, f_127x, f_127w) take the merged values (annihilation, photonuc,
+  pionbeam, hyperfactory: the fixes'), and t_features 1.11's chain-reaction tree moves to seed 2 (seed 3's chain now stops
+  at 21 fissions; chains are luck: seeds 1, 2, 4, 6 reach 30, 5 stops at 8; on v156 seed 4 stopped at 15).
+- Suite on v157 (before the two items above): 20 of 22. t_page: the known slow-motion flake. t_features: the fingerprint
+  tables and the seed (fixed above; f_127p, f_127h, f_127x, f_127w, f_feat1, f_rp2 rerun alone, all pass); "muons" (the
+  last of six muon-catalysed fusions was "this muon's fusion no. 2": a sticking to an α (0.85% a fusion) restarted the
+  count; it depends on what ran before in the page: the same check alone in a fresh page, three runs, "no. 6" each time);
+  and **"1.24 particles", left for a bug-fix session**: five 200 eV positrons in 3-D water (seed 8), the books over each
+  one's life within 0.5 eV, came out 42 eV on one. Since bug 4 positrons live and ionize longer (8–29 steps against
+  ~5); the 42 eV is one step in which a hot H atom (an H + H₂O exchange after the radiolysis, 2.5 → 39 eV, moved 1.4 Å)
+  gained it in the velocity half-kick (outerB3 +39 eV, innerSteps3 +3): a close collision too fast for the step, not the
+  positron's own books. Bug 4 alone does it on other seeds (seed 4: 0.52 eV, over the 0.5 limit; seeds 1–6 0.14–0.52;
+  v156 0.01–0.08), and forces equal the energy's slopes in 3-D brine (3e-8). Repro: f_124's "pos" block with seed 8.
+- t_features alone after those fixes (471161d): 5 failures, of them 2 lines of each check's "alone" summary. "muons" passed
+  this time. Two speed ratios missed while it ran: 1.26 bo3 (the 3-D bond orders' module ×1.33, wants ×1.5) and bug fix 17
+  pi3 (44.3 against 39.7 ms); each passes alone right after (bo3 "speed checks passed"; pi3 18.1 against 31.8 ms). Left:
+  "1.24 particles" (the 3-D positron books above). So v157 is ready but for that one, which needs the owner's call (a
+  bug-fix session first, or release with it written down).
+ (3-D van der Waals)
+
+Branch fix127-01-3d-vdw (from v145). Approved physics (the owner's list, 2026-11-06); after the measurements below the
+owner chose to change the ion–water pull only ("pick b"). Check: tests/f_fix01.js (t_features, one line; `node
+tests/f_fix01.js [--node] [part …]`): pull, forces, shell; "pull" and "shell" fail on v145 ({"flat":2,"d3":2}; 6.74
+waters), "forces" (WebAssembly against JavaScript against the energy's slope) failed on this branch until GitHub rebuilt
+the kernel (0.789 against 0.390 eV/Å).
+
+- **What was wrong.** Two flat-world boosts were on in 3-D: the Coulomb pull between a free ion and a polar molecule's
+  partial charges doubled (K_IW 2), and the van der Waals wells doubled (LJ_SCALE 2). Both make up for a plane's fewer
+  neighbours; in 3-D an ion has its real shell.
+- **What the measurements showed first** (Node, JavaScript kernels, before = v145):
+  - Argon's wall-pressure Z of 0.48 (and helium's 0.84–0.89) was mostly the measurement, not the wells. f_sweep3d's run
+    is 8 ps from a grid 5 Å inside the walls, and wallPressure averages every block since the start: heavy atoms have not
+    reached the walls yet. Same 20,000 steps, seed 4: He 0.84, Ne 0.55, Ar 0.29, Xe 0.03; argon with its wells switched
+    off entirely 0.27. Run 300,000 steps with the first 50,000 left out: v145 He 1.048 ± 0.016, Ar 0.991 ± 0.029, Xe
+    0.921 ± 0.04; wells at factor 1: He 1.061, Ar 1.039 ± 0.032, Xe 1.021.
+  - Exact second virial coefficients from the game's own pair energy (pairPE, 3-D, 300 K, cm³/mol), doubled → factor 1,
+    against measured (from memory, Dymond and Smith's tables: check): He 3.8 → 5.7 (11.8), Ne 13.6 → 16.3 (11.3), Ar −28.1
+    → +9.9 (−15.6), Kr −47.6 → +8.2 (−51), Xe −132.6 → −13.8 (−130). UFF's noble-gas wells are shallower than measured
+    (Ar 8.0 meV against 10.3, Kr 9.5 against 14.1, Xe 14.3 against 19.0, from memory), so the doubled wells are nearer the
+    real gases than UFF's own.
+  - Water (343 waters as a droplet in a 60 Å box, bath 300 K, 3,000 + 4,000 steps, the middle 6 Å): v145 1.005 g/cm³,
+    −0.425 eV a molecule between molecules; wells at factor 1: 1.033 and −0.437 (real 0.997; about −0.43, from memory).
+    water3d's O–O first peak 3.05 Å → 2.85 (real 2.8). The "14–18% too dense" of 1.26 was with the 9 Å reach and lone
+    pairs; with the usual settings 3-D water was 0.8% dense.
+  - Salt water (brine3d, 3,000 + 2,000 steps, seed 4): see the table.
+- **What changed** (the owner's choice: the ion–water pull only). In 3-D the pull is plain Coulomb: engine.js `iwK` (the
+  energies pairNonbondedV, coulAA, the pair energies of events), pairKernel3 (the worker runs the same function),
+  sites.js (sitePairE and the sites' force loop), af_qeq's P[10] (the induced charges), and kernel/src/d3.rs af_forces3
+  (rebuilt by the wasm.yml workflow, b811a4b). The flat kernels, lib.rs and K_IW itself are unchanged; LJ_SCALE stays 2
+  in both modes (comment at setSize).
+  Texts (body.html): the Physics tab's "In the 3-D lab" card now names one flat correction still on (the wells), and
+  Honest approximations' "Ions in water pull twice as hard" says it is the flat game only.
+
+| brine3d, 3-D | v145 | after (K_IW 1) | wells and pull at 1 (not chosen) | real |
+|---|---|---|---|---|
+| Na⁺–O first peak | 2.15 Å | 2.25 Å | 2.15 Å | 2.36–2.43 Å |
+| waters within 3.1 Å of Na⁺ | 7.17 | 5.50 | 5.48 | 5.5–6 |
+| Cl⁻–O first peak | 2.85 Å | 2.95 Å | 2.95 Å | 3.1–3.2 Å |
+| waters within 3.8 Å of Cl⁻ | 10.08 | 8.93 | 8.41 | about 6–7 |
+| Cl⁻–H first peak | 1.95 Å | 2.05 Å | 2.05 Å | 2.2–2.3 Å |
+
+  Real values as in 1.23.2's notes (from memory). Water without ions is unchanged (the pull acts only between an ion and
+  a molecule). With the WebAssembly kernel the after column is the same to the digit.
+- **Fingerprints** (tools/fingerprint.js, every setup, seed 7, 300 steps, switches off): every flat setup bit for bit
+  v145's; of the 3-D setups only brine3d changes (eafbc634 → 2367f60e, books unchanged: the only 3-D setup with free
+  ions beside water). Cost: none (a factor removed).
+- Suites: t_lint, t_energy, t_3d, t_physics, t_molecules, t_wasm, f_sweep3d pass; tools/runtests.sh 22 of 22 (t_features
+  with f_fix01 included); after the text change f_sweep3d physText and t_lint again.
+- **Left for the owner.** (1) The noble-gas wells: neither factor is right (doubled −28 against −15.6 cm³/mol for argon,
+  factor 1 +10); measured wells per element would be a physics change (written down under "Planned features (1.x)"). (2) f_sweep3d
+  "pressure" and Data's "vs ideal gas" average from the moment the conditions change, so a heavy gas started on a grid
+  reads far below 1 for its first tens of picoseconds (argon 0.29 at 8 ps, 0.99 settled); the check passes on helium, not
+  changed. (3) Cl⁻ keeps too many waters (8.9 against 6–7) and every ion sits 0.1–0.2 Å too close: the ions' own size
+  (ljR = 2 × ionic radius), as 1.23.2 found.
+
+### 1.27: bug 2 (water's ionization energy)
+
+Branch fix127-02-water-ie (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix02.js
+(t_features, one line; `node tests/f_fix02.js [--node] [part …]`): cost, books, ps; all three fail on v145 (water 13.62/18.4;
+the books part's cost 13.62 and 18.40; Ps at 13.0 eV formed, at 6.2 eV not), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** ionizationCost(p) is the hit atom's own ionization energy plus every bond its new charge cannot keep
+  (breakCostIfCharged). In water a hit oxygen gave 13.62 eV (O's own), a hit hydrogen 18.40 (13.60 and its O–H bond:
+  an H⁺ keeps no bond) and the electron came from the atom hit; the 18.4 of the realistic-particles notes is the
+  hydrogen's. So most molecules were dear and some cheap: CH₄ 15.5–17.9 (12.61), NH₃ 14.5–17.7 (10.07), benzene
+  15.5–17.9 (9.24), CO 35.1 at the O (and at the C, a C⁻ in the game's C⁻≡O⁺, 1.26: the electron's affinity), measured
+  12.62 for water (NIST Chemistry WebBook).
+- **What changed** (engine.js, hep.js psFromAtom).
+  - The hole: an electron taken from a small neutral molecule (up to 64 atoms; not continuous bond orders' members, not
+    in flight) comes from its atom with the lowest cost (`holeAtom`), whichever atom was hit, as a molecule's electron
+    comes from its highest orbital. An ion's next electron is still taken where it is hit (its charge's pull, a second
+    ionization, is not in atomIonCost: allowing the move there tripled the ionizations of an ionized-water plasma).
+  - Measured values: `MOL_IE`, first ionization energies by formula (adiabatic, gas). After the hole atom loses its
+    electron, the difference between the measured value and what the molecule's own energy rose by (`molOwnE`: its
+    bonds, bends, inner pairs and electrons, no neighbours, so a molecule in a liquid keeps its surroundings' shift on
+    top) is held as a constant in the hole atom's bonds (`bd.Eq`, `holeEq`), part of their energy while that atom keeps
+    that charge (`bondEq`: in localPE, regionE, totalEnergy, the bond sums, the builder's strain). Forces are unchanged
+    (a constant: no kernel changes). The hole's Coulomb well is as deep as the measured value (`p.ieH`, softFor):
+    with the atom's own (13.62 for O⁺) an electron at the bottom of an H₂O⁺ well could not be caught back (it releases
+    only 12.62) and stayed there. snapshot/restoreSnap keep both (a capture tried and undone lost the bonds' Eq: 1.14 eV
+    each time, found by wrapping capture).
+  - The cost callers pay is still ionizationCost(p) (now the measured value), and ejectElectron books exactly what they
+    paid: Kfar = KE + ionizationCost − ionE − dU for a molecule of MOL_IE, as before otherwise. psFromAtom takes the
+    electron from the same hole at the same energy, so positronium's Ore gap at water is 5.8–12.6 eV (was 6.8–13.6
+    at the oxygen, 11.6–18.4 at a hydrogen).
+- **Table** (game's cost at each kind of atom, eV; flat, isolated molecule; measured: the owner's list for the first ten
+  (NIST), the rest from memory: check). Every ionization here books to 10⁻⁶ eV (tests in /tmp of the session, `ie3.js`:
+  the projectile pays the cost and 5 eV, the books' change is that to 10⁻⁶; 3-D the same).
+
+| molecule | v145 | after | measured |
+|---|---|---|---|
+| H2O | O 13.62, H 18.40 | O 12.62, H 12.62 | 12.62 |
+| NH3 | N 14.53, H 17.65 | N 10.07, H 10.07 | 10.07 |
+| CH4 | C 15.54, H 17.88 | C 12.61, H 12.61 | 12.61 |
+| CO2 | O 13.62, C 19.54 | O 13.78, C 13.78 | 13.78 |
+| O2 | O 13.62 | O 12.07 | 12.07 |
+| N2 | N 14.53 | N 15.58 | 15.58 |
+| H2 | H 18.12 | H 18.12 | 15.43 |
+| CO | O 35.12 | C 14.01, O 14.01 | 14.01 |
+| C2H6 | C 14.87, H 17.88 | C 11.52, H 11.52 | 11.52 |
+| benzene | C 15.54, H 17.88 | C 9.24, H 9.24 | 9.24 |
+| HCl | Cl 12.97, H 18.07 | Cl 12.74, H 12.74 | 12.74 |
+| H2S | S 10.36, H 17.36 | S 10.46, H 10.46 | 10.46 |
+| CH3OH | C 14.97, O 13.62, H 17.88 | C 10.84, O 10.84, H 10.84 | 10.84 |
+| C2H4 | C 15.54, H 17.88 | C 10.51, H 10.51 | 10.51 |
+| C2H2 | C 15.54, H 17.88 | C 11.40, H 11.40 | 11.4 |
+| HCN | C 15.54, N 14.53, H 17.88 | C 13.60, N 13.60, H 13.60 | 13.6 |
+| N2O | N 14.53 | N 12.89, O 12.89 | 12.89 |
+| Cl2 | Cl 12.97 | Cl 11.48 | 11.48 |
+| F2 | F 17.42 | F 15.70 | 15.7 |
+| HF | F 17.42, H 19.47 | F 16.03, H 16.03 | 16.03 |
+| O3 | O 13.62 | O 12.53 | 12.53 |
+| NO | N 14.53, O 13.62 | N 9.26, O 9.26 | 9.26 |
+| H2O2 | O 13.62, H 18.40 | O 10.58, H 10.58 | 10.58 |
+| propane | C 14.87, H 17.88 | C 10.94, H 10.94 | 10.94 |
+| CH2O | C 15.54, O 13.62, H 17.88 | C 10.88, O 10.88, H 10.88 | 10.88 |
+| NO2 | O 13.62, N 14.53 | O 9.59, N 9.59 | 9.59 |
+| SO2 | O 13.62, S 10.36 | O 12.35, S 12.35 | 12.35 |
+| CS2 | S 10.36, C 17.24 | S 10.07, C 10.07 | 10.07 |
+| ethanol | C 14.87, O 13.62, H 17.88 | C 13.62, O 13.62, H 13.62 | 10.48 |
+
+  Not in MOL_IE: ethanol and other isomers sharing a formula (C₂H₆O is ethanol 10.48 and dimethyl ether 10.03: the table
+  goes by formula), so they get the hole atom's cost only (ethanol 13.62). H₂ stays 18.12 (15.43): its H₂⁺ is a
+  one-electron bond the game does not have, and the hole keeps no bond to hold the difference.
+- **Electron impact on one water** (an electron fired at it, 100 tries an energy, flat; 3-D 60): the share ionized,
+  v145 → after: 12.8 eV 0.03 → 0.06, 13.4 0.01 → 0.27, 14 0.07 → 0.36, 16 0.32 → 0.68, 20 0.62 → 0.84, 50 0.93 → 0.88;
+  3-D 14 eV 0 → 0.17, 16 0.12 → 0.32, 20 0.28 → 0.42. The onset moves from 14–16 eV to the measured 12.6 (Itikawa and
+  Mason's cross section starts at 12.6 eV and rises to its peak near 100 eV, from memory); the game's share is a contact
+  probability, not a cross section, so only the threshold compares.
+- **Ionized water** (flat water, 40 waters ionized with 2 eV each, insulated, 400 steps, seeds 1–5): v145 278–683
+  ionizations after, 131–141 free electrons, books −26 to +6 eV; after 521–1,107, 128–146, −5 to +17 (the known
+  ionized-water plasma limit both: electrons falling into ions' wells ionize neighbours; cheaper water, more events).
+  Ten 200 eV electrons in flat water (seeds 1–3): ionizations 685–1,114 → 872–1,594, free electrons 138–156 → 142–162.
+- **Fingerprints** (switches off, seed 7, 300 steps): every setup as v145 except pionbeam (a57d419b), hyperfactory
+  (39713093) and annihilation (792e52ec): the three that ionize molecules within 300 steps. The stored switches-off
+  fingerprints of these in f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew and f_rp7's part-3-on annihilation were updated, with a
+  comment each (f_rp2's "off" check: the new hashes for annihilation and pionbeam; its Ps checks at H, Cl⁻ and free
+  electrons were unchanged and pass: an atom's window is as before).
+- Cost: holeAtom walks the molecule (up to 64 atoms) at each ionizationCost; no change measurable in the setups.
+- Suites: t_lint, t_energy, t_physics, t_molecules, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass; tools/runtests.sh 21 of
+  22 (t_features with f_fix02 passes), t_page's slow-motion button the known flake: alone it passes.
+- **Left for the owner.** A hole's measured-energy difference stays with the bonds after the charge goes (inert, exact
+  books); if the same atom later gets the same charge by another road (a charge transfer), it counts again, exactly booked.
+  Doubly charged molecules and fragments use atom costs. Liquid water's own first ionization (about 11 eV, from memory)
+  comes out as the gas value shifted by the game's own neighbours, not checked.
+
+### 1.27: bug 3 (close passes between nuclei)
+
+Branch fix127-03-nuclear-close-pass (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix03.js
+(t_features, one line; `node tests/f_fix03.js [--node] [part …]`): headon, rutherford; both fail on v145 (headon: 133,
+840, 33 and 210 eV; rutherford: nothing past 5°), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** Below the reaction threshold a nucleus passing another is turned by Rutherford's law at the pass's
+  impact parameter, but every path held that parameter to at least 0.005 Å (nuclearCollision, radiation flight) or
+  0.01 Å (coulombScatter and coulombScatter3, a fast stepped nucleus; radVsFast and the flights' pair loop passed
+  max(d, 0.01)): 500–1,000 fm, where a 1 MeV α on an α turns by at most 1.3°. Measured (an α fired dead on at a bare
+  nucleus at rest, 60 steps): 1 MeV α on α, the target got 132.7 eV flat, 33.2 eV in 3-D (nature: the whole 1 MeV,
+  180° in their frame); 5 MeV α on gold 840 and 210 eV (most possible 390.6 keV). Nothing was ever turned past a few
+  degrees, so no α came back off a foil of atoms (only the Foil object did that).
+- **What changed** (engine.js).
+  - `bReal(b, R)`: the impact parameter a pass stands for, down to 10⁻⁹ Å. In 3-D the pass's own distance (passes in
+    depth already fall uniformly over the area round a nucleus, as real ones do, so the share of hard turns is nature's
+    per atom); in the flat game, where passes fall uniformly along a line, the distance as a fraction of the reach R is
+    mapped onto an area, R·√(b/R), as nuclearEncounter maps its passes. Used by nuclearCollision (R 0.5 Å, with its
+    screening exp(−b/a) as before), coulombScatter and coulombScatter3 (R 0.6 Å); the callers' 0.01 Å floors removed.
+  - nuclearCollision turns the pair exactly in its own frame (nuclearScatter with the angle given: energy and momentum
+    kept, a target sent into flight booked as before); it used an approximate lab angle and pushed the recoil off to
+    one side. It takes the energy from the projectile itself; a projectile left slow is handed back to the stepped
+    particles (it went on in radiation flight with its old energy: +1 MeV made from nothing in a first try).
+  - After a turn of more than half a degree a nucleus in radiation flight goes on from the meeting point in its new
+    direction (as after a nuclear encounter), and a fast stepped 3-D nucleus is put back at the meeting point; a pair
+    met in a step is not met again (fastEncounters3: `hitC`; the fast pairs' loops: closest approach before the step,
+    t ≤ 0, skipped): with the floor gone, a dead-on pair turned round and left past each other met again and turned back.
+  - The pair potential of stepped nuclei (wide, slow passes) is untouched; nothing is counted twice: these paths are for
+    nuclei in flight, which carry no pair potential.
+- **Measured** (5 MeV α on gold; passes drawn as the game draws them, flat uniform in distance within 0.5 Å through
+  moveRad's nuclearCollision, 3-D uniform over the area within 0.6 Å through coulombScatter3; 40,000 passes importance-
+  sampled to those turning it 5° or more, a share 1.13×10⁻⁴ flat and 7.85×10⁻⁵ 3-D of all passes):
+  - Lab angles against Rutherford's 1/sin⁴(θ/2) (flat with the screening): χ² 3.6 flat, 9.4 3-D for 9 bins (5–180°);
+    v145 16,467 and 38,422 (everything under 10°, or nothing over 5°).
+  - Turned past 90°: 2.35×10⁻⁷ a pass within 0.5 Å flat (Rutherford 2.06×10⁻⁷), 1.55×10⁻⁷ within 0.6 Å 3-D (1.44×10⁻⁷);
+    v145 none. Energy kept to 5×10⁻⁵ eV flat, 4×10⁻⁹ 3-D.
+  - So a foil of the game's atoms now sends back Rutherford's share, n·t·π·b₉₀² (b₉₀ = 2.3×10⁻⁴ Å = 23 fm for 5 MeV α
+    on gold): for Geiger and Marsden's thinnest gold foils (about 0.4 µm, from memory) about 1 in 25,000 (computed;
+    their 1 in 8,000 was off platinum of their own thickness). Brute force in the game is out of reach (a 20 Å gold slab
+    turns 2×10⁻⁷ of the α past 90°). The Foil object is unchanged: it draws b uniformly along a line within half its
+    2.9 Å spacing (the flat statistics, on purpose), b₉₀/1.45 Å = 1.6×10⁻⁴ a layer, about 1 in 600 back from its default
+    10 layers (computed from its formula).
+  - Head-on (f_fix03 headon): 1 MeV α on α 1,000,000 eV to the target flat and 3-D; 5 MeV α on gold 390,628 eV flat,
+    390,386 3-D; books to 10⁻⁴ eV.
+- **Fingerprints** (switches off, seed 7, 300 steps): every setup as v145 except fusion (38a64d68), nif (089d98a6),
+  pionbeam (bd26ce49), annihilation (93a54d56) and sns (2298f520): the setups with fast nuclei passing others. Their
+  stored switches-off fingerprints in f_rp1, f_rp2, f_rp3, f_rp5, f_rp7 and f_ew updated with a comment each. The nif
+  plasma (300 steps, seeds 1–6): 0–4 fusions after, 0–2 before; books with no fusion within a few keV both (11, 3, 4.9,
+  0.07 keV before; 44, 0, 6.7, 3 after: the hot plasma's own limit).
+- Cost: none measurable (a square root a pass).
+- Suites: t_lint, t_energy, t_nuclear, t_hep, t_collider, f_hep126 pass.
+- **Left for the owner.** The Foil object keeps its flat statistics (by design; its share differs from atoms' now).
+  coulombScatter (flat fast nuclei, the plasma) is unscreened as before: a bare nucleus on an atom with electrons uses
+  the atom's charge seen at its ion (Z − ne + 1), not screened Rutherford.
+
+### 1.27: bug 4 (fast positrons)
+
+Branch fix127-04-fast-positron (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix04.js
+(t_features, one line; `node tests/f_fix04.js [--node] [part …]`): contact, flight, rate; all three fail on v145 (a 5 keV
+positron in 3-D water: 1 and 0 ionizations, annihilated at its first touch; annFlight and heitlerPdE not there),
+confirmed by running the file on a v145 tree.
+
+- **What was wrong, measured.** Two things. (1) A positron stepped with the atoms (flat below the 1 keV radiation
+  threshold, 3-D below 25 keV) that touched an atom annihilated into 2γ at once (evLepton → annihilateBound) whatever its
+  energy: a 5 keV positron fired into 3-D water annihilated at its first atom (0–1 ionizations). (2) In flight (flat
+  radiation flight; 3-D moveFastLeptons3) a positron passed atoms ionizing them as an electron and never annihilated
+  with them: 1 MeV, 100 MeV and 1 PeV positrons fired across flat water all reached the wall and annihilated there into
+  two 511 keV γ (annihilateAtWall), in 3-D water they flew on. So the "any energy" of the report is the stepped
+  positrons'; the flying ones had the opposite fault.
+- **What changed** (engine.js; hep.js eeEvent).
+  - evLepton: a positron at matter (an electron at antimatter) with more energy apart from the atom's pull than its
+    ionization cost meets the atom as an electron does (impact ionization, excitation, elastic scattering; no capture or
+    attachment), and at each touch annihilates with one of its electrons at Heitler's rate over the touch's area
+    (`heitlerP`); slower, it annihilates on contact as before, and the Positronium switch's Ore gap (below the same cost)
+    is as before.
+  - In flight (flat moveRad, both with Charged particles in matter off and on; 3-D moveFastLeptons3, both): after each
+    atom passed, it annihilates with one of that atom's electrons with chance dE·σ_H·β²/(2πr_e²mc²·L) (`heitlerPdE`): dE
+    the energy the pass took, σ_H Heitler's cross section per electron (`heitlerSig`), L Rohrlich and Carlson's positron
+    stopping number with the atom's mean excitation energy (cpmI). Tied to the energy lost, not to the passes' area,
+    so over its range a positron annihilates in flight as often as in nature whatever the game's own sampling of passes
+    and stopping (the game's 3-D water takes 835 eV from five 1 MeV positrons in 300 steps, 0.2 eV/Å real: a separate,
+    older limit).
+  - `annFlight`: at √s above 2m_μ (211 MeV) one of the atom's electrons is set free (the positron pays its cost) and
+    eeEvent decides the channel (μ pairs, τ pairs, hadrons, the Z far above); eeEvent's two γ (new argument `noGG`), and
+    every annihilation below 211 MeV, are two γ back to back in the pair's own frame boosted to the lab
+    (`twoGammaFlight`), the books as annihilateBound's (annBegin/annihEnd). W.count.annFlight counts them.
+  - The impact-ionization log line says "e⁺ + e⁻" for a positron's (it said 2e⁺).
+- **Measured.**
+  - In-flight share (Heitler's σ over ESTAR's stopping power for water, from memory: 1.862 MeV cm²/g at 1 MeV, 2.03 at
+    0.5, 4.12 at 0.1, 22.6 at 10 keV; integrated to 1 keV, computed here): 1 MeV 3.6%, 2 MeV 5.9%, 5 MeV 10%, 10 MeV
+    13%. The game's rate per eV lost (f_fix04 "rate", 3-D water, 1 MeV): 3.21×10⁻⁸ against n_e·σ/S 3.09×10⁻⁸; its
+    integral from 1 MeV 3.5%. The report's 10–20% holds from 5–10 MeV; from 1 MeV it is about 3.5% (worth a check
+    against a measurement).
+  - Range: CSDA 0.44 cm at 1 MeV (ESTAR) is 4.4×10⁷ Å, ten million boxes; in the game a 1 MeV positron crosses any box.
+  - annFlight on a water molecule (200 each, flat and 3-D): 1 MeV, 100 MeV, 1 GeV: two γ (a third or fourth γ in
+    10–15% of events: the ionized water's own light); 1 PeV (√s 32 GeV): flat 177 γγ (with the extra light), 19
+    hadronic, 4 μ⁺μ⁻; 3-D 183, 13, 4 (eeEvent's QED: μμ/γγ ≈ 0.03 at s = 1,000 GeV², hadrons about 4 times μμ). μ pairs
+    need √s > 211 MeV, a positron above 43.6 GeV on an electron at rest: none at 100 MeV. The books to 10⁻¹² of the
+    positron's energy.
+  - 5 keV positron in 3-D water (f_fix04 contact): 33 and 155 ionizations before it annihilates (v145 1 and 0).
+- **Fingerprints** (switches off, seed 7, 300 steps): every setup as v145 except sns (40ff6b8f): its fast positrons.
+  Stored fingerprints updated with a comment (f_ew, f_rp5; f_rp7's part-3-on photonuc and sns). The annihilation, pet
+  and antihydrogen setups are unchanged: their positrons are slow.
+- Cost: one random number and a few logarithms an atom a fast positron passes; nothing measurable.
+- Suites: t_lint, t_energy, t_hep, t_physics, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass.
+- **Left for the owner.** A positron reaching a wall annihilates there into two 511 keV γ at any energy
+  (annihilateAtWall: the wall is matter it does not cross; a 1 PeV one gives 2γ of 511 keV and the rest booked as
+  escaped). Positrons slowing in matter don't form positronium on the way (only slow ones in the Ore gap, the switch).
+  twoGammaFlight's γ in 3-D carry their depth direction; eeEvent's own two-γ path (annihilateInFlight) stays flat.
+
+### 1.27: bug 5 (high-energy p̄p)
+
+Branch fix127-05-pbar-p-high-energy (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix05.js
+(t_features, one line; `node tests/f_fix05.js [--node] [part …]`): share; fails on v145 (annihilation share 1 at every
+momentum, flat and 3-D), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** nnbarEvent (an antinucleon meeting a nucleon in flight: in matter, the collider's beams, the fast
+  products' pairs) always annihilated into mesons (or, rarely, n n̄ or Λ Λ̄), whatever the energy. Measured (p̄ on p at
+  rest, nnbarEvent called 100 times at each momentum): annihilation share 1.00 at 0.5, 2, 10, 100 GeV/c and at the
+  Tevatron's √s = 1.96 TeV. The collider's p + p̄ ring at 10 GeV a beam: 10 of 10 meetings annihilations.
+- **What changed** (hep.js). nnbarEvent, after the W/Z draw (ewDraw, unchanged and first, so W and Z keep their measured
+  rate a collision), draws the channel by cross sections against the antinucleon's momentum on a nucleon at rest
+  (`NBAR_X`, `nbarX`, log interpolation): annihilation (as before), production with both baryons surviving
+  (`nbarSurvive`: the baryons as they came, mesons from the fireball's statistical model (hadronize), above √s = 5 GeV
+  strings along the beams with the baryons leading, as nnInelastic does for pp), or elastic scattering (diffract, as
+  two nucleons' diffraction). Below the pion threshold only annihilation and elastic (the ratio of the two). p̄p, p̄n and
+  n̄p alike (within 10% above 0.5 GeV/c). The points used, [p_lab GeV/c: σ_tot, σ_el, σ_ann mb]: 0.1: 480, 180, 280;
+  0.3: 230, 85, 105; 0.5: 160, 60, 78; 1: 115, 40, 55; 2: 90, 28, 33; 5: 68, 16, 13; 10: 56, 12, 6.5; 20: 50, 10, 3.5;
+  100: 43, 7.5, 0.9; 1,000: 41.5, 7, 0.1; 1.6×10⁵ (√s 546 GeV): 62, 13, 0; 1.7×10⁶ (1.8 TeV): 75, 17, 0;
+  2.05×10⁶ (1.96 TeV): 78, 18, 0 (σ_inel 60: CDF/D0); 10⁸: 100, 25, 0. **From memory of the PDG's compilation plots:
+  to be checked against the PDG data files** (no table could be read from the web in this session).
+- **Measured** (nnbarEvent on p̄ + p at rest, 300 each, flat; 3-D 200 alike): annihilation share 0.53 at 0.5 GeV/c (table
+  78/138 = 0.57), 0.38 at 2 (0.37), 0.14 at 10 (0.12), 0.017 at 100 (0.021), 0 at √s 1.96 TeV with elastic 0.22 (0.23);
+  books to 10⁻¹⁴ of the beam energy. The collider ring, p + p̄ at 10 GeV a beam (2,500 frames): 8 meetings, the beam
+  pairs' outcomes production with both baryons on ("p + p̄ → p + p̄ + 4π⁰ + ρ⁰ + 2ω"), elastic ("nuclear elastic
+  scattering, 10°"); annihilations now come from the slow secondary antinucleons (n̄ + p → 2π⁺ + π⁻). W and Z: f_ew
+  passes unchanged (its rate per collision is drawn before the channel).
+- **Fingerprints** (switches off, seed 7, 300 steps): all 59 setups as v145 (none makes a p̄p meeting in 300 steps).
+- t_hep's "p + p̄ at 5 MeV each" expected 150 of 200 meetings to make pions (all annihilations then); at 0.2 GeV/c
+  σ_ann/(σ_ann + σ_el) is about 0.6, so it now asks for 100, with the reason in the line.
+- Cost: none.
+- Suites: t_lint, t_energy, t_hep, t_collider, f_ew, f_rp5 pass.
+- **Left for the owner.** The cross sections are from memory (above). Antinucleons on nuclei (nuclearAnnihilation for
+  p̄ on a nucleus with more than one nucleon) still always annihilate; only the single-nucleon meetings were in scope.
+
+### 1.27: bug 6 (fast fired particles meeting)
+
+Branch fix127-06-fast-fired-meet (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix06.js
+(t_features, one line; `node tests/f_fix06.js [--node] [part …]`): ee, pp; both fail on v145 ({"flat":0,"d3":0}; 0 of 6),
+
+- **What was wrong, measured.** Flat: a particle in radiation flight above a few GeV crosses the box in one step (1,200 Å
+  at 0.04 tu); moveRad moved each one and the walls took it (a positron annihilating there, a proton turned back) before
+  beamCollisions compared the paths, so two fired at each other never met. 3-D: no radiation flight; fast nuclei are
+  stepped short (3.5 Å a step) and met through fastEncounters3, but fast leptons had no meeting with each other at all.
+  Ten tries each (fired head-on from 20 Å apart, the second up to 0.1 Å off line): 45.6 GeV e⁺ and e⁻ flat 0 met (10
+  annihilations at the walls), 3-D 0 met (the same); 1 TeV protons flat 0 met, 3-D 10 of 10 (already).
+- **What changed** (engine.js `fastMeet`; hep.js xbClose spawns at the meeting depth in 3-D). Before the move, each fast
+  particle's straight path over the step at its true speed (flat: radiation flight; 3-D: the fast flag, leptons at
+  their relativistic speed, nuclei by flyScale3) is laid against the others': sorted by x and swept (only paths whose x
+  ranges overlap are compared), the closest approach of each pair within the step, and pairs within the meeting distance
+  meet there in the order they meet, as beamCollisions has them meet: e⁺e⁻ within R_NN (eeEvent), a nucleus and an
+  antinucleus (nnbarEvent, else nuclearAnnihilation), two nuclei within reach (nuclearEncounter, the pass mapped onto
+  real impact parameters as the collider maps it). Flat, only pairs one of which leaves the box (or wraps) in this step:
+  the others beamCollisions meets after the move, as before, so nothing meets twice; fusion and Coulomb scattering stay
+  with the paths' own checks; the collider's beams stay with the collider. It runs when two were in flight last step or
+  anything was made since (a counter: no extra loop otherwise).
+- **Measured** (after): 45.6 GeV e⁺e⁻ head-on flat 10 of 10 met, all a Z (√s 91.2 GeV, the peak: eeEvent's Z channel at
+  59 nb against the photon's few nb); 3-D 10 of 10, all a Z. 1 TeV protons flat 4 of 10 (√s 2 TeV, inelastic only
+  inside √(σ_inel/π) of the mapped impact parameter: the others pass, as the collider's do; dead on, f_fix06 "pp", 6 of
+  6); 3-D 10 of 10 as before. A 1 TeV proton through a proton at rest reacted 10 of 10 flat and 3-D, before and after
+  (moveRad and fastEncounters3 already met slow targets). Books exact to 10⁻¹⁵ of the energy.
+- **Cost** (100 α at 1 GeV in flight, wrapped box, one thread): fastMeet 0.20 ms a step flat (with the reactions it starts),
+  0.11 ms in 3-D; step 1.2–2.2 ms flat (more meetings: the wrapped pairs never met before) against 0.6–0.9, 3-D
+  0.31–0.36 against 0.23–0.34.
+- **Fingerprints** (switches off, seed 7, 300 steps): all 59 setups as v145.
+- Suites: t_lint, t_energy, t_hep, t_collider, f_ew pass.
+- **Left for the owner.** Particles meeting in fastMeet are not turned by the walls first (a positron bound for the wall
+  meets the electron before the wall, as it should). A fast lepton meeting a fast nucleus (e p at TeV) has no channel
+  here (as beamCollisions); a fast muon or pion fired (W.exo) meets nothing fired (moveExos). Found, not changed: a
+  decay that gives off a photon books its energy into ledger.escaped while the photon is in flight (emitPhoton: the
+  light counted twice in total + escaped; the checks use total − nuc, which is exact).
+
+### 1.27: bug 7 (X-ray Compton)
+
+Branch fix127-07-xray-compton (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix07.js
+(t_features, one line; `node tests/f_fix07.js [--node] [part …]`): water, lead; both fail on v145 (no interaction at all
+at 20–60 keV in 300 tries), confirmed by running the file on a v145 tree.
+
+- **What was wrong, measured.** rayInteract (flat: 3-D light is not absorbed at all, as before) handled photons of
+  100 keV and more as γ rays (Compton at 0.012 an electron a pass, pairs, the nucleus) and everything below by the outer
+  electrons' photoelectric rule of thumb, 0.6·min(1, 2(I/E)^1.5) an atom a pass: 6×10⁻⁵ for an oxygen at 10 keV, 2×10⁻⁶
+  at 100 keV, against 0.1 just above 100 keV, and never Compton. X-rays fired across the flat water box (300 each, v145):
+  20, 30 and 60 keV none met anything; 100 keV 86 Compton, 0 photoelectric.
+- **What changed** (engine.js). From 10 keV to 100 keV an atom is met by its incoherent and photoelectric cross sections
+  (`xraySig`, barns: σ_inc = n_e·σ_KN(E)·S, S = 1 − exp(−E/(2.17 keV·Z^0.72)) for the binding; σ_pe = 1.59×10⁻⁵ b·Z^4.2·
+  (E/100 keV)^−3.2, a fifth below the K edge 13.6 eV·(Z − 1)²; `klein`, Klein–Nishina's total) on the game's γ-ray
+  scale (0.012 a pass for each 0.2112 b, part 3's cpmGamma), and the interaction is Compton or photoelectric by their
+  ratio. Compton is the existing code (compton; with Photon polarization rpCompton, Klein–Nishina's polarized angles,
+  and its in-plane rate weight knPlaneW on σ_inc); the Compton electron is freed only if it gets more than the atom's
+  ionization cost (the binding cut: otherwise its energy is heat, as before). With Charged particles in matter on the
+  same (part 3's rates start at 100 keV and are unchanged). Below 10 keV the old rule stays. compton and compton3 use
+  mₑc² itself (511e3 put the scattered photon 3×10⁻⁷ off the formula).
+  - **The fit is mine, from XCOM values as remembered** (water: photoelectric 0.551, 0.155, 0.017, 0.0033 cm²/g and
+    incoherent 0.177, 0.181, 0.178, 0.165 at 20, 30, 60, 100 keV; lead at 100 keV 5.2 and 0.1): XCOM itself could not
+    be read in this session (a form). Its water: ratio incoherent/photoelectric 0.33 at 20 keV (XCOM 0.32), 1.24 at 30
+    (1.17), 10.8 at 60 (10.5), 49.9 at 100 (50.0); crossing at 27 keV (XCOM about 26). Lead 100 keV σ_pe 1,735 b
+    (XCOM 1,790), σ_inc 34.5 b (34.6).
+- **Measured** (X-rays fired across flat water, 300 each, every interaction counted, the scattered photons' too): Compton
+  share 0.265 at 20 keV (XCOM's incoherent/(incoherent + photoelectric) 0.24), 0.576 at 30 (0.54), 0.922 at 60 (0.91),
+  0.992 at 100 (0.98). Lead lattice (200 each): 20 and 30 keV all photoelectric (75 of 75), 60 keV 71 photoelectric to 1
+  Compton; at 100 keV and above lead is treated as before (Compton only: no photoelectric absorption above 100 keV, the
+  "not built" of part 3), so lead's photoelectric dominance to ~500 keV is not there. Scattered energy exact to 2×10⁻¹¹.
+- **The rate.** 10–100 keV X-rays now meet atoms on the same scale as the γ rays above (oxygen at 20 keV about 1 a pass:
+  absorbed at the first oxygen), where they were nearly transparent; below 10 keV the old rule still applies, so the
+  step in the rate moved from 100 keV to 10 keV (9.9 keV passes, 10 keV is absorbed). For the owner: extend the cross
+  sections below 10 keV (edges L, M) or keep.
+- **Fingerprints** (switches off, seed 7, 300 steps): every setup as v145 except photonuc (ae5e7827), sns (1ca63a0f) and
+  hyperfactory (36eb3ee9, books unchanged: Compton's exact mₑc²). Stored fingerprints updated with a comment (f_rp1,
+  f_rp3, f_rp5, f_rp7 and its part-3-on photonuc and sns, f_ew).
+- Cost: none measurable.
+- Suites: t_lint, t_physics, t_hep, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass.
+- **Left for the owner.** 3-D light meets no atoms (rayInteract returns at once in 3-D, as before). Photoelectric
+  absorption above 100 keV (lead to ~500 keV) not built. Coherent (Rayleigh) scattering not built. The step at 10 keV.
+
+### 1.27: bug 8 (3-D water recapture) — measured, written up, not changed
+
+Branch fix127-08-3d-water-recapture (from v145): this entry only, no code change and so no check file (nothing that is
+clearly a bug was found; the physics the owner asked for needs a state the game doesn't have: below, for him).
+
+- **Measured** (40 waters of the water / water3d setup ionized with 2 eV each at 300 K after 10 steps, the cost from the
+  bath, then 400 steps; free electrons counted every 10 steps; `/tmp/b8/rec.js` of the session):
+  - flat, insulated, seed 1: 40 → 53 at step 10, 69 at 30, 107 at 100, 135 at 200, 141 at 400 (22 fs): 683 impact
+    ionizations, 559 recombinations; seed 7 alike (40 → 131); with the bath (γ 0.05) 40 → 79 at 100, 109 at 200.
+  - 3-D, insulated, seed 1: 40 → 7 at step 10 (2 fs), 3 at 100, 1 at 400 (93 fs): 34 captures in the first 10 steps,
+    2 ionizations; seed 7 and the bath alike (40 → 7–8 at step 10, 1–2 at 400).
+  So the report's "flat keeps all 40" is a runaway here (the known ionized-water plasma limit of CLAUDE.md); 3-D
+  recaptures as reported. Books within the known limit both (flat −8 eV, 3-D −0.8 eV over 400 steps).
+- **Why they differ** (counted by wrapping capture, impactIonize, elasticScatter): a flat electron above 20 eV that is
+  not near an ion switches to ballistic flight (updateFast, "20 eV on, 13 eV off, never inside an ion's Coulomb well"),
+  which carries no force: after 3 steps 22 of the 40 were ballistic, flying straight through the water, scattering
+  (659 elastic events in 30 steps), ionizing (44) and caught only on touching an ion (4% a touch when free). A 3-D
+  electron stays in the stepped set with every force until 25 keV (LEP3_ON): all 40 started inside their ion's well
+  (nearIon), none went ballistic, and the pull brought 31 of them back to an ion within 2 steps (half a femtosecond).
+- **Against nature** (as the owner's brief gives it: hydrated within about 1 ps; about 60% still free at 1 µs, G 4.8 →
+  2.7 per 100 eV, from memory of the radiolysis literature, e.g. Buxton's reviews): neither mode is right, and in
+  opposite ways. 3-D is what an unscreened Coulomb world does: water's dielectric screening (ε ≈ 80 when the dipoles have
+  turned, ≈ 1.8 at optical times) and solvation are what keep real electrons apart from their cations; the game's water
+  turns its partial charges too slowly to screen a 2 eV electron in femtoseconds, and has no hydrated-electron state. The
+  flat game's survival comes from switching the Coulomb force off for fast electrons, a speed measure, not physics, and
+  it ends in the runaway. Neither the doubled ion–water pull (bug 1: free ions and molecules only, not electrons) nor the
+  step size (both about 0.015 tu a step here) nor the density decides it.
+- **What a fix would take (for the owner, after 1.00: written into "Planned features")**: a solvated electron, e⁻(aq): a
+  free electron in liquid water that has slowed below about 1 eV becomes a slow particle with water's measured
+  properties (radius about 2.5 Å, diffusion 4.9×10⁻⁵ cm²/s, absorption peak 720 nm, hydration energy about 1.7 eV,
+  values from memory), moving by diffusion and meeting H₃O⁺, OH and its cation by measured rate constants (2.3×10¹⁰,
+  3×10¹⁰ M⁻¹s⁻¹; geminate recombination the Onsager way with ε = 80); in both modes the same. That would give the 60% at
+  1 µs and the same answer flat and 3-D. A smaller step, not physics either: make the flat electrons keep the Coulomb force
+  of the nearest ions while ballistic (they would then recapture as 3-D does).
+- Fingerprints: no code changed. Suites: not run (no code changed).
+
+### 1.27: bug 9 (decay table)
+
+Branch fix127-09-decay-table (from v145). A bug fix (data). Check: tests/f_fix09.js (t_features, one line; `node
+tests/f_fix09.js [--node] [part …]`): listed, made; both fail on v145 (⁹⁴Nb 78.5% β⁻ and 21.5% EC estimated; 41 nuclides
+both ways; 13 of the 20 sampled neutron products estimated), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** Nuclides missing from DECAY (data.js) are estimated (the mass formula's Q-values, allowed rates);
+  its pairing term opens both β⁻ and EC to odd–odd nuclei. Scanning every nuclide Z 1–100: 4,571 estimated, 41 of them
+  both ways (⁷⁴As, ⁸⁴Rb, ⁹⁴Nb, ¹⁰⁴Rh, ¹¹⁰Ag, ¹¹⁴In, ¹²⁰Sb, ¹²⁴I, ¹²⁶I, ¹³⁰Cs, ¹³⁶La, ¹⁴⁰Pr, ¹⁴²Pr, ¹⁴⁶Pm, ¹⁵²Eu, ¹⁵⁶Tb, ¹⁵⁸Tb,
+  ¹⁶²Ho, ¹⁶⁴Ho, ¹⁶⁸Tm, ¹⁷⁴Lu, ¹⁸⁴Re, ¹⁸⁶Re, ¹⁹⁰Ir, ¹⁹²Ir, ¹⁹⁶Au, ²⁰²Tl, ²⁰⁴Tl, ²⁰⁸Bi, ²¹⁴At, ²¹⁶At, ²²⁰Fr, ²²⁶Ac, ²³²Pa, ²³⁸Np,
+  ²⁴⁴Am, ²⁴⁶Am, ²⁵⁰Bk, ²⁵²Bk, ²⁵⁶Es, ²⁵⁸Es; the 1.26 list's ¹⁹⁸Au was listed then, ²⁶⁴Md is past this scan).
+- **Source.** ENSDF through the IAEA's LiveChart of Nuclides data API (https://nds.iaea.org/relnsd/v1/data, ground_states,
+  decay_rads and independent_fy, extracted 2026-11-07; NuDat 3 shows the same ENSDF evaluations): half-life, the three
+  most probable modes and their branches, Q-values (2020 mass evaluation); EC+β⁺ split into β⁺ and EC by the decay
+  radiations' β⁺ and EC intensities. Measured, not from memory. Format as ⁴⁰K's (branches with their own Q; β⁺ with
+  Q_EC, as ²²Na).
+- **What changed** (data.js). 40 of the 43 listed (²⁵²Bk, ²⁵⁸Es and ²⁶⁴Md have no evaluated decay and keep the estimate).
+  The memory-based judgement of 1.26 was close but not exact: e.g. ⁷⁴As is EC 37%, β⁺ 29%, β⁻ 34% (17.77 d); ¹⁴⁶Pm EC
+  65.7%, β⁻ 34.3%; ¹⁸⁶Re β⁻ 92.5%, EC 7.5%; ¹⁹⁰Ir EC (β⁺ 0.03%); ¹⁰⁴Rh, ¹¹⁰Ag, ¹¹⁴In, ¹⁴²Pr keep a small EC branch
+  (0.45%, 0.3%, 0.5%, 0.016%); ²¹⁴At α in 558 ns, ²¹⁶At α in 0.30 ms, ²²⁰Fr α 99.65% in 27.4 s.
+- **Then the commonly made ones** (the brief's second step): the estimated nuclides the game makes often were every (n,γ)
+  product of a stable isotope (99 estimated: ⁴⁹Ca, ⁵¹Ti, ⁵²V … ¹⁰⁸Ag, ¹¹⁶In, ¹²⁸I, ¹⁵⁴Eu, ¹⁹⁴Ir, ²⁰⁹Pb, ²³³Th) and nearly every
+  fission product (²³⁵U thermal fission: 99.7% of the radioactive independent yield estimated; 133 products above 0.1%:
+  ¹³⁴Te, ¹³⁸Xe, ¹⁰⁰Zr, ⁹⁴Sr …). Added from the same source with their decay chains to the first listed or stable
+  nuclide: 271 nuclides. After: no (n,γ) product of a stable isotope estimated, 2.2% of ²³⁵U's radioactive fission yield
+  (the short-lived tail below 0.1%). β⁻-delayed neutron branches are counted as β⁻ (the game has no β⁻n): 43 of them,
+  mostly under 5%, the large ones 85As B-N 62.9%, 89Br B-N 13.7%, 90Br B-N 25.3%, 91Br B-N 19.5%, 94Rb B-N 10.5%, 135Sb B-N 22%, 139I B-N 10%.
+- Estimated nuclides 4,571 → 4,261; both ways 41 → 2 (²⁵²Bk, ²⁵⁸Es).
+- **Fingerprints** (switches off, seed 7, 300 steps): all 59 setups as v145 (nothing decays from these within 300 steps).
+  Over longer times the chain and fission setups now decay their products at the evaluated rates (the estimate put most
+  at 1–25 h).
+- Suites: t_lint, t_nuclear, t_data, t_energy, f_bug126e, f_rp1, f_rp5 pass.
+- **Left for the owner.** β⁻n (delayed neutrons, which steer real reactors) as a decay mode; the fission products of other
+  parents (²³⁹Pu, ²³⁸U) beyond those shared with ²³⁵U; isomers.
+
+### 1.27: bug 10 (neutron on a muonic atom)
+
+Branch fix127-10-muonic-neutron (from v145). A bug fix. Check: tests/f_fix10.js (t_features, one line; `node
+tests/f_fix10.js [--node] [part …]`): carbon, lead; both fail on v145 (the muon bound after 0 of 40 reactions in each
+mode; 39 lead atoms ended early), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** An event that remakes a nucleus kills the old atom and makes new ones; a muonic atom's muon record
+  (p.muB) stayed on the dead atom, and muBoundTick then booked its mass as escaped ("its atom gone in some other event").
+  Measured: 64 muonic lead atoms in a flat box, decay sped up 10⁶× so their muons decay and are captured (each capture
+  makes neutrons), 3,000 steps: 39 ended early, every one by finishReaction from nuclearEncounter (the capture neutrons'
+  reactions on their neighbours). One muonic ¹²C hit dead on by a 14 MeV neutron, 60 times: every reaction (⁹Be + α 44,
+  3α + n 10, inelastic 6) took the muon away.
+- **What changed** (hep.js `muCarry`, called from finishReaction; engine.js: the (n,p)/(n,α)/(n,t) captures and fission).
+  The muon goes to the product with the most charge (the same atom if it survives as such, an α if ¹²C breaks into three);
+  its binding is the new nucleus's 1s binding (MU_EB, or with Exotic atoms on xaLevel at n = 1, the electrons refreshed to
+  see Z − 1), its lifetime follows (muBoundTick reads the new Z and N), and the change of the bound muon's mass,
+  δ = m_old − m_new (the binding difference), enters the event's books as a decaying bound muon's mass does
+  (closeEvent's Ein and mIn; for the settleKE events, Qm and the nuclear ledger): the products' motion takes it. With no
+  product of Z ≥ 2 it is left to muBoundTick as before. W.muBound follows the new atom.
+- **Measured** (after): lead box 0 ended early (the muons hop to the reactions' products and end by decay or capture);
+  muonic ¹²C, 40 tries each, flat and 3-D, Exotic atoms off and on: the muon bound after 40 of 40 reactions, with the new
+  nucleus's binding; books to 2×10⁻⁶ eV (v145 the same order, 2×10⁻⁶).
+- Suites: t_lint, t_hep, t_nuclear, f_rp1, f_swx pass.
+- **Left for the owner.** No cascade X-ray is drawn for the new levels (the binding change goes into the products'
+  motion, exactly booked); a muon whose new nucleus is unbound is not followed further than the next event.
+
+### 1.27: bug 11 (giant dipole resonance)
+
+Branch fix127-11-gdr (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix11.js (t_features,
+one line; `node tests/f_fix11.js [--node] [part …]`): share; fails on v145 (gdrP missing; there the share is 0.0012),
+
+- **What was wrong.** rayInteract (flat) and its 3-D twin decide the giant dipole resonance first, at 0.0015·Z·min(1,
+  σ_GDR/5.2Z² mb) a pass: in proportion to the old pair rule (0.0015·Z a pass). With Charged particles in matter on, pairs
+  and Compton go by their measured cross sections on part 3's scale (0.012 a pass for each 0.2112 b, cpmGamma), so the
+  resonance fell behind. Per pass at 13.5 MeV in lead (switch on): GDR 1.32×10⁻³, pair 0.885, Compton 0.190, the
+  resonance's share 0.0012 against its cross section's 0.0195 (gdrSigma 376 mb : pair 15.6 b : Compton 3.35 b): 16 times
+  too rare. Carbon was near (0.0008 against 0.0010 at 13.5 MeV): the old rule scaled with Z.
+- **What changed** (engine.js `gdrP`, used at both places). Switch on: P = 0.012·σ_GDR/0.2112 b, the same footing.
+  Switch off: the old odds, bit for bit. The cross section itself is unchanged (gdrSigma: a Lorentzian at the systematics'
+  peak energy, 5 MeV wide, holding the Thomas–Reiche–Kuhn sum 60NZ/A mb·MeV).
+- **Measured** (per pass, switch on; share of the three, then the cross sections' share): lead 10 MeV 0.0054 (0.0054;
+  v145 0.0003), 13.5 MeV 0.0195 (0.0195; 0.0012), 20 MeV 0.0031 (0.0031; 0.0002), 23 MeV 0.0017; carbon 10 MeV 0.0004,
+  13.5 MeV 0.0010 (v145 0.0008), 20 MeV 0.0058 (0.0049), 23 MeV 0.0170 (0.0144). Counted through rayInteract (20,000
+  passes of 13.5 MeV γ at lead): 0.0226 (the three are drawn one after another, the resonance first, and pairs and
+  Compton together come near 1 a pass, so the first draw gains a little). The photonuc setup with the switch on, 1,500
+  steps, seed 7: 3 resonance events and 56 pairs (v145 0 and 69).
+  - Against measurement (from memory, to check: Berman and Fultz's review): lead's resonance peaks at about 13.4 MeV,
+    about 640 mb, 4 MeV wide; gdrSigma gives 376 mb at 13.7 MeV, 5 MeV wide (the sum rule's strength; lead's measured
+    exhausts about 1.3 times it). Carbon's peaks near 23 MeV, about 8–10 mb (photoabsorption); gdrSigma 5.2 mb at 23 MeV.
+    Measured per-nucleus parameters would be a separate data change (the brief's first option): not done here.
+- f_rp3 "pair" fired 400 γ of 10 MeV at one lead atom and assumed it survived: the resonance now takes it about once in
+  200 shots, so the check makes a new lead atom when that happens (a line and a comment in the test).
+- Suites: t_lint, t_nuclear, t_hep, f_rp3, f_rp7 pass.
+- **Left for the owner.** Measured GDR parameters per nucleus (lead's peak ×1.7); the three γ processes drawn one after
+  another rather than by their shares at once (the same for pairs and Compton in part 3).
+
+### 1.27: bug 12 (muon lifetimes)
+
+Branch fix127-12-muon-lifetime-formula (from v145). A bug fix (data). Check: tests/f_fix12.js (t_features, one line;
+`node tests/f_fix12.js [--node] [part …]`): tau; fails on v145 (Ar 643.3, Cr 238.7, Te 116.2, Dy 86.8, Th 84.1, U 85.3),
+
+- **What was wrong.** MU_TAU held 20 measured mean lives (written from memory in 1.26) and the Goulard–Primakoff form
+  scaled to them filled the rest: off by up to 21% in between (v145 against the values below: Ne −21.3%, Ar +16.3%,
+  Cr −6.4%, Ge +9.0%, Se +8.7%, Te +12.7%, Dy +10.3%, Er +6.9%, Th +8.7%, U +10.3%; Cd, W, Hg within 1.5%).
+- **Source.** The 1987 paper (Suzuki, Measday & Roalsvig, Phys. Rev. C 35, 2212) could not be reached from this session
+  (APS paywall; the one free copy found, at a UC Davis course page, refused the connection). Its values were taken from
+  Zinner, Langanke & Vogel, Phys. Rev. C 74, 024326 (2006), arXiv nucl-th/0606002, Table I: experimental total capture
+  rates Λ_c "from Ref. [4]" (the 1987 paper; a few from other papers: ⁴⁸Ca, the uranium isotopes and plutonium from
+  Hänscheid 1990 and David 1988, as their footnotes say; the superscripts are lost in the text extraction, so which is
+  which was read from the decimals, to be checked). Converted to mean lives as the game counts them: 1/τ = Λ_c +
+  muHuff(Z)/τ_μ. Done to the 13 of the old 20 that the table has, this gives them back within 0.1% (zirconium 0.5%):
+  the memory values stand. Lead is the exception: Λ_c 13.45×10⁶ s⁻¹ gives 72.3 ns against MU_TAU's 75.4; kept (75.4 is
+  the 1987 value as remembered, and gold's 74 ns quoted by Measday 2001 sits beside it), for checking against the paper.
+- **What changed** (hep.js MU_TAU): 23 elements added (ns): Ne 1519.4, Ar 553.4, Cr 255.0, Ge 166.3, Se 163.3, Sr 134.0,
+  Mo 99.5, Pd 95.8, Cd 90.6, Sn 92.0, Te 103.1, Ba 96.5, Ce 83.2, Nd 77.4, Sm 79.1, Gd 81.7, Dy 78.7, Er 74.4, Hf 74.4,
+  W 78.4, Hg 76.2, Th 77.3, U 77.3 (²³⁸U). The table now has 43 elements; isotopes (⁴⁴Ca, ⁴⁸Ca, ⁵⁰⁻⁵⁴Cr, ⁵⁸⁻⁶²Ni, ⁸⁸Sr,
+  ²³⁴⁻²³⁶U, ²⁴²⁻²⁴⁴Pu are in the same table) are still carried by the form's neutron-excess term.
+- **Still on the form**: the elements the table has no measurement for, among them the paper's odd ones (Cl, Sc, Mn, Co,
+  Ga, As, Br, Rb, Y, Nb, Ag, In, Sb, I, Cs, La, Pr, Eu, Tb, Ho, Tm, Lu, Ta, Re, Ir, Au, Tl, Bi …). How far off there,
+  measured by leaving each measured element out in turn and predicting it from the rest: median 4.0%, the light ones
+  worst (Ne −21%, F +20%, P +17%, Ar +16%, Na +16%: the measured values alternate between odd and even Z), from Ca up
+  within 6% except V 11%, Cu 12%, Zn −11%, Te 8%.
+- Suites: t_lint, t_hep, t_nuclear, f_swx, f_rp1 pass.
+- **Left for the owner.** The 1987 paper's own table (with its odd elements and isotopes) when it can be read; lead's
+  72.3 against 75.4.
+
+### 1.27: bug 13 (alkali aurides)
+
+Branch fix127-13-alkali-aurides (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix13.js
+(t_features, one line; `node tests/f_fix13.js [--node] [part …]`): aurides; fails on v145 (no ion in any mix), confirmed
+by running the file on a v145 tree.
+
+- **What was wrong, measured.** ionPairInMetal (1.26, the copper fix) refuses an electron transfer that would make an ion
+  pair between two metal atoms inside a metal. A Cs–Au alternating lattice at the metal spacing (flat 11×11, 1,500 steps;
+  3-D CsCl type, 559 atoms, 600 steps; 300 K): 0 ions, Rb–Au the same.
+- **What changed** (engine.js `metalSalt`, one more condition in ionPairInMetal). A neutral pair whose electron costs
+  under METAL_SALT = 2.0 eV to move from the donor to the acceptor as an anion (ionization energy less electron affinity)
+  may become ions inside a metal: there the lattice's Madelung energy outweighs the metal's cohesion. Measured examples
+  (ionization energy and electron affinity from the game's own tables): Cs–Au 1.58 eV, Rb–Au 1.87, Cs–Pt 1.76 (ionic in
+  nature: CsAu, RbAu, Cs₂Pt); K–Au 2.03, Na–Au 2.83, Ba–Au 2.90, Cs–Cu 2.65, Cu–Cu 6.5, Ni–Ni 6.5, Au–Au 6.9 (metals).
+  No element list. The transfer itself and its books are the existing evTransfer's (exact).
+- **Measured** (after): flat Cs–Au 58 Cs⁺ and 58 Au⁻ of 60 Au; 3-D 216 of 216; Rb–Au 58 flat, 212 of 216 in 3-D. Cs–Cu
+  and K–Au mixes 0 ions; f_cu126 (copper and nickel lumps 0 ions of 127 and 141; a Na lump among Cl still makes salt)
+  passes unchanged. Fingerprints (switches off, seed 7, 300 steps): all 59 setups as v145.
+- **The arrangement** (the brief asks whether it settles CsCl-like): it does not. Around each Au⁻ after 1,500 steps:
+  3-D 2.9 Cs⁺ within 1.2× the median nearest Cs–Au distance, which is 3.12 Å (CsCl: 8 Cs⁺ at 3.69 Å in real CsAu, a =
+  4.26 Å); flat 1.6 at 2.85 Å (square lattice: 4). The cause: an ion with |q| ≤ 1 keeps its metal pair potential
+  (setSize's isMetal, kept for Cu⁺ inside copper in 1.26), so Cs⁺ and Au⁻ still attract each other as metal atoms on top of
+  their Coulomb pull and fall into close pairs (the ions' own sizes, 1.67 + 2.11 Å, would give the right distance).
+  Switching the metal pair potential off between a cation and an anion (q_a·q_b < 0) in the kernels (JavaScript, worker,
+  and the Rust kernel) and the energies would be the next step: a physics change of its own, written down here for the
+  owner, not made.
+- Suites: t_lint, t_molecules, t_physics, f_cu126 pass.
+
+### 1.27: bug 14 (AsCl₅)
+
+Branch fix127-14-ascl5 (from v145). Approved physics (the owner's list, 2026-11-06). Check: tests/f_fix14.js (t_features,
+one line; `node tests/f_fix14.js [--node] [part …]`): crowd; fails on v145 (AsCl₅ ligand–ligand order 0.413, −0.757 eV a
+bond), confirmed by running the file on a v145 tree.
+
+- **What was wrong.** With bond orders from the positions, a ligand pair with a common neighbour is held back
+  (boCrowd, 1.16) by how much stronger the two bonds to the common atom are than the pair's own: from 0.4 eV (nothing) to
+  0.8 eV (fully). AsCl₅'s As–Cl (2.97 eV) beats Cl–Cl (2.51) by 0.46 eV, so the hold was 15% and the chlorines, 2.44 Å
+  apart in the plane, took orders 0.41 (their electronegativity, 3.16, lets them expand past one bond, as the
+  hypervalence rule does for partners of 3.0 and up). PCl₅ (0.9 eV) and SbCl₅ (0.6 eV) were held.
+- **What changed** (bo.js boCrowd and the Rust kernel's crowding, kernel/src/bo.rs, rebuilt by the workflow: 00a099b).
+  The gap counts as a share of the pair's own bond: the hold starts at 5% and is full at 15% (AsCl₅ 18%, SbCl₅ 24%,
+  PCl₅ 36%, SF₆ 112%); a triangle of equal bonds (cyclopropane, 0%) is untouched, as before. No molecule is named.
+- **Before / after** (flat, relaxed, bond orders against stored bonds; largest ligand–ligand order / closest ligands Å /
+  energy with orders − stored, eV a bond):
+
+| molecule | v145 | after |
+|---|---|---|
+| AsCl5 | 0.41 / 2.44 / -0.757 | 0.00 / 2.50 / 0.022 |
+| PCl5 | 0.00 / 2.40 / 0.025 | 0.00 / 2.40 / 0.025 |
+| SbCl5 | 0.00 / 2.72 / 0.023 | 0.00 / 2.72 / 0.023 |
+| SF6 | 0.00 / 1.56 / 0.026 | 0.00 / 1.56 / 0.026 |
+| PF5 | 0.00 / 1.84 / 0.038 | 0.00 / 1.84 / 0.038 |
+| ClF3 | 0.00 / 2.83 / 0.014 | 0.00 / 2.83 / 0.014 |
+| XeF4 | 0.00 / 2.80 / 0.000 | 0.00 / 2.80 / 0.000 |
+| SiF4 | 0.00 / 2.22 / 0.044 | 0.00 / 2.22 / 0.044 |
+| SF4 | 0.00 / 2.21 / 0.018 | 0.00 / 2.21 / 0.018 |
+| IF5 | 0.00 / 2.25 / 0.015 | 0.00 / 2.25 / 0.015 |
+| BrF5 | 0.00 / 2.07 / 0.013 | 0.00 / 2.07 / 0.013 |
+| TeF6 | 0.00 / 1.78 / 0.037 | 0.00 / 1.78 / 0.037 |
+| SeF4 | 0.00 / 2.32 / 0.020 | 0.00 / 2.32 / 0.020 |
+| SnCl4 | 0.00 / 3.23 / 0.025 | 0.00 / 3.23 / 0.025 |
+
+  (XeF₄: xenon is not a bond-order member.) Only AsCl₅ changes among these.
+- **Does AsCl₅ fall apart?** No, at 300 K with the bath for 4,000 steps (0.89 ps, four seeds) it stays AsCl₅ (as it did in
+  v145, whose Cl–Cl orders stayed under the 0.5 that joins atoms into one molecule). The force field's answer is that it
+  is bound: AsCl₅ → AsCl₃ + Cl₂ costs 3.36 eV with bond orders (3.43 with stored bonds; v145's orders 7.25: the
+  chlorines' extra bonds), against a measured ΔH of about +0.3 eV (from memory): the game's As–Cl in AsCl₅ is as strong
+  as in AsCl₃ (2.97 eV each), where the real fourth and fifth bonds are much weaker. A bond-table matter (the 1.25 notes
+  list the As and Sb chlorides 4–17% weak already): left for the owner.
+- **Bond orders off:** all 59 setups fingerprint as v145 (seed 7, 300 steps).
+- Suites: t_lint, t_molecules, t_wasm, f_125, f_125n, f_125m, f_bug125 pass.
+
+### 1.27: bug 15 (three bookkeeping leaks)
+
+Branch fix127-15-books (from v145). A bug fix. Check: tests/f_fix15.js (t_features, one line; `node tests/f_fix15.js
+[--node] [part …]`): plasma, delta, c100; plasma and delta fail on v145 (charge 242 flat and 113 in 3-D for 164; books
++11.37 eV), c100 passes on both (no leak there, see c), confirmed by running the file on a v145 tree.
+
+- **(a) The charge count after a Pb + Pb plasma.** Measured: a central ²⁰⁸Pb + ²⁰⁸Pb collision at 2.76 TeV a nucleon pair
+  (nuclearEncounter dead on, then 60 steps): the count (nuclei Z − ne, leptons, unstable particles, the walls', objects'
+  and gone-out ledgers) 164 after the event, 242 and 227 after 60 steps flat (seeds 1, 2), 113 in 3-D. Wrapping the
+  event functions: every reaction among the fragments that followed (n + p → 2p + π⁻, n + n → d + π⁻, nucleon–antinucleon
+  annihilations) gained or lost a charge. The cause: the unstable particles' list was full (1,500 slots, the dead ones
+  cleared only every 8 steps by moveExos; 149 alive), so spawnItems carried the new pions off as "lost" with their
+  energy booked as escaped but not their charge. Fix (hep.js `itemQ`): an item carried off for want of room (or past the
+  last element) books its charge as gone out (chargeTo(…, 'qOut')), in spawnItems and spawnItems3. After: 164 flat and
+  3-D after 60 steps. (Clearing dead slots there instead would move the particles under moveExos's own loop.)
+- **(b) A Δ⁻ placed in Molecules in space.** Measured (the place tool's way, insulated, 300 steps, seeds 1–10): −0.13 to
+  +0.51 eV, except seed 3: +11.37 eV, from one impact ionization of C⁺ by a 137 eV electron (+10.1 eV; Δ⁰ and π⁻ alone:
+  0). The electron was 0.65 Å from the ion, but the grid that localPE searches had been built before the electrons'
+  short steps moved it (an outer step's worth: 11 Å at that speed), so ejectElectron's measured change missed its pull
+  (−11.4 eV). Fix (engine.js innerSteps and innerSteps3): the grid is marked stale before the events of each short step
+  when there are events (rebuilt only if they ask). After: seed 3 −1.83 eV, the others as before; the −1.83 is the
+  stepped plasma's own integration (no event in it leaks: every event function wrapped, processEvents 0.003 eV in all).
+  The 1.26 measurement's −2.9 eV could not be reproduced exactly (the game has changed since); these are the numbers now.
+- **(c) A 100 keV electron through 3-D water** (insulated after 50 steps, 400 steps, seeds 1, 2, 3, 7): +1.29 to +1.63 eV
+  now (v145 the same; the 1.26 note's −4.3 eV with 44 ionizations is not what v145 does: 0 ionizations, the electron
+  pushing atoms, 212 eV given to the water). No event leaks (processEvents and moveFastLeptons wrapped: 2×10⁻¹⁰ eV). The
+  drift goes with the step: DT_MAX 0.04 tu 1.41 eV, 0.02 tu 0.40, 0.01 tu 0.05: the integration of the water's
+  vibrations after the pushes. Not changed (a step-size matter, not a leak).
+- **Fingerprints** (switches off, seed 7, 300 steps): every setup as v145 except pionbeam (8542d91e) and photonuc
+  (09ec2d3b): the setups whose free electrons meet atoms in their short steps. Stored fingerprints updated with a comment
+  (f_rp1, f_rp2, f_rp3, f_rp5, f_ew; f_rp7's part-3-on annihilation, photonuc and sns).
+- Cost: ionized water (40 waters ionized, 200 steps): flat 13.4 against 15.3 ms a step, 3-D 13.9 against 16.2 (noise;
+  grid builds 6,553 against 6,301 flat).
+- Suites: t_lint, t_energy, t_physics, t_hep, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass.
+- **Left for the owner.** After a big collision the unstable particles beyond the 1,500 slots are carried off (now with
+  their charge) instead of flying; a 100 keV electron in 3-D water ionizes nothing (its passes give 0.1 eV each, under the
+  ionization cost: pushes instead).
+
+### 1.27: bug 16 (display and text)
+
+Branch fix127-16-display-text (from v145). A bug fix (display and text). Check: tests/f_fix16.js (t_features, one line;
+`node tests/f_fix16.js [--node] [part …]`): pairs3d (Node), readout, narrator, ghosts (page); all four fail on v145
+(below), confirmed by running the file on a v145 tree. Screenshots before and after in the session's outputs
+(bug16-screens/before, after: a-readout, b-narrator, d-ghosts3d).
+
+- **(a) The Particles readout** (updateReadouts) counted W.parts only. Five atoms and twelve muons and pions read "5"; now
+  "17": the unstable particles (W.exo: muons, pions, kaons, positronium …) count too. Light and neutrinos in flight are
+  not counted (they are rays, not particles that stay): the readout's tooltip says so (body.html).
+- **(b) The narrator** (NARR_RULES 'react') chose exothermic or endothermic by the sign of the logged ΔH, rounded to whole
+  kJ/mol: H + H₂ → H₂ + H "(ΔH +0 kJ/mol)" read "the new bonds are weaker, so heat is taken in (endothermic)". Under
+  5 kJ/mol (0.05 eV) either way it now says the bonds hold about as tightly: thermoneutral.
+- **(c) 3-D lepton pairs of the photon channel** (eeEvent): their angle to the beams (1 + cos²θ, or the γ–Z weight above
+  10 GeV) was drawn in the plane and the four-momenta were flat (PS3.flat counted them). In 3-D now cos θ to the
+  electron's direction by the same weight and a random azimuth (turn3), with three-component momenta. e⁺e⁻ → μ⁺μ⁻ at
+  10 GeV a beam in 3-D: v145 11 of 11 pairs in the plane (|u_z| 0, PS3.flat 44 after 400 collisions), after 0 of 10
+  (mean |u_z| 0.55; 0.5 over a sphere), PS3.flat 0. The flat game's draws are unchanged.
+- **(d) 3-D ghost rings and muonium's caption.** drawEvents3 drew the rings and caption only: now it draws the dashed
+  ghost of what vanished or changed identity, with its label, at its depth (ghostOf and xbGhost keep z), sized for that
+  depth, fading as the flat view's. muoniumTick's caption took z = 0: now its own depth. A ²¹²Po α decay at z = 6 Å:
+  v145 no ring, after one ring at depth 6; muonium decaying at z = −7 Å: caption at 0 before, −7 after.
+- **Fingerprints** (switches off, seed 7, 300 steps): all 59 setups as v145 (only 3-D e⁺e⁻ lepton pairs draw differently,
+  and no setup makes one in 300 steps).
+- Suites: t_lint, t_hep, t_3d, f_ew, f_sweep3d pass.
+
+### 1.27: bug 17 (data written from memory)
+
+Branch fix127-17-data-check (from v145). The values earlier sessions wrote from memory (no network then), checked
+against their sources from here (PDG 2024 summary tables and AtomicNuclearProperties pages, IAEA LiveChart of Nuclides
+API: ENSDF ground states, NUBASE/AME2020). Five were wrong and are corrected; the rest are fine or could not be reached.
+
+| value | where | game had | source | |
+| ¹⁰³Rh magnetic moment | hep.js NUC_SPIN '45_58' | −0.8840 μN | −0.08840 (IAEA) | **fixed** (a ×10 typo) |
+| other 61 NUC_SPIN spins/moments | hep.js NUC_SPIN | — | IAEA LiveChart | fine: 59 equal; ⁵⁵Mn, ⁵⁹Co, ⁶⁵Cu, ⁹⁹Tc, ¹²⁷I, ¹³³Cs, ¹³⁷Cs, ¹⁹⁵Pt, ²⁰⁵Tl, ²⁰⁹Bi within 0.5% (evaluation differences, kept); ¹⁰⁹Ag −0.1307 kept (LiveChart lists +0.1305, the standard tables and NMR give −) |
+| ²²Na β⁺ / EC, Q | data.js '11_11' | 0.903 / 0.097, 2.842 MeV | 0.8996 / 0.1004, 2.8433 | **fixed** |
+| ¹⁹⁸Au Q (β⁻), half-life | data.js '79_119' | 1.3724 MeV, 2.6941 d | 1.3735 MeV, 2.6941 d | Q **fixed**, life fine |
+| ²²Na 1274.537 keV γ, 99.94% | hep.js GL_* | | ENSDF | fine |
+| M_Z, Γ_Z | hep.js EW, XP.Z0 | 91.1876, 2.4952 GeV | 91.1880, 2.4955 (PDG 2024) | **fixed** |
+| M_W, Γ_W, W/Z branchings, R_b, R_c, A_FB⁰ˡ 1.71% | hep.js EW, XP | 80.3692, 2.085, … | PDG 2024 | fine |
+| Λ mean life, mass | hep.js XP.Lam | 2.617×10⁻¹⁰ s, 1115.683 MeV | PDG 2024 | fine |
+| Λ → pπ⁻ / nπ⁰ | hep.js XP.Lam | 0.639 / 0.358 | 0.641 / 0.359 (PDG 2024) | **fixed** |
+| mean excitation energies H, He, C, N, O, Ne, Na, Al, Si, Ca, Fe, Cu, Ag, W, Au, Pb, U | hep.js CPM_I | 19.2 … 890 eV | PDG pages (ICRU 37/49) | fine (all 17 equal) |
+| radiation lengths | hep.js cpmX0 (Tsai's formula) | computed | PDG | fine (formula; e.g. Pb 6.37 g/cm²) |
+| muon lifetimes MU_TAU | hep.js | | | checked in bug 12 (Zinner/Langanke/Vogel 2006), not touched here |
+| p-Ps 125.14 ps, o-Ps 142.05 ns | hep.js | | papers named in the code | agree with the published values as known; the papers themselves not fetched |
+| neutron absorption (capture, (n,p), (n,α), (n,t), fission), 41 nuclides | hep.js NXS | | NIST NCNR table (Sears 1992) | fine: equal or within 5%, except ¹⁶O 0.19 mb (NIST 0.10: Mughabghab 2006's newer value kept), ¹⁷O 0.257 b (0.236), ¹⁴⁹Sm 40,140 b (42,080: the newer evaluation kept) |
+| neutron scattering, free atom | hep.js NXS s | 19 nuclides held the *bound* σ or were >5% off (e.g. ¹⁶O 4.23, ³⁵Cl 21.8, ²³⁸U 9.3, ¹⁰B 2.23, ⁷Li 0.97) | bound × (A/(A+1))²: 3.75, 20.6, 8.80, 2.56, 1.07 … | **fixed** (only with Realistic particles 6 on) |
+| σ(cc̄), σ(bb̄) against √s | hep.js HF_SIG | cc̄ 27.4 GeV 15 µb; bb̄ 41.6 GeV 12 nb, 200 GeV 1.3 µb | NA27 18 µb; HERA-B 15.8 nb; PHENIX 3.75 µb (STAR 4.0) (d'Enterria et al., arXiv:2605.16019, Tables I–II) | **fixed** (only with Realistic particles 5 on); the other 9 points agree (HERA-B 49, E789 5.7 nb, CDF 76 vs 80, LHCb 295/495, ALICE 4,800/8,500) |
+| bottom fragmentation fractions | hep.js HF_FRAG b | 0.407/0.407/0.101/0.085 | PDG 2020 (HFLAV), Z decays: 0.408 ± 0.007, 0.408, 0.100 ± 0.008, 0.084 ± 0.011 | within errors; set to PDG 2020's values (only with Realistic particles 5 on) |
+| antiprotonic X-rays (Bohr levels) | hep.js xaBohr | Al 5→4 91.6, 6→5 49.7, 7→6 30.0 keV; S 139.5/75.8; Si 106.3/57.8 | Aramaki et al., arXiv:1303.3871, Tables 5, 12: 92/50/30, 139/76, 106/58 | fine |
+| muonic Ne 5g→4f | hep.js xaBohr | 6294.0 eV | 6297.27 eV (Okumura et al., PRL 130, 173001, 2023) | fine (0.05%: the Bohr level without fine structure) |
+| muonic 2p→1s lines XA_KA (C … Pb) | hep.js XA_KA | 75.25 … 5901 keV | not in the pages reached | not checked |
+| muon transfer μp → Ar | hep.js xaTrRate (scaled from O) | 1.5×10¹¹ s⁻¹ | 1.46×10¹¹ (Jacot-Guillarmod et al., abstract) | fine |
+| muon transfer μp → C | hep.js XA_TR | 6.4×10¹⁰ s⁻¹ (scaled from O as Z) | 8.9 ± 0.8 ×10¹⁰ at 300 K, CH₄ (FAMU, Phys. Lett. A 557, 130867, 2025, Table 2; 10.7 at 197 K) | **fixed** (only with Exotic atoms on) |
+| muon transfer μp → N, O | hep.js XA_TR | 3.4, 8.5×10¹⁰ | the FAMU paper gives O's only as a figure (rising with temperature) | not checked |
+| XCOM: lead and water at 10 MeV | (checks only) | 0.0497, 0.0222 cm²/g | XCOM 0.04972, 0.02219 | fine |
+| γ pair production in the nuclear field | hep.js cpmPairSig (+ cpmPairScr) | no partial screening: Pb 30/100/1000 MeV 0.0693/0.107/0.120 cm²/g, O 0.0095/0.0147/0.0195 | XCOM: Pb 0.0641/0.0899/0.1127, O 0.00945/0.0138/0.0184 | **fixed** (the owner's OK, 2026-11-07): Bethe–Heitler with Butcher–Messel screening integrated over ε: Pb 0.0650/0.0900/0.1163, O 0.00935/0.0137/0.0185, all within 3% from 5 MeV to 100 GeV; only with Realistic particles 3 on |
+| triplet (electron-field) pairs | hep.js cpmPairSig | O/H at 100 MeV 0.00127/0.00252 cm²/g; Pb 0.00177 at 1 GeV | XCOM 0.00164/0.00334; 0.00162 | 13–25% low at 30–300 MeV, 9% high for Pb above 1 GeV: written down, not changed |
+| ESTAR/ASTAR/PSTAR, liquid water | (checks only) | 1 MeV e⁻ 0.0187, 1 GeV e⁻ 0.024, 5 MeV α 8.9, 100 MeV p 0.073 eV/Å | 0.01849, 0.02400, 8.848, 0.07286 | fine |
+| o-Ps–O₂ spin-conversion σ | hep.js PS_SIGC | 1.5×10⁻¹⁹ cm² | (1.16 ± 0.01)×10⁻¹⁹ (Shinohara et al., PRA 64, 042702, 2001; silica gels 1.2×10⁻¹⁹) | **fixed** (only with Positronium on); f_rp2 "matter" now takes σ from the table |
+| o-Ps life in water | hep.js PS_TAU_W | 1.80 ns | 1.86 ns at melting (Eldrup, Risø-R-254, 1971), ~1.85 ns at room temperature, shorter when warmer | fine (within the spread) |
+| μp → O transfer | hep.js XA_TR | 8.5×10¹⁰ s⁻¹ | 0.85(2)×10¹¹ (Werthmüller et al., Hyperfine Interact. 116, 1, 1998) | fine |
+| μp → N transfer | hep.js XA_TR | 3.4×10¹⁰ s⁻¹ | (3.4 ± 0.7)×10¹⁰ (Jacot-Guillarmod et al., PRA 55, 3447, 1997; Thalmann et al., PRA 57, 1713, 1998; quoted in MuCap, arXiv:1502.00913) | fine |
+| charm fragmentation fractions | hep.js HF_FRAG c | 0.6086/0.2404/0.0802/0.0623 | Lisovyi et al., EPJC 76, 397 (2016), Table 12: identical | fine |
+| muonic 2p→1s lines | hep.js XA_KA | Al 346.8, Si 400.2, Ca 783.9, Fe 1255, Pb 5901 keV | ENSDF muon-capture datasets (Measday et al., PRC 73, 2006; PRC 76, 2007): 346.828, 400.177, 783.659, Fe 1253.06/1257.19 (2:1 mean 1255.8); Pb 5963.8/5778.9 (Engfer 1974 via MuDirac arXiv:2605.00554): mean 5902.2 | Ca, Fe **fixed** (783.66, 1255.8; only with Exotic atoms on); Al, Si, Pb fine; C 75.25, O 133.53 not checked (Dubler et al., Nucl. Phys. A219, 29, 1974 not reachable) |
+| refractive indices | hep.js cpmEnv | water 1.333, fused silica 1.458 (at 589 nm) | water 1.333 at 589.29 nm (Hale & Querry, Appl. Opt. 12, 555, 1973); silica 1.45840 at 589.29 nm (Malitson, JOSA 55, 1205, 1965, Sellmeier) | fine |
+
+- Water's I: PDG 2024 gives 79.7 eV (ICRU 90); the game builds water from H and O (Bragg additivity, ≈ 75 eV, the older
+  ICRU 49 value). Changing that is a model change: written down, not done.
+- Cost: the screened integral is 1.7 µs a γ ray's look at an atom (Realistic particles 3 on only); off, nothing.
+- Fingerprints with Realistic particles 3 on (f_rp7 FP_CPM): photonuc and sns changed (the pair cross section), their
+  stored hashes replaced (bug 6's branch also replaces sns's: take this one, or rerun, when merging).
+- Fingerprints (switches off, 300 steps, seed 7): none changed (no setup uses these values with the switches off; the
+  neutron and heavy-quark tables are read only with Realistic particles 5/6 on).
+- Sources used (all read from here, 2026-11-07):
+  - PDG 2024 summary tables (baryons, gauge and Higgs bosons; pdg.lbl.gov/2024) and AtomicNuclearProperties pages
+    (pdg.lbl.gov/2024/AtomicNuclearProperties/HTML/<material>.html): Λ, W/Z, mean excitation energies, X₀.
+  - IAEA LiveChart of Nuclides API (www-nds.iaea.org/relnsd/v1/data, ground states; ENSDF, NUBASE2020/AME2020):
+    spins and moments, ²²Na and ¹⁹⁸Au decay data, the ²²Na γ line.
+  - NIST XCOM (physics.nist.gov/cgi-bin/Xcom/xcom3_1): Pb, O, H, 1 MeV–100 GeV.
+  - NIST ESTAR/ASTAR/PSTAR (physics.nist.gov/PhysRefData/Star/Text/ESTAR.html, ASTAR.html; liquid water).
+  - NIST NCNR neutron scattering lengths and cross sections (www.ncnr.nist.gov/resources/n-lengths/list.html; Sears,
+    Neutron News 3, 29, 1992).
+  - d'Enterria, Hekhorn, Helenius, Lê, Paukkunen, arXiv:2605.16019 (cc̄, bb̄ cross sections, Tables I–II).
+  - Lisovyi, Verbytskyi, Zenaiev, Eur. Phys. J. C 76, 397 (2016), arXiv:1509.01061 (charm fragmentation, Table 12).
+  - Mocchiutti et al. (FAMU), Phys. Lett. A 557, 130867 (2025), PDF from the owner (μp → C, Table 2).
+  - Werthmüller et al., Hyperfine Interact. 116, 1 (1998), abstract (μp → O); Jacot-Guillarmod et al., abstract (μp → Ar).
+  - Aramaki et al., arXiv:1303.3871 (antiprotonic X-rays, Tables 5, 12); Okumura et al., Phys. Rev. Lett. 130, 173001
+    (2023), NIST abstract (muonic Ne 5g→4f); Engfer et al., At. Data Nucl. Data Tables 14, 509 (1974), as tabulated
+    in MuDirac 1.3.0, arXiv:2605.00554, Table 2 (muonic Pb).
+  - Shinohara et al., Phys. Rev. A 64, 042702 (2001), arXiv:physics/0011054, abstract (o-Ps–O₂); Eldrup, Risø-R-254
+    (1971), abstract (o-Ps in water).
+  - The owner's source sheet (atom-forge-sources-2026-11-07.pdf): μp → N (Jacot-Guillarmod 1997, Thalmann 1998), ENSDF
+    muonic Lyman lines (www.nndc.bnl.gov/ensnds/…/27al_mu-_nu2ng.pdf, 28si_…, 40ca_…, 56fe_…), PDG 2020 b fractions,
+    Hale–Querry water and Malitson silica indices.
+  - Zinner, Langanke, Vogel, Phys. Rev. C 74, 024326 (2006) (muon lifetimes; bug 12's check).
+- Sources the owner sent (2026-11-07): Aramaki et al. (exotic-atom X-rays), Okumura et al. (muonic neon), the FAMU carbon
+  paper (uploaded as a PDF), NIST STAR intro, NIST NCNR neutron table, d'Enterria et al. (charm/bottom σ).
+- Test change: f_bug126e "decay" now expects ²²Na 0.9/0.1 (rounded to 3 places) and ¹⁹⁸Au Q 1.3735, because its data changed.
+- Check: tests/f_fix17.js (fails on v145: −0.884, 0.903, Q 2.842 …; passes now). t_energy, t_lint, f_ew, f_rp5,
+  f_bug126e, t_hep, t_nuclear pass.
+
+### 1.27: bug 18 (3-D positron runs broke the energy books)
+
+Branch fix127-18-positron-books (from v157). Found merging the fixes: t_features' "1.24 particles" (f_124, `pos`: five
+200 eV positrons into water3d, seed 8, W.gamma = 0, the books over each positron's life within 0.5 eV) came out 42.11 eV.
+Since fix 4 the positrons live 8–29 steps and ionize, attach, capture and annihilate along the way, so the chemistry's
+rare paths run far more often; two of them were not exact.
+
+- **What was wrong (1): separate placed a molecule in another's core.** Positron 4, step 8: it annihilates on a water's H
+  (annihilateBound → the electron taken; enforceValence: an H⁺ cannot keep its O–H bond) and separate(H⁺, O) moves the
+  OH out of the "core" `0.85 · ½ (a.ljR || 2) + (b.ljR || 2))`. A bare nucleus has ljR 0 on purpose (no core), but `|| 2`
+  made it 2 Å: the OH was pushed 1.38 Å, its H landing 0.27 Å from the next water's O (870 eV/Å). The event's
+  localPE books were exact; the integrator was not: the closing kick (outerB3) gave that H 37 eV, the O 2.5 eV.
+  - Change (engine.js separate): the force field's own core, `0.85 · ½ (a.ljR + b.ljR)` (as evReact's push already
+    used); and the push is halved (up to three times) until no moved atom lands inside 0.62 rm of an atom around it
+    (where ljFI's wall starts), else not made. The same H⁺: 0.53 Å instead of 1.38.
+- **What was wrong (2): a bond put back on trial lost its hole energy.** evBreak judges a stretched bond by breakCost
+  (removes it, measures), and when the pair hasn't the energy it put back `addBond(a, b, order)`: a new bond, without
+  the old one's Eq (holeEq: the measured ionization energy of a hole in water, H₃O⁺, …; 1.27 bug 2) and Ef. In the run
+  an H₃O⁺ O–H came back 0.58 eV lower (seed 3), and evReact's undo did the same (0.61 eV, seed 6). Measured with a
+  water whose O–H carries Eq 0.3 eV and is pulled apart too slowly to break: the books moved by 0.300 eV.
+  - Change: putBackBond(bd, …) puts the same bond back where it sat in the three lists (breakCost's whole-molecule
+    retry, evBreak's "stays bound", evReact's undo).
+- **Measured** (the `pos` block, worst positron per seed, eV): v157 seeds 1–8: 0.14, 0.11, 0.13, 0.16, 0.29, 0.51,
+  0.16, **42.11**; now seeds 1–12: 0.15, 0.13, 0.22, 0.18, 0.09, 0.27, 0.15, 0.13, 0.16, 0.34, 0.22, 0.16. (v156: 0.01–0.08;
+  what is left is the closing kicks after the events of a positron's ionizing run, each exact in itself.)
+- Forces were not the cause (the slopes match in 3-D brine to 3×10⁻⁸ eV/Å); nor the step size: the hot H was made by
+  the placement, not met too fast.
+- **Fingerprints** (switches off, 300 steps, seed 7): pionbeam, hyperfactory and annihilation changed (flat; their
+  annihilations and ionizations take the corrected paths); every other setup the same. Their stored hashes replaced in
+  f_rp1/2/3/5/7, f_ew, f_feat1, f_127x, f_127h; f_rp7's part-3-on annihilation hash too.
+- **Test changes:** f_rp3 "straggle" samples 24 runs instead of 12: with the water's events changed its 12-run sample
+  gave the 90th percentile at 2.88× the median against the 3× it asks (other seed sets: 3.3–3.9× before and after).
+- t_features' 1.09 ionized-water drift: seeds 3 and 7 (was 3 and 5). The runaway plasma (a known limit) is a matter of
+  path: seed 5 now runs away (22.8 fs, 144 free electrons), 7 doesn't before or after (0.34 / 0.30 eV). Over seeds 1–39
+  about 14 run away now against 9 on v157; the runaway starts (40 → 76 free electrons) before any energy error shows.
+- f_fix04 "contact": twelve seeds (10–21) and their median (≥ 20) instead of two each ≥ 20: a 5 keV positron's
+  ionizations before it annihilates are random (now 13–205, median 61; v157 26–201, median about 73).
+- **Check:** tests/f_fix18.js (t_features runs it alone): "putback" (0.300 eV on v157, 0 now), "separate" (an H⁺
+  beside its O–H: 1.377 Å on v157, 0.527 now), "pos" (seeds 8 and 6: 42.11 / 0.512 on v157, 0.127 / 0.269 now).
+- **Cost:** separate looks at every atom for each moved one (it runs a few times a step at most in a positron run).
+
+### 1.27: W and Z bosons (electroweak)
+
+Branch v148 (from v145 at 76274f3, the combined 1.27 with all seven realistic-particle parts). Asked by the owner directly
+(2026-11-06, "Just add it", after an explanation of electroweak unification); approved physics. Always on, no switch:
+W and Z can only be made above √s ≈ 80–90 GeV, and below that nothing new runs or draws a random number. Code: hep.js,
+"W and Z bosons" (after part 5's heavy flavour: EW, EW_HAD, EW_WW, EW_ZZ, EW_PP, ewEE, ewAfb, ewDir, ewFinal, ewDecay,
+ewDraw, ewDecList), the particles in XP, hooks in eeEvent, nnInelastic, nnbarEvent, hadronHit, xbAnnihilate,
+xbInelastic, fragmentInto, decayExo/decayExo3, spawnItems/spawnItems3 (a W's spin axis, `ewAx`), bwMassRel (their mass
+window), resPlaceMass, hfInto (a W's c s̄); ui.js (the setup, the palette's "W and Z bosons", XP_NAME, XP_ABOUT,
+EXO_FOUND, PART_NAMES, Inspect's decays and "Inside", the Data tab's card); body.html (Physics: Forces → Electroweak,
+Accelerators → New particles). Checks: tests/f_ew.js (t_features runs it alone; `node tests/f_ew.js [--node] [part …]`):
+fp, peak, branch, vma, ww, widths, hadron, fireball, books, setup, page; every part but fp fails on v145 (no W or Z
+there: "ewEE is not defined" …); fp shows the setups below the thresholds unchanged. Screenshots: scratchpad
+ew/lep1.png, lep-data.png, ins-w.png.
+
+- **The particles.** W⁺, W⁻ 80,369.2 MeV, Γ 2,085 MeV, mean life ħ/Γ = 3.157×10⁻²⁵ s; Z⁰ 91,187.6 MeV, Γ 2,495.2 MeV,
+  2.638×10⁻²⁵ s. They are `res` (decay at once where they are made, as the ρ; Ultra-realistic: on the clock) and `ew`.
+  Their own masses: part 5's relativistic Breit–Wigner (`bwMassRel`) with or without that switch (a W or Z only exists
+  with its width), cut at M ± 10Γ, the window the measured cross sections count (66–116 GeV for the Z: 66.26–116.01
+  drawn), not at the lightest decay threshold as for hadron resonances (a constant-width W reached down to 1 GeV, 2.7% of
+  draws below M − 5Γ). A Z made on the peak in e⁺e⁻ has the collision's √s as its mass. Placed, fired or pasted they
+  draw their mass too.
+- **Decays** (`ewDecay`, `ewFinal`): W → eν 10.71%, μν 10.63%, τν 11.38%, hadrons 67.41% (a u d̄ pair 34.07%, c s̄
+  33.34%); Z → e⁺e⁻ 3.3632%, μ⁺μ⁻ 3.3662%, τ⁺τ⁻ 3.3696%, νν̄ 20.00% (three kinds, a third each), hadrons 69.911% (b b̄
+  15.12% = R_b 0.21629, c c̄ 12.03% = R_c 0.1721, u, d or s 42.76%). A quark pair becomes hadrons through the game's own
+  string: hadronize (charm and bottom by part 5's hfInto at their fragmentation fractions, whatever part 5's switch; a
+  W's c s̄ as a charmed hadron and a kaon), resonate, then jetMomenta along the pair's axis (two jets back to back, as
+  e⁺e⁻ → hadrons). Captions: "Decay: Z⁰ → μ⁻ + μ⁺", "Decay: Z⁰ → b b̄: two jets, 21 hadrons", "Decay: Z⁰ → ντ + ν̄τ …
+  nothing seen (invisible: the 20% that counted three neutrino kinds)". Angles (in the flat game in the plane, as the
+  game's other e⁺e⁻ pairs; in 3-D over the sphere):
+  - A W made in a hadron collision has its spin along the beam its antiquark came from (p̄p, a meson or antinucleon on a
+    nucleon: that beam; pp and nuclei: either beam at random), and V − A decides its charged lepton: ℓ⁺ (right-handed) as
+    (1 + cos θ)² to the spin, ℓ⁻ as (1 − cos θ)². Measured in 3-D (F − B)/(F + B) = +0.763 and −0.750 (exact ±0.75); flat
+    +0.849/−0.861 (in the plane ±8/3π = ±0.849).
+  - A Z from e⁺e⁻: its fermion pair as 1 + cos²θ + (8/3)·A_FB·cos θ to the electron's direction, A_FB from the γ–Z
+    interference at its √s (`ewAfb`, Born, sin²θ_eff 0.23153): μμ −0.282 at 88 GeV, −0.152 at 89.4, −0.076 at 90.2,
+    +0.016 on the peak (LEP: 0.0171), +0.107 at 92.2, +0.256 at 94, +0.55 at 200; drawn at 94 GeV in 3-D 0.250. The same
+    A_FB is given to the photon's μμ and ττ channels above 10 GeV. Measured values with the beams' radiation are smaller
+    above the peak (it brings collisions back to the peak): Born here, said in the code. A Z from hadrons: 1 + cos²θ to
+    the beams. Jets: 1 + cos²θ (Z from e⁺e⁻) or at random. A W or Z pair from e⁺e⁻ decays at random (their spins are not
+    followed).
+- **e⁺e⁻** (eeEvent, above √s = 10 GeV): three more channels. The Z as an s-channel resonance, σ = σ⁰·sΓ²/((s − M²)² +
+  s²Γ²/M²), σ⁰ = 12π·B(ee)/M² = 59.37 nb: hadrons 41.51 nb, μμ 1.999 nb on the peak (Born; the measured peak with the
+  beams' radiation is 30.5 nb); 0.130 of the peak at 88 GeV, 0.167 at 94. Within M ± 10Γ the collision makes one Z (its
+  mass √s, at rest in their frame), which decays at once; further off (e.g. 200 GeV) the Z channel makes the decay products
+  directly ("through a Z, off its peak"). W⁺W⁻ above 2M_W = 160.74 GeV and ZZ above 2M_Z = 182.38 GeV (EW_WW, EW_ZZ: LEP2's
+  combined measurements 161.3–206.6 GeV, from the threshold to the first point as the pair's velocity, above 207 GeV the
+  theory curves: WW 15.4 pb at 250 GeV, 7.6 at 500, 2.9 at 1 TeV; ZZ 1.1, 0.6, 0.25), each boson its own mass from its
+  width, flying apart at random (the real W⁻ goes forward along the e⁻; not built). The photon's channels (γγ, μμ, ττ,
+  ρ, ω, φ, hadrons, cc̄, bb̄) are as they were; the γ–Z interference is left out of the totals: −0.34% of the Z's at 88
+  GeV, +0.28% at 94 (under 0.4% from 88 to 94 GeV), 3–4% of the Z channel's 15–18 pb at LEP2. Below 10 GeV the Z's share is
+  under 10⁻³ (at 10 GeV 0.54 pb against 870 pb of μμ) and nothing is drawn: the channel list and the lepton pairs' angles
+  are exactly as before.
+- **Hadron collisions** (`ewDraw`): W and Z by quark–antiquark annihilation (Drell–Yan) at σ(√s)/σ_inel(√s), σ_inel from
+  part 5's HF_INEL, σ = σ·B / B (B(W → ℓν) 0.1086, B(Z → ℓℓ) 0.033658), one draw per collision above √s = 82.3 GeV (M_W
+  and two nucleons). Where: nucleon–nucleon (nnInelastic: pp, and nucleon pairs inside nuclear encounters), p̄p in flight
+  (nnbarEvent), an antinucleon or a meson on a nucleon in matter (hadronHit), the collider's hadron beams (xbAnnihilate:
+  'pbar' table, xbInelastic: 'pp'), and a nuclear fireball (fragmentInto: the plasma and the light-system hadronize path)
+  times its binary collisions, a·b/min(a, b)^⅔ for a and b participants (p + A: b; central Au + Au 1,150, Glauber's
+  1,050 at 42 mb). The W or Z is one item among the event's hadrons (the hadrons get what it leaves; books as any event).
+  W⁺ against W⁻: p̄p, mesons 1:1; pp 0.78 at 0.5 TeV, 0.59 at 7, 0.574 at 13 TeV (W⁺/W⁻ 3.5, 1.45, 1.35).
+  - Data (σ·B in nb, W for one lepton kind, W⁺ + W⁻; Z → ℓℓ in 66–116 GeV): p̄p 0.63 TeV 0.68 / 0.066 (UA2), 1.8 TeV 2.49 /
+    0.231 (CDF Run I), 1.96 TeV 2.75 / 0.256 (CDF, D0 Run II); pp 0.5 TeV 0.150 / 0.0080 (STAR, PHENIX), 7 TeV 10.4 / 0.97
+    (ATLAS, CMS), 13 TeV 20.6 / 1.98 (ATLAS); p̄p above 1.96 TeV as pp (the sea's antiquarks lead there). Below the first
+    point (0.63 / 0.5 TeV) brought to zero at the threshold (82.3 / 93.1 GeV) as (1 − √s_thr/√s)ⁿ, n = 8 (p̄p, a valence
+    antiquark) or 16 (pp, the sea's): a shape, not a measurement (pp at 200 GeV: σ_W·B = 0.6 pb).
+  - Real rates (one collision in): p̄p 0.63 TeV W 7.9 million, Z 25 million; p̄p 1.96 TeV W 2.4 million, Z 8.0 million;
+    pp 7 TeV W 760,000, Z 2.5 million; pp 13 TeV W 410,000; pp 200 GeV W 8×10⁹; a 1 PeV proton fired at carbon (√s 1.37
+    TeV, 3 binary collisions) one hit in 2.3 million; central Au + Au at 200 GeV one in 6.8 million, Pb + Pb at 2.76 TeV
+    one in 2,100, at 5.02 TeV (1,700 binary collisions) one in 570. So in a collider run of thousands of collisions a W
+    or Z is not seen, except in lead–lead at LHC energies now and then.
+  - RP.ewX multiplies the hadron rates, for the tests only (×10⁵: p̄p 1.96 TeV, 1,500 collisions, W in 69 (expected
+    62.5), Z in 22 (18.8); pp 7 TeV in 3-D, 400: W 59 (52.4), Z 15 (15.8); pp at 60 GeV none (no draw); central Pb + Pb
+    2.76 TeV ×10³: a W or Z in 2 of 6 plasmas, 3-D 2 of 6, the event's charge kept: the plasma's hadrons carry its
+    charge less the W's).
+- **Not built:** neutrinos meeting matter through W or Z exchange (σ ≈ 10⁻³⁸ cm² × E/GeV: a neutrino crosses the Earth;
+  the game's neutrinos leave); the Higgs boson (on the planned list); e⁺e⁻ → Zγ and the beams' own radiation (radiative
+  return; at LEP2 most e⁺e⁻ → qq̄ events); the W pair's angular distribution and the W and Z spins in pairs; W and Z in
+  the 3-D world's e⁺e⁻ lepton pairs of the photon channel (those are drawn in the plane, as before: PS3.flat; the Z's own
+  decays are 3-D); several W or Z in one collision.
+- **Where to see them.** The Fire tool shoots up to 1 PeV, so the Z peak is not reachable with electrons there: a
+  positron on an electron at rest has √s = √(2mₑE), 32 GeV at 1 PeV (the Z needs 8.1 PeV, not 8.1 TeV), and a fast
+  positron hitting an atom annihilates with one of its electrons into 2γ whatever its energy (annihilateBound; not
+  changed). Two particles fired head-on at 45.6 GeV cross the box in one step (1,200 Å at 0.04 tu) and leave before the
+  collision check, so they never meet. Through hadrons it works: a 1 PeV proton or pion fired into matter meets nucleons
+  at √s ≈ 1.4 TeV (measured with ×10⁵: 2 W or Z in 101 hits above the threshold). The linear collider reaches it: at
+  45.6 GeV a beam its collisions land at √s 85.7–91.2 GeV (median 90.2; 167 collisions in 6,000 steps), the beams
+  leaving the linac at 43.5–45.6 GeV and losing about 0.4 GeV more in the focusing magnets' synchrotron light (real LEP:
+  0.1% spread); the Z is 2.5 GeV wide, so nearly every collision still makes one. New setup, Real labs → "CERN LEP: the Z
+  factory" (`lep`: the linear collider, e⁺e⁻ at 45.6 GeV a beam, after DAΦNE's pattern; its hint names the decays, the
+  invisible fifth and three neutrino kinds, the 1% loss, and the scan: 44 to 47 GeV a beam in the Lab tab; above 80.4 GeV
+  a beam W pairs). Node: 62 Zs in 63 collisions over 3,000 steps, 1,086 charged pions among their products. The energy
+  scan is by hand (Lab → Beam energy): an automatic scan would be a feature with its own panel; written down, not built.
+  t_energy skips `lep` as it does DAΦNE (injectors and cavities add energy).
+- **Numbers** (Node, f_ew): the peak 41.51 nb hadrons, 1.999 nb μμ; Zs made in eeEvent 233 of 250 at 88 GeV (expected
+  236), 248 of 250 on the peak (248), 242 of 250 at 94 (240); branchings from 100,000 decays: Z hadrons:μμ 20.74 (20.77),
+  invisible 0.1998, e⁺e⁻ 0.0336, τ⁺τ⁻ 0.0335; W⁺ eν 0.1071, μν 0.1054, τν 0.1124, hadrons 0.6751; Z → hadrons 11–27
+  hadrons (resonances counted once) in two jets, bottom in 56 and charm in 31 of ~210, momenta exact to 10⁻⁶ MeV; e⁺e⁻ →
+  W⁺W⁻ none of 300 at 150 GeV, none of 300 ZZ at 175 GeV, 68 of 500 at 200 GeV (expected 67.3; σ 17.0 pb against 80.6 pb
+  γγ); masses 40,000 draws each: Z 2,550 MeV at half height about 91.21 GeV (Γ 2,495; 50 MeV bins), W 2,200 MeV about
+  80.44 GeV (Γ 2,085); books (energy and momentum exact through closeEvent, rest mass in the nuclear ledger): e⁺e⁻ at the
+  peak and at 200 GeV and placed W⁺, W⁻, Z⁰ (180 events each) flat within 2.8×10⁻¹⁴ of their energy, 3-D 2.4×10⁻¹⁴;
+  hadron collisions within 4×10⁻¹⁵ of √s; Pb + Pb plasmas within 4.4×10⁻¹⁵.
+- **The collider panel** (makeNote): for e⁺e⁻ beams the list of what they can make goes on past τ pairs to "Z bosons (the
+  Z peak at 91.19 GeV, 2.5 GeV wide)" (from √s 66.2 GeV, the window; the go-to button offers 45.6 GeV a beam), "W⁺W⁻
+  pairs" (160.74 GeV) and "Z pairs" (182.38 GeV), and near the peak says that nearly every collision makes a Z⁰.
+- **Suites** (2-core machine, another session's tools/runtests.sh running for the first half): alone t_lint, t_energy,
+  t_hep, t_collider, t_3d, f_ew (all 11 parts, 93 s), f_rp1, f_rp2, f_rp3, f_rp5, f_rp7 pass. t_features alone (29 min, with
+  the other session's run): f_ew and every f_ file pass; misses: 1.14's slow-motion readout and 0.64's named save (both on
+  record as two-core flakes), f_bug125's two timing checks (exoElastic 4.26 ms against 3; pi3; rerun alone pi3 passes,
+  exoElastic swings 1.7–4.9 ms run to run on v145 as here), and "muons" (the catalysing muon stuck to an α after two
+  fusions: the page's random numbers are not seeded; the block alone passed 4 of 4). tools/runtests.sh (alone): 21 of 22
+  pass, t_features among them; t_page's 4 misses (the slow-motion button, the go-to-threshold button on the linac, the
+  nucleus card's Close twice) under the two lanes' load, and t_page alone passes (5 min).
+- **Fingerprints** (tools/fingerprint.js, seed 7, 300 steps): all 59 setups, flat and 3-D, equal v145's (76274f3), RHIC
+  (gold at 200 GeV a nucleon pair, which draws for a W or Z in its plasma) included: no plasma forms within 300 steps.
+  f_ew "fp" keeps 14 of them (rhic, ring, linac, dafne, annihilation, pionbeam, photonuc, hyperfactory, antihydrogen,
+  chain, isolde, sns, water, water3d). The new `lep` is the 60th.
+- **Cost:** below the thresholds nothing (a comparison per e⁺e⁻ or hadron event). A Z's hadronic decay 0.29 ms (hadronize,
+  resonate, jets); the LEP setup 0.28 ms a step (DAΦNE 0.18), one thread, on a machine shared with another session's tests.
+- **Values from memory** (no network here; worth a check against PDG 2024): M_W 80.3692 GeV (PDG 2024's average; the brief
+  said 80.37), Γ_W 2.085; M_Z 91.1876, Γ_Z 2.4952 (LEP's; PDG 2024 lists 91.1880 and 2.4955); the branching fractions
+  above; R_b, R_c; sin²θ_eff 0.23153; σ⁰_had 41.54 nb (computed here 41.51 from Γ_ee/Γ and the mass); the LEP2 WW and ZZ
+  points and the theory curves above them; the hadron-collider σ·B values and the W⁺/W⁻ ratios; Glauber's N_coll.
+- **Found, not changed:** a positron of any energy hitting an atom annihilates into 2γ (annihilateBound), where above
+  211 MeV in their frame real e⁺e⁻ makes μ pairs and hadrons too (√s reaches 32 GeV at the Fire tool's 1 PeV); fired
+  particles above a few GeV cross the box in one step and never meet each other (beamCollisions after they have left);
+  after a central Pb + Pb plasma at 2.76 TeV the count of charge (particles, unstable particles, charge gone out)
+  changes by 13–53 over the next moveExos while its 400–500 products fly among the fragments (v145 the same; the event
+  itself and every single decay keep it; not traced); the linear collider's √s spreads 6% at 45.6 GeV a beam (its acceleration and the quadrupoles' synchrotron light); p̄p
+  in flight always annihilates into mesons (nnbarEvent), where at TeV energies real p̄p collisions are mostly inelastic
+  with both baryons surviving; the photon channel's e⁺e⁻ lepton pairs are drawn in the plane in 3-D (PS3.flat).
+- **For the owner (written down, not decided):** an automatic energy scan for the LEP setup (σ against √s drawn as the
+  collider steps through 88–94 GeV); the beams' own radiation (radiative return, which takes the Z peak from 41.5 to 30.5
+  nb and makes most of LEP2's qq̄ events); the W pair's forward peak; a fast positron on matter by eeEvent (μ pairs,
+  hadrons) rather than always 2γ; the Higgs boson (planned list).
+
+### 1.27: feature 20 (a bigger model for close-packed metals)
+
+Branch v155 from v154 (2026-11-06; approved with the list; built while the owner slept). Settings → Experimental → Metals →
+Many-body, nothing new to switch: the close-packed metals' many-body energy gains a term. Many-body off (the normal game),
+nothing changes.
+- **What was wrong** (1.26, items 3–4): 1.25's second-moment band (−√ρ) counts bcc's 14 near neighbours (its second shell
+  at 1.155 r_nn sits inside the 1.15–1.35 r₀ switch), so in 3-D bcc came out lowest for most fcc and hcp metals (relaxed
+  bcc − own: Cu −0.053, Al −0.039, Ni −0.081, Ti −0.092, Zr −0.123 eV an atom) and balls turned body-centred. 1.26 tried
+  MEAM's angles (item 4, not shipped): the structures came right but the liquid rose by about the latent heat (Cu +50 meV
+  an atom), so the metals melted 250–400 K too high; held to the liquid, the fit put hcp below fcc.
+- **Two forms measured first** (on 1.25's model, lattice clusters and the 1.25 copper liquid, tools/mbliquid.json):
+  - a radial bump in the band (extra weight for neighbours near bcc's second shell, x_b = 0.13): the best it does is raise
+    the liquid by 0.35 of what it raises bcc (Cu: liquid +0.032 eV for bcc's +0.09, against a latent heat of 0.135). Dropped.
+  - the band's shape, s = μ₄/μ₂² (μ₄ = (H⁴)ᵢᵢ, closed walks of four hops; one s-like hopping h = e^(−q(r/r₀ − 1)) at the
+    pair's switch): q = 2: fcc 3.750, hcp 3.750, bcc (equal volume) 4.385, the liquid 3.743 ± 0.154 (q = 3: liquid 3.612,
+    q = 4: 3.465). bcc stands apart, fcc and the liquid sit together. (fcc and hcp also share μ₃, μ₅ and μ₆ for one
+    shell; nothing this cheap tells them apart.) Built.
+- **The model** (`src/bometal.js`, mb4F, mb4Pass, mb4Local; constants MB4_C): E₄ᵢ = Cᵢ·φ(μ₂ᵢ)·g(sᵢ − 3.75), g(Δ) =
+  W²Δ²/(W² + Δ²) for Δ > 0 and 0 below (W = 1.5: bounded), φ a quintic from 0 at μ₂ = 7 to 1 at 10 (12 in the crystal).
+  Hoppings between member atoms of the same metal only. Why each piece:
+  - one-sided, quadratic in Δ: s changes only to second order under any strain of one close-packed shell (all neighbours
+    equivalent, Σ of first-order changes = tr ε = 0 for a shear; a uniform scaling leaves s alone), so E₄ is fourth order
+    there: Ec, r₀, B, C₄₄, C′ and the vacancy are exactly 1.25's (f_125m `fit` unchanged); and the liquid's atoms below 3.75
+    pay nothing, those above a little.
+  - φ: an atom with few neighbours has a large s (an adatom on (111) 6.0, on (100) 4.75; an atom arriving at a surface
+    grows without bound as its one weak hopping fades: 3,217 at the switch's edge), which would have put a barrier of an
+    eV in front of every atom landing on a metal. Below μ₂ = 7 nothing is paid: adatoms, steps, (111) faces (μ₂ 9, s
+    3.70) and the flat world (six neighbours; a flat Cu patch at 900 K: E₄ exactly 0 at every step) keep their energies;
+    a (100) face's atoms (μ₂ 8, s 3.94) pay a little, (110) (μ₂ 7, s 4.08) nearly nothing.
+  - same metal only: with unlike pairs counted, B2 NiAl, NiTi, CuZn and FeAl (bcc-ordered) paid each element's bcc price,
+    the alloy refit (tools/mbfit.js --alloys) then made the Ni–Al pair stronger and L1₂ Ni₃Al came out −223 kJ/mol
+    (measured −165.2), CuAu −13.8 (−18.2). Like-only, every alloy and its fit is exactly 1.26's (Ni₃Al −169.7, CuAu −17.6;
+    MBA_FIT unchanged); oxides and hydrides too (O, H are not arms): f_126m all parts unchanged.
+- **The fit** (`node tools/mb4fit.js [El …] [--write]`, ~1.5 min for all; periodic 3-D crystals in the game, E₄ linear
+  in C): C so that relaxed bcc lies the reference ΔE above the metal's own crystal (D_CP in tools/mbdfit.js: SGTE lattice
+  stabilities and DFT as recalled, ±0.05 eV and more, unchecked against the books). 25 metals; the rest keep 1.25's model
+  exactly. All hit their targets (relaxed bcc − own, 1.25 → now; the Bain path's lowest point between, relaxed in volume;
+  the 1.25 copper liquid's rise at the metal's spacing):
+
+  | | C eV | bcc 1.25 → now (ref) | Bain path lowest | liquid rise meV |
+  |---|---|---|---|---|
+  | Cu | 0.273 | −0.053 → +0.040 (0.04) | +0.004 | 3.2 |
+  | Ag | 0.155 | −0.023 → +0.030 (0.03) | +0.004 | 1.8 |
+  | Au | 0.079 | +0.013 → +0.040 (0.04) | +0.004 | 0.9 |
+  | Al | 0.379 | −0.039 → +0.090 (0.09) | +0.001 | 4.5 |
+  | Ni | 0.472 | −0.081 → +0.080 (0.08) | +0.005 | 5.6 |
+  | Pd, Pt | 0.313, 0.270 | −0.007, +0.008 → +0.10, +0.10 | +0.006, +0.005 | 3.7, 3.2 |
+  | Pb | 0.085 | −0.004 → +0.025 | +0.002 | 1.0 |
+  | Rh, Ir | 0.912, 1.139 | −0.011, +0.012 → +0.30, +0.40 | +0.006, +0.008 | 10.7, 13.4 |
+  | Ca, Sr | 0.153, 0.113 | −0.037, −0.033 → +0.015, +0.006 | +0.001, +0.001 | 1.8, 1.3 |
+  | Mg, Zn, Cd | 0.149, 0.122, 0.066 | −0.021, −0.012, +0.002 → +0.030, +0.030, +0.025 | +0.002 | 1.8, 1.4, 0.8 |
+  | Be | 0.461 | −0.088 → +0.070 | +0.001 | 5.4 |
+  | Ti, Zr, Hf | 0.561, 0.595, 0.812 | −0.092, −0.123, −0.128 → +0.10, +0.08, +0.15 | +0.003, +0.003, +0.005 | 6.6, 7.0, 9.6 |
+  | Co, Sc, Y | 0.436, 0.480, 0.639 | −0.049, −0.104, −0.119 → +0.10, +0.06, +0.10 | +0.004, +0.002, +0.002 | 5.1, 5.7, 7.5 |
+  | Ru, Os, Re | 1.537, 1.753, 0.902 | −0.024, +0.002, −0.008 → +0.50, +0.60, +0.30 | +0.008, +0.011, +0.010 | 18.1, 20.6, 10.6 |
+
+  (hcp metals against ideal hcp, 1.25's reference; the simple cube stays 0.25–1.8 eV up. E₄ ≥ 0 everywhere, so no
+  structure can fall below where 1.25 had it; the Bain path climbs from the close-packed end to bcc, which sits at or
+  near its top, as in real copper.) The liquid rises 1–4% of each metal's latent heat (1.26's angles: 37–90%).
+- **In motion** (3-D free balls, bath 0.05; inner atoms, after a quench to the inherent structure, with 12 neighbours
+  within 1.25 r₀ or bcc's 14):
+  - Cu 201 atoms started fcc, 600 K, 2 ps: 1.25 11 of 48 close-packed, 13 bcc; now 26–27 of 49, 1–2 bcc (the rest 13
+    neighbours: a hot ball quenched in 600 steps keeps defects; its energy 17 meV an atom above the perfect ball's).
+    At 300 K, 1 ps: 1.25 27 of 49 fcc, 2 bcc; now 29 of 50, 0.
+  - hcp balls 195 atoms, 300 K, 1 ps: Ti 1.25 2 hcp, 39 bcc of 62 → now 27 hcp, 8 bcc; Mg 41 hcp, 5 bcc of 65 → 55, 0;
+    Zn 49 of 57 either way (its bcc was only 0.012 low).
+  - A Cu ball started bcc at 300 K stays bcc for 1 ps either way (57–59 of 59): bcc is a flat saddle on the Bain path
+    here (0.039 eV at c/a 1 and 1.05), so it does not fall apart quickly.
+- **Melting** (3-D balls of 201 atoms, bath steps of 0.1·Tm, 2 ps each; share of the inner atoms' neighbours at 0.7 ps
+  still neighbours at 2 ps, 1.26 item 4's measure):
+
+  | | 0.6 | 0.7 | 0.8 | 0.9 | 1.0 | 1.1 | 1.2 | 1.3 | 1.4 | 1.5 Tm |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | Cu, 1.25 | 96% | 96 | 95 | 93 | 80 | 74 | 77 | 67 | 69 | 64 |
+  | Cu, now | 95 | 96 | 91 | 91 | 87 | 78 | 71 | 69 | 54 | 56 |
+  | Al, 1.25 | 91 | 89 | 85 | 71 | 63 | 54 | 52 | 48 | 44 | 37 |
+  | Al, now | 93 | 83 | 74 | 66 | 63 | 50 | 43 | 44 | 39 | (not run) |
+
+  The same within the runs' noise (one seed each; atoms' temperatures lag the bath by 100–300 K): no shift like 1.26's
+  (+250 K for Cu, +300–400 for Al).
+- **Forces and books**: forces are the energy's slopes to 1.4e-8 eV/Å (a jittered Cu ball with Ni and an O atom), localPE
+  exact to 3e-13 eV (an atom, a pair moved), the module path (plain metals: the term runs after mbWasm) and the JavaScript
+  path give the same forces to 1e-14. Insulated, a 3-D Cu ball of 135 atoms at 1,500 K over 2,000 steps of 0.4 fs:
+  7.55e-4 eV against 1.25's 7.53e-4 (the integrator's). Found on the way, not from this change: on a ball jittered by
+  0.9 Å, one atom's force differs from the energy's slope by 5.8e-4 eV/Å (of 30 eV/Å) with the term on or off; for a
+  bug-fix session.
+- **Cost** (one thread, two cores shared with the suite running): the pass for a 3-D copper crystal of 864 atoms at 600 K
+  1.0 → 5.9 ms (the term in JavaScript after the module's pass; neighbour lists each pair once, rows (H²)ᵢ· by sparse
+  scatter), the step 13.3 → 22.9 ms (×1.7); a flat Cu patch of 955 atoms, pass 0.41 → 1.11, step ×1.08 (lists built,
+  nothing paid). 36–56% of a hot crystal's atoms pay, so skipping idle ones would save little. For 1.28's WebAssembly
+  pass. evTransfer's lower bound (mbXferLB) leaves the term out (it can go either way; the trial decides), as for the
+  directional metals.
+- **Left**: fcc against hcp is still 1.25's (equal: the plan's "fcc/hcp/bcc in order" is met for bcc only; hcp metals
+  keep fcc and hcp level, fcc metals the same); separating them needs the second neighbours' shell (MEAM's screening) or
+  moments past the sixth. The reference ΔE values are from memory. Tests: tests/f_127m.js (fit, liquid, forces, flat, md;
+  each fails on v154), in t_features.
+- Suite on v156 (v155 with the two controls, ui127, merged; 2026-11-06): tools/runtests.sh 20 of 22. The misses are the
+  known two: t_features' 1.14 speed readout ("1/1.3×" on two cores; every 1.27 check passed, f_127m and f_ui127 among
+  them) and t_page's slow-motion button (fails alone too, as on record for 1.25 and 1.26). Setups bit for bit v154's
+  (tools/fingerprint.js, 60 setups).
+
+### 1.27: feature 19 (photons as waves)
+
+Branch v154 from v153 (2026-11-06; approved with the list, "the owner's OK" on the physics given; built while the owner
+slept). Settings → Experimental → Realistic particles → Photons as waves (`RP.pwave`, `SET.rpPwave`; the line where 1.27's
+Settings section kept its place). The flat game only, as the plan said ("to scope against cost, flat first"); in the
+3-D lab it changes nothing (said in its pane). Off at every start; off, nothing runs.
+- **The scale problem, and what was built for it.** The box is tens to hundreds of ångströms across; visible light's
+  wavelength is 4,000–7,000 Å. So visible light cannot show fringes or thin-film colours at these sizes (a slit a few Å
+  wide sends it everywhere, as it really would). Waves of the box's own size are X-rays of a few keV (λ = 12.4 Å/E[keV]:
+  1–5 Å). Two things were built, each photon by photon (each photon goes where the wave's intensity says, so a pattern
+  builds up as in the single-photon experiments):
+  1. **Slits** (props.js `OBJ_SLIT`, a new object offered by the Objects tool with the switch on, kept out of
+     OBJ_KINDS as the polarizer, so t_fuzz is unchanged): an opaque sheet with 1, 2 or 5 openings (width 0.5–20 Å,
+     spacing 1–60 Å), centred on the piece. Light and fast particles (atoms, unstable particles) pass only through the
+     openings; elsewhere it is absorbed, they are stopped. With the switch off, light goes straight through an opening
+     (a shadow); on, `waveSlit` draws its new direction from the Fraunhofer pattern of the whole sheet lit by a plane wave
+     along the photon: I(θ) = sinc²(πaΔ/λ)·[sin(NπdΔ/λ)/(N sin(πdΔ/λ))]²·((cos θᵢ + cos θ)/2)², Δ = sin θ − sin θᵢ, on
+     2,048 angles. Its polarization keeps its part across the new path. Saved and loaded with its openings.
+  2. **X-ray diffraction** (pold.js `waveBraggTry`, `waveBraggEmit`; rayInteract in the flat game): an X-ray of 1–100
+     keV passing an atom may be scattered by the atoms about it together: |F(q)|² = |Σ fⱼ e^(iq·rⱼ)|²·e^(−0.1q²)·(1 −
+     (ε·n̂)²), q = k(n̂ − û), fⱼ the atom's electrons times a Gaussian weight e^(−r²/2σ²) (σ = 8 Å, out to 20 Å: a coherent
+     patch; a sharp edge at 12 Å first gave a false small-angle excess, the patch's own outline), on 1,024 directions;
+     the straight-on peak (q < 3/σ) left out. Tried at P0·GMAX·(electrons/10)² an atom passed (P0 0.002, GMAX 25) and
+     kept with odds g/GMAX, g = Σ|F|²/Σ(Σf²)·w (what the phases add over random ones: 1 for a gas), so the rate follows
+     the Bragg condition as the direction does. (A first version made the rate the same at any angle and only steered
+     the direction: a crystal turned 4° off a reflection still sent its photons to 2θ.)
+- **Measured** (tests/f_127w.js):
+  - Double slit 10 Å apart, 2 Å wide, λ 2 Å: brightest at sin θ = 0, ±0.19–0.21, ±0.39, ±0.59–0.61, ±0.77–0.81 (mλ/d,
+    40,000 draws, bins of 0.02); a grating of five the same; one slit 4 Å wide dark at sin θ = ±0.5 (λ/a: 1 photon there
+    against 1,729 in the middle).
+  - The experiment: 6,000 X-rays through a double slit (1.5 Å openings) onto a detector screen 40 Å behind: 9 fringes
+    about 9 Å apart on its strips (40·λ/d = 8 Å near the axis, wider off it), light on all 40 strips; off, on 2 strips.
+  - Visible light (500 nm) through the same slits: no fringes, the obliquity factor's shape alone (within 10.4%).
+  - A square lattice 3 Å apart, λ 1.2 Å, at the Bragg angle (11.5°): scattered photons leave at 23.1° (2θ = 23.07°),
+    10.3% of tries kept; 4° off 3.6%, 10° off 0.7%; the same atoms as a gas 2.4% (random phases: 1 in 25 intended).
+  - The books: 2,000 X-rays into a salt crystal (300 through slits first): 9 scattered by the crystal, the rest of the
+    books move 9×10⁻¹⁰ eV, all the light's energy leaves or lands. Switch off: all 60 setups bit for bit.
+  - Cost: nothing a step; a photon through slits about 0.1 ms; a crystal's try 2–5 ms (400 atoms × 1,024 directions).
+- **Not built (the rest of the plan's list):** thin films and a laser's coherence (both need sizes the box does not have:
+  hundreds of nanometres for visible light); lenses, mirrors and prisms acting on the wave (they keep acting on rays);
+  wave packets drawn with their wavelength and phase; the 3-D lab (slits are flat-game objects; Bragg there needs the
+  sum over a sphere of directions, about 30 ms a try). For the owner: P0 and GMAX are choices of how visible to make it.
+- Suite on v154 (2026-11-06): tools/runtests.sh 22 of 22 passed (t_features 2,031 s on two cores shared with other
+  work). It covers v153 too (v154 is v153 and this feature): v153's own run was cut short when its snapshot was removed.
+
+### 1.27: feature 24 (unstable particles meet each other)
+
+Branch v153 from v152 (2026-11-06; approved with the list; built while the owner slept: "just finish all the features").
+Settings → Experimental → Realistic particles → Unstable particles meet each other (`RP.exm`, `SET.rpExm`; hep.js
+exoMark, exoMeet, exmHit, exmFree; the step calls them around moveExos). Off at every start; off, nothing runs.
+- **Before:** an unstable particle met atoms and nuclei only, and other unstable particles only as a collider's beams
+  (beamCollisions; noted under 1.26's "Left for the owner": "a pion through muonic hydrogen or a Λ passes it").
+- **With it on:** before the exotic particles move each step, each one's start is kept (exoMark); after they move, every
+  pair of free ones (not a resonance, exotic atom, muonium, positronium, hypernucleus, W/Z/Higgs, a collider's beam or a
+  caught one; moving) whose paths came closest during the step (the same closest-approach test as beamCollisions: still
+  closing in waits for a later step) within reach meets by xbHit's rules without a collider (exmHit): a lepton and its
+  antilepton annihilate as e⁺e⁻ (eeEvent), a hadron and its antihadron into mesons (xbAnnihilate), two other hadrons
+  inside √0.6 of the reach collide inelastically (xbInelastic: as proton–proton at the same energy above their masses),
+  and in the flat game two charges within 0.6 Å turn each other (nuclearScatter, as a collider's; not in 3-D, where
+  nuclearScatter is flat). The reach is R_NN (0.35 Å), the game's for fast particles outside a collider; ultra-realistic
+  mode 10⁻⁵ Å (a femtometre: never in practice). The two are marked as beam particles (xb, rad) for the call, so the
+  beams' code treats them as unstable particles, and unmarked after if they survive; products in 3-D are made at the
+  meeting's depth (xbClose's spawnItems takes _xbZ, 0 for the beams as before).
+- **Found on the way:** sameEv (engine.js) reads evId, which unstable particles do not have (theirs is ev), so every pair
+  of them counted as one event's; exoMeet compares ev.
+- **Measured** (tests/f_127x.js): head-on at 2–5 GeV, flat and 3-D, π⁺π⁻ → p p̄ 2π⁺ 2π⁻ (one draw), K⁺K⁻ → p p̄ 3π⁰
+  π⁺π⁻, μ⁺μ⁻ → μ⁺μ⁻ (eeEvent's channels), π⁺K⁻ → new hadrons; off, each pair passes; books within 2×10⁻¹⁶ of the energy.
+  Two π⁺ at 5 MeV 0.1 Å apart turn 9.3° (flat). 30 ρ⁰ and φ decaying a few ångström apart: 215 close passes between
+  products of different decays met, none between two of one decay. Ultra-realistic: a π⁺π⁻ pair 0.05 Å apart passes.
+  Setups with the switch on, 400 steps (pionbeam, hyperfactory, annihilation, rhic, muonium, dafne): at most 20 unstable
+  particles at once, mostly one collision's products; no meetings within 400 steps, the steps 0.22 → 0.25 ms (dafne), the
+  books as with it off. Switch off: all 60 setups bit for bit (tools/fingerprint.js).
+- **Not covered:** an unstable particle meeting a free electron or positron (μ⁺e⁻ makes muonium elsewhere, by its own
+  rules); a heavy-ion collision's hadrons rescattering among themselves after it (one event's products never meet: the
+  fireball's statistical hadronization stands for that stage); the charges' turn in 3-D.
+- Suite on v153 (2026-11-06): tools/runtests.sh 20 of 22: t_features' 1.10 line counted 11 realistic switch tags where
+  this line makes 12 (the count updated), and the two known load-timed checks (t_features 1.14's speed readout, t_page's
+  slow-motion button); every feature-24 check passed in the run.
+
+### 1.27: feature 25 (the Higgs boson)
+
+Branch v152 from v151 (2026-11-06; approved with the list). Always on, no switch, as the W and Z: it is made only above
+√s ≈ 125 GeV in hadron collisions and above 216.4 GeV in e⁺e⁻, so below them nothing new runs or draws a random number.
+Code: hep.js "The Higgs boson" (after the W and Z: HG, H_HAD, H_LAB, H_PP, sigZH, zhAng, hVirt, hFinal, hDecList), XP.H0,
+hooks in ewDecay (its own decays), ewDraw (beside the W and Z in hadron collisions), ewEE and eeEvent (the ZH channel),
+ewDecList; ui.js (the palette's "W, Z and Higgs bosons", XP_NAME, PART_NAMES, EXO_FOUND, XP_ABOUT.H, Inspect's "Inside",
+the collider's next threshold); body.html (Physics: Forces → Electroweak, Accelerators → New particles).
+- **The owner's question (2026-11-06): how is the Higgs field simulated?** It is not: the game takes every mass as a
+  measured number. The field has the same value everywhere and in every collision, so a box has nothing of it to follow
+  (a lattice field theory would only give back those masses). The boson, the field's particle, is what is built here,
+  and the text (Physics tab, Inspect) explains the field.
+- **The particle:** 125.2 GeV, Γ 4.07 MeV (the Standard Model's), mean life 1.6×10⁻²² s; `res` and `ew` (decays where it
+  is made; its mass from its width within ±10Γ, as a W's or Z's); spin 0, so its decays go every way alike.
+- **Decays** (LHC Higgs Cross Section Working Group, 125 GeV; CMS HIG-15-002's table and the working group's numbers in
+  talks agree to their errors): b b̄ 58.2%, W W* 21.4%, gluons 8.2%, τ τ 6.3%, c c̄ 2.9%, Z Z* 2.6%, γ γ 0.23%,
+  Z γ 0.15%, μ μ 0.022%. Quark and gluon pairs: two jets by the game's string (hadronize, b and c by hfInto), as a Z's.
+  W W* and Z Z*: one real (its mass from its width), the other virtual with m drawn from dΓ/dm² ∝ √λ(λ + 12x₁x₂)/((m² −
+  M_V²)² + M_V²Γ_V²) (hVirt, rejection on a 200-point maximum ×1.2), then each decays as a W or Z of its mass (ewDecay):
+  H → Z Z* → four leptons, H → W W* → ℓνℓν. Measured: decays to jets 69.0% (69.3), W W* 21.7%, τ τ 6.33%, Z Z* 2.62%,
+  γ γ 0.221%, Z γ 0.143%, μ μ 0.017% (100,000 draws); b hadrons in 98 of 120 jet pairs; the virtual W 31.4 GeV, the
+  virtual Z 22.9 GeV (medians; the real W 80.38).
+- **Made in hadron collisions** (ewDraw: the same draw as the W and Z, so below 82.3 GeV nothing changes, and above it
+  the one random number decides among W, Z, Higgs or none) at σ(pp → H)/σ_inel. H_PP, all modes together (nb): 1.96 TeV
+  0.0012 (the Tevatron, from memory), 7 TeV 0.0175, 8 TeV 0.0223 (17 and 21 pb in a lecture's table), 13 TeV 0.0556
+  (gluon fusion 48.6–49 pb, WH 1.4, ZH 0.9, tt̄H 0.5), 14 TeV 0.0616 (from memory); below 1.96 TeV brought to zero at
+  125.2 GeV as (1 − M_H/√s)¹⁶ (a shape). Real rate at 13 TeV: one pp collision in 1.4 billion, so never seen in a run.
+  The modes other than gluon fusion are counted in the rate but made as a lone Higgs (no W, Z or tt̄ beside it).
+  Checked with RP.ewX ×10⁸ and the W and Z taken out: 20 Higgs in 300 collisions at 13 TeV (21.4 expected), 3-D 12 of
+  200 (14.2), none at 100 GeV; books within 3×10⁻¹⁵ of √s, charge kept.
+- **e⁺e⁻ → Z H** (Higgs-strahlung; eeEvent's channel 'ZH' above M_Z + M_H = 216.4 GeV): Born σ = G_F²M_Z⁴/(96πs)·(v_e² +
+  a_e²)·√λ(λ + 12M_Z²/s)/(1 − M_Z²/s)², v_e = −1 + 4 sin²θ_W, a_e = −1 (sigZH): 0.2375 pb at 240 GeV, 0.2377 at 250
+  (about 0.20 measured-like with the beams' radiation, not applied here), 0.18 at 300, 0.057 at 500; 1.4% of the W, Z
+  and Higgs pairs at 250 GeV. The Z leaves at λ sin²θ + 8M_Z²/s to the beams (zhAng; ⟨cos²θ⟩ 0.315 drawn, 0.316 the law).
+  LEP's 209 GeV was short of it; the collider's text names the next threshold.
+- **Checks** (tests/f_127h.js: branch, virt, zh, hadron, books, fp, page): placed Higgs bosons decay at once, books
+  within 2×10⁻¹⁴ of their energy, charge kept; switch-free, so the fingerprints: all 60 setups bit for bit v151's;
+  f_ew's palette check now takes the renamed group "W, Z and Higgs bosons".
+- **Not built:** the Higgs's production modes as such (vector-boson fusion's two forward jets, a W, Z or tt̄ beside it);
+  H → μμ's and Zγ's angles beyond isotropy (spin 0 makes them isotropic anyway); the beams' radiation on ZH; a Higgs
+  factory setup (the collider's e⁺e⁻ beams reach it; a setup could be added).
+- Suite on v152 (2026-11-06): tools/runtests.sh 20 of 22; the misses the two known load-timed checks, t_page's slow-motion
+  button and t_features' 1.14 speed readout (every feature-25 check passed in the run).
+
+### 1.27: feature 22 (Rayleigh scattering)
+
+Branch v151 from v150 (2026-11-06; approved with the list). Settings → Experimental → Realistic particles → Rayleigh
+scattering (`RP.ray`, `SET.rpRay`; src/pold.js ryTry, ryChance, ryScatter, after polarizability by direction, whose
+tensors it uses). Before, the box had no elastic scattering of light at all (the 1.27 part 7 notes: rayInteract only
+absorbed, ionized, dissociated, fluoresced or Compton-scattered).
+- **The model.** A photon that cannot ionize the atom it passes (infrared, visible, near ultraviolet: E below
+  ionizationCost) may be scattered by that atom's molecule. Each molecule is tried once per photon, after the photon's
+  chances of being absorbed there. The photon's field ε drives the molecule's induced dipole d = α·ε. α is the
+  molecule's tensor: the bonds' tensors (PD_BOND) summed over it, or for a lone atom or ion RY_ATOM / PD_ION. In the
+  flat game α is the in-plane tensor, with the mean of its two in-plane values across the plane.
+  - The rate goes as k⁴|d|²: blue (400 nm) 9.4 times red (700 nm).
+  - The new direction is drawn with weight |d|² − (d·n̂)², round the circle in the flat game. The polarization is d's
+    part across the new direction (carried with Photon polarization on). An unpolarized photon is given a random
+    polarization for the draw.
+  - Elastic: the photon keeps its energy (the molecule's recoil, about 10⁻¹¹ eV, left out), so the books do not move.
+  - A scattered photon counts one level of the photon's chain: rayInteract and rayInteract3 now take the depth that
+    emitPhoton has; past 3 the photon does not interact again, as for every re-emitted photon.
+- **The rate, made visible.** The true cross section σ = (8π/3)k⁴|d|² is 5×10⁻²⁷ cm² for N₂ at 532 nm, so a photon
+  crosses about 80 km of air before it scatters once, and in a box a few nanometres across, effectively never. As the
+  box's other light–matter rates (photoionization 0.6, line absorption 0.6, Compton 1.2% an electron, a pass), it is
+  shown made visible: RY.P0 = 0.01 a molecule passed for N₂ at 450 nm, unpolarized (the mean of |d⊥|² over the
+  directions against N₂'s), with the ratios between colours and molecules the true ones, capped at 0.5. Ultra-realistic
+  mode keeps the true rate: σ over the 0.6 Å strip's area, 4.5×10⁻¹¹ a molecule passed (N₂, 532 nm). For the owner: P0
+  is a choice of how visible to make it (at 0.01, 7% of blue photons crossing the flat water box scatter, 0.5–0.7% of red).
+- **Measured** (tests/f_127r.js):
+  - Rate: blue/red 9.49 in 3-D, 9.36 flat (true (700/400)⁴ = 9.38). Argon against water exactly (1.64/1.47)²
+    (isotropic both). N₂ 0.0103 a pass at 450 nm. Ultra-realistic σ(N₂, 532 nm) 5.12×10⁻²⁷ cm² (measured 5.1×10⁻²⁷,
+    from memory).
+  - Angles (unpolarized light on water, weighted by each draw's chance): ⟨cos²θ⟩ 0.399 in 3-D (the 1 + cos²θ law's
+    0.400), light at 90° 99.7% polarized; flat 0.582 (the plane's 0.583), 99.6%. CO₂'s dipole 3.96 along its axis and
+    1.96 across, so it scatters light polarized along it four times as much and depolarizes what it scatters.
+  - Light shone through liquid water, 600 photons: flat 46 blue (400 nm) against 4 red scattered, 3-D 13 against 2.
+    Every photon's energy leaves the box, and the rest of the books do not move (0).
+  - Cost: nothing a step. A visible photon crossing liquid water takes 31–36 µs against 15–24 (flat), 34–41 against
+    21–22 (3-D).
+  - Switch off: all 60 setups bit for bit as before (tools/fingerprint.js; no random number is drawn with it off).
+- **Not covered:** the polarizability is the static one (real α rises toward an absorption line, so violet and UV
+  scatter a little more than λ⁻⁴ says); X-rays' coherent (Rayleigh) scattering with atomic form factors is not in it
+  (only light below the ionization energy); a molecule in a liquid scatters as a lone one (the liquid's real
+  scattering is much weaker, from its density fluctuations, which a per-molecule rate cannot know); lone atoms' values
+  in RY_ATOM are from memory (CRC: He 0.205, Ne 0.396, Ar 1.64, Kr 2.48, Xe 4.04 Å³).
+- Tests: tests/f_127r.js (t_features' feature-22 line, or `node tests/f_127r.js [--node] [rate angle light ultra fp
+  settings]`). t_features' 1.10 line counts one more realistic switch tag (11).
+- Suite on v151 (2026-11-06): tools/runtests.sh 21 of 22; t_features missed only 1.14's speed readout (the known
+  two-core timing check under both lanes' load; it passed alone on v150, and nothing here runs with the switch off).
+
+### 1.27: feature 21 (polarizability by direction)
+
+Branch v150 from v145 (2026-11-06; approved with the list: "I approve all of them"). Settings → Experimental →
+Polarizability: Along bonds (normal) / By direction, with Induced charges on (src/pold.js, `PD`, `pdOn`; built right
+after sites.js).
+- **What was wrong with the old way** (the 1.26 investigation, "Polarizability by direction: investigated, not built"):
+  the induced charges are charge flow, so a molecule polarizes only along its bonds: across a linear or flat molecule's
+  bonds nothing (N₂, CO₂ across 0; benzene out of plane 0) and benzene's ring 166.9 Å³ in plane (measured 12.2).
+- **The model:** with By direction on, the charge flow is off and each atom of a molecule (2–64 atoms, as the induced
+  charges) carries an induced point dipole μ = α·E. α is a tensor, half the sum of the atom's bonds' tensors
+  α∥ ûû + α⊥(1 − ûû) (bond additivity: the molecule's tensor is the sum over its bonds, no coupling inside a molecule).
+  E is the field from the charges and dipoles of other molecules within the force reach, plus the applied field. The
+  dipoles are solved together (iterated, mixed 0.7, to 10⁻⁵ e·Å) between steps on the induced charges' schedule (every
+  10th step or every step). The exact change of the energy is paid from the molecules' motion about their centre of mass
+  (pdPay; the update is skipped if that cannot pay), as the induced charges' is. Between updates the dipoles are fixed, so
+  the forces are the energy's own slopes. Energy: ½K μᵀα⁻¹μ per atom (p.dmc, fixed between updates), −μ·E_applied (live,
+  so a field changed between updates is booked as the charges' is), and between atoms of different molecules the
+  charge–dipole and dipole–dipole terms of a soft Coulomb 1/√(r² + s). The ion–molecule weight iwK is on the
+  charge–dipole terms, as the induced charges have it. Each pair's energy is faded over the last ångström of the reach
+  (a smooth step on r, as the charge sites'). In the books: pdForces after the kernels, pdLocal in localPE (events),
+  pdTotal in totalEnergy, pdPairE in pairPE.
+- **Two things found while building it.**
+  1. Fading the potential instead of the pair's energy made the dipole–dipole coupling, the potential's second
+     derivative, about 1.0 at 5.2 Å, where the real one is 0.014. The solve ran away (coupling eigenvalues ±1.2–1.7). The
+     fade is on the energy now, so a field is never larger than the unfaded one.
+  2. Undamped, a water hydrogen was pulled to 0.37 Å from a Na⁺ in brine (dipole 2.5 e·Å): the induction energy −½αE²
+     at sub-ångström range outweighed the core. Every pair now has one damped softening,
+     s = 0.09 + PD_TH·(ᾱa·ᾱb)^⅓ Å², as Thole's model damps. A partner without a dipole uses its ion's or atom's own
+     polarizability (PD_ION, PD_ATOM). PD_TH = 1.0 was chosen by liquid water's molecular dipole: Thole's linear 1.66²
+     = 2.7 gave 2.49 D in the 3-D lab, 1.0 gives 2.6–2.7 (measured in the liquid about 2.6–3.0 D). Brine keeps every
+     dipole under 0.4 e·Å with it.
+- **The bond table (PD_BOND)**, fitted by tools/polfit.js on the game's own 3-D geometries to static electronic
+  polarizabilities (Å³). Means: CH₄ 2.60, C₂H₆ 4.47, C₂H₄ 4.25, C₂H₂ 3.33, benzene 10.33, CH₃Cl 4.53 (the MOPAC manual's
+  table of experimental values); HCl 2.63, HF 0.80; H₂ 0.79, N₂ 1.74, O₂ 1.58, CO 1.95. Anisotropies Δα: H₂ 0.288,
+  N₂ 0.691, O₂ 1.080, CO 0.525 (Raman, OSTI 5555353). Benzene out of plane 6.62 (CCSD 44.66 a.u., arXiv 2103.05063).
+  From memory (for the check of values from memory, bug 17): CO₂ electronic mean 2.63 with Δα 2.0, water 1.47 nearly
+  isotropic, NH₃ 2.2, CH₃OH 3.29, and the C–H ratio α∥/α⊥ 1.36 (Denbigh). Bonds with only a mean to fit keep α∥ = 2α⊥.
+  The game's molecules come out as measured: N₂ 2.20 / 1.51 along / across, CO₂ 3.96 / 1.96, benzene 12.18 / 12.18 /
+  6.62 (flat game: 12.19 / 12.17 in the plane), water 1.47 isotropic, methane 2.60, ethane's mean 4.47. A bond not in
+  the table: mean 0.7·(α_A/n_A + α_B/n_B) from the atoms' polarizabilities (CRC; 0.7 fits the table's single bonds,
+  which run 0.59 for C–H to 0.98 for C–Cl), split 1.5 : 0.75. Ionic atoms take their ion's polarizability
+  (isotropic), metal atoms none.
+- **Measured.**
+  - Forces against the energy's slope: 2×10⁻¹¹ eV/Å in 3-D, 8×10⁻¹¹ flat (molecules, a Na⁺, an applied field).
+  - Events (localPE) and books (totalEnergy) agree on the dipoles' energy to 2×10⁻¹⁴ eV.
+  - Insulated books (eV): water −0.02 over 300 steps (every step; charge flow +0.03); brine −0.04 (every step), +0.01
+    (every 10th), −0.12 over 600 steps; 3-D water +0.03, 3-D brine −0.13 (60 steps every step); the 3-D hydrogen flame
+    −0.02 over 300 steps with 9 bond events and reactions; lone pairs on as well, −0.006.
+  - Switched off with 240 dipoles: none left, the energy kept to 0, the charge flow back.
+  - Liquid water's molecular dipole: flat 2.17 (charges) / 2.41–2.43 (induced charges) / 2.52–2.56 (dipoles); 3-D 2.19 /
+    2.43–2.52 / 2.59–2.66 D.
+  - Cost (tools/accbench/bench-mode.js, variants pd10 and pd1, ms a simulated fs, one thread), on top of the induced
+    charges at the same schedule: flat water ×2.9 / ×2.1 (every 10th step / every step), brine ×1.8 / ×2.1; 3-D water
+    ×2.0 / ×4.2, brine ×1.2 / ×1.7. Against nothing on: flat water ×3.9 / ×5.8, 3-D water ×3.4 / ×9.4. Most of it is
+    the update's pass over the neighbour list and the force pass, in JavaScript (first version 69 ms a step in 3-D water
+    at every step; 19 ms now, on typed arrays and the neighbour list). A WebAssembly port would be one of 33–38's kind.
+  - Brine keeps longer steps with dipoles: 0.027–0.029 fs, where the charge flow's stiffer contacts give 0.016–0.023.
+  - Switch off: all 60 setups bit for bit v145's (tools/fingerprint.js, seed 7, 300 steps, both trees).
+- **Not covered:** a lone atom or ion is not polarized (a Cl⁻ in water, a noble gas); dipoles feel charges at the atoms,
+  not at the directional forces' sites; continuous bond orders' charges move with the positions, which the dipoles'
+  forces do not follow (as the sites' do not).
+- Tests: tests/f_127p.js (t_features' feature-21 line, or `node tests/f_127p.js [--node] [tensor field slope local books
+  events clear water fp settings]`).
+- Suite on v150 (2026-11-06; v145's first full run since its last two merges, as well): tools/runtests.sh 21 of 22.
+  t_features missed only the known load-timed checks (1.14's speed readout, f_bug125 exoElastic, f_126w bo3) and
+  1.10's realistic-tag list (the new row's tag: the list updated). t_features alone then passed whole (1,420 s), and
+  f_bug125 and f_126w passed alone. t_page passed in the run.
+
+## 1.25.0: the nuclear side in 3-D, continuous bond orders in 3-D with single bonds' twist, many-body metals, Settings by mode with 3-D pictures, 3-D labels off, 21 bug fixes
 
 Approved by the owner on 2026-11-05 (after the reports): bond orders for metals (Many-body, flat melting left as it
 is), continuous bond orders for Ge, As, Se, Sn, Sb, Te, continuous bond orders in 3-D (the JavaScript pass, ×18–23),
@@ -992,7 +4926,8 @@ books hashed apart).
   pays IE − EA (6.49 eV) once a few pairs line up (Ag, with a smaller IE − EA but a longer spacing, does not). In a
   real metal the conduction electrons screen such a pair and nothing happens; giving the flat pair model that
   screening (e.g. no electron transfer between two atoms of a metal joined by metallic cohesion, or a screened
-  Coulomb inside a metal) changes how metals behave: the owner's call. Many-body copper (Experimental) stays neutral.
+  Coulomb inside a metal) changes how metals behave: the owner's call. Many-body copper (Experimental) stays neutral. (Fixed
+  in 1.26 with the owner's OK: the section "1.26: copper ions".)
 - 2. Dense metals in 3-D were slow: nearly all of a step went to the electron-transfer estimates (transferDE), each
   pair tried walking every atom within 6 Å four times (localPhi), which in a neutral metal adds nothing. Now
   chargedCount() counts the charged particles (net or partial) once per change of the world, and localPhi returns 0

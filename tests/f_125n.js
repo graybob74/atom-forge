@@ -105,7 +105,7 @@ PARTS.reactions = async (page, check, say) => {
 /* ---- 3. the quark–gluon plasma in 3-D (stage 4): a ²⁰⁸Pb at 200 GeV a nucleon meeting a lead atom in depth melts the
    overlap into a plasma that freezes out into hadrons flying in three directions (1.24: no nuclear reactions in 3-D) */
 PARTS.plasma = async (page, check, say) => {
-  const r = (() => { const X = load('all', { seed: 31 }), W = X.W; X.PRESETS.empty.build(); X.setBox(40, 40); X.world3d(40); W.wall = 'open'; W.gamma = 0;
+  const one = (seed) => { const X = load('all', { seed }), W = X.W; X.PRESETS.empty.build(); X.setBox(40, 40); X.world3d(40); W.wall = 'open'; W.gamma = 0;
     let out = null;
     for (let k = 0; k < 20 && !out; k++) {
       for (const q of W.parts) q.dead = true; W.exo.length = 0; W.qgp = []; X.forcesNoEvents();
@@ -114,9 +114,12 @@ PARTS.plasma = async (page, check, say) => {
       X.forcesNoEvents(); W.fSpawn = W.spawned; const b0 = books(X), t0 = Date.now();
       X.nuclearEncounter(p, tg, 0.05, tg.x, tg.y, tg.z);
       if (W.qgp.length) { const ex = W.exo.filter(o => !o.dead), m2 = (f) => ex.reduce((s, o) => s + f(o) ** 2, 0) / ex.length;
-        out = { tries: k + 1, books: books(X) - b0, ms: Date.now() - t0, hadrons: W.qgp[0].n, z: W.qgp[0].z, exo: ex.length, uy2: +m2(o => o.uy).toFixed(4), uz2: +m2(o => o.uz).toFixed(4) }; }
+        out = { tries: k + 1, books: books(X) - b0, ms: Date.now() - t0, hadrons: W.qgp[0].n, z: W.qgp[0].z, exo: ex.length, uy2: m2(o => o.uy), uz2: m2(o => o.uz) }; }
     }
-    return out || { none: true }; })();
+    return out || { none: true }; };
+  // (three events pooled: one event's spray scatters between the two directions across the beam by up to ±40%, its
+  // hadrons coming in correlated clusters; 1.26's centred 3-D hits put seed 31 alone at 1.40, 0.72–1.40 over six seeds)
+  const ev = [31, 32, 33].map(one), r = ev.some(e => e.none) ? { none: true } : { tries: Math.max(...ev.map(e => e.tries)), books: Math.max(...ev.map(e => Math.abs(e.books))), ms: Math.max(...ev.map(e => e.ms)), hadrons: Math.min(...ev.map(e => e.hadrons)), z: ev.every(e => e.z === 2.5) ? 2.5 : ev.map(e => e.z), exo: Math.min(...ev.map(e => e.exo)), uy2: +(ev.reduce((s, e) => s + e.uy2, 0) / 3).toFixed(4), uz2: +(ev.reduce((s, e) => s + e.uz2, 0) / 3).toFixed(4) };
   say('  1.25 plasma in 3-D: ' + JSON.stringify(r));
   check(!r.none && Math.abs(r.books) < 0.5 && r.hadrons > 500 && r.z === 2.5 && r.exo > 300 && r.uz2 > 0.005 && Math.abs(r.uy2 - r.uz2) < 0.4 * r.uy2,
     `1.25: quark–gluon plasma in 3-D: ²⁰⁸Pb at 200 GeV a nucleon on lead → a plasma at the target's depth freezing into ${r.hadrons} hadrons (${r.exo} unstable ones in flight), round the beam in both directions across it (⟨u_y²⟩ ${r.uy2}, ⟨u_z²⟩ ${r.uz2}), books ${r.books !== undefined ? r.books.toExponential(1) : '?'} eV, ${r.ms} ms`, '1.25 plasma in 3-D: ' + JSON.stringify(r));

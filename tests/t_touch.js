@@ -2,10 +2,10 @@
 /* Touch (0.69): a phone-sized page with a touchscreen. A tap places a particle; a drag with the Objects tool draws a
    wall; a long press opens the quick menu, takes back what the press itself made, and lifting the finger does not
    click the item under it. node tests/t_touch.js */
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('./deps').dep('playwright'); // (the repository's node_modules on a PC, the preinstalled tools here)
 const { pageFile } = require('./browser');
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(require('./deps').launchOpts({ headless: true }));
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await ctx.addInitScript(() => { window.AF_NO_MENU = true; window.AF_NO_PAUSE = true; });

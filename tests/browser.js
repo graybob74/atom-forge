@@ -1,7 +1,7 @@
 'use strict';
 /* Headless Chromium (the one preinstalled for Playwright) with the page wrapped exactly as publishing wraps it. */
 const fs = require('fs'), path = require('path');
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('./deps').dep('playwright'); // (the repository's node_modules on a PC, the preinstalled tools here)
 const ROOT = path.join(__dirname, '..');
 function pageFile() {
   const head = fs.readFileSync(path.join(__dirname, 'skeleton-head.html'), 'utf8').replace(/\n$/, '');
@@ -12,7 +12,7 @@ function pageFile() {
   return out;
 }
 async function openPage(opts = {}) {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(require('./deps').launchOpts({ headless: true }));
   const ctx = await browser.newContext({ viewport: opts.viewport || { width: 1360, height: 860 }, deviceScaleFactor: opts.dpr || 1, colorScheme: opts.scheme || 'light' });
   // the page asks Google for fonts; there is no network here, so answer at once
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));

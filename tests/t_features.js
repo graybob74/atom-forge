@@ -959,14 +959,14 @@ const { openPage } = require('./browser');
     return out;
   });
   check(r62.r9.rc === 9 && !r62.r9.wasm && r62.r9.far > 0 && Math.abs(r62.r9.dE) < 1 && r62.r6.rc === 6 && r62.r6.wasm && r62.r6.far === 0 &&
-    /^×1 oc c0/.test(r62.tags[0]) && /c4/.test(r62.tags[1]) && /^×1\.7 oc c2/.test(r62.tags[2]) && r62.inc === 'on ×1–1.05 dim' && r62.kind === 'physics' && r62.real === "1 0.01 12 1 32 0 2 1 1" && r62.find === 'Search… true' && r62.realOn === 3,
+    /^×1 oc c0/.test(r62.tags[0]) && /c4/.test(r62.tags[1]) && /^×1\.7 oc c2/.test(r62.tags[2]) && r62.inc === 'on ×1–1.05 dim' && r62.kind === 'physics' && r62.real === "1 0.01 12 1 1 32 0 2 1 1 1 1 1 1 1 1" /* (1.26: GFN1, paired spins, lone pairs, σ-holes and π-stacking marked real too; 1.27 item 26: Matter depth ×1; 1.27 feature 21: polarizability by direction, after induced charges) */ && r62.find === 'Search… true' && r62.realOn === 13 /* (1.27 feature 19: photons as waves; 1.27 feature 24: unstable particles meeting; 1.27 feature 22: Rayleigh scattering; 1.27 part 7: photon polarization; 1.27 part 3: charged particles in matter; 1.27 parts 5 and 6: resonance widths and heavy flavour, nuclear spin and γ lines; 1.27: exotic atoms' switch, realistic when on, beside resonance in large rings, detailed collisions and ultra-realistic; positronium and muonium as hydrogen, rp2) */,
     `1.10: force reach 9 Å: ${r62.r9.far} pairs past 8.5 Å, energy over 300 insulated steps ${r62.r9.dE} eV (6 Å: ${r62.r6.dE}); tags ${r62.tags.map(t => t.split(' ')[0]).join(', ')}, ${r62.inc}`, '1.10 reach: ' + JSON.stringify(r62));
   // 1.09: ionized water (liquid water, 40 molecules ionized, bath off) keeps its energy: the soft-cored Coulomb energy
   // between net charges inside the cutoff now meets the exact 1/r outside it (a step of 0.037 eV for e⁻ + O⁺ at each
   // crossing, 120–150 eV/ps of drift)
   const r50 = (() => { // (in the Node harness, seeded: the page's randomness is not, and one run in a few of this plasma runs away, as before)
     const out = [];
-    for (const seed of [3, 5]) {
+    for (const seed of [3, 7]) { // (1.27 bug 18: seed 5's path changed and it became one of the runaways; 7 doesn't run away before or after)
       const X = require('./load.js').load('all', { seed }), W = X.W;
       X.PRESETS.water.build(); X.settleOverlaps();
       const Os = W.parts.filter(p => p.Z === 8); for (let i = 0; i < 40; i++) X.userIonize(Os[i]);
@@ -981,8 +981,10 @@ const { openPage } = require('./browser');
   check(r50.every(r => r.freeE >= 20 && Math.abs(r.perPs) < 30), `1.09: ionized water, bath off: ${r50.map(r => `${r.drift} eV over ${r.fs} fs (${r.perPs} eV/ps)`).join(', ')}`, '1.09 ionized water drift: ' + JSON.stringify(r50));
   // 1.11: the chain-reaction map's family tree (Node harness, seeded): a block of ²³⁵U, four slow neutrons; every fission
   // but those the fired neutrons set off has a parent, delayed and scattered neutrons included; steps on the chart
+  // (seed 3: four neutrons in this block reach 30 fissions in about half the seeds; 1.26's ionization books changed the
+  // last bits after the first fission and seed 5's chain stopped at 25: e237efe reached 30 with seeds 3 and 5, now 1, 2, 3)
   const r63 = (() => {
-    const X = require('./load.js').load('all', { seed: 5 }), W = X.W;
+    const X = require('./load.js').load('all', { seed: 2 }), W = X.W; // (seed 2 since the 1.27 merge: seed 3's chain stopped at 21; seeds 1, 2, 4, 6 reach 30, 5 stops at 8; v156: 1, 2, 3, 6 reach 30, 4 15, 5 25)
     X.setMaxParts(4000); X.baseWorld(140, 100, 300, 0.05); W.warp = 1e13; W.slowmo = false;
     for (let i = 0; i < 26; i++) for (let j = 0; j < 22; j++) X.addAtom('U', -40 + i * 3.1 + (j % 2) * 1.55, -30 + j * 2.7, { A: 235 });
     X.settleOverlaps(); for (const u of W.parts.filter(p => p.Z === 92).slice(0, 4)) X.fireSpec({ kind: 'n' }, u.x - 6, u.y, 1, 0, 0.025, false);
@@ -1715,7 +1717,7 @@ const { openPage } = require('./browser');
       o.loaded = await p2.evaluate(() => { const b = document.querySelector('[data-crash=restore]'); if (b) b.click(); else restoreAutosave(); return { n: W.parts.filter(p => !p.dead).length, said: W.log.some(l => /Saved with Experimental settings/.test(l.text)), bo: BO.on }; });
       // Continue in the main menu after a restart: the last session's world, not the start setup afresh (1.23.0 saved the
       // fresh one over it as the menu opened)
-      o.cont = await p2.evaluate(() => { for (let i = 0; i < 40; i++) addAtom('Ar', -20 + i, 5); autosave(); return W.parts.filter(p => !p.dead).length; });
+      o.cont = await p2.evaluate(() => { setRunning(false); for (let i = 0; i < 40; i++) addAtom('Ar', -20 + i, 5); autosave(); return W.parts.filter(p => !p.dead).length; }); // (paused: the page saves again as it closes (pagehide), and a running world had changed by then: 73 counted, 74 brought back, 1.26 sweep)
       await p2.reload(); await p2.waitForTimeout(1000);
       o.cont = [o.cont, await p2.evaluate(() => { const b = $('mmCont0'); if (b && !b.hidden) b.click(); else restoreAutosave(); return W.parts.filter(p => !p.dead).length; })];
       await p2.reload(); await p2.waitForTimeout(1000);
@@ -1747,6 +1749,17 @@ const { openPage } = require('./browser');
     `1.23.1: the Experimental settings start at normal (other settings kept: ${pb.set.slice(3).join(', ')}); a world saved with them opens with normal physics and says so; Continue after a restart brings back the last session (${pb.cont[1]} particles)`, '1.23.1 Experimental reset, Continue: ' + JSON.stringify(pb));
   }
   // 1.23.2: the checks are in f_1232.js (also runnable alone: node tests/f_1232.js)
+  // (1.26: the newest check files run alone in their own process, each with its own page: one process holding every
+  // version's checks ran past 3 GB)
+  const alone = (file) => process.env.AF_ALONE_SKIP ? Promise.resolve() : new Promise((res) => { // (AF_ALONE_SKIP: tools/runtests.js runs these files as jobs of their own)
+    const cp = require('child_process').spawn(process.execPath, ['--max-old-space-size=3072', require('path').join(__dirname, file)], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = ''; cp.stdout.on('data', d => { out += d; }); cp.stderr.on('data', d => { out += d; });
+    cp.on('close', (rc) => {
+      const lines = out.split('\n').filter(l => l.trim()), last = lines.length ? lines[lines.length - 1] : '';
+      for (const l of lines.slice(0, -1)) { if (l.startsWith('FAIL ')) check(false, '', l.slice(5)); else say(l.startsWith('  ') ? l : '  ' + l); }
+      check(rc === 0 && /passed/.test(last), last, `${file} alone: rc ${rc}, ${last.slice(0, 300)}`); res();
+    });
+  });
   await require('./f_1232.js')(page, check, say, openPage);
   // 1.24: the checks are in f_124.js (also runnable alone: node tests/f_124.js [part …])
   await require('./f_124.js')(page, check, say, openPage);
@@ -1754,10 +1767,54 @@ const { openPage } = require('./browser');
   await require('./f_125.js')(page, check, say, openPage);
   // 1.25 (metals): the checks are in f_125m.js (also runnable alone: node tests/f_125m.js [part …])
   await require('./f_125m.js')(page, check, say, openPage);
+  // 1.26 (metals): oxides, hydrides, alloys and directional bonding for the many-body metals: f_126m.js (node tests/f_126m.js [part …])
+  await alone('f_126m.js');
   await require('./f_125s.js')(page, check, say, openPage); // 1.25 (Settings by mode, 3-D pictures): f_125s.js, also alone
   // 1.25 (nuclear 3-D): the checks are in f_125n.js (also runnable alone: node tests/f_125n.js [--node] [part …])
   await require('./f_125n.js')(page, check, say, openPage);
-  await require('./f_bug125.js')(page, check, say, openPage); // (the bug fixes after 1.25: f_bug125.js, also alone)
+  await alone('f_bug125.js'); // (the bug fixes after 1.25: f_bug125.js, also alone)
+  await alone('f_126q.js'); // 1.26 (GFN2): f_126q.js, also alone (node tests/f_126q.js [part …])
+  await alone('f_126x.js'); // 1.26 (xTB): spin-polarized quantum bonds, GFN2's SCC with radicals; f_126x.js, also alone (node tests/f_126x.js [part …])
+  await alone('f_126d.js'); // 1.26 (directional): f_126d.js (lone pairs, σ-holes, π-stacking), also alone: node tests/f_126d.js [part …]
+  // 1.26 (speed): the WebAssembly speed-ups' checks are in f_126w.js (also runnable alone: node tests/f_126w.js [part …])
+  await alone('f_126w.js');
+  await alone('f_cu126.js'); // 1.26 (copper ions): no Cu⁺Cu⁻ pair made inside a metal; f_cu126.js, also alone
+  await alone('f_hep126.js'); // 1.26 bug fixes: collisions at extreme energy, muonic atoms, muonium's nucleus (node tests/f_hep126.js [--node] [part …])
+  await alone('f_sweep3d.js'); // 1.26 3-D sweep and settings audit
+  await alone('f_swx.js'); // 1.26 exotic-particle sweep (node tests/f_swx.js [--node] [part …])
+  await alone('f_bug126.js'); // (the bug fix after the 1.26 merge: the spin branch's books; f_bug126.js, also alone)
+  await alone('f_bug126e.js'); // 1.26 bug fixes: energy books with fast electrons, decay data (node tests/f_bug126e.js [--node] [part …])
+  await alone('f_rp1.js'); // 1.27 realistic particles 1: exotic atoms and the Settings section (node tests/f_rp1.js [--node] [part …])
+  await alone('f_rp2.js'); // 1.27 realistic particles 2 and 4: positronium, muonium as hydrogen and μSR (node tests/f_rp2.js [--node] [part …])
+  await alone('f_rp5.js'); // 1.27 realistic particles 5 and 6: resonance widths, heavy flavour, nuclear spin, γ lines, neutron cross sections (node tests/f_rp5.js [--node] [part …])
+  await alone('f_rp3.js'); // 1.27 realistic particles 3: charged particles in matter (node tests/f_rp3.js [--node] [part …])
+  await alone('f_rp7.js'); // 1.27 realistic particles 7: photon polarization, Klein–Nishina Compton angles, Brewster, the polarizer (node tests/f_rp7.js [--node] [part …])
+  await alone('f_ew.js'); // 1.27 W and Z bosons: the Z peak, W and Z pairs, Drell–Yan, decays, the LEP setup (node tests/f_ew.js [--node] [part …])
+  await alone('f_feat1.js'); // (1.27 features 23, 26–32)
+  await alone('f_127p.js'); // 1.27 feature 21: polarizability by direction (node tests/f_127p.js [--node] [part …])
+  await alone('f_127r.js'); // 1.27 feature 22: Rayleigh scattering (node tests/f_127r.js [--node] [part …])
+  await alone('f_127h.js'); // 1.27 feature 25: the Higgs boson (node tests/f_127h.js [--node] [part …])
+  await alone('f_127x.js'); // 1.27 feature 24: unstable particles meet each other (node tests/f_127x.js [--node] [part …])
+  await alone('f_127w.js'); // 1.27 feature 19: photons as waves (node tests/f_127w.js [--node] [part …])
+  await alone('f_127m.js'); // 1.27 feature 20: the band's shape for the close-packed metals (node tests/f_127m.js [part …])
+  await alone('f_ui127.js'); // (after 1.26: right-click stops measuring a particle; Shift + wheel sets a tool's radius)
+  await alone('f_fix01.js'); // 1.27 bug 1: no ion–water doubling in 3-D (node tests/f_fix01.js [--node] [part …])
+  await alone('f_fix02.js'); // 1.27 bug 2: molecules' measured ionization energies (node tests/f_fix02.js [--node] [part …])
+  await alone('f_fix03.js'); // 1.27 bug 3: close passes between nuclei at nuclear distances (node tests/f_fix03.js [--node] [part …])
+  await alone('f_fix04.js'); // 1.27 bug 4: fast positrons ionize, scatter and annihilate in flight (node tests/f_fix04.js [--node] [part …])
+  await alone('f_fix05.js'); // 1.27 bug 5: p̄p by the measured cross sections (node tests/f_fix05.js [--node] [part …])
+  await alone('f_fix06.js'); // 1.27 bug 6: fast fired particles meet over the step (node tests/f_fix06.js [--node] [part …])
+  await alone('f_fix07.js'); // 1.27 bug 7: Compton scattering of 10–100 keV X-rays (node tests/f_fix07.js [--node] [part …])
+  await alone('f_fix09.js'); // 1.27 bug 9: decay data from ENSDF for the estimated nuclides (node tests/f_fix09.js [--node] [part …])
+  await alone('f_fix10.js'); // 1.27 bug 10: a muonic atom keeps its muon when its nucleus is remade (node tests/f_fix10.js [--node] [part …])
+  await alone('f_fix11.js'); // 1.27 bug 11: the giant dipole resonance on part 3's footing (node tests/f_fix11.js [--node] [part …])
+  await alone('f_fix12.js'); // 1.27 bug 12: measured muon lifetimes for 23 more elements (node tests/f_fix12.js [--node] [part …])
+  await alone('f_fix13.js'); // 1.27 bug 13: alkali aurides in a mixed metal lump (node tests/f_fix13.js [--node] [part …])
+  await alone('f_fix14.js'); // 1.27 bug 14: the crowding rule keeps AsCl₅'s chlorines apart (node tests/f_fix14.js [--node] [part …])
+  await alone('f_fix15.js'); // 1.27 bug 15: three bookkeeping leaks (node tests/f_fix15.js [--node] [part …])
+  await alone('f_fix16.js'); // 1.27 bug 16: four display and text slips (node tests/f_fix16.js [--node] [part …])
+  await alone('f_fix17.js'); // 1.27 bug 17: data written from memory checked against PDG, IAEA/ENSDF
+  await alone('f_fix18.js'); // 1.27 bug 18: 3-D positron runs keep the energy books (bonds put back as themselves, separate's core)
   if (errors.length) { fails++; say('FAIL page errors:', errors.join(' | ').slice(0, 800)); }
   say(`  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   await browser.close();

@@ -21,7 +21,7 @@
    can have workers at all; elsewhere (a page that is not cross-origin isolated) they are ordinary arrays. */
 const SHARED_OK = typeof SharedArrayBuffer !== 'undefined' && typeof Worker !== 'undefined' && (typeof crossOriginIsolated === 'undefined' || crossOriginIsolated);
 const WK = { on: false, use: true, ready: false, mem: null, module: null, inst: null, ex: null, top: 0, desc: null, ks: null, sumTab: null,
-  note: '', bytes: null, grows: 0, allocs: 0, has3: false, note3: '', calls3: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0, plain: false, PLAIN_PAGES: 2048, useFast: true, ft: null, fks: null, fc: null, fcr: null, fastCalls: 0 }; // (plain: an ordinary memory of PLAIN_PAGES × 64 KB = 128 MB, never grown)
+  note: '', bytes: null, grows: 0, allocs: 0, has3: false, note3: '', calls3: 0, ARENA0: 4 << 20, STACK: 1 << 20, MAX_PAGES: 16384, calls: 0, plain: false, PLAIN_PAGES: 2048, useFast: true, ft: null, fks: null, fc: null, fcr: null, fastCalls: 0, bufs: new Set(), vlCalls: 0, t1Calls: 0 }; // (bufs: every buffer object the memory has had, wasmIn, 1.26) // (plain: an ordinary memory of PLAIN_PAGES × 64 KB = 128 MB, never grown)
 const WK_PAGE = 65536;
 /* Base64 to bytes (no atob in every worker-less environment; this is small and runs once). */
 function wasmBytes(b64) {
@@ -48,7 +48,7 @@ function wasmMemoryInit() {
       WK.mem = new WebAssembly.Memory({ initial: WK.PLAIN_PAGES, maximum: WK.PLAIN_PAGES }); // its full size at once: it must never grow
       WK.plain = true;
     }
-    WK.top = WK.ARENA0;
+    WK.top = WK.ARENA0; WK.bufs.add(WK.mem.buffer);
     WK.on = true;
   } catch (e) { WK.note = 'memory: ' + (e.message || e); WK.on = false; WK.mem = null; WK.plain = false; }
 }
@@ -59,10 +59,17 @@ function wasmAlloc(bytes) {
     if (WK.plain) return -1; // (an ordinary memory cannot grow without detaching every view: the caller falls back)
     const need = Math.ceil((end - WK.mem.buffer.byteLength) * 1.25 / WK_PAGE) + 1;
     if (WK.mem.buffer.byteLength / WK_PAGE + need > WK.MAX_PAGES) throw new Error('Atom Forge: the WebAssembly memory is full');
-    WK.mem.grow(need); WK.grows++;
+    WK.mem.grow(need); WK.grows++; WK.bufs.add(WK.mem.buffer); // (a shared memory hands out a new buffer object after it grows; the views made before stay on the old one, wasmIn)
   }
   WK.top = end; WK.allocs++;
   return off;
+}
+/* Are these arrays in the module's memory? (1.26) After a shared memory grows, its buffer is a new object and the views
+   made before keep the old one (the same memory): comparing with WK.mem.buffer alone took them for strangers. */
+function wasmIn(...arrs) {
+  if (!WK.mem) return false;
+  for (const a of arrs) if (!a || !WK.bufs.has(a.buffer)) return false;
+  return true;
 }
 function wasmArray(T, n) { // (allocate first: a shared memory may grow, and the buffer object is refreshed by the growth)
   const off = wasmAlloc(n * T.BYTES_PER_ELEMENT);
@@ -139,8 +146,7 @@ function wasmFastReady() {
   if (!WK.ft) { WK.ft = wasmArray(Int32Array, 16); WK.fks = wasmArray(Float64Array, 1); if (!WK.on) return false; } // (a full memory gives the kernels up: the JavaScript runs)
   const need = 3 * (FL.na + FL.nl + 8);
   if (!WK.fc || WK.fc.length < need) { WK.fc = wasmArray(Int32Array, need * 2); WK.fcr = wasmArray(Float64Array, need); if (!WK.on) return false; }
-  const mem = WK.mem.buffer;
-  return FL.la.buffer === mem && FL.lb.buffer === mem && FL.li.buffer === mem && FL.lj.buffer === mem && _mdLI.buffer === mem && _chI.buffer === mem;
+  return wasmIn(FL.la, FL.lb, FL.li, FL.lj, _mdLI, _chI); // (wasmIn: still the module's after the memory grew; comparing with WK.mem.buffer sent every pass after a growth to the JavaScript, 1.26)
 }
 function wasmFast(na, nl, nmdl, nch, lrOn, wrap, bw, bh, hw, hh, evOn) {
   const t = WK.ft;
@@ -159,6 +165,42 @@ function wasmForces(q0, q1, b0, b1, c0, c1, FXo, FYo, CQ, wrap, bw, bh, hw, hh, 
   const nc = WK.ex.af_forces(WK.desc.byteOffset, q0, q1, b0, b1, c0, c1, FXo.byteOffset, FYo.byteOffset, CQ.byteOffset, wrap ? 1 : 0, bw, bh, hw, hh, step, WK.ks.byteOffset);
   _kStiff = WK.ks[0]; WK.calls++;
   return nc;
+}
+/* Bond orders for metals (bometal.js mbPass, 1.25): the pair loop, the embedding and the forces in the module (af_mb,
+   kernel/src/mb.rs, 1.26), after mbPass has gathered and sorted the members (MBF.sx … in cell order, MBF.start, the pair
+   table MBF.pt): those are copied in (a few arrays of the members' length), the pairs' scratch lives here. The same loop in
+   the same order; exp is the module's, so the energy and forces agree with the JavaScript's to rounding. false: not run
+   (no module, or an array not in its memory): mbPass goes on in JavaScript. */
+const MBW = { t: null, p: null, cm: 0, cc: 0, ct: 0, cap: 0, calls: 0 };
+function mbWasm(nm, nt, nx, ny, nz, cut2, forces, d3, wrap, bw, bh, bd) {
+  if (!wasmReady() || typeof WK.ex.af_mb !== 'function') return false;
+  if (forces && !wasmIn(S.fx, S.fy, S.fz, S.im)) return false;
+  const nc = nx * ny * nz, W8 = (T, n) => wasmArray(T, n);
+  if (!MBW.t) { MBW.t = W8(Int32Array, 24); MBW.p = W8(Float64Array, 24); }
+  if (MBW.cm < nm) { const c = nm * 2 + 64; MBW.cm = c; for (const k of ['sx', 'sy', 'sz', 'rho', 'fd']) MBW[k] = W8(Float64Array, c); for (const k of ['ss', 'sty', 'sa']) MBW[k] = W8(Int32Array, c); }
+  if (MBW.cc < nc + 1) { MBW.cc = nc * 2 + 64; MBW.start = W8(Int32Array, MBW.cc); }
+  if (MBW.ct < nt) { MBW.ct = nt * 2 + 4; MBW.pt = W8(Float64Array, MBW.ct * MBW.ct * 8); MBW.eps = W8(Float64Array, MBW.ct); }
+  const room = (cap) => { MBW.cap = cap; for (const k of ['pa', 'pb']) MBW[k] = W8(Int32Array, cap); for (const k of ['ux', 'uy', 'uz', 'vr', 'dr', 'pk', 'rr']) MBW[k] = W8(Float64Array, cap); };
+  if (forces && MBW.cap < nm * (d3 ? 12 : 6) + 64) room(nm * (d3 ? 24 : 10) + 64);
+  if (!WK.on) return false; // (a full plain memory gave the module up)
+  MBW.sx.set(MBF.sx.subarray(0, nm)); MBW.sy.set(MBF.sy.subarray(0, nm)); MBW.sz.set(MBF.sz.subarray(0, nm));
+  MBW.ss.set(MBF.ss.subarray(0, nm)); MBW.sty.set(MBF.st.subarray(0, nm)); MBW.sa.set(MBF.sa.subarray(0, nm));
+  MBW.start.set(MBF.start.subarray(0, nc + 1)); for (let k = 0; k < nt * nt; k++) { if (MBF.pt[k * 9 + 8] !== 1) return false; for (let q = 0; q < 8; q++) MBW.pt[k * 8 + q] = MBF.pt[k * 9 + q]; } /* (1.26's table has a ninth entry, the partner's density share: the module takes the first eight, only when that share is 1) */ MBW.eps.set(MBF.eps.subarray(0, nt));
+  const P = MBW.p, T = MBW.t;
+  P[0] = nm; P[1] = nt; P[2] = nx; P[3] = ny; P[4] = nz; P[5] = d3 ? 1 : 0; P[6] = wrap ? 1 : 0; P[7] = bw; P[8] = bh; P[9] = bd; P[10] = bw / 2; P[11] = bh / 2; P[12] = bd / 2; P[13] = cut2; P[14] = forces ? 1 : 0;
+  for (let tries = 0; tries < 3; tries++) {
+    ['sx', 'sy', 'sz', 'ss', 'sty', 'sa', 'start', 'pt', 'eps', 'rho', 'fd'].forEach((k, q) => { T[q] = MBW[k].byteOffset; });
+    ['pa', 'pb', 'ux', 'uy', 'uz', 'vr', 'dr', 'pk', 'rr'].forEach((k, q) => { T[11 + q] = forces ? MBW[k].byteOffset : 0; });
+    T[20] = S.fx.byteOffset; T[21] = S.fy.byteOffset; T[22] = S.fz.byteOffset; T[23] = S.im.byteOffset;
+    P[15] = forces ? MBW.cap : 0;
+    WK.ex.af_mb(T.byteOffset, P.byteOffset);
+    if (P[20] !== 1) break;
+    room(Math.ceil(P[16] * 1.25) + 64); if (!WK.on) return false; // (more pairs than room: room for them, and again)
+  }
+  if (P[20] === 1) return false;
+  MBO.np = P[16]; MBO.E = P[17] + P[18]; MBW.calls++;
+  if (forces && P[19] > _stiff) _stiff = P[19];
+  return true;
 }
 wasmMemoryInit();
 if (typeof module !== 'undefined') module.exports = { WK, SHARED_OK, wasmArray, wasmAlloc };
