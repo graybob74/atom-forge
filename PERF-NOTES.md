@@ -2935,6 +2935,13 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 51 the particle view draws the muon in every muonic atom: today only muonic hydrogen and deuterium (the exotic species
    μp, μd: exoInside's tight orbit round the nucleus) show it; a heavier nucleus that took a muon (p.muB, muonic
    carbon and the rest) is drawn as a plain atom.
+52 pentaquarks and hexaquarks (the owner, 2026-11-08, after asking what they are): LHCb's pentaquarks as unstable
+   particles with their measured masses, widths and decays (P_c(4312)⁺, P_c(4440)⁺, P_c(4457)⁺: u u d c c̄, seen in
+   Λb → J/ψ p K⁻ and decaying to J/ψ p; the strange one P_cs(4338)⁰, u d s c c̄, from B⁻ decays), made where the
+   collider's events make Λb and B mesons; the particle view drawing their five quarks (as a bag, or as a baryon and a
+   meson side by side, the "molecule" reading); and the hexaquark candidate d*(2380) (WASA-at-COSY, 2014; 6 light
+   quarks, decaying to deuteron + two pions), marked as a candidate whose nature is still argued. Info boxes for both.
+   Any new production or decay is a physics addition: the owner's OK with the plan.
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
