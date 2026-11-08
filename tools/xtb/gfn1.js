@@ -1269,7 +1269,6 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       A[m * nao + n] = v; A[n * nao + m] = v;
     }
     }
-    if (typeof XQ_HINT === 'function') XQ_HINT(Math.ceil(Math.max(nel[0], nel[1]) - 1e-9), kt); // (Atom Forge 1.29: the occupied count and kT, for Faster quantum bonds' partial solver; used once)
     emo = symEig(A, nao, true);                                      // A: the eigenvectors Y as rows
     // occupations: one set of orbitals, alpha and beta filled separately
     const fa = fermiFilling(nel[0], kt, emo), fb = fermiFilling(nel[1], kt, emo);
@@ -1347,9 +1346,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
         Ha[k] = hc + hm; Hb[k] = hc - hm;
       }
       mv.set(qsh, 0); mv.set(msh, nsh); mixer.set(mv);
-      const xqH = Math.ceil((opts.spinFree ? nocc : Math.max(nel[0], nel[1])) - 1e-9), xqK = kt; // (Atom Forge 1.29: for Faster quantum bonds' partial solver, each channel's solve)
-      if (typeof XQ_HINT === 'function') XQ_HINT(xqH, xqK); ea = SPIN.solveChannel(symEig, Ha, Li, nao, Wa, Aa);
-      if (typeof XQ_HINT === 'function') XQ_HINT(xqH, xqK); eb = SPIN.solveChannel(symEig, Hb, Li, nao, Wb, Ab);
+      ea = SPIN.solveChannel(symEig, Ha, Li, nao, Wa, Aa); eb = SPIN.solveChannel(symEig, Hb, Li, nao, Wb, Ab);
       if (opts.spinFree) [fa, fb] = SPIN.fermiShared(fermiFilling, nocc, kt, ea, eb);
       else { fa = fermiFilling(nel[0], kt, ea); fb = fermiFilling(nel[1], kt, eb); }
       SPIN.channelDensity(Wa, Aa, LiT, fa, nao, Ct, Pa); SPIN.channelDensity(Wb, Ab, LiT, fb, nao, Ct, Pb);

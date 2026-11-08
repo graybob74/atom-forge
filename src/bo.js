@@ -1144,26 +1144,8 @@ function qmPhi(mem, phi) {
    algorithm, line for line: the same eigenvalues and eigenvectors to the bit), and copied back. null (the JavaScript
    solves it) with no module. XQW.on: off for the tests' comparisons. */
 const XQW = { on: true, n: 0, V: null, d: null, e: null, calls: 0 };
-/* (1.29 item 62) Experimental → Quantum bonds → Faster: the eigenvectors of only the orbitals holding electrons (the
-   module's af_sym_eig_k, inverse iteration; equal to the full solver to rounding, not to the bit). XQ_HINT is called by
-   gfn1.js and gfn2.js just before the SCC's solve with the occupied count and kT; it is used by that one solve. */
-const XQF = { on: false, nhi: 0, kt: 0, w: null, wn: 0, k: 0, n: 0, calls: 0 };
-function XQ_HINT(nhi, kt) { XQF.nhi = nhi; XQF.kt = kt; }
 function XQ_EIG(V, n, rows) {
-  const nhi = XQF.nhi; XQF.nhi = 0;
   if (!XQW.on || !wasmReady() || typeof WK.ex.af_sym_eig !== 'function') return null;
-  if (XQF.on && rows && nhi > 0 && nhi < n && typeof WK.ex.af_sym_eig_k === 'function') {
-    if (XQW.n < n) { XQW.V = wasmArray(Float64Array, n * n); XQW.d = wasmArray(Float64Array, n); XQW.e = wasmArray(Float64Array, n); XQW.n = n; }
-    if (XQF.wn < n) { XQF.w = wasmArray(Float64Array, 2 * n * n + 8 * n); XQF.wn = n; }
-    if (WK.on && wasmIn(XQW.V, XQW.d, XQW.e, XQF.w)) {
-      const M = XQW.V; M.set(V.subarray(0, n * n));
-      const k = WK.ex.af_sym_eig_k(M.byteOffset, n, XQW.d.byteOffset, XQW.e.byteOffset, XQF.w.byteOffset, nhi, XQF.kt);
-      if (k < 0) throw new Error('eigensolver did not converge');
-      V.set(M.subarray(0, n * n)); XQF.k = k; XQF.n = n; XQF.calls++;
-      return new Float64Array(XQW.d.subarray(0, n));
-    }
-    XQF.wn = 0; XQW.n = 0; // (the module's memory grew under them: made again next time)
-  }
   if (XQW.n < n) { XQW.V = wasmArray(Float64Array, n * n); XQW.d = wasmArray(Float64Array, n); XQW.e = wasmArray(Float64Array, n); XQW.n = n; }
   if (!WK.on || !wasmIn(XQW.V, XQW.d, XQW.e)) { XQW.n = 0; return null; }
   const M = XQW.V; M.set(V.subarray(0, n * n));
