@@ -2924,6 +2924,12 @@ No network here: every value marked "from memory" below is worth a check against
   TeV: 2–3 e off in one event); a bookkeeping fix (their charge to ledger.qOut), left for a bug-fix session. The scan's
   "measured σ" counts Z → hadrons only (γ* → hadrons, under 1% at the peak, is not counted).
 
+### 1.27: the release gate on v157 (2026-11-07)
+
+v157 with bug 18 and its two test changes (3c6fbc0): tools/runtests.js, 2 lanes: 62 of 65 jobs at once, the other three
+alone (t_features: 1.14's speed readout and 1.21's contraction ratio; t_page: the slow-motion button; f_bug125:
+exoElastic's time): **ALL SUITES PASSED**, 50 min. Ready to release as 1.27.0.
+
 ### 1.27: the test runner (tools/runtests.js)
 
 The owner (2026-11-07): "is there any way to speed up the tests?" … "Yes, build it". tools/runtests.sh now calls
