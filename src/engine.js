@@ -5142,11 +5142,14 @@ function evDative(H, D, r) {
 /* (bug fix 2 after 1.25) How many particles carry a charge (net or partial), counted once per change of the world: in
    a neutral metal none does, and localPhi's walk over every atom within 6 Å (hundreds in a dense 3-D metal, four walks
    for each pair of atoms tried for an electron transfer) adds nothing. */
-const _chg = { key: '', n: 0 };
+const _chg = { st: -1, di: -1, to: -1, sp: -1, de: -1, len: -1, n: 0 }; // (the marks it was counted at: compared one by one, no key string, 1.28: building the string was 10% of 3-D copper's step)
 function chargedCount() {
-  const key = W.step + ':' + W.dirty + ':' + W.topo + ':' + W.spawned + ':' + W.deaths + ':' + W.parts.length;
-  if (_chg.key !== key) { let n = 0; for (const p of W.parts) if (!p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0) n++; _chg.key = key; _chg.n = n; }
-  return _chg.n;
+  const c = _chg;
+  if (c.st !== W.step || c.di !== W.dirty || c.to !== W.topo || c.sp !== W.spawned || c.de !== W.deaths || c.len !== W.parts.length) {
+    let n = 0; for (const p of W.parts) if (!p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0) n++;
+    c.st = W.step; c.di = W.dirty; c.to = W.topo; c.sp = W.spawned; c.de = W.deaths; c.len = W.parts.length; c.n = n;
+  }
+  return c.n;
 }
 function localPhi(x, y, skipA, skipB, z = 0) {
   const chg = (p) => (p && !p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0 ? 1 : 0);

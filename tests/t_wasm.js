@@ -98,6 +98,26 @@ if (typeof load('all', { seed: 7 }).WK.ex.af_set_rc2 === 'function') for (const 
   if (!used) fail(`reach ${rc} 3-D: the module is not used`);
   if (mr > 1e-10) fail(`reach ${rc} 3-D: forces differ by ${mr}`);
 }
+// 1c. polarizability by direction's force pass (af_pd_forces) and the charge sites' pair loop (af_sites_forces), 1.28:
+//     each against its JavaScript on the same frozen state, to the bit (forces, the sites' offset gradients and pairs)
+{
+  const X0 = load('all', { seed: 7 });
+  if (typeof X0.WK.ex.af_pd_forces !== 'function') console.log('dipoles and sites in the module: skipped (this kernel.wasm has neither)');
+  else for (const [what, scen, on] of [['dipoles', 'water3d', (X) => { X.QEQ.every = 10; X.pdOn(1); }], ['dipoles', 'water', (X) => { X.QEQ.every = 10; X.pdOn(1); }],
+    ['lone pairs', 'water3d', (X) => X.sitesSet('lp', true)], ['σ-holes', 'halo', (X) => X.sitesSet('sh', true)], ['lone pairs and σ-holes', 'mol3d', (X) => { X.sitesSet('lp', true); X.sitesSet('sh', true); }]]) {
+    const X = load('all', { seed: 7 }), { W, S } = X;
+    if (scen === 'halo') { X.baseWorld(60, 60, 300, 0.05); for (let k = 0; k < 24; k++) X.addMolecule(k % 2 ? 'CHCl3' : 'NH3', -24 + (k % 6) * 9, -20 + Math.floor(k / 6) * 9, k, 300); } // (chloroform and ammonia: halogen bonds, flat)
+    else X.PRESETS[scen].build();
+    X.settleOverlaps(); on(X); X.forcesNoEvents(); W.fSpawn = W.spawned; steps(X, 12); X.forcesNoEvents();
+    const n = S.hi, grab = () => [S.fx, S.fy, S.fz].map(a => Float64Array.from(a.subarray(0, n))).concat([Float64Array.from(X.SD.go.subarray(0, 12 * X.SD.at.length)), [X.SITES.pairs]]);
+    const c0 = X.PDF.calls + X.SDW.calls; X.PDF.useWasm = X.SDW.useWasm = true; X.forcesNoEvents(); const A = grab(), used = X.PDF.calls + X.SDW.calls - c0;
+    X.PDF.useWasm = X.SDW.useWasm = false; X.forcesNoEvents(); const B = grab(); X.PDF.useWasm = X.SDW.useWasm = true;
+    let same = true; for (let c = 0; c < A.length; c++) { if (A[c].length !== B[c].length) same = false; for (let i = 0; same && i < A[c].length; i++) if (!Object.is(A[c][i], B[c][i])) same = false; }
+    console.log(`${what}, ${scen}: ${X.PD.n} dipoles, ${X.SD.at.length} site atoms, ${X.SITES.pairs} site pairs; the module's pass (${used} calls) ${same ? 'the same to the bit' : 'DIFFERENT'} as the JavaScript`);
+    if (!used) fail(`${what} ${scen}: the module's pass not used`);
+    if (!same) fail(`${what} ${scen}: forces differ`);
+  }
+}
 // 1a. the free leptons' kernel (af_fast) against the JavaScript loops of computeFast, on the same frozen states: the fast
 //     forces to the bit, the same near-ion flags and hit marks, the same events queued in the same order
 {
