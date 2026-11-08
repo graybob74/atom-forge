@@ -103,6 +103,7 @@ PARTS.settings3d = async (page, check, say, openPage) => {
    bajillion letters is overstimulating"): one switch with Graphics → Labels and the view menu's Labels, kept across a
    reload; drawn labels counted by wrapping label() through a render of the molecules in space */
 PARTS.labels3d = async (page, check, say) => {
+  await page.mouse.move(1, 1); // (the pointer off the chamber and the list: hovering would pick an atom or a row, 1.28)
   const r = await page.evaluate(async () => {
     const wait = (ms) => new Promise(res => setTimeout(res, ms)), out = {};
     hideModal('setModal'); loadPreset('mol3d'); setRunning(false); setSetting('axes3', true); cam3Fit(); R.cam3.dist *= 0.5; cam3Update();

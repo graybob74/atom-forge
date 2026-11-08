@@ -1993,6 +1993,48 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
 
 ## 1.28 (not released)
 
+### 1.28: speed-ups (items 33–44; the owner, 2026-11-07: "you may do the speedup run"; branch v159)
+
+Speed only: no physics changed. Every one of the 59 setups at normal settings is 1.27.0's to the bit after all of it
+(tools/fingerprint.js, seed 7, 300 steps, both trees). Timings on this machine (2 cores), one thread, ms a step.
+- **33, the longer force reach in the module.** The kernel's cutoff is a value it is given (`af_set_rc2`, a static in
+  the module's memory, so the worker threads see it; `rc2()` in lib.rs, d3.rs, bo.rs), set by setCutoff and when the
+  module starts; 6 Å stays the default (`af_const(1)` still 36). 9 and 12 Å ran the JavaScript kernels before. The
+  module's forces against the JavaScript's at 9 and 12 Å: 2-D to 4·10⁻¹⁴ relative (the kernels' exp, as at 6 Å), the
+  same candidates; 3-D to the bit (t_wasm 1b). Liquid water 9 Å 0.458 → 0.275, 12 Å 0.620 → 0.361; brine 12 Å 4.91 →
+  2.45; 3-D water 9 Å 12.3 → 6.2, 12 Å 25.3 → 11.0; 3-D brine 12 Å 57.4 → 33.7. The cost tags were measured again
+  (bench-mode): flat ×1–1.3 (9 Å) and ×1–1.7 (12 Å; liquid water 1.3 and 1.7, brine about 1: its time is the ions'
+  events), 3-D ×2.2–2.5 and ×3.7–4.5 (they were ×1.3–2.6, ×1.6–5.6, ×3.5–5, ×7–17).
+- **35 and polarizability by direction: the passes in the module.** `af_pd_forces` (pold.js pdForces) and
+  `af_sites_forces` (sites.js sitesForces' pair loop; not with π-stacking's ring pairs, whose dispersion uses Math.pow
+  and stays in JavaScript, nor the offsets' gradients carried back, siteBack) in kernel/src/jsp.rs: the same tests and
+  arithmetic in the JavaScript's order, so the forces, the offsets' gradients and the pair count are the JavaScript's to
+  the bit (t_wasm 1c, on 3-D and flat water with dipoles, 3-D water with lone pairs, chloroform–ammonia with σ-holes,
+  the molecules in space with both). With identical runs (the same trajectory either way): dipoles in 3-D water 10.2
+  → 8.5 ms a step, flat water 2.2–3.0 → 1.45; lone pairs in 3-D water 6.7 → 4.9. Measured against 1.27.0 as a whole,
+  the dipoles' gain is inside run-to-run noise (8.0 vs 8.1): the JavaScript loop was already typed arrays, which V8
+  compiles nearly as well; the rest of a dipole step is pdUpdate's self-consistent loop (20%, typed arrays too).
+- **41, molecule recognition.** graphHash on 32-bit colours (murmur3's mixing) instead of strings: the same
+  Weisfeiler–Lehman refinement, so the same classes: tools/ghcheck.js compares it with the string version over the
+  library (175 formulas), every molecule the 59 setups make (1,609) and 30,000 random graphs (24,024 structures, the
+  same 24,024 by both), and every name came out the same. Soup 0.640 → 0.466, muonium 0.600 → 0.493, 3-D hydrogen
+  0.430 → 0.310.
+- **chargedCount** (localPhi's early exit, every electron-transfer test): its cache key was a string built on every
+  call; six numbers compared now. 3-D copper with many-body metals 9.5 → 6.4 (it was 10.6% of the step), salt 0.725 →
+  0.645, 3-D brine 11.2 → 10.9.
+- Tried and left out: **39**, localPhi's grid walk on the store's arrays (no callback, no getters, the same order and
+  sum): 3-D brine 11.4 → 11.1, inside noise, reverted; the cost is the walk itself (27 cells of 8 Å for a 6 Å sphere).
+  A finer grid or a per-step cache of φ would cut it but changes the order of the sums (equal to rounding, not to the
+  bit: the stored fingerprints would move), left for the owner to decide.
+- Not done, from the measurements: **34** quantum bonds (large: the SCF, Hamiltonian, eigen-solver), **36** waves,
+  **37** inner steps, **38** many-body metals in mixtures, **40** the step's main loop, **42–43** radiation and fast
+  particles in flight: each is JavaScript over typed arrays or branchy event code, where this pass's two ports show the
+  module gains 20–50% on a loop V8 already compiles well, and the profiles put most of those setups' time in events
+  (localPE's neighbour walks, ionization, captures), not in one loop. The close-packed metals' band shape (mb4Pass,
+  36% of 3-D copper with many-body metals) is the same kind of typed-array loop. **44**, the garbage collector (5.6% of
+  the step on average): the allocations sampled per step (HeapProfiler) are spread over evalCandidates, innerSteps,
+  chooseDt and the force pass in small pieces, with no single site worth a change without a finer tool.
+
 ### 1.28: Settings layout (the owner, 2026-11-07; branch v158)
 
 Five requests from the owner's screenshots, display only (no physics changed):
