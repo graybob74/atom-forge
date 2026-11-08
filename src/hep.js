@@ -1453,6 +1453,95 @@ function pnAnnih(o) {
   log('nuc', `Protonium (p̄p) annihilates from n = ${n1}: ${what} (${fmtE(E)}), after X-rays ${xaLines(lines, 3) || 'none'}`);
   tally(ms, [], `Annihilation: p̄ + p → ${what}`);
 }
+/* (1.29 item 59; Experimental → Realistic particles → Hydrated electrons, RP.aq) The hydrated electron, e⁻(aq). A free
+   electron in liquid water that has slowed below 1 eV, with water round it (three or more water oxygens within 3.5 Å)
+   and no cation within 3 Å, settles into a cavity the water's dipoles make round it: e⁻(aq), bound by about 1.7 eV
+   (EAQ.E; its absorption band peaks at 720 nm, 1.72 eV). It is then a slow particle with the measured properties, as
+   PERF-NOTES 1.27 bug 8 planned: it moves by diffusion (D = 4.9×10⁻⁵ cm²/s) with a drift toward the ions round it, their
+   pull screened by water (ε = 80: the Onsager way), and meets a cation within its reaction radius (2.5 Å: the
+   measured 2.3×10¹⁰ M⁻¹s⁻¹ with H₃O⁺ is 2.1 Å at the summed diffusion) where it is handed back as a free electron at
+   rest beside it, and the game's own capture takes it from there. Light near its band (σ 7×10⁻¹⁷ cm² at the peak) is
+   absorbed and warms the water round it; above its vertical binding (3.6 eV) it sets the electron free. Books: its mass
+   is the electron's less EAQ.E (kept in the nuclear ledger while it lives, as for every unstable particle); forming it
+   releases EAQ.E plus the electron's kinetic and potential energy as heat in the water; handing it back takes them
+   from the hand-back's heat. Its own pull on the ions is not in the forces (it is no MD particle): left for later. */
+const EAQ = { E: 1.7, D: 4.9e-5 * 1e16 * PHYS.TU_S, R: 2.5, Rw: 3.5, peak: 1.72, w: 0.36, sig: 0.7, vbe: 3.6 }; // (D in Å²/tu; w: the band's Gaussian width, eV; sig: Å² at the peak)
+XP.eaq = { lab: 'e⁻(aq)', m: PHYS.MEC2 - EAQ.E / MEV, q: -1, tau: 1e30, col: [110, 185, 255], cc: 'eaq', aq: true, dec: [[1, ['e-']]] };
+RP.aq = false;
+const isWaterO = (p) => p.Z === 8 && p.bonds.length === 2 && p.bonds.every(b => other(b, p).Z === 1 && other(b, p).bonds.length === 1) && p.q === 0;
+/* A slow free electron in water becomes e⁻(aq), if the books allow (the heat it releases is positive). */
+function eaqForm() {
+  const d3 = W.d3;
+  for (const e of W.parts) {
+    if (e.dead || e.k !== ELEC || e.rad || e.fast || (e.aqNo && W.t < e.aqNo) || W.exo.length >= MAX_EXO) continue;
+    if (keOf(e) > 1) continue;
+    let nw = 0, cat = false, w = null, wd = 1e9;
+    for (const p of W.parts) {
+      if (p.dead || p.k !== NUC || p.Z === 0) continue;
+      const mi = minImg(p.x - e.x, p.y - e.y, d3 ? p.z - e.z : 0), dx = mi[0], dy = mi[1], dz = d3 ? mi[2] : 0, d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 > EAQ.Rw * EAQ.Rw) continue;
+      if (p.q > 0 && d2 < 9) { cat = true; break; }
+      if (isWaterO(p)) { nw++; if (d2 < wd) { wd = d2; w = p; } }
+    }
+    if (cat || nw < 3) continue;
+    const E0 = regionE(new Set([e])), heat = E0 - restE(e) + EAQ.E;
+    if (!(heat > 0)) continue;
+    const x = e.x, y = e.y, z = d3 ? e.z : 0, m = (restE(e) - EAQ.E) / MEV; // (its mass from the electron's own rest energy, so the books close to the last digit)
+    kill(e);
+    const o = d3 ? addExo('eaq', x, y, 0, 1, 0, m, z, 0) : addExo('eaq', x, y, 0, 1, 0, m);
+    W.ledger.nuc += restE(e) - o.m * MEV; // (the electron's rest energy out, e⁻(aq)'s kept while it lives)
+    dumpHeat(heat, w, other(w.bonds[0], w));
+    W.count.eaq = (W.count.eaq || 0) + 1;
+    if (W.count.eaq <= 3 || W.count.eaq % 50 === 0) log('chem', `Hydrated electron: a slow e⁻ settles among ${nw} waters → e⁻(aq) (bound ${fmtE(EAQ.E)}; ${fmtE(heat)} warms the water)`);
+  }
+}
+/* e⁻(aq) handed back as a free electron at (x, y, z) with kinetic energy K along u, the books closed by heat at the
+   water atom w (or nothing done if they cannot close). */
+function eaqFree(o, x, y, z, K, u, Ein, w) {
+  const d3 = W.d3, e = addLepton(ELEC, x, y, 0, 0, d3 ? z : 0);
+  if (K > 0) setMotion(e, K, u[0], u[1], 0, 0, d3 ? u[2] : 0);
+  const E1 = regionE(new Set([e])), heat = o.m * MEV + o.KE + Ein - E1;
+  if (!(heat >= 0)) { kill(e); return null; }
+  o.dead = true; o.fate = 'handed back as a free electron'; W.ledger.nuc += o.m * MEV - restE(e);
+  e.aqNo = W.t + 30; // (not hydrated again at once: 0.3 ps)
+  if (heat > 0) { if (w) dumpHeat(heat, w, w.bonds.length ? other(w.bonds[0], w) : w); else W.ledger.bath += heat; }
+  return e;
+}
+/* Each step: every e⁻(aq) diffuses, drifting toward the ions in reach (screened by water); one within reach of a
+   cation is handed back beside it. */
+function eaqTick(dt) {
+  if (RP.aq) eaqForm();
+  const d3 = W.d3, kT = PHYS.KB * Math.max(W.T, 1), sd = Math.sqrt(2 * EAQ.D * dt), mob = EAQ.D / kT * dt;
+  const hw = W.box.w / 2, hh = W.box.h / 2, hd = d3 ? W.box.d / 2 : 0;
+  for (const o of W.exo) {
+    if (o.dead || o.sp !== 'eaq') continue;
+    let fx = 0, fy = 0, fz = 0, cat = null, cd = 1e9, w = null, wd = 1e9;
+    for (const p of W.parts) {
+      if (p.dead || p.k !== NUC || p.Z === 0) continue;
+      const mi = minImg(p.x - o.x, p.y - o.y, d3 ? p.z - o.z : 0), dx = mi[0], dy = mi[1], dz = d3 ? mi[2] : 0, d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 > 144) continue;
+      const r = Math.sqrt(d2) || 1e-3;
+      if (p.q !== 0) { const f = PHYS.KE * p.q / (80 * d2) / r; fx += f * dx; fy += f * dy; fz += f * dz; if (p.q > 0 && r < cd) { cd = r; cat = p; } } // (toward a cation, away from an anion; −e × the field)
+      else if (p.Z === 8 && d2 < wd) { wd = d2; w = p; }
+    }
+    if (cat && cd < EAQ.R) {
+      const r = cd, ux = (o.x - cat.x) / r, uy = (o.y - cat.y) / r, uz = d3 ? (o.z - cat.z) / r : 0, k = 0.8; // (beside it, 0.8 Å toward where it came from)
+      if (eaqFree(o, cat.x + k * ux, cat.y + k * uy, d3 ? cat.z + k * uz : 0, 0, [1, 0, 0], 0, w || cat)) { W.count.eaqR = (W.count.eaqR || 0) + 1; if (W.count.eaqR <= 3) log('chem', `e⁻(aq) meets ${speciesLabel(cat)}: handed back as a free electron beside it`); continue; }
+    }
+    o.x += mob * fx + sd * gauss(); o.y += mob * fy + sd * gauss(); if (d3) o.z += mob * fz + sd * gauss();
+    if (W.wall === 'wrap') { if (Math.abs(o.x) > hw) o.x -= Math.sign(o.x) * 2 * hw; if (Math.abs(o.y) > hh) o.y -= Math.sign(o.y) * 2 * hh; if (d3 && Math.abs(o.z) > hd) o.z -= Math.sign(o.z) * 2 * hd; }
+    else { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); if (d3) o.z = clamp(o.z, -hd, hd); }
+  }
+}
+/* Light meets e⁻(aq) (rayInteract, rayInteract3): the chance of its band (a Gaussian about 1.72 eV) at E. */
+function eaqAbsorbP(E) { const u = (E - EAQ.peak) / EAQ.w; return E > 0.9 && E < 6 ? Math.min(0.95, EAQ.sig / 1.2 * Math.exp(-0.5 * u * u)) : 0; }
+function eaqAbsorb(o, E, ux, uy, uz) {
+  if (o.dead) return;
+  let w = null, wd = 1e9; for (const p of W.parts) { if (p.dead || p.k !== NUC || p.Z !== 8) continue; const d2 = (p.x - o.x) ** 2 + (p.y - o.y) ** 2 + (W.d3 ? (p.z - o.z) ** 2 : 0); if (d2 < wd) { wd = d2; w = p; } }
+  if (E > EAQ.vbe && eaqFree(o, o.x, o.y, o.z || 0, E - EAQ.vbe, [ux, uy, uz || 0], E, w)) { log('em', `e⁻(aq) takes a ${fmtE(E)} photon and is set free (bound ${fmtE(EAQ.vbe)} vertically)`); return; }
+  if (w) dumpHeat(E, w, w.bonds.length ? other(w.bonds[0], w) : w); else W.ledger.bath += E; // (to its p state and back: the light warms the water)
+  W.count.photons++;
+}
 XP.pPs = { lab: 'p-Ps', m: PS_M, q: 0, tau: 1.2514e-10, col: [255, 170, 235], cc: 'pPs', ps: true, dec: [[1, ['g', 'g']]] };
 XP.oPs = { lab: 'o-Ps', m: PS_M, q: 0, tau: 1.4205e-7, col: [235, 140, 255], cc: 'oPs', ps: true, dec: [[1, ['g', 'g', 'g']]] };
 /* A new Ps at (x, y, z) moving along (ux, uy, uz), para 1 in 4. Its energy comes from closeEvent. */
@@ -2079,6 +2168,7 @@ function exoHeld(o) {
   return !!m && W.rt - o.born < m.t && Math.hypot(o.x - o.bx0, o.y - o.by0) < m.d;
 }
 function moveExos(dt, id0) {
+  if (RP.aq || W.count.eaq) eaqTick(dt); // (hydrated electrons, 1.29 item 59; in 3-D too)
   if (W.d3) return moveExos3(dt, id0); // (3-D, 1.24)
   if (W.muBound && W.muBound.length) muBoundTick(dt);
   if (W.muAtoms && W.muAtoms.length) muoniumTick(dt);

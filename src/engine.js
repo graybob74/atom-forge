@@ -3828,11 +3828,19 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src, pol, depth = 0) { // (depth: 
     const ex = dx - t * ux, ey = dy - t * uy, ez = dz - t * uz, d = Math.sqrt(ex * ex + ey * ey + ez * ez);
     if (d < 0.6) _rayHits.push([t, p, d]);
   }
+  if (W.count.eaq) for (const o of W.exo) { // (hydrated electrons on its path, 1.29 item 59)
+    if (o.dead || o.sp !== 'eaq') continue;
+    const dx = o.x - x, dy = o.y - y, dz = o.z - z, t = dx * ux + dy * uy + dz * uz;
+    if (t < 0.05 || t > tmax) continue;
+    const ex = dx - t * ux, ey = dy - t * uy, ez = dz - t * uz;
+    if (ex * ex + ey * ey + ez * ez < 0.36) _rayHits.push([t, o, 0]);
+  }
   if (!_rayHits.length) return null;
   _rayHits.sort((a, b) => a[0] - b[0]);
   if (RP.ray) _rySeen.clear();
   for (const [t, p] of _rayHits) {
     const hx = x + ux * t, hy = y + uy * t, hz = z + uz * t;
+    if (typeof p.sp === 'string') { if (rnd() < eaqAbsorbP(E)) return { x: hx, y: hy, z: hz, p: null, after: () => eaqAbsorb(p, E, ux, uy, uz) }; continue; } // (e⁻(aq): its band)
     if (E >= 1e5) {
       if (E > 6e6 && !p.anti && rnd() < gdrP(p, E)) return { x: hx, y: hy, z: hz, p, after: () => { if (!photoNuclear(p, E, ux, uy, uz)) { if (RP.cpm) cpmPair(p, E, ux, uy, uz, false); else pairProduce3(p, E); } } }; // (the giant dipole resonance in 3-D, 1.25)
       if (RP.cpm) { // (charged particles in matter, 1.27: hep.js cpmGamma)
@@ -3949,10 +3957,16 @@ function rayInteract(x, y, ux, uy, E, src, pol, depth = 0) { // (depth: the phot
     const d = Math.abs(dx * uy - dy * ux);
     if (d < 0.6) _rayHits.push([t, p, d]);
   }
+  if (W.count.eaq) for (const o of W.exo) { // (hydrated electrons on its path, 1.29 item 59)
+    if (o.dead || o.sp !== 'eaq') continue;
+    const dx = o.x - x, dy = o.y - y, t = dx * ux + dy * uy;
+    if (t >= 0.05 && t <= tmax && Math.abs(dx * uy - dy * ux) < 0.6) _rayHits.push([t, o, 0]);
+  }
   if (!_rayHits.length) return null;
   _rayHits.sort((a, b) => a[0] - b[0]);
   if (RP.ray) _rySeen.clear();
   for (const [t, p] of _rayHits) {
+    if (typeof p.sp === 'string') { if (rnd() < eaqAbsorbP(E)) return { x: x + ux * t, y: y + uy * t, p: null, after: () => eaqAbsorb(p, E, ux, uy) }; continue; } // (e⁻(aq): its band)
     const hx = x + ux * t, hy = y + uy * t;
     if (E >= 1e5) { // gamma: Compton scattering, pair production, and (above ~8 MeV) the nucleus itself
       if (E > 6e6 && !p.anti && rnd() < gdrP(p, E)) { // (in proportion to pair production, σ ≈ 5.2 Z² mb at these energies; with Charged particles in matter on, on part 3's footing: gdrP, 1.27 bug 11)

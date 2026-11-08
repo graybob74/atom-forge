@@ -62,6 +62,38 @@ PARTS.fast = async (page, check) => {
   check(r.dead && r.annih >= 1 && place.every(Boolean) && r.ok, `1.29 (57) a 3 keV p̄ fired into 3-D water annihilates on the atoms it meets (step ${s}); H̄, p̄ and n̄ can be put in the 3-D lab`, '1.29 fast p̄ in 3-D: ' + JSON.stringify(r));
 };
 
+/* 59. The hydrated electron (Realistic particles → Hydrated electrons): a slow free electron among waters becomes
+   e⁻(aq), the books exact; it diffuses at the measured rate; beside a cation it is handed back and captured; light in
+   its band is absorbed, the books exact; flat and 3-D. 1.28.3 has none of it. */
+PARTS.eaq = async (page, check) => {
+  const out = {};
+  for (const d3 of [false, true]) {
+    const X = load('all', { seed: 2 }), W = X.W; X.PRESETS[d3 ? 'water3d' : 'water'].build(); W.gamma = 0; X.RP.aq = true;
+    const B = () => X.totalEnergy().total - W.ledger.nuc;
+    go(X, 2);
+    X.addLepton(X.ELEC, 0.7, 0.4, 0, 0, 0.2, 0); X.forcesNoEvents(); W.fSpawn = W.spawned;
+    let b = B(); X.eaqForm(); X.forcesNoEvents(); const form = B() - b, o = W.exo.find(q => q.sp === 'eaq' && !q.dead);
+    const r = { form: +form.toExponential(1), made: !!o };
+    if (o) {
+      const Ow = W.parts.find(p => !p.dead && p.Z === 8 && Math.hypot(p.x - o.x, p.y - o.y, d3 ? p.z - o.z : 0) > 4);
+      Ow.ne -= 1; X.refresh(Ow); X.forcesNoEvents(); W.fSpawn = W.spawned; o.x = Ow.x + 2; o.y = Ow.y; if (d3) o.z = Ow.z;
+      b = B(); X.eaqTick(0.001); X.forcesNoEvents(); r.back = +(B() - b).toExponential(1); r.freed = o.dead;
+      go(X, 30); r.cap = W.log.some(l => /Electron captured: H₂O⁺ \+ e⁻/.test(l.text));
+      X.addLepton(X.ELEC, -3, -3, 0, 0, 0, 0); X.forcesNoEvents(); W.fSpawn = W.spawned; X.eaqForm(); const o2 = W.exo.find(q => q.sp === 'eaq' && !q.dead);
+      r.abs = null; for (let k = 0; o2 && k < 60 && r.abs === null; k++) { X.forcesNoEvents(); b = B(); const h = d3 ? X.rayInteract3(o2.x - 0.3, o2.y, o2.z, 1, 0, 0, 1.72, null) : X.rayInteract(o2.x - 0.3, o2.y, 1, 0, 1.72, null); if (h && h.p === null) { h.after(); X.forcesNoEvents(); r.abs = +(B() - b - 1.72).toExponential(1); } }
+    }
+    // diffusion: 100 of them in the water, eaqTick alone for 2 ps
+    for (const q of W.exo) q.dead = true; W.count.eaq = 1; X.RP.aq = false;
+    const L = []; for (let k = 0; k < 100; k++) L.push(d3 ? X.addExo('eaq', -5 + k * 0.1, 0, 0, 1, 0, undefined, 0, 0) : X.addExo('eaq', -5 + k * 0.1, 0, 0, 1, 0));
+    const p0 = L.map(q => [q.x, q.y, q.z || 0]), T = 200; for (let k = 0; k < T; k++) X.eaqTick(1);
+    let msd = 0; L.forEach((q, i) => { msd += (q.x - p0[i][0]) ** 2 + (q.y - p0[i][1]) ** 2 + ((q.z || 0) - p0[i][2]) ** 2; });
+    r.D = +(msd / L.length / (2 * (d3 ? 3 : 2) * T) / X.EAQ.D).toFixed(2); // (measured over the set value)
+    out[d3 ? 'd3' : 'flat'] = r;
+  }
+  const ok = (r) => r.made && Math.abs(r.form) < 1e-6 && Math.abs(r.back) < 1e-6 && r.freed && r.cap && r.abs !== null && Math.abs(r.abs) < 1e-6 && r.D > 0.75 && r.D < 1.25;
+  check(ok(out.flat) && ok(out.d3), `1.29 (59) hydrated electrons, flat and 3-D: formed, handed back beside H₂O⁺ and captured, a 720 nm photon absorbed, each with exact books; diffusion ${out.flat.D}× and ${out.d3.D}× the measured 4.9×10⁻⁵ cm²/s`, '1.29 hydrated electrons: ' + JSON.stringify(out));
+};
+
 module.exports = async function f129(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

@@ -2024,6 +2024,32 @@ to the bit (fingerprints, 60 setups). Test: f_129 (events, pn, fast; all fail on
   The books stay right (25 eV over 100 steps after a 1.9 GeV event). A fix (fast atoms in 3-D losing their electrons
   and their energy as ions do) is a physics change for the owner.
 
+### 58 Delayed neutrons: waiting for the data
+
+Needs the measured β⁻n emission probabilities (Pn) and Q-values for the 43 fission products data.js counts as plain β⁻
+(⁸⁵As 63%, ⁸⁷Br 2.6%, ¹³⁷I 7.6%, …). Fetching IAEA LiveChart's table needs the owner's approval of the site; from memory
+is what 1.27 bug 17 removed. Not built until then.
+
+### 59 Hydrated electrons (Experimental → Realistic particles, off by default)
+
+The plan of 1.27 bug 8 (PERF-NOTES there), built as a new switch, Hydrated electrons (RP.aq, SET.rpAq), in both modes:
+a free electron slowed below 1 eV with three or more water oxygens within 3.5 Å and no cation within 3 Å becomes
+e⁻(aq), an unstable-particle entry in W.exo (XP.eaq: charge −1, mass the electron's less 1.7 eV, the measured hydration
+energy). It moves by diffusion at the measured 4.9×10⁻⁵ cm²/s (checked: 0.97× flat, 1.01× in 3-D over 100 of them),
+drifting toward ions within 12 Å with their pull screened by ε = 80; a cation within 2.5 Å (what the measured
+2.3×10¹⁰ M⁻¹s⁻¹ with H₃O⁺ gives at the summed diffusion: 2.1 Å) takes it back as a free electron at rest 0.8 Å from it,
+and the game's capture does the rest (H₂O⁺ + e⁻ → H₂O in the test). Light: a Gaussian band about 1.72 eV (720 nm,
+width 0.36 eV, 0.7 Å² at the peak, about the measured 7×10⁻¹⁷ cm²) in rayInteract and rayInteract3; absorbed, it warms
+the water round it (to the p state and back); above 3.6 eV (its vertical binding) it sets the electron free.
+Books exact (formation 0 and 1×10⁻¹⁰ eV, hand-back 0, absorption 3×10⁻¹¹): the electron's kinetic and potential energy
+and the 1.7 eV go to the water as heat (dumpHeat) when it forms, and come back from the hand-back. Inspect card (what
+holds it, how it moves and ends), info box. Off, every setup is 1.28.3's to the bit (fingerprints).
+What it shows so far: a 30 eV electron in flat water: one ionization; with the switch the freed electron is hydrated
+and still there after 0.6 ps (off: captured). In 3-D the electrons are caught (attached or captured) before they slow
+below 1 eV outside a cation's 3 Å, as 1.27 bug 8 found: the unscreened pull. Left: e⁻(aq)'s own pull on the ions (it
+is not in the forces), its reactions with OH, H, O₂ and another e⁻(aq) (measured rates; they need radical chemistry), its
+slow reaction with water itself (about 1 ms), and making the switch on by default (the owner's call). Test: f_129 eaq.
+
 ### 55 Video recording removed
 
 The owner (2026-11-08): "can you remove the recording feature?". Lab → Record video, its time-lapse buttons, the REC
