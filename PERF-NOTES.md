@@ -2876,6 +2876,11 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 49 every exotic particle (muonic atoms, muonium, positronium, hypernuclei, hadrons, antimatter atoms, …) checked: it
    interacts with the other particles where nature has it do so, it can be grabbed, and it has an info panel (an audit
    of each kind; any new interaction is a physics change, the owner's OK).
+50 throwing with Grab: let go of a particle while moving the pointer and it flies on, as thrown (today grabRelease
+   takes away, on purpose, the speed the spring drew it at when over GRAB_V, so it stops where it is let go: written
+   in 0.x so a hard drag could not fling atoms at tens of km/s). Plan: the throw from the pointer's recent motion in
+   the world (its speed on screen against the simulated time shown), capped, the energy given booked as work done by
+   the hand, as the spring's is.
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
