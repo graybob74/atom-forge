@@ -311,7 +311,7 @@ function drawDet3(ctx, p, x, y, z, r, col, rt, det) {
       if (p.Z === 0 || p.ne === 0) { // a free nucleon (a neutron, the same size as those in nuclei) or a bare nucleus, every nucleon shown, with a faint halo
         const nsp = nucleusSprite(p.Z, p.N, nucleonR(), p.anti);
         if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(p.Z === 0 ? [150, 165, 185] : p.anti ? [190, 120, 255] : [255, 110, 90], Math.max(p.Z === 0 ? 6 : 7, nsp.rn * (p.Z === 0 ? 4 : 3.2))), x, y, p.Z === 0 ? 0.3 : 0.4); ctx.globalCompositeOperation = 'source-over'; }
-        drawSprite(nsp, x, y); return true;
+        drawSprite(nsp, x, y); if (p.muB) muOrbit(ctx, p, x, y, nsp.rn); return true; // (a bare muonic nucleus: its muon, as in the flat view, 1.28.1)
       }
       drawNucView(p, x, y, r, rt); return true;
     }

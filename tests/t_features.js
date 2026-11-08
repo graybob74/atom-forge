@@ -1798,6 +1798,7 @@ const { openPage } = require('./browser');
   await alone('f_127x.js'); // 1.27 feature 24: unstable particles meet each other (node tests/f_127x.js [--node] [part …])
   await alone('f_127w.js'); // 1.27 feature 19: photons as waves (node tests/f_127w.js [--node] [part …])
   await alone('f_127m.js'); // 1.27 feature 20: the band's shape for the close-packed metals (node tests/f_127m.js [part …])
+  await alone('f_1281.js'); // 1.28.1 items 45–51: info boxes, grabbing and throwing, exotic atoms drawn, muonic scattering, the muon in particle view (node tests/f_1281.js [part …])
   await alone('f_fix1281.js'); // 1.28.1 bug: a save's speed became its 1× (node tests/f_fix1281.js)
   await alone('f_set1271.js'); // 1.27.1 Settings layout: sub-options, switches at the right, 3-D settings by mode, Experimental reset (node tests/f_set1271.js [part …])
   await alone('f_ui127.js'); // (after 1.26: right-click stops measuring a particle; Shift + wheel sets a tool's radius)

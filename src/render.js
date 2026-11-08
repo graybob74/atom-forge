@@ -1008,7 +1008,7 @@ function drawWaves() {
 function exoAtomPic(ctx, o, x, y, c, hx, s) {
   const d = XP[o.sp];
   if (d.ps) {
-    const R0 = Math.max(5, 0.53 * s), th = W.rt * 4 + o.id, er = Math.max(1.8, electronR()), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th);
+    const R0 = Math.max(5, 0.53 * s), th = W.rt * 4 + o.id, er = Math.max(2.4, 1.2 * electronR()), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th);
     ctx.strokeStyle = rgba(c, 0.45); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
     return R0 + 3;
@@ -1301,8 +1301,9 @@ function spinArrow(ctx, x, y, s) {
   ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey);
   ctx.moveTo(ex, ey); ctx.lineTo(ex - 4 * ux + 2.5 * uy, ey - 4 * uy - 2.5 * ux); ctx.moveTo(ex, ey); ctx.lineTo(ex - 4 * ux - 2.5 * uy, ey - 4 * uy + 2.5 * ux); ctx.stroke();
 }
-function muOrbit(ctx, p, x, y, rn) {
-  const er = electronR(), R0 = rn + Math.max(1.5, 0.8 * er), th = W.at * 6 + p.id;
+function muOrbit(ctx, p, x, y, rn) { // (1.28.1, the owner: "add the muon in all muonic atoms to particle view": a faint ring for its orbit, a little further out, and on the watching clock, W.rt, so it goes round in slow motion too; and in 3-D)
+  const er = electronR(), R0 = rn + Math.max(2.5, 1.2 * er), th = W.rt * 6 + p.id;
+  ctx.strokeStyle = 'rgba(110,245,200,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke();
   drawSprite(ballSprite('#6ef5c8', Math.max(1.5, er * 1.2)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
 }
 function drawFlashes(rt) {
