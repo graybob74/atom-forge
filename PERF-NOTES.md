@@ -2881,6 +2881,9 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    in 0.x so a hard drag could not fling atoms at tens of km/s). Plan: the throw from the pointer's recent motion in
    the world (its speed on screen against the simulated time shown), capped, the energy given booked as work done by
    the hand, as the spring's is.
+51 the particle view draws the muon in every muonic atom: today only muonic hydrogen and deuterium (the exotic species
+   μp, μd: exoInside's tight orbit round the nucleus) show it; a heavier nucleus that took a muon (p.muB, muonic
+   carbon and the rest) is drawn as a plain atom.
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
