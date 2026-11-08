@@ -2035,6 +2035,12 @@ Speed only: no physics changed. Every one of the 59 setups at normal settings is
   the step on average): the allocations sampled per step (HeapProfiler) are spread over evalCandidates, innerSteps,
   chooseDt and the force pass in small pieces, with no single site worth a change without a finer tool.
 
+Suite (v159, tools/runtests.sh on 2 cores, 50 min): 64 of 66 jobs passed at once; t_features and t_page failed on
+checks the Settings changes moved (the realistic-tag count, the 3-D rows hidden in the flat game, a pointer left over a
+row by an earlier check previewing that row) and were fixed; t_settings opened the 3-D tab in the flat game and hung on
+a row it could no longer find (fixed: it loads the 3-D lab first; and a line of mine had read the page from Node). Rerun
+alone on the final tree: t_features and t_settings pass; t_page passes but for the slow-motion button, the known flake.
+
 ### 1.28: Settings layout (the owner, 2026-11-07; branch v158)
 
 Five requests from the owner's screenshots, display only (no physics changed):
