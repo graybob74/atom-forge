@@ -1991,6 +1991,14 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.28.2: hotfix for 1.28.1's desktop app
+
+1.28.1's release commit left out build.js's new line for src/info.js (the commits named src, tests, desktop and
+dist, not the files at the top), so the desktop app, built on main from build.js, had no info.js: the periodic
+table's element card and every Inspect card stopped on EL_INFO / infoKeyP not being defined. The page sent with the
+release had been built here with the line and was right. Now build.js has it, the version is 1.28.2, and the release
+steps commit with `git add -A` from the top of the tree (git status shown empty before the release commit).
+
 ## 1.28.1: the owner's items 45–51 (info with Read more, Grab for every particle and throwing, exotic atoms and positronium drawn, muonic hydrogen off any nucleus, the muon in the particle view) and two bug fixes (a save's speed, saving with electrons as waves)
 
 ### 1.28.1: the owner's items 45–51 ("build 45-51, test and release when done as 1.28.1")
