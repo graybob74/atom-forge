@@ -28804,7 +28804,7 @@ function moveExos(dt, id0) {
   for (let i = 0; i < n0; i++) {
     const o = W.exo[i];
     if (o.dead || (id0 !== undefined && o.id >= id0)) continue; // (born this step: it flies from the next one, which slow motion and the step chooser have shortened for it)
-    if (o.pnT0 !== undefined && W.t - o.pnT0 >= PN_T) { pnAnnih(o); continue; } // (protonium: its spiral done, it annihilates, 1.28.3)
+    if (o.sp === 'Pn') { if (o.pnT0 === undefined) o.pnT0 = W.t; if (W.t - o.pnT0 >= PN_T) { pnAnnih(o); continue; } } // (protonium: its spiral done, it annihilates; one from a save or undo, which keep no clock, starts its fall again, 1.28.3)
     let h = dt, dec = false;
     if (clock > 0) {
       const tl = XP[o.sp].tau * o.gam, P = 1 - Math.exp(-clock / tl);
@@ -29044,7 +29044,7 @@ function moveExos3(dt, id0) {
   for (let i = 0; i < n0; i++) {
     const o = W.exo[i];
     if (o.dead || (id0 !== undefined && o.id >= id0)) continue;
-    if (o.pnT0 !== undefined && W.t - o.pnT0 >= PN_T) { pnAnnih(o); continue; } // (protonium: its spiral done, it annihilates, 1.28.3)
+    if (o.sp === 'Pn') { if (o.pnT0 === undefined) o.pnT0 = W.t; if (W.t - o.pnT0 >= PN_T) { pnAnnih(o); continue; } } // (protonium: its spiral done, it annihilates; one from a save or undo, which keep no clock, starts its fall again, 1.28.3)
     let h = dt, dec = false;
     if (clock > 0) { const tl = XP[o.sp].tau * o.gam, P = 1 - Math.exp(-clock / tl); if (rnd() < P) { dec = true; h = dt * Math.min(1, -Math.log(1 - rnd() * P) * tl / clock); } }
     const d = XP[o.sp];
