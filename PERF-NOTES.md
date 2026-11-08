@@ -2016,7 +2016,7 @@ Protonium now forms in 3-D too (it was held flat-only), and stays in the box (th
 Books, each event alone (between steps): p̄ + C with and without the cascade, p̄ + O, H̄ + H, anti-carbon + carbon,
 p̄ + H → protonium → annihilation: within 4×10⁻⁶ eV in 3-D, as in the flat game (2×10⁻⁶). Every flat setup is 1.28.3's
 to the bit (fingerprints, 60 setups). Test: f_129 (events, pn, fast; all fail on 1.28.3).
-- **Left for the owner (found on the way, not changed: physics).** In 3-D water a fast nucleon does far more to the
+- **Left for the owner (found on the way, not changed: physics; fixed in 1.29, below: "The 3-D fast-atom cascade").** In 3-D water a fast nucleon does far more to the
   water than in the flat game: a 10 MeV neutron leaves 214 nuclei above 1 keV after 60 steps (flat: 0), and an
   annihilation's knocked-out nucleons do the same (372 against 4). In 3-D a fast atom with its electrons stays in the
   stepped set (radiation flight is flat-only) and meets its neighbours as hard spheres (hardSphere3), so a knock-on
@@ -2075,6 +2075,19 @@ reverted (the tree is item 61's again):
   nearly degenerate orbitals).
 So there is no faster-at-the-same-physics switch here to offer; what would help is the integrals and D4 (item 54's
 note), or fewer SCC iterations (a better start than the last step's charges), each its own piece of work.
+
+### The 3-D fast-atom cascade (the owner: "fix the 3d issue", 2026-11-08)
+
+Found under item 57: in 3-D a fast atom that still has its electrons (a proton struck by a neutron, a nucleon knocked
+out by an annihilation) stayed in the stepped set and met every atom on its path as a hard sphere (fastEncounters3's
+hardSphere3), at any energy, so it handed its MeV to its neighbours, who handed it on: a cascade. The flat game's
+radiation flight (moveRad) has no hard spheres past 2 keV: the atom passes through the electron clouds, losing its
+energy to their electrons, and meets nuclei only within reach. Now fastEncounters3 does the same for an atom with
+electrons past 2 keV (fastStop3 and nuclearEncounter only); a bare nucleus still turns by Rutherford's angle
+(coulombScatter3: f_fix03's head-on α checks unchanged). A 10 MeV neutron in 3-D water, 60 steps, seeds 3–5: nuclei
+above 1 keV 358, 512, 472 → 12, 2, 2 (the recoil protons themselves, at MeV); books 17.2, 39.6, 39.0 → 0.13, 0.25,
+0.53 eV; ionizations 1,211–1,563 → 51–450 (along the recoils' tracks). The annihilation in 3-D water of item 57: 372
+nuclei above 1 keV → 18 (flat 4). No setup's fingerprint changes. Test: f_129 fast3d.
 
 ### 63 Challenges: three more
 

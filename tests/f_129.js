@@ -152,6 +152,20 @@ PARTS.iwater = async (page, check) => {
   check(out.every(r => r.ion < 20 && r.freeE <= 45 && Math.abs(r.drift) < 2), `1.29 (60) ionized water, two seeds that ran away: ${out.map(r => `${r.ion} ionizations, ${r.freeE} free electrons, ${r.drift} eV`).join('; ')}`, '1.29 ionized water: ' + JSON.stringify(out));
 };
 
+/* The 3-D fast-atom fix (the owner: "fix the 3d issue"): a 10 MeV neutron in 3-D water left 358–512 nuclei above
+   1 keV after 60 steps and the books 17–40 eV off (struck atoms with their electrons met their neighbours as hard
+   spheres, a knock-on cascade); now a few (the recoils themselves), books within 1 eV. */
+PARTS.fast3d = async (page, check) => {
+  const out = [];
+  for (const seed of [3, 4]) {
+    const X = load('all', { seed }), W = X.W; X.PRESETS.water3d.build(); W.gamma = 0;
+    go(X, 5); const hw = W.box.w / 2, q = X.addNuc(0, 1, 0, -hw + 1, 0, 0, 0, false, 0); X.setMotion(q, 1e7, 1, 0.02, 0, 0, 0.01); X.forcesNoEvents(); W.fSpawn = W.spawned;
+    const B = () => X.totalEnergy().total - W.ledger.nuc, E0 = B(); go(X, 60);
+    out.push({ seed, hot: W.parts.filter(p => !p.dead && p.k === X.NUC && X.keOf(p) > 1000).length, books: +(B() - E0).toFixed(2) });
+  }
+  check(out.every(r => r.hot < 40 && Math.abs(r.books) < 1), `1.29 3-D: a 10 MeV neutron in 3-D water leaves ${out.map(r => r.hot).join(' and ')} nuclei above 1 keV (was 358–512), books ${out.map(r => r.books).join(', ')} eV`, '1.29 fast atoms in 3-D: ' + JSON.stringify(out));
+};
+
 module.exports = async function f129(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

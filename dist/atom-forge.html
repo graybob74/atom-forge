@@ -11747,7 +11747,7 @@ function fastEncounters3(p) {
     if (A.dead || p.dead || sameEv(p, A)) continue;
     if (opp(p, A)) { if (b < (p.ne > 0 && A.ne > 0 ? 0.5 * (p.ljR + A.ljR) : 0.6)) { evAnti(p, A, b); return; } continue; } // (matter meets antimatter, as fastEncounters, 1.29 item 57)
     if (p.Z > 0 && b < fusGate() && tryFusion3(p, A, b)) return;
-    if (hot) { const R = nucReach(p, A); if (b < R && p.hit !== A.id) { p.hit = A.id; if (nuclearEncounter(p, A, b / R, A.x, A.y, A.z) || p.dead) return; } }
+    if (hot) { const R = nucReach(p, A); if (b < R && p.hit !== A.id) { p.hit = A.id; if (nuclearEncounter(p, A, b / R, A.x, A.y, A.z) || p.dead) return; } if (p.ne > 0) continue; } // (1.29: an atom with its electrons past 2 keV passes through the other atoms' electron clouds, as the flat game's radiation flight does (moveRad): it loses its energy to their electrons (fastStop3) and meets nuclei only within reach; struck as hard spheres it knocked whole cascades of atoms to keV energies. A bare nucleus still turns by Rutherford's angle below)
     const contact = (p.ne > 0 && A.ne > 0) ? 0.35 * (p.ljR + A.ljR) : 0;
     const cx = x0 + t * (x1 - x0) - A.x, cy = y0 + t * (y1 - y0) - A.y, cz = z0 + t * (z1 - z0) - A.z; // (from the target to the path's closest point)
     if (contact > 0 && b < contact) { hardSphere3(p, A, b, contact, cx, cy, cz); return; }
