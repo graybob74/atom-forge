@@ -2948,6 +2948,13 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    flash and pions, as positronium is drawn (1.28.1), on the watching clock so it can be seen at any speed; Grab and
    an Inspect card with info. The timing shown is a picture (the real cascade takes far less time than a frame); the
    energy books stay as they are.
+54 quantum bonds faster (item 34, scoped by the owner 2026-11-08: "do 1-3", the same results only): profile of a
+   hydronium and five waters (19 atoms, 6.15 ms a step): symEig 43%, gfn1Energy's SCC 32%, integrals (shellSG,
+   primPairs) 15%. (1) less work: only the occupied and fractionally occupied orbitals (bisection and inverse
+   iteration, or a partial QL), each step's SCC started from the last step's charges and density; (2) symEig, the
+   Hamiltonian build and the integrals in the module (kernel, SIMD where it helps), checked against the JavaScript;
+   (3) separate quantum molecules on separate worker threads. Expected 2–4× together. Not (4), fewer full
+   evaluations with extrapolation in between (changes results).
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
