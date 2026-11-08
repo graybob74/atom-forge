@@ -185,12 +185,12 @@ for (const scen of ['waterion', 'flashbyte', 'combustion']) {
   const A = load('all', { seed: 7 }), B = load('all', { seed: 7, wasm: false });
   if (B.WK.on) fail('module in use when asked not to');
   build(A, scen); build(B, scen);
-  steps(A, 30); steps(B, 30); // (free electrons amplify the last-bit differences of exp() about tenfold every three steps: 30 steps keeps them below 1e-5 Å)
+  const ns = scen === 'waterion' ? 12 : 30; steps(A, ns); steps(B, ns); // (free electrons amplify the last-bit differences of exp() about tenfold every three steps: 30 steps keeps them below 1e-5 Å; in ionized water since 1.29 item 60 (electrons held in the ions' wells, their vibrational losses) about tenfold every step and a half: 12 steps, 1e-8 Å)
   const n = Math.min(A.S.hi, B.S.hi); let maxd = 0;
   for (let i = 0; i < n; i++) { if (A.S.dead[i] || B.S.dead[i]) continue; maxd = Math.max(maxd, Math.abs(A.S.x[i] - B.S.x[i]), Math.abs(A.S.y[i] - B.S.y[i])); }
   const ca = JSON.stringify(A.W.count), cb = JSON.stringify(B.W.count);
   const ea = A.totalEnergy().total, eb = B.totalEnergy().total;
-  console.log(`${scen}, 30 steps with and without the module: positions within ${maxd.toExponential(2)} Å, events ${ca === cb ? 'same' : 'DIFFERENT'}, energy ${ea.toFixed(6)} vs ${eb.toFixed(6)} eV`);
+  console.log(`${scen}, ${ns} steps with and without the module: positions within ${maxd.toExponential(2)} Å, events ${ca === cb ? 'same' : 'DIFFERENT'}, energy ${ea.toFixed(6)} vs ${eb.toFixed(6)} eV`);
   if (maxd > 1e-4) fail(scen + ': runs diverged by ' + maxd); // (where the amplification lands after 30 steps depends on the trajectory: a few times 1e-5 Å either way)
   if (ca !== cb) fail(scen + ': events differ ' + ca + ' vs ' + cb);
   if (Math.abs(ea - eb) > 1e-6 * Math.max(1, Math.abs(ea))) fail(scen + ': energies differ');

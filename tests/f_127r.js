@@ -82,7 +82,7 @@ PARTS.ultra = async (page, check, say) => {
 };
 
 /* ---- 5. switch off: setups that make light as in v150, bit for bit (tools/fingerprint.js: seed 7, 300 steps) */
-const FP = { prism: '4ffe98af books a9f2ee3a 0', flame: '35e1ec46 books 357b2f4f 48', neon: '8b728a7d books eca8b1e2 84', argon: '820e8897 books a9f2ee3a 80', water: 'cac1ac32 books a9f2ee3a 240' };
+const FP = { prism: '4ffe98af books a9f2ee3a 0', flame: '35e1ec46 books 357b2f4f 48', neon: '0018e6c7 books 5287e1cb 85', argon: '820e8897 books a9f2ee3a 80', water: 'cac1ac32 books a9f2ee3a 240' };
 PARTS.fp = async (page, check, say) => {
   const out = require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, '..', 'tools', 'fingerprint.js'), ...Object.keys(FP)], { encoding: 'utf8', maxBuffer: 1 << 24 });
   const bad = [];

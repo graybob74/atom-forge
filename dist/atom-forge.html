@@ -9327,8 +9327,8 @@ function evLepton(L, A, r) {
    ionization energy slow down in a liquid, in about a picosecond. Before, nothing slowed them but elastic recoil (a
    ten-thousandth a collision), so they kept the energy the ions' wells gave them, and in ionized water they ran away. */
 function vibLoss(L, A) {
-  const ke = keOf(L), dq = rnd() < 0.6 ? 0.198 : 0.453;
-  if (!(ke > dq + 0.05) || !(rnd() < 0.3)) return;
+  const u1 = rnd(), u2 = rnd(), ke = keOf(L), dq = u1 < 0.6 ? 0.198 : 0.453; // (both numbers drawn every time: the random sequence does not hang on a last-bit difference in the energy)
+  if (!(ke > dq + 0.05) || !(u2 < 0.3)) return;
   const f = Math.sqrt((ke - dq) / ke); L.vx *= f; L.vy *= f; if (W.d3) L.vz *= f;
   dumpHeat(dq, A, other(A.bonds[0], A));
   W.count.vib = (W.count.vib || 0) + 1;

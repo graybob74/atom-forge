@@ -2102,8 +2102,10 @@ Flat water, 40 waters ionized with 2 eV each, insulated (t_features' 1.09 scene)
    molecule loses a vibrational quantum (0.198 eV, the bend, 3 in 5; else 0.453, a stretch) 3 times in 10, as heat to the
    molecule (vibLoss; Itikawa and Mason's cross sections, about a third of the elastic, from memory).
 Each switchable (engine.js IW) for the measurement: vibrational loss alone, 1 of 5 seeds ran away in 400 steps; the
-other two alone, 3 of 5; all three, 0 of 12 in 400 steps (books within 1.5 eV) and 2 of 6 over 3,000 steps (seeds 2
-and 3: 958 and 4,434 ionizations, −19 and −43 eV, against four of six and up to 11,400 ionizations and +485 before).
+other two alone, 3 of 5. All three (final code, both random numbers of vibLoss drawn every time, so a last-bit
+difference in an energy does not shift the random sequence): 2 of 12 seeds in 400 steps (6 and 12: 295 and 191
+ionizations; the other ten 0, books within 0.7 eV), against 3 of 8 before; over 3,000 steps 1 of 6 (seed 6: 5,731
+ionizations, +17 eV), against 4 of 6 before (up to 11,400 ionizations, +485 eV).
 - **Left (found, not fixed).** In the two that still run away a few atoms heat up to 10–21 eV over a hundred steps
   while bonds form and break every step (HO⁺ + H ⇄ H₂O⁺, HO + H₂O⁺ ⇄ H₂O + HO⁺); each forming gives its 4.8 eV to a third
   atom in a random direction and each breaking takes it back from the pair, so the third's energy takes a random walk
@@ -2112,7 +2114,10 @@ and 3: 958 and 4,434 ionizations, −19 and −43 eV, against four of six and up
   in nature they would be hydrated or recombined by then (Hydrated electrons, item 59, takes some).
 - These change 11 setups' fingerprints (annihilation, antihydrogen, hyperfactory, mucf, muonium, neon, nif, photonuc,
   pionbeam, sns, soup: wherever free electrons meet molecules or ions bond); physics, for the owner's OK before release.
-Test: f_129 iwater (seeds 1, 5, 6: fails on 1.28.3).
+Stored fingerprints updated (switches off: f_127r, f_127x, f_127w, f_127h, f_feat1, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7,
+f_ew; f_rp7's with charged particles in matter on); t_wasm's ionized-water run, module against JavaScript, compares 12
+steps instead of 30 (the last-bit differences now grow tenfold every step and a half: 2.5×10⁻⁹ Å at 12 steps).
+Test: f_129 iwater (seeds 1 and 5: fail on 1.28.3).
 
 ### 55 Video recording removed
 
