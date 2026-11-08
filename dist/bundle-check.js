@@ -7837,10 +7837,10 @@ function evAnti(a, b, r) {
 let _pnNow = false; // (protonium's own annihilation, from pnAnnih: not held again)
 function nuclearAnnihilation(a, b) {
   if (a.dead || b.dead || a.mu || b.mu) return; // (an antinucleon meets no nucleon in muonium, 1.12)
-  const anti = a.anti ? a : b, mat = anti === a ? b : a;
-  const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
-  const vx = (a.m * avx + b.m * bvx) / (a.m + b.m), vy = (a.m * avy + b.m * bvy) / (a.m + b.m);
-  const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y);
+  const anti = a.anti ? a : b, mat = anti === a ? b : a, d3 = W.d3; // (d3: in depth, 1.29 item 57)
+  const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b), avz = d3 ? a.vz : 0, bvz = d3 ? b.vz : 0;
+  const vx = (a.m * avx + b.m * bvx) / (a.m + b.m), vy = (a.m * avy + b.m * bvy) / (a.m + b.m), vz = d3 ? (a.m * avz + b.m * bvz) / (a.m + b.m) : 0;
+  const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y), z = d3 ? 0.5 * (a.z + b.z) : 0;
   const before = `${speciesLabel(anti)} + ${speciesLabel(mat)}`;
   const parents = [anti, mat].map(ghostOf);
   const S = annihBegin([a, b]);
@@ -7849,9 +7849,9 @@ function nuclearAnnihilation(a, b) {
   // protonium from 2p); the lines' energy comes out of the annihilation's)
   let xa = null; const Zm = mat.Z, Nm = mat.N;
   if (RP.exo && anti.Z === 1 && anti.N === 0 && anti.ne === 0 && Zm >= 1 && !mat.muB) {
-    const mr = anti.m * mat.m / (anti.m + mat.m), dvx = avx - bvx, dvy = avy - bvy;
-    if (Zm === 1 && Nm === 0 && !_pnNow && !W.d3 && 0.5 * mr * (dvx * dvx + dvy * dvy) < MU_STOP && typeof pnForm === 'function') { pnForm(anti, mat); return; } // (protonium: a pair going round each other first, seen spiralling in, then this, 1.28.3)
-    if (0.5 * mr * (dvx * dvx + dvy * dvy) < MU_STOP) { const es = []; xa = xaCascade(mat, 'pbar', Zm, Nm, xaN0('pbar', Zm, Nm), XA_NABS.pbar(Zm), 0, es); xa.n0 = xaN0('pbar', Zm, Nm); xa.n1 = XA_NABS.pbar(Zm); }
+    const mr = anti.m * mat.m / (anti.m + mat.m), dvx = avx - bvx, dvy = avy - bvy, dvz = avz - bvz, v2 = d3 ? dvx * dvx + dvy * dvy + dvz * dvz : dvx * dvx + dvy * dvy;
+    if (Zm === 1 && Nm === 0 && !_pnNow && 0.5 * mr * v2 < MU_STOP && typeof pnForm === 'function') { pnForm(anti, mat); return; } // (protonium: a pair going round each other first, seen spiralling in, then this, 1.28.3)
+    if (0.5 * mr * v2 < MU_STOP) { const es = []; xa = xaCascade(mat, 'pbar', Zm, Nm, xaN0('pbar', Zm, Nm), XA_NABS.pbar(Zm), 0, es); xa.n0 = xaN0('pbar', Zm, Nm); xa.n1 = XA_NABS.pbar(Zm); }
   }
   const partners = [];
   for (const n of [a, b]) for (const bd of n.bonds) partners.push(other(bd, n));
@@ -7865,6 +7865,7 @@ function nuclearAnnihilation(a, b) {
   for (let i = 0; i < evap; i++) {
     const isP = mat.Z > 0 && rnd() < mat.Z / (mat.Z + mat.N);
     if (isP) mat.Z--; else mat.N--;
+    if (d3) { const u = rndDir(), q = addNuc(isP ? 1 : 0, isP ? 0 : 1, 0, x, y, 0, 0, false, z); setMotion(q, (2 + 18 * rnd()) * 1e6, u[0], u[1], vx, vy, u[2], vz); continue; }
     const th = rnd() * 2 * Math.PI;
     const q = addNuc(isP ? 1 : 0, isP ? 0 : 1, 0, x, y);
     setMotion(q, (2 + 18 * rnd()) * 1e6, Math.cos(th), Math.sin(th), vx, vy);
@@ -7872,8 +7873,13 @@ function nuclearAnnihilation(a, b) {
   for (const n of [anti, mat]) {
     if (n.dead) continue;
     if (n.Z <= 0) { // nothing charged is left: free its leptons and any loose (anti)neutrons
-      const ne = n.ne, lk = n.anti ? POS : ELEC, nn = Math.max(0, n.N), nx = n.x, ny = n.y, wasAnti = n.anti;
+      const ne = n.ne, lk = n.anti ? POS : ELEC, nn = Math.max(0, n.N), nx = n.x, ny = n.y, nz = d3 ? n.z : 0, wasAnti = n.anti;
       kill(n);
+      if (d3) {
+        for (let i = 0; i < ne; i++) { const u = rndDir(), l = addLepton(lk, nx + 0.6 * u[0], ny + 0.6 * u[1], 0, 0, nz + 0.6 * u[2]); setMotion(l, 2, u[0], u[1], vx, vy, u[2], vz); }
+        for (let i = 0; i < nn; i++) { const q = addNuc(0, 1, 0, nx, ny, 0, 0, wasAnti, nz), u = rndDir(); setMotion(q, 2e6, u[0], u[1], vx, vy, u[2], vz); }
+        continue;
+      }
       for (let i = 0; i < ne; i++) {
         const th = rnd() * 2 * Math.PI, l = addLepton(lk, nx + 0.6 * Math.cos(th), ny + 0.6 * Math.sin(th));
         setMotion(l, 2, Math.cos(th), Math.sin(th), vx, vy);
@@ -7889,12 +7895,12 @@ function nuclearAnnihilation(a, b) {
   }
   relink(partners.filter(p => !p.dead));
   let E = annihEnd(S);
-  if (xa) { for (const l of xa.lines) { if (!(l.E > 0) || !(l.E < E)) continue; E -= l.E; const u = rdir(); emitPhoton(x, y, l.E, u[0], u[1]); } } // (its X-ray lines, exact; the mesons take the rest, 1.27)
-  const ms = mesonBurst(x, y, E, vx, vy, (pM ? 1 : 0) - (pA ? 1 : 0));
+  if (xa) { for (const l of xa.lines) { if (!(l.E > 0) || !(l.E < E)) continue; E -= l.E; const u = rdir(); if (d3) emitPhoton(x, y, l.E, u[0], u[1], { z, uz: u[2] }); else emitPhoton(x, y, l.E, u[0], u[1]); } } // (its X-ray lines, exact; the mesons take the rest, 1.27)
+  const ms = d3 ? mesonBurst(x, y, E, vx, vy, (pM ? 1 : 0) - (pA ? 1 : 0), z, vz) : mesonBurst(x, y, E, vx, vy, (pM ? 1 : 0) - (pA ? 1 : 0));
   W.count.annih++;
   const left = [anti, mat].filter(n => !n.dead).map(n => speciesLabel(n)), what = ms.length ? summarize(ms) : 'γ rays';
   if (xa) { const pp = Zm === 1 && Nm === 0; W.count.xatom = (W.count.xatom || 0) + 1; log('nuc', `${pp ? 'Protonium (p̄p)' : `Antiprotonic ${ELEMENTS[Zm].name.toLowerCase()}`}: p̄ caught into orbit n = ${xa.n0}, cascade to n = ${xa.n1}: X-rays ${xaLines(xa.lines) || 'none'}${xa.aug ? `, ${xa.aug} Auger electron${xa.aug > 1 ? 's' : ''}` : ''}; then it annihilates`); }
-  nucEvent('annih', x, y, `${xa && Zm === 1 && Nm === 0 ? 'Protonium: ' : ''}${before} → ${left.length ? left.join(' + ') + ' + ' : ''}${what}`, parents, xa ? `${fmtE(E)}; first the cascade n = ${xa.n0} → ${xa.n1}, X-rays ${xaLines(xa.lines, 2) || 'none'}` : fmtE(E));
+  nucEvent('annih', x, y, `${xa && Zm === 1 && Nm === 0 ? 'Protonium: ' : ''}${before} → ${left.length ? left.join(' + ') + ' + ' : ''}${what}`, parents, xa ? `${fmtE(E)}; first the cascade n = ${xa.n0} → ${xa.n1}, X-rays ${xaLines(xa.lines, 2) || 'none'}` : fmtE(E), undefined, z);
   log('nuc', `Antimatter annihilation: ${before} → ${what} (${fmtE(E)})${evap ? `, ${evap} nucleon${evap > 1 ? 's' : ''} knocked out` : ''}`);
   tally(ms, [], `Annihilation: ${before} → ${what}`);
 }
@@ -8332,8 +8338,9 @@ function tryFusion(a, b, bd) {
 }
 /* (3-D, 1.25) tryFusion in depth: the pair's energy from their velocities in three directions, the products at the
    midpoint's depth (launchProducts3; a single product with the pair's momentum, its γ ray or e⁺ on the sphere).
-   Antimatter is not in 3-D. */
+   Matter meeting antimatter annihilates (1.29 item 57, as tryFusion does in the flat game). */
 function tryFusion3(a, b, bd) {
+  if (opp(a, b)) { nuclearAnnihilation(a, b); return true; }
   if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX || a.mu || b.mu) return false;
   const mu = a.m * b.m / (a.m + b.m), dvx = a.vx - b.vx, dvy = a.vy - b.vy, dvz = a.vz - b.vz;
   const Ecm = 0.5 * mu * (dvx * dvx + dvy * dvy + dvz * dvz);
@@ -9836,7 +9843,8 @@ function fastEncounters3(p) {
   const hits = segTargets3(x0, y0, z0, x1, y1, z1, Math.max(1.6, nucDrawR(p) + 0.9), (t) => t.k === NUC && t.Z > 0 && t !== p).slice();
   if (hot) fastStop3(p, hits);
   for (const [t, A, b] of hits) {
-    if (A.dead || p.dead || sameEv(p, A) || opp(p, A)) continue;
+    if (A.dead || p.dead || sameEv(p, A)) continue;
+    if (opp(p, A)) { if (b < (p.ne > 0 && A.ne > 0 ? 0.5 * (p.ljR + A.ljR) : 0.6)) { evAnti(p, A, b); return; } continue; } // (matter meets antimatter, as fastEncounters, 1.29 item 57)
     if (p.Z > 0 && b < fusGate() && tryFusion3(p, A, b)) return;
     if (hot) { const R = nucReach(p, A); if (b < R && p.hit !== A.id) { p.hit = A.id; if (nuclearEncounter(p, A, b / R, A.x, A.y, A.z) || p.dead) return; } }
     const contact = (p.ne > 0 && A.ne > 0) ? 0.35 * (p.ljR + A.ljR) : 0;
@@ -26043,7 +26051,7 @@ function muBoundTick(dt) {
    - Its end: a muon stays in its 1s orbit and decays (the Michel spectrum, xaMichel) or is captured by the nucleus, at
      the measured rates (muBoundTick, MU_TAU); a pion or kaon is absorbed from its last orbit (XA_NABS) by the existing
      absorption (hStop: the star, or π⁻p → π⁰n / γn; kStop: Λ or Σ and pions, now and then a hypernucleus); an
-     antiproton annihilates (engine.js nuclearAnnihilation, the flat game only: antimatter is not in 3-D).
+     antiproton annihilates (engine.js nuclearAnnihilation; in 3-D too since 1.29).
    - To the outside a muonic atom is an atom of charge Z − 1 (p.muB.zx: engine.js zChem): its electrons see the nucleus
      and the muon together, so muonic carbon takes boron's table entries (valence, bond energies and lengths, size,
      electronegativity, ionization energies). Muonic hydrogen (μp, μd, μt) stays an unstable particle in W.exo, neutral
@@ -26309,16 +26317,16 @@ function pnForm(anti, mat) {
    the capture), then the annihilation of what is left, mesons as nuclearAnnihilation makes them (mesonBurst). Its rest
    mass comes back from the nuclear ledger, where it was kept while it flew, as the exo-particle decays do. */
 function pnAnnih(o) {
-  const x = o.x, y = o.y, n0 = o.pnN0 || xaN0('pbar', 1, 0), n1 = o.pnN1 || XA_NABS.pbar(1), gh = [ghostOf(o)];
+  const x = o.x, y = o.y, z = W.d3 ? o.z || 0 : 0, n0 = o.pnN0 || xaN0('pbar', 1, 0), n1 = o.pnN1 || XA_NABS.pbar(1), gh = [ghostOf(o)];
   let E = o.m * MEV + o.KE; W.ledger.nuc += o.m * MEV;
-  const vx = o.v * o.ux, vy = o.v * o.uy;
+  const vx = o.v * o.ux, vy = o.v * o.uy, vz = W.d3 ? o.v * (o.uz || 0) : 0;
   o.dead = true; o.fate = 'annihilated: p̄ + p → mesons';
   const lines = [];
-  for (let n = n0; n > n1; n--) { const dE = xaLevel('pbar', 1, 0, n - 1) - xaLevel('pbar', 1, 0, n); if (dE > 0 && dE < E) { lines.push({ E: dE, a: n, b: n - 1 }); E -= dE; const u = rdir(); emitPhoton(x, y, dE, u[0], u[1]); } }
-  const ms = mesonBurst(x, y, E, vx, vy, 0);
+  for (let n = n0; n > n1; n--) { const dE = xaLevel('pbar', 1, 0, n - 1) - xaLevel('pbar', 1, 0, n); if (dE > 0 && dE < E) { lines.push({ E: dE, a: n, b: n - 1 }); E -= dE; const u = rdir(); if (W.d3) emitPhoton(x, y, dE, u[0], u[1], { z, uz: u[2] }); else emitPhoton(x, y, dE, u[0], u[1]); } }
+  const ms = W.d3 ? mesonBurst(x, y, E, vx, vy, 0, z, vz) : mesonBurst(x, y, E, vx, vy, 0);
   W.count.annih++; W.count.xatom = (W.count.xatom || 0) + 1;
   const what = ms.length ? summarize(ms) : 'γ rays';
-  nucEvent('annih', x, y, `Protonium: p̄ + p → ${what}`, gh, `${fmtE(E)}; its fall n = ${n0} → ${n1}, X-rays ${xaLines(lines, 2) || 'none'}`);
+  nucEvent('annih', x, y, `Protonium: p̄ + p → ${what}`, gh, `${fmtE(E)}; its fall n = ${n0} → ${n1}, X-rays ${xaLines(lines, 2) || 'none'}`, undefined, z);
   log('nuc', `Protonium (p̄p) annihilates from n = ${n1}: ${what} (${fmtE(E)}), after X-rays ${xaLines(lines, 3) || 'none'}`);
   tally(ms, [], `Annihilation: p̄ + p → ${what}`);
 }
@@ -27052,7 +27060,7 @@ function spawnItems3(items, moms, x, y, z) {
     if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy, uz]); continue; }
     if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; } // (and its charge, 1.27 bug 15)
     if (it.Z > Z_MAX) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; }
-    if (it.t === 'A' && it.anti) { made.lost += P[0] * MEV; chargeTo(-it.Z); continue; } // (antinucleons and antinuclei: antimatter is not in 3-D yet, its annihilation flat-only; made in a collision there, they leave the books as escaped energy, as particles leaving the box do, 1.25)
+    // (antinucleons and antinuclei: made here in depth since 1.29 item 57, antimatter now being in 3-D; they left the books as escaped energy before)
     if (it.t === 'x' && it.sp === 'Mu') { const q = addMuonium(ox, oy, K, ux, uy, 1, oz, uz); made.ps.push(q); continue; } // (muonium: an atom in MD, in depth, 1.25)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m, oz, uz); if (it.ewAx) o.ewAx = it.ewAx; made.xs.push(o); pairNote(o); continue; }
     const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy, 0, 0, oz) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti, oz);
@@ -27210,7 +27218,7 @@ function moveExos3(dt, id0) {
     if (o.wait && out(o)) { o.x = clamp(o.x, -H[0], H[0]); o.y = clamp(o.y, -H[1], H[1]); o.z = clamp(o.z, -H[2], H[2]); dec = true; }
     if (d.res && !dec && !W.ultra && !deepSlow()) continue;
     if (out(o)) {
-      const kept = d.atom || d.hyp || d.ps || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      const kept = d.atom || d.hyp || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
       if (kept && W.wall === 'wrap') { for (const [k, h] of [['x', H[0]], ['y', H[1]], ['z', H[2]]]) if (Math.abs(o[k]) > h) o[k] -= Math.sign(o[k]) * 2 * h; } // (a periodic box: across, as atoms go, 1.26 bug fix)
       else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (as in the flat game: slow muons and muonic hydrogen kept in, 1.25)
       else if (Math.abs(o.x) > H[0]) { o.x = Math.sign(o.x) * (2 * H[0] - Math.abs(o.x)); o.ux = -o.ux; }
@@ -27683,13 +27691,13 @@ function mesonState(M, Q) {
 }
 /* Mesons from a nucleon–antinucleon annihilation inside a nucleus or at the wall, carrying E (eV) in all (what the
    books gave), the pair moving at (vx, vy) (Å/tu), net charge Q. */
-function mesonBurst(x, y, E, vx, vy, Q) {
-  const bx = vx / PHYS.C, by = vy / PHYS.C, g = 1 / Math.sqrt(Math.max(1e-12, 1 - bx * bx - by * by)), M = E / MEV / g;
+function mesonBurst(x, y, E, vx, vy, Q, z = 0, vz = 0) { // (z, vz: 3-D, 1.29 item 57)
+  const d3 = W.d3, bx = vx / PHYS.C, by = vy / PHYS.C, bz = d3 ? vz / PHYS.C : 0, g = 1 / Math.sqrt(Math.max(1e-12, d3 ? 1 - bx * bx - by * by - bz * bz : 1 - bx * bx - by * by)), M = E / MEV / g;
   const toks = mesonState(M, Q) || mesonState(M, 0);
-  if (!toks) { emitPhoton(x, y, E / 2); emitPhoton(x, y, E / 2); return []; }
+  if (!toks) { if (d3) { emitPhoton(x, y, E / 2, undefined, undefined, { z }); emitPhoton(x, y, E / 2, undefined, undefined, { z }); } else { emitPhoton(x, y, E / 2); emitPhoton(x, y, E / 2); } return []; }
   const items = toks.map(item), vs = phaseSpace(M, items.map(massOf));
   const S = nucBegin([]);
-  const made = spawnItems(items, vs.map(v => toLab(v, bx, by)), x, y);
+  const made = d3 ? spawnItems(items, vs.map(v => toLab(v, bx, by, bz)), x, y, z) : spawnItems(items, vs.map(v => toLab(v, bx, by)), x, y);
   closeEvent(S, made, x, y, E, 0);
   flash(x, y, [215, 175, 255], 7, 0.7);
   return items;
@@ -36237,7 +36245,7 @@ function buildToolOpts() {
       const fs = fireSpecNow() || SPEC_P;
       if (W.d3) { // (3-D: the projectiles that work there, single shots, at any energy)
         h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
-          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots, at any energy; antimatter and beam sources: ${not3d()}.</span>`;
+          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots, at any energy; beam sources: ${not3d()}.</span>`;
         break;
       }
       h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
@@ -37147,7 +37155,7 @@ function endToolAction() {
 }
 /* (3-D) Fire: the direction of the drag (it stays in the plane square to the view), or with none, the screen's right;
    the energy (electrons and positrons below where flight in radiation mode starts: that flight is flat); every
-   projectile but antimatter works in 3-D (1.25: neutrons, and atoms and nuclei at any energy). */
+   projectile works in 3-D (1.25: neutrons, and atoms and nuclei at any energy; antimatter since 1.29). */
 function fireDir3(d) {
   let ux = d.x1 - d.x0, uy = d.y1 - d.y0, uz = d.z1 - d.z0; const L = Math.sqrt(ux * ux + uy * uy + uz * uz);
   if (L < 0.3) { cam3Update(); return [C3.rx, C3.ry, C3.rz]; }
@@ -40002,14 +40010,14 @@ const not3d = () => 'not in 3-D yet'; // (in a sentence: NOT_3D.toLowerCase() ga
 const TOOLS_NO3D = new Set(['objects']); // (the Magnet and Light tools work in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };
 function is3dPreset(k) { return !!(PRESETS[k] && PRESETS[k].d3); }
-/* What can be put in a 3-D world: atoms and ions (not antimatter), molecules of the 3-D library (molFits: not the flat
+/* What can be put in a 3-D world: atoms and ions (antimatter too since 1.29 item 57), molecules of the 3-D library (molFits: not the flat
    tiny objects; the 3-D ones, 1.23.2), and free electrons. */
 function spec3dOK(s) {
   if (!s) return false;
   if (s.kind === 'mol') return molFits(MOLECULES[s.mol], true);
-  if (s.kind === 'atom') return !s.anti;
+  if (s.kind === 'atom') return true;
   if (s.kind === 'exo') return !!XP[s.sp]; // (unstable particles since 1.24; muonic atoms, muonium and hypernuclei since 1.25)
-  return s.kind === 'e' || s.kind === 'pos' || s.kind === 'gamma' || s.kind === 'nu' || s.kind === 'n'; // (light since 1.24; positrons and neutrinos since 1.24; neutrons since 1.25)
+  return s.kind === 'e' || s.kind === 'pos' || s.kind === 'gamma' || s.kind === 'nu' || s.kind === 'n' || s.kind === 'pbar' || s.kind === 'nbar'; // (p̄ and n̄ since 1.29 item 57; light since 1.24; positrons and neutrinos since 1.24; neutrons since 1.25)
 }
 const NO3D_CTL = ['bAskSetup']; // (single controls; the box-size slider, fields, magnets and the ultra-realistic mode work in 3-D since 1.24)
 const NO3D_BTN = []; // (single choices off in 3-D: none since 1.25, when continuous bond orders from the positions came to 3-D; the rest of the Experimental tab works in 3-D since 1.24)
@@ -41378,7 +41386,7 @@ function mmTick(dt) {
 function mmSetups(d3 = false) { // (d3: the 3-D lab's setups; otherwise the flat game's)
   const groups = new Map();
   for (const [k, p] of Object.entries(PRESETS)) { if (!p.name || k === 'ai' || !!p.d3 !== d3) continue; const g = p.group || 'Other'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push([k, p.name]); }
-  let i = 0; $('mmList').innerHTML = (d3 ? `<p class="mm-note3d">The 3-D mode is a preview: atoms, molecules, liquids and gases in a cube you can turn (right-drag or Alt+drag, the wheel to zoom, W A S D to fly, E and Q up and down, 0 to fit). Fields, magnets, light and unstable particles work in 3-D too, with their captures and hits on nuclei (muonic atoms, nuclear stars, muonium), and nuclear reactions: decay, neutrons, fission, fusion; the collider, antimatter, placed objects and chips stay in the flat game for now.</p>` : '') +
+  let i = 0; $('mmList').innerHTML = (d3 ? `<p class="mm-note3d">The 3-D mode is a preview: atoms, molecules, liquids and gases in a cube you can turn (right-drag or Alt+drag, the wheel to zoom, W A S D to fly, E and Q up and down, 0 to fit). Fields, magnets, light and unstable particles work in 3-D too, with their captures and hits on nuclei (muonic atoms, nuclear stars, muonium), and nuclear reactions: decay, neutrons, fission, fusion; antimatter too (antiatoms, antihydrogen, protonium, annihilation); the collider, placed objects and chips stay in the flat game for now.</p>` : '') +
     [...groups].map(([g, list]) => `<h4>${esc(g)}</h4>` + list.map(([k, n]) => `<button data-mmp="${esc(k)}" style="--i:${Math.min(i++, 14)}">${esc(n)}</button>`).join('')).join('');
   $('mmChoose').hidden = true; $('mmBtns').hidden = true; $('mmBtns3').hidden = true; $('mmSetups').hidden = false; $('mmList').scrollTop = 0;
 }
@@ -42194,7 +42202,7 @@ const SDESC3 = {
   setRpMu: ['Muonium as hydrogen', 'Muonium (a muon with an electron) is the lightest isotope of hydrogen: a ninth of its mass, bound by 13.54 eV (hydrogen 13.60), bonding by hydrogen\u2019s rules, so its isotope effects are large (Mu–Cl vibrates 2.9 times faster than H–Cl). The muon\u2019s spin precesses in a magnetic field, 135.5 MHz a tesla for a bare or bonded muon, 1.39 MHz a gauss for muonium; the positron of its decay comes out along the spin (1 + cos θ / 3 on average), so detectors round a sample see the precession (μSR). Inspect shows the spin; the particle view draws it. In 3-D the spin turns about the field\u2019s axis. Experimental: off again each time the game starts.'], // (1.27)
   setRpCpm: ['Charged particles in matter', 'A fast charged particle crossing matter loses its energy collision by collision, as in nature: mostly in small knocks, now and then in a hard one that sends an electron flying with up to the most a collision can give (a δ-ray, which ionizes in turn; 2.7 keV from a 5 MeV α, half its energy from an electron), so the loss over a thin layer has Landau\u2019s long tail instead of a fixed amount. On average it is Bethe\u2019s formula with each element\u2019s measured excitation energy: fast particles lose more than they did before (the relativistic rise the game\u2019s form lacked: in 3-D water a 5 MeV α 3.3 times, a 1 MeV electron 8 times: the 3-D game\u2019s loss was 2–12 times low; slow ions as before). Electrons and positrons give off bremsstrahlung (photons with a 1/k spectrum) at the rate set by each material\u2019s radiation length (lead 5.6 mm, water 36 cm), so it overtakes the collisions above the critical energy (water 79 MeV, lead 8 MeV). γ rays above 1.022 MeV make an electron and a positron near a nucleus (or two electrons and a positron in an electron\u2019s field) at the measured cross sections, against Compton scattering at the Klein–Nishina rate: the pair flies forward and shares the energy unequally. In water or glass a particle faster than light there (c/n) gives off Cherenkov light on a cone: 41° in water, 47° in silica glass, 334 photons a centimetre in 300–600 nm, which detectors see. What a nanometre box can\u2019t make real: a radiation length is centimetres, so at nature\u2019s rates a fast electron almost never radiates in the box, Cherenkov light is one photon in thousands of crossings, a shower (centimetres long) can\u2019t develop, and a minimum-ionizing particle mostly loses far less than its average (the rare hard collisions carry most of it); what is made leaves the box. γ rays meet atoms as often as the game\u2019s light always has (about 10⁷ times nature\u2019s). In 3-D the same in all three directions (the cone around the particle\u2019s way). Off: as before (a smooth loss, no bremsstrahlung for fast electrons in 3-D, pairs back to back sharing evenly). Experimental: off again each time the game starts.'], // (1.27)
   segCpmX: ['Matter depth', 'As in the flat game, in all three directions: with Charged particles in matter on, bremsstrahlung and Cherenkov light sped up by the factor chosen, as if the box were that much deeper, so showers can start and Cherenkov cones show. Only those rare processes: collisions, δ-rays and the energy loss stay at nature\u2019s rates, so a scaled shower\u2019s details are off by the same factor (its critical energy that much lower, its radiation length that much shorter). ×1 is nature. Experimental: back to ×1 each time the game starts.'], // (1.27 item 26)
-  setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻ or K⁻ is caught by an atom into an orbit and cascades down, in all three directions, setting Auger electrons free and giving off its X-ray lines; then the muon decays or is captured at the measured rate, a pion or kaon is absorbed by the nucleus. A muonic atom is a real atom of the box, its electrons seeing one charge less; muonic hydrogen passes through atoms and hands its muon to a heavier one. Antiprotons and protonium are in the flat game only (antimatter is not in 3-D). Experimental: off again each time the game starts. Since 1.27 a stopped K⁻ makes Σπ twice as often as Λπ, the Σ often turning into a Λ on a second nucleon, and hydrogen bound in water, methane and other hydrocarbons catches the particle at the measured, far smaller share than its Z gives.'], // (1.27)
+  setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻ or K⁻ is caught by an atom into an orbit and cascades down, in all three directions, setting Auger electrons free and giving off its X-ray lines; then the muon decays or is captured at the measured rate, a pion or kaon is absorbed by the nucleus. A muonic atom is a real atom of the box, its electrons seeing one charge less; muonic hydrogen passes through atoms and hands its muon to a heavier one. Antiprotons are caught too, by hydrogen as protonium, in both games. Experimental: off again each time the game starts. Since 1.27 a stopped K⁻ makes Σπ twice as often as Λπ, the Σ often turning into a Λ on a second nucleon, and hydrogen bound in water, methane and other hydrocarbons catches the particle at the measured, far smaller share than its Z gives.'], // (1.27)
   setRpRes: ['Resonance widths and heavy flavour', 'As in the flat game, in all three directions: a resonance gets its own mass from its measured width, and hadron collisions above the charm threshold make charm and bottom hadrons at their measured share. Experimental: off again each time the game starts. Since 1.27 nucleus–nucleus collisions make charm and bottom by their nucleon–nucleon collisions, and e⁺e⁻ near the Z feels the beams\u2019 own radiation (the Z peak 30.5 nb, as measured, not 41.5) and makes W pairs with the W⁻ forward along the electron.'],
   setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'As in the flat game, in all three directions: nuclear spins and moments (Inspect, the Larmor precession in a field along the Lab\u2019s axis), measured γ lines and isomers, neutrons at their measured cross sections. Experimental: off again each time the game starts.'],
   setRpPol: ['Photon polarization', 'As in the flat game, in all three directions: photons carry a polarization at right angles to their path, the Light tool and lasers polarized (vertical, horizontal or unpolarized), the two γ rays of an e⁺e⁻ annihilation at right angles to each other, and Compton scattering by Klein–Nishina, the photon leaving least along its polarization. The placed optics (mirrors, prisms, the polarizer) are in the flat game only. Experimental: off again each time the game starts. Since 1.27 the two photons of π⁰ → γγ and η → γγ are polarized at right angles too, and ⁶⁰Co\u2019s two γ rays (1,173 and 1,332 keV, with Nuclear spin, γ lines on) leave with their measured angular correlation, 1.17 times as likely back to back as at right angles.'], // (1.27)

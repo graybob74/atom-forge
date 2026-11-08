@@ -5026,10 +5026,10 @@ function evAnti(a, b, r) {
 let _pnNow = false; // (protonium's own annihilation, from pnAnnih: not held again)
 function nuclearAnnihilation(a, b) {
   if (a.dead || b.dead || a.mu || b.mu) return; // (an antinucleon meets no nucleon in muonium, 1.12)
-  const anti = a.anti ? a : b, mat = anti === a ? b : a;
-  const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
-  const vx = (a.m * avx + b.m * bvx) / (a.m + b.m), vy = (a.m * avy + b.m * bvy) / (a.m + b.m);
-  const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y);
+  const anti = a.anti ? a : b, mat = anti === a ? b : a, d3 = W.d3; // (d3: in depth, 1.29 item 57)
+  const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b), avz = d3 ? a.vz : 0, bvz = d3 ? b.vz : 0;
+  const vx = (a.m * avx + b.m * bvx) / (a.m + b.m), vy = (a.m * avy + b.m * bvy) / (a.m + b.m), vz = d3 ? (a.m * avz + b.m * bvz) / (a.m + b.m) : 0;
+  const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y), z = d3 ? 0.5 * (a.z + b.z) : 0;
   const before = `${speciesLabel(anti)} + ${speciesLabel(mat)}`;
   const parents = [anti, mat].map(ghostOf);
   const S = annihBegin([a, b]);
@@ -5038,9 +5038,9 @@ function nuclearAnnihilation(a, b) {
   // protonium from 2p); the lines' energy comes out of the annihilation's)
   let xa = null; const Zm = mat.Z, Nm = mat.N;
   if (RP.exo && anti.Z === 1 && anti.N === 0 && anti.ne === 0 && Zm >= 1 && !mat.muB) {
-    const mr = anti.m * mat.m / (anti.m + mat.m), dvx = avx - bvx, dvy = avy - bvy;
-    if (Zm === 1 && Nm === 0 && !_pnNow && !W.d3 && 0.5 * mr * (dvx * dvx + dvy * dvy) < MU_STOP && typeof pnForm === 'function') { pnForm(anti, mat); return; } // (protonium: a pair going round each other first, seen spiralling in, then this, 1.28.3)
-    if (0.5 * mr * (dvx * dvx + dvy * dvy) < MU_STOP) { const es = []; xa = xaCascade(mat, 'pbar', Zm, Nm, xaN0('pbar', Zm, Nm), XA_NABS.pbar(Zm), 0, es); xa.n0 = xaN0('pbar', Zm, Nm); xa.n1 = XA_NABS.pbar(Zm); }
+    const mr = anti.m * mat.m / (anti.m + mat.m), dvx = avx - bvx, dvy = avy - bvy, dvz = avz - bvz, v2 = d3 ? dvx * dvx + dvy * dvy + dvz * dvz : dvx * dvx + dvy * dvy;
+    if (Zm === 1 && Nm === 0 && !_pnNow && 0.5 * mr * v2 < MU_STOP && typeof pnForm === 'function') { pnForm(anti, mat); return; } // (protonium: a pair going round each other first, seen spiralling in, then this, 1.28.3)
+    if (0.5 * mr * v2 < MU_STOP) { const es = []; xa = xaCascade(mat, 'pbar', Zm, Nm, xaN0('pbar', Zm, Nm), XA_NABS.pbar(Zm), 0, es); xa.n0 = xaN0('pbar', Zm, Nm); xa.n1 = XA_NABS.pbar(Zm); }
   }
   const partners = [];
   for (const n of [a, b]) for (const bd of n.bonds) partners.push(other(bd, n));
@@ -5054,6 +5054,7 @@ function nuclearAnnihilation(a, b) {
   for (let i = 0; i < evap; i++) {
     const isP = mat.Z > 0 && rnd() < mat.Z / (mat.Z + mat.N);
     if (isP) mat.Z--; else mat.N--;
+    if (d3) { const u = rndDir(), q = addNuc(isP ? 1 : 0, isP ? 0 : 1, 0, x, y, 0, 0, false, z); setMotion(q, (2 + 18 * rnd()) * 1e6, u[0], u[1], vx, vy, u[2], vz); continue; }
     const th = rnd() * 2 * Math.PI;
     const q = addNuc(isP ? 1 : 0, isP ? 0 : 1, 0, x, y);
     setMotion(q, (2 + 18 * rnd()) * 1e6, Math.cos(th), Math.sin(th), vx, vy);
@@ -5061,8 +5062,13 @@ function nuclearAnnihilation(a, b) {
   for (const n of [anti, mat]) {
     if (n.dead) continue;
     if (n.Z <= 0) { // nothing charged is left: free its leptons and any loose (anti)neutrons
-      const ne = n.ne, lk = n.anti ? POS : ELEC, nn = Math.max(0, n.N), nx = n.x, ny = n.y, wasAnti = n.anti;
+      const ne = n.ne, lk = n.anti ? POS : ELEC, nn = Math.max(0, n.N), nx = n.x, ny = n.y, nz = d3 ? n.z : 0, wasAnti = n.anti;
       kill(n);
+      if (d3) {
+        for (let i = 0; i < ne; i++) { const u = rndDir(), l = addLepton(lk, nx + 0.6 * u[0], ny + 0.6 * u[1], 0, 0, nz + 0.6 * u[2]); setMotion(l, 2, u[0], u[1], vx, vy, u[2], vz); }
+        for (let i = 0; i < nn; i++) { const q = addNuc(0, 1, 0, nx, ny, 0, 0, wasAnti, nz), u = rndDir(); setMotion(q, 2e6, u[0], u[1], vx, vy, u[2], vz); }
+        continue;
+      }
       for (let i = 0; i < ne; i++) {
         const th = rnd() * 2 * Math.PI, l = addLepton(lk, nx + 0.6 * Math.cos(th), ny + 0.6 * Math.sin(th));
         setMotion(l, 2, Math.cos(th), Math.sin(th), vx, vy);
@@ -5078,12 +5084,12 @@ function nuclearAnnihilation(a, b) {
   }
   relink(partners.filter(p => !p.dead));
   let E = annihEnd(S);
-  if (xa) { for (const l of xa.lines) { if (!(l.E > 0) || !(l.E < E)) continue; E -= l.E; const u = rdir(); emitPhoton(x, y, l.E, u[0], u[1]); } } // (its X-ray lines, exact; the mesons take the rest, 1.27)
-  const ms = mesonBurst(x, y, E, vx, vy, (pM ? 1 : 0) - (pA ? 1 : 0));
+  if (xa) { for (const l of xa.lines) { if (!(l.E > 0) || !(l.E < E)) continue; E -= l.E; const u = rdir(); if (d3) emitPhoton(x, y, l.E, u[0], u[1], { z, uz: u[2] }); else emitPhoton(x, y, l.E, u[0], u[1]); } } // (its X-ray lines, exact; the mesons take the rest, 1.27)
+  const ms = d3 ? mesonBurst(x, y, E, vx, vy, (pM ? 1 : 0) - (pA ? 1 : 0), z, vz) : mesonBurst(x, y, E, vx, vy, (pM ? 1 : 0) - (pA ? 1 : 0));
   W.count.annih++;
   const left = [anti, mat].filter(n => !n.dead).map(n => speciesLabel(n)), what = ms.length ? summarize(ms) : 'γ rays';
   if (xa) { const pp = Zm === 1 && Nm === 0; W.count.xatom = (W.count.xatom || 0) + 1; log('nuc', `${pp ? 'Protonium (p̄p)' : `Antiprotonic ${ELEMENTS[Zm].name.toLowerCase()}`}: p̄ caught into orbit n = ${xa.n0}, cascade to n = ${xa.n1}: X-rays ${xaLines(xa.lines) || 'none'}${xa.aug ? `, ${xa.aug} Auger electron${xa.aug > 1 ? 's' : ''}` : ''}; then it annihilates`); }
-  nucEvent('annih', x, y, `${xa && Zm === 1 && Nm === 0 ? 'Protonium: ' : ''}${before} → ${left.length ? left.join(' + ') + ' + ' : ''}${what}`, parents, xa ? `${fmtE(E)}; first the cascade n = ${xa.n0} → ${xa.n1}, X-rays ${xaLines(xa.lines, 2) || 'none'}` : fmtE(E));
+  nucEvent('annih', x, y, `${xa && Zm === 1 && Nm === 0 ? 'Protonium: ' : ''}${before} → ${left.length ? left.join(' + ') + ' + ' : ''}${what}`, parents, xa ? `${fmtE(E)}; first the cascade n = ${xa.n0} → ${xa.n1}, X-rays ${xaLines(xa.lines, 2) || 'none'}` : fmtE(E), undefined, z);
   log('nuc', `Antimatter annihilation: ${before} → ${what} (${fmtE(E)})${evap ? `, ${evap} nucleon${evap > 1 ? 's' : ''} knocked out` : ''}`);
   tally(ms, [], `Annihilation: ${before} → ${what}`);
 }
@@ -5521,8 +5527,9 @@ function tryFusion(a, b, bd) {
 }
 /* (3-D, 1.25) tryFusion in depth: the pair's energy from their velocities in three directions, the products at the
    midpoint's depth (launchProducts3; a single product with the pair's momentum, its γ ray or e⁺ on the sphere).
-   Antimatter is not in 3-D. */
+   Matter meeting antimatter annihilates (1.29 item 57, as tryFusion does in the flat game). */
 function tryFusion3(a, b, bd) {
+  if (opp(a, b)) { nuclearAnnihilation(a, b); return true; }
   if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX || a.mu || b.mu) return false;
   const mu = a.m * b.m / (a.m + b.m), dvx = a.vx - b.vx, dvy = a.vy - b.vy, dvz = a.vz - b.vz;
   const Ecm = 0.5 * mu * (dvx * dvx + dvy * dvy + dvz * dvz);
@@ -7025,7 +7032,8 @@ function fastEncounters3(p) {
   const hits = segTargets3(x0, y0, z0, x1, y1, z1, Math.max(1.6, nucDrawR(p) + 0.9), (t) => t.k === NUC && t.Z > 0 && t !== p).slice();
   if (hot) fastStop3(p, hits);
   for (const [t, A, b] of hits) {
-    if (A.dead || p.dead || sameEv(p, A) || opp(p, A)) continue;
+    if (A.dead || p.dead || sameEv(p, A)) continue;
+    if (opp(p, A)) { if (b < (p.ne > 0 && A.ne > 0 ? 0.5 * (p.ljR + A.ljR) : 0.6)) { evAnti(p, A, b); return; } continue; } // (matter meets antimatter, as fastEncounters, 1.29 item 57)
     if (p.Z > 0 && b < fusGate() && tryFusion3(p, A, b)) return;
     if (hot) { const R = nucReach(p, A); if (b < R && p.hit !== A.id) { p.hit = A.id; if (nuclearEncounter(p, A, b / R, A.x, A.y, A.z) || p.dead) return; } }
     const contact = (p.ne > 0 && A.ne > 0) ? 0.35 * (p.ljR + A.ljR) : 0;

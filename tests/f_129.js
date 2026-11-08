@@ -1,0 +1,78 @@
+'use strict';
+/* The checks for 1.29.0's items (the owner, 2026-11-08: "Do all of those items"), run by t_features (one line) or
+   alone: node tests/f_129.js [part …]. Item 55 (video recording removed) is checked in t_features itself.
+   57 antimatter in 3-D: antiatoms placed, annihilation in depth with exact books, protonium in the 3-D box, a fast p̄
+   meeting atoms in 3-D. Each part fails on 1.28.3. (check(ok, good, bad); say(...)) */
+const { load } = require('./load');
+const PARTS = {};
+const books = (X) => X.totalEnergy().total - X.W.ledger.nuc;
+const go = (X, n, dt) => { const W = X.W; for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = dt ? Math.min(dt, X.chooseDt()) : X.chooseDt(); X.step(W.dt); } };
+const finite = (W) => W.parts.every(p => p.dead || Number.isFinite(p.x + p.y + p.z + p.vx + p.vy + p.vz)) && W.exo.every(o => o.dead || Number.isFinite(o.x + o.y + (o.z || 0)));
+
+/* 57a. Matter touching antimatter in 3-D, each event alone (evAnti until one of the pair is gone; a protonium's own
+   annihilation after it): the books exact, the products in depth (some move in z), nothing NaN. 1.28.3: the mesons'
+   boost had no z (NaN), nucleons and leptons were sent flat, and protonium was flat-only. */
+PARTS.events = async (page, check) => {
+  const out = {};
+  for (const [name, el, exo] of [['pbar', 'C', true], ['pbar', 'C', false], ['pbar', 'H', true], ['Hbar', 'H', false], ['Cbar', 'C', false]]) {
+    const X = load('all', { seed: 4 }), W = X.W; X.RP.exo = exo; X.PRESETS.d3empty.build(); W.T = 0; W.gamma = 0; W.decayOn = false;
+    const h = X.addAtom(el, 0, 0, { z: 0 }); h.vx = h.vy = h.vz = 0;
+    const pb = name === 'Hbar' ? X.addNuc(1, 0, 1, -0.6, 0, 0, 0, true, 0.1) : name === 'Cbar' ? X.addNuc(6, 6, 6, -1.2, 0, 0, 0, true, 0.1) : X.addNuc(1, 0, 0, -0.3, 0, 0, 0, true, 0.1);
+    pb.vx = 0.05; pb.vz = 0.01; X.forcesNoEvents();
+    const E0 = books(X); let k = 0;
+    try {
+      while (!pb.dead && !h.dead && k++ < 12) X.evAnti(pb, h, 0.3);
+      const pn = W.exo.find(o => o.sp === 'Pn' && !o.dead), wasPn = !!pn; if (pn) X.pnAnnih(pn);
+      X.forcesNoEvents();
+      const vz = W.parts.filter(p => !p.dead).some(p => Math.abs(p.vz) > 1e-3) || W.exo.some(o => Math.abs(o.uz || 0) > 1e-3);
+      out[name + el + (exo ? 'x' : '')] = { books: +(books(X) - E0).toExponential(1), ok: finite(W), annih: W.count.annih, vz, pn: wasPn };
+    } catch (e) { out[name + el] = { err: e.message.split('\n')[0] }; }
+  }
+  const all = Object.values(out);
+  check(all.every(r => !r.err && r.ok && Math.abs(r.books) < 1e-4 && r.annih >= 1) && out.pbarHx.pn && out.pbarCx.vz,
+    `1.29 (57) antimatter in 3-D: p̄ on carbon (with and without the cascade), H̄ on H, anti-carbon on carbon and protonium each annihilate in depth, books within ${Math.max(...all.map(r => Math.abs(r.books || 0))).toExponential(0)} eV`,
+    '1.29 antimatter events in 3-D: ' + JSON.stringify(out));
+};
+
+/* 57b. Protonium in the 3-D box: caught from a slow p̄ beside hydrogen, kept inside the walls (it left the box in
+   1.28.3's 3-D loop), annihilating after its 1 ps with X-rays and pions; the books over the whole run. */
+PARTS.pn = async (page, check) => {
+  const X = load('all', { seed: 4 }), W = X.W; X.RP.exo = true; X.PRESETS.d3empty.build(); W.T = 0; W.gamma = 0; W.decayOn = false; W.wall = 'reflect';
+  const h = X.addAtom('H', 0, 0, { z: 0 }); h.vx = h.vy = h.vz = 0;
+  const pb = X.addNuc(1, 0, 0, -2, 0, 0, 0, true, 0.2); pb.vx = 0.5; pb.vy = 0; pb.vz = 0;
+  X.forcesNoEvents(); W.fSpawn = W.spawned; const E0 = books(X), l0 = W.log.length;
+  for (let s = 0; s < 3000 && !pb.dead; s++) go(X, 1, 0.005);
+  const o = W.exo.find(q => q.sp === 'Pn'), t0 = W.t;
+  for (let k = 0; k < 6000 && o && !o.dead; k++) go(X, 1, 0.05);
+  const t = W.log.slice(l0).map(l => l.text).join(' ');
+  const r = { made: !!o, fate: o && o.fate, held: o ? +((W.t - t0) * X.PHYS.TU_S * 1e12).toFixed(2) : 0, xray: /X-rays 1\.73 keV/.test(t), books: +(books(X) - E0).toExponential(1), ok: finite(W) };
+  check(r.made && /annihilated/.test(r.fate || '') && r.held > 0.9 && r.held < 1.1 && r.xray && Math.abs(r.books) < 1e-3 && r.ok,
+    `1.29 (57) protonium in 3-D: caught, kept in the box, annihilates after ${r.held} ps (its 1.73 keV line), books ${r.books} eV`, '1.29 protonium in 3-D: ' + JSON.stringify(r));
+};
+
+/* 57c. A p̄ fired into 3-D water at 3 keV meets the atoms on its path and annihilates (fastEncounters3 skipped every
+   matter–antimatter pair: it flew on through the water for good); antimatter can be put in the 3-D lab. */
+PARTS.fast = async (page, check) => {
+  const X = load('all', { seed: 3 }), W = X.W; X.PRESETS.water3d.build(); W.gamma = 0; X.RP.exo = true;
+  go(X, 5); const hw = W.box.w / 2;
+  const p = X.addNuc(1, 0, 0, -hw + 1, 0, 0, 0, true, 0); X.setMotion(p, 3000, 1, 0.02, 0, 0, 0.01); X.forcesNoEvents(); W.fSpawn = W.spawned;
+  const a0 = W.count.annih; let s = 0; for (; s < 400 && !p.dead; s++) go(X, 1);
+  const place = ['SPEC_HBAR', 'SPEC_PBAR', 'SPEC_NBAR'].map(k => X.spec3dOK(X[k]));
+  const r = { dead: p.dead, steps: s, annih: W.count.annih - a0, place, ok: finite(W) };
+  check(r.dead && r.annih >= 1 && place.every(Boolean) && r.ok, `1.29 (57) a 3 keV p̄ fired into 3-D water annihilates on the atoms it meets (step ${s}); H̄, p̄ and n̄ can be put in the 3-D lab`, '1.29 fast p̄ in 3-D: ' + JSON.stringify(r));
+};
+
+module.exports = async function f129(page, check, say, openPage, only) {
+  for (const [k, f] of Object.entries(PARTS)) {
+    if (only && only.length && !only.includes(k)) continue;
+    try { await f(page, check, say, openPage); } catch (e) { check(false, '', `1.29 ${k}: ${e.message.split('\n')[0]}`); }
+  }
+};
+module.exports.PARTS = PARTS;
+if (require.main === module) (async () => {
+  let fails = 0; const say = (...a) => console.log(...a);
+  const check = (ok, good, bad) => { if (ok) say('  ' + good); else { fails++; say('FAIL ' + bad); } };
+  await module.exports(null, check, say, null, process.argv.slice(2));
+  say(fails ? `${fails} failed` : 'all passed');
+  process.exit(fails ? 1 : 0);
+})();

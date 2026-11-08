@@ -1993,6 +1993,37 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
 
 ## 1.29.0 (not released): the owner's items 55–63
 
+### 56 Light meeting atoms in 3-D: already there
+
+Suggested by me from a stale note (the 1.27 "Left for the owner" under X-ray Compton said 3-D light meets no atoms):
+rayInteract3 (engine.js, since 1.24) already gives 3-D light the flat game's events with the same odds: photoelectric
+ionization, Compton (Klein–Nishina with polarization), pairs, line absorption and fluorescence, dissociation, infrared
+heating, Rayleigh scattering and the giant dipole resonance. Nothing to build; the stale note is corrected.
+
+### 57 Antimatter in 3-D
+
+The 3-D lab had most of what antimatter needs (the kernels' matter–antimatter pair force and touch candidates,
+positron capture making H̄, anti-molecules, e⁺e⁻ annihilation in depth) but four pieces were flat:
+- nuclearAnnihilation: velocities, the meeting point, the evaporated nucleons, the freed leptons and antineutrons, the
+  cascade's X-rays: now with z (rndDir on the sphere, setMotion with uz and the pair's vz).
+- mesonBurst (and protonium's pnAnnih): the boost had no z (toLab with a 3-D four-momentum and no bz); now in depth.
+- fastEncounters3 skipped every matter–antimatter pair, so a fired p̄ flew through 3-D water for good (1,500 steps at
+  1.8 keV); now it touches as fastEncounters does (evAnti within 0.6 Å, or the atoms' size with electrons on both).
+  tryFusion3 now sends a pair of opposite matter to nuclearAnnihilation, as tryFusion does.
+- Placing: spec3dOK refused antimatter; H̄, p̄, n̄ and the antinuclei are in the 3-D palette and the Fire tool. Collisions in
+  3-D that make antinucleons now put them in the box (spawnItems3 counted them as escaped energy).
+Protonium now forms in 3-D too (it was held flat-only), and stays in the box (the 3-D exo loop's walls missed d.pn).
+Books, each event alone (between steps): p̄ + C with and without the cascade, p̄ + O, H̄ + H, anti-carbon + carbon,
+p̄ + H → protonium → annihilation: within 4×10⁻⁶ eV in 3-D, as in the flat game (2×10⁻⁶). Every flat setup is 1.28.3's
+to the bit (fingerprints, 60 setups). Test: f_129 (events, pn, fast; all fail on 1.28.3).
+- **Left for the owner (found on the way, not changed: physics).** In 3-D water a fast nucleon does far more to the
+  water than in the flat game: a 10 MeV neutron leaves 214 nuclei above 1 keV after 60 steps (flat: 0), and an
+  annihilation's knocked-out nucleons do the same (372 against 4). In 3-D a fast atom with its electrons stays in the
+  stepped set (radiation flight is flat-only) and meets its neighbours as hard spheres (hardSphere3), so a knock-on
+  cascade spreads its energy among the atoms; in the flat game it would fly as a bare ion, losing energy to the electrons.
+  The books stay right (25 eV over 100 steps after a 1.9 GeV event). A fix (fast atoms in 3-D losing their electrons
+  and their energy as ions do) is a physics change for the owner.
+
 ### 55 Video recording removed
 
 The owner (2026-11-08): "can you remove the recording feature?". Lab → Record video, its time-lapse buttons, the REC
@@ -3025,6 +3056,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    evaluations with extrapolation in between (changes results).
 
 55 remove video recording (the owner, 2026-11-08). Done in 1.29.0.
+(56 and 57 done in 1.29.0: 56 was already there. The owner, 2026-11-08: "Do the ionized water runs last": 60 after 63.)
 56 3-D light meets atoms: rayInteract returns at once in 3-D; photoelectric absorption, Compton and Rayleigh
    scattering and line absorption in 3-D, as in the flat game (the owner's OK: "do all of those items", 2026-11-08).
 57 antimatter in 3-D: antiatoms, positronium and protonium, and annihilation, in the 3-D lab.
@@ -3615,7 +3647,7 @@ at 20–60 keV in 300 tries), confirmed by running the file on a v145 tree.
   f_rp3, f_rp5, f_rp7 and its part-3-on photonuc and sns, f_ew).
 - Cost: none measurable.
 - Suites: t_lint, t_physics, t_hep, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass.
-- **Left for the owner.** 3-D light meets no atoms (rayInteract returns at once in 3-D, as before). Photoelectric
+- **Left for the owner.** (1.29: wrong, 3-D light has met atoms since 1.24, rayInteract3.) Photoelectric
   absorption above 100 keV (lead to ~500 keV) not built. Coherent (Rayleigh) scattering not built. The step at 10 keV.
 
 ### 1.27: bug 8 (3-D water recapture) — measured, written up, not changed

@@ -1174,7 +1174,7 @@ function muBoundTick(dt) {
    - Its end: a muon stays in its 1s orbit and decays (the Michel spectrum, xaMichel) or is captured by the nucleus, at
      the measured rates (muBoundTick, MU_TAU); a pion or kaon is absorbed from its last orbit (XA_NABS) by the existing
      absorption (hStop: the star, or π⁻p → π⁰n / γn; kStop: Λ or Σ and pions, now and then a hypernucleus); an
-     antiproton annihilates (engine.js nuclearAnnihilation, the flat game only: antimatter is not in 3-D).
+     antiproton annihilates (engine.js nuclearAnnihilation; in 3-D too since 1.29).
    - To the outside a muonic atom is an atom of charge Z − 1 (p.muB.zx: engine.js zChem): its electrons see the nucleus
      and the muon together, so muonic carbon takes boron's table entries (valence, bond energies and lengths, size,
      electronegativity, ionization energies). Muonic hydrogen (μp, μd, μt) stays an unstable particle in W.exo, neutral
@@ -1440,16 +1440,16 @@ function pnForm(anti, mat) {
    the capture), then the annihilation of what is left, mesons as nuclearAnnihilation makes them (mesonBurst). Its rest
    mass comes back from the nuclear ledger, where it was kept while it flew, as the exo-particle decays do. */
 function pnAnnih(o) {
-  const x = o.x, y = o.y, n0 = o.pnN0 || xaN0('pbar', 1, 0), n1 = o.pnN1 || XA_NABS.pbar(1), gh = [ghostOf(o)];
+  const x = o.x, y = o.y, z = W.d3 ? o.z || 0 : 0, n0 = o.pnN0 || xaN0('pbar', 1, 0), n1 = o.pnN1 || XA_NABS.pbar(1), gh = [ghostOf(o)];
   let E = o.m * MEV + o.KE; W.ledger.nuc += o.m * MEV;
-  const vx = o.v * o.ux, vy = o.v * o.uy;
+  const vx = o.v * o.ux, vy = o.v * o.uy, vz = W.d3 ? o.v * (o.uz || 0) : 0;
   o.dead = true; o.fate = 'annihilated: p̄ + p → mesons';
   const lines = [];
-  for (let n = n0; n > n1; n--) { const dE = xaLevel('pbar', 1, 0, n - 1) - xaLevel('pbar', 1, 0, n); if (dE > 0 && dE < E) { lines.push({ E: dE, a: n, b: n - 1 }); E -= dE; const u = rdir(); emitPhoton(x, y, dE, u[0], u[1]); } }
-  const ms = mesonBurst(x, y, E, vx, vy, 0);
+  for (let n = n0; n > n1; n--) { const dE = xaLevel('pbar', 1, 0, n - 1) - xaLevel('pbar', 1, 0, n); if (dE > 0 && dE < E) { lines.push({ E: dE, a: n, b: n - 1 }); E -= dE; const u = rdir(); if (W.d3) emitPhoton(x, y, dE, u[0], u[1], { z, uz: u[2] }); else emitPhoton(x, y, dE, u[0], u[1]); } }
+  const ms = W.d3 ? mesonBurst(x, y, E, vx, vy, 0, z, vz) : mesonBurst(x, y, E, vx, vy, 0);
   W.count.annih++; W.count.xatom = (W.count.xatom || 0) + 1;
   const what = ms.length ? summarize(ms) : 'γ rays';
-  nucEvent('annih', x, y, `Protonium: p̄ + p → ${what}`, gh, `${fmtE(E)}; its fall n = ${n0} → ${n1}, X-rays ${xaLines(lines, 2) || 'none'}`);
+  nucEvent('annih', x, y, `Protonium: p̄ + p → ${what}`, gh, `${fmtE(E)}; its fall n = ${n0} → ${n1}, X-rays ${xaLines(lines, 2) || 'none'}`, undefined, z);
   log('nuc', `Protonium (p̄p) annihilates from n = ${n1}: ${what} (${fmtE(E)}), after X-rays ${xaLines(lines, 3) || 'none'}`);
   tally(ms, [], `Annihilation: p̄ + p → ${what}`);
 }
@@ -2183,7 +2183,7 @@ function spawnItems3(items, moms, x, y, z) {
     if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy, uz]); continue; }
     if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; } // (and its charge, 1.27 bug 15)
     if (it.Z > Z_MAX) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; }
-    if (it.t === 'A' && it.anti) { made.lost += P[0] * MEV; chargeTo(-it.Z); continue; } // (antinucleons and antinuclei: antimatter is not in 3-D yet, its annihilation flat-only; made in a collision there, they leave the books as escaped energy, as particles leaving the box do, 1.25)
+    // (antinucleons and antinuclei: made here in depth since 1.29 item 57, antimatter now being in 3-D; they left the books as escaped energy before)
     if (it.t === 'x' && it.sp === 'Mu') { const q = addMuonium(ox, oy, K, ux, uy, 1, oz, uz); made.ps.push(q); continue; } // (muonium: an atom in MD, in depth, 1.25)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m, oz, uz); if (it.ewAx) o.ewAx = it.ewAx; made.xs.push(o); pairNote(o); continue; }
     const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy, 0, 0, oz) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti, oz);
@@ -2341,7 +2341,7 @@ function moveExos3(dt, id0) {
     if (o.wait && out(o)) { o.x = clamp(o.x, -H[0], H[0]); o.y = clamp(o.y, -H[1], H[1]); o.z = clamp(o.z, -H[2], H[2]); dec = true; }
     if (d.res && !dec && !W.ultra && !deepSlow()) continue;
     if (out(o)) {
-      const kept = d.atom || d.hyp || d.ps || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      const kept = d.atom || d.hyp || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
       if (kept && W.wall === 'wrap') { for (const [k, h] of [['x', H[0]], ['y', H[1]], ['z', H[2]]]) if (Math.abs(o[k]) > h) o[k] -= Math.sign(o[k]) * 2 * h; } // (a periodic box: across, as atoms go, 1.26 bug fix)
       else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (as in the flat game: slow muons and muonic hydrogen kept in, 1.25)
       else if (Math.abs(o.x) > H[0]) { o.x = Math.sign(o.x) * (2 * H[0] - Math.abs(o.x)); o.ux = -o.ux; }
@@ -2814,13 +2814,13 @@ function mesonState(M, Q) {
 }
 /* Mesons from a nucleon–antinucleon annihilation inside a nucleus or at the wall, carrying E (eV) in all (what the
    books gave), the pair moving at (vx, vy) (Å/tu), net charge Q. */
-function mesonBurst(x, y, E, vx, vy, Q) {
-  const bx = vx / PHYS.C, by = vy / PHYS.C, g = 1 / Math.sqrt(Math.max(1e-12, 1 - bx * bx - by * by)), M = E / MEV / g;
+function mesonBurst(x, y, E, vx, vy, Q, z = 0, vz = 0) { // (z, vz: 3-D, 1.29 item 57)
+  const d3 = W.d3, bx = vx / PHYS.C, by = vy / PHYS.C, bz = d3 ? vz / PHYS.C : 0, g = 1 / Math.sqrt(Math.max(1e-12, d3 ? 1 - bx * bx - by * by - bz * bz : 1 - bx * bx - by * by)), M = E / MEV / g;
   const toks = mesonState(M, Q) || mesonState(M, 0);
-  if (!toks) { emitPhoton(x, y, E / 2); emitPhoton(x, y, E / 2); return []; }
+  if (!toks) { if (d3) { emitPhoton(x, y, E / 2, undefined, undefined, { z }); emitPhoton(x, y, E / 2, undefined, undefined, { z }); } else { emitPhoton(x, y, E / 2); emitPhoton(x, y, E / 2); } return []; }
   const items = toks.map(item), vs = phaseSpace(M, items.map(massOf));
   const S = nucBegin([]);
-  const made = spawnItems(items, vs.map(v => toLab(v, bx, by)), x, y);
+  const made = d3 ? spawnItems(items, vs.map(v => toLab(v, bx, by, bz)), x, y, z) : spawnItems(items, vs.map(v => toLab(v, bx, by)), x, y);
   closeEvent(S, made, x, y, E, 0);
   flash(x, y, [215, 175, 255], 7, 0.7);
   return items;
