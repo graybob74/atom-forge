@@ -1991,6 +1991,33 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.28 (not released)
+
+### 1.28: Settings layout (the owner, 2026-11-07; branch v158)
+
+Five requests from the owner's screenshots, display only (no physics changed):
+- **Sub-options only with their option.** A row or note marked `data-dep="id"` (a switch on), `"id=v"` (a group at v) or
+  `"id!v"` (a group not at v) is hidden otherwise (`depSync`, run by `setSegValue`, any switch's change and
+  `syncSettings`): Quantum method and spins under Bond orders → Quantum, polarizability by direction under Induced
+  charges, exact bead forces under Quantum nuclei, matter depth under Charged particles in matter, the rewind's span,
+  interval and memory under Rewind.
+- **Switches lined up at the right.** `label.check.rpl`: the name takes the free width, the cost and realistic tags sit
+  just before the switch, every switch on one edge (spread 0 px over Experimental's 14). A long name wraps: unwrapped,
+  "Follow a nucleon …" made the list's grid column 753 px against the box's 650 and the switches ran off the right edge.
+- **Electrons as waves, resonance in any ring, following a nucleon are switches** (`setWave` was the On/Off group
+  `segWave`; `setResBig`, `setInc` were plain checkboxes). Its cost and realistic tags, picture (`setshots` key renamed)
+  and the tests follow the new id. A slip in this change commented out `setResBig`/`setInc`'s sync and handlers and the
+  cost refresh after a setting changed (a comment left mid-line); found by the reset check (the total stayed ×1 with four
+  settings on) and fixed before commit.
+- **3-D settings by mode.** The 3-D lab's own settings (lone pairs, π-stacking, the whole 3-D tab) are not shown in the
+  flat game at all (`smode-hide`, their notes too; Settings opens on Performance if the 3-D tab was last); in the 3-D lab
+  a 3-D-only row outside the 3-D tab carries a "3-D exclusive" tag. Flat-game-only rows (detailed nuclear collisions,
+  zoom toward) stay dimmed with "2-D only" in the 3-D lab, as since 1.25.
+- **Experimental → Reset to normal** (top of the tab): every Experimental setting (`SET_EXP`) back to normal at once, as
+  at each start; greyed when all is normal; the other tabs' settings kept (`expResetAll`).
+Test: `tests/f_set1271.js` (deps, switches, mode, reset; all four fail on 1.27.0); f_125s and f_126d now expect the 3-D
+rows hidden in the flat game.
+
 ## 1.27.0: all of 1.26 (directional forces, GFN2 quantum bonds, metals' compounds and directional metals) and 1.27 (realistic particles, W, Z and Higgs bosons, polarizability by direction, Rayleigh scattering, unstable particles meeting, photons as waves, close-packed metals, two controls), 18 bug fixes
 
 Released 2026-11-07 from v157 (the owner: "release"); 1.26 was never released on its own and ships inside it.

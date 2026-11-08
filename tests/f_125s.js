@@ -12,8 +12,9 @@ PARTS.settings3d = async (page, check, say, openPage) => {
     const tagsOf = (id) => [...$(id).querySelectorAll('button')].map(b => (b.querySelector('.oc') || {}).textContent || '');
     const one = () => {
       const o = { mode: ($('setMode') || {}).textContent || '', tags: {}, only: {}, pics: [], bad: [], notes: {} };
-      for (const id of ['segBo', 'segRc', 'segPi', 'segQeq', 'segDtMax', 'segWave', 'segMetal']) o.tags[id] = tagsOf(id).join(' ');
-      for (const id of ['setInc', 'segZoomTo', 'segFov3', 'setAxes3']) { const r = document.querySelector(`#setModal [data-sk="${id}"]`); const t = r && r.querySelector('.smo'); o.only[id] = (t ? t.textContent : '') + (r && r.classList.contains('smode-off') ? ' dim' : ''); }
+      for (const id of ['segBo', 'segRc', 'segPi', 'segQeq', 'segDtMax', 'segMetal']) o.tags[id] = tagsOf(id).join(' ');
+      for (const id of ['setInc', 'segZoomTo', 'segFov3', 'setAxes3', 'segLps', 'segPis']) { const r = document.querySelector(`#setModal [data-sk="${id}"]`); const t = r && r.querySelector('.smo'); o.only[id] = (t ? t.textContent : '') + (r && r.classList.contains('smode-off') ? ' dim' : '') + (r && r.classList.contains('smode-hide') ? ' hidden' : ''); }
+      o.tab3 = !document.querySelector('#setModal .stabs [data-stab="d3"]').hidden;
       for (const m of ['2d', '3d']) o.notes[m] = [...document.querySelectorAll(`#setModal [data-m="${m}"]`)].filter(n => !n.hidden).length;
       const D = {}; for (const k of ['segBo', 'segPi', 'segWheel', 'exp']) { setPrevShow(k, null); D[k] = $('setPrevT').textContent + ' | ' + $('setPrevD').textContent; } o.desc = D;
       // every row and every choice of every tab: which picture the pane shows (its key) and whether it is marked as the flat game's
@@ -61,8 +62,9 @@ PARTS.settings3d = async (page, check, say, openPage) => {
     && d2.notes['3d'] === 0 && d3.notes['2d'] === 0 && d2.notes['2d'] > 5 && d3.notes['3d'] > 5,
     `1.25 Settings by mode: descriptions and notes follow the mode (3-D: the twist in bond orders, quantum nuclei's beads drawn in depth (bug fix 8 after 1.25), the wheel moving the camera; notes ${d2.notes['2d']} flat / ${d3.notes['3d']} 3-D, none of the other mode's shown)`,
     '1.25 settings3d words: ' + JSON.stringify({ notes2: d2.notes, notes3: d3.notes, bo3: d3.desc.segBo.slice(0, 160), pi3: d3.desc.segPi.slice(0, 160) }));
-  check(d3.only.setInc === '2-D only dim' && d3.only.segZoomTo === '2-D only dim' && d3.only.segFov3 === '' && d2.only.segFov3 === '3-D only dim' && d2.only.setAxes3 === '3-D only dim' && d2.only.setInc === '',
-    '1.25 Settings by mode: one-mode settings dimmed with a tag in the other (3-D: detailed nuclear collisions and zoom toward "2-D only"; flat: the 3-D tab "3-D only")', '1.25 settings3d only: ' + JSON.stringify({ d2: d2.only, d3: d3.only }));
+  check(d3.only.setInc === '2-D only dim' && d3.only.segZoomTo === '2-D only dim' && d3.only.segFov3 === '' && d2.only.segFov3 === ' hidden' && d2.only.setAxes3 === ' hidden' && d2.only.setInc === ''
+    && d2.only.segLps === ' hidden' && d2.only.segPis === ' hidden' && d3.only.segLps === '3-D exclusive' && d3.only.segPis === '3-D exclusive' && !d2.tab3 && d3.tab3,
+    '1.25 Settings by mode: flat-game settings dimmed with a "2-D only" tag in 3-D (detailed nuclear collisions, zoom toward); 3-D settings not shown in the flat game at all, the 3-D tab included, and tagged "3-D exclusive" in the 3-D lab (lone pairs, π-stacking; 1.27.1)', '1.25 settings3d only: ' + JSON.stringify({ d2: d2.only, d3: d3.only }));
   const in2 = d2.pics.filter(p => /@3d$/.test(p[2])), marked2 = d2.pics.filter(p => p[3]);
   const has3 = r.k3.map(k => k.replace(/@3d$/, '')), exp3 = ([k, v]) => (v !== null && has3.includes(k + ':' + v) ? k + ':' + v + '@3d' : has3.includes(k) ? k + '@3d' : null);
   const want3 = d3.pics.filter(p => exp3(p)), wrong3 = want3.filter(p => p[2] !== exp3(p)), flat3 = d3.pics.filter(p => p[3]).map(p => p[0]);

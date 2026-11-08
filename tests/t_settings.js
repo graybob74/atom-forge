@@ -197,8 +197,8 @@ async function narrow() {
   // 1.23.1: the "realistic" tag on the choice closest to nature, also for bond orders (quantum), bead forces (every bead)
   // and free electrons (wave packets), which were missing it
   await page.evaluate(() => openSettings('exp')); await page.waitForTimeout(200);
-  const rl = await page.evaluate(() => Object.fromEntries(['segBo', 'segPiRpc', 'segWave', 'segPi'].map(id => [id, [...$(id).querySelectorAll('button')].filter(b => b.querySelector('.rl') && b.querySelector('.rl').textContent === 'realistic').map(b => b.dataset.v).join(',')])));
-  check(rl.segBo === '2' && rl.segPiRpc === '0' && rl.segWave === '1' && rl.segPi === '32', 'the realistic tag on quantum bonds, every-bead forces, wave electrons and 32 beads', rl);
+  const rl = await page.evaluate(() => Object.fromEntries(['segBo', 'segPiRpc', 'segPi'].map(id => [id, [...$(id).querySelectorAll('button')].filter(b => b.querySelector('.rl') && b.querySelector('.rl').textContent === 'realistic').map(b => b.dataset.v).join(',')]))); rl.setWave = (($('setWave').closest('label').querySelector('.rlb') || {}).textContent === 'realistic when on') ? '1' : ''; // (a switch since 1.27.1)
+  check(rl.segBo === '2' && rl.segPiRpc === '0' && rl.setWave === '1' && rl.segPi === '32', 'the realistic tag on quantum bonds, every-bead forces, wave electrons and 32 beads', rl);
   await browser.close();
 }
 

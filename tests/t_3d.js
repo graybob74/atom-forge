@@ -177,7 +177,7 @@ async function stage3(page, clip, errors) {
     setTool('inspect'); setTool('objects'); const still = UI.tool;
     const pal = [...document.querySelectorAll('#palette .chip')].map(b => b.textContent.trim());
     return { magnet: t('magnet'), objects: t('objects'), light: t('light'), place: t('place'), still, bSlider: $('bSlider').disabled, boxSlider: $('boxSlider').disabled, bo: [...$('segBo').querySelectorAll('button')].map(b => b.disabled).join(), pi: [...$('segPi').querySelectorAll('button')].some(b => b.disabled),
-      wave: [...$('segWave').querySelectorAll('button')].some(b => b.disabled), qeq: [...$('segQeq').querySelectorAll('button')].some(b => b.disabled), ultra: $('setUltra').disabled, notes: ['fields3dNote', 'set3dNote', 'box3dNote'].every(id => !$(id).hidden),
+      wave: $('setWave').disabled, qeq: [...$('segQeq').querySelectorAll('button')].some(b => b.disabled), ultra: $('setUltra').disabled, notes: ['fields3dNote', 'set3dNote', 'box3dNote'].every(id => !$(id).hidden),
       gamma: pal.some(x => /^γ/.test(x) || /Light ▾/.test(x)), antiP: pal.some(x => x === 'p̄'), pbarOK: spec3dOK({ kind: 'pbar' }), molOK: spec3dOK({ kind: 'mol', mol: 'H2O' }) };
   });
   console.log(`  not in 3-D yet: Objects ${dis.objects.title}; pressing Objects leaves the tool ${dis.still}; Magnet ${dis.magnet.no3d}, Light ${dis.light.no3d} (1.24: in 3-D)`);
