@@ -3435,14 +3435,18 @@ const P_INFO = {
   muHe: ['A helium nucleus that caught the muon in a muon-catalysed fusion. Stuck to it, the muon can catalyse no more: this sticking limits the process.', 'Muon-catalyzed_fusion'],
   Ps: ['An electron and a positron orbiting each other, an atom with no nucleus, first made in 1951. It annihilates into gamma rays in 0.1 ns or 142 ns, depending on its spins.', 'Positronium'],
   Mu: ['An antimuon with an electron around it, a light isotope of hydrogen, first made in 1960. It lives 2.2 µs and is used to probe magnetism in materials.', 'Muonium'],
+  penta: ['Five quarks bound together: four quarks and an antiquark. Allowed by the quark model since 1964 but only found in 2015, by CERN’s LHCb experiment, in the decays of Λb baryons; whether they are one bag or a baryon and a meson stuck together is still debated.', 'Pentaquark'],
+  hexa: ['A hexaquark candidate: six quarks with the deuteron’s quantum numbers but three units of spin, seen as a narrow bump in neutron–proton collisions in 2014. Whether it is six quarks in one bag or two Δ baryons bound together is still argued.', 'Dibaryon'],
+  Pn: ['A proton and an antiproton going round each other, an atom of matter and antimatter, made at CERN by stopping antiprotons in hydrogen. Caught into a high orbit, it falls inward giving off X-rays, then annihilates into pions.', 'Protonium'],
   hy: ['A nucleus holding a Λ hyperon as well as protons and neutrons. Free of the Pauli principle’s crowding, the Λ sinks to the centre; the first was seen in a cosmic-ray emulsion in 1952.', 'Hypernucleus'],
   anti: ['Matter made of antiparticles, with every charge reversed. Antihydrogen was first held in a trap at CERN in 2010; why the universe has so little antimatter is still an open question.', 'Antimatter'],
 };
 /* The info key of an unstable particle (W.exo species): its family's. */
 function infoKeyX(sp) {
   const d = XP[sp]; if (!d) return null;
-  if (d.hyp) return 'hy'; if (d.ps) return 'Ps'; if (d.atom) return 'muP'; if (d.stuck) return 'muHe';
+  if (d.hyp) return 'hy'; if (d.ps) return 'Ps'; if (d.pn) return 'Pn'; if (d.atom) return 'muP'; if (d.stuck) return 'muHe';
   if (sp === 'Mu') return 'Mu';
+  if (sp.startsWith('Pc')) return 'penta'; if (sp === 'dstar') return 'hexa';
   const F = [['mu', 'mu'], ['tau', 'tau'], ['pi', 'pi'], ['Ks', 'Ks'], ['K', 'K'], ['eta', 'eta'], ['rho', 'rho'], ['omega', 'omega'], ['phi', 'phi'], ['Dpp', 'Delta'], ['Dp', 'Delta'], ['D0', 'Delta'], ['Dm', 'Delta'], ['Dbmm', 'Delta'], ['Dbm', 'Delta'], ['Db0', 'Delta'], ['Dbp', 'Delta'],
     ['Dc', 'Dmes'], ['Ds', 'Dmes'], ['Bs', 'Bmes'], ['Bb', 'Bmes'], ['B', 'Bmes'], ['Lc', 'LamC'], ['Lb', 'LamB'], ['Lam', 'Lam'], ['Sig', 'Sig'], ['Xi', 'Xi'], ['Omg', 'Omg'], ['Jpsi', 'Jpsi'], ['Ups', 'Ups'], ['W', 'W'], ['Z', 'Z'], ['H', 'H']];
   for (const [p, k] of F) if (sp.startsWith(p)) return k;
@@ -9675,6 +9679,7 @@ function evAnti(a, b, r) {
 /* A nucleon and an antinucleon annihilate (≈1.88 GeV): a spray of mesons, about five pions (hep.js: charged ones
    fly out of the chamber, neutral ones decay at once into γ rays), now and then kaons. The antiprotonic atom's
    cascade shakes out a few electrons first, and a struck nucleus is left hot and boils off a few nucleons. */
+let _pnNow = false; // (protonium's own annihilation, from pnAnnih: not held again)
 function nuclearAnnihilation(a, b) {
   if (a.dead || b.dead || a.mu || b.mu) return; // (an antinucleon meets no nucleon in muonium, 1.12)
   const anti = a.anti ? a : b, mat = anti === a ? b : a;
@@ -9690,6 +9695,7 @@ function nuclearAnnihilation(a, b) {
   let xa = null; const Zm = mat.Z, Nm = mat.N;
   if (RP.exo && anti.Z === 1 && anti.N === 0 && anti.ne === 0 && Zm >= 1 && !mat.muB) {
     const mr = anti.m * mat.m / (anti.m + mat.m), dvx = avx - bvx, dvy = avy - bvy;
+    if (Zm === 1 && Nm === 0 && !_pnNow && !W.d3 && 0.5 * mr * (dvx * dvx + dvy * dvy) < MU_STOP && typeof pnForm === 'function') { pnForm(anti, mat); return; } // (protonium: a pair going round each other first, seen spiralling in, then this, 1.28.3)
     if (0.5 * mr * (dvx * dvx + dvy * dvy) < MU_STOP) { const es = []; xa = xaCascade(mat, 'pbar', Zm, Nm, xaN0('pbar', Zm, Nm), XA_NABS.pbar(Zm), 0, es); xa.n0 = xaN0('pbar', Zm, Nm); xa.n1 = XA_NABS.pbar(Zm); }
   }
   const partners = [];
@@ -26758,7 +26764,7 @@ const XP = {
   Dc0: { lab: 'D⁰', m: 1864.84, q: 0, tau: 4.103e-13, col: [120, 230, 255], cc: 'Dcb0', heavy: true, dec: [[0.0395, ['K-', 'pi+']], [0.144, ['K-', 'pi+', 'pi0']], [0.0822, ['K-', 'pi+', 'pi+', 'pi-']], [0.0549, ['K0S', 'pi+', 'pi-']], [0.0549, ['K0L', 'pi+', 'pi-']], [0.0353, ['K-', 'e+', 'nu']], [0.0341, ['K-', 'mu+', 'nu']], [0.0149, ['pi+', 'pi-', 'pi0']], [0.0124, ['K0S', 'pi0']], [0.0124, ['K0L', 'pi0']], [0.0041, ['K+', 'K-']]] },
   'Dc+': { lab: 'D⁺', m: 1869.66, q: 1, tau: 1.033e-12, col: [120, 230, 255], cc: 'Dc-', heavy: true, dec: [[0.0938, ['K-', 'pi+', 'pi+']], [0.0625, ['K-', 'pi+', 'pi+', 'pi0']], [0.0736, ['K0S', 'pi+', 'pi0']], [0.0736, ['K0L', 'pi+', 'pi0']], [0.0156, ['K0S', 'pi+']], [0.0146, ['K0L', 'pi+']], [0.0436, ['K0S', 'e+', 'nu']], [0.0436, ['K0L', 'e+', 'nu']], [0.0438, ['K0S', 'mu+', 'nu']], [0.0438, ['K0L', 'mu+', 'nu']], [0.0327, ['pi+', 'pi+', 'pi-']]] },
   'Ds+': { lab: 'D⁺s', m: 1968.35, q: 1, tau: 5.04e-13, col: [140, 210, 255], cc: 'Ds-', heavy: true, dec: [[0.045, ['phi', 'pi+']], [0.054, ['K+', 'K-', 'pi+']], [0.0145, ['K0S', 'K+']], [0.0145, ['K0L', 'K+']], [0.017, ['eta', 'pi+']], [0.0239, ['phi', 'e+', 'nu']], [0.0548, ['tau+', 'nutau']], [0.0055, ['mu+', 'numu']], [0.108, ['pi+', 'pi+', 'pi-', 'pi0']]] },
-  'B+': { lab: 'B⁺', m: 5279.34, q: 1, tau: 1.638e-12, col: [255, 200, 120], cc: 'B-', heavy: true, dec: [[0.11, ['Dcb0', 'e+', 'nu']], [0.11, ['Dcb0', 'mu+', 'nu']], [0.03, ['Dcb0', 'tau+', 'nutau']], [0.05, ['Dcb0', 'pi+']], [0.25, ['Dcb0', 'pi+', 'pi0']], [0.25, ['Dcb0', 'pi+', 'pi+', 'pi-']], [0.1, ['Dc-', 'pi+', 'pi+']], [0.08, ['Dcb0', 'Ds+']]] },
+  'B+': { lab: 'B⁺', m: 5279.34, q: 1, tau: 1.638e-12, col: [255, 200, 120], cc: 'B-', heavy: true, dec: [[1.3e-7, ['Pcsb4338', 'p']], [0.11, ['Dcb0', 'e+', 'nu']], [0.11, ['Dcb0', 'mu+', 'nu']], [0.03, ['Dcb0', 'tau+', 'nutau']], [0.05, ['Dcb0', 'pi+']], [0.25, ['Dcb0', 'pi+', 'pi0']], [0.25, ['Dcb0', 'pi+', 'pi+', 'pi-']], [0.1, ['Dc-', 'pi+', 'pi+']], [0.08, ['Dcb0', 'Ds+']]] },
   B0: { lab: 'B⁰', m: 5279.65, q: 0, tau: 1.517e-12, col: [255, 200, 120], cc: 'Bb0', heavy: true, dec: [[0.105, ['Dc-', 'e+', 'nu']], [0.105, ['Dc-', 'mu+', 'nu']], [0.03, ['Dc-', 'tau+', 'nutau']], [0.05, ['Dc-', 'pi+']], [0.25, ['Dc-', 'pi+', 'pi0']], [0.25, ['Dc-', 'pi+', 'pi+', 'pi-']], [0.1, ['Dcb0', 'pi+', 'pi-']], [0.08, ['Dc-', 'Ds+']]] },
   // charm and bottom made in hadron collisions (Realistic particles 5, 1.27; the switch's own, nothing else makes them):
   // the Λc⁺, B⁰s and Λb⁰ (masses and mean lives PDG 2024 as I know them; main decays, the rest of each total shared out
@@ -26766,7 +26772,7 @@ const XP = {
   // pairs measured, the hadrons from three gluons as a few typical states of the measured mean multiplicity)
   'Lc+': { lab: 'Λc⁺', m: 2286.46, q: 1, B: 1, tau: 2.026e-13, col: [150, 220, 255], cc: 'Lcb-', heavy: true, dec: [[0.0628, ['p', 'K-', 'pi+']], [0.0159, ['p', 'K0S']], [0.0159, ['p', 'K0L']], [0.0129, ['Lam', 'pi+']], [0.071, ['Lam', 'pi+', 'pi0']], [0.036, ['Lam', 'pi+', 'pi+', 'pi-']], [0.0356, ['Lam', 'e+', 'nu']], [0.035, ['Lam', 'mu+', 'nu']], [0.0125, ['Sig+', 'pi0']], [0.046, ['p', 'K-', 'pi+', 'pi0']]] },
   Bs0: { lab: 'B⁰s', m: 5366.93, q: 0, tau: 1.520e-12, col: [255, 210, 140], cc: 'Bsb0', heavy: true, dec: [[0.081, ['Ds-', 'e+', 'nu']], [0.081, ['Ds-', 'mu+', 'nu']], [0.03, ['Ds-', 'tau+', 'nutau']], [0.003, ['Ds-', 'pi+']], [0.3, ['Ds-', 'pi+', 'pi0']], [0.3, ['Ds-', 'pi+', 'pi+', 'pi-']], [0.1, ['Ds-', 'Ds+']]] },
-  Lb0: { lab: 'Λb⁰', m: 5619.60, q: 0, B: 1, tau: 1.471e-12, col: [255, 190, 110], cc: 'Lbb0', heavy: true, dec: [[0.062, ['Lc+', 'e-', 'nub']], [0.062, ['Lc+', 'mu-', 'nub']], [0.02, ['Lc+', 'tau-', 'nutaub']], [0.0049, ['Lc+', 'pi-']], [0.3, ['Lc+', 'pi-', 'pi0']], [0.3, ['Lc+', 'pi-', 'pi+', 'pi-']], [0.08, ['Lc+', 'Ds-']]] },
+  Lb0: { lab: 'Λb⁰', m: 5619.60, q: 0, B: 1, tau: 1.471e-12, col: [255, 190, 110], cc: 'Lbb0', heavy: true, dec: [[9.6e-7, ['Pc4312', 'K-']], [3.6e-6, ['Pc4440', 'K-']], [1.7e-6, ['Pc4457', 'K-']], [0.062, ['Lc+', 'e-', 'nub']], [0.062, ['Lc+', 'mu-', 'nub']], [0.02, ['Lc+', 'tau-', 'nutaub']], [0.0049, ['Lc+', 'pi-']], [0.3, ['Lc+', 'pi-', 'pi0']], [0.3, ['Lc+', 'pi-', 'pi+', 'pi-']], [0.08, ['Lc+', 'Ds-']]] },
   Jpsi: { lab: 'J/ψ', m: 3096.900, w: 0.0926, q: 0, tau: 7.11e-21, col: [140, 240, 255], cc: 'Jpsi', res: true, dec: [[0.05971, ['e+', 'e-']], [0.05961, ['mu+', 'mu-']], [0.0169, ['pi+', 'pi-', 'pi0']], [0.041, ['pi+', 'pi-', 'pi+', 'pi-', 'pi0']], [0.029, ['pi+', 'pi-', 'pi+', 'pi-', 'pi+', 'pi-', 'pi0']], [0.00212, ['p', 'pbar']], [0.3, ['pi+', 'pi-', 'pi0', 'pi0', 'pi+', 'pi-']], [0.25, ['K+', 'K-', 'pi+', 'pi-', 'pi0']], [0.25, ['pi+', 'pi-', 'pi0', 'pi0', 'pi0', 'eta']]] },
   Ups: { lab: 'Υ', m: 9460.40, w: 0.05402, q: 0, tau: 1.218e-20, col: [255, 225, 150], cc: 'Ups', res: true, dec: [[0.0238, ['e+', 'e-']], [0.0248, ['mu+', 'mu-']], [0.026, ['tau+', 'tau-']], [0.3, ['pi+', 'pi-', 'pi+', 'pi-', 'pi+', 'pi-', 'pi0', 'pi0', 'pi0', 'pi0']], [0.3, ['K+', 'K-', 'pi+', 'pi-', 'pi+', 'pi-', 'pi0', 'pi0', 'pi0']], [0.25, ['p', 'pbar', 'pi+', 'pi-', 'pi+', 'pi-', 'pi0', 'pi0']]] },
   // the weak force's carriers (W and Z bosons, 1.27): made only above √s ≈ 80–90 GeV; mean life ħ/Γ (about 3×10⁻²⁵ s), so
@@ -26775,12 +26781,22 @@ const XP = {
   'W+': { lab: 'W⁺', m: 80369.2, w: 2085, q: 1, tau: 3.157e-25, col: [255, 125, 215], cc: 'W-', res: true, ew: true, dec: [[0.1071, ['e+', 'nu']], [0.1063, ['mu+', 'numu']], [0.1138, ['tau+', 'nutau']]] },
   Z0: { lab: 'Z⁰', m: 91188.0, w: 2495.5, q: 0, tau: 2.638e-25, col: [185, 150, 255], cc: 'Z0', res: true, ew: true, dec: [[0.033632, ['e-', 'e+']], [0.033662, ['mu-', 'mu+']], [0.033696, ['tau-', 'tau+']], [0.2 / 3, ['nu', 'nub']], [0.2 / 3, ['numu', 'numub']], [0.2 / 3, ['nutau', 'nutaub']]] }, // (1.27 bug 17: PDG 2024's M_Z and Γ_Z; it had 91187.6, 2495.2)
   H0: { lab: 'H⁰', m: 125200, w: 4.07, q: 0, tau: 1.617e-22, col: [255, 214, 120], cc: 'H0', res: true, ew: true, dec: [[0.063, ['tau-', 'tau+']], [0.00022, ['mu-', 'mu+']], [0.0023, ['g', 'g']]] }, // (the Higgs boson, 1.27 feature 25: hep.js "The Higgs boson"; dec here: its lepton and photon pairs; H_HAD the rest)
+  // pentaquarks (1.28.3, the owner's item 52): LHCb's, u u d c c̄ (P_c, seen in Λb → J/ψ p K⁻, 2015 and 2019) and u d s c c̄
+  // (P_cs(4338), in B⁻ → J/ψ Λ p̄, 2022): masses and widths as measured (mean life ħ/Γ), each decaying to the J/ψ and the
+  // baryon it was seen with; and the hexaquark candidate d*(2380) (WASA-at-COSY, 2014: B = 2, a dibaryon whose nature is
+  // still argued), its decays the measured channels' shares (rounded): d π π, n p π π, n p π, n p
+  Pc4312: { sym: 'Pc⁺', lab: 'Pc(4312)⁺', m: 4311.9, w: 9.8, q: 1, B: 1, tau: 6.72e-23, col: [255, 150, 200], cc: 'Pcb4312', res: true, dec: [[1, ['Jpsi', 'p']]] },
+  Pc4440: { sym: 'Pc⁺', lab: 'Pc(4440)⁺', m: 4440.3, w: 20.6, q: 1, B: 1, tau: 3.20e-23, col: [255, 140, 190], cc: 'Pcb4440', res: true, dec: [[1, ['Jpsi', 'p']]] },
+  Pc4457: { sym: 'Pc⁺', lab: 'Pc(4457)⁺', m: 4457.3, w: 6.4, q: 1, B: 1, tau: 1.03e-22, col: [255, 160, 210], cc: 'Pcb4457', res: true, dec: [[1, ['Jpsi', 'p']]] },
+  Pcs4338: { sym: 'Pcs⁰', lab: 'Pcs(4338)⁰', m: 4338.2, w: 7.0, q: 0, B: 1, tau: 9.40e-23, col: [240, 170, 255], cc: 'Pcsb4338', res: true, dec: [[1, ['Jpsi', 'Lam']]] },
+  dstar: { sym: 'd*⁺', lab: 'd*(2380)⁺', m: 2380, w: 70, q: 1, B: 2, tau: 9.40e-24, col: [255, 200, 160], cc: 'dstar', res: true, dec: [[0.23, ['d', 'pi+', 'pi-']], [0.14, ['d', 'pi0', 'pi0']], [0.30, ['p', 'n', 'pi+', 'pi-']], [0.12, ['p', 'n', 'pi0', 'pi0']], [0.12, ['p', 'n', 'pi0']], [0.09, ['p', 'n']]] }, // (cc itself: its antiparticle is not made here)
   'tau-': { lab: 'τ⁻', m: 1776.86, q: -1, tau: 2.903e-13, col: [255, 115, 150], cc: 'tau+', dec: [[0.1782, ['e-', 'nub', 'nu']], [0.1739, ['mu-', 'nub', 'nu']], [0.1082, ['pi-', 'nu']], [0.2549, ['pi-', 'pi0', 'nu']], [0.0926, ['pi-', 'pi0', 'pi0', 'nu']], [0.0899, ['pi-', 'pi-', 'pi+', 'nu']], [0.0455, ['pi-', 'pi-', 'pi+', 'pi0', 'nu']], [0.0104, ['pi-', 'pi0', 'pi0', 'pi0', 'nu']], [0.0070, ['K-', 'nu']]] },
 };
 function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', numu: 'numub', numub: 'numu', nutau: 'nutaub', nutaub: 'nutau', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n' })[t] || t; }
-for (const [k, of, lab] of [['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
+for (const [k, of, lab] of [['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
   const s = XP[of];
   XP[k] = Object.assign({}, s, { lab, q: -s.q, B: s.B ? -s.B : 0, cc: of, dec: s.dec.map(([b, ps]) => [b, ps.map(conjTok)]) });
+  if (s.sym) XP[k].sym = { 'Pc⁺': 'P̄c⁻', 'Pcs⁰': 'P̄cs⁰' }[s.sym] || s.sym; // (the antipentaquarks' short symbols, 1.28.3)
 }
 /* Neutrinos keep their flavour (labels only: they leave the box untouched): a muon's decay gives a muon neutrino and an
    electron antineutrino, a pion's the neutrino of the muon or electron it makes, a tau's a tau neutrino with the rest;
@@ -28107,6 +28123,50 @@ const PS_B = PHYS.RY / 2, PS_M = 2 * PHYS.ME * PHYS.AMU_MEV - PS_B / MEV; // (bi
 const PS_TAU_W = 1.80e-9, PS_R = 5, PS_RHO = { 2: 0.85, 3: 0.334 }, PS_SIGC = 1.16e-19, PS_NW = 3.34e22; // (1.27 bug 17: σ from Shinohara et al., Phys. Rev. A 64, 042702, 2001 (arXiv:physics/0011054), elastic spin conversion (1.16 ± 0.01)×10⁻¹⁹ cm²; it had 1.5×10⁻¹⁹; water's 1.80 ns agrees with Eldrup's 1.86 ns (Risø-R-254, 1971) and ~1.85 ns since) (o-Ps in water s; sampling radius Å; water's electron density; σ cm²; water molecules cm⁻³)
 const PS_LPO = 1 / PS_TAU_W - 1 / 1.4205e-7; // (the pick-off rate in water, s⁻¹)
 RP.ps = false; RP.mu = false; // (Experimental → Realistic particles: positronium, muonium as hydrogen; ui.js applySettings)
+/* Protonium seen (1.28.3, the owner: a proton and an antiproton "visibly circling and spiralling in before the flash").
+   With Realistic particles → Exotic atoms, a slow p̄ meeting a hydrogen atom was caught, cascaded and annihilated in one
+   event. Now it is caught as protonium (Pn, an unstable particle in W.exo: Grab, Inspect, saves as the others): the
+   atom's electron goes free, the rest (its motion relative to the atom, the binding) leaves as a photon, the books
+   closed exactly (nucBegin/closeEvent); the pair, n ≈ 30 and about hydrogen's size there (n²·a₀·mₑ/μ = 0.52 Å), goes
+   round on its way down for PN_T of simulated time (1 ps: the cascade's time in a liquid; in a gas it is longer), drawn
+   shrinking level by level (exoAtomPic); then it is a p̄ and a p again, at rest together, and nuclearAnnihilation
+   works out the cascade's X-ray lines and the mesons as before. Deterministic: simulated time, not the watching clock. */
+const PN_T = 1e-12 / PHYS.TU_S, PN_M = 2 * nucMeV(1, 0);
+XP.Pn = { lab: 'p̄p', m: PN_M, q: 0, tau: 1e30, col: [235, 130, 255], cc: 'Pn', pn: true, dec: [[1, ['g', 'g']]] };
+function pnForm(anti, mat) {
+  const x = 0.5 * (anti.x + mat.x), y = 0.5 * (anti.y + mat.y), z = W.d3 ? 0.5 * ((anti.z || 0) + (mat.z || 0)) : 0;
+  const P = add4(p4of(anti), p4of(mat)), pp = Math.hypot(P[1], P[2], W.d3 ? P[3] || 0 : 0), el = speciesLabel(mat);
+  const n0 = xaN0('pbar', 1, 0), mPn = PN_M - xaLevel('pbar', 1, 0, n0) / MEV; // (its mass: the pair's, less its binding at n₀, 13.9 eV, which frees the atom's electron)
+  const items = [{ t: 'x', sp: 'Pn', m: mPn }, item('g')], moms = [W.d3 ? [Math.sqrt(mPn * mPn + pp * pp), P[1], P[2], P[3] || 0] : [Math.sqrt(mPn * mPn + pp * pp), P[1], P[2]], [1, ...rdir()]];
+  for (let i = 0; i < mat.ne; i++) { items.push(item('e-')); moms.push(randDir4(PHYS.MEC2, 0.05 / MEV)); }
+  const partners = []; for (const n of [anti, mat]) for (const bd of n.bonds) partners.push(other(bd, n));
+  const S = nucBegin([anti, mat]), gh = [anti, mat].map(ghostOf);
+  kill(anti); kill(mat); relink(partners.filter(q => !q.dead));
+  const made = spawnItems(items, moms, x, y, z); if (W.d3) made.z3 = z;
+  closeEvent(S, made, x, y, 0, 0);
+  const o = made.xs[0];
+  if (o) { o.pnT0 = W.t; o.pnN0 = n0; o.pnN1 = XA_NABS.pbar(1); }
+  W.count.pn = (W.count.pn || 0) + 1;
+  nucEvent('capture', x, y, `Protonium: p̄ caught by ${el} → p̄p`, gh, `into the orbit n = ${o ? o.pnN0 : '≈30'}, about an atom’s size; it spirals in, then annihilates`, undefined, z);
+  log('nuc', `Protonium: p̄ caught by ${el}; the pair goes round each other, n = ${o ? o.pnN0 : '≈30'}, falling inward before it annihilates`);
+}
+/* Its time is up: the cascade's X-ray lines from n₀ down to n₁ (nothing left to shake out: the atom's electron went at
+   the capture), then the annihilation of what is left, mesons as nuclearAnnihilation makes them (mesonBurst). Its rest
+   mass comes back from the nuclear ledger, where it was kept while it flew, as the exo-particle decays do. */
+function pnAnnih(o) {
+  const x = o.x, y = o.y, n0 = o.pnN0 || xaN0('pbar', 1, 0), n1 = o.pnN1 || XA_NABS.pbar(1), gh = [ghostOf(o)];
+  let E = o.m * MEV + o.KE; W.ledger.nuc += o.m * MEV;
+  const vx = o.v * o.ux, vy = o.v * o.uy;
+  o.dead = true; o.fate = 'annihilated: p̄ + p → mesons';
+  const lines = [];
+  for (let n = n0; n > n1; n--) { const dE = xaLevel('pbar', 1, 0, n - 1) - xaLevel('pbar', 1, 0, n); if (dE > 0 && dE < E) { lines.push({ E: dE, a: n, b: n - 1 }); E -= dE; const u = rdir(); emitPhoton(x, y, dE, u[0], u[1]); } }
+  const ms = mesonBurst(x, y, E, vx, vy, 0);
+  W.count.annih++; W.count.xatom = (W.count.xatom || 0) + 1;
+  const what = ms.length ? summarize(ms) : 'γ rays';
+  nucEvent('annih', x, y, `Protonium: p̄ + p → ${what}`, gh, `${fmtE(E)}; its fall n = ${n0} → ${n1}, X-rays ${xaLines(lines, 2) || 'none'}`);
+  log('nuc', `Protonium (p̄p) annihilates from n = ${n1}: ${what} (${fmtE(E)}), after X-rays ${xaLines(lines, 3) || 'none'}`);
+  tally(ms, [], `Annihilation: p̄ + p → ${what}`);
+}
 XP.pPs = { lab: 'p-Ps', m: PS_M, q: 0, tau: 1.2514e-10, col: [255, 170, 235], cc: 'pPs', ps: true, dec: [[1, ['g', 'g']]] };
 XP.oPs = { lab: 'o-Ps', m: PS_M, q: 0, tau: 1.4205e-7, col: [235, 140, 255], cc: 'oPs', ps: true, dec: [[1, ['g', 'g', 'g']]] };
 /* A new Ps at (x, y, z) moving along (ux, uy, uz), para 1 in 4. Its energy comes from closeEvent. */
@@ -28744,6 +28804,7 @@ function moveExos(dt, id0) {
   for (let i = 0; i < n0; i++) {
     const o = W.exo[i];
     if (o.dead || (id0 !== undefined && o.id >= id0)) continue; // (born this step: it flies from the next one, which slow motion and the step chooser have shortened for it)
+    if (o.pnT0 !== undefined && W.t - o.pnT0 >= PN_T) { pnAnnih(o); continue; } // (protonium: its spiral done, it annihilates, 1.28.3)
     let h = dt, dec = false;
     if (clock > 0) {
       const tl = XP[o.sp].tau * o.gam, P = 1 - Math.exp(-clock / tl);
@@ -28756,7 +28817,7 @@ function moveExos(dt, id0) {
     if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
     if (d.res && !dec && !W.ultra && !deepSlow()) continue; // (a held resonance: only flies) (ultra-realistic: resonances fly and decay on the clock, with their own mean lives, ħ/Γ)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
-      const kept = d.atom || d.hyp || d.muonium || d.ps || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      const kept = d.atom || d.hyp || d.muonium || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
       if (kept && W.wall === 'wrap') { if (Math.abs(o.x) > hw) o.x -= Math.sign(o.x) * 2 * hw; if (Math.abs(o.y) > hh) o.y -= Math.sign(o.y) * 2 * hh; } // (a periodic box: across, as atoms go (the trail is drawn across the edge as theirs is); muonic hydrogen left the box there, its energy escaped, 1.26 bug fix)
       else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
       else if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
@@ -28983,6 +29044,7 @@ function moveExos3(dt, id0) {
   for (let i = 0; i < n0; i++) {
     const o = W.exo[i];
     if (o.dead || (id0 !== undefined && o.id >= id0)) continue;
+    if (o.pnT0 !== undefined && W.t - o.pnT0 >= PN_T) { pnAnnih(o); continue; } // (protonium: its spiral done, it annihilates, 1.28.3)
     let h = dt, dec = false;
     if (clock > 0) { const tl = XP[o.sp].tau * o.gam, P = 1 - Math.exp(-clock / tl); if (rnd() < P) { dec = true; h = dt * Math.min(1, -Math.log(1 - rnd() * P) * tl / clock); } }
     const d = XP[o.sp];
@@ -32822,6 +32884,13 @@ function exoAtomPic(ctx, o, x, y, c, hx, s) {
     drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
     return R0 + 3;
   }
+  if (d.pn) { // (protonium, 1.28.3: the p̄ and the p on opposite sides, the orbit shrinking level by level from n₀ to n₁ as its time, PN_T, runs; at least a few pixels so it is seen)
+    const f = o.pnT0 !== undefined ? clamp((W.t - o.pnT0) / PN_T, 0, 1) : 0, n0 = o.pnN0 || 30, n1 = o.pnN1 || 2, n = Math.max(n1, Math.round(n0 - (n0 - n1) * f));
+    const R0 = Math.max(3, n * n * 5.77e-4 * s), th = W.rt * (3 + 9 * f) + o.id, cx = R0 * Math.cos(th), cy = R0 * Math.sin(th), br = Math.max(2.2, Math.min(4, 0.06 * s));
+    ctx.strokeStyle = rgba(c, 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    drawSprite(ballSprite('#ff6a5a', br), x + cx, y + cy); drawSprite(ballSprite('#b678ff', br), x - cx, y - cy);
+    return R0 + 3;
+  }
   if (!(d.atom || d.stuck || d.hyp)) return 0;
   const rb = clamp(0.18 * s, 3.2, 9);
   ctx.globalCompositeOperation = 'lighter'; if (!R.lite) drawSprite(glowSprite(c, Math.max(9, rb * 3)), x, y, 0.5); ctx.globalCompositeOperation = 'source-over';
@@ -32904,7 +32973,16 @@ function exoInside(ctx, o, x, y, c, hx) {
   }
   const qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp];
   if (!qc) return 0;
-  const qs = [...qc], rb = b * 1.15, qr = Math.max(0.9, b * (qs.length === 3 ? 0.42 : 0.48));
+  if (qc.length === 5) { // (a pentaquark, 1.28.3: its baryon and its meson side by side, the "molecule" reading)
+    const sx = b * 0.95;
+    const t1 = exoBag(ctx, o, x - sx, y, c, b, qc.slice(0, 3), 0), t2 = exoBag(ctx, o, x + sx * 1.1, y, c, b * 0.8, qc.slice(3), 3);
+    return Math.max(t1, t2) + 2;
+  }
+  return exoBag(ctx, o, x, y, c, b, qc, 0);
+}
+/* One bag of quarks (a hadron, or one part of a pentaquark): its colour charges as the hadron's, a strange quark ringed. */
+function exoBag(ctx, o, x, y, c, b, qc, k0) {
+  const qs = [...qc], rb = b * (qs.length > 3 ? 1.35 : 1.15), qr = Math.max(0.9, b * (qs.length === 3 ? 0.42 : qs.length > 3 ? 0.36 : 0.48));
   ctx.globalCompositeOperation = 'lighter';
   if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rb * 3)), x, y, 0.35);
   ctx.globalCompositeOperation = 'source-over';
@@ -32914,7 +32992,7 @@ function exoInside(ctx, o, x, y, c, hx) {
   if (big) { ctx.font = `600 ${Math.round(qr * 1.2)}px "Azeret Mono", ui-monospace, monospace`; ctx.textBaseline = 'middle'; }
   let ci = 0;
   qs.forEach((q, k) => {
-    const anti = q === q.toUpperCase(), f = q.toLowerCase(), th = W.at * 1.3 + o.id + k * 2 * Math.PI / qs.length, rr = rb * 0.5;
+    const anti = q === q.toUpperCase(), f = q.toLowerCase(), th = W.at * 1.3 + o.id + k0 + k * 2 * Math.PI / qs.length, rr = rb * (qs.length > 3 ? 0.58 : 0.5);
     const qx = x + rr * Math.cos(th), qy = y + rr * Math.sin(th), col = qs.length === 2 ? (anti ? Q_ACOL : Q_COL)[(o.id + Math.floor(W.at * 2)) % 3] : (anti ? Q_ACOL : Q_COL)[ci++ % 3];
     drawSprite(ballSprite(col, qr), qx, qy);
     if (f === 's') { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, qr * 0.22); ctx.beginPath(); ctx.arc(qx, qy, qr * 1.05, 0, Math.PI * 2); ctx.stroke(); }
@@ -37745,6 +37823,7 @@ const PCATS = [
   ['Mesons', ['pi+', 'pi-', 'pi0', 'K+', 'K-', 'K0S', 'K0L', 'eta'].map(sp => ({ kind: 'exo', sp }))],
   ['Baryons', ['Lam', 'Lamb', 'Sig+', 'Sig-', 'Xi0', 'Xi-', 'Omg-', 'Sigb-', 'Sigb+', 'Xib0', 'Xib+', 'Omgb+'].map(sp => ({ kind: 'exo', sp }))],
   ['Resonances', ['rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm'].map(sp => ({ kind: 'exo', sp }))],
+  ['Pentaquarks and hexaquarks', ['Pc4312', 'Pc4440', 'Pc4457', 'Pcs4338', 'dstar'].map(sp => ({ kind: 'exo', sp }))], // (1.28.3, item 52)
   ['W, Z and Higgs bosons', ['W+', 'W-', 'Z0', 'H0'].map(sp => ({ kind: 'exo', sp }))], // (1.27; the Higgs boson: feature 25)
   ['Light', [{ kind: 'gamma' }]],
   ['Antimatter', [{ kind: 'pos' }, SPEC_PBAR, SPEC_NBAR, SPEC_HBAR, { kind: 'atom', Z: 1, A: 2, bare: true, anti: true }, { kind: 'atom', Z: 2, A: 4, bare: true, anti: true }, 'pt']],
@@ -39158,6 +39237,7 @@ const Q_COL = ['#ff5a5a', '#52d873', '#5a8cff'], Q_ACOL = ['#4fe3e3', '#e65ae6',
 const Q_CHG = { u: 2 / 3, d: -1 / 3, s: -1 / 3, c: 2 / 3, b: -1 / 3 };
 const Q_SYM = { u: 'u', d: 'd', s: 's', c: 'c', b: 'b' }, Q_BAR = { u: 'ū', d: 'd̄', s: 's̄', c: 'c̄', b: 'b̄' };
 const Q_CONTENT = { p: 'uud', n: 'udd', pbar: 'UUD', nbar: 'UDD', 'pi+': 'uD', 'pi-': 'dU', pi0: 'uU', 'K+': 'uS', 'K-': 'sU', K0S: 'dS', K0L: 'dS', eta: 'sS', Lam: 'uds', Lamb: 'UDS', 'Sig+': 'uus', 'Sig-': 'dds', Xi0: 'uss', 'Xi-': 'dss', 'Omg-': 'sss', 'Sigb-': 'UUS', 'Sigb+': 'DDS', Xib0: 'USS', 'Xib+': 'DSS', 'Omgb+': 'SSS',
+  Pc4312: 'uucdC', Pc4440: 'uucdC', Pc4457: 'uucdC', Pcs4338: 'uscdC', Pcb4312: 'UUCDc', Pcb4440: 'UUCDc', Pcb4457: 'UUCDc', Pcsb4338: 'USCDc', dstar: 'uuuddd', // (pentaquarks as a charmed baryon and a charmed meson side by side, the 'molecule' picture; the d*: one bag of six, 1.28.3)
   rho0: 'uU', 'rho+': 'uD', 'rho-': 'dU', omega: 'uU', phi: 'sS', 'Ks+': 'uS', 'Ks-': 'sU', Ks0: 'dS', Ksb0: 'sD', Dpp: 'uuu', Dp: 'uud', D0: 'udd', Dm: 'ddd', Dbmm: 'UUU', Dbm: 'UUD', Db0: 'UDD', Dbp: 'DDD',
   Dc0: 'cU', Dcb0: 'uC', 'Dc+': 'cD', 'Dc-': 'dC', 'Ds+': 'cS', 'Ds-': 'sC', 'B+': 'uB', 'B-': 'bU', B0: 'dB', Bb0: 'bD',
   'Lc+': 'udc', 'Lcb-': 'UDC', Bs0: 'sB', Bsb0: 'bS', Lb0: 'udb', Lbb0: 'UDB', Jpsi: 'cC', Ups: 'bB' }; // (the heavy hadrons of Realistic particles 5, 1.27) (capitals: antiquarks; the resonances (ρ, ω, φ, K*, Δ) as their ground-state partners, excited)
@@ -39327,7 +39407,7 @@ function qSnap(q) {
   renderInspect();
 }
 /* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
-const XP_NAME = { pPs: 'Para-positronium (an electron and a positron, spins opposite)', oPs: 'Ortho-positronium (an electron and a positron, spins parallel)', 'Lc+': 'Charmed lambda baryon', 'Lcb-': 'Charmed antilambda', Bs0: 'Strange B meson', Bsb0: 'Strange anti-B meson', Lb0: 'Bottom lambda baryon', Lbb0: 'Bottom antilambda', Jpsi: 'J/psi meson (charmonium)', Ups: 'Upsilon meson (bottomonium)', // (Realistic particles 5, 1.27)
+const XP_NAME = { Pc4312: 'Pentaquark Pc(4312)⁺', Pc4440: 'Pentaquark Pc(4440)⁺', Pc4457: 'Pentaquark Pc(4457)⁺', Pcs4338: 'Strange pentaquark Pcs(4338)⁰', Pcb4312: 'Antipentaquark P̄c(4312)⁻', Pcb4440: 'Antipentaquark P̄c(4440)⁻', Pcb4457: 'Antipentaquark P̄c(4457)⁻', Pcsb4338: 'Antipentaquark P̄cs(4338)⁰', dstar: 'Hexaquark candidate d*(2380)', Pn: 'Protonium (a proton and an antiproton going round each other)', pPs: 'Para-positronium (an electron and a positron, spins opposite)', oPs: 'Ortho-positronium (an electron and a positron, spins parallel)', 'Lc+': 'Charmed lambda baryon', 'Lcb-': 'Charmed antilambda', Bs0: 'Strange B meson', Bsb0: 'Strange anti-B meson', Lb0: 'Bottom lambda baryon', Lbb0: 'Bottom antilambda', Jpsi: 'J/psi meson (charmonium)', Ups: 'Upsilon meson (bottomonium)', // (Realistic particles 5, 1.27)
   'W+': 'W⁺ boson (a carrier of the weak force)', 'W-': 'W⁻ boson (a carrier of the weak force)', Z0: 'Z⁰ boson (the neutral carrier of the weak force)', H0: 'Higgs boson (the Higgs field’s particle)', // (1.27; H0: feature 25)
   Mu: 'Muonium (an electron orbiting a μ⁺: a light hydrogen)', muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
   K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau',
@@ -39335,7 +39415,7 @@ const XP_NAME = { pPs: 'Para-positronium (an electron and a positron, spins oppo
   'Sigb-': 'Antisigma, negative', 'Sigb+': 'Antisigma, positive', Xib0: 'Neutral antixi', 'Xib+': 'Positive antixi', 'Omgb+': 'Antiomega',
   rho0: 'Neutral rho meson', 'rho+': 'Positive rho meson', 'rho-': 'Negative rho meson', omega: 'Omega meson', phi: 'Phi meson', 'Ks+': 'K-star, positive', 'Ks-': 'K-star, negative', Ks0: 'K-star, neutral', Ksb0: 'Anti-K-star, neutral',
   Dpp: 'Delta++ baryon', Dp: 'Delta+ baryon', D0: 'Delta0 baryon', Dm: 'Delta− baryon', Dbmm: 'Anti-delta−−', Dbm: 'Anti-delta−', Db0: 'Anti-delta0', Dbp: 'Anti-delta+' };
-const XP_QUARKS = { 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄', 'Sig+': 'u u s', 'Sig-': 'd d s', Xi0: 'u s s', 'Xi-': 'd s s', 'Omg-': 's s s',
+const XP_QUARKS = { Pc4312: 'u u d c c̄ (five quarks: as a Σc⁺⁺ and a D⁻ held together, or one bag)', Pc4440: 'u u d c c̄ (five quarks)', Pc4457: 'u u d c c̄ (five quarks)', Pcs4338: 'u d s c c̄ (five quarks)', Pcb4312: 'ū ū d̄ c̄ c', Pcb4440: 'ū ū d̄ c̄ c', Pcb4457: 'ū ū d̄ c̄ c', Pcsb4338: 'ū d̄ s̄ c̄ c', dstar: 'u u u d d d (six quarks; or two Δ baryons bound: its nature is still argued)', 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄', 'Sig+': 'u u s', 'Sig-': 'd d s', Xi0: 'u s s', 'Xi-': 'd s s', 'Omg-': 's s s',
   'Sigb-': 'ū ū s̄', 'Sigb+': 'd̄ d̄ s̄', Xib0: 'ū s̄ s̄', 'Xib+': 'd̄ s̄ s̄', 'Omgb+': 's̄ s̄ s̄',
   'Lc+': 'u d c', 'Lcb-': 'ū d̄ c̄', Bs0: 's b̄', Bsb0: 'b s̄', Lb0: 'u d b', Lbb0: 'ū d̄ b̄', Jpsi: 'c c̄', Ups: 'b b̄' }; // (Realistic particles 5, 1.27)
 const XP_ABOUT = {
@@ -39373,7 +39453,7 @@ function selXHTML() {
   const hz = (E) => { const f = E / 4.135667696e-15; return f >= 1e18 ? fmtNum(f / 1e18, 3) + ' EHz' : f >= 1e15 ? fmtNum(f / 1e15, 3) + ' PHz' : f >= 1e12 ? fmtNum(f / 1e12, 3) + ' THz' : fmtNum(f / 1e9, 3) + ' GHz'; };
   if (X.kind === 'exo') {
     const d = XP[o.sp], m = d.res && o.m > 0 ? o.m : d.m; // (a resonance: its own mass, drawn from its width, 1.27)
-    title = XP_NAME[o.sp] || (d.hyp ? hypName(o.sp) : o.lab); sym = o.lab; col = `rgb(${d.col.join(',')})`;
+    title = XP_NAME[o.sp] || (d.hyp ? hypName(o.sp) : o.lab); sym = d.sym || o.lab; // (d.sym: a short symbol where the label is long, the pentaquarks', 1.28.3) col = `rgb(${d.col.join(',')})`;
     const beta = o.v / PHYS.C, life = d.tau * o.gam, path = beta * o.gam * 299792458 * d.tau;
     kv.push(['Charge', d.q > 0 ? '+' + d.q : d.q < 0 ? '−' + -d.q : '0'], ['Rest mass', `${fmtNum(m, 4)} MeV/c² (${fmtNum(m / 0.51099895, 4)} electron masses)${d.res && m !== d.m ? `: its own, drawn from its width (Γ ${fmtNum(d.w, 3)} MeV) about the table's ${fmtNum(d.m, 5)}` : ''}`]);
     if (XP_QUARKS[o.sp]) kv.push(['Made of', XP_QUARKS[o.sp]]);
@@ -39385,6 +39465,12 @@ function selXHTML() {
     about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, and it bounces off any nucleus (1.28.1), except in the ultra-realistic mode, where it is hydrogen's measured size off hydrogen only. Bound by ${fmtE(d.Eb * 1e6)}.`
       : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
       : XP_ABOUT[d.hyp ? 'hy' : d.ew ? o.sp[0] : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg', 'eta'].find(k => o.sp.startsWith(k))] || ''; // (none for the others: they had the η's words, "a neutral meson", for a B⁺ or a Λc, until 1.28.1; the info box below says what each is) // (d.ew: W and Z, 1.27)
+    if (d.pn) { // (protonium, 1.28.3: where it is in its fall, instead of a mean life it does not have)
+      const f = o.pnT0 !== undefined ? Math.min(1, Math.max(0, (W.t - o.pnT0) / PN_T)) : 0, n0 = o.pnN0 || 30, n1 = o.pnN1 || 2, n = Math.max(n1, Math.round(n0 - (n0 - n1) * f));
+      for (let i = kv.length - 1; i >= 0; i--) if (/^(Mean life|Mean distance|Decays to)/.test(kv[i][0])) kv.splice(i, 1);
+      kv.push(['Orbit', `n = ${n} (caught at n = ${n0}; annihilates from n = ${n1})`], ['Size', `${fmtNum(n * n * 5.77e-4, 3)} Å, the radius of its orbit (n² × 0.000577 Å)`], ['Annihilates in', fmtTime(Math.max(0, PN_T - (W.t - (o.pnT0 || W.t))) * PHYS.TU_S) + ' (about five pions, and the X-rays of its fall)']);
+      about = 'Protonium: an antiproton caught by a hydrogen atom, the two going round each other. Each is 1,836 times an electron’s mass, so the orbits are about 900 times smaller than hydrogen’s; caught high, near an atom’s size, it falls inward level by level, giving off X-rays, until the two touch and annihilate. Here its fall takes 1 ps, the time it takes in a liquid (longer in a gas).';
+    }
     if (d.ps) { // (positronium, 1.27: its state, binding and life here)
       const I = psInfo(o);
       kv.push(['State', I.para ? 'para-positronium: the two spins opposite (a singlet), 1 in 4' : 'ortho-positronium: the two spins parallel (a triplet), 3 in 4'], ['Binding', `${fmtE(I.Eb)} (half hydrogen\u2019s)`], ['Size', `${fmtNum(I.size, 3)} Å, the radius of its orbit (twice hydrogen\u2019s)`],

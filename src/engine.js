@@ -5023,6 +5023,7 @@ function evAnti(a, b, r) {
 /* A nucleon and an antinucleon annihilate (≈1.88 GeV): a spray of mesons, about five pions (hep.js: charged ones
    fly out of the chamber, neutral ones decay at once into γ rays), now and then kaons. The antiprotonic atom's
    cascade shakes out a few electrons first, and a struck nucleus is left hot and boils off a few nucleons. */
+let _pnNow = false; // (protonium's own annihilation, from pnAnnih: not held again)
 function nuclearAnnihilation(a, b) {
   if (a.dead || b.dead || a.mu || b.mu) return; // (an antinucleon meets no nucleon in muonium, 1.12)
   const anti = a.anti ? a : b, mat = anti === a ? b : a;
@@ -5038,6 +5039,7 @@ function nuclearAnnihilation(a, b) {
   let xa = null; const Zm = mat.Z, Nm = mat.N;
   if (RP.exo && anti.Z === 1 && anti.N === 0 && anti.ne === 0 && Zm >= 1 && !mat.muB) {
     const mr = anti.m * mat.m / (anti.m + mat.m), dvx = avx - bvx, dvy = avy - bvy;
+    if (Zm === 1 && Nm === 0 && !_pnNow && !W.d3 && 0.5 * mr * (dvx * dvx + dvy * dvy) < MU_STOP && typeof pnForm === 'function') { pnForm(anti, mat); return; } // (protonium: a pair going round each other first, seen spiralling in, then this, 1.28.3)
     if (0.5 * mr * (dvx * dvx + dvy * dvy) < MU_STOP) { const es = []; xa = xaCascade(mat, 'pbar', Zm, Nm, xaN0('pbar', Zm, Nm), XA_NABS.pbar(Zm), 0, es); xa.n0 = xaN0('pbar', Zm, Nm); xa.n1 = XA_NABS.pbar(Zm); }
   }
   const partners = [];
