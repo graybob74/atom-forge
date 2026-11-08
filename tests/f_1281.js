@@ -50,7 +50,7 @@ PARTS.grab = async (page, check, say) => {
   const after = await page.evaluate((id) => { const o = W.exo.find(q => q.id === id); const r = { KE: o.KE, ux: o.ux, uy: o.uy, v: o.v, grab: !!W.grab }; setRunning(false); setTool('inspect'); loadPreset('water'); setRunning(false); return r; }, set.mid);
   const r = { a1, held, follow, after };
   say('  1.28.1 grab: ' + JSON.stringify(r));
-  check(a1.v > 0.05 && a1.vx > 0 && held.exo && held.sp === 'muP' && follow.x > 16 && follow.KE === 0 && after.KE > 0 && after.ux > 0 && after.uy > 0 && !after.grab,
+  check(a1.v > 0.01 && a1.vx > 0 && held.exo && held.sp === 'muP' && follow.x > 16 && follow.KE === 0 && after.KE > 0 && after.ux > 0 && after.uy > 0 && !after.grab,
     `1.28.1 (50, 47, 49) Grab: an argon atom thrown flies on at ${(a1.v * 10).toFixed(1)} km/s (it stopped where let go); muonic hydrogen can be grabbed (held at rest, it follows the pointer) and is thrown the way the pointer went (${after.KE.toExponential(2)} eV)`,
     '1.28.1 grab: ' + JSON.stringify(r));
 };

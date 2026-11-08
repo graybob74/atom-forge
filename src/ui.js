@@ -1302,7 +1302,7 @@ function onMove(e) {
             }
           }
           W.grab.x = wx; W.grab.y = wy; if (W.d3) W.grab.z = wz;
-          grabNote(W.grab);
+          grabNote(W.grab, e.timeStamp);
           if (W.grab.exo) grabHold(W.grab);
         }
         break;
@@ -1427,9 +1427,9 @@ function grabTick(realDt) {
 }
 /* Let go: with Strong or Very strong, what was held keeps its own jiggle but not the speed it was being drawn at (no
    flinging it across the box at tens of km/s). */
-function grabRelease(g) {
+function grabRelease(g, tUp) {
   if (!g) return;
-  const th = UI.running ? grabThrow(g) : null; // (1.28.1, the owner: "if you try to throw a particle it doesn't travel any further than where you let go")
+  const th = UI.running ? grabThrow(g, tUp) : null; // (1.28.1, the owner: "if you try to throw a particle it doesn't travel any further than where you let go")
   if (g.exo) { const o = g.exo; if (o.dead) return; const v = th ? Math.hypot(th[0], th[1], th[2]) : 0; exoSetVel(o, th || [0, 0, 0], v); return; }
   if (!g.p) return;
   const as = (g.mol || [g.p]).filter(a => !a.dead && !a.rad); let m = 0, px = 0, py = 0, pz = 0;
@@ -1442,19 +1442,21 @@ function grabRelease(g) {
   for (const a of as) { a.vx -= vx; a.vy -= vy; if (W.d3) a.vz -= vz; updateFast(a); }
 }
 /* Throwing (1.28.1): the pointer's path while held, as [simulated time, real time, x, y, z]; let go while it moves and
-   what was held leaves at the pointer's speed in the world (its last tenth of a second of real time against the
+   what was held leaves at the pointer's speed in the world (its last 0.15 s of pointer-event time against the
    simulated time that went by), up to the Grab strength's top speed (GRAB_VMAX: 3, 30, 100 km/s). A pointer that had
-   stopped (nothing in its last 80 ms) throws nothing. The energy given is the hand's work, as the spring's is. */
-function grabNote(g) {
-  const h = g.hist || (g.hist = []), now = performance.now();
+   stopped (nothing in its last 80 ms, or one and a half of its notes' spacing in slow frames) throws nothing. The energy given is the hand's work, as the spring's is. */
+function grabNote(g, te) { // (te: the pointer event's own time, so a slow frame does not read as a pointer at rest)
+  const h = g.hist || (g.hist = []), now = te || performance.now();
   h.push([W.t, now, g.x, g.y, g.z || 0]);
-  while (h.length > 2 && now - h[0][1] > 250) h.shift();
+  while (h.length > 3 && now - h[1][1] > 250) h.shift(); // (a few notes back, however slow the frames)
 }
-function grabThrow(g) {
+function grabThrow(g, tUp) {
   const h = g.hist; if (!h || h.length < 2) return null;
-  const now = performance.now(), last = h[h.length - 1];
-  if (now - last[1] > 80) return null;
-  let a = h[0]; for (const e of h) if (now - e[1] <= 120) { a = e; break; }
+  const now = tUp || performance.now(), last = h[h.length - 1];
+  const gap = (last[1] - h[0][1]) / (h.length - 1); // (the pointer's notes come a frame apart: in a slow frame they are far apart, and so may the last be from the release)
+  if (now - last[1] > Math.max(80, 1.5 * gap)) return null;
+  let a = null; for (const e of h) if (now - e[1] <= Math.max(150, 2.5 * gap) && e[0] < W.t) { a = e; break; } // (the oldest within the window that is behind in simulated time: moves read in one frame share a time)
+  if (!a) return null;
   const dt = W.t - a[0]; if (!(dt > 0)) return null;
   let vx = (g.x - a[2]) / dt, vy = (g.y - a[3]) / dt, vz = W.d3 ? ((g.z || 0) - a[4]) / dt : 0;
   const v = Math.hypot(vx, vy, vz), cap = GRAB_VMAX[g.s] || GRAB_V;
@@ -1474,7 +1476,7 @@ function onUp(e) {
   UI.pointers.delete(e.pointerId);
   if (UI.drag && UI.drag.kind === 'pinch') { if (UI.pointers.size < 2) UI.drag = null; return; }
   const d = UI.drag;
-  if (d && d.kind === 'grab') grabRelease(W.grab);
+  if (d && d.kind === 'grab') grabRelease(W.grab, e.timeStamp);
   endToolAction();
   if (d && d.rc && e.type === 'pointerup') { const [px, py] = evPos(e); if (Math.hypot(px - d.x, py - d.y) < 6 && !(UI.tool === 'measure' && measureDrop(px, py))) openQuickMenu(px, py); } // (the measure tool: a right-click on a measured particle stops measuring it, the owner's request after 1.26) // a right-click that did not pan
 }

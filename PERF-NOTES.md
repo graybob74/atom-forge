@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.28.1 (not released)
+## 1.28.1: the owner's items 45–51 (info with Read more, Grab for every particle and throwing, exotic atoms and positronium drawn, muonic hydrogen off any nucleus, the muon in the particle view) and two bug fixes (a save's speed, saving with electrons as waves)
 
 ### 1.28.1: the owner's items 45–51 ("build 45-51, test and release when done as 1.28.1")
 
@@ -2029,6 +2029,11 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   muon's orbit has a faint ring, a little further out, on the watching clock.
 Every setup at normal settings is still 1.28.0's to the bit (fingerprints, 59 setups). Test: tests/f_1281.js (info,
 grab, exodraw, muscat, muview; each fails on 1.28.0).
+The throw reads the pointer by its events' own times (e.timeStamp), and in slow frames, where its moves come a frame
+apart, it waits one and a half of their spacing before calling the pointer stopped: under the suite's load the first
+version, by the clock when the release was handled, saw a moving pointer as at rest. Suite (v160, 2 cores, 43 min):
+64 of 68 at once; t_features (0.64's named save, the 1.14 speed readout, 1.24 light), f_126w (a speed ratio), f_1281
+(the throw, fixed as above) and f_bug125 (pi3, a time) failed under load only and passed alone.
 
 ### 1.28.1 bug: saving with electrons as waves crashed (the owner's crash report, 2026-11-08)
 
