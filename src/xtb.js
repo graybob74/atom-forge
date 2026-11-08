@@ -4967,7 +4967,7 @@ function choleskyInverse(S, n) {
 // rows then run along memory); the operations and their order are exactly tred2/tql2's on V. Only the lower triangle
 // of A is read. With rows = true the eigenvectors are left as rows instead (V[k*n+i] = component i of vector k).
 function symEig(V, n, rows = false) {
-  // (Atom Forge, 1.28.2: in the page, the module's copy of this solver, af_sym_eig, the same to the bit; XQ_EIG is
+  // (Atom Forge, 1.28.3: in the page, the module's copy of this solver, af_sym_eig, the same to the bit; XQ_EIG is
   // the page's (bo.js) and returns null when the module is not there, as in these tools)
   if (typeof XQ_EIG === 'function') { const r = XQ_EIG(V, n, rows); if (r) return r; }
   const d = new Float64Array(n), e = new Float64Array(n);
@@ -5362,7 +5362,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     // solve H1 C = S C e: A = Li H1 Li^T, A Y = Y e, C = Li^T Y
     // (the products below are sums over k in increasing k, as dot products of rows: H1, S and P are exactly symmetric,
     // and the zero terms that a loop could skip add nothing)
-    if (!(typeof XQ_TRANS === 'function' && XQ_TRANS(Li, H1, W, A, nao))) { // (Atom Forge, 1.28.2: in the page, the module's copy of these two products, to the bit)
+    if (!(typeof XQ_TRANS === 'function' && XQ_TRANS(Li, H1, W, A, nao))) { // (Atom Forge, 1.28.3: in the page, the module's copy of these two products, to the bit)
     for (let m = 0; m < nao; m++) {                                  // W = Li H1, its lower triangle (all that A needs)
       const wm = m * nao;
       for (let n = 0; n <= m; n++) { const hn = n * nao; let v = 0; for (let k = 0; k <= m; k++) v += Li[wm + k] * H1[hn + k]; W[wm + n] = v; }
@@ -5380,7 +5380,7 @@ function gfn1Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     const C = W;                                                     // C = Li^T Y, only the columns of orbitals holding anything
     let ncol = 0; for (let k = 0; k < nao; k++) if (focc[k] !== 0) ncol = k + 1;
     let nkW = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nkW = k + 1;
-    const viaW = typeof XQ_DENS === 'function' && XQ_DENS(LiT, A, C, Ct, P, focc, nao, ncol, nkW); // (Atom Forge, 1.28.2: C, Cf and P in the module, to the bit)
+    const viaW = typeof XQ_DENS === 'function' && XQ_DENS(LiT, A, C, Ct, P, focc, nao, ncol, nkW); // (Atom Forge, 1.28.3: C, Cf and P in the module, to the bit)
     if (!viaW) for (let m = 0; m < nao; m++) {
       const cm = m * nao;
       for (let n = 0; n < ncol; n++) { const yn = n * nao; let v = 0; for (let k = m; k < nao; k++) v += LiT[cm + k] * A[yn + k]; C[cm + n] = v; }
@@ -8400,7 +8400,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       H1[m * nao + n] = H0[m * nao + n] - 0.5 * S[m * nao + n] * (vao[m] + vao[n]) - 0.5 * (wq[n * nao + m] + wq[m * nao + n]);
     mixer.set(pack(qsh, dp, qp, mv));
     // solve H1 C = S C e (as gfn1.js)
-    if (!(typeof XQ_TRANS === 'function' && XQ_TRANS(Li, H1, W, A, nao))) { // (Atom Forge, 1.28.2: in the page, the module's copy, to the bit)
+    if (!(typeof XQ_TRANS === 'function' && XQ_TRANS(Li, H1, W, A, nao))) { // (Atom Forge, 1.28.3: in the page, the module's copy, to the bit)
     for (let m = 0; m < nao; m++) {
       const wm = m * nao;
       for (let n = 0; n <= m; n++) { const hn = n * nao; let v = 0; for (let k = 0; k <= m; k++) v += Li[wm + k] * H1[hn + k]; W[wm + n] = v; }
@@ -8418,7 +8418,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     const C = W;
     let ncol = 0; for (let k = 0; k < nao; k++) if (focc[k] !== 0) ncol = k + 1;
     let nkW = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nkW = k + 1;
-    const viaW = typeof XQ_DENS === 'function' && XQ_DENS(LiT, A, C, Ct, P, focc, nao, ncol, nkW); // (Atom Forge, 1.28.2: in the module, to the bit)
+    const viaW = typeof XQ_DENS === 'function' && XQ_DENS(LiT, A, C, Ct, P, focc, nao, ncol, nkW); // (Atom Forge, 1.28.3: in the module, to the bit)
     if (!viaW) for (let m = 0; m < nao; m++) {
       const cm = m * nao;
       for (let n = 0; n < ncol; n++) { const yn = n * nao; let v = 0; for (let k = m; k < nao; k++) v += LiT[cm + k] * A[yn + k]; C[cm + n] = v; }

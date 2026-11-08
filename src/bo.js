@@ -1139,7 +1139,7 @@ function qmPhi(mem, phi) {
     }
   }
 }
-/* Quantum bonds' eigen-solver in the module (1.28.2, item 54): gfn1.js's symEig asks here first (GFN1, GFN2 and the
+/* Quantum bonds' eigen-solver in the module (1.28.3, item 54): gfn1.js's symEig asks here first (GFN1, GFN2 and the
    spin channels all use it). The matrix is copied into the module's memory, solved there by af_sym_eig (the same
    algorithm, line for line: the same eigenvalues and eigenvectors to the bit), and copied back. null (the JavaScript
    solves it) with no module. XQW.on: off for the tests' comparisons. */

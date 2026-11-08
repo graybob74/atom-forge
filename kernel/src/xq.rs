@@ -1,4 +1,4 @@
-//! Quantum bonds' dense linear algebra in the module (1.28.2, item 54, the owner's "do 1-3": the same results): the
+//! Quantum bonds' dense linear algebra in the module (1.28.3, item 54, the owner's "do 1-3": the same results): the
 //! symmetric eigen-solver of tools/xtb/gfn1.js (symEig: Householder tridiagonalization, tred2, then QL with implicit
 //! shifts, tql2, as JAMA and tblite's reference), line for line, so its eigenvalues and eigenvectors are the
 //! JavaScript's to the bit (no fused multiply-adds, the same order of every sum, hypot2 as written there). Main thread.

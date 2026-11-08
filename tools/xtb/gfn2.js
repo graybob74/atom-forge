@@ -569,7 +569,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
       H1[m * nao + n] = H0[m * nao + n] - 0.5 * S[m * nao + n] * (vao[m] + vao[n]) - 0.5 * (wq[n * nao + m] + wq[m * nao + n]);
     mixer.set(pack(qsh, dp, qp, mv));
     // solve H1 C = S C e (as gfn1.js)
-    if (!(typeof XQ_TRANS === 'function' && XQ_TRANS(Li, H1, W, A, nao))) { // (Atom Forge, 1.28.2: in the page, the module's copy, to the bit)
+    if (!(typeof XQ_TRANS === 'function' && XQ_TRANS(Li, H1, W, A, nao))) { // (Atom Forge, 1.28.3: in the page, the module's copy, to the bit)
     for (let m = 0; m < nao; m++) {
       const wm = m * nao;
       for (let n = 0; n <= m; n++) { const hn = n * nao; let v = 0; for (let k = 0; k <= m; k++) v += Li[wm + k] * H1[hn + k]; W[wm + n] = v; }
@@ -587,7 +587,7 @@ function gfn2Energy(Z, xyzA, charge = 0, uhf = 0, opts = {}) {
     const C = W;
     let ncol = 0; for (let k = 0; k < nao; k++) if (focc[k] !== 0) ncol = k + 1;
     let nkW = 0; for (let k = 0; k < nao; k++) if (focc[k] > 1e-15) nkW = k + 1;
-    const viaW = typeof XQ_DENS === 'function' && XQ_DENS(LiT, A, C, Ct, P, focc, nao, ncol, nkW); // (Atom Forge, 1.28.2: in the module, to the bit)
+    const viaW = typeof XQ_DENS === 'function' && XQ_DENS(LiT, A, C, Ct, P, focc, nao, ncol, nkW); // (Atom Forge, 1.28.3: in the module, to the bit)
     if (!viaW) for (let m = 0; m < nao; m++) {
       const cm = m * nao;
       for (let n = 0; n < ncol; n++) { const yn = n * nao; let v = 0; for (let k = m; k < nao; k++) v += LiT[cm + k] * A[yn + k]; C[cm + n] = v; }

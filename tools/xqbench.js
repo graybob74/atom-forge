@@ -1,5 +1,5 @@
 'use strict';
-/* Quantum bonds (GFN1/GFN2-xTB, Experimental → Bond orders → Quantum) timed and fingerprinted, for item 54 (1.28.2):
+/* Quantum bonds (GFN1/GFN2-xTB, Experimental → Bond orders → Quantum) timed and fingerprinted, for item 54 (1.28.3):
    a hydronium and five waters (19 atoms, flat or 3-D) and a 40-atom box, N steps from seed 7; ms a step, the xTB
    calls, SCC iterations and their time, and a fingerprint of the run (positions after N steps, and the energy of the
    last step's quantum calculation to 1e-9 eV) to compare two trees.
@@ -16,7 +16,7 @@ const SC = {
 for (const k of (scen.length ? scen : ['z19', 'z19_3d', 'w40'])) {
   const X = load('all', { seed: 7 }), W = X.W, d3 = k.endsWith('_3d');
   if (JS) X.XQW.on = false;
-  SC[k.replace('_3d', '')](X, d3); X.settleOverlaps(); X.boSet(2); if (GFN === 2 && X.xqSet) X.xqSet(2);
+  SC[k.replace('_3d', '')](X, d3); X.settleOverlaps(); X.boSet(2); if (GFN === 2) X.XQ.method = 2;
   X.forcesNoEvents(); W.fSpawn = W.spawned;
   const c0 = X.XQ.calls, it0 = X.XQ.it, ms0 = X.XQ.ms, t0 = process.hrtime.bigint();
   for (let i = 0; i < N; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }

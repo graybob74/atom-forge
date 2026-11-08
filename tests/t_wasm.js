@@ -118,6 +118,24 @@ if (typeof load('all', { seed: 7 }).WK.ex.af_set_rc2 === 'function') for (const 
     if (!same) fail(`${what} ${scen}: forces differ`);
   }
 }
+// 1d. quantum bonds' linear algebra in the module (af_sym_eig, af_xq_trans, af_xq_dens; 1.28.3, item 54): GFN1, GFN2
+//     and spin-polarized GFN1 on a hydronium and five waters, 12 steps with the module's and with the JavaScript's,
+//     the same run to the bit (every position, the last quantum energy)
+if (typeof load('all', { seed: 7 }).WK.ex.af_sym_eig === 'function') for (const [lab, set] of [['GFN1', (X) => {}], ['GFN2', (X) => { X.XQ.method = 2; }], ['GFN1 spin-polarized', (X) => { X.XQ.spin = 1; }]]) {
+  const run = (on) => {
+    const X = load('all', { seed: 7 }), W = X.W; X.XQW.on = on;
+    X.baseWorld(24, 24, 300, 0.05); X.addMolecule('H3Op', 0, 0, 0, 300, 0);
+    [[3, 0], [-1.5, 2.6], [-1.5, -2.6], [0, 3], [3, 3]].forEach(([x, y], k) => X.addMolecule('H2O', x, y, k, 300, 0));
+    X.settleOverlaps(); X.boSet(2); set(X); X.forcesNoEvents(); W.fSpawn = W.spawned;
+    const c0 = X.XQW.calls; steps(X, 12);
+    return { pos: W.parts.filter(p => !p.dead).map(p => [p.x, p.y]).flat(), E: X.BO.E, used: X.XQW.calls - c0 };
+  };
+  const a = run(true), b = run(false);
+  const same = a.E === b.E && a.pos.length === b.pos.length && a.pos.every((v, i) => v === b.pos[i]);
+  console.log(`quantum bonds ${lab}: the module's linear algebra (${a.used} calls) and the JavaScript's give ${same ? 'the same run to the bit' : 'DIFFERENT runs'} (E ${a.E.toFixed(9)} eV)`);
+  if (!a.used || b.used) fail(`quantum bonds ${lab}: module calls ${a.used}, ${b.used} with it off`);
+  if (!same) fail(`quantum bonds ${lab}: the runs differ (E ${a.E} vs ${b.E})`);
+}
 // 1a. the free leptons' kernel (af_fast) against the JavaScript loops of computeFast, on the same frozen states: the fast
 //     forces to the bit, the same near-ion flags and hit marks, the same events queued in the same order
 {
