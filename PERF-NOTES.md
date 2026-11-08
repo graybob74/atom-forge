@@ -2868,6 +2868,8 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 **The owner's requests of 2026-11-08 (after 1.28.0), collected, waiting for "build it":**
 45 an info button at the bottom of an element's card (clicking an element), with information about it from the web;
 46 the same for most particles: a little information from the web on their page;
+   (the owner: written into the game, pretty short, each written from web sources in my own words, with a "Read more"
+   button linking to its Wikipedia page)
 47 muonic atoms "don't do much": they don't collide, can't be grabbed, look very tiny (grabbing is a bug; how big they
    are drawn and what they collide with touch the physics, the owner's OK);
 48 positronium: the electron and positron don't visibly go round each other (they sit still) or meet.
