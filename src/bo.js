@@ -1154,6 +1154,29 @@ function XQ_EIG(V, n, rows) {
   V.set(M.subarray(0, n * n)); XQW.calls++;
   return XQW.d.slice(0, n);
 }
+/* And the SCC's products before and after it (af_xq_trans: W = Li·H1, A = W·Liᵀ; af_xq_dens: C, Cf and the density P),
+   the same sums in the same order: copied in, done there, copied out (an n² copy against n³ work). */
+function xqMats(n, k) {
+  if (!XQW.M || XQW.mn < n) { XQW.M = []; for (let i = 0; i < 5; i++) XQW.M.push(wasmArray(Float64Array, n * n)); XQW.f = wasmArray(Float64Array, n); XQW.mn = n; }
+  if (!WK.on || !wasmIn(...XQW.M, XQW.f)) { XQW.mn = 0; XQW.M = null; return null; }
+  return XQW.M;
+}
+function XQ_TRANS(Li, H1, W, A, n) {
+  if (!XQW.on || !wasmReady() || typeof WK.ex.af_xq_trans !== 'function') return false;
+  const M = xqMats(n); if (!M) return false; const nn = n * n;
+  M[0].set(Li.subarray(0, nn)); M[1].set(H1.subarray(0, nn)); M[2].set(W.subarray(0, nn)); M[3].set(A.subarray(0, nn));
+  WK.ex.af_xq_trans(M[0].byteOffset, M[1].byteOffset, M[2].byteOffset, M[3].byteOffset, n);
+  W.set(M[2].subarray(0, nn)); A.set(M[3].subarray(0, nn)); XQW.calls++;
+  return true;
+}
+function XQ_DENS(LiT, A, C, Ct, P, focc, n, ncol, nk) {
+  if (!XQW.on || !wasmReady() || typeof WK.ex.af_xq_dens !== 'function') return false;
+  const M = xqMats(n); if (!M) return false; const nn = n * n;
+  M[0].set(LiT.subarray(0, nn)); M[1].set(A.subarray(0, nn)); M[2].set(C.subarray(0, nn)); M[3].set(Ct.subarray(0, nn)); M[4].set(P.subarray(0, nn)); XQW.f.set(focc.subarray(0, n));
+  WK.ex.af_xq_dens(M[0].byteOffset, M[1].byteOffset, M[2].byteOffset, M[3].byteOffset, M[4].byteOffset, XQW.f.byteOffset, n, ncol, nk);
+  C.set(M[2].subarray(0, nn)); Ct.set(M[3].subarray(0, nn)); P.set(M[4].subarray(0, nn)); XQW.calls++;
+  return true;
+}
 function qmPass(forces) {
   const mem = [];
   for (const p of W.parts) if (p.bom && !p.dead) mem.push(p);

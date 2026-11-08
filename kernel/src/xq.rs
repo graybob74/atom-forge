@@ -145,3 +145,36 @@ pub unsafe extern "C" fn af_sym_eig(vp: u32, n: u32, rows: u32, dp: u32, ep: u32
     if rows == 0 { for i in 0..n { for j in 0..i { let tt = g(t, i * n + j); s(t, i * n + j, g(t, j * n + i)); s(t, j * n + i, tt); } } }
     0
 }
+
+/// gfn1.js / gfn2.js, each SCC iteration: W = Li·H1 (its lower triangle) and A = W·Liᵀ (symmetric), the same sums in
+/// the same order. Row-major nao·nao arrays by byte offset.
+#[no_mangle]
+pub unsafe extern "C" fn af_xq_trans(lp: u32, hp: u32, wp: u32, ap: u32, nao: u32) {
+    let n = nao as usize; let li = lp as usize as *const f64; let h1 = hp as usize as *const f64; let w = wp as usize as *mut f64; let a = ap as usize as *mut f64;
+    for m in 0..n {
+        let wm = m * n;
+        for c in 0..=m { let hn = c * n; let mut v = 0.0; for k in 0..=m { v += g(li, wm + k) * g(h1, hn + k); } s(w, wm + c, v); }
+    }
+    for m in 0..n { for c in 0..=m {
+        let mut v = 0.0; for k in 0..=c { v += g(w, m * n + k) * g(li, c * n + k); }
+        s(a, m * n + c, v); s(a, c * n + m, v);
+    } }
+}
+
+/// And after the eigen-solver: C = Liᵀ·Y for the orbitals holding anything (ncol columns, the rest 0), Cf = C·f for
+/// the first nk (focc > 1e-15, else 0), and the density P = Cf·Cᵀ (symmetric).
+#[no_mangle]
+pub unsafe extern "C" fn af_xq_dens(ltp: u32, ap: u32, cp: u32, ctp: u32, pp: u32, fp: u32, nao: u32, ncol: u32, nk: u32) {
+    let n = nao as usize; let ncol = ncol as usize; let nk = nk as usize;
+    let lit = ltp as usize as *const f64; let a = ap as usize as *const f64; let c = cp as usize as *mut f64; let cf = ctp as usize as *mut f64; let p = pp as usize as *mut f64; let focc = fp as usize as *const f64;
+    for m in 0..n {
+        let cm = m * n;
+        for col in 0..ncol { let yn = col * n; let mut v = 0.0; for k in m..n { v += g(lit, cm + k) * g(a, yn + k); } s(c, cm + col, v); }
+        for col in ncol..n { s(c, cm + col, 0.0); }
+    }
+    for m in 0..n { for k in 0..nk { let f = g(focc, k); s(cf, m * n + k, if f > 1e-15 { g(c, m * n + k) * f } else { 0.0 }); } }
+    for m in 0..n {
+        let pm = m * n;
+        for col in m..n { let cn = col * n; let mut v = 0.0; for k in 0..nk { v += g(cf, pm + k) * g(c, cn + k); } s(p, pm + col, v); s(p, cn + m, v); }
+    }
+}
