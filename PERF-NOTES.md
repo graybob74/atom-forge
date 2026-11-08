@@ -2942,6 +2942,12 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    meson side by side, the "molecule" reading); and the hexaquark candidate d*(2380) (WASA-at-COSY, 2014; 6 light
    quarks, decaying to deuteron + two pions), marked as a candidate whose nature is still argued. Info boxes for both.
    Any new production or decay is a physics addition: the owner's OK with the plan.
+53 protonium seen (the owner, 2026-11-08): today a slow p̄ caught by hydrogen (Realistic particles → Exotic atoms)
+   cascades and annihilates in one event (nuclearAnnihilation, xa); show it instead as a p̄p pair going round each
+   other, spiralling in level by level from n ≈ 30 with its X-rays given off on the way, then the annihilation's
+   flash and pions, as positronium is drawn (1.28.1), on the watching clock so it can be seen at any speed; Grab and
+   an Inspect card with info. The timing shown is a picture (the real cascade takes far less time than a frame); the
+   energy books stay as they are.
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
