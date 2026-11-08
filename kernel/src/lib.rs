@@ -17,8 +17,15 @@ pub mod d3;
 pub mod vl;
 pub mod mb;
 pub mod qeq;
+pub mod jsp;
 
-pub const RC2: f64 = 36.0; // RC = 6 Å
+pub const RC2_DEF: f64 = 36.0; // RC = 6 Å, the reach at start (af_const(1))
+/// The cutoff squared (Å²): 36 (6 Å), or 81 / 144 when Settings → Experimental → Longer force reach is 9 or 12 Å
+/// (engine.js setCutoff calls af_set_rc2; 1.28 item 33). In the module's memory, so the worker threads see it too.
+static mut RC2_V: f64 = RC2_DEF;
+#[inline(always)] pub fn rc2() -> f64 { unsafe { *core::ptr::addr_of!(RC2_V) } }
+#[no_mangle] pub unsafe extern "C" fn af_set_rc2(v: f64) { *core::ptr::addr_of_mut!(RC2_V) = v; }
+#[no_mangle] pub extern "C" fn af_rc2() -> f64 { rc2() }
 pub const FCAP: f64 = 1e7;
 pub const CORE_RMIN: f64 = 0.02;
 pub const BARE_SMEAR: f64 = 2.0;
@@ -233,7 +240,7 @@ pub unsafe fn pair_kernel(c: &mut Ctx, s: &St, q0: usize, q1: usize, fxo: *mut f
         let mut dx = rd(s.x, j) - rd(s.x, i); let mut dy = rd(s.y, j) - rd(s.y, i);
         minimum_image(&mut dx, &mut dy, wrap, bw, bh, hw, hh);
         let r2 = dx * dx + dy * dy;
-        if !(r2 < RC2 && r2 > 1e-10) { continue; }
+        if !(r2 < rc2() && r2 > 1e-10) { continue; }
         let zi = rd(s.z, i); let zj = rd(s.z, j);
         if zi == 0 || zj == 0 { continue; } // neutrons fly straight
         let r = r2.sqrt(); let ni = rd(s.ne, i); let nj = rd(s.ne, j);
@@ -392,7 +399,7 @@ pub unsafe extern "C" fn af_forces(desc: u32, q0: u32, q1: u32, b0: u32, b1: u32
 /// 3-D kernels).
 #[no_mangle]
 pub extern "C" fn af_const(k: u32) -> f64 {
-    match k { 0 => K_COUL, 1 => RC2, 2 => FCAP, 3 => CORE_RMIN, 4 => BARE_SMEAR, 5 => R_ANN, 6 => ANGLE_K, 7 => D_LEN as f64,
+    match k { 0 => K_COUL, 1 => RC2_DEF, 2 => FCAP, 3 => CORE_RMIN, 4 => BARE_SMEAR, 5 => R_ANN, 6 => ANGLE_K, 7 => D_LEN as f64,
         // the 3-D kernels (d3.rs, af_forces3): the descriptor's length with the z entries, K_OOP, K_TOR, K3_DIV[0..7]
         8 => d3::D3_LEN as f64, 9 => d3::K_OOP, 10 => d3::K_TOR, 11..=17 => d3::K3_DIV[(k - 11) as usize],
         // 1.26: the bond orders' descriptor with its 3-D entries (bo.rs: the pass in 3-D), the list's walk and the twist
@@ -441,7 +448,7 @@ pub unsafe fn fast(base: usize, desc: *const i32, ft: *const i32, na: usize, nl:
         let mut dx = rd(s.x, a) - rd(s.x, l); let mut dy = rd(s.y, a) - rd(s.y, l);
         if wrap { if dx > hw { dx -= bw; } else if dx < -hw { dx += bw; } if dy > hh { dy -= bh; } else if dy < -hh { dy += bh; } }
         let r2 = dx * dx + dy * dy;
-        if !(r2 < RC2 && r2 > 1e-10) || rd(s.z, a) == 0 { continue; }
+        if !(r2 < rc2() && r2 > 1e-10) || rd(s.z, a) == 0 { continue; }
         let r = r2.sqrt(); let qa = rd(s.q, a); let ql = rd(s.q, l);
         let mut f = 0.0;
         if qa != 0.0 {
@@ -469,7 +476,7 @@ pub unsafe fn fast(base: usize, desc: *const i32, ft: *const i32, na: usize, nl:
         let mut dx = rd(s.x, j) - rd(s.x, i); let mut dy = rd(s.y, j) - rd(s.y, i);
         if wrap { if dx > hw { dx -= bw; } else if dx < -hw { dx += bw; } if dy > hh { dy -= bh; } else if dy < -hh { dy += bh; } }
         let r2 = dx * dx + dy * dy;
-        if !(r2 < RC2 && r2 > 1e-10) { continue; }
+        if !(r2 < rc2() && r2 > 1e-10) { continue; }
         let r = r2.sqrt(); let s2 = r2 + 0.04;
         let mut f = K_COUL * rd(s.q, i) * rd(s.q, j) * r / (s2 * s2.sqrt());
         let w = K_COUL * ((0.04 - 2.0 * r2).abs() + s2) / (s2 * s2 * s2.sqrt()) * (rd(s.im, i) + rd(s.im, j));
@@ -489,7 +496,7 @@ pub unsafe fn fast(base: usize, desc: *const i32, ft: *const i32, na: usize, nl:
                 let cc = rd(chi, c) as usize;
                 if cc == l || gone(cc) || (rd(k, cc) != 0 && rd(s.id, cc) < idl) { continue; }
                 let dx = rd(s.x, cc) - lx; let dy = rd(s.y, cc) - ly; let r2 = dx * dx + dy * dy;
-                if r2 < RC2 { continue; }
+                if r2 < rc2() { continue; }
                 let r = r2.sqrt(); let f = K_COUL * ql * rd(s.q, cc) / r2; let fx = f * dx / r; let fy = f * dy / r;
                 add(gx, cc, fx); add(gy, cc, fy); add(gx, l, -fx); add(gy, l, -fy);
             }

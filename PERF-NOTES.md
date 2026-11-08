@@ -1991,6 +1991,81 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.28.0: the Settings layout (sub-options with their option, switches at the right, 3-D settings by mode, Experimental reset) and speed-ups (force reach, dipoles and charge sites in WebAssembly, molecule naming, charged count)
+
+### 1.28: speed-ups (items 33–44; the owner, 2026-11-07: "you may do the speedup run"; branch v159)
+
+Speed only: no physics changed. Every one of the 59 setups at normal settings is 1.27.0's to the bit after all of it
+(tools/fingerprint.js, seed 7, 300 steps, both trees). Timings on this machine (2 cores), one thread, ms a step.
+- **33, the longer force reach in the module.** The kernel's cutoff is a value it is given (`af_set_rc2`, a static in
+  the module's memory, so the worker threads see it; `rc2()` in lib.rs, d3.rs, bo.rs), set by setCutoff and when the
+  module starts; 6 Å stays the default (`af_const(1)` still 36). 9 and 12 Å ran the JavaScript kernels before. The
+  module's forces against the JavaScript's at 9 and 12 Å: 2-D to 4·10⁻¹⁴ relative (the kernels' exp, as at 6 Å), the
+  same candidates; 3-D to the bit (t_wasm 1b). Liquid water 9 Å 0.458 → 0.275, 12 Å 0.620 → 0.361; brine 12 Å 4.91 →
+  2.45; 3-D water 9 Å 12.3 → 6.2, 12 Å 25.3 → 11.0; 3-D brine 12 Å 57.4 → 33.7. The cost tags were measured again
+  (bench-mode): flat ×1–1.3 (9 Å) and ×1–1.7 (12 Å; liquid water 1.3 and 1.7, brine about 1: its time is the ions'
+  events), 3-D ×2.2–2.5 and ×3.7–4.5 (they were ×1.3–2.6, ×1.6–5.6, ×3.5–5, ×7–17).
+- **35 and polarizability by direction: the passes in the module.** `af_pd_forces` (pold.js pdForces) and
+  `af_sites_forces` (sites.js sitesForces' pair loop; not with π-stacking's ring pairs, whose dispersion uses Math.pow
+  and stays in JavaScript, nor the offsets' gradients carried back, siteBack) in kernel/src/jsp.rs: the same tests and
+  arithmetic in the JavaScript's order, so the forces, the offsets' gradients and the pair count are the JavaScript's to
+  the bit (t_wasm 1c, on 3-D and flat water with dipoles, 3-D water with lone pairs, chloroform–ammonia with σ-holes,
+  the molecules in space with both). With identical runs (the same trajectory either way): dipoles in 3-D water 10.2
+  → 8.5 ms a step, flat water 2.2–3.0 → 1.45; lone pairs in 3-D water 6.7 → 4.9. Measured against 1.27.0 as a whole,
+  the dipoles' gain is inside run-to-run noise (8.0 vs 8.1): the JavaScript loop was already typed arrays, which V8
+  compiles nearly as well; the rest of a dipole step is pdUpdate's self-consistent loop (20%, typed arrays too).
+- **41, molecule recognition.** graphHash on 32-bit colours (murmur3's mixing) instead of strings: the same
+  Weisfeiler–Lehman refinement, so the same classes: tools/ghcheck.js compares it with the string version over the
+  library (175 formulas), every molecule the 59 setups make (1,609) and 30,000 random graphs (24,024 structures, the
+  same 24,024 by both), and every name came out the same. Soup 0.640 → 0.466, muonium 0.600 → 0.493, 3-D hydrogen
+  0.430 → 0.310.
+- **chargedCount** (localPhi's early exit, every electron-transfer test): its cache key was a string built on every
+  call; six numbers compared now. 3-D copper with many-body metals 9.5 → 6.4 (it was 10.6% of the step), salt 0.725 →
+  0.645, 3-D brine 11.2 → 10.9.
+- Tried and left out: **39**, localPhi's grid walk on the store's arrays (no callback, no getters, the same order and
+  sum): 3-D brine 11.4 → 11.1, inside noise, reverted; the cost is the walk itself (27 cells of 8 Å for a 6 Å sphere).
+  A finer grid or a per-step cache of φ would cut it but changes the order of the sums (equal to rounding, not to the
+  bit: the stored fingerprints would move), left for the owner to decide.
+- Not done, from the measurements: **34** quantum bonds (large: the SCF, Hamiltonian, eigen-solver), **36** waves,
+  **37** inner steps, **38** many-body metals in mixtures, **40** the step's main loop, **42–43** radiation and fast
+  particles in flight: each is JavaScript over typed arrays or branchy event code, where this pass's two ports show the
+  module gains 20–50% on a loop V8 already compiles well, and the profiles put most of those setups' time in events
+  (localPE's neighbour walks, ionization, captures), not in one loop. The close-packed metals' band shape (mb4Pass,
+  36% of 3-D copper with many-body metals) is the same kind of typed-array loop. **44**, the garbage collector (5.6% of
+  the step on average): the allocations sampled per step (HeapProfiler) are spread over evalCandidates, innerSteps,
+  chooseDt and the force pass in small pieces, with no single site worth a change without a finer tool.
+
+Suite (v159, tools/runtests.sh on 2 cores, 50 min): 64 of 66 jobs passed at once; t_features and t_page failed on
+checks the Settings changes moved (the realistic-tag count, the 3-D rows hidden in the flat game, a pointer left over a
+row by an earlier check previewing that row) and were fixed; t_settings opened the 3-D tab in the flat game and hung on
+a row it could no longer find (fixed: it loads the 3-D lab first; and a line of mine had read the page from Node). Rerun
+alone on the final tree: t_features and t_settings pass; t_page passes but for the slow-motion button, the known flake.
+
+### 1.28: Settings layout (the owner, 2026-11-07; branch v158)
+
+Five requests from the owner's screenshots, display only (no physics changed):
+- **Sub-options only with their option.** A row or note marked `data-dep="id"` (a switch on), `"id=v"` (a group at v) or
+  `"id!v"` (a group not at v) is hidden otherwise (`depSync`, run by `setSegValue`, any switch's change and
+  `syncSettings`): Quantum method and spins under Bond orders → Quantum, polarizability by direction under Induced
+  charges, exact bead forces under Quantum nuclei, matter depth under Charged particles in matter, the rewind's span,
+  interval and memory under Rewind.
+- **Switches lined up at the right.** `label.check.rpl`: the name takes the free width, the cost and realistic tags sit
+  just before the switch, every switch on one edge (spread 0 px over Experimental's 14). A long name wraps: unwrapped,
+  "Follow a nucleon …" made the list's grid column 753 px against the box's 650 and the switches ran off the right edge.
+- **Electrons as waves, resonance in any ring, following a nucleon are switches** (`setWave` was the On/Off group
+  `segWave`; `setResBig`, `setInc` were plain checkboxes). Its cost and realistic tags, picture (`setshots` key renamed)
+  and the tests follow the new id. A slip in this change commented out `setResBig`/`setInc`'s sync and handlers and the
+  cost refresh after a setting changed (a comment left mid-line); found by the reset check (the total stayed ×1 with four
+  settings on) and fixed before commit.
+- **3-D settings by mode.** The 3-D lab's own settings (lone pairs, π-stacking, the whole 3-D tab) are not shown in the
+  flat game at all (`smode-hide`, their notes too; Settings opens on Performance if the 3-D tab was last); in the 3-D lab
+  a 3-D-only row outside the 3-D tab carries a "3-D exclusive" tag. Flat-game-only rows (detailed nuclear collisions,
+  zoom toward) stay dimmed with "2-D only" in the 3-D lab, as since 1.25.
+- **Experimental → Reset to normal** (top of the tab): every Experimental setting (`SET_EXP`) back to normal at once, as
+  at each start; greyed when all is normal; the other tabs' settings kept (`expResetAll`).
+Test: `tests/f_set1271.js` (deps, switches, mode, reset; all four fail on 1.27.0); f_125s and f_126d now expect the 3-D
+rows hidden in the flat game.
+
 ## 1.27.0: all of 1.26 (directional forces, GFN2 quantum bonds, metals' compounds and directional metals) and 1.27 (realistic particles, W, Z and Higgs bosons, polarizability by direction, Rayleigh scattering, unstable particles meeting, photons as waves, close-packed metals, two controls), 18 bug fixes
 
 Released 2026-11-07 from v157 (the owner: "release"); 1.26 was never released on its own and ships inside it.

@@ -316,7 +316,7 @@ PARTS.page = async (page, check) => {
     R.selX = null; W.flights = []; setTool('inspect'); return o;
   });
   const ids = r.ids.split(','), iN = ids.indexOf('setRpNuc'), iP = ids.indexOf('setRpPol');
-  const ok = ids.slice(0, 3).join() === 'setUltra,segWave,setRpExo' && iP === iN + 1 && r.tags && r.sw && r.h[iP] < 34 && r.pane === 'Photon polarization' && r.start === 'false,false' && r.on === 'true,true' && r.saved === 'true' && r.exp
+  const ok = ids.slice(0, 3).join() === 'setUltra,setWave,setRpExo' && iP === iN + 1 && r.tags && r.sw && r.h[iP] < 34 && r.pane === 'Photon polarization' && r.start === 'false,false' && r.on === 'true,true' && r.saved === 'true' && r.exp
     && r.lightOpt && r.objOpt && /Polarizationlinear, in the plane/.test(r.ins) && !/Polarization/.test(r.off) && !r.lightOff;
   check(ok, `1.27 Settings: Realistic particles ends ${ids.slice(-2).join(', ')} (${r.h[iP]} px), with its cost tag and switch; on, the Light tool offers polarization, the Objects tool a polarizer, Inspect shows "linear, in the plane"; off, none of it`, 'rp7 page: ' + JSON.stringify(Object.assign({}, r, { ins: (r.ins.match(/Polarization[^]{0,80}/) || [r.ins.slice(0, 200)])[0], off: r.off.slice(0, 100) })));
 };

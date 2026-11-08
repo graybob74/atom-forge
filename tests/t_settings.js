@@ -186,7 +186,7 @@ async function narrow() {
   await ctx.addInitScript(() => { window.AF_NO_MENU = true; window.AF_NO_PAUSE = true; });
   const page = await ctx.newPage(); const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto('file://' + pageFile()); await page.waitForTimeout(900);
-  await page.evaluate(() => openSettings('d3')); await page.waitForTimeout(250);
+  await page.evaluate(() => { loadPreset('water3d'); setRunning(false); openSettings('d3'); }); await page.waitForTimeout(250); // (in the 3-D lab: the flat game shows no 3-D tab since 1.28)
   const lay = await page.evaluate(() => { const a = $('setPrev').getBoundingClientRect(), b = document.querySelector('#setModal .sbox').getBoundingClientRect(), d = document.querySelector('#setModal .sdialog').getBoundingClientRect(); return { prevBottom: a.bottom, boxTop: b.top, prevH: a.height, boxH: b.height, dialogW: d.width, scrollW: document.documentElement.scrollWidth }; });
   check(lay.prevBottom <= lay.boxTop + 1 && lay.prevH < 140 && lay.boxH > 400 && lay.scrollW <= 390, `at 390 px the preview (${lay.prevH.toFixed(0)} px tall) sits above the settings (${lay.boxH.toFixed(0)} px), no sideways scroll`, lay);
   const row = await page.$('#segFog3'); const b = await row.boundingBox();
@@ -197,8 +197,8 @@ async function narrow() {
   // 1.23.1: the "realistic" tag on the choice closest to nature, also for bond orders (quantum), bead forces (every bead)
   // and free electrons (wave packets), which were missing it
   await page.evaluate(() => openSettings('exp')); await page.waitForTimeout(200);
-  const rl = await page.evaluate(() => Object.fromEntries(['segBo', 'segPiRpc', 'segWave', 'segPi'].map(id => [id, [...$(id).querySelectorAll('button')].filter(b => b.querySelector('.rl') && b.querySelector('.rl').textContent === 'realistic').map(b => b.dataset.v).join(',')])));
-  check(rl.segBo === '2' && rl.segPiRpc === '0' && rl.segWave === '1' && rl.segPi === '32', 'the realistic tag on quantum bonds, every-bead forces, wave electrons and 32 beads', rl);
+  const rl = await page.evaluate(() => Object.fromEntries(['segBo', 'segPiRpc', 'segPi'].map(id => [id, [...$(id).querySelectorAll('button')].filter(b => b.querySelector('.rl') && b.querySelector('.rl').textContent === 'realistic').map(b => b.dataset.v).join(',')]).concat([['setWave', ((document.getElementById('setWave').closest('label').querySelector('.rlb') || {}).textContent === 'realistic when on') ? '1' : '']]))); // (electrons as waves: a switch since 1.28, its tag on the row)
+  check(rl.segBo === '2' && rl.segPiRpc === '0' && rl.setWave === '1' && rl.segPi === '32', 'the realistic tag on quantum bonds, every-bead forces, wave electrons and 32 beads', rl);
   await browser.close();
 }
 

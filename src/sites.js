@@ -194,14 +194,14 @@ const SD = { idx: new Int32Array(0), rg: new Uint8Array(0), at: [], dat: [], key
 const _nos = { ns: 0 };
 function sitesPrep() {
   const key = W.topo + ':' + W.dirty + ':' + W.parts.length + ':' + W.spawned + ':' + W.deaths + ':' + _flagGen + ':' + SITES.lp + SITES.sh + SITES.pi + ':' + (W.d3 ? 1 : 0) + ':' + BO.any;
-  if (SD.idx.length < S.size) { SD.idx = new Int32Array(S.size * 2).fill(-1); SD.key = ''; }
+  if (SD.idx.length < S.size) { SD.idx = shArray(Int32Array, S.size * 2).fill(-1); SD.key = ''; } // (shArray: in the module's memory, for af_sites_forces, 1.28)
   if (key !== SD.key) {
     for (const p of SD.at) if (p.i >= 0 && p.i < SD.idx.length) SD.idx[p.i] = -1;
     SD.at = []; for (const p of W.parts) if (siteKind(p)) { SD.idx[p.i] = SD.at.length; SD.at.push(p); }
     if (SD.rg.length < S.size) SD.rg = new Uint8Array(S.size * 2); else SD.rg.fill(0); SITES.rings = 0;
     if (SITES.pi) for (const p of W.parts) if (!p.dead && ringType(p)) { SD.rg[p.i] = 1; SITES.rings++; }
     while (SD.dat.length < SD.at.length) SD.dat.push({ ns: 0, o: new Float64Array(9), sq: new Float64Array(3), w: new Float64Array(3), b: new Float64Array(3), aq: 0, aw: 1, ab: 0, kind: 0 });
-    const m = SD.at.length; if (SD.n.length < m) { SD.n = new Int32Array(m * 2 + 16); SD.q = new Float64Array(4 * (m * 2 + 16)); SD.o = new Float64Array(12 * (m * 2 + 16)); SD.go = new Float64Array(12 * (m * 2 + 16)); }
+    const m = SD.at.length; if (SD.n.length < m) { SD.n = shArray(Int32Array, m * 2 + 16); SD.q = shArray(Float64Array, 4 * (m * 2 + 16)); SD.o = shArray(Float64Array, 12 * (m * 2 + 16)); SD.go = shArray(Float64Array, 12 * (m * 2 + 16)); }
     SD.key = key; SITES.n = SD.at.length;
   }
   // flat copies for the force loop: per site atom 1 + ns charges (the atom's own first, at offset 0) and their offsets
@@ -216,6 +216,7 @@ const _gq = new Float64Array(9);
 function sitesForces(FX, FY, FZ) {
   sitesPrep();
   const nat = SD.at.length; if (!nat && !SITES.rings) return;
+  if (!SITES.rings && sitesWasm(FX, FY, FZ)) { sitesBackAll(FX, FY, FZ); return; } // (no ring pairs: the loop in the module, 1.28)
   const pi = VL.pi, pj = VL.pj, ex = VL.ex, np = VL.np, X = S.x, Y = S.y, Zp = S.z, NE = S.ne, Z = S.Z, K = S.k, ANTI = S.anti, idx = SD.idx, Q = S.q, QP = S.qp, IONIC = S.ionic, RG = SD.rg, OBJ = S.obj;
   const N = SD.n, Qs = SD.q, Os = SD.o, GO = SD.go, soft = SITES.soft, r1 = RC - SW_W;
   const d3 = W.d3, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2;
@@ -255,11 +256,32 @@ function sitesForces(FX, FY, FZ) {
     FX[i] += fax; FY[i] += fay; FX[j] -= fax; FY[j] -= fay;
     if (d3) { FZ[i] += faz; FZ[j] -= faz; }
   }
+  SITES.pairs = npairs;
+  sitesBackAll(FX, FY, FZ);
+}
+/* The offsets' gradients carried back to the site atoms and their neighbours (siteBack), after the pair loop. */
+function sitesBackAll(FX, FY, FZ) {
+  const GO = SD.go, nat = SD.at.length, d3 = W.d3;
   for (let k = 0; k < nat; k++) {
     const b = 12 * k; let any = false; for (let m = 0; m < 9; m++) { _gq[m] = GO[b + 3 + m]; if (_gq[m]) any = true; }
     if (any) siteBack(SD.at[k], SD.dat[k].kind, _gq, FX, FY, d3 ? FZ : null);
   }
-  SITES.pairs = npairs;
+}
+/* sitesForces' pair loop in the module (af_sites_forces, kernel/src/jsp.rs, 1.28; not with π-stacking's ring pairs,
+   whose dispersion stays here): the same tests and arithmetic in the same order, the forces and the offsets' gradients
+   the JavaScript's to the bit. False (and the JavaScript runs) with no module or an array outside its memory. */
+const SDW = { t: null, p: null, calls: 0, useWasm: true };
+function sitesWasm(FX, FY, FZ) {
+  if (!SDW.useWasm || !wasmReady() || typeof WK.ex.af_sites_forces !== 'function') return false;
+  if (!SDW.t) { SDW.t = wasmArray(Int32Array, 24); SDW.p = wasmArray(Float64Array, 16); }
+  if (!WK.on) return false;
+  const A = [VL.pi, VL.pj, VL.ex, S.x, S.y, S.z, S.ne, S.Z, S.k, S.anti, SD.idx, S.q, S.qp, S.ionic, SD.n, SD.q, SD.o, SD.go, FX, FY, FZ];
+  if (!wasmIn(...A, SDW.t, SDW.p)) return false;
+  const T = SDW.t, P = SDW.p; for (let k = 0; k < A.length; k++) T[k] = A[k].byteOffset;
+  P[0] = VL.np; P[1] = W.d3 ? 1 : 0; P[2] = W.wall === 'wrap' ? 1 : 0; P[3] = W.box.w; P[4] = W.box.h; P[5] = W.box.d; P[6] = RC2; P[7] = RC - SW_W; P[8] = SW_W; P[9] = SOFT_S; P[10] = SITES.soft; P[11] = K_COUL; P[12] = K_IW;
+  WK.ex.af_sites_forces(T.byteOffset, P.byteOffset);
+  SITES.pairs = P[13]; SDW.calls++;
+  return true;
 }
 /* The correction between two atoms as the energy books see it (pairPE, sitesLocal, sitesTotal): live sites. */
 const _sga = { ns: 0, o: new Float64Array(9), sq: new Float64Array(3), w: new Float64Array(3), b: new Float64Array(3), aq: 0, aw: 1, ab: 0, kind: 0 };

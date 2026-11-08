@@ -131,7 +131,7 @@ PARTS.books = async (page, check, say) => {
 /* ---- 6. Settings: the three rows, normal at start, 3-D only for lone pairs and π-stacking, switching the model */
 PARTS.settings = async (page, check, say) => {
   const r = await page.evaluate(async () => {
-    const out = { start: [SET.lps, SET.sigh, SET.pis, SITES.any] };
+    const out = { start: [SET.lps, SET.sigh, SET.pis, SITES.any], d3: !!W.d3 };
     openSettings('exp'); await new Promise(res => setTimeout(res, 60));
     out.rows = ['segLps', 'segSigh', 'segPis'].map(id => !!$(id) && !!$(id).offsetParent);
     out.only = ['segLps', 'segSigh', 'segPis'].map(id => setRowOnly($(id).closest('.srow')));
@@ -141,8 +141,8 @@ PARTS.settings = async (page, check, say) => {
     hideModal('setModal'); return out;
   });
   say('  1.26 settings: ' + JSON.stringify(r));
-  check(r.start.join() === '0,0,0,false' && r.rows.every(Boolean) && r.only.join() === '3d,,3d' && r.desc.every(Boolean) && r.on.join() === '1,1,true' && r.total && r.off.join() === '0,0,false',
-    '1.26: Settings → Experimental → Directional forces: lone pairs, σ-holes and π-stacking, off at start, lone pairs and π-stacking marked 3-D only, each described in both modes; σ-holes switch the model on and off and join the Experimental total',
+  check(r.start.join() === '0,0,0,false' && r.rows.join() === [r.d3, true, r.d3].join() && r.only.join() === '3d,,3d' && r.desc.every(Boolean) && r.on.join() === '1,1,true' && r.total && r.off.join() === '0,0,false',
+    '1.26: Settings → Experimental → Directional forces: lone pairs, σ-holes and π-stacking, off at start, lone pairs and π-stacking marked 3-D only (shown in the 3-D lab only, 1.27.1), each described in both modes; σ-holes switch the model on and off and join the Experimental total',
     '1.26 settings: ' + JSON.stringify(r));
 };
 

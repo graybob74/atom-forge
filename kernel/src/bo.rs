@@ -276,7 +276,7 @@ pub unsafe fn collect(b: &Bo, p: *mut f64) -> usize {
     let vlnp = g(p, P_VLNP) as usize; let pcap = g(p, P_PCAP) as usize;
     let wrap = g(p, P_WRAP) != 0.0; let bw = g(p, P_BW); let bh = g(p, P_BH); let hw = g(p, P_HW); let hh_ = g(p, P_HH);
     let d3 = g(p, P_D3) != 0.0; let bd = g(p, P_BD); let hd = g(p, P_HD); // (3-D, 1.26: the depth too, its direction in BF.puz)
-    let c0 = 1.0 / (crate::RC2 + 0.09).sqrt(); let ke = crate::K_COUL;
+    let c0 = 1.0 / (crate::rc2() + 0.09).sqrt(); let ke = crate::K_COUL;
     let mut n = 0usize;
     for k in 0..vlnp {
         let i = g(b.vpi, k) as usize; let j = g(b.vpj, k) as usize;
@@ -285,7 +285,7 @@ pub unsafe fn collect(b: &Bo, p: *mut f64) -> usize {
         let mut dx = g(b.x, j) - g(b.x, i); let mut dy = g(b.y, j) - g(b.y, i); let mut dz = if d3 { g(b.pz, j) - g(b.pz, i) } else { 0.0 };
         if wrap { if dx > hw { dx -= bw; } else if dx < -hw { dx += bw; } if dy > hh_ { dy -= bh; } else if dy < -hh_ { dy += bh; } if d3 { if dz > hd { dz -= bd; } else if dz < -hd { dz += bd; } } }
         let r2 = if d3 { dx * dx + dy * dy + dz * dz } else { dx * dx + dy * dy };
-        if !(r2 < crate::RC2 && r2 >= 1e-12) { continue; }
+        if !(r2 < crate::rc2() && r2 >= 1e-12) { continue; }
         if n < pcap {
             let r = r2.sqrt(); let za = g(b.z, i) as i32; let zb = g(b.z, j) as i32;
             if d3 { s(b.puz, n, dz / r); }
@@ -294,7 +294,7 @@ pub unsafe fn collect(b: &Bo, p: *mut f64) -> usize {
             let ia = g(b.ionic, i); let ib = g(b.ionic, j); let qa = g(b.q, i); let qb = g(b.q, j);
             // iwK: an ion and a neutral partner of the other kind, K_IW
             let _ = (ia, ib); s(b.pk, n, ke); // (members meet each other without the ion–water doubling, 1.20)
-            let cs = if qa == 0.0 || qb == 0.0 { c0 } else { c0 - if g(b.mfl, ma as usize) != 0 && g(b.mfl, mb as usize) != 0 { 1.0 / crate::RC2.sqrt() } else { 0.0 } };
+            let cs = if qa == 0.0 || qb == 0.0 { c0 } else { c0 - if g(b.mfl, ma as usize) != 0 && g(b.mfl, mb as usize) != 0 { 1.0 / crate::rc2().sqrt() } else { 0.0 } };
             s(b.pcsh, n, cs);
         }
         n += 1;

@@ -33,7 +33,8 @@ PARTS.hexazine = async (page, check, say) => {
    menu, but it's supposed to be in the sidebar only"); live readouts stay under their rows; on a narrow screen (the pane a
    short strip on top) the descriptions stay in the list, which no longer runs off the right edge */
 PARTS.settings = async (page, check, say, openPage) => {
-  const look = (pg) => pg.evaluate(async (TABS) => {
+  const look = async (pg) => { await pg.mouse.move(1, 1); return lookIn(pg); }; // (the pointer off the list: one left over a row by an earlier check previews that row, 1.28)
+  const lookIn = (pg) => pg.evaluate(async (TABS) => {
     const out = { tabs: {} };
     for (const t of TABS) {
       openSettings(t); await new Promise(r => setTimeout(r, 60));

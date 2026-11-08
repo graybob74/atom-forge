@@ -870,15 +870,36 @@ function isoFormula(atoms, plain) {
    radical version of the same skeleton still matches). Formulas that no library molecule has fall back to the
    formula table (radicals and fragments). */
 function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36); }
+/* (1.28 item 41: the same refinement on 32-bit colours, not strings: soup, muonium and 3-D hydrogen spent 15–25% of
+   their step building and hashing the strings. Its hashes differ from the string version's, but every name it gives is
+   the same: library and world molecules are hashed alike, and the two versions split the library's formulas into the
+   same structures, checked over every entry and every molecule the setups make, tools/ghcheck.js.) */
+function ghMix(h, w) { // (one 32-bit word into the hash: murmur3's mixing step)
+  w = Math.imul(w, 0xcc9e2d51); w = (w << 15) | (w >>> 17); w = Math.imul(w, 0x1b873593);
+  h ^= w; h = (h << 13) | (h >>> 19); return (Math.imul(h, 5) + 0xe6546b64) | 0;
+}
+function ghFin(h) { h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); return h ^ (h >>> 16); }
+let _ghA = new Int32Array(64), _ghB = new Int32Array(64), _ghN = new Int32Array(16);
 function graphHash(labels, adj) {
-  let col = labels.slice();
   const n = labels.length, iters = Math.min(n, 12);
+  if (_ghA.length < n) { _ghA = new Int32Array(2 * n); _ghB = new Int32Array(2 * n); }
+  let col = _ghA, nc = _ghB;
+  for (let i = 0; i < n; i++) { const s = labels[i]; let h = 0x811c9dc5; for (let c = 0; c < s.length; c++) { h ^= s.charCodeAt(c); h = Math.imul(h, 0x01000193); } col[i] = h; }
   for (let it = 0; it < iters; it++) {
-    const nc = new Array(n);
-    for (let i = 0; i < n; i++) nc[i] = fnv(col[i] + '(' + adj[i].map(j => col[j]).sort().join(',') + ')');
-    col = nc;
+    for (let i = 0; i < n; i++) {
+      const a = adj[i], m = a.length;
+      if (_ghN.length < m) _ghN = new Int32Array(2 * m);
+      const nb = _ghN;
+      for (let k = 0; k < m; k++) { const v = col[a[k]]; let q = k; while (q > 0 && nb[q - 1] > v) { nb[q] = nb[q - 1]; q--; } nb[q] = v; } // (the neighbours' colours, sorted)
+      let h = ghMix(ghMix(0x9747b28c, col[i]), m);
+      for (let k = 0; k < m; k++) h = ghMix(h, nb[k]);
+      nc[i] = ghFin(h ^ m);
+    }
+    const t = col; col = nc; nc = t;
   }
-  return fnv(col.slice().sort().join('.'));
+  const all = Array.prototype.slice.call(col, 0, n).sort((x, y) => x - y);
+  let h = ghMix(0x2545f491, n); for (let i = 0; i < n; i++) h = ghMix(h, all[i]);
+  return (ghFin(h ^ n) >>> 0).toString(36);
 }
 let _libIdx = null;
 function libIndex() {
@@ -1437,13 +1458,13 @@ const SKIN = 1.0, HSKIN2 = 0.25 * SKIN * SKIN, SKIN_F = 2.0, HSKINF2 = 0.25 * SK
 let RL = RC + SKIN, RL2 = RL * RL, RLF2 = (RC + SKIN_F) * (RC + SKIN_F);
 let CELL_MIN = RC + Math.max(SKIN, SKIN_F); // (cells at least as wide as either list reaches: a 3 × 3 block of cells holds every partner)
 /* The cutoff (1.10, Settings → Experimental → Longer force reach): 6 Å, or 9 or 12. Everything that reaches RC follows
-   it; the WebAssembly kernel has 6 Å built in, so a longer reach runs the JavaScript kernels, and the workers are
-   started again (their source carries RC2). The potential energy changes with the reach: set it between steps. */
+   it; the WebAssembly kernel is given it (af_set_rc2, 1.28 item 33: before, it had 6 Å built in and a longer reach ran
+   the JavaScript kernels), and the workers are started again (their source carries RC2). The potential energy changes with the reach: set it between steps. */
 function setCutoff(rc) {
   rc = rc === 9 || rc === 12 ? rc : 6;
-  if (typeof WK !== 'undefined') WK.use = rc === 6; // (wasmReady() also needs WK.ready: a kernel that failed stays off)
+  if (typeof WK !== 'undefined') WK.use = rc === 6 || wasmRcOk(); // (wasmReady() also needs WK.ready: a kernel that failed stays off; a module with af_set_rc2 takes any reach, 1.28 item 33)
   if (rc === RC) return false;
-  RC = rc; RC2 = rc * rc; RL = RC + SKIN; RL2 = RL * RL; RLF2 = (RC + SKIN_F) * (RC + SKIN_F); CELL_MIN = RC + Math.max(SKIN, SKIN_F);
+  RC = rc; RC2 = rc * rc; if (typeof WK !== 'undefined' && WK.ex && WK.ex.af_set_rc2) WK.ex.af_set_rc2(RC2); RL = RC + SKIN; RL2 = RL * RL; RLF2 = (RC + SKIN_F) * (RC + SKIN_F); CELL_MIN = RC + Math.max(SKIN, SKIN_F);
   _mdGen++; VL.valid = false; FL.gen = -1; // (the neighbour lists are rebuilt at the new reach)
   if (typeof TH !== 'undefined' && TH.n) { const n = TH.n; threadsSet(0); threadsSet(n); }
   return true;
@@ -5121,11 +5142,14 @@ function evDative(H, D, r) {
 /* (bug fix 2 after 1.25) How many particles carry a charge (net or partial), counted once per change of the world: in
    a neutral metal none does, and localPhi's walk over every atom within 6 Å (hundreds in a dense 3-D metal, four walks
    for each pair of atoms tried for an electron transfer) adds nothing. */
-const _chg = { key: '', n: 0 };
+const _chg = { st: -1, di: -1, to: -1, sp: -1, de: -1, len: -1, n: 0 }; // (the marks it was counted at: compared one by one, no key string, 1.28: building the string was 10% of 3-D copper's step)
 function chargedCount() {
-  const key = W.step + ':' + W.dirty + ':' + W.topo + ':' + W.spawned + ':' + W.deaths + ':' + W.parts.length;
-  if (_chg.key !== key) { let n = 0; for (const p of W.parts) if (!p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0) n++; _chg.key = key; _chg.n = n; }
-  return _chg.n;
+  const c = _chg;
+  if (c.st !== W.step || c.di !== W.dirty || c.to !== W.topo || c.sp !== W.spawned || c.de !== W.deaths || c.len !== W.parts.length) {
+    let n = 0; for (const p of W.parts) if (!p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0) n++;
+    c.st = W.step; c.di = W.dirty; c.to = W.topo; c.sp = W.spawned; c.de = W.deaths; c.len = W.parts.length; c.n = n;
+  }
+  return c.n;
 }
 function localPhi(x, y, skipA, skipB, z = 0) {
   const chg = (p) => (p && !p.dead && (p.k === NUC ? p.q + p.qp : p.q) !== 0 ? 1 : 0);

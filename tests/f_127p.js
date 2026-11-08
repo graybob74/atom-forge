@@ -162,16 +162,16 @@ PARTS.settings = async (page, check, say) => {
   const r = await page.evaluate(async () => {
     const out = { start: [SET.pold, PD.on] };
     openSettings('exp'); await new Promise(res => setTimeout(res, 60));
-    out.row = !!$('segPold') && !!$('segPold').offsetParent; out.desc = !!SDESC.segPold && !!SDESC3.segPold;
+    const vis = () => !!$('segPold') && !!$('segPold').offsetParent; out.row = [vis()]; out.desc = !!SDESC.segPold && !!SDESC3.segPold; // (a sub-option of Induced charges since 1.28: shown only with them on)
     $('segPold').querySelector('[data-v="1"]').click(); out.alone = [SET.pold, PD.on]; // (induced charges off: nothing yet)
-    $('segQeq').querySelector('[data-v="10"]').click(); out.with = [SET.pold, PD.on, QEQ.every]; out.total = $('expTotal').textContent.includes('polarizability by direction');
+    $('segQeq').querySelector('[data-v="10"]').click(); out.with = [SET.pold, PD.on, QEQ.every]; out.row.push(vis()); out.total = $('expTotal').textContent.includes('polarizability by direction');
     $('segPold').querySelector('[data-v="0"]').click(); out.off = [SET.pold, PD.on];
     $('segQeq').querySelector('[data-v="0"]').click();
     hideModal('setModal'); return out;
   });
   say('  1.27 (21) settings: ' + JSON.stringify(r));
-  check(r.start.join() === '0,0' && r.row && r.desc && r.alone.join() === '1,0' && r.with.join() === '1,1,10' && r.total && r.off.join() === '0,0',
-    '1.27 (21): Settings → Experimental → Polarizability: off at start, described in both modes, on only with Induced charges on, in the Experimental total, off again',
+  check(r.start.join() === '0,0' && r.row.join() === 'false,true' && r.desc && r.alone.join() === '1,0' && r.with.join() === '1,1,10' && r.total && r.off.join() === '0,0',
+    '1.27 (21): Settings → Experimental → Polarizability: off at start, shown under Induced charges only while they are on (1.28), described in both modes, on only with Induced charges on, in the Experimental total, off again',
     '1.27 (21) settings: ' + JSON.stringify(r));
 };
 PARTS.settings.page = true;

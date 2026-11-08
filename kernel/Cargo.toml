@@ -1,6 +1,6 @@
 [package]
 name = "atom-forge-kernel"
-version = "0.26.0"
+version = "0.28.0"
 edition = "2021"
 description = "Atom Forge's pair, bond and angle force kernels (engine.js PAIR KERNEL block) for WebAssembly"
 publish = false

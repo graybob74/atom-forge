@@ -186,7 +186,7 @@ PARTS.exp = async (page, check, say) => {
   const ui = await page.evaluate(() => {
     loadPreset('water3d'); setRunning(false);
     const en = (sel) => [...document.querySelectorAll(sel)].map(b => !b.disabled);
-    const r = { qeq: en('#segQeq button'), pi: en('#segPi button'), rpc: en('#segPiRpc button'), wave: en('#segWave button'), bo: en('#segBo button'), ultra: !$('setUltra').disabled, note: /from the positions/i.test($('set3dNote').textContent) && !/induced charges, quantum nuclei, continuous/.test($('set3dNote').textContent) };
+    const r = { qeq: en('#segQeq button'), pi: en('#segPi button'), rpc: en('#segPiRpc button'), wave: [!$('setWave').disabled], bo: en('#segBo button'), ultra: !$('setUltra').disabled, note: /from the positions/i.test($('set3dNote').textContent) && !/induced charges, quantum nuclei, continuous/.test($('set3dNote').textContent) };
     loadPreset('empty'); r.flat = en('#segBo button'); return r;
   });
   const go = (X, n) => { const W = X.W; for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); } };

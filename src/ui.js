@@ -2640,7 +2640,20 @@ function setAtomView(v) {
 }
 function toggleParticleView() { setAtomView(R.view.bohr === 'nuc' ? (UI.lastView || 'auto') : 'nuc'); }
 function toggleOrbitalView() { setAtomView(R.view.bohr === 'orb' ? (UI.lastView || 'auto') : 'orb'); }
-function setSegValue(id, v) { for (const b of $(id).querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === String(v))); }
+function setSegValue(id, v) { for (const b of $(id).querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === String(v))); depSync(); }
+/* Settings: a sub-option shows only while its option is on (the owner, 1.27.1): data-dep="segX=v" (that choice),
+   "segX!v" (any but that one) or "setX" (that switch on), on the row and on the notes about it. */
+function depSync() {
+  for (const el of document.querySelectorAll('[data-dep]')) {
+    const m = /^(\w+)(?:([=!])(.*))?$/.exec(el.dataset.dep), src = m && document.getElementById(m[1]);
+    if (!src) continue;
+    let on;
+    if (!m[2]) on = !!src.checked;
+    else { const b = src.querySelector('button[aria-pressed="true"]'), v = b ? b.dataset.v : null; on = m[2] === '=' ? v === m[3] : v !== null && v !== m[3]; }
+    el.classList.toggle('depoff', !on);
+  }
+}
+document.addEventListener('change', (e) => { if (e.target && e.target.type === 'checkbox') depSync(); });
 function bindSeg(id, fn) { $(id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; setSegValue(id, b.dataset.v); fn(b.dataset.v); }); }
 /* ---- files: a world saved and loaded, My molecules and saved isotopes exported and imported, as JSON. Saving goes
    through the artifact page's `downloads` capability where the page has one (claude.ai asks the viewer to confirm), and
@@ -5799,6 +5812,12 @@ SET_EXP.push('rpPol'); EXP_NAME.rpPol = 'photon polarization'; // (1.27)
 SET_EXP.push('rpRay'); EXP_NAME.rpRay = 'Rayleigh scattering'; // (1.27)
 SET_EXP.push('rpExm'); EXP_NAME.rpExm = 'unstable particles meeting'; // (1.27)
 SET_EXP.push('rpPwave'); EXP_NAME.rpPwave = 'photons as waves'; // (1.27)
+/* Settings → Experimental → Reset to normal: every Experimental setting back to normal at once (the owner, 1.27.1). */
+function expResetAll() {
+  for (const k of SET_EXP) SET[k] = SET_DEF[k];
+  store('settings', JSON.stringify(SET));
+  applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts();
+}
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
@@ -6004,7 +6023,7 @@ function syncSettings() {
   setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
-  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segPiRpc', String(SET.piRpc)); setSegValue('segBo', String(SET.bo)); setSegValue('segWave', String(SET.wave)); $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts();
+  setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segPiRpc', String(SET.piRpc)); setSegValue('segBo', String(SET.bo)); $('setWave').checked = !!SET.wave; $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts(); // (electrons as waves: a switch since 1.27.1)
   setSegValue('segMetal', String(SET.metal)); // (1.25)
   setSegValue('segXq', String(SET.xq)); // (1.26)
   setSegValue('segXqs', String(SET.xqs)); // (1.26)
@@ -6022,6 +6041,8 @@ function syncSettings() {
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
   settingsStats();
+  depSync(); // (sub-options shown only with their option on, 1.27.1)
+  $('setExpReset').disabled = !Object.keys(expOn()).length; // (Experimental → Reset to normal: nothing to reset when all is normal, 1.27.1)
 }
 /* Cost tags (1.07; predictive since 1.10): what each choice would cost, before it is chosen. Every setting that changes
    how fast the game runs names what it costs in a grey tag (physics, drawing or memory); each choice of a row of
@@ -6046,12 +6067,12 @@ const COSTS = {
   segSigh: () => ({ k: 'physics', o: { 0: ['×1', 'Halogens charged at their nuclei'], 1: ['×1–2', 'Measured on one thread (1.26): nothing without bonded chlorine, bromine or iodine; a flat box of 48 halomethanes and Br₂ (204 atoms) ×1.7–2.0 (a JavaScript pass after the WebAssembly kernel)'] } }), // (1.26)
   segPold: () => ({ k: 'physics', o: { 0: ['×1', 'Induced charges flow along the bonds'], 1: [SET.qeq ? '×1.8–2.9' : '×1', SET.qeq ? 'On top of the induced charges\' own, measured on one thread (1.27): liquid water ×2.9 at every 10th step, ×2.1 at every step; brine ×1.8, ×2.1' : 'Nothing while Induced charges is off'] } }), // (1.27)
   segPis: () => ({ k: 'physics', o: { 0: ['×1', 'Rings charged at their nuclei'], 1: ['×1', 'The 3-D lab only: nothing changes in the flat game'] } }), // (1.26)
-  segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–7', 'Measured on one thread: nothing without free electrons; liquid water with 40 free electrons ×6.5 (their inner steps 13 times shorter, for the packets\' breathing)'] } }),
+  setWave: () => ({ k: 'physics', on: ['×1–7', 'Measured on one thread: nothing without free electrons; liquid water with 40 free electrons ×6.5 (their inner steps 13 times shorter, for the packets\' breathing)'] }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.4', 'Measured on liquid water (1.21): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×3', 'Measured on liquid water: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water: 32 beads, the rest once'] } }
     : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×3.3', 'Measured on liquid water (1.21): the force field worked out 8 times a step'], 16: ['×7', 'Measured on liquid water: 16 times a step'], 32: ['×16', 'Measured on liquid water: 32 times a step'] } },
   segPiRpc: () => ({ k: 'physics', o: { 1: ['×1', 'Bonds and bends on every bead (where the spread matters), the pairs between atoms at the rings\u2019 centres: ring-polymer contraction'], 0: ['×2.3–2.7', 'The whole force field on every bead: exact, 2.3 times the work at 8 beads, 2.7 at 32'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–1.8', 'Measured: water 4,000 ×1.4, brine ×1.6, liquid water ×1.8'], 1: ['×2.7–4.6', 'Measured: brine ×2.7, liquid water ×2.8, 4,000 waters ×4.6'] } }),
-  segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×1.3–2.6', 'Measured: brine ×1.3, liquid water ×2.2, 4,000 waters ×2.6 (JavaScript kernels)'], 12: ['×1.6–5.6', 'Measured: brine ×1.6, liquid water ×3.2, 4,000 waters ×5.6 (JavaScript kernels)'] } }),
+  segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×1–1.3', 'Measured (1.28, on the WebAssembly kernel, as 6 Å): liquid water ×1.3, salt water about ×1 (its time goes to the ions’ events)'], 12: ['×1–1.7', 'Measured (1.28, on the WebAssembly kernel): liquid water ×1.7, salt water about ×1'] } }),
   segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×1.7', 'Measured ×1.6–1.8 where steps are at their longest; nothing where they are already short'], 0.01: ['×2.8', 'Measured ×2.6–2.9 where steps are at their longest; nothing where they are already short'] } }),
   setResBig: () => ({ k: 'physics', on: ['×1 + pauses', 'Nothing while bonds stay put; a pause of 12 ms (200 ring atoms) to 0.2 s (1,000) when a large ring system reacts'] }),
   setInc: () => ({ k: 'physics', on: ['×1–1.05', 'About 3 ms a nuclear hit instead of 1: a few percent in the nuclear setups, nothing elsewhere'] }),
@@ -6101,12 +6122,12 @@ const COSTS3 = {
   segSigh: () => ({ k: 'physics', o: { 0: ['×1', 'Halogens charged at their nuclei'], 1: ['×1–2.7', 'Measured in 3-D on one thread (1.26): nothing without bonded chlorine, bromine or iodine; a box of 125 chloromethanes and Br₂ (515 atoms) ×2.0–2.7'] } }), // (1.26)
   segPold: () => ({ k: 'physics', o: { 0: ['×1', 'Induced charges flow along the bonds'], 1: [SET.qeq ? '×1.2–4.2' : '×1', SET.qeq ? 'On top of the induced charges\' own, measured in 3-D on one thread (1.27): liquid water ×2.0 at every 10th step, ×4.2 at every step; brine ×1.2, ×1.7' : 'Nothing while Induced charges is off'] } }), // (1.27)
   segPis: () => ({ k: 'physics', o: { 0: ['×1', 'Rings charged at their nuclei'], 1: ['×1–10', 'Measured in 3-D on one thread (1.26): nothing without aromatic rings; a box of 125 benzenes (1,500 atoms, every atom a ring atom) ×5.5–9.5 (the rings\' own dispersion and π points in JavaScript)'] } }), // (1.26)
-  segWave: () => ({ k: 'physics', o: { 0: ['×1', 'Free electrons are points'], 1: ['×1–3', 'Measured in 3-D on one thread (1.25): nothing without free electrons; 40 free electrons among neon atoms ×2.2 (the flat game ×2.4), six Na⁺ among twelve ×3.2 (1.24); in ionized liquid water ×1.5–2.2, its electrons caught again within a few dozen steps in 3-D'] } }),
+  setWave: () => ({ k: 'physics', on: ['×1–3', 'Measured in 3-D on one thread (1.25): nothing without free electrons; 40 free electrons among neon atoms ×2.2 (the flat game ×2.4), six Na⁺ among twelve ×3.2 (1.24); in ionized liquid water ×1.5–2.2, its electrons caught again within a few dozen steps in 3-D'] }),
   segPi: () => SET.piRpc !== 0 ? { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×1.6', 'Measured on liquid water in 3-D (1.25): the bonds and bends worked out on 8 beads, everything else once'], 16: ['×2.7', 'Measured on liquid water in 3-D: 16 beads, the rest once'], 32: ['×6', 'Measured on liquid water in 3-D: 32 beads, the rest once'] } }
     : { k: 'physics', o: { 0: ['×1', 'Every nucleus a point'], 8: ['×8', 'Measured on liquid water in 3-D (after 1.25): the force field worked out 8 times a step'], 16: ['×17', 'Measured on liquid water in 3-D: 16 times a step'], 32: ['×29', 'Measured on liquid water in 3-D: 32 times a step'] } },
   segPiRpc: () => ({ k: 'physics', o: { 1: ['×1', 'Bonds and bends on every bead (where the spread matters), the pairs between atoms at the rings’ centres: ring-polymer contraction'], 0: ['×5–6', 'The whole force field on every bead: exact; in 3-D (liquid water, after 1.25) 5 times the work at 8 and 32 beads, 6 at 16 (1.25: 10 and 7.5)'] } }),
   segQeq: () => ({ k: 'physics', o: { 0: ['×1', 'Each molecule keeps its bonds\' own charges'], 10: ['×1.4–2.4', 'Measured in 3-D (1.25–1.26): liquid water ×1.4–1.9, salt water ×2.4'], 1: ['×2.5–3.2', 'Measured in 3-D (1.26, the pairs found in WebAssembly): liquid water ×2.6, salt water about ×2.5 (1.25: ×3.2–4.2)'] } }),
-  segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×3.5–5', 'Measured in 3-D (1.25): salt water ×3.5, liquid water ×4.9 (JavaScript kernels; in space the partners within reach grow as the cube of the reach)'], 12: ['×7–17', 'Measured in 3-D (1.25): salt water ×6.6–6.9, liquid water ×12–17 (JavaScript kernels)'] } }),
+  segRc: () => ({ k: 'physics', o: { 6: ['×1', 'The usual reach, on the WebAssembly kernel'], 9: ['×2.2–2.5', 'Measured in 3-D (1.28, on the WebAssembly kernel, as 6 Å): salt water ×2.2, liquid water ×2.5 (in space the partners within reach grow as the cube of the reach)'], 12: ['×3.7–4.5', 'Measured in 3-D (1.28, on the WebAssembly kernel): salt water ×3.7, liquid water ×4.5'] } }),
   segDtMax: () => ({ k: 'physics', o: { 0.04: ['×1', 'The usual longest step'], 0.02: ['×2', 'Measured in 3-D (1.25): liquid water and salt water ×2.0–2.2 where steps are at their longest (a 3-D step costs about the same whatever its length); nothing where they are already short'], 0.01: ['×3.5', 'Measured in 3-D (1.25): liquid water ×3.4–3.5, salt water ×3.3–4.1 where steps are at their longest; nothing where they are already short'] } }),
   setInc: () => ({ k: 'physics', on: ['×1', 'Nothing in the 3-D lab: nucleons do not strike nuclei there yet (the flat game only)'] }),
   setUltra: () => ({ k: 'physics', on: ['×1', 'True rates cost nothing (measured in 3-D: liquid water 3.33 against 3.38 ms a step, 1.24); the true sizes are drawn without the WebGL layer (liquid water: 7 → 25 ms a frame, headless, 1.26)'] }),
@@ -6147,7 +6168,7 @@ const REAL = {
   segPi: ['32', 'The more beads, the closer to the quantum particle'],
   segPiRpc: ['0', 'Every force worked out on every bead, as the path integral has it'],
   segBo: ['2', 'Bonds from the electrons themselves (quantum chemistry), not from a stored table'],
-  segWave: ['1', 'An electron is a wave with a size and a spin, not a point'],
+  setWave: [true, 'An electron is a wave with a size and a spin, not a point'],
   segMetal: ['1', 'In a real metal an atom\u2019s bonding depends on how many neighbours it has, not on a sum of pairs'], // (1.25)
   segXq: ['1', 'Closer to measured barriers (H + H\u2082, HCN to HNC, a shared proton) and to hexazine falling apart; GFN2 binds H\u2083 and holds hexazine below three N\u2082 (1.26)'],
   segXqs: ['1', 'Unpaired electrons line up as in nature: free atoms and radicals get their spin energy (breaking molecules into atoms 2.7 eV off on average with GFN1, paired 6.6), O\u2082 is a triplet (1.26)'],
@@ -6178,7 +6199,7 @@ function syncReal() {
 /* The Experimental tab's total (1.13, asked for by the user): the chosen settings' measured costs multiplied together,
    against everything at normal. A product is a fair guide (each one multiplies the work of a step) but not a
    measurement of that combination: the ranges are the setups the costs were measured on. */
-const EXP_SET = { segWave: 'wave', segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
+const EXP_SET = { setWave: 'wave', segBo: 'bo', segDtMax: 'dtMax', segRc: 'rc', segQeq: 'qeq', segPi: 'pi', setResBig: 'resBig', setInc: 'inc', setUltra: 'ultra' };
 EXP_SET.segMetal = 'metal'; // (1.25)
 EXP_SET.segXq = 'xq'; // (1.26)
 EXP_SET.segXqs = 'xqs'; // (1.26)
@@ -6235,7 +6256,7 @@ function expSummary() {
 function syncExpTotal() {
   const el = $('expTotal'); if (!el) return;
   const t = expTotal(), txt = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
-  const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', segBo: 'continuous bond orders', segWave: 'electrons as waves', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
+  const names = { segDtMax: 'shorter steps', segRc: 'longer reach', segQeq: 'induced charges', segPi: 'quantum nuclei', segBo: 'continuous bond orders', setWave: 'electrons as waves', setResBig: 'large ring resonance', setInc: 'detailed nuclear collisions' };
   names.segMetal = 'many-body metals'; // (1.25)
   names.segXq = 'GFN2-xTB'; // (1.26)
   names.segXqs = 'polarized spins'; // (1.26)
@@ -6346,6 +6367,7 @@ const SDESC = {
   setExport: ['Your molecules and isotopes', 'Save your own molecules and isotopes to a file, or add them from one: to move them to another computer or the desktop app.'],
   setDelMols: ['Delete your molecules', 'Removes every molecule you saved or Claude added to the library. Press twice to confirm.'],
   setDelIsos: ['Delete saved isotopes', 'Removes every isotope you saved. Press twice to confirm.'],
+  setExpReset: ['Reset to normal', 'Every Experimental setting back to normal at once, as when the game starts: the world is worked out with the ordinary physics again. Settings in the other tabs stay.'],
   setReset: ['Back to defaults', 'Every setting back to how the game first came. Your molecules, saves and isotopes stay.'],
   // 3-D
   segFov3: ['Field of view', 'How wide the 3-D camera’s lens is. Narrow looks flatter and closer, like a long lens; wide shows strong perspective, with near atoms looming larger than far ones. 0 refits the box.'],
@@ -6376,7 +6398,7 @@ const SDESC = {
   segLps: ['Lone pairs', 'The 3-D lab only. There an oxygen with two single bonds or a nitrogen with three carries its partial charge on lone pairs pointing out at the tetrahedral directions, so hydrogen bonds form where they point and water makes a tetrahedral network. A flat world has no room for the directions out of its plane.'], // (1.26)
   segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
   segPis: ['π-stacking', 'The 3-D lab only. There an aromatic ring carries its π electrons as charge above and below it, and two rings meet with a dispersion fitted to the benzene dimer, so they stack offset or edge to face. A flat world has no above or below.'], // (1.26)
-  segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin, drawn as a faint cloud (the electron force field, eFF), instead of a point.'],
+  setWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin, drawn as a faint cloud (the electron force field, eFF), instead of a point.'],
   setRpPs: ['Positronium', 'A slow positron takes an electron and becomes positronium (Ps: an electron and a positron round each other, bound by 6.8 eV, twice hydrogen\u2019s size): from an atom when its energy is in the Ore gap (between the electron\u2019s binding less 6.8 eV and the binding), from a free electron when the two are slow. One in four is para-Ps, which lives 125 ps and gives two 511 keV γ rays back to back; three in four ortho-Ps, which would live 142 ns in vacuum and gives three γ rays sharing 1,022 keV, but in matter its positron meets a neighbour\u2019s electron within nanoseconds (pick-off: 1.8 ns in water), and O\u2082 turns its spin. Inspect shows its state and its expected life there. Experimental: off again each time the game starts.'], // (1.27)
   setRpMu: ['Muonium as hydrogen', 'Muonium (a muon with an electron) is the lightest isotope of hydrogen: a ninth of its mass, bound by 13.54 eV (hydrogen 13.60), bonding by hydrogen\u2019s rules, so its isotope effects are large (Mu–Cl vibrates 2.9 times faster than H–Cl). The muon\u2019s spin precesses in a magnetic field, 135.5 MHz a tesla for a bare or bonded muon, 1.39 MHz a gauss for muonium; the positron of its decay comes out along the spin (1 + cos θ / 3 on average), so detectors round a sample see the precession (μSR). Inspect shows the spin; the particle view draws it. Experimental: off again each time the game starts.'], // (1.27)
   setRpCpm: ['Charged particles in matter', 'A fast charged particle crossing matter loses its energy collision by collision, as in nature: mostly in small knocks, now and then in a hard one that sends an electron flying with up to the most a collision can give (a δ-ray, which ionizes in turn; 2.7 keV from a 5 MeV α, half its energy from an electron), so the loss over a thin layer has Landau\u2019s long tail instead of a fixed amount. On average it is Bethe\u2019s formula with each element\u2019s measured excitation energy: fast particles lose more than they did before (the relativistic rise the game\u2019s form lacked: in the flat game\u2019s water a 5 MeV α 1.6 times, its measured 89 keV a micrometre; slow ions as before). Electrons and positrons give off bremsstrahlung (photons with a 1/k spectrum) at the rate set by each material\u2019s radiation length (lead 5.6 mm, water 36 cm), so it overtakes the collisions above the critical energy (water 79 MeV, lead 8 MeV). γ rays above 1.022 MeV make an electron and a positron near a nucleus (or two electrons and a positron in an electron\u2019s field) at the measured cross sections, against Compton scattering at the Klein–Nishina rate: the pair flies forward and shares the energy unequally. In water or glass a particle faster than light there (c/n) gives off Cherenkov light on a cone: 41° in water, 47° in silica glass, 334 photons a centimetre in 300–600 nm, which screens see. What a nanometre box can\u2019t make real: a radiation length is centimetres, so at nature\u2019s rates a fast electron almost never radiates in the box, Cherenkov light is one photon in thousands of crossings, a shower (centimetres long) can\u2019t develop, and a minimum-ionizing particle mostly loses far less than its average (the rare hard collisions carry most of it); what is made leaves the box. γ rays meet atoms as often as the game\u2019s light always has (about 10⁷ times nature\u2019s). Off: as before (a smooth loss, bremsstrahlung by a rule of thumb, pairs back to back sharing evenly). Experimental: off again each time the game starts.'], // (1.27)
@@ -6394,8 +6416,9 @@ const SDESC = {
    the 3-D lab's descriptions (SDESC3, STAB_DESC3) and costs (COSTS3), and its pictures ("key@3d", "key:value@3d" in
    SETSHOTS; where there is none, the flat picture marked "Picture from the flat game"); in the flat game only the flat ones (and the
    3-D tab's own pictures, as before). Notes under a row marked data-m="2d" or "3d" show in that mode only. A row that
-   works in one mode only (SMODE_ONLY, and the 3-D tab's rows) is dimmed in the other with a "2-D only" / "3-D only" tag
-   and still works: what it sets applies there. setModeSync switches it all when the mode changes (mode3dSync) and when
+   works in the flat game only (SMODE_ONLY) is dimmed in the 3-D lab with a "2-D only" tag and still works: what it sets
+   applies there. A 3-D-only row (SMODE_ONLY '3d', and the 3-D tab with all its rows) is not shown in the flat game at all,
+   and in the 3-D lab a 3-D-only row outside the 3-D tab carries a "3-D exclusive" tag (1.27.1). setModeSync switches it all when the mode changes (mode3dSync) and when
    Settings opens. */
 const STAB_DESC3 = {
   gfx: ['Graphics', 'How atoms, labels, glows and trails look, in the 3-D lab as in the flat game; the 3-D tab has what is the 3-D view’s own (fog, the box, labels on the front atoms only). Point at a setting to see what it changes.'],
@@ -6425,7 +6448,7 @@ const SDESC3 = {
   segLps: ['Lone pairs', 'An oxygen with two single bonds (water, alcohols, ethers) or a nitrogen with three (ammonia, amines) carries its partial charge on lone pairs at the tetrahedral directions, as the TIP5P water model does: hydrogen bonds form where the lone pairs point, and water\u2019s neighbours sit at the corners of a tetrahedron.'], // (1.26)
   segSigh: ['Halogen σ-holes', 'A chlorine, bromine or iodine bonded to carbon is positive on the far tip of its bond: a lone pair binds there, straight along the bond (a halogen bond, C–X···N at 180°). On puts a small positive point on each such halogen\u2019s axis.'], // (1.26)
   segPis: ['π-stacking', 'An aromatic ring carries its π electrons as charge on points above and below it, and ring atoms of two aromatic molecules meet with a dispersion fitted to the benzene dimer: rings stack offset or edge to face, as benzene does, rather than face to face.'], // (1.26)
-  segWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
+  setWave: ['Electrons as waves', 'Each free electron becomes a wave packet with a size and a spin (the electron force field, eFF), in three directions as eFF is made. In the 3-D lab the packets are drawn as points (their size is not drawn yet): the picture is the flat game’s.'],
   setRpPs: ['Positronium', 'A slow positron takes an electron and becomes positronium (Ps: an electron and a positron round each other, bound by 6.8 eV, twice hydrogen\u2019s size): from an atom when its energy is in the Ore gap (between the electron\u2019s binding less 6.8 eV and the binding), from a free electron when the two are slow. One in four is para-Ps, which lives 125 ps and gives two 511 keV γ rays back to back; three in four ortho-Ps, which would live 142 ns in vacuum and gives three γ rays sharing 1,022 keV, but in matter its positron meets a neighbour\u2019s electron within nanoseconds (pick-off: 1.8 ns in water), and O\u2082 turns its spin. Inspect shows its state and its expected life there. In all three directions (the three γ rays of ortho-Ps in a plane at any angle). Experimental: off again each time the game starts.'], // (1.27)
   setRpMu: ['Muonium as hydrogen', 'Muonium (a muon with an electron) is the lightest isotope of hydrogen: a ninth of its mass, bound by 13.54 eV (hydrogen 13.60), bonding by hydrogen\u2019s rules, so its isotope effects are large (Mu–Cl vibrates 2.9 times faster than H–Cl). The muon\u2019s spin precesses in a magnetic field, 135.5 MHz a tesla for a bare or bonded muon, 1.39 MHz a gauss for muonium; the positron of its decay comes out along the spin (1 + cos θ / 3 on average), so detectors round a sample see the precession (μSR). Inspect shows the spin; the particle view draws it. In 3-D the spin turns about the field\u2019s axis. Experimental: off again each time the game starts.'], // (1.27)
   setRpCpm: ['Charged particles in matter', 'A fast charged particle crossing matter loses its energy collision by collision, as in nature: mostly in small knocks, now and then in a hard one that sends an electron flying with up to the most a collision can give (a δ-ray, which ionizes in turn; 2.7 keV from a 5 MeV α, half its energy from an electron), so the loss over a thin layer has Landau\u2019s long tail instead of a fixed amount. On average it is Bethe\u2019s formula with each element\u2019s measured excitation energy: fast particles lose more than they did before (the relativistic rise the game\u2019s form lacked: in 3-D water a 5 MeV α 3.3 times, a 1 MeV electron 8 times: the 3-D game\u2019s loss was 2–12 times low; slow ions as before). Electrons and positrons give off bremsstrahlung (photons with a 1/k spectrum) at the rate set by each material\u2019s radiation length (lead 5.6 mm, water 36 cm), so it overtakes the collisions above the critical energy (water 79 MeV, lead 8 MeV). γ rays above 1.022 MeV make an electron and a positron near a nucleus (or two electrons and a positron in an electron\u2019s field) at the measured cross sections, against Compton scattering at the Klein–Nishina rate: the pair flies forward and shares the energy unequally. In water or glass a particle faster than light there (c/n) gives off Cherenkov light on a cone: 41° in water, 47° in silica glass, 334 photons a centimetre in 300–600 nm, which detectors see. What a nanometre box can\u2019t make real: a radiation length is centimetres, so at nature\u2019s rates a fast electron almost never radiates in the box, Cherenkov light is one photon in thousands of crossings, a shower (centimetres long) can\u2019t develop, and a minimum-ionizing particle mostly loses far less than its average (the rare hard collisions carry most of it); what is made leaves the box. γ rays meet atoms as often as the game\u2019s light always has (about 10⁷ times nature\u2019s). In 3-D the same in all three directions (the cone around the particle\u2019s way). Off: as before (a smooth loss, no bremsstrahlung for fast electrons in 3-D, pairs back to back sharing evenly). Experimental: off again each time the game starts.'], // (1.27)
@@ -6456,9 +6479,14 @@ function setModeSync() {
   for (const n of modal.querySelectorAll('[data-m]')) n.hidden = n.dataset.m !== m;
   for (const r of setRows()) {
     const only = setRowOnly(r), off = !!only && only !== m, host = r.matches('.srow') ? r.firstElementChild : r;
-    r.classList.toggle('smode-off', off);
-    costTag(host, 'smo', off ? (only === '3d' ? '3-D only' : '2-D only') : '', off ? (only === '3d' ? 'For the 3-D lab (main menu → 3-D): set here, it applies there' : 'For the flat game: set here, it applies there') : '');
+    const hide = off && only === '3d', dim = off && !hide, p = r.closest('.spane'), excl = only === '3d' && !off && !(p && p.dataset.stab === 'd3'); // (the 3-D tab's rows: the tab says it)
+    r.classList.toggle('smode-hide', hide); // (the flat game does not show the 3-D lab's settings at all: the owner, 1.27.1)
+    for (let n = r.nextElementSibling; n && n.matches('p.note:not(.sintro)'); n = n.nextElementSibling) n.classList.toggle('smode-hide', hide); // (and its notes)
+    r.classList.toggle('smode-off', dim);
+    costTag(host, 'smo', dim ? '2-D only' : excl ? '3-D exclusive' : '', dim ? 'For the flat game: set here, it applies there' : excl ? 'Only in the 3-D lab' : '');
   }
+  const tb = modal.querySelector('.stabs [data-stab="d3"]'); if (tb) tb.hidden = !d3; // (the 3-D tab: in the 3-D lab only)
+  if (!d3 && UI.stab === 'd3' && !modal.hidden && tb) setTabS('perf');
   syncCosts();
   const k = SPREV.key, o = SPREV.opt; SPREV.key = null; if (k) setPrevShow(k, o); // (the pane shown again in this mode)
 }
@@ -6620,7 +6648,7 @@ function settingsInit() {
   $('dMade').addEventListener('click', madeClick); bindSeg('segMap', (v) => { UI.mapView = v; UI.mapVer = -1; drawChainMap(); });
   $('chMap').addEventListener('mousemove', mapHover); $('chMap').addEventListener('mouseleave', () => { UI.mapHov = null; UI.mapVer = -1; drawChainMap(); });
   $('bSpecClear').onclick = (e) => { const on = !(_specFrom > -Infinity); _specFrom = on ? W.rt : -Infinity; e.currentTarget.textContent = on ? 'Last 10 s' : 'Clear'; e.currentTarget.title = on ? 'Back to the light of the last 10 seconds' : 'Start counting again, and keep counting'; drawSpec(); };
-  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); bindSeg('segPiRpc', (v) => setSetting('piRpc', +v)); bindSeg('segBo', (v) => setSetting('bo', +v)); bindSeg('segWave', (v) => setSetting('wave', +v)); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked);
+  bindSeg('segDtMax', (v) => setSetting('dtMax', +v)); bindSeg('segRc', (v) => setSetting('rc', +v)); bindSeg('segQeq', (v) => setSetting('qeq', +v)); bindSeg('segPi', (v) => setSetting('pi', +v)); bindSeg('segPiRpc', (v) => setSetting('piRpc', +v)); bindSeg('segBo', (v) => setSetting('bo', +v)); $('setWave').onchange = (e) => setSetting('wave', e.target.checked ? 1 : 0); $('setResBig').onchange = (e) => setSetting('resBig', e.target.checked); $('setInc').onchange = (e) => setSetting('inc', e.target.checked); // (electrons as waves: a switch since 1.27.1)
   bindSeg('segMetal', (v) => setSetting('metal', +v)); // (1.25)
   bindSeg('segXq', (v) => setSetting('xq', +v)); // (1.26)
   bindSeg('segXqs', (v) => setSetting('xqs', +v)); // (1.26)
@@ -6685,6 +6713,7 @@ function settingsInit() {
     setSetting('labels', SET.labels); const c = document.querySelector('[data-view="labels"]'); if (c) c.checked = R.view.labels; });
   bindSeg('segOrbit3', (v) => setSetting('orbit3', +v)); bindSeg('segSpin3', (v) => setSetting('spin3', +v)); $('setAxes3').onchange = (e) => setSetting('axes3', e.target.checked); $('setOrbitInv').onchange = (e) => setSetting('orbitInv', e.target.checked);
   setPrevInit();
+  $('setExpReset').onclick = () => expResetAll();
   $('setReset').onclick = () => { Object.assign(SET, SET_DEF); store('settings', JSON.stringify(SET)); applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts(); };
 }
 

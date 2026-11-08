@@ -176,7 +176,7 @@ PARTS.page = async (page, check) => {
     const pane = document.querySelector('section[data-stab="exp"]'), lines = [...pane.querySelectorAll('.rpl')], ids = lines.map(l => (l.querySelector('[id]') || {}).id);
     o.ids = ids.join(','); o.start = [SET.cpmX, RP.cpmX].join();
     const seg = $('segCpmX'); o.btns = seg ? [...seg.querySelectorAll('button')].map(b => b.dataset.v + ':' + ((b.querySelector('.oc') || {}).textContent || '') + ':' + (b.querySelector('.rl') ? 'real' : '')).join(' ') : '';
-    o.h = seg ? Math.round(seg.closest('.srow').getBoundingClientRect().height) : 0; o.hWave = Math.round($('segWave').closest('.srow').getBoundingClientRect().height);
+    o.h = seg ? Math.round(seg.closest('.srow').getBoundingClientRect().height) : 0; o.hWave = Math.round($('setWave').closest('label').getBoundingClientRect().height); // (a switch row since 1.27.1)
     setPrevShow('segCpmX', null); o.pane = $('setPrevT').textContent + ' | ' + $('setPrevD').textContent;
     if (seg) { seg.querySelector('[data-v="1000"]').click(); o.set = [SET.cpmX, RP.cpmX, JSON.parse(store('settings')).cpmX].join(); o.sum = expSummary(); seg.querySelector('[data-v="1"]').click(); o.back = RP.cpmX; }
     o.exp = SET_EXP.includes('cpmX');
