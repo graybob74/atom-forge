@@ -999,6 +999,30 @@ function drawWaves() {
   }
   ctx.restore();
 }
+/* (1.28.1, the owner: muonic atoms "look super tiny", positronium's pair "still") The exotic atoms in the usual view:
+   muonic hydrogen and (μα)⁺ as a small nucleus with the muon's tight ring and the muon going round it, a hypernucleus
+   as a nucleus ringed in white, positronium as its electron and positron going round their middle on a dashed ring
+   the size of its orbit (1.06 Å across, twice hydrogen's). Sizes grow with the zoom from a few pixels; the clock is the
+   watching one (W.rt), so they go round while running at any speed and stand still paused. s: pixels an ångström.
+   Returns how far above the centre to put the name, or 0 for a particle drawn as a point. */
+function exoAtomPic(ctx, o, x, y, c, hx, s) {
+  const d = XP[o.sp];
+  if (d.ps) {
+    const R0 = Math.max(5, 0.53 * s), th = W.rt * 4 + o.id, er = Math.max(1.8, electronR()), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th);
+    ctx.strokeStyle = rgba(c, 0.45); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
+    return R0 + 3;
+  }
+  if (!(d.atom || d.stuck || d.hyp)) return 0;
+  const rb = clamp(0.18 * s, 3.2, 9);
+  ctx.globalCompositeOperation = 'lighter'; if (!R.lite) drawSprite(glowSprite(c, Math.max(9, rb * 3)), x, y, 0.5); ctx.globalCompositeOperation = 'source-over';
+  drawSprite(ballSprite(hx, rb), x, y);
+  if (d.hyp) { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, rb + 1.5, 0, Math.PI * 2); ctx.stroke(); return rb + 4; }
+  const R0 = rb + Math.max(2.5, 0.1 * s), th = W.rt * 6 + o.id, mc = XP['mu-'].col;
+  ctx.strokeStyle = rgba(mc, 0.5); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke();
+  drawSprite(ballSprite(_xpHex['mu-'] || (_xpHex['mu-'] = '#' + mc.map(v => v.toString(16).padStart(2, '0')).join('')), Math.max(1.4, rb * 0.35)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
+  return R0 + 3;
+}
 function drawExos() {
   if (!W.exo.length) return;
   const ctx = R.ctx;
@@ -1010,6 +1034,7 @@ function drawExos() {
     if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
     const c = XP[o.sp].col, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''));
     if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (o.spin && RP.mu) spinArrow(ctx, x, y, o.spin); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
+    else { const top = exoAtomPic(ctx, o, x, y, c, hx, R.s); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; } }
     ctx.globalCompositeOperation = 'lighter';
     drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55);
     ctx.globalCompositeOperation = 'source-over';
@@ -1039,13 +1064,13 @@ function exoInside(ctx, o, x, y, c, hx) {
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, b * 0.25); ctx.beginPath(); ctx.arc(x, y, b * 1.05, 0, Math.PI * 2); ctx.stroke();
       return nsp.rn + 2;
     }
-    const R0 = nsp.rn + Math.max(3, b * 1.5), th = W.at * 5 + o.id; // the muon, a few hundred times closer in than an electron
+    const R0 = nsp.rn + Math.max(3, b * 1.5), th = W.rt * 6 + o.id; // the muon, a few hundred times closer in than an electron (on the watching clock, W.rt, so it goes round in slow motion too, 1.28.1)
     ctx.strokeStyle = rgba(c, 0.45); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke();
     drawSprite(ballSprite(hx, Math.max(1.2, electronR() * 0.9)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
     return R0 + 2;
   }
   if (d.ps) { // positronium (1.27): an electron and a positron going round their middle, its orbit twice hydrogen's
-    const R0 = Math.max(6, 0.53 * R.s), th = W.at * 2.5 + o.id, er = electronR(), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th);
+    const R0 = Math.max(6, 0.53 * R.s), th = W.rt * 4 + o.id, er = electronR(), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th); // (W.rt: round while running at any speed, 1.28.1: on the pictures' clock they sat still in slow motion)
     ctx.strokeStyle = rgba(c, 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
     return R0 + 2;
@@ -1785,10 +1810,10 @@ function drawSources() {
 }
 function drawOverlay() {
   const ctx = R.ctx;
-  const g = W.grab;
-  if (g && g.p && !g.p.dead) {
-    const x0 = w2sx(g.p.x), y0 = w2sy(g.p.y), x1 = w2sx(g.x), y1 = w2sy(g.y);
-    const rr = Math.max(7, (g.p.k === NUC ? g.p.rd : 0.15) * R.s + 5);
+  const g = W.grab, gq = g && (g.p && !g.p.dead ? g.p : g.exo && !g.exo.dead ? g.exo : null); // (an exotic particle held, 1.28.1)
+  if (gq) {
+    const x0 = w2sx(gq.x), y0 = w2sy(gq.y), x1 = w2sx(g.x), y1 = w2sy(g.y);
+    const rr = Math.max(7, (gq.k === NUC ? gq.rd : 0.15) * R.s + 5);
     ctx.save(); ctx.strokeStyle = 'rgba(255,209,102,0.9)'; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.arc(x0, y0, rr, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);

@@ -540,11 +540,12 @@ function drawMarks3(ctx) {
 function drawOverlay3(ctx) {
   const A = _p3a, B = _p3b, F = C3.F, g = W.grab;
   ctx.save();
-  if (g && g.p && !g.p.dead && proj3(g.p.x, g.p.y, g.p.z, A)) {
-    const rr = Math.max(7, (g.p.k === NUC ? rd3(g.p) : 0.15) * F / A[2] + 5);
+  const gq = g && (g.p && !g.p.dead ? g.p : g.exo && !g.exo.dead ? g.exo : null); // (an exotic particle held, 1.28.1)
+  if (gq && proj3(gq.x, gq.y, gq.z || 0, A)) {
+    const rr = Math.max(7, (gq.k === NUC ? rd3(gq) : 0.15) * F / A[2] + 5);
     ctx.strokeStyle = 'rgba(255,209,102,0.9)'; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.arc(A[0], A[1], rr, 0, Math.PI * 2); ctx.stroke();
-    if (proj3(g.x, g.y, g.z === undefined ? g.p.z : g.z, B)) { ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]); }
+    if (proj3(g.x, g.y, g.z === undefined ? gq.z || 0 : g.z, B)) { ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]); }
   }
   const o = R.overlay;
   if (o) {
@@ -707,6 +708,9 @@ function drawExos3(ctx) {
       const s0 = R.s, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')); R.s = C3.F / A[2];
       let top = 0; try { top = exoInside(ctx, o, x, y, c, hx); } finally { R.s = s0; }
       if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; }
+    } else { // (the exotic atoms at their depth's scale, as the flat view, 1.28.1)
+      const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]);
+      if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; }
     }
     ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55); ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = rgba(c, 0.95); ctx.strokeStyle = rgba(c, 0.95); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, o.q ? 2.4 : 2.6, 0, Math.PI * 2); if (o.q) ctx.fill(); else ctx.stroke();

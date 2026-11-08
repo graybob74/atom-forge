@@ -984,11 +984,20 @@ function onDown(e) {
       break;
     }
     case 'grab': {
+      const lx = pickAt(px, py, 10) ? null : pickLight(px, py, 16), xo = lx && lx.kind === 'exo' && !lx.o.xb && !lx.o.dead ? lx.o : null; // (an unstable particle or exotic atom under the pointer: held too, 1.28.1)
+      if (xo) {
+        undoMark('Grab');
+        W.grab = { exo: xo, x: wx, y: wy, s: OPT.grab.s, hist: [] };
+        UI.drag = { kind: 'grab' };
+        if (W.d3) { const at = [xo.x, xo.y, xo.z || 0], q = s2wPlane(px, py, at); W.grab.x = q[0]; W.grab.y = q[1]; W.grab.z = q[2]; UI.drag.plane = at; }
+        grabHold(W.grab);
+        break;
+      }
       const p = pickNear(px, py, 40);
       if (p) {
         undoMark('Grab');
         const grp = OPT.grab.mol && p.k === NUC ? grabGroup(p) : null;
-        W.grab = { p, x: wx, y: wy, s: OPT.grab.s, mol: grp && grp.length > 1 ? grp : null };
+        W.grab = { p, x: wx, y: wy, s: OPT.grab.s, mol: grp && grp.length > 1 ? grp : null, hist: [] };
         if (p.rad || p.fast) { p.rad = false; p.fast = false; p.KE = 0; p.vx = 0; p.vy = 0; if (W.d3) p.vz = 0; }
         UI.drag = { kind: 'grab' };
         if (W.d3) { const at = [p.x, p.y, p.z], q = s2wPlane(px, py, at); W.grab.x = q[0]; W.grab.y = q[1]; W.grab.z = q[2]; UI.drag.plane = at; } // (3-D: dragged on the plane square to the view through the atom)
@@ -1291,6 +1300,8 @@ function onMove(e) {
             }
           }
           W.grab.x = wx; W.grab.y = wy; if (W.d3) W.grab.z = wz;
+          grabNote(W.grab);
+          if (W.grab.exo) grabHold(W.grab);
         }
         break;
       case 'tool': if (W.tool) { W.tool.x = wx; W.tool.y = wy; if (W.d3) { W.tool.z = wz; if (W.tool.type === 'heat') W.tool.cone = toolCone3(px, py, W.tool.R); } } break;
@@ -1397,7 +1408,8 @@ function fireOK3(sp) { if (spec3dOK(sp)) return true; log('tool', `${specLabel(s
    into another atom. A single atom carried off its molecule tears its bonds, as a hand would. Gentle is the spring
    alone, as before. */
 function grabTick(realDt) {
-  const g = W.grab; if (!g || !g.p || g.p.dead) return;
+  const g = W.grab; if (g && g.exo) { grabHold(g); return; }
+  if (!g || !g.p || g.p.dead) return;
   const gz = W.d3 && g.z !== undefined ? g.z - g.p.z : 0;
   const rate = Math.max(1e-12, UI.adv || W.simPerFrame) * 60, gx = g.x - g.p.x, gy = g.y - g.p.y, dist = W.d3 ? Math.hypot(gx, gy, gz) : Math.hypot(gx, gy); // (rate: simulated time per second of watching)
   g.vcap = clamp(dist / (0.12 * rate), GRAB_V, GRAB_VMAX[g.s] || GRAB_V);
@@ -1414,13 +1426,46 @@ function grabTick(realDt) {
 /* Let go: with Strong or Very strong, what was held keeps its own jiggle but not the speed it was being drawn at (no
    flinging it across the box at tens of km/s). */
 function grabRelease(g) {
-  if (!g || !g.p || g.s === 'gentle' || !UI.running) return;
+  if (!g) return;
+  const th = UI.running ? grabThrow(g) : null; // (1.28.1, the owner: "if you try to throw a particle it doesn't travel any further than where you let go")
+  if (g.exo) { const o = g.exo; if (o.dead) return; const v = th ? Math.hypot(th[0], th[1], th[2]) : 0; exoSetVel(o, th || [0, 0, 0], v); return; }
+  if (!g.p) return;
   const as = (g.mol || [g.p]).filter(a => !a.dead && !a.rad); let m = 0, px = 0, py = 0, pz = 0;
   for (const a of as) { m += a.m; px += a.m * a.vx; py += a.m * a.vy; if (W.d3) pz += a.m * a.vz; }
   if (!(m > 0)) return;
   const vx = px / m, vy = py / m, vz = pz / m;
+  if (th) { for (const a of as) { a.vx += th[0] - vx; a.vy += th[1] - vy; if (W.d3) a.vz += th[2] - vz; updateFast(a); } return; } // (thrown: its centre of mass at the pointer's speed, each atom's own jiggle kept)
+  if (g.s === 'gentle' || !UI.running) return;
   if ((W.d3 ? Math.hypot(vx, vy, vz) : Math.hypot(vx, vy)) <= GRAB_V) return;
   for (const a of as) { a.vx -= vx; a.vy -= vy; if (W.d3) a.vz -= vz; updateFast(a); }
+}
+/* Throwing (1.28.1): the pointer's path while held, as [simulated time, real time, x, y, z]; let go while it moves and
+   what was held leaves at the pointer's speed in the world (its last tenth of a second of real time against the
+   simulated time that went by), up to the Grab strength's top speed (GRAB_VMAX: 3, 30, 100 km/s). A pointer that had
+   stopped (nothing in its last 80 ms) throws nothing. The energy given is the hand's work, as the spring's is. */
+function grabNote(g) {
+  const h = g.hist || (g.hist = []), now = performance.now();
+  h.push([W.t, now, g.x, g.y, g.z || 0]);
+  while (h.length > 2 && now - h[0][1] > 250) h.shift();
+}
+function grabThrow(g) {
+  const h = g.hist; if (!h || h.length < 2) return null;
+  const now = performance.now(), last = h[h.length - 1];
+  if (now - last[1] > 80) return null;
+  let a = h[0]; for (const e of h) if (now - e[1] <= 120) { a = e; break; }
+  const dt = W.t - a[0]; if (!(dt > 0)) return null;
+  let vx = (g.x - a[2]) / dt, vy = (g.y - a[3]) / dt, vz = W.d3 ? ((g.z || 0) - a[4]) / dt : 0;
+  const v = Math.hypot(vx, vy, vz), cap = GRAB_VMAX[g.s] || GRAB_V;
+  if (!(v > 0.02)) return null; // (under 0.2 km/s: let go, not thrown)
+  if (v > cap) { vx *= cap / v; vy *= cap / v; vz *= cap / v; }
+  return [vx, vy, vz];
+}
+/* An unstable particle or exotic atom held by the Grab tool (1.28.1): where the pointer is, at rest. */
+function grabHold(g) {
+  const o = g.exo; if (!o || o.dead) { W.grab = null; return; }
+  const hw = W.box.w / 2, hh = W.box.h / 2;
+  o.x = clamp(g.x, -hw, hw); o.y = clamp(g.y, -hh, hh); if (W.d3 && g.z !== undefined) o.z = clamp(g.z, -W.box.d / 2, W.box.d / 2);
+  if (o.KE !== 0) { o.KE = 0; exoSpeed(o); }
 }
 function onUp(e) {
   lpEnd();
@@ -1815,7 +1860,7 @@ function selXHTML() {
     kv.push(['Kinetic energy', fmtE(o.KE)], ['Total energy', fmtE(o.KE + m * 1e6)], ['Speed', fmtSpeed(o.v)], ['Lorentz factor γ', fmtNum(o.gam, 4)],
       ['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)],
       d.hyp ? ['Decays by', `Λ → p π⁻ or n π⁰ inside (mesonic, ${Math.round(100 * hypMesonic(d.Z + d.N + 1))}%), or Λp → np and Λn → nn (non-mesonic: 176 MeV to the two nucleons, which usually break the nucleus)`] : ['Decays to', (d.ew ? ewDecList(o.sp) : d.dec.map(([b, ps]) => [b, ps.map(t => labelOf(item(t))).join(' ')])).map(([b, dt]) => `${dt} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
-    about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the hydrogen nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, except in the ultra-realistic mode. Bound by ${fmtE(d.Eb * 1e6)}.`
+    about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, and it bounces off any nucleus (1.28.1), except in the ultra-realistic mode, where it is hydrogen's measured size off hydrogen only. Bound by ${fmtE(d.Eb * 1e6)}.`
       : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
       : XP_ABOUT[d.hyp ? 'hy' : d.ew ? o.sp[0] : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg'].find(k => o.sp.startsWith(k)) || 'eta'] || ''; // (d.ew: W and Z, 1.27)
     if (d.ps) { // (positronium, 1.27: its state, binding and life here)
