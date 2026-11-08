@@ -2865,6 +2865,13 @@ Same rule for all: profile with the setting or setup on first, port only where J
 bit for bit (fingerprints) where the order of arithmetic allows, equal to rounding where it does not (the 1.25 metals
 port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish all the features"); 33–38 go to 1.28.
 
+**The owner's requests of 2026-11-08 (after 1.28.0), collected, waiting for "build it":**
+45 an info button at the bottom of an element's card (clicking an element), with information about it from the web;
+46 the same for most particles: a little information from the web on their page;
+47 muonic atoms "don't do much": they don't collide, can't be grabbed, look very tiny (grabbing is a bug; how big they
+   are drawn and what they collide with touch the physics, the owner's OK);
+48 positronium: the electron and positron don't visibly go round each other (they sit still) or meet.
+
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
 ones that need approval"): 1 3-D van der Waals and ion–water pull at their true strength; 2 water's (and molecules')
