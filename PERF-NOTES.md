@@ -2924,6 +2924,22 @@ No network here: every value marked "from memory" below is worth a check against
   TeV: 2–3 e off in one event); a bookkeeping fix (their charge to ledger.qOut), left for a bug-fix session. The scan's
   "measured σ" counts Z → hadrons only (γ* → hadrons, under 1% at the peak, is not counted).
 
+### 1.27: the test runner (tools/runtests.js)
+
+The owner (2026-11-07): "is there any way to speed up the tests?" … "Yes, build it". tools/runtests.sh now calls
+tools/runtests.js [tag] [lanes]: a snapshot as before; jobs = the 22 t_*.js suites and t_features' 43 separate files
+(its `alone('f_….js')` lines, which t_features skips under AF_ALONE_SKIP=1) as jobs of their own; lanes = the cores, at
+most 12 and one per 3.5 GB; the longest jobs first (tests/.tmp/durations.json from the last run); a line as each job
+ends; then every failed job again alone, one at a time: passing alone is reported as "missed under load only" and the
+run passes. Measured here (2 cores, 2 lanes, the first run with no durations yet): all jobs in 31 min (the old two lanes:
+41, lane A held t_features' 33 min), 42 min with the reruns of three failures (t_page's known collider-beam timeout
+passed alone; t_features "chain" (the k readout, time-budgeted) and "1.09 ionized water drift", and f_fix04 "contact",
+failed again: the last two wait on the fixer's test changes for bug 18). On a PC with more cores the lanes fill them.
+Also for a PC (2026-11-07): tests/deps.js finds Playwright and ESLint in the repository's node_modules (package.json;
+`npm install`, `npx playwright install --with-deps chromium`), else /opt/node-tools as here; AF_SOFTWARE_GL=1 puts the
+test browsers' WebGL on SwiftShader. Under WSL on the owner's PC the fonts matter: the cloud's fontconfig prefers Inter
+for system-ui and sans-serif (/etc/fonts/conf.d/56-prefer-inter.conf); without it the Settings layout checks fail.
+
 ### 1.27: the 17 bug fixes merged with the features (branch v157)
 
 v157 = v156 (features 18–32, the two controls) + fix127-01 … fix127-17 (the fixer's branches, each from 0c947e1), merged
