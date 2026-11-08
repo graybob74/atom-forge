@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.28 (not released)
+## 1.28.0: the Settings layout (sub-options with their option, switches at the right, 3-D settings by mode, Experimental reset) and speed-ups (force reach, dipoles and charge sites in WebAssembly, molecule naming, charged count)
 
 ### 1.28: speed-ups (items 33–44; the owner, 2026-11-07: "you may do the speedup run"; branch v159)
 
