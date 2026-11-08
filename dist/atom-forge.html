@@ -39914,7 +39914,7 @@ function worldToJSON() {
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
   const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, Ez: W.Ez || 0, Bax: W.Bax3 || 'z', z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, ...xmOf(ps), ...musOf(ps), ...isoOf(ps), xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0, ...(o.spin ? [o.spin.slice()] : [])]), /* (a μ⁺'s spin, 1.27) */ /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, bspf: W.baseSpf || UI.baseSpf || W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, ...xmOf(ps), ...musOf(ps), ...isoOf(ps), xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0, ...(o.spin ? [o.spin.slice()] : [])]), /* (a μ⁺'s spin, 1.27) */ /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
@@ -39928,7 +39928,7 @@ function worldFromJSON(d) {
   const hd = W.d3 ? W.box.d / 2 : 0;
   W.wall = ['reflect', 'wrap', 'open'].includes(d.wall) ? d.wall : 'reflect'; W.nWall = ['reflect', 'absorb', 'pass', 'fast'].includes(d.nWall) ? d.nWall : 'reflect'; W.T = num(d.T, 1, 1e9, 300); W.gamma = num(d.gamma, 0, 1, 0.05); W.Bz = num(d.Bz, -1e5, 1e5, 0); W.Ex = num(d.Ex, -50, 50, 0); W.Ey = num(d.Ey, -50, 50, 0);
   UI.E = Math.hypot(W.Ex, W.Ey); UI.Eang = UI.E ? Math.round(Math.atan2(W.Ey, W.Ex) * 180 / Math.PI) : (UI.Eang || 0); // (the Lab's field figure and direction, from the field)
-  W.simPerFrame = num(d.spf, 1e-15, 1000, W.simPerFrame); W.baseSpf = W.simPerFrame; UI.baseSpf = W.simPerFrame; W.warp = num(d.warp, 1e-6, 1e30, 1); W.minShow = [0, 1, 2].includes(d.minShow) ? d.minShow : 0; W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true;
+  W.simPerFrame = num(d.spf, 1e-15, 1000, W.simPerFrame); W.baseSpf = UI.baseSpf = num(d.bspf, 1e-15, 1000, W.simPerFrame); W.warp = num(d.warp, 1e-6, 1e30, 1); W.minShow = [0, 1, 2].includes(d.minShow) ? d.minShow : 0; W.decayOn = d.decayOn !== false; if (typeof d.slowmo === 'boolean') W.slowmo = d.slowmo; W.glow = d.glow === true; // (the setup's own 1×, saved since 1.28.1: before, the speed it was saved at became 1×; a save from before still does)
   ultraHold(); // (the ultra-realistic mode: real decay rates, nothing held, whatever the save had)
   const made = [], hw = W.box.w / 2, hh = W.box.h / 2;
   for (const q of d.parts) {
@@ -39978,11 +39978,15 @@ function saveWorld() {
   const d = worldToJSON(), name = `atom-forge-world-${(UI.preset || 'world').replace(/[^a-z0-9-]/gi, '')}.json`;
   fileSave(name, JSON.stringify(d)).then((ok) => { if (ok) log('tool', `World saved: ${d.parts.length.toLocaleString('en-US')} particles, ${d.bonds.length.toLocaleString('en-US')} bonds${d.chips ? `; ${d.chips} chip${d.chips === 1 ? '' : 's'} saved as plain atoms` : ''}${d.left ? `; ${d.left} particle${d.left === 1 ? '' : 's'} in flight left out` : ''}`); });
 }
+/* A world opened by the player (a file, a share code, an experiment, the autosave): at the setup's normal speed, as a
+   setup starts (1.28.1: it kept the speed it was saved at, and called that 1×). Undo and rewind keep the speed. */
+function speedNormal() { if (W.simPerFrame !== W.baseSpf || W.slowSet || W.slowHold) setSpeed(W.baseSpf); }
 function loadWorld() {
   filePick('.json,application/json', (text, name) => {
     let d; try { d = JSON.parse(text); } catch (e) { log('tool', `${name}: not a JSON file`); return; }
     const r = worldFromJSON(d);
     if (typeof r === 'string') { log('tool', `${name}: ${r}`); return; }
+    speedNormal();
     log('tool', `World loaded from ${name}: ${r.n.toLocaleString('en-US')} particles, ${r.nb.toLocaleString('en-US')} bonds${r.skipped ? ` (${r.skipped} entries could not be read)` : ''}`);
   });
 }
@@ -40016,6 +40020,7 @@ async function shareOpen(code) {
   if (typeof d === 'string') return d;
   const r = worldFromJSON(d);
   if (typeof r === 'string') return r;
+  speedNormal();
   log('tool', `World opened from a share code: ${r.n.toLocaleString('en-US')} particles, ${r.nb.toLocaleString('en-US')} bonds${r.skipped ? ` (${r.skipped} entries could not be read)` : ''}`);
   return null;
 }
@@ -42383,6 +42388,7 @@ function restoreAutosave() {
   const d = autosaved(); if (!d) return false;
   if (d.fresh) { if (PRESETS[d.preset]) loadPreset(d.preset); return true; }
   const r = worldFromJSON(d); if (typeof r === 'string') return false;
+  speedNormal();
   if (Number.isFinite(d.t)) W.t = d.t;
   if (Array.isArray(d.cam) && d.cam.every(Number.isFinite)) [R.s, R.cx, R.cy] = d.cam;
   cam3Put(d.cam3);
@@ -42698,7 +42704,7 @@ function openMine() {
         if (!d) return;
         undoMark('Load an experiment');
         if (d.fresh) { if (PRESETS[d.preset]) loadPreset(d.preset); }
-        else { if (!REW.restoring) { rewClear(); grClear(); } const r = worldFromJSON(d); if (typeof r === 'string') { mineSay('Could not load it: ' + r); return; } if (Number.isFinite(d.t)) W.t = d.t; if (Array.isArray(d.cam) && d.cam.every(Number.isFinite)) [R.s, R.cx, R.cy] = d.cam; cam3Put(d.cam3); UI.preset = typeof d.preset === 'string' ? d.preset : UI.preset; syncPresetSelect(); }
+        else { if (!REW.restoring) { rewClear(); grClear(); } const r = worldFromJSON(d); if (typeof r === 'string') { mineSay('Could not load it: ' + r); return; } speedNormal(); if (Number.isFinite(d.t)) W.t = d.t; if (Array.isArray(d.cam) && d.cam.every(Number.isFinite)) [R.s, R.cx, R.cy] = d.cam; cam3Put(d.cam3); UI.preset = typeof d.preset === 'string' ? d.preset : UI.preset; syncPresetSelect(); }
         hideModal('mineModal'); log('tool', `Loaded “${d.name}”`);
       });
       if (dl) { if (!dl.classList.contains('armed')) { dl.classList.add('armed'); dl.textContent = 'Sure?'; return; } mineTx('readwrite', st => st.delete(dl.dataset.del)).then(mineRender); }

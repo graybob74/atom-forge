@@ -1991,6 +1991,19 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.28.1 (not released)
+
+### 1.28.1 bug: a loaded save's speed became its 1× (the owner, 2026-11-08)
+
+A save kept only the speed it was made at (`spf`), and loading it set the setup's 1× (`W.baseSpf`) to that: a world
+saved at 4× opened at "1×" running 4× fast, and slow motion, the hourglass and the speed buttons all worked from the
+wrong base. Undo had it too (undo after a speed change showed 1/8× at 1×). Now a save keeps the setup's 1× too
+(`bspf`), loading restores it, and a world the player opens (a file, a share code, an experiment, the autosave)
+starts at the setup's normal speed, as a setup does (`speedNormal`); undo and rewind keep the speed it had. A save
+from before 1.28.1 has no `bspf` and opens as before. Test `tests/f_fix1281.js` (on 1.28.0 the base came out 4× the
+setup's). On the way: a comment of mine left mid-line in the loader cut off the rest of it (warp, decays, slow
+motion, glowing walls not restored), caught by t_features' glowing-walls check before commit.
+
 ## 1.28.0: the Settings layout (sub-options with their option, switches at the right, 3-D settings by mode, Experimental reset) and speed-ups (force reach, dipoles and charge sites in WebAssembly, molecule naming, charged count)
 
 ### 1.28: speed-ups (items 33–44; the owner, 2026-11-07: "you may do the speedup run"; branch v159)
