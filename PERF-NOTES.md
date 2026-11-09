@@ -3199,6 +3199,19 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    colour into the very hadrons the collision made (q q̄ → meson, three colours → baryon), each then flying off as that
    hadron. Display only (the hadrons are already made at the collision; the real plasma lives 10⁻²³ s, far less than
    one step), unless the owner wants the physics version.
+66 (1.30, physics: the owner's OK needed) fast charged pairs flying together: an e⁺ and an e⁻ at 0.99999c, 0.42 Å
+   apart, same direction (the owner's screenshot, 2026-11-08), fly on side by side for ever: both are in radiation
+   flight, which has no forces between its particles. In their own frame they are a slow pair 0.42 Å apart (−34 eV of
+   Coulomb energy), so unless their speeds differ by more than about 1% in energy they are already bound: a positronium
+   moving at 0.99999c, whose clock runs γ ≈ 220 times slow (o-Ps 142 ns → about 30 µs in the lab). Plan: find pairs
+   of fast charged particles flying together (close, nearly the same velocity), measure their energy in their common
+   rest frame, and if it is below zero bind them there (positronium; for other pairs a capture as for slow ones), the
+   books in the pair's frame boosted back; otherwise their pull on each other, reduced by 1/γ² in the lab as
+   electromagnetism gives for charges moving together.
+67 (1.30) Realistic-particles switches that cost nothing kept from one start to the next (the owner, 2026-11-08:
+   "save particle settings that don't affect performance when you reload the game"). Now every Experimental setting is
+   back to normal at each start (SET_EXP, 1.23.1). Plan: the Realistic-particles switches whose cost is ×1 (no effect on
+   speed) are read from storage like the ordinary settings; those that cost speed still start off.
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
