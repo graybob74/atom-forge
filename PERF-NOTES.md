@@ -3180,8 +3180,6 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 55 remove video recording (the owner, 2026-11-08). Done in 1.29.0.
 (1.29.0, released: 55, 57, 58, 59, 60 (in part), 61 and 63 done; 56 was already there; 62 tried and not kept. The owner, 2026-11-08: "Do the ionized water runs last": 60 after 63.)
 56 3-D light meets atoms: rayInteract returns at once in 3-D; photoelectric absorption, Compton and Rayleigh
-64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
-   Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
    scattering and line absorption in 3-D, as in the flat game (the owner's OK: "do all of those items", 2026-11-08).
 57 antimatter in 3-D: antiatoms, positronium and protonium, and annihilation, in the 3-D lab.
 58 delayed neutrons: β⁻n from fission products (measured emission probabilities), so a reactor's k has its delayed part.
@@ -3191,6 +3189,8 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 62 quantum bonds, a "faster, not identical" switch (occupied orbitals only: results equal to rounding, not to the bit).
 63 challenges / guided experiments: goals checked by the game (reach criticality, make protonium, build caffeine, …).
 (The owner also named sharing and CSV export: both exist already, share codes and the gallery, the graph's Export CSV.)
+64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
+   Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
