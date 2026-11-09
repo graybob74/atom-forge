@@ -3191,6 +3191,14 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 (The owner also named sharing and CSV export: both exist already, share codes and the gallery, the graph's Export CSV.)
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
+65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
+   little weird after extreme collisions, maybe simulate the quarks instead of just drawing a cloud"). Now drawQGP and
+   drawQGP3 paint 54 dots on fixed spirals inside a glowing disc. Plan: each plasma drop gets real partons (quarks,
+   antiquarks, gluons, their number and thermal momenta from the drop's energy and temperature, colour charges that sum
+   to white), stepped on the drop's own clock: expanding (Hubble-like flow), cooling, and at freeze-out joining by
+   colour into the very hadrons the collision made (q q̄ → meson, three colours → baryon), each then flying off as that
+   hadron. Display only (the hadrons are already made at the collision; the real plasma lives 10⁻²³ s, far less than
+   one step), unless the owner wants the physics version.
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
