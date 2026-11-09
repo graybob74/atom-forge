@@ -211,15 +211,9 @@ const { openPage } = require('./browser');
   });
   check(/muonic atom/.test(r13.ar.fate || '') && r13.ar.bound === 1 && r13.cat.fusions >= 3 && r13.cat.worst < 1e-3 && /fusion no\. [3-9]/.test(r13.cat.last) && r13.proj,
     `muons: a 6 keV μ⁻ slows in argon and is caught (${r13.ar.fate}); in D–T it catalysed ${r13.cat.fusions} fusions in a row, each event exact to ${r13.cat.worst.toExponential(0)} eV; the Fire tool fires μ⁻`, 'muons: ' + JSON.stringify(r13));
-  // a video: four seconds of the running chamber recorded at 4×, made into a file
-  const r3 = await page.evaluate(async () => {
-    loadPreset('water'); setRunning(true); let saved = null; const keep = fileSave;
-    fileSave = async (name, b, type) => { saved = { name, size: b.size, type }; return true; }; // eslint-disable-line no-func-assign
-    REC.speed = 4; recStart(); await new Promise((r) => { setTimeout(r, 4000); }); const n = REC.frames.length;
-    await recStop(); fileSave = keep; setRunning(false); REC.speed = 1; // eslint-disable-line no-func-assign
-    return { mime: recMime(), n, saved };
-  });
-  check(!r3.mime || (r3.n >= 5 && r3.saved && r3.saved.size > 10000 && /\.(webm|mp4)$/.test(r3.saved.name)), `video: ${r3.n} frames at 4× → ${r3.saved ? r3.saved.name + ', ' + Math.round(r3.saved.size / 1024) + ' KB' : 'no recorder here'}`, 'video: ' + JSON.stringify(r3));
+  // 1.29 item 55: video recording removed at the owner's request (no button, no badge, no code)
+  const r3 = await page.evaluate(() => ({ btn: !!document.getElementById('bRec') || !!document.getElementById('segRec') || !!document.getElementById('recBadge'), code: typeof recStart !== 'undefined' || typeof REC !== 'undefined' }));
+  check(!r3.btn && !r3.code, 'video recording removed (1.29, the owner)', 'video recording still there: ' + JSON.stringify(r3));
   check(r2.share.err === null && r2.share.same && r2.share.junk && r2.share.dialog, `share code: water in ${r2.share.len} characters (JSON ${r2.share.json}), back exactly; junk refused; the dialog makes one`, 'share code: ' + JSON.stringify(r2.share));
   check(r2.local && r2.ai, 'explain: the setup\'s notes without Claude; with Claude the question carries what the panels show', 'explain: ' + JSON.stringify(r2));
   const s = r.spec;
@@ -960,7 +954,7 @@ const { openPage } = require('./browser');
     return out;
   });
   check(r62.r9.rc === 9 && r62.r9.wasm === r62.rcMod && r62.r9.far > 0 && Math.abs(r62.r9.dE) < 1 && r62.r6.rc === 6 && r62.r6.wasm && r62.r6.far === 0 &&
-    /^×1 oc c0/.test(r62.tags[0]) && /^×1–1\.7 oc c2/.test(r62.tags[1]) /* (1.28: 12 Å in the module, measured again) */ && /^×1\.7 oc c2/.test(r62.tags[2]) && r62.inc === 'on ×1–1.05 dim' && r62.kind === 'physics' && r62.real === "1 0.01 12 1 1 32 0 2 1 1 1 1 1 1 1" /* (1.28: electrons as waves a switch now, its realistic tag on the row, not a choice) */ /* (1.26: GFN1, paired spins, lone pairs, σ-holes and π-stacking marked real too; 1.27 item 26: Matter depth ×1; 1.27 feature 21: polarizability by direction, after induced charges) */ && r62.find === 'Search… true' && r62.realOn === 14 /* (1.28: electrons as waves a switch, its tag on the row; 1.27 feature 19: photons as waves; 1.27 feature 24: unstable particles meeting; 1.27 feature 22: Rayleigh scattering; 1.27 part 7: photon polarization; 1.27 part 3: charged particles in matter; 1.27 parts 5 and 6: resonance widths and heavy flavour, nuclear spin and γ lines; 1.27: exotic atoms' switch, realistic when on, beside resonance in large rings, detailed collisions and ultra-realistic; positronium and muonium as hydrogen, rp2) */,
+    /^×1 oc c0/.test(r62.tags[0]) && /^×1–1\.7 oc c2/.test(r62.tags[1]) /* (1.28: 12 Å in the module, measured again) */ && /^×1\.7 oc c2/.test(r62.tags[2]) && r62.inc === 'on ×1–1.05 dim' && r62.kind === 'physics' && r62.real === "1 0.01 12 1 1 32 0 2 1 1 1 1 1 1 1" /* (1.28: electrons as waves a switch now, its realistic tag on the row, not a choice) */ /* (1.26: GFN1, paired spins, lone pairs, σ-holes and π-stacking marked real too; 1.27 item 26: Matter depth ×1; 1.27 feature 21: polarizability by direction, after induced charges) */ && r62.find === 'Search… true' && r62.realOn === 15 /* (1.29 item 59: hydrated electrons; 1.28: electrons as waves a switch, its tag on the row; 1.27 feature 19: photons as waves; 1.27 feature 24: unstable particles meeting; 1.27 feature 22: Rayleigh scattering; 1.27 part 7: photon polarization; 1.27 part 3: charged particles in matter; 1.27 parts 5 and 6: resonance widths and heavy flavour, nuclear spin and γ lines; 1.27: exotic atoms' switch, realistic when on, beside resonance in large rings, detailed collisions and ultra-realistic; positronium and muonium as hydrogen, rp2) */,
     `1.10: force reach 9 Å: ${r62.r9.far} pairs past 8.5 Å, energy over 300 insulated steps ${r62.r9.dE} eV (6 Å: ${r62.r6.dE}); tags ${r62.tags.map(t => t.split(' ')[0]).join(', ')}, ${r62.inc}`, '1.10 reach: ' + JSON.stringify(r62));
   // 1.09: ionized water (liquid water, 40 molecules ionized, bath off) keeps its energy: the soft-cored Coulomb energy
   // between net charges inside the cutoff now meets the exact 1/r outside it (a step of 0.037 eV for e⁻ + O⁺ at each
@@ -1798,6 +1792,8 @@ const { openPage } = require('./browser');
   await alone('f_127x.js'); // 1.27 feature 24: unstable particles meet each other (node tests/f_127x.js [--node] [part …])
   await alone('f_127w.js'); // 1.27 feature 19: photons as waves (node tests/f_127w.js [--node] [part …])
   await alone('f_127m.js'); // 1.27 feature 20: the band's shape for the close-packed metals (node tests/f_127m.js [part …])
+  await alone('f_129.js'); // 1.29 items 55–63 (node tests/f_129.js [part …])
+  await alone('f_1283.js'); // 1.28.3 items 52–53: pentaquarks and the d*(2380), protonium seen (node tests/f_1283.js [part …])
   await alone('f_1281.js'); // 1.28.1 items 45–51: info boxes, grabbing and throwing, exotic atoms drawn, muonic scattering, the muon in particle view (node tests/f_1281.js [part …])
   await alone('f_fix1281.js'); // 1.28.1 bug: a save's speed became its 1× (node tests/f_fix1281.js)
   await alone('f_set1271.js'); // 1.27.1 Settings layout: sub-options, switches at the right, 3-D settings by mode, Experimental reset (node tests/f_set1271.js [part …])

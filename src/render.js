@@ -1013,6 +1013,13 @@ function exoAtomPic(ctx, o, x, y, c, hx, s) {
     drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
     return R0 + 3;
   }
+  if (d.pn) { // (protonium, 1.28.3: the p̄ and the p on opposite sides, the orbit shrinking level by level from n₀ to n₁ as its time, PN_T, runs; at least a few pixels so it is seen)
+    const f = o.pnT0 !== undefined ? clamp((W.t - o.pnT0) / PN_T, 0, 1) : 0, n0 = o.pnN0 || 30, n1 = o.pnN1 || 2, n = Math.max(n1, Math.round(n0 - (n0 - n1) * f));
+    const R0 = Math.max(3, n * n * 5.77e-4 * s), th = W.rt * (3 + 9 * f) + o.id, cx = R0 * Math.cos(th), cy = R0 * Math.sin(th), br = Math.max(2.2, Math.min(4, 0.06 * s));
+    ctx.strokeStyle = rgba(c, 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    drawSprite(ballSprite('#ff6a5a', br), x + cx, y + cy); drawSprite(ballSprite('#b678ff', br), x - cx, y - cy);
+    return R0 + 3;
+  }
   if (!(d.atom || d.stuck || d.hyp)) return 0;
   const rb = clamp(0.18 * s, 3.2, 9);
   ctx.globalCompositeOperation = 'lighter'; if (!R.lite) drawSprite(glowSprite(c, Math.max(9, rb * 3)), x, y, 0.5); ctx.globalCompositeOperation = 'source-over';
@@ -1095,7 +1102,16 @@ function exoInside(ctx, o, x, y, c, hx) {
   }
   const qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp];
   if (!qc) return 0;
-  const qs = [...qc], rb = b * 1.15, qr = Math.max(0.9, b * (qs.length === 3 ? 0.42 : 0.48));
+  if (qc.length === 5) { // (a pentaquark, 1.28.3: its baryon and its meson side by side, the "molecule" reading)
+    const sx = b * 0.95;
+    const t1 = exoBag(ctx, o, x - sx, y, c, b, qc.slice(0, 3), 0), t2 = exoBag(ctx, o, x + sx * 1.1, y, c, b * 0.8, qc.slice(3), 3);
+    return Math.max(t1, t2) + 2;
+  }
+  return exoBag(ctx, o, x, y, c, b, qc, 0);
+}
+/* One bag of quarks (a hadron, or one part of a pentaquark): its colour charges as the hadron's, a strange quark ringed. */
+function exoBag(ctx, o, x, y, c, b, qc, k0) {
+  const qs = [...qc], rb = b * (qs.length > 3 ? 1.35 : 1.15), qr = Math.max(0.9, b * (qs.length === 3 ? 0.42 : qs.length > 3 ? 0.36 : 0.48));
   ctx.globalCompositeOperation = 'lighter';
   if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rb * 3)), x, y, 0.35);
   ctx.globalCompositeOperation = 'source-over';
@@ -1105,7 +1121,7 @@ function exoInside(ctx, o, x, y, c, hx) {
   if (big) { ctx.font = `600 ${Math.round(qr * 1.2)}px "Azeret Mono", ui-monospace, monospace`; ctx.textBaseline = 'middle'; }
   let ci = 0;
   qs.forEach((q, k) => {
-    const anti = q === q.toUpperCase(), f = q.toLowerCase(), th = W.at * 1.3 + o.id + k * 2 * Math.PI / qs.length, rr = rb * 0.5;
+    const anti = q === q.toUpperCase(), f = q.toLowerCase(), th = W.at * 1.3 + o.id + k0 + k * 2 * Math.PI / qs.length, rr = rb * (qs.length > 3 ? 0.58 : 0.5);
     const qx = x + rr * Math.cos(th), qy = y + rr * Math.sin(th), col = qs.length === 2 ? (anti ? Q_ACOL : Q_COL)[(o.id + Math.floor(W.at * 2)) % 3] : (anti ? Q_ACOL : Q_COL)[ci++ % 3];
     drawSprite(ballSprite(col, qr), qx, qy);
     if (f === 's') { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, qr * 0.22); ctx.beginPath(); ctx.arc(qx, qy, qr * 1.05, 0, Math.PI * 2); ctx.stroke(); }

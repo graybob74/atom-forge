@@ -169,14 +169,19 @@ const P_INFO = {
   muHe: ['A helium nucleus that caught the muon in a muon-catalysed fusion. Stuck to it, the muon can catalyse no more: this sticking limits the process.', 'Muon-catalyzed_fusion'],
   Ps: ['An electron and a positron orbiting each other, an atom with no nucleus, first made in 1951. It annihilates into gamma rays in 0.1 ns or 142 ns, depending on its spins.', 'Positronium'],
   Mu: ['An antimuon with an electron around it, a light isotope of hydrogen, first made in 1960. It lives 2.2 µs and is used to probe magnetism in materials.', 'Muonium'],
+  penta: ['Five quarks bound together: four quarks and an antiquark. Allowed by the quark model since 1964 but only found in 2015, by CERN’s LHCb experiment, in the decays of Λb baryons; whether they are one bag or a baryon and a meson stuck together is still debated.', 'Pentaquark'],
+  hexa: ['A hexaquark candidate: six quarks with the deuteron’s quantum numbers but three units of spin, seen as a narrow bump in neutron–proton collisions in 2014. Whether it is six quarks in one bag or two Δ baryons bound together is still argued.', 'Dibaryon'],
+  eaq: ['An electron dissolved in water: water molecules turn their hydrogen ends toward it and hold it in a cavity about 2.5 Å across, bound by about 1.7 eV. Found in 1962 by its absorption band (peaking at 720 nm, so irradiated water looks blue), it is one of the main products of radiation in water and lives about a microsecond in pure water before it meets an ion or a radical.', 'Solvated_electron'],
+  Pn: ['A proton and an antiproton going round each other, an atom of matter and antimatter, made at CERN by stopping antiprotons in hydrogen. Caught into a high orbit, it falls inward giving off X-rays, then annihilates into pions.', 'Protonium'],
   hy: ['A nucleus holding a Λ hyperon as well as protons and neutrons. Free of the Pauli principle’s crowding, the Λ sinks to the centre; the first was seen in a cosmic-ray emulsion in 1952.', 'Hypernucleus'],
   anti: ['Matter made of antiparticles, with every charge reversed. Antihydrogen was first held in a trap at CERN in 2010; why the universe has so little antimatter is still an open question.', 'Antimatter'],
 };
 /* The info key of an unstable particle (W.exo species): its family's. */
 function infoKeyX(sp) {
   const d = XP[sp]; if (!d) return null;
-  if (d.hyp) return 'hy'; if (d.ps) return 'Ps'; if (d.atom) return 'muP'; if (d.stuck) return 'muHe';
+  if (d.hyp) return 'hy'; if (d.ps) return 'Ps'; if (d.pn) return 'Pn'; if (d.aq) return 'eaq'; if (d.atom) return 'muP'; if (d.stuck) return 'muHe';
   if (sp === 'Mu') return 'Mu';
+  if (sp.startsWith('Pc')) return 'penta'; if (sp === 'dstar') return 'hexa';
   const F = [['mu', 'mu'], ['tau', 'tau'], ['pi', 'pi'], ['Ks', 'Ks'], ['K', 'K'], ['eta', 'eta'], ['rho', 'rho'], ['omega', 'omega'], ['phi', 'phi'], ['Dpp', 'Delta'], ['Dp', 'Delta'], ['D0', 'Delta'], ['Dm', 'Delta'], ['Dbmm', 'Delta'], ['Dbm', 'Delta'], ['Db0', 'Delta'], ['Dbp', 'Delta'],
     ['Dc', 'Dmes'], ['Ds', 'Dmes'], ['Bs', 'Bmes'], ['Bb', 'Bmes'], ['B', 'Bmes'], ['Lc', 'LamC'], ['Lb', 'LamB'], ['Lam', 'Lam'], ['Sig', 'Sig'], ['Xi', 'Xi'], ['Omg', 'Omg'], ['Jpsi', 'Jpsi'], ['Ups', 'Ups'], ['W', 'W'], ['Z', 'Z'], ['H', 'H']];
   for (const [p, k] of F) if (sp.startsWith(p)) return k;

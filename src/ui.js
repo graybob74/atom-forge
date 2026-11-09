@@ -227,6 +227,7 @@ const PCATS = [
   ['Mesons', ['pi+', 'pi-', 'pi0', 'K+', 'K-', 'K0S', 'K0L', 'eta'].map(sp => ({ kind: 'exo', sp }))],
   ['Baryons', ['Lam', 'Lamb', 'Sig+', 'Sig-', 'Xi0', 'Xi-', 'Omg-', 'Sigb-', 'Sigb+', 'Xib0', 'Xib+', 'Omgb+'].map(sp => ({ kind: 'exo', sp }))],
   ['Resonances', ['rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm'].map(sp => ({ kind: 'exo', sp }))],
+  ['Pentaquarks and hexaquarks', ['Pc4312', 'Pc4440', 'Pc4457', 'Pcs4338', 'dstar'].map(sp => ({ kind: 'exo', sp }))], // (1.28.3, item 52)
   ['W, Z and Higgs bosons', ['W+', 'W-', 'Z0', 'H0'].map(sp => ({ kind: 'exo', sp }))], // (1.27; the Higgs boson: feature 25)
   ['Light', [{ kind: 'gamma' }]],
   ['Antimatter', [{ kind: 'pos' }, SPEC_PBAR, SPEC_NBAR, SPEC_HBAR, { kind: 'atom', Z: 1, A: 2, bare: true, anti: true }, { kind: 'atom', Z: 2, A: 4, bare: true, anti: true }, 'pt']],
@@ -485,7 +486,7 @@ function buildToolOpts() {
       const fs = fireSpecNow() || SPEC_P;
       if (W.d3) { // (3-D: the projectiles that work there, single shots, at any energy)
         h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
-          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots, at any energy; antimatter and beam sources: ${not3d()}.</span>`;
+          rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots, at any energy; beam sources: ${not3d()}.</span>`;
         break;
       }
       h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
@@ -1395,7 +1396,7 @@ function endToolAction() {
 }
 /* (3-D) Fire: the direction of the drag (it stays in the plane square to the view), or with none, the screen's right;
    the energy (electrons and positrons below where flight in radiation mode starts: that flight is flat); every
-   projectile but antimatter works in 3-D (1.25: neutrons, and atoms and nuclei at any energy). */
+   projectile works in 3-D (1.25: neutrons, and atoms and nuclei at any energy; antimatter since 1.29). */
 function fireDir3(d) {
   let ux = d.x1 - d.x0, uy = d.y1 - d.y0, uz = d.z1 - d.z0; const L = Math.sqrt(ux * ux + uy * uy + uz * uz);
   if (L < 0.3) { cam3Update(); return [C3.rx, C3.ry, C3.rz]; }
@@ -1640,6 +1641,7 @@ const Q_COL = ['#ff5a5a', '#52d873', '#5a8cff'], Q_ACOL = ['#4fe3e3', '#e65ae6',
 const Q_CHG = { u: 2 / 3, d: -1 / 3, s: -1 / 3, c: 2 / 3, b: -1 / 3 };
 const Q_SYM = { u: 'u', d: 'd', s: 's', c: 'c', b: 'b' }, Q_BAR = { u: 'ū', d: 'd̄', s: 's̄', c: 'c̄', b: 'b̄' };
 const Q_CONTENT = { p: 'uud', n: 'udd', pbar: 'UUD', nbar: 'UDD', 'pi+': 'uD', 'pi-': 'dU', pi0: 'uU', 'K+': 'uS', 'K-': 'sU', K0S: 'dS', K0L: 'dS', eta: 'sS', Lam: 'uds', Lamb: 'UDS', 'Sig+': 'uus', 'Sig-': 'dds', Xi0: 'uss', 'Xi-': 'dss', 'Omg-': 'sss', 'Sigb-': 'UUS', 'Sigb+': 'DDS', Xib0: 'USS', 'Xib+': 'DSS', 'Omgb+': 'SSS',
+  Pc4312: 'uucdC', Pc4440: 'uucdC', Pc4457: 'uucdC', Pcs4338: 'uscdC', Pcb4312: 'UUCDc', Pcb4440: 'UUCDc', Pcb4457: 'UUCDc', Pcsb4338: 'USCDc', dstar: 'uuuddd', // (pentaquarks as a charmed baryon and a charmed meson side by side, the 'molecule' picture; the d*: one bag of six, 1.28.3)
   rho0: 'uU', 'rho+': 'uD', 'rho-': 'dU', omega: 'uU', phi: 'sS', 'Ks+': 'uS', 'Ks-': 'sU', Ks0: 'dS', Ksb0: 'sD', Dpp: 'uuu', Dp: 'uud', D0: 'udd', Dm: 'ddd', Dbmm: 'UUU', Dbm: 'UUD', Db0: 'UDD', Dbp: 'DDD',
   Dc0: 'cU', Dcb0: 'uC', 'Dc+': 'cD', 'Dc-': 'dC', 'Ds+': 'cS', 'Ds-': 'sC', 'B+': 'uB', 'B-': 'bU', B0: 'dB', Bb0: 'bD',
   'Lc+': 'udc', 'Lcb-': 'UDC', Bs0: 'sB', Bsb0: 'bS', Lb0: 'udb', Lbb0: 'UDB', Jpsi: 'cC', Ups: 'bB' }; // (the heavy hadrons of Realistic particles 5, 1.27) (capitals: antiquarks; the resonances (ρ, ω, φ, K*, Δ) as their ground-state partners, excited)
@@ -1809,7 +1811,7 @@ function qSnap(q) {
   renderInspect();
 }
 /* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
-const XP_NAME = { pPs: 'Para-positronium (an electron and a positron, spins opposite)', oPs: 'Ortho-positronium (an electron and a positron, spins parallel)', 'Lc+': 'Charmed lambda baryon', 'Lcb-': 'Charmed antilambda', Bs0: 'Strange B meson', Bsb0: 'Strange anti-B meson', Lb0: 'Bottom lambda baryon', Lbb0: 'Bottom antilambda', Jpsi: 'J/psi meson (charmonium)', Ups: 'Upsilon meson (bottomonium)', // (Realistic particles 5, 1.27)
+const XP_NAME = { Pc4312: 'Pentaquark Pc(4312)⁺', Pc4440: 'Pentaquark Pc(4440)⁺', Pc4457: 'Pentaquark Pc(4457)⁺', Pcs4338: 'Strange pentaquark Pcs(4338)⁰', Pcb4312: 'Antipentaquark P̄c(4312)⁻', Pcb4440: 'Antipentaquark P̄c(4440)⁻', Pcb4457: 'Antipentaquark P̄c(4457)⁻', Pcsb4338: 'Antipentaquark P̄cs(4338)⁰', dstar: 'Hexaquark candidate d*(2380)', Pn: 'Protonium (a proton and an antiproton going round each other)', eaq: 'Hydrated electron (an electron held by the water round it)', pPs: 'Para-positronium (an electron and a positron, spins opposite)', oPs: 'Ortho-positronium (an electron and a positron, spins parallel)', 'Lc+': 'Charmed lambda baryon', 'Lcb-': 'Charmed antilambda', Bs0: 'Strange B meson', Bsb0: 'Strange anti-B meson', Lb0: 'Bottom lambda baryon', Lbb0: 'Bottom antilambda', Jpsi: 'J/psi meson (charmonium)', Ups: 'Upsilon meson (bottomonium)', // (Realistic particles 5, 1.27)
   'W+': 'W⁺ boson (a carrier of the weak force)', 'W-': 'W⁻ boson (a carrier of the weak force)', Z0: 'Z⁰ boson (the neutral carrier of the weak force)', H0: 'Higgs boson (the Higgs field’s particle)', // (1.27; H0: feature 25)
   Mu: 'Muonium (an electron orbiting a μ⁺: a light hydrogen)', muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
   K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau',
@@ -1817,7 +1819,7 @@ const XP_NAME = { pPs: 'Para-positronium (an electron and a positron, spins oppo
   'Sigb-': 'Antisigma, negative', 'Sigb+': 'Antisigma, positive', Xib0: 'Neutral antixi', 'Xib+': 'Positive antixi', 'Omgb+': 'Antiomega',
   rho0: 'Neutral rho meson', 'rho+': 'Positive rho meson', 'rho-': 'Negative rho meson', omega: 'Omega meson', phi: 'Phi meson', 'Ks+': 'K-star, positive', 'Ks-': 'K-star, negative', Ks0: 'K-star, neutral', Ksb0: 'Anti-K-star, neutral',
   Dpp: 'Delta++ baryon', Dp: 'Delta+ baryon', D0: 'Delta0 baryon', Dm: 'Delta− baryon', Dbmm: 'Anti-delta−−', Dbm: 'Anti-delta−', Db0: 'Anti-delta0', Dbp: 'Anti-delta+' };
-const XP_QUARKS = { 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄', 'Sig+': 'u u s', 'Sig-': 'd d s', Xi0: 'u s s', 'Xi-': 'd s s', 'Omg-': 's s s',
+const XP_QUARKS = { Pc4312: 'u u d c c̄ (five quarks: as a Σc⁺⁺ and a D⁻ held together, or one bag)', Pc4440: 'u u d c c̄ (five quarks)', Pc4457: 'u u d c c̄ (five quarks)', Pcs4338: 'u d s c c̄ (five quarks)', Pcb4312: 'ū ū d̄ c̄ c', Pcb4440: 'ū ū d̄ c̄ c', Pcb4457: 'ū ū d̄ c̄ c', Pcsb4338: 'ū d̄ s̄ c̄ c', dstar: 'u u u d d d (six quarks; or two Δ baryons bound: its nature is still argued)', 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄', 'Sig+': 'u u s', 'Sig-': 'd d s', Xi0: 'u s s', 'Xi-': 'd s s', 'Omg-': 's s s',
   'Sigb-': 'ū ū s̄', 'Sigb+': 'd̄ d̄ s̄', Xib0: 'ū s̄ s̄', 'Xib+': 'd̄ s̄ s̄', 'Omgb+': 's̄ s̄ s̄',
   'Lc+': 'u d c', 'Lcb-': 'ū d̄ c̄', Bs0: 's b̄', Bsb0: 'b s̄', Lb0: 'u d b', Lbb0: 'ū d̄ b̄', Jpsi: 'c c̄', Ups: 'b b̄' }; // (Realistic particles 5, 1.27)
 const XP_ABOUT = {
@@ -1855,7 +1857,7 @@ function selXHTML() {
   const hz = (E) => { const f = E / 4.135667696e-15; return f >= 1e18 ? fmtNum(f / 1e18, 3) + ' EHz' : f >= 1e15 ? fmtNum(f / 1e15, 3) + ' PHz' : f >= 1e12 ? fmtNum(f / 1e12, 3) + ' THz' : fmtNum(f / 1e9, 3) + ' GHz'; };
   if (X.kind === 'exo') {
     const d = XP[o.sp], m = d.res && o.m > 0 ? o.m : d.m; // (a resonance: its own mass, drawn from its width, 1.27)
-    title = XP_NAME[o.sp] || (d.hyp ? hypName(o.sp) : o.lab); sym = o.lab; col = `rgb(${d.col.join(',')})`;
+    title = XP_NAME[o.sp] || (d.hyp ? hypName(o.sp) : o.lab); sym = d.sym || o.lab; // (d.sym: a short symbol where the label is long, the pentaquarks', 1.28.3) col = `rgb(${d.col.join(',')})`;
     const beta = o.v / PHYS.C, life = d.tau * o.gam, path = beta * o.gam * 299792458 * d.tau;
     kv.push(['Charge', d.q > 0 ? '+' + d.q : d.q < 0 ? '−' + -d.q : '0'], ['Rest mass', `${fmtNum(m, 4)} MeV/c² (${fmtNum(m / 0.51099895, 4)} electron masses)${d.res && m !== d.m ? `: its own, drawn from its width (Γ ${fmtNum(d.w, 3)} MeV) about the table's ${fmtNum(d.m, 5)}` : ''}`]);
     if (XP_QUARKS[o.sp]) kv.push(['Made of', XP_QUARKS[o.sp]]);
@@ -1867,6 +1869,18 @@ function selXHTML() {
     about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, and it bounces off any nucleus (1.28.1), except in the ultra-realistic mode, where it is hydrogen's measured size off hydrogen only. Bound by ${fmtE(d.Eb * 1e6)}.`
       : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
       : XP_ABOUT[d.hyp ? 'hy' : d.ew ? o.sp[0] : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg', 'eta'].find(k => o.sp.startsWith(k))] || ''; // (none for the others: they had the η's words, "a neutral meson", for a B⁺ or a Λc, until 1.28.1; the info box below says what each is) // (d.ew: W and Z, 1.27)
+    if (d.pn) { // (protonium, 1.28.3: where it is in its fall, instead of a mean life it does not have)
+      const f = o.pnT0 !== undefined ? Math.min(1, Math.max(0, (W.t - o.pnT0) / PN_T)) : 0, n0 = o.pnN0 || 30, n1 = o.pnN1 || 2, n = Math.max(n1, Math.round(n0 - (n0 - n1) * f));
+      for (let i = kv.length - 1; i >= 0; i--) if (/^(Mean life|Mean distance|Decays to)/.test(kv[i][0])) kv.splice(i, 1);
+      kv.push(['Orbit', `n = ${n} (caught at n = ${n0}; annihilates from n = ${n1})`], ['Size', `${fmtNum(n * n * 5.77e-4, 3)} Å, the radius of its orbit (n² × 0.000577 Å)`], ['Annihilates in', fmtTime(Math.max(0, PN_T - (W.t - (o.pnT0 || W.t))) * PHYS.TU_S) + ' (about five pions, and the X-rays of its fall)']);
+      about = 'Protonium: an antiproton caught by a hydrogen atom, the two going round each other. Each is 1,836 times an electron’s mass, so the orbits are about 900 times smaller than hydrogen’s; caught high, near an atom’s size, it falls inward level by level, giving off X-rays, until the two touch and annihilate. Here its fall takes 1 ps, the time it takes in a liquid (longer in a gas).';
+    }
+    if (d.aq) { // (the hydrated electron, 1.29 item 59: what holds it, instead of a mean life)
+      for (let i = kv.length - 1; i >= 0; i--) if (/^(Mean life|Mean distance|Decays to|Speed|Kinetic|Lorentz|Total energy)/.test(kv[i][0])) kv.splice(i, 1);
+      kv.push(['Bound by', `${fmtE(EAQ.E)} (the water round it; ${fmtE(EAQ.vbe)} to free it at once)`], ['Size', 'a cavity about 2.5 Å across, its electron spread over the six or so waters round it'],
+        ['Moves', 'by diffusion, 4.9×10⁻⁵ cm²/s, drawn toward ions near it'], ['Ends', 'meeting a cation within 2.5 Å (H₃O⁺, a metal ion): handed back as a free electron and captured']);
+      about = 'An electron that has slowed in water and is held there by the water molecules round it, which turn their hydrogen ends toward it. It absorbs red light (720 nm), which is why water under radiation glows faintly blue to the eye.';
+    }
     if (d.ps) { // (positronium, 1.27: its state, binding and life here)
       const I = psInfo(o);
       kv.push(['State', I.para ? 'para-positronium: the two spins opposite (a singlet), 1 in 4' : 'ortho-positronium: the two spins parallel (a triplet), 3 in 4'], ['Binding', `${fmtE(I.Eb)} (half hydrogen\u2019s)`], ['Size', `${fmtNum(I.size, 3)} Å, the radius of its orbit (twice hydrogen\u2019s)`],
@@ -2164,7 +2178,7 @@ function drawSolverPlot(cv, res) {
 }
 /* Decay chain: where this nucleus goes, step by step, on a chart of the nuclides (neutrons across, protons up),
    with each step's half-life; α steps run diagonally down, β⁻ up-left, β⁺ and electron capture down-right. */
-const CHAIN_COL = { a: '#f0b44c', 'b-': '#4da8ff', 'b+': '#ff6fc8', ec: '#45c7b0', p: '#ff5a4e', n: '#a9b4c2', '2p': '#ff5a4e', '2n': '#a9b4c2', sf: '#ff8a3d' };
+const CHAIN_COL = { a: '#f0b44c', 'b-': '#4da8ff', 'b+': '#ff6fc8', ec: '#45c7b0', p: '#ff5a4e', n: '#a9b4c2', bn: '#7f9cff', '2p': '#ff5a4e', '2n': '#a9b4c2', sf: '#ff8a3d' };
 function chainSectionHTML(Z, N, anti) {
   const ch = decayChain(Z, N, 40);
   if (ch.length < 2 && !ch[0].mode) return '';
@@ -2885,85 +2899,13 @@ function shareInit() {
   let h = ''; try { h = decodeURIComponent(location.hash || ''); } catch (e) { h = ''; }
   if (h.startsWith('#' + SHARE_PREFIX)) setTimeout(() => shareOpen(h).then((e) => { if (e) log('tool', `The link's world could not be opened: ${e}`); }), 0);
 }
-/* Video: the chamber as the viewer sees it (background, GL and overlay canvases), a frame every 1/30 s of watching ×
-   the speed-up while the simulation runs, kept as JPEGs (at most REC.MAX: two minutes of video); on Stop they are
-   played into a MediaRecorder at 30 frames a second (WebM, or MP4 where that is what the browser makes) and saved. */
-const REC = { on: false, speed: 1, frames: [], last: 0, pend: 0, cv: null, t0: 0, MAX: 3600, busy: false };
-function recMime() {
-  if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) return '';
-  for (const m of ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4']) if (MediaRecorder.isTypeSupported(m)) return m;
-  return '';
-}
 /* The chamber's canvas layers (under the WebGL layer, the WebGL layer, the overlay) drawn into a w × h picture: each
    layer's part over the chamber, as it is seen (1.26 sweep: the WebGL layer reaches 64 px past the chamber on each side,
    and drawn whole it was shrunk toward the middle, its atoms off their labels and bonds by up to 40 px at the edges, in
-   recorded videos and gallery pictures). Call it right after render(): the WebGL layer keeps no copy of its frame. */
+   gallery pictures). Call it right after render(): the WebGL layer keeps no copy of its frame. */
 function layersInto(ctx, w, h) {
   const base = $('cv').getBoundingClientRect();
   for (const id of ['cvbg', 'cvgl', 'cv']) { const c = $(id); if (c && c.width && !c.hidden && c.style.display !== 'none') try { const r = c.getBoundingClientRect(), kx = c.width / Math.max(1, r.width), ky = c.height / Math.max(1, r.height); ctx.drawImage(c, (base.left - r.left) * kx, (base.top - r.top) * ky, base.width * kx, base.height * ky, 0, 0, w, h); } catch (e) { /* (a canvas that cannot be read) */ } }
-}
-function recSize() { const c = $('cv'), k = Math.min(1, 1280 / Math.max(1, c.width)); return [Math.max(2, Math.round(c.width * k / 2) * 2), Math.max(2, Math.round(c.height * k / 2) * 2)]; }
-function recCapture() {
-  if (!UI.running) return;
-  if (UI.vis - REC.last < REC.speed / 30 - 1e-4) return;
-  REC.last = UI.vis;
-  if (REC.pend > 6) return; // (the JPEG encoder is behind: skip a frame rather than pile up)
-  const [w, h] = recSize(), cv = REC.cv || (REC.cv = document.createElement('canvas'));
-  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-  const ctx = cv.getContext('2d');
-  ctx.fillStyle = getComputedStyle($('cv').parentNode).backgroundColor || '#000'; ctx.fillRect(0, 0, w, h);
-  layersInto(ctx, w, h);
-  const i = REC.frames.length; REC.frames.push(null); REC.pend++;
-  cv.toBlob((b) => { REC.pend--; REC.frames[i] = b; }, 'image/jpeg', 0.85);
-  recShow();
-  if (REC.frames.length >= REC.MAX) recStop();
-}
-function recShow() {
-  const n = REC.frames.length, s = n / 30, t = `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-  $('recBadge').hidden = !REC.on && !REC.busy;
-  $('recBadge').textContent = REC.busy ? 'SAVING VIDEO' : `● REC ${t}${REC.speed > 1 ? ` (${REC.speed}×)` : ''}`;
-  $('bRec').textContent = REC.on ? `Stop and save (${t})` : 'Record video';
-  $('bRec').classList.toggle('go', REC.on);
-}
-function recStart() {
-  const mime = recMime();
-  if (!mime) { recNote('This browser cannot make videos (no MediaRecorder for canvases).'); return; }
-  REC.on = true; REC.frames = []; REC.last = -1; REC.pend = 0; REC.mime = mime; REC.preset = UI.preset;
-  recNote(`Recording${REC.speed > 1 ? ` a ${REC.speed}× time-lapse` : ''}: press Stop and save when done (at most ${REC.MAX / 30 / 60} minutes of video).${UI.running ? '' : ' It records once the simulation runs.'}`);
-  recShow();
-}
-function recNote(t) { const n = $('recNote'); n.hidden = !t; n.textContent = t || ''; }
-async function recStop() {
-  if (!REC.on) return; REC.on = false; REC.busy = true; recShow(); $('bRec').disabled = true;
-  try {
-    for (let i = 0; i < 100 && REC.pend > 0; i++) await new Promise((r) => { setTimeout(r, 30); });
-    const frames = REC.frames.filter(Boolean); REC.frames = [];
-    if (frames.length < 2) { recNote('Nothing was recorded: the simulation was paused.'); return; }
-    const first = await createImageBitmap(frames[0]), cv = document.createElement('canvas'); cv.width = first.width; cv.height = first.height; first.close();
-    const ctx = cv.getContext('2d'), stream = cv.captureStream(30), mr = new MediaRecorder(stream, { mimeType: REC.mime, videoBitsPerSecond: 6e6 }), chunks = [];
-    mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-    const done = new Promise(r => { mr.onstop = r; });
-    mr.start(1000);
-    const t0 = performance.now();
-    for (let i = 0; i < frames.length; i++) {
-      const bm = await createImageBitmap(frames[i]); ctx.drawImage(bm, 0, 0); bm.close();
-      const tr = stream.getVideoTracks()[0]; if (tr && tr.requestFrame) tr.requestFrame();
-      if (i % 15 === 0) recNote(`Making the video … ${Math.round(100 * i / frames.length)} % (it plays the frames through once: ${Math.ceil((frames.length - i) / 30)} s left)`);
-      const wait = t0 + (i + 1) * 1000 / 30 - performance.now(); if (wait > 0) await new Promise((r) => { setTimeout(r, wait); });
-    }
-    mr.stop(); await done; stream.getTracks().forEach(t => t.stop());
-    const type = REC.mime.split(';')[0], ext = type === 'video/mp4' ? 'mp4' : 'webm', blob = new Blob(chunks, { type });
-    const name = `atom-forge-${(REC.preset || 'world').replace(/[^a-z0-9-]/gi, '')}${REC.speed > 1 ? '-' + REC.speed + 'x' : ''}.${ext}`;
-    const ok = await fileSave(name, blob, type);
-    recNote(ok ? `Saved ${name}: ${(frames.length / 30).toFixed(1)} s of video, ${(blob.size / 1048576).toFixed(1)} MB.` : 'The video was not saved.');
-    if (ok) log('tool', `Video saved: ${name}`);
-  } catch (e) { recNote(`The video could not be made (${e && e.message || e}).`); }
-  finally { REC.busy = false; $('bRec').disabled = false; recShow(); }
-}
-function recInit() {
-  $('bRec').onclick = () => { if (REC.busy) return; if (REC.on) recStop(); else recStart(); };
-  bindSeg('segRec', (v) => { REC.speed = +v; if (REC.on) recShow(); });
-  if (!recMime()) { $('bRec').disabled = true; $('bRec').title = 'This browser cannot record the canvas as a video'; }
 }
 /* Gallery: worlds kept in this browser (localStorage: an index, and each world as its share code with a 240 px picture).
    A convenience for one viewer, so storage that may be missing or full is said so plainly. */
@@ -3310,7 +3252,7 @@ function bindLab() {
   for (const c of document.querySelectorAll('[data-view]')) c.onchange = () => { R.view[c.dataset.view] = c.checked; store('viewflags', JSON.stringify(R.view)); };
   $('bIdentify').onclick = () => { identifyMolecules(); };
   $('bSaveWorld').onclick = () => saveWorld(); $('bLoadWorld').onclick = () => loadWorld();
-  shareInit(); explainInit(); recInit(); askInit(); galInit();
+  shareInit(); explainInit(); askInit(); galInit();
   { const ib = $('tp-inspect'); // the quark view: drag a quark, pick a nucleon, put it back
     ib.addEventListener('pointerdown', (e) => { if (e.target.id === 'insQuarks') { qPointer(e, 'down'); if (QV.drag) e.target.setPointerCapture(e.pointerId); } });
     ib.addEventListener('pointermove', (e) => { if (QV.drag) qPointer(e, 'move'); });
@@ -4276,7 +4218,16 @@ const CHALLENGES = [
     build() { PRESETS.flashbyte.build(); }, done: () => { const M = flashMemory(); if (M.cells.length < 8 || memBusy()) return false; const d = memDecode(M.cells.map(c => (c.broken ? null : flashStored(c)))); return !!d[0] && d[0].ch === 'A'; } },
   { id: 'melt', name: 'Melt a chip', tool: 'heat', tab: 'lab', goal: 'Heat a NOT gate until it stops working because it melted.', how: 'Silicon melts at 1,687 K. Watch the gate leak first, then fail. Hold the Heat tool on it.',
     build() { PRESETS.hotchip.build(); }, done: () => W.chips.some(c => c.broken && /melted/.test(c.msg)) },
+  // (1.29 item 63: three on the new physics; each turns on the Realistic-particles switch it needs, and says so)
+  { id: 'pn', name: 'Make protonium', tool: 'fire', goal: 'Catch an antiproton in hydrogen, so that the antiproton and a proton go round each other.', how: 'This challenge turns on Settings → Experimental → Realistic particles → Exotic atoms. An antiproton is caught only once it has slowed below about 2 keV: fire one (Fire tool, p̄) slowly into the hydrogen, a few hundred eV.',
+    build() { chSwitch('rpExo', 'exo'); baseWorld(50, 34, 300, 0.05); scatter(14, 50, 34, (x, y) => addMolecule('H2', x, y, rnd() * 6), 4); OPT.fire.proj = 'pbar'; OPT.fire.s = Math.round(100 * (Math.log10(300) + 2)); }, done: () => (W.count.pn || 0) >= 1 },
+  { id: 'eaq', name: 'Dissolve an electron', tool: 'fire', goal: 'Make a hydrated electron: a free electron held by the water round it, e⁻(aq).', how: 'This challenge turns on Settings → Experimental → Realistic particles → Hydrated electrons. Fire electrons (Fire tool, e⁻) into the water at a few tens of eV: one that slows down among water molecules, away from the ions it made, settles in.',
+    build() { chSwitch('rpAq', 'aq'); PRESETS.water.build(); OPT.fire.proj = 'e'; OPT.fire.s = Math.round(100 * (Math.log10(30) + 2)); }, done: () => W.exo.some(o => !o.dead && o.sp === 'eaq') },
+  { id: 'dstar', name: 'Make a hexaquark', tool: 'fire', goal: 'Make the d*(2380): six quarks in one particle, for a moment.', how: 'It shows up when a neutron hits a proton with about 2,380 MeV between them in their own frame: fire neutrons (Fire tool, n) at about 1.14 GeV along a row of the protons. About one collision in fifteen makes one: keep firing (and load the challenge again if the protons run out).',
+    build() { baseWorld(60, 40, 300, 0.05); W.decayOn = true; for (let i = 0; i < 80; i++) addNuc(1, 0, 0, -27 + (i % 10) * 6, -21 + Math.floor(i / 10) * 6); OPT.fire.proj = 'n'; OPT.fire.s = Math.round(100 * (Math.log10(1.14e9) + 2)); }, done: () => (W.count.dstar || 0) >= 1 },
 ];
+/* A challenge's switch turned on: through Settings in the page (kept, shown), straight on RP where there is no page. */
+function chSwitch(k, rp) { try { setSetting(k, true); } catch (e) { SET[k] = true; RP[rp] = true; } }
 const CH = { done: new Set(String(store('challenges') || '').split(',').filter(Boolean)), cur: null, won: false };
 for (const c of CHALLENGES) {
   PRESETS['ch_' + c.id] = { group: 'Challenges', get name() { return (CH.done.has(c.id) ? '✓ ' : '') + c.name; }, tool: c.tool, tab: c.tab, spec: c.spec || (c.id === 'antiH' ? SPEC_PBAR : SPEC_P),
@@ -4315,14 +4266,14 @@ const not3d = () => 'not in 3-D yet'; // (in a sentence: NOT_3D.toLowerCase() ga
 const TOOLS_NO3D = new Set(['objects']); // (the Magnet and Light tools work in 3-D since 1.24)
 const MODE3 = { on: null, last2d: null };
 function is3dPreset(k) { return !!(PRESETS[k] && PRESETS[k].d3); }
-/* What can be put in a 3-D world: atoms and ions (not antimatter), molecules of the 3-D library (molFits: not the flat
+/* What can be put in a 3-D world: atoms and ions (antimatter too since 1.29 item 57), molecules of the 3-D library (molFits: not the flat
    tiny objects; the 3-D ones, 1.23.2), and free electrons. */
 function spec3dOK(s) {
   if (!s) return false;
   if (s.kind === 'mol') return molFits(MOLECULES[s.mol], true);
-  if (s.kind === 'atom') return !s.anti;
+  if (s.kind === 'atom') return true;
   if (s.kind === 'exo') return !!XP[s.sp]; // (unstable particles since 1.24; muonic atoms, muonium and hypernuclei since 1.25)
-  return s.kind === 'e' || s.kind === 'pos' || s.kind === 'gamma' || s.kind === 'nu' || s.kind === 'n'; // (light since 1.24; positrons and neutrinos since 1.24; neutrons since 1.25)
+  return s.kind === 'e' || s.kind === 'pos' || s.kind === 'gamma' || s.kind === 'nu' || s.kind === 'n' || s.kind === 'pbar' || s.kind === 'nbar'; // (p̄ and n̄ since 1.29 item 57; light since 1.24; positrons and neutrinos since 1.24; neutrons since 1.25)
 }
 const NO3D_CTL = ['bAskSetup']; // (single controls; the box-size slider, fields, magnets and the ultra-realistic mode work in 3-D since 1.24)
 const NO3D_BTN = []; // (single choices off in 3-D: none since 1.25, when continuous bond orders from the positions came to 3-D; the rest of the Experimental tab works in 3-D since 1.24)
@@ -4686,7 +4637,6 @@ function frame(now) {
       tf1 = performance.now();
       if (R.follow) { if (R.follow.dead) R.follow = null; else if (W.d3) cam3Follow(R.follow); else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
       render(W.rt);
-      if (REC.on) recCapture();
       tf2 = performance.now();
     } catch (err) { console.error(err); crashError(err, 'frame'); }
     if (UI.started) crashTick(now, performance.now() - tf0);
@@ -5692,7 +5642,7 @@ function mmTick(dt) {
 function mmSetups(d3 = false) { // (d3: the 3-D lab's setups; otherwise the flat game's)
   const groups = new Map();
   for (const [k, p] of Object.entries(PRESETS)) { if (!p.name || k === 'ai' || !!p.d3 !== d3) continue; const g = p.group || 'Other'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push([k, p.name]); }
-  let i = 0; $('mmList').innerHTML = (d3 ? `<p class="mm-note3d">The 3-D mode is a preview: atoms, molecules, liquids and gases in a cube you can turn (right-drag or Alt+drag, the wheel to zoom, W A S D to fly, E and Q up and down, 0 to fit). Fields, magnets, light and unstable particles work in 3-D too, with their captures and hits on nuclei (muonic atoms, nuclear stars, muonium), and nuclear reactions: decay, neutrons, fission, fusion; the collider, antimatter, placed objects and chips stay in the flat game for now.</p>` : '') +
+  let i = 0; $('mmList').innerHTML = (d3 ? `<p class="mm-note3d">The 3-D mode is a preview: atoms, molecules, liquids and gases in a cube you can turn (right-drag or Alt+drag, the wheel to zoom, W A S D to fly, E and Q up and down, 0 to fit). Fields, magnets, light and unstable particles work in 3-D too, with their captures and hits on nuclei (muonic atoms, nuclear stars, muonium), and nuclear reactions: decay, neutrons, fission, fusion; antimatter too (antiatoms, antihydrogen, protonium, annihilation); the collider, placed objects and chips stay in the flat game for now.</p>` : '') +
     [...groups].map(([g, list]) => `<h4>${esc(g)}</h4>` + list.map(([k, n]) => `<button data-mmp="${esc(k)}" style="--i:${Math.min(i++, 14)}">${esc(n)}</button>`).join('')).join('');
   $('mmChoose').hidden = true; $('mmBtns').hidden = true; $('mmBtns3').hidden = true; $('mmSetups').hidden = false; $('mmList').scrollTop = 0;
 }
@@ -5846,6 +5796,7 @@ Object.assign(SET_DEF, { rpPol: false }); // (Realistic particles 7, 1.27: photo
 Object.assign(SET_DEF, { rpRay: false }); // (Realistic particles, 1.27 feature 22: Rayleigh scattering, pold.js RP.ray)
 Object.assign(SET_DEF, { rpExm: false }); // (Realistic particles, 1.27 feature 24: unstable particles meet each other, hep.js RP.exm)
 Object.assign(SET_DEF, { rpPwave: false }); // (Realistic particles, 1.27 feature 19: photons as waves, RP.pwave)
+Object.assign(SET_DEF, { rpAq: false }); // (Realistic particles, 1.29 item 59: hydrated electrons, RP.aq)
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
@@ -5867,6 +5818,7 @@ SET_EXP.push('rpPol'); EXP_NAME.rpPol = 'photon polarization'; // (1.27)
 SET_EXP.push('rpRay'); EXP_NAME.rpRay = 'Rayleigh scattering'; // (1.27)
 SET_EXP.push('rpExm'); EXP_NAME.rpExm = 'unstable particles meeting'; // (1.27)
 SET_EXP.push('rpPwave'); EXP_NAME.rpPwave = 'photons as waves'; // (1.27)
+SET_EXP.push('rpAq'); EXP_NAME.rpAq = 'hydrated electrons'; // (1.29)
 /* Settings → Experimental → Reset to normal: every Experimental setting back to normal at once (the owner, 1.27.1). */
 function expResetAll() {
   for (const k of SET_EXP) SET[k] = SET_DEF[k];
@@ -5963,6 +5915,7 @@ function applySettings() {
   RP.ray = !!SET.rpRay; // (Rayleigh scattering, 1.27)
   RP.exm = !!SET.rpExm; // (unstable particles meet each other, 1.27)
   RP.pwave = !!SET.rpPwave; // (photons as waves, 1.27)
+  RP.aq = !!SET.rpAq; // (hydrated electrons, 1.29)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   pdOn(SET.qeq && SET.pold ? 1 : 0); // (polarizability by direction: induced dipoles in place of the charge flow, with induced charges on, 1.27)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
@@ -6091,6 +6044,7 @@ function syncSettings() {
   $('setRpRay').checked = SET.rpRay; // (1.27)
   $('setRpExm').checked = SET.rpExm; // (1.27)
   $('setRpPwave').checked = SET.rpPwave; // (1.27)
+  $('setRpAq').checked = SET.rpAq; // (1.29)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -6143,6 +6097,7 @@ const COSTS = {
   setRpRay: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A visible photon crossing liquid water takes 31–36 µs against 15–24 (each molecule it passes asked once)'] }),
   setRpExm: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing without unstable particles in flight; their paths checked in pairs each step (500 pions from a lead–lead collision: see the notes)'] }),
   setRpPwave: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A photon through slits takes about 0.1 ms more; an X-ray that tries to scatter in a crystal 2–5 ms (the structure factor over 1,024 directions)'] }),
+  setRpAq: () => ({ k: 'physics', on: ['×1', 'Nothing where there are no slow free electrons in water; each e⁻(aq) a look round itself a step (about 20 µs among 1,000 atoms)'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
@@ -6197,6 +6152,7 @@ const COSTS3 = {
   setRpRay: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing a step. A visible photon crossing liquid water takes 34–41 µs against 21–22'] }),
   setRpExm: () => ({ k: 'physics', on: ['×1', 'Measured in 3-D on one thread (1.27): nothing without unstable particles in flight; their paths checked in pairs each step'] }),
   setRpPwave: () => ({ k: 'physics', on: ['×1', 'The flat game only so far: in the 3-D lab it changes nothing'] }),
+  setRpAq: () => ({ k: 'physics', on: ['×1', 'As in the flat game: nothing where there are no slow free electrons in water; each e⁻(aq) a look round itself a step'] }),
 };
 /* the quantum bonds' method (1.26): against GFN1, measured with quantum bonds on; nothing while they are off */
 const XQ_COST = (d3) => () => SET.bo !== 2 ? { k: 'physics', o: { 1: ['×1', 'Only with quantum bonds on'], 2: ['×1', 'Only with quantum bonds on'] } }
@@ -6243,6 +6199,7 @@ const REAL = {
   setRpRay: [true, 'Light is scattered by molecules, blue most, as in nature (1.27)'],
   setRpExm: [true, 'Unstable particles collide with each other as with anything else, as in nature (1.27)'],
   setRpPwave: [true, 'Light is a wave: it diffracts and interferes, as in nature (1.27)'],
+  setRpAq: [true, 'A slow electron in water settles into a cavity as the hydrated electron, e⁻(aq), and lives as measured (1.29)'],
 };
 function syncReal() {
   for (const id in REAL) {
@@ -6267,6 +6224,7 @@ EXP_SET.setRpPol = 'rpPol'; // (1.27)
 EXP_SET.setRpRay = 'rpRay'; // (1.27)
 EXP_SET.setRpExm = 'rpExm'; // (1.27)
 EXP_SET.setRpPwave = 'rpPwave'; // (1.27)
+EXP_SET.setRpAq = 'rpAq'; // (1.29)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -6304,6 +6262,7 @@ function expSummary() {
   if (SET.rpRay) on.push('Rayleigh scattering'); // (1.27)
   if (SET.rpExm) on.push('unstable particles meeting'); // (1.27)
   if (SET.rpPwave) on.push('photons as waves'); // (1.27)
+  if (SET.rpAq) on.push('hydrated electrons'); // (1.29)
   if (!on.length) return 'Experimental: all normal';
   const t = expTotal(), x = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
   return `Experimental: ${on.join(', ')} (${x} the normal work)`;
@@ -6324,6 +6283,7 @@ function syncExpTotal() {
   names.setRpRay = 'Rayleigh scattering'; // (1.27)
   names.setRpExm = 'unstable particles meeting'; // (1.27)
   names.setRpPwave = 'photons as waves'; // (1.27)
+  names.setRpAq = 'hydrated electrons'; // (1.29)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -6465,6 +6425,7 @@ const SDESC = {
   setRpRay: ['Rayleigh scattering', 'Light that cannot ionize is scattered by molecules and atoms, as their electrons swing with its field: blue light (400 nm) 9.4 times as often as red (700 nm), the reason the sky is blue. A molecule scatters as much as the square of its polarizability (benzene about 35 times nitrogen), forward and back twice as much as sideways, and light scattered at right angles comes out polarized. Shown made visible, about 1 photon in 100 a nitrogen molecule passed at 450 nm; with ultra-realistic mode the true rate, which in a box this small is almost never (a photon crosses about 80 km of air before it scatters).'], // (1.27)
   setRpExm: ['Unstable particles meet each other', 'Pions, kaons, muons, τ leptons, hyperons and the other unstable particles collide with each other in flight, not only with atoms and nuclei: a particle and its antiparticle annihilate (μ⁺μ⁻ as e⁺e⁻ does, π⁺π⁻ into mesons), two other hadrons above the threshold make new hadrons between them, and two charges turn each other. Within 0.35 Å of each other, as the game’s fast nuclei meet (true sizes with ultra-realistic mode: almost never). Two products of one collision never meet: they fly apart.'], // (1.27)
   setRpPwave: ['Photons as waves', 'Light is a wave as well as a stream of photons: each photon goes where the wave says, so the pattern builds up photon by photon. Through slits (a new object, offered with this on) it spreads in fringes, bright where the paths from the openings differ by whole wavelengths; an X-ray meeting a crystal is scattered where the waves from its atoms add up (Bragg’s law), a liquid into rings. At these sizes X-rays of a few keV show it; visible light’s wavelength (4,000–7,000 Å) is far larger than anything in the box, so it spreads from small openings without fringes, as it really would. The flat game only so far.'], // (1.27)
+  setRpAq: ['Hydrated electrons', 'A free electron slowed below 1 eV in liquid water settles into a cavity the water molecules make round it: the hydrated electron, e⁻(aq), bound by about 1.7 eV, the blue of irradiated water (its band peaks at 720 nm). It moves by diffusion, drawn toward the ions near it as water screens their pull, and meets a cation (H₃O⁺, a metal ion) at 2.5 Å, where it is handed back and captured. Light near 720 nm is absorbed by it and warms the water; above 3.6 eV it sets the electron free.'],
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
    on which mode you're in ... There should also be 3d pictures in 3d mode"). While the world is 3-D (W.d3) the pane takes
@@ -6508,13 +6469,14 @@ const SDESC3 = {
   setRpMu: ['Muonium as hydrogen', 'Muonium (a muon with an electron) is the lightest isotope of hydrogen: a ninth of its mass, bound by 13.54 eV (hydrogen 13.60), bonding by hydrogen\u2019s rules, so its isotope effects are large (Mu–Cl vibrates 2.9 times faster than H–Cl). The muon\u2019s spin precesses in a magnetic field, 135.5 MHz a tesla for a bare or bonded muon, 1.39 MHz a gauss for muonium; the positron of its decay comes out along the spin (1 + cos θ / 3 on average), so detectors round a sample see the precession (μSR). Inspect shows the spin; the particle view draws it. In 3-D the spin turns about the field\u2019s axis. Experimental: off again each time the game starts.'], // (1.27)
   setRpCpm: ['Charged particles in matter', 'A fast charged particle crossing matter loses its energy collision by collision, as in nature: mostly in small knocks, now and then in a hard one that sends an electron flying with up to the most a collision can give (a δ-ray, which ionizes in turn; 2.7 keV from a 5 MeV α, half its energy from an electron), so the loss over a thin layer has Landau\u2019s long tail instead of a fixed amount. On average it is Bethe\u2019s formula with each element\u2019s measured excitation energy: fast particles lose more than they did before (the relativistic rise the game\u2019s form lacked: in 3-D water a 5 MeV α 3.3 times, a 1 MeV electron 8 times: the 3-D game\u2019s loss was 2–12 times low; slow ions as before). Electrons and positrons give off bremsstrahlung (photons with a 1/k spectrum) at the rate set by each material\u2019s radiation length (lead 5.6 mm, water 36 cm), so it overtakes the collisions above the critical energy (water 79 MeV, lead 8 MeV). γ rays above 1.022 MeV make an electron and a positron near a nucleus (or two electrons and a positron in an electron\u2019s field) at the measured cross sections, against Compton scattering at the Klein–Nishina rate: the pair flies forward and shares the energy unequally. In water or glass a particle faster than light there (c/n) gives off Cherenkov light on a cone: 41° in water, 47° in silica glass, 334 photons a centimetre in 300–600 nm, which detectors see. What a nanometre box can\u2019t make real: a radiation length is centimetres, so at nature\u2019s rates a fast electron almost never radiates in the box, Cherenkov light is one photon in thousands of crossings, a shower (centimetres long) can\u2019t develop, and a minimum-ionizing particle mostly loses far less than its average (the rare hard collisions carry most of it); what is made leaves the box. γ rays meet atoms as often as the game\u2019s light always has (about 10⁷ times nature\u2019s). In 3-D the same in all three directions (the cone around the particle\u2019s way). Off: as before (a smooth loss, no bremsstrahlung for fast electrons in 3-D, pairs back to back sharing evenly). Experimental: off again each time the game starts.'], // (1.27)
   segCpmX: ['Matter depth', 'As in the flat game, in all three directions: with Charged particles in matter on, bremsstrahlung and Cherenkov light sped up by the factor chosen, as if the box were that much deeper, so showers can start and Cherenkov cones show. Only those rare processes: collisions, δ-rays and the energy loss stay at nature\u2019s rates, so a scaled shower\u2019s details are off by the same factor (its critical energy that much lower, its radiation length that much shorter). ×1 is nature. Experimental: back to ×1 each time the game starts.'], // (1.27 item 26)
-  setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻ or K⁻ is caught by an atom into an orbit and cascades down, in all three directions, setting Auger electrons free and giving off its X-ray lines; then the muon decays or is captured at the measured rate, a pion or kaon is absorbed by the nucleus. A muonic atom is a real atom of the box, its electrons seeing one charge less; muonic hydrogen passes through atoms and hands its muon to a heavier one. Antiprotons and protonium are in the flat game only (antimatter is not in 3-D). Experimental: off again each time the game starts. Since 1.27 a stopped K⁻ makes Σπ twice as often as Λπ, the Σ often turning into a Λ on a second nucleon, and hydrogen bound in water, methane and other hydrocarbons catches the particle at the measured, far smaller share than its Z gives.'], // (1.27)
+  setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻ or K⁻ is caught by an atom into an orbit and cascades down, in all three directions, setting Auger electrons free and giving off its X-ray lines; then the muon decays or is captured at the measured rate, a pion or kaon is absorbed by the nucleus. A muonic atom is a real atom of the box, its electrons seeing one charge less; muonic hydrogen passes through atoms and hands its muon to a heavier one. Antiprotons are caught too, by hydrogen as protonium, in both games. Experimental: off again each time the game starts. Since 1.27 a stopped K⁻ makes Σπ twice as often as Λπ, the Σ often turning into a Λ on a second nucleon, and hydrogen bound in water, methane and other hydrocarbons catches the particle at the measured, far smaller share than its Z gives.'], // (1.27)
   setRpRes: ['Resonance widths and heavy flavour', 'As in the flat game, in all three directions: a resonance gets its own mass from its measured width, and hadron collisions above the charm threshold make charm and bottom hadrons at their measured share. Experimental: off again each time the game starts. Since 1.27 nucleus–nucleus collisions make charm and bottom by their nucleon–nucleon collisions, and e⁺e⁻ near the Z feels the beams\u2019 own radiation (the Z peak 30.5 nb, as measured, not 41.5) and makes W pairs with the W⁻ forward along the electron.'],
   setRpNuc: ['Nuclear spin, γ lines and neutron cross sections', 'As in the flat game, in all three directions: nuclear spins and moments (Inspect, the Larmor precession in a field along the Lab\u2019s axis), measured γ lines and isomers, neutrons at their measured cross sections. Experimental: off again each time the game starts.'],
   setRpPol: ['Photon polarization', 'As in the flat game, in all three directions: photons carry a polarization at right angles to their path, the Light tool and lasers polarized (vertical, horizontal or unpolarized), the two γ rays of an e⁺e⁻ annihilation at right angles to each other, and Compton scattering by Klein–Nishina, the photon leaving least along its polarization. The placed optics (mirrors, prisms, the polarizer) are in the flat game only. Experimental: off again each time the game starts. Since 1.27 the two photons of π⁰ → γγ and η → γγ are polarized at right angles too, and ⁶⁰Co\u2019s two γ rays (1,173 and 1,332 keV, with Nuclear spin, γ lines on) leave with their measured angular correlation, 1.17 times as likely back to back as at right angles.'], // (1.27)
   setRpRay: ['Rayleigh scattering', 'As in the flat game, in all three directions: light that cannot ionize is scattered by molecules and atoms, blue 9.4 times as often as red, forward and back twice as much as sideways (1 + cos²θ), fully polarized at right angles. Each molecule scatters by its own polarizability tensor (polarizability by direction): a long or flat one (CO₂, benzene) depolarizes a little. Made visible; true with ultra-realistic mode (almost never).'], // (1.27)
   setRpExm: ['Unstable particles meet each other', 'As in the flat game, in all three directions: unstable particles in flight annihilate with their antiparticles and collide with other hadrons when their paths pass within 0.35 Å. Their charges do not turn each other in the 3-D lab yet (in the flat game they do).'], // (1.27)
   setRpPwave: ['Photons as waves', 'Built for the flat game so far: in the 3-D lab light stays a stream of photons (the slits are a flat-game object, and X-rays are not diffracted here yet).'], // (1.27)
+  setRpAq: ['Hydrated electrons', 'As in the flat game, in all three directions.'],
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
 const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
@@ -6754,6 +6716,7 @@ function settingsInit() {
   $('setRpRay').onchange = (e) => setSetting('rpRay', e.target.checked); // (1.27)
   $('setRpExm').onchange = (e) => setSetting('rpExm', e.target.checked); // (1.27)
   $('setRpPwave').onchange = (e) => { setSetting('rpPwave', e.target.checked); if (UI.tool === 'objects') buildToolOpts(); }; // (1.27: the slits show with it)
+  $('setRpAq').onchange = (e) => setSetting('rpAq', e.target.checked); // (1.29)
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');
@@ -6972,7 +6935,7 @@ function specAbout(s) { // { t1, t2, rows: [[label, text]], found }
     const el = ELEMENTS[s.Z], N = s.A - s.Z, nuc = nuclideInfo(s.Z, N), q = s.bare ? (s.anti ? -s.Z : s.Z) : (s.anti ? -(s.charge || 0) : s.charge || 0);
     row('Element', `${el.name} (${el.sym}), element ${s.Z}${CAT_NAME[el.cat] ? ', ' + CAT_NAME[el.cat] : ''}`);
     row('Nucleus', `${s.Z} proton${s.Z > 1 ? 's' : ''}, ${N} neutron${N === 1 ? '' : 's'}: ${nucSymA(s.Z, N, s.anti)}, ${lifeText(nuc, s.bare ? { ne: 0 } : null)}`);
-    if (nuc && nuc.modes && nuc.modes.length && !nuc.stable) row('Decays', nuc.modes.map(m => `${({ a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'electron capture', sf: 'spontaneous fission', p: 'proton emission', '2p': 'two-proton emission', n: 'neutron emission', '2n': 'two-neutron emission' })[m.mode] || m.mode}${m.br < 1 ? ' ' + Math.round(m.br * 100) + '%' : ''}`).join(', '));
+    if (nuc && nuc.modes && nuc.modes.length && !nuc.stable) row('Decays', nuc.modes.map(m => `${({ a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'electron capture', sf: 'spontaneous fission', p: 'proton emission', '2p': 'two-proton emission', n: 'neutron emission', bn: 'β⁻ and a delayed neutron', '2n': 'two-neutron emission' })[m.mode] || m.mode}${m.br < 1 ? ' ' + Math.round(m.br * 100) + '%' : ''}`).join(', '));
     row('Charge', q ? (q > 0 ? '+' : '−') + Math.abs(q) + ' e' : '0 (neutral)');
     row('Electrons', s.bare ? 'none: a bare nucleus' : String(s.Z - (s.charge || 0)));
     row('Mass', fmtNum(s.Z * PHYS.MP + N * PHYS.MN + (s.bare ? 0 : s.Z - (s.charge || 0)) * PHYS.ME - bindingE(s.Z, N) / PHYS.AMU_MEV, 5) + ' u');

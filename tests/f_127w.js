@@ -91,7 +91,7 @@ PARTS.save = async (page, check, say) => {
 };
 
 /* ---- 7. switch off: setups as before, bit for bit (tools/fingerprint.js) */
-const FP = { prism: '4ffe98af books a9f2ee3a 0', flame: '35e1ec46 books 357b2f4f 48', neon: '8b728a7d books eca8b1e2 84', photonuc: '82991d34 books a4742e49 84', salt: null };
+const FP = { prism: '4ffe98af books a9f2ee3a 0', flame: '35e1ec46 books 357b2f4f 48', neon: '0018e6c7 books 5287e1cb 85', photonuc: '4a48e008 books 9aa817a9 74', salt: null };
 PARTS.fp = async (page, check, say) => {
   const keys = Object.keys(FP).filter(k => FP[k]);
   const out = require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, '..', 'tools', 'fingerprint.js'), ...keys], { encoding: 'utf8', maxBuffer: 1 << 24 });

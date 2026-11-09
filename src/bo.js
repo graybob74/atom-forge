@@ -1139,6 +1139,44 @@ function qmPhi(mem, phi) {
     }
   }
 }
+/* Quantum bonds' eigen-solver in the module (1.28.3, item 54): gfn1.js's symEig asks here first (GFN1, GFN2 and the
+   spin channels all use it). The matrix is copied into the module's memory, solved there by af_sym_eig (the same
+   algorithm, line for line: the same eigenvalues and eigenvectors to the bit), and copied back. null (the JavaScript
+   solves it) with no module. XQW.on: off for the tests' comparisons. */
+const XQW = { on: true, n: 0, V: null, d: null, e: null, calls: 0 };
+function XQ_EIG(V, n, rows) {
+  if (!XQW.on || !wasmReady() || typeof WK.ex.af_sym_eig !== 'function') return null;
+  if (XQW.n < n) { XQW.V = wasmArray(Float64Array, n * n); XQW.d = wasmArray(Float64Array, n); XQW.e = wasmArray(Float64Array, n); XQW.n = n; }
+  if (!WK.on || !wasmIn(XQW.V, XQW.d, XQW.e)) { XQW.n = 0; return null; }
+  const M = XQW.V; M.set(V.subarray(0, n * n));
+  const r = WK.ex.af_sym_eig(M.byteOffset, n, rows ? 1 : 0, XQW.d.byteOffset, XQW.e.byteOffset);
+  if (r !== 0) throw new Error('eigensolver did not converge');
+  V.set(M.subarray(0, n * n)); XQW.calls++;
+  return XQW.d.slice(0, n);
+}
+/* And the SCC's products before and after it (af_xq_trans: W = Li·H1, A = W·Liᵀ; af_xq_dens: C, Cf and the density P),
+   the same sums in the same order: copied in, done there, copied out (an n² copy against n³ work). */
+function xqMats(n, k) {
+  if (!XQW.M || XQW.mn < n) { XQW.M = []; for (let i = 0; i < 5; i++) XQW.M.push(wasmArray(Float64Array, n * n)); XQW.f = wasmArray(Float64Array, n); XQW.mn = n; }
+  if (!WK.on || !wasmIn(...XQW.M, XQW.f)) { XQW.mn = 0; XQW.M = null; return null; }
+  return XQW.M;
+}
+function XQ_TRANS(Li, H1, W, A, n) {
+  if (!XQW.on || !wasmReady() || typeof WK.ex.af_xq_trans !== 'function') return false;
+  const M = xqMats(n); if (!M) return false; const nn = n * n;
+  M[0].set(Li.subarray(0, nn)); M[1].set(H1.subarray(0, nn)); M[2].set(W.subarray(0, nn)); M[3].set(A.subarray(0, nn));
+  WK.ex.af_xq_trans(M[0].byteOffset, M[1].byteOffset, M[2].byteOffset, M[3].byteOffset, n);
+  W.set(M[2].subarray(0, nn)); A.set(M[3].subarray(0, nn)); XQW.calls++;
+  return true;
+}
+function XQ_DENS(LiT, A, C, Ct, P, focc, n, ncol, nk) {
+  if (!XQW.on || !wasmReady() || typeof WK.ex.af_xq_dens !== 'function') return false;
+  const M = xqMats(n); if (!M) return false; const nn = n * n;
+  M[0].set(LiT.subarray(0, nn)); M[1].set(A.subarray(0, nn)); M[2].set(C.subarray(0, nn)); M[3].set(Ct.subarray(0, nn)); M[4].set(P.subarray(0, nn)); XQW.f.set(focc.subarray(0, n));
+  WK.ex.af_xq_dens(M[0].byteOffset, M[1].byteOffset, M[2].byteOffset, M[3].byteOffset, M[4].byteOffset, XQW.f.byteOffset, n, ncol, nk);
+  C.set(M[2].subarray(0, nn)); Ct.set(M[3].subarray(0, nn)); P.set(M[4].subarray(0, nn)); XQW.calls++;
+  return true;
+}
 function qmPass(forces) {
   const mem = [];
   for (const p of W.parts) if (p.bom && !p.dead) mem.push(p);

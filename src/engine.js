@@ -3828,11 +3828,19 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src, pol, depth = 0) { // (depth: 
     const ex = dx - t * ux, ey = dy - t * uy, ez = dz - t * uz, d = Math.sqrt(ex * ex + ey * ey + ez * ez);
     if (d < 0.6) _rayHits.push([t, p, d]);
   }
+  if (W.count.eaq) for (const o of W.exo) { // (hydrated electrons on its path, 1.29 item 59)
+    if (o.dead || o.sp !== 'eaq') continue;
+    const dx = o.x - x, dy = o.y - y, dz = o.z - z, t = dx * ux + dy * uy + dz * uz;
+    if (t < 0.05 || t > tmax) continue;
+    const ex = dx - t * ux, ey = dy - t * uy, ez = dz - t * uz;
+    if (ex * ex + ey * ey + ez * ez < 0.36) _rayHits.push([t, o, 0]);
+  }
   if (!_rayHits.length) return null;
   _rayHits.sort((a, b) => a[0] - b[0]);
   if (RP.ray) _rySeen.clear();
   for (const [t, p] of _rayHits) {
     const hx = x + ux * t, hy = y + uy * t, hz = z + uz * t;
+    if (typeof p.sp === 'string') { if (rnd() < eaqAbsorbP(E)) return { x: hx, y: hy, z: hz, p: null, after: () => eaqAbsorb(p, E, ux, uy, uz) }; continue; } // (e⁻(aq): its band)
     if (E >= 1e5) {
       if (E > 6e6 && !p.anti && rnd() < gdrP(p, E)) return { x: hx, y: hy, z: hz, p, after: () => { if (!photoNuclear(p, E, ux, uy, uz)) { if (RP.cpm) cpmPair(p, E, ux, uy, uz, false); else pairProduce3(p, E); } } }; // (the giant dipole resonance in 3-D, 1.25)
       if (RP.cpm) { // (charged particles in matter, 1.27: hep.js cpmGamma)
@@ -3949,10 +3957,16 @@ function rayInteract(x, y, ux, uy, E, src, pol, depth = 0) { // (depth: the phot
     const d = Math.abs(dx * uy - dy * ux);
     if (d < 0.6) _rayHits.push([t, p, d]);
   }
+  if (W.count.eaq) for (const o of W.exo) { // (hydrated electrons on its path, 1.29 item 59)
+    if (o.dead || o.sp !== 'eaq') continue;
+    const dx = o.x - x, dy = o.y - y, t = dx * ux + dy * uy;
+    if (t >= 0.05 && t <= tmax && Math.abs(dx * uy - dy * ux) < 0.6) _rayHits.push([t, o, 0]);
+  }
   if (!_rayHits.length) return null;
   _rayHits.sort((a, b) => a[0] - b[0]);
   if (RP.ray) _rySeen.clear();
   for (const [t, p] of _rayHits) {
+    if (typeof p.sp === 'string') { if (rnd() < eaqAbsorbP(E)) return { x: x + ux * t, y: y + uy * t, p: null, after: () => eaqAbsorb(p, E, ux, uy) }; continue; } // (e⁻(aq): its band)
     const hx = x + ux * t, hy = y + uy * t;
     if (E >= 1e5) { // gamma: Compton scattering, pair production, and (above ~8 MeV) the nucleus itself
       if (E > 6e6 && !p.anti && rnd() < gdrP(p, E)) { // (in proportion to pair production, σ ≈ 5.2 Z² mb at these energies; with Charged particles in matter on, on part 3's footing: gdrP, 1.27 bug 11)
@@ -4443,11 +4457,25 @@ function hardMeet(a, b) {
   const dvx = bx / Mb - ax / Ma, dvy = by / Mb - ay / Ma, dvz = bz / Mb - az / Ma;
   return 0.5 * Ma * Mb / (Ma + Mb) * (dvx * dvx + dvy * dvy + dvz * dvz) > HARD_MEET;
 }
+/* (1.29 item 60) Two molecules (or atoms) whose net charges have the same sign do not join by a new covalent bond. The
+   force field leaves out the Coulomb energy of bonded and next-bonded atoms (it is in their bond parameters, for neutral
+   molecules), so a bond between two cations took away their repulsion, about 14 eV at a bond's length, and released it
+   as heat: H₂O⁺ + H₂O⁺ → H₄O₂²⁺ and so on, clusters up to H₁₈O₁₈²⁹⁺ that nothing pushed apart, whose wells pulled free
+   electrons in to tens and hundreds of eV, which ionized their neighbours: the ionized-water runaway (1.09's known limit).
+   In nature such dications break apart (Coulomb explosion); here they are not made. */
+function sameSignIons(a, b) {
+  let qa = 0, qb = 0;
+  for (const p of molecule(a)) qa += p.anti ? -p.q : p.q;
+  if (qa === 0) return false;
+  for (const p of molecule(b)) qb += p.anti ? -p.q : p.q;
+  return qa * qb > 0;
+}
 function evBond(a, b, r) {
   if (a.dead || b.dead || bondBetween(a, b) || a.bom || b.bom) return; // (continuous bond orders: no stored bond to a member)
   if (!(a.cap - a.used > 0 && b.cap - b.used > 0) || !covalentOK(a, b)) return;
   if (a.mol !== 0 && a.mol === b.mol && a.excl && a.excl.has(b.id)) return;
   if (hardMeet(a, b)) return;
+  if (IW.bond && sameSignIons(a, b)) return; // (1.29 item 60: two cations, or two anions, do not bond: see sameSignIons)
   const third = nearestThird(a, b, 6);
   if (!third && W.gamma === 0 && rnd() > 0.002) return; // nothing to carry the bond energy away
   const fa = speciesLabel(a), fb = speciesLabel(b);
@@ -4483,6 +4511,7 @@ const _rxTried = new Map();
 function evReact(X, A, rx, r) {
   if (X.dead || A.dead || rx.topo !== W.topo || X.bom || A.bom) return;
   if (!(X.cap - X.used > 0) || W.bonds.indexOf(rx.bd) < 0 || bondBetween(X, A)) return;
+  if (IW.bond && X.mol !== A.mol && sameSignIons(X, A)) return; // (1.29 item 60: two ions of one sign are not joined here either)
   const key = X.id * 131072 + A.id, last = _rxTried.get(key);
   if (last !== undefined && W.step - last < 30) return; // one test per encounter
   if (hardMeet(X, A)) return;
@@ -4611,7 +4640,7 @@ function evLepton(L, A, r) {
   const sg = A.anti ? -1 : 1;
   if (sg * A.q >= 1 && !cl) {
     const qt = sg * A.q;
-    const Etot = Erel - PHYS.KE * qt / Math.sqrt(r * r + A.sEN);
+    const Etot = Erel - PHYS.KE * qt / Math.sqrt(r * r + A.sEN) + (IW.local ? lepLocalPhi(L, A) : 0); // (1.29 item 60: bound in the wells of the charges round it too)
     // two-body binding ignores the neighbours' fields (continuum lowering), so require a clearly bound orbit; a lepton
     // whose last try could not be paid for waits a while (undoJoin)
     const may = !(L.capT > W.t);
@@ -4628,7 +4657,7 @@ function evLepton(L, A, r) {
     // Only the electron's energy relative to the atom counts: near an ion it has extra kinetic energy
     // borrowed from the ion's own Coulomb well, which cannot be spent on ionizing or exciting it.
     const qa = A.q;
-    const Eeff = Math.min(Erel, Erel + (qa ? PHYS.KE * L.q * qa / Math.sqrt(r * r + A.sEN) : 0));
+    const Eeff = Math.min(Erel, Erel + (qa ? PHYS.KE * L.q * qa / Math.sqrt(r * r + A.sEN) : 0) + (IW.local ? lepLocalPhi(L, A) : 0)); // (1.29 item 60: and the wells of the charges round it)
     const ie = ionizationCost(A);
     if (Eeff > ie) {
       const x = Eeff / ie, P = Math.min(0.8, 1.6 * Math.log(x) / x);
@@ -4637,7 +4666,20 @@ function evLepton(L, A, r) {
     const line = lineInfo(A);
     if (line && Eeff > line.thr && rnd() < 0.15) { lzNeed(); exciteByElectron(L, A, line, Eeff); return; }
   }
+  if (IW.vib && A.bonds.length && !L.rad && !L.wm) vibLoss(L, A); // (1.29 item 60)
   elasticScatter(L, A, Erel);
+}
+/* (1.29 item 60) A slow lepton striking an atom of a molecule sets its bonds vibrating now and then (H₂O: the bend
+   0.198 eV, the stretches 0.45; their excitation cross sections, a few 10⁻¹⁶ cm² from 1 to 10 eV, about a third of the
+   elastic, Itikawa and Mason 2005, from memory), losing that quantum to the molecule's motion: how electrons below the
+   ionization energy slow down in a liquid, in about a picosecond. Before, nothing slowed them but elastic recoil (a
+   ten-thousandth a collision), so they kept the energy the ions' wells gave them, and in ionized water they ran away. */
+function vibLoss(L, A) {
+  const u1 = rnd(), u2 = rnd(), ke = keOf(L), dq = u1 < 0.6 ? 0.198 : 0.453; // (both numbers drawn every time: the random sequence does not hang on a last-bit difference in the energy)
+  if (!(ke > dq + 0.05) || !(u2 < 0.3)) return;
+  const f = Math.sqrt((ke - dq) / ke); L.vx *= f; L.vy *= f; if (W.d3) L.vz *= f;
+  dumpHeat(dq, A, other(A.bonds[0], A));
+  W.count.vib = (W.count.vib || 0) + 1;
 }
 function lineInfo(A) {
   if (A.ne === 1 && A.Z <= 10) return { thr: 12.09 * A.Z * A.Z, hydrogenic: true };
@@ -4793,6 +4835,23 @@ function attach(L, A, Erel) {
   if (Eph > 0.05) emitPhoton(A.x, A.y, Eph, undefined, undefined, { src: A, depth: 2 });
   log('em', `${L.k === POS ? 'Positron' : 'Electron'} attachment: ${L.k === POS ? 'e⁺' : 'e⁻'} + ${A.anti ? barSym(A.el.sym) : A.el.sym} → ${speciesLabel(A)} (affinity ${fmtE(A.el.ea)})`);
   return true;
+}
+/* (1.29 item 60) The Coulomb energy a lepton L has with the net charges round it (within 8 Å), the target A left out
+   (its own well is counted above), when that is negative: kinetic energy borrowed from the wells of a cluster of ions
+   (or a dense plasma) is no more free to spend on ionizing an atom than that borrowed from the atom's own well. Without
+   it the ionized-water plasma ran away: an electron between three or four ions had tens of eV of their wells' energy,
+   ionized a neighbour, and the electrons it freed fell in deeper. Positive (among other free electrons) counts as 0. */
+const IW = { local: true, bond: true, vib: true }; // (1.29 item 60's three changes, each its own switch for the measurements) // (1.29 item 60's three changes, each its own switch for the measurements)
+function lepLocalPhi(L, A) {
+  let u = 0; const d3 = W.d3;
+  for (const p of W.parts) {
+    if (p.dead || p === L || p === A || p.rad) continue;
+    const q = p.k === NUC ? (p.anti ? -p.q : p.q) : p.q; if (!q) continue;
+    const m = minImg(p.x - L.x, p.y - L.y, d3 ? p.z - L.z : 0), dx = m[0], dy = m[1], dz = d3 ? m[2] : 0, r2 = dx * dx + dy * dy + dz * dz;
+    if (r2 > 64) continue;
+    u += PHYS.KE * L.q * q / Math.sqrt(r2 + (p.k === NUC ? p.sEN || 0 : 0.0016));
+  }
+  return Math.min(0, u);
 }
 function impactIonize(L, A, ie, Erel) {
   if (freeElectronCount() >= MAX_FREE_E) return;
@@ -5023,12 +5082,13 @@ function evAnti(a, b, r) {
 /* A nucleon and an antinucleon annihilate (≈1.88 GeV): a spray of mesons, about five pions (hep.js: charged ones
    fly out of the chamber, neutral ones decay at once into γ rays), now and then kaons. The antiprotonic atom's
    cascade shakes out a few electrons first, and a struck nucleus is left hot and boils off a few nucleons. */
+let _pnNow = false; // (protonium's own annihilation, from pnAnnih: not held again)
 function nuclearAnnihilation(a, b) {
   if (a.dead || b.dead || a.mu || b.mu) return; // (an antinucleon meets no nucleon in muonium, 1.12)
-  const anti = a.anti ? a : b, mat = anti === a ? b : a;
-  const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b);
-  const vx = (a.m * avx + b.m * bvx) / (a.m + b.m), vy = (a.m * avy + b.m * bvy) / (a.m + b.m);
-  const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y);
+  const anti = a.anti ? a : b, mat = anti === a ? b : a, d3 = W.d3; // (d3: in depth, 1.29 item 57)
+  const [avx, avy] = velOf(a), [bvx, bvy] = velOf(b), avz = d3 ? a.vz : 0, bvz = d3 ? b.vz : 0;
+  const vx = (a.m * avx + b.m * bvx) / (a.m + b.m), vy = (a.m * avy + b.m * bvy) / (a.m + b.m), vz = d3 ? (a.m * avz + b.m * bvz) / (a.m + b.m) : 0;
+  const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y), z = d3 ? 0.5 * (a.z + b.z) : 0;
   const before = `${speciesLabel(anti)} + ${speciesLabel(mat)}`;
   const parents = [anti, mat].map(ghostOf);
   const S = annihBegin([a, b]);
@@ -5037,8 +5097,9 @@ function nuclearAnnihilation(a, b) {
   // protonium from 2p); the lines' energy comes out of the annihilation's)
   let xa = null; const Zm = mat.Z, Nm = mat.N;
   if (RP.exo && anti.Z === 1 && anti.N === 0 && anti.ne === 0 && Zm >= 1 && !mat.muB) {
-    const mr = anti.m * mat.m / (anti.m + mat.m), dvx = avx - bvx, dvy = avy - bvy;
-    if (0.5 * mr * (dvx * dvx + dvy * dvy) < MU_STOP) { const es = []; xa = xaCascade(mat, 'pbar', Zm, Nm, xaN0('pbar', Zm, Nm), XA_NABS.pbar(Zm), 0, es); xa.n0 = xaN0('pbar', Zm, Nm); xa.n1 = XA_NABS.pbar(Zm); }
+    const mr = anti.m * mat.m / (anti.m + mat.m), dvx = avx - bvx, dvy = avy - bvy, dvz = avz - bvz, v2 = d3 ? dvx * dvx + dvy * dvy + dvz * dvz : dvx * dvx + dvy * dvy;
+    if (Zm === 1 && Nm === 0 && !_pnNow && 0.5 * mr * v2 < MU_STOP && typeof pnForm === 'function') { pnForm(anti, mat); return; } // (protonium: a pair going round each other first, seen spiralling in, then this, 1.28.3)
+    if (0.5 * mr * v2 < MU_STOP) { const es = []; xa = xaCascade(mat, 'pbar', Zm, Nm, xaN0('pbar', Zm, Nm), XA_NABS.pbar(Zm), 0, es); xa.n0 = xaN0('pbar', Zm, Nm); xa.n1 = XA_NABS.pbar(Zm); }
   }
   const partners = [];
   for (const n of [a, b]) for (const bd of n.bonds) partners.push(other(bd, n));
@@ -5052,6 +5113,7 @@ function nuclearAnnihilation(a, b) {
   for (let i = 0; i < evap; i++) {
     const isP = mat.Z > 0 && rnd() < mat.Z / (mat.Z + mat.N);
     if (isP) mat.Z--; else mat.N--;
+    if (d3) { const u = rndDir(), q = addNuc(isP ? 1 : 0, isP ? 0 : 1, 0, x, y, 0, 0, false, z); setMotion(q, (2 + 18 * rnd()) * 1e6, u[0], u[1], vx, vy, u[2], vz); continue; }
     const th = rnd() * 2 * Math.PI;
     const q = addNuc(isP ? 1 : 0, isP ? 0 : 1, 0, x, y);
     setMotion(q, (2 + 18 * rnd()) * 1e6, Math.cos(th), Math.sin(th), vx, vy);
@@ -5059,8 +5121,13 @@ function nuclearAnnihilation(a, b) {
   for (const n of [anti, mat]) {
     if (n.dead) continue;
     if (n.Z <= 0) { // nothing charged is left: free its leptons and any loose (anti)neutrons
-      const ne = n.ne, lk = n.anti ? POS : ELEC, nn = Math.max(0, n.N), nx = n.x, ny = n.y, wasAnti = n.anti;
+      const ne = n.ne, lk = n.anti ? POS : ELEC, nn = Math.max(0, n.N), nx = n.x, ny = n.y, nz = d3 ? n.z : 0, wasAnti = n.anti;
       kill(n);
+      if (d3) {
+        for (let i = 0; i < ne; i++) { const u = rndDir(), l = addLepton(lk, nx + 0.6 * u[0], ny + 0.6 * u[1], 0, 0, nz + 0.6 * u[2]); setMotion(l, 2, u[0], u[1], vx, vy, u[2], vz); }
+        for (let i = 0; i < nn; i++) { const q = addNuc(0, 1, 0, nx, ny, 0, 0, wasAnti, nz), u = rndDir(); setMotion(q, 2e6, u[0], u[1], vx, vy, u[2], vz); }
+        continue;
+      }
       for (let i = 0; i < ne; i++) {
         const th = rnd() * 2 * Math.PI, l = addLepton(lk, nx + 0.6 * Math.cos(th), ny + 0.6 * Math.sin(th));
         setMotion(l, 2, Math.cos(th), Math.sin(th), vx, vy);
@@ -5076,12 +5143,12 @@ function nuclearAnnihilation(a, b) {
   }
   relink(partners.filter(p => !p.dead));
   let E = annihEnd(S);
-  if (xa) { for (const l of xa.lines) { if (!(l.E > 0) || !(l.E < E)) continue; E -= l.E; const u = rdir(); emitPhoton(x, y, l.E, u[0], u[1]); } } // (its X-ray lines, exact; the mesons take the rest, 1.27)
-  const ms = mesonBurst(x, y, E, vx, vy, (pM ? 1 : 0) - (pA ? 1 : 0));
+  if (xa) { for (const l of xa.lines) { if (!(l.E > 0) || !(l.E < E)) continue; E -= l.E; const u = rdir(); if (d3) emitPhoton(x, y, l.E, u[0], u[1], { z, uz: u[2] }); else emitPhoton(x, y, l.E, u[0], u[1]); } } // (its X-ray lines, exact; the mesons take the rest, 1.27)
+  const ms = d3 ? mesonBurst(x, y, E, vx, vy, (pM ? 1 : 0) - (pA ? 1 : 0), z, vz) : mesonBurst(x, y, E, vx, vy, (pM ? 1 : 0) - (pA ? 1 : 0));
   W.count.annih++;
   const left = [anti, mat].filter(n => !n.dead).map(n => speciesLabel(n)), what = ms.length ? summarize(ms) : 'γ rays';
   if (xa) { const pp = Zm === 1 && Nm === 0; W.count.xatom = (W.count.xatom || 0) + 1; log('nuc', `${pp ? 'Protonium (p̄p)' : `Antiprotonic ${ELEMENTS[Zm].name.toLowerCase()}`}: p̄ caught into orbit n = ${xa.n0}, cascade to n = ${xa.n1}: X-rays ${xaLines(xa.lines) || 'none'}${xa.aug ? `, ${xa.aug} Auger electron${xa.aug > 1 ? 's' : ''}` : ''}; then it annihilates`); }
-  nucEvent('annih', x, y, `${xa && Zm === 1 && Nm === 0 ? 'Protonium: ' : ''}${before} → ${left.length ? left.join(' + ') + ' + ' : ''}${what}`, parents, xa ? `${fmtE(E)}; first the cascade n = ${xa.n0} → ${xa.n1}, X-rays ${xaLines(xa.lines, 2) || 'none'}` : fmtE(E));
+  nucEvent('annih', x, y, `${xa && Zm === 1 && Nm === 0 ? 'Protonium: ' : ''}${before} → ${left.length ? left.join(' + ') + ' + ' : ''}${what}`, parents, xa ? `${fmtE(E)}; first the cascade n = ${xa.n0} → ${xa.n1}, X-rays ${xaLines(xa.lines, 2) || 'none'}` : fmtE(E), undefined, z);
   log('nuc', `Antimatter annihilation: ${before} → ${what} (${fmtE(E)})${evap ? `, ${evap} nucleon${evap > 1 ? 's' : ''} knocked out` : ''}`);
   tally(ms, [], `Annihilation: ${before} → ${what}`);
 }
@@ -5115,6 +5182,7 @@ function evDative(H, D, r) {
     return vi.v >= 8 ? 0 : vi.v <= 4 ? vi.v : 8 - vi.v;
   })();
   if (capAfter < D.used + 1) return;
+  if (IW.bond && sameSignIons(H, D)) return; // (1.29 item 60: no proton onto a cation: H₃O⁺ + H⁺ → H₄O²⁺ and on, to H₄O₆⁷⁺)
   const before = hill(molecule(D));
   const PA = PROTON_AFFINITY[D.el.sym + ':' + D.q] ?? 6.0;
   const set = setOf(molecule(D), [H]);
@@ -5519,8 +5587,9 @@ function tryFusion(a, b, bd) {
 }
 /* (3-D, 1.25) tryFusion in depth: the pair's energy from their velocities in three directions, the products at the
    midpoint's depth (launchProducts3; a single product with the pair's momentum, its γ ray or e⁺ on the sphere).
-   Antimatter is not in 3-D. */
+   Matter meeting antimatter annihilates (1.29 item 57, as tryFusion does in the flat game). */
 function tryFusion3(a, b, bd) {
+  if (opp(a, b)) { nuclearAnnihilation(a, b); return true; }
   if (a.anti || b.anti || a.Z < 1 || b.Z < 1 || a.Z + b.Z > Z_MAX || a.mu || b.mu) return false;
   const mu = a.m * b.m / (a.m + b.m), dvx = a.vx - b.vx, dvy = a.vy - b.vy, dvz = a.vz - b.vz;
   const Ecm = 0.5 * mu * (dvx * dvx + dvy * dvy + dvz * dvz);
@@ -5870,10 +5939,24 @@ function pickMode(inf) {
   for (const m of inf.modes) { u -= m.br; if (u <= 0) return m; }
   return inf.modes[inf.modes.length - 1];
 }
-function doDecay(p) {
-  if (W.d3) return doDecay3(p); // (3-D, 1.25)
+/* (1.29 item 58) β-delayed neutron emission: the β⁻ decay feeds its daughter above the neutron's separation energy,
+   which then gives off the neutron at once (in 10⁻¹⁷ s): done here as the two decays one after the other, the β⁻ with
+   Q(β⁻n) less the neutron's energy and the neutron with its energy, so the two release Q(β⁻n) between them, exactly.
+   The neutron's energy is drawn from the β phase space over the levels above Sn, ∝ (Q(β⁻n) − En)⁵, mean Q(β⁻n)/7
+   (⁸⁷Br 0.19 MeV, ⁹⁴Rb 0.49; measured means 0.25 and 0.45). */
+function bnEn(Q) { return Q * (1 - Math.pow(1 - rnd(), 1 / 6)); }
+function doDecayBn(p, Q, d3) {
+  const En = bnEn(Q);
+  const ok = d3 ? doDecay3(p, { mode: 'b-', Q: Q - En, bn: true }) : doDecay(p, { mode: 'b-', Q: Q - En, bn: true });
+  if (!ok || p.dead) return ok;
+  W.count.dn = (W.count.dn || 0) + 1;
+  return d3 ? doDecay3(p, { mode: 'n', Q: En, bn: true }) : doDecay(p, { mode: 'n', Q: En, bn: true });
+}
+function doDecay(p, force) {
+  if (W.d3) return doDecay3(p, force); // (3-D, 1.25)
   const inf = p.nuc;
-  let md = pickMode(inf);
+  let md = force || pickMode(inf);
+  if (md.mode === 'bn') return doDecayBn(p, md.Q, false);
   // antinuclei decay as the mirror image: n̄ → p̄ + e⁺ + ν, antiparticles emitted, positrons captured
   const sym = (z, n) => z > 0 ? nucSymA(z, n, p.anti) : nucSym(z, n);
   const lbl = sym(p.Z, p.N);
@@ -5903,7 +5986,7 @@ function doDecay(p) {
   const Qtxt = fmtE(Math.max(0, Q) * 1e6); // the decay's Q-value as tabulated (what a neutral atom's emissions share)
   switch (mode) {
     case 'b-': case 'b+': {
-      const gl = RP.nuc ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (the daughter's level it feeds, Realistic particles 6, 1.27: hep.js)
+      const gl = RP.nuc && !(force && force.bn) ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (the daughter's level it feeds, Realistic particles 6, 1.27: hep.js; not for a β⁻n's β⁻, whose level is above Sn, 1.29)
       const T = betaSpectrum(Q - Elv), Enu = Q - Elv - T;
       p.Z += mode === 'b-' ? 1 : -1; p.N += mode === 'b-' ? -1 : 1;
       if (p.Z === 0) { // proton → neutron can't happen here; guard
@@ -5978,7 +6061,7 @@ function doDecay(p) {
       settleKE(S, gk ? Qn - gk.iso - gk.sum : Qn, [p].concat(prod)); // the emitted particle and the recoiling daughter share what is left
       if (gk) glFire(gk.rays, x, y, 0, p, 0);
       if (p.Z === 0 && p.N > 1) { /* neutron cluster: let the next sweep split it */ }
-      const nm = mode === 'a' ? 'α decay' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
+      const nm = mode === 'a' ? 'α decay' : force && force.bn ? 'Delayed neutron' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
       const em2 = (mode === 'a' ? 'α' : mode === 'p' ? 'p' : mode === 'n' ? 'n' : mode === '2p' ? '2p' : '2n') + (p.anti ? '\u0304' : '');
       log('nuc', `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''} (${Qtxt})`);
       nucEvent(mode === 'a' ? 'alpha' : 'decay', x, y, `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''}`, gh, `${Qtxt} released${boostTag()}`,
@@ -5993,9 +6076,10 @@ function doDecay(p) {
    the nucleus's depth (before, a decay in a 3-D world put its α, electron or neutron down at z = 0 and turned the
    daughter in the plane). The neutrino leaves along the direction its momentum gave the recoil (the flat game draws it
    afresh). Books as doDecay's. */
-function doDecay3(p) {
+function doDecay3(p, force) {
   const inf = p.nuc;
-  let md = pickMode(inf);
+  let md = force || pickMode(inf);
+  if (md.mode === 'bn') return doDecayBn(p, md.Q, true);
   const sym = (z, n) => z > 0 ? nucSymA(z, n, p.anti) : nucSym(z, n);
   const lbl = sym(p.Z, p.N);
   const x = p.x, y = p.y, z = p.z;
@@ -6016,7 +6100,7 @@ function doDecay3(p) {
   const Qtxt = fmtE(Math.max(0, Q) * 1e6);
   switch (mode) {
     case 'b-': case 'b+': {
-      const gl = RP.nuc ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (1.27, as doDecay)
+      const gl = RP.nuc && !(force && force.bn) ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (1.27, as doDecay; 1.29: not for a β⁻n's β⁻)
       const T = betaSpectrum(Q - Elv), Enu = Q - Elv - T;
       p.Z += mode === 'b-' ? 1 : -1; p.N += mode === 'b-' ? -1 : 1;
       if (p.Z === 0) { p.Z = 1; p.N = 0; }
@@ -6075,7 +6159,7 @@ function doDecay3(p) {
       const gk = Elv ? glKeep(p, gl) : null; // (1.27)
       settleKE(S, gk ? Qn - gk.iso - gk.sum : Qn, [p].concat(prod));
       if (gk) glFire(gk.rays, x, y, z, p, 0);
-      const nm = mode === 'a' ? 'α decay' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
+      const nm = mode === 'a' ? 'α decay' : force && force.bn ? 'Delayed neutron' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
       const em2 = (mode === 'a' ? 'α' : mode === 'p' ? 'p' : mode === 'n' ? 'n' : mode === '2p' ? '2p' : '2n') + (p.anti ? '\u0304' : '');
       log('nuc', `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''} (${Qtxt})`);
       nucEvent(mode === 'a' ? 'alpha' : 'decay', x, y, `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''}`, gh, `${Qtxt} released${boostTag()}`, { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th }, z);
@@ -7023,9 +7107,10 @@ function fastEncounters3(p) {
   const hits = segTargets3(x0, y0, z0, x1, y1, z1, Math.max(1.6, nucDrawR(p) + 0.9), (t) => t.k === NUC && t.Z > 0 && t !== p).slice();
   if (hot) fastStop3(p, hits);
   for (const [t, A, b] of hits) {
-    if (A.dead || p.dead || sameEv(p, A) || opp(p, A)) continue;
+    if (A.dead || p.dead || sameEv(p, A)) continue;
+    if (opp(p, A)) { if (b < (p.ne > 0 && A.ne > 0 ? 0.5 * (p.ljR + A.ljR) : 0.6)) { evAnti(p, A, b); return; } continue; } // (matter meets antimatter, as fastEncounters, 1.29 item 57)
     if (p.Z > 0 && b < fusGate() && tryFusion3(p, A, b)) return;
-    if (hot) { const R = nucReach(p, A); if (b < R && p.hit !== A.id) { p.hit = A.id; if (nuclearEncounter(p, A, b / R, A.x, A.y, A.z) || p.dead) return; } }
+    if (hot) { const R = nucReach(p, A); if (b < R && p.hit !== A.id) { p.hit = A.id; if (nuclearEncounter(p, A, b / R, A.x, A.y, A.z) || p.dead) return; } if (p.ne > 0) continue; } // (1.29: an atom with its electrons past 2 keV passes through the other atoms' electron clouds, as the flat game's radiation flight does (moveRad): it loses its energy to their electrons (fastStop3) and meets nuclei only within reach; struck as hard spheres it knocked whole cascades of atoms to keV energies. A bare nucleus still turns by Rutherford's angle below)
     const contact = (p.ne > 0 && A.ne > 0) ? 0.35 * (p.ljR + A.ljR) : 0;
     const cx = x0 + t * (x1 - x0) - A.x, cy = y0 + t * (y1 - y0) - A.y, cz = z0 + t * (z1 - z0) - A.z; // (from the target to the path's closest point)
     if (contact > 0 && b < contact) { hardSphere3(p, A, b, contact, cx, cy, cz); return; }

@@ -1991,6 +1991,218 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.29.0: the owner's items 55–63 (released 2026-11-08, with 1.28.3's items 52–54 below, which were not released on their own)
+
+### 56 Light meeting atoms in 3-D: already there
+
+Suggested by me from a stale note (the 1.27 "Left for the owner" under X-ray Compton said 3-D light meets no atoms):
+rayInteract3 (engine.js, since 1.24) already gives 3-D light the flat game's events with the same odds: photoelectric
+ionization, Compton (Klein–Nishina with polarization), pairs, line absorption and fluorescence, dissociation, infrared
+heating, Rayleigh scattering and the giant dipole resonance. Nothing to build; the stale note is corrected.
+
+### 57 Antimatter in 3-D
+
+The 3-D lab had most of what antimatter needs (the kernels' matter–antimatter pair force and touch candidates,
+positron capture making H̄, anti-molecules, e⁺e⁻ annihilation in depth) but four pieces were flat:
+- nuclearAnnihilation: velocities, the meeting point, the evaporated nucleons, the freed leptons and antineutrons, the
+  cascade's X-rays: now with z (rndDir on the sphere, setMotion with uz and the pair's vz).
+- mesonBurst (and protonium's pnAnnih): the boost had no z (toLab with a 3-D four-momentum and no bz); now in depth.
+- fastEncounters3 skipped every matter–antimatter pair, so a fired p̄ flew through 3-D water for good (1,500 steps at
+  1.8 keV); now it touches as fastEncounters does (evAnti within 0.6 Å, or the atoms' size with electrons on both).
+  tryFusion3 now sends a pair of opposite matter to nuclearAnnihilation, as tryFusion does.
+- Placing: spec3dOK refused antimatter; H̄, p̄, n̄ and the antinuclei are in the 3-D palette and the Fire tool. Collisions in
+  3-D that make antinucleons now put them in the box (spawnItems3 counted them as escaped energy).
+Protonium now forms in 3-D too (it was held flat-only), and stays in the box (the 3-D exo loop's walls missed d.pn).
+Books, each event alone (between steps): p̄ + C with and without the cascade, p̄ + O, H̄ + H, anti-carbon + carbon,
+p̄ + H → protonium → annihilation: within 4×10⁻⁶ eV in 3-D, as in the flat game (2×10⁻⁶). Every flat setup is 1.28.3's
+to the bit (fingerprints, 60 setups). Test: f_129 (events, pn, fast; all fail on 1.28.3).
+- **Left for the owner (found on the way, not changed: physics; fixed in 1.29, below: "The 3-D fast-atom cascade").** In 3-D water a fast nucleon does far more to the
+  water than in the flat game: a 10 MeV neutron leaves 214 nuclei above 1 keV after 60 steps (flat: 0), and an
+  annihilation's knocked-out nucleons do the same (372 against 4). In 3-D a fast atom with its electrons stays in the
+  stepped set (radiation flight is flat-only) and meets its neighbours as hard spheres (hardSphere3), so a knock-on
+  cascade spreads its energy among the atoms; in the flat game it would fly as a bare ion, losing energy to the electrons.
+  The books stay right (25 eV over 100 steps after a 1.9 GeV event). A fix (fast atoms in 3-D losing their electrons
+  and their energy as ions do) is a physics change for the owner.
+
+### 58 Delayed neutrons
+
+The data (fetched 2026-11-08 with the owner's approval): the IAEA's reference database for β-delayed neutrons (Liang et
+al., Nucl. Data Sheets 168 (2020)) is closed access and the IAEA's LiveChart and AMDC files refused automated requests,
+so P1n comes from NUBASE2020 (Kondev et al. 2021, which adopts the evaluated values) as Wikipedia's isotope tables give
+it, cross-checked against the IAEA standards (arXiv 2102.01165, Table I: ⁸⁷Br 2.53(10), ⁸⁸Br 6.72(27), ⁹⁴Rb 10.39(22),
+⁹⁵Rb 8.8(4), ¹³⁷I 7.63(14), ⁹Li 50.5(10), ¹⁶C 99.28(12), ¹⁷N 95.1(7) against NUBASE 2.60, 6.58, 10.3, 8.7, 7.51, 50.5,
+99.0, 95.1). Q(β⁻n) = the table's Qβ less the daughter's Sn from AME2020 masses (same pages); it matches Liang et al.'s
+values where the search showed them (¹³⁵Sb 4772.1, ¹³⁷I 2001.6, ¹³⁸I 2332.2, ¹³⁹I 3430.0 keV). The game's own masses would
+have been 0.15–0.56 MeV off here (its Sn of ¹³⁷Xe 4.59 MeV, measured 4.03), so they are not used.
+48 nuclides get a second mode, 'bn' (data.js; the 43 fission products and ⁸He, ⁹Li, ¹¹Li, ¹²Be, ¹³B, ¹⁶C, ¹⁷N: 0.01% for
+⁹²Rb to 99% for ¹⁶C). Left out: ones with no measured value or only "?" in NUBASE (⁸²Ge, ⁸³As, ⁸⁶Se, ⁹¹Rb, ⁹⁶Sr, ¹⁰⁰Y,
+¹⁰²Zr, ¹⁰³Zr (<1%), ¹⁰³Nb, ¹³⁴Sb, ¹³⁶I), and the P2n and P3n of ¹¹Li (4.1, 1.9%), left in β⁻.
+doDecay and doDecay3: a 'bn' decay is the β⁻ with Q(β⁻n) − En, then at once the neutron with En (log "Delayed
+neutron: …"; it carries the fission's kFis, so the chain-reaction map counts it), so the books close as for any decay
+(within 3×10⁻⁵ eV a decay, flat and 3-D). En from the β phase space over the levels above Sn, ∝ (Q(β⁻n) − En)⁵, mean
+Q(β⁻n)/7: ⁸⁷Br 0.16 MeV, ⁹⁴Rb 0.49, ¹⁷N 0.61 (measured means 0.25, 0.45, about 1.2: the real spectra follow the
+daughter's levels, a refinement for later). The decay chains and cards show the new mode (β⁻n). No setup's
+fingerprint changes (their fission products do not decay within the fingerprints' steps). Test: f_129 bn.
+
+### 59 Hydrated electrons (Experimental → Realistic particles, off by default)
+
+The plan of 1.27 bug 8 (PERF-NOTES there), built as a new switch, Hydrated electrons (RP.aq, SET.rpAq), in both modes:
+a free electron slowed below 1 eV with three or more water oxygens within 3.5 Å and no cation within 3 Å becomes
+e⁻(aq), an unstable-particle entry in W.exo (XP.eaq: charge −1, mass the electron's less 1.7 eV, the measured hydration
+energy). It moves by diffusion at the measured 4.9×10⁻⁵ cm²/s (checked: 0.97× flat, 1.01× in 3-D over 100 of them),
+drifting toward ions within 12 Å with their pull screened by ε = 80; a cation within 2.5 Å (what the measured
+2.3×10¹⁰ M⁻¹s⁻¹ with H₃O⁺ gives at the summed diffusion: 2.1 Å) takes it back as a free electron at rest 0.8 Å from it,
+and the game's capture does the rest (H₂O⁺ + e⁻ → H₂O in the test). Light: a Gaussian band about 1.72 eV (720 nm,
+width 0.36 eV, 0.7 Å² at the peak, about the measured 7×10⁻¹⁷ cm²) in rayInteract and rayInteract3; absorbed, it warms
+the water round it (to the p state and back); above 3.6 eV (its vertical binding) it sets the electron free.
+Books exact (formation 0 and 1×10⁻¹⁰ eV, hand-back 0, absorption 3×10⁻¹¹): the electron's kinetic and potential energy
+and the 1.7 eV go to the water as heat (dumpHeat) when it forms, and come back from the hand-back. Inspect card (what
+holds it, how it moves and ends), info box. Off, every setup is 1.28.3's to the bit (fingerprints).
+What it shows so far: a 30 eV electron in flat water: one ionization; with the switch the freed electron is hydrated
+and still there after 0.6 ps (off: captured). In 3-D the electrons are caught (attached or captured) before they slow
+below 1 eV outside a cation's 3 Å, as 1.27 bug 8 found: the unscreened pull. Left: e⁻(aq)'s own pull on the ions (it
+is not in the forces), its reactions with OH, H, O₂ and another e⁻(aq) (measured rates; they need radical chemistry), its
+slow reaction with water itself (about 1 ms), and making the switch on by default (the owner's call). Test: f_129 eaq.
+
+### 61 The d*(2380) in neutron–proton collisions
+
+nnInelastic: for a free neutron on a free proton (isoscalar, charge 1) within 5 widths of 2380 MeV, a Breit–Wigner draw
+(Γ 70 MeV) with its share at the peak DSTAR_F = 1.7 mb of the 23 mb inelastic (σ(np → d π⁰π⁰) 0.27 mb at the peak and
+its partner channels; WASA-at-COSY 2011–2014, from memory, to be checked against the papers) makes the d*(2380)⁺ at the
+pair's mass, which then decays by its channels (1.28.3). Measured: 19 of 300 np reactions between √s 2350 and 2410 MeV
+flat, 12 in 3-D; none at 2800; books within 8×10⁻⁶ eV. No random number is drawn outside the bump, so no setup changes.
+The other half of the item, cascade X-rays for a muonic atom's new nucleus (1.27 bug 10's note), is not built: in
+nature the muon stays in its 1s orbit when its nucleus changes under it (the sudden change leaves it mostly in the
+lowest orbit, with no photon), which is what the game does; there is no cascade to show. Test: f_129 dstar.
+
+### 62 A "faster, not identical" switch for quantum bonds: tried, not kept
+
+Built (af_sym_eig_k in the module: the same tridiagonal form and eigenvalues, eigenvectors by inverse iteration for the
+occupied orbitals only, LAPACK dstein's way, then carried back), measured against the exact module solver, and
+reverted (the tree is item 61's again):
+- ms a step, exact → fast: GFN1 19 atoms 5.68 → 5.86 (flat), 5.18 → 6.22 (3-D); GFN2 19 atoms 21.6 → 19.1; GFN1 40 atoms
+  139 → 146; GFN2 40 atoms 181 → 252. At these sizes (50–108 orbitals, half of them occupied) the inverse iterations,
+  their Gram–Schmidt within the many close orbitals of a box of waters and the carrying back cost as much as the QL
+  rotations they replace.
+- Equal to rounding on the hydronium and waters (energies to 4×10⁻¹² eV, positions to 2×10⁻¹⁵ Å after 30 steps), but
+  not on the 40-atom box with its lone O atom (0.05 eV at the first step, tens of eV later: its partly filled,
+  nearly degenerate orbitals).
+So there is no faster-at-the-same-physics switch here to offer; what would help is the integrals and D4 (item 54's
+note), or fewer SCC iterations (a better start than the last step's charges), each its own piece of work.
+
+### The 3-D fast-atom cascade (the owner: "fix the 3d issue", 2026-11-08)
+
+Found under item 57: in 3-D a fast atom that still has its electrons (a proton struck by a neutron, a nucleon knocked
+out by an annihilation) stayed in the stepped set and met every atom on its path as a hard sphere (fastEncounters3's
+hardSphere3), at any energy, so it handed its MeV to its neighbours, who handed it on: a cascade. The flat game's
+radiation flight (moveRad) has no hard spheres past 2 keV: the atom passes through the electron clouds, losing its
+energy to their electrons, and meets nuclei only within reach. Now fastEncounters3 does the same for an atom with
+electrons past 2 keV (fastStop3 and nuclearEncounter only); a bare nucleus still turns by Rutherford's angle
+(coulombScatter3: f_fix03's head-on α checks unchanged). A 10 MeV neutron in 3-D water, 60 steps, seeds 3–5: nuclei
+above 1 keV 358, 512, 472 → 12, 2, 2 (the recoil protons themselves, at MeV); books 17.2, 39.6, 39.0 → 0.13, 0.25,
+0.53 eV; ionizations 1,211–1,563 → 51–450 (along the recoils' tracks). The annihilation in 3-D water of item 57: 372
+nuclei above 1 keV → 18 (flat 4). No setup's fingerprint changes. Test: f_129 fast3d.
+
+### 63 Challenges: three more
+
+The game has had challenges since 0.x (the setup list's Challenges group: eleven, from Make water to Melt a chip, won
+when done and remembered), which I had forgotten when I suggested the item. Three more on the new physics, each turning
+on the Realistic-particles switch it needs and saying so: Make protonium (fire a slow p̄ into hydrogen), Dissolve an
+electron (fire electrons of a few tens of eV into water until one is hydrated) and Make a hexaquark (neutrons at
+1.14 GeV through rows of 80 protons: about one collision in fifteen makes the d*). Test: f_129 challenges (plays each).
+
+### 60 Ionized water over thousands of steps (the known limit): three causes found and fixed, one left
+
+Flat water, 40 waters ionized with 2 eV each, insulated (t_features' 1.09 scene). 1.28.3: within 400 steps seeds 1, 5 and
+6 of 8 ran away (642–1,078 impact ionizations, 140–150 free electrons, −22 to −3 eV); over 3,000 steps four of six
+(5,300–11,400 ionizations, drift up to +485 eV). Traced event by event:
+1. Bonds between two ions of one sign. The force field leaves out the Coulomb energy of bonded and next-bonded atoms
+   (it is in the bond parameters, for neutral molecules), so H₂O⁺ + H₂O⁺ bonding released their ~14 eV repulsion as heat
+   and made clusters that nothing pushed apart (H₃O₂²⁺ … H₄O₆⁷⁺), deep wells for the electrons. Now evBond, evReact and
+   the proton's dative bond refuse to join two molecules whose net charges have the same sign (sameSignIons); in
+   nature such dications come apart (Coulomb explosion).
+2. Energy borrowed from the wells of the ions round an electron. Impact ionization and capture counted only the
+   target's own well (since 0.x); an electron among three or four ions had tens of eV of their wells' energy, ionized
+   a neighbour, and was never counted as bound. Now both add the lepton's Coulomb energy with the net charges within 8 Å
+   when negative (lepLocalPhi).
+3. Nothing slowed electrons below the ionization energy but elastic recoil. Now a slow lepton striking an atom of a
+   molecule loses a vibrational quantum (0.198 eV, the bend, 3 in 5; else 0.453, a stretch) 3 times in 10, as heat to the
+   molecule (vibLoss; Itikawa and Mason's cross sections, about a third of the elastic, from memory).
+Each switchable (engine.js IW) for the measurement: vibrational loss alone, 1 of 5 seeds ran away in 400 steps; the
+other two alone, 3 of 5. All three (final code, both random numbers of vibLoss drawn every time, so a last-bit
+difference in an energy does not shift the random sequence): 2 of 12 seeds in 400 steps (6 and 12: 295 and 191
+ionizations; the other ten 0, books within 0.7 eV), against 3 of 8 before; over 3,000 steps 1 of 6 (seed 6: 5,731
+ionizations, +17 eV), against 4 of 6 before (up to 11,400 ionizations, +485 eV).
+- **Left (found, not fixed).** In the two that still run away a few atoms heat up to 10–21 eV over a hundred steps
+  while bonds form and break every step (HO⁺ + H ⇄ H₂O⁺, HO + H₂O⁺ ⇄ H₂O + HO⁺); each forming gives its 4.8 eV to a third
+  atom in a random direction and each breaking takes it back from the pair, so the third's energy takes a random walk
+  upward until its collisions ionize (thermal ionization). Stopping a broken pair re-forming for 30 steps did not
+  change it (the partners change). And in the runs that stay calm the 40 electrons stay free for 3,000 steps (0.4 ps):
+  in nature they would be hydrated or recombined by then (Hydrated electrons, item 59, takes some).
+- These change 11 setups' fingerprints (annihilation, antihydrogen, hyperfactory, mucf, muonium, neon, nif, photonuc,
+  pionbeam, sns, soup: wherever free electrons meet molecules or ions bond); physics, for the owner's OK before release.
+Stored fingerprints updated (switches off: f_127r, f_127x, f_127w, f_127h, f_feat1, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7,
+f_ew; f_rp7's with charged particles in matter on); t_wasm's ionized-water run, module against JavaScript, compares 12
+steps instead of 30 (the last-bit differences now grow tenfold every step and a half: 2.5×10⁻⁹ Å at 12 steps).
+Test: f_129 iwater (seeds 1 and 5: fail on 1.28.3).
+
+### 55 Video recording removed
+
+The owner (2026-11-08): "can you remove the recording feature?". Lab → Record video, its time-lapse buttons, the REC
+badge and the code behind them (REC, recMime, recCapture, recStart, recStop, recInit; the frame loop's call) are gone.
+The gallery's picture keeps layersInto (its layers over the chamber, 1.26 sweep 14). Tests: t_features' video check now
+checks it is gone; f_sweep3d's part 13 (a recorded frame's alignment) removed.
+
+## 1.28.3 (released as part of 1.29.0): the owner's items 52–54 ("build it, and make sure everything is done correctly")
+
+### 54 Quantum bonds faster, the same results to the bit
+
+Profile (a hydronium and five waters, 19 atoms, GFN1): the eigen-solver (symEig: Householder, then QL) 43%, the SCC's
+matrix products (W = Li·H1, A = W·Liᵀ, C = Liᵀ·Y, P = Cf·Cᵀ) about 30%, the integrals 15%. The solver and the four
+products are now in the module (kernel/src/xq.rs: af_sym_eig, af_xq_trans, af_xq_dens), line for line as the
+JavaScript (the same sums in the same order, hypot2 as written, no fused multiply-adds), called from gfn1.js and
+gfn2.js through hooks (XQ_EIG, XQ_TRANS, XQ_DENS in bo.js; tools/xtb's own checks run without them and still match
+tblite). Results the same to the bit: tools/xqbench.js (positions after 20–100 steps and the quantum energy, module
+against JavaScript) and t_wasm 1d (GFN1, GFN2 and spin-polarized GFN1, 12 steps each, every position equal).
+ms a step, JavaScript → module: GFN1 19 atoms 7.63 → 4.19 (flat), 6.49 → 4.52 (3-D); GFN1 40 atoms 283.6 → 131.4;
+GFN2 19 atoms 29.1 → 20.5; GFN2 40 atoms 212.5 → 130.6: 1.4–2.2×. What was not done, and why:
+- (1) "Do less work": each step already starts from the last step's charges (qsh0, since 1.22), and the density
+  already uses only the orbitals holding anything. Solving for only those orbitals (bisection and inverse iteration)
+  would save about half of the solver's time but gives eigenvectors equal only to rounding, not to the bit; the
+  owner asked for the same results, so it was left out.
+- (3) Threads: the quantum region is one calculation (every quantum atom in one SCC, charge flowing between
+  molecules), so it cannot be split by molecule without changing the physics; the matrices (50–110 orbitals) are too
+  small for the threads' hand-over to pay within one solve.
+- Where GFN2's time goes now: D4's three-body term and the gradient's P·S products (about a third), the integrals,
+  the garbage collector; each another port with exp or pow inside, which the module cannot match to the bit.
+
+### 53 Protonium seen
+
+A slow p̄ (under 2 keV relative) meeting a hydrogen atom, with Realistic particles → Exotic atoms on, was caught,
+cascaded and annihilated in one event. Now (flat; antimatter is flat-only) it is caught as protonium, Pn, an
+unstable particle in W.exo: its mass the pair's less its binding at n = 30 (13.9 eV, which frees the atom's electron;
+the rest leaves as a photon, closeEvent), so the books close exactly. It goes round for 1 ps of simulated time (the
+cascade's time in a liquid; in a gas it is longer), drawn as the p̄ and the p on a dashed orbit that shrinks level by
+level from n = 30 (0.52 Å, n²·0.000577 Å) to n = 2; then pnAnnih: the cascade's X-ray lines (n = 30 → 2, xaLevel) and
+the annihilation's mesons (mesonBurst), its rest mass back from the nuclear ledger. Grab, Inspect (its orbit now,
+the time to its annihilation, the info box) and saves work; a protonium from a save or an undo starts its 1 ps again.
+Energy through capture, flight and annihilation within 10⁻⁴ eV. Deterministic: it runs on simulated time. On the
+way: a protonium (0.5 eV, 0.7 Å/tu) flew out of the box, so it bounces off the walls as the other exotic atoms do.
+
+### 52 Pentaquarks and the hexaquark candidate
+
+New unstable particles at their measured masses and widths (mean life ħ/Γ), as resonances: Pc(4312)⁺ (4311.9 MeV,
+Γ 9.8), Pc(4440)⁺ (4440.3, 20.6), Pc(4457)⁺ (4457.3, 6.4), u u d c c̄, decaying to J/ψ p; Pcs(4338)⁰ (4338.2, 7.0),
+u d s c c̄, to J/ψ Λ; their antiparticles; and d*(2380)⁺ (2380 MeV, Γ 70, baryon number 2), u u u d d d, to d π π,
+n p π π, n p π and n p (the measured channels' shares, rounded). Made where LHCb saw them: Λb⁰ → Pc⁺ K⁻ (about 10⁻⁶
+each) and B⁻ → Pcs⁰ p̄ (about 10⁻⁷): so rare that a run will almost never show one; the palette has a "Pentaquarks
+and hexaquarks" group to place them (Lab → Time → "Let the shortest-lived show" holds them long enough to see). The
+particle view draws a pentaquark as its charmed baryon and charmed meson side by side (the "molecule" reading), the
+d* as one bag of six; cards with "Made of", a short symbol and the info box. Not made: the d* in neutron–proton
+collisions (placed from the palette only), and its antiparticle.
+Every setup at normal settings is 1.28.2's to the bit (fingerprints, 59 setups). Tests: f_1283 (protonium, penta;
+both fail on 1.28.2), t_wasm 1d.
+
 ## 1.28.2: hotfix for 1.28.1's desktop app
 
 1.28.1's release commit left out build.js's new line for src/info.js (the commits named src, tests, desktop and
@@ -2898,7 +3110,8 @@ Order, to spend the owner's limited usage well: the small ones first in one sess
 (21, 22, 25), then the large ones (19, 20, 24) one at a time with the owner's go-ahead on cost.
 Done since: 21 (branch v150 from v145, 2026-11-06: "1.27: feature 21 (polarizability by direction)"); 22 (branch v151
 from v150: "1.27: feature 22 (Rayleigh scattering)"); 25 (branch v152 from v151: "1.27: feature 25 (the Higgs boson)"); 24 (branch v153 from v152: "1.27: feature 24 (unstable
-particles meet each other)"); 19 (branch v154 from v153: "1.27: feature 19 (photons as waves)"); 20 (branch v155 from v154: "1.27: feature 20 (close-packed metals)").
+particles meet each other)"); 19 (branch v154 from v153: "1.27: feature 19 (photons as waves)"); 20 (branch v155 from v154: "1.27: feature 20 (close-packed metals)"); 52–54 (branch v161, 1.28.3: pentaquarks and the d*, protonium seen, quantum bonds faster; 53 runs on
+simulated time, 1 ps, not a picture, and 54 did (2) only: see the 1.28.3 section).
 The owner (2026-11-06): the WebAssembly speed-ups go to the next version (1.28), as one pass over everything that could use
 one: 33–38 above, and polarizability by direction's update and force pass (pold.js pdUpdate, pdForces: ×1.2–4.2 on top
 of the induced charges, the most in 3-D at every step), and the close-packed metals' band shape (bometal.js mb4Pass:
@@ -2943,6 +3156,39 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 51 the particle view draws the muon in every muonic atom: today only muonic hydrogen and deuterium (the exotic species
    μp, μd: exoInside's tight orbit round the nucleus) show it; a heavier nucleus that took a muon (p.muB, muonic
    carbon and the rest) is drawn as a plain atom.
+52 pentaquarks and hexaquarks (the owner, 2026-11-08, after asking what they are): LHCb's pentaquarks as unstable
+   particles with their measured masses, widths and decays (P_c(4312)⁺, P_c(4440)⁺, P_c(4457)⁺: u u d c c̄, seen in
+   Λb → J/ψ p K⁻ and decaying to J/ψ p; the strange one P_cs(4338)⁰, u d s c c̄, from B⁻ decays), made where the
+   collider's events make Λb and B mesons; the particle view drawing their five quarks (as a bag, or as a baryon and a
+   meson side by side, the "molecule" reading); and the hexaquark candidate d*(2380) (WASA-at-COSY, 2014; 6 light
+   quarks, decaying to deuteron + two pions), marked as a candidate whose nature is still argued. Info boxes for both.
+   Any new production or decay is a physics addition: the owner's OK with the plan.
+53 protonium seen (the owner, 2026-11-08): today a slow p̄ caught by hydrogen (Realistic particles → Exotic atoms)
+   cascades and annihilates in one event (nuclearAnnihilation, xa); show it instead as a p̄p pair going round each
+   other, spiralling in level by level from n ≈ 30 with its X-rays given off on the way, then the annihilation's
+   flash and pions, as positronium is drawn (1.28.1), on the watching clock so it can be seen at any speed; Grab and
+   an Inspect card with info. The timing shown is a picture (the real cascade takes far less time than a frame); the
+   energy books stay as they are.
+54 quantum bonds faster (item 34, scoped by the owner 2026-11-08: "do 1-3", the same results only): profile of a
+   hydronium and five waters (19 atoms, 6.15 ms a step): symEig 43%, gfn1Energy's SCC 32%, integrals (shellSG,
+   primPairs) 15%. (1) less work: only the occupied and fractionally occupied orbitals (bisection and inverse
+   iteration, or a partial QL), each step's SCC started from the last step's charges and density; (2) symEig, the
+   Hamiltonian build and the integrals in the module (kernel, SIMD where it helps), checked against the JavaScript;
+   (3) separate quantum molecules on separate worker threads. Expected 2–4× together. Not (4), fewer full
+   evaluations with extrapolation in between (changes results).
+
+55 remove video recording (the owner, 2026-11-08). Done in 1.29.0.
+(1.29.0, released: 55, 57, 58, 59, 60 (in part), 61 and 63 done; 56 was already there; 62 tried and not kept. The owner, 2026-11-08: "Do the ionized water runs last": 60 after 63.)
+56 3-D light meets atoms: rayInteract returns at once in 3-D; photoelectric absorption, Compton and Rayleigh
+   scattering and line absorption in 3-D, as in the flat game (the owner's OK: "do all of those items", 2026-11-08).
+57 antimatter in 3-D: antiatoms, positronium and protonium, and annihilation, in the 3-D lab.
+58 delayed neutrons: β⁻n from fission products (measured emission probabilities), so a reactor's k has its delayed part.
+59 the solvated electron e⁻(aq): a slow free electron in water settles into a cavity, bound ~1.7 eV (its 720 nm band).
+60 ionized water over thousands of steps (the known limit): find what lets the plasma run away and fix it.
+61 the d*(2380) made in neutron–proton collisions at its energy; cascade X-rays for the newer exotic levels.
+62 quantum bonds, a "faster, not identical" switch (occupied orbitals only: results equal to rounding, not to the bit).
+63 challenges / guided experiments: goals checked by the game (reach criticality, make protonium, build caffeine, …).
+(The owner also named sharing and CSV export: both exist already, share codes and the gallery, the graph's Export CSV.)
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
@@ -3523,7 +3769,7 @@ at 20–60 keV in 300 tries), confirmed by running the file on a v145 tree.
   f_rp3, f_rp5, f_rp7 and its part-3-on photonuc and sns, f_ew).
 - Cost: none measurable.
 - Suites: t_lint, t_physics, t_hep, f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_ew pass.
-- **Left for the owner.** 3-D light meets no atoms (rayInteract returns at once in 3-D, as before). Photoelectric
+- **Left for the owner.** (1.29: wrong, 3-D light has met atoms since 1.24, rayInteract3.) Photoelectric
   absorption above 100 keV (lead to ~500 keV) not built. Coherent (Rayleigh) scattering not built. The step at 10 keV.
 
 ### 1.27: bug 8 (3-D water recapture) — measured, written up, not changed
