@@ -126,6 +126,44 @@ PARTS.page = async (page, check) => {
   check(r.src[0] > 0 && r.src[1] === r.src[0] && r.rig[1] === r.rig[0] && r.rig[2] && r.led[1] === r.led[0] && r.led[2] > 0.99, `1.30 (B5) saves keep beam sources (cloud chamber ${r.src[1]}), the setup's apparatus (LEP ${r.rig[1]} parts) and the energy books (total kept to ${r.led[2]})`, '1.30 saves: ' + JSON.stringify([r.src, r.rig, r.led]));
 };
 
+
+/* 1.30.1 (the owner away: "fix anything"): captions at 1280×720 kept above the tool bar at the bottom; the same event
+   four times makes one caption with ×4; photon labels kept off captions; the Experimental tab's note says what is kept. */
+PARTS.p1301 = async (page, check) => {
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ settle: 800 }); page = own.page; }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const r = await page.evaluate(async () => { try {
+    const out = {};
+    loadPreset('empty'); setRunning(false); W.events.length = 0; W.rays.length = 0;
+    for (let k = 0; k < 4; k++) nucEvent('decay', 6, -6 - k, 'Muonium: μ⁺ took an electron from Ar', [], 'μ⁺e⁻, a hydrogen atom 1/9 the mass');
+    render(W.rt + 1); out.mu = (R.capRects || []).length;
+    W.events.length = 0;
+    for (let k = 0; k < 4; k++) nucEvent('decay', -3 + 2 * k, -4 - 1.5 * k, `Decay test ${k}: a long enough caption to need room`, [], 'a second line that says a little more about it');
+    render(W.rt + 1); render(W.rt + 1);
+    const cv = R.cv.getBoundingClientRect(), opt = $('tooloptsHS').getBoundingClientRect(), bar = opt.top - cv.top;
+    out.caps = (R.capRects || []).map(q => q.map(Math.round)); out.bar = Math.round(bar);
+    out.below = out.caps.filter(q => q[3] > bar + 1).length;
+    // a photon's label: drawn where nothing is in the way, not where a caption is
+    const lab = (withCap) => {
+      W.events.length = 0; W.rays.length = 0; R.capRects = [];
+      if (withCap) { nucEvent('decay', 0, 0, 'Decay: a caption here', [], 'its second line'); render(W.rt + 1); }
+      const q = withCap ? R.capRects[0] : [R.w / 2 - 60, R.h / 2 - 20, R.w / 2 + 60, R.h / 2 + 20];
+      const A = s2w(q[0] + 10, q[1] + 20), B = s2w(q[0] + 10 + 4000, q[1] + 20);
+      W.rays.push({ x0: A[0], y0: A[1], x1: B[0], y1: B[1], t0: W.rt + 1, ts: W.t, len: Math.hypot(B[0] - A[0], B[1] - A[1]) * 1e6, c: [255, 255, 255], E: 5e5, lab: 'γ 511 keV', nu: false });
+      let drew = 0; const f0 = R.ctx.fillText; R.ctx.fillText = function (t, x, y, ...a) { if (/511 keV/.test(t) && x > q[0] - 2 && x < q[2] && y > q[1] - 6 && y < q[3] + 6) drew++; return f0.call(this, t, x, y, ...a); };
+      render(W.rt + 1.05); render(W.rt + 1.1); R.ctx.fillText = f0; return drew;
+    };
+    out.labFree = lab(false); out.labOnCap = lab(true);
+    out.note = /except the Realistic particles that cost nothing/.test($('expReset').textContent);
+    return out; } catch (e) { return { err: e.stack.split('\n').slice(0, 3).join(' | ') }; } });
+  if (own) await own.browser.close();
+  if (r.err) { check(false, '', '1.30.1 page: ' + r.err); return; }
+  check(r.below === 0 && r.caps.length >= 2, `1.30.1 captions at 1280×720 stay above the tool bar (${r.caps.length} placed, bar at ${r.bar} px)`, '1.30.1 captions under the bar: ' + JSON.stringify(r));
+  check(r.mu === 1, `1.30.1 the same event four times: one caption with ×4 (${r.mu} box)`, '1.30.1 repeated captions: ' + JSON.stringify(r));
+  check(r.labFree > 0 && r.labOnCap === 0, '1.30.1 a photon\'s label is not drawn on an event caption (drawn in the same place without one)', `1.30.1 photon label: free ${r.labFree}, on a caption ${r.labOnCap}`);
+  check(r.note, '1.30.1 the Experimental tab says which switches are kept from one start to the next', '1.30.1 Experimental note unchanged');
+};
+
 module.exports = async function f130(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

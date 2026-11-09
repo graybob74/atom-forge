@@ -946,6 +946,7 @@ function drawQGP3(ctx) {
    and, for a decay, the close-up of its nucleus (Lab → View → Decay close-ups), kept clear of each other (1.26 sweep:
    the 3-D captions had the first line only, so the close-ups setting did nothing in 3-D). */
 function drawEvents3(ctx, rt) {
+  R.capRects = [];
   const evs = W.events; if (!evs.length) return;
   for (let i = evs.length - 1; i >= 0; i--) if (rt - evs[i].t0 > EV_LIFE || rt < evs[i].t0 - 0.5) evs.splice(i, 1);
   const o = _p3c, placed = uiRects();
@@ -961,13 +962,14 @@ function drawEvents3(ctx, rt) {
       ctx.fillStyle = rgba(c, 1); ctx.fillText(g.lbl, o[0], o[1] - rr - 3); ctx.globalAlpha = 1;
     }
   }
-  const shown = evs.slice(-4);
+  const shown = evs.slice(-4), seenCap = new Set();
   for (let i = shown.length - 1; i >= 0; i--) {
-    const e = shown[i];
+    const e0 = shown[i], key = e0.text + '|' + (e0.sub || ''), dup = seenCap.has(key); seenCap.add(key); // (the same event again: one caption with its count, 1.30.1)
+    const nRep = shown.filter(q => q.text + '|' + (q.sub || '') === key).length, e = nRep > 1 ? { ...e0, text: e0.text + '  ×' + nRep } : e0;
     if (!proj3(e.x, e.y, e.z || 0, o)) continue;
     const x = o[0], y = o[1], age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
     for (const d of [0, 0.3]) { const k = clamp((age - d) / 1.0, 0, 1); if (k <= 0 || k >= 1) continue; ctx.strokeStyle = rgba(c, (1 - k) * 0.85); ctx.lineWidth = 2.2 * (1 - k) + 0.6; ctx.beginPath(); ctx.arc(x, y, 5 + k * 46, 0, Math.PI * 2); ctx.stroke(); }
-    const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1); if (a <= 0.01) continue;
+    const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1); if (a <= 0.01 || dup) continue;
     ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; const w1 = ctx.measureText(e.text).width;
     const L = captionBox(ctx, e, x, y, w1, placed); if (!L) continue; // (shared with the flat view, 1.30 bug B11)
     const { bx, by, bw, bh, subs, ins } = L;

@@ -1991,6 +1991,23 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.30.1 (unreleased): fixes from a second bug test, at the owner's 1440p and at 1280×720 (the owner away: "fix anything")
+
+Looked at: every setup at 2560×1440 (screenshots, and a layout audit of the page for clipped text and things off the
+screen: none), the side panel's tabs, Settings, Help, the periodic table and molecule library; random play (12 setups ×
+25 random tool actions, clicks, drags and keys, five seeds: no page errors, no NaN anywhere); every setup run 150 frames
+with its Log, captions, Inspect (a sample of every kind of particle) and Data text searched for NaN, undefined,
+[object …], Infinity: none; 35 SMILES through the design path against their formulas: all right. Found and fixed:
+- At 1280×720 LEP's captions stacked down under the tool's bar at the bottom: captionBox now keeps clear of the bars
+  that viewInsets measures (bottom, right, top), not only fixed margins.
+- The same event several times at once (muonium: "μ⁺ took an electron from Ar" four times) made a stack of identical
+  captions: now one, with "×4" (2-D and 3-D; each still gets its rings).
+- A photon's label could be drawn across an event's caption (ISOLDE: "γ 158 keV" through the n + ⁹⁶Rb caption): the
+  labels now keep off the captions' places (R.capRects, from the frame before).
+- Settings → Experimental still said every switch goes back to normal at each start; since 1.30 (item 67) the Realistic
+  particles that cost nothing are kept: both notes say so.
+Tests: f_130.js part p1301 (each check fails on 1.30.0).
+
 ## 1.30.0: the owner's items 64–68 and the bug test's B1–B19 (the owner, 2026-11-08: "fix everything on every list")
 
 Items:

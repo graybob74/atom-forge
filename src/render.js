@@ -1612,7 +1612,7 @@ function drawPhotonLabels(rt) {
   for (const f of W.flights) { if (!f.lab || W.t < f.t0) continue; const d = Math.min(f.len, (W.t - f.t0) * PHYS.C), L = f.len || 1; heads.push([w2sx(f.x0 + (f.x1 - f.x0) * d / L), w2sy(f.y0 + (f.y1 - f.y0) * d / L), f.lab, f.c, 1]); }
   for (let i = W.rays.length - 1; i >= 0; i--) { const r = W.rays[i]; if (r.lab && r.hx !== undefined && r.alpha > 0.02) heads.push([r.hx, r.hy, r.lab, r.c, Math.min(1, r.alpha * 1.1)]); }
   if (!heads.length) return;
-  const ctx = R.ctx, boxes = []; let n = 0;
+  const ctx = R.ctx, boxes = [], caps = R.capRects || []; let n = 0;
   ctx.save(); ctx.font = `600 10px ${CH_FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(6,10,16,0.85)';
   if (LAB_W.size > 600) LAB_W.clear();
   for (const [x, y, lab, c, a] of heads) {
@@ -1623,6 +1623,7 @@ function drawPhotonLabels(rt) {
     if (tx + w > R.w - 4) tx = x - 7 - w; // (a head near the right edge: its label on its left, not cut off, bug B14, 1.30)
     tx = Math.max(4, tx); ty = clamp(ty, 8, R.h - 8);
     if (boxes.some(b => tx < b[0] + b[2] && tx + w > b[0] && Math.abs(ty - b[1]) < 13)) continue; // never on top of another label
+    if (caps.some(q => tx < q[2] && tx + w > q[0] && ty + 6 > q[1] && ty - 8 < q[3])) continue; // nor on an event's caption (the last frame's places: ISOLDE's γ labels ran through them, 1.30.1)
     boxes.push([tx, ty, w]); n++;
     ctx.globalAlpha = a; ctx.strokeText(lab, tx, ty);
     ctx.fillStyle = rgba(c.map(v => Math.round(v + (255 - v) * 0.35)), 1); ctx.fillText(lab, tx, ty); // (lightened: deep red and violet light stay readable)
@@ -1724,7 +1725,7 @@ function uiRects() {
 function captionBox(ctx, e, x, y, w1, placed) {
   ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace';
   const ins = e.nuc && R.view.decayCards && R.w > 360 ? 58 : 0; // a decay gets a close-up of its nucleus beside the words
-  const padL = 8, padR = R.w > 420 ? 52 : 8, padT = R.h > 300 ? 54 : 8, padB = 8;
+  const vi = viewInsets(8), padL = 8, padR = Math.max(R.w > 420 ? 52 : 8, Math.min(vi.r, 80)), padT = Math.max(R.h > 300 ? 54 : 8, Math.min(vi.t, 120)), padB = Math.min(vi.b, 120); // (the tool's bar at the bottom too: at 1280×720 LEP's last caption went under it, 1.30.1)
   const maxW = Math.max(120, Math.min(R.w - padL - padR, 520));
   const subs = e.sub ? wrapText(ctx, e.sub, maxW - 22 - ins) : [];
   const w2 = subs.reduce((m, l) => Math.max(m, ctx.measureText(l).width), 0);
@@ -1739,6 +1740,7 @@ function captionBox(ctx, e, x, y, w1, placed) {
   }
   if (!spot) return null;
   placed.push([spot[0], spot[1], spot[0] + bw, spot[1] + bh]);
+  (R.capRects || (R.capRects = [])).push([spot[0], spot[1], spot[0] + bw, spot[1] + bh]);
   return { bx: spot[0], by: spot[1], bw, bh, subs, ins };
 }
 /* Words split into lines no wider than w (the current font), at most three; the last cut short with an ellipsis. */
@@ -1761,6 +1763,7 @@ const EV_STYLE = {
 const EV_LIFE = 4.5;
 function drawEvents(rt) {
   const evs = W.events;
+  R.capRects = [];
   if (!evs.length) return;
   for (let i = evs.length - 1; i >= 0; i--) if (rt - evs[i].t0 > EV_LIFE || rt < evs[i].t0 - 0.5) evs.splice(i, 1);
   const ctx = R.ctx;
@@ -1787,9 +1790,11 @@ function drawEvents(rt) {
     }
   }
   // captions for the newest few, kept clear of each other and of the chamber edges
-  const placed = uiRects(), shown = evs.slice(-4), drops = (W.qgp || []).filter(g => (g.age || 0) < 1.6).map(qgpDisc); // (a caption over a young plasma drop is faded until it cools, 0.91)
+  const placed = uiRects(), shown = evs.slice(-4), seenCap = new Set(), drops = (W.qgp || []).filter(g => (g.age || 0) < 1.6).map(qgpDisc); // (a caption over a young plasma drop is faded until it cools, 0.91)
   for (let i = shown.length - 1; i >= 0; i--) {
-    const e = shown[i], age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
+    const key = shown[i].text + '|' + (shown[i].sub || ''); if (seenCap.has(key)) continue; seenCap.add(key); // (the same event again: one caption with its count, not a stack of copies: muonium's "μ⁺ took an electron from Ar" four times, 1.30.1)
+    const nRep = shown.filter(q => q.text + '|' + (q.sub || '') === key).length;
+    const e = nRep > 1 ? { ...shown[i], text: shown[i].text + '  ×' + nRep } : shown[i], age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
     const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1);
     if (a <= 0.01) continue;
     const x = w2sx(e.x), y = w2sy(e.y);
