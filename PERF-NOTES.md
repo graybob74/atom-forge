@@ -3212,6 +3212,12 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    "save particle settings that don't affect performance when you reload the game"). Now every Experimental setting is
    back to normal at each start (SET_EXP, 1.23.1). Plan: the Realistic-particles switches whose cost is ×1 (no effect on
    speed) are read from storage like the ordinary settings; those that cost speed still start off.
+68 (1.30, display bug) γ rays vanish in flight in deep slow motion (the owner, 2026-11-08: "once they travelled a few
+   hundred Å they just disappeared"). Cause: drawRays drops any ray 30 s (real time) after it was emitted, even while
+   it is still on its way; it goes at c on the simulation's clock, so at the slow motion a 0.99999c pair brings on (tens
+   of attoseconds a frame or less) a ray covers only some hundreds of Å in 30 s. The photon itself is fine (its energy
+   was booked as escaping, or its hit happens, at the simulation's time); only its line is removed early. Plan: no
+   time limit while the ray is travelling (the 400-ray cap still bounds the list); the fade starts when it arrives.
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
