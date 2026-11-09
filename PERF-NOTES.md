@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.30: the owner's items 64–68 and the bug test's B1–B19 (the owner, 2026-11-08: "fix everything on every list")
+## 1.30.0: the owner's items 64–68 and the bug test's B1–B19 (the owner, 2026-11-08: "fix everything on every list")
 
 Items:
 - 64 the particle bar's groups renamed: Bosons, Multiquarks, Exotic (ui.js PCATS; tests f_feat1, f_127h, f_ew).
