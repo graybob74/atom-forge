@@ -3248,6 +3248,28 @@ B8 RHIC with Collide now while ramping: the collisions happen in a bending secti
 B9 Speed (headless, 2 cores): RHIC after Collide now about 10 frames a second at 1,300 particles, single frames up to
    0.55 s; LEP and DAΦNE single frames of 0.7–0.8 s at the moment of a collision.
 B10 The particle bar's first chip is half hidden under the ‹ scroll button (the "O" chip in RHIC, Flame colours).
+Visual pass (all 63 setups screenshotted after 100 frames at 1400×860, plus the particle view, Inspect and Settings):
+B11 Event captions pile up: each event's caption box is placed on its own, so two at once overlap each other and the
+   setup's own labels. Worst in LEP: the Z⁰ decay caption box spans the chamber, its second line runs past the box's
+   right edge, over the "collision point" and "linac" labels and under the zoom buttons. Also DAΦNE, muon-catalysed
+   fusion, pion beam, annihilation, SNS, ISOLDE (several γ labels stacked on one spot).
+B12 The "Make antihydrogen!" challenge completes itself within 100 frames of opening its setup ("Challenge complete …
+   1 of 14 done") without the player doing anything: the setup already makes antihydrogen.
+B13 Flash memory: the "floating gate: 0 e⁻" labels overlap the neighbouring cells' labels, and the rightmost is cut
+   off at the chamber's edge.
+B14 Flame colours: the "Li 671 nm" ray label is cut off at the canvas edge (labels are not kept inside the view).
+B15 Default framing: Growing a crystal (the Ar box) and 3-D water (the cube's bottom) start partly under the particle
+   bar and the tool bar, with atoms drawn beneath them; the setup's fit-to-view ignores the bars.
+B16 The fps readout is drawn over the particles (no backing), unreadable over a busy chamber.
+B17 Particle view: quark bags keep a fixed small size at any zoom (the d* bag is ~16 px at 120 px/Å), and positronium
+   zoomed in shows only a segment of its dashed ring, the rest not drawn.
+B18 Inspect card text contradicts its numbers: a pentaquark Pc(4312) says "decays a few nanometres from where it was
+   made" next to "Mean distance before decaying 0.000075 fm". The sentence is chosen by mean life < 1 fs (ui.js 1893),
+   not by the distance moved.
+B19 Settings › Performance has two rows both called "Drawing" (Sharp/Standard/Fast and WebGL/Canvas 2D); the first is
+   the resolution.
+Caveats: headless Chromium, 2 cores, 1400×860 (the owner plays at 1440p), and its clock does not advance in real time,
+so ray clutter seen in Neon, Muonium, NIF and the oven may be an artefact of the test and is not listed.
 (Also found, already on the list: 66 fast pairs flying together, 68 γ rays vanishing in slow motion.)
 
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
