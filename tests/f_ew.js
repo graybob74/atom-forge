@@ -33,7 +33,7 @@ function eePair(X, rs, d3) {
 // (1.27 bug 4: sns re-fingerprinted, switches off: fast positrons ionize and scatter as electrons do, annihilating in flight at Heitler's rate)
 // (1.27 bug 7: photonuc, sns and hyperfactory re-fingerprinted, switches off: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
 // (1.27 bug 15: pionbeam and photonuc re-fingerprinted, switches off: events in the electrons' short steps search a grid rebuilt after they moved)
-const FP_V145 = { rhic: 'fb7e8382 a9f2ee3a', ring: 'bdaf576a a9f2ee3a', linac: '7c6eb010 2b70ae2c', dafne: '793dfacd 43026f16', annihilation: '929da399 b1dd204c', pionbeam: '731d6d88 5663aea5', photonuc: '4a48e008 9aa817a9', hyperfactory: '1e9f7625 64830f83', antihydrogen: '4020342f 328d44f9', chain: '4b24bd95 a9f2ee3a', isolde: '510ea801 d3061743', sns: '76800820 3e317b00', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
+const FP_V145 = { rhic: 'fb7e8382 a9f2ee3a', ring: 'bdaf576a a9f2ee3a', linac: '7c6eb010 2b70ae2c', dafne: '793dfacd 43026f16', annihilation: 'e4757e0e 969a7381', pionbeam: '44ace447 453510b1', photonuc: '4a48e008 9aa817a9', hyperfactory: '18051e94 0fac2f8d', antihydrogen: '4020342f 328d44f9', chain: '4b24bd95 a9f2ee3a', isolde: '510ea801 d3061743', sns: '76800820 3e317b00', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.fp = async (page, check) => {
   const bad = [];
   for (const k of Object.keys(FP_V145)) {
@@ -223,7 +223,7 @@ PARTS.page = async (page, check) => {
     loadPreset('empty'); setRunning(false);
     const o = addExo('Z0', 0, 0, 0, 1, 0, resPlaceMass('Z0'));
     R.selX = { kind: 'exo', o }; showTab('inspect', true); renderInspect();
-    const out = { ins: $('tp-inspect').textContent, cat: PCATS.some(([n, l]) => n.startsWith('W, Z') && l.length >= 3) /* (1.27 feature 25: 'W, Z and Higgs bosons', four) */, m: o.m };
+    const out = { ins: $('tp-inspect').textContent, cat: PCATS.some(([n, l]) => n === 'Bosons' && l.length >= 3) /* (1.27 feature 25: 'W, Z and Higgs bosons', four) */, m: o.m };
     loadPreset('lep'); setRunning(true);
     for (let i = 0; i < 2500; i++) { W.dt = chooseDt(); step(W.dt); }
     setRunning(false); showTab('data', true); renderData();

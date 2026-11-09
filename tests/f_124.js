@@ -19,12 +19,15 @@ PARTS.place = async (page, check, say) => {
     return { Z: c.Z, d: +d.toFixed(2), toward: +(((c.x - a.x) * ex + (c.y - a.y) * ey + (c.z - a.z) * ez) / (d * el)).toFixed(2) };
   }, at.id);
   // the plane: Shift + wheel down moves it nearer, the Depth slider follows; empty space puts the item on it
-  await page.mouse.move(780, 430); await page.waitForTimeout(80);
+  // (a spot with no atom under it, near the middle: the view since 1.30 keeps the box between the bars, so the old fixed
+  // spot (780, 430) can fall on an atom)
+  const emp = await page.evaluate(() => { const r = R.cv.getBoundingClientRect(); for (let k = 0; k < 400; k++) { const x = 780 - r.left + (k % 20 - 10) * 12, y = 430 - r.top + (Math.floor(k / 20) - 10) * 12; if (!pick3(x, y, 0) && !pick3(x + 1, y + 1, 0)) return { x: x + r.left, y: y + r.top }; } return { x: 780, y: 430 }; });
+  await page.mouse.move(emp.x, emp.y); await page.waitForTimeout(80);
   const p0 = await page.evaluate(() => ({ off: P3.off, poly: plane3Poly(plane3Pt()).length, ghost: !!(R.overlay && R.overlay.place3 && !R.overlay.place3.at) }));
   await page.keyboard.down('Shift'); for (let k = 0; k < 3; k++) { await page.mouse.wheel(0, 100); await page.waitForTimeout(40); } await page.keyboard.up('Shift');
   const p1 = await page.evaluate(() => ({ off: +P3.off.toFixed(2), slider: +$('oPD').value, text: $('oPDV').textContent, cam: R.cam3.dist }));
   const n0 = await page.evaluate(() => W.parts.length);
-  await page.mouse.move(781, 431); await page.mouse.down(); await page.mouse.up(); await page.waitForTimeout(80);
+  await page.mouse.move(emp.x + 1, emp.y + 1); await page.mouse.down(); await page.mouse.up(); await page.waitForTimeout(80);
   const onPl = await page.evaluate(() => { const c = W.parts[W.parts.length - 1], P = plane3Pt(); cam3Update(); return { n: W.parts.length, dev: +Math.abs((c.x - P[0]) * C3.fx + (c.y - P[1]) * C3.fy + (c.z - P[2]) * C3.fz).toFixed(2) }; });
   check(hov && hov.at === at.id && pl.Z === 6 && pl.toward > 0.3 && pl.d > 1.5 && pl.d < 4.5 && p0.poly >= 3 && p0.ghost && p1.off < -1 && p1.slider < 0 && /nearer/.test(p1.text) && onPl.n === n0 + 1 && onPl.dev < 1.0,
     `1.24: 3-D placing: over an O atom the ghost goes against it and a click puts the C ${pl.d} Å from it on the side facing the camera (cos ${pl.toward}); Shift + wheel moved the placing plane ${p1.off} Å (the Depth slider at ${p1.slider}, "${p1.text}") and a click in empty space puts the atom on it (${onPl.dev} Å off the plane, before spreading)`, '1.24 placing: ' + JSON.stringify({ hov, pl, p0, p1, onPl }));

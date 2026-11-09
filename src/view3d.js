@@ -143,6 +143,10 @@ function cam3Fit() {
   const rb = 0.5 * Math.hypot(W.box.w, W.box.h, W.box.d || W.box.h), aspect = R.w > 0 && R.h > 0 ? R.w / R.h : 1.5;
   const half = Math.min(c.fov / 2, Math.atan(Math.tan(c.fov / 2) * aspect));
   c.dist = rb / Math.sin(half) * 0.9;
+  // (the page's bars over the chamber: the camera pulled back so the box fits between them, its target kept at the
+  // middle; it went under the particle bar and the tool bar, bug B15, 1.30)
+  const m = viewInsets(0);
+  if (R.h > 0 && R.w > 0) { const k = Math.min((R.h - 2 * Math.max(m.t, m.b)) / R.h, (R.w - 2 * Math.max(m.l, m.r)) / R.w); if (k > 0.3 && k < 1) c.dist /= k; }
   cam3Update();
 }
 /* How big a particle is drawn in 3-D (Å, before the atom-size setting). A lone ion is drawn on the atoms' own scale
@@ -672,7 +676,7 @@ function drawLight3(ctx, rt) {
     const r = W.rays[i], m = rayFrac(r);
     if (m >= 1 && r.ta === undefined) r.ta = rt;
     const k = r.ta === undefined ? 0 : (rt - r.ta) / life;
-    if (k > 1 || rt - r.t0 > 30) { W.rays.splice(i, 1); continue; }
+    if (k > 1) { W.rays.splice(i, 1); continue; }
     const a = (1 - k) * (r.nu ? 0.35 : 0.85), z0 = r.z0 || 0, z1 = r.z1 === undefined ? z0 : r.z1;
     const hx = r.x0 + (r.x1 - r.x0) * m, hy = r.y0 + (r.y1 - r.y0) * m, hz = z0 + (z1 - z0) * m;
     if (!seg3(r.x0, r.y0, z0, hx, hy, hz, A, B)) continue;
@@ -928,6 +932,7 @@ function drawQGP3(ctx) {
     const gr = ctx.createRadialGradient(o[0], o[1], 0, o[0], o[1], r);
     gr.addColorStop(0, `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.88 * a).toFixed(3)})`); gr.addColorStop(0.6, `rgba(255,${Math.round(110 + 60 * heat)},40,${(0.6 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,80,20,0)');
     ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(o[0], o[1], r, 0, 2 * Math.PI); ctx.fill();
+    qgpPartons(ctx, g, o[0], o[1], r, a); // (its quarks and gluons, as in the flat view, 1.30 item 65)
     if (R.view.labels !== false) {
       ctx.font = '600 12px ' + (cssVar('--font-data') || 'monospace'); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
       const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = o[1] - r - 8;
@@ -943,7 +948,7 @@ function drawQGP3(ctx) {
 function drawEvents3(ctx, rt) {
   const evs = W.events; if (!evs.length) return;
   for (let i = evs.length - 1; i >= 0; i--) if (rt - evs[i].t0 > EV_LIFE || rt < evs[i].t0 - 0.5) evs.splice(i, 1);
-  const o = _p3c, placed = [];
+  const o = _p3c, placed = uiRects();
   ctx.save();
   for (const e of evs) { // (1.27 bug 16) ghosts of what vanished or changed identity, dashed rings at their depth, as the flat view draws them
     const age = Math.max(0, rt - e.t0), kg = clamp(age / 2.2, 0, 1), c = EV_STYLE[e.kind] || EV_STYLE.decay; if (kg >= 1) continue;
@@ -964,17 +969,14 @@ function drawEvents3(ctx, rt) {
     for (const d of [0, 0.3]) { const k = clamp((age - d) / 1.0, 0, 1); if (k <= 0 || k >= 1) continue; ctx.strokeStyle = rgba(c, (1 - k) * 0.85); ctx.lineWidth = 2.2 * (1 - k) + 0.6; ctx.beginPath(); ctx.arc(x, y, 5 + k * 46, 0, Math.PI * 2); ctx.stroke(); }
     const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1); if (a <= 0.01) continue;
     ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; const w1 = ctx.measureText(e.text).width;
-    ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; const w2 = e.sub ? ctx.measureText(e.sub).width : 0;
-    const ins = e.nuc && R.view.decayCards && R.w > 360 ? 58 : 0, bw = Math.min(R.w - 16, Math.max(w1, w2) + 22 + ins), bh = ins ? 58 : e.sub ? 40 : 26;
-    let bx = clamp(x + 18, 8, R.w - bw - 8), by = clamp(y - 40, 8, R.h - bh - 8);
-    for (let k = 0; k < 6; k++) { const hit = placed.find(q => bx < q[2] + 6 && bx + bw + 6 > q[0] && by < q[3] + 6 && by + bh + 6 > q[1]); if (!hit) break; by = hit[3] + 6; }
-    by = clamp(by, 8, R.h - bh - 8); placed.push([bx, by, bx + bw, by + bh]);
+    const L = captionBox(ctx, e, x, y, w1, placed); if (!L) continue; // (shared with the flat view, 1.30 bug B11)
+    const { bx, by, bw, bh, subs, ins } = L;
     ctx.globalAlpha = a; ctx.fillStyle = 'rgba(7,11,17,0.88)'; ctx.fillRect(bx, by, bw, bh); ctx.fillStyle = rgba(c, 1); ctx.fillRect(bx, by + 5, 3, bh - 10);
     if (ins) drawDecayInset(ctx, e, bx + 6 + ins / 2, by + bh / 2, ins / 2 - 3, age, c);
-    const tx = bx + 9 + ins, ty = ins ? by + bh / 2 - 7 : by + (e.sub ? 14 : bh / 2);
+    const tx = bx + 9 + ins, ty = ins ? by + bh / 2 - 7 * Math.max(1, subs.length) : by + (subs.length ? 14 : bh / 2);
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; ctx.fillStyle = '#eef3f8'; ctx.fillText(e.text, tx, ty, bw - 18 - ins);
-    if (e.sub) { ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(c, 1); ctx.fillText(e.sub, tx, ty + 15, bw - 18 - ins); }
+    if (subs.length) { ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(c, 1); subs.forEach((l, j) => ctx.fillText(l, tx, ty + 15 * (j + 1), bw - 18 - ins)); }
     ctx.globalAlpha = 1;
   }
   ctx.restore();

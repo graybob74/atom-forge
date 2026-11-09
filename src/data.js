@@ -323,7 +323,11 @@ const BONDS = {
 };
 
 /* Characteristic emission lines (nm) with relative weights; thr = energy of the upper level (eV)
-   needed to excite them by collision. Hydrogen-like ions use the Rydberg formula instead. */
+   needed to excite them by collision. Hydrogen-like ions use the Rydberg formula instead. A forbidden line carries its
+   upper level's lifetime (s) as a third number: oxygen's green 557.7 nm (0.74 s) and red 630.0 nm (110 s), the aurora's.
+   In the chamber's gases and liquids a collision takes that energy long before (and the game never runs a second), so
+   they are not given off here; they stay on the list for the spectrum's marks. Oxygen's lowest line made by a collision is
+   then 777.4 nm, from 10.74 eV (1.30 bug B3; its thr was the 4.19 eV of the green line's level). */
 const LINES = {
   He: { thr: 23.0, l: [[587.6,5],[501.6,2],[447.1,2],[667.8,2],[706.5,1]] },
   Li: { thr: 1.85, l: [[670.8,6],[610.4,1]] },
@@ -331,7 +335,7 @@ const LINES = {
   B:  { thr: 4.96, l: [[249.7,1],[518.0,1]] },
   C:  { thr: 7.68, l: [[247.9,1],[516.5,1]] },
   N:  { thr: 12.0, l: [[746.8,2],[427.8,2],[391.4,1]] },
-  O:  { thr: 4.19, l: [[557.7,4],[630.0,3],[777.4,2]] },
+  O:  { thr: 10.74, l: [[557.7,4,0.74],[630.0,3,110],[777.4,2]] }, // (a third number: a forbidden line's lifetime, s; 1.30 bug B3: such a line is not made by a collision here, see pickLine)
   F:  { thr: 14.5, l: [[685.6,2],[690.2,1]] },
   Ne: { thr: 18.6, l: [[640.2,5],[585.2,4],[614.3,2],[703.2,2],[650.7,1],[692.9,1]] },
   Na: { thr: 2.10, l: [[589.0,6],[589.6,3]] },

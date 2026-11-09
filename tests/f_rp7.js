@@ -20,7 +20,7 @@ const chi2 = (H, ex) => { const N = H.reduce((a, b) => a + b, 0), T = ex.reduce(
 // (1.27 bug 3: fusion, nif, pionbeam, annihilation and sns re-fingerprinted, switches off: close passes between nuclei turned at nuclear distances)
 // (1.27 bug 7: photonuc, sns and hyperfactory re-fingerprinted, switches off: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
 // (1.27 bug 15: pionbeam and photonuc re-fingerprinted, switches off: events in the electrons' short steps search a grid rebuilt after they moved)
-const FP_V145 = { annihilation: '929da399 b1dd204c', pet: 'a5248bff a9f2ee3a', prism: '4ffe98af a9f2ee3a', photonuc: '4a48e008 9aa817a9', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
+const FP_V145 = { annihilation: 'e4757e0e 969a7381', pet: 'a5248bff a9f2ee3a', prism: '4ffe98af a9f2ee3a', photonuc: '4a48e008 9aa817a9', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const bad = [], keys = Object.keys(FP_V145).filter(k => FP_V145[k]);
   for (const k of keys) {
@@ -260,7 +260,7 @@ PARTS.books = async (page, check) => {
 // (1.27 bug 6: sns with part 3 on re-fingerprinted: fast fired particles meet over the step)
 // (1.27 bug 7: photonuc and sns with part 3 on re-fingerprinted: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
 // (1.27 bug 15: annihilation, photonuc and sns with part 3 on re-fingerprinted: events in the electrons' short steps search a grid rebuilt after they moved)
-const FP_CPM = { annihilation: '53953bdb e4b2c2d9', photonuc: '36991dac 18b6a3cd', sns: 'e319e959 8decfa7c', linac: '7c6eb010 2b70ae2c' }; // (1.29 item 60: the like-charged bonds, the wells round a lepton and its vibrational losses changed these three)
+const FP_CPM = { annihilation: 'a3d1dba8 1b29c202', photonuc: '36991dac 18b6a3cd', sns: 'e319e959 8decfa7c', linac: '7c6eb010 2b70ae2c' }; // (1.29 item 60: the like-charged bonds, the wells round a lepton and its vibrational losses changed these three)
 PARTS.both = async (page, check) => {
   const bad = [], r = {};
   for (const k of Object.keys(FP_CPM)) {

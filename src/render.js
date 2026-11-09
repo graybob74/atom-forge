@@ -29,12 +29,30 @@ function rResize(w, h) {
 const ZOOM_MAX = 4000; // px per Å: about 0.25 Å across the view, well inside one atom
 const ZOOM_ULTRA = 4e8; // the ultra-realistic mode's: about 0.3 fm across the view, a proton's radius fills a third of it
 function zoomMax() { return W.ultra ? ZOOM_ULTRA : ZOOM_MAX; }
+/* How much of the chamber the page's bars cover (canvas pixels): the particle bar at the top, the tool's options at the
+   bottom, the zoom buttons on the right; at least `margin` all round. Fitting the box keeps it inside the rest (it went
+   under the bars in Growing a crystal and 3-D water, bug B15, 1.30). No page (Node): the margin alone. */
+function viewInsets(margin = 28) {
+  const m = { t: margin, b: margin, l: margin, r: margin };
+  if (typeof document === 'undefined' || !R.cv || !R.cv.getBoundingClientRect) return m;
+  const c = R.cv.getBoundingClientRect(); if (!(c.height > 0)) return m;
+  const box = (id) => { const el = document.getElementById(id); if (!el || el.hidden || !el.offsetParent) return null; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 ? r : null; };
+  const pal = box('paletteBar'), opt = box('tooloptsHS'), zm = document.querySelector('.stage .zoom, .zoom');
+  if (pal && pal.top - c.top < c.height / 3) m.t = Math.max(m.t, pal.bottom - c.top + 8);
+  if (opt && c.bottom - opt.bottom < c.height / 3) m.b = Math.max(m.b, c.bottom - opt.top + 8);
+  if (zm && zm.offsetParent) { const z = zm.getBoundingClientRect(); if (z.width > 0 && c.right - z.left < c.width / 4) m.r = Math.max(m.r, c.right - z.left + 6); }
+  if (m.t + m.b > 0.5 * c.height) { const k = 0.5 * c.height / (m.t + m.b); m.t *= k; m.b *= k; }
+  return m;
+}
 function fitView(margin = 28) {
   if (W.d3) { R.cx = 0; R.cy = 0; R.follow = null; cam3Fit(); return; } // (3-D: the camera back to its starting view of the whole box; view3d.js)
-  const bw = W.box.tw, bh = W.box.th;
-  R.s = Math.min((R.w - margin * 2) / bw, (R.h - margin * 2) / bh);
+  const bw = W.box.tw, bh = W.box.th, m = viewInsets(margin);
+  R.s = Math.min((R.w - m.l - m.r) / bw, (R.h - m.t - m.b) / bh);
   R.s = clamp(R.s, 0.01, 400);
-  R.cx = 0; R.cy = 0; R.follow = null;
+  R.follow = null;
+  // the box's middle at the middle of the free part of the chamber
+  R.cx = (R.w / 2 - (m.l + (R.w - m.l - m.r) / 2)) / R.s; R.cy = ((m.t + (R.h - m.t - m.b) / 2) - R.h / 2) / R.s;
+  if (Math.abs(R.cx) < 1e-12) R.cx = 0; if (Math.abs(R.cy) < 1e-12) R.cy = 0;
 }
 function w2sx(x) { return (x - R.cx) * R.s + R.w / 2; }
 function w2sy(y) { return (R.cy - y) * R.s + R.h / 2; }
@@ -176,9 +194,9 @@ function render(rt) {
   drawExos(); drawStrings(rt);
   drawFlashes(rt);
   if (R.view.rays) { drawRays(rt); drawFlights(); drawPhotonLabels(rt); }
+  drawZones(); // (before the captions, so a setup's labels do not print over them, bug B11, 1.30)
   drawEvents(rt);
   drawQGP();
-  drawZones();
   drawSources();
   drawOverlay();
   drawScaleBar();
@@ -955,6 +973,98 @@ function drawStrings(rt) {
 /* A quark–gluon plasma (W.qgp): a hot drop of free quarks (coloured) and gluons (pale) that swells, cools from white to
    red and freezes out into hadrons. Drawn above the hadron spray and the event captions, at least about 70 pixels
    across whatever the zoom, on its own clock (0.91: it was small, under everything, and a slow frame could skip it). */
+/* (1.30, item 65: the owner, "the cloud of quarks is drawn a little weird after extreme collisions, maybe simulate the
+   quarks") A plasma drop's partons, followed on the picture's own clock (the real plasma lives 10⁻²³ s, far less than a
+   step: this is display only, the hadrons were made at the collision). The quarks come in colour-neutral sets that will
+   be its hadrons: a quark and an antiquark of the matching anticolour (a meson), or red, green and blue (a baryon; an
+   antibaryon in the anticolours), more of them the more hadrons it froze into, with gluons (a colour and an anticolour)
+   among them. Hot, they fly about freely, unbound by colour, across the drop as it grows; cooling, they slow; at
+   freeze-out each set draws together, joined by its colour string, the gluons gone into them, and flies off outward as
+   its hadron. Its own random numbers (not the simulation's), so it never touches what happens. */
+function qgpRand(seed) { let t = (seed >>> 0) || 1; return () => (t = (Math.imul(t, 1664525) + 1013904223) >>> 0) / 4294967296; }
+const QGP_COL = [[255, 80, 80], [70, 220, 110], [90, 140, 255]], QGP_ACOL = [[80, 235, 235], [235, 90, 235], [240, 225, 70]]; // (red, green, blue; their anticolours cyan, magenta, yellow)
+function qgpInit(g) {
+  const rn = g.rn = qgpRand(Math.floor(g.x * 7919 + g.y * 104729 + (g.t0 || 0) * 1e4) ^ Math.imul(g.n | 0, 2654435761));
+  const P = [], C = [], nh = clamp(Math.round(Math.sqrt(g.n || 1) * 3.2), 8, 32), anti = (g.sNN || 0) > 20000 ? 0.4 : 0.15; // (sets shown: more for more hadrons; antibaryons commoner at higher energy)
+  const add = (cl, col, an, glu) => { const r0 = 0.75 * Math.sqrt(rn()), t0 = 2 * Math.PI * rn(), th = 2 * Math.PI * rn(); P.push({ x: r0 * Math.cos(t0), y: r0 * Math.sin(t0), vx: Math.cos(th), vy: Math.sin(th), col, an, glu, cl }); };
+  for (let k = 0; k < nh; k++) {
+    const th = 2 * Math.PI * rn(), bar = rn() < 0.18, cl = { ux: Math.cos(th), uy: Math.sin(th), n: bar ? 3 : 2, sp: 0.9 + 0.8 * rn() };
+    C.push(cl);
+    if (bar) { const an = rn() < anti; for (let c = 0; c < 3; c++) add(k, c, an, false); }
+    else { const c = Math.floor(3 * rn()); add(k, c, false, false); add(k, c, true, false); }
+  }
+  for (let k = 0, ng = Math.round(nh * 0.9); k < ng; k++) { const c = Math.floor(3 * rn()); add(-1, c, false, (c + 1 + Math.floor(2 * rn())) % 3); } // (a gluon: a colour and a different anticolour)
+  g.pp = P; g.cl = C; g.lastAge = g.age || 0;
+}
+/* Freeze-out: neighbours join (coalescence). Each quark takes the nearest antiquark of its anticolour (a meson), or the
+   nearest two of the other colours (a baryon, or an antibaryon); one left with no partner fades as the gluons do. */
+function qgpGroup(g) {
+  g.grouped = true;
+  const Q = g.pp.filter(q => q.glu === false); for (const q of Q) q.cl = -2;
+  const C = [], d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2, rn = g.rn;
+  const near = (q, ok) => { let best = null, bd = Infinity; for (const o of Q) if (o !== q && o.cl === -2 && ok(o)) { const d = d2(q, o); if (d < bd) { bd = d; best = o; } } return best; };
+  for (const q of Q) {
+    if (q.cl !== -2) continue;
+    const m = near(q, o => o.an !== q.an && o.col === q.col);
+    const b1 = near(q, o => o.an === q.an && o.col === (q.col + 1) % 3), b2 = b1 ? near(q, o => o !== b1 && o.an === q.an && o.col === (q.col + 2) % 3) : null;
+    let set = null;
+    if (m && (!b1 || !b2 || d2(q, m) <= 0.5 * (d2(q, b1) + d2(q, b2)) || rn() < 0.75)) set = [q, m];
+    else if (b1 && b2) set = [q, b1, b2];
+    if (!set) { q.cl = -3; continue; } // (no partner: it fades)
+    const th = Math.atan2(q.y, q.x) + (rn() - 0.5) * 0.8, k = C.length;
+    C.push({ ux: Math.cos(th), uy: Math.sin(th), n: set.length, sp: 0.9 + 0.8 * rn() });
+    for (const o of set) o.cl = k;
+  }
+  g.cl = C;
+}
+function qgpStep(g) {
+  const age = g.age || 0, dt = clamp(age - g.lastAge, 0, 0.05); g.lastAge = age;
+  if (!(dt > 0)) return;
+  const rn = g.rn, heat = Math.max(0, 1 - age / 1.4), sp = 0.25 + 1.1 * heat; // (unit: the drop's radius a second; slower as it cools)
+  const F0 = 1.1, F1 = 1.45; // (freeze-out begins, and ends: each set then leaves as one hadron)
+  if (age >= F0 && !g.grouped) qgpGroup(g);
+  if (age < F1) for (const C of g.cl) { C.mx = 0; C.my = 0; C.k = 0; }
+  for (const q of g.pp) if (q.cl >= 0 && age < F1) { const C = g.cl[q.cl]; C.mx += q.x; C.my += q.y; C.k++; }
+  for (const C of g.cl) if (C.k) { C.mx /= C.k; C.my /= C.k; }
+  for (const q of g.pp) {
+    if (q.cl < 0 || age < F0) { // (free: a thermal random walk, kept inside the drop)
+      const th = (rn() - 0.5) * 2.4 * dt * 8, c = Math.cos(th), s_ = Math.sin(th), vx = q.vx * c - q.vy * s_, vy = q.vx * s_ + q.vy * c; q.vx = vx; q.vy = vy;
+      q.x += q.vx * sp * dt; q.y += q.vy * sp * dt;
+      const rr = Math.hypot(q.x, q.y); if (rr > 0.82) { const nx = q.x / rr, ny = q.y / rr, d = q.vx * nx + q.vy * ny; if (d > 0) { q.vx -= 2 * d * nx; q.vy -= 2 * d * ny; } q.x = nx * 0.82; q.y = ny * 0.82; }
+      continue;
+    }
+    const C = g.cl[q.cl];
+    if (age < F1) { const k = Math.min(1, dt * 6), ox = 0.06 * Math.cos(q.col * 2.1 + age * 9), oy = 0.06 * Math.sin(q.col * 2.1 + age * 9); q.x += (C.mx + ox - q.x) * k; q.y += (C.my + oy - q.y) * k; }
+    else { if (C.ox === undefined) { C.ox = C.mx; C.oy = C.my; } const d = (age - F1) * C.sp * 1.6; q.x = C.ox + C.ux * d + 0.05 * Math.cos(q.col * 2.1 + age * 9); q.y = C.oy + C.uy * d + 0.05 * Math.sin(q.col * 2.1 + age * 9); }
+  }
+}
+function qgpPartons(ctx, g, x, y, r, a) {
+  if (!g.pp) qgpInit(g);
+  qgpStep(g);
+  const age = g.age || 0, qr = clamp(r / 24, 2.4, 4.5), F0 = 1.1, F1 = 1.45;
+  const S = (q) => [x + q.x * r, y - q.y * r];
+  if (age >= F0) { // (the colour strings that hold each set)
+    const k = clamp((age - F0) / 0.25, 0, 1);
+    ctx.strokeStyle = `rgba(255,240,220,${(0.6 * a * k).toFixed(3)})`; ctx.lineWidth = 1.2;
+    const by = new Map(); for (const q of g.pp) if (q.cl >= 0) { let l = by.get(q.cl); if (!l) by.set(q.cl, l = []); l.push(S(q)); }
+    ctx.beginPath(); for (const l of by.values()) { ctx.moveTo(l[0][0], l[0][1]); for (let i = 1; i < l.length; i++) ctx.lineTo(l[i][0], l[i][1]); if (l.length > 2) ctx.closePath(); } ctx.stroke();
+  }
+  ctx.lineWidth = 1;
+  for (const q of g.pp) {
+    const [px, py] = S(q);
+    if (q.glu !== false) { // a gluon: half its colour, half its anticolour; it melts into the sets at freeze-out
+      const ga = a * (age < F0 ? 0.9 : Math.max(0, 1 - (age - F0) / 0.3)); if (ga <= 0.01) continue;
+      const c1 = QGP_COL[q.col], c2 = QGP_ACOL[q.glu], rr = qr * 0.7;
+      ctx.fillStyle = rgba(c1, ga); ctx.beginPath(); ctx.arc(px, py, rr, Math.PI / 2, 1.5 * Math.PI); ctx.fill();
+      ctx.fillStyle = rgba(c2, ga); ctx.beginPath(); ctx.arc(px, py, rr, -Math.PI / 2, Math.PI / 2); ctx.fill();
+      continue;
+    }
+    const qa = q.cl === -3 ? a * Math.max(0, 1 - (age - F0) / 0.3) : age < F1 ? a : a * Math.max(0, 1 - (age - F1) / 0.75);
+    if (qa <= 0.01) continue;
+    if (q.an) { ctx.fillStyle = `rgba(20,10,5,${(0.8 * qa).toFixed(3)})`; ctx.strokeStyle = rgba(QGP_ACOL[q.col], qa); ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(px, py, qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); ctx.lineWidth = 1; } // (an antiquark: a ring in its anticolour)
+    else { ctx.fillStyle = rgba(QGP_COL[q.col], qa); ctx.strokeStyle = `rgba(20,10,5,${(0.55 * qa).toFixed(3)})`; ctx.beginPath(); ctx.arc(px, py, qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
+  }
+}
 function qgpDisc(g) { const age = g.age || 0; return [w2sx(g.x), w2sy(g.y), (36 + 84 * Math.min(1, age / 1.4)) * clamp(R.s / 6, 0.8, 1.5)]; } // (where it is on screen, and how big)
 function drawQGP() {
   if (!W.qgp || !W.qgp.length) return;
@@ -967,14 +1077,7 @@ function drawQGP() {
     const core = `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.88 * a).toFixed(3)})`;
     const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, core); gr.addColorStop(0.6, `rgba(255,${Math.round(110 + 60 * heat)},40,${(0.72 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,60,20,0)'); // (nearly opaque inside, so the spray and labels under it do not show through)
     ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
-    // free quarks (red, green, blue: their colour charge) and gluons milling about inside
-    const cols = ['255,80,80', '70,220,110', '90,140,255'], n = 54, qr = clamp(r / 22, 2.6, 4.5);
-    ctx.lineWidth = 1; ctx.strokeStyle = `rgba(20,10,5,${(0.55 * a).toFixed(3)})`;
-    for (let k = 0; k < n; k++) {
-      const ph = k * 2.399 + age * (1.2 + (k % 5) * 0.35) * (k % 2 ? 1 : -1), rr = r * 0.78 * Math.sqrt(((k * 0.618) % 1)), qx = x + rr * Math.cos(ph), qy = y + rr * Math.sin(ph), glu = k % 3 === 2;
-      ctx.fillStyle = glu ? `rgba(255,245,200,${(0.85 * a).toFixed(3)})` : `rgba(${cols[k % 3 === 0 ? (k >> 1) % 3 : (k >> 2) % 3]},${(0.95 * a).toFixed(3)})`;
-      ctx.beginPath(); ctx.arc(qx, qy, glu ? qr * 0.6 : qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
-    }
+    qgpPartons(ctx, g, x, y, r, a); // (simulated quarks, antiquarks and gluons, 1.30 item 65)
     if (R.view.labels !== false) {
       ctx.font = '600 12px ' + (typeof cssVar === 'function' ? cssVar('--font-data') : 'monospace'); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
       const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = y - r - 8;
@@ -1035,10 +1138,11 @@ function drawExos() {
   const ctx = R.ctx;
   ctx.save();
   ctx.font = '600 10px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  const mg = 30 + (R.view.bohr === 'nuc' ? 0.6 * R.s : 0); // (its orbits reach 0.53 Å out: positronium's ring was cut off, or vanished, near an edge when zoomed in, bug B17, 1.30)
   for (const o of W.exo) {
     if (o.dead) continue;
     const x = w2sx(o.x), y = w2sy(o.y);
-    if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
+    if (x < -mg || y < -mg || x > R.w + mg || y > R.h + mg) continue;
     const c = XP[o.sp].col, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''));
     if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (o.spin && RP.mu) spinArrow(ctx, x, y, o.spin); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
     else { const top = exoAtomPic(ctx, o, x, y, c, hx, R.s); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; } }
@@ -1346,7 +1450,8 @@ function drawRays(rt) {
     const m = rayFrac(r);
     if (m >= 1 && r.ta === undefined) r.ta = rt;
     const k = r.ta === undefined ? 0 : (rt - r.ta) / life;
-    if (k > 1 || rt - r.t0 > 30) { W.rays.splice(i, 1); continue; }
+    if (k > 1) // (1.30, item 68: no time limit while it is still on its way; the 400-ray cap bounds the list)
+      { W.rays.splice(i, 1); continue; }
     const a = (1 - k) * (r.nu ? 0.35 : 0.85);
     const x0 = w2sx(r.x0), y0 = w2sy(r.y0), x1 = w2sx(r.x1), y1 = w2sy(r.y1);
     const hx = x0 + (x1 - x0) * m, hy = y0 + (y1 - y0) * m;
@@ -1370,6 +1475,12 @@ function chipLabel(ctx, x, y, text, col, align) {
   ctx.font = `700 ${fs}px ${CH_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const w = ctx.measureText(text).width + 8, h = fs + 6;
   if (align === 'left') x += w / 2;
+  // (kept inside the canvas and clear of the labels already drawn this frame: the flash memory's "floating gate" labels ran
+  // into the next cell's and off the edge, bug B13, 1.30)
+  x = clamp(x, w / 2 + 2, Math.max(w / 2 + 2, R.w - w / 2 - 2)); y = clamp(y, h / 2 + 2, Math.max(h / 2 + 2, R.h - h / 2 - 2));
+  const L = R.chipLab || (R.chipLab = []);
+  for (let k = 0; k < 6 && L.some(b => Math.abs(b[0] - x) < (b[2] + w) / 2 + 2 && Math.abs(b[1] - y) < (b[3] + h) / 2 + 1); k++) y += h + 2;
+  L.push([x, y, w, h]);
   ctx.fillStyle = 'rgba(8,14,22,0.78)'; ctx.fillRect(x - w / 2, y - h / 2, w, h);
   ctx.fillStyle = col; ctx.fillText(text, x, y + 0.5);
 }
@@ -1412,6 +1523,7 @@ function drawChipsUnder() {
 }
 function drawChips(rt) {
   if (!W.chips.length || R.s < 2) return;
+  R.chipLab = [];
   const ctx = R.ctx, er = clamp(0.22 * R.s, 3, 7);
   let mem = null; // two or more flash cells: each labelled with its place in the memory and the bit it stores
   if (W.chips.length > 1) { const M = flashMemory(); if (M.cells.length > 1) { mem = new Map(); M.cells.forEach((c, i) => mem.set(c, i < 8 * M.bytes ? `bit ${7 - (i % 8)}${M.bytes > 1 ? ` · byte ${(i >> 3) + 1}` : ''}` : `cell ${i + 1}`)); } }
@@ -1460,7 +1572,7 @@ function drawChips(rt) {
       chipLabel(ctx, w2sx(s0.x / s0.n), w2sy(s0.y / s0.n), txt, name === 'CG' ? '#e6e6e6' : chipLevelCol(v));
     }
     if (ch.key === 'flashcell') {
-      const [, x1, y0, y1] = chipBox(ch.devs[0].gate); chipLabel(ctx, w2sx(x1 + 1.6), w2sy((y0 + y1) / 2), `floating gate: ${ch.nfg} e⁻`, '#9fd0ff', 'left');
+      const [, x1, y0, y1] = chipBox(ch.devs[0].gate); chipLabel(ctx, w2sx(x1 + 1.6), w2sy((y0 + y1) / 2), (mem ? `FG ${ch.nfg} e⁻` : `floating gate: ${ch.nfg} e⁻`), '#9fd0ff', 'left');
       if (mem && mem.has(ch)) { const b = chipBox(ch.ps.filter(p => !p.dead)), v = flashStored(ch); chipLabel(ctx, w2sx((b[0] + b[1]) / 2), w2sy(b[2] - 2.4), `${mem.get(ch)} = ${v}`, v ? '#ffb347' : '#7fb6ff'); }
     }
     if (ch.key === 'transistor') { const d = ch.devs[0], p = d.path[Math.floor(d.path.length / 2)]; chipLabel(ctx, w2sx(p.x), w2sy(p.y - 4), fmtCurrent(d.I), '#9fd0ff'); }
@@ -1507,7 +1619,9 @@ function drawPhotonLabels(rt) {
     if (n >= 24) break;
     if (x < -20 || y < -20 || x > R.w + 20 || y > R.h + 20) continue;
     let w = LAB_W.get(lab); if (w === undefined) { w = ctx.measureText(lab).width + 5; LAB_W.set(lab, w); }
-    const tx = x + 7, ty = y - 8;
+    let tx = x + 7, ty = y - 8;
+    if (tx + w > R.w - 4) tx = x - 7 - w; // (a head near the right edge: its label on its left, not cut off, bug B14, 1.30)
+    tx = Math.max(4, tx); ty = clamp(ty, 8, R.h - 8);
     if (boxes.some(b => tx < b[0] + b[2] && tx + w > b[0] && Math.abs(ty - b[1]) < 13)) continue; // never on top of another label
     boxes.push([tx, ty, w]); n++;
     ctx.globalAlpha = a; ctx.strokeText(lab, tx, ty);
@@ -1592,6 +1706,52 @@ function drawDecayInset(ctx, e, cx, cy, Rr, age, c) {
   }
   ctx.restore();
 }
+/* The page's own cards over the chamber (the setup's hint, the narrator, the fps and paused badges), in canvas pixels:
+   the captions keep out of them (1.30, bug B11). */
+function uiRects() {
+  const out = []; if (typeof document === 'undefined' || !R.cv || !R.cv.getBoundingClientRect) return out;
+  const c = R.cv.getBoundingClientRect();
+  for (const id of ['hint', 'narr', 'fpsBadge', 'pausedBadge']) {
+    const el = document.getElementById(id); if (!el || el.hidden || !el.offsetParent) continue;
+    const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) continue;
+    out.push([r.left - c.left, r.top - c.top, r.right - c.left, r.bottom - c.top]);
+  }
+  return out;
+}
+/* Where an event's caption box goes (1.30, bug B11): kept inside the chamber clear of the particle bar (top) and the zoom
+   buttons (right), its second line wrapped rather than run past the box, tried above, below, right and left of the event
+   before stacking; null when it finds no free place (the newest are placed first). The 2-D and 3-D views share it. */
+function captionBox(ctx, e, x, y, w1, placed) {
+  ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace';
+  const ins = e.nuc && R.view.decayCards && R.w > 360 ? 58 : 0; // a decay gets a close-up of its nucleus beside the words
+  const padL = 8, padR = R.w > 420 ? 52 : 8, padT = R.h > 300 ? 54 : 8, padB = 8;
+  const maxW = Math.max(120, Math.min(R.w - padL - padR, 520));
+  const subs = e.sub ? wrapText(ctx, e.sub, maxW - 22 - ins) : [];
+  const w2 = subs.reduce((m, l) => Math.max(m, ctx.measureText(l).width), 0);
+  const bw = Math.min(maxW, Math.max(w1, w2) + 22 + ins), bh = Math.max(ins ? 58 : 0, 26 + 15 * subs.length - (subs.length ? 1 : 0));
+  const hitAt = (bx, by) => placed.find(q => bx < q[2] + 6 && bx + bw + 6 > q[0] && by < q[3] + 6 && by + bh + 6 > q[1]);
+  const fit = (bx, by) => [clamp(bx, padL, Math.max(padL, R.w - padR - bw)), clamp(by, padT, Math.max(padT, R.h - padB - bh))];
+  let spot = null;
+  for (const [cx, cy] of [[x + 18, y - 30 - bh], [x - 18 - bw, y - 30 - bh], [x + 18, y + 30], [x - 18 - bw, y + 30]]) { const f = fit(cx, cy); if (!hitAt(f[0], f[1])) { spot = f; break; } }
+  if (!spot) {
+    let [bx, by] = fit(x + 18, y - 30 - bh);
+    for (let k = 0; k < 8; k++) { const hit = hitAt(bx, by); if (!hit) { spot = [bx, by]; break; } by = hit[3] + 6; if (by + bh > R.h - padB) break; }
+  }
+  if (!spot) return null;
+  placed.push([spot[0], spot[1], spot[0] + bw, spot[1] + bh]);
+  return { bx: spot[0], by: spot[1], bw, bh, subs, ins };
+}
+/* Words split into lines no wider than w (the current font), at most three; the last cut short with an ellipsis. */
+function wrapText(ctx, text, w) {
+  const out = []; let line = '';
+  for (const word of String(text).split(' ')) {
+    const t = line ? line + ' ' + word : word;
+    if (line && ctx.measureText(t).width > w) { out.push(line); line = word; } else line = t;
+  }
+  if (line) out.push(line);
+  if (out.length > 3) { out.length = 3; out[2] += ' …'; }
+  return out;
+}
 /* ---------- nuclear events: shock rings, ghosts of what vanished, and a short caption ---------- */
 const EV_STYLE = {
   alpha: [255, 205, 110], decay: [255, 205, 110], beta: [110, 190, 255], betap: [255, 125, 205], ec: [120, 220, 200],
@@ -1627,7 +1787,7 @@ function drawEvents(rt) {
     }
   }
   // captions for the newest few, kept clear of each other and of the chamber edges
-  const placed = [], shown = evs.slice(-4), drops = (W.qgp || []).filter(g => (g.age || 0) < 1.6).map(qgpDisc); // (a caption over a young plasma drop is faded until it cools, 0.91)
+  const placed = uiRects(), shown = evs.slice(-4), drops = (W.qgp || []).filter(g => (g.age || 0) < 1.6).map(qgpDisc); // (a caption over a young plasma drop is faded until it cools, 0.91)
   for (let i = shown.length - 1; i >= 0; i--) {
     const e = shown[i], age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
     const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1);
@@ -1635,21 +1795,8 @@ function drawEvents(rt) {
     const x = w2sx(e.x), y = w2sy(e.y);
     ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif';
     const w1 = ctx.measureText(e.text).width;
-    ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace';
-    const w2 = e.sub ? ctx.measureText(e.sub).width : 0;
-    const ins = e.nuc && R.view.decayCards && R.w > 360 ? 58 : 0; // a decay gets a close-up of its nucleus beside the words
-    const bw = Math.min(R.w - 16, Math.max(w1, w2) + 22 + ins), bh = ins ? 58 : e.sub ? 40 : 26;
-    let bx = x + 18, by = y - 30 - bh;
-    if (bx + bw > R.w - 8) bx = x - 18 - bw;
-    bx = clamp(bx, 8, R.w - bw - 8);
-    if (by < 50) by = y + 30;
-    for (let k = 0; k < 6; k++) {
-      const hit = placed.find(q => bx < q[2] + 6 && bx + bw + 6 > q[0] && by < q[3] + 6 && by + bh + 6 > q[1]);
-      if (!hit) break;
-      by = hit[3] + 6;
-    }
-    by = clamp(by, 8, R.h - bh - 8);
-    placed.push([bx, by, bx + bw, by + bh]);
+    const L = captionBox(ctx, e, x, y, w1, placed); if (!L) continue;
+    const { bx, by, bw, bh, subs, ins } = L;
     ctx.globalAlpha = drops.some(([dx, dy, dr]) => Math.hypot(clamp(dx, bx, bx + bw) - dx, clamp(dy, by, by + bh) - dy) < dr) ? a * 0.18 : a;
     const ax = clamp(x, bx, bx + bw), ay = y < by ? by : by + bh;
     ctx.strokeStyle = rgba(c, 0.7); ctx.lineWidth = 1;
@@ -1658,11 +1805,11 @@ function drawEvents(rt) {
     ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 7); else ctx.rect(bx, by, bw, bh); ctx.fill(); ctx.stroke();
     ctx.fillStyle = rgba(c, 1); ctx.fillRect(bx, by + 6, 3, bh - 12);
     if (ins) drawDecayInset(ctx, e, bx + 6 + ins / 2, by + bh / 2, ins / 2 - 3, age, c);
-    const tx = bx + 10 + ins, ty = ins ? by + bh / 2 - 7 : by + (e.sub ? 14 : bh / 2);
+    const tx = bx + 10 + ins, ty = ins ? by + bh / 2 - 7 * Math.max(1, subs.length) : by + (subs.length ? 14 : bh / 2);
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; ctx.fillStyle = '#eef3f8';
     ctx.fillText(e.text, tx, ty, bw - 18 - ins);
-    if (e.sub) { ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(c, 1); ctx.fillText(e.sub, tx, ty + 15, bw - 18 - ins); }
+    if (subs.length) { ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(c, 1); subs.forEach((l, j) => ctx.fillText(l, tx, ty + 15 * (j + 1), bw - 18 - ins)); }
     ctx.globalAlpha = 1;
   }
   ctx.restore();

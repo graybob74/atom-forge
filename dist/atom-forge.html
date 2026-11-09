@@ -1,4 +1,4 @@
-<title>Atom Forge 1.29.0</title>
+<title>Atom Forge 1.30.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -226,6 +226,7 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .hint.short:not(.open)::after { content: 'tap for more'; display: block; font-size: 11px; color: var(--ch-dim); margin-top: 2px; }
 .hint .x { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 6px; border: 0; background: transparent; color: var(--ch-dim); font-size: 16px; line-height: 1; }
 .hint .x:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.hint #hintOn { margin-left: 4px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--ch-line); background: rgba(255, 255, 255, 0.08); color: #fff; font: inherit; font-size: 12px; cursor: pointer; } /* (1.30, bug B7) */
 .tip { position: absolute; pointer-events: none; background: rgba(6, 10, 15, 0.94); color: var(--ch-fg); border: 1px solid var(--ch-line);
   border-radius: 8px; padding: 6px 9px; font-size: 12px; white-space: nowrap; z-index: 3; }
 .tip .t1 { font-weight: 700; }
@@ -277,8 +278,8 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .zoom .zview { display: grid; place-items: center; padding: 0; margin-top: 4px; }
 .zoom .zview svg { width: 18px; height: 18px; }
 .zoom .zview[aria-pressed="true"] { background: var(--ch-sel); color: var(--ch-sel-fg); border-color: var(--ch-sel); }
-.fps { position: absolute; right: 12px; top: 54px; font-family: var(--font-data); font-size: 10.5px; line-height: 1.5; color: var(--ch-fg); opacity: 0.55;
-  background: rgba(6, 10, 15, 0.45); border-radius: 5px; padding: 0 6px; pointer-events: none; font-variant-numeric: tabular-nums; }
+.fps { position: absolute; right: 12px; top: 54px; font-family: var(--font-data); font-size: 10.5px; line-height: 1.5; color: var(--ch-fg); opacity: 0.9;
+  background: rgba(6, 10, 15, 0.78); border-radius: 5px; padding: 0 6px; pointer-events: none; font-variant-numeric: tabular-nums; }
 .fps:empty { display: none; }
 .ver.ultra{color:#c98a00;border-color:rgba(201,138,0,.55);opacity:1}
 #pausedBadge:not([hidden]) ~ .fps { top: 82px; } /* (below the paused badge, which sits under the palette bar, 0.91) */
@@ -1530,12 +1531,12 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
     <div class="stabs" role="tablist" aria-label="Settings categories"><button role="tab" data-stab="perf" aria-selected="true">Performance</button><button role="tab" data-stab="gfx" aria-selected="false">Graphics</button><button role="tab" data-stab="disp" aria-selected="false">Display</button><button role="tab" data-stab="ctl" aria-selected="false">Controls</button><button role="tab" data-stab="gen" aria-selected="false">General</button><button role="tab" data-stab="d3" aria-selected="false">3-D</button><button role="tab" data-stab="ai" aria-selected="false">Claude</button><button role="tab" data-stab="exp" aria-selected="false">Experimental</button></div>
     <section class="sgroup spane" data-stab="perf">
       <div class="srow"><span>Particle limit</span><div class="seg" id="segMax" role="group" aria-label="Particle limit"><button data-v="2000">2,000</button><button data-v="4000">4,000</button><button data-v="8000">8,000</button><button data-v="12000">12,000</button><button data-v="20000">20,000</button></div></div>
-      <div class="srow"><span>Drawing</span><div class="seg" id="segRes" role="group" aria-label="Drawing resolution"><button data-v="sharp" title="At your screen's full resolution">Sharp</button><button data-v="standard" title="One drawn pixel per screen point">Standard</button><button data-v="fast" title="Three quarters resolution: softer, quickest">Fast</button></div></div>
+      <div class="srow"><span>Resolution</span><div class="seg" id="segRes" role="group" aria-label="Drawing resolution"><button data-v="sharp" title="At your screen's full resolution">Sharp</button><button data-v="standard" title="One drawn pixel per screen point">Standard</button><button data-v="fast" title="Three quarters resolution: softer, quickest">Fast</button></div></div>
       <div class="srow"><span>Priority</span><span class="prio"><small>Smooth</small><input type="range" id="setPrio" min="0" max="4" step="1" value="0" aria-label="Priority: smooth frame rate or simulation speed"><small>Fast</small><label class="check prioauto" title="Pick the position by itself, from how fast each would run this setup"><input type="checkbox" id="setPrioAuto"> Auto</label></span></div>
       <p class="note" id="setPrioV" aria-live="polite"></p>
       <div class="srow"><span>Physics per frame</span><div class="seg" id="segBudget" role="group" aria-label="Physics time per frame"><button data-v="6">6 ms</button><button data-v="10">10 ms</button><button data-v="16">16 ms</button><button data-v="24">24 ms</button></div></div>
       <div class="srow"><span>Threads</span><div class="seg" id="segThreads" role="group" aria-label="Processor threads"><button data-v="auto">Auto</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="4">4</button><button data-v="8">8</button><button data-v="16">16</button><button data-v="32">32</button></div></div>
-      <div class="srow"><span>Drawing</span><div class="seg" id="segGl" role="group" aria-label="Drawing"><button data-v="gl">WebGL</button><button data-v="2d">Canvas 2D</button></div></div>
+      <div class="srow"><span>Drawing engine</span><div class="seg" id="segGl" role="group" aria-label="Drawing engine"><button data-v="gl">WebGL</button><button data-v="2d">Canvas 2D</button></div></div>
       <p class="note" id="setThreads" aria-live="polite"></p>
       <div class="srow"><span>Speed test</span><button class="btn small" id="setBench">Run benchmark</button></div>
       <p class="note" id="setBenchOut" aria-live="polite"></p>
@@ -2822,7 +2823,11 @@ const BONDS = {
 };
 
 /* Characteristic emission lines (nm) with relative weights; thr = energy of the upper level (eV)
-   needed to excite them by collision. Hydrogen-like ions use the Rydberg formula instead. */
+   needed to excite them by collision. Hydrogen-like ions use the Rydberg formula instead. A forbidden line carries its
+   upper level's lifetime (s) as a third number: oxygen's green 557.7 nm (0.74 s) and red 630.0 nm (110 s), the aurora's.
+   In the chamber's gases and liquids a collision takes that energy long before (and the game never runs a second), so
+   they are not given off here; they stay on the list for the spectrum's marks. Oxygen's lowest line made by a collision is
+   then 777.4 nm, from 10.74 eV (1.30 bug B3; its thr was the 4.19 eV of the green line's level). */
 const LINES = {
   He: { thr: 23.0, l: [[587.6,5],[501.6,2],[447.1,2],[667.8,2],[706.5,1]] },
   Li: { thr: 1.85, l: [[670.8,6],[610.4,1]] },
@@ -2830,7 +2835,7 @@ const LINES = {
   B:  { thr: 4.96, l: [[249.7,1],[518.0,1]] },
   C:  { thr: 7.68, l: [[247.9,1],[516.5,1]] },
   N:  { thr: 12.0, l: [[746.8,2],[427.8,2],[391.4,1]] },
-  O:  { thr: 4.19, l: [[557.7,4],[630.0,3],[777.4,2]] },
+  O:  { thr: 10.74, l: [[557.7,4,0.74],[630.0,3,110],[777.4,2]] }, // (a third number: a forbidden line's lifetime, s; 1.30 bug B3: such a line is not made by a collision here, see pickLine)
   F:  { thr: 14.5, l: [[685.6,2],[690.2,1]] },
   Ne: { thr: 18.6, l: [[640.2,5],[585.2,4],[614.3,2],[703.2,2],[650.7,1],[692.9,1]] },
   Na: { thr: 2.10, l: [[589.0,6],[589.6,3]] },
@@ -8320,6 +8325,10 @@ function dumpHeat(E, a, b) {
   if (!(E > 0)) return;
   W.ledger.chem += E;
   const third = nearestThird(a, b, 6);
+  // (heat of more than 10 eV at once while a nuclear event's window is open: the radiolysis that event's products set off
+  // (recombination, ion chemistry); the molecules it heats are left out of the hourglass, as what the products knock
+  // loose, when slow motion for nuclear events is off: an annihilation in water heated one H₂O⁺ to 132 eV, 1.30)
+  if (E > 10 && W.nucWin && W.rt <= W.nucWin.t1) for (const q of [a, b, third]) if (q && !q.dead && q.k === NUC) for (const m of molecule(q)) m.nucProd = true;
   if (third) { if (kickPair(rnd() < 0.5 ? a : b, third, E)) return; }
   else if (W.gamma > 0) { W.ledger.bath += E; return; }
   else if (kickPair(a, b, E)) return;
@@ -8519,7 +8528,7 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src, pol, depth = 0) { // (depth: 
         if (weak && E >= weak.D && E >= 1.77 && rnd() < 0.35) return { x: hx, y: hy, z: hz, p, after: () => photoDissociate(weak, E) };
       }
       const L = LINES[p.el.sym];
-      if (L && p.q === 0) for (const [nm] of L.l) if (Math.abs(PHYS.HC / E - nm) < 1.5) {
+      if (L && p.q === 0 && !p.bonds.length) for (const [nm, , tau] of L.l) if (!(tau > 1e-3) && Math.abs(PHYS.HC / E - nm) < 1.5) { // (a free atom's allowed lines: bugs B2, B3, 1.30)
         if (rnd() < 0.6) return { x: hx, y: hy, z: hz, p, after: () => { glow(p, wavelengthRGB(nm)); W.count.photons++; emitPhoton(p.x, p.y, E, undefined, undefined, { depth: 9, src: p }); } };
       }
       if (E < 1.6 && p.bonds.length && rnd() < 0.3 && irActive(p)) return { x: hx, y: hy, z: hz, p, after: () => { const o = other(p.bonds[0], p); kickPair(p, o, E); } };
@@ -8660,7 +8669,7 @@ function rayInteract(x, y, ux, uy, E, src, pol, depth = 0) { // (depth: the phot
         if (weak && E >= weak.D && E >= 1.77 && rnd() < 0.35) return { x: hx, y: hy, p, after: () => photoDissociate(weak, E) };
       }
       const L = LINES[p.el.sym];
-      if (L && p.q === 0) for (const [nm] of L.l) if (Math.abs(PHYS.HC / E - nm) < 1.5) {
+      if (L && p.q === 0 && !p.bonds.length) for (const [nm, , tau] of L.l) if (!(tau > 1e-3) && Math.abs(PHYS.HC / E - nm) < 1.5) { // (a free atom's allowed lines: bugs B2, B3, 1.30)
         if (rnd() < 0.6) return { x: hx, y: hy, p, after: () => { glow(p, wavelengthRGB(nm)); W.count.photons++; emitPhoton(p.x, p.y, E, undefined, undefined, { depth: 9, src: p }); } };
       }
       if (E < 1.6 && p.bonds.length && rnd() < 0.3 && irActive(p)) {
@@ -9340,6 +9349,7 @@ function vibLoss(L, A) {
   W.count.vib = (W.count.vib || 0) + 1;
 }
 function lineInfo(A) {
+  if (A.bonds.length) return null; // (an atom in a molecule: its excited states are the molecule's, not the free atom's lines; O and H in water gave off O 557.7/630 nm and Balmer lines, bug B2, 1.30)
   if (A.ne === 1 && A.Z <= 10) return { thr: 12.09 * A.Z * A.Z, hydrogenic: true };
   if (A.q !== 0) return null;
   return LINES[A.el.sym] || null;
@@ -9359,7 +9369,7 @@ function pickLine(A, Eavail) {
   // the line seen, and the rest of the cascade down to the ground state as one more photon. A line's upper level is
   // at least as high as its photon: a line above L.thr (the element's lowest, as potassium's 404 nm over its 1.61 eV)
   // costs its own energy, and is only made when the collision has that much (0.67: it was paid L.thr, light from nowhere)
-  const cost = (nm) => Math.max(L.thr, PHYS.HC / nm), ok = L.l.filter(l => !(Eavail < cost(l[0])));
+  const cost = (nm) => Math.max(L.thr, PHYS.HC / nm), ok = L.l.filter(l => !(l[2] > 1e-3) && !(Eavail < cost(l[0]))); // (forbidden lines quenched, data.js LINES, bug B3, 1.30)
   if (!ok.length) return null;
   let tot = 0; for (const l of ok) tot += l[1];
   let u = rnd() * tot;
@@ -10912,7 +10922,7 @@ function relTargets3(x, y, z, vx, vy, vz, dt, R, filter, defer) {
    neutron at rest, meet whichever of them moves. Each pair meets once per pass (p.nHit: the last one met, while they
    are still within reach). Found by a sweep over the paths' x-extents, so a crowd of neutrons costs n log n. */
 const _nnL = [];
-let _nnLo = new Float64Array(256), _nnHi = new Float64Array(256), _nnVx = new Float64Array(256), _nnVy = new Float64Array(256), _nnO = [];
+let _nnLo = new Float64Array(256), _nnHi = new Float64Array(256), _nnVx = new Float64Array(256), _nnVy = new Float64Array(256), _nnO = [], _nnYlo = new Float64Array(256), _nnYhi = new Float64Array(256), _nnN = new Uint8Array(256);
 let _nnPrev = 1, _nnSp = -1; // (free neutrons moved last step, and the spawn count then: none, and nothing new since, means nothing to look for)
 function nnMeet(i, j, dt) { // the closest approach of the two paths this step; if within reach, they meet (once per pass)
   const a = _nnL[i], b = _nnL[j];
@@ -10946,20 +10956,21 @@ function neutronPairs(dt, id0) {
   _nnPrev = nN;
   const n = _nnL.length;
   if (!nN || n < 2) return;
-  if (_nnLo.length < n) { const m = 2 * n; _nnLo = new Float64Array(m); _nnHi = new Float64Array(m); _nnVx = new Float64Array(m); _nnVy = new Float64Array(m); }
+  if (_nnLo.length < n) { const m = 2 * n; _nnLo = new Float64Array(m); _nnHi = new Float64Array(m); _nnVx = new Float64Array(m); _nnVy = new Float64Array(m); _nnYlo = new Float64Array(m); _nnYhi = new Float64Array(m); _nnN = new Uint8Array(m); }
   for (let i = 0; i < n; i++) {
-    const p = _nnL[i], vx = p.rad ? p.sp * p.ux : p.vx, vy = p.rad ? p.sp * p.uy : p.vy, x1 = p.x + vx * dt;
+    const p = _nnL[i], vx = p.rad ? p.sp * p.ux : p.vx, vy = p.rad ? p.sp * p.uy : p.vy, x1 = p.x + vx * dt, y1 = p.y + vy * dt;
     _nnVx[i] = vx; _nnVy[i] = vy; _nnLo[i] = Math.min(p.x, x1) - 0.5; _nnHi[i] = Math.max(p.x, x1) + 0.5; // (half an ångström each side: more than any reach)
+    _nnYlo[i] = Math.min(p.y, y1) - 0.5; _nnYhi[i] = Math.max(p.y, y1) + 0.5; _nnN[i] = p.Z === 0 ? 1 : 0; // (and in y: paths whose y ranges do not meet are never within reach, so nnMeet would do nothing; skipped here without the call, bug B9, 1.30: after a gold–gold collision in RHIC, 1,700 fragments in flight made up to 2 million calls a step)
   }
   // a sweep along x: each path's extent against those starting before it ends; only pairs with a neutron in them
   _nnO.length = n; for (let i = 0; i < n; i++) _nnO[i] = i;
   _nnO.sort((a, b) => _nnLo[a] - _nnLo[b]);
   for (let ii = 0; ii < n; ii++) {
-    const i = _nnO[ii], hi = _nnHi[i], ni = _nnL[i].Z === 0;
+    const i = _nnO[ii], hi = _nnHi[i], ni = _nnN[i] === 1, ylo = _nnYlo[i], yhi = _nnYhi[i];
     for (let jj = ii + 1; jj < n; jj++) {
       const j = _nnO[jj];
       if (_nnLo[j] > hi) break;
-      if (ni || _nnL[j].Z === 0) nnMeet(i, j, dt);
+      if ((ni || _nnN[j] === 1) && _nnYlo[j] <= yhi && _nnYhi[j] >= ylo) nnMeet(i, j, dt);
     }
   }
 }
@@ -11337,6 +11348,7 @@ function beamCollisions(id0) {
   for (const p of W.parts) if (!p.dead && p.rad && p.id < id0) fl.push(p);
   for (const o of W.exo) if (!o.dead && o.xb && o.beam && o.id < id0) fl.push(o); // (unstable particles in a beam, 1.15)
   if (fl.length < 2) return;
+  if (typeof coMovingPairs === 'function') coMovingPairs(fl); // (a fast e⁺e⁻ pair flying together, bound in its own frame: hep.js, 1.30 item 66)
   const C = W.collider;
   // (with many fast products about, only pairs with a beam particle in them are looked at: the products fly apart)
   const crowded = fl.length > 300, firsts = crowded ? fl.filter(p => p.beam) : fl;
@@ -27776,9 +27788,20 @@ function exoScatter(o, x0, y0) {
     const c = Math.cos(turn), s_ = Math.sin(turn), ux = o.ux * c - o.uy * s_, uy = o.ux * s_ + o.uy * c;
     // momentum handed to the nucleus (u·Å/tu), its recoil energy taken from the exo
     const pU = pc / (PHYS.AMU_MEV * MEV) * PHYS.C, dpx = pU * (o.ux - ux), dpy = pU * (o.uy - uy);
-    const vx = tg.vx + dpx / tg.m, vy = tg.vy + dpy / tg.m, dK = 0.5 * tg.m * (vx * vx + vy * vy - tg.vx * tg.vx - tg.vy * tg.vy);
+    // (a nucleus in radiation flight: its energy is its booked p.KE along (ux, uy), relativistic, not ½mv² of a vx that is
+    // not kept up; the kick taken on its momentum, γmv; bug B1, 1.30: the books were off by the recoil, up to +16 eV)
+    let dK, kick;
+    if (tg.rad) {
+      const mc2 = tg.m * PHYS.AMU_MEV * MEV, p0 = tg.gam * tg.m * tg.sp, px = p0 * tg.ux + dpx, py = p0 * tg.uy + dpy, pm = Math.hypot(px, py);
+      const K1 = Math.sqrt(pm * PHYS.C * pm * PHYS.C + mc2 * mc2) - mc2; dK = K1 - tg.KE;
+      kick = () => { if (pm > 0) { tg.ux = px / pm; tg.uy = py / pm; } tg.KE = K1; radSpeed(tg); tg.vx = tg.sp * tg.ux; tg.vy = tg.sp * tg.uy; };
+    } else {
+      const vx = tg.vx + dpx / tg.m, vy = tg.vy + dpy / tg.m; dK = 0.5 * tg.m * (vx * vx + vy * vy - tg.vx * tg.vx - tg.vy * tg.vy);
+      kick = () => { tg.vx = vx; tg.vy = vy; if (typeof updateFast === 'function') updateFast(tg); };
+    }
     if (!(dK < o.KE - 1)) continue;
-    tg.vx = vx; tg.vy = vy; if (typeof updateFast === 'function') updateFast(tg);
+    kick();
+    if (W.nucWin && dK > 10) for (const m of molecule(tg)) m.nucProd = true; // (sent flying by a nuclear event's product: slow motion for nuclear events, when off, does not follow it, as the ionizing pass above; 1.30)
     o.ux = ux; o.uy = uy; o.KE -= dK;
   }
   exoSpeed(o);
@@ -28387,6 +28410,46 @@ function psFromFree(a, b) {
   closeEvent(S, made, x, y, 0, 0);
   psNote(o, `e⁺ + e⁻ → ${o.lab} + γ`, `a free electron caught: the photon carries ${fmtE(Eg)}`, z);
   return true;
+}
+/* (1.30, item 66) An electron and a positron in radiation flight going the same way side by side: that flight has no
+   forces between its particles, so they flew on together for ever (the owner's pair: 0.99999c, 0.42 Å apart). In their
+   own frame they are a slow pair: their energy there is the invariant mass's kinetic part, √s − 2mc², plus the pull
+   between them at their separation in that frame (along the motion γ times what the lab sees). Below zero they are
+   bound: positronium flying on at their speed (the Positronium switch on; its clock runs γ times slow), a photon ahead
+   taking the rest, energy and momentum both kept (the photon forward: E_γ = (s − M²)(E + P)/2s); with the switch off they
+   annihilate there as a bound pair does (two γ, boosted). Pairs that are not bound fly on as before (their pull, weak by
+   1/γ² in the lab, is left out). The flat game only: 3-D's fast leptons are stepped and feel each other. */
+function coMovingPairs(fl) {
+  const L = []; for (const p of fl) if (!p.dead && (p.k === ELEC || p.k === POS) && p.rad && !p.beam && !p.caught) L.push(p);
+  if (L.length < 2 || L.length > 400) return;
+  const m = ME_C2;
+  for (let i = 0; i < L.length; i++) {
+    const a = L[i]; if (a.dead) continue;
+    for (let j = i + 1; j < L.length; j++) {
+      const b = L[j]; if (b.dead || a.dead || a.k === b.k) continue;
+      const rx = b.x - a.x, ry = b.y - a.y; if (Math.abs(rx) > 4 || Math.abs(ry) > 4) continue;
+      const dot = a.ux * b.ux + a.uy * b.uy; if (!(dot > 0.9)) continue;
+      const pa = Math.sqrt(a.KE * a.KE + 2 * a.KE * m), pb = Math.sqrt(b.KE * b.KE + 2 * b.KE * m), Ea = a.KE + m, Eb = b.KE + m;
+      // the invariant mass without cancelling: s = 2m² + 2(EaEb − papb) + 2papb(1 − cos θ)
+      const th = Math.atan2(Math.abs(a.ux * b.uy - a.uy * b.ux), dot), one = 2 * Math.sin(th / 2) ** 2;
+      const s2 = 2 * m * m + 2 * (m * m * (pa * pa + pb * pb) + m ** 4) / (Ea * Eb + pa * pb) + 2 * pa * pb * one, Wm = Math.sqrt(s2);
+      const E = Ea + Eb, Px = pa * a.ux + pb * b.ux, Py = pa * a.uy + pb * b.uy, P = Math.hypot(Px, Py), g = E / Wm;
+      const ux = Px / P, uy = Py / P, rpar = rx * ux + ry * uy, rper = rx * -uy + ry * ux, rcm = Math.hypot(rper, g * rpar);
+      const Ecm = (Wm - 2 * m) - PHYS.KE / Math.max(rcm, 0.05);
+      if (!(Ecm < 0)) continue;
+      const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y);
+      W.count.coPair = (W.count.coPair || 0) + 1;
+      if (!(typeof RP !== 'undefined' && RP.ps)) { annihilateInFlight(a, b, x, y); log('nuc', `A fast e⁺e⁻ pair flying together (γ = ${fmtNum(g, 3)}, ${fmtNum(rcm, 2)} Å apart in its own frame) was bound, ${fmtE(-Ecm)} below free: it annihilated (Positronium switch off)`); break; }
+      const M = PS_M * MEV, Eg = (s2 - M * M) * (E + P) / (2 * s2), KEps = E - Eg - M;
+      if (!(KEps > 0) || !(Eg > 0)) continue;
+      const S = nucBegin([a, b]);
+      kill(a); kill(b);
+      const o = psMake(x, y, 0, ux, uy); o.KE = KEps; exoSpeed(o);
+      closeEvent(S, { ps: [], xs: [o], rays: [[item('g'), 1, ux, uy, 0]], lost: 0 }, x, y, 0, 0);
+      psNote(o, `e⁺ + e⁻ flying together → ${o.lab} + γ`, `bound in their own frame (${fmtE(-Ecm)} below free, ${fmtNum(rcm, 2)} Å apart there); flying at γ = ${fmtNum(o.gam, 4)}, its clock ${fmtNum(o.gam, 3)}× slow`, 0);
+      break;
+    }
+  }
 }
 function psNote(o, txt, sub, z) {
   W.count.react++;
@@ -32084,12 +32147,30 @@ function rResize(w, h) {
 const ZOOM_MAX = 4000; // px per Å: about 0.25 Å across the view, well inside one atom
 const ZOOM_ULTRA = 4e8; // the ultra-realistic mode's: about 0.3 fm across the view, a proton's radius fills a third of it
 function zoomMax() { return W.ultra ? ZOOM_ULTRA : ZOOM_MAX; }
+/* How much of the chamber the page's bars cover (canvas pixels): the particle bar at the top, the tool's options at the
+   bottom, the zoom buttons on the right; at least `margin` all round. Fitting the box keeps it inside the rest (it went
+   under the bars in Growing a crystal and 3-D water, bug B15, 1.30). No page (Node): the margin alone. */
+function viewInsets(margin = 28) {
+  const m = { t: margin, b: margin, l: margin, r: margin };
+  if (typeof document === 'undefined' || !R.cv || !R.cv.getBoundingClientRect) return m;
+  const c = R.cv.getBoundingClientRect(); if (!(c.height > 0)) return m;
+  const box = (id) => { const el = document.getElementById(id); if (!el || el.hidden || !el.offsetParent) return null; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 ? r : null; };
+  const pal = box('paletteBar'), opt = box('tooloptsHS'), zm = document.querySelector('.stage .zoom, .zoom');
+  if (pal && pal.top - c.top < c.height / 3) m.t = Math.max(m.t, pal.bottom - c.top + 8);
+  if (opt && c.bottom - opt.bottom < c.height / 3) m.b = Math.max(m.b, c.bottom - opt.top + 8);
+  if (zm && zm.offsetParent) { const z = zm.getBoundingClientRect(); if (z.width > 0 && c.right - z.left < c.width / 4) m.r = Math.max(m.r, c.right - z.left + 6); }
+  if (m.t + m.b > 0.5 * c.height) { const k = 0.5 * c.height / (m.t + m.b); m.t *= k; m.b *= k; }
+  return m;
+}
 function fitView(margin = 28) {
   if (W.d3) { R.cx = 0; R.cy = 0; R.follow = null; cam3Fit(); return; } // (3-D: the camera back to its starting view of the whole box; view3d.js)
-  const bw = W.box.tw, bh = W.box.th;
-  R.s = Math.min((R.w - margin * 2) / bw, (R.h - margin * 2) / bh);
+  const bw = W.box.tw, bh = W.box.th, m = viewInsets(margin);
+  R.s = Math.min((R.w - m.l - m.r) / bw, (R.h - m.t - m.b) / bh);
   R.s = clamp(R.s, 0.01, 400);
-  R.cx = 0; R.cy = 0; R.follow = null;
+  R.follow = null;
+  // the box's middle at the middle of the free part of the chamber
+  R.cx = (R.w / 2 - (m.l + (R.w - m.l - m.r) / 2)) / R.s; R.cy = ((m.t + (R.h - m.t - m.b) / 2) - R.h / 2) / R.s;
+  if (Math.abs(R.cx) < 1e-12) R.cx = 0; if (Math.abs(R.cy) < 1e-12) R.cy = 0;
 }
 function w2sx(x) { return (x - R.cx) * R.s + R.w / 2; }
 function w2sy(y) { return (R.cy - y) * R.s + R.h / 2; }
@@ -32231,9 +32312,9 @@ function render(rt) {
   drawExos(); drawStrings(rt);
   drawFlashes(rt);
   if (R.view.rays) { drawRays(rt); drawFlights(); drawPhotonLabels(rt); }
+  drawZones(); // (before the captions, so a setup's labels do not print over them, bug B11, 1.30)
   drawEvents(rt);
   drawQGP();
-  drawZones();
   drawSources();
   drawOverlay();
   drawScaleBar();
@@ -33010,6 +33091,98 @@ function drawStrings(rt) {
 /* A quark–gluon plasma (W.qgp): a hot drop of free quarks (coloured) and gluons (pale) that swells, cools from white to
    red and freezes out into hadrons. Drawn above the hadron spray and the event captions, at least about 70 pixels
    across whatever the zoom, on its own clock (0.91: it was small, under everything, and a slow frame could skip it). */
+/* (1.30, item 65: the owner, "the cloud of quarks is drawn a little weird after extreme collisions, maybe simulate the
+   quarks") A plasma drop's partons, followed on the picture's own clock (the real plasma lives 10⁻²³ s, far less than a
+   step: this is display only, the hadrons were made at the collision). The quarks come in colour-neutral sets that will
+   be its hadrons: a quark and an antiquark of the matching anticolour (a meson), or red, green and blue (a baryon; an
+   antibaryon in the anticolours), more of them the more hadrons it froze into, with gluons (a colour and an anticolour)
+   among them. Hot, they fly about freely, unbound by colour, across the drop as it grows; cooling, they slow; at
+   freeze-out each set draws together, joined by its colour string, the gluons gone into them, and flies off outward as
+   its hadron. Its own random numbers (not the simulation's), so it never touches what happens. */
+function qgpRand(seed) { let t = (seed >>> 0) || 1; return () => (t = (Math.imul(t, 1664525) + 1013904223) >>> 0) / 4294967296; }
+const QGP_COL = [[255, 80, 80], [70, 220, 110], [90, 140, 255]], QGP_ACOL = [[80, 235, 235], [235, 90, 235], [240, 225, 70]]; // (red, green, blue; their anticolours cyan, magenta, yellow)
+function qgpInit(g) {
+  const rn = g.rn = qgpRand(Math.floor(g.x * 7919 + g.y * 104729 + (g.t0 || 0) * 1e4) ^ Math.imul(g.n | 0, 2654435761));
+  const P = [], C = [], nh = clamp(Math.round(Math.sqrt(g.n || 1) * 3.2), 8, 32), anti = (g.sNN || 0) > 20000 ? 0.4 : 0.15; // (sets shown: more for more hadrons; antibaryons commoner at higher energy)
+  const add = (cl, col, an, glu) => { const r0 = 0.75 * Math.sqrt(rn()), t0 = 2 * Math.PI * rn(), th = 2 * Math.PI * rn(); P.push({ x: r0 * Math.cos(t0), y: r0 * Math.sin(t0), vx: Math.cos(th), vy: Math.sin(th), col, an, glu, cl }); };
+  for (let k = 0; k < nh; k++) {
+    const th = 2 * Math.PI * rn(), bar = rn() < 0.18, cl = { ux: Math.cos(th), uy: Math.sin(th), n: bar ? 3 : 2, sp: 0.9 + 0.8 * rn() };
+    C.push(cl);
+    if (bar) { const an = rn() < anti; for (let c = 0; c < 3; c++) add(k, c, an, false); }
+    else { const c = Math.floor(3 * rn()); add(k, c, false, false); add(k, c, true, false); }
+  }
+  for (let k = 0, ng = Math.round(nh * 0.9); k < ng; k++) { const c = Math.floor(3 * rn()); add(-1, c, false, (c + 1 + Math.floor(2 * rn())) % 3); } // (a gluon: a colour and a different anticolour)
+  g.pp = P; g.cl = C; g.lastAge = g.age || 0;
+}
+/* Freeze-out: neighbours join (coalescence). Each quark takes the nearest antiquark of its anticolour (a meson), or the
+   nearest two of the other colours (a baryon, or an antibaryon); one left with no partner fades as the gluons do. */
+function qgpGroup(g) {
+  g.grouped = true;
+  const Q = g.pp.filter(q => q.glu === false); for (const q of Q) q.cl = -2;
+  const C = [], d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2, rn = g.rn;
+  const near = (q, ok) => { let best = null, bd = Infinity; for (const o of Q) if (o !== q && o.cl === -2 && ok(o)) { const d = d2(q, o); if (d < bd) { bd = d; best = o; } } return best; };
+  for (const q of Q) {
+    if (q.cl !== -2) continue;
+    const m = near(q, o => o.an !== q.an && o.col === q.col);
+    const b1 = near(q, o => o.an === q.an && o.col === (q.col + 1) % 3), b2 = b1 ? near(q, o => o !== b1 && o.an === q.an && o.col === (q.col + 2) % 3) : null;
+    let set = null;
+    if (m && (!b1 || !b2 || d2(q, m) <= 0.5 * (d2(q, b1) + d2(q, b2)) || rn() < 0.75)) set = [q, m];
+    else if (b1 && b2) set = [q, b1, b2];
+    if (!set) { q.cl = -3; continue; } // (no partner: it fades)
+    const th = Math.atan2(q.y, q.x) + (rn() - 0.5) * 0.8, k = C.length;
+    C.push({ ux: Math.cos(th), uy: Math.sin(th), n: set.length, sp: 0.9 + 0.8 * rn() });
+    for (const o of set) o.cl = k;
+  }
+  g.cl = C;
+}
+function qgpStep(g) {
+  const age = g.age || 0, dt = clamp(age - g.lastAge, 0, 0.05); g.lastAge = age;
+  if (!(dt > 0)) return;
+  const rn = g.rn, heat = Math.max(0, 1 - age / 1.4), sp = 0.25 + 1.1 * heat; // (unit: the drop's radius a second; slower as it cools)
+  const F0 = 1.1, F1 = 1.45; // (freeze-out begins, and ends: each set then leaves as one hadron)
+  if (age >= F0 && !g.grouped) qgpGroup(g);
+  if (age < F1) for (const C of g.cl) { C.mx = 0; C.my = 0; C.k = 0; }
+  for (const q of g.pp) if (q.cl >= 0 && age < F1) { const C = g.cl[q.cl]; C.mx += q.x; C.my += q.y; C.k++; }
+  for (const C of g.cl) if (C.k) { C.mx /= C.k; C.my /= C.k; }
+  for (const q of g.pp) {
+    if (q.cl < 0 || age < F0) { // (free: a thermal random walk, kept inside the drop)
+      const th = (rn() - 0.5) * 2.4 * dt * 8, c = Math.cos(th), s_ = Math.sin(th), vx = q.vx * c - q.vy * s_, vy = q.vx * s_ + q.vy * c; q.vx = vx; q.vy = vy;
+      q.x += q.vx * sp * dt; q.y += q.vy * sp * dt;
+      const rr = Math.hypot(q.x, q.y); if (rr > 0.82) { const nx = q.x / rr, ny = q.y / rr, d = q.vx * nx + q.vy * ny; if (d > 0) { q.vx -= 2 * d * nx; q.vy -= 2 * d * ny; } q.x = nx * 0.82; q.y = ny * 0.82; }
+      continue;
+    }
+    const C = g.cl[q.cl];
+    if (age < F1) { const k = Math.min(1, dt * 6), ox = 0.06 * Math.cos(q.col * 2.1 + age * 9), oy = 0.06 * Math.sin(q.col * 2.1 + age * 9); q.x += (C.mx + ox - q.x) * k; q.y += (C.my + oy - q.y) * k; }
+    else { if (C.ox === undefined) { C.ox = C.mx; C.oy = C.my; } const d = (age - F1) * C.sp * 1.6; q.x = C.ox + C.ux * d + 0.05 * Math.cos(q.col * 2.1 + age * 9); q.y = C.oy + C.uy * d + 0.05 * Math.sin(q.col * 2.1 + age * 9); }
+  }
+}
+function qgpPartons(ctx, g, x, y, r, a) {
+  if (!g.pp) qgpInit(g);
+  qgpStep(g);
+  const age = g.age || 0, qr = clamp(r / 24, 2.4, 4.5), F0 = 1.1, F1 = 1.45;
+  const S = (q) => [x + q.x * r, y - q.y * r];
+  if (age >= F0) { // (the colour strings that hold each set)
+    const k = clamp((age - F0) / 0.25, 0, 1);
+    ctx.strokeStyle = `rgba(255,240,220,${(0.6 * a * k).toFixed(3)})`; ctx.lineWidth = 1.2;
+    const by = new Map(); for (const q of g.pp) if (q.cl >= 0) { let l = by.get(q.cl); if (!l) by.set(q.cl, l = []); l.push(S(q)); }
+    ctx.beginPath(); for (const l of by.values()) { ctx.moveTo(l[0][0], l[0][1]); for (let i = 1; i < l.length; i++) ctx.lineTo(l[i][0], l[i][1]); if (l.length > 2) ctx.closePath(); } ctx.stroke();
+  }
+  ctx.lineWidth = 1;
+  for (const q of g.pp) {
+    const [px, py] = S(q);
+    if (q.glu !== false) { // a gluon: half its colour, half its anticolour; it melts into the sets at freeze-out
+      const ga = a * (age < F0 ? 0.9 : Math.max(0, 1 - (age - F0) / 0.3)); if (ga <= 0.01) continue;
+      const c1 = QGP_COL[q.col], c2 = QGP_ACOL[q.glu], rr = qr * 0.7;
+      ctx.fillStyle = rgba(c1, ga); ctx.beginPath(); ctx.arc(px, py, rr, Math.PI / 2, 1.5 * Math.PI); ctx.fill();
+      ctx.fillStyle = rgba(c2, ga); ctx.beginPath(); ctx.arc(px, py, rr, -Math.PI / 2, Math.PI / 2); ctx.fill();
+      continue;
+    }
+    const qa = q.cl === -3 ? a * Math.max(0, 1 - (age - F0) / 0.3) : age < F1 ? a : a * Math.max(0, 1 - (age - F1) / 0.75);
+    if (qa <= 0.01) continue;
+    if (q.an) { ctx.fillStyle = `rgba(20,10,5,${(0.8 * qa).toFixed(3)})`; ctx.strokeStyle = rgba(QGP_ACOL[q.col], qa); ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(px, py, qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); ctx.lineWidth = 1; } // (an antiquark: a ring in its anticolour)
+    else { ctx.fillStyle = rgba(QGP_COL[q.col], qa); ctx.strokeStyle = `rgba(20,10,5,${(0.55 * qa).toFixed(3)})`; ctx.beginPath(); ctx.arc(px, py, qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
+  }
+}
 function qgpDisc(g) { const age = g.age || 0; return [w2sx(g.x), w2sy(g.y), (36 + 84 * Math.min(1, age / 1.4)) * clamp(R.s / 6, 0.8, 1.5)]; } // (where it is on screen, and how big)
 function drawQGP() {
   if (!W.qgp || !W.qgp.length) return;
@@ -33022,14 +33195,7 @@ function drawQGP() {
     const core = `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.88 * a).toFixed(3)})`;
     const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, core); gr.addColorStop(0.6, `rgba(255,${Math.round(110 + 60 * heat)},40,${(0.72 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,60,20,0)'); // (nearly opaque inside, so the spray and labels under it do not show through)
     ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
-    // free quarks (red, green, blue: their colour charge) and gluons milling about inside
-    const cols = ['255,80,80', '70,220,110', '90,140,255'], n = 54, qr = clamp(r / 22, 2.6, 4.5);
-    ctx.lineWidth = 1; ctx.strokeStyle = `rgba(20,10,5,${(0.55 * a).toFixed(3)})`;
-    for (let k = 0; k < n; k++) {
-      const ph = k * 2.399 + age * (1.2 + (k % 5) * 0.35) * (k % 2 ? 1 : -1), rr = r * 0.78 * Math.sqrt(((k * 0.618) % 1)), qx = x + rr * Math.cos(ph), qy = y + rr * Math.sin(ph), glu = k % 3 === 2;
-      ctx.fillStyle = glu ? `rgba(255,245,200,${(0.85 * a).toFixed(3)})` : `rgba(${cols[k % 3 === 0 ? (k >> 1) % 3 : (k >> 2) % 3]},${(0.95 * a).toFixed(3)})`;
-      ctx.beginPath(); ctx.arc(qx, qy, glu ? qr * 0.6 : qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
-    }
+    qgpPartons(ctx, g, x, y, r, a); // (simulated quarks, antiquarks and gluons, 1.30 item 65)
     if (R.view.labels !== false) {
       ctx.font = '600 12px ' + (typeof cssVar === 'function' ? cssVar('--font-data') : 'monospace'); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
       const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = y - r - 8;
@@ -33090,10 +33256,11 @@ function drawExos() {
   const ctx = R.ctx;
   ctx.save();
   ctx.font = '600 10px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  const mg = 30 + (R.view.bohr === 'nuc' ? 0.6 * R.s : 0); // (its orbits reach 0.53 Å out: positronium's ring was cut off, or vanished, near an edge when zoomed in, bug B17, 1.30)
   for (const o of W.exo) {
     if (o.dead) continue;
     const x = w2sx(o.x), y = w2sy(o.y);
-    if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
+    if (x < -mg || y < -mg || x > R.w + mg || y > R.h + mg) continue;
     const c = XP[o.sp].col, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''));
     if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (o.spin && RP.mu) spinArrow(ctx, x, y, o.spin); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
     else { const top = exoAtomPic(ctx, o, x, y, c, hx, R.s); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; } }
@@ -33401,7 +33568,8 @@ function drawRays(rt) {
     const m = rayFrac(r);
     if (m >= 1 && r.ta === undefined) r.ta = rt;
     const k = r.ta === undefined ? 0 : (rt - r.ta) / life;
-    if (k > 1 || rt - r.t0 > 30) { W.rays.splice(i, 1); continue; }
+    if (k > 1) // (1.30, item 68: no time limit while it is still on its way; the 400-ray cap bounds the list)
+      { W.rays.splice(i, 1); continue; }
     const a = (1 - k) * (r.nu ? 0.35 : 0.85);
     const x0 = w2sx(r.x0), y0 = w2sy(r.y0), x1 = w2sx(r.x1), y1 = w2sy(r.y1);
     const hx = x0 + (x1 - x0) * m, hy = y0 + (y1 - y0) * m;
@@ -33425,6 +33593,12 @@ function chipLabel(ctx, x, y, text, col, align) {
   ctx.font = `700 ${fs}px ${CH_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const w = ctx.measureText(text).width + 8, h = fs + 6;
   if (align === 'left') x += w / 2;
+  // (kept inside the canvas and clear of the labels already drawn this frame: the flash memory's "floating gate" labels ran
+  // into the next cell's and off the edge, bug B13, 1.30)
+  x = clamp(x, w / 2 + 2, Math.max(w / 2 + 2, R.w - w / 2 - 2)); y = clamp(y, h / 2 + 2, Math.max(h / 2 + 2, R.h - h / 2 - 2));
+  const L = R.chipLab || (R.chipLab = []);
+  for (let k = 0; k < 6 && L.some(b => Math.abs(b[0] - x) < (b[2] + w) / 2 + 2 && Math.abs(b[1] - y) < (b[3] + h) / 2 + 1); k++) y += h + 2;
+  L.push([x, y, w, h]);
   ctx.fillStyle = 'rgba(8,14,22,0.78)'; ctx.fillRect(x - w / 2, y - h / 2, w, h);
   ctx.fillStyle = col; ctx.fillText(text, x, y + 0.5);
 }
@@ -33467,6 +33641,7 @@ function drawChipsUnder() {
 }
 function drawChips(rt) {
   if (!W.chips.length || R.s < 2) return;
+  R.chipLab = [];
   const ctx = R.ctx, er = clamp(0.22 * R.s, 3, 7);
   let mem = null; // two or more flash cells: each labelled with its place in the memory and the bit it stores
   if (W.chips.length > 1) { const M = flashMemory(); if (M.cells.length > 1) { mem = new Map(); M.cells.forEach((c, i) => mem.set(c, i < 8 * M.bytes ? `bit ${7 - (i % 8)}${M.bytes > 1 ? ` · byte ${(i >> 3) + 1}` : ''}` : `cell ${i + 1}`)); } }
@@ -33515,7 +33690,7 @@ function drawChips(rt) {
       chipLabel(ctx, w2sx(s0.x / s0.n), w2sy(s0.y / s0.n), txt, name === 'CG' ? '#e6e6e6' : chipLevelCol(v));
     }
     if (ch.key === 'flashcell') {
-      const [, x1, y0, y1] = chipBox(ch.devs[0].gate); chipLabel(ctx, w2sx(x1 + 1.6), w2sy((y0 + y1) / 2), `floating gate: ${ch.nfg} e⁻`, '#9fd0ff', 'left');
+      const [, x1, y0, y1] = chipBox(ch.devs[0].gate); chipLabel(ctx, w2sx(x1 + 1.6), w2sy((y0 + y1) / 2), (mem ? `FG ${ch.nfg} e⁻` : `floating gate: ${ch.nfg} e⁻`), '#9fd0ff', 'left');
       if (mem && mem.has(ch)) { const b = chipBox(ch.ps.filter(p => !p.dead)), v = flashStored(ch); chipLabel(ctx, w2sx((b[0] + b[1]) / 2), w2sy(b[2] - 2.4), `${mem.get(ch)} = ${v}`, v ? '#ffb347' : '#7fb6ff'); }
     }
     if (ch.key === 'transistor') { const d = ch.devs[0], p = d.path[Math.floor(d.path.length / 2)]; chipLabel(ctx, w2sx(p.x), w2sy(p.y - 4), fmtCurrent(d.I), '#9fd0ff'); }
@@ -33562,7 +33737,9 @@ function drawPhotonLabels(rt) {
     if (n >= 24) break;
     if (x < -20 || y < -20 || x > R.w + 20 || y > R.h + 20) continue;
     let w = LAB_W.get(lab); if (w === undefined) { w = ctx.measureText(lab).width + 5; LAB_W.set(lab, w); }
-    const tx = x + 7, ty = y - 8;
+    let tx = x + 7, ty = y - 8;
+    if (tx + w > R.w - 4) tx = x - 7 - w; // (a head near the right edge: its label on its left, not cut off, bug B14, 1.30)
+    tx = Math.max(4, tx); ty = clamp(ty, 8, R.h - 8);
     if (boxes.some(b => tx < b[0] + b[2] && tx + w > b[0] && Math.abs(ty - b[1]) < 13)) continue; // never on top of another label
     boxes.push([tx, ty, w]); n++;
     ctx.globalAlpha = a; ctx.strokeText(lab, tx, ty);
@@ -33647,6 +33824,52 @@ function drawDecayInset(ctx, e, cx, cy, Rr, age, c) {
   }
   ctx.restore();
 }
+/* The page's own cards over the chamber (the setup's hint, the narrator, the fps and paused badges), in canvas pixels:
+   the captions keep out of them (1.30, bug B11). */
+function uiRects() {
+  const out = []; if (typeof document === 'undefined' || !R.cv || !R.cv.getBoundingClientRect) return out;
+  const c = R.cv.getBoundingClientRect();
+  for (const id of ['hint', 'narr', 'fpsBadge', 'pausedBadge']) {
+    const el = document.getElementById(id); if (!el || el.hidden || !el.offsetParent) continue;
+    const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) continue;
+    out.push([r.left - c.left, r.top - c.top, r.right - c.left, r.bottom - c.top]);
+  }
+  return out;
+}
+/* Where an event's caption box goes (1.30, bug B11): kept inside the chamber clear of the particle bar (top) and the zoom
+   buttons (right), its second line wrapped rather than run past the box, tried above, below, right and left of the event
+   before stacking; null when it finds no free place (the newest are placed first). The 2-D and 3-D views share it. */
+function captionBox(ctx, e, x, y, w1, placed) {
+  ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace';
+  const ins = e.nuc && R.view.decayCards && R.w > 360 ? 58 : 0; // a decay gets a close-up of its nucleus beside the words
+  const padL = 8, padR = R.w > 420 ? 52 : 8, padT = R.h > 300 ? 54 : 8, padB = 8;
+  const maxW = Math.max(120, Math.min(R.w - padL - padR, 520));
+  const subs = e.sub ? wrapText(ctx, e.sub, maxW - 22 - ins) : [];
+  const w2 = subs.reduce((m, l) => Math.max(m, ctx.measureText(l).width), 0);
+  const bw = Math.min(maxW, Math.max(w1, w2) + 22 + ins), bh = Math.max(ins ? 58 : 0, 26 + 15 * subs.length - (subs.length ? 1 : 0));
+  const hitAt = (bx, by) => placed.find(q => bx < q[2] + 6 && bx + bw + 6 > q[0] && by < q[3] + 6 && by + bh + 6 > q[1]);
+  const fit = (bx, by) => [clamp(bx, padL, Math.max(padL, R.w - padR - bw)), clamp(by, padT, Math.max(padT, R.h - padB - bh))];
+  let spot = null;
+  for (const [cx, cy] of [[x + 18, y - 30 - bh], [x - 18 - bw, y - 30 - bh], [x + 18, y + 30], [x - 18 - bw, y + 30]]) { const f = fit(cx, cy); if (!hitAt(f[0], f[1])) { spot = f; break; } }
+  if (!spot) {
+    let [bx, by] = fit(x + 18, y - 30 - bh);
+    for (let k = 0; k < 8; k++) { const hit = hitAt(bx, by); if (!hit) { spot = [bx, by]; break; } by = hit[3] + 6; if (by + bh > R.h - padB) break; }
+  }
+  if (!spot) return null;
+  placed.push([spot[0], spot[1], spot[0] + bw, spot[1] + bh]);
+  return { bx: spot[0], by: spot[1], bw, bh, subs, ins };
+}
+/* Words split into lines no wider than w (the current font), at most three; the last cut short with an ellipsis. */
+function wrapText(ctx, text, w) {
+  const out = []; let line = '';
+  for (const word of String(text).split(' ')) {
+    const t = line ? line + ' ' + word : word;
+    if (line && ctx.measureText(t).width > w) { out.push(line); line = word; } else line = t;
+  }
+  if (line) out.push(line);
+  if (out.length > 3) { out.length = 3; out[2] += ' …'; }
+  return out;
+}
 /* ---------- nuclear events: shock rings, ghosts of what vanished, and a short caption ---------- */
 const EV_STYLE = {
   alpha: [255, 205, 110], decay: [255, 205, 110], beta: [110, 190, 255], betap: [255, 125, 205], ec: [120, 220, 200],
@@ -33682,7 +33905,7 @@ function drawEvents(rt) {
     }
   }
   // captions for the newest few, kept clear of each other and of the chamber edges
-  const placed = [], shown = evs.slice(-4), drops = (W.qgp || []).filter(g => (g.age || 0) < 1.6).map(qgpDisc); // (a caption over a young plasma drop is faded until it cools, 0.91)
+  const placed = uiRects(), shown = evs.slice(-4), drops = (W.qgp || []).filter(g => (g.age || 0) < 1.6).map(qgpDisc); // (a caption over a young plasma drop is faded until it cools, 0.91)
   for (let i = shown.length - 1; i >= 0; i--) {
     const e = shown[i], age = Math.max(0, rt - e.t0), c = EV_STYLE[e.kind] || EV_STYLE.decay;
     const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1);
@@ -33690,21 +33913,8 @@ function drawEvents(rt) {
     const x = w2sx(e.x), y = w2sy(e.y);
     ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif';
     const w1 = ctx.measureText(e.text).width;
-    ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace';
-    const w2 = e.sub ? ctx.measureText(e.sub).width : 0;
-    const ins = e.nuc && R.view.decayCards && R.w > 360 ? 58 : 0; // a decay gets a close-up of its nucleus beside the words
-    const bw = Math.min(R.w - 16, Math.max(w1, w2) + 22 + ins), bh = ins ? 58 : e.sub ? 40 : 26;
-    let bx = x + 18, by = y - 30 - bh;
-    if (bx + bw > R.w - 8) bx = x - 18 - bw;
-    bx = clamp(bx, 8, R.w - bw - 8);
-    if (by < 50) by = y + 30;
-    for (let k = 0; k < 6; k++) {
-      const hit = placed.find(q => bx < q[2] + 6 && bx + bw + 6 > q[0] && by < q[3] + 6 && by + bh + 6 > q[1]);
-      if (!hit) break;
-      by = hit[3] + 6;
-    }
-    by = clamp(by, 8, R.h - bh - 8);
-    placed.push([bx, by, bx + bw, by + bh]);
+    const L = captionBox(ctx, e, x, y, w1, placed); if (!L) continue;
+    const { bx, by, bw, bh, subs, ins } = L;
     ctx.globalAlpha = drops.some(([dx, dy, dr]) => Math.hypot(clamp(dx, bx, bx + bw) - dx, clamp(dy, by, by + bh) - dy) < dr) ? a * 0.18 : a;
     const ax = clamp(x, bx, bx + bw), ay = y < by ? by : by + bh;
     ctx.strokeStyle = rgba(c, 0.7); ctx.lineWidth = 1;
@@ -33713,11 +33923,11 @@ function drawEvents(rt) {
     ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 7); else ctx.rect(bx, by, bw, bh); ctx.fill(); ctx.stroke();
     ctx.fillStyle = rgba(c, 1); ctx.fillRect(bx, by + 6, 3, bh - 12);
     if (ins) drawDecayInset(ctx, e, bx + 6 + ins / 2, by + bh / 2, ins / 2 - 3, age, c);
-    const tx = bx + 10 + ins, ty = ins ? by + bh / 2 - 7 : by + (e.sub ? 14 : bh / 2);
+    const tx = bx + 10 + ins, ty = ins ? by + bh / 2 - 7 * Math.max(1, subs.length) : by + (subs.length ? 14 : bh / 2);
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; ctx.fillStyle = '#eef3f8';
     ctx.fillText(e.text, tx, ty, bw - 18 - ins);
-    if (e.sub) { ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(c, 1); ctx.fillText(e.sub, tx, ty + 15, bw - 18 - ins); }
+    if (subs.length) { ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(c, 1); subs.forEach((l, j) => ctx.fillText(l, tx, ty + 15 * (j + 1), bw - 18 - ins)); }
     ctx.globalAlpha = 1;
   }
   ctx.restore();
@@ -34757,6 +34967,10 @@ function cam3Fit() {
   const rb = 0.5 * Math.hypot(W.box.w, W.box.h, W.box.d || W.box.h), aspect = R.w > 0 && R.h > 0 ? R.w / R.h : 1.5;
   const half = Math.min(c.fov / 2, Math.atan(Math.tan(c.fov / 2) * aspect));
   c.dist = rb / Math.sin(half) * 0.9;
+  // (the page's bars over the chamber: the camera pulled back so the box fits between them, its target kept at the
+  // middle; it went under the particle bar and the tool bar, bug B15, 1.30)
+  const m = viewInsets(0);
+  if (R.h > 0 && R.w > 0) { const k = Math.min((R.h - 2 * Math.max(m.t, m.b)) / R.h, (R.w - 2 * Math.max(m.l, m.r)) / R.w); if (k > 0.3 && k < 1) c.dist /= k; }
   cam3Update();
 }
 /* How big a particle is drawn in 3-D (Å, before the atom-size setting). A lone ion is drawn on the atoms' own scale
@@ -35286,7 +35500,7 @@ function drawLight3(ctx, rt) {
     const r = W.rays[i], m = rayFrac(r);
     if (m >= 1 && r.ta === undefined) r.ta = rt;
     const k = r.ta === undefined ? 0 : (rt - r.ta) / life;
-    if (k > 1 || rt - r.t0 > 30) { W.rays.splice(i, 1); continue; }
+    if (k > 1) { W.rays.splice(i, 1); continue; }
     const a = (1 - k) * (r.nu ? 0.35 : 0.85), z0 = r.z0 || 0, z1 = r.z1 === undefined ? z0 : r.z1;
     const hx = r.x0 + (r.x1 - r.x0) * m, hy = r.y0 + (r.y1 - r.y0) * m, hz = z0 + (z1 - z0) * m;
     if (!seg3(r.x0, r.y0, z0, hx, hy, hz, A, B)) continue;
@@ -35542,6 +35756,7 @@ function drawQGP3(ctx) {
     const gr = ctx.createRadialGradient(o[0], o[1], 0, o[0], o[1], r);
     gr.addColorStop(0, `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.88 * a).toFixed(3)})`); gr.addColorStop(0.6, `rgba(255,${Math.round(110 + 60 * heat)},40,${(0.6 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,80,20,0)');
     ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(o[0], o[1], r, 0, 2 * Math.PI); ctx.fill();
+    qgpPartons(ctx, g, o[0], o[1], r, a); // (its quarks and gluons, as in the flat view, 1.30 item 65)
     if (R.view.labels !== false) {
       ctx.font = '600 12px ' + (cssVar('--font-data') || 'monospace'); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
       const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = o[1] - r - 8;
@@ -35557,7 +35772,7 @@ function drawQGP3(ctx) {
 function drawEvents3(ctx, rt) {
   const evs = W.events; if (!evs.length) return;
   for (let i = evs.length - 1; i >= 0; i--) if (rt - evs[i].t0 > EV_LIFE || rt < evs[i].t0 - 0.5) evs.splice(i, 1);
-  const o = _p3c, placed = [];
+  const o = _p3c, placed = uiRects();
   ctx.save();
   for (const e of evs) { // (1.27 bug 16) ghosts of what vanished or changed identity, dashed rings at their depth, as the flat view draws them
     const age = Math.max(0, rt - e.t0), kg = clamp(age / 2.2, 0, 1), c = EV_STYLE[e.kind] || EV_STYLE.decay; if (kg >= 1) continue;
@@ -35578,17 +35793,14 @@ function drawEvents3(ctx, rt) {
     for (const d of [0, 0.3]) { const k = clamp((age - d) / 1.0, 0, 1); if (k <= 0 || k >= 1) continue; ctx.strokeStyle = rgba(c, (1 - k) * 0.85); ctx.lineWidth = 2.2 * (1 - k) + 0.6; ctx.beginPath(); ctx.arc(x, y, 5 + k * 46, 0, Math.PI * 2); ctx.stroke(); }
     const a = Math.min(1, age / 0.15) * clamp((EV_LIFE - age) / 1.2, 0, 1); if (a <= 0.01) continue;
     ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; const w1 = ctx.measureText(e.text).width;
-    ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; const w2 = e.sub ? ctx.measureText(e.sub).width : 0;
-    const ins = e.nuc && R.view.decayCards && R.w > 360 ? 58 : 0, bw = Math.min(R.w - 16, Math.max(w1, w2) + 22 + ins), bh = ins ? 58 : e.sub ? 40 : 26;
-    let bx = clamp(x + 18, 8, R.w - bw - 8), by = clamp(y - 40, 8, R.h - bh - 8);
-    for (let k = 0; k < 6; k++) { const hit = placed.find(q => bx < q[2] + 6 && bx + bw + 6 > q[0] && by < q[3] + 6 && by + bh + 6 > q[1]); if (!hit) break; by = hit[3] + 6; }
-    by = clamp(by, 8, R.h - bh - 8); placed.push([bx, by, bx + bw, by + bh]);
+    const L = captionBox(ctx, e, x, y, w1, placed); if (!L) continue; // (shared with the flat view, 1.30 bug B11)
+    const { bx, by, bw, bh, subs, ins } = L;
     ctx.globalAlpha = a; ctx.fillStyle = 'rgba(7,11,17,0.88)'; ctx.fillRect(bx, by, bw, bh); ctx.fillStyle = rgba(c, 1); ctx.fillRect(bx, by + 5, 3, bh - 10);
     if (ins) drawDecayInset(ctx, e, bx + 6 + ins / 2, by + bh / 2, ins / 2 - 3, age, c);
-    const tx = bx + 9 + ins, ty = ins ? by + bh / 2 - 7 : by + (e.sub ? 14 : bh / 2);
+    const tx = bx + 9 + ins, ty = ins ? by + bh / 2 - 7 * Math.max(1, subs.length) : by + (subs.length ? 14 : bh / 2);
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.font = '600 12.5px "Hanken Grotesk", system-ui, sans-serif'; ctx.fillStyle = '#eef3f8'; ctx.fillText(e.text, tx, ty, bw - 18 - ins);
-    if (e.sub) { ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(c, 1); ctx.fillText(e.sub, tx, ty + 15, bw - 18 - ins); }
+    if (subs.length) { ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = rgba(c, 1); subs.forEach((l, j) => ctx.fillText(l, tx, ty + 15 * (j + 1), bw - 18 - ins)); }
     ctx.globalAlpha = 1;
   }
   ctx.restore();
@@ -37971,6 +38183,12 @@ const FIRE_PROJ = [
   { id: 'n', label: 'n', spec: { kind: 'n' } }, { id: 'a', label: 'α', spec: SPEC_ALPHA }, { id: 'pbar', label: 'p̄', spec: SPEC_PBAR }, { id: 'nbar', label: 'n̄', spec: SPEC_NBAR },
   { id: 'g', label: 'γ', spec: { kind: 'gamma' } }, { id: 'mu', label: 'μ⁻', spec: { kind: 'exo', sp: 'mu-' } },
 ];
+/* The Fire tool's projectile row: the first button is the particle selected in the bar, unless that particle already has a
+   button of its own (p⁺ selected: one p⁺ button, lit; bug B6, 1.30). */
+function projSeg(list, cur) {
+  const sl = specLabel(UI.spec || SPEC_P), dup = list.find(f => f.id !== 'sel' && f.label === sl);
+  return seg('Projectile', list.filter(f => !(dup && f.id === 'sel')).map(f => [f.id, f.id === 'sel' ? esc(sl) : f.label]), cur === 'sel' && dup ? dup.id : cur);
+}
 function fireSpecNow() { const f = FIRE_PROJ.find(f => f.id === OPT.fire.proj); return f && f.spec ? f.spec : UI.spec; }
 function wavelengthText(E) {
   const nm = PHYS.HC / E;
@@ -38007,11 +38225,11 @@ const PCATS = [
   ['Mesons', ['pi+', 'pi-', 'pi0', 'K+', 'K-', 'K0S', 'K0L', 'eta'].map(sp => ({ kind: 'exo', sp }))],
   ['Baryons', ['Lam', 'Lamb', 'Sig+', 'Sig-', 'Xi0', 'Xi-', 'Omg-', 'Sigb-', 'Sigb+', 'Xib0', 'Xib+', 'Omgb+'].map(sp => ({ kind: 'exo', sp }))],
   ['Resonances', ['rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm'].map(sp => ({ kind: 'exo', sp }))],
-  ['Pentaquarks and hexaquarks', ['Pc4312', 'Pc4440', 'Pc4457', 'Pcs4338', 'dstar'].map(sp => ({ kind: 'exo', sp }))], // (1.28.3, item 52)
-  ['W, Z and Higgs bosons', ['W+', 'W-', 'Z0', 'H0'].map(sp => ({ kind: 'exo', sp }))], // (1.27; the Higgs boson: feature 25)
+  ['Multiquarks', ['Pc4312', 'Pc4440', 'Pc4457', 'Pcs4338', 'dstar'].map(sp => ({ kind: 'exo', sp }))], // (1.28.3, item 52)
+  ['Bosons', ['W+', 'W-', 'Z0', 'H0'].map(sp => ({ kind: 'exo', sp }))], // (1.27; the Higgs boson: feature 25)
   ['Light', [{ kind: 'gamma' }]],
   ['Antimatter', [{ kind: 'pos' }, SPEC_PBAR, SPEC_NBAR, SPEC_HBAR, { kind: 'atom', Z: 1, A: 2, bare: true, anti: true }, { kind: 'atom', Z: 2, A: 4, bare: true, anti: true }, 'pt']],
-  ['Exotic atoms and nuclei', ['muP', 'muD', 'muT', 'Mu', 'pPs', 'oPs'].concat([[1, 1], [1, 2], [2, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 6], [8, 7], [14, 13], [20, 19], [39, 49], [82, 125]].map(([z, n]) => hypSpecies(z, n)).filter(Boolean)).map(sp => ({ kind: 'exo', sp }))],
+  ['Exotic', ['muP', 'muD', 'muT', 'Mu', 'pPs', 'oPs'].concat([[1, 1], [1, 2], [2, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 6], [8, 7], [14, 13], [20, 19], [39, 49], [82, 125]].map(([z, n]) => hypSpecies(z, n)).filter(Boolean)).map(sp => ({ kind: 'exo', sp }))],
 ];
 /* Type-to-find: every particle of the menus, matched on its symbol, its name, its id and the spelled-out Greek. */
 const PF_GREEK = [['lambda', 'Λ'], ['sigma', 'Σ'], ['xi', 'Ξ'], ['omega', 'Ω'], ['delta', 'Δ'], ['pion', 'π'], ['pi', 'π'], ['rho', 'ρ'], ['phi', 'φ'], ['eta', 'η'], ['kaon', 'K'], ['muon', 'μ'], ['mu', 'μ'], ['tau', 'τ'], ['nu', 'ν'], ['neutrino', 'ν'], ['gamma', 'γ'], ['photon', 'γ'], ['alpha', 'α'], ['anti', '̄'], ['bar', '̄']];
@@ -38073,7 +38291,8 @@ function buildPalette() {
   };
   pal.oncontextmenu = (e) => { const b = e.target.closest('.chip[data-i]'); if (!b) return; const q = items[+b.dataset.i]; if (q && q !== 'sep') chipCard(e, q.spec); }; // (what it is: 1.01)
   const sel = pal.querySelector('.chip[aria-pressed="true"]'); // keep the chosen particle in view
-  if (sel && (sel.offsetLeft < pal.scrollLeft || sel.offsetLeft + sel.offsetWidth > pal.scrollLeft + pal.clientWidth)) pal.scrollLeft = sel.offsetLeft - 40;
+  const M = 56; // (clear of the scroll arrows and their 48 px fade, bug B10, 1.30)
+  if (sel && (sel.offsetLeft < pal.scrollLeft + (pal.scrollLeft > 2 ? M : 0) || sel.offsetLeft + sel.offsetWidth > pal.scrollLeft + pal.clientWidth - M)) pal.scrollLeft = Math.max(0, sel.offsetLeft - M);
 }
 /* keep the hint card clear of the palette, whose chips wrap onto more rows on narrow stages */
 function placeHint() {
@@ -38265,11 +38484,11 @@ function buildToolOpts() {
     case 'fire': {
       const fs = fireSpecNow() || SPEC_P;
       if (W.d3) { // (3-D: the projectiles that work there, single shots, at any energy)
-        h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
+        h = `<span data-g="proj">${projSeg(FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)), o.proj)}</span>` +
           rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots, at any energy; beam sources: ${not3d()}.</span>`;
         break;
       }
-      h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
+      h = `<span data-g="proj">${projSeg(FIRE_PROJ, o.proj)}</span>` +
         (o.proj === 'sel' ? savedIsoHTML() + isoPickerHTML(UI.spec) : '') +
         rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE())) +
         `<span data-g="source">${seg('Mode', [['false', 'Single shot'], ['true', 'Beam source']], String(o.source))}</span>` +
@@ -38691,10 +38910,18 @@ function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
    life: Lab → Decay speed to see the slow ones go); light and neutrinos cannot be still, so they leave the click in a
    random direction with the energy set (Place → Energy). */
 const placeE = () => Math.pow(10, OPT.place.Es / 100); // eV, 1 eV … 1 GeV
+/* A tool that cannot do what was asked says so where it is seen (the hint bar over the chamber), not only in the Log,
+   with a button that turns on the switch it needs (bug B7, 1.30). */
+function toolNote(text, key, btn) {
+  const h = $('hint'), t = $('hintText'); if (!h || !t) return;
+  t.innerHTML = esc(text) + (key ? ` <button class="mini" id="hintOn">${esc(btn)}</button>` : '');
+  h.classList.remove('won'); h.hidden = false; hintFit();
+  const b = $('hintOn'); if (b) b.onclick = (e) => { e.stopPropagation(); setSetting(key, true); h.hidden = true; };
+}
 const PS_NEED = 'Positronium is placed with the Positronium switch on (Settings → Experimental → Realistic particles → Positronium): its decays, its pick-off in matter and its conversion by O₂ are that switch\u2019s.'; // (1.27 item 32)
 function placeFly(spec, x, y, count, z = 0) {
   _evTag = 0;
-  if (spec.kind === 'exo' && XP[spec.sp] && XP[spec.sp].ps && !RP.ps) { log('tool', PS_NEED); return []; } // (positronium needs its switch: what it does in matter is that switch's, 1.27 item 32)
+  if (spec.kind === 'exo' && XP[spec.sp] && XP[spec.sp].ps && !RP.ps) { log('tool', PS_NEED); toolNote(PS_NEED, 'rpPs', 'Turn Positronium on'); return []; } // (positronium needs its switch: what it does in matter is that switch's, 1.27 item 32)
   if (W.d3 && spec.kind === 'gamma') { for (let i = 0; i < count; i++) emitPhoton(x, y, placeE(), undefined, undefined, { travel: true, z }); return []; } // (3-D: a random direction on the sphere, from its depth, 1.24)
   if (W.d3 && spec.kind === 'nu') { for (let i = 0; i < count; i++) emitNeutrino(x, y, placeE(), undefined, undefined, !!spec.anti, 'placed by hand', spec.fl || 'e', z); return []; }
   if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (spec.sp === 'Mu') addMuonium(x + k * u[0], y + k * u[1], 1.5 * PHYS.KB * W.T, u[0], u[1], 1, z + k * u[2], u[2]); else if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], resPlaceMass(spec.sp), z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
@@ -39670,7 +39897,7 @@ function selXHTML() {
     }
     const sp = o.spin && RP.mu ? muSpinInfo(o) : null;
     if (sp) kv.push(...muSpinRows(sp));
-    if (d.tau < 1e-15) about += ' This one lives so briefly that it decays a few nanometres from where it was made.';
+    if (d.tau < 1e-15) about += ` This one lives so briefly that it decays on average ${fmtLen(path)} from where it was made${path < 1e-14 ? ', less than the width of a nucleus' : path < 1e-10 ? ', less than the width of an atom' : ''}.`; // (from its own distance: a still pentaquark said "a few nanometres" beside 0.000075 fm, bug B18, 1.30)
     else if (path > 1e-6) about += ` Moving this fast it would cross ${fmtLen(path)} on average before decaying, far more than this chamber, so it leaves it — unless decay is sped up (Lab → Decay speed).`;
     status = live ? 'In flight' : o.fate ? o.fate[0].toUpperCase() + o.fate.slice(1) : 'Gone';
   } else {
@@ -40526,11 +40753,48 @@ function filePick(accept, cb) {
 }
 const SAVE_KINDS = new Set([NUC, ELEC, POS]);
 /* The world as data: the box, bath, fields and pace, every nucleus, atom, ion and free lepton with its velocity (one in
-   radiation flight with its energy and direction: a tenth entry), the bonds among them and the magnets. Not kept:
-   light, beams, a collider's rings, and chips' circuits (their atoms are saved as atoms). */
+   radiation flight with its energy and direction: a tenth entry), the bonds among them and the magnets, the energy books,
+   the beam sources and (rebuilt from the setup) its apparatus, 1.30. Not kept: light, beam particles in flight, and chips'
+   circuits (their atoms are saved as atoms). */
 const xmOf = (ps) => { const xm = []; ps.forEach((p, i) => { const B = p.muB; if (B && B.zx) xm.push([i, B.Eb, B.zx, B.n0 || 0, B.aug || 0, B.lines || [], B.from || '']); }); return xm.length ? { xm } : {}; }; // (exotic atoms of the realistic-particle switch, 1.27: older readers open them as 0.51's muonic atoms)
 const musOf = (ps) => { const m = []; ps.forEach((p, i) => { if (p.mu && Array.isArray(p.spin)) m.push([i, ...p.spin, p.eSpin || 0]); }); return m.length ? { mus: m } : {}; }; // (muons' spins of the Muonium-as-hydrogen switch, 1.27: older readers ignore them; only a muonium atom's: a free electron as a wave packet has a spin too, ±1, 1.28.1 bug)
 const isoOf = (ps) => { const iso = []; ps.forEach((p, i) => { if (p.iso) iso.push([i, p.iso.lev, p.iso.t12]); }); return iso.length ? { iso } : {}; }; // (isomers of Realistic particles 6, 1.27: their level and half-life; older readers open the ground state)
+/* (1.30, bug B5) What a saved world lost: its energy books (every ledger started again at 0 on loading, so the total
+   jumped: annihilation 1.69 GeV → 0.26 GeV), its beam sources (a cloud chamber, a linac, a collider opened empty and stayed
+   empty) and the setup's apparatus (a collider's rings, magnets and cavities). Now the books are kept; a plain beam source
+   (the Fire tool's, a setup's) is kept as data; and a world saved from a setup with apparatus says so (rig), and opening it
+   builds that setup's apparatus again, as the setup starts, round the saved particles. Beam particles in flight are still
+   not kept (the sources make more). */
+const srcPlain = (q) => q && !q.beam && typeof q.kick !== 'function' && q.spec && typeof q.spec === 'object';
+const SRC_KEYS = ['x', 'y', 'z', 'ux', 'uy', 'uz', 'KE', 'rate', 'acc', 'count', 'jitter', 'delay'];
+function worldExtrasJSON() {
+  const ledger = {}; for (const k in W.ledger) if (Number.isFinite(W.ledger[k])) ledger[k] = W.ledger[k];
+  const srcs = W.sources.filter(srcPlain).map(q => { const o = { spec: JSON.parse(JSON.stringify(q.spec)) }; for (const k of SRC_KEYS) if (Number.isFinite(q[k])) o[k] = q[k]; if (q.track) o.track = true; return o; });
+  const rig = !!(W.collider || (W.zones && W.zones.length) || W.sources.some(q => !srcPlain(q)));
+  return { ledger, ...(srcs.length ? { srcs } : {}), ...(rig ? { rig: true } : {}) };
+}
+/* Opening: the setup's apparatus first (when the save says it had one), then, after the particles, the books and the
+   plain sources. */
+const RIG_KEYS = ['zones', 'collider', 'sources', 'lasers', 'ramp', 'cloud', 'kc', 'pB'];
+function rigBuild(d) {
+  const P = d.rig && typeof d.preset === 'string' && PRESETS[d.preset];
+  if (!P || typeof P.build !== 'function' || REW.restoring) return null;
+  try { P.build(); } catch (e) { clearWorld(); return null; }
+  const keep = {}; for (const k of RIG_KEYS) keep[k] = Array.isArray(W[k]) ? W[k].slice() : W[k];
+  keep.sources = (keep.sources || []).filter(q => !srcPlain(q)); // (its plain sources come back from the file, as they were)
+  clearWorld();
+  return keep;
+}
+function rigRestore(keep, d) {
+  if (keep) for (const k of RIG_KEYS) { if (Array.isArray(W[k]) && Array.isArray(keep[k])) { W[k].length = 0; W[k].push(...keep[k]); } else if (keep[k] !== undefined) W[k] = keep[k]; }
+  if (Array.isArray(d.srcs)) for (const q of d.srcs.slice(0, 50)) {
+    if (!q || typeof q !== 'object' || !q.spec || typeof q.spec !== 'object' || !SRC_KEYS.slice(0, 2).every(k => Number.isFinite(q[k]))) continue;
+    const o = { spec: q.spec, acc: 0 }; for (const k of SRC_KEYS) if (Number.isFinite(q[k])) o[k] = q[k]; if (q.track) o.track = true;
+    if (!Number.isFinite(o.ux) || !Number.isFinite(o.uy) || !(o.KE > 0) || !(o.rate > 0)) continue;
+    W.sources.push(o);
+  }
+  if (d.ledger && typeof d.ledger === 'object') for (const k in W.ledger) if (Number.isFinite(d.ledger[k])) W.ledger[k] = d.ledger[k];
+}
 function worldToJSON() {
   const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.caught);
   const ix = new Map(ps.map((p, i) => [p, i])), r6 = (v) => Math.round(v * 1e6) / 1e6;
@@ -40542,14 +40806,15 @@ function worldToJSON() {
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
   const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, Ez: W.Ez || 0, Bax: W.Bax3 || 'z', z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, bspf: W.baseSpf || UI.baseSpf || W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, ...xmOf(ps), ...musOf(ps), ...isoOf(ps), xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0, ...(o.spin ? [o.spin.slice()] : [])]), /* (a μ⁺'s spin, 1.27) */ /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, bspf: W.baseSpf || UI.baseSpf || W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, ...xmOf(ps), ...musOf(ps), ...isoOf(ps), xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0, ...(o.spin ? [o.spin.slice()] : [])]), /* (a μ⁺'s spin, 1.27) */ /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length,
+    ...worldExtrasJSON() }; // (the energy books, beam sources and the setup's apparatus, 1.30 bug B5)
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
   if (d.parts.length > MAX_PARTS) return `${d.parts.length.toLocaleString('en-US')} particles: over the limit of ${MAX_PARTS.toLocaleString('en-US')} (Settings → Particle limit)`;
   const num = (v, lo, hi, dflt) => (Number.isFinite(v) ? clamp(v, lo, hi) : dflt);
   if (!REW.restoring) { rewClear(); grClear(); }
-  setRunning(false); clearWorld(); UI.preset = typeof d.preset === 'string' ? d.preset : 'empty'; UI.calm = null;
+  setRunning(false); clearWorld(); const rig = rigBuild(d); UI.preset = typeof d.preset === 'string' ? d.preset : 'empty'; UI.calm = null;
   W.box.w = W.box.tw = num(d.box.w, 20, 20000, 200); W.box.h = W.box.th = num(d.box.h, 20, 20000, 140); UI.aspect = W.box.th / W.box.tw;
   const d3 = d.d3 && typeof d.d3 === 'object' && Number.isFinite(d.d3.depth) && Array.isArray(d.d3.z) && Array.isArray(d.d3.vz) && d.d3.z.length === d.parts.length ? d.d3 : null; // (a 3-D world: version 2)
   if (d3) world3d(clamp(d3.depth, 10, 20000)); // (to 2 µm, as the box-size slider goes in 3-D, 1.24)
@@ -40593,6 +40858,7 @@ function worldFromJSON(d) {
   if (W.d3) { W.Ez = num(d3.Ez, -50, 50, 0); W.Bax3 = ['x', 'y', 'z'].includes(d3.Bax) ? d3.Bax : 'z'; } // (3-D fields, 1.24)
   if (Array.isArray(d.objs) && !W.d3) for (const o of d.objs.slice(0, 200)) { const ob = objFromJSON(o); if (ob) W.objs.push(ob); }
   R.objSel = null;
+  rigRestore(rig, d);
   W.dirty++; W.spawned++; W.topo++; W.hist = { t: [], T: [], bath: [] }; R.sel = null; R.msel.clear(); R.oSel.clear();
   mode3dSync(); syncLab(); fitView(); renderInspect(); buildToolOpts();
   const n = made.filter(Boolean).length;
@@ -41984,8 +42250,11 @@ const CHALLENGES = [
     build() { baseWorld(40, 30, 300, 0.05); scatter(16, 40, 30, (x, y) => addAtom('H', x, y, { A: 2 }), 3); OPT.fire.proj = 'sel'; OPT.fire.s = 650; }, spec: { kind: 'atom', Z: 1, A: 2, bare: true }, done: () => W.count.fusion >= 1 },
   { id: 'split', name: 'Split uranium', tool: 'fire', goal: 'Make a uranium-235 nucleus split in two.', how: 'Fire a neutron (Fire tool) at a uranium atom. A slow one — a fraction of an eV — is far likelier to be captured than a fast one.',
     build() { baseWorld(60, 40, 300, 0.05); scatter(6, 50, 30, (x, y) => addAtom('U', x, y, { A: 235 }), 8); OPT.fire.proj = 'n'; OPT.fire.s = Math.round(100 * (Math.log10(0.025) + 2)); }, done: () => W.count.fission >= 1 },
-  { id: 'antiH', name: 'Make antihydrogen', tool: 'place', goal: 'Get a positron to bind to an antiproton: one atom of antihydrogen.', how: 'At 20,000 K they fly past each other. Cool them down with the heat bath, gently.',
-    build() { baseWorld(40, 30, 20000, 0.005); W.wall = 'wrap'; scatter(6, 40, 30, (x, y) => spawnSpec(SPEC_PBAR, x, y), 4); scatter(6, 40, 30, (x, y) => spawnSpec({ kind: 'pos' }, x, y), 0); },
+  { id: 'antiH', name: 'Make antihydrogen', tool: 'place', goal: 'Get a positron to bind to an antiproton: one atom of antihydrogen.', how: 'The antiprotons are in the box; the positrons are yours to bring. With the Place tool (e⁺ is chosen), put one close to an antiproton and let it be caught.',
+    // (it began with the positrons in the box too, and they were caught in the first step, so it was done before the player
+    // did anything, bug B12, 1.30: in this game a slow lepton near an ion is caught far sooner than radiative capture in nature)
+    build() { baseWorld(40, 30, 2000, 0.005); W.wall = 'wrap'; scatter(6, 40, 30, (x, y) => spawnSpec(SPEC_PBAR, x, y), 4); },
+    spec: { kind: 'pos' },
     done: () => W.parts.some(p => !p.dead && p.anti && p.k === NUC && p.Z === 1 && p.ne >= 1) },
   { id: 'uv', name: 'Ultraviolet glow', tool: 'place', goal: 'Make the glowing walls give off most of their light in the ultraviolet.', how: 'Wien’s law: the peak of a black body’s light is at 2.9 mm·K ÷ T. Turn the heat bath up until it passes 380 nm, and watch Data → Spectrum.',
     build() { baseWorld(80, 56, 1500, 0.05); W.glow = true; }, done: () => W.glow && W.wall === 'reflect' && 2.8977719e6 / W.T < 380 },
@@ -42010,7 +42279,7 @@ const CHALLENGES = [
 function chSwitch(k, rp) { try { setSetting(k, true); } catch (e) { SET[k] = true; RP[rp] = true; } }
 const CH = { done: new Set(String(store('challenges') || '').split(',').filter(Boolean)), cur: null, won: false };
 for (const c of CHALLENGES) {
-  PRESETS['ch_' + c.id] = { group: 'Challenges', get name() { return (CH.done.has(c.id) ? '✓ ' : '') + c.name; }, tool: c.tool, tab: c.tab, spec: c.spec || (c.id === 'antiH' ? SPEC_PBAR : SPEC_P),
+  PRESETS['ch_' + c.id] = { group: 'Challenges', get name() { return (CH.done.has(c.id) ? '✓ ' : '') + c.name; }, tool: c.tool, tab: c.tab, spec: c.spec || SPEC_P,
     get hint() { return `<b>Challenge ${CHALLENGES.indexOf(c) + 1} of ${CHALLENGES.length}: ${esc(c.goal)}</b> ${esc(c.how)}${CH.done.has(c.id) ? ' <i>(done before)</i>' : ''}`; },
     build() { c.build(); CH.cur = c; CH.won = false; } };
 }
@@ -43606,12 +43875,20 @@ function expResetAll() {
   applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts();
 }
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
+/* A Realistic-particles switch that costs nothing (×1 in the flat game and in 3-D) is kept from one start to the next like an
+   ordinary setting; the rest of the Experimental tab still starts at normal (the owner, 2026-11-08; 1.30 item 67). */
+function expFree(k) {
+  if (!/^rp/.test(k)) return false;
+  const id = Object.keys(EXP_SET).find(i => EXP_SET[i] === k); if (!id) return false;
+  const c = [COSTS[id], COSTS3[id]].filter(Boolean).map(f => { try { return f(); } catch (e) { return null; } });
+  return c.length > 0 && c.every(x => x && x.on && x.on[0] === '×1');
+}
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
   let o = null;
   try { o = JSON.parse(store('settings') || 'null'); } catch (e) { o = null; }
   if (o && typeof o === 'object') {
-    for (const k in SET_DEF) if (setOk(k, o[k]) && !SET_EXP.includes(k)) SET[k] = o[k]; // (the Experimental tab starts at normal each time: asked for by the owner, 1.23.1)
+    for (const k in SET_DEF) if (setOk(k, o[k]) && (!SET_EXP.includes(k) || expFree(k))) SET[k] = o[k]; // (the Experimental tab starts at normal each time: asked for by the owner, 1.23.1)
     if ('prePerf' in o || 'perf' in o) store('settings', JSON.stringify(SET)); // (Performance mode's memory dropped, 1.23.2; the values it set are kept above)
   }
 }

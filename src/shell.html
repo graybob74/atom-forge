@@ -1,4 +1,4 @@
-<title>Atom Forge 1.29.0</title>
+<title>Atom Forge 1.30.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -226,6 +226,7 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .hint.short:not(.open)::after { content: 'tap for more'; display: block; font-size: 11px; color: var(--ch-dim); margin-top: 2px; }
 .hint .x { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 6px; border: 0; background: transparent; color: var(--ch-dim); font-size: 16px; line-height: 1; }
 .hint .x:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.hint #hintOn { margin-left: 4px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--ch-line); background: rgba(255, 255, 255, 0.08); color: #fff; font: inherit; font-size: 12px; cursor: pointer; } /* (1.30, bug B7) */
 .tip { position: absolute; pointer-events: none; background: rgba(6, 10, 15, 0.94); color: var(--ch-fg); border: 1px solid var(--ch-line);
   border-radius: 8px; padding: 6px 9px; font-size: 12px; white-space: nowrap; z-index: 3; }
 .tip .t1 { font-weight: 700; }
@@ -277,8 +278,8 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .zoom .zview { display: grid; place-items: center; padding: 0; margin-top: 4px; }
 .zoom .zview svg { width: 18px; height: 18px; }
 .zoom .zview[aria-pressed="true"] { background: var(--ch-sel); color: var(--ch-sel-fg); border-color: var(--ch-sel); }
-.fps { position: absolute; right: 12px; top: 54px; font-family: var(--font-data); font-size: 10.5px; line-height: 1.5; color: var(--ch-fg); opacity: 0.55;
-  background: rgba(6, 10, 15, 0.45); border-radius: 5px; padding: 0 6px; pointer-events: none; font-variant-numeric: tabular-nums; }
+.fps { position: absolute; right: 12px; top: 54px; font-family: var(--font-data); font-size: 10.5px; line-height: 1.5; color: var(--ch-fg); opacity: 0.9;
+  background: rgba(6, 10, 15, 0.78); border-radius: 5px; padding: 0 6px; pointer-events: none; font-variant-numeric: tabular-nums; }
 .fps:empty { display: none; }
 .ver.ultra{color:#c98a00;border-color:rgba(201,138,0,.55);opacity:1}
 #pausedBadge:not([hidden]) ~ .fps { top: 82px; } /* (below the paused badge, which sits under the palette bar, 0.91) */
