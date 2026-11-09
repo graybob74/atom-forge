@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.29.0 (not released): the owner's items 55–63
+## 1.29.0: the owner's items 55–63 (released 2026-11-08, with 1.28.3's items 52–54 below, which were not released on their own)
 
 ### 56 Light meeting atoms in 3-D: already there
 
@@ -2153,7 +2153,7 @@ badge and the code behind them (REC, recMime, recCapture, recStart, recStop, rec
 The gallery's picture keeps layersInto (its layers over the chamber, 1.26 sweep 14). Tests: t_features' video check now
 checks it is gone; f_sweep3d's part 13 (a recorded frame's alignment) removed.
 
-## 1.28.3 (not released): the owner's items 52–54 ("build it, and make sure everything is done correctly")
+## 1.28.3 (released as part of 1.29.0): the owner's items 52–54 ("build it, and make sure everything is done correctly")
 
 ### 54 Quantum bonds faster, the same results to the bit
 
@@ -3178,7 +3178,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    evaluations with extrapolation in between (changes results).
 
 55 remove video recording (the owner, 2026-11-08). Done in 1.29.0.
-(Branch v162, 1.29.0 not released: 55, 57, 58, 59, 60 (in part), 61 and 63 done; 56 was already there; 62 tried and not kept. The owner, 2026-11-08: "Do the ionized water runs last": 60 after 63.)
+(1.29.0, released: 55, 57, 58, 59, 60 (in part), 61 and 63 done; 56 was already there; 62 tried and not kept. The owner, 2026-11-08: "Do the ionized water runs last": 60 after 63.)
 56 3-D light meets atoms: rayInteract returns at once in 3-D; photoelectric absorption, Compton and Rayleigh
    scattering and line absorption in 3-D, as in the flat game (the owner's OK: "do all of those items", 2026-11-08).
 57 antimatter in 3-D: antiatoms, positronium and protonium, and annihilation, in the 3-D lab.
