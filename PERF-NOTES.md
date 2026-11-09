@@ -1991,6 +1991,82 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.30: the owner's items 64–68 and the bug test's B1–B19 (the owner, 2026-11-08: "fix everything on every list")
+
+Items:
+- 64 the particle bar's groups renamed: Bosons, Multiquarks, Exotic (ui.js PCATS; tests f_feat1, f_127h, f_ew).
+- 65 the quark–gluon plasma drawn as partons (render.js qgpInit/qgpGroup/qgpStep/qgpPartons, used by drawQGP and
+  drawQGP3): a drop gets quarks in colour-neutral sets (8–32 of them, √(hadrons)·3.2; a meson's quark and antiquark of
+  one colour, a baryon's three colours; antibaryons 15%, 40% above √s_NN 20 GeV) and gluons (0.9 per set, a colour and a
+  different anticolour). Hot they random-walk across the drop (speed falling as it cools, kept inside); at freeze-out
+  (picture age 1.1) neighbours join by coalescence (each quark the nearest antiquark of its colour, or the nearest two of
+  the other colours), the gluons fade, colour strings drawn; from 1.45 each set flies out as its hadron. Display only, on
+  the picture's clock, with its own random numbers (qgpRand), so the simulation's sequence is untouched (checked).
+- 66 fast e⁺e⁻ pairs flying together (hep.js coMovingPairs, called from beamCollisions; physics, the owner's OK: "fix
+  everything"): for an electron and a positron in radiation flight within 4 Å, going the same way, the energy in their
+  own frame is √s − 2mc² (s computed without cancelling: 2m² + 2(EaEb − papb) + 2papb(1 − cos θ), with
+  EaEb − papb = m²(pa² + pb²) + m⁴ over EaEb + papb) plus −ke²/r, r their separation in that frame (along the motion γ
+  times the lab's). Below zero: positronium at their speed (Positronium switch on), a photon ahead taking the rest
+  (E_γ = (s − M²)(E + P)/2s, so energy and momentum both kept; books through nucBegin/closeEvent), or annihilation in
+  flight (switch off). The owner's pair (γ 220, 0.42 Å): bound by 34.3 eV, o-Ps at γ 220; 5% apart in energy: not
+  bound, flies on. Not done: the unbound pair's pull (1/γ² of Coulomb's in the lab), which radiation flight has no
+  potential energy to book against; the flat game only (3-D's fast leptons are stepped and feel each other).
+- 67 Realistic-particles switches whose cost is ×1 in both the flat game and 3-D (expFree: positronium, muonium,
+  exotic atoms, resonances, nuclear, Rayleigh, unstable particles meeting, waves, hydrated electrons) are read from
+  storage at each start; the rest of the Experimental tab still starts at normal (Charged particles in matter ×1–1.3 and
+  photon polarization ×1–2 in 3-D start off).
+- 68 a γ ray's line is no longer dropped 30 s (real time) after it was given off while still travelling (render.js and
+  view3d.js drawRays): the fade starts when it arrives; the 400-ray cap bounds the list.
+
+Bugs (numbers from the runs named; tests in f_130.js):
+- B1 exoScatter on a nucleus in radiation flight took the recoil as ½mv² of a vx not kept up; now from its booked
+  relativistic energy and momentum (γmv, radSpeed). An O nucleus put into flight after the lists were made, a 10 MeV π⁺
+  passing 0.05 Å: books +376.4 eV before, 0 after (exoScatter3 needs nothing: 3-D has no radiation flight).
+- B2 lineInfo returns nothing for an atom with bonds (a molecule's excited states are its own); the resonant line
+  scattering of photons likewise needs a free atom. Water under 30 eV electrons no longer shows O 558/630 nm or Balmer
+  lines.
+- B3 forbidden lines carry their lifetime (data.js LINES, O 557.7 nm 0.74 s, 630.0 nm 110 s) and are not made by a
+  collision (pickLine) nor scatter light: quenched long before in any gas or liquid here, and the game never runs a
+  second. Oxygen's thr goes from 4.19 eV (the green line's level) to 10.74 eV (777.4 nm's upper level). Physics, the
+  owner's OK.
+- B4 (2.4 keV in one busy GeV step) not reproduced: 3.5 GeV neutrons into water (6 seeds), 10 GeV protons and 3 GeV π⁻
+  (3 seeds each), 400 steps: no step off by more than 70 eV (seed 5: +23 and −68 eV, the next step back). B1 was found in
+  the same kind of run (fast H and O after a GeV event) and may have been it.
+- B5 saves keep the energy books (W.ledger), plain beam sources (srcs: the Fire tool's and a setup's, as data), and
+  say when the setup had apparatus (rig: a collider, zones, a beam source with a kick); opening such a file builds the
+  setup again and keeps its apparatus round the saved particles (rigBuild/rigRestore; not while rewinding). Measured:
+  cloud chamber 3 sources → 3 (0 before), linac and LEP 4 zones and the collider back, beams injected again; the
+  annihilation setup's total 1.15 GeV kept to 8.6 eV (the light in flight; 1.69 → 0.26 GeV readout before).
+- B6 the Fire tool's row drops the "selected particle" button when it would repeat one of its own (projSeg).
+- B7 placing positronium with its switch off shows the reason over the chamber with a "Turn Positronium on" button
+  (toolNote), not only in the Log.
+- B8 not reproduced: RHIC with "Together" during the ramp collided at the interaction point (0, 0), √s_NN 13.4–13.9
+  GeV, two Au + Au events in 104 frames.
+- B9 LEP and DAΦNE: worst frame 50 and 31 ms over 600 frames with 250 and 89 events (the 0.7–0.8 s seen before came from
+  the test's own loop, simFrame and render back to back). RHIC after a gold–gold collision: the time is in neutronPairs
+  (0.17–0.4 s a step with 1,700 fragments in flight, 70,000 encounters in 5 steps, 67,000 of them different pairs: the
+  fragments are packed within ångströms and meet new partners every step). Pairs whose y ranges do not meet are now
+  skipped without the call (exact: nnMeet would return at once); the encounters themselves are real and stay. Left: a
+  cheaper treatment of a collision's own fragments (not changed here: it changes what they do).
+- B10 the chosen chip is scrolled 56 px clear of the scroll arrows and their 48 px fade (it went to 40 px).
+- B11 event captions (captionBox, shared with 3-D): kept clear of the particle bar, the zoom buttons and the page's
+  cards (hint, narrator, fps, paused: uiRects), the second line wrapped (up to three lines), tried above/below and
+  right/left of the event before stacking, left out when there is no free place; the setup's labels drawn before them.
+- B12 Make antihydrogen began with the positrons in the box, caught within the first step at any temperature (tried to
+  300,000 K: caught within 54 steps): it was done before the player did anything. Now the antiprotons are there and the
+  player places the positrons (e⁺ chosen). The capture itself (a slow lepton near an ion caught far sooner than
+  radiative recombination in nature) is the game's model, left as it is.
+- B13 chip labels kept inside the canvas and moved off labels already drawn; a flash memory's cells say "FG n e⁻".
+- B14 a photon's label near the right edge goes on its left.
+- B15 fitting the view keeps the box between the particle bar, the tool bar and the zoom buttons (viewInsets; 3-D:
+  the camera pulled back and its target moved by as much): Growing a crystal 8 px clear of both bars.
+- B16 the fps readout's backing 0.78 and text 0.9 (0.45 and 0.55).
+- B17 an unstable particle in the particle view is culled by its own reach (positronium's ring was cut or vanished at
+  the edge when zoomed in). The quark bags keep the nucleons' size (8 px at most, as every nucleus): not a bug.
+- B18 a short-lived particle's Inspect text gives its mean distance (and "less than the width of a nucleus/an atom"),
+  not "a few nanometres" for everything under 1 fs.
+- B19 Settings rows "Resolution" and "Drawing engine" (both were "Drawing").
+
 ## 1.29.0: the owner's items 55–63 (released 2026-11-08, with 1.28.3's items 52–54 below, which were not released on their own)
 
 ### 56 Light meeting atoms in 3-D: already there
@@ -3189,6 +3265,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 62 quantum bonds, a "faster, not identical" switch (occupied orbitals only: results equal to rounding, not to the bit).
 63 challenges / guided experiments: goals checked by the game (reach criticality, make protonium, build caffeine, …).
 (The owner also named sharing and CSV export: both exist already, share codes and the gallery, the graph's Export CSV.)
+(1.30: 64–68 done, and B1–B19 below, the owner: "fix everything on every list"; see the 1.30 section.)
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a

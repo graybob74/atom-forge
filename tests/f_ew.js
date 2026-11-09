@@ -223,7 +223,7 @@ PARTS.page = async (page, check) => {
     loadPreset('empty'); setRunning(false);
     const o = addExo('Z0', 0, 0, 0, 1, 0, resPlaceMass('Z0'));
     R.selX = { kind: 'exo', o }; showTab('inspect', true); renderInspect();
-    const out = { ins: $('tp-inspect').textContent, cat: PCATS.some(([n, l]) => n.startsWith('W, Z') && l.length >= 3) /* (1.27 feature 25: 'W, Z and Higgs bosons', four) */, m: o.m };
+    const out = { ins: $('tp-inspect').textContent, cat: PCATS.some(([n, l]) => n === 'Bosons' && l.length >= 3) /* (1.27 feature 25: 'W, Z and Higgs bosons', four) */, m: o.m };
     loadPreset('lep'); setRunning(true);
     for (let i = 0; i < 2500; i++) { W.dt = chooseDt(); step(W.dt); }
     setRunning(false); showTab('data', true); renderData();

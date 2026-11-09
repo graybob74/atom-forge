@@ -3861,7 +3861,7 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src, pol, depth = 0) { // (depth: 
         if (weak && E >= weak.D && E >= 1.77 && rnd() < 0.35) return { x: hx, y: hy, z: hz, p, after: () => photoDissociate(weak, E) };
       }
       const L = LINES[p.el.sym];
-      if (L && p.q === 0) for (const [nm] of L.l) if (Math.abs(PHYS.HC / E - nm) < 1.5) {
+      if (L && p.q === 0 && !p.bonds.length) for (const [nm, , tau] of L.l) if (!(tau > 1e-3) && Math.abs(PHYS.HC / E - nm) < 1.5) { // (a free atom's allowed lines: bugs B2, B3, 1.30)
         if (rnd() < 0.6) return { x: hx, y: hy, z: hz, p, after: () => { glow(p, wavelengthRGB(nm)); W.count.photons++; emitPhoton(p.x, p.y, E, undefined, undefined, { depth: 9, src: p }); } };
       }
       if (E < 1.6 && p.bonds.length && rnd() < 0.3 && irActive(p)) return { x: hx, y: hy, z: hz, p, after: () => { const o = other(p.bonds[0], p); kickPair(p, o, E); } };
@@ -4002,7 +4002,7 @@ function rayInteract(x, y, ux, uy, E, src, pol, depth = 0) { // (depth: the phot
         if (weak && E >= weak.D && E >= 1.77 && rnd() < 0.35) return { x: hx, y: hy, p, after: () => photoDissociate(weak, E) };
       }
       const L = LINES[p.el.sym];
-      if (L && p.q === 0) for (const [nm] of L.l) if (Math.abs(PHYS.HC / E - nm) < 1.5) {
+      if (L && p.q === 0 && !p.bonds.length) for (const [nm, , tau] of L.l) if (!(tau > 1e-3) && Math.abs(PHYS.HC / E - nm) < 1.5) { // (a free atom's allowed lines: bugs B2, B3, 1.30)
         if (rnd() < 0.6) return { x: hx, y: hy, p, after: () => { glow(p, wavelengthRGB(nm)); W.count.photons++; emitPhoton(p.x, p.y, E, undefined, undefined, { depth: 9, src: p }); } };
       }
       if (E < 1.6 && p.bonds.length && rnd() < 0.3 && irActive(p)) {
@@ -4682,6 +4682,7 @@ function vibLoss(L, A) {
   W.count.vib = (W.count.vib || 0) + 1;
 }
 function lineInfo(A) {
+  if (A.bonds.length) return null; // (an atom in a molecule: its excited states are the molecule's, not the free atom's lines; O and H in water gave off O 557.7/630 nm and Balmer lines, bug B2, 1.30)
   if (A.ne === 1 && A.Z <= 10) return { thr: 12.09 * A.Z * A.Z, hydrogenic: true };
   if (A.q !== 0) return null;
   return LINES[A.el.sym] || null;
@@ -4701,7 +4702,7 @@ function pickLine(A, Eavail) {
   // the line seen, and the rest of the cascade down to the ground state as one more photon. A line's upper level is
   // at least as high as its photon: a line above L.thr (the element's lowest, as potassium's 404 nm over its 1.61 eV)
   // costs its own energy, and is only made when the collision has that much (0.67: it was paid L.thr, light from nowhere)
-  const cost = (nm) => Math.max(L.thr, PHYS.HC / nm), ok = L.l.filter(l => !(Eavail < cost(l[0])));
+  const cost = (nm) => Math.max(L.thr, PHYS.HC / nm), ok = L.l.filter(l => !(l[2] > 1e-3) && !(Eavail < cost(l[0]))); // (forbidden lines quenched, data.js LINES, bug B3, 1.30)
   if (!ok.length) return null;
   let tot = 0; for (const l of ok) tot += l[1];
   let u = rnd() * tot;
@@ -6254,7 +6255,7 @@ function relTargets3(x, y, z, vx, vy, vz, dt, R, filter, defer) {
    neutron at rest, meet whichever of them moves. Each pair meets once per pass (p.nHit: the last one met, while they
    are still within reach). Found by a sweep over the paths' x-extents, so a crowd of neutrons costs n log n. */
 const _nnL = [];
-let _nnLo = new Float64Array(256), _nnHi = new Float64Array(256), _nnVx = new Float64Array(256), _nnVy = new Float64Array(256), _nnO = [];
+let _nnLo = new Float64Array(256), _nnHi = new Float64Array(256), _nnVx = new Float64Array(256), _nnVy = new Float64Array(256), _nnO = [], _nnYlo = new Float64Array(256), _nnYhi = new Float64Array(256), _nnN = new Uint8Array(256);
 let _nnPrev = 1, _nnSp = -1; // (free neutrons moved last step, and the spawn count then: none, and nothing new since, means nothing to look for)
 function nnMeet(i, j, dt) { // the closest approach of the two paths this step; if within reach, they meet (once per pass)
   const a = _nnL[i], b = _nnL[j];
@@ -6288,20 +6289,21 @@ function neutronPairs(dt, id0) {
   _nnPrev = nN;
   const n = _nnL.length;
   if (!nN || n < 2) return;
-  if (_nnLo.length < n) { const m = 2 * n; _nnLo = new Float64Array(m); _nnHi = new Float64Array(m); _nnVx = new Float64Array(m); _nnVy = new Float64Array(m); }
+  if (_nnLo.length < n) { const m = 2 * n; _nnLo = new Float64Array(m); _nnHi = new Float64Array(m); _nnVx = new Float64Array(m); _nnVy = new Float64Array(m); _nnYlo = new Float64Array(m); _nnYhi = new Float64Array(m); _nnN = new Uint8Array(m); }
   for (let i = 0; i < n; i++) {
-    const p = _nnL[i], vx = p.rad ? p.sp * p.ux : p.vx, vy = p.rad ? p.sp * p.uy : p.vy, x1 = p.x + vx * dt;
+    const p = _nnL[i], vx = p.rad ? p.sp * p.ux : p.vx, vy = p.rad ? p.sp * p.uy : p.vy, x1 = p.x + vx * dt, y1 = p.y + vy * dt;
     _nnVx[i] = vx; _nnVy[i] = vy; _nnLo[i] = Math.min(p.x, x1) - 0.5; _nnHi[i] = Math.max(p.x, x1) + 0.5; // (half an ångström each side: more than any reach)
+    _nnYlo[i] = Math.min(p.y, y1) - 0.5; _nnYhi[i] = Math.max(p.y, y1) + 0.5; _nnN[i] = p.Z === 0 ? 1 : 0; // (and in y: paths whose y ranges do not meet are never within reach, so nnMeet would do nothing; skipped here without the call, bug B9, 1.30: after a gold–gold collision in RHIC, 1,700 fragments in flight made up to 2 million calls a step)
   }
   // a sweep along x: each path's extent against those starting before it ends; only pairs with a neutron in them
   _nnO.length = n; for (let i = 0; i < n; i++) _nnO[i] = i;
   _nnO.sort((a, b) => _nnLo[a] - _nnLo[b]);
   for (let ii = 0; ii < n; ii++) {
-    const i = _nnO[ii], hi = _nnHi[i], ni = _nnL[i].Z === 0;
+    const i = _nnO[ii], hi = _nnHi[i], ni = _nnN[i] === 1, ylo = _nnYlo[i], yhi = _nnYhi[i];
     for (let jj = ii + 1; jj < n; jj++) {
       const j = _nnO[jj];
       if (_nnLo[j] > hi) break;
-      if (ni || _nnL[j].Z === 0) nnMeet(i, j, dt);
+      if ((ni || _nnN[j] === 1) && _nnYlo[j] <= yhi && _nnYhi[j] >= ylo) nnMeet(i, j, dt);
     }
   }
 }
@@ -6679,6 +6681,7 @@ function beamCollisions(id0) {
   for (const p of W.parts) if (!p.dead && p.rad && p.id < id0) fl.push(p);
   for (const o of W.exo) if (!o.dead && o.xb && o.beam && o.id < id0) fl.push(o); // (unstable particles in a beam, 1.15)
   if (fl.length < 2) return;
+  if (typeof coMovingPairs === 'function') coMovingPairs(fl); // (a fast e⁺e⁻ pair flying together, bound in its own frame: hep.js, 1.30 item 66)
   const C = W.collider;
   // (with many fast products about, only pairs with a beam particle in them are looked at: the products fly apart)
   const crowded = fl.length > 300, firsts = crowded ? fl.filter(p => p.beam) : fl;

@@ -140,7 +140,7 @@ PARTS.page = async (page, check, say) => {
     loadPreset('empty'); setRunning(false);
     const o = addExo('H0', 0, 0, 0, 1, 0, resPlaceMass('H0'));
     R.selX = { kind: 'exo', o }; showTab('inspect', true); renderInspect();
-    const out = { ins: $('tp-inspect').textContent, cat: PCATS.some(([n, l]) => n === 'W, Z and Higgs bosons' && l.length === 4), m: o.m };
+    const out = { ins: $('tp-inspect').textContent, cat: PCATS.some(([n, l]) => n === 'Bosons' && l.length === 4), m: o.m };
     out.help = [...document.querySelectorAll('section.card')].map(s => s.textContent).join(' ');
     return out;
   });

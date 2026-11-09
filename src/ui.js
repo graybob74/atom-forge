@@ -191,6 +191,12 @@ const FIRE_PROJ = [
   { id: 'n', label: 'n', spec: { kind: 'n' } }, { id: 'a', label: 'α', spec: SPEC_ALPHA }, { id: 'pbar', label: 'p̄', spec: SPEC_PBAR }, { id: 'nbar', label: 'n̄', spec: SPEC_NBAR },
   { id: 'g', label: 'γ', spec: { kind: 'gamma' } }, { id: 'mu', label: 'μ⁻', spec: { kind: 'exo', sp: 'mu-' } },
 ];
+/* The Fire tool's projectile row: the first button is the particle selected in the bar, unless that particle already has a
+   button of its own (p⁺ selected: one p⁺ button, lit; bug B6, 1.30). */
+function projSeg(list, cur) {
+  const sl = specLabel(UI.spec || SPEC_P), dup = list.find(f => f.id !== 'sel' && f.label === sl);
+  return seg('Projectile', list.filter(f => !(dup && f.id === 'sel')).map(f => [f.id, f.id === 'sel' ? esc(sl) : f.label]), cur === 'sel' && dup ? dup.id : cur);
+}
 function fireSpecNow() { const f = FIRE_PROJ.find(f => f.id === OPT.fire.proj); return f && f.spec ? f.spec : UI.spec; }
 function wavelengthText(E) {
   const nm = PHYS.HC / E;
@@ -227,11 +233,11 @@ const PCATS = [
   ['Mesons', ['pi+', 'pi-', 'pi0', 'K+', 'K-', 'K0S', 'K0L', 'eta'].map(sp => ({ kind: 'exo', sp }))],
   ['Baryons', ['Lam', 'Lamb', 'Sig+', 'Sig-', 'Xi0', 'Xi-', 'Omg-', 'Sigb-', 'Sigb+', 'Xib0', 'Xib+', 'Omgb+'].map(sp => ({ kind: 'exo', sp }))],
   ['Resonances', ['rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm'].map(sp => ({ kind: 'exo', sp }))],
-  ['Pentaquarks and hexaquarks', ['Pc4312', 'Pc4440', 'Pc4457', 'Pcs4338', 'dstar'].map(sp => ({ kind: 'exo', sp }))], // (1.28.3, item 52)
-  ['W, Z and Higgs bosons', ['W+', 'W-', 'Z0', 'H0'].map(sp => ({ kind: 'exo', sp }))], // (1.27; the Higgs boson: feature 25)
+  ['Multiquarks', ['Pc4312', 'Pc4440', 'Pc4457', 'Pcs4338', 'dstar'].map(sp => ({ kind: 'exo', sp }))], // (1.28.3, item 52)
+  ['Bosons', ['W+', 'W-', 'Z0', 'H0'].map(sp => ({ kind: 'exo', sp }))], // (1.27; the Higgs boson: feature 25)
   ['Light', [{ kind: 'gamma' }]],
   ['Antimatter', [{ kind: 'pos' }, SPEC_PBAR, SPEC_NBAR, SPEC_HBAR, { kind: 'atom', Z: 1, A: 2, bare: true, anti: true }, { kind: 'atom', Z: 2, A: 4, bare: true, anti: true }, 'pt']],
-  ['Exotic atoms and nuclei', ['muP', 'muD', 'muT', 'Mu', 'pPs', 'oPs'].concat([[1, 1], [1, 2], [2, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 6], [8, 7], [14, 13], [20, 19], [39, 49], [82, 125]].map(([z, n]) => hypSpecies(z, n)).filter(Boolean)).map(sp => ({ kind: 'exo', sp }))],
+  ['Exotic', ['muP', 'muD', 'muT', 'Mu', 'pPs', 'oPs'].concat([[1, 1], [1, 2], [2, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 6], [8, 7], [14, 13], [20, 19], [39, 49], [82, 125]].map(([z, n]) => hypSpecies(z, n)).filter(Boolean)).map(sp => ({ kind: 'exo', sp }))],
 ];
 /* Type-to-find: every particle of the menus, matched on its symbol, its name, its id and the spelled-out Greek. */
 const PF_GREEK = [['lambda', 'Λ'], ['sigma', 'Σ'], ['xi', 'Ξ'], ['omega', 'Ω'], ['delta', 'Δ'], ['pion', 'π'], ['pi', 'π'], ['rho', 'ρ'], ['phi', 'φ'], ['eta', 'η'], ['kaon', 'K'], ['muon', 'μ'], ['mu', 'μ'], ['tau', 'τ'], ['nu', 'ν'], ['neutrino', 'ν'], ['gamma', 'γ'], ['photon', 'γ'], ['alpha', 'α'], ['anti', '̄'], ['bar', '̄']];
@@ -293,7 +299,8 @@ function buildPalette() {
   };
   pal.oncontextmenu = (e) => { const b = e.target.closest('.chip[data-i]'); if (!b) return; const q = items[+b.dataset.i]; if (q && q !== 'sep') chipCard(e, q.spec); }; // (what it is: 1.01)
   const sel = pal.querySelector('.chip[aria-pressed="true"]'); // keep the chosen particle in view
-  if (sel && (sel.offsetLeft < pal.scrollLeft || sel.offsetLeft + sel.offsetWidth > pal.scrollLeft + pal.clientWidth)) pal.scrollLeft = sel.offsetLeft - 40;
+  const M = 56; // (clear of the scroll arrows and their 48 px fade, bug B10, 1.30)
+  if (sel && (sel.offsetLeft < pal.scrollLeft + (pal.scrollLeft > 2 ? M : 0) || sel.offsetLeft + sel.offsetWidth > pal.scrollLeft + pal.clientWidth - M)) pal.scrollLeft = Math.max(0, sel.offsetLeft - M);
 }
 /* keep the hint card clear of the palette, whose chips wrap onto more rows on narrow stages */
 function placeHint() {
@@ -485,11 +492,11 @@ function buildToolOpts() {
     case 'fire': {
       const fs = fireSpecNow() || SPEC_P;
       if (W.d3) { // (3-D: the projectiles that work there, single shots, at any energy)
-        h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)).map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
+        h = `<span data-g="proj">${projSeg(FIRE_PROJ.filter(f => spec3dOK(f.spec || UI.spec || SPEC_P)), o.proj)}</span>` +
           rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE3())) + `<span class="help" id="oFireNote">Click to fire from the camera toward the pointer (straight at an atom under it); drag to aim in the plane facing you. In 3-D: single shots, at any energy; beam sources: ${not3d()}.</span>`;
         break;
       }
-      h = `<span data-g="proj">${seg('Projectile', FIRE_PROJ.map(f => [f.id, f.id === 'sel' ? esc(specLabel(UI.spec || SPEC_P)) : f.label]), o.proj)}</span>` +
+      h = `<span data-g="proj">${projSeg(FIRE_PROJ, o.proj)}</span>` +
         (o.proj === 'sel' ? savedIsoHTML() + isoPickerHTML(UI.spec) : '') +
         rangeCtl('oKE', 'Energy', 0, 1700, o.s, fmtE(fireKE())) +
         `<span data-g="source">${seg('Mode', [['false', 'Single shot'], ['true', 'Beam source']], String(o.source))}</span>` +
@@ -911,10 +918,18 @@ function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
    life: Lab → Decay speed to see the slow ones go); light and neutrinos cannot be still, so they leave the click in a
    random direction with the energy set (Place → Energy). */
 const placeE = () => Math.pow(10, OPT.place.Es / 100); // eV, 1 eV … 1 GeV
+/* A tool that cannot do what was asked says so where it is seen (the hint bar over the chamber), not only in the Log,
+   with a button that turns on the switch it needs (bug B7, 1.30). */
+function toolNote(text, key, btn) {
+  const h = $('hint'), t = $('hintText'); if (!h || !t) return;
+  t.innerHTML = esc(text) + (key ? ` <button class="mini" id="hintOn">${esc(btn)}</button>` : '');
+  h.classList.remove('won'); h.hidden = false; hintFit();
+  const b = $('hintOn'); if (b) b.onclick = (e) => { e.stopPropagation(); setSetting(key, true); h.hidden = true; };
+}
 const PS_NEED = 'Positronium is placed with the Positronium switch on (Settings → Experimental → Realistic particles → Positronium): its decays, its pick-off in matter and its conversion by O₂ are that switch\u2019s.'; // (1.27 item 32)
 function placeFly(spec, x, y, count, z = 0) {
   _evTag = 0;
-  if (spec.kind === 'exo' && XP[spec.sp] && XP[spec.sp].ps && !RP.ps) { log('tool', PS_NEED); return []; } // (positronium needs its switch: what it does in matter is that switch's, 1.27 item 32)
+  if (spec.kind === 'exo' && XP[spec.sp] && XP[spec.sp].ps && !RP.ps) { log('tool', PS_NEED); toolNote(PS_NEED, 'rpPs', 'Turn Positronium on'); return []; } // (positronium needs its switch: what it does in matter is that switch's, 1.27 item 32)
   if (W.d3 && spec.kind === 'gamma') { for (let i = 0; i < count; i++) emitPhoton(x, y, placeE(), undefined, undefined, { travel: true, z }); return []; } // (3-D: a random direction on the sphere, from its depth, 1.24)
   if (W.d3 && spec.kind === 'nu') { for (let i = 0; i < count; i++) emitNeutrino(x, y, placeE(), undefined, undefined, !!spec.anti, 'placed by hand', spec.fl || 'e', z); return []; }
   if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (spec.sp === 'Mu') addMuonium(x + k * u[0], y + k * u[1], 1.5 * PHYS.KB * W.T, u[0], u[1], 1, z + k * u[2], u[2]); else if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], resPlaceMass(spec.sp), z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
@@ -1890,7 +1905,7 @@ function selXHTML() {
     }
     const sp = o.spin && RP.mu ? muSpinInfo(o) : null;
     if (sp) kv.push(...muSpinRows(sp));
-    if (d.tau < 1e-15) about += ' This one lives so briefly that it decays a few nanometres from where it was made.';
+    if (d.tau < 1e-15) about += ` This one lives so briefly that it decays on average ${fmtLen(path)} from where it was made${path < 1e-14 ? ', less than the width of a nucleus' : path < 1e-10 ? ', less than the width of an atom' : ''}.`; // (from its own distance: a still pentaquark said "a few nanometres" beside 0.000075 fm, bug B18, 1.30)
     else if (path > 1e-6) about += ` Moving this fast it would cross ${fmtLen(path)} on average before decaying, far more than this chamber, so it leaves it — unless decay is sped up (Lab → Decay speed).`;
     status = live ? 'In flight' : o.fate ? o.fate[0].toUpperCase() + o.fate.slice(1) : 'Gone';
   } else {
@@ -2746,11 +2761,48 @@ function filePick(accept, cb) {
 }
 const SAVE_KINDS = new Set([NUC, ELEC, POS]);
 /* The world as data: the box, bath, fields and pace, every nucleus, atom, ion and free lepton with its velocity (one in
-   radiation flight with its energy and direction: a tenth entry), the bonds among them and the magnets. Not kept:
-   light, beams, a collider's rings, and chips' circuits (their atoms are saved as atoms). */
+   radiation flight with its energy and direction: a tenth entry), the bonds among them and the magnets, the energy books,
+   the beam sources and (rebuilt from the setup) its apparatus, 1.30. Not kept: light, beam particles in flight, and chips'
+   circuits (their atoms are saved as atoms). */
 const xmOf = (ps) => { const xm = []; ps.forEach((p, i) => { const B = p.muB; if (B && B.zx) xm.push([i, B.Eb, B.zx, B.n0 || 0, B.aug || 0, B.lines || [], B.from || '']); }); return xm.length ? { xm } : {}; }; // (exotic atoms of the realistic-particle switch, 1.27: older readers open them as 0.51's muonic atoms)
 const musOf = (ps) => { const m = []; ps.forEach((p, i) => { if (p.mu && Array.isArray(p.spin)) m.push([i, ...p.spin, p.eSpin || 0]); }); return m.length ? { mus: m } : {}; }; // (muons' spins of the Muonium-as-hydrogen switch, 1.27: older readers ignore them; only a muonium atom's: a free electron as a wave packet has a spin too, ±1, 1.28.1 bug)
 const isoOf = (ps) => { const iso = []; ps.forEach((p, i) => { if (p.iso) iso.push([i, p.iso.lev, p.iso.t12]); }); return iso.length ? { iso } : {}; }; // (isomers of Realistic particles 6, 1.27: their level and half-life; older readers open the ground state)
+/* (1.30, bug B5) What a saved world lost: its energy books (every ledger started again at 0 on loading, so the total
+   jumped: annihilation 1.69 GeV → 0.26 GeV), its beam sources (a cloud chamber, a linac, a collider opened empty and stayed
+   empty) and the setup's apparatus (a collider's rings, magnets and cavities). Now the books are kept; a plain beam source
+   (the Fire tool's, a setup's) is kept as data; and a world saved from a setup with apparatus says so (rig), and opening it
+   builds that setup's apparatus again, as the setup starts, round the saved particles. Beam particles in flight are still
+   not kept (the sources make more). */
+const srcPlain = (q) => q && !q.beam && typeof q.kick !== 'function' && q.spec && typeof q.spec === 'object';
+const SRC_KEYS = ['x', 'y', 'z', 'ux', 'uy', 'uz', 'KE', 'rate', 'acc', 'count', 'jitter', 'delay'];
+function worldExtrasJSON() {
+  const ledger = {}; for (const k in W.ledger) if (Number.isFinite(W.ledger[k])) ledger[k] = W.ledger[k];
+  const srcs = W.sources.filter(srcPlain).map(q => { const o = { spec: JSON.parse(JSON.stringify(q.spec)) }; for (const k of SRC_KEYS) if (Number.isFinite(q[k])) o[k] = q[k]; if (q.track) o.track = true; return o; });
+  const rig = !!(W.collider || (W.zones && W.zones.length) || W.sources.some(q => !srcPlain(q)));
+  return { ledger, ...(srcs.length ? { srcs } : {}), ...(rig ? { rig: true } : {}) };
+}
+/* Opening: the setup's apparatus first (when the save says it had one), then, after the particles, the books and the
+   plain sources. */
+const RIG_KEYS = ['zones', 'collider', 'sources', 'lasers', 'ramp', 'cloud', 'kc', 'pB'];
+function rigBuild(d) {
+  const P = d.rig && typeof d.preset === 'string' && PRESETS[d.preset];
+  if (!P || typeof P.build !== 'function' || REW.restoring) return null;
+  try { P.build(); } catch (e) { clearWorld(); return null; }
+  const keep = {}; for (const k of RIG_KEYS) keep[k] = Array.isArray(W[k]) ? W[k].slice() : W[k];
+  keep.sources = (keep.sources || []).filter(q => !srcPlain(q)); // (its plain sources come back from the file, as they were)
+  clearWorld();
+  return keep;
+}
+function rigRestore(keep, d) {
+  if (keep) for (const k of RIG_KEYS) { if (Array.isArray(W[k]) && Array.isArray(keep[k])) { W[k].length = 0; W[k].push(...keep[k]); } else if (keep[k] !== undefined) W[k] = keep[k]; }
+  if (Array.isArray(d.srcs)) for (const q of d.srcs.slice(0, 50)) {
+    if (!q || typeof q !== 'object' || !q.spec || typeof q.spec !== 'object' || !SRC_KEYS.slice(0, 2).every(k => Number.isFinite(q[k]))) continue;
+    const o = { spec: q.spec, acc: 0 }; for (const k of SRC_KEYS) if (Number.isFinite(q[k])) o[k] = q[k]; if (q.track) o.track = true;
+    if (!Number.isFinite(o.ux) || !Number.isFinite(o.uy) || !(o.KE > 0) || !(o.rate > 0)) continue;
+    W.sources.push(o);
+  }
+  if (d.ledger && typeof d.ledger === 'object') for (const k in W.ledger) if (Number.isFinite(d.ledger[k])) W.ledger[k] = d.ledger[k];
+}
 function worldToJSON() {
   const ps = W.parts.filter(p => !p.dead && SAVE_KINDS.has(p.k) && !p.beam && !p.caught);
   const ix = new Map(ps.map((p, i) => [p, i])), r6 = (v) => Math.round(v * 1e6) / 1e6;
@@ -2762,14 +2814,15 @@ function worldToJSON() {
   // atom back within 1e-9 of where it was in depth); a reader before 1.23 ignores them and opens the world flat
   const r10 = (v) => Math.round(v * 1e10) / 1e10, d3 = W.d3 ? { depth: W.box.td || W.box.d, Ez: W.Ez || 0, Bax: W.Bax3 || 'z', z: ps.map(p => r10(p.z)), vz: ps.map(p => r10(p.vz)) } : null;
   return { app: 'Atom Forge', v: d3 ? 2 : 1, title: document.title, saved: new Date().toISOString(), preset: UI.preset, box: { w: W.box.tw, h: W.box.th }, wall: W.wall, nWall: W.nWall, T: W.T, gamma: UI.calm ? UI.calm.g : W.gamma, Bz: W.Bz, Ex: W.Ex, Ey: W.Ey, ...(d3 ? { d3 } : {}),
-    spf: W.slowSet ? W.userSpf : W.simPerFrame, bspf: W.baseSpf || UI.baseSpf || W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, ...xmOf(ps), ...musOf(ps), ...isoOf(ps), xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0, ...(o.spin ? [o.spin.slice()] : [])]), /* (a μ⁺'s spin, 1.27) */ /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length };
+    spf: W.slowSet ? W.userSpf : W.simPerFrame, bspf: W.baseSpf || UI.baseSpf || W.simPerFrame, warp: W.preUltra ? W.preUltra.warp : W.warp, minShow: (W.preUltra ? W.preUltra.minShow : W.minShow) | 0, decayOn: W.decayOn, slowmo: W.slowmo, glow: !!W.glow, parts, bonds, ...xmOf(ps), ...musOf(ps), ...isoOf(ps), xa: W.exo.filter(o => !o.dead && !o.xb).map(o => [o.sp, r6(o.x), r6(o.y), r6(o.z || 0), o.KE, r6(o.ux), r6(o.uy), r6(o.uz || 0), o.cyc || 0, o.m !== XP[o.sp].m ? o.m : 0, o.stop ? 1 : 0, ...(o.spin ? [o.spin.slice()] : [])]), /* (a μ⁺'s spin, 1.27) */ /* (every unstable particle, not only muonic hydrogen and (μα)⁺: a placed muon, kaon, hyperon or hypernucleus was lost on saving, and an undo of something else took it away, 1.26; a collider's beams are not saved) */ magnets: W.magnets.map(m => (W.d3 ? { x: m.x, y: m.y, z: m.z || 0, R: m.R, B: m.B } : { x: m.x, y: m.y, R: m.R, B: m.B })), objs: W.objs.map(objToJSON), chips: W.chips.length, exp: expOn(), left: W.parts.filter(p => !p.dead).length - ps.length,
+    ...worldExtrasJSON() }; // (the energy books, beam sources and the setup's apparatus, 1.30 bug B5)
 }
 function worldFromJSON(d) {
   if (!d || d.app !== 'Atom Forge' || !Array.isArray(d.parts) || !Array.isArray(d.bonds) || !d.box) return 'not an Atom Forge world file';
   if (d.parts.length > MAX_PARTS) return `${d.parts.length.toLocaleString('en-US')} particles: over the limit of ${MAX_PARTS.toLocaleString('en-US')} (Settings → Particle limit)`;
   const num = (v, lo, hi, dflt) => (Number.isFinite(v) ? clamp(v, lo, hi) : dflt);
   if (!REW.restoring) { rewClear(); grClear(); }
-  setRunning(false); clearWorld(); UI.preset = typeof d.preset === 'string' ? d.preset : 'empty'; UI.calm = null;
+  setRunning(false); clearWorld(); const rig = rigBuild(d); UI.preset = typeof d.preset === 'string' ? d.preset : 'empty'; UI.calm = null;
   W.box.w = W.box.tw = num(d.box.w, 20, 20000, 200); W.box.h = W.box.th = num(d.box.h, 20, 20000, 140); UI.aspect = W.box.th / W.box.tw;
   const d3 = d.d3 && typeof d.d3 === 'object' && Number.isFinite(d.d3.depth) && Array.isArray(d.d3.z) && Array.isArray(d.d3.vz) && d.d3.z.length === d.parts.length ? d.d3 : null; // (a 3-D world: version 2)
   if (d3) world3d(clamp(d3.depth, 10, 20000)); // (to 2 µm, as the box-size slider goes in 3-D, 1.24)
@@ -2813,6 +2866,7 @@ function worldFromJSON(d) {
   if (W.d3) { W.Ez = num(d3.Ez, -50, 50, 0); W.Bax3 = ['x', 'y', 'z'].includes(d3.Bax) ? d3.Bax : 'z'; } // (3-D fields, 1.24)
   if (Array.isArray(d.objs) && !W.d3) for (const o of d.objs.slice(0, 200)) { const ob = objFromJSON(o); if (ob) W.objs.push(ob); }
   R.objSel = null;
+  rigRestore(rig, d);
   W.dirty++; W.spawned++; W.topo++; W.hist = { t: [], T: [], bath: [] }; R.sel = null; R.msel.clear(); R.oSel.clear();
   mode3dSync(); syncLab(); fitView(); renderInspect(); buildToolOpts();
   const n = made.filter(Boolean).length;
@@ -4204,8 +4258,11 @@ const CHALLENGES = [
     build() { baseWorld(40, 30, 300, 0.05); scatter(16, 40, 30, (x, y) => addAtom('H', x, y, { A: 2 }), 3); OPT.fire.proj = 'sel'; OPT.fire.s = 650; }, spec: { kind: 'atom', Z: 1, A: 2, bare: true }, done: () => W.count.fusion >= 1 },
   { id: 'split', name: 'Split uranium', tool: 'fire', goal: 'Make a uranium-235 nucleus split in two.', how: 'Fire a neutron (Fire tool) at a uranium atom. A slow one — a fraction of an eV — is far likelier to be captured than a fast one.',
     build() { baseWorld(60, 40, 300, 0.05); scatter(6, 50, 30, (x, y) => addAtom('U', x, y, { A: 235 }), 8); OPT.fire.proj = 'n'; OPT.fire.s = Math.round(100 * (Math.log10(0.025) + 2)); }, done: () => W.count.fission >= 1 },
-  { id: 'antiH', name: 'Make antihydrogen', tool: 'place', goal: 'Get a positron to bind to an antiproton: one atom of antihydrogen.', how: 'At 20,000 K they fly past each other. Cool them down with the heat bath, gently.',
-    build() { baseWorld(40, 30, 20000, 0.005); W.wall = 'wrap'; scatter(6, 40, 30, (x, y) => spawnSpec(SPEC_PBAR, x, y), 4); scatter(6, 40, 30, (x, y) => spawnSpec({ kind: 'pos' }, x, y), 0); },
+  { id: 'antiH', name: 'Make antihydrogen', tool: 'place', goal: 'Get a positron to bind to an antiproton: one atom of antihydrogen.', how: 'The antiprotons are in the box; the positrons are yours to bring. With the Place tool (e⁺ is chosen), put one close to an antiproton and let it be caught.',
+    // (it began with the positrons in the box too, and they were caught in the first step, so it was done before the player
+    // did anything, bug B12, 1.30: in this game a slow lepton near an ion is caught far sooner than radiative capture in nature)
+    build() { baseWorld(40, 30, 2000, 0.005); W.wall = 'wrap'; scatter(6, 40, 30, (x, y) => spawnSpec(SPEC_PBAR, x, y), 4); },
+    spec: { kind: 'pos' },
     done: () => W.parts.some(p => !p.dead && p.anti && p.k === NUC && p.Z === 1 && p.ne >= 1) },
   { id: 'uv', name: 'Ultraviolet glow', tool: 'place', goal: 'Make the glowing walls give off most of their light in the ultraviolet.', how: 'Wien’s law: the peak of a black body’s light is at 2.9 mm·K ÷ T. Turn the heat bath up until it passes 380 nm, and watch Data → Spectrum.',
     build() { baseWorld(80, 56, 1500, 0.05); W.glow = true; }, done: () => W.glow && W.wall === 'reflect' && 2.8977719e6 / W.T < 380 },
@@ -4230,7 +4287,7 @@ const CHALLENGES = [
 function chSwitch(k, rp) { try { setSetting(k, true); } catch (e) { SET[k] = true; RP[rp] = true; } }
 const CH = { done: new Set(String(store('challenges') || '').split(',').filter(Boolean)), cur: null, won: false };
 for (const c of CHALLENGES) {
-  PRESETS['ch_' + c.id] = { group: 'Challenges', get name() { return (CH.done.has(c.id) ? '✓ ' : '') + c.name; }, tool: c.tool, tab: c.tab, spec: c.spec || (c.id === 'antiH' ? SPEC_PBAR : SPEC_P),
+  PRESETS['ch_' + c.id] = { group: 'Challenges', get name() { return (CH.done.has(c.id) ? '✓ ' : '') + c.name; }, tool: c.tool, tab: c.tab, spec: c.spec || SPEC_P,
     get hint() { return `<b>Challenge ${CHALLENGES.indexOf(c) + 1} of ${CHALLENGES.length}: ${esc(c.goal)}</b> ${esc(c.how)}${CH.done.has(c.id) ? ' <i>(done before)</i>' : ''}`; },
     build() { c.build(); CH.cur = c; CH.won = false; } };
 }
@@ -5826,12 +5883,20 @@ function expResetAll() {
   applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts();
 }
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
+/* A Realistic-particles switch that costs nothing (×1 in the flat game and in 3-D) is kept from one start to the next like an
+   ordinary setting; the rest of the Experimental tab still starts at normal (the owner, 2026-11-08; 1.30 item 67). */
+function expFree(k) {
+  if (!/^rp/.test(k)) return false;
+  const id = Object.keys(EXP_SET).find(i => EXP_SET[i] === k); if (!id) return false;
+  const c = [COSTS[id], COSTS3[id]].filter(Boolean).map(f => { try { return f(); } catch (e) { return null; } });
+  return c.length > 0 && c.every(x => x && x.on && x.on[0] === '×1');
+}
 const setOk = (k, v) => typeof v === typeof SET_DEF[k] && (!SET_OK[k] || SET_OK[k].includes(v));
 function settingsLoad() {
   let o = null;
   try { o = JSON.parse(store('settings') || 'null'); } catch (e) { o = null; }
   if (o && typeof o === 'object') {
-    for (const k in SET_DEF) if (setOk(k, o[k]) && !SET_EXP.includes(k)) SET[k] = o[k]; // (the Experimental tab starts at normal each time: asked for by the owner, 1.23.1)
+    for (const k in SET_DEF) if (setOk(k, o[k]) && (!SET_EXP.includes(k) || expFree(k))) SET[k] = o[k]; // (the Experimental tab starts at normal each time: asked for by the owner, 1.23.1)
     if ('prePerf' in o || 'perf' in o) store('settings', JSON.stringify(SET)); // (Performance mode's memory dropped, 1.23.2; the values it set are kept above)
   }
 }

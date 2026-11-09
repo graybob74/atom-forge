@@ -977,9 +977,19 @@ function exoScatter(o, x0, y0) {
     const c = Math.cos(turn), s_ = Math.sin(turn), ux = o.ux * c - o.uy * s_, uy = o.ux * s_ + o.uy * c;
     // momentum handed to the nucleus (u·Å/tu), its recoil energy taken from the exo
     const pU = pc / (PHYS.AMU_MEV * MEV) * PHYS.C, dpx = pU * (o.ux - ux), dpy = pU * (o.uy - uy);
-    const vx = tg.vx + dpx / tg.m, vy = tg.vy + dpy / tg.m, dK = 0.5 * tg.m * (vx * vx + vy * vy - tg.vx * tg.vx - tg.vy * tg.vy);
+    // (a nucleus in radiation flight: its energy is its booked p.KE along (ux, uy), relativistic, not ½mv² of a vx that is
+    // not kept up; the kick taken on its momentum, γmv; bug B1, 1.30: the books were off by the recoil, up to +16 eV)
+    let dK, kick;
+    if (tg.rad) {
+      const mc2 = tg.m * PHYS.AMU_MEV * MEV, p0 = tg.gam * tg.m * tg.sp, px = p0 * tg.ux + dpx, py = p0 * tg.uy + dpy, pm = Math.hypot(px, py);
+      const K1 = Math.sqrt(pm * PHYS.C * pm * PHYS.C + mc2 * mc2) - mc2; dK = K1 - tg.KE;
+      kick = () => { if (pm > 0) { tg.ux = px / pm; tg.uy = py / pm; } tg.KE = K1; radSpeed(tg); tg.vx = tg.sp * tg.ux; tg.vy = tg.sp * tg.uy; };
+    } else {
+      const vx = tg.vx + dpx / tg.m, vy = tg.vy + dpy / tg.m; dK = 0.5 * tg.m * (vx * vx + vy * vy - tg.vx * tg.vx - tg.vy * tg.vy);
+      kick = () => { tg.vx = vx; tg.vy = vy; if (typeof updateFast === 'function') updateFast(tg); };
+    }
     if (!(dK < o.KE - 1)) continue;
-    tg.vx = vx; tg.vy = vy; if (typeof updateFast === 'function') updateFast(tg);
+    kick();
     o.ux = ux; o.uy = uy; o.KE -= dK;
   }
   exoSpeed(o);
@@ -1588,6 +1598,46 @@ function psFromFree(a, b) {
   closeEvent(S, made, x, y, 0, 0);
   psNote(o, `e⁺ + e⁻ → ${o.lab} + γ`, `a free electron caught: the photon carries ${fmtE(Eg)}`, z);
   return true;
+}
+/* (1.30, item 66) An electron and a positron in radiation flight going the same way side by side: that flight has no
+   forces between its particles, so they flew on together for ever (the owner's pair: 0.99999c, 0.42 Å apart). In their
+   own frame they are a slow pair: their energy there is the invariant mass's kinetic part, √s − 2mc², plus the pull
+   between them at their separation in that frame (along the motion γ times what the lab sees). Below zero they are
+   bound: positronium flying on at their speed (the Positronium switch on; its clock runs γ times slow), a photon ahead
+   taking the rest, energy and momentum both kept (the photon forward: E_γ = (s − M²)(E + P)/2s); with the switch off they
+   annihilate there as a bound pair does (two γ, boosted). Pairs that are not bound fly on as before (their pull, weak by
+   1/γ² in the lab, is left out). The flat game only: 3-D's fast leptons are stepped and feel each other. */
+function coMovingPairs(fl) {
+  const L = []; for (const p of fl) if (!p.dead && (p.k === ELEC || p.k === POS) && p.rad && !p.beam && !p.caught) L.push(p);
+  if (L.length < 2 || L.length > 400) return;
+  const m = ME_C2;
+  for (let i = 0; i < L.length; i++) {
+    const a = L[i]; if (a.dead) continue;
+    for (let j = i + 1; j < L.length; j++) {
+      const b = L[j]; if (b.dead || a.dead || a.k === b.k) continue;
+      const rx = b.x - a.x, ry = b.y - a.y; if (Math.abs(rx) > 4 || Math.abs(ry) > 4) continue;
+      const dot = a.ux * b.ux + a.uy * b.uy; if (!(dot > 0.9)) continue;
+      const pa = Math.sqrt(a.KE * a.KE + 2 * a.KE * m), pb = Math.sqrt(b.KE * b.KE + 2 * b.KE * m), Ea = a.KE + m, Eb = b.KE + m;
+      // the invariant mass without cancelling: s = 2m² + 2(EaEb − papb) + 2papb(1 − cos θ)
+      const th = Math.atan2(Math.abs(a.ux * b.uy - a.uy * b.ux), dot), one = 2 * Math.sin(th / 2) ** 2;
+      const s2 = 2 * m * m + 2 * (m * m * (pa * pa + pb * pb) + m ** 4) / (Ea * Eb + pa * pb) + 2 * pa * pb * one, Wm = Math.sqrt(s2);
+      const E = Ea + Eb, Px = pa * a.ux + pb * b.ux, Py = pa * a.uy + pb * b.uy, P = Math.hypot(Px, Py), g = E / Wm;
+      const ux = Px / P, uy = Py / P, rpar = rx * ux + ry * uy, rper = rx * -uy + ry * ux, rcm = Math.hypot(rper, g * rpar);
+      const Ecm = (Wm - 2 * m) - PHYS.KE / Math.max(rcm, 0.05);
+      if (!(Ecm < 0)) continue;
+      const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y);
+      W.count.coPair = (W.count.coPair || 0) + 1;
+      if (!(typeof RP !== 'undefined' && RP.ps)) { annihilateInFlight(a, b, x, y); log('nuc', `A fast e⁺e⁻ pair flying together (γ = ${fmtNum(g, 3)}, ${fmtNum(rcm, 2)} Å apart in its own frame) was bound, ${fmtE(-Ecm)} below free: it annihilated (Positronium switch off)`); break; }
+      const M = PS_M * MEV, Eg = (s2 - M * M) * (E + P) / (2 * s2), KEps = E - Eg - M;
+      if (!(KEps > 0) || !(Eg > 0)) continue;
+      const S = nucBegin([a, b]);
+      kill(a); kill(b);
+      const o = psMake(x, y, 0, ux, uy); o.KE = KEps; exoSpeed(o);
+      closeEvent(S, { ps: [], xs: [o], rays: [[item('g'), 1, ux, uy, 0]], lost: 0 }, x, y, 0, 0);
+      psNote(o, `e⁺ + e⁻ flying together → ${o.lab} + γ`, `bound in their own frame (${fmtE(-Ecm)} below free, ${fmtNum(rcm, 2)} Å apart there); flying at γ = ${fmtNum(o.gam, 4)}, its clock ${fmtNum(o.gam, 3)}× slow`, 0);
+      break;
+    }
+  }
 }
 function psNote(o, txt, sub, z) {
   W.count.react++;
