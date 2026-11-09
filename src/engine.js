@@ -5939,10 +5939,24 @@ function pickMode(inf) {
   for (const m of inf.modes) { u -= m.br; if (u <= 0) return m; }
   return inf.modes[inf.modes.length - 1];
 }
-function doDecay(p) {
-  if (W.d3) return doDecay3(p); // (3-D, 1.25)
+/* (1.29 item 58) β-delayed neutron emission: the β⁻ decay feeds its daughter above the neutron's separation energy,
+   which then gives off the neutron at once (in 10⁻¹⁷ s): done here as the two decays one after the other, the β⁻ with
+   Q(β⁻n) less the neutron's energy and the neutron with its energy, so the two release Q(β⁻n) between them, exactly.
+   The neutron's energy is drawn from the β phase space over the levels above Sn, ∝ (Q(β⁻n) − En)⁵, mean Q(β⁻n)/7
+   (⁸⁷Br 0.19 MeV, ⁹⁴Rb 0.49; measured means 0.25 and 0.45). */
+function bnEn(Q) { return Q * (1 - Math.pow(1 - rnd(), 1 / 6)); }
+function doDecayBn(p, Q, d3) {
+  const En = bnEn(Q);
+  const ok = d3 ? doDecay3(p, { mode: 'b-', Q: Q - En, bn: true }) : doDecay(p, { mode: 'b-', Q: Q - En, bn: true });
+  if (!ok || p.dead) return ok;
+  W.count.dn = (W.count.dn || 0) + 1;
+  return d3 ? doDecay3(p, { mode: 'n', Q: En, bn: true }) : doDecay(p, { mode: 'n', Q: En, bn: true });
+}
+function doDecay(p, force) {
+  if (W.d3) return doDecay3(p, force); // (3-D, 1.25)
   const inf = p.nuc;
-  let md = pickMode(inf);
+  let md = force || pickMode(inf);
+  if (md.mode === 'bn') return doDecayBn(p, md.Q, false);
   // antinuclei decay as the mirror image: n̄ → p̄ + e⁺ + ν, antiparticles emitted, positrons captured
   const sym = (z, n) => z > 0 ? nucSymA(z, n, p.anti) : nucSym(z, n);
   const lbl = sym(p.Z, p.N);
@@ -5972,7 +5986,7 @@ function doDecay(p) {
   const Qtxt = fmtE(Math.max(0, Q) * 1e6); // the decay's Q-value as tabulated (what a neutral atom's emissions share)
   switch (mode) {
     case 'b-': case 'b+': {
-      const gl = RP.nuc ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (the daughter's level it feeds, Realistic particles 6, 1.27: hep.js)
+      const gl = RP.nuc && !(force && force.bn) ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (the daughter's level it feeds, Realistic particles 6, 1.27: hep.js; not for a β⁻n's β⁻, whose level is above Sn, 1.29)
       const T = betaSpectrum(Q - Elv), Enu = Q - Elv - T;
       p.Z += mode === 'b-' ? 1 : -1; p.N += mode === 'b-' ? -1 : 1;
       if (p.Z === 0) { // proton → neutron can't happen here; guard
@@ -6047,7 +6061,7 @@ function doDecay(p) {
       settleKE(S, gk ? Qn - gk.iso - gk.sum : Qn, [p].concat(prod)); // the emitted particle and the recoiling daughter share what is left
       if (gk) glFire(gk.rays, x, y, 0, p, 0);
       if (p.Z === 0 && p.N > 1) { /* neutron cluster: let the next sweep split it */ }
-      const nm = mode === 'a' ? 'α decay' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
+      const nm = mode === 'a' ? 'α decay' : force && force.bn ? 'Delayed neutron' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
       const em2 = (mode === 'a' ? 'α' : mode === 'p' ? 'p' : mode === 'n' ? 'n' : mode === '2p' ? '2p' : '2n') + (p.anti ? '\u0304' : '');
       log('nuc', `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''} (${Qtxt})`);
       nucEvent(mode === 'a' ? 'alpha' : 'decay', x, y, `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''}`, gh, `${Qtxt} released${boostTag()}`,
@@ -6062,9 +6076,10 @@ function doDecay(p) {
    the nucleus's depth (before, a decay in a 3-D world put its α, electron or neutron down at z = 0 and turned the
    daughter in the plane). The neutrino leaves along the direction its momentum gave the recoil (the flat game draws it
    afresh). Books as doDecay's. */
-function doDecay3(p) {
+function doDecay3(p, force) {
   const inf = p.nuc;
-  let md = pickMode(inf);
+  let md = force || pickMode(inf);
+  if (md.mode === 'bn') return doDecayBn(p, md.Q, true);
   const sym = (z, n) => z > 0 ? nucSymA(z, n, p.anti) : nucSym(z, n);
   const lbl = sym(p.Z, p.N);
   const x = p.x, y = p.y, z = p.z;
@@ -6085,7 +6100,7 @@ function doDecay3(p) {
   const Qtxt = fmtE(Math.max(0, Q) * 1e6);
   switch (mode) {
     case 'b-': case 'b+': {
-      const gl = RP.nuc ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (1.27, as doDecay)
+      const gl = RP.nuc && !(force && force.bn) ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (1.27, as doDecay; 1.29: not for a β⁻n's β⁻)
       const T = betaSpectrum(Q - Elv), Enu = Q - Elv - T;
       p.Z += mode === 'b-' ? 1 : -1; p.N += mode === 'b-' ? -1 : 1;
       if (p.Z === 0) { p.Z = 1; p.N = 0; }
@@ -6144,7 +6159,7 @@ function doDecay3(p) {
       const gk = Elv ? glKeep(p, gl) : null; // (1.27)
       settleKE(S, gk ? Qn - gk.iso - gk.sum : Qn, [p].concat(prod));
       if (gk) glFire(gk.rays, x, y, z, p, 0);
-      const nm = mode === 'a' ? 'α decay' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
+      const nm = mode === 'a' ? 'α decay' : force && force.bn ? 'Delayed neutron' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
       const em2 = (mode === 'a' ? 'α' : mode === 'p' ? 'p' : mode === 'n' ? 'n' : mode === '2p' ? '2p' : '2n') + (p.anti ? '\u0304' : '');
       log('nuc', `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''} (${Qtxt})`);
       nucEvent(mode === 'a' ? 'alpha' : 'decay', x, y, `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''}`, gh, `${Qtxt} released${boostTag()}`, { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th }, z);

@@ -2024,11 +2024,25 @@ to the bit (fingerprints, 60 setups). Test: f_129 (events, pn, fast; all fail on
   The books stay right (25 eV over 100 steps after a 1.9 GeV event). A fix (fast atoms in 3-D losing their electrons
   and their energy as ions do) is a physics change for the owner.
 
-### 58 Delayed neutrons: waiting for the data
+### 58 Delayed neutrons
 
-Needs the measured β⁻n emission probabilities (Pn) and Q-values for the 43 fission products data.js counts as plain β⁻
-(⁸⁵As 63%, ⁸⁷Br 2.6%, ¹³⁷I 7.6%, …). Fetching IAEA LiveChart's table needs the owner's approval of the site; from memory
-is what 1.27 bug 17 removed. Not built until then.
+The data (fetched 2026-11-08 with the owner's approval): the IAEA's reference database for β-delayed neutrons (Liang et
+al., Nucl. Data Sheets 168 (2020)) is closed access and the IAEA's LiveChart and AMDC files refused automated requests,
+so P1n comes from NUBASE2020 (Kondev et al. 2021, which adopts the evaluated values) as Wikipedia's isotope tables give
+it, cross-checked against the IAEA standards (arXiv 2102.01165, Table I: ⁸⁷Br 2.53(10), ⁸⁸Br 6.72(27), ⁹⁴Rb 10.39(22),
+⁹⁵Rb 8.8(4), ¹³⁷I 7.63(14), ⁹Li 50.5(10), ¹⁶C 99.28(12), ¹⁷N 95.1(7) against NUBASE 2.60, 6.58, 10.3, 8.7, 7.51, 50.5,
+99.0, 95.1). Q(β⁻n) = the table's Qβ less the daughter's Sn from AME2020 masses (same pages); it matches Liang et al.'s
+values where the search showed them (¹³⁵Sb 4772.1, ¹³⁷I 2001.6, ¹³⁸I 2332.2, ¹³⁹I 3430.0 keV). The game's own masses would
+have been 0.15–0.56 MeV off here (its Sn of ¹³⁷Xe 4.59 MeV, measured 4.03), so they are not used.
+48 nuclides get a second mode, 'bn' (data.js; the 43 fission products and ⁸He, ⁹Li, ¹¹Li, ¹²Be, ¹³B, ¹⁶C, ¹⁷N: 0.01% for
+⁹²Rb to 99% for ¹⁶C). Left out: ones with no measured value or only "?" in NUBASE (⁸²Ge, ⁸³As, ⁸⁶Se, ⁹¹Rb, ⁹⁶Sr, ¹⁰⁰Y,
+¹⁰²Zr, ¹⁰³Zr (<1%), ¹⁰³Nb, ¹³⁴Sb, ¹³⁶I), and the P2n and P3n of ¹¹Li (4.1, 1.9%), left in β⁻.
+doDecay and doDecay3: a 'bn' decay is the β⁻ with Q(β⁻n) − En, then at once the neutron with En (log "Delayed
+neutron: …"; it carries the fission's kFis, so the chain-reaction map counts it), so the books close as for any decay
+(within 3×10⁻⁵ eV a decay, flat and 3-D). En from the β phase space over the levels above Sn, ∝ (Q(β⁻n) − En)⁵, mean
+Q(β⁻n)/7: ⁸⁷Br 0.16 MeV, ⁹⁴Rb 0.49, ¹⁷N 0.61 (measured means 0.25, 0.45, about 1.2: the real spectra follow the
+daughter's levels, a refinement for later). The decay chains and cards show the new mode (β⁻n). No setup's
+fingerprint changes (their fission products do not decay within the fingerprints' steps). Test: f_129 bn.
 
 ### 59 Hydrated electrons (Experimental → Realistic particles, off by default)
 
@@ -3164,8 +3178,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    evaluations with extrapolation in between (changes results).
 
 55 remove video recording (the owner, 2026-11-08). Done in 1.29.0.
-(Branch v162, 1.29.0 not released: 55, 57, 59, 60 (in part), 61 and 63 done; 56 was already there; 62 tried and not kept; 58 waits
-for the data. The owner, 2026-11-08: "Do the ionized water runs last": 60 after 63.)
+(Branch v162, 1.29.0 not released: 55, 57, 58, 59, 60 (in part), 61 and 63 done; 56 was already there; 62 tried and not kept. The owner, 2026-11-08: "Do the ionized water runs last": 60 after 63.)
 56 3-D light meets atoms: rayInteract returns at once in 3-D; photoelectric absorption, Compton and Rayleigh
    scattering and line absorption in 3-D, as in the flat game (the owner's OK: "do all of those items", 2026-11-08).
 57 antimatter in 3-D: antiatoms, positronium and protonium, and annihilation, in the 3-D lab.

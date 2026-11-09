@@ -2178,7 +2178,7 @@ function drawSolverPlot(cv, res) {
 }
 /* Decay chain: where this nucleus goes, step by step, on a chart of the nuclides (neutrons across, protons up),
    with each step's half-life; α steps run diagonally down, β⁻ up-left, β⁺ and electron capture down-right. */
-const CHAIN_COL = { a: '#f0b44c', 'b-': '#4da8ff', 'b+': '#ff6fc8', ec: '#45c7b0', p: '#ff5a4e', n: '#a9b4c2', '2p': '#ff5a4e', '2n': '#a9b4c2', sf: '#ff8a3d' };
+const CHAIN_COL = { a: '#f0b44c', 'b-': '#4da8ff', 'b+': '#ff6fc8', ec: '#45c7b0', p: '#ff5a4e', n: '#a9b4c2', bn: '#7f9cff', '2p': '#ff5a4e', '2n': '#a9b4c2', sf: '#ff8a3d' };
 function chainSectionHTML(Z, N, anti) {
   const ch = decayChain(Z, N, 40);
   if (ch.length < 2 && !ch[0].mode) return '';
@@ -6935,7 +6935,7 @@ function specAbout(s) { // { t1, t2, rows: [[label, text]], found }
     const el = ELEMENTS[s.Z], N = s.A - s.Z, nuc = nuclideInfo(s.Z, N), q = s.bare ? (s.anti ? -s.Z : s.Z) : (s.anti ? -(s.charge || 0) : s.charge || 0);
     row('Element', `${el.name} (${el.sym}), element ${s.Z}${CAT_NAME[el.cat] ? ', ' + CAT_NAME[el.cat] : ''}`);
     row('Nucleus', `${s.Z} proton${s.Z > 1 ? 's' : ''}, ${N} neutron${N === 1 ? '' : 's'}: ${nucSymA(s.Z, N, s.anti)}, ${lifeText(nuc, s.bare ? { ne: 0 } : null)}`);
-    if (nuc && nuc.modes && nuc.modes.length && !nuc.stable) row('Decays', nuc.modes.map(m => `${({ a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'electron capture', sf: 'spontaneous fission', p: 'proton emission', '2p': 'two-proton emission', n: 'neutron emission', '2n': 'two-neutron emission' })[m.mode] || m.mode}${m.br < 1 ? ' ' + Math.round(m.br * 100) + '%' : ''}`).join(', '));
+    if (nuc && nuc.modes && nuc.modes.length && !nuc.stable) row('Decays', nuc.modes.map(m => `${({ a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'electron capture', sf: 'spontaneous fission', p: 'proton emission', '2p': 'two-proton emission', n: 'neutron emission', bn: 'β⁻ and a delayed neutron', '2n': 'two-neutron emission' })[m.mode] || m.mode}${m.br < 1 ? ' ' + Math.round(m.br * 100) + '%' : ''}`).join(', '));
     row('Charge', q ? (q > 0 ? '+' : '−') + Math.abs(q) + ' e' : '0 (neutral)');
     row('Electrons', s.bare ? 'none: a bare nucleus' : String(s.Z - (s.charge || 0)));
     row('Mass', fmtNum(s.Z * PHYS.MP + N * PHYS.MN + (s.bare ? 0 : s.Z - (s.charge || 0)) * PHYS.ME - bindingE(s.Z, N) / PHYS.AMU_MEV, 5) + ' u');

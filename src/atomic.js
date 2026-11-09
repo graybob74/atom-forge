@@ -386,11 +386,11 @@ function nucName(Z, N) {
 }
 function modeLabel(m) {
   return { 'b-':'β⁻ decay', 'b+':'β⁺ decay', ec:'Electron capture', a:'α decay', p:'Proton emission',
-    n:'Neutron emission', '2p':'Two-proton emission', '2n':'Two-neutron emission', sf:'Spontaneous fission' }[m] || m;
+    n:'Neutron emission', bn:'β⁻ decay and a delayed neutron', '2p':'Two-proton emission', '2n':'Two-neutron emission', sf:'Spontaneous fission' }[m] || m;
 }
 /* How each mode moves a nuclide (ΔZ, ΔN); fission ends a chain. */
-const DECAY_STEP = { a: [-2, -2], 'b-': [1, -1], 'b+': [-1, 1], ec: [-1, 1], p: [-1, 0], n: [0, -1], '2p': [-2, 0], '2n': [0, -2] };
-const MODE_SHORT = { a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'EC', p: 'p', n: 'n', '2p': '2p', '2n': '2n', sf: 'fission' };
+const DECAY_STEP = { a: [-2, -2], 'b-': [1, -1], 'b+': [-1, 1], ec: [-1, 1], p: [-1, 0], n: [0, -1], bn: [1, -2], '2p': [-2, 0], '2n': [0, -2] };
+const MODE_SHORT = { a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'EC', p: 'p', n: 'n', bn: 'β⁻n', '2p': '2p', '2n': '2n', sf: 'fission' };
 /* The chain a nuclide decays down, by its likeliest mode at each step, to a stable nuclide or to fission:
    [{ Z, N, t12, stable, est, mode, br, alt: [{ mode, br }] }]. */
 function decayChain(Z, N, maxSteps) {

@@ -1133,17 +1133,23 @@ const COMMON_A = [0,1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,4
 /* Radioactive decay data: "Z_N" → [half-life (s), mode, Q (MeV)] or [t½, [[mode, branch, Q], ...]].
    Modes: b- (β⁻), b+ (β⁺), ec (electron capture), a (α), p, n, sf (spontaneous fission). */
 const Y_ = PHYS.YEAR, D_ = 86400, H_ = 3600, M_ = 60;
+/* (1.29 item 58) β-delayed neutron emission, 'bn': 48 β⁻ emitters whose daughter is fed above its neutron
+   separation energy now emit a neutron that many times in a hundred (P1n: NUBASE2020, Kondev et al., Chin. Phys. C 45
+   030001 (2021), as tabulated in Wikipedia's isotope tables, fetched 2026-11-08; ⁸⁷Br 2.60%, ¹³⁷I 7.51%, ⁹⁴Rb 10.3%, the
+   IAEA reference database's standards agree within their errors: 2.53(10), 7.63(14), 10.39(22)). Q(β⁻n) = Qβ (this
+   table) − Sn of the daughter from AME2020 masses (the same source); checks: ¹³⁷I 2.0015, ¹³⁵Sb 4.7721, ¹³⁸I 2.3322,
+   ¹³⁹I 3.4299 MeV, as Liang et al. 2020 list them. P2n and P3n (¹¹Li, a few percent) are left in β⁻. */
 const DECAY = {
   '0_1':[609.6,'b-',0.782347],
   '1_2':[12.32*Y_,'b-',0.018591],
-  '2_4':[0.8067,'b-',3.505], '2_6':[0.1191,'b-',10.65],
-  '3_5':[0.8399,'b-',16.004], '3_6':[0.1783,'b-',13.606], '3_8':[0.00875,'b-',20.55],
+  '2_4':[0.8067,'b-',3.505], '2_6':[0.1191,[['b-',0.84,10.65],['bn',0.16,8.6174]]],
+  '3_5':[0.8399,'b-',16.004], '3_6':[0.1783,[['b-',0.495,13.606],['bn',0.505,11.9415]]], '3_8':[0.00875,[['b-',0.137,20.55],['bn',0.863,20.0484]]],
   '4_3':[53.22*D_,'ec',0.8618], '4_4':[8.19e-17,'a',0.0918], '4_6':[1.387e6*Y_,'b-',0.5560],
-  '4_7':[13.76,'b-',11.506], '4_8':[0.0215,'b-',11.708],
-  '5_3':[0.770,'b+',17.979], '5_4':[8e-19,'p',0.185], '5_7':[0.0202,'b-',13.369], '5_8':[0.01733,'b-',13.437],
+  '4_7':[13.76,'b-',11.506], '4_8':[0.0215,[['b-',0.995,11.708],['bn',0.005,8.3383]]],
+  '5_3':[0.770,'b+',17.979], '5_4':[8e-19,'p',0.185], '5_7':[0.0202,'b-',13.369], '5_8':[0.01733,[['b-',0.99734,13.437],['bn',0.00266,8.4907]]],
   '6_3':[0.1265,'b+',16.498], '6_4':[19.29,'b+',3.648], '6_5':[1221.8,'b+',1.982], '6_8':[5700*Y_,'b-',0.15648],
-  '6_9':[2.449,'b-',9.772], '6_10':[0.747,'b-',8.010],
-  '7_5':[0.011,'b+',17.338], '7_6':[597.9,'b+',2.2205], '7_9':[7.13,'b-',10.421], '7_10':[4.173,'b-',8.680],
+  '6_9':[2.449,'b-',9.772], '6_10':[0.747,[['b-',0.01,8.010],['bn',0.99,5.5211]]],
+  '7_5':[0.011,'b+',17.338], '7_6':[597.9,'b+',2.2205], '7_9':[7.13,'b-',10.421], '7_10':[4.173,[['b-',0.049,8.680],['bn',0.951,4.5369]]],
   '8_5':[0.00858,'b+',17.77], '8_6':[70.62,'b+',5.143], '8_7':[122.24,'b+',2.754], '8_11':[26.47,'b-',4.821],
   '8_12':[13.51,'b-',3.814],
   '9_8':[64.49,'b+',2.761], '9_9':[6586,'b+',1.656], '9_11':[11.07,'b-',7.025], '9_12':[4.158,'b-',5.684],
@@ -1253,7 +1259,7 @@ const DECAY = {
   '99_157':[25.4*M_,'b-',1.7000], // 256Es
   // (1.27 bug 9) The same source for 271 more the game makes often and had estimated: every (n,γ) product of a stable isotope, the
   // fission products of ²³⁵U above 0.1% independent yield (ENSDF/LiveChart's thermal yields) and their decay chains to the first
-  // listed or stable nuclide. β⁻-delayed neutron branches (43 of them, up to 63% for ⁸⁵As) are counted as β⁻: the game has no β⁻n.
+  // listed or stable nuclide. β⁻-delayed neutron branches (43 of them, up to 63% for ⁸⁵As) were counted as β⁻ until 1.29, which gives them their own mode, bn (see the note above DECAY).
   '20_29':[8.718*M_,'b-',5.2624],
   '21_28':[57.18*M_,'b-',2.0016],
   '22_29':[5.76*M_,'b-',2.4701],
@@ -1264,24 +1270,24 @@ const DECAY = {
   '30_39':[56.4*M_,'b-',0.9099], '30_41':[2.42*M_,'b-',2.8103],
   '31_39':[21.14*M_,[['b-',0.9959,1.6519],['ec',0.0041,0.6546]]], '31_41':[14.10*H_,'b-',3.9976],
   '32_43':[82.78*M_,'b-',1.1772], '32_45':[11.211*H_,'b-',2.7035], '32_50':[4.0,'b-',4.6904],
-  '33_43':[26.24*H_,'b-',2.9606], '33_44':[38.79*H_,'b-',0.6832], '33_49':[19.1,'b-',7.4885], '33_50':[13.4,'b-',5.6712], '33_51':[4.2,'b-',10.0942], '33_52':[2.021,'b-',9.2245],
+  '33_43':[26.24*H_,'b-',2.9606], '33_44':[38.79*H_,'b-',0.6832], '33_49':[19.1,'b-',7.4885], '33_50':[13.4,'b-',5.6712], '33_51':[4.2,[['b-',0.9972,10.0942],['bn',0.0028,1.4157]]], '33_52':[2.021,[['b-',0.374,9.2245],['bn',0.626,4.6873]]],
   '34_41':[119.78*D_,'ec',0.8647], '34_45':[3.27E+5*Y_,'b-',0.1506], '34_47':[18.45*M_,'b-',1.5880], '34_49':[22.3*M_,'b-',3.6732], '34_50':[3.26*M_,'b-',1.8354],
-  '34_51':[32.9,'b-',6.1618], '34_52':[14.3,'b-',5.1291], '34_53':[5.50,'b-',7.4656], '34_54':[1.53,'b-',6.8318],
+  '34_51':[32.9,'b-',6.1618], '34_52':[14.3,'b-',5.1291], '34_53':[5.50,[['b-',0.994,7.4656],['bn',0.006,1.1349]]], '34_54':[1.53,[['b-',0.9901,6.8318],['bn',0.0099,1.9362]]],
   '35_45':[17.68*M_,[['b-',0.917,2.0044],['b+',0.02208,1.8705],['ec',0.06092,1.8705]]], '35_47':[35.282*H_,'b-',3.0931], '35_48':[2.374*H_,'b-',0.9769], '35_49':[31.76*M_,'b-',4.6563],
-  '35_50':[2.90*M_,'b-',2.9049], '35_51':[55.1,'b-',7.6334], '35_52':[55.68,'b-',6.8178], '35_53':[16.34,'b-',8.9753], '35_54':[4.357,'b-',8.2615], '35_55':[1.91,'b-',10.9590],
-  '35_56':[0.543,'b-',9.8667],
+  '35_50':[2.90*M_,'b-',2.9049], '35_51':[55.1,'b-',7.6334], '35_52':[55.68,[['b-',0.974,6.8178],['bn',0.026,1.3026]]], '35_53':[16.34,[['b-',0.9342,8.9753],['bn',0.0658,1.9222]]], '35_54':[4.357,[['b-',0.862,8.2615],['bn',0.138,3.3456]]], '35_55':[1.91,[['b-',0.747,10.9590],['bn',0.253,4.4642]]],
+  '35_56':[0.543,[['b-',0.705,9.8667],['bn',0.295,5.7807]]],
   '36_43':[35.04*H_,[['b+',0.06986,1.6258],['ec',0.9301,1.6258]]], '36_51':[76.3*M_,'b-',3.8883], '36_52':[2.825*H_,'b-',2.9177], '36_53':[3.15*M_,'b-',5.1766],
-  '36_54':[32.32,'b-',4.4063], '36_55':[8.57,'b-',6.7711], '36_56':[1.840,'b-',6.0031], '36_57':[1.286,'b-',8.4839],
+  '36_54':[32.32,'b-',4.4063], '36_55':[8.57,'b-',6.7711], '36_56':[1.840,[['b-',0.999668,6.0031],['bn',0.000332,0.9044]]], '36_57':[1.286,[['b-',0.9805,8.4839],['bn',0.0195,2.5651]]],
   '37_49':[18.642*D_,'b-',1.7761], '37_51':[17.773*M_,'b-',5.3126], '37_52':[15.32*M_,'b-',4.4966], '37_53':[158,'b-',6.5854], '37_54':[58.2,'b-',5.9069],
-  '37_55':[4.48,'b-',8.0949], '37_56':[5.84,'b-',7.4659], '37_57':[2.702,'b-',10.2829], '37_58':[0.3777,'b-',9.2270],
+  '37_55':[4.48,[['b-',0.999893,8.0949],['bn',0.000107,0.8082]]], '37_56':[5.84,[['b-',0.9861,7.4659],['bn',0.0139,2.1761]]], '37_57':[2.702,[['b-',0.897,10.2829],['bn',0.103,3.4517]]], '37_58':[0.3777,[['b-',0.913,9.2270],['bn',0.087,4.8842]]],
   '38_47':[64.849*D_,'ec',1.0641], '38_51':[50.563*D_,'b-',1.5022], '38_53':[9.65*H_,'b-',2.6994], '38_54':[2.611*H_,'b-',1.9491], '38_55':[7.43*M_,'b-',4.1413],
-  '38_56':[75.3,'b-',3.5058], '38_57':[23.90,'b-',6.0907], '38_58':[1.07,'b-',5.4117], '38_59':[0.429,'b-',7.5348], '38_60':[0.653,'b-',5.8664], '38_61':[0.269,'b-',8.1252],
+  '38_56':[75.3,'b-',3.5058], '38_57':[23.90,'b-',6.0907], '38_58':[1.07,'b-',5.4117], '38_59':[0.429,[['b-',0.9998,7.5348],['bn',0.0002,1.6780]]], '38_60':[0.653,[['b-',0.9977,5.8664],['bn',0.0023,1.6218]]], '38_61':[0.269,[['b-',0.999,8.1252],['bn',0.001,1.6989]]],
   '39_52':[58.51*D_,'b-',1.5443], '39_53':[3.54*H_,'b-',3.6425], '39_54':[10.18*H_,'b-',2.8949], '39_55':[18.7*M_,'b-',4.9179], '39_56':[10.3*M_,'b-',4.4520],
-  '39_57':[5.34,'b-',7.1089], '39_58':[3.75,'b-',6.8212], '39_59':[0.548,'b-',8.9930], '39_60':[1.484,'b-',6.9729], '39_61':[0.732,'b-',9.0515], '39_62':[0.45,'b-',8.1062],
+  '39_57':[5.34,'b-',7.1089], '39_58':[3.75,[['b-',0.99945,6.8212],['bn',0.00055,1.2520]]], '39_59':[0.548,[['b-',0.9967,8.9930],['bn',0.0033,2.5766]]], '39_60':[1.484,[['b-',0.9823,6.9729],['bn',0.0177,2.5666]]], '39_61':[0.732,'b-',9.0515], '39_62':[0.45,[['b-',0.977,8.1062],['bn',0.023,3.2467]]],
   '40_53':[1.61E+6*Y_,'b-',0.0908], '40_55':[64.032*D_,'b-',1.1263], '40_57':[16.749*H_,'b-',2.6661], '40_58':[30.7,'b-',2.2429], '40_59':[2.1,'b-',4.7187],
   '40_60':[7.1,'b-',3.4185], '40_61':[2.3,'b-',5.7305], '40_62':[2.9,'b-',4.7168], '40_63':[1.3,'b-',7.2197],
   '41_56':[72.1*M_,'b-',1.9419], '41_57':[2.86,'b-',4.5914], '41_58':[15.0,'b-',3.6348], '41_59':[1.4,'b-',6.4018], '41_60':[7.1,'b-',4.6285], '41_61':[4.3,'b-',7.2626],
-  '41_62':[1.5,'b-',5.9257], '41_63':[4.9,'b-',8.5328], '41_64':[2.91,'b-',7.4152],
+  '41_62':[1.5,'b-',5.9257], '41_63':[4.9,[['b-',0.9995,8.5328],['bn',0.0005,1.0716]]], '41_64':[2.91,[['b-',0.983,7.4152],['bn',0.017,2.3552]]],
   '42_51':[4.0E+3*Y_,'ec',0.4058], '42_59':[14.61*M_,'b-',2.8246], '42_60':[11.3*M_,'b-',1.0121], '42_61':[67.5,'b-',3.6496], '42_62':[60,'b-',2.1552], '42_63':[36.3,'b-',4.9555],
   '42_64':[8.73,'b-',3.6482], '42_65':[3.5,'b-',6.2050],
   '43_58':[14.22*M_,'b-',1.6135], '43_59':[5.28,'b-',4.5335], '43_60':[54.2,'b-',2.6632], '43_61':[18.3*M_,'b-',5.5968], '43_62':[7.64*M_,'b-',3.6482], '43_63':[35.6,'b-',6.5470],
@@ -1293,22 +1299,22 @@ const DECAY = {
   '48_59':[6.50*H_,[['b+',0.001996,1.4164],['ec',0.998,1.4164]]], '48_61':[461.9*D_,'ec',0.2151], '48_67':[53.46*H_,'b-',1.4519], '48_69':[2.49*H_,'b-',2.5246],
   '49_67':[14.10,[['b-',0.9998,3.2762],['ec',0.00023,0.4627]]], '49_68':[43.2*M_,'b-',1.4547],
   '50_63':[115.09*D_,'ec',1.0390], '50_71':[27.03*H_,'b-',0.4025], '50_73':[129.2*D_,'b-',1.4082], '50_75':[9.64*D_,'b-',2.3614], '50_79':[2.23*M_,'b-',4.0388],
-  '50_80':[3.72*M_,'b-',2.1535], '50_81':[56.0,'b-',4.7168], '50_82':[39.7,'b-',3.0887], '50_83':[1.46,'b-',8.0496],
+  '50_80':[3.72*M_,'b-',2.1535], '50_81':[56.0,'b-',4.7168], '50_82':[39.7,'b-',3.0887], '50_83':[1.46,[['b-',0.999706,8.0496],['bn',0.000294,0.6844]]],
   '51_71':[2.7238*D_,[['b-',0.9759,1.9791],['ec',0.0241,1.6057]]], '51_73':[60.20*D_,'b-',2.9051], '51_74':[2.75856*Y_,'b-',0.7667], '51_78':[4.366*H_,'b-',2.3755],
   '51_79':[39.5*M_,'b-',5.0673], '51_80':[23.03*M_,'b-',3.2296], '51_81':[2.79*M_,'b-',5.5529], '51_82':[2.34*M_,'b-',4.0136], '51_83':[0.78,'b-',8.5147],
-  '51_84':[1.679,'b-',8.0385],
+  '51_84':[1.679,[['b-',0.809,8.0385],['bn',0.191,4.7721]]],
   '52_75':[9.35*H_,'b-',0.7027], '52_77':[69.6*M_,'b-',1.5023], '52_79':[25.0*M_,'b-',2.2317], '52_80':[3.204*D_,'b-',0.5153], '52_81':[12.5*M_,'b-',2.9202],
-  '52_82':[41.8*M_,'b-',1.5097], '52_83':[19.0,'b-',6.0504], '52_84':[17.63,'b-',5.1199], '52_85':[2.49,'b-',7.0525],
+  '52_82':[41.8*M_,'b-',1.5097], '52_83':[19.0,'b-',6.0504], '52_84':[17.63,[['b-',0.9863,5.1199],['bn',0.0137,1.2828]]], '52_85':[2.49,[['b-',0.9706,7.0525],['bn',0.0294,2.1699]]],
   '53_75':[24.99*M_,[['b-',0.931,2.1225],['ec',0.069,1.2558]]], '53_79':[2.295*H_,'b-',3.5755], '53_80':[20.83*H_,'b-',1.7863], '53_81':[52.5*M_,'b-',4.0824],
-  '53_82':[6.58*H_,'b-',2.6342], '53_83':[83.4,'b-',6.8839], '53_84':[24.5,'b-',6.0271], '53_85':[6.26,'b-',7.9923], '53_86':[2.280,'b-',7.1736], '53_87':[0.86,'b-',9.3802],
+  '53_82':[6.58*H_,'b-',2.6342], '53_83':[83.4,'b-',6.8839], '53_84':[24.5,[['b-',0.9249,6.0271],['bn',0.0751,2.0015]]], '53_85':[6.26,[['b-',0.9467,7.9923],['bn',0.0533,2.3322]]], '53_86':[2.280,[['b-',0.9026,7.1736],['bn',0.0974,3.4299]]], '53_87':[0.86,[['b-',0.924,9.3802],['bn',0.076,3.9670]]],
   '54_71':[16.9*H_,[['b+',0.002987,1.6367],['ec',0.997,1.6367]]], '54_83':[3.818*M_,'b-',4.1624], '54_84':[14.14*M_,'b-',2.9148], '54_85':[39.68,'b-',5.0565],
-  '54_86':[13.60,'b-',4.0633], '54_87':[1.73,'b-',6.2800], '54_88':[1.23,'b-',5.2849],
-  '55_83':[32.5*M_,'b-',5.3748], '55_84':[9.27*M_,'b-',4.2128], '55_85':[63.7,'b-',6.2182], '55_86':[24.84,'b-',5.2551], '55_87':[1.684,'b-',7.3277], '55_88':[1.791,'b-',6.2617],
-  '55_89':[0.994,'b-',8.4958],
+  '54_86':[13.60,'b-',4.0633], '54_87':[1.73,[['b-',0.99956,6.2800],['bn',0.00044,0.7811]]], '54_88':[1.23,[['b-',0.9963,5.2849],['bn',0.0037,1.1763]]],
+  '55_83':[32.5*M_,'b-',5.3748], '55_84':[9.27*M_,'b-',4.2128], '55_85':[63.7,'b-',6.2182], '55_86':[24.84,[['b-',0.999658,5.2551],['bn',0.000342,0.7197]]], '55_87':[1.684,[['b-',0.99911,7.3277],['bn',0.00089,1.1464]]], '55_88':[1.791,[['b-',0.9838,6.2617],['bn',0.0162,2.0952]]],
+  '55_89':[0.994,[['b-',0.9702,8.4958],['bn',0.0298,2.5949]]],
   '56_75':[11.50*D_,'ec',1.3766], '56_83':[82.93*M_,'b-',2.3085], '56_85':[18.27*M_,'b-',3.1974], '56_86':[10.6*M_,'b-',2.1817], '56_87':[14.5,'b-',4.2343],
-  '56_88':[11.5,'b-',3.0825], '56_89':[4.31,'b-',5.3191], '56_90':[2.21,'b-',4.3549], '56_91':[0.894,'b-',6.4144],
+  '56_88':[11.5,'b-',3.0825], '56_89':[4.31,'b-',5.3191], '56_90':[2.21,'b-',4.3549], '56_91':[0.894,[['b-',0.9993,6.4144],['bn',0.0007,0.8861]]],
   '57_83':[1.67858*D_,'b-',3.7622], '57_84':[3.92*H_,'b-',2.5012], '57_85':[91.1*M_,'b-',4.5089], '57_86':[14.2*M_,'b-',3.4349], '57_87':[40.8,'b-',5.5823],
-  '57_88':[24.8,'b-',4.2317], '57_89':[6.1,'b-',6.4047], '57_90':[4.06,'b-',5.3355], '57_91':[1.26,'b-',7.6897],
+  '57_88':[24.8,'b-',4.2317], '57_89':[6.1,'b-',6.4047], '57_90':[4.06,[['b-',0.99959,5.3355],['bn',0.00041,0.8764]]], '57_91':[1.26,[['b-',0.9982,7.6897],['bn',0.0018,1.2337]]],
   '58_83':[32.504*D_,'b-',0.5835], '58_85':[33.039*H_,'b-',1.4618], '58_86':[284.91*D_,'b-',0.3186], '58_87':[3.01*M_,'b-',2.5589], '58_88':[13.49*M_,'b-',1.0476],
   '58_89':[56.4,'b-',3.4302], '58_90':[56.8,'b-',2.1370], '58_91':[5.12,'b-',4.3695], '58_92':[4.0,'b-',3.4536], '58_93':[1.76,'b-',5.5546],
   '59_84':[13.57*D_,'b-',0.9341], '59_85':[17.28*M_,'b-',2.9974], '59_86':[5.984*H_,'b-',1.8060], '59_87':[24.09*M_,'b-',4.2524], '59_88':[13.44*M_,'b-',2.7027],
@@ -2027,11 +2033,11 @@ function nucName(Z, N) {
 }
 function modeLabel(m) {
   return { 'b-':'β⁻ decay', 'b+':'β⁺ decay', ec:'Electron capture', a:'α decay', p:'Proton emission',
-    n:'Neutron emission', '2p':'Two-proton emission', '2n':'Two-neutron emission', sf:'Spontaneous fission' }[m] || m;
+    n:'Neutron emission', bn:'β⁻ decay and a delayed neutron', '2p':'Two-proton emission', '2n':'Two-neutron emission', sf:'Spontaneous fission' }[m] || m;
 }
 /* How each mode moves a nuclide (ΔZ, ΔN); fission ends a chain. */
-const DECAY_STEP = { a: [-2, -2], 'b-': [1, -1], 'b+': [-1, 1], ec: [-1, 1], p: [-1, 0], n: [0, -1], '2p': [-2, 0], '2n': [0, -2] };
-const MODE_SHORT = { a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'EC', p: 'p', n: 'n', '2p': '2p', '2n': '2n', sf: 'fission' };
+const DECAY_STEP = { a: [-2, -2], 'b-': [1, -1], 'b+': [-1, 1], ec: [-1, 1], p: [-1, 0], n: [0, -1], bn: [1, -2], '2p': [-2, 0], '2n': [0, -2] };
+const MODE_SHORT = { a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'EC', p: 'p', n: 'n', bn: 'β⁻n', '2p': '2p', '2n': '2n', sf: 'fission' };
 /* The chain a nuclide decays down, by its likeliest mode at each step, to a stable nuclide or to fission:
    [{ Z, N, t12, stable, est, mode, br, alt: [{ mode, br }] }]. */
 function decayChain(Z, N, maxSteps) {
@@ -8751,10 +8757,24 @@ function pickMode(inf) {
   for (const m of inf.modes) { u -= m.br; if (u <= 0) return m; }
   return inf.modes[inf.modes.length - 1];
 }
-function doDecay(p) {
-  if (W.d3) return doDecay3(p); // (3-D, 1.25)
+/* (1.29 item 58) β-delayed neutron emission: the β⁻ decay feeds its daughter above the neutron's separation energy,
+   which then gives off the neutron at once (in 10⁻¹⁷ s): done here as the two decays one after the other, the β⁻ with
+   Q(β⁻n) less the neutron's energy and the neutron with its energy, so the two release Q(β⁻n) between them, exactly.
+   The neutron's energy is drawn from the β phase space over the levels above Sn, ∝ (Q(β⁻n) − En)⁵, mean Q(β⁻n)/7
+   (⁸⁷Br 0.19 MeV, ⁹⁴Rb 0.49; measured means 0.25 and 0.45). */
+function bnEn(Q) { return Q * (1 - Math.pow(1 - rnd(), 1 / 6)); }
+function doDecayBn(p, Q, d3) {
+  const En = bnEn(Q);
+  const ok = d3 ? doDecay3(p, { mode: 'b-', Q: Q - En, bn: true }) : doDecay(p, { mode: 'b-', Q: Q - En, bn: true });
+  if (!ok || p.dead) return ok;
+  W.count.dn = (W.count.dn || 0) + 1;
+  return d3 ? doDecay3(p, { mode: 'n', Q: En, bn: true }) : doDecay(p, { mode: 'n', Q: En, bn: true });
+}
+function doDecay(p, force) {
+  if (W.d3) return doDecay3(p, force); // (3-D, 1.25)
   const inf = p.nuc;
-  let md = pickMode(inf);
+  let md = force || pickMode(inf);
+  if (md.mode === 'bn') return doDecayBn(p, md.Q, false);
   // antinuclei decay as the mirror image: n̄ → p̄ + e⁺ + ν, antiparticles emitted, positrons captured
   const sym = (z, n) => z > 0 ? nucSymA(z, n, p.anti) : nucSym(z, n);
   const lbl = sym(p.Z, p.N);
@@ -8784,7 +8804,7 @@ function doDecay(p) {
   const Qtxt = fmtE(Math.max(0, Q) * 1e6); // the decay's Q-value as tabulated (what a neutral atom's emissions share)
   switch (mode) {
     case 'b-': case 'b+': {
-      const gl = RP.nuc ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (the daughter's level it feeds, Realistic particles 6, 1.27: hep.js)
+      const gl = RP.nuc && !(force && force.bn) ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (the daughter's level it feeds, Realistic particles 6, 1.27: hep.js; not for a β⁻n's β⁻, whose level is above Sn, 1.29)
       const T = betaSpectrum(Q - Elv), Enu = Q - Elv - T;
       p.Z += mode === 'b-' ? 1 : -1; p.N += mode === 'b-' ? -1 : 1;
       if (p.Z === 0) { // proton → neutron can't happen here; guard
@@ -8859,7 +8879,7 @@ function doDecay(p) {
       settleKE(S, gk ? Qn - gk.iso - gk.sum : Qn, [p].concat(prod)); // the emitted particle and the recoiling daughter share what is left
       if (gk) glFire(gk.rays, x, y, 0, p, 0);
       if (p.Z === 0 && p.N > 1) { /* neutron cluster: let the next sweep split it */ }
-      const nm = mode === 'a' ? 'α decay' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
+      const nm = mode === 'a' ? 'α decay' : force && force.bn ? 'Delayed neutron' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
       const em2 = (mode === 'a' ? 'α' : mode === 'p' ? 'p' : mode === 'n' ? 'n' : mode === '2p' ? '2p' : '2n') + (p.anti ? '\u0304' : '');
       log('nuc', `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''} (${Qtxt})`);
       nucEvent(mode === 'a' ? 'alpha' : 'decay', x, y, `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''}`, gh, `${Qtxt} released${boostTag()}`,
@@ -8874,9 +8894,10 @@ function doDecay(p) {
    the nucleus's depth (before, a decay in a 3-D world put its α, electron or neutron down at z = 0 and turned the
    daughter in the plane). The neutrino leaves along the direction its momentum gave the recoil (the flat game draws it
    afresh). Books as doDecay's. */
-function doDecay3(p) {
+function doDecay3(p, force) {
   const inf = p.nuc;
-  let md = pickMode(inf);
+  let md = force || pickMode(inf);
+  if (md.mode === 'bn') return doDecayBn(p, md.Q, true);
   const sym = (z, n) => z > 0 ? nucSymA(z, n, p.anti) : nucSym(z, n);
   const lbl = sym(p.Z, p.N);
   const x = p.x, y = p.y, z = p.z;
@@ -8897,7 +8918,7 @@ function doDecay3(p) {
   const Qtxt = fmtE(Math.max(0, Q) * 1e6);
   switch (mode) {
     case 'b-': case 'b+': {
-      const gl = RP.nuc ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (1.27, as doDecay)
+      const gl = RP.nuc && !(force && force.bn) ? glFeed(p.Z, p.N, mode) : null, Elv = gl && gl.lev / 1e3 < Q ? gl.lev / 1e3 : 0; // (1.27, as doDecay; 1.29: not for a β⁻n's β⁻)
       const T = betaSpectrum(Q - Elv), Enu = Q - Elv - T;
       p.Z += mode === 'b-' ? 1 : -1; p.N += mode === 'b-' ? -1 : 1;
       if (p.Z === 0) { p.Z = 1; p.N = 0; }
@@ -8956,7 +8977,7 @@ function doDecay3(p) {
       const gk = Elv ? glKeep(p, gl) : null; // (1.27)
       settleKE(S, gk ? Qn - gk.iso - gk.sum : Qn, [p].concat(prod));
       if (gk) glFire(gk.rays, x, y, z, p, 0);
-      const nm = mode === 'a' ? 'α decay' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
+      const nm = mode === 'a' ? 'α decay' : force && force.bn ? 'Delayed neutron' : mode === 'n' || mode === '2n' ? 'Neutron emission' : 'Proton emission';
       const em2 = (mode === 'a' ? 'α' : mode === 'p' ? 'p' : mode === 'n' ? 'n' : mode === '2p' ? '2p' : '2n') + (p.anti ? '\u0304' : '');
       log('nuc', `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''} (${Qtxt})`);
       nucEvent(mode === 'a' ? 'alpha' : 'decay', x, y, `${nm}: ${lbl} → ${sym(p.Z, p.N)} + ${em2}${gk ? gk.txt : ''}`, gh, `${Qtxt} released${boostTag()}`, { mode, Z0: Zold, N0: Nold, Z1: p.Z, N1: p.N, anti: !!p.anti, th }, z);
@@ -38097,7 +38118,7 @@ function drawSolverPlot(cv, res) {
 }
 /* Decay chain: where this nucleus goes, step by step, on a chart of the nuclides (neutrons across, protons up),
    with each step's half-life; α steps run diagonally down, β⁻ up-left, β⁺ and electron capture down-right. */
-const CHAIN_COL = { a: '#f0b44c', 'b-': '#4da8ff', 'b+': '#ff6fc8', ec: '#45c7b0', p: '#ff5a4e', n: '#a9b4c2', '2p': '#ff5a4e', '2n': '#a9b4c2', sf: '#ff8a3d' };
+const CHAIN_COL = { a: '#f0b44c', 'b-': '#4da8ff', 'b+': '#ff6fc8', ec: '#45c7b0', p: '#ff5a4e', n: '#a9b4c2', bn: '#7f9cff', '2p': '#ff5a4e', '2n': '#a9b4c2', sf: '#ff8a3d' };
 function chainSectionHTML(Z, N, anti) {
   const ch = decayChain(Z, N, 40);
   if (ch.length < 2 && !ch[0].mode) return '';
@@ -42854,7 +42875,7 @@ function specAbout(s) { // { t1, t2, rows: [[label, text]], found }
     const el = ELEMENTS[s.Z], N = s.A - s.Z, nuc = nuclideInfo(s.Z, N), q = s.bare ? (s.anti ? -s.Z : s.Z) : (s.anti ? -(s.charge || 0) : s.charge || 0);
     row('Element', `${el.name} (${el.sym}), element ${s.Z}${CAT_NAME[el.cat] ? ', ' + CAT_NAME[el.cat] : ''}`);
     row('Nucleus', `${s.Z} proton${s.Z > 1 ? 's' : ''}, ${N} neutron${N === 1 ? '' : 's'}: ${nucSymA(s.Z, N, s.anti)}, ${lifeText(nuc, s.bare ? { ne: 0 } : null)}`);
-    if (nuc && nuc.modes && nuc.modes.length && !nuc.stable) row('Decays', nuc.modes.map(m => `${({ a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'electron capture', sf: 'spontaneous fission', p: 'proton emission', '2p': 'two-proton emission', n: 'neutron emission', '2n': 'two-neutron emission' })[m.mode] || m.mode}${m.br < 1 ? ' ' + Math.round(m.br * 100) + '%' : ''}`).join(', '));
+    if (nuc && nuc.modes && nuc.modes.length && !nuc.stable) row('Decays', nuc.modes.map(m => `${({ a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'electron capture', sf: 'spontaneous fission', p: 'proton emission', '2p': 'two-proton emission', n: 'neutron emission', bn: 'β⁻ and a delayed neutron', '2n': 'two-neutron emission' })[m.mode] || m.mode}${m.br < 1 ? ' ' + Math.round(m.br * 100) + '%' : ''}`).join(', '));
     row('Charge', q ? (q > 0 ? '+' : '−') + Math.abs(q) + ' e' : '0 (neutral)');
     row('Electrons', s.bare ? 'none: a bare nucleus' : String(s.Z - (s.charge || 0)));
     row('Mass', fmtNum(s.Z * PHYS.MP + N * PHYS.MN + (s.bare ? 0 : s.Z - (s.charge || 0)) * PHYS.ME - bindingE(s.Z, N) / PHYS.AMU_MEV, 5) + ' u');

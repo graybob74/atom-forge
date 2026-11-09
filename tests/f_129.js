@@ -166,6 +166,26 @@ PARTS.fast3d = async (page, check) => {
   check(out.every(r => r.hot < 40 && Math.abs(r.books) < 1), `1.29 3-D: a 10 MeV neutron in 3-D water leaves ${out.map(r => r.hot).join(' and ')} nuclei above 1 keV (was 358–512), books ${out.map(r => r.books).join(', ')} eV`, '1.29 fast atoms in 3-D: ' + JSON.stringify(out));
 };
 
+/* 58. β-delayed neutrons: ⁸⁷Br, ⁹⁴Rb, ¹⁷N and ¹³⁵Sb decayed 1,500 times each (flat and 3-D) emit a neutron as often as
+   NUBASE2020 says (2.60, 10.3, 95.1, 19.1%), leaving the β⁻n daughter; each decay's books exact. 1.28.3: never. */
+PARTS.bn = async (page, check) => {
+  const out = {};
+  for (const d3 of [false, true]) for (const [Z, N, lbl, P] of [[35, 52, '87Br', 2.60], [37, 57, '94Rb', 10.3], [7, 10, '17N', 95.1], [51, 84, '135Sb', 19.1]]) {
+    const X = load('all', { seed: 9 }), W = X.W; X.PRESETS[d3 ? 'd3empty' : 'empty'].build(); W.T = 0; W.gamma = 0; W.decayOn = false;
+    const B = () => X.totalEnergy().total - W.ledger.nuc; let bn = 0, worst = 0; const M = 1500;
+    for (let k = 0; k < M; k++) {
+      for (const p of W.parts) X.kill(p); W.parts = []; W.exo = []; X.forcesNoEvents();
+      const p = X.addAtom(X.ELEMENTS[Z].sym, 0, 0, { z: 0 }); p.N = N; X.refresh(p); X.forcesNoEvents();
+      const b = B(); X.doDecay(p); X.forcesNoEvents(); worst = Math.max(worst, Math.abs(B() - b));
+      if (p.Z === Z + 1 && p.N === N - 2 && W.parts.some(q => !q.dead && q.Z === 0 && q.N === 1)) bn++;
+    }
+    const sd = Math.sqrt(M * P / 100 * (1 - P / 100)) / M * 100;
+    out[(d3 ? '3d ' : '') + lbl] = { pct: +(100 * bn / M).toFixed(2), want: P, ok: Math.abs(100 * bn / M - P) < 4 * sd + 0.05, worst: +worst.toExponential(1) };
+  }
+  const all = Object.values(out);
+  check(all.every(r => r.ok && r.worst < 1e-4), `1.29 (58) delayed neutrons: ${Object.entries(out).map(([k, r]) => `${k} ${r.pct}% (${r.want})`).join(', ')}; books within ${Math.max(...all.map(r => r.worst)).toExponential(0)} eV`, '1.29 delayed neutrons: ' + JSON.stringify(out));
+};
+
 module.exports = async function f129(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
