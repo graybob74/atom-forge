@@ -3219,6 +3219,37 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    was booked as escaping, or its hit happens, at the simulation's time); only its line is removed early. Plan: no
    time limit while the ray is travelling (the 400-ray cap still bounds the list); the fade starts when it arrives.
 
+**Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
+save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
+1 eV–10 TeV) in 16 setups with random Realistic-particles switches; every event function wrapped for its energy books
+(Node, deterministic); colliders run to collision; screenshots. No page errors, no NaN, nothing outside the box. Found
+(not fixed; tools: /tmp/bt in the session):
+B1 exoScatter (and exoScatter3, and the exo–nucleus elastic pass at hep.js 1086/1107, same pattern) turns a charged
+   unstable particle off a nucleus that is itself in radiation flight using that nucleus's stale vx, vy; its booked
+   energy (p.KE) does not change, so the books are off by the recoil: measured −0.12, +0.78, −1.53, −0.14, +16.2 eV,
+   each equal to −dK of the call (π± at 0.06–2.7 GeV through water after a GeV event made fast H and O).
+B2 Atoms in molecules give off atomic lines on electron impact (lineInfo checks only ne and charge): O in H₂O emits
+   O I 557.7, 630.0 and 777.4 nm, H in H₂O Lyman α and Balmer (water with 30 eV electrons fired in: "O 558 nm",
+   "O 630 nm", "H UV 122 nm" all over the box). A molecule's excitation is its own (water: dissociation, OH 309 nm).
+B3 Forbidden lines given off at once in dense matter: O 557.7 nm (lifetime 0.74 s) and 630.0 nm (110 s) appear within
+   picoseconds in liquid water; in a liquid or any dense gas they are quenched long before. (Physics.)
+B4 A 2.4 keV mismatch in one busy step (water, after a 3.5 GeV neutron: n + p → 2p + π⁻ at √s 3.18 GeV, π⁺p and
+   π⁰ ¹⁶O events, two π⁰ leaving the box; ke −418 MeV, escaped +534 MeV, nuclear ledger +116 MeV): no wrapped event
+   function shows it, so it is in flight or in leaving the box; 5×10⁻⁶ of the energy moved.
+B5 Saves: beam sources (a setup's, and those placed with Fire → Beam source) and beam particles in flight are not
+   saved (documented), so a saved cloud chamber, mass spectrometer, linac, ring, RHIC, LEP or DAΦNE opens empty and
+   stays empty; and every ledger (escaped, bath, nuclear, chemistry) starts again at 0 on loading, so the energy
+   readout jumps (annihilation: total 1.69 GeV → 0.26 GeV across a save and load of the same state).
+B6 Fire tool's projectile row: "Selected" shows the selected palette particle's label, so with p⁺ selected the row
+   reads "p⁺ e⁻ p⁺ n α …": two identical buttons.
+B7 Placing positronium with its switch off: nothing appears; the explanation goes only to the Log tab.
+B8 RHIC with Collide now while ramping: the collisions happen in a bending section with the beams meeting at an angle,
+   and the spray is strongly one-sided (boosted). Possibly intended (the panel says close passes while speeding up).
+B9 Speed (headless, 2 cores): RHIC after Collide now about 10 frames a second at 1,300 particles, single frames up to
+   0.55 s; LEP and DAΦNE single frames of 0.7–0.8 s at the moment of a collision.
+B10 The particle bar's first chip is half hidden under the ‹ scroll button (the "O" chip in RHIC, Flame colours).
+(Also found, already on the list: 66 fast pairs flying together, 68 γ rays vanishing in slow motion.)
+
 **The owner's bug list (2026-11-06).** Seventeen open bugs, one bug-fix prompt each (branches fix127-01 … fix127-17
 from v145; tests f_fix01 … f_fix17). APPROVED by the owner where the fix changes how matter behaves ("I approve of the
 ones that need approval"): 1 3-D van der Waals and ion–water pull at their true strength; 2 water's (and molecules')
