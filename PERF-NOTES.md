@@ -2066,6 +2066,16 @@ Bugs (numbers from the runs named; tests in f_130.js):
 - B18 a short-lived particle's Inspect text gives its mean distance (and "less than the width of a nucleus/an atom"),
   not "a few nanometres" for everything under 1 fs.
 - B19 Settings rows "Resolution" and "Drawing engine" (both were "Drawing").
+Also, found by the full suite: a molecule heated by more than 10 eV at once (dumpHeat) while a nuclear event's window is
+open, and a nucleus turned by exoScatter, are marked as the event's products (nucProd), so the hourglass with slow motion
+for nuclear events off does not follow them (t_collider: an annihilation in water heated an H₂O⁺ to 132 eV through
+recombination and ion chemistry, and time slowed 4× more; now 2×, the products' own chemistry). The 3-D view is fitted by
+pulling the camera back, its target kept at the middle (t_3d's fit check). Fingerprints that change with B1–B3 (their
+random draws): pionbeam 44ace447 453510b1, annihilation e4757e0e 969a7381 (161 events), hyperfactory 18051e94 0fac2f8d,
+annihilation with both photon switches a3d1dba8 1b29c202; updated in f_rp1/2/3/5/7, f_ew, f_feat1, f_127h, f_127x. f_124's
+placing click finds an empty spot (the fitted view put an atom under the old fixed one).
+Suite: tools/runtests.sh v130, then the failed ones alone with the updated tests: all pass but t_page's known flakes
+(the slow-motion button, the 15 s collider-beam timeout).
 
 ## 1.29.0: the owner's items 55–63 (released 2026-11-08, with 1.28.3's items 52–54 below, which were not released on their own)
 

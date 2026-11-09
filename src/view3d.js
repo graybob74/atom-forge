@@ -143,16 +143,10 @@ function cam3Fit() {
   const rb = 0.5 * Math.hypot(W.box.w, W.box.h, W.box.d || W.box.h), aspect = R.w > 0 && R.h > 0 ? R.w / R.h : 1.5;
   const half = Math.min(c.fov / 2, Math.atan(Math.tan(c.fov / 2) * aspect));
   c.dist = rb / Math.sin(half) * 0.9;
-  // (the page's bars over the chamber: the box made smaller to fit between them, and its middle moved to theirs; it went
-  // under the particle bar and the tool bar, bug B15, 1.30)
+  // (the page's bars over the chamber: the camera pulled back so the box fits between them, its target kept at the
+  // middle; it went under the particle bar and the tool bar, bug B15, 1.30)
   const m = viewInsets(0);
-  if (R.h > 0 && R.w > 0) {
-    const k = Math.min((R.h - m.t - m.b) / R.h, (R.w - m.l - m.r) / R.w);
-    if (k > 0.3 && k < 1) c.dist /= k;
-    cam3Update();
-    const dy = (m.t - m.b) / 2, dx = (m.l - m.r) / 2;
-    if (dx || dy) cam3Pan(dx, dy);
-  }
+  if (R.h > 0 && R.w > 0) { const k = Math.min((R.h - 2 * Math.max(m.t, m.b)) / R.h, (R.w - 2 * Math.max(m.l, m.r)) / R.w); if (k > 0.3 && k < 1) c.dist /= k; }
   cam3Update();
 }
 /* How big a particle is drawn in 3-D (Å, before the atom-size setting). A lone ion is drawn on the atoms' own scale

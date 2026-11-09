@@ -3662,6 +3662,10 @@ function dumpHeat(E, a, b) {
   if (!(E > 0)) return;
   W.ledger.chem += E;
   const third = nearestThird(a, b, 6);
+  // (heat of more than 10 eV at once while a nuclear event's window is open: the radiolysis that event's products set off
+  // (recombination, ion chemistry); the molecules it heats are left out of the hourglass, as what the products knock
+  // loose, when slow motion for nuclear events is off: an annihilation in water heated one H₂O⁺ to 132 eV, 1.30)
+  if (E > 10 && W.nucWin && W.rt <= W.nucWin.t1) for (const q of [a, b, third]) if (q && !q.dead && q.k === NUC) for (const m of molecule(q)) m.nucProd = true;
   if (third) { if (kickPair(rnd() < 0.5 ? a : b, third, E)) return; }
   else if (W.gamma > 0) { W.ledger.bath += E; return; }
   else if (kickPair(a, b, E)) return;

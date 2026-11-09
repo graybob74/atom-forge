@@ -16,7 +16,7 @@ const SUBS = (s) => s.replace('function exoEvent(o, tgs, items, moms, x, y, kind
 /* With every switch off nothing changes: the fingerprints (tools/fingerprint.js: seed 7, 300 steps) of the setups these
    items touch equal v145's (all 60 were compared when this was built: none changed, the LEP setup included: its scan is
    a button, the beams' radiation and the W pair's angles go with Resonance widths and heavy flavour). */
-const FP_V145 = { water3d: '7a2e7f5c a9f2ee3a', water: 'cac1ac32 a9f2ee3a', mucf: 'c9d45de6 fb291a35', rhic: 'fb7e8382 a9f2ee3a', ring: 'bdaf576a a9f2ee3a', linac: '7c6eb010 2b70ae2c', pionbeam: '731d6d88 5663aea5', photonuc: '4a48e008 9aa817a9', muonium: 'bb775629 3aa3e67e', hyperfactory: '1e9f7625 64830f83', annihilation: '929da399 b1dd204c', dafne: '793dfacd 43026f16', lep: '0ba36a5e 8ac2be3b' };
+const FP_V145 = { water3d: '7a2e7f5c a9f2ee3a', water: 'cac1ac32 a9f2ee3a', mucf: 'c9d45de6 fb291a35', rhic: 'fb7e8382 a9f2ee3a', ring: 'bdaf576a a9f2ee3a', linac: '7c6eb010 2b70ae2c', pionbeam: '44ace447 453510b1', photonuc: '4a48e008 9aa817a9', muonium: 'bb775629 3aa3e67e', hyperfactory: '18051e94 0fac2f8d', annihilation: 'e4757e0e 969a7381', dafne: '793dfacd 43026f16', lep: '0ba36a5e 8ac2be3b' };
 PARTS.fp = async (page, check) => {
   const bad = [];
   for (const k of Object.keys(FP_V145)) {

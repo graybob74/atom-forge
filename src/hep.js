@@ -990,6 +990,7 @@ function exoScatter(o, x0, y0) {
     }
     if (!(dK < o.KE - 1)) continue;
     kick();
+    if (W.nucWin && dK > 10) for (const m of molecule(tg)) m.nucProd = true; // (sent flying by a nuclear event's product: slow motion for nuclear events, when off, does not follow it, as the ionizing pass above; 1.30)
     o.ux = ux; o.uy = uy; o.KE -= dK;
   }
   exoSpeed(o);

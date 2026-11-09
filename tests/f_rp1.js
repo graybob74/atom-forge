@@ -19,7 +19,7 @@ const clear = (X) => { const W = X.W; for (const p of W.parts) X.kill(p); W.part
 // (1.27 bug 7: photonuc, sns and hyperfactory re-fingerprinted, switches off: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
 // (1.27 bug 15: pionbeam and photonuc re-fingerprinted, switches off: events in the electrons' short steps search a grid rebuilt after they moved)
 // (1.27 bug 18: pionbeam, hyperfactory and annihilation re-fingerprinted, switches off: a bond that holds is put back as itself, separate's core)
-const FP_V136 = { mucf: 'c9d45de6 fb291a35', pionbeam: '731d6d88 5663aea5', muonium: 'bb775629 3aa3e67e', hyperfactory: '1e9f7625 64830f83', annihilation: '929da399 b1dd204c', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
+const FP_V136 = { mucf: 'c9d45de6 fb291a35', pionbeam: '44ace447 453510b1', muonium: 'bb775629 3aa3e67e', hyperfactory: '18051e94 0fac2f8d', annihilation: 'e4757e0e 969a7381', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check, say) => {
   const h = (s) => { let a = 0x811c9dc5; for (let i = 0; i < s.length; i++) { a ^= s.charCodeAt(i); a = Math.imul(a, 0x01000193); } return (a >>> 0).toString(16).padStart(8, '0'); };
   const bad = [];
