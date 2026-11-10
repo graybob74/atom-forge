@@ -178,7 +178,7 @@
           </div>
           <div class="row"><span>Box size</span><span class="val"><span id="boxW"></span> × <span id="boxH"></span><span class="only3d"> × <span id="boxD"></span></span><span class="vu"> Å</span></span></div>
           <input type="range" id="boxSlider" min="0" max="100" step="1" aria-label="Box size">
-          <p class="note">20 Å to 2 µm. Growing is a free expansion; shrinking closes in like a piston (an insulated gas heats up).</p>
+          <p class="note">5 Å to 2 µm (a box that wraps round, at least twice the forces’ reach: 12 Å, or 18 and 24 Å with the longer reach). Growing is a free expansion; shrinking closes in like a piston (an insulated gas heats up).</p>
           <p class="note" id="box3dNote" hidden>In 3-D the slider scales width, height and depth together; the walls move in on all six faces.</p>
         </section>
 
@@ -446,6 +446,19 @@
   </div>
 </div>
 
+<div class="modal" id="chartModal" hidden>
+  <div class="dialog chdialog" role="dialog" aria-modal="true" aria-labelledby="chartTitle">
+    <header><h2 id="chartTitle">Chart</h2><div class="hbtns"><span class="note" id="chartHint">Wheel or + / − to zoom, drag to move, double-click to fit</span><button class="btn small" id="chartClose">Close</button></div></header>
+    <div class="chbody" id="chartBody"><canvas class="chart" id="chBig" aria-label="The chart, enlarged"></canvas><div id="chSvg"></div></div>
+  </div>
+</div>
+<div class="modal" id="madeModal" hidden>
+  <div class="dialog mdialog madedlg" role="dialog" aria-modal="true" aria-labelledby="madeTitle">
+    <header><h2 id="madeTitle">Made here <span class="count" id="madeCount"></span></h2><div class="hbtns"><button class="btn small" id="madeClose">Close</button></div></header>
+    <p class="note" id="madeSum2"></p>
+    <div class="madebody"><table class="species made" id="dMadeAll"></table></div>
+  </div>
+</div>
 <div class="modal" id="molModal" hidden>
   <div class="dialog mdialog" role="dialog" aria-modal="true" aria-labelledby="molTitle">
     <header><h2 id="molTitle">Molecules <span class="pv" id="molTitle3" hidden title="The 3-D lab's library: the molecules and tiny objects that fit 3-D">3-D</span> <span class="count" id="molCount"></span></h2><div class="hbtns"><button class="btn small" id="molBuild">Build your own…</button><button class="btn small" id="molClose">Close</button></div></header>
@@ -686,6 +699,7 @@
       <p class="note">An aromatic ring's π electrons lie above and below it, so a ring is negative on its faces and positive round its rim, and two rings stack offset or meet edge to face rather than face to face. With π clouds on (since 1.26, the 3-D lab only), every aromatic carbon carries 0.07 e on two points 0.7 Å above and below the ring (the carbon as much more positive), and ring atoms of two aromatic molecules meet with a dispersion fitted to the benzene dimer instead of the game's general one, which in space binds rings about three times too hard. Changing it books the energy difference to the heat bath. Measured in the 3-D lab (1.26, kcal/mol, rigid rings): the benzene dimer face to face −1.95 at 3.8 Å, edge to face −2.84 at 5.0 Å, offset −2.77 at 3.5 Å (CCSD(T): about −1.7 to −1.8 at 3.9, −2.6 to −2.8 at 5.0, −2.6 to −2.8 at 3.5–3.6 Å with a 1.6–1.8 Å offset; here the offset comes out 2.6 Å); without it −8.6, −4.5 and −8.4. Costs up to ×10 in a box of benzene, nothing without aromatic rings.</p>
       <h3 id="rpHead">Realistic particles</h3>
       <p class="note sintro">Particles shown as they really are, each part its own switch (since 1.27). Point at a line to see what it does.</p>
+      <div class="rp-all" id="rpAll"><button class="btn small" id="rpAllOn" type="button">All on</button><button class="btn small" id="rpAllOff" type="button">All off</button><span class="rp-cost" id="rpAllCost"></span></div>
       <label class="check rpl"><span class="rpn">Ultra-realistic mode</span><input type="checkbox" id="setUltra" class="sw" role="switch" aria-label="Ultra-realistic: true sizes and rates, nothing made easier to see"></label>
       <p class="note">(Moved here from General in 1.23.2: like the rest of this tab it is off again each time the game starts.) Nuclei are hit at their true size, about 1/100,000 of their atom, so beams almost never hit anything and fusion and nuclear reactions are rare; slow neutrons are still caught, as their wavelength is large. Decays run at their real rates, with nothing sped up or held back to be seen.</p>
       <p class="note" data-m="2d">Nuclei are drawn at their true size too (a dot of one pixel marks where a bare nucleus or a free electron is). You can zoom in 100,000 times further, far enough to see a nucleus inside its atom, and slow time down to a yoctosecond (10⁻²⁴ s) a second, slow enough to watch a φ meson (1.5×10⁻²² s) live and decay.</p>

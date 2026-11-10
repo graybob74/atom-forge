@@ -1991,6 +1991,38 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.31.0: the owner's items 70–75 ("build it", 2026-11-09)
+
+- 70 3-D atoms near the camera (view3d.js): the particle view's nuclei as balls of nucleons turning with the camera
+  (nucPos3: a Fibonacci-sphere filling at packing 0.74, protons by the flat sprite's shuffle; nucleus3 draws far ones
+  first), from a nucleon radius of 2.5 px (NUC3_MIN; smaller, the flat sprite); electrons on tilted circular orbits
+  (shellBasis3, a fixed tilt per shell and atom; the far half before the nucleus, the near half after), in the particle
+  view (nucView3) and the shells view with its rings (bohr3); the orbitals view's cloud as seen from the camera
+  (orbSprite3: the density summed along each line of sight over ±rmax, 16 samples, the real spherical harmonics in space,
+  ORB_ANG3, equal to the flat ORB_ANG at z = 0; scaled to the valence shell's density through its thickness; cached by
+  species, size and the camera's direction to 10°, one new picture a frame at most, 96 px about 10 ms), from a cloud
+  40 px across. Measured (headless, 2 cores, 3-D water, render ms at camera distance 40/14/6 Å): particle view
+  20/20/85 (1.30.2: 20/16/83), shells 81/63/77 (75/75/66), orbitals 53/68/73 (48/69/98): within the noise. Turning
+  the camera now changes what is seen (the f_131 check: mean colour change a pixel 77/20/31 for a nucleus, a cloud and
+  shells; 1.30.2 0.5/1.1/3.5).
+- 71 settings that work in the flat game only (Detailed nuclear collisions, Zoom toward, and now Photons as waves) are
+  not shown in the 3-D lab and carry a "2-D exclusive" tag in the flat game (setModeSync; they were dimmed with "2-D
+  only"). f_125s's check updated.
+- 72 every chart and tree opens larger in a window in the middle on a click or Enter (chartOpen): the Data tab's
+  chain-reaction map and fission tree, spectrum, temperature history, graphs, Z line shape, detector screen, pair
+  masses, energy distribution, the chips' scope, and a decay chain (its SVG copied in). A canvas chart is drawn again at
+  that size by its own function (chartCv gives it the big canvas; chartH keeps it from resizing it) and stays live; the
+  wheel or + / − zoom about the pointer, a drag moves, double-click fits, Esc closes.
+- 73 Made here: the panel shows 12 nuclides and 6 kinds of particle at most (80 nuclides before); "Show all N in a
+  window" opens the whole list in a window in the middle (madeModal, kept up to date while open; an ⓘ there closes it
+  and opens the card). The copied Data text still has the whole list.
+- 74 the box down to 5 Å (20 Å before), in the flat game and the 3-D lab (slider and typed sizes); a box with wrapping
+  walls narrower than twice the force reach (12 Å; 18, 24 with the longer reach) turns its walls solid and says why
+  (boxWrapOk). A 5 Å box with one water molecule, 600 frames, 2-D and 3-D: finite, inside, books finite.
+- 75 Settings → Experimental → Realistic particles: All on and All off (rpAllSet: each switch set as a click would, the
+  ones shown in this mode), with what All on costs beside them (rpAllSync: the switches that are not ×1, named).
+Tests: tests/f_131.js (each part fails on 1.30.2).
+
 ## 1.30.2: item 69, a collision's cascade does not meet itself in flight
 
 The owner's OK (2026-11-09, "sure, do it"). engine.js: every particle carries root, the event its cascade began with:
@@ -3318,35 +3350,35 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    can. Prototype, RHIC "Together", 240 frames after the first Au + Au: 87–96 ms a frame → 53–57 ms; 115–194 → 262–277
    attoseconds simulated; 248,000–418,000 encounters → 18,000–31,000. Encounters with the beams, other collisions'
    products and matter stay. Random sequences change (fingerprints of nuclear setups to update).
-70 (requested 2026-11-09) True 3-D atoms in the 3-D particle, shell and orbital views. Now each atom there is the flat
+70 (done in 1.31.0; requested 2026-11-09) True 3-D atoms in the 3-D particle, shell and orbital views. Now each atom there is the flat
    game's picture facing the camera (drawDet3 in view3d.js: nucleusSprite, drawBohr, drawOrbitalAtom at the particle's
    place, sized for its distance), so a nucleus looks the same from every side and orbits never tilt. Wanted: nucleons
    as shaded balls packed in 3-D that turn with the camera; electron orbits as tilted rings (ellipses from the side, the
    far half behind the nucleus); orbitals as 3-D shapes (a p orbital's two lobes from any angle). For speed, only atoms
    near the camera drawn this way, the flat pictures kept for distant ones; display only.
-71 (requested 2026-11-09, the owner: "2d only settings should be 2-d exclusive and removed from 3d menu") Settings rows
+71 (done in 1.31.0; requested 2026-11-09, the owner: "2d only settings should be 2-d exclusive and removed from 3d menu") Settings rows
    that work in the flat game only are hidden in the 3-D lab, as 3-D-only rows are hidden in the flat game (now they are
    dimmed there with a "2-D only" tag: ui.js SMODE_ONLY, setRowOnly). Rows: Detailed nuclear collisions (setInc), Zoom
    toward (segZoomTo), and Photons as waves (setRpPwave: "the flat game only so far", not yet in SMODE_ONLY); check every
    other row's 3-D cost for "changes nothing" and add those too. Display only.
-72 (requested 2026-11-09, the owner: "make all graphs and trees expandable somewhat like settings images") Every chart
+72 (done in 1.31.0; requested 2026-11-09, the owner: "make all graphs and trees expandable somewhat like settings images") Every chart
    and tree opens larger in a window in the middle on a click (or Enter), as a Settings picture does (SHOT: shotOpen,
    zoom with the wheel or +/−, Esc closes): the Data tab's chain-reaction map and fission tree (chMap), spectrum (chSpec),
    temperature history (chT), graphs (chG), Z line shape (chZs), detector screen (chDet), pair masses (chPair), energy
    distribution (chE), the chips' scope (chScope), and the decay-chain trees. Drawn again at the larger size (not a
    stretched picture), kept live while the game runs, with readable axes and labels.
-73 (requested 2026-11-09, the owner: "make the made here thing shorter but when you click show all it opens its own
+73 (done in 1.31.0; requested 2026-11-09, the owner: "make the made here thing shorter but when you click show all it opens its own
    window in the middle") The Data tab's "Made here" list shows only its first few rows (now 80, MADE_SHOW), and "Show
    all N" opens the whole list in a window in the middle (scrolling, its ⓘ buttons working, Esc closes) instead of
    lengthening the panel.
-74 (requested 2026-11-09, the owner: "make the minimum box size smaller") The Lab panel's box-size slider starts at
+74 (done in 1.31.0; requested 2026-11-09, the owner: "make the minimum box size smaller") The Lab panel's box-size slider starts at
    20 Å (ui.js boxFromS: 20 Å to 20,000 Å over 0–100). Proposed: down to 5 Å (a single small molecule fills it), the
    slider's scale extended at the low end. Limits to keep: with wrapping walls a box must stay at least twice the force
    reach across (6 Å, 9 Å with the Experimental longer reach: 12 / 18 Å), so below that the walls are solid; the grid,
    the 3-D box and the fit-to-view checked at 5 Å; whatever is in the box when it shrinks pushed in as now. The same in
    the 3-D lab (the owner: "do the same in 3d"): width, height and depth down to 5 Å, the same wrap limit in all three
    directions, the 3-D kernel's cell grid, the camera's fit and its nearest approach checked at that size.
-75 (requested 2026-11-09, the owner: "add an enable and disable all to the particle section of experimental") Two
+75 (done in 1.31.0; requested 2026-11-09, the owner: "add an enable and disable all to the particle section of experimental") Two
    buttons at the head of Settings → Experimental → Realistic particles: "All on" and "All off", setting every switch in
    that section at once (as clicking each: applySettings, the cost tags and the "Experimental:" readout updated). "All
    on" shows the combined cost first (the costly ones, Charged particles in matter ×1–1.3 and Photon polarization ×1–2 in

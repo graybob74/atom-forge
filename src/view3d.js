@@ -305,6 +305,141 @@ const ELEM_SYM = (p) => (p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : elSym(p)); //
    own picture, facing the camera at the particle's place and sized for its distance (R.s set to the scale there for the
    flat drawing code), on Canvas 2D, far to near. Before, the 3-D view drew lit balls whatever was chosen. */
 function det3() { const v = R.view.bohr; return W.ultra ? 'ultra' : v === 'nuc' || v === 'orb' || v === 'on' ? v : ''; }
+/* (1.31, item 70, the owner: "are 3d particle view atoms just flat items that face you?") Near the camera an atom in
+   the particle, shell and orbital views is drawn in 3-D: its nucleons packed in a ball that turns with the camera, its
+   electrons on tilted circular orbits (an ellipse from the side, the far half behind the nucleus), and its orbitals'
+   cloud seen as it is, the density summed along each line of sight through the atom (a p orbital pointing at you a round
+   blob, from the side its two lobes). Far away (nucleons under 2.5 px, shells under 12 px, clouds under 40 px) the flat pictures stay: the
+   same at that size and far cheaper. Display only. */
+const NUC3_MIN = 2.5; // (nucleon radius, px, from which a nucleus is drawn in 3-D: smaller, the flat sprite looks the same and costs less)
+const _nuc3 = new Map();
+function nucPos3(Z, N) { // nucleon places in a ball of unit-radius nucleons (packing 0.74), protons by the flat sprite's shuffle
+  const A = Z + N, key = Z * 1000 + N; let P = _nuc3.get(key); if (P) return P;
+  if (_nuc3.size > 400) _nuc3.clear();
+  const Rb = A <= 1 ? 0 : Math.cbrt(A / 0.74) - 0.9, order = [];
+  for (let k = 0; k < A; k++) { const h = Math.sin((k + 1) * 12.9898 + Z * 78.233 + N * 37.719) * 43758.5453; order.push([h - Math.floor(h), k]); }
+  order.sort((u, v) => u[0] - v[0]); const prot = new Uint8Array(A); for (let j = 0; j < Math.min(Z, A); j++) prot[order[j][1]] = 1;
+  P = [];
+  for (let k = 0; k < A; k++) { // radius by the cube root of the count inside (even filling), direction on a Fibonacci sphere
+    const rr = A === 1 ? 0 : Rb * Math.cbrt((k + 0.5) / A), cz = 1 - 2 * (k + 0.5) / A, sz = Math.sqrt(Math.max(0, 1 - cz * cz)), th = k * 2.39996;
+    P.push([rr * sz * Math.cos(th), rr * sz * Math.sin(th), rr * cz, prot[k] === 1]);
+  }
+  P.rn = A <= 1 ? 1 : Rb + 1; _nuc3.set(key, P); return P;
+}
+const _q3 = [];
+/* A nucleus of nucleon radius b px at (x, y), turned as the camera sees it, far nucleons first. Returns its radius. */
+function nucleus3(ctx, x, y, Z, N, b, anti) {
+  const P = nucPos3(Z, N), n = P.length, pc = anti ? PBAR_COL : P_COL, nc = anti ? NBAR_COL : N_COL;
+  _q3.length = 0;
+  for (let k = 0; k < n; k++) { const q = P[k]; _q3.push([b * (q[0] * C3.rx + q[1] * C3.ry + q[2] * C3.rz), -b * (q[0] * C3.ux + q[1] * C3.uy + q[2] * C3.uz), q[0] * C3.fx + q[1] * C3.fy + q[2] * C3.fz, q[3]]); }
+  _q3.sort((u, v) => v[2] - u[2]); // (far first: depth along the camera's forward)
+  const sp = ballSprite(pc, b * 1.12), sn = ballSprite(nc, b * 1.12);
+  for (const q of _q3) drawSprite(q[3] ? sp : sn, x + q[0], y + q[1]);
+  return b * P.rn;
+}
+/* The unit circle of shell i of atom id in space (a fixed tilt for each, so the shells cross at angles). */
+function shellBasis3(i, id) {
+  const a = 0.5 + 0.95 * i + (id % 7) * 0.31, b = 1.3 * i + (id % 11) * 0.57; // (the normal's polar and azimuthal angles)
+  const nx = Math.sin(a) * Math.cos(b), ny = Math.sin(a) * Math.sin(b), nz = Math.cos(a);
+  let ex = -ny, ey = nx, ez = 0; const l = Math.hypot(ex, ey) || 1; ex /= l; ey /= l; if (l < 1e-6) { ex = 1; ey = 0; }
+  return [ex, ey, ez, ny * ez - nz * ey, nz * ex - nx * ez, nx * ey - ny * ex]; // e1, and e2 = n × e1
+}
+/* A point of that circle at angle th and radius R0 px: screen offset and depth (positive: beyond the nucleus). */
+function ring3(B, th, R0, o) {
+  const c = Math.cos(th), s = Math.sin(th), vx = c * B[0] + s * B[3], vy = c * B[1] + s * B[4], vz = c * B[2] + s * B[5];
+  o[0] = R0 * (vx * C3.rx + vy * C3.ry + vz * C3.rz); o[1] = -R0 * (vx * C3.ux + vy * C3.uy + vz * C3.uz); o[2] = vx * C3.fx + vy * C3.fy + vz * C3.fz; return o;
+}
+const _r3 = [0, 0, 0];
+/* Shells' electrons (and, for the shells view, the rings) on tilted orbits: the far side (side < 0) or the near (> 0). */
+function shells3(ctx, p, x, y, radii, counts, er, side, rings, rate) {
+  const sp = ballSprite(p.anti ? POS_COL : E_COL, er);
+  for (let i = 0; i < radii.length; i++) {
+    const R0 = radii[i], ne = counts[i], B = shellBasis3(i, p.id || 0);
+    if (rings) { // the ring's half on this side, as short strokes
+      ctx.strokeStyle = 'rgba(160,200,240,0.28)'; ctx.lineWidth = 1; ctx.beginPath(); let pen = false;
+      for (let j = 0; j <= 32; j++) { ring3(B, j * Math.PI / 16, R0, _r3); const on = side < 0 ? _r3[2] >= 0 : _r3[2] < 0; if (on) { if (pen) ctx.lineTo(x + _r3[0], y + _r3[1]); else ctx.moveTo(x + _r3[0], y + _r3[1]); pen = true; } else pen = false; }
+      ctx.stroke();
+    }
+    if (!ne) continue;
+    const w = rate(i);
+    for (let k = 0; k < ne; k++) { ring3(B, W.at * w + k * 2 * Math.PI / ne + i * 0.7 + (p.id || 0), R0, _r3); if ((_r3[2] >= 0) === (side < 0)) drawSprite(sp, x + _r3[0], y + _r3[1]); }
+  }
+}
+/* The particle view's atom in 3-D (as drawNucView): nucleus and its own electrons. */
+function nucView3(ctx, p, x, y, r) {
+  const b = nucleonR(), own = Math.max(0, p.ne - p.used), rn = b * nucPos3(p.Z, p.N).rn;
+  let radii = [], counts = [], er = electronR();
+  if (own > 0) {
+    const sh = shellCounts(p.Z, own), nF = Math.max(sh.length, shellCounts(p.Z, Math.max(p.Z, p.ne)).length);
+    const rIn = rn + 1.5 * er + 1, rOut = Math.max(r * 1.05, rIn + (nF - 1) * 2.2 * er);
+    for (let i = 0; i < sh.length; i++) { radii.push(nF === 1 ? rOut : rIn + (rOut - rIn) * i / (nF - 1)); counts.push(sh[i]); }
+  }
+  const rate = (i) => (1.1 / (i + 1)) * (p.id % 2 ? 1 : -1);
+  shells3(ctx, p, x, y, radii, counts, er, -1, false, rate);
+  nucleus3(ctx, x, y, p.Z, p.N, b, p.anti);
+  shells3(ctx, p, x, y, radii, counts, er, 1, false, rate);
+}
+/* The shells view's atom in 3-D (as drawBohr): its glow, tilted rings with their electrons, a small nucleus. */
+function bohr3(ctx, p, x, y, r, col) {
+  const sh = shellCounts(p.Z, p.ne), nS = sh.length, [cr, cg, cb] = hexc(col);
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.25); g.addColorStop(0, `rgba(${cr},${cg},${cb},0.30)`); g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.fill();
+  const rn = clamp(r * 0.2, 3, 22), radii = [], counts = [];
+  for (let i = 0; i < nS; i++) { radii.push(rn + 4 + (r * 1.12 - rn - 4) * (i + 1) / nS); counts.push(sh[i]); }
+  const er = clamp(r * 0.045, 1.6, 4), rate = (i) => (0.8 / (i + 1)) * (p.id % 2 ? 1 : -1);
+  shells3(ctx, p, x, y, radii, counts, er, -1, true, rate);
+  const A = p.Z + p.N; if (A > 0) nucleus3(ctx, x, y, p.Z, p.N, rn / nucPos3(p.Z, p.N).rn, p.anti);
+  shells3(ctx, p, x, y, radii, counts, er, 1, true, rate);
+  if (R.view.labels) { ctx.font = '600 12px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = CHAMBER.text; ctx.textAlign = 'center'; ctx.fillText(nucSymA(p.Z, p.N, p.anti) + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''), x, y + r * 1.25 + 12); }
+}
+/* The orbitals' angular forms in space (real spherical harmonics squared, of a unit vector): at z = 0 the flat game's
+   ORB_ANG (orbitals.js), in the same order of m. */
+const ORB_ANG3 = [
+  [() => 1 / PI4],
+  [(x) => 3 / PI4 * x * x, (x, y, z) => 3 / PI4 * z * z, (x, y) => 3 / PI4 * y * y],
+  [(x, y) => 15 / PI4 * x * x * y * y, (x, y, z) => 15 / PI4 * x * x * z * z, (x, y, z) => 15 / PI4 * y * y * z * z, (x, y, z) => 5 / (4 * PI4) * (3 * z * z - 1) ** 2, (x, y) => 15 / (4 * PI4) * (x * x - y * y) ** 2],
+  [(x, y) => 35 / (8 * PI4) * x * x * (x * x - 3 * y * y) ** 2, (x, y, z) => 7 / (4 * PI4) * z * z * (5 * z * z - 3) ** 2, (x, y, z) => 105 / (4 * PI4) * z * z * (x * x - y * y) ** 2, (x, y, z) => 105 / PI4 * x * x * y * y * z * z,
+    (x, y, z) => 21 / (8 * PI4) * x * x * (5 * z * z - 1) ** 2, (x, y, z) => 21 / (8 * PI4) * y * y * (5 * z * z - 1) ** 2, (x, y) => 35 / (8 * PI4) * y * y * (3 * x * x - y * y) ** 2],
+];
+const _orb3 = new Map(); let _orb3Px = 0;
+/* An atom's cloud as seen from the camera's direction (yaw and pitch to 10°): N × N pixels over ±O.rmax, each the
+   density summed through the atom along the line of sight, coloured by subshell as in the flat picture. */
+function orbSprite3(O, Z, ne, N, force) {
+  const c = R.cam3, qy = Math.round(c.yaw / 0.1745), qp = Math.round(c.pitch / 0.1745), key = `${Z}|${ne}|${N}|${qy}|${qp}`;
+  let sp = _orb3.get(key); if (sp) return sp;
+  if (!force && !(R.orbBudget > 0)) return null;
+  R.orbBudget -= N * N * 20; // (one a frame at most: 96 px about 10 ms)
+  const yaw = qy * 0.1745, pit = qp * 0.1745, cp = Math.cos(pit), spp = Math.sin(pit), cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const f = [-cp * sy, -spp, -cp * cy], rr = [cy, 0, -sy], uu = [-sy * spp, cp, -cy * spp];
+  const half = O.rmax, h = 2 * half / N, T = 16, dt = 2 * half / T, subs = O.subs, ns = subs.length;
+  const img = new Float32Array(N * N * 4);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const a = (i + 0.5 - N / 2) * h, bb = (N / 2 - j - 0.5) * h; if (a * a + bb * bb > half * half) continue;
+    let tot = 0, cr = 0, cg = 0, cb = 0;
+    for (let t = 0; t < T; t++) {
+      const w = (t + 0.5) * dt - half, X = a * rr[0] + bb * uu[0] + w * f[0], Y = a * rr[1] + bb * uu[1] + w * f[1], Zc = a * rr[2] + bb * uu[2] + w * f[2], r = Math.sqrt(X * X + Y * Y + Zc * Zc);
+      if (r > half) continue; const ux = r > 0 ? X / r : 1, uy = r > 0 ? Y / r : 0, uz = r > 0 ? Zc / r : 0;
+      for (let k = 0; k < ns; k++) { const sb = subs[k], v = orbR2(sb, r, sb.env); if (!(v > 0)) continue; const A = ORB_ANG3[sb.l]; let an = 0; for (let m = 0; m < sb.occ.length; m++) if (sb.occ[m]) an += sb.occ[m] * A[m](ux, uy, uz); const d = v * an; tot += d; const rgb = ORB_RGB[sb.l]; cr += d * rgb[0]; cg += d * rgb[1]; cb += d * rgb[2]; }
+    }
+    const o = (j * N + i) * 4; img[o] = tot > 0 ? cr / tot : 0; img[o + 1] = tot > 0 ? cg / tot : 0; img[o + 2] = tot > 0 ? cb / tot : 0; img[o + 3] = tot;
+  }
+  const cv = document.createElement('canvas'); cv.width = cv.height = N; const g = cv.getContext('2d'), id = g.createImageData(N, N);
+  const ref = ORB_K * O.ref * Math.max(0.2, O.rvis) * 1.8 / dt; // (as the flat picture: scaled to the valence shell's density, here summed through about its thickness; the core a bright point)
+  for (let k = 0; k < N * N; k++) { const q = img[k * 4 + 3] / ref; id.data[k * 4] = img[k * 4]; id.data[k * 4 + 1] = img[k * 4 + 1]; id.data[k * 4 + 2] = img[k * 4 + 2]; id.data[k * 4 + 3] = 255 * (1 - Math.exp(-q * q)); }
+  g.putImageData(id, 0, 0);
+  if (_orb3Px > 6e6) for (const [k, v] of _orb3) { _orb3Px -= v.width * v.height; _orb3.delete(k); if (_orb3Px < 3e6) break; }
+  _orb3Px += N * N; _orb3.set(key, cv); return cv;
+}
+/* The orbitals view's atom in 3-D (as drawOrbitalAtom): returns the cloud's visible radius, or 0 to draw it flat. */
+function orbital3(ctx, p, x, y) {
+  const O = orbitalSet(p.Z, p.ne), D = 2 * O.rmax * R.s, rv = Math.max(4, O.rvis * R.s);
+  if (D < 40) return 0; // (small: the flat picture)
+  const N = clamp(Math.ceil(Math.max(32, D * R.dpr * 0.5) / 16) * 16, 32, 96), sp = orbSprite3(O, p.Z, p.ne, N);
+  if (!sp) return 0;
+  ctx.globalCompositeOperation = 'screen'; ctx.drawImage(sp, x - D / 2, y - D / 2, D, D); ctx.globalCompositeOperation = 'source-over';
+  drawSprite(ballSprite(p.anti ? PBAR_COL : P_COL, clamp(0.05 * R.s, 1.2, 4)), x, y);
+  return rv;
+}
 /* One particle in a detailed mode at (x, y), depth z, ball radius r (px); false: draw it as a lit ball. */
 function drawDet3(ctx, p, x, y, z, r, col, rt, det) {
   const s0 = R.s; R.s = C3.F / z;
@@ -312,16 +447,22 @@ function drawDet3(ctx, p, x, y, z, r, col, rt, det) {
     if (det === 'ultra') return ultraOne3(ctx, p, x, y, r, rt, col);
     if (p.k !== NUC) { drawLepton(ctx, p, x, y, det); return true; }
     if (det === 'nuc') {
+      if ((p.Z === 0 || p.ne === 0) && p.Z + p.N > 1 && nucleonR() >= NUC3_MIN && !p.muB) { // (near: a bare nucleus's nucleons in a turning ball, 1.31 item 70)
+        const rn3 = nucleonR() * nucPos3(p.Z, p.N).rn;
+        if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(p.anti ? [190, 120, 255] : [255, 110, 90], Math.max(7, rn3 * 3.2)), x, y, 0.35); ctx.globalCompositeOperation = 'source-over'; }
+        nucleus3(ctx, x, y, p.Z, p.N, nucleonR(), p.anti); return true;
+      }
       if (p.Z === 0 || p.ne === 0) { // a free nucleon (a neutron, the same size as those in nuclei) or a bare nucleus, every nucleon shown, with a faint halo
         const nsp = nucleusSprite(p.Z, p.N, nucleonR(), p.anti);
         if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(p.Z === 0 ? [150, 165, 185] : p.anti ? [190, 120, 255] : [255, 110, 90], Math.max(p.Z === 0 ? 6 : 7, nsp.rn * (p.Z === 0 ? 4 : 3.2))), x, y, p.Z === 0 ? 0.3 : 0.4); ctx.globalCompositeOperation = 'source-over'; }
         drawSprite(nsp, x, y); if (p.muB) muOrbit(ctx, p, x, y, nsp.rn); return true; // (a bare muonic nucleus: its muon, as in the flat view, 1.28.1)
       }
+      if (nucleonR() >= NUC3_MIN && !p.mu && !p.muB) { nucView3(ctx, p, x, y, r); return true; } // (near: in 3-D, 1.31 item 70)
       drawNucView(p, x, y, r, rt); return true;
     }
     if (p.Z === 0 || p.ne === 0) return false;
-    if (det === 'on') { if (r < 12) return false; drawBohr(ctx, p, x, y, r, rt, col); return true; } // (shells on an atom under 12 px are unreadable: a lit ball; a box of 1,000 waters drew its shells in 180 ms, headless)
-    const rv = drawOrbitalAtom(ctx, p, x, y);
+    if (det === 'on') { if (r < 12) return false; if (!p.mu) bohr3(ctx, p, x, y, r, col); else drawBohr(ctx, p, x, y, r, rt, col); return true; } // (tilted rings in 3-D, 1.31 item 70) // (shells on an atom under 12 px are unreadable: a lit ball; a box of 1,000 waters drew its shells in 180 ms, headless)
+    const rv = orbital3(ctx, p, x, y) || drawOrbitalAtom(ctx, p, x, y); // (near: the cloud as seen from the camera, 1.31 item 70)
     if (lblOn(p) && rv >= 12) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = CHAMBER.dim; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(speciesLabel(p), x, y + rv + 9); }
     return true;
   } finally { R.s = s0; }

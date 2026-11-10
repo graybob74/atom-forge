@@ -226,6 +226,18 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .hint.short:not(.open)::after { content: 'tap for more'; display: block; font-size: 11px; color: var(--ch-dim); margin-top: 2px; }
 .hint .x { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 6px; border: 0; background: transparent; color: var(--ch-dim); font-size: 16px; line-height: 1; }
 .hint .x:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.chdialog { width: min(92vw, 1500px); height: min(84vh, 980px); display: flex; flex-direction: column; } /* (1.31 item 72) */
+.chdialog .chbody { flex: 1; min-height: 0; overflow: hidden; position: relative; cursor: grab; }
+.chdialog .chbody.drag { cursor: grabbing; }
+.chdialog #chBig { width: 100% !important; height: 100% !important; display: block; transform-origin: 0 0; }
+.chdialog #chSvg { position: absolute; inset: 0; transform-origin: 0 0; }
+.chdialog #chSvg svg { width: 100%; height: 100%; }
+.chdialog #chartHint { margin-right: 10px; font-size: 11.5px; }
+canvas.chart.zoomable, svg.chainsvg { cursor: zoom-in; }
+.madedlg { width: min(760px, 94vw); max-height: 86vh; display: flex; flex-direction: column; } /* (1.31 item 73) */
+.madedlg .madebody { overflow: auto; min-height: 0; flex: 1; }
+.madedlg #madeSum2 { margin: 0 0 6px; }
+.rp-all { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; } .rp-all .rp-cost { font-size: 11.5px; color: var(--ch-dim, #9aa); } /* (1.31 item 75) */
 .hint #hintOn { margin-left: 4px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--ch-line); background: rgba(255, 255, 255, 0.08); color: #fff; font: inherit; font-size: 12px; cursor: pointer; } /* (1.30, bug B7) */
 .tip { position: absolute; pointer-events: none; background: rgba(6, 10, 15, 0.94); color: var(--ch-fg); border: 1px solid var(--ch-line);
   border-radius: 8px; padding: 6px 9px; font-size: 12px; white-space: nowrap; z-index: 3; }

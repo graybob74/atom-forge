@@ -2320,7 +2320,7 @@ function renderData() {
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
   drawSpec(); explainSync(); drawChain(); drawChainMap();
-  drawTChart(); drawEChart(m.T); drawGraph(); drawPairs(); drawDet(); drawZScan();
+  UI.lastMT = m.T; drawTChart(); drawEChart(m.T); drawGraph(); drawPairs(); drawDet(); drawZScan();
   restoreScroll('tp-data');
 }
 /* What collisions, fusions, fissions, captures and decays have made so far (W.made), heaviest first: each nuclide with
@@ -2346,9 +2346,12 @@ function renderMade() {
   // (1.11: an ⓘ on every nuclide, particle and element opens its card; the list opens to show everything)
   const cards = UI.madeCards = [], ib = (spec, what) => { cards.push(spec); return ` <button class="ib" data-card="${cards.length - 1}" title="About ${esc(what)}" aria-label="About ${esc(what)}">i</button>`; };
   const row = (sw, lab, nm, sub, n, spec) => `<tr><td class="f"><span class="sw" style="background:${sw}"></span>${esc(lab)}</td><td class="nm"><b>${nm}</b>${spec ? ib(spec, lab) : ''}<br><span class="sub">${esc(sub)}</span></td><td class="n">${n}</td></tr>`;
-  const shown = UI.madeAll ? nuc : nuc.slice(0, MADE_SHOW);
+  // (1.31, item 73, the owner: "make the made here thing shorter but when you click show all it opens its own window in the
+  // middle") The panel shows the first {MADE_SHOW} nuclides and the first few kinds of particle; "Show all" opens the whole
+  // list in a window in the middle (madeModal), kept up to date while it is open.
+  const build = (N, P, U) => {
   let lastEl = '';
-  const html = shown.map(r => {
+  return N.map(r => {
     if (r.Z === 0) return row(r.anti ? NBAR_COL : N_COL, r.lab, r.anti ? 'Antineutrons' : 'Neutrons', `free, t½ 10 min · first: ${r.how}`, r.n, { kind: r.anti ? 'nbar' : 'n' });
     const elKey = r.Z + (r.anti ? 'a' : ''), head = elKey === lastEl ? '' : (lastEl = elKey, `<tr class="elh"><td colspan="3">${esc(r.anti ? antiName(r.Z) : ELEMENTS[r.Z].name)} <span class="sub">Z = ${r.Z}</span>${ib({ kind: 'atom', Z: r.Z, A: elemA(r.Z), charge: 0, anti: !!r.anti }, r.anti ? antiName(r.Z) : ELEMENTS[r.Z].name)}</td></tr>`);
     const info = nuclideInfo(r.Z, r.N), key = `${r.Z}_${r.N}`, alias = ISO_NAMES[key] && key !== '2_2' ? ISO_NAMES[key] : r.Z === 2 && r.N === 2 ? 'α particle' : '';
@@ -2356,12 +2359,22 @@ function renderMade() {
       (r.Z > 103 && !r.anti ? ' <span class="tag">superheavy</span>' : r.Z > 92 && !r.anti ? ' <span class="tag">synthetic</span>' : '');
     const life = info.stable ? 'stable' : info.unbound ? 'unbound: falls apart at once' : `${lifeText(info)}${info.modes && info.modes.length ? ', ' + modeLabel(info.modes[0].mode).replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase()) : ''}`;
     return head + row(ELEMENTS[r.Z].color, r.lab, nm, `${life} · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n, { kind: 'atom', Z: r.Z, A: r.Z + r.N, bare: true, anti: !!r.anti });
-  }).join('') + (nuc.length > MADE_SHOW ? `<tr class="more"><td colspan="3"><button class="btn small" data-more="1">${UI.madeAll ? 'Show fewer' : `Show all ${nuc.length.toLocaleString('en-US')} nuclides (${(nuc.length - MADE_SHOW).toLocaleString('en-US')} more)`}</button></td></tr>` : '') +
-    part.map(r => { const d = XP[r.sp]; return row(rgba(d.col, 1), r.lab, esc(PART_NAMES[r.sp] || r.sp), `mean life ${fmtTime(d.tau)} · first: ${r.how}`, r.n, { kind: 'exo', sp: r.sp }); }).join('') +
-    nus.map(r => row('rgb(120,255,170)', r.lab, ({ e: 'Electron ', mu: 'Muon ', tau: 'Tau ' })[r.fl || 'e'] + (r.anti ? 'antineutrinos' : 'neutrinos'), `left the box at about c, ${fmtE(r.E)} carried off in all · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n, { kind: 'nu', fl: r.fl || 'e', anti: !!r.anti })).join('');
+  }).join('') +
+    P.map(r => { const d = XP[r.sp]; return row(rgba(d.col, 1), r.lab, esc(PART_NAMES[r.sp] || r.sp), `mean life ${fmtTime(d.tau)} · first: ${r.how}`, r.n, { kind: 'exo', sp: r.sp }); }).join('') +
+    U.map(r => row('rgb(120,255,170)', r.lab, ({ e: 'Electron ', mu: 'Muon ', tau: 'Tau ' })[r.fl || 'e'] + (r.anti ? 'antineutrinos' : 'neutrinos'), `left the box at about c, ${fmtE(r.E)} carried off in all · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n, { kind: 'nu', fl: r.fl || 'e', anti: !!r.anti })).join('');
+  };
+  UI.madeBuild = () => build(nuc, part, nus); // (the whole list, for the copied text)
+  const more = nuc.length > MADE_SHOW || part.length + nus.length > MADE_PART;
+  const html = build(nuc.slice(0, MADE_SHOW), part.slice(0, MADE_PART), nus.slice(0, Math.max(0, MADE_PART - part.length))) +
+    (more ? `<tr class="more"><td colspan="3"><button class="btn small" data-more="1">Show all ${(nuc.length + part.length + nus.length).toLocaleString('en-US')} in a window</button></td></tr>` : '');
+  if (!$('madeModal').hidden) {
+    const all = build(nuc, part, nus);
+    if (UI.madeAllHTML !== all) { UI.madeAllHTML = all; $('dMadeAll').innerHTML = all; }
+    $('madeSum2').innerHTML = $('dMadeSum').innerHTML; $('madeCount').textContent = (nuc.length + part.length + nus.length).toLocaleString('en-US');
+  }
   if (UI.madeHTML !== html) { UI.madeHTML = html; $('dMade').innerHTML = html; } // (rebuilt only when it changes: a click is not lost to a rebuild)
 }
-const MADE_SHOW = 80;
+const MADE_SHOW = 12, MADE_PART = 6; // (the panel's share; the rest in the window, 1.31 item 73: 80 nuclides before)
 /* An element's usual isotope, for its card: the stable one nearest its atomic mass, or the longest-lived. */
 function elemA(Z) {
   const L = isotopeList(Z), m = ELEMENTS[Z].mass || 2 * Z; let best = L[0], bs = Infinity;
@@ -2371,10 +2384,49 @@ function elemA(Z) {
 /* The ⓘ buttons and the "show all" button of the list of what was made. */
 function madeClick(e) {
   const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.more) { UI.madeAll = !UI.madeAll; renderMade(); return; }
+  if (b.dataset.more) { UI.madeAllHTML = null; showModal('madeModal'); renderMade(); return; } // (the whole list in its own window, 1.31)
   const s = UI.madeCards && UI.madeCards[+b.dataset.card]; if (!s) return;
   const r = b.getBoundingClientRect(), c = $('cv').getBoundingClientRect(), ui = SET.ui || 1;
   openSpecCard(s, (r.left - c.left) / ui - 300, (r.top - c.top) / ui);
+}
+/* (1.31, item 72, the owner: "make all graphs and trees expandable somewhat like settings images") A chart or tree
+   opens larger in a window in the middle on a click (or Enter), as a Settings picture does. A canvas chart is drawn again
+   at that size by its own drawing function (chartCv gives it the big canvas while the window is open), so it stays live
+   and sharp; a decay chain (an SVG) is copied in. Wheel or + / − zoom about the pointer, a drag moves it, double-click
+   fits it again, Esc or Close shuts it. */
+const CHARTS = { chSpec: () => drawSpec(), chT: () => drawTChart(), chE: () => drawEChart(UI.lastMT || W.T), chG: () => drawGraph(), chMap: () => { UI.mapKey = null; drawChainMap(); }, chScope: () => drawScope(), chDet: () => drawDet(), chZs: () => drawZScan(), chPair: () => drawPairs() };
+function chartCv(id) { return UI.big && UI.big.id === id ? $('chBig') : $(id); }
+function chartH(cv, h) { if (cv.id !== 'chBig' && cv.style.height !== h) cv.style.height = h; }
+function chartTitle(el) { const sec = el.closest('section, .group'), h = sec && sec.querySelector('h3'); return (h && h.textContent.trim()) || el.getAttribute('aria-label') || 'Chart'; }
+function chartOpen(el) {
+  const svg = el.tagName.toLowerCase() === 'svg';
+  UI.big = { id: svg ? null : el.id, z: 1, x: 0, y: 0 };
+  $('chartTitle').textContent = svg ? 'Decay chain' : chartTitle(el);
+  $('chBig').hidden = svg; const box = $('chSvg'); box.innerHTML = ''; box.hidden = !svg;
+  if (svg) { const c = el.cloneNode(true); c.removeAttribute('width'); c.removeAttribute('height'); c.setAttribute('preserveAspectRatio', 'xMidYMid meet'); box.appendChild(c); }
+  showModal('chartModal'); chartTf();
+  if (!svg) requestAnimationFrame(() => { const f = CHARTS[el.id]; try { if (f) f(); } catch (e) {} });
+}
+function chartClose() {
+  const id = UI.big && UI.big.id; UI.big = null; hideModal('chartModal');
+  if (id) { if (id === 'chMap') UI.mapKey = null; const f = CHARTS[id]; try { if (f) f(); } catch (e) {} } // (the small one drawn again: it waited while the big one was drawn)
+}
+function chartTf() { const B = UI.big; if (!B) return; const t = `translate(${B.x}px, ${B.y}px) scale(${B.z})`; $('chBig').style.transform = t; $('chSvg').style.transform = t; }
+function chartZoom(f, px, py) { const B = UI.big; if (!B) return; const z = clamp(B.z * f, 1, 12), k = z / B.z; B.x = px - (px - B.x) * k; B.y = py - (py - B.y) * k; B.z = z; if (z === 1) { B.x = 0; B.y = 0; } chartTf(); }
+function chartWire() {
+  for (const id of Object.keys(CHARTS)) { const c = $(id); if (!c) continue; c.classList.add('zoomable'); c.tabIndex = 0; c.title = c.title || 'Click to open it larger';
+    c.addEventListener('click', (e) => { if (e.defaultPrevented) return; chartOpen(c); });
+    c.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chartOpen(c); } }); }
+  document.addEventListener('click', (e) => { const s = e.target.closest && e.target.closest('svg.chainsvg'); if (s && !s.closest('#chartModal')) chartOpen(s); });
+  const body = $('chartBody'); let drag = null;
+  body.addEventListener('wheel', (e) => { e.preventDefault(); const r = body.getBoundingClientRect(); chartZoom(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  body.addEventListener('pointerdown', (e) => { drag = [e.clientX, e.clientY]; body.classList.add('drag'); body.setPointerCapture(e.pointerId); });
+  body.addEventListener('pointermove', (e) => { if (!drag || !UI.big) return; UI.big.x += e.clientX - drag[0]; UI.big.y += e.clientY - drag[1]; drag = [e.clientX, e.clientY]; chartTf(); });
+  body.addEventListener('pointerup', () => { drag = null; body.classList.remove('drag'); });
+  body.addEventListener('dblclick', () => { if (UI.big) { UI.big.z = 1; UI.big.x = 0; UI.big.y = 0; chartTf(); } });
+  $('chartClose').onclick = chartClose;
+  $('madeClose').onclick = () => hideModal('madeModal');
+  $('dMadeAll').addEventListener('click', (e) => { if (e.target.closest('button[data-card]')) hideModal('madeModal'); madeClick(e); });
 }
 function chartCtx(cv) {
   const w = cv.clientWidth, h = cv.clientHeight; if (!w) return null;
@@ -2458,14 +2510,14 @@ function chartLayout(C, w) {
 function drawChainMap() {
   const C = W.chain, sec = $('dMapSec');
   sec.hidden = !C || (!C.fis.length && !C.edges.size); if (sec.hidden || !sec.offsetParent) return;
-  const view = UI.mapView || (C.fis.length ? 'tree' : 'chart'), cv = $('chMap'), w = cv.clientWidth;
+  const view = UI.mapView || (C.fis.length ? 'tree' : 'chart'), cv = chartCv('chMap'), w = cv.clientWidth;
   setSegValue('segMap', view);
   const key = `${view}:${C.ver}:${UI.mapHov ? UI.mapHov.k : ''}:${w}:${SET.theme}`;
   if (UI.mapKey === key) return; UI.mapKey = key;
   const fg = cssVar('--fg'), mut = cssVar('--muted'), font = '10.5px ' + cssVar('--font-data');
   if (view === 'tree') {
-    if (!C.fis.length) { cv.style.height = '60px'; const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
-    cv.style.height = '230px';
+    if (!C.fis.length) { chartH(cv, '60px'); const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
+    chartH(cv, '230px');
     const r = chartCtx(cv); if (!r) return; const [ctx, , h] = r, T = treeLayout(C), F = C.fis, n = F.length;
     const fx = (d) => 14 + d * (w - 28) / Math.max(1, T.maxD), fy = (i) => 10 + (T.leaves > 1 ? T.y[i] / (T.leaves - 1) : 0.5) * (h - 40);
     UI.mapPos = { kind: 'tree', fx, fy };
@@ -2500,8 +2552,8 @@ function drawChainMap() {
     return;
   }
   // the decay chart
-  if (!C.edges.size) { cv.style.height = '60px'; const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No decays, captures or fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
-  const L = chartLayout(C, w); cv.style.height = L.h + 'px';
+  if (!C.edges.size) { chartH(cv, '60px'); const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No decays, captures or fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
+  const L = chartLayout(C, w); chartH(cv, L.h + 'px');
   const r = chartCtx(cv); if (!r) return; const [ctx] = r, cs = L.cs;
   UI.mapPos = { kind: 'chart', L };
   const here = new Set(); for (const p of W.parts) if (!p.dead && p.k === NUC && !p.anti && p.Z > 0) here.add(p.Z + '_' + p.N);
@@ -2566,7 +2618,7 @@ function drawSpec() {
   const sec = $('dSpecSec'), ph = specPhotons();
   sec.hidden = !W.spec;
   if (sec.hidden) { if (_specFrom > -Infinity) { _specFrom = -Infinity; $('bSpecClear').textContent = 'Clear'; } return; }
-  const r = chartCtx($('chSpec')); if (!r) return; const [ctx, w, h] = r;
+  const r = chartCtx(chartCv('chSpec')); if (!r) return; const [ctx, w, h] = r;
   const vis = _specView === 'vis', pad = 6, base = h - 18;
   let lo, hi, fx, nb;
   let nWall0 = 0; for (const q of ph) if (q[1] === -1) nWall0++;
@@ -2642,7 +2694,7 @@ function drawSpec() {
     (inRange ? `; strongest at ${vis ? peak.toFixed(0) + ' nm' : wavelengthText(PHYS.HC / peak).lam}` : '') + (who ? `; given off by ${who}` : '') + '.' + (wien || ' Each element gives off its own lines.');
 }
 function drawTChart() {
-  const r = chartCtx($('chT')); if (!r) return; const [ctx, w, h] = r;
+  const r = chartCtx(chartCv('chT')); if (!r) return; const [ctx, w, h] = r;
   const H = W.hist; const n = H.T.length;
   if (n < 2) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('Collecting…', 10, 20); return; }
   let lo = Infinity, hi = 0;
@@ -2660,7 +2712,7 @@ function drawTChart() {
   $('chTrange').textContent = `${fmtT(lo)} – ${fmtT(hi)}${logy ? ' (log)' : ''}`;
 }
 function drawEChart(T) {
-  const r = chartCtx($('chE')); if (!r) return; const [ctx, w, h] = r;
+  const r = chartCtx(chartCv('chE')); if (!r) return; const [ctx, w, h] = r;
   const kT = PHYS.KB * Math.max(T, 1e-3);
   const bins = new Array(24).fill(0), xmax = 6; let n = 0;
   for (const p of W.parts) {
@@ -2704,8 +2756,18 @@ const bFromS = (s) => Math.abs(s) < 3 ? 0 : Math.sign(s) * Math.pow(10, 1 + (Mat
 const sFromB = (B) => B === 0 ? 0 : Math.sign(B) * Math.round(3 + (clamp(Math.log10(Math.abs(B)), 1, 5) - 1) / 4 * 97);
 const spdFromS = (s) => 0.01 * Math.pow(3000, s / 100);
 const sFromSpd = (v) => Math.round(100 * Math.log(v / 0.01) / Math.log(3000));
-const boxFromS = (s) => 20 * Math.pow(1000, s / 100); // 20 Å … 20,000 Å (2 µm)
-const sFromBox = (w) => clamp(Math.round(100 * Math.log(w / 20) / Math.log(1000)), 0, 100);
+const BOX_MIN = 5, BOX_MAX = 20000; // (1.31, item 74, the owner: "make the minimum box size smaller", "do the same in 3d": 5 Å, was 20 Å)
+const boxFromS = (s) => BOX_MIN * Math.pow(BOX_MAX / BOX_MIN, s / 100); // 5 Å … 20,000 Å (2 µm)
+const sFromBox = (w) => clamp(Math.round(100 * Math.log(w / BOX_MIN) / Math.log(BOX_MAX / BOX_MIN)), 0, 100);
+/* A wrapping box narrower than twice the force reach would let a pair meet through two of its images: below that the
+   walls turn solid (and say so over the chamber). */
+function boxWrapOk() {
+  const b = W.box, m = Math.min(b.tw, b.th, W.d3 ? (b.td > 0 ? b.td : b.d) : Infinity);
+  if (W.wall !== 'wrap' || m >= 2 * RC) return;
+  W.wall = 'reflect'; setSegValue('segWall', W.wall); syncNWall();
+  const t = `Walls made solid: a box whose walls wrap round must be at least ${fmtNum(2 * RC, 2)} Å across (twice the forces' reach), and this one is ${fmtNum(m, 2)} Å.`;
+  log('tool', t); toolNote(t);
+}
 /* Atom drawing: auto, shells, spheres, orbitals (O toggles), or the particle view (nuclei and electrons only, V). */
 function setAtomView(v) {
   if (!['auto', 'on', 'off', 'orb', 'nuc'].includes(v)) v = 'auto';
@@ -3023,7 +3085,7 @@ function explainDigest() {
   out.push(`Box ${fmtNum(W.box.w, 3)} × ${fmtNum(W.box.h, 3)} Å, walls ${W.wall}; heat bath ${fmtT(W.T)} (coupling ${W.gamma}); electric field ${fmtNum(Math.hypot(W.Ex, W.Ey), 3)} V/Å; magnetic field ${fmtNum(W.Bz, 3)} T; motion: ${motionText()}; ${UI.running ? 'running' : 'paused'}${W.slow ? ', in slow motion for an event' : ''}.`);
   out.push(`Measured: temperature ${fmtT(m.T)}${m.Te ? `, electrons ${fmtT(m.Te)}` : ''}; ${m.atoms} nuclei/atoms, ${Math.round(m.ionFrac * 100)} % ionized; ${W.nE} free electrons.`);
   const sp = tblText($('dSpecies'), 1500); if (sp) out.push('What is in the box:\n' + sp);
-  const mk = !$('dMadeSec').hidden ? ($('dMadeSum').textContent + '\n' + tblText($('dMade'), 1000)) : ''; if (mk.trim()) out.push('Made here so far:\n' + mk);
+  const mk = !$('dMadeSec').hidden ? ($('dMadeSum').textContent + '\n' + tblText((() => { const t = document.createElement('table'); t.innerHTML = UI.madeBuild ? UI.madeBuild() : $('dMade').innerHTML; return t; })(), 1000)) : ''; if (mk.trim()) out.push('Made here so far:\n' + mk); // (the whole list, not the panel's share, 1.31)
   const ct = tblText($('dCounts'), 800); if (ct) out.push('Counts:\n' + ct);
   if (!$('dSpecSec').hidden) out.push('Spectrum: ' + $('dSpecNote').textContent);
   if (W.chips.length) out.push('Chips:\n' + $('chipPanel').textContent.replace(/\s+/g, ' ').slice(0, 800));
@@ -3176,9 +3238,9 @@ const TYPED = {
   tVal: { units: U_TEMP, pick: tPick, get: () => W.T, apply: (T) => { setBathT(T); syncLab(); }, why: 'the bath runs from 1 K to a billion K' },
   bVal: { units: U_B, get: () => W.Bz, apply: (B) => { W.Bz = Math.abs(B) < 1e-9 ? 0 : clamp(B, -1e5, 1e5); syncLab(); }, why: 'fields up to 100,000 T (a magnetar’s)' },
   eVal: { units: U_E, get: () => UI.E, apply: (E) => { UI.E = clamp(Math.abs(E), 0, 50); applyE(); syncLab(); }, why: 'fields up to 50 V/Å: past that every atom is torn apart at once' },
-  boxW: { units: U_LEN, get: () => W.box.tw, apply: (w) => { if (W.d3) { const k = clamp(w, 20, 20000) / W.box.tw; W.box.tw *= k; W.box.th = clamp(W.box.th * k, 20, 20000); W.box.td = clamp((W.box.td || W.box.d) * k, 20, 20000); } else { W.box.tw = clamp(w, 20, 20000); UI.aspect = W.box.th / W.box.tw; } syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the whole box scaled, 1.24)
-  boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the height alone since 1.25.0; it set the depth too, shown as one figure "h × d" that typing replaced)
-  boxD: { units: U_LEN, get: () => W.box.td || W.box.d, apply: (d) => { W.box.td = clamp(d, 20, 20000); UI.aspectD = W.box.td / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the depth, its own figure, 1.25.0)
+  boxW: { units: U_LEN, get: () => W.box.tw, apply: (w) => { if (W.d3) { const k = clamp(w, BOX_MIN, BOX_MAX) / W.box.tw; W.box.tw *= k; W.box.th = clamp(W.box.th * k, BOX_MIN, BOX_MAX); W.box.td = clamp((W.box.td || W.box.d) * k, BOX_MIN, BOX_MAX); } else { W.box.tw = clamp(w, BOX_MIN, BOX_MAX); UI.aspect = W.box.th / W.box.tw; } boxWrapOk(); syncLab(); }, why: 'the box is 5 Å to 2 µm across' }, // (3-D: the whole box scaled, 1.24)
+  boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, BOX_MIN, BOX_MAX); UI.aspect = W.box.th / W.box.tw; boxWrapOk(); syncLab(); }, why: 'the box is 5 Å to 2 µm across' }, // (3-D: the height alone since 1.25.0; it set the depth too, shown as one figure "h × d" that typing replaced)
+  boxD: { units: U_LEN, get: () => W.box.td || W.box.d, apply: (d) => { W.box.td = clamp(d, BOX_MIN, BOX_MAX); UI.aspectD = W.box.td / W.box.tw; boxWrapOk(); syncLab(); }, why: 'the box is 5 Å to 2 µm across' }, // (3-D: the depth, its own figure, 1.25.0)
   spdVal: { units: U_TIME, get: () => W.simPerFrame, apply: (tu) => { W.simPerFrame = clamp(tu, DT_MIN, 1000); syncLab(); syncSpeed(); }, why: `from one shortest time step (${fmtTime(DT_MIN * PHYS.TU_S)}) to ${fmtTime(1000 * PHYS.TU_S)} per 1/60 s` },
   cEVal: { units: U_ENERGY, get: () => (W.collider ? W.collider.E : cEFromS(+$('cESlider').value)), apply: (E) => { if (!W.collider) return; setColliderEnergy(clamp(E, cEFromS(0), cEFromS(1000))); syncCollider(); } },
   cE2Val: { units: U_ENERGY, get: () => (W.collider && W.collider.E2 !== null && W.collider.E2 !== undefined ? W.collider.E2 : cEFromS(+$('cE2Slider').value)), apply: (E) => { const C = W.collider; if (!C) return; setColliderEnergy(C.E, clamp(E, cEFromS(0), cEFromS(1000))); syncCollider(); } },
@@ -3291,10 +3353,10 @@ function bindLab() {
   bindSeg('segEdir', (v) => { UI.Eang = v === 'z' || v === '-z' ? v : +v; applyE(); }); // (3-D: ±z too, 1.24)
   bindSeg('segBdir', (v) => { W.Bax3 = v; log('tool', `Magnetic field along ${v} (3-D)`); });
   $('bMagClear').onclick = () => { W.magnets.length = 0; syncLabText(); };
-  bindSeg('segWall', (v) => { W.wall = v; syncNWall(); });
+  bindSeg('segWall', (v) => { W.wall = v; syncNWall(); boxWrapOk(); }); // (wrapping chosen in a box too small for it: solid again, said why, 1.31)
   bindSeg('segNWall', (v) => { W.nWall = v; syncNWall(); log('tool', `Neutrons at the walls: ${{ reflect: 'bounce back (a reflector)', absorb: 'absorbed, the slow ones most (the 1/v law)', pass: 'pass through', fast: 'fast ones (over 0.1 MeV) leave, slower ones bounce back' }[v]}`); });
   $('chkGlow').onchange = (e) => { W.glow = e.target.checked; };
-  $('boxSlider').oninput = (e) => { const w = boxFromS(+e.target.value); W.box.tw = w; W.box.th = w * UI.aspect; if (W.d3) W.box.td = w * (UI.aspectD || 1); syncLabText(); }; // (3-D: the depth with them, 1.24)
+  $('boxSlider').oninput = (e) => { const w = boxFromS(+e.target.value); W.box.tw = w; W.box.th = w * UI.aspect; if (W.d3) W.box.td = w * (UI.aspectD || 1); boxWrapOk(); syncLabText(); }; // (3-D: the depth with them, 1.24; too small to wrap: solid walls, 1.31)
   $('spdSlider').oninput = (e) => { W.simPerFrame = spdFromS(+e.target.value); syncLabText(); syncSpeed(); };
   bindSeg('segMinShow', (v) => { if (!W.ultra) W.minShow = +v; syncLabText(); });
   $('warpSlider').oninput = (e) => { if (W.ultra) return; W.warp = Math.pow(10, +e.target.value); syncLabText(); if (UI.tool === 'place' || UI.tool === 'fire') buildToolOpts(); };
@@ -4492,8 +4554,8 @@ function drawScope() {
     sig.forEach((s, i) => { if (!(s === 'IN' && ch.inFrom && W.chips.includes(ch.inFrom))) lanes.push({ ch, i, name: `${ch.label || CHIP_NAMES[ch.key].split(' ')[0]} ${s}` }); }); // (an input wired to another gate's output is that output's lane)
   }
   g.hidden = !lanes.length; if (g.hidden) return;
-  const show = lanes.slice(0, 12), cv = $('chScope'), LH = 24, want = show.length * LH + 18 + 'px';
-  if (cv.style.height !== want) cv.style.height = want;
+  const show = lanes.slice(0, 12), cv = chartCv('chScope'), LH = 24, want = show.length * LH + 18 + 'px';
+  chartH(cv, want);
   const r = chartCtx(cv); if (!r) return; const [ctx, w, h] = r;
   if (!SCOPE_UI.hold) SCOPE_UI.at = W.chipT;
   const t1 = SCOPE_UI.at, t0 = t1 - SCOPE_UI.win, x0 = 80, xs = (t) => x0 + (t - t0) / (t1 - t0) * (w - x0 - 6);
@@ -5004,7 +5066,7 @@ function drawGraph() {
   const all = grSeries(), sel = grSel(), chosen = all.filter(s => sel.includes(s[0]));
   const box = $('gSel'), sig = all.map(s => s[0]).join('|') + '#' + sel.join('|');
   if (box.dataset.sig !== sig) { box.dataset.sig = sig; box.innerHTML = all.map(([id, l]) => `<button data-g="${esc(id)}" aria-pressed="${sel.includes(id)}">${esc(l)}</button>`).join(''); }
-  const cv = $('chG'), rows = Math.max(1, chosen.length); cv.style.height = (rows * 64 + 6) + 'px';
+  const cv = chartCv('chG'), rows = Math.max(1, chosen.length); chartH(cv, (rows * 64 + 6) + 'px');
   const r = chartCtx(cv); if (!r) return; const [ctx, w, h] = r, n = GR.t.length;
   $('gNote').textContent = n ? `${n.toLocaleString('en-US')} points over ${fmtTime((GR.t[n - 1] - GR.t[0]) * PHYS.TU_S)}` : '';
   if (n < 2 || !chosen.length) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText(n < 2 ? 'Collecting while it runs …' : 'Pick something to plot', 10, 20); return; }
@@ -5052,7 +5114,7 @@ function drawDet() {
   const pick = $('detPick'), sig = scr.length + ':' + UI.detSel;
   if (pick.dataset.sig !== sig) { pick.dataset.sig = sig; pick.innerHTML = scr.length > 1 ? scr.map((o, i) => `<button data-v="${i}" aria-pressed="${i === UI.detSel}">Screen ${i + 1}</button>`).join('') : ''; pick.hidden = scr.length < 2; }
   setSegValue('segDet', mode);
-  const r = chartCtx($('chDet')); if (!r) return; const [ctx, w, h] = r, L = objLen(ob);
+  const r = chartCtx(chartCv('chDet')); if (!r) return; const [ctx, w, h] = r, L = objLen(ob);
   $('detNote').textContent = `${H.n.toLocaleString('en-US')} hits: ${H.parts.toLocaleString('en-US')} particles, ${H.light.toLocaleString('en-US')} photons; ${fmtE(H.E)} in all · ${Math.round(L)} Å long`;
   if (!H.n) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('No hits yet', 10, 20); return; }
   const where = mode === 'where', nb = where ? POS_BINS : OBJ_BINS, A = where ? (H.posP || []) : H.bins, B = where ? (H.posL || []) : null;
@@ -5101,7 +5163,7 @@ function zscanPoints(Z) {
 const zscanModel = (g) => 0.69911 * (RP.res ? eeISR(g * g).Z : ewEE(g * g).Z); // (σ(e⁺e⁻ → Z → hadrons), nb)
 function drawZScan() {
   const sec = $('dZsSec'), Z = W.zscan; sec.hidden = !Z || !Z.rec.length; if (sec.hidden) return;
-  const r = chartCtx($('chZs')); if (!r) return; const [ctx, w, h] = r, pts = zscanPoints(Z);
+  const r = chartCtx(chartCv('chZs')); if (!r) return; const [ctx, w, h] = r, pts = zscanPoints(Z);
   const x0 = 34, x1 = w - 8, y0 = h - 18, y1 = 10, top = 45, X = (g) => x0 + (g - ZSCAN.lo) / (ZSCAN.hi - ZSCAN.lo) * (x1 - x0), Y = (v) => y0 - Math.min(top, v) / top * (y0 - y1);
   ctx.strokeStyle = cssVar('--muted'); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, y1); ctx.lineTo(x0, y0); ctx.lineTo(x1, y0); ctx.stroke();
   ctx.font = '10.5px ' + cssVar('--font-data'); ctx.fillStyle = cssVar('--muted');
@@ -5121,7 +5183,7 @@ const PAIR_MARK = { pipi: [['ρ', 775], ['K⁰s', 498]], Kpi: [['K*', 893]], KK:
 function drawPairs() {
   const sec = $('dPairSec'); sec.hidden = !PAIRS.n; if (sec.hidden) return;
   const key = UI.pairKey || 'pipi'; setSegValue('segPair', key);
-  const r = chartCtx($('chPair')); if (!r) return; const [ctx, w, h] = r, sub = UI.pairSub !== false, H = sub ? PAIRS.h[key].map((v, b) => v - PAIRS.ls[key][b]) : PAIRS.h[key]; $('pairSub').checked = sub;
+  const r = chartCtx(chartCv('chPair')); if (!r) return; const [ctx, w, h] = r, sub = UI.pairSub !== false, H = sub ? PAIRS.h[key].map((v, b) => v - PAIRS.ls[key][b]) : PAIRS.h[key]; $('pairSub').checked = sub;
   let top = 0, tot = 0, hi = 0, bot = 0; for (let b = 0; b < 200; b++) { top = Math.max(top, H[b]); bot = Math.min(bot, H[b]); tot += PAIRS.h[key][b]; if (PAIRS.h[key][b]) hi = b; }
   $('pairNote').textContent = `${tot.toLocaleString('en-US')} pairs`;
   if (!top) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('None of these pairs yet', 10, 20); return; }
@@ -5769,11 +5831,13 @@ function onKey(e) {
     closeQuickMenu();
   }
   if (e.key === 'F11') { e.preventDefault(); setWindowMode(DM.win === 'borderless' ? 'windowed' : 'borderless'); return; }
+  if (UI.big && !$('chartModal').hidden && (e.key === '+' || e.key === '=' || e.key === '-')) { e.preventDefault(); const r = $('chartBody').getBoundingClientRect(); chartZoom(e.key === '-' ? 0.8 : 1.25, r.width / 2, r.height / 2); return; } // (1.31 item 72)
   if (SHOT.open) { if (e.key === 'Escape') { e.preventDefault(); shotClose(); } else if (e.key === '+' || e.key === '=') shotZoom(1.25, innerWidth / 2, innerHeight / 2); else if (e.key === '-') shotZoom(0.8, innerWidth / 2, innerHeight / 2); return; } // (the enlarged Settings picture has the keys while open, 1.23.2)
   if (e.key === 'Escape') {
     if (!$('pmenu').hidden) { pmenuClose(); return; }
     if (!$('escModal').hidden) { e.preventDefault(); closeEscMenu(); return; }
-    for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
+    if (!$('chartModal').hidden) { chartClose(); return; } // (1.31 item 72)
+    for (const id of ['madeModal', 'ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
     if (UI.menu) { if (!$('mmSetups').hidden) mmAction('back'); else if (MMV.v !== 'choose') mmAction('choose'); return; }
     if (!$('tour').hidden) { tourEnd(); return; }
     if (REW.open) { rewLive(); return; }
@@ -5784,7 +5848,7 @@ function onKey(e) {
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') { e.target.blur(); return; } // (Esc in a field leaves the field)
     e.preventDefault(); openEscMenu(); return; // (nothing else to let go of: the Esc menu)
   }
-  if (UI.menu || ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'escModal', 'keysModal'].some(id => !$(id).hidden)) return;
+  if (UI.menu || ['chartModal', 'madeModal', 'ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'escModal', 'keysModal'].some(id => !$(id).hidden)) return;
   if (tag === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
   if (tag === 'SELECT' || tag === 'TEXTAREA') return;
   if ((e.ctrlKey || e.metaKey) && !e.altKey) { // copy, paste, select all: the selection (or the inspected particle)
@@ -5885,6 +5949,17 @@ function expResetAll() {
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 /* A Realistic-particles switch that costs nothing (×1 in the flat game and in 3-D) is kept from one start to the next like an
    ordinary setting; the rest of the Experimental tab still starts at normal (the owner, 2026-11-08; 1.30 item 67). */
+/* (1.31, item 75, the owner: "add an enable and disable all to the particle section of experimental") All on / All off
+   for the Realistic particles' switches shown in this mode (not the ultra-realistic mode, which changes everything):
+   each set as a click would set it (its own change handler), and beside the buttons what turning them all on costs. */
+function rpAllRows() { return [...document.querySelectorAll('#setModal input[id^="setRp"].sw')].filter(i => { const r = i.closest('label, .srow'); return !(r && r.classList.contains('smode-hide')); }); }
+function rpAllSync() {
+  const el = $('rpAllCost'); if (!el) return;
+  const C = W.d3 ? COSTS3 : COSTS, dear = [];
+  for (const i of rpAllRows()) { const f = C[i.id] || COSTS[i.id]; let c = null; try { c = f && f(); } catch (e) {} const t = c && c.on && c.on[0]; if (t && t !== '×1') { const r = i.closest('label'), n = r && r.querySelector('.rpn'); dear.push(`${n ? n.textContent.trim() : i.id} ${t}`); } }
+  el.textContent = dear.length ? `All on costs: ${dear.join(', ')}; the rest ×1` : 'All on costs nothing (all ×1)';
+}
+function rpAllSet(on) { for (const i of rpAllRows()) if (i.checked !== on) { i.checked = on; i.dispatchEvent(new Event('change', { bubbles: true })); } rpAllSync(); }
 function expFree(k) {
   if (!/^rp/.test(k)) return false;
   const id = Object.keys(EXP_SET).find(i => EXP_SET[i] === k); if (!id) return false;
@@ -6352,6 +6427,7 @@ function syncExpTotal() {
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
+  if (typeof rpAllSync === 'function') rpAllSync(); // (1.31 item 75)
   for (const id in COSTS) {
     const el = $(id); if (!el) continue;
     const row = el.closest('.srow') ? el.closest('.srow').firstElementChild : el.closest('label');
@@ -6497,8 +6573,8 @@ const SDESC = {
    the 3-D lab's descriptions (SDESC3, STAB_DESC3) and costs (COSTS3), and its pictures ("key@3d", "key:value@3d" in
    SETSHOTS; where there is none, the flat picture marked "Picture from the flat game"); in the flat game only the flat ones (and the
    3-D tab's own pictures, as before). Notes under a row marked data-m="2d" or "3d" show in that mode only. A row that
-   works in the flat game only (SMODE_ONLY) is dimmed in the 3-D lab with a "2-D only" tag and still works: what it sets
-   applies there. A 3-D-only row (SMODE_ONLY '3d', and the 3-D tab with all its rows) is not shown in the flat game at all,
+   works in the flat game only (SMODE_ONLY) is not shown in the 3-D lab and carries a "2-D exclusive" tag in the flat game
+   (1.31, item 71; it was dimmed there with a "2-D only" tag). A 3-D-only row (SMODE_ONLY '3d', and the 3-D tab with all its rows) is not shown in the flat game at all,
    and in the 3-D lab a 3-D-only row outside the 3-D tab carries a "3-D exclusive" tag (1.27.1). setModeSync switches it all when the mode changes (mode3dSync) and when
    Settings opens. */
 const STAB_DESC3 = {
@@ -6544,7 +6620,7 @@ const SDESC3 = {
   setRpAq: ['Hydrated electrons', 'As in the flat game, in all three directions.'],
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
-const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
+const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', setRpPwave: '2d', segLps: '3d', segPis: '3d' }; // (Photons as waves: the flat game only, 1.31 item 71) // (and every row of the 3-D tab: '3d')
 function setRowOnly(r) { const k = setRowKey(r), p = r.closest('.spane'); return SMODE_ONLY[k] || (p && p.dataset.stab === 'd3' ? '3d' : ''); }
 /* The picture for a key (and a choice) in this mode: in 3-D its 3-D version first; in the flat game never a 3-D one. */
 function setShotFor(key, opt) {
@@ -6561,11 +6637,13 @@ function setModeSync() {
   for (const n of modal.querySelectorAll('[data-m]')) n.hidden = n.dataset.m !== m;
   for (const r of setRows()) {
     const only = setRowOnly(r), off = !!only && only !== m, host = r.matches('.srow') ? r.firstElementChild : r;
-    const hide = off && only === '3d', dim = off && !hide, p = r.closest('.spane'), excl = only === '3d' && !off && !(p && p.dataset.stab === 'd3'); // (the 3-D tab's rows: the tab says it)
+    // (1.31, item 71, the owner: "2d only settings should be 2-d exclusive and removed from 3d menu": a row for the other
+    // mode is not shown at all, either way; a row for this mode only is tagged "2-D exclusive" or "3-D exclusive")
+    const hide = off, p = r.closest('.spane'), excl = !!only && !off && !(p && p.dataset.stab === 'd3'); // (the 3-D tab's rows: the tab says it)
     r.classList.toggle('smode-hide', hide); // (the flat game does not show the 3-D lab's settings at all: the owner, 1.27.1)
     for (let n = r.nextElementSibling; n && n.matches('p.note:not(.sintro)'); n = n.nextElementSibling) n.classList.toggle('smode-hide', hide); // (and its notes)
-    r.classList.toggle('smode-off', dim);
-    costTag(host, 'smo', dim ? '2-D only' : excl ? '3-D exclusive' : '', dim ? 'For the flat game: set here, it applies there' : excl ? 'Only in the 3-D lab' : '');
+    r.classList.toggle('smode-off', false);
+    costTag(host, 'smo', excl ? (only === '2d' ? '2-D exclusive' : '3-D exclusive') : '', excl ? (only === '2d' ? 'Only in the flat game' : 'Only in the 3-D lab') : '');
   }
   const tb = modal.querySelector('.stabs [data-stab="d3"]'); if (tb) tb.hidden = !d3; // (the 3-D tab: in the 3-D lab only)
   if (!d3 && UI.stab === 'd3' && !modal.hidden && tb) setTabS('perf');
@@ -6782,6 +6860,7 @@ function settingsInit() {
   $('setRpExm').onchange = (e) => setSetting('rpExm', e.target.checked); // (1.27)
   $('setRpPwave').onchange = (e) => { setSetting('rpPwave', e.target.checked); if (UI.tool === 'objects') buildToolOpts(); }; // (1.27: the slits show with it)
   $('setRpAq').onchange = (e) => setSetting('rpAq', e.target.checked); // (1.29)
+  $('rpAllOn').onclick = () => rpAllSet(true); $('rpAllOff').onclick = () => rpAllSet(false); // (1.31 item 75)
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');
@@ -7194,6 +7273,7 @@ function init() {
   $('bSheetClose').onclick = () => $('panel').classList.remove('open');
   $('ptClose').onclick = () => hideModal('ptModal');
   $('molClose').onclick = () => hideModal('molModal');
+  chartWire(); // (1.31 items 72, 73)
   for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal']) $(id).addEventListener('click', (e) => { if (e.target.id === id) hideModal(id); });
   $('molBuild').onclick = () => openMolBuilder();
   builderInit();

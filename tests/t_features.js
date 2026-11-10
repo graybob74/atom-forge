@@ -1792,6 +1792,7 @@ const { openPage } = require('./browser');
   await alone('f_127x.js'); // 1.27 feature 24: unstable particles meet each other (node tests/f_127x.js [--node] [part …])
   await alone('f_127w.js'); // 1.27 feature 19: photons as waves (node tests/f_127w.js [--node] [part …])
   await alone('f_127m.js'); // 1.27 feature 20: the band's shape for the close-packed metals (node tests/f_127m.js [part …])
+  await alone('f_131.js'); // 1.31 items 70–75 (node tests/f_131.js [part …])
   await alone('f_130.js'); // 1.30 items 64–68 and the bug test's B1–B19 (node tests/f_130.js [part …])
   await alone('f_129.js'); // 1.29 items 55–63 (node tests/f_129.js [part …])
   await alone('f_1283.js'); // 1.28.3 items 52–53: pentaquarks and the d*(2380), protonium seen (node tests/f_1283.js [part …])
