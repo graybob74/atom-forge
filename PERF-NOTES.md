@@ -3343,7 +3343,9 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    20 Å (ui.js boxFromS: 20 Å to 20,000 Å over 0–100). Proposed: down to 5 Å (a single small molecule fills it), the
    slider's scale extended at the low end. Limits to keep: with wrapping walls a box must stay at least twice the force
    reach across (6 Å, 9 Å with the Experimental longer reach: 12 / 18 Å), so below that the walls are solid; the grid,
-   the 3-D box and the fit-to-view checked at 5 Å; whatever is in the box when it shrinks pushed in as now.
+   the 3-D box and the fit-to-view checked at 5 Å; whatever is in the box when it shrinks pushed in as now. The same in
+   the 3-D lab (the owner: "do the same in 3d"): width, height and depth down to 5 Å, the same wrap limit in all three
+   directions, the 3-D kernel's cell grid, the camera's fit and its nearest approach checked at that size.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
