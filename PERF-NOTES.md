@@ -2021,7 +2021,10 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   (boxWrapOk). A 5 Å box with one water molecule, 600 frames, 2-D and 3-D: finite, inside, books finite.
 - 75 Settings → Experimental → Realistic particles: All on and All off (rpAllSet: each switch set as a click would, the
   ones shown in this mode), with what All on costs beside them (rpAllSync: the switches that are not ×1, named).
-Tests: tests/f_131.js (each part fails on 1.30.2).
+Tests: tests/f_131.js (each part fails on 1.30.2). Older checks changed with the new behaviour: t_features 1.11's made
+list (12 in the panel, all 100 in the window), f_124's 3-D box slider (its nearest step to 20 Å is now 20.48 Å),
+f_sweep3d's counts (the 3-D pictures counted with the flat ones). Suite: all pass (t_features alone after one load-only
+miss of the strings/plasma check, which passed alone and in the 1.30.2 suite).
 
 ## 1.30.2: item 69, a collision's cascade does not meet itself in flight
 

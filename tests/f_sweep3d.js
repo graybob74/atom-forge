@@ -18,6 +18,8 @@ PARTS.pview = async (page, check, say) => {
     const n = { nuc: 0, bohr: 0, orb: 0, pair: 0 }, hasBP = typeof bondPair === 'function', keep = { drawNucView, drawBohr, drawOrbitalAtom, bondPair: hasBP ? bondPair : null };
     drawNucView = function () { n.nuc++; return keep.drawNucView.apply(this, arguments); }; drawBohr = function () { n.bohr++; return keep.drawBohr.apply(this, arguments); };
     drawOrbitalAtom = function () { n.orb++; return keep.drawOrbitalAtom.apply(this, arguments); }; if (hasBP) bondPair = function () { n.pair++; return keep.bondPair.apply(this, arguments); };
+    // (1.31 item 70: near the camera the 3-D pictures, counted with the flat ones)
+    if (typeof nucView3 === 'function') { const k3 = { nucView3, bohr3, orbital3 }; nucView3 = function () { n.nuc++; return k3.nucView3.apply(this, arguments); }; bohr3 = function () { n.bohr++; return k3.bohr3.apply(this, arguments); }; orbital3 = function () { const v = k3.orbital3.apply(this, arguments); if (v) n.orb++; return v; }; }
     const out = { atoms: W.parts.filter(p => !p.dead && p.ne > 0).length, bonds: W.bonds.length };
     try {
       setAtomView('nuc'); render(1); out.nuc = n.nuc; out.pairs = n.pair;

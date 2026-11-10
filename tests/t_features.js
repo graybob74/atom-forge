@@ -990,7 +990,7 @@ const { openPage } = require('./browser');
   })();
   check(r63.n >= 30 && r63.roots <= 4 && r63.maxD >= 3 && r63.bad === 0 && r63.kidsOk && /fis/.test(r63.modes),
     `1.11: chain-reaction tree: ${r63.n} fissions from ${r63.roots} fired neutron(s), ${r63.maxD + 1} generations; steps seen: ${r63.modes}`, '1.11 tree: ' + JSON.stringify(r63));
-  // 1.11: the Data tab: an ⓘ on every nuclide and element (it opens the card), the list opens past 80; the maps draw and
+  // 1.11: the Data tab: an ⓘ on every nuclide and element (it opens the card), the list opens past 12 in a window (1.31; past 80 in place before); the maps draw and
   // answer the pointer; scroll bars styled; the ultra-realistic nucleus in detail (β₂ from the valence nucleons)
   const r64 = await page.evaluate(async () => {
     const out = {}; loadPreset('empty'); setRunning(false); showTab('data');
@@ -998,7 +998,7 @@ const { openPage } = require('./browser');
     for (let Z = 20; Z < 70; Z++) for (const dN of [0, 1]) { const N = Math.round(Z * 1.3) + dN; W.made.nuc.set(Z + '_' + N, { Z, N, anti: false, lab: nucSym(Z, N), n: 1, how: 'test', t: 0 }); }
     renderMade(); out.rows = document.querySelectorAll('#dMade tr:not(.elh):not(.more)').length; out.ibs = document.querySelectorAll('#dMade .ib').length;
     const more = document.querySelector('#dMade [data-more]'); out.more = more ? more.textContent : ''; if (more) more.click();
-    out.all = document.querySelectorAll('#dMade tr:not(.elh):not(.more)').length; const fewer = document.querySelector('#dMade [data-more]'); out.fewer = fewer ? fewer.textContent : ''; if (fewer) fewer.click();
+    out.all = document.querySelectorAll('#dMadeAll tr:not(.elh):not(.more)').length; out.fewer = !$('madeModal').hidden ? 'window' : ''; hideModal('madeModal'); // (1.31 item 73: the whole list in its own window)
     document.querySelector('#dMade .ib').click(); out.card = !$('qmenu').hidden && $('qmenu').textContent.slice(0, 40); $('qmenu').hidden = true; QM.open = false;
     W.made = null; renderMade();
     W.chain = { fis: [], nfis: 7, edges: new Map(), ver: 1 };
@@ -1019,7 +1019,7 @@ const { openPage } = require('./browser');
     setSetting('ultra', true); const p = addNuc(92, 146, 0, 0, 0); R.cx = 0; R.cy = 0; R.s = 230 / (trueRfm(p) * FM); render(W.rt); await new Promise(r => setTimeout(r, 100)); setSetting('ultra', false); out.drew = true;
     return out;
   });
-  check(r64.rows === 80 && r64.ibs >= 100 && /Show all 100 nuclides/.test(r64.more) && r64.all === 100 && r64.fewer === 'Show fewer' && r64.card && r64.sec && r64.treeInk > 200 && /^7 fissions/.test(r64.treeNote) &&
+  check(r64.rows === 12 && r64.ibs >= 12 && /Show all 100 in a window/.test(r64.more) && r64.all === 100 && r64.fewer === 'window' && /* (1.31: 12 in the panel, the rest in a window; it was 80, then the list grew in place) */ r64.card && r64.sec && r64.treeInk > 200 && /^7 fissions/.test(r64.treeNote) &&
     /^Fission 7, generation 4/.test(r64.hover) && r64.chartInk > 200 && r64.chartNote && r64.hidden && r64.sb && r64.beta[0] === 0.3 && r64.beta[1] === 0 && r64.beta[2] >= 0.25 && r64.beta[3] === 0 && r64.inside && r64.pCount === 92,
     `1.11: made list: ${r64.rows} rows with ${r64.ibs} ⓘ, "${r64.more}" opens all ${r64.all}; card "${r64.card}"; fission tree and decay chart drawn, pointer "${r64.hover}"; β₂ U-238, Pb-208, Sm-154, O-16: ${r64.beta.join(', ')}`, '1.11 data: ' + JSON.stringify(r64));
   // 1.12: Experimental → charges that respond to their surroundings (Node harness, seeded): energy kept insulated in

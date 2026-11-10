@@ -69,7 +69,7 @@ PARTS.box = async (page, check, say) => {
   };
   const sq = run(20), gr = run(40);
   say('  3-D box: ' + JSON.stringify({ ui, sq, gr }));
-  check(!ui.dis && ui.td === 20 && ui.box.every(v => Math.abs(v - 20) < 0.01) && /20 × 20/.test(ui.txt) && ui.note && sq.box === 20 && sq.T[1] > 2 * sq.T[0] && sq.work > 2 && Math.abs(sq.books) < 0.02 * sq.work && gr.box === 40 && Math.abs(gr.dE) < 0.05 && gr.work === 0,
+  check(!ui.dis && Math.abs(ui.td - 20) < 1 && ui.box.every(v => Math.abs(v - 20) < 1) && /20 × 20/.test(ui.txt) /* (1.31: the slider runs from 5 Å, its nearest step to 20 Å is 20.48) */ && ui.note && sq.box === 20 && sq.T[1] > 2 * sq.T[0] && sq.work > 2 && Math.abs(sq.books) < 0.02 * sq.work && gr.box === 40 && Math.abs(gr.dE) < 0.05 && gr.work === 0,
     `1.24: box size in 3-D: the slider sets 20 × 20 × 20 Å (it was disabled); an insulated argon gas squeezed 30 → 20 Å heats ${sq.T[0]} → ${sq.T[1]} K by the piston's ${sq.work} eV (books ${sq.books} eV against it); grown to 40 Å, a free expansion (books ${gr.dE} eV)`, '1.24 box: ' + JSON.stringify({ ui, sq, gr }));
 };
 
