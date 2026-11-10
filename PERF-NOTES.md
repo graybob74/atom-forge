@@ -3329,6 +3329,16 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    dimmed there with a "2-D only" tag: ui.js SMODE_ONLY, setRowOnly). Rows: Detailed nuclear collisions (setInc), Zoom
    toward (segZoomTo), and Photons as waves (setRpPwave: "the flat game only so far", not yet in SMODE_ONLY); check every
    other row's 3-D cost for "changes nothing" and add those too. Display only.
+72 (requested 2026-11-09, the owner: "make all graphs and trees expandable somewhat like settings images") Every chart
+   and tree opens larger in a window in the middle on a click (or Enter), as a Settings picture does (SHOT: shotOpen,
+   zoom with the wheel or +/−, Esc closes): the Data tab's chain-reaction map and fission tree (chMap), spectrum (chSpec),
+   temperature history (chT), graphs (chG), Z line shape (chZs), detector screen (chDet), pair masses (chPair), energy
+   distribution (chE), the chips' scope (chScope), and the decay-chain trees. Drawn again at the larger size (not a
+   stretched picture), kept live while the game runs, with readable axes and labels.
+73 (requested 2026-11-09, the owner: "make the made here thing shorter but when you click show all it opens its own
+   window in the middle") The Data tab's "Made here" list shows only its first few rows (now 80, MADE_SHOW), and "Show
+   all N" opens the whole list in a window in the middle (scrolling, its ⓘ buttons working, Esc closes) instead of
+   lengthening the panel.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
