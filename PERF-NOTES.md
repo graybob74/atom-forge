@@ -3346,6 +3346,11 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    the 3-D box and the fit-to-view checked at 5 Å; whatever is in the box when it shrinks pushed in as now. The same in
    the 3-D lab (the owner: "do the same in 3d"): width, height and depth down to 5 Å, the same wrap limit in all three
    directions, the 3-D kernel's cell grid, the camera's fit and its nearest approach checked at that size.
+75 (requested 2026-11-09, the owner: "add an enable and disable all to the particle section of experimental") Two
+   buttons at the head of Settings → Experimental → Realistic particles: "All on" and "All off", setting every switch in
+   that section at once (as clicking each: applySettings, the cost tags and the "Experimental:" readout updated). "All
+   on" shows the combined cost first (the costly ones, Charged particles in matter ×1–1.3 and Photon polarization ×1–2 in
+   3-D, named); in the 3-D lab only the switches shown there (after item 71, the flat-game-only ones hidden).
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
