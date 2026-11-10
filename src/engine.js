@@ -164,7 +164,7 @@ class Part {
     this.val = 0; this.nOut = 0; this.unp = 0;
     this.ljE = 0; this.ieH = 0; this.ieHq = 0; this.polarH = false; this.rd = 0.3;
     this.trk = null; this.mark = 0; this.sel = false;
-    this.omB = 0; this.Bl = 0; this.evId = 0; this.capT = 0; this.capN = 0;
+    this.omB = 0; this.Bl = 0; this.evId = 0; this.root = 0; this.capT = 0; this.capN = 0;
     this.beam = undefined; this.trkKeep = undefined; this.injKick = undefined; this.kickIn = undefined; this.nucProd = undefined; this.caught = false;
   }
   get x() { return S.x[this.i]; } set x(v) { S.x[this.i] = v; }
@@ -4951,14 +4951,22 @@ function annihEnd(S) {
    remainder goes to the radiation or into the products' motion, so energy is conserved exactly. */
 function nucBegin(seeds) {
   const T = new Set(), ev = ++W.evSeq; _evTag = ev; // (hep.js: what this event makes is tagged with it, for the pair masses)
-  for (const s of seeds) if (s && !s.dead) { s.evId = ev; for (const m of molecule(s)) T.add(m); }
+  let root = 0; for (const s of seeds) if (s && !s.dead && s.root) { root = s.root; break; } if (!root) root = ev; // (the event a cascade began with: below)
+  for (const s of seeds) if (s && !s.dead) { s.evId = ev; s.root = root; for (const m of molecule(s)) T.add(m); }
   const m0 = restSum(T);
-  return { T, m0, E0: regionE(T) - m0, esc0: W.ledger.escaped, n0: W.parts.length, ev };
+  return { T, m0, E0: regionE(T) - m0, esc0: W.ledger.escaped, n0: W.parts.length, ev, root };
 }
 /* (what one event made, and what took part, share its id: they start where it happened, overlapping on this enlarged
    scale, and must not collide with each other there again) */
-function nucGrow(S) { for (let i = S.n0; i < W.parts.length; i++) { S.T.add(W.parts[i]); W.parts[i].evId = S.ev; } S.n0 = W.parts.length; }
-const sameEv = (a, b) => a.evId !== 0 && a.evId === b.evId;
+function nucGrow(S) { for (let i = S.n0; i < W.parts.length; i++) { S.T.add(W.parts[i]); W.parts[i].evId = S.ev; W.parts[i].root = S.root || S.ev; } S.n0 = W.parts.length; }
+/* (1.30.2, item 69, the owner's OK) What an event makes also keeps the event its cascade began with (root), through any
+   later events among them; two with the same root do not meet while both are in radiation flight. A gold–gold
+   collision's few hundred fragments fly out packed within ångströms (the enlarged scale), and each encounter among them
+   gave its products a new tag, so they met their old siblings again as strangers: a cascade inside the cloud (n + d,
+   n + t, n + α elastic, n + d breakups), which in nature is part of the collision itself, already in what it made.
+   RHIC, 240 frames after the first Au + Au: 87–96 → 53–57 ms a frame, 248,000–418,000 → 18,000–31,000 encounters.
+   Slowed out of flight they can meet; the beams, other collisions' products and matter are met as before. */
+const sameEv = (a, b) => (a.evId !== 0 && a.evId === b.evId) || (a.root !== 0 && a.root === b.root && a.rad && b.rad);
 function nucMassLoss(S) { nucGrow(S); return S.m0 - restSum(S.T); } // rest energy turned into other forms (eV)
 function nucLeft(S, Qrel) { nucGrow(S); return S.E0 + Qrel - (regionE(S.T) - restSum(S.T)) - (W.ledger.escaped - S.esc0); }
 /* Velocity whose ½mv² is the particle's kinetic energy (a radiation-mode particle moves at its relativistic speed). */

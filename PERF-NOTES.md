@@ -1991,6 +1991,16 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.30.2 (unreleased): item 69, a collision's cascade does not meet itself in flight
+
+The owner's OK (2026-11-09, "sure, do it"). engine.js: every particle carries root, the event its cascade began with:
+nucBegin takes the first root among its seeds (or its own new id) and gives it to the seeds and, through nucGrow, to
+everything the event makes; sameEv is also true for two particles with the same root while both are in radiation
+flight. Why and the numbers: planned item 69 (and B9 in 1.30.0). Measured after the change, RHIC "Together", 240 frames
+after the first Au + Au: 51 ms a frame (87–96 before), 359 attoseconds simulated (115–194), 30,000 encounters
+(248,000–418,000); the Log's elastic n + d / n + t bumps among the fragments gone, n on the beams' gold, pair
+production and decays as before. 3-D has no radiation flight, so nothing changes there. Test: f_130.js part cascade.
+
 ## 1.30.1: fixes from a second bug test, at the owner's 1440p and at 1280×720 (the owner away: "fix anything")
 
 Looked at: every setup at 2560×1440 (screenshots, and a layout audit of the page for clipped text and things off the
@@ -3293,7 +3303,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 63 challenges / guided experiments: goals checked by the game (reach criticality, make protonium, build caffeine, …).
 (The owner also named sharing and CSV export: both exist already, share codes and the gallery, the graph's Export CSV.)
 (1.30: 64–68 done, and B1–B19 below, the owner: "fix everything on every list"; see the 1.30 section.)
-69 (proposed, waits for the owner's OK: it changes what fragments do) RHIC's slowdown after a gold–gold collision (B9):
+69 (done in 1.30.2, the owner: "sure, do it") RHIC's slowdown after a gold–gold collision (B9):
    the collision's fragments fly out packed within ångströms, and each encounter among them gives its products a new
    event tag, so they then meet their old siblings as strangers: a cascade inside the cloud (most of the Log: n + d,
    n + t, n + α elastic, n + d breakups). Proposal: the products of an event keep the tag of the collision it came from

@@ -164,6 +164,23 @@ PARTS.p1301 = async (page, check) => {
   check(r.note, '1.30.1 the Experimental tab says which switches are kept from one start to the next', '1.30.1 Experimental note unchanged');
 };
 
+/* 69 (1.30.2). A neutron and a deuteron in flight that came out of one collision's cascade (the same root, different
+   events) do not meet; from different collisions they do. 1.30.1: they met (one encounter). */
+PARTS.cascade = async (page, check) => {
+  const res = {};
+  for (const same of [true, false]) {
+    const X = load('all', { seed: 3, patch: (s) => s + '\n;globalThis.__nh = 0; neutronHit = (function (f) { return function (...a) { __nh++; return f.apply(this, a); }; })(neutronHit);' }), W = X.W;
+    X.PRESETS.empty.build(); W.gamma = 0; W.wall = 'wrap';
+    const n = X.addNuc(0, 1, 0, -10, 0.02, 0, 0, false, 0), d = X.addNuc(1, 1, 0, -9.7, 0, 0, 0, false, 0);
+    X.setMotion(n, 3e8, 1, 0); X.setMotion(d, 2e8, 1, 0);
+    n.evId = 7; d.evId = 9; n.root = 5; d.root = same ? 5 : 6;
+    X.forcesNoEvents(); W.fSpawn = W.spawned; globalThis.__nh = 0;
+    for (let i = 0; i < 10; i++) { W.dt = 2e-5; X.step(W.dt); }
+    res[same ? 'same' : 'other'] = { nh: globalThis.__nh, rad: n.rad && d.rad };
+  }
+  check(res.same.nh === 0 && res.other.nh >= 1 && res.same.rad, `1.30.2 (69) a neutron overtaking a deuteron in flight: from one collision's cascade they do not meet, from two they do (${res.other.nh})`, '1.30.2 cascade: ' + JSON.stringify(res));
+};
+
 module.exports = async function f130(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
