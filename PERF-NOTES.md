@@ -3318,6 +3318,12 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    can. Prototype, RHIC "Together", 240 frames after the first Au + Au: 87–96 ms a frame → 53–57 ms; 115–194 → 262–277
    attoseconds simulated; 248,000–418,000 encounters → 18,000–31,000. Encounters with the beams, other collisions'
    products and matter stay. Random sequences change (fingerprints of nuclear setups to update).
+70 (requested 2026-11-09) True 3-D atoms in the 3-D particle, shell and orbital views. Now each atom there is the flat
+   game's picture facing the camera (drawDet3 in view3d.js: nucleusSprite, drawBohr, drawOrbitalAtom at the particle's
+   place, sized for its distance), so a nucleus looks the same from every side and orbits never tilt. Wanted: nucleons
+   as shaded balls packed in 3-D that turn with the camera; electron orbits as tilted rings (ellipses from the side, the
+   far half behind the nucleus); orbitals as 3-D shapes (a p orbital's two lobes from any angle). For speed, only atoms
+   near the camera drawn this way, the flat pictures kept for distant ones; display only.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
