@@ -3324,6 +3324,11 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    as shaded balls packed in 3-D that turn with the camera; electron orbits as tilted rings (ellipses from the side, the
    far half behind the nucleus); orbitals as 3-D shapes (a p orbital's two lobes from any angle). For speed, only atoms
    near the camera drawn this way, the flat pictures kept for distant ones; display only.
+71 (requested 2026-11-09, the owner: "2d only settings should be 2-d exclusive and removed from 3d menu") Settings rows
+   that work in the flat game only are hidden in the 3-D lab, as 3-D-only rows are hidden in the flat game (now they are
+   dimmed there with a "2-D only" tag: ui.js SMODE_ONLY, setRowOnly). Rows: Detailed nuclear collisions (setInc), Zoom
+   toward (segZoomTo), and Photons as waves (setRpPwave: "the flat game only so far", not yet in SMODE_ONLY); check every
+   other row's 3-D cost for "changes nothing" and add those too. Display only.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
