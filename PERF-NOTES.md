@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.30.1 (unreleased): fixes from a second bug test, at the owner's 1440p and at 1280×720 (the owner away: "fix anything")
+## 1.30.1: fixes from a second bug test, at the owner's 1440p and at 1280×720 (the owner away: "fix anything")
 
 Looked at: every setup at 2560×1440 (screenshots, and a layout audit of the page for clipped text and things off the
 screen: none), the side panel's tabs, Settings, Help, the periodic table and molecule library; random play (12 setups ×
@@ -3293,6 +3293,14 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 63 challenges / guided experiments: goals checked by the game (reach criticality, make protonium, build caffeine, …).
 (The owner also named sharing and CSV export: both exist already, share codes and the gallery, the graph's Export CSV.)
 (1.30: 64–68 done, and B1–B19 below, the owner: "fix everything on every list"; see the 1.30 section.)
+69 (proposed, waits for the owner's OK: it changes what fragments do) RHIC's slowdown after a gold–gold collision (B9):
+   the collision's fragments fly out packed within ångströms, and each encounter among them gives its products a new
+   event tag, so they then meet their old siblings as strangers: a cascade inside the cloud (most of the Log: n + d,
+   n + t, n + α elastic, n + d breakups). Proposal: the products of an event keep the tag of the collision it came from
+   (its root), and two particles with the same root do not meet while both are in radiation flight; once slowed they
+   can. Prototype, RHIC "Together", 240 frames after the first Au + Au: 87–96 ms a frame → 53–57 ms; 115–194 → 262–277
+   attoseconds simulated; 248,000–418,000 encounters → 18,000–31,000. Encounters with the beams, other collisions'
+   products and matter stay. Random sequences change (fingerprints of nuclear setups to update).
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
