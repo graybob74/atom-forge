@@ -2000,6 +2000,13 @@ flight. Why and the numbers: planned item 69 (and B9 in 1.30.0). Measured after 
 after the first Au + Au: 51 ms a frame (87–96 before), 359 attoseconds simulated (115–194), 30,000 encounters
 (248,000–418,000); the Log's elastic n + d / n + t bumps among the fragments gone, n on the beams' gold, pair
 production and decays as before. 3-D has no radiation flight, so nothing changes there. Test: f_130.js part cascade.
+A particle still in a beam neither takes a root nor passes one on, and only a root above 0 counts: the first version let
+a collider's beams, turned elastically by each other, come to share one root, and unstable particles in a beam (no root
+at all) all matched, so t_features 1.15's μ⁻μ⁺ beams stopped colliding (no hits); caught by the suite, fixed before
+commit to main. Fingerprints: sns 25bd9c41 f9d613c8 (switches off; f_rp5, f_ew), 4d267def b6a5a544 (both photon
+switches; f_rp7): a spallation cascade's fragments no longer meet in flight. Suite: all pass but t_page's slow-motion
+button check, which misses on 1.30.1 the same way (3 calls each: the hourglass not lit within 400 ms on the first α
+in 1 to 3 of 3 on both), and the known load flakes (1.14 readout, f_bug125 exoElastic ms, f_1281 grab).
 
 ## 1.30.1: fixes from a second bug test, at the owner's 1440p and at 1280×720 (the owner away: "fix anything")
 

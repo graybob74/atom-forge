@@ -4951,8 +4951,8 @@ function annihEnd(S) {
    remainder goes to the radiation or into the products' motion, so energy is conserved exactly. */
 function nucBegin(seeds) {
   const T = new Set(), ev = ++W.evSeq; _evTag = ev; // (hep.js: what this event makes is tagged with it, for the pair masses)
-  let root = 0; for (const s of seeds) if (s && !s.dead && s.root) { root = s.root; break; } if (!root) root = ev; // (the event a cascade began with: below)
-  for (const s of seeds) if (s && !s.dead) { s.evId = ev; s.root = root; for (const m of molecule(s)) T.add(m); }
+  let root = 0; for (const s of seeds) if (s && !s.dead && s.root && !s.beam) { root = s.root; break; } if (!root) root = ev; // (the event a cascade began with: below)
+  for (const s of seeds) if (s && !s.dead) { s.evId = ev; if (!s.beam) s.root = root; for (const m of molecule(s)) T.add(m); }
   const m0 = restSum(T);
   return { T, m0, E0: regionE(T) - m0, esc0: W.ledger.escaped, n0: W.parts.length, ev, root };
 }
@@ -4965,8 +4965,10 @@ function nucGrow(S) { for (let i = S.n0; i < W.parts.length; i++) { S.T.add(W.pa
    gave its products a new tag, so they met their old siblings again as strangers: a cascade inside the cloud (n + d,
    n + t, n + α elastic, n + d breakups), which in nature is part of the collision itself, already in what it made.
    RHIC, 240 frames after the first Au + Au: 87–96 → 53–57 ms a frame, 248,000–418,000 → 18,000–31,000 encounters.
-   Slowed out of flight they can meet; the beams, other collisions' products and matter are met as before. */
-const sameEv = (a, b) => (a.evId !== 0 && a.evId === b.evId) || (a.root !== 0 && a.root === b.root && a.rad && b.rad);
+   Slowed out of flight they can meet; the beams, other collisions' products and matter are met as before. A particle
+   still in a beam never takes a root nor passes one on (else a collider's beams, turned elastically by each other, came
+   to share one root and stopped colliding: t_features 1.15's exotic beams, no hits). */
+const sameEv = (a, b) => (a.evId !== 0 && a.evId === b.evId) || (a.root > 0 && a.root === b.root && a.rad && b.rad && !a.beam && !b.beam); // (root > 0: an unstable particle in a beam has none, undefined)
 function nucMassLoss(S) { nucGrow(S); return S.m0 - restSum(S.T); } // rest energy turned into other forms (eV)
 function nucLeft(S, Qrel) { nucGrow(S); return S.E0 + Qrel - (regionE(S.T) - restSum(S.T)) - (W.ledger.escaped - S.esc0); }
 /* Velocity whose ½mv² is the particle's kinetic energy (a radiation-mode particle moves at its relativistic speed). */

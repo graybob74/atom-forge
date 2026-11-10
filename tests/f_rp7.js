@@ -260,7 +260,7 @@ PARTS.books = async (page, check) => {
 // (1.27 bug 6: sns with part 3 on re-fingerprinted: fast fired particles meet over the step)
 // (1.27 bug 7: photonuc and sns with part 3 on re-fingerprinted: X-rays of 10–100 keV meet atoms by their Compton and photoelectric cross sections; Compton's mₑc² exact)
 // (1.27 bug 15: annihilation, photonuc and sns with part 3 on re-fingerprinted: events in the electrons' short steps search a grid rebuilt after they moved)
-const FP_CPM = { annihilation: 'a3d1dba8 1b29c202', photonuc: '36991dac 18b6a3cd', sns: 'e319e959 8decfa7c', linac: '7c6eb010 2b70ae2c' }; // (1.29 item 60: the like-charged bonds, the wells round a lepton and its vibrational losses changed these three)
+const FP_CPM = { annihilation: 'a3d1dba8 1b29c202', photonuc: '36991dac 18b6a3cd', sns: '4d267def b6a5a544', linac: '7c6eb010 2b70ae2c' }; // (1.29 item 60: the like-charged bonds, the wells round a lepton and its vibrational losses changed these three)
 PARTS.both = async (page, check) => {
   const bad = [], r = {};
   for (const k of Object.keys(FP_CPM)) {
