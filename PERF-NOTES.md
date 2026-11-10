@@ -3339,6 +3339,11 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    window in the middle") The Data tab's "Made here" list shows only its first few rows (now 80, MADE_SHOW), and "Show
    all N" opens the whole list in a window in the middle (scrolling, its ⓘ buttons working, Esc closes) instead of
    lengthening the panel.
+74 (requested 2026-11-09, the owner: "make the minimum box size smaller") The Lab panel's box-size slider starts at
+   20 Å (ui.js boxFromS: 20 Å to 20,000 Å over 0–100). Proposed: down to 5 Å (a single small molecule fills it), the
+   slider's scale extended at the low end. Limits to keep: with wrapping walls a box must stay at least twice the force
+   reach across (6 Å, 9 Å with the Experimental longer reach: 12 / 18 Å), so below that the walls are solid; the grid,
+   the 3-D box and the fit-to-view checked at 5 Å; whatever is in the box when it shrinks pushed in as now.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
