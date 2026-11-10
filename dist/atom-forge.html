@@ -1,4 +1,4 @@
-<title>Atom Forge 1.30.2</title>
+<title>Atom Forge 1.31.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -226,6 +226,18 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .hint.short:not(.open)::after { content: 'tap for more'; display: block; font-size: 11px; color: var(--ch-dim); margin-top: 2px; }
 .hint .x { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 6px; border: 0; background: transparent; color: var(--ch-dim); font-size: 16px; line-height: 1; }
 .hint .x:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.chdialog { width: min(92vw, 1500px); height: min(84vh, 980px); display: flex; flex-direction: column; } /* (1.31 item 72) */
+.chdialog .chbody { flex: 1; min-height: 0; overflow: hidden; position: relative; cursor: grab; }
+.chdialog .chbody.drag { cursor: grabbing; }
+.chdialog #chBig { width: 100% !important; height: 100% !important; display: block; transform-origin: 0 0; }
+.chdialog #chSvg { position: absolute; inset: 0; transform-origin: 0 0; }
+.chdialog #chSvg svg { width: 100%; height: 100%; }
+.chdialog #chartHint { margin-right: 10px; font-size: 11.5px; }
+canvas.chart.zoomable, svg.chainsvg { cursor: zoom-in; }
+.madedlg { width: min(760px, 94vw); max-height: 86vh; display: flex; flex-direction: column; } /* (1.31 item 73) */
+.madedlg .madebody { overflow: auto; min-height: 0; flex: 1; }
+.madedlg #madeSum2 { margin: 0 0 6px; }
+.rp-all { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; } .rp-all .rp-cost { font-size: 11.5px; color: var(--ch-dim, #9aa); } /* (1.31 item 75) */
 .hint #hintOn { margin-left: 4px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--ch-line); background: rgba(255, 255, 255, 0.08); color: #fff; font: inherit; font-size: 12px; cursor: pointer; } /* (1.30, bug B7) */
 .tip { position: absolute; pointer-events: none; background: rgba(6, 10, 15, 0.94); color: var(--ch-fg); border: 1px solid var(--ch-line);
   border-radius: 8px; padding: 6px 9px; font-size: 12px; white-space: nowrap; z-index: 3; }
@@ -1153,7 +1165,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
           </div>
           <div class="row"><span>Box size</span><span class="val"><span id="boxW"></span> × <span id="boxH"></span><span class="only3d"> × <span id="boxD"></span></span><span class="vu"> Å</span></span></div>
           <input type="range" id="boxSlider" min="0" max="100" step="1" aria-label="Box size">
-          <p class="note">20 Å to 2 µm. Growing is a free expansion; shrinking closes in like a piston (an insulated gas heats up).</p>
+          <p class="note">5 Å to 2 µm (a box that wraps round, at least twice the forces’ reach: 12 Å, or 18 and 24 Å with the longer reach). Growing is a free expansion; shrinking closes in like a piston (an insulated gas heats up).</p>
           <p class="note" id="box3dNote" hidden>In 3-D the slider scales width, height and depth together; the walls move in on all six faces.</p>
         </section>
 
@@ -1421,6 +1433,19 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
   </div>
 </div>
 
+<div class="modal" id="chartModal" hidden>
+  <div class="dialog chdialog" role="dialog" aria-modal="true" aria-labelledby="chartTitle">
+    <header><h2 id="chartTitle">Chart</h2><div class="hbtns"><span class="note" id="chartHint">Wheel or + / − to zoom, drag to move, double-click to fit</span><button class="btn small" id="chartClose">Close</button></div></header>
+    <div class="chbody" id="chartBody"><canvas class="chart" id="chBig" aria-label="The chart, enlarged"></canvas><div id="chSvg"></div></div>
+  </div>
+</div>
+<div class="modal" id="madeModal" hidden>
+  <div class="dialog mdialog madedlg" role="dialog" aria-modal="true" aria-labelledby="madeTitle">
+    <header><h2 id="madeTitle">Made here <span class="count" id="madeCount"></span></h2><div class="hbtns"><button class="btn small" id="madeClose">Close</button></div></header>
+    <p class="note" id="madeSum2"></p>
+    <div class="madebody"><table class="species made" id="dMadeAll"></table></div>
+  </div>
+</div>
 <div class="modal" id="molModal" hidden>
   <div class="dialog mdialog" role="dialog" aria-modal="true" aria-labelledby="molTitle">
     <header><h2 id="molTitle">Molecules <span class="pv" id="molTitle3" hidden title="The 3-D lab's library: the molecules and tiny objects that fit 3-D">3-D</span> <span class="count" id="molCount"></span></h2><div class="hbtns"><button class="btn small" id="molBuild">Build your own…</button><button class="btn small" id="molClose">Close</button></div></header>
@@ -1661,6 +1686,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <p class="note">An aromatic ring's π electrons lie above and below it, so a ring is negative on its faces and positive round its rim, and two rings stack offset or meet edge to face rather than face to face. With π clouds on (since 1.26, the 3-D lab only), every aromatic carbon carries 0.07 e on two points 0.7 Å above and below the ring (the carbon as much more positive), and ring atoms of two aromatic molecules meet with a dispersion fitted to the benzene dimer instead of the game's general one, which in space binds rings about three times too hard. Changing it books the energy difference to the heat bath. Measured in the 3-D lab (1.26, kcal/mol, rigid rings): the benzene dimer face to face −1.95 at 3.8 Å, edge to face −2.84 at 5.0 Å, offset −2.77 at 3.5 Å (CCSD(T): about −1.7 to −1.8 at 3.9, −2.6 to −2.8 at 5.0, −2.6 to −2.8 at 3.5–3.6 Å with a 1.6–1.8 Å offset; here the offset comes out 2.6 Å); without it −8.6, −4.5 and −8.4. Costs up to ×10 in a box of benzene, nothing without aromatic rings.</p>
       <h3 id="rpHead">Realistic particles</h3>
       <p class="note sintro">Particles shown as they really are, each part its own switch (since 1.27). Point at a line to see what it does.</p>
+      <div class="rp-all" id="rpAll"><button class="btn small" id="rpAllOn" type="button">All on</button><button class="btn small" id="rpAllOff" type="button">All off</button><span class="rp-cost" id="rpAllCost"></span></div>
       <label class="check rpl"><span class="rpn">Ultra-realistic mode</span><input type="checkbox" id="setUltra" class="sw" role="switch" aria-label="Ultra-realistic: true sizes and rates, nothing made easier to see"></label>
       <p class="note">(Moved here from General in 1.23.2: like the rest of this tab it is off again each time the game starts.) Nuclei are hit at their true size, about 1/100,000 of their atom, so beams almost never hit anything and fusion and nuclear reactions are rare; slow neutrons are still caught, as their wavelength is large. Decays run at their real rates, with nothing sped up or held back to be seen.</p>
       <p class="note" data-m="2d">Nuclei are drawn at their true size too (a dot of one pixel marks where a bare nucleus or a free electron is). You can zoom in 100,000 times further, far enough to see a nucleus inside its atom, and slow time down to a yoctosecond (10⁻²⁴ s) a second, slow enough to watch a φ meson (1.5×10⁻²² s) live and decay.</p>
@@ -35144,6 +35170,141 @@ const ELEM_SYM = (p) => (p.mu ? 'Mu' : p.anti ? barSym(p.el.sym) : elSym(p)); //
    own picture, facing the camera at the particle's place and sized for its distance (R.s set to the scale there for the
    flat drawing code), on Canvas 2D, far to near. Before, the 3-D view drew lit balls whatever was chosen. */
 function det3() { const v = R.view.bohr; return W.ultra ? 'ultra' : v === 'nuc' || v === 'orb' || v === 'on' ? v : ''; }
+/* (1.31, item 70, the owner: "are 3d particle view atoms just flat items that face you?") Near the camera an atom in
+   the particle, shell and orbital views is drawn in 3-D: its nucleons packed in a ball that turns with the camera, its
+   electrons on tilted circular orbits (an ellipse from the side, the far half behind the nucleus), and its orbitals'
+   cloud seen as it is, the density summed along each line of sight through the atom (a p orbital pointing at you a round
+   blob, from the side its two lobes). Far away (nucleons under 2.5 px, shells under 12 px, clouds under 40 px) the flat pictures stay: the
+   same at that size and far cheaper. Display only. */
+const NUC3_MIN = 2.5; // (nucleon radius, px, from which a nucleus is drawn in 3-D: smaller, the flat sprite looks the same and costs less)
+const _nuc3 = new Map();
+function nucPos3(Z, N) { // nucleon places in a ball of unit-radius nucleons (packing 0.74), protons by the flat sprite's shuffle
+  const A = Z + N, key = Z * 1000 + N; let P = _nuc3.get(key); if (P) return P;
+  if (_nuc3.size > 400) _nuc3.clear();
+  const Rb = A <= 1 ? 0 : Math.cbrt(A / 0.74) - 0.9, order = [];
+  for (let k = 0; k < A; k++) { const h = Math.sin((k + 1) * 12.9898 + Z * 78.233 + N * 37.719) * 43758.5453; order.push([h - Math.floor(h), k]); }
+  order.sort((u, v) => u[0] - v[0]); const prot = new Uint8Array(A); for (let j = 0; j < Math.min(Z, A); j++) prot[order[j][1]] = 1;
+  P = [];
+  for (let k = 0; k < A; k++) { // radius by the cube root of the count inside (even filling), direction on a Fibonacci sphere
+    const rr = A === 1 ? 0 : Rb * Math.cbrt((k + 0.5) / A), cz = 1 - 2 * (k + 0.5) / A, sz = Math.sqrt(Math.max(0, 1 - cz * cz)), th = k * 2.39996;
+    P.push([rr * sz * Math.cos(th), rr * sz * Math.sin(th), rr * cz, prot[k] === 1]);
+  }
+  P.rn = A <= 1 ? 1 : Rb + 1; _nuc3.set(key, P); return P;
+}
+const _q3 = [];
+/* A nucleus of nucleon radius b px at (x, y), turned as the camera sees it, far nucleons first. Returns its radius. */
+function nucleus3(ctx, x, y, Z, N, b, anti) {
+  const P = nucPos3(Z, N), n = P.length, pc = anti ? PBAR_COL : P_COL, nc = anti ? NBAR_COL : N_COL;
+  _q3.length = 0;
+  for (let k = 0; k < n; k++) { const q = P[k]; _q3.push([b * (q[0] * C3.rx + q[1] * C3.ry + q[2] * C3.rz), -b * (q[0] * C3.ux + q[1] * C3.uy + q[2] * C3.uz), q[0] * C3.fx + q[1] * C3.fy + q[2] * C3.fz, q[3]]); }
+  _q3.sort((u, v) => v[2] - u[2]); // (far first: depth along the camera's forward)
+  const sp = ballSprite(pc, b * 1.12), sn = ballSprite(nc, b * 1.12);
+  for (const q of _q3) drawSprite(q[3] ? sp : sn, x + q[0], y + q[1]);
+  return b * P.rn;
+}
+/* The unit circle of shell i of atom id in space (a fixed tilt for each, so the shells cross at angles). */
+function shellBasis3(i, id) {
+  const a = 0.5 + 0.95 * i + (id % 7) * 0.31, b = 1.3 * i + (id % 11) * 0.57; // (the normal's polar and azimuthal angles)
+  const nx = Math.sin(a) * Math.cos(b), ny = Math.sin(a) * Math.sin(b), nz = Math.cos(a);
+  let ex = -ny, ey = nx, ez = 0; const l = Math.hypot(ex, ey) || 1; ex /= l; ey /= l; if (l < 1e-6) { ex = 1; ey = 0; }
+  return [ex, ey, ez, ny * ez - nz * ey, nz * ex - nx * ez, nx * ey - ny * ex]; // e1, and e2 = n × e1
+}
+/* A point of that circle at angle th and radius R0 px: screen offset and depth (positive: beyond the nucleus). */
+function ring3(B, th, R0, o) {
+  const c = Math.cos(th), s = Math.sin(th), vx = c * B[0] + s * B[3], vy = c * B[1] + s * B[4], vz = c * B[2] + s * B[5];
+  o[0] = R0 * (vx * C3.rx + vy * C3.ry + vz * C3.rz); o[1] = -R0 * (vx * C3.ux + vy * C3.uy + vz * C3.uz); o[2] = vx * C3.fx + vy * C3.fy + vz * C3.fz; return o;
+}
+const _r3 = [0, 0, 0];
+/* Shells' electrons (and, for the shells view, the rings) on tilted orbits: the far side (side < 0) or the near (> 0). */
+function shells3(ctx, p, x, y, radii, counts, er, side, rings, rate) {
+  const sp = ballSprite(p.anti ? POS_COL : E_COL, er);
+  for (let i = 0; i < radii.length; i++) {
+    const R0 = radii[i], ne = counts[i], B = shellBasis3(i, p.id || 0);
+    if (rings) { // the ring's half on this side, as short strokes
+      ctx.strokeStyle = 'rgba(160,200,240,0.28)'; ctx.lineWidth = 1; ctx.beginPath(); let pen = false;
+      for (let j = 0; j <= 32; j++) { ring3(B, j * Math.PI / 16, R0, _r3); const on = side < 0 ? _r3[2] >= 0 : _r3[2] < 0; if (on) { if (pen) ctx.lineTo(x + _r3[0], y + _r3[1]); else ctx.moveTo(x + _r3[0], y + _r3[1]); pen = true; } else pen = false; }
+      ctx.stroke();
+    }
+    if (!ne) continue;
+    const w = rate(i);
+    for (let k = 0; k < ne; k++) { ring3(B, W.at * w + k * 2 * Math.PI / ne + i * 0.7 + (p.id || 0), R0, _r3); if ((_r3[2] >= 0) === (side < 0)) drawSprite(sp, x + _r3[0], y + _r3[1]); }
+  }
+}
+/* The particle view's atom in 3-D (as drawNucView): nucleus and its own electrons. */
+function nucView3(ctx, p, x, y, r) {
+  const b = nucleonR(), own = Math.max(0, p.ne - p.used), rn = b * nucPos3(p.Z, p.N).rn;
+  let radii = [], counts = [], er = electronR();
+  if (own > 0) {
+    const sh = shellCounts(p.Z, own), nF = Math.max(sh.length, shellCounts(p.Z, Math.max(p.Z, p.ne)).length);
+    const rIn = rn + 1.5 * er + 1, rOut = Math.max(r * 1.05, rIn + (nF - 1) * 2.2 * er);
+    for (let i = 0; i < sh.length; i++) { radii.push(nF === 1 ? rOut : rIn + (rOut - rIn) * i / (nF - 1)); counts.push(sh[i]); }
+  }
+  const rate = (i) => (1.1 / (i + 1)) * (p.id % 2 ? 1 : -1);
+  shells3(ctx, p, x, y, radii, counts, er, -1, false, rate);
+  nucleus3(ctx, x, y, p.Z, p.N, b, p.anti);
+  shells3(ctx, p, x, y, radii, counts, er, 1, false, rate);
+}
+/* The shells view's atom in 3-D (as drawBohr): its glow, tilted rings with their electrons, a small nucleus. */
+function bohr3(ctx, p, x, y, r, col) {
+  const sh = shellCounts(p.Z, p.ne), nS = sh.length, [cr, cg, cb] = hexc(col);
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.25); g.addColorStop(0, `rgba(${cr},${cg},${cb},0.30)`); g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.fill();
+  const rn = clamp(r * 0.2, 3, 22), radii = [], counts = [];
+  for (let i = 0; i < nS; i++) { radii.push(rn + 4 + (r * 1.12 - rn - 4) * (i + 1) / nS); counts.push(sh[i]); }
+  const er = clamp(r * 0.045, 1.6, 4), rate = (i) => (0.8 / (i + 1)) * (p.id % 2 ? 1 : -1);
+  shells3(ctx, p, x, y, radii, counts, er, -1, true, rate);
+  const A = p.Z + p.N; if (A > 0) nucleus3(ctx, x, y, p.Z, p.N, rn / nucPos3(p.Z, p.N).rn, p.anti);
+  shells3(ctx, p, x, y, radii, counts, er, 1, true, rate);
+  if (R.view.labels) { ctx.font = '600 12px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = CHAMBER.text; ctx.textAlign = 'center'; ctx.fillText(nucSymA(p.Z, p.N, p.anti) + (p.q ? sup((Math.abs(p.q) > 1 ? Math.abs(p.q) : '') + (p.q > 0 ? '+' : '-')) : ''), x, y + r * 1.25 + 12); }
+}
+/* The orbitals' angular forms in space (real spherical harmonics squared, of a unit vector): at z = 0 the flat game's
+   ORB_ANG (orbitals.js), in the same order of m. */
+const ORB_ANG3 = [
+  [() => 1 / PI4],
+  [(x) => 3 / PI4 * x * x, (x, y, z) => 3 / PI4 * z * z, (x, y) => 3 / PI4 * y * y],
+  [(x, y) => 15 / PI4 * x * x * y * y, (x, y, z) => 15 / PI4 * x * x * z * z, (x, y, z) => 15 / PI4 * y * y * z * z, (x, y, z) => 5 / (4 * PI4) * (3 * z * z - 1) ** 2, (x, y) => 15 / (4 * PI4) * (x * x - y * y) ** 2],
+  [(x, y) => 35 / (8 * PI4) * x * x * (x * x - 3 * y * y) ** 2, (x, y, z) => 7 / (4 * PI4) * z * z * (5 * z * z - 3) ** 2, (x, y, z) => 105 / (4 * PI4) * z * z * (x * x - y * y) ** 2, (x, y, z) => 105 / PI4 * x * x * y * y * z * z,
+    (x, y, z) => 21 / (8 * PI4) * x * x * (5 * z * z - 1) ** 2, (x, y, z) => 21 / (8 * PI4) * y * y * (5 * z * z - 1) ** 2, (x, y) => 35 / (8 * PI4) * y * y * (3 * x * x - y * y) ** 2],
+];
+const _orb3 = new Map(); let _orb3Px = 0;
+/* An atom's cloud as seen from the camera's direction (yaw and pitch to 10°): N × N pixels over ±O.rmax, each the
+   density summed through the atom along the line of sight, coloured by subshell as in the flat picture. */
+function orbSprite3(O, Z, ne, N, force) {
+  const c = R.cam3, qy = Math.round(c.yaw / 0.1745), qp = Math.round(c.pitch / 0.1745), key = `${Z}|${ne}|${N}|${qy}|${qp}`;
+  let sp = _orb3.get(key); if (sp) return sp;
+  if (!force && !(R.orbBudget > 0)) return null;
+  R.orbBudget -= N * N * 20; // (one a frame at most: 96 px about 10 ms)
+  const yaw = qy * 0.1745, pit = qp * 0.1745, cp = Math.cos(pit), spp = Math.sin(pit), cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const f = [-cp * sy, -spp, -cp * cy], rr = [cy, 0, -sy], uu = [-sy * spp, cp, -cy * spp];
+  const half = O.rmax, h = 2 * half / N, T = 16, dt = 2 * half / T, subs = O.subs, ns = subs.length;
+  const img = new Float32Array(N * N * 4);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const a = (i + 0.5 - N / 2) * h, bb = (N / 2 - j - 0.5) * h; if (a * a + bb * bb > half * half) continue;
+    let tot = 0, cr = 0, cg = 0, cb = 0;
+    for (let t = 0; t < T; t++) {
+      const w = (t + 0.5) * dt - half, X = a * rr[0] + bb * uu[0] + w * f[0], Y = a * rr[1] + bb * uu[1] + w * f[1], Zc = a * rr[2] + bb * uu[2] + w * f[2], r = Math.sqrt(X * X + Y * Y + Zc * Zc);
+      if (r > half) continue; const ux = r > 0 ? X / r : 1, uy = r > 0 ? Y / r : 0, uz = r > 0 ? Zc / r : 0;
+      for (let k = 0; k < ns; k++) { const sb = subs[k], v = orbR2(sb, r, sb.env); if (!(v > 0)) continue; const A = ORB_ANG3[sb.l]; let an = 0; for (let m = 0; m < sb.occ.length; m++) if (sb.occ[m]) an += sb.occ[m] * A[m](ux, uy, uz); const d = v * an; tot += d; const rgb = ORB_RGB[sb.l]; cr += d * rgb[0]; cg += d * rgb[1]; cb += d * rgb[2]; }
+    }
+    const o = (j * N + i) * 4; img[o] = tot > 0 ? cr / tot : 0; img[o + 1] = tot > 0 ? cg / tot : 0; img[o + 2] = tot > 0 ? cb / tot : 0; img[o + 3] = tot;
+  }
+  const cv = document.createElement('canvas'); cv.width = cv.height = N; const g = cv.getContext('2d'), id = g.createImageData(N, N);
+  const ref = ORB_K * O.ref * Math.max(0.2, O.rvis) * 1.8 / dt; // (as the flat picture: scaled to the valence shell's density, here summed through about its thickness; the core a bright point)
+  for (let k = 0; k < N * N; k++) { const q = img[k * 4 + 3] / ref; id.data[k * 4] = img[k * 4]; id.data[k * 4 + 1] = img[k * 4 + 1]; id.data[k * 4 + 2] = img[k * 4 + 2]; id.data[k * 4 + 3] = 255 * (1 - Math.exp(-q * q)); }
+  g.putImageData(id, 0, 0);
+  if (_orb3Px > 6e6) for (const [k, v] of _orb3) { _orb3Px -= v.width * v.height; _orb3.delete(k); if (_orb3Px < 3e6) break; }
+  _orb3Px += N * N; _orb3.set(key, cv); return cv;
+}
+/* The orbitals view's atom in 3-D (as drawOrbitalAtom): returns the cloud's visible radius, or 0 to draw it flat. */
+function orbital3(ctx, p, x, y) {
+  const O = orbitalSet(p.Z, p.ne), D = 2 * O.rmax * R.s, rv = Math.max(4, O.rvis * R.s);
+  if (D < 40) return 0; // (small: the flat picture)
+  const N = clamp(Math.ceil(Math.max(32, D * R.dpr * 0.5) / 16) * 16, 32, 96), sp = orbSprite3(O, p.Z, p.ne, N);
+  if (!sp) return 0;
+  ctx.globalCompositeOperation = 'screen'; ctx.drawImage(sp, x - D / 2, y - D / 2, D, D); ctx.globalCompositeOperation = 'source-over';
+  drawSprite(ballSprite(p.anti ? PBAR_COL : P_COL, clamp(0.05 * R.s, 1.2, 4)), x, y);
+  return rv;
+}
 /* One particle in a detailed mode at (x, y), depth z, ball radius r (px); false: draw it as a lit ball. */
 function drawDet3(ctx, p, x, y, z, r, col, rt, det) {
   const s0 = R.s; R.s = C3.F / z;
@@ -35151,16 +35312,22 @@ function drawDet3(ctx, p, x, y, z, r, col, rt, det) {
     if (det === 'ultra') return ultraOne3(ctx, p, x, y, r, rt, col);
     if (p.k !== NUC) { drawLepton(ctx, p, x, y, det); return true; }
     if (det === 'nuc') {
+      if ((p.Z === 0 || p.ne === 0) && p.Z + p.N > 1 && nucleonR() >= NUC3_MIN && !p.muB) { // (near: a bare nucleus's nucleons in a turning ball, 1.31 item 70)
+        const rn3 = nucleonR() * nucPos3(p.Z, p.N).rn;
+        if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(p.anti ? [190, 120, 255] : [255, 110, 90], Math.max(7, rn3 * 3.2)), x, y, 0.35); ctx.globalCompositeOperation = 'source-over'; }
+        nucleus3(ctx, x, y, p.Z, p.N, nucleonR(), p.anti); return true;
+      }
       if (p.Z === 0 || p.ne === 0) { // a free nucleon (a neutron, the same size as those in nuclei) or a bare nucleus, every nucleon shown, with a faint halo
         const nsp = nucleusSprite(p.Z, p.N, nucleonR(), p.anti);
         if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(p.Z === 0 ? [150, 165, 185] : p.anti ? [190, 120, 255] : [255, 110, 90], Math.max(p.Z === 0 ? 6 : 7, nsp.rn * (p.Z === 0 ? 4 : 3.2))), x, y, p.Z === 0 ? 0.3 : 0.4); ctx.globalCompositeOperation = 'source-over'; }
         drawSprite(nsp, x, y); if (p.muB) muOrbit(ctx, p, x, y, nsp.rn); return true; // (a bare muonic nucleus: its muon, as in the flat view, 1.28.1)
       }
+      if (nucleonR() >= NUC3_MIN && !p.mu && !p.muB) { nucView3(ctx, p, x, y, r); return true; } // (near: in 3-D, 1.31 item 70)
       drawNucView(p, x, y, r, rt); return true;
     }
     if (p.Z === 0 || p.ne === 0) return false;
-    if (det === 'on') { if (r < 12) return false; drawBohr(ctx, p, x, y, r, rt, col); return true; } // (shells on an atom under 12 px are unreadable: a lit ball; a box of 1,000 waters drew its shells in 180 ms, headless)
-    const rv = drawOrbitalAtom(ctx, p, x, y);
+    if (det === 'on') { if (r < 12) return false; if (!p.mu) bohr3(ctx, p, x, y, r, col); else drawBohr(ctx, p, x, y, r, rt, col); return true; } // (tilted rings in 3-D, 1.31 item 70) // (shells on an atom under 12 px are unreadable: a lit ball; a box of 1,000 waters drew its shells in 180 ms, headless)
+    const rv = orbital3(ctx, p, x, y) || drawOrbitalAtom(ctx, p, x, y); // (near: the cloud as seen from the camera, 1.31 item 70)
     if (lblOn(p) && rv >= 12) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = CHAMBER.dim; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(speciesLabel(p), x, y + rv + 9); }
     return true;
   } finally { R.s = s0; }
@@ -40329,7 +40496,7 @@ function renderData() {
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
   drawSpec(); explainSync(); drawChain(); drawChainMap();
-  drawTChart(); drawEChart(m.T); drawGraph(); drawPairs(); drawDet(); drawZScan();
+  UI.lastMT = m.T; drawTChart(); drawEChart(m.T); drawGraph(); drawPairs(); drawDet(); drawZScan();
   restoreScroll('tp-data');
 }
 /* What collisions, fusions, fissions, captures and decays have made so far (W.made), heaviest first: each nuclide with
@@ -40355,9 +40522,12 @@ function renderMade() {
   // (1.11: an ⓘ on every nuclide, particle and element opens its card; the list opens to show everything)
   const cards = UI.madeCards = [], ib = (spec, what) => { cards.push(spec); return ` <button class="ib" data-card="${cards.length - 1}" title="About ${esc(what)}" aria-label="About ${esc(what)}">i</button>`; };
   const row = (sw, lab, nm, sub, n, spec) => `<tr><td class="f"><span class="sw" style="background:${sw}"></span>${esc(lab)}</td><td class="nm"><b>${nm}</b>${spec ? ib(spec, lab) : ''}<br><span class="sub">${esc(sub)}</span></td><td class="n">${n}</td></tr>`;
-  const shown = UI.madeAll ? nuc : nuc.slice(0, MADE_SHOW);
+  // (1.31, item 73, the owner: "make the made here thing shorter but when you click show all it opens its own window in the
+  // middle") The panel shows the first {MADE_SHOW} nuclides and the first few kinds of particle; "Show all" opens the whole
+  // list in a window in the middle (madeModal), kept up to date while it is open.
+  const build = (N, P, U) => {
   let lastEl = '';
-  const html = shown.map(r => {
+  return N.map(r => {
     if (r.Z === 0) return row(r.anti ? NBAR_COL : N_COL, r.lab, r.anti ? 'Antineutrons' : 'Neutrons', `free, t½ 10 min · first: ${r.how}`, r.n, { kind: r.anti ? 'nbar' : 'n' });
     const elKey = r.Z + (r.anti ? 'a' : ''), head = elKey === lastEl ? '' : (lastEl = elKey, `<tr class="elh"><td colspan="3">${esc(r.anti ? antiName(r.Z) : ELEMENTS[r.Z].name)} <span class="sub">Z = ${r.Z}</span>${ib({ kind: 'atom', Z: r.Z, A: elemA(r.Z), charge: 0, anti: !!r.anti }, r.anti ? antiName(r.Z) : ELEMENTS[r.Z].name)}</td></tr>`);
     const info = nuclideInfo(r.Z, r.N), key = `${r.Z}_${r.N}`, alias = ISO_NAMES[key] && key !== '2_2' ? ISO_NAMES[key] : r.Z === 2 && r.N === 2 ? 'α particle' : '';
@@ -40365,12 +40535,22 @@ function renderMade() {
       (r.Z > 103 && !r.anti ? ' <span class="tag">superheavy</span>' : r.Z > 92 && !r.anti ? ' <span class="tag">synthetic</span>' : '');
     const life = info.stable ? 'stable' : info.unbound ? 'unbound: falls apart at once' : `${lifeText(info)}${info.modes && info.modes.length ? ', ' + modeLabel(info.modes[0].mode).replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase()) : ''}`;
     return head + row(ELEMENTS[r.Z].color, r.lab, nm, `${life} · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n, { kind: 'atom', Z: r.Z, A: r.Z + r.N, bare: true, anti: !!r.anti });
-  }).join('') + (nuc.length > MADE_SHOW ? `<tr class="more"><td colspan="3"><button class="btn small" data-more="1">${UI.madeAll ? 'Show fewer' : `Show all ${nuc.length.toLocaleString('en-US')} nuclides (${(nuc.length - MADE_SHOW).toLocaleString('en-US')} more)`}</button></td></tr>` : '') +
-    part.map(r => { const d = XP[r.sp]; return row(rgba(d.col, 1), r.lab, esc(PART_NAMES[r.sp] || r.sp), `mean life ${fmtTime(d.tau)} · first: ${r.how}`, r.n, { kind: 'exo', sp: r.sp }); }).join('') +
-    nus.map(r => row('rgb(120,255,170)', r.lab, ({ e: 'Electron ', mu: 'Muon ', tau: 'Tau ' })[r.fl || 'e'] + (r.anti ? 'antineutrinos' : 'neutrinos'), `left the box at about c, ${fmtE(r.E)} carried off in all · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n, { kind: 'nu', fl: r.fl || 'e', anti: !!r.anti })).join('');
+  }).join('') +
+    P.map(r => { const d = XP[r.sp]; return row(rgba(d.col, 1), r.lab, esc(PART_NAMES[r.sp] || r.sp), `mean life ${fmtTime(d.tau)} · first: ${r.how}`, r.n, { kind: 'exo', sp: r.sp }); }).join('') +
+    U.map(r => row('rgb(120,255,170)', r.lab, ({ e: 'Electron ', mu: 'Muon ', tau: 'Tau ' })[r.fl || 'e'] + (r.anti ? 'antineutrinos' : 'neutrinos'), `left the box at about c, ${fmtE(r.E)} carried off in all · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n, { kind: 'nu', fl: r.fl || 'e', anti: !!r.anti })).join('');
+  };
+  UI.madeBuild = () => build(nuc, part, nus); // (the whole list, for the copied text)
+  const more = nuc.length > MADE_SHOW || part.length + nus.length > MADE_PART;
+  const html = build(nuc.slice(0, MADE_SHOW), part.slice(0, MADE_PART), nus.slice(0, Math.max(0, MADE_PART - part.length))) +
+    (more ? `<tr class="more"><td colspan="3"><button class="btn small" data-more="1">Show all ${(nuc.length + part.length + nus.length).toLocaleString('en-US')} in a window</button></td></tr>` : '');
+  if (!$('madeModal').hidden) {
+    const all = build(nuc, part, nus);
+    if (UI.madeAllHTML !== all) { UI.madeAllHTML = all; $('dMadeAll').innerHTML = all; }
+    $('madeSum2').innerHTML = $('dMadeSum').innerHTML; $('madeCount').textContent = (nuc.length + part.length + nus.length).toLocaleString('en-US');
+  }
   if (UI.madeHTML !== html) { UI.madeHTML = html; $('dMade').innerHTML = html; } // (rebuilt only when it changes: a click is not lost to a rebuild)
 }
-const MADE_SHOW = 80;
+const MADE_SHOW = 12, MADE_PART = 6; // (the panel's share; the rest in the window, 1.31 item 73: 80 nuclides before)
 /* An element's usual isotope, for its card: the stable one nearest its atomic mass, or the longest-lived. */
 function elemA(Z) {
   const L = isotopeList(Z), m = ELEMENTS[Z].mass || 2 * Z; let best = L[0], bs = Infinity;
@@ -40380,10 +40560,49 @@ function elemA(Z) {
 /* The ⓘ buttons and the "show all" button of the list of what was made. */
 function madeClick(e) {
   const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.more) { UI.madeAll = !UI.madeAll; renderMade(); return; }
+  if (b.dataset.more) { UI.madeAllHTML = null; showModal('madeModal'); renderMade(); return; } // (the whole list in its own window, 1.31)
   const s = UI.madeCards && UI.madeCards[+b.dataset.card]; if (!s) return;
   const r = b.getBoundingClientRect(), c = $('cv').getBoundingClientRect(), ui = SET.ui || 1;
   openSpecCard(s, (r.left - c.left) / ui - 300, (r.top - c.top) / ui);
+}
+/* (1.31, item 72, the owner: "make all graphs and trees expandable somewhat like settings images") A chart or tree
+   opens larger in a window in the middle on a click (or Enter), as a Settings picture does. A canvas chart is drawn again
+   at that size by its own drawing function (chartCv gives it the big canvas while the window is open), so it stays live
+   and sharp; a decay chain (an SVG) is copied in. Wheel or + / − zoom about the pointer, a drag moves it, double-click
+   fits it again, Esc or Close shuts it. */
+const CHARTS = { chSpec: () => drawSpec(), chT: () => drawTChart(), chE: () => drawEChart(UI.lastMT || W.T), chG: () => drawGraph(), chMap: () => { UI.mapKey = null; drawChainMap(); }, chScope: () => drawScope(), chDet: () => drawDet(), chZs: () => drawZScan(), chPair: () => drawPairs() };
+function chartCv(id) { return UI.big && UI.big.id === id ? $('chBig') : $(id); }
+function chartH(cv, h) { if (cv.id !== 'chBig' && cv.style.height !== h) cv.style.height = h; }
+function chartTitle(el) { const sec = el.closest('section, .group'), h = sec && sec.querySelector('h3'); return (h && h.textContent.trim()) || el.getAttribute('aria-label') || 'Chart'; }
+function chartOpen(el) {
+  const svg = el.tagName.toLowerCase() === 'svg';
+  UI.big = { id: svg ? null : el.id, z: 1, x: 0, y: 0 };
+  $('chartTitle').textContent = svg ? 'Decay chain' : chartTitle(el);
+  $('chBig').hidden = svg; const box = $('chSvg'); box.innerHTML = ''; box.hidden = !svg;
+  if (svg) { const c = el.cloneNode(true); c.removeAttribute('width'); c.removeAttribute('height'); c.setAttribute('preserveAspectRatio', 'xMidYMid meet'); box.appendChild(c); }
+  showModal('chartModal'); chartTf();
+  if (!svg) requestAnimationFrame(() => { const f = CHARTS[el.id]; try { if (f) f(); } catch (e) {} });
+}
+function chartClose() {
+  const id = UI.big && UI.big.id; UI.big = null; hideModal('chartModal');
+  if (id) { if (id === 'chMap') UI.mapKey = null; const f = CHARTS[id]; try { if (f) f(); } catch (e) {} } // (the small one drawn again: it waited while the big one was drawn)
+}
+function chartTf() { const B = UI.big; if (!B) return; const t = `translate(${B.x}px, ${B.y}px) scale(${B.z})`; $('chBig').style.transform = t; $('chSvg').style.transform = t; }
+function chartZoom(f, px, py) { const B = UI.big; if (!B) return; const z = clamp(B.z * f, 1, 12), k = z / B.z; B.x = px - (px - B.x) * k; B.y = py - (py - B.y) * k; B.z = z; if (z === 1) { B.x = 0; B.y = 0; } chartTf(); }
+function chartWire() {
+  for (const id of Object.keys(CHARTS)) { const c = $(id); if (!c) continue; c.classList.add('zoomable'); c.tabIndex = 0; c.title = c.title || 'Click to open it larger';
+    c.addEventListener('click', (e) => { if (e.defaultPrevented) return; chartOpen(c); });
+    c.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chartOpen(c); } }); }
+  document.addEventListener('click', (e) => { const s = e.target.closest && e.target.closest('svg.chainsvg'); if (s && !s.closest('#chartModal')) chartOpen(s); });
+  const body = $('chartBody'); let drag = null;
+  body.addEventListener('wheel', (e) => { e.preventDefault(); const r = body.getBoundingClientRect(); chartZoom(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  body.addEventListener('pointerdown', (e) => { drag = [e.clientX, e.clientY]; body.classList.add('drag'); body.setPointerCapture(e.pointerId); });
+  body.addEventListener('pointermove', (e) => { if (!drag || !UI.big) return; UI.big.x += e.clientX - drag[0]; UI.big.y += e.clientY - drag[1]; drag = [e.clientX, e.clientY]; chartTf(); });
+  body.addEventListener('pointerup', () => { drag = null; body.classList.remove('drag'); });
+  body.addEventListener('dblclick', () => { if (UI.big) { UI.big.z = 1; UI.big.x = 0; UI.big.y = 0; chartTf(); } });
+  $('chartClose').onclick = chartClose;
+  $('madeClose').onclick = () => hideModal('madeModal');
+  $('dMadeAll').addEventListener('click', (e) => { if (e.target.closest('button[data-card]')) hideModal('madeModal'); madeClick(e); });
 }
 function chartCtx(cv) {
   const w = cv.clientWidth, h = cv.clientHeight; if (!w) return null;
@@ -40467,14 +40686,14 @@ function chartLayout(C, w) {
 function drawChainMap() {
   const C = W.chain, sec = $('dMapSec');
   sec.hidden = !C || (!C.fis.length && !C.edges.size); if (sec.hidden || !sec.offsetParent) return;
-  const view = UI.mapView || (C.fis.length ? 'tree' : 'chart'), cv = $('chMap'), w = cv.clientWidth;
+  const view = UI.mapView || (C.fis.length ? 'tree' : 'chart'), cv = chartCv('chMap'), w = cv.clientWidth;
   setSegValue('segMap', view);
   const key = `${view}:${C.ver}:${UI.mapHov ? UI.mapHov.k : ''}:${w}:${SET.theme}`;
   if (UI.mapKey === key) return; UI.mapKey = key;
   const fg = cssVar('--fg'), mut = cssVar('--muted'), font = '10.5px ' + cssVar('--font-data');
   if (view === 'tree') {
-    if (!C.fis.length) { cv.style.height = '60px'; const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
-    cv.style.height = '230px';
+    if (!C.fis.length) { chartH(cv, '60px'); const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
+    chartH(cv, '230px');
     const r = chartCtx(cv); if (!r) return; const [ctx, , h] = r, T = treeLayout(C), F = C.fis, n = F.length;
     const fx = (d) => 14 + d * (w - 28) / Math.max(1, T.maxD), fy = (i) => 10 + (T.leaves > 1 ? T.y[i] / (T.leaves - 1) : 0.5) * (h - 40);
     UI.mapPos = { kind: 'tree', fx, fy };
@@ -40509,8 +40728,8 @@ function drawChainMap() {
     return;
   }
   // the decay chart
-  if (!C.edges.size) { cv.style.height = '60px'; const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No decays, captures or fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
-  const L = chartLayout(C, w); cv.style.height = L.h + 'px';
+  if (!C.edges.size) { chartH(cv, '60px'); const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No decays, captures or fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
+  const L = chartLayout(C, w); chartH(cv, L.h + 'px');
   const r = chartCtx(cv); if (!r) return; const [ctx] = r, cs = L.cs;
   UI.mapPos = { kind: 'chart', L };
   const here = new Set(); for (const p of W.parts) if (!p.dead && p.k === NUC && !p.anti && p.Z > 0) here.add(p.Z + '_' + p.N);
@@ -40575,7 +40794,7 @@ function drawSpec() {
   const sec = $('dSpecSec'), ph = specPhotons();
   sec.hidden = !W.spec;
   if (sec.hidden) { if (_specFrom > -Infinity) { _specFrom = -Infinity; $('bSpecClear').textContent = 'Clear'; } return; }
-  const r = chartCtx($('chSpec')); if (!r) return; const [ctx, w, h] = r;
+  const r = chartCtx(chartCv('chSpec')); if (!r) return; const [ctx, w, h] = r;
   const vis = _specView === 'vis', pad = 6, base = h - 18;
   let lo, hi, fx, nb;
   let nWall0 = 0; for (const q of ph) if (q[1] === -1) nWall0++;
@@ -40651,7 +40870,7 @@ function drawSpec() {
     (inRange ? `; strongest at ${vis ? peak.toFixed(0) + ' nm' : wavelengthText(PHYS.HC / peak).lam}` : '') + (who ? `; given off by ${who}` : '') + '.' + (wien || ' Each element gives off its own lines.');
 }
 function drawTChart() {
-  const r = chartCtx($('chT')); if (!r) return; const [ctx, w, h] = r;
+  const r = chartCtx(chartCv('chT')); if (!r) return; const [ctx, w, h] = r;
   const H = W.hist; const n = H.T.length;
   if (n < 2) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('Collecting…', 10, 20); return; }
   let lo = Infinity, hi = 0;
@@ -40669,7 +40888,7 @@ function drawTChart() {
   $('chTrange').textContent = `${fmtT(lo)} – ${fmtT(hi)}${logy ? ' (log)' : ''}`;
 }
 function drawEChart(T) {
-  const r = chartCtx($('chE')); if (!r) return; const [ctx, w, h] = r;
+  const r = chartCtx(chartCv('chE')); if (!r) return; const [ctx, w, h] = r;
   const kT = PHYS.KB * Math.max(T, 1e-3);
   const bins = new Array(24).fill(0), xmax = 6; let n = 0;
   for (const p of W.parts) {
@@ -40713,8 +40932,18 @@ const bFromS = (s) => Math.abs(s) < 3 ? 0 : Math.sign(s) * Math.pow(10, 1 + (Mat
 const sFromB = (B) => B === 0 ? 0 : Math.sign(B) * Math.round(3 + (clamp(Math.log10(Math.abs(B)), 1, 5) - 1) / 4 * 97);
 const spdFromS = (s) => 0.01 * Math.pow(3000, s / 100);
 const sFromSpd = (v) => Math.round(100 * Math.log(v / 0.01) / Math.log(3000));
-const boxFromS = (s) => 20 * Math.pow(1000, s / 100); // 20 Å … 20,000 Å (2 µm)
-const sFromBox = (w) => clamp(Math.round(100 * Math.log(w / 20) / Math.log(1000)), 0, 100);
+const BOX_MIN = 5, BOX_MAX = 20000; // (1.31, item 74, the owner: "make the minimum box size smaller", "do the same in 3d": 5 Å, was 20 Å)
+const boxFromS = (s) => BOX_MIN * Math.pow(BOX_MAX / BOX_MIN, s / 100); // 5 Å … 20,000 Å (2 µm)
+const sFromBox = (w) => clamp(Math.round(100 * Math.log(w / BOX_MIN) / Math.log(BOX_MAX / BOX_MIN)), 0, 100);
+/* A wrapping box narrower than twice the force reach would let a pair meet through two of its images: below that the
+   walls turn solid (and say so over the chamber). */
+function boxWrapOk() {
+  const b = W.box, m = Math.min(b.tw, b.th, W.d3 ? (b.td > 0 ? b.td : b.d) : Infinity);
+  if (W.wall !== 'wrap' || m >= 2 * RC) return;
+  W.wall = 'reflect'; setSegValue('segWall', W.wall); syncNWall();
+  const t = `Walls made solid: a box whose walls wrap round must be at least ${fmtNum(2 * RC, 2)} Å across (twice the forces' reach), and this one is ${fmtNum(m, 2)} Å.`;
+  log('tool', t); toolNote(t);
+}
 /* Atom drawing: auto, shells, spheres, orbitals (O toggles), or the particle view (nuclei and electrons only, V). */
 function setAtomView(v) {
   if (!['auto', 'on', 'off', 'orb', 'nuc'].includes(v)) v = 'auto';
@@ -41032,7 +41261,7 @@ function explainDigest() {
   out.push(`Box ${fmtNum(W.box.w, 3)} × ${fmtNum(W.box.h, 3)} Å, walls ${W.wall}; heat bath ${fmtT(W.T)} (coupling ${W.gamma}); electric field ${fmtNum(Math.hypot(W.Ex, W.Ey), 3)} V/Å; magnetic field ${fmtNum(W.Bz, 3)} T; motion: ${motionText()}; ${UI.running ? 'running' : 'paused'}${W.slow ? ', in slow motion for an event' : ''}.`);
   out.push(`Measured: temperature ${fmtT(m.T)}${m.Te ? `, electrons ${fmtT(m.Te)}` : ''}; ${m.atoms} nuclei/atoms, ${Math.round(m.ionFrac * 100)} % ionized; ${W.nE} free electrons.`);
   const sp = tblText($('dSpecies'), 1500); if (sp) out.push('What is in the box:\n' + sp);
-  const mk = !$('dMadeSec').hidden ? ($('dMadeSum').textContent + '\n' + tblText($('dMade'), 1000)) : ''; if (mk.trim()) out.push('Made here so far:\n' + mk);
+  const mk = !$('dMadeSec').hidden ? ($('dMadeSum').textContent + '\n' + tblText((() => { const t = document.createElement('table'); t.innerHTML = UI.madeBuild ? UI.madeBuild() : $('dMade').innerHTML; return t; })(), 1000)) : ''; if (mk.trim()) out.push('Made here so far:\n' + mk); // (the whole list, not the panel's share, 1.31)
   const ct = tblText($('dCounts'), 800); if (ct) out.push('Counts:\n' + ct);
   if (!$('dSpecSec').hidden) out.push('Spectrum: ' + $('dSpecNote').textContent);
   if (W.chips.length) out.push('Chips:\n' + $('chipPanel').textContent.replace(/\s+/g, ' ').slice(0, 800));
@@ -41185,9 +41414,9 @@ const TYPED = {
   tVal: { units: U_TEMP, pick: tPick, get: () => W.T, apply: (T) => { setBathT(T); syncLab(); }, why: 'the bath runs from 1 K to a billion K' },
   bVal: { units: U_B, get: () => W.Bz, apply: (B) => { W.Bz = Math.abs(B) < 1e-9 ? 0 : clamp(B, -1e5, 1e5); syncLab(); }, why: 'fields up to 100,000 T (a magnetar’s)' },
   eVal: { units: U_E, get: () => UI.E, apply: (E) => { UI.E = clamp(Math.abs(E), 0, 50); applyE(); syncLab(); }, why: 'fields up to 50 V/Å: past that every atom is torn apart at once' },
-  boxW: { units: U_LEN, get: () => W.box.tw, apply: (w) => { if (W.d3) { const k = clamp(w, 20, 20000) / W.box.tw; W.box.tw *= k; W.box.th = clamp(W.box.th * k, 20, 20000); W.box.td = clamp((W.box.td || W.box.d) * k, 20, 20000); } else { W.box.tw = clamp(w, 20, 20000); UI.aspect = W.box.th / W.box.tw; } syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the whole box scaled, 1.24)
-  boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, 20, 20000); UI.aspect = W.box.th / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the height alone since 1.25.0; it set the depth too, shown as one figure "h × d" that typing replaced)
-  boxD: { units: U_LEN, get: () => W.box.td || W.box.d, apply: (d) => { W.box.td = clamp(d, 20, 20000); UI.aspectD = W.box.td / W.box.tw; syncLab(); }, why: 'the box is 20 Å to 2 µm across' }, // (3-D: the depth, its own figure, 1.25.0)
+  boxW: { units: U_LEN, get: () => W.box.tw, apply: (w) => { if (W.d3) { const k = clamp(w, BOX_MIN, BOX_MAX) / W.box.tw; W.box.tw *= k; W.box.th = clamp(W.box.th * k, BOX_MIN, BOX_MAX); W.box.td = clamp((W.box.td || W.box.d) * k, BOX_MIN, BOX_MAX); } else { W.box.tw = clamp(w, BOX_MIN, BOX_MAX); UI.aspect = W.box.th / W.box.tw; } boxWrapOk(); syncLab(); }, why: 'the box is 5 Å to 2 µm across' }, // (3-D: the whole box scaled, 1.24)
+  boxH: { units: U_LEN, get: () => W.box.th, apply: (h) => { W.box.th = clamp(h, BOX_MIN, BOX_MAX); UI.aspect = W.box.th / W.box.tw; boxWrapOk(); syncLab(); }, why: 'the box is 5 Å to 2 µm across' }, // (3-D: the height alone since 1.25.0; it set the depth too, shown as one figure "h × d" that typing replaced)
+  boxD: { units: U_LEN, get: () => W.box.td || W.box.d, apply: (d) => { W.box.td = clamp(d, BOX_MIN, BOX_MAX); UI.aspectD = W.box.td / W.box.tw; boxWrapOk(); syncLab(); }, why: 'the box is 5 Å to 2 µm across' }, // (3-D: the depth, its own figure, 1.25.0)
   spdVal: { units: U_TIME, get: () => W.simPerFrame, apply: (tu) => { W.simPerFrame = clamp(tu, DT_MIN, 1000); syncLab(); syncSpeed(); }, why: `from one shortest time step (${fmtTime(DT_MIN * PHYS.TU_S)}) to ${fmtTime(1000 * PHYS.TU_S)} per 1/60 s` },
   cEVal: { units: U_ENERGY, get: () => (W.collider ? W.collider.E : cEFromS(+$('cESlider').value)), apply: (E) => { if (!W.collider) return; setColliderEnergy(clamp(E, cEFromS(0), cEFromS(1000))); syncCollider(); } },
   cE2Val: { units: U_ENERGY, get: () => (W.collider && W.collider.E2 !== null && W.collider.E2 !== undefined ? W.collider.E2 : cEFromS(+$('cE2Slider').value)), apply: (E) => { const C = W.collider; if (!C) return; setColliderEnergy(C.E, clamp(E, cEFromS(0), cEFromS(1000))); syncCollider(); } },
@@ -41300,10 +41529,10 @@ function bindLab() {
   bindSeg('segEdir', (v) => { UI.Eang = v === 'z' || v === '-z' ? v : +v; applyE(); }); // (3-D: ±z too, 1.24)
   bindSeg('segBdir', (v) => { W.Bax3 = v; log('tool', `Magnetic field along ${v} (3-D)`); });
   $('bMagClear').onclick = () => { W.magnets.length = 0; syncLabText(); };
-  bindSeg('segWall', (v) => { W.wall = v; syncNWall(); });
+  bindSeg('segWall', (v) => { W.wall = v; syncNWall(); boxWrapOk(); }); // (wrapping chosen in a box too small for it: solid again, said why, 1.31)
   bindSeg('segNWall', (v) => { W.nWall = v; syncNWall(); log('tool', `Neutrons at the walls: ${{ reflect: 'bounce back (a reflector)', absorb: 'absorbed, the slow ones most (the 1/v law)', pass: 'pass through', fast: 'fast ones (over 0.1 MeV) leave, slower ones bounce back' }[v]}`); });
   $('chkGlow').onchange = (e) => { W.glow = e.target.checked; };
-  $('boxSlider').oninput = (e) => { const w = boxFromS(+e.target.value); W.box.tw = w; W.box.th = w * UI.aspect; if (W.d3) W.box.td = w * (UI.aspectD || 1); syncLabText(); }; // (3-D: the depth with them, 1.24)
+  $('boxSlider').oninput = (e) => { const w = boxFromS(+e.target.value); W.box.tw = w; W.box.th = w * UI.aspect; if (W.d3) W.box.td = w * (UI.aspectD || 1); boxWrapOk(); syncLabText(); }; // (3-D: the depth with them, 1.24; too small to wrap: solid walls, 1.31)
   $('spdSlider').oninput = (e) => { W.simPerFrame = spdFromS(+e.target.value); syncLabText(); syncSpeed(); };
   bindSeg('segMinShow', (v) => { if (!W.ultra) W.minShow = +v; syncLabText(); });
   $('warpSlider').oninput = (e) => { if (W.ultra) return; W.warp = Math.pow(10, +e.target.value); syncLabText(); if (UI.tool === 'place' || UI.tool === 'fire') buildToolOpts(); };
@@ -42501,8 +42730,8 @@ function drawScope() {
     sig.forEach((s, i) => { if (!(s === 'IN' && ch.inFrom && W.chips.includes(ch.inFrom))) lanes.push({ ch, i, name: `${ch.label || CHIP_NAMES[ch.key].split(' ')[0]} ${s}` }); }); // (an input wired to another gate's output is that output's lane)
   }
   g.hidden = !lanes.length; if (g.hidden) return;
-  const show = lanes.slice(0, 12), cv = $('chScope'), LH = 24, want = show.length * LH + 18 + 'px';
-  if (cv.style.height !== want) cv.style.height = want;
+  const show = lanes.slice(0, 12), cv = chartCv('chScope'), LH = 24, want = show.length * LH + 18 + 'px';
+  chartH(cv, want);
   const r = chartCtx(cv); if (!r) return; const [ctx, w, h] = r;
   if (!SCOPE_UI.hold) SCOPE_UI.at = W.chipT;
   const t1 = SCOPE_UI.at, t0 = t1 - SCOPE_UI.win, x0 = 80, xs = (t) => x0 + (t - t0) / (t1 - t0) * (w - x0 - 6);
@@ -43013,7 +43242,7 @@ function drawGraph() {
   const all = grSeries(), sel = grSel(), chosen = all.filter(s => sel.includes(s[0]));
   const box = $('gSel'), sig = all.map(s => s[0]).join('|') + '#' + sel.join('|');
   if (box.dataset.sig !== sig) { box.dataset.sig = sig; box.innerHTML = all.map(([id, l]) => `<button data-g="${esc(id)}" aria-pressed="${sel.includes(id)}">${esc(l)}</button>`).join(''); }
-  const cv = $('chG'), rows = Math.max(1, chosen.length); cv.style.height = (rows * 64 + 6) + 'px';
+  const cv = chartCv('chG'), rows = Math.max(1, chosen.length); chartH(cv, (rows * 64 + 6) + 'px');
   const r = chartCtx(cv); if (!r) return; const [ctx, w, h] = r, n = GR.t.length;
   $('gNote').textContent = n ? `${n.toLocaleString('en-US')} points over ${fmtTime((GR.t[n - 1] - GR.t[0]) * PHYS.TU_S)}` : '';
   if (n < 2 || !chosen.length) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText(n < 2 ? 'Collecting while it runs …' : 'Pick something to plot', 10, 20); return; }
@@ -43061,7 +43290,7 @@ function drawDet() {
   const pick = $('detPick'), sig = scr.length + ':' + UI.detSel;
   if (pick.dataset.sig !== sig) { pick.dataset.sig = sig; pick.innerHTML = scr.length > 1 ? scr.map((o, i) => `<button data-v="${i}" aria-pressed="${i === UI.detSel}">Screen ${i + 1}</button>`).join('') : ''; pick.hidden = scr.length < 2; }
   setSegValue('segDet', mode);
-  const r = chartCtx($('chDet')); if (!r) return; const [ctx, w, h] = r, L = objLen(ob);
+  const r = chartCtx(chartCv('chDet')); if (!r) return; const [ctx, w, h] = r, L = objLen(ob);
   $('detNote').textContent = `${H.n.toLocaleString('en-US')} hits: ${H.parts.toLocaleString('en-US')} particles, ${H.light.toLocaleString('en-US')} photons; ${fmtE(H.E)} in all · ${Math.round(L)} Å long`;
   if (!H.n) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('No hits yet', 10, 20); return; }
   const where = mode === 'where', nb = where ? POS_BINS : OBJ_BINS, A = where ? (H.posP || []) : H.bins, B = where ? (H.posL || []) : null;
@@ -43110,7 +43339,7 @@ function zscanPoints(Z) {
 const zscanModel = (g) => 0.69911 * (RP.res ? eeISR(g * g).Z : ewEE(g * g).Z); // (σ(e⁺e⁻ → Z → hadrons), nb)
 function drawZScan() {
   const sec = $('dZsSec'), Z = W.zscan; sec.hidden = !Z || !Z.rec.length; if (sec.hidden) return;
-  const r = chartCtx($('chZs')); if (!r) return; const [ctx, w, h] = r, pts = zscanPoints(Z);
+  const r = chartCtx(chartCv('chZs')); if (!r) return; const [ctx, w, h] = r, pts = zscanPoints(Z);
   const x0 = 34, x1 = w - 8, y0 = h - 18, y1 = 10, top = 45, X = (g) => x0 + (g - ZSCAN.lo) / (ZSCAN.hi - ZSCAN.lo) * (x1 - x0), Y = (v) => y0 - Math.min(top, v) / top * (y0 - y1);
   ctx.strokeStyle = cssVar('--muted'); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, y1); ctx.lineTo(x0, y0); ctx.lineTo(x1, y0); ctx.stroke();
   ctx.font = '10.5px ' + cssVar('--font-data'); ctx.fillStyle = cssVar('--muted');
@@ -43130,7 +43359,7 @@ const PAIR_MARK = { pipi: [['ρ', 775], ['K⁰s', 498]], Kpi: [['K*', 893]], KK:
 function drawPairs() {
   const sec = $('dPairSec'); sec.hidden = !PAIRS.n; if (sec.hidden) return;
   const key = UI.pairKey || 'pipi'; setSegValue('segPair', key);
-  const r = chartCtx($('chPair')); if (!r) return; const [ctx, w, h] = r, sub = UI.pairSub !== false, H = sub ? PAIRS.h[key].map((v, b) => v - PAIRS.ls[key][b]) : PAIRS.h[key]; $('pairSub').checked = sub;
+  const r = chartCtx(chartCv('chPair')); if (!r) return; const [ctx, w, h] = r, sub = UI.pairSub !== false, H = sub ? PAIRS.h[key].map((v, b) => v - PAIRS.ls[key][b]) : PAIRS.h[key]; $('pairSub').checked = sub;
   let top = 0, tot = 0, hi = 0, bot = 0; for (let b = 0; b < 200; b++) { top = Math.max(top, H[b]); bot = Math.min(bot, H[b]); tot += PAIRS.h[key][b]; if (PAIRS.h[key][b]) hi = b; }
   $('pairNote').textContent = `${tot.toLocaleString('en-US')} pairs`;
   if (!top) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('None of these pairs yet', 10, 20); return; }
@@ -43778,11 +44007,13 @@ function onKey(e) {
     closeQuickMenu();
   }
   if (e.key === 'F11') { e.preventDefault(); setWindowMode(DM.win === 'borderless' ? 'windowed' : 'borderless'); return; }
+  if (UI.big && !$('chartModal').hidden && (e.key === '+' || e.key === '=' || e.key === '-')) { e.preventDefault(); const r = $('chartBody').getBoundingClientRect(); chartZoom(e.key === '-' ? 0.8 : 1.25, r.width / 2, r.height / 2); return; } // (1.31 item 72)
   if (SHOT.open) { if (e.key === 'Escape') { e.preventDefault(); shotClose(); } else if (e.key === '+' || e.key === '=') shotZoom(1.25, innerWidth / 2, innerHeight / 2); else if (e.key === '-') shotZoom(0.8, innerWidth / 2, innerHeight / 2); return; } // (the enlarged Settings picture has the keys while open, 1.23.2)
   if (e.key === 'Escape') {
     if (!$('pmenu').hidden) { pmenuClose(); return; }
     if (!$('escModal').hidden) { e.preventDefault(); closeEscMenu(); return; }
-    for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
+    if (!$('chartModal').hidden) { chartClose(); return; } // (1.31 item 72)
+    for (const id of ['madeModal', 'ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
     if (UI.menu) { if (!$('mmSetups').hidden) mmAction('back'); else if (MMV.v !== 'choose') mmAction('choose'); return; }
     if (!$('tour').hidden) { tourEnd(); return; }
     if (REW.open) { rewLive(); return; }
@@ -43793,7 +44024,7 @@ function onKey(e) {
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') { e.target.blur(); return; } // (Esc in a field leaves the field)
     e.preventDefault(); openEscMenu(); return; // (nothing else to let go of: the Esc menu)
   }
-  if (UI.menu || ['ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'escModal', 'keysModal'].some(id => !$(id).hidden)) return;
+  if (UI.menu || ['chartModal', 'madeModal', 'ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'escModal', 'keysModal'].some(id => !$(id).hidden)) return;
   if (tag === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
   if (tag === 'SELECT' || tag === 'TEXTAREA') return;
   if ((e.ctrlKey || e.metaKey) && !e.altKey) { // copy, paste, select all: the selection (or the inspected particle)
@@ -43894,6 +44125,17 @@ function expResetAll() {
 function expOn() { const o = {}; for (const k of SET_EXP) if (SET[k] !== SET_DEF[k]) o[k] = SET[k]; return o; } // (the Experimental settings not at normal)
 /* A Realistic-particles switch that costs nothing (×1 in the flat game and in 3-D) is kept from one start to the next like an
    ordinary setting; the rest of the Experimental tab still starts at normal (the owner, 2026-11-08; 1.30 item 67). */
+/* (1.31, item 75, the owner: "add an enable and disable all to the particle section of experimental") All on / All off
+   for the Realistic particles' switches shown in this mode (not the ultra-realistic mode, which changes everything):
+   each set as a click would set it (its own change handler), and beside the buttons what turning them all on costs. */
+function rpAllRows() { return [...document.querySelectorAll('#setModal input[id^="setRp"].sw')].filter(i => { const r = i.closest('label, .srow'); return !(r && r.classList.contains('smode-hide')); }); }
+function rpAllSync() {
+  const el = $('rpAllCost'); if (!el) return;
+  const C = W.d3 ? COSTS3 : COSTS, dear = [];
+  for (const i of rpAllRows()) { const f = C[i.id] || COSTS[i.id]; let c = null; try { c = f && f(); } catch (e) {} const t = c && c.on && c.on[0]; if (t && t !== '×1') { const r = i.closest('label'), n = r && r.querySelector('.rpn'); dear.push(`${n ? n.textContent.trim() : i.id} ${t}`); } }
+  el.textContent = dear.length ? `All on costs: ${dear.join(', ')}; the rest ×1` : 'All on costs nothing (all ×1)';
+}
+function rpAllSet(on) { for (const i of rpAllRows()) if (i.checked !== on) { i.checked = on; i.dispatchEvent(new Event('change', { bubbles: true })); } rpAllSync(); }
 function expFree(k) {
   if (!/^rp/.test(k)) return false;
   const id = Object.keys(EXP_SET).find(i => EXP_SET[i] === k); if (!id) return false;
@@ -44361,6 +44603,7 @@ function syncExpTotal() {
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
+  if (typeof rpAllSync === 'function') rpAllSync(); // (1.31 item 75)
   for (const id in COSTS) {
     const el = $(id); if (!el) continue;
     const row = el.closest('.srow') ? el.closest('.srow').firstElementChild : el.closest('label');
@@ -44506,8 +44749,8 @@ const SDESC = {
    the 3-D lab's descriptions (SDESC3, STAB_DESC3) and costs (COSTS3), and its pictures ("key@3d", "key:value@3d" in
    SETSHOTS; where there is none, the flat picture marked "Picture from the flat game"); in the flat game only the flat ones (and the
    3-D tab's own pictures, as before). Notes under a row marked data-m="2d" or "3d" show in that mode only. A row that
-   works in the flat game only (SMODE_ONLY) is dimmed in the 3-D lab with a "2-D only" tag and still works: what it sets
-   applies there. A 3-D-only row (SMODE_ONLY '3d', and the 3-D tab with all its rows) is not shown in the flat game at all,
+   works in the flat game only (SMODE_ONLY) is not shown in the 3-D lab and carries a "2-D exclusive" tag in the flat game
+   (1.31, item 71; it was dimmed there with a "2-D only" tag). A 3-D-only row (SMODE_ONLY '3d', and the 3-D tab with all its rows) is not shown in the flat game at all,
    and in the 3-D lab a 3-D-only row outside the 3-D tab carries a "3-D exclusive" tag (1.27.1). setModeSync switches it all when the mode changes (mode3dSync) and when
    Settings opens. */
 const STAB_DESC3 = {
@@ -44553,7 +44796,7 @@ const SDESC3 = {
   setRpAq: ['Hydrated electrons', 'As in the flat game, in all three directions.'],
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
-const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', segLps: '3d', segPis: '3d' }; // (and every row of the 3-D tab: '3d')
+const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', setRpPwave: '2d', segLps: '3d', segPis: '3d' }; // (Photons as waves: the flat game only, 1.31 item 71) // (and every row of the 3-D tab: '3d')
 function setRowOnly(r) { const k = setRowKey(r), p = r.closest('.spane'); return SMODE_ONLY[k] || (p && p.dataset.stab === 'd3' ? '3d' : ''); }
 /* The picture for a key (and a choice) in this mode: in 3-D its 3-D version first; in the flat game never a 3-D one. */
 function setShotFor(key, opt) {
@@ -44570,11 +44813,13 @@ function setModeSync() {
   for (const n of modal.querySelectorAll('[data-m]')) n.hidden = n.dataset.m !== m;
   for (const r of setRows()) {
     const only = setRowOnly(r), off = !!only && only !== m, host = r.matches('.srow') ? r.firstElementChild : r;
-    const hide = off && only === '3d', dim = off && !hide, p = r.closest('.spane'), excl = only === '3d' && !off && !(p && p.dataset.stab === 'd3'); // (the 3-D tab's rows: the tab says it)
+    // (1.31, item 71, the owner: "2d only settings should be 2-d exclusive and removed from 3d menu": a row for the other
+    // mode is not shown at all, either way; a row for this mode only is tagged "2-D exclusive" or "3-D exclusive")
+    const hide = off, p = r.closest('.spane'), excl = !!only && !off && !(p && p.dataset.stab === 'd3'); // (the 3-D tab's rows: the tab says it)
     r.classList.toggle('smode-hide', hide); // (the flat game does not show the 3-D lab's settings at all: the owner, 1.27.1)
     for (let n = r.nextElementSibling; n && n.matches('p.note:not(.sintro)'); n = n.nextElementSibling) n.classList.toggle('smode-hide', hide); // (and its notes)
-    r.classList.toggle('smode-off', dim);
-    costTag(host, 'smo', dim ? '2-D only' : excl ? '3-D exclusive' : '', dim ? 'For the flat game: set here, it applies there' : excl ? 'Only in the 3-D lab' : '');
+    r.classList.toggle('smode-off', false);
+    costTag(host, 'smo', excl ? (only === '2d' ? '2-D exclusive' : '3-D exclusive') : '', excl ? (only === '2d' ? 'Only in the flat game' : 'Only in the 3-D lab') : '');
   }
   const tb = modal.querySelector('.stabs [data-stab="d3"]'); if (tb) tb.hidden = !d3; // (the 3-D tab: in the 3-D lab only)
   if (!d3 && UI.stab === 'd3' && !modal.hidden && tb) setTabS('perf');
@@ -44791,6 +45036,7 @@ function settingsInit() {
   $('setRpExm').onchange = (e) => setSetting('rpExm', e.target.checked); // (1.27)
   $('setRpPwave').onchange = (e) => { setSetting('rpPwave', e.target.checked); if (UI.tool === 'objects') buildToolOpts(); }; // (1.27: the slits show with it)
   $('setRpAq').onchange = (e) => setSetting('rpAq', e.target.checked); // (1.29)
+  $('rpAllOn').onclick = () => rpAllSet(true); $('rpAllOff').onclick = () => rpAllSet(false); // (1.31 item 75)
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');
@@ -45203,6 +45449,7 @@ function init() {
   $('bSheetClose').onclick = () => $('panel').classList.remove('open');
   $('ptClose').onclick = () => hideModal('ptModal');
   $('molClose').onclick = () => hideModal('molModal');
+  chartWire(); // (1.31 items 72, 73)
   for (const id of ['ptModal', 'molModal', 'bldModal', 'nucModal']) $(id).addEventListener('click', (e) => { if (e.target.id === id) hideModal(id); });
   $('molBuild').onclick = () => openMolBuilder();
   builderInit();
