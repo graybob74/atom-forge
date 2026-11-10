@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.30.2 (unreleased): item 69, a collision's cascade does not meet itself in flight
+## 1.30.2: item 69, a collision's cascade does not meet itself in flight
 
 The owner's OK (2026-11-09, "sure, do it"). engine.js: every particle carries root, the event its cascade began with:
 nucBegin takes the first root among its seeds (or its own new id) and gives it to the seeds and, through nucGrow, to
