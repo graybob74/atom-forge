@@ -3386,6 +3386,15 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    that section at once (as clicking each: applySettings, the cost tags and the "Experimental:" readout updated). "All
    on" shows the combined cost first (the costly ones, Charged particles in matter ×1–1.3 and Photon polarization ×1–2 in
    3-D, named); in the 3-D lab only the switches shown there (after item 71, the flat-game-only ones hidden).
+76 (requested 2026-11-10, the owner: "yes" to full waves) Electrons as waves, a second setting: "Blobs (eFF)" as now
+   (round Gaussian packets whose size changes, the electron force field) or "Full waves": each free electron or
+   positron's own wave function on a grid (2-D, 256 × 256 about the particle, split-operator FFT steps in the atoms'
+   field; no entanglement between them, so the cost grows with their number, not exponentially), so a packet can split,
+   interfere with itself, diffract off a crystal, pass a double slit in fringes and tunnel through a barrier. Encounters
+   follow the wave: a target scatters or captures in proportion to how much of the wave reaches it, the books kept
+   exact (the wave's kinetic and potential energy measured on the grid). Cost: a few ms an electron a step in
+   JavaScript, so about 5–10 at once at playable speed (the Rust kernel perhaps twice that); the rest stay blobs or
+   points. Flat game first (a 3-D grid is about 100× the cost). Physics: the owner's OK given ("yes").
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
