@@ -237,6 +237,25 @@ canvas.chart.zoomable, svg.chainsvg { cursor: zoom-in; }
 .madedlg { width: min(760px, 94vw); max-height: 86vh; display: flex; flex-direction: column; } /* (1.31 item 73) */
 .madedlg .madebody { overflow: auto; min-height: 0; flex: 1; }
 .madedlg #madeSum2 { margin: 0 0 6px; }
+.sfindrow { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; } /* (1.32 item 80) */
+.sfind { flex: 1; max-width: 360px; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); font: inherit; font-size: 13px; }
+.sfindn { font-size: 12px; color: var(--muted, #8a97a6); }
+.shotpop { position: fixed; z-index: 70; transform: translateX(-50%); display: grid; gap: 2px; padding: 5px; min-width: 200px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.22); }
+.shotpop button { text-align: left; padding: 7px 10px 7px 28px; border: 0; border-radius: 7px; background: none; color: inherit; font: inherit; cursor: pointer; position: relative; }
+.shotpop button:hover, .shotpop button:focus-visible { background: var(--surface-2); }
+.shotpop button[aria-checked="true"]::before { content: '✓'; position: absolute; left: 10px; color: var(--accent); }
+.shotpop .shotk { font-size: 11px; color: var(--muted); padding: 4px 10px 2px; border-top: 1px solid var(--line); margin-top: 3px; }
+.ins-pins { display: grid; gap: 6px; margin-bottom: 10px; }
+.ins-pin { position: relative; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; padding: 6px 28px 6px 8px; background: var(--surface-2); cursor: pointer; font-size: 12px; }
+.ins-pin .ins-head { margin-bottom: 4px; } .ins-pin .tilebox { transform: scale(0.8); transform-origin: left center; }
+.ins-pin dl.kv { max-height: 128px; overflow-y: auto; margin: 0; }
+.ins-pin .pin-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border: 0; border-radius: 6px; background: none; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; }
+.ins-pin .pin-x:hover { background: var(--surface); color: var(--fg); }
+.sfinding .stabs, .sfinding #expTotal, .sfinding .sdef { display: none; }
+.sf-hide { display: none !important; }
+.sf-tab { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+.sgroup .sdef { margin: 10px 0 2px; } /* (1.32 item 84) */
+.ddpop .ddsearch { position: sticky; top: 0; z-index: 1; width: calc(100% - 8px); margin: 4px; box-sizing: border-box; padding: 6px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); font: inherit; font-size: 13px; } /* (1.32 item 79) */
 .rp-all { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; } .rp-all .rp-cost { font-size: 11.5px; color: var(--ch-dim, #9aa); } /* (1.31 item 75) */
 .hint #hintOn { margin-left: 4px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--ch-line); background: rgba(255, 255, 255, 0.08); color: #fff; font: inherit; font-size: 12px; cursor: pointer; } /* (1.30, bug B7) */
 .tip { position: absolute; pointer-events: none; background: rgba(6, 10, 15, 0.94); color: var(--ch-fg); border: 1px solid var(--ch-line);
@@ -635,7 +654,11 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .pcell .s { font-weight: 800; font-size: 15px; line-height: 1; }
 .pcell .stripe { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; border-radius: 0 0 5px 5px; }
 .pcell:hover { border-color: var(--accent); }
-.pcell[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 0; }
+.pgrid { position: relative; }
+.pcell[aria-pressed="true"] { outline: none; } /* (the sliding box shows it, 1.32 item 78) */
+.pt-hl { position: absolute; left: 0; top: 0; border: 2px solid var(--accent); border-radius: 6px; pointer-events: none; box-sizing: border-box; z-index: 2; transition: transform 160ms cubic-bezier(.3,.7,.2,1), width 160ms, height 160ms; }
+.pt-hl.now { transition: none; }
+@media (prefers-reduced-motion: reduce) { .pt-hl { transition: none; } }
 .pgap { height: 8px; grid-column: 1 / -1; }
 .ov { text-decoration: overline; text-decoration-thickness: 0.08em; }
 .ptabs { min-width: 0; }

@@ -1991,6 +1991,50 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.32.0: the owner's items 76–84 ("build it", 2026-11-10; only the tests that matter run)
+
+- 76 Electrons as waves → "Waves as": Blobs (eFF) as before, or Full waves (new `src/fwave.js`, built after sites.js;
+  the flat game only, SMODE_ONLY). Up to six free electrons or positrons moving with 0.15–300 eV and clear of atoms
+  (1.2 Å) each carry ψ on a 128 × 128 grid, 0.2 Å a cell, kept ahead of the packet by whole-cell shifts (fwLead). Each
+  MD step (after the atoms drift, before the force pass) ψ goes forward by Strang splitting, in as many short steps as
+  the potential where the wave is and will be needs (half a radian of phase across it, and a push of at most ħ/4 Å⁻¹
+  per short step: 1 in free flight, 16 past a neutral O, 34 past Na⁺), the potential between the step's two ends
+  interpolated (a turning phase factor per cell, no cosines inside). The potential: each nucleus screened by its own
+  electrons (Thomas–Fermi length 0.885 a₀ Z^(−1/3)) plus its net charge, softened as √(r² + 0.8²) Å; free charges
+  Coulomb; the applied E field. The atoms feel −∫|ψ|²∇V (fwForces, after the kernels). Where it is found: the chance it
+  is in a core this step (|ψ|² within 0.8 Å, per 0.05 tu) by the seeded rnd(); it then becomes a point just outside that
+  core heading in, and the engine's events go on (capture, scattering, annihilation). Reaching a wall (10⁻³ outside the
+  box), spreading wider than the grid, or more than 0.1 % of it past 70 % of the grid's momentum: a point at a place
+  drawn from |ψ|², along the current there. Becoming a wave and a point: at the energy measured with totalEnergy() with
+  and without it (the momentum solved for, three passes; σ 1.2, 2 or 3 Å); the remainder (µeV) and what events change
+  in a wave's potential between steps are kept with the wave (w.dE) and paid out when it becomes a point. totalEnergy()
+  counts each wave's ⟨T⟩ (momentum space) + ⟨V⟩. Saves keep each wave as a point (mean place and velocity). Measured:
+  a free wave keeps its energy to 9e-15 eV; past two Na⁺ the books close to 0.03 eV (worst 0.04), past Na⁺ alone 0.02,
+  past a neutral O 0.02 eV (in one Strang step per MD step it was 9 eV past Na⁺, and 0.25 eV past O without the slope limit: hence both limits);
+  the primordial soup (30 frames, bath off) drifts 1.0 eV with full waves (−0.3 without; its limit 20). Cost, one core
+  here: a short step 1.8 ms (two FFTs), a wave in free flight about 4 ms a step, near Na⁺ 62 ms a step, its pull on the
+  atoms 2.2 ms a force pass; the soup ran 13× slower. Thermal electrons (0.04 eV) cannot pay for even a 3 Å packet and
+  stay points, so the neon tube makes none. Not done: waves do not feel each other, a magnetic field does not bend
+  them, no 3-D.
+- 77 The Elements window's Saved row lists only the chosen element's saved isotopes (absent when none).
+- 78 The chosen element's highlight is one element (.pt-hl) that slides to the new cell (160 ms, transform; none with
+  reduced motion).
+- 79 The setups menu has a search box (presetPop): names first, then setups whose description mentions it; the last five
+  setups opened listed first (store 'recentSetups'); Enter opens the highlighted one, Esc closes.
+- 80 Search in Settings (#setFind): rows from every tab whose name, note, tooltips or side-pane text match, each tab's
+  name above its rows, the tabs hidden; the count beside it; Esc or clearing puts the tabs back.
+- 81 Camera button in the top bar (and F2): the chamber as a PNG at its canvases' own resolution, with labels and captions
+  or the picture only (R.bare: captionBox returns nothing, labels off for that frame); the choice kept in the browser.
+- 82 Pin on each Inspect card: up to three pinned cards (head and numbers, live) above the card, × on each; a click on
+  one inspects that particle (renderInspect → renderInspect1 + pinsDraw; inspectBuild shared).
+- 83 3-D lab: Shift+1…9 keeps the camera (target, distance, yaw, pitch), 1…9 flies back (0.6 s, eased, the short way
+  round); kept in the browser and in saves (views3); in Help's keys.
+- 84 Back to defaults at the end of each Settings tab (Performance, Graphics, Display, Controls, General, 3-D): that tab's
+  settings only (found by changing each setting in turn and seeing which tab's controls change), with an Undo for 8 s.
+
+Tests: tests/f_132.js (each part fails on 1.31.0); f_rp1's layout check skips a part's own choice rows; run: t_lint,
+f_132, f_131, f_130, f_125s, f_rp1 (its 3-D pick-click missed once in a full run and passed on two reruns).
+
 ## 1.31.0: the owner's items 70–75 ("build it", 2026-11-09)
 
 - 70 3-D atoms near the camera (view3d.js): the particle view's nuclei as balls of nucleons turning with the camera
@@ -3386,7 +3430,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    that section at once (as clicking each: applySettings, the cost tags and the "Experimental:" readout updated). "All
    on" shows the combined cost first (the costly ones, Charged particles in matter ×1–1.3 and Photon polarization ×1–2 in
    3-D, named); in the 3-D lab only the switches shown there (after item 71, the flat-game-only ones hidden).
-76 (requested 2026-11-10, the owner: "yes" to full waves) Electrons as waves, a second setting: "Blobs (eFF)" as now
+76 (done in 1.32.0; requested 2026-11-10, the owner: "yes" to full waves) Electrons as waves, a second setting: "Blobs (eFF)" as now
    (round Gaussian packets whose size changes, the electron force field) or "Full waves": each free electron or
    positron's own wave function on a grid (2-D, 256 × 256 about the particle, split-operator FFT steps in the atoms'
    field; no entanglement between them, so the cost grows with their number, not exponentially), so a packet can split,
@@ -3395,24 +3439,24 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    exact (the wave's kinetic and potential energy measured on the grid). Cost: a few ms an electron a step in
    JavaScript, so about 5–10 at once at playable speed (the Rust kernel perhaps twice that); the rest stay blobs or
    points. Flat game first (a 3-D grid is about 100× the cost). Physics: the owner's OK given ("yes").
-77 (requested 2026-11-10, the owner: "saved isotopes should only show up when you click that element") The Elements
+77 (done in 1.32.0; requested 2026-11-10, the owner: "saved isotopes should only show up when you click that element") The Elements
    window's "Saved" row (renderPTDetail: every saved isotope, MYISO, of any element) shows only the chosen element's
    saved isotopes and ions, and is left out when it has none; Settings → Saved isotopes still lists them all.
-78 (requested 2026-11-10, the owner: "the element selection box should be animated when you click around") In the
+78 (done in 1.32.0; requested 2026-11-10, the owner: "the element selection box should be animated when you click around") In the
    Elements window the chosen element's highlight slides from the old cell to the new one (a short eased move, about
    150 ms, its size following; none with the system's reduced-motion setting), rather than jumping.
-79 (requested 2026-11-10, the owner: "yes" to the six suggestions) Search in the setups menu (presetDD): a box at its
+79 (done in 1.32.0; requested 2026-11-10, the owner: "yes" to the six suggestions) Search in the setups menu (presetDD): a box at its
    top filters the setups by name and description as you type ("gold", "laser"), Enter opens the first; the last few
    setups opened listed first.
-80 Search in Settings: one box above the tabs; typing shows the matching rows from every tab (name, note, the help
+80 (done in 1.32.0) Search in Settings: one box above the tabs; typing shows the matching rows from every tab (name, note, the help
    text), the rest hidden, each with its tab named; Esc or clearing it puts the tabs back.
-81 A screenshot button (and a key): the chamber saved as a PNG at the screen's full resolution, with or without the
+81 (done in 1.32.0) A screenshot button (and a key): the chamber saved as a PNG at the screen's full resolution, with or without the
    labels and captions (a choice beside it); not a recording (that was removed at the owner's request in 1.29).
-82 Pinned Inspect cards: a pin on the Inspect card keeps that particle's card open beside the next one, up to three,
+82 (done in 1.32.0) Pinned Inspect cards: a pin on the Inspect card keeps that particle's card open beside the next one, up to three,
    each updating live and closing with its own ×, so two particles can be compared.
-83 Saved camera views in the 3-D lab: Shift+1–4 saves the camera (target, distance, yaw, pitch), 1–4 flies back to it
+83 (done in 1.32.0) Saved camera views in the 3-D lab: Shift+1–4 saves the camera (target, distance, yaw, pitch), 1–4 flies back to it
    (a short eased move), kept with the setup's save; shown in Help's keys.
-84 "Back to defaults" in each Settings tab: one button that puts only that tab's settings back as they start, with an
+84 (done in 1.32.0) "Back to defaults" in each Settings tab: one button that puts only that tab's settings back as they start, with an
    undo line for a few seconds.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.

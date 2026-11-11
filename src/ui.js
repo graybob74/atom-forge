@@ -644,6 +644,17 @@ function buildPTGrid(anti) {
   for (const b of $('ptTabs').querySelectorAll('button')) b.setAttribute('aria-pressed', String((b.dataset.anti === '1') === anti));
   $('ptTitle').textContent = anti ? 'Periodic table of anti-elements' : 'Periodic table';
 }
+/* (1.32, item 78, the owner: "the element selection box should be animated when you click around") One highlight box
+   over the grid, moved to the chosen cell with a short eased slide (CSS transition; none with reduced motion). */
+function ptHighlight() {
+  const g = $('pgrid'); if (!g) return;
+  let h = g.querySelector('.pt-hl'); if (!h) { h = document.createElement('div'); h.className = 'pt-hl'; h.setAttribute('aria-hidden', 'true'); g.appendChild(h); }
+  const c = g.querySelector(`.pcell[data-z="${UI.ptSel.Z}"]`); if (!c) { h.hidden = true; return; }
+  const first = h.hidden || !h.style.width; h.hidden = false;
+  if (first) h.classList.add('now');
+  h.style.width = c.offsetWidth + 'px'; h.style.height = c.offsetHeight + 'px'; h.style.transform = `translate(${c.offsetLeft}px, ${c.offsetTop}px)`;
+  if (first) { void h.offsetWidth; h.classList.remove('now'); }
+}
 function setPTAnti(anti) {
   const s = UI.ptSel;
   if (!!s.anti === anti) return;
@@ -664,10 +675,12 @@ function openPT(sel) {
   }
   renderPTDetail();
   showModal('ptModal');
+  { const h = $('pgrid').querySelector('.pt-hl'); if (h) h.style.width = ''; ptHighlight(); } // (placed at once on opening, the window now laid out; it slides from then on)
 }
 function renderPTDetail() {
   const s = UI.ptSel, el = ELEMENTS[s.Z], anti = !!s.anti, lep = anti ? 'positron' : 'electron';
   for (const b of document.querySelectorAll('.pcell')) b.setAttribute('aria-pressed', +b.dataset.z === s.Z ? 'true' : 'false');
+  ptHighlight(); // (1.32 item 78: the highlight slides to the chosen cell)
   const isos = isotopeList(s.Z); if (!isos.includes(s.A)) isos.push(s.A), isos.sort((a, b) => a - b);
   const nuc = nuclideInfo(s.Z, s.A - s.Z);
   const life = nuc.stable ? 'stable' : nuc.unbound ? 'unbound' : 't½ ' + fmtTime(nuc.t12) + (nuc.estimated ? ' (est.)' : '');
@@ -700,7 +713,7 @@ function renderPTDetail() {
       <button class="btn" id="ptUse" style="background:var(--accent);color:var(--accent-fg);border-color:var(--accent)">Use ${esc(specLabel(spec))}</button>
     </div>
     <div class="isorow"><span class="lbl">Isotope</span><div class="isochips" role="group" aria-label="Isotope">${isos.map(A => { const [cls, short] = isoLife(s.Z, A); return `<button class="isochip" data-a2="${A}" aria-pressed="${A === s.A}"><i class="life ${cls}" aria-hidden="true"></i><b>${sup(A)}${symHTML(el.sym, anti)}</b><span>${esc(short)}</span></button>`; }).join('')}</div></div>
-    ${MYISO.length ? `<div class="isorow"><span class="lbl">Saved</span><div class="isochips" role="group" aria-label="Saved isotopes">${MYISO.map((m, i) => { const [cls, short] = isoLife(m.Z, m.A); return `<span class="isosaved"><button class="isochip" data-my="${i}" aria-pressed="${sameSpec(m, spec)}" title="${esc(specName(m))}"><i class="life ${cls}" aria-hidden="true"></i><b>${esc(specLabel(m))}</b><span>${esc(short)}</span></button><button class="isox" data-myx="${i}" aria-label="Take ${esc(specName(m))} off your saved isotopes" title="Take it off your saved isotopes">×</button></span>`; }).join('')}</div></div>` : ''}
+    ${MYISO.some(m => m.Z === s.Z && !!m.anti === anti) ? `<div class="isorow"><span class="lbl">Saved</span><div class="isochips" role="group" aria-label="Saved isotopes">${MYISO.map((m, i) => { if (m.Z !== s.Z || !!m.anti !== anti) return ''; /* (only this element's: 1.32 item 77) */ const [cls, short] = isoLife(m.Z, m.A); return `<span class="isosaved"><button class="isochip" data-my="${i}" aria-pressed="${sameSpec(m, spec)}" title="${esc(specName(m))}"><i class="life ${cls}" aria-hidden="true"></i><b>${esc(specLabel(m))}</b><span>${esc(short)}</span></button><button class="isox" data-myx="${i}" aria-label="Take ${esc(specName(m))} off your saved isotopes" title="Take it off your saved isotopes">×</button></span>`; }).join('')}</div></div>` : ''}
     ${EL_INFO[s.Z] ? `<div class="elinfo"><button class="btn small infobtn" id="ptInfo" aria-expanded="${UI.ptInfo ? 'true' : 'false'}" title="A few words about ${esc(el.name.toLowerCase())}, and a link to read more">ⓘ About ${esc(anti ? antiName(s.Z) : el.name)}</button>${UI.ptInfo ? infoElHTML(s.Z, anti) : ''}</div>` : ''}`; // (info, 1.28.1)
   $('pdetail').onclick = (e) => {
     const b = e.target.closest('button'); if (!b) return;
@@ -1933,8 +1946,28 @@ function selXHTML() {
   return `<div class="ins-head"><div class="tilebox" style="border-color:${col}"><span class="s">${esc(sym)}</span></div><div><b>${esc(title)}</b><div class="note">${esc(status)}</div></div></div>
     <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${about ? `<p class="note">${esc(about)}</p>` : ''}${infoPHTML(X.kind === 'exo' ? infoKeyX(o.sp) : X.kind === 'ray' && o.nu ? 'nu' : X.o && X.o.E >= 1.24e5 ? 'gamma' : 'photon')}${X.kind === 'exo' ? quarkSecHTML(qSubject(null, X)) : ''}${X.kind === 'exo' && live && !o.xb ? '<div class="row" style="justify-content:flex-start"><button class="btn small" data-act="delx">Delete</button></div>' : ''}`; // (Delete, as an atom's card has: muonic hydrogen and the other particles in flight had none, 1.26)
 }
-function renderInspect() {
-  const box = $('tp-inspect');
+/* Pinned Inspect cards (1.32 item 82): the pin on a card keeps that particle's card (its head and numbers, updated
+   live) above the next one, up to three, each closed with its own ×, so two particles can be compared. */
+const PINS = [], PIN_MAX = 3;
+function pinToggle(p) { const i = PINS.indexOf(p); if (i >= 0) PINS.splice(i, 1); else { PINS.push(p); if (PINS.length > PIN_MAX) PINS.shift(); } }
+function renderInspect() { renderInspect1(); pinsDraw(); }
+function pinsDraw() {
+  for (let i = PINS.length - 1; i >= 0; i--) if (!PINS[i] || PINS[i].dead) PINS.splice(i, 1);
+  const box = $('tp-inspect'); if (!box || !PINS.length) return;
+  const wrap = document.createElement('div'); wrap.className = 'ins-pins';
+  PINS.forEach((q, i) => {
+    const c = document.createElement('div'); c.className = 'ins-pin';
+    if (!renderInspect1(c, q)) return;
+    c.insertAdjacentHTML('afterbegin', `<button class="pin-x" data-unpin="${i}" title="Unpin this card" aria-label="Unpin this card">×</button>`);
+    wrap.appendChild(c);
+  });
+  wrap.onclick = (e) => { const b = e.target.closest('[data-unpin]'); e.stopPropagation(); if (b) { PINS.splice(+b.dataset.unpin, 1); renderInspect(); return; }
+    const c = e.target.closest('.ins-pin'); if (c && c._p && !c._p.dead) { R.sel = c._p; renderInspect(); } }; // (a click on a pinned card inspects that particle)
+  box.prepend(wrap);
+}
+function renderInspect1(pinBox, pinP) {
+  const box = pinBox || $('tp-inspect');
+  if (pinBox) { const p = pinP && !pinP.dead ? pinP : null; if (!p) return false; pinBox._p = p; return inspectBuild(box, p, true); }
   if (QV.drag && performance.now() - QV.drag.at < 3000) return; // (pulling a quark: the card stays as it is until it is let go)
   QV.drag = null;
   if (R.selX && !R.sel) {
@@ -1943,10 +1976,13 @@ function renderInspect() {
     return;
   }
   const p = R.sel && !R.sel.dead ? R.sel : null;
-  if (!p) {
+  if (p) return inspectBuild(box, p, false);
+  {
     box.innerHTML = `<div class="empty"><b>Nothing selected.</b> Pick the Inspect tool (I) and click any particle to see its electron configuration, bonds, nucleus and energies. Photons, neutrinos, and pions, kaons and muons in flight can be clicked too.</div>`;
     _insCv = null; restoreScroll('tp-inspect'); return;
   }
+}
+function inspectBuild(box, p, pinned) {
   const ke = p.rad ? p.KE : W.d3 ? 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) : 0.5 * p.m * (p.vx * p.vx + p.vy * p.vy);
   const speed = shownSpeed(p); // (relativistic from its energy: a fast 3-D particle's stored v can pass c, 1.26 bug fix)
   const kv = [];
@@ -2029,7 +2065,9 @@ function renderInspect() {
       <button class="btn small" data-act="add" ${p.ne < p.Z + maxExtraElectrons(p.Z) ? '' : 'disabled'}>Add ${lepW}</button>
       ${sf ? `<button class="btn small savebtn" data-act="save" aria-pressed="${sf.on}" title="${esc(sf.title)}">${sf.text}</button>` : ''}
       ${RP.nuc && !p.mu && (nucSpin(p.Z, p.N) || {}).mu ? `<button class="btn small" data-act="nmr" title="A 90° pulse on every ${esc(nucSym(p.Z, p.N))} in the box: their spins tip over and precess in the field, and their signal's frequency is measured">NMR pulse</button>` : ''}
-      <button class="btn small" data-act="del">Delete</button></div>` : `<div class="row" style="justify-content:flex-start"><button class="btn small" data-act="del">Delete</button></div>`;
+      <button class="btn small" data-act="pin" aria-pressed="${PINS.includes(p)}" title="Keep this card above the next one you inspect (up to three)">${PINS.includes(p) ? 'Pinned' : 'Pin'}</button>
+      <button class="btn small" data-act="del">Delete</button></div>` : `<div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" data-act="pin" aria-pressed="${PINS.includes(p)}" title="Keep this card above the next one you inspect (up to three)">${PINS.includes(p) ? 'Pinned' : 'Pin'}</button><button class="btn small" data-act="del">Delete</button></div>`;
+  if (pinned) { box.innerHTML = `${head}<dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`; return true; }
   const od = box.querySelector('#insOrbs'); if (od) UI.orbOpen = od.open;
   const sd = box.querySelector('#insSolver'); if (sd) UI.solverOpen = sd.open;
   if (W.d3) { const kms = 1e-13 / PHYS.TU_S, f = (a, b, c, k, d) => [a, b, c].map(v => (v * k).toFixed(d)).join(', '); kv.push(['Position (x, y, z)', f(p.x, p.y, p.z, 1, 2) + ' Å'], ['Velocity (vx, vy, vz)', f(p.vx, p.vy, p.vz, kms, 2) + ' km/s']); } // (3-D: where it is in the box, and its motion in depth too)
@@ -2051,6 +2089,7 @@ function renderInspect() {
     else if (a === 'save') myIsoToggle(pspec);
     else if (a === 'del') { kill(p); R.sel = null; }
     else if (a === 'solve') runSolver(p.Z, p.ne);
+    else if (a === 'pin') pinToggle(p);
     else if (a === 'nmr') { const G = nmrPulse(p.Z, p.N); if (G) log('tool', `NMR: a 90° pulse on ${G.n0} ${nucSym(p.Z, p.N)} nucle${G.n0 === 1 ? 'us' : 'i'}`); } // (1.27)
     renderInspect();
   };
@@ -2841,7 +2880,7 @@ function worldExtrasJSON() {
   const ledger = {}; for (const k in W.ledger) if (Number.isFinite(W.ledger[k])) ledger[k] = W.ledger[k];
   const srcs = W.sources.filter(srcPlain).map(q => { const o = { spec: JSON.parse(JSON.stringify(q.spec)) }; for (const k of SRC_KEYS) if (Number.isFinite(q[k])) o[k] = q[k]; if (q.track) o.track = true; return o; });
   const rig = !!(W.collider || (W.zones && W.zones.length) || W.sources.some(q => !srcPlain(q)));
-  return { ledger, ...(srcs.length ? { srcs } : {}), ...(rig ? { rig: true } : {}) };
+  return { ledger, ...(srcs.length ? { srcs } : {}), ...(rig ? { rig: true } : {}), ...(W.d3 && Object.keys(VIEWS3).length ? { views3: { ...VIEWS3 } } : {}), ...(FW.n ? { fwPts: FW.list.map(w => { fwMeasure(w); const sh = fwShape(w); return [w.pos ? 1 : 0, sh.x, sh.y, w.vx, w.vy]; }) } : {}) }; // (full waves kept as points at their mean place and velocity, 1.32 item 76) // (3-D camera views, 1.32 item 83)
 }
 /* Opening: the setup's apparatus first (when the save says it had one), then, after the particles, the books and the
    plain sources. */
@@ -2863,6 +2902,8 @@ function rigRestore(keep, d) {
     if (!Number.isFinite(o.ux) || !Number.isFinite(o.uy) || !(o.KE > 0) || !(o.rate > 0)) continue;
     W.sources.push(o);
   }
+  if (d.views3 && typeof d.views3 === 'object' && W.d3) views3Put(d.views3);
+  if (Array.isArray(d.fwPts)) for (const q of d.fwPts.slice(0, 16)) if (Array.isArray(q) && q.length === 5 && q.every(Number.isFinite)) { const hw = W.box.w / 2 - 0.1, hh = W.box.h / 2 - 0.1; addLepton(q[0] ? POS : ELEC, clamp(q[1], -hw, hw), clamp(q[2], -hh, hh), q[3], q[4]); }
   if (d.ledger && typeof d.ledger === 'object') for (const k in W.ledger) if (Number.isFinite(d.ledger[k])) W.ledger[k] = d.ledger[k];
 }
 function worldToJSON() {
@@ -3022,6 +3063,33 @@ function shareInit() {
 function layersInto(ctx, w, h) {
   const base = $('cv').getBoundingClientRect();
   for (const id of ['cvbg', 'cvgl', 'cv']) { const c = $(id); if (c && c.width && !c.hidden && c.style.display !== 'none') try { const r = c.getBoundingClientRect(), kx = c.width / Math.max(1, r.width), ky = c.height / Math.max(1, r.height); ctx.drawImage(c, (base.left - r.left) * kx, (base.top - r.top) * ky, base.width * kx, base.height * ky, 0, 0, w, h); } catch (e) { /* (a canvas that cannot be read) */ } }
+}
+/* Screenshot (1.32 item 81): the chamber as a PNG at the screen's full resolution (its canvases' own pixels), with or
+   without the labels and captions (the choice beside the camera button, kept in this browser); F2 takes one. */
+function shotBare() { return store('shotBare') === '1'; }
+async function shotSave(bare = shotBare()) {
+  const c = $('cv'), w = c.width, h = c.height; if (!w || !h) return null;
+  const t = document.createElement('canvas'); t.width = w; t.height = h;
+  const ctx = t.getContext('2d'); ctx.fillStyle = '#05080c'; ctx.fillRect(0, 0, w, h);
+  const lb = R.view.labels; if (bare) { R.view.labels = false; R.bare = true; }
+  try { render(W.rt || 0); } catch (e) { /* (what was last drawn) */ }
+  layersInto(ctx, w, h); R.view.labels = lb; R.bare = false;
+  const blob = await new Promise(res => { try { t.toBlob(res, 'image/png'); } catch (e) { res(null); } });
+  if (!blob) { log('tool', 'Could not make the picture'); return null; }
+  const d = new Date(), z = (v) => String(v).padStart(2, '0'), name = `atom-forge-${(UI.preset || 'chamber').replace(/[^\w-]+/g, '-')}-${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}.png`;
+  UI.lastShot = { name, w, h, bare, size: blob.size };
+  if (await fileSave(name, blob, 'image/png')) log('tool', `Picture saved: ${name} (${w} × ${h}${bare ? ', no labels' : ''})`);
+  return UI.lastShot;
+}
+function shotMenu(b) {
+  let m = $('shotPop'); if (m) { m.remove(); return; }
+  m = document.createElement('div'); m.id = 'shotPop'; m.className = 'shotpop'; m.setAttribute('role', 'menu');
+  const bare = shotBare();
+  m.innerHTML = `<button role="menuitemradio" data-bare="0" aria-checked="${!bare}">With labels and captions</button><button role="menuitemradio" data-bare="1" aria-checked="${bare}">Picture only</button><div class="shotk">F2 takes one the same way</div>`;
+  const r = b.getBoundingClientRect(); m.style.left = Math.round(r.left + r.width / 2) + 'px'; m.style.top = Math.round(r.bottom + 6) + 'px';
+  document.body.appendChild(m);
+  m.onclick = (e) => { const x = e.target.closest('[data-bare]'); if (!x) return; store('shotBare', x.dataset.bare); m.remove(); shotSave(x.dataset.bare === '1'); };
+  setTimeout(() => document.addEventListener('pointerdown', function off(e) { if (!m.contains(e.target) && e.target !== b) { m.remove(); } document.removeEventListener('pointerdown', off, true); }, true), 0);
 }
 /* Gallery: worlds kept in this browser (localStorage: an index, and each world as its share code with a 240 px picture).
    A convenience for one viewer, so storage that may be missing or full is said so plainly. */
@@ -4432,6 +4500,7 @@ function loadPreset(key) {
   const P = PRESETS[key] || PRESETS.soup;
   UI.preset = key in PRESETS ? key : 'soup';
   $('preset').value = UI.preset;
+  presetRecent(UI.preset); // (1.32 item 79)
   R.sel = null; R.selX = null; R.hover = null; R.follow = null; UI.drag = null; W.grab = null; R.msel.clear(); R.oSel.clear();
   P.build(); ultraHold();
   if (!P.d3) MODE3.last2d = UI.preset;
@@ -4859,8 +4928,19 @@ function measureText() {
 }
 /* Camera views: Shift+1 … 9 keeps where the view is, 1 … 9 goes back there (kept in this browser). */
 function viewsGet() { try { const v = JSON.parse(store('views') || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } }
-function viewSave(n) { const v = viewsGet(); v[n] = [R.s, R.cx, R.cy]; store('views', JSON.stringify(v)); log('tool', `View ${n} kept (press ${n} to come back to it)`); }
+/* In the 3-D lab (1.32 item 83) the same keys keep and fly back to the camera (target, distance, yaw, pitch); those views
+   are kept in this browser and with the setup's save (worldToJSON's views3). */
+const CAM3_KEYS = ['tx', 'ty', 'tz', 'dist', 'yaw', 'pitch'];
+let VIEWS3 = (() => { try { const v = JSON.parse(store('views3') || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } })();
+function views3Put(v) { const o = {}; if (v && typeof v === 'object') for (const n in v) if (/^[1-9]$/.test(n) && v[n] && CAM3_KEYS.every(k => Number.isFinite(v[n][k]))) o[n] = Object.fromEntries(CAM3_KEYS.map(k => [k, v[n][k]])); VIEWS3 = o; store('views3', JSON.stringify(o)); }
+const VIEWGO3 = { from: null, to: null, t: 1 };
+function viewSave(n) {
+  if (W.d3) { VIEWS3[n] = Object.fromEntries(CAM3_KEYS.map(k => [k, R.cam3[k]])); store('views3', JSON.stringify(VIEWS3)); log('tool', `Camera view ${n} kept (press ${n} to fly back to it)`); return; }
+  const v = viewsGet(); v[n] = [R.s, R.cx, R.cy]; store('views', JSON.stringify(v)); log('tool', `View ${n} kept (press ${n} to come back to it)`); }
 function viewGo(n) {
+  if (W.d3) { const c = VIEWS3[n]; if (!c) { log('tool', `No camera view ${n} yet: Shift+${n} keeps the one you see`); return; }
+    const f = Object.fromEntries(CAM3_KEYS.map(k => [k, R.cam3[k]])), dy = Math.atan2(Math.sin(c.yaw - f.yaw), Math.cos(c.yaw - f.yaw)); // (the short way round)
+    VIEWGO3.from = f; VIEWGO3.to = { ...c, yaw: f.yaw + dy }; VIEWGO3.t = 0; return; }
   const c = viewsGet()[n]; if (!Array.isArray(c) || !c.every(Number.isFinite)) { log('tool', `No view ${n} yet: Shift+${n} keeps the one you see`); return; }
   R.follow = null; VIEWGO.from = [R.s, R.cx, R.cy]; VIEWGO.to = c; VIEWGO.t = 0; // (a short glide there)
 }
@@ -4908,6 +4988,11 @@ function spin3Tick(dt) {
 /* Settings → 3-D: how far a drag turns the view (Orbit speed), and which way (Invert). */
 function orbitK() { return (SET.orbit3 || 1) * (SET.orbitInv ? -1 : 1); }
 function viewTick(dt) {
+  if (VIEWGO3.t < 1 && VIEWGO3.to && W.d3) {
+    VIEWGO3.t = Math.min(1, VIEWGO3.t + dt / 0.6); const k = VIEWGO3.t < 0.5 ? 4 * VIEWGO3.t ** 3 : 1 - Math.pow(-2 * VIEWGO3.t + 2, 3) / 2, a = VIEWGO3.from, b = VIEWGO3.to; // (eased in and out)
+    for (const q of ['tx', 'ty', 'tz', 'yaw', 'pitch']) R.cam3[q] = a[q] + (b[q] - a[q]) * k;
+    R.cam3.dist = Math.exp(Math.log(a.dist) + (Math.log(b.dist) - Math.log(a.dist)) * k); cam3Update();
+  }
   if (VIEWGO.t >= 1 || !VIEWGO.to) return;
   VIEWGO.t = Math.min(1, VIEWGO.t + dt / 0.35); const k = 1 - Math.pow(1 - VIEWGO.t, 3), [s0, x0, y0] = VIEWGO.from, [s1, x1, y1] = VIEWGO.to;
   R.s = Math.exp(Math.log(s0) + (Math.log(s1) - Math.log(s0)) * k); R.cx = x0 + (x1 - x0) * k; R.cy = y0 + (y1 - y0) * k;
@@ -5376,10 +5461,52 @@ function ddOpen(sel, b) {
     if (ch.tagName === 'OPTGROUP') { items.push({ g: ch.label }); for (const o of ch.children) { if (o.index === sel.selectedIndex) cur = items.length; items.push({ t: o.textContent, i: o.index, dis: o.disabled }); } }
     else if (ch.tagName === 'OPTION') { if (ch.index === sel.selectedIndex) cur = items.length; items.push({ t: ch.textContent, i: ch.index, dis: ch.disabled }); }
   }
-  ddPop(b, items, cur, (it) => {
+  const pick = (it) => {
     if (sel.selectedIndex !== it.i) { sel.selectedIndex = it.i; sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); }
     ddLabel(sel); b.focus();
-  }).sel = sel;
+  };
+  if (sel.id === 'preset') { presetPop(sel, b, items, cur, pick); return; }
+  ddPop(b, items, cur, pick).sel = sel;
+}
+/* (1.32, item 79) The setups menu: a search box at its top (name, group and the setup's description; Enter opens the
+   first match) and the last few setups opened listed first, under "Recent". */
+const PRESET_RECENT_N = 5;
+function presetRecent(key) {
+  if (!key || /^ch_/.test(key)) return;
+  let L = []; try { L = JSON.parse(store('recentSetups') || '[]'); } catch (e) {}
+  L = [key, ...L.filter(k => k !== key && PRESETS[k])].slice(0, PRESET_RECENT_N); store('recentSetups', JSON.stringify(L));
+}
+function presetPop(sel, b, all, cur, pick) {
+  const text = (it) => { const v = sel.options[it.i] && sel.options[it.i].value, P = PRESETS[v]; return (it.t + ' ' + (P ? (P.group || '') + ' ' + String(P.hint || '').replace(/<[^>]+>/g, ' ') : '')).toLowerCase(); };
+  let rec = []; try { rec = JSON.parse(store('recentSetups') || '[]'); } catch (e) {}
+  const recentItems = () => { const out = []; for (const k of rec) { const o = [...sel.options].find(o => o.value === k); if (o && k !== sel.value) out.push({ t: o.textContent, i: o.index }); } return out.length ? [{ g: 'Recent' }, ...out] : []; };
+  const listFor = (q) => {
+    q = q.trim().toLowerCase(); if (!q) return [...recentItems(), ...all];
+    const words = q.split(/\s+/), name = [], desc = [];
+    for (const it of all) { if (it.g !== undefined) continue; if (words.every(w => it.t.toLowerCase().includes(w))) name.push(it); else if (words.every(w => text(it).includes(w))) desc.push(it); }
+    return [...name, ...(desc.length ? [{ g: name.length ? 'Also mentions it' : 'Mentions it' }, ...desc] : [])]; // (names first, then the setups whose description has it)
+  };
+  let items = listFor(''), c = items.findIndex(it => it.i === sel.selectedIndex);
+  const st = ddPop(b, items, c, pick, { minW: 300 }); st.sel = sel;
+  const box = document.createElement('input'); box.type = 'search'; box.className = 'ddsearch'; box.placeholder = 'Search setups'; box.setAttribute('aria-label', 'Search setups'); box.autocomplete = 'off'; box.spellcheck = false;
+  st.pop.prepend(box); st.box = true;
+  const redraw = () => {
+    items = listFor(box.value); st.items = items;
+    for (const el of [...st.pop.children]) if (el !== box) el.remove();
+    const id = st.pop.id;
+    st.pop.insertAdjacentHTML('beforeend', items.length ? items.map((it, k) => it.g !== undefined ? `<div class="ddg" role="presentation">${esc(it.g)}</div>` : `<div class="ddo${it.i === sel.selectedIndex ? ' on' : ''}" role="option" id="${id}-${k}" data-k="${k}">${esc(it.t)}</div>`).join('') : '<div class="ddnone">No setup matches</div>');
+    st.hi = -1; const k0 = box.value.trim() ? items.findIndex(it => it.g === undefined) : -1; if (k0 >= 0) ddHi(k0);
+  };
+  box.addEventListener('input', redraw);
+  box.addEventListener('pointerdown', (e) => e.stopPropagation(), true);
+  box.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); ddMove(e.key === 'ArrowDown' ? 1 : -1); }
+    else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (st.hi >= 0) ddChoose(st.hi); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ddClose(); b.focus(); }
+    else e.stopPropagation(); // (letters typed here are not the game's keys)
+  });
+  redraw(); { const k = items.findIndex(it => it.i === sel.selectedIndex); if (k >= 0) { ddHi(k); } }
+  setTimeout(() => box.focus(), 0);
 }
 /* a search box with suggestions in the same kind of list: list() gives [{t, …}] for the text; pick(it) takes one */
 function ddSuggest(box, list, pick) {
@@ -5644,8 +5771,8 @@ function wakeTick() {
 }
 /* Keyboard shortcuts (?) */
 const KEYS = [['Simulation', [['Space', 'Play / pause'], ['.', 'One frame'], ['R', 'Reload the setup'], ['[ / ]', 'Slower / faster'], ['\\', 'Slow motion'], [',', 'Rewind: back a step'], ['Ctrl+Z', 'Undo'], ['Ctrl+Shift+Z, Ctrl+Y', 'Redo']]],
-  ['View', [['+ / −, wheel', 'Zoom'], ['0', 'Fit the box'], ['1 … 9', 'Go to a kept view'], ['Shift+1 … 9', 'Keep this view'], ['V', 'Particle view'], ['O', 'Orbitals'], ['B', 'Chamber only'], ['F11', 'Borderless full screen'], ['Esc', 'Menu (or leave chamber only, drop the selection)']]],
-  ['3-D lab', [['W / S', 'Fly forward / back'], ['A / D', 'Fly left / right'], ['E / Q', 'Fly up / down'], ['Space / Shift', 'Up / down while flying (Space alone plays and pauses)'], ['Arrows', 'Turn the view'], ['Z / X', 'Spark / Erase (S and E fly in 3-D)'], ['Shift + wheel', 'Move the placing plane farther / nearer'], ['Click with Fire', 'Fire from the camera at the pointer (straight at an atom under it)']]],
+  ['View', [['+ / −, wheel', 'Zoom'], ['0', 'Fit the box'], ['1 … 9', 'Go to a kept view'], ['Shift+1 … 9', 'Keep this view'], ['V', 'Particle view'], ['O', 'Orbitals'], ['B', 'Chamber only'], ['F2', 'Save a picture of the chamber (PNG)'], ['F11', 'Borderless full screen'], ['Esc', 'Menu (or leave chamber only, drop the selection)']]],
+  ['3-D lab', [['W / S', 'Fly forward / back'], ['A / D', 'Fly left / right'], ['E / Q', 'Fly up / down'], ['Space / Shift', 'Up / down while flying (Space alone plays and pauses)'], ['Arrows', 'Turn the view'], ['1 … 9', 'Fly to a kept camera view'], ['Shift+1 … 9', 'Keep this camera view (kept with a save too)'], ['Z / X', 'Spark / Erase (S and E fly in 3-D)'], ['Shift + wheel', 'Move the placing plane farther / nearer'], ['Click with Fire', 'Fire from the camera at the pointer (straight at an atom under it)']]],
   ['Particles', [['/', 'Find a particle by typing']]],
   ['Selection', [['Ctrl+C / Ctrl+V', 'Copy / paste'], ['Ctrl+A', 'Select all'], ['Delete', 'Delete the selected particle']]],
   ['Help', [['?', 'This list'], ['Shift+F10, menu key', 'Quick menu at the mouse'], ['Long press', 'Quick menu (touch, pen)']]]];
@@ -5881,6 +6008,7 @@ function onKey(e) {
   if (tag === 'INPUT') return; // range sliders keep their arrow keys and letters stay safe
   if (W.d3 && /^Arrow(Left|Right|Up|Down)$/.test(k) && tag !== 'BUTTON') { e.preventDefault(); const st = e.shiftKey ? 45 : 12; cam3Orbit(k === 'ArrowLeft' ? -st : k === 'ArrowRight' ? st : 0, k === 'ArrowUp' ? -st : k === 'ArrowDown' ? st : 0); return; } // (3-D: the arrow keys turn the view)
   if (k === '/') { e.preventDefault(); const fb = document.querySelector('#palette [data-find]'); if (fb) pfindOpen(fb); return; }
+  if (k === 'F2') { e.preventDefault(); shotSave(); return; }
   if (k === 'v' || k === 'V') { toggleParticleView(); return; }
   if (k === 'b' || k === 'B') { setChamberOnly(!DM.on); return; }
   if (k === '?') { e.preventDefault(); openKeys(); return; }
@@ -5912,6 +6040,7 @@ Object.assign(SET_DEF, { rpExo: false }); // (Experimental → Realistic particl
 Object.assign(SET_DEF, { rpPs: false, rpMu: false }); // (Experimental → Realistic particles: positronium; muonium as hydrogen and μSR, 1.27: hep.js RP)
 Object.assign(SET_DEF, { rpRes: false, rpNuc: false }); // (Realistic particles 5 and 6, 1.27: hep.js RP.res, RP.nuc)
 SET_DEF.rpCpm = false; // (Experimental → Realistic particles: charged particles in matter, 1.27: hep.js RP.cpm)
+SET_DEF.waveF = 'eff'; SET_OK.waveF = ['eff', 'full']; // (Electrons as waves → as blobs (eFF) or full waves, fwave.js, 1.32 item 76)
 SET_DEF.cpmX = 1; SET_OK.cpmX = [1, 1000, 1000000]; // (Realistic particles → Matter depth: its rare processes sped up, hep.js RP.cpmX, 1.27 item 26)
 Object.assign(SET_DEF, { rpPol: false }); // (Realistic particles 7, 1.27: photon polarization and Klein–Nishina, hep.js RP.pol)
 Object.assign(SET_DEF, { rpRay: false }); // (Realistic particles, 1.27 feature 22: Rayleigh scattering, pold.js RP.ray)
@@ -5934,6 +6063,7 @@ SET_EXP.push('rpExo'); EXP_NAME.rpExo = 'exotic atoms'; // (1.27)
 SET_EXP.push('rpPs', 'rpMu'); EXP_NAME.rpPs = 'positronium'; EXP_NAME.rpMu = 'muonium as hydrogen'; // (1.27)
 SET_EXP.push('rpRes', 'rpNuc'); EXP_NAME.rpRes = 'resonance widths and heavy flavour'; EXP_NAME.rpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
 SET_EXP.push('rpCpm'); EXP_NAME.rpCpm = 'charged particles in matter'; // (1.27)
+SET_EXP.push('waveF'); EXP_NAME.waveF = 'electrons as full waves'; // (1.32 item 76)
 SET_EXP.push('cpmX'); EXP_NAME.cpmX = 'matter depth'; // (1.27 item 26)
 SET_EXP.push('rpPol'); EXP_NAME.rpPol = 'photon polarization'; // (1.27)
 SET_EXP.push('rpRay'); EXP_NAME.rpRay = 'Rayleigh scattering'; // (1.27)
@@ -6045,7 +6175,7 @@ function applySettings() {
   boSet(SET.bo); // (Experimental: continuous bond orders, 1.13; 2: quantum bonds, 1.22)
   mbSet(SET.metal); // (Experimental: bond orders for metals, 1.25)
   sitesSet('lp', SET.lps); sitesSet('sh', SET.sigh); sitesSet('pi', SET.pis); // (Experimental: directional forces, 1.26)
-  waveSet(!!SET.wave); // (Experimental: electrons as waves, 1.15)
+  waveSet(!!SET.wave && SET.waveF !== 'full'); fwSet(!!SET.wave && SET.waveF === 'full'); // (Experimental: electrons as waves, 1.15; as full waves, the flat game, 1.32 item 76)
   RP.exo = !!SET.rpExo; // (Experimental → Realistic particles: exotic atoms, 1.27)
   RP.ps = !!SET.rpPs; rpMuSet(!!SET.rpMu); // (positronium; muonium as hydrogen, its binding's change booked to the bath, 1.27)
   RP.res = !!SET.rpRes; RP.nuc = !!SET.rpNuc; // (Realistic particles 5 and 6, 1.27)
@@ -6178,7 +6308,7 @@ function syncSettings() {
   setSegValue('segLps', String(SET.lps)); setSegValue('segSigh', String(SET.sigh)); setSegValue('segPis', String(SET.pis)); // (1.26)
   setSegValue('segPold', String(SET.pold)); // (1.27)
   $('setRpExo').checked = SET.rpExo; // (1.27)
-  $('setRpPs').checked = SET.rpPs; $('setRpMu').checked = SET.rpMu; $('setRpCpm').checked = SET.rpCpm; setSegValue('segCpmX', String(SET.cpmX)); // (1.27; Matter depth, item 26)
+  $('setRpPs').checked = SET.rpPs; $('setRpMu').checked = SET.rpMu; $('setRpCpm').checked = SET.rpCpm; setSegValue('segCpmX', String(SET.cpmX)); setSegValue('segWaveF', SET.waveF); // (1.27; Matter depth, item 26)
   $('setRpRes').checked = SET.rpRes; $('setRpNuc').checked = SET.rpNuc; // (1.27)
   $('setRpPol').checked = SET.rpPol; // (1.27)
   $('setRpRay').checked = SET.rpRay; // (1.27)
@@ -6209,6 +6339,7 @@ function costLevel(a) {
 }
 const COST_K = { physics: 'Time to work out the physics', drawing: 'Time to draw each frame', memory: 'Memory it takes' };
 function costX(v) { return '×' + (v >= 10 ? Math.round(v) : v >= 0.995 ? +v.toFixed(1) : +v.toFixed(2)); }
+const FWF_COST = 'Measured (1.32, one core here): nothing while no electron is a wave; a wave in free flight about 4 ms a step (two 128 × 128 FFTs), near an ion up to 35 short steps inside each step (about 60 ms); the primordial soup with full waves ran 13× slower';
 const COSTS = {
   segBo: () => ({ k: 'physics', o: { 0: ['×1', 'Stored bonds: the classic chemistry'], 1: ['×6–15', 'Measured on one thread on a quiet machine (after 1.25): liquid water ×7.5–9.2, salt water ×5.9–7.4; 1.20: hydrogen + oxygen ×9, the molecule gallery ×15 (every pair worked out every step, steps 2.6 times shorter)'], 2: ['×1000+', 'Measured on one thread (1.22): a hydronium and five waters (19 atoms) 6.6 ms a step, 40 atoms 50 ms, against 0.006–0.02 with stored bonds, the steps half as long: a small world runs in slow motion, about 1/30 of normal speed at 19 atoms, 1/200 at 40'] } }),
   segMetal: () => ({ k: 'physics', o: { 0: ['×1', 'Metal atoms hold each other by pairs'], 1: ['×1–2', 'Measured on one thread (1.25): nothing without metal atoms; a flat aluminium patch of 769 atoms ×1.9 (its own pass 0.22 ms a step); a flat copper patch ×0.6 and a 3-D copper ball ×0.9 (most of the electron-transfer trials between metal atoms are skipped). The body-centred metals\u2019 angles (1.26): a flat tungsten patch of 967 atoms ×1.1 over 1.25\u2019s many-body (its pass 0.95 → 2.3 ms)'] } }), // (1.25; 1.26)
@@ -6228,6 +6359,7 @@ const COSTS = {
   setUltra: () => ({ k: 'physics', on: ['×1', 'True sizes and rates cost nothing'] }),
   setRpPs: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where there is no positronium; each one about 10 µs a step (it flies as an unstable particle and looks round itself for electrons and O\u2082 once an ångström): 20 in liquid water (240 atoms) 0.35 → 0.58 ms a step'] }),
   setRpMu: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): a muon\u2019s spin turned each step costs nothing measurable (20 muons in liquid water, 0.66 against 0.67 ms a step); muonium costs what a hydrogen atom does'] }),
+  segWaveF: () => !SET.wave ? { k: 'physics', o: { eff: ['×1', 'Only with Electrons as waves on'], full: ['×1', 'Only with Electrons as waves on'] } } : { k: 'physics', o: { eff: ['×1–7', 'The packets (eFF), as above'], full: ['×1–15', FWF_COST] } }, // (1.32 item 76)
   segCpmX: () => !SET.rpCpm ? { k: 'physics', o: { 1: ['×1', 'Only with Charged particles in matter on'], 1000: ['×1', 'Only with Charged particles in matter on'], 1000000: ['×1', 'Only with Charged particles in matter on'] } } : { k: 'physics', o: { 1: ['×1', 'Nature\u2019s rates'], 1000: ['×1–1.1', CPMX_COST], 1000000: ['×1–1.2', CPMX_COST] } }, // (1.27 item 26)
   setRpCpm: () => ({ k: 'physics', on: ['×1–1.3', 'Measured on one thread (1.27): nothing where no fast charged particle crosses matter and no γ ray meets an atom; a fast particle\u2019s pass through liquid water costs ×0.8–1.4 (a 5 MeV α 50 → 69 µs an ångström, its δ-rays set free), the radiation setups ×1.0–1.3 a step (pion beam 7.2 → 8.7 ms, linac 0.40 → 0.51, photonuclear 7.3 → 8.4)'] }),
   setRpExo: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing where no slow μ⁻, π⁻, K⁻ or antiproton stops (a pion beam into carbon ×1.0); a capture is one event of 1.2–2.3 ms (its cascade\u2019s electrons and X-rays), and a muonic atom costs what an atom does. Where slow ones stop, the last keV each spends ionizing the matter it slows in makes a small plasma to follow: muon-catalysed fusion ×3, the hypernucleus factory ×4 while it lasts'] }),
@@ -6333,6 +6465,7 @@ const REAL = {
   setRpMu: [true, 'Muonium is the lightest isotope of hydrogen, and its muon\u2019s spin precesses in a field (μSR), as in nature (1.27)'],
   setRpRes: [true, 'A resonance\u2019s mass spread over its measured width, and charm and bottom made in hadron collisions at their measured share (1.27)'],
   setRpNuc: [true, 'Nuclei with their spins and magnetic moments, measured γ lines, and neutrons caught at their measured cross sections (1.27)'],
+  segWaveF: ['eff', 'Blobs: round packets whose size changes (eFF, since 1.15)'],
   segCpmX: ['1', 'Nature\u2019s rates: bremsstrahlung and Cherenkov light as rare as a nanometre of matter makes them (1.27)'],
   setRpCpm: [true, 'Fast charged particles lose their energy collision by collision, knock out δ-rays, give off bremsstrahlung and Cherenkov light, and γ rays make pairs, at the measured rates (1.27)'],
   setRpPol: [true, 'Photons carry their polarization, and Compton scattering follows Klein–Nishina, as in nature (1.27)'],
@@ -6358,7 +6491,7 @@ EXP_SET.segXqs = 'xqs'; // (1.26)
 EXP_SET.segLps = 'lps'; EXP_SET.segSigh = 'sigh'; EXP_SET.segPis = 'pis'; // (1.26)
 EXP_SET.segPold = 'pold'; // (1.27)
 EXP_SET.setRpExo = 'rpExo'; // (1.27)
-EXP_SET.setRpPs = 'rpPs'; EXP_SET.setRpMu = 'rpMu'; EXP_SET.setRpCpm = 'rpCpm'; EXP_SET.segCpmX = 'cpmX'; // (1.27; Matter depth, item 26)
+EXP_SET.setRpPs = 'rpPs'; EXP_SET.setRpMu = 'rpMu'; EXP_SET.setRpCpm = 'rpCpm'; EXP_SET.segCpmX = 'cpmX'; EXP_SET.segWaveF = 'waveF'; // (1.27; Matter depth, item 26)
 EXP_SET.setRpRes = 'rpRes'; EXP_SET.setRpNuc = 'rpNuc'; // (1.27)
 EXP_SET.setRpPol = 'rpPol'; // (1.27)
 EXP_SET.setRpRay = 'rpRay'; // (1.27)
@@ -6386,7 +6519,7 @@ function expSummary() {
   if (SET.qeq) on.push(`induced charges ${SET.qeq === 1 ? 'every step' : 'every ' + SET.qeq + 'th step'}`);
   if (SET.pi) on.push(`quantum nuclei ${SET.pi} beads`);
   if (SET.bo) on.push(SET.bo === 2 ? `quantum bonds (GFN${SET.xq === 2 ? 2 : 1}-xTB${SET.xqs ? ', polarized spins' : ', paired spins'})` : 'continuous bond orders'); // (the method chosen, 1.26; its spins, 1.26)
-  if (SET.wave) on.push('electrons as waves');
+  if (SET.wave) on.push(SET.waveF === 'full' && !W.d3 ? 'electrons as full waves' : 'electrons as waves');
   if (SET.metal) on.push('many-body metals'); // (1.25)
   if (SET.lps) on.push('lone pairs'); if (SET.sigh) on.push('halogen σ-holes'); if (SET.pis) on.push('π-stacking'); // (1.26)
   if (SET.pold && SET.qeq) on.push('polarizability by direction'); // (1.27)
@@ -6417,7 +6550,7 @@ function syncExpTotal() {
   names.segLps = 'lone pairs'; names.segSigh = 'halogen σ-holes'; names.segPis = 'π-stacking'; // (1.26)
   names.segPold = 'polarizability by direction'; // (1.27)
   names.setRpExo = 'exotic atoms'; // (1.27)
-  names.setRpPs = 'positronium'; names.setRpMu = 'muonium as hydrogen'; names.setRpCpm = 'charged particles in matter'; names.segCpmX = 'matter depth'; // (1.27; item 26)
+  names.setRpPs = 'positronium'; names.setRpMu = 'muonium as hydrogen'; names.setRpCpm = 'charged particles in matter'; names.segCpmX = 'matter depth'; names.segWaveF = 'full waves'; // (1.27; item 26)
   names.setRpRes = 'resonance widths and heavy flavour'; names.setRpNuc = 'nuclear spin, γ lines and neutron cross sections'; // (1.27)
   names.setRpPol = 'photon polarization'; // (1.27)
   names.setRpRay = 'Rayleigh scattering'; // (1.27)
@@ -6558,6 +6691,7 @@ const SDESC = {
   setRpPs: ['Positronium', 'A slow positron takes an electron and becomes positronium (Ps: an electron and a positron round each other, bound by 6.8 eV, twice hydrogen\u2019s size): from an atom when its energy is in the Ore gap (between the electron\u2019s binding less 6.8 eV and the binding), from a free electron when the two are slow. One in four is para-Ps, which lives 125 ps and gives two 511 keV γ rays back to back; three in four ortho-Ps, which would live 142 ns in vacuum and gives three γ rays sharing 1,022 keV, but in matter its positron meets a neighbour\u2019s electron within nanoseconds (pick-off: 1.8 ns in water), and O\u2082 turns its spin. Inspect shows its state and its expected life there. Experimental: off again each time the game starts.'], // (1.27)
   setRpMu: ['Muonium as hydrogen', 'Muonium (a muon with an electron) is the lightest isotope of hydrogen: a ninth of its mass, bound by 13.54 eV (hydrogen 13.60), bonding by hydrogen\u2019s rules, so its isotope effects are large (Mu–Cl vibrates 2.9 times faster than H–Cl). The muon\u2019s spin precesses in a magnetic field, 135.5 MHz a tesla for a bare or bonded muon, 1.39 MHz a gauss for muonium; the positron of its decay comes out along the spin (1 + cos θ / 3 on average), so detectors round a sample see the precession (μSR). Inspect shows the spin; the particle view draws it. Experimental: off again each time the game starts.'], // (1.27)
   setRpCpm: ['Charged particles in matter', 'A fast charged particle crossing matter loses its energy collision by collision, as in nature: mostly in small knocks, now and then in a hard one that sends an electron flying with up to the most a collision can give (a δ-ray, which ionizes in turn; 2.7 keV from a 5 MeV α, half its energy from an electron), so the loss over a thin layer has Landau\u2019s long tail instead of a fixed amount. On average it is Bethe\u2019s formula with each element\u2019s measured excitation energy: fast particles lose more than they did before (the relativistic rise the game\u2019s form lacked: in the flat game\u2019s water a 5 MeV α 1.6 times, its measured 89 keV a micrometre; slow ions as before). Electrons and positrons give off bremsstrahlung (photons with a 1/k spectrum) at the rate set by each material\u2019s radiation length (lead 5.6 mm, water 36 cm), so it overtakes the collisions above the critical energy (water 79 MeV, lead 8 MeV). γ rays above 1.022 MeV make an electron and a positron near a nucleus (or two electrons and a positron in an electron\u2019s field) at the measured cross sections, against Compton scattering at the Klein–Nishina rate: the pair flies forward and shares the energy unequally. In water or glass a particle faster than light there (c/n) gives off Cherenkov light on a cone: 41° in water, 47° in silica glass, 334 photons a centimetre in 300–600 nm, which screens see. What a nanometre box can\u2019t make real: a radiation length is centimetres, so at nature\u2019s rates a fast electron almost never radiates in the box, Cherenkov light is one photon in thousands of crossings, a shower (centimetres long) can\u2019t develop, and a minimum-ionizing particle mostly loses far less than its average (the rare hard collisions carry most of it); what is made leaves the box. γ rays meet atoms as often as the game\u2019s light always has (about 10⁷ times nature\u2019s). Off: as before (a smooth loss, bremsstrahlung by a rule of thumb, pairs back to back sharing evenly). Experimental: off again each time the game starts.'], // (1.27)
+  segWaveF: ['Electrons as waves: blobs or full waves', 'Blobs: each packet a round Gaussian whose size changes (eFF). Full waves (the flat game): each free electron or positron with 0.15–300 eV, up to six, has its own wave function on a 128 × 128 grid (0.2 Å a cell), stepped in the atoms\u2019 field, so it spreads, bends round atoms, interferes with itself and tunnels; where it is found (an atom\u2019s core, a wall) it becomes a point there with the wave\u2019s energy.'],
   segCpmX: ['Matter depth', 'With Charged particles in matter on: its rare processes, bremsstrahlung and Cherenkov light, sped up by the factor chosen, as if the box were that much deeper, so that fast electrons radiate, their γ rays make pairs and a shower can start, and Cherenkov cones show in a box nanometres across. It speeds up only those rare processes: collisions, δ-rays and the energy loss stay at nature\u2019s rates, so a scaled shower is not nature\u2019s in its details: its critical energy (where radiating overtakes the collisions, water 79 MeV, lead 8 MeV) comes out lower by about the same factor, and its radiation length shorter. ×1 is nature. Experimental: back to ×1 each time the game starts.'], // (1.27 item 26)
   setRpExo: ['Exotic atoms', 'A slow μ⁻, π⁻, K⁻ or antiproton is caught by an atom into an orbit and cascades down, setting Auger electrons free and giving off the exotic atom\u2019s X-ray lines (muonic carbon 75 keV, muonic lead 5.9 MeV); then the muon decays or is captured at the rate measured for the element, a pion or kaon is absorbed by the nucleus (a star), an antiproton annihilates. A muonic atom is a real atom of the box, its electrons seeing one charge less (muonic carbon bonds as boron does); muonic hydrogen passes through atoms and hands its muon to a heavier one. Experimental: off again each time the game starts. Since 1.27 a stopped K⁻ makes Σπ twice as often as Λπ, the Σ often turning into a Λ on a second nucleon, and hydrogen bound in water, methane and other hydrocarbons catches the particle at the measured, far smaller share than its Z gives.'], // (1.27)
   setRpRes: ['Resonance widths and heavy flavour', 'A resonance (ρ, ω, φ, K*, Δ, J/ψ, Υ) gets its own mass, drawn from the relativistic Breit–Wigner of its measured width (a ρ⁰ anywhere from 280 MeV up, 775 MeV at the peak, about 150 MeV wide at half height), and decays from that mass. A hadron collision above the charm threshold makes charm (D⁰, D⁺, D⁺s, Λc⁺) and bottom (B, B⁰s, Λb⁰), now and then a J/ψ or an Υ, at the measured share of the collisions (about 1 in 70 at 200 GeV, 1 in 9 at 7 TeV for charm). They live 0.2–1.6 ps: at their speed they fly micrometres to millimetres, far out of the box, unless decay is sped up. Experimental: off again each time the game starts. Since 1.27 nucleus–nucleus collisions make charm and bottom by their nucleon–nucleon collisions, and e⁺e⁻ near the Z feels the beams\u2019 own radiation (the Z peak 30.5 nb, as measured, not 41.5) and makes W pairs with the W⁻ forward along the electron.'],
@@ -6620,7 +6754,7 @@ const SDESC3 = {
   setRpAq: ['Hydrated electrons', 'As in the flat game, in all three directions.'],
   setUltra: ['Ultra-realistic mode', 'Decays at their real rates, unstable particles at their own lifetimes, and nuclei hit at their true size (a few femtometres: slow neutrons are still caught, fast particles almost never hit). Drawn at true sizes too: free electrons as points, a nucleus a dot inside its atom; zoom in on an atom and the camera goes in past its electron cloud to a few femtometres, where its nucleons and their quarks show. Experimental: off again each time the game starts.'],
 };
-const SMODE_ONLY = { setInc: '2d', segZoomTo: '2d', setRpPwave: '2d', segLps: '3d', segPis: '3d' }; // (Photons as waves: the flat game only, 1.31 item 71) // (and every row of the 3-D tab: '3d')
+const SMODE_ONLY = { segWaveF: '2d', setInc: '2d', segZoomTo: '2d', setRpPwave: '2d', segLps: '3d', segPis: '3d' }; // (Photons as waves: the flat game only, 1.31 item 71) // (and every row of the 3-D tab: '3d')
 function setRowOnly(r) { const k = setRowKey(r), p = r.closest('.spane'); return SMODE_ONLY[k] || (p && p.dataset.stab === 'd3' ? '3d' : ''); }
 /* The picture for a key (and a choice) in this mode: in 3-D its 3-D version first; in the flat game never a 3-D one. */
 function setShotFor(key, opt) {
@@ -6779,6 +6913,68 @@ function shotInit() {
   box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
   window.addEventListener('resize', () => { if (SHOT.open) { const z = SHOT.z; SHOT.open = false; box.hidden = true; shotOpen(); if (z > 1) shotZoom(z, innerWidth / 2, innerHeight / 2); } });
 }
+/* (1.32, item 80, the owner: yes to "search in Settings") One box above the tabs: typed words show the matching rows
+   from every tab (a row's name, its buttons, its notes and help text), each tab's matches under its name, the rest
+   hidden; empty again (or Esc), the tabs come back as they were. A row the mode hides stays hidden. */
+function setFindRun() {
+  const q = $('setFind').value.trim().toLowerCase(), dlg = $('setModal').querySelector('.sdialog');
+  for (const el of document.querySelectorAll('#setModal .sf-hide')) el.classList.remove('sf-hide');
+  for (const el of document.querySelectorAll('#setModal .sf-tab')) el.remove();
+  if (!q) { dlg.classList.remove('sfinding'); $('setFindN').textContent = ''; setTabS(UI.stab || 'perf'); return; }
+  dlg.classList.add('sfinding');
+  const words = q.split(/\s+/), tabs = {}; for (const b of document.querySelectorAll('.stabs [data-stab]')) tabs[b.dataset.stab] = b.textContent.trim();
+  let n = 0;
+  for (const pane of document.querySelectorAll('#setModal .spane')) {
+    const kids = [...pane.querySelectorAll('.srow, label.check, .rp-all, p.note, h3, h4')].filter(el => !(el.parentElement.closest('.srow, label.check') && pane.contains(el.parentElement.closest('.srow, label.check')))); let hits = 0, lastShown = false;
+    for (const el of kids) {
+      if (el.classList.contains('smode-hide')) continue;
+      const isNote = el.matches('p.note:not(.sintro)');
+      if (isNote) { if (!lastShown) el.classList.add('sf-hide'); continue; } // (a note goes with its row)
+      let t = (el.textContent + ' ' + [...el.querySelectorAll('[title],[aria-label]')].map(x => (x.title || '') + ' ' + (x.getAttribute('aria-label') || '')).join(' '));
+      for (let nx = el.nextElementSibling; nx && nx.matches('p.note:not(.sintro)'); nx = nx.nextElementSibling) t += ' ' + nx.textContent;
+      const sk = el.dataset.sk || (el.querySelector('[data-sk]') || { dataset: {} }).dataset.sk, D = sk && ((W.d3 && SDESC3[sk]) || SDESC[sk]); if (D) t += ' ' + (typeof D === 'string' ? D : JSON.stringify(D)).replace(/<[^>]+>/g, ' '); // (and its description in the preview pane)
+      t = t.toLowerCase();
+      lastShown = !el.matches('h3, h4, p.sintro') && words.every(w => t.includes(w));
+      if (!lastShown) el.classList.add('sf-hide'); else hits++;
+    }
+    pane.hidden = !hits; n += hits;
+    if (hits) { const h = document.createElement('div'); h.className = 'sf-tab'; h.textContent = tabs[pane.dataset.stab] || pane.dataset.stab; pane.prepend(h); }
+  }
+  $('setFindN').textContent = n ? `${n} setting${n === 1 ? '' : 's'}` : 'No setting matches';
+}
+/* Which settings each tab shows, found once by trying: each setting changed in turn, the tab whose controls then show
+   something else is its tab (the controls are written from SET by syncSettings; nothing is applied meanwhile). */
+const SDEF_SKIP = new Set(['apiKey', 'apiModel', 'win']), SDEF_TABS = ['perf', 'gfx', 'disp', 'ctl', 'gen', 'd3'];
+function setTabKeys() {
+  if (UI.setTabKeys) return UI.setTabKeys;
+  const sig = (pane) => [...pane.querySelectorAll('input, select, .seg button')].map(e => e.type === 'checkbox' ? (e.checked ? 1 : 0) : e.tagName === 'BUTTON' ? e.getAttribute('aria-pressed') : e.value).join('|');
+  const panes = SDEF_TABS.map(t => [t, document.querySelector(`#setModal .spane[data-stab="${t}"]`)]).filter(x => x[1]);
+  const base = {}; syncSettings(); for (const [t, p] of panes) base[t] = sig(p);
+  const out = {}; for (const [t] of panes) out[t] = [];
+  const save = { ...SET };
+  for (const k of Object.keys(SET_DEF)) {
+    if (SDEF_SKIP.has(k) || SET_EXP.includes(k)) continue;
+    const v = SET[k], alt = v !== SET_DEF[k] ? SET_DEF[k] : typeof v === 'boolean' ? !v : typeof v === 'number' ? v * 2 + 1 : v === 'x' ? 'y' : 'x';
+    SET[k] = alt; try { syncSettings(); } catch (e) {}
+    for (const [t, p] of panes) if (sig(p) !== base[t]) out[t].push(k);
+    SET[k] = v;
+  }
+  Object.assign(SET, save); syncSettings();
+  return (UI.setTabKeys = out);
+}
+/* (1.32, item 84) "Back to defaults" at the foot of each tab: that tab's settings only back as they start (SET_DEF),
+   the others left; an undo for 8 s puts them back as they were. */
+function setTabDefaults(tab) {
+  const pane = document.querySelector(`#setModal .spane[data-stab="${tab}"]`); if (!pane) return;
+  const keys = setTabKeys()[tab] || [];
+  const before = {}; for (const k of keys) before[k] = SET[k];
+  const put = (src) => { for (const k of keys) SET[k] = src[k]; store('settings', JSON.stringify(SET)); applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts(); };
+  put(SET_DEF);
+  const b = pane.querySelector('.sdef button'); if (!b) return;
+  const note = pane.querySelector('.sdef .sdefn'); note.innerHTML = `${keys.length} back to defaults. <button class="btn small" type="button">Undo</button>`;
+  note.querySelector('button').onclick = () => { put(before); note.textContent = 'Put back as they were.'; };
+  clearTimeout(UI.sdefT); UI.sdefT = setTimeout(() => { note.textContent = ''; }, 8000);
+}
 function setTabS(k) {
   UI.stab = k;
   for (const b of document.querySelectorAll('.stabs [data-stab]')) b.setAttribute('aria-selected', String(b.dataset.stab === k));
@@ -6794,6 +6990,7 @@ function twoPress(b, fn) {
 function settingsInit() {
   settingsLoad(); applySettings();
   $('bSettings').onclick = () => openSettings();
+  $('bShot').onclick = (e) => shotMenu(e.currentTarget);
   $('setClose').onclick = () => hideModal('setModal');
   shotInit(); // (the preview picture enlarged on a click, 1.23.2)
   bindSeg('segMax', (v) => setSetting('maxParts', +v));
@@ -6853,6 +7050,7 @@ function settingsInit() {
   $('setUltra').onchange = (e) => setSetting('ultra', e.target.checked);
   $('setRpExo').onchange = (e) => setSetting('rpExo', e.target.checked); // (1.27)
   $('setRpPs').onchange = (e) => setSetting('rpPs', e.target.checked); $('setRpMu').onchange = (e) => setSetting('rpMu', e.target.checked); $('setRpCpm').onchange = (e) => setSetting('rpCpm', e.target.checked); // (1.27)
+  bindSeg('segWaveF', (v) => setSetting('waveF', v)); // (1.32 item 76)
   bindSeg('segCpmX', (v) => setSetting('cpmX', +v)); // (Matter depth, 1.27 item 26)
   $('setRpRes').onchange = (e) => setSetting('rpRes', e.target.checked); $('setRpNuc').onchange = (e) => setSetting('rpNuc', e.target.checked); // (1.27)
   $('setRpPol').onchange = (e) => { setSetting('rpPol', e.target.checked); if (UI.tool === 'light' || UI.tool === 'objects') buildToolOpts(); }; // (1.27: the Light tool's polarization and the polarizer show with it)
@@ -6861,6 +7059,11 @@ function settingsInit() {
   $('setRpPwave').onchange = (e) => { setSetting('rpPwave', e.target.checked); if (UI.tool === 'objects') buildToolOpts(); }; // (1.27: the slits show with it)
   $('setRpAq').onchange = (e) => setSetting('rpAq', e.target.checked); // (1.29)
   $('rpAllOn').onclick = () => rpAllSet(true); $('rpAllOff').onclick = () => rpAllSet(false); // (1.31 item 75)
+  $('setFind').addEventListener('input', setFindRun); // (1.32 item 80)
+  $('setFind').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape' && $('setFind').value) { e.preventDefault(); $('setFind').value = ''; setFindRun(); } });
+  for (const t of SDEF_TABS) { const pane = document.querySelector(`#setModal .spane[data-stab="${t}"]`); if (!pane || pane.querySelector('.sdef')) continue; // (1.32 item 84)
+    const d = document.createElement('div'); d.className = 'srow sdef'; d.innerHTML = '<span>This tab</span><span><button class="btn small" type="button" title="Put only this tab\'s settings back as they start">Back to defaults</button> <span class="sdefn note" aria-live="polite"></span></span>';
+    d.querySelector('button').onclick = () => setTabDefaults(t); pane.appendChild(d); }
   $('setMotion').onchange = (e) => setSetting('motion', e.target.checked);
   $('setSlow').onchange = (e) => { W.slowmo = e.target.checked; store('slowmo', W.slowmo ? '1' : '0'); syncLab(); };
   const keyIn = $('setApiKey'), modelIn = $('setApiModel');

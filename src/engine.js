@@ -3058,6 +3058,7 @@ function computeForces1() {
   if (d3) { nucleusPairs3(wrap, bw, bh, hw, hh); if (AC3.ns) tors1Forces3(S.fx, S.fy, S.fz); } // (3-D: the kernels; then the single bonds' twist, 1.25)
   else nucleusPairs(wrap, bw, bh, hw, hh); // the kernel, on one thread or many
   if (SITES.any) sitesForces(S.fx, S.fy, S.fz); // (Experimental: off-atom charge sites, 1.26: sites.js)
+  if (FW.n && !d3) fwForces(S.fx, S.fy); // (Experimental: electrons as full waves pulling on what they feel, 1.32: fwave.js)
   if (PD.n) pdForces(S.fx, S.fy, S.fz); // (Experimental: induced dipoles, polarizability by direction, 1.27: pold.js)
   if (_profOn) tp = performance.now();
   if (nmdL && d3) leptonPairs3(); // (3-D)
@@ -8817,6 +8818,7 @@ function stepPlain(dt) {
   rpMark(0);
   const boCh = (BO.on || BO.any) && boSync(); // (continuous bond orders: who takes part, 1.13)
   const wvCh = (WAVE.on || WAVE.n) && waveSync(true); // (electrons as waves: who is a packet, 1.15)
+  if (FW.on || FW.n) { fwSync(); fwPre(); } // (electrons as full waves: who is a wave, and what events changed in their potential, 1.32 item 76)
   if (boCh || wvCh || W.fSpawn !== W.spawned || listsStale() || _wallMoved) { _noEv = true; computeForces(); _noEv = false; }
   _wallMoved = false;
   rpSkip();
@@ -8828,6 +8830,7 @@ function stepPlain(dt) {
   }
   if (_profOn) { const t = performance.now(); _tInteg += t - tp; _rpT = t; }
   const tf1 = _tForces;
+  if (FW.n) fwStep(dt); // (the full waves, after the atoms moved: their forces are in the pass below)
   if (BO.any) boDqA(dt); // (continuous bond orders: the electron counts' opening half kick and drift, 1.20)
   outerForces();
   if (PI.on) piClose(dt);
@@ -8841,6 +8844,7 @@ function stepPlain(dt) {
   // as the positions: a reaction or bond judged and paid half a kick early created or lost that half kick's work
   const st0 = W.spawned + W.topo + W.dirty - _undone;
   processEvents();
+  if (FW.ends) fwEnds(); // (waves found at a core or a wall become points: event particles)
   rpMark(2);
   // events that moved atoms, changed bonds or species, or created particles: forces must be current (for the next opening kick)
   if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; }
@@ -9112,7 +9116,7 @@ function clearWorld() {
   BO.np = 0; BO.any = false; BO.E = 0;
   dropParts(W.parts); W.parts.length = 0; PD.n = 0; PD.at = []; PD.gen++; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
-  W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.slowSet = 0; WAVE.mem = []; WAVE.n = 0; W.nucWin = null; W.made = null; W.chain = null; W.zscan = null; // (the LEP energy scan, ui.js, 1.27)
+  W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.slowSet = 0; WAVE.mem = []; WAVE.n = 0; fwClear(); W.nucWin = null; W.made = null; W.chain = null; W.zscan = null; // (the LEP energy scan, ui.js, 1.27)
   W.grab = null; W.topo++;
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
@@ -9489,6 +9493,7 @@ function totalEnergy0() {
   if (BO.any) ke += boDqKE(); // (continuous bond orders: the electron counts' motion, 1.20)
   const boE = BO.any ? boPass(false) : 0; // (continuous bond orders: first, as it sets the members' partial charges from where they are, 1.16)
   if (WAVE.n) pe += waveEnergy(); // (Experimental: electrons as waves)
+  if (FW.n) pe += fwEnergy(); // (Experimental: electrons as full waves, 1.32)
   for (let i = 0; i < md.length; i++) for (let j = i + 1; j < md.length; j++) {
     const a = md[i], b = md[j];
     const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z), r2 = dx * dx + dy * dy + dz * dz, r = Math.sqrt(r2);
