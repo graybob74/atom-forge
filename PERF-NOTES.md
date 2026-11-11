@@ -3395,6 +3395,12 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    exact (the wave's kinetic and potential energy measured on the grid). Cost: a few ms an electron a step in
    JavaScript, so about 5–10 at once at playable speed (the Rust kernel perhaps twice that); the rest stay blobs or
    points. Flat game first (a 3-D grid is about 100× the cost). Physics: the owner's OK given ("yes").
+77 (requested 2026-11-10, the owner: "saved isotopes should only show up when you click that element") The Elements
+   window's "Saved" row (renderPTDetail: every saved isotope, MYISO, of any element) shows only the chosen element's
+   saved isotopes and ions, and is left out when it has none; Settings → Saved isotopes still lists them all.
+78 (requested 2026-11-10, the owner: "the element selection box should be animated when you click around") In the
+   Elements window the chosen element's highlight slides from the old cell to the new one (a short eased move, about
+   150 ms, its size following; none with the system's reduced-motion setting), rather than jumping.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
