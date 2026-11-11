@@ -3401,6 +3401,19 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 78 (requested 2026-11-10, the owner: "the element selection box should be animated when you click around") In the
    Elements window the chosen element's highlight slides from the old cell to the new one (a short eased move, about
    150 ms, its size following; none with the system's reduced-motion setting), rather than jumping.
+79 (requested 2026-11-10, the owner: "yes" to the six suggestions) Search in the setups menu (presetDD): a box at its
+   top filters the setups by name and description as you type ("gold", "laser"), Enter opens the first; the last few
+   setups opened listed first.
+80 Search in Settings: one box above the tabs; typing shows the matching rows from every tab (name, note, the help
+   text), the rest hidden, each with its tab named; Esc or clearing it puts the tabs back.
+81 A screenshot button (and a key): the chamber saved as a PNG at the screen's full resolution, with or without the
+   labels and captions (a choice beside it); not a recording (that was removed at the owner's request in 1.29).
+82 Pinned Inspect cards: a pin on the Inspect card keeps that particle's card open beside the next one, up to three,
+   each updating live and closing with its own ×, so two particles can be compared.
+83 Saved camera views in the 3-D lab: Shift+1–4 saves the camera (target, distance, yaw, pitch), 1–4 flies back to it
+   (a short eased move), kept with the setup's save; shown in Help's keys.
+84 "Back to defaults" in each Settings tab: one button that puts only that tab's settings back as they start, with an
+   undo line for a few seconds.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
