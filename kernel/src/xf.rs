@@ -81,7 +81,7 @@ fn atm_e(c6ab: f64, c6bc: f64, c6ca: f64, r0ab: f64, r0bc: f64, r0ca: f64, a: f6
     let c9 = (c6ab * c6bc * c6ca).abs().sqrt() * c9u; let r0 = r0ab * r0bc * r0ca * b3;
     let a2 = a * a; let b2 = b * b; let c2 = c * c; let xx = a2 + b2 - c2; let yy = a2 - b2 + c2; let zq = -a2 + b2 + c2; let nn = xx * yy * zq;
     let pp = a * b * c; let p3 = pp * pp * pp; let p5 = p3 * pp * pp;
-    let ang = 0.375 * nn / p5 + 1.0 / p3; let q = 6.0 * (r0 / pp).powf(16.0 / 3.0); let fd = 1.0 / (1.0 + q);
+    let ang = 0.375 * nn / p5 + 1.0 / p3; let tq = r0 / pp; let t2 = tq * tq; let q = 6.0 * t2 * t2 * tq * tq.cbrt(); let fd = 1.0 / (1.0 + q); // ((r0/P)^(16/3) as t⁵·∛t: far cheaper than pow)
     let (sa, da) = sw(a, t0, tr); let (sb, db) = sw(b, t0, tr); let (sc, dc) = sw(c, t0, tr);
     let s = sa * sb * sc; let e = c9 * ang * fd * s;
     if grad {

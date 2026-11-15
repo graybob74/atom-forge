@@ -304,7 +304,7 @@ const _xfG = [0, 0, 0], XF_C9U = XF_EH * Math.pow(XF_BOHR, 9), XF_B3 = XF_BOHR *
 function xfAtmE(c6ab, c6bc, c6ca, r0ab, r0bc, r0ca, a, b, c, grad) {
   const c9 = Math.sqrt(Math.abs(c6ab * c6bc * c6ca)) * XF_C9U, r0 = r0ab * r0bc * r0ca * XF_B3;
   const a2 = a * a, b2 = b * b, c2 = c * c, X = a2 + b2 - c2, Y = a2 - b2 + c2, Zq = -a2 + b2 + c2, N = X * Y * Zq, P = a * b * c, P3 = P * P * P, P5 = P3 * P * P;
-  const ang = 0.375 * N / P5 + 1 / P3, q = 6 * Math.pow(r0 / P, 16 / 3), fd = 1 / (1 + q);
+  const ang = 0.375 * N / P5 + 1 / P3, tq = r0 / P, t2 = tq * tq, q = 6 * t2 * t2 * tq * Math.cbrt(tq), fd = 1 / (1 + q); // ((r0/P)^(16/3) as t⁵·∛t, as the module, 1.34.3)
   xfSw(a); const sa = _xfS, da = _xfD; xfSw(b); const sb = _xfS, db = _xfD; xfSw(c); const sc = _xfS, dc = _xfD;
   const Sw = sa * sb * sc, E = c9 * ang * fd * Sw;
   if (grad) {
