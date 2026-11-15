@@ -1991,6 +1991,68 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.34.0: more forces, Experimental (the owner, 2026-11-15: "build it and release when done", items 89–96)
+
+Settings → Experimental → More forces (src/xforces.js, new; built after fwave.js): nine switches, all off as normal,
+each energy counted in totalEnergy (xfEnergy) and in every event's measure (localPE → xfLocal), every force the
+gradient of that energy (checked against central differences: 10⁻⁹–10⁻¹³ eV/Å). Switching one on or off mid-run books
+the change in what is counted (xfSet, as lrFlip does).
+
+- 91 Gravity: −G·m₁m₂/r between every pair (real G 1.149·10⁻³⁵ eV·Å/u²), and as a choice the Earth's pull down the
+  screen (9.81 m/s² = 1.017·10⁻¹⁷ Å/tu²; none with wrapping walls). Strength Real, ×10²⁴, ×10³⁰, ×10³³, ×10³⁶.
+  Three argon atoms ×10³³: books to 0.006 eV over 300 steps; ×10¹⁶ Earth: an atom drops 5 Å.
+- 90 Radiation from accelerating charges: Larmor P = ⅔kq²a²/c³ from the forces and the magnetic turn (fast particles:
+  Liénard, γ⁴, turned at the true speed); the energy taken from the motion along it, held (counted) until it makes a
+  photon of max(1 eV, 1.5·γ³·ħω), emitted along the path. 3 MeV electron in 20,000 T: 894 eV in 4 tu as 5 photons of
+  165 eV, books to 4·10⁻⁷ eV. A 100 keV electron in 10⁶ T spirals in visibly (2% a 4 tu).
+- 89a Fields of moving charges (the flat game): Biot–Savart B = 0.015737·q(v×r̂)_z/r² T from every other charged
+  particle, added to Bfield for that particle (p._Bi, made at each step's start, xfPre), so the Boris turn and the
+  exact arcs take it; it does no work. Ten electrons at 20,000 Å/tu feel 49–66 T; books 10⁻⁹ eV. (Newton's third law
+  is not kept by magnetic forces between point charges; the Darwin energy's v²/c² terms are not added.)
+- 89b, c Atomic magnets: a classical spin on every atom with a moment (FERRO's μ for Fe, Co, Ni, Gd, else one μB a
+  unpaired electron); Zeeman with the applied field (and the magnet's gradient pull, F = ∇(m·B), replacing magU and
+  magneticMatterForce for those atoms), dipole–dipole within 10 Å (tapered over its last 2 Å), exchange −J·ŝ·ŝ for
+  Fe, Co, Ni, Gd from the classical Heisenberg Tc (J 0.0438, 0.0376, 0.017, 0.0079 eV; whole to 1.05 nearest-neighbour
+  distances, none past 1.25). The spins move with the atoms held (xfSpinStep, after the drift, before the force pass):
+  each in turn turned about its own field (energy kept exactly: no spin's field depends on itself), substeps of at most
+  0.2 rad; with the bath, Gilbert damping α 0.1 and Brown's thermal field, the energy change booked to the bath. Books
+  without the bath 8·10⁻⁵ eV over 300 steps beside a 500 T magnet; twelve iron atoms at 50 K line up 0.36 → 0.86 in
+  24 tu. Drawn as gold arrows in the flat game.
+- 93 Neutrinos meet matter: at emission (emitNeutrino → xfNuMeet) the line is searched as light's is; per atom crossed,
+  0.012·n_e·σ/0.2112 b, σ(νₑe) 9.5, ν̄ₑ 4.0, ν_μ,τ 1.6, ν̄_μ,τ 1.3 ×10⁻⁴⁵ cm²·E/MeV, times the boost (Real, ×10¹⁶,
+  ×10¹⁸, ×10²⁰); the electron gets T (flat for ν, (1 − T/E)² for ν̄, up to 2E²/(mₑ + 2E)) and leaves forward
+  (ejectElectron, the ionization cost paid from T, else heat), the neutrino escapes with E − T. Twenty 5 MeV νₑ ×10²⁰
+  through water: 14 struck, 31.6 MeV left in the box, books exact. Inverse β decay not built.
+- 94 Full-range partial charges: c·qa·qb/max(r, RC) for every pair the long-range sum does not already take (c = iwK·k),
+  which makes the force field's shifted Coulomb whole: a constant inside the reach, exact 1/r beyond; nearest image with
+  wrapping walls (no Ewald sum). Water: books 0.0009 eV over 60 steps (0.0008 without).
+- 95 Three-body dispersion: D3's Axilrod–Teller–Muto term on the force field (C9 = √(C6C6C6) of free atoms, from
+  XTB.d3Disp; zero damping on GFN1's BJ radii; triples with all sides within 5 Å, smoothly to nothing from 4 Å),
+  analytic gradient from the three sides. Water: 0.002 eV (0.008 meV an atom).
+- 92 Nucleons inside nuclei: in nuclearEncounter, before every other branch, a collision of two nuclei of at most 16
+  nucleons each above the barrier and below 150 MeV a nucleon (not D + T, which keeps its measured cross section) is
+  worked out by classical nuclear molecular dynamics (xnCollide): the Pandharipande medium potential, each nucleus in
+  its lowest arrangement (cooled from three starts with its own fixed random numbers, cached: ²H 11.5 MeV, ⁴He 32.8,
+  ¹²C 129.5, ¹⁶O 175.7; nature 2.2, 28.3, 92.2, 127.6: classical nucleons have no zero-point motion), turned at random,
+  started with their surfaces 2 fm apart at the pass's impact parameter and the relative speed left after the Coulomb
+  energy there; steps of 0.25 fm/c until the pieces (nucleons within 3 fm, joined) have stayed the same for 40 fm/c
+  beyond the nuclear reach (at most 300 fm/c). The pieces' measured masses then set the energy: what is left over them
+  shared between motion apart and heat inside in the motion's proportions, the momenta scaled (relativistically) to
+  sum to the pair's mass, each piece then cooled or broken up by compoundDecay; nn…/pp… pieces leave as nucleons. One
+  piece, or pieces the masses cannot make: the tables as before. α + ¹²C at 30 MeV a nucleon: 6 of 6 passes, products'
+  four-momenta the pair's to 4·10⁻¹² MeV, 10–30 ms a collision. An inset (bottom right, both modes) plays the last
+  collision's nucleons over 4 s.
+- 96 Settings pictures: Display → Event captions (shown, hidden), and the new Gravity, Radiation, Atomic magnets and
+  Nucleons inside nuclei. The rest of the item's list is left: in a still picture the full waves, light in flight, the
+  trail clock, the cursor and most of the Realistic particles and chemistry switches look the same on and off
+  (lone pairs, σ-holes, π clouds, induced charges and the like are not drawn), so a picture would show nothing.
+
+Costs, one thread (liquid water 240 atoms flat, 1,029 in 3-D): gravity ×2.9 and ×7,
+full-range charges ×4 and ×9, three-body dispersion ×10 and ×30 (pairs and triples by plain loops), the rest ×1 where
+there is nothing for them; atomic magnets ×1.2.
+
+Tests: f_134 (gravity, radiation, fields, spins, neutrinos, charges, nucleons, page); run: t_lint, f_134.
+
 ## 1.33.3: light in flight no longer slows time (the owner, 2026-11-15)
 
 - Light in flight no longer slows time (the owner, 2026-11-15: "remove the time slows automatically in flight for
@@ -3569,7 +3631,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 88 (done in 1.33.2; requested 2026-11-14, the owner: "make the expanded decay chart and fission tree fit better and be more
    interactive") The charts' window (1.31 item 74): the decay chart and the fission tree fitted to the window when they
    open, and more to do in them (hover for each nuclide or branch, click to inspect it, zoom to a part).
-89 (requested 2026-11-15, the owner: "Can you add the magnetic forces as an experimental setting?", after asking how
+89 (done in 1.34.0; requested 2026-11-15, the owner: "Can you add the magnetic forces as an experimental setting?", after asking how
    magnetism is simulated; the parts are what the answer listed as missing) Experimental → Magnetic forces, three parts:
    (a) Moving charges make fields: the magnetic force between moving charged particles (the Darwin interaction, to
        order v²/c², with its energy booked), and a current's field felt by everything charged near it. Matters for fast
@@ -3584,28 +3646,28 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 (Items 90–95: the owner, 2026-11-15, "Can you add all of these (if it's not already in the game)", after asking which
  forces are not fully simulated. Already in the game and left out here: quantum bonds (GFN1/GFN2-xTB, with D3),
  continuous bond orders, longer force reach, induced charges and polarizability by direction, quantum nuclei.)
-90 Experimental → Radiation from accelerating charges: a charge that is accelerated radiates (Larmor; Liénard's form when
+90 (done in 1.34.0) Experimental → Radiation from accelerating charges: a charge that is accelerated radiates (Larmor; Liénard's form when
    fast), so an electron circling in a magnetic field gives off cyclotron or synchrotron light and spirals in, one shaken
    by a laser scatters it; the light leaves as photons and the energy is taken from the charge (radiation reaction,
    Landau–Lifshitz), booked exactly.
-91 Experimental → Gravity: Newton's attraction between every pair of masses (real G), and the Earth's pull (g) as a
+91 (done in 1.34.0) Experimental → Gravity: Newton's attraction between every pair of masses (real G), and the Earth's pull (g) as a
    choice. Measured before building: at the scale of atoms it is 10⁻³⁶ of the Coulomb force between protons and moves an
    atom about 10⁻²⁷ Å in a picosecond, so with real values nothing will be seen to change; said so in its note.
-92 Experimental → Nucleons inside nuclei (the strong force): light nuclei (to about oxygen at first) made of protons
+92 (done in 1.34.0) Experimental → Nucleons inside nuclei (the strong force): light nuclei (to about oxygen at first) made of protons
    and neutrons that move, held by a nuclear potential fitted to measured binding energies and radii (in the manner of
    quantum molecular dynamics: Gaussian nucleons, Skyrme-type forces, Pauli repulsion), so fusion, breakup and
    clustering (α particles inside nuclei) come out of the motion instead of from tables. A large piece of work; the
    tables stay for everything heavier.
-93 Experimental → Neutrino interactions (the weak force acting on something): neutrinos scatter off electrons and are
+93 (done in 1.34.0) Experimental → Neutrino interactions (the weak force acting on something): neutrinos scatter off electrons and are
    absorbed by nuclei (inverse β decay) with their measured cross sections. With real cross sections a neutrino crosses
    a light-year of lead before it meets anything, so in a box of ångströms it would essentially never happen; offered
    with a "boost" that scales the rate, marked as such.
-94 Experimental → Full-range partial charges: partial charges and induced dipoles inside molecules felt at every
+94 (done in 1.34.0) Experimental → Full-range partial charges: partial charges and induced dipoles inside molecules felt at every
    distance (an Ewald sum with wrapping walls, the exact pair sum or a multipole expansion without), not only within the
    force reach.
-95 Experimental → Many-body dispersion for the force field: the van der Waals attraction from D3 (as the quantum bonds
+95 (done in 1.34.0) Experimental → Many-body dispersion for the force field: the van der Waals attraction from D3 (as the quantum bonds
    use) or many-body dispersion (MBD) with the ordinary force field, instead of its pair term alone.
-96 (requested 2026-11-15, the owner: "I noticed that a few settings that could have a photo don't, so add those")
+96 (partly done in 1.34.0: Event captions only, see its notes; requested 2026-11-15, the owner: "I noticed that a few settings that could have a photo don't, so add those")
    Settings' preview pictures (tools/setshots.js, from the game itself) for the settings whose effect can be seen. Of 94
    settings rows 39 pictures cover 27; without one, and with something to show: Display → Event captions, Slow down for
    light in flight, the trail clock, the cursor; 3-D → Distance from the camera on hover; Experimental → full waves

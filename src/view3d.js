@@ -637,6 +637,7 @@ function render3d(rt) {
   if (V3.axes && !R.menu) drawAxes3(ctx); // (not behind the main menu)
   if (!R.menu && UI.tool === 'place') drawPlaneDist3(ctx); // (the placing plane's distance, 1.33.1)
   drawScaleBar();
+  if (XN.last) xnDraw(R.ctx); // (Experimental: nucleons inside nuclei, 1.34 item 92)
   ctx.restore();
 }
 /* An atom's symbol and charge badge, as the flat view draws them. */

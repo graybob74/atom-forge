@@ -1156,7 +1156,7 @@ function zonesB(x, y, p) {
   return B;
 }
 function hasBfield() {
-  if (W.Bz !== 0 || W.magnets.length > 0) return true;
+  if (W.Bz !== 0 || W.magnets.length > 0 || XF.nBi) return true;
   const zs = W.zones;
   for (let i = 0; i < zs.length; i++) { const k = zs[i].kind; if (k === 'dipole' || k === 'quad' || k === 'kicker') return true; }
   return false;
@@ -1206,6 +1206,7 @@ function Bfield(x, y, p) {
   if (W.d3) return Bfield3(x, y, p ? p.z : 0); // (3-D: along the chosen axis, magnets as balls, 1.24)
   let B = W.Bz;
   if (W.zones.length) B += zonesB(x, y, p);
+  if (p && p._Bi) B += p._Bi; // (Experimental: the field of the other moving charges at p, 1.34: xforces.js)
   const ms = W.magnets;
   for (let i = 0; i < ms.length; i++) {
     const m = ms[i], dx = x - m.x, dy = y - m.y, d2 = dx * dx + dy * dy, R = m.R;
@@ -1986,6 +1987,7 @@ function localPE(set, skip) {
   if (MBO.on) V += mbLocal(set); // (metals' many-body energy, 1.25)
   if (SITES.any) V += sitesLocal(set, skip); // (off-atom charge sites, 1.26)
   if (PD.n) V += pdLocal(set, skip); // (induced dipoles, 1.27)
+  if (XF.any) V += xfLocal(set, skip); // (gravity, moments, full-range partial charges, three-body dispersion, 1.34)
   if (_lrOn) { // exact long-range Coulomb between net charges beyond the cutoff (as in computeForces)
     for (const p of set) {
       if (p.k !== NUC || p.dead || p.fast || p.rad || !isLR(p)) continue;
@@ -3060,6 +3062,7 @@ function computeForces1() {
   if (SITES.any) sitesForces(S.fx, S.fy, S.fz); // (Experimental: off-atom charge sites, 1.26: sites.js)
   if (FW.n && !d3) fwForces(S.fx, S.fy); // (Experimental: electrons as full waves pulling on what they feel, 1.32: fwave.js)
   if (PD.n) pdForces(S.fx, S.fy, S.fz); // (Experimental: induced dipoles, polarizability by direction, 1.27: pold.js)
+  if (XF.any) xfForces(S.fx, S.fy, S.fz); // (Experimental: gravity, atomic moments, full-range partial charges, three-body dispersion, 1.34: xforces.js)
   if (_profOn) tp = performance.now();
   if (nmdL && d3) leptonPairs3(); // (3-D)
   else if (nmdL) { // pairs with a free lepton in them, from the inner steps' list
@@ -3494,6 +3497,7 @@ function waveSet(on) { WAVE.on = !!on; if (W.parts) { waveSync(true); W.fSpawn =
 
 const _bg3 = [0, 0, 0];
 function magneticMatterForce(p, kT) {
+  if (p._sp && XF.spin) return; // (Experimental: an atom with its own moment feels the field through it, 1.34: xforces.js)
   if (W.d3) { magneticMatterForce3(p, kT); return; }
   const B = Bgrad(p.x, p.y, _bg);
   const gB = Math.hypot(_bg[0], _bg[1]);
@@ -3532,7 +3536,7 @@ function magneticMatterForce3(p, kT) {
    saturated moment, the Langevin free energy −kT·ln(sinh x / x) for a paramagnet, +κB² for diamagnetism. Counted
    in the energy totals, so an iron filing pulled onto a pole gains no energy from nowhere. */
 function magU(p, kT) {
-  if (p.k !== NUC || p.ne <= 0 || !W.magnets.length || p.fast || p.rad) return 0;
+  if (p.k !== NUC || p.ne <= 0 || !W.magnets.length || p.fast || p.rad || (p._sp && XF.spin)) return 0;
   const absB = Math.abs(Bfield(p.x, p.y, p));
   if (absB === 0) return 0;
   let U = 0;
@@ -3928,7 +3932,7 @@ function emitNeutrino(x, y, E, ux, uy, anti = false, how = 'a particle decay or 
   const t = rayExit(x, y, ux, uy);
   W.rays.push({ x0: x, y0: y, x1: x + ux * t, y1: y + uy * t, E, c: [120, 255, 170], t0: W.rt, ts: W.t, len: t, nu: true, anti, fl, how, lab: sym + ' ' + fmtE(E) });
   }
-  W.ledger.escaped += E;
+  W.ledger.escaped += E - (XF.nu ? xfNuMeet(x, y, W.d3 ? z : 0, ux, uy, W.d3 ? uz : 0, E, anti, fl) : 0); // (Experimental: a neutrino meeting an electron on its way, 1.34)
   // the Data tab's "Made here": neutrinos and antineutrinos counted, with the energy they carried off
   const M = W.made || (W.made = { nuc: new Map(), part: new Map() });
   const nu = M.nu || (M.nu = new Map()), key = (anti ? 'nubar' : 'nu') + (fl || 'e');
@@ -8819,6 +8823,7 @@ function stepPlain(dt) {
   const boCh = (BO.on || BO.any) && boSync(); // (continuous bond orders: who takes part, 1.13)
   const wvCh = (WAVE.on || WAVE.n) && waveSync(true); // (electrons as waves: who is a packet, 1.15)
   if (FW.on || FW.n) { fwSync(); fwPre(); } // (electrons as full waves: who is a wave, and what events changed in their potential, 1.32 item 76)
+  if (XF.bi || XF.biWas) xfPre(); // (Experimental: the magnetic fields of moving charges, 1.34: xforces.js)
   if (boCh || wvCh || W.fSpawn !== W.spawned || listsStale() || _wallMoved) { _noEv = true; computeForces(); _noEv = false; }
   _wallMoved = false;
   rpSkip();
@@ -8831,6 +8836,7 @@ function stepPlain(dt) {
   if (_profOn) { const t = performance.now(); _tInteg += t - tp; _rpT = t; }
   const tf1 = _tForces;
   if (FW.n) fwStep(dt); // (the full waves, after the atoms moved: their forces are in the pass below)
+  if (XF.spin) xfSpinStep(dt); // (Experimental: atomic moments turned in the fields they feel, atoms held, 1.34)
   if (BO.any) boDqA(dt); // (continuous bond orders: the electron counts' opening half kick and drift, 1.20)
   outerForces();
   if (PI.on) piClose(dt);
@@ -8849,6 +8855,7 @@ function stepPlain(dt) {
   // events that moved atoms, changed bonds or species, or created particles: forces must be current (for the next opening kick)
   if (W.spawned + W.topo + W.dirty - _undone !== st0) { _noEv = true; computeForces(); _noEv = false; }
   W.fSpawn = W.spawned;
+  if (XF.rad || XF.pend.size) xfRadiate(dt); // (Experimental: radiation from accelerating charges, 1.34)
   if (W.d3 && (_nFastLep > 0 || _fastNuc.length) && W.parts.length) fastMeet(dt, id0); // (3-D: fast leptons and nuclei meet each other, 1.27 bug 6)
   if (_nFastLep > 0 || _flagGen !== _flagGenForces) { moveFastLeptons(dt, id0); _wallNeed = -1; } // (none were ballistic when the lists were made, and no flag has changed since)
   const kT = PHYS.KB * W.T, c1 = Math.exp(-W.gamma * dt), c2 = Math.sqrt(Math.max(0, 1 - c1 * c1));
@@ -9117,7 +9124,7 @@ function clearWorld() {
   BO.np = 0; BO.any = false; BO.E = 0;
   dropParts(W.parts); W.parts.length = 0; PD.n = 0; PD.at = []; PD.gen++; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
-  W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.slowSet = 0; WAVE.mem = []; WAVE.n = 0; fwClear(); W.nucWin = null; W.made = null; W.chain = null; W.zscan = null; // (the LEP energy scan, ui.js, 1.27)
+  W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.slowSet = 0; WAVE.mem = []; WAVE.n = 0; fwClear(); xfClear(); W.nucWin = null; W.made = null; W.chain = null; W.zscan = null; // (the LEP energy scan, ui.js, 1.27)
   W.grab = null; W.topo++;
   for (const k in W.count) W.count[k] = 0;
   for (const k in W.ledger) W.ledger[k] = 0;
@@ -9495,6 +9502,7 @@ function totalEnergy0() {
   const boE = BO.any ? boPass(false) : 0; // (continuous bond orders: first, as it sets the members' partial charges from where they are, 1.16)
   if (WAVE.n) pe += waveEnergy(); // (Experimental: electrons as waves)
   if (FW.n) pe += fwEnergy(); // (Experimental: electrons as full waves, 1.32)
+  if (XF.any || XF.pend.size) pe += xfEnergy(); // (Experimental forces, and radiation not yet given off, 1.34)
   for (let i = 0; i < md.length; i++) for (let j = i + 1; j < md.length; j++) {
     const a = md[i], b = md[j];
     const [dx, dy, dz] = minImg(b.x - a.x, b.y - a.y, b.z - a.z), r2 = dx * dx + dy * dy + dz * dz, r = Math.sqrt(r2);

@@ -116,6 +116,17 @@ const SHOTS = [
       addMolecule('H2O', ox, oy, best * Math.PI / 12, 0, oz); } ${SET('bo', 2)} setRunning(false); for (let i = 0; i < 30; i++) { W.dt = chooseDt(); step(W.dt); } ${SET('axes3', false)} ${CAM(0.25, 0.3, 7, false)}`,
     panels: [{ label: 'Quantum: a proton shared by two waters', run: '' }], after: `${SET('bo', 0)} ${SET('axes3', true)}` },
   // ---- the main menu's first screen
+  // ---- added in 1.34 (planned item 96, and the new More forces)
+  { key: 'segCaps', scene: `loadPreset('annihilation'); setRunning(false); ${SET('caps', 'on')} for (let i = 0; i < 400 && W.events.length < 3; i++) { W.dt = chooseDt(); step(W.dt); } W.rt = W.events.length ? W.events[W.events.length - 1].t0 + 0.3 : W.rt; { const ev = W.events[W.events.length - 1]; if (ev) { R.cx = ev.x; R.cy = ev.y; } } R.s = 20;`,
+    panels: [{ label: 'Shown', run: SET('caps', 'on') }, { label: 'Hidden', run: SET('caps', 'off') }], after: SET('caps', 'on') },
+  { key: 'setXrad', scene: `baseWorld(60, 40, 300, 0); W.decayOn = false; const e = addLepton(ELEC, 0, -4, 1, 0); e.vx = Math.sqrt(2 * 1e5 / PHYS.ME_SIM); e.vy = 0; updateFast(e); W.Bz = 1e6; setRunning(false); R.view.rays = true; R.s = 11; R.cx = 0; R.cy = 6;`,
+    panels: [{ label: 'Off', run: `${SET('xrad', false)} for (let i = 0; i < 160; i++) step(0.04);` }, { label: 'Radiating', run: `${SET('xrad', true)} for (let i = 0; i < 160; i++) step(0.04); W.rt = W.t;` }], after: `${SET('xrad', false)} W.Bz = 0;` },
+  { key: 'segXspin', scene: `baseWorld(30, 20, 50, 1); W.decayOn = false; for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) addAtom('Fe', -5 + 2.5 * i + 0.3 * j, -3.6 + 2.4 * j); setRunning(false); R.s = 34; ${CENTRE}`,
+    panels: [{ label: 'Moments', run: `${SET('xspin', 1)}` }, { label: 'Moments and exchange', run: `${SET('xspin', 2)} for (let i = 0; i < 1500; i++) step(0.02); ${CENTRE}` }], after: SET('xspin', 0) },
+  { key: 'setXnucl', scene: `baseWorld(40, 28, 300, 0); W.decayOn = false; ${SET('xnucl', true)} setRunning(false); for (let k = 0; k < 8; k++) { const a = addAtom('He', -1, 0, { A: 4, charge: 2 }), b = addAtom('C', 1, 0, { A: 12, charge: 6 }); setMotion(a, 30 * 4e6, 1, 0); const n0 = XN.n; nuclearEncounter(a, b, 0.25 + 0.05 * k, 0, 0); if (XN.n > n0 && XN.last.pieces.length >= 3) break; } XN.last.at = performance.now() - 2600; R.s = 6; R.cx = 0; R.cy = 0;`, crop: { x: 0.86, y: 0.76, z: 2.6 },
+    panels: [{ label: '', run: `XN.last.at = performance.now() - 2600;` }], after: SET('xnucl', false) },
+  { key: 'segXgrav', scene: `baseWorld(40, 28, 300, 0); W.decayOn = false; for (let i = 0; i < 6; i++) for (let j = 0; j < 5; j++) addAtom('Ar', -12.5 + 5 * i + 1.3 * (j % 2), -10 + 5 * j); setRunning(false); R.s = 15; R.cx = 0; R.cy = 0;`,
+    panels: [{ label: 'Off', run: `for (let i = 0; i < 200; i++) step(0.05);` }, { label: 'Between masses, ×10³³', run: `${SET('xgk', 33)} ${SET('xgrav', 1)} for (let i = 0; i < 270; i++) step(0.05);` }], after: `${SET('xgrav', 0)} ${SET('xgk', 0)}` },
   { key: 'menu2d', scene: `loadPreset('gallery'); setRunning(false); fitView(); R.s *= 2.3; R.cy += 2;`, panels: [{ label: '', run: '' }] },
   { key: 'menu3d', scene: `loadPreset('water3d'); setRunning(false); ${SET('axes3', false)} ${CAM(0.55, 0.38, 0, true)} R.cam3.dist *= 0.86;`, panels: [{ label: '', run: '' }], after: SET('axes3', true) },
 ];

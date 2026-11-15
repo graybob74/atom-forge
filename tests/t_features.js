@@ -1794,6 +1794,7 @@ const { openPage } = require('./browser');
   await alone('f_127w.js'); // 1.27 feature 19: photons as waves (node tests/f_127w.js [--node] [part …])
   await alone('f_127m.js'); // 1.27 feature 20: the band's shape for the close-packed metals (node tests/f_127m.js [part …])
   await alone('f_133.js'); // 1.33 the 3-D molecule builder, the far-face grid (node tests/f_133.js)
+  await alone('f_134.js'); // 1.34 Experimental → More forces: gravity, radiation, magnetism, neutrinos, full-range charges, three-body dispersion, nucleons (node tests/f_134.js)
   await alone('f_132.js'); // 1.32 items 76–84 (node tests/f_132.js [part …])
   await alone('f_131.js'); // 1.31 items 70–75 (node tests/f_131.js [part …])
   await alone('f_130.js'); // 1.30 items 64–68 and the bug test's B1–B19 (node tests/f_130.js [part …])

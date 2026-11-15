@@ -3109,7 +3109,9 @@ function nuclearEncounter(a, b, u, x, y, z) {
   const items = [], moms = [];
   let kind = 'reaction', sub;
   let dtFused = false, slow = false;
-  if (A <= 16 && eps < 150) {
+  if (XF.nucl && !anti && A1 <= 16 && A2 <= 16 && eps < 150 && fusionKey(a, b) !== '1_1+1_2' && xnCollide(a, b, Pa, P, M, b3, anti, items, moms)) { // (Experimental: nucleons inside nuclei, 1.34 item 92: xforces.js)
+    sub = `nucleon by nucleon at ${fmtE(Ecm * MEV)} in their own frame: ${XN.last.n} pieces after ${Math.round(XN.last.t)} fm/c`;
+  } else if (A <= 16 && eps < 150) {
     // D–T keeps its measured fusion cross section here too (gamowP): ⁴He + n as often as that gives, and otherwise
     // only the other ways apart (rather than ⁴He + n as often as phase space alone would make it, many times too often)
     let keep = null;

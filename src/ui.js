@@ -6104,6 +6104,8 @@ Object.assign(SET_DEF, { rpRay: false }); // (Realistic particles, 1.27 feature 
 Object.assign(SET_DEF, { rpExm: false }); // (Realistic particles, 1.27 feature 24: unstable particles meet each other, hep.js RP.exm)
 Object.assign(SET_DEF, { rpPwave: false }); // (Realistic particles, 1.27 feature 19: photons as waves, RP.pwave)
 Object.assign(SET_DEF, { rpAq: false }); // (Realistic particles, 1.29 item 59: hydrated electrons, RP.aq)
+Object.assign(SET_DEF, { xgrav: 0, xgk: 0, xrad: false, xbi: false, xspin: 0, xnu: 0, xlrq: false, xdisp: false, xnucl: false }); // (Experimental → More forces, 1.34: xforces.js)
+Object.assign(SET_OK, { xgrav: [0, 1, 2], xgk: [0, 24, 30, 33, 36], xspin: [0, 1, 2], xnu: [0, 1, 16, 18, 20] });
 const SET = Object.assign({}, SET_DEF);
 const SET_EXP = ['dtMax', 'resBig', 'inc', 'rc', 'qeq', 'pi', 'piRpc', 'bo', 'wave', 'ultra']; // (the Experimental tab: back to normal at every start, not read from storage, 1.23.1)
 SET_EXP.push('metal'); // (1.25)
@@ -6127,6 +6129,7 @@ SET_EXP.push('rpRay'); EXP_NAME.rpRay = 'Rayleigh scattering'; // (1.27)
 SET_EXP.push('rpExm'); EXP_NAME.rpExm = 'unstable particles meeting'; // (1.27)
 SET_EXP.push('rpPwave'); EXP_NAME.rpPwave = 'photons as waves'; // (1.27)
 SET_EXP.push('rpAq'); EXP_NAME.rpAq = 'hydrated electrons'; // (1.29)
+SET_EXP.push('xgrav', 'xgk', 'xrad', 'xbi', 'xspin', 'xnu', 'xlrq', 'xdisp', 'xnucl'); Object.assign(EXP_NAME, { xgrav: 'gravity', xgk: 'gravity\u2019s strength', xrad: 'radiation from accelerating charges', xbi: 'magnetic fields of moving charges', xspin: 'atomic magnets', xnu: 'neutrinos meeting matter', xlrq: 'full-range partial charges', xdisp: 'three-body dispersion', xnucl: 'nucleons inside nuclei' }); // (1.34)
 /* Settings → Experimental → Reset to normal: every Experimental setting back to normal at once (the owner, 1.27.1). */
 function expResetAll() {
   for (const k of SET_EXP) SET[k] = SET_DEF[k];
@@ -6243,6 +6246,7 @@ function applySettings() {
   RP.exm = !!SET.rpExm; // (unstable particles meet each other, 1.27)
   RP.pwave = !!SET.rpPwave; // (photons as waves, 1.27)
   RP.aq = !!SET.rpAq; // (hydrated electrons, 1.29)
+  xfSet({ grav: +SET.xgrav, gk: +SET.xgk, rad: !!SET.xrad, bi: !!SET.xbi, spin: +SET.xspin > 0, exch: +SET.xspin === 2, nu: +SET.xnu, lrq: !!SET.xlrq, disp: !!SET.xdisp, nucl: !!SET.xnucl }); // (Experimental → More forces, 1.34: xforces.js; a change in what is counted booked, as the long-range switch's)
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   pdOn(SET.qeq && SET.pold ? 1 : 0); // (polarizability by direction: induced dipoles in place of the charge flow, with induced charges on, 1.27)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
@@ -6372,6 +6376,7 @@ function syncSettings() {
   $('setRpExm').checked = SET.rpExm; // (1.27)
   $('setRpPwave').checked = SET.rpPwave; // (1.27)
   $('setRpAq').checked = SET.rpAq; // (1.29)
+  setSegValue('segXgrav', String(SET.xgrav)); setSegValue('segXgk', String(SET.xgk)); setSegValue('segXspin', String(SET.xspin)); setSegValue('segXnu', String(SET.xnu)); for (const k of ['xrad', 'xbi', 'xlrq', 'xdisp', 'xnucl']) $('set' + k[0].toUpperCase() + k.slice(1)).checked = !!SET[k]; // (1.34)
   setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; $('setDist3').checked = !!SET.dist3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
@@ -6427,6 +6432,15 @@ const COSTS = {
   setRpExm: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing without unstable particles in flight; their paths checked in pairs each step (500 pions from a lead–lead collision: see the notes)'] }),
   setRpPwave: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A photon through slits takes about 0.1 ms more; an X-ray that tries to scatter in a crystal 2–5 ms (the structure factor over 1,024 directions)'] }),
   setRpAq: () => ({ k: 'physics', on: ['×1', 'Nothing where there are no slow free electrons in water; each e⁻(aq) a look round itself a step (about 20 µs among 1,000 atoms)'] }),
+  segXgrav: () => ({ k: 'physics', o: { 0: ['×1', 'No gravity'], 1: ['×2–8', 'Every pair of atoms: measured on one thread (1.34), flat liquid water (240 atoms) ×2.9, 3-D liquid water (1,029 atoms) ×7; it grows as the square of the number of atoms'], 2: ['×2–8', 'As Between masses; the Earth\u2019s pull itself costs nothing'] } }),
+  segXgk: () => ({ k: 'physics', o: { 0: ['×1', 'Real G'], 33: ['×1', 'Boosted: costs nothing more'], 24: ['×1', 'Boosted: costs nothing more'], 30: ['×1', 'Boosted: costs nothing more'], 36: ['×1', 'Boosted: costs nothing more'] } }),
+  setXrad: () => ({ k: 'physics', on: ['×1', 'A look at each charged particle a step: nothing measurable (1.34, liquid water)'] }),
+  setXbi: () => ({ k: 'physics', on: ['×1', 'Every pair of charged particles a step: nothing measurable in liquid water (1.34); a dense plasma of thousands of charges more'] }),
+  segXspin: () => ({ k: 'physics', o: { 0: ['×1', 'Magnetic matter by the fitted pull'], 1: ['×1–1.3', 'Nothing without atoms that carry a moment; their pairs within 10 Å and their own turning a step (1.34: 3-D liquid water, whose few radicals carry one, ×1.2)'], 2: ['×1–1.3', 'As Moments; the exchange is in the same pairs'] } }),
+  segXnu: () => ({ k: 'physics', o: { 0: ['×1', 'Neutrinos pass through everything'], 1: ['×1', 'A look along each neutrino\u2019s path when it is made'], 16: ['×1', 'Boosted: costs nothing more'], 18: ['×1', 'Boosted: costs nothing more'], 20: ['×1', 'Boosted: costs nothing more'] } }),
+  setXlrq: () => ({ k: 'physics', on: ['×2–9', 'Every pair of charged atoms: measured on one thread (1.34), flat liquid water (240 atoms) ×4, 3-D liquid water (1,029 atoms) ×9; it grows as the square of the number of atoms'] }),
+  setXdisp: () => ({ k: 'physics', on: ['×5–30', 'Every three atoms within 5 Å: measured on one thread (1.34), flat liquid water ×10, 3-D liquid water (1,029 atoms) ×30'] }),
+  setXnucl: () => ({ k: 'physics', on: ['×1', 'Only when light nuclei collide above their barrier: 10–30 ms for each such collision (1.34)'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
@@ -6530,6 +6544,7 @@ const REAL = {
   setRpExm: [true, 'Unstable particles collide with each other as with anything else, as in nature (1.27)'],
   setRpPwave: [true, 'Light is a wave: it diffracts and interferes, as in nature (1.27)'],
   setRpAq: [true, 'A slow electron in water settles into a cavity as the hydrated electron, e⁻(aq), and lives as measured (1.29)'],
+  segXgk: ['0', 'Gravity as it is (1.34)'], setXrad: [true, 'A charge that is accelerated radiates (1.34)'], setXbi: [true, 'Moving charges make magnetic fields (1.34)'], segXspin: ['2', 'Atoms carry magnetic moments, and in iron, cobalt and nickel they line up (1.34)'], segXnu: ['1', 'Neutrinos do meet matter, very rarely (1.34)'], setXlrq: [true, 'Charges are felt at every distance (1.34)'], setXdisp: [true, 'Dispersion is not a sum of pairs (1.34)'],
 };
 function syncReal() {
   for (const id in REAL) {
@@ -6555,6 +6570,7 @@ EXP_SET.setRpRay = 'rpRay'; // (1.27)
 EXP_SET.setRpExm = 'rpExm'; // (1.27)
 EXP_SET.setRpPwave = 'rpPwave'; // (1.27)
 EXP_SET.setRpAq = 'rpAq'; // (1.29)
+Object.assign(EXP_SET, { segXgrav: 'xgrav', segXgk: 'xgk', setXrad: 'xrad', setXbi: 'xbi', segXspin: 'xspin', segXnu: 'xnu', setXlrq: 'xlrq', setXdisp: 'xdisp', setXnucl: 'xnucl' }); // (1.34)
 function expTotal() {
   let lo = 1, hi = 1, extra = '';
   const on = [];
@@ -6593,6 +6609,7 @@ function expSummary() {
   if (SET.rpExm) on.push('unstable particles meeting'); // (1.27)
   if (SET.rpPwave) on.push('photons as waves'); // (1.27)
   if (SET.rpAq) on.push('hydrated electrons'); // (1.29)
+  if (+SET.xgrav) on.push('gravity' + (+SET.xgk ? ` ×10^${SET.xgk}` : '')); if (SET.xrad) on.push('radiation from accelerating charges'); if (SET.xbi) on.push('fields of moving charges'); if (+SET.xspin) on.push(+SET.xspin === 2 ? 'atomic moments and exchange' : 'atomic moments'); if (+SET.xnu) on.push('neutrinos meeting matter' + (+SET.xnu > 1 ? ` ×10^${SET.xnu}` : '')); if (SET.xlrq) on.push('full-range partial charges'); if (SET.xdisp) on.push('three-body dispersion'); if (SET.xnucl) on.push('nucleons inside nuclei'); // (1.34)
   if (!on.length) return 'Experimental: all normal';
   const t = expTotal(), x = t.hi - t.lo < 0.05 * t.lo ? costX(t.lo) : costX(t.lo) + '–' + costX(t.hi).slice(1);
   return `Experimental: ${on.join(', ')} (${x} the normal work)`;
@@ -6614,6 +6631,7 @@ function syncExpTotal() {
   names.setRpExm = 'unstable particles meeting'; // (1.27)
   names.setRpPwave = 'photons as waves'; // (1.27)
   names.setRpAq = 'hydrated electrons'; // (1.29)
+  Object.assign(names, { segXgrav: 'gravity', segXgk: 'gravity boosted', setXrad: 'radiation from accelerating charges', setXbi: 'fields of moving charges', segXspin: 'atomic magnets', segXnu: 'neutrinos meeting matter', setXlrq: 'full-range partial charges', setXdisp: 'three-body dispersion', setXnucl: 'nucleons inside nuclei' }); // (1.34)
   el.innerHTML = `<span class="big c${costLevel(txt)}">${txt}</span><p><b>All together, against normal</b>: ${t.on.length ? `the same moment takes ${txt.slice(1)} times as long to work out${t.extra}, from ${t.on.map(id => names[id]).join(', ')}. The costs below multiplied together, a guide rather than a measurement of this combination.` : 'everything here is at normal: no extra cost.'}</p>`;
 }
 function syncCosts() {
@@ -6761,6 +6779,15 @@ const SDESC = {
   setRpExm: ['Unstable particles meet each other', 'Pions, kaons, muons, τ leptons, hyperons and the other unstable particles collide with each other in flight, not only with atoms and nuclei: a particle and its antiparticle annihilate (μ⁺μ⁻ as e⁺e⁻ does, π⁺π⁻ into mesons), two other hadrons above the threshold make new hadrons between them, and two charges turn each other. Within 0.35 Å of each other, as the game’s fast nuclei meet (true sizes with ultra-realistic mode: almost never). Two products of one collision never meet: they fly apart.'], // (1.27)
   setRpPwave: ['Photons as waves', 'Light is a wave as well as a stream of photons: each photon goes where the wave says, so the pattern builds up photon by photon. Through slits (a new object, offered with this on) it spreads in fringes, bright where the paths from the openings differ by whole wavelengths; an X-ray meeting a crystal is scattered where the waves from its atoms add up (Bragg’s law), a liquid into rings. At these sizes X-rays of a few keV show it; visible light’s wavelength (4,000–7,000 Å) is far larger than anything in the box, so it spreads from small openings without fringes, as it really would. The flat game only so far.'], // (1.27)
   setRpAq: ['Hydrated electrons', 'A free electron slowed below 1 eV in liquid water settles into a cavity the water molecules make round it: the hydrated electron, e⁻(aq), bound by about 1.7 eV, the blue of irradiated water (its band peaks at 720 nm). It moves by diffusion, drawn toward the ions near it as water screens their pull, and meets a cation (H₃O⁺, a metal ion) at 2.5 Å, where it is handed back and captured. Light near 720 nm is absorbed by it and warms the water; above 3.6 eV it sets the electron free.'],
+  segXgrav: ['Gravity', 'Newton\u2019s attraction between every pair of masses with the real G, and the Earth\u2019s pull down the screen as a choice: 10⁻³⁶ of the Coulomb force between protons, nothing to see at its real strength.'],
+  segXgk: ['Gravity\u2019s strength', 'Gravity boosted ×10²⁴ to ×10³⁶ so that it can be seen to work (marked as boosted).'],
+  setXrad: ['Radiation from accelerating charges', 'A pushed or turned charge radiates (Larmor, Liénard): cyclotron and synchrotron light, an electron spiralling in a magnetic field, the energy taken from its motion and given off as photons.'],
+  setXbi: ['Magnetic fields of moving charges', 'Each moving charge makes a magnetic field (Biot–Savart) felt by the others: parallel beams pull together. The flat game.'],
+  segXspin: ['Atomic magnets', 'Atoms with unpaired electrons carry magnetic moments that precess and line up in fields, push and pull on each other, and (with exchange) make iron, cobalt and nickel magnetize themselves.'],
+  segXnu: ['Neutrinos meet matter', 'Neutrinos scatter off electrons by their measured cross sections, boosted if you like so that it happens in a small box.'],
+  setXlrq: ['Full-range partial charges', 'Partial charges felt at every distance, not only within the force reach.'],
+  setXdisp: ['Three-body dispersion', 'The many-body part of the van der Waals attraction (Axilrod–Teller–Muto, from D3) added to the force field\u2019s pairs.'],
+  setXnucl: ['Nucleons inside nuclei', 'Collisions of light nuclei worked out proton by proton and neutron by neutron, with an inset showing them.'],
 };
 /* Settings by mode (1.25, the owner: "since the numbers for 3d are very different, the settings menu should change based
    on which mode you're in ... There should also be 3d pictures in 3d mode"). While the world is 3-D (W.d3) the pane takes
@@ -7119,6 +7146,8 @@ function settingsInit() {
   $('setRpExm').onchange = (e) => setSetting('rpExm', e.target.checked); // (1.27)
   $('setRpPwave').onchange = (e) => { setSetting('rpPwave', e.target.checked); if (UI.tool === 'objects') buildToolOpts(); }; // (1.27: the slits show with it)
   $('setRpAq').onchange = (e) => setSetting('rpAq', e.target.checked); // (1.29)
+  bindSeg('segXgrav', (v) => setSetting('xgrav', +v)); bindSeg('segXgk', (v) => setSetting('xgk', +v)); bindSeg('segXspin', (v) => setSetting('xspin', +v)); bindSeg('segXnu', (v) => setSetting('xnu', +v)); // (1.34)
+  for (const k of ['xrad', 'xbi', 'xlrq', 'xdisp', 'xnucl']) $('set' + k[0].toUpperCase() + k.slice(1)).onchange = (e) => setSetting(k, e.target.checked); // (1.34)
   $('rpAllOn').onclick = () => rpAllSet(true); $('rpAllOff').onclick = () => rpAllSet(false); // (1.31 item 75)
   $('setFind').addEventListener('input', setFindRun); // (1.32 item 80)
   $('setFind').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape' && $('setFind').value) { e.preventDefault(); $('setFind').value = ''; setFindRun(); } });

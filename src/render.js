@@ -187,6 +187,7 @@ function render(rt) {
   R.lblLater = PI.on && PI.n && R.s >= 30 ? [] : null;
   if (WAVE.n) drawWaves(); // (Experimental: electrons as waves, 1.15)
   drawParticles(rt);
+  if (XF.spin) xfDrawSpins(R.ctx); // (Experimental: atomic moments, 1.34)
   if (PI.on && PI.n) drawRings();
   if (R.lblLater) { for (const a of R.lblLater) label(R.ctx, ...a); R.lblLater = null; }
   drawMeasure();
@@ -201,6 +202,7 @@ function render(rt) {
   drawSources();
   drawOverlay();
   drawScaleBar();
+  if (XN.last) xnDraw(R.ctx); // (Experimental: nucleons inside nuclei, the last collision's inset, 1.34 item 92)
 }
 
 function drawGrid() {
