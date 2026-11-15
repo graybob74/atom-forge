@@ -82,6 +82,35 @@ PARTS.search = async (page, check) => {
   check(!r.err && r.gold === 'Au' && r.c14 === '¹⁴C' && r.u92 === 'U' && r.chips.join(' ') === '¹²C ¹³C ¹⁴C' && r.spec && r.spec.Z === 6 && r.spec.A === 14 && r.closed, `1.34.3 the particle search finds elements ("gold" ${r.gold}, "C-14" ${r.c14}, "92" ${r.u92}); carbon's row offers ${(r.chips || []).join(', ')}, and ¹⁴C picked from it is what the Place tool takes`, '1.34.3 search: ' + JSON.stringify(r));
   if (own) await own.browser.close();
 };
+/* The worker threads: the three passes split over three workers and the main thread give the one-thread energies (to
+   rounding: the parts' forces are added in another order) on the page served with cross-origin isolation (threads), and
+   faster. */
+PARTS.threads = async (page, check) => {
+  const http = require('http'), fs = require('fs'), { chromium } = require('./deps').dep('playwright'), { pageFile } = require('./browser');
+  const server = http.createServer((req, res) => { res.setHeader('Cross-Origin-Opener-Policy', 'same-origin'); res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp'); res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(fs.readFileSync(pageFile())); });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const browser = await chromium.launch(require('./deps').launchOpts({ headless: true })), ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+  await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', headers: { 'Access-Control-Allow-Origin': '*' }, body: '' }));
+  const pg = await ctx.newPage(); await pg.goto(`http://127.0.0.1:${server.address().port}/atom-forge.html`); await pg.waitForTimeout(800);
+  const r = await pg.evaluate(async () => { try {
+    const out = {}; loadPreset('water3d'); setRunning(false); W.decayOn = false;
+    const run = async (nth, c) => {
+      threadsSet(nth); for (let i = 0; i < 100 && nth && !threadsReady(); i++) await new Promise(res => setTimeout(res, 50));
+      xfSet(c); const n = S.fx.length, F = [new Float64Array(n), new Float64Array(n), new Float64Array(n)]; XFW.threads = 1;
+      const U = xfEnergy(); xfForces(...F); const t0 = performance.now(); for (let i = 0; i < 5; i++) xfForces(new Float64Array(n), new Float64Array(n), new Float64Array(n));
+      const ms = (performance.now() - t0) / 5; xfSet({ grav: 0, lrq: false, disp: false }); return { U, F, ms, parts: XFW.threads };
+    };
+    for (const [k, c] of [['gravity', { grav: 1, gk: 30 }], ['charges', { lrq: true }], ['dispersion', { disp: true }]]) {
+      const a = await run(0, c), b = await run(3, c);
+      let df = 0, fm = 0; for (let q = 0; q < 3; q++) for (let i = 0; i < a.F[q].length; i++) { df = Math.max(df, Math.abs(a.F[q][i] - b.F[q][i])); fm = Math.max(fm, Math.abs(a.F[q][i])); }
+      out[k] = { U1: a.U, U4: b.U, dU: Math.abs(a.U - b.U) / Math.max(1, Math.abs(a.U)), dF: df / Math.max(1e-30, fm), ms1: a.ms, ms4: b.ms, parts: b.parts };
+    }
+    threadsSet(0); return out;
+  } catch (e) { return { err: e.message }; } });
+  await browser.close(); server.close();
+  for (const k of ['gravity', 'charges', 'dispersion']) { const q = r[k] || {};
+    check(!r.err && q.parts === 4 && q.dU < 1e-12 && q.dF < 1e-10, `1.34.3 ${k} on four threads (3-D liquid water, the isolated page): the one-thread energy to ${q.dU && q.dU.toExponential(1)}, forces to ${q.dF && q.dF.toExponential(1)} of the largest; ${q.ms1 && q.ms1.toFixed(2)} → ${q.ms4 && q.ms4.toFixed(2)} ms a pass`, `1.34.3 threads ${k}: ` + JSON.stringify(r.err ? r : q)); }
+};
 module.exports = async function f1343(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
