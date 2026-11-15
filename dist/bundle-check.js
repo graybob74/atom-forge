@@ -34624,6 +34624,7 @@ function render3d(rt) {
       if (p.k !== NUC) glBall3(V[b], V[b + 1], V[b + 2], lite ? V[b + 3] * 1.2 : V[b + 3], p.k === ELEC ? eCol : pCol);
       else if (p.Z > 0 && p.ne === 0) glBall3(V[b], V[b + 1], V[b + 2], V[b + 3], hexc(ballCol(p)));
     }
+    for (const e of exoBalls3()) { if (!lite) glGlow3(e.x, e.y, e.z, e.g, e.c, e.ga); glBall3(e.x, e.y, e.z, e.r, e.c); } // (unstable particles as balls in depth, 1.34.2)
     glFlush3(C3, hi, [0.065, 0.11, 0.7, 2, wrap]); glEnd3(); // (atoms and neutrons from the slot textures, bonds, these balls; then glows)
     ctx.restore();
     R.ctx = ctx = R.cv.getContext('2d'); ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, R.w, R.h);
@@ -34637,9 +34638,12 @@ function render3d(rt) {
     if (!lite) { ctx.globalCompositeOperation = 'lighter'; for (const p of vis) { const b = 4 * p.i; glowsOf(p, b, (r, c, a) => drawSprite(glowSprite(c, r), V[b], V[b + 1], a)); } ctx.globalCompositeOperation = 'source-over'; }
     const fc = CHAMBER.bg0;
     ctx.lineCap = 'round';
+    const exs = exoBalls3().sort((a, b) => b.z - a.z); let ek = 0; // (unstable particles as balls in depth among the atoms, far to near, 1.34.2)
+    const exoTo = (z) => { for (; ek < exs.length && exs[ek].z > z; ek++) exoBall2d3(ctx, exs[ek]); };
     let boB = null; if (BO.any) { boB = new Map(); for (const bd of boDrawBonds()) for (const a of [bd.a, bd.b]) { let l = boB.get(a); if (!l) boB.set(a, l = []); l.push(bd); } } // (quantum bonds' orders, 1.24)
     for (const p of vis) {
       const b = 4 * p.i, x = V[b], y = V[b + 1], z = V[b + 2], r = V[b + 3], col = ballCol(p), pb = boB && boB.get(p) ? p.bonds.concat(boB.get(p)) : p.bonds;
+      if (ek < exs.length) exoTo(z);
       if (det === 'nuc') { if (p.k === NUC && pb.length) bondPairs3(ctx, p, pb, z); } // (the particle view: a bond is its shared electrons, drawn with the nearer atom)
       else if (p.k === NUC && pb.length) for (const bd of pb) { // this atom's half of each bond
         const q = bd.a === p ? bd.b : bd.a, c = 4 * q.i;
@@ -34673,6 +34677,7 @@ function render3d(rt) {
       if (f > 0.02) { ctx.globalAlpha = f; ctx.fillStyle = fc; ctx.beginPath(); ctx.arc(x, y, rr + 0.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
       if (p.k === NUC && p.ne > 0) labelOne3(ctx, p, x, y, r, col);
     }
+    exoTo(-Infinity);
     drawBox3(ctx, true);
     _occ3.vis = vis; _occ3.built = false;
     drawUnder3(ctx, rt);
@@ -34913,6 +34918,30 @@ function drawLight3(ctx, rt) {
 }
 /* Unstable particles in flight in 3-D (1.24): as the flat view draws them (drawExos), a glow, a small ball (charged) or
    ring (neutral) and the name, at their depth; their tracks are trails (drawTracks3). */
+/* (1.34.2, the owner: "is every exotic particle rendered in 3d, or is it just a 2d disc that faces the camera?" It was a
+   flat dot and glow of fixed size drawn over everything.) An unstable particle (pion, kaon, muon, hyperon …) is a shaded
+   ball at its depth, 0.15 Å across in the picture's scale (as a free electron is drawn 0.12), smaller with distance, with
+   its glow (brighter for a charged one), drawn among the atoms so that a nearer atom covers it (the WebGL layer's depth
+   test; on Canvas 2D in their far-to-near order); its label is hidden with it. The pictures that show what is inside
+   (the particle view's quarks, positronium's and the exotic atoms' orbits) are drawn as before. */
+function exoR3(z) { return Math.max(2.2, 0.15 * C3.F / z); }
+function exoBalls3() {
+  const out = []; if (!W.exo.length) return out;
+  const A = _p3c;
+  for (const o of W.exo) {
+    if (o.dead || o._pic3 || !proj3(o.x, o.y, o.z || 0, A)) continue;
+    const x = A[0], y = A[1], z = A[2]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
+    const r = exoR3(z), c = XP[o.sp].col;
+    out.push({ o, x, y, z, r, c, g: clamp(r * 4.5, 7, 34), ga: o.q ? 0.8 : 0.45 });
+  }
+  return out;
+}
+function exoBall2d3(ctx, e) { // (Canvas 2D: its glow, its ball, the depth fog over it)
+  if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(e.c, e.g), e.x, e.y, e.ga); ctx.globalCompositeOperation = 'source-over'; }
+  const hx = _xpHex[e.o.sp] || (_xpHex[e.o.sp] = '#' + e.c.map(v => v.toString(16).padStart(2, '0')).join('')), sp = litSprite3(hx), k = e.r / LIT_R;
+  ctx.drawImage(sp.c, e.x - sp.size * k / 2, e.y - sp.size * k / 2, sp.size * k, sp.size * k);
+  const f = fog3(e.z); if (f > 0.02) { ctx.globalAlpha = f; ctx.fillStyle = CHAMBER.bg0; ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 0.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+}
 function drawExos3(ctx) {
   if (!W.exo.length) return;
   const A = _p3c;
@@ -34924,14 +34953,15 @@ function drawExos3(ctx) {
     if (R.view.bohr === 'nuc') { // (the particle view, as the flat view: a hadron's quarks, a hypernucleus's Λ, a muonic atom's orbit, at the scale where it is, 1.26 sweep)
       const s0 = R.s, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')); R.s = C3.F / A[2];
       let top = 0; try { top = exoInside(ctx, o, x, y, c, hx); } finally { R.s = s0; }
-      if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; }
+      if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; }
     } else { // (the exotic atoms at their depth's scale, as the flat view, 1.28.1)
       const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]);
-      if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; }
+      if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; }
     }
-    ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55); ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = rgba(c, 0.95); ctx.strokeStyle = rgba(c, 0.95); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, o.q ? 2.4 : 2.6, 0, Math.PI * 2); if (o.q) ctx.fill(); else ctx.stroke();
-    ctx.fillText(o.lab, x, y - 5);
+    o._pic3 = false; // (drawn as a ball in depth, among the atoms: exoBalls3; here its label, unless an atom in front hides it)
+    if (!_occ3.built) occBuild3();
+    if (occHidden3(x, y, A[2])) continue;
+    const r = exoR3(A[2]); ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - r - 3);
   }
   ctx.restore();
 }

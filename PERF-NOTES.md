@@ -1991,6 +1991,22 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.34.2: unstable particles as balls in depth in the 3-D lab (the owner, 2026-11-15)
+
+- The owner: "is every exotic particle rendered in 3d, or is it just a 2d disc that faces the camera?", then "do that for
+  1.34.2". In the 3-D lab an unstable particle (pion, kaon, muon, hyperon …) sat at its true place in depth but was drawn
+  as a flat dot (filled if charged, a ring if neutral) and glow of fixed size, over everything (drawExos3, after the
+  atoms). Now it is a shaded ball at its depth (exoBalls3: 0.15 Å in the picture's scale, as a free electron is 0.12; at
+  least 2.2 px), smaller farther off, with its glow (0.8 charged, 0.45 neutral), drawn among the atoms: on the WebGL
+  layer as the queued balls are (glBall3, depth tested), on Canvas 2D in the far-to-near order (exoBall2d3, fog
+  included). Its label is hidden when an atom in front covers it (occHidden3). The pictures of what is inside (the
+  particle view's quarks; positronium's, protonium's and the exotic atoms' orbits) are drawn as before (o._pic3: such a
+  particle gets no ball). Measured (f_1342): a π⁺ 12 Å nearer the camera has a radius of 17.1 px, the farther 8.2; an
+  argon atom between the camera and a K⁺ covers it on both layers (the K⁺'s place shows rgb 39,61,72, argon; alone
+  177,169,67, the K⁺).
+
+Tests: f_1342 (new); run: t_lint, f_1342, t_3d, f_sweep3d.
+
 ## 1.34.1: labels on colour strings and on rays off the screen; light lands when it arrives; one collision's pions never meet (the owner, 2026-11-15)
 
 - Labels for the dashed streaks (the owner: "these dashed streaks is what i meant", a screenshot of a 1 PeV collision):
