@@ -3581,6 +3581,30 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
        metal's measured Curie temperature), so a piece of iron magnetizes itself, forms domains, loses it above its Curie
        point, and two magnetized pieces attract or repel; it would take over from the fitted ferromagnet pull of today.
    Flat game first; costs to be measured (spins are a few numbers an atom; the dipole sum a neighbour list).
+(Items 90–95: the owner, 2026-11-15, "Can you add all of these (if it's not already in the game)", after asking which
+ forces are not fully simulated. Already in the game and left out here: quantum bonds (GFN1/GFN2-xTB, with D3),
+ continuous bond orders, longer force reach, induced charges and polarizability by direction, quantum nuclei.)
+90 Experimental → Radiation from accelerating charges: a charge that is accelerated radiates (Larmor; Liénard's form when
+   fast), so an electron circling in a magnetic field gives off cyclotron or synchrotron light and spirals in, one shaken
+   by a laser scatters it; the light leaves as photons and the energy is taken from the charge (radiation reaction,
+   Landau–Lifshitz), booked exactly.
+91 Experimental → Gravity: Newton's attraction between every pair of masses (real G), and the Earth's pull (g) as a
+   choice. Measured before building: at the scale of atoms it is 10⁻³⁶ of the Coulomb force between protons and moves an
+   atom about 10⁻²⁷ Å in a picosecond, so with real values nothing will be seen to change; said so in its note.
+92 Experimental → Nucleons inside nuclei (the strong force): light nuclei (to about oxygen at first) made of protons
+   and neutrons that move, held by a nuclear potential fitted to measured binding energies and radii (in the manner of
+   quantum molecular dynamics: Gaussian nucleons, Skyrme-type forces, Pauli repulsion), so fusion, breakup and
+   clustering (α particles inside nuclei) come out of the motion instead of from tables. A large piece of work; the
+   tables stay for everything heavier.
+93 Experimental → Neutrino interactions (the weak force acting on something): neutrinos scatter off electrons and are
+   absorbed by nuclei (inverse β decay) with their measured cross sections. With real cross sections a neutrino crosses
+   a light-year of lead before it meets anything, so in a box of ångströms it would essentially never happen; offered
+   with a "boost" that scales the rate, marked as such.
+94 Experimental → Full-range partial charges: partial charges and induced dipoles inside molecules felt at every
+   distance (an Ewald sum with wrapping walls, the exact pair sum or a multipole expansion without), not only within the
+   force reach.
+95 Experimental → Many-body dispersion for the force field: the van der Waals attraction from D3 (as the quantum bonds
+   use) or many-body dispersion (MBD) with the ordinary force field, instead of its pair term alone.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
