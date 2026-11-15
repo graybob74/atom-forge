@@ -64,6 +64,24 @@ PARTS.orbits = async (page, check) => {
   await page.evaluate(() => { setSetting('gl', 'gl'); R.view.bohr = 'auto'; });
   if (own) await own.browser.close();
 };
+/* The particle search (top left, "/") finds elements and isotopes, and an element found shows three common isotopes to
+   pick on hover. 1.34.2 found no element. */
+PARTS.search = async (page, check) => {
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => { try {
+    const raf = () => new Promise(res => requestAnimationFrame(res)), out = {};
+    loadPreset('empty'); await raf();
+    const fb = document.querySelector('#palette [data-find]'); fb.click(); await raf();
+    const q = $('pfQ'), type = async (v) => { q.value = v; q.dispatchEvent(new Event('input')); await raf(); return [...document.querySelectorAll('#pfR .pm-i')].map(b => b.querySelector('b').textContent); };
+    out.gold = (await type('gold'))[0]; out.c14 = (await type('C-14'))[0]; out.u92 = (await type('92'))[0];
+    await type('carbon'); const row = document.querySelector('#pfR .pm-i.el'); out.chips = row ? [...row.querySelectorAll('.pf-iso')].map(c => c.textContent) : [];
+    const c14 = row && [...row.querySelectorAll('.pf-iso')].find(c => c.dataset.a === '14'); if (c14) c14.click(); await raf();
+    out.spec = UI.spec && { Z: UI.spec.Z, A: UI.spec.A }; out.closed = $('pmenu').hidden;
+    return out;
+  } catch (e) { return { err: e.message }; } });
+  check(!r.err && r.gold === 'Au' && r.c14 === '¹⁴C' && r.u92 === 'U' && r.chips.join(' ') === '¹²C ¹³C ¹⁴C' && r.spec && r.spec.Z === 6 && r.spec.A === 14 && r.closed, `1.34.3 the particle search finds elements ("gold" ${r.gold}, "C-14" ${r.c14}, "92" ${r.u92}); carbon's row offers ${(r.chips || []).join(', ')}, and ¹⁴C picked from it is what the Place tool takes`, '1.34.3 search: ' + JSON.stringify(r));
+  if (own) await own.browser.close();
+};
 module.exports = async function f1343(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
