@@ -1,4 +1,4 @@
-<title>Atom Forge 1.33.0</title>
+<title>Atom Forge 1.33.1</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1755,6 +1755,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <div class="srow"><span>Depth fog</span><div class="seg" id="segFog3" role="group" aria-label="Depth fog"><button data-v="off">Off</button><button data-v="low">Low</button><button data-v="normal">Normal</button><button data-v="high">High</button></div></div>
       <div class="srow"><span>Box</span><div class="seg" id="segBox3" role="group" aria-label="How the box is drawn"><button data-v="grid" title="The twelve edges, and a faint grid on the far faces when the grid is on (Lab → View)">Edges and grid</button><button data-v="edges">Edges only</button><button data-v="off" title="No box drawn: the walls still work">Hidden</button></div></div>
       <label class="check"><input type="checkbox" id="setAxes3"> Axis marker in the corner (which way x, y and z point)</label>
+      <label class="check"><input type="checkbox" id="setDist3"> Distance from the camera on hover</label>
       <div class="srow"><span>Labels</span><div class="seg" id="segLbl3" role="group" aria-label="Labels in 3-D"><button data-v="off" title="No element symbols (the same as Graphics → Labels → Never)">Off</button><button data-v="hover" title="Only on the atom under the mouse and the one inspected">On hover</button><button data-v="front" title="Only on atoms no nearer atom covers">Front atoms only</button><button data-v="all" title="On every atom big enough to carry one, hidden ones too">All atoms</button></div></div>
       <h3>Turning the view</h3>
       <p class="note" id="set3dKeys">Flying: <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move the camera forward, left, back and right, <kbd>E</kbd> and <kbd>Q</kbd> up and down (Space and Shift too while one of those is held; Space alone plays and pauses), at a speed that follows the zoom; turning afterwards circles the new place. In 3-D, Spark is <kbd>Z</kbd> and Erase <kbd>X</kbd>. <kbd>Shift</kbd> + wheel moves the placing plane farther or nearer; a click with Fire shoots from the camera.</p>
@@ -35544,6 +35545,17 @@ function drawBox3(ctx, front) {
   ctx.stroke();
   ctx.restore();
 }
+/* The placing plane's distance from the camera, bottom left over the axes (1.33.1, the owner: "a placing plane distance
+   from camera in the bottom left"), while the Place tool is chosen: along the line of sight, the camera's distance to its
+   target and the plane's offset from there. */
+function drawPlaneDist3(ctx) {
+  cam3Update(); const d = (C3.D || R.cam3.dist) + P3.off, y = R.h - 58 - chamberBottomInset() - (V3.axes ? 46 : 0);
+  ctx.save(); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const t = `Placing plane ${fmtNum(Math.max(0, d), d < 10 ? 2 : 3)} Å from the camera`, w = ctx.measureText(t).width;
+  ctx.fillStyle = 'rgba(16,27,36,0.7)'; ctx.beginPath(); ctx.roundRect(10, y - 10, w + 12, 20, 5); ctx.fill();
+  ctx.fillStyle = 'rgba(214,226,238,0.92)'; ctx.fillText(t, 16, y);
+  ctx.restore();
+}
 /* The world's axes, small, in a corner (which way x, y and z point from here). */
 function drawAxes3(ctx) {
   const x0 = 34, y0 = R.h - 58 - chamberBottomInset(), L = 20; // (above the tool's options bar, 1.23.2)
@@ -35932,6 +35944,7 @@ function render3d(rt) {
   if (!R.menu) { drawMagnets3(ctx); drawLasers3(ctx); drawPlace3(ctx); } // (magnets; the placing plane, the ghost, Fire's aim from the camera, 1.24)
   drawOverlay3(ctx);
   if (V3.axes && !R.menu) drawAxes3(ctx); // (not behind the main menu)
+  if (!R.menu && UI.tool === 'place') drawPlaneDist3(ctx); // (the placing plane's distance, 1.33.1)
   drawScaleBar();
   ctx.restore();
 }
@@ -39042,7 +39055,7 @@ const TOOLS = [
   { id: 'inspect', name: 'Inspect', key: 'I', help: 'Click a particle for its physics. Right-click anything for a quick menu.' },
 ];
 const OPT = {
-  place: { count: 1, Es: 600, rest: false },
+  place: { count: 1, Es: 600, rest: false, shape: 'plane' }, // (shape: 3-D, several at once across the plane or through a ball, 1.33.1)
   grab: { mol: true, s: 'strong' },
   select: { whole: true },
   pull: { mode: 'pull', R: 10, s: 100 },
@@ -39369,6 +39382,7 @@ function buildToolOpts() {
       h = `<span class="lbl">Placing</span><span><span class="swatch" style="background:${specColor(sp)}"></span> <b>${esc(specLabel(sp))}</b> <span class="help">${esc(specName(sp))}</span></span>
         ${savedIsoHTML()}${isoPickerHTML(sp)}${isObject(sp) ? `<span class="help">${MOLECULES[sp.mol].atoms.length} atoms, one per click. Keep the bath near room temperature or it falls apart.</span>`
           : `<span data-g="count">${seg('Count', [[1, '1'], [5, '5'], [20, '20']].concat(MAX_PARTS >= 8000 ? [[100, '100']] : []), o.count)}</span><span data-g="rest">${seg('Moving', [['false', 'At the bath temperature'], ['true', 'At rest']], String(!!o.rest))}</span>`}`;
+      if (W.d3 && !isObject(sp)) h += `<span data-g="shape">${seg('Spread', [['plane', 'Plane'], ['sphere', 'Sphere']], o.shape || 'plane')}</span><span class="help">${(o.shape || 'plane') === 'sphere' ? 'Several at once go out through a ball round the point.' : 'Several at once spread across the plane.'}</span>`; // (1.33.1)
       if (W.d3) h += rangeCtl('oPD', 'Depth', -100, 100, Math.round(100 * P3.off / plane3Lim()), plane3Text()) + '<span class="help">The plane things go on (Shift + wheel); over an atom, they go against its near side.</span>'; // (3-D: the placing plane, 1.24)
       break;
     case 'grab':
@@ -39810,7 +39824,10 @@ function placeSpec(spec, x, y, count, z = 0) { // (z: 3-D)
   if (W.d3) cam3Update();
   for (let i = 0; i < count; i++) {
     let px = x, py = y, pz = z;
-    if (count > 1) { const a = i * 2.39996, rr = sz * 1.9 * Math.sqrt(i + 0.5), c = rr * Math.cos(a), s = rr * Math.sin(a);
+    if (count > 1 && W.d3 && OPT.place.shape === 'sphere') { // (3-D, Sphere: out through a ball round the point, each with a ball of room as on the plane each has a disc; a golden spiral over directions, 1.33.1)
+      const rr = i ? sz * 1.9 * Math.cbrt(i + 0.5) : 0, u = 1 - 2 * ((i * 0.6180339887) % 1), a = i * 2.39996, w = Math.sqrt(Math.max(0, 1 - u * u));
+      px += rr * w * Math.cos(a); py += rr * u; pz += rr * w * Math.sin(a);
+    } else if (count > 1) { const a = i * 2.39996, rr = sz * 1.9 * Math.sqrt(i + 0.5), c = rr * Math.cos(a), s = rr * Math.sin(a);
       if (W.d3) { px += c * C3.rx + s * C3.ux; py += c * C3.ry + s * C3.uy; pz += c * C3.rz + s * C3.uz; } else { px += c; py += s; } } // (3-D: spread on the plane square to the view)
     const ps = spawnClear(spec, px, py, undefined, false, pz);
     for (const p of ps) out.push(p);
@@ -40501,6 +40518,7 @@ function updateHover(px, py) {
     if (it) t1 += ` in ${it}`;
     t2 = `${nucSymA(p.Z, p.N, p.anti)} · ${p.ne} ${p.anti ? 'e⁺' : 'e⁻'} · bonds ${p.used}/${p.cap}${p.tLocal ? ' · ' + fmtT(p.tLocal) : ''}`;
   }
+  if (W.d3 && SET.dist3) { cam3Update(); t2 += ` · ${fmtNum(Math.hypot(p.x - C3.ex, p.y - C3.ey, (p.z || 0) - C3.ez), 3)} Å from the camera`; } // (Settings → 3-D, 1.33.1)
   tip.innerHTML = `<div class="t1">${esc(t1)}</div><div class="t2">${esc(t2)}</div>`;
   tip.hidden = false;
   const sw = R.w, x = Math.min(px + 14, sw - tip.offsetWidth - 6), y = py + 16 + tip.offsetHeight > R.h ? py - tip.offsetHeight - 10 : py + 16;
@@ -44919,7 +44937,7 @@ function toolKey(t) { return W.d3 && t.key3 ? t.key3 : t.key; }
    the owner found it obsolete; the settings it set stay, each on its own, and a stored prePerf or perf is ignored.) */
 const SET_DEF = { wave: 0, bo: 0, pi: 0, piRpc: 1, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250,
-  fov3: 40, proj3: 'persp', fog3: 'normal', box3: 'grid', axes3: true, lbl3: 'front', orbit3: 1, orbitInv: false, spin3: 0 }; // (the last row: Settings → 3-D, display and camera only)
+  fov3: 40, proj3: 'persp', fog3: 'normal', box3: 'grid', axes3: true, dist3: true, lbl3: 'front', orbit3: 1, orbitInv: false, spin3: 0 }; // (the last row: Settings → 3-D, display and camera only)
 const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16', '32'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000],
   fov3: [30, 40, 55, 70], proj3: ['persp', 'ortho'], fog3: ['off', 'low', 'normal', 'high'], box3: ['grid', 'edges', 'off'], lbl3: ['front', 'all'], orbit3: [0.5, 1, 2], spin3: [0, 6, 18] };
 const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the farthest atoms fade toward the background)
@@ -45206,7 +45224,7 @@ function syncSettings() {
   $('setRpExm').checked = SET.rpExm; // (1.27)
   $('setRpPwave').checked = SET.rpPwave; // (1.27)
   $('setRpAq').checked = SET.rpAq; // (1.29)
-  setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
+  setSegValue('segFov3', SET.fov3); setSegValue('segProj3', SET.proj3); setSegValue('segFog3', SET.fog3); setSegValue('segBox3', SET.box3); $('setAxes3').checked = SET.axes3; $('setDist3').checked = !!SET.dist3; setSegValue('segLbl3', !R.view.labels ? 'off' : SET.labels === 'hover' ? 'hover' : SET.lbl3); setSegValue('segOrbit3', SET.orbit3); $('setOrbitInv').checked = SET.orbitInv; setSegValue('segSpin3', SET.spin3); // (segLbl3: Off and On hover are Graphics → Labels' Never and On hover, 1.25)
   const nm = Object.values(MOLECULES).filter(m => m.mine).length;
   $('setMols').textContent = `Your saved molecules: ${nm} (My molecules and those Claude added to the library)`; $('setIsos').textContent = `Saved isotopes: ${MYISO.length}`;
   $('setDelMols').disabled = !nm; $('setDelIsos').disabled = !MYISO.length;
@@ -45554,6 +45572,7 @@ const SDESC = {
   segProj3: ['Projection', 'Perspective draws far things smaller, as the eye sees them. Orthographic draws everything at its true size whatever its depth, so the box’s parallel edges stay parallel: good for measuring and comparing shapes.'],
   segFog3: ['Depth fog', 'How much far atoms and bonds fade toward the background, a cue for which is in front. Off draws every atom in full colour.'],
   segBox3: ['Box', 'How the walls are drawn: the twelve edges with a faint grid on the far faces (when the grid is on in Lab → View), the edges alone, or nothing. The walls work the same either way.'],
+  setDist3: ['Distance on hover', 'With the pointer over a particle, its label also tells how far it is from the camera, in ångströms (1.33.1).'],
   setAxes3: ['Axis marker', 'The small x, y and z arrows in the corner that show which way the world’s axes point from where you look.'],
   segLbl3: ['Labels in 3-D', 'Off draws no element symbols; On hover only on the atom under the mouse and the one inspected. Front atoms only puts symbols on atoms no nearer atom covers, which keeps a liquid readable; All atoms labels every atom big enough to carry one, hidden ones too. The same switch as Graphics → Labels and Lab → View → Labels (Off is Never there). Charge badges, the + or − on ions, follow Graphics → Charge badges.'],
   segOrbit3: ['Orbit speed', 'How far the view turns for a drag (right-drag, Alt+drag or two fingers).'],
@@ -45967,7 +45986,7 @@ function settingsInit() {
   bindSeg('segFov3', (v) => setSetting('fov3', +v)); bindSeg('segProj3', (v) => setSetting('proj3', v)); bindSeg('segFog3', (v) => setSetting('fog3', v)); bindSeg('segBox3', (v) => setSetting('box3', v)); bindSeg('segLbl3', (v) => { // (Off and On hover too, kept with Graphics → Labels and the view menu's Labels; the owner: "add a setting to remove labels in 3d because ... 10 bajillion letters is overstimulating", 1.25)
     R.view.labels = v !== 'off'; viewFlagsSave(); if (v === 'front' || v === 'all') { SET.lbl3 = v; SET.labels = 'always'; } else if (v === 'hover') SET.labels = 'hover';
     setSetting('labels', SET.labels); const c = document.querySelector('[data-view="labels"]'); if (c) c.checked = R.view.labels; });
-  bindSeg('segOrbit3', (v) => setSetting('orbit3', +v)); bindSeg('segSpin3', (v) => setSetting('spin3', +v)); $('setAxes3').onchange = (e) => setSetting('axes3', e.target.checked); $('setOrbitInv').onchange = (e) => setSetting('orbitInv', e.target.checked);
+  bindSeg('segOrbit3', (v) => setSetting('orbit3', +v)); bindSeg('segSpin3', (v) => setSetting('spin3', +v)); $('setAxes3').onchange = (e) => setSetting('axes3', e.target.checked); $('setDist3').onchange = (e) => setSetting('dist3', e.target.checked); $('setOrbitInv').onchange = (e) => setSetting('orbitInv', e.target.checked);
   setPrevInit();
   $('setExpReset').onclick = () => expResetAll();
   $('setReset').onclick = () => { Object.assign(SET, SET_DEF); store('settings', JSON.stringify(SET)); applySettings(); syncSettings(); buildToolOpts(); syncLab(); updateReadouts(); };

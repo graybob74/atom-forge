@@ -236,6 +236,17 @@ function drawBox3(ctx, front) {
   ctx.stroke();
   ctx.restore();
 }
+/* The placing plane's distance from the camera, bottom left over the axes (1.33.1, the owner: "a placing plane distance
+   from camera in the bottom left"), while the Place tool is chosen: along the line of sight, the camera's distance to its
+   target and the plane's offset from there. */
+function drawPlaneDist3(ctx) {
+  cam3Update(); const d = (C3.D || R.cam3.dist) + P3.off, y = R.h - 58 - chamberBottomInset() - (V3.axes ? 46 : 0);
+  ctx.save(); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const t = `Placing plane ${fmtNum(Math.max(0, d), d < 10 ? 2 : 3)} Å from the camera`, w = ctx.measureText(t).width;
+  ctx.fillStyle = 'rgba(16,27,36,0.7)'; ctx.beginPath(); ctx.roundRect(10, y - 10, w + 12, 20, 5); ctx.fill();
+  ctx.fillStyle = 'rgba(214,226,238,0.92)'; ctx.fillText(t, 16, y);
+  ctx.restore();
+}
 /* The world's axes, small, in a corner (which way x, y and z point from here). */
 function drawAxes3(ctx) {
   const x0 = 34, y0 = R.h - 58 - chamberBottomInset(), L = 20; // (above the tool's options bar, 1.23.2)
@@ -624,6 +635,7 @@ function render3d(rt) {
   if (!R.menu) { drawMagnets3(ctx); drawLasers3(ctx); drawPlace3(ctx); } // (magnets; the placing plane, the ghost, Fire's aim from the camera, 1.24)
   drawOverlay3(ctx);
   if (V3.axes && !R.menu) drawAxes3(ctx); // (not behind the main menu)
+  if (!R.menu && UI.tool === 'place') drawPlaneDist3(ctx); // (the placing plane's distance, 1.33.1)
   drawScaleBar();
   ctx.restore();
 }

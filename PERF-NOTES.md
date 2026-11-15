@@ -1991,6 +1991,19 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.33.1: items 85–87 and the bond-order fix (the owner, 2026-11-14: "build it as 1.33.1")
+
+- 85 Settings → 3-D → "Distance from the camera on hover" (SET.dist3, on): the hover label adds how far the particle is
+  from the camera, in Å.
+- 86 With the Place tool in the 3-D lab, "Placing plane … Å from the camera" bottom left over the axis marker
+  (drawPlaneDist3: the camera's distance to its target plus the plane's offset along the line of sight).
+- 87 Place → Spread (3-D): Plane (as before: several at once across the plane square to the view) or Sphere (out through a
+  ball round the point: a golden spiral over directions, the i-th at 1.9 sizes × ∛(i + ½), so each has a ball of room as
+  on the plane each has a disc). Measured: 20 argon span 0.17 Å in depth on the plane, 10.9 Å through the sphere.
+- The bond-order slot fix of 1.33.0's notes ("Fixed after the release") ships in this version.
+
+Tests: f_133 parts for 85–87; run: t_lint, f_133, f_132, f_125s, t_3d.
+
 ## 1.33.0: the molecule builder in 3-D, and fixes (the owner, 2026-11-14: "the 3d molecule builder isn't 3d … release it asap")
 
 - The molecule builder in the 3-D lab works in space (builder.js; the flat game's builder is as it was, bit for bit, apart
@@ -3497,11 +3510,11 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    (a short eased move), kept with the setup's save; shown in Help's keys.
 84 (done in 1.32.0) "Back to defaults" in each Settings tab: one button that puts only that tab's settings back as they start, with an
    undo line for a few seconds.
-85 (requested 2026-11-14, the owner: "a setting for a distance away from the camera to be shown when you hover on an atom
+85 (done in 1.33.1; requested 2026-11-14, the owner: "a setting for a distance away from the camera to be shown when you hover on an atom
    in 3d") 3-D lab: a setting (Settings → 3-D) that adds the hovered atom's distance from the camera to its hover label.
-86 (requested 2026-11-14, the owner: "a placing plane distance from camera in the bottom left") 3-D lab: the placing
+86 (done in 1.33.1; requested 2026-11-14, the owner: "a placing plane distance from camera in the bottom left") 3-D lab: the placing
    plane's distance from the camera shown in the bottom-left corner (beside the axes) while placing.
-87 (requested 2026-11-14, the owner: "a plane place and spherical place modes in 3d (plane is what it is now, while
+87 (done in 1.33.1; requested 2026-11-14, the owner: "a plane place and spherical place modes in 3d (plane is what it is now, while
    spherical automatically spreads atoms in a sphere when multiple are placed at once)") 3-D lab: the Place tool's mode,
    Plane (as now) or Sphere: several placed at once go out over a ball round the point instead of across the plane.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;

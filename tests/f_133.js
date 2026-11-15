@@ -49,7 +49,26 @@ module.exports = async function f133(page, check) {
   await page.mouse.move(cvr[0], cvr[1]); await page.mouse.down(); await page.mouse.move(cvr[0] + 60, cvr[1] + 20, { steps: 4 }); await page.mouse.up();
   const R1 = await page.evaluate(() => { const o = MB.R.slice(); mbClear(); $('bldClose').click(); return o; });
   const turned = R0.some((v, i) => Math.abs(v - R1[i]) > 0.05);
+  // 1.33.1 (items 85–87): the hover label's distance, the placing plane's distance, Plane / Sphere placing
+  const q = await page.evaluate(async () => { try {
+    const raf = () => new Promise(res => requestAnimationFrame(res)), out = {};
+    loadPreset('d3empty'); await raf(); setTool('place'); selectSpec({ kind: 'atom', Z: 18, A: 40, charge: 0 }); await raf();
+    buildToolOpts(); out.opts = !!document.querySelector('#toolopts [data-g="shape"]');
+    const spread = (shape) => { OPT.place.shape = shape; const ps = placeSpec({ kind: 'atom', Z: 18, A: 40, charge: 0 }, 0, 0, 20, 0); cam3Update();
+      let dmin = Infinity, dmax = -Infinity; for (const p of ps) { const d = (p.x - C3.ex) * C3.fx + (p.y - C3.ey) * C3.fy + (p.z - C3.ez) * C3.fz; dmin = Math.min(dmin, d); dmax = Math.max(dmax, d); }
+      for (const p of ps) kill(p); W.parts = W.parts.filter(p => !p.dead); return { n: ps.length, depth: dmax - dmin }; };
+    out.plane = spread('plane'); out.sphere = spread('sphere'); OPT.place.shape = 'plane';
+    const a = addAtom('Ar', 0, 0, { z: 0 }); a.vx = a.vy = a.vz = 0; cam3Update(); const v = [0, 0, 0]; proj3(a.x, a.y, a.z, v);
+    updateHover(v[0], v[1]); out.tip = $('tip').textContent; out.want = Math.hypot(a.x - C3.ex, a.y - C3.ey, a.z - C3.ez);
+    SET.dist3 = false; updateHover(v[0], v[1]); out.tipOff = $('tip').textContent; SET.dist3 = true; hideTip();
+    let txt = ''; const c = document.createElement('canvas').getContext('2d'), ft = c.fillText; c.fillText = function (t) { txt += t + '|'; return ft.apply(this, arguments); }; drawPlaneDist3(c); out.plText = txt;
+    return out;
+  } catch (e) { return { err: e.message }; } });
   if (own) await own.browser.close();
+  const m = /([\d.,]+) Å from the camera/.exec(q.tip || ''), pm = /Placing plane ([\d.,]+) Å from the camera/.exec(q.plText || '');
+  check(!q.err && m && Math.abs(parseFloat(m[1].replace(/,/g, '')) - q.want) < 0.05 && !/from the camera/.test(q.tipOff), `1.33.1 (85) hovering an atom in 3-D tells its distance from the camera ("${m && m[0]}"), off with the setting`, '1.33.1 hover distance: ' + JSON.stringify(q));
+  check(!q.err && !!pm, `1.33.1 (86) with the Place tool, the placing plane's distance from the camera shows bottom left ("${pm && pm[0]}")`, '1.33.1 plane distance: ' + JSON.stringify(q));
+  check(!q.err && q.opts && q.plane.n === 20 && q.sphere.n === 20 && q.plane.depth < 0.5 && q.sphere.depth > 4, `1.33.1 (87) Place → Spread: 20 argon on the plane span ${q.plane && q.plane.depth.toFixed(2)} Å in depth, through a sphere ${q.sphere && q.sphere.depth.toFixed(1)} Å`, '1.33.1 sphere placing: ' + JSON.stringify(q));
   check(/3-D/.test(r.title) && Math.abs(r.drawn.ang - 109.5) < 4 && r.drawn.zr > 0.5 && Math.abs(r.hAng - 109.5) < 4 && turned,
     `1.33 the molecule builder in the 3-D lab works in space: a drawn chain bends at ${r.drawn.ang.toFixed(1)}° with ${r.drawn.zr.toFixed(2)} Å of depth, a CH₃'s hydrogens ${r.hAng.toFixed(1)}° apart; dragging empty space turns it`, '1.33 builder 3-D: ' + JSON.stringify({ r, turned }));
   check(r.mol && r.mol.mode === '3d' && r.mol.zr > 1 && r.saved && r.placed > 1 && Math.abs(r.tidy - 112) < 6,
