@@ -3605,6 +3605,16 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    force reach.
 95 Experimental → Many-body dispersion for the force field: the van der Waals attraction from D3 (as the quantum bonds
    use) or many-body dispersion (MBD) with the ordinary force field, instead of its pair term alone.
+96 (requested 2026-11-15, the owner: "I noticed that a few settings that could have a photo don't, so add those")
+   Settings' preview pictures (tools/setshots.js, from the game itself) for the settings whose effect can be seen. Of 94
+   settings rows 39 pictures cover 27; without one, and with something to show: Display → Event captions, Slow down for
+   light in flight, the trail clock, the cursor; 3-D → Distance from the camera on hover; Experimental → full waves
+   (Waves as), positronium, muonium, exotic atoms, charged particles in matter (tracks), photon polarization, Rayleigh
+   scattering, photons as waves, hydrated electrons, nuclear spin and γ lines, resonance widths and heavy flavour,
+   unstable particles meeting, detailed nuclear collisions, lone pairs, σ-holes, π-stacking, polarizability by direction,
+   induced charges, many-body metals, quantum bonds (GFN1/GFN2), longer force reach, resonance in large rings. Each
+   picture shows that setting's effect on (a before/after pair where one picture cannot); the rest (performance,
+   threads, keys, saving, rewind, units, Claude's key and model, the reset buttons) have nothing to see and keep none.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
