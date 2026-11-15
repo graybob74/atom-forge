@@ -27,7 +27,8 @@ fn img(mut dx: f64, mut dy: f64, mut dz: f64, wrap: bool, d3: bool, bw: f64, bh:
    t: 0 x, 1 y, 2 z, 3 w (mass or charge), 4 fl (i32: bit 0 in the long-range sum, bit 1 ionic), 5 q0 (net charge),
       6 fx, 7 fy, 8 fz (out, compact, added to)
    p: 0 n, 1 mode, 2 d3, 3 wrap, 4 bw, 5 bh, 6 bd, 7 grad, 8 G or k, 9 cutoff² (gravity), 10 1/cutoff (gravity),
-      11 RC, 12 RC², 13 K_IW (1 in 3-D)                                                        returns the energy (eV) */
+      11 RC, 12 RC², 13 K_IW (1 in 3-D), 14 i0, 15 i1 (this call's range of i, for the worker threads; i1 0: all)
+                                                                                              returns the energy (eV) */
 #[no_mangle]
 pub unsafe extern "C" fn af_xf_pairs(t: u32, p: u32) -> f64 {
     let t = t as usize as *const i32; let p = p as usize as *const f64;
@@ -36,8 +37,9 @@ pub unsafe extern "C" fn af_xf_pairs(t: u32, p: u32) -> f64 {
     let n = r(p, 0) as usize; let mode = r(p, 1) as i32; let d3 = r(p, 2) != 0.0; let wrap = r(p, 3) != 0.0;
     let bw = r(p, 4); let bh = r(p, 5); let bd = r(p, 6); let grad = r(p, 7) != 0.0; let k = r(p, 8);
     let rc2g = r(p, 9); let irc = r(p, 10); let rc = r(p, 11); let rc2 = r(p, 12); let kiw = r(p, 13);
+    let i0 = r(p, 14) as usize; let i1 = if r(p, 15) > 0.0 { (r(p, 15) as usize).min(n) } else { n };
     let mut u = 0.0;
-    for i in 0..n {
+    for i in i0..i1 {
         let xi = r(x, i); let yi = r(y, i); let zi = if d3 { r(z, i) } else { 0.0 };
         for j in (i + 1)..n {
             let (dx, dy, dz) = img(r(x, j) - xi, r(y, j) - yi, if d3 { r(z, j) - zi } else { 0.0 }, wrap, d3, bw, bh, bd);
@@ -68,7 +70,8 @@ pub unsafe extern "C" fn af_xf_pairs(t: u32, p: u32) -> f64 {
    t: 0 x, 1 y, 2 z, 3 sp (i32 species), 4 c6 (ns×ns, Hartree·Bohr⁶), 5 r0 (ns×ns, Bohr), 6 head (i32, cells),
       7 next (i32, n), 8 fx, 9 fy, 10 fz (out)
    p: 0 n, 1 ns, 2 d3, 3 wrap, 4 bw, 5 bh, 6 bd, 7 grad, 8 cutoff (5 Å), 9 taper start (4 Å), 10 C9 unit, 11 Bohr³,
-      12 cells (the head array's length)                                                       returns the energy (eV) */
+      12 cells (the head array's length), 13 a0, 14 a1 (this call's range of a, for the worker threads; a1 0: all; each
+      call its own head, next and outputs)                                                     returns the energy (eV) */
 const NB_MAX: usize = 768;
 #[inline(always)]
 fn sw(rr: f64, t0: f64, tr: f64) -> (f64, f64) {
@@ -102,6 +105,7 @@ pub unsafe extern "C" fn af_xf_atm(t: u32, p: u32) -> f64 {
     let n = r(p, 0) as usize; let ns = r(p, 1) as usize; let d3 = r(p, 2) != 0.0; let wrap = r(p, 3) != 0.0;
     let bw = r(p, 4); let bh = r(p, 5); let bd = r(p, 6); let grad = r(p, 7) != 0.0; let tr = r(p, 8); let t0 = r(p, 9);
     let c9u = r(p, 10); let b3 = r(p, 11); let ncap = r(p, 12) as usize; let tr2 = tr * tr;
+    let a0 = r(p, 13) as usize; let a1 = if r(p, 14) > 0.0 { (r(p, 14) as usize).min(n) } else { n };
     // cells at least the cutoff across (wrapping walls: at least three a side, or every pair is looked at)
     let mut nx = ((bw / tr).floor() as usize).max(1); let mut ny = ((bh / tr).floor() as usize).max(1); let mut nz = if d3 { ((bd / tr).floor() as usize).max(1) } else { 1 };
     while nx * ny * nz > ncap { if nx >= ny && nx >= nz { nx = (nx / 2).max(1); } else if ny >= nz { ny = (ny / 2).max(1); } else { nz = (nz / 2).max(1); } }
@@ -113,7 +117,7 @@ pub unsafe extern "C" fn af_xf_atm(t: u32, p: u32) -> f64 {
     }
     let mut lj = [0u32; NB_MAX]; let mut lr = [0f64; NB_MAX]; let mut lux = [0f64; NB_MAX]; let mut luy = [0f64; NB_MAX]; let mut luz = [0f64; NB_MAX];
     let mut g = [0f64; 3]; let mut u = 0.0;
-    for a in 0..n {
+    for a in a0..a1 {
         let xa = r(x, a); let ya = r(y, a); let za = if d3 { r(z, a) } else { 0.0 };
         let mut m = 0usize;
         let mut take = |j: usize, m: &mut usize| {

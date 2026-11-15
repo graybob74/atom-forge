@@ -40,19 +40,38 @@ function xfBuf(key, T, n) { // a scratch array in the module's memory, at least 
   return a;
 }
 function xfBufs(n, ...spec) { const out = []; for (const [k, T, m] of spec) { const a = xfBuf(k, T, (m || 1) * n); if (!a) return null; out.push(a); } return out; }
-/* Gravity (mode 0) or full-range charges (mode 1) over every pair in the module; the forces scattered into FX…; the energy. */
-function xfPairsWasm(ps, mode, w, fl, q0, FX, FY, FZ, k, rc2g, irc) {
-  const n = ps.length, B = xfBufs(n, ['x', Float64Array], ['y', Float64Array], ['z', Float64Array], ['w', Float64Array], ['fl', Int32Array], ['q0', Float64Array], ['fx', Float64Array], ['fy', Float64Array], ['fz', Float64Array]);
-  if (!B) return null;
-  const [X, Y, Zs, Wt, FL, Q0, OX, OY, OZ] = B, T = xfBuf('T', Int32Array, 16), P = xfBuf('P', Float64Array, 24); if (!T || !P) return null;
-  const d3 = W.d3;
-  for (let i = 0; i < n; i++) { const p = ps[i]; X[i] = p.x; Y[i] = p.y; Zs[i] = d3 ? p.z : 0; Wt[i] = w[i]; FL[i] = fl ? fl[i] : 0; Q0[i] = q0 ? q0[i] : 0; OX[i] = OY[i] = OZ[i] = 0; }
-  [X, Y, Zs, Wt, FL, Q0, OX, OY, OZ].forEach((a, i) => { T[i] = a.byteOffset; });
-  P[0] = n; P[1] = mode; P[2] = d3 ? 1 : 0; P[3] = W.wall === 'wrap' ? 1 : 0; P[4] = W.box.w; P[5] = W.box.h; P[6] = W.box.d || 0; P[7] = FX ? 1 : 0; P[8] = k;
-  P[9] = rc2g; P[10] = irc; P[11] = RC; P[12] = RC2; P[13] = d3 ? 1 : K_IW;
-  const U = WK.ex.af_xf_pairs(T.byteOffset, P.byteOffset); XFW.calls++;
-  if (FX) for (let i = 0; i < n; i++) { const j = ps[i].i; FX[j] += OX[i]; FY[j] += OY[i]; if (FZ && d3) FZ[j] += OZ[i]; }
+/* A module pass split over the worker threads (thCall) when they are up and the job is big (n ≥ 400): part k takes the
+   k-th range of the outer index (cut so the parts have about equal work: the pair loop's work falls as (n − i), the
+   triple loop's as (n − a)²), its own output arrays (and, for the triples, its own cell arrays); the parts' energies
+   and forces added in order. tab(k, i0, i1): part k's tables [T, P] (null if they cannot be had). */
+function xfRun(fi, fn, n, pw, tab, outs) {
+  const parts = typeof thCallOk === 'function' && n >= 400 && thCallOk() ? TH.n + 1 : 1, cut = (k) => k >= parts ? n : Math.round(n * (1 - Math.pow(1 - k / parts, 1 / pw)));
+  const tabs = []; for (let k = 0; k < parts; k++) { const t = tab(k, cut(k), cut(k + 1)); if (!t) return null; tabs.push(t); }
+  let U;
+  if (parts === 1) U = WK.ex[fn](tabs[0][0].byteOffset, tabs[0][1].byteOffset);
+  else {
+    const [u0, us] = thCall(fi, tabs.slice(1).map(t => t[0].byteOffset), tabs.slice(1).map(t => t[1].byteOffset), () => WK.ex[fn](tabs[0][0].byteOffset, tabs[0][1].byteOffset));
+    U = u0; for (let k = 1; k < parts; k++) U += Number.isNaN(us[k - 1]) ? WK.ex[fn](tabs[k][0].byteOffset, tabs[k][1].byteOffset) : us[k - 1]; // (a worker without the module: its range here)
+    XFW.threads = parts;
+  }
+  XFW.calls++;
+  outs(parts);
   return U;
+}
+/* Gravity (mode 0) or full-range charges (mode 1) over every pair in the module; the forces scattered into FX…; the energy. */
+function xfPairsWasm(ps, mode, w, fl, q0, FX, FY, FZ, k0, rc2g, irc) {
+  const n = ps.length, B = xfBufs(n, ['x', Float64Array], ['y', Float64Array], ['z', Float64Array], ['w', Float64Array], ['fl', Int32Array], ['q0', Float64Array]);
+  if (!B) return null;
+  const [X, Y, Zs, Wt, FL, Q0] = B, d3 = W.d3, O = [];
+  for (let i = 0; i < n; i++) { const p = ps[i]; X[i] = p.x; Y[i] = p.y; Zs[i] = d3 ? p.z : 0; Wt[i] = w[i]; FL[i] = fl ? fl[i] : 0; Q0[i] = q0 ? q0[i] : 0; }
+  return xfRun(0, 'af_xf_pairs', n, 2, (k, i0, i1) => {
+    const ob = xfBufs(n, ['fx' + k, Float64Array], ['fy' + k, Float64Array], ['fz' + k, Float64Array]), T = xfBuf('T' + k, Int32Array, 16), P = xfBuf('P' + k, Float64Array, 24); if (!ob || !T || !P) return null;
+    for (const a of ob) a.fill(0, 0, n); O[k] = ob;
+    [X, Y, Zs, Wt, FL, Q0, ...ob].forEach((a, i) => { T[i] = a.byteOffset; });
+    P[0] = n; P[1] = mode; P[2] = d3 ? 1 : 0; P[3] = W.wall === 'wrap' ? 1 : 0; P[4] = W.box.w; P[5] = W.box.h; P[6] = W.box.d || 0; P[7] = FX ? 1 : 0; P[8] = k0;
+    P[9] = rc2g; P[10] = irc; P[11] = RC; P[12] = RC2; P[13] = d3 ? 1 : K_IW; P[14] = i0; P[15] = i1;
+    return [T, P];
+  }, (parts) => { if (FX) for (let q = 0; q < parts; q++) { const [OX, OY, OZ] = O[q]; for (let i = 0; i < n; i++) { const j = ps[i].i; FX[j] += OX[i]; FY[j] += OY[i]; if (FZ && d3) FZ[j] += OZ[i]; } } });
 }
 /* Pairs over flat arrays (the nearest image with wrapping walls): fn(i, j, dx, dy, dz, r2) for every pair i < j. */
 function xfPairs(ps, fn, R2) {
@@ -333,18 +352,21 @@ function xfDispWasm(ps, FX, FY, FZ) { // the whole three-body sum in the module 
   const n = ps.length, sps = [], idx = new Map();
   for (const p of ps) if (!idx.has(p.Z)) { idx.set(p.Z, sps.length); sps.push(p.Z); }
   const ns = sps.length, d3 = W.d3, nc = 4 * n + 64;
-  const B = xfBufs(n, ['ax', Float64Array], ['ay', Float64Array], ['az', Float64Array], ['asp', Int32Array], ['anx', Int32Array], ['afx', Float64Array], ['afy', Float64Array], ['afz', Float64Array]);
-  const C6 = xfBuf('c6', Float64Array, ns * ns), R0 = xfBuf('r0', Float64Array, ns * ns), HD = xfBuf('ahd', Int32Array, nc), T = xfBuf('T', Int32Array, 16), P = xfBuf('P', Float64Array, 24);
-  if (!B || !C6 || !R0 || !HD || !T || !P) return null;
-  const [X, Y, Zs, SP, NX, OX, OY, OZ] = B;
+  const B = xfBufs(n, ['ax', Float64Array], ['ay', Float64Array], ['az', Float64Array], ['asp', Int32Array]);
+  const C6 = xfBuf('c6', Float64Array, ns * ns), R0 = xfBuf('r0', Float64Array, ns * ns);
+  if (!B || !C6 || !R0) return null;
+  const [X, Y, Zs, SP] = B, O = [];
   for (let a = 0; a < ns; a++) for (let b = 0; b < ns; b++) { const c = xfC6(sps[a], sps[b]); C6[a * ns + b] = c[0]; R0[a * ns + b] = c[1]; }
-  for (let i = 0; i < n; i++) { const p = ps[i]; X[i] = p.x; Y[i] = p.y; Zs[i] = d3 ? p.z : 0; SP[i] = idx.get(p.Z); OX[i] = OY[i] = OZ[i] = 0; }
-  [X, Y, Zs, SP, C6, R0, HD, NX, OX, OY, OZ].forEach((a, i) => { T[i] = a.byteOffset; });
-  P[0] = n; P[1] = ns; P[2] = d3 ? 1 : 0; P[3] = W.wall === 'wrap' ? 1 : 0; P[4] = W.box.w; P[5] = W.box.h; P[6] = W.box.d || 0; P[7] = FX ? 1 : 0;
-  P[8] = XF_TR; P[9] = XF_T0; P[10] = XF_C9U; P[11] = XF_B3; P[12] = HD.length;
-  const U = WK.ex.af_xf_atm(T.byteOffset, P.byteOffset); XFW.calls++;
-  if (FX) for (let i = 0; i < n; i++) { const j = ps[i].i; FX[j] += OX[i]; FY[j] += OY[i]; if (FZ && d3) FZ[j] += OZ[i]; }
-  return U;
+  for (let i = 0; i < n; i++) { const p = ps[i]; X[i] = p.x; Y[i] = p.y; Zs[i] = d3 ? p.z : 0; SP[i] = idx.get(p.Z); }
+  return xfRun(1, 'af_xf_atm', n, 3, (k, a0, a1) => {
+    const ob = xfBufs(n, ['afx' + k, Float64Array], ['afy' + k, Float64Array], ['afz' + k, Float64Array], ['anx' + k, Int32Array]), HD = xfBuf('ahd' + k, Int32Array, nc), T = xfBuf('T' + k, Int32Array, 16), P = xfBuf('P' + k, Float64Array, 24);
+    if (!ob || !HD || !T || !P) return null;
+    const [OX, OY, OZ, NX] = ob; OX.fill(0, 0, n); OY.fill(0, 0, n); OZ.fill(0, 0, n); O[k] = ob;
+    [X, Y, Zs, SP, C6, R0, HD, NX, OX, OY, OZ].forEach((a, i) => { T[i] = a.byteOffset; });
+    P[0] = n; P[1] = ns; P[2] = d3 ? 1 : 0; P[3] = W.wall === 'wrap' ? 1 : 0; P[4] = W.box.w; P[5] = W.box.h; P[6] = W.box.d || 0; P[7] = FX ? 1 : 0;
+    P[8] = XF_TR; P[9] = XF_T0; P[10] = XF_C9U; P[11] = XF_B3; P[12] = HD.length; P[13] = a0; P[14] = a1;
+    return [T, P];
+  }, (parts) => { if (FX) for (let q = 0; q < parts; q++) { const [OX, OY, OZ] = O[q]; for (let i = 0; i < n; i++) { const j = ps[i].i; FX[j] += OX[i]; FY[j] += OY[i]; if (FZ && d3) FZ[j] += OZ[i]; } } });
 }
 function xfDisp(FX, FY, FZ, eOnly, set, skip) {
   let ps = xfDispAts(); if (skip) ps = ps.filter(p => p !== skip);
