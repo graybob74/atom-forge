@@ -2000,6 +2000,15 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
 - 87 Place → Spread (3-D): Plane (as before: several at once across the plane square to the view) or Sphere (out through a
   ball round the point: a golden spiral over directions, the i-th at 1.9 sizes × ∛(i + ½), so each has a ball of room as
   on the plane each has a disc). Measured: 20 argon span 0.17 Å in depth on the plane, 10.9 Å through the sphere.
+- After the release (the owner: "I asked Claude to generate a double helix of DNA and it said it's in the 2-D game, but
+  I want it as a helix in 3-D"): Claude answered with the flat DNA object, which is in the 2-D library only. Now the
+  3-D library has DNA as a double helix (dna3, tools/objgen3.js): the flat object's eight base pairs, each base a rigid
+  slab with its pair, stacked as B-DNA stacks them (3.38 Å apart, each turned 36°, right-handed), the sugars and
+  phosphates wound on continuously round the outside (a rigid slab for them turned the lower strand's links the wrong
+  way, bonds 16× their length); settled with the engine's 3-D forces. Measured: the base pairs turn 35–39° a step, rise
+  3.41 Å; 3 ps at 300 K keeps every bond and a twist of 25–45° a step. Ask Claude in the 3-D lab is told it is building
+  for space and offered only the 3-D library's objects, and an answer naming the other mode's object takes its
+  counterpart (dna → dna3).
 - The bond-order slot fix of 1.33.0's notes ("Fixed after the release") ships in this version.
 
 Tests: f_133 parts for 85–87; run: t_lint, f_133, f_132, f_125s, t_3d.
@@ -3517,6 +3526,9 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 87 (done in 1.33.1; requested 2026-11-14, the owner: "a plane place and spherical place modes in 3d (plane is what it is now, while
    spherical automatically spreads atoms in a sphere when multiple are placed at once)") 3-D lab: the Place tool's mode,
    Plane (as now) or Sphere: several placed at once go out over a ball round the point instead of across the plane.
+88 (requested 2026-11-14, the owner: "make the expanded decay chart and fission tree fit better and be more
+   interactive") The charts' window (1.31 item 74): the decay chart and the fission tree fitted to the window when they
+   open, and more to do in them (hover for each nuclide or branch, click to inspect it, zoom to a part).
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
