@@ -244,3 +244,48 @@ pub unsafe extern "C" fn af_xn_steps(t: u32, p: u32) -> f64 {
     }
     u
 }
+
+/* ---- the induced dipoles' pairs (pold.js pdUpdate's gathering loop): within the reach, different molecules, an atom of
+   the new set or an old dipole in it; each pair's dx, dy, dz, fade, w, and g′, g″ with the new damping, faded; and the
+   old dipoles' energy with the old damping (U0, before the factor k).
+   t: 0 pi, 1 pj, 2 x, 3 y, 4 z, 5 k (u8), 6 Z (i16), 7 dead, 8 fast, 9 rad (u8), 10 mol (i32), 11 q, 12 qp (f64), 13 ionic (u8),
+      14 sl (i32), 15 om (u8), 16 xo, 17 yo, 18 zo, 19 ro, 20 rn (f64), 21 pa, 22 pb (i32, out), 23 pg (f64, out)
+   p: 0 nl, 1 d3, 2 wrap, 3 bw, 4 bh, 5 bd, 6 rc2, 7 r1 (RC − 1), 8 PD_S, 9 PD_TH, 10 K_IW; out: 15 np     returns U0 */
+#[no_mangle]
+pub unsafe extern "C" fn af_pd_gather(t: u32, p: u32) -> f64 {
+    let t = t as usize as *const i32; let pm = p as usize as *mut f64; let p = pm as *const f64;
+    let pi: *const i32 = o(t, 0); let pj: *const i32 = o(t, 1); let x: *const f64 = o(t, 2); let y: *const f64 = o(t, 3); let zp: *const f64 = o(t, 4);
+    let kk: *const u8 = o(t, 5); let zs: *const i16 = o(t, 6); let dead: *const u8 = o(t, 7); let fast: *const u8 = o(t, 8); let rad: *const u8 = o(t, 9);
+    let mol: *const i32 = o(t, 10); let q: *const f64 = o(t, 11); let qp: *const f64 = o(t, 12); let ionic: *const u8 = o(t, 13);
+    let sl: *const i32 = o(t, 14); let om: *const u8 = o(t, 15); let xo: *const f64 = o(t, 16); let yo: *const f64 = o(t, 17); let zo: *const f64 = o(t, 18);
+    let ro: *const f64 = o(t, 19); let rn: *const f64 = o(t, 20); let pa: *mut i32 = o(t, 21); let pb: *mut i32 = o(t, 22); let pg: *mut f64 = o(t, 23);
+    let nl = r(p, 0) as usize; let d3 = r(p, 1) != 0.0; let wrap = r(p, 2) != 0.0; let bw = r(p, 3); let bh = r(p, 4); let bd = r(p, 5);
+    let hw = bw / 2.0; let hh = bh / 2.0; let hd = bd / 2.0; let rc2 = r(p, 6); let r1 = r(p, 7); let pds = r(p, 8); let pdth = r(p, 9); let kiw = r(p, 10);
+    let mut np = 0usize; let mut u0 = 0.0;
+    for k in 0..nl {
+        let i = r(pi, k) as usize; let j = r(pj, k) as usize;
+        let omi = r(om, i) != 0; let omj = r(om, j) != 0;
+        if r(sl, i) < 0 && r(sl, j) < 0 && !omi && !omj { continue; }
+        if r(kk, i) != 0 || r(kk, j) != 0 || r(zs, i) == 0 || r(zs, j) == 0 || r(dead, i) != 0 || r(dead, j) != 0 || r(fast, i) != 0 || r(fast, j) != 0 || r(rad, i) != 0 || r(rad, j) != 0 { continue; }
+        let mi = r(mol, i); if mi != 0 && mi == r(mol, j) { continue; }
+        let mut dx = r(x, j) - r(x, i); let mut dy = r(y, j) - r(y, i); let mut dz = if d3 { r(zp, j) - r(zp, i) } else { 0.0 };
+        if wrap { if dx > hw { dx -= bw; } else if dx < -hw { dx += bw; } if dy > hh { dy -= bh; } else if dy < -hh { dy += bh; } if d3 { if dz > hd { dz -= bd; } else if dz < -hd { dz += bd; } } }
+        let u = dx * dx + dy * dy + dz * dz; if u >= rc2 { continue; }
+        let sw = if u <= r1 * r1 { 1.0 } else { let rr = u.sqrt(); let xx = rr - r1; 1.0 - xx * xx * xx * (10.0 - 15.0 * xx + 6.0 * xx * xx) };
+        let ii = r(ionic, i); let ij = r(ionic, j);
+        let w = if ii != ij && (if ii == 1 { r(q, j) == 0.0 } else { r(q, i) == 0.0 }) && !d3 { kiw } else { 1.0 };
+        if omi || omj {
+            let tt = u + (pds + pdth * r(ro, i) * r(ro, j)); let g = 1.0 / tt.sqrt(); let it = 1.0 / tt; let g1 = -0.5 * g * it; let g2 = -1.5 * g1 * it;
+            let qa = r(q, i) + r(qp, i); let qb = r(q, j) + r(qp, j);
+            let (ax, ay, az, bx, by, bz) = (r(xo, i), r(yo, i), r(zo, i), r(xo, j), r(yo, j), r(zo, j));
+            let aa = ax * dx + ay * dy + az * dz; let bb = bx * dx + by * dy + bz * dz; let cc = ax * bx + ay * by + az * bz;
+            u0 += sw * (2.0 * g1 * w * (qa * bb - qb * aa) - 2.0 * g1 * cc - 4.0 * g2 * aa * bb);
+        }
+        let tt = u + (pds + pdth * r(rn, i) * r(rn, j)); let g = 1.0 / tt.sqrt(); let it = 1.0 / tt; let g1 = -0.5 * g * it; let g2 = -1.5 * g1 * it;
+        let gg = 8 * np; *pa.add(np) = i as i32; *pb.add(np) = j as i32;
+        *pg.add(gg) = dx; *pg.add(gg + 1) = dy; *pg.add(gg + 2) = dz; *pg.add(gg + 3) = sw; *pg.add(gg + 4) = w; *pg.add(gg + 5) = sw * g1; *pg.add(gg + 6) = sw * g2;
+        np += 1;
+    }
+    *pm.add(15) = np as f64;
+    u0
+}

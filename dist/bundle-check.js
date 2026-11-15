@@ -24704,7 +24704,7 @@ const _xfG = [0, 0, 0], XF_C9U = XF_EH * Math.pow(XF_BOHR, 9), XF_B3 = XF_BOHR *
 function xfAtmE(c6ab, c6bc, c6ca, r0ab, r0bc, r0ca, a, b, c, grad) {
   const c9 = Math.sqrt(Math.abs(c6ab * c6bc * c6ca)) * XF_C9U, r0 = r0ab * r0bc * r0ca * XF_B3;
   const a2 = a * a, b2 = b * b, c2 = c * c, X = a2 + b2 - c2, Y = a2 - b2 + c2, Zq = -a2 + b2 + c2, N = X * Y * Zq, P = a * b * c, P3 = P * P * P, P5 = P3 * P * P;
-  const ang = 0.375 * N / P5 + 1 / P3, q = 6 * Math.pow(r0 / P, 16 / 3), fd = 1 / (1 + q);
+  const ang = 0.375 * N / P5 + 1 / P3, tq = r0 / P, t2 = tq * tq, q = 6 * t2 * t2 * tq * Math.cbrt(tq), fd = 1 / (1 + q); // ((r0/P)^(16/3) as t⁵·∛t, as the module, 1.34.3)
   xfSw(a); const sa = _xfS, da = _xfD; xfSw(b); const sb = _xfS, db = _xfD; xfSw(c); const sc = _xfS, dc = _xfD;
   const Sw = sa * sb * sc, E = c9 * ang * fd * Sw;
   if (grad) {
@@ -25238,6 +25238,15 @@ function pdIterWasm(np, ns, PA, PB, PG, SL, E, Et, M, AL) {
   P[0] = np; P[1] = ns; P[2] = W.d3 ? 1 : 0; P[3] = PD_MAXIT; P[4] = PD_TOL; XFW.calls++;
   return WK.ex.af_pd_iter(T.byteOffset, P.byteOffset);
 }
+function pdGatherWasm(nl, PA, PB, PG, SL, OM, XO, YO, ZO, RO, RN) {
+  const A = [VL.pi, VL.pj, S.x, S.y, S.z, S.k, S.Z, S.dead, S.fast, S.rad, S.mol, S.q, S.qp, S.ionic, SL, OM, XO, YO, ZO, RO, RN, PA, PB, PG];
+  if (!xfWasm('af_pd_gather') || !wasmIn(...A)) return null;
+  const T = xfBuf('pgT', Int32Array, 24), P = xfBuf('pgP', Float64Array, 16); if (!T || !P) return null;
+  for (let k = 0; k < A.length; k++) T[k] = A[k].byteOffset;
+  P[0] = nl; P[1] = W.d3 ? 1 : 0; P[2] = W.wall === 'wrap' ? 1 : 0; P[3] = W.box.w; P[4] = W.box.h; P[5] = W.box.d; P[6] = RC2; P[7] = RC - 1; P[8] = PD_S; P[9] = PD_TH; P[10] = K_IW;
+  const U0 = WK.ex.af_pd_gather(T.byteOffset, P.byteOffset); XFW.calls++;
+  return [P[15], U0];
+}
 function pdUpdate() {
   pdLive();
   const mols = new Map();
@@ -25248,7 +25257,7 @@ function pdUpdate() {
   const set = [], A6 = new Float64Array(6);
   let n = 0; for (const m of mols.values()) if (m.length >= 2 && m.length <= QEQ.maxMol) n += m.length;
   if (PDU.A.length < 6 * n) { PDU.A = pdArr(Float64Array, 12 * n + 12); PDU.E = pdArr(Float64Array, 6 * n + 6); PDU.M = pdArr(Float64Array, 6 * n + 6); PDU.Et = pdArr(Float64Array, 6 * n + 6); }
-  if (PDU.cap < S.size) { const c = S.size * 2; PDU.cap = c; PDU.sl = pdArr(Int32Array, c).fill(-1); PDU.om = new Uint8Array(c); PDU.xo = new Float64Array(c); PDU.yo = new Float64Array(c); PDU.zo = new Float64Array(c); PDU.ro = new Float64Array(c); PDU.rn = new Float64Array(c); }
+  if (PDU.cap < S.size) { const c = S.size * 2; PDU.cap = c; PDU.sl = pdArr(Int32Array, c).fill(-1); PDU.om = pdArr(Uint8Array, c); PDU.xo = pdArr(Float64Array, c); PDU.yo = pdArr(Float64Array, c); PDU.zo = pdArr(Float64Array, c); PDU.ro = pdArr(Float64Array, c); PDU.rn = pdArr(Float64Array, c); }
   const AL = PDU.A, E = PDU.E, M = PDU.M, Et = PDU.Et, SL = PDU.sl, OM = PDU.om, XO = PDU.xo, YO = PDU.yo, ZO = PDU.zo, RO = PDU.ro, RN = PDU.rn;
   for (const m of mols.values()) if (m.length >= 2 && m.length <= QEQ.maxMol) for (const p of m) {
     if (!pdAlpha(p, A6)) continue;
@@ -25270,7 +25279,8 @@ function pdUpdate() {
   if (PDU.pa.length < nl) { PDU.pa = pdArr(Int32Array, nl * 2 + 16); PDU.pb = pdArr(Int32Array, nl * 2 + 16); PDU.pg = pdArr(Float64Array, 8 * (nl * 2 + 16)); }
   const PA = PDU.pa, PB = PDU.pb, PG = PDU.pg; // (PG per pair: dx, dy, dz, fade, w, g′ and g″ with the new damping, faded)
   let np = 0, U0 = 0;
-  for (let q = 0; q < nl; q++) {
+  const gw = pdGatherWasm(nl, PA, PB, PG, SL, OM, XO, YO, ZO, RO, RN); if (gw) { np = gw[0]; U0 = gw[1]; } // (the module, 1.34.3: the loop below)
+  if (!gw) for (let q = 0; q < nl; q++) {
     const i = pi[q], j = pj[q];
     if (SL[i] < 0 && SL[j] < 0 && !OM[i] && !OM[j]) continue;
     if (KK[i] !== NUC || KK[j] !== NUC || Zs[i] === 0 || Zs[j] === 0 || DEAD[i] || DEAD[j] || FAST[i] || FAST[j] || RAD[i] || RAD[j]) continue;
