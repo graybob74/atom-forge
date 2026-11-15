@@ -81,7 +81,7 @@ fn atm_e(c6ab: f64, c6bc: f64, c6ca: f64, r0ab: f64, r0bc: f64, r0ca: f64, a: f6
     let c9 = (c6ab * c6bc * c6ca).abs().sqrt() * c9u; let r0 = r0ab * r0bc * r0ca * b3;
     let a2 = a * a; let b2 = b * b; let c2 = c * c; let xx = a2 + b2 - c2; let yy = a2 - b2 + c2; let zq = -a2 + b2 + c2; let nn = xx * yy * zq;
     let pp = a * b * c; let p3 = pp * pp * pp; let p5 = p3 * pp * pp;
-    let ang = 0.375 * nn / p5 + 1.0 / p3; let tq = r0 / pp; let t2 = tq * tq; let q = 6.0 * t2 * t2 * tq * tq.cbrt(); let fd = 1.0 / (1.0 + q); // ((r0/P)^(16/3) as t⁵·∛t: far cheaper than pow)
+    let ang = 0.375 * nn / p5 + 1.0 / p3; let tq = r0 / pp; let t2 = tq * tq; let q = 6.0 * t2 * t2 * tq * crate::fastmath::cbrt_pos(tq); let fd = 1.0 / (1.0 + q); // ((r0/P)^(16/3) as t⁵·∛t: far cheaper than pow)
     let (sa, da) = sw(a, t0, tr); let (sb, db) = sw(b, t0, tr); let (sc, dc) = sw(c, t0, tr);
     let s = sa * sb * sc; let e = c9 * ang * fd * s;
     if grad {
@@ -200,11 +200,11 @@ pub unsafe extern "C" fn af_pd_iter(t: u32, p: u32) -> f64 {
 fn xn_v(pi: bool, pj: bool, r: f64) -> (f64, f64) {
     let (mut v, mut f);
     if pi != pj {
-        let er = (-1.7468 * r).exp(); let ea = (-1.6 * r).exp();
+        let er = crate::fastmath::exp_fast(-1.7468 * r); let ea = crate::fastmath::exp_fast(-1.6 * r);
         v = 3088.118 * (er / r - 0.0000148706) - 2666.647 * (ea / r - 0.0000325516);
         f = 3088.118 * er * (1.7468 * r + 1.0) / (r * r) - 2666.647 * ea * (1.6 * r + 1.0) / (r * r);
     } else {
-        let e0 = (-1.5468 * r).exp(); v = 373.118 * (e0 / r - 0.0000429836); f = 373.118 * e0 * (1.5468 * r + 1.0) / (r * r);
+        let e0 = crate::fastmath::exp_fast(-1.5468 * r); v = 373.118 * (e0 / r - 0.0000429836); f = 373.118 * e0 * (1.5468 * r + 1.0) / (r * r);
     }
     let pp = pi && pj;
     if pp { v += 1.44 / r; f += 1.44 / (r * r); }

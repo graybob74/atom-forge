@@ -34,3 +34,26 @@ pub fn atan2(y: f64, x: f64) -> f64 {
     let z = atan(y / x);
     if x > 0.0 { z } else if y >= 0.0 { z + PI } else { z - PI }
 }
+
+/// ∛x for x > 0 (1.34.3, the three-body dispersion's damping): a first guess from the exponent bits, then Newton's steps
+/// (three: to the last bit or one off). The library's cbrt is a call into compiled-in libm, several times slower here.
+#[inline(always)]
+pub fn cbrt_pos(x: f64) -> f64 {
+    if !(x > 0.0) || !x.is_finite() { return x.cbrt(); }
+    let mut y = f64::from_bits(x.to_bits() / 3 + 0x2A9F_7893_782D_A1CE);
+    for _ in 0..3 { y -= (y - x / (y * y)) / 3.0; }
+    y + (x / (y * y) - y) / 3.0
+}
+/// e^x (1.34.3, the nucleons' potential): x = k·ln 2 + r, |r| ≤ ln 2 / 2, e^r by its series to the 13th power (relative
+/// error under 2·10⁻¹⁶), times 2^k by the exponent bits. For −700 < x < 700; else the library's.
+#[inline(always)]
+pub fn exp_fast(x: f64) -> f64 {
+    if !(x > -700.0 && x < 700.0) { return x.exp(); }
+    let k = (x * core::f64::consts::LOG2_E).round();
+    let r = (x - k * 6.931_471_803_691_238_164_90e-1) - k * 1.908_214_929_270_587_700_02e-10;
+    let mut p = 1.0 / 6_227_020_800.0;
+    p = p * r + 1.0 / 479_001_600.0; p = p * r + 1.0 / 39_916_800.0; p = p * r + 1.0 / 3_628_800.0; p = p * r + 1.0 / 362_880.0;
+    p = p * r + 1.0 / 40_320.0; p = p * r + 1.0 / 5_040.0; p = p * r + 1.0 / 720.0; p = p * r + 1.0 / 120.0; p = p * r + 1.0 / 24.0;
+    p = p * r + 1.0 / 6.0; p = p * r + 0.5; p = p * r + 1.0; p = p * r + 1.0;
+    p * f64::from_bits(((k as i64 + 1023) as u64) << 52)
+}
