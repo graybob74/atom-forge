@@ -249,21 +249,52 @@ function pfindMatch(q) {
   let g = q; for (const [w, c] of PF_GREEK) g = g.replace(new RegExp('\\b' + w, 'g'), c.toLowerCase());
   const words = q.split(/\s+/), gw = g.split(/\s+/);
   return pfindItems().map(it => { const lab = specLabel(it.sp).toLowerCase(), id = (it.sp.sp || '').toLowerCase(); const score = (id === q || lab === q || lab === g ? 0 : id.startsWith(q) || lab.startsWith(g) ? 1 : 2) + (words.every(w => it.hay.includes(w)) || gw.every(w => it.hay.includes(w)) ? 0 : 9); return [score, it]; })
-    .filter(([sc]) => sc < 9).sort((a, b) => a[0] - b[0]).slice(0, 12).map(([, it]) => it);
+    .concat(pfindEls(q)).filter(([sc]) => sc < 9).sort((a, b) => a[0] - b[0]).slice(0, 12).map(([, it]) => it);
+}
+/* (1.34.3, the owner: "make the searchbar in the top left work for elements") Elements and isotopes in the particle
+   search, as the collider's beam search reads them: a symbol or a name (or the start of names), an atomic number, an
+   isotope as C-14, 14C, carbon 14 or uranium-235 (one that holds together). An element is its usual isotope, neutral,
+   as the periodic table places it; [score, item] pairs, 0 for an exact match. */
+function pfindEls(q) {
+  const t = q.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (c) => String('⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(c))).replace(/\s+/g, ' ').trim(), out = [];
+  const item = (Z, A, sc) => { const iso = A && A !== COMMON_A[Z], sp = iso ? isoSpec(Z, A) : { kind: 'atom', Z, A: COMMON_A[Z] }; if (!out.some(([, o]) => sameSpec(o.sp, sp))) out.push([sc, { sp, cat: 'Elements', hay: `${ELEMENTS[Z].name} ${ELEMENTS[Z].sym}`.toLowerCase() }]); };
+  let m;
+  if ((m = /^(\d{1,3}) ?-? ?([a-z]+)$/.exec(t)) || (m = /^([a-z]+) ?-? ?(\d{1,3})$/.exec(t))) { // an isotope
+    const num = /^\d/.test(m[1]) ? +m[1] : +m[2], w = /^\d/.test(m[1]) ? m[2] : m[1], Z = elementZ(w);
+    if (Z && beamIsotopes(Z).includes(num)) item(Z, num, 0);
+    else if (Z) item(Z, 0, 1);
+    return out;
+  }
+  if (/^\d{1,3}$/.test(t)) { const Z = +t; if (Z >= 1 && Z <= Z_TABLE) item(Z, 0, 0); return out; }
+  if (!/^[a-z]+$/.test(t)) return out;
+  const Z0 = elementZ(t); if (Z0 && (ELEMENTS[Z0].sym.toLowerCase() === t || ELEMENTS[Z0].name.toLowerCase() === t || EL_ALIASES[t])) item(Z0, 0, 0);
+  for (let Z = 1; Z <= Z_TABLE && out.length < 8; Z++) { const E = ELEMENTS[Z]; if ((t.length >= 2 && E.name.toLowerCase().startsWith(t)) || (t.length <= 2 && E.sym.toLowerCase().startsWith(t))) item(Z, 0, 1.5); }
+  return out;
 }
 function pfindOpen(btn) {
   const m = $('pmenu');
   if (!m.hidden && m.dataset.ci === 'find') { pmenuClose(); return; }
   m.dataset.ci = 'find';
-  m.innerHTML = `<div class="pm-h">Search particles</div><input class="msearch pf-q" id="pfQ" placeholder="pi-, lambda, muonium, deuteron …" autocomplete="off" spellcheck="false" aria-label="Find a particle"><div id="pfR"></div>`;
+  m.innerHTML = `<div class="pm-h">Search particles and elements</div><input class="msearch pf-q" id="pfQ" placeholder="pi-, lambda, gold, C-14, 92 …" autocomplete="off" spellcheck="false" aria-label="Find a particle or an element"><div id="pfR"></div>`;
   const r = btn.getBoundingClientRect(), st = $('stage').getBoundingClientRect(), ui = SET.ui || 1;
   m.hidden = false; m.style.left = Math.max(4, Math.min((r.left - st.left) / ui, (st.width / ui) - 320)) + 'px'; m.style.top = ((r.bottom - st.top) / ui + 4) + 'px';
   let res = [];
-  const show = () => { res = pfindMatch($('pfQ').value); $('pfR').innerHTML = res.length ? res.map((it, k) => `<button class="pm-i" data-k="${k}"><span class="sw" style="background:${specColor(it.sp)}"></span><b>${esc(specLabel(it.sp))}</b><span>${esc(specName(it.sp))} · ${esc(it.cat)}</span></button>`).join('') : `<div class="pm-h" style="text-transform:none">${$('pfQ').value.trim() ? 'Nothing by that name' : 'Type a name or symbol'}</div>`; };
+  const isoChips = (it) => it.cat !== 'Elements' ? '' : `<span class="pf-isos">${pfindIsos(it.sp.Z).map(A => `<span class="pf-iso" role="button" tabindex="-1" data-z="${it.sp.Z}" data-a="${A}" title="Place ${esc(ELEMENTS[it.sp.Z].name.toLowerCase())}-${A}">${sup(A)}${esc(ELEMENTS[it.sp.Z].sym)}</span>`).join('')}</span>`; // (1.34.3: three common isotopes, shown on hover)
+  const show = () => { res = pfindMatch($('pfQ').value); $('pfR').innerHTML = res.length ? res.map((it, k) => `<button class="pm-i${it.cat === 'Elements' ? ' el' : ''}" data-k="${k}"><span class="sw" style="background:${specColor(it.sp)}"></span><b>${esc(specLabel(it.sp))}</b><span>${esc(specName(it.sp))} · ${esc(it.cat)}</span>${isoChips(it)}</button>`).join('') : `<div class="pm-h" style="text-transform:none">${$('pfQ').value.trim() ? 'Nothing by that name' : 'Type a name or symbol'}</div>`; };
   const q = $('pfQ'); q.oninput = show; show(); q.focus();
   q.onkeydown = (e) => { if (e.key === 'Enter' && res.length) { e.preventDefault(); pmenuClose(); selectSpec(res[0].sp); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); pmenuClose(); } };
-  m.onclick = (e) => { const b = e.target.closest('.pm-i'); if (!b || !res[+b.dataset.k]) return; pmenuClose(); selectSpec(res[+b.dataset.k].sp); };
+  m.onclick = (e) => {
+    const c = e.target.closest('.pf-iso'); if (c) { const Z = +c.dataset.z, A = +c.dataset.a; pmenuClose(); selectSpec(A === COMMON_A[Z] ? { kind: 'atom', Z, A } : isoSpec(Z, A)); return; } // (an isotope chip: that isotope)
+    const b = e.target.closest('.pm-i'); if (!b || !res[+b.dataset.k]) return; pmenuClose(); selectSpec(res[+b.dataset.k].sp);
+  };
   m.oncontextmenu = (e) => { const b = e.target.closest('.pm-i'); if (!b || !res[+b.dataset.k]) return; chipCard(e, res[+b.dataset.k].sp); };
+}
+/* Three common isotopes of an element (1.34.3, the owner: "when you hover over one you searched for you can choose isotope
+   from a list of 3 common ones"): its usual one, then its other stable ones nearest it, then the longest-lived (measured ones first). */
+function pfindIsos(Z) {
+  const all = beamIsotopes(Z), A0 = COMMON_A[Z], info = (A) => nuclideInfo(Z, A - Z);
+  const rest = all.filter(A => A !== A0).sort((a, b) => { const ea = info(a).estimated ? 1 : 0, eb = info(b).estimated ? 1 : 0; if (ea !== eb) return ea - eb; const sa = info(a).stable ? 1 : 0, sb = info(b).stable ? 1 : 0; if (sa !== sb) return sb - sa; /* (measured ones before the table's estimates) */ if (sa) return Math.abs(a - A0) - Math.abs(b - A0) || a - b; return (info(b).t12 || 0) - (info(a).t12 || 0); });
+  return (all.includes(A0) ? [A0] : []).concat(rest).slice(0, 3).sort((a, b) => a - b);
 }
 function pmenuOpen(ci, btn) {
   const m = $('pmenu'), [name, list] = pcats()[ci];
@@ -6432,15 +6463,15 @@ const COSTS = {
   setRpExm: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing without unstable particles in flight; their paths checked in pairs each step (500 pions from a lead–lead collision: see the notes)'] }),
   setRpPwave: () => ({ k: 'physics', on: ['×1', 'Measured on one thread (1.27): nothing a step. A photon through slits takes about 0.1 ms more; an X-ray that tries to scatter in a crystal 2–5 ms (the structure factor over 1,024 directions)'] }),
   setRpAq: () => ({ k: 'physics', on: ['×1', 'Nothing where there are no slow free electrons in water; each e⁻(aq) a look round itself a step (about 20 µs among 1,000 atoms)'] }),
-  segXgrav: () => ({ k: 'physics', o: { 0: ['×1', 'No gravity'], 1: ['×2–8', 'Every pair of atoms: measured on one thread (1.34), flat liquid water (240 atoms) ×2.9, 3-D liquid water (1,029 atoms) ×7; it grows as the square of the number of atoms'], 2: ['×2–8', 'As Between masses; the Earth\u2019s pull itself costs nothing'] } }),
+  segXgrav: () => ({ k: 'physics', o: { 0: ['×1', 'No gravity'], 1: ['×1.5–3.5', 'Every pair of atoms, in the WebAssembly module and split over the worker threads (1.34.3): measured on one thread, flat liquid water (240 atoms) ×1.7, 3-D liquid water (1,029 atoms) ×3.5 (in JavaScript, 1.34.0: ×2.9 and ×7); it grows as the square of the number of atoms, and shrinks with more threads'], 2: ['×1.5–3.5', 'As Between masses; the Earth\u2019s pull itself costs nothing'] } }),
   segXgk: () => ({ k: 'physics', o: { 0: ['×1', 'Real G'], 33: ['×1', 'Boosted: costs nothing more'], 24: ['×1', 'Boosted: costs nothing more'], 30: ['×1', 'Boosted: costs nothing more'], 36: ['×1', 'Boosted: costs nothing more'] } }),
   setXrad: () => ({ k: 'physics', on: ['×1', 'A look at each charged particle a step: nothing measurable (1.34, liquid water)'] }),
   setXbi: () => ({ k: 'physics', on: ['×1', 'Every pair of charged particles a step: nothing measurable in liquid water (1.34); a dense plasma of thousands of charges more'] }),
   segXspin: () => ({ k: 'physics', o: { 0: ['×1', 'Magnetic matter by the fitted pull'], 1: ['×1–1.3', 'Nothing without atoms that carry a moment; their pairs within 10 Å and their own turning a step (1.34: 3-D liquid water, whose few radicals carry one, ×1.2)'], 2: ['×1–1.3', 'As Moments; the exchange is in the same pairs'] } }),
   segXnu: () => ({ k: 'physics', o: { 0: ['×1', 'Neutrinos pass through everything'], 1: ['×1', 'A look along each neutrino\u2019s path when it is made'], 16: ['×1', 'Boosted: costs nothing more'], 18: ['×1', 'Boosted: costs nothing more'], 20: ['×1', 'Boosted: costs nothing more'] } }),
-  setXlrq: () => ({ k: 'physics', on: ['×2–9', 'Every pair of charged atoms: measured on one thread (1.34), flat liquid water (240 atoms) ×4, 3-D liquid water (1,029 atoms) ×9; it grows as the square of the number of atoms'] }),
-  setXdisp: () => ({ k: 'physics', on: ['×5–30', 'Every three atoms within 5 Å: measured on one thread (1.34), flat liquid water ×10, 3-D liquid water (1,029 atoms) ×30'] }),
-  setXnucl: () => ({ k: 'physics', on: ['×1', 'Only when light nuclei collide above their barrier: 10–30 ms for each such collision (1.34)'] }),
+  setXlrq: () => ({ k: 'physics', on: ['×1.4–3.5', 'Every pair of charged atoms, in the WebAssembly module and split over the worker threads (1.34.3): measured on one thread, flat liquid water (240 atoms) ×1.4, 3-D liquid water (1,029 atoms) ×3.4 (in JavaScript, 1.34.0: ×4 and ×9); it grows as the square of the number of atoms, and shrinks with more threads'] }),
+  setXdisp: () => ({ k: 'physics', on: ['×3–14', 'Every three atoms within 5 Å, in the WebAssembly module and split over the worker threads (1.34.3): measured on one thread, flat liquid water ×3, 3-D liquid water (1,029 atoms) ×13 (in JavaScript, 1.34.0: ×10 and ×30); less with more threads'] }),
+  setXnucl: () => ({ k: 'physics', on: ['×1 + pauses', 'Nothing a step; when two light nuclei collide above their barrier, a pause of about 20 ms for that collision (its nucleons\u2019 steps in the WebAssembly module, 1.34.3: 25–30 ms before), the first time a kind of nucleus is met about 10 ms more (its lowest arrangement, then kept)'] }),
   segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);

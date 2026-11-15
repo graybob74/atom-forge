@@ -1991,6 +1991,44 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.34.3: the slow settings in the WebAssembly module; the particle view's orbits; elements in the particle search (the owner, 2026-11-15)
+
+- "Can you do a wasm pass for every major slowdown setting?" Measured first, 3-D liquid water (1,029 atoms), one thread,
+  against 1.52 ms a step: continuous bond orders ×3.7, induced charges ×2.8, lone pairs ×2.1, longer reach ×2.5 were
+  already in the module (most of their time is there); what still ran in JavaScript: three-body dispersion ×32,
+  full-range partial charges ×8.6, gravity ×7.4, polarizability by direction ×9.4 (its dipoles' gathering and solve), and
+  the nucleons inside nuclei (10–30 ms a collision). New in the module (kernel/src/xf.rs, built on the branch kernel-1343
+  by wasm.yml): af_xf_pairs (gravity, full-range charges), af_xf_atm (the triples, by a cell list, each atom's later
+  neighbours in index order as the JavaScript's), af_pd_gather and af_pd_iter (pold.js pdUpdate's pair loop and solve;
+  its arrays now in the module's memory), af_xn_steps (the nucleons' forces and steps); fastmath cbrt_pos and exp_fast
+  (the library's are slow calls in WebAssembly; to 2.2·10⁻¹⁶). The JavaScript stays as the fallback (XFW.use: tests).
+  Gravity, full-range charges and the triples split over the worker threads (thCall, a new TH_CALL order: each part its
+  range, its own outputs and cell arrays; ranges cut for equal work).
+  Results the JavaScript's: energies to the last digit, forces to 4·10⁻²⁰ eV/Å; the dipoles' runs to the bit; ¹²C's
+  lowest arrangement 129.49 MeV either way; on threads the one-thread energies to 4·10⁻¹³.
+  Costs, one thread (step against the plain step): 3-D water gravity ×7.4 → ×3.5, full-range charges ×8.6 → ×3.4,
+  three-body dispersion ×32 → ×13, polarizability ×9.4 → ×8.4 (what is left is the dipoles' forces, already in the module,
+  and the induced charges' update); flat water ×2.9 → ×1.7, ×4 → ×1.4, ×10 → ×3, ×6.3. A collision of nucleons 24–28 →
+  18–23 ms. On two threads (this machine has two cores): gravity 3.76 → 2.18 ms a pass, full-range charges 3.90 → 3.04,
+  the triples 17.4 → 12.6; with more cores (the owner's 16) the split goes further.
+- "How is nucleons inside nuclei 1x performance?" Its cost label counted a step: it costs nothing until two light nuclei
+  collide above their barrier, then about 20 ms for that collision at once. The label now says "×1 + pauses" with the
+  measured pause (and 10 ms more the first time a kind of nucleus is met: its lowest arrangement, then kept).
+- "Electron shells in particle view just follow the camera", "in 3d particle view its only 3d if you're up close": far
+  off (nucleons under 2.5 px) an atom was the flat picture, its electrons circling in the screen's plane however the
+  camera turned. Now its electrons keep their tilted orbits fixed in space at every distance (nucView3); only the
+  nucleus, that small, is the flat sprite. An oxygen 0.75 px a nucleon: its pictures move as the camera turns (1.34.2:
+  the same places at every yaw).
+- "Make the searchbar in the top left work for elements" (the particle search, "/"): elements and isotopes as the
+  collider's beam search reads them (gold, Au, 79, C-14, 14C, uranium 235: pfindEls), an element its usual isotope,
+  neutral, as the periodic table places it; "and when you hover over one you searched for you can choose isotope from
+  a list of 3 common ones": an element's row shows three isotopes on hover (always on a touch screen): its usual one,
+  its other stable ones nearest it, then the longest-lived, measured ones before the table's estimates (pfindIsos: H 1 2
+  3, C 12 13 14, Fe 54 56 57, U 235 236 238, Pu 239 240 244).
+
+Tests: f_1343 (forces, dipoles, nucleons, threads, orbits, search); run: t_lint, f_1343, f_134, f_1342, f_127p, t_wasm,
+t_threads, t_3d, f_sweep3d.
+
 ## 1.34.2: unstable particles as balls in depth in the 3-D lab (the owner, 2026-11-15)
 
 - The owner: "is every exotic particle rendered in 3d, or is it just a 2d disc that faces the camera?", then "do that for

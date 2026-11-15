@@ -382,9 +382,13 @@ function shells3(ctx, p, x, y, radii, counts, er, side, rings, rate) {
     for (let k = 0; k < ne; k++) { ring3(B, W.at * w + k * 2 * Math.PI / ne + i * 0.7 + (p.id || 0), R0, _r3); if ((_r3[2] >= 0) === (side < 0)) drawSprite(sp, x + _r3[0], y + _r3[1]); }
   }
 }
-/* The particle view's atom in 3-D (as drawNucView): nucleus and its own electrons. */
-function nucView3(ctx, p, x, y, r) {
-  const b = nucleonR(), own = Math.max(0, p.ne - p.used), rn = b * nucPos3(p.Z, p.N).rn;
+/* The particle view's atom in 3-D (as drawNucView): nucleus and its own electrons. (1.34.3, the owner: "electron shells in
+   particle view just follow the camera", "in 3d particle view its only 3d if you're up close": far from the camera, with
+   its nucleons under 2.5 px, an atom was the flat picture, its electrons circling in the screen's plane whichever way
+   the camera looked. Now the electrons keep their tilted orbits fixed in space at every distance; only the nucleus, once
+   its nucleons are that small, is the flat sprite (flatNuc), which looks the same there.) */
+function nucView3(ctx, p, x, y, r, flatNuc) {
+  const b = nucleonR(), own = Math.max(0, p.ne - p.used), nsp = flatNuc ? nucleusSprite(p.Z, p.N, b, p.anti) : null, rn = flatNuc ? nsp.rn : b * nucPos3(p.Z, p.N).rn;
   let radii = [], counts = [], er = electronR();
   if (own > 0) {
     const sh = shellCounts(p.Z, own), nF = Math.max(sh.length, shellCounts(p.Z, Math.max(p.Z, p.ne)).length);
@@ -393,7 +397,7 @@ function nucView3(ctx, p, x, y, r) {
   }
   const rate = (i) => (1.1 / (i + 1)) * (p.id % 2 ? 1 : -1);
   shells3(ctx, p, x, y, radii, counts, er, -1, false, rate);
-  nucleus3(ctx, x, y, p.Z, p.N, b, p.anti);
+  if (flatNuc) drawSprite(nsp, x, y); else nucleus3(ctx, x, y, p.Z, p.N, b, p.anti);
   shells3(ctx, p, x, y, radii, counts, er, 1, false, rate);
 }
 /* The shells view's atom in 3-D (as drawBohr): its glow, tilted rings with their electrons, a small nucleus. */
@@ -474,7 +478,7 @@ function drawDet3(ctx, p, x, y, z, r, col, rt, det) {
         if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(p.Z === 0 ? [150, 165, 185] : p.anti ? [190, 120, 255] : [255, 110, 90], Math.max(p.Z === 0 ? 6 : 7, nsp.rn * (p.Z === 0 ? 4 : 3.2))), x, y, p.Z === 0 ? 0.3 : 0.4); ctx.globalCompositeOperation = 'source-over'; }
         drawSprite(nsp, x, y); if (p.muB) muOrbit(ctx, p, x, y, nsp.rn); return true; // (a bare muonic nucleus: its muon, as in the flat view, 1.28.1)
       }
-      if (nucleonR() >= NUC3_MIN && !p.mu && !p.muB) { nucView3(ctx, p, x, y, r); return true; } // (near: in 3-D, 1.31 item 70)
+      if (!p.mu && !p.muB) { nucView3(ctx, p, x, y, r, nucleonR() < NUC3_MIN); return true; } // (in 3-D at every distance, 1.34.3: the electrons on their tilted orbits; the nucleus a flat sprite once its nucleons are under 2.5 px, where it looks the same)
       drawNucView(p, x, y, r, rt); return true;
     }
     if (p.Z === 0 || p.ne === 0) return false;

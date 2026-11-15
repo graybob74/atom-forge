@@ -11,7 +11,7 @@
    ========================================================================== */
 const TH = { n: 0, want: 0, workers: [], ctrl: null, prm: null, fx: [], fy: [], fz: [], cq: [], boundGen: -1, ready: 0, gen: 0, acks: null,
   minPairs: 1500, used: 0, lastMs: 0, state: 'off', note: '', wks: null, stacks: [], wasmOn: [] };
-const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13, TH_DT = 14, TH_DTD = 15;
+const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13, TH_DT = 14, TH_DTD = 15, TH_CALL = 16, TH_CALLD = 17;
 // control layout: [0, n) worker states; then 10 per worker: pair range (2), candidate count, ack (the generation bound), bond range (2), angle range (2), the generation wanted, spare; prm: per worker stiffness, then the box
 // (3-D: prm[n + 25] 1, the depth and its half at n + 26, n + 27, and from 8·n + 32 two per worker: its range of dihedrals;
 //  the 3-D list: n + 28 1, the grid's layers and occupied cells at n + 29, n + 30; n + 31 1: the list's walk in the module, 1.26)
@@ -195,7 +195,7 @@ ${exRange.toString()}
 let GV = null, mdI = null, exl = null, exn = null;
 let SPAN0 = 0, TQ0 = 0; const spPrev = new Float64Array(4), spPrevZ = new Float64Array(4);
 let pi, pj, ex, FXo, FYo, FZo = null, CQ, ctrl, prm, me, nW, bufs, mem = null, wasm = null, wex = null, descOff = 0, ksOff = 0, ksArr = null, sumTabOff = 0;
-const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13, TH_DT = 14, TH_DTD = 15;
+const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13, TH_DT = 14, TH_DTD = 15, TH_CALL = 16, TH_CALLD = 17;
 function ctrlAt(w, k) { return nW + 10 * w + k; }
 onmessage = (e) => {
   const m = e.data;
@@ -294,7 +294,11 @@ onmessage = (e) => {
     } else if (st === TH_BATH) {
       prm[nW + 32 + 3 * me] = bathSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], 0.5 * prm[nW + 6], prm[nW + 8], prm[nW + 9], prm[nW + 10], prm[nW + 11], prm[nW + 12], prm[nW + 13], prm[nW + 21], prm[nW + 22], prm[nW + 23]);
       Atomics.store(ctrl, me, TH_BATHD); Atomics.notify(ctrl, me);
-    } else if (st === TH_DONE || st === TH_SUMMED || st === TH_INTEGD || st === TH_BATHD || st === TH_VLD || st === TH_EXD || st === TH_DTD) { waitFor(st); } // (the main thread has not reset us yet)
+    } else if (st === TH_CALL) { // one of the module's passes over this worker's range (1.34.3: the More forces, xforces.js thCall)
+      const fn = ['af_xf_pairs', 'af_xf_atm'][ctrl[ctrlAt(me, 0)]];
+      prm[nW + 32 + 3 * me] = wex && typeof wex[fn] === 'function' ? wex[fn](ctrl[ctrlAt(me, 1)], ctrl[ctrlAt(me, 4)]) : NaN;
+      Atomics.store(ctrl, me, TH_CALLD); Atomics.notify(ctrl, me);
+    } else if (st === TH_DONE || st === TH_SUMMED || st === TH_INTEGD || st === TH_BATHD || st === TH_VLD || st === TH_EXD || st === TH_DTD || st === TH_CALLD) { waitFor(st); } // (the main thread has not reset us yet)
   }
 };
 `;
@@ -612,4 +616,14 @@ bathAll = function (dt, c1, c2, kT, hw, hh, vf2) {
   thPh('bath', t0, t1, _profOn ? performance.now() : 0);
   return hw >= 0 ? need : 0;
 };
+/* (1.34.3) One of the module's passes on every thread: worker w runs fn on its tables (tOffs[w], pOffs[w]) while the main
+   thread runs own(); the workers' results in order (NaN from a worker without the module: the caller redoes its range). */
+function thCall(fi, tOffs, pOffs, own) {
+  const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, out = new Array(n);
+  for (let w = 0; w < n; w++) { ctrl[thCtrl(w, 0)] = fi; ctrl[thCtrl(w, 1)] = tOffs[w]; ctrl[thCtrl(w, 4)] = pOffs[w]; Atomics.store(ctrl, w, TH_CALL); Atomics.notify(ctrl, w); }
+  const u = own();
+  for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_CALLD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); out[w] = prm[n + 32 + 3 * w]; }
+  return [u, out];
+}
+function thCallOk() { return TH.n > 0 && threadsReady(); }
 if (typeof module !== 'undefined') module.exports = { TH, threadsSet, threadsAvailable, threadsDefault };
