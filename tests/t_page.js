@@ -339,6 +339,7 @@ const say = (...a) => console.log(...a);
   // 8f3. the Light tool's photons fly at c: while they are in flight time crawls (attoseconds a frame) so that they can
   //      be seen going, and once the last has landed it runs on as before
   await page.selectOption('#preset', 'flame'); await page.waitForTimeout(300);
+  await page.evaluate(() => { LIGHTFLY.slow = true; }); // (Slow down for light in flight: off by default since 1.33.3; this watches it on)
   await page.click('.tool[data-tool="light"]'); await page.waitForTimeout(60);
   await page.evaluate(() => { Object.assign(OPT.light, { mount: false, rate: 80 }); buildToolOpts(); }); // (tools remember their settings: this test wants the defaults, to shine and not mount)
   await tryClick(page.locator('#toolopts [data-g="follow"] button[data-v="true"]'));
@@ -349,6 +350,7 @@ const say = (...a) => console.log(...a);
   const lt2 = await page.evaluate(() => W.flights.length), lt3 = await page.evaluate(async () => { const t = W.t; await new Promise(r => setTimeout(r, 300)); return (W.t - t) * PHYS.TU_S * 1e15; });
   if (!(lt1.fl >= 5 && lt1.as < 1000 && lt2 === 0 && lt3 > 5)) { fails++; say('FAIL light in flight:', JSON.stringify({ lt1, lt2, lt3 })); }
   else say(`  light at c: ${lt1.fl} photons in flight, ${lt1.as} as passed in half a second; all landed, then ${lt3.toFixed(0)} fs in 0.3 s`);
+  await page.evaluate(() => { LIGHTFLY.slow = false; });
   check('light in flight');
   // 8f4. chips that work: a NOT gate placed in the chamber gets its controls in the Lab tab and inverts; an SRAM cell
   //      is written and read back from its buttons

@@ -8957,8 +8957,9 @@ function stepPlain(dt) {
    box in a few femtoseconds, i.e. within one frame. Time eases down until the fastest of them moves about 2%
    of the box per frame, then eases back once they have left or slowed, at most ~3 s of real time later.
    Everything slows together; nothing is faked. */
+const LIGHTFLY = { slow: false }; // (Settings → Display → "Slow down for light in flight", off by default since 1.33.3, the owner: "remove the time slows automatically in flight for light"; the light still flies at c and lands when it has covered the distance)
 function slowFactor() {
-  if (!W.flights.length) return 1;
+  if (!W.flights.length || !LIGHTFLY.slow) return 1;
   return clamp(lightSlow(), 1e-9, 1); // (light in flight: its pace at 1×; the speed set, slow motion's included, scales it through simPerFrame, as it scales everything)
 }
 /* 1.14 (asked for by the user): slow motion is a speed. The hourglass (W.slowHold) and the automatic slow-down for nuclear

@@ -1608,6 +1608,7 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
       <div class="srow"><span>Atom size</span><div class="seg" id="segAtom" role="group" aria-label="Atom size"><button data-v="1" title="Atoms as big as they are: touching in a liquid or solid">True size</button><button data-v="0.7">Smaller</button><button data-v="0.45" title="Small balls: see past them in a crowded box">Small</button></div></div>
       <div class="srow"><span>Labels</span><div class="seg" id="segLabels" role="group" aria-label="Labels"><button data-v="always">Always</button><button data-v="hover" title="Only on the atom under the mouse and the one inspected">On hover</button><button data-v="never">Never</button></div></div>
       <div class="srow"><span>Charge badges</span><div class="seg" id="segBadges" role="group" aria-label="Charge badges"><button data-v="always">Always</button><button data-v="hover">On hover</button><button data-v="never">Never</button></div></div>
+      <label class="check"><input type="checkbox" id="setLightSlow"> Slow down time while light from the Light tool is in flight, to watch it go</label>
       <div class="srow"><span>Event captions</span><div class="seg" id="segCaps" role="group" aria-label="Event captions"><button data-v="on" title="The boxes that name an event where it happens: a decay, a fission, an annihilation">Shown</button><button data-v="off">Hidden</button></div></div>
       <label class="check"><input type="checkbox" id="setFx"> Glows, halos and flashes</label>
       <label class="check"><input type="checkbox" id="setFlash"> Fewer flashes: nuclear events and sparks marked gently</label>
@@ -13690,8 +13691,9 @@ function stepPlain(dt) {
    box in a few femtoseconds, i.e. within one frame. Time eases down until the fastest of them moves about 2%
    of the box per frame, then eases back once they have left or slowed, at most ~3 s of real time later.
    Everything slows together; nothing is faked. */
+const LIGHTFLY = { slow: false }; // (Settings → Display → "Slow down for light in flight", off by default since 1.33.3, the owner: "remove the time slows automatically in flight for light"; the light still flies at c and lands when it has covered the distance)
 function slowFactor() {
-  if (!W.flights.length) return 1;
+  if (!W.flights.length || !LIGHTFLY.slow) return 1;
   return clamp(lightSlow(), 1e-9, 1); // (light in flight: its pace at 1×; the speed set, slow motion's included, scales it through simPerFrame, as it scales everything)
 }
 /* 1.14 (asked for by the user): slow motion is a speed. The hourglass (W.slowHold) and the automatic slow-down for nuclear
@@ -45037,7 +45039,7 @@ function toolKey(t) { return W.d3 && t.key3 ? t.key3 : t.key; }
    Kept in this browser. (Performance mode, which set the particle limit, resolution and glows together, is gone, 1.23.2:
    the owner found it obsolete; the settings it set stay, each on its own, and a stored prePerf or perf is ignored.) */
 const SET_DEF = { wave: 0, bo: 0, pi: 0, piRpc: 1, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
-  fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', caps: 'on', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250,
+  fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', caps: 'on', lightSlow: false, flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250,
   fov3: 40, proj3: 'persp', fog3: 'normal', box3: 'grid', axes3: true, dist3: true, lbl3: 'front', orbit3: 1, orbitInv: false, spin3: 0 }; // (the last row: Settings → 3-D, display and camera only)
 const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16', '32'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000],
   fov3: [30, 40, 55, 70], proj3: ['persp', 'ortho'], fog3: ['off', 'low', 'normal', 'high'], box3: ['grid', 'edges', 'off'], lbl3: ['front', 'all'], orbit3: [0.5, 1, 2], spin3: [0, 6, 18] };
@@ -45199,7 +45201,7 @@ function applySettings() {
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   pdOn(SET.qeq && SET.pold ? 1 : 0); // (polarizability by direction: induced dipoles in place of the charge flow, with induced charges on, 1.27)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
-  R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.noCaps = SET.caps === 'off'; R.flashK = SET.flashLow ? 0.3 : 1;
+  R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.noCaps = SET.caps === 'off'; LIGHTFLY.slow = !!SET.lightSlow; R.flashK = SET.flashLow ? 0.3 : 1;
   if (R.cvd !== SET.cvd) { R.cvd = SET.cvd; elColorsReset(); }
   const rs = document.documentElement.style; rs.setProperty('--ui', String(SET.ui)); rs.setProperty('--pw', clamp(Math.round(SET.pw) || 356, 280, 760) + 'px');
   document.body.classList.toggle('panel-left', SET.side === 'left');
@@ -45304,7 +45306,7 @@ function syncSettings() {
     n.textContent = (AI.sample && !AI.sample.api ? 'This page has its own Claude access: Ask Claude and Identify molecules use your Claude account directly, and the key below is not needed here. ' : own ? '' : 'This page has no Claude access of its own. ') +
       'Paste an API key from console.anthropic.com to ask Claude from here: it stays in this browser\'s storage, is sent only to api.anthropic.com, and each request is billed to that account (a fraction of a cent). The model can be left blank for the default (' + AI_API.model + ').'; }
   try { $('setThreads').textContent = threadsNote(); } catch (e) { $('setThreads').textContent = 'Threads: ' + e.message; }
-  setSegValue('segFpsCap', SET.fpsCap); setSegValue('segAtom', SET.atomScale); setSegValue('segLabels', R.view.labels ? (SET.labels === 'hover' ? 'hover' : 'always') : 'never'); setSegValue('segCaps', SET.caps === 'off' ? 'off' : 'on'); setSegValue('segBadges', SET.badges);
+  setSegValue('segFpsCap', SET.fpsCap); setSegValue('segAtom', SET.atomScale); setSegValue('segLabels', R.view.labels ? (SET.labels === 'hover' ? 'hover' : 'always') : 'never'); setSegValue('segCaps', SET.caps === 'off' ? 'off' : 'on'); $('setLightSlow').checked = !!SET.lightSlow; setSegValue('segBadges', SET.badges);
   $('setFlash').checked = SET.flashLow; $('setCvd').checked = SET.cvd; setSegValue('segUi', SET.ui); setSegValue('segSide', SET.side); $('setPw').textContent = Math.round(clamp(SET.pw, 280, 760)) + ' px';
   $('setWinNote').hidden = !tauriWin(); setSegValue('segWheel', SET.wheel); setSegValue('segZoomTo', SET.zoomTo); $('setKeepOpt').checked = SET.keepOpt; $('setStartPaused').checked = SET.startPaused; $('setPauseBlur').checked = SET.pauseBlur; $('setWake').checked = SET.wake;
   $('setRew').checked = SET.rewOn; setSegValue('segRewSpan', SET.rewSpan); setSegValue('segRewEvery', SET.rewEvery); setSegValue('segRewMem', SET.rewMem); $('setRewNote').textContent = rewNote();
@@ -45624,6 +45626,7 @@ const SDESC = {
   segFpsCap: ['Frame-rate cap', 'At most this many frames a second. Fewer frames leave more of each second for the physics in a crowded box, and run the graphics card cooler. A browser cannot draw faster than the monitor refreshes.'],
   segAtom: ['Atom size', 'True size draws atoms as big as they are, touching in a liquid or solid. Smaller and Small shrink the balls so you can see past them into a crowded box.'],
   segLabels: ['Labels', 'The element symbol on each atom: on every atom, only on the one under the mouse and the one inspected, or never.'],
+  setLightSlow: ['Slow down for light in flight', 'Light from the Light tool flies at the speed of light and lands when it has covered the distance. On, time slows while it flies so you can watch it go (it crosses about 1.5% of the box a frame); off (as normal since 1.33.3), it is across within a frame and time runs on.'],
   segCaps: ['Event captions', 'The boxes that name an event where it happens (a decay, a fission, an annihilation and its energy): shown, or hidden. The Log and the narrator still tell them.'],
   segBadges: ['Charge badges', 'The small + or − badge on each ion: always, only on hover, or never.'],
   setFx: ['Glows, halos and flashes', 'Hot atoms glow with their black-body colour, free electrons and bare nuclei carry halos, and events flash. Off draws plain balls, a little quicker.'],
@@ -46032,6 +46035,7 @@ function settingsInit() {
   bindSeg('segAtom', (v) => setSetting('atomScale', +v));
   bindSeg('segLabels', (v) => { R.view.labels = v !== 'never'; viewFlagsSave(); if (v !== 'never') SET.labels = v; setSetting('labels', SET.labels); const c = document.querySelector('[data-view="labels"]'); if (c) c.checked = R.view.labels; });
   bindSeg('segBadges', (v) => setSetting('badges', v)); bindSeg('segCaps', (v) => setSetting('caps', v)); // (1.33.2)
+  $('setLightSlow').onchange = (e) => setSetting('lightSlow', e.target.checked); // (1.33.3)
   $('setFlash').onchange = (e) => setSetting('flashLow', e.target.checked);
   $('setCvd').onchange = (e) => setSetting('cvd', e.target.checked);
   bindSeg('segUi', (v) => setSetting('ui', +v));

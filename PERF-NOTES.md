@@ -1991,6 +1991,17 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.33.3 (not released yet)
+
+- Light in flight no longer slows time (the owner, 2026-11-15: "remove the time slows automatically in flight for
+  light"). Light from the Light tool still flies at c and lands when it has covered the distance (55 Å: 18.4 as, light
+  18.3 as), but time runs on: it is across within one frame instead of being shown over 92 frames at ×1.3·10⁻⁵. The
+  slowing is kept as a setting, off: Settings → Display → "Slow down time while light from the Light tool is in flight"
+  (SET.lightSlow → LIGHTFLY.slow, read by slowFactor). The checks that watch the slowing (t_physics, t_features' light
+  crossings, t_page's light at c) turn it on for themselves.
+
+Tests: f_133 part 1.33.3; run: t_lint, f_133, t_physics, t_page (its slow-motion button check missed once, a known flake).
+
 ## 1.33.2: DNA as a double helix in 3-D, item 88, Settings' tabs (the owner, 2026-11-14: "build it, release both as 1.33.2")
 
 - DNA double helix (3-D) and Ask Claude building for the mode it is in: see the note under 1.33.1 ("After the release").

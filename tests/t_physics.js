@@ -191,7 +191,7 @@ for (const T of [300, 3000]) {
   const X = load('all', { seed: 4 });
   const { W } = X;
   X.PRESETS.empty.build(); W.box.w = W.box.tw = 60; W.box.h = W.box.th = 40; W.baseSpf = W.simPerFrame;
-  X.forcesNoEvents();
+  X.forcesNoEvents(); X.LIGHTFLY.slow = true; // (the setting, off by default since 1.33.3: this checks the slowing it gives)
   const E = X.PHYS.HC / 500, esc0 = W.ledger.escaped, t0 = W.t;
   X.emitPhoton(-25, 0, E, 1, 0, { travel: true });
   const slow = X.slowFactor(1 / 60), len = W.flights.length ? W.flights[0].len : 0, lab = W.flights.length ? W.flights[0].lab : '';

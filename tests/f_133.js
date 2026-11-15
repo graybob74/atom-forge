@@ -2,6 +2,15 @@
 /* The checks for 1.33.0 (the owner, 2026-11-14: "the 3d molecule builder isn't 3d"; the far-face grid in a big 3-D box).
    Run by t_features (one line) or alone: node tests/f_133.js. Each fails on 1.32.0. */
 module.exports = async function f133(page, check) {
+  { // 1.33.3: light from the Light tool no longer slows time unless the setting asks for it; it still lands when light has covered the way
+    const { load } = require(require('path').join(__dirname, 'load.js'));
+    const X = load('all', { seed: 4 }), W = X.W;
+    X.PRESETS.empty.build(); W.box.w = W.box.tw = 60; W.box.h = W.box.th = 40; W.baseSpf = W.simPerFrame; X.forcesNoEvents();
+    X.emitPhoton(-25, 0, 2.5, 1, 0, { travel: true }); const len = W.flights[0].len, t0 = W.t, off = X.slowFactor(1 / 60);
+    let f = 0; for (; f < 600 && W.flights.length; f++) X.simFrame(1 / 60, 30);
+    const tFly = W.t - t0; X.emitPhoton(-25, 0, 2.5, 1, 0, { travel: true }); X.LIGHTFLY.slow = true; const on = X.slowFactor(1 / 60); X.LIGHTFLY.slow = false;
+    check(off === 1 && on < 1e-3 && f <= 2 && tFly >= len / X.PHYS.C * 0.999, `1.33.3 light in flight: time runs on (×${off}; ×${on.toExponential(1)} with the setting on), the photon across ${len.toFixed(0)} Å within ${f} frame${f === 1 ? '' : 's'}, still no sooner than light could`, '1.33.3 light: ' + JSON.stringify({ off, on, f, tFly, want: len / X.PHYS.C }));
+  }
   { // 1.33.2: DNA as a double helix in the 3-D library, and Ask Claude's flat DNA turned into it in 3-D
     const { load } = require(require('path').join(__dirname, 'load.js'));
     const X = load('all', { seed: 4 }), W = X.W, M = X.MOLECULES.dna3;
@@ -105,7 +114,8 @@ module.exports = async function f133(page, check) {
     if (mr) { $('dMade').querySelector('button[data-more]') ? $('dMade').querySelector('button[data-more]').click() : (UI.madeAllHTML = null, showModal('madeModal'), renderMade()); await sleep(80);
       const all = [...$('dMadeAll').querySelectorAll('tr:not(.elh)')].length, f = $('madeFind'); f.value = ELEMENTS[mr.Z].name; f.dispatchEvent(new Event('input')); await sleep(30);
       const vis = [...$('dMadeAll').querySelectorAll('tr:not(.elh)')].filter(t => !t.hidden);
-      out.made = { all, shown: vis.length, ok: vis.length > 0 && vis.length < all && vis.every(t => (t.textContent + (t.previousElementSibling ? '' : '')).length > 0), n: $('madeFindN').textContent };
+      f.value = 'zzqx'; f.dispatchEvent(new Event('input')); const none = [...$('dMadeAll').querySelectorAll('tr:not(.elh)')].filter(t => !t.hidden).length;
+      out.made = { all, shown: vis.length, none, ok: vis.length > 0 && (all === 1 || vis.length < all) && none === 0, n: $('madeFindN').textContent };
       f.value = ''; f.dispatchEvent(new Event('input')); out.made.back = [...$('dMadeAll').querySelectorAll('tr:not(.elh)')].every(t => !t.hidden); hideModal('madeModal'); }
     // event captions hidden by the setting
     setSetting('caps', 'off'); out.capsOff = captionBox(document.createElement('canvas').getContext('2d'), { text: 'x', t0: W.rt }, 10, 10, 100, []) === null; setSetting('caps', 'on');
