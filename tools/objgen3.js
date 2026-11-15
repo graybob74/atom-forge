@@ -7,8 +7,9 @@
    Left out, with the reason in PERF-NOTES (1.23.2): the chips (transistor, inverter, memory cells: their wiring is
    flat-only, chips.js), Kevlar and cellulose (rods 3.3–4.8 nm long: longer than the 3-D lab's cubes, which keep their
    size until box sizes come to 3-D), the quantum dot (InP's zincblende needs four bonds an atom; the engine's In and P make three),
-   the membrane (a 3-D bilayer patch would be thousands of atoms), and the folded biomolecules (DNA, the WW domain,
-   chignolin, oxytocin: their 3-D folds need measured coordinates; a flat drawing relaxed in space is not the fold). */
+   the membrane (a 3-D bilayer patch would be thousands of atoms), and the folded biomolecules (the WW domain,
+   chignolin, oxytocin: their 3-D folds need measured coordinates; a flat drawing relaxed in space is not the fold).
+   DNA (1.33.2) is the exception: its double helix is regular, B-DNA's rise and twist (dna3 below). */
 const fs = require('fs'), path = require('path');
 const { load } = require('../tests/load');
 const X = load('all', { seed: 3 });
@@ -73,6 +74,27 @@ function record(o, ps) {
   console.log(`    extent ${ext.map(e => e.toFixed(1)).join(' × ')} Å`);
 }
 
+/* How helical a DNA build is: each base pair's line between its two C1' atoms (paired by order along the axis), seen
+   down the axis (the long axis of the C1' atoms' spread), the turn from one to the next and the mean rise. */
+function dnaTwist(xyz, c1i) {
+  const P = c1i.map(i => xyz[i]), ax = aligned(P.map(p => p.slice()))[0] && (() => { // (the axis: the C1' atoms' long direction)
+    let m = [0, 0, 0]; for (const p of P) for (let q = 0; q < 3; q++) m[q] += p[q] / P.length;
+    const C = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]; for (const p of P) for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C[i][j] += (p[i] - m[i]) * (p[j] - m[j]);
+    let v = [1, 0.3, 0.2]; for (let it = 0; it < 100; it++) { const w = [0, 1, 2].map(i => C[i][0] * v[0] + C[i][1] * v[1] + C[i][2] * v[2]); const l = Math.hypot(...w); v = w.map(x => x / l); } return v; })();
+  const along = (p) => p[0] * ax[0] + p[1] * ax[1] + p[2] * ax[2];
+  const ord = P.map((p, i) => [along(p), i]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+  const pairs = []; for (let i = 0; i + 1 < ord.length; i += 2) pairs.push([P[ord[i]], P[ord[i + 1]]]);
+  const perp = (d) => { const t = d[0] * ax[0] + d[1] * ax[1] + d[2] * ax[2]; return [d[0] - t * ax[0], d[1] - t * ax[1], d[2] - t * ax[2]]; };
+  const twist = [], rises = [];
+  for (let k = 0; k + 1 < pairs.length; k++) {
+    const a = perp(pairs[k][1].map((v, q) => v - pairs[k][0][q])), b = perp(pairs[k + 1][1].map((v, q) => v - pairs[k + 1][0][q]));
+    const c = (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (Math.hypot(...a) * Math.hypot(...b));
+    let ang = Math.acos(Math.max(-1, Math.min(1, c))) * 180 / Math.PI; if (ang > 90) ang = 180 - ang; // (the two C1' of a pair may come in either order)
+    twist.push(ang);
+    rises.push(Math.abs((along(pairs[k + 1][0]) + along(pairs[k + 1][1])) / 2 - (along(pairs[k][0]) + along(pairs[k][1])) / 2));
+  }
+  return { twist, rise: rises.reduce((u, v) => u + v, 0) / rises.length };
+}
 const OBJ = [];
 OBJ.push(() => { // a cube of table salt
   const o = { k: 'saltcrystal3', n: 'Salt crystal (3-D)', L: 40, d: 'Table salt in 3-D: a cube of 216 sodium and chloride ions, six on a side, 1.7 nm across, in the rock-salt pattern every grain of salt has: each ion has six of the other kind around it. Held together only by their charges. A grain from a shaker is about 300,000 times wider.' };
@@ -130,6 +152,67 @@ OBJ.push(() => { // a graphene flake, five rings to a side (the flat game's six 
   }
   for (const p of ps) p.z += 0.02 * (X.rnd() - 0.5); // (a hair off the plane: it may ripple, and stays flat if it would)
   X.forcesNoEvents(); quench(ps, 1600); record(o, ps); return o;
+});
+/* DNA as a double helix (1.33.2, the owner: "I asked Claude to generate a double helix of DNA … I want it as a helix in
+   3-D"). The flat object's eight base pairs, each with its two sugars and the phosphates nearest it, taken as a slab and
+   stacked as B-DNA stacks them: each slab square to the helix's axis, 3.38 Å above the last and turned 36° further
+   round (ten base pairs a turn, right-handed), the ladder's across-direction pointing out from the axis, its along-
+   direction round it; then settled with the engine's own 3-D forces (the phosphate links between slabs, stretched by
+   the stacking, pull to their length there). B-DNA's measured rise and twist, not a fold found by the force field. */
+OBJ.push(() => {
+  const o = { k: 'dna3', n: 'DNA double helix (3-D)', L: 60, d: 'The same eight rungs of DNA as the flat game\'s (GATTACAG along one strand), wound into the double helix: the base pairs stacked 0.34 nm apart and each turned 36° from the last, ten to a full turn, with the two sugar-phosphate backbones spiralling round the outside. That is the B form, the shape Watson and Crick found in 1953 from Rosalind Franklin\'s X-ray pictures. Eight rungs make most of one turn; the DNA in one of your cells has three billion of them.' };
+  world(o.L);
+  const M = X.MOLECULES.dna, A = M.atoms;
+  // the ladder's long axis (x') and across (y'), from the spread of its atoms
+  let cx = 0, cy = 0; for (const a of A) { cx += a[1]; cy += a[2]; } cx /= A.length; cy /= A.length;
+  let sxx = 0, syy = 0, sxy = 0; for (const a of A) { const x = a[1] - cx, y = a[2] - cy; sxx += x * x; syy += y * y; sxy += x * y; }
+  const th = 0.5 * Math.atan2(2 * sxy, sxx - syy), c = Math.cos(th), s = Math.sin(th);
+  const L2 = A.map(a => { const x = a[1] - cx, y = a[2] - cy; return [x * c + y * s, -x * s + y * c]; });
+  // the rungs: each base pair's two C1' atoms (the sugar carbon bonded to the base: neighbours N, O, C and H), paired along x'
+  const nb = A.map(() => []); for (const [i, j] of M.bonds) { nb[i].push(A[j][0]); nb[j].push(A[i][0]); }
+  const c1 = A.map((a, i) => i).filter(i => A[i][0] === 'C' && ['N', 'O', 'C', 'H'].every(e => nb[i].includes(e))).map(i => L2[i][0]).sort((a, b) => a - b);
+  const rc = []; for (let i = 0; i + 1 < c1.length; i += 2) rc.push((c1[i] + c1[i + 1]) / 2);
+  if (rc.length !== 8) throw new Error(`dna3: ${rc.length} rungs found, not 8`);
+  const RISE = 3.38, TW = 36 * Math.PI / 180;
+  // the bases: what stays joined when each C1'–N (glycosidic) bond is cut and the backbones are left out; each a rigid
+  // slab with its pair, turned with its rung; everything else (sugars, phosphates, their caps) wound on continuously
+  const c1i = A.map((a, i) => i).filter(i => A[i][0] === 'C' && ['N', 'O', 'C', 'H'].every(e => nb[i].includes(e)));
+  const adj = A.map(() => []); for (const [i, j] of M.bonds) { adj[i].push(j); adj[j].push(i); }
+  const isBase = new Array(A.length).fill(false), baseK = new Array(A.length).fill(-1);
+  for (const c of c1i) for (const n0 of adj[c]) {
+    if (A[n0][0] !== 'N') continue;
+    const comp = [n0], seen = new Set([c, n0]);
+    for (let q = 0; q < comp.length; q++) for (const v of adj[comp[q]]) if (!seen.has(v)) { seen.add(v); comp.push(v); }
+    if (comp.length > 40) continue; // (not a base: the walk got into the backbone)
+    let mx = 0; for (const i of comp) mx += L2[i][0]; mx /= comp.length;
+    let k = 0; for (let j = 1; j < 8; j++) if (Math.abs(mx - rc[j]) < Math.abs(mx - rc[k])) k = j;
+    for (const i of comp) { isBase[i] = true; baseK[i] = k; }
+  }
+  const kOf = [];
+  const ps = A.map((a, i) => {
+    const [x, y] = L2[i]; let k = 0; for (let j = 1; j < rc.length; j++) if (Math.abs(x - rc[j]) < Math.abs(x - rc[k])) k = j; if (isBase[i]) k = baseK[i]; kOf[i] = k;
+    const dx = x - rc[k], t = k * TW, ux = [Math.cos(t), Math.sin(t)], vx = [-Math.sin(t), Math.cos(t)];
+    const pr = [(k - 3.5) * RISE, y * ux[0] + dx * vx[0], y * ux[1] + dx * vx[1]]; // (the base pair's slab, rigid)
+    // (the backbones, out from 4–7 Å: wound on continuously, the rung number interpolated along x', so the links
+    // between slabs have no seam; a rigid slab turned its lower strand's tangential offsets the wrong way round)
+    let kc; if (x <= rc[0]) kc = (x - rc[0]) / (rc[1] - rc[0]); else if (x >= rc[7]) kc = 7 + (x - rc[7]) / (rc[7] - rc[6]); else { let j = 0; while (x > rc[j + 1]) j++; kc = j + (x - rc[j]) / (rc[j + 1] - rc[j]); }
+    const tc = kc * TW, pc = [(kc - 3.5) * RISE, y * Math.cos(tc), y * Math.sin(tc)];
+    const w = isBase[i] ? 0 : 1;
+    const p = pr.map((v, q) => v + (pc[q] - v) * w);
+    return X.addAtom(a[0], p[0], p[1], { charge: a[3] || 0, T: 0, z: p[2] });
+  });
+  for (const [i, j, k] of M.bonds) X.addBond(ps[i], ps[j], k);
+  const diag = (tag) => { if (!process.env.DNA_DIAG) return; let worst = 0, close = 9, wb = null; for (const bd of W.bonds) { const f = Math.hypot(bd.a.x - bd.b.x, bd.a.y - bd.b.y, bd.a.z - bd.b.z) / bd.r0; if (f > worst) { worst = f; wb = bd; } } if (wb) console.log('    worst', wb.a.el.sym, ps.indexOf(wb.a), wb.b.el.sym, ps.indexOf(wb.b), 'r0', wb.r0.toFixed(2), 'order', wb.order);
+    for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) { const a = ps[i], b = ps[j]; if (a.bonds.some(bd => bd.a === b || bd.b === b)) continue; close = Math.min(close, Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)); }
+    console.log(`    ${tag}: worst bond ${worst.toFixed(2)}× its length, closest unbonded pair ${close.toFixed(2)} Å`); };
+  diag('stacked');
+  if (process.env.DNA_DIAG) { console.log('    rungs at', rc.map(v => v.toFixed(1)).join(' ')); for (const [i, j] of M.bonds) if (Math.abs(kOf[i] - kOf[j]) > 1) console.log('    far bond', A[i][0], i, kOf[i], L2[i].map(v => v.toFixed(1)).join(','), '—', A[j][0], j, kOf[j], L2[j].map(v => v.toFixed(1)).join(',')); }
+  X.relax3(ps, 1500); // (the links between slabs to their length first, by bonded terms alone)
+  diag('relaxed');
+  X.forcesNoEvents(); quench(ps, 2400); diag('quenched'); record(o, ps);
+  const tw = dnaTwist(o.xyz, c1i, rc.length);
+  console.log(`    helix: ${tw.twist.map(v => v.toFixed(0)).join('/')}° a step (B-DNA 36°), rise ${tw.rise.toFixed(2)} Å (3.38)`);
+  return o;
 });
 OBJ.push(lifted('polyethylene', 'polyethylene3', 'Polyethylene (3-D)', 'One molecule of polyethylene in 3-D: a chain of 78 carbons, each with its two hydrogens above and below the zigzag of the chain, folded back and forth as the chains lie in the plastic\'s crystals. In 3-D each carbon is a tetrahedron, as in the real plastic.'));
 

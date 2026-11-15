@@ -313,8 +313,11 @@ function designLattice(r) {
 const AI_MAX = 250;
 const AI = { sample: null, busy: false, ctl: null, failed: '' };
 function aiPrompt(text, prev, problem) {
-  const objs = Object.values(MOLECULES).filter(m => m.cat === 'objects').map(m => `${m.key} (${m.name})`).join(', ');
-  let p = `You design structures for Atom Forge, a flat (2-D) atom and molecule sandbox. It builds what you describe from a recipe, checks every valence and lays it out flat itself, so give a recipe, never coordinates.
+  const d3 = aiModeFor() === '3d'; // (the objects of the library it is for, and what kind of world: 1.33.2, the owner asked for "a double helix of DNA" in 3-D and was given the flat ladder)
+  const objs = Object.values(MOLECULES).filter(m => m.cat === 'objects' && molFits(m, d3)).map(m => `${m.key} (${m.name})`).join(', ');
+  let p = d3 ? `You design structures for Atom Forge's 3-D lab, an atom and molecule sandbox in three dimensions. It builds what you describe from a recipe, checks every valence and settles the shape in space itself, so give a recipe, never coordinates.`
+    : `You design structures for Atom Forge, a flat (2-D) atom and molecule sandbox. It builds what you describe from a recipe, checks every valence and lays it out flat itself, so give a recipe, never coordinates.`;
+  p += `
 
 Request: ${JSON.stringify(text)}
 
@@ -326,10 +329,10 @@ Reply with one JSON object and nothing else, in one of these forms:
 {"type":"none","note":"…"}
 
 Rules:
-- molecule: one connected molecule as valid SMILES (no "."), at most ${AI_MAX} atoms counting hydrogens. Charges (at most ±2 per atom), isotopes such as [2H] or [13C], and any element in brackets are fine. Stereo marks are ignored: the world is flat. For a polymer, give a short chain of repeat units with sensible end groups. For a salt or another ionic solid, use an ionic lattice instead.
+- molecule: one connected molecule as valid SMILES (no "."), at most ${AI_MAX} atoms counting hydrogens. Charges (at most ±2 per atom), isotopes such as [2H] or [13C], and any element in brackets are fine. Stereo marks are ignored${d3 ? '' : ': the world is flat'}. For a polymer, give a short chain of repeat units with sensible end groups. For a salt or another ionic solid, use an ionic lattice instead.
 - peptide: a peptide or protein as one-letter amino-acid codes, 2 to 16 residues; for a bigger protein give a meaningful fragment and say which.
 - lattice: ionic = a 1:1 salt, elements [cation, anion] such as ["Na","Cl"] or ["Mg","O"]; metal = a close-packed cluster of one metal or noble gas, such as ["Au"] or ["Ar"]; honeycomb = a sheet such as graphene ["C"], boron nitride ["B","N"] or an indium phosphide quantum dot ["In","P"]; square = diamond or silicon flattened to a square grid, ["C"], ["Si"] or ["Ge"]. size: atoms along one side, 4 to 14.
-- object: one of these ready-made tiny objects, when it is what was asked for: ${objs}.
+- object: one of these ready-made tiny objects, when it is what was asked for${d3 ? ' (these are built in 3-D, as the shapes they have in space)' : ''}: ${objs}.
 - none: when it is not made of a few hundred atoms at most (a car, a virus) or is not a substance; say why and suggest something related that can be built.
 - cat: the library category it belongs in, one of: ${molCatList()}.
 - name: a short common name, at most 40 characters. note: one or two plain sentences for a curious non-expert about what it is and anything simplified.`;
@@ -359,6 +362,8 @@ function aiApply(r) {
     const t = String(r.type || '').toLowerCase(), note = aiText(r.note, 400), name = aiText(r.name, 40);
     if (t === 'none') { aiSay(note || 'Claude could not design that.', true); return null; }
     if (t === 'object') {
+      { const d3 = aiModeFor() === '3d', k = String(r.key || ''), alt = /3$/.test(k) ? k.slice(0, -1) : k + '3'; // (the other mode's object asked for: its counterpart for this one, dna → dna3)
+        if (MOLECULES[k] && !molFits(MOLECULES[k], d3) && MOLECULES[alt] && molFits(MOLECULES[alt], d3)) r.key = alt; }
       const M = MOLECULES[r.key];
       if (!M || M.cat !== 'objects') return `there is no ready-made object called "${aiText(String(r.key), 40)}"`;
       aiPick(r.key, note); return null;

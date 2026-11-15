@@ -2,6 +2,23 @@
 /* The checks for 1.33.0 (the owner, 2026-11-14: "the 3d molecule builder isn't 3d"; the far-face grid in a big 3-D box).
    Run by t_features (one line) or alone: node tests/f_133.js. Each fails on 1.32.0. */
 module.exports = async function f133(page, check) {
+  { // 1.33.2: DNA as a double helix in the 3-D library, and Ask Claude's flat DNA turned into it in 3-D
+    const { load } = require(require('path').join(__dirname, 'load.js'));
+    const X = load('all', { seed: 4 }), W = X.W, M = X.MOLECULES.dna3;
+    let tw = [], ext = 0;
+    if (M) {
+      const nb = M.atoms.map(() => []); for (const [i, j] of M.bonds) { nb[i].push(M.atoms[j][0]); nb[j].push(M.atoms[i][0]); }
+      const c1 = M.atoms.map((a, i) => i).filter(i => M.atoms[i][0] === 'C' && ['N', 'O', 'C', 'H'].every(e => nb[i].includes(e)));
+      const P = c1.map(i => [M.atoms[i][1], M.atoms[i][2], M.z[i]]); // (aligned: the helix's axis is its long one, x)
+      const ord = P.map((p, i) => [p[0], i]).sort((a, b) => a[0] - b[0]).map(x => x[1]), pr = [];
+      for (let i = 0; i + 1 < ord.length; i += 2) pr.push([P[ord[i]], P[ord[i + 1]]]);
+      for (let k = 0; k + 1 < pr.length; k++) { const a = [pr[k][1][1] - pr[k][0][1], pr[k][1][2] - pr[k][0][2]], b = [pr[k + 1][1][1] - pr[k + 1][0][1], pr[k + 1][1][2] - pr[k + 1][0][2]]; let g = Math.acos(Math.max(-1, Math.min(1, (a[0] * b[0] + a[1] * b[1]) / Math.hypot(...a) / Math.hypot(...b)))) * 180 / Math.PI; if (g > 90) g = 180 - g; tw.push(g); }
+      ext = Math.max(...M.z) - Math.min(...M.z);
+    }
+    const mean = tw.reduce((u, v) => u + v, 0) / (tw.length || 1);
+    check(!!M && X.molFits(M, true) && !X.molFits(M, false) && Math.abs(mean - 36) < 4 && ext > 15,
+      `1.33.2 DNA double helix (3-D): ${M && M.atoms.length} atoms, the base pairs turned ${tw.map(v => v.toFixed(0)).join('/')}° a step (B-DNA 36°), ${ext.toFixed(1)} Å across, in the 3-D library only`, '1.33.2 dna3: ' + JSON.stringify({ has: !!M, tw, ext }));
+  }
   { // continuous bond orders: a member removed and its slot given to a plain atom must not stay on the members' map
     const { load } = require(require('path').join(__dirname, 'load.js'));
     const X = load('all', { seed: 2 }), W = X.W;
@@ -61,6 +78,7 @@ module.exports = async function f133(page, check) {
     const a = addAtom('Ar', 0, 0, { z: 0 }); a.vx = a.vy = a.vz = 0; cam3Update(); const v = [0, 0, 0]; proj3(a.x, a.y, a.z, v);
     updateHover(v[0], v[1]); out.tip = $('tip').textContent; out.want = Math.hypot(a.x - C3.ex, a.y - C3.ey, a.z - C3.ez);
     SET.dist3 = false; updateHover(v[0], v[1]); out.tipOff = $('tip').textContent; SET.dist3 = true; hideTip();
+    loadPreset('d3empty'); openMolBuilder(); UI.spec = null; aiApply({ type: 'object', key: 'dna', note: '' }); out.dna = UI.spec && UI.spec.mol; out.bldOpen = !$('bldModal').hidden;
     let txt = ''; const c = document.createElement('canvas').getContext('2d'), ft = c.fillText; c.fillText = function (t) { txt += t + '|'; return ft.apply(this, arguments); }; drawPlaneDist3(c); out.plText = txt;
     return out;
   } catch (e) { return { err: e.message }; } });
@@ -68,6 +86,7 @@ module.exports = async function f133(page, check) {
   const m = /([\d.,]+) Å from the camera/.exec(q.tip || ''), pm = /Placing plane ([\d.,]+) Å from the camera/.exec(q.plText || '');
   check(!q.err && m && Math.abs(parseFloat(m[1].replace(/,/g, '')) - q.want) < 0.05 && !/from the camera/.test(q.tipOff), `1.33.1 (85) hovering an atom in 3-D tells its distance from the camera ("${m && m[0]}"), off with the setting`, '1.33.1 hover distance: ' + JSON.stringify(q));
   check(!q.err && !!pm, `1.33.1 (86) with the Place tool, the placing plane's distance from the camera shows bottom left ("${pm && pm[0]}")`, '1.33.1 plane distance: ' + JSON.stringify(q));
+  check(!q.err && q.dna === 'dna3' && !q.bldOpen, '1.33.2 Ask Claude answering with the flat DNA object in the 3-D lab gives the double helix (dna3), ready to place', '1.33.2 Claude dna: ' + JSON.stringify(q));
   check(!q.err && q.opts && q.plane.n === 20 && q.sphere.n === 20 && q.plane.depth < 0.5 && q.sphere.depth > 4, `1.33.1 (87) Place → Spread: 20 argon on the plane span ${q.plane && q.plane.depth.toFixed(2)} Å in depth, through a sphere ${q.sphere && q.sphere.depth.toFixed(1)} Å`, '1.33.1 sphere placing: ' + JSON.stringify(q));
   check(/3-D/.test(r.title) && Math.abs(r.drawn.ang - 109.5) < 4 && r.drawn.zr > 0.5 && Math.abs(r.hAng - 109.5) < 4 && turned,
     `1.33 the molecule builder in the 3-D lab works in space: a drawn chain bends at ${r.drawn.ang.toFixed(1)}° with ${r.drawn.zr.toFixed(2)} Å of depth, a CH₃'s hydrogens ${r.hAng.toFixed(1)}° apart; dragging empty space turns it`, '1.33 builder 3-D: ' + JSON.stringify({ r, turned }));
