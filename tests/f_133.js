@@ -82,6 +82,49 @@ module.exports = async function f133(page, check) {
     let txt = ''; const c = document.createElement('canvas').getContext('2d'), ft = c.fillText; c.fillText = function (t) { txt += t + '|'; return ft.apply(this, arguments); }; drawPlaneDist3(c); out.plText = txt;
     return out;
   } catch (e) { return { err: e.message }; } });
+  // 1.33.2 item 88: the enlarged decay chart fills its window, points and clicks; Settings' tabs in the header with arrows
+  const g = await page.evaluate(async () => { try {
+    const sleep = (ms) => new Promise(res => setTimeout(res, ms)), out = {};
+    loadPreset('chain'); W.simPerFrame *= 20; setRunning(true); for (let i = 0; i < 800 && !(W.chain && W.chain.fis.length >= 3); i++) await sleep(25); setRunning(false);
+    showTab('data', true); await sleep(150); UI.mapView = 'chart'; UI.mapKey = null; drawChainMap();
+    if (!UI.mapPos) return { err: `no map: ${W.chain ? W.chain.fis.length : 'no chain'} fissions, section ${$('dMapSec').hidden ? 'hidden' : 'shown'}, ${$('dMapSec').offsetParent ? 'on screen' : 'off screen'}` };
+    const small = UI.mapPos && UI.mapPos.L.cs; chartOpen($('chMap')); await sleep(200);
+    const L = UI.mapPos.L, cv = $('chBig'), rr = cv.getBoundingClientRect(), o = UI.mapPos.off, [kk, v] = [...L.nodes][0], b = L.band(v.Z);
+    out.fill = { cs: L.cs, small, h: L.h, H: cv.clientHeight, centred: o[0] > 0 || o[1] > 0 };
+    const x = rr.left + o[0] + b.ox + v.N * L.cs + L.cs / 2, y = rr.top + o[1] + b.top + (b.z1 - v.Z) * L.cs + L.cs / 2;
+    $('chartBody').dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y, bubbles: true })); await sleep(30);
+    out.hov = UI.mapHov && UI.mapHov.k === kk; out.note = $('chBigNote').textContent.length > 20 && !$('chBigNote').hidden;
+    chartZoom(2, rr.width / 2, rr.height / 2); out.sharp = cv.style.transform === '' && UI.big.z === 2;
+    UI.big.z = 1; UI.big.x = 0; UI.big.y = 0; chartTf();
+    const L2 = UI.mapPos.L, o2 = UI.mapPos.off, b2 = L2.band(v.Z), x2 = rr.left + o2[0] + b2.ox + v.N * L2.cs + L2.cs / 2, y2 = rr.top + o2[1] + b2.top + (b2.z1 - v.Z) * L2.cs + L2.cs / 2;
+    $('chartBody').dispatchEvent(new MouseEvent('click', { clientX: x2, clientY: y2, bubbles: true })); await sleep(80);
+    out.opened = !$('ptModal').hidden && UI.ptSel && UI.ptSel.Z === v.Z && UI.ptSel.A === v.Z + v.N; hideModal('ptModal');
+    // the Made here window's search
+    const mr = W.made && [...W.made.nuc.values()].find(r => !r.anti && r.Z > 30);
+    out.madeHas = !!mr;
+    if (mr) { $('dMade').querySelector('button[data-more]') ? $('dMade').querySelector('button[data-more]').click() : (UI.madeAllHTML = null, showModal('madeModal'), renderMade()); await sleep(80);
+      const all = [...$('dMadeAll').querySelectorAll('tr:not(.elh)')].length, f = $('madeFind'); f.value = ELEMENTS[mr.Z].name; f.dispatchEvent(new Event('input')); await sleep(30);
+      const vis = [...$('dMadeAll').querySelectorAll('tr:not(.elh)')].filter(t => !t.hidden);
+      out.made = { all, shown: vis.length, ok: vis.length > 0 && vis.length < all && vis.every(t => (t.textContent + (t.previousElementSibling ? '' : '')).length > 0), n: $('madeFindN').textContent };
+      f.value = ''; f.dispatchEvent(new Event('input')); out.made.back = [...$('dMadeAll').querySelectorAll('tr:not(.elh)')].every(t => !t.hidden); hideModal('madeModal'); }
+    // event captions hidden by the setting
+    setSetting('caps', 'off'); out.capsOff = captionBox(document.createElement('canvas').getContext('2d'), { text: 'x', t0: W.rt }, 10, 10, 100, []) === null; setSetting('caps', 'on');
+    // Explain what's happening empties when the setup is loaded again
+    $('dExplain').hidden = false; $('dExplain').textContent = 'old explanation'; loadPreset(UI.preset); out.explainReset = $('dExplain').hidden && !$('dExplain').textContent;
+    // Claude's answers read leniently (Identify molecules): the page's JSON reading refuses, the plain text is cut off
+    { const keep = AI.sample; const f = async () => ({ text: 'Sure! ```json\n{"names":[{"i":0,"name":"Ethyl radical","cat":"organic"},{"i":1,"name":"Prop' }); f.json = async () => { throw { code: 'invalid_json' }; };
+      AI.sample = f; try { const r = await aiJSON('x', {}); out.loose = r && r.names && r.names.length === 1 && r.names[0].name === 'Ethyl radical'; } catch (e) { out.loose = 'threw ' + (e && e.code); } AI.sample = keep; }
+    $('bSettings').click(); await sleep(150);
+    const h = document.querySelector('#setModal header').getBoundingClientRect(), t = document.querySelector('#setModal .stabs').getBoundingClientRect();
+    out.tabs = { inHeader: t.top >= h.top && t.bottom <= h.bottom, arrows: document.querySelectorAll('#setTabsHs .hs-arrow').length === 2 };
+    $('setClose').click();
+    return out;
+  } catch (e) { return { err: e.message }; } });
+  check(!g.err && g.fill.cs > g.fill.small && g.fill.centred && g.hov && g.note && g.sharp && g.opened,
+    `1.33.2 (88) the enlarged decay chart fills its window (cells ${g.fill && g.fill.cs.toFixed(0)} px, ${g.fill && g.fill.small.toFixed(0)} in the panel), centred; pointing tells a nuclide's story under it, zooming redraws sharp, a click opens it in the Elements window`, '1.33.2 chart: ' + JSON.stringify(g));
+  check(!g.err && (!g.madeHas || (g.made.ok && g.made.back)) && g.capsOff && g.explainReset, `1.33.2 the Made here window has a search (${g.made ? g.made.shown + ' of ' + g.made.all + ' rows for an element' : 'nothing made'}); Display → Event captions: Hidden takes the event boxes off; Explain what's happening empties when the setup is loaded again`, '1.33.2 made/caps/explain: ' + JSON.stringify(g));
+  check(!g.err && g.loose === true, '1.33.2 Claude\'s answers read leniently: refused as JSON, asked again as text, words and fences round it and a cut-off end forgiven (the whole entries kept)', '1.33.2 loose JSON: ' + JSON.stringify(g.loose));
+  check(!g.err && g.tabs.inHeader && g.tabs.arrows, '1.33.2 Settings: the tabs in the header beside the search box, with side arrows', '1.33.2 tabs: ' + JSON.stringify(g));
   if (own) await own.browser.close();
   const m = /([\d.,]+) Å from the camera/.exec(q.tip || ''), pm = /Placing plane ([\d.,]+) Å from the camera/.exec(q.plText || '');
   check(!q.err && m && Math.abs(parseFloat(m[1].replace(/,/g, '')) - q.want) < 0.05 && !/from the camera/.test(q.tipOff), `1.33.1 (85) hovering an atom in 3-D tells its distance from the camera ("${m && m[0]}"), off with the setting`, '1.33.1 hover distance: ' + JSON.stringify(q));

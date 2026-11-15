@@ -1724,7 +1724,7 @@ function uiRects() {
    buttons (right), its second line wrapped rather than run past the box, tried above, below, right and left of the event
    before stacking; null when it finds no free place (the newest are placed first). The 2-D and 3-D views share it. */
 function captionBox(ctx, e, x, y, w1, placed) {
-  if (R.bare) return null; // (a picture without labels and captions, 1.32 item 81)
+  if (R.bare || R.noCaps) return null; // (a picture without labels and captions, 1.32 item 81; Settings → Display → Event captions: Hidden, 1.33.2)
   ctx.font = '500 11px "Azeret Mono", ui-monospace, monospace';
   const ins = e.nuc && R.view.decayCards && R.w > 360 ? 58 : 0; // a decay gets a close-up of its nucleus beside the words
   const vi = viewInsets(8), padL = 8, padR = Math.max(R.w > 420 ? 52 : 8, Math.min(vi.r, 80)), padT = Math.max(R.h > 300 ? 54 : 8, Math.min(vi.t, 120)), padB = Math.min(vi.b, 120); // (the tool's bar at the bottom too: at 1280×720 LEP's last caption went under it, 1.30.1)

@@ -34,7 +34,7 @@ PARTS.page = async (page, check) => {
     // 77, 78: the Elements window: saved isotopes only for the chosen element; the highlight slides to the new cell
     MYISO.length = 0; MYISO.push({ Z: 26, A: 56, q: 0 }, { Z: 92, A: 235, q: 0 });
     openPT(); await sleep(50);
-    const pick = async (Z) => { const c = $('pgrid').querySelector(`[data-z="${Z}"]`); c.click(); await sleep(220); const h = $('pgrid').querySelector('.pt-hl'), hr = h.getBoundingClientRect(), cr = $('pgrid').querySelector(`[data-z="${Z}"]`).getBoundingClientRect(); return { saved: document.querySelectorAll('#ptModal .isosaved').length, at: Math.abs(hr.left - cr.left) < 2 && Math.abs(hr.top - cr.top) < 2, tr: getComputedStyle(h).transitionProperty }; };
+    const pick = async (Z) => { const c = $('pgrid').querySelector(`[data-z="${Z}"]`); c.click(); const h = $('pgrid').querySelector('.pt-hl'), cel = () => $('pgrid').querySelector(`[data-z="${Z}"]`).getBoundingClientRect(); let hr = h.getBoundingClientRect(), cr = cel(); for (let w = 0; w < 50 && !(Math.abs(hr.left - cr.left) < 2 && Math.abs(hr.top - cr.top) < 2); w++) { await sleep(40); hr = h.getBoundingClientRect(); cr = cel(); } /* (the slide takes 160 ms; on a busy machine longer) */ return { saved: document.querySelectorAll('#ptModal .isosaved').length, at: Math.abs(hr.left - cr.left) < 2 && Math.abs(hr.top - cr.top) < 2, tr: getComputedStyle(h).transitionProperty }; };
     out.fe = await pick(26); out.o = await pick(8); out.u = await pick(92);
     hideModal('ptModal'); MYISO.length = 0;
     // 79: the setups menu's search

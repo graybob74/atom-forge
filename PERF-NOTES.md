@@ -1991,6 +1991,35 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.33.2: DNA as a double helix in 3-D, item 88, Settings' tabs (the owner, 2026-11-14: "build it, release both as 1.33.2")
+
+- DNA double helix (3-D) and Ask Claude building for the mode it is in: see the note under 1.33.1 ("After the release").
+- 88 The chain-reaction map enlarged (Data → Chain-reaction map, click it): the decay chart now fills the window (its
+  cells sized to the window's height as well as its width: 23 px against the panel's 15 in the check's run, up to 40)
+  and sits in its middle; zoom (wheel, + / −, up to 40×) and drag redraw it at that zoom, sharp, instead of stretching a
+  picture; pointing at a nuclide or a fission tells its story under the chart (where it came from and went, or the
+  fission's parent, fragments and neutrons) and marks it; a click on a nuclide opens it in the Elements window, a click
+  on a fission keeps it picked (its path back to where its chain began). The fission tree fills the window as before,
+  its lines kept thin and its dots growing more slowly than the drawing when zoomed.
+- Settings: the tabs in the header between the title and the search box, one row that scrolls sideways with arrows like
+  the top bar's (makeHScroll), the chosen tab kept in view; searching hides them as before. At a phone's width they take their own row
+  under the title and search (the dialog's grid let its header's widest line widen it past the screen: min-width 0).
+- Settings → Display → Event captions: Shown / Hidden (SET.caps; captionBox draws nothing when hidden; the Log and the
+  narrator still tell the events).
+- Made here's window has a search box: rows whose name, symbol or story have every word typed, an element's heading kept
+  while any of its rows is; the count found beside it; Esc clears it.
+- Explain what's happening now empties, and the narrator's caption goes, when a setup is loaded or started again (the
+  owner: it stayed from the world before).
+- Claude's answers (Identify molecules, Ask Claude, Ask for a setup) read leniently (aiJSONLoose, aiJSON; the owner:
+  "Identify molecules says Claude's answer cannot be read a lot of the time"): words or code fences round the JSON,
+  trailing commas, and an answer cut off part way (twelve names and categories ran past the API path's 1500 tokens, now
+  4000) are read up to the last whole entry; when claude.ai's own JSON reading refuses an answer, it is asked once more as
+  plain text and read this way.
+- The Elements window's highlight follows its cell when the grid moves (a ResizeObserver on the grid).
+
+Tests: f_133 parts for 88, the tabs, the captions setting, Made here's search and Explain's reset; run: t_lint, f_133,
+f_131, f_132, f_125s, f_rp1.
+
 ## 1.33.1: items 85–87 and the bond-order fix (the owner, 2026-11-14: "build it as 1.33.1")
 
 - 85 Settings → 3-D → "Distance from the camera on hover" (SET.dist3, on): the hover label adds how far the particle is
@@ -3526,7 +3555,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 87 (done in 1.33.1; requested 2026-11-14, the owner: "a plane place and spherical place modes in 3d (plane is what it is now, while
    spherical automatically spreads atoms in a sphere when multiple are placed at once)") 3-D lab: the Place tool's mode,
    Plane (as now) or Sphere: several placed at once go out over a ball round the point instead of across the plane.
-88 (requested 2026-11-14, the owner: "make the expanded decay chart and fission tree fit better and be more
+88 (done in 1.33.2; requested 2026-11-14, the owner: "make the expanded decay chart and fission tree fit better and be more
    interactive") The charts' window (1.31 item 74): the decay chart and the fission tree fitted to the window when they
    open, and more to do in them (hover for each nuclide or branch, click to inspect it, zoom to a part).
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;

@@ -451,11 +451,12 @@
   <div class="dialog chdialog" role="dialog" aria-modal="true" aria-labelledby="chartTitle">
     <header><h2 id="chartTitle">Chart</h2><div class="hbtns"><span class="note" id="chartHint">Wheel or + / − to zoom, drag to move, double-click to fit</span><button class="btn small" id="chartClose">Close</button></div></header>
     <div class="chbody" id="chartBody"><canvas class="chart" id="chBig" aria-label="The chart, enlarged"></canvas><div id="chSvg"></div></div>
+    <p class="note chnote" id="chBigNote" aria-live="polite" hidden></p>
   </div>
 </div>
 <div class="modal" id="madeModal" hidden>
   <div class="dialog mdialog madedlg" role="dialog" aria-modal="true" aria-labelledby="madeTitle">
-    <header><h2 id="madeTitle">Made here <span class="count" id="madeCount"></span></h2><div class="hbtns"><button class="btn small" id="madeClose">Close</button></div></header>
+    <header><h2 id="madeTitle">Made here <span class="count" id="madeCount"></span></h2><div class="hbtns"><input type="search" class="sfind" id="madeFind" placeholder="Search" autocomplete="off" spellcheck="false" aria-label="Search what was made"><span class="sfindn" id="madeFindN"></span><button class="btn small" id="madeClose">Close</button></div></header>
     <p class="note" id="madeSum2"></p>
     <div class="madebody"><table class="species made" id="dMadeAll"></table></div>
   </div>
@@ -560,14 +561,13 @@
 </div>
 <div class="modal" id="setModal" hidden>
   <div class="dialog sdialog" role="dialog" aria-modal="true" aria-labelledby="setTitle">
-    <header><h2 id="setTitle">Settings <span class="smode" id="setMode">2-D game</span></h2><div class="sfindrow"><input type="search" class="sfind" id="setFind" placeholder="Search settings" aria-label="Search all the settings" autocomplete="off" spellcheck="false"><span class="sfindn" id="setFindN" aria-live="polite"></span></div><button class="btn small" id="setClose">Close</button></header>
+    <header><h2 id="setTitle">Settings <span class="smode" id="setMode">2-D game</span></h2><div class="hs stabs-hs" id="setTabsHs"><div class="stabs" role="tablist" aria-label="Settings categories"><button role="tab" data-stab="perf" aria-selected="true">Performance</button><button role="tab" data-stab="gfx" aria-selected="false">Graphics</button><button role="tab" data-stab="disp" aria-selected="false">Display</button><button role="tab" data-stab="ctl" aria-selected="false">Controls</button><button role="tab" data-stab="gen" aria-selected="false">General</button><button role="tab" data-stab="d3" aria-selected="false">3-D</button><button role="tab" data-stab="ai" aria-selected="false">Claude</button><button role="tab" data-stab="exp" aria-selected="false">Experimental</button></div></div><div class="sfindrow"><input type="search" class="sfind" id="setFind" placeholder="Search settings" aria-label="Search all the settings" autocomplete="off" spellcheck="false"><span class="sfindn" id="setFindN" aria-live="polite"></span></div><button class="btn small" id="setClose">Close</button></header>
     <div class="sbody">
     <aside class="sprev" id="setPrev" aria-label="About the setting under the pointer">
       <figure class="sprev-fig" id="setPrevFig"><img id="setPrevImg" alt="" hidden tabindex="0" role="button" title="Click to see it large"><svg class="sprev-ph" id="setPrevPh" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><ellipse cx="16" cy="16" rx="13" ry="5.2"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(60 16 16)"/><ellipse cx="16" cy="16" rx="13" ry="5.2" transform="rotate(-60 16 16)"/></g><circle cx="16" cy="16" r="1.8" fill="currentColor"/></svg><figcaption class="sprev-cap" id="setPrevCap" hidden title="Picture from the flat game"><span class="cap-l">Picture from the flat game</span><span class="cap-s">2-D</span></figcaption></figure>
       <div class="sprev-txt" aria-live="polite"><h3 id="setPrevT"></h3><div class="sprev-d" id="setPrevD"></div></div>
     </aside>
     <div class="sbox">
-    <div class="stabs" role="tablist" aria-label="Settings categories"><button role="tab" data-stab="perf" aria-selected="true">Performance</button><button role="tab" data-stab="gfx" aria-selected="false">Graphics</button><button role="tab" data-stab="disp" aria-selected="false">Display</button><button role="tab" data-stab="ctl" aria-selected="false">Controls</button><button role="tab" data-stab="gen" aria-selected="false">General</button><button role="tab" data-stab="d3" aria-selected="false">3-D</button><button role="tab" data-stab="ai" aria-selected="false">Claude</button><button role="tab" data-stab="exp" aria-selected="false">Experimental</button></div>
     <section class="sgroup spane" data-stab="perf">
       <div class="srow"><span>Particle limit</span><div class="seg" id="segMax" role="group" aria-label="Particle limit"><button data-v="2000">2,000</button><button data-v="4000">4,000</button><button data-v="8000">8,000</button><button data-v="12000">12,000</button><button data-v="20000">20,000</button></div></div>
       <div class="srow"><span>Resolution</span><div class="seg" id="segRes" role="group" aria-label="Drawing resolution"><button data-v="sharp" title="At your screen's full resolution">Sharp</button><button data-v="standard" title="One drawn pixel per screen point">Standard</button><button data-v="fast" title="Three quarters resolution: softer, quickest">Fast</button></div></div>
@@ -586,6 +586,7 @@
       <div class="srow"><span>Atom size</span><div class="seg" id="segAtom" role="group" aria-label="Atom size"><button data-v="1" title="Atoms as big as they are: touching in a liquid or solid">True size</button><button data-v="0.7">Smaller</button><button data-v="0.45" title="Small balls: see past them in a crowded box">Small</button></div></div>
       <div class="srow"><span>Labels</span><div class="seg" id="segLabels" role="group" aria-label="Labels"><button data-v="always">Always</button><button data-v="hover" title="Only on the atom under the mouse and the one inspected">On hover</button><button data-v="never">Never</button></div></div>
       <div class="srow"><span>Charge badges</span><div class="seg" id="segBadges" role="group" aria-label="Charge badges"><button data-v="always">Always</button><button data-v="hover">On hover</button><button data-v="never">Never</button></div></div>
+      <div class="srow"><span>Event captions</span><div class="seg" id="segCaps" role="group" aria-label="Event captions"><button data-v="on" title="The boxes that name an event where it happens: a decay, a fission, an annihilation">Shown</button><button data-v="off">Hidden</button></div></div>
       <label class="check"><input type="checkbox" id="setFx"> Glows, halos and flashes</label>
       <label class="check"><input type="checkbox" id="setFlash"> Fewer flashes: nuclear events and sparks marked gently</label>
       <label class="check"><input type="checkbox" id="setCvd"> Colour-blind friendly colours (elements and charges)</label>

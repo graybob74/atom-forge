@@ -491,11 +491,11 @@ async function aiAsk(raw) {
     return o;
   };
   try {
-    let r = await AI.sample.json(aiPrompt(text), opts());
+    let r = await aiJSON(aiPrompt(text), opts());
     let problem = aiApply(r);
     if (problem) {
       aiSay('Claude\'s recipe had a problem; asking for a correction …');
-      r = await AI.sample.json(aiPrompt(text, r, problem), opts());
+      r = await aiJSON(aiPrompt(text, r, problem), opts());
       problem = aiApply(r);
     }
     AI.failed = problem ? text : '';
@@ -614,7 +614,7 @@ async function identifyMolecules() {
   AI.busy = true; AI.ctl = new AbortController(); aiSync();
   idSay(`${summary}. Asking Claude to name ${ask.length} kind${ask.length === 1 ? '' : 's'} … (the first time, the page asks your leave to use Claude)`);
   try {
-    const r = await AI.sample.json(idPrompt(ask), { modelTier: 'default', signal: AI.ctl.signal });
+    const r = await aiJSON(idPrompt(ask), { modelTier: 'default', signal: AI.ctl.signal });
     const list = r && Array.isArray(r.names) ? r.names : [];
     added = []; const got = [];
     for (const e of list) {
@@ -635,7 +635,35 @@ async function identifyMolecules() {
 /* ---- the Claude API with the viewer's own key (Settings → Claude API key), where the page has no Claude of its own:
    the desktop app, or a copy of the page served elsewhere. Same shape as the `sample` capability: json(prompt, opts).
    The key is kept in this browser's storage only and sent to api.anthropic.com alone; use is billed to that account. */
-const AI_API = { url: 'https://api.anthropic.com/v1/messages', version: '2023-06-01', model: 'claude-sonnet-5-5', maxTokens: 1500 };
+const AI_API = { url: 'https://api.anthropic.com/v1/messages', version: '2023-06-01', model: 'claude-sonnet-5-5', maxTokens: 4000 }; // (1500 cut off long answers: twelve names with their categories, a setup's list, 1.33.2)
+/* Claude's answers as data (1.33.2, the owner: "Identify molecules says Claude's answer cannot be read a lot of the time").
+   Read leniently: without code fences or words around it, trailing commas forgiven, and a reply cut off part way (a
+   long list of names runs out of room) kept up to its last whole entry. When the page's own JSON reading refuses the
+   reply, it is asked for once more as plain text and read this way. */
+function aiJSONLoose(text) {
+  const t = String(text == null ? '' : text).replace(/```(?:json)?/gi, '').trim(), a = t.indexOf('{');
+  if (a < 0) throw { code: 'invalid_json', message: t.slice(0, 200) };
+  const body = t.slice(a), b = body.lastIndexOf('}'), fix = (x) => x.replace(/,(\s*[}\]])/g, '$1');
+  for (const c of [body.slice(0, b + 1), body]) { try { return JSON.parse(fix(c)); } catch (e) { /* (next) */ } }
+  // cut off: back to a closing brace, then close what is still open
+  let tries = 0;
+  for (let p = body.length - 1; p > 0 && tries < 400; p--) {
+    if (body[p] !== '}' && body[p] !== ']') continue; tries++;
+    const part = body.slice(0, p + 1), st = []; let str = false, esc = false;
+    for (const ch of part) { if (str) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') str = false; continue; }
+      if (ch === '"') str = true; else if (ch === '{' || ch === '[') st.push(ch); else if (ch === '}' || ch === ']') st.pop(); }
+    if (str) continue;
+    try { return JSON.parse(fix(part + st.reverse().map(ch => (ch === '{' ? '}' : ']')).join(''))); } catch (e) { /* (back further) */ }
+  }
+  throw { code: 'invalid_json', message: t.slice(0, 200) };
+}
+async function aiJSON(prompt, opts) {
+  try { return await AI.sample.json(prompt, opts); } catch (e) {
+    if (!e || e.code !== 'invalid_json' || typeof AI.sample !== 'function') throw e;
+    const r = await AI.sample(prompt + '\n\nReply with the JSON object alone: no words before or after it, no code fences.', Object.assign({}, opts, { onText: undefined }));
+    return aiJSONLoose(r && r.text != null ? r.text : r);
+  }
+}
 function apiSampler(key, model) {
   const call = async (prompt, opts) => {
     const body = { model: model || AI_API.model, max_tokens: AI_API.maxTokens, messages: [{ role: 'user', content: prompt }] };
@@ -659,8 +687,7 @@ function apiSampler(key, model) {
   f.api = true;
   f.json = async (prompt, opts) => {
     const text = await call(prompt, opts);
-    const m = /\{[\s\S]*\}/.exec(text.replace(/^```(?:json)?/m, '').replace(/```\s*$/m, ''));
-    try { return JSON.parse(m ? m[0] : text); } catch (e) { throw { code: 'invalid_json', message: text.slice(0, 200) }; }
+    return aiJSONLoose(text);
   };
   return f;
 }
@@ -770,8 +797,8 @@ async function askRun() {
   ASK.busy = true; ASK.ctl = new AbortController(); $('askGo').textContent = 'Stop'; say('Claude is designing the setup … this can take up to a minute.');
   const opts = () => ({ modelTier: 'default', signal: ASK.ctl.signal, cache: false, onText: () => say('Claude is writing the setup …') });
   try {
-    let r = await AI.sample.json(askPrompt(text), opts()), bad = askBuild(r, true);
-    if (bad) { say(`Fixing: ${bad} …`); const r2 = await AI.sample.json(askPrompt(text, r, bad), opts()); const bad2 = askBuild(r2, true); if (bad2) { say(`Claude's setup could not be built: ${bad2}. Try describing it differently.`, true); return; } r = r2; }
+    let r = await aiJSON(askPrompt(text), opts()), bad = askBuild(r, true);
+    if (bad) { say(`Fixing: ${bad} …`); const r2 = await aiJSON(askPrompt(text, r, bad), opts()); const bad2 = askBuild(r2, true); if (bad2) { say(`Claude's setup could not be built: ${bad2}. Try describing it differently.`, true); return; } r = r2; }
     ASK.last = r;
     PRESETS.ai = { group: 'Claude', name: '✦ ' + (aiText(r.name, 40) || 'Claude’s setup'), tool: 'place', spec: { kind: 'atom', Z: 1, A: 1, bare: true },
       hint: `<b>${esc(aiText(r.name, 60) || 'Claude’s setup')}.</b> ${esc(aiText(r.note, 400))} <i>(Set up by Claude from “${esc(text)}”; Restart builds it again.)</i>`,

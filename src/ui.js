@@ -649,7 +649,10 @@ function buildPTGrid(anti) {
    over the grid, moved to the chosen cell with a short eased slide (CSS transition; none with reduced motion). */
 function ptHighlight() {
   const g = $('pgrid'); if (!g) return;
-  let h = g.querySelector('.pt-hl'); if (!h) { h = document.createElement('div'); h.className = 'pt-hl'; h.setAttribute('aria-hidden', 'true'); g.appendChild(h); }
+  let h = g.querySelector('.pt-hl'); if (!h) { h = document.createElement('div'); h.className = 'pt-hl'; h.setAttribute('aria-hidden', 'true'); g.appendChild(h);
+    // (the grid's cells move when the window's layout changes, a scroll bar coming or going as the detail grows or shrinks:
+    // the highlight follows at once; it stayed on the old place, beside the chosen cell, 1.33.2)
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { const k = g.querySelector('.pt-hl'); if (k && !k.hidden) { k.classList.add('now'); ptHighlight(); void k.offsetWidth; k.classList.remove('now'); } }).observe(g); }
   const c = g.querySelector(`.pcell[data-z="${UI.ptSel.Z}"]`); if (!c) { h.hidden = true; return; }
   const first = h.hidden || !h.style.width; h.hidden = false;
   if (first) h.classList.add('now');
@@ -2413,10 +2416,24 @@ function renderMade() {
     (more ? `<tr class="more"><td colspan="3"><button class="btn small" data-more="1">Show all ${(nuc.length + part.length + nus.length).toLocaleString('en-US')} in a window</button></td></tr>` : '');
   if (!$('madeModal').hidden) {
     const all = build(nuc, part, nus);
-    if (UI.madeAllHTML !== all) { UI.madeAllHTML = all; $('dMadeAll').innerHTML = all; }
+    if (UI.madeAllHTML !== all) { UI.madeAllHTML = all; $('dMadeAll').innerHTML = all; madeFilter(); }
     $('madeSum2').innerHTML = $('dMadeSum').innerHTML; $('madeCount').textContent = (nuc.length + part.length + nus.length).toLocaleString('en-US');
   }
   if (UI.madeHTML !== html) { UI.madeHTML = html; $('dMade').innerHTML = html; } // (rebuilt only when it changes: a click is not lost to a rebuild)
+}
+/* Search in the Made here window (1.33.2): rows whose name, symbol or story contain every word typed; an element's
+   heading stays while any of its rows does. */
+function madeFilter() {
+  const f = $('madeFind'), q = f ? f.value.trim().toLowerCase() : '', words = q.split(/\s+/).filter(Boolean), rows = [...$('dMadeAll').querySelectorAll('tr')];
+  let head = null, headHit = false, n = 0;
+  const close = () => { if (head) head.hidden = words.length > 0 && !headHit; };
+  for (const tr of rows) {
+    if (tr.classList.contains('elh')) { close(); head = tr; headHit = false; continue; }
+    const t = (tr.textContent + ' ' + (head ? head.textContent : '')).toLowerCase(), hit = !words.length || words.every(w => t.includes(w));
+    tr.hidden = !hit; if (hit) { headHit = true; n++; }
+  }
+  close();
+  const c = $('madeFindN'); if (c) c.textContent = words.length ? `${n.toLocaleString('en-US')} found` : '';
 }
 const MADE_SHOW = 12, MADE_PART = 6; // (the panel's share; the rest in the window, 1.31 item 73: 80 nuclides before)
 /* An element's usual isotope, for its card: the stable one nearest its atomic mass, or the longest-lived. */
@@ -2448,15 +2465,20 @@ function chartOpen(el) {
   $('chartTitle').textContent = svg ? 'Decay chain' : chartTitle(el);
   $('chBig').hidden = svg; const box = $('chSvg'); box.innerHTML = ''; box.hidden = !svg;
   if (svg) { const c = el.cloneNode(true); c.removeAttribute('width'); c.removeAttribute('height'); c.setAttribute('preserveAspectRatio', 'xMidYMid meet'); box.appendChild(c); }
+  $('chBigNote').hidden = UI.big.id !== 'chMap'; $('chBigNote').textContent = ''; UI.mapPin = null; UI.mapHov = null;
   showModal('chartModal'); chartTf();
   if (!svg) requestAnimationFrame(() => { const f = CHARTS[el.id]; try { if (f) f(); } catch (e) {} });
 }
 function chartClose() {
-  const id = UI.big && UI.big.id; UI.big = null; hideModal('chartModal');
+  const id = UI.big && UI.big.id; UI.big = null; UI.mapPin = null; UI.mapHov = null; hideModal('chartModal');
   if (id) { if (id === 'chMap') UI.mapKey = null; const f = CHARTS[id]; try { if (f) f(); } catch (e) {} } // (the small one drawn again: it waited while the big one was drawn)
 }
-function chartTf() { const B = UI.big; if (!B) return; const t = `translate(${B.x}px, ${B.y}px) scale(${B.z})`; $('chBig').style.transform = t; $('chSvg').style.transform = t; }
-function chartZoom(f, px, py) { const B = UI.big; if (!B) return; const z = clamp(B.z * f, 1, 12), k = z / B.z; B.x = px - (px - B.x) * k; B.y = py - (py - B.y) * k; B.z = z; if (z === 1) { B.x = 0; B.y = 0; } chartTf(); }
+function chartTf() {
+  const B = UI.big; if (!B) return;
+  if (B.id === 'chMap') { $('chBig').style.transform = ''; UI.mapKey = null; drawChainMap(); return; } // (1.33.2 item 88: the decay chart and fission tree drawn again at the zoom, sharp, so pointing and clicking find what is there)
+  const t = `translate(${B.x}px, ${B.y}px) scale(${B.z})`; $('chBig').style.transform = t; $('chSvg').style.transform = t;
+}
+function chartZoom(f, px, py) { const B = UI.big; if (!B) return; const z = clamp(B.z * f, 1, B.id === 'chMap' ? 40 : 12), k = z / B.z; B.x = px - (px - B.x) * k; B.y = py - (py - B.y) * k; B.z = z; if (z === 1) { B.x = 0; B.y = 0; } chartTf(); }
 function chartWire() {
   for (const id of Object.keys(CHARTS)) { const c = $(id); if (!c) continue; c.classList.add('zoomable'); c.tabIndex = 0; c.title = c.title || 'Click to open it larger';
     c.addEventListener('click', (e) => { if (e.defaultPrevented) return; chartOpen(c); });
@@ -2464,12 +2486,22 @@ function chartWire() {
   document.addEventListener('click', (e) => { const s = e.target.closest && e.target.closest('svg.chainsvg'); if (s && !s.closest('#chartModal')) chartOpen(s); });
   const body = $('chartBody'); let drag = null;
   body.addEventListener('wheel', (e) => { e.preventDefault(); const r = body.getBoundingClientRect(); chartZoom(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
-  body.addEventListener('pointerdown', (e) => { drag = [e.clientX, e.clientY]; body.classList.add('drag'); body.setPointerCapture(e.pointerId); });
+  let down = null;
+  body.addEventListener('pointerdown', (e) => { drag = [e.clientX, e.clientY]; down = [e.clientX, e.clientY]; body.classList.add('drag'); body.setPointerCapture(e.pointerId); });
+  body.addEventListener('mousemove', (e) => { if (UI.big && UI.big.id === 'chMap' && !drag) { mapHover(e, true); body.classList.toggle('pick', !!UI.mapHov); } });
+  body.addEventListener('mouseleave', () => { if (UI.big && UI.big.id === 'chMap' && UI.mapHov) { UI.mapHov = null; UI.mapKey = null; drawChainMap(); } });
+  body.addEventListener('click', (e) => { // (1.33.2 item 88: a nuclide on the decay chart opens it in the Elements window; a fission on the tree stays picked)
+    if (!UI.big || UI.big.id !== 'chMap' || (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4)) return;
+    mapHover(e, true); const h = UI.mapHov;
+    if (h && h.kind === 'chart') { const [Z, N] = h.k.split('_').map(Number); chartClose(); openPT({ Z, A: Z + N, q: 0, bare: false, anti: false }); return; }
+    UI.mapPin = h && h.kind === 'tree' ? (UI.mapPin && UI.mapPin.k === h.k ? null : h) : null; UI.mapKey = null; drawChainMap();
+  });
   body.addEventListener('pointermove', (e) => { if (!drag || !UI.big) return; UI.big.x += e.clientX - drag[0]; UI.big.y += e.clientY - drag[1]; drag = [e.clientX, e.clientY]; chartTf(); });
   body.addEventListener('pointerup', () => { drag = null; body.classList.remove('drag'); });
   body.addEventListener('dblclick', () => { if (UI.big) { UI.big.z = 1; UI.big.x = 0; UI.big.y = 0; chartTf(); } });
   $('chartClose').onclick = chartClose;
   $('madeClose').onclick = () => hideModal('madeModal');
+  $('madeFind').addEventListener('input', madeFilter); $('madeFind').addEventListener('keydown', (e) => { if (e.key === 'Escape' && e.target.value) { e.stopPropagation(); e.target.value = ''; madeFilter(); } });
   $('dMadeAll').addEventListener('click', (e) => { if (e.target.closest('button[data-card]')) hideModal('madeModal'); madeClick(e); });
 }
 function chartCtx(cv) {
@@ -2535,7 +2567,7 @@ function treeLayout(C) {
   for (let d = 0; d < cnt.length; d++) cnt[d] = cnt[d] || 0;
   return (UI.mapTree = { ver: C.ver, y, kids, leaves: Math.max(1, leaf), maxD: cnt.length - 1, cnt });
 }
-function chartLayout(C, w) {
+function chartLayout(C, w, maxH) { // (maxH: the enlarged view's height, which it fills, 1.33.2 item 88)
   // nodes: every nuclide a step touched, and everything made; grouped into bands of nearby elements (a fission's
   // fragments and the heavy nuclei it split lie far apart on the chart, and each band is drawn at a readable scale)
   const nodes = new Map(), add = (Z, N) => { if (Z < 1 || Z + N < 2) return; const k = Z + '_' + N; if (!nodes.has(k)) nodes.set(k, { Z, N, frag: false, fis: false }); return nodes.get(k); };
@@ -2546,29 +2578,39 @@ function chartLayout(C, w) {
   for (const b of bands) { b.n0 = 1e9; b.n1 = 0; for (const v of nodes.values()) if (v.Z >= b.z0 && v.Z <= b.z1) { b.n0 = Math.min(b.n0, v.N); b.n1 = Math.max(b.n1, v.N); } b.z0 = Math.max(1, b.z0 - 1); b.z1++; b.n0 = Math.max(0, b.n0 - 1); b.n1++; }
   bands.reverse(); // (the heaviest at the top)
   let cs = 16; for (const b of bands) cs = Math.min(cs, (w - 34) / (b.n1 - b.n0 + 1));
-  const rows = bands.reduce((t, b) => t + b.z1 - b.z0 + 1, 0); cs = clamp(Math.min(cs, (420 - 26 * bands.length) / rows), 2, 16);
+  const rows = bands.reduce((t, b) => t + b.z1 - b.z0 + 1, 0);
+  if (maxH) { cs = 40; for (const b of bands) cs = Math.min(cs, (w - 34) / (b.n1 - b.n0 + 1)); cs = clamp(Math.min(cs, (maxH - 14 - 26 * bands.length) / rows), 2, 40); }
+  else cs = clamp(Math.min(cs, (420 - 26 * bands.length) / rows), 2, 16);
   let top = 6; for (const b of bands) { b.top = top; b.h = (b.z1 - b.z0 + 1) * cs; top += b.h + 26; }
   const band = (Z) => bands.find(b => Z >= b.z0 && Z <= b.z1);
   return { nodes, bands, cs, h: Math.round(top - 8), band, fx: (N) => 28 + N * cs, fy: (b, Z) => b.top + (b.z1 - Z) * cs };
 }
 function drawChainMap() {
+  drawChainMap0();
+  if (UI.big && UI.big.id === 'chMap') { const n = $('chBigNote'); if (n) n.textContent = ($('dMapNote').textContent || '').replace(/Point at a dot for its story\./, 'Point at a dot for its story; click one to keep it picked.') + (UI.mapView === 'chart' || (W.chain && !W.chain.fis.length) ? ' Click a nuclide to open it in the Elements window.' : ''); }
+}
+function drawChainMap0() {
   const C = W.chain, sec = $('dMapSec');
   sec.hidden = !C || (!C.fis.length && !C.edges.size); if (sec.hidden || !sec.offsetParent) return;
   const view = UI.mapView || (C.fis.length ? 'tree' : 'chart'), cv = chartCv('chMap'), w = cv.clientWidth;
   setSegValue('segMap', view);
-  const key = `${view}:${C.ver}:${UI.mapHov ? UI.mapHov.k : ''}:${w}:${SET.theme}`;
+  const big = cv.id === 'chBig', B = big ? UI.big : null, H = big ? cv.clientHeight : 0;
+  if (!UI.mapHov && UI.mapPin && big) UI.mapHov = UI.mapPin; // (a picked fission stays shown)
+  const key = `${view}:${C.ver}:${UI.mapHov ? UI.mapHov.k : ''}:${w}:${H}:${B ? [B.x, B.y, B.z].join() : ''}:${SET.theme}`;
   if (UI.mapKey === key) return; UI.mapKey = key;
   const fg = cssVar('--fg'), mut = cssVar('--muted'), font = '10.5px ' + cssVar('--font-data');
   if (view === 'tree') {
     if (!C.fis.length) { chartH(cv, '60px'); const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
     chartH(cv, '230px');
     const r = chartCtx(cv); if (!r) return; const [ctx, , h] = r, T = treeLayout(C), F = C.fis, n = F.length;
+    if (B) { ctx.translate(B.x, B.y); ctx.scale(B.z, B.z); }
     const fx = (d) => 14 + d * (w - 28) / Math.max(1, T.maxD), fy = (i) => 10 + (T.leaves > 1 ? T.y[i] / (T.leaves - 1) : 0.5) * (h - 40);
     UI.mapPos = { kind: 'tree', fx, fy };
-    ctx.strokeStyle = mut; ctx.globalAlpha = n > 3000 ? 0.25 : 0.5; ctx.lineWidth = 1; ctx.beginPath();
+    const zk = B ? B.z : 1; // (zoomed in: lines as thin and dots growing more slowly than the drawing)
+    ctx.strokeStyle = mut; ctx.globalAlpha = n > 3000 ? 0.25 : 0.5; ctx.lineWidth = 1 / zk; ctx.beginPath();
     for (let i = 0; i < n; i++) { const p = F[i].par; if (p < 0) continue; ctx.moveTo(fx(F[p].d), fy(p)); ctx.lineTo(fx(F[i].d), fy(i)); }
     ctx.stroke(); ctx.globalAlpha = 1;
-    const rad = n < 150 ? 3.2 : n < 1500 ? 2 : 1.2;
+    const rad = (n < 150 ? 3.2 : n < 1500 ? 2 : 1.2) / Math.sqrt(zk);
     for (let i = 0; i < n; i++) {
       const f = F[i], lost = f.end[1] >= f.end[2] ? 1 : 2;
       ctx.fillStyle = f.kids ? KC_COL[0] : (f.end[1] + f.end[2] + f.end[3] ? KC_COL[lost] : mut);
@@ -2597,9 +2639,15 @@ function drawChainMap() {
   }
   // the decay chart
   if (!C.edges.size) { chartH(cv, '60px'); const r = chartCtx(cv); if (r) { r[0].fillStyle = mut; r[0].font = font; r[0].fillText('No decays, captures or fissions yet.', 10, 34); } $('dMapNote').textContent = ''; return; }
-  const L = chartLayout(C, w); chartH(cv, L.h + 'px');
+  const L = chartLayout(C, w, H); chartH(cv, L.h + 'px');
   const r = chartCtx(cv); if (!r) return; const [ctx] = r, cs = L.cs;
-  UI.mapPos = { kind: 'chart', L };
+  let off = [0, 0];
+  if (B) { // (enlarged: the chart in the middle of the window, then the zoom)
+    let cw = 0; for (const b of L.bands) cw = Math.max(cw, 34 + (b.n1 - b.n0 + 1) * cs);
+    off = [Math.max(0, (w - cw) / 2), Math.max(0, (H - L.h) / 2)];
+    ctx.translate(B.x, B.y); ctx.scale(B.z, B.z); ctx.translate(off[0], off[1]);
+  }
+  UI.mapPos = { kind: 'chart', L, off };
   const here = new Set(); for (const p of W.parts) if (!p.dead && p.k === NUC && !p.anti && p.Z > 0) here.add(p.Z + '_' + p.N);
   const hv = UI.mapHov && UI.mapHov.kind === 'chart' ? UI.mapHov.k : '';
   let mx = 1; for (const e of C.edges.values()) mx = Math.max(mx, e.n);
@@ -2638,11 +2686,13 @@ function drawChainMap() {
     $('dMapNote').textContent = `${nucName(Z, N)}, ${isoLife(Z, Z + N)[2]}${here.has(hv) ? ', in the box now' : ''}. From: ${ins.slice(0, 6).join(', ') || 'nothing seen'}${ins.length > 6 ? ' …' : ''}. To: ${outs.slice(0, 6).join(', ') || 'nothing seen'}${outs.length > 6 ? ' …' : ''}.`;
   } else $('dMapNote').textContent = `${L.nodes.size} nuclides, ${C.edges.size} kinds of step, on the chart of nuclides (protons up, neutrons across${L.bands.length > 1 ? '; bands far apart are drawn separately' : ''}): α decay (red), β⁻ (blue), β⁺ and electron capture (green), neutron capture (grey); orange dots: nuclei that split (large) and their fragments (small). Squares: stable (green), half-life over a year (yellow), a minute to a year (orange), shorter (red); outlined ones are in the box now. Point at one for what led to it and what it became.`;
 }
-function mapHover(e) {
+function mapHover(e, big) {
   const P = UI.mapPos, C = W.chain; if (!P || !C) return;
-  const r = $('chMap').getBoundingClientRect(), ui = SET.ui || 1, x = (e.clientX - r.left) / ui, y = (e.clientY - r.top) / ui;
+  if (!big && UI.big && UI.big.id === 'chMap') return; // (the small one waits while the big one is open)
+  const B = big ? UI.big : null, r = (big ? $('chBig') : $('chMap')).getBoundingClientRect(), ui = SET.ui || 1, z = B ? B.z : 1;
+  const o = (big && P.off) || [0, 0], x = ((e.clientX - r.left) / ui - (B ? B.x : 0)) / z - o[0], y = ((e.clientY - r.top) / ui - (B ? B.y : 0)) / z - o[1];
   let hov = null;
-  if (P.kind === 'tree') { let bd = 64; const F = C.fis; for (let i = 0; i < F.length; i++) { const dx = P.fx(F[i].d) - x, dy = P.fy(i) - y, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; hov = { kind: 'tree', i, k: 't' + i }; } } }
+  if (P.kind === 'tree') { let bd = 64 / (z * z); const F = C.fis; for (let i = 0; i < F.length; i++) { const dx = P.fx(F[i].d) - x, dy = P.fy(i) - y, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; hov = { kind: 'tree', i, k: 't' + i }; } } }
   else { const L = P.L, b = L.bands.find(b => y >= b.top && y < b.top + b.h); if (b) { const N = Math.floor((x - b.ox) / L.cs), Z = b.z1 - Math.floor((y - b.top) / L.cs), k = Z + '_' + N; if (L.nodes.has(k)) hov = { kind: 'chart', k }; } }
   if ((hov && hov.k) !== (UI.mapHov && UI.mapHov.k)) { UI.mapHov = hov; drawChainMap(); }
 }
@@ -4502,6 +4552,8 @@ function hintFit() { const st = document.querySelector('.stage'), h = $('hint');
 function loadPreset(key) {
   if (!REW.restoring) { rewClear(); grClear(); if (R.measure) R.measure.length = 0; for (const k in PAIRS.h) { PAIRS.h[k].fill(0); PAIRS.ls[k].fill(0); } PAIRS.n = 0; PAIRS.ev.clear(); } // (a new world: its own past)
   NARR.pend = null; // (nothing from the world before is told about this one)
+  { const ex = $('dExplain'); if (ex) { if (EXPLAIN.busy && EXPLAIN.ctl) EXPLAIN.ctl.abort(); ex.textContent = ''; ex.hidden = true; ex.classList.remove('bad'); } // (Explain what's happening: the last world's explanation goes with it, 1.33.2, the owner)
+    NARR.cur = ''; NARR.until = 0; NARR.last.clear(); const nb = $('narr'); if (nb) nb.hidden = true; } // (and the narrator's caption)
   const P = PRESETS[key] || PRESETS.soup;
   UI.preset = key in PRESETS ? key : 'soup';
   $('preset').value = UI.preset;
@@ -6032,7 +6084,7 @@ function toolKey(t) { return W.d3 && t.key3 ? t.key3 : t.key; }
    Kept in this browser. (Performance mode, which set the particle limit, resolution and glows together, is gone, 1.23.2:
    the owner found it obsolete; the settings it set stay, each on its own, and a stored prePerf or perf is ignored.) */
 const SET_DEF = { wave: 0, bo: 0, pi: 0, piRpc: 1, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
-  fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250,
+  fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', caps: 'on', flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250,
   fov3: 40, proj3: 'persp', fog3: 'normal', box3: 'grid', axes3: true, dist3: true, lbl3: 'front', orbit3: 1, orbitInv: false, spin3: 0 }; // (the last row: Settings → 3-D, display and camera only)
 const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16', '32'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000],
   fov3: [30, 40, 55, 70], proj3: ['persp', 'ortho'], fog3: ['off', 'low', 'normal', 'high'], box3: ['grid', 'edges', 'off'], lbl3: ['front', 'all'], orbit3: [0.5, 1, 2], spin3: [0, 6, 18] };
@@ -6194,7 +6246,7 @@ function applySettings() {
   QEQ.every = SET.qeq; if (!SET.qeq) qeqClear(); // (Experimental: charges that respond to their surroundings)
   pdOn(SET.qeq && SET.pold ? 1 : 0); // (polarizability by direction: induced dipoles in place of the charge flow, with induced charges on, 1.27)
   setCutoff(SET.rc); // (Experimental: the force reach; after the pool is sized, which it restarts when the reach changes)
-  R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.flashK = SET.flashLow ? 0.3 : 1;
+  R.as = SET.atomScale; R.lblMode = SET.labels === 'hover' ? 'hover' : 'always'; R.badges = SET.badges; R.noCaps = SET.caps === 'off'; R.flashK = SET.flashLow ? 0.3 : 1;
   if (R.cvd !== SET.cvd) { R.cvd = SET.cvd; elColorsReset(); }
   const rs = document.documentElement.style; rs.setProperty('--ui', String(SET.ui)); rs.setProperty('--pw', clamp(Math.round(SET.pw) || 356, 280, 760) + 'px');
   document.body.classList.toggle('panel-left', SET.side === 'left');
@@ -6299,7 +6351,7 @@ function syncSettings() {
     n.textContent = (AI.sample && !AI.sample.api ? 'This page has its own Claude access: Ask Claude and Identify molecules use your Claude account directly, and the key below is not needed here. ' : own ? '' : 'This page has no Claude access of its own. ') +
       'Paste an API key from console.anthropic.com to ask Claude from here: it stays in this browser\'s storage, is sent only to api.anthropic.com, and each request is billed to that account (a fraction of a cent). The model can be left blank for the default (' + AI_API.model + ').'; }
   try { $('setThreads').textContent = threadsNote(); } catch (e) { $('setThreads').textContent = 'Threads: ' + e.message; }
-  setSegValue('segFpsCap', SET.fpsCap); setSegValue('segAtom', SET.atomScale); setSegValue('segLabels', R.view.labels ? (SET.labels === 'hover' ? 'hover' : 'always') : 'never'); setSegValue('segBadges', SET.badges);
+  setSegValue('segFpsCap', SET.fpsCap); setSegValue('segAtom', SET.atomScale); setSegValue('segLabels', R.view.labels ? (SET.labels === 'hover' ? 'hover' : 'always') : 'never'); setSegValue('segCaps', SET.caps === 'off' ? 'off' : 'on'); setSegValue('segBadges', SET.badges);
   $('setFlash').checked = SET.flashLow; $('setCvd').checked = SET.cvd; setSegValue('segUi', SET.ui); setSegValue('segSide', SET.side); $('setPw').textContent = Math.round(clamp(SET.pw, 280, 760)) + ' px';
   $('setWinNote').hidden = !tauriWin(); setSegValue('segWheel', SET.wheel); setSegValue('segZoomTo', SET.zoomTo); $('setKeepOpt').checked = SET.keepOpt; $('setStartPaused').checked = SET.startPaused; $('setPauseBlur').checked = SET.pauseBlur; $('setWake').checked = SET.wake;
   $('setRew').checked = SET.rewOn; setSegValue('segRewSpan', SET.rewSpan); setSegValue('segRewEvery', SET.rewEvery); setSegValue('segRewMem', SET.rewMem); $('setRewNote').textContent = rewNote();
@@ -6619,6 +6671,7 @@ const SDESC = {
   segFpsCap: ['Frame-rate cap', 'At most this many frames a second. Fewer frames leave more of each second for the physics in a crowded box, and run the graphics card cooler. A browser cannot draw faster than the monitor refreshes.'],
   segAtom: ['Atom size', 'True size draws atoms as big as they are, touching in a liquid or solid. Smaller and Small shrink the balls so you can see past them into a crowded box.'],
   segLabels: ['Labels', 'The element symbol on each atom: on every atom, only on the one under the mouse and the one inspected, or never.'],
+  segCaps: ['Event captions', 'The boxes that name an event where it happens (a decay, a fission, an annihilation and its energy): shown, or hidden. The Log and the narrator still tell them.'],
   segBadges: ['Charge badges', 'The small + or − badge on each ion: always, only on hover, or never.'],
   setFx: ['Glows, halos and flashes', 'Hot atoms glow with their black-body colour, free electrons and bare nuclei carry halos, and events flash. Off draws plain balls, a little quicker.'],
   setFlash: ['Fewer flashes', 'Nuclear events, sparks and light are marked with a gentle ring instead of a bright flash: kinder to eyes sensitive to flashing.'],
@@ -6983,7 +7036,7 @@ function setTabDefaults(tab) {
 }
 function setTabS(k) {
   UI.stab = k;
-  for (const b of document.querySelectorAll('.stabs [data-stab]')) b.setAttribute('aria-selected', String(b.dataset.stab === k));
+  for (const b of document.querySelectorAll('.stabs [data-stab]')) { b.setAttribute('aria-selected', String(b.dataset.stab === k)); if (b.dataset.stab === k && b.offsetParent) { const s = b.parentElement, l = b.offsetLeft, r = l + b.offsetWidth; if (l < s.scrollLeft || r > s.scrollLeft + s.clientWidth) s.scrollLeft = l - 30; } } // (the chosen tab in view, 1.33.2)
   for (const p of document.querySelectorAll('.spane')) p.hidden = p.dataset.stab !== k;
   setPrevShow(k, null); // (a new tab: its overview in the preview pane)
 }
@@ -7025,7 +7078,7 @@ function settingsInit() {
   bindSeg('segFpsCap', (v) => setSetting('fpsCap', +v));
   bindSeg('segAtom', (v) => setSetting('atomScale', +v));
   bindSeg('segLabels', (v) => { R.view.labels = v !== 'never'; viewFlagsSave(); if (v !== 'never') SET.labels = v; setSetting('labels', SET.labels); const c = document.querySelector('[data-view="labels"]'); if (c) c.checked = R.view.labels; });
-  bindSeg('segBadges', (v) => setSetting('badges', v));
+  bindSeg('segBadges', (v) => setSetting('badges', v)); bindSeg('segCaps', (v) => setSetting('caps', v)); // (1.33.2)
   $('setFlash').onchange = (e) => setSetting('flashLow', e.target.checked);
   $('setCvd').onchange = (e) => setSetting('cvd', e.target.checked);
   bindSeg('segUi', (v) => setSetting('ui', +v));
@@ -7391,6 +7444,7 @@ function init() {
   W.slowmo = store('slowmo') !== '0';
   buildTools(); buildLogFilters(); bindLab(); buildPresetSelect(); bindDisplayMode();
   for (const id of ['tp-inspect', 'tp-data', 'tp-log']) trackScroll(id);
+  makeHScroll($('setTabsHs'), { lite: true }); // (Settings' tabs in its header, arrows as the top bar's, 1.33.2)
   makeHScroll($('paletteHS')); makeHScroll($('tooloptsHS')); makeHScroll($('toolsHS'), { lite: true }); makeHScroll($('ptHS'), { lite: true, wheel: false });
   $('bPT').onclick = () => openPT();
   $('bMol').onclick = () => openMol();

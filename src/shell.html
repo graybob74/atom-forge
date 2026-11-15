@@ -1,4 +1,4 @@
-<title>Atom Forge 1.33.1</title>
+<title>Atom Forge 1.33.2</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -233,10 +233,13 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .chdialog #chSvg { position: absolute; inset: 0; transform-origin: 0 0; }
 .chdialog #chSvg svg { width: 100%; height: 100%; }
 .chdialog #chartHint { margin-right: 10px; font-size: 11.5px; }
+.chdialog .chnote { margin: 8px 2px 0; min-height: 2.6em; font-size: 12.5px; } /* (the decay chart's and fission tree's story of what is under the pointer, 1.33.2 item 88) */
+.chdialog .chbody.pick { cursor: pointer; }
 canvas.chart.zoomable, svg.chainsvg { cursor: zoom-in; }
 .madedlg { width: min(760px, 94vw); max-height: 86vh; display: flex; flex-direction: column; } /* (1.31 item 73) */
 .madedlg .madebody { overflow: auto; min-height: 0; flex: 1; }
 .madedlg #madeSum2 { margin: 0 0 6px; }
+.madedlg .sfind { width: 200px; flex: 0 1 200px; margin-right: 6px; } .madedlg .sfindn { margin-right: 10px; font-size: 12px; color: var(--muted); } /* (1.33.2) */
 .sfindrow { display: flex; align-items: center; gap: 8px; margin: 0 12px 0 auto; flex: 0 1 340px; min-width: 140px; } /* (1.32 item 80; in the header beside the title, 1.33) */
 .sfind { flex: 1; max-width: 360px; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); font: inherit; font-size: 13px; }
 .sfindn { font-size: 12px; color: var(--muted, #8a97a6); }
@@ -251,7 +254,7 @@ canvas.chart.zoomable, svg.chainsvg { cursor: zoom-in; }
 .ins-pin dl.kv { max-height: 128px; overflow-y: auto; margin: 0; }
 .ins-pin .pin-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border: 0; border-radius: 6px; background: none; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; }
 .ins-pin .pin-x:hover { background: var(--surface); color: var(--fg); }
-.sfinding .stabs, .sfinding #expTotal, .sfinding .sdef { display: none; }
+.sfinding .stabs-hs, .sfinding .stabs, .sfinding #expTotal, .sfinding .sdef { display: none; }
 .sf-hide { display: none !important; }
 .sf-tab { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
 .sgroup .sdef { margin: 10px 0 2px; } /* (1.32 item 84) */
@@ -784,6 +787,7 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
    under their tabs. Narrow windows stack the preview, smaller, above the box. */
 .sdialog { width: min(560px, 100%); gap: 12px; } /* (the smaller dialogs: gallery, share code, my experiments, ask for a setup; 1.23.2: 1.23 gave them Settings' fixed 800 px height with its two rows, so their few rows were stretched over the whole window) */
 #setModal > .sdialog { width: min(1010px, 100%); height: min(800px, 100%); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+#setModal > .sdialog > * { min-width: 0; } /* (its header's tabs and search may not widen it past a phone's width, 1.33.2) */
 .sbody { display: grid; grid-template-columns: minmax(240px, 310px) minmax(0, 1fr); gap: 16px; min-height: 0; }
 .sprev { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 14px; min-height: 0; align-content: start; }
 .sprev-fig { position: relative; margin: 0; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; display: grid; place-items: center;
@@ -813,6 +817,14 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .sprev-cost .oc { display: inline-block; min-width: 34px; text-align: center; padding: 0 5px; border-radius: 7px; font: 600 10px var(--font-data); line-height: 15px; color: #fff; vertical-align: 1px; }
 .sbox { min-height: 0; overflow: auto; border: 1px solid var(--line); border-radius: 12px; padding: 0 16px 16px; display: grid; gap: 12px; align-content: start; background: var(--surface); overscroll-behavior: contain; }
 .sbox > .stabs { position: sticky; top: 0; z-index: 3; background: var(--surface); padding-top: 8px; }
+/* (1.33.2, the owner: the tabs in the header beside the search box, scrolling sideways when they do not fit) */
+#setModal header { gap: 10px; }
+#setModal header h2 { flex: none; }
+#setModal header .stabs-hs { flex: 1 1 auto; min-width: 0; }
+#setModal header .stabs { flex-wrap: nowrap; overflow-y: hidden; border-bottom: 0; padding: 2px 0; scroll-behavior: smooth; }
+#setModal header .stabs button { flex: none; white-space: nowrap; }
+#setModal header .sfindrow { margin-left: 0; flex: 0 1 220px; }
+@media (max-width: 760px) { #setModal header { flex-wrap: wrap; } #setModal header .stabs-hs { order: 9; flex: 1 1 100%; } #setModal header .sfindrow { flex: 1 1 120px; min-width: 0; } #setModal header .sfind { min-width: 0; width: 100%; } } /* (a phone: the tabs on their own row under the title and search) */
 .sbox .spane > .srow, .sbox .spane > label.check { margin-inline: -8px; padding: 3px 8px; border-radius: 8px; transition: background 0.12s; }
 .sbox .spane > .sprev-on { background: var(--accent-soft); }
 /* (1.27) Settings → Experimental → Realistic particles: one compact line a part, its name, an on/off switch and its tags */
