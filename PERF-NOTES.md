@@ -1991,6 +1991,37 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.34.1: labels on rays off the screen; light lands when it arrives; one collision's pions never meet (the owner, 2026-11-15)
+
+- Labels for the dashed streaks (the owner: "these dashed streaks is what i meant", a screenshot of a 1 PeV collision):
+  the dashed lines are γ rays (neutrinos are dotted); their labels went by the ray's head, so a ray whose head had run off
+  the screen had none. Now it is labelled where its line leaves the screen (rayLabelAt: the line clipped to the screen,
+  a 6 px margin), and in the 3-D lab too (drawPhotonLabels is now called there, for rays; a ray not on the screen keeps
+  no stale place).
+- High-energy particles made other particles react before anything reached them (the owner: a 1 PeV neutron on helium
+  with silicon behind it; the silicon turned into ions before any particle from the collision got there). The γ rays of
+  the collision's decays (ω → π⁰γ, then Compton scattering) hit the silicon the moment they were made, while their rays
+  were drawn going at c: at 2·10⁻⁵ tu a step (light 0.6 Å a step) silicon 20–46 Å away was ionized in the collision's own
+  step. Now a photon whose light needs longer than the step to get to what it hits waits (photonArrive, landPhotons,
+  W.pendHits): its energy is counted as escaped meanwhile and handed back when it lands; if its target has gone or
+  changed (element, electrons, charge) it flies on out. At normal speed light crosses the box within a step: unchanged.
+  Measured (the same scene, seed 1): first silicon ionized at x 20.4 Å when the light had reached 20.6 Å (before: at
+  the collision's step, light at 0.4 Å); books to 1.1 eV of 1 PeV over 300 steps. Two setups' fingerprints change, as
+  they should (their slow motion now shows the light arriving): annihilation ffea15c2 books 3bb4cc0e 152 (was e4757e0e
+  969a7381 161), hyperfactory c5d7fa90 books b54c6d3c 281 (was 18051e94 0fac2f8d 244); the other 26 the tests pin are
+  unchanged.
+- "Spam-annihilation of opposite pions" (the owner, with Unstable particles meet each other on): not right. A PeV
+  collision makes its hadrons in several events (the nucleons inside the nucleus, strings, resonance decays), and the
+  rule that one event's products never meet let the pions of one jet, flying out side by side, meet each other again
+  and again at the game's enlarged reach (0.35 Å, some 30,000 times a pion's true size), at √s barely above two pion
+  masses. Real pions rescatter only within a few fm of the collision, far below what the game resolves. Now every
+  unstable particle carries the collision its cascade began with (o.root, from nucBegin's root, handed on to its decays'
+  products), and two from the same cascade never meet; fired or placed ones carry none. 1 PeV neutron on helium (seed
+  2): 827 meetings before, 0 now (685 unstable particles in flight); a π⁺ and a π⁻ fired at each other still annihilate.
+
+Tests: f_134 parts lightArrives, rayLabels, oneCascade; fingerprints updated in f_127x, f_127h, f_rp1, f_rp2, f_rp5,
+f_rp7, f_ew, f_feat1; run: t_lint, f_134 (new parts), f_127x, t_energy, t_physics.
+
 ## 1.34.0: more forces, Experimental (the owner, 2026-11-15: "build it and release when done", items 89–96)
 
 Settings → Experimental → More forces (src/xforces.js, new; built after fwave.js): nine switches, all off as normal,

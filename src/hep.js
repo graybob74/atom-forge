@@ -748,7 +748,7 @@ function resonate(items, M) {
    collision that made their parent), their invariant mass from their energies and momenta at birth — where the
    resonances show as bumps over the background of pairs that are not from one (ρ at 775 MeV, K* at 892, φ at 1019),
    as they were first found. */
-let _evTag = 0;
+let _evTag = 0, _evRoot = 0; // (_evRoot: the collision a cascade began with, 1.34.1)
 const PAIRS = { ev: new Map(), h: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200) }, ls: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200) }, n: 0, BIN: 10 }; // (ls: like-sign pairs, π⁺π⁺ and π⁻π⁻: no resonance makes them, so they trace the background, which subtracting them takes away)
 function pairNote(o) {
   if (!o.ev || !(o.sp === 'pi+' || o.sp === 'pi-' || o.sp === 'K+' || o.sp === 'K-')) return;
@@ -1789,9 +1789,9 @@ function muExoDecay(o) {
   const items = XP['mu+'].dec[0][1].map(item), b = o.v / PHYS.C, bx = b * o.ux, by = b * o.uy, bz = W.d3 ? b * o.uz : 0;
   const vs = muSpinDecay(o.spin), S = nucBegin([]);
   o.dead = true;
-  const keepTag = _evTag; _evTag = o.ev;
+  const keepTag = _evTag, keepRoot = _evRoot; _evTag = o.ev; _evRoot = o.root || o.ev;
   const made = spawnItems(items, vs.map(v => toLab(v, bx, by, bz, o.gam)), o.x, o.y, o.z || 0);
-  _evTag = keepTag;
+  _evTag = keepTag; _evRoot = keepRoot;
   closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
   W.count.decay++;
   const txt = `μ⁺ → ${summarize(items)}`; o.fate = `decayed: ${txt}`;
@@ -2190,7 +2190,7 @@ function tally(items, ins, how) {
    nanoseconds to microseconds and leave it, as in a real detector, unless decay is sped up. */
 function addExo(sp, x, y, KE, ux, uy, m, z = 0, uz = 0) { // (z, uz: 3-D, 1.24)
   const d = XP[sp];
-  const o = { id: W.nextId++, sp, lab: d.lab, m: m || d.m, ev: _evTag, q: d.q, x, y, ux, uy, KE: Math.max(0, KE), gam: 1, v: 0, born: W.rt, bx0: x, by0: y, dead: false, trk: null };
+  const o = { id: W.nextId++, sp, lab: d.lab, m: m || d.m, ev: _evTag, root: _evRoot, q: d.q, x, y, ux, uy, KE: Math.max(0, KE), gam: 1, v: 0, born: W.rt, bx0: x, by0: y, dead: false, trk: null };
   if (W.d3) { const L = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1; o.ux = ux / L; o.uy = uy / L; o.uz = uz / L; o.z = z; o.bz0 = z; }
   exoSpeed(o);
   o.trk = { pts: [x, y], ts: [W.rt], tt: [W.t], c: d.col, w: d.q ? 1.4 : 1.1, t0: W.rt, upd: W.rt, dash: !d.q };
@@ -2346,9 +2346,9 @@ function decayExo3(o) {
   const b = o.v / PHYS.C, bx = b * o.ux, by = b * o.uy, bz = b * o.uz;
   const S = nucBegin([]);
   o.dead = true;
-  const keepTag = _evTag; _evTag = o.ev;
+  const keepTag = _evTag, keepRoot = _evRoot; _evTag = o.ev; _evRoot = o.root || o.ev;
   const made = spawnItems3(items, vs.map(v => boost3(v[0], v[1], v[2], v[3], -bx, -by, -bz, o.gam)), o.x, o.y, o.z); // (its γ itself: from 1 − β² it kept ~10⁻⁶ of itself at γ ≈ 10⁵, the products of a PeV event's debris 0.1–0.9 MeV off over their decays, 1.26)
-  _evTag = keepTag;
+  _evTag = keepTag; _evRoot = keepRoot;
   polPS0(o, items, made); // (Photon polarization: π⁰, η → 2γ at right angles, 1.27 item 27)
   closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
   W.count.decay++;
@@ -2599,6 +2599,13 @@ function xbHit(C, a, b, d, x, y, ex, ey) {
    nor do resonances (they decay where they are made), exotic atoms, muonium, positronium, hypernuclei, a collider's
    beams (beamCollisions has them) or anything at rest. The books close as any collision's (xbClose). Off: nothing here
    runs, every setup as before, bit for bit. */
+/* (1.34.1, the owner: "high energy collisions create this spam-annihilation of opposite pions, is that correct?") No: a
+   PeV neutron on helium makes its hadrons in several collisions (the nucleons inside, the strings, the resonances'
+   decays), each its own event, so the "one event's products" rule above let the pions of one jet, flying out side by
+   side, meet each other again and again at the game's enlarged reach (0.35 Å, some 30,000 times a pion's true size):
+   annihilations at √s barely above two pion masses, one after another. Now everything one cascade made (its root:
+   the collision it began with, carried by every unstable particle and handed to its decays) never meets itself; what
+   two different collisions made still meets. */
 let _xbZ = 0;
 const EXM = { n: 0, tried: 0, R_SC: 0.6 };
 function exmFree(o) { const d = XP[o.sp]; return !o.dead && !o.xb && o.v > 0 && !d.res && !d.atom && !d.hyp && !d.muonium && !d.ps && !d.ew && !o.caught; }
@@ -2612,7 +2619,7 @@ function exoMeet() {
   for (let i = 0; i < L.length; i++) {
     const a = L[i]; if (a.dead) continue;
     for (let j = i + 1; j < L.length; j++) {
-      const b = L[j]; if (b.dead || a.dead || (a.ev && a.ev === b.ev)) continue; // (one event's products: they leave together; an unstable particle's event is its ev tag, not evId)
+      const b = L[j]; if (b.dead || a.dead || (a.ev && a.ev === b.ev) || (a.root && a.root === b.root)) continue; // (one event's products: they leave together; an unstable particle's event is its ev tag, not evId; one cascade's, 1.34.1: below)
       const rx = b._mx - a._mx, ry = b._my - a._my, rz = b._mz - a._mz;
       if (Math.abs(rx) > 60 || Math.abs(ry) > 60 || Math.abs(rz) > 60) continue;
       const dx = (b.x - b._mx) - (a.x - a._mx), dy = (b.y - b._my) - (a.y - a._my), dz = d3 ? (b.z - b._mz) - (a.z - a._mz) : 0, L2 = dx * dx + dy * dy + dz * dz;
@@ -2742,9 +2749,9 @@ function decayExo(o) {
   const bx = o.v / PHYS.C * o.ux, by = o.v / PHYS.C * o.uy;
   const S = nucBegin([]);
   o.dead = true;
-  const keepTag = _evTag; _evTag = o.ev; // (its products belong to the collision that made it: the pair masses pair them with the rest)
+  const keepTag = _evTag, keepRoot = _evRoot; _evTag = o.ev; _evRoot = o.root || o.ev; // (its products belong to the collision that made it: the pair masses pair them with the rest)
   const made = spawnItems(items, vs.map(v => toLab(v, bx, by, 0, o.gam)), o.x, o.y); // (its γ itself, as decayExo3, 1.26)
-  _evTag = keepTag;
+  _evTag = keepTag; _evRoot = keepRoot;
   polPS0(o, items, made); // (Photon polarization: π⁰, η → 2γ at right angles, 1.27 item 27)
   closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
   W.count.decay++;
@@ -3901,9 +3908,9 @@ function ewDecay(o) {
   const b = o.v / PHYS.C, bx = b * o.ux, by = b * o.uy, bz = W.d3 ? b * o.uz : 0, z = W.d3 ? o.z : 0;
   const S = nucBegin([]);
   o.dead = true;
-  const keepTag = _evTag; _evTag = o.ev;
+  const keepTag = _evTag, keepRoot = _evRoot; _evTag = o.ev; _evRoot = o.root || o.ev;
   const made = spawnItems(f.items, f.vs.map(v => toLab(v, bx, by, bz, o.gam)), o.x, o.y, z);
-  _evTag = keepTag;
+  _evTag = keepTag; _evRoot = keepRoot;
   closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
   W.count.decay++;
   if (f.jet) addString(o.x, o.y, f.jet[0], f.jet[1], f.items.length);

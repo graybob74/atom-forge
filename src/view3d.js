@@ -625,7 +625,7 @@ function render3d(rt) {
     drawUnder3(ctx, rt);
   }
   drawMeasure3(ctx);
-  if (R.view.rays) drawLight3(ctx, rt); // (light, 1.24)
+  if (R.view.rays) { drawLight3(ctx, rt); drawPhotonLabels(rt); } // (light, 1.24; its labels, as the flat view's, 1.34.1)
   if (PI.on && PI.n) drawRings3(ctx); // (quantum nuclei's beads in depth: bug fix 8 after 1.25)
   drawExos3(ctx); // (unstable particles, 1.24)
   drawFlashes3(ctx, rt);
@@ -839,8 +839,8 @@ function drawLight3(ctx, rt) {
     if (k > 1) { W.rays.splice(i, 1); continue; }
     const a = (1 - k) * (r.nu ? 0.35 : 0.85), z0 = r.z0 || 0, z1 = r.z1 === undefined ? z0 : r.z1;
     const hx = r.x0 + (r.x1 - r.x0) * m, hy = r.y0 + (r.y1 - r.y0) * m, hz = z0 + (z1 - z0) * m;
-    if (!seg3(r.x0, r.y0, z0, hx, hy, hz, A, B)) continue;
-    r.hx = B[0]; r.hy = B[1]; r.alpha = a;
+    if (!seg3(r.x0, r.y0, z0, hx, hy, hz, A, B)) { r.alpha = 0; continue; } // (not on the screen: no label, 1.34.1)
+    r.hx = B[0]; r.hy = B[1]; r.sx = A[0]; r.sy = A[1]; r.alpha = a;
     ctx.strokeStyle = rgba(r.c, a * 0.5); ctx.lineWidth = r.E >= 1e5 ? 1.2 : 1.6;
     if (r.nu) ctx.setLineDash([1, 5]); else if (r.E >= 1e5) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
     ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();

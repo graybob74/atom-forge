@@ -84,6 +84,46 @@ PARTS.nucleons = async (page, check) => {
   const cap = X.nuclearEncounter(a, b, 0.3, 0, 0);
   check(-g.U > 25 && made >= 3 && worst < 1e-6 && pieces.size >= 2 && X.XN.last.frames.length > 20 && /nucleon by nucleon/.test(X.XN.last && cap ? 'nucleon by nucleon' : ''), `1.34 (92) nucleons inside nuclei: ⁴He held by ${(-g.U).toFixed(1)} MeV; α + ¹²C at 30 MeV a nucleon, ${made} of 6 passes worked out nucleon by nucleon into ${[...pieces].join(', ')}, the products' four-momenta the pair's to ${worst.toExponential(1)} MeV; the inset holds ${X.XN.last.frames.length} frames ("${cap}")`, '1.34 nucleons: ' + JSON.stringify({ U: g.U, made, worst, pieces: [...pieces], caps, cap }));
 };
+/* 1.34.1 (the owner: a 1 PeV neutron on helium, silicon behind it ionized before anything from the collision got there):
+   in slow motion a photon's hit waits for its light to arrive; the books kept. */
+PARTS.lightArrives = async (page, check) => {
+  const X = load('all', { seed: 1 }), W = X.W;
+  X.PRESETS.empty.build(); X.baseWorld(160, 80, 300, 0); W.decayOn = true; W.gamma = 0;
+  const he = X.addAtom('He', 0, 0); he.vx = he.vy = 0;
+  const si = []; for (let i = 0; i < 8; i++) for (let j = 0; j < 10; j++) { const s = X.addAtom('Si', 10 + 5.2 * i, -23.4 + 5.2 * j); s.vx = s.vy = 0; si.push(s); }
+  X.forcesNoEvents(); W.fSpawn = W.spawned;
+  X.fireSpec({ kind: 'n' }, -2, 0, 1, 0, 1e15, false);
+  const tot = () => X.totalEnergy().total - W.ledger.nuc + W.ledger.bath;
+  let first = null, early = 0, E0 = null, worst = 0;
+  for (let s = 0; s < 300; s++) {
+    X.step(2e-5); if (s === 2) E0 = tot(); if (E0 !== null) worst = Math.max(worst, Math.abs(tot() - E0));
+    const front = -2 + W.t * X.PHYS.C;
+    for (const p of si) if (!p.dead && p.q !== 0 && !p._seen) { p._seen = true; if (first === null) first = { x: p.x, front, s }; if (p.x > front + 1) early++; }
+  }
+  check(first && early === 0 && worst < 5, `1.34.1 a 1 PeV neutron on helium in slow motion: the silicon behind it is first ionized at x ${first && first.x.toFixed(1)} Å when the light has reached ${first && first.front.toFixed(1)} Å (1.34.0: at the collision's own step, light at 0.4 Å); none ahead of the light; the books kept to ${worst.toFixed(2)} eV of 1 PeV`, '1.34.1 light arrives: ' + JSON.stringify({ first, early, worst }));
+};
+/* 1.34.1 (the owner: "a label for" the dashed streaks): a γ ray whose head has run off the screen is labelled where its line
+   leaves it. */
+PARTS.rayLabels = async (page, check) => {
+  const X = load('all', { seed: 1 }); X.R.w = 800; X.R.h = 500;
+  const off = X.rayLabelAt({ sx: 400, sy: 250, hx: -300, hy: 250 }), on = X.rayLabelAt({ sx: 400, sy: 250, hx: 300, hy: 200 }), gone = X.rayLabelAt({ sx: -50, sy: -50, hx: -400, hy: -10 });
+  check(off && Math.abs(off[0] - 6) < 0.5 && Math.abs(off[1] - 250) < 0.5 && on && on[0] === 300 && gone === null, `1.34.1 a ray running off the screen is labelled at its edge (${off && off.map(v => v.toFixed(0)).join(', ')}), one on it at its head, one wholly off it not at all`, '1.34.1 labels: ' + JSON.stringify({ off, on, gone }));
+};
+/* 1.34.1 (the owner: "high energy collisions create this spam-annihilation of opposite pions, is that correct?"): with
+   Unstable particles meet each other on, one collision's pions no longer meet each other (827 meetings after a 1 PeV
+   neutron on helium in 1.34.0); two pions fired at each other still annihilate. */
+PARTS.oneCascade = async (page, check) => {
+  const X = load('all', { seed: 2 }), W = X.W;
+  X.PRESETS.empty.build(); X.baseWorld(400, 200, 300, 0); W.decayOn = true; W.gamma = 0; X.RP.exm = true;
+  X.addAtom('He', 0, 0); X.forcesNoEvents(); W.fSpawn = W.spawned;
+  X.fireSpec({ kind: 'n' }, -4, 0, 1, 0, 1e15, false);
+  let made = 0; for (let s = 0; s < 3000; s++) { X.step(2e-5); made = Math.max(made, W.exo.filter(o => !o.dead).length); }
+  const n1 = X.EXM.n;
+  const Y = load('all', { seed: 3 }); Y.PRESETS.empty.build(); Y.baseWorld(60, 40, 300, 0); Y.W.decayOn = false; Y.RP.exm = true;
+  Y.fireSpec({ kind: 'exo', sp: 'pi+' }, -6, 0, 1, 0, 1e8, false); Y.fireSpec({ kind: 'exo', sp: 'pi-' }, 6, 0, -1, 0, 1e8, false);
+  for (let s = 0; s < 400 && !Y.EXM.n; s++) Y.step(1e-4);
+  check(made > 10 && n1 === 0 && Y.EXM.n === 1, `1.34.1 a 1 PeV neutron on helium makes ${made} unstable particles at once and none of them meets another from the same collision (827 meetings in 1.34.0); a π⁺ and a π⁻ fired at each other still meet (${Y.EXM.n})`, '1.34.1 one cascade: ' + JSON.stringify({ made, n1, fired: Y.EXM.n }));
+};
 /* The page: the More forces rows, each switch reaching the engine, a run of liquid water with all of them on without an
    error, the inset drawn, and Reset to normal turning them off. */
 PARTS.page = async (page, check) => {

@@ -1458,7 +1458,7 @@ function drawRays(rt) {
     const a = (1 - k) * (r.nu ? 0.35 : 0.85);
     const x0 = w2sx(r.x0), y0 = w2sy(r.y0), x1 = w2sx(r.x1), y1 = w2sy(r.y1);
     const hx = x0 + (x1 - x0) * m, hy = y0 + (y1 - y0) * m;
-    r.hx = hx; r.hy = hy; r.alpha = a; // (where its label goes)
+    r.hx = hx; r.hy = hy; r.sx = x0; r.sy = y0; r.alpha = a; // (where its label goes; sx, sy: where the line starts, for a head gone off the screen)
     ctx.strokeStyle = rgba(r.c, a * 0.5); ctx.lineWidth = r.E >= 1e5 ? 1.2 : 1.6;
     if (r.nu) ctx.setLineDash([1, 5]); else if (r.E >= 1e5) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(hx, hy); ctx.stroke();
@@ -1609,11 +1609,25 @@ function drawFlights() {
 /* Each photon's label (photonLabel) by its head: the ones in flight first, then the newest rays; no more than two
    dozen, none on top of another. With the Labels view. */
 const LAB_W = new Map(); // label text → its width on screen (measuring text every frame is slow)
+/* (1.34.1, the owner: a label for the dashed streaks, the γ rays and neutrinos of a high-energy collision, which run
+   off the screen) Where a ray's label goes: by its head, or, when the head has gone off the screen, where the line
+   leaves it (the line clipped to the screen, less a margin); none when no part of it is on the screen. */
+function rayLabelAt(r) {
+  const x1 = r.hx, y1 = r.hy, X0 = 6, Y0 = 10, X1 = R.w - 6, Y1 = R.h - 10;
+  if (x1 >= X0 && x1 <= X1 && y1 >= Y0 && y1 <= Y1) return [x1, y1];
+  if (r.sx === undefined) return null;
+  const x0 = r.sx, y0 = r.sy, dx = x1 - x0, dy = y1 - y0; let t0 = 0, t1 = 1;
+  for (const [p, q] of [[-dx, x0 - X0], [dx, X1 - x0], [-dy, y0 - Y0], [dy, Y1 - y0]]) {
+    if (p === 0) { if (q < 0) return null; continue; }
+    const t = q / p; if (p < 0) { if (t > t1) return null; if (t > t0) t0 = t; } else { if (t < t0) return null; if (t < t1) t1 = t; }
+  }
+  return t1 - t0 > 0.01 ? [x0 + dx * t1, y0 + dy * t1] : null;
+}
 function drawPhotonLabels(rt) {
   if (!R.view.labels || R.menu || (!W.flights.length && !W.rays.length)) return;
   const heads = [];
-  for (const f of W.flights) { if (!f.lab || W.t < f.t0) continue; const d = Math.min(f.len, (W.t - f.t0) * PHYS.C), L = f.len || 1; heads.push([w2sx(f.x0 + (f.x1 - f.x0) * d / L), w2sy(f.y0 + (f.y1 - f.y0) * d / L), f.lab, f.c, 1]); }
-  for (let i = W.rays.length - 1; i >= 0; i--) { const r = W.rays[i]; if (r.lab && r.hx !== undefined && r.alpha > 0.02) heads.push([r.hx, r.hy, r.lab, r.c, Math.min(1, r.alpha * 1.1)]); }
+  if (!W.d3) for (const f of W.flights) { if (!f.lab || W.t < f.t0) continue; const d = Math.min(f.len, (W.t - f.t0) * PHYS.C), L = f.len || 1; heads.push([w2sx(f.x0 + (f.x1 - f.x0) * d / L), w2sy(f.y0 + (f.y1 - f.y0) * d / L), f.lab, f.c, 1]); }
+  for (let i = W.rays.length - 1; i >= 0; i--) { const r = W.rays[i]; if (!r.lab || r.hx === undefined || !(r.alpha > 0.02)) continue; const e = rayLabelAt(r); if (e) heads.push([e[0], e[1], r.lab, r.c, Math.min(1, r.alpha * 1.1)]); }
   if (!heads.length) return;
   const ctx = R.ctx, boxes = [], caps = R.capRects || []; let n = 0;
   ctx.save(); ctx.font = `600 10px ${CH_FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(6,10,16,0.85)';

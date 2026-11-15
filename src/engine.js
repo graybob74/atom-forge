@@ -79,7 +79,7 @@ function makeWorld() {
     Bz: 0, magnets: [], Ex: 0, Ey: 0,
     nextId: 1, topo: 1, deaths: 0, bathSeed: 0x5eed1234, // bathSeed: the heat bath's noise is hashed from it, the step and the slot (threads.js's bathNoise)
     objs: [], objSeq: 0,          // placed objects: mirrors, lenses, walls … (props.js)
-    rays: [], flights: [], chips: [], chipSeq: 0, chipT: 0, lasers: [], mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
+    rays: [], flights: [], pendHits: [], chips: [], chipSeq: 0, chipT: 0, lasers: [], mem: null, memOrder: null, tracks: [], flashes: [], log: [], logSeq: 0,
     exo: [],                    // unstable particles in flight (muons, pions, kaons…: hep.js)
     events: [], evRecent: [], slow: null, slowmo: true, decayOn: true, made: null, // made: what nuclear events have made (noteMade)
     tool: null, grab: null, sources: [],
@@ -3785,7 +3785,7 @@ function emitPhoton(x, y, E, ux, uy, opts) {
   if (!hit) W.ledger.escaped += E;
   W.rays.push({ x0, y0, x1, y1, E, c: photonColor(E), t0: W.rt, ts: W.t + ((opts && opts.delay) || 0), len: Math.hypot(x1 - x0, y1 - y0), nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' }); if (opts && opts.pol) W.rays[W.rays.length - 1].pol = opts.pol; // (ts, len: it goes at c on the simulation's clock, drawRays; hitP: for the Inspect tab)
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
-  if (hit && hit.after) hit.after();
+  if (hit && hit.after) photonArrive(hit, Math.hypot(x1 - x0, y1 - y0), E, dly);
 }
 /* Light in 3-D (1.24, the owner: "the Light tool in 3-D"; before, light left a 3-D box unabsorbed and was not drawn).
    A photon's line has a depth: it starts at opts.z (else its source atom's depth, else 0) and goes along (ux, uy, uz)
@@ -3813,7 +3813,7 @@ function emitPhoton3(x, y, E, ux, uy, opts) {
   if (!hit) W.ledger.escaped += E;
   W.rays.push({ x0: x, y0: y, z0: z, x1, y1, z1, E, c: photonColor(E), t0: W.rt, ts: W.t + dly, len, nu: false, lab, hitP: hit && hit.p ? speciesLabel(hit.p) : '' }); if (opts && opts.pol) W.rays[W.rays.length - 1].pol = opts.pol;
   if (W.rays.length > 400) W.rays.splice(0, W.rays.length - 400);
-  if (hit && hit.after) hit.after();
+  if (hit && hit.after) photonArrive(hit, len, E, dly);
 }
 function rayExit3(x, y, z, ux, uy, uz) {
   const hw = W.box.w / 2, hh = W.box.h / 2, hd = W.box.d / 2;
@@ -3898,6 +3898,31 @@ function pairProduce3(p, E) {
   settleKE(S, E - 2 * ME_C2, [e, ps]);
   log('nuc', `Pair production: γ (${fmtE(E)}) → e⁻ + e⁺ near ${speciesLabel(p)}`);
   nucEvent('pair', p.x, p.y, `Pair production: γ → e⁻ + e⁺`, [], `${fmtE(E)} γ ray`, undefined, p.z); // (its caption at its depth: it was at z = 0, 1.26 sweep)
+}
+/* (1.34.1, the owner: a 1 PeV neutron on helium with silicon behind it, and the silicon was ionized before anything from
+   the collision had reached it.) A photon's ray is drawn going at c, but what it was to hit happened the moment it was
+   made: in deep slow motion (here 2·10⁻⁵ tu a step, light 0.6 Å a step) the γ rays of the collision's decays Compton-
+   scattered off silicon 20–30 Å away while their rays had gone less than a step. Now, when the light would take longer
+   than the step to get there, the hit waits until it has (landPhotons): its energy counted as escaped meanwhile, and
+   given back to the hit when it lands; if the atom it was to hit has gone or changed (its charge, electrons or element)
+   by then, the light flies on out. At normal speed (light crosses the box within a step) nothing changes. */
+let _stepDt = 0.04;
+function photonArrive(hit, len, E, dly) {
+  const tt = len / PHYS.C + (dly || 0);
+  if (!hit.p || tt <= _stepDt) { hit.after(); return; }
+  W.ledger.escaped += E; // (on its way)
+  const p = hit.p;
+  W.pendHits.push({ t: W.t + tt, hit, E, sig: p.dead ? '' : p.Z + '/' + p.ne + '/' + p.q });
+}
+function landPhotons() {
+  const L = W.pendHits, now = [];
+  for (let i = L.length - 1; i >= 0; i--) if (W.t >= L[i].t) { now.push(L[i]); L.splice(i, 1); }
+  for (let i = now.length - 1; i >= 0; i--) { // (in the order they were made)
+    const f = now[i], p = f.hit.p;
+    if (p.dead || p.Z + '/' + p.ne + '/' + p.q !== f.sig) continue; // (it flies on out: already counted as escaped)
+    W.ledger.escaped -= f.E;
+    f.hit.after();
+  }
 }
 /* Photons in flight that have come as far as they were going: what they were to hit happens now (unless it is gone,
    when the light flies on out), and their trace fades as any ray's does. */
@@ -4957,6 +4982,7 @@ function annihEnd(S) {
 function nucBegin(seeds) {
   const T = new Set(), ev = ++W.evSeq; _evTag = ev; // (hep.js: what this event makes is tagged with it, for the pair masses)
   let root = 0; for (const s of seeds) if (s && !s.dead && s.root && !s.beam) { root = s.root; break; } if (!root) root = ev; // (the event a cascade began with: below)
+  _evRoot = root; // (hep.js: the unstable particles it makes carry it, so one cascade's never meet each other, 1.34.1)
   for (const s of seeds) if (s && !s.dead) { s.evId = ev; if (!s.beam) s.root = root; for (const m of molecule(s)) T.add(m); }
   const m0 = restSum(T);
   return { T, m0, E0: regionE(T) - m0, esc0: W.ledger.escaped, n0: W.parts.length, ev, root };
@@ -8811,6 +8837,7 @@ function srcSlowFire(src) {
   if (live < 20) src.acc = 1;
 }
 function stepPlain(dt) {
+  _stepDt = dt;
   if (_profOn) _rpT = performance.now();
   W.step++; gridTouch(); // (positions move this step)
   bathFollow(dt);
@@ -8948,6 +8975,7 @@ function stepPlain(dt) {
   if (QEQ.every && W.step % QEQ.every === 0) qeqUpdate(); // (Experimental: charges that respond to their surroundings; in 3-D too since 1.24)
   { const y = dt - (W.tc || 0), t = W.t + y; W.tc = (t - W.t) - y; W.t = t; } // (compensated: a yoctosecond a frame is far below the last digit of a clock past 1,000 tu, 1.03)
   if (W.flights.length) landFlights();
+  if (W.pendHits && W.pendHits.length) landPhotons(); // (photons on their way to what they will hit, in slow motion: 1.34.1)
   rpMark(6);
   // drop dead particles
   if (_nDead > 0 && (W.step % 4 === 0 || W.parts.length > 3000)) {
@@ -9122,7 +9150,7 @@ function measure() {
 const BO = { on: false, qm: false, any: false, pairs: [], np: 0, E: 0, cache: new Map(), Ztab: new Set([1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53, 32, 33, 34, 50, 51, 52]), /* (Ge, As, Se, Sn, Sb, Te since 1.25) */ bath: 0, changes: 0 };
 function clearWorld() {
   BO.np = 0; BO.any = false; BO.E = 0;
-  dropParts(W.parts); W.parts.length = 0; PD.n = 0; PD.at = []; PD.gen++; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
+  dropParts(W.parts); W.parts.length = 0; PD.n = 0; PD.at = []; PD.gen++; _piParts = null; _farMetalSeen = false; _nDead = 0; _flagGen++; W.bonds.length = 0; W.evq.length = 0; W.rays.length = 0; W.flights.length = 0; W.pendHits = []; W.chips.length = 0; W.mem = null; W.memOrder = null; W.tracks.length = 0; W.exo.length = 0; W.bathSeed = (Math.imul(W.bathSeed, 0x9E3779B1) + 0x7F4A7C15) >>> 0; // (a new world, a new noise stream; nothing drawn from rnd, so the worlds the tests seed are unchanged)
   W.flashes.length = 0; W.log.length = 0; W.magnets.length = 0; W.objs.length = 0; W.sources.length = 0; W.lasers.length = 0; W.zones.length = 0; W.collider = null; W.holdFrac = 0; W.nE = 0; W.t = 0; W.tNuc = 0; W.step = 0;
   W.events.length = 0; W.evRecent.length = 0; W.slow = null; W.slowSet = 0; WAVE.mem = []; WAVE.n = 0; fwClear(); xfClear(); W.nucWin = null; W.made = null; W.chain = null; W.zscan = null; // (the LEP energy scan, ui.js, 1.27)
   W.grab = null; W.topo++;
@@ -9436,6 +9464,7 @@ function fireSpec(spec, x, y, ux, uy, KE, free, z = 0, uz = 0) { // (z, uz: 3-D)
   if (spec.kind === 'gamma') { if (W.d3) emitPhoton(x, y, KE, ux, uy, { z, uz }); else emitPhoton(x, y, KE, ux, uy); return null; } // (3-D: along its direction in depth, 1.24)
   if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e', z, uz); return null; }
   if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy, 1, z, uz); // (1.12: an atom, in MD; 3-D: in depth, 1.25)
+  if (spec.kind === 'exo') { _evTag = 0; _evRoot = 0; } // (fired from outside: no event's, 1.34.1)
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy, resPlaceMass(spec.sp), z, uz) : null; // (a muon, pion …: from outside, as any fired particle; 3-D: in depth, 1.24)
   const ps = spawnClear(spec, x, y, 0, free, z);
   if (!ps.length) return null;

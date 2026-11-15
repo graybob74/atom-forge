@@ -948,7 +948,7 @@ function toolNote(text, key, btn) {
 }
 const PS_NEED = 'Positronium is placed with the Positronium switch on (Settings → Experimental → Realistic particles → Positronium): its decays, its pick-off in matter and its conversion by O₂ are that switch\u2019s.'; // (1.27 item 32)
 function placeFly(spec, x, y, count, z = 0) {
-  _evTag = 0;
+  _evTag = 0; _evRoot = 0;
   if (spec.kind === 'exo' && XP[spec.sp] && XP[spec.sp].ps && !RP.ps) { log('tool', PS_NEED); toolNote(PS_NEED, 'rpPs', 'Turn Positronium on'); return []; } // (positronium needs its switch: what it does in matter is that switch's, 1.27 item 32)
   if (W.d3 && spec.kind === 'gamma') { for (let i = 0; i < count; i++) emitPhoton(x, y, placeE(), undefined, undefined, { travel: true, z }); return []; } // (3-D: a random direction on the sphere, from its depth, 1.24)
   if (W.d3 && spec.kind === 'nu') { for (let i = 0; i < count; i++) emitNeutrino(x, y, placeE(), undefined, undefined, !!spec.anti, 'placed by hand', spec.fl || 'e', z); return []; }
