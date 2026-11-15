@@ -3569,6 +3569,18 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 88 (done in 1.33.2; requested 2026-11-14, the owner: "make the expanded decay chart and fission tree fit better and be more
    interactive") The charts' window (1.31 item 74): the decay chart and the fission tree fitted to the window when they
    open, and more to do in them (hover for each nuclide or branch, click to inspect it, zoom to a part).
+89 (requested 2026-11-15, the owner: "Can you add the magnetic forces as an experimental setting?", after asking how
+   magnetism is simulated; the parts are what the answer listed as missing) Experimental → Magnetic forces, three parts:
+   (a) Moving charges make fields: the magnetic force between moving charged particles (the Darwin interaction, to
+       order v²/c², with its energy booked), and a current's field felt by everything charged near it. Matters for fast
+       particles, beams and plasmas; at thermal speeds a millionth of the Coulomb force.
+   (b) Atomic magnetic moments: each atom with unpaired electrons carries a spin (a classical vector, |μ| from its
+       unpaired electrons, iron 2.2 μB) that turns in the field it feels (Landau–Lifshitz–Gilbert, damped by the heat
+       bath), with dipole–dipole forces and torques between atoms (both ways, energy booked).
+   (c) Exchange: neighbouring iron, cobalt and nickel spins lined up by the exchange coupling (Heisenberg, J from each
+       metal's measured Curie temperature), so a piece of iron magnetizes itself, forms domains, loses it above its Curie
+       point, and two magnetized pieces attract or repel; it would take over from the fitted ferromagnet pull of today.
+   Flat game first; costs to be measured (spins are a few numbers an atom; the dipole sum a neighbour list).
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
