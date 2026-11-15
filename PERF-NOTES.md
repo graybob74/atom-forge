@@ -2019,6 +2019,13 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   build anything or give an answer". The builder now stays open and says where it went; one ready to place closes it with
   a note on the chamber.
 - Settings: the search box is in the header, beside the title.
+- Fixed after the release (owner's report: "Cannot read properties of undefined (reading 'bom')" with 100 antiprotons in a
+  lot of water, continuous bond orders on): the members' slot map (BF_SM, slot → member) was cleared by each old
+  member's current slot, but a member removed since (annihilated: its slot freed, p.i −1) left its old slot marked; a
+  plain atom given that slot then counted as a member in the module's pair search, its pairs pointing past the members
+  (BF.mem[k] undefined): the error when anything listed the bonds, and bond-order forces on an atom that is not a member.
+  Now the map is cleared by the slots it was given. Measured (six waters, three members' slots handed to a neon atom):
+  9 of 60 pairs pointed nowhere; now 0 of 51.
 
 Tests: tests/f_133.js (the builder in space, the build kept in 3-D, the grid; each fails on 1.32.0); run: t_lint, f_133,
 f_132, f_1232, f_1281, f_rp2, t_3d, t_page. New requests 85–87 are on the planned list.

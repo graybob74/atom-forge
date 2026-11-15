@@ -2,6 +2,17 @@
 /* The checks for 1.33.0 (the owner, 2026-11-14: "the 3d molecule builder isn't 3d"; the far-face grid in a big 3-D box).
    Run by t_features (one line) or alone: node tests/f_133.js. Each fails on 1.32.0. */
 module.exports = async function f133(page, check) {
+  { // continuous bond orders: a member removed and its slot given to a plain atom must not stay on the members' map
+    const { load } = require(require('path').join(__dirname, 'load.js'));
+    const X = load('all', { seed: 2 }), W = X.W;
+    X.PRESETS.empty.build(); W.gamma = 0; X.boSet(true);
+    for (let i = 0; i < 6; i++) X.addMolecule('H2O', -12 + 4 * i, 0, 0, 0);
+    X.boSync(); X.forcesNoEvents();
+    const v = X.BF.mem.slice(-3); X.dropParts(v); W.parts = W.parts.filter(p => !v.includes(p)); X.addAtom('Ne', 0, 0.5);
+    X.boSync(); X.forcesNoEvents();
+    let bad = 0; for (let k = 0; k < X.BO.np; k++) { const q = X.boPairQ(k); if (!q.a || !q.b || !q.a.bom || !q.b.bom) bad++; }
+    check(bad === 0, `1.33 bond orders: a member's slot reused by a plain atom leaves no pair pointing past the members (0 of ${X.BO.np}; 9 before)`, '1.33 bond-order slot map: ' + bad + ' bad pairs');
+  }
   let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ settle: 800 }); page = own.page; }
   await page.setViewportSize({ width: 1400, height: 900 });
   const r = await page.evaluate(async () => { try {

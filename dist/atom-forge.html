@@ -23384,10 +23384,14 @@ function bfNu(tab, nu) {
 }
 function bfMembers() {
   const mem = BF.mem;
-  for (const p of mem) if (p.i < BF_SM.length) BF_SM[p.i] = 0; // (the last pass's members off the map)
-  mem.length = 0;
+  // (the last pass's members off the map, by the slots they had then: a member removed since (its slot freed, p.i −1)
+  // left its slot marked, and a non-member given that slot was taken for a member, its pairs pointing past the members:
+  // "Cannot read properties of undefined (reading 'bom')" with 100 antiprotons in water, the owner, 1.33)
+  const was = BF.smSet || (BF.smSet = []);
+  for (const i of was) if (i < BF_SM.length) BF_SM[i] = 0;
+  was.length = 0; mem.length = 0;
   if (BF_SM.length < S.size) BF_SM = bfArr(Int32Array, S.size * 2);
-  for (const p of W.parts) if (p.bom && !p.dead) { p._bm = mem.length; BF_SM[p.i] = mem.length + 1; mem.push(p); }
+  for (const p of W.parts) if (p.bom && !p.dead) { p._bm = mem.length; BF_SM[p.i] = mem.length + 1; was.push(p.i); mem.push(p); }
   const nm = mem.length; bfGrow(Math.max(BF.pcapN, 64), Math.max(nm, 1));
   let eI = 0, kq = 0;
   for (let m = 0; m < nm; m++) {
