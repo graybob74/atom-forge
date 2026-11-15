@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.33.3 (not released yet)
+## 1.33.3: light in flight no longer slows time (the owner, 2026-11-15)
 
 - Light in flight no longer slows time (the owner, 2026-11-15: "remove the time slows automatically in flight for
   light"). Light from the Light tool still flies at c and lands when it has covered the distance (55 Å: 18.4 as, light

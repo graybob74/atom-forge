@@ -1,6 +1,6 @@
 {
   "name": "atom-forge-desktop",
-  "version": "1.33.2",
+  "version": "1.33.3",
   "private": true,
   "description": "Atom Forge desktop shell (Tauri)",
   "scripts": {
