@@ -206,6 +206,16 @@ function pdPU(qa, qb, w, dx, dy, dz, ax, ay, az, bx, by, bz, g1, g2) {
   const A = ax * dx + ay * dy + az * dz, B = bx * dx + by * dy + bz * dz, C = ax * bx + ay * by + az * bz;
   return 2 * g1 * w * (qa * B - qb * A) - 2 * g1 * C - 4 * g2 * A * B;
 }
+/* (1.34.3) The solve's arrays in the module's memory when it is there, and the solve itself in it (af_pd_iter,
+   kernel/src/xf.rs: the loop below, the same arithmetic in the same order); −1 when it cannot (the JavaScript runs). */
+function pdArr(T, n) { return xfWasm('af_pd_iter') ? wasmArray(T, n) : new T(n); }
+function pdIterWasm(np, ns, PA, PB, PG, SL, E, Et, M, AL) {
+  if (!xfWasm('af_pd_iter') || !wasmIn(PA, PB, PG, SL, E, Et, M, AL)) return -1;
+  const T = xfBuf('pdT', Int32Array, 8), P = xfBuf('pdP', Float64Array, 8); if (!T || !P) return -1;
+  [PA, PB, PG, SL, E, Et, M, AL].forEach((a, i) => { T[i] = a.byteOffset; });
+  P[0] = np; P[1] = ns; P[2] = W.d3 ? 1 : 0; P[3] = PD_MAXIT; P[4] = PD_TOL; XFW.calls++;
+  return WK.ex.af_pd_iter(T.byteOffset, P.byteOffset);
+}
 function pdUpdate() {
   pdLive();
   const mols = new Map();
@@ -215,8 +225,8 @@ function pdUpdate() {
   }
   const set = [], A6 = new Float64Array(6);
   let n = 0; for (const m of mols.values()) if (m.length >= 2 && m.length <= QEQ.maxMol) n += m.length;
-  if (PDU.A.length < 6 * n) { PDU.A = new Float64Array(12 * n + 12); PDU.E = new Float64Array(6 * n + 6); PDU.M = new Float64Array(6 * n + 6); PDU.Et = new Float64Array(6 * n + 6); }
-  if (PDU.cap < S.size) { const c = S.size * 2; PDU.cap = c; PDU.sl = new Int32Array(c).fill(-1); PDU.om = new Uint8Array(c); PDU.xo = new Float64Array(c); PDU.yo = new Float64Array(c); PDU.zo = new Float64Array(c); PDU.ro = new Float64Array(c); PDU.rn = new Float64Array(c); }
+  if (PDU.A.length < 6 * n) { PDU.A = pdArr(Float64Array, 12 * n + 12); PDU.E = pdArr(Float64Array, 6 * n + 6); PDU.M = pdArr(Float64Array, 6 * n + 6); PDU.Et = pdArr(Float64Array, 6 * n + 6); }
+  if (PDU.cap < S.size) { const c = S.size * 2; PDU.cap = c; PDU.sl = pdArr(Int32Array, c).fill(-1); PDU.om = new Uint8Array(c); PDU.xo = new Float64Array(c); PDU.yo = new Float64Array(c); PDU.zo = new Float64Array(c); PDU.ro = new Float64Array(c); PDU.rn = new Float64Array(c); }
   const AL = PDU.A, E = PDU.E, M = PDU.M, Et = PDU.Et, SL = PDU.sl, OM = PDU.om, XO = PDU.xo, YO = PDU.yo, ZO = PDU.zo, RO = PDU.ro, RN = PDU.rn;
   for (const m of mols.values()) if (m.length >= 2 && m.length <= QEQ.maxMol) for (const p of m) {
     if (!pdAlpha(p, A6)) continue;
@@ -235,7 +245,7 @@ function pdUpdate() {
   // the pairs: within the reach, different molecules, an atom of the new set or an old dipole in it
   const pi = VL.pi, pj = VL.pj, nl = VL.np, X = S.x, Y = S.y, Zp = S.z, KK = S.k, Zs = S.Z, DEAD = S.dead, FAST = S.fast, RAD = S.rad, MOL = S.mol, Q = S.q, QP = S.qp, IONIC = S.ionic;
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2;
-  if (PDU.pa.length < nl) { PDU.pa = new Int32Array(nl * 2 + 16); PDU.pb = new Int32Array(nl * 2 + 16); PDU.pg = new Float64Array(8 * (nl * 2 + 16)); }
+  if (PDU.pa.length < nl) { PDU.pa = pdArr(Int32Array, nl * 2 + 16); PDU.pb = pdArr(Int32Array, nl * 2 + 16); PDU.pg = pdArr(Float64Array, 8 * (nl * 2 + 16)); }
   const PA = PDU.pa, PB = PDU.pb, PG = PDU.pg; // (PG per pair: dx, dy, dz, fade, w, g′ and g″ with the new damping, faded)
   let np = 0, U0 = 0;
   for (let q = 0; q < nl; q++) {
@@ -262,6 +272,7 @@ function pdUpdate() {
   // the dipoles: μ = α(E + E_dipoles), iterated from the old ones
   for (let k = 0; k < ns; k++) { const i = set[k].i; M[3 * k] = XO[i]; M[3 * k + 1] = YO[i]; M[3 * k + 2] = ZO[i]; }
   let it = 0, err = Infinity;
+  const wq = pdIterWasm(np, ns, PA, PB, PG, SL, E, Et, M, AL); if (wq >= 0) { it = wq; err = 0; } // (the module, 1.34.3: the same loop below)
   for (; it < PD_MAXIT && err > PD_TOL; it++) {
     for (let k = 0; k < 3 * ns; k++) Et[k] = E[k];
     for (let k = 0; k < np; k++) {

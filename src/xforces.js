@@ -29,6 +29,31 @@ function xfMD(p) { return !p.dead && !p.rad && !p.fast && !(p.k === NUC && p.Z =
 /* ---- gravity */
 function xfG() { return XF_G * Math.pow(10, XF.gk); }
 function xfGEarth() { return 9.80665e10 * PHYS.TU_S * PHYS.TU_S * Math.pow(10, XF.gk); } // (Å/tu²)
+/* ---- in the module (1.34.3, the owner: "can you do a wasm pass for every major slowdown setting?"): the pair sums,
+   the three-body sum, the nucleons' steps (kernel/src/xf.rs), over compact arrays gathered into the module's memory;
+   the JavaScript below stays as the fallback (no module, or a page whose plain memory filled up). XFW.use: tests. */
+const XFW = { use: true, b: {}, calls: 0 };
+function xfWasm(fn) { return XFW.use && typeof wasmReady === 'function' && wasmReady() && WK.ex && typeof WK.ex[fn] === 'function'; }
+function xfBuf(key, T, n) { // a scratch array in the module's memory, at least n long (null if it cannot be had)
+  let a = XFW.b[key];
+  if (!a || a.length < n) { a = wasmArray(T, Math.ceil(n * 1.5) + 16); if (!WK.on || !wasmIn(a)) return null; XFW.b[key] = a; }
+  return a;
+}
+function xfBufs(n, ...spec) { const out = []; for (const [k, T, m] of spec) { const a = xfBuf(k, T, (m || 1) * n); if (!a) return null; out.push(a); } return out; }
+/* Gravity (mode 0) or full-range charges (mode 1) over every pair in the module; the forces scattered into FX…; the energy. */
+function xfPairsWasm(ps, mode, w, fl, q0, FX, FY, FZ, k, rc2g, irc) {
+  const n = ps.length, B = xfBufs(n, ['x', Float64Array], ['y', Float64Array], ['z', Float64Array], ['w', Float64Array], ['fl', Int32Array], ['q0', Float64Array], ['fx', Float64Array], ['fy', Float64Array], ['fz', Float64Array]);
+  if (!B) return null;
+  const [X, Y, Zs, Wt, FL, Q0, OX, OY, OZ] = B, T = xfBuf('T', Int32Array, 16), P = xfBuf('P', Float64Array, 24); if (!T || !P) return null;
+  const d3 = W.d3;
+  for (let i = 0; i < n; i++) { const p = ps[i]; X[i] = p.x; Y[i] = p.y; Zs[i] = d3 ? p.z : 0; Wt[i] = w[i]; FL[i] = fl ? fl[i] : 0; Q0[i] = q0 ? q0[i] : 0; OX[i] = OY[i] = OZ[i] = 0; }
+  [X, Y, Zs, Wt, FL, Q0, OX, OY, OZ].forEach((a, i) => { T[i] = a.byteOffset; });
+  P[0] = n; P[1] = mode; P[2] = d3 ? 1 : 0; P[3] = W.wall === 'wrap' ? 1 : 0; P[4] = W.box.w; P[5] = W.box.h; P[6] = W.box.d || 0; P[7] = FX ? 1 : 0; P[8] = k;
+  P[9] = rc2g; P[10] = irc; P[11] = RC; P[12] = RC2; P[13] = d3 ? 1 : K_IW;
+  const U = WK.ex.af_xf_pairs(T.byteOffset, P.byteOffset); XFW.calls++;
+  if (FX) for (let i = 0; i < n; i++) { const j = ps[i].i; FX[j] += OX[i]; FY[j] += OY[i]; if (FZ && d3) FZ[j] += OZ[i]; }
+  return U;
+}
 /* Pairs over flat arrays (the nearest image with wrapping walls): fn(i, j, dx, dy, dz, r2) for every pair i < j. */
 function xfPairs(ps, fn, R2) {
   const n = ps.length, X = new Float64Array(n), Y = new Float64Array(n), Zs = new Float64Array(n), d3 = W.d3, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d || 0;
@@ -43,7 +68,9 @@ function xfPairs(ps, fn, R2) {
 function xfGrav(FX, FY, FZ, eOnly) {
   const ps = W.parts.filter(xfMD), n = ps.length, G = xfG(), Rc = n > 3000 ? 40 : Infinity, iRc = Rc < Infinity ? 1 / Rc : 0, M = ps.map(p => p.m), I = ps.map(p => p.i), d3 = W.d3;
   let U = 0;
-  xfPairs(ps, (i, j, dx, dy, dz, r2) => {
+  const Uw = n > 1 && xfWasm('af_xf_pairs') ? xfPairsWasm(ps, 0, M, null, null, eOnly ? null : FX, FY, FZ, G, Rc < Infinity ? Rc * Rc : 1e300, iRc) : null;
+  if (Uw !== null) U = Uw;
+  else xfPairs(ps, (i, j, dx, dy, dz, r2) => {
     if (r2 < 1e-6) return;
     const r = Math.sqrt(r2), gm = G * M[i] * M[j]; U -= gm * (1 / r - iRc);
     if (eOnly) return;
@@ -241,6 +268,7 @@ function xfLrPair(a, b, FX, FY, FZ) {
 }
 function xfLrq(FX, FY, FZ) {
   const ps = W.parts.filter(p => xfQ(p) !== 0), Q = ps.map(xfQ), q0 = ps.map(p => p.q), ion = ps.map(p => p.ionic), lr = ps.map(p => _lrOn && isLR(p)), I = ps.map(p => p.i), KIW = W.d3 ? 1 : K_IW, KE = PHYS.KE, d3 = W.d3;
+  if (ps.length > 1 && xfWasm('af_xf_pairs')) { const Uw = xfPairsWasm(ps, 1, Q, ps.map((p, i) => (lr[i] ? 1 : 0) | (ion[i] ? 2 : 0)), q0, FX || null, FY, FZ, KE, 0, 0); if (Uw !== null) return Uw; }
   let U = 0;
   xfPairs(ps, (i, j, dx, dy, dz, r2) => {
     if (lr[i] && lr[j]) return;
@@ -301,8 +329,26 @@ function xfNbrs(ps, want) { // neighbours within XF_TR: [atom, r, ux, uy, uz, C6
       if (r2 >= R2 || r2 < 1e-8) continue; const r = Math.sqrt(r2), c = xfC6(a.Z, b.Z); la.push([b, r, dx / r, dy / r, dz / r, c[0], c[1], j]); } }
   return nb;
 }
+function xfDispWasm(ps, FX, FY, FZ) { // the whole three-body sum in the module (not an event's local measure: that stays below)
+  const n = ps.length, sps = [], idx = new Map();
+  for (const p of ps) if (!idx.has(p.Z)) { idx.set(p.Z, sps.length); sps.push(p.Z); }
+  const ns = sps.length, d3 = W.d3, nc = 4 * n + 64;
+  const B = xfBufs(n, ['ax', Float64Array], ['ay', Float64Array], ['az', Float64Array], ['asp', Int32Array], ['anx', Int32Array], ['afx', Float64Array], ['afy', Float64Array], ['afz', Float64Array]);
+  const C6 = xfBuf('c6', Float64Array, ns * ns), R0 = xfBuf('r0', Float64Array, ns * ns), HD = xfBuf('ahd', Int32Array, nc), T = xfBuf('T', Int32Array, 16), P = xfBuf('P', Float64Array, 24);
+  if (!B || !C6 || !R0 || !HD || !T || !P) return null;
+  const [X, Y, Zs, SP, NX, OX, OY, OZ] = B;
+  for (let a = 0; a < ns; a++) for (let b = 0; b < ns; b++) { const c = xfC6(sps[a], sps[b]); C6[a * ns + b] = c[0]; R0[a * ns + b] = c[1]; }
+  for (let i = 0; i < n; i++) { const p = ps[i]; X[i] = p.x; Y[i] = p.y; Zs[i] = d3 ? p.z : 0; SP[i] = idx.get(p.Z); OX[i] = OY[i] = OZ[i] = 0; }
+  [X, Y, Zs, SP, C6, R0, HD, NX, OX, OY, OZ].forEach((a, i) => { T[i] = a.byteOffset; });
+  P[0] = n; P[1] = ns; P[2] = d3 ? 1 : 0; P[3] = W.wall === 'wrap' ? 1 : 0; P[4] = W.box.w; P[5] = W.box.h; P[6] = W.box.d || 0; P[7] = FX ? 1 : 0;
+  P[8] = XF_TR; P[9] = XF_T0; P[10] = XF_C9U; P[11] = XF_B3; P[12] = HD.length;
+  const U = WK.ex.af_xf_atm(T.byteOffset, P.byteOffset); XFW.calls++;
+  if (FX) for (let i = 0; i < n; i++) { const j = ps[i].i; FX[j] += OX[i]; FY[j] += OY[i]; if (FZ && d3) FZ[j] += OZ[i]; }
+  return U;
+}
 function xfDisp(FX, FY, FZ, eOnly, set, skip) {
   let ps = xfDispAts(); if (skip) ps = ps.filter(p => p !== skip);
+  if (!set && ps.length > 2 && xfWasm('af_xf_atm')) { const Uw = xfDispWasm(ps, eOnly ? null : FX, FY, FZ); if (Uw !== null) return Uw; }
   const want = set ? ps.filter(p => set.has(p)) : null, nb = xfNbrs(ps, want), grad = !!FX && !eOnly, d3 = W.d3;
   const wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d || 0, hw = bw / 2, hh = bh / 2, hd = bd / 2;
   const PX = new Float64Array(ps.length), PY = new Float64Array(ps.length), PZ = new Float64Array(ps.length); ps.forEach((p, i) => { PX[i] = p.x; PY[i] = p.y; PZ[i] = d3 ? p.z : 0; });
@@ -421,20 +467,36 @@ function xnForces(N, X, F) { // N: [isProton], X: [x, y, z] flat; F out; returns
   }
   return U;
 }
+/* The nucleons' arrays: in the module's memory when it is there (af_xn_steps runs the steps), else ordinary ones. */
+function xnArrays(A, P) {
+  if (xfWasm('af_xn_steps')) {
+    const pr = xfBuf('xnp', Int32Array, A), X = xfBuf('xnx', Float64Array, 3 * A), V = xfBuf('xnv', Float64Array, 3 * A), F = xfBuf('xnf', Float64Array, 3 * A), T = xfBuf('xnT', Int32Array, 8), Pp = xfBuf('xnP', Float64Array, 8);
+    if (pr && X && V && F && T && Pp) {
+      const x = X.subarray(0, 3 * A), v = V.subarray(0, 3 * A), f = F.subarray(0, 3 * A); x.fill(0); v.fill(0); f.fill(0); for (let i = 0; i < A; i++) pr[i] = P[i];
+      T[0] = pr.byteOffset; T[1] = x.byteOffset; T[2] = v.byteOffset; T[3] = f.byteOffset;
+      return { X: x, V: v, F: f, w: (steps, dt, mode) => { Pp[0] = A; Pp[1] = steps; Pp[2] = dt; Pp[3] = XN_M; Pp[4] = mode; XFW.calls++; return WK.ex.af_xn_steps(T.byteOffset, Pp.byteOffset); } };
+    }
+  }
+  return { X: new Float64Array(3 * A), V: new Float64Array(3 * A), F: new Float64Array(3 * A), w: null };
+}
 function xnGround(Z, N) { // the lowest arrangement of Z protons and N neutrons, centred: { P: [isProton], X, U (MeV), R (fm) }
   const key = Z * 64 + N; let g = XN.gs.get(key); if (g) return g;
   let s = (key * 2654435761) >>> 0; const r = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); // (its own fixed draws: the seeded game is not touched)
   const A = Z + N, P = [], best = { U: Infinity };
   for (let i = 0; i < A; i++) P.push(i < Z ? 1 : 0);
   for (let t = 0; t < 3; t++) {
-    const X = new Float64Array(3 * A), V = new Float64Array(3 * A), F = new Float64Array(3 * A), R0 = 1.1 * Math.cbrt(A) + 0.6;
+    const { X, V, F, w } = xnArrays(A, P), R0 = 1.1 * Math.cbrt(A) + 0.6;
     for (let i = 0; i < A; i++) { let x, y, z; do { x = 2 * r() - 1; y = 2 * r() - 1; z = 2 * r() - 1; } while (x * x + y * y + z * z > 1); X[3 * i] = R0 * x; X[3 * i + 1] = R0 * y; X[3 * i + 2] = R0 * z; }
-    let U = xnForces(P, X, F); const dt = 0.4;
-    for (let k = 0; k < 3000; k++) {
-      for (let i = 0; i < 3 * A; i++) { V[i] = 0.92 * (V[i] + dt * F[i] / XN_M); X[i] += dt * V[i]; }
+    let U; const dt = 0.4;
+    if (w) { w(0, dt, 0); U = w(3000, dt, 2); } // (the module: 3,000 cooling steps in one call)
+    else {
       U = xnForces(P, X, F);
+      for (let k = 0; k < 3000; k++) {
+        for (let i = 0; i < 3 * A; i++) { V[i] = 0.92 * (V[i] + dt * F[i] / XN_M); X[i] += dt * V[i]; }
+        U = xnForces(P, X, F);
+      }
     }
-    if (U < best.U) { best.U = U; best.X = X.slice(); }
+    if (U < best.U) { best.U = U; best.X = Float64Array.from(X); }
   }
   const X = best.X; let cx = 0, cy = 0, cz = 0; for (let i = 0; i < A; i++) { cx += X[3 * i] / A; cy += X[3 * i + 1] / A; cz += X[3 * i + 2] / A; }
   let R = 0; for (let i = 0; i < A; i++) { X[3 * i] -= cx; X[3 * i + 1] -= cy; X[3 * i + 2] -= cz; R = Math.max(R, Math.hypot(X[3 * i], X[3 * i + 1], X[3 * i + 2])); }
@@ -464,7 +526,7 @@ function xnCollide(a, b, Pa, P, M, b3, anti, items, moms) {
   let ey; if (d3) { const t = Math.abs(ex[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], c = [ex[1] * t[2] - ex[2] * t[1], ex[2] * t[0] - ex[0] * t[2], ex[0] * t[1] - ex[1] * t[0]], l = Math.hypot(...c), ph = 2 * Math.PI * rnd(), c2 = [ex[1] * c[2] - ex[2] * c[1], ex[2] * c[0] - ex[0] * c[2], ex[0] * c[1] - ex[1] * c[0]]; ey = c.map((v, k) => (Math.cos(ph) * v + Math.sin(ph) * c2[k] / 1) / l); } else ey = [-ex[1], ex[0], 0];
   const ez = [ex[1] * ey[2] - ex[2] * ey[1], ex[2] * ey[0] - ex[0] * ey[2], ex[0] * ey[1] - ex[1] * ey[0]];
   const Ecm = M - nucMeV(Z1, N1) - nucMeV(Z2, N2), D = ga.R + gb.R + 2 + 1.2;
-  const Xa = xnRot(ga.X), Xb = xnRot(gb.X), X = new Float64Array(3 * A), V = new Float64Array(3 * A), F = new Float64Array(3 * A), PR = ga.P.concat(gb.P);
+  const Xa = xnRot(ga.X), Xb = xnRot(gb.X), PR = ga.P.concat(gb.P), NA = xnArrays(A, PR), F = NA.F, xw = NA.w; let X = NA.X, V = NA.V;
   const xa = -D * m2 / (m1 + m2), xb = D * m1 / (m1 + m2), ya = (d3 || rnd() < 0.5 ? 1 : -1) * b3 * m2 / (m1 + m2), yb = -ya * m1 / m2;
   for (let i = 0; i < A1; i++) { X[3 * i] = Xa[3 * i] + xa; X[3 * i + 1] = Xa[3 * i + 1] + ya; X[3 * i + 2] = Xa[3 * i + 2]; }
   for (let i = 0; i < A2; i++) { const k = 3 * (A1 + i); X[k] = Xb[3 * i] + xb; X[k + 1] = Xb[3 * i + 1] + yb; X[k + 2] = Xb[3 * i + 2]; }
@@ -475,9 +537,12 @@ function xnCollide(a, b, Pa, P, M, b3, anti, items, moms) {
   const dt = 0.25, frames = [], vr = pr / mu, tCross = 2 * D / vr;
   let stable = 0, last = -1, steps = 0;
   for (let k = 0; k < 1200; k++) {
-    for (let i = 0; i < 3 * A; i++) { V[i] += 0.5 * dt * F[i] / XN_M; X[i] += dt * V[i]; }
-    xnForces(PR, X, F);
-    for (let i = 0; i < 3 * A; i++) V[i] += 0.5 * dt * F[i] / XN_M;
+    if (xw) xw(1, dt, 1); // (a step in the module)
+    else {
+      for (let i = 0; i < 3 * A; i++) { V[i] += 0.5 * dt * F[i] / XN_M; X[i] += dt * V[i]; }
+      xnForces(PR, X, F);
+      for (let i = 0; i < 3 * A; i++) V[i] += 0.5 * dt * F[i] / XN_M;
+    }
     steps++;
     if (k % 6 === 0) frames.push(Float32Array.from(X));
     if (k * dt > tCross && k % 8 === 0) { // apart: the pieces the same for 40 fm/c, none nearer another than the nuclear force reaches
@@ -487,6 +552,7 @@ function xnCollide(a, b, Pa, P, M, b3, anti, items, moms) {
       if (stable >= 20) break;
     }
   }
+  if (xw) { X = Float64Array.from(X); V = Float64Array.from(V); } // (the module's scratch arrays are lent to the pieces' own lowest arrangements below)
   const pc = xnPieces(A, X), lab = pc.lab;
   XN.last = { frames, P: PR, A1, n: pc.n, lab: Array.from(lab), t: steps * dt, x: a.x, y: a.y, z: a.z || 0, at: performance.now() };
   if (pc.n < 2) return false;
