@@ -42,7 +42,7 @@ function xfBuf(key, T, n) { // a scratch array in the module's memory, at least 
 function xfBufs(n, ...spec) { const out = []; for (const [k, T, m] of spec) { const a = xfBuf(k, T, (m || 1) * n); if (!a) return null; out.push(a); } return out; }
 /* A module pass split over the worker threads (thCall) when they are up and the job is big (n ≥ 400): part k takes the
    k-th range of the outer index (cut so the parts have about equal work: the pair loop's work falls as (n − i), the
-   triple loop's as (n − a)²), its own output arrays (and, for the triples, its own cell arrays); the parts' energies
+   triple loop's between evenly, its neighbour search, and (n − a)², its triples: cut as (n − a)^1.2), its own output arrays (and, for the triples, its own cell arrays); the parts' energies
    and forces added in order. tab(k, i0, i1): part k's tables [T, P] (null if they cannot be had). */
 function xfRun(fi, fn, n, pw, tab, outs) {
   const parts = typeof thCallOk === 'function' && n >= 400 && thCallOk() ? TH.n + 1 : 1, cut = (k) => k >= parts ? n : Math.round(n * (1 - Math.pow(1 - k / parts, 1 / pw)));
@@ -358,7 +358,7 @@ function xfDispWasm(ps, FX, FY, FZ) { // the whole three-body sum in the module 
   const [X, Y, Zs, SP] = B, O = [];
   for (let a = 0; a < ns; a++) for (let b = 0; b < ns; b++) { const c = xfC6(sps[a], sps[b]); C6[a * ns + b] = c[0]; R0[a * ns + b] = c[1]; }
   for (let i = 0; i < n; i++) { const p = ps[i]; X[i] = p.x; Y[i] = p.y; Zs[i] = d3 ? p.z : 0; SP[i] = idx.get(p.Z); }
-  return xfRun(1, 'af_xf_atm', n, 3, (k, a0, a1) => {
+  return xfRun(1, 'af_xf_atm', n, 2.2, (k, a0, a1) => {
     const ob = xfBufs(n, ['afx' + k, Float64Array], ['afy' + k, Float64Array], ['afz' + k, Float64Array], ['anx' + k, Int32Array]), HD = xfBuf('ahd' + k, Int32Array, nc), T = xfBuf('T' + k, Int32Array, 16), P = xfBuf('P' + k, Float64Array, 24);
     if (!ob || !HD || !T || !P) return null;
     const [OX, OY, OZ, NX] = ob; OX.fill(0, 0, n); OY.fill(0, 0, n); OZ.fill(0, 0, n); O[k] = ob;

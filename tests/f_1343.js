@@ -92,7 +92,8 @@ PARTS.threads = async (page, check) => {
   const browser = await chromium.launch(require('./deps').launchOpts({ headless: true })), ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', headers: { 'Access-Control-Allow-Origin': '*' }, body: '' }));
   const pg = await ctx.newPage(); await pg.goto(`http://127.0.0.1:${server.address().port}/atom-forge.html`); await pg.waitForTimeout(800);
-  const r = await pg.evaluate(async () => { try {
+  const nth = +(process.env.XF_TH || 3);
+  const r = await pg.evaluate(async (NTH) => { try {
     const out = {}; loadPreset('water3d'); setRunning(false); W.decayOn = false;
     const run = async (nth, c) => {
       threadsSet(nth); for (let i = 0; i < 100 && nth && !threadsReady(); i++) await new Promise(res => setTimeout(res, 50));
@@ -101,15 +102,15 @@ PARTS.threads = async (page, check) => {
       const ms = (performance.now() - t0) / 5; xfSet({ grav: 0, lrq: false, disp: false }); return { U, F, ms, parts: XFW.threads };
     };
     for (const [k, c] of [['gravity', { grav: 1, gk: 30 }], ['charges', { lrq: true }], ['dispersion', { disp: true }]]) {
-      const a = await run(0, c), b = await run(3, c);
+      const a = await run(0, c), b = await run(NTH, c);
       let df = 0, fm = 0; for (let q = 0; q < 3; q++) for (let i = 0; i < a.F[q].length; i++) { df = Math.max(df, Math.abs(a.F[q][i] - b.F[q][i])); fm = Math.max(fm, Math.abs(a.F[q][i])); }
       out[k] = { U1: a.U, U4: b.U, dU: Math.abs(a.U - b.U) / Math.max(1, Math.abs(a.U)), dF: df / Math.max(1e-30, fm), ms1: a.ms, ms4: b.ms, parts: b.parts };
     }
     threadsSet(0); return out;
-  } catch (e) { return { err: e.message }; } });
+  } catch (e) { return { err: e.message }; } }, nth);
   await browser.close(); server.close();
   for (const k of ['gravity', 'charges', 'dispersion']) { const q = r[k] || {};
-    check(!r.err && q.parts === 4 && q.dU < 1e-12 && q.dF < 1e-10, `1.34.3 ${k} on four threads (3-D liquid water, the isolated page): the one-thread energy to ${q.dU && q.dU.toExponential(1)}, forces to ${q.dF && q.dF.toExponential(1)} of the largest; ${q.ms1 && q.ms1.toFixed(2)} → ${q.ms4 && q.ms4.toFixed(2)} ms a pass`, `1.34.3 threads ${k}: ` + JSON.stringify(r.err ? r : q)); }
+    check(!r.err && q.parts === nth + 1 && q.dU < 1e-12 && q.dF < 1e-10, `1.34.3 ${k} on ${nth + 1} threads (3-D liquid water, the isolated page): the one-thread energy to ${q.dU && q.dU.toExponential(1)}, forces to ${q.dF && q.dF.toExponential(1)} of the largest; ${q.ms1 && q.ms1.toFixed(2)} → ${q.ms4 && q.ms4.toFixed(2)} ms a pass`, `1.34.3 threads ${k}: ` + JSON.stringify(r.err ? r : q)); }
 };
 module.exports = async function f1343(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
