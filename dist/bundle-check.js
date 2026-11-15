@@ -26844,7 +26844,7 @@ function jetMomenta3(items, M, a, opts) {
 }
 const isBaryonItem = (it) => it.t === 'A' || !!(it.t === 'x' && XP[it.sp].B);
 /* A string drawn as it breaks (W.strings, render.js drawStrings): at (x, y) along (ax, ay), in real time. */
-function addString(x, y, ax, ay, n) { (W.strings || (W.strings = [])).push({ x, y, ax, ay, n: Math.min(14, Math.max(3, n)), t0: W.rt }); if (W.strings.length > 12) W.strings.shift(); }
+function addString(x, y, ax, ay, n) { (W.strings || (W.strings = [])).push({ x, y, ax, ay, n: Math.min(14, Math.max(3, n)), nh: n, t0: W.rt }); if (W.strings.length > 12) W.strings.shift(); }
 
 /* ---- quark–gluon plasma. Where nuclei overlap with more than about 3 GeV per nucleon of motion in their own frame
    (√s_NN ≳ 8 GeV, where experiments first see it), protons and neutrons melt into free quarks and gluons. The drop
@@ -32285,6 +32285,14 @@ function drawStrings(rt) {
         ctx.beginPath(); ctx.moveTo(x + sg * ux * L0, y + sg * uy * L0); ctx.lineTo(x + sg * ux * L1, y + sg * uy * L1); ctx.stroke();
       }
       ctx.shadowBlur = 0;
+      if (R.view.labels && s.nh) { // (1.34.1, the owner: a label for "the big colored dashed streaks": what they are, by the end of one arm)
+        const lab = broken ? `string broke into ${s.nh} hadrons` : 'colour string (QCD) stretching';
+        ctx.font = `600 10px ${CH_FONT}`; ctx.textBaseline = 'middle'; const w = ctx.measureText(lab).width;
+        const side = ux >= 0 ? 1 : -1, ex = x + side * ux * Lpx, ey = y + side * uy * Lpx;
+        const tx = clamp(ex + 8 > R.w - w - 4 ? ex - 8 - w : ex + 8, 4, R.w - w - 4), ty = clamp(ey - 10, 8, R.h - 8);
+        ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = `rgba(6,10,16,${(0.85 * a).toFixed(3)})`; ctx.strokeText(lab, tx, ty);
+        ctx.fillStyle = `rgba(255,205,140,${a.toFixed(3)})`; ctx.fillText(lab, tx, ty); ctx.lineWidth = 3;
+      }
     }
     ctx.restore();
   }

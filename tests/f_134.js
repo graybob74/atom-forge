@@ -107,6 +107,8 @@ PARTS.lightArrives = async (page, check) => {
 PARTS.rayLabels = async (page, check) => {
   const X = load('all', { seed: 1 }); X.R.w = 800; X.R.h = 500;
   const off = X.rayLabelAt({ sx: 400, sy: 250, hx: -300, hy: 250 }), on = X.rayLabelAt({ sx: 400, sy: 250, hx: 300, hy: 200 }), gone = X.rayLabelAt({ sx: -50, sy: -50, hx: -400, hy: -10 });
+  X.addString(0, 0, 1, 0, 24); const st = X.W.strings[X.W.strings.length - 1];
+  check(st.nh === 24 && st.n === 14, '1.34.1 a colour string keeps how many hadrons it breaks into (24), for its label ("string broke into 24 hadrons")', '1.34.1 string: ' + JSON.stringify(st));
   check(off && Math.abs(off[0] - 6) < 0.5 && Math.abs(off[1] - 250) < 0.5 && on && on[0] === 300 && gone === null, `1.34.1 a ray running off the screen is labelled at its edge (${off && off.map(v => v.toFixed(0)).join(', ')}), one on it at its head, one wholly off it not at all`, '1.34.1 labels: ' + JSON.stringify({ off, on, gone }));
 };
 /* 1.34.1 (the owner: "high energy collisions create this spam-annihilation of opposite pions, is that correct?"): with

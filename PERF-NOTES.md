@@ -1991,13 +1991,18 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.34.1: labels on rays off the screen; light lands when it arrives; one collision's pions never meet (the owner, 2026-11-15)
+## 1.34.1: labels on colour strings and on rays off the screen; light lands when it arrives; one collision's pions never meet (the owner, 2026-11-15)
 
 - Labels for the dashed streaks (the owner: "these dashed streaks is what i meant", a screenshot of a 1 PeV collision):
   the dashed lines are γ rays (neutrinos are dotted); their labels went by the ray's head, so a ray whose head had run off
   the screen had none. Now it is labelled where its line leaves the screen (rayLabelAt: the line clipped to the screen,
   a 6 px margin), and in the 3-D lab too (drawPhotonLabels is now called there, for rays; a ray not on the screen keeps
   no stale place).
+- Labels for the big coloured dashed streaks (the owner: "no the big colored dashed streaks"): those are the colour
+  strings (QCD) of a high-energy collision, the field between quarks pulled apart, drawn stretching and then broken into
+  pieces where it snaps into hadrons (addString, drawStrings). Each now says what it is by the end of one arm: "colour
+  string (QCD) stretching", then "string broke into 24 hadrons" (s.nh, the true count; the picture keeps at most 14
+  pieces). Flat game (3-D does not draw them).
 - High-energy particles made other particles react before anything reached them (the owner: a 1 PeV neutron on helium
   with silicon behind it; the silicon turned into ions before any particle from the collision got there). The γ rays of
   the collision's decays (ω → π⁰γ, then Compton scattering) hit the silicon the moment they were made, while their rays
