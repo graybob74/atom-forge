@@ -1991,6 +1991,38 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.33.0: the molecule builder in 3-D, and fixes (the owner, 2026-11-14: "the 3d molecule builder isn't 3d … release it asap")
+
+- The molecule builder in the 3-D lab works in space (builder.js; the flat game's builder is as it was, bit for bit, apart
+  from wheel zoom). Atoms have a depth; dragging empty space turns the view (MB.R, an orthonormal frame; orthographic,
+  so 1 Å is the same at every depth), Shift + drag moves it, the wheel zooms toward the pointer (both modes); an atom is
+  dragged at its depth, and the nearest one under the pointer is the one picked. New atoms, rings and the hydrogens that
+  fill free valences go where the electron domains point: the atom's bonds fixed, its free valences and lone pairs
+  (valenceInfo, as the engine counts them) spread by repulsion on the sphere (mbDirs3; a drawn C–C–C bends at 109.1°, a
+  CH₃'s hydrogens 110.0° apart); a new atom takes the free direction most square to the line of sight (and anti to the
+  chain's last bond). Drawn back to front, nearer atoms a little bigger, far ones dimmer, the molecule's x/y/z axes in a
+  corner. Tidy and Build settle it in 3-D (mbRelax3: springs for bonds and VSEPR 1–3 distances with a soft shove apart,
+  then the engine's bonded terms in space, relax3, then FIRE on its whole 3-D force field; propanol: C–C–C 113.9°, 3.1 Å
+  deep; about 0.1 s); a flat drawing is nudged out of its plane so it can pucker. The molecule keeps its depths (M.z,
+  saved, exported and imported with it) and goes to the 3-D library, put down in the chamber as built. Messages about
+  crossing bonds do not apply in space: only atoms on top of each other or bonds left stretched stop a build.
+  (Renaming a saved molecule also dropped which library it was made for; kept now.)
+- The far faces' grid in 3-D took its spacing from the flat zoom (R.s), not from how big an ångström looks at that face:
+  close in, in a 20 000 Å box, it drew 0.5 Å lines on faces 10 000 Å away, thousands a pixel apart, a bright haze (the
+  owner's screenshot). Now each face's spacing comes from its own distance, at most 200 lines a face each way. Measured
+  (that view, 1400 × 900): mean brightness 87 → 16, the box's drawing 5.4 → 0.8 ms.
+- Positronium in 3-D: its ring and pair had floors of 5 px and 2.4 px whatever its distance, so far away it was drawn
+  7 px round beside an atom's 2.4 (3× an atom; near, 1.6×). The 3-D floors are now 2.5 px and 1.4 px, the pair at its
+  own depth's scale (2× an atom far away, 1.5× near); the flat game as before.
+- Ask Claude in the builder: a design for the other mode's library (the 2-D / 3-D choice beside Ask Claude, or a
+  lattice too big for 3-D, or a library hit) closed the builder and said so only in the log: "it just closes and doesn't
+  build anything or give an answer". The builder now stays open and says where it went; one ready to place closes it with
+  a note on the chamber.
+- Settings: the search box is in the header, beside the title.
+
+Tests: tests/f_133.js (the builder in space, the build kept in 3-D, the grid; each fails on 1.32.0); run: t_lint, f_133,
+f_132, f_1232, f_1281, f_rp2, t_3d, t_page. New requests 85–87 are on the planned list.
+
 ## 1.32.0: the owner's items 76–84 ("build it", 2026-11-10; only the tests that matter run)
 
 - 76 Electrons as waves → "Waves as": Blobs (eFF) as before, or Full waves (new `src/fwave.js`, built after sites.js;
@@ -3458,6 +3490,13 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    (a short eased move), kept with the setup's save; shown in Help's keys.
 84 (done in 1.32.0) "Back to defaults" in each Settings tab: one button that puts only that tab's settings back as they start, with an
    undo line for a few seconds.
+85 (requested 2026-11-14, the owner: "a setting for a distance away from the camera to be shown when you hover on an atom
+   in 3d") 3-D lab: a setting (Settings → 3-D) that adds the hovered atom's distance from the camera to its hover label.
+86 (requested 2026-11-14, the owner: "a placing plane distance from camera in the bottom left") 3-D lab: the placing
+   plane's distance from the camera shown in the bottom-left corner (beside the axes) while placing.
+87 (requested 2026-11-14, the owner: "a plane place and spherical place modes in 3d (plane is what it is now, while
+   spherical automatically spreads atoms in a sphere when multiple are placed at once)") 3-D lab: the Place tool's mode,
+   Plane (as now) or Sphere: several placed at once go out over a ball round the point instead of across the plane.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a

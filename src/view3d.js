@@ -203,11 +203,17 @@ function drawBox3(ctx, front) {
   if (V3.box === 'off') return; // (Settings → 3-D: no box drawn)
   ctx.save();
   if (!front && R.view.grid && V3.box === 'grid') { // the grid on the far faces
-    let step = 10; while (step * R.s < 36) step *= 2; while (step * R.s > 160 && step > 0.5) step /= 2;
+    // (each face's spacing from how big an ångström looks at that face's distance, not from the flat zoom (R.s): close in,
+    // in a 20 000 Å box, R.s asked for 0.5 Å lines on faces 10 000 Å away, thousands of them a pixel apart, a bright
+    // haze; 1.33. And never more than 200 lines a face each way.)
     ctx.strokeStyle = 'rgba(130,170,210,0.07)'; ctx.lineWidth = 1; ctx.beginPath();
     for (let ax = 0; ax < 3; ax++) for (const s of [-1, 1]) {
       if (faces(ax, s)) continue;
       const u = (ax + 1) % 3, v = (ax + 2) % 3;
+      P[0] = P[1] = P[2] = 0; P[ax] = s * H[ax];
+      const dep = Math.max(C3.near, (P[0] - C3.ex) * C3.fx + (P[1] - C3.ey) * C3.fy + (P[2] - C3.ez) * C3.fz), sp = C3.F / dep;
+      let step = 10; while (step * sp < 36) step *= 2; while (step * sp > 160 && step > 0.5) step /= 2;
+      while (2 * Math.max(H[u], H[v]) / step > 200) step *= 2;
       for (const [a, b] of [[u, v], [v, u]]) for (let t = Math.ceil(-H[a] / step) * step; t <= H[a] + 1e-9; t += step) {
         if (Math.abs(Math.abs(t) - H[a]) < 1e-6) continue; // (the edges themselves are drawn as edges)
         P[ax] = s * H[ax]; Q[ax] = s * H[ax]; P[a] = t; Q[a] = t; P[b] = -H[b]; Q[b] = H[b];

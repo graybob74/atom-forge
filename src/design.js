@@ -421,11 +421,20 @@ function aiAddLattice(L, name, note, cat) {
   myMolsSave();
   aiPick(k, note);
 }
+/* (1.33, the owner: "sometimes the molecule builder just closes when you ask Claude something and it doesn't build
+   anything or give an answer": a design for the other mode's library (the 2-D / 3-D choice beside Ask Claude, or a
+   lattice too big for 3-D) closed the builder and said so only in the log. Now the builder stays open and says it; one
+   that can be placed closes it with a note on the chamber, not only in the log.) */
 function aiPick(key, note) {
+  const M = MOLECULES[key];
+  if (!molFits(M, W.d3)) { // (made for the other mode, 1.23.2)
+    const t = `${M.name} is in the ${W.d3 ? '2-D' : '3-D'} library: it is placed from ${W.d3 ? 'the 2-D game' : 'the 3-D lab'} (main menu).`;
+    log('tool', t); aiSay(t + (aiModeFor() !== (W.d3 ? '3d' : '2d') ? ` (The choice beside Ask Claude is set to ${W.d3 ? '2-D' : '3-D'}.)` : ''), true); return;
+  }
   hideModal('bldModal'); hideModal('molModal');
-  if (!molFits(MOLECULES[key], W.d3)) { log('tool', `${MOLECULES[key].name} is in the ${W.d3 ? '2-D' : '3-D'} library: it is placed from ${W.d3 ? 'the 2-D game' : 'the 3-D lab'} (main menu)`); return; } // (made for the other mode, 1.23.2)
   selectSpec({ kind: 'mol', mol: key });
-  log('tool', `${MOLECULES[key].name} is ready to place (${MOLECULES[key].atoms.length} atoms)${note ? '. ' + note : ''}`);
+  log('tool', `${M.name} is ready to place (${M.atoms.length} atoms)${note ? '. ' + note : ''}`);
+  if (typeof toolNote === 'function') toolNote(`${M.name} is ready: click in the chamber to place it.`);
 }
 function aiSay(text, bad) {
   const m = $('aiMsg'); if (!m) return;

@@ -1112,7 +1112,7 @@ function drawWaves() {
 function exoAtomPic(ctx, o, x, y, c, hx, s) {
   const d = XP[o.sp];
   if (d.ps) {
-    const R0 = Math.max(5, 0.53 * s), th = W.rt * 4 + o.id, er = Math.max(2.4, 1.2 * electronR()), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th);
+    const R0 = Math.max(W.d3 ? 2.5 : 5, 0.53 * s), th = W.rt * 4 + o.id, er = W.d3 ? clamp(0.042 * s, 1.4, 3.6) : Math.max(2.4, 1.2 * electronR()), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th); // (3-D: smaller floors at its own depth's scale: far away it was drawn 7 px round to an atom's 2.4, 1.33)
     ctx.strokeStyle = rgba(c, 0.45); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
     return R0 + 3;
@@ -1182,7 +1182,7 @@ function exoInside(ctx, o, x, y, c, hx) {
     return R0 + 2;
   }
   if (d.ps) { // positronium (1.27): an electron and a positron going round their middle, its orbit twice hydrogen's
-    const R0 = Math.max(6, 0.53 * R.s), th = W.rt * 4 + o.id, er = electronR(), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th); // (W.rt: round while running at any speed, 1.28.1: on the pictures' clock they sat still in slow motion)
+    const R0 = Math.max(W.d3 ? 2.5 : 6, 0.53 * R.s), th = W.rt * 4 + o.id, er = electronR(), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th); // (W.rt: round while running at any speed, 1.28.1: on the pictures' clock they sat still in slow motion)
     ctx.strokeStyle = rgba(c, 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
     return R0 + 2;

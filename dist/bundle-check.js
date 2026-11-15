@@ -31810,7 +31810,7 @@ function drawWaves() {
 function exoAtomPic(ctx, o, x, y, c, hx, s) {
   const d = XP[o.sp];
   if (d.ps) {
-    const R0 = Math.max(5, 0.53 * s), th = W.rt * 4 + o.id, er = Math.max(2.4, 1.2 * electronR()), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th);
+    const R0 = Math.max(W.d3 ? 2.5 : 5, 0.53 * s), th = W.rt * 4 + o.id, er = W.d3 ? clamp(0.042 * s, 1.4, 3.6) : Math.max(2.4, 1.2 * electronR()), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th); // (3-D: smaller floors at its own depth's scale: far away it was drawn 7 px round to an atom's 2.4, 1.33)
     ctx.strokeStyle = rgba(c, 0.45); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
     return R0 + 3;
@@ -31880,7 +31880,7 @@ function exoInside(ctx, o, x, y, c, hx) {
     return R0 + 2;
   }
   if (d.ps) { // positronium (1.27): an electron and a positron going round their middle, its orbit twice hydrogen's
-    const R0 = Math.max(6, 0.53 * R.s), th = W.rt * 4 + o.id, er = electronR(), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th); // (W.rt: round while running at any speed, 1.28.1: on the pictures' clock they sat still in slow motion)
+    const R0 = Math.max(W.d3 ? 2.5 : 6, 0.53 * R.s), th = W.rt * 4 + o.id, er = electronR(), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th); // (W.rt: round while running at any speed, 1.28.1: on the pictures' clock they sat still in slow motion)
     ctx.strokeStyle = rgba(c, 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
     return R0 + 2;
@@ -33614,11 +33614,17 @@ function drawBox3(ctx, front) {
   if (V3.box === 'off') return; // (Settings → 3-D: no box drawn)
   ctx.save();
   if (!front && R.view.grid && V3.box === 'grid') { // the grid on the far faces
-    let step = 10; while (step * R.s < 36) step *= 2; while (step * R.s > 160 && step > 0.5) step /= 2;
+    // (each face's spacing from how big an ångström looks at that face's distance, not from the flat zoom (R.s): close in,
+    // in a 20 000 Å box, R.s asked for 0.5 Å lines on faces 10 000 Å away, thousands of them a pixel apart, a bright
+    // haze; 1.33. And never more than 200 lines a face each way.)
     ctx.strokeStyle = 'rgba(130,170,210,0.07)'; ctx.lineWidth = 1; ctx.beginPath();
     for (let ax = 0; ax < 3; ax++) for (const s of [-1, 1]) {
       if (faces(ax, s)) continue;
       const u = (ax + 1) % 3, v = (ax + 2) % 3;
+      P[0] = P[1] = P[2] = 0; P[ax] = s * H[ax];
+      const dep = Math.max(C3.near, (P[0] - C3.ex) * C3.fx + (P[1] - C3.ey) * C3.fy + (P[2] - C3.ez) * C3.fz), sp = C3.F / dep;
+      let step = 10; while (step * sp < 36) step *= 2; while (step * sp > 160 && step > 0.5) step /= 2;
+      while (2 * Math.max(H[u], H[v]) / step > 200) step *= 2;
       for (const [a, b] of [[u, v], [v, u]]) for (let t = Math.ceil(-H[a] / step) * step; t <= H[a] + 1e-9; t += step) {
         if (Math.abs(Math.abs(t) - H[a]) < 1e-6) continue; // (the edges themselves are drawn as edges)
         P[ax] = s * H[ax]; Q[ax] = s * H[ax]; P[a] = t; Q[a] = t; P[b] = -H[b]; Q[b] = H[b];
@@ -34610,7 +34616,7 @@ const MYMOL_MAX = 2000; // a saved molecule (Claude's lattices are bigger than a
 const mbTries = (n, most) => (n > 180 ? 2 : n > 90 ? 3 : most); // fewer fresh layouts for big molecules: each one costs more
 const MB_KEEP = ['parts', 'bonds', 'evq', 'box', 'wall', 'Ex', 'Ey', 'Bz', 'magnets', 'tool', 'grab', 'T', 'gamma', 'spawned'];
 /* The drawing: atoms { id, el, x, y (Å, y up), q }, bonds { a, b (atom ids), o (order) }. */
-const MB = { atoms: [], bonds: [], next: 1, sel: null, undo: [], fill: true, cx: 0, cy: 0, s: 40, w: 600, h: 400, dpr: 1,
+const MB = { d3: false, R: [1, 0, 0, 0, 1, 0, 0, 0, 1], cz: 0, atoms: [], bonds: [], next: 1, sel: null, undo: [], fill: true, cx: 0, cy: 0, s: 40, w: 600, h: 400, dpr: 1,
   ready: false, palOK: false, drag: null, hover: null, info: null, msg: '', msgBad: false, seq: 0, extra: [], more: false,
   hA: 1, isoKey: '' }; // hA: mass number of the hydrogens that fill in (¹H, ²H or ³H)
 const MB_EXTRA_MAX = 8; // other elements used lately, kept in the row
@@ -34684,6 +34690,72 @@ function mbAttachDir(T) {
 }
 function mbBondLen(s1, s2, o) { return bondLength(ELEMENTS[SYM2Z[s1]], ELEMENTS[SYM2Z[s2]], o || 1); }
 
+/* ---- the 3-D builder (1.33): in the 3-D lab the workspace is space. Atoms have a depth (a.z); the view is turned by
+   dragging empty space (MB.R: its rows are the screen's right, up and toward-the-viewer directions in the molecule's
+   frame), Shift + drag moves it, the wheel zooms (orthographic: 1 Å is the same length at every depth). New atoms and
+   the hydrogens that fill free valences go where the electron domains point: the atom's bonds held fixed, its free
+   valences and lone pairs (valenceInfo, as the engine counts them) spread over the rest of the sphere by mutual
+   repulsion (one bond and three free: a tetrahedron; a double bond: a plane at 120°; water: bent), and a new atom takes
+   the one most square to the line of sight, so it shows. Tidy and Build settle the shape in 3-D: the engine's own
+   bonds, VSEPR angles and dihedrals (relax3), then FIRE on its full 3-D forces; the molecule keeps its depths (M.z) and
+   goes into the 3-D library (mode '3d'), put down in the chamber as built. */
+const mbZ = (a) => a.z || 0;
+function mbView(x, y, z) { // [right, up, toward the viewer] of a point, from the view's centre
+  const R = MB.R, dx = x - MB.cx, dy = y - MB.cy, dz = z - MB.cz;
+  return [R[0] * dx + R[1] * dy + R[2] * dz, R[3] * dx + R[4] * dy + R[5] * dz, R[6] * dx + R[7] * dy + R[8] * dz];
+}
+function mbFromView(u, v, d) { const R = MB.R; return [MB.cx + R[0] * u + R[3] * v + R[6] * d, MB.cy + R[1] * u + R[4] * v + R[7] * d, MB.cz + R[2] * u + R[5] * v + R[8] * d]; }
+function mbAxis(k) { const R = MB.R; return [R[3 * k], R[3 * k + 1], R[3 * k + 2]]; } // (0 right, 1 up, 2 toward the viewer, in the molecule's frame)
+function mbTurn(ax, ay) { // drag right: turn about the screen's up axis; drag down: about its right axis
+  const R = MB.R, rot = (i, j, t) => { const c = Math.cos(t), s = Math.sin(t); for (let k = 0; k < 3; k++) { const a = R[3 * i + k], b = R[3 * j + k]; R[3 * i + k] = c * a + s * b; R[3 * j + k] = -s * a + c * b; } };
+  rot(0, 2, ax); rot(1, 2, ay);
+  // (kept orthonormal)
+  const n = (i) => { const l = Math.hypot(R[3 * i], R[3 * i + 1], R[3 * i + 2]) || 1; for (let k = 0; k < 3; k++) R[3 * i + k] /= l; };
+  n(0); const d01 = R[0] * R[3] + R[1] * R[4] + R[2] * R[5]; for (let k = 0; k < 3; k++) R[3 + k] -= d01 * R[k]; n(1);
+  R[6] = R[1] * R[5] - R[2] * R[4]; R[7] = R[2] * R[3] - R[0] * R[5]; R[8] = R[0] * R[4] - R[1] * R[3];
+}
+function mbLonePairs(a, extraUsed) { // as the engine counts them: half the valence electrons not in bonds
+  const Z = SYM2Z[a.el], E = ELEMENTS[Z]; if (!E || E.dblock || Z - (a.q || 0) <= 0) return 0;
+  const vi = valenceInfo(Z, Z - (a.q || 0));
+  return Math.max(0, Math.floor((vi.v - mbUsed(a.id) - (extraUsed || 0)) / 2));
+}
+const _mbFib = (() => { const o = [], n = 64, g = Math.PI * (3 - Math.sqrt(5)); for (let i = 0; i < n; i++) { const y = 1 - 2 * (i + 0.5) / n, r = Math.sqrt(1 - y * y); o.push([r * Math.cos(g * i), y, r * Math.sin(g * i)]); } return o; })();
+/* k free directions round atom a: its bonds fixed, its lone pairs (lp) spread with them, by repulsion on the sphere.
+   Returns the k directions (unit vectors) for atoms, most square to the line of sight first. */
+function mbDirs3(a, k, lp) {
+  if (k <= 0) return [];
+  const fixed = mbNbrs(a.id).map(o => { const dx = o.x - a.x, dy = o.y - a.y, dz = mbZ(o) - mbZ(a), l = Math.hypot(dx, dy, dz) || 1; return [dx / l, dy / l, dz / l]; });
+  const m = k + (lp || 0), free = [], vz = mbAxis(2);
+  for (let i = 0; i < m; i++) { // (a start: of 64 directions spread evenly, the one farthest from those taken, nearer the screen's plane on a tie)
+    let best = null, bs = -Infinity;
+    for (const c of _mbFib) {
+      let mn = 4; for (const f of fixed.concat(free)) mn = Math.min(mn, 1 - (c[0] * f[0] + c[1] * f[1] + c[2] * f[2]));
+      const sc = mn - 0.05 * Math.abs(c[0] * vz[0] + c[1] * vz[1] + c[2] * vz[2]); if (sc > bs) { bs = sc; best = c; }
+    }
+    free.push(best.slice());
+  }
+  for (let it = 0; it < 200; it++) for (let i = 0; i < m; i++) {
+    const p = free[i]; let fx = 0, fy = 0, fz = 0;
+    for (const q of fixed.concat(free)) { if (q === p) continue; const dx = p[0] - q[0], dy = p[1] - q[1], dz = p[2] - q[2], r2 = dx * dx + dy * dy + dz * dz + 1e-6, f = 1 / (r2 * Math.sqrt(r2)); fx += f * dx; fy += f * dy; fz += f * dz; }
+    p[0] += 0.08 * fx; p[1] += 0.08 * fy; p[2] += 0.08 * fz; const l = Math.hypot(p[0], p[1], p[2]) || 1; p[0] /= l; p[1] /= l; p[2] /= l;
+  }
+  // the k for atoms: the ones most square to the line of sight (the rest are lone pairs)
+  return free.map(f => [f, Math.abs(f[0] * vz[0] + f[1] * vz[1] + f[2] * vz[2])]).sort((u, v) => u[1] - v[1]).slice(0, k).map(x => x[0]);
+}
+function mbHDirs3(a, k) { return mbDirs3(a, k, mbLonePairs(a, k)); }
+/* Where a new atom bonded to T goes: one of T's free directions; carrying a chain on, the one anti to the atom before. */
+function mbAttachVec3(T) {
+  const nb = mbNbrs(T.id), k = Math.max(1, (MB.fill ? mbImplicitH(T) : mbFree(T)) || 1);
+  if (!nb.length) { const r = mbAxis(0), u = mbAxis(1), c = Math.cos(Math.PI / 6), s = Math.sin(Math.PI / 6); return [c * r[0] + s * u[0], c * r[1] + s * u[1], c * r[2] + s * u[2]]; }
+  const ds = mbDirs3(T, k, mbLonePairs(T, k));
+  if (nb.length === 1) {
+    const P = nb[0], Q = mbNbrs(P.id).find(o => o.id !== T.id);
+    if (Q) { const qx = Q.x - P.x, qy = Q.y - P.y, qz = mbZ(Q) - mbZ(P), l = Math.hypot(qx, qy, qz) || 1, vz = mbAxis(2);
+      let best = ds[0], bs = Infinity; for (const d of ds) { const sc = (d[0] * qx + d[1] * qy + d[2] * qz) / l + 0.6 * Math.abs(d[0] * vz[0] + d[1] * vz[1] + d[2] * vz[2]); if (sc < bs) { bs = sc; best = d; } } return best; }
+  }
+  return ds[0];
+}
+
 /* ---- edits (each one takes an undo snapshot first) */
 function mbSnap() { MB.undo.push(JSON.stringify({ a: MB.atoms, b: MB.bonds, n: MB.next })); if (MB.undo.length > 80) MB.undo.shift(); }
 function mbUndo() {
@@ -34692,22 +34764,38 @@ function mbUndo() {
   mbChanged();
 }
 function mbSay(text, bad) { MB.msg = text; MB.msgBad = !!bad; mbRenderInfo(); }
-function mbNewAtom(sym, x, y) { const a = { id: MB.next++, el: sym, x, y, q: 0 }; MB.atoms.push(a); return a; }
+function mbNewAtom(sym, x, y, z) { const a = { id: MB.next++, el: sym, x, y, q: 0 }; if (MB.d3) a.z = z || 0; MB.atoms.push(a); return a; }
 function mbFreeSpot() { // somewhere clear for an atom that has nowhere particular to go
+  if (MB.d3) { if (!MB.atoms.length) return [MB.cx, MB.cy, MB.cz]; let u1 = -Infinity, v = 0; for (const a of MB.atoms) { const p = mbView(a.x, a.y, mbZ(a)); u1 = Math.max(u1, p[0]); v += p[1]; } return mbFromView(u1 + 2.2, v / MB.atoms.length, 0); }
   if (!MB.atoms.length) return [MB.cx, MB.cy];
   let x1 = -Infinity, y = 0; for (const a of MB.atoms) { x1 = Math.max(x1, a.x); y += a.y; }
   return [x1 + 2.2, y / MB.atoms.length];
 }
 function mbAttach(sym, tid) {
   const T = mbAtom(tid); if (!T) return null;
+  if (MB.d3) { const v = mbAttachVec3(T), L = mbBondLen(T.el, sym), a = mbNewAtom(sym, T.x + L * v[0], T.y + L * v[1], mbZ(T) + L * v[2]); MB.bonds.push({ a: T.id, b: a.id, o: 1 }); return a; }
   const t = mbAttachDir(T), L = mbBondLen(T.el, sym);
   const a = mbNewAtom(sym, T.x + L * Math.cos(t), T.y + L * Math.sin(t));
   MB.bonds.push({ a: T.id, b: a.id, o: 1 });
   return a;
 }
 /* A ring of carbons, standing alone or hung off atom T by a single bond. Benzene gets alternating double bonds. */
-function mbAddRing(n, arom, x, y, tid) {
+function mbAddRing(n, arom, x, y, tid, z) {
   const L = arom ? 1.4 : 1.5, R = L / (2 * Math.sin(Math.PI / n)), T = tid ? mbAtom(tid) : null;
+  if (MB.d3) { // (in space: standing alone, in the screen's plane; hung off T, in the plane of the bond and the screen's right or up)
+    let e1, e2, c;
+    if (T) {
+      e1 = mbAttachVec3(T); const L1 = mbBondLen(T.el, 'C');
+      let w = mbAxis(0); if (Math.abs(w[0] * e1[0] + w[1] * e1[1] + w[2] * e1[2]) > 0.9) w = mbAxis(1);
+      const dw = w[0] * e1[0] + w[1] * e1[1] + w[2] * e1[2]; e2 = [w[0] - dw * e1[0], w[1] - dw * e1[1], w[2] - dw * e1[2]]; const l = Math.hypot(...e2) || 1; e2 = e2.map(v => v / l);
+      c = [T.x + (L1 + R) * e1[0], T.y + (L1 + R) * e1[1], mbZ(T) + (L1 + R) * e1[2]]; e1 = e1.map(v => -v); // (the ring's first atom toward T)
+    } else { c = [x, y, z || 0]; e1 = mbAxis(1); e2 = mbAxis(0); }
+    const ids = [];
+    for (let k = 0; k < n; k++) { const t = 2 * Math.PI * k / n, cs = Math.cos(t), sn = Math.sin(t); ids.push(mbNewAtom('C', c[0] + R * (cs * e1[0] + sn * e2[0]), c[1] + R * (cs * e1[1] + sn * e2[1]), c[2] + R * (cs * e1[2] + sn * e2[2])).id); }
+    for (let k = 0; k < n; k++) MB.bonds.push({ a: ids[k], b: ids[(k + 1) % n], o: arom && k % 2 === 0 ? 2 : 1 });
+    if (T) MB.bonds.push({ a: T.id, b: ids[0], o: 1 });
+    return ids;
+  }
   let cx = x, cy = y, th0 = Math.PI / 2;
   if (T) {
     const t = mbAttachDir(T), L1 = mbBondLen(T.el, 'C');
@@ -34743,11 +34831,12 @@ function mbClear() { if (!MB.atoms.length) return; mbSnap(); MB.atoms = []; MB.b
 /* ---- what the drawing is: formula, problems, and its name if the library knows it */
 function mbAssemble() { // drawn atoms first (same order), then the hydrogens that fill free valences
   const idx = new Map(MB.atoms.map((a, i) => [a.id, i]));
-  const atoms = MB.atoms.map(a => ({ el: a.el, q: a.q, A: mbIsoA(a), x: a.x, y: a.y })), hA = MB.hA > 1 ? MB.hA : 0;
+  const atoms = MB.atoms.map(a => ({ el: a.el, q: a.q, A: mbIsoA(a), x: a.x, y: a.y, z: mbZ(a) })), hA = MB.hA > 1 ? MB.hA : 0;
   const bonds = MB.bonds.map(bd => [idx.get(bd.a), idx.get(bd.b), bd.o]);
   MB.atoms.forEach((a, i) => {
     const k = mbImplicitH(a); if (!k) return;
     const L = mbBondLen(a.el, 'H');
+    if (MB.d3) { for (const v of mbHDirs3(a, k)) { atoms.push({ el: 'H', q: 0, A: hA, x: a.x + L * v[0], y: a.y + L * v[1], z: mbZ(a) + L * v[2] }); bonds.push([i, atoms.length - 1, 1]); } return; }
     for (const t of mbHDirs(a, k)) { atoms.push({ el: 'H', q: 0, A: hA, x: a.x + L * Math.cos(t), y: a.y + L * Math.sin(t) }); bonds.push([i, atoms.length - 1, 1]); }
   });
   return { atoms, bonds, nDrawn: MB.atoms.length };
@@ -35087,6 +35176,7 @@ function mbTidyH(mol, pos) {
 /* Settle mol on the engine: first from the drawing as it is, then (one connected molecule only) from fresh
    layouts, keeping the cleanest, lowest-energy result. */
 function mbRelax(mol, tries, connected) {
+  if (MB.d3 && W.d3) return mbRelax3(mol, tries, connected);
   const keep = {};
   for (const k of MB_KEEP) keep[k] = W[k];
   W.box = { w: 300, h: 300, tw: 300, th: 300, uw: 0, uh: 0 }; W.wall = 'reflect'; W.Ex = 0; W.Ey = 0; W.Bz = 0;
@@ -35115,6 +35205,102 @@ function mbRelax(mol, tries, connected) {
   finally { dropParts(W.parts); for (const k in keep) W[k] = keep[k]; forcesNoEvents(); }
   return { best, err };
 }
+/* ---- settling in 3-D (1.33): springs that untangle (bonds, the angles VSEPR gives each centre as 1–3 distances, a soft
+   shove apart), then the engine's bonded terms in space (relax3), then FIRE on its whole 3-D force field. */
+function mbPreRelax3(mol, ps, iters) {
+  const n = ps.length, nb = Array.from({ length: n }, () => []);
+  for (const [a, b] of mol.bonds) { nb[a].push(b); nb[b].push(a); }
+  const r0 = mol.bonds.map(([a, b]) => { const bd = ps[a].bonds.find(x => x.a === ps[b] || x.b === ps[b]); return bd ? bd.r0 : 1.4; });
+  const r0of = new Map(); mol.bonds.forEach(([a, b], k) => { r0of.set(a * 100000 + b, r0[k]); r0of.set(b * 100000 + a, r0[k]); });
+  const excl = ps.map(() => new Set()), pairs = [];
+  ps.forEach((p, i) => {
+    for (const j of nb[i]) excl[i].add(j);
+    const m = nb[i].length, st = m + (p.lp || 0); if (m < 2 || st > 4 || !p.el || p.el.dblock) return;
+    const th = st === 2 ? Math.PI : st === 3 ? 2 * Math.PI / 3 : Math.acos(-1 / 3);
+    for (let u = 0; u < m; u++) for (let v = u + 1; v < m; v++) { const j = nb[i][u], k = nb[i][v], a = r0of.get(i * 100000 + j), b = r0of.get(i * 100000 + k); pairs.push([j, k, Math.sqrt(a * a + b * b - 2 * a * b * Math.cos(th))]); excl[j].add(k); excl[k].add(j); }
+  });
+  const sz = ps.map(p => (p.Z === 1 ? 1.0 : 1.4));
+  const x = ps.map(p => p.x), y = ps.map(p => p.y), z = ps.map(p => p.z), fx = new Float64Array(n), fy = new Float64Array(n), fz = new Float64Array(n);
+  const spring = (a, b, L, k) => { const dx = x[b] - x[a], dy = y[b] - y[a], dz = z[b] - z[a], r = Math.hypot(dx, dy, dz) || 1e-6, f = k * (r - L) / r; fx[a] += f * dx; fy[a] += f * dy; fz[a] += f * dz; fx[b] -= f * dx; fy[b] -= f * dy; fz[b] -= f * dz; };
+  for (let it = 0; it < iters; it++) {
+    fx.fill(0); fy.fill(0); fz.fill(0);
+    mol.bonds.forEach(([a, b], k) => spring(a, b, r0[k], 30));
+    for (const [j, k, L] of pairs) spring(j, k, L, 8);
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+      if (excl[i].has(j)) continue;
+      const s2 = sz[i] + sz[j], dx = x[j] - x[i], dy = y[j] - y[i], dz = z[j] - z[i], r2 = dx * dx + dy * dy + dz * dz;
+      if (r2 >= s2 * s2) continue;
+      const r = Math.sqrt(r2) || 1e-6, f = 2 * (s2 - r) / r; fx[i] -= f * dx; fy[i] -= f * dy; fz[i] -= f * dz; fx[j] += f * dx; fy[j] += f * dy; fz[j] += f * dz;
+    }
+    const step = it < iters / 2 ? 0.01 : 0.004;
+    for (let i = 0; i < n; i++) { let dx = step * fx[i], dy = step * fy[i], dz = step * fz[i]; const d = Math.hypot(dx, dy, dz); if (d > 0.05) { dx *= 0.05 / d; dy *= 0.05 / d; dz *= 0.05 / d; } x[i] += dx; y[i] += dy; z[i] += dz; }
+  }
+  ps.forEach((p, i) => { p.x = x[i]; p.y = y[i]; p.z = z[i]; });
+}
+function mbFire3(ps, maxIter) { // mbFire with depth
+  let dt = 0.004, alpha = 0.1, npos = 0;
+  for (const p of ps) { p.vx = 0; p.vy = 0; p.vz = 0; }
+  for (let it = 0; it < maxIter; it++) {
+    forcesNoEvents();
+    let P = 0, vn = 0, fn = 0, fmax = 0;
+    for (const p of ps) { P += p.fx * p.vx + p.fy * p.vy + p.fz * p.vz; const f2 = p.fx * p.fx + p.fy * p.fy + p.fz * p.fz; if (f2 > fmax) fmax = f2; vn += p.vx * p.vx + p.vy * p.vy + p.vz * p.vz; fn += f2; }
+    if (Math.sqrt(fmax) < 1e-3) return it;
+    vn = Math.sqrt(vn); fn = Math.sqrt(fn) || 1;
+    if (P > 0) {
+      for (const p of ps) { p.vx = (1 - alpha) * p.vx + alpha * vn * p.fx / fn; p.vy = (1 - alpha) * p.vy + alpha * vn * p.fy / fn; p.vz = (1 - alpha) * p.vz + alpha * vn * p.fz / fn; }
+      if (++npos > 5) { dt = Math.min(dt * 1.1, 0.03); alpha *= 0.99; }
+    } else { for (const p of ps) { p.vx = 0; p.vy = 0; p.vz = 0; } dt *= 0.5; alpha = 0.1; npos = 0; }
+    for (const p of ps) {
+      p.vx += dt * p.fx * p.im; p.vy += dt * p.fy * p.im; p.vz += dt * p.fz * p.im;
+      let dx = dt * p.vx, dy = dt * p.vy, dz = dt * p.vz; const d = Math.hypot(dx, dy, dz);
+      if (d > 0.05) { dx *= 0.05 / d; dy *= 0.05 / d; dz *= 0.05 / d; }
+      p.x += dx; p.y += dy; p.z += dz;
+    }
+  }
+  return maxIter;
+}
+function mbGeomIssues3(ps, mol) { // atoms on top of each other, bonds that did not reach their length (crossing is no problem in space)
+  const out = [];
+  for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
+    const p = ps[i], o = ps[j]; if (p.excl && p.excl.has(o.id)) continue;
+    if (Math.hypot(p.x - o.x, p.y - o.y, p.z - o.z) < 0.12 * ((p.ljR || 2) + (o.ljR || 2))) out.push('overlap');
+  }
+  for (const [a, b] of mol.bonds) {
+    const bd = ps[a].bonds.find(x => x.a === ps[b] || x.b === ps[b]);
+    if (bd && Math.abs(Math.hypot(ps[a].x - ps[b].x, ps[a].y - ps[b].y, ps[a].z - ps[b].z) - bd.r0) > 0.15 * bd.r0) out.push('stretch');
+  }
+  return out;
+}
+function mbRelax3(mol, tries, connected) {
+  const keep = {};
+  for (const k of MB_KEEP) keep[k] = W[k];
+  W.box = { w: 300, h: 300, d: 300, tw: 300, th: 300, td: 300, uw: 0, uh: 0, ud: 0 }; W.wall = 'reflect'; W.Ex = 0; W.Ey = 0; W.Bz = 0;
+  W.magnets = []; W.tool = null; W.grab = null; W.T = 0; W.gamma = 0; W.evq = [];
+  const flat = mol.atoms.every(a => Math.abs(a.z || 0) < 1e-6); // (drawn flat, or from a flat library molecule: nudged out of the plane so it can pucker)
+  let best = null, err = null;
+  try {
+    for (let v = 0; v < tries; v++) {
+      W.parts = []; W.bonds = [];
+      const R = mbRng(11 + v * 7919), j = v ? 0.5 : 0.02, jz = v ? 0.5 : flat ? 0.3 : 0.02;
+      const ps = mol.atoms.map(a => addAtom(a.el, a.x + (R() - 0.5) * j, a.y + (R() - 0.5) * j, { charge: a.q || 0, A: a.A || 0, T: 0, z: (a.z || 0) + (R() - 0.5) * jz }));
+      for (const [a, b, o] of mol.bonds) addBond(ps[a], ps[b], o);
+      for (const p of ps) { p.vx = 0; p.vy = 0; p.vz = 0; }
+      mbPreRelax3(mol, ps, 1500);
+      relax3(ps, 600);
+      mbFire3(ps, 3000);
+      const gi = mbGeomIssues3(ps, mol), E = mbStrain();
+      if (!best || gi.length < best.gi.length || (gi.length === best.gi.length && E < best.E)) {
+        let cx = 0, cy = 0, cz = 0; for (const p of ps) { cx += p.x; cy += p.y; cz += p.z; } cx /= ps.length; cy /= ps.length; cz /= ps.length;
+        best = { gi, E, xy: ps.map(p => [p.x - cx, p.y - cy, p.z - cz]), raw: ps.map(p => [p.x, p.y, p.z]), lm: connected ? libMatch(ps) : null,
+          free: ps.filter(p => p.el && !p.el.dblock && p.cap - p.used > 0).length };
+      }
+      dropParts(ps);
+      if (!gi.length) break;
+    }
+  } catch (e) { err = (e && e.message) || String(e); }
+  finally { dropParts(W.parts); for (const k in keep) W[k] = keep[k]; forcesNoEvents(); }
+  return { best, err };
+}
 /* Tidy: settle the drawing into the shape the engine gives it, keeping it where it was on the workspace. */
 function mbTidy() {
   if (!MB.atoms.length) return;
@@ -35124,11 +35310,11 @@ function mbTidy() {
   const one = info.pieces === 1, { best, err } = mbRelax(info.mol, one ? mbTries(info.n, 5) : 1, one);
   if (err || !best) { mbSay('Could not settle it: ' + (err || 'no shape found'), true); return; }
   mbSnap();
-  let ox = 0, oy = 0, nx = 0, ny = 0;
-  MB.atoms.forEach((a, i) => { ox += a.x; oy += a.y; nx += best.raw[i][0]; ny += best.raw[i][1]; });
+  let ox = 0, oy = 0, nx = 0, ny = 0, oz = 0, nz = 0;
+  MB.atoms.forEach((a, i) => { ox += a.x; oy += a.y; nx += best.raw[i][0]; ny += best.raw[i][1]; if (MB.d3) { oz += mbZ(a); nz += best.raw[i][2]; } });
   const n = MB.atoms.length;
-  MB.atoms.forEach((a, i) => { a.x = best.raw[i][0] - nx / n + ox / n; a.y = best.raw[i][1] - ny / n + oy / n; });
-  MB.msg = best.gi.length ? 'Some bonds still cross: drag atoms apart so that none do.' : '';
+  MB.atoms.forEach((a, i) => { a.x = best.raw[i][0] - nx / n + ox / n; a.y = best.raw[i][1] - ny / n + oy / n; if (MB.d3) a.z = best.raw[i][2] - nz / n + oz / n; });
+  MB.msg = best.gi.length ? (MB.d3 ? 'Some atoms stay crowded or bonds stretched: drag atoms apart and Tidy again.' : 'Some bonds still cross: drag atoms apart so that none do.') : '';
   MB.msgBad = !!best.gi.length;
   mbChanged(true);
 }
@@ -35160,7 +35346,7 @@ function molCatGuess(atoms, bonds) {
 function myMolAdd(m) {
   const cat = molCatOk(m.c) ? m.c : 'custom';
   if (cat === 'custom' && !MOLECULE_CATS.some(c => c[0] === 'custom')) MOLECULE_CATS.unshift(['custom', 'My molecules']);
-  MOLECULES[m.k] = { key: m.k, name: m.n, cat, mine: true, radical: !!m.r, atoms: m.a, bonds: m.b, desc: m.d || '', mode: m.m === '2d' || m.m === '3d' ? m.m : undefined, // (mode: the library it was made for, 1.23.2; none: both)
+  MOLECULES[m.k] = { key: m.k, name: m.n, cat, mine: true, radical: !!m.r, atoms: m.a, bonds: m.b, desc: m.d || '', z: Array.isArray(m.z) && m.z.length === m.a.length ? m.z : undefined, /* (z: the depths of one built in 3-D, 1.33) */ mode: m.m === '2d' || m.m === '3d' ? m.m : undefined, // (mode: the library it was made for, 1.23.2; none: both)
     note: (m.d || 'Built in the molecule builder.') + (m.r ? ' It has a free valence (a radical), so it will react.' : '') };
   _molThumb.delete(m.k); _molPlain.delete(m.k); _molR.delete(m.k);
   _libIdx = null; // names in the chamber now know it too
@@ -35183,12 +35369,13 @@ function myMolsSave() {
 }
 /* The user's molecules as kept and exported: c is the category when not My molecules. */
 function myMolsList() {
-  return Object.values(MOLECULES).filter(m => m.mine).map(m => { const o = { k: m.key, n: m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds }; if (m.desc) o.d = m.desc; if (m.cat !== 'custom') o.c = m.cat; if (m.mode) o.m = m.mode; return o; }); // (m: made for the 2-D or the 3-D library, 1.23.2)
+  return Object.values(MOLECULES).filter(m => m.mine).map(m => { const o = { k: m.key, n: m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds }; if (m.desc) o.d = m.desc; if (m.cat !== 'custom') o.c = m.cat; if (m.mode) o.m = m.mode; if (m.z) o.z = m.z; return o; }); // (m: made for the 2-D or the 3-D library, 1.23.2)
 }
 function myMolValid(m) {
   if (!m || typeof m.k !== 'string' || !/^my[0-9a-z]+$/.test(m.k) || typeof m.n !== 'string' || !Array.isArray(m.a) || !Array.isArray(m.b)) return false;
   if (m.c !== undefined && typeof m.c !== 'string') return false;
   if (m.m !== undefined && m.m !== '2d' && m.m !== '3d') return false; // (1.23.2: the mode it was made for)
+  if (m.z !== undefined && !(Array.isArray(m.z) && m.z.length === m.a.length && m.z.every(Number.isFinite))) return false; // (1.33: depths)
   if (!m.a.length || m.a.length > MYMOL_MAX || MOLECULES[m.k] || (m.d !== undefined && typeof m.d !== 'string')) return false;
   for (const a of m.a) {
     if (!Array.isArray(a) || !SYM2Z[a[0]] || !Number.isFinite(a[1]) || !Number.isFinite(a[2])) return false;
@@ -35210,7 +35397,7 @@ function myMolsLoad() {
     if (!myMolValid(m)) continue;
     let c = m.c;
     if (c === undefined && /^(Designed by Claude|Identified)/.test(m.d || '')) { c = molCatGuess(m.a, m.b); moved++; } // (saved before V40 into My molecules: Claude's go to their category)
-    myMolAdd({ k: m.k, n: m.n.slice(0, 40), r: m.r, a: m.a, b: m.b, d: (m.d || '').slice(0, 500), c, m: m.m }); // (kept before 1.23.2: no m, in both libraries)
+    myMolAdd({ k: m.k, n: m.n.slice(0, 40), r: m.r, a: m.a, b: m.b, d: (m.d || '').slice(0, 500), c, m: m.m, z: m.z }); // (kept before 1.23.2: no m, in both libraries)
   }
   if (moved) myMolsSave();
 }
@@ -35235,7 +35422,7 @@ function mbLoadMol(k, edit) {
   MB.atoms = []; MB.bonds = []; MB.sel = null;
   const ids = A.map((a, i) => {
     if (fill && strip[i]) return 0;
-    const at = { id: MB.next++, el: a[0], x: a[1], y: a[2], q: a[3] || 0 }; if (a[4]) at.A = a[4];
+    const at = { id: MB.next++, el: a[0], x: a[1], y: a[2], q: a[3] || 0 }; if (a[4]) at.A = a[4]; if (MB.d3) at.z = m.z ? m.z[i] : 0; // (1.33: its depth, if built in space)
     MB.atoms.push(at); return at.id;
   });
   for (const [i, j, o] of B) if (ids[i] && ids[j]) MB.bonds.push({ a: ids[i], b: ids[j], o });
@@ -35262,7 +35449,7 @@ function mbCatPicked() { const v = $('bldCat') ? $('bldCat').value : ''; return 
 function mbSyncEdit() {
   const m = MB.edit && MOLECULES[MB.edit];
   if (!m) MB.edit = null;
-  $('bldTitle').textContent = m ? `Editing ${m.name}` : 'Molecule builder';
+  $('bldTitle').textContent = (m ? `Editing ${m.name}` : 'Molecule builder') + (MB.d3 ? ' (3-D)' : '');
   $('bldGo').textContent = m ? 'Save' : 'Build & use';
   $('bldGo').title = m ? `Settle it into shape and save it as ${m.name}, in place` : 'Settle it into shape and pick it for the Place tool';
   $('bldGoNew').hidden = !m;
@@ -35277,7 +35464,7 @@ function mbBuild(asNew) {
   const name = String($('bldName').value || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 40);
   if (MB.edit && !MB.asNew && MB.loadSig && MB.loadSig === mbSig() && MOLECULES[MB.edit]) { // only its name or category changed: no need to settle it again
     const m = MOLECULES[MB.edit], cat = mbCatPicked();
-    myMolAdd({ k: m.key, n: name || m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds, d: m.desc, c: cat === 'custom' ? undefined : cat || (m.cat !== 'custom' ? m.cat : undefined) });
+    myMolAdd({ k: m.key, n: name || m.name, r: m.radical ? 1 : 0, a: m.atoms, b: m.bonds, z: m.z, m: m.mode, d: m.desc, c: cat === 'custom' ? undefined : cat || (m.cat !== 'custom' ? m.cat : undefined) });
     myMolsSave();
     log('tool', `Builder: ${MOLECULES[m.key].name} saved in ${molWhere(MOLECULES[m.key])}`);
     MB.edit = null; MB.loadSig = null; mbSyncEdit();
@@ -35299,6 +35486,7 @@ function mbBuild(asNew) {
 function mbBuildRun(info, name) {
   const { best, err } = mbRelax(info.mol, mbTries(info.n, 6), true);
   if (err || !best) { mbSay('Could not settle it: ' + (err || 'no shape found'), true); return; }
+  if (best.gi.length && MB.d3) { mbSay(best.gi.every(g => g === 'stretch') ? 'Some bonds stay stretched however it is arranged: it is too strained (crowded, fused rings do this). Try dragging atoms into a different arrangement and Tidy.' : 'Some atoms end up on top of each other. Drag them apart (turn the view to see), Tidy, and try again.', true); return; }
   if (best.gi.length) {
     mbSay(best.gi.every(g => g === 'stretch') ? 'Some bonds stay stretched however it is laid out: it is too strained to lie flat in a 2-D world (crowded, fused rings do this). Try dragging atoms into a different arrangement and Tidy.'
       : 'It will not lie flat without bonds crossing or atoms overlapping. Drag atoms apart so no bonds cross (Tidy helps), then try again.', true);
@@ -35308,8 +35496,9 @@ function mbBuildRun(info, name) {
   const k = old ? old.key : 'my' + Date.now().toString(36) + (MB.seq++).toString(36);
   const atoms = info.mol.atoms.map((a, i) => { const r = [a.el, +best.xy[i][0].toFixed(2), +best.xy[i][1].toFixed(2)]; if (a.q || a.A) r.push(a.q || 0); if (a.A) r.push(a.A); return r; });
   const byClaude = MB.aiSig && MB.aiSig === mbSig(), catPick = mbCatPicked(); // (byClaude: still as Claude designed it: keep its note)
-  myMolAdd({ k, n: name || (old && old.name) || info.name || info.formula, r: best.free ? 1 : 0, a: atoms, b: info.mol.bonds.map(b => b.slice()),
-    m: old ? old.mode : byClaude ? aiModeFor() : undefined, // (Claude's design: the library chosen beside Ask Claude, 1.23.2)
+  const z3 = MB.d3 ? best.xy.map(p => +p[2].toFixed(2)) : undefined; // (built in space: its depths, and the 3-D library, 1.33)
+  myMolAdd({ k, n: name || (old && old.name) || info.name || info.formula, r: best.free ? 1 : 0, a: atoms, b: info.mol.bonds.map(b => b.slice()), z: z3,
+    m: z3 ? '3d' : old ? old.mode : byClaude ? aiModeFor() : undefined, // (Claude's design: the library chosen beside Ask Claude, 1.23.2)
     d: old ? old.desc : byClaude ? 'Designed by Claude.' + (MB.aiNote ? ' ' + MB.aiNote : '') : '', c: catPick === 'custom' ? undefined : catPick || (old ? (old.cat !== 'custom' ? old.cat : undefined) : byClaude ? (molCatOk(MB.aiCat) ? MB.aiCat : molCatGuess(atoms, info.mol.bonds)) : undefined) }); // (Claude's design: filed under its category)
   myMolsSave();
   if (old) log('tool', `Builder: ${MOLECULES[k].name} saved; copies already in the chamber are as they were`);
@@ -35320,17 +35509,26 @@ function mbBuildRun(info, name) {
 
 /* ---- view: Å on the workspace, y up */
 function mbS0() { return clamp(Math.min(MB.w, MB.h) / 8.5, 28, 46); }
-function mbScr(x, y) { return [MB.w / 2 + (x - MB.cx) * MB.s, MB.h / 2 - (y - MB.cy) * MB.s]; }
-function mbWorld(sx, sy) { return [MB.cx + (sx - MB.w / 2) / MB.s, MB.cy - (sy - MB.h / 2) / MB.s]; }
+function mbScr(x, y, z) {
+  if (MB.d3) { const p = mbView(x, y, z || 0); return [MB.w / 2 + p[0] * MB.s, MB.h / 2 - p[1] * MB.s, p[2]]; } // (3-D: and its depth, toward the viewer)
+  return [MB.w / 2 + (x - MB.cx) * MB.s, MB.h / 2 - (y - MB.cy) * MB.s];
+}
+function mbWorld(sx, sy, d) { // (3-D: on the plane square to the line of sight at depth d from the view's centre)
+  if (MB.d3) return mbFromView((sx - MB.w / 2) / MB.s, -(sy - MB.h / 2) / MB.s, d || 0);
+  return [MB.cx + (sx - MB.w / 2) / MB.s, MB.cy - (sy - MB.h / 2) / MB.s];
+}
+const mbScrA = (a) => mbScr(a.x, a.y, mbZ(a));
+function mbDepthK(d) { return MB.d3 ? clamp(1 + 0.035 * d, 0.72, 1.28) : 1; } // (3-D: nearer atoms a little bigger)
 function mbRad(a) { return a.el === 'H' ? clamp(MB.s * 0.27, Math.min(9, MB.s * 0.35), 13) : clamp(MB.s * 0.38, Math.min(12, MB.s * 0.5), 18); } // (smaller when zoomed out on a big molecule)
 function mbInside(x, y) { return x >= 0 && y >= 0 && x <= MB.w && y <= MB.h; }
 function mbBin() { return [MB.w - 30, MB.h - 30, 21]; }
 function mbOverBin(x, y) { const [bx, by, br] = mbBin(); return Math.hypot(x - bx, y - by) <= br + 6; }
 function mbHitAtom(x, y, skip) {
-  let best = null, bd = Infinity;
+  let best = null, bd = Infinity, bz = -Infinity;
   for (const a of MB.atoms) {
     if (a.id === skip) continue;
-    const [sx, sy] = mbScr(a.x, a.y), d = Math.hypot(sx - x, sy - y);
+    const [sx, sy, sz] = mbScrA(a), d = Math.hypot(sx - x, sy - y);
+    if (MB.d3) { if (d <= mbRad(a) * mbDepthK(sz) + 5 && sz > bz) { bz = sz; best = a; } continue; } // (3-D: the nearest one under the pointer)
     if (d <= mbRad(a) + 7 && d < bd) { bd = d; best = a; }
   }
   return best;
@@ -35339,7 +35537,7 @@ function mbHitBond(x, y) {
   let best = null, bd = 8;
   for (const b of MB.bonds) {
     const A = mbAtom(b.a), B = mbAtom(b.b); if (!A || !B) continue;
-    const [ax, ay] = mbScr(A.x, A.y), [bx, by] = mbScr(B.x, B.y), dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
+    const [ax, ay] = mbScrA(A), [bx, by] = mbScrA(B), dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
     const t = ((x - ax) * dx + (y - ay) * dy) / L2;
     if (t < 0 || t > 1) continue;
     const d = Math.hypot(ax + t * dx - x, ay + t * dy - y), L = Math.sqrt(L2);
@@ -35350,7 +35548,15 @@ function mbHitBond(x, y) {
 }
 function mbFit(force) {
   const S0 = mbS0();
-  if (!MB.atoms.length) { if (force) { MB.cx = 0; MB.cy = 0; MB.s = S0; } return; }
+  if (!MB.atoms.length) { if (force) { MB.cx = 0; MB.cy = 0; MB.cz = 0; MB.s = S0; } return; }
+  if (MB.d3) { // (3-D: round the centroid, by the extent across the screen)
+    const pad = 24, inView = () => MB.atoms.every(a => { const [sx, sy] = mbScrA(a); return sx >= pad && sx <= MB.w - pad && sy >= pad && sy <= MB.h - pad; });
+    if (!force && inView()) return;
+    let cx = 0, cy = 0, cz = 0; for (const a of MB.atoms) { cx += a.x; cy += a.y; cz += mbZ(a); } const n = MB.atoms.length; MB.cx = cx / n; MB.cy = cy / n; MB.cz = cz / n;
+    let u = 0.5, v = 0.5; for (const a of MB.atoms) { const p = mbView(a.x, a.y, mbZ(a)), m = mbImplicitH(a) ? 1.3 : 0.6; u = Math.max(u, Math.abs(p[0]) + m); v = Math.max(v, Math.abs(p[1]) + m); }
+    MB.s = clamp(Math.min(S0, (MB.w - 2 * pad) / (2 * u), (MB.h - 2 * pad - 30) / (2 * v)), 5, S0);
+    return;
+  }
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const a of MB.atoms) {
     const m = mbImplicitH(a) ? 1.2 : 0.5;
@@ -35407,6 +35613,72 @@ function mbSetIso(A) {
   MB.msg = ''; mbChanged();
 }
 function mbInk(hex) { const [r, g, b] = hexc(hex); return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#0c151e' : '#ffffff'; }
+/* One atom as drawn on the workspace: its ball and symbol, selection and hover rings, free valences, isotope, charge. */
+function mbGlyph(ctx, a, x, y, r, bad, d) {
+  const col = ELEMENTS[SYM2Z[a.el]].color;
+  const dragging = d && d.kind === 'atom' && d.id === a.id && d.moved, doomed = dragging && (d.out || d.bin);
+  shadeBall(ctx, x, y, r, col, doomed ? 0.35 : 1);
+  ctx.fillStyle = mbInk(col); ctx.globalAlpha = doomed ? 0.4 : 1;
+  ctx.font = `750 ${Math.round(r * (a.el.length > 1 ? 0.85 : 1.0))}px ${CH_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (r >= 7) ctx.fillText(a.el, x, y + 0.5);
+  ctx.globalAlpha = 1;
+  const ring = (rr, c, w, dash) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []); ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); };
+  if (bad.has(a.id)) ring(r + 3.5, '#ff8a4c', 2, [4, 3]);
+  if (MB.sel === a.id) ring(r + 4, '#6f9cff', 2.5);
+  if (MB.hover === a.id || (d && d.over === a.id)) ring(r + 6, '#ffd36e', 3);
+  if (doomed) ring(r + 3, 'rgba(229,72,77,0.9)', 2);
+  const fv = mbFree(a);
+  if (fv && MB.d3) { ctx.fillStyle = '#ffd36e'; const ux = mbAxis(0), uy = mbAxis(1); for (const v of mbDirs3(a, fv, mbLonePairs(a, fv))) { const px = v[0] * ux[0] + v[1] * ux[1] + v[2] * ux[2], py = v[0] * uy[0] + v[1] * uy[1] + v[2] * uy[2]; ctx.beginPath(); ctx.arc(x + (r + 6) * px, y - (r + 6) * py, 2.6, 0, Math.PI * 2); ctx.fill(); } }
+  else if (fv) { ctx.fillStyle = '#ffd36e'; for (const t of mbHDirs(a, fv)) { ctx.beginPath(); ctx.arc(x + (r + 6) * Math.cos(t), y - (r + 6) * Math.sin(t), 2.6, 0, Math.PI * 2); ctx.fill(); } }
+  if (mbIsoA(a)) { // the mass number, top left, as in ¹³C
+    ctx.fillStyle = '#ffd36e'; ctx.font = `800 10px ${CH_FONT}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(a.A), x - r * 0.62, y - r * 0.92);
+  }
+  if (a.q) {
+    const t = (Math.abs(a.q) > 1 ? Math.abs(a.q) : '') + (a.q > 0 ? '+' : '−'), bx = x + r * 0.78, by = y - r * 0.78;
+    ctx.fillStyle = a.q > 0 ? 'rgba(255,90,78,0.95)' : 'rgba(77,141,255,0.95)';
+    ctx.beginPath(); ctx.arc(bx, by, 7.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = `800 10px ${CH_FONT}`; ctx.fillText(t, bx, by + 0.5);
+  }
+}
+/* The 3-D workspace (1.33): bonds, atoms and the hydrogens that will fill free valences, far ones first; nearer atoms a
+   little bigger, far ones dimmer; the molecule's axes in the corner (x red, y green, z blue). */
+function mbDraw3(ctx, bad, d) {
+  const s = MB.s, items = [];
+  for (const a of MB.atoms) {
+    const [x, y, z] = mbScrA(a); items.push({ t: 0, a, x, y, z });
+    const k = MB.fill ? mbImplicitH(a) : 0; if (!k) continue;
+    const L = mbBondLen(a.el, 'H');
+    for (const v of mbHDirs3(a, k)) { const [hx, hy, hz] = mbScr(a.x + L * v[0], a.y + L * v[1], mbZ(a) + L * v[2]); items.push({ t: 1, x0: x, y0: y, x: hx, y: hy, z: hz }); }
+  }
+  for (const b of MB.bonds) { const A = mbAtom(b.a), B = mbAtom(b.b); if (!A || !B) continue; const pa = mbScrA(A), pb = mbScrA(B); items.push({ t: 2, b, pa, pb, z: (pa[2] + pb[2]) / 2 - 0.01 }); }
+  items.sort((u, v) => u.z - v.z);
+  const fade = (z) => clamp(0.78 + 0.06 * z, 0.4, 1);
+  for (const it of items) {
+    ctx.globalAlpha = fade(it.z);
+    if (it.t === 0) { const r = mbRad(it.a) * mbDepthK(it.z); mbGlyph(ctx, it.a, it.x, it.y, r, bad, d); }
+    else if (it.t === 1) {
+      const rh = clamp(s * 0.22, Math.min(7, s * 0.3), 11) * mbDepthK(it.z);
+      ctx.strokeStyle = 'rgba(138,157,177,0.45)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(it.x0, it.y0); ctx.lineTo(it.x, it.y); ctx.stroke();
+      shadeBall(ctx, it.x, it.y, rh, '#FFFFFF', 0.4);
+    } else {
+      const b = it.b, [ax, ay] = it.pa, [bx, by] = it.pb, L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L, ny = (bx - ax) / L, off = clamp(s * 0.1, Math.min(3, s * 0.15), 5);
+      const doomed = d && d.kind === 'bond' && d.bond === b && d.moved && (d.out || d.bin);
+      ctx.strokeStyle = doomed ? 'rgba(229,72,77,0.9)' : d && d.kind === 'bond' && d.bond === b ? '#c5d3e0' : '#8a9db1';
+      ctx.lineWidth = 2.6 * mbDepthK(it.z); ctx.lineCap = 'round';
+      for (let t = 0; t < b.o; t++) { const o = (t - (b.o - 1) / 2) * off * 2; ctx.beginPath(); ctx.moveTo(ax + nx * o, ay + ny * o); ctx.lineTo(bx + nx * o, by + ny * o); ctx.stroke(); }
+    }
+  }
+  ctx.globalAlpha = 1;
+  // the axes, and how to turn it
+  const ox = 34, oy = 34, al = 18, ux = mbAxis(0), uy = mbAxis(1);
+  [['x', '#ff6b5e', 0], ['y', '#5fd38a', 1], ['z', '#6f9cff', 2]].map(([n, c, k]) => { const e = [0, 0, 0]; e[k] = 1; return [n, c, e[0] * ux[0] + e[1] * ux[1] + e[2] * ux[2], e[0] * uy[0] + e[1] * uy[1] + e[2] * uy[2], e[0] * MB.R[6] + e[1] * MB.R[7] + e[2] * MB.R[8]]; })
+    .sort((p, q) => p[4] - q[4]).forEach(([n, c, px, py]) => {
+      ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + al * px, oy - al * py); ctx.stroke();
+      ctx.fillStyle = c; ctx.font = `700 10px ${CH_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(n, ox + (al + 7) * px, oy - (al + 7) * py);
+    });
+  if (MB.atoms.length) { ctx.fillStyle = 'rgba(147,166,184,0.85)'; ctx.font = `500 11px ${CH_FONT}`; ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillText('3-D · drag empty space to turn · Shift+drag to move · wheel to zoom', MB.w - 10, 8); }
+}
 function mbDraw() {
   const cv = $('bldCv');
   if (!MB.ready || $('bldModal').hidden) return;
@@ -35415,7 +35687,7 @@ function mbDraw() {
   ctx.setTransform(MB.dpr, 0, 0, MB.dpr, 0, 0);
   ctx.fillStyle = '#05090e'; ctx.fillRect(0, 0, W2, H2);
   // ångström grid: faint dots, one per Å
-  if (s >= 14) {
+  if (s >= 14 && !MB.d3) {
     ctx.fillStyle = 'rgba(150,182,214,0.13)';
     const [ax, ay] = mbWorld(0, 0), [bx, by] = mbWorld(W2, H2);
     for (let gx = Math.ceil(ax); gx <= bx; gx++) for (let gy = Math.ceil(by); gy <= ay; gy++) { const [px, py] = mbScr(gx, gy); ctx.fillRect(px - 1, py - 1, 2, 2); }
@@ -35426,6 +35698,7 @@ function mbDraw() {
   ctx.fillStyle = 'rgba(147,166,184,0.9)'; ctx.font = `600 11px ${CH_FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillText('1 Å', 18 + s, H2 - 14);
   const bad = new Set(((MB.info && MB.info.issues) || []).filter(i => i.id).map(i => i.id));
+  if (MB.d3) mbDraw3(ctx, bad, d); else {
   // hydrogens that will fill free valences, drawn faintly
   if (MB.fill) for (const a of MB.atoms) {
     const k = mbImplicitH(a); if (!k) continue;
@@ -35453,30 +35726,9 @@ function mbDraw() {
   }
   // atoms
   for (const a of MB.atoms) {
-    const [x, y] = mbScr(a.x, a.y), r = mbRad(a), col = ELEMENTS[SYM2Z[a.el]].color;
-    const dragging = d && d.kind === 'atom' && d.id === a.id && d.moved, doomed = dragging && (d.out || d.bin);
-    shadeBall(ctx, x, y, r, col, doomed ? 0.35 : 1);
-    ctx.fillStyle = mbInk(col); ctx.globalAlpha = doomed ? 0.4 : 1;
-    ctx.font = `750 ${Math.round(r * (a.el.length > 1 ? 0.85 : 1.0))}px ${CH_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if (r >= 7) ctx.fillText(a.el, x, y + 0.5);
-    ctx.globalAlpha = 1;
-    const ring = (rr, c, w, dash) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []); ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); };
-    if (bad.has(a.id)) ring(r + 3.5, '#ff8a4c', 2, [4, 3]);
-    if (MB.sel === a.id) ring(r + 4, '#6f9cff', 2.5);
-    if (MB.hover === a.id || (d && d.over === a.id)) ring(r + 6, '#ffd36e', 3);
-    if (doomed) ring(r + 3, 'rgba(229,72,77,0.9)', 2);
-    const fv = mbFree(a);
-    if (fv) { ctx.fillStyle = '#ffd36e'; for (const t of mbHDirs(a, fv)) { ctx.beginPath(); ctx.arc(x + (r + 6) * Math.cos(t), y - (r + 6) * Math.sin(t), 2.6, 0, Math.PI * 2); ctx.fill(); } }
-    if (mbIsoA(a)) { // the mass number, top left, as in ¹³C
-      ctx.fillStyle = '#ffd36e'; ctx.font = `800 10px ${CH_FONT}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(a.A), x - r * 0.62, y - r * 0.92);
-    }
-    if (a.q) {
-      const t = (Math.abs(a.q) > 1 ? Math.abs(a.q) : '') + (a.q > 0 ? '+' : '−'), bx = x + r * 0.78, by = y - r * 0.78;
-      ctx.fillStyle = a.q > 0 ? 'rgba(255,90,78,0.95)' : 'rgba(77,141,255,0.95)';
-      ctx.beginPath(); ctx.arc(bx, by, 7.5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.font = `800 10px ${CH_FONT}`; ctx.fillText(t, bx, by + 0.5);
-    }
+    const [x, y] = mbScr(a.x, a.y), r = mbRad(a);
+    mbGlyph(ctx, a, x, y, r, bad, d);
+  }
   }
   // the bin: drop atoms or bonds on it, or tap it to remove the selected atom (it turns red while one is selected)
   const [bx, by, br] = mbBin(), hot = d && (d.kind === 'atom' || d.kind === 'bond') && d.moved && d.bin;
@@ -35496,6 +35748,7 @@ function mbDraw() {
     ctx.font = `650 15px ${CH_FONT}`; ctx.fillText('Drag an atom here from the row above', W2 / 2, H2 / 2 - 12);
     ctx.font = `500 12.5px ${CH_FONT}`; ctx.fillStyle = 'rgba(147,166,184,0.9)';
     ctx.fillText('Drop atoms onto atoms to bond them · tap a bond to make it double or triple', W2 / 2, H2 / 2 + 12);
+    if (MB.d3) ctx.fillText('3-D: drag empty space to turn it round · Shift+drag to move · wheel to zoom', W2 / 2, H2 / 2 + 32);
   }
 }
 
@@ -35520,20 +35773,20 @@ function mbRemember(el) {
   $('bldPal').innerHTML = mbPaletteHTML();
 }
 function mbDropChip(sp, lx, ly) {
-  const T = mbHitAtom(lx, ly), [wx, wy] = mbWorld(lx, ly);
+  const T = mbHitAtom(lx, ly), [wx, wy, wz] = mbWorld(lx, ly);
   if (sp.t === 'el') setTimeout(() => mbRemember(sp.el), 0);
-  if (sp.t === 'el') { mbSnap(); MB.sel = (T ? mbAttach(sp.el, T.id) : mbNewAtom(sp.el, wx, wy)).id; MB.msg = ''; }
+  if (sp.t === 'el') { mbSnap(); MB.sel = (T ? mbAttach(sp.el, T.id) : mbNewAtom(sp.el, wx, wy, wz)).id; MB.msg = ''; }
   else if (sp.t === 'q') { if (!T) { mbSay('A charge goes on an atom: drop it onto one.', true); return; } mbCharge(T.id, sp.d); }
-  else if (sp.t === 'ring') { mbSnap(); const ids = mbAddRing(sp.n, sp.arom, wx, wy, T ? T.id : null); MB.sel = ids[Math.floor(sp.n / 2)]; MB.msg = ''; }
+  else if (sp.t === 'ring') { mbSnap(); const ids = mbAddRing(sp.n, sp.arom, wx, wy, T ? T.id : null, wz); MB.sel = ids[Math.floor(sp.n / 2)]; MB.msg = ''; }
   mbChanged();
 }
 /* A chip tapped (or pressed with the keyboard): it goes onto the selected atom, or somewhere clear. */
 function mbTapChip(sp) {
   const T = MB.sel ? mbAtom(MB.sel) : null;
   if (sp.t === 'el') setTimeout(() => mbRemember(sp.el), 0);
-  if (sp.t === 'el') { mbSnap(); if (T) MB.sel = mbAttach(sp.el, T.id).id; else { const [x, y] = mbFreeSpot(); MB.sel = mbNewAtom(sp.el, x, y).id; } MB.msg = ''; }
+  if (sp.t === 'el') { mbSnap(); if (T) MB.sel = mbAttach(sp.el, T.id).id; else { const [x, y, z] = mbFreeSpot(); MB.sel = mbNewAtom(sp.el, x, y, z).id; } MB.msg = ''; }
   else if (sp.t === 'q') { if (!T) { mbSay('Tap an atom to select it first, or drag the charge onto it.', true); return; } mbCharge(T.id, sp.d); }
-  else if (sp.t === 'ring') { mbSnap(); const [x, y] = mbFreeSpot(); const ids = mbAddRing(sp.n, sp.arom, x, y, T ? T.id : null); MB.sel = ids[Math.floor(sp.n / 2)]; MB.msg = ''; }
+  else if (sp.t === 'ring') { mbSnap(); const [x, y, z] = mbFreeSpot(); const ids = mbAddRing(sp.n, sp.arom, x, y, T ? T.id : null, z); MB.sel = ids[Math.floor(sp.n / 2)]; MB.msg = ''; }
   mbChanged();
 }
 function mbPalDown(e) {
@@ -35583,22 +35836,24 @@ function mbDown(e) {
   const A = mbHitAtom(x, y), B = A ? null : mbHitBond(x, y), onBin = !A && !B && mbOverBin(x, y);
   if (e.preventDefault) e.preventDefault();
   try { cv.focus({ preventScroll: true }); } catch (err) { /* focus is a nicety */ }
-  const d = MB.drag = { kind: A ? 'atom' : B ? 'bond' : onBin ? 'bin' : 'pan', id: A ? A.id : null, bond: B, ox: A ? A.x : 0, oy: A ? A.y : 0,
-    px: x, py: y, over: null, out: false, bin: false, moved: false, snapped: false };
+  const d = MB.drag = { kind: A ? 'atom' : B ? 'bond' : onBin ? 'bin' : MB.d3 && !e.shiftKey ? 'turn' : 'pan', id: A ? A.id : null, bond: B, ox: A ? A.x : 0, oy: A ? A.y : 0, oz: A ? mbZ(A) : 0,
+    od: A && MB.d3 ? mbView(A.x, A.y, mbZ(A))[2] : 0, px: x, py: y, over: null, out: false, bin: false, moved: false, snapped: false }; // (3-D: empty space turns the view, Shift moves it; an atom is dragged at its depth)
   if (onBin) mbDraw(); // shows it pressed
   trackPointer(cv, e, {
     move(ev) {
       const [lx, ly] = localXY(cv, ev);
       d.moved = true; d.out = !mbInside(lx, ly); d.bin = !d.out && mbOverBin(lx, ly);
-      if (d.kind === 'bin') d.kind = 'pan'; // pressed on the bin and dragged: just moving the view
+      if (d.kind === 'bin') d.kind = MB.d3 ? 'turn' : 'pan'; // pressed on the bin and dragged: just moving the view
       if (d.kind === 'atom') {
         const a = mbAtom(d.id); if (!a) return;
         if (!d.snapped) { mbSnap(); d.snapped = true; }
         const T = d.out || d.bin ? null : mbHitAtom(lx, ly, a.id); d.over = T ? T.id : null;
-        if (!d.out) { const [wx, wy] = mbWorld(clamp(lx, 0, MB.w), clamp(ly, 0, MB.h)); a.x = wx; a.y = wy; }
+        if (!d.out) { const [wx, wy, wz] = mbWorld(clamp(lx, 0, MB.w), clamp(ly, 0, MB.h), d.od); a.x = wx; a.y = wy; if (MB.d3) a.z = wz; }
+      } else if (d.kind === 'pan' && MB.d3) {
+        const [x0, y0, z0] = mbFromView(-(lx - d.px) / MB.s, (ly - d.py) / MB.s, 0); MB.cx = x0; MB.cy = y0; MB.cz = z0; d.px = lx; d.py = ly;
       } else if (d.kind === 'pan') {
         MB.cx -= (lx - d.px) / MB.s; MB.cy += (ly - d.py) / MB.s; d.px = lx; d.py = ly;
-      }
+      } else if (d.kind === 'turn') { mbTurn((lx - d.px) * 0.01, (ly - d.py) * 0.01); d.px = lx; d.py = ly; }
       mbDraw();
     },
     up(ev, moved) {
@@ -35615,8 +35870,9 @@ function mbDown(e) {
         if (a && (d.out || d.bin)) { mbDelete(a.id); MB.msg = ''; }
         else if (a && d.over) {
           const T = mbAtom(d.over), lone = !mbNbrs(a.id).length;
-          if (lone) { const t = mbAttachDir(T), L = mbBondLen(T.el, a.el); a.x = T.x + L * Math.cos(t); a.y = T.y + L * Math.sin(t); }
-          else { a.x = d.ox; a.y = d.oy; }
+          if (lone && MB.d3) { const v = mbAttachVec3(T), L = mbBondLen(T.el, a.el); a.x = T.x + L * v[0]; a.y = T.y + L * v[1]; a.z = mbZ(T) + L * v[2]; }
+          else if (lone) { const t = mbAttachDir(T), L = mbBondLen(T.el, a.el); a.x = T.x + L * Math.cos(t); a.y = T.y + L * Math.sin(t); }
+          else { a.x = d.ox; a.y = d.oy; if (MB.d3) a.z = d.oz; }
           if (!mbJoin(a.id, T.id)) mbSay('That bond is already triple: tap it to go back to single.', true); else MB.msg = '';
         }
       } else if (d.kind === 'bond' && (d.out || d.bin)) { mbSnap(); MB.bonds = MB.bonds.filter(b => b !== d.bond); MB.msg = ''; }
@@ -35624,7 +35880,7 @@ function mbDown(e) {
     },
     cancel() {
       const a = d.kind === 'atom' ? mbAtom(d.id) : null;
-      if (a) { a.x = d.ox; a.y = d.oy; if (d.snapped) MB.undo.pop(); }
+      if (a) { a.x = d.ox; a.y = d.oy; if (MB.d3) a.z = d.oz; if (d.snapped) MB.undo.pop(); }
       MB.drag = null; mbDraw();
     },
   });
@@ -35676,6 +35932,7 @@ function mbResize(force) {
 }
 function openMolBuilder() {
   hideModal('molModal');
+  if (MB.d3 !== !!W.d3) { MB.d3 = !!W.d3; MB.R = [1, 0, 0, 0, 1, 0, 0, 0, 1]; MB.cz = 0; if (MB.d3) mbTurn(0.5, -0.35); } // (the 3-D lab: a workspace in space, turned a little so depth shows, 1.33)
   MB.edit = null; MB.loadSig = null; mbSyncEdit(); mbCatFill('');
   if (!MB.palOK) { $('bldPal').innerHTML = mbPaletteHTML(); MB.palOK = true; }
   $('bldFill').checked = MB.fill; $('bldHA').value = String(MB.hA);
@@ -35904,6 +36161,12 @@ function builderInit() {
   $('bldPal').onpointerdown = mbPalDown;
   $('bldPal').onclick = mbPalClick;
   $('bldCv').onpointerdown = mbDown;
+  $('bldCv').addEventListener('wheel', (e) => { // (zoom, toward the pointer, 1.33)
+    e.preventDefault(); const cv = $('bldCv'), [lx, ly] = localXY(cv, e), f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015));
+    const before = mbWorld(lx, ly), s1 = clamp(MB.s * f, 5, 120); if (s1 === MB.s) return; MB.s = s1;
+    const after = mbWorld(lx, ly); MB.cx += before[0] - after[0]; MB.cy += before[1] - after[1]; if (MB.d3) MB.cz += before[2] - after[2];
+    mbDraw();
+  }, { passive: false });
   $('bldUndo').onclick = () => mbUndo();
   $('bldClear').onclick = () => mbClear();
   $('bldTidy').onclick = () => mbTidy();
@@ -36353,11 +36616,20 @@ function aiAddLattice(L, name, note, cat) {
   myMolsSave();
   aiPick(k, note);
 }
+/* (1.33, the owner: "sometimes the molecule builder just closes when you ask Claude something and it doesn't build
+   anything or give an answer": a design for the other mode's library (the 2-D / 3-D choice beside Ask Claude, or a
+   lattice too big for 3-D) closed the builder and said so only in the log. Now the builder stays open and says it; one
+   that can be placed closes it with a note on the chamber, not only in the log.) */
 function aiPick(key, note) {
+  const M = MOLECULES[key];
+  if (!molFits(M, W.d3)) { // (made for the other mode, 1.23.2)
+    const t = `${M.name} is in the ${W.d3 ? '2-D' : '3-D'} library: it is placed from ${W.d3 ? 'the 2-D game' : 'the 3-D lab'} (main menu).`;
+    log('tool', t); aiSay(t + (aiModeFor() !== (W.d3 ? '3d' : '2d') ? ` (The choice beside Ask Claude is set to ${W.d3 ? '2-D' : '3-D'}.)` : ''), true); return;
+  }
   hideModal('bldModal'); hideModal('molModal');
-  if (!molFits(MOLECULES[key], W.d3)) { log('tool', `${MOLECULES[key].name} is in the ${W.d3 ? '2-D' : '3-D'} library: it is placed from ${W.d3 ? 'the 2-D game' : 'the 3-D lab'} (main menu)`); return; } // (made for the other mode, 1.23.2)
   selectSpec({ kind: 'mol', mol: key });
-  log('tool', `${MOLECULES[key].name} is ready to place (${MOLECULES[key].atoms.length} atoms)${note ? '. ' + note : ''}`);
+  log('tool', `${M.name} is ready to place (${M.atoms.length} atoms)${note ? '. ' + note : ''}`);
+  if (typeof toolNote === 'function') toolNote(`${M.name} is ready: click in the chamber to place it.`);
 }
 function aiSay(text, bad) {
   const m = $('aiMsg'); if (!m) return;
@@ -39990,7 +40262,7 @@ function libraryFromJSON(d) {
   let nm = 0, ni = 0;
   if (Array.isArray(d.mymols)) for (const m of d.mymols) {
     if (!myMolValid(m) || Object.values(MOLECULES).some(x => x.name.toLowerCase() === String(m.n).toLowerCase())) continue;
-    myMolAdd({ k: m.k, n: String(m.n).slice(0, 40), r: m.r, a: m.a, b: m.b, d: String(m.d || '').slice(0, 500), c: m.c, m: m.m }); nm++;
+    myMolAdd({ k: m.k, n: String(m.n).slice(0, 40), r: m.r, a: m.a, b: m.b, d: String(m.d || '').slice(0, 500), c: m.c, m: m.m, z: m.z }); nm++;
   }
   if (nm) myMolsSave();
   if (Array.isArray(d.myisos)) for (const r of d.myisos) {
