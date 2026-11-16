@@ -127,6 +127,31 @@ PARTS.staleLanding = async (page, check) => {
   const E0 = book(); try { X.step(0.001); } catch (e) { err = e.message; }
   check(!err && !ran && W.pendHits.length === 0 && bd && Math.abs(book() - E0) < 0.05, `1.34.4 a photon landing on an atom whose bonds broke while it flew flies on out: no crash, its 1.2 eV stays escaped`, '1.34.4 stale landing: ' + JSON.stringify({ err, ran, left: W.pendHits.length }));
 };
+/* 1.34.5 (the owner: "make all graphs interactive, so when you hover over a spot it tells you the value of that spot"):
+   pointing at the Data tab's graphs shows the value there (temperature, energy spread, the graph of chosen quantities),
+   and in the enlarged view too. */
+PARTS.graphHover = async (page, check) => {
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1360, height: 900 }, settle: 800 }); page = own.page; }
+  await page.evaluate(async () => { loadPreset('water'); setRunning(true); document.querySelector('[data-tab="data"]').click(); });
+  await page.waitForTimeout(2500); await page.evaluate(() => setRunning(false));
+  const out = {};
+  for (const id of ['chT', 'chE', 'chG']) {
+    const bb = await page.evaluate((id) => { const c = $(id); c.scrollIntoView({ block: 'center' }); const r = c.getBoundingClientRect(); return r.width ? { x: r.left + r.width * 0.6, y: r.top + r.height * 0.5 } : null; }, id);
+    if (!bb) { out[id] = null; continue; }
+    await page.mouse.move(bb.x, bb.y); await page.waitForTimeout(60); await page.mouse.move(bb.x + 2, bb.y);
+    out[id] = await page.evaluate(() => { const t = $('chTip'); return t && !t.hidden ? t.textContent : null; });
+  }
+  await page.mouse.move(5, 5);
+  out.hidden = await page.evaluate(() => { const t = $('chTip'); return !t || t.hidden; });
+  // enlarged
+  await page.evaluate(() => chartOpen($('chT'))); await page.waitForTimeout(200);
+  const bb = await page.evaluate(() => { const r = $('chBig').getBoundingClientRect(); return { x: r.left + r.width * 0.3, y: r.top + r.height * 0.5 }; });
+  await page.mouse.move(bb.x, bb.y); await page.waitForTimeout(60); await page.mouse.move(bb.x + 2, bb.y);
+  out.big = await page.evaluate(() => { const t = $('chTip'); return t && !t.hidden ? t.textContent : null; });
+  await page.evaluate(() => chartClose());
+  check(/K/.test(out.chT || '') && /kT/.test(out.chE || '') && /at /.test(out.chG || '') && out.hidden && /K/.test(out.big || ''), `1.34.5 the graphs read out where they are pointed at: temperature "${out.chT}", energy spread "${out.chE}", chosen quantities "${out.chG}", the enlarged view "${out.big}"; gone when the pointer leaves`, '1.34.5 graph hover: ' + JSON.stringify(out));
+  if (own) await own.browser.close();
+};
 module.exports = async function f1343(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

@@ -615,7 +615,10 @@ function xnDraw(ctx) {
   const L = XN.last; if (!L || !L.frames.length || !XF.nucl) return;
   const age = (performance.now() - L.at) / 1000; if (age > 6) return;
   const f = L.frames[Math.min(L.frames.length - 1, Math.floor(age / 4 * L.frames.length))], A = L.P.length;
-  const S = 150, x0 = R.w - S - 14, y0 = R.h - S - 46, sc = S / 30;
+  const S = 150, y0 = R.h - S - 16 - chamberBottomInset(), sc = S / 30;
+  let x0 = R.w - S - 14; // (and left of the zoom buttons down the chamber's right edge, where they reach down to it)
+  const zb = typeof document !== 'undefined' && R.cv && R.cv.getBoundingClientRect ? document.querySelector('.zoom') : null;
+  if (zb && zb.offsetParent) { const c = R.cv.getBoundingClientRect(), z = zb.getBoundingClientRect(); if (z.bottom - c.top > y0 - 4 && z.left - c.left < R.w) x0 = Math.min(x0, z.left - c.left - S - 10); } // (above the bars over the chamber's bottom, as the scale bar: 1.34.5, the owner: "the nucleons window is under the bottom toolbar")
   ctx.save(); ctx.setTransform(R.dpr, 0, 0, R.dpr, 0, 0); ctx.globalAlpha = Math.min(1, (6 - age) / 1);
   ctx.fillStyle = 'rgba(8,12,20,0.82)'; ctx.strokeStyle = 'rgba(160,190,230,0.5)'; ctx.lineWidth = 1; ctx.fillRect(x0, y0, S, S); ctx.strokeRect(x0 + 0.5, y0 + 0.5, S - 1, S - 1);
   let cx = 0, cy = 0; for (let i = 0; i < A; i++) { cx += f[3 * i] / A; cy += f[3 * i + 1] / A; }

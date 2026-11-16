@@ -474,6 +474,8 @@ details.chain[open] summary { margin-bottom: 10px; }
 .pm-i:hover, .pm-i[aria-pressed="true"] { background: var(--surface-2); border-color: var(--line); }
 .pm-i.more { grid-template-columns: 1fr auto; color: var(--accent); }
 .pm-i .sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.chtip { position: fixed; z-index: 400; pointer-events: none; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font: 11.5px/1.35 var(--font-data); box-shadow: var(--shadow); max-width: 300px; } /* (1.34.5: the graphs' readouts) */
+.chtip .h { font-weight: 600; } .chtipdot { position: fixed; z-index: 399; pointer-events: none; width: 9px; height: 9px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid var(--accent); background: var(--bg); }
 .pm-i.el { grid-template-columns: 12px 4.2em 1fr auto; } /* (1.34.3: an element found by the search, with three isotopes on hover) */
 .pm-i .pf-isos { display: none; gap: 4px; } .pm-i.el:hover .pf-isos, .pm-i.el:focus .pf-isos, .pm-i.el:focus-within .pf-isos { display: inline-flex; }
 @media (hover: none) { .pm-i .pf-isos { display: inline-flex; } }
@@ -26952,7 +26954,10 @@ function xnDraw(ctx) {
   const L = XN.last; if (!L || !L.frames.length || !XF.nucl) return;
   const age = (performance.now() - L.at) / 1000; if (age > 6) return;
   const f = L.frames[Math.min(L.frames.length - 1, Math.floor(age / 4 * L.frames.length))], A = L.P.length;
-  const S = 150, x0 = R.w - S - 14, y0 = R.h - S - 46, sc = S / 30;
+  const S = 150, y0 = R.h - S - 16 - chamberBottomInset(), sc = S / 30;
+  let x0 = R.w - S - 14; // (and left of the zoom buttons down the chamber's right edge, where they reach down to it)
+  const zb = typeof document !== 'undefined' && R.cv && R.cv.getBoundingClientRect ? document.querySelector('.zoom') : null;
+  if (zb && zb.offsetParent) { const c = R.cv.getBoundingClientRect(), z = zb.getBoundingClientRect(); if (z.bottom - c.top > y0 - 4 && z.left - c.left < R.w) x0 = Math.min(x0, z.left - c.left - S - 10); } // (above the bars over the chamber's bottom, as the scale bar: 1.34.5, the owner: "the nucleons window is under the bottom toolbar")
   ctx.save(); ctx.setTransform(R.dpr, 0, 0, R.dpr, 0, 0); ctx.globalAlpha = Math.min(1, (6 - age) / 1);
   ctx.fillStyle = 'rgba(8,12,20,0.82)'; ctx.strokeStyle = 'rgba(160,190,230,0.5)'; ctx.lineWidth = 1; ctx.fillRect(x0, y0, S, S); ctx.strokeRect(x0 + 0.5, y0 + 0.5, S - 1, S - 1);
   let cx = 0, cy = 0; for (let i = 0; i < A; i++) { cx += f[3 * i] / A; cy += f[3 * i + 1] / A; }
@@ -42271,12 +42276,12 @@ function chartOpen(el) {
   $('chartTitle').textContent = svg ? 'Decay chain' : chartTitle(el);
   $('chBig').hidden = svg; const box = $('chSvg'); box.innerHTML = ''; box.hidden = !svg;
   if (svg) { const c = el.cloneNode(true); c.removeAttribute('width'); c.removeAttribute('height'); c.setAttribute('preserveAspectRatio', 'xMidYMid meet'); box.appendChild(c); }
-  $('chBigNote').hidden = UI.big.id !== 'chMap'; $('chBigNote').textContent = ''; UI.mapPin = null; UI.mapHov = null;
+  $('chBigNote').hidden = UI.big.id !== 'chMap'; $('chBigNote').textContent = ''; UI.mapPin = null; UI.mapHov = null; CHOV.chBig = null; chartTipHide();
   showModal('chartModal'); chartTf();
   if (!svg) requestAnimationFrame(() => { const f = CHARTS[el.id]; try { if (f) f(); } catch (e) {} });
 }
 function chartClose() {
-  const id = UI.big && UI.big.id; UI.big = null; UI.mapPin = null; UI.mapHov = null; hideModal('chartModal');
+  const id = UI.big && UI.big.id; UI.big = null; UI.mapPin = null; UI.mapHov = null; CHOV.chBig = null; chartTipHide(); hideModal('chartModal');
   if (id) { if (id === 'chMap') UI.mapKey = null; const f = CHARTS[id]; try { if (f) f(); } catch (e) {} } // (the small one drawn again: it waited while the big one was drawn)
 }
 function chartTf() {
@@ -42309,6 +42314,7 @@ function chartWire() {
   $('madeClose').onclick = () => hideModal('madeModal');
   $('madeFind').addEventListener('input', madeFilter); $('madeFind').addEventListener('keydown', (e) => { if (e.key === 'Escape' && e.target.value) { e.stopPropagation(); e.target.value = ''; madeFilter(); } });
   $('dMadeAll').addEventListener('click', (e) => { if (e.target.closest('button[data-card]')) hideModal('madeModal'); madeClick(e); });
+  chartHovWire();
 }
 function chartCtx(cv) {
   const w = cv.clientWidth, h = cv.clientHeight; if (!w) return null;
@@ -42317,6 +42323,40 @@ function chartCtx(cv) {
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
   return [ctx, w, h];
 }
+/* ---- hover readouts on the graphs (1.34.5, the owner: "make all graphs interactive, so when you hover over a spot it
+   tells you the value of that spot"). Each graph, as it draws, leaves a pick(x, y) for its canvas (chartHov): from a
+   point on it (CSS pixels, the canvas's own, under any zoom of the enlarged view) the value there, as { x, y, lines }
+   (the marker's place and the readout) or null. One readout box and marker serve every graph; a graph drawn again
+   while pointed at refreshes it. The decay chart and fission tree keep their own (mapHover). */
+const CHOV = {}, CHOV_AT = { cv: null, cx: 0, cy: 0 };
+function chartHov(cv, pick) { CHOV[cv.id] = pick; if (CHOV_AT.cv === cv) chartTip(cv, CHOV_AT.cx, CHOV_AT.cy); }
+function chartTipEls() {
+  let t = $('chTip'); if (t) return [t, $('chTipDot')];
+  t = document.createElement('div'); t.id = 'chTip'; t.className = 'chtip'; t.hidden = true; t.setAttribute('role', 'status');
+  const d = document.createElement('div'); d.id = 'chTipDot'; d.className = 'chtipdot'; d.hidden = true;
+  document.body.append(t, d); return [t, d];
+}
+function chartTip(cv, cx, cy) {
+  const [t, d] = chartTipEls(), f = CHOV[cv.id], rc = cv.getBoundingClientRect(), sx = rc.width / (cv.clientWidth || 1), sy = rc.height / (cv.clientHeight || 1);
+  let r; try { r = f && f((cx - rc.left) / sx, (cy - rc.top) / sy); } catch (e) { r = null; }
+  if (!r) { t.hidden = true; d.hidden = true; return; }
+  t.innerHTML = r.lines.map((l, i) => `<div${i ? '' : ' class="h"'}>${esc(l)}</div>`).join(''); t.hidden = false;
+  const mx = rc.left + r.x * sx, my = rc.top + r.y * sy;
+  d.hidden = !Number.isFinite(r.y); d.style.left = mx + 'px'; d.style.top = my + 'px'; if (r.col) d.style.borderColor = r.col; else d.style.borderColor = '';
+  const tw = t.offsetWidth, th = t.offsetHeight; let x = cx + 14, y = cy - th - 10;
+  if (x + tw > innerWidth - 6) x = cx - tw - 14; if (y < 6) y = cy + 16;
+  t.style.left = Math.max(6, x) + 'px'; t.style.top = Math.min(innerHeight - th - 6, y) + 'px';
+}
+function chartTipHide() { CHOV_AT.cv = null; const t = $('chTip'), d = $('chTipDot'); if (t) t.hidden = true; if (d) d.hidden = true; }
+function chartHovWire() {
+  for (const id of Object.keys(CHARTS).filter(k => k !== 'chMap').concat('chBig')) {
+    const c = $(id); if (!c) continue;
+    c.addEventListener('mousemove', (e) => { if (id === 'chBig' && UI.big && UI.big.id === 'chMap') return; CHOV_AT.cv = c; CHOV_AT.cx = e.clientX; CHOV_AT.cy = e.clientY; chartTip(c, e.clientX, e.clientY); });
+    c.addEventListener('mouseleave', chartTipHide);
+  }
+}
+/* The nearest of a curve's samples in x (fx: sample i's x), for the readouts of the graphs over time. */
+function chartNearI(x, n, fx) { if (n < 1) return -1; let lo = 0, hi = n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (fx(m) < x) lo = m; else hi = m; } return Math.abs(fx(lo) - x) <= Math.abs(fx(hi) - x) ? lo : hi; }
 function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888'; }
 /* A slow change of the bath (Lab → Heat bath): from where it was to the chosen temperature, evenly on a log scale, over
    the chosen seconds of running (paused, it waits). Annealing, crystal growth, a slow quench. */
@@ -42585,6 +42625,11 @@ function drawSpec() {
     ctx.setLineDash([]);
   }
   if (!inRange) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText(vis ? 'No visible light in the last 10 s (try Everything)' : 'No light in the last 10 s', 10, 20); }
+  chartHov(chartCv('chSpec'), (x) => {
+    const i = Math.floor((x - pad) / bw); if (i < 0 || i >= nb) return null;
+    const a = binNm(i), b = binNm(i + 1), bh = bins[i] ? Math.max(1.5, bins[i] / top * (base - 14)) : 0, lam = (v) => v >= 1 ? (v >= 1e4 ? fmtNum(v / 1000, 3) + ' µm' : fmtNum(v, 3) + ' nm') : fmtNum(v * 1000, 3) + ' pm';
+    return { x: pad + (i + 0.5) * bw, y: base - bh, lines: [`${lam(a)} – ${lam(b)}`, `${fmtE(PHYS.HC / b)} – ${fmtE(PHYS.HC / a)} a photon`, `${bins[i].toLocaleString('en-US')} photon${bins[i] === 1 ? '' : 's'}`].concat(planck ? [`Planck's law: ${planck[i].toFixed(1)}`] : []) };
+  });
   // the note: how many, the strongest line and who made it
   let best = -1, bi = 0; for (let i = 0; i < nb; i++) if (bins[i] > best) { best = bins[i]; bi = i; }
   const peak = vis ? lo + (bi + 0.5) / nb * (hi - lo) : Math.pow(10, Math.log10(lo) + (bi + 0.5) / nb * (Math.log10(hi) - Math.log10(lo)));
@@ -42610,6 +42655,7 @@ function drawTChart() {
   for (let i = 0; i < n; i++) { const x = fx(i), y = fy(H.T[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
   ctx.stroke();
   $('chTrange').textContent = `${fmtT(lo)} – ${fmtT(hi)}${logy ? ' (log)' : ''}`;
+  chartHov(chartCv('chT'), (x) => { const i = chartNearI(x, n, fx); if (i < 0) return null; return { x: fx(i), y: fy(H.T[i]), col: cssVar('--hot'), lines: [`${fmtT(H.T[i])}`, H.t[i] !== undefined ? `at ${fmtTime(H.t[i] * PHYS.TU_S)}` : '', H.bath[i] ? `bath ${fmtT(H.bath[i])}` : ''].filter(Boolean) }; });
 }
 function drawEChart(T) {
   const r = chartCtx(chartCv('chE')); if (!r) return; const [ctx, w, h] = r;
@@ -42631,6 +42677,11 @@ function drawEChart(T) {
   ctx.stroke();
   ctx.fillStyle = cssVar('--muted'); ctx.font = '11px ' + cssVar('--font-data');
   ctx.fillText('0', 6, h - 1); ctx.fillText(`${xmax} kT`, w - 34, h - 1);
+  chartHov(chartCv('chE'), (x) => {
+    const i = Math.floor((x - 6) / bw); if (i < 0 || i >= bins.length) return null;
+    const e0 = i * dx, e1 = (i + 1) * dx, mb = Math.exp(-e0) - Math.exp(-e1);
+    return { x: 6 + (i + 0.5) * bw, y: h - 8 - clamp(dens[i] / top, 0, 1) * (h - 16), lines: [`${e0.toFixed(2)}–${e1.toFixed(2)} kT (${fmtE(e0 * kT)}–${fmtE(e1 * kT)})`, `${bins[i]} of ${n} atoms (${(100 * bins[i] / n).toFixed(1)} %)`, `Boltzmann's law: ${(100 * mb).toFixed(1)} %`] };
+  });
 }
 
 /* ------------------------------------------------------------------ log tab */
@@ -44523,6 +44574,13 @@ function drawScope() {
   $('dScopeNote').textContent = (lanes.length > show.length ? `Showing the first ${show.length} of ${lanes.length} signals. ` : '') +
     (rings.length ? `Clock: ${rings.slice(0, 3).map(c => `${c.label || 'gate'} repeats every ${fmtNum(c.per * 1e12, 3)} ps (${hz(c.per)})`).join('; ')}. ` : '') +
     'Time is chip time, which runs 20 times the atoms\' time.';
+  chartHov(cv, (x, y) => { // (the signal pointed at: its voltage at that moment of chip time)
+    const li = Math.floor((y - 3) / LH); if (li < 0 || li >= show.length || x < x0) return null;
+    const L = show[li], sc = L.ch.scope, n = Math.min(sc.n, SCOPE_N), t = t0 + (x - x0) / (w - x0 - 6) * (t1 - t0); let best = -1, bd = Infinity;
+    for (let j = 0; j < n; j++) { const k = (sc.n - 1 - j) % SCOPE_N, d = Math.abs(sc.t[k] - t); if (d < bd) { bd = d; best = k; } }
+    if (best < 0) return null; const v = sc.v[L.i][best], top = li * LH + 3, bot = top + LH - 6;
+    return { x: xs(sc.t[best]), y: bot - clamp(v / CHIP.VDD, -0.05, 1.05) * (bot - top), lines: [`${L.name}: ${v.toFixed(2)} V (${v > 0.6 * CHIP.VDD ? '1' : v < 0.4 * CHIP.VDD ? '0' : 'between'})`, `${fmtNum((sc.t[best] - t1) * 1e12, 3)} ps`] };
+  });
 }
 function chipsInit() {
   bindSeg('segScopeWin', (v) => { SCOPE_UI.win = +v * 1e-12; drawScope(); });
@@ -45018,7 +45076,7 @@ function drawGraph() {
   const r = chartCtx(cv); if (!r) return; const [ctx, w, h] = r, n = GR.t.length;
   $('gNote').textContent = n ? `${n.toLocaleString('en-US')} points over ${fmtTime((GR.t[n - 1] - GR.t[0]) * PHYS.TU_S)}` : '';
   if (n < 2 || !chosen.length) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText(n < 2 ? 'Collecting while it runs …' : 'Pick something to plot', 10, 20); return; }
-  const rh = (h - 6) / rows, fx = (i) => 6 + i / (n - 1) * (w - 12), pal = ['--hot', '--accent', '--good', '--warn'];
+  const rh = (h - 6) / rows, fx = (i) => 6 + i / (n - 1) * (w - 12), pal = ['--hot', '--accent', '--good', '--warn'], rowsY = [];
   chosen.forEach(([id, label, v, fmt, col], k) => {
     const y0 = 3 + k * rh; let lo = Infinity, hi = -Infinity; for (const x of v) if (Number.isFinite(x)) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
     if (!Number.isFinite(lo)) return; const lo0 = lo, hi0 = hi, flat = hi - lo < 1e-12 * Math.max(1, Math.abs(hi)); if (flat) { lo -= 1; hi += 1; } // (lo0, hi0: the range told; a steady value is drawn across the middle, 0.94)
@@ -45032,6 +45090,12 @@ function drawGraph() {
     ctx.fillStyle = cssVar('--muted'); ctx.font = '11px ' + cssVar('--font-data'); ctx.textAlign = 'right';
     const last = [...v].reverse().find(Number.isFinite), full = `${fmt(last)}   ${flat ? '(steady)' : `(${fmt(lo0)} – ${fmt(hi0)})`}`;
     ctx.fillText(lw + 16 + ctx.measureText(full).width <= w - 8 ? full : fmt(last), w - 8, y0 + 13); ctx.textAlign = 'left'; // (narrow: the value alone, clear of the name)
+    rowsY[k] = { y0, fy, v, fmt, label, col: col || cssVar(pal[k % pal.length]) };
+  });
+  chartHov(cv, (x, y) => { // (the row pointed at: its value at that moment)
+    const k = clamp(Math.floor((y - 3) / rh), 0, rows - 1), R0 = rowsY[k]; if (!R0) return null;
+    const i = chartNearI(x, n, fx); if (i < 0) return null; const v = R0.v[i];
+    return { x: fx(i), y: Number.isFinite(v) ? R0.fy(v) : NaN, col: R0.col, lines: [`${R0.label}: ${Number.isFinite(v) ? R0.fmt(v) : '—'}`, `at ${fmtTime(GR.t[i] * PHYS.TU_S)} (${fmtNum(GR.rt[i] - GR.rt[0], 3)} s of watching)`] };
   });
 }
 function grCsv() {
@@ -45078,6 +45142,12 @@ function drawDet() {
   if (where) { ctx.fillText('0', x0, h - 2); ctx.textAlign = 'center'; ctx.fillText(`${Math.round(L / 2)} Å`, x0 + pw / 2, h - 2); ctx.textAlign = 'right'; ctx.fillText(`${Math.round(L)} Å along it`, x0 + pw, h - 2); }
   else { ctx.fillText('0.01 eV', x0, h - 2); ctx.textAlign = 'center'; ctx.fillText('1 keV', x0 + pw * 10 / 24, h - 2); ctx.fillText('1 MeV', x0 + pw * 16 / 24, h - 2); ctx.textAlign = 'right'; ctx.fillText('10 GeV', x0 + pw, h - 2); }
   ctx.textAlign = 'left';
+  chartHov(chartCv('chDet'), (x) => {
+    const i = Math.floor((x - x0) / bw); if (i < 0 || i >= nb) return null;
+    const a = A[i] || 0, b = B ? B[i] || 0 : 0, yy = 12 + bh - (a + b) / top * bh;
+    if (where) return { x: x0 + (i + 0.5) * bw, y: yy, lines: [`${fmtNum(i * L / nb, 3)}–${fmtNum((i + 1) * L / nb, 3)} Å along it`, `${a.toLocaleString('en-US')} particle${a === 1 ? '' : 's'}, ${b.toLocaleString('en-US')} photon${b === 1 ? '' : 's'}`] };
+    return { x: x0 + (i + 0.5) * bw, y: yy, lines: [`${fmtE(Math.pow(10, OBJ_LO + i / 2))} – ${fmtE(Math.pow(10, OBJ_LO + (i + 1) / 2))}`, `${a.toLocaleString('en-US')} hit${a === 1 ? '' : 's'}`] };
+  });
 }
 /* (1.27, item 31) The Z line-shape scan, as LEP did it in 1990–95: the beams stepped from 44.5 to 47.5 GeV each (√s about
    88–94 GeV: the linac's beams arrive 1–5% below their setting, so each collision's own √s is what is binned), ZSCAN.per
@@ -45123,6 +45193,12 @@ function drawZScan() {
   ctx.fillStyle = cssVar('--hot'); ctx.strokeStyle = cssVar('--hot'); ctx.lineWidth = 1;
   for (const [g, s, e] of pts) { ctx.beginPath(); ctx.moveTo(X(g), Y(s - e)); ctx.lineTo(X(g), Y(s + e)); ctx.stroke(); ctx.beginPath(); ctx.arc(X(g), Y(s), 3, 0, 2 * Math.PI); ctx.fill(); }
   ctx.textAlign = 'left'; ctx.fillStyle = cssVar('--muted'); ctx.fillText('σ (nb)', x0 + 4, y1 + 2); ctx.textAlign = 'right'; ctx.fillText('√s (GeV)', x1, y0 - 4); ctx.textAlign = 'left';
+  chartHov(chartCv('chZs'), (x, y) => { // (a measured point near, else the model's line at that √s)
+    let best = null, bd = 12; for (const p of pts) { const dd = Math.hypot(X(p[0]) - x, Y(p[1]) - y); if (dd < bd) { bd = dd; best = p; } }
+    if (best) return { x: X(best[0]), y: Y(best[1]), col: cssVar('--hot'), lines: [`√s ${best[0].toFixed(2)} GeV: σ ${best[1].toFixed(2)} ± ${best[2].toFixed(2)} nb`, `measured, ${best[3].toLocaleString('en-US')} collisions`, `the model: ${zscanModel(best[0]).toFixed(2)} nb`] };
+    const g = ZSCAN.lo + (x - x0) / (x1 - x0) * (ZSCAN.hi - ZSCAN.lo); if (g < ZSCAN.lo || g > ZSCAN.hi) return null;
+    const v = zscanModel(g); return { x, y: Y(v), col: cssVar('--accent'), lines: [`√s ${g.toFixed(2)} GeV`, `the model: σ ${v.toFixed(2)} nb`] };
+  });
   const pk = pts.reduce((m, p) => (p[1] > m[1] ? p : m), [0, 0, 0]);
   $('dZsNote').textContent = `${Z.rec.length.toLocaleString('en-US')} collisions${Z.run ? `, scanning: beams at ${ZSCAN.pts[Z.i]} GeV each (${Z.i + 1} of ${ZSCAN.pts.length})` : ''}. Dots: σ(e⁺e⁻ → Z → hadrons) measured in each 1 GeV bin of the collisions' own √s, the share of collisions that made it times the total cross section there (LEP's events over its luminosity), with its statistical error; ${pk[1] ? `highest ${fmtNum(pk[1], 3)} nb at ${fmtNum(pk[0], 3)} GeV. ` : ''}Line: the model, ${RP.res ? 'with the beams\u2019 own radiation (Resonance widths and heavy flavour on): the peak 30.6 nb at 91.2 GeV, measured at LEP 30.5' : 'Born: the peak 41.5 nb at 91.19 GeV (with the beams\u2019 own radiation, which Resonance widths and heavy flavour turns on, 30.6; measured at LEP 30.5)'}. The Z's width, 2.50 GeV, is what three kinds of light neutrino give.`;
 }
@@ -45145,6 +45221,10 @@ function drawPairs() {
   ctx.setLineDash([3, 3]); ctx.strokeStyle = cssVar('--hot'); ctx.fillStyle = cssVar('--hot');
   for (const [lab, m] of PAIR_MARK[key]) { if (m > mMax) continue; const x = fx(m); ctx.beginPath(); ctx.moveTo(x, 12); ctx.lineTo(x, h - 14); ctx.stroke(); ctx.fillText(lab, x, 10); }
   ctx.setLineDash([]); ctx.textAlign = 'left';
+  chartHov(chartCv('chPair'), (x) => {
+    const b = Math.floor((x - 6) / bw); if (b < 0 || b >= nb) return null; const bh = H[b] / span * (h - 26);
+    return { x: 6 + (b + 0.5) * bw, y: y0 - bh, lines: [`${b * PAIRS.BIN}–${(b + 1) * PAIRS.BIN} MeV`, `${Math.round(H[b]).toLocaleString('en-US')} pair${Math.round(H[b]) === 1 ? '' : 's'}${sub ? ' (less the like-sign background)' : ''}`] };
+  });
 }
 /* ------------------------------------------------------------------ the tour */
 const TOUR = [

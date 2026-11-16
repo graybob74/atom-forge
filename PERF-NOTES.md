@@ -1991,6 +1991,24 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.34.5: the nucleons' inset clear of the toolbar; readouts on every graph (the owner, 2026-11-15)
+
+- "The nucleons window is under the bottom toolbar": the inset (Experimental → Nucleons inside nuclei) sat a fixed 46 px
+  above the chamber's bottom edge, under the tool options bar (61 px at 1280×760) and against the zoom buttons. Now it
+  sits above whatever covers the chamber's bottom (chamberBottomInset, as the scale bar) and left of the zoom buttons
+  where they reach down to it.
+- "Make all graphs interactive, so when you hover over a spot it tells you the value of that spot": every graph in the
+  Data tab now leaves a pick as it draws (chartHov) and pointing at it shows the value there in a small box, with a
+  marker on the curve, also in the enlarged view (under its zoom): temperature over time (the temperature, the time,
+  the bath), kinetic energies (the bin's range in kT and eV, how many atoms, Boltzmann's share), the spectrum (the bin's
+  wavelengths and photon energies, how many, Planck's curve when the walls glow), the chosen quantities (the row pointed
+  at: its value and the time), the detector screen (where along it or what energies, how many particles and photons),
+  the Z scan (a measured point: σ ± its error and the model; elsewhere the model at that √s), pair masses (the bin, how
+  many), and the chips' scope (the signal's voltage and logic level, the time). A graph drawn again while pointed at
+  refreshes it. The decay chart and the fission tree keep their own readouts (1.33.2).
+
+Tests: f_1343 part graphHover; run: t_lint, f_1343 graphHover.
+
 ## 1.34.4: a crash when light landed late (the owner, 2026-11-15)
 
 - The owner's crash report (1.34.2, desktop, an empty chamber with 3,521 particles in deep slow motion): "Cannot read
