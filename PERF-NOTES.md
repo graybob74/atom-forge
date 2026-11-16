@@ -1991,6 +1991,54 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.35.0: the Bose–Einstein condensate lab, Experimental (the owner, 2026-11-15: "do 2d and 3d in one pass now and code it in wasm", item 97)
+
+- A window of its own (Lab → Sample → Condensate lab…, or the main menu; Esc closes it; the chamber pauses while it is
+  open): ⁸⁷Rb (a = 5.24 nm), ²³Na (2.85 nm) or ⁷Li (−1.45 nm), 1,000–100,000 atoms, a 20–200 Hz trap (round, long
+  2:1, or in 3-D flat 1:1:3). `src/bec.js` (built after pold.js), `kernel/src/bec.rs`.
+- The condensate is the Gross–Pitaevskii wave function ψ in trap units (length a_ho = √(ħ/mω), time 1/ω, energy ħω):
+  flat on 256² in a pancake trap (ω_z/2π = 4 kHz, β = √(8πλ_z) N a/a_ho), 3-D on 64³ (β = 4πN a/a_ho); the norm of ψ
+  is N₀/N. Stepped in the module by the split-operator Fourier method (Strang, the half potential steps merged), its
+  own radix-2 transforms (the y and z axes as whole rows, cache-friendly: 64³ native 23 → 15 ms a step), sin/cos and exp
+  to 10⁻¹³. Imaginary time (renormalized each step) for the ground state: coarse steps then fine ones (dt μ ≤ 0.1; the
+  coarse steps alone left it breathing ±15% once real time started). Real time with: damping γ(1 − i) on H − μ (the
+  thermal cloud's friction, γ = 0.0005 + 0.02 T/T_c, phenomenological; μ kept current every 8 frames), three-body loss
+  (K₃: Rb 5.8×10⁻³⁰ cm⁶/s, Na 1.1×10⁻³⁰, Li 10⁻²⁸ an estimate), absorbing edges, a light sheet (Split), a laser spoon
+  dragged with the mouse, and a frame turning about z (Spin; the kinetic step by alternating directions, ½(p_x + Ωy)² then
+  ½(p_y − Ωx)², the centrifugal −½Ω²r² in the potential).
+- **The split-step method went unstable with the nonlinearity**: the flat 20,000-atom cloud's energy grew from 21 to
+  480–580 ħω per atom within 10 trap periods at dt = 0.0041–0.008 (k_max²dt/2 above about π/2; stable at 0.0022 and
+  0.001). The kernel now filters the spectrum above half of k_max (by ellipse; the condensate's own content, 1/ξ ≈ 8,
+  sits well inside 18): stable to dt = 1.2 dx² (energy 21.715 → 21.706 over 18/ω), run at 0.8 dx². In free flight the
+  factors are made in JavaScript with only the top tenth cut (the filter would eat the expansion's velocities) and the
+  step is 0.3 dx².
+- The thermal cloud is the ideal Bose gas in the same trap, drawn analytically beside ψ (not interacting with it): T_c
+  from kT_c = ħω̄(N/ζ(3))^⅓ (3-D) or ħω̄(6N/π²)^½ (flat), N₀/N = 1 − (T/T_c)³ or ², column densities g₂ (3-D) or g₁
+  (flat) of z e^{−V/kT} (the fugacity z solved above T_c), ballistic flight σ² (1 + ω²t²) after release. ψ follows the
+  model's N₀ at a rate ω while trapped (it grows and melts with T); from nothing it is seeded small with a scrambled
+  phase, so a fast Quench leaves vortices where patches meet (Kibble–Zurek; seen: 18 windings, net −4, annihilating to
+  6 within 15/ω).
+- Time of flight (Release): every potential off; a flat cloud's interaction falls as its z width grows,
+  β/√(1 + ω_z²t²). When the cloud nears the edge the grid doubles (every other point kept; refused when the phase
+  between kept neighbours would alias), up to three times; then the lab pauses rather than let the edge eat it.
+- The picture is the column density (an absorption picture, atoms/µm², the scale following the peak), or ψ's phase as
+  hue (the 3-D grid's middle plane), from above or (3-D) the side; the window widens to hold the thermal cloud. Readouts:
+  atoms, condensed, T, T_c, μ, healing length, peak density, rms size, vortices (phase windings where there is
+  condensate), L_z per atom, trap, energy per atom; a note when a flat cloud's μ is not small next to ħω_z, or when the
+  3-D grid is coarser than the healing length.
+- Measured (tests/f_135.js): ground states' μ against Thomas–Fermi, flat 31.66 vs 31.32 ħω, 3-D 8.28 vs 8.02; real time
+  300 steps energy 20.937 → 20.937, atoms to 2×10⁻¹⁵; T_c of 20,000 ⁸⁷Rb at 100 Hz 122.5 nK; a printed vortex L_z
+  1.000 ħ; spun up at 0.7 ω, 21 vortices all one way, L_z 17.0 ħ (3-D: 5, L_z 3.1); split and released, 5 fringes after
+  4.8 ms of flight; ⁷Li 10,000 atoms (critical 1,503) collapse within 1 ms and lose 31%, 1,000 hold; at 1.2 T_c the
+  condensate melts to 0.25%, at 0.5 T_c (3-D) 88.1% (ideal gas 87.5%). Steps in the module on this 2-core sandbox: flat
+  ~9 ms, 3-D ~45 ms (one thread).
+- Limits: lab-frame stirring with a rotating oval trap was built and tried first: at ε = 0.05–0.1, Ω = 0.7–0.78 ω,
+  γ = 0.0055–0.03, with and without 1% noise, the cloud took up L_z 0.3–4 ħ but let no vortex in within 150/ω (the
+  literature's few hundred periods) — too slow to watch, so Spin settles the cloud in the turning frame instead (where
+  stirring leads), and the lattice then turns in the lab frame. The thermal cloud does not interact with ψ; γ is
+  phenomenological; evaporation lowers T at a fixed N; 3-D 64³ resolves the healing length only for smaller clouds;
+  the flight is limited to eight times the first grid; one thread.
+
 ## 1.34.5: the nucleons' inset clear of the toolbar; readouts on every graph (the owner, 2026-11-15)
 
 - "The nucleons window is under the bottom toolbar": the inset (Experimental → Nucleons inside nuclei) sat a fixed 46 px
@@ -3799,7 +3847,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    induced charges, many-body metals, quantum bonds (GFN1/GFN2), longer force reach, resonance in large rings. Each
    picture shows that setting's effect on (a before/after pair where one picture cannot); the rest (performance,
    threads, keys, saving, rewind, units, Claude's key and model, the reset buttons) have nothing to see and keep none.
-97 (requested 2026-11-15, the owner: "is bose-einstein state simulated?" — no — then "yes" to adding it) A Bose–Einstein
+97 (built in 1.35.0; requested 2026-11-15, the owner: "is bose-einstein state simulated?" — no — then "yes" to adding it) A Bose–Einstein
    condensate lab, Experimental. Today atoms are classical points: cooled, a gas of bosons only freezes (liquid helium
    too: real ⁴He stays liquid by its zero-point motion and turns superfluid below 2.17 K; here it crystallizes). A
    condensate is micrometres across, of 10⁴–10⁷ atoms, forming over milliseconds at about 100 nK (⁸⁷Rb), so it cannot

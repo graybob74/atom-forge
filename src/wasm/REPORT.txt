@@ -1,6 +1,6 @@
-built from fbb5d33ec1d44cb5ac80db12fdb2d06bdda6fe7f (175944 bytes)
+built from 0d9c03664ef52454756df913a8cf52318ba2d441 (199001 bytes)
 imports [{"module":"env","name":"memory","kind":"memory"}]
-exports __stack_pointer:global af_bo_collect:function af_bo_pass1:function af_bo_pass2:function af_const:function af_fast:function af_forces:function af_forces3:function af_mb:function af_pd_forces:function af_pd_gather:function af_pd_iter:function af_qeq:function af_rc2:function af_set_rc2:function af_sites_forces:function af_sum:function af_sym_eig:function af_tors1:function af_vl:function af_vl3:function af_xf_atm:function af_xf_pairs:function af_xn_steps:function af_xq_dens:function af_xq_trans:function af_zero:function __heap_base:global
-K_COUL 14.3996454784 heap_base 1052192 stack_pointer 1048576
-plain: 176215 bytes, imports [{"module":"env","name":"memory","kind":"memory"}]
-plain: K_COUL 14.3996454784 heap_base 1052080 stack_pointer 1048576
+exports __stack_pointer:global af_bec_column:function af_bec_kin:function af_bec_obs:function af_bec_step:function af_bo_collect:function af_bo_pass1:function af_bo_pass2:function af_const:function af_fast:function af_forces:function af_forces3:function af_mb:function af_pd_forces:function af_pd_gather:function af_pd_iter:function af_qeq:function af_rc2:function af_set_rc2:function af_sites_forces:function af_sum:function af_sym_eig:function af_tors1:function af_vl:function af_vl3:function af_xf_atm:function af_xf_pairs:function af_xn_steps:function af_xq_dens:function af_xq_trans:function af_zero:function __heap_base:global
+K_COUL 14.3996454784 heap_base 1053648 stack_pointer 1048576
+plain: 199272 bytes, imports [{"module":"env","name":"memory","kind":"memory"}]
+plain: K_COUL 14.3996454784 heap_base 1053536 stack_pointer 1048576

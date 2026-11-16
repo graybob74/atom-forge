@@ -3256,6 +3256,7 @@ async function galSave() {
 function galInit() {
   $('bGallery').hidden = typeof CompressionStream !== 'function';
   $('bGallery').onclick = () => { $('galMsg').textContent = ''; galRender(); showModal('galModal'); };
+  $('bBec').onclick = () => openBec();
   $('galClose').onclick = () => hideModal('galModal');
   $('galSave').onclick = () => galSave();
   $('galName').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); galSave(); } e.stopPropagation(); });
@@ -6066,6 +6067,7 @@ function mmAction(a) {
   else if (a === 'choose') { if (W.d3) mmBg(false); mmView('choose'); }
   else if (a === 'back') mmView(MMV.v);
   else if (a === 'gallery') $('bGallery').click();
+  else if (a === 'bec') { hideMainMenu(); if (!restoreAutosave()) loadPreset('empty'); openBec(); }
   else if (a === 'settings') openSettings();
   else if (a === 'settings3') openSettings('d3');
   else if (a === 'help') openHelp();
@@ -6127,6 +6129,7 @@ function onKey(e) {
     if (!$('pmenu').hidden) { pmenuClose(); return; }
     if (!$('escModal').hidden) { e.preventDefault(); closeEscMenu(); return; }
     if (!$('chartModal').hidden) { chartClose(); return; } // (1.31 item 72)
+    if (BEC.open) { becClose(); return; } // (1.35)
     for (const id of ['madeModal', 'ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
     if (UI.menu) { if (!$('mmSetups').hidden) mmAction('back'); else if (MMV.v !== 'choose') mmAction('choose'); return; }
     if (!$('tour').hidden) { tourEnd(); return; }
