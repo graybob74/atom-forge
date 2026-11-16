@@ -789,6 +789,17 @@ body.menu .stage { border: 0; border-radius: 0; box-shadow: none; }
 .gball { display: block; width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35); }
 .gball.e { width: 13px; height: 13px; }
 .ndialog { width: min(860px, 100%); }
+.becdialog { width: min(1000px, 100%); }
+.becwrap { grid-template-columns: minmax(0, 1fr) minmax(0, 300px); }
+.becstage { background: #000; cursor: crosshair; }
+.becctl { display: grid; gap: 8px; margin-top: 12px; }
+.becctl .brow { flex-wrap: wrap; }
+.becl { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); width: 40px; }
+.becv { font-family: var(--font-data); font-size: 12.5px; min-width: 150px; }
+#becT { flex: 0 1 220px; }
+.becctl .seg button { white-space: nowrap; }
+#becMsg { min-height: 2.9em; margin-top: 8px; }
+.nstats dt .nt { text-transform: none; letter-spacing: 0; }
 /* Settings: two panes in one window (asked for by the user, from a sketch): on the left a preview of the setting under
    the pointer (a picture from the game and what it does), on the right the settings in a box of their own, scrolling
    under their tabs. Narrow windows stack the preview, smaller, above the box. */

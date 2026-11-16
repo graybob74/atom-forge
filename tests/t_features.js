@@ -1797,6 +1797,7 @@ const { openPage } = require('./browser');
   await alone('f_134.js'); // 1.34 Experimental → More forces: gravity, radiation, magnetism, neutrinos, full-range charges, three-body dispersion, nucleons (node tests/f_134.js)
   await alone('f_1342.js'); // 1.34.2 unstable particles as balls in depth in the 3-D lab (node tests/f_1342.js)
   await alone('f_1343.js'); // 1.34.3 the More forces, the dipoles and the nucleons in the module and on the threads; the particle view's orbits; elements in the particle search (node tests/f_1343.js)
+  await alone('f_135.js'); // 1.35 the Bose–Einstein condensate lab (node tests/f_135.js)
   await alone('f_132.js'); // 1.32 items 76–84 (node tests/f_132.js [part …])
   await alone('f_131.js'); // 1.31 items 70–75 (node tests/f_131.js [part …])
   await alone('f_130.js'); // 1.30 items 64–68 and the bug test's B1–B19 (node tests/f_130.js [part …])

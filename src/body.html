@@ -224,6 +224,7 @@
             <button class="btn small" id="bLoadWorld" title="Load a saved world file (replaces what is in the chamber)">Load world…</button>
             <button class="btn small" id="bShare" title="The world as a block of text to send to someone, or open one sent to you">Share code…</button>
             <button class="btn small" id="bGallery" title="Worlds you keep in this browser, with a picture of each">Gallery…</button>
+            <button class="btn small" id="bBec" title="A Bose–Einstein condensate in a trap: cool it, stir it, split it, drop it (the Gross–Pitaevskii equation, flat or 3-D)">Condensate lab…</button>
             <button class="btn small" id="bClear">Empty the chamber</button>
             <button class="btn small" id="bSrcClear">Remove beam sources</button>
           </div>
@@ -507,6 +508,31 @@
     </div>
     <div class="nbins" id="nucBins" role="group" aria-label="Particles"></div>
     <div class="brow nfoot"><p class="note" id="nucMsg" aria-live="polite"></p><button class="btn savebtn" id="nucSave" aria-pressed="false" hidden>☆ Save</button><button class="btn go" id="nucUse">Use</button></div>
+  </div>
+</div>
+
+<div class="modal" id="becModal" hidden>
+  <div class="dialog ndialog becdialog" role="dialog" aria-modal="true" aria-labelledby="becTitle">
+    <header><h2 id="becTitle">Bose–Einstein condensate lab <span class="pv">Experimental</span></h2><button class="btn small" id="becClose">Close</button></header>
+    <div class="nwrap becwrap">
+      <div class="nstage becstage" id="becStage"><canvas id="becCv" aria-label="The cloud of atoms, as an absorption picture or as the phase of its wave function. Press and drag to move a laser spoon through it."></canvas></div>
+      <div class="ninfo" id="becInfo" aria-live="off"></div>
+    </div>
+    <div class="becctl">
+      <div class="brow"><span class="becl">Gas</span><div class="seg" id="becSp" role="group" aria-label="Gas"><button data-v="rb87">⁸⁷Rb</button><button data-v="na23">²³Na</button><button data-v="li7" title="Lithium-7 atoms attract: a big cloud collapses">⁷Li</button></div>
+        <select class="select" id="becN" aria-label="Atoms"><option value="1000">1,000 atoms</option><option value="3000">3,000 atoms</option><option value="10000">10,000 atoms</option><option value="20000">20,000 atoms</option><option value="50000">50,000 atoms</option><option value="100000">100,000 atoms</option></select>
+        <div class="seg" id="becDim" role="group" aria-label="Space"><button data-v="2" title="A pancake trap (4 kHz across it): the cloud is two-dimensional, on a 256 × 256 grid">Flat</button><button data-v="3" title="A 64 × 64 × 64 grid">3-D</button></div></div>
+      <div class="brow"><span class="becl">Trap</span><select class="select" id="becF" aria-label="Trap frequency"><option value="20">20 Hz</option><option value="50">50 Hz</option><option value="100">100 Hz</option><option value="200">200 Hz</option></select>
+        <div class="seg" id="becShape" role="group" aria-label="Trap shape"><button data-v="round">Round</button><button data-v="long" title="Twice as stiff along y: a cigar along x">Long</button><button data-v="flat" title="Three times as stiff along z (look from the side)">Flat</button></div>
+        <div class="seg" id="becSpeed" role="group" aria-label="Speed"><button data-v="slow">Slow</button><button data-v="normal">Normal</button><button data-v="fast">Fast</button></div>
+        <button class="btn small" id="becPause" aria-pressed="false">Pause</button></div>
+      <div class="brow"><span class="becl">Cold</span><input type="range" id="becT" min="0" max="150" step="1" value="5" aria-label="Temperature, per cent of the condensation temperature"><span class="becv" id="becTv"></span>
+        <button class="btn small" id="becEvap" title="Cool slowly from above T_c, as an evaporation ramp does">Evaporate</button><button class="btn small" id="becQuench" title="Cool through T_c in a few milliseconds">Quench</button></div>
+      <div class="brow"><span class="becl">Do</span><button class="btn small" id="becSpin" aria-pressed="false" title="Set it turning at 0.7 of the trap frequency: a lattice of quantized vortices forms">Spin</button><button class="btn small" id="becSplit" aria-pressed="false">Split</button><button class="btn small" id="becVortex">Vortex</button><button class="btn small" id="becRel" aria-pressed="false">Release</button><button class="btn small" id="becReset">Start again</button>
+        <div class="seg" id="becView" role="group" aria-label="Show"><button data-v="dens">Density</button><button data-v="phase">Phase</button></div>
+        <div class="seg" id="becLook" role="group" aria-label="Look from"><button data-v="above">Above</button><button data-v="side">Side</button></div></div>
+    </div>
+    <p class="note" id="becMsg" aria-live="polite"></p>
   </div>
 </div>
 
@@ -840,6 +866,10 @@
       <ul>
         <li>My experiments (at the top of the experiment list) keeps named saves in this browser; the Gallery and share codes (Esc menu) save a world to a file or a line of text to send. The chamber is kept between visits.</li>
       </ul>
+      <h4>The condensate lab</h4>
+      <ul>
+        <li>Lab → Condensate lab… (or the main menu) opens a Bose–Einstein condensate of its own, apart from the chamber: ⁸⁷Rb, ²³Na or ⁷Li atoms at nanokelvins in a trap, micrometres across. The condensate is one wave function ψ (the Gross–Pitaevskii equation, in the WebAssembly module), flat (a pancake trap) or in 3-D; the thermal cloud around it is the ideal Bose gas. Cool it through T<sub>c</sub> (Evaporate, or Quench for trapped vortices), Spin it for a vortex lattice, print one Vortex, Split it with a sheet of light and Release it to see the halves interfere, drag a laser spoon through it, or give ⁷Li too many atoms and watch it collapse. The picture is what the experiments photograph: the column density (an absorption picture), or ψ's phase.</li>
+      </ul>
       <h4>What it does, and does not</h4>
       <ul>
         <li>A two-dimensional world (the 3-D lab: a cube) with real constants: atoms move by classical mechanics under forces fitted to real chemistry (bonds, angles, charges); free electrons and nuclei are particles of their own; nuclear reactions, decays and particle physics come from measured data. Energy is kept in the books, and checked for every experiment.</li>
@@ -878,6 +908,7 @@
       <button class="btn" data-mm="empty">New empty chamber</button>
       <button class="btn" data-mm="setups">Experiments and challenges…</button>
       <button class="btn" data-mm="gallery">Gallery</button>
+      <button class="btn" data-mm="bec">Condensate lab</button>
       <button class="btn" data-mm="settings">Settings</button>
       <button class="btn" data-mm="help">Help</button>
       <button class="btn danger" data-mm="quit" id="mmQuit">Quit</button>
@@ -886,7 +917,7 @@
       <button class="btn small mm-back" data-mm="choose">← 2-D or 3-D</button>
       <button class="btn primary" data-mm="continue" id="mmContinue3">Continue</button>
       <div class="mm-btns mm-set3" id="mmList3"></div>
-      <div class="mm-row"><button class="btn" data-mm="gallery">Gallery</button><button class="btn" data-mm="settings3">Settings</button><button class="btn" data-mm="help">Help</button></div>
+      <div class="mm-row"><button class="btn" data-mm="gallery">Gallery</button><button class="btn" data-mm="bec">Condensate lab</button><button class="btn" data-mm="settings3">Settings</button><button class="btn" data-mm="help">Help</button></div>
       <p class="mm-note3d">The 3-D mode is a preview: right-drag, Alt+drag or the arrow keys turn the view, the wheel zooms, W A S D fly (E and Q up and down), 0 fits the box. Fields, magnets, light and unstable particles work in 3-D too, with their captures and hits on nuclei (muonic atoms, nuclear stars, muonium), and nuclear reactions: decay, neutrons, fission, fusion; antimatter too; the collider, placed objects and chips stay in the 2-D game for now.</p>
     </div>
     <div class="mm-setups" id="mmSetups" hidden><button class="btn small" data-mm="back">← Back</button><div class="mm-list" id="mmList"></div></div>
