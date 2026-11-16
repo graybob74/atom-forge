@@ -99,7 +99,7 @@ pub fn kin(kr: &mut [f64], ki: &mut [f64], nx: usize, ny: usize, nz: usize, dx: 
 }
 
 pub struct Pot { pub nx: usize, pub ny: usize, pub nz: usize, pub dx: f64, pub dy: f64, pub dz: f64, pub cx: f64, pub cy: f64, pub cz: f64, pub trap: f64,
-    pub beta: f64, pub eps: f64, pub om: f64, pub bar_a: f64, pub bar_w: f64, pub absorb: f64, pub gamma: f64, pub imag: bool, pub k3: f64, pub mu: f64, pub sp_a: f64, pub sp_x: f64, pub sp_y: f64, pub sp_w: f64 }
+    pub beta: f64, pub eps: f64, pub om: f64, pub bar_a: f64, pub bar_w: f64, pub absorb: f64, pub gamma: f64, pub imag: bool, pub k3: f64, pub mu: f64, pub sp_a: f64, pub sp_x: f64, pub sp_y: f64, pub sp_w: f64, pub rot: f64 }
 
 /// ψ ← e^{−i(V + β|ψ|² − μ − iW − ik₃|ψ|⁴)τ(1 − iγ)}ψ (k₃: three-body loss) (imaginary time: e^{−(V + β|ψ|²)τ}) at time t (the stirrer's angle Ω t); W the
 /// absorbing edge (its last tenth of each axis, rising as the square).
@@ -112,6 +112,7 @@ pub fn pot(re: &mut [f64], im: &mut [f64], q: &Pot, tau: f64, t: f64) {
             for i in 0..q.nx { let x = (i as f64 - hx) * q.dx; let ix = i + q.nx * (j + q.ny * k);
                 let rho = re[ix] * re[ix] + im[ix] * im[ix];
                 let mut v = q.trap * (q.cx * x * x + q.cy * y * y + q.cz * z * z) + q.beta * rho;
+                if q.rot != 0.0 { v -= 0.5 * q.rot * q.rot * (x * x + y * y); } // (K − ΩL_z = ½(p − Ω×r)² − ½Ω²r²: the rest is in kin_rot)
                 if q.eps != 0.0 { let u = x * cs + y * sn; let w = -x * sn + y * cs; v += q.eps * 0.5 * (u * u - w * w); }
                 if q.bar_a != 0.0 { v += q.bar_a * exp_fast(-x * x / (2.0 * q.bar_w * q.bar_w)); }
                 if q.sp_a != 0.0 { let (u, w) = (x - q.sp_x, y - q.sp_y); v += q.sp_a * exp_fast(-(u * u + w * w) / (2.0 * q.sp_w * q.sp_w)); }
@@ -125,6 +126,33 @@ pub fn pot(re: &mut [f64], im: &mut [f64], q: &Pot, tau: f64, t: f64) {
             } } }
 }
 
+/// The kinetic step in a frame turning at Ω about z (Bao & Wang's alternating directions): K − ΩL_z = ½(p_x + Ωy)² +
+/// ½(p_y − Ωx)² + ½p_z² − ½Ω²r², the first two each a shift in k along one axis that depends on the other coordinate:
+/// x lines transformed and multiplied by f(k_x + Ωy), then y lines by f(k_y − Ωx), then z (f the free step's factor;
+/// each axis's top half of k filtered, as kin).
+pub fn kin_rot(re: &mut [f64], im: &mut [f64], q: &Pot, dt: f64, twr: &[f64], twi: &[f64], m: usize) {
+    let (nx, ny, nz) = (q.nx, q.ny, q.nz); let hx = 0.5 * nx as f64; let hy = 0.5 * ny as f64;
+    let f = |k: f64, cut: bool| -> (f64, f64) { if cut { return (0.0, 0.0); } let a = 0.5 * k * k * dt;
+        if q.imag { (exp_fast(-a), 0.0) } else { let mg = exp_fast(-q.gamma * a); let (s, c) = sincos(a); (mg * c, -mg * s) } };
+    let mul = |re: &mut [f64], im: &mut [f64], i: usize, fr: f64, fi: f64, sc: f64| { let a = re[i]; let b = im[i]; re[i] = (a * fr - b * fi) * sc; im[i] = (a * fi + b * fr) * sc; };
+    let cutk = |i: usize, n: usize| -> bool { let ii = if i < n / 2 { i } else { n - i }; ii as f64 > 0.25 * n as f64 };
+    for k in 0..nz { for j in 0..ny { let y = (j as f64 - hy) * q.dy; let o = nx * (j + ny * k);
+        fft(&mut re[o..o + nx], &mut im[o..o + nx], nx, false, twr, twi, m);
+        for i in 0..nx { let (fr, fi) = f(kof(i, nx, q.dx) + q.rot * y, cutk(i, nx)); mul(re, im, o + i, fr, fi, 1.0 / nx as f64); }
+        fft(&mut re[o..o + nx], &mut im[o..o + nx], nx, true, twr, twi, m);
+    } }
+    for k in 0..nz { let base = k * nx * ny;
+        fft_lines(re, im, base, ny, nx, nx, false, twr, twi, m);
+        for j in 0..ny { let ky = kof(j, ny, q.dy); let c = cutk(j, ny); for i in 0..nx { let x = (i as f64 - hx) * q.dx; let (fr, fi) = f(ky - q.rot * x, c); mul(re, im, base + i + nx * j, fr, fi, 1.0 / ny as f64); } }
+        fft_lines(re, im, base, ny, nx, nx, true, twr, twi, m);
+    }
+    if nz > 1 {
+        fft_lines(re, im, 0, nz, nx * ny, nx * ny, false, twr, twi, m);
+        for k in 0..nz { let (fr, fi) = f(kof(k, nz, q.dz), cutk(k, nz)); for i in 0..nx * ny { mul(re, im, i + nx * ny * k, fr, fi, 1.0 / nz as f64); } }
+        fft_lines(re, im, 0, nz, nx * ny, nx * ny, true, twr, twi, m);
+    }
+}
+
 /// steps of dt from t0: V(dt/2) [K V(dt)]… K V(dt/2); then, with renorm, ψ scaled to ∫|ψ|² = 1. Returns ∫|ψ|² before.
 pub fn step(re: &mut [f64], im: &mut [f64], kr: &[f64], ki: &[f64], q: &Pot, dt: f64, steps: usize, t0: f64, renorm: bool,
             twr: &[f64], twi: &[f64], m: usize, lr: &mut [f64], li: &mut [f64]) -> f64 {
@@ -134,9 +162,11 @@ pub fn step(re: &mut [f64], im: &mut [f64], kr: &[f64], ki: &[f64], q: &Pot, dt:
         let mut nrm = 1.0;
         for _ in 0..steps {
             pot(re, im, q, 0.5 * dt, t0);
-            fft_nd(re, im, q.nx, q.ny, q.nz, false, twr, twi, m, lr, li);
-            for i in 0..n { let a = re[i]; let b = im[i]; re[i] = a * kr[i] - b * ki[i]; im[i] = a * ki[i] + b * kr[i]; }
-            fft_nd(re, im, q.nx, q.ny, q.nz, true, twr, twi, m, lr, li);
+            if q.rot != 0.0 { kin_rot(re, im, q, dt, twr, twi, m); } else {
+                fft_nd(re, im, q.nx, q.ny, q.nz, false, twr, twi, m, lr, li);
+                for i in 0..n { let a = re[i]; let b = im[i]; re[i] = a * kr[i] - b * ki[i]; im[i] = a * ki[i] + b * kr[i]; }
+                fft_nd(re, im, q.nx, q.ny, q.nz, true, twr, twi, m, lr, li);
+            }
             pot(re, im, q, 0.5 * dt, t0);
             nrm = 0.0; for i in 0..n { nrm += re[i] * re[i] + im[i] * im[i]; } nrm *= dv;
             if nrm > 0.0 { let f = 1.0 / nrm.sqrt(); for i in 0..n { re[i] *= f; im[i] *= f; } }
@@ -145,9 +175,11 @@ pub fn step(re: &mut [f64], im: &mut [f64], kr: &[f64], ki: &[f64], q: &Pot, dt:
     }
     pot(re, im, q, 0.5 * dt, t0);
     for s in 0..steps {
-        fft_nd(re, im, q.nx, q.ny, q.nz, false, twr, twi, m, lr, li);
-        for i in 0..n { let a = re[i]; let b = im[i]; re[i] = a * kr[i] - b * ki[i]; im[i] = a * ki[i] + b * kr[i]; }
-        fft_nd(re, im, q.nx, q.ny, q.nz, true, twr, twi, m, lr, li);
+        if q.rot != 0.0 { kin_rot(re, im, q, dt, twr, twi, m); } else {
+            fft_nd(re, im, q.nx, q.ny, q.nz, false, twr, twi, m, lr, li);
+            for i in 0..n { let a = re[i]; let b = im[i]; re[i] = a * kr[i] - b * ki[i]; im[i] = a * ki[i] + b * kr[i]; }
+            fft_nd(re, im, q.nx, q.ny, q.nz, true, twr, twi, m, lr, li);
+        }
         pot(re, im, q, if s + 1 == steps { 0.5 * dt } else { dt }, t0 + (s as f64 + 1.0) * dt);
     }
     let mut nrm = 0.0; for i in 0..n { nrm += re[i] * re[i] + im[i] * im[i]; } nrm *= dv;
@@ -206,14 +238,14 @@ unsafe fn sl<'a>(t: *const i32, k: usize, n: usize) -> &'a mut [f64] { core::sli
 unsafe fn potp(p: *const f64) -> Pot {
     let r = |i: usize| *p.add(i);
     Pot { nx: r(0) as usize, ny: r(1) as usize, nz: r(2) as usize, dx: r(3), dy: r(4), dz: r(5), cx: r(8), cy: r(9), cz: r(10), trap: r(11),
-          beta: r(12), eps: r(13), om: r(14), bar_a: r(16), bar_w: r(17), absorb: r(18), gamma: r(6), imag: r(7) != 0.0, k3: r(25), mu: r(26), sp_a: r(27), sp_x: r(28), sp_y: r(29), sp_w: r(30) }
+          beta: r(12), eps: r(13), om: r(14), bar_a: r(16), bar_w: r(17), absorb: r(18), gamma: r(6), imag: r(7) != 0.0, k3: r(25), mu: r(26), sp_a: r(27), sp_x: r(28), sp_y: r(29), sp_w: r(30), rot: r(31) }
 }
 /* t: 0 re, 1 im, 2 kr, 3 ki, 4 lr, 5 li, 6 twr, 7 twi, 8 out
    9, 10 full-size scratch (af_bec_obs: the exact kinetic energy; 0 = differences)
    p: 0 nx, 1 ny, 2 nz, 3 dx, 4 dy, 5 dz, 6 γ, 7 imag, 8 cx, 9 cy, 10 cz, 11 trap (0/1), 12 β, 13 stirrer ε, 14 its Ω,
       15 t0, 16 barrier height, 17 its width, 18 absorbing strength, 19 dt, 20 steps, 21 renorm, 22 the twiddles' size m,
       23 column axis (af_bec_column), 24 its cell size, 25 three-body loss k₃, 26 μ (subtracted from V: the damping drains only H − μ),
-      27–30 a laser spoon (a column along z): height, x, y, width                                                                  */
+      27–30 a laser spoon (a column along z): height, x, y, width, 31 the frame's rotation Ω (about z; 0: the lab's)                                                                  */
 #[no_mangle]
 pub unsafe extern "C" fn af_bec_kin(t: u32, p: u32) -> f64 {
     let t = t as usize as *const i32; let p = p as usize as *const f64; let q = potp(p); let n = q.nx * q.ny * q.nz;
@@ -258,7 +290,7 @@ mod tests {
         // the harmonic oscillator's ground state (β = 0): μ = (λx + λy)/2 = 1 in 2-D, 1.5 in 3-D; with β the Thomas–Fermi μ
         for (nz, want, beta) in [(1usize, 1.0f64, 0.0f64), (32, 1.5, 0.0), (1, (200.0f64 / PI).sqrt(), 200.0)] {
             let (nx, ny) = if nz > 1 { (32, 32) } else { (64, 64) }; let n = nx * ny * nz; let l = if beta > 0.0 { 24.0 } else { 16.0 };
-            let q = Pot { nx, ny, nz, dx: l / nx as f64, dy: l / ny as f64, dz: l / nz.max(2) as f64, cx: 0.5, cy: 0.5, cz: 0.5, trap: 1.0, beta, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true, k3: 0.0, mu: 0.0, sp_a: 0.0, sp_x: 0.0, sp_y: 0.0, sp_w: 1.0 };
+            let q = Pot { nx, ny, nz, dx: l / nx as f64, dy: l / ny as f64, dz: l / nz.max(2) as f64, cx: 0.5, cy: 0.5, cz: 0.5, trap: 1.0, beta, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true, k3: 0.0, mu: 0.0, sp_a: 0.0, sp_x: 0.0, sp_y: 0.0, sp_w: 1.0, rot: 0.0 };
             let mut re: Vec<f64> = (0..n).map(|i| { let x = (i % nx) as f64 - nx as f64 / 2.0; (-0.02 * x * x).exp() }).collect(); let mut im = vec![0.0; n];
             let mut kr = vec![0.0; n]; let mut ki = vec![0.0; n]; let dt = 0.01;
             kin(&mut kr, &mut ki, nx, ny, nz, q.dx, q.dy, q.dz, dt, 0.0, true);
@@ -275,7 +307,7 @@ mod tests {
     fn real_time_keeps_norm_and_energy() {
         let (twr, twi) = tw(64); let mut lr = vec![0.0; 64]; let mut li = vec![0.0; 64];
         let (nx, ny, nz) = (64, 64, 64); let n = nx * ny * nz; let l = 16.0;
-        let mut q = Pot { nx, ny, nz, dx: l / 64.0, dy: l / 64.0, dz: l / 64.0, cx: 0.5, cy: 0.5, cz: 0.5, trap: 1.0, beta: 100.0, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true, k3: 0.0, mu: 0.0, sp_a: 0.0, sp_x: 0.0, sp_y: 0.0, sp_w: 1.0 };
+        let mut q = Pot { nx, ny, nz, dx: l / 64.0, dy: l / 64.0, dz: l / 64.0, cx: 0.5, cy: 0.5, cz: 0.5, trap: 1.0, beta: 100.0, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true, k3: 0.0, mu: 0.0, sp_a: 0.0, sp_x: 0.0, sp_y: 0.0, sp_w: 1.0, rot: 0.0 };
         let mut re: Vec<f64> = (0..n).map(|i| { let x = (i % nx) as f64 - 30.0; let y = ((i / nx) % ny) as f64 - 32.0; let z = (i / nx / ny) as f64 - 32.0; (-0.03 * (x * x + y * y + z * z)).exp() }).collect(); let mut im = vec![0.0; n];
         let (mut kr, mut ki) = (vec![0.0; n], vec![0.0; n]); let (mut sr, mut si) = (vec![0.0; n], vec![0.0; n]);
         kin(&mut kr, &mut ki, nx, ny, nz, q.dx, q.dy, q.dz, 0.01, 0.0, true);
@@ -297,7 +329,7 @@ mod tests {
     #[test]
     fn flat_big_cloud_stays_stable() {
         let n = 256; let l = 22.16; let dx = l / n as f64; let (twr, twi) = tw(n); let mut lr = vec![0.0; n]; let mut li = vec![0.0; n];
-        let mut q = Pot { nx: n, ny: n, nz: 1, dx, dy: dx, dz: 1.0, cx: 0.5, cy: 0.5, cz: 0.0, trap: 1.0, beta: 3080.0, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true, k3: 0.0, mu: 0.0, sp_a: 0.0, sp_x: 0.0, sp_y: 0.0, sp_w: 1.0 };
+        let mut q = Pot { nx: n, ny: n, nz: 1, dx, dy: dx, dz: 1.0, cx: 0.5, cy: 0.5, cz: 0.0, trap: 1.0, beta: 3080.0, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true, k3: 0.0, mu: 0.0, sp_a: 0.0, sp_x: 0.0, sp_y: 0.0, sp_w: 1.0, rot: 0.0 };
         let nn = n * n; let mu = (3080.0f64 / PI).sqrt();
         let mut re: Vec<f64> = (0..nn).map(|i| { let x = ((i % n) as f64 - 128.0) * dx; let y = ((i / n) as f64 - 128.0) * dx; (mu - 0.5 * (x * x + y * y)).max(0.0).sqrt() }).collect(); let mut im = vec![0.0; nn];
         let (mut kr, mut ki) = (vec![0.0; nn], vec![0.0; nn]); let (mut sr, mut si) = (vec![0.0; nn], vec![0.0; nn]);
@@ -312,5 +344,18 @@ mod tests {
         let (e1, p1) = en(&re, &im, &mut sr, &mut si, &mut lr, &mut li);
         println!("flat: dt {} over {}: E {} -> {}, peak {} -> {}", dt, t, e0, e1, p0, p1);
         assert!((e1 - e0).abs() < 1e-3 * e0 && (p1 - p0).abs() < 0.02 * p0);
+    }
+    #[test]
+    fn rotating_ground_state_has_a_lattice() {
+        let n = 128; let l = 20.0; let dx = l / n as f64; let (twr, twi) = tw(n); let mut lr = vec![0.0; n]; let mut li = vec![0.0; n];
+        let q = Pot { nx: n, ny: n, nz: 1, dx, dy: dx, dz: 1.0, cx: 0.5, cy: 0.5, cz: 0.0, trap: 1.0, beta: 1000.0, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true, k3: 0.0, mu: 0.0, sp_a: 0.0, sp_x: 0.0, sp_y: 0.0, sp_w: 1.0, rot: 0.8 };
+        let nn = n * n; let mut seed = 7u64; let mut rnd = || { seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); (seed >> 11) as f64 / (1u64 << 53) as f64 };
+        let mut re: Vec<f64> = vec![0.0; nn]; let mut im = vec![0.0; nn];
+        for i in 0..nn { let x = ((i % n) as f64 - 64.0) * dx; let y = ((i / n) as f64 - 64.0) * dx; let a = (-(x * x + y * y) / 30.0).exp(); let ph = 6.0 * rnd(); re[i] = a * ph.cos(); im[i] = a * ph.sin(); }
+        let (kr, ki) = (vec![0.0; nn], vec![0.0; nn]);
+        step(&mut re, &mut im, &kr, &ki, &q, 0.01, 1500, 0.0, true, &twr, &twi, n, &mut lr, &mut li);
+        let mut o = [0.0; 9]; obs(&re, &im, &q, &mut o);
+        println!("rotating: <Lz> {} norm {}", o[8], o[0]);
+        assert!(o[8] > 3.0);
     }
 }
