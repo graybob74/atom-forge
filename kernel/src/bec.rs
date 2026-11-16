@@ -74,9 +74,9 @@ pub fn kin(kr: &mut [f64], ki: &mut [f64], nx: usize, ny: usize, nz: usize, dx: 
 }
 
 pub struct Pot { pub nx: usize, pub ny: usize, pub nz: usize, pub dx: f64, pub dy: f64, pub dz: f64, pub cx: f64, pub cy: f64, pub cz: f64, pub trap: f64,
-    pub beta: f64, pub eps: f64, pub om: f64, pub bar_a: f64, pub bar_w: f64, pub absorb: f64, pub gamma: f64, pub imag: bool }
+    pub beta: f64, pub eps: f64, pub om: f64, pub bar_a: f64, pub bar_w: f64, pub absorb: f64, pub gamma: f64, pub imag: bool, pub k3: f64 }
 
-/// ψ ← e^{−i(V + β|ψ|² − iW)τ(1 − iγ)}ψ (imaginary time: e^{−(V + β|ψ|²)τ}) at time t (the stirrer's angle Ω t); W the
+/// ψ ← e^{−i(V + β|ψ|² − iW − ik₃|ψ|⁴)τ(1 − iγ)}ψ (k₃: three-body loss) (imaginary time: e^{−(V + β|ψ|²)τ}) at time t (the stirrer's angle Ω t); W the
 /// absorbing edge (its last tenth of each axis, rising as the square).
 pub fn pot(re: &mut [f64], im: &mut [f64], q: &Pot, tau: f64, t: f64) {
     let (sn, cs) = sincos(q.om * t);
@@ -91,7 +91,7 @@ pub fn pot(re: &mut [f64], im: &mut [f64], q: &Pot, tau: f64, t: f64) {
                 if q.bar_a != 0.0 { v += q.bar_a * exp_fast(-x * x / (2.0 * q.bar_w * q.bar_w)); }
                 let (mg, ph) = if q.imag { (exp_fast(-v * tau), 0.0) } else {
                     let wabs = if q.absorb > 0.0 { q.absorb * (edge(i, q.nx) + ey + ez) } else { 0.0 };
-                    (exp_fast(-tau * (q.gamma * v + wabs)), -tau * v) };
+                    (exp_fast(-tau * (q.gamma * v + wabs + q.k3 * rho * rho)), -tau * v) };
                 let (s, c) = if ph != 0.0 { sincos(ph) } else { (0.0, 1.0) };
                 let a = re[ix]; let b = im[ix];
                 re[ix] = mg * (a * c - b * s); im[ix] = mg * (a * s + b * c);
@@ -179,13 +179,13 @@ unsafe fn sl<'a>(t: *const i32, k: usize, n: usize) -> &'a mut [f64] { core::sli
 unsafe fn potp(p: *const f64) -> Pot {
     let r = |i: usize| *p.add(i);
     Pot { nx: r(0) as usize, ny: r(1) as usize, nz: r(2) as usize, dx: r(3), dy: r(4), dz: r(5), cx: r(8), cy: r(9), cz: r(10), trap: r(11),
-          beta: r(12), eps: r(13), om: r(14), bar_a: r(16), bar_w: r(17), absorb: r(18), gamma: r(6), imag: r(7) != 0.0 }
+          beta: r(12), eps: r(13), om: r(14), bar_a: r(16), bar_w: r(17), absorb: r(18), gamma: r(6), imag: r(7) != 0.0, k3: r(25) }
 }
 /* t: 0 re, 1 im, 2 kr, 3 ki, 4 lr, 5 li, 6 twr, 7 twi, 8 out
    9, 10 full-size scratch (af_bec_obs: the exact kinetic energy; 0 = differences)
    p: 0 nx, 1 ny, 2 nz, 3 dx, 4 dy, 5 dz, 6 γ, 7 imag, 8 cx, 9 cy, 10 cz, 11 trap (0/1), 12 β, 13 stirrer ε, 14 its Ω,
       15 t0, 16 barrier height, 17 its width, 18 absorbing strength, 19 dt, 20 steps, 21 renorm, 22 the twiddles' size m,
-      23 column axis (af_bec_column), 24 its cell size                                                                  */
+      23 column axis (af_bec_column), 24 its cell size, 25 three-body loss k₃                                                                  */
 #[no_mangle]
 pub unsafe extern "C" fn af_bec_kin(t: u32, p: u32) -> f64 {
     let t = t as usize as *const i32; let p = p as usize as *const f64; let q = potp(p); let n = q.nx * q.ny * q.nz;
@@ -230,7 +230,7 @@ mod tests {
         // the harmonic oscillator's ground state (β = 0): μ = (λx + λy)/2 = 1 in 2-D, 1.5 in 3-D; with β the Thomas–Fermi μ
         for (nz, want, beta) in [(1usize, 1.0f64, 0.0f64), (32, 1.5, 0.0), (1, (200.0f64 / PI).sqrt(), 200.0)] {
             let (nx, ny) = if nz > 1 { (32, 32) } else { (64, 64) }; let n = nx * ny * nz; let l = if beta > 0.0 { 24.0 } else { 16.0 };
-            let q = Pot { nx, ny, nz, dx: l / nx as f64, dy: l / ny as f64, dz: l / nz.max(2) as f64, cx: 0.5, cy: 0.5, cz: 0.5, trap: 1.0, beta, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true };
+            let q = Pot { nx, ny, nz, dx: l / nx as f64, dy: l / ny as f64, dz: l / nz.max(2) as f64, cx: 0.5, cy: 0.5, cz: 0.5, trap: 1.0, beta, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true, k3: 0.0 };
             let mut re: Vec<f64> = (0..n).map(|i| { let x = (i % nx) as f64 - nx as f64 / 2.0; (-0.02 * x * x).exp() }).collect(); let mut im = vec![0.0; n];
             let mut kr = vec![0.0; n]; let mut ki = vec![0.0; n]; let dt = 0.01;
             kin(&mut kr, &mut ki, nx, ny, nz, q.dx, q.dy, q.dz, dt, 0.0, true);
@@ -247,7 +247,7 @@ mod tests {
     fn real_time_keeps_norm_and_energy() {
         let (twr, twi) = tw(64); let mut lr = vec![0.0; 64]; let mut li = vec![0.0; 64];
         let (nx, ny, nz) = (64, 64, 64); let n = nx * ny * nz; let l = 16.0;
-        let mut q = Pot { nx, ny, nz, dx: l / 64.0, dy: l / 64.0, dz: l / 64.0, cx: 0.5, cy: 0.5, cz: 0.5, trap: 1.0, beta: 100.0, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true };
+        let mut q = Pot { nx, ny, nz, dx: l / 64.0, dy: l / 64.0, dz: l / 64.0, cx: 0.5, cy: 0.5, cz: 0.5, trap: 1.0, beta: 100.0, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true, k3: 0.0 };
         let mut re: Vec<f64> = (0..n).map(|i| { let x = (i % nx) as f64 - 30.0; let y = ((i / nx) % ny) as f64 - 32.0; let z = (i / nx / ny) as f64 - 32.0; (-0.03 * (x * x + y * y + z * z)).exp() }).collect(); let mut im = vec![0.0; n];
         let (mut kr, mut ki) = (vec![0.0; n], vec![0.0; n]); let (mut sr, mut si) = (vec![0.0; n], vec![0.0; n]);
         kin(&mut kr, &mut ki, nx, ny, nz, q.dx, q.dy, q.dz, 0.01, 0.0, true);
