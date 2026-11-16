@@ -3799,6 +3799,21 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    induced charges, many-body metals, quantum bonds (GFN1/GFN2), longer force reach, resonance in large rings. Each
    picture shows that setting's effect on (a before/after pair where one picture cannot); the rest (performance,
    threads, keys, saving, rewind, units, Claude's key and model, the reset buttons) have nothing to see and keep none.
+97 (requested 2026-11-15, the owner: "is bose-einstein state simulated?" — no — then "yes" to adding it) A Bose–Einstein
+   condensate lab, Experimental. Today atoms are classical points: cooled, a gas of bosons only freezes (liquid helium
+   too: real ⁴He stays liquid by its zero-point motion and turns superfluid below 2.17 K; here it crystallizes). A
+   condensate is micrometres across, of 10⁴–10⁷ atoms, forming over milliseconds at about 100 nK (⁸⁷Rb), so it cannot
+   share the chamber's ångströms and picoseconds: it is its own small lab, as the full-wave electrons are a grid wave.
+   Plan: the condensate as one mean-field wave function ψ on a grid (the Gross–Pitaevskii equation, iħ∂ψ/∂t = [−ħ²∇²/2m
+   + V_trap + g|ψ|²]ψ, g = 4πħ²a/m with the measured scattering length: ⁸⁷Rb 5.3 nm, ²³Na 2.8 nm, ⁷Li −1.4 nm), stepped
+   by the split-operator FFT the full waves use (fwave.js), in a harmonic trap with the real frequencies (tens to
+   hundreds of Hz); its ground state by imaginary time (the Thomas–Fermi profile); the thermal cloud around it and the
+   transition (the condensate fraction 1 − (T/T_c)³, T_c from the atom number and trap, a bimodal cloud as in the 1995
+   pictures), cooling by evaporation; time of flight (switch the trap off: it expands and the absorption picture shows
+   the anisotropic expansion, the hallmark); stirring it with a rotating beam to make quantized vortices (a lattice of
+   them); two condensates released together interfering in fringes; an attractive one (⁷Li) collapsing past its
+   critical number. Flat (2-D grid) first, 3-D later. Units and numbers measured; a new kind of lab, so the owner's
+   "build it" first.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
