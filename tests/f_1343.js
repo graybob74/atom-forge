@@ -112,6 +112,21 @@ PARTS.threads = async (page, check) => {
   for (const k of ['gravity', 'charges', 'dispersion']) { const q = r[k] || {};
     check(!r.err && q.parts === nth + 1 && q.dU < 1e-12 && q.dF < 1e-10, `1.34.3 ${k} on ${nth + 1} threads (3-D liquid water, the isolated page): the one-thread energy to ${q.dU && q.dU.toExponential(1)}, forces to ${q.dF && q.dF.toExponential(1)} of the largest; ${q.ms1 && q.ms1.toFixed(2)} → ${q.ms4 && q.ms4.toFixed(2)} ms a pass`, `1.34.3 threads ${k}: ` + JSON.stringify(r.err ? r : q)); }
 };
+/* 1.34.4 (the owner's crash in 1.34.2: "Cannot read properties of undefined (reading 'a')" in landPhotons): a photon on its
+   way to an atom whose bond breaks before it lands flies on out (its energy stays escaped) instead of kicking the partner
+   of a bond no longer there. */
+PARTS.staleLanding = async (page, check) => {
+  const X = load('all', { seed: 3 }), W = X.W; X.PRESETS.empty.build(); W.decayOn = false;
+  X.addMolecule('H2O', 0, 0); X.forcesNoEvents();
+  const o = W.parts.find(p => p.Z === 8), bd = o.bonds[0];
+  const book = () => X.totalEnergy().total + W.ledger.bath;
+  let ran = false, err = null;
+  W.ledger.escaped += 1.2; // (as photonArrive books it)
+  W.pendHits.push({ t: W.t, E: 1.2, sig: X.photonSig(o), hit: { p: o, after: () => { ran = true; const q = X.other(o.bonds[0], o); X.kickPair(o, q, 1.2); } } });
+  for (const b of o.bonds.slice()) X.removeBond(b); // (the bond breaks while the light flies)
+  const E0 = book(); try { X.step(0.001); } catch (e) { err = e.message; }
+  check(!err && !ran && W.pendHits.length === 0 && bd && Math.abs(book() - E0) < 0.05, `1.34.4 a photon landing on an atom whose bonds broke while it flew flies on out: no crash, its 1.2 eV stays escaped`, '1.34.4 stale landing: ' + JSON.stringify({ err, ran, left: W.pendHits.length }));
+};
 module.exports = async function f1343(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

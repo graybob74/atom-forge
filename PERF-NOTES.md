@@ -1991,6 +1991,20 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.34.4: a crash when light landed late (the owner, 2026-11-15)
+
+- The owner's crash report (1.34.2, desktop, an empty chamber with 3,521 particles in deep slow motion): "Cannot read
+  properties of undefined (reading 'a')" at other ← a photon's after ← landPhotons. Since 1.34.1 a photon whose light
+  needs longer than a step waits to land; what it was to do was decided when it was made. An infrared photon was to
+  shake a bond (kickPair with other(p.bonds[0], p)), and the bond broke while the light flew: no bond, the crash. The
+  landing checked only the atom's element, electrons and charge. Now it also checks the atoms bonded to it (photonSig),
+  and a hit can carry its own condition (hit.chk: the bond a photon was to break must still be there); if anything has
+  changed the light flies on out, its energy already counted as escaped. Checked: a photon on its way to a water's
+  oxygen whose bonds are removed before it lands no longer runs (1.34.3: the same crash); the light-arrival scene and the
+  fingerprints unchanged.
+
+Tests: f_1343 part staleLanding; run: t_lint, f_1343 staleLanding, f_134 lightArrives, f_127x fp.
+
 ## 1.34.3: the slow settings in the WebAssembly module; the particle view's orbits; elements in the particle search (the owner, 2026-11-15)
 
 - "Can you do a wasm pass for every major slowdown setting?" Measured first, 3-D liquid water (1,029 atoms), one thread,

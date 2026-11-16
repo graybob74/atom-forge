@@ -3867,7 +3867,7 @@ function rayInteract3(x, y, z, ux, uy, uz, E, src, pol, depth = 0) { // (depth: 
       if (E >= ie && rnd() < 0.6 * Math.min(1, Math.pow(ie / E, 1.5) * 2)) return { x: hx, y: hy, z: hz, p, after: () => photoIonize(p, E - ie, ie) };
       if (p.bonds.length && E < ie) {
         let weak = null; for (const bd of p.bonds) if (!weak || bd.D < weak.D) weak = bd;
-        if (weak && E >= weak.D && E >= 1.77 && rnd() < 0.35) return { x: hx, y: hy, z: hz, p, after: () => photoDissociate(weak, E) };
+        if (weak && E >= weak.D && E >= 1.77 && rnd() < 0.35) return { x: hx, y: hy, z: hz, p, after: () => photoDissociate(weak, E), chk: () => p.bonds.includes(weak) };
       }
       const L = LINES[p.el.sym];
       if (L && p.q === 0 && !p.bonds.length) for (const [nm, , tau] of L.l) if (!(tau > 1e-3) && Math.abs(PHYS.HC / E - nm) < 1.5) { // (a free atom's allowed lines: bugs B2, B3, 1.30)
@@ -3912,14 +3912,19 @@ function photonArrive(hit, len, E, dly) {
   if (!hit.p || tt <= _stepDt) { hit.after(); return; }
   W.ledger.escaped += E; // (on its way)
   const p = hit.p;
-  W.pendHits.push({ t: W.t + tt, hit, E, sig: p.dead ? '' : p.Z + '/' + p.ne + '/' + p.q });
+  W.pendHits.push({ t: W.t + tt, hit, E, sig: photonSig(p) });
 }
+/* What a photon on its way was to meet (1.34.4, the owner's crash in 1.34.2: "Cannot read properties of undefined (reading
+   'a')", an infrared photon landing on an atom whose bond had broken while it flew: its kick went to the partner of a
+   bond no longer there). The atom's element, electrons, charge and the atoms bonded to it: if any has changed by the
+   time it lands, the light flies on out (hit.chk, a hit's own condition, too: the bond a photon was to break). */
+function photonSig(p) { return p.dead ? '' : p.Z + '/' + p.ne + '/' + p.q + '/' + p.bonds.map(b => other(b, p).id).join(','); }
 function landPhotons() {
   const L = W.pendHits, now = [];
   for (let i = L.length - 1; i >= 0; i--) if (W.t >= L[i].t) { now.push(L[i]); L.splice(i, 1); }
   for (let i = now.length - 1; i >= 0; i--) { // (in the order they were made)
     const f = now[i], p = f.hit.p;
-    if (p.dead || p.Z + '/' + p.ne + '/' + p.q !== f.sig) continue; // (it flies on out: already counted as escaped)
+    if (p.dead || photonSig(p) !== f.sig || (f.hit.chk && !f.hit.chk())) continue; // (it flies on out: already counted as escaped)
     W.ledger.escaped -= f.E;
     f.hit.after();
   }
@@ -4033,7 +4038,7 @@ function rayInteract(x, y, ux, uy, E, src, pol, depth = 0) { // (depth: the phot
       }
       if (p.bonds.length && E < ie) {
         let weak = null; for (const bd of p.bonds) if (!weak || bd.D < weak.D) weak = bd;
-        if (weak && E >= weak.D && E >= 1.77 && rnd() < 0.35) return { x: hx, y: hy, p, after: () => photoDissociate(weak, E) };
+        if (weak && E >= weak.D && E >= 1.77 && rnd() < 0.35) return { x: hx, y: hy, p, after: () => photoDissociate(weak, E), chk: () => p.bonds.includes(weak) };
       }
       const L = LINES[p.el.sym];
       if (L && p.q === 0 && !p.bonds.length) for (const [nm, , tau] of L.l) if (!(tau > 1e-3) && Math.abs(PHYS.HC / E - nm) < 1.5) { // (a free atom's allowed lines: bugs B2, B3, 1.30)
