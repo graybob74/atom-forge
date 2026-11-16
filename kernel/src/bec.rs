@@ -82,12 +82,17 @@ pub fn fft_nd(re: &mut [f64], im: &mut [f64], nx: usize, ny: usize, nz: usize, i
 #[inline(always)]
 fn kof(i: usize, n: usize, d: f64) -> f64 { let ii = if i < n / 2 { i as f64 } else { i as f64 - n as f64 }; 2.0 * PI * ii / (n as f64 * d) }
 
-/// The kinetic step's factors (1/n folded in): real time e^{−i k²/2·dt(1 − iγ)}, imaginary time e^{−k²/2·dt}.
+/// The kinetic step's factors (1/n folded in; the spectrum's top half cut): real time e^{−i k²/2·dt(1 − iγ)}, imaginary time e^{−k²/2·dt}.
 pub fn kin(kr: &mut [f64], ki: &mut [f64], nx: usize, ny: usize, nz: usize, dx: f64, dy: f64, dz: f64, dt: f64, gamma: f64, imag: bool) {
     let inv = 1.0 / (nx * ny * nz) as f64;
     for k in 0..nz { let kz = if nz > 1 { kof(k, nz, dz) } else { 0.0 };
         for j in 0..ny { let ky = if ny > 1 { kof(j, ny, dy) } else { 0.0 };
             for i in 0..nx { let kx = kof(i, nx, dx); let a = 0.5 * (kx * kx + ky * ky + kz * kz) * dt; let q = i + nx * (j + ny * k);
+                // the top of the spectrum filtered out (beyond half the grid's k_max, by ellipse): it is where the split-step
+                // method with a nonlinearity goes unstable (k²dt/2 near π/2) and where aliasing lives; the condensate needs
+                // nothing there (its healing length is resolved well inside)
+                let s2 = (kx * dx / PI).powi(2) + if ny > 1 { (ky * dy / PI).powi(2) } else { 0.0 } + if nz > 1 { (kz * dz / PI).powi(2) } else { 0.0 };
+                if s2 > 0.25 { kr[q] = 0.0; ki[q] = 0.0; continue; }
                 if imag { kr[q] = exp_fast(-a) * inv; ki[q] = 0.0; }
                 else { let mg = exp_fast(-gamma * a) * inv; let (s, c) = sincos(a); kr[q] = mg * c; ki[q] = -mg * s; }
             } } }
@@ -287,6 +292,25 @@ mod tests {
         println!("64³ real: {:.1} ms a step", t.elapsed().as_secs_f64() * 5.0);
         let (n1, e1) = en(&re, &im, &q, &mut sr, &mut si, &mut lr, &mut li);
         println!("norm {} -> {}, E {} -> {}", n0, n1, e0, e1);
-        assert!((n1 - n0).abs() < 1e-9 && (e1 - e0).abs() < 2e-3 * e0.abs());
+        assert!((n1 - n0).abs() < 1e-6 && (e1 - e0).abs() < 2e-3 * e0.abs());
+    }
+    #[test]
+    fn flat_big_cloud_stays_stable() {
+        let n = 256; let l = 22.16; let dx = l / n as f64; let (twr, twi) = tw(n); let mut lr = vec![0.0; n]; let mut li = vec![0.0; n];
+        let mut q = Pot { nx: n, ny: n, nz: 1, dx, dy: dx, dz: 1.0, cx: 0.5, cy: 0.5, cz: 0.0, trap: 1.0, beta: 3080.0, eps: 0.0, om: 0.0, bar_a: 0.0, bar_w: 1.0, absorb: 0.0, gamma: 0.0, imag: true, k3: 0.0, mu: 0.0, sp_a: 0.0, sp_x: 0.0, sp_y: 0.0, sp_w: 1.0 };
+        let nn = n * n; let mu = (3080.0f64 / PI).sqrt();
+        let mut re: Vec<f64> = (0..nn).map(|i| { let x = ((i % n) as f64 - 128.0) * dx; let y = ((i / n) as f64 - 128.0) * dx; (mu - 0.5 * (x * x + y * y)).max(0.0).sqrt() }).collect(); let mut im = vec![0.0; nn];
+        let (mut kr, mut ki) = (vec![0.0; nn], vec![0.0; nn]); let (mut sr, mut si) = (vec![0.0; nn], vec![0.0; nn]);
+        kin(&mut kr, &mut ki, n, n, 1, dx, dx, 1.0, 0.005, 0.0, true);
+        step(&mut re, &mut im, &kr, &ki, &q, 0.005, 400, 0.0, true, &twr, &twi, n, &mut lr, &mut li);
+        q.imag = false; let dt = std::env::var("BEC_DT").ok().and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.8) * dx * dx;
+        kin(&mut kr, &mut ki, n, n, 1, dx, dx, 1.0, dt, 0.0, false);
+        let en = |re: &Vec<f64>, im: &Vec<f64>, sr: &mut Vec<f64>, si: &mut Vec<f64>, lr: &mut Vec<f64>, li: &mut Vec<f64>| { let mut o = [0.0; 9]; obs(re, im, &q, &mut o); (o[1] + o[2] + kin_e(re, im, &q, sr, si, &twr, &twi, n, lr, li), o[7]) };
+        let (e0, p0) = en(&re, &im, &mut sr, &mut si, &mut lr, &mut li);
+        let mut t = 0.0; let nb = (18.0 / (100.0 * dt)) as usize; for b in 0..nb { step(&mut re, &mut im, &kr, &ki, &q, dt, 100, t, false, &twr, &twi, n, &mut lr, &mut li); t += 100.0 * dt;
+            if b % (nb / 6).max(1) == 0 { let (e, p) = en(&re, &im, &mut sr, &mut si, &mut lr, &mut li); println!("  t {:.2} E {:.4} peak {:.5}", t, e, p); } }
+        let (e1, p1) = en(&re, &im, &mut sr, &mut si, &mut lr, &mut li);
+        println!("flat: dt {} over {}: E {} -> {}, peak {} -> {}", dt, t, e0, e1, p0, p1);
+        assert!((e1 - e0).abs() < 1e-3 * e0 && (p1 - p0).abs() < 0.02 * p0);
     }
 }
