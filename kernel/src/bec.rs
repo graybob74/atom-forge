@@ -44,19 +44,39 @@ pub fn fft(re: &mut [f64], im: &mut [f64], n: usize, inv: bool, twr: &[f64], twi
     }
 }
 
-/// The 2-D or 3-D transform of ψ (x fastest), line by line along each axis (the strided ones through lr, li).
-pub fn fft_nd(re: &mut [f64], im: &mut [f64], nx: usize, ny: usize, nz: usize, inv: bool, twr: &[f64], twi: &[f64], m: usize, lr: &mut [f64], li: &mut [f64]) {
+/// The same transform on n "elements" that are runs of w contiguous numbers, element j at base + j·stride (the y and z
+/// axes: every butterfly works on whole rows of x at once, contiguous in memory).
+pub fn fft_lines(re: &mut [f64], im: &mut [f64], base: usize, n: usize, stride: usize, w: usize, inv: bool, twr: &[f64], twi: &[f64], m: usize) {
+    if n < 2 { return; }
+    let mut j = 0usize;
+    for i in 1..n { let mut bit = n >> 1; while j & bit != 0 { j ^= bit; bit >>= 1; } j |= bit;
+        if i < j { let (a, b) = (base + i * stride, base + j * stride); for k in 0..w { re.swap(a + k, b + k); im.swap(a + k, b + k); } } }
+    let mut len = 2;
+    while len <= n {
+        let half = len / 2; let step = m / len;
+        let mut i = 0;
+        while i < n {
+            for k in 0..half {
+                let (wr, mut wi) = (twr[k * step], twi[k * step]); if inv { wi = -wi; }
+                let a = base + (i + k) * stride; let b = a + half * stride;
+                let (ra, rb) = re.split_at_mut(b); let (ia, ib) = im.split_at_mut(b);
+                let (ra, ia) = (&mut ra[a..a + w], &mut ia[a..a + w]); let (rb, ib) = (&mut rb[..w], &mut ib[..w]);
+                for q in 0..w {
+                    let xr = rb[q] * wr - ib[q] * wi; let xi = rb[q] * wi + ib[q] * wr;
+                    rb[q] = ra[q] - xr; ib[q] = ia[q] - xi; ra[q] += xr; ia[q] += xi;
+                }
+            }
+            i += len;
+        }
+        len <<= 1;
+    }
+}
+
+/// The 2-D or 3-D transform of ψ (x fastest): x line by line, y and z as whole rows (fft_lines).
+pub fn fft_nd(re: &mut [f64], im: &mut [f64], nx: usize, ny: usize, nz: usize, inv: bool, twr: &[f64], twi: &[f64], m: usize, _lr: &mut [f64], _li: &mut [f64]) {
     for row in 0..ny * nz { let o = row * nx; fft(&mut re[o..o + nx], &mut im[o..o + nx], nx, inv, twr, twi, m); }
-    if ny > 1 { for k in 0..nz { for i in 0..nx {
-        for j in 0..ny { let q = i + nx * (j + ny * k); lr[j] = re[q]; li[j] = im[q]; }
-        fft(&mut lr[..ny], &mut li[..ny], ny, inv, twr, twi, m);
-        for j in 0..ny { let q = i + nx * (j + ny * k); re[q] = lr[j]; im[q] = li[j]; }
-    } } }
-    if nz > 1 { for j in 0..ny { for i in 0..nx {
-        for k in 0..nz { let q = i + nx * (j + ny * k); lr[k] = re[q]; li[k] = im[q]; }
-        fft(&mut lr[..nz], &mut li[..nz], nz, inv, twr, twi, m);
-        for k in 0..nz { let q = i + nx * (j + ny * k); re[q] = lr[k]; im[q] = li[k]; }
-    } } }
+    if ny > 1 { for k in 0..nz { fft_lines(re, im, k * nx * ny, ny, nx, nx, inv, twr, twi, m); } }
+    if nz > 1 { fft_lines(re, im, 0, nz, nx * ny, nx * ny, inv, twr, twi, m); }
 }
 
 #[inline(always)]
