@@ -1991,6 +1991,20 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.35.1: no crash report for a second window that is still running (the owner, 2026-11-16)
+
+- The owner opened 1.35.0 and was told it had "stopped unexpectedly (froze or crashed)": the glowing oven, 10 particles,
+  4.52 ps, in the main menu, 17 MB, slowest frame 1 ms. Nothing had frozen: that was another window of the game (the
+  same file opened twice), still running. Every window writes its heartbeat to the same place in browser storage every
+  2 s, and a window starting up took any heartbeat left there (not cleared by a normal exit) as a session that died.
+  Reproduced headless: a second window opened while the first ran showed the report at once.
+- Now a heartbeat carries its window's id, and leaving (`crashBye`) records that id too. A heartbeat under 8 s old is
+  watched for 5 s (every 250 ms, since this window beats into the same place): if that window beats again or leaves, it
+  was alive and nothing is said; if it stays silent, the report comes as before. Frames that died mid-way (their own
+  marks) are unchanged.
+- Tests: f_135 `twoWindows` (a live first window: no report; a window whose heartbeat stopped 0 s ago: reported after
+  5 s); the 1.13 crash-handler check now waits 6.2 s after the reload and removes the leaving mark as a dead tab would.
+
 ## 1.35.0: the Bose–Einstein condensate lab, Experimental (the owner, 2026-11-15: "do 2d and 3d in one pass now and code it in wasm", item 97)
 
 - A window of its own (Lab → Sample → Condensate lab…, or the main menu; Esc closes it; the chamber pauses while it is

@@ -1477,8 +1477,8 @@ const { openPage } = require('./browser');
     const m = await openPage({ settle: 900, menu: true });
     await m.page.evaluate(() => { hideMainMenu(); loadPreset('soup'); setRunning(true); });
     await m.page.waitForTimeout(2300);
-    await m.page.evaluate(() => { autosave(); const b = localStorage.getItem('atomforge.beat'), k = () => localStorage.setItem('atomforge.beat', b); window.addEventListener('pagehide', k); document.addEventListener('visibilitychange', k); }); // (as if the tab had died)
-    await m.page.reload(); await m.page.waitForTimeout(900);
+    await m.page.evaluate(() => { autosave(); const b = localStorage.getItem('atomforge.beat'), k = () => { localStorage.setItem('atomforge.beat', b); localStorage.removeItem('atomforge.bye'); }; window.addEventListener('pagehide', k); document.addEventListener('visibilitychange', k); }); // (as if the tab had died)
+    await m.page.reload(); await m.page.waitForTimeout(6200); // (a heartbeat seconds old is watched for 5 s first: another window may still be alive, 1.35.1)
     const rec = await m.page.evaluate(() => ({ open: !$('crashModal').hidden, title: $('crashTitle').textContent, restore: !!document.querySelector('[data-crash=restore]') }));
     await m.page.reload(); await m.page.waitForTimeout(900);
     rec.clean = await m.page.evaluate(() => $('crashModal').hidden);

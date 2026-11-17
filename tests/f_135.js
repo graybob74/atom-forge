@@ -66,6 +66,22 @@ PARTS.melt = async (page, check) => {
   check(n < 1e-2 && Math.abs(m - 0.875) < 0.03, `1.35 heated to 1.2 T_c the condensate melts (${(100 * n).toFixed(2)}% left); at 0.5 T_c in 3-D it holds ${(100 * m).toFixed(1)}% (the ideal gas: 87.5%)`,
     `1.35 melt: ${n} above T_c, ${m} at 0.5 T_c`);
 };
+/* 1.35.1: the game opened in a second window while the first still runs: the first's heartbeat, seconds old, is not
+   reported as a crash (the owner's "stopped unexpectedly" on opening 1.35.0); a window that really stopped still is. */
+PARTS.twoWindows = async (page, check) => {
+  const { chromium } = require('playwright'), { pageFile } = require('./browser');
+  const browser = await chromium.launch(require('./deps').launchOpts({ headless: true })), ctx = await browser.newContext({ viewport: { width: 1360, height: 860 } });
+  const p1 = await ctx.newPage(); await p1.goto('file://' + pageFile()); await p1.waitForTimeout(4000);
+  const beat = await p1.evaluate(() => localStorage.getItem('atomforge.beat'));
+  const p2 = await ctx.newPage(); await p2.goto('file://' + pageFile()); await p2.waitForTimeout(7000);
+  const alive = await p2.evaluate(() => CRASH.open); await p2.close();
+  const b = JSON.parse(beat); await p1.close(); b.win = 'ghost'; b.at = Date.now();
+  const p3 = await ctx.newPage(); await p3.addInitScript((t) => { localStorage.setItem('atomforge.beat', t); localStorage.removeItem('atomforge.bye'); }, JSON.stringify(b));
+  await p3.goto('file://' + pageFile()); await p3.waitForTimeout(7000);
+  const dead = await p3.evaluate(() => CRASH.open && /unexpectedly/.test($('crashTitle').textContent));
+  await browser.close();
+  check(!alive && dead, '1.35.1 a second window of the game, the first still running: no crash report; a window that stopped with its heartbeat seconds old: reported after 5 s', `1.35.1 two windows: alive reported ${alive}, dead reported ${dead}`);
+};
 PARTS.page = async (page, check) => {
   let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1360, height: 900 }, settle: 800 }); page = own.page; }
   await page.evaluate(() => $('bBec').click());

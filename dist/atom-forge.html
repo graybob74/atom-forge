@@ -46005,7 +46005,7 @@ function crashTick(now, frameMs) {
   CRASH.worst = Math.max(CRASH.worst, frameMs);
   if (!CRASH.markTxt || now - CRASH.markAt >= 1000) crashMarkText(now);
   if (now - CRASH.beatAt >= 2000 || frameMs > 500) { // the heartbeat
-    CRASH.beatAt = now; const st = crashState(); st.worst = Math.round(CRASH.worst); CRASH.worst = 0;
+    CRASH.beatAt = now; const st = crashState(); st.worst = Math.round(CRASH.worst); CRASH.worst = 0; st.win = CRASH.mk; // (whose heartbeat: 1.35.1)
     store('beat', JSON.stringify(st));
   }
   if (CRASH.open || now - CRASH.chkAt < 500) return;
@@ -46029,7 +46029,7 @@ function crashTick(now, frameMs) {
     } else if (f < 0.6) CRASH.memWarned = false;
   }
 }
-function crashBye() { store('beat', ''); CRASH.beatAt = 0; } // (the page left normally: no heartbeat to find next time)
+function crashBye() { store('beat', ''); store('bye', CRASH.mk || ''); CRASH.beatAt = 0; } // (the page left normally: no heartbeat to find next time)
 /* The mid-frame mark (1.23.1). The heartbeat cannot tell a freeze from a desktop window closed without a word to the
    page; this can: each frame writes a mark into browser storage as it starts and removes it as it ends. A window is
    never closed in the middle of a frame (the page's script runs one thing at a time), so a mark found at the next start
@@ -47936,7 +47936,18 @@ function init() {
   const direct = !!hash || window.AF_NO_MENU;
   loadPreset(startPreset); buildToolOpts();
   setRunning(true);
-  const prev = crashPrev(); // (the last session froze or crashed: offer its autosave rather than carry on into it)
+  let prev = crashPrev(); // (the last session froze or crashed: offer its autosave rather than carry on into it)
+  // 1.35.1: a heartbeat only seconds old may be another window of the game, still running (the same file opened twice:
+  // the owner's "stopped unexpectedly" on opening 1.35.0, the other window's oven beating every 2 s). Wait and see: if
+  // that window beats again or says goodbye, it was alive; only if it stays silent is it reported.
+  if (prev && !prev.midFrame && prev.win && Date.now() - prev.at < 8000) {
+    const was = prev, t0 = Date.now(); prev = null;
+    const look = setInterval(() => { // (every 250 ms for 5 s: this window beats into the same place too)
+      let b; try { b = JSON.parse(store('beat') || 'null'); } catch (e) { b = null; }
+      if ((b && b.win === was.win) || store('bye') === was.win || CRASH.open) { clearInterval(look); return; } // (alive, or left normally)
+      if (Date.now() - t0 > 5000) { clearInterval(look); if (!window.AF_NO_MENU) crashRecover(was); }
+    }, 250);
+  }
   const menu = !direct && SET.start === 'menu';
   if (menu) showMainMenu(); // (before UI.started, so it keeps the last session's autosave: it saved the fresh start setup over it, and Continue and the crash dialog brought that back, 1.23.1)
   UI.started = true;
