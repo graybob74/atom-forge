@@ -1,4 +1,4 @@
-<title>Atom Forge 1.35.1</title>
+<title>Atom Forge 1.36.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44356,7 +44356,8 @@ function fixedLayout(C, A, E) {
   const t0 = t + 24, nAt = 3, a0 = 2.74, depth = (nAt - 1) * a0, half = 11;
   C.ext = { x: 0, y: 0, ux, uy, L: Ls };
   C.target = { x: ux * (t0 + depth / 2), y: uy * (t0 + depth / 2), ux, uy, depth, half, el: 'W', a0, n: nAt };
-  C.pipes.push({ arc: false, x0: 0, y0: 0, x1: ux * t0, y1: uy * t0, ext: true }, { arc: false, x0: ux * (t0 + depth + 6) - uy * half, y0: uy * (t0 + depth + 6) + ux * half, x1: ux * (t0 + depth + 6) + uy * half, y1: uy * (t0 + depth + 6) - ux * half, ext: true, hide: true }); // (the second, not drawn: room in the box for the target)
+  const room = 50, side = half + 30; // (room past the target to watch what it sends out: the owner, 2026-11-18, "add a bit more space after the collision zone so you can see the products")
+  C.pipes.push({ arc: false, x0: 0, y0: 0, x1: ux * t0, y1: uy * t0, ext: true }, { arc: false, x0: ux * (t0 + depth + room) - uy * side, y0: uy * (t0 + depth + room) + ux * side, x1: ux * (t0 + depth + room) + uy * side, y1: uy * (t0 + depth + room) - ux * side, ext: true, hide: true }); // (the second, not drawn: room in the box for the target and past it)
   C.R = LAT.rho; C.circ = lat.circ;
   fitCollider(C);
   const T = C.target, nx = -T.uy, ny = T.ux;
@@ -44414,7 +44415,7 @@ function setBox(w, h) { W.box.w = W.box.tw = w; W.box.h = W.box.th = h; }
    before the collision point focuses it. */
 function linacLayout(C, A, B, EA, EB) {
   const L = 80, f = 13, wq = 8, injA = Math.min(2e5, 0.25 * EA), injB = Math.min(2e5, 0.25 * EB);
-  C.layout = 'linear'; C.EA = EA; C.EB = EB; setBox(230, 60);
+  C.layout = 'linear'; C.EA = EA; C.EB = EB; setBox(230, 120); // (120 Å across, 1.36: room either side of the collision point to see what it makes fly out; it was 60)
   // cavities push a to the right and b to the left; each focusing magnet faces its incoming beam
   W.zones.push({ kind: 'cavity', cx: -62, cy: 0, w: L, h: 10, ang: 0, E: Math.max(0, EA - injA) / L / A.q, dir: 1, label: 'linac' });
   W.zones.push({ kind: 'cavity', cx: 62, cy: 0, w: L, h: 10, ang: 0, E: -Math.max(0, EB - injB) / L / B.q, dir: -1, label: 'linac' });
@@ -44813,22 +44814,22 @@ const PRESETS = {
         else addMolecule('H2O', x, y, rnd() * 6, 300, z); }); } },
   ring3d: { group: G3D, d3: true, name: 'Ring collider', tool: 'inspect', tab: 'lab', spec: { kind: 'pos' },
     hint: '<b>A collider ring in the 3-D lab: positrons and electrons go round one ring in opposite directions and meet in the detector.</b> The ring lies in the middle plane of the box (red bending magnets, gold RF cavities that speed the beams up, violet focusing magnets); turn the view to see it from the side. Change the beams and energy in the Lab tab.',
-    build() { baseWorld(150, 130, 300, 0); world3d(40); W.wall = 'open'; setupCollider('ring', 'ee', 2e6); } },
+    build() { baseWorld(150, 130, 300, 0); world3d(80); W.wall = 'open'; setupCollider('ring', 'ee', 2e6); } },
   linac3d: { group: G3D, d3: true, name: 'Linear collider', tool: 'inspect', tab: 'lab', spec: { kind: 'e' },
     hint: '<b>Two linear accelerators in the 3-D lab fire electrons and positrons at each other.</b> Each cavity row (gold) pushes its beam along the middle plane of the box, the focusing magnets (violet) squeeze it onto the axis, and the two meet head-on at the collision point.',
-    build() { baseWorld(230, 60, 300, 0); world3d(40); W.wall = 'open'; setupCollider('linear', 'ee', 1e6); } },
+    build() { baseWorld(230, 60, 300, 0); world3d(80); W.wall = 'open'; setupCollider('linear', 'ee', 1e6); } },
   rhic3d: { group: G3D, d3: true, name: 'Gold on gold', tool: 'inspect', tab: 'lab', spec: { kind: 'atom', Z: 79, A: 197, bare: true },
     hint: '<b>Gold nuclei at 100 GeV per nucleon, head on, as at RHIC (Brookhaven), in the 3-D lab.</b> Each beam has a ring of its own in the middle plane; the two cross in the detector. Glancing passes knock nucleons off; when the nuclei overlap, the overlap melts into a quark–gluon plasma, and what it freezes into flies out in every direction: turn the view to see the spray.',
-    build() { baseWorld(150, 130, 300, 0); world3d(40); W.wall = 'open'; setupCollider('ring', 'au197', 'au197', 197 * 100e9); } },
+    build() { baseWorld(150, 130, 300, 0); world3d(80); W.wall = 'open'; setupCollider('ring', 'au197', 'au197', 197 * 100e9); } },
   lep3d: { group: G3D, d3: true, name: 'CERN LEP: the Z factory', tool: 'inspect', tab: 'lab', spec: { kind: 'e' },
     hint: '<b>CERN’s Large Electron–Positron collider tuned to the Z boson, in the 3-D lab.</b> Electrons and positrons at 45.6 GeV each meet at about 91 GeV, the Z⁰’s mass, so nearly every collision makes a Z, which decays at once: into a quark pair (two jets of hadrons, pointing any way in space), a lepton pair, or neutrinos nobody sees. Turn the view to follow the jets.',
-    build() { baseWorld(230, 60, 300, 0); world3d(40); W.wall = 'open'; setupCollider('linear', 'ee', 45.6e9); } },
+    build() { baseWorld(230, 60, 300, 0); world3d(80); W.wall = 'open'; setupCollider('linear', 'ee', 45.6e9); } },
   dafne3d: { group: G3D, d3: true, name: 'Frascati DAΦNE: the φ factory', tool: 'inspect', tab: 'lab', spec: { kind: 'e' },
     hint: '<b>Italy’s electron–positron collider at Frascati, tuned to make φ mesons, in the 3-D lab.</b> Electrons and positrons at 510 MeV each meet at 1.02 GeV, the φ’s mass, so most collisions make a φ, which falls apart into two kaons (K⁺K⁻ or K⁰ʟK⁰s) flying back to back in a direction anywhere in space.',
-    build() { baseWorld(230, 60, 300, 0); world3d(40); W.wall = 'open'; setupCollider('linear', 'ee', 5.1e8); } },
+    build() { baseWorld(230, 60, 300, 0); world3d(80); W.wall = 'open'; setupCollider('linear', 'ee', 5.1e8); } },
   fixed3d: { group: G3D, d3: true, name: 'Fixed-target synchrotron', tool: 'inspect', tab: 'lab', spec: SPEC_P,
     hint: '<b>A synchrotron in the 3-D lab that fires its beam at a target at rest.</b> Protons are injected, sped up round the ring to 1.4 GeV, then steered out down the extraction line into a block of tungsten atoms, where they knock nuclei apart (spallation); what comes out flies off in every direction.',
-    build() { baseWorld(150, 130, 300, 0); world3d(40); W.wall = 'open'; setupCollider('fixed', 'p', 'p', 1.4e9); } },
+    build() { baseWorld(150, 130, 300, 0); world3d(80); W.wall = 'open'; setupCollider('fixed', 'p', 'p', 1.4e9); } },
   combustion: { group: 'Chemistry', name: 'Hydrogen + oxygen', tool: 'spark', spec: { kind: 'mol', mol: 'H2' },
     hint: '<b>A 2:1 mix of H₂ and O₂ at 600 K.</b> Nothing happens until a bond breaks. Click with the Spark tool or heat a spot: radicals (H, O, OH) start chain reactions that make water and release heat.',
     build() { baseWorld(64, 44, 600, 0.005); let k = 0;

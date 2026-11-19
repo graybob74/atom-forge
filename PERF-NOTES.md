@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.36 (in progress): the collider in 3-D (the owner, 2026-11-18: "i'd say 3d accelerator is next, can you start that?")
+## 1.36.0: the collider in 3-D, and a fixed-target synchrotron (the owner, 2026-11-18: "i'd say 3d accelerator is next, can you start that?")
 
 The 1.25 notes' stage 3, never built ("several sessions"). Plan: (1) the beams flying in 3-D through the ring in the middle
 plane, and the ring drawn; (2) what collisions make sprayed in all three directions, fast products in relativistic flight
@@ -2070,6 +2070,9 @@ through depth; (3) the panel, more setups (gold on gold, the LHC energies), test
     block is blown apart by the first few 1.4 GeV protons). The panel hides beam 2 and the pair buttons, counts "Sent to
     the target", and explains it. Setups: Accelerators → Fixed-target synchrotron (flat) and the 3-D lab's (protons at
     1.4 GeV, as CERN's PS Booster sends to ISOLDE).
+  - Room to watch the products (the owner: "add a bit more space after the collision zone so you can see the products"):
+    the fixed-target machine's box reaches 50 Å past the target and 30 Å either side of it (flat 179 × 204 Å); the linear
+    colliders' box is 120 Å across (was 60), flat and 3-D; the 3-D accelerator setups' box 80 Å deep (was 40).
   - Measured (tests/f_136.js `fixed`): flat and 3-D, the protons went out at 1.36 and 1.37 GeV (the bunch's spread about
     the synchronous 1.4 GeV); 10 and 30 sent out made 279 and 263 neutrons, 88 and 25 kinds of heavy nuclei (¹⁷⁰Lu,
     ¹⁷²W, ¹⁶⁹Ta, ¹⁶⁹Hf…), protons, deuterons, tritons, ³He, α and pions.
