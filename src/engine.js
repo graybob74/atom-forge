@@ -4131,7 +4131,7 @@ function setMotion(p, KE, ux, uy, bvx = 0, bvy = 0, uz = 0, bvz = 0) { // (uz, b
   // (3-D collider, 1.36: in a world with a collider, a fast particle flies in radiation mode as in the flat game, its
   // direction (ux, uy, uz) in space: the beams in the middle plane through the ring's zones there, what collisions make
   // in every direction, relativistically (moveRad); stepped without relativity it went faster than light)
-  const fly3 = W.d3 && W.collider && KE > thr;
+  const fly3 = W.d3 && W.collider && KE > thr && !neutron; // (not a neutron: the 3-D neutron passes (neutronPairs) take stepped neutrons; one in flight moved the books by ~10⁵ eV a spallation)
   if (W.d3 && !fly3) { // (3-D: the same, with z, at any energy (1.23.2): the radiation flight is flat, so a fast particle stays in the stepped set, moving in depth, and walls3 stops it at a closed box's wall by its speed, as the flat walls stop radiation flight; before, one past the threshold flew flat, z held, meeting nuclei at any depth)
     p.rad = false;
     const vv = 2 * KE * p.im, ub = ux * bvx + uy * bvy + uz * bvz, disc = ub * ub - (bvx * bvx + bvy * bvy + bvz * bvz) + vv;
@@ -6341,7 +6341,7 @@ function neutronPairs(dt, id0) {
   _nnSp = W.spawned; _nnL.length = 0; let nN = 0;
   for (const p of W.parts) {
     if (p.dead || p.k !== NUC || p.id >= id0) continue;
-    if (p.Z === 0 && p.N > 0) { _nnL.push(p); nN++; } else if (p.Z > 0 && (p.rad || p.fast)) _nnL.push(p);
+    if (p.Z === 0 && p.N > 0) { _nnL.push(p); nN++; } else if (p.Z > 0 && (p.rad || p.fast) && !(W.d3 && p.rad)) _nnL.push(p); // (3-D: not a nucleus in radiation flight (a 3-D collider's, 1.36): these passes are in the plane, x and y only, and took a proton in flight 1 Å away in depth for a meeting, ~10⁵ eV off the books)
   }
   _nnPrev = nN;
   const n = _nnL.length;
@@ -6621,6 +6621,11 @@ function moveRad(p, dt) {
     // below it); a lepton crossing a nucleus is turned by its full charge (Mott scattering), the pass mapped onto
     // nuclear distances as in a collider. (An antinucleus in flight almost never annihilates: σ ≈ 0.1 b at MeV
     // energies; it slows down first.)
+    if (p.k === NUC && opp(p, tg) && b < (W.ultra ? nucReach(p, tg) : R_NN)) { // (1.36: a fast nucleus meeting an antinucleus on its path (an antimatter target): they annihilate, as when the two meet in flight (beamCollisions); before, it passed through, only ionizing)
+      if (d3) _evZ3 = tg.z;
+      if (!(p.Z + p.N === 1 && tg.Z + tg.N === 1 && !p.ne && !tg.ne && nnbarEvent(p, tg, tg.x, tg.y))) nuclearAnnihilation(p, tg);
+      stopped = true; break;
+    }
     if (p.k === NUC && !opp(p, tg)) {
       const R = nucReach(p, tg);
       if (b < R) {
@@ -6672,7 +6677,7 @@ function moveRad(p, dt) {
   }
   if (RP.cpm && !p.dead && !stopped && p.KE > 1) { CPM.K = p.KE; cpmCkv(x0, y0, 0, Math.hypot(x1 - x0, y1 - y0)); p.KE = CPM.K; } // (Cherenkov light, 1.27)
   if (!stillNear && p.hit) p.hit = 0;
-  if (!p.dead && !stopped && p.k === NUC && _fastNuc.length) stopped = radVsFast(p, x0, y0, x1, y1);
+  if (!p.dead && !stopped && p.k === NUC && _fastNuc.length && !d3) stopped = radVsFast(p, x0, y0, x1, y1); // (flat only: its paths are in the plane, which in 3-D took ions far off in depth for meetings, 1.36)
   if (p.dead || stopped) return;
   if (d3) { const Lp = Math.hypot(_rp[0] - x0, _rp[1] - y0), f = Lp > 0 ? Math.hypot(x1 - x0, y1 - y0) / Lp : 1; z1 = z0 + (z1 - z0) * Math.min(1, f); } // (stopped short at a meeting: as far in depth)
   p.x = x1; p.y = y1; if (d3) p.z = z1;

@@ -111,6 +111,10 @@
             <div class="row"><span>Beam 2 energy</span><span class="val" id="cE2Val"></span></div>
             <input type="range" id="cE2Slider" min="0" max="1000" step="1" aria-label="Beam 2 energy">
           </div>
+          <div id="cTgtWrap" hidden>
+            <div class="row"><span>Target</span><span class="val" id="cTgtVal"></span></div>
+            <div class="row" style="gap:10px"><select class="select" id="cTgt" aria-label="Target element" style="flex:1"></select><label class="check" style="margin:0"><input type="checkbox" id="chkTgtAnti"> Antimatter</label></div>
+          </div>
           <div class="row"><span>Particles per bunch</span><span class="val" id="cNVal"></span></div>
           <input type="range" id="cNSlider" min="1" max="30" step="1" aria-label="Particles per bunch">
           <div id="cSepWrap">

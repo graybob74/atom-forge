@@ -1151,6 +1151,10 @@ body.mo .cost { transition: background-color 0.2s ease, color 0.2s ease; }
             <div class="row"><span>Beam 2 energy</span><span class="val" id="cE2Val"></span></div>
             <input type="range" id="cE2Slider" min="0" max="1000" step="1" aria-label="Beam 2 energy">
           </div>
+          <div id="cTgtWrap" hidden>
+            <div class="row"><span>Target</span><span class="val" id="cTgtVal"></span></div>
+            <div class="row" style="gap:10px"><select class="select" id="cTgt" aria-label="Target element" style="flex:1"></select><label class="check" style="margin:0"><input type="checkbox" id="chkTgtAnti"> Antimatter</label></div>
+          </div>
           <div class="row"><span>Particles per bunch</span><span class="val" id="cNVal"></span></div>
           <input type="range" id="cNSlider" min="1" max="30" step="1" aria-label="Particles per bunch">
           <div id="cSepWrap">
@@ -8939,7 +8943,7 @@ function setMotion(p, KE, ux, uy, bvx = 0, bvy = 0, uz = 0, bvz = 0) { // (uz, b
   // (3-D collider, 1.36: in a world with a collider, a fast particle flies in radiation mode as in the flat game, its
   // direction (ux, uy, uz) in space: the beams in the middle plane through the ring's zones there, what collisions make
   // in every direction, relativistically (moveRad); stepped without relativity it went faster than light)
-  const fly3 = W.d3 && W.collider && KE > thr;
+  const fly3 = W.d3 && W.collider && KE > thr && !neutron; // (not a neutron: the 3-D neutron passes (neutronPairs) take stepped neutrons; one in flight moved the books by ~10⁵ eV a spallation)
   if (W.d3 && !fly3) { // (3-D: the same, with z, at any energy (1.23.2): the radiation flight is flat, so a fast particle stays in the stepped set, moving in depth, and walls3 stops it at a closed box's wall by its speed, as the flat walls stop radiation flight; before, one past the threshold flew flat, z held, meeting nuclei at any depth)
     p.rad = false;
     const vv = 2 * KE * p.im, ub = ux * bvx + uy * bvy + uz * bvz, disc = ub * ub - (bvx * bvx + bvy * bvy + bvz * bvz) + vv;
@@ -11149,7 +11153,7 @@ function neutronPairs(dt, id0) {
   _nnSp = W.spawned; _nnL.length = 0; let nN = 0;
   for (const p of W.parts) {
     if (p.dead || p.k !== NUC || p.id >= id0) continue;
-    if (p.Z === 0 && p.N > 0) { _nnL.push(p); nN++; } else if (p.Z > 0 && (p.rad || p.fast)) _nnL.push(p);
+    if (p.Z === 0 && p.N > 0) { _nnL.push(p); nN++; } else if (p.Z > 0 && (p.rad || p.fast) && !(W.d3 && p.rad)) _nnL.push(p); // (3-D: not a nucleus in radiation flight (a 3-D collider's, 1.36): these passes are in the plane, x and y only, and took a proton in flight 1 Å away in depth for a meeting, ~10⁵ eV off the books)
   }
   _nnPrev = nN;
   const n = _nnL.length;
@@ -11429,6 +11433,11 @@ function moveRad(p, dt) {
     // below it); a lepton crossing a nucleus is turned by its full charge (Mott scattering), the pass mapped onto
     // nuclear distances as in a collider. (An antinucleus in flight almost never annihilates: σ ≈ 0.1 b at MeV
     // energies; it slows down first.)
+    if (p.k === NUC && opp(p, tg) && b < (W.ultra ? nucReach(p, tg) : R_NN)) { // (1.36: a fast nucleus meeting an antinucleus on its path (an antimatter target): they annihilate, as when the two meet in flight (beamCollisions); before, it passed through, only ionizing)
+      if (d3) _evZ3 = tg.z;
+      if (!(p.Z + p.N === 1 && tg.Z + tg.N === 1 && !p.ne && !tg.ne && nnbarEvent(p, tg, tg.x, tg.y))) nuclearAnnihilation(p, tg);
+      stopped = true; break;
+    }
     if (p.k === NUC && !opp(p, tg)) {
       const R = nucReach(p, tg);
       if (b < R) {
@@ -11480,7 +11489,7 @@ function moveRad(p, dt) {
   }
   if (RP.cpm && !p.dead && !stopped && p.KE > 1) { CPM.K = p.KE; cpmCkv(x0, y0, 0, Math.hypot(x1 - x0, y1 - y0)); p.KE = CPM.K; } // (Cherenkov light, 1.27)
   if (!stillNear && p.hit) p.hit = 0;
-  if (!p.dead && !stopped && p.k === NUC && _fastNuc.length) stopped = radVsFast(p, x0, y0, x1, y1);
+  if (!p.dead && !stopped && p.k === NUC && _fastNuc.length && !d3) stopped = radVsFast(p, x0, y0, x1, y1); // (flat only: its paths are in the plane, which in 3-D took ions far off in depth for meetings, 1.36)
   if (p.dead || stopped) return;
   if (d3) { const Lp = Math.hypot(_rp[0] - x0, _rp[1] - y0), f = Lp > 0 ? Math.hypot(x1 - x0, y1 - y0) / Lp : 1; z1 = z0 + (z1 - z0) * Math.min(1, f); } // (stopped short at a meeting: as far in depth)
   p.x = x1; p.y = y1; if (d3) p.z = z1;
@@ -44353,17 +44362,35 @@ function fixedLayout(C, A, E) {
   // the extraction line: straight on from the extraction point until clear of the ring's magnets, then the target
   const ux = Math.cos(h0), uy = Math.sin(h0), clear = (x, y) => lat.segs.every(g => (g.arc ? Math.abs(Math.hypot(x - g.cx, y - g.cy) - g.r) : segDist(x, y, g)) > LAT.w + 4);
   let t = Ls; while (t < 400 && !clear(ux * t, uy * t)) t += 2;
-  const t0 = t + 24, nAt = 3, a0 = 2.74, depth = (nAt - 1) * a0, half = 11;
+  const el = C.tgtEl || 'W', anti = !!C.tgtAnti, nAt = 3, a0 = targetSpacing(el), half = 11, depth = (nAt - 1) * a0, dMax = (nAt - 1) * 4.5, t0 = t + 24;
   C.ext = { x: 0, y: 0, ux, uy, L: Ls };
-  C.target = { x: ux * (t0 + depth / 2), y: uy * (t0 + depth / 2), ux, uy, depth, half, el: 'W', a0, n: nAt };
+  C.target = { x: ux * (t0 + dMax / 2), y: uy * (t0 + dMax / 2), ux, uy, depth, half, el, anti, a0, n: nAt }; // (its middle where the thickest block's would be: the same box whatever the element)
   const room = 50, side = half + 30; // (room past the target to watch what it sends out: the owner, 2026-11-18, "add a bit more space after the collision zone so you can see the products")
   C.pipes.push({ arc: false, x0: 0, y0: 0, x1: ux * t0, y1: uy * t0, ext: true }, { arc: false, x0: ux * (t0 + depth + room) - uy * side, y0: uy * (t0 + depth + room) + ux * side, x1: ux * (t0 + depth + room) + uy * side, y1: uy * (t0 + depth + room) - ux * side, ext: true, hide: true }); // (the second, not drawn: room in the box for the target and past it)
   C.R = LAT.rho; C.circ = lat.circ;
   fitCollider(C);
-  const T = C.target, nx = -T.uy, ny = T.ux;
-  C.dets = [{ box: [T.x - Math.abs(T.ux) * depth / 2 - Math.abs(nx) * half - 1, T.x + Math.abs(T.ux) * depth / 2 + Math.abs(nx) * half + 1, T.y - Math.abs(T.uy) * depth / 2 - Math.abs(ny) * half - 1, T.y + Math.abs(T.uy) * depth / 2 + Math.abs(ny) * half + 1], lab: 'target' }];
+  targetBox(C);
   placeTarget(C);
 }
+/* The target block's spacing: about the element's covalent diameter (tungsten 2.75 Å, its nearest-neighbour distance in
+   the metal; carbon 1.5 Å, as in graphite's layers), within 1.5–4.5 Å. */
+function targetSpacing(el) { const E = ELEMENTS[SYM2Z[el]]; return clamp(2 * (E ? E.rc : 1.4) * 0.85, 1.5, 4.5); }
+function targetBox(C) {
+  const T = C.target, nx = -T.uy, ny = T.ux;
+  C.dets = [{ box: [T.x - Math.abs(T.ux) * T.depth / 2 - Math.abs(nx) * T.half - 1, T.x + Math.abs(T.ux) * T.depth / 2 + Math.abs(nx) * T.half + 1, T.y - Math.abs(T.uy) * T.depth / 2 - Math.abs(ny) * T.half - 1, T.y + Math.abs(T.uy) * T.depth / 2 + Math.abs(ny) * T.half + 1], lab: T.anti ? 'antimatter target' : 'target' }];
+}
+/* (1.36, the owner: "do that for every element and anti element") Lab → Collider → Target: the block's element, matter
+   or antimatter; the old block goes (its energy leaving the books as carried away) and a fresh one of the new kind is set
+   at rest in its place. */
+function setTarget(C, el, anti) {
+  if (!C || !C.fixed || !C.target || !SYM2Z[el]) return;
+  C.tgtEl = el; C.tgtAnti = !!anti;
+  const T = C.target; T.el = el; T.anti = !!anti; T.a0 = targetSpacing(el); T.depth = (T.n - 1) * T.a0;
+  targetBox(C); clearTarget(C); placeTarget(C); W.spawned++;
+  log('tool', `Target: a block of ${anti ? 'anti' : ''}${ELEMENTS[SYM2Z[el]].name.toLowerCase()} at rest`);
+}
+function targetIn(C, p) { const T = C.target; return Math.abs((p.x - T.x) * T.ux + (p.y - T.y) * T.uy) < T.depth / 2 + 1.5 && Math.abs(-(p.x - T.x) * T.uy + (p.y - T.y) * T.ux) < T.half + 1.5 && (!W.d3 || Math.abs(p.z) < 7); }
+function clearTarget(C) { for (const p of W.parts) if (!p.dead && !p.beam && (p.tgt || (p.k === NUC && !p.rad && targetIn(C, p)))) { W.ledger.escaped += keOf(p) + internalE(p); chargeTo(p.q); kill(p); } }
 /* The target: a block of atoms at rest, nAt layers deep across the line (in 3-D five layers in depth too). A few
    GeV protons knock its nuclei apart and leave what is left of so small a block hot and scattered (a real one is
    centimetres thick and cooled); so each new bunch finds a fresh block (refillTarget), as a real rotating target
@@ -44373,15 +44400,14 @@ function placeTarget(C) {
   for (let i = 0; i < T.n; i++) for (let j = 0; j <= rows; j++) for (let k = 0; k < lay; k++) {
     const along = -T.depth / 2 + i * T.a0, across = -T.half + j * T.a0 + (i % 2) * T.a0 / 2, z = W.d3 ? (k - (lay - 1) / 2) * T.a0 + (i % 2) * T.a0 / 2 : 0;
     if (Math.abs(across) > T.half) continue;
-    const p = addAtom(T.el, T.x + T.ux * along + nx * across, T.y + T.uy * along + ny * across, W.d3 ? { z } : {}); p.vx = p.vy = 0; if (W.d3) p.vz = 0; p.tgt = true; T.n0++; // (at rest)
+    const p = addAtom(T.el, T.x + T.ux * along + nx * across, T.y + T.uy * along + ny * across, W.d3 ? { z, anti: T.anti } : { anti: T.anti }); p.vx = p.vy = 0; if (W.d3) p.vz = 0; p.tgt = true; T.n0++; // (at rest)
   }
 }
 function refillTarget(C) {
   const T = C.target; if (!T) return;
-  const inBox = (p) => Math.abs((p.x - T.x) * T.ux + (p.y - T.y) * T.uy) < T.depth / 2 + 1.5 && Math.abs(-(p.x - T.x) * T.uy + (p.y - T.y) * T.ux) < T.half + 1.5 && (!W.d3 || Math.abs(p.z) < 7);
-  let ok = 0; for (const p of W.parts) if (!p.dead && p.tgt && p.Z === SYM2Z[T.el] && inBox(p) && keOf(p) < 1) ok++;
+  let ok = 0; for (const p of W.parts) if (!p.dead && p.tgt && p.Z === SYM2Z[T.el] && !!p.anti === !!T.anti && targetIn(C, p) && keOf(p) < 1) ok++;
   if (ok >= 0.8 * T.n0) return; // (still whole and cool)
-  for (const p of W.parts) if (!p.dead && !p.beam && (p.tgt || (p.k === NUC && !p.rad && inBox(p)))) { W.ledger.escaped += keOf(p) + internalE(p); chargeTo(p.q); kill(p); } // (the old block and what is left of it there)
+  clearTarget(C); // (the old block and what is left of it there)
   placeTarget(C); W.spawned++;
   log('tool', 'A fresh piece of target turned into the beam (as a rotating target wheel does)');
 }
@@ -44400,7 +44426,7 @@ function setupCollider(kind, a, b, E, E2) {
   for (const o of W.exo) o.dead = true; W.exo.length = 0; // (and any unstable particles, beams among them)
   W.zones.length = 0; W.sources.length = 0;
   const old = W.collider;
-  const C = W.collider = { kind, a, b, E, E2, auto: old ? old.auto : true, bunch: old ? old.bunch : 10, sepMode: old && old.sepMode || 'auto', hits: 0, last: '', rings: [], colliding: false, colTurns: 0, pipes: [], injLines: [], dets: [] };
+  const C = W.collider = { kind, a, b, E, E2, tgtEl: old && old.tgtEl, tgtAnti: old && old.tgtAnti, auto: old ? old.auto : true, bunch: old ? old.bunch : 10, sepMode: old && old.sepMode || 'auto', hits: 0, last: '', rings: [], colliding: false, colTurns: 0, pipes: [], injLines: [], dets: [] };
   if (kind === 'fixed') { C.kind = 'ring'; C.fixed = true; C.b = C.a; C.E2 = null; fixedLayout(C, A, E); } // (a fixed-target synchrotron: the ring's own logic, one beam, extracted onto a target, 1.36)
   else if (kind !== 'ring') linacLayout(C, A, B, E, E2 === null ? E : E2);
   else if (isAntiPair(A, B) && (E2 === null || Math.abs(E2 / E - 1) < 1e-9)) ringLayout(C, A, B, E);
@@ -44557,10 +44583,16 @@ function syncCollider() {
   $('segBeams').hidden = !!C.fixed; $('cFindB').closest('.bp').hidden = !!C.fixed; $('chkEach').closest('label').hidden = !!C.fixed;
   $('cSepWrap').querySelector('.row span').textContent = C.fixed ? 'Extraction' : 'Beams';
   $('cSep').parentElement.querySelector('.k').textContent = C.fixed ? 'Beam' : 'Beams';
+  $('cTgtWrap').hidden = !(C.fixed && C.target); // (the fixed target's element, matter or antimatter, 1.36)
+  if (C.fixed && C.target) {
+    const sel = $('cTgt'); if (!sel.options.length) { let h = ''; for (let z = 1; z <= Z_TABLE; z++) h += `<option value="${ELEMENTS[z].sym}">${z} ${ELEMENTS[z].sym} \u2014 ${ELEMENTS[z].name}</option>`; sel.innerHTML = h; }
+    sel.value = C.target.el; $('chkTgtAnti').checked = !!C.target.anti;
+    const nm = ELEMENTS[SYM2Z[C.target.el]].name.toLowerCase(); setTxt('cTgtVal', `${C.target.anti ? 'anti' : ''}${nm}, ${C.target.n0 || 0} atoms`);
+  }
   { const L = C.fixed ? { auto: 'Auto', apart: 'Keep in ring', together: 'Extract now' } : { auto: 'Auto', apart: 'Keep apart', together: 'Collide now' }; for (const b of $('segSep').querySelectorAll('button[data-v]')) b.textContent = L[b.dataset.v]; }
   $('cHits').parentElement.querySelector('.k').textContent = C.fixed ? 'Sent to the target' : 'Collisions';
   let note = '';
-  if (C.fixed) note = `A synchrotron with a fixed target: one beam is injected, sped up round the ring by its RF cavities, and at full energy steered out at the extraction point (the ring\u2019s magnets act only on the beam they hold, as an extraction septum shields what leaves) down a straight line into a block of ${C.target ? C.target.el === 'W' ? 'tungsten' : C.target.el : ''} atoms at rest. There each particle meets the nuclei and electrons of the target: it ionizes atoms along its way, scatters, and above a few hundred MeV knocks nuclei apart (spallation: neutrons, protons, light nuclei and, at higher energies, pions). That is how real machines make secondary beams (neutrons at ISIS and the SNS, rare isotopes at ISOLDE, pions, kaons and neutrinos at CERN\u2019s and Fermilab\u2019s fixed-target lines).`;
+  if (C.fixed) note = `A synchrotron with a fixed target: one beam is injected, sped up round the ring by its RF cavities, and at full energy steered out at the extraction point (the ring\u2019s magnets act only on the beam they hold, as an extraction septum shields what leaves) down a straight line into a block of ${C.target ? (C.target.anti ? 'anti' : '') + ELEMENTS[SYM2Z[C.target.el]].name.toLowerCase() : ''} atoms at rest${C.target && C.target.anti ? ' (antimatter: each particle that reaches a nucleus annihilates with it)' : ''}. There each particle meets the nuclei and electrons of the target: it ionizes atoms along its way, scatters, and above a few hundred MeV knocks nuclei apart (spallation: neutrons, protons, light nuclei and, at higher energies, pions). That is how real machines make secondary beams (neutrons at ISIS and the SNS, rare isotopes at ISOLDE, pions, kaons and neutrinos at CERN\u2019s and Fermilab\u2019s fixed-target lines).`;
   else if (C.kind === 'ring') {
     const anti = isAntiPair(A, B);
     if (C.layout === 'single') note = 'A particle and its antiparticle share one ring, going round opposite ways through the same magnets: bending magnets with focusing and defocusing quadrupoles between them. Injector linacs at the lower corners bring in a train of each, and kicker magnets turn it onto the orbit. The RF cavities’ oscillating field gathers each train into a bunch and speeds it up while the magnets ramp; particles that land outside the RF bucket fall behind and are lost. Electrostatic separators keep the two beams apart where they cross, and when they are brought together they collide at both detectors. ';
@@ -48161,6 +48193,8 @@ function init() {
     if (which === 'a') newBeams(k, C.b); else newBeams(C.a, k);
   };
   $('cBeamA').onchange = (e) => pickBeam('a', e.target.value);
+  $('cTgt').onchange = (e) => { const C = W.collider; if (!C || !C.fixed) return; setTarget(C, e.target.value, $('chkTgtAnti').checked); syncCollider(); };
+  $('chkTgtAnti').onchange = (e) => { const C = W.collider; if (!C || !C.fixed) return; setTarget(C, $('cTgt').value, e.target.checked); syncCollider(); };
   $('cBeamB').onchange = (e) => pickBeam('b', e.target.value);
   $('cIsoA').onchange = (e) => pickBeam('a', $('cBeamA').value, +e.target.value);
   $('cIsoB').onchange = (e) => pickBeam('b', $('cBeamB').value, +e.target.value);

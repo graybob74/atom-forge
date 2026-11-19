@@ -1991,6 +1991,31 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.36.1: the fixed target's element, matter or antimatter (the owner, 2026-11-18: "where do you change the target?" … "yes, do that for every element and anti element")
+
+- Lab → Collider → **Target** (shown for a fixed-target machine): every element 1–118 and an **Antimatter** box. Changing
+  either clears the block (its energy leaves the books as carried away, `clearTarget`) and sets a fresh one of the new
+  kind at rest (`setTarget` → `placeTarget`, with `opts.anti`); its spacing about the element's covalent diameter
+  (`targetSpacing`: 2 × 0.85 × r_cov within 1.5–4.5 Å; tungsten 2.75 Å as before), its middle where the thickest
+  block's would be, so the box stays the same. The choice is kept when the beam or energy is changed (`C.tgtEl`,
+  `C.tgtAnti`), and a refilled block is of the same kind. The readout gives the target and its number of atoms; the
+  panel's text names it ("a block of antigold atoms at rest (antimatter: each particle that reaches a nucleus
+  annihilates with it)").
+- **Physics (new: a matter–antimatter meeting in flight through a target):** a fast nucleus in radiation flight passing
+  within reach of an antinucleus (R_NN, or the nuclear reach in true sizes) annihilates with it, as the two do when they
+  meet in flight (beamCollisions: `nnbarEvent` for two bare nucleons, else `nuclearAnnihilation`); before, it passed
+  through, only ionizing. Measured: 1.4 GeV protons on antitungsten, 16 annihilations and 92 pions while 10–20 were sent
+  out (tests/f_136.js `target`); on antigold in the 3-D lab the remnants are anti-platinum and anti-iridium ions.
+- Fixes found on the way (3-D collider worlds with matter, where nuclei now fly in radiation flight): the flat neutron
+  passes (`neutronPairs`, x and y only) and the flat fast-ion passes (`radVsFast`) took a proton in flight ångströms away
+  in depth for a meeting; they now leave 3-D flyers alone. Six 1.4 GeV protons into the 3-D tungsten block, books over
+  300 steps: −1.1×10⁵, −1.8×10⁵, +1.2×10⁵ eV before (seeds 5–7), +700, +2,800, +530 eV after (of 8×10⁹: the rest from
+  3-D's known stepped MeV electrons); the flat block +0.2 eV. Fast neutrons in a 3-D collider world stay stepped.
+- Fingerprints: 1.36.0 widened the linear colliders' box to 120 Å, so LEP's and DAΦNE's runs changed (their products no
+  longer leave at y = ±30 Å; with the box set back to 60 the fingerprints are the old ones exactly): lep e4ac1bc8 books
+  32b6709b 7, dafne d9785a24 books 9cfbf948 20 (f_127h, f_127x). The other accelerator setups' (rhic, linac,
+  annihilation, pionbeam, hyperfactory, photonuc, muonium) are unchanged.
+
 ## 1.36.0: the collider in 3-D, and a fixed-target synchrotron (the owner, 2026-11-18: "i'd say 3d accelerator is next, can you start that?")
 
 The 1.25 notes' stage 3, never built ("several sessions"). Plan: (1) the beams flying in 3-D through the ring in the middle

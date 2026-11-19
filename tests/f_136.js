@@ -74,6 +74,17 @@ PARTS.fixed = async (page, check) => {
     `1.36 the fixed-target synchrotron, flat and 3-D: protons sped up to 1.4 GeV (going out at ${rows.map(r => X0.fmtE(r.top)).join(' / ')}), ${rows.map(r => `${r.sent} sent out`).join(' / ')}; on the tungsten they made ${rows.map(r => `${r.n} neutrons and ${r.heavy} kinds of heavy nuclei (${r.ex})`).join(' / ')}`,
     `1.36 fixed target: ${JSON.stringify(rows)}`);
 };
+/* (the owner: "where do you change the target?" … "yes, do that for every element and anti element") Lab → Collider →
+   Target: every element 1–118, matter or antimatter, set as a fresh block at rest; protons on antitungsten annihilate. */
+PARTS.target = async (page, check) => {
+  const X = load('all', { seed: 3 }), W = X.W; X.PRESETS.fixedt.build(); const C = W.collider, bad = [];
+  for (let z = 1; z <= X.Z_TABLE; z++) for (const anti of [false, true]) { X.setTarget(C, X.ELEMENTS[z].sym, anti); const ts = W.parts.filter(p => !p.dead && p.tgt); if (ts.length < 10 || ts.some(p => p.Z !== z || !!p.anti !== anti || Math.hypot(p.vx, p.vy) > 0)) bad.push(`${anti ? 'anti' : ''}${X.ELEMENTS[z].sym} ${ts.length}`); }
+  const Y = load('all', { seed: 3 }), V = Y.W; Y.PRESETS.fixedt.build(); const D = V.collider; Y.setTarget(D, 'W', true); Y.settleOverlaps(); V.baseSpf = V.simPerFrame; V.slowHold = false; V.hold = null; V.slowmo = false;
+  const t0 = Date.now(); for (let f = 0; f < 3000 && Date.now() - t0 < 120000 && !((D.sent || 0) >= 10 && D.made && (D.made['π⁺'] || 0) > 5); f++) Y.simFrame(1 / 60, 1e9);
+  const ann = V.log.filter(l => /nnihilat/.test(l.text)).length, pions = (D.made['π⁺'] || 0) + (D.made['π⁻'] || 0) + (D.made['π⁰'] || 0);
+  check(!bad.length && ann > 0 && pions > 10, `1.36 the fixed target: all ${2 * X.Z_TABLE} blocks (every element, matter and antimatter) set at rest; 1.4 GeV protons on antitungsten: ${ann} annihilations, ${pions} pions`,
+    `1.36 target: bad ${bad.join(', ')}; annihilations ${ann}, pions ${pions}, sent ${D.sent}`);
+};
 /* Every new accelerator setup builds and runs a few frames. */
 PARTS.setups = async (page, check) => {
   const keys = ['ring3d', 'linac3d', 'rhic3d', 'lep3d', 'dafne3d', 'fixed3d', 'fixedt'], bad = [];
