@@ -165,7 +165,7 @@ class Part {
     this.ljE = 0; this.ieH = 0; this.ieHq = 0; this.polarH = false; this.rd = 0.3;
     this.trk = null; this.mark = 0; this.sel = false;
     this.omB = 0; this.Bl = 0; this.evId = 0; this.root = 0; this.capT = 0; this.capN = 0;
-    this.beam = undefined; this.trkKeep = undefined; this.injKick = undefined; this.kickIn = undefined; this.nucProd = undefined; this.caught = false;
+    this.beam = undefined; this.trkKeep = undefined; this.injKick = undefined; this.kickIn = undefined; this.nucProd = undefined; this.caught = false; this.tgt = false; this.extr = false;
   }
   get x() { return S.x[this.i]; } set x(v) { S.x[this.i] = v; }
   get tLocal() { return S.tLocal[this.i]; } set tLocal(v) { S.tLocal[this.i] = v; }
@@ -7056,6 +7056,7 @@ function colliderRefill() {
   let na = 0, nb = 0;
   for (const p of W.parts) if (!p.dead && p.beam) { if (p.beam === 'b') nb++; else na++; }
   for (const o of W.exo) if (!o.dead && o.xb && o.beam) { if (o.beam === 'b') nb++; else na++; }
+  if (C.fixed) { if (na + nb) return; if (typeof refillTarget === 'function') refillTarget(C); refillSources(C); resetRings(C); return; } // (a fixed-target machine: the next bunch once every particle has gone out to the target, 1.36)
   if (na && nb && !(C.colTurns > 40)) return; // (a ring dumps what is left after 40 turns of collisions)
   if (na + nb) { if (C.kind !== 'ring') return; dumpBeams(); }
   refillSources(C);
@@ -7132,6 +7133,19 @@ function rampRing() {
   else if (C.sepMode === 'together') C.colliding = C.rings.some(g => g.running);
   else C.colliding = all;
   if (C.colliding) { const g = C.rings[0]; C.colTurns += dt * speedOfE(g) / g.circ; }
+  if (C.fixed && C.colliding && C.ext) extractBeam(C);
+}
+/* (1.36) A fixed-target machine at full energy (or as its Extraction setting says): each beam particle passing the
+   extraction point, going the beam's way, leaves the beam, and so the ring's magnets and cavities (which act on their
+   own beam only), and flies on down the extraction line to the target. */
+function extractBeam(C) {
+  const X = C.ext, out = (p) => {
+    const dx = p.x - X.x, dy = p.y - X.y, al = dx * X.ux + dy * X.uy, ac = Math.abs(-dx * X.uy + dy * X.ux);
+    if (al < -X.L / 2 || al > X.L / 2 || ac > 3 || p.ux * X.ux + p.uy * X.uy < 0.9) return;
+    p.beam = null; p.extr = true; C.sent = (C.sent || 0) + 1; C.outE = p.KE; // (its energy going out)
+  };
+  for (const p of W.parts) if (!p.dead && p.beam === 'a' && p.rad) out(p);
+  for (const o of W.exo) if (!o.dead && o.xb && o.beam === 'a') out(o);
 }
 const pcOf = (m, KE) => Math.sqrt(KE * KE + 2 * KE * m * AMU_EV); // momentum × c, eV
 /* The synchronous phase while ramping: about 49° from the zero crossing (sin = 0.75), at most 60°. It used to be 30°, which

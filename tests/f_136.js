@@ -58,6 +58,28 @@ PARTS.books = async (page, check) => {
     `1.36 3-D collisions keep the books: ${rows.map(r => `${r.A}+${r.B} ${r.books.toExponential(1)} eV (${r.hits} hits)`).join(', ')}; every product at most c (fastest ${Math.max(...rows.map(r => r.vmax)).toFixed(4)} c), fast ones in flight out of the plane`,
     `1.36 books: ${JSON.stringify(rows)}`);
 };
+/* (the owner, 2026-11-18: "in some real colliders they bombard a sheet instead of both targets moving (make it 2d and 3d)")
+   A fixed-target synchrotron, flat and 3-D: protons sped up round one ring to 1.4 GeV, steered out at full energy down
+   the extraction line, knocking the tungsten target's nuclei apart (spallation: neutrons, protons, lighter nuclei). */
+PARTS.fixed = async (page, check) => {
+  const rows = [], X0 = load('all');
+  for (const pre of ['fixedt', 'fixed3d']) {
+    const X = load('all', { seed: 3 }), W = X.W; X.PRESETS[pre].build(); X.settleOverlaps(); W.baseSpf = W.simPerFrame; W.slowHold = false; W.hold = null; W.slowmo = false;
+    const C = W.collider, t0 = Date.now(); let f = 0, top = 0;
+    for (; f < 3000 && Date.now() - t0 < 150000 && !((C.sent || 0) >= 10 && C.made && C.made.n); f++) { X.simFrame(1 / 60, 1e9); top = Math.max(top, C.outE || 0); }
+    const heavy = Object.keys(C.made || {}).filter(k => /^[¹²³⁴⁵⁶⁷⁸⁹⁰]{3}[A-Z]/.test(k));
+    rows.push({ pre, d3: W.d3, sent: C.sent || 0, top, n: (C.made || {}).n || 0, heavy: heavy.length, ex: heavy.slice(0, 3).join(', ') });
+  }
+  check(rows.every(r => r.sent >= 10 && r.top >= 0.95 * 1.4e9 && r.n > 0 && r.heavy > 0) && rows[1].d3 && !rows[0].d3,
+    `1.36 the fixed-target synchrotron, flat and 3-D: protons sped up to 1.4 GeV (going out at ${rows.map(r => X0.fmtE(r.top)).join(' / ')}), ${rows.map(r => `${r.sent} sent out`).join(' / ')}; on the tungsten they made ${rows.map(r => `${r.n} neutrons and ${r.heavy} kinds of heavy nuclei (${r.ex})`).join(' / ')}`,
+    `1.36 fixed target: ${JSON.stringify(rows)}`);
+};
+/* Every new accelerator setup builds and runs a few frames. */
+PARTS.setups = async (page, check) => {
+  const keys = ['ring3d', 'linac3d', 'rhic3d', 'lep3d', 'dafne3d', 'fixed3d', 'fixedt'], bad = [];
+  for (const k of keys) { try { const X = load('all', { seed: 1 }), W = X.W; X.PRESETS[k].build(); X.settleOverlaps(); W.baseSpf = W.simPerFrame; for (let f = 0; f < 20; f++) X.simFrame(1 / 60, 30); if (!W.collider || (X.PRESETS[k].d3 && !W.d3)) bad.push(k); } catch (e) { bad.push(`${k}: ${e.message}`); } }
+  check(!bad.length, `1.36 the accelerator setups (${keys.join(', ')}) build and run`, `1.36 setups: ${bad.join(' | ')}`);
+};
 PARTS.page = async (page, check) => {
   let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1360, height: 860 }, settle: 800 }); page = own.page; }
   await page.evaluate(() => { loadPreset('ring3d'); setRunning(true); }); await page.waitForTimeout(1500);

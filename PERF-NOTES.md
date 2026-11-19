@@ -2039,7 +2039,40 @@ through depth; (3) the panel, more setups (gold on gold, the LHC energies), test
     change behind `W.d3`; beamCollisions' flat arithmetic kept bit for bit).
   - t_collider: one failure, "nuclear slow motion off, yet time slowed 4.0× more after an annihilation" — it fails the
     same on main before this stage (1.35.1), so it is older; left on record for a bug-fix session.
-- Left for stage 3: the LHC energies and more 3-D setups, the panel's notes for 3-D, polish.
+- **Stage 3 (done, 2026-11-18): setups, the look, and a fixed-target machine.**
+  - 3-D setups: CERN LEP: the Z factory and Frascati DAΦNE: the φ factory join Ring collider, Linear collider and Gold on
+    gold (and the fixed-target synchrotron below): twelve 3-D setups. The collider panel adds a line in 3-D (the machine
+    in the middle plane, the spray in depth). An LHC setup (p p at 6.5 TeV) is left out: each collision makes 200–300
+    hadrons, and the ring at full energy collides every turn (Node, 3-D: ~5 s a frame once colliding), too slow to watch;
+    the energy is still there on the panel's slider.
+  - The look (the owner: "it looks 2d in the image", then "in a real accelerator isnt everything cylindrical"):
+    `drawZones3` draws every element as a cylinder round the beam's path, its faces lit by the scene's light (LIGHT3) and
+    faint enough to see the beam inside, sorted far to near: bending magnets curved along the orbit (radius 5.5 Å),
+    focusing magnets and kickers short cylinders, RF cavities and the injectors' linacs rows of round cells (bulges of
+    the pipe), separators a faint tank, the beam pipe a thin tube with rings, each detector a barrel along the beam, a
+    fixed target a block; the small parts' labels only when near enough to read. A collider's view starts from above at a
+    slant (yaw 0.35, pitch 1.05, 0.8 of the usual distance; `cam3Fit`): the usual view faces the middle plane nearly
+    square on, which made the machine look flat. In the flat game a cylinder seen from above is the rectangle drawn there,
+    so it is unchanged. Drawing a ring: 1.3–5 ms a frame (headless).
+  - **A fixed-target synchrotron** (the owner: "in some real colliders they bombard a sheet instead of both targets
+    moving (make it 2d and 3d)", with a drawing: ring, injector, a line out to a block of atoms at rest). `fixedLayout`
+    (ui.js): one ring of eight cells (twoRingLayout's lattice for one beam, its injector at a corner), the extraction
+    point where the lattice starts (`C.ext`), the extraction line straight on from there until clear of the magnets plus
+    24 Å, and the target, a block of tungsten atoms at rest (3 layers across the line, 22 Å wide; in 3-D five layers in
+    depth; `placeTarget`, particles marked `tgt`). It runs as a ring (`C.kind` 'ring', `C.fixed`): injected, captured and
+    sped up by the RF; at full energy (`C.colliding`, the panel's Extraction: out at full energy / kept in the ring / out at
+    once) `extractBeam` (engine.js) takes each particle passing the extraction point out of the beam (`p.beam` null), and
+    with it out of the ring's magnets and cavities, which act on their own beam only (as an extraction septum shields the
+    extracted beam): it flies on down the line into the target, where the existing fixed-target physics acts (moveRad:
+    ionization, scattering, nuclear reactions, spallation). When every particle has gone out the next bunch is injected
+    (`colliderRefill`), and a target left broken or hot gets a fresh block (`refillTarget`: what is left of the old one
+    leaves the books as energy carried away, as a rotating target wheel turns a cool part into the beam: a 26-atom
+    block is blown apart by the first few 1.4 GeV protons). The panel hides beam 2 and the pair buttons, counts "Sent to
+    the target", and explains it. Setups: Accelerators → Fixed-target synchrotron (flat) and the 3-D lab's (protons at
+    1.4 GeV, as CERN's PS Booster sends to ISOLDE).
+  - Measured (tests/f_136.js `fixed`): flat and 3-D, the protons went out at 1.36 and 1.37 GeV (the bunch's spread about
+    the synchronous 1.4 GeV); 10 and 30 sent out made 279 and 263 neutrons, 88 and 25 kinds of heavy nuclei (¹⁷⁰Lu,
+    ¹⁷²W, ¹⁶⁹Ta, ¹⁶⁹Hf…), protons, deuterons, tritons, ³He, α and pions.
 
 ## 1.35.1: no crash report for a second window that is still running (the owner, 2026-11-16)
 
@@ -3928,7 +3961,10 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    "build it" first.
 98 (started 2026-11-18, the owner: "i'd say 3d accelerator is next, can you start that?") The collider in 3-D: the 1.36 section's
    three stages (stage 1 done: beams in flight through the ring in the middle plane, the ring drawn, two setups; stage 2
-   done: collision products in flight in every direction, books exact, gold on gold).
+   done: collision products in flight in every direction, books exact, gold on gold; stage 3 done: LEP and DAΦNE in 3-D,
+   the machine drawn as cylinders, and a fixed-target synchrotron, flat and 3-D, item 99).
+99 (built 2026-11-18, the owner: "in some real colliders they bombard a sheet instead of both targets moving (make it 2d
+   and 3d)") A fixed-target synchrotron: the 1.36 section, stage 3.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a

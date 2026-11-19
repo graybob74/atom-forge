@@ -1859,6 +1859,7 @@ function drawZones() {
     ctx.strokeStyle = 'rgba(190,205,225,0.22)'; ctx.lineWidth = 1;
     ctx.beginPath();
     for (const g of C.pipes) {
+      if (g.hide) continue; // (room in the box only: a fixed-target machine's, 1.36)
       if (g.arc) { const X = w2sx(g.cx), Y = w2sy(g.cy); ctx.moveTo(X + g.r * s * Math.cos(-g.a0), Y + g.r * s * Math.sin(-g.a0)); ctx.arc(X, Y, g.r * s, -g.a0, -g.a1, g.a1 > g.a0); }
       else { ctx.moveTo(w2sx(g.x0), w2sy(g.y0)); ctx.lineTo(w2sx(g.x1), w2sy(g.y1)); }
     }
@@ -1970,7 +1971,7 @@ function drawZones() {
     if (d.box) {
       const X0 = w2sx(d.box[0]), X1 = w2sx(d.box[1]), Y0 = w2sy(d.box[3]), Y1 = w2sy(d.box[2]);
       ctx.strokeRect(Math.min(X0, X1), Math.min(Y0, Y1), Math.abs(X1 - X0), Math.abs(Y1 - Y0)); ctx.setLineDash([]);
-      ctx.fillText('detector', (X0 + X1) / 2, Math.min(Y0, Y1) - 9);
+      ctx.fillText(d.lab || 'detector', (X0 + X1) / 2, Math.min(Y0, Y1) - 9);
     } else {
       const x = w2sx(d.x), y = w2sy(d.y), r = Math.max(8, d.r * s);
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);

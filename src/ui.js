@@ -3826,6 +3826,7 @@ function shiftCollider(C, dx, dy) {
   for (const g of C.pipes) { if (g.arc) { g.cx += dx; g.cy += dy; } else { g.x0 += dx; g.y0 += dy; g.x1 += dx; g.y1 += dy; } }
   for (const l of C.injLines) for (let k = 0; k < l.length; k += 2) { l[k] += dx; l[k + 1] += dy; }
   for (const d of C.dets) { if (d.box) { d.box[0] += dx; d.box[1] += dx; d.box[2] += dy; d.box[3] += dy; } else { d.x += dx; d.y += dy; } }
+  for (const q of [C.ext, C.target]) if (q) { q.x += dx; q.y += dy; } // (a fixed-target machine's extraction point and target, 1.36)
 }
 function fitCollider(C) {
   const segs = C.pipes.slice();
@@ -3896,6 +3897,59 @@ function twoRingLayout(C, A, B, E, E2) {
   C.R = LAT.rho; C.circ = C.rings[0].circ;
   fitCollider(C);
 }
+/* A fixed-target synchrotron (1.36; the owner, 2026-11-18: "in some real colliders they bombard a sheet instead of both
+   targets moving", with a drawing: a ring, its injector, and a line out of it to a block of atoms at rest). One ring of
+   the same eight cells as twoRingLayout's, its injector at a corner; at full energy the beam is extracted at the
+   straight where the lattice starts (C.ext): a particle passing it leaves the beam, and with it the ring's magnets, which
+   act only on their own beam (two-in-one magnets, as a real extraction septum keeps the extracted beam out of the ring's
+   field), so it flies on along the straight, out of the ring, down the extraction line into the target, a block of
+   tungsten atoms at rest (C.target). What it does there is the game's fixed-target physics (nuclear reactions,
+   spallation, ionization along the way: moveRad). When every particle has gone out, the next bunch is injected. */
+function fixedLayout(C, A, E) {
+  const Ea = ringCap(A, E), P = ringParams(Ea, A.lep), inj = P.inj;
+  const Ls = LAT.Ls, h2 = Ls / 2, S = () => [{ t: 'D', L: Ls }], cell = latCell, RF = () => [{ t: 'D', L: 1 }, { t: 'RF', L: Ls - 2 }, { t: 'D', L: 1 }];
+  const elems = [{ t: 'D', L: 0, mark: 'ext' }, { t: 'D', L: h2 }, ...cell(), ...S(), ...cell(), ...RF(), ...cell(), ...RF(), ...cell(),
+    ...S(), ...cell(), { t: 'D', L: Ls - LAT.kick }, { t: 'D', L: LAT.kick, mark: 'kick' }, ...cell(), ...RF(), ...cell(), ...RF(), ...cell(), { t: 'D', L: h2 }];
+  const h0 = -Math.PI / 2, lat = marchLattice(0, 0, h0, elems, 'a');
+  W.zones.push(...lat.zones);
+  C.layout = 'fixed'; C.pipes = lat.segs.slice(); C.injLines = []; C.dets = []; C.EA = C.EB = Ea;
+  const kk = addInjector(C, A, 'a', lat.marks.kick, 1, inj, [0, 0], lat.circ / LAT.h / 18);
+  C.rings.push(ringDesc(C, A, 'a', lat, kk, lat.marks.kick.s0 + LAT.kick, inj, Ea, ALPHA_C1, { nCav: 4, sepDist: 0 }));
+  // the extraction line: straight on from the extraction point until clear of the ring's magnets, then the target
+  const ux = Math.cos(h0), uy = Math.sin(h0), clear = (x, y) => lat.segs.every(g => (g.arc ? Math.abs(Math.hypot(x - g.cx, y - g.cy) - g.r) : segDist(x, y, g)) > LAT.w + 4);
+  let t = Ls; while (t < 400 && !clear(ux * t, uy * t)) t += 2;
+  const t0 = t + 24, nAt = 3, a0 = 2.74, depth = (nAt - 1) * a0, half = 11;
+  C.ext = { x: 0, y: 0, ux, uy, L: Ls };
+  C.target = { x: ux * (t0 + depth / 2), y: uy * (t0 + depth / 2), ux, uy, depth, half, el: 'W', a0, n: nAt };
+  C.pipes.push({ arc: false, x0: 0, y0: 0, x1: ux * t0, y1: uy * t0, ext: true }, { arc: false, x0: ux * (t0 + depth + 6) - uy * half, y0: uy * (t0 + depth + 6) + ux * half, x1: ux * (t0 + depth + 6) + uy * half, y1: uy * (t0 + depth + 6) - ux * half, ext: true, hide: true }); // (the second, not drawn: room in the box for the target)
+  C.R = LAT.rho; C.circ = lat.circ;
+  fitCollider(C);
+  const T = C.target, nx = -T.uy, ny = T.ux;
+  C.dets = [{ box: [T.x - Math.abs(T.ux) * depth / 2 - Math.abs(nx) * half - 1, T.x + Math.abs(T.ux) * depth / 2 + Math.abs(nx) * half + 1, T.y - Math.abs(T.uy) * depth / 2 - Math.abs(ny) * half - 1, T.y + Math.abs(T.uy) * depth / 2 + Math.abs(ny) * half + 1], lab: 'target' }];
+  placeTarget(C);
+}
+/* The target: a block of atoms at rest, nAt layers deep across the line (in 3-D five layers in depth too). A few
+   GeV protons knock its nuclei apart and leave what is left of so small a block hot and scattered (a real one is
+   centimetres thick and cooled); so each new bunch finds a fresh block (refillTarget), as a real rotating target
+   wheel turns a cool part into the beam: what is left of the old one leaves the books as energy carried away. */
+function placeTarget(C) {
+  const T = C.target, nx = -T.uy, ny = T.ux, rows = Math.round(2 * T.half / T.a0), lay = W.d3 ? 5 : 1; T.n0 = 0;
+  for (let i = 0; i < T.n; i++) for (let j = 0; j <= rows; j++) for (let k = 0; k < lay; k++) {
+    const along = -T.depth / 2 + i * T.a0, across = -T.half + j * T.a0 + (i % 2) * T.a0 / 2, z = W.d3 ? (k - (lay - 1) / 2) * T.a0 + (i % 2) * T.a0 / 2 : 0;
+    if (Math.abs(across) > T.half) continue;
+    const p = addAtom(T.el, T.x + T.ux * along + nx * across, T.y + T.uy * along + ny * across, W.d3 ? { z } : {}); p.vx = p.vy = 0; if (W.d3) p.vz = 0; p.tgt = true; T.n0++; // (at rest)
+  }
+}
+function refillTarget(C) {
+  const T = C.target; if (!T) return;
+  const inBox = (p) => Math.abs((p.x - T.x) * T.ux + (p.y - T.y) * T.uy) < T.depth / 2 + 1.5 && Math.abs(-(p.x - T.x) * T.uy + (p.y - T.y) * T.ux) < T.half + 1.5 && (!W.d3 || Math.abs(p.z) < 7);
+  let ok = 0; for (const p of W.parts) if (!p.dead && p.tgt && p.Z === SYM2Z[T.el] && inBox(p) && keOf(p) < 1) ok++;
+  if (ok >= 0.8 * T.n0) return; // (still whole and cool)
+  for (const p of W.parts) if (!p.dead && !p.beam && (p.tgt || (p.k === NUC && !p.rad && inBox(p)))) { W.ledger.escaped += keOf(p) + internalE(p); chargeTo(p.q); kill(p); } // (the old block and what is left of it there)
+  placeTarget(C); W.spawned++;
+  log('tool', 'A fresh piece of target turned into the beam (as a rotating target wheel does)');
+}
+function segDist(x, y, g) { const dx = g.x1 - g.x0, dy = g.y1 - g.y0, L2 = dx * dx + dy * dy, t = L2 > 0 ? clamp(((x - g.x0) * dx + (y - g.y0) * dy) / L2, 0, 1) : 0; return Math.hypot(x - g.x0 - t * dx, y - g.y0 - t * dy); }
 /* Builds (or rebuilds) a collider: a ring (one shared ring for a particle and its antiparticle, otherwise a ring
    for each beam) or two linear accelerators; beam species a and b (keys of BEAM_SPECIES, or a pair key such as
    'ee' in place of both), each particle with kinetic energy E (eV) at collision, or beam 1 with E and beam 2 with E2
@@ -3911,7 +3965,8 @@ function setupCollider(kind, a, b, E, E2) {
   W.zones.length = 0; W.sources.length = 0;
   const old = W.collider;
   const C = W.collider = { kind, a, b, E, E2, auto: old ? old.auto : true, bunch: old ? old.bunch : 10, sepMode: old && old.sepMode || 'auto', hits: 0, last: '', rings: [], colliding: false, colTurns: 0, pipes: [], injLines: [], dets: [] };
-  if (kind !== 'ring') linacLayout(C, A, B, E, E2 === null ? E : E2);
+  if (kind === 'fixed') { C.kind = 'ring'; C.fixed = true; C.b = C.a; C.E2 = null; fixedLayout(C, A, E); } // (a fixed-target synchrotron: the ring's own logic, one beam, extracted onto a target, 1.36)
+  else if (kind !== 'ring') linacLayout(C, A, B, E, E2 === null ? E : E2);
   else if (isAntiPair(A, B) && (E2 === null || Math.abs(E2 / E - 1) < 1e-9)) ringLayout(C, A, B, E);
   else twoRingLayout(C, A, B, E, E2);
   C.bbN = beamBeamN(A, C.EA || E, B, C.EB || E);
@@ -3948,7 +4003,7 @@ function linacLayout(C, A, B, EA, EB) {
 /* A new beam energy (or pair, or bunch size): the collider is rebuilt and starts a new cycle. */
 function setColliderEnergy(E, E2) {
   const C = W.collider; if (!C) return;
-  setupCollider(C.kind, C.a, C.b, E, E2 === undefined ? C.E2 : E2);
+  setupCollider(C.fixed ? 'fixed' : C.kind, C.a, C.b, E, E2 === undefined ? C.E2 : E2);
   fitView();
 }
 const cEFromS = (s) => Math.pow(10, 4.3 + 10.7 * s / 1000), sFromCE = (E) => Math.round(1000 * (Math.log10(E) - 4.3) / 10.7); // 20 keV … 1 PeV (a beam particle's whole kinetic energy: a lead ion at the LHC carries 574 TeV)
@@ -4060,10 +4115,17 @@ function syncCollider() {
   $('chkRefill').checked = C.auto;
   $('cSepWrap').hidden = C.kind !== 'ring';
   setSegValue('segSep', C.sepMode || 'auto');
-  $('cSepVal').textContent = { auto: 'apart until full energy', apart: 'kept apart', together: 'brought together' }[C.sepMode || 'auto'];
+  $('cSepVal').textContent = C.fixed ? { auto: 'out at full energy', apart: 'kept in the ring', together: 'out at once' }[C.sepMode || 'auto'] : { auto: 'apart until full energy', apart: 'kept apart', together: 'brought together' }[C.sepMode || 'auto'];
   $('cFieldK').textContent = C.kind === 'ring' ? 'Bending field' : 'Linac push';
+  // (a fixed-target machine, 1.36: one beam; the separation setting is when it is extracted; its count, what went to the target)
+  $('segBeams').hidden = !!C.fixed; $('cFindB').closest('.bp').hidden = !!C.fixed; $('chkEach').closest('label').hidden = !!C.fixed;
+  $('cSepWrap').querySelector('.row span').textContent = C.fixed ? 'Extraction' : 'Beams';
+  $('cSep').parentElement.querySelector('.k').textContent = C.fixed ? 'Beam' : 'Beams';
+  { const L = C.fixed ? { auto: 'Auto', apart: 'Keep in ring', together: 'Extract now' } : { auto: 'Auto', apart: 'Keep apart', together: 'Collide now' }; for (const b of $('segSep').querySelectorAll('button[data-v]')) b.textContent = L[b.dataset.v]; }
+  $('cHits').parentElement.querySelector('.k').textContent = C.fixed ? 'Sent to the target' : 'Collisions';
   let note = '';
-  if (C.kind === 'ring') {
+  if (C.fixed) note = `A synchrotron with a fixed target: one beam is injected, sped up round the ring by its RF cavities, and at full energy steered out at the extraction point (the ring\u2019s magnets act only on the beam they hold, as an extraction septum shields what leaves) down a straight line into a block of ${C.target ? C.target.el === 'W' ? 'tungsten' : C.target.el : ''} atoms at rest. There each particle meets the nuclei and electrons of the target: it ionizes atoms along its way, scatters, and above a few hundred MeV knocks nuclei apart (spallation: neutrons, protons, light nuclei and, at higher energies, pions). That is how real machines make secondary beams (neutrons at ISIS and the SNS, rare isotopes at ISOLDE, pions, kaons and neutrinos at CERN\u2019s and Fermilab\u2019s fixed-target lines).`;
+  else if (C.kind === 'ring') {
     const anti = isAntiPair(A, B);
     if (C.layout === 'single') note = 'A particle and its antiparticle share one ring, going round opposite ways through the same magnets: bending magnets with focusing and defocusing quadrupoles between them. Injector linacs at the lower corners bring in a train of each, and kicker magnets turn it onto the orbit. The RF cavities’ oscillating field gathers each train into a bunch and speeds it up while the magnets ramp; particles that land outside the RF bucket fall behind and are lost. Electrostatic separators keep the two beams apart where they cross, and when they are brought together they collide at both detectors. ';
     else {
@@ -4079,8 +4141,9 @@ function syncCollider() {
       note += cap < EL ? `Electrons bent this tightly radiate synchrotron light (the γ rays leaving along the ring), more the faster they go: near ${fmtE(ringTopE(L, 1e12, LAT.rho))} they would radiate each turn all that the RF can give, so they are sped up only to ${fmtE(cap)}, short of the ${fmtE(EL)} asked for${A.lep && B.lep || each ? '' : ' (and the other beam to the same speed)'}.` : 'Electrons bent this tightly radiate synchrotron light (the γ rays leaving along the ring), which the RF makes up each turn.';
     }
   } else note = 'Each linac pushes its beam through the stated voltage, so a beam reaches the collision point with this energy. The beams are squeezed toward the axis by the focusing magnets just before they meet.';
-  const mk = makeNote(C, A, B);
+  const mk = C.fixed ? { text: '' } : makeNote(C, A, B); // (a fixed target: no colliding beams' √s to list)
   note += ' ' + mk.text;
+  if (W.d3) note += ' In 3-D the machine lies in the box\u2019s middle plane (its magnets act within 6 \u00c5 of it), the beams fly round in that plane, and what their collisions make flies out in every direction, at its true speed: turn the view to see the spray in depth.'; // (1.36)
   $('cNote').innerHTML = esc(note) + (mk.go ? ` <button class="btn small" id="cGo" title="Set both beams to this energy">Go to ${esc(fmtE(mk.go))} each</button>` : '');
   if (zscanCan(C, A, B)) { const b = document.createElement('button'); b.className = 'btn small'; b.id = 'cScan'; b.textContent = W.zscan && W.zscan.run ? 'Stop the scan' : 'Scan the Z peak'; b.title = 'Step the beams from 44.5 to 47.5 GeV each (√s about 88 to 94 GeV), 30 collisions at each, and draw the measured cross section against √s in the Data tab'; $('cNote').append(' ', b); b.onclick = () => { if (W.zscan && W.zscan.run) { W.zscan.run = false; log('tool', 'Z scan stopped'); } else zscanStart(); syncCollider(); }; } // (1.27 item 31)
   if (mk.go) $('cGo').onclick = () => { const each = C.E2 !== null && C.E2 !== undefined; setColliderEnergy(mk.go, each ? mk.go : null); syncCollider(); log('tool', `Collider beams: ${fmtE(mk.go)} each`); };
@@ -4198,10 +4261,11 @@ function updateCollider() {
   tile('cSpeed', two(fmtBeta(va), fmtBeta(vb), C.layout === 'single' || fmtBeta(va) === fmtBeta(vb))); // (one ring: one speed)
   $('cSpeed').parentElement.title = [['a', va], ['b', vb]].filter(([k]) => st[k][0]).map(([k, v]) => `${beamInfo(k === 'a' ? C.a : C.b).lab}: ${fmtSI(v * 2.998e8, 'm/s', 3)}, γ = ${fmtNum(1 / Math.sqrt(Math.max(1e-12, 1 - v * v)), 4)}`).join(' · ');
   $('cCount').textContent = String(st.a[0] + st.b[0]);
-  $('cHits').textContent = String(C.hits || 0);
+  $('cHits').textContent = String((C.fixed ? C.sent : C.hits) || 0);
   if (C.kind === 'ring') tile('cField', (C.rings || []).map(g => fmtTesla(Math.abs(g.dip[0].B))).join(' · ') || '—');
   else tile('cField', W.zones.filter(z => z.kind === 'cavity').map(z => fmtVolt(Math.abs(z.E) * z.w)).filter((t, i, a) => a.indexOf(t) === i).join(' · ') || '—'); // (each linac's voltage)
-  if (C.kind === 'ring' && C.rings && C.rings.length) { // how far apart the beams run where they cross
+  if (C.fixed) { const r = C.rings[0]; $('cSep').textContent = !r.running ? 'injecting' : r.ramping ? 'speeding up' : C.colliding ? 'going out' : 'held in the ring'; } // (a fixed-target machine, 1.36)
+  else if (C.kind === 'ring' && C.rings && C.rings.length) { // how far apart the beams run where they cross
     const r = C.rings[0], d = r.sepDist * r.sep;
     $('cSep').textContent = r.sep >= 0.98 ? (r.running ? `apart ${fmtA(r.sepDist)}` : 'apart') : r.sep <= 0.02 ? 'together' : `${C.colliding ? 'merging' : 'parting'} ${d.toFixed(1)} Å`;
   } else $('cSep').textContent = 'head-on';
@@ -4214,6 +4278,7 @@ function updateCollider() {
       const pv = (E) => pcOf(g.m, E) * speedOf(g.m, E), k = pv(g.Emax) / pv(g.Es);
       phase = `Colliding while still speeding up, at ${fmtE(g.Es)} of ${fmtE(g.Emax)}${k > 1.5 ? `: close passes turn the particles ${k < 10 ? k.toFixed(1) : Math.round(k)} times more sharply than at full energy (Rutherford's law, ∝ 1/(p·v)), so more are knocked out of the ring` : ''}.`;
     } else if (ramp) phase = `Speeding up: ${ramp}.`;
+    else if (C.fixed) phase = C.colliding ? 'At full energy: each particle is steered out as it comes round, down the extraction line to the target.' : 'At full energy, held in the ring.';
     else if (!C.colliding) phase = C.sepMode === 'apart' ? 'At full energy, kept apart: the beams go round without colliding.' : 'At full energy: bringing the beams together.';
   }
   $('cLast').innerHTML = (phase ? esc(phase) + (C.last ? '<br>' : '') : '') + (C.last ? `<b>Last collision:</b> ${esc(C.last)}` : phase ? '' : 'No collisions yet.');
@@ -4320,6 +4385,15 @@ const PRESETS = {
   rhic3d: { group: G3D, d3: true, name: 'Gold on gold', tool: 'inspect', tab: 'lab', spec: { kind: 'atom', Z: 79, A: 197, bare: true },
     hint: '<b>Gold nuclei at 100 GeV per nucleon, head on, as at RHIC (Brookhaven), in the 3-D lab.</b> Each beam has a ring of its own in the middle plane; the two cross in the detector. Glancing passes knock nucleons off; when the nuclei overlap, the overlap melts into a quark–gluon plasma, and what it freezes into flies out in every direction: turn the view to see the spray.',
     build() { baseWorld(150, 130, 300, 0); world3d(40); W.wall = 'open'; setupCollider('ring', 'au197', 'au197', 197 * 100e9); } },
+  lep3d: { group: G3D, d3: true, name: 'CERN LEP: the Z factory', tool: 'inspect', tab: 'lab', spec: { kind: 'e' },
+    hint: '<b>CERN’s Large Electron–Positron collider tuned to the Z boson, in the 3-D lab.</b> Electrons and positrons at 45.6 GeV each meet at about 91 GeV, the Z⁰’s mass, so nearly every collision makes a Z, which decays at once: into a quark pair (two jets of hadrons, pointing any way in space), a lepton pair, or neutrinos nobody sees. Turn the view to follow the jets.',
+    build() { baseWorld(230, 60, 300, 0); world3d(40); W.wall = 'open'; setupCollider('linear', 'ee', 45.6e9); } },
+  dafne3d: { group: G3D, d3: true, name: 'Frascati DAΦNE: the φ factory', tool: 'inspect', tab: 'lab', spec: { kind: 'e' },
+    hint: '<b>Italy’s electron–positron collider at Frascati, tuned to make φ mesons, in the 3-D lab.</b> Electrons and positrons at 510 MeV each meet at 1.02 GeV, the φ’s mass, so most collisions make a φ, which falls apart into two kaons (K⁺K⁻ or K⁰ʟK⁰s) flying back to back in a direction anywhere in space.',
+    build() { baseWorld(230, 60, 300, 0); world3d(40); W.wall = 'open'; setupCollider('linear', 'ee', 5.1e8); } },
+  fixed3d: { group: G3D, d3: true, name: 'Fixed-target synchrotron', tool: 'inspect', tab: 'lab', spec: SPEC_P,
+    hint: '<b>A synchrotron in the 3-D lab that fires its beam at a target at rest.</b> Protons are injected, sped up round the ring to 1.4 GeV, then steered out down the extraction line into a block of tungsten atoms, where they knock nuclei apart (spallation); what comes out flies off in every direction.',
+    build() { baseWorld(150, 130, 300, 0); world3d(40); W.wall = 'open'; setupCollider('fixed', 'p', 'p', 1.4e9); } },
   combustion: { group: 'Chemistry', name: 'Hydrogen + oxygen', tool: 'spark', spec: { kind: 'mol', mol: 'H2' },
     hint: '<b>A 2:1 mix of H₂ and O₂ at 600 K.</b> Nothing happens until a bond breaks. Click with the Spark tool or heat a spot: radicals (H, O, OH) start chain reactions that make water and release heat.',
     build() { baseWorld(64, 44, 600, 0.005); let k = 0;
@@ -4403,6 +4477,9 @@ const PRESETS = {
   ring: { group: 'Accelerators', name: 'Ring collider', tool: 'inspect', spec: { kind: 'pos' },
     hint: '<b>A collider ring: two beams go round and meet in the detector.</b> A particle and its antiparticle (here positrons and electrons) share one ring, going round opposite ways; any other pair (try D + T, or gold on gold) gets a ring each, the two sharing one straight. The bending magnets (red bands) curve the paths, RF cavities push the beams on every pass, and the field rises as they speed up so they stay on course (a synchrotron). The beams are kept on separate orbits while they speed up, then brought into collision. Pick the beams, their energy and the bunch size in the Lab tab.',
     build() { baseWorld(150, 130, 300, 0); W.wall = 'open'; setupCollider('ring', 'ee', 2e6); } },
+  fixedt: { group: 'Accelerators', name: 'Fixed-target synchrotron', tool: 'inspect', tab: 'lab', spec: SPEC_P,
+    hint: '<b>A synchrotron that fires its beam at a target at rest.</b> Protons are injected, sped up round the ring to 1.4 GeV (as at CERN’s PS Booster), then steered out down the extraction line into a block of tungsten atoms, where they knock nuclei apart (spallation). Many real accelerators work this way: one beam, a fixed target, and the secondary particles it makes.',
+    build() { baseWorld(150, 130, 300, 0); W.wall = 'open'; setupCollider('fixed', 'p', 'p', 1.4e9); } },
   linac: { group: 'Accelerators', name: 'Linear collider', tool: 'inspect', spec: { kind: 'e' },
     hint: '<b>Two linear accelerators fire beams at each other.</b> Each cavity row (gold) pushes its beam along, the focusing magnets (violet) squeeze the beams onto the axis, and they meet head-on at the collision point: electrons and positrons annihilate (above 106 MeV each into new particles too: muon pairs, then pions and kaons), protons and antiprotons burst into pions, deuterium and tritium fuse. Time is slowed so the beams can be followed; change the beams and their energy in the Lab tab.',
     build() { baseWorld(230, 60, 300, 0); W.wall = 'open'; setupCollider('linear', 'ee', 1e6); } },
@@ -7629,7 +7706,7 @@ function init() {
   $('bSlowmo').onclick = () => toggleSlowmo();
   const newBeams = (a, b, E, E2) => {
     const C = W.collider; if (!C) return;
-    setupCollider(C.kind, a, b, E || C.E, E2 === undefined ? C.E2 : E2); fitView(); syncCollider();
+    setupCollider(C.fixed ? 'fixed' : C.kind, a, C.fixed ? a : b, E || C.E, E2 === undefined ? C.E2 : E2); fitView(); syncCollider();
     const N = W.collider;
     log('tool', `Collider beams: ${beamInfo(a).lab} + ${beamInfo(b).lab} at ${N.E2 !== null ? fmtE(N.E) + ' and ' + fmtE(N.E2) : fmtE(N.E) + ' each'}`);
   };
