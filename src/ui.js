@@ -4317,6 +4317,9 @@ const PRESETS = {
   linac3d: { group: G3D, d3: true, name: 'Linear collider', tool: 'inspect', tab: 'lab', spec: { kind: 'e' },
     hint: '<b>Two linear accelerators in the 3-D lab fire electrons and positrons at each other.</b> Each cavity row (gold) pushes its beam along the middle plane of the box, the focusing magnets (violet) squeeze it onto the axis, and the two meet head-on at the collision point.',
     build() { baseWorld(230, 60, 300, 0); world3d(40); W.wall = 'open'; setupCollider('linear', 'ee', 1e6); } },
+  rhic3d: { group: G3D, d3: true, name: 'Gold on gold', tool: 'inspect', tab: 'lab', spec: { kind: 'atom', Z: 79, A: 197, bare: true },
+    hint: '<b>Gold nuclei at 100 GeV per nucleon, head on, as at RHIC (Brookhaven), in the 3-D lab.</b> Each beam has a ring of its own in the middle plane; the two cross in the detector. Glancing passes knock nucleons off; when the nuclei overlap, the overlap melts into a quark–gluon plasma, and what it freezes into flies out in every direction: turn the view to see the spray.',
+    build() { baseWorld(150, 130, 300, 0); world3d(40); W.wall = 'open'; setupCollider('ring', 'au197', 'au197', 197 * 100e9); } },
   combustion: { group: 'Chemistry', name: 'Hydrogen + oxygen', tool: 'spark', spec: { kind: 'mol', mol: 'H2' },
     hint: '<b>A 2:1 mix of H₂ and O₂ at 600 K.</b> Nothing happens until a bond breaks. Click with the Spark tool or heat a spot: radicals (H, O, OH) start chain reactions that make water and release heat.',
     build() { baseWorld(64, 44, 600, 0.005); let k = 0;

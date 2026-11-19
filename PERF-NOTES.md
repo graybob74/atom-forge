@@ -2009,9 +2009,37 @@ through depth; (3) the panel, more setups (gold on gold, the LHC energies), test
 - Measured (tests/f_136.js): the 3-D ring's beams all in radiation flight at z = 0, at 2.06 MeV, 60 collisions; the 3-D
   linac 60 collisions (e⁻e⁺ → γγ, 3.02 MeV); flat runs untouched (the change is behind `W.d3`). In Node the 3-D ring
   ran as the flat one (100 collisions within 150 frames each, 2 MeV e⁺e⁻); p p̄ at 2 MeV and p p at 6.5 TeV collide too.
-- Left for stage 2: what a collision makes still comes out flat (e⁺e⁻ → γγ's photons, the jets, in the plane), and a
-  fast stable product (an e±, a proton, a nucleus) is stepped in 3-D without relativity (the 1.25 limit); gold on gold
-  runs but slowly (its fragments stepped), so it is not in the 3-D list yet.
+- **Stage 2 (done, 2026-11-18): what collisions make, in space.**
+  - Relativistic flight in depth: in a world with a collider, `setMotion` puts every fast particle (past the radiation
+    threshold) in radiation flight with a direction in space, `p.uz` (a new particle field, 0 by default), not only the
+    beams in the plane. `radPath` measures the length of its path (`_rpL`); `moveRad` moves z by u_z times it (the ring's
+    field is along z, so the magnetic turn is of (u_x, u_y) alone at qB/γm, exact), keeps (u_x, u_y, u_z) a unit vector,
+    passes atoms only within reach in depth, and sets v_z; slowed below the threshold it is handed back to the stepped set
+    with its v_z. Before, every product was stepped without relativity.
+  - Meetings in depth: `beamCollisions` takes the closest approach of the two paths in 3-D (z, `p.oz`) and sets the
+    event's depth (`_evZ3`) there; `fastMeet` leaves particles in radiation flight to it in 3-D.
+  - e⁺e⁻ → γγ in flight (`annihilateInFlight3`): back to back over the sphere in their own frame, boosted with the pair's
+    momentum in depth. Measured: ⟨u_z²⟩ of the γ rays 0.413 over 16 (over the sphere 1/3; before 0.000, all in the plane).
+  - e⁺e⁻ jets above a few GeV (`eeEvent`): the quarks' axis over the sphere at 1 + cos²θ to the electron (before: drawn
+    in the plane and handed to jetMomenta3 as [a_x, a_y, 0]). Hadron strings of p p and nuclei stay along the beams (in
+    the plane, correct), their transverse momenta round the axis in 3-D as before.
+  - Coulomb passes of particles in flight (`nuclearScatter3`): relativistic, the turn about a random azimuth (the beams'
+    passes all fall in their plane, which would hold every turn in it); also for nuclei in flight passing each other
+    (was the flat `coulombScatter`, whose plane velocities lost 1.45 GeV of a 100 GeV proton's u_z: books −1.45×10⁹ eV
+    over 8 p p collisions, now −0.008 eV). A glancing turn of a beam particle (under 1°, also in `elasticTurn3`) stays in
+    the ring's plane and is set exactly in it (`flatBeam`: the boosts' rounding left u_z ~10⁻¹¹, which over thousands of
+    turns took gold beams 0.16 Å out of the plane); a larger one takes it off the orbit (caught), as `beamHit` does.
+  - Unstable particles' kicks (`exoScatter3`, `exoIonize3`, through `segFor3`) skip nuclei in radiation flight: their
+    motion is the stored energy and direction, which those kicks did not touch (+348 eV over the 8 p p collisions).
+  - Books over 8 head-on pairs in the 3-D detector (cavities off, no refill; tests/f_136.js `books`): e⁺e⁻ 1 MeV
+    −3.7×10⁻⁹ eV, p p̄ 2 MeV 0 (−18 eV before the exo fix), p p 100 GeV −0.008 eV (flat −0.01), Au + Au 19.7 TeV +0.7 eV
+    of 3×10¹⁴ (flat −0.19); every product at most c. One TeV p p event costs about the same flat and in 3-D (30 frames
+    after it: 3.6 s and 4.1 s, Node); the 3-D gold ring 300 frames 75–105 s against 55 s flat.
+  - Gold on gold is in the 3-D list again (Ring collider, Linear collider, Gold on gold). The flat game is untouched (every
+    change behind `W.d3`; beamCollisions' flat arithmetic kept bit for bit).
+  - t_collider: one failure, "nuclear slow motion off, yet time slowed 4.0× more after an annihilation" — it fails the
+    same on main before this stage (1.35.1), so it is older; left on record for a bug-fix session.
+- Left for stage 3: the LHC energies and more 3-D setups, the panel's notes for 3-D, polish.
 
 ## 1.35.1: no crash report for a second window that is still running (the owner, 2026-11-16)
 
@@ -3899,7 +3927,8 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    critical number. Flat (2-D grid) first, 3-D later. Units and numbers measured; a new kind of lab, so the owner's
    "build it" first.
 98 (started 2026-11-18, the owner: "i'd say 3d accelerator is next, can you start that?") The collider in 3-D: the 1.36 section's
-   three stages (stage 1 done: beams in flight through the ring in the middle plane, the ring drawn, two setups).
+   three stages (stage 1 done: beams in flight through the ring in the middle plane, the ring drawn, two setups; stage 2
+   done: collision products in flight in every direction, books exact, gold on gold).
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a

@@ -159,7 +159,7 @@ class Part {
     S.sEN[i] = SOFT_EN; S.elrc[i] = 0; S.hit[i] = 0; S.lp[i] = 0; S.metal[i] = 0; S.mR[i] = 0; S.mD[i] = 0; S.tLocal[i] = 0; S.vlx[i] = 0; S.vly[i] = 0; S.vlin[i] = 0;
     S.z[i] = 0; S.vz[i] = 0; S.fz[i] = 0; S.gz[i] = 0; S.oz[i] = 0; S.vlz[i] = 0;
     this.N = 0; this.qpol = 0; this.qf = 0; this.qi = 0; this.bom = false; this.bonds = []; this.excl = null; this.el = null; this.nuc = null;
-    this.KE = 0; this.ux = 1; this.uy = 0; this.sp = 0; this.gam = 1;
+    this.KE = 0; this.ux = 1; this.uy = 0; this.uz = 0; this.sp = 0; this.gam = 1;
     this.glow = 0; this.glowC = ''; this.born = W.rt;
     this.val = 0; this.nOut = 0; this.unp = 0;
     this.ljE = 0; this.ieH = 0; this.ieHq = 0; this.polarH = false; this.rd = 0.3;
@@ -4128,10 +4128,11 @@ function radSpeed(p) {
 function setMotion(p, KE, ux, uy, bvx = 0, bvy = 0, uz = 0, bvz = 0) { // (uz, bvz: 3-D)
   const isLep = p.k !== NUC, neutron = p.k === NUC && p.Z === 0;
   const thr = neutron ? NEUTRON_RAD : radThreshold(isLep);
-  // (3-D collider, 1.36: a beam particle fired in the middle plane (z = 0, no depth to its motion) flies in radiation mode
-  // as in the flat game, through the ring's zones laid out in that plane)
-  const flatFly = W.d3 && W.collider && !uz && !bvz && !p.z && KE > thr;
-  if (W.d3 && !flatFly) { // (3-D: the same, with z, at any energy (1.23.2): the radiation flight is flat, so a fast particle stays in the stepped set, moving in depth, and walls3 stops it at a closed box's wall by its speed, as the flat walls stop radiation flight; before, one past the threshold flew flat, z held, meeting nuclei at any depth)
+  // (3-D collider, 1.36: in a world with a collider, a fast particle flies in radiation mode as in the flat game, its
+  // direction (ux, uy, uz) in space: the beams in the middle plane through the ring's zones there, what collisions make
+  // in every direction, relativistically (moveRad); stepped without relativity it went faster than light)
+  const fly3 = W.d3 && W.collider && KE > thr;
+  if (W.d3 && !fly3) { // (3-D: the same, with z, at any energy (1.23.2): the radiation flight is flat, so a fast particle stays in the stepped set, moving in depth, and walls3 stops it at a closed box's wall by its speed, as the flat walls stop radiation flight; before, one past the threshold flew flat, z held, meeting nuclei at any depth)
     p.rad = false;
     const vv = 2 * KE * p.im, ub = ux * bvx + uy * bvy + uz * bvz, disc = ub * ub - (bvx * bvx + bvy * bvy + bvz * bvz) + vv;
     if ((bvx || bvy || bvz) && disc >= 0 && Math.sqrt(disc) > ub) { const w = Math.sqrt(disc) - ub; p.vx = bvx + w * ux; p.vy = bvy + w * uy; p.vz = bvz + w * uz; }
@@ -4140,8 +4141,9 @@ function setMotion(p, KE, ux, uy, bvx = 0, bvy = 0, uz = 0, bvz = 0) { // (uz, b
     return;
   }
   if (KE > thr) {
+    if (fly3) { const L = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1; ux /= L; uy /= L; uz /= L; p.uz = uz; }
     p.rad = true; p.fast = true; p.KE = KE; p.ux = ux; p.uy = uy; radSpeed(p);
-    p.vx = p.sp * ux; p.vy = p.sp * uy;
+    p.vx = p.sp * ux; p.vy = p.sp * uy; if (fly3) p.vz = p.sp * uz;
     if (!p.trk) startTrack(p);
   } else {
     p.rad = false;
@@ -6561,9 +6563,9 @@ function brems(p, tg, dE, x, y) {
   W.count.photons++;
 }
 /* The path over dt through the accelerator's fields (and any field): leaves the end point in _rp, p where it was. */
-const _rp = [0, 0];
+const _rp = [0, 0]; let _rpL = 0; // (_rpL: the length of the path, for its part in depth in 3-D, moveRad)
 function radPath(p, dt, q, mrest) {
-  const hasE = q && hasEfield();
+  const hasE = q && hasEfield(); _rpL = 0;
   // Leapfrog steps: half the magnetic turn, the electric push and the move, the other half (second order, and a
   // uniform field keeps a circle a circle). In an accelerator the step is split exactly where the path crosses the
   // edge of a magnet or cavity: an edge landing anywhere within a step would be a small random kick, and kicks
@@ -6582,7 +6584,7 @@ function radPath(p, dt, q, mrest) {
     }
     radB(p, h / 2, x1, y1, q, mrest);
     const dd = hasE ? radE(p, h, xb === null ? x1 + p.ux * bSpd(p) * h / 2 : xb, yb === null ? y1 + p.uy * bSpd(p) * h / 2 : yb, q, mrest) : bSpd(p) * h;
-    const xe = x1 + p.ux * dd, ye = y1 + p.uy * dd;
+    const xe = x1 + p.ux * dd, ye = y1 + p.uy * dd; _rpL += dd;
     radB(p, h / 2, xb === null ? xe : xb, yb === null ? ye : yb, q, mrest);
     x1 = xe; y1 = ye; rem -= h;
   }
@@ -6591,9 +6593,10 @@ function radPath(p, dt, q, mrest) {
 function moveRad(p, dt) {
   const q = p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(zChem(p) - p.ne, 0) || zChem(p)) : p.q;
   const mrest = p.k === NUC ? p.m : PHYS.ME;
-  const x0 = p.x, y0 = p.y;
-  radPath(p, dt, q, mrest);
-  let x1 = _rp[0], y1 = _rp[1];
+  const x0 = p.x, y0 = p.y, d3 = W.d3, z0 = d3 ? p.z : 0;
+  if (d3) { p.oz = z0; const uz = p.uz || 0, n = Math.sqrt(p.ux * p.ux + p.uy * p.uy + uz * uz); if (Math.abs(n - 1) > 1e-9 && n > 0) { p.ux /= n; p.uy /= n; p.uz = uz / n; } } // (3-D, 1.36: a direction in space, kept a unit vector)
+  radPath(p, dt, q, mrest); // (3-D: the magnets' field is along z, so their turn is of (u_x, u_y) alone, at qB/γm; the rest of the path goes along u_z)
+  let x1 = _rp[0], y1 = _rp[1], z1 = d3 ? z0 + (p.uz || 0) * _rpL : 0;
   // energy deposition along the path
   const z = p.k === NUC ? p.Z : 1;
   const beta2 = (p.sp / PHYS.C) ** 2 || 1e-6;
@@ -6603,6 +6606,7 @@ function moveRad(p, dt) {
   let stopped = false, stillNear = false;
   for (const [t, tg, b] of hits) {
     if (tg.dead || sameEv(p, tg)) continue;
+    if (d3 && Math.abs(tg.z - (z0 + (z1 - z0) * t)) > Math.max(1.0, nucDrawR(p) + 0.9)) continue; // (3-D: the path passes it in depth)
     const again = p.hit === tg.id; // (just met it: one pass, one encounter)
     if (again && b < nucDrawR(tg) + nucDrawR(p) + 0.4) { stillNear = true; continue; }
     if (RP.cpm && p.k !== NUC) { // (charged particles in matter, 1.27: an e± meets the atom's electrons and its nucleus's field (bremsstrahlung) before it may cross the drawn nucleus below, hep.js cpmAtom)
@@ -6670,9 +6674,10 @@ function moveRad(p, dt) {
   if (!stillNear && p.hit) p.hit = 0;
   if (!p.dead && !stopped && p.k === NUC && _fastNuc.length) stopped = radVsFast(p, x0, y0, x1, y1);
   if (p.dead || stopped) return;
-  p.x = x1; p.y = y1;
+  if (d3) { const Lp = Math.hypot(_rp[0] - x0, _rp[1] - y0), f = Lp > 0 ? Math.hypot(x1 - x0, y1 - y0) / Lp : 1; z1 = z0 + (z1 - z0) * Math.min(1, f); } // (stopped short at a meeting: as far in depth)
+  p.x = x1; p.y = y1; if (d3) p.z = z1;
   radSpeed(p);
-  p.vx = p.sp * p.ux; p.vy = p.sp * p.uy;
+  p.vx = p.sp * p.ux; p.vy = p.sp * p.uy; if (d3) p.vz = p.sp * (p.uz || 0);
   if (W.objs.length && objPath(p, x0, y0)) return; // (placed objects: props.js)
   extendTrack(p);
   if (wallOrEscape(p, true, x0, y0)) return;
@@ -6682,7 +6687,7 @@ function moveRad(p, dt) {
   if (p.KE < thr) {
     p.rad = false;
     const v = Math.sqrt(2 * p.KE * p.im);
-    p.vx = v * p.ux; p.vy = v * p.uy; p.fast = true; updateFast(p);
+    p.vx = v * p.ux; p.vy = v * p.uy; if (d3) p.vz = v * (p.uz || 0); p.fast = true; updateFast(p);
   }
 }
 
@@ -6737,7 +6742,7 @@ function beamCollisions(id0) {
   for (const o of W.exo) if (!o.dead && o.xb && o.beam && o.id < id0) fl.push(o); // (unstable particles in a beam, 1.15)
   if (fl.length < 2) return;
   if (typeof coMovingPairs === 'function') coMovingPairs(fl); // (a fast e⁺e⁻ pair flying together, bound in its own frame: hep.js, 1.30 item 66)
-  const C = W.collider;
+  const C = W.collider, d3 = W.d3;
   // (with many fast products about, only pairs with a beam particle in them are looked at: the products fly apart)
   const crowded = fl.length > 300, firsts = crowded ? fl.filter(p => p.beam) : fl;
   for (let i = 0; i < firsts.length; i++) {
@@ -6751,10 +6756,15 @@ function beamCollisions(id0) {
       if (beams && a.beam === b.beam) continue; // one bunch flies together (and its own space charge is left out)
       const rx = b.ox - a.ox, ry = b.oy - a.oy;
       if (Math.abs(rx) > 60 || Math.abs(ry) > 60) continue;
-      const dx = (b.x - b.ox) - (a.x - a.ox), dy = (b.y - b.oy) - (a.y - a.oy), L2 = dx * dx + dy * dy;
-      let t = L2 > 0 ? -(rx * dx + ry * dy) / L2 : 0; const closing = t > 1, t0 = t; t = clamp(t, 0, 1); // (closing: still closing in, they meet in a later step at the true miss distance, 0.92)
-      const ex = rx + t * dx, ey = ry + t * dy, d = Math.hypot(ex, ey);
+      const dx = (b.x - b.ox) - (a.x - a.ox), dy = (b.y - b.oy) - (a.y - a.oy);
+      // (3-D, 1.36: their paths in depth too; a collider's beams and what its collisions make fly in space)
+      const azo = d3 ? (a.oz === undefined ? a.z : a.oz) || 0 : 0, bzo = d3 ? (b.oz === undefined ? b.z : b.oz) || 0 : 0, rz = bzo - azo, dz = d3 ? ((b.z || 0) - bzo) - ((a.z || 0) - azo) : 0;
+      if (Math.abs(rz) > 60) continue;
+      const L2 = d3 ? dx * dx + dy * dy + dz * dz : dx * dx + dy * dy;
+      let t = L2 > 0 ? -(d3 ? rx * dx + ry * dy + rz * dz : rx * dx + ry * dy) / L2 : 0; const closing = t > 1, t0 = t; t = clamp(t, 0, 1); // (closing: still closing in, they meet in a later step at the true miss distance, 0.92)
+      const ex = rx + t * dx, ey = ry + t * dy, ez = rz + t * dz, d = d3 ? Math.hypot(ex, ey, ez) : Math.hypot(ex, ey); // (flat: as before, bit for bit)
       const x = a.ox + (a.x - a.ox) * t + ex / 2, y = a.oy + (a.y - a.oy) * t + ey / 2;
+      if (d3) _evZ3 = azo + ((a.z || 0) - azo) * t + ez / 2; // (where in depth what they make starts)
       const live = beams && (C.kind !== 'ring' || C.colliding) && inDetector(C, x, y); // (beams meet only in a detector, as in a real machine)
       // beam–beam forces once the beams are brought together (while they are sped up a real machine keeps them far
       // enough apart that the pull is slight; here the separation is only a few ångström)
@@ -6770,7 +6780,7 @@ function beamCollisions(id0) {
       if (both) {
         if (d < Rn) { nuclearEncounter(a, b, d / Rn, x, y); if (a.dead) break; if (b.dead) continue; }
         if (d < fusGate() && tryFusion(a, b, d)) break;
-        if (!a.dead && !b.dead && a.Z > 0 && b.Z > 0 && t0 > 0) coulombScatter(a, b, d); // (1.27 bug 3: to nuclear distances; t0 ≤ 0: closest before this step, already met)
+        if (!a.dead && !b.dead && a.Z > 0 && b.Z > 0 && t0 > 0) { if (d3) nuclearScatter3(a, b, d, 0.6, 0.6 / FM); else coulombScatter(a, b, d); } // (1.27 bug 3: to nuclear distances; t0 ≤ 0: closest before this step, already met) (3-D, 1.36: both in flight in space: relativistic, its direction in depth kept; the flat coulombScatter's plane velocities lost 1.45 GeV of a 100 GeV proton's u_z)
       }
     }
   }
@@ -6794,7 +6804,7 @@ function fastMeet(dt, id0) {
     let vx, vy, vz = 0;
     if (!d3) { if (!p.rad) continue; vx = p.ux * p.sp; vy = p.uy * p.sp; }
     else {
-      if (!p.fast) continue;
+      if (!p.fast || p.rad) continue; // (in radiation flight, in a 3-D collider's world: beamCollisions meets them, 1.36)
       const v2 = p.vx * p.vx + p.vy * p.vy + p.vz * p.vz; if (!(v2 > 0)) continue;
       let sc; if (p.k === NUC) sc = flyScale3(v2); else { const g = 1 + 0.5 * p.m * v2 / (PHYS.MEC2 * 1e6), vr = PHYS.C * Math.sqrt(Math.max(0, 1 - 1 / (g * g))); sc = vr / Math.sqrt(v2); }
       vx = p.vx * sc; vy = p.vy * sc; vz = p.vz * sc;
@@ -6922,6 +6932,7 @@ function boost(E, px, py, bx, by, g0) { // (g0: the frame's Lorentz factor when 
    scattering spreads its angles (and as in nuclearEncounter, which decides first whether they touch). Exact
    relativistic kinematics: energy and momentum are kept. Returns the angle, or null if one has no charge. */
 function nuclearScatter(a, b, d, ex, ey, reach = R_NN, rmap = 0, thIn) { // rmap (fm): map the pass onto impact parameters out to this instead (thIn: the angle in their own frame, given: nuclearCollision's screened turn, 1.27 bug 3)
+  if (W.d3 && W.collider && (a.rad || a.xb) && (b.rad || b.xb)) return nuclearScatter3(a, b, d, reach, rmap, thIn); // (3-D collider, 1.36)
   const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(zChem(p) - p.ne, 0) || zChem(p)) : p.q);
   const qa = chg(a), qb = chg(b);
   if (!qa || !qb) return null;
@@ -6958,10 +6969,44 @@ function nuclearScatter(a, b, d, ex, ey, reach = R_NN, rmap = 0, thIn) { // rmap
   }
   return th0;
 }
-function setMotionB(p, KE, ux, uy) { if (!p.xb) { setMotion(p, KE, ux, uy); return; } p.KE = KE; p.ux = ux; p.uy = uy; exoSpeed(p); } // (an unstable particle in a beam: W.exo, 1.15)
+/* (3-D collider, 1.36) The same pass for two particles in flight in a 3-D world: in their own frame a's momentum turns by
+   the same Rutherford angle about an axis at a random azimuth round it (a real beam's passes come from every side: the
+   beams here fly in one plane, so the side the pass falls on would hold the turn in it), b's opposite; boosted back to
+   the lab. Energy and momentum are kept. Returns the angle, or null. */
+function flatBeam(p) { if (!p.beam || !p.rad || !p.uz) return; const L = Math.hypot(p.ux, p.uy) || 1; p.ux /= L; p.uy /= L; p.uz = 0; p.vx = p.sp * p.ux; p.vy = p.sp * p.uy; p.vz = 0; } // (3-D collider, 1.36: a beam particle kept exactly in the ring's plane after a glancing turn; the boosts' rounding left u_z ~10⁻¹¹, which over thousands of turns drifted it 0.16 Å out)
+function nuclearScatter3(a, b, d, reach, rmap, thIn) {
+  const chg = (p) => (p.k === NUC ? (p.anti ? -1 : 1) * (Math.max(zChem(p) - p.ne, 0) || zChem(p)) : p.q);
+  const qa = chg(a), qb = chg(b);
+  if (!qa || !qb) return null;
+  const Rc = Math.max(1, 1.2 * ((a.k === NUC ? Math.cbrt(a.Z + a.N) : 0) + (b.k === NUC ? Math.cbrt(b.Z + b.N) : 0)));
+  const ma = restE(a), mb = restE(b), Ea = ma + keOf(a), Eb = mb + keOf(b);
+  const pa = Math.sqrt(Math.max(0, Ea * Ea - ma * ma)), pb = Math.sqrt(Math.max(0, Eb * Eb - mb * mb));
+  const ua = [a.ux, a.uy, a.uz || 0], ub = [b.ux, b.uy, b.uz || 0];
+  const E = Ea + Eb, bx = (pa * ua[0] + pb * ub[0]) / E, by = (pa * ua[1] + pb * ub[1]) / E, bz = (pa * ua[2] + pb * ub[2]) / E;
+  const A = boost3(Ea, pa * ua[0], pa * ua[1], pa * ua[2], bx, by, bz), Bst = boost3(Eb, pb * ub[0], pb * ub[1], pb * ub[2], bx, by, bz)[0];
+  const ps = Math.hypot(A[1], A[2], A[3]);
+  if (!(ps > 0)) return null;
+  const vrel = ps / A[0] + ps / Bst;
+  const K = 1.44e6 * Math.abs(qa * qb) / (ps * vrel), bfm = W.ultra ? Math.max(0.02, d / FM) : Math.max(0.02, Math.sqrt(Math.min(1, d / reach))) * (rmap || Math.max(Rc, HIT_COUL * K));
+  const th0 = thIn !== undefined ? thIn : 2 * Math.atan(K / bfm);
+  // (a glancing pass of a beam particle (under 1°, which beamHit does not count as a scattering): turned in the ring's plane, as the flat
+  // game does; the rings here have no vertical focusing, so a turn out of the plane would carry them out of the magnets'
+  // slab over the following turns and lose them)
+  let qx, qy, qz;
+  if ((a.beam || b.beam) && th0 <= 0.0175) { const sg = rnd() < 0.5 ? 1 : -1, c = Math.cos(sg * th0), s = Math.sin(sg * th0); qx = A[1] * c - A[2] * s; qy = A[1] * s + A[2] * c; qz = A[3]; }
+  else { const q = turn3(A[1], A[2], A[3], th0); qx = q[0]; qy = q[1]; qz = q[2]; const C = W.collider; if (C && C.kind === 'ring') for (const p of [a, b]) if (p.beam) { p.caught = true; p.beam = null; } } // (thrown out of the plane: off the orbit, the detector stops it, as beamHit's scattered pair)
+  const A2 = boost3(A[0], qx, qy, qz, -bx, -by, -bz), B2 = boost3(Bst, -qx, -qy, -qz, -bx, -by, -bz);
+  const na = Math.hypot(A2[1], A2[2], A2[3]) || 1, nb = Math.hypot(B2[1], B2[2], B2[3]) || 1;
+  setMotionB(a, Math.max(1e-6, A2[0] - ma), A2[1] / na, A2[2] / na, A2[3] / na);
+  setMotionB(b, Math.max(1e-6, B2[0] - mb), B2[1] / nb, B2[2] / nb, B2[3] / nb);
+  flatBeam(a); flatBeam(b);
+  return th0;
+}
+function setMotionB(p, KE, ux, uy, uz) { if (uz !== undefined) { if (!p.xb) { setMotion(p, KE, ux, uy, 0, 0, uz); return; } p.KE = KE; p.ux = ux; p.uy = uy; p.uz = uz; exoSpeed(p); return; } if (!p.xb) { setMotion(p, KE, ux, uy); return; } p.KE = KE; p.ux = ux; p.uy = uy; exoSpeed(p); } // (an unstable particle in a beam: W.exo, 1.15)
 /* An electron and a positron in flight annihilate into two γ rays, back to back where their centre of mass is at
    rest, so in the lab they carry the pair's momentum too; all of their energy, mass included, goes into them. */
 function annihilateInFlight(a, b, x, y) {
+  if (W.d3) { annihilateInFlight3(a, b, x, y); return; }
   const S = annihBegin([a, b]);
   const mc2 = ME_C2, Ea = a.KE + mc2, Eb = b.KE + mc2; // eV
   const pa = Math.sqrt(a.KE * a.KE + 2 * a.KE * mc2), pb = Math.sqrt(b.KE * b.KE + 2 * b.KE * mc2); // eV/c
@@ -6982,6 +7027,25 @@ function annihilateInFlight(a, b, x, y) {
   W.count.annih++;
   nucEvent('annih', x, y, 'e⁻ + e⁺ → γ + γ', [], `${fmtE(Er)} in two γ rays`);
   log('nuc', `Annihilation in flight: e⁻ + e⁺ → 2γ (${fmtE(Er)}: their mass and their ${fmtE(a.KE + b.KE)} of motion)`);
+  if (W.collider) { W.collider.hits = (W.collider.hits || 0) + 1; W.collider.last = `e⁻e⁺ → γγ, ${fmtE(Er)}`; }
+}
+/* (3-D, 1.36) The same in space: the two γ rays back to back along a random direction where the pair's centre of mass
+   is at rest (over the sphere), boosted to the lab with the pair's momentum in depth too; they start at the meeting's
+   depth (_evZ3). Each particle's direction: in flight (ux, uy, uz), stepped its velocity. */
+function annihilateInFlight3(a, b, x, y) {
+  const S = annihBegin([a, b]), z = _evZ3;
+  const dir = (p) => { if (p.rad) return [p.ux, p.uy, p.uz || 0]; const v = Math.hypot(p.vx, p.vy, p.vz) || 1; return [p.vx / v, p.vy / v, p.vz / v]; };
+  const mc2 = ME_C2, Ka = keOf(a), Kb = keOf(b), Ea = Ka + mc2, Eb = Kb + mc2, pa = Math.sqrt(Ka * Ka + 2 * Ka * mc2), pb = Math.sqrt(Kb * Kb + 2 * Kb * mc2), da = dir(a), db = dir(b);
+  const E = Ea + Eb, P = [pa * da[0] + pb * db[0], pa * da[1] + pb * db[1], pa * da[2] + pb * db[2]];
+  const M = Math.sqrt(Math.max(1, E * E - P[0] * P[0] - P[1] * P[1] - P[2] * P[2])), u = rndDir().slice(), photons = [];
+  for (const sg of [1, -1]) { const q = boost3(M / 2, sg * u[0] * M / 2, sg * u[1] * M / 2, sg * u[2] * M / 2, -P[0] / E, -P[1] / E, -P[2] / E), L = Math.hypot(q[1], q[2], q[3]) || 1; photons.push([q[0], q[1] / L, q[2] / L, q[3] / L]); }
+  kill(a); kill(b);
+  const Er = annihEnd(S), sum = photons[0][0] + photons[1][0];
+  for (const [El, ux, uy, uz] of photons) emitPhoton(x, y, El * Er / sum, ux, uy, { z, uz });
+  flash(x, y, [255, 255, 255], 3, 0.45);
+  W.count.annih++;
+  nucEvent('annih', x, y, 'e⁻ + e⁺ → γ + γ', [], `${fmtE(Er)} in two γ rays`);
+  log('nuc', `Annihilation in flight: e⁻ + e⁺ → 2γ (${fmtE(Er)}: their mass and their ${fmtE(Ka + Kb)} of motion)`);
   if (W.collider) { W.collider.hits = (W.collider.hits || 0) + 1; W.collider.last = `e⁻e⁺ → γγ, ${fmtE(Er)}`; }
 }
 /* When a beam is used up (collided, or flown out of the beamline) the injectors send in the next bunches; a ring

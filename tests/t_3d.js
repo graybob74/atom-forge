@@ -233,8 +233,8 @@ async function menu3d() {
   const flat = await page.evaluate(() => { const list = [...document.querySelectorAll('#mmList [data-mmp]')].map(b => b.dataset.mmp); return { d3: W.d3, list, any3d: list.some(k => PRESETS[k].d3) }; });
   await browser.close();
   console.log(`  main menu: "${r0.text}"; the 3-D menu lists ${list.join(', ')}; chose Liquid water: 3-D ${r1.d3}, setup list "${r1.label}" (${r1.opts.length})`);
-  check(r0.menu && r0.choose && r0.shown && /3-D/.test(r0.text) && /Preview/i.test(r0.text) && list.length === 8 && all3d && !r1.menu && r1.d3 && r1.preset === 'water3d' && r1.opts.length === list.length && /preview/i.test(r1.label)
-    && no3d && !flat.d3 && flat.list.length > 20 && !flat.any3d && errors.length === 0, 'the main menu offers 3-D (Preview), whose menu lists and starts the eight 3-D setups (two colliders since 1.36); the 2-D menu has no 3-D entry and its list keeps the flat ones', { r0, list, r1, no3d, flat: flat.list.length, errors });
+  check(r0.menu && r0.choose && r0.shown && /3-D/.test(r0.text) && /Preview/i.test(r0.text) && list.length === 9 && all3d && !r1.menu && r1.d3 && r1.preset === 'water3d' && r1.opts.length === list.length && /preview/i.test(r1.label)
+    && no3d && !flat.d3 && flat.list.length > 20 && !flat.any3d && errors.length === 0, 'the main menu offers 3-D (Preview), whose menu lists and starts the nine 3-D setups (three colliders since 1.36); the 2-D menu has no 3-D entry and its list keeps the flat ones', { r0, list, r1, no3d, flat: flat.list.length, errors });
 }
 
 (async () => {

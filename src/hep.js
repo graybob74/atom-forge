@@ -2411,7 +2411,7 @@ function segTargets3(x0, y0, z0, x1, y1, z1, R, filter) {
 const _seg3 = { o: null, step: -1, k: '', hits: [] };
 function segFor3(o, x0, y0, z0, filter) {
   const k = `${x0},${y0},${z0},${o.x},${o.y},${o.z}`;
-  if (_seg3.o !== o || _seg3.step !== W.step || _seg3.k !== k) { _seg3.o = o; _seg3.step = W.step; _seg3.k = k; _seg3.hits = segTargets3(x0, y0, z0, o.x, o.y, o.z, 1.0, (t) => t.k === NUC && t.Z > 0).slice(); }
+  if (_seg3.o !== o || _seg3.step !== W.step || _seg3.k !== k) { _seg3.o = o; _seg3.step = W.step; _seg3.k = k; _seg3.hits = segTargets3(x0, y0, z0, o.x, o.y, o.z, 1.0, (t) => t.k === NUC && t.Z > 0 && !t.rad).slice(); } // (not a nucleus in radiation flight (a 3-D collider's, 1.36): its motion is its stored energy and direction, which these stepped kicks do not touch; one met moved the books by up to 180 eV a pass)
   return _seg3.hits.filter(h => !h[1].dead && filter(h[1]));
 }
 function exoIonize3(o, x0, y0, z0) {
@@ -2832,16 +2832,21 @@ function eeEvent(a, b, x, y, noGG) { // (noGG: a positron in matter's partner, 1
   }
   const bx = P[1] / P[0], by = P[2] / P[0], bz = (P[3] || 0) / P[0];
   let vs;
-  let jet = null;
+  let jet = null, jet3 = null;
   if ((ch === 'cont' || ch === 'cc' || ch === 'bb') && M > 2500 && items.length >= 3) { // above a few GeV: two jets back to back, at 1 + cos²θ to the beams (spin-½ quarks)
     const e = toRest(Pneg, bx, by, bz), en = Math.hypot(e[1], e[2]) || 1;
+    if (W.d3) { // (3-D, 1.36: the quarks' axis over the sphere, 1 + cos²θ to the electron's direction, a random azimuth; it was drawn in the plane, so the jets of a 3-D collider all lay in it)
+      const u = unit3(e); let c = 0; for (let k = 0; k < 60; k++) { c = 2 * rnd() - 1; if (rnd() < (1 + c * c) / 2) break; }
+      const d = turn3(u[0], u[1], u[2], Math.acos(c)); jet3 = [d[0], d[1], d[2]]; jet = [d[0], d[1]];
+    } else {
     let th = 0; for (let k = 0; k < 60; k++) { th = rnd() * 2 * Math.PI; if (rnd() < (1 + Math.cos(th) ** 2) / 2) break; }
     jet = turn2(e[1] / en, e[2] / en, th);
+    }
   }
   if (isrV && items.length === 2) vs = isrV; // (1.27 item 29)
   else if (zf) { vs = zf.vs; if (zf.jet) addString(x, y, zf.jet[0], zf.jet[1], items.length); } // (1.27)
   else {
-  if (jet) { const ri = resonate(items, M), v2 = jetMomenta(ri, M, jet[0], jet[1], { ptScale: 0.7 }); if (v2) { items = ri; vs = v2; } else vs = jetMomenta(items, M, jet[0], jet[1]); } // (born partly as resonances)
+  if (jet) { const ri = resonate(items, M), v2 = jetMomenta(ri, M, jet[0], jet[1], jet3 ? { ptScale: 0.7, ax3: jet3 } : { ptScale: 0.7 }); if (v2) { items = ri; vs = v2; } else vs = jetMomenta(items, M, jet[0], jet[1], jet3 ? { ax3: jet3 } : {}); } // (born partly as resonances)
   if (jet && vs) addString(x, y, jet[0], jet[1], items.length);
   else if (ang && items.length === 2 && W.d3) { // (1.27 bug 16) in 3-D over the sphere: cos θ to the electron's direction by the same weight, a random azimuth (they were drawn in the plane, flat four-momenta, PS3.flat)
     const e = toRest(Pneg, bx, by, bz), a = unit3(e);
@@ -3179,11 +3184,16 @@ function elasticTurn(a, b, th) {
 function elasticTurn3(a, b, th) {
   const S = nucBegin([a, b]);
   const ma = restE(a) / MEV, mb = restE(b) / MEV, Pa = p4of(a), Pb = p4of(b), E = Pa[0] + Pb[0], bx = (Pa[1] + Pb[1]) / E, by = (Pa[2] + Pb[2]) / E, bz = (Pa[3] + Pb[3]) / E;
-  const As = toRest(Pa, bx, by, bz), Bs = toRest(Pb, bx, by, bz), q = turn3(As[1], As[2], As[3], Math.abs(th)), qx = q[0], qy = q[1], qz = q[2];
+  const As = toRest(Pa, bx, by, bz), Bs = toRest(Pb, bx, by, bz);
+  let qx, qy, qz;
+  // (3-D collider, 1.36: a glancing turn of a beam particle stays in the ring's plane, as nuclearScatter3's; a larger one takes it off the orbit)
+  if ((a.beam || b.beam) && Math.abs(th) <= 0.0175) { const c = Math.cos(th), s = Math.sin(th); qx = As[1] * c - As[2] * s; qy = As[1] * s + As[2] * c; qz = As[3]; }
+  else { const q = turn3(As[1], As[2], As[3], Math.abs(th)); qx = q[0]; qy = q[1]; qz = q[2]; if (W.collider && W.collider.kind === 'ring') for (const p of [a, b]) if (p.beam) { p.caught = true; p.beam = null; } }
   for (const [p, V, m] of [[a, toLab([As[0], qx, qy, qz], bx, by, bz), ma], [b, toLab([Bs[0], -qx, -qy, -qz], bx, by, bz), mb]]) {
     const pm = Math.sqrt(V[1] * V[1] + V[2] * V[2] + V[3] * V[3]) || 1, K = Math.max(1e-6, (V[0] - m) * MEV);
     if (p.bonds.length && K > 20) for (const bd of p.bonds.slice()) removeBond(bd);
     setMotion(p, K, V[1] / pm, V[2] / pm, 0, 0, V[3] / pm);
+    if (W.collider) flatBeam(p);
   }
   settleKE(S, 0, [a, b]);
 }
