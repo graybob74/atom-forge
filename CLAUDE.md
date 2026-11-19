@@ -109,7 +109,12 @@ speed readout: on two cores the chain setup can't hold 1× and shows 1/1.3×) ca
 3. Back up the source (excluding `dist`, `tests/.tmp`, `kernel/target`, `desktop/dist-app`), commit to `main` with the
    session's trailer, push (this starts the Windows build), give the owner the source zip and the
    `gh run download <run-id> -R graybob74/atom-forge -n atom-forge-windows` command for the new run.
-4. The browser version is published to the owner's existing artifact link; never overwrite another artifact link.
+4. The browser version is published to the owner's artifact link, https://claude.ai/artifact/E6JLUgvbxX999mDzpQmHjE
+   (since 1.35.1, 2026-11-18; the old link NePFVLzTJ6HXiz4DjEvP8G stays on 1.31.0); never overwrite another artifact link.
+   `dist/atom-forge.html` starts at `<title>`: publish it wrapped as the tests load it, `tests/skeleton-head.html` +
+   the page + `</body></html>` (tests/browser.js). That head holds `[hidden]{display:none!important}`, which hides
+   every closed window: published bare (the file-publishing tool adds nothing), all of them showed at once and the
+   crash dialog's Close did nothing. Keep the artifact's capabilities `sample` and `downloads` declared.
 
 ## Known limits (documented, not bugs to chase without a plan)
 
