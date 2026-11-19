@@ -1991,6 +1991,28 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.36 (in progress): the collider in 3-D (the owner, 2026-11-18: "i'd say 3d accelerator is next, can you start that?")
+
+The 1.25 notes' stage 3, never built ("several sessions"). Plan: (1) the beams flying in 3-D through the ring in the middle
+plane, and the ring drawn; (2) what collisions make sprayed in all three directions, fast products in relativistic flight
+through depth; (3) the panel, more setups (gold on gold, the LHC energies), tests and polish.
+
+- **Stage 1 (done, 2026-11-18).** A collider built in a 3-D world keeps its zones in the middle plane, z = 0, each a slab
+  `ZONE_HZ3` = 6 Å deep: `Bfield3` adds the ring's magnets (`zonesB`, with the particle, for its own ring and the kicker)
+  there when the field axis is z, and nowhere else (a ring magnet's 3.0 MT at z = 0, none 10 Å above). `setMotion` in
+  3-D lets a fast particle fired in that plane with no motion in depth (z = 0, no u_z, a collider in the world) fly in
+  radiation mode as in the flat game (`radPath`, the RF, synchrotron light, the beam–beam meetings), instead of being
+  stepped (before: every beam particle was stepped, felt no ring, and flew straight out of the box). `drawZones3`
+  (view3d.js) draws the beam pipes, the injection lines, the bending magnets, RF cavities, focusing magnets, kickers and
+  separators as outlines in that plane with the flat view's colours and labels, and the detectors as rings. Two setups
+  in the 3-D lab: Ring collider (e⁺e⁻, 2 MeV) and Linear collider (e⁺e⁻, 1 MeV), a 40 Å deep box.
+- Measured (tests/f_136.js): the 3-D ring's beams all in radiation flight at z = 0, at 2.06 MeV, 60 collisions; the 3-D
+  linac 60 collisions (e⁻e⁺ → γγ, 3.02 MeV); flat runs untouched (the change is behind `W.d3`). In Node the 3-D ring
+  ran as the flat one (100 collisions within 150 frames each, 2 MeV e⁺e⁻); p p̄ at 2 MeV and p p at 6.5 TeV collide too.
+- Left for stage 2: what a collision makes still comes out flat (e⁺e⁻ → γγ's photons, the jets, in the plane), and a
+  fast stable product (an e±, a proton, a nucleus) is stepped in 3-D without relativity (the 1.25 limit); gold on gold
+  runs but slowly (its fragments stepped), so it is not in the 3-D list yet.
+
 ## 1.35.1: no crash report for a second window that is still running (the owner, 2026-11-16)
 
 - The owner opened 1.35.0 and was told it had "stopped unexpectedly (froze or crashed)": the glowing oven, 10 particles,
@@ -3876,6 +3898,8 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    them); two condensates released together interfering in fringes; an attractive one (⁷Li) collapsing past its
    critical number. Flat (2-D grid) first, 3-D later. Units and numbers measured; a new kind of lab, so the owner's
    "build it" first.
+98 (started 2026-11-18, the owner: "i'd say 3d accelerator is next, can you start that?") The collider in 3-D: the 1.36 section's
+   three stages (stage 1 done: beams in flight through the ring in the middle plane, the ring drawn, two setups).
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a

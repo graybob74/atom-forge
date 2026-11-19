@@ -1203,7 +1203,7 @@ function Efield(x, y, p) {
   return _E;
 }
 function Bfield(x, y, p) {
-  if (W.d3) return Bfield3(x, y, p ? p.z : 0); // (3-D: along the chosen axis, magnets as balls, 1.24)
+  if (W.d3) return Bfield3(x, y, p ? p.z : 0, p); // (3-D: along the chosen axis, magnets as balls, 1.24)
   let B = W.Bz;
   if (W.zones.length) B += zonesB(x, y, p);
   if (p && p._Bi) B += p._Bi; // (Experimental: the field of the other moving charges at p, 1.34: xforces.js)
@@ -1225,9 +1225,11 @@ function Bfield(x, y, p) {
    (rotateB, a Boris rotation, and gyrate, an exact arc) works unchanged on the two velocity components across the axis
    (B3P: x→(y, z), y→(z, x), z→(x, y), each pair turned as (vx, vy) is about z), the one along it untouched. The
    electric field has a z part too (W.Ez: the Lab's ±z buttons). */
+const ZONE_HZ3 = 6; // (half the depth of an accelerator's magnets and cavities in 3-D, Å)
 const B3P = { x: ['y', 'z', 'vy', 'vz'], y: ['z', 'x', 'vz', 'vx'], z: ['x', 'y', 'vx', 'vy'] };
-function Bfield3(x, y, z) {
+function Bfield3(x, y, z, p) {
   let B = W.Bz;
+  if (W.zones.length && W.Bax3 === 'z' && Math.abs(z) < ZONE_HZ3) B += zonesB(x, y, p); // (3-D collider, 1.36: the ring's magnets are slabs ZONE_HZ3 deep about the middle plane, their field along z)
   const ms = W.magnets;
   for (let i = 0; i < ms.length; i++) {
     const m = ms[i], dx = x - m.x, dy = y - m.y, dz = z - (m.z || 0), d2 = dx * dx + dy * dy + dz * dz, R = m.R;
@@ -4126,7 +4128,10 @@ function radSpeed(p) {
 function setMotion(p, KE, ux, uy, bvx = 0, bvy = 0, uz = 0, bvz = 0) { // (uz, bvz: 3-D)
   const isLep = p.k !== NUC, neutron = p.k === NUC && p.Z === 0;
   const thr = neutron ? NEUTRON_RAD : radThreshold(isLep);
-  if (W.d3) { // (3-D: the same, with z, at any energy (1.23.2): the radiation flight is flat, so a fast particle stays in the stepped set, moving in depth, and walls3 stops it at a closed box's wall by its speed, as the flat walls stop radiation flight; before, one past the threshold flew flat, z held, meeting nuclei at any depth)
+  // (3-D collider, 1.36: a beam particle fired in the middle plane (z = 0, no depth to its motion) flies in radiation mode
+  // as in the flat game, through the ring's zones laid out in that plane)
+  const flatFly = W.d3 && W.collider && !uz && !bvz && !p.z && KE > thr;
+  if (W.d3 && !flatFly) { // (3-D: the same, with z, at any energy (1.23.2): the radiation flight is flat, so a fast particle stays in the stepped set, moving in depth, and walls3 stops it at a closed box's wall by its speed, as the flat walls stop radiation flight; before, one past the threshold flew flat, z held, meeting nuclei at any depth)
     p.rad = false;
     const vv = 2 * KE * p.im, ub = ux * bvx + uy * bvy + uz * bvz, disc = ub * ub - (bvx * bvx + bvy * bvy + bvz * bvz) + vv;
     if ((bvx || bvy || bvz) && disc >= 0 && Math.sqrt(disc) > ub) { const w = Math.sqrt(disc) - ub; p.vx = bvx + w * ux; p.vy = bvy + w * uy; p.vz = bvz + w * uz; }

@@ -4311,6 +4311,12 @@ const PRESETS = {
       lattice3(22, 7, (x, y, z, i, j, l) => { // (Na⁺ on the cells {1, 4}³, Cl⁻ on {3, 6}³: eight of each, apart; water everywhere else)
         if ([i, j, l].every(v => on(v, [1, 4]))) addAtom('Na', x, y, { charge: 1, z }); else if ([i, j, l].every(v => on(v, [3, 6]))) addAtom('Cl', x, y, { charge: -1, z });
         else addMolecule('H2O', x, y, rnd() * 6, 300, z); }); } },
+  ring3d: { group: G3D, d3: true, name: 'Ring collider', tool: 'inspect', tab: 'lab', spec: { kind: 'pos' },
+    hint: '<b>A collider ring in the 3-D lab: positrons and electrons go round one ring in opposite directions and meet in the detector.</b> The ring lies in the middle plane of the box (red bending magnets, gold RF cavities that speed the beams up, violet focusing magnets); turn the view to see it from the side. Change the beams and energy in the Lab tab.',
+    build() { baseWorld(150, 130, 300, 0); world3d(40); W.wall = 'open'; setupCollider('ring', 'ee', 2e6); } },
+  linac3d: { group: G3D, d3: true, name: 'Linear collider', tool: 'inspect', tab: 'lab', spec: { kind: 'e' },
+    hint: '<b>Two linear accelerators in the 3-D lab fire electrons and positrons at each other.</b> Each cavity row (gold) pushes its beam along the middle plane of the box, the focusing magnets (violet) squeeze it onto the axis, and the two meet head-on at the collision point.',
+    build() { baseWorld(230, 60, 300, 0); world3d(40); W.wall = 'open'; setupCollider('linear', 'ee', 1e6); } },
   combustion: { group: 'Chemistry', name: 'Hydrogen + oxygen', tool: 'spark', spec: { kind: 'mol', mol: 'H2' },
     hint: '<b>A 2:1 mix of H₂ and O₂ at 600 K.</b> Nothing happens until a bond breaks. Click with the Spark tool or heat a spot: radicals (H, O, OH) start chain reactions that make water and release heat.',
     build() { baseWorld(64, 44, 600, 0.005); let k = 0;

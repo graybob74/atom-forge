@@ -957,9 +957,55 @@ function drawMagnets3(ctx) {
 /* ---------- overlays (stage 3): trails, hydrogen bonds and ionic contacts, the Measure tool, flashes and events */
 /* Under the labels: particle trails (with each point's depth), hydrogen bonds and ionic contacts, faded with depth. */
 function drawUnder3(ctx, rt) {
+  if (W.zones.length || (W.collider && W.collider.dets && W.collider.dets.length)) drawZones3(ctx);
   if (R.view.tracks && W.tracks.length) drawTracks3(ctx, rt);
   if (R.view.hbonds) drawHBonds3(ctx);
   if (R.view.ionic) drawIonic3(ctx);
+}
+/* The accelerator in 3-D (1.36): its zones lie in the middle plane (z = 0) as in the flat game, each a slab ZONE_HZ3 deep
+   (the field acts there, Bfield3): drawn as their outlines in that plane, faintly filled, with the flat view's colours and
+   labels; the beam pipes and injection lines as lines, each detector as a ring in the plane. */
+function drawZones3(ctx) {
+  const C = W.collider, o = _p3c, pts = [];
+  const poly = (P, close, fill, stroke, lw = 1, dash = null) => { // a path of [x, y] points in the plane z = 0
+    ctx.beginPath(); let on = false, any = false;
+    for (const [x, y] of P) { if (!proj3(x, y, 0, o)) { on = false; continue; } if (on) ctx.lineTo(o[0], o[1]); else ctx.moveTo(o[0], o[1]); on = true; any = true; }
+    if (!any) return; if (close) ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); }
+  };
+  const arc = (cx, cy, r, a0, a1, n) => { const P = []; for (let k = 0; k <= n; k++) { const a = a0 + (a1 - a0) * k / n; P.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } return P; };
+  const label = (x, y, txt, col) => { if (!proj3(x, y, 0, o)) return; ctx.fillStyle = col; ctx.fillText(txt, o[0], o[1]); };
+  ctx.save(); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  for (const g of (C && C.pipes) || []) poly(g.arc ? arc(g.cx, g.cy, g.r, g.a0, g.a1, 48) : [[g.x0, g.y0], [g.x1, g.y1]], false, null, 'rgba(190,205,225,0.3)');
+  for (const l of (C && C.injLines) || []) poly([[l[0], l[1]], [l[2], l[3]]], false, null, 'rgba(190,205,225,0.35)', 1, [3, 4]);
+  const mids = {};
+  for (const z of W.zones) {
+    if (z.kind === 'dipole' && z.ring) {
+      const col = z.B >= 0 ? [255, 110, 100] : [100, 145, 255];
+      let a0, a1; if (z.ahalf !== undefined) { a0 = z.amid - z.ahalf; a1 = z.amid + z.ahalf; } else { a0 = z.half === 1 ? 0 : Math.PI; a1 = z.half ? a0 + Math.PI : a0 + 2 * Math.PI; }
+      const n = Math.max(6, Math.round((a1 - a0) * 24));
+      poly(arc(z.cx, z.cy, z.r1, a0, a1, n).concat(arc(z.cx, z.cy, z.r0, a1, a0, n)), true, rgba(col, 0.1), rgba(col, 0.42));
+      if (z.ahalf !== undefined) { const k = z.beam || '-', m = mids[k] || (mids[k] = { x: 0, y: 0, n: 0, B: z.B }); m.x += z.cx; m.y += z.cy; m.n++; }
+      else label(z.cx, z.cy - z.r1 - 6, `bending magnets ${fmtTesla(Math.abs(z.B))}`, rgba(col, 0.9));
+      continue;
+    }
+    const c = Math.cos(z.ang || 0), sn = Math.sin(z.ang || 0), hw = z.w / 2, hh = z.h / 2;
+    pts.length = 0; for (const [u, v] of [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]) pts.push([z.cx + u * c - v * sn, z.cy + u * sn + v * c]);
+    const col = z.kind === 'cavity' ? [255, 200, 90] : z.kind === 'quad' ? (z.K < 0 ? [110, 160, 255] : [160, 120, 255]) : z.kind === 'kicker' ? [90, 220, 190] : z.kind === 'sep' ? [120, 210, 255] : z.B >= 0 ? [255, 110, 100] : [100, 145, 255];
+    poly(pts, true, rgba(col, z.kind === 'sep' ? 0.04 : 0.1), rgba(col, 0.5));
+    const tag = z.kind === 'cavity' ? (z.Vamp !== undefined || z.rfS !== undefined ? (z.Vamp > 0 && z.E !== 0 ? `RF ${fmtVolt(z.Vamp)}` : 'RF (off)') : `${z.label || 'cavity'} ${fmtVolt(Math.abs(z.E) * z.w)}`)
+      : z.kind === 'quad' ? (z.K === undefined ? 'focusing' : '') : z.kind === 'kicker' ? 'kicker' : z.kind === 'sep' ? 'separator' : '';
+    if (tag) label(z.cx - sn * (hh + 5), z.cy + c * (hh + 5), tag, rgba(col, 0.9));
+  }
+  for (const m of Object.values(mids)) label(m.x / m.n, m.y / m.n, `bending magnets ${m.B >= 0 ? '⊙' : '⊗'} ${fmtTesla(Math.abs(m.B))}`, rgba(m.B >= 0 ? [255, 110, 100] : [100, 145, 255], 0.85));
+  for (const d of (C && C.dets) || []) {
+    const P = d.box ? [[d.box[0], d.box[2]], [d.box[1], d.box[2]], [d.box[1], d.box[3]], [d.box[0], d.box[3]]] : arc(d.x, d.y, d.r, 0, 2 * Math.PI, 48);
+    poly(P, true, null, 'rgba(235,242,250,0.55)', 1, [2, 3]);
+    const top = d.box ? [(d.box[0] + d.box[1]) / 2, Math.max(d.box[2], d.box[3]) + 5] : [d.x, d.y + d.r + 5];
+    label(top[0], top[1], C.kind === 'ring' ? 'detector' : 'collision point', 'rgba(235,242,250,0.75)');
+  }
+  ctx.restore();
 }
 const _p3c = [0, 0, 0], _p3d = [0, 0, 0];
 function drawTracks3(ctx, rt) {
