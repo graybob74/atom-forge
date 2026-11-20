@@ -3093,7 +3093,7 @@ function nnInelastic(a, b, x, y, P, M) {
    Returns a caption if something happened (the nuclei may survive it: diffraction), else null. */
 const HIT_COUL = 30;
 const DIFF_SHARE = 0.35; // (of the nucleus–nucleus passes that could react above 25 MeV a nucleon, the share that diffracts instead: the outermost)
-function nuclearEncounter(a, b, u, x, y, z) {
+function nuclearEncounter(a, b, u, x, y, z, bfm) { // (bfm: the impact parameter in fm, when the caller has it: heavyCapture, 1.36.2)
   _evZ3 = z === undefined ? b.z || 0 : z; // (3-D: where in depth its products start, 1.25)
   if (a.mu || b.mu) return false; // (muonium's nucleus is a muon: it feels no strong force, 1.12)
   if (a.dead || b.dead || a.k !== NUC || b.k !== NUC || opp(a, b)) return null;
@@ -3104,7 +3104,7 @@ function nuclearEncounter(a, b, u, x, y, z) {
   const bx = P[1] / P[0], by = P[2] / P[0], bz = (P[3] || 0) / P[0], As = toRest(Pa, bx, by, bz), Bs0 = toRest(Pb, bx, by, bz)[0], ps = pmag(As);
   if (!(ps > 0)) return null;
   const vrel = ps / As[0] + ps / Bs0, K = Z1 * Z2 ? 1.44 * Z1 * Z2 / (ps * vrel) : 0;
-  const Rc = 1.2 * (Math.cbrt(A1) + Math.cbrt(A2)), bTop = W.ultra ? ultraReach(a, b) / FM : Math.max(Rc, HIT_COUL * K), b3 = bTop * (W.ultra || W.d3 ? clamp(u, 0, 1) : Math.sqrt(clamp(u, 0, 1))); // (ultra: the pass's own distance) (the flat game's passes, spread along a line, are spread over the nucleus's disc by the square root; a 3-D pass's distance is spread over that disc already, so it is taken as it is: with the root, a 3-D hit came out off centre, b³ uniform instead of b², 1.26 bug fix)
+  const Rc = 1.2 * (Math.cbrt(A1) + Math.cbrt(A2)), bTop = W.ultra ? ultraReach(a, b) / FM : Math.max(Rc, HIT_COUL * K), b3 = bfm !== undefined ? bfm : bTop * (W.ultra || W.d3 ? clamp(u, 0, 1) : Math.sqrt(clamp(u, 0, 1))); // (ultra: the pass's own distance) (the flat game's passes, spread along a line, are spread over the nucleus's disc by the square root; a 3-D pass's distance is spread over that disc already, so it is taken as it is: with the root, a 3-D hit came out off centre, b³ uniform instead of b², 1.26 bug fix)
   if (A1 === 1 && A2 === 1) { // two nucleons: inelastic inside √(σ_inel/π), diffraction out to √(σ_tot/π)
     if (b3 < Math.sqrt(nnTable(NN_INEL, M) / (10 * Math.PI))) return nnInelastic(a, b, x, y, P, M);
     if (Ecm > 20 && b3 < Math.sqrt(nnTable(NN_TOT, M) / (10 * Math.PI))) return diffract(a, b, ps, 1.6);

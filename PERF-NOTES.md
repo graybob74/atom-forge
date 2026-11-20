@@ -1991,6 +1991,31 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.36.2: heavy ions that touch; the target's isotope, thickness and the beam's spread (the owner, 2026-11-19: "fix collision between Einsteinium and Calcium for some reason they dont collide they only knock electrons and make it able to choose isotope on syncrotron and and also add a spread and thickness option in syncrotron")
+
+- **Heavy ions above the barrier now react** (physics change, asked for by the owner). ⁴⁸Ca at 300 MeV on einsteinium
+  (252 MeV in their own frame, barrier 211 MeV): 894 encounters past the barrier, **2 reactions**. `nuclearEncounter`
+  spreads a pass over impact parameters out to the Coulomb reach (30 K: 170 fm for this pair), so only (5.5/170)² ≈ 1
+  pass in 1,000 came inside the grazing distance; `tryFusion`'s Gamow factor gave e^(−775) for them. Now
+  (`heavyCapture`, engine.js; flat and 3-D) a pair with Z₁Z₂ ≥ 200, above the barrier and under 15 MeV a nucleon, that
+  comes within the fusion gate (the same "close enough to touch" pass the light nuclei fuse on) is given an impact
+  parameter spread over the grazing disc, b = b_g √u, and `nuclearEncounter` (new last argument `bfm`) does what it
+  already does for such a pass: compound nucleus (`compoundDecay`), quasi-fission or deep-inelastic transfer
+  (`binaryInto`). After: 40 ions → **11 quasi-fissions + 1 ³⁰⁰Uue\* (flat), 13 + 3 (3-D)**; each event's books within
+  18 meV (flat) / 47 eV (3-D) of ~250 MeV; below the barrier (240 MeV lab) nothing touches, as before. Light pairs,
+  anything below the barrier and anything faster are unchanged.
+- **Target isotope**: a menu under the element (every isotope that holds together, as for beams); kept across beam and
+  energy changes (`C.tgtA`); a new element takes its most common isotope (`tgtA`).
+- **Thickness**: 1–12 layers of atoms (`C.tgtN`, default 3 as before); the line is rebuilt around the block.
+- **Beam spread**: 0–22 Å (`C.spread`, default 0: the pencil beam as before). Each extracted particle is aimed at a
+  point picked evenly across that width of the target's face (a disc in 3-D) by a small turn with no change of speed
+  (`spreadAim`), so no energy changes hands (books change 0 eV at extraction).
+- Tests: `tests/f_1362.js` (heavy, target, page). `t_energy` now skips the 1.36 accelerator setups as it does the 2-D
+  ones (their injectors add energy: 7 "failures" since 1.36.0).
+- Found, not from this change (fail on 1.36.1 too): `f_136 books` reports products faster than c (p + p at 100 GeV
+  14 c, Au + Au 119 c); `t_collider` "nuclear slow motion off, yet time slowed 4.0×" and, once under load, the linear
+  p + p̄ energy 1.05 MeV (1.01 MeV alone, before and after). For a bug-fix session.
+
 ## 1.36.1: the fixed target's element, matter or antimatter (the owner, 2026-11-18: "where do you change the target?" … "yes, do that for every element and anti element")
 
 - Lab → Collider → **Target** (shown for a fixed-target machine): every element 1–118 and an **Antimatter** box. Changing

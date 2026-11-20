@@ -5580,6 +5580,22 @@ function velOf(p) { return p.rad ? [p.sp * p.ux, p.sp * p.uy] : [p.vx, p.vy]; }
 /* bd: how close the pass came (Å). In the ultra-realistic mode a pass fuses when it comes inside the true cross
    section, √(σ/π) (about 10⁻⁵–10⁻⁴ Å), and not otherwise; normally a pass inside R_FUS fuses with the chance gamowP. */
 const fusGate = () => W.ultra ? 2e-3 : R_FUS;
+/* (1.36.2; the owner, 2026-11-19: einsteinium and calcium "dont collide they only knock electrons") Two heavy ions
+   (Z₁Z₂ ≥ 200) above their Coulomb barrier but slow (under 15 MeV a nucleon in their own frame): nuclearEncounter
+   spreads a pass over impact parameters out to the Coulomb reach (30 K, where their charges still turn them by 4°),
+   170 fm for ⁴⁸Ca + ²⁵⁴Es at 252 MeV, so only (5.5/170)² ≈ 1 pass in 1,000 came inside the grazing distance and touched
+   (2 reactions in 894 encounters); the rest only bent a little, and the beam seemed to pass through. A pass that comes
+   within the fusion gate here is a pass close enough to touch, as it is for the light nuclei (the Gamow factor above
+   the barrier, where it means nothing for these: e^(−775)): its impact parameter is spread over the grazing disc,
+   b = b_g √u, and nuclearEncounter makes what it makes for such a pass (complete fusion and the compound nucleus's
+   decay, quasi-fission, deep-inelastic transfer). Returns true if they reacted, null when not this regime. */
+function heavyCapture(a, b, Ecm, bd, x, y, z) {
+  if (a.Z * b.Z < 200 || a.anti || b.anti) return null;
+  const A1 = a.Z + a.N, A2 = b.Z + b.N, RB = 1.2 * (Math.cbrt(A1) + Math.cbrt(A2)) + 1.6, VB = 1.44e6 * a.Z * b.Z / RB;
+  if (Ecm <= VB || Ecm * (A1 + A2) / (A1 * A2) > 15e6) return null; // (below the barrier: tunnelling; fast: nuclearEncounter's own reach)
+  const u = clamp(bd / fusGate(), 0, 1), bg = RB * Math.sqrt(1 - VB / Ecm);
+  return !!nuclearEncounter(a, b, 0, x, y, z, bg * (W.d3 ? u : Math.sqrt(u))) || a.dead || b.dead;
+}
 function tryFusion(a, b, bd) {
   if (a.dead || b.dead) return false;
   if (W.d3) return tryFusion3(a, b, bd); // (3-D, 1.25)
@@ -5590,8 +5606,10 @@ function tryFusion(a, b, bd) {
   const dvx = avx - bvx, dvy = avy - bvy;
   const Ecm = 0.5 * mu * (dvx * dvx + dvy * dvy);
   if (Ecm < 50) return false;
+  const hc = heavyCapture(a, b, Ecm, bd, 0.5 * (a.x + b.x), 0.5 * (a.y + b.y));
+  if (hc !== null) return hc;
   const g = gamowP(a, b, Ecm);
-  if (W.ultra ? !(bd < 1e-4 * Math.sqrt(g.sig / Math.PI)) : !(rnd() < g.P)) return false; // (1 b = 10⁻⁸ Å²)
+  if ((W.ultra ? !(bd < 1e-4 * Math.sqrt(g.sig / Math.PI)) : !(rnd() < g.P))) return false; // (1 b = 10⁻⁸ Å²)
   const M = a.m + b.m, Vx = (a.m * avx + b.m * bvx) / M, Vy = (a.m * avy + b.m * bvy) / M;
   const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y);
   const ne = a.ne + b.ne;
@@ -5652,8 +5670,10 @@ function tryFusion3(a, b, bd) {
   const mu = a.m * b.m / (a.m + b.m), dvx = a.vx - b.vx, dvy = a.vy - b.vy, dvz = a.vz - b.vz;
   const Ecm = 0.5 * mu * (dvx * dvx + dvy * dvy + dvz * dvz);
   if (Ecm < 50) return false;
+  const hc = heavyCapture(a, b, Ecm, bd, 0.5 * (a.x + b.x), 0.5 * (a.y + b.y), 0.5 * (a.z + b.z));
+  if (hc !== null) return hc;
   const g = gamowP(a, b, Ecm);
-  if (W.ultra ? !(bd < 1e-4 * Math.sqrt(g.sig / Math.PI)) : !(rnd() < g.P)) return false;
+  if ((W.ultra ? !(bd < 1e-4 * Math.sqrt(g.sig / Math.PI)) : !(rnd() < g.P))) return false;
   const M = a.m + b.m, Vx = (a.m * a.vx + b.m * b.vx) / M, Vy = (a.m * a.vy + b.m * b.vy) / M, Vz = (a.m * a.vz + b.m * b.vz) / M;
   const x = 0.5 * (a.x + b.x), y = 0.5 * (a.y + b.y), z = 0.5 * (a.z + b.z), ne = a.ne + b.ne;
   const lbl = `${nucSym(a.Z, a.N)} + ${nucSym(b.Z, b.N)}`, key = fusionKey(a, b);
@@ -7143,11 +7163,24 @@ function rampRing() {
 /* (1.36) A fixed-target machine at full energy (or as its Extraction setting says): each beam particle passing the
    extraction point, going the beam's way, leaves the beam, and so the ring's magnets and cavities (which act on their
    own beam only), and flies on down the extraction line to the target. */
+/* (1.36.2, the owner: "add a spread ... option", how spread out the beam is where it reaches the target) Each particle
+   going out is aimed at a point picked evenly across a width C.spread (Å) of the target's face (in 3-D, a disc of that
+   diameter), turned by a small angle without a change of speed (so no energy changes hands); 0, the default, leaves
+   the pencil beam down the middle, as before. */
+function spreadAim(C, p) {
+  const T = C.target, w = Math.min(C.spread, 2 * T.half), nx = -T.uy, ny = T.ux;
+  let s, sz = 0;
+  if (W.d3) { const r = 0.5 * w * Math.sqrt(rnd()), th = 2 * Math.PI * rnd(); s = r * Math.cos(th); sz = r * Math.sin(th); } else s = (rnd() - 0.5) * w;
+  const fx = T.x - T.ux * T.depth / 2 + nx * s, fy = T.y - T.uy * T.depth / 2 + ny * s, dx = fx - p.x, dy = fy - p.y, dz = W.d3 ? sz - p.z : 0, L = Math.hypot(dx, dy, dz);
+  if (!(L > 1)) return;
+  setMotionB(p, p.KE, dx / L, dy / L, W.d3 ? dz / L : undefined);
+}
 function extractBeam(C) {
   const X = C.ext, out = (p) => {
     const dx = p.x - X.x, dy = p.y - X.y, al = dx * X.ux + dy * X.uy, ac = Math.abs(-dx * X.uy + dy * X.ux);
     if (al < -X.L / 2 || al > X.L / 2 || ac > 3 || p.ux * X.ux + p.uy * X.uy < 0.9) return;
     p.beam = null; p.extr = true; C.sent = (C.sent || 0) + 1; C.outE = p.KE; // (its energy going out)
+    if (C.spread > 0 && C.target) spreadAim(C, p);
   };
   for (const p of W.parts) if (!p.dead && p.beam === 'a' && p.rad) out(p);
   for (const o of W.exo) if (!o.dead && o.xb && o.beam === 'a') out(o);

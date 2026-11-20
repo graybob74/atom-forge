@@ -3918,9 +3918,9 @@ function fixedLayout(C, A, E) {
   // the extraction line: straight on from the extraction point until clear of the ring's magnets, then the target
   const ux = Math.cos(h0), uy = Math.sin(h0), clear = (x, y) => lat.segs.every(g => (g.arc ? Math.abs(Math.hypot(x - g.cx, y - g.cy) - g.r) : segDist(x, y, g)) > LAT.w + 4);
   let t = Ls; while (t < 400 && !clear(ux * t, uy * t)) t += 2;
-  const el = C.tgtEl || 'W', anti = !!C.tgtAnti, nAt = 3, a0 = targetSpacing(el), half = 11, depth = (nAt - 1) * a0, dMax = (nAt - 1) * 4.5, t0 = t + 24;
+  const el = C.tgtEl || 'W', anti = !!C.tgtAnti, nAt = C.tgtN || 3, a0 = targetSpacing(el), half = 11, depth = (nAt - 1) * a0, dMax = (nAt - 1) * 4.5, t0 = t + 24;
   C.ext = { x: 0, y: 0, ux, uy, L: Ls };
-  C.target = { x: ux * (t0 + dMax / 2), y: uy * (t0 + dMax / 2), ux, uy, depth, half, el, anti, a0, n: nAt }; // (its middle where the thickest block's would be: the same box whatever the element)
+  C.target = { x: ux * (t0 + dMax / 2), y: uy * (t0 + dMax / 2), ux, uy, depth, half, el, anti, a0, n: nAt, A: tgtA(el, C.tgtA) }; // (its middle where the thickest block's would be: the same box whatever the element)
   const room = 50, side = half + 30; // (room past the target to watch what it sends out: the owner, 2026-11-18, "add a bit more space after the collision zone so you can see the products")
   C.pipes.push({ arc: false, x0: 0, y0: 0, x1: ux * t0, y1: uy * t0, ext: true }, { arc: false, x0: ux * (t0 + depth + room) - uy * side, y0: uy * (t0 + depth + room) + ux * side, x1: ux * (t0 + depth + room) + uy * side, y1: uy * (t0 + depth + room) - ux * side, ext: true, hide: true }); // (the second, not drawn: room in the box for the target and past it)
   C.R = LAT.rho; C.circ = lat.circ;
@@ -3930,6 +3930,10 @@ function fixedLayout(C, A, E) {
 }
 /* The target block's spacing: about the element's covalent diameter (tungsten 2.75 Å, its nearest-neighbour distance in
    the metal; carbon 1.5 Å, as in graphite's layers), within 1.5–4.5 Å. */
+/* (1.36.2, the owner: "make it able to choose isotope on syncrotron") The target's isotope: the one picked if it is
+   one of that element's (beamIsotopes: every one that holds together), else the element's most common. */
+const TGT_NMAX = 12; // (the thickest target block, layers of atoms)
+function tgtA(el, A) { const Z = SYM2Z[el]; return A && beamIsotopes(Z).includes(A) ? A : COMMON_A[Z]; }
 function targetSpacing(el) { const E = ELEMENTS[SYM2Z[el]]; return clamp(2 * (E ? E.rc : 1.4) * 0.85, 1.5, 4.5); }
 function targetBox(C) {
   const T = C.target, nx = -T.uy, ny = T.ux;
@@ -3938,12 +3942,13 @@ function targetBox(C) {
 /* (1.36, the owner: "do that for every element and anti element") Lab → Collider → Target: the block's element, matter
    or antimatter; the old block goes (its energy leaving the books as carried away) and a fresh one of the new kind is set
    at rest in its place. */
-function setTarget(C, el, anti) {
+function setTarget(C, el, anti, A) {
   if (!C || !C.fixed || !C.target || !SYM2Z[el]) return;
-  C.tgtEl = el; C.tgtAnti = !!anti;
-  const T = C.target; T.el = el; T.anti = !!anti; T.a0 = targetSpacing(el); T.depth = (T.n - 1) * T.a0;
+  if (el !== C.target.el && A === undefined) A = null; // (a new element: its most common isotope)
+  C.tgtEl = el; C.tgtAnti = !!anti; C.tgtA = tgtA(el, A === undefined ? C.target.A : A);
+  const T = C.target; T.el = el; T.anti = !!anti; T.A = C.tgtA; T.a0 = targetSpacing(el); T.depth = (T.n - 1) * T.a0;
   targetBox(C); clearTarget(C); placeTarget(C); W.spawned++;
-  log('tool', `Target: a block of ${anti ? 'anti' : ''}${ELEMENTS[SYM2Z[el]].name.toLowerCase()} at rest`);
+  log('tool', `Target: a block of ${anti ? 'anti' : ''}${ELEMENTS[SYM2Z[el]].name.toLowerCase()}-${T.A} at rest`);
 }
 function targetIn(C, p) { const T = C.target; return Math.abs((p.x - T.x) * T.ux + (p.y - T.y) * T.uy) < T.depth / 2 + 1.5 && Math.abs(-(p.x - T.x) * T.uy + (p.y - T.y) * T.ux) < T.half + 1.5 && (!W.d3 || Math.abs(p.z) < 7); }
 function clearTarget(C) { for (const p of W.parts) if (!p.dead && !p.beam && (p.tgt || (p.k === NUC && !p.rad && targetIn(C, p)))) { W.ledger.escaped += keOf(p) + internalE(p); chargeTo(p.q); kill(p); } }
@@ -3956,12 +3961,12 @@ function placeTarget(C) {
   for (let i = 0; i < T.n; i++) for (let j = 0; j <= rows; j++) for (let k = 0; k < lay; k++) {
     const along = -T.depth / 2 + i * T.a0, across = -T.half + j * T.a0 + (i % 2) * T.a0 / 2, z = W.d3 ? (k - (lay - 1) / 2) * T.a0 + (i % 2) * T.a0 / 2 : 0;
     if (Math.abs(across) > T.half) continue;
-    const p = addAtom(T.el, T.x + T.ux * along + nx * across, T.y + T.uy * along + ny * across, W.d3 ? { z, anti: T.anti } : { anti: T.anti }); p.vx = p.vy = 0; if (W.d3) p.vz = 0; p.tgt = true; T.n0++; // (at rest)
+    const p = addAtom(T.el, T.x + T.ux * along + nx * across, T.y + T.uy * along + ny * across, W.d3 ? { z, anti: T.anti, A: T.A } : { anti: T.anti, A: T.A }); p.vx = p.vy = 0; if (W.d3) p.vz = 0; p.tgt = true; T.n0++; // (at rest)
   }
 }
 function refillTarget(C) {
   const T = C.target; if (!T) return;
-  let ok = 0; for (const p of W.parts) if (!p.dead && p.tgt && p.Z === SYM2Z[T.el] && !!p.anti === !!T.anti && targetIn(C, p) && keOf(p) < 1) ok++;
+  let ok = 0; for (const p of W.parts) if (!p.dead && p.tgt && p.Z === SYM2Z[T.el] && p.Z + p.N === T.A && !!p.anti === !!T.anti && targetIn(C, p) && keOf(p) < 1) ok++;
   if (ok >= 0.8 * T.n0) return; // (still whole and cool)
   clearTarget(C); // (the old block and what is left of it there)
   placeTarget(C); W.spawned++;
@@ -3982,7 +3987,7 @@ function setupCollider(kind, a, b, E, E2) {
   for (const o of W.exo) o.dead = true; W.exo.length = 0; // (and any unstable particles, beams among them)
   W.zones.length = 0; W.sources.length = 0;
   const old = W.collider;
-  const C = W.collider = { kind, a, b, E, E2, tgtEl: old && old.tgtEl, tgtAnti: old && old.tgtAnti, auto: old ? old.auto : true, bunch: old ? old.bunch : 10, sepMode: old && old.sepMode || 'auto', hits: 0, last: '', rings: [], colliding: false, colTurns: 0, pipes: [], injLines: [], dets: [] };
+  const C = W.collider = { kind, a, b, E, E2, tgtEl: old && old.tgtEl, tgtAnti: old && old.tgtAnti, tgtA: old && old.tgtA, tgtN: old && old.tgtN, spread: old ? old.spread || 0 : 0, auto: old ? old.auto : true, bunch: old ? old.bunch : 10, sepMode: old && old.sepMode || 'auto', hits: 0, last: '', rings: [], colliding: false, colTurns: 0, pipes: [], injLines: [], dets: [] };
   if (kind === 'fixed') { C.kind = 'ring'; C.fixed = true; C.b = C.a; C.E2 = null; fixedLayout(C, A, E); } // (a fixed-target synchrotron: the ring's own logic, one beam, extracted onto a target, 1.36)
   else if (kind !== 'ring') linacLayout(C, A, B, E, E2 === null ? E : E2);
   else if (isAntiPair(A, B) && (E2 === null || Math.abs(E2 / E - 1) < 1e-9)) ringLayout(C, A, B, E);
@@ -4143,7 +4148,12 @@ function syncCollider() {
   if (C.fixed && C.target) {
     const sel = $('cTgt'); if (!sel.options.length) { let h = ''; for (let z = 1; z <= Z_TABLE; z++) h += `<option value="${ELEMENTS[z].sym}">${z} ${ELEMENTS[z].sym} \u2014 ${ELEMENTS[z].name}</option>`; sel.innerHTML = h; }
     sel.value = C.target.el; $('chkTgtAnti').checked = !!C.target.anti;
-    const nm = ELEMENTS[SYM2Z[C.target.el]].name.toLowerCase(); setTxt('cTgtVal', `${C.target.anti ? 'anti' : ''}${nm}, ${C.target.n0 || 0} atoms`);
+    const T = C.target, Z = SYM2Z[T.el], iso = $('cTgtIso'); // (1.36.2: its isotope, its thickness, the beam's spread on it)
+    if (iso.dataset.z !== String(Z)) { iso.innerHTML = beamIsotopes(Z).map(A => { const n = nuclideInfo(Z, A - Z); return `<option value="${A}">${sup(A)}${ELEMENTS[Z].sym} · ${n.stable ? 'stable' : `t½ ${fmtTime(n.t12)}${n.estimated ? ' (est.)' : ''}`}</option>`; }).join(''); iso.dataset.z = String(Z); }
+    iso.value = String(T.A);
+    const nm = ELEMENTS[Z].name.toLowerCase(); setTxt('cTgtVal', `${T.anti ? 'anti' : ''}${nm}-${T.A}, ${T.n0 || 0} atoms`);
+    $('cTgtN').value = T.n; setTxt('cTgtNVal', `${T.n} layer${T.n > 1 ? 's' : ''} (${twoFig(T.depth)} Å)`);
+    $('cSpread').value = Math.round(C.spread || 0); setTxt('cSpreadVal', C.spread ? `${C.spread} Å wide (the target ${2 * T.half} Å)` : 'a pencil beam, down the middle');
   }
   { const L = C.fixed ? { auto: 'Auto', apart: 'Keep in ring', together: 'Extract now' } : { auto: 'Auto', apart: 'Keep apart', together: 'Collide now' }; for (const b of $('segSep').querySelectorAll('button[data-v]')) b.textContent = L[b.dataset.v]; }
   $('cHits').parentElement.querySelector('.k').textContent = C.fixed ? 'Sent to the target' : 'Collisions';
@@ -7751,6 +7761,10 @@ function init() {
   $('cBeamA').onchange = (e) => pickBeam('a', e.target.value);
   $('cTgt').onchange = (e) => { const C = W.collider; if (!C || !C.fixed) return; setTarget(C, e.target.value, $('chkTgtAnti').checked); syncCollider(); };
   $('chkTgtAnti').onchange = (e) => { const C = W.collider; if (!C || !C.fixed) return; setTarget(C, $('cTgt').value, e.target.checked); syncCollider(); };
+  $('cTgtIso').onchange = (e) => { const C = W.collider; if (!C || !C.fixed) return; setTarget(C, $('cTgt').value, $('chkTgtAnti').checked, +e.target.value); syncCollider(); };
+  $('cTgtN').onchange = (e) => { const C = W.collider; if (!C || !C.fixed) return; C.tgtN = clamp(+e.target.value | 0, 1, TGT_NMAX); setColliderEnergy(C.E); syncCollider(); }; // (a thicker block: the line rebuilt around it)
+  $('cTgtN').oninput = (e) => setTxt('cTgtNVal', `${e.target.value} layer${+e.target.value > 1 ? 's' : ''}`);
+  $('cSpread').oninput = (e) => { const C = W.collider; if (!C || !C.fixed) return; C.spread = +e.target.value; syncCollider(); };
   $('cBeamB').onchange = (e) => pickBeam('b', e.target.value);
   $('cIsoA').onchange = (e) => pickBeam('a', $('cBeamA').value, +e.target.value);
   $('cIsoB').onchange = (e) => pickBeam('b', $('cBeamB').value, +e.target.value);

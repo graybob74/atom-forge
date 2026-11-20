@@ -114,6 +114,11 @@
           <div id="cTgtWrap" hidden>
             <div class="row"><span>Target</span><span class="val" id="cTgtVal"></span></div>
             <div class="row" style="gap:10px"><select class="select" id="cTgt" aria-label="Target element" style="flex:1"></select><label class="check" style="margin:0"><input type="checkbox" id="chkTgtAnti"> Antimatter</label></div>
+            <select class="select" id="cTgtIso" aria-label="Target isotope"></select>
+            <div class="row"><span>Thickness</span><span class="val" id="cTgtNVal"></span></div>
+            <input type="range" id="cTgtN" min="1" max="12" step="1" aria-label="Target thickness in layers of atoms">
+            <div class="row"><span>Beam spread</span><span class="val" id="cSpreadVal"></span></div>
+            <input type="range" id="cSpread" min="0" max="22" step="1" aria-label="How wide the beam is where it reaches the target">
           </div>
           <div class="row"><span>Particles per bunch</span><span class="val" id="cNVal"></span></div>
           <input type="range" id="cNSlider" min="1" max="30" step="1" aria-label="Particles per bunch">
