@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.37.0: the colliders, from the owner's notes (item 100; 2026-11-20, "build it")
+## 1.37.0 (released 2026-11-20): the colliders, from the owner's notes (item 100; 2026-11-20, "build it")
 
 - **a. The 3-D quark–gluon plasma is a body in space** (the owner: "qgp draws in 3d mode but it looks 2d … Don't have
   anything just face the camera render it in 3d fully"). drawQGP3 drew the flat drop (a disc and dots on a plane) at the
