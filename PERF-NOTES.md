@@ -4019,7 +4019,9 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 99 (built 2026-11-18, the owner: "in some real colliders they bombard a sheet instead of both targets moving (make it 2d
    and 3d)") A fixed-target synchrotron: the 1.36 section, stage 3.
 100 (the owner, 2026-11-20, from his notes on the colliders, flat and 3-D; waiting for "build it")
-   a. Draw the quark–gluon plasma in the 3-D collider (gold on gold makes it; drawQGP3 exists for the 3-D lab).
+   a. The quark–gluon plasma in 3-D: it is drawn, but flat (the owner: "qgp draws in 3d mode but it looks 2d"; drawQGP3
+      paints a disc of dots on spirals). Make it a real 3-D drop: a glowing sphere seen from the camera, its quarks and
+      gluons spread through its volume and turning with the view.
    b. Unstable ("exotic") beam particles ignore the ring's magnets. Fix realistically: a charged one (μ±, π±, K±, Σ±, Ξ⁻,
       Ω⁻ …) bends like any charge (a muon collider is a real design); a neutral one (K⁰, Λ, Ξ⁰ …) cannot be steered by
       magnets at all, so it leaves the ring collider's menu.
