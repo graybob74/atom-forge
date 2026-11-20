@@ -4018,6 +4018,19 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    the machine drawn as cylinders, and a fixed-target synchrotron, flat and 3-D, item 99).
 99 (built 2026-11-18, the owner: "in some real colliders they bombard a sheet instead of both targets moving (make it 2d
    and 3d)") A fixed-target synchrotron: the 1.36 section, stage 3.
+100 (the owner, 2026-11-20, from his notes on the colliders, flat and 3-D; waiting for "build it")
+   a. Draw the quark–gluon plasma in the 3-D collider (gold on gold makes it; drawQGP3 exists for the 3-D lab).
+   b. Unstable ("exotic") beam particles ignore the ring's magnets. Fix realistically: a charged one (μ±, π±, K±, Σ±, Ξ⁻,
+      Ω⁻ …) bends like any charge (a muon collider is a real design); a neutral one (K⁰, Λ, Ξ⁰ …) cannot be steered by
+      magnets at all, so it leaves the ring collider's menu.
+   c. "Made" misses things: bosons (W, Z, Higgs, photons from decays?) and neutrinos; list everything a collision makes,
+      including what its unstable products decay into.
+   d. Linear collider: the focusing ring stops unstable beam particles (it should focus them like the others).
+   e. Linear collider: the accelerating section draws high-energy particles as turned back, yet they still collide in
+      the middle (drawing and physics disagree).
+   f. "Select particles" in the collider panel opens its own window: every particle in the game, by category (leptons,
+      nucleons and antinucleons, mesons, baryons, bosons, multiquarks, exotic atoms and nuclei, every element and
+      isotope …), searchable, for each beam.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
