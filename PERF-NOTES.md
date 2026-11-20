@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.36.2: heavy ions that touch; the target's isotope, thickness and the beam's spread (the owner, 2026-11-19: "fix collision between Einsteinium and Calcium for some reason they dont collide they only knock electrons and make it able to choose isotope on syncrotron and and also add a spread and thickness option in syncrotron")
+## 1.36.2 (released 2026-11-19): heavy ions that touch; the target's isotope, thickness and the beam's spread (the owner, 2026-11-19: "fix collision between Einsteinium and Calcium for some reason they dont collide they only knock electrons and make it able to choose isotope on syncrotron and and also add a spread and thickness option in syncrotron")
 
 - **Heavy ions above the barrier now react** (physics change, asked for and approved by the owner, 2026-11-19: "i ok all changes"). ⁴⁸Ca at 300 MeV on einsteinium
   (252 MeV in their own frame, barrier 211 MeV): 894 encounters past the barrier, **2 reactions**. `nuclearEncounter`
