@@ -4020,16 +4020,18 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    and 3d)") A fixed-target synchrotron: the 1.36 section, stage 3.
 100 (the owner, 2026-11-20, from his notes on the colliders, flat and 3-D; waiting for "build it")
    a. The quark–gluon plasma in 3-D: it is drawn, but flat (the owner: "qgp draws in 3d mode but it looks 2d"; drawQGP3
-      paints a disc of dots on spirals). Make it a real 3-D drop: a glowing sphere seen from the camera, its quarks and
-      gluons spread through its volume and turning with the view.
+      paints a disc of dots on spirals). Make it a real 3-D drop, rendered fully in 3-D (the owner: "Don't have anything
+      just face the camera render it in 3d fully"): no camera-facing discs or sprites; its quarks and gluons are points in
+      space through the drop's volume, projected with depth and shaded, the drop's glow built from them, turning and
+      foreshortening with the view.
    b. Unstable ("exotic") beam particles ignore the ring's magnets. Fix realistically: a charged one (μ±, π±, K±, Σ±, Ξ⁻,
       Ω⁻ …) bends like any charge (a muon collider is a real design); a neutral one (K⁰, Λ, Ξ⁰ …) cannot be steered by
       magnets at all, so it leaves the ring collider's menu.
    c. "Made" misses things: bosons (W, Z, Higgs, photons from decays?) and neutrinos; list everything a collision makes,
-      including what its unstable products decay into.
+      including what its unstable products decay into (the owner: "yes show them", even W, Z, Higgs that decay at once).
    d. Linear collider: the focusing ring stops unstable beam particles (it should focus them like the others).
-   e. Linear collider: the accelerating section draws high-energy particles as turned back, yet they still collide in
-      the middle (drawing and physics disagree).
+   e. Linear collider: in the accelerating section high-energy particles look as if they bounce back, yet products are
+      still made in the middle (the owner, 2026-11-20); find which is real and make the drawing and physics agree.
    f. "Select particles" in the collider panel opens its own window: every particle in the game, by category (leptons,
       nucleons and antinucleons, mesons, baryons, bosons, multiquarks, exotic atoms and nuclei, every element and
       isotope …), searchable, for each beam.
