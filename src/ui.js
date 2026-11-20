@@ -4004,8 +4004,12 @@ function linacLayout(C, A, B, EA, EB) {
   const L = 80, f = 13, wq = 8, injA = Math.min(2e5, 0.25 * EA), injB = Math.min(2e5, 0.25 * EB);
   C.layout = 'linear'; C.EA = EA; C.EB = EB; setBox(230, 120); // (120 Å across, 1.36: room either side of the collision point to see what it makes fly out; it was 60)
   // cavities push a to the right and b to the left; each focusing magnet faces its incoming beam
-  W.zones.push({ kind: 'cavity', cx: -62, cy: 0, w: L, h: 10, ang: 0, E: Math.max(0, EA - injA) / L / A.q, dir: 1, label: 'linac' });
-  W.zones.push({ kind: 'cavity', cx: 62, cy: 0, w: L, h: 10, ang: 0, E: -Math.max(0, EB - injB) / L / B.q, dir: -1, label: 'linac' });
+  // (1.37, item 100e) each linac's RF works on its own bunches only: they arrive in step with its phase and gain energy;
+  // anything else in it (what the collisions send back down the line) meets the field at every phase and gains
+  // nothing on average. Before, a product flying back into a 1 TeV linac met its whole 12.5 GV/Å as a steady push: a
+  // negative one going the beam's way was stopped and thrown back out (the bounce the owner saw).
+  W.zones.push({ kind: 'cavity', cx: -62, cy: 0, w: L, h: 10, ang: 0, E: Math.max(0, EA - injA) / L / A.q, dir: 1, beam: 'a', label: 'linac' }); // (beam: 1.37, see below)
+  W.zones.push({ kind: 'cavity', cx: 62, cy: 0, w: L, h: 10, ang: 0, E: -Math.max(0, EB - injB) / L / B.q, dir: -1, beam: 'b', label: 'linac' });
   // a lens of focal length f; for electrons a weaker one, as the field that bends them radiates (synchrotron light,
   // (2/3)k·γ⁴·y²/(w·f²) for a particle y off the axis): kept under 0.2% of the energy 0.6 Å off the axis
   const fOf = (I, E) => { if (!I.lep) return f; const g = 1 + E / (I.m * AMU_EV); return Math.max(f, Math.sqrt(2 / 3 * PHYS.KE * g ** 4 * 0.36 / (wq * 0.002 * E))); };
@@ -4068,6 +4072,72 @@ function buildBeamSelects() {
   const sugg = sp.map(([k, s]) => [`${s.lab} ${s.name}`, k]).concat(ELEMENTS.slice(1, Z_TABLE + 1).map(E => [`${E.sym} ${E.name} (${E.Z})`, 'Z' + E.Z]));
   for (const [t, v] of sugg) BEAM_FIND.set(t.toLowerCase(), v);
   BEAM_SUGG = sugg; // (the search boxes' suggestion list: ddSuggest)
+}
+/* (1.37, item 100f; the owner: "make particle selection much more robust, with its own window when you click 'select
+   particles' in collider menu. There should be every particle in the game, with different categories.") Lab → Collider →
+   Select particles: every particle the game has, by kind, and every element with its isotopes, for beam 1 or beam 2.
+   What an accelerator can take is a button; what none can (neutral ones, which no magnet or accelerating field acts on,
+   and those that live too short a time to be sped up) is shown greyed, saying why. */
+const BP = { which: 'a', q: '', el: 0 };
+function bpWhy(sp) {
+  const d = XP[sp];
+  if (!d.q) return 'neutral: no magnet or accelerating field acts on it';
+  if (d.res || d.tau < 1e-13) return `lives ${fmtTime(d.tau)}: gone long before it could be sped up`;
+  return 'not made into a beam here';
+}
+function bpCats() {
+  const ex = (sp) => { const k = 'x' + sp; return { lab: XP[sp].lab, name: specName({ kind: 'exo', sp }), key: BEAM_SPECIES[k] ? k : null, why: BEAM_SPECIES[k] ? '' : bpWhy(sp) }; };
+  const bs = (k) => ({ lab: BEAM_SPECIES[k].lab, name: BEAM_SPECIES[k].name, key: k, why: '' });
+  const no = (lab, name, why) => ({ lab, name, key: null, why });
+  const qc = (sp) => (typeof Q_CONTENT !== 'undefined' && Q_CONTENT[sp]) || '';
+  const xs = Object.keys(XP), used = new Set(['mu-', 'mu+', 'tau-', 'tau+', 'W+', 'W-', 'Z0', 'H0']);
+  const by = (f) => xs.filter(sp => !used.has(sp) && f(sp)).map(sp => { used.add(sp); return ex(sp); });
+  const neutral = 'neutral: no magnet or accelerating field acts on it';
+  return [
+    ['Leptons', '', [bs('e'), bs('pos'), ...['mu-', 'mu+', 'tau-', 'tau+'].map(ex)]],
+    ['Neutrinos', '', ['e', 'mu', 'tau'].flatMap(fl => [false, true].map(anti => no(nuLab(anti, fl), specName({ kind: 'nu', fl, anti }), 'neutral and almost never interacting: nothing can steer it')))],
+    ['Bosons', '', [no('γ', 'photon', 'neutral (photon colliders make theirs from electron beams)'), ...['W+', 'W-', 'Z0', 'H0'].map(ex)]],
+    ['Mesons', '', by(sp => qc(sp).length === 2)],
+    ['Baryons', '', [bs('p'), bs('pbar'), no('n', 'neutron', neutral), no('n̄', 'antineutron', neutral), ...by(sp => qc(sp).length === 3)]],
+    ['Multiquarks', '', by(sp => qc(sp).length > 3)],
+    ['Light nuclei and antinuclei', '', Object.keys(BEAM_SPECIES).filter(k => BEAM_SPECIES[k].g === 'Nucleons and light nuclei' && k !== 'p' || k === 'dbar' || k === 'abar').map(bs)],
+    ['Heavy ions', '', Object.keys(BEAM_SPECIES).filter(k => BEAM_SPECIES[k].g === 'Heavy ions').map(bs)],
+    ['Actinides', 'targets for superheavy elements', Object.keys(BEAM_SPECIES).filter(k => BEAM_SPECIES[k].g === 'Actinides (targets for superheavy elements)').map(bs)],
+    ['Exotic atoms and nuclei', '', by(() => true)],
+  ];
+}
+function openBeamPicker(which) {
+  const C = W.collider; if (!C) return;
+  BP.which = C.fixed ? 'a' : which || BP.which; BP.el = 0;
+  showModal('bpModal'); renderBeamPicker();
+  if (window.matchMedia('(pointer: fine)').matches) { const f = $('bpFind'); f.focus(); f.select(); }
+}
+function renderBeamPicker() {
+  const C = W.collider; if (!C || $('bpModal').hidden) return;
+  $('bpWhich').hidden = !!C.fixed;
+  for (const b of $('bpWhich').querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.w === BP.which ? 'true' : 'false');
+  const cur = BP.which === 'a' ? C.a : C.b, cs = BEAM_SPECIES[cur];
+  setTxt('bpNow', C.fixed ? `Beam: ${cs ? cs.lab : cur}` : `Beam 1: ${BEAM_SPECIES[C.a] ? BEAM_SPECIES[C.a].lab : C.a} · Beam 2: ${BEAM_SPECIES[C.b] ? BEAM_SPECIES[C.b].lab : C.b}`);
+  const q = BP.q.trim().toLowerCase(), words = q ? q.split(/\s+/) : [], hit = (e) => !words.length || words.every(w => `${e.lab} ${e.name}`.toLowerCase().includes(w));
+  const btn = (e) => `<button type="button" class="bpp" ${e.key ? `data-k="${esc(e.key)}"` : 'disabled'} aria-pressed="${e.key && e.key === cur ? 'true' : 'false'}" title="${esc(e.why ? `${e.name}: ${e.why}` : e.name)}"><b>${esc(e.lab)}</b><span>${esc(e.name)}</span></button>`;
+  let h = '';
+  const f = q ? beamFind(BP.q) : null; // (typed an isotope or an element: offer it first)
+  if (f && /^Z\d+$/.test(f.v || '')) { const Z = +f.v.slice(1), A = f.A || defaultBeamA(Z); h += `<div class="bpcat"><h3>Best match</h3><div class="bplist"><button type="button" class="bpp" data-z="${Z}" data-a="${A}"><b>${sup(A)}${ELEMENTS[Z].sym}</b><span>${esc(ELEMENTS[Z].name.toLowerCase())}-${A}</span></button></div></div>`; }
+  for (const [name, note, list] of bpCats()) {
+    const L = list.filter(hit); if (!L.length) continue;
+    const n = L.filter(e => e.key).length;
+    h += `<div class="bpcat"><h3>${esc(name)}<span class="note">${note ? esc(note) + ' · ' : ''}${n} of ${L.length} can be a beam</span></h3><div class="bplist">${L.map(btn).join('')}</div></div>`;
+  }
+  const els = ELEMENTS.slice(1, Z_TABLE + 1).filter(E => !words.length || words.every(w => `${E.sym} ${E.name} ${E.Z}`.toLowerCase().includes(w)));
+  if (els.length) {
+    h += `<div class="bpcat"><h3>Every element<span class="note">bare nuclei; pick one, then its isotope</span></h3><div class="bplist">${els.map(E => `<button type="button" class="bpp bpel" data-el="${E.Z}" aria-pressed="${cs && cs.Z === E.Z && !cs.anti ? 'true' : 'false'}" title="${esc(E.name)}"><b>${E.sym}</b><span>${E.Z}</span></button>`).join('')}</div>`;
+    if (BP.el) {
+      const Z = BP.el;
+      h += `<div class="bpiso"><b>${esc(ELEMENTS[Z].name)}</b> <span class="note">its isotopes that hold together, with their half-lives</span><div class="bplist" style="margin-top:6px">${beamIsotopes(Z).map(A => { const n = nuclideInfo(Z, A - Z); return `<button type="button" class="bpp" data-z="${Z}" data-a="${A}" aria-pressed="${cs && cs.Z === Z && cs.A === A && !cs.anti ? 'true' : 'false'}"><b>${sup(A)}${ELEMENTS[Z].sym}</b><span>${n.stable ? 'stable' : `t½ ${fmtTime(n.t12)}${n.estimated ? ' (est.)' : ''}`}</span></button>`; }).join('')}</div></div>`;
+    }
+    h += '</div>';
+  }
+  $('bpBody').innerHTML = h || '<p class="note">Nothing matches.</p>';
 }
 /* What a typed beam means: an entry of the menus, an element by name, symbol or atomic number, an isotope of one
    (calcium-48, Ca-48, 48Ca, ⁴⁸Ca, ca 48) or a particle by its everyday name. → { v, A } as the menus give them ('Z<n>'
@@ -4317,7 +4387,11 @@ function updateCollider() {
   }
   $('cLast').innerHTML = (phase ? esc(phase) + (C.last ? '<br>' : '') : '') + (C.last ? `<b>Last collision:</b> ${esc(C.last)}` : phase ? '' : 'No collisions yet.');
   const made = C.made ? Object.entries(C.made).sort((p, q) => q[1] - p[1]) : []; // new particles and nuclei, so far
-  $('cMade').innerHTML = made.length ? `<b>Made so far:</b> ${made.slice(0, 16).map(([l, n]) => `${esc(l)}&#8202;×${n}`).join(' · ')}${made.length > 16 ? ` and ${made.length - 16} more kinds` : ''}` : '';
+  // (1.37, item 100c: every kind made, by group; the top 16 alone left out a few W and Z bosons behind hundreds of pions.
+  // Nuclei, which a fission or fragmentation makes by the hundred kinds, show their 12 commonest.)
+  const K = C.madeK || {}, by = {}; for (const [l, n] of made) (by[K[l] || 'Nuclei'] = by[K[l] || 'Nuclei'] || []).push([l, n]);
+  const rows = MADE_KINDS.filter(g => by[g]).map(g => { const L = by[g], cut = g === 'Nuclei' ? 12 : 60; return `<div class="madeRow"><span class="k">${g}</span> ${L.slice(0, cut).map(([l, n]) => `${esc(l)}&#8202;×${n}`).join(' · ')}${L.length > cut ? ` and ${L.length - cut} more kinds` : ''}</div>`; });
+  $('cMade').innerHTML = made.length ? `<b>Made so far:</b>${rows.join('')}` : '';
 }
 /* New bunches. A ring can't take them while it holds a beam at full energy (its magnets are set for that beam):
    what is left is dumped first and the magnets go back to the injection field, as at the start of a cycle. */
@@ -6250,7 +6324,7 @@ function onKey(e) {
     if (!$('escModal').hidden) { e.preventDefault(); closeEscMenu(); return; }
     if (!$('chartModal').hidden) { chartClose(); return; } // (1.31 item 72)
     if (BEC.open) { becClose(); return; } // (1.35)
-    for (const id of ['madeModal', 'ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
+    for (const id of ['bpModal', 'madeModal', 'ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
     if (UI.menu) { if (!$('mmSetups').hidden) mmAction('back'); else if (MMV.v !== 'choose') mmAction('choose'); return; }
     if (!$('tour').hidden) { tourEnd(); return; }
     if (REW.open) { rewLive(); return; }
@@ -7757,6 +7831,18 @@ function init() {
       k = beamKey(Z, A || (cur && cur.Z === Z && !cur.anti ? cur.A : defaultBeamA(Z)));
     }
     if (which === 'a') newBeams(k, C.b); else newBeams(C.a, k);
+  };
+  UI.pickBeam = pickBeam; // (the particle window's picks, 1.37)
+  $('cPickBtn').onclick = () => openBeamPicker('a');
+  $('bpClose').onclick = () => hideModal('bpModal');
+  $('bpModal').addEventListener('click', (e) => { if (e.target.id === 'bpModal') hideModal('bpModal'); });
+  $('bpWhich').onclick = (e) => { const b = e.target.closest('button[data-w]'); if (b) { BP.which = b.dataset.w; renderBeamPicker(); } };
+  $('bpFind').oninput = (e) => { BP.q = e.target.value; renderBeamPicker(); };
+  $('bpBody').onclick = (e) => {
+    const b = e.target.closest('button.bpp'); if (!b || b.disabled) return;
+    if (b.dataset.el) { BP.el = +b.dataset.el === BP.el ? 0 : +b.dataset.el; renderBeamPicker(); return; }
+    if (b.dataset.z) pickBeam(BP.which, 'Z' + b.dataset.z, +b.dataset.a); else if (b.dataset.k) pickBeam(BP.which, b.dataset.k);
+    renderBeamPicker();
   };
   $('cBeamA').onchange = (e) => pickBeam('a', e.target.value);
   $('cTgt').onchange = (e) => { const C = W.collider; if (!C || !C.fixed) return; setTarget(C, e.target.value, $('chkTgtAnti').checked); syncCollider(); };

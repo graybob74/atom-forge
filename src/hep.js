@@ -2174,14 +2174,27 @@ function settleRest(S, Qrel, made, left) {
 function tally(items, ins, how) {
   noteMade(items, ins, how || summarize(items)); // (the Data tab's list, in any preset)
   const C = W.collider; if (!C) return;
-  const m = C.made || (C.made = {}), sub = {};
+  const m = C.made || (C.made = {}), K = C.madeK || (C.madeK = {}), sub = {};
   for (const l of ins) sub[l] = (sub[l] || 0) + 1;
-  for (const it of items) {
-    if (it.t === 'g' || it.t === 'v') continue;
+  for (const it of items) { // (1.37, item 100c: γ rays and neutrinos too, the owner: "some things are missing in made here, like bosons and neutrinos")
     const l = labelOf(it);
     if (sub[l] > 0) { sub[l]--; continue; }
     m[l] = (m[l] || 0) + 1;
+    if (!K[l]) K[l] = madeKind(it);
   }
+}
+/* What kind of particle an item is, for the collider's Made list (1.37, item 100c): the groups it is shown in. */
+const MADE_KINDS = ['Bosons', 'Leptons', 'Neutrinos', 'Mesons', 'Baryons', 'Multiquarks', 'Nuclei', 'Exotic'];
+function madeKind(it) {
+  if (it.t === 'g') return 'Bosons';
+  if (it.t === 'v') return 'Neutrinos';
+  if (it.t === 'e') return 'Leptons';
+  if (it.t !== 'x') return it.Z + it.N === 1 ? 'Baryons' : 'Nuclei';
+  const d = XP[it.sp], q = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[it.sp];
+  if (d.ew) return 'Bosons';
+  if (q) return q.length === 2 ? 'Mesons' : q.length === 3 ? 'Baryons' : 'Multiquarks';
+  if (/^(mu|tau)[+-]$/.test(it.sp)) return 'Leptons';
+  return 'Exotic';
 }
 
 /* ---- unstable particles in flight: W.exo. They fly at their true speed, curve in magnetic fields, and decay with
@@ -2466,6 +2479,7 @@ function moveExos3(dt, id0) {
   for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res && !W.ultra && !deepSlow()) { if (exoHeld(o)) o.wait = true; else decayExo3(o); } }
   const n0 = W.exo.length;
   if (!n0) return 0;
+  let nXb = 0; // (a beam's unstable particles moved: beamCollisions looks for their meetings when two are, as the flat game's count does)
   const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, H = [W.box.w / 2, W.box.h / 2, W.box.d / 2];
   const out = (o) => Math.abs(o.x) > H[0] || Math.abs(o.y) > H[1] || Math.abs(o.z) > H[2];
   for (let i = 0; i < n0; i++) {
@@ -2478,7 +2492,9 @@ function moveExos3(dt, id0) {
     if (dec && exoHeld(o)) { dec = false; h = dt; o.wait = true; }
     if (o.stop) h = 0; // (at rest: it waits for its decay)
     const x0 = o.x, y0 = o.y, z0 = o.z;
-    if (h > 0) flyExo3(o, h);
+    if (o.xb) nXb++;
+    if (o.xb) moveExoBeam3(o, h); // (a collider's beam: through the magnets and cavities, 1.37 item 100b; it flew straight, as if they were not there)
+    else if (h > 0) flyExo3(o, h);
     if (o.wait && out(o)) { o.x = clamp(o.x, -H[0], H[0]); o.y = clamp(o.y, -H[1], H[1]); o.z = clamp(o.z, -H[2], H[2]); dec = true; }
     if (d.res && !dec && !W.ultra && !deepSlow()) continue;
     if (out(o)) {
@@ -2492,6 +2508,7 @@ function moveExos3(dt, id0) {
     if (d.ps && !dec && clock > 0 && psMatter(o, clock)) continue; // (1.27)
     if (o.spin && RP.mu) muSpinTurn(o, clock * (o.stop ? 1 : h / dt) / o.gam); // (1.27)
     if (dec) { if (d.hyp) hypDecay(o); else decayExo3(o); continue; }
+    if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (as in the flat game)
     // captures at rest and nuclear hits, as in the flat game (1.25): a stopped μ⁻ makes a muonic atom, K⁻ and π⁻, Σ⁻, Ξ⁻, Ω⁻ are
     // absorbed by a nucleus, a μ⁺ may take an electron (muonium); strongly interacting ones meet the nuclei on their path
     const xa = RP.exo && XA_SPS.has(o.sp);
@@ -2513,7 +2530,7 @@ function moveExos3(dt, id0) {
     }
   }
   if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
-  return 0;
+  return nXb;
 }
 /* ---- unstable particles as a collider's beams (1.15). Every charged particle that lives long enough to be steered can be
    a beam: muons and τ leptons, charged pions and kaons, the charged hyperons (Σ⁺, Σ⁻, Ξ⁻, Ω⁻), charmed and bottom mesons
@@ -2526,6 +2543,16 @@ function moveExoBeam(o, h) {
   o.ox = o.x; o.oy = o.y;
   radPath(o, h, o.q, o.m / PHYS.AMU_MEV);
   o.x = _rp[0]; o.y = _rp[1];
+  exoTrack(o);
+}
+/* (1.37, item 100b; the owner: "exotic particles in collider not affected by magnets") In 3-D a beam's unstable
+   particles flew straight on (flyExo3), so a ring of muons or pions lost every one at the first bend: as moveRad does
+   for the beams of W.parts, the ring's field (along z) turns (u_x, u_y), the path goes on along u_z. */
+function moveExoBeam3(o, h) {
+  o.ox = o.x; o.oy = o.y; o.oz = o.z;
+  const uz = o.uz || 0, n = Math.sqrt(o.ux * o.ux + o.uy * o.uy + uz * uz); if (n > 0 && Math.abs(n - 1) > 1e-9) { o.ux /= n; o.uy /= n; o.uz = uz / n; }
+  radPath(o, h, o.q, o.m / PHYS.AMU_MEV);
+  o.x = _rp[0]; o.y = _rp[1]; o.z += (o.uz || 0) * _rpL;
   exoTrack(o);
 }
 const xbLab = (p) => (p.xb ? p.lab : speciesLabel(p));

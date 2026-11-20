@@ -104,6 +104,7 @@
             <div class="bp"><span>Beam 1</span><input type="search" class="bfind" id="cFindA" placeholder="Search: gold, Ca-48, 92 …" autocomplete="off" spellcheck="false" aria-label="Search for beam 1"><select class="select" id="cBeamA" aria-label="Beam 1"></select><select class="select" id="cIsoA" aria-label="Beam 1 isotope" hidden></select></div>
             <div class="bp"><span>Beam 2</span><input type="search" class="bfind" id="cFindB" placeholder="Search: gold, Ca-48, 92 …" autocomplete="off" spellcheck="false" aria-label="Search for beam 2"><select class="select" id="cBeamB" aria-label="Beam 2"></select><select class="select" id="cIsoB" aria-label="Beam 2 isotope" hidden></select></div>
           </div>
+          <button class="btn small" id="cPickBtn" style="width:100%;margin:2px 0 8px">Select particles…</button>
           <div class="row"><span id="cELabel">Beam energy</span><span class="val" id="cEVal"></span></div>
           <input type="range" id="cESlider" min="0" max="1000" step="1" aria-label="Beam energy">
           <label class="check"><input type="checkbox" id="chkEach"> Set each beam’s energy</label>
@@ -138,7 +139,7 @@
             <div class="tile"><div class="k">Collisions</div><div class="v" id="cHits">0</div></div>
           </div>
           <p class="note" id="cLast"></p>
-          <p class="note" id="cMade"></p>
+          <div class="note" id="cMade"></div>
           <p class="note" id="cNote"></p>
           <p class="note" id="cScale"></p>
         </section>
@@ -469,6 +470,13 @@
     <header><h2 id="madeTitle">Made here <span class="count" id="madeCount"></span></h2><div class="hbtns"><input type="search" class="sfind" id="madeFind" placeholder="Search" autocomplete="off" spellcheck="false" aria-label="Search what was made"><span class="sfindn" id="madeFindN"></span><button class="btn small" id="madeClose">Close</button></div></header>
     <p class="note" id="madeSum2"></p>
     <div class="madebody"><table class="species made" id="dMadeAll"></table></div>
+  </div>
+</div>
+<div class="modal" id="bpModal" hidden>
+  <div class="dialog bpdlg" role="dialog" aria-modal="true" aria-labelledby="bpTitle">
+    <header><h2 id="bpTitle">Select particles</h2><div class="hbtns"><div class="seg" id="bpWhich" role="group" aria-label="Which beam"><button type="button" data-w="a" aria-pressed="true">Beam 1</button><button type="button" data-w="b" aria-pressed="false">Beam 2</button></div><button class="btn small" id="bpClose">Close</button></div></header>
+    <div class="bptools"><input type="search" class="msearch" id="bpFind" placeholder="Search: muon, Σ, calcium-48, 92 …" aria-label="Search particles" autocomplete="off" spellcheck="false"><span class="note" id="bpNow"></span></div>
+    <div class="bpbody" id="bpBody"></div>
   </div>
 </div>
 <div class="modal" id="molModal" hidden>

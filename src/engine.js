@@ -6592,8 +6592,17 @@ function radPath(p, dt, q, mrest) {
   // like that grow a beam's oscillations turn after turn.
   let x1 = p.x, y1 = p.y, rem = dt;
   const zoned = q && W.zones.length > 0;
-  for (let guard = 0; rem > 1e-12 && guard < 40; guard++) {
+  for (let guard = 0; rem > 1e-12 && guard < (hasE ? 400 : 40); guard++) {
     let h = rem, xb = null, yb = null;
+    // (1.37, item 100e; the owner: in the linear collider's accelerating section high-energy particles "look like they
+    // bounce back but products are still made in the middle") A proton going in at 200 keV is slow, so its step is
+    // long (1.5 Å at that speed); a 1 TeV linac's 12.5 GV/Å took it to 248 GeV in that one step, and its small angle
+    // to the axis was turned by qE⊥h/p at the slow momentum it started with: 56° the wrong way, out of the linac and
+    // across the box, while the rest of the bunch went on to collide. The step is now split so that no part of it
+    // gives more than a third of the particle's energy again: the turn then stays a fraction of the angle, and an
+    // accelerated particle stays on the axis (at most 200 parts a step; rings' cavities give a few per cent a turn: never split by
+    // this).
+    if (hasE) { const v0 = bSpd(p); if (v0 > 0) { const E = Efield(x1, y1, p), El = Math.abs(q * ((E[0] - _Esep[0]) * p.ux + (E[1] - _Esep[1]) * p.uy)); if (El > 0) { const hm = Math.max((p.KE / 3 + 1) / (El * v0), rem / 200); if (h > hm) h = hm; } } }
     if (zoned) {
       const L = bSpd(p) * h, k0 = zoneKey(x1, y1, p);
       if (zoneKey(x1 + p.ux * L, y1 + p.uy * L, p) !== k0) { // an edge on the way: find it (along the line of the step)

@@ -1991,6 +1991,53 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.37.0: the colliders, from the owner's notes (item 100; 2026-11-20, "build it")
+
+- **a. The 3-D quark–gluon plasma is a body in space** (the owner: "qgp draws in 3d mode but it looks 2d … Don't have
+  anything just face the camera render it in 3d fully"). drawQGP3 drew the flat drop (a disc and dots on a plane) at the
+  plasma's depth. Now (view3d.js `qgpInit3`/`qgpStep3`/`qgpGroup3`/`drawQGP3`): 110 points of hot matter through the
+  ball (denser inside), each a soft glow at its own place and depth, lit by the key light by where it sits on the ball
+  (`lit3`), so the lit side turns with the view; its quarks, antiquarks and gluons walk in 3-D inside it, join their
+  nearest partners in space at freeze-out and fly out along their own directions in space; drawn back to front, the far
+  ones dimmer. Check: partons spread as much in depth as across (σz 0.37, σx 0.36); turning the view 1.5 rad reorders
+  2,331 pairs of them on screen.
+- **b. Unstable beams in a 3-D ring** (the owner: "exotic particles in collider not affected by magnets"). In 3-D, W.exo
+  beam particles flew straight (`flyExo3`, no zone fields), and `moveExos3` returned 0, so `beamCollisions` never ran
+  for them. Now `moveExoBeam3` takes them through the magnets and cavities as `moveRad` does the beams of W.parts, and
+  the count is returned. 1 GeV μ⁻μ⁺ ring in 3-D: before, all lost at the first bend and dumped, 0 collisions; after,
+  they go round, 67 collisions in the check (π⁺π⁻, K⁺K⁻ rings likewise, 120 and 89 in 3 frames). The flat game's
+  unstable beams already turned in the magnets; every beam species is charged, so none had to leave the ring menu.
+- **e. (and d) The linear collider's accelerating section.** (the owner: high-energy particles "look like they bounce
+  back but products are still made in the middle"; "focusing ring in linear collider stops exotic particles") Two causes:
+  1. A beam particle goes in at 200 keV, slow, so its step is long (1.5 Å at that speed); at 1 TeV the linac's
+     12.5 GV/Å took it to 248 GeV in that one step, and radE turned its small angle to the axis by qE⊥h/p at the slow
+     momentum it started with: 56° the wrong way, out of the linac and across the box. `radPath` now splits a step so
+     no part gives more than a third of the particle's energy again (at most 200 parts a step); rings' cavities give a
+     few per cent a turn and are never split by it.
+  2. The linacs' RF pushed anything charged in them: products flying back down the line met the whole 12.5 GV/Å as a
+     steady push, and a negative one going the beam's way was stopped and thrown back. Each linac's RF now works on its
+     own bunches (`beam: 'a'/'b'` on its zone): they arrive in step with its phase; anything else meets every phase and
+     gains nothing on average.
+  1 TeV p p̄: before, 518 of 960 beam particles turned round near the start; after, none of 80 turned back or left the
+  axis inside the linacs, collisions at the middle. 1 TeV μ⁻μ⁺: before 1 collision in 300 frames (the rest thrown
+  out), after 33 (W⁺W⁻, τ⁺τ⁻, hadrons …); 1 TeV π⁺π⁻ in 3-D: 0 → 38. The unstable beams' "stopping" at the focusing
+  magnets was this (no beam particle now ends near them). LEP and DAΦNE are linear colliders in this game: their
+  fingerprints change (lep 4afd67ed books 99463829, dafne 284e8403 books 1782889a; f_127h, f_127x updated; with the
+  split alone switched off DAΦNE is bit for bit as before).
+- **c. Made lists everything** (the owner: "some things are missing in made here, like bosons and neutrinos" … "yes
+  show them"). `tally` skipped γ rays and neutrinos, and the panel showed only the 16 commonest kinds, so a few W and Z
+  bosons hid behind hundreds of pions. Now every kind, γ and neutrinos included, shown by group (Bosons, Leptons,
+  Neutrinos, Mesons, Baryons, Multiquarks, Nuclei, Exotic: `madeKind`); nuclei, made by the hundred kinds in fission,
+  show their 12 commonest. e⁺e⁻ at 100 GeV: γ×40, νₑ ν̄ₑ νμ ν̄μ ν̄τ, W⁺×6, W⁻×6, Z⁰×2 listed.
+- **f. Select particles** (the owner: "make particle selection much more robust, with its own window … every particle
+  in the game, with different categories"). Lab → Collider → **Select particles…** opens a window: Beam 1 / Beam 2, a
+  search box (names, symbols, Greek, "calcium-48", "92"), and every particle by kind: leptons, neutrinos, bosons,
+  mesons, baryons, multiquarks, light nuclei and antinuclei, heavy ions, actinides, exotic atoms and nuclei, and every
+  element with its isotopes (half-lives). 265 entries; the 81 no machine can take are greyed with why (neutral: no
+  magnet or accelerating field acts on it; or lives 10⁻²³ s: gone before it could be sped up). The menus stay as they
+  were. Esc closes it.
+- Tests: `tests/f_137.js` (ring3d, linac, made, page).
+
 ## 1.36.2 (released 2026-11-19): heavy ions that touch; the target's isotope, thickness and the beam's spread (the owner, 2026-11-19: "fix collision between Einsteinium and Calcium for some reason they dont collide they only knock electrons and make it able to choose isotope on syncrotron and and also add a spread and thickness option in syncrotron")
 
 - **Heavy ions above the barrier now react** (physics change, asked for and approved by the owner, 2026-11-19: "i ok all changes"). ⁴⁸Ca at 300 MeV on einsteinium
@@ -4018,7 +4065,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    the machine drawn as cylinders, and a fixed-target synchrotron, flat and 3-D, item 99).
 99 (built 2026-11-18, the owner: "in some real colliders they bombard a sheet instead of both targets moving (make it 2d
    and 3d)") A fixed-target synchrotron: the 1.36 section, stage 3.
-100 (the owner, 2026-11-20, from his notes on the colliders, flat and 3-D; waiting for "build it")
+100 (built 2026-11-20 in 1.37.0, the owner's "build it"; his notes on the colliders, flat and 3-D)
    a. The quark–gluon plasma in 3-D: it is drawn, but flat (the owner: "qgp draws in 3d mode but it looks 2d"; drawQGP3
       paints a disc of dots on spirals). Make it a real 3-D drop, rendered fully in 3-D (the owner: "Don't have anything
       just face the camera render it in 3d fully"): no camera-facing discs or sprites; its quarks and gluons are points in

@@ -1210,26 +1210,130 @@ function drawFlashes3(ctx, rt) {
   }
   ctx.restore();
 }
-/* (1.25) A quark–gluon plasma (W.qgp, made by a heavy-ion collision in depth): the flat view's drop (drawQGP), a glow
-   that swells and cools from white to red, at its place in depth, sized for its distance, with its caption. */
+/* (1.37, item 100a; the owner: "qgp draws in 3d mode but it looks 2d ... Don't have anything just face the camera render
+   it in 3d fully") The drop as a body in space: its hot matter is a cloud of points through the ball (denser toward the
+   middle), each a soft glow at its own place and depth, lit by the key light as its side of the ball faces it (lit3), so
+   turning the view turns the lit side, the cloud shows its depth by parallax, and its edge is a ball's at any angle. Its
+   quarks, antiquarks and gluons move about in the ball in three dimensions (a thermal walk, kept inside), join by colour
+   at freeze-out with their nearest partners in space, and each set flies out along its own direction in space; all
+   drawn back to front, the far ones dimmer. Display only, as the flat drop (the hadrons are made at the collision). */
+function qgpInit3(g) {
+  const rn = g.rn = qgpRand(Math.floor(g.x * 7919 + g.y * 104729 + (g.z || 0) * 15485863 + (g.t0 || 0) * 1e4) ^ Math.imul(g.n | 0, 2654435761));
+  const ball = (k) => { for (;;) { const x = 2 * rn() - 1, y = 2 * rn() - 1, z = 2 * rn() - 1; if (x * x + y * y + z * z <= 1) return [x * k, y * k, z * k]; } };
+  const dir = () => { const z = 2 * rn() - 1, t = 2 * Math.PI * rn(), s = Math.sqrt(1 - z * z); return [s * Math.cos(t), s * Math.sin(t), z]; };
+  const P = [], nh = clamp(Math.round(Math.sqrt(g.n || 1) * 3.2), 8, 32), anti = (g.sNN || 0) > 20000 ? 0.4 : 0.15;
+  const add = (cl, col, an, glu) => { const [x, y, z] = ball(0.75), [vx, vy, vz] = dir(); P.push({ x, y, z, vx, vy, vz, col, an, glu, cl }); };
+  const C = [];
+  for (let k = 0; k < nh; k++) {
+    const bar = rn() < 0.18, [ux, uy, uz] = dir(); C.push({ ux, uy, uz, n: bar ? 3 : 2, sp: 0.9 + 0.8 * rn() });
+    if (bar) { const an = rn() < anti; for (let c = 0; c < 3; c++) add(k, c, an, false); }
+    else { const c = Math.floor(3 * rn()); add(k, c, false, false); add(k, c, true, false); }
+  }
+  for (let k = 0, ng = Math.round(nh * 0.9); k < ng; k++) { const c = Math.floor(3 * rn()); add(-1, c, false, (c + 1 + Math.floor(2 * rn())) % 3); }
+  const M = []; for (let k = 0; k < 110; k++) { const [x, y, z] = ball(1), f = Math.sqrt(x * x + y * y + z * z); M.push({ x: x * (0.35 + 0.65 * f), y: y * (0.35 + 0.65 * f), z: z * (0.35 + 0.65 * f), w: 0.7 + 0.6 * rn() }); } // (the hot matter: a ball, a little denser inside)
+  g.pp = P; g.cl = C; g.med = M; g.lastAge = g.age || 0; g.d3 = true;
+}
+function qgpGroup3(g) {
+  g.grouped = true;
+  const Q = g.pp.filter(q => q.glu === false); for (const q of Q) q.cl = -2;
+  const C = [], d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2, rn = g.rn;
+  const near = (q, ok) => { let best = null, bd = Infinity; for (const o of Q) if (o !== q && o.cl === -2 && ok(o)) { const d = d2(q, o); if (d < bd) { bd = d; best = o; } } return best; };
+  for (const q of Q) {
+    if (q.cl !== -2) continue;
+    const m = near(q, o => o.an !== q.an && o.col === q.col);
+    const b1 = near(q, o => o.an === q.an && o.col === (q.col + 1) % 3), b2 = b1 ? near(q, o => o !== b1 && o.an === q.an && o.col === (q.col + 2) % 3) : null;
+    let set = null;
+    if (m && (!b1 || !b2 || d2(q, m) <= 0.5 * (d2(q, b1) + d2(q, b2)) || rn() < 0.75)) set = [q, m];
+    else if (b1 && b2) set = [q, b1, b2];
+    if (!set) { q.cl = -3; continue; }
+    const r = Math.hypot(q.x, q.y, q.z) || 1, j = () => (rn() - 0.5) * 0.8; let ux = q.x / r + j(), uy = q.y / r + j(), uz = q.z / r + j(); const L = Math.hypot(ux, uy, uz) || 1; ux /= L; uy /= L; uz /= L; // (outward from where it froze, as the flow carries it)
+    const k = C.length; C.push({ ux, uy, uz, n: set.length, sp: 0.9 + 0.8 * rn() });
+    for (const o of set) o.cl = k;
+  }
+  g.cl = C;
+}
+function qgpStep3(g) {
+  const age = g.age || 0, dt = clamp(age - g.lastAge, 0, 0.05); g.lastAge = age;
+  if (!(dt > 0)) return;
+  const rn = g.rn, heat = Math.max(0, 1 - age / 1.4), sp = 0.25 + 1.1 * heat, F0 = 1.1, F1 = 1.45;
+  if (age >= F0 && !g.grouped) qgpGroup3(g);
+  if (age < F1) for (const C of g.cl) { C.mx = 0; C.my = 0; C.mz = 0; C.k = 0; }
+  for (const q of g.pp) if (q.cl >= 0 && age < F1) { const C = g.cl[q.cl]; C.mx += q.x; C.my += q.y; C.mz += q.z; C.k++; }
+  for (const C of g.cl) if (C.k) { C.mx /= C.k; C.my /= C.k; C.mz /= C.k; }
+  for (const q of g.pp) {
+    if (q.cl < 0 || age < F0) { // (free: a thermal walk in 3-D, its direction turned a little at random each frame)
+      const k = 2.4 * dt * 8; q.vx += (rn() - 0.5) * k; q.vy += (rn() - 0.5) * k; q.vz += (rn() - 0.5) * k; const L = Math.hypot(q.vx, q.vy, q.vz) || 1; q.vx /= L; q.vy /= L; q.vz /= L;
+      q.x += q.vx * sp * dt; q.y += q.vy * sp * dt; q.z += q.vz * sp * dt;
+      const rr = Math.hypot(q.x, q.y, q.z); if (rr > 0.82) { const nx = q.x / rr, ny = q.y / rr, nz = q.z / rr, d = q.vx * nx + q.vy * ny + q.vz * nz; if (d > 0) { q.vx -= 2 * d * nx; q.vy -= 2 * d * ny; q.vz -= 2 * d * nz; } q.x = nx * 0.82; q.y = ny * 0.82; q.z = nz * 0.82; }
+      continue;
+    }
+    const C = g.cl[q.cl], w = q.col * 2.1 + age * 9, ox = 0.06 * Math.cos(w), oy = 0.06 * Math.sin(w), oz = 0.06 * Math.sin(w + 1.3);
+    if (age < F1) { const k = Math.min(1, dt * 6); q.x += (C.mx + ox - q.x) * k; q.y += (C.my + oy - q.y) * k; q.z += (C.mz + oz - q.z) * k; }
+    else { if (C.ox === undefined) { C.ox = C.mx; C.oy = C.my; C.oz = C.mz; } const d = (age - F1) * C.sp * 1.6; q.x = C.ox + C.ux * d + ox; q.y = C.oy + C.uy * d + oy; q.z = C.oz + C.uz * d + oz; }
+  }
+}
+const _qgpO = [0, 0, 0], _qgpC = [0, 0, 0];
 function drawQGP3(ctx) {
   if (!W.qgp || !W.qgp.length) return;
-  const o = _p3c;
+  const o = _p3c, O = _qgpO, cc = _qgpC, F0 = 1.1, F1 = 1.45;
   ctx.save();
   for (let i = W.qgp.length - 1; i >= 0; i--) {
     const g = W.qgp[i], age = g.age || 0;
     if (age > 2.2) { W.qgp.splice(i, 1); continue; }
     if (!proj3(g.x, g.y, g.z || 0, o)) continue;
-    const heat = Math.max(0, 1 - age / 1.4), a = age < 1.4 ? 1 : 1 - (age - 1.4) / 0.8, r = clamp((1.5 + 3.5 * Math.min(1, age / 1.4)) * C3.F / o[2], 30, 160);
-    const gr = ctx.createRadialGradient(o[0], o[1], 0, o[0], o[1], r);
-    gr.addColorStop(0, `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.88 * a).toFixed(3)})`); gr.addColorStop(0.6, `rgba(255,${Math.round(110 + 60 * heat)},40,${(0.6 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,80,20,0)');
-    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(o[0], o[1], r, 0, 2 * Math.PI); ctx.fill();
-    qgpPartons(ctx, g, o[0], o[1], r, a); // (its quarks and gluons, as in the flat view, 1.30 item 65)
+    if (!g.d3) qgpInit3(g);
+    qgpStep3(g);
+    const cx = o[0], cy = o[1], sc0 = C3.F / o[2], heat = Math.max(0, 1 - age / 1.4), a = age < 1.4 ? 1 : 1 - (age - 1.4) / 0.8;
+    const Rw = clamp(1.5 + 3.5 * Math.min(1, age / 1.4), 30 / sc0, 160 / sc0), gz = g.z || 0; // (its radius in ångström: on screen 30–160 px, as before)
+    // the hot matter, lit: each point's place on the ball gives its normal, turned into view space
+    const hr = 1, hg = (150 + 105 * heat) / 255, hb = (80 + 175 * heat * heat) / 255, med = [];
+    for (const m of g.med) {
+      if (!proj3(g.x + m.x * Rw, g.y + m.y * Rw, gz + m.z * Rw, O)) continue;
+      const L = Math.hypot(m.x, m.y, m.z) || 1, nx = m.x / L, ny = m.y / L, nz = m.z / L;
+      const vx = nx * C3.rx + ny * C3.ry + nz * C3.rz, vy = nx * C3.ux + ny * C3.uy + nz * C3.uz, vz = -(nx * C3.fx + ny * C3.fy + nz * C3.fz);
+      lit3(vx, vy, vz, C3.L, hr, hg, hb, cc);
+      med.push([O[2], O[0], O[1], 0.36 * Rw * C3.F / O[2], cc[0], cc[1], cc[2], m.w]);
+    }
+    med.sort((p, q) => q[0] - p[0]); // (far first)
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [, x, y, rr, r, gg, b, w] of med) {
+      const al = 0.16 * a * w, gr = ctx.createRadialGradient(x, y, 0, x, y, rr);
+      gr.addColorStop(0, `rgba(${Math.round(255 * r)},${Math.round(255 * gg)},${Math.round(255 * b)},${al.toFixed(3)})`); gr.addColorStop(1, `rgba(${Math.round(255 * r)},${Math.round(120 * gg)},${Math.round(60 * b)},0)`);
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, rr, 0, 2 * Math.PI); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    // its partons, back to front: size by their own depth, the far side dimmer
+    const pts = [];
+    for (const q of g.pp) { if (!proj3(g.x + q.x * Rw, g.y + q.y * Rw, gz + q.z * Rw, O)) continue; pts.push({ q, x: O[0], y: O[1], z: O[2] }); }
+    if (age >= F0) { // (the colour strings that hold each set, between its members in space)
+      const k = clamp((age - F0) / 0.25, 0, 1), by = new Map();
+      for (const p of pts) if (p.q.cl >= 0) { let l = by.get(p.q.cl); if (!l) by.set(p.q.cl, l = []); l.push(p); }
+      ctx.strokeStyle = `rgba(255,240,220,${(0.6 * a * k).toFixed(3)})`; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (const l of by.values()) { ctx.moveTo(l[0].x, l[0].y); for (let j = 1; j < l.length; j++) ctx.lineTo(l[j].x, l[j].y); if (l.length > 2) ctx.closePath(); }
+      ctx.stroke();
+    }
+    pts.sort((p, q) => q.z - p.z);
+    const zr = Rw > 0 ? 1 / (2 * Rw) : 0;
+    for (const p of pts) {
+      const q = p.q, sc = C3.F / p.z, qr = clamp(Rw * sc / 24, 1.6, 6), front = clamp(0.5 - (p.z - o[2]) * zr, 0, 1), dk = 0.55 + 0.45 * front;
+      if (q.glu !== false) {
+        const ga = a * dk * (age < F0 ? 0.9 : Math.max(0, 1 - (age - F0) / 0.3)); if (ga <= 0.01) continue;
+        const c1 = QGP_COL[q.col], c2 = QGP_ACOL[q.glu], rr = qr * 0.7;
+        ctx.fillStyle = rgba(c1, ga); ctx.beginPath(); ctx.arc(p.x, p.y, rr, Math.PI / 2, 1.5 * Math.PI); ctx.fill();
+        ctx.fillStyle = rgba(c2, ga); ctx.beginPath(); ctx.arc(p.x, p.y, rr, -Math.PI / 2, Math.PI / 2); ctx.fill();
+        continue;
+      }
+      const qa = dk * (q.cl === -3 ? a * Math.max(0, 1 - (age - F0) / 0.3) : age < F1 ? a : a * Math.max(0, 1 - (age - F1) / 0.75));
+      if (qa <= 0.01) continue;
+      if (q.an) { ctx.fillStyle = `rgba(20,10,5,${(0.8 * qa).toFixed(3)})`; ctx.strokeStyle = rgba(QGP_ACOL[q.col], qa); ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(p.x, p.y, qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); ctx.lineWidth = 1; }
+      else { ctx.fillStyle = rgba(QGP_COL[q.col], qa); ctx.strokeStyle = `rgba(20,10,5,${(0.55 * qa).toFixed(3)})`; ctx.beginPath(); ctx.arc(p.x, p.y, qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
+    }
     if (R.view.labels !== false) {
+      const r = Rw * sc0;
       ctx.font = '600 12px ' + (cssVar('--font-data') || 'monospace'); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-      const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = o[1] - r - 8;
-      ctx.fillStyle = `rgba(20,10,6,${(0.75 * a).toFixed(3)})`; ctx.fillRect(o[0] - w / 2, ty - 13, w, 18);
-      ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.fillText(t, o[0], ty); ctx.textAlign = 'left';
+      const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = cy - r - 8;
+      ctx.fillStyle = `rgba(20,10,6,${(0.75 * a).toFixed(3)})`; ctx.fillRect(cx - w / 2, ty - 13, w, 18);
+      ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.fillText(t, cx, ty); ctx.textAlign = 'left';
     }
   }
   ctx.restore();

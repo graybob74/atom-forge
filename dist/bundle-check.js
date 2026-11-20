@@ -9424,8 +9424,17 @@ function radPath(p, dt, q, mrest) {
   // like that grow a beam's oscillations turn after turn.
   let x1 = p.x, y1 = p.y, rem = dt;
   const zoned = q && W.zones.length > 0;
-  for (let guard = 0; rem > 1e-12 && guard < 40; guard++) {
+  for (let guard = 0; rem > 1e-12 && guard < (hasE ? 400 : 40); guard++) {
     let h = rem, xb = null, yb = null;
+    // (1.37, item 100e; the owner: in the linear collider's accelerating section high-energy particles "look like they
+    // bounce back but products are still made in the middle") A proton going in at 200 keV is slow, so its step is
+    // long (1.5 Å at that speed); a 1 TeV linac's 12.5 GV/Å took it to 248 GeV in that one step, and its small angle
+    // to the axis was turned by qE⊥h/p at the slow momentum it started with: 56° the wrong way, out of the linac and
+    // across the box, while the rest of the bunch went on to collide. The step is now split so that no part of it
+    // gives more than a third of the particle's energy again: the turn then stays a fraction of the angle, and an
+    // accelerated particle stays on the axis (at most 200 parts a step; rings' cavities give a few per cent a turn: never split by
+    // this).
+    if (hasE) { const v0 = bSpd(p); if (v0 > 0) { const E = Efield(x1, y1, p), El = Math.abs(q * ((E[0] - _Esep[0]) * p.ux + (E[1] - _Esep[1]) * p.uy)); if (El > 0) { const hm = Math.max((p.KE / 3 + 1) / (El * v0), rem / 200); if (h > hm) h = hm; } } }
     if (zoned) {
       const L = bSpd(p) * h, k0 = zoneKey(x1, y1, p);
       if (zoneKey(x1 + p.ux * L, y1 + p.uy * L, p) !== k0) { // an edge on the way: find it (along the line of the step)
@@ -28847,14 +28856,27 @@ function settleRest(S, Qrel, made, left) {
 function tally(items, ins, how) {
   noteMade(items, ins, how || summarize(items)); // (the Data tab's list, in any preset)
   const C = W.collider; if (!C) return;
-  const m = C.made || (C.made = {}), sub = {};
+  const m = C.made || (C.made = {}), K = C.madeK || (C.madeK = {}), sub = {};
   for (const l of ins) sub[l] = (sub[l] || 0) + 1;
-  for (const it of items) {
-    if (it.t === 'g' || it.t === 'v') continue;
+  for (const it of items) { // (1.37, item 100c: γ rays and neutrinos too, the owner: "some things are missing in made here, like bosons and neutrinos")
     const l = labelOf(it);
     if (sub[l] > 0) { sub[l]--; continue; }
     m[l] = (m[l] || 0) + 1;
+    if (!K[l]) K[l] = madeKind(it);
   }
+}
+/* What kind of particle an item is, for the collider's Made list (1.37, item 100c): the groups it is shown in. */
+const MADE_KINDS = ['Bosons', 'Leptons', 'Neutrinos', 'Mesons', 'Baryons', 'Multiquarks', 'Nuclei', 'Exotic'];
+function madeKind(it) {
+  if (it.t === 'g') return 'Bosons';
+  if (it.t === 'v') return 'Neutrinos';
+  if (it.t === 'e') return 'Leptons';
+  if (it.t !== 'x') return it.Z + it.N === 1 ? 'Baryons' : 'Nuclei';
+  const d = XP[it.sp], q = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[it.sp];
+  if (d.ew) return 'Bosons';
+  if (q) return q.length === 2 ? 'Mesons' : q.length === 3 ? 'Baryons' : 'Multiquarks';
+  if (/^(mu|tau)[+-]$/.test(it.sp)) return 'Leptons';
+  return 'Exotic';
 }
 
 /* ---- unstable particles in flight: W.exo. They fly at their true speed, curve in magnetic fields, and decay with
@@ -29139,6 +29161,7 @@ function moveExos3(dt, id0) {
   for (let i = 0; i < W.exo.length; i++) { const o = W.exo[i]; if (!o.dead && XP[o.sp].res && !W.ultra && !deepSlow()) { if (exoHeld(o)) o.wait = true; else decayExo3(o); } }
   const n0 = W.exo.length;
   if (!n0) return 0;
+  let nXb = 0; // (a beam's unstable particles moved: beamCollisions looks for their meetings when two are, as the flat game's count does)
   const clock = W.decayOn ? dt * PHYS.TU_S * W.warp : 0, H = [W.box.w / 2, W.box.h / 2, W.box.d / 2];
   const out = (o) => Math.abs(o.x) > H[0] || Math.abs(o.y) > H[1] || Math.abs(o.z) > H[2];
   for (let i = 0; i < n0; i++) {
@@ -29151,7 +29174,9 @@ function moveExos3(dt, id0) {
     if (dec && exoHeld(o)) { dec = false; h = dt; o.wait = true; }
     if (o.stop) h = 0; // (at rest: it waits for its decay)
     const x0 = o.x, y0 = o.y, z0 = o.z;
-    if (h > 0) flyExo3(o, h);
+    if (o.xb) nXb++;
+    if (o.xb) moveExoBeam3(o, h); // (a collider's beam: through the magnets and cavities, 1.37 item 100b; it flew straight, as if they were not there)
+    else if (h > 0) flyExo3(o, h);
     if (o.wait && out(o)) { o.x = clamp(o.x, -H[0], H[0]); o.y = clamp(o.y, -H[1], H[1]); o.z = clamp(o.z, -H[2], H[2]); dec = true; }
     if (d.res && !dec && !W.ultra && !deepSlow()) continue;
     if (out(o)) {
@@ -29165,6 +29190,7 @@ function moveExos3(dt, id0) {
     if (d.ps && !dec && clock > 0 && psMatter(o, clock)) continue; // (1.27)
     if (o.spin && RP.mu) muSpinTurn(o, clock * (o.stop ? 1 : h / dt) / o.gam); // (1.27)
     if (dec) { if (d.hyp) hypDecay(o); else decayExo3(o); continue; }
+    if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (as in the flat game)
     // captures at rest and nuclear hits, as in the flat game (1.25): a stopped μ⁻ makes a muonic atom, K⁻ and π⁻, Σ⁻, Ξ⁻, Ω⁻ are
     // absorbed by a nucleus, a μ⁺ may take an electron (muonium); strongly interacting ones meet the nuclei on their path
     const xa = RP.exo && XA_SPS.has(o.sp);
@@ -29186,7 +29212,7 @@ function moveExos3(dt, id0) {
     }
   }
   if (W.step % 8 === 0 || W.exo.length > MAX_EXO) { let j = 0; for (const o of W.exo) if (!o.dead) W.exo[j++] = o; W.exo.length = j; }
-  return 0;
+  return nXb;
 }
 /* ---- unstable particles as a collider's beams (1.15). Every charged particle that lives long enough to be steered can be
    a beam: muons and τ leptons, charged pions and kaons, the charged hyperons (Σ⁺, Σ⁻, Ξ⁻, Ω⁻), charmed and bottom mesons
@@ -29199,6 +29225,16 @@ function moveExoBeam(o, h) {
   o.ox = o.x; o.oy = o.y;
   radPath(o, h, o.q, o.m / PHYS.AMU_MEV);
   o.x = _rp[0]; o.y = _rp[1];
+  exoTrack(o);
+}
+/* (1.37, item 100b; the owner: "exotic particles in collider not affected by magnets") In 3-D a beam's unstable
+   particles flew straight on (flyExo3), so a ring of muons or pions lost every one at the first bend: as moveRad does
+   for the beams of W.parts, the ring's field (along z) turns (u_x, u_y), the path goes on along u_z. */
+function moveExoBeam3(o, h) {
+  o.ox = o.x; o.oy = o.y; o.oz = o.z;
+  const uz = o.uz || 0, n = Math.sqrt(o.ux * o.ux + o.uy * o.uy + uz * uz); if (n > 0 && Math.abs(n - 1) > 1e-9) { o.ux /= n; o.uy /= n; o.uz = uz / n; }
+  radPath(o, h, o.q, o.m / PHYS.AMU_MEV);
+  o.x = _rp[0]; o.y = _rp[1]; o.z += (o.uz || 0) * _rpL;
   exoTrack(o);
 }
 const xbLab = (p) => (p.xb ? p.lab : speciesLabel(p));
@@ -35947,26 +35983,130 @@ function drawFlashes3(ctx, rt) {
   }
   ctx.restore();
 }
-/* (1.25) A quark–gluon plasma (W.qgp, made by a heavy-ion collision in depth): the flat view's drop (drawQGP), a glow
-   that swells and cools from white to red, at its place in depth, sized for its distance, with its caption. */
+/* (1.37, item 100a; the owner: "qgp draws in 3d mode but it looks 2d ... Don't have anything just face the camera render
+   it in 3d fully") The drop as a body in space: its hot matter is a cloud of points through the ball (denser toward the
+   middle), each a soft glow at its own place and depth, lit by the key light as its side of the ball faces it (lit3), so
+   turning the view turns the lit side, the cloud shows its depth by parallax, and its edge is a ball's at any angle. Its
+   quarks, antiquarks and gluons move about in the ball in three dimensions (a thermal walk, kept inside), join by colour
+   at freeze-out with their nearest partners in space, and each set flies out along its own direction in space; all
+   drawn back to front, the far ones dimmer. Display only, as the flat drop (the hadrons are made at the collision). */
+function qgpInit3(g) {
+  const rn = g.rn = qgpRand(Math.floor(g.x * 7919 + g.y * 104729 + (g.z || 0) * 15485863 + (g.t0 || 0) * 1e4) ^ Math.imul(g.n | 0, 2654435761));
+  const ball = (k) => { for (;;) { const x = 2 * rn() - 1, y = 2 * rn() - 1, z = 2 * rn() - 1; if (x * x + y * y + z * z <= 1) return [x * k, y * k, z * k]; } };
+  const dir = () => { const z = 2 * rn() - 1, t = 2 * Math.PI * rn(), s = Math.sqrt(1 - z * z); return [s * Math.cos(t), s * Math.sin(t), z]; };
+  const P = [], nh = clamp(Math.round(Math.sqrt(g.n || 1) * 3.2), 8, 32), anti = (g.sNN || 0) > 20000 ? 0.4 : 0.15;
+  const add = (cl, col, an, glu) => { const [x, y, z] = ball(0.75), [vx, vy, vz] = dir(); P.push({ x, y, z, vx, vy, vz, col, an, glu, cl }); };
+  const C = [];
+  for (let k = 0; k < nh; k++) {
+    const bar = rn() < 0.18, [ux, uy, uz] = dir(); C.push({ ux, uy, uz, n: bar ? 3 : 2, sp: 0.9 + 0.8 * rn() });
+    if (bar) { const an = rn() < anti; for (let c = 0; c < 3; c++) add(k, c, an, false); }
+    else { const c = Math.floor(3 * rn()); add(k, c, false, false); add(k, c, true, false); }
+  }
+  for (let k = 0, ng = Math.round(nh * 0.9); k < ng; k++) { const c = Math.floor(3 * rn()); add(-1, c, false, (c + 1 + Math.floor(2 * rn())) % 3); }
+  const M = []; for (let k = 0; k < 110; k++) { const [x, y, z] = ball(1), f = Math.sqrt(x * x + y * y + z * z); M.push({ x: x * (0.35 + 0.65 * f), y: y * (0.35 + 0.65 * f), z: z * (0.35 + 0.65 * f), w: 0.7 + 0.6 * rn() }); } // (the hot matter: a ball, a little denser inside)
+  g.pp = P; g.cl = C; g.med = M; g.lastAge = g.age || 0; g.d3 = true;
+}
+function qgpGroup3(g) {
+  g.grouped = true;
+  const Q = g.pp.filter(q => q.glu === false); for (const q of Q) q.cl = -2;
+  const C = [], d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2, rn = g.rn;
+  const near = (q, ok) => { let best = null, bd = Infinity; for (const o of Q) if (o !== q && o.cl === -2 && ok(o)) { const d = d2(q, o); if (d < bd) { bd = d; best = o; } } return best; };
+  for (const q of Q) {
+    if (q.cl !== -2) continue;
+    const m = near(q, o => o.an !== q.an && o.col === q.col);
+    const b1 = near(q, o => o.an === q.an && o.col === (q.col + 1) % 3), b2 = b1 ? near(q, o => o !== b1 && o.an === q.an && o.col === (q.col + 2) % 3) : null;
+    let set = null;
+    if (m && (!b1 || !b2 || d2(q, m) <= 0.5 * (d2(q, b1) + d2(q, b2)) || rn() < 0.75)) set = [q, m];
+    else if (b1 && b2) set = [q, b1, b2];
+    if (!set) { q.cl = -3; continue; }
+    const r = Math.hypot(q.x, q.y, q.z) || 1, j = () => (rn() - 0.5) * 0.8; let ux = q.x / r + j(), uy = q.y / r + j(), uz = q.z / r + j(); const L = Math.hypot(ux, uy, uz) || 1; ux /= L; uy /= L; uz /= L; // (outward from where it froze, as the flow carries it)
+    const k = C.length; C.push({ ux, uy, uz, n: set.length, sp: 0.9 + 0.8 * rn() });
+    for (const o of set) o.cl = k;
+  }
+  g.cl = C;
+}
+function qgpStep3(g) {
+  const age = g.age || 0, dt = clamp(age - g.lastAge, 0, 0.05); g.lastAge = age;
+  if (!(dt > 0)) return;
+  const rn = g.rn, heat = Math.max(0, 1 - age / 1.4), sp = 0.25 + 1.1 * heat, F0 = 1.1, F1 = 1.45;
+  if (age >= F0 && !g.grouped) qgpGroup3(g);
+  if (age < F1) for (const C of g.cl) { C.mx = 0; C.my = 0; C.mz = 0; C.k = 0; }
+  for (const q of g.pp) if (q.cl >= 0 && age < F1) { const C = g.cl[q.cl]; C.mx += q.x; C.my += q.y; C.mz += q.z; C.k++; }
+  for (const C of g.cl) if (C.k) { C.mx /= C.k; C.my /= C.k; C.mz /= C.k; }
+  for (const q of g.pp) {
+    if (q.cl < 0 || age < F0) { // (free: a thermal walk in 3-D, its direction turned a little at random each frame)
+      const k = 2.4 * dt * 8; q.vx += (rn() - 0.5) * k; q.vy += (rn() - 0.5) * k; q.vz += (rn() - 0.5) * k; const L = Math.hypot(q.vx, q.vy, q.vz) || 1; q.vx /= L; q.vy /= L; q.vz /= L;
+      q.x += q.vx * sp * dt; q.y += q.vy * sp * dt; q.z += q.vz * sp * dt;
+      const rr = Math.hypot(q.x, q.y, q.z); if (rr > 0.82) { const nx = q.x / rr, ny = q.y / rr, nz = q.z / rr, d = q.vx * nx + q.vy * ny + q.vz * nz; if (d > 0) { q.vx -= 2 * d * nx; q.vy -= 2 * d * ny; q.vz -= 2 * d * nz; } q.x = nx * 0.82; q.y = ny * 0.82; q.z = nz * 0.82; }
+      continue;
+    }
+    const C = g.cl[q.cl], w = q.col * 2.1 + age * 9, ox = 0.06 * Math.cos(w), oy = 0.06 * Math.sin(w), oz = 0.06 * Math.sin(w + 1.3);
+    if (age < F1) { const k = Math.min(1, dt * 6); q.x += (C.mx + ox - q.x) * k; q.y += (C.my + oy - q.y) * k; q.z += (C.mz + oz - q.z) * k; }
+    else { if (C.ox === undefined) { C.ox = C.mx; C.oy = C.my; C.oz = C.mz; } const d = (age - F1) * C.sp * 1.6; q.x = C.ox + C.ux * d + ox; q.y = C.oy + C.uy * d + oy; q.z = C.oz + C.uz * d + oz; }
+  }
+}
+const _qgpO = [0, 0, 0], _qgpC = [0, 0, 0];
 function drawQGP3(ctx) {
   if (!W.qgp || !W.qgp.length) return;
-  const o = _p3c;
+  const o = _p3c, O = _qgpO, cc = _qgpC, F0 = 1.1, F1 = 1.45;
   ctx.save();
   for (let i = W.qgp.length - 1; i >= 0; i--) {
     const g = W.qgp[i], age = g.age || 0;
     if (age > 2.2) { W.qgp.splice(i, 1); continue; }
     if (!proj3(g.x, g.y, g.z || 0, o)) continue;
-    const heat = Math.max(0, 1 - age / 1.4), a = age < 1.4 ? 1 : 1 - (age - 1.4) / 0.8, r = clamp((1.5 + 3.5 * Math.min(1, age / 1.4)) * C3.F / o[2], 30, 160);
-    const gr = ctx.createRadialGradient(o[0], o[1], 0, o[0], o[1], r);
-    gr.addColorStop(0, `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.88 * a).toFixed(3)})`); gr.addColorStop(0.6, `rgba(255,${Math.round(110 + 60 * heat)},40,${(0.6 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,80,20,0)');
-    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(o[0], o[1], r, 0, 2 * Math.PI); ctx.fill();
-    qgpPartons(ctx, g, o[0], o[1], r, a); // (its quarks and gluons, as in the flat view, 1.30 item 65)
+    if (!g.d3) qgpInit3(g);
+    qgpStep3(g);
+    const cx = o[0], cy = o[1], sc0 = C3.F / o[2], heat = Math.max(0, 1 - age / 1.4), a = age < 1.4 ? 1 : 1 - (age - 1.4) / 0.8;
+    const Rw = clamp(1.5 + 3.5 * Math.min(1, age / 1.4), 30 / sc0, 160 / sc0), gz = g.z || 0; // (its radius in ångström: on screen 30–160 px, as before)
+    // the hot matter, lit: each point's place on the ball gives its normal, turned into view space
+    const hr = 1, hg = (150 + 105 * heat) / 255, hb = (80 + 175 * heat * heat) / 255, med = [];
+    for (const m of g.med) {
+      if (!proj3(g.x + m.x * Rw, g.y + m.y * Rw, gz + m.z * Rw, O)) continue;
+      const L = Math.hypot(m.x, m.y, m.z) || 1, nx = m.x / L, ny = m.y / L, nz = m.z / L;
+      const vx = nx * C3.rx + ny * C3.ry + nz * C3.rz, vy = nx * C3.ux + ny * C3.uy + nz * C3.uz, vz = -(nx * C3.fx + ny * C3.fy + nz * C3.fz);
+      lit3(vx, vy, vz, C3.L, hr, hg, hb, cc);
+      med.push([O[2], O[0], O[1], 0.36 * Rw * C3.F / O[2], cc[0], cc[1], cc[2], m.w]);
+    }
+    med.sort((p, q) => q[0] - p[0]); // (far first)
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [, x, y, rr, r, gg, b, w] of med) {
+      const al = 0.16 * a * w, gr = ctx.createRadialGradient(x, y, 0, x, y, rr);
+      gr.addColorStop(0, `rgba(${Math.round(255 * r)},${Math.round(255 * gg)},${Math.round(255 * b)},${al.toFixed(3)})`); gr.addColorStop(1, `rgba(${Math.round(255 * r)},${Math.round(120 * gg)},${Math.round(60 * b)},0)`);
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, rr, 0, 2 * Math.PI); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    // its partons, back to front: size by their own depth, the far side dimmer
+    const pts = [];
+    for (const q of g.pp) { if (!proj3(g.x + q.x * Rw, g.y + q.y * Rw, gz + q.z * Rw, O)) continue; pts.push({ q, x: O[0], y: O[1], z: O[2] }); }
+    if (age >= F0) { // (the colour strings that hold each set, between its members in space)
+      const k = clamp((age - F0) / 0.25, 0, 1), by = new Map();
+      for (const p of pts) if (p.q.cl >= 0) { let l = by.get(p.q.cl); if (!l) by.set(p.q.cl, l = []); l.push(p); }
+      ctx.strokeStyle = `rgba(255,240,220,${(0.6 * a * k).toFixed(3)})`; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (const l of by.values()) { ctx.moveTo(l[0].x, l[0].y); for (let j = 1; j < l.length; j++) ctx.lineTo(l[j].x, l[j].y); if (l.length > 2) ctx.closePath(); }
+      ctx.stroke();
+    }
+    pts.sort((p, q) => q.z - p.z);
+    const zr = Rw > 0 ? 1 / (2 * Rw) : 0;
+    for (const p of pts) {
+      const q = p.q, sc = C3.F / p.z, qr = clamp(Rw * sc / 24, 1.6, 6), front = clamp(0.5 - (p.z - o[2]) * zr, 0, 1), dk = 0.55 + 0.45 * front;
+      if (q.glu !== false) {
+        const ga = a * dk * (age < F0 ? 0.9 : Math.max(0, 1 - (age - F0) / 0.3)); if (ga <= 0.01) continue;
+        const c1 = QGP_COL[q.col], c2 = QGP_ACOL[q.glu], rr = qr * 0.7;
+        ctx.fillStyle = rgba(c1, ga); ctx.beginPath(); ctx.arc(p.x, p.y, rr, Math.PI / 2, 1.5 * Math.PI); ctx.fill();
+        ctx.fillStyle = rgba(c2, ga); ctx.beginPath(); ctx.arc(p.x, p.y, rr, -Math.PI / 2, Math.PI / 2); ctx.fill();
+        continue;
+      }
+      const qa = dk * (q.cl === -3 ? a * Math.max(0, 1 - (age - F0) / 0.3) : age < F1 ? a : a * Math.max(0, 1 - (age - F1) / 0.75));
+      if (qa <= 0.01) continue;
+      if (q.an) { ctx.fillStyle = `rgba(20,10,5,${(0.8 * qa).toFixed(3)})`; ctx.strokeStyle = rgba(QGP_ACOL[q.col], qa); ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(p.x, p.y, qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); ctx.lineWidth = 1; }
+      else { ctx.fillStyle = rgba(QGP_COL[q.col], qa); ctx.strokeStyle = `rgba(20,10,5,${(0.55 * qa).toFixed(3)})`; ctx.beginPath(); ctx.arc(p.x, p.y, qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
+    }
     if (R.view.labels !== false) {
+      const r = Rw * sc0;
       ctx.font = '600 12px ' + (cssVar('--font-data') || 'monospace'); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-      const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = o[1] - r - 8;
-      ctx.fillStyle = `rgba(20,10,6,${(0.75 * a).toFixed(3)})`; ctx.fillRect(o[0] - w / 2, ty - 13, w, 18);
-      ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.fillText(t, o[0], ty); ctx.textAlign = 'left';
+      const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = cy - r - 8;
+      ctx.fillStyle = `rgba(20,10,6,${(0.75 * a).toFixed(3)})`; ctx.fillRect(cx - w / 2, ty - 13, w, 18);
+      ctx.fillStyle = `rgba(255,220,190,${a.toFixed(3)})`; ctx.fillText(t, cx, ty); ctx.textAlign = 'left';
     }
   }
   ctx.restore();
@@ -42501,8 +42641,12 @@ function linacLayout(C, A, B, EA, EB) {
   const L = 80, f = 13, wq = 8, injA = Math.min(2e5, 0.25 * EA), injB = Math.min(2e5, 0.25 * EB);
   C.layout = 'linear'; C.EA = EA; C.EB = EB; setBox(230, 120); // (120 Å across, 1.36: room either side of the collision point to see what it makes fly out; it was 60)
   // cavities push a to the right and b to the left; each focusing magnet faces its incoming beam
-  W.zones.push({ kind: 'cavity', cx: -62, cy: 0, w: L, h: 10, ang: 0, E: Math.max(0, EA - injA) / L / A.q, dir: 1, label: 'linac' });
-  W.zones.push({ kind: 'cavity', cx: 62, cy: 0, w: L, h: 10, ang: 0, E: -Math.max(0, EB - injB) / L / B.q, dir: -1, label: 'linac' });
+  // (1.37, item 100e) each linac's RF works on its own bunches only: they arrive in step with its phase and gain energy;
+  // anything else in it (what the collisions send back down the line) meets the field at every phase and gains
+  // nothing on average. Before, a product flying back into a 1 TeV linac met its whole 12.5 GV/Å as a steady push: a
+  // negative one going the beam's way was stopped and thrown back out (the bounce the owner saw).
+  W.zones.push({ kind: 'cavity', cx: -62, cy: 0, w: L, h: 10, ang: 0, E: Math.max(0, EA - injA) / L / A.q, dir: 1, beam: 'a', label: 'linac' }); // (beam: 1.37, see below)
+  W.zones.push({ kind: 'cavity', cx: 62, cy: 0, w: L, h: 10, ang: 0, E: -Math.max(0, EB - injB) / L / B.q, dir: -1, beam: 'b', label: 'linac' });
   // a lens of focal length f; for electrons a weaker one, as the field that bends them radiates (synchrotron light,
   // (2/3)k·γ⁴·y²/(w·f²) for a particle y off the axis): kept under 0.2% of the energy 0.6 Å off the axis
   const fOf = (I, E) => { if (!I.lep) return f; const g = 1 + E / (I.m * AMU_EV); return Math.max(f, Math.sqrt(2 / 3 * PHYS.KE * g ** 4 * 0.36 / (wq * 0.002 * E))); };
@@ -42565,6 +42709,72 @@ function buildBeamSelects() {
   const sugg = sp.map(([k, s]) => [`${s.lab} ${s.name}`, k]).concat(ELEMENTS.slice(1, Z_TABLE + 1).map(E => [`${E.sym} ${E.name} (${E.Z})`, 'Z' + E.Z]));
   for (const [t, v] of sugg) BEAM_FIND.set(t.toLowerCase(), v);
   BEAM_SUGG = sugg; // (the search boxes' suggestion list: ddSuggest)
+}
+/* (1.37, item 100f; the owner: "make particle selection much more robust, with its own window when you click 'select
+   particles' in collider menu. There should be every particle in the game, with different categories.") Lab → Collider →
+   Select particles: every particle the game has, by kind, and every element with its isotopes, for beam 1 or beam 2.
+   What an accelerator can take is a button; what none can (neutral ones, which no magnet or accelerating field acts on,
+   and those that live too short a time to be sped up) is shown greyed, saying why. */
+const BP = { which: 'a', q: '', el: 0 };
+function bpWhy(sp) {
+  const d = XP[sp];
+  if (!d.q) return 'neutral: no magnet or accelerating field acts on it';
+  if (d.res || d.tau < 1e-13) return `lives ${fmtTime(d.tau)}: gone long before it could be sped up`;
+  return 'not made into a beam here';
+}
+function bpCats() {
+  const ex = (sp) => { const k = 'x' + sp; return { lab: XP[sp].lab, name: specName({ kind: 'exo', sp }), key: BEAM_SPECIES[k] ? k : null, why: BEAM_SPECIES[k] ? '' : bpWhy(sp) }; };
+  const bs = (k) => ({ lab: BEAM_SPECIES[k].lab, name: BEAM_SPECIES[k].name, key: k, why: '' });
+  const no = (lab, name, why) => ({ lab, name, key: null, why });
+  const qc = (sp) => (typeof Q_CONTENT !== 'undefined' && Q_CONTENT[sp]) || '';
+  const xs = Object.keys(XP), used = new Set(['mu-', 'mu+', 'tau-', 'tau+', 'W+', 'W-', 'Z0', 'H0']);
+  const by = (f) => xs.filter(sp => !used.has(sp) && f(sp)).map(sp => { used.add(sp); return ex(sp); });
+  const neutral = 'neutral: no magnet or accelerating field acts on it';
+  return [
+    ['Leptons', '', [bs('e'), bs('pos'), ...['mu-', 'mu+', 'tau-', 'tau+'].map(ex)]],
+    ['Neutrinos', '', ['e', 'mu', 'tau'].flatMap(fl => [false, true].map(anti => no(nuLab(anti, fl), specName({ kind: 'nu', fl, anti }), 'neutral and almost never interacting: nothing can steer it')))],
+    ['Bosons', '', [no('γ', 'photon', 'neutral (photon colliders make theirs from electron beams)'), ...['W+', 'W-', 'Z0', 'H0'].map(ex)]],
+    ['Mesons', '', by(sp => qc(sp).length === 2)],
+    ['Baryons', '', [bs('p'), bs('pbar'), no('n', 'neutron', neutral), no('n̄', 'antineutron', neutral), ...by(sp => qc(sp).length === 3)]],
+    ['Multiquarks', '', by(sp => qc(sp).length > 3)],
+    ['Light nuclei and antinuclei', '', Object.keys(BEAM_SPECIES).filter(k => BEAM_SPECIES[k].g === 'Nucleons and light nuclei' && k !== 'p' || k === 'dbar' || k === 'abar').map(bs)],
+    ['Heavy ions', '', Object.keys(BEAM_SPECIES).filter(k => BEAM_SPECIES[k].g === 'Heavy ions').map(bs)],
+    ['Actinides', 'targets for superheavy elements', Object.keys(BEAM_SPECIES).filter(k => BEAM_SPECIES[k].g === 'Actinides (targets for superheavy elements)').map(bs)],
+    ['Exotic atoms and nuclei', '', by(() => true)],
+  ];
+}
+function openBeamPicker(which) {
+  const C = W.collider; if (!C) return;
+  BP.which = C.fixed ? 'a' : which || BP.which; BP.el = 0;
+  showModal('bpModal'); renderBeamPicker();
+  if (window.matchMedia('(pointer: fine)').matches) { const f = $('bpFind'); f.focus(); f.select(); }
+}
+function renderBeamPicker() {
+  const C = W.collider; if (!C || $('bpModal').hidden) return;
+  $('bpWhich').hidden = !!C.fixed;
+  for (const b of $('bpWhich').querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.w === BP.which ? 'true' : 'false');
+  const cur = BP.which === 'a' ? C.a : C.b, cs = BEAM_SPECIES[cur];
+  setTxt('bpNow', C.fixed ? `Beam: ${cs ? cs.lab : cur}` : `Beam 1: ${BEAM_SPECIES[C.a] ? BEAM_SPECIES[C.a].lab : C.a} · Beam 2: ${BEAM_SPECIES[C.b] ? BEAM_SPECIES[C.b].lab : C.b}`);
+  const q = BP.q.trim().toLowerCase(), words = q ? q.split(/\s+/) : [], hit = (e) => !words.length || words.every(w => `${e.lab} ${e.name}`.toLowerCase().includes(w));
+  const btn = (e) => `<button type="button" class="bpp" ${e.key ? `data-k="${esc(e.key)}"` : 'disabled'} aria-pressed="${e.key && e.key === cur ? 'true' : 'false'}" title="${esc(e.why ? `${e.name}: ${e.why}` : e.name)}"><b>${esc(e.lab)}</b><span>${esc(e.name)}</span></button>`;
+  let h = '';
+  const f = q ? beamFind(BP.q) : null; // (typed an isotope or an element: offer it first)
+  if (f && /^Z\d+$/.test(f.v || '')) { const Z = +f.v.slice(1), A = f.A || defaultBeamA(Z); h += `<div class="bpcat"><h3>Best match</h3><div class="bplist"><button type="button" class="bpp" data-z="${Z}" data-a="${A}"><b>${sup(A)}${ELEMENTS[Z].sym}</b><span>${esc(ELEMENTS[Z].name.toLowerCase())}-${A}</span></button></div></div>`; }
+  for (const [name, note, list] of bpCats()) {
+    const L = list.filter(hit); if (!L.length) continue;
+    const n = L.filter(e => e.key).length;
+    h += `<div class="bpcat"><h3>${esc(name)}<span class="note">${note ? esc(note) + ' · ' : ''}${n} of ${L.length} can be a beam</span></h3><div class="bplist">${L.map(btn).join('')}</div></div>`;
+  }
+  const els = ELEMENTS.slice(1, Z_TABLE + 1).filter(E => !words.length || words.every(w => `${E.sym} ${E.name} ${E.Z}`.toLowerCase().includes(w)));
+  if (els.length) {
+    h += `<div class="bpcat"><h3>Every element<span class="note">bare nuclei; pick one, then its isotope</span></h3><div class="bplist">${els.map(E => `<button type="button" class="bpp bpel" data-el="${E.Z}" aria-pressed="${cs && cs.Z === E.Z && !cs.anti ? 'true' : 'false'}" title="${esc(E.name)}"><b>${E.sym}</b><span>${E.Z}</span></button>`).join('')}</div>`;
+    if (BP.el) {
+      const Z = BP.el;
+      h += `<div class="bpiso"><b>${esc(ELEMENTS[Z].name)}</b> <span class="note">its isotopes that hold together, with their half-lives</span><div class="bplist" style="margin-top:6px">${beamIsotopes(Z).map(A => { const n = nuclideInfo(Z, A - Z); return `<button type="button" class="bpp" data-z="${Z}" data-a="${A}" aria-pressed="${cs && cs.Z === Z && cs.A === A && !cs.anti ? 'true' : 'false'}"><b>${sup(A)}${ELEMENTS[Z].sym}</b><span>${n.stable ? 'stable' : `t½ ${fmtTime(n.t12)}${n.estimated ? ' (est.)' : ''}`}</span></button>`; }).join('')}</div></div>`;
+    }
+    h += '</div>';
+  }
+  $('bpBody').innerHTML = h || '<p class="note">Nothing matches.</p>';
 }
 /* What a typed beam means: an entry of the menus, an element by name, symbol or atomic number, an isotope of one
    (calcium-48, Ca-48, 48Ca, ⁴⁸Ca, ca 48) or a particle by its everyday name. → { v, A } as the menus give them ('Z<n>'
@@ -42814,7 +43024,11 @@ function updateCollider() {
   }
   $('cLast').innerHTML = (phase ? esc(phase) + (C.last ? '<br>' : '') : '') + (C.last ? `<b>Last collision:</b> ${esc(C.last)}` : phase ? '' : 'No collisions yet.');
   const made = C.made ? Object.entries(C.made).sort((p, q) => q[1] - p[1]) : []; // new particles and nuclei, so far
-  $('cMade').innerHTML = made.length ? `<b>Made so far:</b> ${made.slice(0, 16).map(([l, n]) => `${esc(l)}&#8202;×${n}`).join(' · ')}${made.length > 16 ? ` and ${made.length - 16} more kinds` : ''}` : '';
+  // (1.37, item 100c: every kind made, by group; the top 16 alone left out a few W and Z bosons behind hundreds of pions.
+  // Nuclei, which a fission or fragmentation makes by the hundred kinds, show their 12 commonest.)
+  const K = C.madeK || {}, by = {}; for (const [l, n] of made) (by[K[l] || 'Nuclei'] = by[K[l] || 'Nuclei'] || []).push([l, n]);
+  const rows = MADE_KINDS.filter(g => by[g]).map(g => { const L = by[g], cut = g === 'Nuclei' ? 12 : 60; return `<div class="madeRow"><span class="k">${g}</span> ${L.slice(0, cut).map(([l, n]) => `${esc(l)}&#8202;×${n}`).join(' · ')}${L.length > cut ? ` and ${L.length - cut} more kinds` : ''}</div>`; });
+  $('cMade').innerHTML = made.length ? `<b>Made so far:</b>${rows.join('')}` : '';
 }
 /* New bunches. A ring can't take them while it holds a beam at full energy (its magnets are set for that beam):
    what is left is dumped first and the magnets go back to the injection field, as at the start of a cycle. */
@@ -44747,7 +44961,7 @@ function onKey(e) {
     if (!$('escModal').hidden) { e.preventDefault(); closeEscMenu(); return; }
     if (!$('chartModal').hidden) { chartClose(); return; } // (1.31 item 72)
     if (BEC.open) { becClose(); return; } // (1.35)
-    for (const id of ['madeModal', 'ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
+    for (const id of ['bpModal', 'madeModal', 'ptModal', 'molModal', 'bldModal', 'nucModal', 'setModal', 'shareModal', 'askModal', 'galModal', 'keysModal']) if (!$(id).hidden) { hideModal(id); return; }
     if (UI.menu) { if (!$('mmSetups').hidden) mmAction('back'); else if (MMV.v !== 'choose') mmAction('choose'); return; }
     if (!$('tour').hidden) { tourEnd(); return; }
     if (REW.open) { rewLive(); return; }
@@ -46254,6 +46468,18 @@ function init() {
       k = beamKey(Z, A || (cur && cur.Z === Z && !cur.anti ? cur.A : defaultBeamA(Z)));
     }
     if (which === 'a') newBeams(k, C.b); else newBeams(C.a, k);
+  };
+  UI.pickBeam = pickBeam; // (the particle window's picks, 1.37)
+  $('cPickBtn').onclick = () => openBeamPicker('a');
+  $('bpClose').onclick = () => hideModal('bpModal');
+  $('bpModal').addEventListener('click', (e) => { if (e.target.id === 'bpModal') hideModal('bpModal'); });
+  $('bpWhich').onclick = (e) => { const b = e.target.closest('button[data-w]'); if (b) { BP.which = b.dataset.w; renderBeamPicker(); } };
+  $('bpFind').oninput = (e) => { BP.q = e.target.value; renderBeamPicker(); };
+  $('bpBody').onclick = (e) => {
+    const b = e.target.closest('button.bpp'); if (!b || b.disabled) return;
+    if (b.dataset.el) { BP.el = +b.dataset.el === BP.el ? 0 : +b.dataset.el; renderBeamPicker(); return; }
+    if (b.dataset.z) pickBeam(BP.which, 'Z' + b.dataset.z, +b.dataset.a); else if (b.dataset.k) pickBeam(BP.which, b.dataset.k);
+    renderBeamPicker();
   };
   $('cBeamA').onchange = (e) => pickBeam('a', e.target.value);
   $('cTgt').onchange = (e) => { const C = W.collider; if (!C || !C.fixed) return; setTarget(C, e.target.value, $('chkTgtAnti').checked); syncCollider(); };
