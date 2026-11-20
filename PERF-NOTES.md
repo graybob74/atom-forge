@@ -1993,7 +1993,7 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
 
 ## 1.36.2: heavy ions that touch; the target's isotope, thickness and the beam's spread (the owner, 2026-11-19: "fix collision between Einsteinium and Calcium for some reason they dont collide they only knock electrons and make it able to choose isotope on syncrotron and and also add a spread and thickness option in syncrotron")
 
-- **Heavy ions above the barrier now react** (physics change, asked for by the owner). ⁴⁸Ca at 300 MeV on einsteinium
+- **Heavy ions above the barrier now react** (physics change, asked for and approved by the owner, 2026-11-19: "i ok all changes"). ⁴⁸Ca at 300 MeV on einsteinium
   (252 MeV in their own frame, barrier 211 MeV): 894 encounters past the barrier, **2 reactions**. `nuclearEncounter`
   spreads a pass over impact parameters out to the Coulomb reach (30 K: 170 fm for this pair), so only (5.5/170)² ≈ 1
   pass in 1,000 came inside the grazing distance; `tryFusion`'s Gamow factor gave e^(−775) for them. Now
