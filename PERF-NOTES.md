@@ -2017,7 +2017,7 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   2. The linacs' RF pushed anything charged in them: products flying back down the line met the whole 12.5 GV/Å as a
      steady push, and a negative one going the beam's way was stopped and thrown back. Each linac's RF now works on its
      own bunches (`beam: 'a'/'b'` on its zone): they arrive in step with its phase; anything else meets every phase and
-     gains nothing on average.
+     gains nothing on average. (A physics change: approved by the owner, 2026-11-20, "ok".)
   1 TeV p p̄: before, 518 of 960 beam particles turned round near the start; after, none of 80 turned back or left the
   axis inside the linacs, collisions at the middle. 1 TeV μ⁻μ⁺: before 1 collision in 300 frames (the rest thrown
   out), after 33 (W⁺W⁻, τ⁺τ⁻, hadrons …); 1 TeV π⁺π⁻ in 3-D: 0 → 38. The unstable beams' "stopping" at the focusing
