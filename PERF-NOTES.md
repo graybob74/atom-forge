@@ -1991,6 +1991,33 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.38.0 (released 2026-11-22): more realistic, item 102 (the owner: "add everything that can realistically be more realistic", "build everything on the list and release when done")
+
+- **a. Every hadron strikes several nucleons on its way through a nucleus** (above 1 GeV; B and D mesons since 1.37.2 at
+  every energy). How many by its path, Glauber (2R√(1 − (b/R)²) × 0.16 fm⁻³ × its cross section on a nucleon: π 25 mb,
+  K 18, nucleons and hyperons 33, antibaryons 45; `hadronSig`, `heavyHits`), struck together as a cluster with the rest
+  a spectator (`struckCluster`). A meson or baryon goes on as the leading particle, its flavour kept; a pion or η is
+  absorbed into what it makes; an antibaryon annihilates on one of the cluster's nucleons. Through the middle of ¹⁴⁵Pm
+  at 10 GeV: π⁺ 5.3, K⁺ 4.1, Σ⁺ 6.1, Λ̄ 7.7 nucleons (before, 1); books within 10⁻⁴ eV. Below 1 GeV the one-nucleon
+  channels as before (pion absorption, strangeness exchange …).
+- **b. Multiple scattering in the flat game at the measured width.** Each nucleus within the path's 2 Å band was passed
+  at its own distance, spread evenly across the band, where in space passes fill a disc (2πb db), so close, hard turns
+  were far too common. Each now stands for a pass in space: its distance drawn over the 1.4 Å disc holding as many
+  nuclei, the turn in a random plane round the path, the flat world keeping its part in the screen (θ cos φ, the
+  projected angle a detector measures). A 100 MeV μ⁻ through 40 Å of flat lead: 5.5×10⁻⁴ rad → 4.1×10⁻⁵ (Highland at
+  that density 5.2×10⁻⁵).
+- **c. Jets' transverse momenta as measured** (`jetPt`): exponential (pT e^(−2pT/⟨pT⟩)), not a Gaussian, the mean
+  rising with √s as the experiments' fit (0.36 GeV/c at 20 GeV, 0.44 at 0.9 TeV, 0.56 at 7 TeV; before about 0.37 at
+  every energy, 0.24 in the plane). Products already spread in rapidity as real ones do (a plateau), so at high energy
+  most still fly close to the beams, as in a real detector.
+- **d. 3-D water: nothing to change.** Measured with the usual settings (1.27-era, 343 waters as a droplet) it is
+  1.005 g/cm³ (real 0.997); the "14–18% too dense" was only with the Experimental 9 Å force reach and lone pairs
+  together, which would need a water model of its own for that mode.
+- Fingerprints: lep 81169d25 books 0b6f080f, annihilation 02ea22e9 books 0a418be0 (the jets' pT). t_collider's DAΦNE
+  check now takes K⁺ among the commonest (≥ 0.8 × the top), not necessarily first: seed 6 has had K⁰ʟ×30 against
+  K⁺×29 since 1.37.1 (a 1.5σ draw from 49% against 34%).
+- Tests: `tests/f_138.js` (hits, scatter, pt).
+
 ## 1.37.2 (released 2026-11-22): unstable beams against heavy ions; Made here's find button (the owner, 2026-11-22)
 
 The owner: "some particles get thrown out or just don't collide, probably because they're too small or light (tried
@@ -4161,7 +4188,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    f. "make descriptions more concise across the board": every description in the game (particle, element, isotope,
       molecule and object cards, setups, tools) shortened to the point; "across the board means everywhere (even
       settings)": Settings, Help and the tour too.
-102 (the owner, 2026-11-22: "add everything that can realistically be more realistic"; waiting for "build it")
+102 (built 2026-11-22 in 1.38.0; the owner: "add everything that can realistically be more realistic", "build everything on the list and release when done")
    a. Every hadron striking a nucleus hits several nucleons on its way through (pions, kaons, hyperons, antibaryons), as
       B and D mesons do since 1.37.2 (Glauber path × density × cross section), not one.
    b. Multiple scattering in the flat game spreads paths several times wider than through a real foil (a flat path

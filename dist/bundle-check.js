@@ -27169,12 +27169,15 @@ function struckCluster(tg, nu) {
    that impact parameter, L = 2R√(1 − (b/R)²) (R = 1.2 A^⅓ fm), times the nuclear density (0.16 fm⁻³) and its cross
    section on a nucleon (about 20 mb: its light quark does the hitting; a pion's is about 25), at least one, as it hit;
    at most 8. Centrally through promethium about 4, near the edge 1–2. */
-function heavyHits(tg, u) {
+function heavyHits(tg, u, sig = 2.0) { // (sig: the hadron's cross section on a nucleon, fm²; 1.38 item 102a: every hadron's, hadronSig)
   const A = tg.Z + tg.N; if (A < 2) return 1;
-  const R = 1.2 * Math.cbrt(A), b = clamp(u / Math.sqrt(HIT_INEL), 0, 1), L = 2 * R * Math.sqrt(1 - b * b), m = Math.max(0.05, 0.16 * 2.0 * L);
+  const R = 1.2 * Math.cbrt(A), b = clamp(u / Math.sqrt(HIT_INEL), 0, 1), L = 2 * R * Math.sqrt(1 - b * b), m = Math.max(0.05, 0.16 * sig * L);
   let n = 0; for (let k = 0; k < 50 && n < 1; k++) { n = 0; let p = Math.exp(-m), c = p; const r = rnd(); while (r > c && n < 30) { n++; p *= m / n; c += p; } }
   return clamp(n, 1, Math.min(8, A));
 }
+/* (1.38, item 102a) A hadron's inelastic cross section on a nucleon at a few GeV and up (fm², 1 fm² = 10 mb; PDG):
+   pions 2.5, kaons 1.8, nucleons and hyperons 3.3, antibaryons 4.5 (annihilation adds to it), charm and bottom 2.0. */
+function hadronSig(sp, d, baryon, anti) { if (d.heavy) return 2.0; if (anti) return 4.5; if (baryon) return 3.3; return /^K/.test(sp) ? 1.8 : 2.5; }
 /* The items of an encounter, spread over the invariant mass of what came in (Pin), and the residual nucleus (excited
    by Ex MeV) as its own items. Returns false if they don't fit. */
 function exoOut(outs, Pin, sN, Ex, items, moms) {
@@ -27207,6 +27210,26 @@ function hadronHit(o, tg, u) {
     items.length = 0; moms.length = 0;
     const sN = struckNucleon(tg), Nq = sN.onP ? 1 : 0, Pin = add4(add4(Po, sN.PN), sN.Pres);
     const Ex = 5 + 25 * rnd(); // (the spectator nucleus: a hole and a little heat)
+    // (1.38, item 102a; the owner: "add everything that can realistically be more realistic") Above 1 GeV a hadron
+    // crossing a nucleus strikes several nucleons on its way (Glauber: its path × the density × its cross section, as B
+    // and D mesons have since 1.37.2), struck together as a cluster with the rest of the nucleus a spectator. A meson or
+    // baryon goes on as the leading particle (its flavour kept) and what it gives the cluster makes nucleons and pions;
+    // a pion or η is absorbed into what it makes; an antibaryon annihilates on one of the cluster's nucleons, the rest
+    // coming out with the mesons. One nucleon struck: the channels below, as before.
+    const nuH = !d.heavy && Tq > 1000 && tg.Z + tg.N >= 2 ? heavyHits(tg, u, hadronSig(o.sp, d, baryon, anti)) : 1;
+    if (nuH > 1) {
+      const sC = struckCluster(tg, nuH), PinC = add4(add4(Po, sC.PN), sC.Pres), M = mass4(add4(Po, sC.PN));
+      const pion = /^(pi[+-0]|eta)/.test(o.sp), lead = !pion && !anti;
+      let h;
+      if (anti) { const nK = Math.max(0, -nS), ks = []; let mk = 0, qk = 0; for (let i = 0; i < nK; i++) { const pk = rnd() < 0.5; ks.push(item(pk ? 'K+' : rnd() < 0.5 ? 'K0S' : 'K0L')); mk += 495; qk += pk ? 1 : 0; } const r = hadronize(M - mk - 30, nuH - 1, o.q + sC.q - qk, { minMeson: true }); h = r && ks.concat(r); }
+      else if (lead) h = hadronize(M - o.m - 5, nuH, sC.q, {});
+      else h = hadronize(M - 5, nuH, o.q + sC.q, {});
+      if (!h) continue;
+      const oc = lead ? [item(o.sp)].concat(h) : h;
+      txt = `${o.lab} + ${el}`; sub = `struck ${nuH} nucleons on its way through → ${summarize(oc)}`;
+      if (!exoOut(oc, PinC, sC, Ex * nuH, items, moms)) continue;
+      ok = true; break;
+    }
     if (!baryon && (o.sp === 'pi+' || o.sp === 'pi-' || o.sp === 'pi0') && Tq < 300 && rnd() < 0.5 && tg.Z + tg.N >= 2) { // absorption on a pair
       const s2 = struckNucleon({ Z: sN.Zr, N: sN.Nr, x: tg.x, y: tg.y, vx: tg.vx, vy: tg.vy, vz: tg.vz, k: NUC, m: tg.m, ne: 0, rad: tg.rad, KE: tg.KE, sp: tg.sp, ux: tg.ux, uy: tg.uy, uz: tg.uz }); // (vz, uz: 3-D, 1.25)
       const q = o.q + Nq + (s2.onP ? 1 : 0); if (q < 0 || q > 2) continue;
@@ -27533,6 +27556,14 @@ function pairNote(o) {
    whole energy M (MeV) in the rest frame. Returns [E, px, py] for each item, or null.
    opts.thermal: a quark–gluon plasma freezing out instead: rapidities spread as a Gaussian (a fluid expanding along
    the beams), transverse momenta thermal at about 156 MeV, blue-shifted by the flow (heavier particles faster). */
+/* (1.38, item 102c; the owner: "add everything that can realistically be more realistic") A hadron's momentum across
+   the string, as measured: falling off exponentially (dN/dpT ∝ pT e^(−2pT/⟨pT⟩), not a Gaussian), its mean growing with
+   the collision's energy √s = M as the experiments' fit (CMS: ⟨pT⟩ = 0.413 − 0.0171 ln s + 0.00143 ln² s GeV): 0.36 GeV/c
+   at 20 GeV, 0.47 at 0.9 TeV, 0.55 at 7 TeV. Before, a Gaussian of about 0.37 GeV/c at every energy. MeV. */
+function jetPt(M) {
+  const ls = Math.log(Math.max(4, (M / 1000) ** 2)), mean = Math.max(0.3, 0.413 - 0.0171 * ls + 0.00143 * ls * ls) * 1000;
+  return -0.5 * mean * Math.log(Math.max(1e-12, rnd() * rnd()));
+}
 function jetMomenta(items, M, ax, ay, opts = {}) {
   if (W.d3) return jetMomenta3(items, M, opts.ax3 || [ax, ay, 0], opts); // (3-D, 1.25)
   const n = items.length, ms = items.map(massOf);
@@ -27550,7 +27581,7 @@ function jetMomenta(items, M, ax, ay, opts = {}) {
   order.forEach((i, rank) => { r[i] = opts.thermal ? gauss() : 2 * (rank + 0.5) / n - 1 + 0.35 * gauss() / n; });
   for (let i = 0; i < n; i++) {
     if (opts.thermal) { const Te = 160 + 140 * ms[i] / 1000; let mt = ms[i] - Te * Math.log(Math.max(1e-12, rnd() * rnd())) / 1.5; pt[i] = Math.sqrt(Math.max(0, mt * mt - ms[i] * ms[i])) * (rnd() < 0.5 ? -1 : 1); }
-    else pt[i] = 350 * (opts.ptScale || 1) * gauss() / Math.SQRT2 * 1.2; // (ptScale: resonances among them, whose decays add their own)
+    else pt[i] = jetPt(M) * (opts.ptScale || 1) * Math.cos(2 * Math.PI * rnd()); // (ptScale: resonances among them, whose decays add their own; the flat world keeps the part in its plane)
   }
   let mts = ms.map((m, i) => Math.hypot(m, pt[i])), base = mts.reduce((a, b) => a + b, 0);
   if (base >= M) { const k = Math.sqrt(Math.max(0, (M - msum) / (base - msum))) * 0.9; for (let i = 0; i < n; i++) pt[i] *= k; mts = ms.map((m, i) => Math.hypot(m, pt[i])); }
@@ -27586,7 +27617,7 @@ function jetMomenta3(items, M, a, opts) {
   order.forEach((i, rank) => { r[i] = opts.thermal ? gauss() : 2 * (rank + 0.5) / n - 1 + 0.35 * gauss() / n; });
   for (let i = 0; i < n; i++) {
     if (opts.thermal) { const Te = 160 + 140 * ms[i] / 1000; const mt = ms[i] - Te * Math.log(Math.max(1e-12, rnd() * rnd())) / 1.5, pt = Math.sqrt(Math.max(0, mt * mt - ms[i] * ms[i])), ph = rnd() * 2 * Math.PI; t1[i] = pt * Math.cos(ph); t2[i] = pt * Math.sin(ph); }
-    else { const w = 350 * (opts.ptScale || 1) / Math.SQRT2 * 1.2; t1[i] = w * gauss(); t2[i] = w * gauss(); }
+    else { const pT = jetPt(M) * (opts.ptScale || 1), ph = 2 * Math.PI * rnd(); t1[i] = pT * Math.cos(ph); t2[i] = pT * Math.sin(ph); }
   }
   let mts = ms.map((m, i) => Math.sqrt(m * m + t1[i] * t1[i] + t2[i] * t2[i])), base = mts.reduce((s, b) => s + b, 0);
   if (base >= M) { const k = Math.sqrt(Math.max(0, (M - msum) / (base - msum))) * 0.9; for (let i = 0; i < n; i++) { t1[i] *= k; t2[i] *= k; } mts = ms.map((m, i) => Math.sqrt(m * m + t1[i] * t1[i] + t2[i] * t2[i])); }
@@ -27726,15 +27757,20 @@ function exoScatter(o, x0, y0) {
   const mc2 = o.m * MEV, E = o.KE + mc2, pc = Math.sqrt(Math.max(0, o.KE * (o.KE + 2 * mc2))), pv = pc * pc / E; // (eV)
   if (!(pv > 0)) return;
   const list = hits.slice();
-  for (const [, tg, b0] of list) {
+  for (const [, tg] of list) {
     if (tg.dead) continue;
-    const b = Math.max(b0, 0.01), Zs = tg.Z, a = tg.ne > 0 ? 0.885 * 0.529177 / Math.cbrt(Zs) : Infinity;
+    // (1.38, item 102b; the owner: "add everything that can realistically be more realistic") A flat path passes its
+    // nuclei at distances spread evenly across its 2 Å band, so close passes, which turn it most, were far commoner than
+    // in space, where the passes fill a disc (2πb db): the spread came out several times the measured (Highland) width.
+    // Each nucleus in the band now stands for a pass in space: its distance drawn over the disc that holds as many
+    // nuclei (1.4 Å for a flat solid's 2.5 Å spacing), the turn in a random plane round the path, and the flat world
+    // keeps its part in the screen's plane (θ cos φ), as a detector's projected angle is.
+    const b = Math.max(1.4 * Math.sqrt(rnd()), 0.01), Zs = tg.Z, a = tg.ne > 0 ? 0.885 * 0.529177 / Math.cbrt(Zs) : Infinity;
     let th = 2 * PHYS.KE * Math.abs(o.q) * Zs / (b * pv) * (a === Infinity ? 1 : Math.exp(-b / a));
     if (!(th > 1e-7)) continue;
     th = Math.min(th, 0.3);
-    // the side the nucleus is on (relative to the path), and the sense: like charges push away
-    const sx = tg.x - x0, sy = tg.y - y0, side = Math.sign(sx * -o.uy + sy * o.ux) || 1, q = (tg.anti ? -1 : 1) * Math.sign(o.q);
-    const turn = (q < 0 ? 1 : -1) * side * th; // (the nucleus's field, screened or not: an opposite charge is pulled toward it, a like one pushed away)
+    const turn = th * Math.cos(2 * Math.PI * rnd());
+    if (!(Math.abs(turn) > 1e-7)) continue;
     const c = Math.cos(turn), s_ = Math.sin(turn), ux = o.ux * c - o.uy * s_, uy = o.ux * s_ + o.uy * c;
     // momentum handed to the nucleus (u·Å/tu), its recoil energy taken from the exo
     const pU = pc / (PHYS.AMU_MEV * MEV) * PHYS.C, dpx = pU * (o.ux - ux), dpy = pU * (o.uy - uy);

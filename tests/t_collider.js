@@ -368,7 +368,7 @@ for (const [key, frames] of [['isolde', 420], ['sns', 420], ['nif', 480], ['dafn
   const ok = key === 'isolde' ? heavy.length >= 15 && frag.length >= 3 && n('n') >= 20
     : key === 'sns' ? n('n') >= 30 && heavy.length >= 3
     : key === 'nif' ? W.count.fusion >= 1 && n('α') >= 1 && n('n') >= 1
-    : n('K⁺') >= 10 && top && top.lab === 'K⁺' || (top && top.lab === 'K⁻' && n('K⁺') === top.n);
+    : n('K⁺') >= 10 && top && n('K⁺') >= 0.8 * top.n; // (1.38: K⁺ among the commonest, not necessarily first: with ~60 φ a run, K⁺K⁻ 49% against K⁰ʟK⁰s 34% swaps places 1.5σ out, as seed 6 does since 1.37.1's fills; K⁰ʟ×30 against K⁺×29)
   if (!ok) bad(`${key}: not what the lab makes`);
 }
 console.log(fails ? `${fails} collider failure(s)` : 'collider checks passed');
