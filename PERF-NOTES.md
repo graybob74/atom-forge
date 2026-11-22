@@ -4161,6 +4161,17 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    f. "make descriptions more concise across the board": every description in the game (particle, element, isotope,
       molecule and object cards, setups, tools) shortened to the point; "across the board means everywhere (even
       settings)": Settings, Help and the tour too.
+102 (the owner, 2026-11-22: "add everything that can realistically be more realistic"; waiting for "build it")
+   a. Every hadron striking a nucleus hits several nucleons on its way through (pions, kaons, hyperons, antibaryons), as
+      B and D mesons do since 1.37.2 (Glauber path × density × cross section), not one.
+   b. Multiple scattering in the flat game spreads paths several times wider than through a real foil (a flat path
+      meets close nuclei more often): scale it to the measured (Highland) width.
+   c. High-energy products come out along the collision axis: give them the measured transverse momenta (about
+      0.4 GeV/c on average, falling off exponentially), so jets and sprays open up as in real detectors.
+   d. Liquid water in the 3-D lab comes out about 17% too dense (point charges and lone pairs alike): refit its
+      van der Waals constants in 3-D against the measured density, keeping the flat game as it is.
+   (Left as they are, the game's scale needs them: enlarged nuclei, nanometre accelerators, sped-up decay, few
+   particles a bunch, light as rays, bookkept atomic electrons, the flat world's doubled attractions.)
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
