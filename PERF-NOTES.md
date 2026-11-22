@@ -2009,6 +2009,11 @@ with B mesons which didn't collide and sigma baryons got thrown at 20 TeV) … w
   still let the first part give a 200 keV particle 75 times its energy; the floor is gone (every part at most a third
   more). LEP's fingerprint changes (b0bfef15 books aebe2922).
 - Σ⁺ on promethium: ring 258 collisions in 4 frames, none thrown out; 20 TeV linac, they meet at full energy.
+- **B and D mesons strike several nucleons** (the owner, after release: "can you make the b mesons able to hit multiple
+  nucleons?"). How many by its path through the nucleus (Glauber: 2R√(1 − (b/R)²) × 0.16 fm⁻³ × 20 mb, Poisson, at
+  least 1, at most 8; `heavyHits`), struck together as a cluster with the rest of the nucleus a spectator
+  (`struckCluster`); the heavy quark goes on in its meson, the cluster's nucleons come out with the pions. Central
+  through ¹⁴⁵Pm 4.1 on average, near the edge 2.1, ¹²C 2.3, hydrogen 1; books within 10⁻⁴ eV.
 - **Made here's ⌖** (the owner: "make the find in box button in made here just select it in your toolbar and send you to
   one if there is one"): picks the kind in the toolbar (a nuclide as its bare nucleus) and, with one in the box, the
   view goes to it and follows it; it no longer puts one down.

@@ -27154,6 +27154,27 @@ function struckNucleon(tg, onP) {
   const Er = Math.sqrt(mres * mres + kF * kF), Pres = toLab([Er, ...f.map(c => -kF * c)], bx, by, bz), PN = toLab([mres + mN - Er, ...f.map(c => kF * c)], bx, by, bz);
   return { onP, Zr, Nr, mres, mN, PN, Pres };
 }
+/* (1.37.2, the owner: "can you make the b mesons able to hit multiple nucleons?") ν nucleons struck together, the rest
+   of the nucleus a spectator on its mass shell (as struckNucleon, for a cluster): which ones by the protons' share,
+   their Fermi momenta adding up (about 250 MeV/c × √ν). */
+function struckCluster(tg, nu) {
+  let Z = tg.Z, N = tg.N, Zc = 0;
+  for (let i = 0; i < nu; i++) { if (rnd() < Z / (Z + N)) { Z--; Zc++; } else N--; }
+  const Zr = Z, Nr = N, mres = Zr + Nr ? nucMeV(Zr, Nr) : 0, mC = nucMeV(tg.Z, tg.N) - mres;
+  const kF = Zr + Nr ? 250 * Math.sqrt(nu * rnd()) : 0, f = rdir(), T = p4of(tg, true), bx = T[1] / T[0], by = T[2] / T[0], bz = (T[3] || 0) / T[0];
+  const Er = Math.sqrt(mres * mres + kF * kF), Pres = toLab([Er, ...f.map(c => -kF * c)], bx, by, bz), PN = toLab([mres + mC - Er, ...f.map(c => kF * c)], bx, by, bz);
+  return { onP: Zc > 0, Zr, Nr, mres, mN: mC, PN, Pres, q: Zc };
+}
+/* How many nucleons a charmed or bottom meson strikes on its way through (Glauber): its path through the nucleus at
+   that impact parameter, L = 2R√(1 − (b/R)²) (R = 1.2 A^⅓ fm), times the nuclear density (0.16 fm⁻³) and its cross
+   section on a nucleon (about 20 mb: its light quark does the hitting; a pion's is about 25), at least one, as it hit;
+   at most 8. Centrally through promethium about 4, near the edge 1–2. */
+function heavyHits(tg, u) {
+  const A = tg.Z + tg.N; if (A < 2) return 1;
+  const R = 1.2 * Math.cbrt(A), b = clamp(u / Math.sqrt(HIT_INEL), 0, 1), L = 2 * R * Math.sqrt(1 - b * b), m = Math.max(0.05, 0.16 * 2.0 * L);
+  let n = 0; for (let k = 0; k < 50 && n < 1; k++) { n = 0; let p = Math.exp(-m), c = p; const r = rnd(); while (r > c && n < 30) { n++; p *= m / n; c += p; } }
+  return clamp(n, 1, Math.min(8, A));
+}
 /* The items of an encounter, spread over the invariant mass of what came in (Pin), and the residual nucleus (excited
    by Ex MeV) as its own items. Returns false if they don't fit. */
 function exoOut(outs, Pin, sN, Ex, items, moms) {
@@ -27214,9 +27235,12 @@ function hadronHit(o, tg, u) {
       const kOut = swap ? (o.q ? (rnd() < 0.5 ? 'K0S' : 'K0L') : 'K+') : o.sp, nOut = swap ? (o.q ? 'p' : 'n') : (sN.onP ? 'p' : 'n');
       outs = [item(kOut), item(nOut)];
       txt = `${o.lab} + ${el}`; sub = swap ? 'charge exchange' : `knocks out a ${sN.onP ? 'proton' : 'neutron'}`;
-    } else if (d.heavy) { // (1.37.2) a charmed or bottom meson: its heavy quark goes on in it (the leading particle) and what it gives the struck nucleon makes pions; before, beams of them met a nucleus only by its charge, so B mesons never collided with one
-      const M = mass4(add4(Po, sN.PN)), h = hadronize(M - o.m - 5, 1, Nq, {}); if (!h) continue;
-      outs = [item(o.sp)].concat(h); txt = `${o.lab} + ${el}`; sub = `${o.lab}${sN.onP ? 'p' : 'n'} → ${o.lab} + ${summarize(h)}`;
+    } else if (d.heavy) { // (1.37.2) a charmed or bottom meson: its heavy quark goes on in it (the leading particle) and what it gives the nucleons it strikes on its way through (heavyHits: one to several) makes nucleons and pions; before, beams of them met a nucleus only by its charge, so B mesons never collided with one
+      const nu = heavyHits(tg, u), sC = nu > 1 ? struckCluster(tg, nu) : sN, PinC = nu > 1 ? add4(add4(Po, sC.PN), sC.Pres) : Pin;
+      const M = mass4(add4(Po, sC.PN)), h = hadronize(M - o.m - 5, nu, nu > 1 ? sC.q : Nq, {}); if (!h) continue;
+      outs = [item(o.sp)].concat(h); txt = `${o.lab} + ${el}`; sub = `struck ${nu > 1 ? nu + ' nucleons' : 'a ' + (sN.onP ? 'proton' : 'neutron')} → ${o.lab} + ${summarize(h)}`;
+      if (!exoOut(outs, PinC, sC, Ex * nu, items, moms)) continue;
+      ok = true; break;
     } else { // pions, η: hadronize with the nucleon
       const M = mass4(add4(Po, sN.PN)), hq = RP.res ? hfDraw(M, M - 5, 1) : null, ew = ewDraw(M, M - 5, 1, 'pbar', Po), h = hadronize(M - 5 - ewM(ew), 1, o.q + Nq - ewQ(ew), { hq }); if (!h) continue; // (1.27: hfDraw; ewDraw: a meson's antiquark, as an antiproton's)
       if (ew) h.push(ew);

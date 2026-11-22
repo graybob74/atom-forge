@@ -12,6 +12,13 @@ PARTS.heavy = async (page, check) => {
   X.hadronHit(o, tg, 0.2); const made = W.exo.filter(x => !x.dead).map(x => x.sp);
   const Y = load('all', { seed: 3 }), V = Y.W; Y.PRESETS.ring.build(); Y.setupCollider('ring', 'xB+', Y.beamKey(61, 145), 1e10); V.slowHold = false; V.hold = null; V.slowmo = false; Y.settleOverlaps(); V.baseSpf = V.simPerFrame;
   const t0 = Date.now(); for (let f = 0; f < 12 && Date.now() - t0 < 120000; f++) Y.simFrame(1 / 60, 1e9);
+  // (and on its way through it strikes several nucleons, as many as its path holds: the owner, "can you make the b mesons able to hit multiple nucleons?")
+  const nus = []; let bk = 0;
+  for (let i = 0; i < 30; i++) { W.exo.length = 0; W.parts.length = 0; const t2 = X.addAtom('Pm', 0, 0, { A: 145 }); t2.ne = 0; const o2 = X.addExo('B+', -1, 0, 1e10, 1, 0);
+    const b0 = X.totalEnergy().total + W.ledger.bath - W.ledger.nuc; X.hadronHit(o2, t2, 0.05); bk = Math.max(bk, Math.abs(X.totalEnergy().total + W.ledger.bath - W.ledger.nuc - b0));
+    const m = /struck (\d+) nucleons/.exec((W.log[W.log.length - 1] || {}).text || ''); nus.push(m ? +m[1] : 1); }
+  const nuM = nus.reduce((a, b) => a + b, 0) / nus.length;
+  check(nuM > 2.5 && nuM < 6 && bk < 1e-3, `1.37.2 a B⁺ through the middle of a promethium nucleus strikes ${nuM.toFixed(1)} nucleons on average (books within ${X.fmtE(bk)})`, `1.37.2 heavy: struck ${JSON.stringify(nus)}, books ${bk}`);
   check(made.filter(s => s === 'B+').length === 1 && V.collider.hits > 50, `1.37.2 a B⁺ striking promethium keeps its b quark (${made.length} made, one a B⁺); a B⁺ beam on a promethium beam: ${V.collider.hits} collisions (8 before)`, `1.37.2 heavy: made ${made.join(',')}, ring hits ${V.collider.hits}`);
 };
 PARTS.linac = async (page, check) => {
