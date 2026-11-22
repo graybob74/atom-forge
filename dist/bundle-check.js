@@ -9467,9 +9467,10 @@ function radPath(p, dt, q, mrest) {
     // to the axis was turned by qE⊥h/p at the slow momentum it started with: 56° the wrong way, out of the linac and
     // across the box, while the rest of the bunch went on to collide. The step is now split so that no part of it
     // gives more than a third of the particle's energy again: the turn then stays a fraction of the angle, and an
-    // accelerated particle stays on the axis (at most 200 parts a step; rings' cavities give a few per cent a turn: never split by
-    // this).
-    if (hasE) { const v0 = bSpd(p); if (v0 > 0) { const E = Efield(x1, y1, p), El = Math.abs(q * ((E[0] - _Esep[0]) * p.ux + (E[1] - _Esep[1]) * p.uy)); if (El > 0) { const hm = Math.max((p.KE / 3 + 1) / (El * v0), rem / 200); if (h > hm) h = hm; } } }
+    // accelerated particle stays on the axis (rings' cavities give a few per cent a turn: never split by this). 1.37.2: no
+    // floor on the parts (with one at a 200th of the step, a 20 TeV linac's first part still gave a 200 keV Σ⁺ 75 times its
+    // energy, and Σ⁺ beams reached the collision point at 4 TeV, off the axis, and missed).
+    if (hasE) { const v0 = bSpd(p); if (v0 > 0) { const E = Efield(x1, y1, p), El = Math.abs(q * ((E[0] - _Esep[0]) * p.ux + (E[1] - _Esep[1]) * p.uy)); if (El > 0) { const hm = (p.KE / 3 + 1) / (El * v0); if (h > hm) h = hm; } } }
     if (zoned) {
       const L = bSpd(p) * h, k0 = zoneKey(x1, y1, p);
       if (zoneKey(x1 + p.ux * L, y1 + p.uy * L, p) !== k0) { // an edge on the way: find it (along the line of the step)
@@ -27213,6 +27214,9 @@ function hadronHit(o, tg, u) {
       const kOut = swap ? (o.q ? (rnd() < 0.5 ? 'K0S' : 'K0L') : 'K+') : o.sp, nOut = swap ? (o.q ? 'p' : 'n') : (sN.onP ? 'p' : 'n');
       outs = [item(kOut), item(nOut)];
       txt = `${o.lab} + ${el}`; sub = swap ? 'charge exchange' : `knocks out a ${sN.onP ? 'proton' : 'neutron'}`;
+    } else if (d.heavy) { // (1.37.2) a charmed or bottom meson: its heavy quark goes on in it (the leading particle) and what it gives the struck nucleon makes pions; before, beams of them met a nucleus only by its charge, so B mesons never collided with one
+      const M = mass4(add4(Po, sN.PN)), h = hadronize(M - o.m - 5, 1, Nq, {}); if (!h) continue;
+      outs = [item(o.sp)].concat(h); txt = `${o.lab} + ${el}`; sub = `${o.lab}${sN.onP ? 'p' : 'n'} → ${o.lab} + ${summarize(h)}`;
     } else { // pions, η: hadronize with the nucleon
       const M = mass4(add4(Po, sN.PN)), hq = RP.res ? hfDraw(M, M - 5, 1) : null, ew = ewDraw(M, M - 5, 1, 'pbar', Po), h = hadronize(M - 5 - ewM(ew), 1, o.q + Nq - ewQ(ew), { hq }); if (!h) continue; // (1.27: hfDraw; ewDraw: a meson's antiquark, as an antiproton's)
       if (ew) h.push(ew);
@@ -29325,7 +29329,7 @@ function xbHit(C, a, b, d, x, y, ex, ey) {
     const t = xbAnnihilate(a, b, x, y); if (t) { hit(t); return; }
   } else if (!lepA && !lepB && u < Math.sqrt(HIT_INEL)) {
     const o = a.xb ? a : b, tg = o === a ? b : a;
-    if (!tg.xb && tg.k === NUC && !tg.anti && strongExo(o.sp)) { // (on a proton or a nucleus: as in matter)
+    if (!tg.xb && tg.k === NUC && !tg.anti && (strongExo(o.sp) || (XP[o.sp].heavy && Q_CONTENT[o.sp]))) { // (on a proton or a nucleus: as in matter; charm and bottom hadrons too, 1.37.2)
       const s0 = W.logSeq; _exoEvItems = null;
       hadronHit(o, tg, u);
       if (o.dead || tg.dead) {
@@ -42732,7 +42736,8 @@ function linacLayout(C, A, B, EA, EB) {
   W.zones.push({ kind: 'cavity', cx: 62, cy: 0, w: L, h: 10, ang: 0, E: -Math.max(0, EB - injB) / L / B.q, dir: -1, beam: 'b', label: 'linac' });
   // a lens of focal length f; for electrons a weaker one, as the field that bends them radiates (synchrotron light,
   // (2/3)k·γ⁴·y²/(w·f²) for a particle y off the axis): kept under 0.2% of the energy 0.6 Å off the axis
-  const fOf = (I, E) => { if (!I.lep) return f; const g = 1 + E / (I.m * AMU_EV); return Math.max(f, Math.sqrt(2 / 3 * PHYS.KE * g ** 4 * 0.36 / (wq * 0.002 * E))); };
+  const fOf = (I, E) => { if (!I.lep && !I.srad) return f; // (srad: unstable beams radiate too, 1.37.2: a 20 TeV Σ⁺ lost 17 TeV in the full-strength lens)
+    const g = 1 + E / (I.m * AMU_EV); return Math.max(f, Math.sqrt(2 / 3 * PHYS.KE * g ** 4 * 0.36 / (wq * 0.002 * E))); };
   const G = (I, E) => pcOf(I.m, E) / PHYS.C / (Math.abs(I.q) * wq * fOf(I, E) * PHYS.LOR) * Math.sign(I.q);
   W.zones.push({ kind: 'quad', cx: -13, cy: 0, w: wq, h: 12, ang: 0, G: G(A, EA) });
   W.zones.push({ kind: 'quad', cx: 13, cy: 0, w: wq, h: 12, ang: 0, G: -G(B, EB) });

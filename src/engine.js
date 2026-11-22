@@ -6606,9 +6606,10 @@ function radPath(p, dt, q, mrest) {
     // to the axis was turned by qE⊥h/p at the slow momentum it started with: 56° the wrong way, out of the linac and
     // across the box, while the rest of the bunch went on to collide. The step is now split so that no part of it
     // gives more than a third of the particle's energy again: the turn then stays a fraction of the angle, and an
-    // accelerated particle stays on the axis (at most 200 parts a step; rings' cavities give a few per cent a turn: never split by
-    // this).
-    if (hasE) { const v0 = bSpd(p); if (v0 > 0) { const E = Efield(x1, y1, p), El = Math.abs(q * ((E[0] - _Esep[0]) * p.ux + (E[1] - _Esep[1]) * p.uy)); if (El > 0) { const hm = Math.max((p.KE / 3 + 1) / (El * v0), rem / 200); if (h > hm) h = hm; } } }
+    // accelerated particle stays on the axis (rings' cavities give a few per cent a turn: never split by this). 1.37.2: no
+    // floor on the parts (with one at a 200th of the step, a 20 TeV linac's first part still gave a 200 keV Σ⁺ 75 times its
+    // energy, and Σ⁺ beams reached the collision point at 4 TeV, off the axis, and missed).
+    if (hasE) { const v0 = bSpd(p); if (v0 > 0) { const E = Efield(x1, y1, p), El = Math.abs(q * ((E[0] - _Esep[0]) * p.ux + (E[1] - _Esep[1]) * p.uy)); if (El > 0) { const hm = (p.KE / 3 + 1) / (El * v0); if (h > hm) h = hm; } } }
     if (zoned) {
       const L = bSpd(p) * h, k0 = zoneKey(x1, y1, p);
       if (zoneKey(x1 + p.ux * L, y1 + p.uy * L, p) !== k0) { // an edge on the way: find it (along the line of the step)

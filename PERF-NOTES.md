@@ -1991,6 +1991,31 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.37.2: unstable beams against heavy ions; Made here's find button (the owner, 2026-11-22)
+
+The owner: "some particles get thrown out or just don't collide, probably because they're too small or light (tried
+with B mesons which didn't collide and sigma baryons got thrown at 20 TeV) … while colliding with another element
+(promethium)".
+- **B mesons never struck a nucleus.** `strongExo` leaves out charm and bottom hadrons (`hadronHit` had no way to keep
+  their heavy quark), so in a collider a B⁺ met a promethium nucleus only by its charge. Now `xbHit` sends them to
+  `hadronHit`, whose new branch keeps the heavy quark in the leading hadron and makes pions from what it gives the struck
+  nucleon (B⁺n → B⁺ + n + 2π⁰ + 2π⁺ + 2π⁻ at 10 GeV; books within meV). B⁺ ring on a ¹⁴⁵Pm ring at 10 GeV: 8 → 270–283
+  collisions in 12 frames.
+- **Σ⁺ (and μ, any unstable beam) at 20 TeV lost most of their energy before the collision point.** The linac's
+  focusing magnet is set weaker for electrons, which radiate in it, but full strength for everything else, and unstable
+  beams radiate too (`srad`): a 20 TeV Σ⁺ came out of it at 2.7–4.5 TeV and off the axis, and passed the other beam.
+  `fOf` now gives them the electrons' gentler lens. 20 TeV Σ⁺ and μ⁻ now reach the middle at 20.0 TeV (before 0.6 GeV to
+  20 TeV); 1 TeV unchanged. Also, the step split of 1.37 (item 100e) had a floor of a 200th of a step, which at 20 TeV
+  still let the first part give a 200 keV particle 75 times its energy; the floor is gone (every part at most a third
+  more). LEP's fingerprint changes (b0bfef15 books aebe2922).
+- Σ⁺ on promethium: ring 258 collisions in 4 frames, none thrown out; 20 TeV linac, they meet at full energy.
+- **Made here's ⌖** (the owner: "make the find in box button in made here just select it in your toolbar and send you to
+  one if there is one"): picks the kind in the toolbar (a nuclide as its bare nucleus) and, with one in the box, the
+  view goes to it and follows it; it no longer puts one down.
+- Seen, not fixed: a 20 TeV linear collider with a heavy-ion beam fills the box with 1,500 unstable products and frames
+  take 5–25 s in the Node harness.
+- Tests: `tests/f_1372.js` (heavy, linac); f_1371 page (⌖).
+
 ## 1.37.1 (released 2026-11-22): item 101 (the owner, 2026-11-22, "build it")
 
 - **a. No hourglass** (the owner: "just remove the icon and number color changing"). The slow-motion button is gone

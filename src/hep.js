@@ -480,6 +480,9 @@ function hadronHit(o, tg, u) {
       const kOut = swap ? (o.q ? (rnd() < 0.5 ? 'K0S' : 'K0L') : 'K+') : o.sp, nOut = swap ? (o.q ? 'p' : 'n') : (sN.onP ? 'p' : 'n');
       outs = [item(kOut), item(nOut)];
       txt = `${o.lab} + ${el}`; sub = swap ? 'charge exchange' : `knocks out a ${sN.onP ? 'proton' : 'neutron'}`;
+    } else if (d.heavy) { // (1.37.2) a charmed or bottom meson: its heavy quark goes on in it (the leading particle) and what it gives the struck nucleon makes pions; before, beams of them met a nucleus only by its charge, so B mesons never collided with one
+      const M = mass4(add4(Po, sN.PN)), h = hadronize(M - o.m - 5, 1, Nq, {}); if (!h) continue;
+      outs = [item(o.sp)].concat(h); txt = `${o.lab} + ${el}`; sub = `${o.lab}${sN.onP ? 'p' : 'n'} → ${o.lab} + ${summarize(h)}`;
     } else { // pions, η: hadronize with the nucleon
       const M = mass4(add4(Po, sN.PN)), hq = RP.res ? hfDraw(M, M - 5, 1) : null, ew = ewDraw(M, M - 5, 1, 'pbar', Po), h = hadronize(M - 5 - ewM(ew), 1, o.q + Nq - ewQ(ew), { hq }); if (!h) continue; // (1.27: hfDraw; ewDraw: a meson's antiquark, as an antiproton's)
       if (ew) h.push(ew);
@@ -2592,7 +2595,7 @@ function xbHit(C, a, b, d, x, y, ex, ey) {
     const t = xbAnnihilate(a, b, x, y); if (t) { hit(t); return; }
   } else if (!lepA && !lepB && u < Math.sqrt(HIT_INEL)) {
     const o = a.xb ? a : b, tg = o === a ? b : a;
-    if (!tg.xb && tg.k === NUC && !tg.anti && strongExo(o.sp)) { // (on a proton or a nucleus: as in matter)
+    if (!tg.xb && tg.k === NUC && !tg.anti && (strongExo(o.sp) || (XP[o.sp].heavy && Q_CONTENT[o.sp]))) { // (on a proton or a nucleus: as in matter; charm and bottom hadrons too, 1.37.2)
       const s0 = W.logSeq; _exoEvItems = null;
       hadronHit(o, tg, u);
       if (o.dead || tg.dead) {

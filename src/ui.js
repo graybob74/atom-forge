@@ -4033,7 +4033,8 @@ function linacLayout(C, A, B, EA, EB) {
   W.zones.push({ kind: 'cavity', cx: 62, cy: 0, w: L, h: 10, ang: 0, E: -Math.max(0, EB - injB) / L / B.q, dir: -1, beam: 'b', label: 'linac' });
   // a lens of focal length f; for electrons a weaker one, as the field that bends them radiates (synchrotron light,
   // (2/3)k·γ⁴·y²/(w·f²) for a particle y off the axis): kept under 0.2% of the energy 0.6 Å off the axis
-  const fOf = (I, E) => { if (!I.lep) return f; const g = 1 + E / (I.m * AMU_EV); return Math.max(f, Math.sqrt(2 / 3 * PHYS.KE * g ** 4 * 0.36 / (wq * 0.002 * E))); };
+  const fOf = (I, E) => { if (!I.lep && !I.srad) return f; // (srad: unstable beams radiate too, 1.37.2: a 20 TeV Σ⁺ lost 17 TeV in the full-strength lens)
+    const g = 1 + E / (I.m * AMU_EV); return Math.max(f, Math.sqrt(2 / 3 * PHYS.KE * g ** 4 * 0.36 / (wq * 0.002 * E))); };
   const G = (I, E) => pcOf(I.m, E) / PHYS.C / (Math.abs(I.q) * wq * fOf(I, E) * PHYS.LOR) * Math.sign(I.q);
   W.zones.push({ kind: 'quad', cx: -13, cy: 0, w: wq, h: 12, ang: 0, G: G(A, EA) });
   W.zones.push({ kind: 'quad', cx: 13, cy: 0, w: wq, h: 12, ang: 0, G: -G(B, EB) });
