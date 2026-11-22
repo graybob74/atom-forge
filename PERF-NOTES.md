@@ -4088,6 +4088,8 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    b. The collider's Made window: list electrons and positrons too.
    c. Colliders: make sure the magnets and RF cavities are clear before firing again (the next fill waits until nothing
       from the last one is left in them).
+   d. The quark–gluon plasma drawn at its true size all the time, so zooming doesn't change it (the owner, 2026-11-22;
+      now its radius is held to 30–160 pixels on screen whatever the zoom, flat and 3-D).
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
