@@ -4085,7 +4085,8 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 101 (the owner, 2026-11-22, for 1.37.1; waiting for "build it")
    a. Remove the slow-motion hourglass icon and the speed number's colour change; automatic slow motion itself stays
       (the owner: "just remove the icon and number color changing").
-   b. The collider's Made window: list electrons and positrons too.
+   b. The Made here window (Data → Made here, W.made: `noteMade` skips e⁻, e⁺, γ and neutrinos): list electrons and
+      positrons too.
    c. Colliders: make sure the magnets and RF cavities are clear before firing again (the next fill waits until nothing
       from the last one is left in them).
    d. The quark–gluon plasma drawn at its true size all the time, so zooming doesn't change it (the owner, 2026-11-22;
@@ -4093,6 +4094,10 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
       mode, it's the true size but in normal mode it's just a fixed game size": in ultra-realistic mode its real size
       (about 10 fm across for gold on gold, from the colliding nuclei's radii); otherwise a fixed size in the game's
       ångström (1.5 → 5 Å as it grows), both scaling with the zoom like everything else.
+   e. The info button (i) in Made here takes you to a web page about the particle (its Wikipedia article, or a Google
+      search when there is none) instead of the in-game card (the owner, 2026-11-22).
+   f. "make descriptions more concise across the board": every description in the game (particle, element, isotope,
+      molecule and object cards, setups, tools) shortened to the point.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
