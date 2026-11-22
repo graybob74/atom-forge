@@ -4089,7 +4089,10 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    c. Colliders: make sure the magnets and RF cavities are clear before firing again (the next fill waits until nothing
       from the last one is left in them).
    d. The quark–gluon plasma drawn at its true size all the time, so zooming doesn't change it (the owner, 2026-11-22;
-      now its radius is held to 30–160 pixels on screen whatever the zoom, flat and 3-D).
+      now its radius is held to 30–160 pixels on screen whatever the zoom, flat and 3-D). The owner: "in ultra realistic
+      mode, it's the true size but in normal mode it's just a fixed game size": in ultra-realistic mode its real size
+      (about 10 fm across for gold on gold, from the colliding nuclei's radii); otherwise a fixed size in the game's
+      ångström (1.5 → 5 Å as it grows), both scaling with the zoom like everything else.
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
