@@ -4082,6 +4082,11 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    f. "Select particles" in the collider panel opens its own window: every particle in the game, by category (leptons,
       nucleons and antinucleons, mesons, baryons, bosons, multiquarks, exotic atoms and nuclei, every element and
       isotope …), searchable, for each beam.
+101 (the owner, 2026-11-22; waiting for "build it")
+   a. Remove the slow-motion hourglass.
+   b. The collider's Made window: list electrons and positrons too.
+   c. Colliders: make sure the magnets and RF cavities are clear before firing again (the next fill waits until nothing
+      from the last one is left in them).
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
