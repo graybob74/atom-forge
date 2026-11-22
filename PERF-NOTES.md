@@ -1991,6 +1991,38 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.37.1: item 101 (the owner, 2026-11-22, "build it")
+
+- **a. No hourglass** (the owner: "just remove the icon and number color changing"). The slow-motion button is gone
+  (the \\ key still turns slow motion on and off, automatic slow motion is unchanged), and the speed number keeps one
+  colour (no amber at the computer's limit, no violet in slow motion; the tooltip still says when the computer limits it).
+  t_page and the 1.14 check toggle slow motion by `toggleSlowmo` instead of the button.
+- **b. Made here lists e⁻, e⁺ and γ rays** (W.made.lep, from `noteMade`, which skipped them; neutrinos were already
+  counted as they leave). LEP: γ×21, e⁻×2 in the check.
+- **e. Made here's buttons.** i opens a web page about the particle (`specWebURL`): its Wikipedia article where the game
+  knows one (the cards' Read more: Muon, Gamma ray, the element), else a Google search (a nuclide: "calcium-48
+  isotope"); the desktop app opens it in the browser (its `open_wiki` now takes those two sites). ⌖ beside it finds one
+  in the box and the view follows it, or puts one in the middle of the view (`findOrSpawn`).
+- **d. The quark–gluon plasma at its size** (the owner: "in ultra realistic mode, it's the true size but in normal mode
+  it's just a fixed game size"). Its radius was held to 30–160 px whatever the zoom. Now `qgpRadius` in ångström,
+  scaled by the zoom: normal mode 6 → 20 Å flat, 1.5 → 5 Å in 3-D (as it looked at 1× zoom); ultra-realistic 1.2 fm ×
+  (melted nucleons)^⅓, swelling to twice that (gold on gold: 35 fm across at freeze-out, a speck under its caption).
+  Partons are drawn only when it is over 6 px across.
+- **c. A fill waits for a clear machine** (the owner: "make sure magnets and rf are clear before firing again"). The next
+  fill waits while a product in flight is inside a magnet, cavity, kicker or separator (`machineClear`, at most 3 s).
+  That showed the linear collider's focusing magnets catching slow pions for good (149 of 1,433 pions that entered stayed
+  over half a second, hovering at the magnets' corners: the "focusing ring stops exotic particles" of item 100d), so each
+  focusing magnet now works on its own incoming beam only, as each linac's RF does since 1.37 (a real final-focus magnet
+  holds its field in a bore millimetres across that the beam goes down). 100 GeV p p̄: before, 5 fills with 122–356
+  products in the magnets; after, every fill with none, and more collisions (14–28 against 16). LEP and DAΦNE
+  fingerprints change again (lep 9a2e011d books 777ba2bb, dafne eb56fac9 books 2f48935f).
+- **f. Shorter text everywhere** (the owner: "make descriptions more concise across the board … everywhere (even
+  settings)"). The setups' descriptions 21.9 → 11.7 KB, Settings' long notes 43 → 17 KB, the Physics tab 31 → 13 KB,
+  Help, the tour and the 3-D menu note (which still said the collider was flat-only) rewritten; the facts and numbers
+  kept, the asides cut. Element and particle cards were already one or two sentences.
+- Tests: `tests/f_1371.js` (clear, qgp, made, page). Found, not from this change: f_124's "light" part fails on 1.37.0
+  too (the Light tool in 3-D: photons toward the camera 0–3).
+
 ## 1.37.0 (released 2026-11-20): the colliders, from the owner's notes (item 100; 2026-11-20, "build it")
 
 - **a. The 3-D quark–gluon plasma is a body in space** (the owner: "qgp draws in 3d mode but it looks 2d … Don't have
@@ -4082,7 +4114,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    f. "Select particles" in the collider panel opens its own window: every particle in the game, by category (leptons,
       nucleons and antinucleons, mesons, baryons, bosons, multiquarks, exotic atoms and nuclei, every element and
       isotope …), searchable, for each beam.
-101 (the owner, 2026-11-22, for 1.37.1; waiting for "build it")
+101 (built 2026-11-22 in 1.37.1, the owner's "build it")
    a. Remove the slow-motion hourglass icon and the speed number's colour change; automatic slow motion itself stays
       (the owner: "just remove the icon and number color changing").
    b. The Made here window (Data → Made here, W.made: `noteMade` skips e⁻, e⁺, γ and neutrinos): list electrons and

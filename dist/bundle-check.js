@@ -43173,213 +43173,213 @@ function scatter3(n, L, fn, minD = 2.2) {
 const D_SPEC = { kind: 'atom', Z: 1, A: 2, bare: true }, T_SPEC = { kind: 'atom', Z: 1, A: 3, bare: true };
 const PRESETS = {
   soup: { group: 'Building blocks', name: 'Primordial soup', tool: 'place', spec: SPEC_P,
-    hint: '<b>Protons, neutrons and electrons at 3,000 K.</b> Electrons fall into protons (each red flash is a Balmer line), hydrogen atoms pair into H₂, and free neutrons β-decay (sped up ×6×10¹³, so their 10-minute half-life passes in about 11 s). Heat past 30,000 K to strip the electrons off again.',
+    hint: '<b>Protons, neutrons and electrons at 3,000 K.</b> Electrons fall into protons (red flashes: Balmer lines), hydrogen pairs into H₂, and free neutrons β-decay (sped up ×6×10¹³: 10 minutes in 11 s). Heat past 30,000 K to strip the electrons again.',
     build() { baseWorld(60, 42, 3000, 0.05); W.warp = 6e13;
       scatter(24, 60, 42, (x, y) => spawnSpec(SPEC_P, x, y), 3);
       scatter(24, 60, 42, (x, y) => spawnSpec({ kind: 'e' }, x, y), 0);
       scatter(8, 60, 42, (x, y) => spawnSpec({ kind: 'n' }, x, y), 0); } },
   empty: { group: 'Building blocks', name: 'Empty chamber', tool: 'place', spec: SPEC_P,
-    hint: '<b>An empty chamber at room temperature.</b> Pick a particle above and click to place it. Try a proton and an electron, two hydrogen atoms, or any element, isotope or ion from <b>Elements…</b>',
+    hint: '<b>An empty chamber at room temperature.</b> Pick a particle above and click to place it, or any element, isotope or ion from <b>Elements…</b>',
     build() { baseWorld(40, 28, 300, 0.05); } },
   /* ---- the 3-D lab (a mode of its own, chosen in the main menu: these setups are listed only while in it, and the flat
      setups only outside it). Box sizes keep each to about 1,000 atoms or fewer: the 3-D kernel (JavaScript, one thread)
      costs about three times the flat one per atom at liquid density. */
   d3empty: { group: G3D, d3: true, name: 'Empty 3-D box', tool: 'place', spec: { kind: 'mol', mol: 'H2O' },
-    hint: '<b>An empty 30 Å cube at room temperature.</b> Pick an atom or molecule above and click to place it: it lands on the atom under the pointer, or on the plane through the middle of the box facing you. Turn the view with a right-drag (or Alt+drag, or the arrow keys), pan with Shift+right-drag, zoom with the wheel; <b>0</b> fits the box again.',
+    hint: '<b>An empty 30 Å cube at room temperature.</b> Pick an atom or molecule and click to place it. Right-drag (Alt+drag, arrow keys) turns the view, Shift+right-drag pans, the wheel zooms, <b>0</b> fits the box.',
     build() { baseWorld(30, 30, 300, 0.05); world3d(30); } },
   mol3d: { group: G3D, d3: true, name: 'Molecules in space', tool: 'inspect', spec: { kind: 'mol', mol: 'H2O' },
-    hint: '<b>Water, methane, ammonia, carbon dioxide and benzene at 300 K in a 30 Å cube.</b> Methane is a tetrahedron, ammonia a low pyramid, water bent, CO₂ straight and benzene a flat ring: measure them with the Measure tool (K). Turn the view with a right-drag, Alt+drag or the arrow keys; pan with Shift+right-drag; zoom with the wheel; <b>0</b> fits the box again. Click an atom to inspect it.',
+    hint: '<b>Water, methane, ammonia, CO₂ and benzene at 300 K in a 30 Å cube.</b> Methane is a tetrahedron, ammonia a pyramid, water bent, CO₂ straight, benzene a flat ring: measure them with Measure (K). Right-drag turns the view, <b>0</b> fits the box.',
     build() { baseWorld(30, 30, 300, 0.05); world3d(30);
       const keys = ['benzene', 'CH4', 'H2O', 'NH3', 'CO2', 'CH4', 'H2O', 'NH3', 'CO2', 'benzene', 'H2O', 'CH4', 'NH3', 'CO2', 'H2O'];
       keys.forEach((k, n) => addMolecule(k, -9 + (n % 3) * 9 + (rnd() - 0.5), -9 + (Math.floor(n / 3) % 3) * 9 + (rnd() - 0.5), rnd() * 6, 300, n < 9 ? -6.5 : 6.5)); } },
   water3d: { group: G3D, d3: true, name: 'Liquid water', tool: 'heat', spec: { kind: 'mol', mol: 'H2O' },
-    hint: '<b>343 water molecules at 300 K filling a 22 Å cube, at about the density of real water.</b> Each molecule makes hydrogen bonds (dotted lines) with up to four neighbours in three directions, the network a flat world cannot have. Heat a spot (the brush heats what you see under it, all the way through) and watch molecules boil off.',
+    hint: '<b>343 water molecules at 300 K in a 22 Å cube, at real water’s density.</b> Each makes up to four hydrogen bonds (dotted) in three directions. Heat a spot and watch molecules boil off.',
     calm: 20, build() { baseWorld(22, 22, 300, 0.05); world3d(22); W.wall = 'wrap'; W.simPerFrame = 0.25; lattice3(22, 7, (x, y, z) => addMolecule('H2O', x, y, rnd() * 6, 300, z)); } },
   combustion3d: { group: G3D, d3: true, name: 'Hydrogen + oxygen', tool: 'spark', spec: { kind: 'mol', mol: 'H2' },
-    hint: '<b>A 2:1 mix of H₂ and O₂ at 600 K in a 36 Å cube.</b> Nothing happens until a bond breaks. Click with the Spark tool (it sparks at the atom under the pointer, or the middle of the box): radicals (H, O, OH) start chain reactions that make water and release heat.',
+    hint: '<b>H₂ and O₂ (2:1) at 600 K in a 36 Å cube.</b> Nothing happens until a bond breaks: click with Spark and the radicals (H, O, OH) start chain reactions that make water and heat.',
     build() { baseWorld(36, 36, 600, 0.005); world3d(36); let k = 0; lattice3(36, 6, (x, y, z) => addMolecule(k++ % 3 === 0 ? 'O2' : 'H2', x + (rnd() - 0.5), y + (rnd() - 0.5), rnd() * 6, 600, z + (rnd() - 0.5))); } },
   hydrogen3d: { group: G3D, d3: true, name: 'Hot hydrogen atoms pairing up', tool: 'inspect', spec: { kind: 'atom', Z: 1, A: 1 },
-    hint: '<b>Two hundred hydrogen atoms at 1,500 K in a 30 Å cube.</b> Two atoms that meet can pair into H₂ only if something takes away the 4.5 eV the bond gives off: here a third atom nearby, or the heat bath. Watch the count of H₂ climb in the Data tab.',
+    hint: '<b>200 hydrogen atoms at 1,500 K in a 30 Å cube.</b> Two atoms pair into H₂ only if a third atom or the heat bath takes the 4.5 eV the bond releases. Watch H₂ climb in the Data tab.',
     build() { baseWorld(30, 30, 1500, 0.05); world3d(30); scatter3(200, 28, (x, y, z) => addAtom('H', x, y, { z })); } },
   brine3d: { group: G3D, d3: true, name: 'Salt in water', tool: 'heat', spec: { kind: 'mol', mol: 'H2O' },
-    hint: '<b>Eight Na⁺ and eight Cl⁻ ions among 327 water molecules at 300 K, in a 22 Å periodic cube.</b> Water turns its oxygen side to each Na⁺ and its hydrogen side to each Cl⁻: around Na⁺ about six waters, the shell real brine has (a flat world fits about half as many). The ionic view (Lab → View) draws the contacts between ions.',
+    hint: '<b>8 Na⁺ and 8 Cl⁻ among 327 waters at 300 K (22 Å periodic cube).</b> Water turns its oxygen to Na⁺ (about six around each, as in real brine) and its hydrogens to Cl⁻. Lab → View → ionic draws the ion contacts.',
     calm: 20, build() { baseWorld(22, 22, 300, 0.05); world3d(22); W.wall = 'wrap'; W.simPerFrame = 0.25; const on = (v, set) => set.includes(v);
       lattice3(22, 7, (x, y, z, i, j, l) => { // (Na⁺ on the cells {1, 4}³, Cl⁻ on {3, 6}³: eight of each, apart; water everywhere else)
         if ([i, j, l].every(v => on(v, [1, 4]))) addAtom('Na', x, y, { charge: 1, z }); else if ([i, j, l].every(v => on(v, [3, 6]))) addAtom('Cl', x, y, { charge: -1, z });
         else addMolecule('H2O', x, y, rnd() * 6, 300, z); }); } },
   ring3d: { group: G3D, d3: true, name: 'Ring collider', tool: 'inspect', tab: 'lab', spec: { kind: 'pos' },
-    hint: '<b>A collider ring in the 3-D lab: positrons and electrons go round one ring in opposite directions and meet in the detector.</b> The ring lies in the middle plane of the box (red bending magnets, gold RF cavities that speed the beams up, violet focusing magnets); turn the view to see it from the side. Change the beams and energy in the Lab tab.',
+    hint: '<b>A 3-D collider ring:</b> positrons and electrons circle in opposite directions and meet in the detector. Red: bending magnets; gold: RF cavities; violet: focusing magnets. Beams and energy: Lab tab.',
     build() { baseWorld(150, 130, 300, 0); world3d(80); W.wall = 'open'; setupCollider('ring', 'ee', 2e6); } },
   linac3d: { group: G3D, d3: true, name: 'Linear collider', tool: 'inspect', tab: 'lab', spec: { kind: 'e' },
-    hint: '<b>Two linear accelerators in the 3-D lab fire electrons and positrons at each other.</b> Each cavity row (gold) pushes its beam along the middle plane of the box, the focusing magnets (violet) squeeze it onto the axis, and the two meet head-on at the collision point.',
+    hint: '<b>Two 3-D linacs fire electrons and positrons head-on.</b> Gold cavities speed each beam up, violet magnets focus it, and they meet at the collision point.',
     build() { baseWorld(230, 60, 300, 0); world3d(80); W.wall = 'open'; setupCollider('linear', 'ee', 1e6); } },
   rhic3d: { group: G3D, d3: true, name: 'Gold on gold', tool: 'inspect', tab: 'lab', spec: { kind: 'atom', Z: 79, A: 197, bare: true },
-    hint: '<b>Gold nuclei at 100 GeV per nucleon, head on, as at RHIC (Brookhaven), in the 3-D lab.</b> Each beam has a ring of its own in the middle plane; the two cross in the detector. Glancing passes knock nucleons off; when the nuclei overlap, the overlap melts into a quark–gluon plasma, and what it freezes into flies out in every direction: turn the view to see the spray.',
+    hint: '<b>Gold on gold at 100 GeV per nucleon, as at RHIC, in 3-D.</b> Glancing hits knock nucleons off; full overlaps melt into a quark–gluon plasma that freezes into a spray of hadrons in every direction.',
     build() { baseWorld(150, 130, 300, 0); world3d(80); W.wall = 'open'; setupCollider('ring', 'au197', 'au197', 197 * 100e9); } },
   lep3d: { group: G3D, d3: true, name: 'CERN LEP: the Z factory', tool: 'inspect', tab: 'lab', spec: { kind: 'e' },
-    hint: '<b>CERN’s Large Electron–Positron collider tuned to the Z boson, in the 3-D lab.</b> Electrons and positrons at 45.6 GeV each meet at about 91 GeV, the Z⁰’s mass, so nearly every collision makes a Z, which decays at once: into a quark pair (two jets of hadrons, pointing any way in space), a lepton pair, or neutrinos nobody sees. Turn the view to follow the jets.',
+    hint: '<b>LEP tuned to the Z boson, in 3-D.</b> Electrons and positrons at 45.6 GeV meet at 91 GeV, the Z’s mass; each Z decays at once into two jets, a lepton pair or unseen neutrinos.',
     build() { baseWorld(230, 60, 300, 0); world3d(80); W.wall = 'open'; setupCollider('linear', 'ee', 45.6e9); } },
   dafne3d: { group: G3D, d3: true, name: 'Frascati DAΦNE: the φ factory', tool: 'inspect', tab: 'lab', spec: { kind: 'e' },
-    hint: '<b>Italy’s electron–positron collider at Frascati, tuned to make φ mesons, in the 3-D lab.</b> Electrons and positrons at 510 MeV each meet at 1.02 GeV, the φ’s mass, so most collisions make a φ, which falls apart into two kaons (K⁺K⁻ or K⁰ʟK⁰s) flying back to back in a direction anywhere in space.',
+    hint: '<b>DAΦNE (Frascati) tuned to the φ meson, in 3-D.</b> 510 MeV electrons and positrons meet at 1.02 GeV, the φ’s mass; each φ splits into two kaons flying back to back.',
     build() { baseWorld(230, 60, 300, 0); world3d(80); W.wall = 'open'; setupCollider('linear', 'ee', 5.1e8); } },
   fixed3d: { group: G3D, d3: true, name: 'Fixed-target synchrotron', tool: 'inspect', tab: 'lab', spec: SPEC_P,
-    hint: '<b>A synchrotron in the 3-D lab that fires its beam at a target at rest.</b> Protons are injected, sped up round the ring to 1.4 GeV, then steered out down the extraction line into a block of tungsten atoms, where they knock nuclei apart (spallation); what comes out flies off in every direction.',
+    hint: '<b>A 3-D synchrotron firing at a target.</b> Protons are sped up to 1.4 GeV, extracted and sent into a tungsten block, where they smash nuclei apart (spallation).',
     build() { baseWorld(150, 130, 300, 0); world3d(80); W.wall = 'open'; setupCollider('fixed', 'p', 'p', 1.4e9); } },
   combustion: { group: 'Chemistry', name: 'Hydrogen + oxygen', tool: 'spark', spec: { kind: 'mol', mol: 'H2' },
-    hint: '<b>A 2:1 mix of H₂ and O₂ at 600 K.</b> Nothing happens until a bond breaks. Click with the Spark tool or heat a spot: radicals (H, O, OH) start chain reactions that make water and release heat.',
+    hint: '<b>H₂ and O₂ (2:1) at 600 K.</b> Nothing happens until a bond breaks: Spark or heat a spot, and radicals (H, O, OH) start chain reactions that make water and heat.',
     build() { baseWorld(64, 44, 600, 0.005); let k = 0;
       for (let i = 0; i < 10; i++) for (let j = 0; j < 7; j++) addMolecule(k++ % 3 === 0 ? 'O2' : 'H2', -28.8 + i * 6.4 + (rnd() - 0.5), -19 + j * 6.3 + (rnd() - 0.5), rnd() * 6, 600); } },
   water: { group: 'Chemistry', name: 'Liquid water', tool: 'heat', spec: { kind: 'mol', mol: 'H2O' },
-    hint: '<b>Eighty water molecules at 300 K.</b> Oxygen carries a partial negative charge and hydrogen a partial positive one, so molecules cling by hydrogen bonds (dotted lines). Heat a spot and watch molecules evaporate.',
+    hint: '<b>80 water molecules at 300 K.</b> Partial charges on O (−) and H (+) make hydrogen bonds (dotted). Heat a spot to evaporate some.',
     build() { baseWorld(40, 30, 300, 0.05); for (let i = 0; i < 10; i++) for (let j = 0; j < 8; j++) addMolecule('H2O', -15.5 + i * 3.4, -12 + j * 3.4, rnd() * 6, 300); } },
   gallery: { group: 'Chemistry', name: 'Molecule gallery', tool: 'inspect', spec: { kind: 'mol', mol: 'caffeine' },
-    hint: '<b>Two dozen molecules from the library at room temperature.</b> Click one with Inspect to read about it, or open <b>Molecules…</b> for the whole library, searchable by name or formula. Everything here is flat, so a tetrahedral carbon becomes a cross.',
+    hint: '<b>Two dozen molecules from the library.</b> Inspect one to read about it, or open <b>Molecules…</b> for the whole searchable library. The world is flat, so a tetrahedral carbon becomes a cross.',
     build() { baseWorld(86, 56, 300, 0.05);
       const rows = [['H2O', 'CO2', 'NH3', 'CH4', 'O3', 'SF6'], ['ethanol', 'acetic', 'benzene', 'caffeine', 'aspirin', 'glucose'],
         ['coronene', 'adenine', 'thymine', 'glycine', 'urea', 'vitaminC'], ['dopamine', 'serotonin', 'paracetamol', 'nicotine', 'XeF4', 'H2SO4']];
       rows.forEach((r, j) => r.forEach((k, i) => addMolecule(k, -35 + i * 14, 20.5 - j * 13.7, 0, 300))); } },
   salt: { group: 'Chemistry', name: 'Salt crystal', tool: 'heat', spec: { kind: 'atom', Z: 11, A: 23 },
-    hint: '<b>Na⁺ and Cl⁻ ions in a square lattice.</b> Coulomb attraction holds them; Born repulsion stops them collapsing. Heat it to melt it, or drop in neutral Na and Cl atoms: an electron jumps from Na to Cl when that releases energy (ionic bonding).',
+    hint: '<b>A Na⁺Cl⁻ lattice.</b> Coulomb attraction holds it; Born repulsion keeps it from collapsing. Heat it to melt it, or add neutral Na and Cl: an electron jumps from Na to Cl (ionic bonding).',
     build() { baseWorld(50, 36, 300, 0.05); const a = 2.76;
       for (let i = 0; i < 8; i++) for (let j = 0; j < 6; j++) addAtom((i + j) % 2 ? 'Cl' : 'Na', (i - 3.5) * a, (j - 2.5) * a, { charge: (i + j) % 2 ? -1 : 1 }); } },
   brine: { group: 'Chemistry', name: 'Salt dissolving in water', tool: 'heat', spec: { kind: 'mol', mol: 'H2O' },
-    hint: '<b>A salt crystal (Na⁺ Cl⁻) dropped into water at 300 K.</b> Water molecules turn their oxygen side to the Na⁺ and their hydrogen side to the Cl⁻; at the corners and edges, where an ion has fewest neighbours holding it, the water pulls ions out one by one, each leaving in a shell of water. Heat it to speed it up. (In a flat world an ion has about half the water around it that it would have in space, so the pull between an ion and water is doubled here to make up for it: Physics tab.)',
+    hint: '<b>A salt crystal dropped into water at 300 K.</b> Water pulls ions off the corners and edges one by one, each leaving in a shell of water. Heat speeds it up. (A flat ion has half the water around it, so the ion–water pull is doubled: Physics tab.)',
     build() { baseWorld(52, 52, 300, 0.05); W.wall = 'wrap'; const a = 2.82;
       for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) addAtom((i + j) % 2 ? 'Cl' : 'Na', (i - 2.5) * a, (j - 2.5) * a, { charge: (i + j) % 2 ? -1 : 1 });
       let w = 0; for (let t = 0; t < 20000 && w < 230; t++) { const x = (rnd() - 0.5) * 50, y = (rnd() - 0.5) * 50; if (Math.abs(x) < 10.5 && Math.abs(y) < 10.5) continue; if (spawnClear({ kind: 'mol', mol: 'H2O' }, x, y, 300).length) w++; } } },
   argon: { group: 'Chemistry', name: 'Argon crystal', tool: 'heat', spec: { kind: 'atom', Z: 18, A: 40 },
-    hint: '<b>Argon at 40 K.</b> Noble-gas atoms only feel weak van der Waals forces, enough to freeze them into a close-packed crystal. Raise the temperature: real argon melts at 84 K and boils at 87 K.',
+    hint: '<b>Argon at 40 K.</b> Only weak van der Waals forces hold it, enough to freeze into a close-packed crystal. Real argon melts at 84 K and boils at 87 K.',
     build() { baseWorld(50, 40, 40, 0.05); for (let i = 0; i < 10; i++) for (let j = 0; j < 8; j++) addAtom('Ar', -17 + i * 3.8 + (j % 2) * 1.9, -11.5 + j * 3.3); } },
   cloud: { group: 'Real labs', name: 'Cloud chamber', tool: 'fire', spec: { kind: 'e' },
-    hint: '<b>A cloud chamber: tracks of droplets where charged particles ionized the vapour.</b> Alpha particles (thick, straight: 5.5 MeV, as from americium-241) come in from the left; electrons (thin, from the bottom) and positrons (from the top) at 60 keV curl in the magnetic field, opposite ways: their charges are opposite. The field is enormous (100,000 T) because this chamber is only 24 nm across; a real one uses about 1 T over centimetres, and its α tracks are a few cm long. Fire your own particles with the Fire tool.',
+    hint: '<b>A cloud chamber.</b> 5.5 MeV α particles (thick, straight) come from the left; 60 keV electrons (bottom) and positrons (top) curl opposite ways in the field. The field is 100,000 T because the chamber is 24 nm across (a real one: 1 T over centimetres). Fire your own with the Fire tool.',
     build() { baseWorld(240, 160, 300, 0); W.wall = 'open'; W.Bz = 1e5; W.cloud = true; W.decayOn = false;
       W.simPerFrame = 4e-4; // (4 attoseconds a frame: an electron near half the speed of light crosses the chamber in about a second)
       W.sources.push({ x: -118, y: 0, ux: 1, uy: 0, spec: { kind: 'atom', Z: 2, A: 4, bare: true }, KE: 5.5e6, rate: 40, acc: 0.5, track: true, jitter: 120 });
       W.sources.push({ x: 0, y: -78, ux: 0, uy: 1, spec: { kind: 'e' }, KE: 6e4, rate: 60, acc: 0.2, track: true, jitter: 160 });
       W.sources.push({ x: 0, y: 78, ux: 0, uy: -1, spec: { kind: 'pos' }, KE: 6e4, rate: 40, acc: 0.7, track: true, jitter: 160 }); } },
   mucf: { group: 'Nuclear', name: 'Muon-catalysed fusion', tool: 'fire', spec: D_SPEC,
-    hint: '<b>Cold deuterium and tritium (D₂ and T₂ at 30 K), and a slow negative muon.</b> It slows, is caught by an atom and makes muonic hydrogen, 200 times smaller than an atom; its muon moves to tritium (μt), which grabs a deuteron into the molecule dμt, where d and t sit so close that they fuse: ⁴He + n + 17.6 MeV, at 30 K, no hot plasma needed. The muon is usually set free to do it again (watch the count in the log); it stops when it decays (2.2 µs) or sticks to the α. Decay is sped up ×30,000 so the cycle can be seen. Fire more muons with the Fire tool (μ⁻ under 2 keV: in real matter a faster one travels micrometres before it stops, far beyond this chamber). Real muons cost more energy to make than they catalyse, which is why this is not a power source.',
+    hint: '<b>Muon-catalysed fusion: D₂ and T₂ at 30 K and a slow μ⁻.</b> The muon makes muonic hydrogen, 200× smaller than an atom, pulls d and t so close in dμt that they fuse (⁴He + n + 17.6 MeV), and is usually freed to do it again, until it decays or sticks to the α. Decay sped up ×30,000. It costs more energy to make a muon than it catalyses.',
     build() { baseWorld(56, 40, 30, 0.3); W.warp = 3e4;
       const pair = (A, x, y) => { const th = rnd() * Math.PI, a = addAtom('H', x - 0.37 * Math.cos(th), y - 0.37 * Math.sin(th), { A }), b = addAtom('H', x + 0.37 * Math.cos(th), y + 0.37 * Math.sin(th), { A }); addBond(a, b, 1); };
       scatter(70, 56, 40, (x, y, i) => pair(i % 2 ? 3 : 2, x, y), 3.1);
       OPT.fire.proj = 'mu'; OPT.fire.s = Math.round(100 * (Math.log10(1500) + 2));
       addExo('mu-', -20, 0.2, 1500, 1, 0.01); } },
   grow: { group: 'Chemistry', name: 'Growing a crystal', tool: 'heat', spec: { kind: 'atom', Z: 18, A: 40 },
-    hint: '<b>Argon at 160 K, with the bath cooling slowly to 40 K over a minute</b> (Lab → Heat bath; the box wraps round, so no wall starts it). The loose lattice it starts as melts in the first seconds. As it cools, ordered patches appear in the jumble, merge and grow, row by row, until the box is one hexagonal crystal with a few defects. Heat it again to melt it.',
+    hint: '<b>Argon at 160 K, cooling to 40 K over a minute</b> (periodic box). It melts at once; then ordered patches appear, merge and grow until the box is one hexagonal crystal with a few defects.',
     build() { baseWorld(44, 38.1, 160, 0.05); W.wall = 'wrap'; W.simPerFrame = 6;
       for (let i = 0; i < 11; i++) for (let j = 0; j < 11; j++) if ((i * 11 + j) % 9) addAtom('Ar', -22 + (i + 0.5) * 4 + (j % 2) * 2 + (rnd() - 0.5) * 0.8, -19.05 + (j + 0.5) * 3.464 + (rnd() - 0.5) * 0.8); // (a loose lattice with gaps, already melting at 160 K: no atoms overlap)
       W.ramp = { from: 160, to: 40, dur: 60, t: 0 }; } },
   prism: { group: 'Electrons & light', name: 'Hydrogen light through a prism', tool: 'objects', spec: { kind: 'gamma' },
-    hint: '<b>The four visible lines of hydrogen, spread by a glass prism.</b> A hydrogen lamp\'s light (here four lasers at its Balmer lines: 656, 486, 434 and 410 nm) goes into a flint-glass prism. Glass slows violet light more than red, so each colour leaves at its own angle and lands at its own place on the screen: a spectroscope. Right-click the prism to turn it; met too steeply, the light is reflected inside instead.',
+    hint: '<b>Hydrogen’s four visible lines through a glass prism.</b> Lasers at 656, 486, 434 and 410 nm enter flint glass, which slows violet more than red, so each colour lands at its own place on the screen. Right-click the prism to turn it.',
     build() { baseWorld(120, 90, 300, 0.05);
       objAdd('prism', -7.31, -4.75, 7.31, -11.25); objAdd('screen', 21.48, -45.19, 45.63, -24.20).view = 'where';
       for (const nm of [656.3, 486.1, 434.0, 410.2]) W.lasers.push({ x0: -55, y0: 0, ux: 1, uy: 0, E: PHYS.HC / nm, rate: 6, acc: rnd() }); } },
   flame: { group: 'Electrons & light', name: 'Flame colours', tool: 'heat', spec: { kind: 'atom', Z: 11, A: 23 },
-    hint: '<b>Lithium, sodium, potassium and copper vapour at 6,000 K.</b> Hot collisions lift outer electrons; falling back, each element emits its own lines: Li crimson 671 nm, Na yellow 589 nm, K lilac 766/404 nm, Cu green 510–522 nm.',
+    hint: '<b>Li, Na, K and Cu vapour at 6,000 K.</b> Each emits its own lines: Li crimson 671 nm, Na yellow 589 nm, K lilac 766/404 nm, Cu green 510–522 nm.',
     build() { baseWorld(70, 50, 6000, 0.05); const pts = []; for (const s of ['Li', 'Na', 'K', 'Cu']) for (let i = 0; i < 12; i++) pts.push(s);
       scatter(pts.length, 70, 50, (x, y, i) => addAtom(pts[i], x, y), 4.5); } },
   neon: { group: 'Electrons & light', name: 'Neon discharge', tool: 'place', spec: { kind: 'e' },
-    hint: '<b>Neon gas in a 0.15 V/Å electric field, with periodic walls.</b> Free electrons accelerate, then excite neon atoms (red-orange flashes) or knock out more electrons: an avalanche, as in a neon sign. The bath keeps the atoms cool while the electrons run hot. Add electrons to speed it up.',
+    hint: '<b>Neon in a 0.15 V/Å field (periodic walls).</b> Electrons speed up, then excite neon (red-orange flashes) or ionize it: an avalanche, as in a neon sign.',
     build() { baseWorld(120, 40, 300, 0.3); W.wall = 'wrap'; W.Ex = 0.15; UI.E = 0.15;
       scatter(40, 120, 40, (x, y) => addAtom('Ne', x, y), 3.4); scatter(12, 120, 40, (x, y) => spawnSpec({ kind: 'e' }, x, y), 0); } },
   oven: { group: 'Electrons & light', name: 'Glowing oven (black-body light)', tool: 'place', spec: { kind: 'atom', Z: 11, A: 23 },
-    hint: '<b>Walls at the Sun’s surface temperature, 5,800 K, glowing.</b> Open Data → Spectrum: the light follows Planck’s curve (dashed). Turn the heat bath down to 3,000 K, a light bulb’s filament, and the walls go orange as the peak slides into the infrared; up to 20,000 K and they go blue-white, the peak in the ultraviolet (Wien’s law). The sodium atoms scatter their own yellow line, and hot enough light ionizes them.',
+    hint: '<b>Walls at the Sun’s 5,800 K, glowing.</b> Data → Spectrum follows Planck’s curve (dashed). Turn the bath to 3,000 K and they go orange; to 20,000 K, blue-white (Wien’s law).',
     build() { baseWorld(90, 56, 5800, 0.05); W.glow = true; scatter(10, 90, 56, (x, y) => addAtom('Na', x, y), 6); } },
   emtube: { group: 'Fields', name: 'Thomson\'s e/m tube', tool: 'objects', spec: { kind: 'e' },
-    hint: '<b>Electrons bent by charged plates, as J. J. Thomson measured them in 1897.</b> 1 keV electrons fly between two plates 60 V apart and are pulled toward the + plate; the screen shows where they land. Right-click the plates to change the voltage or swap + and −, and watch the spot move. Put a magnet on the plates (Magnet tool) and find the field that straightens them again: the two together give the electron\'s charge over its mass.',
+    hint: '<b>Thomson’s 1897 experiment.</b> 1 keV electrons are bent between plates 60 V apart; the screen shows where they land. Right-click the plates to change the voltage; add a magnet to straighten them again and get the electron’s charge over mass.',
     build() { baseWorld(150, 80, 300, 0.05); W.wall = 'open';
       objAdd('plates', -20, -5, 20, -5, { V: 60, gap: 10 }); objAdd('screen', 65, -35, 65, 35).view = 'where';
       W.sources.push({ x: -70, y: 0, ux: 1, uy: 0, spec: { kind: 'e' }, KE: 1000, rate: 0.6, acc: 0.9, track: true, jitter: 1 }); } },
   magnet: { group: 'Fields', name: 'Magnetic matter', tool: 'magnet', spec: { kind: 'atom', Z: 26, A: 56 },
-    hint: '<b>Iron, oxygen and water beside a 5,000 T magnet pole.</b> Iron is ferromagnetic and pulled in hard until heated past its Curie point (1043 K). O₂ is paramagnetic (unpaired electrons) and drawn in too; water is diamagnetic and only feebly pushed away. Drag the magnet around.',
+    hint: '<b>Iron, oxygen and water beside a 5,000 T magnet.</b> Iron is pulled in hard until past its Curie point (1043 K), O₂ (paramagnetic) less, and water (diamagnetic) is feebly pushed away. Drag the magnet around.',
     build() { baseWorld(70, 46, 300, 0.05);
       for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) addAtom('Fe', -1 + i * 2.6 + (j % 2) * 1.3, -12 + j * 2.25);
       scatter(10, 34, 40, (x, y) => addMolecule('O2', x - 14, y, rnd() * 6), 4);
       scatter(10, 34, 40, (x, y) => addMolecule('H2O', x - 14, y, rnd() * 6), 4);
       W.magnets.push({ x: 24, y: 2, R: 10, B: 5e3 }); } },
   massspec: { group: 'Fields', name: 'Mass spectrometer', tool: 'inspect', spec: SPEC_P,
-    hint: '<b>Ions accelerated through 40 V into a 200,000 T field.</b> Each follows a circle of radius √(2mV/q)/B, so ions sort by mass-to-charge ratio: p⁺ (red) lands nearest, ³He²⁺ (violet) next, while d⁺ (green) and α (gold) share m/q = 2 and land together. Ions are sent one at a time: crowded beams push themselves apart (space charge).',
+    hint: '<b>A mass spectrometer:</b> ions through 40 V into a 200,000 T field circle with radius √(2mV/q)/B, sorting by mass over charge. p⁺ lands nearest, ³He²⁺ next; d⁺ and α (both m/q = 2) land together.',
     build() { baseWorld(200, 150, 1, 0); W.Bz = 2e5; W.wall = 'open'; W.simPerFrame = 0.6;
       const src = (spec, KE, ph) => W.sources.push({ x: -85, y: -72, ux: 0, uy: 1, spec, KE, rate: 0.035, acc: ph, track: true });
       src(SPEC_P, 40, 0.9); src(D_SPEC, 40, 0.65); src(SPEC_ALPHA, 80, 0.4); src({ kind: 'atom', Z: 2, A: 3, bare: true }, 80, 0.15); } },
   rhic: { group: 'Accelerators', name: 'Gold on gold: quark–gluon plasma', tool: 'inspect', tab: 'lab', spec: { kind: 'atom', Z: 79, A: 197, bare: true },
-    hint: '<b>Gold nuclei at 100 GeV per nucleon, head on, as at RHIC (Brookhaven).</b> Glancing passes knock a few nucleons off; when they overlap enough, the overlap melts into a quark–gluon plasma (a white-hot drop of free quarks and gluons, shown slowed down: it lasts 10⁻²³ s) that freezes out into hundreds or thousands of hadrons, mostly pions. Hadrons beyond the chamber’s limit (Settings → Particle limit) leave with their energy counted. Lower the beam energy in the Lab tab to see where the plasma stops forming (about 3 GeV per nucleon each); pick the Inspect tool and click a pion to look inside it.',
+    hint: '<b>Gold on gold at 100 GeV per nucleon, as at RHIC.</b> Glancing hits knock nucleons off; overlaps melt into a quark–gluon plasma (shown slowed: it lasts 10⁻²³ s) that freezes into hundreds of hadrons. Lower the energy in the Lab tab to find where the plasma stops forming (about 3 GeV per nucleon).',
     build() { baseWorld(150, 130, 300, 0); W.wall = 'open'; setupCollider('ring', 'au197', 'au197', 197 * 100e9); } },
   ring: { group: 'Accelerators', name: 'Ring collider', tool: 'inspect', spec: { kind: 'pos' },
-    hint: '<b>A collider ring: two beams go round and meet in the detector.</b> A particle and its antiparticle (here positrons and electrons) share one ring, going round opposite ways; any other pair (try D + T, or gold on gold) gets a ring each, the two sharing one straight. The bending magnets (red bands) curve the paths, RF cavities push the beams on every pass, and the field rises as they speed up so they stay on course (a synchrotron). The beams are kept on separate orbits while they speed up, then brought into collision. Pick the beams, their energy and the bunch size in the Lab tab.',
+    hint: '<b>A collider ring.</b> A particle and its antiparticle share one ring going opposite ways; any other pair gets a ring each. Red bending magnets, RF cavities that speed the beams up, and a field that rises with them (a synchrotron). Beams, energy and bunch size: Lab tab.',
     build() { baseWorld(150, 130, 300, 0); W.wall = 'open'; setupCollider('ring', 'ee', 2e6); } },
   fixedt: { group: 'Accelerators', name: 'Fixed-target synchrotron', tool: 'inspect', tab: 'lab', spec: SPEC_P,
-    hint: '<b>A synchrotron that fires its beam at a target at rest.</b> Protons are injected, sped up round the ring to 1.4 GeV (as at CERN’s PS Booster), then steered out down the extraction line into a block of tungsten atoms, where they knock nuclei apart (spallation). Many real accelerators work this way: one beam, a fixed target, and the secondary particles it makes.',
+    hint: '<b>A synchrotron firing at a target.</b> Protons are sped up to 1.4 GeV (as at CERN’s PS Booster), extracted and sent into a tungsten block, where they smash nuclei apart (spallation).',
     build() { baseWorld(150, 130, 300, 0); W.wall = 'open'; setupCollider('fixed', 'p', 'p', 1.4e9); } },
   linac: { group: 'Accelerators', name: 'Linear collider', tool: 'inspect', spec: { kind: 'e' },
-    hint: '<b>Two linear accelerators fire beams at each other.</b> Each cavity row (gold) pushes its beam along, the focusing magnets (violet) squeeze the beams onto the axis, and they meet head-on at the collision point: electrons and positrons annihilate (above 106 MeV each into new particles too: muon pairs, then pions and kaons), protons and antiprotons burst into pions, deuterium and tritium fuse. Time is slowed so the beams can be followed; change the beams and their energy in the Lab tab.',
+    hint: '<b>Two linacs fire beams head-on.</b> Gold cavities speed them up, violet magnets focus them, and they meet in the middle: e⁺e⁻ annihilate (into new particles above 106 MeV each), p and p̄ burst into pions, D and T fuse. Beams and energy: Lab tab.',
     build() { baseWorld(230, 60, 300, 0); W.wall = 'open'; setupCollider('linear', 'ee', 1e6); } },
   fusion: { group: 'Nuclear', name: 'D–T fusion plasma', tool: 'inspect', spec: D_SPEC,
-    hint: '<b>Deuterium and tritium nuclei at 150 million K.</b> They tunnel through their Coulomb repulsion (Gamow factor); each fusion makes a 3.5 MeV α particle and a 14.1 MeV neutron (dashed track), 17.6 MeV in all.',
+    hint: '<b>Deuterium and tritium at 150 million K.</b> They tunnel through their repulsion and fuse: a 3.5 MeV α and a 14.1 MeV neutron (dashed), 17.6 MeV in all.',
     build() { baseWorld(60, 40, 1.5e8, 0.05);
       scatter(50, 60, 40, (x, y) => spawnSpec(D_SPEC, x, y), 0); scatter(50, 60, 40, (x, y) => spawnSpec(T_SPEC, x, y), 0);
       scatter(100, 60, 40, (x, y) => spawnSpec({ kind: 'e' }, x, y), 0); } },
   chain: { group: 'Nuclear', name: 'Uranium-235 fission', tool: 'fire', spec: { kind: 'n' },
-    hint: '<b>A speck of uranium-235, with a slow neutron on its way.</b> ²³⁵U splits when it absorbs one, releasing about 200 MeV: two fragments that tear through the metal, plus 2–3 fast neutrons. In a speck this small nearly every neutron escapes, which is why a chain reaction needs kilograms and a moderator. Fire more neutrons with the Fire tool.',
+    hint: '<b>A speck of uranium-235 and a slow neutron.</b> ²³⁵U splits when it absorbs one: about 200 MeV, two fragments and 2–3 neutrons. A speck this small loses nearly every neutron, so no chain reaction. Fire more with the Fire tool.',
     build() { baseWorld(90, 64, 300, 0.05);
       for (let i = 0; i < 9; i++) for (let j = 0; j < 8; j++) addAtom('U', -12.4 + i * 3.1 + (j % 2) * 1.55, -9.45 + j * 2.7, { A: 235 });
       const n = spawnSpec({ kind: 'n' }, -40, 1.35, 0)[0]; setMotion(n, 0.025, 1, 0);
       OPT.fire.proj = 'n'; OPT.fire.s = Math.round(100 * (Math.log10(0.025) + 2)); } },
   pet: { group: 'Nuclear', name: 'PET tracer (oxygen-15)', tool: 'inspect', spec: { kind: 'mol', mol: 'H2O' },
-    hint: '<b>Water labelled with oxygen-15 (t½ 2 min) at body temperature.</b> Its nuclei decay by β⁺; the positron meets an electron and both vanish into two 511 keV gamma rays flying apart back-to-back, the pair a PET scanner detects. Decay is sped up ×2×10¹³, so the 2-minute half-life passes in about 7 s.',
+    hint: '<b>Water labelled with oxygen-15, as for a PET scan.</b> Each β⁺ positron annihilates with an electron into two 511 keV γ rays flying back to back. Decay sped up ×2×10¹³ (2 minutes in 7 s).',
     build() { baseWorld(60, 40, 310, 0.05); W.warp = 2e13; const ox = [];
       for (let i = 0; i < 10; i++) for (let j = 0; j < 6; j++) { const m = addMolecule('H2O', -24 + i * 5.3, -14 + j * 5.6, rnd() * 6, 310); const o = m.find(a => a.Z === 8); if (o) ox.push(o); }
       for (let k = 0; k < 8 && ox.length; k++) { const o = ox.splice(Math.floor(rnd() * ox.length), 1)[0]; o.N = 7; refresh(o); } } },
   pionbeam: { group: 'Nuclear', name: 'Pion beam into carbon', tool: 'inspect', spec: { kind: 'exo', sp: 'pi-' },
-    hint: '<b>Negative pions at 200 MeV into a stack of coronene molecules (flakes of graphite, C₂₄H₁₂).</b> Most pass through, ionizing as they go; one that meets a carbon nucleus scatters, is absorbed on a pair of nucleons (the nucleus boils off what it can), or makes more pions. A slowed π⁻ is caught by an atom and absorbed: the nucleus breaks up. The captions name each encounter.',
+    hint: '<b>200 MeV π⁻ into coronene (flakes of graphite).</b> Most pass through ionizing; some scatter off carbon nuclei, are absorbed, or make more pions; a slowed π⁻ is caught by an atom and breaks its nucleus.',
     build() { baseWorld(70, 40, 300, 0.05); W.wall = 'open'; W.decayOn = true;
       for (let i = 0; i < 2; i++) for (let j = 0; j < 3; j++) addMolecule('coronene', 2 + i * 13, -12 + j * 12, 0, 300);
       W.sources.push({ x: -34, y: 0, ux: 1, uy: 0, spec: { kind: 'exo', sp: 'pi-' }, KE: 2e8, rate: 0.3, acc: 0.6, jitter: 30 }); } },
   photonuc: { group: 'Nuclear', name: 'γ rays knocking out neutrons', tool: 'inspect', spec: { kind: 'gamma' },
-    hint: '<b>13.5 MeV γ rays into a block of lead</b>, at the peak of lead\'s giant dipole resonance, where the γ ray shakes the protons against the neutrons. Most γ rays turn into electron–positron pairs near a nucleus (pair production); about one in a hundred is swallowed by a nucleus, which then boils off a neutron: ²⁰⁸Pb(γ,n)²⁰⁷Pb. The pairs heat and ionize so small a block fast: let the bath (Normal) cool it, or reload (R).',
+    hint: '<b>13.5 MeV γ rays into lead</b>, at its giant dipole resonance. Most make e⁺e⁻ pairs; about 1 in 100 is absorbed by a nucleus that boils off a neutron: ²⁰⁸Pb(γ,n)²⁰⁷Pb.',
     build() { baseWorld(60, 40, 300, 0.05);
       for (let i = 0; i < 7; i++) for (let j = 0; j < 9; j++) addAtom('Pb', -6 + i * 3.5 + (j % 2) * 1.75, -14 + j * 3.5, { A: 208 });
       W.sources.push({ x: -29, y: 0, ux: 1, uy: 0, spec: { kind: 'gamma' }, KE: 1.35e7, rate: 2, acc: 0.5, jitter: 26 }); } },
   rutherford: { group: 'Nuclear', name: 'Rutherford\'s gold foil', tool: 'objects', spec: { kind: 'atom', Z: 2, A: 4, bare: true },
-    hint: '<b>Geiger and Marsden\'s experiment (1909): 5 MeV α particles through gold foil.</b> Almost all go straight through or are turned a little; about one in a few thousand comes back, which a plum-pudding atom could never do. Rutherford worked out from it that an atom\'s positive charge and nearly all its mass sit in a tiny nucleus. The detector screens count every α that reaches them (right-click one for its count); right-click the foil to make it thicker.',
+    hint: '<b>Geiger and Marsden’s 1909 experiment: 5 MeV α through gold foil.</b> Almost all pass; about 1 in a few thousand bounces back, so the atom’s charge and mass sit in a tiny nucleus. Right-click a screen for its count, the foil to thicken it.',
     build() { baseWorld(170, 120, 300, 0.05);
       objAdd('foil', 0, -25, 0, 25, { Z: 79, layers: 40 });
       objAdd('screen', 75, -55, 75, 55).view = 'where'; objAdd('screen', -70, 55, 70, 55).view = 'where'; objAdd('screen', 70, -55, -70, -55).view = 'where';
       objAdd('screen', -60, 8, -60, 50).view = 'where'; objAdd('screen', -60, -50, -60, -8).view = 'where';
       W.sources.push({ x: -80, y: 0, ux: 1, uy: 0, spec: { kind: 'atom', Z: 2, A: 4, bare: true }, KE: 5e6, rate: 3, acc: 0.9, track: true, jitter: 12 }); } },
   muonium: { group: 'Nuclear', name: 'Muonium in argon', tool: 'inspect', spec: { kind: 'exo', sp: 'mu+' },
-    hint: '<b>Slow positive muons stopping in argon gas.</b> A μ⁺ is a heavy positron: as it slows it pulls an electron off an argon atom about 60% of the time, making muonium (Mu), a hydrogen atom with a muon for its proton. The muon lives 2.2 µs (decay sped up here), then decays into a positron and two neutrinos, and the electron goes free.',
+    hint: '<b>Slow μ⁺ stopping in argon.</b> About 60% grab an electron and make muonium, hydrogen with a muon for its proton. Each muon decays (2.2 µs, sped up) into a positron and two neutrinos.',
     build() { baseWorld(60, 40, 120, 0.05); W.warp = 1e5;
       scatter(70, 56, 36, (x, y) => addAtom('Ar', x, y), 3.6);
       W.sources.push({ x: -29, y: 0, ux: 1, uy: 0, spec: { kind: 'exo', sp: 'mu+' }, KE: 1500, rate: 0.05, acc: 0.9, jitter: 20 }); } },
   hyperfactory: { group: 'Nuclear', name: 'Hypernucleus factory', tool: 'inspect', spec: { kind: 'exo', sp: 'K-' },
-    hint: '<b>Slow negative kaons stopping in carbon (coronene, flakes of graphite).</b> A K⁻ is caught by a carbon atom and absorbed by a nucleon: K⁻p → Λπ⁰ or K⁻n → Λπ⁻. Usually the Λ flies out, but a few times in a hundred it stays in the nucleus: a hypernucleus (¹¹ΛB, ¹¹ΛC …), whose Λ decays later inside it (decay sped up here). Particle view (V) shows the Λ in the middle.',
+    hint: '<b>Slow K⁻ stopping in carbon (coronene).</b> A captured K⁻ is absorbed by a nucleon (K⁻p → Λπ⁰, K⁻n → Λπ⁻); a few times in a hundred the Λ stays inside: a hypernucleus (¹¹ΛB, ¹¹ΛC …). Particle view (V) shows it.',
     build() { baseWorld(60, 40, 300, 0.05); W.warp = 1e3;
       for (let i = 0; i < 2; i++) for (let j = 0; j < 3; j++) addMolecule('coronene', 0 + i * 13, -12 + j * 12, 0, 300);
       W.sources.push({ x: -29, y: 0, ux: 1, uy: 0, spec: { kind: 'exo', sp: 'K-' }, KE: 1500, rate: 0.03, acc: 0.9, jitter: 30 }); } },
   antihydrogen: { group: 'Antimatter', name: 'Antihydrogen trap', tool: 'place', spec: SPEC_PBAR,
-    hint: '<b>Antiprotons (violet) and positrons (pink) at 300 K, in a periodic box so nothing touches a wall.</b> A positron caught by an antiproton makes antihydrogen and gives off the same Balmer light as hydrogen, which is how CERN’s ALPHA experiment compares the two. Antihydrogen atoms bond into H̄₂. Drop in ordinary matter (pick H or O above) and watch it annihilate.',
+    hint: '<b>Antiprotons (violet) and positrons (pink) at 300 K, periodic box.</b> A positron caught by an antiproton makes antihydrogen, glowing with hydrogen’s Balmer light, as CERN’s ALPHA compares. Drop in ordinary matter and watch it annihilate.',
     build() { baseWorld(46, 32, 300, 0.05); W.wall = 'wrap';
       scatter(14, 46, 32, (x, y) => spawnSpec(SPEC_PBAR, x, y), 3.5);
       scatter(14, 46, 32, (x, y) => spawnSpec({ kind: 'pos' }, x, y), 0); } },
   annihilation: { group: 'Antimatter', name: 'Antiprotons meet water', tool: 'fire', spec: SPEC_PBAR,
-    hint: '<b>A droplet of water with a slow antiproton on its way.</b> An atom captures it and it annihilates with a proton or neutron of the nucleus: about 1.9 GeV leaves as pions (orange, labelled π; the neutral ones turn into γ rays within nanometres) and γ rays, a few nucleons are knocked out and the molecule is torn apart. Fire more with the Fire tool. Fast antiprotons first ionize their way through matter, as real ones do.',
+    hint: '<b>A water droplet and a slow antiproton.</b> Captured by an atom, it annihilates in the nucleus: 1.9 GeV leaves as pions and γ rays, nucleons are knocked out, the molecule torn apart. Fire more with the Fire tool.',
     build() { baseWorld(56, 40, 300, 0.05);
       for (let i = 0; i < 7; i++) for (let j = 0; j < 6; j++) addMolecule('H2O', -6 + i * 3.4, -8.5 + j * 3.4, rnd() * 6, 300);
       const pb = spawnSpec(SPEC_PBAR, -24, 0.4, 0)[0]; setMotion(pb, 4, 1, 0);
       OPT.fire.proj = 'pbar'; OPT.fire.s = 300; } },
   isolde: { group: 'Real labs', name: 'CERN ISOLDE: rare isotopes', tool: 'inspect', spec: SPEC_P,
-    hint: '<b>CERN’s isotope factory: 1.4 GeV protons from the PS Booster strike a uranium target at 2,000 °C.</b> A proton that hits a uranium nucleus shatters it (spallation, fragmentation, fission) into nuclei far from stability, many found nowhere in nature; the Data tab lists each one made here. ISOLDE’s targets are uranium carbide, kept this hot so that the new atoms diffuse out to be ionized and sorted by mass: each experiment gets a beam of one rare isotope, from over 1,300 made so far. (A real proton crosses centimetres of uranium before it hits a nucleus; here hits are made far more frequent, so that you can watch them.)',
+    hint: '<b>ISOLDE, CERN’s isotope factory: 1.4 GeV protons into uranium at 2,000 °C.</b> Each hit shatters a nucleus (spallation, fragmentation, fission) into rare isotopes, listed in the Data tab. Hits are made far more frequent here than in real uranium, so you can watch them.',
     build() { baseWorld(130, 64, 2273, 0.05);
       for (let i = 0; i < 7; i++) for (let j = 0; j < 9; j++) addAtom('U', 22 + (i - 3) * 2.9 + (j % 2) * 1.45, (j - 4) * 2.52, { A: 238 });
       W.sources.push({ x: -62, y: 0, ux: 1, uy: 0, spec: SPEC_P, KE: 1.4e9, rate: 0.04, acc: 0.8, track: true, jitter: 26 }); } },
   sns: { group: 'Real labs', name: 'Oak Ridge SNS: spallation neutrons', tool: 'inspect', spec: { kind: 'n' },
-    hint: '<b>The Spallation Neutron Source in Tennessee: 1 GeV protons into liquid mercury.</b> A proton that hits a mercury nucleus knocks out a spray of neutrons (dashed tracks) and leaves a lighter, often radioactive, nucleus behind; the Data tab counts them. In the real target, a tank of mercury, each proton frees about 20 neutrons. Slowed in water and liquid hydrogen, they go to some twenty instruments that show where the atoms sit in batteries, proteins and magnets: neutrons see light atoms and magnetism that X-rays barely do. (Hits are made far more frequent here, so that you can watch them.)',
+    hint: '<b>The Spallation Neutron Source: 1 GeV protons into liquid mercury.</b> Each hit knocks a spray of neutrons (dashed) out of a nucleus; the real target frees about 20 a proton, for instruments that see light atoms and magnetism. Hits are made far more frequent here.',
     build() { baseWorld(130, 64, 330, 0.05);
       for (let i = 0; i < 8; i++) for (let j = 0; j < 9; j++) addAtom('Hg', 20 + (i - 3.5) * 3.0 + (j % 2) * 1.5, (j - 4) * 2.6, { A: 202 });
       W.sources.push({ x: -62, y: 0, ux: 1, uy: 0, spec: SPEC_P, KE: 1e9, rate: 0.04, acc: 0.8, track: true, jitter: 22 }); } },
   nif: { group: 'Real labs', name: 'Livermore NIF: fusion ignition', tool: 'inspect', spec: D_SPEC,
-    hint: '<b>The National Ignition Facility’s fuel capsule as it implodes.</b> 192 lasers heat a gold can (the box); its X-rays blast the capsule’s diamond skin away (carbon, outermost) so fast that everything inside is driven inward at 400 km/s onto deuterium–tritium fuel whose centre is already at 100 million K. Each fusion makes a 3.5 MeV α particle and a 14.1 MeV neutron. In the real capsule, a fraction of a millimetre across, the α particles stop in the fuel and heat it further, and that self-heating is ignition: on 5 December 2022 a shot released 3.15 MJ from 2.05 MJ of laser light. This one is a few nanometres across, so most of them escape, and it is shown 75 times slower than the other setups so that you can follow the implosion: press + to speed it up.',
+    hint: '<b>The National Ignition Facility’s capsule imploding.</b> X-rays blast off the diamond skin, driving D–T fuel inward at 400 km/s onto a 100 million K core; each fusion gives a 3.5 MeV α and a 14.1 MeV neutron. Shown 75× slower than other setups: press + to speed it up.',
     build() { baseWorld(76, 60, 1e8, 0); W.simPerFrame = 0.02; // (slow motion: the implosion is over in a few femtoseconds)
       const ring = (n, r0, r1, fn) => { for (let k = 0; k < n; k++) { const r = r0 + (r1 - r0) * rnd(), t = 2 * Math.PI * (k + rnd() * 0.6) / n; fn(r * Math.cos(t), r * Math.sin(t), -Math.cos(t), -Math.sin(t)); } };
       const v = 4e5 / 2.998e8, inward = (p, ux, uy) => { if (p) setMotion(p, 0.5 * p.m * AMU_EV * v * v, ux, uy); }; // 400 km/s, as a fraction of c
@@ -43389,38 +43389,38 @@ const PRESETS = {
       ring(52, 7, 11, (x, y) => spawnSpec({ kind: 'e' }, x, y, 3e5));
       ring(28, 12.5, 14.5, (x, y, ux, uy) => inward(addAtom('C', x, y, { T: 300 }), ux, uy)); } }, // what is left of the diamond skin
   dafne: { group: 'Real labs', name: 'Frascati DAΦNE: the φ factory', tool: 'inspect', spec: { kind: 'e' },
-    hint: '<b>Italy’s electron–positron collider at Frascati, tuned to make φ mesons.</b> Electrons and positrons at 510 MeV each meet at 1.02 GeV, exactly the φ’s mass, so most collisions make one; it lives 1.5×10⁻²² s and falls apart into kaon pairs (K⁺K⁻ about 49% of the time, K⁰ʟK⁰s 34%) or three pions (15%). Count them in the Data tab. The KLOE experiment used millions of these neutral kaon pairs to study how matter and antimatter differ. DAΦNE’s two rings are 98 m around; here two linacs stand in, since a ring nanometres across cannot hold electrons at this energy (they would radiate it away as synchrotron light).',
+    hint: '<b>DAΦNE (Frascati), tuned to the φ meson.</b> 510 MeV electrons and positrons meet at 1.02 GeV, the φ’s mass; each φ splits into K⁺K⁻ (49%), K⁰ʟK⁰s (34%) or three pions. Two linacs stand in for its 98 m rings.',
     build() { baseWorld(230, 60, 300, 0); W.wall = 'open'; setupCollider('linear', 'ee', 5.1e8); } },
   lep: { group: 'Real labs', name: 'CERN LEP: the Z factory', tool: 'inspect', spec: { kind: 'e' }, // (W and Z bosons, 1.27)
-    hint: '<b>CERN’s Large Electron–Positron collider (LEP, 1989–2000), tuned to the Z boson.</b> Electrons and positrons at 45.6 GeV each meet at about 91 GeV, the Z⁰’s mass, so nearly every collision makes one: the neutral carrier of the weak force, 97 times a proton’s mass. It lives 2.6×10⁻²⁵ s and decays where it is made: into two jets of hadrons (70%), an e⁺e⁻, μ⁺μ⁻ or τ⁺τ⁻ pair (3.4% each), or a neutrino pair that nothing sees (20%). That invisible fifth is how LEP counted the kinds of light neutrino: three. Count the Zs in the Data tab. The focusing magnets cost the beams about 1% in synchrotron light, so collisions land at 89–91 GeV; press Scan the Z peak in the Lab tab (or change the energy there, 44 to 47 GeV each) to scan the peak, 2.5 GeV wide, and see its shape in the Data tab. Above 80.4 GeV each the beams make W⁺W⁻ pairs (LEP2). LEP was a ring 27 km round; here two linacs stand in, as a ring nanometres across cannot hold electrons at this energy.',
+    hint: '<b>LEP (CERN, 1989–2000), tuned to the Z boson.</b> 45.6 GeV electrons and positrons meet at 91 GeV; each Z decays at once into two jets (70%), a lepton pair, or unseen neutrinos (20%), which is how LEP counted three neutrino kinds. Scan the Z peak from the Lab tab; above 80.4 GeV each, W⁺W⁻ pairs appear. Two linacs stand in for its 27 km ring.',
     build() { baseWorld(230, 60, 300, 0); W.wall = 'open'; setupCollider('linear', 'ee', 45.6e9); } },
   useries: { group: 'Nuclear', name: 'Uranium-238 decay chain', tool: 'inspect', spec: { kind: 'atom', Z: 92, A: 238 },
-    hint: '<b>Six uranium-238 atoms, with decay sped up ×3×10²⁸.</b> ²³⁸U lives 4.5 billion years, then runs through 14 α and β⁻ decays (thorium, radium, radon, polonium…) to stable lead-206. The Log tab lists every step; lower the speed-up under Lab › Time to catch the short-lived members.',
+    hint: '<b>Six uranium-238 atoms, decay sped up ×3×10²⁸.</b> ²³⁸U runs through 14 α and β⁻ decays to stable lead-206; the Log lists each step. Lower the speed-up (Lab › Time) to catch the short-lived ones.',
     build() { baseWorld(60, 40, 300, 0.05); W.warp = 3e28; scatter(6, 60, 40, (x, y) => addAtom('U', x, y, { A: 238 }), 8); } },
   flashbyte: { group: 'Electronics', name: 'Flash memory: one byte', tool: 'inspect', tab: 'lab', spec: { kind: 'mol', mol: 'flashcell' },
-    hint: '<b>Eight flash cells: one byte of memory.</b> Type a character under Lab › Chips and press Write. Like a real flash chip, it first erases every cell to 1, then programs the cells whose bits are 0: 15 V pulls electrons one at a time through 7 nm of oxide onto each floating gate, where they stay with the power off (that is how a USB stick remembers). The bits read top row first, left to right; click one to flip it.',
+    hint: '<b>One byte of flash memory.</b> Type a character under Lab › Chips and press Write: each cell is erased to 1, then 15 V pushes electrons through 7 nm of oxide onto the floating gates of the 0 bits, where they stay with the power off. Click a bit to flip it.',
     build() { baseWorld(250, 96, 300, 0.5); for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) addMolecule('flashcell', -90 + 60 * c, 21 - 42 * r, 0, 300); } },
   ringosc: { group: 'Electronics', name: 'Ring oscillator: a clock from 3 NOT gates', tool: 'inspect', tab: 'lab', spec: { kind: 'mol', mol: 'inverter' },
-    hint: '<b>Three NOT gates wired in a loop.</b> Each inverts the one before it, and an odd loop can never settle: the 1 chases itself round and the gates tick on their own, a few picoseconds a gate. Chip clocks are built from loops like this. The Lab tab gives the frequency. Hold the Heat tool on it: hot transistors switch more weakly, so the clock slows and its swing fades.',
+    hint: '<b>A ring oscillator: three NOT gates in a loop.</b> An odd loop never settles, so it ticks on its own, a few picoseconds a gate (frequency in the Lab tab). Heat it and the clock slows.',
     build() { baseWorld(280, 110, 300, 0.5); const g = [-85, 0, 85].map(x => { addMolecule('inverter', x, -8, 0, 300); return W.chips[W.chips.length - 1]; }); g.forEach((c, i) => { c.label = `Gate ${i + 1}`; c.inFrom = g[(i + 2) % 3]; }); } },
   notchain: { group: 'Electronics', name: 'NOT-gate chain: a signal on its way', tool: 'inspect', tab: 'lab', spec: { kind: 'mol', mol: 'inverter' },
-    hint: '<b>Four NOT gates in a row, each driving the next.</b> Flip Gate 1’s input in the Lab tab and watch the change ripple down the chain, a couple of picoseconds a gate. That propagation delay is what limits how fast a chip can run. Four inversions cancel out: the last output follows the first input.',
+    hint: '<b>Four NOT gates in a row.</b> Flip gate 1’s input in the Lab tab and watch the change ripple down, a couple of picoseconds a gate: the delay that limits a chip’s speed.',
     build() { baseWorld(340, 100, 300, 0.5); const g = [-120, -40, 40, 120].map(x => { addMolecule('inverter', x, -8, 0, 300); return W.chips[W.chips.length - 1]; }); g.forEach((c, i) => { c.label = `Gate ${i + 1}`; if (i) c.inFrom = g[i - 1]; }); } },
   seu: { group: 'Electronics', name: 'Cosmic rays vs memory: bit flips', tool: 'fire', tab: 'lab', spec: { kind: 'atom', Z: 26, A: 56, bare: true },
-    hint: '<b>An SRAM cell holding 1, under a rain of cosmic rays.</b> Fast nuclei cross it from above: protons often, an oxygen nucleus now and then. Each frees electron–hole pairs along its track (one for every 3.6 eV it loses), and the struck side of the cell soaks them up. A proton frees far too few to matter. An oxygen nucleus frees about as many as it takes to tip the cell over, so some of its hits flip the bit: a single-event upset, the soft error radiation causes in real chips, and the reason spacecraft memories correct their own errors. Write it back from the Lab tab, or fire your own: an iron nucleus is loaded.',
+    hint: '<b>An SRAM cell holding 1 under cosmic rays.</b> Each fast nucleus frees one electron–hole pair per 3.6 eV it loses. A proton frees too few to matter; an oxygen nucleus can flip the bit (a single-event upset). Write it back from the Lab tab, or fire your own.',
     build() { baseWorld(260, 140, 300, 2); W.wall = 'open'; // (open walls: what the rain knocks loose leaves)
       addMolecule('sramcell', 0, -12, 0, 300); const c = W.chips[W.chips.length - 1]; c.v.q = CHIP.VDD; c.v.qb = 0;
       W.sources.push({ x: 0, y: 66, ux: 0, uy: -1, spec: SPEC_P, KE: 2e6, rate: 0.006, acc: 0.5, track: true, jitter: 200 }); // (2 MeV: below silicon's Coulomb barrier, so no nuclear reactions)
       W.sources.push({ x: 0, y: 66, ux: 0, uy: -1, spec: { kind: 'atom', Z: 8, A: 16, bare: true }, KE: 3.2e7, rate: 0.002, acc: 0.6, track: true, jitter: 190 });
       OPT.fire.proj = 'sel'; OPT.fire.s = 1000; } },
   crt: { group: 'Electronics', name: 'Electron gun: an old TV screen', tool: 'magnet', spec: { kind: 'e' },
-    hint: '<b>A cathode-ray tube, as in old TVs.</b> An electron gun fires 1 keV electrons across the vacuum at a screen of zinc, which glows blue where the beam lands (zinc’s lines at 468–481 nm; real screens used zinc sulfide). The magnet steers the beam: drag it, or flip its pole, and the spot moves, because the Lorentz force bends each electron into an arc. A real TV swept its spot across the screen 15,000 times a second.',
+    hint: '<b>A cathode-ray tube.</b> 1 keV electrons hit a zinc screen that glows blue where they land. Drag or flip the magnet to steer the spot (the Lorentz force).',
     build() { baseWorld(220, 110, 300, 0.2); W.wall = 'open';
       for (let i = 0; i < 3; i++) for (let j = 0; j < 32; j++) addAtom('Zn', 90 + i * 2.3, (j - 15.5) * 2.65 + (i % 2) * 1.33);
       W.magnets.push({ x: -25, y: 0, R: 30, B: 2500 });
       W.sources.push({ x: -105, y: 0, ux: 1, uy: 0, spec: { kind: 'e' }, KE: 1000, rate: 0.3, acc: 0.5, track: true, jitter: 1 }); } },
   hotchip: { group: 'Electronics', name: 'Hot chip: leaks, fails, melts', tool: 'heat', tab: 'lab', spec: { kind: 'mol', mol: 'inverter' },
-    hint: '<b>A NOT gate, and the Heat tool.</b> Hold the Heat tool on the gate and watch the Lab tab. As the transistors warm, their threshold drops and the one that should be off leaks: the current from the supply climbs a thousandfold by 600 K, and the output sags. Raise the heat past 1,687 K and the silicon melts, and the gate with it. Toggle its input as it heats. Real chips slow themselves down near 100 °C to avoid this.',
+    hint: '<b>A NOT gate and the Heat tool.</b> Heat the gate and watch the Lab tab: the off transistor leaks, the supply current climbs a thousandfold by 600 K and the output sags; past 1,687 K the silicon melts.',
     build() { baseWorld(160, 80, 300, 0.3); addMolecule('inverter', 0, -4, 0, 300); OPT.heat.mode = 'heat'; OPT.heat.s = 300; OPT.heat.R = 50; } },
 };
 /* Challenges: a goal, a starting world and a hint at how; each is a setup in the "Challenges" group, checked as the panels
@@ -44366,15 +44366,15 @@ function drawPairs() {
 }
 /* ------------------------------------------------------------------ the tour */
 const TOUR = [
-  ['#stage', 'The chamber', 'Everything here follows real physics: atoms, electrons, nuclei and light. Scroll to zoom, drag with the right button to move around.',
-    'Everything here follows real physics: atoms, electrons, nuclei and light, in a cube. Scroll to zoom; drag with the right button (or Alt, or the arrow keys) to turn the view, Shift and the right button to move it; W A S D fly the camera; 0 fits the box.'],
-  ['.tools-wrap', 'Tools', 'Place, grab, select, push and pull, fire, heat, spark, magnets, objects (mirrors, lenses, screens, walls…), light, erase, measure, inspect. The letter under each is its key. Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.',
-    'Place, grab, select, push and pull, fire, heat, spark, magnets, light, erase, measure, inspect (objects are for the flat game). The letter under each is its key (here Spark is Z and Erase X: S and E fly). Things go on the placing plane facing you (Shift + wheel moves it). Right-click anything in the chamber (or press and hold on a touchscreen) for a quick menu to change it.'],
-  ['#paletteBar', 'What to place', 'Pick a particle, an element or a molecule here; Elements… and Molecules… have the rest, every isotope included.'],
-  ['.transport', 'Time', 'Play and pause (Space): a setup waits at its first moment until you start it. One frame at a time (.), reload, slower and faster down to 1/512×, and slow motion. ⟲ rewinds (,): drag back through the last minute.'],
-  ['#preset', 'Experiments', 'Ready-made setups, from water and salt to a chain reaction, a collider and challenges.', 'Ready-made setups for the 3-D lab: molecules in space, liquid water, salt water, hydrogen and oxygen. The main menu (Esc) leads back to the flat game and its setups.'],
-  ['.panel .tabs', 'The lab panel', 'Lab sets the conditions (temperature, fields, walls); Inspect shows anything you click; Data has graphs and counts; Log tells what happened; Physics explains how it works.'],
-  ['#bSettings', 'Settings and help', 'Settings has graphics, display, controls and a benchmark. Esc opens the menu, with Help (what the simulation does and does not do), the keys (? lists them) and this tour; Ctrl+Z undoes.'],
+  ['#stage', 'The chamber', 'Atoms, electrons, nuclei and light, all following real physics. Scroll to zoom, right-drag to move around.',
+    'Atoms, electrons, nuclei and light in a cube, all following real physics. Scroll to zoom, right-drag (Alt, arrow keys) to turn the view, Shift+right-drag to move it, W A S D to fly, 0 to fit the box.'],
+  ['.tools-wrap', 'Tools', 'Place, grab, select, push and pull, fire, heat, spark, magnets, objects, light, erase, measure, inspect: the letter under each is its key. Right-click anything (or press and hold) for a quick menu.',
+    'Place, grab, select, push and pull, fire, heat, spark, magnets, light, erase, measure, inspect: the letter under each is its key (Spark is Z, Erase X). Things go on the plane facing you (Shift + wheel moves it). Right-click anything for a quick menu.'],
+  ['#paletteBar', 'What to place', 'A particle, element or molecule; Elements… and Molecules… have the rest, every isotope included.'],
+  ['.transport', 'Time', 'Play and pause (Space; a setup waits until you start it), one frame (.), reload, slower and faster, slow motion, and ⟲ to rewind the last minute (,).'],
+  ['#preset', 'Experiments', 'Ready-made setups, from water and salt to a chain reaction, colliders and challenges.', 'Ready-made 3-D setups: molecules, liquid water, salt water, reactions, colliders. The main menu (Esc) leads back to the flat game.'],
+  ['.panel .tabs', 'The lab panel', 'Lab: conditions. Inspect: what you click. Data: graphs and counts. Log: what happened. Physics: how it works.'],
+  ['#bSettings', 'Settings and help', 'Graphics, display, controls and a benchmark. Esc opens the menu with Help, the keys (?) and this tour; Ctrl+Z undoes.'],
 ];
 const TS = { i: 0 };
 function tourStart() { if (UI.menu) return; TS.i = 0; $('tour').hidden = false; tourShow(); }
