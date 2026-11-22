@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.37.1: item 101 (the owner, 2026-11-22, "build it")
+## 1.37.1 (released 2026-11-22): item 101 (the owner, 2026-11-22, "build it")
 
 - **a. No hourglass** (the owner: "just remove the icon and number color changing"). The slow-motion button is gone
   (the \ key still turns slow motion on and off, automatic slow motion is unchanged), and the speed number keeps one
@@ -2009,13 +2009,12 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   (melted nucleons)^⅓, swelling to twice that (gold on gold: 35 fm across at freeze-out, a speck under its caption).
   Partons are drawn only when it is over 6 px across.
 - **c. A fill waits for a clear machine** (the owner: "make sure magnets and rf are clear before firing again"). The next
-  fill waits while a product in flight is inside a magnet, cavity, kicker or separator (`machineClear`, at most 3 s).
-  That showed the linear collider's focusing magnets catching slow pions for good (149 of 1,433 pions that entered stayed
-  over half a second, hovering at the magnets' corners: the "focusing ring stops exotic particles" of item 100d), so each
-  focusing magnet now works on its own incoming beam only, as each linac's RF does since 1.37 (a real final-focus magnet
-  holds its field in a bore millimetres across that the beam goes down). 100 GeV p p̄: before, 5 fills with 122–356
-  products in the magnets; after, every fill with none, and more collisions (14–28 against 16). LEP and DAΦNE
-  fingerprints change again (lep 9a2e011d books 777ba2bb, dafne eb56fac9 books 2f48935f).
+  fill waits while a product in flight is inside a magnet, cavity, kicker or separator (`machineClear`), at most 3 s.
+  The linear collider's focusing magnets catch slow pions for good (149 of 1,433 pions that entered stayed over half a
+  second, hovering at the magnets' corners: the "focusing ring stops exotic particles" of item 100d); making each act on
+  its own beam only (as the linacs' RF does) cleared them, but the owner chose not to ("maybe just don't do that then",
+  2026-11-22), so a linac making many pions waits the full 3 s between fills (100 GeV p p̄: 2 fills in 600 frames
+  against 5 before the wait). LEP's fingerprint changes (bf5221a7 books 777ba2bb); DAΦNE's (eb56fac9 books 2f48935f).
 - **f. Shorter text everywhere** (the owner: "make descriptions more concise across the board … everywhere (even
   settings)"). The setups' descriptions 21.9 → 11.7 KB, Settings' long notes 43 → 17 KB, the Physics tab 31 → 13 KB,
   Help, the tour and the 3-D menu note (which still said the collider was flat-only) rewritten; the facts and numbers

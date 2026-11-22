@@ -124,7 +124,7 @@ PARTS.books = async (page, check, say) => {
 };
 
 /* ---- 6. below its thresholds nothing changes: setups with collisions, beams, decays, LEP (tools/fingerprint.js) */
-const FP = { lep: '9a2e011d books 777ba2bb 0', rhic: 'fb7e8382 books a9f2ee3a 20', linac: '7c6eb010 books 2b70ae2c 20', dafne: 'eb56fac9 books 2f48935f 0' /* (LEP and DAΦNE are linear colliders here: 1.37 split the linacs' steps and put their RF on their own bunches only, item 100e; 1.37.1 their focusing magnets too, and a fill waits for a clear line, item 101c) */, annihilation: 'ffea15c2 books 3bb4cc0e 152', water: 'cac1ac32 books a9f2ee3a 240', water3d: '7a2e7f5c books a9f2ee3a 1029' }; // (v151, tools/fingerprint.js)
+const FP = { lep: 'bf5221a7 books 777ba2bb 0', rhic: 'fb7e8382 books a9f2ee3a 20', linac: '7c6eb010 books 2b70ae2c 20', dafne: 'eb56fac9 books 2f48935f 0' /* (LEP and DAΦNE are linear colliders here: 1.37 split the linacs' steps and put their RF on their own bunches only, item 100e; 1.37.1 a fill waits for a clear line, item 101c) */, annihilation: 'ffea15c2 books 3bb4cc0e 152', water: 'cac1ac32 books a9f2ee3a 240', water3d: '7a2e7f5c books a9f2ee3a 1029' }; // (v151, tools/fingerprint.js)
 PARTS.fp = async (page, check, say) => {
   const want = FP;
   const out = require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, '..', 'tools', 'fingerprint.js'), ...Object.keys(want)], { encoding: 'utf8', maxBuffer: 1 << 24 });

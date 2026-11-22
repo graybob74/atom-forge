@@ -7,14 +7,16 @@ const path = require('path');
 const { load } = require(path.join(__dirname, 'load.js'));
 const PARTS = {};
 PARTS.clear = async (page, check) => {
-  const X = load('all', { seed: 3, patch: s => s.replace('function refillSources(C) {', 'function refillSources(C) { if (globalThis.ONREFILL) globalThis.ONREFILL();') }), W = X.W;
+  const X = load('all', { seed: 3, patch: s => s.replace('function refillSources(C) {', 'function refillSources(C) { if (globalThis.ONREFILL) globalThis.ONREFILL();').replace('C.clearT0 = null; return true; // (waited long enough)', 'C.clearT0 = null; globalThis.TIMED = true; return true; // (waited long enough)') }), W = X.W;
   X.PRESETS.linac.build(); X.setupCollider('linear', 'p', 'pbar', 1e11); X.settleOverlaps(); W.baseSpf = W.simPerFrame;
   const Z = W.zones.filter(z => ['dipole', 'quad', 'cavity', 'kicker', 'sep'].includes(z.kind));
   const busy = () => { let n = 0; for (const p of W.parts) if (!p.dead && p.rad && !p.beam && !p.tgt && Z.some(q => X.zoneLocal(q, p.x, p.y))) n++; for (const o of W.exo) if (!o.dead && !o.xb && o.v > 0 && Z.some(q => X.zoneLocal(q, o.x, o.y))) n++; return n; };
-  const at = []; globalThis.ONREFILL = () => at.push(busy());
+  const at = []; globalThis.ONREFILL = () => { at.push(globalThis.TIMED ? 'waited 3 s' : busy()); globalThis.TIMED = false; };
   const t0 = Date.now(); for (let f = 0; f < 600 && Date.now() - t0 < 120000 && at.length < 4; f++) X.simFrame(1 / 60, 1e9);
   globalThis.ONREFILL = null;
-  check(at.length >= 2 && at.every(n => n === 0) && W.collider.hits > 0, `1.37.1 a 100 GeV linear collider fires again only with its magnets and cavities clear (${at.length} fills, ${at.join(', ')} products left in them; ${W.collider.hits} collisions)`, `1.37.1 clear: products in the machine at each fill ${JSON.stringify(at)}, hits ${W.collider.hits}`);
+  // (each fill with nothing left in the magnets and cavities, or after the longest wait, 3 s: slow pions the linac's
+  // focusing magnets catch can stay; the owner kept the magnets acting on everything, 2026-11-22)
+  check(at.length >= 2 && at.every(n => n === 0 || n === 'waited 3 s') && W.collider.hits > 0, `1.37.1 a 100 GeV linear collider fires again only once its magnets and cavities are clear, or after 3 s (fills: ${at.join(', ')}; ${W.collider.hits} collisions)`, `1.37.1 clear: products in the machine at each fill ${JSON.stringify(at)}, hits ${W.collider.hits}`);
 };
 PARTS.qgp = async (page, check) => {
   const X = load('all', { seed: 3 }), W = X.W, R = X.R; X.PRESETS.empty.build();

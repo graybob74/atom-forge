@@ -1,4 +1,4 @@
-<title>Atom Forge 1.37.0</title>
+<title>Atom Forge 1.37.1</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44742,13 +44742,8 @@ function linacLayout(C, A, B, EA, EB) {
   // (2/3)k·γ⁴·y²/(w·f²) for a particle y off the axis): kept under 0.2% of the energy 0.6 Å off the axis
   const fOf = (I, E) => { if (!I.lep) return f; const g = 1 + E / (I.m * AMU_EV); return Math.max(f, Math.sqrt(2 / 3 * PHYS.KE * g ** 4 * 0.36 / (wq * 0.002 * E))); };
   const G = (I, E) => pcOf(I.m, E) / PHYS.C / (Math.abs(I.q) * wq * fOf(I, E) * PHYS.LOR) * Math.sign(I.q);
-  // (1.37.1, item 101c; and 100d, the owner's "focusing ring in linear collider stops exotic particles") each focusing
-  // magnet works on its own incoming beam only, as each linac's RF does (1.37): a real final-focus magnet holds its field
-  // in a bore a few mm across, metres long, that the beam goes down; what a collision sends out leaves at an angle far
-  // outside it. Drawn round the axis here, a magnet set for 100 GeV caught every slow product that crossed it: 149 of
-  // 1,433 pions that went in stayed over half a second, some for good, hovering at its corners, so the line was never clear.
-  W.zones.push({ kind: 'quad', cx: -13, cy: 0, w: wq, h: 12, ang: 0, G: G(A, EA), beam: 'a' });
-  W.zones.push({ kind: 'quad', cx: 13, cy: 0, w: wq, h: 12, ang: 0, G: -G(B, EB), beam: 'b' });
+  W.zones.push({ kind: 'quad', cx: -13, cy: 0, w: wq, h: 12, ang: 0, G: G(A, EA) });
+  W.zones.push({ kind: 'quad', cx: 13, cy: 0, w: wq, h: 12, ang: 0, G: -G(B, EB) });
   // (a bunch goes in short, so that stretched out by the linac, where its leaders speed away from the rest, it is still only
   // about 1.5 Å long per particle at full energy, and the two bunches meet in the detector)
   // the faster beam goes in later, so the two bunches meet in the detector: time from the source to the collision point,
