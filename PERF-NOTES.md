@@ -1991,7 +1991,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.37.2: unstable beams against heavy ions; Made here's find button (the owner, 2026-11-22)
+## 1.37.2 (released 2026-11-22): unstable beams against heavy ions; Made here's find button (the owner, 2026-11-22)
 
 The owner: "some particles get thrown out or just don't collide, probably because they're too small or light (tried
 with B mesons which didn't collide and sigma baryons got thrown at 20 TeV) … while colliding with another element
