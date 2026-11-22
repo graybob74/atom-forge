@@ -4199,6 +4199,17 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
       van der Waals constants in 3-D against the measured density, keeping the flat game as it is.
    (Left as they are, the game's scale needs them: enlarged nuclei, nanometre accelerators, sped-up decay, few
    particles a bunch, light as rays, bookkept atomic electrons, the flat world's doubled attractions.)
+103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found
+   about it?"; all four kinds chosen; waiting for "build it"). Hypothetical ones labelled as such in the game.
+   a. Exotic hadrons that have been found: X(3872), T_cc⁺ (LHCb 2021), the d*(2380) dibaryon (WASA 2014), double-Λ
+      hypernuclei (⁶ΛΛHe), antihyperhydrogen-4 (STAR 2024), with their measured masses, widths and decays.
+   b. Dark matter candidates at today's experimental limits: WIMPs that only rarely bump a nucleus (the recoil direct-
+      detection experiments look for; LZ-scale cross sections, boostable like neutrinos), axions that turn into a
+      photon in a strong magnetic field (as haloscopes such as ADMX look for).
+   c. Strange matter (hypothetical): strangelets, lumps of up, down and strange quarks, with the bag model's predicted
+      mass per baryon and small positive charge.
+   d. Other hypotheticals: magnetic monopoles (Dirac charge, ionizing heavily; none found), the sexaquark, dark photons
+      (mixing with the photon at the experimental limits).
 64 (1.30) shorter names for the particle bar's groups (the owner, 2026-11-08): W, Z and Higgs bosons → Bosons;
    Pentaquarks and hexaquarks → Multiquarks; Exotic atoms and nuclei → Exotic. Display text only.
 65 (1.30) the quark–gluon plasma drawn as simulated quarks (the owner, 2026-11-08: "the cloud of quarks is drawn a
