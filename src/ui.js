@@ -2423,7 +2423,7 @@ function renderMade() {
   $('dMadeSum').innerHTML = sum + '.';
   // (1.11: an ⓘ on every nuclide, particle and element opens its card; the list opens to show everything)
   // (1.37.1, item 101e: i opens a web page about it; ⌖ beside it finds one in the box, or puts one there)
-  const cards = UI.madeCards = [], ib = (spec, what) => { cards.push(spec); const i = cards.length - 1; return ` <button class="ib" data-card="${i}" title="About ${esc(what)} on the web" aria-label="About ${esc(what)} on the web">i</button><button class="ib fb" data-find="${i}" title="Find ${esc(what)} in the box (or put one there)" aria-label="Find ${esc(what)} in the box">⌖</button>`; };
+  const cards = UI.madeCards = [], ib = (spec, what) => { cards.push(spec); const i = cards.length - 1; return ` <button class="ib" data-card="${i}" title="About ${esc(what)} on the web" aria-label="About ${esc(what)} on the web">i</button><button class="ib fb" data-find="${i}" title="Pick ${esc(what)} in the toolbar, and go to one in the box" aria-label="Pick ${esc(what)} and find one in the box">⌖</button>`; };
   const row = (sw, lab, nm, sub, n, spec) => `<tr><td class="f"><span class="sw" style="background:${sw}"></span>${esc(lab)}</td><td class="nm"><b>${nm}</b>${spec ? ib(spec, lab) : ''}<br><span class="sub">${esc(sub)}</span></td><td class="n">${n}</td></tr>`;
   // (1.31, item 73, the owner: "make the made here thing shorter but when you click show all it opens its own window in the
   // middle") The panel shows the first {MADE_SHOW} nuclides and the first few kinds of particle; "Show all" opens the whole
@@ -2482,9 +2482,9 @@ function madeClick(e) {
   const s = UI.madeCards && UI.madeCards[+b.dataset.card]; if (!s) return;
   openWeb(specWebURL(s));
 }
-/* (1.37.1, item 101e; the owner: "add a separate button to find/spawn the particle in the box") One of this kind in the box,
-   picked out and followed by the view; with none there, one is put at the middle of the view (γ rays and neutrinos,
-   which cross the box in an instant, are always sent out fresh). */
+/* (1.37.1, item 101e; 1.37.2, the owner: "make the find in box button in made here just select it in your toolbar and send
+   you to one if there is one") ⌖ picks the kind in the toolbar (Place puts it down), and when one is in the box the view
+   goes to it and follows it. A nuclide is picked as its bare nucleus. */
 function madeMatch(s) {
   switch (s.kind) {
     case 'e': return W.parts.find(p => !p.dead && p.k === ELEC);
@@ -2496,14 +2496,11 @@ function madeMatch(s) {
   return null;
 }
 function findOrSpawn(s) {
-  let p = s.kind === 'gamma' || s.kind === 'nu' ? null : madeMatch(s), made = false;
-  if (!p) {
-    const sp = s.kind === 'atom' && s.bare ? { kind: 'atom', Z: s.Z, A: s.A, charge: s.Z, anti: !!s.anti } : s;
-    const out = placeSpec(sp, R.cx, R.cy, 1, 0); made = true;
-    p = Array.isArray(out) && out.find(q => q && !q.dead) || madeMatch(s);
-  }
+  const sp = s.kind === 'atom' && s.bare ? { kind: 'atom', Z: s.Z, A: s.A, charge: s.Z, anti: !!s.anti } : s;
+  selectSpec(sp);
+  const p = s.kind === 'gamma' || s.kind === 'nu' ? null : madeMatch(s);
   if (p && !p.dead) { R.sel = W.exo.includes(p) ? null : p; R.follow = p; if (W.d3) cam3Follow(p); else { R.cx = p.x; R.cy = p.y; } }
-  log('tool', `${specName(s)}: ${made ? 'put one in the middle of the view' : 'found one; the view follows it (drag to let go)'}`);
+  log('tool', `${specName(s)}: picked in the toolbar${p ? '; the view goes to one in the box and follows it (drag to let go)' : ' (none in the box now)'}`);
 }
 /* (1.31, item 72, the owner: "make all graphs and trees expandable somewhat like settings images") A chart or tree
    opens larger in a window in the middle on a click (or Enter), as a Settings picture does. A canvas chart is drawn again

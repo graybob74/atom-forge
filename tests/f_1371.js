@@ -48,11 +48,12 @@ PARTS.page = async (page, check) => {
     o.urls = opened; o.finds = $('dMade').querySelectorAll('button[data-find]').length; o.photons = /Photons/.test($('dMade').textContent);
     const n0 = W.exo.filter(x => !x.dead && x.sp === 'mu-').length;
     $('dMade').querySelector('button[data-find]:not([data-find="0"])') && [...$('dMade').querySelectorAll('button[data-find]')].find(b => UI.madeCards[+b.dataset.find].sp === 'mu-').click(); await w(100);
-    o.muPlaced = W.exo.filter(x => !x.dead && x.sp === 'mu-').length - n0; o.follow = !!R.follow;
+    o.muPlaced = W.exo.filter(x => !x.dead && x.sp === 'mu-').length - n0; o.follow = !!R.follow; o.picked = UI.spec && UI.spec.kind === 'exo' && UI.spec.sp === 'mu-';
+    fireSpec({ kind: 'exo', sp: 'mu-' }, 0, 0, 1, 0, 1e6, false); R.follow = null; [...$('dMade').querySelectorAll('button[data-find]')].find(b => UI.madeCards[+b.dataset.find].sp === 'mu-').click(); await w(50); o.follow2 = !!R.follow && R.follow.sp === 'mu-';
     return o;
   });
   const urlsOK = r.urls.some(u => /wikipedia\.org\/wiki\/Muon/.test(u)) && r.urls.some(u => /google\.com\/search\?q=calcium-48\+isotope/.test(u)) && r.urls.some(u => /wiki\/Calcium/.test(u)) && r.urls.some(u => /wiki\/Gamma_ray/.test(u));
-  check(r.noGlass && r.slow && !/\b(cap|slow)\b/.test(r.cls) && urlsOK && r.finds >= 3 && r.photons && r.muPlaced === 1 && r.follow, `1.37.1 no hourglass, slow motion by \\ with the speed in one colour; Made here: i opens the web (${r.urls.length} pages: Muon, Calcium, a search for calcium-48, Gamma ray …), ⌖ put a μ⁻ in the box and the view follows it`, `1.37.1 page: ${JSON.stringify(r)}`);
+  check(r.noGlass && r.slow && !/\b(cap|slow)\b/.test(r.cls) && urlsOK && r.finds >= 3 && r.photons && r.muPlaced === 0 && r.picked && !r.follow && r.follow2, `1.37.1 no hourglass, slow motion by \\ with the speed in one colour; Made here: i opens the web (${r.urls.length} pages: Muon, Calcium, a search for calcium-48, Gamma ray …), ⌖ picks μ⁻ in the toolbar and, with one in the box, the view goes to it (1.37.2)`, `1.37.1 page: ${JSON.stringify(r)}`);
   if (own) { if (own.errors.length) check(false, '', '1.37.1 page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
 };
 module.exports = async function f1371(page, check, say, openPage, only) {
