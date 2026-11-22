@@ -1125,7 +1125,7 @@ const { openPage } = require('./browser');
     const sm = W.slowmo; W.slowmo = true; // (slow motion for nuclear events: an earlier check may have turned it off)
     loadPreset('empty'); setRunning(true); await w(100);
     W.slow = { t0: W.rt, on: true, fresh: false, f: 1 }; fireSpec(isoSpec(2, 4, 0), 0, 0, 1, 0, 5e5, false); await w(300);
-    o.auto = [$('speedVal').textContent, speedLadder().includes(W.simPerFrame), W.simPerFrame < W.baseSpf, $('bSlowmo').classList.contains('auto')];
+    o.auto = [$('speedVal').textContent, speedLadder().includes(W.simPerFrame), W.simPerFrame < W.baseSpf, autoSlowOn()];
     const sAuto = W.simPerFrame; stepSpeed(1); await w(150); o.hand = [W.simPerFrame > sAuto && speedLadder().includes(W.simPerFrame), !W.slowSet, !W.slow, $('speedVal').textContent];
     setSpeed(W.baseSpf); setRunning(false); W.slowmo = sm;
     return o;
@@ -1801,6 +1801,7 @@ const { openPage } = require('./browser');
   await alone('f_136.js'); // 1.36 the collider in 3-D (node tests/f_136.js)
   await alone('f_1362.js'); // 1.36.2 heavy ions above the barrier react; the target's isotope, thickness, beam spread (node tests/f_1362.js)
   await alone('f_137.js'); // 1.37 item 100: unstable beams in 3-D rings, linac steps, Made, the 3-D plasma, Select particles (node tests/f_137.js)
+  await alone('f_1371.js'); // 1.37.1 item 101: a clear machine before a fill, the plasma's true size, Made here's e⁻ e⁺ γ and buttons, no hourglass (node tests/f_1371.js)
   await alone('f_132.js'); // 1.32 items 76–84 (node tests/f_132.js [part …])
   await alone('f_131.js'); // 1.31 items 70–75 (node tests/f_131.js [part …])
   await alone('f_130.js'); // 1.30 items 64–68 and the bug test's B1–B19 (node tests/f_130.js [part …])

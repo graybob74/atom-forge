@@ -1099,7 +1099,13 @@ function noteMade(outs, ins, how) {
   const M = W.made || (W.made = { nuc: new Map(), part: new Map() }), left = {};
   for (const l of ins) left[l] = (left[l] || 0) + 1;
   for (const it of outs) {
-    if (!it || it.t === 'g' || it.t === 'v' || it.t === 'e') continue;
+    if (!it || it.t === 'v') continue; // (neutrinos: counted as they leave, emitNu)
+    if (it.t === 'e' || it.t === 'g') { // (1.37.1, item 101b; the owner: "add electrons and positrons to made here window", and γ rays)
+      const lab = labelOf(it); if (left[lab] > 0) { left[lab]--; continue; }
+      const L = M.lep || (M.lep = new Map()), key = it.t === 'g' ? 'g' : it.anti ? 'e+' : 'e-';
+      let r = L.get(key); if (!r) { r = { key, lab, n: 0, how, t: W.t }; L.set(key, r); }
+      r.n++; continue;
+    }
     const nuc = it.t !== 'x', lab = labelOf(it);
     if (left[lab] > 0) { left[lab]--; continue; }
     const key = nuc ? `${it.Z}_${it.N}${it.anti ? 'a' : ''}` : it.sp, map = nuc ? M.nuc : M.part;
@@ -7090,11 +7096,27 @@ function colliderRefill() {
   let na = 0, nb = 0;
   for (const p of W.parts) if (!p.dead && p.beam) { if (p.beam === 'b') nb++; else na++; }
   for (const o of W.exo) if (!o.dead && o.xb && o.beam) { if (o.beam === 'b') nb++; else na++; }
-  if (C.fixed) { if (na + nb) return; if (typeof refillTarget === 'function') refillTarget(C); refillSources(C); resetRings(C); return; } // (a fixed-target machine: the next bunch once every particle has gone out to the target, 1.36)
+  if (C.fixed) { if (na + nb || !machineClear(C)) return; if (typeof refillTarget === 'function') refillTarget(C); refillSources(C); resetRings(C); return; } // (a fixed-target machine: the next bunch once every particle has gone out to the target, 1.36)
   if (na && nb && !(C.colTurns > 40)) return; // (a ring dumps what is left after 40 turns of collisions)
   if (na + nb) { if (C.kind !== 'ring') return; dumpBeams(); }
+  if (!machineClear(C)) return;
   refillSources(C);
   resetRings(C);
+}
+/* (1.37.1, item 101c; the owner: "make sure magnets and rf are clear before firing again in colliders") The next fill
+   waits while anything from the last one (a product in flight, W.parts or W.exo) is still inside a magnet, a cavity,
+   a kicker or a separator; at most 3 s of the player's time, for one that has slowed to a stop in one. */
+function machineClear(C) {
+  const Z = W.zones.filter(z => z.kind === 'dipole' || z.kind === 'quad' || z.kind === 'cavity' || z.kind === 'kicker' || z.kind === 'sep');
+  if (!Z.length) return true;
+  const inside = (x, y, z) => (!W.d3 || Math.abs(z || 0) < ZONE_HZ3) && Z.some(q => zoneLocal(q, x, y));
+  let busy = false;
+  for (const p of W.parts) if (!p.dead && p.rad && !p.beam && !p.tgt && inside(p.x, p.y, p.z)) { busy = true; break; }
+  if (!busy) for (const o of W.exo) if (!o.dead && !o.xb && o.v > 0 && inside(o.x, o.y, o.z)) { busy = true; break; }
+  if (!busy) { C.clearT0 = null; return true; }
+  if (C.clearT0 == null) C.clearT0 = W.rt;
+  if (W.rt - C.clearT0 < 3) return false;
+  C.clearT0 = null; return true; // (waited long enough)
 }
 function dumpBeams() { // what is left of the beams goes to the beam dump
   for (const p of W.parts) if (!p.dead && p.beam) kill(p);

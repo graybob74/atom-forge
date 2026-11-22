@@ -1076,7 +1076,18 @@ function qgpPartons(ctx, g, x, y, r, a) {
     else { ctx.fillStyle = rgba(QGP_COL[q.col], qa); ctx.strokeStyle = `rgba(20,10,5,${(0.55 * qa).toFixed(3)})`; ctx.beginPath(); ctx.arc(px, py, qr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
   }
 }
-function qgpDisc(g) { const age = g.age || 0; return [w2sx(g.x), w2sy(g.y), (36 + 84 * Math.min(1, age / 1.4)) * clamp(R.s / 6, 0.8, 1.5)]; } // (where it is on screen, and how big)
+/* (1.37.1, item 101d; the owner: "make it so QGP is drawn at its true size all the time so zooming doesn't affect it ...
+   in ultra realistic mode, it's the true size but in normal mode it's just a fixed game size") Its radius in ångström,
+   which the zoom scales like everything else (it was held to 30–160 px whatever the zoom). Ultra-realistic: the drop the
+   melted nucleons make, 1.2 fm × (their number)^⅓ (7.3 fm for gold on gold's 394), swelling to twice that by freeze-out;
+   at the usual zoom a speck under its caption. Otherwise a fixed size in the game, as the drop looked at 1× zoom: in the
+   flat game 6 → 20 Å as it grows, in 3-D 1.5 → 5 Å. */
+function qgpRadius(g) {
+  const f = Math.min(1, (g.age || 0) / 1.4);
+  if (W.ultra) return 1.2e-5 * Math.cbrt(g.Bp || 394) * (1 + f);
+  return W.d3 ? 1.5 + 3.5 * f : 6 + 14 * f;
+}
+function qgpDisc(g) { return [w2sx(g.x), w2sy(g.y), qgpRadius(g) * R.s]; } // (where it is on screen, and how big)
 function drawQGP() {
   if (!W.qgp || !W.qgp.length) return;
   const ctx = R.ctx;
@@ -1088,7 +1099,7 @@ function drawQGP() {
     const core = `rgba(255,${Math.round(150 + 105 * heat)},${Math.round(80 + 175 * heat * heat)},${(0.88 * a).toFixed(3)})`;
     const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, core); gr.addColorStop(0.6, `rgba(255,${Math.round(110 + 60 * heat)},40,${(0.72 * a).toFixed(3)})`); gr.addColorStop(1, 'rgba(255,60,20,0)'); // (nearly opaque inside, so the spray and labels under it do not show through)
     ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
-    qgpPartons(ctx, g, x, y, r, a); // (simulated quarks, antiquarks and gluons, 1.30 item 65)
+    if (r >= 6) qgpPartons(ctx, g, x, y, r, a); // (simulated quarks, antiquarks and gluons, 1.30 item 65; too small to show under 6 px)
     if (R.view.labels !== false) {
       ctx.font = '600 12px ' + (typeof cssVar === 'function' ? cssVar('--font-data') : 'monospace'); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
       const t = age < 1.2 ? 'quark–gluon plasma' : `→ ${g.n.toLocaleString('en-US')} hadrons`, w = ctx.measureText(t).width + 12, ty = y - r - 8;

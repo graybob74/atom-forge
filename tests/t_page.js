@@ -118,7 +118,7 @@ const say = (...a) => console.log(...a);
     await page.click('#chkEach'); await page.waitForTimeout(120);
     if (pre === 'ring') for (const v of ['apart', 'together', 'auto']) { await page.click(`#segSep button[data-v="${v}"]`); await page.waitForTimeout(80); if ((await page.evaluate(() => W.collider.sepMode)) !== v) { fails++; say('FAIL beams setting', v); } }
     await tryClick(page.locator('#bInject'));
-    for (let i = 0; i < 2; i++) { await page.click('#chkRefill'); await tryClick(page.locator('#bSlowmo')); await page.waitForTimeout(100); }
+    for (let i = 0; i < 2; i++) { await page.click('#chkRefill'); await page.evaluate(() => toggleSlowmo()); await page.waitForTimeout(100); }
     await page.waitForTimeout(4000);
     let st; // (a few looks: the readout refreshes a few times a second, and a linac's beams come and go between bunches)
     for (let k = 0; k < 10; k++) {
@@ -444,11 +444,11 @@ const say = (...a) => console.log(...a);
     && st2b.max === 4000 && !st2b.lite && st2b.budget === 16 && !st2b.perf && st3.max === 4000 && !st3.lite && st3.unit === 'K')) {
     fails++; say('FAIL settings:', JSON.stringify({ st0, st1, tC, placed: n100b - n100, st2, st2b, st3 }));
   } else say(`  settings: ${st1.max.toLocaleString('en-US')} particles, ${n100b - n100} argon atoms at a click, ${tC.split(' → ')[0]}; kept over a reload; the physics budget kept at ${st2b.budget} ms; then reset`);
-  // 8g''. The hourglass follows slow motion started by an event (lit, dashed), takes it over when pressed, turns it off when
+  // 8g''. Slow motion (\, the hourglass until 1.37.1) takes over one started by an event when pressed, turns it off when
   //       pressed again; paused in slow motion, the Motion readout still says slow motion
   const smo = await page.evaluate(async () => {
     loadPreset('water'); setRunning(true); await new Promise(r => setTimeout(r, 300));
-    const b = document.getElementById('bSlowmo'), st = () => ({ pressed: b.getAttribute('aria-pressed'), auto: b.classList.contains('auto'), hold: !!W.slowHold, motion: document.getElementById('spdVal').textContent, speed: document.getElementById('speedVal').textContent });
+    const b = { click: () => toggleSlowmo() }, st = () => ({ pressed: String(!!W.slowHold || autoSlowOn()), auto: autoSlowOn() && !W.slowHold, hold: !!W.slowHold, motion: document.getElementById('spdVal').textContent, speed: document.getElementById('speedVal').textContent });
     W.slow = { t0: W.rt, on: true, fresh: false, f: 0.05 }; fireSpec(isoSpec(2, 4, 0), 0, 0, 1, 0, 5e5, false); await new Promise(r => setTimeout(r, 400)); const a = st();
     setRunning(false); await new Promise(r => setTimeout(r, 300)); syncLabText(); const paused = st(); setRunning(true);
     b.click(); await new Promise(r => setTimeout(r, 200)); const c = st();
@@ -456,7 +456,7 @@ const say = (...a) => console.log(...a);
     return { a, paused, c, d };
   });
   if (!(smo.a.pressed === 'true' && smo.a.auto && !smo.a.hold && /^1\/.+×$/.test(smo.a.speed) && smo.paused.speed === smo.a.speed && smo.c.hold && !smo.c.auto && /^1\/.+×$/.test(smo.c.speed) && smo.d.pressed === 'false' && !smo.d.hold && smo.d.speed !== smo.c.speed && /×$/.test(smo.d.speed))) { fails++; say('FAIL slow motion button:', JSON.stringify(smo)); }
-  else say(`  slow motion: the hourglass lights for an event's slow motion (speed ${smo.a.speed}), takes it over (${smo.c.speed}), turns it off (${smo.d.speed}); paused, the readout keeps it`);
+  else say(`  slow motion: \\ for an event's slow motion (speed ${smo.a.speed}), takes it over (${smo.c.speed}), turns it off (${smo.d.speed}); paused, the readout keeps it`);
   // 8g'''. Typed values: every metric unit that fits; a value past the slider's end is kept (the slider sits at its end);
   //        past a real limit, the nearest allowed value is set and a note says why
   const tyx = await page.evaluate(async () => {

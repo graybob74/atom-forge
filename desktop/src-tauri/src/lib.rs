@@ -40,7 +40,9 @@ fn heartbeat(beat: tauri::State<'_, Beat>) {
 #[tauri::command]
 fn open_wiki(url: String) -> bool {
     const BASE: &str = "https://en.wikipedia.org/wiki/";
-    let ok = url.len() < 200 && url.starts_with(BASE) && url[BASE.len()..].chars().all(|c| c.is_ascii_alphanumeric() || "_()-.,%'".contains(c));
+    const GOOGLE: &str = "https://www.google.com/search?q="; // (1.37.1: Made here's info button searches when there is no article)
+    let ok = url.len() < 200 && ((url.starts_with(BASE) && url[BASE.len()..].chars().all(|c| c.is_ascii_alphanumeric() || "_()-.,%'".contains(c)))
+        || (url.starts_with(GOOGLE) && url[GOOGLE.len()..].chars().all(|c| c.is_ascii_alphanumeric() || "+-.%_".contains(c))));
     if !ok { return false; }
     open_in_browser(&url)
 }

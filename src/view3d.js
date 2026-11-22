@@ -1284,7 +1284,7 @@ function drawQGP3(ctx) {
     if (!g.d3) qgpInit3(g);
     qgpStep3(g);
     const cx = o[0], cy = o[1], sc0 = C3.F / o[2], heat = Math.max(0, 1 - age / 1.4), a = age < 1.4 ? 1 : 1 - (age - 1.4) / 0.8;
-    const Rw = clamp(1.5 + 3.5 * Math.min(1, age / 1.4), 30 / sc0, 160 / sc0), gz = g.z || 0; // (its radius in ångström: on screen 30–160 px, as before)
+    const Rw = qgpRadius(g), gz = g.z || 0; // (its radius in ångström, which the zoom scales: 1.37.1, item 101d)
     // the hot matter, lit: each point's place on the ball gives its normal, turned into view space
     const hr = 1, hg = (150 + 105 * heat) / 255, hb = (80 + 175 * heat * heat) / 255, med = [];
     for (const m of g.med) {
@@ -1302,9 +1302,9 @@ function drawQGP3(ctx) {
       ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, rr, 0, 2 * Math.PI); ctx.fill();
     }
     ctx.globalCompositeOperation = 'source-over';
-    // its partons, back to front: size by their own depth, the far side dimmer
+    // its partons, back to front: size by their own depth, the far side dimmer (too small to show under 6 px across)
     const pts = [];
-    for (const q of g.pp) { if (!proj3(g.x + q.x * Rw, g.y + q.y * Rw, gz + q.z * Rw, O)) continue; pts.push({ q, x: O[0], y: O[1], z: O[2] }); }
+    if (Rw * sc0 >= 6) for (const q of g.pp) { if (!proj3(g.x + q.x * Rw, g.y + q.y * Rw, gz + q.z * Rw, O)) continue; pts.push({ q, x: O[0], y: O[1], z: O[2] }); }
     if (age >= F0) { // (the colour strings that hold each set, between its members in space)
       const k = clamp((age - F0) / 0.25, 0, 1), by = new Map();
       for (const p of pts) if (p.q.cl >= 0) { let l = by.get(p.q.cl); if (!l) by.set(p.q.cl, l = []); l.push(p); }

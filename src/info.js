@@ -199,6 +199,35 @@ function infoKeyP(p) {
   return null;
 }
 function wikiURL(t) { return 'https://en.wikipedia.org/wiki/' + t; }
+/* (1.37.1, item 101e; the owner: "make the info button in made here take you to a page/google search for the particle")
+   The web page about a kind of particle: its Wikipedia article where the game knows one (the info cards' Read more),
+   else a Google search for it (a nuclide: "calcium-48 isotope"). */
+function specWebURL(s) {
+  const g = (q) => 'https://www.google.com/search?q=' + encodeURIComponent(q).replace(/%20/g, '+');
+  const w = (t) => t ? wikiURL(encodeURIComponent(t.replace(/ /g, '_')).replace(/%2C/g, ',').replace(/%28/g, '(').replace(/%29/g, ')')) : null;
+  const pk = (k) => P_INFO[k] && P_INFO[k][1];
+  switch (s.kind) {
+    case 'e': return w(pk('e-')); case 'pos': return w(pk('e+'));
+    case 'gamma': return w('Gamma ray');
+    case 'nu': return w(({ e: 'Electron neutrino', mu: 'Muon neutrino', tau: 'Tau neutrino' })[s.fl || 'e']);
+    case 'n': return w(pk('n') || 'Neutron'); case 'nbar': return w(pk('nbar') || 'Antineutron');
+    case 'exo': { const k = infoKeyX(s.sp); return (k && w(pk(k))) || g(`${PART_NAMES[s.sp] || s.sp} particle`); }
+    case 'atom': {
+      const E = ELEMENTS[s.Z]; if (!E) return null;
+      if (!s.bare) return s.anti ? g(`anti${E.name.toLowerCase()}`) : w(elWiki(s.Z));
+      return g(`${s.anti ? 'anti-' : ''}${E.name.toLowerCase()}-${s.A} isotope`);
+    }
+  }
+  return g(specName(s));
+}
+/* Open a web page: the desktop app in the player's browser (its shell's open_wiki, which takes these two sites only), the
+   page in a new tab. */
+function openWeb(url) {
+  if (!url) return;
+  const T = typeof window !== 'undefined' && window.__TAURI__;
+  if (T && T.core && T.core.invoke) T.core.invoke('open_wiki', { url }).catch(() => {});
+  else if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
+}
 /* The info box: the text, and Read more (the Wikipedia article). */
 function infoHTML(text, wiki, title) {
   if (!text) return '';

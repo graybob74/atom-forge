@@ -878,7 +878,7 @@ function qgpHadrons(MF, Bp, Qp, sNN) {
   }
   return null;
 }
-function addQGP(x, y, n, sNN) { (W.qgp || (W.qgp = [])).push({ x, y, z: W.d3 ? _evZ3 : 0, n, sNN, t0: W.rt }); if (W.qgp.length > 6) W.qgp.shift(); } // (z: 3-D, 1.25)
+function addQGP(x, y, n, sNN, Bp) { (W.qgp || (W.qgp = [])).push({ x, y, z: W.d3 ? _evZ3 : 0, n, sNN, Bp, t0: W.rt }); if (W.qgp.length > 6) W.qgp.shift(); } // (z: 3-D, 1.25)
 
 
 /* ---- muons in matter. A charged unstable particle in flight (muon, pion, kaon) ionizes the atoms it passes as any
@@ -3169,7 +3169,7 @@ function nuclearEncounter(a, b, u, x, y, z, bfm) { // (bfm: the impact parameter
     if (!inc && !fragmentInto(a, b, Pa, Pb, b3, anti, items, moms)) { if (A <= 16 || eps >= 40) return null; slow = true; } // (between 15 and 40 MeV a nucleon, a fireball with no consistent outcome (too little energy for its spectators' excitation) is the slow side's compound nucleus or exchange below; it was nothing, so a head-on α on gold at 100 MeV passed through one time in three, 1.26 bug fix)
     else {
       sub = `${Math.min(A1, A2) === 1 ? 'spallation' : 'fragmentation'}, ${fmtE(eps * MEV)} per nucleon` + (_incLast ? `: a cascade of ${_incLast.coll} collisions, ${_incLast.out} out fast, ${fmtE(_incLast.Ex * MEV)} left to boil off` : '');
-      if (_qgpLast) { const g = _qgpLast; kind = 'qgp'; sub = `quark–gluon plasma: ${g.Bp} nucleons melted at √s_NN = ${fmtE(g.sNN * MEV)}, froze out into ${g.n.toLocaleString('en-US')} hadrons`; addQGP(x, y, g.n, g.sNN); }
+      if (_qgpLast) { const g = _qgpLast; kind = 'qgp'; sub = `quark–gluon plasma: ${g.Bp} nucleons melted at √s_NN = ${fmtE(g.sNN * MEV)}, froze out into ${g.n.toLocaleString('en-US')} hadrons`; addQGP(x, y, g.n, g.sNN, g.Bp); }
     }
   } else slow = true;
   if (slow) {

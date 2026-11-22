@@ -13,7 +13,7 @@
         <button class="ibtn" id="bSlower" title="Slow down ([)" aria-label="Slow down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
         <button class="speed-v" id="speedBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Speed: choose from a list"><span class="k">Speed</span><span class="v" id="speedVal">1×</span><span class="rt" id="speedRate"></span></button>
         <button class="ibtn" id="bFaster" title="Speed up (])" aria-label="Speed up"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12M12 6v12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
-        <button class="ibtn" id="bSlowmo" title="Slow motion: time slows until the fastest particle takes about a second to cross the box (\)" aria-label="Slow motion" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h10M7 20.5h10M8 3.5c0 4.5 8 5 8 8.5s-8 4-8 8.5M16 3.5c0 4.5-8 5-8 8.5s8 4 8 8.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M10 18.5h4l-2-2.6z" fill="currentColor"/></svg></button>
+        <!-- (1.37.1, item 101a: the slow-motion hourglass removed, the owner; \ still turns slow motion on and off) -->
       </div>
     </div>
     <div class="scen">
@@ -205,7 +205,7 @@
             <label class="check"><input type="checkbox" id="chkDecay"> Radioactive decay</label>
             <label class="check"><input type="checkbox" id="chkSlowmo"> Slow motion for nuclear events</label>
           </div>
-          <p class="note">The hourglass (or \) slows time until the fastest particle takes about a second to cross the box.</p>
+          <p class="note">\ slows time until the fastest particle takes about a second to cross the box.</p>
           <p class="note">Motion runs at about a picosecond per second, so decay can be sped up: every half-life shrinks by the same factor, keeping decay chains in order. Time slows briefly when a nucleus decays or splits.</p>
         </section>
 
@@ -877,7 +877,7 @@
         <li>Mouse: scroll to zoom, drag with the right button (or Space held) to move. Touch: pinch to zoom, two fingers to move, a tap to use the tool.</li>
         <li>In the 3-D lab: right-drag, Alt+drag or the arrow keys turn the view, Shift+right-drag moves it, the wheel zooms, 0 fits the box. <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> fly the camera through the world (forward, left, back, right), <kbd>E</kbd> and <kbd>Q</kbd> up and down (Space and Shift too while flying; Space alone still pauses), faster the further out you are; turning afterwards circles the new place. There Spark is <kbd>Z</kbd> and Erase <kbd>X</kbd>.</li>
         <li>Placing in 3-D: things go on the placing plane facing you, drawn as a faint grid where it cuts the box, with a ghost of the item and a line down to the floor; <kbd>Shift</kbd> + wheel (or Place's Depth slider) moves it farther or nearer. Over an atom, they go against its near side. Fire: a click shoots from the camera toward the pointer, straight at an atom under it; a drag aims in the plane facing you.</li>
-        <li>Time: slower and faster down to 1/512×, slow motion on demand (the hourglass), one frame at a time (.), and ⟲ to rewind the last minute or so. <kbd>Ctrl+Z</kbd> undoes.</li>
+        <li>Time: slower and faster down to 1/512×, slow motion on demand (\), one frame at a time (.), and ⟲ to rewind the last minute or so. <kbd>Ctrl+Z</kbd> undoes.</li>
       </ul>
       <h4>Keeping and sharing</h4>
       <ul>

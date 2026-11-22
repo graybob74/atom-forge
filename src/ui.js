@@ -2408,7 +2408,7 @@ const PART_NAMES = { 'pi+': 'charged pion', 'pi-': 'charged pion', pi0: 'neutral
   'Sig+': 'sigma baryon', 'Sig-': 'sigma baryon', Xi0: 'xi baryon', 'Xi-': 'xi baryon', 'Omg-': 'omega baryon', 'Sigb-': 'antisigma', 'Sigb+': 'antisigma', Xib0: 'antixi', 'Xib+': 'antixi', 'Omgb+': 'antiomega', 'W+': 'W boson', 'W-': 'W boson', Z0: 'Z boson', H0: 'Higgs boson' }; // (W, Z: 1.27; H0: feature 25)
 function renderMade() {
   const M = W.made, sec = $('dMadeSec');
-  const nuc = M ? [...M.nuc.values()] : [], part = M ? [...M.part.values()] : [], nus = M && M.nu ? [...M.nu.values()] : [];
+  const nuc = M ? [...M.nuc.values()] : [], part = (M ? [...(M.lep ? M.lep.values() : []), ...M.part.values()] : []), nus = M && M.nu ? [...M.nu.values()] : [];
   sec.hidden = !nuc.length && !part.length && !nus.length;
   if (sec.hidden) return;
   nuc.sort((a, b) => b.Z - a.Z || b.N - a.N || a.anti - b.anti);
@@ -2422,7 +2422,8 @@ function renderMade() {
   if (part.length || nus.length) sum += `. Particles: ${part.concat(nus).map(r => `${esc(r.lab)}&#8202;×${r.n}`).join(' · ')}`;
   $('dMadeSum').innerHTML = sum + '.';
   // (1.11: an ⓘ on every nuclide, particle and element opens its card; the list opens to show everything)
-  const cards = UI.madeCards = [], ib = (spec, what) => { cards.push(spec); return ` <button class="ib" data-card="${cards.length - 1}" title="About ${esc(what)}" aria-label="About ${esc(what)}">i</button>`; };
+  // (1.37.1, item 101e: i opens a web page about it; ⌖ beside it finds one in the box, or puts one there)
+  const cards = UI.madeCards = [], ib = (spec, what) => { cards.push(spec); const i = cards.length - 1; return ` <button class="ib" data-card="${i}" title="About ${esc(what)} on the web" aria-label="About ${esc(what)} on the web">i</button><button class="ib fb" data-find="${i}" title="Find ${esc(what)} in the box (or put one there)" aria-label="Find ${esc(what)} in the box">⌖</button>`; };
   const row = (sw, lab, nm, sub, n, spec) => `<tr><td class="f"><span class="sw" style="background:${sw}"></span>${esc(lab)}</td><td class="nm"><b>${nm}</b>${spec ? ib(spec, lab) : ''}<br><span class="sub">${esc(sub)}</span></td><td class="n">${n}</td></tr>`;
   // (1.31, item 73, the owner: "make the made here thing shorter but when you click show all it opens its own window in the
   // middle") The panel shows the first {MADE_SHOW} nuclides and the first few kinds of particle; "Show all" opens the whole
@@ -2438,7 +2439,7 @@ function renderMade() {
     const life = info.stable ? 'stable' : info.unbound ? 'unbound: falls apart at once' : `${lifeText(info)}${info.modes && info.modes.length ? ', ' + modeLabel(info.modes[0].mode).replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase()) : ''}`;
     return head + row(ELEMENTS[r.Z].color, r.lab, nm, `${life} · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n, { kind: 'atom', Z: r.Z, A: r.Z + r.N, bare: true, anti: !!r.anti });
   }).join('') +
-    P.map(r => { const d = XP[r.sp]; return row(rgba(d.col, 1), r.lab, esc(PART_NAMES[r.sp] || r.sp), `mean life ${fmtTime(d.tau)} · first: ${r.how}`, r.n, { kind: 'exo', sp: r.sp }); }).join('') +
+    P.map(r => { if (r.key) return row(r.key === 'g' ? '#fff096' : r.key === 'e+' ? POS_COL : E_COL, r.lab, r.key === 'g' ? 'Photons (γ rays)' : r.key === 'e+' ? 'Positrons' : 'Electrons', `${r.key === 'g' ? 'light: travel at c' : 'stable'} · first: ${r.how}`, r.n, { kind: r.key === 'g' ? 'gamma' : r.key === 'e+' ? 'pos' : 'e' }); const d = XP[r.sp]; return row(rgba(d.col, 1), r.lab, esc(PART_NAMES[r.sp] || r.sp), `mean life ${fmtTime(d.tau)} · first: ${r.how}`, r.n, { kind: 'exo', sp: r.sp }); }).join('') +
     U.map(r => row('rgb(120,255,170)', r.lab, ({ e: 'Electron ', mu: 'Muon ', tau: 'Tau ' })[r.fl || 'e'] + (r.anti ? 'antineutrinos' : 'neutrinos'), `left the box at about c, ${fmtE(r.E)} carried off in all · first: ${r.how} (at ${fmtTime(r.t * PHYS.TU_S)})`, r.n, { kind: 'nu', fl: r.fl || 'e', anti: !!r.anti })).join('');
   };
   UI.madeBuild = () => build(nuc, part, nus); // (the whole list, for the copied text)
@@ -2477,9 +2478,32 @@ function elemA(Z) {
 function madeClick(e) {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.more) { UI.madeAllHTML = null; showModal('madeModal'); renderMade(); return; } // (the whole list in its own window, 1.31)
+  if (b.dataset.find !== undefined) { const s = UI.madeCards && UI.madeCards[+b.dataset.find]; if (s) { hideModal('madeModal'); findOrSpawn(s); } return; }
   const s = UI.madeCards && UI.madeCards[+b.dataset.card]; if (!s) return;
-  const r = b.getBoundingClientRect(), c = $('cv').getBoundingClientRect(), ui = SET.ui || 1;
-  openSpecCard(s, (r.left - c.left) / ui - 300, (r.top - c.top) / ui);
+  openWeb(specWebURL(s));
+}
+/* (1.37.1, item 101e; the owner: "add a separate button to find/spawn the particle in the box") One of this kind in the box,
+   picked out and followed by the view; with none there, one is put at the middle of the view (γ rays and neutrinos,
+   which cross the box in an instant, are always sent out fresh). */
+function madeMatch(s) {
+  switch (s.kind) {
+    case 'e': return W.parts.find(p => !p.dead && p.k === ELEC);
+    case 'pos': return W.parts.find(p => !p.dead && p.k === POS);
+    case 'n': case 'nbar': return W.parts.find(p => !p.dead && p.Z === 0 && p.N === 1 && !!p.anti === (s.kind === 'nbar'));
+    case 'exo': return W.exo.find(o => !o.dead && o.sp === s.sp);
+    case 'atom': return W.parts.find(p => !p.dead && p.Z === s.Z && (!s.bare || p.Z + p.N === s.A) && !!p.anti === !!s.anti && p.k === NUC);
+  }
+  return null;
+}
+function findOrSpawn(s) {
+  let p = s.kind === 'gamma' || s.kind === 'nu' ? null : madeMatch(s), made = false;
+  if (!p) {
+    const sp = s.kind === 'atom' && s.bare ? { kind: 'atom', Z: s.Z, A: s.A, charge: s.Z, anti: !!s.anti } : s;
+    const out = placeSpec(sp, R.cx, R.cy, 1, 0); made = true;
+    p = Array.isArray(out) && out.find(q => q && !q.dead) || madeMatch(s);
+  }
+  if (p && !p.dead) { R.sel = W.exo.includes(p) ? null : p; R.follow = p; if (W.d3) cam3Follow(p); else { R.cx = p.x; R.cy = p.y; } }
+  log('tool', `${specName(s)}: ${made ? 'put one in the middle of the view' : 'found one; the view follows it (drag to let go)'}`);
 }
 /* (1.31, item 72, the owner: "make all graphs and trees expandable somewhat like settings images") A chart or tree
    opens larger in a window in the middle on a click (or Enter), as a Settings picture does. A canvas chart is drawn again
@@ -3676,8 +3700,8 @@ function syncSpeed() {
   const m = W.simPerFrame / UI.baseSpf, v = $('speedVal');
   // the speed actually reached: at the computer's limit (amber) less than asked, as each frame's physics time is used up
   v.textContent = speedText(UI.capped && !W.slowSet ? m * clamp(UI.ach || 1, 1e-4, 1) : m); // (1.14: always a speed from the menu; slow motion sets one) // (the speed setting shows in automatic slow motion too, 0.91)
-  v.classList.toggle('cap', !!UI.capped && !UI.slow && !W.slowSet);
-  v.classList.toggle('slow', !!W.slowSet);
+  // (1.37.1, item 101a; the owner: "just remove the icon and number color changing": the number keeps one colour, amber
+  // at the computer's limit and violet in slow motion no more; the tooltip still says when the computer limits it)
   const k = Math.round(Math.log2(m));
   $('bSlower').disabled = spfRate(W.simPerFrame) <= ULTRA_SLOWEST * 1.01; $('bFaster').disabled = k >= SPEED_MAX;
   const rate = W.simPerFrame * PHYS.TU_S * 60 * Math.min(1, UI.ach || 1);
@@ -4014,8 +4038,13 @@ function linacLayout(C, A, B, EA, EB) {
   // (2/3)k·γ⁴·y²/(w·f²) for a particle y off the axis): kept under 0.2% of the energy 0.6 Å off the axis
   const fOf = (I, E) => { if (!I.lep) return f; const g = 1 + E / (I.m * AMU_EV); return Math.max(f, Math.sqrt(2 / 3 * PHYS.KE * g ** 4 * 0.36 / (wq * 0.002 * E))); };
   const G = (I, E) => pcOf(I.m, E) / PHYS.C / (Math.abs(I.q) * wq * fOf(I, E) * PHYS.LOR) * Math.sign(I.q);
-  W.zones.push({ kind: 'quad', cx: -13, cy: 0, w: wq, h: 12, ang: 0, G: G(A, EA) });
-  W.zones.push({ kind: 'quad', cx: 13, cy: 0, w: wq, h: 12, ang: 0, G: -G(B, EB) });
+  // (1.37.1, item 101c; and 100d, the owner's "focusing ring in linear collider stops exotic particles") each focusing
+  // magnet works on its own incoming beam only, as each linac's RF does (1.37): a real final-focus magnet holds its field
+  // in a bore a few mm across, metres long, that the beam goes down; what a collision sends out leaves at an angle far
+  // outside it. Drawn round the axis here, a magnet set for 100 GeV caught every slow product that crossed it: 149 of
+  // 1,433 pions that went in stayed over half a second, some for good, hovering at its corners, so the line was never clear.
+  W.zones.push({ kind: 'quad', cx: -13, cy: 0, w: wq, h: 12, ang: 0, G: G(A, EA), beam: 'a' });
+  W.zones.push({ kind: 'quad', cx: 13, cy: 0, w: wq, h: 12, ang: 0, G: -G(B, EB), beam: 'b' });
   // (a bunch goes in short, so that stretched out by the linac, where its leaders speed away from the rest, it is still only
   // about 1.5 Å long per particle at full energy, and the two bunches meet in the detector)
   // the faster beam goes in later, so the two bunches meet in the detector: time from the source to the collision point,
@@ -4400,17 +4429,12 @@ function injectBeams() {
   if (C.kind === 'ring') { dumpBeams(); resetRings(C); }
   refillSources(C);
 }
-/* The hourglass shows slow motion whichever way it came: on demand (W.slowHold) or started by a nuclear event (W.slow).
-   Pressed while the automatic kind runs, it takes over (slow motion stays on, now held until pressed again); pressed while
+/* Slow motion comes on demand (W.slowHold, the \ key) or is started by a nuclear event (W.slow).
+   Turned on while the automatic kind runs, it takes over (slow motion stays on, now held until pressed again); pressed while
    on, it turns both off. */
 function autoSlowOn() { return !!(W.slow && W.slow.on); }
-function syncSlowmo() {
-  const b = $('bSlowmo'), auto = autoSlowOn() && !W.slowHold, on = !!W.slowHold || auto;
-  UI.smShown = (W.slowHold ? 2 : 0) + (auto ? 1 : 0);
-  b.setAttribute('aria-pressed', String(on));
-  b.classList.toggle('primary', on);
-  b.classList.toggle('auto', auto);
-  b.title = auto ? 'Slow motion (started by a nuclear event: it set the speed): press to keep it, press again to go back to your speed (\\)' : on ? 'Slow motion: it sets the speed so the fastest particle takes about a second to cross the box; press to go back to your speed (\\)' : 'Slow motion: sets the speed so the fastest particle takes about a second to cross the box (\\)';
+function syncSlowmo() { // (what the frame loop compares to notice a change; the hourglass that showed it went in 1.37.1, item 101a)
+  UI.smShown = (W.slowHold ? 2 : 0) + (autoSlowOn() && !W.slowHold ? 1 : 0);
 }
 function toggleSlowmo() {
   if (W.slowHold) { W.slowHold = false; W.slow = null; if (W.slowSet) { W.simPerFrame = W.userSpf; W.slowSet = 0; } } // off: the automatic kind too; back to the speed chosen
@@ -7811,7 +7835,6 @@ function init() {
   document.addEventListener('pointerdown', (e) => { if (!$('speedMenu').hidden && !e.target.closest('#speedMenu, #speedBtn')) closeSpeedMenu(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('speedMenu').hidden) { closeSpeedMenu(); e.stopPropagation(); } }, true);
   $('bFaster').onclick = () => stepSpeed(1);
-  $('bSlowmo').onclick = () => toggleSlowmo();
   const newBeams = (a, b, E, E2) => {
     const C = W.collider; if (!C) return;
     setupCollider(C.fixed ? 'fixed' : C.kind, a, C.fixed ? a : b, E || C.E, E2 === undefined ? C.E2 : E2); fitView(); syncCollider();

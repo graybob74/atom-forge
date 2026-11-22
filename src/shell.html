@@ -84,8 +84,6 @@ button { cursor: pointer; }
 .speedmenu .spm-i.sep::before { content: ''; position: absolute; left: 8px; right: 8px; top: -4px; border-top: 1px solid var(--line); }
 .speed-v .k { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
 .speed-v .v { font-family: var(--font-data); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.speed-v .v.cap { color: var(--hot); }
-.speed-v .v.slow { color: var(--tool); }
 .ibtn { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; border: 1px solid var(--line);
   background: var(--surface); color: var(--fg); box-shadow: var(--shadow); }
 .ibtn:hover { border-color: var(--accent); }
@@ -385,6 +383,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
 .species td.nm { color: var(--muted); padding-left: 8px; }
 /* (1.11) the ⓘ beside each nuclide, particle and element in the list of what was made; element rows; the map */
 .ib { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 5px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--muted); font: italic 700 10px Georgia, 'Times New Roman', serif; line-height: 1; vertical-align: 1px; cursor: pointer; }
+.ib.fb { margin-left: 3px; font-size: 10px; } /* (Made here: find it in the box, 1.37.1) */
 .ib:hover, .ib:focus-visible { color: var(--accent-fg, #fff); background: var(--accent); border-color: var(--accent); }
 .species tr.elh td { padding: 9px 0 2px; border-bottom: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
 .species tr.elh td .sub { text-transform: none; font-weight: 500; letter-spacing: 0; margin-left: 4px; }
