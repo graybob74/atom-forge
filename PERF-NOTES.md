@@ -1994,7 +1994,7 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
 ## 1.37.1: item 101 (the owner, 2026-11-22, "build it")
 
 - **a. No hourglass** (the owner: "just remove the icon and number color changing"). The slow-motion button is gone
-  (the \\ key still turns slow motion on and off, automatic slow motion is unchanged), and the speed number keeps one
+  (the \ key still turns slow motion on and off, automatic slow motion is unchanged), and the speed number keeps one
   colour (no amber at the computer's limit, no violet in slow motion; the tooltip still says when the computer limits it).
   t_page and the 1.14 check toggle slow motion by `toggleSlowmo` instead of the button.
 - **b. Made here lists e⁻, e⁺ and γ rays** (W.made.lep, from `noteMade`, which skipped them; neutrinos were already
