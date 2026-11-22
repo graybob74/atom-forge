@@ -4083,7 +4083,8 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
       nucleons and antinucleons, mesons, baryons, bosons, multiquarks, exotic atoms and nuclei, every element and
       isotope …), searchable, for each beam.
 101 (the owner, 2026-11-22, for 1.37.1; waiting for "build it")
-   a. Remove the slow-motion hourglass.
+   a. Remove the slow-motion hourglass icon and the speed number's colour change; automatic slow motion itself stays
+      (the owner: "just remove the icon and number color changing").
    b. The collider's Made window: list electrons and positrons too.
    c. Colliders: make sure the magnets and RF cavities are clear before firing again (the next fill waits until nothing
       from the last one is left in them).
