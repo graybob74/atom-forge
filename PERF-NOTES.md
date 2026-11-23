@@ -76,6 +76,48 @@ engine stores and visits particles.
   and 2.3 → 1.5 ms (flash byte). `node tools/kdump.js <scenario> out.bin` + `cargo run --release --example check -- out.bin`
   checks and times the native build; Settings shows the kernel in use.
 
+## The GPU: measured and shelved (2026-11-22)
+The owner asked whether the force work could go to the graphics card, given that WebGPU has no 64-bit floats. Measured
+on his PC (RTX 3090, 7950X3D) with two probes that run the same test: Lennard-Jones plus Coulomb inside 6 Å on a
+jittered lattice at the 20,000-water density, a neighbour list with a 1 Å skin (157,790 entries at 20,000 atoms,
+1,590,028 at 200,000), every method compared with the CPU's doubles value by value. The test forces are simpler than
+the game's kernels, so its times are not the game's times; they compare the methods with each other.
+- **Doubles on a GPU are possible in a page.** `softf64.wgsl` (in `tools/gpu-probe/src/` on the `gpu-probe` branch)
+  does IEEE doubles with 32-bit integer operations only: add, subtract, multiply, divide, square root, comparisons,
+  conversions, round to nearest even, subnormals, infinities, NaN. Against the CPU: 27 million results (3 million pairs,
+  9 operations) without a mismatch in Chrome's software WebGPU; on the 3090 in Chrome 157, 1,800,000 of 1,800,000
+  and every force value at both sizes. The cheaper two-float trick gives about 13 digits and is fragile: the shader
+  compiler folded x·(1/x) to 1 and it fell to 7 digits until the 1.0 came from a uniform.
+- **In the browser** (probe page https://claude.ai/artifact/4whdWaAtsHGsqrzenAZo9U, WebGPU works inside the artifact
+  frame): the shortest trip to the GPU and back is 3.00 ms. With the forces read back each step, at 20,000 atoms:
+  32-bit floats 3.26 ms, two-float 3.25, emulated doubles 3.53, one JavaScript thread 0.769. At 200,000: 4.18, 5.27,
+  5.55 against 8.23. The GPU's own work is small (emulated doubles 0.213 ms a step at 20,000, 0.931 at 200,000); the
+  trip is the cost, and the game needs each step's forces before the next, dozens of steps a frame.
+- **Outside the browser** (`tools/gpu-probe`, Rust with wgpu 30.0.2 on Vulkan, built by `gpu-probe.yml` on that branch
+  only): the trip is 0.073 ms. ms a step with the forces read back, 20,000 / 200,000 atoms:
+
+  | Method | 20,000 | 200,000 |
+  | --- | --- | --- |
+  | CPU, native, 32 threads (rayon) | 0.061 | 0.403 |
+  | CPU, native, 1 thread | 0.632 | 7.24 |
+  | GPU, real doubles | 0.168 | 1.32 |
+  | GPU, emulated doubles | 0.273 | 1.83 |
+  | GPU, 32-bit floats | 0.118 | 0.579 |
+
+  The GPU's work alone (many steps, one read-back): real doubles 0.051 / 0.340, emulated 0.147 / 0.820, 32-bit floats
+  0.030 / 0.032. So in doubles the 3090 ties the CPU's threads at best and loses about threefold once the result comes
+  back; it is about ten times slower in doubles than in floats (0.340 against 0.032), and floats agree with doubles to
+  about 5 digits (0 in the worst value: a pair on the wrong side of the cutoff).
+- Real doubles on the GPU are not bit-identical to the CPU's: 5,226 of 40,000 values the same, the rest off in the 16th
+  digit (typical 1.6·10⁻¹⁶, worst 6·10⁻¹⁵). The emulated ones are identical, all 40,000 and all 400,000.
+- Native code by itself is not the gain: the same sums on one thread take 0.632 ms natively and 0.769 in the browser's
+  JavaScript.
+- Decided: no GPU port, in the page or natively ("No WebGPU port" in CLAUDE.md stands, now with numbers). If it ever
+  comes back, the owner wants it as a switch in Settings.
+- Not measured: the M3 MacBook Air (its GPU has no doubles at all; the emulated ones should run there). For next time:
+  wgpu offers real doubles on Vulkan only; Direct3D's software renderer crashed (heap corruption, 0xC0000374) compiling
+  the emulated-doubles shader on the build machine, so the native probe skips that one test on Direct3D.
+
 ## Planned features (1.x), in the order the user chose
 - Speed (found from the owner's benchmarks, 1.18): 20,000 waters take 0.65 ms a step on 16 threads (39 fps at 1×, the
   goal 45), against 0.55 at 0.90; on 32 threads 1.16 ms, every threaded phase waiting about 1 ms (the busy-waiting
