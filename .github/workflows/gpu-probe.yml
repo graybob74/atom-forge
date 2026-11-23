@@ -11,6 +11,8 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      RUSTFLAGS: -C target-feature=+crt-static   # no Visual C++ runtime needed on the PC that runs it
     steps:
       - uses: actions/checkout@v5
       - name: Build
@@ -21,7 +23,10 @@ jobs:
         continue-on-error: true
         timeout-minutes: 15
         working-directory: tools/gpu-probe
-        run: ./target/release/atom-forge-gpu-probe.exe --quick --no-wait
+        run: |
+          ./target/release/atom-forge-gpu-probe.exe --quick --no-wait
+          Write-Host ("exit code 0x{0:X}" -f $LASTEXITCODE)
+          exit $LASTEXITCODE
       - uses: actions/upload-artifact@v4
         with:
           name: atom-forge-gpu-probe-windows

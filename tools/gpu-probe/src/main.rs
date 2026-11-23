@@ -551,6 +551,7 @@ fn bench(rep: &mut Report, gpu: Option<&Gpu>, has_f64: bool, n: usize, skip: &[&
             slow.push(key);
             continue;
         }
+        println!("  ({} is running...)", v.name);
         match run_kernel(gpu, &w, &v) {
             Ok(k) => {
                 let c = compare(&reference, &k.forces);
@@ -672,13 +673,27 @@ fn main() {
     let quick = args.iter().any(|a| a == "--quick");
     let no_wait = args.iter().any(|a| a == "--no-wait");
     let pick = args.iter().position(|a| a == "--adapter").and_then(|i| args.get(i + 1)).and_then(|s| s.parse::<usize>().ok());
-    let mut rep = Report::default();
-    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&mut rep, quick, pick)));
-    if let Err(p) = outcome {
-        let msg = p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_else(|| "unknown error".to_string());
-        rep.line(format!("STOPPED: {}", short(&msg)));
-        rep.failed = true;
-    }
+    // Everything runs on a thread with a large stack: the shader compilers recurse deeply on the emulated-doubles
+    // shader, and Windows gives the main thread only 1 MB (the first build died there without a word).
+    let worker = std::thread::Builder::new().stack_size(512 << 20).spawn(move || {
+        let mut rep = Report::default();
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&mut rep, quick, pick)));
+        if let Err(p) = outcome {
+            let msg = p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_else(|| "unknown error".to_string());
+            rep.line(format!("STOPPED: {}", short(&msg)));
+            rep.failed = true;
+        }
+        rep
+    });
+    let rep = match worker.map(|h| h.join()) {
+        Ok(Ok(rep)) => rep,
+        _ => {
+            let mut rep = Report::default();
+            rep.line("STOPPED: the test thread could not run to the end");
+            rep.failed = true;
+            rep
+        }
+    };
     let file = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("gpu-probe-results.txt"))).unwrap_or_else(|| "gpu-probe-results.txt".into());
     match std::fs::write(&file, &rep.text) {
         Ok(()) => println!("\nSaved to {}", file.display()),
