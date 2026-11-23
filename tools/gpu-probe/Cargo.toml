@@ -1,0 +1,15 @@
+[package]
+name = "atom-forge-gpu-probe"
+version = "0.1.0"
+edition = "2021"
+description = "Times a native GPU (real and emulated 64-bit floats) against the CPU on an Atom Forge sized force pass"
+publish = false
+
+[dependencies]
+wgpu = "=30.0.2"
+pollster = "0.4"
+bytemuck = "1.22"
+rayon = "1.10"
+
+[profile.release]
+opt-level = 3

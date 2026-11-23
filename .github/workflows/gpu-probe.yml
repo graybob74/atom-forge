@@ -1,0 +1,40 @@
+# Builds tools/gpu-probe (a native GPU timing test, not part of the game) and smoke-tests it on the runners'
+# software renderers. Only runs for the gpu-probe branch or by hand; it never touches main or the desktop build.
+name: gpu-probe
+on:
+  push:
+    branches: [gpu-probe]
+    paths: ['tools/gpu-probe/**', '.github/workflows/gpu-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build
+        working-directory: tools/gpu-probe
+        run: cargo build --release
+      - name: Smoke run (software renderer, small sizes)
+        # Direct3D's software renderer and shader compiler are not what a real card uses: a failure here is information, not a blocker
+        continue-on-error: true
+        timeout-minutes: 15
+        working-directory: tools/gpu-probe
+        run: ./target/release/atom-forge-gpu-probe.exe --quick --no-wait
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atom-forge-gpu-probe-windows
+          path: tools/gpu-probe/target/release/atom-forge-gpu-probe.exe
+  linux-check:
+    # the real-doubles path needs Vulkan; Mesa's software Vulkan (lavapipe) has it, so the shader gets a real compile here
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
+      - name: Build
+        working-directory: tools/gpu-probe
+        run: cargo build --release
+      - name: Smoke run (lavapipe, small sizes)
+        working-directory: tools/gpu-probe
+        run: ./target/release/atom-forge-gpu-probe --quick --no-wait
