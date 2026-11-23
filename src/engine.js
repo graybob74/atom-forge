@@ -378,7 +378,11 @@ function canTake(p, partner) {
 }
 function freeVal(p) { return p.cap - p.used; }
 
-function setSize(p) {
+/* The largest drawn radius any nucleus has had (it never shrinks): the soft walls' quick test, 1.39.1. Every nucleus's
+   rd is set by setSize (a new particle starts at 0.3). */
+let _rdMax = 0.3;
+function setSize(p) { setSize0(p); if (p.rd > _rdMax) _rdMax = p.rd; }
+function setSize0(p) {
   if (p.Z === 0) { p.rd = 0.2; p.ljR = 0; p.ljE = 0; p.ljS = 0; p.isMetal = false; return; }
   if (p.ne === 0) { p.rd = 0.16 + 0.05 * Math.cbrt(p.Z + p.N); p.ljR = 0; p.ljE = 0; p.ljS = 0; p.isMetal = false; p.ionic = false; return; }
   const el = p.el;
@@ -3146,11 +3150,16 @@ function computeForces1() {
    force pass's long body the loop ran several times slower. */
 let _wallFs = 0; // (the walls' total push this force evaluation, eV/Å)
 function softWalls(mdI, nmd, hw0, hh0) {
-  const K = S.k, M = S.m, X = S.x, Y = S.y, FX = S.fx, FY = S.fy, OBJ = S.obj, R0 = 0.1 * Math.min(W.box.w, W.box.h);
+  // R0: no atom's edge reaches further in than this (wallIn: its drawn radius, at most a tenth of the box). It was the
+  // tenth of the box alone, so in a wide box a third of the atoms went on to look up their particle (20,000 waters:
+  // 6,000 of them, the whole of the pass's 0.11 to 0.15 ms on the owner's PC); with the largest radius there is, about
+  // 1 Å, it is the atoms at the walls only. The same atoms are pushed, in the same order (1.39.1).
+  const K = S.k, M = S.m, X = S.x, Y = S.y, FX = S.fx, FY = S.fy, OBJ = S.obj, R0 = Math.min(_rdMax, 0.1 * Math.min(W.box.w, W.box.h));
+  const xin = hw0 - R0, yin = hh0 - R0; // (R0 − hw0 is −(hw0 − R0) exactly)
   let fs = 0;
   for (let q = 0; q < nmd; q++) {
     const i = mdI[q], x = X[i], y = Y[i];
-    if (x <= hw0 - R0 && x >= R0 - hw0 && y <= hh0 - R0 && y >= R0 - hh0) continue; // (well inside: no push)
+    if (x <= xin && x >= -xin && y <= yin && y >= -yin) continue; // (well inside: no push)
     if (K[i] !== NUC) continue;
     const k = 30 * Math.min(1, M[i]), r = wallIn(OBJ[i]), hw = hw0 - r, hh = hh0 - r; // (wallK, wallIn)
     if (x <= hw && x >= -hw && y <= hh && y >= -hh) continue;
@@ -3161,11 +3170,12 @@ function softWalls(mdI, nmd, hw0, hh0) {
 }
 /* 3-D: the same walls, and two more at z = ±d/2. */
 function softWalls3(mdI, nmd, hw0, hh0, hd0) {
-  const K = S.k, M = S.m, X = S.x, Y = S.y, Zp = S.z, FX = S.fx, FY = S.fy, FZ = S.fz, OBJ = S.obj, R0 = 0.1 * Math.min(W.box.w, W.box.h, W.box.d);
+  const K = S.k, M = S.m, X = S.x, Y = S.y, Zp = S.z, FX = S.fx, FY = S.fy, FZ = S.fz, OBJ = S.obj, R0 = Math.min(_rdMax, 0.1 * Math.min(W.box.w, W.box.h, W.box.d)); // (as softWalls)
+  const xin = hw0 - R0, yin = hh0 - R0, zin = hd0 - R0;
   let fs = 0;
   for (let q = 0; q < nmd; q++) {
     const i = mdI[q], x = X[i], y = Y[i], z = Zp[i];
-    if (x <= hw0 - R0 && x >= R0 - hw0 && y <= hh0 - R0 && y >= R0 - hh0 && z <= hd0 - R0 && z >= R0 - hd0) continue;
+    if (x <= xin && x >= -xin && y <= yin && y >= -yin && z <= zin && z >= -zin) continue;
     if (K[i] !== NUC) continue;
     const k = 30 * Math.min(1, M[i]), r = wallIn(OBJ[i]), hw = hw0 - r, hh = hh0 - r, hd = hd0 - r;
     if (x > hw) { FX[i] -= k * (x - hw); fs += k * (x - hw); } else if (x < -hw) { FX[i] += k * (-hw - x); fs += k * (-hw - x); }

@@ -135,6 +135,73 @@ PARTS.menu = async (page, check) => { // (1.39.1: long labels ran over the names
   check(r.every(x => x[1] && x[2] === 1 && x[3] < 24), `1.39.1 in the particle menus (${r.map(x => x[0]).join(', ')}) no label runs into its name or wraps, and the names line up`, `1.39.1 menu: ${JSON.stringify(r)}`);
   if (own) { if (own.errors.length) check(false, '', '1.39.1 menu errors: ' + own.errors.join(' | ')); await own.browser.close(); }
 };
+PARTS.walls = async (page, check) => { // (1.39.1: the soft walls' quick test uses the largest drawn radius, not a tenth of the box)
+  // the same pushes as the old test gives (every atom within a tenth of the box looked up), force for force and in
+  // sum, flat and in 3-D, with small and big atoms and ions at and past every wall; and no nucleus is drawn larger than
+  // the radius the test relies on, in any of the setups
+  const res = [];
+  for (const d3 of [false, true]) {
+    const X = load('all', { seed: 11 }), W = X.W, S = X.S; (d3 ? X.PRESETS.d3empty : X.PRESETS.empty).build();
+    for (const k of ['w', 'tw']) W.box[k] = 80; for (const k of ['h', 'th']) W.box[k] = 50; if (d3) for (const k of ['d', 'td']) W.box[k] = 44;
+    const hw = 40, hh = 25, hd = 22, syms = ['H', 'He', 'O', 'Ar', 'Cs', 'Xe', 'Na', 'Cl', 'Fr', 'U'];
+    for (let i = 0; i < 400; i++) { // (a third well inside, the rest in a band from 3 Å inside the wall line to 1.5 Å past it)
+      const edge = () => (Math.random() < 0.5 ? -1 : 1), band = (h) => edge() * (h - 3 + 4.5 * Math.random()), inside = (h) => (Math.random() - 0.5) * 1.6 * h, pick = (h) => (Math.random() < 0.6 ? band(h) : inside(h));
+      const o = { T: 300 }; if (i % 7 === 0) o.charge = i % 14 === 0 ? 1 : -1; if (d3) o.z = pick(hd);
+      X.addAtom(syms[i % syms.length], pick(hw), pick(hh), o);
+    }
+    X.forcesNoEvents(); // (the lists the walls walk)
+    const mdI = X._mdI, nmd = X._nmd, n = S.hi, rdMax = Math.max(...W.parts.map((p) => p.rd));
+    const old = () => { // (the test as it was before 1.39.1)
+      const R0 = 0.1 * (d3 ? Math.min(W.box.w, W.box.h, W.box.d) : Math.min(W.box.w, W.box.h)); let fs = 0, slow = 0;
+      for (let q = 0; q < nmd; q++) {
+        const i = mdI[q], x = S.x[i], y = S.y[i], z = d3 ? S.z[i] : 0;
+        if (x <= hw - R0 && x >= R0 - hw && y <= hh - R0 && y >= R0 - hh && (!d3 || (z <= hd - R0 && z >= R0 - hd))) continue;
+        if (S.k[i] !== X.NUC) continue;
+        slow++;
+        const k = 30 * Math.min(1, S.m[i]), r = X.wallIn(S.obj[i]), w = hw - r, h = hh - r, dd = hd - r;
+        if (!d3 && x <= w && x >= -w && y <= h && y >= -h) continue;
+        if (x > w) { S.fx[i] -= k * (x - w); fs += k * (x - w); } else if (x < -w) { S.fx[i] += k * (-w - x); fs += k * (-w - x); }
+        if (y > h) { S.fy[i] -= k * (y - h); fs += k * (y - h); } else if (y < -h) { S.fy[i] += k * (-h - y); fs += k * (-h - y); }
+        if (d3) { if (z > dd) { S.fz[i] -= k * (z - dd); fs += k * (z - dd); } else if (z < -dd) { S.fz[i] += k * (-dd - z); fs += k * (-dd - z); } }
+      }
+      return { fs, slow };
+    };
+    const zero = () => { S.fx.fill(0, 0, n); S.fy.fill(0, 0, n); if (d3) S.fz.fill(0, 0, n); }, copy = () => [S.fx.slice(0, n), S.fy.slice(0, n), d3 ? S.fz.slice(0, n) : null];
+    zero(); const o = old(), A = copy();
+    zero(); if (d3) X.softWalls3(mdI, nmd, hw, hh, hd); else X.softWalls(mdI, nmd, hw, hh); const B = copy(), fsNew = X._wallFs;
+    let same = true, pushed = 0; for (let i = 0; i < n; i++) { if (!Object.is(A[0][i], B[0][i]) || !Object.is(A[1][i], B[1][i]) || (d3 && !Object.is(A[2][i], B[2][i]))) same = false; if (B[0][i] !== 0 || B[1][i] !== 0 || (d3 && B[2][i] !== 0)) pushed++; }
+    res.push({ d3, same, sum: Object.is(o.fs, fsNew), pushed, slow: o.slow, rdMax, bound: X._rdMax });
+  }
+  let over = ''; { const X = load('all', { seed: 5 }); for (const k of Object.keys(X.PRESETS)) { try { X.PRESETS[k].build(); } catch (e) { continue; } for (const p of X.W.parts) if (p.k === X.NUC && p.rd > X._rdMax) over += ` ${k}:${p.Z}`; } }
+  check(res.every((r) => r.same && r.sum && r.pushed > 100 && r.bound >= r.rdMax && r.bound < 3) && !over,
+    `1.39.1 soft walls: the quick test on the largest drawn radius (${res[0].bound.toFixed(2)} Å here) pushes the same ${res[0].pushed} flat and ${res[1].pushed} 3-D atoms with the same forces and sum as looking up all ${res[0].slow} and ${res[1].slow} near the walls; no nucleus in any setup is drawn larger`,
+    `1.39.1 soft walls: ${JSON.stringify(res)} larger than the bound:${over || ' none'}`);
+};
+PARTS.seed = async (page, check) => { // (1.39.1: the benchmark's worlds are the same in every run)
+  // rndUse puts the benchmark's seeded source under the engine's random numbers; with the bath's seed, the step size and
+  // the clock's carry set as the benchmark sets them, the same world built three times on one engine (another world run
+  // in between) steps to the same positions and velocities, to the bit: salt, liquid water, and water with 40 molecules
+  // ionized. Without rndUse the engine keeps the source it had when it loaded.
+  const { seeded } = require(path.join(__dirname, 'load.js'));
+  const X = load('all', { seed: 3 }), S = X.S;
+  const hash = () => { let h = 0x811c9dc5; for (const a of [S.x, S.y, S.vx, S.vy]) { const u = new Uint32Array(a.buffer, a.byteOffset, 2 * S.hi); for (let i = 0; i < u.length; i++) { h ^= u[i]; h = Math.imul(h, 0x01000193); } } return (h >>> 0).toString(16); };
+  const world = (which, steps) => {
+    const g = seeded(12), realR = Math.random; Math.random = g; const was = X.rndUse(g);
+    if (which === 'ion') { X.PRESETS.water.build(); X.settleOverlaps(); const Os = X.W.parts.filter((p) => p.Z === 8); for (let i = 0; i < 40; i++) X.userIonize(Os[i]); } else { X.PRESETS[which].build(); X.settleOverlaps(); }
+    const W = X.W; W.decayOn = false; W.bathSeed = 0x5eed1234; W.dt = 0; W.vmax = 0; W.amax = 0; W.tc = 0;
+    for (let i = 0; i < steps; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+    const h = hash(); X.rndUse(was); Math.random = realR; return h;
+  };
+  const out = {};
+  for (const which of ['salt', 'water', 'ion']) {
+    const a = world(which, 60); X.PRESETS.argon.build(); for (let i = 0; i < 23; i++) { X.W.dt = X.chooseDt(); X.step(X.W.dt); }
+    out[which] = [a, world(which, 60), world(which, 60)];
+  }
+  const u1 = X.rnd(), g2 = seeded(77), was = X.rndUse(g2), v = X.rnd(), w = seeded(77)(); X.rndUse(was); const u2 = X.rnd();
+  check(Object.values(out).every((h) => h[0] === h[1] && h[1] === h[2]) && v === w && u1 !== u2,
+    `1.39.1 the benchmark's seeding: salt, water and ionized water built three times on one engine step to the same state (${Object.values(out).map((h) => h[0]).join(', ')}); the engine draws from the source rndUse gives it and goes back to its own`,
+    `1.39.1 seeding: ${JSON.stringify(out)} rnd ${v} ${w}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

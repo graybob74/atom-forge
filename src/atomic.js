@@ -4,7 +4,12 @@
    ========================================================================== */
 
 const LN2 = Math.LN2;
-const rnd = Math.random;
+/* The engine's random numbers: Math.random as it was when the page loaded (a seeded one in the tests), unless rndUse
+   has put another source in (the Settings benchmark's seeded one, so its worlds are the same in every run, 1.39.1).
+   rndUse returns the source that was in use, to put back. */
+let _rndF = Math.random;
+function rnd() { return _rndF(); }
+function rndUse(f) { const was = _rndF; _rndF = f; _gHas = false; return was; }
 let _gSpare = 0, _gHas = false;
 function gauss() { // Marsaglia polar method, two normals per pair of uniforms
   if (_gHas) { _gHas = false; return _gSpare; }

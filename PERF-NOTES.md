@@ -2130,6 +2130,38 @@ Phase lengths, µs a call, the build before → this one (the pair phase is unto
 - Next candidate: the one-thread pass after the kernels (0.11 to 0.15 ms: for water mostly the soft walls' walk over
   every atom's position, which the integration's threads have just written), then lists 0.07 and grid 0.03.
 
+### 1.39.1: the after-forces pass, and a benchmark that repeats (the owner, 2026-11-22, "build it")
+- **The pass after the kernels was the soft walls' walk, and it looked up a third of the atoms.** Timed alone on one
+  thread here (20,000 waters): softWalls 0.32 ms of the pass's 0.31; far metal pairs, tools and lepton extras under
+  1 µs together. Its quick "well inside" test used a tenth of the box (46 Å in the 723 × 465 Å world) as the most an
+  atom's edge can reach in from the wall line, so 6,000 of the 20,000 atoms went on to fetch their particle object for
+  its drawn radius. Now the bound is the largest drawn radius any nucleus has had (`_rdMax`, kept by `setSize`, through
+  which every nucleus's `rd` is set; never more than the tenth of the box): about 1 Å, so only the atoms at the walls
+  are looked up, and the bounds are worked out once. Here 0.32 → 0.085 ms; the pass 0.31 → 0.13. The same atoms get the
+  same pushes in the same order: fingerprints of hot gases of small and big atoms and ions in small boxes (flat and
+  3-D, a push in 1,677 of 3,000 steps), water at the walls and three setups are unchanged, and `tools/thhash.js` on
+  2, 3 and 5 threads. It was planned as a move onto the threads; measured first, it needed less work, not more threads
+  (what is left, a compare per atom, would cost as much to hand out as to do).
+- **The benchmark's worlds were different in every run.** It seeded `Math.random`, but the engine's `rnd` was
+  `Math.random` as taken when the page loaded, so velocities and events were not seeded; `clearWorld` moves the bath's
+  seed on with every world made since the page loaded; the step size, its maxima and the clock's carry were left from
+  the world before; and the first passes of a threaded world could run on one thread while the workers bound to its
+  arrays (sums round differently). Now `rnd()` calls a source that `rndUse(f)` can swap (the benchmark puts its seeded
+  one in and takes it out; everything else draws as before, the tests' seeding included), the benchmark sets
+  `W.bathSeed`, `W.dt`, `W.vmax`, `W.amax` and `W.tc` after each world is built and waits for the threads to bind
+  before the first step, and "list rebuilds a step" counts the timed steps only (it included the second of real
+  frames). Two runs here: 275, 405, 9,175 and 298 K both times (before: the ionized world 9,252 and 9,505 K, and on
+  the owner's PC 9,000 K twice and 171,340 K once, the runaway of the known limits).
+- Tests: f_139 `walls` (the new test against the old one, force for force and in sum, 400 atoms at and past every
+  wall, flat and 3-D; no nucleus in any setup drawn larger than the bound) and `seed` (salt, water and ionized water
+  built three times on one engine step to the same state, to the bit); t_threads' benchmark check; t_energy.
+- The full suite here (the 2-core sandbox, 64 minutes): 74 of 85 jobs pass. The 11 that fail (t_features 8 checks,
+  t_settings 3, t_page, t_collider, f_126q, f_126x, f_rp5, f_rp7, f_feat1, f_136, f_fix15) fail the same checks without
+  this change (main as it stood, run beside it), and t_settings, f_126q and f_fix15 the same at the 1.39.0 release
+  commit, so they are not from this work; whether they are this sandbox or main wants a look on the owner's WSL
+  (t_settings: "the pictures add 1215 KB, under 1,200 KB", "every one of the 109 setting rows has a description", the
+  3-D menu's setups; f_fix15: plasma [164, 165]).
+
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 
 New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each

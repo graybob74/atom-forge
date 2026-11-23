@@ -6643,27 +6643,32 @@ function benchStart() {
     ['Liquid water, 40 molecules ionized', () => { PRESETS.water.build(); settleOverlaps(); const Os = W.parts.filter(p => p.Z === 8); for (let i = 0; i < 40; i++) userIonize(Os[i]); }],
     ['Flash memory: one byte', () => { PRESETS.flashbyte.build(); settleOverlaps(); }],
   ];
-  const realRandom = Math.random;
+  const realRandom = Math.random; let realRnd = null;
   const show = (busy) => { out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, priority ${PRIO_FPS[prioNow()]} fps${SET.prioAuto ? ' (auto)' : ''}, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ${expSummary()}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
   let k = 0;
   const next = () => {
     if (k >= scen.length) {
-      Math.random = realRandom; loadPreset(preset); setRunning(wasRunning); BENCH.busy = false;
+      Math.random = realRandom; if (realRnd) rndUse(realRnd); loadPreset(preset); setRunning(wasRunning); BENCH.busy = false;
       show(''); $('setThreads').textContent = threadsNote();
       return;
     }
     const [name, build] = scen[k++];
     show(`building ${name}…`);
     setTimeout(() => {
-      Math.random = seeded(12);
+      Math.random = seeded(12); { const was = rndUse(Math.random); if (!realRnd) realRnd = was; } // (the engine's random numbers too: the same world in every run, 1.39.1)
       R.sel = null; R.hover = null; W.grab = null; R.msel.clear();
       build(); W.decayOn = false; fitView();
+      // the same world in every run (1.39.1): the bath's seed (clearWorld moves it on with every world made since the page
+      // loaded), the step size and its maxima left by the world before, the clock's carry; and the threads bound to the
+      // new world's arrays before the first step, so no early pass runs on one thread (its sums round differently)
+      W.bathSeed = 0x5eed1234; W.dt = 0; W.vmax = 0; W.amax = 0; W.tc = 0;
+      if (typeof TH !== 'undefined' && TH.n) { forcesNoEvents(); W.fSpawn = W.spawned; const tb = performance.now(); while (!threadsReady() && performance.now() - tb < 1500) { /* (the workers acknowledge on shared memory) */ } }
       const steps = (n) => { let adv = 0; for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } const tc = performance.now(); W.dt = chooseDt(); if (PROF.on) PROF.dt += performance.now() - tc; adv += step(W.dt); } return adv; };
       steps(k <= 2 ? 200 : 40); // (the water worlds settle first: freshly laid out, their atoms move fast and the lists are rebuilt every other step, 0.90)
       let best = Infinity, adv = 0; const N = 60;
       PROF.on = true; profReset(); VL.builds = 0;
       for (let r = 0; r < 3; r++) { const t0 = performance.now(); adv += steps(N); best = Math.min(best, (performance.now() - t0) / N); }
-      PROF.on = false;
+      PROF.on = false; const builds = VL.builds; // (the timed steps' rebuilds: the second of real frames below adds its own)
       const dt = adv / (3 * N), spf = 10 / best, speed = Math.min(100, 100 * spf * dt / W.simPerFrame), ns = PROF.steps || 1;
       const f = (v) => (v / ns).toFixed(2);
       let fast = 0, alive = 0; for (const p of W.parts) if (!p.dead) { alive++; if (p.fast) fast++; }
@@ -6680,7 +6685,7 @@ function benchStart() {
       }
       const fSim = simMs / frames, fDraw = drawMs / frames, fAll = fSim + fDraw, fpsAllow = 1000 / Math.max(fAll, 1e-3);
       BENCH.rows.push(`${name}: ${best.toFixed(2)} ms a step on ${TH.used || 1} thread${(TH.used || 1) > 1 ? 's' : ''}, ${speed.toFixed(0)}% of full speed within 10 ms` +
-        ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}, bookkeeping ${f(PROF.cls)}, grid ${f(PROF.grid)}, lists ${f(PROF.lists)} (checks ${f(PROF.valid)}), after ${f(PROF.after)}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; timestep ${f(PROF.dt)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)} (${RP_NAMES.map((nm, i) => [nm, PROF.rp[i]]).filter(([, v]) => v / ns >= 0.005).sort((a, b) => b[1] - a[1]).map(([nm, v]) => nm + ' ' + f(v)).join(', ')}); ${(PROF.passes / ns).toFixed(2)} force passes and ${(VL.builds / (3 * N)).toFixed(2)} list rebuilds a step; ${alive.toLocaleString('en-US')} particles, ${fast} fast, ${m.T.toFixed(0)} K${TH.used > 1 ? '; threaded phases (main share / wait) ' + Object.entries(TH_PH).filter(([, a]) => a[2]).map(([k, a]) => `${k} ${f(a[0])}/${f(a[1])}`).join(', ') + '; per thread, µs a call (own: the main thread\'s share; work and start after the order: fastest/middle/slowest thread; then each worker\'s work and each worker\'s start) ' + thPerThread() : ''}]` +
+        ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}, bookkeeping ${f(PROF.cls)}, grid ${f(PROF.grid)}, lists ${f(PROF.lists)} (checks ${f(PROF.valid)}), after ${f(PROF.after)}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; timestep ${f(PROF.dt)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)} (${RP_NAMES.map((nm, i) => [nm, PROF.rp[i]]).filter(([, v]) => v / ns >= 0.005).sort((a, b) => b[1] - a[1]).map(([nm, v]) => nm + ' ' + f(v)).join(', ')}); ${(PROF.passes / ns).toFixed(2)} force passes and ${(builds / (3 * N)).toFixed(2)} list rebuilds a step; ${alive.toLocaleString('en-US')} particles, ${fast} fast, ${m.T.toFixed(0)} K${TH.used > 1 ? '; threaded phases (main share / wait) ' + Object.entries(TH_PH).filter(([, a]) => a[2]).map(([k, a]) => `${k} ${f(a[0])}/${f(a[1])}`).join(', ') + '; per thread, µs a call (own: the main thread\'s share; work and start after the order: fastest/middle/slowest thread; then each worker\'s work and each worker\'s start) ' + thPerThread() : ''}]` +
         ` frames: sim ${fSim.toFixed(1)} + draw ${fDraw.toFixed(1)} = ${fAll.toFixed(1)} ms (${(stepsRun / frames).toFixed(1)} steps a frame on a ${(budgetSum / frames).toFixed(0)} ms budget), room for ${fpsAllow.toFixed(0)} fps${GL.ok && GL.on ? '' : ' (Canvas 2D)'}`);
       if (k === 1) { // the goal (0.68): 20,000 atoms at room temperature at 1× speed, 45 frames a second or more
         const per = W.simPerFrame / Math.max(1e-9, dt), ms1 = per * best + fDraw, fps1 = 1000 / ms1;
