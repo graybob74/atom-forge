@@ -160,6 +160,32 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
     say('per thread:', names.map((k) => `${k} own ${ph[k].own} phase ${ph[k].phase} work ${ph[k].slowest} start ${ph[k].start}`).join('; '));
     check(/per thread, µs a call/.test(row) && ok('pairs') && ok('sum') && ok('integ') && ok('bath') && names.every(ok),
       '1.39.1: the benchmark lists each thread\'s own time per phase (pairs, sum, integration, bath, timestep), inside the phase the main thread timed', { ph }); }
+  // 1.39.1: the per-slot phases are shared by pieces (thNext). Whatever the order the threads ask in, every piece is
+  // handed out exactly once and none twice; a thread starts on its own run and only then takes from the others; and the
+  // benchmark says how many pieces changed hands. (That the simulation is the same to the bit as before the change is
+  // tools/thhash.js's fingerprint, run on both builds: PERF-NOTES 1.39.1.)
+  { const sh = await page.evaluate(() => {
+      const out = [];
+      for (const hi of [2000, 12000, 12001, 127, 128 * 3]) for (let trial = 0; trial < 6; trial++) {
+        const n = TH.n, ctrl = TH.ctrl, ch = thShares(hi, trial > 3), nc = Math.ceil(hi / ch), seen = new Uint8Array(nc), st = [], first = [], took = new Int32Array(n + 1); // (the last two trials: the light phases' two pieces a thread)
+        const own = []; for (let t = 0; t <= n; t++) { own.push([ctrl[thCtrl(t, 0)], ctrl[thCtrl(t, 1)]]); st.push(new Int32Array(2)); first.push(-1); }
+        let a = 7 + 31 * trial + hi, live = n + 1, twice = 0, wrongFirst = 0; const done = new Uint8Array(n + 1);
+        while (live) { a = (Math.imul(a, 1664525) + 1013904223) >>> 0; const me = trial === 0 ? 0 : trial === 1 ? n : a % (n + 1); let t = me; while (done[t]) t = (t + 1) % (n + 1); // (trial 0: one thread takes everything; 1: the main thread does; then mixed)
+          const c = thNext(ctrl, n, t, st[t]);
+          if (c < 0) { done[t] = 1; live--; continue; }
+          if (seen[c]) twice++; seen[c] = 1; took[t]++;
+          if (first[t] < 0) { first[t] = c; if (own[t][0] < own[t][1] && !(c >= own[t][0] && c < own[t][1]) && !seenAll(seen, own[t])) wrongFirst++; } }
+        let missed = 0; for (let c = 0; c < nc; c++) if (!seen[c]) missed++;
+        out.push({ hi, trial, nc, twice, missed, wrongFirst, last: own[n][1], cover: own.every((o, t) => o[0] === (t ? own[t - 1][1] : 0)) });
+      }
+      function seenAll(seen, o) { for (let c = o[0]; c < o[1]; c++) if (!seen[c]) return false; return true; }
+      return out;
+    });
+    const bad = sh.filter((r) => r.twice || r.missed || r.wrongFirst || r.last !== r.nc || !r.cover);
+    const took = (bench.rows[0] || '').match(/[\d.]+ of \d+ pieces changed hands/g) || [];
+    const starts = (bench.rows[0] || '').match(/\] starts \[-?\d+( -?\d+)*\]/g) || [];
+    say('pieces:', `${sh.length} share-outs checked;`, took.join('; '));
+    check(sh.length === 30 && !bad.length && took.length === 4 && starts.length === 5, '1.39.1: shared by pieces, every piece is handed out exactly once in any order, own run first; the benchmark counts the pieces that changed hands (sum, integration, bath, timestep) and lists each worker\'s start', { bad, took, starts }); }
   // 3-D (stage 4): the 3-D pair, bond, angle and dihedral forces shared over two threads give the one-thread forces to
   // rounding, the same events in the same order, and the same forces to the bit when run twice; each worker's buffers (z
   // too) are zero outside the intervals it reports; energy is kept over 40 insulated steps; and with af_forces3 (when the

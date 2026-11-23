@@ -16,6 +16,35 @@ const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMM
 // (3-D: prm[n + 25] 1, the depth and its half at n + 26, n + 27, and from 8·n + 32 two per worker: its range of dihedrals;
 //  the 3-D list: n + 28 1, the grid's layers and occupied cells at n + 29, n + 30; n + 31 1: the list's walk in the module, 1.26)
 function thCtrl(w, k) { return TH.n + 10 * w + k; }
+/* Work shared by pieces (1.39.1). The per-slot phases (the forces' sum, integration, the bath, the step size's maxima)
+   give each slot the same result whichever thread does it, so their slots are cut into pieces of TH_CH and every thread
+   (the workers 0 … n − 1, then the main thread as n) owns a run of pieces: a cursor and an end in its control words 0
+   and 1 (the main thread's in the spare words after the workers'; word 2 there holds the number of slots). A thread
+   takes its own pieces first, by adding 1 to the cursor (Atomics.add: nobody else gets that piece), so from phase to
+   phase it works on the slots it had last time; when its run is empty it goes round the others' and takes what they
+   have not started. One thread held up for a moment then delays a piece, not the phase, and the main thread no longer
+   idles through most of it. thNext gives the next piece (−1: none left); st[0] remembers whose run it was on, st[1]
+   counts the pieces taken from other threads' runs (the benchmark shows them). */
+const TH_CH = 128, _thTk = new Int32Array(2), _thDt = new Float64Array(3);
+function thNext(ctrl, n, me, st) {
+  for (let d = st[0]; d <= n; d++) {
+    let t = me + d; if (t > n) t -= n + 1;
+    const ci = n + 10 * t, end = ctrl[ci + 1];
+    if (Atomics.load(ctrl, ci) < end) { const c = Atomics.add(ctrl, ci, 1); if (c < end) { st[0] = d; if (d) st[1]++; return c; } }
+  }
+  st[0] = n + 1; return -1;
+}
+/* The pieces of hi slots shared out evenly in whole pieces, before a per-slot phase's orders go out. The heavy phases
+   (integration, the bath: tens of ns a slot) use pieces of TH_CH slots, some ten a thread at 20,000 atoms; the light
+   ones (the forces' sum, the step size: a few ns a slot, where a piece of 128 would cost as much to hand out as to do)
+   use two pieces a thread, so a thread that starts late still has its second piece, or both, taken off it. The piece
+   size goes in the spare control word 3 for the workers and is returned. */
+function thShares(hi, light) {
+  const n = TH.n, ctrl = TH.ctrl, ch = light ? Math.max(TH_CH, Math.ceil(hi / (2 * (n + 1)))) : TH_CH, nc = Math.ceil(hi / ch);
+  for (let t = 0; t <= n; t++) { ctrl[thCtrl(t, 1)] = Math.floor((t + 1) * nc / (n + 1)); Atomics.store(ctrl, thCtrl(t, 0), Math.floor(t * nc / (n + 1))); }
+  ctrl[thCtrl(n, 2)] = hi; ctrl[thCtrl(n, 3)] = ch; _thTk[0] = 0; _thTk[1] = 0;
+  return ch;
+}
 /* The heat bath's noise: two normals from (seed, step, slot), the same on any thread and in any order, so a bath stirred
    on sixteen threads is the very simulation one thread gives, step for step. The slot's hash (murmur3's finaliser) picks
    two entries of a fixed table of 65,536 normals (made once, the same everywhere, centred and scaled to unit variance
@@ -192,6 +221,8 @@ ${vlPairs3.toString()}
 ${vlPairsW.toString()}
 ${vlPairs3W.toString()}
 ${exRange.toString()}
+${thNext.toString()}
+const tk = new Int32Array(2), dt3 = new Float64Array(3);
 let GV = null, mdI = null, exl = null, exn = null;
 let SPAN0 = 0, TQ0 = 0, TM0 = 0, tw = 0; const spPrev = new Float64Array(4), spPrevZ = new Float64Array(4);
 let pi, pj, ex, FXo, FYo, FZo = null, CQ, ctrl, prm, me, nW, bufs, mem = null, wasm = null, wex = null, descOff = 0, ksOff = 0, ksArr = null, sumTabOff = 0;
@@ -231,11 +262,11 @@ onmessage = (e) => {
   const waitFor = (notValue) => { const t0 = performance.now(); while (Atomics.load(ctrl, me) === notValue) { if (performance.now() - t0 > SPIN_MS) { Atomics.wait(ctrl, me, notValue); break; } } };
   // an order done: how long it took and when it was picked up (this thread's clock on the page's time line) go in the
   // worker's two timing slots for the benchmark's per-thread readout, then the word the main thread spins on (1.39.1)
-  const fin = (s) => { prm[TM0 + 2 * me] = performance.now() - tw; prm[TM0 + 2 * me + 1] = performance.timeOrigin + tw; Atomics.store(ctrl, me, s); Atomics.notify(ctrl, me); };
+  const fin = (s) => { prm[TM0 + 2 * me] = performance.now() - tw; prm[TM0 + 2 * me + 1] = performance.timeOrigin + tw; prm[TM0 + 2 * nW + me] = tk[1]; Atomics.store(ctrl, me, s); Atomics.notify(ctrl, me); };
   for (;;) {
     waitFor(TH_IDLE);
     const st = Atomics.load(ctrl, me);
-    tw = performance.now();
+    tw = performance.now(); tk[1] = 0;
     if (st === TH_REBIND) { Atomics.store(ctrl, me, TH_IDLE); return; } // new buffers coming by message: back to the event loop
     if (st === TH_PAIRS) {
       const q0 = ctrl[ctrlAt(me, 0)], q1 = ctrl[ctrlAt(me, 1)], b0 = ctrl[ctrlAt(me, 4)], b1 = ctrl[ctrlAt(me, 5)], c0 = ctrl[ctrlAt(me, 6)], c1 = ctrl[ctrlAt(me, 7)];
@@ -276,11 +307,16 @@ onmessage = (e) => {
       ctrl[ctrlAt(me, 2)] = nc;
       fin(TH_DONE);
     } else if (st === TH_SUM) { // sum every buffer onto the store's forces for this worker's slots, in buffer order
-      if (prm[nW + 25] === 1) bufSum3(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], S.fx, S.fy, S.fz, bufs, prm, SPAN0);
-      else bufSum(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], S.fx, S.fy, bufs, prm, SPAN0);
+      const hi = ctrl[ctrlAt(nW, 2)], TH_CH = ctrl[ctrlAt(nW, 3)], d3 = prm[nW + 25] === 1; tk[0] = 0; // (by pieces, 1.39.1: thNext)
+      for (let c = thNext(ctrl, nW, me, tk); c >= 0; c = thNext(ctrl, nW, me, tk)) {
+        const a = c * TH_CH, b = a + TH_CH < hi ? a + TH_CH : hi;
+        if (d3) bufSum3(a, b, S.fx, S.fy, S.fz, bufs, prm, SPAN0); else bufSum(a, b, S.fx, S.fy, bufs, prm, SPAN0);
+      }
       fin(TH_SUMMED);
     } else if (st === TH_INTEG) {
-      prm[nW + 32 + 3 * me] = integrateSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm[nW + 6]);
+      const hi = ctrl[ctrlAt(nW, 2)], TH_CH = ctrl[ctrlAt(nW, 3)], dt = prm[nW + 6]; let worst = 0; tk[0] = 0;
+      for (let c = thNext(ctrl, nW, me, tk); c >= 0; c = thNext(ctrl, nW, me, tk)) { const a = c * TH_CH, v = integrateSlots(a, a + TH_CH < hi ? a + TH_CH : hi, dt); if (v > worst) worst = v; }
+      prm[nW + 32 + 3 * me] = worst;
       fin(TH_INTEGD);
     } else if (st === TH_VL) { // this worker's stretch of the neighbour list, from its range of the grid's occupied cells
       GV.cols = prm[nW + 14]; GV.rows = prm[nW + 15]; GV.wrap = prm[nW + 16] === 1; GV.mask = prm[nW + 17]; GV.shift = prm[nW + 18]; GV.RL2 = prm[nW + 19];
@@ -293,10 +329,14 @@ onmessage = (e) => {
       exRange(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], ex, pi, pj, S.k, S.Z, S.ne, S.mol, S.id, exl, exn, prm[nW + 20]);
       fin(TH_EXD);
     } else if (st === TH_DT) {
-      dtSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm, nW + 32 + 3 * me);
+      const hi = ctrl[ctrlAt(nW, 2)], TH_CH = ctrl[ctrlAt(nW, 3)]; let m0 = 0, m1 = 0, m2 = 0; tk[0] = 0;
+      for (let c = thNext(ctrl, nW, me, tk); c >= 0; c = thNext(ctrl, nW, me, tk)) { const a = c * TH_CH; dtSlots(a, a + TH_CH < hi ? a + TH_CH : hi, dt3, 0); if (dt3[0] > m0) m0 = dt3[0]; if (dt3[1] > m1) m1 = dt3[1]; if (dt3[2] > m2) m2 = dt3[2]; }
+      prm[nW + 32 + 3 * me] = m0; prm[nW + 33 + 3 * me] = m1; prm[nW + 34 + 3 * me] = m2;
       fin(TH_DTD);
     } else if (st === TH_BATH) {
-      prm[nW + 32 + 3 * me] = bathSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], 0.5 * prm[nW + 6], prm[nW + 8], prm[nW + 9], prm[nW + 10], prm[nW + 11], prm[nW + 12], prm[nW + 13], prm[nW + 21], prm[nW + 22], prm[nW + 23]);
+      const hi = ctrl[ctrlAt(nW, 2)], TH_CH = ctrl[ctrlAt(nW, 3)]; let need = 0; tk[0] = 0;
+      for (let c = thNext(ctrl, nW, me, tk); c >= 0; c = thNext(ctrl, nW, me, tk)) { const a = c * TH_CH; need += bathSlots(a, a + TH_CH < hi ? a + TH_CH : hi, 0.5 * prm[nW + 6], prm[nW + 8], prm[nW + 9], prm[nW + 10], prm[nW + 11], prm[nW + 12], prm[nW + 13], prm[nW + 21], prm[nW + 22], prm[nW + 23]); }
+      prm[nW + 32 + 3 * me] = need;
       fin(TH_BATHD);
     } else if (st === TH_CALL) { // one of the module's passes over this worker's range (1.34.3: the More forces, xforces.js thCall)
       const fn = ['af_xf_pairs', 'af_xf_atm'][ctrl[ctrlAt(me, 0)]];
@@ -320,7 +360,7 @@ function threadsSet(want) {
   if (!want) return;
   const url = URL.createObjectURL(new Blob([workerSource()], { type: 'text/javascript' }));
   TH.ctrl = new Int32Array(new SharedArrayBuffer(4 * (want + 10 * want + 8)));
-  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (12 * want + 32))); // (from 10·nW + 32, two per worker: how long its last order took and when it picked it up, for the benchmark's per-thread readout, 1.39.1)
+  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (13 * want + 32))); // (from 10·nW + 32, two per worker: how long its last order took and when it picked it up, for the benchmark's per-thread readout, 1.39.1; from 12·nW + 32, one per worker: the pieces it took from other threads' runs in that order, 1.39.1)
   // (… then from nW + 32, three per worker: chooseDt's maxima; from 4·nW + 32, four per worker: its force buffer's intervals, bufSpans; from 8·nW + 32, two per worker: its dihedrals in 3-D)
   for (let w = 0; w < want; w++) {
     const wk = new Worker(url);
@@ -408,13 +448,11 @@ nucleusPairs = function (wrap, bw, bh, hw, hh) {
   const t2 = performance.now();
   thPh('pairs', t0, t1, t2);
   // reduction: every slot's forces summed over the buffers in order, the slots shared out over all threads
-  const hi = S.hi, sper = Math.ceil(hi / (n + 1));
-  for (let w = 0; w < n; w++) {
-    ctrl[thCtrl(w, 0)] = Math.min(hi, w * sper); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * sper);
-    Atomics.store(ctrl, w, TH_SUM); Atomics.notify(ctrl, w);
-  }
+  const hi = S.hi;
   if (!TH.bufs || TH.bufs.length !== n || TH.bufs[0][0] !== TH.fx[0]) TH.bufs = TH.fx.map((a, w) => [a, TH.fy[w]]);
-  bufSum(Math.min(hi, n * sper), hi, S.fx, S.fy, TH.bufs, prm, 4 * n + 32);
+  const ch = thShares(hi, true); // (by pieces, 1.39.1)
+  for (let w = 0; w < n; w++) { Atomics.store(ctrl, w, TH_SUM); Atomics.notify(ctrl, w); }
+  for (let c = thNext(ctrl, n, n, _thTk); c >= 0; c = thNext(ctrl, n, n, _thTk)) { const a = c * ch; bufSum(a, a + ch < hi ? a + ch : hi, S.fx, S.fy, TH.bufs, prm, 4 * n + 32); }
   const t3 = performance.now();
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_SUMMED) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); if (prm[w] > stiff) stiff = prm[w]; }
   thPh('sum', t2, t3, performance.now());
@@ -462,13 +500,11 @@ nucleusPairs3 = function (wrap, bw, bh, hw, hh) {
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_DONE) { /* spin */ } }
   const t2 = performance.now();
   thPh('pairs', t0, t1, t2);
-  const hi = S.hi, sper = Math.ceil(hi / (n + 1));
-  for (let w = 0; w < n; w++) {
-    ctrl[thCtrl(w, 0)] = Math.min(hi, w * sper); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * sper);
-    Atomics.store(ctrl, w, TH_SUM); Atomics.notify(ctrl, w);
-  }
+  const hi = S.hi;
   if (!TH.bufs3 || TH.bufs3.length !== n || TH.bufs3[0][0] !== TH.fx[0] || TH.bufs3[0][2] !== TH.fz[0]) TH.bufs3 = TH.fx.map((a, w) => [a, TH.fy[w], TH.fz[w]]);
-  bufSum3(Math.min(hi, n * sper), hi, S.fx, S.fy, S.fz, TH.bufs3, prm, 4 * n + 32);
+  const ch = thShares(hi, true); // (by pieces, 1.39.1)
+  for (let w = 0; w < n; w++) { Atomics.store(ctrl, w, TH_SUM); Atomics.notify(ctrl, w); }
+  for (let c = thNext(ctrl, n, n, _thTk); c >= 0; c = thNext(ctrl, n, n, _thTk)) { const a = c * ch; bufSum3(a, a + ch < hi ? a + ch : hi, S.fx, S.fy, S.fz, TH.bufs3, prm, 4 * n + 32); }
   const t3 = performance.now();
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_SUMMED) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); if (prm[w] > stiff) stiff = prm[w]; }
   thPh('sum', t2, t3, performance.now());
@@ -487,14 +523,13 @@ threadsPrewake = function () {
 /* outerA + drift on all threads in the plain case (threads.js's integrateSlots); false when the engine must do it itself. */
 integrateA = function (dt) {
   if (!TH.n || !integrateAPlain(dt) || S.hi < 2000 || !threadsReady()) return false;
-  const n = TH.n, ctrl = TH.ctrl, hi = S.hi, per = Math.ceil(hi / (n + 0.5));
+  const n = TH.n, ctrl = TH.ctrl, hi = S.hi;
   TH.prm[n + 6] = dt;
-  for (let w = 0; w < n; w++) {
-    ctrl[thCtrl(w, 0)] = Math.min(hi, w * per); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * per);
-    Atomics.store(ctrl, w, TH_INTEG); Atomics.notify(ctrl, w);
-  }
+  thShares(hi); // (by pieces, 1.39.1)
+  for (let w = 0; w < n; w++) { Atomics.store(ctrl, w, TH_INTEG); Atomics.notify(ctrl, w); }
   const t0 = _profOn ? performance.now() : 0;
-  let worst = integrateSlots(Math.min(hi, n * per), hi, dt);
+  let worst = 0;
+  for (let c = thNext(ctrl, n, n, _thTk); c >= 0; c = thNext(ctrl, n, n, _thTk)) { const a = c * TH_CH, v = integrateSlots(a, a + TH_CH < hi ? a + TH_CH : hi, dt); if (v > worst) worst = v; }
   const t1 = _profOn ? performance.now() : 0;
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_INTEGD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); const v = TH.prm[n + 32 + 3 * w]; if (v > worst) worst = v; }
   thPh('integ', t0, t1, _profOn ? performance.now() : 0);
@@ -590,33 +625,36 @@ function thPh(name, t0, t1, t2) {
   const a = TH_PH[name]; a[0] += t1 - t0; a[1] += t2 - t1; a[2]++;
   // each worker's own account of the order just finished (1.39.1): its work, and how long after t0 it picked the order up
   const n = TH.n, prm = TH.prm, b = TH_W[name], o = 10 * n + 32, at = performance.timeOrigin + t0;
-  for (let w = 0; w < n && w < 64; w++) { const lag = prm[o + 2 * w + 1] - at; b.work[w] += prm[o + 2 * w]; b.lag[w] += lag; if (lag > b.worst) b.worst = lag; }
+  for (let w = 0; w < n && w < 64; w++) { const lag = prm[o + 2 * w + 1] - at; b.work[w] += prm[o + 2 * w]; b.lag[w] += lag; if (lag > b.worst) b.worst = lag; b.took += prm[o + 2 * n + w]; }
+  if (name !== 'pairs') b.took += _thTk[1]; // (the main thread's own, in the phases shared by pieces)
 }
 /* Per thread (1.39.1): each worker's time on its share of a phase and its start after the order, summed like TH_PH. */
-const TH_W = {}; for (const k in TH_PH) TH_W[k] = { work: new Float64Array(64), lag: new Float64Array(64), worst: 0 };
-function thPhReset() { for (const k in TH_PH) { TH_PH[k].fill(0); TH_W[k].work.fill(0); TH_W[k].lag.fill(0); TH_W[k].worst = 0; } }
+const TH_W = {}; for (const k in TH_PH) TH_W[k] = { work: new Float64Array(64), lag: new Float64Array(64), worst: 0, took: 0 };
+function thPhReset() { for (const k in TH_PH) { TH_PH[k].fill(0); TH_W[k].work.fill(0); TH_W[k].lag.fill(0); TH_W[k].worst = 0; TH_W[k].took = 0; } }
 /* The benchmark's per-thread line: for each threaded phase, in µs a call, the main thread's own share and the phase's
    length, the workers' work (fastest / middle / slowest thread) and their start after the order (the same three, and
-   the worst single one), then every worker's work in order. */
+   the worst single one), then every worker's work and every worker's start in order (starts that climb from the first
+   worker to the last are the orders going out one after another); and for the phases shared by pieces (1.39.1), how
+   many pieces a call were done by a thread other than their owner. */
 function thPerThread() {
   const n = Math.min(TH.n, 64), out = [], u = (v) => Math.round(1000 * v);
   for (const k in TH_PH) {
     const a = TH_PH[k], c = a[2]; if (!c || !n) continue;
     const b = TH_W[k], wk = Array.from(b.work.subarray(0, n), (v) => v / c), lg = Array.from(b.lag.subarray(0, n), (v) => v / c);
     const three = (v) => { const s = v.slice().sort((x, y) => x - y); return `${u(s[0])}/${u(s[n >> 1])}/${u(s[n - 1])}`; };
-    out.push(`${k} own ${u(a[0] / c)}, phase ${u((a[0] + a[1]) / c)}, work ${three(wk)}, start ${three(lg)} (worst ${u(b.worst)}) [${wk.map(u).join(' ')}]`);
+    out.push(`${k} own ${u(a[0] / c)}, phase ${u((a[0] + a[1]) / c)}, work ${three(wk)}, start ${three(lg)} (worst ${u(b.worst)}) [${wk.map(u).join(' ')}] starts [${lg.map(u).join(' ')}]${k === 'pairs' ? '' : `, ${(b.took / c).toFixed(1)} of ${Math.ceil(S.hi / (k === 'sum' || k === 'dt' ? Math.max(TH_CH, Math.ceil(S.hi / (2 * (n + 1)))) : TH_CH))} pieces changed hands`}`);
   }
   return out.join('; ');
 }
 /* chooseDt's maxima on all threads; false when the engine must do it itself. */
 dtAll = function (out) {
   if (!TH.n || S.hi < 2000 || !threadsReady()) return false;
-  const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, hi = S.hi, per = Math.ceil(hi / (n + 0.5)), t0 = PROF.on ? performance.now() : 0;
-  for (let w = 0; w < n; w++) {
-    ctrl[thCtrl(w, 0)] = Math.min(hi, w * per); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * per);
-    Atomics.store(ctrl, w, TH_DT); Atomics.notify(ctrl, w);
-  }
-  dtSlots(Math.min(hi, n * per), hi, out, 0);
+  const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, hi = S.hi, t0 = PROF.on ? performance.now() : 0;
+  const ch = thShares(hi, true); // (by pieces, 1.39.1)
+  for (let w = 0; w < n; w++) { Atomics.store(ctrl, w, TH_DT); Atomics.notify(ctrl, w); }
+  { let m0 = 0, m1 = 0, m2 = 0; const q = _thDt;
+    for (let c = thNext(ctrl, n, n, _thTk); c >= 0; c = thNext(ctrl, n, n, _thTk)) { const a = c * ch; dtSlots(a, a + ch < hi ? a + ch : hi, q, 0); if (q[0] > m0) m0 = q[0]; if (q[1] > m1) m1 = q[1]; if (q[2] > m2) m2 = q[2]; }
+    out[0] = m0; out[1] = m1; out[2] = m2; }
   const t1 = PROF.on ? performance.now() : 0;
   for (let w = 0; w < n; w++) {
     while (Atomics.load(ctrl, w) !== TH_DTD) { /* spin */ }
@@ -629,14 +667,13 @@ dtAll = function (out) {
 /* outerB on all threads in the plain case (bathSlots); false when the engine must do it itself. */
 bathAll = function (dt, c1, c2, kT, hw, hh, vf2) {
   if (!TH.n || S.hi < 2000 || !threadsReady()) return -1;
-  const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, hi = S.hi, per = Math.ceil(hi / (n + 0.5));
+  const n = TH.n, ctrl = TH.ctrl, prm = TH.prm, hi = S.hi;
   prm[n + 6] = dt; prm[n + 8] = c1; prm[n + 9] = c2; prm[n + 10] = kT; prm[n + 11] = W.gamma; prm[n + 12] = W.bathSeed; prm[n + 13] = W.step; prm[n + 21] = hw; prm[n + 22] = hh; prm[n + 23] = vf2;
-  for (let w = 0; w < n; w++) {
-    ctrl[thCtrl(w, 0)] = Math.min(hi, w * per); ctrl[thCtrl(w, 1)] = Math.min(hi, (w + 1) * per);
-    Atomics.store(ctrl, w, TH_BATH); Atomics.notify(ctrl, w);
-  }
+  thShares(hi); // (by pieces, 1.39.1)
+  for (let w = 0; w < n; w++) { Atomics.store(ctrl, w, TH_BATH); Atomics.notify(ctrl, w); }
   const t0 = _profOn ? performance.now() : 0;
-  let need = bathSlots(Math.min(hi, n * per), hi, 0.5 * dt, c1, c2, kT, W.gamma, W.bathSeed, W.step, hw, hh, vf2);
+  let need = 0;
+  for (let c = thNext(ctrl, n, n, _thTk); c >= 0; c = thNext(ctrl, n, n, _thTk)) { const a = c * TH_CH; need += bathSlots(a, a + TH_CH < hi ? a + TH_CH : hi, 0.5 * dt, c1, c2, kT, W.gamma, W.bathSeed, W.step, hw, hh, vf2); }
   const t1 = _profOn ? performance.now() : 0;
   for (let w = 0; w < n; w++) { while (Atomics.load(ctrl, w) !== TH_BATHD) { /* spin */ } Atomics.store(ctrl, w, TH_IDLE); need += prm[n + 32 + 3 * w]; }
   thPh('bath', t0, t1, _profOn ? performance.now() : 0);

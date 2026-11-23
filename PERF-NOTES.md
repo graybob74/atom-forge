@@ -2064,6 +2064,47 @@ ran over the names or broke onto two lines. Now the column is as wide as the men
 menu or the search list opens; 79 px for Multiquarks and Hypothetical, 56 px for Leptons) and labels never wrap: every
 name starts in one line after its label. Test: f_139.js menu.
 
+### 1.39.1: the per-slot phases shared by pieces (the owner, 2026-11-22, "build it")
+The owner's benchmark with the per-thread line (20,000 waters, 16 threads, 0.51 ms a step this time against 0.56 the
+run before on nearly the same build: runs differ by about a tenth, so a smaller gain needs several runs). µs a call:
+
+| Phase | main's share | phase | workers' work, fastest / middle / slowest | start, the same |
+| --- | --- | --- | --- | --- |
+| pairs | 30 | 111 | 61 / 71 / 84 | 2 / 8 / 13 |
+| integration | 40 | 106 | 47 / 56 / 89 | −2 / 4 / 9 |
+| bath | 31 | 97 | 37 / 46 / 63 | −2 / 4 / 9 |
+| timestep | 7 | 26 | 8 / 10 / 17 | 1 / 6 / 12 |
+| sum | 5 | 18 | 4 / 5 / 7 | 2 / 7 / 13 |
+
+- No thread is slow in every phase and none starts late (worst single start 55 µs), so it is neither a bad core nor
+  sleeping workers. Each phase lasts as long as that call's slowest thread: the bath's workers take 46 µs typically and
+  the phase 97. The work in integration, bath and timestep, spread evenly over 16 threads, would be 60, 47 and 11 µs
+  (229 now against 118: at most 0.11 ms of the step). In integration the last four workers took 74 to 89 µs against 47
+  to 57 for the rest, in both water worlds; not explained (the sum's shares were hi / (n + 1) and integration's
+  hi / (n + 0.5), so the last workers integrated slots another thread had just summed: a guess).
+- Changed: the forces' sum, integration, the bath and the step size's maxima give every slot the same result whichever
+  thread does it (a maximum, a count, a sum over the buffers in buffer order), so their slots are cut into pieces and
+  every thread, the main one too, owns a run of them: a cursor and an end in its control words 0 and 1 (the main
+  thread's in the spare words after the workers'; word 2 there the number of slots, word 3 the piece's size). A thread
+  takes its own pieces first (`thNext`: `Atomics.add` on the cursor) and then goes round the others' runs for pieces
+  not yet started. Integration and the bath use pieces of 128 slots (`TH_CH`: ten a thread at 20,000 atoms, about 5 µs
+  each); the sum and the timestep, a few ns a slot, two pieces a thread. All four phases now share the slots the same
+  way, hi / (n + 1) in whole pieces, the main thread a full run. The force pass is as it was: there the rounding
+  depends on which thread adds which pair.
+- The simulation is the same to the bit: `node tools/thhash.js 400` (new: the 12,000-atom water world on the isolated
+  page, 400 steps with 13 list rebuilds, a hash of every position and velocity) gives 7772e0d0, fed198a1 and 6c65b479
+  on 2, 3 and 5 threads before the change and after it. t_threads: any order of asking hands every piece out exactly
+  once, own run first (30 share-outs, sizes with ragged ends, one thread taking everything); t_wasm passes.
+- The benchmark's per-thread line also lists every worker's start, and for the shared phases how many pieces a call
+  were done by another thread than their owner (here, 2 threads on 2 cores: integration 6 of 94, bath 10 of 94).
+- Not measured here: the gain. On this 2-core box one worker's timings swing by a quarter between runs (the untouched
+  pair phase 713 to 1,019 µs over eight runs), which hides it. The owner's benchmark decides, with the pair phase as
+  the control.
+- Seen in the numbers, not changed: the starts spread 11 µs from the first worker to the last in every phase. If they
+  climb with the worker's number it is the orders going out one after another (`Atomics.store` and `Atomics.notify`
+  per worker; the notify is only needed for a worker asleep, and a worker's own notify when it is done wakes nobody,
+  the main thread spins); the new list of starts will show it.
+
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 
 New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each
