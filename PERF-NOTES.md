@@ -2105,6 +2105,31 @@ run before on nearly the same build: runs differ by about a tenth, so a smaller 
   per worker; the notify is only needed for a worker asleep, and a worker's own notify when it is done wakes nobody,
   the main thread spins); the new list of starts will show it.
 
+### 1.39.1: what sharing by pieces gave on the owner's PC (his benchmark, 2026-11-22)
+Phase lengths, µs a call, the build before → this one (the pair phase is untouched: the control):
+
+| World | pairs | integration | bath | timestep | sum | all five |
+| --- | --- | --- | --- | --- | --- | --- |
+| 20,000 waters | 111 → 111 | 106 → 78 | 97 → 88 | 26 → 26 | 18 → 15 | 358 → 318 |
+| 20,000 waters, Place tool | 390 → 384 | 103 → 77 | 114 → 74 | 21 → 19 | 77 → 62 | 705 → 616 |
+| Flash byte (2,112) | 47 → 48 | 12 → 15 | 13 → 16 | 7 → 9 | 9 → 11 | 88 → 99 |
+
+- The workers' integration times are level now (63 to 69 µs; before 47 to 89 with the last four slow), 14 of 157
+  pieces a call change hands in integration and 31 in the bath. The threads' summed work rose (integration 967 → 1,023
+  µs, bath 755 → 892): a piece done by another thread is fetched from the owner's cache. The small world lost about
+  10 µs a step (the main thread's full run), out of 200.
+- The step: 0.55 ms for the waters (0.56 and 0.51 in the two runs before), 0.88 for the Place-tool world (1.09, 0.96).
+  The waters' 0.04 ms from the phases is inside the run-to-run spread of the one-thread parts (after 0.14, 0.11, 0.15;
+  rest 0.06, 0.04, 0.07). The second of real frames: 39, 45, 48 fps.
+- The starts are not the orders going out in turn: every phase and world shows the same few µs per worker, in no order
+  (the threads' clocks differ by a step or two of 5 µs); sending the orders takes 4 to 5 µs a phase. Dropped.
+- Ionized water ran away in this run (9.08 ms a step, 363 particles, 171,340 K; 2.72 and 2.95 ms at 9,000 K before):
+  the known limit below, on one thread, nothing the threads touch. The benchmark's worlds are not the same from run to
+  run: it seeds `Math.random` for the layout, but the engine took `Math.random` when the page loaded (`rnd` in
+  atomic.js), so velocities and events draw from the unseeded one. Worth fixing for comparable runs.
+- Next candidate: the one-thread pass after the kernels (0.11 to 0.15 ms: for water mostly the soft walls' walk over
+  every atom's position, which the integration's threads have just written), then lists 0.07 and grid 0.03.
+
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 
 New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each
