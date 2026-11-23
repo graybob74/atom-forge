@@ -71,8 +71,12 @@ function wasmIn(...arrs) {
   for (const a of arrs) if (!a || !WK.bufs.has(a.buffer)) return false;
   return true;
 }
-function wasmArray(T, n) { // (allocate first: a shared memory may grow, and the buffer object is refreshed by the growth)
-  const off = wasmAlloc(n * T.BYTES_PER_ELEMENT);
+function wasmArray(T, n, at) { // (allocate first: a shared memory may grow, and the buffer object is refreshed by the growth)
+  // at (shArray, 1.39.1): where in its 4 KB page the array is to start, a multiple of 64; none or negative: wherever the memory's top is
+  let pad = 0;
+  if (at >= 0 && WK.on) pad = (at - (WK.top & 4095) + 4096) & 4095;
+  let off = wasmAlloc(n * T.BYTES_PER_ELEMENT + pad);
+  if (off >= 0) off += pad;
   if (off < 0) { WK.on = false; WK.ready = false; WK.use = false; WK.note = 'the plain memory filled up: JavaScript kernels from here on'; return new T(n); } // (the views already made stay valid; the kernels are given up)
   return new T(WK.mem.buffer, off, n);
 }

@@ -202,6 +202,20 @@ PARTS.seed = async (page, check) => { // (1.39.1: the benchmark's worlds are the
     `1.39.1 the benchmark's seeding: salt, water and ionized water built three times on one engine step to the same state (${Object.values(out).map((h) => h[0]).join(', ')}); the engine draws from the source rndUse gives it and goes back to its own`,
     `1.39.1 seeding: ${JSON.stringify(out)} rnd ${v} ${w}`);
 };
+PARTS.layout = async (page, check) => { // (1.39.1: the big shared arrays no longer all start at the same place in a page)
+  // every Float64 array of the store starts on a cache-line boundary and at its own offset within a 4 KB page (they all
+  // sat at one offset, the same cache set for one atom's entries in every array), still after the store has grown to
+  // 32,768 slots; the kernels are still in use (the memory did not fill) and a small array is not padded
+  const X = load('all', { seed: 4 }), S = X.S, F = ['x', 'y', 'vx', 'vy', 'fx', 'fy', 'gx', 'gy', 'ox', 'oy', 'm', 'im', 'q', 'qp', 'ljR', 'ljS'];
+  const where = () => F.map((k) => S[k].byteOffset & 4095);
+  const top0 = X.WK.top; X.shArray(Float64Array, 16); const small = X.WK.top - top0;
+  X.storeGrow(32768);
+  const w = where(), distinct = new Set(w).size, lined = w.every((v) => v % 64 === 0);
+  X.PRESETS.water.build(); for (let i = 0; i < 20; i++) { X.W.dt = X.chooseDt(); X.step(X.W.dt); }
+  check(X.WK.on && lined && distinct === F.length && small === 128 && S.size === 32768 && X.wasmReady(),
+    `1.39.1 layout: the store's ${F.length} hottest arrays start at ${distinct} different places in a page, each on a cache line; a 16-number array takes its 128 bytes; the WebAssembly kernels run`,
+    `1.39.1 layout: ${JSON.stringify({ w, distinct, lined, small, on: X.WK.on, size: S.size })}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

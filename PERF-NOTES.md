@@ -2189,6 +2189,25 @@ Phase lengths, µs a call, the build before → this one (the pair phase is unto
   going back and forth between the threads that read them in the pair phase and the one that writes them. Shifting
   the arrays is a small change with identical results; only his machine can say whether it helps.
 
+### 1.39.1: the big shared arrays start at different places in a page (the owner, 2026-11-23, "build it")
+An experiment for the owner's PC; the lead is in the entry above. `shArray` gives every array of 16 KB or more its
+own start within a 4 KB page, 7 cache lines further round than the one made before it (64 places, each on a cache
+line): in the WebAssembly memory by padding up to the place (`wasmArray(T, n, at)`), on a SharedArrayBuffer by a view
+4 KB into a buffer that much longer; ordinary arrays (no workers, no module) are as they were, and small arrays are
+not padded. Before, all 30 Float64 arrays of the store sat at one offset (1,696 mod 4,096), and so did each thread's
+force buffers, which the sum reads fifteen at a time.
+- Nothing reads an array by its address except through its own `byteOffset` (the kernels' descriptors, the workers'
+  binding), so results cannot change: the one-thread fingerprints (walls busy, flat and 3-D) and `tools/thhash.js` on
+  2, 3 and 5 threads are the same; t_threads, t_wasm, t_energy, t_regress, t_physics pass; f_139 `layout` (the store's
+  16 hottest arrays at 16 places, a 16-number array still 128 bytes, the kernels in use after the store grows).
+- Here (L1 12 lines a set, L2 16) it changes nothing within the noise, as expected. On the 7950X3D (8 and 8) the
+  per-thread work of integration (72 to 79 µs), the bath (46 to 54) and the sum is what to watch, with the pair phase
+  as the control. If they do not move, the cost is the positions' lines going between threads, and this stays as a
+  harmless layout.
+- Asked the same morning whether the native engine rewrite is worth it: no. His probe gives native code 1.2× on one
+  thread and the GPU a tie with the CPU in doubles; the engine is over a megabyte with 85 suites around it, and the
+  browser page would stay on the old one. Not started.
+
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 
 New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each

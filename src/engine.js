@@ -112,7 +112,20 @@ const S_BOOL = new Set(['dead', 'fast', 'rad', 'fresh', 'ballistic', 'inMD', 'ne
 /* Typed arrays the worker threads must see (the store, the neighbour list, the force buffers): in the WebAssembly
    kernel's memory when there is one (wasm.js), else on SharedArrayBuffers where the page can have workers at all, else
    ordinary arrays (a page that is not cross-origin isolated). */
-function shArray(T, n) { return WK.on ? wasmArray(T, n) : SHARED_OK ? new T(new SharedArrayBuffer(n * T.BYTES_PER_ELEMENT)) : new T(n); }
+function shArray(T, n) {
+  const bytes = n * T.BYTES_PER_ELEMENT, at = bytes >= SH_BIG ? 64 * ((_shN++ * 7 + 1) & 63) : -1;
+  if (WK.on) return wasmArray(T, n, at);
+  if (!SHARED_OK) return new T(n);
+  return at < 0 ? new T(new SharedArrayBuffer(bytes)) : new T(new SharedArrayBuffer(bytes + 4096), at, n);
+}
+/* Where a big shared array starts within its 4 KB page (1.39.1). The store's arrays are each a power of two long and
+   were laid end to end, so one atom's entries in all of them sat at the same offset in a page, which is the same set
+   of the L1 cache, and of the L2 too (measured: every array at 1,696 mod 4,096). A loop that walks fifteen arrays at
+   once, as integration does, then keeps fifteen lines in a set that holds eight on the owner's CPU. Each array of
+   16 KB or more now starts 7 cache lines further round the page than the one made before it: 64 different places,
+   every one on a cache-line boundary. Nothing reads an array by its address but through its own byteOffset. */
+const SH_BIG = 16384;
+let _shN = 0;
 let _sharedGen = 0; // (bumped whenever a shared array is replaced: the workers must be rebound)
 function storeGrow(cap) {
   const re = (name, T) => { const a = shArray(T, cap); if (S[name]) a.set(S[name]); S[name] = a; };
