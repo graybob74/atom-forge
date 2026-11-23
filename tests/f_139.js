@@ -125,6 +125,16 @@ PARTS.page = async (page, check) => {
     `1.39 page: hyp ${hyp} found ${found} rows ${rows} groups ${r.groups} bp ${JSON.stringify(bpH)} urls ${r.urls} cards ${JSON.stringify(r.cards).slice(0, 600)}`);
   if (own) { if (own.errors.length) check(false, '', '1.39 page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
 };
+PARTS.menu = async (page, check) => { // (1.39.1: long labels ran over the names)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(() => ['Hypothetical', 'Multiquarks', 'Exotic', 'Leptons'].map(cat => {
+    const ci = PCATS.findIndex(g => g[0] === cat); pmenuOpen(ci, document.querySelector(`[data-ci="${ci}"]`) || document.body); const m = $('pmenu');
+    const rows = [...m.querySelectorAll('.pm-i:not(.more)')].map(b => { const l = b.querySelector('b').getBoundingClientRect(), n = b.querySelector('span:last-child').getBoundingClientRect(); return [l.right <= n.left + 0.5, Math.round(n.left), Math.round(l.height)]; });
+    pmenuClose(); return [cat, rows.every(x => x[0]), new Set(rows.map(x => x[1])).size, Math.max(...rows.map(x => x[2]))];
+  }));
+  check(r.every(x => x[1] && x[2] === 1 && x[3] < 24), `1.39.1 in the particle menus (${r.map(x => x[0]).join(', ')}) no label runs into its name or wraps, and the names line up`, `1.39.1 menu: ${JSON.stringify(r)}`);
+  if (own) { if (own.errors.length) check(false, '', '1.39.1 menu errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

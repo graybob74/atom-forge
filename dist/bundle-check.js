@@ -39225,7 +39225,7 @@ function pfindOpen(btn) {
   let res = [];
   const isoChips = (it) => it.cat !== 'Elements' ? '' : `<span class="pf-isos">${pfindIsos(it.sp.Z).map(A => `<span class="pf-iso" role="button" tabindex="-1" data-z="${it.sp.Z}" data-a="${A}" title="Place ${esc(ELEMENTS[it.sp.Z].name.toLowerCase())}-${A}">${sup(A)}${esc(ELEMENTS[it.sp.Z].sym)}</span>`).join('')}</span>`; // (1.34.3: three common isotopes, shown on hover)
   const show = () => { res = pfindMatch($('pfQ').value); $('pfR').innerHTML = res.length ? res.map((it, k) => `<button class="pm-i${it.cat === 'Elements' ? ' el' : ''}" data-k="${k}"><span class="sw" style="background:${specColor(it.sp)}"></span><b>${esc(specLabel(it.sp))}</b><span>${esc(specName(it.sp))} · ${esc(it.cat)}</span>${isoChips(it)}</button>`).join('') : `<div class="pm-h" style="text-transform:none">${$('pfQ').value.trim() ? 'Nothing by that name' : 'Type a name or symbol'}</div>`; };
-  const q = $('pfQ'); q.oninput = show; show(); q.focus();
+  const q = $('pfQ'); q.oninput = () => { show(); pmFit(m); }; show(); pmFit(m); q.focus();
   q.onkeydown = (e) => { if (e.key === 'Enter' && res.length) { e.preventDefault(); pmenuClose(); selectSpec(res[0].sp); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); pmenuClose(); } };
   m.onclick = (e) => {
     const c = e.target.closest('.pf-iso'); if (c) { const Z = +c.dataset.z, A = +c.dataset.a; pmenuClose(); selectSpec(A === COMMON_A[Z] ? { kind: 'atom', Z, A } : isoSpec(Z, A)); return; } // (an isotope chip: that isotope)
@@ -39240,6 +39240,13 @@ function pfindIsos(Z) {
   const rest = all.filter(A => A !== A0).sort((a, b) => { const ea = info(a).estimated ? 1 : 0, eb = info(b).estimated ? 1 : 0; if (ea !== eb) return ea - eb; const sa = info(a).stable ? 1 : 0, sb = info(b).stable ? 1 : 0; if (sa !== sb) return sb - sa; /* (measured ones before the table's estimates) */ if (sa) return Math.abs(a - A0) - Math.abs(b - A0) || a - b; return (info(b).t12 || 0) - (info(a).t12 || 0); });
   return (all.includes(A0) ? [A0] : []).concat(rest).slice(0, 3).sort((a, b) => a - b);
 }
+/* (1.39.1, the owner's screenshots: long labels such as "strangelet" or "Tcc(3875)⁺" ran over the names) The label column
+   of a particle menu as wide as its widest label, so every name starts in one line after it. */
+function pmFit(m) {
+  m.style.removeProperty('--pmw');
+  let w = 0; for (const b of m.querySelectorAll('.pm-i:not(.more) b')) w = Math.max(w, b.scrollWidth);
+  if (w > 0) m.style.setProperty('--pmw', Math.ceil(w + 1) + 'px');
+}
 function pmenuOpen(ci, btn) {
   const m = $('pmenu'), [name, list] = pcats()[ci];
   if (!m.hidden && m.dataset.ci === String(ci)) { pmenuClose(); return; }
@@ -39248,7 +39255,7 @@ function pmenuOpen(ci, btn) {
     ? `<button class="pm-i more" data-k="pt">Any nucleus, any isotope… <span>Elements</span></button>`
     : `<button class="pm-i" data-k="${k}" aria-pressed="${sameSpec(sp, UI.spec)}"><span class="sw" style="background:${specColor(sp)}"></span><b>${esc(specLabel(sp))}</b><span>${esc(specName(sp))}</span></button>`).join('');
   const r = btn.getBoundingClientRect(), st = $('stage').getBoundingClientRect(), ui = SET.ui || 1;
-  m.hidden = false; m.style.left = Math.max(4, Math.min((r.left - st.left) / ui, (st.width / ui) - m.offsetWidth - 4)) + 'px'; m.style.top = ((r.bottom - st.top) / ui + 4) + 'px';
+  m.hidden = false; pmFit(m); m.style.left = Math.max(4, Math.min((r.left - st.left) / ui, (st.width / ui) - m.offsetWidth - 4)) + 'px'; m.style.top = ((r.bottom - st.top) / ui + 4) + 'px';
   for (const b of document.querySelectorAll('#palette .cat')) b.setAttribute('aria-expanded', String(b === btn));
   m.onclick = (e) => { const b = e.target.closest('.pm-i'); if (!b) return; pmenuClose(); if (b.dataset.k === 'pt') { openPT(); return; } selectSpec(list[+b.dataset.k]); };
   m.oncontextmenu = (e) => { const b = e.target.closest('.pm-i'); if (!b || b.dataset.k === 'pt') return; chipCard(e, list[+b.dataset.k]); };

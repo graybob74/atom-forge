@@ -2058,6 +2058,12 @@ inner steps), 280 particles.
 - Test: t_threads reads the line from the benchmark it already runs (two threads here: pairs own 276, phase 1082, the
   worker's work 853, start 104 µs; a worker's work fits inside the phase the main thread timed).
 
+**Particle menus' long labels** (the owner, 2026-11-22, two screenshots: "fix these"). In a category menu the label
+column was a fixed 4.2em, so labels longer than that ("strangelet", "monopole", "Tcc(3875)⁺", "Pc(4312)⁺", "S (uuddss)")
+ran over the names or broke onto two lines. Now the column is as wide as the menu's widest label (`pmFit`, measured when a
+menu or the search list opens; 79 px for Multiquarks and Hypothetical, 56 px for Leptons) and labels never wrap: every
+name starts in one line after its label. Test: f_139.js menu.
+
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 
 New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each

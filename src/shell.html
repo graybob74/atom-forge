@@ -481,14 +481,14 @@ details.chain[open] summary { margin-bottom: 10px; }
 .pmenu { position: absolute; z-index: 25; min-width: 240px; max-width: min(360px, calc(100% - 8px)); max-height: min(60vh, 460px); overflow: auto; padding: 6px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); display: grid; gap: 2px; }
 .pm-h { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 4px 8px 6px; }
-.pm-i { display: grid; grid-template-columns: 12px 4.2em 1fr; align-items: center; gap: 8px; text-align: left; border: 1px solid transparent; background: transparent; border-radius: 8px; padding: 6px 8px; font-size: 13px; }
-.pm-i b { font-family: var(--font-data); font-weight: 650; } .pm-i span:last-child { color: var(--muted); font-size: 12px; }
+.pm-i { display: grid; grid-template-columns: 12px var(--pmw, 4.2em) 1fr; align-items: center; gap: 8px; text-align: left; border: 1px solid transparent; background: transparent; border-radius: 8px; padding: 6px 8px; font-size: 13px; }
+.pm-i b { font-family: var(--font-data); font-weight: 650; white-space: nowrap; } /* (the label column as wide as the menu's widest label: pmFit, 1.39.1) */ .pm-i span:last-child { color: var(--muted); font-size: 12px; }
 .pm-i:hover, .pm-i[aria-pressed="true"] { background: var(--surface-2); border-color: var(--line); }
 .pm-i.more { grid-template-columns: 1fr auto; color: var(--accent); }
 .pm-i .sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .chtip { position: fixed; z-index: 400; pointer-events: none; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font: 11.5px/1.35 var(--font-data); box-shadow: var(--shadow); max-width: 300px; } /* (1.34.5: the graphs' readouts) */
 .chtip .h { font-weight: 600; } .chtipdot { position: fixed; z-index: 399; pointer-events: none; width: 9px; height: 9px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid var(--accent); background: var(--bg); }
-.pm-i.el { grid-template-columns: 12px 4.2em 1fr auto; } /* (1.34.3: an element found by the search, with three isotopes on hover) */
+.pm-i.el { grid-template-columns: 12px var(--pmw, 4.2em) 1fr auto; } /* (1.34.3: an element found by the search, with three isotopes on hover) */
 .pm-i .pf-isos { display: none; gap: 4px; } .pm-i.el:hover .pf-isos, .pm-i.el:focus .pf-isos, .pm-i.el:focus-within .pf-isos { display: inline-flex; }
 @media (hover: none) { .pm-i .pf-isos { display: inline-flex; } }
 .pf-iso { font-family: var(--font-data); font-size: 11.5px; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; cursor: pointer; }
