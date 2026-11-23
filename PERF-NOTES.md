@@ -2162,6 +2162,27 @@ Phase lengths, µs a call, the build before → this one (the pair phase is unto
   (t_settings: "the pictures add 1215 KB, under 1,200 KB", "every one of the 109 setting rows has a description", the
   3-D menu's setups; f_fix15: plasma [164, 165]).
 
+### 1.39.1: the walls' quick test and the seeded benchmark on the owner's PC (his benchmark, 2026-11-23)
+- 20,000 waters: **0.45 ms a step** (0.56, 0.51, 0.55 in the three runs before), the pass after the kernels 0.07 ms
+  (0.14, 0.11, 0.15); the goal line 55 fps (46, 50, 47), the second of real frames 51 fps (39, 45, 48). The Place-tool
+  world 0.86 ms (0.88), after 0.08 (0.15). Phases, µs: pairs 106, integration 84, bath 60, timestep 21, sum 15.
+- "List rebuilds a step" reads 0.04 now (it read 0.5 to 0.6: those counted the second of real frames too); the lists
+  still cost 0.07 ms a step.
+- Not explained, to check with a second run of the same build (the worlds are the same in every run now, so what
+  changes between runs is the machine): the flash byte's timed steps took 0.44 ms (0.20 in three runs before) with
+  every phase long (integration 53 µs for 13 µs of work) and a worst start near 1,000 µs in every phase (under 150 in
+  the water worlds), while its second of real frames was as before (9.2 ms for 38 steps; 101 fps); on the 2-core box
+  that world runs alike on both builds (1.03 and 0.94 to 1.04 ms). And the workers' integration work was 77 µs each
+  against 64 the run before (the pair phase, the control, 106 against 111).
+- A lead: integration costs 55 to 60 ns an atom on his 16 threads (1,230 µs of work for 20,000 atoms), the bath 40;
+  one thread of the slower 2-core box does integration in 26. The store's arrays are each 2^18 bytes at 32,768 slots
+  and laid end to end, so one atom's entries in all of them sit at the same offset in a page (measured: every array
+  at 1,696 mod 4,096) and so in the same set of the L1 and L2 caches; the integration loop walks about 15 arrays at
+  once and the 7950X3D's L1 and L2 hold 8 lines a set (this box: 12 and 16, and shifting every array by its own few
+  cache lines changed nothing here, within the noise; same fingerprint). The other candidate is the positions' lines
+  going back and forth between the threads that read them in the pair phase and the one that writes them. Shifting
+  the arrays is a small change with identical results; only his machine can say whether it helps.
+
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 
 New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each
