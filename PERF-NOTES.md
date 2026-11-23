@@ -2174,6 +2174,12 @@ Phase lengths, µs a call, the build before → this one (the pair phase is unto
   the water worlds), while its second of real frames was as before (9.2 ms for 38 steps; 101 fps); on the 2-core box
   that world runs alike on both builds (1.03 and 0.94 to 1.04 ms). And the workers' integration work was 77 µs each
   against 64 the run before (the pair phase, the control, 106 against 111).
+- The second run of the same build, minutes later, settles it: the flash byte 0.18 ms a step again (worst starts 10 to
+  55 µs), so the 0.44 was the machine in that one run, not the build. The worlds repeat on his PC as they do here (276,
+  380, 8,692 and 298 K and the same rebuild rates in both runs). 20,000 waters 0.43 ms (0.45), the goal line 60 fps,
+  the second of real frames 59 fps (51: the frames swing more than the steps, 16.2 against 18.5 ms of physics); the
+  Place-tool world 0.80 (0.86). The workers' integration work is 72 and 79 µs in the two worlds, as in the first run
+  (77, 81): the 64 of the build before was on the unseeded worlds, not comparable.
 - A lead: integration costs 55 to 60 ns an atom on his 16 threads (1,230 µs of work for 20,000 atoms), the bath 40;
   one thread of the slower 2-core box does integration in 26. The store's arrays are each 2^18 bytes at 32,768 slots
   and laid end to end, so one atom's entries in all of them sit at the same offset in a page (measured: every array
