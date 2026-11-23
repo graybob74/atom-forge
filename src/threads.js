@@ -193,7 +193,7 @@ ${vlPairsW.toString()}
 ${vlPairs3W.toString()}
 ${exRange.toString()}
 let GV = null, mdI = null, exl = null, exn = null;
-let SPAN0 = 0, TQ0 = 0; const spPrev = new Float64Array(4), spPrevZ = new Float64Array(4);
+let SPAN0 = 0, TQ0 = 0, TM0 = 0, tw = 0; const spPrev = new Float64Array(4), spPrevZ = new Float64Array(4);
 let pi, pj, ex, FXo, FYo, FZo = null, CQ, ctrl, prm, me, nW, bufs, mem = null, wasm = null, wex = null, descOff = 0, ksOff = 0, ksArr = null, sumTabOff = 0;
 const TH_IDLE = 0, TH_PAIRS = 1, TH_DONE = 2, TH_REBIND = 3, TH_SUM = 4, TH_SUMMED = 5, TH_INTEG = 6, TH_INTEGD = 7, TH_BATH = 8, TH_BATHD = 9, TH_VL = 10, TH_VLD = 11, TH_EX = 12, TH_EXD = 13, TH_DT = 14, TH_DTD = 15, TH_CALL = 16, TH_CALLD = 17;
 function ctrlAt(w, k) { return nW + 10 * w + k; }
@@ -210,7 +210,7 @@ onmessage = (e) => {
     AC3 = {}; for (const k in m.AC3) AC3[k] = view(m.AC3[k]);
     bufs = m.bufs.map(b => b[2] ? [view(b[0]), view(b[1]), view(b[2])] : [view(b[0]), view(b[1])]);
     GV = { fwd: null }; for (const k in m.G) GV[k] = view(m.G[k]); mdI = view(m.mdI); exl = view(m.exl); exn = view(m.exn);
-    me = m.me; nW = m.nW; FXo = bufs[me][0]; FYo = bufs[me][1]; FZo = bufs[me][2] || null; SPAN0 = 4 * nW + 32; TQ0 = 8 * nW + 32;
+    me = m.me; nW = m.nW; FXo = bufs[me][0]; FYo = bufs[me][1]; FZo = bufs[me][2] || null; SPAN0 = 4 * nW + 32; TQ0 = 8 * nW + 32; TM0 = 10 * nW + 32;
     spPrev[0] = 0; spPrev[1] = FXo.length; spPrev[2] = 0; spPrev[3] = 0; // (a buffer just bound: cleared whole at its first pass)
     spPrevZ[0] = 0; spPrevZ[1] = FZo ? FZo.length : 0; spPrevZ[2] = 0; spPrevZ[3] = 0; // (the z buffer: what the last 3-D pass left in it)
     CQ = view(m.cq); ctrl = new Int32Array(m.ctrl); prm = new Float64Array(m.prm);
@@ -229,9 +229,13 @@ onmessage = (e) => {
   }
   const SPIN_MS = 2.5; // a worker looks for the next order this long before it sleeps: a step's passes, and the next step's first, come within it (a sleeping worker costs tens of microseconds to wake, several times a step)
   const waitFor = (notValue) => { const t0 = performance.now(); while (Atomics.load(ctrl, me) === notValue) { if (performance.now() - t0 > SPIN_MS) { Atomics.wait(ctrl, me, notValue); break; } } };
+  // an order done: how long it took and when it was picked up (this thread's clock on the page's time line) go in the
+  // worker's two timing slots for the benchmark's per-thread readout, then the word the main thread spins on (1.39.1)
+  const fin = (s) => { prm[TM0 + 2 * me] = performance.now() - tw; prm[TM0 + 2 * me + 1] = performance.timeOrigin + tw; Atomics.store(ctrl, me, s); Atomics.notify(ctrl, me); };
   for (;;) {
     waitFor(TH_IDLE);
     const st = Atomics.load(ctrl, me);
+    tw = performance.now();
     if (st === TH_REBIND) { Atomics.store(ctrl, me, TH_IDLE); return; } // new buffers coming by message: back to the event loop
     if (st === TH_PAIRS) {
       const q0 = ctrl[ctrlAt(me, 0)], q1 = ctrl[ctrlAt(me, 1)], b0 = ctrl[ctrlAt(me, 4)], b1 = ctrl[ctrlAt(me, 5)], c0 = ctrl[ctrlAt(me, 6)], c1 = ctrl[ctrlAt(me, 7)];
@@ -254,7 +258,7 @@ onmessage = (e) => {
           prm[me] = _kStiff;
         }
         ctrl[ctrlAt(me, 2)] = nc;
-        Atomics.store(ctrl, me, TH_DONE); Atomics.notify(ctrl, me);
+        fin(TH_DONE);
         continue;
       }
       bufSpans(q0, q1, b0, b1, c0, c1, pi, pj, prm, SPAN0 + 4 * me);
@@ -270,34 +274,34 @@ onmessage = (e) => {
         prm[me] = _kStiff;
       }
       ctrl[ctrlAt(me, 2)] = nc;
-      Atomics.store(ctrl, me, TH_DONE); Atomics.notify(ctrl, me);
+      fin(TH_DONE);
     } else if (st === TH_SUM) { // sum every buffer onto the store's forces for this worker's slots, in buffer order
       if (prm[nW + 25] === 1) bufSum3(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], S.fx, S.fy, S.fz, bufs, prm, SPAN0);
       else bufSum(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], S.fx, S.fy, bufs, prm, SPAN0);
-      Atomics.store(ctrl, me, TH_SUMMED); Atomics.notify(ctrl, me);
+      fin(TH_SUMMED);
     } else if (st === TH_INTEG) {
       prm[nW + 32 + 3 * me] = integrateSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm[nW + 6]);
-      Atomics.store(ctrl, me, TH_INTEGD); Atomics.notify(ctrl, me);
+      fin(TH_INTEGD);
     } else if (st === TH_VL) { // this worker's stretch of the neighbour list, from its range of the grid's occupied cells
       GV.cols = prm[nW + 14]; GV.rows = prm[nW + 15]; GV.wrap = prm[nW + 16] === 1; GV.mask = prm[nW + 17]; GV.shift = prm[nW + 18]; GV.RL2 = prm[nW + 19];
       const base = ctrl[ctrlAt(me, 4)], cap = ctrl[ctrlAt(me, 5)];
       const vok = !!(wex && mem && typeof wex.af_vl3 === 'function' && prm[nW + 31] === 1); // (the module's walk, 1.26: this worker's views are on its memory; the main thread's choice in prm)
       if (prm[nW + 28] === 1) { GV.lay = prm[nW + 29]; GV.nocc = prm[nW + 30]; ctrl[ctrlAt(me, 2)] = vlPairs3W(vok, wex, ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], pi, pj, base, cap, GV, mdI, S.k, prm[nW] === 1, prm[nW + 1], prm[nW + 2], prm[nW + 26], prm[nW + 3], prm[nW + 4], prm[nW + 27]); } // (3-D: a range of the grid's particles)
       else { ctrl[ctrlAt(me, 2)] = vlPairsW(vok, wex, ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], pi, pj, base, cap, GV, mdI, S.k, prm[nW] === 1, prm[nW + 1], prm[nW + 2], prm[nW + 3], prm[nW + 4]); }
-      Atomics.store(ctrl, me, TH_VLD); Atomics.notify(ctrl, me);
+      fin(TH_VLD);
     } else if (st === TH_EX) { // the exclusion marks of this worker's range of pairs
       exRange(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], ex, pi, pj, S.k, S.Z, S.ne, S.mol, S.id, exl, exn, prm[nW + 20]);
-      Atomics.store(ctrl, me, TH_EXD); Atomics.notify(ctrl, me);
+      fin(TH_EXD);
     } else if (st === TH_DT) {
       dtSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], prm, nW + 32 + 3 * me);
-      Atomics.store(ctrl, me, TH_DTD); Atomics.notify(ctrl, me);
+      fin(TH_DTD);
     } else if (st === TH_BATH) {
       prm[nW + 32 + 3 * me] = bathSlots(ctrl[ctrlAt(me, 0)], ctrl[ctrlAt(me, 1)], 0.5 * prm[nW + 6], prm[nW + 8], prm[nW + 9], prm[nW + 10], prm[nW + 11], prm[nW + 12], prm[nW + 13], prm[nW + 21], prm[nW + 22], prm[nW + 23]);
-      Atomics.store(ctrl, me, TH_BATHD); Atomics.notify(ctrl, me);
+      fin(TH_BATHD);
     } else if (st === TH_CALL) { // one of the module's passes over this worker's range (1.34.3: the More forces, xforces.js thCall)
       const fn = ['af_xf_pairs', 'af_xf_atm'][ctrl[ctrlAt(me, 0)]];
       prm[nW + 32 + 3 * me] = wex && typeof wex[fn] === 'function' ? wex[fn](ctrl[ctrlAt(me, 1)], ctrl[ctrlAt(me, 4)]) : NaN;
-      Atomics.store(ctrl, me, TH_CALLD); Atomics.notify(ctrl, me);
+      fin(TH_CALLD);
     } else if (st === TH_DONE || st === TH_SUMMED || st === TH_INTEGD || st === TH_BATHD || st === TH_VLD || st === TH_EXD || st === TH_DTD || st === TH_CALLD) { waitFor(st); } // (the main thread has not reset us yet)
   }
 };
@@ -316,7 +320,8 @@ function threadsSet(want) {
   if (!want) return;
   const url = URL.createObjectURL(new Blob([workerSource()], { type: 'text/javascript' }));
   TH.ctrl = new Int32Array(new SharedArrayBuffer(4 * (want + 10 * want + 8)));
-  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (10 * want + 32))); // (… then from nW + 32, three per worker: chooseDt's maxima; from 4·nW + 32, four per worker: its force buffer's intervals, bufSpans; from 8·nW + 32, two per worker: its dihedrals in 3-D)
+  TH.prm = new Float64Array(new SharedArrayBuffer(8 * (12 * want + 32))); // (from 10·nW + 32, two per worker: how long its last order took and when it picked it up, for the benchmark's per-thread readout, 1.39.1)
+  // (… then from nW + 32, three per worker: chooseDt's maxima; from 4·nW + 32, four per worker: its force buffer's intervals, bufSpans; from 8·nW + 32, two per worker: its dihedrals in 3-D)
   for (let w = 0; w < want; w++) {
     const wk = new Worker(url);
     wk.onerror = (e) => { TH.note = 'worker error: ' + (e.message || e); console.warn('Atom Forge threads:', TH.note); threadsSet(0); };
@@ -580,8 +585,29 @@ exAll = function () {
 /* Where the threaded phases' time goes (the benchmark shows it): per phase, the main thread's own share and its wait for
    the workers, in ms, summed while the profile is on. */
 const TH_PH = { integ: [0, 0, 0], bath: [0, 0, 0], dt: [0, 0, 0], pairs: [0, 0, 0], sum: [0, 0, 0], vl: [0, 0, 0], ex: [0, 0, 0] }; // [own, wait, calls]
-function thPh(name, t0, t1, t2) { if (!PROF.on) return; const a = TH_PH[name]; a[0] += t1 - t0; a[1] += t2 - t1; a[2]++; }
-function thPhReset() { for (const k in TH_PH) TH_PH[k].fill(0); }
+function thPh(name, t0, t1, t2) {
+  if (!PROF.on) return;
+  const a = TH_PH[name]; a[0] += t1 - t0; a[1] += t2 - t1; a[2]++;
+  // each worker's own account of the order just finished (1.39.1): its work, and how long after t0 it picked the order up
+  const n = TH.n, prm = TH.prm, b = TH_W[name], o = 10 * n + 32, at = performance.timeOrigin + t0;
+  for (let w = 0; w < n && w < 64; w++) { const lag = prm[o + 2 * w + 1] - at; b.work[w] += prm[o + 2 * w]; b.lag[w] += lag; if (lag > b.worst) b.worst = lag; }
+}
+/* Per thread (1.39.1): each worker's time on its share of a phase and its start after the order, summed like TH_PH. */
+const TH_W = {}; for (const k in TH_PH) TH_W[k] = { work: new Float64Array(64), lag: new Float64Array(64), worst: 0 };
+function thPhReset() { for (const k in TH_PH) { TH_PH[k].fill(0); TH_W[k].work.fill(0); TH_W[k].lag.fill(0); TH_W[k].worst = 0; } }
+/* The benchmark's per-thread line: for each threaded phase, in µs a call, the main thread's own share and the phase's
+   length, the workers' work (fastest / middle / slowest thread) and their start after the order (the same three, and
+   the worst single one), then every worker's work in order. */
+function thPerThread() {
+  const n = Math.min(TH.n, 64), out = [], u = (v) => Math.round(1000 * v);
+  for (const k in TH_PH) {
+    const a = TH_PH[k], c = a[2]; if (!c || !n) continue;
+    const b = TH_W[k], wk = Array.from(b.work.subarray(0, n), (v) => v / c), lg = Array.from(b.lag.subarray(0, n), (v) => v / c);
+    const three = (v) => { const s = v.slice().sort((x, y) => x - y); return `${u(s[0])}/${u(s[n >> 1])}/${u(s[n - 1])}`; };
+    out.push(`${k} own ${u(a[0] / c)}, phase ${u((a[0] + a[1]) / c)}, work ${three(wk)}, start ${three(lg)} (worst ${u(b.worst)}) [${wk.map(u).join(' ')}]`);
+  }
+  return out.join('; ');
+}
 /* chooseDt's maxima on all threads; false when the engine must do it itself. */
 dtAll = function (out) {
   if (!TH.n || S.hi < 2000 || !threadsReady()) return false;

@@ -2033,6 +2033,31 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.39.1 (not released): the benchmark's per-thread line (the owner, 2026-11-22, "build it")
+After the GPU was shelved the owner ran the Settings benchmark on his PC (1.39.0 desktop, 16 threads, WebAssembly
+kernel). 20,000 waters: **0.56 ms a step**, the goal met by the benchmark's sum (37.5 steps × 0.56 + 0.9 ms drawing =
+21.9 ms, 46 fps) while the second of real frames gave 39 fps (24.5 ms for 37.4 steps, 0.655 ms a step: the two measures
+differ by the 0.10 ms the Speed item on the planned list asks about). Where the step goes, ms: forces 0.33 (kernels
+0.13, grid 0.03, lists 0.06, after 0.14), bath 0.09, integration 0.11, timestep 0.02, rest 0.06; threaded phases
+(main share / wait): pairs 0.04/0.08, integration 0.04/0.06, bath 0.04/0.05, sum 0.01/0.01, timestep 0.01/0.01. The
+Place-tool world: 1.09 ms, pairs 0.11/0.30. Ionized water: 2.95 ms on one thread, integration 3.38 (the free electrons'
+inner steps), 280 particles.
+- Reading the waits: the main thread takes half a share on purpose (`per = np / (n + 0.5)`, the same in integration and
+  the bath), so it waits about as long as its own share took even when every worker keeps its pace; the wait is the
+  phase's length, not time to win back. What can be won is the workers' time beyond the main thread's pace (a full share
+  at its pace would be 0.08 ms; the phases last 0.12, 0.10 and 0.09) and the one-thread parts (after 0.14, lists 0.06,
+  grid 0.03, rest 0.06).
+- New, to tell uneven work from slow or late threads: each worker times its own share of every order
+  (`performance.now()` when it picks the order up and when it is done) and writes the two numbers into two new slots of
+  the shared parameters (from 10·n + 32; the array grew to 12·n + 32). While the profile is on, `thPh` adds them up per
+  phase and worker (`TH_W`), and the benchmark's row ends with `thPerThread()`: per phase, in µs a call, the main
+  thread's own share, the phase's length, the workers' work and their start after the order (fastest / middle / slowest
+  thread, and the worst single start), then every worker's work in order. The start compares the worker's clock with the
+  main thread's (`performance.timeOrigin + now`), good to about the clocks' 5 µs steps. Nothing in the physics reads the
+  new slots; forces on two threads still equal one thread's (t_threads), the WebAssembly checks pass.
+- Test: t_threads reads the line from the benchmark it already runs (two threads here: pairs own 276, phase 1082, the
+  worker's work 853, start 104 µs; a worker's work fits inside the phase the main thread timed).
+
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 
 New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each

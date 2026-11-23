@@ -151,6 +151,15 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   say('benchmark:', bench.rows.join('\n           '));
   say('threads note:', bench.note);
   check(!bench.busy && bench.rows.length === 5 && /threads/.test(bench.rows[0]) && /20,000-atom goal/.test(bench.rows[1]) && /room for \d+ fps/.test(bench.rows[2]), 'the in-app benchmark ran its four worlds and judged the 20,000-atom goal', bench);
+  // 1.39.1: the benchmark's per-thread line. Each worker times its own share of every threaded phase and notes when it
+  // picked the order up; the row gives, per phase, the main thread's share, the phase's length, the workers' work and
+  // start (fastest/middle/slowest) and every worker's work. A worker's work fits inside the phase the main thread timed.
+  { const row = bench.rows[0] || '', ph = {};
+    for (const m of row.matchAll(/(\w+) own (\d+), phase (\d+), work (\d+)\/(\d+)\/(\d+), start (-?\d+)\/(-?\d+)\/(-?\d+) \(worst (-?\d+)\) \[([\d ]+)\]/g)) ph[m[1]] = { own: +m[2], phase: +m[3], slowest: +m[6], start: +m[8], list: m[11].split(' ').map(Number) };
+    const names = Object.keys(ph), ok = (k) => ph[k] && ph[k].list.length === 1 && ph[k].slowest > 0 && ph[k].slowest <= 1.3 * ph[k].phase + 60 && ph[k].start > -200 && ph[k].start < ph[k].phase + 200;
+    say('per thread:', names.map((k) => `${k} own ${ph[k].own} phase ${ph[k].phase} work ${ph[k].slowest} start ${ph[k].start}`).join('; '));
+    check(/per thread, µs a call/.test(row) && ok('pairs') && ok('sum') && ok('integ') && ok('bath') && names.every(ok),
+      '1.39.1: the benchmark lists each thread\'s own time per phase (pairs, sum, integration, bath, timestep), inside the phase the main thread timed', { ph }); }
   // 3-D (stage 4): the 3-D pair, bond, angle and dihedral forces shared over two threads give the one-thread forces to
   // rounding, the same events in the same order, and the same forces to the bit when run twice; each worker's buffers (z
   // too) are zero outside the intervals it reports; energy is kept over 40 insulated steps; and with af_forces3 (when the
