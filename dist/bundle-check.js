@@ -1611,6 +1611,12 @@ const P_INFO = {
   Ps: ['An electron and a positron orbiting each other, an atom with no nucleus, first made in 1951. It annihilates into gamma rays in 0.1 ns or 142 ns, depending on its spins.', 'Positronium'],
   Mu: ['An antimuon with an electron around it, a light isotope of hydrogen, first made in 1960. It lives 2.2 µs and is used to probe magnetism in materials.', 'Muonium'],
   penta: ['Five quarks bound together: four quarks and an antiquark. Allowed by the quark model since 1964 but only found in 2015, by CERN’s LHCb experiment, in the decays of Λb baryons; whether they are one bag or a baryon and a meson stuck together is still debated.', 'Pentaquark'],
+  tetra: ['Four quarks bound together: two quarks and two antiquarks. The X(3872), found in 2003, was the first; LHCb’s Tcc⁺ (2021) holds two charm quarks.', 'Tetraquark'],
+  wimp: ['A weakly interacting massive particle: a heavy dark-matter candidate. Xenon detectors deep underground watch for the nuclear recoil one would cause; none seen yet.', 'Weakly_interacting_massive_particle'],
+  axion: ['A very light particle proposed in 1977 to explain why the strong force keeps time symmetry; also a dark-matter candidate. Searches turn axions into photons with strong magnets.', 'Axion'],
+  slet: ['A small piece of strange matter (up, down and strange quarks). If strange matter is the most stable form of matter, strangelets would convert what they touch; none found.', 'Strangelet'],
+  mono: ['A particle with a single magnetic pole. Many unified theories predict them; searches in cosmic rays, colliders and old rocks have found none.', 'Magnetic_monopole'],
+  dphot: ['A hypothetical massive cousin of the photon, mixing with it weakly; searched for at colliders and beam dumps. ATOMKI’s 17 MeV anomaly (X17) is one claim.', 'X17_particle'],
   hexa: ['A hexaquark candidate: six quarks with the deuteron’s quantum numbers but three units of spin, seen as a narrow bump in neutron–proton collisions in 2014. Whether it is six quarks in one bag or two Δ baryons bound together is still argued.', 'Dibaryon'],
   eaq: ['An electron dissolved in water: water molecules turn their hydrogen ends toward it and hold it in a cavity about 2.5 Å across, bound by about 1.7 eV. Found in 1962 by its absorption band (peaking at 720 nm, so irradiated water looks blue), it is one of the main products of radiation in water and lives about a microsecond in pure water before it meets an ion or a radical.', 'Solvated_electron'],
   Pn: ['A proton and an antiproton going round each other, an atom of matter and antimatter, made at CERN by stopping antiprotons in hydrogen. Caught into a high orbit, it falls inward giving off X-rays, then annihilates into pions.', 'Protonium'],
@@ -1622,6 +1628,7 @@ function infoKeyX(sp) {
   const d = XP[sp]; if (!d) return null;
   if (d.hyp) return 'hy'; if (d.ps) return 'Ps'; if (d.pn) return 'Pn'; if (d.aq) return 'eaq'; if (d.atom) return 'muP'; if (d.stuck) return 'muHe';
   if (sp === 'Mu') return 'Mu';
+  if (sp === 'X3872' || sp === 'Tcc' || sp === 'Tccb') return 'tetra'; if (sp === 'wimp' || sp === 'axion') return sp; if (sp === 'slet') return 'slet'; if (sp === 'mono') return 'mono'; if (sp === 'Ap') return 'dphot'; if (sp === 'Sx' || sp === 'Sxb') return 'hexa'; if (sp === 'LL6He' || sp === 'ahy1_2') return 'hy'; // (1.39)
   if (sp.startsWith('Pc')) return 'penta'; if (sp === 'dstar') return 'hexa';
   const F = [['mu', 'mu'], ['tau', 'tau'], ['pi', 'pi'], ['Ks', 'Ks'], ['K', 'K'], ['eta', 'eta'], ['rho', 'rho'], ['omega', 'omega'], ['phi', 'phi'], ['Dpp', 'Delta'], ['Dp', 'Delta'], ['D0', 'Delta'], ['Dm', 'Delta'], ['Dbmm', 'Delta'], ['Dbm', 'Delta'], ['Db0', 'Delta'], ['Dbp', 'Delta'],
     ['Dc', 'Dmes'], ['Ds', 'Dmes'], ['Bs', 'Bmes'], ['Bb', 'Bmes'], ['B', 'Bmes'], ['Lc', 'LamC'], ['Lb', 'LamB'], ['Lam', 'Lam'], ['Sig', 'Sig'], ['Xi', 'Xi'], ['Omg', 'Omg'], ['Jpsi', 'Jpsi'], ['Ups', 'Ups'], ['W', 'W'], ['Z', 'Z'], ['H', 'H']];
@@ -26812,11 +26819,31 @@ const XP = {
   dstar: { sym: 'd*⁺', lab: 'd*(2380)⁺', m: 2380, w: 70, q: 1, B: 2, tau: 9.40e-24, col: [255, 200, 160], cc: 'dstar', res: true, dec: [[0.23, ['d', 'pi+', 'pi-']], [0.14, ['d', 'pi0', 'pi0']], [0.30, ['p', 'n', 'pi+', 'pi-']], [0.12, ['p', 'n', 'pi0', 'pi0']], [0.12, ['p', 'n', 'pi0']], [0.09, ['p', 'n']]] }, // (cc itself: its antiparticle is not made here)
   'tau-': { lab: 'τ⁻', m: 1776.86, q: -1, tau: 2.903e-13, col: [255, 115, 150], cc: 'tau+', dec: [[0.1782, ['e-', 'nub', 'nu']], [0.1739, ['mu-', 'nub', 'nu']], [0.1082, ['pi-', 'nu']], [0.2549, ['pi-', 'pi0', 'nu']], [0.0926, ['pi-', 'pi0', 'pi0', 'nu']], [0.0899, ['pi-', 'pi-', 'pi+', 'nu']], [0.0455, ['pi-', 'pi-', 'pi+', 'pi0', 'nu']], [0.0104, ['pi-', 'pi0', 'pi0', 'pi0', 'nu']], [0.0070, ['K-', 'nu']]] },
 };
-function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', numu: 'numub', numub: 'numu', nutau: 'nutaub', nutaub: 'nutau', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n' })[t] || t; }
-for (const [k, of, lab] of [['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
+/* ---- (1.39, item 103; the owner: "add strange matter or dark matter or stuff like that based off of what's been found").
+   Found: the X(3872) (Belle 2003; a cc̄ pair with a light pair, or a D⁰D̄*⁰ molecule: it sits 0.04 MeV under that
+   threshold) and the doubly charmed Tcc(3875)⁺ (LHCb 2021; Γ 48 keV), PDG masses, widths and decays. Hypothetical
+   (hypo: labelled so wherever they show; their numbers are the experiments' limits or a model's): a WIMP of 40 GeV at
+   LZ's 2024 limit, a QCD axion at CAST's 2024 limit, a strangelet (bag model), a Dirac magnetic monopole, Farrar's
+   sexaquark (uuddss, stable below 2(mp + me)) and the 17 MeV dark photon (ATOMKI's X17, mixing ε = 10⁻³:
+   Γ = αε²m/3). Stable ones have τ = ∞ and no decays. In flight: darkStep. */
+Object.assign(XP, {
+  X3872: { sym: 'X', lab: 'X(3872)', m: 3871.64, w: 1.19, q: 0, B: 0, tau: 5.53e-22, col: [150, 255, 220], cc: 'X3872', res: true, dec: [[0.37, ['Dc0', 'Dcb0', 'pi0']], [0.19, ['Dc0', 'Dcb0', 'g']], [0.041, ['Jpsi', 'pi+', 'pi-']], [0.044, ['Jpsi', 'pi+', 'pi-', 'pi0']], [0.008, ['Jpsi', 'g']]].map(([b, t]) => [b / 0.653, t]) },
+  Tcc: { sym: 'Tcc⁺', lab: 'Tcc(3875)⁺', m: 3874.83, w: 0.048, q: 1, B: 0, tau: 1.371e-20, col: [120, 255, 200], cc: 'Tccb', res: true, dec: [[0.6, ['Dc0', 'Dc0', 'pi+']], [0.25, ['Dc+', 'Dc0', 'pi0']], [0.15, ['Dc+', 'Dc0', 'g']]] },
+  wimp: { lab: 'χ', m: 40000, q: 0, B: 0, tau: Infinity, col: [150, 150, 190], cc: 'wimp', hypo: true, dark: 'wimp', strong: false, dec: [] },
+  axion: { lab: 'a', m: 1e-11, q: 0, B: 0, tau: Infinity, col: [255, 230, 120], cc: 'axion', hypo: true, dark: 'axion', strong: false, dec: [] },
+  slet: { lab: 'strangelet', m: sletMass(20), q: 2, B: 20, tau: Infinity, col: [255, 120, 60], cc: 'slet', hypo: true, dark: 'slet', strong: false, dec: [] },
+  mono: { lab: 'monopole', m: 1e7, q: 0, B: 0, tau: Infinity, col: [255, 90, 255], cc: 'mono', hypo: true, dark: 'mono', strong: false, dec: [] },
+  Sx: { sym: 'S', lab: 'S (uuddss)', m: 1880, q: 0, B: 2, tau: Infinity, col: [200, 200, 255], cc: 'Sxb', hypo: true, strong: false, dec: [] },
+  Ap: { lab: 'A′(17)', m: 16.70, q: 0, B: 0, tau: 1.62e-14, col: [190, 120, 255], cc: 'Ap', hypo: true, dec: [[1, ['e+', 'e-']]] },
+});
+/* A strangelet of A quarks-in-threes (bag model, absolutely stable strange matter assumed): ε₀ = 900 MeV a baryon
+   (below the 930 MeV of iron's, which is what would make it stable) and a surface term, MeV. Charge about 0.1·A. */
+function sletMass(A) { return A * (900 + 50 / Math.cbrt(A)); }
+function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', numu: 'numub', numub: 'numu', nutau: 'nutaub', nutaub: 'nutau', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n', d: 'dbar', dbar: 'd', t: 'tbar', tbar: 't', h: 'hbar', hbar: 'h', a: 'abar', abar: 'a' })[t] || t; }
+for (const [k, of, lab] of [['Tccb', 'Tcc', 'T̄cc(3875)⁻'], ['Sxb', 'Sx', 'S̄ (ūūd̄d̄s̄s̄)'], ['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
   const s = XP[of];
   XP[k] = Object.assign({}, s, { lab, q: -s.q, B: s.B ? -s.B : 0, cc: of, dec: s.dec.map(([b, ps]) => [b, ps.map(conjTok)]) });
-  if (s.sym) XP[k].sym = { 'Pc⁺': 'P̄c⁻', 'Pcs⁰': 'P̄cs⁰' }[s.sym] || s.sym; // (the antipentaquarks' short symbols, 1.28.3)
+  if (s.sym) XP[k].sym = { 'Pc⁺': 'P̄c⁻', 'Pcs⁰': 'P̄cs⁰', 'Tcc⁺': 'T̄cc⁻', S: 'S̄' }[s.sym] || s.sym; // (the antipentaquarks' short symbols, 1.28.3)
 }
 /* Neutrinos keep their flavour (labels only: they leave the box untouched): a muon's decay gives a muon neutrino and an
    electron antineutrino, a pion's the neutrino of the muon or electron it makes, a tau's a tau neutrino with the rest;
@@ -26839,7 +26866,7 @@ for (const [k, d] of Object.entries(XP)) {
 
 /* ---- final-state items: { t: 'x', sp } an unstable particle, { t: 'A', Z, N, anti } a nucleus or nucleon,
    { t: 'e', q } an electron or positron, { t: 'g' } a photon, { t: 'v', anti } a neutrino */
-const NUCTOK = { p: [1, 0, 0], n: [0, 1, 0], pbar: [1, 0, 1], nbar: [0, 1, 1], d: [1, 1, 0], t: [1, 2, 0], h: [2, 1, 0], a: [2, 2, 0] };
+const NUCTOK = { p: [1, 0, 0], n: [0, 1, 0], pbar: [1, 0, 1], nbar: [0, 1, 1], d: [1, 1, 0], t: [1, 2, 0], h: [2, 1, 0], a: [2, 2, 0], dbar: [1, 1, 1], tbar: [1, 2, 1], hbar: [2, 1, 1], abar: [2, 2, 1] };
 function item(tok) {
   if (typeof tok !== 'string') return tok;
   if (XP[tok]) return { t: 'x', sp: tok };
@@ -27014,6 +27041,12 @@ function hypSpecies(Z, N) { // the core (Z, N) with a Λ: its XP entry, made whe
   XP[k] = { lab: sup(A) + 'Λ' + ELEMENTS[Z].sym, m: nucMeV(Z, N) + LAM_M - B, q: Z, B: A, tau: A === 3 ? 2.4e-10 : 2.3e-10, col: [200, 150, 255], cc: k, hyp: true, Z, N, BL: B, dec: [[1, ['g']]] };
   return k;
 }
+/* (1.39, item 103a) Two found ones beyond hypSpecies's: ⁶ΛΛHe, two Λ on an α (KEK's Nagara event, 2001: B_ΛΛ =
+   6.91 MeV; it decayed to ⁵ΛHe p π⁻; its mean life is not measured: two Λ, about half a ⁵ΛHe's), and antihyperhydrogen-4
+   (STAR 2024: p̄ n̄ n̄ Λ̄, seen by its decay to anti-⁴He π⁺; mean life as ⁴ΛH's, 218 ps, STAR 2022, CPT). */
+hypSpecies(2, 2); hypSpecies(1, 2);
+XP.LL6He = { lab: '⁶ΛΛHe', m: nucMeV(2, 2) + 2 * LAM_M - 6.91, q: 2, B: 6, tau: 1.4e-10, col: [210, 140, 255], cc: 'LL6He', BLL: 6.91, dec: [[0.6, ['hy2_2', 'p', 'pi-']], [0.4, ['hy2_2', 'n', 'pi0']]] };
+XP.ahy1_2 = { lab: '⁴Λ̄H̄', m: nucMeV(1, 2) + LAM_M - hypB(4), q: -1, B: -4, tau: 2.18e-10, col: [255, 140, 220], cc: 'hy1_2', dec: [[0.5, ['abar', 'pi+']], [0.5, ['tbar', 'pbar', 'pi+']]] };
 const hypMesonic = (A) => (A <= 4 ? 0.85 : A <= 12 ? 0.3 : A <= 40 ? 0.08 : 0.02); // (Pauli blocking of the nucleon from Λ → Nπ)
 /* (1.25) The nearest atom within R of a stopped particle o that skip() does not rule out: in the plane, or in 3-D. */
 function stopTarget(o, skip, R = 4) {
@@ -27724,11 +27757,11 @@ for (const [k, N, lab] of [['muP', 0, 'μp'], ['muD', 1, 'μd'], ['muT', 2, 'μt
 XP.muHe = { lab: '(μα)⁺', m: nucMeV(2, 2) + MU_M - MU_EB(2), q: 1, tau: 2.1970e-6, col: [255, 225, 150], cc: 'muHe', stuck: true, dec: [[1, ['a', 'e-', 'nub', 'numu']]] };
 /* Ionization along a charged exo's step (x0, y0) → its position now; it loses the energy given away. */
 function exoIonize(o, x0, y0) {
-  const beta2 = Math.max(1e-8, (o.v / PHYS.C) ** 2), z2 = o.q * o.q;
+  const beta2 = Math.max(1e-8, (o.v / PHYS.C) ** 2), z2 = o.zEff ? o.zEff * o.zEff : o.q * o.q; // (zEff: a monopole's, gβ, 1.39)
   const hits = segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && t.Z > 0 && t.ne > 0);
   let lost = 0;
   const cpm = RP.cpm, sl = cpm ? Math.hypot(o.x - x0, o.y - y0) : 0; // (charged particles in matter, 1.27)
-  if (cpm) cpmSeg(o, o.KE, o.m * MEV, Math.abs(o.q), 0, o.ux, o.uy, 0, sl, (x0 + o.x) / 2, (y0 + o.y) / 2, 0, 1.0, false);
+  if (cpm) cpmSeg(o, o.KE, o.m * MEV, o.zEff || Math.abs(o.q), 0, o.ux, o.uy, 0, sl, (x0 + o.x) / 2, (y0 + o.y) / 2, 0, 1.0, false);
   for (const [t, tg, b] of hits) {
     if (tg.dead || tg.ne <= 0) continue;
     if (cpm) { CPM.K = o.KE; lost += cpmAtom(tg, b, 0.0047 * z2 * tg.ne / beta2 / (1 + (b / 0.4) * (b / 0.4)), x0 + (o.x - x0) * t, y0 + (o.y - y0) * t, 0); o.KE = CPM.K; if (W.nucWin) for (const m of molecule(tg)) m.nucProd = true; if (o.KE <= 1) break; continue; }
@@ -27791,6 +27824,122 @@ function exoScatter(o, x0, y0) {
     o.ux = ux; o.uy = uy; o.KE -= dK;
   }
   exoSpeed(o);
+}
+/* ---- (1.39, item 103b–d) The hypothetical particles in flight (XP d.dark); returns true if o is gone.
+   WIMP: elastic recoils off nuclei, spin-independent, coherent: σ_A = σ_n A² (μ_A/μ_n)², with σ_n = 2.2×10⁻⁴⁸ cm² (LZ
+   2024, 90% limit at 40 GeV), so xenon is struck ~10⁷ times as often as hydrogen; isotropic in their centre of mass.
+   Shown 10²³ times as often (DKM.boost; off in ultra-realistic, where none will be seen in a box this size).
+   Axion: in a magnetic field it turns into a photon of its energy (Primakoff), P = sin²(g B⊥ L / 2) along its path,
+   g = 5.8×10⁻¹¹ GeV⁻¹ (CAST 2024, the limit); shown with g 10¹⁷ times larger (off in ultra-realistic).
+   Strangelet: a neutron it touches is swallowed (no Coulomb barrier), the binding out as a γ; the charge it keeps.
+   Monopole: Dirac's magnetic charge, 68.5 e: it ionizes as an electric charge of 68.5 β would (Bethe: a loss that hardly
+   depends on speed); in 3-D a field along its axis pulls it along (F = g c B: 2.05 eV/Å per tesla), the magnet paying
+   (the bath's books); in the flat game the field is across the plane, and so is that pull: not shown. */
+const DKM = { sigN: 2.2e-48, boost: 1e23, gAg: 5.8e-11, axBoost: 1e17, monoG: 68.5, axK: 1e-9 * 195.35 * 5.0677e-4 / 2 };
+function darkStep(o, d, x0, y0, z0, h) {
+  if (d.dark === 'wimp') return wimpStep(o, x0, y0, z0);
+  if (d.dark === 'axion') return axionStep(o, x0, y0, z0);
+  if (d.dark === 'slet') return sletStep(o, x0, y0, z0);
+  if (d.dark === 'mono') { monoStep(o, x0, y0, z0, h); return o.dead; }
+  return false;
+}
+function darkSeg(o, x0, y0, z0, filter) { // (nuclei along its path this step, [t, target, b])
+  return W.d3 ? segTargets3(x0, y0, z0, o.x, o.y, o.z, 1.0, (t) => t.k === NUC && !t.dead && filter(t)) : segTargets(x0, y0, o.x, o.y, 1.0, (t) => t.k === NUC && !t.dead && filter(t));
+}
+function p4Nuc(t) { // a W.parts nucleus's four-momentum (MeV) and its mass
+  const m = nucMeV(t.Z, t.N), d3 = W.d3;
+  if (t.rad) { const K = t.KE / MEV, p = Math.sqrt(Math.max(0, K * (K + 2 * m))); return d3 ? [m + K, p * t.ux, p * t.uy, p * (t.uz || 0)] : [m + K, p * t.ux, p * t.uy]; }
+  const bx = t.vx / PHYS.C, by = t.vy / PHYS.C, bz = (t.vz || 0) / PHYS.C, K = 0.5 * m * (bx * bx + by * by + bz * bz);
+  return d3 ? [m + K, m * bx, m * by, m * bz] : [m + K, m * bx, m * by];
+}
+function boostN(P, b) { return b.length === 3 ? boost3(P[0], P[1], P[2], P[3], b[0], b[1], b[2]) : boost(P[0], P[1], P[2], b[0], b[1]); }
+function wimpStep(o, x0, y0, z0) {
+  const hits = darkSeg(o, x0, y0, z0, (t) => t.Z > 0 && !t.rad);
+  if (!hits.length || !(o.KE > 0)) return false;
+  const mn = 938.92, mun = o.m * mn / (o.m + mn), boostF = W.ultra ? 1 : DKM.boost, R = W.d3 ? 1.0 : 1.4;
+  for (const [, tg] of hits) {
+    if (tg.dead || o.hitId === tg.id) continue;
+    const A = tg.Z + tg.N, mA = nucMeV(tg.Z, tg.N), mu = o.m * mA / (o.m + mA);
+    const sig = DKM.sigN * 1e16 * A * A * (mu / mun) * (mu / mun) * boostF; // Å²
+    if (rnd() >= Math.min(1, sig / (Math.PI * R * R))) continue;
+    o.hitId = tg.id;
+    const p1 = exoP4(o), p2 = p4Nuc(tg), P = p1.map((c, i) => c + p2[i]), b = P.slice(1).map(c => c / P[0]);
+    const c1 = boostN(p1, b), pc = Math.hypot(...c1.slice(1)), u = rdir(), nb = b.map(c => -c);
+    const q1 = boostN([c1[0], ...u.map(c => pc * c)], nb), qm = Math.hypot(...q1.slice(1));
+    if (!(qm > 0)) continue;
+    const k = PHYS.C / PHYS.AMU_MEV, dp = p1.slice(1).map((c, i) => (c - q1[i + 1]) * k); // (u·Å/tu, to the nucleus)
+    const v0 = [tg.vx, tg.vy, tg.vz || 0], v1 = v0.map((c, i) => c + (dp[i] || 0) / tg.m);
+    const dK = 0.5 * tg.m * (v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2] - v0[0] * v0[0] - v0[1] * v0[1] - v0[2] * v0[2]);
+    if (!(dK < o.KE)) continue;
+    tg.vx = v1[0]; tg.vy = v1[1]; if (W.d3) tg.vz = v1[2]; if (typeof updateFast === 'function') updateFast(tg);
+    o.KE -= dK; o.ux = q1[1] / qm; o.uy = q1[2] / qm; if (W.d3) o.uz = q1[3] / qm; exoSpeed(o);
+    W.count.wimp = (W.count.wimp || 0) + 1;
+    flash(tg.x, tg.y, XP.wimp.col, 2.5, 0.3);
+    const el = speciesLabel(tg), sub = `${fmtE(dK)} to the nucleus; at LZ’s limit${W.ultra ? '' : ', shown 10²³ times as often'}`;
+    nucEvent('reaction', tg.x, tg.y, `WIMP recoil: χ + ${el} → χ + ${el}`, [{ x: tg.x, y: tg.y, k: 'x', rd: 0.12, lbl: 'χ' }], sub, undefined, tg.z);
+    log('nuc', `WIMP (hypothetical) struck ${el}: ${fmtE(dK)} recoil`);
+  }
+  return false;
+}
+function axionStep(o, x0, y0, z0) {
+  const xm = (x0 + o.x) / 2, ym = (y0 + o.y) / 2, zm = W.d3 ? (z0 + o.z) / 2 : 0;
+  const B = W.d3 ? Bfield3(xm, ym, zm, null) : Bfield(xm, ym, null);
+  if (!B) return false;
+  let Bp = Math.abs(B); // (the flat game's field is along z, across every path in the plane)
+  if (W.d3) { const ua = o['u' + (W.Bax3 || 'z')] || 0; Bp *= Math.sqrt(Math.max(0, 1 - ua * ua)); }
+  const ds = W.d3 ? Math.hypot(o.x - x0, o.y - y0, o.z - z0) : Math.hypot(o.x - x0, o.y - y0);
+  const a0 = o.axA || 0, a1 = a0 + DKM.gAg * (W.ultra ? 1 : DKM.axBoost) * Bp * ds * DKM.axK;
+  o.axA = a1;
+  const P0 = Math.sin(a0) ** 2, P1 = Math.sin(a1) ** 2;
+  if (!(P1 > P0) || rnd() * (1 - P0) >= P1 - P0) return false;
+  const p = exoP4(o), E = p[0], pm = Math.hypot(...p.slice(1)) || 1, mom = [E, ...p.slice(1).map(c => c / pm * E)];
+  exoEvent(o, [], [{ t: 'g' }], [mom], o.x, o.y, 'pair', `Axion → photon in ${fmtNum(Math.abs(B), 3)} T`, `the Primakoff effect: P = sin²(gBL/2), at CAST’s limit on g${W.ultra ? '' : ', shown with g 10¹⁷ times larger'} (hypothetical)`, o.z || 0);
+  W.count.axion = (W.count.axion || 0) + 1;
+  return true;
+}
+function sletSeg(o, x0, y0, z0) { // (free neutrons fly outside the MD grid: the few there are, checked along the path)
+  const out = [], dx = o.x - x0, dy = o.y - y0, dz = W.d3 ? o.z - z0 : 0, L2 = dx * dx + dy * dy + dz * dz;
+  if (!(L2 > 0)) return out;
+  for (const p of W.parts) {
+    if (p.dead || p.k !== NUC || p.Z !== 0 || p.N !== 1 || p.anti) continue;
+    const px = p.x - x0, py = p.y - y0, pz = W.d3 ? (p.z || 0) - z0 : 0, t = (px * dx + py * dy + pz * dz) / L2;
+    if (t < 0 || t >= 1) continue;
+    const b = Math.hypot(px - t * dx, py - t * dy, pz - t * dz); if (b < 1) out.push([t, p, b]);
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}
+function sletStep(o, x0, y0, z0) {
+  const hits = sletSeg(o, x0, y0, z0);
+  for (const [, tg, b] of hits) {
+    if (tg.dead) continue;
+    const A = o.A || XP.slet.B, R = W.ultra ? (Math.cbrt(A) + 0.85) * FM : Math.max(R_FUS, nucDrawR(tg) + 0.05);
+    if (b >= R) continue;
+    const Mn = sletMass(A + 1), p1 = exoP4(o), p2 = p4Nuc(tg), P = p1.map((c, i) => c + p2[i]);
+    const M = Math.sqrt(Math.max(0, P[0] * P[0] - P.slice(1).reduce((s, c) => s + c * c, 0)));
+    const kg = (M * M - Mn * Mn) / (2 * M);
+    if (!(kg > 0)) continue;
+    const u = rdir(), nb = P.slice(1).map(c => -c / P[0]);
+    const pg = boostN([kg, ...u.map(c => kg * c)], nb), ps = boostN([M - kg, ...u.map(c => -kg * c)], nb);
+    const x = tg.x, y = tg.y, z = tg.z || 0, q = o.q;
+    const made = exoEvent(o, [tg], [{ t: 'x', sp: 'slet', m: Mn }, { t: 'g' }], [ps, pg], x, y, 'capture', `Strangelet (A = ${A}) swallows a neutron → A = ${A + 1}`, `${fmtE(kg * MEV)} out as a γ: strange matter, if it is stable, turns what it touches into more of itself (hypothetical)`, z);
+    const nx = made.xs[0]; if (nx) { nx.A = A + 1; nx.q = q; nx.lab = 'strangelet'; }
+    W.count.slet = (W.count.slet || 0) + 1;
+    return true;
+  }
+  return false;
+}
+function monoStep(o, x0, y0, z0, h) {
+  o.zEff = DKM.monoG * o.v / PHYS.C;
+  if (o.zEff > 1e-3 && o.v > 0) { if (W.d3) exoIonize3(o, x0, y0, z0); else exoIonize(o, x0, y0); }
+  if (!W.d3 || !(h > 0)) return;
+  const B = Bfield3(o.x, o.y, o.z, null); if (!B) return;
+  const ax = W.Bax3 || 'z', mc2 = o.m * MEV, p = Math.sqrt(Math.max(0, o.KE * (o.KE + 2 * mc2)));
+  const v = [o.ux * p, o.uy * p, o.uz * p], i = 'xyz'.indexOf(ax);
+  v[i] += 68.5 * 0.0299792458 * B * PHYS.C * h; // (eV/c: the force g·c·B, eV/Å, over the time h)
+  const pm = Math.hypot(v[0], v[1], v[2]); if (!(pm > 0)) return;
+  const K1 = pm * pm / (Math.sqrt(pm * pm + mc2 * mc2) + mc2), dK = K1 - o.KE;
+  o.ux = v[0] / pm; o.uy = v[1] / pm; o.uz = v[2] / pm; o.KE = K1; exoSpeed(o);
+  W.ledger.bath -= dK; // (the magnet's work: outside the particles' books, as a bath)
 }
 /* An event between an exo and the atoms in W.parts it involves (tgs): the exo and they go, items come out with
    momenta moms (MeV, lab), the books close exactly (what is left over goes to the photons among them, or to the
@@ -28981,7 +29130,7 @@ function tally(items, ins, how) {
   }
 }
 /* What kind of particle an item is, for the collider's Made list (1.37, item 100c): the groups it is shown in. */
-const MADE_KINDS = ['Bosons', 'Leptons', 'Neutrinos', 'Mesons', 'Baryons', 'Multiquarks', 'Nuclei', 'Exotic'];
+const MADE_KINDS = ['Bosons', 'Leptons', 'Neutrinos', 'Mesons', 'Baryons', 'Multiquarks', 'Nuclei', 'Exotic', 'Hypothetical'];
 function madeKind(it) {
   if (it.t === 'g') return 'Bosons';
   if (it.t === 'v') return 'Neutrinos';
@@ -28989,6 +29138,7 @@ function madeKind(it) {
   if (it.t !== 'x') return it.Z + it.N === 1 ? 'Baryons' : 'Nuclei';
   const d = XP[it.sp], q = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[it.sp];
   if (d.ew) return 'Bosons';
+  if (d.hypo) return 'Hypothetical'; // (1.39)
   if (q) return q.length === 2 ? 'Mesons' : q.length === 3 ? 'Baryons' : 'Multiquarks';
   if (/^(mu|tau)[+-]$/.test(it.sp)) return 'Leptons';
   return 'Exotic';
@@ -29064,6 +29214,7 @@ function moveExos(dt, id0) {
     if (o.spin && RP.mu) muSpinTurn(o, clock * h / dt / o.gam); // (μSR: the μ⁺'s spin precesses, in its own time, up to its decay, 1.27)
     if (dec) { if (d.hyp) hypDecay(o); else decayExo(o); continue; }
     if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (a beam's: in the ring's vacuum; thrown out of the beam, the detector stops it)
+    if (d.dark && darkStep(o, d, x0, y0, 0, h)) continue; // (1.39, item 103)
     const xa = RP.exo && XA_SPS.has(o.sp);
     if (xa) { if (xaStep(o)) continue; } // (the realistic-particle switch: caught at tens of eV into an orbit, 1.27)
     else {
@@ -29145,6 +29296,7 @@ function spawnItems3(items, moms, x, y, z) {
   return made;
 }
 function decayExo3(o) {
+  if (!XP[o.sp].dec.length) { exoLeaves(o); return; } // (a stable one, 1.39: none come here)
   if (XP[o.sp].ew) { ewDecay(o); return; } // (W and Z bosons, 1.27)
   if (XP[o.sp].ps) { psDecay(o); return; } // (positronium, 1.27)
   if (o.spin && RP.mu && o.sp === 'mu+') { muExoDecay(o); return; } // (μSR, 1.27)
@@ -29225,11 +29377,11 @@ function segFor3(o, x0, y0, z0, filter) {
   return _seg3.hits.filter(h => !h[1].dead && filter(h[1]));
 }
 function exoIonize3(o, x0, y0, z0) {
-  const beta2 = Math.max(1e-8, (o.v / PHYS.C) ** 2), z2 = o.q * o.q;
+  const beta2 = Math.max(1e-8, (o.v / PHYS.C) ** 2), z2 = o.zEff ? o.zEff * o.zEff : o.q * o.q; // (zEff: a monopole's, gβ, 1.39)
   const hits = segFor3(o, x0, y0, z0, (t) => t.ne > 0);
   let lost = 0;
   const cpm = RP.cpm, sl = cpm ? Math.hypot(o.x - x0, o.y - y0, o.z - z0) : 0; // (charged particles in matter, 1.27)
-  if (cpm) cpmSeg(o, o.KE, o.m * MEV, Math.abs(o.q), 0, o.ux, o.uy, o.uz, sl, (x0 + o.x) / 2, (y0 + o.y) / 2, (z0 + o.z) / 2, 1.0, true);
+  if (cpm) cpmSeg(o, o.KE, o.m * MEV, o.zEff || Math.abs(o.q), 0, o.ux, o.uy, o.uz, sl, (x0 + o.x) / 2, (y0 + o.y) / 2, (z0 + o.z) / 2, 1.0, true);
   for (const [t, tg, b] of hits) {
     if (tg.dead || tg.ne <= 0) continue;
     if (cpm) { CPM.K = o.KE; lost += cpmAtom(tg, b, 0.0047 * z2 * tg.ne / beta2 / (1 + (b / 0.4) * (b / 0.4)), x0 + (o.x - x0) * t, y0 + (o.y - y0) * t, z0 + (o.z - z0) * t); o.KE = CPM.K; if (W.nucWin) for (const m of molecule(tg)) m.nucProd = true; if (o.KE <= 1) break; continue; }
@@ -29308,6 +29460,7 @@ function moveExos3(dt, id0) {
     if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (as in the flat game)
     // captures at rest and nuclear hits, as in the flat game (1.25): a stopped μ⁻ makes a muonic atom, K⁻ and π⁻, Σ⁻, Ξ⁻, Ω⁻ are
     // absorbed by a nucleus, a μ⁺ may take an electron (muonium); strongly interacting ones meet the nuclei on their path
+    if (d.dark && darkStep(o, d, x0, y0, z0, h)) continue; // (1.39, item 103)
     const xa = RP.exo && XA_SPS.has(o.sp);
     if (xa) { if (xaStep(o)) continue; } // (the realistic-particle switch, 1.27)
     else {
@@ -29562,6 +29715,7 @@ function exoLeaves(o, where) { // its energy, mass included, leaves the books (i
 }
 const EXO_QUIET = new Set(['pi0', 'eta', 'rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm', 'Dbmm', 'Dbm', 'Db0', 'Dbp']); // decays too common and too quick to caption each one
 function decayExo(o) {
+  if (!XP[o.sp].dec.length) { exoLeaves(o); return; } // (a stable one, 1.39: none come here)
   if (XP[o.sp].ew) { ewDecay(o); return; } // (W and Z bosons, 1.27)
   if (XP[o.sp].ps) { psDecay(o); return; } // (positronium, 1.27)
   if (o.spin && RP.mu && o.sp === 'mu+') { muExoDecay(o); return; } // (μSR, 1.27)
@@ -38996,11 +39150,12 @@ const PCATS = [
   ['Mesons', ['pi+', 'pi-', 'pi0', 'K+', 'K-', 'K0S', 'K0L', 'eta'].map(sp => ({ kind: 'exo', sp }))],
   ['Baryons', ['Lam', 'Lamb', 'Sig+', 'Sig-', 'Xi0', 'Xi-', 'Omg-', 'Sigb-', 'Sigb+', 'Xib0', 'Xib+', 'Omgb+'].map(sp => ({ kind: 'exo', sp }))],
   ['Resonances', ['rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm'].map(sp => ({ kind: 'exo', sp }))],
-  ['Multiquarks', ['Pc4312', 'Pc4440', 'Pc4457', 'Pcs4338', 'dstar'].map(sp => ({ kind: 'exo', sp }))], // (1.28.3, item 52)
+  ['Multiquarks', ['X3872', 'Tcc', 'Tccb', 'Pc4312', 'Pc4440', 'Pc4457', 'Pcs4338', 'dstar'].map(sp => ({ kind: 'exo', sp }))], // (1.28.3, item 52)
   ['Bosons', ['W+', 'W-', 'Z0', 'H0'].map(sp => ({ kind: 'exo', sp }))], // (1.27; the Higgs boson: feature 25)
   ['Light', [{ kind: 'gamma' }]],
   ['Antimatter', [{ kind: 'pos' }, SPEC_PBAR, SPEC_NBAR, SPEC_HBAR, { kind: 'atom', Z: 1, A: 2, bare: true, anti: true }, { kind: 'atom', Z: 2, A: 4, bare: true, anti: true }, 'pt']],
-  ['Exotic', ['muP', 'muD', 'muT', 'Mu', 'pPs', 'oPs'].concat([[1, 1], [1, 2], [2, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 6], [8, 7], [14, 13], [20, 19], [39, 49], [82, 125]].map(([z, n]) => hypSpecies(z, n)).filter(Boolean)).map(sp => ({ kind: 'exo', sp }))],
+  ['Exotic', ['muP', 'muD', 'muT', 'Mu', 'pPs', 'oPs', 'LL6He', 'ahy1_2'].concat([[1, 1], [1, 2], [2, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 6], [8, 7], [14, 13], [20, 19], [39, 49], [82, 125]].map(([z, n]) => hypSpecies(z, n)).filter(Boolean)).map(sp => ({ kind: 'exo', sp }))],
+  ['Hypothetical', ['wimp', 'axion', 'slet', 'mono', 'Sx', 'Sxb', 'Ap'].map(sp => ({ kind: 'exo', sp }))], // (1.39, item 103: not found; their numbers are the experiments' limits or a model's)
 ];
 /* Type-to-find: every particle of the menus, matched on its symbol, its name, its id and the spelled-out Greek. */
 const PF_GREEK = [['lambda', 'Λ'], ['sigma', 'Σ'], ['xi', 'Ξ'], ['omega', 'Ω'], ['delta', 'Δ'], ['pion', 'π'], ['pi', 'π'], ['rho', 'ρ'], ['phi', 'φ'], ['eta', 'η'], ['kaon', 'K'], ['muon', 'μ'], ['mu', 'μ'], ['tau', 'τ'], ['nu', 'ν'], ['neutrino', 'ν'], ['gamma', 'γ'], ['photon', 'γ'], ['alpha', 'α'], ['anti', '̄'], ['bar', '̄']];
@@ -40471,7 +40626,8 @@ const Q_COL = ['#ff5a5a', '#52d873', '#5a8cff'], Q_ACOL = ['#4fe3e3', '#e65ae6',
 const Q_CHG = { u: 2 / 3, d: -1 / 3, s: -1 / 3, c: 2 / 3, b: -1 / 3 };
 const Q_SYM = { u: 'u', d: 'd', s: 's', c: 'c', b: 'b' }, Q_BAR = { u: 'ū', d: 'd̄', s: 's̄', c: 'c̄', b: 'b̄' };
 const Q_CONTENT = { p: 'uud', n: 'udd', pbar: 'UUD', nbar: 'UDD', 'pi+': 'uD', 'pi-': 'dU', pi0: 'uU', 'K+': 'uS', 'K-': 'sU', K0S: 'dS', K0L: 'dS', eta: 'sS', Lam: 'uds', Lamb: 'UDS', 'Sig+': 'uus', 'Sig-': 'dds', Xi0: 'uss', 'Xi-': 'dss', 'Omg-': 'sss', 'Sigb-': 'UUS', 'Sigb+': 'DDS', Xib0: 'USS', 'Xib+': 'DSS', 'Omgb+': 'SSS',
-  Pc4312: 'uucdC', Pc4440: 'uucdC', Pc4457: 'uucdC', Pcs4338: 'uscdC', Pcb4312: 'UUCDc', Pcb4440: 'UUCDc', Pcb4457: 'UUCDc', Pcsb4338: 'USCDc', dstar: 'uuuddd', // (pentaquarks as a charmed baryon and a charmed meson side by side, the 'molecule' picture; the d*: one bag of six, 1.28.3)
+  Pc4312: 'uucdC', Pc4440: 'uucdC', Pc4457: 'uucdC', Pcs4338: 'uscdC', Pcb4312: 'UUCDc', Pcb4440: 'UUCDc', Pcb4457: 'UUCDc', Pcsb4338: 'USCDc', dstar: 'uuuddd', X3872: 'cCuU', Tcc: 'ccUD', Tccb: 'CCud', Sx: 'uuddss', Sxb: 'UUDDSS', // (1.39: X(3872) as cc̄ with uū (a D⁰D̄*⁰ pair), Tcc⁺ cc ū d̄, the sexaquark)
+  // (pentaquarks as a charmed baryon and a charmed meson side by side, the 'molecule' picture; the d*: one bag of six, 1.28.3)
   rho0: 'uU', 'rho+': 'uD', 'rho-': 'dU', omega: 'uU', phi: 'sS', 'Ks+': 'uS', 'Ks-': 'sU', Ks0: 'dS', Ksb0: 'sD', Dpp: 'uuu', Dp: 'uud', D0: 'udd', Dm: 'ddd', Dbmm: 'UUU', Dbm: 'UUD', Db0: 'UDD', Dbp: 'DDD',
   Dc0: 'cU', Dcb0: 'uC', 'Dc+': 'cD', 'Dc-': 'dC', 'Ds+': 'cS', 'Ds-': 'sC', 'B+': 'uB', 'B-': 'bU', B0: 'dB', Bb0: 'bD',
   'Lc+': 'udc', 'Lcb-': 'UDC', Bs0: 'sB', Bsb0: 'bS', Lb0: 'udb', Lbb0: 'UDB', Jpsi: 'cC', Ups: 'bB' }; // (the heavy hadrons of Realistic particles 5, 1.27) (capitals: antiquarks; the resonances (ρ, ω, φ, K*, Δ) as their ground-state partners, excited)
@@ -40641,7 +40797,9 @@ function qSnap(q) {
   renderInspect();
 }
 /* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
-const XP_NAME = { Pc4312: 'Pentaquark Pc(4312)⁺', Pc4440: 'Pentaquark Pc(4440)⁺', Pc4457: 'Pentaquark Pc(4457)⁺', Pcs4338: 'Strange pentaquark Pcs(4338)⁰', Pcb4312: 'Antipentaquark P̄c(4312)⁻', Pcb4440: 'Antipentaquark P̄c(4440)⁻', Pcb4457: 'Antipentaquark P̄c(4457)⁻', Pcsb4338: 'Antipentaquark P̄cs(4338)⁰', dstar: 'Hexaquark candidate d*(2380)', Pn: 'Protonium (a proton and an antiproton going round each other)', eaq: 'Hydrated electron (an electron held by the water round it)', pPs: 'Para-positronium (an electron and a positron, spins opposite)', oPs: 'Ortho-positronium (an electron and a positron, spins parallel)', 'Lc+': 'Charmed lambda baryon', 'Lcb-': 'Charmed antilambda', Bs0: 'Strange B meson', Bsb0: 'Strange anti-B meson', Lb0: 'Bottom lambda baryon', Lbb0: 'Bottom antilambda', Jpsi: 'J/psi meson (charmonium)', Ups: 'Upsilon meson (bottomonium)', // (Realistic particles 5, 1.27)
+const XP_NAME = { X3872: 'X(3872): a charm tetraquark', Tcc: 'Tcc(3875)⁺: a double-charm tetraquark', Tccb: 'Anti-Tcc(3875)⁻', LL6He: 'Double-Λ hypernucleus ⁶ΛΛHe', ahy1_2: 'Antihyperhydrogen-4',
+  wimp: 'WIMP (hypothetical dark matter)', axion: 'Axion (hypothetical dark matter)', slet: 'Strangelet (hypothetical strange matter)', mono: 'Magnetic monopole (hypothetical)', Sx: 'Sexaquark (hypothetical dark matter)', Sxb: 'Antisexaquark (hypothetical)', Ap: 'Dark photon X17 (hypothetical)',
+  Pc4312: 'Pentaquark Pc(4312)⁺', Pc4440: 'Pentaquark Pc(4440)⁺', Pc4457: 'Pentaquark Pc(4457)⁺', Pcs4338: 'Strange pentaquark Pcs(4338)⁰', Pcb4312: 'Antipentaquark P̄c(4312)⁻', Pcb4440: 'Antipentaquark P̄c(4440)⁻', Pcb4457: 'Antipentaquark P̄c(4457)⁻', Pcsb4338: 'Antipentaquark P̄cs(4338)⁰', dstar: 'Hexaquark candidate d*(2380)', Pn: 'Protonium (a proton and an antiproton going round each other)', eaq: 'Hydrated electron (an electron held by the water round it)', pPs: 'Para-positronium (an electron and a positron, spins opposite)', oPs: 'Ortho-positronium (an electron and a positron, spins parallel)', 'Lc+': 'Charmed lambda baryon', 'Lcb-': 'Charmed antilambda', Bs0: 'Strange B meson', Bsb0: 'Strange anti-B meson', Lb0: 'Bottom lambda baryon', Lbb0: 'Bottom antilambda', Jpsi: 'J/psi meson (charmonium)', Ups: 'Upsilon meson (bottomonium)', // (Realistic particles 5, 1.27)
   'W+': 'W⁺ boson (a carrier of the weak force)', 'W-': 'W⁻ boson (a carrier of the weak force)', Z0: 'Z⁰ boson (the neutral carrier of the weak force)', H0: 'Higgs boson (the Higgs field’s particle)', // (1.27; H0: feature 25)
   Mu: 'Muonium (an electron orbiting a μ⁺: a light hydrogen)', muP: 'Muonic hydrogen (a muon orbiting a proton)', muD: 'Muonic deuterium', muT: 'Muonic tritium', muHe: 'Muonic helium ion: the muon stuck to an α', 'mu-': 'Muon', 'mu+': 'Antimuon', 'pi+': 'Positive pion', 'pi-': 'Negative pion', pi0: 'Neutral pion', 'K+': 'Positive kaon', 'K-': 'Negative kaon',
   K0S: 'Neutral kaon, short-lived (K-short)', K0L: 'Neutral kaon, long-lived (K-long)', eta: 'Eta meson', Lam: 'Lambda baryon', Lamb: 'Antilambda', 'tau-': 'Tau lepton', 'tau+': 'Antitau',
@@ -40649,10 +40807,24 @@ const XP_NAME = { Pc4312: 'Pentaquark Pc(4312)⁺', Pc4440: 'Pentaquark Pc(4440)
   'Sigb-': 'Antisigma, negative', 'Sigb+': 'Antisigma, positive', Xib0: 'Neutral antixi', 'Xib+': 'Positive antixi', 'Omgb+': 'Antiomega',
   rho0: 'Neutral rho meson', 'rho+': 'Positive rho meson', 'rho-': 'Negative rho meson', omega: 'Omega meson', phi: 'Phi meson', 'Ks+': 'K-star, positive', 'Ks-': 'K-star, negative', Ks0: 'K-star, neutral', Ksb0: 'Anti-K-star, neutral',
   Dpp: 'Delta++ baryon', Dp: 'Delta+ baryon', D0: 'Delta0 baryon', Dm: 'Delta− baryon', Dbmm: 'Anti-delta−−', Dbm: 'Anti-delta−', Db0: 'Anti-delta0', Dbp: 'Anti-delta+' };
-const XP_QUARKS = { Pc4312: 'u u d c c̄ (five quarks: as a Σc⁺⁺ and a D⁻ held together, or one bag)', Pc4440: 'u u d c c̄ (five quarks)', Pc4457: 'u u d c c̄ (five quarks)', Pcs4338: 'u d s c c̄ (five quarks)', Pcb4312: 'ū ū d̄ c̄ c', Pcb4440: 'ū ū d̄ c̄ c', Pcb4457: 'ū ū d̄ c̄ c', Pcsb4338: 'ū d̄ s̄ c̄ c', dstar: 'u u u d d d (six quarks; or two Δ baryons bound: its nature is still argued)', 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄', 'Sig+': 'u u s', 'Sig-': 'd d s', Xi0: 'u s s', 'Xi-': 'd s s', 'Omg-': 's s s',
+const XP_QUARKS = { X3872: 'c c̄ u ū (four quarks: a D⁰ and a D̄*⁰ barely bound, or one bag)', Tcc: 'c c ū d̄ (a D⁰ and a D*⁺ barely bound)', Tccb: 'c̄ c̄ u d', Sx: 'u u d d s s (six quarks, compact)', Sxb: 'ū ū d̄ d̄ s̄ s̄',
+  LL6He: '⁴He (2 p, 2 n) and two Λ (u d s)', ahy1_2: 'p̄ n̄ n̄ and a Λ̄ (ū d̄ s̄)', slet: 'about as many u, d and s quarks, in one bag',
+  Pc4312: 'u u d c c̄ (five quarks: as a Σc⁺⁺ and a D⁻ held together, or one bag)', Pc4440: 'u u d c c̄ (five quarks)', Pc4457: 'u u d c c̄ (five quarks)', Pcs4338: 'u d s c c̄ (five quarks)', Pcb4312: 'ū ū d̄ c̄ c', Pcb4440: 'ū ū d̄ c̄ c', Pcb4457: 'ū ū d̄ c̄ c', Pcsb4338: 'ū d̄ s̄ c̄ c', dstar: 'u u u d d d (six quarks; or two Δ baryons bound: its nature is still argued)', 'pi+': 'u d̄', 'pi-': 'd ū', pi0: 'a mix of u ū and d d̄', 'K+': 'u s̄', 'K-': 's ū', K0S: 'a mix of d s̄ and s d̄', K0L: 'a mix of d s̄ and s d̄', eta: 'a mix of u ū, d d̄ and s s̄', Lam: 'u d s', Lamb: 'ū d̄ s̄', 'Sig+': 'u u s', 'Sig-': 'd d s', Xi0: 'u s s', 'Xi-': 'd s s', 'Omg-': 's s s',
   'Sigb-': 'ū ū s̄', 'Sigb+': 'd̄ d̄ s̄', Xib0: 'ū s̄ s̄', 'Xib+': 'd̄ s̄ s̄', 'Omgb+': 's̄ s̄ s̄',
   'Lc+': 'u d c', 'Lcb-': 'ū d̄ c̄', Bs0: 's b̄', Bsb0: 'b s̄', Lb0: 'u d b', Lbb0: 'ū d̄ b̄', Jpsi: 'c c̄', Ups: 'b b̄' }; // (Realistic particles 5, 1.27)
 const XP_ABOUT = {
+  X3872: 'The first exotic charm meson (Belle, 2003): too heavy and too narrow for a plain c c̄ pair. It sits right at the D⁰D̄*⁰ threshold.',
+  Tcc: 'Two charm quarks and two light antiquarks (LHCb, 2021): the longest-lived exotic hadron known, 0.36 keV under the D*⁺D⁰ threshold.',
+  Tccb: 'The antiparticle of the Tcc⁺.',
+  LL6He: 'Two Λ hyperons on a helium-4 core, seen once in an emulsion at KEK (the Nagara event, 2001). The two Λ attract each other a little (0.6 MeV).',
+  ahy1_2: 'The heaviest antimatter hypernucleus found (STAR, 2024, 16 of them): its mean life matches its matter twin’s, as CPT symmetry says.',
+  wimp: 'A heavy particle that only weakly touches matter, a leading dark-matter idea. None seen: here at the largest rate experiments still allow.',
+  axion: 'A very light particle proposed to fix a puzzle of the strong force; a dark-matter candidate. A magnetic field can turn it into a photon.',
+  slet: 'A lump of up, down and strange quarks. If strange matter is more stable than nuclei, a strangelet would swallow neutrons and grow.',
+  mono: 'An isolated north or south pole. Dirac showed one would make electric charge come in whole units; none found (MoEDAL, ATLAS).',
+  Sx: 'A tightly bound uuddss, stable if lighter than two protons and electrons; proposed as dark matter. Not seen (BaBar searched).',
+  Sxb: 'The sexaquark’s antiparticle.',
+  Ap: 'A heavy partner of the photon that mixes with it weakly. ATOMKI saw a bump at 17 MeV in nuclear decays (X17); PADME and others are checking.',
   mu: 'A heavy electron (207 times its mass). Cosmic-ray muons reach the ground only because time dilation stretches their 2.2 µs life.',
   pi: 'The lightest meson, a quark and an antiquark; pions carry the force that binds nuclei.',
   K: 'A meson with a strange quark; only the weak force can change strangeness, so it lives long.',
@@ -40693,12 +40865,18 @@ function selXHTML() {
     if (XP_QUARKS[o.sp]) kv.push(['Made of', XP_QUARKS[o.sp]]);
     if (d.hyp) kv.push(['Made of', `${nucSym(d.Z, d.N)} (${d.Z} p, ${d.N} n) and a Λ (u d s)`], ['Λ bound by', fmtE(d.BL * MEV)]);
     kv.push(...gyroRows(d.q, m / PHYS.AMU_MEV, o.gam, o.v, o.x, o.y, null));
+    if (d.hypo) kv.push(['Status', 'hypothetical: not found yet']); // (1.39, item 103)
+    if (o.sp === 'wimp') kv.push(['Cross section', `${fmtSci(DKM.sigN, 2)} cm² a nucleon (LZ 2024 limit), × A² × (μ_A/μ_n)² a nucleus`], ['Shown', W.ultra ? 'at that rate' : '10²³ times as often']);
+    if (o.sp === 'axion') kv.push(['Coupling to light', `g = ${fmtSci(DKM.gAg, 2)} GeV⁻¹ (CAST 2024 limit)${W.ultra ? '' : ', shown 10¹⁷ times larger'}`], ['Chance to be a photon so far', `${fmtNum(100 * Math.sin(o.axA || 0) ** 2, 3)} %`]);
+    if (o.sp === 'slet') { const A = o.A || d.B; kv.push(['Baryon number A', String(A)], ['Charge', `+${o.q}`], ['Energy a baryon', `${fmtNum(sletMass(A) / A, 4)} MeV (a neutron: 939.6)`]); }
+    if (o.sp === 'mono') kv.push(['Magnetic charge', '68.5 e (Dirac’s: e/2α)'], ['Ionizes as a charge of', fmtNum(DKM.monoG * o.v / PHYS.C, 3) + ' e (68.5 β)']);
+    if (o.sp === 'LL6He') kv.push(['Both Λ bound by', fmtE(d.BLL * MEV)]);
     kv.push(['Kinetic energy', fmtE(o.KE)], ['Total energy', fmtE(o.KE + m * 1e6)], ['Speed', fmtSpeed(o.v)], ['Lorentz factor γ', fmtNum(o.gam, 4)],
       ['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)],
       d.hyp ? ['Decays by', `Λ → p π⁻ or n π⁰ inside (mesonic, ${Math.round(100 * hypMesonic(d.Z + d.N + 1))}%), or Λp → np and Λn → nn (non-mesonic: 176 MeV to the two nucleons, which usually break the nucleus)`] : ['Decays to', (d.ew ? ewDecList(o.sp) : d.dec.map(([b, ps]) => [b, ps.map(t => labelOf(item(t))).join(' ')])).map(([b, dt]) => `${dt} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
     about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, and it bounces off any nucleus (1.28.1), except in the ultra-realistic mode, where it is hydrogen's measured size off hydrogen only. Bound by ${fmtE(d.Eb * 1e6)}.`
       : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
-      : XP_ABOUT[d.hyp ? 'hy' : d.ew ? o.sp[0] : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg', 'eta'].find(k => o.sp.startsWith(k))] || ''; // (none for the others: they had the η's words, "a neutral meson", for a B⁺ or a Λc, until 1.28.1; the info box below says what each is) // (d.ew: W and Z, 1.27)
+      : XP_ABOUT[o.sp] || XP_ABOUT[d.hyp ? 'hy' : d.ew ? o.sp[0] : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg', 'eta'].find(k => o.sp.startsWith(k))] || ''; // (none for the others: they had the η's words, "a neutral meson", for a B⁺ or a Λc, until 1.28.1; the info box below says what each is) // (d.ew: W and Z, 1.27)
     if (d.pn) { // (protonium, 1.28.3: where it is in its fall, instead of a mean life it does not have)
       const f = o.pnT0 !== undefined ? Math.min(1, Math.max(0, (W.t - o.pnT0) / PN_T)) : 0, n0 = o.pnN0 || 30, n1 = o.pnN1 || 2, n = Math.max(n1, Math.round(n0 - (n0 - n1) * f));
       for (let i = kv.length - 1; i >= 0; i--) if (/^(Mean life|Mean distance|Decays to)/.test(kv[i][0])) kv.splice(i, 1);
@@ -41168,7 +41346,7 @@ function renderData() {
    its name, half-life and decay, how many, and the event that first made it; then the unstable particles. */
 const PART_NAMES = { 'pi+': 'charged pion', 'pi-': 'charged pion', pi0: 'neutral pion', 'mu-': 'muon', 'mu+': 'antimuon', 'K+': 'charged kaon', 'K-': 'charged kaon',
   K0S: 'neutral kaon (short-lived)', K0L: 'neutral kaon (long-lived)', eta: 'eta meson', Lam: 'lambda baryon', Lamb: 'antilambda', 'tau-': 'tau lepton', 'tau+': 'antitau',
-  'Sig+': 'sigma baryon', 'Sig-': 'sigma baryon', Xi0: 'xi baryon', 'Xi-': 'xi baryon', 'Omg-': 'omega baryon', 'Sigb-': 'antisigma', 'Sigb+': 'antisigma', Xib0: 'antixi', 'Xib+': 'antixi', 'Omgb+': 'antiomega', 'W+': 'W boson', 'W-': 'W boson', Z0: 'Z boson', H0: 'Higgs boson' }; // (W, Z: 1.27; H0: feature 25)
+  'Sig+': 'sigma baryon', 'Sig-': 'sigma baryon', Xi0: 'xi baryon', 'Xi-': 'xi baryon', 'Omg-': 'omega baryon', 'Sigb-': 'antisigma', 'Sigb+': 'antisigma', Xib0: 'antixi', 'Xib+': 'antixi', 'Omgb+': 'antiomega', 'W+': 'W boson', 'W-': 'W boson', Z0: 'Z boson', H0: 'Higgs boson', X3872: 'X(3872) tetraquark', Tcc: 'Tcc tetraquark', Tccb: 'Tcc tetraquark', LL6He: 'double hypernucleus', ahy1_2: 'antihyperhydrogen-4', wimp: 'WIMP', axion: 'axion', slet: 'strangelet', mono: 'magnetic monopole', Sx: 'sexaquark', Sxb: 'antisexaquark', Ap: 'dark photon' }; // (W, Z: 1.27; H0: feature 25; 1.39)
 function renderMade() {
   const M = W.made, sec = $('dMadeSec');
   const nuc = M ? [...M.nuc.values()] : [], part = (M ? [...(M.lep ? M.lep.values() : []), ...M.part.values()] : []), nus = M && M.nu ? [...M.nu.values()] : [];
@@ -42866,6 +43044,7 @@ function buildBeamSelects() {
 const BP = { which: 'a', q: '', el: 0 };
 function bpWhy(sp) {
   const d = XP[sp];
+  if (d.hypo) return 'hypothetical: not found, so not made into a beam'; // (1.39)
   if (!d.q) return 'neutral: no magnet or accelerating field acts on it';
   if (d.res || d.tau < 1e-13) return `lives ${fmtTime(d.tau)}: gone long before it could be sped up`;
   return 'not made into a beam here';
@@ -42875,7 +43054,7 @@ function bpCats() {
   const bs = (k) => ({ lab: BEAM_SPECIES[k].lab, name: BEAM_SPECIES[k].name, key: k, why: '' });
   const no = (lab, name, why) => ({ lab, name, key: null, why });
   const qc = (sp) => (typeof Q_CONTENT !== 'undefined' && Q_CONTENT[sp]) || '';
-  const xs = Object.keys(XP), used = new Set(['mu-', 'mu+', 'tau-', 'tau+', 'W+', 'W-', 'Z0', 'H0']);
+  const xs = Object.keys(XP), used = new Set(['mu-', 'mu+', 'tau-', 'tau+', 'W+', 'W-', 'Z0', 'H0', ...xs.filter(sp => XP[sp].hypo)]);
   const by = (f) => xs.filter(sp => !used.has(sp) && f(sp)).map(sp => { used.add(sp); return ex(sp); });
   const neutral = 'neutral: no magnet or accelerating field acts on it';
   return [
@@ -42889,6 +43068,7 @@ function bpCats() {
     ['Heavy ions', '', Object.keys(BEAM_SPECIES).filter(k => BEAM_SPECIES[k].g === 'Heavy ions').map(bs)],
     ['Actinides', 'targets for superheavy elements', Object.keys(BEAM_SPECIES).filter(k => BEAM_SPECIES[k].g === 'Actinides (targets for superheavy elements)').map(bs)],
     ['Exotic atoms and nuclei', '', by(() => true)],
+    ['Hypothetical', 'not found yet', xs.filter(sp => XP[sp].hypo).map(ex)],
   ];
 }
 function openBeamPicker(which) {

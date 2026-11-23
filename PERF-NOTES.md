@@ -1991,6 +1991,55 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.39.0 (not released yet): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
+
+New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each
+card saying "hypothetical: not found yet", Made here listing them under Hypothetical, their info button opening the
+Wikipedia article. Nothing changes for matter that was already there (both fingerprints the same).
+
+- **a. Found exotic hadrons.** X(3872) (m 3871.64 MeV, Γ 1.19 MeV; D⁰D̄⁰π⁰ 57%, D⁰D̄⁰γ 29%, J/ψ π⁺π⁻(π⁰) 13%, J/ψ γ
+  1%, PDG's branchings normalised) and the doubly charmed Tcc(3875)⁺ with its antiparticle (m 3874.83, Γ 48 keV; D⁰D⁰π⁺,
+  D⁺D⁰π⁰, D⁺D⁰γ), under Multiquarks with their quark content (c c̄ u ū; c c ū d̄). ⁶ΛΛHe (B_ΛΛ 6.91 MeV, the Nagara event;
+  decays to ⁵ΛHe p π⁻ or ⁵ΛHe n π⁰; its mean life is not measured, 140 ps taken: two Λ) and antihyperhydrogen-4 (STAR
+  2024: anti-⁴He π⁺ or t̄ p̄ π⁺, mean life 218 ps, ⁴ΛH's, as CPT says), under Exotic; new decay tokens for antinuclei
+  (d̄, t̄, h̄, ᾱ). The d*(2380) was there since 1.28.3. Each decays with charge and baryon number kept and the books to
+  10⁻⁴ eV, flat and 3-D.
+- **b. Dark-matter candidates, at today's limits.** A 40 GeV WIMP (χ, stable, neutral) recoils elastically off the nuclei
+  it passes, spin-independent and coherent: σ_A = σ_n A² (μ_A/μ_n)² with σ_n = 2.2×10⁻⁴⁸ cm² (LZ 2024's 90% limit at 40
+  GeV), isotropic in the centre of mass, the recoil's energy taken from the WIMP exactly. Xenon is struck 10⁷ times as
+  often as hydrogen; a 10 keV WIMP (the galaxy's 230 km/s) gives xenon up to 7.44 keV, the kinematic limit. Shown 10²³
+  times as often (0.66% a xenon passed); in ultra-realistic, at the true rate: none in a box. An axion (10 μeV, stable)
+  turns into a photon of its energy in a magnetic field (Primakoff), P = sin²(g B⊥ L/2) along its path, with g = 5.8×10⁻¹¹
+  GeV⁻¹ (CAST 2024's limit) shown 10¹⁷ times larger (off in ultra-realistic): 60 Å of 40 T converts 44% (sin²: 40%).
+- **c. Strangelets (hypothetical).** A bag-model lump of u, d and s quarks: ε₀ = 900 MeV a baryon (below iron's 930, the
+  stable-strange-matter assumption) plus a surface term, 50 MeV·A^(−1/3); charge about 0.1 A (+2 at A = 20). A free neutron
+  it touches is swallowed (no Coulomb barrier), A + 1, the binding (about 27 MeV) out as a γ; its charge stays (the weak
+  decays that would re-balance it are left out). Through a row of 11 neutrons: all 11 eaten, A 20 → 31, books to 10⁻⁶ eV.
+- **d. Other hypotheticals.** A Dirac magnetic monopole (charge 68.5 e, mass taken 10 TeV, above the LHC's limits): it
+  ionizes as an electric charge of 68.5 β would (Bethe; the loss hardly depends on speed); in 3-D a field along its axis
+  speeds it along (F = g c B, 2.05 eV/Å a tesla; the magnet's work booked as the bath's): 100 T over 40.3 Å gave 8.29 keV,
+  as g c B says. In the flat game that pull is across the plane: not shown. The sexaquark (uuddss, 1880 MeV, stable,
+  neutral; it passes matter untouched here) and its antiparticle. The dark photon at ATOMKI's X17 (16.70 MeV, mixing
+  ε = 10⁻³: Γ = αε²m/3, τ 16 fs) → e⁺e⁻.
+- Code: `XP` entries (hep.js top; ⁶ΛΛHe and anti-⁴ΛH after `hypSpecies`), `darkStep` with `wimpStep`, `axionStep`,
+  `sletStep` (free neutrons are outside the MD grid: `sletSeg` checks them along the path), `monoStep`, constants `DKM`;
+  `exoIonize`/`exoIonize3` take `o.zEff`. UI: `PCATS` Hypothetical, `XP_NAME`, `XP_QUARKS`, `XP_ABOUT`, card rows,
+  `P_INFO` (tetra, wimp, axion, slet, mono, dphot), `bpCats` and `bpWhy`, `MADE_KINDS`.
+- Tests: tests/f_139.js (found, wimp, axion, slet, mono, hypo, page). f_127h's Help check no longer looks for
+  "Higgs-strahlung", which 1.37.1's shorter Help texts dropped (it failed since then). The stored fingerprints of
+  f_rp1, f_rp2, f_rp3, f_rp5, f_rp7, f_feat1 and f_ew brought up to f_127h's (pionbeam e537829c cec51699, annihilation
+  02ea22e9 0a418be0 and with the switches bbadae23 9f1616d8, dafne eb56fac9 2f48935f, lep 81169d25 0b6f080f: 1.37–1.38's
+  deliberate changes, the same on 1.38.0's code).
+- Failing, run alone, and not from this work (for a bug-fix session). The same on 1.38.0's code: t_settings (the 3-D
+  menu's setup list, a description per row, the pictures' 1215 KB), f_rp7's and f_126q's Settings-pane checks, f_feat1
+  scan, f_fix15 plasma, t_features' particles (a placed ρ⁰'s pions gone after 30 frames). Not rerun on 1.38.0's code
+  but in code this work does not touch: f_126x's and f_rp5's pane checks, t_features' explain, 0.91, 1.10 reach, 1.11
+  data, 1.15 scattering (likely the 1.38 Highland width), 1.23.2 3-D objects, 1.24 light, 1.26 speed page; t_page times
+  out choosing a collider beam (#cBeamA: the 1.37 picker?). Known before: f_136 books, t_collider's linear p p̄ energy.
+- Left out: strangelets meeting nuclei (a Coulomb barrier; fast ones would break up), the WIMP's nuclear form factor
+  (it lowers large recoils off heavy nuclei), axion masses that spoil the conversion's coherence, monopoles' slow-speed
+  ionization (below β ≈ 10⁻², where Bethe fails), how any of them would be made.
+
 ## 1.38.0 (released 2026-11-22): more realistic, item 102 (the owner: "add everything that can realistically be more realistic", "build everything on the list and release when done")
 
 - **a. Every hadron strikes several nucleons on its way through a nucleus** (above 1 GeV; B and D mesons since 1.37.2 at
@@ -4200,7 +4249,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    (Left as they are, the game's scale needs them: enlarged nuclei, nanometre accelerators, sped-up decay, few
    particles a bunch, light as rays, bookkept atomic electrons, the flat world's doubled attractions.)
 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found
-   about it?"; all four kinds chosen; waiting for "build it"). Hypothetical ones labelled as such in the game.
+   about it?"; all four kinds chosen; built in 1.39.0). Hypothetical ones labelled as such in the game.
    a. Exotic hadrons that have been found: X(3872), T_cc⁺ (LHCb 2021), the d*(2380) dibaryon (WASA 2014), double-Λ
       hypernuclei (⁶ΛΛHe), antihyperhydrogen-4 (STAR 2024), with their measured masses, widths and decays.
    b. Dark matter candidates at today's experimental limits: WIMPs that only rarely bump a nucleus (the recoil direct-

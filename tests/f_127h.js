@@ -144,7 +144,7 @@ PARTS.page = async (page, check, say) => {
     out.help = [...document.querySelectorAll('section.card')].map(s => s.textContent).join(' ');
     return out;
   });
-  const ok = /Higgs boson/.test(r.ins) && /b b̄/.test(r.ins) && /Nothing: the Higgs boson is fundamental/.test(r.ins) && r.cat && /Higgs-strahlung/.test(r.help) && /125\.2 GeV/.test(r.help);
+  const ok = /Higgs boson/.test(r.ins) && /b b̄/.test(r.ins) && /Nothing: the Higgs boson is fundamental/.test(r.ins) && r.cat && /125\.2 GeV/.test(r.help); // (Higgs-strahlung left the Help with 1.37.1's shorter texts)
   say('  1.27 (25) page: ' + JSON.stringify({ m: r.m, cat: r.cat, ins: r.ins.slice(0, 200) }));
   check(ok, `1.27 (25): the palette lists the Higgs boson with the W and Z; Inspect shows a placed one (${(r.m / 1000).toFixed(3)} GeV, its decays, nothing inside); the Physics tab says how it is made and decays`, '1.27 (25) page: ' + JSON.stringify({ ins: r.ins.slice(0, 400), cat: r.cat }));
 };

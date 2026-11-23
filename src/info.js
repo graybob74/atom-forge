@@ -170,6 +170,12 @@ const P_INFO = {
   Ps: ['An electron and a positron orbiting each other, an atom with no nucleus, first made in 1951. It annihilates into gamma rays in 0.1 ns or 142 ns, depending on its spins.', 'Positronium'],
   Mu: ['An antimuon with an electron around it, a light isotope of hydrogen, first made in 1960. It lives 2.2 µs and is used to probe magnetism in materials.', 'Muonium'],
   penta: ['Five quarks bound together: four quarks and an antiquark. Allowed by the quark model since 1964 but only found in 2015, by CERN’s LHCb experiment, in the decays of Λb baryons; whether they are one bag or a baryon and a meson stuck together is still debated.', 'Pentaquark'],
+  tetra: ['Four quarks bound together: two quarks and two antiquarks. The X(3872), found in 2003, was the first; LHCb’s Tcc⁺ (2021) holds two charm quarks.', 'Tetraquark'],
+  wimp: ['A weakly interacting massive particle: a heavy dark-matter candidate. Xenon detectors deep underground watch for the nuclear recoil one would cause; none seen yet.', 'Weakly_interacting_massive_particle'],
+  axion: ['A very light particle proposed in 1977 to explain why the strong force keeps time symmetry; also a dark-matter candidate. Searches turn axions into photons with strong magnets.', 'Axion'],
+  slet: ['A small piece of strange matter (up, down and strange quarks). If strange matter is the most stable form of matter, strangelets would convert what they touch; none found.', 'Strangelet'],
+  mono: ['A particle with a single magnetic pole. Many unified theories predict them; searches in cosmic rays, colliders and old rocks have found none.', 'Magnetic_monopole'],
+  dphot: ['A hypothetical massive cousin of the photon, mixing with it weakly; searched for at colliders and beam dumps. ATOMKI’s 17 MeV anomaly (X17) is one claim.', 'X17_particle'],
   hexa: ['A hexaquark candidate: six quarks with the deuteron’s quantum numbers but three units of spin, seen as a narrow bump in neutron–proton collisions in 2014. Whether it is six quarks in one bag or two Δ baryons bound together is still argued.', 'Dibaryon'],
   eaq: ['An electron dissolved in water: water molecules turn their hydrogen ends toward it and hold it in a cavity about 2.5 Å across, bound by about 1.7 eV. Found in 1962 by its absorption band (peaking at 720 nm, so irradiated water looks blue), it is one of the main products of radiation in water and lives about a microsecond in pure water before it meets an ion or a radical.', 'Solvated_electron'],
   Pn: ['A proton and an antiproton going round each other, an atom of matter and antimatter, made at CERN by stopping antiprotons in hydrogen. Caught into a high orbit, it falls inward giving off X-rays, then annihilates into pions.', 'Protonium'],
@@ -181,6 +187,7 @@ function infoKeyX(sp) {
   const d = XP[sp]; if (!d) return null;
   if (d.hyp) return 'hy'; if (d.ps) return 'Ps'; if (d.pn) return 'Pn'; if (d.aq) return 'eaq'; if (d.atom) return 'muP'; if (d.stuck) return 'muHe';
   if (sp === 'Mu') return 'Mu';
+  if (sp === 'X3872' || sp === 'Tcc' || sp === 'Tccb') return 'tetra'; if (sp === 'wimp' || sp === 'axion') return sp; if (sp === 'slet') return 'slet'; if (sp === 'mono') return 'mono'; if (sp === 'Ap') return 'dphot'; if (sp === 'Sx' || sp === 'Sxb') return 'hexa'; if (sp === 'LL6He' || sp === 'ahy1_2') return 'hy'; // (1.39)
   if (sp.startsWith('Pc')) return 'penta'; if (sp === 'dstar') return 'hexa';
   const F = [['mu', 'mu'], ['tau', 'tau'], ['pi', 'pi'], ['Ks', 'Ks'], ['K', 'K'], ['eta', 'eta'], ['rho', 'rho'], ['omega', 'omega'], ['phi', 'phi'], ['Dpp', 'Delta'], ['Dp', 'Delta'], ['D0', 'Delta'], ['Dm', 'Delta'], ['Dbmm', 'Delta'], ['Dbm', 'Delta'], ['Db0', 'Delta'], ['Dbp', 'Delta'],
     ['Dc', 'Dmes'], ['Ds', 'Dmes'], ['Bs', 'Bmes'], ['Bb', 'Bmes'], ['B', 'Bmes'], ['Lc', 'LamC'], ['Lb', 'LamB'], ['Lam', 'Lam'], ['Sig', 'Sig'], ['Xi', 'Xi'], ['Omg', 'Omg'], ['Jpsi', 'Jpsi'], ['Ups', 'Ups'], ['W', 'W'], ['Z', 'Z'], ['H', 'H']];
