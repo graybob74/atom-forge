@@ -173,12 +173,17 @@ fn fmt_ms(x: f64) -> String {
 struct Report {
     text: String,
     failed: bool,
+    /// Where the report is saved, line by line, so a crash inside a graphics driver still leaves what was measured.
+    file: Option<std::path::PathBuf>,
 }
 impl Report {
     fn line(&mut self, s: impl AsRef<str>) {
         println!("{}", s.as_ref());
         self.text.push_str(s.as_ref());
         self.text.push('\n');
+        if let Some(f) = &self.file {
+            let _ = std::fs::write(f, &self.text);
+        }
     }
 }
 
@@ -525,7 +530,7 @@ fn cmp_text(c: &Cmp) -> String {
 }
 
 /// One size: the CPU on one thread and on all, then each GPU method. Returns the methods too slow to repeat at ten times the size.
-fn bench(rep: &mut Report, gpu: Option<&Gpu>, has_f64: bool, n: usize, skip: &[&'static str]) -> Vec<&'static str> {
+fn bench(rep: &mut Report, gpu: Option<&Gpu>, has_f64: bool, soft_ok: bool, n: usize, skip: &[&'static str]) -> Vec<&'static str> {
     let w = make_world(n);
     rep.line(format!("{} atoms, {} neighbour entries:", n, w.nb.len()));
     let mut reference = vec![0.0f64; 2 * n];
@@ -544,6 +549,11 @@ fn bench(rep: &mut Report, gpu: Option<&Gpu>, has_f64: bool, n: usize, skip: &[&
         let v = variant(key, &w);
         if key == "real" && !has_f64 {
             rep.line(format!("  {}: not offered by this adapter", v.name));
+            continue;
+        }
+        if key == "soft" && !soft_ok {
+            // seen on the build machine: Direct3D's shader compiler corrupts the heap on this shader and takes the program down
+            rep.line(format!("  {}: skipped on Direct3D (its shader compiler crashes on this shader); the Vulkan adapter runs it", v.name));
             continue;
         }
         if skip.contains(&key) {
@@ -625,13 +635,14 @@ fn run(rep: &mut Report, quick: bool, pick: Option<usize>) {
         rep.line("no graphics adapter found: CPU numbers only");
         rep.failed = true;
         for n in sizes {
-            bench(rep, None, false, n, &[]);
+            bench(rep, None, false, false, n, &[]);
         }
         return;
     };
     let adapter = adapters.swap_remove(ci);
     let has_f64 = adapter.features().contains(wgpu::Features::SHADER_F64);
     rep.line(format!("using adapter {}: {}", ci, adapter.get_info().name));
+    let soft_ok = adapter.get_info().backend != wgpu::Backend::Dx12;
     let req = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
         label: None,
         required_features: if has_f64 { wgpu::Features::SHADER_F64 } else { wgpu::Features::empty() },
@@ -646,7 +657,7 @@ fn run(rep: &mut Report, quick: bool, pick: Option<usize>) {
             rep.line(format!("could not open the adapter: {e:?}"));
             rep.failed = true;
             for n in sizes {
-                bench(rep, None, false, n, &[]);
+                bench(rep, None, false, false, n, &[]);
             }
             return;
         }
@@ -664,8 +675,8 @@ fn run(rep: &mut Report, quick: bool, pick: Option<usize>) {
             rep.failed = true;
         }
     }
-    let slow = bench(rep, Some(&gpu), has_f64, sizes[0], &[]);
-    bench(rep, Some(&gpu), has_f64, sizes[1], &slow);
+    let slow = bench(rep, Some(&gpu), has_f64, soft_ok, sizes[0], &[]);
+    bench(rep, Some(&gpu), has_f64, soft_ok, sizes[1], &slow);
 }
 
 fn main() {
@@ -673,10 +684,12 @@ fn main() {
     let quick = args.iter().any(|a| a == "--quick");
     let no_wait = args.iter().any(|a| a == "--no-wait");
     let pick = args.iter().position(|a| a == "--adapter").and_then(|i| args.get(i + 1)).and_then(|s| s.parse::<usize>().ok());
-    // Everything runs on a thread with a large stack: the shader compilers recurse deeply on the emulated-doubles
-    // shader, and Windows gives the main thread only 1 MB (the first build died there without a word).
+    // Everything runs on a thread with a large stack: shader compilers recurse deeply on the emulated-doubles shader,
+    // and Windows gives the main thread only 1 MB.
+    let file = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("gpu-probe-results.txt"))).unwrap_or_else(|| "gpu-probe-results.txt".into());
+    let file_for_worker = file.clone();
     let worker = std::thread::Builder::new().stack_size(512 << 20).spawn(move || {
-        let mut rep = Report::default();
+        let mut rep = Report { file: Some(file_for_worker), ..Report::default() };
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&mut rep, quick, pick)));
         if let Err(p) = outcome {
             let msg = p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_else(|| "unknown error".to_string());
@@ -694,7 +707,6 @@ fn main() {
             rep
         }
     };
-    let file = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("gpu-probe-results.txt"))).unwrap_or_else(|| "gpu-probe-results.txt".into());
     match std::fs::write(&file, &rep.text) {
         Ok(()) => println!("\nSaved to {}", file.display()),
         Err(e) => println!("\nCould not save the report ({e}); copy it from this window."),
