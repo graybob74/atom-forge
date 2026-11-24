@@ -8983,7 +8983,7 @@ function listsStale() { return _flagGen !== _flagGenForces; } // (a dead, fast o
 /* Where a step's time goes, summed while PROF.on (the Settings benchmark reads it): the force passes (and inside them the
    kernels' share and the wait for the worker threads), the heat bath, the integrator loops, and the rest. */
 const PROF = { on: false, steps: 0, forces: 0, kernels: 0, wait: 0, bath: 0, integ: 0, total: 0, passes: 0, rp: new Float64Array(8), dt: 0, valid: 0 };
-function profReset() { if (typeof thPhReset === 'function') thPhReset(); PROF.steps = 0; PROF.forces = 0; PROF.kernels = 0; PROF.wait = 0; PROF.bath = 0; PROF.integ = 0; PROF.total = 0; PROF.passes = 0; PROF.cls = 0; PROF.grid = 0; PROF.lists = 0; PROF.after = 0; PROF.rp = new Float64Array(8); PROF.dt = 0; PROF.valid = 0; }
+function profReset() { if (typeof thPhReset === 'function') thPhReset(); PROF.steps = 0; PROF.forces = 0; PROF.kernels = 0; PROF.wait = 0; PROF.bath = 0; PROF.integ = 0; PROF.total = 0; PROF.passes = 0; PROF.cls = 0; PROF.grid = 0; PROF.lists = 0; PROF.after = 0; PROF.exo = 0; PROF.rp = new Float64Array(8); PROF.dt = 0; PROF.valid = 0; }
 function step(dt) {
   if (PROF.on) return stepProfiled(dt);
   return stepPlain(dt);
@@ -9082,7 +9082,9 @@ function stepPlain(dt) {
   _nRadLast = nRad; _fmNext = W.nextId;
   rpMark(3);
   if (RP.exm) exoMark(); // (unstable particles meet each other, 1.27 feature 24: hep.js exoMeet)
+  const tX = _profOn ? performance.now() : 0;
   const nXb = moveExos(dt, id0) || 0;
+  if (_profOn) PROF.exo += performance.now() - tX; // (the unstable particles' flight, inside 'walls': the benchmark names it, 1.39.1)
   if (RP.exm) exoMeet();
   if (W.nmr) nmrTick(dt); // (nuclear spins after an NMR pulse turn in the field, Realistic particles 6, 1.27: hep.js)
   if (nRad + nXb >= 2) beamCollisions(id0);

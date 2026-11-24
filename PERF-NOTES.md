@@ -2208,6 +2208,46 @@ force buffers, which the sum reads fifteen at a time.
   thread and the GPU a tie with the CPU in doubles; the engine is over a megabyte with 85 suites around it, and the
   browser page would stay on the old one. Not started.
 
+### 1.39.1: more worlds in the benchmark, and a zoom check (the owner, 2026-11-23: zooming in on crowds of collision products and ionization is laggy, most of all in 3-D; "Can you add more useful cases to the benchmark?")
+
+What the owner sees is not in any of the four worlds: they are matter the Rust kernels carry. Measured here first
+(headless, software drawing, one thread; a scratch world, `benchDebris` is the same recipe):
+
+- A crowd of 1,620 pions, kaons and muons, 3,000 free electrons and positrons and 481 atoms (250 ionized): a step is
+  27 ms flat and 54 ms in 3-D, of which the kernels 0.01 to 0.04 ms. The rest is one thread of JavaScript: the free
+  leptons' inner steps (14 / 24 ms; about ten a step, each with `computeFast[3]` and `processEvents`), the pair forces
+  with a free lepton in them and their list (`after` 10 / 16 ms; `flBuild` 11 ms a build flat and more in 3-D,
+  0.4 to 1.6 builds a step), and the unstable particles' flight (`moveExos` 2 ms flat, 18 ms in 3-D for the same
+  1,500: `flyExo3` and `segTargets3`). One step a frame, 1.6e-4 tu.
+- Zoom: the step and the drawing script are the same at every zoom (flat 2.3 to 400 px/Å, 3-D camera at 1× to 0.015×
+  its distance; they move with the world's state, not the view). The time between frames is longer zoomed in, which
+  here is the software rasterizer and says nothing about a graphics card. Not reproduced as a cause; the owner's
+  frame-rate badge (sim / draw) at four views and the zoom check below are the measurement.
+- (A first version of that scratch world made its 3,000 leptons with `addLepton('e', …)`: kind 'e' is not `ELEC`, the
+  store read it as 0, and they were neutrons. The figures given to the owner from it were corrected.)
+
+Added to Settings → benchmark (`benchStart`, `benchDebris`, `benchZoom` in ui.js):
+
+- Three worlds after the four: **collision products and free electrons, flat** (700 × 450 Å) and **in 3-D**
+  (360 × 240 × 240 Å), the recipe above (free leptons: 3,000, or the particle limit less 1,500); and **water in 3-D**,
+  a lattice at the Liquid water setup's density (5,184 atoms in a 37.7 Å cube when the limit allows; settled under a
+  strong bath as the 3-D setups' calm does), for the 3-D kernel. The crowds run 20 + 3 × 15 steps, not 40 + 3 × 60.
+  Seeded like the others; decays are off, so the crowd stays.
+- The crowds' rows name the unstable particles' flight (`PROF.exo`, a timer around `moveExos`, inside 'walls') and
+  count the rebuilds of the free leptons' pair list (`FL.builds`).
+- **The zoom check**, after the first water world and both crowds: the world not stepping, 24 real frames
+  (`requestAnimationFrame`) at the full view and 24 zoomed in on the middle (flat 60 px/Å; 3-D the camera at 6% of
+  its distance). Per view: the time between frames (middle and slowest; never under the screen's interval), the
+  drawing script, and the wait for the graphics card to finish the WebGL layer (`gl.finish()` and a one-pixel
+  read-back; the 2-D canvas layers' share shows only in the time between frames). The step benchmark's frames run in
+  one go and cannot see either. The page's own loop does not draw during it (`BENCH.own`); a hidden page gets no
+  frames, so the check gives up after 4 s without one and the benchmark goes on.
+- No physics is touched: the timer is read only while profiling. t_lint; t_threads (the benchmark's rows: eight, the
+  three worlds, the zoom text on rows 1, 6 and 7 and not on the others, the page drawing again afterwards) passes.
+  Here the whole benchmark takes 49 s at a 4,000 limit and 78 s at 20,000.
+- Candidates for a speed-up, not started (they must leave results the same): (1) the unstable particles' flight in
+  3-D, 8× the flat cost; (2) the free leptons' inner steps; (3) the pair forces with a free lepton and their list.
+
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 
 New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each

@@ -5210,7 +5210,7 @@ function frame(now) {
       }
       tf1 = performance.now();
       if (R.follow) { if (R.follow.dead) R.follow = null; else if (W.d3) cam3Follow(R.follow); else { R.cx = R.follow.x; R.cy = R.follow.y; } } // (Follow, from the quick menu)
-      render(W.rt);
+      if (!BENCH.own) render(W.rt); // (the benchmark's zoom check draws its own frames, 1.39.1)
       tf2 = performance.now();
     } catch (err) { console.error(err); crashError(err, 'frame'); }
     if (UI.started) crashTick(now, performance.now() - tf0);
@@ -6620,11 +6620,12 @@ function threadsNote() {
   const more = typeof SET !== 'undefined' && SET.threads === 'auto' && c > 16 ? ' Auto stops at 16, one a core; 32 adds each core\u2019s second thread, and on a 16-core Ryzen it was 1.8 times slower (20,000 waters: 1.16 ms a step against 0.65), the threads waiting on each other.' : '';
   return `${TH.n + 1} threads of ${c}${TH.state === 'starting' ? ', starting up' : TH.used ? ', in use: the forces, the heat bath, the integration and the neighbour list' : ' (used once a world is big enough: the small ones run on one thread)'}.` + more + kernel;
 }
-/* The benchmark: four reference worlds, each built and stepped here under the settings as they are (the water worlds
+/* The benchmark: seven reference worlds (four to 1.39.0; a crowd of collision products and free electrons, flat and in
+   3-D, and water in 3-D since 1.39.1; three of them end with the zoom check, benchZoom), each built and stepped here under the settings as they are (the water worlds
    hold as many atoms as Settings → Max particles allows, the drawing runs at the set resolution and effects, the physics
    on the set budget and threads), with the time of a step and where it goes, then a second of real frames (the adaptive
    budget, the drawing) and what that allows. Replaces the current setup (it is reloaded afterwards). */
-const BENCH = { busy: false, rows: [] };
+const BENCH = { busy: false, rows: [], own: false };
 function benchStart() {
   if (BENCH.busy) return;
   BENCH.busy = true; BENCH.rows = [];
@@ -6632,6 +6633,7 @@ function benchStart() {
   setRunning(false);
   const NW = Math.min(MAX_PARTS, 20000), asp = 560 / 360, bw = Math.round(Math.sqrt(16.8 * NW * asp)), bh = Math.round(bw / asp); // (the 12,000-atom world's density, 560 × 360 Å)
   const nk = (n) => n.toLocaleString('en-US');
+  const nLep = Math.max(200, Math.min(3000, MAX_PARTS - 1500)), n3 = Math.max(4, Math.min(12, Math.floor(Math.cbrt(MAX_PARTS / 3)))), L3 = n3 * 22 / 7; // (the 3-D water at the Liquid water setup's density, 5,184 atoms when the limit allows)
   const seeded = (seed) => { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
   const scen = [
     [`${nk(NW)} atoms of water, ${bw} × ${bh} Å`, () => { baseWorld(bw, bh, 300, 0.05); const nx = Math.round(Math.sqrt(NW / 3 * asp)), ny = Math.ceil(NW / 3 / nx), dx = bw / nx, dy = bh / ny;
@@ -6642,7 +6644,14 @@ function benchStart() {
       for (let k = 0; k < 600 && W.parts.length + 3 <= NW; k++) { placeSpec(spec, (Math.random() - 0.5) * (bw - 20), (Math.random() - 0.5) * (bh - 20), 100); if (k % 20 === 19) { W.dt = chooseDt(); step(W.dt); } } }],
     ['Liquid water, 40 molecules ionized', () => { PRESETS.water.build(); settleOverlaps(); const Os = W.parts.filter(p => p.Z === 8); for (let i = 0; i < 40; i++) userIonize(Os[i]); }],
     ['Flash memory: one byte', () => { PRESETS.flashbyte.build(); settleOverlaps(); }],
+    // 1.39.1: worlds the Rust kernels hardly touch. A crowd of collision products and free electrons, flat and in 3-D
+    // (what a collider's debris or a heavily ionized gas leaves: nearly all of its step is the free leptons' inner steps,
+    // their pair forces and the unstable particles' flight, on one thread), and matter in 3-D (the 3-D kernel).
+    [`Collision products and free electrons, flat: ${nk(1620)} pions, kaons and muons, ${nk(nLep)} e⁻ and e⁺, 481 atoms with 250 ionized, 700 × 450 Å`, () => benchDebris(false, nLep), { settle: 20, n: 15, zoom: true }],
+    [`Collision products and free electrons in 3-D: the same in a 360 × 240 × 240 Å box`, () => benchDebris(true, nLep), { settle: 20, n: 15, zoom: true }],
+    [`${nk(3 * n3 ** 3)} atoms of water in 3-D, a ${L3.toFixed(1)} Å cube`, () => { baseWorld(L3, L3, 300, 0.05); world3d(L3); W.wall = 'wrap'; W.simPerFrame = 0.25; lattice3(L3, n3, (x, y, z) => addMolecule('H2O', x, y, rnd() * 6, 300, z)); }, { settle: 80, n: 20, calm: true }],
   ];
+  scen[0][2] = { zoom: true };
   const realRandom = Math.random; let realRnd = null;
   const show = (busy) => { out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, priority ${PRIO_FPS[prioNow()]} fps${SET.prioAuto ? ' (auto)' : ''}, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ${expSummary()}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
   let k = 0;
@@ -6652,7 +6661,7 @@ function benchStart() {
       show(''); $('setThreads').textContent = threadsNote();
       return;
     }
-    const [name, build] = scen[k++];
+    const [name, build, opt = {}] = scen[k++];
     show(`building ${name}…`);
     setTimeout(() => {
       Math.random = seeded(12); { const was = rndUse(Math.random); if (!realRnd) realRnd = was; } // (the engine's random numbers too: the same world in every run, 1.39.1)
@@ -6664,11 +6673,14 @@ function benchStart() {
       W.bathSeed = 0x5eed1234; W.dt = 0; W.vmax = 0; W.amax = 0; W.tc = 0;
       if (typeof TH !== 'undefined' && TH.n) { forcesNoEvents(); W.fSpawn = W.spawned; const tb = performance.now(); while (!threadsReady() && performance.now() - tb < 1500) { /* (the workers acknowledge on shared memory) */ } }
       const steps = (n) => { let adv = 0; for (let i = 0; i < n; i++) { if (W.fSpawn !== W.spawned) { forcesNoEvents(); W.fSpawn = W.spawned; } const tc = performance.now(); W.dt = chooseDt(); if (PROF.on) PROF.dt += performance.now() - tc; adv += step(W.dt); } return adv; };
-      steps(k <= 2 ? 200 : 40); // (the water worlds settle first: freshly laid out, their atoms move fast and the lists are rebuilt every other step, 0.90)
-      let best = Infinity, adv = 0; const N = 60;
+      const g0 = W.gamma; if (opt.calm) W.gamma = 1; // (a lattice just laid out: a strong bath while it settles, as the 3-D setups' own calm does, or it is at 600 K when the timing starts)
+      steps(opt.settle || (k <= 2 ? 200 : 40)); // (the water worlds settle first: freshly laid out, their atoms move fast and the lists are rebuilt every other step, 0.90)
+      W.gamma = g0;
+      let best = Infinity, adv = 0; const N = opt.n || 60; // (the heavy worlds: fewer steps, 1.39.1)
       PROF.on = true; profReset(); VL.builds = 0;
+      const flB0 = FL.builds;
       for (let r = 0; r < 3; r++) { const t0 = performance.now(); adv += steps(N); best = Math.min(best, (performance.now() - t0) / N); }
-      PROF.on = false; const builds = VL.builds; // (the timed steps' rebuilds: the second of real frames below adds its own)
+      PROF.on = false; const flB = FL.builds - flB0, builds = VL.builds; // (the timed steps' rebuilds: the second of real frames below adds its own)
       const dt = adv / (3 * N), spf = 10 / best, speed = Math.min(100, 100 * spf * dt / W.simPerFrame), ns = PROF.steps || 1;
       const f = (v) => (v / ns).toFixed(2);
       let fast = 0, alive = 0; for (const p of W.parts) if (!p.dead) { alive++; if (p.fast) fast++; }
@@ -6684,18 +6696,71 @@ function benchStart() {
         FP.drawAvg = 0.9 * (FP.drawAvg || (c - b)) + 0.1 * (c - b);
       }
       const fSim = simMs / frames, fDraw = drawMs / frames, fAll = fSim + fDraw, fpsAllow = 1000 / Math.max(fAll, 1e-3);
+      const rowAt = BENCH.rows.length;
       BENCH.rows.push(`${name}: ${best.toFixed(2)} ms a step on ${TH.used || 1} thread${(TH.used || 1) > 1 ? 's' : ''}, ${speed.toFixed(0)}% of full speed within 10 ms` +
-        ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}, bookkeeping ${f(PROF.cls)}, grid ${f(PROF.grid)}, lists ${f(PROF.lists)} (checks ${f(PROF.valid)}), after ${f(PROF.after)}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; timestep ${f(PROF.dt)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)} (${RP_NAMES.map((nm, i) => [nm, PROF.rp[i]]).filter(([, v]) => v / ns >= 0.005).sort((a, b) => b[1] - a[1]).map(([nm, v]) => nm + ' ' + f(v)).join(', ')}); ${(PROF.passes / ns).toFixed(2)} force passes and ${(builds / (3 * N)).toFixed(2)} list rebuilds a step; ${alive.toLocaleString('en-US')} particles, ${fast} fast, ${m.T.toFixed(0)} K${TH.used > 1 ? '; threaded phases (main share / wait) ' + Object.entries(TH_PH).filter(([, a]) => a[2]).map(([k, a]) => `${k} ${f(a[0])}/${f(a[1])}`).join(', ') + '; per thread, µs a call (own: the main thread\'s share; work and start after the order: fastest/middle/slowest thread; then each worker\'s work and each worker\'s start) ' + thPerThread() : ''}]` +
+        ` [forces ${f(PROF.forces)} of which kernels ${f(PROF.kernels)}${TH.used > 1 ? ', waiting for threads ' + f(PROF.wait) : ''}, bookkeeping ${f(PROF.cls)}, grid ${f(PROF.grid)}, lists ${f(PROF.lists)} (checks ${f(PROF.valid)}), after ${f(PROF.after)}; bath ${f(PROF.bath)}; integration ${f(PROF.integ)}; timestep ${f(PROF.dt)}; rest ${f(PROF.total - PROF.forces - PROF.bath - PROF.integ)} (${RP_NAMES.map((nm, i) => [nm, PROF.rp[i]]).filter(([, v]) => v / ns >= 0.005).sort((a, b) => b[1] - a[1]).map(([nm, v]) => nm + ' ' + f(v)).join(', ')}); ${PROF.exo / ns >= 0.005 ? `of 'walls', the unstable particles' flight ${f(PROF.exo)}; ` : ''}${(PROF.passes / ns).toFixed(2)} force passes and ${(builds / (3 * N)).toFixed(2)} list rebuilds a step${flB ? `, ${(flB / (3 * N)).toFixed(2)} rebuilds of the free electrons' pair list` : ''}; ${alive.toLocaleString('en-US')} particles, ${fast} fast, ${m.T.toFixed(0)} K${TH.used > 1 ? '; threaded phases (main share / wait) ' + Object.entries(TH_PH).filter(([, a]) => a[2]).map(([k, a]) => `${k} ${f(a[0])}/${f(a[1])}`).join(', ') + '; per thread, µs a call (own: the main thread\'s share; work and start after the order: fastest/middle/slowest thread; then each worker\'s work and each worker\'s start) ' + thPerThread() : ''}]` +
         ` frames: sim ${fSim.toFixed(1)} + draw ${fDraw.toFixed(1)} = ${fAll.toFixed(1)} ms (${(stepsRun / frames).toFixed(1)} steps a frame on a ${(budgetSum / frames).toFixed(0)} ms budget), room for ${fpsAllow.toFixed(0)} fps${GL.ok && GL.on ? '' : ' (Canvas 2D)'}`);
       if (k === 1) { // the goal (0.68): 20,000 atoms at room temperature at 1× speed, 45 frames a second or more
         const per = W.simPerFrame / Math.max(1e-9, dt), ms1 = per * best + fDraw, fps1 = 1000 / ms1;
         BENCH.rows.push(NW < 20000 ? `The 20,000-atom goal: set Particle limit to 20,000 and run this again to test it (this ran ${nk(NW)}).`
           : `The 20,000-atom goal (room temperature, 1× speed, 45 fps or more): ${fps1 >= 45 ? 'met' : 'not yet'} — at 1× a frame takes ${per.toFixed(1)} steps × ${best.toFixed(2)} ms + ${fDraw.toFixed(1)} ms drawing = ${ms1.toFixed(1)} ms, ${fps1.toFixed(0)} fps.`);
       }
-      show(''); setTimeout(next, 30);
+      if (opt.zoom) { show(`${name}: real frames at the full view and zoomed in…`); benchZoom((txt) => { BENCH.rows[rowAt] += txt; show(''); setTimeout(next, 30); }); }
+      else { show(''); setTimeout(next, 30); }
     }, 30);
   };
   next();
+}
+/* The benchmark's crowd of collision products and free electrons (1.39.1): 1,500 pions, kaons and muons of 50–2,050 eV
+   through the box and 120 more in a crowd at the middle, 481 atoms (81 of them in that crowd, 2.5 Å apart) of which the
+   250 nearest the middle are ionized, and free electrons and positrons (one in eleven), a third of them in the middle 24 Å.
+   Flat, or in 3-D. The benchmark has seeded rnd() and turns decays off, so it is the same world in every run. */
+function benchDebris(d3, nLep) {
+  if (d3) { baseWorld(360, 240, 300, 0.05); world3d(240); } else baseWorld(700, 450, 300, 0.05);
+  const bw = W.box.w, bh = W.box.h, bd = d3 ? W.box.d : 0, sps = ['pi+', 'pi-', 'K+', 'K-', 'mu+', 'mu-', 'pi+', 'pi-'], syms = ['O', 'N', 'Ar', 'C'];
+  const exo = (i, span, zs, ke) => { const th = rnd() * 6.283, x = (rnd() - 0.5) * (span || bw * 0.8), y = (rnd() - 0.5) * (span || bh * 0.8), KE = 50 + rnd() * ke;
+    if (d3) addExo(sps[i % 8], x, y, KE, Math.cos(th), Math.sin(th), undefined, (rnd() - 0.5) * zs, rnd() - 0.5); else addExo(sps[i % 8], x, y, KE, Math.cos(th), Math.sin(th)); };
+  for (let i = 0; i < 1500; i++) exo(i, 0, bd * 0.8, 2000);
+  for (let i = 0; i < 400; i++) { const o = { T: 300 }; if (d3) o.z = (rnd() - 0.5) * bd * 0.7; addAtom(syms[i % 4], (rnd() - 0.5) * bw * 0.7, (rnd() - 0.5) * bh * 0.7, o); }
+  for (let i = 0; i < 81; i++) { const o = { T: 300 }; if (d3) o.z = ((i * 7) % 9 - 4) * 2.5; addAtom(syms[i % 4], ((i % 9) - 4) * 2.5, (((i / 9) | 0) - 4) * 2.5, o); }
+  for (let i = 0; i < 120; i++) exo(i, 20, 20, 500);
+  const nuc = W.parts.filter((p) => p.k === NUC).sort((p, q) => Math.hypot(p.x, p.y, p.z || 0) - Math.hypot(q.x, q.y, q.z || 0));
+  for (let i = 0; i < 250 && i < nuc.length; i++) userIonize(nuc[i]);
+  for (let i = 0; i < nLep; i++) { const mid = i % 3 === 0, x = (rnd() - 0.5) * (mid ? 24 : bw * 0.8), y = (rnd() - 0.5) * (mid ? 24 : bh * 0.8), th = rnd() * 6.283, v = 0.5 + rnd();
+    if (d3) addLepton(i % 11 ? ELEC : POS, x, y, v * Math.cos(th), v * Math.sin(th), (rnd() - 0.5) * (mid ? 24 : bd * 0.8), 0); else addLepton(i % 11 ? ELEC : POS, x, y, v * Math.cos(th), v * Math.sin(th)); }
+}
+/* The benchmark's zoom check (1.39.1): the world as it stands, not stepping, drawn in real frames at the full view and
+   zoomed in on its middle (flat: 60 px/Å; 3-D: the camera at 6% of its distance). The step benchmark's frames are run in
+   one go, so they never see the graphics card's work or the browser's; here each frame waits for the next one the screen
+   gives. Per view: the time between frames (never under the screen's own interval), the drawing script, and the wait for
+   the graphics card to finish the WebGL layer's commands (a one-pixel read-back, which cannot return before they are
+   done; the 2-D canvas layers' share is only in the time between frames). The page's own frame loop does not draw meanwhile. */
+function benchZoom(done) {
+  const d3 = W.d3, s0 = R.s, cx0 = R.cx, cy0 = R.cy, dist0 = d3 && R.cam3 ? R.cam3.dist : 0, gl = GL.ok && GL.on && GL.gl ? GL.gl : null, px = new Uint8Array(4);
+  const views = [['full view', () => { fitView(); }], [d3 ? 'zoomed in (camera at 6% of its distance)' : 'zoomed in (60 px/Å)', () => { if (d3) { if (R.cam3) { R.cam3.dist = dist0 * 0.06; if (typeof cam3Update === 'function') cam3Update(); } } else { R.s = 60; R.cx = 0; R.cy = 0; } }]];
+  const parts = []; let v = 0, n = 0, last = 0, gap = [], js = 0, gpu = 0, over = false;
+  const WARM = 4, N = 24;
+  const finish = (note) => { if (over) return; over = true; clearTimeout(guard); BENCH.own = false; if (d3) { if (R.cam3) R.cam3.dist = dist0; } else { R.s = s0; R.cx = cx0; R.cy = cy0; } fitView(); done(note); };
+  let guard = 0; const watch = () => { clearTimeout(guard); guard = setTimeout(() => finish(' view: no frame came for 4 s (the page is hidden?)'), 4000); }; // (a hidden page gets no frames: the benchmark goes on without them)
+  watch(); BENCH.own = true;
+  const fr = (now) => {
+    if (over) return;
+    watch();
+    if (n === 0) views[v][1]();
+    const t0 = performance.now(); render(W.rt || 0); const t1 = performance.now();
+    if (gl) { gl.finish(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); }
+    const t2 = performance.now();
+    if (n >= WARM) { gap.push(now - last); js += t1 - t0; gpu += t2 - t1; }
+    last = now; n++;
+    if (n === WARM + N + 1) {
+      gap.sort((a, b) => a - b); const m = gap.length; // (the first counted gap spans a warm-up frame's end: N + 1 frames, N whole gaps after it)
+      parts.push(`${views[v][0]} ${gap[m >> 1].toFixed(1)} ms between frames (slowest ${gap[m - 1].toFixed(0)}), drawing script ${(js / m).toFixed(1)}${gl ? ', graphics card ' + (gpu / m).toFixed(1) : ''}`);
+      v++; n = 0; gap = []; js = 0; gpu = 0;
+      if (v === views.length) { finish(` view, drawing only: ${parts.join('; ')}`); return; }
+    }
+    requestAnimationFrame(fr);
+  };
+  requestAnimationFrame(fr);
 }
 function setSetting(k, v) {
   if (!(k in SET_DEF)) return; // (only real settings: the old 'perf' and the like are gone, 1.23.2)
@@ -7042,7 +7107,7 @@ const SDESC = {
   segBudget: ['Physics per frame', 'The time each frame may spend on physics. More runs the simulation faster when the box is busy, at the cost of fewer frames a second.'],
   segThreads: ['Threads', 'How many processor threads share the forces. Auto uses one a core; small worlds run on one thread anyway.'],
   segGl: ['Drawing engine', 'WebGL draws the atoms and bonds on the graphics card. Canvas 2D draws everything on the processor, slower with thousands of atoms; use it only if WebGL misbehaves.'],
-  setBench: ['Speed test', 'Builds four reference worlds, times a step of each and a second of real frames under the settings as they are, and says where the time goes. It replaces the current setup while it runs.'],
+  setBench: ['Speed test', 'Builds seven reference worlds (water, ionized water, a memory chip, crowds of collision products and free electrons, and 3-D), times a step of each and a second of real frames under the settings as they are, and says where the time goes. Three of them are also drawn at the full view and zoomed in, to show what zooming costs. It takes about a minute and replaces the current setup while it runs.'],
   // Graphics
   segFpsCap: ['Frame-rate cap', 'At most this many frames a second. Fewer frames leave more of each second for the physics in a crowded box, and run the graphics card cooler. A browser cannot draw faster than the monitor refreshes.'],
   segAtom: ['Atom size', 'True size draws atoms as big as they are, touching in a liquid or solid. Smaller and Small shrink the balls so you can see past them into a crowded box.'],

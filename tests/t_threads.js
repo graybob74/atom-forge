@@ -146,11 +146,24 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   await page.waitForFunction(() => { forcesNoEvents(); return TH.state === 'on' && TH.used === 2; }, null, { timeout: 15000 }).catch(() => {}); // (the workers started again at 6 Å: bound before the benchmark)
   // the Settings benchmark runs through its three worlds and reports
   await page.evaluate(() => { openSettings(); benchStart(); });
-  await page.waitForFunction(() => !BENCH.busy, null, { timeout: 120000 }).catch(() => {});
+  await page.waitForFunction(() => !BENCH.busy, null, { timeout: 400000 }).catch(() => {}); // (seven worlds since 1.39.1)
   const bench = await page.evaluate(() => ({ busy: BENCH.busy, rows: BENCH.rows, text: document.getElementById('setBenchOut').textContent, preset: UI.preset, note: document.getElementById('setThreads').textContent }));
   say('benchmark:', bench.rows.join('\n           '));
   say('threads note:', bench.note);
-  check(!bench.busy && bench.rows.length === 5 && /threads/.test(bench.rows[0]) && /20,000-atom goal/.test(bench.rows[1]) && /room for \d+ fps/.test(bench.rows[2]), 'the in-app benchmark ran its four worlds and judged the 20,000-atom goal', bench);
+  check(!bench.busy && bench.rows.length === 8 && /threads/.test(bench.rows[0]) && /20,000-atom goal/.test(bench.rows[1]) && /room for \d+ fps/.test(bench.rows[2]), 'the in-app benchmark ran its seven worlds and judged the 20,000-atom goal', bench);
+  // 1.39.1: three more worlds (collision products and free electrons, flat and in 3-D; water in 3-D), and the zoom check
+  // on the first water world and the two crowds: real frames, drawing only, at the full view and zoomed in, with the
+  // time between frames, the drawing script and the graphics card's share. The crowds' rows name the unstable
+  // particles' flight and count the free electrons' pair-list rebuilds; the page draws its own frames again afterwards.
+  { const r = bench.rows, zoomRe = /view, drawing only: full view ([\d.]+) ms between frames \(slowest \d+\), drawing script ([\d.]+)(, graphics card [\d.]+)?; zoomed in \((60 px\/Å|camera at 6% of its distance)\) ([\d.]+) ms between frames/;
+    const z0 = zoomRe.exec(r[0] || ''), z5 = zoomRe.exec(r[5] || ''), z6 = zoomRe.exec(r[6] || '');
+    const after = await page.evaluate(() => ({ own: BENCH.own, d3: W.d3, drawn: (() => { const c0 = GL.calls; render(W.rt || 0); return GL.ok && GL.on ? GL.calls !== c0 || GL.calls > 0 : true; })() }));
+    say('zoom check:', [z0, z5, z6].map((z) => z ? `${z[1]} → ${z[5]} ms (${z[4]})` : 'missing').join('; '));
+    check(z0 && z5 && z6 && z0[4] === '60 px/Å' && z6[4] === 'camera at 6% of its distance' && +z5[1] > 0 && +z5[5] > 0 && !zoomRe.test(r[2]) && !zoomRe.test(r[7])
+      && /^Collision products and free electrons, flat/.test(r[5]) && /^Collision products and free electrons in 3-D/.test(r[6]) && /atoms of water in 3-D/.test(r[7])
+      && /unstable particles' flight [\d.]+/.test(r[5]) && /unstable particles' flight [\d.]+/.test(r[6]) && /rebuilds of the free electrons' pair list/.test(r[5]) && /kernels [\d.]+/.test(r[7])
+      && !after.own && !after.d3 && after.drawn,
+      '1.39.1: the benchmark runs a crowd of collision products and free electrons (flat and 3-D) and water in 3-D, and times real frames at the full view and zoomed in on three of its worlds', { rows: r.slice(5).map((x) => x.slice(0, 300)), after }); }
   // 1.39.1: the benchmark's per-thread line. Each worker times its own share of every threaded phase and notes when it
   // picked the order up; the row gives, per phase, the main thread's share, the phase's length, the workers' work and
   // start (fastest/middle/slowest) and every worker's work. A worker's work fits inside the phase the main thread timed.
