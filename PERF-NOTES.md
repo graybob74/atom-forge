@@ -2245,8 +2245,63 @@ Added to Settings → benchmark (`benchStart`, `benchDebris`, `benchZoom` in ui.
 - No physics is touched: the timer is read only while profiling. t_lint; t_threads (the benchmark's rows: eight, the
   three worlds, the zoom text on rows 1, 6 and 7 and not on the others, the page drawing again afterwards) passes.
   Here the whole benchmark takes 49 s at a 4,000 limit and 78 s at 20,000.
-- Candidates for a speed-up, not started (they must leave results the same): (1) the unstable particles' flight in
-  3-D, 8× the flat cost; (2) the free leptons' inner steps; (3) the pair forces with a free lepton and their list.
+- Candidates for a speed-up (they must leave results the same): (1) the unstable particles' flight in 3-D, 8× the
+  flat cost; (2) the free leptons' inner steps; (3) the pair forces with a free lepton and their list. Done in the
+  next entry.
+
+### 1.39.1: the crowd of free electrons and collision products, 2.4× and 2.6× (the owner, 2026-11-23: "run some more tests and report your findings and a solution to any problems")
+
+A CPU profile of the benchmark's crowd (Chromium's sampler over 45 steps, headless, one thread) put half of a 3-D step
+in one function. Three changes, none of which changes a number the engine computes: the crowd's fingerprint (every
+particle's position and velocity, every unstable particle's place and energy, the clock) is the same to the bit after
+65 steps, flat (243f118) and 3-D (9f3df18f), and so are all 70 setups, each with up to 80 atoms ionized and 12 pions,
+muons and kaons sent through it, after 60 steps (old page against new; flat and 3-D; closed, open and periodic walls;
+26 of them with 64 or more free leptons).
+
+| the crowd, ms a step here | before | after |
+|---|---|---|
+| flat: whole step | 45.2 | 17.3 |
+| flat: after-forces / integration (the inner steps) / unstable particles | 13.1 / 22.1 / 2.9 | 1.4 / 5.5 / 3.0 |
+| 3-D: whole step | 83.6 | 35.1 |
+| 3-D: after-forces / integration / unstable particles | 26.7 / 45.1 / 15.3 | 5.5 / 20.5 / 8.0 |
+
+- **The free leptons' pair list tried every pair** (`flBuild`, `flBuild3`: "few enough to look at all of them"). With
+  3,000 free leptons that is 4.5 million tries a build, each through `isLepMD`, and the list is built again whenever
+  the MD set changes, which in a crowd is every step or two: `flBuild3` and `isLepMD` were 40 of the 84 ms. Now
+  `flLepPairs` sorts the leptons into cells a little over RC + SKIN_F across (at most 48 a side, so a huge box gets
+  bigger cells), tries only the 9 or 27 cells round each, and puts what passes in the old order (by the second
+  lepton's place in the MD list), so the list is the same pair for pair. A periodic box, or fewer than 64 leptons,
+  goes the plain way, without the function call. f_139 `leppairs`: eight worlds against the plain double loop
+  (fails with the sort taken out).
+- **`lepLocalPhi` went through every particle's getters** and made a three-number array per particle (`minImg`), for
+  every free lepton near an ion at every event check: 5 ms a step. The same sum over the same particles in the same
+  order, from the store's arrays. f_139 `localphi`: 440 leptons, equal to the bit (`Object.is`).
+- **`segTargets3` tested every particle once any flag had changed** since the force lists were made, for the rest of
+  the step: the first ionization by an unstable particle in a step did it, and 8% of 3,000 calls a step were such
+  scans (300 tests a call on average, against 4 from the grid and 53 fast nuclei). The scan was never needed:
+  `gridEnsure` already builds the grid again, at the positions as they are, when a flag has changed (its mark counts
+  `_flagGen`), and the nuclei not in it are in `_fastNuc`, `_radNuc` and `_late`; every caller asks for nuclei only.
+  f_139 `segturned`: nuclei turned fast and carried across the box, one dead, one new, 329 segments against a test of
+  every particle. (It would fail if the grid stopped being rebuilt on a flag change, not if the old scan came back.)
+- What is left, 3-D: the lepton forces of the nine or ten inner steps (`computeFast3`, 7 ms), the cell walks of the
+  lepton-atom list and the path searches (`gridWalk3`, 5.6), the grid rebuilt after every flag change
+  (`buildGrid3`, 2.4), the 53 fast nuclei tried at every path search. Flat: the fast leptons' and the light's flight
+  ('neutrons', 5 to 6 ms). All still one thread.
+
+**The benchmark was not the same world after every setup.** The same crowd, same seeds, stepped 35 ms a step after
+one setup and 42 after another. Ids are never given twice, so a world's ids start wherever the page's count stands,
+and the engine reads an id's number: a pair is looked at for a proton transfer on the steps where
+`(step + id + id) % 8 === 0` (`% 3` for the other kind), and with electrons as waves a packet's left-over energy goes
+along `id % 360` and its spin is `id & 1`. The crowd started at id 1, 361, 1,001 or 131,073 is one world (9ae53b3d);
+at 2, 3 or 100 three others. `benchIds()` moves the count up to the next multiple of 360 and one before each
+benchmark world: no id is reused (resetting the count would have met `_rxTried`, `_mbTried`, `_seuAt` and `FW.cool`,
+which are keyed on ids and outlive a world), and every remainder is as on a fresh page. f_139 `benchids`: the crowd
+after three different pasts, the same to the bit. Outside the benchmark nothing changes: a setup loaded twice in one
+session can still go two ways, as it always could.
+
+Tests: t_lint; f_139 (all parts); t_energy, t_3d, t_hep, t_regress, t_physics, t_fuzz, t_threads, t_wasm pass.
+t_collider fails one check, "linear p + pbar: mean energy at the collision point 1.05 MeV, set 1.00 MeV", the same
+on the commit before (one of the eleven jobs already listed as failing before this work). The full suite was not run.
 
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 

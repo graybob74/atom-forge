@@ -2614,7 +2614,12 @@ function segTargets3(x0, y0, z0, x1, y1, z1, R, filter) {
   // (bug fix 9 after 1.25: the cells the segment's box covers, not every particle; plus what the grid does not hold:
   // nuclei flying fast or in radiation flight since the lists were made, and particles made since)
   gridEnsure();
-  if (G.n <= 32 || !(G.cd > 0) || _flagGen !== _flagGenForces) for (const p of W.parts) test(p);
+  // (1.39.1: a flag changed since the lists were made, a death or a nucleus turning fast or slow, used to mean every
+  // particle was tested here, for the rest of the step: in a crowd of unstable particles the first ionization of a
+  // step did it. It was never needed: gridEnsure builds the grid again, at the positions as they are, whenever a flag
+  // has changed (its mark counts _flagGen), over the particles that were slow when the lists were made; those fast or
+  // in radiation flight then are in _fastNuc and _radNuc, those made since in _late; and every caller asks for nuclei.)
+  if (G.n <= 32 || !(G.cd > 0)) for (const p of W.parts) test(p);
   else {
     const m = SKIN_F, cx = (v) => Math.floor((v + G.hx) / G.cw), cy = (v) => Math.floor((v + G.hy) / G.ch), cz = (v) => Math.floor((v + G.hz) / G.cd), L = G.list;
     gridWalk3(cx(lo[0] - m), cy(lo[1] - m), cx(hi[0] + m), cy(hi[1] + m), cz(lo[2] - m), cz(hi[2] + m), (i) => { test(L[i]); });

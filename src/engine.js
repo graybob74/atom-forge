@@ -4919,13 +4919,24 @@ function attach(L, A, Erel) {
    ionized a neighbour, and the electrons it freed fell in deeper. Positive (among other free electrons) counts as 0. */
 const IW = { local: true, bond: true, vib: true }; // (1.29 item 60's three changes, each its own switch for the measurements) // (1.29 item 60's three changes, each its own switch for the measurements)
 function lepLocalPhi(L, A) {
-  let u = 0; const d3 = W.d3;
-  for (const p of W.parts) {
-    if (p.dead || p === L || p === A || p.rad) continue;
-    const q = p.k === NUC ? (p.anti ? -p.q : p.q) : p.q; if (!q) continue;
-    const m = minImg(p.x - L.x, p.y - L.y, d3 ? p.z - L.z : 0), dx = m[0], dy = m[1], dz = d3 ? m[2] : 0, r2 = dx * dx + dy * dy + dz * dz;
+  // (1.39.1: the same sum over the same particles in the same order, read from the store's arrays; through each
+  // particle's getters and minImg's little arrays it was a fifth of a step in a crowd of free electrons)
+  let u = 0; const d3 = W.d3, wrap = W.wall === 'wrap', bw = W.box.w, bh = W.box.h, bd = W.box.d;
+  const PI = partsSync(), n = W.parts.length, DEAD = S.dead, RAD = S.rad, K = S.k, Q = S.q, ANTI = S.anti, SEN = S.sEN, X = S.x, Y = S.y, Zp = S.z;
+  const Li = L.i, Ai = A ? A.i : -2, lx = X[Li], ly = Y[Li], lz = d3 ? Zp[Li] : 0, lq = Q[Li];
+  for (let j = 0; j < n; j++) {
+    const i = PI[j];
+    if (DEAD[i] === 1 || i === Li || i === Ai || RAD[i] === 1) continue;
+    const nuc = K[i] === NUC, q = nuc && ANTI[i] === 1 ? -Q[i] : Q[i]; if (!q) continue;
+    let dx = X[i] - lx, dy = Y[i] - ly, dz = d3 ? Zp[i] - lz : 0;
+    if (wrap) { // (minImg)
+      if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw;
+      if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh;
+      if (d3) { if (dz > bd / 2) dz -= bd; else if (dz < -bd / 2) dz += bd; }
+    }
+    const r2 = dx * dx + dy * dy + dz * dz;
     if (r2 > 64) continue;
-    u += PHYS.KE * L.q * q / Math.sqrt(r2 + (p.k === NUC ? p.sEN || 0 : 0.0016));
+    u += PHYS.KE * lq * q / Math.sqrt(r2 + (nuc ? SEN[i] || 0 : 0.0016));
   }
   return Math.min(0, u);
 }
@@ -7617,7 +7628,7 @@ const isLepMD = (i) => S.dead[i] === 0 && S.fast[i] === 0 && S.rad[i] === 0;
    that (ll pairs, each once). Built from the cells (the nuclei sorted once per making of _md, the leptons each time),
    and kept while _md is the same and nothing has moved more than SKIN_F/2 since: a lepton moves at most LEP_STEP (0.2 Å)
    in an inner step, so the list usually serves several of them. */
-const FL = { gen: -1, n: 0, w: 0, h: 0, wall: '', bx: new Float64Array(16), by: new Float64Array(16), na: 0, la: shArray(Int32Array, 1024), lb: shArray(Int32Array, 1024), nl: 0, li: shArray(Int32Array, 256), lj: shArray(Int32Array, 256),
+const FL = { cq: new Int32Array(64), cc: new Int32Array(64), co: new Int32Array(64), ct: new Int32Array(64), ch: new Int32Array(64), ca: new Int32Array(64), /* (flLepPairs's cells, 1.39.1) */ gen: -1, n: 0, w: 0, h: 0, wall: '', bx: new Float64Array(16), by: new Float64Array(16), na: 0, la: shArray(Int32Array, 1024), lb: shArray(Int32Array, 1024), nl: 0, li: shArray(Int32Array, 256), lj: shArray(Int32Array, 256),
   builds: 0, checks: 0, q: new Int32Array(16) };
 function flValid() {
   if (W.d3) return flValid3();
@@ -7660,7 +7671,7 @@ function flBuild() {
   }
   const reach = RC + SKIN_F + Math.sqrt(dG2), sx = Math.ceil(reach / G.cw), sy = Math.ceil(reach / G.ch);
   const nL = _nmdL, mdLI = _mdLI;
-  let la = FL.la, lb = FL.lb, na = 0, li = FL.li, lj = FL.lj, nl = 0;
+  let la = FL.la, lb = FL.lb, na = 0;
   for (let q = 0; q < nL; q++) {
     const L = mdLI[q];
     if (!isLepMD(L)) continue;
@@ -7685,18 +7696,76 @@ function flBuild() {
         }
       }
     }
-    for (let q2 = q + 1; q2 < nL; q2++) { // the other free leptons (every pair once; few enough to look at all of them)
-      const M = mdLI[q2];
-      if (!isLepMD(M)) continue;
-      let dx = X[M] - lx, dy = Y[M] - ly;
-      if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
-      if (dx * dx + dy * dy < RLF2) {
-        if (nl >= li.length) { const a = shArray(Int32Array, li.length * 2); a.set(li); li = a; const b = shArray(Int32Array, lj.length * 2); b.set(lj); lj = b; }
-        li[nl] = L; lj[nl] = M; nl++;
+  }
+  FL.la = la; FL.lb = lb; FL.na = na;
+  flLepPairs(false); // (the other free leptons, every pair once)
+}
+/* The pairs of free leptons within RC + SKIN_F of each other, each once: (L, M) with L before M in the MD leptons' order,
+   by L and then by M. To 1.39.0 every lepton was tried against every later one ("few enough to look at all of them"):
+   with 3,000 of them, a collider's debris or a heavily ionized gas, that was 4.5 million tries a build and half of a
+   step. Now (1.39.1) the leptons are sorted into cells at least that distance across and only the 9 (27 in 3-D)
+   cells around each are tried; what passes is put in M's order, so the list is the same pair for pair, and so is
+   everything computed from it. A periodic box, or under 64 leptons: every pair, as before. */
+function flLepPairs(d3) {
+  const nL = _nmdL, mdLI = _mdLI, X = S.x, Y = S.y, Zp = S.z, DEAD = S.dead, FAST = S.fast, RAD = S.rad;
+  if (FL.cq.length < nL) { const n = nL * 2 + 64; FL.cq = new Int32Array(n); FL.cc = new Int32Array(n); FL.co = new Int32Array(n); FL.ct = new Int32Array(n); }
+  const cq = FL.cq; let n = 0;
+  for (let q = 0; q < nL; q++) { const L = mdLI[q]; if (DEAD[L] === 0 && FAST[L] === 0 && RAD[L] === 0) cq[n++] = L; } // (isLepMD)
+  let li = FL.li, lj = FL.lj, nl = 0;
+  const grow = () => { const a = shArray(Int32Array, li.length * 2); a.set(li); li = a; const b = shArray(Int32Array, lj.length * 2); b.set(lj); lj = b; };
+  const wrap = W.wall === 'wrap';
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  if (!wrap && n >= 64) for (let c = 0; c < n; c++) { const L = cq[c], x = X[L], y = Y[L]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (d3) { const z = Zp[L]; if (z < z0) z0 = z; if (z > z1) z1 = z; } }
+  if (!d3) { z0 = 0; z1 = 0; }
+  if (wrap || n < 64 || !(x1 - x0 < 1e9 && y1 - y0 < 1e9 && z1 - z0 < 1e9)) { // (the last: a position that is not a number, or absurdly far, is left to the plain way)
+    const bw = W.box.w, bh = W.box.h, bd = W.box.d, hw = bw / 2, hh = bh / 2, hd = bd / 2;
+    for (let c = 0; c < n; c++) {
+      const L = cq[c], lx = X[L], ly = Y[L], lz = d3 ? Zp[L] : 0;
+      for (let c2 = c + 1; c2 < n; c2++) {
+        const M = cq[c2];
+        let dx = X[M] - lx, dy = Y[M] - ly, r2;
+        if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; }
+        if (d3) { let dz = Zp[M] - lz; if (wrap) { if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; } r2 = dx * dx + dy * dy + dz * dz; } else r2 = dx * dx + dy * dy;
+        if (r2 < RLF2) { if (nl >= li.length) grow(); li[nl] = L; lj[nl] = M; nl++; }
       }
     }
+    FL.li = li; FL.lj = lj; FL.nl = nl;
+    return;
   }
-  FL.la = la; FL.lb = lb; FL.na = na; FL.li = li; FL.lj = lj; FL.nl = nl;
+  // cells a little over the reach across (so two leptons within reach are in the same cell or in neighbours), at most
+  // 48 a side; each cell's leptons in their order
+  const reach = Math.sqrt(RLF2) * 1.001, CAP = 48;
+  const sxc = Math.max(reach, (x1 - x0) / CAP * 1.001), syc = Math.max(reach, (y1 - y0) / CAP * 1.001), szc = Math.max(reach, (z1 - z0) / CAP * 1.001);
+  const nx = Math.floor((x1 - x0) / sxc) + 1, ny = Math.floor((y1 - y0) / syc) + 1, nz = d3 ? Math.floor((z1 - z0) / szc) + 1 : 1, nc = nx * ny * nz;
+  if (FL.ch.length < nc + 1) FL.ch = new Int32Array(nc + 1 + 64);
+  const cc = FL.cc, co = FL.co, ch = FL.ch; let ct = FL.ct;
+  ch.fill(0, 0, nc + 1);
+  for (let c = 0; c < n; c++) {
+    const L = cq[c];
+    let ix = Math.floor((X[L] - x0) / sxc), iy = Math.floor((Y[L] - y0) / syc), iz = d3 ? Math.floor((Zp[L] - z0) / szc) : 0;
+    if (ix >= nx) ix = nx - 1; if (iy >= ny) iy = ny - 1; if (iz >= nz) iz = nz - 1;
+    const k = (iz * ny + iy) * nx + ix; cc[c] = k; ch[k + 1]++;
+  }
+  for (let k = 0; k < nc; k++) ch[k + 1] += ch[k]; // (ch[k]: where cell k's leptons start in co; filled in their order, so each cell's are in order)
+  { const at = FL.ca.length < nc ? (FL.ca = new Int32Array(nc + 64)) : FL.ca; for (let k = 0; k < nc; k++) at[k] = ch[k]; for (let c = 0; c < n; c++) co[at[cc[c]]++] = c; }
+  for (let c = 0; c < n; c++) {
+    const L = cq[c], lx = X[L], ly = Y[L], lz = d3 ? Zp[L] : 0, k0 = cc[c], ix = k0 % nx, iy = ((k0 / nx) | 0) % ny, iz = (k0 / (nx * ny)) | 0;
+    let m = 0;
+    for (let jz = iz > 0 ? iz - 1 : 0, ez = iz < nz - 1 ? iz + 1 : nz - 1; jz <= ez; jz++) for (let jy = iy > 0 ? iy - 1 : 0, ey = iy < ny - 1 ? iy + 1 : ny - 1; jy <= ey; jy++) for (let jx = ix > 0 ? ix - 1 : 0, ex = ix < nx - 1 ? ix + 1 : nx - 1; jx <= ex; jx++) {
+      const k = (jz * ny + jy) * nx + jx;
+      for (let a = ch[k], e = ch[k + 1]; a < e; a++) {
+        const c2 = co[a];
+        if (c2 <= c) continue;
+        const M = cq[c2], dx = X[M] - lx, dy = Y[M] - ly;
+        let r2;
+        if (d3) { const dz = Zp[M] - lz; r2 = dx * dx + dy * dy + dz * dz; } else r2 = dx * dx + dy * dy;
+        if (r2 < RLF2) { if (m >= ct.length) { const t = new Int32Array(ct.length * 2); t.set(ct); ct = FL.ct = t; } ct[m++] = c2; }
+      }
+    }
+    if (m > 1) ct.subarray(0, m).sort(); // (in M's order, as the plain way finds them)
+    for (let a = 0; a < m; a++) { if (nl >= li.length) grow(); li[nl] = L; lj[nl] = cq[ct[a]]; nl++; }
+  }
+  FL.li = li; FL.lj = lj; FL.nl = nl;
 }
 /* 3-D: the lepton list's check and making (FL.bz: where each MD particle was in z; the cells walked in all three). */
 function flValid3() {
@@ -7734,7 +7803,7 @@ function flBuild3() {
   }
   const reach = RC + SKIN_F + Math.sqrt(dG2), sx = Math.ceil(reach / G.cw), sy = Math.ceil(reach / G.ch), sz = Math.ceil(reach / G.cd);
   const nL = _nmdL, mdLI = _mdLI;
-  let la = FL.la, lb = FL.lb, na = 0, li = FL.li, lj = FL.lj, nl = 0;
+  let la = FL.la, lb = FL.lb, na = 0;
   for (let q = 0; q < nL; q++) {
     const L = mdLI[q];
     if (!isLepMD(L)) continue;
@@ -7750,18 +7819,9 @@ function flBuild3() {
         la[na] = L; lb[na] = A; na++;
       }
     });
-    for (let q2 = q + 1; q2 < nL; q2++) {
-      const M = mdLI[q2];
-      if (!isLepMD(M)) continue;
-      let dx = X[M] - lx, dy = Y[M] - ly, dz = Zp[M] - lz;
-      if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; }
-      if (dx * dx + dy * dy + dz * dz < RLF2) {
-        if (nl >= li.length) { const a = shArray(Int32Array, li.length * 2); a.set(li); li = a; const b = shArray(Int32Array, lj.length * 2); b.set(lj); lj = b; }
-        li[nl] = L; lj[nl] = M; nl++;
-      }
-    }
   }
-  FL.la = la; FL.lb = lb; FL.na = na; FL.li = li; FL.lj = lj; FL.nl = nl;
+  FL.la = la; FL.lb = lb; FL.na = na;
+  flLepPairs(true);
 }
 /* 3-D: the fast part for the inner steps (computeFast in JavaScript, with z). */
 function computeFast3() {

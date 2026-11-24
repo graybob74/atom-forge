@@ -216,6 +216,111 @@ PARTS.layout = async (page, check) => { // (1.39.1: the big shared arrays no lon
     `1.39.1 layout: the store's ${F.length} hottest arrays start at ${distinct} different places in a page, each on a cache line; a 16-number array takes its 128 bytes; the WebAssembly kernels run`,
     `1.39.1 layout: ${JSON.stringify({ w, distinct, lined, small, on: X.WK.on, size: S.size })}`);
 };
+PARTS.leppairs = async (page, check) => { // (1.39.1: the free leptons' pairs found through cells, not every pair)
+  // flLepPairs must give the list the plain way gave, pair for pair in the same order: flat and 3-D; closed, open and
+  // periodic walls; a few leptons (the plain way still) and many (cells), in a clump, spread out, all at one place and
+  // over a box so wide the cells are capped; some of them fast (not in the list).
+  const X = load('all', { seed: 5 }), S = X.S, out = [];
+  let allOk = true, pairs = 0;
+  for (const [d3, wall, n, bw, clump] of [[false, 'reflect', 40, 200, 30], [false, 'reflect', 900, 300, 20], [true, 'reflect', 900, 240, 24], [false, 'wrap', 500, 120, 30], [true, 'wrap', 300, 80, 20], [true, 'open', 700, 200, 0.001], [false, 'reflect', 800, 6000, 400], [true, 'reflect', 800, 5000, 30]]) {
+    (d3 ? X.PRESETS.d3empty : X.PRESETS.empty).build(); const W = X.W;
+    for (const k of ['w', 'tw']) W.box[k] = bw; for (const k of ['h', 'th']) W.box[k] = bw * 0.7; if (d3) for (const k of ['d', 'td']) W.box[k] = bw * 0.6;
+    W.wall = wall; W.gamma = 0;
+    const bh = W.box.h, bd = d3 ? W.box.d : 0;
+    for (let i = 0; i < 20; i++) X.addAtom('Ar', (X.rnd() - 0.5) * bw * 0.8, (X.rnd() - 0.5) * bh * 0.8, d3 ? { T: 300, z: (X.rnd() - 0.5) * bd * 0.8 } : { T: 300 });
+    const made = [];
+    for (let i = 0; i < n; i++) { const mid = i % 2 === 0, sp = (v) => (X.rnd() - 0.5) * (mid ? clump : v * 0.9);
+      made.push(d3 ? X.addLepton(i % 7 ? X.ELEC : X.POS, sp(bw), sp(bh), 0.01 * X.rnd(), 0.01 * X.rnd(), sp(bd), 0) : X.addLepton(i % 7 ? X.ELEC : X.POS, sp(bw), sp(bh), 0.01 * X.rnd(), 0.01 * X.rnd())); }
+    X.forcesNoEvents();
+    for (let i = 0; i < made.length; i += 13) if (made[i] && !made[i].dead) made[i].fast = true; // (turned fast since the lists were made: isLepMD leaves them out)
+    X.flBuild();
+    const FL = X.FL, got = []; for (let k = 0; k < FL.nl; k++) got.push(FL.li[k] * 65536 + FL.lj[k]);
+    const idx = X._mdLI, nL = X._nmdL, want = [], md = (i) => S.dead[i] === 0 && S.fast[i] === 0 && S.rad[i] === 0, wrap = wall === 'wrap', hw = bw / 2, hh = bh / 2, hd = bd / 2, R2 = X.RLF2;
+    for (let q = 0; q < nL; q++) { const L = idx[q]; if (!md(L)) continue;
+      for (let q2 = q + 1; q2 < nL; q2++) { const M = idx[q2]; if (!md(M)) continue;
+        let dx = S.x[M] - S.x[L], dy = S.y[M] - S.y[L], dz = d3 ? S.z[M] - S.z[L] : 0;
+        if (wrap) { if (dx > hw) dx -= bw; else if (dx < -hw) dx += bw; if (dy > hh) dy -= bh; else if (dy < -hh) dy += bh; if (d3) { if (dz > hd) dz -= bd; else if (dz < -hd) dz += bd; } }
+        if ((d3 ? dx * dx + dy * dy + dz * dz : dx * dx + dy * dy) < R2) want.push(L * 65536 + M); } }
+    const same = got.length === want.length && got.every((v, k) => v === want[k]);
+    if (!same || !want.length) allOk = false; pairs += want.length;
+    out.push(`${d3 ? '3-D' : 'flat'} ${wall} ${nL} leptons: ${want.length} pairs${same ? '' : ' DIFFERENT (' + got.length + ')'}`);
+  }
+  check(allOk, `1.39.1 the free leptons' pair list through cells is the plain way's list, pair for pair in its order: ${out.join('; ')}`, `1.39.1 lepton pairs: ${out.join('; ')}`);
+};
+PARTS.localphi = async (page, check) => { // (1.39.1: lepLocalPhi from the store's arrays)
+  // the same number to the bit as the sum through the particles' getters and minImg, for every free electron against
+  // some atom: flat and 3-D, closed and periodic, with antimatter, the dead and a nucleus in radiation flight among them
+  const X = load('all', { seed: 6 }), out = []; let ok = true, n = 0, nonzero = 0;
+  const old = (L, A) => { let u = 0; const W = X.W, d3 = W.d3;
+    for (const p of W.parts) { if (p.dead || p === L || p === A || p.rad) continue;
+      const q = p.k === X.NUC ? (p.anti ? -p.q : p.q) : p.q; if (!q) continue;
+      const m = X.minImg(p.x - L.x, p.y - L.y, d3 ? p.z - L.z : 0), dx = m[0], dy = m[1], dz = d3 ? m[2] : 0, r2 = dx * dx + dy * dy + dz * dz;
+      if (r2 > 64) continue;
+      u += X.PHYS.KE * L.q * q / Math.sqrt(r2 + (p.k === X.NUC ? p.sEN || 0 : 0.0016)); }
+    return Math.min(0, u); };
+  for (const [d3, wall] of [[false, 'reflect'], [true, 'reflect'], [false, 'wrap'], [true, 'wrap']]) {
+    (d3 ? X.PRESETS.d3empty : X.PRESETS.empty).build(); const W = X.W;
+    for (const k of ['w', 'tw']) W.box[k] = 40; for (const k of ['h', 'th']) W.box[k] = 30; if (d3) for (const k of ['d', 'td']) W.box[k] = 30;
+    W.wall = wall; W.gamma = 0;
+    const at = (v) => (X.rnd() - 0.5) * v, atoms = [];
+    for (let i = 0; i < 60; i++) atoms.push(X.addAtom(['O', 'Na', 'Ar', 'C'][i % 4], at(36), at(26), d3 ? { T: 300, z: at(26) } : { T: 300 }));
+    for (let i = 0; i < 30; i++) X.userIonize(atoms[i]);
+    for (let i = 0; i < 80; i++) { if (d3) X.addLepton(i % 5 ? X.ELEC : X.POS, at(36), at(26), 0.01, 0, at(26), 0); else X.addLepton(i % 5 ? X.ELEC : X.POS, at(36), at(26), 0.01, 0); }
+    atoms[31].anti = true; atoms[32].rad = true; atoms[33].dead = true;
+    const leps = W.parts.filter((p) => !p.dead && p.k !== X.NUC);
+    for (let i = 0; i < leps.length; i++) { const A = atoms[(i * 7) % 30], a = X.lepLocalPhi(leps[i], A), b = old(leps[i], A); n++; if (a !== 0) nonzero++; if (!Object.is(a, b)) ok = false; }
+    out.push(`${d3 ? '3-D' : 'flat'} ${wall}`);
+  }
+  check(ok && nonzero > 40, `1.39.1 lepLocalPhi from the store is the old sum to the bit: ${n} leptons (${nonzero} in a well) in ${out.join(', ')}`, `1.39.1 lepLocalPhi differs from the old sum (${n} tried, ${nonzero} nonzero)`);
+};
+PARTS.segturned = async (page, check) => { // (1.39.1: segTargets3 after a flag change uses the grid, not every particle)
+  // 3-D, 300 atoms. After the lists are made some nuclei turn fast and are carried far from their cells, one dies and
+  // one is made: every particle used to be tested then. The grid (built again because a flag changed) with the side
+  // lists must find what testing every particle finds, for segments through the box and through the moved nuclei's new
+  // places. It fails if the grid stops being rebuilt on a flag change.
+  const X = load('all', { seed: 7 }), S = X.S; X.PRESETS.d3empty.build(); const W = X.W;
+  for (const k of ['w', 'tw']) W.box[k] = 90; for (const k of ['h', 'th']) W.box[k] = 80; for (const k of ['d', 'td']) W.box[k] = 80; W.gamma = 0;
+  const at = (v) => (X.rnd() - 0.5) * v, atoms = [];
+  for (let i = 0; i < 300; i++) atoms.push(X.addAtom(['O', 'Ar', 'C'][i % 3], at(80), at(70), { T: 300, z: at(70) }));
+  X.forcesNoEvents();
+  const g0 = X._flagGen === X._flagGenForces;
+  const late = X.addAtom('Ne', 3, 3, { T: 300, z: 3 });
+  X.gridEnsure(); // (the grid as it stands when the nuclei turn: they stay in their old cells)
+  const moved = []; for (let i = 0; i < 300; i += 11) { const p = atoms[i]; p.fast = true; p.x = at(80); p.y = at(70); p.z = at(70); moved.push(p); }
+  atoms[5].dead = true;
+  const brute = (x0, y0, z0, x1, y1, z1, R) => { const dx = x1 - x0, dy = y1 - y0, dz = z1 - z0, L2 = dx * dx + dy * dy + dz * dz, h = [];
+    for (const p of W.parts) { if (p.dead || p.k !== X.NUC) continue; const px = p.x - x0, py = p.y - y0, pz = p.z - z0, t = (px * dx + py * dy + pz * dz) / L2; if (t < 0 || t >= 1) continue;
+      const ex = px - t * dx, ey = py - t * dy, ez = pz - t * dz, b2 = ex * ex + ey * ey + ez * ez; if (b2 < R * R) h.push([t, p.id, Math.sqrt(b2)]); }
+    return h.sort((a, b) => a[0] - b[0] || a[1] - b[1]); };
+  let ok = true, hits = 0, onMoved = 0, n = 0;
+  const tryIt = (x0, y0, z0, x1, y1, z1, R) => { const got = X.segTargets3(x0, y0, z0, x1, y1, z1, R, (t) => t.k === X.NUC).map((h) => [h[0], h[1].id, h[2]]), want = brute(x0, y0, z0, x1, y1, z1, R); n++; hits += want.length;
+    if (got.length !== want.length || !got.every((h, k) => h[0] === want[k][0] && h[1] === want[k][1] && h[2] === want[k][2])) ok = false;
+    return want; };
+  for (let i = 0; i < 300; i++) tryIt(at(80), at(70), at(70), at(80), at(70), at(70), 1 + 2 * X.rnd());
+  for (const p of moved.concat([late])) { const w = tryIt(p.x - 4, p.y - 0.2, p.z + 0.1, p.x + 4, p.y + 0.2, p.z - 0.1, 1.5); if (w.some((h) => h[1] === p.id)) onMoved++; }
+  check(g0 && X._flagGen !== X._flagGenForces && ok && onMoved === moved.length + 1 && hits > 100,
+    `1.39.1 segTargets3 after nuclei turned fast, one died and one was made: the grid and the side lists find what every particle tested finds (${n} segments, ${hits} hits, all ${onMoved} moved or new nuclei found at their new places)`,
+    `1.39.1 segTargets3 after a flag change: same ${ok}, moved found ${onMoved} of ${moved.length + 1}, hits ${hits}, flags ${g0}`);
+};
+PARTS.benchids = async (page, check) => { // (1.39.1: a benchmark world's ids start at the same place in the 360 cycle)
+  // the crowd built and stepped after two different pasts (the count of ids 1 and somewhere odd) is the same world to the
+  // bit with benchIds, no id is given twice (the count only goes up), and it starts at 1 over a multiple of 360
+  const { seeded } = require(path.join(__dirname, 'load.js'));
+  const X = load('all', { seed: 8 }), S = X.S, starts = [], hs = [];
+  const hash = () => { let h = 0x811c9dc5; const f = new Float64Array(1), u = new Uint32Array(f.buffer); for (const p of X.W.parts) { if (p.dead) continue; for (const v of [p.x, p.y, p.vx, p.vy]) { f[0] = v; h = Math.imul(h ^ u[0], 16777619); h = Math.imul(h ^ u[1], 16777619); } } return (h >>> 0).toString(16) + '/' + X.W.parts.length; };
+  let up = true;
+  for (const past of [0, 1, 2]) {
+    if (past) { X.PRESETS.water.build(); for (let i = 0; i < 7 * past; i++) X.addAtom('Ar', i, 0, { T: 300 }); for (let i = 0; i < 9; i++) { X.W.dt = X.chooseDt(); X.step(X.W.dt); } }
+    const before = X.W.nextId, g = seeded(12), realR = Math.random; Math.random = g; const was = X.rndUse(g);
+    X.benchIds(); starts.push(X.W.nextId); if (X.W.nextId < before) up = false;
+    X.benchDebris(false, 400); const W = X.W; W.decayOn = false; W.bathSeed = 0x5eed1234; W.dt = 0; W.vmax = 0; W.amax = 0; W.tc = 0;
+    for (let i = 0; i < 25; i++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt); }
+    hs.push(hash()); X.rndUse(was); Math.random = realR;
+  }
+  check(up && starts.every((s) => s % 360 === 1) && starts[1] > starts[0] && starts[2] > starts[1] && hs[0] === hs[1] && hs[1] === hs[2],
+    `1.39.1 the benchmark's crowd is the same world after any past: ids from ${starts.join(', ')} (never one given twice), 25 steps to ${hs[0]} each time`,
+    `1.39.1 benchmark ids: starts ${starts.join(', ')}, hashes ${hs.join(', ')}, count only up ${up}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

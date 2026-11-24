@@ -6666,7 +6666,7 @@ function benchStart() {
     setTimeout(() => {
       Math.random = seeded(12); { const was = rndUse(Math.random); if (!realRnd) realRnd = was; } // (the engine's random numbers too: the same world in every run, 1.39.1)
       R.sel = null; R.hover = null; W.grab = null; R.msel.clear();
-      build(); W.decayOn = false; fitView();
+      benchIds(); build(); W.decayOn = false; fitView();
       // the same world in every run (1.39.1): the bath's seed (clearWorld moves it on with every world made since the page
       // loaded), the step size and its maxima left by the world before, the clock's carry; and the threads bound to the
       // new world's arrays before the first step, so no early pass runs on one thread (its sums round differently)
@@ -6711,6 +6711,14 @@ function benchStart() {
   };
   next();
 }
+/* The same ids in every run of a benchmark world (1.39.1). Ids are never given twice, so a world's ids start where the
+   page's count stands, and the engine reads an id's number in two places: a pair is looked at for a proton transfer
+   on the steps where (step + id + id) % 8 is 0 (% 3 for the other kind), and, with electrons as waves, a packet's
+   left-over energy leaves along id % 360 and its spin is id & 1. So the same world built after another setup went
+   differently wherever charges are about: the flat crowd took 35 ms a step after one setup and 42 after another
+   (the count at 1, 361 or 1,001 gives one world; at 2, 3 or 100 three others). The count moves up to the next 360
+   and one: every id is still new, and every one of those remainders is as it would be on a fresh page. */
+function benchIds() { W.nextId = Math.ceil(W.nextId / 360) * 360 + 1; }
 /* The benchmark's crowd of collision products and free electrons (1.39.1): 1,500 pions, kaons and muons of 50–2,050 eV
    through the box and 120 more in a crowd at the middle, 481 atoms (81 of them in that crowd, 2.5 Å apart) of which the
    250 nearest the middle are ionized, and free electrons and positrons (one in eleven), a third of them in the middle 24 Å.
