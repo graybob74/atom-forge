@@ -2303,6 +2303,45 @@ Tests: t_lint; f_139 (all parts); t_energy, t_3d, t_hep, t_regress, t_physics, t
 t_collider fails one check, "linear p + pbar: mean energy at the collision point 1.05 MeV, set 1.00 MeV", the same
 on the commit before (one of the eleven jobs already listed as failing before this work). The full suite was not run.
 
+### 1.39.1: zooming in was slow in 3-D because of dashed lines (the owner's benchmark, 2026-11-24)
+
+The owner ran the benchmark on the build before the crowd speed-up and on the one after (7950X3D, RTX 3090, 280 Hz):
+
+| | before (4aa2be3) | after (f2b0809) |
+|---|---|---|
+| crowd, flat: ms a step / real frames | 35.52 / room for 59 fps | 9.43 / 87 fps |
+| crowd, 3-D: ms a step / real frames | 74.07 / 25 fps | 17.34 / 81 fps |
+| Liquid water, 40 molecules ionized: ms a step | 13.29 | 1.87 |
+| 20,000 waters: ms a step | 0.34 | 0.48 |
+| 3-D crowd, zoom check: full view / zoomed in, ms between frames | 7.1 / 142.9 (graphics card 133.9) | 7.1 / 3.6 (1.2) |
+
+(The water worlds' code is the same in both builds: 0.34 against 0.48 is the spread between two runs, every thread's
+work 15 to 40% longer in the second, so neither says what the array shift gained. The ionized water's 7× is the same
+world in both, 280 particles at 8,692 K with 2.35 pair-list rebuilds a step; which of the three changes carries it was
+not traced.)
+
+**The zoom check found the lag: 143 ms a frame zoomed in on the 3-D crowd, 134 of them waiting for the graphics
+process, in one run and not the other.** Reproduced here on both builds (1.6 s a frame against 0.17 at the full view,
+software drawing): with `drawLight3` switched off, 0.2 s. The world had 400 light rays, 180 of them dashed (gamma rays
+of 100 keV and more, `[6, 4]`; neutrinos, `[1, 5]`). `seg3` cuts a line at the camera's near plane, and a point there
+projects far off the screen: the longest dashed ray was 1.36 million pixels long and the 180 together 35 million, and
+the canvas makes every dash of a dashed line, on the screen or not. It depends on rays being in flight near the camera
+when the view is drawn, which is why one run had it and the next did not; annihilations and decays make such rays, so
+crowds of collision products are where it shows. The flat view has no such blow-up (a line there is at most the box
+times the zoom: 60, 400 and 2,000 px/Å all measured the same with and without rays, tracks and box).
+
+- `clipLine` (render.js) cuts a line to the view and 16 px round it; given the length of one round of the dashes it
+  starts the cut a whole number of rounds from the true start, so the dashes on the screen fall where they fell.
+  Used for the rays in both views (`drawRays`, `drawLight3`), the 3-D box's edges (dashed for periodic and open
+  walls: from inside the box an edge is as long), the 3-D tracks' segments, and the flat box's dashed sides (drawn as
+  four cut lines; the dashes now start again at each corner).
+- Zoomed in on the same world here: 1,600 ms a frame before, 133 after (the full view 167 to 183). A picture of that
+  view on the old page and the new: no pixel differs by more than a rounding step.
+- f_139 `cliplines`: 4,000 random lines (kept ones lie on their line, in the view, in step with their dashes), and
+  the 3-D view from inside an open box with 60 dashed rays hands the canvas 41,359 px of dashed line (7.7 million
+  with the cut taken out of `drawLight3`).
+- The benchmark's zoom check only meets this when rays happen to be in flight; it is not a fixed test of it.
+
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 
 New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each

@@ -226,13 +226,14 @@ function drawBox3(ctx, front) {
   }
   ctx.strokeStyle = front ? CHAMBER.box : 'rgba(150,185,220,0.22)'; ctx.lineWidth = W.wall === 'reflect' ? 1.5 : 1;
   if (W.wall === 'wrap') ctx.setLineDash([6, 5]); else if (W.wall === 'open') ctx.setLineDash([2, 6]);
+  const boxPer = W.wall === 'wrap' ? 11 : W.wall === 'open' ? 8 : 0;
   ctx.beginPath();
   for (let ax = 0; ax < 3; ax++) { // the four edges along each axis
     const u = (ax + 1) % 3, v = (ax + 2) % 3;
     for (const su of [-1, 1]) for (const sv of [-1, 1]) {
       if ((faces(u, su) || faces(v, sv)) !== front) continue;
       P[ax] = -H[ax]; Q[ax] = H[ax]; P[u] = Q[u] = su * H[u]; P[v] = Q[v] = sv * H[v];
-      if (seg3(P[0], P[1], P[2], Q[0], Q[1], Q[2], A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+      if (seg3(P[0], P[1], P[2], Q[0], Q[1], Q[2], A, B) && clipLine(A[0], A[1], B[0], B[1], boxPer)) { ctx.moveTo(_cl[0], _cl[1]); ctx.lineTo(_cl[2], _cl[3]); } // (cut to the view: a dashed edge seen from inside the box, 1.39.1)
     }
   }
   ctx.stroke();
@@ -854,7 +855,7 @@ function drawLight3(ctx, rt) {
     r.hx = B[0]; r.hy = B[1]; r.sx = A[0]; r.sy = A[1]; r.alpha = a;
     ctx.strokeStyle = rgba(r.c, a * 0.5); ctx.lineWidth = r.E >= 1e5 ? 1.2 : 1.6;
     if (r.nu) ctx.setLineDash([1, 5]); else if (r.E >= 1e5) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
-    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    if (clipLine(A[0], A[1], B[0], B[1], r.nu ? 6 : r.E >= 1e5 ? 10 : 0)) { ctx.beginPath(); ctx.moveTo(_cl[0], _cl[1]); ctx.lineTo(_cl[2], _cl[3]); ctx.stroke(); } // (cut to the view, 1.39.1: see clipLine)
     if (!r.nu) { ctx.setLineDash([]); drawSprite(glowSprite(r.c, 7), B[0], B[1], a); }
   }
   ctx.setLineDash([]);
@@ -1075,7 +1076,7 @@ function drawTracks3(ctx, rt) {
     for (let k = 2; k < pts.length; k += 2) {
       const x0 = pts[k - 2], y0 = pts[k - 1], x1 = pts[k], y1 = pts[k + 1], z0 = pz ? pz[(k >> 1) - 1] || 0 : 0, z1 = pz ? pz[k >> 1] || 0 : 0;
       if (Math.abs(x1 - x0) > hbw || Math.abs(y1 - y0) > hbh || Math.abs(z1 - z0) > hbd) continue; // (a jump through a periodic wall)
-      if (seg3(x0, y0, z0, x1, y1, z1, A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+      if (seg3(x0, y0, z0, x1, y1, z1, A, B) && clipLine(A[0], A[1], B[0], B[1], t.dash ? 7 : 0)) { ctx.moveTo(_cl[0], _cl[1]); ctx.lineTo(_cl[2], _cl[3]); } // (cut to the view, 1.39.1)
     }
     ctx.stroke();
   }

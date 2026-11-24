@@ -321,6 +321,42 @@ PARTS.benchids = async (page, check) => { // (1.39.1: a benchmark world's ids st
     `1.39.1 the benchmark's crowd is the same world after any past: ids from ${starts.join(', ')} (never one given twice), 25 steps to ${hs[0]} each time`,
     `1.39.1 benchmark ids: starts ${starts.join(', ')}, hashes ${hs.join(', ')}, count only up ${up}`);
 };
+PARTS.cliplines = async (page, check) => { // (1.39.1: dashed lines cut to the view before they are drawn)
+  // clipLine: a line wholly in view comes back as it is; one wholly outside gives false; one through the view comes
+  // back as a piece of the same line, inside the view and its 16 px margin (and up to one round of dashes before it),
+  // starting a whole number of dash rounds from the true start; a million-pixel line comes back no longer than the
+  // view's diagonal and a little. Then the 3-D view itself: 60 dashed rays through a box seen from inside it, and the
+  // dashed lines handed to the canvas in one frame add up to less than 40 screens' width, not millions of pixels.
+  const X = load('all', { seed: 9 }), R = X.R; R.w = 1600; R.h = 900;
+  const C = X._cl; let ok = true, n = 0, kept = 0, out = 0, longest = 0; const why = [];
+  const bad = (m) => { ok = false; if (why.length < 3) why.push(m); };
+  if (!X.clipLine(10, 10, 500, 400, 10) || C[0] !== 10 || C[1] !== 10 || C[2] !== 500 || C[3] !== 400) bad('a line in view changed');
+  if (X.clipLine(-500, -50, 3000, -40, 10) || X.clipLine(5000, 0, 6000, 900, 0) || X.clipLine(NaN, 0, 5, 5, 0) || X.clipLine(0, 0, Infinity, 5, 6)) bad('a line out of view, or not a number, was kept');
+  for (let i = 0; i < 4000; i++) {
+    const big = i % 2 ? 2e6 : 5000, x0 = (X.rnd() - 0.5) * big, y0 = (X.rnd() - 0.5) * big, x1 = (X.rnd() - 0.5) * big, y1 = (X.rnd() - 0.5) * big, per = [0, 6, 10, 11][i % 4];
+    n++;
+    if (!X.clipLine(x0, y0, x1, y1, per)) { out++; continue; }
+    kept++;
+    const len = Math.hypot(x1 - x0, y1 - y0), ux = (x1 - x0) / len, uy = (y1 - y0) / len, a = (C[0] - x0) * ux + (C[1] - y0) * uy, b = (C[2] - x0) * ux + (C[3] - y0) * uy, tol = 1e-6 * (1 + len);
+    const off = (px, py) => Math.abs((px - x0) * uy - (py - y0) * ux); // distance from the true line
+    if (off(C[0], C[1]) > tol || off(C[2], C[3]) > tol) bad('off the line');
+    if (a < -tol || b > len + tol || a > b + tol) bad('outside the true ends');
+    const m = 16 + (per || 0) + 1e-3 * (1 + len / 1e4);
+    for (const [px, py] of [[C[0], C[1]], [C[2], C[3]]]) if (px < -m || px > R.w + m || py < -m || py > R.h + m) bad(`outside the view: ${px.toFixed(1)}, ${py.toFixed(1)}`);
+    if (per && a > tol) { const k = a / per; if (Math.abs(k - Math.round(k)) > 1e-4 * (1 + len / 1e4)) bad(`dash phase: ${a} of ${per}`); }
+    longest = Math.max(longest, b - a);
+  }
+  // the 3-D view: what one frame hands to the canvas with a dash set
+  X.PRESETS.d3empty.build(); const W = X.W; for (const k of ['w', 'tw']) W.box[k] = 360; for (const k of ['h', 'th', 'd', 'td']) W.box[k] = 240; W.wall = 'open';
+  for (let i = 0; i < 60; i++) { const th = X.rnd() * 6.283, ph = (X.rnd() - 0.5) * 2; W.rays.push({ x0: (X.rnd() - 0.5) * 20, y0: (X.rnd() - 0.5) * 20, z0: (X.rnd() - 0.5) * 20, x1: 170 * Math.cos(th), y1: 110 * Math.sin(th), z1: 110 * ph, c: [255, 255, 255], E: 511000, nu: true, landed: true }); } // (neutrinos' rays: dashed, and no glow sprite, which needs a real canvas)
+  X.cam3Fit(); const d0 = R.cam3.dist; R.cam3.dist = d0 * 0.06; X.cam3Update();
+  let dashed = 0, dashOn = false, lx = 0, ly = 0, lines = 0;
+  const ctx = new Proxy({}, { get: (t, k) => k === 'setLineDash' ? (d) => { dashOn = d.length > 0; } : k === 'moveTo' ? (x, y) => { lx = x; ly = y; } : k === 'lineTo' ? (x, y) => { if (dashOn) { dashed += Math.hypot(x - lx, y - ly); lines++; } lx = x; ly = y; } : k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : (k in t ? t[k] : () => {}), set: (t, k, v) => { t[k] = v; return true; } });
+  let drew = true; try { X.drawBox3(ctx, false); X.drawBox3(ctx, true); X.drawLight3(ctx, 0); } catch (e) { drew = false; why.push('drawing threw: ' + e.message); }
+  check(ok && drew && kept > 300 && out > 300 && longest < Math.hypot(R.w, R.h) + 60 && lines >= 40 && dashed < 40 * R.w,
+    `1.39.1 dashed lines are cut to the view: ${kept} of ${n} random lines kept, on their line, in the view, in step with their dashes, none longer than ${longest.toFixed(0)} px; 60 dashed rays and the box's edges from inside an open 3-D box: ${lines} dashed lines, ${Math.round(dashed).toLocaleString('en-US')} px in all`,
+    `1.39.1 clipLine: ${why.join('; ') || 'counts'} (kept ${kept}, out ${out}, longest ${longest.toFixed(0)}, 3-D dashed lines ${lines}, ${Math.round(dashed)} px, drew ${drew})`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

@@ -224,7 +224,12 @@ function drawBox() {
   ctx.save();
   ctx.strokeStyle = CHAMBER.box; ctx.lineWidth = W.wall === 'reflect' ? 1.5 : 1;
   if (W.wall === 'wrap') ctx.setLineDash([6, 5]); else if (W.wall === 'open') ctx.setLineDash([2, 6]);
-  ctx.strokeRect(x0, y0, w, h);
+  if (W.wall === 'reflect') ctx.strokeRect(x0, y0, w, h);
+  else { // (dashed walls: each side cut to the view, 1.39.1; the dashes start again at each corner)
+    const per = W.wall === 'wrap' ? 11 : 8; ctx.beginPath();
+    for (const [ax, ay, bx, by] of [[x0, y0, x0 + w, y0], [x0 + w, y0, x0 + w, y0 + h], [x0 + w, y0 + h, x0, y0 + h], [x0, y0 + h, x0, y0]]) if (clipLine(ax, ay, bx, by, per)) { ctx.moveTo(_cl[0], _cl[1]); ctx.lineTo(_cl[2], _cl[3]); }
+    ctx.stroke();
+  }
   if (W.glow && W.wall === 'reflect' && W.T > 700) { // glowing walls: the colour of a black body at the bath temperature
     const c = blackbodyRGB(W.T), a = clamp((W.T - 700) / 1500, 0, 1);
     ctx.setLineDash([]); ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},${a})`; ctx.lineWidth = 3; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 12 * a;
@@ -1461,6 +1466,25 @@ function drawFlashes(rt) {
   }
   ctx.restore();
 }
+/* A straight line cut to the view (1.39.1). The canvas dashes a dashed line along its whole length, whether it is on
+   the screen or not: light rays seen from close up in 3-D ran a million pixels past the screen's edge (a line cut at
+   the camera's near plane lands that far out), 180 gamma rays came to 35 million pixels of dashes a frame, and a frame
+   that took 7 ms from far away took 143 on the owner's graphics card (and 1.6 s without one). The line from (x0, y0)
+   to (x1, y1) is cut to the view and 16 px round it; with per, the length of one round of its dashes, the cut start is
+   a whole number of rounds along from the true start, so the dashes on the screen fall where they fell. Gives false
+   when none of it is in view; else the cut line in _cl (x0, y0, x1, y1). */
+const _cl = [0, 0, 0, 0];
+function clipLine(x0, y0, x1, y1, per) {
+  const dx = x1 - x0, dy = y1 - y0, pad = 16, xa = -pad, xb = R.w + pad, ya = -pad, yb = R.h + pad;
+  if (!(Math.abs(dx) < Infinity && Math.abs(dy) < Infinity)) return false; // (not a number, or without end)
+  let ta = 0, tb = 1;
+  if (dx === 0) { if (x0 < xa || x0 > xb) return false; } else { let u = (xa - x0) / dx, v = (xb - x0) / dx; if (u > v) { const w = u; u = v; v = w; } if (u > ta) ta = u; if (v < tb) tb = v; }
+  if (dy === 0) { if (y0 < ya || y0 > yb) return false; } else { let u = (ya - y0) / dy, v = (yb - y0) / dy; if (u > v) { const w = u; u = v; v = w; } if (u > ta) ta = u; if (v < tb) tb = v; }
+  if (!(ta <= tb)) return false;
+  if (ta > 0 && per > 0) { const len = Math.sqrt(dx * dx + dy * dy); ta = Math.floor(ta * len / per) * per / len; }
+  _cl[0] = x0 + dx * ta; _cl[1] = y0 + dy * ta; _cl[2] = tb < 1 ? x0 + dx * tb : x1; _cl[3] = tb < 1 ? y0 + dy * tb : y1;
+  return true;
+}
 function drawRays(rt) {
   const ctx = R.ctx;
   ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
@@ -1480,7 +1504,7 @@ function drawRays(rt) {
     r.hx = hx; r.hy = hy; r.sx = x0; r.sy = y0; r.alpha = a; // (where its label goes; sx, sy: where the line starts, for a head gone off the screen)
     ctx.strokeStyle = rgba(r.c, a * 0.5); ctx.lineWidth = r.E >= 1e5 ? 1.2 : 1.6;
     if (r.nu) ctx.setLineDash([1, 5]); else if (r.E >= 1e5) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
-    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(hx, hy); ctx.stroke();
+    if (clipLine(x0, y0, hx, hy, r.nu ? 6 : r.E >= 1e5 ? 10 : 0)) { ctx.beginPath(); ctx.moveTo(_cl[0], _cl[1]); ctx.lineTo(_cl[2], _cl[3]); ctx.stroke(); } // (cut to the view: zoomed far in, a ray is hundreds of thousands of pixels of dashes, 1.39.1)
     if (!r.nu) { ctx.setLineDash([]); drawSprite(glowSprite(r.c, 7), hx, hy, a); }
   }
   ctx.restore();

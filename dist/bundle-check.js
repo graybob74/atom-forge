@@ -32690,7 +32690,12 @@ function drawBox() {
   ctx.save();
   ctx.strokeStyle = CHAMBER.box; ctx.lineWidth = W.wall === 'reflect' ? 1.5 : 1;
   if (W.wall === 'wrap') ctx.setLineDash([6, 5]); else if (W.wall === 'open') ctx.setLineDash([2, 6]);
-  ctx.strokeRect(x0, y0, w, h);
+  if (W.wall === 'reflect') ctx.strokeRect(x0, y0, w, h);
+  else { // (dashed walls: each side cut to the view, 1.39.1; the dashes start again at each corner)
+    const per = W.wall === 'wrap' ? 11 : 8; ctx.beginPath();
+    for (const [ax, ay, bx, by] of [[x0, y0, x0 + w, y0], [x0 + w, y0, x0 + w, y0 + h], [x0 + w, y0 + h, x0, y0 + h], [x0, y0 + h, x0, y0]]) if (clipLine(ax, ay, bx, by, per)) { ctx.moveTo(_cl[0], _cl[1]); ctx.lineTo(_cl[2], _cl[3]); }
+    ctx.stroke();
+  }
   if (W.glow && W.wall === 'reflect' && W.T > 700) { // glowing walls: the colour of a black body at the bath temperature
     const c = blackbodyRGB(W.T), a = clamp((W.T - 700) / 1500, 0, 1);
     ctx.setLineDash([]); ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},${a})`; ctx.lineWidth = 3; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 12 * a;
@@ -33927,6 +33932,25 @@ function drawFlashes(rt) {
   }
   ctx.restore();
 }
+/* A straight line cut to the view (1.39.1). The canvas dashes a dashed line along its whole length, whether it is on
+   the screen or not: light rays seen from close up in 3-D ran a million pixels past the screen's edge (a line cut at
+   the camera's near plane lands that far out), 180 gamma rays came to 35 million pixels of dashes a frame, and a frame
+   that took 7 ms from far away took 143 on the owner's graphics card (and 1.6 s without one). The line from (x0, y0)
+   to (x1, y1) is cut to the view and 16 px round it; with per, the length of one round of its dashes, the cut start is
+   a whole number of rounds along from the true start, so the dashes on the screen fall where they fell. Gives false
+   when none of it is in view; else the cut line in _cl (x0, y0, x1, y1). */
+const _cl = [0, 0, 0, 0];
+function clipLine(x0, y0, x1, y1, per) {
+  const dx = x1 - x0, dy = y1 - y0, pad = 16, xa = -pad, xb = R.w + pad, ya = -pad, yb = R.h + pad;
+  if (!(Math.abs(dx) < Infinity && Math.abs(dy) < Infinity)) return false; // (not a number, or without end)
+  let ta = 0, tb = 1;
+  if (dx === 0) { if (x0 < xa || x0 > xb) return false; } else { let u = (xa - x0) / dx, v = (xb - x0) / dx; if (u > v) { const w = u; u = v; v = w; } if (u > ta) ta = u; if (v < tb) tb = v; }
+  if (dy === 0) { if (y0 < ya || y0 > yb) return false; } else { let u = (ya - y0) / dy, v = (yb - y0) / dy; if (u > v) { const w = u; u = v; v = w; } if (u > ta) ta = u; if (v < tb) tb = v; }
+  if (!(ta <= tb)) return false;
+  if (ta > 0 && per > 0) { const len = Math.sqrt(dx * dx + dy * dy); ta = Math.floor(ta * len / per) * per / len; }
+  _cl[0] = x0 + dx * ta; _cl[1] = y0 + dy * ta; _cl[2] = tb < 1 ? x0 + dx * tb : x1; _cl[3] = tb < 1 ? y0 + dy * tb : y1;
+  return true;
+}
 function drawRays(rt) {
   const ctx = R.ctx;
   ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
@@ -33946,7 +33970,7 @@ function drawRays(rt) {
     r.hx = hx; r.hy = hy; r.sx = x0; r.sy = y0; r.alpha = a; // (where its label goes; sx, sy: where the line starts, for a head gone off the screen)
     ctx.strokeStyle = rgba(r.c, a * 0.5); ctx.lineWidth = r.E >= 1e5 ? 1.2 : 1.6;
     if (r.nu) ctx.setLineDash([1, 5]); else if (r.E >= 1e5) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
-    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(hx, hy); ctx.stroke();
+    if (clipLine(x0, y0, hx, hy, r.nu ? 6 : r.E >= 1e5 ? 10 : 0)) { ctx.beginPath(); ctx.moveTo(_cl[0], _cl[1]); ctx.lineTo(_cl[2], _cl[3]); ctx.stroke(); } // (cut to the view: zoomed far in, a ray is hundreds of thousands of pixels of dashes, 1.39.1)
     if (!r.nu) { ctx.setLineDash([]); drawSprite(glowSprite(r.c, 7), hx, hy, a); }
   }
   ctx.restore();
@@ -35441,13 +35465,14 @@ function drawBox3(ctx, front) {
   }
   ctx.strokeStyle = front ? CHAMBER.box : 'rgba(150,185,220,0.22)'; ctx.lineWidth = W.wall === 'reflect' ? 1.5 : 1;
   if (W.wall === 'wrap') ctx.setLineDash([6, 5]); else if (W.wall === 'open') ctx.setLineDash([2, 6]);
+  const boxPer = W.wall === 'wrap' ? 11 : W.wall === 'open' ? 8 : 0;
   ctx.beginPath();
   for (let ax = 0; ax < 3; ax++) { // the four edges along each axis
     const u = (ax + 1) % 3, v = (ax + 2) % 3;
     for (const su of [-1, 1]) for (const sv of [-1, 1]) {
       if ((faces(u, su) || faces(v, sv)) !== front) continue;
       P[ax] = -H[ax]; Q[ax] = H[ax]; P[u] = Q[u] = su * H[u]; P[v] = Q[v] = sv * H[v];
-      if (seg3(P[0], P[1], P[2], Q[0], Q[1], Q[2], A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+      if (seg3(P[0], P[1], P[2], Q[0], Q[1], Q[2], A, B) && clipLine(A[0], A[1], B[0], B[1], boxPer)) { ctx.moveTo(_cl[0], _cl[1]); ctx.lineTo(_cl[2], _cl[3]); } // (cut to the view: a dashed edge seen from inside the box, 1.39.1)
     }
   }
   ctx.stroke();
@@ -36069,7 +36094,7 @@ function drawLight3(ctx, rt) {
     r.hx = B[0]; r.hy = B[1]; r.sx = A[0]; r.sy = A[1]; r.alpha = a;
     ctx.strokeStyle = rgba(r.c, a * 0.5); ctx.lineWidth = r.E >= 1e5 ? 1.2 : 1.6;
     if (r.nu) ctx.setLineDash([1, 5]); else if (r.E >= 1e5) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
-    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    if (clipLine(A[0], A[1], B[0], B[1], r.nu ? 6 : r.E >= 1e5 ? 10 : 0)) { ctx.beginPath(); ctx.moveTo(_cl[0], _cl[1]); ctx.lineTo(_cl[2], _cl[3]); ctx.stroke(); } // (cut to the view, 1.39.1: see clipLine)
     if (!r.nu) { ctx.setLineDash([]); drawSprite(glowSprite(r.c, 7), B[0], B[1], a); }
   }
   ctx.setLineDash([]);
@@ -36290,7 +36315,7 @@ function drawTracks3(ctx, rt) {
     for (let k = 2; k < pts.length; k += 2) {
       const x0 = pts[k - 2], y0 = pts[k - 1], x1 = pts[k], y1 = pts[k + 1], z0 = pz ? pz[(k >> 1) - 1] || 0 : 0, z1 = pz ? pz[k >> 1] || 0 : 0;
       if (Math.abs(x1 - x0) > hbw || Math.abs(y1 - y0) > hbh || Math.abs(z1 - z0) > hbd) continue; // (a jump through a periodic wall)
-      if (seg3(x0, y0, z0, x1, y1, z1, A, B)) { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+      if (seg3(x0, y0, z0, x1, y1, z1, A, B) && clipLine(A[0], A[1], B[0], B[1], t.dash ? 7 : 0)) { ctx.moveTo(_cl[0], _cl[1]); ctx.lineTo(_cl[2], _cl[3]); } // (cut to the view, 1.39.1)
     }
     ctx.stroke();
   }
