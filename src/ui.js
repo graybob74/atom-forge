@@ -6625,12 +6625,13 @@ function threadsNote() {
    hold as many atoms as Settings → Max particles allows, the drawing runs at the set resolution and effects, the physics
    on the set budget and threads), with the time of a step and where it goes, then a second of real frames (the adaptive
    budget, the drawing) and what that allows. Replaces the current setup (it is reloaded afterwards). */
-const BENCH = { busy: false, rows: [], own: false };
+const BENCH = { busy: false, rows: [], own: false, want: '', paused: false, resume: null, t0: 0, held: 0, heldAt: 0, tick: 0, text: '', stopped: false };
 function benchStart() {
   if (BENCH.busy) return;
   BENCH.busy = true; BENCH.rows = [];
   const out = $('setBenchOut'), wasRunning = UI.running, preset = UI.preset;
   setRunning(false);
+  benchMode(true); // (1.39.1: the chamber alone, with the benchmark's own bar)
   const NW = Math.min(MAX_PARTS, 20000), asp = 560 / 360, bw = Math.round(Math.sqrt(16.8 * NW * asp)), bh = Math.round(bw / asp); // (the 12,000-atom world's density, 560 × 360 Å)
   const nk = (n) => n.toLocaleString('en-US');
   const nLep = Math.max(200, Math.min(3000, MAX_PARTS - 1500)), n3 = Math.max(4, Math.min(12, Math.floor(Math.cbrt(MAX_PARTS / 3)))), L3 = n3 * 22 / 7; // (the 3-D water at the Liquid water setup's density, 5,184 atoms when the limit allows)
@@ -6653,14 +6654,23 @@ function benchStart() {
   ];
   scen[0][2] = { zoom: true };
   const realRandom = Math.random; let realRnd = null;
-  const show = (busy) => { out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, priority ${PRIO_FPS[prioNow()]} fps${SET.prioAuto ? ' (auto)' : ''}, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ${expSummary()}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
+  const short = ['Water', 'Placed water', 'Ionized water', 'Flash memory', 'Crowd, flat', 'Crowd in 3-D', 'Water in 3-D'];
+  const show = (busy) => { benchSay(busy, k, scen.length, short[k - 1]); out.textContent = `Settings: up to ${nk(MAX_PARTS)} particles, ${SET.res} drawing${SET.effects ? ' with effects' : ''}, ${SET.budget} ms of physics a frame, priority ${PRIO_FPS[prioNow()]} fps${SET.prioAuto ? ' (auto)' : ''}, ${GL.ok && GL.on ? 'WebGL' : 'Canvas 2D'}, threads ${SET.threads}${WK.ready && WK.use ? ', WebAssembly kernel' : ''}. ${expSummary()}. ` + BENCH.rows.join(' · ') + (busy ? (BENCH.rows.length ? ' · ' : '') + busy : ''); };
   let k = 0;
+  // the end, or Stop: the lab back as it was (once the layout has its panels again, so the setup is fitted to the
+  // chamber's real size), the result under the button in Settings and in a window of its own with a Copy button
+  const finish = (stopped) => {
+    Math.random = realRandom; if (realRnd) rndUse(realRnd);
+    BENCH.stopped = stopped; show(stopped ? `stopped after ${k} of ${scen.length} worlds` : ''); BENCH.text = out.textContent;
+    benchMode(false);
+    setTimeout(() => {
+      loadPreset(preset); setRunning(wasRunning); BENCH.busy = false;
+      $('setThreads').textContent = threadsNote();
+      benchResults();
+    }, 80);
+  };
   const next = () => {
-    if (k >= scen.length) {
-      Math.random = realRandom; if (realRnd) rndUse(realRnd); loadPreset(preset); setRunning(wasRunning); BENCH.busy = false;
-      show(''); $('setThreads').textContent = threadsNote();
-      return;
-    }
+    if (k >= scen.length) { finish(false); return; }
     const [name, build, opt = {}] = scen[k++];
     show(`building ${name}…`);
     setTimeout(() => {
@@ -6705,11 +6715,84 @@ function benchStart() {
         BENCH.rows.push(NW < 20000 ? `The 20,000-atom goal: set Particle limit to 20,000 and run this again to test it (this ran ${nk(NW)}).`
           : `The 20,000-atom goal (room temperature, 1× speed, 45 fps or more): ${fps1 >= 45 ? 'met' : 'not yet'} — at 1× a frame takes ${per.toFixed(1)} steps × ${best.toFixed(2)} ms + ${fDraw.toFixed(1)} ms drawing = ${ms1.toFixed(1)} ms, ${fps1.toFixed(0)} fps.`);
       }
-      if (opt.zoom) { show(`${name}: real frames at the full view and zoomed in…`); benchZoom((txt) => { BENCH.rows[rowAt] += txt; show(''); setTimeout(next, 30); }); }
-      else { show(''); setTimeout(next, 30); }
+      const on = () => benchGate(next, () => finish(true), 30);
+      if (opt.zoom) benchGate(() => { show(`${name}: real frames at the full view and zoomed in…`); benchZoom((txt) => { BENCH.rows[rowAt] += txt; show(''); on(); }); }, () => finish(true), 0);
+      else { show(''); on(); }
     }, 30);
   };
-  next();
+  show('starting…');
+  benchGate(next, () => finish(true), 150); // (the chamber has its new size by then)
+}
+/* The benchmark's own mode (1.39.1; the owner: "make the benchmark take you into a special mode so the settings menu and
+   lab panels aren't there and there's a bit of ui with a timer and a stop and pause button also make the results have
+   a copy button"). While it runs: Settings closed, the toolbar and panels away as in chamber only (body.bench), a bar
+   over the chamber with which world it is on, a clock, Pause and Stop, and a veil over the chamber so that nothing
+   else gets the mouse; keys do nothing but Esc (Stop) and the bar's own buttons. The measured chunks run in one go,
+   so Pause and Stop take hold at the next break: after a world's steps, before and after its zoom check, between
+   worlds (a few seconds at most). The clock counts the time not paused. At the end the lab comes back and the result
+   opens in a window with Copy; it is also under the button in Settings, with a Copy of its own. */
+function benchMode(on) {
+  document.body.classList.toggle('bench', on);
+  $('benchBar').hidden = !on; $('benchVeil').hidden = !on;
+  clearInterval(BENCH.tick);
+  if (on) {
+    if (!$('setModal').hidden) hideModal('setModal');
+    closeQuickMenu();
+    BENCH.want = ''; BENCH.paused = false; BENCH.resume = null; BENCH.stopped = false; BENCH.t0 = performance.now(); BENCH.held = 0;
+    BENCH.tick = setInterval(benchClock, 250); benchClock(); benchBtns();
+    $('benchPause').focus();
+  }
+}
+function benchTime() { return ((BENCH.paused ? BENCH.heldAt : performance.now()) - BENCH.t0 - BENCH.held) / 1000; }
+function benchClock() { const t = Math.max(0, Math.floor(benchTime())); $('benchClock').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; }
+function benchSay(busy, k, n, label) {
+  $('benchStep').textContent = k ? `${Math.min(k, n)} of ${n}` : '';
+  const phase = !busy ? '' : /^building/.test(busy) ? 'measuring' : /real frames/.test(busy) ? 'zoom check' : busy.replace(/…$/, '');
+  $('benchWhat').textContent = BENCH.paused ? 'paused' : label && k ? label + (phase ? ': ' + phase : '') : phase || 'starting';
+  $('benchWhat').title = busy || '';
+}
+function benchBtns() {
+  $('benchPause').textContent = BENCH.paused ? 'Resume' : BENCH.want === 'pause' ? 'Pausing…' : 'Pause';
+  $('benchPause').disabled = BENCH.want === 'stop';
+  $('benchStop').textContent = BENCH.want === 'stop' ? 'Stopping…' : 'Stop'; $('benchStop').disabled = BENCH.want === 'stop';
+}
+/* A break in the benchmark: go on (after ms), or hold here if Pause was pressed, or end if Stop was. */
+function benchGate(go, stop, ms) {
+  setTimeout(() => {
+    if (BENCH.want === 'stop') { stop(); return; }
+    if (BENCH.want === 'pause') { BENCH.paused = true; BENCH.heldAt = performance.now(); BENCH.resume = () => benchGate(go, stop, 0); $('benchWhat').textContent = 'paused'; benchClock(); benchBtns(); return; }
+    go();
+  }, ms);
+}
+function benchAsk(what) {
+  if (!BENCH.busy || BENCH.want === 'stop') return;
+  if (what === 'stop') { BENCH.want = 'stop'; }
+  else if (BENCH.paused) { BENCH.want = ''; } // Resume
+  else BENCH.want = BENCH.want === 'pause' ? '' : 'pause'; // (pressed again before it took hold: not after all)
+  if (BENCH.paused && BENCH.resume) { const f = BENCH.resume; BENCH.resume = null; BENCH.paused = false; BENCH.held += performance.now() - BENCH.heldAt; f(); }
+  benchBtns();
+}
+/* While the benchmark runs nothing but its bar takes input; Esc stops it. */
+function benchGuard(e) {
+  if (!BENCH.busy || document.body.classList.contains('bench') === false) return;
+  if (e.target && e.target.closest && e.target.closest('#benchBar')) return;
+  if (e.type === 'keydown' && e.key === 'Escape') benchAsk('stop');
+  e.stopImmediatePropagation(); if (e.cancelable) e.preventDefault();
+}
+function benchResults() {
+  const t = Math.round(benchTime()), took = `${Math.floor(t / 60)} min ${t % 60} s`;
+  $('benchTitle').textContent = BENCH.stopped ? 'Benchmark stopped' : 'Benchmark results';
+  $('benchTook').textContent = BENCH.stopped ? `stopped after ${took}` : `took ${took}`;
+  $('benchText').value = benchLines(); $('benchNote').textContent = '';
+  $('setBenchCopy').hidden = !BENCH.rows.length; $('setBenchNote').textContent = '';
+  showModal('benchModal'); $('benchCopy').focus();
+}
+/* The result as it is copied: the settings line, then a world to a paragraph. */
+function benchLines() { const k = BENCH.text.indexOf('. ' + (BENCH.rows[0] || '\u0000')); return BENCH.rows.length && k > 0 ? BENCH.text.slice(0, k + 1) + '\n\n' + BENCH.rows.join('\n\n') + (BENCH.stopped ? '\n\n(' + BENCH.text.slice(BENCH.text.lastIndexOf(' · ') + 3) + ')' : '') : BENCH.text; }
+function benchCopy(note) {
+  const text = benchLines(), ta = $('benchText'), done = () => { $(note).textContent = 'Copied.'; }, byHand = () => { if (!$('benchModal').hidden) { ta.focus(); ta.select(); } $(note).textContent = !$('benchModal').hidden ? 'Could not copy: the text is selected, press Ctrl+C.' : 'Could not copy from here.'; };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => { try { ta.value = text; ta.focus(); ta.select(); if (document.execCommand('copy')) done(); else byHand(); } catch (e) { byHand(); } });
+  else { try { ta.value = text; ta.focus(); ta.select(); if (document.execCommand('copy')) done(); else byHand(); } catch (e) { byHand(); } }
 }
 /* The same ids in every run of a benchmark world (1.39.1). Ids are never given twice, so a world's ids start where the
    page's count stands, and the engine reads an id's number in two places: a pair is looked at for a proton transfer
@@ -7115,7 +7198,7 @@ const SDESC = {
   segBudget: ['Physics per frame', 'The time each frame may spend on physics. More runs the simulation faster when the box is busy, at the cost of fewer frames a second.'],
   segThreads: ['Threads', 'How many processor threads share the forces. Auto uses one a core; small worlds run on one thread anyway.'],
   segGl: ['Drawing engine', 'WebGL draws the atoms and bonds on the graphics card. Canvas 2D draws everything on the processor, slower with thousands of atoms; use it only if WebGL misbehaves.'],
-  setBench: ['Speed test', 'Builds seven reference worlds (water, ionized water, a memory chip, crowds of collision products and free electrons, and 3-D), times a step of each and a second of real frames under the settings as they are, and says where the time goes. Three of them are also drawn at the full view and zoomed in, to show what zooming costs. It takes about a minute and replaces the current setup while it runs.'],
+  setBench: ['Speed test', 'Builds seven reference worlds (water, ionized water, a memory chip, crowds of collision products and free electrons, and 3-D), times a step of each and a second of real frames under the settings as they are, and says where the time goes. Three of them are also drawn at the full view and zoomed in, to show what zooming costs. It takes about a minute. While it runs the panels are put away and a bar at the top has a clock, Pause and Stop (Esc); your setup comes back afterwards, and the results open with a Copy button.'],
   // Graphics
   segFpsCap: ['Frame-rate cap', 'At most this many frames a second. Fewer frames leave more of each second for the physics in a crowded box, and run the graphics card cooler. A browser cannot draw faster than the monitor refreshes.'],
   segAtom: ['Atom size', 'True size draws atoms as big as they are, touching in a liquid or solid. Smaller and Small shrink the balls so you can see past them into a crowded box.'],
@@ -7531,6 +7614,10 @@ function settingsInit() {
   bindSeg('segPold', (v) => setSetting('pold', +v)); // (1.27)
   bindSeg('segTrail', (v) => setSetting('trail', +v)); bindSeg('segTrailClock', (v) => setSetting('trailClock', v));
   $('setBench').onclick = () => benchStart();
+  $('benchPause').onclick = () => benchAsk('pause'); $('benchStop').onclick = () => benchAsk('stop');
+  $('benchCopy').onclick = () => benchCopy('benchNote'); $('benchClose').onclick = () => hideModal('benchModal');
+  $('setBenchCopy').onclick = () => benchCopy('setBenchNote');
+  for (const ev of ['keydown', 'keyup', 'keypress', 'wheel', 'pointerdown', 'mousedown', 'dblclick', 'contextmenu', 'touchstart']) window.addEventListener(ev, benchGuard, { capture: true, passive: false });
   bindSeg('segTheme', (v) => setSetting('theme', v));
   bindSeg('segWin', (v) => setWindowMode(v));
   for (const b of document.querySelectorAll('.stabs [data-stab]')) b.onclick = () => setTabS(b.dataset.stab);

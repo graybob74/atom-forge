@@ -2342,6 +2342,26 @@ times the zoom: 60, 400 and 2,000 px/Å all measured the same with and without r
   with the cut taken out of `drawLight3`).
 - The benchmark's zoom check only meets this when rays happen to be in flight; it is not a fixed test of it.
 
+### 1.39.1: the benchmark's own mode (the owner, 2026-11-24: "make the benchmark take you into a special mode so the settings menu and lab panels aren't there and there's a bit of ui with a timer and a stop and pause button also make the results have a copy button")
+
+- **While it runs** (`benchMode`, `body.bench`): Settings closes, the toolbar and panels are away as in chamber only
+  (and the main menu, if it was started from there), and a bar over the chamber shows which world of the seven it is
+  on, a clock, Pause and Stop. A veil over the chamber takes the mouse, and keys, the wheel and clicks anywhere but
+  the bar do nothing (`benchGuard`, a capturing listener); Esc is Stop. The chamber is the whole window while it
+  runs, so the frames' drawing times are for that size, whatever the panels' layout was.
+- **Pause and Stop take hold at the next break** (`benchGate`): the measured chunks run in one go, so the breaks are
+  after a world's steps, before and after its zoom check, and between worlds, a few seconds apart at most. The button
+  reads "Pausing…" / "Stopping…" until then; Pause pressed again before it takes hold cancels it. The clock counts the
+  time not paused. Stop keeps the worlds measured so far ("stopped after 3 of 7 worlds").
+- **At the end** the layout comes back, the setup that was open is loaded once the chamber has its size again, and the
+  results open in a window (`benchResults`): the settings line and then a world to a paragraph, with Copy results
+  (`navigator.clipboard`, falling back to selecting the text) and Close. The same text stays under the button in
+  Settings, with a Copy button of its own.
+- t_threads: the mode while running (bar, veil, no panels, no menu, a wheel and a key ignored), the results window
+  and its Copy, then a second run from the lab: Pause at the first break with the clock held, Resume, Esc during the
+  first world, "stopped after 1 of 7 worlds", the setup back. t_settings: the same three failures as before
+  (the 3-D menu's list, 109 setting rows' descriptions, the pictures' size), none new.
+
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 
 New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each

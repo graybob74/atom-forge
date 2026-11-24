@@ -166,7 +166,29 @@ body.display .app { padding: 0; gap: 0; grid-template-rows: minmax(0, 1fr); }
 body.display .topbar, body.display .tools-wrap, body.display .panel { display: none; }
 body.display .main { grid-template-columns: minmax(0, 1fr); gap: 0; }
 body.display .stage { border: 0; border-radius: 0; box-shadow: none; }
-body.display .stage > :not(canvas):not(.dm-exit):not(.qmenu) { display: none !important; }
+body.display .stage > :not(canvas):not(.dm-exit):not(.qmenu):not(.bench-bar):not(.bench-veil) { display: none !important; }
+/* the benchmark's mode (1.39.1): the chamber alone, as chamber only, with the benchmark's bar and a veil that takes the mouse */
+body.bench .app { padding: 0; gap: 0; grid-template-rows: minmax(0, 1fr); }
+body.bench .topbar, body.bench .tools-wrap, body.bench .panel { display: none; }
+body.bench .main { grid-template-columns: minmax(0, 1fr); gap: 0; }
+body.bench .stage { border: 0; border-radius: 0; box-shadow: none; }
+body.bench .stage > :not(canvas):not(.bench-bar):not(.bench-veil) { display: none !important; }
+.bench-veil { position: absolute; inset: 0; z-index: 29; cursor: progress; }
+.bench-bar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 12px;
+  max-width: calc(100% - 24px); box-sizing: border-box; padding: 8px 10px 8px 16px; background: var(--surface); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); font-size: 13px; white-space: nowrap; }
+.bench-bar[hidden], .bench-veil[hidden] { display: none; }
+.bench-step { color: var(--muted); font-variant-numeric: tabular-nums; }
+.bench-what { min-width: 0; max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
+.bench-clock { font: 13px/1 'Azeret Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; min-width: 4ch; text-align: right; }
+.bench-bar .btn { min-width: 84px; }
+.benchd { width: min(820px, 100%); gap: 12px; }
+.benchd textarea { width: 100%; box-sizing: border-box; height: min(52vh, 460px); resize: vertical; font: 11.5px/1.5 'Azeret Mono', ui-monospace, monospace;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.bench-copy { display: flex; align-items: center; gap: 10px; }
+.benchbtns { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.benchbtns .note { margin-right: auto; }
+.benchbtns .btn { padding: 9px 16px; }
 body.display .dm-exit { display: inline-grid; position: absolute; top: 12px; right: 12px; z-index: 30; opacity: 0.85; transition: opacity 0.3s;
   background: var(--surface); }
 body.display.idle .dm-exit { opacity: 0; pointer-events: none; }
@@ -663,7 +685,8 @@ body.mo .ddpop.out { animation: ddOut 0.1s ease-in both; pointer-events: none; }
   .mm-title { font-size: 34px; }
 }
 @media (max-height: 640px) { .mm-shot { display: none; } .mm-mode { grid-template-columns: none; padding: 12px 14px; } .mm-mname, .mm-mline { padding: 0; } }
-body.menu .stage > :not(canvas) { display: none !important; }
+body.menu .stage > :not(canvas):not(.bench-bar):not(.bench-veil) { display: none !important; }
+body.bench .mmenu { display: none !important; } /* (the benchmark started from the main menu's Settings: the menu is away while it runs, 1.39.1) */
 body.menu .topbar, body.menu .tools-wrap, body.menu .panel { display: none; }
 body.menu .app { padding: 0; gap: 0; grid-template-rows: minmax(0, 1fr); }
 body.menu .main { grid-template-columns: minmax(0, 1fr); gap: 0; }

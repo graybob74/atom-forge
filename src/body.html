@@ -39,6 +39,8 @@
     <div class="stage" id="stage">
       <canvas id="cvbg" aria-hidden="true"></canvas><canvas id="cvgl" aria-hidden="true"></canvas>
       <canvas id="cv" aria-label="Simulation chamber"></canvas>
+      <div class="bench-veil" id="benchVeil" hidden></div>
+      <div class="bench-bar" id="benchBar" role="group" aria-label="Benchmark" hidden><strong>Benchmark</strong><span class="bench-step" id="benchStep"></span><span class="bench-what" id="benchWhat"></span><span class="bench-clock" id="benchClock" title="Time running, not counting pauses">0:00</span><button class="btn small" id="benchPause" title="Hold at the next break between measurements">Pause</button><button class="btn small" id="benchStop" title="End at the next break and show what was measured (Esc)">Stop</button></div>
       <div class="palette-bar" id="paletteBar">
         <div class="hs" id="paletteHS"><div class="palette" id="palette" aria-label="Particle palette"></div></div>
         <div class="palette-pins">
@@ -622,6 +624,7 @@
       <p class="note" id="setThreads" aria-live="polite"></p>
       <div class="srow"><span>Speed test</span><button class="btn small" id="setBench">Run benchmark</button></div>
       <p class="note" id="setBenchOut" aria-live="polite"></p>
+      <div class="bench-copy"><button class="btn small" id="setBenchCopy" hidden>Copy results</button><span class="note" id="setBenchNote" aria-live="polite"></span></div>
       <p class="note" id="setStats" aria-live="polite"></p>
     </section>
     <section class="sgroup spane" data-stab="gfx" hidden>
@@ -851,6 +854,14 @@
     <div class="crashbtns" id="crashBtns"></div>
     <details id="crashDet"><summary>Report (to send with a bug report)</summary><textarea id="crashReport" readonly spellcheck="false"></textarea></details>
     <p class="note" id="crashNote"></p>
+  </div>
+</div>
+
+<div class="modal" id="benchModal" hidden>
+  <div class="dialog benchd" role="dialog" aria-modal="true" aria-labelledby="benchTitle">
+    <header><h2 id="benchTitle">Benchmark results</h2><span class="note" id="benchTook"></span></header>
+    <textarea id="benchText" readonly spellcheck="false" aria-label="Benchmark results"></textarea>
+    <div class="benchbtns"><span class="note" id="benchNote" aria-live="polite"></span><button class="btn" id="benchCopy">Copy results</button><button class="btn" id="benchClose">Close</button></div>
   </div>
 </div>
 

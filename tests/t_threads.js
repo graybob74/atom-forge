@@ -146,8 +146,39 @@ const BUILD = `(() => { baseWorld(560, 360, 300, 0.05); const nx = 80, ny = 50, 
   await page.waitForFunction(() => { forcesNoEvents(); return TH.state === 'on' && TH.used === 2; }, null, { timeout: 15000 }).catch(() => {}); // (the workers started again at 6 Å: bound before the benchmark)
   // the Settings benchmark runs through its three worlds and reports
   await page.evaluate(() => { openSettings(); benchStart(); });
+  // 1.39.1: the benchmark's own mode. While it runs: Settings closed, the toolbar and panels gone, the bar with its
+  // clock, Pause and Stop over the chamber; a key or the wheel over the chamber does nothing.
+  const mode = await page.evaluate(() => { const vis = (id) => { const e = document.getElementById(id); return !!e && !e.hidden && e.getClientRects().length > 0; };
+    const s0 = R.s; document.getElementById('cv').dispatchEvent(new WheelEvent('wheel', { deltaY: -400, bubbles: true, cancelable: true, clientX: 300, clientY: 300 }));
+    const run0 = UI.running; window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true }));
+    return { cls: document.body.classList.contains('bench'), bar: vis('benchBar'), veil: vis('benchVeil'), set: vis('setModal'), topbar: document.querySelector('.topbar').getClientRects().length, panel: document.querySelector('.panel').getClientRects().length, menu: UI.menu && vis('mainMenu'), clock: document.getElementById('benchClock').textContent, pause: document.getElementById('benchPause').textContent, stop: document.getElementById('benchStop').textContent, zoomed: R.s !== s0, ran: UI.running !== run0 }; });
   await page.waitForFunction(() => !BENCH.busy, null, { timeout: 400000 }).catch(() => {}); // (seven worlds since 1.39.1)
-  const bench = await page.evaluate(() => ({ busy: BENCH.busy, rows: BENCH.rows, text: document.getElementById('setBenchOut').textContent, preset: UI.preset, note: document.getElementById('setThreads').textContent }));
+  const bench = await page.evaluate(() => ({ busy: BENCH.busy, rows: BENCH.rows.slice(), text: document.getElementById('setBenchOut').textContent, preset: UI.preset, note: document.getElementById('setThreads').textContent }));
+  { const end = await page.evaluate(async () => { const vis = (id) => { const e = document.getElementById(id); return !!e && !e.hidden && e.getClientRects().length > 0; };
+      const o = { cls: document.body.classList.contains('bench'), bar: vis('benchBar'), menu: UI.menu ? vis('mainMenu') : true, modal: vis('benchModal'), title: document.getElementById('benchTitle').textContent, took: document.getElementById('benchTook').textContent, text: document.getElementById('benchText').value, rows: BENCH.rows.length, setCopy: !document.getElementById('setBenchCopy').hidden };
+      let copied = null; const real = navigator.clipboard && navigator.clipboard.writeText; try { Object.defineProperty(navigator, 'clipboard', { value: { writeText: (t) => { copied = t; return Promise.resolve(); } }, configurable: true }); } catch (e) { /* (left as it is) */ }
+      document.getElementById('benchCopy').click(); await new Promise((r) => setTimeout(r, 50));
+      o.note = document.getElementById('benchNote').textContent; o.copied = copied === null ? null : copied === o.text;
+      document.getElementById('benchClose').click(); o.closed = !vis('benchModal');
+      return o; });
+    say('benchmark mode:', JSON.stringify(mode), '| end:', JSON.stringify({ ...end, text: end.text.length + ' chars' }));
+    check(mode.cls && mode.bar && mode.veil && !mode.set && !mode.topbar && !mode.panel && !mode.menu && /^\d+:\d\d$/.test(mode.clock) && mode.pause === 'Pause' && mode.stop === 'Stop' && !mode.zoomed && !mode.ran
+      && !end.cls && !end.bar && end.menu && end.modal && end.title === 'Benchmark results' && /^took \d+ min \d+ s$/.test(end.took) && end.rows === 8 && end.text.split('\n\n').length === 9 && /^Settings: up to/.test(end.text) && end.setCopy
+      && end.note === 'Copied.' && end.copied !== false && end.closed,
+      '1.39.1: the benchmark runs in its own mode (Settings and the panels away, a bar with a clock, Pause and Stop; the chamber takes no keys or wheel), then the lab comes back and the results open in a window whose Copy button copies them, a world to a paragraph', { mode, end: { ...end, text: end.text.slice(0, 200) } }); }
+  // Pause holds the benchmark at its next break and the clock with it; Resume goes on; Stop ends it at the next break
+  // with what was measured, and the setup that was open comes back
+  { const pre = await page.evaluate(() => { if (UI.menu) { window.AF_NO_MENU = true; hideMainMenu(); } const p = UI.preset, top0 = document.querySelector('.topbar').getClientRects().length; benchStart(); const top1 = document.querySelector('.topbar').getClientRects().length; document.getElementById('benchPause').click(); return { preset: p, label: document.getElementById('benchPause').textContent, top0, top1 }; });
+    await page.waitForFunction(() => BENCH.paused, null, { timeout: 20000 }).catch(() => {});
+    const held = await page.evaluate(async () => { const c0 = document.getElementById('benchClock').textContent, t0 = benchTime(); await new Promise((r) => setTimeout(r, 1300));
+      const o = { paused: BENCH.paused, label: document.getElementById('benchPause').textContent, what: document.getElementById('benchWhat').textContent, same: document.getElementById('benchClock').textContent === c0 && benchTime() === t0, rows: BENCH.rows.length };
+      document.getElementById('benchPause').click(); o.after = document.getElementById('benchPause').textContent; await new Promise((r) => setTimeout(r, 300)); /* (the first world is being measured by now) */ window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); o.stop = document.getElementById('benchStop').textContent; return o; });
+    await page.waitForFunction(() => !BENCH.busy, null, { timeout: 120000 }).catch(() => {});
+    const fin = await page.evaluate(() => { const o = { top: document.querySelector('.topbar').getClientRects().length, busy: BENCH.busy, rows: BENCH.rows.length, stopped: BENCH.stopped, title: document.getElementById('benchTitle').textContent, text: document.getElementById('benchText').value, out: document.getElementById('setBenchOut').textContent, preset: UI.preset, cls: document.body.classList.contains('bench') }; document.getElementById('benchClose').click(); return o; });
+    say('pause and stop:', JSON.stringify(pre), JSON.stringify(held), JSON.stringify({ ...fin, text: fin.text.slice(-60), out: fin.out.slice(-60) }));
+    check(pre.label === 'Pausing…' && pre.top0 > 0 && pre.top1 === 0 && fin.top > 0 && held.paused && held.label === 'Resume' && held.what === 'paused' && held.same && held.rows === 0 && held.after === 'Pause' && held.stop === 'Stopping…'
+      && !fin.busy && fin.stopped && fin.rows >= 1 && fin.rows < 8 && fin.title === 'Benchmark stopped' && /\(stopped after 1 of 7 worlds\)$/.test(fin.text) && /stopped after 1 of 7 worlds$/.test(fin.out) && fin.preset === pre.preset && !fin.cls,
+      '1.39.1: Pause holds the benchmark and its clock at the next break, Resume goes on, and Stop (or Esc) ends it there with the worlds measured so far and the setup that was open back', { pre, held, fin: { ...fin, text: fin.text.slice(-80), out: fin.out.slice(-80) } }); }
   say('benchmark:', bench.rows.join('\n           '));
   say('threads note:', bench.note);
   check(!bench.busy && bench.rows.length === 8 && /threads/.test(bench.rows[0]) && /20,000-atom goal/.test(bench.rows[1]) && /room for \d+ fps/.test(bench.rows[2]), 'the in-app benchmark ran its seven worlds and judged the 20,000-atom goal', bench);
