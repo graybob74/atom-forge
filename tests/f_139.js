@@ -560,7 +560,7 @@ PARTS.cards = async (page, check) => { // (1.39.2: "some of these panels on cert
       W.exo.length = 0; const o = fireSpec({ kind: 'exo', sp }, 0, 0, 1, 0, 1e6, false); o.wait = true; R.sel = null; R.selX = { kind: 'exo', o, t0: W.rt }; renderInspect(); await new Promise(res => setTimeout(res, 40));
       const box = $('tp-inspect'), dds = [...box.querySelectorAll('.kv dd')];
       out[sp] = { tall: dds.filter(d => d.getBoundingClientRect().height > 40 && !d.classList.contains('w')).map(d => d.textContent.slice(0, 30)),
-        odd: /∞|— km|electron masses\)|drawn from its width/.test(box.textContent), items: box.querySelectorAll('.kvl li').length, note: (box.textContent.match(/A charmonium[^.]*/) || [''])[0] };
+        odd: /∞|— km|electron masses\)|drawn from its width|Put it back/.test(box.textContent), items: box.querySelectorAll('.kvl li').length, note: (box.textContent.match(/A charmonium[^.]*/) || [''])[0] };
     }
     return out; });
   const tall = Object.entries(r).filter(([, v]) => v.tall.length).map(([k, v]) => k + ': ' + v.tall.join('|')), odd = Object.entries(r).filter(([, v]) => v.odd).map(([k]) => k);

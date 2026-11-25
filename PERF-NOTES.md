@@ -2089,6 +2089,10 @@ for each element chosen while it stays open); the window keeps its height (807 p
 **Isotope builder: ‹ Periodic table** (the owner: "add a back button in the isotope builder so you don't have to close it
 every time"). Back to the table, showing what was built (its element, isotope and charge). Test: f_139.js ptable.
 
+**"Put it back" removed** from the Inside close-up (the owner: "remove the put it back button from the inspect panel"). A
+pulled quark already changes the particle, and the picture follows what is left; it starts afresh with the next
+particle chosen. Test: f_139.js cards (no "Put it back").
+
 ## 1.39.1 (released 2026-11-24): the benchmark's per-thread line (the owner, 2026-11-22, "build it")
 After the GPU was shelved the owner ran the Settings benchmark on his PC (1.39.0 desktop, 16 threads, WebAssembly
 kernel). 20,000 waters: **0.56 ms a step**, the goal met by the benchmark's sum (37.5 steps × 0.56 + 0.9 ms drawing =
