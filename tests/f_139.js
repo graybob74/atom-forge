@@ -742,6 +742,26 @@ PARTS.det = async (page, check) => { // (1.39.3 item 115: the particle detector 
     `1.39.3 the particle detector: a photon and an electron stop in the ECAL, a pion and a proton in the HCAL, a muon reaches the chambers, an axion passes (${lay}, ${ob.det.trk} tracks); back-to-back muons leave nothing missing, one alone its whole momentum (${(ev3.miss / 1e9).toFixed(1)} GeV/c); atoms and slow electrons do not feel it`,
     `1.39.3 det: ${lay} vs ${want}, trk ${ob.det.trk}, bal ${JSON.stringify(ev2)}, one ${JSON.stringify(ev3)}, calm ${pe} ${ex0} ${e.vx}; ${X.objText(ob)}`);
 };
+PARTS.imass = async (page, check) => { // (1.39.3 item 116: the invariant mass of lepton and photon pairs, a log scale)
+  const clear = (X) => { const W = X.W; for (const p of W.parts) X.kill(p); W.parts = []; W.exo = []; W.rays = []; X.forcesNoEvents(); };
+  const inBin = (X, key, m) => { const H = X.PAIRS.h[key]; let b = 0; for (let i = 0; i < 200; i++) if (H[i] > H[b]) b = i; return X.pairBinLo(key, b) <= m && m < X.pairBinLo(key, b + 1); };
+  const r = {}; let ok = true;
+  for (const [d3, n] of [[false, 600], [true, 300]]) {
+    const X = load('all', { seed: 9 }), W = X.W; X.PRESETS[d3 ? 'd3empty' : 'empty'].build(); W.gamma = 0; W.decayOn = false; W.wall = 'open';
+    for (let k = 0; k < n; k++) { // (e⁺e⁻ at the Z peak: its lepton pairs at 91 GeV)
+      clear(X); const e = X.addLepton(X.ELEC, -0.01, 0), p = X.addLepton(X.POS, 0.01, 0), K = 91.19 / 2 * 1e9 - 0.51099895e6;
+      if (d3) { X.setMotion(e, K, 0.6, 0, 0, 0, 0.8); X.setMotion(p, K, -0.6, 0, 0, 0, -0.8); } else { X.setMotion(e, K, 1, 0); X.setMotion(p, K, -1, 0); }
+      X.forcesNoEvents(); X.eeEvent(e, p, 0, 0); for (let i = 0; i < 4; i++) X.moveExos(1e-6);
+    }
+    const nZ = X.PAIRS.h.ee.reduce((a, c) => a + c, 0) + X.PAIRS.h.mm.reduce((a, c) => a + c, 0), zOk = nZ >= 10 && inBin(X, 'ee', 91188) && inBin(X, 'mm', 91188);
+    for (const k of Object.keys(X.PAIRS.h)) { X.PAIRS.h[k].fill(0); X.PAIRS.ls[k].fill(0); } X.PAIRS.ev.clear();
+    for (let k = 0; k < 500; k++) { clear(X); const o = d3 ? X.addExo('Jpsi', 0, 0, 1e6, 1, 0, undefined, 0, 0) : X.addExo('Jpsi', 0, 0, 1e6, 1, 0); o.ev = o.root = 1e7 + k; if (d3) X.decayExo3(o); else X.decayExo(o); for (let i = 0; i < 3; i++) X.moveExos(1e-6); }
+    for (let k = 0; k < 200; k++) { clear(X); const o = d3 ? X.addExo('pi0', 0, 0, 2e8, 1, 0, undefined, 0, 0) : X.addExo('pi0', 0, 0, 2e8, 1, 0); o.ev = o.root = 2e7 + k; if (d3) X.decayExo3(o); else X.decayExo(o); }
+    const jOk = inBin(X, 'ee', 3097) && inBin(X, 'mm', 3097), gOk = inBin(X, 'gg', 135);
+    r[d3 ? '3D' : 'flat'] = { nZ, zOk, jOk, gOk }; if (!(zOk && jOk && gOk)) ok = false;
+  }
+  check(ok, `1.39.3 pair masses of leptons and photons: the Z's e⁺e⁻ and μ⁺μ⁻ at 91 GeV (${r.flat.nZ} pairs), the J/ψ's at 3.1 GeV, the π⁰'s γγ at 135 MeV, flat and 3-D`, `1.39.3 imass: ${JSON.stringify(r)}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

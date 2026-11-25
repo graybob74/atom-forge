@@ -2088,6 +2088,15 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   arrow; its caption "ECAL · HCAL · μ · missing". Atoms and slow electrons do not feel it (it is left out of the atoms'
   soft walls, `objPE`, and `objLepton`). Flat game only, as every placed object. Check: f_139 `det` (each kind where it
   stops; back-to-back 40 GeV muons: missing < 10⁻⁹ of their momentum; one alone: 40.1 GeV/c missing, opposite it).
+- **116, invariant masses of lepton and photon pairs** (Data → Pair masses: e⁺e⁻, μ⁺μ⁻, γγ beside π⁺π⁻, K π,
+  K⁺K⁻). `pairAdd` (hep.js) pairs every product of one collision (decay products with the collision that made their
+  parent, as before) by kind; electrons, positrons and photons are noted where `spawnItems` makes them (flat and 3-D),
+  muons with the other unstable particles. Lepton and photon pairs go on a log scale, 10 MeV to 10 TeV in 200 bins
+  (33 a decade, 7% wide), drawn from a decade below the lowest pair to one above the highest, marked at ρ/ω, φ, J/ψ, Υ,
+  Z, Z′ (leptons) and π⁰, η, H (photons); like-sign pairs subtracted as for the hadrons (none for γγ). Until a kind is
+  chosen the chart shows the first kind that has pairs. Found on the way: in 3-D the pion and kaon pairs' masses left
+  out the z part of the momenta; now included. Measured: 1,200 e⁺e⁻ collisions at the Z peak, 41 e⁺e⁻ and 42 μ⁺μ⁻
+  pairs, all in the 85–91 GeV bin. Check: f_139 `imass` (Z, J/ψ and π⁰ peaks in their bins, flat and 3-D).
 - f_ew's antihydrogen fingerprint updated: 1.39.2's fix (antimatter ions sized as their mirrors) changes that setup's
   run (its ions' contact radius, `ljR`); found here, not caught then because f_ew was not in that release's list.
 - Info pages for each (Ω baryon, Pionium, True muonium, Antiprotonic helium, Diquark for the remnant); the Hypothetical
@@ -4949,7 +4958,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    electromagnetic calorimeter (electrons and photons stop and shower), a hadron calorimeter (hadrons), muon chambers
    (only muons reach them), neutrinos as missing momentum; each layer lights what it measures. Built in 1.39.3.
 116. **An invariant-mass plot of what is made**: in Made here (or Data), the combined mass of chosen pairs (e⁺e⁻, μ⁺μ⁻,
-   γγ, …) as a histogram over a run, so a bump grows at the J/ψ, the Z, the Higgs or a Z′.
+   γγ, …) as a histogram over a run, so a bump grows at the J/ψ, the Z, the Higgs or a Z′. Built in 1.39.3.
 117. **Feynman diagrams of events**: for a decay, an annihilation, a scattering, the diagram of what happened, drawn from
    the event the game records (its particles in and out and the force).
 118. **More exotic atoms**: pionium (π⁺π⁻, DIRAC at CERN), true muonium (μ⁺μ⁻, not yet seen: labelled), and the

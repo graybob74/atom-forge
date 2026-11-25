@@ -859,17 +859,28 @@ function resonate(items, M) {
    resonances show as bumps over the background of pairs that are not from one (ρ at 775 MeV, K* at 892, φ at 1019),
    as they were first found. */
 let _evTag = 0, _evRoot = 0; // (_evRoot: the collision a cascade began with, 1.34.1)
-const PAIRS = { ev: new Map(), h: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200) }, ls: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200) }, n: 0, BIN: 10 }; // (ls: like-sign pairs, π⁺π⁺ and π⁻π⁻: no resonance makes them, so they trace the background, which subtracting them takes away)
+const PAIRS = { ev: new Map(), h: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200), ee: new Float64Array(200), mm: new Float64Array(200), gg: new Float64Array(200) }, ls: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200), ee: new Float64Array(200), mm: new Float64Array(200), gg: new Float64Array(200) }, n: 0, BIN: 10, LOG: new Set(['ee', 'mm', 'gg']), LO: 1, DEC: 200 / 6 }; // (ls: like-sign pairs, π⁺π⁺ and π⁻π⁻ …, the background to subtract; ee, mm, gg (1.39.3 item 116): e⁺e⁻, μ⁺μ⁻ and γγ on a log scale, 10 MeV to 10 TeV, 33 bins a decade)
+/* (1.39.3 item 116) The bin of a mass m (MeV) in a key's histogram, or -1. */
+function pairBin(key, m) { if (!PAIRS.LOG.has(key)) { const b = Math.floor(m / PAIRS.BIN); return b < 200 ? b : -1; } if (!(m > 0)) return -1; const b = Math.floor((Math.log10(m) - PAIRS.LO) * PAIRS.DEC); return b >= 0 && b < 200 ? b : -1; }
+function pairBinLo(key, b) { return PAIRS.LOG.has(key) ? Math.pow(10, PAIRS.LO + b / PAIRS.DEC) : b * PAIRS.BIN; }
+const PAIR_KIND = { 'pi+': ['h', 1], 'pi-': ['h', -1], 'K+': ['h', 1], 'K-': ['h', -1], 'e+': ['e', 1], 'e-': ['e', -1], 'mu+': ['m', 1], 'mu-': ['m', -1], g: ['g', 0] };
 function pairNote(o) {
-  if (!o.ev || !(o.sp === 'pi+' || o.sp === 'pi-' || o.sp === 'K+' || o.sp === 'K-')) return;
-  const K = o.KE / MEV, p = Math.sqrt(K * (K + 2 * o.m)), v = [o.m + K, p * o.ux, p * o.uy, o.sp];
-  let L = PAIRS.ev.get(o.ev); if (!L) { L = []; PAIRS.ev.set(o.ev, L); if (PAIRS.ev.size > 400) PAIRS.ev.delete(PAIRS.ev.keys().next().value); }
-  const q = (s) => (s.endsWith('+') ? 1 : -1), kind = (s) => s[0];
+  if (!o.ev || !(o.sp in PAIR_KIND) || o.sp === 'g') return;
+  const K = o.KE / MEV, p = Math.sqrt(K * (K + 2 * o.m));
+  pairAdd(o.ev, o.sp, [o.m + K, p * o.ux, p * o.uy, W.d3 ? p * (o.uz || 0) : 0]); // (in 3-D with its z part: 1.39.3; it was left out)
+}
+/* One product (sp, its four-momentum P in MeV) of event ev: paired with the others of its kind from that event. */
+function pairAdd(ev, sp, P) {
+  const kd = PAIR_KIND[sp]; if (!ev || !kd) return;
+  const v = [P[0], P[1], P[2], P[3] || 0, sp];
+  let L = PAIRS.ev.get(ev); if (!L) { L = []; PAIRS.ev.set(ev, L); if (PAIRS.ev.size > 400) PAIRS.ev.delete(PAIRS.ev.keys().next().value); }
+  if (L.length > 300) return; // (a big nuclear collision's thousands: the first 300 of each event)
   for (const w of L) {
-    const like = q(w[3]) === q(v[3]);
-    const key = kind(w[3]) === 'p' && kind(v[3]) === 'p' ? 'pipi' : kind(w[3]) === 'K' && kind(v[3]) === 'K' ? 'KK' : 'Kpi';
-    const E = w[0] + v[0], px = w[1] + v[1], py = w[2] + v[2], m = Math.sqrt(Math.max(0, E * E - px * px - py * py)), b = Math.floor(m / PAIRS.BIN);
-    if (b < 200) { if (like) PAIRS.ls[key][b]++; else { PAIRS.h[key][b]++; PAIRS.n++; } }
+    const kw = PAIR_KIND[w[4]]; if (kw[0] !== kd[0] && !(kw[0] === 'h' && kd[0] === 'h')) continue;
+    const like = kd[1] !== 0 && kw[1] === kd[1];
+    const key = kd[0] === 'e' ? 'ee' : kd[0] === 'm' ? 'mm' : kd[0] === 'g' ? 'gg' : w[4][0] === 'p' && sp[0] === 'p' ? 'pipi' : w[4][0] === 'K' && sp[0] === 'K' ? 'KK' : 'Kpi';
+    const E = w[0] + v[0], px = w[1] + v[1], py = w[2] + v[2], pz = w[3] + v[3], m = Math.sqrt(Math.max(0, E * E - px * px - py * py - pz * pz)), b = pairBin(key, m);
+    if (b >= 0) { if (like) PAIRS.ls[key][b]++; else { PAIRS.h[key][b]++; PAIRS.n++; } }
   }
   L.push(v);
 }
@@ -2495,11 +2506,12 @@ function spawnItems(items, moms, x, y, z = 0) {
     let ux, uy;
     if (pm > 1e-12) { ux = P[1] / pm; uy = P[2] / pm; } else [ux, uy] = rdir();
     const K = Math.max(0, P[0] - m) * MEV, ox = x + ux * 0.08, oy = y + uy * 0.08;
-    if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy]); continue; }
+    if (it.t === 'g' || it.t === 'v') { if (it.t === 'g') pairAdd(_evTag, 'g', P); made.rays.push([it, P[0] * MEV, ux, uy]); continue; }
     if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; } // (no room: carried off, as if it had left, and its charge with it, 1.27 bug 15)
     if (it.Z > Z_MAX) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; } // (a last guard: nothing past the last element is made)
     if (it.t === 'x' && it.sp === 'Mu') { const q = addMuonium(ox, oy, K, ux, uy); made.ps.push(q); continue; } // (1.12: muonium is an atom, in MD)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m); if (it.ewAx) o.ewAx = it.ewAx; made.xs.push(o); pairNote(o); continue; } // (ewAx: a W's spin axis, a Z's beam axis, for its decay's angles, 1.27)
+    if (it.t === 'e') pairAdd(_evTag, it.q < 0 ? 'e-' : 'e+', P); // (1.39.3 item 116)
     const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti); // (ne: electrons it keeps, keepElectrons)
     setMotion(q, K, ux, uy);
     if (!q.trk && K > 2000) startTrack(q);
@@ -2716,12 +2728,13 @@ function spawnItems3(items, moms, x, y, z) {
     let ux, uy, uz;
     if (pm > 1e-12) { ux = P[1] / pm; uy = P[2] / pm; uz = P[3] / pm; } else { const u = rndDir(); ux = u[0]; uy = u[1]; uz = u[2]; }
     const K = Math.max(0, P[0] - m) * MEV, ox = x + ux * 0.08, oy = y + uy * 0.08, oz = z + uz * 0.08;
-    if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy, uz]); continue; }
+    if (it.t === 'g' || it.t === 'v') { if (it.t === 'g') pairAdd(_evTag, 'g', P); made.rays.push([it, P[0] * MEV, ux, uy, uz]); continue; }
     if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; } // (and its charge, 1.27 bug 15)
     if (it.Z > Z_MAX) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; }
     // (antinucleons and antinuclei: made here in depth since 1.29 item 57, antimatter now being in 3-D; they left the books as escaped energy before)
     if (it.t === 'x' && it.sp === 'Mu') { const q = addMuonium(ox, oy, K, ux, uy, 1, oz, uz); made.ps.push(q); continue; } // (muonium: an atom in MD, in depth, 1.25)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m, oz, uz); if (it.ewAx) o.ewAx = it.ewAx; made.xs.push(o); pairNote(o); continue; }
+    if (it.t === 'e') pairAdd(_evTag, it.q < 0 ? 'e-' : 'e+', P); // (1.39.3 item 116)
     const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy, 0, 0, oz) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti, oz);
     setMotion(q, K, ux, uy, 0, 0, uz);
     if (!q.trk && K > 2000) startTrack(q);

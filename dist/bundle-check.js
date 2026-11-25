@@ -27789,17 +27789,28 @@ function resonate(items, M) {
    resonances show as bumps over the background of pairs that are not from one (ρ at 775 MeV, K* at 892, φ at 1019),
    as they were first found. */
 let _evTag = 0, _evRoot = 0; // (_evRoot: the collision a cascade began with, 1.34.1)
-const PAIRS = { ev: new Map(), h: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200) }, ls: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200) }, n: 0, BIN: 10 }; // (ls: like-sign pairs, π⁺π⁺ and π⁻π⁻: no resonance makes them, so they trace the background, which subtracting them takes away)
+const PAIRS = { ev: new Map(), h: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200), ee: new Float64Array(200), mm: new Float64Array(200), gg: new Float64Array(200) }, ls: { pipi: new Float64Array(200), KK: new Float64Array(200), Kpi: new Float64Array(200), ee: new Float64Array(200), mm: new Float64Array(200), gg: new Float64Array(200) }, n: 0, BIN: 10, LOG: new Set(['ee', 'mm', 'gg']), LO: 1, DEC: 200 / 6 }; // (ls: like-sign pairs, π⁺π⁺ and π⁻π⁻ …, the background to subtract; ee, mm, gg (1.39.3 item 116): e⁺e⁻, μ⁺μ⁻ and γγ on a log scale, 10 MeV to 10 TeV, 33 bins a decade)
+/* (1.39.3 item 116) The bin of a mass m (MeV) in a key's histogram, or -1. */
+function pairBin(key, m) { if (!PAIRS.LOG.has(key)) { const b = Math.floor(m / PAIRS.BIN); return b < 200 ? b : -1; } if (!(m > 0)) return -1; const b = Math.floor((Math.log10(m) - PAIRS.LO) * PAIRS.DEC); return b >= 0 && b < 200 ? b : -1; }
+function pairBinLo(key, b) { return PAIRS.LOG.has(key) ? Math.pow(10, PAIRS.LO + b / PAIRS.DEC) : b * PAIRS.BIN; }
+const PAIR_KIND = { 'pi+': ['h', 1], 'pi-': ['h', -1], 'K+': ['h', 1], 'K-': ['h', -1], 'e+': ['e', 1], 'e-': ['e', -1], 'mu+': ['m', 1], 'mu-': ['m', -1], g: ['g', 0] };
 function pairNote(o) {
-  if (!o.ev || !(o.sp === 'pi+' || o.sp === 'pi-' || o.sp === 'K+' || o.sp === 'K-')) return;
-  const K = o.KE / MEV, p = Math.sqrt(K * (K + 2 * o.m)), v = [o.m + K, p * o.ux, p * o.uy, o.sp];
-  let L = PAIRS.ev.get(o.ev); if (!L) { L = []; PAIRS.ev.set(o.ev, L); if (PAIRS.ev.size > 400) PAIRS.ev.delete(PAIRS.ev.keys().next().value); }
-  const q = (s) => (s.endsWith('+') ? 1 : -1), kind = (s) => s[0];
+  if (!o.ev || !(o.sp in PAIR_KIND) || o.sp === 'g') return;
+  const K = o.KE / MEV, p = Math.sqrt(K * (K + 2 * o.m));
+  pairAdd(o.ev, o.sp, [o.m + K, p * o.ux, p * o.uy, W.d3 ? p * (o.uz || 0) : 0]); // (in 3-D with its z part: 1.39.3; it was left out)
+}
+/* One product (sp, its four-momentum P in MeV) of event ev: paired with the others of its kind from that event. */
+function pairAdd(ev, sp, P) {
+  const kd = PAIR_KIND[sp]; if (!ev || !kd) return;
+  const v = [P[0], P[1], P[2], P[3] || 0, sp];
+  let L = PAIRS.ev.get(ev); if (!L) { L = []; PAIRS.ev.set(ev, L); if (PAIRS.ev.size > 400) PAIRS.ev.delete(PAIRS.ev.keys().next().value); }
+  if (L.length > 300) return; // (a big nuclear collision's thousands: the first 300 of each event)
   for (const w of L) {
-    const like = q(w[3]) === q(v[3]);
-    const key = kind(w[3]) === 'p' && kind(v[3]) === 'p' ? 'pipi' : kind(w[3]) === 'K' && kind(v[3]) === 'K' ? 'KK' : 'Kpi';
-    const E = w[0] + v[0], px = w[1] + v[1], py = w[2] + v[2], m = Math.sqrt(Math.max(0, E * E - px * px - py * py)), b = Math.floor(m / PAIRS.BIN);
-    if (b < 200) { if (like) PAIRS.ls[key][b]++; else { PAIRS.h[key][b]++; PAIRS.n++; } }
+    const kw = PAIR_KIND[w[4]]; if (kw[0] !== kd[0] && !(kw[0] === 'h' && kd[0] === 'h')) continue;
+    const like = kd[1] !== 0 && kw[1] === kd[1];
+    const key = kd[0] === 'e' ? 'ee' : kd[0] === 'm' ? 'mm' : kd[0] === 'g' ? 'gg' : w[4][0] === 'p' && sp[0] === 'p' ? 'pipi' : w[4][0] === 'K' && sp[0] === 'K' ? 'KK' : 'Kpi';
+    const E = w[0] + v[0], px = w[1] + v[1], py = w[2] + v[2], pz = w[3] + v[3], m = Math.sqrt(Math.max(0, E * E - px * px - py * py - pz * pz)), b = pairBin(key, m);
+    if (b >= 0) { if (like) PAIRS.ls[key][b]++; else { PAIRS.h[key][b]++; PAIRS.n++; } }
   }
   L.push(v);
 }
@@ -29425,11 +29436,12 @@ function spawnItems(items, moms, x, y, z = 0) {
     let ux, uy;
     if (pm > 1e-12) { ux = P[1] / pm; uy = P[2] / pm; } else [ux, uy] = rdir();
     const K = Math.max(0, P[0] - m) * MEV, ox = x + ux * 0.08, oy = y + uy * 0.08;
-    if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy]); continue; }
+    if (it.t === 'g' || it.t === 'v') { if (it.t === 'g') pairAdd(_evTag, 'g', P); made.rays.push([it, P[0] * MEV, ux, uy]); continue; }
     if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; } // (no room: carried off, as if it had left, and its charge with it, 1.27 bug 15)
     if (it.Z > Z_MAX) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; } // (a last guard: nothing past the last element is made)
     if (it.t === 'x' && it.sp === 'Mu') { const q = addMuonium(ox, oy, K, ux, uy); made.ps.push(q); continue; } // (1.12: muonium is an atom, in MD)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m); if (it.ewAx) o.ewAx = it.ewAx; made.xs.push(o); pairNote(o); continue; } // (ewAx: a W's spin axis, a Z's beam axis, for its decay's angles, 1.27)
+    if (it.t === 'e') pairAdd(_evTag, it.q < 0 ? 'e-' : 'e+', P); // (1.39.3 item 116)
     const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti); // (ne: electrons it keeps, keepElectrons)
     setMotion(q, K, ux, uy);
     if (!q.trk && K > 2000) startTrack(q);
@@ -29646,12 +29658,13 @@ function spawnItems3(items, moms, x, y, z) {
     let ux, uy, uz;
     if (pm > 1e-12) { ux = P[1] / pm; uy = P[2] / pm; uz = P[3] / pm; } else { const u = rndDir(); ux = u[0]; uy = u[1]; uz = u[2]; }
     const K = Math.max(0, P[0] - m) * MEV, ox = x + ux * 0.08, oy = y + uy * 0.08, oz = z + uz * 0.08;
-    if (it.t === 'g' || it.t === 'v') { made.rays.push([it, P[0] * MEV, ux, uy, uz]); continue; }
+    if (it.t === 'g' || it.t === 'v') { if (it.t === 'g') pairAdd(_evTag, 'g', P); made.rays.push([it, P[0] * MEV, ux, uy, uz]); continue; }
     if (it.t === 'x' ? W.exo.length >= MAX_EXO : W.parts.length >= MAX_PARTS) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; } // (and its charge, 1.27 bug 15)
     if (it.Z > Z_MAX) { made.lost += P[0] * MEV; chargeTo(itemQ(it), 'qOut'); continue; }
     // (antinucleons and antinuclei: made here in depth since 1.29 item 57, antimatter now being in 3-D; they left the books as escaped energy before)
     if (it.t === 'x' && it.sp === 'Mu') { const q = addMuonium(ox, oy, K, ux, uy, 1, oz, uz); made.ps.push(q); continue; } // (muonium: an atom in MD, in depth, 1.25)
     if (it.t === 'x') { const o = addExo(it.sp, ox, oy, K, ux, uy, it.m, oz, uz); if (it.ewAx) o.ewAx = it.ewAx; made.xs.push(o); pairNote(o); continue; }
+    if (it.t === 'e') pairAdd(_evTag, it.q < 0 ? 'e-' : 'e+', P); // (1.39.3 item 116)
     const q = it.t === 'e' ? addLepton(it.q < 0 ? ELEC : POS, ox, oy, 0, 0, oz) : addNuc(it.Z, it.N, it.ne || 0, ox, oy, 0, 0, it.anti, oz);
     setMotion(q, K, ux, uy, 0, 0, uz);
     if (!q.trk && K > 2000) startTrack(q);
@@ -45342,7 +45355,7 @@ function grCsv() {
 }
 function grInit() {
   $('gSel').onclick = (e) => { const b = e.target.closest('[data-g]'); if (!b) return; const id = b.dataset.g, sel = grSel(), i = sel.indexOf(id); if (i >= 0) sel.splice(i, 1); else sel.push(id); store('graphSel', JSON.stringify(sel.slice(-6))); drawGraph(); };
-  bindSeg('segPair', (v) => { UI.pairKey = v; drawPairs(); });
+  bindSeg('segPair', (v) => { UI.pairKey = v; UI.pairKeySet = true; drawPairs(); });
   bindSeg('segDet', (v) => { UI.detMode = v; drawDet(); });
   $('detPick').onclick = (e) => { const b = e.target.closest('[data-v]'); if (b) { UI.detSel = +b.dataset.v; drawDet(); } };
   $('detClr').onclick = () => { const scr = W.objs.filter(o => o.kind === 'screen'), ob = scr[UI.detSel || 0]; if (ob) objClearHits(ob); drawDet(); };
@@ -45436,27 +45449,34 @@ function drawZScan() {
   $('dZsNote').textContent = `${Z.rec.length.toLocaleString('en-US')} collisions${Z.run ? `, scanning: beams at ${ZSCAN.pts[Z.i]} GeV each (${Z.i + 1} of ${ZSCAN.pts.length})` : ''}. Dots: σ(e⁺e⁻ → Z → hadrons) measured in each 1 GeV bin of the collisions' own √s, the share of collisions that made it times the total cross section there (LEP's events over its luminosity), with its statistical error; ${pk[1] ? `highest ${fmtNum(pk[1], 3)} nb at ${fmtNum(pk[0], 3)} GeV. ` : ''}Line: the model, ${RP.res ? 'with the beams\u2019 own radiation (Resonance widths and heavy flavour on): the peak 30.6 nb at 91.2 GeV, measured at LEP 30.5' : 'Born: the peak 41.5 nb at 91.19 GeV (with the beams\u2019 own radiation, which Resonance widths and heavy flavour turns on, 30.6; measured at LEP 30.5)'}. The Z's width, 2.50 GeV, is what three kinds of light neutrino give.`;
 }
 /* Pair masses (hep.js PAIRS): the histogram, with the known resonances marked. */
-const PAIR_MARK = { pipi: [['ρ', 775], ['K⁰s', 498]], Kpi: [['K*', 893]], KK: [['φ', 1019]] };
+const PAIR_MARK = { pipi: [['ρ', 775], ['K⁰s', 498]], Kpi: [['K*', 893]], KK: [['φ', 1019]], ee: [['ρ/ω', 775], ['J/ψ', 3097], ['Υ', 9460], ['Z', 91188], ['Z′', 6e6]], mm: [['φ', 1019], ['J/ψ', 3097], ['Υ', 9460], ['Z', 91188], ['Z′', 6e6]], gg: [['π⁰', 135], ['η', 548], ['H', 125200]] }; // (lepton and photon pairs: 1.39.3 item 116)
 function drawPairs() {
   const sec = $('dPairSec'); sec.hidden = !PAIRS.n; if (sec.hidden) return;
-  const key = UI.pairKey || 'pipi'; setSegValue('segPair', key);
-  const r = chartCtx(chartCv('chPair')); if (!r) return; const [ctx, w, h] = r, sub = UI.pairSub !== false, H = sub ? PAIRS.h[key].map((v, b) => v - PAIRS.ls[key][b]) : PAIRS.h[key]; $('pairSub').checked = sub;
-  let top = 0, tot = 0, hi = 0, bot = 0; for (let b = 0; b < 200; b++) { top = Math.max(top, H[b]); bot = Math.min(bot, H[b]); tot += PAIRS.h[key][b]; if (PAIRS.h[key][b]) hi = b; }
+  let key = UI.pairKey || 'pipi';
+  if (!UI.pairKeySet && !PAIRS.h[key].some(v => v > 0)) { const k2 = Object.keys(PAIRS.h).find(k => PAIRS.h[k].some(v => v > 0)); if (k2) key = k2; } // (until one is chosen: the first kind that has pairs, 1.39.3)
+  setSegValue('segPair', key);
+  const lg = PAIRS.LOG.has(key);
+  const r = chartCtx(chartCv('chPair')); if (!r) return; const [ctx, w, h] = r, sub = UI.pairSub !== false && key !== 'gg', H = sub ? PAIRS.h[key].map((v, b) => v - PAIRS.ls[key][b]) : PAIRS.h[key]; $('pairSub').checked = UI.pairSub !== false;
+  let top = 0, tot = 0, hi = 0, lo = 199, bot = 0; for (let b = 0; b < 200; b++) { top = Math.max(top, H[b]); bot = Math.min(bot, H[b]); tot += PAIRS.h[key][b]; if (PAIRS.h[key][b]) { hi = b; lo = Math.min(lo, b); } }
   $('pairNote').textContent = `${tot.toLocaleString('en-US')} pairs`;
   if (!top) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('None of these pairs yet', 10, 20); return; }
-  const mMax = Math.min(2000, Math.max(1200, (hi + 2) * PAIRS.BIN)), nb = mMax / PAIRS.BIN, bw = (w - 12) / nb, fx = (m) => 6 + m / mMax * (w - 12);
+  // (linear in MeV for the hadron pairs; for the lepton and photon pairs the log scale, from a decade below the lowest to one above the highest)
+  const b0 = lg ? Math.max(0, Math.floor((Math.floor(PAIRS.LO + lo / PAIRS.DEC) - PAIRS.LO) * PAIRS.DEC)) : 0, b1 = lg ? Math.min(200, Math.ceil((Math.ceil(PAIRS.LO + (hi + 1) / PAIRS.DEC) - PAIRS.LO) * PAIRS.DEC)) : Math.min(2000, Math.max(1200, (hi + 2) * PAIRS.BIN)) / PAIRS.BIN;
+  const nb = b1 - b0, bw = (w - 12) / nb, fx = lg ? (m) => 6 + ((Math.log10(m) - PAIRS.LO) * PAIRS.DEC - b0) / nb * (w - 12) : (m) => 6 + m / (b1 * PAIRS.BIN) * (w - 12);
   ctx.fillStyle = cssVar('--accent-soft'); ctx.strokeStyle = cssVar('--accent');
   const span = top - bot || 1, y0 = 12 + (h - 26) * top / span; // (subtracted: the zero line, with dips below it)
-  for (let b = 0; b < nb; b++) { const bh = H[b] / span * (h - 26); ctx.fillRect(6 + b * bw, bh >= 0 ? y0 - bh : y0, Math.max(1, bw - 0.5), Math.abs(bh)); }
+  for (let b = b0; b < b1; b++) { const bh = H[b] / span * (h - 26); ctx.fillRect(6 + (b - b0) * bw, bh >= 0 ? y0 - bh : y0, Math.max(1, bw - 0.5), Math.abs(bh)); }
   if (bot < 0) { ctx.strokeStyle = cssVar('--line'); ctx.beginPath(); ctx.moveTo(6, y0); ctx.lineTo(w - 6, y0); ctx.stroke(); }
   ctx.font = '10.5px ' + cssVar('--font-data'); ctx.fillStyle = cssVar('--muted'); ctx.textAlign = 'center';
-  for (let m = 0; m <= mMax; m += w < 420 ? 500 : 250) ctx.fillText(m === 0 ? '0' : (m / 1000).toFixed(m % 1000 ? (m % 500 ? 2 : 1) : 0) + ' GeV', clamp(fx(m), 10, w - 22), h - 2);
+  const mLab = (m) => (m >= 1e6 ? `${+(m / 1e6).toPrecision(3)} TeV` : m >= 1000 ? `${+(m / 1000).toPrecision(3)} GeV` : `${+m.toPrecision(3)} MeV`);
+  if (lg) { for (let d = Math.ceil(PAIRS.LO + b0 / PAIRS.DEC - 1e-9); d <= PAIRS.LO + b1 / PAIRS.DEC + 1e-9; d++) ctx.fillText(mLab(Math.pow(10, d)), clamp(fx(Math.pow(10, d)), 22, w - 26), h - 2); }
+  else for (let m = 0; m <= b1 * PAIRS.BIN; m += w < 420 ? 500 : 250) ctx.fillText(m === 0 ? '0' : (m / 1000).toFixed(m % 1000 ? (m % 500 ? 2 : 1) : 0) + ' GeV', clamp(fx(m), 10, w - 22), h - 2);
   ctx.setLineDash([3, 3]); ctx.strokeStyle = cssVar('--hot'); ctx.fillStyle = cssVar('--hot');
-  for (const [lab, m] of PAIR_MARK[key]) { if (m > mMax) continue; const x = fx(m); ctx.beginPath(); ctx.moveTo(x, 12); ctx.lineTo(x, h - 14); ctx.stroke(); ctx.fillText(lab, x, 10); }
+  for (const [lab, m] of PAIR_MARK[key]) { const x = fx(m); if (x < 6 || x > w - 6) continue; ctx.beginPath(); ctx.moveTo(x, 12); ctx.lineTo(x, h - 14); ctx.stroke(); ctx.fillText(lab, x, 10); }
   ctx.setLineDash([]); ctx.textAlign = 'left';
   chartHov(chartCv('chPair'), (x) => {
-    const b = Math.floor((x - 6) / bw); if (b < 0 || b >= nb) return null; const bh = H[b] / span * (h - 26);
-    return { x: 6 + (b + 0.5) * bw, y: y0 - bh, lines: [`${b * PAIRS.BIN}–${(b + 1) * PAIRS.BIN} MeV`, `${Math.round(H[b]).toLocaleString('en-US')} pair${Math.round(H[b]) === 1 ? '' : 's'}${sub ? ' (less the like-sign background)' : ''}`] };
+    const b = b0 + Math.floor((x - 6) / bw); if (b < b0 || b >= b1) return null; const bh = H[b] / span * (h - 26);
+    return { x: 6 + (b - b0 + 0.5) * bw, y: y0 - bh, lines: [lg ? `${mLab(pairBinLo(key, b))}–${mLab(pairBinLo(key, b + 1))}` : `${b * PAIRS.BIN}–${(b + 1) * PAIRS.BIN} MeV`, `${Math.round(H[b]).toLocaleString('en-US')} pair${Math.round(H[b]) === 1 ? '' : 's'}${sub ? ' (less the like-sign background)' : ''}`] };
   });
 }
 /* ------------------------------------------------------------------ the tour */

@@ -5797,7 +5797,7 @@ function grCsv() {
 }
 function grInit() {
   $('gSel').onclick = (e) => { const b = e.target.closest('[data-g]'); if (!b) return; const id = b.dataset.g, sel = grSel(), i = sel.indexOf(id); if (i >= 0) sel.splice(i, 1); else sel.push(id); store('graphSel', JSON.stringify(sel.slice(-6))); drawGraph(); };
-  bindSeg('segPair', (v) => { UI.pairKey = v; drawPairs(); });
+  bindSeg('segPair', (v) => { UI.pairKey = v; UI.pairKeySet = true; drawPairs(); });
   bindSeg('segDet', (v) => { UI.detMode = v; drawDet(); });
   $('detPick').onclick = (e) => { const b = e.target.closest('[data-v]'); if (b) { UI.detSel = +b.dataset.v; drawDet(); } };
   $('detClr').onclick = () => { const scr = W.objs.filter(o => o.kind === 'screen'), ob = scr[UI.detSel || 0]; if (ob) objClearHits(ob); drawDet(); };
@@ -5891,27 +5891,34 @@ function drawZScan() {
   $('dZsNote').textContent = `${Z.rec.length.toLocaleString('en-US')} collisions${Z.run ? `, scanning: beams at ${ZSCAN.pts[Z.i]} GeV each (${Z.i + 1} of ${ZSCAN.pts.length})` : ''}. Dots: σ(e⁺e⁻ → Z → hadrons) measured in each 1 GeV bin of the collisions' own √s, the share of collisions that made it times the total cross section there (LEP's events over its luminosity), with its statistical error; ${pk[1] ? `highest ${fmtNum(pk[1], 3)} nb at ${fmtNum(pk[0], 3)} GeV. ` : ''}Line: the model, ${RP.res ? 'with the beams\u2019 own radiation (Resonance widths and heavy flavour on): the peak 30.6 nb at 91.2 GeV, measured at LEP 30.5' : 'Born: the peak 41.5 nb at 91.19 GeV (with the beams\u2019 own radiation, which Resonance widths and heavy flavour turns on, 30.6; measured at LEP 30.5)'}. The Z's width, 2.50 GeV, is what three kinds of light neutrino give.`;
 }
 /* Pair masses (hep.js PAIRS): the histogram, with the known resonances marked. */
-const PAIR_MARK = { pipi: [['ρ', 775], ['K⁰s', 498]], Kpi: [['K*', 893]], KK: [['φ', 1019]] };
+const PAIR_MARK = { pipi: [['ρ', 775], ['K⁰s', 498]], Kpi: [['K*', 893]], KK: [['φ', 1019]], ee: [['ρ/ω', 775], ['J/ψ', 3097], ['Υ', 9460], ['Z', 91188], ['Z′', 6e6]], mm: [['φ', 1019], ['J/ψ', 3097], ['Υ', 9460], ['Z', 91188], ['Z′', 6e6]], gg: [['π⁰', 135], ['η', 548], ['H', 125200]] }; // (lepton and photon pairs: 1.39.3 item 116)
 function drawPairs() {
   const sec = $('dPairSec'); sec.hidden = !PAIRS.n; if (sec.hidden) return;
-  const key = UI.pairKey || 'pipi'; setSegValue('segPair', key);
-  const r = chartCtx(chartCv('chPair')); if (!r) return; const [ctx, w, h] = r, sub = UI.pairSub !== false, H = sub ? PAIRS.h[key].map((v, b) => v - PAIRS.ls[key][b]) : PAIRS.h[key]; $('pairSub').checked = sub;
-  let top = 0, tot = 0, hi = 0, bot = 0; for (let b = 0; b < 200; b++) { top = Math.max(top, H[b]); bot = Math.min(bot, H[b]); tot += PAIRS.h[key][b]; if (PAIRS.h[key][b]) hi = b; }
+  let key = UI.pairKey || 'pipi';
+  if (!UI.pairKeySet && !PAIRS.h[key].some(v => v > 0)) { const k2 = Object.keys(PAIRS.h).find(k => PAIRS.h[k].some(v => v > 0)); if (k2) key = k2; } // (until one is chosen: the first kind that has pairs, 1.39.3)
+  setSegValue('segPair', key);
+  const lg = PAIRS.LOG.has(key);
+  const r = chartCtx(chartCv('chPair')); if (!r) return; const [ctx, w, h] = r, sub = UI.pairSub !== false && key !== 'gg', H = sub ? PAIRS.h[key].map((v, b) => v - PAIRS.ls[key][b]) : PAIRS.h[key]; $('pairSub').checked = UI.pairSub !== false;
+  let top = 0, tot = 0, hi = 0, lo = 199, bot = 0; for (let b = 0; b < 200; b++) { top = Math.max(top, H[b]); bot = Math.min(bot, H[b]); tot += PAIRS.h[key][b]; if (PAIRS.h[key][b]) { hi = b; lo = Math.min(lo, b); } }
   $('pairNote').textContent = `${tot.toLocaleString('en-US')} pairs`;
   if (!top) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('None of these pairs yet', 10, 20); return; }
-  const mMax = Math.min(2000, Math.max(1200, (hi + 2) * PAIRS.BIN)), nb = mMax / PAIRS.BIN, bw = (w - 12) / nb, fx = (m) => 6 + m / mMax * (w - 12);
+  // (linear in MeV for the hadron pairs; for the lepton and photon pairs the log scale, from a decade below the lowest to one above the highest)
+  const b0 = lg ? Math.max(0, Math.floor((Math.floor(PAIRS.LO + lo / PAIRS.DEC) - PAIRS.LO) * PAIRS.DEC)) : 0, b1 = lg ? Math.min(200, Math.ceil((Math.ceil(PAIRS.LO + (hi + 1) / PAIRS.DEC) - PAIRS.LO) * PAIRS.DEC)) : Math.min(2000, Math.max(1200, (hi + 2) * PAIRS.BIN)) / PAIRS.BIN;
+  const nb = b1 - b0, bw = (w - 12) / nb, fx = lg ? (m) => 6 + ((Math.log10(m) - PAIRS.LO) * PAIRS.DEC - b0) / nb * (w - 12) : (m) => 6 + m / (b1 * PAIRS.BIN) * (w - 12);
   ctx.fillStyle = cssVar('--accent-soft'); ctx.strokeStyle = cssVar('--accent');
   const span = top - bot || 1, y0 = 12 + (h - 26) * top / span; // (subtracted: the zero line, with dips below it)
-  for (let b = 0; b < nb; b++) { const bh = H[b] / span * (h - 26); ctx.fillRect(6 + b * bw, bh >= 0 ? y0 - bh : y0, Math.max(1, bw - 0.5), Math.abs(bh)); }
+  for (let b = b0; b < b1; b++) { const bh = H[b] / span * (h - 26); ctx.fillRect(6 + (b - b0) * bw, bh >= 0 ? y0 - bh : y0, Math.max(1, bw - 0.5), Math.abs(bh)); }
   if (bot < 0) { ctx.strokeStyle = cssVar('--line'); ctx.beginPath(); ctx.moveTo(6, y0); ctx.lineTo(w - 6, y0); ctx.stroke(); }
   ctx.font = '10.5px ' + cssVar('--font-data'); ctx.fillStyle = cssVar('--muted'); ctx.textAlign = 'center';
-  for (let m = 0; m <= mMax; m += w < 420 ? 500 : 250) ctx.fillText(m === 0 ? '0' : (m / 1000).toFixed(m % 1000 ? (m % 500 ? 2 : 1) : 0) + ' GeV', clamp(fx(m), 10, w - 22), h - 2);
+  const mLab = (m) => (m >= 1e6 ? `${+(m / 1e6).toPrecision(3)} TeV` : m >= 1000 ? `${+(m / 1000).toPrecision(3)} GeV` : `${+m.toPrecision(3)} MeV`);
+  if (lg) { for (let d = Math.ceil(PAIRS.LO + b0 / PAIRS.DEC - 1e-9); d <= PAIRS.LO + b1 / PAIRS.DEC + 1e-9; d++) ctx.fillText(mLab(Math.pow(10, d)), clamp(fx(Math.pow(10, d)), 22, w - 26), h - 2); }
+  else for (let m = 0; m <= b1 * PAIRS.BIN; m += w < 420 ? 500 : 250) ctx.fillText(m === 0 ? '0' : (m / 1000).toFixed(m % 1000 ? (m % 500 ? 2 : 1) : 0) + ' GeV', clamp(fx(m), 10, w - 22), h - 2);
   ctx.setLineDash([3, 3]); ctx.strokeStyle = cssVar('--hot'); ctx.fillStyle = cssVar('--hot');
-  for (const [lab, m] of PAIR_MARK[key]) { if (m > mMax) continue; const x = fx(m); ctx.beginPath(); ctx.moveTo(x, 12); ctx.lineTo(x, h - 14); ctx.stroke(); ctx.fillText(lab, x, 10); }
+  for (const [lab, m] of PAIR_MARK[key]) { const x = fx(m); if (x < 6 || x > w - 6) continue; ctx.beginPath(); ctx.moveTo(x, 12); ctx.lineTo(x, h - 14); ctx.stroke(); ctx.fillText(lab, x, 10); }
   ctx.setLineDash([]); ctx.textAlign = 'left';
   chartHov(chartCv('chPair'), (x) => {
-    const b = Math.floor((x - 6) / bw); if (b < 0 || b >= nb) return null; const bh = H[b] / span * (h - 26);
-    return { x: 6 + (b + 0.5) * bw, y: y0 - bh, lines: [`${b * PAIRS.BIN}–${(b + 1) * PAIRS.BIN} MeV`, `${Math.round(H[b]).toLocaleString('en-US')} pair${Math.round(H[b]) === 1 ? '' : 's'}${sub ? ' (less the like-sign background)' : ''}`] };
+    const b = b0 + Math.floor((x - 6) / bw); if (b < b0 || b >= b1) return null; const bh = H[b] / span * (h - 26);
+    return { x: 6 + (b - b0 + 0.5) * bw, y: y0 - bh, lines: [lg ? `${mLab(pairBinLo(key, b))}–${mLab(pairBinLo(key, b + 1))}` : `${b * PAIRS.BIN}–${(b + 1) * PAIRS.BIN} MeV`, `${Math.round(H[b]).toLocaleString('en-US')} pair${Math.round(H[b]) === 1 ? '' : 's'}${sub ? ' (less the like-sign background)' : ''}`] };
   });
 }
 /* ------------------------------------------------------------------ the tour */
