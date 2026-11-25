@@ -12039,7 +12039,10 @@ function stepPlain(dt) {
       const k = K[i];
       if (k === NUC && Z[i] === 0) { nr++; continue; }
       if (FAST[i] === 1) { if (BALL[i] === 1 && k !== NUC) continue; } // flew and collided in moveFastLeptons
-      else if (k === NUC && !wrap) { // an atom inside the box, going at an atom's pace: walls and updateFast would do nothing
+      else if (k === NUC) { // an atom inside the box, going at an atom's pace: walls and updateFast would do nothing
+        // (1.39.1: in a periodic box too. There walls() only carries a particle that has left by one side back in at the
+        // other, so an atom inside needs it no more than in a closed box; to 1.39.0 every atom of a periodic world went
+        // through walls() and updateFast() each step, 0.8 to 1.1 ms of the 3-D water's 1.8 to 2.3 on the owner's PC.)
         const x = X[i], y = Y[i];
         if (x > -hw && x < hw && y > -hh && y < hh && (d3 ? VX[i] * VX[i] + VY[i] * VY[i] + S.vz[i] * S.vz[i] : VX[i] * VX[i] + VY[i] * VY[i]) <= V_FAST_ON * V_FAST_ON && (!d3 || (Zp[i] > -hd && Zp[i] < hd))) { // (3-D: the depth's speed too, 1.25)
           if (_trkN === 0 && _skipOk) continue; // (no particle has a track)

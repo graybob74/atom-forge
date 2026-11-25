@@ -2393,6 +2393,33 @@ times the zoom: 60, 400 and 2,000 px/Å all measured the same with and without r
   first world, "stopped after 1 of 7 worlds", the setup back. t_settings: the same three failures as before
   (the 3-D menu's list, 109 setting rows' descriptions, the pictures' size), none new.
 
+### 1.39.1: atoms inside a periodic box skip the walls pass (the owner's third run, 2026-11-24: "build it")
+
+The owner's run of 528912d (the benchmark's own mode; copied with its Copy button): crowd flat 9.36 ms a step
+(92 fps), 3-D 18.03 (76 fps), ionized water 1.96, 20,000 waters 0.38 (the goal: 65 fps), flash 0.18, 3-D water 2.29.
+Every zoomed-in view 3.6 ms between frames, the screen's own interval; the 3-D crowd's full view 3.6 too (7.1 before
+the dashed lines were cut). That run did not have rays by the camera, as the fast build before it had not, so it does
+not show the fix on that PC. 20,000 waters over three runs of the same code: 0.34, 0.48, 0.38 ms, against 0.43 to
+0.45 before the arrays were shifted; each thread's integration work 32 to 47 µs in all three (72 to 79 before), the
+bath's no clear change.
+
+In the 3-D water row the single-thread 'walls' part was 0.80, 0.94 and 1.07 ms of a 1.81 to 2.29 ms step. The walls
+pass lets an atom inside the box at an atom's pace go by without a call, but only in a box that is not periodic
+(`k === NUC && !wrap`): in a periodic one every atom went through `walls()` and `updateFast()` each step, through
+their getters. There `walls()` only carries a particle that has left by one side back in at the other, and
+`updateFast()` does nothing for an atom under V_FAST_ON, so the same skip holds; `!wrap` is gone.
+
+- Here (one thread, the benchmark's 5,184 atoms of water in 3-D): the walls part 0.272 to 0.139 ms a step. What is
+  left is the loop's own look at each atom; the whole pass is not skipped in 3-D or in a periodic box, because the
+  bath pass counts the atoms that need it only in the flat closed box (`_wallNeed`). Not done: that count has the
+  leptons' own thresholds and the fresh particles to get right.
+- The same to the bit: that world (5dacec61) and flat periodic water (d00be3db) after 180 steps; all 70 setups,
+  ionized and with products sent through, old page against new (seven of them periodic: water3d, brine3d, brine,
+  grow, neon, antihydrogen, ch_antiH).
+- f_139 `wrapskip`: flat and 3-D periodic boxes at 2,500 K with a fast atom and free electrons, 400 steps on this
+  engine and on one loaded with `!wrap` put back: the same fingerprint, atoms crossing the box's edge in both.
+- t_lint, f_139, t_energy, t_3d, t_regress, t_physics, t_threads pass.
+
 ## 1.39.0 (released 2026-11-22): exotic and dark matter, item 103 (the owner, 2026-11-22: "can you add strange matter or dark matter or stuff like that based off of what's been found about it?"; all four kinds; "build it")
 
 New particles, in the particle bar and the beam picker; the hypothetical ones in their own group, **Hypothetical**, each

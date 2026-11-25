@@ -416,6 +416,34 @@ PARTS.inside = async (page, check) => { // (1.39.1 item 104: a particle view and
     `1.39.1 inside: lepton ${lep} noView ${noView} quark ${quark} neutral ${neutral} slet ${sl} fund ${fund} hyN ${hyN} ${JSON.stringify(r).slice(0, 900)}`);
   if (own) { if (own.errors.length) check(false, '', '1.39.1 inside errors: ' + own.errors.join(' | ')); await own.browser.close(); }
 };
+PARTS.wrapskip = async (page, check) => { // (1.39.1: slow atoms inside a periodic box skip the walls pass, as in a closed box)
+  // The same periodic worlds stepped on two engines, this one and one with the skip taken back out (every atom through
+  // walls() and updateFast() each step, as to 1.39.0), must be the same to the bit: flat and 3-D, hot enough that atoms
+  // leave by one side and come in at the other, with a fast atom and free electrons among them.
+  const A = load('all', { seed: 11 }), B = load('all', { seed: 11, patch: (src) => src.replace("else if (k === NUC) { // an atom inside the box, going at an atom's pace", "else if (k === NUC && !wrap) { // an atom inside the box, going at an atom's pace") });
+  const out = []; let ok = true;
+  for (const d3 of [false, true]) {
+    const res = [];
+    for (const X of [A, B]) {
+      (d3 ? X.PRESETS.d3empty : X.PRESETS.empty).build(); const W = X.W;
+      for (const k of ['w', 'tw']) W.box[k] = 44; for (const k of ['h', 'th']) W.box[k] = 36; if (d3) for (const k of ['d', 'td']) W.box[k] = 36;
+      W.wall = 'wrap'; W.T = 2500; W.gamma = 0.05; W.bathSeed = 0x5eed1234; W.decayOn = false;
+      const at = (v) => (X.rnd() - 0.5) * v, atoms = [];
+      for (let i = 0; i < 150; i++) atoms.push(X.addAtom(['Ar', 'Ne', 'He', 'O'][i % 4], at(42), at(34), d3 ? { T: 2500, z: at(34) } : { T: 2500 }));
+      atoms[0].vx = 30; X.updateFast(atoms[0]); // (a fast atom)
+      for (let i = 0; i < 6; i++) X.userIonize(atoms[10 + i]);
+      let crossed = 0; const lastX = new Map();
+      for (let s = 0; s < 400; s++) { if (W.fSpawn !== W.spawned) { X.forcesNoEvents(); W.fSpawn = W.spawned; } W.dt = X.chooseDt(); X.step(W.dt);
+        for (const p of W.parts) { if (p.dead || p.k !== X.NUC) continue; const x0 = lastX.get(p.id); if (x0 !== undefined && Math.abs(p.x - x0) > 20) crossed++; lastX.set(p.id, p.x); } }
+      let h = 0x811c9dc5, outside = 0; const f = new Float64Array(1), u = new Uint32Array(f.buffer);
+      for (const p of W.parts) { if (p.dead) continue; for (const v of [p.x, p.y, p.z || 0, p.vx, p.vy, p.vz || 0]) { f[0] = v; h = Math.imul(h ^ u[0], 16777619); h = Math.imul(h ^ u[1], 16777619); } if (p.k === X.NUC && !p.fast && (Math.abs(p.x) > 22.5 || Math.abs(p.y) > 18.5)) outside++; }
+      res.push({ h: (h >>> 0).toString(16), n: W.parts.length, t: W.t, crossed, outside });
+    }
+    if (res[0].h !== res[1].h || res[0].n !== res[1].n || res[0].t !== res[1].t || res[0].crossed < 5 || res[0].outside) ok = false;
+    out.push(`${d3 ? '3-D' : 'flat'}: ${res[0].h} and ${res[1].h}, ${res[0].n} particles, ${res[0].crossed} crossings`);
+  }
+  check(ok, `1.39.1 atoms inside a periodic box skip the walls pass and nothing changes: 400 steps with and without the skip, ${out.join('; ')}`, `1.39.1 periodic box, walls pass skipped for atoms inside: ${out.join('; ')}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
