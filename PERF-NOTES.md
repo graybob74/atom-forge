@@ -4671,6 +4671,10 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    the found tetraquarks from their quark content (check what shows today); ⁶ΛΛHe and anti-⁴ΛH as hypernuclei (two Λ, an
    antinucleus); WIMP, axion, dark photon: "nothing inside" notes as for leptons; monopole: Dirac's is a point, a GUT
    ('t Hooft–Polyakov) one has a core. Display only. Waiting for "build it".
+105. **The hypothetical particles stay in the box unless the walls are open** (the owner, 2026-11-24: "make it so those
+   particles stay in the box if it's not on open mode"). Today every one leaves at a wall (`exoLeaves`). Plan: add them
+   (`d.hypo`) to the moveExos/moveExos3 `kept` set that already keeps muonic hydrogen and slow muons in: they bounce off
+   reflecting walls, cross a wrapping box, leave only through open walls; flat and 3-D. Waiting for "build it".
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
