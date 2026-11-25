@@ -2110,8 +2110,16 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   products, a blob ("many particles and forces at once, which no single diagram shows"). Drawn at the level of the
   particles, not their quarks, and said so under each. Check: f_139 `fey` (16 processes, the Z factory's 40 events
   all drawable, the page's arrows).
-- f_ew's antihydrogen fingerprint updated: 1.39.2's fix (antimatter ions sized as their mirrors) changes that setup's
-  run (its ions' contact radius, `ljR`); found here, not caught then because f_ew was not in that release's list.
+- Tests (2026-11-25; this machine has 2 cores, so `tools/runtests.sh` would take hours: t_features and every file it
+  loads were run one at a time instead, and the suites these items touch). Pass: f_139 (all 30 parts), f_127h, f_127x,
+  t_energy, t_fuzz, f_bug126, f_ew, f_rp2, f_rp3, f_127w, f_1281, f_1283, f_125s (its 3-D labels check missed once
+  under load, passed alone), and the 1.27–1.38 files. Failing, the same on 1.39.2's code (run side by side) or listed
+  as known in 1.39.0: t_features' explain, particles, 0.91, 1.10 reach, 1.11 data, 1.15 scattering, 1.23.2 3-D
+  objects, 1.24 light, 1.25 settings, 1.26 GFN2 and spins pages; f_rp1 store, f_rp5 and f_rp7 pages (they expect
+  segWaveF's row elsewhere), f_feat1 scan, f_fix15 plasma, f_136 books, t_collider's linear p p̄ energy, t_page's
+  slow-motion button.
+- f_ew's and f_rp2's antihydrogen fingerprints updated: 1.39.2's fix (antimatter ions sized as their mirrors) changes
+  that setup's run (its ions' contact radius, `ljR`); found here, not caught then because neither was in that release's list.
 - Info pages for each (Ω baryon, Pionium, True muonium, Antiprotonic helium, Diquark for the remnant); the Hypothetical
   menu holds 17. Check: f_139 `exo3` (16 decays, flat and 3-D: charge and B exact, books under 10⁻² eV).
 
