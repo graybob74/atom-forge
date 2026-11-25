@@ -16,7 +16,7 @@ const isPs = (X, o) => !o.dead && !!X.XP[o.sp].ps;
 // (1.27 bug 2: pionbeam, hyperfactory and annihilation re-fingerprinted, switches off: molecules give electrons at their measured ionization energies, from their hole atom)
 // (1.27 bug 3: fusion, nif, pionbeam, annihilation and sns re-fingerprinted, switches off: close passes between nuclei turned at nuclear distances)
 // (1.27 bug 15: pionbeam and photonuc re-fingerprinted, switches off: events in the electrons' short steps search a grid rebuilt after they moved)
-const FP_V141 = { annihilation: '02ea22e9 0a418be0', muonium: 'bb775629 3aa3e67e', pet: 'a5248bff a9f2ee3a', pionbeam: 'e537829c cec51699', antihydrogen: '4020342f 328d44f9', water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
+const FP_V141 = { annihilation: '02ea22e9 0a418be0', muonium: 'bb775629 3aa3e67e', pet: 'a5248bff a9f2ee3a', pionbeam: 'e537829c cec51699', antihydrogen: '23b0fc76 3e0243b7' /* (1.39.2: antimatter ions sized as their mirrors) */, water: 'cac1ac32 a9f2ee3a', water3d: '7a2e7f5c a9f2ee3a' };
 PARTS.off = async (page, check) => {
   const h = (s) => { let a = 0x811c9dc5; for (let i = 0; i < s.length; i++) { a ^= s.charCodeAt(i); a = Math.imul(a, 0x01000193); } return (a >>> 0).toString(16).padStart(8, '0'); };
   const bad = [];
