@@ -2033,7 +2033,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.39.1 (not released): the benchmark's per-thread line (the owner, 2026-11-22, "build it")
+## 1.39.1 (released 2026-11-24): the benchmark's per-thread line (the owner, 2026-11-22, "build it")
 After the GPU was shelved the owner ran the Settings benchmark on his PC (1.39.0 desktop, 16 threads, WebAssembly
 kernel). 20,000 waters: **0.56 ms a step**, the goal met by the benchmark's sum (37.5 steps × 0.56 + 0.9 ms drawing =
 21.9 ms, 46 fps) while the second of real frames gave 39 fps (24.5 ms for 37.4 steps, 0.655 ms a step: the two measures
