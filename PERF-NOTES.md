@@ -4868,6 +4868,12 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    Z′'s), charge and books exact. Mass just above the LHC's pair-production limits (check: about 1.5–2 TeV by type and
    lepton); labelled hypothetical, with the B-anomaly story (LHCb's 2022 R_K back at the Standard Model). Built in
    1.39.2.
+111. **A single leptoquark, as the LHC makes one** (the owner, 2026-11-25, asked why one cannot be placed alone, whether
+   the charge check could change; told it is nature's rule (charge exact, confinement), not the game's; then "Sure" to
+   this). Single production: u + g → LQ + e⁺, the struck proton's remnant (u d) flying on with the colour and the rest of
+   the charge. Placing "LQ (single)" sets down the leptoquark, the positron and the remnant; the LQ decays to e⁻ u, and
+   that u and the remnant are made into hadrons together (whole charge +1, colourless), charge and books exact. The pair
+   stays as it is. Waiting for "build it".
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
