@@ -186,6 +186,11 @@ const P_INFO = {
   dphot: ['A hypothetical massive cousin of the photon, mixing with it weakly; searched for at colliders and beam dumps. ATOMKI’s 17 MeV anomaly (X17) is one claim.', 'X17_particle'],
   hexa: ['A hexaquark candidate: six quarks with the deuteron’s quantum numbers but three units of spin, seen as a narrow bump in neutron–proton collisions in 2014. Whether it is six quarks in one bag or two Δ baryons bound together is still argued.', 'Dibaryon'],
   eaq: ['An electron dissolved in water: water molecules turn their hydrogen ends toward it and hold it in a cavity about 2.5 Å across, bound by about 1.7 eV. Found in 1962 by its absorption band (peaking at 720 nm, so irradiated water looks blue), it is one of the main products of radiation in water and lives about a microsecond in pure water before it meets an ion or a radical.', 'Solvated_electron'],
+  omccc: ['A baryon of three charm quarks, predicted by the quark model and lattice QCD near 4.8 GeV, not yet seen.', 'Omega_baryon'],
+  qrem: ['What is left of a proton after one of its quarks is taken: two quarks (a diquark) that turn into hadrons along the beam.', 'Diquark'],
+  pionium: ['An atom of a π⁺ and a π⁻, made at CERN by the DIRAC experiment; it lives about 3 fs before becoming two π⁰.', 'Pionium'],
+  tmu: ['An atom of a μ⁺ and a μ⁻, predicted by QED and not yet seen.', 'True_muonium'],
+  phe: ['A helium atom with an antiproton in place of one electron; some states live microseconds, which lets ASACUSA at CERN measure the antiproton’s mass.', 'Antiprotonic_helium'],
   Pn: ['A proton and an antiproton going round each other, an atom of matter and antimatter, made at CERN by stopping antiprotons in hydrogen. Caught into a high orbit, it falls inward giving off X-rays, then annihilates into pions.', 'Protonium'],
   hy: ['A nucleus holding a Λ hyperon as well as protons and neutrons. Free of the Pauli principle’s crowding, the Λ sinks to the centre; the first was seen in a cosmic-ray emulsion in 1952.', 'Hypernucleus'],
   anti: ['Matter made of antiparticles, with every charge reversed. Antihydrogen was first held in a trap at CERN in 2010; why the universe has so little antimatter is still an open question.', 'Antimatter'],
@@ -195,8 +200,9 @@ function infoKeyX(sp) {
   const d = XP[sp]; if (!d) return null;
   if (d.hyp) return 'hy'; if (d.ps) return 'Ps'; if (d.pn) return 'Pn'; if (d.aq) return 'eaq'; if (d.atom) return 'muP'; if (d.stuck) return 'muHe';
   if (sp === 'Mu') return 'Mu';
-  if (sp === 'LQ' || sp === 'LQb') return 'lq';   if (sp === 'nuS' || sp === 'HNL') return 'sterile'; if (sp === 'G2370') return 'glue'; if (sp === 'Rg' || sp === 'Rgb') return 'rhad'; if (sp === 'neut') return 'neut'; if (sp === 'Zp') return 'zprime'; if (sp === 'mCP' || sp === 'mCPb') return 'mcp'; if (sp === 'BH') return 'mbh'; // (1.39.1)
+  if (sp === 'LQ' || sp === 'LQb' || sp === 'LQs') return 'lq';   if (sp === 'nuS' || sp === 'HNL') return 'sterile'; if (sp === 'G2370') return 'glue'; if (sp === 'Rg' || sp === 'Rgb') return 'rhad'; if (sp === 'neut') return 'neut'; if (sp === 'Zp') return 'zprime'; if (sp === 'mCP' || sp === 'mCPb') return 'mcp'; if (sp === 'BH') return 'mbh'; // (1.39.1)
   if (sp === 'X3872' || sp === 'Tcc' || sp === 'Tccb') return 'tetra'; if (sp === 'wimp' || sp === 'axion') return sp; if (sp === 'slet') return 'slet'; if (sp === 'mono') return 'mono'; if (sp === 'Ap') return 'dphot'; if (sp === 'Sx' || sp === 'Sxb') return 'hexa'; if (sp === 'LL6He' || sp === 'ahy1_2') return 'hy'; // (1.39)
+  if (sp === 'Omccc' || sp === 'Omcccb') return 'omccc'; if (sp === 'A2pi') return 'pionium'; if (sp === 'qRem') return 'qrem'; if (sp === 'TMp' || sp === 'TMo') return 'tmu'; if (sp === 'pHe') return 'phe';
   if (sp.startsWith('Pc')) return 'penta'; if (sp === 'dstar') return 'hexa';
   const F = [['mu', 'mu'], ['tau', 'tau'], ['pi', 'pi'], ['Ks', 'Ks'], ['K', 'K'], ['eta', 'eta'], ['rho', 'rho'], ['omega', 'omega'], ['phi', 'phi'], ['Dpp', 'Delta'], ['Dp', 'Delta'], ['D0', 'Delta'], ['Dm', 'Delta'], ['Dbmm', 'Delta'], ['Dbm', 'Delta'], ['Db0', 'Delta'], ['Dbp', 'Delta'],
     ['Dc', 'Dmes'], ['Ds', 'Dmes'], ['Bs', 'Bmes'], ['Bb', 'Bmes'], ['B', 'Bmes'], ['Lc', 'LamC'], ['Lb', 'LamB'], ['Lam', 'Lam'], ['Sig', 'Sig'], ['Xi', 'Xi'], ['Omg', 'Omg'], ['Jpsi', 'Jpsi'], ['Ups', 'Ups'], ['W', 'W'], ['Z', 'Z'], ['H', 'H']];

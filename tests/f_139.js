@@ -100,7 +100,7 @@ PARTS.hypo = async (page, check) => {
   const grp = X.PCATS.find(g => g[0] === 'Hypothetical'), sps = grp ? grp[1].map(e => e.sp) : [];
   const names = sps.every(sp => /hypothetical/.test(X.XP_NAME[sp] || '')), kinds = sps.every(sp => X.madeKind({ t: 'x', sp }) === 'Hypothetical');
   const multi = ['X3872', 'Tcc'].every(sp => X.PCATS.find(g => g[0] === 'Multiquarks')[1].some(e => e.sp === sp));
-  check(s.fate === 'left the chamber' && s.KE === 1e9 && sps.length === 16 && names && kinds && multi, `1.39 the sexaquark crosses 40 Å of lead untouched and leaves, stable; the Hypothetical menu holds 16 (7 in 1.39.0), each named "hypothetical" and listed so in Made here; the tetraquarks are under Multiquarks`,
+  check(s.fate === 'left the chamber' && s.KE === 1e9 && sps.length === 17 && names && kinds && multi, `1.39 the sexaquark crosses 40 Å of lead untouched and leaves, stable; the Hypothetical menu holds 16 (7 in 1.39.0), each named "hypothetical" and listed so in Made here; the tetraquarks are under Multiquarks`,
     `1.39 hypo: Sx dead ${s.dead} KE ${s.KE}, ${sps}, names ${names} kinds ${kinds} multi ${multi}`);
 };
 PARTS.page = async (page, check) => {
@@ -531,7 +531,7 @@ PARTS.more = async (page, check) => { // (1.39.1 item 108: more hypothetical par
     V.wall = 'open'; Y.forcesNoEvents(); V.fSpawn = V.spawned; Y.step(1e-9); const o = Y.addExo(sp, -19, 0, 2e5, 1, 0), K0 = o.KE; for (let s = 0; s < 400 && !o.dead && o.x < 18; s++) Y.step(0.002); return K0 - o.KE; };
   const lm = loss('mCP'), lp = loss('pi+');
   const Y = load('all', { seed: 1 }), grp = Y.PCATS.find(g => g[0] === 'Hypothetical')[1].map(e => e.sp), kinds = ['Zp', 'BH', 'nuS'].every(sp => Y.madeKind({ t: 'x', sp }) === 'Hypothetical');
-  check(chg && bk < 1e-12 && hit === 40 && lp > 0 && lm <= lp * 1e-4 && grp.length === 16 && kinds,
+  check(chg && bk < 1e-12 && hit === 40 && lp > 0 && lm <= lp * 1e-4 && grp.length === 17 && kinds,
     `1.39.1 more hypothetical particles, each decaying with charge kept and the books exact (to ${bk.toExponential(0)} of its mass), flat and 3-D: ${Object.entries(res).map(([k, v]) => `${k} → ${v[1]}${v[0] > 3 ? ` (${v[0]} made)` : ''}`).join('; ')}; the neutralino recoils off xenon as a WIMP; a millicharged particle loses ${lm < 1e-3 ? "nothing measurable" : X.fmtE(lm)} where a pion loses ${X.fmtE(lp)}; Hypothetical holds 16, listed so in Made here (the Z′ too)`,
     `1.39.1 more: charge ${chg} books ${bk} hit ${hit} loss ${lm}/${lp} grp ${grp.length} kinds ${kinds} ${JSON.stringify(res)}`);
 };
@@ -637,6 +637,28 @@ PARTS.lq = async (page, check) => { // (1.39.2 item 110: leptoquarks, made and d
   const Y = load('all', { seed: 1 }), card = Y.fmtQ(-1 / 3);
   check(ok && card === '−⅓', `1.39.2 a leptoquark (2 TeV, charge ${card}) is placed with its antiparticle, flying apart; the two decay together to e⁻ e⁺ and two jets (${res.map(r => r.made).join(', ')} hadrons), charge kept and the books to ${Math.max(...res.map(r => r.bk)).toExponential(0)} of their energy, flat and 3-D`,
     `1.39.2 lq: ${JSON.stringify(res)} card ${card}`);
+};
+PARTS.exo3 = async (page, check) => { // (1.39.3 items 111, 118, 119: a single leptoquark; pionium, true muonium, p̄He⁺; Ωccc, Pcs(4459))
+  const res = {}; let ok = true;
+  for (const d3 of [false, true]) {
+    const X = load('all', { seed: 3 }), W = X.W;
+    for (const sp of ['LQs', 'pHe', 'A2pi', 'TMp', 'TMo', 'Omccc', 'Omcccb', 'Pcs4459']) {
+      (d3 ? X.PRESETS.d3empty : X.PRESETS.empty).build(); W.decayOn = false; W.gamma = 0;
+      const BK = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc;
+      const Q = () => { let q = 0; for (const e of W.exo) if (!e.dead) q += e.q; for (const p of W.parts) if (!p.dead) q += p.k === X.NUC ? (p.anti ? -1 : 1) * p.Z - (p.ne || 0) : p.k === X.ELEC ? -1 : 1; return q; };
+      const B = () => { let b = 0; for (const e of W.exo) if (!e.dead) b += X.XP[e.sp].B || 0; for (const p of W.parts) if (!p.dead && p.k === X.NUC) b += (p.anti ? -1 : 1) * (p.Z + p.N); return b; };
+      const a = X.fireSpec({ kind: 'exo', sp }, 0, 0, 1, 0, 50, false, 0, 0);
+      const rem = sp === 'LQs' ? a.rem && a.rem.lq === a && a.rem.sp === 'qRem' : true;
+      const e0 = BK(), q0 = Q(), b0 = B(); if (d3) X.decayExo3(a); else X.decayExo(a);
+      const r = [+(BK() - e0).toExponential(1), +(Q() - q0).toFixed(9), +(B() - b0).toFixed(9), a.dead, rem];
+      if (!(Math.abs(r[0]) < 1e-2 && r[1] === 0 && r[2] === 0 && r[3] && r[4])) ok = false;
+      res[(d3 ? '3' : '2') + sp] = r;
+    }
+  }
+  const Y = load('all', { seed: 1 }), grp = Y.PCATS.flatMap(c => c[1]).map(x => x && x.sp || x), seen = ['A2pi', 'TMp', 'TMo', 'pHe', 'Pcs4459', 'LQs', 'Omccc'].every(k => grp.includes(k)) && Y.XP.Omccc.unseen && Y.XP.TMp.unseen && !Y.XP.A2pi.unseen;
+  const keys = ['Omccc', 'A2pi', 'TMp', 'pHe', 'qRem', 'LQs'].map(Y.infoKeyX);
+  check(ok && seen && keys.every(Boolean), `1.39.3 a single leptoquark (with the proton's remnant), pionium, true muonium (predicted), antiprotonic helium, Ωccc (predicted) and Pcs(4459) decay keeping charge, baryon number and the energy books, flat and 3-D (${Object.keys(res).length} decays)`,
+    `1.39.3 exo3: ${JSON.stringify(res)} palette ${seen} keys ${keys}`);
 };
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {

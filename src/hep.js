@@ -74,6 +74,11 @@ const XP = {
   Pc4312: { sym: 'Pc⁺', lab: 'Pc(4312)⁺', m: 4311.9, w: 9.8, q: 1, B: 1, tau: 6.72e-23, col: [255, 150, 200], cc: 'Pcb4312', res: true, dec: [[1, ['Jpsi', 'p']]] },
   Pc4440: { sym: 'Pc⁺', lab: 'Pc(4440)⁺', m: 4440.3, w: 20.6, q: 1, B: 1, tau: 3.20e-23, col: [255, 140, 190], cc: 'Pcb4440', res: true, dec: [[1, ['Jpsi', 'p']]] },
   Pc4457: { sym: 'Pc⁺', lab: 'Pc(4457)⁺', m: 4457.3, w: 6.4, q: 1, B: 1, tau: 1.03e-22, col: [255, 160, 210], cc: 'Pcb4457', res: true, dec: [[1, ['Jpsi', 'p']]] },
+  /* (1.39.3 item 119) LHCb's second strange pentaquark (2021): 4458.8 MeV, 17.3 MeV wide, seen in J/ψ Λ. And the
+     triple-charm Ω_ccc⁺⁺, predicted (lattice QCD: 4796 MeV; mean life predicted 0.2–0.3 ps), not yet seen (unseen):
+     its weak decay c → s here as Λc⁺ D⁺ K̄⁰. */
+  Pcs4459: { sym: 'Pcs⁰', lab: 'Pcs(4459)⁰', m: 4458.8, w: 17.3, q: 0, B: 1, tau: 3.80e-23, col: [225, 160, 255], cc: 'Pcsb4459', res: true, dec: [[1, ['Jpsi', 'Lam']]] },
+  Omccc: { lab: 'Ωccc⁺⁺', m: 4796, q: 2, B: 1, tau: 2.5e-13, col: [255, 120, 160], cc: 'Omcccb', unseen: true, dec: [[1, ['Lc+', 'Dc+', 'K0S']]] },
   Pcs4338: { sym: 'Pcs⁰', lab: 'Pcs(4338)⁰', m: 4338.2, w: 7.0, q: 0, B: 1, tau: 9.40e-23, col: [240, 170, 255], cc: 'Pcsb4338', res: true, dec: [[1, ['Jpsi', 'Lam']]] },
   dstar: { sym: 'd*⁺', lab: 'd*(2380)⁺', m: 2380, w: 70, q: 1, B: 2, tau: 9.40e-24, col: [255, 200, 160], cc: 'dstar', res: true, dec: [[0.23, ['d', 'pi+', 'pi-']], [0.14, ['d', 'pi0', 'pi0']], [0.30, ['p', 'n', 'pi+', 'pi-']], [0.12, ['p', 'n', 'pi0', 'pi0']], [0.12, ['p', 'n', 'pi0']], [0.09, ['p', 'n']]] }, // (cc itself: its antiparticle is not made here)
   'tau-': { lab: 'τ⁻', m: 1776.86, q: -1, tau: 2.903e-13, col: [255, 115, 150], cc: 'tau+', dec: [[0.1782, ['e-', 'nub', 'nu']], [0.1739, ['mu-', 'nub', 'nu']], [0.1082, ['pi-', 'nu']], [0.2549, ['pi-', 'pi0', 'nu']], [0.0926, ['pi-', 'pi0', 'pi0', 'nu']], [0.0899, ['pi-', 'pi-', 'pi+', 'nu']], [0.0455, ['pi-', 'pi-', 'pi+', 'pi0', 'nu']], [0.0104, ['pi-', 'pi0', 'pi0', 'pi0', 'nu']], [0.0070, ['K-', 'nu']]] },
@@ -113,15 +118,22 @@ Object.assign(XP, {
      first-generation one (about 1.8 TeV) and, with a small coupling (y = 0.1: Γ = y²M/16π = 0.40 GeV, τ 1.65×10⁻²⁴ s),
      below the resonant searches' reach (ATLAS 2025: up to 3.4 TeV, but for y = 1). Made only as a pair (pairMade: the
      placing makes its antiparticle too), and the pair decays together (bsmDecay 'lq'): its lone quark could not become
-     hadrons with the charge whole. */
-  LQ: { lab: 'LQ', m: 2.0e6, w: 400, q: -1 / 3, B: 0, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, pairMade: true, bsm: 'lq', dec: [[1, ['e-']]] },
+     hadrons with the charge whole. A leptoquark carries a third of a baryon number (the quark it turns into) and a lepton
+     number: B ⅓ (1.39.3: it had 0, so the single one's decay made baryon number). */
+  LQ: { lab: 'LQ', m: 2.0e6, w: 400, q: -1 / 3, B: 1 / 3, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, pairMade: true, bsm: 'lq', dec: [[1, ['e-']]] },
+  /* (1.39.3 item 111) A single leptoquark, as the LHC makes one: u + g → LQ + e⁺. The struck proton's other quarks (a u d
+     diquark, 580 MeV: its constituent mass) fly on, colour-joined to the leptoquark; when it decays (e⁻ u), that u and the
+     diquark become hadrons together (charge +1, baryon number 1: whole). qRem: the diquark, a third of a charge and two of
+     a baryon, never free: it lives only with its leptoquark (1.65×10⁻²⁴ s). */
+  LQs: { lab: 'LQ', m: 2.0e6, w: 400, q: -1 / 3, B: 1 / 3, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, singleMade: true, bsm: 'lqs', dec: [[1, ['e-']]] },
+  qRem: { lab: '(ud)', m: 580, q: 1 / 3, B: 2 / 3, tau: Infinity, col: [200, 200, 200], cc: 'qRem', strong: false, remnant: true, dec: [] },
   BH: { lab: 'BH', m: 1.2e7, q: 0, B: 0, tau: 1e-27, col: [120, 80, 160], cc: 'BH', res: true, hypo: true, strong: false, bsm: 'bh', dec: [[1, ['g']]] },
 });
 /* A strangelet of A quarks-in-threes (bag model, absolutely stable strange matter assumed): ε₀ = 900 MeV a baryon
    (below the 930 MeV of iron's, which is what would make it stable) and a surface term, MeV. Charge about 0.1·A. */
 function sletMass(A) { return A * (900 + 50 / Math.cbrt(A)); }
 function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', numu: 'numub', numub: 'numu', nutau: 'nutaub', nutaub: 'nutau', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n', d: 'dbar', dbar: 'd', t: 'tbar', tbar: 't', h: 'hbar', hbar: 'h', a: 'abar', abar: 'a' })[t] || t; }
-for (const [k, of, lab] of [['LQb', 'LQ', 'L̄Q'], ['Rgb', 'Rg', 'R(g̃ūd)⁻'], ['mCPb', 'mCP', 'χ̄q'], ['Tccb', 'Tcc', 'T̄cc(3875)⁻'], ['Sxb', 'Sx', 'S̄ (ūūd̄d̄s̄s̄)'], ['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
+for (const [k, of, lab] of [['Pcsb4459', 'Pcs4459', 'P̄cs(4459)⁰'], ['Omcccb', 'Omccc', 'Ω̄ccc⁻⁻'], ['LQb', 'LQ', 'L̄Q'], ['Rgb', 'Rg', 'R(g̃ūd)⁻'], ['mCPb', 'mCP', 'χ̄q'], ['Tccb', 'Tcc', 'T̄cc(3875)⁻'], ['Sxb', 'Sx', 'S̄ (ūūd̄d̄s̄s̄)'], ['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
   const s = XP[of];
   XP[k] = Object.assign({}, s, { lab, q: -s.q, B: s.B ? -s.B : 0, cc: of, dec: s.dec.map(([b, ps]) => [b, ps.map(conjTok)]) });
   if (s.sym) XP[k].sym = { 'Pc⁺': 'P̄c⁻', 'Pcs⁰': 'P̄cs⁰', 'Tcc⁺': 'T̄cc⁻', S: 'S̄' }[s.sym] || s.sym; // (the antipentaquarks' short symbols, 1.28.3)
@@ -1137,6 +1149,8 @@ function darkStep(o, d, x0, y0, z0, h) {
 function bsmDecay(o) {
   const d = XP[o.sp], M = o.m;
   if (d.bsm === 'lq') { lqPairDecay(o); return; }
+  if (d.bsm === 'lqs') { lqSingleDecay(o); return; }
+  if (d.bsm === 'phe') { pheDecay(o); return; }
   let items;
   if (d.bsm === 'rh') { const mx = XP.neut.m, h = hadronize(M - mx, 0, d.q > 0 ? 1 : -1); if (!h) { exoLeaves(o); return; } items = [{ t: 'x', sp: 'neut' }, ...h]; }
   else {
@@ -1191,7 +1205,47 @@ function lqPairDecay(o) {
   nucEvent('pdecay', x, y, `Decay: ${txt}`, [{ x, y, k: 'x', rd: 0.12, lbl: 'LQ' }], `a leptoquark pair (hypothetical), ${fmtNum(o.m / 1e6, 2)} TeV each: each turns into a lepton and a quark; the quarks become two sprays of hadrons together`, undefined, z);
   log('nuc', `Decay: ${txt}`);
 }
-function hypoKept(o) { return !o.xb && W.wall !== 'open' && !!XP[o.sp].hypo; }
+/* (1.39.3 item 111) The single leptoquark's decay: LQ → e⁻ u (isotropic in its frame); that u with the proton's remnant
+   (the diquark flying with it) one system, made into hadrons as two jets along the u and the remnant in its frame; the
+   books closed over both. Its remnant gone, it is taken out, booked as leaving (it cannot decay alone here). */
+function lqSingleDecay(o) {
+  const r = o.rem && !o.rem.dead ? o.rem : null, z = W.d3 ? (o.z || 0) : 0;
+  if (!r) { o.fate = 'decayed with its proton remnant'; o.dead = true; exoLeaves(o); return; }
+  const P = exoP4(o), M = o.m, be = P.slice(1).map(c => -c / P[0]), u = rdir(), me = 0.51099895, k = (M * M - me * me) / (2 * M), Ee = Math.sqrt(k * k + me * me);
+  const pe = boostN([Ee, ...u.map(c => c * k)], be), pq = boostN([M - Ee, ...u.map(c => -c * k)], be), pr = exoP4(r);
+  const Q = pq.map((c, i) => c + pr[i]), msys = Math.sqrt(Math.max(0, Q[0] * Q[0] - Q.slice(1).reduce((a, c) => a + c * c, 0)));
+  const bq = Q.slice(1).map(c => c / Q[0]), q1 = boostN(pq, bq), qa = q1.slice(1), qn = Math.hypot(...qa) || 1, ax = qa.map(c => c / qn);
+  const its = hadronize(msys, 1, 1), vs = its && jetMomenta(its, msys, ax[0], ax[1], W.d3 ? { ax3: ax } : {});
+  if (!its || !vs) { o.dead = true; r.dead = true; exoLeaves(o); exoLeaves(r); return; }
+  const nb = bq.map(c => -c), items = [item('e-'), ...its], moms = [pe, ...vs.map(v => boostN(v, nb))];
+  const S = nucBegin([]), x = o.x, y = o.y;
+  o.dead = true; r.dead = true;
+  const keepTag = _evTag, keepRoot = _evRoot; _evTag = o.ev; _evRoot = o.root || o.ev;
+  const made = spawnItems(items, moms, x, y, z);
+  _evTag = keepTag; _evRoot = keepRoot;
+  closeEvent(S, made, x, y, o.KE + r.KE + (o.m + r.m) * MEV, (o.m + r.m) * MEV);
+  W.count.decay++;
+  const txt = `LQ → e⁻ u; the u and the proton's remnant → ${its.length} hadrons`;
+  o.fate = r.fate = `decayed: ${txt}`;
+  flash(x, y, XP.LQs.col, 5, 0.6, z);
+  tally(items, [], `Decay: ${txt}`);
+  nucEvent('pdecay', x, y, `Decay: ${txt}`, [{ x, y, k: 'x', rd: 0.12, lbl: 'LQ' }], 'a single leptoquark (hypothetical), made as u + g → LQ + e⁺: its quark joins the rest of the proton it came from, so the charge stays whole', undefined, z);
+  log('nuc', `Decay: ${txt}`);
+}
+/* (1.39.3 item 118) Antiprotonic helium's end: the p̄ (after its microseconds) annihilates on a proton (2 in 4) or a
+   neutron of the α, into pions as p̄p and p̄n do at rest (3 to 5), the three nucleons left as ³H or ³He, its electron
+   freed; isotropic, the books by exoEvent. */
+function pheDecay(o) {
+  const onP = rnd() < 0.5, res = onP ? 't' : 'h';
+  const sets = onP ? [['pi+', 'pi-', 'pi0'], ['pi+', 'pi-', 'pi+', 'pi-'], ['pi+', 'pi-', 'pi+', 'pi-', 'pi0'], ['pi+', 'pi-', 'pi0', 'pi0']] : [['pi-', 'pi0'], ['pi+', 'pi-', 'pi-'], ['pi+', 'pi-', 'pi-', 'pi0'], ['pi-', 'pi0', 'pi0']];
+  const items = [item(res), item('e-'), ...sets[Math.floor(rnd() * 4)].map(item)];
+  const P = exoP4(o), M = Math.sqrt(Math.max(0, P[0] * P[0] - P.slice(1).reduce((a, c) => a + c * c, 0))), vs = phaseSpace(M, items.map(massOf));
+  if (!vs) { exoLeaves(o); return; }
+  const b = P.slice(1).map(c => -c / P[0]), moms = vs.map(v => boostN(W.d3 ? v : v.slice(0, 3), b));
+  exoEvent(o, [], items, moms, o.x, o.y, 'annih', `p̄He⁺ → ${onP ? '³H' : '³He'} + ${items.length - 2} pions`, `antiprotonic helium: after microseconds in a metastable state the p̄ annihilates on a ${onP ? 'proton' : 'neutron'} of the α`, o.z || 0);
+  W.count.annih++;
+}
+function hypoKept(o) { return !o.xb && W.wall !== 'open' && !!(XP[o.sp].hypo || XP[o.sp].remnant); } // (and a leptoquark's proton remnant, which must stay with it, 1.39.3)
 function hypoFly(o, d, h) {
   o._sub = true;
   if (!(h > 0)) return false;
@@ -1868,6 +1922,14 @@ function eaqAbsorb(o, E, ux, uy, uz) {
   if (w) dumpHeat(E, w, w.bonds.length ? other(w.bonds[0], w) : w); else W.ledger.bath += E; // (to its p state and back: the light warms the water)
   W.count.photons++;
 }
+/* (1.39.3 item 118) More exotic atoms. Pionium (π⁺π⁻, DIRAC at CERN: 3.15 fs, to π⁰π⁰; bound by 1.86 keV). True muonium
+   (μ⁺μ⁻, predicted by QED, not yet seen: para 0.602 ps to γγ, ortho 1.81 ps to e⁺e⁻; bound by 1.41 keV). Antiprotonic
+   helium (p̄He⁺, ASACUSA: about 3% of antiprotons stopped in helium are caught in states living microseconds; it ends as
+   the p̄ meets a nucleon of the α: pions and the three left, pheDecay). */
+XP.A2pi = { lab: 'π⁺π⁻', xat: true, m: 2 * 139.57039 - 1.86e-3, q: 0, B: 0, tau: 3.15e-15, col: [255, 200, 120], cc: 'A2pi', dec: [[1, ['pi0', 'pi0']]] };
+XP.TMp = { lab: 'p-μμ', xat: true, m: 2 * 105.6583755 - 1.41e-3, q: 0, B: 0, tau: 6.02e-13, col: [130, 220, 255], cc: 'TMp', unseen: true, dec: [[1, ['g', 'g']]] };
+XP.TMo = { lab: 'o-μμ', xat: true, m: 2 * 105.6583755 - 1.41e-3, q: 0, B: 0, tau: 1.81e-12, col: [110, 200, 255], cc: 'TMo', unseen: true, dec: [[1, ['e+', 'e-']]] };
+XP.pHe = { lab: 'p̄He⁺', xat: true, m: 938.27208816 + nucMeV(2, 2) + 0.51099895 - 1.0e-4, q: 0, B: 3, tau: 3e-6, col: [235, 150, 255], cc: 'pHe', bsm: 'phe', dec: [[1, ['t', 'pi+', 'pi-', 'pi0']]] };
 XP.pPs = { lab: 'p-Ps', m: PS_M, q: 0, tau: 1.2514e-10, col: [255, 170, 235], cc: 'pPs', ps: true, dec: [[1, ['g', 'g']]] };
 XP.oPs = { lab: 'o-Ps', m: PS_M, q: 0, tau: 1.4205e-7, col: [235, 140, 255], cc: 'oPs', ps: true, dec: [[1, ['g', 'g', 'g']]] };
 /* A new Ps at (x, y, z) moving along (ux, uy, uz), para 1 in 4. Its energy comes from closeEvent. */
@@ -2568,13 +2630,13 @@ function moveExos(dt, id0) {
     }
     const d = XP[o.sp], x0 = o.x, y0 = o.y;
     if (dec && exoHeld(o)) { dec = false; h = dt; o.wait = true; } // (held to be seen: it flies the whole step, and may decay in a later one)
-    if (d.hypo && !o.xb && W.wall !== 'open') { if (hypoFly(o, d, h)) continue; } // (kept in a closed box, in short steps, 1.39.1 item 105)
+    if ((d.hypo || d.remnant) && !o.xb && W.wall !== 'open') { if (hypoFly(o, d, h)) continue; } // (kept in a closed box, in short steps, 1.39.1 item 105)
     else if (o.xb) { moveExoBeam(o, h); nXb++; } else flyExo(o, h);
     if (W.objs.length && !o.xb && !o._sub && objExo(o, x0, y0)) continue; // (placed objects: props.js)
     if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
     if (d.res && !dec && !W.ultra && !deepSlow()) continue; // (a held resonance: only flies) (ultra-realistic: resonances fly and decay on the clock, with their own mean lives, ħ/Γ)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
-      const kept = d.atom || d.hyp || d.hypo || d.muonium || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      const kept = d.atom || d.xat || d.hyp || d.hypo || d.remnant || d.muonium || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
       if (kept && W.wall === 'wrap') { if (Math.abs(o.x) > hw) o.x -= Math.sign(o.x) * 2 * hw; if (Math.abs(o.y) > hh) o.y -= Math.sign(o.y) * 2 * hh; } // (a periodic box: across, as atoms go (the trail is drawn across the edge as theirs is); muonic hydrogen left the box there, its energy escaped, 1.26 bug fix)
       else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
       else if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
@@ -2819,13 +2881,13 @@ function moveExos3(dt, id0) {
     if (o.stop) h = 0; // (at rest: it waits for its decay)
     const x0 = o.x, y0 = o.y, z0 = o.z;
     if (o.xb) nXb++;
-    if (d.hypo && !o.xb && W.wall !== 'open') { if (hypoFly(o, d, h)) continue; } // (kept in a closed box, in short steps, 1.39.1 item 105)
+    if ((d.hypo || d.remnant) && !o.xb && W.wall !== 'open') { if (hypoFly(o, d, h)) continue; } // (kept in a closed box, in short steps, 1.39.1 item 105)
     else if (o.xb) moveExoBeam3(o, h); // (a collider's beam: through the magnets and cavities, 1.37 item 100b; it flew straight, as if they were not there)
     else if (h > 0) flyExo3(o, h);
     if (o.wait && out(o)) { o.x = clamp(o.x, -H[0], H[0]); o.y = clamp(o.y, -H[1], H[1]); o.z = clamp(o.z, -H[2], H[2]); dec = true; }
     if (d.res && !dec && !W.ultra && !deepSlow()) continue;
     if (out(o)) {
-      const kept = d.atom || d.hyp || d.hypo || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      const kept = d.atom || d.xat || d.hyp || d.hypo || d.remnant || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
       if (kept && W.wall === 'wrap') { for (const [k, h] of [['x', H[0]], ['y', H[1]], ['z', H[2]]]) if (Math.abs(o[k]) > h) o[k] -= Math.sign(o[k]) * 2 * h; } // (a periodic box: across, as atoms go, 1.26 bug fix)
       else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (as in the flat game: slow muons and muonic hydrogen kept in, 1.25)
       else if (Math.abs(o.x) > H[0]) { o.x = Math.sign(o.x) * (2 * H[0] - Math.abs(o.x)); o.ux = -o.ux; }

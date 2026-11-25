@@ -2033,6 +2033,27 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.39.3 (not yet released): items 111–119 (the owner, 2026-11-25: "Build them all")
+
+- **111, a single leptoquark** (`XP.LQs`, `XP.qRem`, `lqSingleDecay`; fireSpec's `singleMade`). Placing "LQ (single)"
+  sets down what u + g → LQ + e⁺ leaves: the 2 TeV leptoquark, a positron backwards (300 GeV) and the struck proton's
+  remnant (u d, charge +⅓, B ⅔) forwards (500 GeV), linked (`a.rem`, `rem.lq`). The LQ decays to e⁻ u in its own frame;
+  that u and the remnant are made into hadrons together (one colourless system, charge +1, B 1) along the u. The
+  leptoquark's baryon number is now ⅓ (it was 0, so the single decay made a baryon from nothing; the pair, LQ + L̄Q, sums
+  to 0 either way). Measured, flat and 3-D: charge 1 → 1, B 1 → 1, books within 2·10⁻³ eV of a 2 TeV event, 13–130
+  hadrons. The remnant stays in a closed box with the hypothetical particles (`hypoKept`).
+- **118, more exotic atoms** (`XP.A2pi`, `TMp`, `TMo`, `pHe`, flag `xat`: kept in closed boxes). Checked first: the
+  game already has antiprotonic atoms (the `xa` cascade, `pbar`, ending in picoseconds) and protonium (`XP.Pn`). New:
+  pionium π⁺π⁻ (3.15 fs → π⁰π⁰, DIRAC); true muonium, para (0.602 ps → γγ) and ortho (1.81 ps → e⁺e⁻), labelled
+  "predicted, not yet seen" (`unseen`); and metastable antiprotonic helium p̄He⁺ (3 µs), which ends as its p̄ meets a
+  proton (→ ³H) or a neutron (→ ³He) of the α, with 2–5 pions and its electron (`pheDecay`, phase space, exoEvent's
+  books). It is placed from the Exotic menu; antiprotons stopped in helium still cascade as before (the 3% that ASACUSA
+  finds caught in the long-lived states is not modelled: that would be a change to how p̄ capture works).
+- **119, hadrons**: LHCb's second strange pentaquark Pcs(4459)⁰ (4458.8 MeV, 17.3 MeV wide → J/ψ Λ) in Multiquarks; the
+  triple-charm Ωccc⁺⁺ (4796 MeV from lattice QCD, 0.25 ps predicted; c → s as Λc⁺ D⁺ K̄⁰) in Baryons, labelled predicted.
+- Info pages for each (Ω baryon, Pionium, True muonium, Antiprotonic helium, Diquark for the remnant); the Hypothetical
+  menu holds 17. Check: f_139 `exo3` (16 decays, flat and 3-D: charge and B exact, books under 10⁻² eV).
+
 ## 1.39.2 (released 2026-11-24): the particle menus animated (the owner, 2026-11-24: "can you animate the new navigation")
 
 With Settings' motion on, as the other menus: a menu drops in from its button (`moPop`, as before), a group's list slides
@@ -4873,7 +4894,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    this). Single production: u + g → LQ + e⁺, the struck proton's remnant (u d) flying on with the colour and the rest of
    the charge. Placing "LQ (single)" sets down the leptoquark, the positron and the remnant; the LQ decays to e⁻ u, and
    that u and the remnant are made into hadrons together (whole charge +1, colourless), charge and books exact. The pair
-   stays as it is. Waiting for "build it".
+   stays as it is. Built in 1.39.3.
    (Items 112–119: the owner, 2026-11-25, asked "Any other things that could be added?", then "Add them all, i think
    theres already a cloud chamber" (there is: the Real labs setup); so not added.)
 112. **Hypothetical particles made in the colliders.** The synchrotron and the linear collider can make a Z′, leptoquarks
@@ -4893,10 +4914,10 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    the event the game records (its particles in and out and the force).
 118. **More exotic atoms**: pionium (π⁺π⁻, DIRAC at CERN), true muonium (μ⁺μ⁻, not yet seen: labelled), and the
    metastable antiprotonic helium (ASACUSA, microseconds); check first what the antiprotonic atoms and protonium
-   already do.
+   already do. Built in 1.39.3.
 119. **More found and predicted hadrons**: the triple-charm Ω_ccc (predicted, not seen: labelled) and the newer
-   strange pentaquarks (LHCb's P_ψs^Λ(4338) is in; others since).
-   Items 111–119 waiting for "build it".
+   strange pentaquarks (LHCb's P_ψs^Λ(4338) is in; others since). Built in 1.39.3.
+   Items 112–117 being built for "build it".
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
