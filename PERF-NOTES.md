@@ -2051,6 +2051,21 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   finds caught in the long-lived states is not modelled: that would be a change to how p̄ capture works).
 - **119, hadrons**: LHCb's second strange pentaquark Pcs(4459)⁰ (4458.8 MeV, 17.3 MeV wide → J/ψ Λ) in Multiquarks; the
   triple-charm Ωccc⁺⁺ (4796 MeV from lattice QCD, 0.25 ps predicted; c → s as Λc⁺ D⁺ K̄⁰) in Baryons, labelled predicted.
+- **112, hypothetical particles made in the colliders** (Settings → Experimental → Realistic particles: "Hypothetical
+  particles in colliders", off by default; `bsmDraw`, `bsmSig`, `bsmLink`, `sigZpEE`, `sigLQEE`). Proton–proton
+  (`nnInelastic`, two free protons): a Z′, a leptoquark pair, a single leptoquark (with its e⁺ and the remnant, as 111)
+  or a black hole, the hadrons made from what is left (charge, B and energy less theirs). Cross sections at 13 TeV:
+  Z′ 0.15 fb, LQ pair 0.04 fb, single LQ 0.6 fb (λ = 1 assumed), scaled to √s by L(τ) = (1 − √τ)¹⁰/τ (13 → 14 TeV ×2.1
+  for the Z′, ×1.6 for the pair: about right; far from 13 TeV an estimate); the black hole πr² 15 pb × (1 − √τ)¹⁰ (none
+  below 13.6 TeV: 8·10⁻⁶ fb there). Against σ_inel that is about 10⁻¹⁴ of the collisions at 13.6 TeV; shown 10¹² times
+  more often (about 1.3% of the collisions at 13.6 TeV), real in the ultra-realistic mode, each event's caption saying
+  which. Electron–positron (`eeEvent`): two more channels at their real cross sections, the Z′ as a Breit–Wigner
+  (12π B_ee/M² = 13.7 pb at 6 TeV, against μ⁺μ⁻'s 2.4 fb: it is almost every collision there; within 10 widths) and
+  scalar leptoquark pairs through the photon (0.08 fb at 6 TeV). With the switch off no number is drawn (the
+  fingerprints unchanged). Check: f_139 `bsmc` (boost 10¹⁵ for the test at 100 TeV: BH 32, Z′ 10, LQ pair 1, single 1 of
+  80; links, charge, B and books exact; e⁺e⁻ at 6 TeV: Z′ in 20 of 20).
+- f_ew's antihydrogen fingerprint updated: 1.39.2's fix (antimatter ions sized as their mirrors) changes that setup's
+  run (its ions' contact radius, `ljR`); found here, not caught then because f_ew was not in that release's list.
 - Info pages for each (Ω baryon, Pionium, True muonium, Antiprotonic helium, Diquark for the remnant); the Hypothetical
   menu holds 17. Check: f_139 `exo3` (16 decays, flat and 3-D: charge and B exact, books under 10⁻² eV).
 
@@ -4900,6 +4915,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 112. **Hypothetical particles made in the colliders.** The synchrotron and the linear collider can make a Z′, leptoquarks
    (pairs, and singly once 111 is in) and microscopic black holes from their real cross sections at the beam energy (tiny:
    none in a session), or boosted, labelled so, as the WIMP's and axion's display factors. Off in ultra-realistic.
+   Built in 1.39.3 (a Settings switch, off by default; real rates in the ultra-realistic mode).
 113. **A dark-matter detector setup** (as LZ): a tank of liquid xenon, a "WIMP wind" through it at the galaxy's 230 km/s,
    the rare recoils lit and counted against the rate the cross section gives; the background from the tank's own
    radioactivity for comparison.

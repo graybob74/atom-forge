@@ -660,6 +660,46 @@ PARTS.exo3 = async (page, check) => { // (1.39.3 items 111, 118, 119: a single l
   check(ok && seen && keys.every(Boolean), `1.39.3 a single leptoquark (with the proton's remnant), pionium, true muonium (predicted), antiprotonic helium, Ωccc (predicted) and Pcs(4459) decay keeping charge, baryon number and the energy books, flat and 3-D (${Object.keys(res).length} decays)`,
     `1.39.3 exo3: ${JSON.stringify(res)} palette ${seen} keys ${keys}`);
 };
+PARTS.bsmc = async (page, check) => { // (1.39.3 item 112: hypothetical particles made in the colliders)
+  const books = (X) => X.totalEnergy().total - X.W.ledger.nuc + X.W.ledger.bath;
+  const chg = (X) => { const W = X.W; let q = (W.ledger.qOut || 0) + (W.ledger.qWall || 0); for (const p of W.parts) if (!p.dead) q += p.q; for (const o of W.exo) if (!o.dead) q += o.q; return Math.round(q * 1e6) / 1e6; };
+  const bar = (X) => { let b = 0; for (const p of X.W.parts) if (!p.dead && p.k === X.NUC) b += (p.anti ? -1 : 1) * (p.Z + p.N); for (const o of X.W.exo) if (!o.dead) b += X.XP[o.sp].B || 0; return Math.round(b * 1e6) / 1e6; };
+  const fresh = (X, d3) => { const W = X.W; X.PRESETS[d3 ? 'd3empty' : 'empty'].build(); W.T = 0; W.gamma = 0; W.decayOn = false; W.wall = 'open'; W.collider = { made: {} }; };
+  const clear = (X) => { const W = X.W; for (const p of W.parts) X.kill(p); W.parts = []; W.exo = []; W.rays = []; X.forcesNoEvents(); };
+  const r = {}; let ok = true;
+  for (const d3 of [false, true]) {
+    const X = load('all', { seed: 5 }), W = X.W; fresh(X, d3); X.RP.bsm = true; X.BSM.boost = 1e15; // (for the test: about half the collisions)
+    const got = {}; let worst = 0, bad = 0, linked = 0, want = 0;
+    for (let k = 0; k < 80; k++) {
+      clear(X);
+      const a = X.addNuc(1, 0, 0, -0.01, 0, 0, 0, false), b = X.addNuc(1, 0, 0, 0.01, 0, 0, 0, false), K = (100e6 / 2 - 938.272) * 1e6;
+      if (d3) { X.setMotion(a, K, 0, 0.6, 0, 0, 0.8); X.setMotion(b, K, 0, -0.6, 0, 0, -0.8); } else { X.setMotion(a, K, 1, 0); X.setMotion(b, K, -1, 0); }
+      X.forcesNoEvents(); const E0 = books(X), Q0 = chg(X), B0 = bar(X), P = X.add4(X.p4of(a, true), X.p4of(b, true)), c0 = W.count.bsm || 0;
+      if (!X.nnInelastic(a, b, 0, 0, P, X.mass4(P))) continue;
+      if ((W.count.bsm || 0) > c0) {
+        const xs = W.exo.filter(o => !o.dead), h = xs.find(o => ['Zp', 'LQ', 'LQs', 'BH'].includes(o.sp)); got[h ? h.sp : '?'] = (got[h ? h.sp : '?'] || 0) + 1;
+        if (h && (h.sp === 'LQ' || h.sp === 'LQs')) { want++; if (h.sp === 'LQ' ? h.pair && h.pair.pair === h : h.rem && h.rem.lq === h) linked++; }
+        for (const o of xs) if (!o.dead && ['Zp', 'LQ', 'LQb', 'LQs', 'BH'].includes(o.sp)) { if (d3) X.decayExo3(o); else X.decayExo(o); }
+      }
+      worst = Math.max(worst, Math.abs(books(X) - E0) / 1e14); if (chg(X) !== Q0 || bar(X) !== B0) bad++;
+    }
+    let zp = 0; // (e⁺e⁻ at the Z′'s 6 TeV: its real rate wins)
+    for (let k = 0; k < 20; k++) {
+      clear(X);
+      const e = X.addLepton(X.ELEC, -0.01, 0), p = X.addLepton(X.POS, 0.01, 0), K = 3000 * 1e9 - 0.51099895e6;
+      if (d3) { X.setMotion(e, K, 0.6, 0, 0, 0, 0.8); X.setMotion(p, K, -0.6, 0, 0, 0, -0.8); } else { X.setMotion(e, K, 1, 0); X.setMotion(p, K, -1, 0); }
+      X.forcesNoEvents(); const E0 = books(X), Q0 = chg(X);
+      X.eeEvent(e, p, 0, 0); if (W.exo.some(o => !o.dead && o.sp === 'Zp')) zp++;
+      X.moveExos(1e-9); worst = Math.max(worst, Math.abs(books(X) - E0) / 6e12); if (chg(X) !== Q0) bad++;
+    }
+    r[d3 ? '3D' : 'flat'] = { got, linked, want, worst: +worst.toExponential(1), bad, zp };
+    if (!(Object.keys(got).length >= 2 && linked === want && worst < 1e-12 && bad === 0 && zp >= 15)) ok = false;
+  }
+  const Y = load('all', { seed: 1 }); // (the real rates at 13 TeV, and nothing drawn with the switch off)
+  const s13 = ['Zp', 'LQ', 'LQs'].map(k => +Y.bsmSig(k, 1.3e7).toFixed(3)), off = Y.bsmDraw(1.4e7, 1e7) === null && !Y.RP.bsm && !Y.SET_DEF.rpBsm && !!Y.SDESC.setRpBsm && !!Y.SDESC3.setRpBsm;
+  check(ok && s13.join() === '0.15,0.04,0.6' && off, `1.39.3 TeV proton collisions make a Z′, leptoquarks (pairs and single, linked) and black holes (boosted for the test), an e⁺e⁻ collider at 6 TeV the Z′ (${r.flat.zp} of 20), charge, baryon number and books exact, flat and 3-D; off by default (${JSON.stringify(r.flat.got)})`,
+    `1.39.3 bsmc: ${JSON.stringify(r)} σ13 ${s13} off ${off}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
