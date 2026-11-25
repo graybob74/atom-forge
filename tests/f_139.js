@@ -357,6 +357,21 @@ PARTS.cliplines = async (page, check) => { // (1.39.1: dashed lines cut to the v
     `1.39.1 dashed lines are cut to the view: ${kept} of ${n} random lines kept, on their line, in the view, in step with their dashes, none longer than ${longest.toFixed(0)} px; 60 dashed rays and the box's edges from inside an open 3-D box: ${lines} dashed lines, ${Math.round(dashed).toLocaleString('en-US')} px in all`,
     `1.39.1 clipLine: ${why.join('; ') || 'counts'} (kept ${kept}, out ${out}, longest ${longest.toFixed(0)}, 3-D dashed lines ${lines}, ${Math.round(dashed)} px, drew ${drew})`);
 };
+PARTS.tile = async (page, check) => { // (1.39.1: "monopole" ran far out of the card's symbol tile)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => {
+    loadPreset('empty'); setRunning(false); showTab('inspect'); const out = [];
+    for (const sp of ['mono', 'slet', 'LL6He', 'Ap', 'Tcc', 'Sxb', 'X3872', 'Pcs4338', 'wimp']) {
+      const x = fireSpec({ kind: 'exo', sp }, 0, 0, 1, 0, 1e6, false); R.sel = null; R.selX = { kind: 'exo', o: x, t0: W.rt }; renderInspect();
+      await new Promise(res => setTimeout(res, 30));
+      const t = document.querySelector('#tp-inspect .tilebox'), sEl = t && t.querySelector('.s');
+      out.push([sp, sEl ? sEl.scrollWidth <= t.clientWidth : false, sEl ? parseFloat(getComputedStyle(sEl).fontSize) : 0]); x.dead = true;
+    }
+    return out;
+  });
+  check(r.every(x => x[1] && x[2] >= 9) && r.find(x => x[0] === 'wimp')[2] === 30, `1.39.1 every card's symbol fits its tile (${r.map(x => `${x[0]} ${x[2]} px`).join(', ')}); short ones keep 30 px`, `1.39.1 tile: ${JSON.stringify(r)}`);
+  if (own) { if (own.errors.length) check(false, '', '1.39.1 tile errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

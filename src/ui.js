@@ -2020,7 +2020,25 @@ function selXHTML() {
    live) above the next one, up to three, each closed with its own ×, so two particles can be compared. */
 const PINS = [], PIN_MAX = 3;
 function pinToggle(p) { const i = PINS.indexOf(p); if (i >= 0) PINS.splice(i, 1); else { PINS.push(p); if (PINS.length > PIN_MAX) PINS.shift(); } }
-function renderInspect() { renderInspect1(); pinsDraw(); }
+function renderInspect() { renderInspect1(); pinsDraw(); fitTiles($('tp-inspect')); }
+/* (1.39.1, the owner's screenshot: "monopole" ran far out of the card's symbol tile) A symbol too wide for its tile is
+   drawn smaller, to fit; the size is measured once for each symbol and kept. */
+const TILE_FIT = new Map();
+function fitTiles(root) {
+  if (!root) return;
+  for (const e of root.querySelectorAll('.tilebox .s')) {
+    const t = e.textContent; if (t.length < 3) continue;
+    let fs = TILE_FIT.get(t);
+    if (fs === undefined) {
+      e.style.fontSize = ''; const box = e.parentElement.clientWidth - 8, w = e.scrollWidth;
+      if (!(box > 0) || !(w > 0)) continue; // (not laid out: hidden)
+      fs = w > box ? Math.max(9, Math.floor(parseFloat(getComputedStyle(e).fontSize) * box / w)) : 0;
+      TILE_FIT.set(t, fs);
+    }
+    e.style.fontSize = fs ? fs + 'px' : '';
+    if (fs) e.style.top = (22 + (30 - fs) * 0.45) + 'px'; else e.style.top = '';
+  }
+}
 function pinsDraw() {
   for (let i = PINS.length - 1; i >= 0; i--) if (!PINS[i] || PINS[i].dead) PINS.splice(i, 1);
   const box = $('tp-inspect'); if (!box || !PINS.length) return;

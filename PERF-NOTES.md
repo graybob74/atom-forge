@@ -2063,6 +2063,12 @@ column was a fixed 4.2em, so labels longer than that ("strangelet", "monopole", 
 ran over the names or broke onto two lines. Now the column is as wide as the menu's widest label (`pmFit`, measured when a
 menu or the search list opens; 79 px for Multiquarks and Hypothetical, 56 px for Leptons) and labels never wrap: every
 name starts in one line after its label. Test: f_139.js menu.
+**Inspect cards' symbol tiles** (the owner, 2026-11-24, a screenshot: "monopole" ran far out of its card's tile; "fix
+any of these instances as well"). A symbol wider than its 76 px tile is now drawn smaller to fit (`fitTiles`, after each
+Inspect render, pinned cards too; the size measured once a symbol and kept): monopole and strangelet 13 px, ⁶ΛΛHe 20,
+A′(17) 23, Tcc⁺ and Pcs⁰ 26; short symbols keep 30 px. A scan of the page with every long-labelled particle selected,
+placed and inspected, with Made here and the beam picker open, found no other text running out of its box (it found the
+tiles before the fix). Test: f_139.js tile.
 
 ### 1.39.1: the per-slot phases shared by pieces (the owner, 2026-11-22, "build it")
 The owner's benchmark with the per-thread line (20,000 waters, 16 threads, 0.51 ms a step this time against 0.56 the
@@ -4659,6 +4665,12 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    of attoseconds a frame or less) a ray covers only some hundreds of Å in 30 s. The photon itself is fine (its energy
    was booked as escaping, or its hit happens, at the simulation's time); only its line is removed early. Plan: no
    time limit while the ray is travelling (the 400-ray cap still bounds the list); the fade starts when it arrives.
+104. **A particle view and an Inside close-up for the new particles** (the owner, 2026-11-24: "add particle view and a
+   close up of what's inside in the inspect panel for any hypothetical particles that could have one (like a strangelet
+   because it's quarks)"). Strangelet: its ~3A quarks (u, d, s about equal) in one bag, growing as it eats; sexaquark and
+   the found tetraquarks from their quark content (check what shows today); ⁶ΛΛHe and anti-⁴ΛH as hypernuclei (two Λ, an
+   antinucleus); WIMP, axion, dark photon: "nothing inside" notes as for leptons; monopole: Dirac's is a point, a GUT
+   ('t Hooft–Polyakov) one has a core. Display only. Waiting for "build it".
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
