@@ -4848,6 +4848,13 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    (within a few pixels, without moving away) picks the next one under it, and so on round: nuclei, atoms, electrons,
    unstable particles, placed objects, magnets. A small "2 of 3" note by the pointer says there is more. Also check why the
    J/ψ is not picked first (smaller and on top, it should win). Flat and 3-D. Built in 1.39.1.
+110. **Leptoquarks, as pairs** (the owner, 2026-11-24, asked why they were left out of item 108, then "Yes" to this).
+   A lone leptoquark's charge is a third (S₁: −⅓ → e⁻ u), and its single quark cannot become hadrons here with the
+   charge kept; at the LHC they are made in pairs. So placing one sets down a leptoquark and its antiparticle flying
+   apart; each decays at once to its lepton and a quark, the two quarks hadronized together as one dijet system (as the
+   Z′'s), charge and books exact. Mass just above the LHC's pair-production limits (check: about 1.5–2 TeV by type and
+   lepton); labelled hypothetical, with the B-anomaly story (LHCb's 2022 R_K back at the Standard Model). Waiting for
+   "build it".
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
