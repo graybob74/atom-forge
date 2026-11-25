@@ -578,6 +578,48 @@ PARTS.anti = async (page, check) => { // (1.39.2: "anti-elements get drawn WAY b
   check(out.every(r => r[2] === r[3] && r[4] === r[5]), `1.39.2 an antimatter ion is the size of its matter twin (anti-Cu missing 15 positrons: ${out[0][2]} Å, as Cu¹⁵⁺; it was 7.33 Å, sized as a −15 anion), drawn and in its forces: ${out.map(r => `${r[0]} ±${r[1]} ${r[2]} Å`).join(', ')}`,
     `1.39.2 anti: ${JSON.stringify(out)}`);
 };
+PARTS.grabsel = async (page, check) => { // (1.39.2: "when you select some stuff when you use grab it should group the selected items together")
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const res = {};
+  for (const sel of [true, false]) {
+    const at = await page.evaluate((sel) => { loadPreset('empty'); setRunning(true); W.gamma = 0; W.T = 0;
+      const a = addAtom('Ar', -6, 0), b = addAtom('Ar', 0, 6), c = addAtom('Ar', 6, -4), d = addAtom('Ar', 8, 8); for (const p of [a, b, c, d]) { p.vx = p.vy = 0; }
+      R.msel.clear(); if (sel) { R.msel.add(a); R.msel.add(b); R.msel.add(c); } selChanged(); setTool('grab'); R.s = 20; R.cx = 0; R.cy = 0;
+      window._g = { a, b, c, d, p0: [a, b, c, d].map(p => [p.x, p.y]) };
+      const r = R.cv.getBoundingClientRect(), k = r.width / R.w; return { x: r.left + w2sx(a.x) * k, y: r.top + w2sy(a.y) * k, k };
+    }, sel);
+    await page.mouse.move(at.x, at.y); await page.mouse.down();
+    for (let i = 1; i <= 20; i++) { await page.mouse.move(at.x, at.y - i * 6); await new Promise(r => setTimeout(r, 30)); }
+    await new Promise(r => setTimeout(r, 400)); await page.mouse.up();
+    res[sel ? 'selected' : 'alone'] = await page.evaluate(() => { const { a, b, c, d, p0 } = window._g; return [a, b, c, d].map((p, i) => +Math.hypot(p.x - p0[i][0], p.y - p0[i][1]).toFixed(1)); });
+  }
+  const S = res.selected, A = res.alone;
+  check(S[0] > 2 && S[1] > 0.6 * S[0] && S[2] > 0.6 * S[0] && S[3] < 0.5 && A[0] > 2 && A[1] < 0.5 && A[2] < 0.5,
+    `1.39.2 Grab on a selected atom carries the whole selection (three selected argon atoms moved ${S.slice(0, 3).join(', ')} Å, the unselected one ${S[3]} Å); with nothing selected it takes the one atom (${A[0]} Å; the others ${A.slice(1).join(', ')})`,
+    `1.39.2 grabsel: ${JSON.stringify(res)}`);
+  if (own) { if (own.errors.length) check(false, '', '1.39.2 grabsel errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
+PARTS.ptable = async (page, check) => { // (1.39.2: "more like a real periodic table, with the info in the space between Be and B"; the About as a drop-down; a back button in the isotope builder)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => { const w = (ms) => new Promise(res => setTimeout(res, ms));
+    openPT({ Z: 29, A: 63, q: 0, bare: false, anti: false }); UI.ptInfo = false; renderPTDetail(); await w(100);
+    const key = $('ptKey'), kr = key.getBoundingClientRect(), be = document.querySelector('.pcell[data-z="4"]').getBoundingClientRect(), b5 = document.querySelector('.pcell[data-z="5"]').getBoundingClientRect(), sc = document.querySelector('.pcell[data-z="21"]').getBoundingClientRect();
+    const inGap = kr.left >= be.right - 1 && kr.right <= b5.left + 1 && kr.bottom <= sc.top + 1, keyTxt = key.textContent.replace(/\s+/g, ' ');
+    const cell = document.querySelector('.pcell[data-z="29"]').textContent;
+    const dlg = document.querySelector('#ptModal .dialog'), h0 = dlg.scrollHeight;
+    $('ptInfo').click(); await w(250); const box = $('pdetail').querySelector('.infobox'), h1 = dlg.scrollHeight, drop = box && getComputedStyle(box).position === 'absolute', pop = box && box.classList.contains('pop');
+    $('ptInfo').click(); await w(50);
+    $('pdetail').querySelector('#ptBuild').click(); await w(150); const inB = !$('nucModal').hidden; NB.N += 1; nbChanged(); $('nucBack').click(); await w(150);
+    const back = !$('ptModal').hidden && $('nucModal').hidden, A = UI.ptSel.A;
+    setPTAnti(true); await w(100); const c1 = document.querySelector('.pcell[data-z="1"]'), kz = $('ptKey').querySelector('.pk-tile .z'), kov = $('ptKey').querySelector('.pk-tile .ov');
+    const clear = c1.querySelector('.s').getBoundingClientRect().top >= c1.querySelector('.z').getBoundingClientRect().bottom - 0.5 && kov.getBoundingClientRect().top >= kz.getBoundingClientRect().bottom - 0.5; setPTAnti(false);
+    return { inGap, keyTxt: keyTxt.slice(0, 80), cell, h0, h1, drop, pop, inB, back, A, clear };
+  });
+  check(r.inGap && /Copper/.test(r.keyTxt) && /electronegativity/.test(r.keyTxt) && /Copper/.test(r.cell) && /63\.5/.test(r.cell) && r.drop && r.pop && r.h1 === r.h0 && r.inB && r.back && r.A === 64 && r.clear,
+    `1.39.2 the periodic table: each cell has its name and mass ("${r.cell}"), the chosen element large in the gap between Be and B with its facts ("${r.keyTxt.slice(0, 40)}…"); About drops down over the window (its height ${r.h0} px before and after); the isotope builder's "‹ Periodic table" goes back to the table at what was built (⁶⁴Cu); an anti-element's bar sits over its symbol, clear of the atomic number (cells and the big tile)`,
+    `1.39.2 ptable: ${JSON.stringify(r)}`);
+  if (own) { if (own.errors.length) check(false, '', '1.39.2 ptable errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

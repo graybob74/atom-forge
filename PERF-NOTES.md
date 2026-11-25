@@ -2070,6 +2070,25 @@ charge, and its size was the ionic radius for that charge: an anion's, growing 5
 15 positrons gone was 7.33 Å across in its drawing and in its repulsion (2 × the ionic radius), a −15 anion. Now an
 antimatter ion takes its matter twin's ionic radius (Cu¹⁵⁺: 0.28 Å), mirror for mirror. Test: f_139.js anti.
 
+**Grab takes the selection** (the owner: "when you select some stuff when you use grab it should group the selected items
+together"). Grabbing a selected atom pulls every selected atom (and, with "Whole molecule or crystal", each one's
+molecule), as one group on the same spring; an unselected atom is grabbed as before. Measured: three selected argon atoms
+dragged 6 Å each, an unselected one beside them not at all. Test: f_139.js grabsel.
+
+**A periodic table that looks like one** (the owner, a screenshot: "make this look more like a real periodic table, with
+the info in the space between Be and B"). Each cell tinted by its family (the stripe gone), with its name and mass under
+the symbol; the chosen element large in the gap above the transition metals (`#ptKey`: its tile, number, name, mass,
+and the facts that sat under the table: family, electronegativity, ionization, melting point, electrons, its isotope's
+half-life and where it decays to); the charge, isotope and use controls stay below. Anti-elements: the bar over the
+symbol only (the overline sat on the atomic number), the matter name under it (the title says anti).
+
+**About an element: a drop-down** (the owner: "animate the 'about [element]' button so it's a little dropdown and doesn't
+expand the whole window"). It opens over the window, above its button, with a short drop (only when opened, not again
+for each element chosen while it stays open); the window keeps its height (807 px before and after); its ▾ turns over.
+
+**Isotope builder: ‹ Periodic table** (the owner: "add a back button in the isotope builder so you don't have to close it
+every time"). Back to the table, showing what was built (its element, isotope and charge). Test: f_139.js ptable.
+
 ## 1.39.1 (released 2026-11-24): the benchmark's per-thread line (the owner, 2026-11-22, "build it")
 After the GPU was shelved the owner ran the Settings benchmark on his PC (1.39.0 desktop, 16 threads, WebAssembly
 kernel). 20,000 waters: **0.56 ms a step**, the goal met by the benchmark's sum (37.5 steps × 0.56 + 0.9 ms drawing =

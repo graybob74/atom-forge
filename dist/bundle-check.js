@@ -38418,6 +38418,11 @@ function builderInit() {
   $('aiAsk').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !AI.busy) aiAsk($('aiAsk').value); });
   $('bldModal').addEventListener('keydown', mbKey);
   $('nucClose').onclick = () => hideModal('nucModal');
+  $('nucBack').onclick = () => { // (1.39.2; the owner: "add a back button in the isotope builder so you don't have to close it every time") back to the table, showing what was built (its element, isotope and charge), or where it was if it has no protons
+    hideModal('nucModal');
+    const Z = NB.Z, q = NB.anti ? -(Z - NB.ne) : Z - NB.ne;
+    openPT(Z >= 1 ? { Z, A: Z + NB.N, q: NB.ne ? q : 0, bare: NB.ne === 0, anti: NB.anti } : undefined);
+  };
   $('nucBins').onpointerdown = nbBinDown;
   $('nucBins').onclick = nbBinClick;
   $('nucCv').onpointerdown = nbDown;
@@ -39978,9 +39983,10 @@ function buildPTGrid(anti) {
   for (let Z = 1; Z <= 118; Z++) {
     const el = ELEMENTS[Z]; if (!el) continue;
     let [r, c] = ptablePos(Z); if (r >= 8) r += 1;
-    cells += `<button class="pcell" data-z="${Z}" style="grid-row:${r + 1};grid-column:${c + 1}" title="${esc(anti ? antiName(Z) : el.name)}"><span class="z">${Z}</span><span class="s">${el.sym}</span><span class="stripe" style="background:${CAT_COL[el.cat] || '#999'}"></span></button>`;
+    const cc = CAT_COL[el.cat] || '#888';
+    cells += `<button class="pcell" data-z="${Z}" style="grid-row:${r + 1};grid-column:${c + 1};--cc:${cc}" title="${esc(anti ? antiName(Z) : el.name)}"><span class="z">${Z}</span><span class="s">${el.sym}</span><span class="n">${esc(el.name)}</span><span class="m">${el.mass >= 100 ? Math.round(el.mass) : el.mass.toFixed(el.mass < 10 ? 2 : 1)}</span></button>`; // (1.39.2; the owner: "make this look more like a real periodic table, with the info in the space between Be and B": the name and the mass in each cell, tinted by its family)
   }
-  cells += '<div class="pgap" style="grid-row:9"></div>';
+  cells += '<div class="pgap" style="grid-row:9"></div><div class="pkey" id="ptKey" style="grid-row:1 / span 3;grid-column:3 / span 10" aria-live="polite"></div>'; // (the chosen element, large, in the gap above the transition metals, as printed tables put their key)
   g.innerHTML = cells;
   g.classList.toggle('anti', anti);
   g.dataset.anti = anti ? '1' : '0';
@@ -40037,8 +40043,7 @@ function renderPTDetail() {
   const ne = s.bare ? 0 : anti ? s.Z + s.q : s.Z - s.q;
   const spec = { kind: 'atom', Z: s.Z, A: s.A, charge: s.bare ? 0 : s.q, bare: s.bare };
   if (anti) spec.anti = true;
-  $('pdetail').innerHTML = `
-    <div class="facts">
+  const key = $('ptKey'); if (key) key.innerHTML = `<div class="pk-tile" style="--cc:${CAT_COL[el.cat] || '#888'}"><span class="z">${s.Z}</span><span class="s">${symHTML(el.sym, anti)}</span><span class="n">${esc(anti ? antiName(s.Z) : el.name)}</span><span class="m">${esc(fmtMassU(el.mass, 5))}</span></div><div class="facts">
       <span><b>${esc(anti ? antiName(s.Z) : el.name)}</b> (${CAT_NAMES[el.cat] || ''}${anti ? ', antimatter' : ''})</span>
       <span>${anti ? 'antiprotons' : 'Z'} <b>${s.Z}</b></span><span>mass <b>${esc(fmtMassU(el.mass, 5))}</b></span>
       <span>electronegativity <b>${el.en ? el.en.toFixed(2) : '—'}</b></span>
@@ -40052,7 +40057,9 @@ function renderPTDetail() {
         const path = ch.map((c, i) => sy(c) + (i + 1 < ch.length ? ` →${MODE_SHORT[c.mode] || ''}` : '')).join(' ');
         return `<span title="${esc(path)}">decays to <b>${esc(end.stable ? sy(end) : end.mode === 'sf' ? 'fission fragments' : sy(end))}</b> in ${ch.length - 1} step${ch.length > 2 ? 's' : ''}</span>`;
       })()}
-    </div>
+</div>`;
+  $('pdetail').innerHTML = `
+    <div class="facts"></div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
       <span class="stepper" aria-label="Charge"><button data-q="-1" aria-label="${anti ? 'Remove a positron' : 'Add an electron'}" ${s.bare || s.q <= minQ ? 'disabled' : ''}>−</button><span>${s.bare ? 'bare' : 'charge ' + (s.q > 0 ? '+' : '') + s.q}</span><button data-q="1" aria-label="${anti ? 'Add a positron' : 'Remove an electron'}" ${s.bare || s.q >= maxQ ? 'disabled' : ''}>+</button></span>
       <label class="check"><input type="checkbox" id="ptBare" ${s.bare ? 'checked' : ''}> Bare ${anti ? 'antinucleus' : 'nucleus'}</label>
@@ -40062,7 +40069,7 @@ function renderPTDetail() {
     </div>
     <div class="isorow"><span class="lbl">Isotope</span><div class="isochips" role="group" aria-label="Isotope">${isos.map(A => { const [cls, short] = isoLife(s.Z, A); return `<button class="isochip" data-a2="${A}" aria-pressed="${A === s.A}"><i class="life ${cls}" aria-hidden="true"></i><b>${sup(A)}${symHTML(el.sym, anti)}</b><span>${esc(short)}</span></button>`; }).join('')}</div></div>
     ${MYISO.some(m => m.Z === s.Z && !!m.anti === anti) ? `<div class="isorow"><span class="lbl">Saved</span><div class="isochips" role="group" aria-label="Saved isotopes">${MYISO.map((m, i) => { if (m.Z !== s.Z || !!m.anti !== anti) return ''; /* (only this element's: 1.32 item 77) */ const [cls, short] = isoLife(m.Z, m.A); return `<span class="isosaved"><button class="isochip" data-my="${i}" aria-pressed="${sameSpec(m, spec)}" title="${esc(specName(m))}"><i class="life ${cls}" aria-hidden="true"></i><b>${esc(specLabel(m))}</b><span>${esc(short)}</span></button><button class="isox" data-myx="${i}" aria-label="Take ${esc(specName(m))} off your saved isotopes" title="Take it off your saved isotopes">×</button></span>`; }).join('')}</div></div>` : ''}
-    ${EL_INFO[s.Z] ? `<div class="elinfo"><button class="btn small infobtn" id="ptInfo" aria-expanded="${UI.ptInfo ? 'true' : 'false'}" title="A few words about ${esc(el.name.toLowerCase())}, and a link to read more">ⓘ About ${esc(anti ? antiName(s.Z) : el.name)}</button>${UI.ptInfo ? infoElHTML(s.Z, anti) : ''}</div>` : ''}`; // (info, 1.28.1)
+    ${EL_INFO[s.Z] ? `<div class="elinfo"><button class="btn small infobtn" id="ptInfo" aria-expanded="${UI.ptInfo ? 'true' : 'false'}" title="A few words about ${esc(el.name.toLowerCase())}, and a link to read more">ⓘ About ${esc(anti ? antiName(s.Z) : el.name)} <span class="chev" aria-hidden="true">▾</span></button>${UI.ptInfo ? infoElHTML(s.Z, anti) : ''}</div>` : ''}`; // (info, 1.28.1)
   $('pdetail').onclick = (e) => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.my !== undefined) { // a saved one: show it here
@@ -40076,7 +40083,7 @@ function renderPTDetail() {
       const m = MYISO[+b.dataset.myx]; if (m) myIsoToggle(m);
       renderPTDetail(); return;
     }
-    if (b.id === 'ptInfo') { UI.ptInfo = !UI.ptInfo; renderPTDetail(); return; } // (the element's info, kept open from one element to the next, 1.28.1)
+    if (b.id === 'ptInfo') { UI.ptInfo = !UI.ptInfo; renderPTDetail(); const ib = $('pdetail').querySelector('.elinfo .infobox'); if (ib) ib.classList.add('pop'); return; } // (pop: it drops in when opened, not again on each element chosen while it stays open, 1.39.2) // (the element's info, kept open from one element to the next, 1.28.1)
     if (b.id === 'ptSave') { myIsoToggle(spec); renderPTDetail(); return; }
     if (b.dataset.a2) { s.A = +b.dataset.a2; renderPTDetail(); }
     else if (b.dataset.q) { s.q = clamp(s.q + +b.dataset.q, minQ, maxQ); renderPTDetail(); }
@@ -40378,7 +40385,8 @@ function onDown(e) {
       const p = pickNear(px, py, 40);
       if (p) {
         undoMark('Grab');
-        const grp = OPT.grab.mol && p.k === NUC ? grabGroup(p) : null;
+        const sel = R.msel.has(p) ? [...R.msel].filter(q => !isX(q) && !q.dead) : null; // (1.39.2; the owner: "when you select some stuff when you use grab it should group the selected items together": a selected atom brings the whole selection, and each one's molecule)
+        const grp = sel && sel.length > 1 ? (OPT.grab.mol ? [...new Set(sel.flatMap(q => q.k === NUC ? grabGroup(q) : [q]))] : sel) : OPT.grab.mol && p.k === NUC ? grabGroup(p) : null;
         W.grab = { p, x: wx, y: wy, s: OPT.grab.s, mol: grp && grp.length > 1 ? grp : null, hist: [] };
         if (p.rad || p.fast) { p.rad = false; p.fast = false; p.KE = 0; p.vx = 0; p.vy = 0; if (W.d3) p.vz = 0; }
         UI.drag = { kind: 'grab' };

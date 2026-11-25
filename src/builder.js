@@ -1636,6 +1636,11 @@ function builderInit() {
   $('aiAsk').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !AI.busy) aiAsk($('aiAsk').value); });
   $('bldModal').addEventListener('keydown', mbKey);
   $('nucClose').onclick = () => hideModal('nucModal');
+  $('nucBack').onclick = () => { // (1.39.2; the owner: "add a back button in the isotope builder so you don't have to close it every time") back to the table, showing what was built (its element, isotope and charge), or where it was if it has no protons
+    hideModal('nucModal');
+    const Z = NB.Z, q = NB.anti ? -(Z - NB.ne) : Z - NB.ne;
+    openPT(Z >= 1 ? { Z, A: Z + NB.N, q: NB.ne ? q : 0, bare: NB.ne === 0, anti: NB.anti } : undefined);
+  };
   $('nucBins').onpointerdown = nbBinDown;
   $('nucBins').onclick = nbBinClick;
   $('nucCv').onpointerdown = nbDown;
