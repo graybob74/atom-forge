@@ -4874,6 +4874,29 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    the charge. Placing "LQ (single)" sets down the leptoquark, the positron and the remnant; the LQ decays to e⁻ u, and
    that u and the remnant are made into hadrons together (whole charge +1, colourless), charge and books exact. The pair
    stays as it is. Waiting for "build it".
+   (Items 112–119: the owner, 2026-11-25, asked "Any other things that could be added?", then "Add them all, i think
+   theres already a cloud chamber" (there is: the Real labs setup); so not added.)
+112. **Hypothetical particles made in the colliders.** The synchrotron and the linear collider can make a Z′, leptoquarks
+   (pairs, and singly once 111 is in) and microscopic black holes from their real cross sections at the beam energy (tiny:
+   none in a session), or boosted, labelled so, as the WIMP's and axion's display factors. Off in ultra-realistic.
+113. **A dark-matter detector setup** (as LZ): a tank of liquid xenon, a "WIMP wind" through it at the galaxy's 230 km/s,
+   the rare recoils lit and counted against the rate the cross section gives; the background from the tank's own
+   radioactivity for comparison.
+114. **An axion helioscope setup** (as CAST): a long strong magnet aimed at a stream of keV axions (the Sun's), a detector
+   at its end counting the photons they turn into, the count against sin²(gBL/2).
+115. **A particle detector object** (as ATLAS and CMS, in layers): a tracker (charged tracks, curved in its field), an
+   electromagnetic calorimeter (electrons and photons stop and shower), a hadron calorimeter (hadrons), muon chambers
+   (only muons reach them), neutrinos as missing momentum; each layer lights what it measures.
+116. **An invariant-mass plot of what is made**: in Made here (or Data), the combined mass of chosen pairs (e⁺e⁻, μ⁺μ⁻,
+   γγ, …) as a histogram over a run, so a bump grows at the J/ψ, the Z, the Higgs or a Z′.
+117. **Feynman diagrams of events**: for a decay, an annihilation, a scattering, the diagram of what happened, drawn from
+   the event the game records (its particles in and out and the force).
+118. **More exotic atoms**: pionium (π⁺π⁻, DIRAC at CERN), true muonium (μ⁺μ⁻, not yet seen: labelled), and the
+   metastable antiprotonic helium (ASACUSA, microseconds); check first what the antiprotonic atoms and protonium
+   already do.
+119. **More found and predicted hadrons**: the triple-charm Ω_ccc (predicted, not seen: labelled) and the newer
+   strange pentaquarks (LHCb's P_ψs^Λ(4338) is in; others since).
+   Items 111–119 waiting for "build it".
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
